@@ -1,0 +1,29 @@
+# Company config (contains company-specific values, gitignored per-company)
+# Root workspace-config.yaml and _template/ are tracked
+*/workspace-config.yaml
+!_template/workspace-config.yaml
+
+# Local environment
+.env.local
+.env.*.local
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# OS
+.DS_Store
+
+# Dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+
+# Build output
+dist/
+.output/
+.nuxt/
+
+# Memory (personal, not shared)
+.claude/projects/*/memory/

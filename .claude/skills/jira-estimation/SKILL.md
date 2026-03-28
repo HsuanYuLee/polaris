@@ -1,0 +1,302 @@
+---
+name: jira-estimation
+description: >
+  Internal estimation engine — invoked by work-on, fix-bug, and
+  epic-breakdown. Estimates story points based on the Web team's guidelines.
+  Handles Story/Task (creates sub-tasks with descriptions), Bug (root cause comment,
+  no sub-tasks), and Epic (auto-delegates to epic-breakdown).
+  Do NOT trigger this skill directly from user input — route through work-on
+  instead, which auto-detects when estimation is needed. If the user says "估點",
+  "estimate", "幫我估", "這張幾點", route to work-on (it will invoke this
+  skill internally).
+metadata:
+  author: ""
+  version: 1.2.0
+---
+
+# JIRA 估點建議
+
+根據 Web team 估點度量衡（Confluence 文件，見 workspace-config.yaml 的 `confluence` 設定）提供 story point 建議。
+
+## 前置：讀取 workspace config
+
+讀取 workspace config（參考 `references/workspace-config-reader.md`）。
+本步驟需要的值：`jira.instance`、`jira.projects`（取得 project keys）。
+若 config 不存在，使用 `references/shared-defaults.md` 的 fallback 值。
+
+## 估點標準
+
+> 完整估點標準與考量因素請參考共用文件：`.claude/skills/references/estimation-scale.md`
+
+## Story Points 欄位 ID 查詢
+
+不同 JIRA 專案的 Story Points 欄位 ID 可能不同（`customfield_10016`、`customfield_10031` 等），**不可寫死**。每次 session 首次寫入估點前，必須動態查詢：
+
+```
+mcp__claude_ai_Atlassian__getJiraIssueTypeMetaWithFields
+  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
+  projectKey: <目標專案 key，如 TASK 或 GT>
+  issueTypeName: 任務
+```
+
+在回傳的 fields 中搜尋 `name` 含 "Story Points" 的欄位，取得其 `fieldId`。後續所有 editJiraIssue 寫入估點都使用此 fieldId。
+
+> ⚠️ 查詢一次即可，同一 session 內可重複使用。但不同專案 key 需要各自查詢。
+
+## Story Points 回查驗證流程
+
+所有寫入 story points 的操作都必須遵循此流程：
+
+1. 使用 `editJiraIssue` 寫入動態查詢到的 Story Points fieldId
+2. 檢查 editJiraIssue 回傳的 response 中 `fields.<fieldId>` 是否為預期值
+3. 若不符：
+   - 用 `getJiraIssue` 回查，在 `fields` 中搜尋含有 `story` 或 `point` 的 key
+   - 嘗試用找到的正確欄位 ID 重新寫入
+   - 若仍失敗，告知使用者需手動填入
+
+## Workflow
+
+### 1. 取得 JIRA 單內容並判斷類型
+
+從以下來源取得 ticket key（優先順序）：
+1. 使用者直接提供的 issue key（如 `PROJ-123`）
+2. 當前 branch 名稱：`feat/PROJ-123` → `PROJ-123`
+3. 詢問使用者
+
+使用 MCP 工具讀取 ticket：
+
+```
+mcp__claude_ai_Atlassian__getJiraIssue
+  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
+  issueIdOrKey: <TICKET>
+```
+
+讀取後立即檢查 **Issue Type**：
+
+- **Epic（大型工作）** → 此 skill 不處理 Epic。告知使用者「這是一張 Epic，改用 epic-breakdown 處理」，然後委派給該 skill。
+- **Bug** → 進入 Bug 流程（Step 3 分析根因）
+- **Story / Task / Spike** → 進入一般估點流程
+
+同時檢查 ticket 是否**已有估點**（Story Points 欄位有值）或**已有子單**（`fields.subtasks` 非空）。若是，提示使用者：
+> 此 ticket 目前已有 X 點 / 已有 N 張子單，是否要覆蓋？
+
+使用者確認後才繼續。
+
+### 2. 辨識對應專案
+
+從 ticket 的 **Summary** 中擷取 `[...]` tag，依 `references/project-mapping.md` 對應到本地專案路徑（`~/work/<專案目錄>`）。不分大小寫比對。
+
+若 Summary 中沒有 tag，進一步檢查 **Labels** 和 **Components** 欄位。仍無法匹配時，詢問使用者指定專案。
+
+後續分析 codebase 時，以此專案路徑為根目錄。
+
+### 3. 分析 ticket 內容
+
+閱讀以下欄位來評估複雜度：
+- **Summary** — 任務概述
+- **Description** — 詳細需求、AC (Acceptance Criteria)
+- **Issue Type** — Story / Task / Bug / Spike
+- **Sub-tasks** — 是否有拆分子任務
+- **Labels / Components** — 涉及的系統範圍
+
+如果是 **Bug ticket**，在對應專案中分析 codebase 找出根因與修正方案（可搭配 `systematic-debugging` skill 的調查流程）。
+
+### 4. 根據估點標準評估
+
+依 `references/estimation-scale.md` 的估點標準與考量因素進行評估。
+
+### 5. 輸出建議
+
+#### Bug ticket — [ROOT_CAUSE] + [SOLUTION] 格式
+
+如果 Issue Type 為 Bug，以下列格式回覆：
+
+> **[ROOT_CAUSE]**
+> 簡述問題的根本原因，指出具體的程式碼位置或邏輯錯誤
+>
+> **[SOLUTION]**
+> 簡述修正方案，列出需要改動的檔案/模組
+>
+> **建議點數：X 點**
+>
+> **對應標準：** （引用估點表中對應的描述）
+
+#### 其他 ticket（Story / Task / Spike）
+
+> **建議點數：X 點**
+>
+> **理由：**
+> - （列出 2-4 個關鍵考量因素）
+>
+> **對應標準：** （引用估點表中對應的描述）
+
+如果 ticket 資訊不足以準確估點，主動指出哪些資訊缺失，並給出一個範圍（如 3~5 點）。
+
+### 6. 確認
+
+詢問使用者是否同意此估點，或是否需要調整。
+
+### 7. 更新到 JIRA 並依類型分流
+
+使用者確認後，依 Issue Type 走不同流程：
+
+#### Bug ticket → 估點 + 留言，不建子單
+
+1. 將 [ROOT_CAUSE] + [SOLUTION] 以 comment 留在 ticket 上：
+
+```
+mcp__claude_ai_Atlassian__addCommentToJiraIssue
+  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
+  issueIdOrKey: <TICKET>
+  body: |
+    ## [ROOT_CAUSE]
+    <根因描述>
+
+    ## [SOLUTION]
+    <修正方案>
+
+    ## 估點
+    <X> 點（<對應標準描述>）
+```
+
+2. 查詢 Story Points 欄位 ID（見「Story Points 欄位 ID 查詢」），然後更新 ticket 的 story points，並依「Story Points 回查驗證流程」確認寫入成功：
+
+```
+mcp__claude_ai_Atlassian__editJiraIssue
+  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
+  issueIdOrKey: <TICKET>
+  fields:
+    <storyPointsFieldId>: <估點數字>
+```
+
+3. **流程結束。** Bug 不需要拆子單。
+
+#### Story / Task / Spike → 估點 + 建立子單
+
+進入 Step 8 分析程式碼並建立子單。
+
+### 8. 分析程式碼並建立子單（僅 Story / Task / Spike）
+
+> **Bug ticket 不進入此步驟。**
+
+#### 8.1 分析專案程式碼（自適應 Explore）
+
+使用 `references/explore-pattern.md` 的自適應探索模式掃描 codebase。保持後續 Step 8.2 的 context window 乾淨。
+
+**探索目標**：找出與需求相關的檔案，評估改動複雜度和影響範圍。
+
+啟動 1 個 Explore subagent，帶入 ticket 需求摘要和專案路徑。Subagent 會自行判斷範圍大小 — 小需求直接探索，大需求自動分裂成多個 sub-Explore 平行處理。
+
+**收到探索摘要後**，主 agent 直接進入 Step 8.2。不要再額外讀取原始碼。若某個面向資訊不足，針對性地追加單一 Explore subagent 補充，不要回到全面掃描。
+
+#### 8.2 撰寫子單 description（比照 SASD 標準）
+
+每張子單的 description 必須包含以下章節：
+
+```markdown
+## 需求
+簡述這張子單要完成什麼，引用母單需求
+
+## 異動範圍（Dev Scope）
+列出每個需要異動的檔案/模組，說明改動內容：
+- 現有檔案：說明要修改什麼
+- 新增檔案：說明用途
+
+## 前端設計（Frontend Design）
+說明實作方式：
+- 新增/修改哪些元件、hook、composable
+- 資料流向
+- 關鍵邏輯說明
+
+## 測試計畫
+列出需要測試的場景
+```
+
+如果涉及 BFF 層，額外加上 **BFF Process** 章節。
+如果有流程變更，額外加上 **流程（System Flow）** 章節（mermaid sequence diagram）。
+
+#### 8.3 決定拆單策略
+
+- **≤ 5 點** — 建立 **一張** 子單，涵蓋所有改動
+- **6-13 點** — 拆為 2-4 張子單，每張 2-5 點
+- **13+ 點** — 拆為 4 張以上子單，每張控制在 2-5 點
+
+拆解原則：依功能模組拆分，不要依技術層拆（不要拆成「寫 API」「寫 UI」「寫測試」）。
+
+#### 8.4 呈現子單內容並確認
+
+以表格呈現拆單結果，標註子單間的依賴關係：
+
+```
+| # | Summary | Points | 依賴 | 異動範圍摘要 |
+|---|---------|--------|------|-------------|
+| 1 | [TICKET] 子任務描述 | N | — | 簡要列出涉及的檔案 |
+| 2 | [TICKET] 子任務描述 | N | #1 | 簡要列出涉及的檔案 |
+```
+
+依賴欄說明哪些子單有先後順序（開發時有依賴的子單可在同一 branch 但分 commit）。
+
+**必須等使用者確認後才建立子單。**
+
+#### 8.5 批次建立 JIRA Sub-task
+
+使用者確認後，逐一建立子任務。所有子單一律開在 TASK 專案，使用「任務」類型，parent 指向母單（不論母單是 GT 或 TASK）：
+
+```
+mcp__claude_ai_Atlassian__createJiraIssue
+  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
+  projectKey: TASK
+  issueTypeName: 任務
+  summary: <子任務 summary，格式：[TICKET_KEY] 簡短描述>
+  description: <SASD 格式的 description>
+  contentFormat: markdown
+  parent: <TICKET_KEY>
+```
+
+建立後，立即用 editJiraIssue 補上 story points（使用「Story Points 欄位 ID 查詢」取得的 fieldId），並依「Story Points 回查驗證流程」確認寫入成功：
+
+```
+mcp__claude_ai_Atlassian__editJiraIssue
+  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
+  issueIdOrKey: <新建的子任務 key>
+  fields:
+    <storyPointsFieldId>: <估點數字>
+```
+
+若 createJiraIssue 失敗（權限不足、欄位錯誤等），記錄失敗的子單並告知使用者，繼續建立其餘子單。
+
+#### 8.6 更新母單估點
+
+所有子單建立完成後，**必須**將母單的 story points 更新為子單點數總和（使用動態查詢到的 fieldId），並依「Story Points 回查驗證流程」確認寫入成功：
+
+```
+mcp__claude_ai_Atlassian__editJiraIssue
+  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
+  issueIdOrKey: <TICKET_KEY>
+  fields:
+    <storyPointsFieldId>: <子單點數總和>
+```
+
+#### 8.7 建立完成回報
+
+全部建立完成後，以表格呈現結果：
+
+```
+| # | Key | Summary | Points |
+|---|-----|---------|--------|
+| 1 | GT-XXX | 子任務描述 | N |
+
+母單 <TICKET_KEY>：N 點（加總）
+Total: N 點，預估 X 天（以每日 2-3 點計算）
+```
+
+#### 8.8 銜接下一步
+
+回報完成後，主動詢問使用者：
+
+> 是否需要產出 SA/SD？
+
+- 若使用者**同意** → 產出 SA/SD 並推上 Confluence
+- 若使用者**拒絕** → 主動接續詢問：「要開始開發嗎？」
+  - 若同意 → 進入 CLAUDE.md 定義的「開發功能」流程（轉 JIRA 狀態、建分支、開始實作）
+  - 若拒絕 → 流程結束

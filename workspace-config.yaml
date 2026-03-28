@@ -1,0 +1,6 @@
+# Workspace Root Config — Company Routing
+# Skills 先讀此檔取得公司列表，再讀 {base_dir}/workspace-config.yaml 取得完整設定。
+
+companies:
+  - name: your-company
+    base_dir: "~/work/company"

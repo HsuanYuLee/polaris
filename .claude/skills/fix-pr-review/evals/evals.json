@@ -1,0 +1,89 @@
+{
+  "skill_name": "fix-pr-review",
+  "evals": [
+    {
+      "id": 1,
+      "query": "fix review",
+      "should_trigger": true,
+      "notes": "最簡觸發"
+    },
+    {
+      "id": 2,
+      "query": "修正 review comments",
+      "should_trigger": true,
+      "notes": "中文觸發"
+    },
+    {
+      "id": 3,
+      "query": "幫我修正 https://github.com/your-org/your-repo/pull/789",
+      "should_trigger": true,
+      "notes": "幫我修正 + PR URL → fix-pr-review (不是 fix-bug)"
+    },
+    {
+      "id": 4,
+      "query": "CI 沒過，lint error",
+      "should_trigger": true,
+      "notes": "CI failure 觸發"
+    },
+    {
+      "id": 5,
+      "query": "pre-commit failed 幫我看一下",
+      "should_trigger": true,
+      "notes": "pre-commit hook failure"
+    },
+    {
+      "id": 6,
+      "query": "coverage 不足，幫我補到 60%",
+      "should_trigger": true,
+      "notes": "coverage 不足觸發"
+    },
+    {
+      "id": 7,
+      "query": "resolve review comments on my PR",
+      "should_trigger": true,
+      "notes": "英文觸發"
+    },
+    {
+      "id": 8,
+      "query": "test 沒過",
+      "should_trigger": true,
+      "notes": "test failure 觸發"
+    },
+    {
+      "id": 9,
+      "query": "幫我修正 PROJ-432",
+      "should_trigger": false,
+      "notes": "幫我修正 + JIRA key → fix-bug (不是 fix-pr-review)"
+    },
+    {
+      "id": 10,
+      "query": "review 這個 PR https://github.com/your-org/your-repo/pull/55",
+      "should_trigger": false,
+      "notes": "review 別人的 PR → review-pr"
+    },
+    {
+      "id": 11,
+      "query": "修 bug PROJ-500",
+      "should_trigger": false,
+      "notes": "修 bug → fix-bug"
+    },
+    {
+      "id": 12,
+      "query": "做 PROJ-448",
+      "should_trigger": false,
+      "notes": "做 ticket → work-on"
+    },
+    {
+      "id": 13,
+      "query": "品質檢查",
+      "should_trigger": false,
+      "notes": "品質檢查 → dev-quality-check"
+    },
+    {
+      "id": 14,
+      "query": "寫測試",
+      "should_trigger": false,
+      "notes": "寫測試 → unit-test"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Read(//Users/<USERNAME>/**)",
+      "WebFetch(domain:your-internal-tool.example.com)"
+    ],
+    "additionalDirectories": [
+      "/Users/<USERNAME>/.claude",
+      "/Users/<USERNAME>/.claude/projects/-Users-<USERNAME>-work/memory",
+      "/Users/<USERNAME>/work/.claude",
+      "/Users/<USERNAME>/work/your-backend/.claude",
+      "/Users/<USERNAME>/work/your-design-system/.claude"
+    ]
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "skill_name": "review-pr",
+  "evals": [
+    {
+      "id": 1,
+      "query": "review 這個 PR https://github.com/your-org/your-repo/pull/123",
+      "should_trigger": true,
+      "notes": "標準觸發 — PR URL + review"
+    },
+    {
+      "id": 2,
+      "query": "幫我 review https://github.com/your-org/your-design-system/pull/55",
+      "should_trigger": true,
+      "notes": "中文觸發"
+    },
+    {
+      "id": 3,
+      "query": "code review https://github.com/your-org/your-repo-b/pull/200",
+      "should_trigger": true,
+      "notes": "英文 code review"
+    },
+    {
+      "id": 4,
+      "query": "看一下這個 PR https://github.com/your-org/your-repo/pull/300",
+      "should_trigger": true,
+      "notes": "口語化觸發"
+    },
+    {
+      "id": 5,
+      "query": "Slack 上有人貼了 PR 連結請我 review: https://github.com/your-org/your-repo/pull/456",
+      "should_trigger": true,
+      "notes": "間接提及 — Slack 來源"
+    },
+    {
+      "id": 6,
+      "query": "re-review https://github.com/your-org/your-repo/pull/123，作者說改好了",
+      "should_trigger": true,
+      "notes": "Re-review 觸發"
+    },
+    {
+      "id": 7,
+      "query": "review pull request",
+      "should_trigger": true,
+      "notes": "英文 review pull request"
+    },
+    {
+      "id": 8,
+      "query": "fix review comments on my PR",
+      "should_trigger": false,
+      "notes": "修自己的 review → fix-pr-review"
+    },
+    {
+      "id": 9,
+      "query": "修正 review",
+      "should_trigger": false,
+      "notes": "修正 review → fix-pr-review"
+    },
+    {
+      "id": 10,
+      "query": "發 PR",
+      "should_trigger": false,
+      "notes": "發 PR → git-pr-workflow"
+    },
+    {
+      "id": 11,
+      "query": "確認 PR approve 狀況",
+      "should_trigger": false,
+      "notes": "PR approve 狀況 → check-pr-approvals"
+    },
+    {
+      "id": 12,
+      "query": "做 PROJ-448",
+      "should_trigger": false,
+      "notes": "做 ticket → work-on"
+    },
+    {
+      "id": 13,
+      "query": "我的 PR 被 approve 了嗎",
+      "should_trigger": false,
+      "notes": "查 approve → check-pr-approvals"
+    }
+  ]
+}

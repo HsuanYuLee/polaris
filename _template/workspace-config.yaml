@@ -1,0 +1,88 @@
+# Company Workspace Configuration — Template
+#
+# Copy this file to your company directory:
+#   cp _template/workspace-config.yaml my-company/workspace-config.yaml
+#
+# Then add your company to the root workspace-config.yaml:
+#   companies:
+#     - name: my-company
+#       base_dir: "~/work/my-company"
+#
+# Skills read this file via references/workspace-config-reader.md.
+# Leave sections empty to disable features — skills degrade gracefully.
+
+# ── GitHub ──
+github:
+  org: "your-org"              # GitHub organization name
+
+# ── JIRA ──
+# Leave empty if not using JIRA
+jira:
+  instance: "your-domain.atlassian.net"
+  projects:
+    - key: "PROJ"              # JIRA project key
+      team: "Team Name"
+  custom_fields:               # JIRA custom fields (varies per company)
+    requirement_source:
+      field_id: ""
+      values: {}
+
+# ── Confluence ──
+# Leave empty if not using Confluence
+confluence:
+  instance: "your-domain.atlassian.net"
+  space: ""                    # Confluence space key
+  folders:
+    sasd: ""                   # SA/SD document folder ID
+  pages:
+    rd_workflow: ""
+    standup_parent: ""
+    release_parent: ""
+    skills_reference: ""       # Skills reference page ID
+    estimation_guide: ""       # Estimation guide page ID
+
+# ── Slack ──
+# Leave empty if not using Slack
+slack:
+  channels:
+    pr_review: ""              # PR review notification channel ID
+    ai_notifications: ""       # AI notification channel ID
+    worklog_report: ""         # Worklog report channel ID
+
+# ── Kibana ──
+# Leave empty if not using Kibana
+kibana:
+  host: ""                     # Production Kibana UI host
+  sit_host: ""                 # SIT Kibana UI host
+  stage_host: ""               # Stage Kibana UI host
+  data_view_id: ""
+  index_pattern: ""            # e.g. "new-kklog-*"
+  environments:                # Application URLs per environment
+    sit: ""
+    stage: ""
+    production: ""
+
+# ── Projects ──
+# tags: JIRA Summary [tag] for auto-matching
+# keywords: Natural language keywords for fuzzy matching
+projects:
+  - name: "my-app"
+    repo: "your-org/my-app"
+    tags: ["app"]
+    keywords: ["frontend", "main app"]
+
+# ── Scrum ──
+scrum:
+  approval_threshold: 2        # PR approve threshold
+  need_review_label: "need review"
+  sprint_capacity: 20          # Sprint point capacity
+  excluded_bots:               # Bots to exclude from PR review
+    - "github-actions[bot]"
+
+# ── Infra ──
+# Leave empty if not using ansible
+infra:
+  ansible_repo: ""
+  ansible_sit_repo: ""
+  dev_host: ""                 # Local dev proxy host
+  dev_port: 3000               # Dev server port

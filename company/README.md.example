@@ -1,0 +1,43 @@
+# {Organization Name}
+
+## Prerequisites
+
+- Claude Code CLI
+- GitHub CLI (`gh`) authenticated
+- Your project's toolchain (Node.js, Python, etc.)
+
+## Setup
+
+```bash
+# 1. Initialize your company (interactive)
+claude
+> /init
+
+# Or manually:
+# mkdir my-org
+# cp _template/workspace-config.yaml my-org/workspace-config.yaml
+# Edit my-org/workspace-config.yaml with your values
+
+# 2. Clone project repos into your org folder
+git clone git@github.com:your-org/project-a.git my-org/project-a
+git clone git@github.com:your-org/project-b.git my-org/project-b
+
+# 4. Start Polaris
+claude
+```
+
+## Projects
+
+| Project | Repo | Description |
+|---------|------|-------------|
+| project-a | `your-org/project-a` | Main application |
+| project-b | `your-org/project-b` | Shared library |
+
+## Team Conventions
+
+Document your team's conventions here. These will evolve into L2 rules in `.claude/rules/company/`:
+
+- Branch naming: `task/{TICKET-KEY}-{description}`
+- PR approval threshold: 2
+- Sprint capacity: 20 points
+- Code review SLA: 24 hours
