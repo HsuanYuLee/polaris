@@ -6,11 +6,11 @@ description: >
   Uses auto-detection (GitHub org, repos) and section-by-section Q&A.
   Each section is skippable.
   Use when: (1) user says "init", "initialize", "setup workspace", "初始化",
-  "設定 workspace", (2) user just cloned the Polaris template and needs to
+  "設定 workspace", (2) user just cloned the Xuanji template and needs to
   configure it, (3) user says "填 config", "setup config", "configure".
   Do NOT trigger for editing a single field — just edit the config directly.
 metadata:
-  author: Polaris
+  author: Xuanji
   version: 3.0.0
 ---
 
@@ -29,7 +29,7 @@ Interactive wizard that creates a company directory with `workspace-config.yaml`
 ## Overview
 
 ```
-Clone Polaris → /init → company dir + config ready → start using skills
+Clone Xuanji → /init → company dir + config ready → start using skills
 ```
 
 ## smartSelect Interaction Pattern
@@ -336,7 +336,7 @@ Audit: log `action: "write"` with the config file path.
 
 ### Step 11: Generate Genericize Mapping Files
 
-Generate `{company}/genericize-map.sed` and `{company}/genericize-jira.sed` from the config values just collected. These are used by `sync-from-upstream.sh` to strip company-specific references before syncing to Polaris.
+Generate `{company}/genericize-map.sed` and `{company}/genericize-jira.sed` from the config values just collected. These are used by `sync-from-upstream.sh` to strip company-specific references before syncing to Xuanji upstream.
 
 1. Copy `_template/genericize-map.sed` and `_template/genericize-jira.sed` to `{company}/`
 2. Uncomment and fill patterns based on config values:

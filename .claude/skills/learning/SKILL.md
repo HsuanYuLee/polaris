@@ -179,7 +179,7 @@ For any workspace changes: follow existing conventions (use `/skill-creator` for
 
 ### Backlog routing
 
-When a recommendation targets the **Polaris framework itself** (skill flow, rule mechanism, config structure, interaction patterns) rather than company-specific business logic:
+When a recommendation targets the **Xuanji framework itself** (skill flow, rule mechanism, config structure, interaction patterns) rather than company-specific business logic:
 
 - **User confirms and executes now** → normal Step 5 execution + update `CHANGELOG.md` if significant
 - **User says "worth tracking" / "之後再做" / defers** → append to `.claude/polaris-backlog.md` under the appropriate priority section:

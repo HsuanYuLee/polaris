@@ -1,11 +1,19 @@
 # Changelog
 
-All notable changes to the Polaris workspace framework are documented in this file.
+All notable changes to the Xuanji (玄機) framework are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/). Versions follow [Semantic Versioning](https://semver.org/):
-- **Major**: Architectural changes (config structure, skill loading mechanism)
+- **Major**: Architectural changes, brand/identity changes
 - **Minor**: New skills, major skill features, new rules/references
 - **Patch**: Skill bugfixes, rule tweaks, doc updates
+
+## [1.0.0] - 2026-03-29
+
+### Changed
+- **Rebrand: Polaris → Xuanji (玄機)** — a star in the Big Dipper, the hidden pattern behind strategy. Inspired by Zhang Liang (張良).
+- Persona: Commander → Strategist (軍師) — "listen first, then orchestrate"
+- README.md rewritten: framework-perspective introduction, genericized structure, Quick Start via `/init`
+- CLAUDE.md: updated title, persona, and responsibility descriptions
 
 ## [0.9.0] - 2026-03-29
 

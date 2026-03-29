@@ -4,7 +4,7 @@
 
 | 輸入特徵 | 觸發 Skill | 備註 |
 |---------|-----------|------|
-| 「init / initialize / setup workspace / 初始化 / 設定 workspace / 填 config」 | `/init` | 互動式 workspace-config.yaml 生成精靈，clone Polaris 後第一步 |
+| 「init / initialize / setup workspace / 初始化 / 設定 workspace / 填 config」 | `/init` | 互動式 workspace-config.yaml 生成精靈，clone Xuanji 後第一步 |
 | JIRA ticket key（一個或多個）+「做 / 我要做 / work on / 接這張 / take / 估點 / estimate / 幫我估」 | `/work-on` | 智慧路由：自動判斷估點/拆單/建 branch/開發。估點已整合，不需單獨呼叫 |
 | Slack 連結含 PR URL → 要求 review | `/review-pr` | 含 re-review：先查上輪 comments |
 | GitHub PR URL + 「fix review / 修正 review」 | `/fix-pr-review` | 修自己 PR 上的 review comments |

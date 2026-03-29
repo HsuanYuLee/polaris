@@ -11,7 +11,7 @@
 
 靜默執行，只在發現值得記錄的 feedback 時通知使用者確認後再寫入。第 3、4 項不需使用者確認即可記錄。
 
-## Polaris Backlog 自動寫入
+## Xuanji Backlog 自動寫入
 
 改善框架本身的訊號應流入 `.claude/polaris-backlog.md`。以下情境觸發寫入：
 
@@ -20,7 +20,7 @@
 | Feedback memory 新增 | 痛點屬於框架層面（skill 流程、rule 機制、config 結構）而非公司業務流程 | Backlog High 或 Medium |
 | Hook block / 權限拒絕 | 同一類 pattern 被擋 ≥ 2 次 | Backlog High |
 | `/learning` 外部模式建議 | recommendation 被 user 標記為 "worth tracking" 但不立即執行 | Backlog Medium 或 Low |
-| 使用者提到「Polaris 應該...」「框架可以改...」 | 直接寫入 | Backlog 依嚴重度 |
+| 使用者提到「Xuanji 應該...」「框架可以改...」 | 直接寫入 | Backlog 依嚴重度 |
 | Skill 執行中發現 gap（流程斷裂、需手動補步驟） | 記錄缺少的自動化 | Backlog Medium |
 
 **寫入格式：** `- [ ] **{標題}** — {一句描述} — source: {feedback/learning/user/observation}`
