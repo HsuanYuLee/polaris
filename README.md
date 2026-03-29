@@ -92,7 +92,7 @@ cd ~/polaris-workspace
 
 > **Tip**: Choose a dedicated directory name. Avoid `~/work` — many developers already use that path for other projects.
 
-> **PMs and non-developers:** Ask a developer on your team to run Steps 1-3 for you — it takes about 10 minutes. Then jump straight to Step 4.
+> **PMs and non-developers:** See the [PM Setup Checklist](docs/pm-setup-checklist.md) — it tells you exactly what to ask your developer and what to do after setup. Then jump straight to Step 4.
 
 ### 2. Set up workspace config
 

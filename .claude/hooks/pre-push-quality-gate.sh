@@ -5,18 +5,9 @@
 # Mechanism: dev-quality-check writes a marker file on pass; this hook checks the marker
 # Marker: /tmp/.quality-gate-passed-{branch}
 #
+# This hook only fires on `git push*` commands via the `if` field in settings.json.
 # Environment variables (provided by Claude Code hooks):
 #   CLAUDE_TOOL_INPUT — JSON input of the Bash tool call
-#
-# Known limitation: this hook is registered as PreToolUse on "Bash" matcher,
-# so it fires on EVERY Bash tool call. The grep below short-circuits non-push
-# commands immediately (exit 0). The subprocess overhead is minimal but present.
-# Claude Code does not yet support command-level matchers (e.g. "Bash(git push*)").
-
-# Only intercept git push commands — exit immediately for everything else
-if ! echo "$CLAUDE_TOOL_INPUT" | grep -qE '"command"[^"]*git[^"]*push'; then
-  exit 0
-fi
 
 # 取得專案目錄（從 CLAUDE_PROJECT_DIR 或 fallback）
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
