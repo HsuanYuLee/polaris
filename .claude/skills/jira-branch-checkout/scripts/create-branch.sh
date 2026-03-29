@@ -11,13 +11,13 @@ set -euo pipefail
 #   create-branch.sh <TICKET> <DESCRIPTION> [BASE_BRANCH]
 #
 # Arguments:
-#   TICKET       JIRA ticket key, e.g. KB2CW-419
+#   TICKET       JIRA ticket key, e.g. TASK-123
 #   DESCRIPTION  Short kebab-case description, e.g. remove-elapsed-time-log
 #   BASE_BRANCH  Base branch to checkout from (default: develop)
 #
 # Examples:
-#   create-branch.sh KB2CW-419 remove-elapsed-time-log
-#   create-branch.sh KB2CW-500 fix-currency-format master
+#   create-branch.sh TASK-123 remove-elapsed-time-log
+#   create-branch.sh TASK-123 fix-currency-format master
 #   create-branch.sh VM-1186 jp-dx-main rc
 
 # ── Helpers ──────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ BASE_BRANCH="${3:-develop}"
 [[ -n "$DESC" ]]    || die "Missing DESCRIPTION.  Usage: create-branch.sh <TICKET> <DESCRIPTION> [BASE_BRANCH]"
 
 # Validate ticket format (PROJECT-NUMBER)
-[[ "$TICKET" =~ ^[A-Z][A-Z0-9]+-[0-9]+$ ]] || die "Invalid ticket format: $TICKET (expected e.g. KB2CW-419)"
+[[ "$TICKET" =~ ^[A-Z][A-Z0-9]+-[0-9]+$ ]] || die "Invalid ticket format: $TICKET (expected e.g. TASK-123)"
 
 # Sanitise description
 DESC=$(sanitise_kebab "$DESC")

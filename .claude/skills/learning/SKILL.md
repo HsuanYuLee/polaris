@@ -221,7 +221,7 @@ Show the user a summary of pending items with the Repos column:
 ```markdown
 | # | Title | Category | Repos | Added |
 |---|-------|----------|-------|-------|
-| 1 | ... | ai-agent | web-skills | ... |
+| 1 | ... | ai-agent | your-company-web-skills | ... |
 | 2 | ... | performance | your-app | ... |
 | 3 | ... | framework | all | ... |
 ```
@@ -311,7 +311,7 @@ After user confirms which recommendations to execute:
      ```
    - Result values: `applied` (recommendation executed), `noted` (interesting but deferred), `skipped` (not applicable)
 
-3. **Commit** changes to web-skills: `chore: process learning queue YYYY-MM-DD`
+3. **Commit** changes to your-company-web-skills: `chore: process learning queue YYYY-MM-DD`
 
 ## Step Q5: Summary
 

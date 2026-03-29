@@ -164,7 +164,34 @@ If no → leave empty.
      - name: {company}
        base_dir: "~/work/{company}"
    ```
-5. Print: "Done! {company} is configured. Skills will now use these settings."
+
+### Step 11: Generate Genericize Mapping Files
+
+Generate `{company}/genericize-map.sed` and `{company}/genericize-jira.sed` from the config values just collected. These are used by `sync-from-upstream.sh` to strip company-specific references before syncing to Polaris.
+
+1. Copy `_template/genericize-map.sed` and `_template/genericize-jira.sed` to `{company}/`
+2. Uncomment and fill patterns based on config values:
+
+**genericize-map.sed** — derived from:
+- `jira.instance` → domain replacement (e.g., `s/myco\.atlassian\.net/your-domain.atlassian.net/g`)
+- `github.org` → org replacement (e.g., `s/my-org/your-org/g`)
+- `projects[].name` → repo name replacements (longer names first to avoid partial matches)
+- `projects[].repo` → full repo path replacements
+- Company name → brand replacements (specific before general)
+- Path replacement: `s|~/work/{company}|~/work/company|g`
+
+**genericize-jira.sed** — derived from:
+- `jira.projects[].key` → ticket key replacements (e.g., `s/PROJ-[0-9]\{1,\}/PROJ-123/g`)
+- `confluence.space` → space replacement
+- `slack.channels.*` → channel ID replacements
+- `confluence.pages.*` → page ID replacements (non-empty values only)
+- `jira.projects[].team` → team name replacements
+
+3. Print: "Mapping files generated at `{company}/genericize-*.sed`. Review and add any patterns /init couldn't detect (internal URLs, teammate names, etc.)"
+
+### Step 12: Done
+
+Print: "Done! {company} is configured. Skills will now use these settings."
 
 ## Important Rules
 

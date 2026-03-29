@@ -2,7 +2,7 @@
 # Pre-push Quality Gate — 門下省機制
 # 攔截 git push，確認品質檢查已通過才放行
 #
-# 機制：dev-quality-check 通過後寫 marker file，本 hook 檢查 marker 是否存在
+# 機制：your-company-dev-quality-check 通過後寫 marker file，本 hook 檢查 marker 是否存在
 # Marker: /tmp/.quality-gate-passed-{branch}
 #
 # 環境變數（Claude Code hook 提供）：
@@ -50,7 +50,7 @@ fi
 
 # 沒有有效 marker，阻擋 push
 cat >&2 <<'EOF'
-⚠️ 品質閘門未通過 — 請先執行 dev-quality-check
+⚠️ 品質閘門未通過 — 請先執行 your-company-dev-quality-check
 
 推送前必須通過品質檢查（lint + test + coverage）。
 執行品質檢查後，marker 會自動建立，即可正常 push。
