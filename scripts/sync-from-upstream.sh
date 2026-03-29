@@ -182,7 +182,7 @@ if [[ "$DRY_RUN" == false ]]; then
   rm -f "$POLARIS_DIR/workspace-config.example.yaml"
 
   # Root-level framework files
-  for root_file in VERSION CHANGELOG.md README.md; do
+  for root_file in VERSION CHANGELOG.md README.md LICENSE; do
     if [[ -f "$SOURCE_DIR/$root_file" ]]; then
       cp "$SOURCE_DIR/$root_file" "$POLARIS_DIR/$root_file"
       echo "  + $root_file"

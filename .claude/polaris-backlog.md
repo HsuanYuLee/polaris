@@ -20,9 +20,18 @@ Improvement candidates for the Polaris framework. Items flow in from:
 
 ## High — Blocking or validated pain points
 
-(empty — will populate from daily usage signals)
+- [ ] **README 重寫：說清楚這是什麼** — 目前描述像 tagline soup，新使用者看完還不知道這是 Claude Code workspace template。需要一句話定位 + end-to-end walkthrough — source: challenger v1.0.0
+- [ ] **skill-routing 中英文混合** — 觸發詞半中文半英文，非中文使用者無法使用核心操作文件。需全面英文化或加英文 alias — source: challenger v1.0.0
+- [ ] **ONBOARDING.md 與 README 整併** — 兩個入口互相競爭，新使用者不知道該看哪個 — source: challenger v1.0.0
+- [ ] **MCP server 前置需求未說明** — Atlassian/Slack MCP 是多數 skill 的隱藏依賴，ONBOARDING 沒提到 — source: challenger v1.0.0
+- [ ] **`rules/company/` 泛化殘留** — 部分 rule 檔案含公司特定內容（JIRA status ID、field ID），新使用者無法區分哪些要改哪些通用 — source: challenger v1.0.0
 
 ## Medium — Clear improvement, not urgent
+
+- [ ] **pre-push hook 新使用者體驗** — 預設 hook 會在首次使用就 block push，需加首次 bypass 或文件說明 — source: challenger v1.0.0
+- [ ] **CHANGELOG 風格調整** — 目前像個人 refactoring 日誌，需改為面向使用者的 release notes 風格 — source: challenger v1.0.0
+- [ ] **polaris-backlog.md 不應出現在 template** — 公開在 template 裡讓使用者困惑，應只在 work/ instance 保留 — source: challenger v1.0.0
+- [ ] **clone 路徑 `~/work` 預設值** — 多數開發者已有 ~/work 目錄，README 需更安全的建議 — source: challenger v1.0.0
 
 - [ ] **Skill marketplace** — skills as installable packages (`polaris install review-pr`), decouple from monorepo — source: roadmap
 - [ ] **Template variants** — `polaris-dev` (software), `polaris-ops` (ops), `polaris-research` — source: roadmap
@@ -54,3 +63,6 @@ Improvement candidates for the Polaris framework. Items flow in from:
 - [x] /init v3 smartSelect + AI repo detection + audit trail — v0.9.0
 - [x] Learning attribution mechanism — v0.9.0
 - [x] VERSION + CHANGELOG + this backlog — v0.9.0
+- [x] Polaris v1.0.0 identity: Strategist persona, README rewrite, Zhang Liang inspiration — v1.0.0
+- [x] MIT LICENSE + GitHub topics + concrete repo description — v1.0.1
+- [x] Challenger mechanism (sub-agent UX audit) — v1.0.1
