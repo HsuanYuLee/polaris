@@ -35,8 +35,10 @@ COMPANY=""
 DRY_RUN=false
 VERIFY=false
 
-# Company-specific skills to exclude (not copied to Polaris)
-EXCLUDE_SKILLS="kibana-logs sasd-review docs-sync"
+# Company-specific skills directory (matches rules pattern: skills/{company}/)
+# The entire company subdirectory is excluded from sync to Polaris.
+# Individual skill names no longer need to be listed here.
+EXCLUDE_SKILL_DIRS="kkday"
 
 # Company-specific references to exclude
 EXCLUDE_REFERENCES="sasd-confluence.md"
@@ -74,11 +76,11 @@ echo "Syncing skills..."
 for skill_dir in "$SOURCE_DIR"/.claude/skills/*/; do
   skill_name=$(basename "$skill_dir")
 
-  # Skip references (synced separately) and excluded skills
+  # Skip references (synced separately) and company-specific skill directories
   skip=false
   [[ "$skill_name" == "references" ]] && skip=true
-  for excluded in $EXCLUDE_SKILLS; do
-    [[ "$skill_name" == "$excluded" ]] && skip=true && break
+  for excluded_dir in $EXCLUDE_SKILL_DIRS; do
+    [[ "$skill_name" == "$excluded_dir" ]] && skip=true && break
   done
 
   if [[ "$skip" == true ]]; then
