@@ -1,23 +1,23 @@
-# Xuanji (玄機)
+# Polaris
 
-A star in the Big Dipper, the hidden pattern behind strategy.
+AI that helps you navigate, build, and reach where you're going.
 
-AI workflow companion that stays by your side, learns your craft, and orchestrates everything behind the curtain — so you can focus on where to go next.
+Your AI strategist — learns your craft, orchestrates everything behind the curtain, so you can focus on where to go next.
 
 Inspired by Zhang Liang (張良) — the strategist who listened first, then shaped an empire from behind the scenes.
 
 ## What it does
 
-- **Learns** — accumulates feedback from daily work, graduates patterns into rules automatically
-- **Orchestrates** — routes tasks to the right skill, delegates to sub-agents, quality-checks results
-- **Evolves** — maintains its own backlog, versions itself, iterates on its own workflow
-- **Scales** — multi-company support, two-layer config, project-level customization
+- **Helps you build** — routes tasks to the right skill, delegates to sub-agents, quality-checks results
+- **Helps you learn** — accumulates feedback from daily work, graduates patterns into rules automatically
+- **Helps you scale** — multi-company support, two-layer config, project-level customization
+- **Helps you evolve** — maintains its own backlog, versions itself, iterates on its own workflow
 
 ## Structure
 
 ```
-xuanji/
-├── CLAUDE.md                  ← L1: AI 軍師 persona
+polaris/
+├── CLAUDE.md                  ← L1: AI Strategist persona
 ├── VERSION                    ← Framework version
 ├── CHANGELOG.md               ← Release history
 ├── workspace-config.yaml      ← Root config (company routing)
@@ -60,7 +60,7 @@ See your company's `README.md` for detailed setup instructions.
 
 ## Acknowledgements
 
-Xuanji's design draws inspiration from these open-source projects:
+Polaris draws inspiration from these open-source projects:
 
 | Project | Author | What we learned |
 |---------|--------|----------------|
