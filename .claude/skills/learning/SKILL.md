@@ -21,7 +21,7 @@ description: >
   is for LEARNING from already-merged PRs, not reviewing open ones).
 metadata:
   author: ""
-  version: 1.3.0
+  version: 1.4.0
 ---
 
 # learning
@@ -172,9 +172,21 @@ Based on the user's response:
 | Confirms specific recommendations | Execute those changes (edit files, create references, update CLAUDE.md) |
 | Wants to discuss further | Continue the conversation, refine recommendations |
 | Wants to save for later | Save a project or reference memory with the key insights |
+| Says "worth tracking" or defers | Add to `.claude/polaris-backlog.md` (see below) |
 | Disagrees with some points | Acknowledge, adjust, don't push |
 
 For any workspace changes: follow existing conventions (use `/skill-creator` for new skills, edit CLAUDE.md for rules, use `skills/references/` for reference docs).
+
+### Backlog routing
+
+When a recommendation targets the **Polaris framework itself** (skill flow, rule mechanism, config structure, interaction patterns) rather than company-specific business logic:
+
+- **User confirms and executes now** → normal Step 5 execution + update `CHANGELOG.md` if significant
+- **User says "worth tracking" / "之後再做" / defers** → append to `.claude/polaris-backlog.md` under the appropriate priority section:
+  ```
+  - [ ] **{title}** — {one-line description} — source: learning ({source URL})
+  ```
+- **User explicitly rejects** → don't add to backlog
 
 ## Meta: Role Discovery
 
@@ -195,6 +207,39 @@ When researching external content, watch for division-of-labor patterns that cou
 **Execution**: If the user confirms the new role, append it to `sub-agent-roles.md` following the existing format (職責、不做、回傳格式、Model、適用場景). See the Role Lifecycle section in that file for the full process.
 
 Don't force role discovery — most research won't surface new roles, and that's fine. Only flag it when the pattern is clearly distinct from existing roles.
+
+## Meta: Attribution
+
+When learning from external content leads to **actual workspace changes** (Step 5), credit the source in `README.md`'s Acknowledgements table.
+
+### When to trigger
+
+- The source is a **GitHub repo or a named open-source project** (not a generic blog post or documentation page)
+- At least one recommendation was **confirmed and executed** (files were created or modified)
+- The project is **not already listed** in the Acknowledgements table
+
+Articles, blog posts, and documentation don't get table entries — they're too granular. If an article leads to a significant change, credit the underlying project or author if identifiable.
+
+### How to add
+
+After executing confirmed changes in Step 5, append a row to `~/work/README.md`'s Acknowledgements table:
+
+```markdown
+| [{project name}]({url}) | {author} | {one-line: what we learned / adopted} |
+```
+
+- **Project name**: repo name or project title
+- **Author**: GitHub username or real name (from README/profile)
+- **What we learned**: concise — what concept or pattern was adopted, not a full summary
+
+If multiple recommendations were adopted from the same source, combine into one row with a comma-separated description.
+
+### What NOT to add
+
+- Sources where we only read but didn't change anything
+- Internal repos (our own org's projects)
+- Generic tools everyone uses (Node.js, Vue, etc.)
+- Sources already listed — instead, update the "What we learned" column if new insights were adopted later
 
 ## Edge Cases (External Mode)
 
