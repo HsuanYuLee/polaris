@@ -3,15 +3,17 @@ name: epic-breakdown
 description: >
   Breaks down a JIRA Epic into actionable sub-tasks with story point estimates,
   then batch-creates them in JIRA after user confirmation. Use this skill whenever
-  the user mentions 拆單, 拆解, 分解任務, 子單, break down epic, epic breakdown,
-  create sub-tasks, 評估這張單, 評估 epic, or provides an Epic and asks to split
-  it into tasks — even if they don't explicitly say "breakdown". Also trigger when
-  the user gives an Epic key and says "evaluate", "assess", "plan", "評估", or
-  asks "help me plan this epic". The key distinction from jira-estimation
+  the user mentions 拆單, "split tasks", 拆解, "decompose", 分解任務,
+  "break down tasks", 子單, "sub-tasks", "break down epic", "epic breakdown",
+  "create sub-tasks", 評估這張單, "evaluate this ticket", 評估 epic,
+  "assess epic", or provides an Epic and asks to split it into tasks — even if
+  they don't explicitly say "breakdown". Also trigger when the user gives an
+  Epic key and says "evaluate", "assess", "plan", "評估", or asks
+  "help me plan this epic". The key distinction from jira-estimation
   (single ticket estimation) is that this skill handles Epics that need to be
   decomposed into multiple sub-tasks with individual estimates.
 metadata:
-  author: ""
+  author: Polaris
   version: 1.7.0
 ---
 
@@ -30,7 +32,7 @@ metadata:
 ### 1. 取得 Epic 內容
 
 從以下來源取得 Epic key（優先順序）：
-1. 使用者直接提供的 issue key（如 `TASK-123`）
+1. 使用者直接提供的 issue key（如 `PROJ-3000`）
 2. 詢問使用者
 
 使用 MCP 工具讀取 Epic：
@@ -110,7 +112,7 @@ mcp__claude_ai_Atlassian__getJiraIssue
 **子任務結構：**
 
 每個子任務需包含：
-- **Summary** — 格式：`[EPIC_KEY] 簡短描述`（如 `[TASK-123] 商品列表頁 UI 元件`）
+- **Summary** — 格式：`[EPIC_KEY] 簡短描述`（如 `[EPIC-100] 功能模組 UI 元件`）
 - **Description** — 說明這個子任務要做什麼、涉及哪些檔案/模組、AC、實作方式
 - **Story Points** — 依估點標準評估
 
@@ -118,7 +120,7 @@ mcp__claude_ai_Atlassian__getJiraIssue
 
 ### 7. 估點
 
-依 Web team 估點度量衡對每個子任務評估 Story Point。
+依 your team 估點度量衡對每個子任務評估 Story Point。
 
 > 估點標準與考量因素請參考共用文件：`.claude/skills/references/estimation-scale.md`
 
@@ -184,7 +186,7 @@ mcp__claude_ai_Atlassian__getJiraIssue
 ```
 mcp__claude_ai_Atlassian__getJiraIssueTypeMetaWithFields
   cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
-  projectKey: <從 Epic key 提取，如 TASK>
+  projectKey: <從 Epic key 提取，如 PROJ>
   issueTypeName: 任務
 ```
 
@@ -203,7 +205,7 @@ assignee 從 memory `user_scrum_role.md` 取得使用者的 JIRA accountId。
 ```
 mcp__claude_ai_Atlassian__createJiraIssue
   cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
-  projectKey: <projectKey>（從 Epic key 提取，例如 PROJ-123 → GT，TASK-123 → TASK）
+  projectKey: <projectKey>（從 Epic key 提取，例如 PROJ-123 → PROJ，TEAM-456 → TEAM）
   issueTypeName: 任務
   summary: <子任務 summary>
   description: <子任務 description，Markdown 格式>
@@ -229,7 +231,7 @@ mcp__claude_ai_Atlassian__editJiraIssue
 > 迴圈：對每個子任務重複 Step A → Step B（含驗證），完成後再處理下一個。每完成一個回報進度。
 
 **注意事項：**
-- `projectKey` 從 Epic key 動態提取（如 `PROJ-123` → `GT`，`TASK-123` → `TASK`），子單開在與母單相同的專案
+- `projectKey` 從 Epic key 動態提取（如 `PROJ-123` → `PROJ`，`TEAM-456` → `TEAM`），子單開在與母單相同的專案
 - `issueTypeName` 使用 `任務`（中文）— 搭配 `parent` 欄位建立父子關係
 - `parent` 填入 Epic 的 issue key，確保子任務正確歸屬
 - Story points 欄位 ID 必須使用 Step 9 動態查詢的結果，不可寫死
@@ -260,14 +262,14 @@ mcp__claude_ai_Atlassian__editJiraIssue
 
 | # | Key | Summary | Points | Repo | Branch |
 |---|-----|---------|--------|------|--------|
-| 1 | TASK-123 | Nuxt SSR API parallel | 5 | your-app | task/TASK-123-nuxt-ssr-api-parallel |
-| 2 | TASK-123 | Server-side cache | 2 | your-app | task/TASK-123-server-side-cache-footer |
-| 3 | TASK-123 | your-backend category parallel | 3 | your-backend | task/TASK-123-category-parallel |
-| 4 | TASK-123 | your-backend fetch_product parallel | 5 | your-backend | task/TASK-123-fetch-product-parallel |
-| 5 | TASK-123 | 驗證跑分 | 2 | your-app | task/TASK-123-verify-benchmark |
+| 1 | PROJ-1001 | SSR API parallel requests | 5 | <repo-a> | task/PROJ-1001-ssr-api-parallel |
+| 2 | PROJ-1002 | Server-side cache layer | 2 | <repo-a> | task/PROJ-1002-server-side-cache |
+| 3 | PROJ-1003 | <repo-b> category parallel | 3 | <repo-b> | task/PROJ-1003-category-parallel |
+| 4 | PROJ-1004 | <repo-b> fetch-product parallel | 5 | <repo-b> | task/PROJ-1004-fetch-product-parallel |
+| 5 | PROJ-1005 | 驗證跑分 | 2 | <repo-a> | task/PROJ-1005-verify-benchmark |
 
 Total: 17 點，預估 6-8 天
-母單 branch: feat/PROJ-123-cwv-ttfb-server-response（your-app + your-backend 各一）
+母單 branch: feat/EPIC-100-performance-optimization（<repo-a> + <repo-b> 各一）
 ```
 
 ### 12.5. AC ↔ 子單追溯矩陣（必須）
@@ -283,8 +285,8 @@ Total: 17 點，預估 6-8 天
 
 | AC | 對應子單 | 驗證場景 |
 |----|---------|---------|
-| AC1: 點擊日期後價格 300ms 內更新 | PROJ-123 | ✅ 已定義 |
-| AC2: API timeout → skeleton | PROJ-123 | ✅ 已定義 |
+| AC1: 點擊日期後價格 300ms 內更新 | PROJ-501 | ✅ 已定義 |
+| AC2: API timeout → skeleton | PROJ-502 | ✅ 已定義 |
 | AC3: 多幣別切換 | ❌ 無對應子單 | — |
 ```
 
@@ -356,9 +358,9 @@ mcp__claude_ai_Atlassian__editJiraIssue
 從每張子單的 description 或 Step 2 的專案辨識結果，將子單按 repo 分組：
 
 ```
-例：PROJ-123 的子單分組
-├─ your-app：TASK-123, TASK-123, TASK-123
-└─ your-backend：TASK-123, TASK-123
+例：EPIC-100 的子單分組
+├─ <repo-a>：PROJ-1001, PROJ-1002, PROJ-1005
+└─ <repo-b>：PROJ-1003, PROJ-1004
 ```
 
 **14b. 每個 repo 各建一個母單 feature branch**
@@ -366,17 +368,17 @@ mcp__claude_ai_Atlassian__editJiraIssue
 從 develop 開出，每個涉及的 repo 一個：
 
 ```bash
-# your-app
-git -C ~/work/your-app checkout develop
-git -C ~/work/your-app pull origin develop
-git -C ~/work/your-app checkout -b feat/<EPIC_KEY>-<description>
-git -C ~/work/your-app push -u origin feat/<EPIC_KEY>-<description>
+# <repo-a>
+git -C {base_dir}/<repo-a> checkout develop
+git -C {base_dir}/<repo-a> pull origin develop
+git -C {base_dir}/<repo-a> checkout -b feat/<EPIC_KEY>-<description>
+git -C {base_dir}/<repo-a> push -u origin feat/<EPIC_KEY>-<description>
 
-# your-backend（若有跨 repo 子單）
-git -C ~/work/your-backend checkout develop
-git -C ~/work/your-backend pull origin develop
-git -C ~/work/your-backend checkout -b feat/<EPIC_KEY>-<description>
-git -C ~/work/your-backend push -u origin feat/<EPIC_KEY>-<description>
+# <repo-b>（若有跨 repo 子單）
+git -C {base_dir}/<repo-b> checkout develop
+git -C {base_dir}/<repo-b> pull origin develop
+git -C {base_dir}/<repo-b> checkout -b feat/<EPIC_KEY>-<description>
+git -C {base_dir}/<repo-b> push -u origin feat/<EPIC_KEY>-<description>
 ```
 
 > 單一 repo 的 Epic 只有一個母單 branch。跨 repo Epic 每個 repo 各一個同名母單 branch。
@@ -396,18 +398,18 @@ Branch 命名遵循 `{任務類型}/{JIRA-KEY}-{語義說明}` 規範。descript
 ```
 🌳 Branch 結構已建立：
 
-your-app:
+<repo-a>:
   develop
-    └─ feat/PROJ-123-cwv-ttfb-server-response（母單）
-         ├─ task/TASK-123-nuxt-ssr-api-parallel
-         ├─ task/TASK-123-server-side-cache-footer
-         └─ task/TASK-123-verify-benchmark
+    └─ feat/EPIC-100-performance-optimization（母單）
+         ├─ task/PROJ-1001-ssr-api-parallel
+         ├─ task/PROJ-1002-server-side-cache
+         └─ task/PROJ-1005-verify-benchmark
 
-your-backend:
+<repo-b>:
   develop
-    └─ feat/PROJ-123-cwv-ttfb-server-response（母單）
-         ├─ task/TASK-123-your-backend-category-parallel
-         └─ task/TASK-123-your-backend-fetch-product-parallel
+    └─ feat/EPIC-100-performance-optimization（母單）
+         ├─ task/PROJ-1003-category-parallel
+         └─ task/PROJ-1004-fetch-product-parallel
 ```
 
 > 所有 branch 已 push 到 remote。子單 branch 的 PR base 是**同 repo** 的母單 branch。

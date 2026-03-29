@@ -51,10 +51,10 @@ All discovery-capable steps use a unified interaction model: **detect → presen
 Step N: {Section Name}
 
   #   Select   Item                Tags              Keywords
-  1   [✓]      your-app       [b2c]             B2C 前台, Nuxt SSR, 商品頁
-  2   [✓]      your-design-system   [ds]              Design System, Vue 3, 元件庫
-  3   [ ]      your-dev-proxy    [docker]           開發環境, Docker
-  4   [✓]      your-backend           [member]           會員, PHP, Internal API
+  1   [✓]      your-repo            [b2c]             B2C frontend, Nuxt SSR, product page
+  2   [✓]      your-design-system   [ds]              Design System, Vue 3, component library
+  3   [ ]      your-dev-docker      [docker]          Dev environment, Docker
+  4   [✓]      your-api-repo        [member]          Member, PHP, Internal API
 
   Confirm (y) / Adjust (e) / Skip (s)?
 ```
@@ -118,11 +118,11 @@ Every step records decisions to `{company}/.init-audit.jsonl` for traceability.
 
 One JSON object per line:
 ```json
-{"ts": "2026-03-29T14:30:00Z", "step": 2, "section": "github", "action": "auto-detect", "value": "your-org", "source": "cli"}
-{"ts": "2026-03-29T14:30:05Z", "step": 2, "section": "github", "action": "confirm", "value": "your-org", "source": "user"}
+{"ts": "2026-03-29T14:30:00Z", "step": 2, "section": "github", "action": "auto-detect", "value": "acme-org", "source": "cli"}
+{"ts": "2026-03-29T14:30:05Z", "step": 2, "section": "github", "action": "confirm", "value": "acme-org", "source": "user"}
 {"ts": "2026-03-29T14:31:00Z", "step": 3, "section": "jira", "action": "skip", "value": null, "source": "user"}
-{"ts": "2026-03-29T14:32:00Z", "step": 7, "section": "projects", "action": "ai-detect", "value": {"repo": "your-app", "tags": ["b2c"], "keywords": ["B2C 前台", "Nuxt SSR"]}, "source": "ai"}
-{"ts": "2026-03-29T14:32:30Z", "step": 7, "section": "projects", "action": "adjust", "value": {"repo": "your-app", "tags": ["b2c"], "keywords": ["B2C 前台", "Nuxt 3 SSR", "商品頁"]}, "source": "user"}
+{"ts": "2026-03-29T14:32:00Z", "step": 7, "section": "projects", "action": "ai-detect", "value": {"repo": "my-app", "tags": ["frontend"], "keywords": ["front-end", "Nuxt SSR"]}, "source": "ai"}
+{"ts": "2026-03-29T14:32:30Z", "step": 7, "section": "projects", "action": "adjust", "value": {"repo": "my-app", "tags": ["frontend"], "keywords": ["front-end", "Nuxt 3 SSR", "product page"]}, "source": "user"}
 ```
 
 ### Fields
@@ -157,7 +157,7 @@ Audit: log `action: "start"` or `action: "restart"`.
 
 **Ask:**
 ```
-Company name (used as directory name): e.g. "your-company", "my-startup"
+Company name (used as directory name): e.g. "acme", "my-startup"
 ```
 
 **Auto-detect:**
@@ -193,8 +193,8 @@ Audit: log detected orgs and final selection.
 Step 3: JIRA Projects
 
   #   Select   Key      Name                    Team
-  1   [✓]      GT       Growth Team Project      (enter team name)
-  2   [✓]      TASK    K-Backend 2.0 CW         (enter team name)
+  1   [✓]      PROJ     Main Product             (enter team name)
+  2   [✓]      BACK     Backend Services          (enter team name)
   3   [ ]      MOB      Mobile App               —
   4   [ ]      INFRA    Infrastructure           —
 
@@ -206,8 +206,8 @@ Pre-select heuristic: projects with recent activity (if detectable) or all if �
 On **Confirm**: for each selected project, if team name is still empty, ask once for all teams in a batch:
 ```
 Teams for selected projects:
-  GT → ?
-  TASK → ?
+  PROJ → ?
+  BACK → ?
 ```
 
 `custom_fields` → tell user this can be configured later, leave empty for now.
@@ -275,10 +275,10 @@ Audit: log hosts and patterns.
 Step 7: Projects — AI-detected tags & keywords
 
   #   Select   Repo                  Tags        Keywords
-  1   [✓]      your-app         [b2c]       B2C 前台, Nuxt 3 SSR, 商品頁
-  2   [✓]      your-design-system     [ds]        Design System, Vue 3, 元件庫
-  3   [✓]      your-backend             [member]    會員, PHP, Internal API
-  4   [?]      your-dev-proxy      []          (analysis failed — fill manually)
+  1   [✓]      your-repo             [b2c]       B2C frontend, Nuxt 3 SSR, product page
+  2   [✓]      your-design-system    [ds]        Design System, Vue 3, component library
+  3   [✓]      your-api-repo         [member]    Member, PHP, Internal API
+  4   [?]      your-dev-docker       []          (analysis failed — fill manually)
 
   Confirm (y) / Adjust (e) / Skip (s)?
 ```

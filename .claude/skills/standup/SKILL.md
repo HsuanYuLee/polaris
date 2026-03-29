@@ -3,13 +3,14 @@ name: standup
 description: >
   Generates daily standup reports (YDY/TDT/BOS) by collecting git activity,
   JIRA status changes, and Google Calendar meetings. Merges all sources,
-  deduplicates, groups by team (Growth / Web Service), and formats for
-  Confluence. Use this skill whenever the user mentions: "standup", "站立會議",
-  "YDY", "今天做了什麼", "daily standup", "產出 standup", "standup report",
-  "寫 standup", "daily report", or wants to prepare their daily standup content
-  — even if they don't explicitly say "standup".
+  deduplicates, groups by configured teams, and formats for Confluence. Use
+  this skill whenever the user mentions: "standup", "站立會議",
+  "standup meeting", "YDY", "今天做了什麼", "what did I do today", "daily standup",
+  "產出 standup", "generate standup", "standup report", "寫 standup",
+  "write standup", "daily report", or wants to prepare their daily standup
+  content — even if they don't explicitly say "standup".
 metadata:
-  author: ""
+  author: Polaris
   version: 1.5.1
 ---
 
@@ -145,9 +146,10 @@ mcp__claude_ai_Google_Calendar__gcal_list_events
 
 合併三個來源，去重規則：
 - 同一個 ticket 從 git + JIRA 都找到 → 合併為一行，以 JIRA 狀態為主、git commit 摘要為輔
-- 按團隊分組：
-  - **Team A**：`GT-*` tickets + 不帶 ticket 號的 Growth 相關活動
-  - **Team B**：`TASK-*` tickets
+- 按團隊分組（從 `{config: teams}` 讀取，每個 team 對應一組 `{config: jira.projects[].key}`）：
+  - **{config: teams[0].name}**（Team A）：`{config: jira.projects[0].key}-*` tickets + 不帶 ticket 號的相關活動
+  - **{config: teams[1].name}**（Team B）：`{config: jira.projects[1].key}-*` tickets
+  - 若 config 有更多 teams，依序對應各自的 JIRA project key
 - 每個 ticket 格式：`[TICKET-KEY ticket title](https://{config: jira.instance}/browse/TICKET-KEY) — 動作摘要`
 - 「meeting」區塊：會議、非 ticket 工作（calendar events + 使用者口述的補充）
 
@@ -160,7 +162,7 @@ Compare today's YDY items against the previous day's TDT (planned tasks) to trac
 **Extract previous day's TDT**:
 1. In the Confluence page content, find the most recent standup entry before today (look for the `## YYYYMMDD` heading closest to but before today's date)
 2. Parse the `TDT – Today's Tasks` section from that entry
-3. Extract each planned item: JIRA ticket key (e.g., `PROJ-123`, `TASK-123`) and description
+3. Extract each planned item: JIRA ticket key (e.g., `PROJ-123`, `TEAM-45`) and description
 
 **Skip conditions** — skip this step entirely and proceed to Step 7 if:
 - No previous standup entry exists on the page (first day of the month, after vacation, new page)
@@ -223,7 +225,7 @@ TDT 的排序邏輯：
 
 **核心規則**（詳見模板）：
 - YDY 中有 parent Epic 的 ticket → 以 Epic 為最上層巢狀在團隊分組內
-- `GT-*` Epic → Team A；`TASK-*` Epic → Team B；無 JIRA → 自定義標題；會議 → meeting
+- `{config: jira.projects[0].key}-*` Epic → {config: teams[0].name}（Team A）；`{config: jira.projects[1].key}-*` Epic → {config: teams[1].name}（Team B）；無 JIRA → 自定義標題；會議 → meeting
 - Sub-task 全部通過時折成一行 `（N/N 驗證子單通過）`，有失敗才展開
 - TDT 也用 Epic 巢狀（與 YDY 一致）
 - NO-JIRA 項目用一行摘要帶過
@@ -289,7 +291,7 @@ mcp__claude_ai_Atlassian__updateConfluencePage
 ## Do
 
 - 去重：同一 ticket 從多個來源找到時合併為一行
-- 按團隊分組（Team A / Team B）
+- 按團隊分組（依 `{config: teams}` 設定，預設 Team A / Team B）
 - Ticket 用完整 Confluence link 格式：`[KEY title](URL)`
 - TDT 優先排 P0 和進行中的 tickets
 - 呈現後等使用者確認才推 Confluence

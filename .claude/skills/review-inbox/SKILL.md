@@ -1,29 +1,32 @@
 ---
 name: review-inbox
 description: >
-  Two modes for discovering PRs that need the user's review in your-org org, then batch-reviewing them.
+  Two modes for discovering PRs that need the user's review in the user's GitHub org (read from workspace config `github.org`), then batch-reviewing them.
   **Label mode**: scans GitHub "need review" label.
   **Slack mode**: scans Slack channel posts for PR URLs (default 7 days, supports natural language time range).
   Both modes exclude the user's own PRs and identify: never reviewed, stale approve needing re-approve,
   or author replied to REQUEST_CHANGES comments (ready for re-review). PRs where the author hasn't
   replied to review comments are skipped (still working on fixes).
   Use this skill whenever the user mentions:
-  Label mode (ONLY when explicitly mentioning "need review" label) — "掃 need review", "review inbox",
-  "need review label".
-  Slack mode (DEFAULT for everything else) — "review 大家的 PR", "review 所有 PR", "幫我看所有要 review 的",
-  "批次 review", "review all", "有哪些 PR 要我看", "我該 review 哪些", "幫我 review 全部",
-  "掃大家的 PR", "掃 PR", "scan PR", "幫我掃大家七天內的 PR", "幫我掃",
-  "掃大家三天的 PR", "幫我掃大家的 PR", or any phrase about reviewing/scanning team PRs
+  Label mode (ONLY when explicitly mentioning "need review" label) — "掃 need review",
+  "scan need review", "review inbox", "need review label".
+  Slack mode (DEFAULT for everything else) — "review 大家的 PR", "review everyone's PRs",
+  "review 所有 PR", "review all PRs", "幫我看所有要 review 的", "show me PRs to review",
+  "批次 review", "batch review", "review all", "有哪些 PR 要我看", "which PRs need my review",
+  "我該 review 哪些", "what should I review", "幫我 review 全部", "review all for me",
+  "掃大家的 PR", "scan team PRs", "掃 PR", "scan PR", "幫我掃大家七天內的 PR",
+  "scan team PRs from last 7 days", "幫我掃", "scan for me", "掃大家三天的 PR",
+  "幫我掃大家的 PR", "scan everyone's PRs", or any phrase about reviewing/scanning team PRs
   with an optional time range. When in doubt, default to Slack mode — do NOT ask the user.
   Do NOT confuse with review-pr which reviews specific PRs the user provides.
 metadata:
-  author: ""
+  author: Polaris
   version: 2.0.0
 ---
 
 # Review Inbox — 批次 Review 待審 PR
 
-找出 `your-org` org 下需要自己 review / re-approve 的 PR，批次執行 review 後發 Slack 通知。支援兩種來源模式：
+找出 workspace config `github.org` 所設定的 org 下需要自己 review / re-approve 的 PR，批次執行 review 後發 Slack 通知。支援兩種來源模式：
 
 | 模式 | 觸發詞 | PR 來源 |
 |------|--------|---------|
@@ -97,7 +100,7 @@ SKILL_DIR="$(dirname "$(readlink -f "$0")")"  # 或直接用 skill 的絕對路�
 ```
 
 > **為什麼不用 `gh search prs`？**
-> GitHub search index 不保證即時完整，實測會漏掉部分 repo（如 your-backend、mobile-your-backend）。
+> GitHub search index 不保證即時完整，實測會漏掉部分 repo（如 member-ci、mobile-member-ci）。
 > `scan-need-review-prs.sh` 逐 repo 掃描確保不遺漏。
 
 #### Slack 模式

@@ -6,13 +6,13 @@ description: >
   generating a Confluence Release page draft. This skill automates the
   deterministic parts (data fetching, point tallying, dependency sorting) while
   leaving decisions to the user. Use this skill whenever the user mentions:
-  "sprint planning", "planning", "下個 sprint", "排 sprint", "sprint 規劃",
-  "plan sprint", "release page", "sprint backlog", "capacity planning",
-  "carry over", "sprint candidate", "排單", or wants to prepare for or
-  conduct a sprint planning session — even if they don't explicitly say
-  "sprint planning".
+  "sprint planning", "planning", "下個 sprint", "next sprint", "排 sprint",
+  "organize sprint", "sprint 規劃", "plan sprint", "release page",
+  "sprint backlog", "capacity planning", "carry over", "sprint candidate",
+  "排單", "prioritize tickets", or wants to prepare for or conduct a sprint
+  planning session — even if they don't explicitly say "sprint planning".
 metadata:
-  author: ""
+  author: Polaris
   version: 1.0.0
 ---
 
@@ -44,7 +44,7 @@ metadata:
 兩種方式取得候選 tickets：
 
 **方式 A — 使用者提供 ticket keys**：
-使用者直接給一組 ticket keys（如 `PROJ-123 PROJ-123 TASK-123`），從 JIRA 拉取每張的資訊。
+使用者直接給一組 ticket keys（如 `PROJ-500 PROJ-501 TEAM-3300`），從 JIRA 拉取每張的資訊。
 
 **方式 B — 從 JIRA board 自動拉取**：
 搜尋使用者可能的候選：
@@ -125,9 +125,9 @@ Carry-over 在排序時有更高優先權（已經開始的工作應該先完成
 
 | # | Ticket | Title | Type | Points | Priority | Epic | Dependency | Notes |
 |---|--------|-------|------|--------|----------|------|------------|-------|
-| 3 | PROJ-123 | xxx | Story | 5 | High | PROJ-123 | — | |
-| 4 | PROJ-123 | yyy | Task | 3 | Medium | PROJ-123 | blocked by PROJ-123 | |
-| 5 | TASK-123 | zzz | Bug | ? | High | — | — | 未估點 |
+| 3 | PROJ-500 | xxx | Story | 5 | High | PROJ-400 | — | |
+| 4 | PROJ-501 | yyy | Task | 3 | Medium | PROJ-400 | blocked by PROJ-500 | |
+| 5 | TEAM-3400 | zzz | Bug | ? | High | — | — | 未估點 |
 
 小計：8+ pts
 
@@ -145,7 +145,7 @@ Carry-over 在排序時有更高優先權（已經開始的工作應該先完成
 附加提示：
 - 未估點的 tickets 用 `?` 標示，提醒需要先估點
 - 超過 capacity 時標紅警告
-- 依賴關係用箭頭標示（`blocked by PROJ-123`）
+- 依賴關係用箭頭標示（`blocked by PROJ-500`）
 
 ### 6. Interactive discussion
 
@@ -153,9 +153,9 @@ Carry-over 在排序時有更高優先權（已經開始的工作應該先完成
 
 **使用者可能的操作**：
 - 「移除 #5」→ 從候選中移除
-- 「加入 PROJ-123」→ 新增到候選，拉 JIRA 資訊後更新表格
-- 「PROJ-123 改 3 點」→ 調整估點
-- 「PROJ-123 排到 PROJ-123 後面」→ 調整順序
+- 「加入 PROJ-600」→ 新增到候選，拉 JIRA 資訊後更新表格
+- 「PROJ-500 改 3 點」→ 調整估點
+- 「PROJ-501 排到 PROJ-500 後面」→ 調整順序
 - 「這個 sprint 我有 2 天請假」→ 調整 capacity（20 → 16 pts）
 - 「OK」/ 「確定」→ 鎖定最終版本
 
@@ -223,7 +223,7 @@ mcp__claude_ai_Atlassian__searchConfluenceUsingCql
 - 不要未經確認就推 Confluence
 - 不要把不屬於使用者的 tickets 加進來（除非使用者指定）
 - 不要忽略 capacity 超標 — 必須明確提醒
-- 不要在討論中途跳到其他 skill（如使用者說「PROJ-123 估幾點」可以建議觸發估點 skill，但不要自動觸發）
+- 不要在討論中途跳到其他 skill（如使用者說「PROJ-500 估幾點」可以建議觸發估點 skill，但不要自動觸發）
 
 ## Prerequisites
 

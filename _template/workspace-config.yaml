@@ -56,7 +56,7 @@ kibana:
   sit_host: ""                 # SIT Kibana UI host
   stage_host: ""               # Stage Kibana UI host
   data_view_id: ""
-  index_pattern: ""            # e.g. "new-kklog-*"
+  index_pattern: ""            # e.g. "app-logs-*"
   environments:                # Application URLs per environment
     sit: ""
     stage: ""

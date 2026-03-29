@@ -7,20 +7,27 @@ description: >
   then writes them into review-lessons for graduation into rules. (3) Queue mode — processes articles
   from the daily learning queue (populated by scheduled daily-learning-scan agent), batch-analyzes
   them, and archives processed items. Dispatches sub-agents for parallel deep-dive when scope is large.
-  Make sure to use this skill whenever the user mentions: "學習", "learn", "研究一下", "借鑑",
-  "看看這個", "研究這個", "study this", "learn from this", "這個不錯", "有什麼可以學的", "可以參考",
-  "take inspiration", "學習 PR", "learn from PR", "研究 PR review", "學習最近的 PR", "PR 學習",
-  "學習 merge 的 PR", "研究別人的 PR", "今天有什麼可以學的", "每日學習", "看看今天的推薦",
-  "今天推薦什麼", "有新文章嗎", "讀文章", "學習報到", "daily learning", "消化 queue", "learning queue",
-  "處理 queue", "學習 queue", "處理今天的文章", "queue 有什麼", "看看 queue", or shares an external
-  URL/resource and asks to
+  Make sure to use this skill whenever the user mentions: "學習", "learn", "研究一下",
+  "research this", "借鑑", "draw inspiration", "看看這個", "check this out", "研究這個",
+  "study this", "learn from this", "這個不錯", "this is good", "有什麼可以學的",
+  "anything to learn from", "可以參考", "worth referencing", "take inspiration",
+  "學習 PR", "learn from PR", "研究 PR review", "study PR review", "學習最近的 PR",
+  "learn from recent PRs", "PR 學習", "學習 merge 的 PR", "learn from merged PRs",
+  "研究別人的 PR", "study others' PRs", "今天有什麼可以學的", "what can I learn today",
+  "每日學習", "daily learning", "看看今天的推薦", "today's recommendations",
+  "今天推薦什麼", "what's recommended today", "有新文章嗎", "any new articles",
+  "讀文章", "read articles", "學習報到", "learning check-in", "消化 queue",
+  "digest queue", "learning queue", "處理 queue", "process queue", "學習 queue",
+  "處理今天的文章", "process today's articles", "queue 有什麼", "what's in the queue",
+  "看看 queue", "check the queue", or shares an external URL/resource and asks to
   analyze, research, or evaluate it — even if they don't explicitly say "learn". Also trigger when
-  the user shares a link and says something casual like "看一下這個" or "幫我看看". Do NOT trigger
+  the user shares a link and says something casual like "看一下這個", "take a look at this",
+  "幫我看看", or "check this for me". Do NOT trigger
   for internal codebase exploration (use Explore subagent directly), JIRA ticket analysis (use
   work-on), or PR review (use review-pr for reviewing someone else's code — this skill
   is for LEARNING from already-merged PRs, not reviewing open ones).
 metadata:
-  author: ""
+  author: Polaris
   version: 1.4.0
 ---
 
@@ -37,7 +44,7 @@ Determine which mode based on the user's input:
 
 | Signal | Mode | Example |
 |---|---|---|
-| PR number, PR URL, or mentions "PR" + "學習/learn" | **PR mode** | `學習 PR #123`, `learn from your-app 最近的 PR` |
+| PR number, PR URL, or mentions "PR" + "學習/learn" | **PR mode** | `學習 PR #123`, `learn from my-app 最近的 PR` |
 | Mentions a person's PRs | **PR mode** | `學習 daniel 最近的 PR`, `研究 PR review` |
 | Time-range + PR | **PR mode** | `學習最近一週 merge 的 PR` |
 | External URL, repo, article | **External mode** | `看看這個 github.com/...`, `研究這篇文章` |
@@ -266,14 +273,14 @@ Show the user a summary of pending items with the Repos column:
 ```markdown
 | # | Title | Category | Repos | Added |
 |---|-------|----------|-------|-------|
-| 1 | ... | ai-agent | your-company-web-skills | ... |
-| 2 | ... | performance | your-app | ... |
+| 1 | ... | ai-agent | my-skills-repo | ... |
+| 2 | ... | performance | my-app | ... |
 | 3 | ... | framework | all | ... |
 ```
 
-The user may filter by repo: "只看 your-app 相關的" → only process articles where `Relevant Repos` contains `your-app` or `all`. If no filter specified, process all.
+The user may filter by repo: "只看 b2c-web 相關的" → only process articles where `Relevant Repos` contains `my-app` or `all`. If no filter specified, process all.
 
-Ask: "要全部處理，還是選幾篇？可以用 repo 篩選（如：只看 your-app 和 docker 相關的）"
+Ask: "要全部處理，還是選幾篇？可以用 repo 篩選（如：只看 b2c-web 和 docker 相關的）"
 
 ## Step Q2: Process Each Article
 
@@ -356,7 +363,7 @@ After user confirms which recommendations to execute:
      ```
    - Result values: `applied` (recommendation executed), `noted` (interesting but deferred), `skipped` (not applicable)
 
-3. **Commit** changes to your-company-web-skills: `chore: process learning queue YYYY-MM-DD`
+3. **Commit** changes to my-skills-repo: `chore: process learning queue YYYY-MM-DD`
 
 ## Step Q5: Summary
 
@@ -385,14 +392,14 @@ Determine which PRs to study based on the user's input:
 
 | Input | How to resolve |
 |---|---|
-| Specific PR number (`PR #123`) | Direct: `gh pr view 123 --repo your-org/<repo>` |
+| Specific PR number (`PR #123`) | Direct: `gh pr view 123 --repo {org}/{repo}` |
 | Specific PR URL | Extract owner/repo and number from URL |
-| Person's PRs (`daniel 最近的 PR`) | `gh pr list --repo your-org/<repo> --state merged --author <github-username> --limit 10` |
-| Time-range (`最近一週的 PR`) | `gh pr list --repo your-org/<repo> --state merged --search "merged:>YYYY-MM-DD" --limit 20` |
-| Repo-specific (`your-app 最近的 PR`) | Target that repo specifically |
+| Person's PRs (`daniel 最近的 PR`) | `gh pr list --repo {org}/{repo} --state merged --author <github-username> --limit 10` |
+| Time-range (`最近一週的 PR`) | `gh pr list --repo {org}/{repo} --state merged --search "merged:>YYYY-MM-DD" --limit 20` |
+| Repo-specific (`my-app 最近的 PR`) | Target that repo specifically |
 | No repo specified | Use the repo mapping from CLAUDE.md to infer, or ask the user |
 
-**Filtering**: Only include PRs that have review comments (PRs with 0 review comments have nothing to learn from). Use `gh api repos/your-org/<repo>/pulls/<number>/reviews` to check.
+**Filtering**: Only include PRs that have review comments (PRs with 0 review comments have nothing to learn from). Use `gh api repos/{org}/{repo}/pulls/<number>/reviews` to check.
 
 **Cap**: Maximum 10 PRs per invocation. If the query returns more, take the 10 most recent and tell the user.
 
@@ -400,9 +407,9 @@ Determine which PRs to study based on the user's input:
 
 For each PR, collect:
 
-1. **Review comments** — `gh api repos/your-org/<repo>/pulls/<number>/comments --paginate` (inline comments on specific lines)
-2. **Review summaries** — `gh api repos/your-org/<repo>/pulls/<number>/reviews --paginate` (top-level review body with APPROVE/REQUEST_CHANGES)
-3. **PR diff** — `gh pr diff <number> --repo your-org/<repo>` (to understand what was changed and how the fix addressed the review)
+1. **Review comments** — `gh api repos/{org}/{repo}/pulls/<number>/comments --paginate` (inline comments on specific lines)
+2. **Review summaries** — `gh api repos/{org}/{repo}/pulls/<number>/reviews --paginate` (top-level review body with APPROVE/REQUEST_CHANGES)
+3. **PR diff** — `gh pr diff <number> --repo {org}/{repo}` (to understand what was changed and how the fix addressed the review)
 
 For **batch mode** (multiple PRs): spawn one sub-agent per PR (`model: "sonnet"`) to extract in parallel. Each sub-agent returns structured findings (see Step P3 format). Maximum 5 parallel sub-agents — if more than 5 PRs, process in batches.
 
@@ -412,14 +419,14 @@ Sub-agent prompt template:
 You are analyzing a merged PR to extract learnable patterns from its review comments.
 
 ## PR Info
-- Repo: your-org/<repo>
+- Repo: {org}/{repo}
 - PR: #<number>
-- URL: https://github.com/your-org/<repo>/pull/<number>
+- URL: https://github.com/{org}/{repo}/pull/<number>
 
 ## Your Task
-1. Read the PR review comments: `gh api repos/your-org/<repo>/pulls/<number>/comments --paginate`
-2. Read the review summaries: `gh api repos/your-org/<repo>/pulls/<number>/reviews --paginate`
-3. Read the PR diff: `gh pr diff <number> --repo your-org/<repo>`
+1. Read the PR review comments: `gh api repos/{org}/{repo}/pulls/<number>/comments --paginate`
+2. Read the review summaries: `gh api repos/{org}/{repo}/pulls/<number>/reviews --paginate`
+3. Read the PR diff: `gh pr diff <number> --repo {org}/{repo}`
 4. For each review comment that teaches something generalizable, extract:
    - The pattern/rule (what should be done)
    - Why it matters (from the reviewer's explanation or inferred from context)
@@ -450,7 +457,7 @@ Return a JSON array:
     "rule": "Description of the pattern/rule",
     "why": "Why this matters",
     "topic": "topic-category-kebab-case",
-    "source_pr": "https://github.com/your-org/<repo>/pull/<number>",
+    "source_pr": "https://github.com/{org}/{repo}/pull/<number>",
     "source_date": "YYYY-MM-DD"
   }
 ]
@@ -483,7 +490,7 @@ Write extracted patterns to `~/work/<repo>/.claude/rules/review-lessons/` using 
 
 - {Rule description — clear, actionable, generalizable}
   - Why: {reasoning from the reviewer or inferred from the fix}
-  - Source: https://github.com/your-org/<repo>/pull/<number> (YYYY-MM-DD)
+  - Source: https://github.com/{org}/{repo}/pull/<number> (YYYY-MM-DD)
 ```
 
 When appending to an existing file, add new entries after the last existing entry (before EOF). Do not modify existing entries.

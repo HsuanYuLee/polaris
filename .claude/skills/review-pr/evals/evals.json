@@ -9,7 +9,7 @@
     },
     {
       "id": 2,
-      "query": "幫我 review https://github.com/your-org/your-design-system/pull/55",
+      "query": "幫我 review https://github.com/your-org/web-design-system/pull/55",
       "should_trigger": true,
       "notes": "中文觸發"
     },

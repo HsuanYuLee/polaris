@@ -9,7 +9,7 @@ description: >
   This skill is about the *development process* — for test writing patterns and mock techniques,
   it references unit-test.
 metadata:
-  author: ""
+  author: Polaris
   version: 1.0.0
 ---
 

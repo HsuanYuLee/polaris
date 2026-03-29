@@ -5,17 +5,18 @@ description: >
   comments, check CI/pre-commit/pre-push status (lint, test, coverage), fix all issues
   based on .claude/rules, run post-fix self review via sub-agent to catch regressions,
   reply to each comment after fixing or explain why no fix is needed. Use when: (1) user
-  says "fix review", "修正 review", "處理 review comments", (2) user shares a GitHub PR
-  URL and asks to fix comments or fix CI, (3) user says "回覆 review", "address review
-  comments", "resolve review", (4) after receiving PR review feedback on your own PR,
-  (5) user says "幫我修正" with a GitHub PR URL or when current branch has an open PR,
-  "fix PR", "CI 沒過", "lint 沒過", "test 沒過", "coverage 不足", "pre-commit failed",
-  "pre-push failed". IMPORTANT: If the user says "幫我修正" with a JIRA ticket key
+  says "fix review", "修正 review", "處理 review comments", "handle review comments",
+  (2) user shares a GitHub PR URL and asks to fix comments or fix CI, (3) user says
+  "回覆 review", "reply to review", "address review comments", "resolve review",
+  (4) after receiving PR review feedback on your own PR, (5) user says "幫我修正",
+  "help me fix" with a GitHub PR URL or when current branch has an open PR, "fix PR",
+  "CI 沒過", "CI failed", "lint 沒過", "lint failed", "test 沒過", "tests failed",
+  "coverage 不足", "insufficient coverage", "pre-commit failed", "pre-push failed". IMPORTANT: If the user says "幫我修正" with a JIRA ticket key
   (not a PR URL), that is a bug fix request — use fix-bug skill instead. This skill is
   for the PR AUTHOR addressing feedback and CI failures — not for reviewing someone
   else's PR (use review-pr for that), and not for fixing JIRA bugs (use fix-bug for that).
 metadata:
-  author: ""
+  author: Polaris
   version: 2.8.0
 ---
 
@@ -657,7 +658,7 @@ commit: <short_sha>
 
 #### 執行流程
 
-1. **從 PR 提取 JIRA ticket key**：從 branch name 或 PR title 提取（如 `TASK-123`）。無法提取時跳過，進入 10.3。
+1. **從 PR 提取 JIRA ticket key**：從 branch name 或 PR title 提取（如 `PROJ-3462`）。無法提取時跳過，進入 10.3。
 
 2. **Invoke `verify-completion`**：直接委託 verify-completion 執行完整驗證流程。它會：
    - 查詢該 ticket 下所有 `[驗證]` 子單（`parent = <TICKET> AND summary ~ "驗證"`）

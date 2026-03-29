@@ -6,7 +6,7 @@ description: >
   delegates worklog recording after PR creation. Trigger keywords: "worklog", "log time",
   "time tracking", "記工時", "記錄工時", "log hours".
 metadata:
-  author: ""
+  author: Polaris
   version: 1.1.0
 ---
 
@@ -23,7 +23,7 @@ metadata:
 ### 1. Identify the JIRA ticket
 
 Extract the ticket key from (in priority order):
-1. Current branch name: `task/TASK-123-*` → `TASK-123`
+1. Current branch name: `task/PROJ-419-*` → `PROJ-419`
 2. Conversation context (ticket mentioned earlier)
 3. Ask the user
 

@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# fetch-prs-by-url.sh — 從 PR URL 清單取得 PR metadata
+# fetch-prs-by-url.sh — Fetch PR metadata from a list of PR URLs
 #
 # Usage: echo '<urls>' | ./fetch-prs-by-url.sh [--exclude-author <username>]
-# Input (stdin): 每行一個 GitHub PR URL（https://github.com/your-org/<repo>/pull/<number>）
-# Output (stdout): JSON array，格式與 scan-need-review-prs.sh 相同
+# Input (stdin): One GitHub PR URL per line (https://github.com/<org>/<repo>/pull/<number>)
+# Output (stdout): JSON array, same format as scan-need-review-prs.sh
 #
-# 用途：Slack 模式下，從 Slack 訊息萃取的 PR URL 取得 metadata，
-#       再 pipe 到 check-my-review-status.sh 判斷 review 狀態
+# Purpose: In Slack mode, extract PR URLs from Slack messages to get metadata,
+#          then pipe to check-my-review-status.sh to determine review status
 #
 # Example:
-#   echo "https://github.com/your-org/your-app/pull/1800
+#   echo "https://github.com/your-org/your-repo/pull/1800
 #   https://github.com/your-org/your-design-system/pull/302" \
-#     | ./fetch-prs-by-url.sh --exclude-author your-username
+#     | ./fetch-prs-by-url.sh --exclude-author your-github-user
 
 set -euo pipefail
 
@@ -29,7 +29,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# 讀取 stdin 的 URL 並去重
+# Read URLs from stdin and deduplicate
 urls=$(sort -u)
 
 if [ -z "$urls" ]; then
@@ -38,7 +38,7 @@ if [ -z "$urls" ]; then
 fi
 
 total=$(echo "$urls" | wc -l | tr -d ' ')
-echo "🔍 處理 ${total} 個 PR URL..." >&2
+echo "🔍 Processing ${total} PR URLs..." >&2
 
 tmpfile=$(mktemp)
 trap 'rm -f "$tmpfile"' EXIT
@@ -54,13 +54,13 @@ while IFS= read -r url; do
     repo="${BASH_REMATCH[1]}"
     number="${BASH_REMATCH[2]}"
   else
-    echo "  ⚠️ 無法解析 URL: $url" >&2
+    echo "  ⚠️ Cannot parse URL: $url" >&2
     continue
   fi
 
   count=$((count + 1))
 
-  # 取得 PR 資訊（state + draft + author + created_at）
+  # Fetch PR info (state + draft + author + created_at)
   pr_data=$(gh api "repos/$ORG/$repo/pulls/$number" \
     --jq '{state: .state, draft: .draft, title: .title, author: .user.login, created_at: .created_at, url: .html_url}' 2>/dev/null || echo "")
 
@@ -69,7 +69,7 @@ while IFS= read -r url; do
     continue
   fi
 
-  # 只允許 open 且非 draft 的 PR（draft 代表還在編輯中，不該被 review）
+  # Only allow open, non-draft PRs (draft means still in progress, not ready for review)
   pr_state=$(echo "$pr_data" | jq -r '.state')
   pr_draft=$(echo "$pr_data" | jq -r '.draft')
   if [ "$pr_state" != "open" ] || [ "$pr_draft" = "true" ]; then
@@ -80,7 +80,7 @@ while IFS= read -r url; do
   author=$(echo "$pr_data" | jq -r '.author // ""')
   created_at=$(echo "$pr_data" | jq -r '.created_at // ""')
 
-  # 排除指定 author
+  # Exclude specified author
   if [ -n "$EXCLUDE_AUTHOR" ] && [ "$author" = "$EXCLUDE_AUTHOR" ]; then
     skipped=$((skipped + 1))
     continue
@@ -89,7 +89,7 @@ while IFS= read -r url; do
   title=$(echo "$pr_data" | jq -r '.title')
   url=$(echo "$pr_data" | jq -r '.url')
 
-  # 組裝結果（與 scan-need-review-prs.sh 輸出格式一致）
+  # Assemble result (same output format as scan-need-review-prs.sh)
   jq -n \
     --arg repo "$repo" \
     --argjson number "$number" \
@@ -99,13 +99,13 @@ while IFS= read -r url; do
     --arg created_at "$created_at" \
     '{repo: $repo, number: $number, title: $title, url: $url, author: $author, created_at: $created_at}' >> "$tmpfile"
 
-  # 進度
+  # Progress
   if [ $((count % 5)) -eq 0 ] || [ "$count" -eq "$total" ]; then
-    echo "  [$count/$total] 取得 PR 資訊中..." >&2
+    echo "  [$count/$total] Fetching PR info..." >&2
   fi
 done <<< "$urls"
 
-# 輸出 JSON array，按建立時間排序
+# Output JSON array sorted by creation time
 if [ -s "$tmpfile" ]; then
   jq -s 'sort_by(.created_at)' "$tmpfile"
   found=$(jq -s 'length' "$tmpfile")
@@ -114,4 +114,4 @@ else
   found=0
 fi
 
-echo "✅ 完成：$found 個 open PR（跳過 $skipped 個：已關閉/draft/自己的）" >&2
+echo "✅ Done: $found open PR(s) (skipped $skipped: closed/draft/own)" >&2

@@ -3,15 +3,15 @@ name: jira-branch-checkout
 description: >
   Create git branches from JIRA ticket numbers following the naming convention
   task/[JIRA_TICKET_NUMBER]-[DESCRIPTION]. Use this skill when: (1) The user explicitly
-  asks to create or checkout a branch for a JIRA ticket (e.g. "開 branch TASK-123",
-  "create branch for PROJ-123"), (2) Another skill (like work-on or fix-bug)
+  asks to create or checkout a branch for a JIRA ticket (e.g. "開 branch PROJ-419",
+  "create branch for PROJ-500"), (2) Another skill (like work-on or fix-bug)
   delegates branch creation to this skill. Trigger keywords: "開 branch", "create branch",
   "checkout branch", "建 branch", "切 branch", "hotfix branch".
   Do NOT trigger this skill when the user says "work on", "做", "implement", or "fix" a
   ticket — those should go to work-on or fix-bug, which will delegate to this
   skill for branch creation when needed.
 metadata:
-  author: ""
+  author: Polaris
   version: 1.1.0
 ---
 
@@ -30,7 +30,7 @@ bash scripts/create-branch.sh <TICKET> <DESCRIPTION> [BASE_BRANCH]
 
 | Argument      | Required | Default   | Example                    |
 |---------------|----------|-----------|----------------------------|
-| `TICKET`      | Yes      | —         | `TASK-123`               |
+| `TICKET`      | Yes      | —         | `PROJ-419`                |
 | `DESCRIPTION` | Yes      | —         | `remove-elapsed-time-log`  |
 | `BASE_BRANCH` | No       | `develop` | `master`, `rc`             |
 
@@ -47,7 +47,7 @@ handles existing branches, and runs `git fetch` + `git checkout -b`.
 
 ### 1. Extract TICKET from user message
 
-e.g. `TASK-123`, `VM-1186`, `BIDL-200`.
+e.g. `PROJ-419`, `VM-1186`, `BIDL-200`.
 
 ### 2. Fetch ticket title
 
@@ -86,12 +86,12 @@ mcp__claude_ai_Atlassian__getJiraIssue
 ```
 
 Scan comments for keywords: `base on`, `depends on`, `依賴`, `需等`, `merge 後再`.
-Extract the dependent ticket key (e.g. `PROJ-123`).
+Extract the dependent ticket key (e.g. `PROJ-450`).
 
 **4b. If dependency found, locate the branch (multi-strategy):**
 
 In the feature-branch → sub-branch model, the JIRA key in the comment may not match
-the branch name (e.g. comment says `PROJ-123` but branch is `feat/PROJ-123-...`).
+the branch name (e.g. comment says `PROJ-450` but branch is `feat/PROJ-460-...`).
 Use these strategies in order until a match is found:
 
 1. **Search PR by JIRA key:**
@@ -121,7 +121,7 @@ If no match found, ask the user to provide the branch name directly.
 
 **4c. Confirm with user (always):**
 
-> PROJ-123 依賴 PROJ-123（找到 branch: `feat/PROJ-123-aggregate-offer-structured-data`，PR #1920，Open）。
+> PROJ-448 依賴 PROJ-450（找到 branch: `feat/PROJ-460-aggregate-offer-structured-data`，PR #1920，Open）。
 > 要從該 branch 開出嗎？
 
 - User confirms → use that branch as BASE_BRANCH

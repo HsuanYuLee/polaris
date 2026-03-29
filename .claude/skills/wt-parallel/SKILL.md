@@ -94,7 +94,7 @@ Agent({
 
 ### After completion (both modes)
 
-5. **Create a PR** using `git-pr-workflow` skill (preferred, includes quality check + JIRA status transition + `need review` label), or `pr-convention` for a simpler flow. Do **not** use bare `gh pr create --fill` as it bypasses YourOrg PR conventions.
+5. **Create a PR** using `git-pr-workflow` skill (preferred, includes quality check + JIRA status transition + `need review` label), or `pr-convention` for a simpler flow. Do **not** use bare `gh pr create --fill` as it bypasses team PR conventions.
 
 ### Prompt Template for Each Agent
 

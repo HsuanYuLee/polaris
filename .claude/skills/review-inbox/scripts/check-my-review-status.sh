@@ -13,8 +13,8 @@
 #   - "waiting_for_author"  — REQUEST_CHANGES 後作者未回覆 review comments（即使有新 push 也視為還在改）
 #
 # Example:
-#   ./scan-need-review-prs.sh --exclude-author your-username \
-#     | ./check-my-review-status.sh your-username
+#   ./scan-need-review-prs.sh --exclude-author your-github-user \
+#     | ./check-my-review-status.sh your-github-user
 
 set -euo pipefail
 

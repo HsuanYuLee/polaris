@@ -11,7 +11,7 @@ description: >
   kibana-logs instead). If debugging requires checking production logs, invoke
   kibana-logs as a complementary step.
 metadata:
-  author: ""
+  author: Polaris
   version: 1.1.0
 ---
 

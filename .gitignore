@@ -25,5 +25,8 @@ dist/
 .output/
 .nuxt/
 
+# Framework backlog (maintainer-only, not shipped to users)
+.claude/polaris-backlog.md
+
 # Memory (personal, not shared)
 .claude/projects/*/memory/

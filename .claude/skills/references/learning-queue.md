@@ -1,6 +1,6 @@
 # Learning Queue
 
-A curated list of tech articles for the your team to read and discuss.
+A curated list of tech articles for the team to read and discuss.
 
 ## How to Use
 

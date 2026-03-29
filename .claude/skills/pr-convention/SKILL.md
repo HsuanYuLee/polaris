@@ -1,16 +1,16 @@
 ---
 name: pr-convention
 description: >
-  Creates or edits GitHub pull requests following YourOrg conventions via gh CLI.
+  Creates or edits GitHub pull requests following team conventions via gh CLI.
   Use when the user asks to create a PR, open a PR, edit a PR description, or
-  prepare a pull request in any YourOrg repository. Trigger keywords: "PR",
+  prepare a pull request in any repository. Trigger keywords: "PR",
   "pull request", "gh pr create", "gh pr edit", "open PR", "發 PR".
 metadata:
-  author: ""
+  author: Polaris
   version: 1.2.0
 ---
 
-# YourOrg PR Convention
+# PR Convention
 
 ## Workflow
 
@@ -44,7 +44,7 @@ If the dependency PR is already merged → use `develop` (the dependency code is
 
 Always confirm with user:
 
-> 偵測到此單依賴 PROJ-123（branch: `feat/PROJ-123-...`，PR 尚未 merge）。PR base 設為該 branch？
+> 偵測到此單依賴 PROJ-124（branch: `feat/PROJ-125-...`，PR 尚未 merge）。PR base 設為該 branch？
 
 **2b. Standard auto-detect (fallback):**
 
@@ -60,7 +60,7 @@ Format: `[JIRA-KEY] <concise summary>`
 
 | Example |
 |---------|
-| `[TASK-123] 移除售前客服商品頁導流 AB test 相關邏輯` |
+| `[PROJ-456] 移除售前客服商品頁導流 AB test 相關邏輯` |
 | `[VM-1186] JP DX メインページ改修` |
 | `[NO-JIRA] Fix typo in checkout footer` |
 
@@ -151,7 +151,7 @@ gh pr create \
 已於 dev 環境驗證商品頁客服入口正常顯示。
 
 ## Related documents
-JIRA: https://{config: jira.instance}/browse/TASK-123
+JIRA: https://{config: jira.instance}/browse/PROJ-456
 
 ## QA notes
 確認商品頁客服入口正常顯示即可，無需測試 AB 分流。

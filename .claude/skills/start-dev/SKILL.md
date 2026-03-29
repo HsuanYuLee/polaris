@@ -4,10 +4,10 @@ description: >
   Transitions a JIRA ticket status to "In Development" when the developer is ready
   to start working on it. Use when: (1) user says "開始開發", "開工", "start developing",
   "start working on", (2) user specifies a JIRA ticket key and wants to begin development,
-  (3) user says "開始 PROJ-123", "開工 TASK-123". This skill handles only the status
+  (3) user says "開始 PROJ-123", "開工 PROJ-456". This skill handles only the status
   transition — for Epic breakdown and sub-task creation, use epic-breakdown instead.
 metadata:
-  author: ""
+  author: Polaris
   version: 1.0.0
 ---
 
@@ -25,7 +25,7 @@ metadata:
 
 ### 1. 解析 Ticket Key
 
-從使用者輸入中提取 JIRA ticket key（如 `PROJ-123`、`TASK-123`）。
+從使用者輸入中提取 JIRA ticket key（如 `PROJ-459`、`PROJ-1234`）。
 
 ### 2. 確認 Ticket 資訊
 

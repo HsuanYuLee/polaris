@@ -5,12 +5,13 @@ description: >
   estimation begins. Reads ticket content, checks completeness, proposes 2-3 alternative approaches
   with tradeoffs, and recommends whether to proceed as-is, simplify, split, or request more info.
   Advisory only — does not block.
-  Use when: (1) user says "scope challenge", "挑戰需求", "challenge scope", "需求質疑",
-  "scope review", "review scope", "需求合理性",
+  Use when: (1) user says "scope challenge", "挑戰需求", "challenge requirements",
+  "challenge scope", "需求質疑", "question requirements", "scope review", "review scope",
+  "需求合理性", "requirement reasonableness",
   (2) invoked by work-on or epic-breakdown before estimation,
   (3) user wants to validate whether a ticket's scope is reasonable before committing effort.
 metadata:
-  author: ""
+  author: Polaris
   version: 1.1.0
 ---
 

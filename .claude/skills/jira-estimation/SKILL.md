@@ -10,7 +10,7 @@ description: >
   "estimate", "幫我估", "這張幾點", route to work-on (it will invoke this
   skill internally).
 metadata:
-  author: ""
+  author: Polaris
   version: 1.2.0
 ---
 
@@ -35,7 +35,7 @@ metadata:
 ```
 mcp__claude_ai_Atlassian__getJiraIssueTypeMetaWithFields
   cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
-  projectKey: <目標專案 key，如 TASK 或 GT>
+  projectKey: <目標專案 key，如 PROJ 或 BACK>
   issueTypeName: 任務
 ```
 
@@ -59,8 +59,8 @@ mcp__claude_ai_Atlassian__getJiraIssueTypeMetaWithFields
 ### 1. 取得 JIRA 單內容並判斷類型
 
 從以下來源取得 ticket key（優先順序）：
-1. 使用者直接提供的 issue key（如 `PROJ-123`）
-2. 當前 branch 名稱：`feat/PROJ-123` → `PROJ-123`
+1. 使用者直接提供的 issue key（如 `PROJ-432`）
+2. 當前 branch 名稱：`feat/PROJ-432` → `PROJ-432`
 3. 詢問使用者
 
 使用 MCP 工具讀取 ticket：
@@ -240,12 +240,12 @@ mcp__claude_ai_Atlassian__editJiraIssue
 
 #### 8.5 批次建立 JIRA Sub-task
 
-使用者確認後，逐一建立子任務。所有子單一律開在 TASK 專案，使用「任務」類型，parent 指向母單（不論母單是 GT 或 TASK）：
+使用者確認後，逐一建立子任務。所有子單一律開在目標專案，使用「任務」類型，parent 指向母單：
 
 ```
 mcp__claude_ai_Atlassian__createJiraIssue
   cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
-  projectKey: TASK
+  projectKey: PROJ
   issueTypeName: 任務
   summary: <子任務 summary，格式：[TICKET_KEY] 簡短描述>
   description: <SASD 格式的 description>

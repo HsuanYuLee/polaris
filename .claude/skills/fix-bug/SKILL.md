@@ -3,11 +3,12 @@ name: fix-bug
 description: >
   End-to-end bug fix workflow: read JIRA ticket, identify project, analyze root cause,
   estimate, develop fix, quality check, and open PR. Use this skill whenever the user
-  mentions 幫我修正, 修 bug, fix bug, 開始修正, 修正這張, fix this ticket, or provides
-  a JIRA ticket key (not a GitHub PR URL) and asks to fix it. This skill is for fixing
+  mentions 幫我修正, "help me fix", 修 bug, "fix bug", 開始修正, "start fixing",
+  修正這張, "fix this ticket", or provides a JIRA ticket key (not a GitHub PR URL)
+  and asks to fix it. This skill is for fixing
   bugs reported in JIRA — not for fixing PR review comments (use fix-pr-review for that).
 metadata:
-  author: ""
+  author: Polaris
   version: 1.1.0
 ---
 
@@ -25,7 +26,7 @@ metadata:
 
 | 使用者輸入 | 應觸發的 skill |
 |-----------|---------------|
-| `幫我修正 PROJ-123` / `修 bug PROJ-123` / `fix bug PROJ-123` | **fix-bug**（本 skill） |
+| `幫我修正 PROJ-432` / `修 bug PROJ-432` / `fix bug PROJ-432` | **fix-bug**（本 skill） |
 | `幫我修正` + GitHub PR URL | fix-pr-review（不是本 skill） |
 | `修正 review` / `fix review` + PR URL | fix-pr-review（不是本 skill） |
 
@@ -35,7 +36,7 @@ metadata:
 
 ### Step 1：讀取 JIRA 單 → 確認專案
 
-從使用者輸入中提取 JIRA ticket key（如 `PROJ-123`、`TASK-123`）。
+從使用者輸入中提取 JIRA ticket key（如 `PROJ-432`、`PROJ-1234`）。
 
 ```
 mcp__claude_ai_Atlassian__getJiraIssue
@@ -144,7 +145,7 @@ PR 開出後，詢問 RD 是否要記錄工時。若要，委派給 `jira-worklo
 ## 流程圖
 
 ```
-使用者：幫我修正 PROJ-123
+使用者：幫我修正 PROJ-432
   │
   ▼
 Step 1: 讀 JIRA 單 → 確認專案 → cd 到專案目錄

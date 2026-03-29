@@ -51,7 +51,7 @@
       "Bash(GIT_EDITOR=true *)",
       "Bash(/Users/<USERNAME>/work/.claude/skills/*)",
       "Bash(/Users/<USERNAME>/work/.claude/skills/* | *)",
-      "Bash(/Users/<USERNAME>/work/kkday-web-skills/skills/*)",
+      "Bash(/Users/<USERNAME>/work/<company>-skills/skills/*)",
       "Bash(/Users/<USERNAME>/work/ai-env.sh *)",
       "mcp__claude_ai_Atlassian__*",
       "mcp__claude_ai_Slack__*",

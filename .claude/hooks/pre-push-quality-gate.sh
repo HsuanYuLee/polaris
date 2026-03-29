@@ -1,14 +1,19 @@
 #!/bin/bash
-# Pre-push Quality Gate — 門下省機制
-# 攔截 git push，確認品質檢查已通過才放行
+# Pre-push Quality Gate
+# Intercepts git push and verifies that quality checks have passed
 #
-# 機制：your-company-dev-quality-check 通過後寫 marker file，本 hook 檢查 marker 是否存在
+# Mechanism: dev-quality-check writes a marker file on pass; this hook checks the marker
 # Marker: /tmp/.quality-gate-passed-{branch}
 #
-# 環境變數（Claude Code hook 提供）：
-#   CLAUDE_TOOL_INPUT — Bash tool 的 JSON input
+# Environment variables (provided by Claude Code hooks):
+#   CLAUDE_TOOL_INPUT — JSON input of the Bash tool call
+#
+# Known limitation: this hook is registered as PreToolUse on "Bash" matcher,
+# so it fires on EVERY Bash tool call. The grep below short-circuits non-push
+# commands immediately (exit 0). The subprocess overhead is minimal but present.
+# Claude Code does not yet support command-level matchers (e.g. "Bash(git push*)").
 
-# 只攔截 git push 指令
+# Only intercept git push commands — exit immediately for everything else
 if ! echo "$CLAUDE_TOOL_INPUT" | grep -qE '"command"[^"]*git[^"]*push'; then
   exit 0
 fi
@@ -48,13 +53,29 @@ if [ -f "$MARKER" ]; then
   fi
 fi
 
-# 沒有有效 marker，阻擋 push
+# No valid marker — check if this is the user's first push ever (no markers exist)
+FIRST_PUSH=true
+for existing_marker in /tmp/.quality-gate-passed-*; do
+  [ -e "$existing_marker" ] && FIRST_PUSH=false && break
+done
+
+if [ "$FIRST_PUSH" = true ]; then
+  cat >&2 <<'EOF'
+ℹ️  First push detected — quality gate is skipping this time.
+
+In future pushes, run "quality check" (or 「品質檢查」) before pushing.
+The quality gate ensures lint, tests, and coverage pass before code is pushed.
+EOF
+  exit 0
+fi
+
+# Not first push — block and explain
 cat >&2 <<'EOF'
-⚠️ 品質閘門未通過 — 請先執行 your-company-dev-quality-check
+⚠️ Quality gate not passed — run dev-quality-check first
 
-推送前必須通過品質檢查（lint + test + coverage）。
-執行品質檢查後，marker 會自動建立，即可正常 push。
+Push requires passing quality checks (lint + test + coverage).
+After the check passes, a marker file is created and push will proceed.
 
-提示：說「品質檢查」或「quality check」即可觸發。
+Tip: say "quality check" or "品質檢查" to trigger it.
 EOF
 exit 2

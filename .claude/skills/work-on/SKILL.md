@@ -5,23 +5,25 @@ description: >
   right next step (estimate, breakdown, branch creation, or coding). The single entry
   point for "I want to work on this ticket". Supports batch mode: multiple tickets
   are processed in parallel via sub-agents with two-phase execution (analysis → implementation).
-  Use when: (1) user says "做 PROJ-123", "我要做 PROJ-123", "work on PROJ-123", "開始做",
-  "接這張", "take PROJ-123", (2) user provides one or more JIRA ticket keys,
-  (3) user says "下一步" or "繼續" for an in-progress ticket,
-  (4) user says "估點", "estimate", "幫我估", "這張幾點", "story point" with a ticket key
+  Use when: (1) user says "做 PROJ-123", "I'll do PROJ-123", "我要做 PROJ-123",
+  "work on PROJ-123", "開始做", "start working", "接這張", "take this ticket",
+  "take PROJ-123", (2) user provides one or more JIRA ticket keys,
+  (3) user says "下一步", "next step", "繼續", "continue" for an in-progress ticket,
+  (4) user says "估點", "estimate", "幫我估", "help me estimate", "這張幾點",
+  "how many points", "story point" with a ticket key
   — estimation is now handled internally by this skill, not as a standalone step.
   This skill orchestrates other skills — it does NOT replace them.
-  Do NOT use this for single bug fix requests like "fix bug PROJ-123" / "修 bug PROJ-123" /
-  "幫我修正 PROJ-123" — those go to fix-bug. However, multiple tickets including
-  bug fixes like "修 PROJ-123 PROJ-123 PROJ-123" DO go through this skill's batch mode.
+  Do NOT use this for single bug fix requests like "fix bug PROJ-100" / "修 bug PROJ-100" /
+  "幫我修正 PROJ-100" — those go to fix-bug. However, multiple tickets including
+  bug fixes like "修 PROJ-100 PROJ-101 PROJ-102" DO go through this skill's batch mode.
 metadata:
-  author: ""
+  author: Polaris
   version: 2.4.0
 ---
 
 # Work On — 智慧開發路由
 
-使用者只需要說「做 PROJ-123」或「做 PROJ-123 PROJ-123 PROJ-123」，skill 自動判斷 ticket 狀態並執行對應步驟。多張 ticket 時自動進入批次模式，以 sub-agent 平行處理。
+使用者只需要說「做 PROJ-448」或「做 PROJ-100 PROJ-101 PROJ-102」，skill 自動判斷 ticket 狀態並執行對應步驟。多張 ticket 時自動進入批次模式，以 sub-agent 平行處理。
 
 ## 前置：讀取 workspace config
 
@@ -59,7 +61,7 @@ metadata:
 | 1 | PROJ-100 | Bug | 開放 | repo-a | 根因分析 → 估點 → 開發 → PR |
 | 2 | PROJ-101 | Story | IN DEV | repo-a | 已有 branch → 估點 → 開發 |
 | 3 | PROJ-300 | Epic | 開放 | repo-b | 拆單估點 |
-| 4 | PROJ-123 | Task | QA TESTING | — | ⏭️ 跳過（已進入 QA 流程） |
+| 4 | PROJ-400 | Task | QA TESTING | — | ⏭️ 跳過（已進入 QA 流程） |
 ```
 
 等使用者確認後繼續。使用者可在此排除特定 ticket。
@@ -128,7 +130,7 @@ Description: {description}
 | 1 | ... | 2 | — |
 | 2 | ... | 3 | #1 |
 
-### 3. PROJ-123 (Epic) — your-design-system — 建議 13 點
+### 3. PROJ-300 (Epic) — &lt;design-system&gt; — 建議 13 點
 （拆單表格...）
 ```
 
@@ -210,9 +212,9 @@ Project: ~/work/{repo}
 
 | # | Ticket | Branch | PR | JIRA 狀態 |
 |---|--------|--------|----|----------|
-| 1 | PROJ-123 | task/PROJ-123-fix-xxx | #1950 ✅ | CODE REVIEW |
-| 2 | PROJ-123 | task/PROJ-123-add-xxx | #1951 ✅ | CODE REVIEW |
-| 3 | PROJ-123-1 | — | — ⚠️ | 估點變動 > 30%，需確認 |
+| 1 | PROJ-100 | task/PROJ-100-fix-xxx | #100 ✅ | CODE REVIEW |
+| 2 | PROJ-101 | task/PROJ-101-add-xxx | #101 ✅ | CODE REVIEW |
+| 3 | PROJ-300-1 | — | — ⚠️ | 估點變動 > 30%，需確認 |
 ```
 
 若有 sub-agent 回報問題（估點變動、技術難題、品質檢查失敗），列出待處理事項讓使用者決定。
@@ -236,7 +238,7 @@ Project: ~/work/{repo}
 
 ### 1. 解析 Ticket Key
 
-從使用者輸入中提取 JIRA ticket key（如 `PROJ-123`、`TASK-123`）。
+從使用者輸入中提取 JIRA ticket key（如 `PROJ-448`、`TEAM-1234`）。
 
 ### 2. 收集 Ticket 狀態
 
@@ -387,7 +389,7 @@ section 下的 checklist items（`- [ ] ...`）。
 1. **AC（驗收條件）**：從需求推導出具體的驗收標準
 2. **測試計畫**：使用者視角的操作步驟 + 預期結果，格式為 `- [ ]` checklist
 
-參考 TASK-123 的結構化 description 格式：
+參考 TEAM-1001 的結構化 description 格式：
 
 ```markdown
 ## 測試計畫
@@ -456,15 +458,15 @@ mcp__claude_ai_Atlassian__createJiraIssue
 路由完成後，顯示開發摘要然後**自動銜接後續流程**（不停下來等使用者）：
 
 ```
-📋 PROJ-123 — [AEO] Tour 行程表結構化資料
+📋 PROJ-448 — [Feature] Product listing optimization
 ├─ 狀態：IN DEVELOPMENT
-├─ Branch：task/PROJ-123-tour-itinerary-structured-data
-├─ Base：feat/PROJ-123-aggregate-offer-structured-data（依賴 PROJ-123，PR #1920）
+├─ Branch：task/PROJ-448-product-listing-optimization
+├─ Base：feat/PROJ-460-aggregate-structured-data（依賴 PROJ-450，PR #102）
 ├─ AI 設定：已套用（ai-env.sh setup）
 ├─ Readiness Gate：✅ 通過（AC 品質合格）
 ├─ 測試計畫：3 項（AC Gate 已確認）
-├─ [驗證] 子任務：TASK-123, TASK-123, TASK-123
-└─ PR base：feat/PROJ-123-aggregate-offer-structured-data
+├─ [驗證] 子任務：TEAM-1003, TEAM-1004, TEAM-1005
+└─ PR base：feat/PROJ-460-aggregate-structured-data
 → 開始 TDD 開發...
 ```
 

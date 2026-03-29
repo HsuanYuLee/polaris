@@ -5,19 +5,25 @@ description: >
   to identify missing info, generates draft content (AC, scope, edge cases, dependencies), and
   writes it back to JIRA for PM/RD review. Supports multi-round refinement across conversations.
   Use this skill whenever: (1) user says "refinement", "backlog refinement", "grooming", "討論需求",
-  "需求釐清", "充實這張單", "補完 Epic", (2) user has an Epic with sparse content that needs
-  fleshing out before estimation, (3) user says "這張單缺什麼", "Epic 資訊夠嗎", "review Epic",
+  "discuss requirements", "需求釐清", "clarify requirements", "充實這張單", "enrich this ticket",
+  "補完 Epic", "complete the Epic", (2) user has an Epic with sparse content that needs
+  fleshing out before estimation, (3) user says "這張單缺什麼", "what's missing in this ticket",
+  "Epic 資訊夠嗎", "is the Epic info enough", "review Epic",
   (4) before epic-breakdown when the Epic is clearly incomplete, (5) user says "brainstorm",
-  "這張怎麼做比較好", "方案討論" for implementation approach discussion (Phase 2),
-  (6) user says "想重構", "tech debt", "這段 code 有問題", "效能不好", "研究一下怎麼優化",
-  "brainstorm refactoring" for RD-initiated refactoring/optimization discovery (Phase 0),
+  "這張怎麼做比較好", "what's the best approach", "方案討論", "discuss approach"
+  for implementation approach discussion (Phase 2),
+  (6) user says "想重構", "want to refactor", "tech debt", "這段 code 有問題",
+  "this code has issues", "效能不好", "poor performance", "研究一下怎麼優化",
+  "research how to optimize", "brainstorm refactoring"
+  for RD-initiated refactoring/optimization discovery (Phase 0),
   (7) user provides multiple Epic keys and asks to check readiness, or says "掃一下這些 Epic",
-  "這幾張準備好了嗎", "batch refinement", "批次 refinement", "sprint 準備",
-  "幫我看這些單的完整度" for batch readiness scanning before sprint planning.
+  "scan these Epics", "這幾張準備好了嗎", "are these ready", "batch refinement",
+  "批次 refinement", "sprint 準備", "sprint prep", "幫我看這些單的完整度",
+  "check completeness of these tickets" for batch readiness scanning before sprint planning.
   This skill handles four modes: batch readiness scan, RD-initiated discovery (Phase 0),
   PM-initiated requirement elaboration (Phase 1), and implementation approach discussion (Phase 2).
 metadata:
-  author: ""
+  author: Polaris
   version: 3.1.0
 ---
 
@@ -49,7 +55,7 @@ metadata:
 
 ### 觸發場景
 
-- 「幫我看這幾張 Epic 準備好了嗎：PROJ-123 PROJ-123 PROJ-123」
+- 「幫我看這幾張 Epic 準備好了嗎：PROJ-481 PROJ-500 PROJ-510」
 - 「sprint 準備，掃一下這些單」
 - 「批次 refinement」
 - 提供多個 Epic key + 任何與 refinement/readiness/完整度相關的意圖
@@ -72,9 +78,9 @@ metadata:
 
 | # | Epic | Summary | 完整度 | 狀態 | 缺項 | 建議 |
 |---|------|---------|--------|------|------|------|
-| 1 | PROJ-123 | [CWV] lokalise 減量... | 8/8 | ✅ Ready | — | → breakdown |
-| 2 | PROJ-123 | [b2c] 商品頁重構... | 3/8 | ❌ Needs work | AC, Scope, Figma | → Phase 1 深度 refinement |
-| 3 | PROJ-123 | [DS] Button 元件優化 | 6/8 | ⚠️ Almost | 依賴, Edge cases | → 快速補充後可排 |
+| 1 | PROJ-481 | [feature] i18n key 減量... | 8/8 | ✅ Ready | — | → breakdown |
+| 2 | PROJ-500 | [web] 商品頁重構... | 3/8 | ❌ Needs work | AC, Scope, Figma | → Phase 1 深度 refinement |
+| 3 | PROJ-510 | [DS] Button 元件優化 | 6/8 | ⚠️ Almost | 依賴, Edge cases | → 快速補充後可排 |
 
 ✅ Ready: 2 張（可直接排入 sprint）
 ❌ Needs work: 1 張（需深度 refinement）
@@ -92,7 +98,7 @@ metadata:
 
 ```
 mcp__claude_ai_Atlassian__addCommentToJiraIssue
-  cloudId: your-domain.atlassian.net
+  cloudId: {config: jira.instance}
   issueIdOrKey: <EPIC_KEY>
   body: |
     ## Refinement Readiness Check — [日期]
@@ -398,7 +404,7 @@ Approach:  修改 KkPrice 元件，加入 loading/error state
 Pros:      複用現有元件，改動範圍小
 Cons:      KkPrice 已經很複雜，再加 state 可能過載
 Effort:    M（3-5 pts）
-Affects:   your-design-system + your-app
+Affects:   <design-system> + <your-repo>
 Risk:      DS 改動需要先 merge 才能在 B2C 用
 ```
 

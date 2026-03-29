@@ -5,7 +5,7 @@
 # strips company-specific references, and prepares them for commit to Polaris.
 #
 # Usage:
-#   ./scripts/sync-from-upstream.sh --source ~/work [--company kkday] [--dry-run] [--verify]
+#   ./scripts/sync-from-upstream.sh --source ~/work [--company my-company] [--dry-run] [--verify]
 #
 # What it syncs:
 #   - .claude/skills/ (excluding company-specific skills)
@@ -38,7 +38,9 @@ VERIFY=false
 # Company-specific skills directory (matches rules pattern: skills/{company}/)
 # The entire company subdirectory is excluded from sync to Polaris.
 # Individual skill names no longer need to be listed here.
-EXCLUDE_SKILL_DIRS="kkday"
+# Company-specific skill directories to exclude (space-separated)
+# Update this after /init to match your company name(s)
+EXCLUDE_SKILL_DIRS=""
 
 # Company-specific references to exclude
 EXCLUDE_REFERENCES="sasd-confluence.md"
@@ -125,18 +127,26 @@ if [[ "$DRY_RUN" == false ]]; then
   done
 fi
 
-# ── Step 4: Sync L2 rules (company dir → company/) ───────────────────
+# ── Step 4: Sync L2 rules (rule-examples → company/) ─────────────────
 
 echo "Syncing L2 rules..."
 L2_SOURCE=""
-for candidate in "$SOURCE_DIR"/.claude/rules/*/; do
-  dir_name=$(basename "$candidate")
-  if [[ "$dir_name" != "." ]]; then
-    L2_SOURCE="$candidate"
-    echo "  Found L2 source: $dir_name/"
-    break
-  fi
-done
+# Preferred: _template/rule-examples/ (v1.5.0+)
+if [[ -d "$SOURCE_DIR/_template/rule-examples" ]] && ls "$SOURCE_DIR/_template/rule-examples/"*.md &>/dev/null; then
+  L2_SOURCE="$SOURCE_DIR/_template/rule-examples/"
+  echo "  Found L2 source: _template/rule-examples/"
+else
+  # Fallback: .claude/rules/{subdir}/ with .md files (pre-v1.5.0)
+  for candidate in "$SOURCE_DIR"/.claude/rules/*/; do
+    dir_name=$(basename "$candidate")
+    [[ "$dir_name" == "." ]] && continue
+    if ls "$candidate"*.md &>/dev/null; then
+      L2_SOURCE="$candidate"
+      echo "  Found L2 source: $dir_name/"
+      break
+    fi
+  done
+fi
 
 if [[ -n "$L2_SOURCE" ]] && [[ "$DRY_RUN" == false ]]; then
   mkdir -p "$POLARIS_DIR/.claude/rules/company"
@@ -250,7 +260,9 @@ if [[ "$VERIFY" == true ]]; then
   echo ""
   echo "Verifying no company-specific references remain..."
 
-  LEAK_PATTERNS="kkday|KKday|kkday-it|kkday-travel|daniel-lee-kk|GT-[0-9]+|KB2CW|kkday\.atlassian"
+  # Add your company-specific patterns here for leak detection
+  # Example: "acme|Acme|acme-org|ACME-[0-9]+|acme\.atlassian"
+  LEAK_PATTERNS="COMPANY_NAME_HERE"
   LEAKS=$(grep -rn -E "$LEAK_PATTERNS" \
     "$POLARIS_DIR/.claude" "$POLARIS_DIR/_template" "$POLARIS_DIR/workspace-config.yaml" \
     "$POLARIS_DIR/README.md" "$POLARIS_DIR/CHANGELOG.md" \
@@ -279,7 +291,5 @@ echo "Next steps:"
 echo "  1. cd $POLARIS_DIR"
 echo "  2. git diff            — review changes"
 echo "  3. git add -A && git commit -m 'sync: update from upstream'"
-echo "  4. gh auth switch --user HsuanYuLee"
-echo "  5. git push"
-echo "  6. gh auth switch --user daniel-lee-kk"
+echo "  4. git push"
 echo "════════════════════════════════════════════"

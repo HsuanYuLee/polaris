@@ -1,17 +1,17 @@
 ---
 name: example
 description: >
-  YourOrg 技能庫範例，展示如何定義 SKILL.md 的結構與 frontmatter。這是一個範本，
+  Polaris skill template example，展示如何定義 SKILL.md 的結構與 frontmatter。這是一個範本，
   不應被任何使用者請求觸發。僅供開發新 skill 時參考格式用。
   Do NOT trigger this skill for any user request — it is a template only.
 metadata:
-  author: ""
+  author: Polaris
   version: 1.0.0
 ---
 
-# YourOrg Example Skill
+# Example Skill
 
-這是 YourOrg 內部 Agent 技能的基礎範例。
+這是 Polaris Agent 技能的基礎範例。
 
 ## 核心規範 (Core)
 

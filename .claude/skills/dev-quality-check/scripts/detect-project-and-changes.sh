@@ -18,8 +18,8 @@
 #   - stats             — 統計
 #
 # Example:
-#   ./detect-project-and-changes.sh --project-dir ~/work/your-app
-#   cd ~/work/your-backend && ./detect-project-and-changes.sh
+#   ./detect-project-and-changes.sh --project-dir ~/work/your-repo
+#   cd ~/work/your-api-repo && ./detect-project-and-changes.sh
 
 set -euo pipefail
 

@@ -70,7 +70,7 @@ Scanner 優先掃這些 repo 相關的技術主題，並在每篇文章標記 `R
 | `your-org-app-b` | PHP (Laravel), Vue 2→3 migration | API 設計、前後端整合 |
 | `your-org-mobile` | Vue 3, mobile-first | Mobile 效能、RWD |
 | `your-org-docker` | Docker, nginx | 開發環境、部署 |
-| `your-design-system` | Vue 3, component library | 元件設計、token system |
+| `web-design-system` | Vue 3, component library | 元件設計、token system |
 | `your-org-skills` | Claude Code skills, AI workflow | AI agent 設計模式 |
 
 其他 repo（`your-org-email`、`your-org-static`）有相關文章時標記，但不主動搜尋。
@@ -82,13 +82,13 @@ Scanner 優先掃這些 repo 相關的技術主題，並在每篇文章標記 `R
 | 文章主題 | 標記 |
 |---------|------|
 | Nuxt SSR / ISR / route rules | `your-org-app-a` |
-| Vue 3 composable / component patterns | `your-org-app-a`, `your-org-mobile`, `your-design-system` |
+| Vue 3 composable / component patterns | `your-org-app-a`, `your-org-mobile`, `web-design-system` |
 | Vitest / testing patterns | `your-org-app-a`, `your-org-mobile` |
 | TypeScript 通用（type safety, new features） | `all` |
 | Turborepo / monorepo | `your-org-app-a` |
 | Docker / nginx / dev environment | `your-org-docker` |
 | AI agent / Claude Code / MCP / skill design | `your-org-skills` |
-| Design system / component library | `your-design-system` |
+| Design system / component library | `web-design-system` |
 | PHP / Laravel | `your-org-app-b` |
 | 跨 repo 通用（ESLint, CI/CD, architecture） | `all` |
 

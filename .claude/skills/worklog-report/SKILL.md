@@ -7,7 +7,7 @@ description: >
   asks what tickets were finished in a date range or sprint.
   Supports two modes: date range (e.g. "2w", "1m") and sprint (e.g. "sprint:Q2 S1").
 metadata:
-  author: ""
+  author: Polaris
   version: 1.0.0
 ---
 

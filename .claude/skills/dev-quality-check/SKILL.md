@@ -8,7 +8,7 @@ description: >
   "測試檢查", "跑測試", (3) before committing code (auto-invoked by git-pr-workflow),
   (4) user asks "is my code ready to commit", (5) user says "verify", "validate", "確認品質".
 metadata:
-  author: ""
+  author: Polaris
   version: 3.2.0
 ---
 
@@ -109,7 +109,7 @@ Coverage 是品質檢查的必要步驟，不可跳過。
 # 1. 偵測 vitest 版本
 VITEST_VER=$(node -p "require('vitest/package.json').version" 2>/dev/null || echo "")
 
-# 2. 安裝到正確的 workspace（your-app 需裝在 @your-org/your-app-main filter）
+# 2. 安裝到正確的 workspace（Monorepo 需裝在對應 package filter）
 pnpm -C <project-dir> add -D @vitest/coverage-v8@${VITEST_VER} --filter <package-name>  # e.g. --filter @your-org/app-main
 # 或 workspace root: pnpm -C <project-dir> add -Dw @vitest/coverage-v8@${VITEST_VER}
 
@@ -118,11 +118,11 @@ pnpm -C <project-dir> add -D @vitest/coverage-v8@${VITEST_VER} --filter <package
 
 **Jest 專案**：Jest coverage 通常內建，若缺少則安裝 `jest` 本身即可。
 
-**your-app 注意事項**：your-app 的 `vitest.config.ts` 在 `apps/main/`，coverage provider 的 module resolution 只在該目錄下有效。必須從 `apps/main/` 目錄執行 coverage 指令：
+**Monorepo 注意事項**：Monorepo 專案（如 `<project>`）的 `vitest.config.ts` 在 `apps/main/`，coverage provider 的 module resolution 只在該目錄下有效。必須從 `apps/main/` 目錄執行 coverage 指令：
 ```bash
 cd <project-dir>/apps/main && npx vitest run <test-files> --coverage --coverage.include='<source-path>/**'
 ```
-**不可用 `npx --prefix <project-dir>` 從 workspace root 執行**——Vite 會從 root 的 node_modules 解析 coverage-v8，但 root 和 apps/main 可能有不同版本的 vitest，導致 module resolution 失敗。
+**不可用 `npx --prefix <project-dir>` 從 workspace root 執行**——Vite 會從 root 的 node_modules 解析 coverage-v8，但 root 和子目錄可能有不同版本的 vitest，導致 module resolution 失敗。
 
 **其他 Vitest 專案：**
 ```bash
@@ -165,11 +165,11 @@ Lint 和 test 在 Vitest/Node 環境跑，不會觸發 Nuxt runtime 的 module s
 
 ### 6b. Dev Server Smoke Test（完整 runtime 驗證）
 
-`nuxi prepare` 只驗 module resolution，不啟動 runtime。有些問題只在 dev server 實際啟動時才會爆（如 worker init 階段的 dynamic import 失敗）。啟動 dev server 並**透過 your-dev-proxy 的 nginx proxy 打真實頁面**確認 HTTP 200。
+`nuxi prepare` 只驗 module resolution，不啟動 runtime。有些問題只在 dev server 實際啟動時才會爆（如 worker init 階段的 dynamic import 失敗）。啟動 dev server 並**透過 `{config: infra.docker_project}` 的 nginx proxy 打真實頁面**確認 HTTP 200。
 
-**標準 dev 環境架構（your-app）：**
+**標準 dev 環境架構（Nuxt 專案）：**
 ```
-curl → {config: infra.dev_host}:80 → nginx (Docker) → host.docker.internal:3001 → Nuxt dev server
+curl → {config: infra.dev_host}:80 → nginx (Docker) → host.docker.internal:{port} → Nuxt dev server
 ```
 
 ```bash
@@ -195,13 +195,13 @@ kill %1 2>/dev/null
 | 結果 | 動作 |
 |------|------|
 | HTTP 200 within 90s | ✅ 進入 content check |
-| 503 持續 90s | ❌ nginx 連不到 Nuxt upstream — 檢查 Nuxt 是否在正確 port（your-app: 3001）、your-dev-proxy 是否在跑、server log |
-| 000 (connection refused) | ❌ nginx 未啟動 — 確認 your-dev-proxy 容器是否在執行 |
+| 503 持續 90s | ❌ nginx 連不到 Nuxt upstream — 檢查 Nuxt 是否在正確 port（`<project>: {port}`）、`{config: infra.docker_project}` 是否在跑、server log |
+| 000 (connection refused) | ❌ nginx 未啟動 — 確認 `{config: infra.docker_project}` 容器是否在執行 |
 
 **Content Sanity Check（HTTP 200 後）：**
 
 HTTP 200 ≠ 頁面正常。取得 HTML 後檢查：
-- **i18n key leak**：`grep -oE '[a-z]+(_[a-z0-9]+){2,}'` 計算 raw key 數量，> 10 個 = ⚠️ 翻譯可能沒載入（檢查 `.env.local` 的 `API_LANG_BASE_URL` 是否指向可達的 endpoint）
+- **i18n key leak**：`grep -oE '[a-z]+(_[a-z0-9]+){2,}'` 計算 raw key 數量，> 10 個 = ⚠️ 翻譯可能沒載入（檢查 `.env.local` 的 i18n base URL 環境變數是否指向可達的 endpoint）
 - **SSR payload**：確認 HTML 有 `__NUXT__`，沒有 = SSR 失敗
 - **`<title>`**：應包含有意義的文字，不是 i18n key
 

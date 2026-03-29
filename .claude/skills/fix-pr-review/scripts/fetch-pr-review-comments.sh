@@ -8,7 +8,7 @@
 # 過濾邏輯：
 #   Inline comments:
 #     1. 排除自己留的 comment
-#     2. 排除非 code review 的 bot（changeset-bot、codecov-commenter、your-bot-account）
+#     2. Exclude non-code-review bots (changeset-bot, codecov-commenter, and any configured bot accounts)
 #     3. Thread-based 判斷：thread 最後一則 comment 是 author → 已回覆
 #     4. Reviewer 確認回覆（含 "確認" + "✅" 或 "LGTM"）視為已解決
 #   Review summaries:
@@ -29,8 +29,8 @@
 #   - stats            — 統計資訊
 #
 # Example:
-#   ./fetch-pr-review-comments.sh your-org/your-app 1920
-#   ./fetch-pr-review-comments.sh your-org/your-app 1920 --my-user your-username
+#   ./fetch-pr-review-comments.sh your-org/your-repo 1920
+#   ./fetch-pr-review-comments.sh your-org/your-repo 1920 --my-user your-github-user
 
 set -euo pipefail
 

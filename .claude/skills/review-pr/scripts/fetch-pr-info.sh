@@ -6,8 +6,8 @@
 # Progress (stderr): 取得進度
 #
 # Example:
-#   ./fetch-pr-info.sh your-org/your-app 1882
-#   ./fetch-pr-info.sh your-org/your-app 1882 --my-user your-username
+#   ./fetch-pr-info.sh your-org/your-repo 1882
+#   ./fetch-pr-info.sh your-org/your-repo 1882 --my-user your-github-user
 
 set -euo pipefail
 

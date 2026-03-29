@@ -3,12 +3,14 @@ name: review-lessons-graduation
 description: >
   Consolidates review-lessons into main .claude/rules/ when entry count >= 15.
   Auto-invoked by review-pr, fix-pr-review, check-pr-approvals after lesson extraction.
-  Also trigger manually: "整理 review lessons", "graduate lessons", "review lessons 畢業",
-  "consolidate lessons", "lesson 整理", "畢業 review lessons".
+  Also trigger manually: "整理 review lessons", "organize review lessons", "graduate lessons",
+  "review lessons 畢業", "consolidate lessons", "lesson 整理", "clean up lessons",
+  "畢業 review lessons", "promote review lessons".
   Make sure to use this skill whenever review-lessons consolidation, graduation,
-  or cleanup is mentioned — even if the user just says "lessons 太多了" or "rules 整理一下".
+  or cleanup is mentioned — even if the user just says "lessons 太多了", "too many lessons",
+  "rules 整理一下", or "tidy up rules".
 metadata:
-  author: ""
+  author: Polaris
   version: 1.0.0
 ---
 

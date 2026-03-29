@@ -13,7 +13,7 @@ description: >
   loop, or full workflow — use pr-convention for simple PR creation. This skill is
   for the COMPLETE lifecycle including quality gates and iterative AI review.
 metadata:
-  author: ""
+  author: Polaris
   version: 3.3.0
 ---
 
@@ -166,7 +166,7 @@ git create-branch --jira --ci
 * **最多 3 rounds**。如果 3 輪後仍有 blocking issues，停止迭代並列出未解決項目，詢問使用者是否手動處理或強制繼續。
 * 每輪修正後回報進度：`Review round N/3: X blocking issues 已修正，重新送審中...`
 
-#### 實際案例：PROJ-123
+#### 實際案例：PROJ-449
 
 | Round | Blocking Issues | 修正內容 |
 | --- | --- | --- |
@@ -227,7 +227,7 @@ feat: [JIRA-KEY] 簡短描述
 ## AC Coverage
 - [x] AC1: 點擊日期後價格 300ms 內更新
 - [x] AC2: API timeout → skeleton + retry
-- [ ] AC3: 多幣別切換（out of scope, 見 PROJ-123）
+- [ ] AC3: 多幣別切換（out of scope, 見 PROJ-510）
 ```
 
 #### Base Branch 偵測邏輯
@@ -235,17 +235,17 @@ feat: [JIRA-KEY] 簡短描述
 子單的 PR 應對母單 feature branch 發（不是 develop），這樣 diff 只顯示本子單的改動。
 
 ```
-1. 從 branch 名或 commit 取得 JIRA ticket key（如 TASK-123）
+1. 從 branch 名或 commit 取得 JIRA ticket key（如 PROJ-3461）
 2. 查 JIRA ticket 的 parent:
-   getJiraIssue → fields.parent.key（如 PROJ-123）
+   getJiraIssue → fields.parent.key（如 PROJ-483）
 3. 若有 parent:
    a. 用 git branch -r 搜尋 pattern: origin/feat/<PARENT-KEY>-*
-   b. 找到 → base = 該 feature branch（如 feat/PROJ-123-ttfb-optimization）
+   b. 找到 → base = 該 feature branch（如 feat/PROJ-483-ttfb-optimization）
    c. 沒找到 → fallback develop
 4. 若無 parent → base = develop（或 repo default branch）
 ```
 
-偵測結果回報使用者確認：`Base branch: feat/PROJ-123-ttfb-optimization（母單 PROJ-123 的 feature branch）`
+偵測結果回報使用者確認：`Base branch: feat/PROJ-483-ttfb-optimization（母單 PROJ-483 的 feature branch）`
 
 ```bash
 gh pr create --base <detected-base> --title "[JIRA-KEY] summary" --body "..."
