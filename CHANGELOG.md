@@ -7,6 +7,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Versions follow 
 - **Minor**: New skills, major skill features, new rules/references
 - **Patch**: Skill bugfixes, rule tweaks, doc updates
 
+## [1.1.0] - 2026-03-30
+
+### Changed
+- **README rewrite**: clear one-line positioning ("Claude Code workspace template"), concrete input→output walkthrough, prerequisites with MCP server dependencies, detailed Quick Start, skills overview table, customization guide
+- Absorbed ONBOARDING content into README — single entry point for new users
+
+### Fixed
+- MCP server dependencies (Atlassian, Slack, Google Calendar, Figma) now explicitly documented as prerequisites
+
 ## [1.0.0] - 2026-03-30
 
 ### Changed

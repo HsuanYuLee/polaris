@@ -20,10 +20,7 @@ Improvement candidates for the Polaris framework. Items flow in from:
 
 ## High — Blocking or validated pain points
 
-- [ ] **README 重寫：說清楚這是什麼** — 目前描述像 tagline soup，新使用者看完還不知道這是 Claude Code workspace template。需要一句話定位 + end-to-end walkthrough — source: challenger v1.0.0
 - [ ] **skill-routing 中英文混合** — 觸發詞半中文半英文，非中文使用者無法使用核心操作文件。需全面英文化或加英文 alias — source: challenger v1.0.0
-- [ ] **ONBOARDING.md 與 README 整併** — 兩個入口互相競爭，新使用者不知道該看哪個 — source: challenger v1.0.0
-- [ ] **MCP server 前置需求未說明** — Atlassian/Slack MCP 是多數 skill 的隱藏依賴，ONBOARDING 沒提到 — source: challenger v1.0.0
 - [ ] **`rules/company/` 泛化殘留** — 部分 rule 檔案含公司特定內容（JIRA status ID、field ID），新使用者無法區分哪些要改哪些通用 — source: challenger v1.0.0
 
 ## Medium — Clear improvement, not urgent
@@ -66,3 +63,6 @@ Improvement candidates for the Polaris framework. Items flow in from:
 - [x] Polaris v1.0.0 identity: Strategist persona, README rewrite, Zhang Liang inspiration — v1.0.0
 - [x] MIT LICENSE + GitHub topics + concrete repo description — v1.0.1
 - [x] Challenger mechanism (sub-agent UX audit) — v1.0.1
+- [x] README rewrite: clear positioning, prerequisites, concrete walkthrough — v1.1.0
+- [x] ONBOARDING.md absorbed into README (single entry point) — v1.1.0
+- [x] MCP server prerequisites documented — v1.1.0
