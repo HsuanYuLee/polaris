@@ -54,6 +54,11 @@ When a JIRA ticket key is ambiguous (could belong to multiple companies):
 2. If matched, apply that company's L2 rules
 3. If not matched, ask the user which company context to use
 4. Use `/which-company PROJ-123` for explicit diagnostics
+5. If two companies share the same project prefix, automatic routing cannot distinguish them — use `/use-company` to explicitly set context before starting work
+
+## Diagnostic Tool
+
+Run `/validate-isolation` to scan for isolation violations: missing scope headers, untagged memories, cross-company conflicts. Recommended after adding a new company or before a version release.
 
 ## Known Limitations
 

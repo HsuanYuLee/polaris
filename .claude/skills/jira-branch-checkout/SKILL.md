@@ -72,6 +72,10 @@ Convert the JIRA summary to a **3–6 word** kebab-case English phrase:
 | [JP] DX メインページ改修               | jp-dx-main-page              |
 | Session config 調整                     | session-config               |
 
+**CJK 翻譯結果驗證**：翻譯完成後，檢查清理後的 DESCRIPTION 是否有效：
+- 若 DESCRIPTION 為空、僅包含連字號（`-`）、或僅包含空白字元 → 使用 JIRA ticket key 作為唯一標識（例如 `task/PROJ-123`），並警告使用者：「Could not generate a meaningful branch suffix from the CJK title. Using ticket key only.」
+- Never produce a branch name with a trailing hyphen or empty suffix after the ticket number.
+
 ### 4. Check for dependency branch
 
 Before determining the base branch, check if this ticket depends on an unmerged branch:

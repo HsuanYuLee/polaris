@@ -7,7 +7,7 @@ description: >
   are processed in parallel via sub-agents with two-phase execution (analysis → implementation).
   Use when: (1) user says "做 PROJ-123", "I'll do PROJ-123", "我要做 PROJ-123",
   "work on PROJ-123", "開始做", "start working", "接這張", "take this ticket",
-  "take PROJ-123", (2) user provides one or more JIRA ticket keys,
+  "take PROJ-123", "做這張", "搞定這張", (2) user provides one or more JIRA ticket keys,
   (3) user says "下一步", "next step", "繼續", "continue" for an in-progress ticket,
   (4) user says "估點", "estimate", "幫我估", "help me estimate", "這張幾點",
   "how many points", "story point" with a ticket key
@@ -79,17 +79,17 @@ Type: {issue_type}
 Description: {description}
 
 ## 專案路徑
-~/work/{repo}
+{workspace_root}/{repo}
 
 ## 分析指示
 
 ### Codebase 探索
-先讀取 ~/work/.claude/skills/references/explore-pattern.md，使用自適應探索模式掃描 codebase。探索目標依 issue type 而定（見下方）。探索摘要取得後，再進入估點分析。
+先讀取 {workspace_root}/.claude/skills/references/explore-pattern.md，使用自適應探索模式掃描 codebase。探索目標依 issue type 而定（見下方）。探索摘要取得後，再進入估點分析。
 
 ### 估點參考
 讀取以下 skill 檔案，遵循其中的**分析/估點步驟**（僅分析，不執行寫入操作）：
-- ~/work/.claude/skills/jira-estimation/SKILL.md
-- ~/work/.claude/skills/references/estimation-scale.md
+- {workspace_root}/.claude/skills/jira-estimation/SKILL.md
+- {workspace_root}/.claude/skills/references/estimation-scale.md
 
 {根據 issue type 附加對應指示：}
 
@@ -104,7 +104,7 @@ Description: {description}
 
 ### Epic
 探索目標：找出與 Epic 相關的現有程式碼結構，識別可複用模組和依賴順序。
-讀取 ~/work/.claude/skills/epic-breakdown/SKILL.md 並遵循其分析流程。
+讀取 {workspace_root}/.claude/skills/epic-breakdown/SKILL.md 並遵循其分析流程。
 回傳：拆單表格、每張子單估點和 description。
 
 ## 限制
@@ -164,7 +164,7 @@ Description: {description}
 ## Ticket
 {ticket_key}: {summary}
 Type: {issue_type}
-Project: ~/work/{repo}
+Project: {workspace_root}/{repo}
 
 ## 已確認的分析結果
 {Phase 1 確認後的分析結果全文}
@@ -174,13 +174,13 @@ Project: ~/work/{repo}
 依序執行（讀取對應 SKILL.md 了解詳細步驟）：
 
 ### 1. 轉 IN DEVELOPMENT + 建 branch
-- 讀取 ~/work/.claude/skills/start-dev/SKILL.md — 設定需求來源、轉狀態
-- 讀取 ~/work/.claude/skills/jira-branch-checkout/SKILL.md — 建 branch
-- branch 建立後執行 ~/work/ai-env.sh setup（若 chore/ai-enhancements branch 存在）
+- 讀取 {workspace_root}/.claude/skills/start-dev/SKILL.md — 設定需求來源、轉狀態
+- 讀取 {workspace_root}/.claude/skills/jira-branch-checkout/SKILL.md — 建 branch
+- # If your workspace has a post-branch-creation script, run it here
 
 ### 2. TDD 開發（預設模式）
-- 讀取 ~/work/.claude/skills/dev-guide/SKILL.md — 遵循專案規範
-- 讀取 ~/work/.claude/skills/tdd/SKILL.md — 以 Red-Green-Refactor 循環實作
+- 讀取 {workspace_root}/.claude/skills/dev-guide/SKILL.md — 遵循專案規範
+- 讀取 {workspace_root}/.claude/skills/tdd/SKILL.md — 以 Red-Green-Refactor 循環實作
 - **TDD 智慧判斷**：對每個要改動的檔案，先嘗試寫測試：
   - 可寫測試（composable、util、store、API handler）→ 走 TDD 循環
   - 無法寫測試（config、純 template、純 style、型別定義）→ 記錄原因，直接實作
@@ -188,10 +188,10 @@ Project: ~/work/{repo}
 - 發現情況不同時，在 JIRA 新增 comment 標註修正版
 
 ### 3. 品質檢查 → 行為驗證 → PR（自動銜接，順序不可調換）
-- **先跑品質檢查**：讀取 ~/work/.claude/skills/dev-quality-check/SKILL.md — lint + test + coverage。品質檢查是自動化快速回饋，幾秒到幾分鐘就有結果。未通過則先修正，不進入行為驗證
-- **品質檢查通過後才跑行為驗證**：讀取 ~/work/.claude/skills/verify-completion/SKILL.md — 逐張執行 JIRA [驗證] sub-task。每張子單獨立：執行驗證 → 在該子單留 comment（含測試環境、驗證項目、結果）→ 轉狀態（開放 → IN DEVELOPMENT → 完成/BLOCKED）。行為驗證需要啟動服務（dev server、Mockoon 等），setup 成本較高，品質檢查沒過就做行為驗證是白費功夫
+- **先跑品質檢查**：讀取 {workspace_root}/.claude/skills/dev-quality-check/SKILL.md — lint + test + coverage。品質檢查是自動化快速回饋，幾秒到幾分鐘就有結果。未通過則先修正，不進入行為驗證
+- **品質檢查通過後才跑行為驗證**：讀取 {workspace_root}/.claude/skills/verify-completion/SKILL.md — 逐張執行 JIRA [驗證] sub-task。每張子單獨立：執行驗證 → 在該子單留 comment（含測試環境、驗證項目、結果）→ 轉狀態（開放 → IN DEVELOPMENT → 完成/BLOCKED）。行為驗證需要啟動服務（dev server、Mockoon 等），setup 成本較高，品質檢查沒過就做行為驗證是白費功夫
 - **驗證 Gate**：所有驗證子單必須為「完成」才可繼續。若有 BLOCKED/FAIL → 停止，回傳問題描述
-- 驗證子單全數通過後，讀取 ~/work/.claude/skills/git-pr-workflow/SKILL.md — **自動執行完整 PR 流程**（不等使用者指示）
+- 驗證子單全數通過後，讀取 {workspace_root}/.claude/skills/git-pr-workflow/SKILL.md — **自動執行完整 PR 流程**（不等使用者指示）
 - PR 建立後用 MCP tool 轉 JIRA 為 CODE REVIEW
 
 ### 4. 回傳結果
@@ -358,11 +358,11 @@ ticket 狀態是 IN DEVELOPMENT 且沒有 branch？
   └→ 檢查 JIRA comments 是否有依賴標記（base on / depends on）
      └→ 有 → 走依賴分支流程（jira-branch-checkout step 4a-4c）
      └→ 無 → 觸發 jira-branch-checkout（標準流程）
-  └→ branch 建立後 → 執行 ~/work/ai-env.sh setup（若 chore/ai-enhancements 存在）
+  └→ # If your workspace has a post-branch-creation script, run it here
 
 ticket 狀態是 IN DEVELOPMENT 且已有 branch？
   └→ checkout 到該 branch
-  └→ 執行 ~/work/ai-env.sh setup（若 chore/ai-enhancements 存在）
+  └→ # If your workspace has a post-branch-creation script, run it here
   └→ 提示：「已在 branch {name}，可以開始開發。」
 ```
 
@@ -462,7 +462,7 @@ mcp__claude_ai_Atlassian__createJiraIssue
 ├─ 狀態：IN DEVELOPMENT
 ├─ Branch：task/PROJ-448-product-listing-optimization
 ├─ Base：feat/PROJ-460-aggregate-structured-data（依賴 PROJ-450，PR #102）
-├─ AI 設定：已套用（ai-env.sh setup）
+├─ Post-branch script：已執行（如有配置）
 ├─ Readiness Gate：✅ 通過（AC 品質合格）
 ├─ 測試計畫：3 項（AC Gate 已確認）
 ├─ [驗證] 子任務：TEAM-1003, TEAM-1004, TEAM-1005

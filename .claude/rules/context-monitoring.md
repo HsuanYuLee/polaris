@@ -30,7 +30,16 @@ After completing an independent phase (e.g., ticket breakdown done, PR created, 
 When the system indicates context was compressed:
 - Review the current task's todo list to confirm progress is intact
 - Re-confirm key artifacts (branch name, PR URL, ticket key) are still available
+- **Re-confirm active company context** — check todo list or recent messages for which company was active. If unclear, ask the user before proceeding (wrong company context can cause rule/memory cross-contamination)
 - If in doubt, use memory or todo to restore lost state
+
+### 4a. Company Context Preservation
+
+The active company context (set by `/use-company`, JIRA ticket routing, or user declaration) must survive context compression:
+
+- **Before compression risk** (long conversation, many tool calls): include the active company name in milestone wrap-up summaries and todo items (e.g., "Working on ACME — ticket ACME-123")
+- **After compression**: if the active company is no longer visible in context, check the todo list first, then ask the user with a specific prompt: "I've lost track of the active company context after compression. You were working on [Company A / Company B / ?] — which should I resume with? (You can also run `/use-company` to set it.)" — never guess or default silently
+- **Multi-company sessions**: when switching companies mid-conversation, record the switch in a todo item so it survives compression
 
 ### 5. Segment Large Tasks
 

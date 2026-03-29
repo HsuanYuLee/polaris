@@ -125,7 +125,7 @@ Script 內建處理：
 
 ```
 ✅ 自動解衝突成功：
-- repo-b #26 (chore/ai-enhancements) — rebase origin/master 完成，已 force push
+- repo-b #26 (chore/update-config) — rebase origin/master 完成，已 force push
 
 ⚠️ 以下 PR 自動解衝突失敗，需手動處理：
 - repo-a #1786 (feat/xxx) — conflict 過於複雜

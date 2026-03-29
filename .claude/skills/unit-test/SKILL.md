@@ -21,7 +21,7 @@ metadata:
 | 存在 `vitest.config.ts` | Vitest | `npx vitest run` | vitest.config.ts |
 | 存在 `jest.config.js` | Jest | `npx jest` | jest.config.js |
 
-> 如果偵測到 b2c-web（Nuxt + Vitest），該專案有專屬 `unit-test` skill，應從該專案目錄使用。
+> 如果偵測到特定專案（如 Nuxt + Vitest 架構），該專案可能有專屬 `unit-test` skill，應從該專案目錄使用。
 
 ## 1. TDD 紀律：先寫測試，再寫實作
 

@@ -113,11 +113,32 @@ When a permission denial occurs during execution, immediately record the command
 Memories in a multi-company workspace can cross-apply to the wrong company. Use the `company:` frontmatter field to scope memories:
 
 - **When saving a memory** that is specific to one company's workflow, codebase, or conventions → include `company: {company_name}` in frontmatter
-- **When reading memories** → check the `company:` field against the current active company context. Skip memories scoped to a different company unless they are explicitly relevant
 - **Workspace-wide memories** (Polaris framework, universal preferences, cross-company feedback) → omit the `company:` field entirely
 - **When in doubt** → omit `company:` (workspace-wide is the safe default)
 
 The `company:` field applies to all memory types (feedback, project, reference, user), not just feedback.
+
+### Hard-Skip Rule (Enforcement)
+
+When reading memories and an active company context is known:
+
+1. **Check `company:` field** against the current active company
+2. If `company:` is present **and does not match** the active company → **skip the memory entirely** (do not read its content, do not apply its guidance)
+3. If `company:` is absent → treat as workspace-wide, always apply
+4. If no active company context is set → apply all memories (no filtering)
+
+Log skipped memories silently (do not notify the user). If a skipped memory is later needed across companies, remove its `company:` field to make it workspace-wide.
+
+### MEMORY.md Index Format
+
+Each entry in MEMORY.md should include a company tag when applicable:
+
+```
+- [filename.md](filename.md) — description                          ← workspace-wide
+- [filename.md](filename.md) — [acme] description                   ← company-scoped
+```
+
+The `[company]` prefix in the index enables quick visual scanning without opening each file.
 
 ## Memory Hygiene Checks (Incremental Throughout Conversation)
 
@@ -132,3 +153,4 @@ The `company:` field applies to all memory types (feedback, project, reference, 
 3. **Contains TODOs** — includes "pending fix" / "TODO" → check whether it has been completed
 4. **Overlapping** — two memory entries are highly similar in content → merge into one
 5. **Frontmatter quality** — missing `trigger_count` / `last_triggered` → fill in (`trigger_count: 1`, `last_triggered` from file modification date)
+6. **Company isolation** — memory content is company-specific but missing `company:` field → add the appropriate `company:` value; memory has `company:` but the company no longer exists in workspace config → suggest deletion

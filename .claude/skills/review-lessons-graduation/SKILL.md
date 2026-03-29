@@ -122,7 +122,7 @@ Review-lessons 是從 PR review 萃取的 coding patterns，存在各專案的 `
 
 ### 4.5 不 commit
 
-所有變更屬於 AI 開發環境（`chore/ai-enhancements`），不在此 skill 中 commit。等使用者說「發 AI PR」統一處理。
+所有變更屬於 AI 開發環境，不在此 skill 中 commit。等使用者準備好再統一處理。
 
 ## 5. 輸出摘要
 

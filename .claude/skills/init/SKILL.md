@@ -21,15 +21,15 @@ Interactive wizard that creates a company directory with `workspace-config.yaml`
 ## Two-Layer Config Architecture
 
 ```
-~/work/workspace-config.yaml              ← Root config (company routing)
-~/work/{company}/workspace-config.yaml    ← Company config (full settings)
-~/work/_template/workspace-config.yaml    ← Template for new companies
+{workspace_root}/workspace-config.yaml              ← Root config (company routing)
+{workspace_root}/{company}/workspace-config.yaml    ← Company config (full settings)
+{workspace_root}/_template/workspace-config.yaml    ← Template for new companies
 ```
 
 ## Overview
 
 ```
-Clone Xuanji → /init → company dir + config ready → start using skills
+Clone Polaris → /init → company dir + config ready → start using skills
 ```
 
 ## smartSelect Interaction Pattern
@@ -166,7 +166,16 @@ Company name (used as directory name): e.g. "acme", "my-startup"
 
 **Create company directory** if not exists, then copy `_template/workspace-config.yaml` as starting point.
 
-Audit: log company name and whether it was new or existing.
+**Scaffold company rules:**
+1. Create `.claude/rules/{company_name}/` directory
+2. Copy every `.md` file from `_template/rule-examples/` into `.claude/rules/{company_name}/`
+3. In each copied file, insert a scope header after the first `# Title` line:
+   ```
+   > **Scope: {company_name}** — applies only when working on {company_name} tickets or projects.
+   ```
+4. Print: "Scaffolded L2 rules at `.claude/rules/{company_name}/` — customize these to match your team's conventions."
+
+Audit: log company name, whether it was new or existing, and scaffolded rule files.
 
 ### Step 2: GitHub
 
@@ -329,8 +338,9 @@ Audit: log infra settings.
    ```yaml
    companies:
      - name: {company}
-       base_dir: "~/work/{company}"
+       base_dir: "{actual_path_to_company_dir}"
    ```
+   Use the actual absolute path where the company directory was created — do NOT hardcode `~/work/`. If the workspace root is `/home/user/projects/polaris`, then `base_dir` should be `/home/user/projects/polaris/{company}`.
 
 Audit: log `action: "write"` with the config file path.
 
@@ -347,7 +357,7 @@ Generate `{company}/genericize-map.sed` and `{company}/genericize-jira.sed` from
 - `projects[].name` → repo name replacements (longer names first to avoid partial matches)
 - `projects[].repo` → full repo path replacements
 - Company name → brand replacements (specific before general)
-- Path replacement: `s|~/work/{company}|~/work/company|g`
+- Path replacement: `s|{workspace_root}/{company}|{workspace_root}/company|g`
 
 **genericize-jira.sed** — derived from:
 - `jira.projects[].key` → ticket key replacements (e.g., `s/PROJ-[0-9]\{1,\}/PROJ-123/g`)
@@ -360,9 +370,44 @@ Generate `{company}/genericize-map.sed` and `{company}/genericize-jira.sed` from
 
 Audit: log generated file paths.
 
-### Step 12: Done
+### Step 12: MCP Health Check
 
-Print: "Done! {company} is configured. Skills will now use these settings."
+Verify that configured MCP servers are reachable. Run each check silently and report results:
+
+| MCP Server | Check method | Required? |
+|------------|-------------|-----------|
+| **Atlassian** | Call `getAccessibleAtlassianResources` — expect non-empty response | If JIRA or Confluence configured |
+| **Slack** | Call `slack_search_channels` with a known channel name — expect results | If Slack configured |
+| **Google Calendar** | Call `gcal_list_calendars` — expect non-empty response | Optional |
+| **Figma** | Call `whoami` — expect authenticated response | Optional |
+
+**Display format:**
+```
+MCP Health Check:
+  ✓ Atlassian  — connected (3 accessible resources)
+  ✓ Slack      — connected
+  ✗ Google Cal — not configured (optional — adds meeting context to standup)
+  — Figma      — skipped (not configured)
+```
+
+**Rules:**
+- Never block the wizard on a health-check failure — warn and continue
+- If a required MCP fails → print: "⚠ {server} is not responding. Skills that depend on it (e.g., {skill_list}) will not work until fixed. See MCP setup in README."
+- If an optional MCP fails → print: "ℹ {server} is not configured. This is optional."
+- Record results in audit trail: `{"step": 12, "section": "mcp_health", "action": "check", "value": {"atlassian": "ok", "slack": "ok", "gcal": "not_configured"}, "source": "mcp"}`
+
+### Step 13: Done
+
+Print:
+```
+Done! {company} is configured.
+
+What's next — try your first command:
+  "work on PROJ-123" / 「做 PROJ-123」  → reads JIRA, estimates, codes, opens PR
+  "standup"                              → generates daily standup report
+
+If something isn't configured yet, Polaris will tell you what's missing.
+```
 
 Audit: log `action: "complete"`.
 

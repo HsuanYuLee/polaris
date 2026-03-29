@@ -45,7 +45,7 @@ Determine which mode based on the user's input:
 | Signal | Mode | Example |
 |---|---|---|
 | PR number, PR URL, or mentions "PR" + "學習/learn" | **PR mode** | `學習 PR #123`, `learn from my-app 最近的 PR` |
-| Mentions a person's PRs | **PR mode** | `學習 daniel 最近的 PR`, `研究 PR review` |
+| Mentions a person's PRs | **PR mode** | `學習 <teammate> 最近的 PR`, `研究 PR review` |
 | Time-range + PR | **PR mode** | `學習最近一週 merge 的 PR` |
 | External URL, repo, article | **External mode** | `看看這個 github.com/...`, `研究這篇文章` |
 | Mentions "每日學習", "今天有什麼可以學的", "看看今天的推薦", "有新文章嗎", "讀文章", "daily learning", "queue", "消化", or bare "學習" without URL/PR context | **Queue mode** | `每日學習`, `今天有什麼可以學的`, `看看今天的推薦`, `有新文章嗎`, `讀文章` |
@@ -278,9 +278,9 @@ Show the user a summary of pending items with the Repos column:
 | 3 | ... | framework | all | ... |
 ```
 
-The user may filter by repo: "只看 b2c-web 相關的" → only process articles where `Relevant Repos` contains `my-app` or `all`. If no filter specified, process all.
+The user may filter by repo: "只看 app-name 相關的" → only process articles where `Relevant Repos` contains `my-app` or `all`. If no filter specified, process all.
 
-Ask: "要全部處理，還是選幾篇？可以用 repo 篩選（如：只看 b2c-web 和 docker 相關的）"
+Ask: "要全部處理，還是選幾篇？可以用 repo 篩選（如：只看 app-name 和 docker 相關的）"
 
 ## Step Q2: Process Each Article
 
@@ -394,7 +394,7 @@ Determine which PRs to study based on the user's input:
 |---|---|
 | Specific PR number (`PR #123`) | Direct: `gh pr view 123 --repo {org}/{repo}` |
 | Specific PR URL | Extract owner/repo and number from URL |
-| Person's PRs (`daniel 最近的 PR`) | `gh pr list --repo {org}/{repo} --state merged --author <github-username> --limit 10` |
+| Person's PRs (`<teammate> 最近的 PR`) | `gh pr list --repo {org}/{repo} --state merged --author <github-username> --limit 10` |
 | Time-range (`最近一週的 PR`) | `gh pr list --repo {org}/{repo} --state merged --search "merged:>YYYY-MM-DD" --limit 20` |
 | Repo-specific (`my-app 最近的 PR`) | Target that repo specifically |
 | No repo specified | Use the repo mapping from CLAUDE.md to infer, or ask the user |

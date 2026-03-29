@@ -784,8 +784,8 @@ Commit: <sha>
 ### 重要注意事項
 
 - **靜默執行**：只在確實萃取到 lesson 時通知使用者（「已萃取 N 條 review lesson 到 `.claude/rules/review-lessons/`」）
-- **檔案歸屬**：review-lessons 屬於 AI 開發環境設定，由 `chore/ai-enhancements` branch 管理。在 feature branch 上這些檔案被 `ai-env.sh` 標記為 `assume-unchanged`，不會進入 feature PR
-- **不 commit**：萃取的 lesson 檔案不加入本次 fix commit——它們會在下次「發 AI PR」時統一 commit 到 `chore/ai-enhancements`
+- **檔案歸屬**：review-lessons 屬於 AI 開發環境設定，由專用 branch 管理（可在 workspace config 中設定）。在 feature branch 上這些檔案不會進入 feature PR
+- **不 commit**：萃取的 lesson 檔案不加入本次 fix commit——它們會在下次 AI 設定 PR 時統一 commit
 - **合併而非重複**：同一主題的 lesson 追加到既有檔案，不建新檔
 
 ### Review Lessons 畢業檢查（靜默）

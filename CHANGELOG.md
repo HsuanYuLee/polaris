@@ -4,6 +4,49 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.9.1] - 2026-03-30
+
+Challenger audit v1.9.0 quick-fixes (6-persona, 16 🔴 / 37 🟡 / 18 🟢):
+
+- **Removed leaked company name** from `.gitignore` — `kkday/` replaced with generic comment
+- **Chinese guide link at README top** — visible in first 5 lines, not buried in Quick Start
+- **Multi-company in "Who is this for"** — freelancers/multi-client listed as a target audience
+- **`/commands` note moved to Step 3** — before `/init`, not after Step 4
+- **Post-/init validation step** — "try `work on PROJ-123` to verify setup" added to Quick Start
+- **PM section: removed PR tracking** — dev-only operation removed from PM workflow
+- **PM section: Max plan requirement** — cost callout added at top of PM workflow
+- **PM section: troubleshooting tip** — "check MCP connections" one-liner added
+- **YDY/TDT/BOS expanded** — acronym explained on first use in both README and Chinese guide
+- **Refinement description clarified** — "Polaris reads codebase for you" note for PM users
+- **Chinese guide end note** — links to English README for developer content
+- **`/validate-isolation` in README** — linked in multi-company diagnostics list and post-setup guidance
+- **Same-prefix resolution** — documented in multi-company-isolation.md routing rules
+- **Company recovery prompt** — specific prompt format for post-compression company re-confirmation
+- **13 new backlog items** from v1.9.0 audit findings (skill genericization, hook matcher, PM setup, etc.)
+
+## [1.9.0] - 2026-03-30
+
+- **Chinese Quick Start guide** — full `docs/quick-start-zh.md` covering prerequisites, setup steps, skill examples, and PM workflow in 中文; linked from README Quick Start section
+- **PM & Scrum workflow narrative** — new README section mapping the complete sprint lifecycle to Polaris commands: sprint planning → standup → refinement → breakdown → worklog report, with bilingual trigger phrases and expected outputs
+
+## [1.8.0] - 2026-03-30
+
+- **Memory isolation enforcement** — hard-skip rule for mismatched `company:` field (skip silently, no cross-contamination), new hygiene check #6 for untagged company-specific memories, MEMORY.md index now supports `[company]` prefix for visual scanning
+- **Company context persistence** — active company context now survives context compression: saved in milestone summaries, restored from todo list, explicit re-confirmation after compression events
+- **`/validate-isolation` diagnostic skill** — scans L2 rules for missing scope headers, memory files for missing `company:` fields, cross-company directive conflicts, and MEMORY.md index format issues; outputs structured report with ✅/🟡/🔴 severity
+- **Cross-reference in multi-company-isolation.md** — `/validate-isolation` now documented as the recommended diagnostic tool
+
+## [1.7.0] - 2026-03-30
+
+- **Memory company isolation** — memories now support `company:` frontmatter field to prevent cross-company rule bleed
+- **`/init` scaffolds L2 rules** — new companies automatically get `.claude/rules/{company}/` with scoped copies of rule templates
+- **`/use-company` skill** — explicitly set active company context for a conversation, complementing `/which-company` diagnostics
+- **`/init` repo path flexibility** — no longer assumes `~/work/` as base dir; uses actual workspace root path
+- **README bilingual integration** — Quick Start examples now show English/中文 side-by-side instead of separate blocks
+- **CJK branch naming guard** — empty or invalid translations from CJK titles fall back to ticket key only (`task/PROJ-123`)
+- **SA/SD Chinese alias update** — added 「寫 SA」「出 SA/SD」triggers, deprioritized misleading 「實作評估」
+- **Stale backlog cleanup** — `review-pr` hardcoded paths already resolved in earlier genericization; item closed
+
 ## [1.6.0] - 2026-03-30
 
 - **Excluded `polaris-backlog.md` from template** — framework backlog is maintainer-only, no longer confuses new users

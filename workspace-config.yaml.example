@@ -1,0 +1,13 @@
+# Workspace Root Config — Company Routing
+# Copy this file to workspace-config.yaml and fill in your companies.
+# workspace-config.yaml is gitignored — your company list stays local.
+#
+# This is the ROOT routing config only. Each company also has its own
+# workspace-config.yaml (with JIRA, GitHub, Slack settings) — the /init
+# wizard creates it under {company}/workspace-config.yaml.
+
+companies:
+  - name: my-company
+    base_dir: "~/work/my-company"
+  # - name: another-company
+  #   base_dir: "~/work/another-company"

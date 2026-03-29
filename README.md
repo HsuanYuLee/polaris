@@ -2,11 +2,14 @@
 
 A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) workspace template that turns your AI assistant into a strategist — it learns your team's workflow, routes tasks to specialized skills, and evolves its own rules from daily usage.
 
+> **中文使用者：** [中文快速上手指南](docs/quick-start-zh.md)
+
 ## Who is this for?
 
 - **Developers** — automate the JIRA → branch → code → PR loop, enforce team conventions through AI
 - **Tech leads** — standardize estimation, code review, and sprint planning across the team
 - **PMs and Scrum Masters** — generate standups, track worklogs, run sprint planning — no coding required
+- **Multi-company freelancers** — manage multiple clients in one workspace with isolated rules, skills, and config
 
 > Not sure? If your team uses JIRA + GitHub and you want Claude Code to follow your workflow instead of improvising, Polaris is for you.
 
@@ -36,6 +39,8 @@ Polaris: pulls JIRA backlog → calculates team capacity → detects carry-overs
 
 It does this through **skills** (reusable workflows) and **rules** (accumulated team knowledge):
 
+Skills are pre-built workflows you invoke by name or natural language:
+
 | Category | Skills | What they automate | Who uses it |
 |----------|--------|--------------------|-------------|
 | **Plan** | `refinement`, `scope-challenge`, `sprint-planning` | Requirement analysis, estimation, sprint capacity | PM, Tech Lead, Dev |
@@ -54,7 +59,9 @@ It does this through **skills** (reusable workflows) and **rules** (accumulated 
 ## Prerequisites
 
 **Everyone needs:**
-- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** — CLI, desktop app, or IDE extension. Requires a Claude Pro, Team, or Enterprise plan. Sub-agent features (used by most skills) need the Max plan or API access
+- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** — CLI, desktop app, or IDE extension. Requires a Claude Pro, Team, or Enterprise plan
+
+> **Important:** Most Polaris skills use sub-agents, which require the **Max plan** ($100/mo) or API access. On Pro/Team plans, only single-step skills will work.
 - **Atlassian MCP** — connects Claude Code to JIRA and Confluence
 - **Slack MCP** — for notifications and reports (`standup`, `review-inbox`, `worklog-report`)
 
@@ -68,19 +75,24 @@ It does this through **skills** (reusable workflows) and **rules** (accumulated 
 > **MCP setup**: MCP servers connect Claude Code to external services. Add them in Claude Code settings or via CLI:
 > ```
 > claude mcp add atlassian -- npx -y @anthropic-ai/claude-code-mcp-atlassian
+> claude mcp add slack -- npx -y @anthropic-ai/claude-code-mcp-slack
 > ```
-> See [MCP server docs](https://docs.anthropic.com/en/docs/claude-code/mcp-servers) for Slack, Google Calendar, and Figma setup.
+> See [MCP server docs](https://docs.anthropic.com/en/docs/claude-code/mcp-servers) for Google Calendar and Figma setup.
 
 ## Quick Start
 
 ### 1. Clone and enter the workspace
 
 ```bash
-git clone <your-polaris-repo-url> ~/polaris-workspace
+# Create your workspace from the Polaris template (GitHub → "Use this template")
+# Then clone your new repo:
+git clone https://github.com/YOUR-ORG/your-polaris-workspace ~/polaris-workspace
 cd ~/polaris-workspace
 ```
 
 > **Tip**: Choose a dedicated directory name. Avoid `~/work` — many developers already use that path for other projects.
+
+> **PMs and non-developers:** Ask a developer on your team to run Steps 1-3 for you — it takes about 10 minutes. Then jump straight to Step 4.
 
 ### 2. Set up workspace config
 
@@ -88,7 +100,11 @@ cd ~/polaris-workspace
 cp workspace-config.yaml.example workspace-config.yaml
 ```
 
+You don't need to edit this file — `/init` will populate it in the next step.
+
 ### 3. Initialize your company directory
+
+> **Note:** `/commands` like `/init` are typed inside Claude Code conversations, not in your terminal shell.
 
 Open Claude Code inside the workspace — in your terminal, run `claude` from the workspace directory (or open the folder in VS Code with the Claude Code extension). Then type:
 
@@ -101,28 +117,20 @@ The interactive wizard will:
 - Create a company directory with `workspace-config.yaml`
 - Set up project mappings (JIRA keys → local repo paths)
 
+After `/init` completes, verify setup by trying: `"work on PROJ-123"` (replace with a real ticket key). If Polaris reads the ticket successfully, you're good to go.
+
 ### 4. Start using skills
 
-Once initialized, just talk to Claude Code naturally:
+Once initialized, just talk to Claude Code naturally — English or 中文 both work:
 
 ```
-"work on PROJ-123"          → full development workflow
-"fix bug PROJ-456"          → root cause → fix → PR
-"review PR"                 → code review with inline comments
-"estimate PROJ-789"         → story point estimation
-"standup"                   → generate daily standup report
-"sprint planning"           → pull tickets, calculate capacity
-"learn from <url>"          → study external resource, extract patterns
-```
-
-Chinese works too — 中文也通：
-
-```
-「做 PROJ-123」              → 完整開發流程
-「修 bug PROJ-456」          → 根因分析 → 修復 → 發 PR
-「估點 PROJ-789」            → Story point 估算
-「standup」                  → 產出每日站會報告
-「sprint planning」          → 拉票、算容量、排優先級
+"work on PROJ-123"    /「做 PROJ-123」       → full development workflow / 完整開發流程
+"fix bug PROJ-456"    /「修 bug PROJ-456」    → root cause → fix → PR / 根因分析 → 修復 → 發 PR
+"review PR"           /「review 這個 PR」     → code review with inline comments
+"estimate PROJ-789"   /「估點 PROJ-789」      → story point estimation / Story point 估算
+"standup"             /「standup」            → generate daily standup report / 產出站會報告
+"sprint planning"     /「排 sprint」          → pull tickets, calculate capacity / 拉票、算容量
+"learn from <url>"    /「學習這個」            → study external resource, extract patterns
 ```
 
 ### Start here
@@ -131,11 +139,41 @@ Don't try all 30 skills at once. Pick one that matches your role:
 
 | If you are a... | Try this first | What happens |
 |-----------------|----------------|--------------|
-| **Developer** | `"work on PROJ-123"` | Reads JIRA → estimates → creates branch → codes → opens PR |
-| **PM / Scrum Master** | `"standup"` | Collects yesterday's JIRA + git activity → formats report |
-| **Tech Lead** | `"sprint planning"` | Pulls backlog → calculates capacity → suggests priority |
+| **Developer** | `"work on PROJ-123"` / `「做 PROJ-123」` | Reads JIRA → estimates → creates branch → codes → opens PR |
+| **PM / Scrum Master** | `"standup"` / `「standup」` | Collects yesterday's JIRA + git activity → formats report |
+| **Tech Lead** | `"sprint planning"` / `「排 sprint」` | Pulls backlog → calculates capacity → suggests priority |
 
 Everything else builds on these. Explore more skills as you get comfortable.
+
+### PM & Scrum workflow
+
+Polaris covers the full sprint lifecycle — no coding or git knowledge required. All PM skills require the **Max plan** ($100/mo) or API access due to sub-agent usage.
+
+```
+Sprint planning    →  "sprint planning" / 「排 sprint」
+                      Pulls JIRA backlog → calculates team capacity → detects carry-overs
+                      → suggests priority order → drafts Release page
+
+Daily standup      →  "standup" / 「standup」
+                      Collects JIRA status changes + git commits + calendar meetings
+                      → groups by team → formats as YDY/TDT/BOS
+                      (Yesterday Did / Today Do / Blockers or Shoutouts)
+
+Refinement         →  "refinement EPIC-100" / 「refinement EPIC-100」
+                      Reads Epic content → identifies gaps (Polaris reads the codebase for you)
+                      → drafts AC, scope, edge cases → writes back to JIRA
+
+Breakdown          →  "work on EPIC-100" / 「做 EPIC-100」
+                      Epic → sub-tasks with story point estimates → batch-creates in JIRA
+
+Worklog report     →  "worklog report 2w" / 「worklog report 2w」
+                      Queries completed tickets from past 2 weeks → groups by assignee → posts to Slack
+```
+
+> **PMs and Scrum Masters:** Everything below this point is for developers and framework maintainers. You're all set!
+> If a skill isn't working, check that your Atlassian MCP and Slack MCP connections are active in Claude Code settings — that covers 90% of PM setup issues.
+>
+> 中文版包含完整 PM 工作流程說明：[docs/quick-start-zh.md](docs/quick-start-zh.md#pm-與-scrum-工作流程)
 
 ## How it works
 
@@ -200,7 +238,7 @@ your-workspace/
 - **Config routing** — `workspace-config.yaml` maps JIRA project prefixes to companies. When you say "work on ACME-123", Polaris reads Acme's config
 - **Rules scoping** — all rules load into every conversation (Claude Code limitation), but company rules include a scope header. The Strategist only applies rules matching the active company
 - **Skills isolation** — shared skills are in `.claude/skills/` (tracked in git). Company-specific skills go under `.claude/skills/{company}/` (gitignored)
-- **Diagnostics** — run `/which-company PROJ-123` to see which company a ticket routes to
+- **Diagnostics** — run `/which-company PROJ-123` to see which company a ticket routes to, `/use-company` to explicitly set context, or `/validate-isolation` to scan for scope header issues and memory tag violations
 
 **Adding a second company:**
 
@@ -208,8 +246,10 @@ your-workspace/
 /init
 ```
 
-The wizard detects existing companies and creates the new one alongside them.
+The wizard detects existing companies and creates the new one alongside them. After setup, run `/validate-isolation` to verify no rules are missing scope headers.
 
+> **Note:** If two companies share the same JIRA project prefix, use `/use-company` to explicitly set context — automatic routing cannot distinguish them.
+>
 > See `.claude/rules/multi-company-isolation.md` for the full scoping strategy.
 
 ## Customization

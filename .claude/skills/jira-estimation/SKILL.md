@@ -284,7 +284,7 @@ mcp__claude_ai_Atlassian__editJiraIssue
 ```
 | # | Key | Summary | Points |
 |---|-----|---------|--------|
-| 1 | GT-XXX | 子任務描述 | N |
+| 1 | PROJ-XXX | 子任務描述 | N |
 
 母單 <TICKET_KEY>：N 點（加總）
 Total: N 點，預估 X 天（以每日 2-3 點計算）

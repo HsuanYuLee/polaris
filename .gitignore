@@ -1,32 +1,65 @@
-# Company config (contains company-specific values, gitignored per-company)
-# Root workspace-config.yaml and _template/ are tracked
-*/workspace-config.yaml
-!_template/workspace-config.yaml
+# ============================================
+# Workspace .gitignore — whitelist mode
+# Default: ignore everything, then explicitly allow workspace files
+# ============================================
 
-# Local environment
-.env.local
-.env.*.local
+# Ignore everything
+*
 
-# Claude Code local settings
+# ── Workspace base files (L1) ──
+!.gitignore
+!.gitmodules
+!CLAUDE.md
+!README.md
+!LICENSE
+!VERSION
+!CHANGELOG.md
+!workspace-config.yaml.example
+
+# ── docs/ documentation ──
+!docs/
+!docs/**
+
+# ── scripts/ framework utilities ──
+!scripts/
+!scripts/**
+
+# ── _template/ scaffold directory ──
+!_template/
+!_template/**
+
+# ── .claude/ directory (rules, hooks, settings) ──
+!.claude/
+!.claude/hooks/
+!.claude/hooks/**
+!.claude/rules/
+!.claude/rules/**
+!.claude/skills/
+!.claude/skills/**
+!.claude/settings.json
+!.claude/settings.local.json.example
+!.claude/settings.local.json.sub-repo-example
+!.claude/polaris-backlog.md
+
+# ============================================
+# Never track (even if manually staged)
+# ============================================
+
+# Personal settings
 .claude/settings.local.json
 
-# OS
+# Root workspace config (company-specific, not for template)
+workspace-config.yaml
+
+# Company configs (each company's workspace-config.yaml is local-only)
+# /init creates these — they contain company-specific JIRA, GitHub, Slack config
+*/workspace-config.yaml
+
+# Company-specific skills (not pushed to template)
+# After /init, add your company here: .claude/skills/{company}/
+# .claude/skills/acme/
+
+# System / IDE
 .DS_Store
-
-# Dependencies
 node_modules/
-
-# Logs
-logs/
-*.log
-
-# Build output
-dist/
-.output/
-.nuxt/
-
-# Framework backlog (maintainer-only, not shipped to users)
-.claude/polaris-backlog.md
-
-# Memory (personal, not shared)
-.claude/projects/*/memory/
+.vite/
