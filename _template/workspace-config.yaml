@@ -11,6 +11,12 @@
 # Skills read this file via references/workspace-config-reader.md.
 # Leave sections empty to disable features — skills degrade gracefully.
 
+# Optional: default company for single-client setups.
+# When set, this company is used automatically when auto-detection fails
+# (e.g., no JIRA ticket provided, ambiguous context).
+# Omit this field if you work with multiple companies equally.
+# default_company: acme
+
 # ── GitHub ──
 github:
   org: "your-org"              # GitHub organization name

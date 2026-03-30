@@ -20,9 +20,9 @@ Explicitly sets which company context to use for the current conversation, avoid
 3. If no match → list available companies and ask the user to choose
 
 **If no company name provided:**
-1. Read `{workspace_root}/workspace-config.yaml` → get `companies[]` list
-2. List all available companies with their key info (base_dir, GitHub org, JIRA projects)
-3. Ask the user to select one
+1. Read `{workspace_root}/workspace-config.yaml` → get `companies[]` list and `default_company` field
+2. If `default_company` is set → use it as the target company (skip user prompt, proceed to Step 2)
+3. Otherwise → list all available companies with their key info (base_dir, GitHub org, JIRA projects) and ask the user to select one
 
 ### Step 2 — Load and Validate Company Config
 

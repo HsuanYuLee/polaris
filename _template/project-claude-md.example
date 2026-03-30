@@ -1,0 +1,92 @@
+<!-- L3 Project CLAUDE.md — {project-name} -->
+<!-- Place this file at {company}/{project}/CLAUDE.md -->
+<!-- It loads when Claude works inside this project directory -->
+<!--                                                           -->
+<!-- LAYER CONTEXT:                                            -->
+<!--   L1 — workspace CLAUDE.md (always loaded)               -->
+<!--   L2 — {company}/CLAUDE.md (always loaded)               -->
+<!--   L3 — {company}/{project}/CLAUDE.md (this file)         -->
+<!--        loaded only when cwd is inside this project dir   -->
+<!--                                                           -->
+<!-- WHAT BELONGS HERE:                                        -->
+<!--   - Project-specific tech stack and conventions           -->
+<!--   - Commands for running tests, dev server, lint          -->
+<!--   - Key directory structure Claude should be aware of     -->
+<!--   - Anything that would be wrong if applied to a          -->
+<!--     different project in the same company                 -->
+<!--                                                           -->
+<!-- WHAT DOES NOT BELONG HERE:                               -->
+<!--   - Company-wide JIRA conventions → {company}/CLAUDE.md  -->
+<!--   - Universal skill routing rules → .claude/rules/        -->
+<!--   - Secrets or real credentials (never in any CLAUDE.md) -->
+
+# {project-name}
+<!-- Replace with the actual project name, e.g. "b2c-web" or "member-api" -->
+
+## Tech Stack
+<!-- List core technologies so Claude adapts its code style and tooling choices -->
+- Framework: {e.g., Nuxt 3, Next.js, Express, FastAPI}
+- Language: {e.g., TypeScript, Python 3.11}
+- Test framework: {e.g., Vitest, Jest, pytest}
+- Package manager: {e.g., pnpm, npm, yarn, poetry}
+- Node version: {e.g., 20 — omit if not a Node project}
+
+## Project Structure
+<!-- Key directories Claude should know about; omit irrelevant ones -->
+- `src/components/` — UI components
+- `src/composables/` — shared logic / hooks
+- `src/api/` — API route handlers
+- `src/stores/` — state management (Pinia / Redux / Zustand)
+- `tests/` — test files (mirrors src/ structure)
+<!-- Add or remove entries to match the actual layout -->
+
+## Conventions
+<!-- Project-specific coding standards that go beyond L1/L2 rules -->
+<!-- Only include things that differ from the company-wide default -->
+- Component naming: PascalCase
+- File naming: kebab-case
+- Imports: use path aliases (`@/components/...`)
+- {e.g., "Always use <script setup> in Vue SFCs"}
+- {e.g., "Prefer named exports; avoid default exports"}
+
+## Testing
+<!-- How Claude should run tests for this project -->
+- Run tests: `pnpm test`
+- Coverage threshold: {e.g., 60%}
+- Coverage command: `pnpm test:coverage`
+- Run from: {e.g., repo root, or `apps/main/` if monorepo}
+<!-- Note any special setup required before running tests, e.g. "requires .env.local" -->
+
+## Development
+<!-- Common commands Claude may need during implementation -->
+- Dev server: `pnpm dev`
+- Build: `pnpm build`
+- Lint: `pnpm lint`
+- Type-check: `pnpm typecheck`
+<!-- Add project-specific commands, e.g. "pnpm generate:types" or "pnpm db:migrate" -->
+
+## Project-Specific Skills
+<!-- If this project has skills under .claude/skills/{company}/, list them here -->
+<!-- so Claude knows they exist and when to invoke them -->
+<!-- Example:
+- `/deploy-staging` — builds and deploys to the staging environment
+- `/seed-db` — seeds the local database with fixture data
+-->
+<!-- Remove this section if no project-specific skills exist -->
+
+## Cross-Project Dependencies
+<!-- List other projects/repos this project depends on, or that depend on it -->
+<!-- This helps Claude assess blast radius before making changes -->
+<!-- Example:
+- Shares internal API with `{other-project}` — changing response shapes affects both
+- `{downstream-project}` consumes this project's published npm package
+-->
+<!-- Remove this section if there are no notable cross-project dependencies -->
+
+## Notes
+<!-- Anything else Claude should know before touching this project -->
+<!-- Examples:
+- "The `legacy/` directory is intentionally untouched; do not refactor it"
+- "Feature flags live in config/flags.ts — always check before adding conditionals"
+- "CI runs on self-hosted runners; do not add steps that require internet access"
+-->

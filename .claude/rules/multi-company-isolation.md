@@ -52,9 +52,10 @@ When a JIRA ticket key is ambiguous (could belong to multiple companies):
 
 1. Read `workspace-config.yaml` to match the JIRA project prefix against `jira.projects`
 2. If matched, apply that company's L2 rules
-3. If not matched, ask the user which company context to use
-4. Use `/which-company PROJ-123` for explicit diagnostics
-5. If two companies share the same project prefix, automatic routing cannot distinguish them — use `/use-company` to explicitly set context before starting work
+3. If not matched, check `default_company` in `workspace-config.yaml` — if set, use it as the fallback company context
+4. If `default_company` is also absent, ask the user which company context to use
+5. Use `/which-company PROJ-123` for explicit diagnostics
+6. If two companies share the same project prefix, automatic routing cannot distinguish them — use `/use-company` to explicitly set context before starting work
 
 ## Diagnostic Tool
 
