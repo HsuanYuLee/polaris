@@ -443,6 +443,20 @@ mcp__claude_ai_Atlassian__createJiraIssue
 
 建完後列出所有驗證子單連結。
 
+**5f. 🔍 QA Challenge（must-respond）**
+
+驗證子單建完後，dispatch **QA Challenger** sub-agent（見 `skills/references/sub-agent-roles.md`）：
+
+- **輸入**：測試計畫全文 + 驗證子單清單 + ticket AC
+- **Model**：sonnet
+- **輸出**：挑戰報告（⚠️ 需回應 + ✅ 涵蓋完整）
+
+將 QA Challenge 結果呈現給使用者。使用者必須**逐條回應**每個 ⚠️ 項目：
+- **接受** → 主 agent 根據建議補充測試項目，建立額外的 [驗證] sub-task
+- **駁回（附理由）** → 記錄理由，不新增
+
+所有 ⚠️ 項目回應完畢後才進入開發。
+
 ### 6. 開發摘要 → 自動進入 TDD 開發 → 品質檢查 → 發 PR
 
 路由完成後，顯示開發摘要然後**自動銜接後續流程**（不停下來等使用者）：

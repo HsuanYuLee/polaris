@@ -236,6 +236,20 @@ mcp__claude_ai_Atlassian__editJiraIssue
 
 依賴欄說明哪些子單有先後順序（開發時有依賴的子單可在同一 branch 但分 commit）。
 
+#### 8.4a 🏛️ Architect Challenge（must-respond）
+
+呈現估點結果前，dispatch **Architect Challenger** sub-agent（見 `skills/references/sub-agent-roles.md`）：
+
+- **輸入**：Step 8 產出的完整估點報告（子單拆分表格、影響範圍、技術方案）
+- **Model**：sonnet
+- **輸出**：挑戰報告（⚠️ 需回應 + ✅ 合理）
+
+將 Architect Challenge 結果**附在估點報告下方**一併呈現給使用者。使用者必須**逐條回應**每個 ⚠️ 項目：
+- **接受** → 主 agent 根據建議調整估點/拆單
+- **駁回（附理由）** → 記錄理由，維持原估點
+
+所有 ⚠️ 項目回應完畢後才能繼續。
+
 **必須等使用者確認後才建立子單。**
 
 #### 8.5 批次建立 JIRA Sub-task
