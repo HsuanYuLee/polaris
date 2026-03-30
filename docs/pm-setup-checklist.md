@@ -1,5 +1,7 @@
 # PM Setup Checklist
 
+English | [中文](./pm-setup-checklist.zh-TW.md)
+
 > This checklist is for PMs and Scrum Masters who want to use Polaris. You don't need to run any terminal commands — ask a developer on your team to handle the setup.
 
 ## What you need (your part)

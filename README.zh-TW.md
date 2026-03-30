@@ -36,7 +36,7 @@ Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
 
 **技能：** `work-on`, `fix-bug`, `epic-breakdown`, `tdd`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `dev-quality-check`, `verify-completion`, `jira-branch-checkout`, `start-dev`, `scope-challenge`, `refinement`
 
-深入了解 → [開發者工作流程指南](docs/workflow-guide.md)
+深入了解 → [開發者工作流程指南](docs/workflow-guide.zh-TW.md)
 
 ### 支柱二 — 自我學習 ★
 
@@ -109,7 +109,7 @@ cd ~/polaris-workspace
 
 > **提示**：選一個專用的目錄名稱。避免用 `~/work`——很多開發者已經將這個路徑用於其他專案。
 
-> **PM 和非開發者：** 請參閱 [PM 設定清單](docs/pm-setup-checklist.md)——它會告訴你該問開發者什麼、以及設定完成後該做什麼。然後直接跳到步驟 4。
+> **PM 和非開發者：** 請參閱 [PM 設定清單](docs/pm-setup-checklist.zh-TW.md)——它會告訴你該問開發者什麼、以及設定完成後該做什麼。然後直接跳到步驟 4。
 
 ### 2. 執行 `/init` 設定你的公司
 
@@ -215,7 +215,7 @@ Refinement         →  「refinement EPIC-100」
 
 ### 工作流程編排
 
-技能互相串聯以自動化完整的票單生命週期。詳見 **[開發者工作流程指南](docs/workflow-guide.md)**，包含：
+技能互相串聯以自動化完整的票單生命週期。詳見 **[開發者工作流程指南](docs/workflow-guide.zh-TW.md)**，包含：
 - 票單生命週期（Feature / Bug / Hotfix 路徑）
 - AC 關閉閘門（4 個自動化檢查點）
 - 技能呼叫圖（技能如何互相調用）

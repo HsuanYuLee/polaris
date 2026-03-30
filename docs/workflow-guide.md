@@ -1,5 +1,7 @@
 # Developer Workflow Guide
 
+English | [中文](./workflow-guide.zh-TW.md)
+
 > This is the generic Polaris workflow. Your company may have a customized version at `{company}/docs/rd-workflow.md`.
 
 > **Pillar 1 — Development Assistance (輔助開發)**: This guide is the deep-dive reference for Polaris's first pillar. For an overview of all three pillars, see the [README](../README.md#the-three-pillars).
