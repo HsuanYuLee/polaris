@@ -225,7 +225,7 @@ if [[ "$AUTO_PUSH" == true ]]; then
 
   # Detect if we need to switch GitHub accounts
   REMOTE_URL=$(git -C "$POLARIS_DIR" remote get-url origin 2>/dev/null || true)
-  CURRENT_USER=$(gh auth status 2>&1 | grep "Logged in" | head -1 | awk '{print $NF}' || true)
+  CURRENT_USER=$(gh auth status 2>&1 | grep "Active account: true" -B3 | grep "Logged in" | head -1 | sed 's/.*account //' | awk '{print $1}' || true)
   NEEDS_SWITCH=false
   ORIGINAL_USER="$CURRENT_USER"
 
