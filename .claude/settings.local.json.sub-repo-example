@@ -52,7 +52,7 @@
       "Bash(/Users/<USERNAME>/work/.claude/skills/*)",
       "Bash(/Users/<USERNAME>/work/.claude/skills/* | *)",
       "Bash(/Users/<USERNAME>/work/<company>-skills/skills/*)",
-      "Bash(/Users/<USERNAME>/<workspace>/scripts/post-branch-setup.sh *)",
+      "Bash(/Users/<USERNAME>/work/ai-env.sh *)",
       "mcp__claude_ai_Atlassian__*",
       "mcp__claude_ai_Slack__*",
       "mcp__claude_ai_Figma__*",

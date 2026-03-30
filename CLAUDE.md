@@ -58,6 +58,7 @@ Detailed rules live in `.claude/rules/` files.
 - **Never commit any usable key / token / secret / URL to `.env`**: `.env` is tracked — declare variable names only, leave values empty. Real values go in `.env.local` (gitignored)
 - **Create / modify skills via `/skill-creator`**: ensures eval, description optimization, and full workflow
 - **Skills are version-controlled**: generic skills live in `.claude/skills/` (tracked in git). Company-specific skills go under `.claude/skills/{company}/` (gitignored)
+- **Version bump → auto-sync to Polaris**: after any commit that changes `VERSION`, immediately run `scripts/sync-to-polaris.sh --push` to sync framework changes to the template repo. This is automatic — do not ask for confirmation
 
 ## Workflow Documents
 
