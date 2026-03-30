@@ -1,20 +1,12 @@
 ---
 name: fix-pr-review
 description: >
-  Fix PR review comments AND CI check failures on YOUR OWN PR: read GitHub PR review
-  comments, check CI/pre-commit/pre-push status (lint, test, coverage), fix all issues
-  based on .claude/rules, run post-fix self review via sub-agent to catch regressions,
-  reply to each comment after fixing or explain why no fix is needed. Use when: (1) user
-  says "fix review", "修正 review", "處理 review comments", "handle review comments",
-  (2) user shares a GitHub PR URL and asks to fix comments or fix CI, (3) user says
-  "回覆 review", "reply to review", "address review comments", "resolve review",
-  (4) after receiving PR review feedback on your own PR, (5) user says "幫我修正",
-  "help me fix" with a GitHub PR URL or when current branch has an open PR, "fix PR",
-  "CI 沒過", "CI failed", "lint 沒過", "lint failed", "test 沒過", "tests failed",
-  "coverage 不足", "insufficient coverage", "pre-commit failed", "pre-push failed". IMPORTANT: If the user says "幫我修正" with a JIRA ticket key
-  (not a PR URL), that is a bug fix request — use fix-bug skill instead. This skill is
-  for the PR AUTHOR addressing feedback and CI failures — not for reviewing someone
-  else's PR (use review-pr for that), and not for fixing JIRA bugs (use fix-bug for that).
+  Fix PR review comments AND CI/lint/test/coverage failures on YOUR OWN PR. Reads review
+  comments, fixes issues per .claude/rules, runs self-review via sub-agent, replies to
+  each comment. Trigger: "fix review", "修正 review", "修 PR", "PR 有 review", "處理
+  review", "address review", "回覆 review", "fix PR", "CI 沒過", "CI failed",
+  "lint/test/coverage failed", "pre-commit failed", or user shares a PR URL asking to
+  fix. NOT for JIRA bugs (use fix-bug) or reviewing others' PRs (use review-pr).
 metadata:
   author: Polaris
   version: 2.8.0
@@ -148,11 +140,11 @@ gh pr view --json number -q .number
 
 ### 辨識專案路徑
 
-從 PR URL 或 `gh pr view` 中提取 repo 名稱，對應到本地專案路徑（`~/work/<repo名稱>`）。
+從 PR URL 或 `gh pr view` 中提取 repo 名稱，對應到本地專案路徑（`{base_dir}/<repo名稱>`）。
 
 例如：
-- `github.com/your-org/repo-a/pull/1920` → `~/work/repo-a`
-- `github.com/your-org/repo-b/pull/300` → `~/work/repo-b`
+- `github.com/your-org/repo-a/pull/1920` → `{base_dir}/repo-a`
+- `github.com/your-org/repo-b/pull/300` → `{base_dir}/repo-b`
 
 如果使用者只提供 PR 編號（無 URL），用 `gh pr view` 取得 repo 資訊：
 
@@ -784,13 +776,13 @@ Commit: <sha>
 ### 重要注意事項
 
 - **靜默執行**：只在確實萃取到 lesson 時通知使用者（「已萃取 N 條 review lesson 到 `.claude/rules/review-lessons/`」）
-- **檔案歸屬**：review-lessons 屬於 AI 開發環境設定，由專用 branch 管理（可在 workspace config 中設定）。在 feature branch 上這些檔案不會進入 feature PR
-- **不 commit**：萃取的 lesson 檔案不加入本次 fix commit——它們會在下次 AI 設定 PR 時統一 commit
+- **檔案歸屬**：review-lessons 屬於 AI 開發環境設定，由 `chore/ai-enhancements` branch 管理。在 feature branch 上這些檔案被 `ai-env.sh` 標記為 `assume-unchanged`，不會進入 feature PR
+- **不 commit**：萃取的 lesson 檔案不加入本次 fix commit——它們會在下次「發 AI PR」時統一 commit 到 `chore/ai-enhancements`
 - **合併而非重複**：同一主題的 lesson 追加到既有檔案，不建新檔
 
 ### Review Lessons 畢業檢查（靜默）
 
-萃取完成後，計算 `~/work/<repo>/.claude/rules/review-lessons/` 的總條目數（每個 `^- ` 開頭的行 = 1 條）。若 >= 15 → invoke `review-lessons-graduation`。若 < 15 → 不輸出任何訊息。
+萃取完成後，計算 `{base_dir}/<repo>/.claude/rules/review-lessons/` 的總條目數（每個 `^- ` 開頭的行 = 1 條）。若 >= 15 → invoke `review-lessons-graduation`。若 < 15 → 不輸出任何訊息。
 
 ## 13. Slack 通知（僅當輸入來源為 Slack 時）
 

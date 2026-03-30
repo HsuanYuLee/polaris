@@ -52,8 +52,8 @@ Format the output as a clear summary:
 
 Ticket:    PROJ-123
 Company:   acme
-Base dir:  {workspace_root}/acme
-Config:    {workspace_root}/acme/workspace-config.yaml
+Base dir:  {base_dir}/acme
+Config:    {base_dir}/acme/workspace-config.yaml
 
 Resolved via: jira.projects[].key match ("PROJ")
 

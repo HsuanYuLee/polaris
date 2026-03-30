@@ -266,7 +266,7 @@ echo "Page title: $title"
 {sub_task_key}（JIRA sub-task，驗完由你轉狀態）
 
 ## Ticket
-{ticket_key} in ~/work/{repo}
+{ticket_key} in {base_dir}/{repo}
 
 ## 測試資料
 {test_urls, locales, input data}
@@ -282,7 +282,7 @@ echo "Page title: $title"
 4. 轉 sub-task 狀態：PASS → 開始開發(11) → 子任務開發完畢(13)
 
 ### 可自動修復（補測試、修 code）
-1. 讀取相關 skill（unit-test、dev-guide）
+1. 讀取相關 skill（unit-test）+ 專案 CLAUDE.md
 2. 實作修復（補寫測試、修正 code）
 3. 跑測試確認通過
 4. 在 sub-task 留 comment 記錄修了什麼 + 測試結果

@@ -29,7 +29,7 @@ Review-lessons 是從 PR review 萃取的 coding patterns，存在各專案的 `
 
 ## 1. Count & Gate
 
-掃描 `~/work/<repo>/.claude/rules/review-lessons/` 下所有 `.md` 檔案：
+掃描 `{base_dir}/<repo>/.claude/rules/review-lessons/` 下所有 `.md` 檔案：
 
 1. 讀取每個檔案，計算頂層 bullet 數量（以 `^- ` 開頭的行 = 1 條 entry）
 2. 加總所有檔案的 entry 數
@@ -122,7 +122,7 @@ Review-lessons 是從 PR review 萃取的 coding patterns，存在各專案的 `
 
 ### 4.5 不 commit
 
-所有變更屬於 AI 開發環境，不在此 skill 中 commit。等使用者準備好再統一處理。
+所有變更屬於 AI 開發環境（`chore/ai-enhancements`），不在此 skill 中 commit。等使用者說「發 AI PR」統一處理。
 
 ## 5. 輸出摘要
 

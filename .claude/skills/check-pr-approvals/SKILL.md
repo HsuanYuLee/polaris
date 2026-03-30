@@ -1,20 +1,10 @@
 ---
 name: check-pr-approvals
 description: >
-  Scans all open PRs **authored by the user** (i.e., PRs the user themselves created)
-  in the configured GitHub org, rebases each PR to latest base branch (so reviewers see
-  up-to-date code), verifies CI checks pass (auto-fixes failures before asking for
-  reviews — don't waste reviewers' time), auto-fixes unaddressed review comments
-  (so reviewers don't have to wait), checks approval counts (including stale/dismissed
-  approvals after new pushes), and reports PRs that haven't reached 2 valid approvals
-  — optionally posting to Slack. This skill is about **the user's own PRs** that need
-  others to review — NOT about reviewing other people's PRs (that's review-inbox).
-  Use this skill whenever the user mentions: "確認 PR 狀態", "PR approve 狀況",
-  "check PR approvals", "PR review 進度", "我的 PR", "催 review", "PR 被 approve 了嗎",
-  "還有哪些 PR 沒過", "review status", "幫我看 PR", "CI 狀態", "幫我掃我的 PR",
-  "需要被看的 PR", "需要被 review 的 PR", or asks about the approval status of their
-  own open pull requests — even if they don't explicitly say "approval". Key signal:
-  when the subject is "我的 PR" or "被看/被 review", route here, not to review-inbox.
+  Scans the user's own open PRs: rebase, auto-fix CI failures and unaddressed review
+  comments, check approval counts (including stale detection), report to Slack.
+  Trigger: "我的 PR", "check PR approvals", "PR 狀態", "催 review", "PR 被 approve 了嗎",
+  "幫我掃我的 PR", "還有哪些 PR 沒過". Key: "我的 PR" → here; "大家的 PR" → review-inbox.
 metadata:
   author: ""
   version: 1.7.0
@@ -92,7 +82,7 @@ SKILL_DIR="$(dirname "$(readlink -f "$0")")"  # 或直接用 skill 的絕對路�
 
 ```bash
 "$SKILL_DIR/scripts/fetch-user-open-prs.sh" --author $MY_USER \
-  | "$SKILL_DIR/scripts/rebase-pr-branch.sh" --work-dir ~/work
+  | "$SKILL_DIR/scripts/rebase-pr-branch.sh" --work-dir {base_dir}
 ```
 
 Script 內建處理：
@@ -125,7 +115,7 @@ Script 內建處理：
 
 ```
 ✅ 自動解衝突成功：
-- repo-b #26 (chore/update-config) — rebase origin/master 完成，已 force push
+- repo-b #26 (chore/ai-enhancements) — rebase origin/master 完成，已 force push
 
 ⚠️ 以下 PR 自動解衝突失敗，需手動處理：
 - repo-a #1786 (feat/xxx) — conflict 過於複雜
@@ -282,7 +272,7 @@ PR: {pr_url}
 
 ```bash
 "$SKILL_DIR/scripts/fetch-user-open-prs.sh" --author $MY_USER \
-  | "$SKILL_DIR/scripts/rebase-pr-branch.sh" --work-dir ~/work \
+  | "$SKILL_DIR/scripts/rebase-pr-branch.sh" --work-dir {base_dir} \
   | "$SKILL_DIR/scripts/check-pr-approval-status.sh" --threshold 2
 ```
 

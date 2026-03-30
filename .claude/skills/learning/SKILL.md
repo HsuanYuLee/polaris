@@ -1,28 +1,12 @@
 ---
 name: learning
 description: >
-  Three modes: (1) Researches external content (GitHub repos, articles, blog posts, tech talks,
-  architecture patterns) and analyzes what's applicable to our workspace. (2) Learns from merged
-  PRs — extracts review patterns and coding lessons from team PR review comments and fix diffs,
-  then writes them into review-lessons for graduation into rules. (3) Queue mode — processes articles
-  from the daily learning queue (populated by scheduled daily-learning-scan agent), batch-analyzes
-  them, and archives processed items. Dispatches sub-agents for parallel deep-dive when scope is large.
-  Make sure to use this skill whenever the user mentions: "學習", "learn", "研究一下",
-  "research this", "借鑑", "draw inspiration", "看看這個", "check this out", "研究這個",
-  "study this", "learn from this", "這個不錯", "this is good", "有什麼可以學的",
-  "anything to learn from", "可以參考", "worth referencing", "take inspiration",
-  "學習 PR", "learn from PR", "研究 PR review", "study PR review", "學習最近的 PR",
-  "learn from recent PRs", "PR 學習", "學習 merge 的 PR", "learn from merged PRs",
-  "研究別人的 PR", "study others' PRs", "今天有什麼可以學的", "what can I learn today",
-  "每日學習", "daily learning", "看看今天的推薦", "today's recommendations",
-  "今天推薦什麼", "what's recommended today", "有新文章嗎", "any new articles",
-  "讀文章", "read articles", "學習報到", "learning check-in", "消化 queue",
-  "digest queue", "learning queue", "處理 queue", "process queue", "學習 queue",
-  "處理今天的文章", "process today's articles", "queue 有什麼", "what's in the queue",
-  "看看 queue", "check the queue", or shares an external URL/resource and asks to
-  analyze, research, or evaluate it — even if they don't explicitly say "learn". Also trigger when
-  the user shares a link and says something casual like "看一下這個", "take a look at this",
-  "幫我看看", or "check this for me". Do NOT trigger
+  Three modes: (1) External — researches URLs, repos, articles and analyzes applicability to
+  our workspace. (2) PR — extracts review patterns from merged PRs into review-lessons.
+  (3) Queue — processes daily learning queue articles in batch. Trigger: "學習", "learn",
+  "研究一下", "research this", "借鑑", "看看這個", "學習 PR", "learn from PR",
+  "每日學習", "daily learning", "消化 queue", "digest queue", "learning queue",
+  or user shares a URL asking to analyze/evaluate it. Do NOT trigger
   for internal codebase exploration (use Explore subagent directly), JIRA ticket analysis (use
   work-on), or PR review (use review-pr for reviewing someone else's code — this skill
   is for LEARNING from already-merged PRs, not reviewing open ones).
@@ -45,7 +29,7 @@ Determine which mode based on the user's input:
 | Signal | Mode | Example |
 |---|---|---|
 | PR number, PR URL, or mentions "PR" + "學習/learn" | **PR mode** | `學習 PR #123`, `learn from my-app 最近的 PR` |
-| Mentions a person's PRs | **PR mode** | `學習 <teammate> 最近的 PR`, `研究 PR review` |
+| Mentions a person's PRs | **PR mode** | `學習 daniel 最近的 PR`, `研究 PR review` |
 | Time-range + PR | **PR mode** | `學習最近一週 merge 的 PR` |
 | External URL, repo, article | **External mode** | `看看這個 github.com/...`, `研究這篇文章` |
 | Mentions "每日學習", "今天有什麼可以學的", "看看今天的推薦", "有新文章嗎", "讀文章", "daily learning", "queue", "消化", or bare "學習" without URL/PR context | **Queue mode** | `每日學習`, `今天有什麼可以學的`, `看看今天的推薦`, `有新文章嗎`, `讀文章` |
@@ -105,7 +89,7 @@ Research the content yourself. Focus on extracting:
 
 ### Multi-agent path
 
-Spawn Researcher sub-agents (`model: "sonnet"`). Each sub-agent uses the **Researcher** role defined in `~/work/.claude/skills/references/sub-agent-roles.md` — read the Researcher section and include it in the sub-agent prompt.
+Spawn Researcher sub-agents (`model: "sonnet"`). Each sub-agent uses the **Researcher** role defined in `skills/references/sub-agent-roles.md` — read the Researcher section and include it in the sub-agent prompt.
 
 Sub-agent prompt template:
 
@@ -199,7 +183,7 @@ When a recommendation targets the **Polaris framework itself** (skill flow, rule
 
 When researching external content, watch for division-of-labor patterns that could map to a new sub-agent role. This is how the talent pool grows organically — external inspiration surfaces new specializations we haven't formalized yet.
 
-**Detection**: During Step 4 (Synthesis), if a recommendation involves a type of sub-agent work that doesn't fit any role in `~/work/.claude/skills/references/sub-agent-roles.md`, flag it:
+**Detection**: During Step 4 (Synthesis), if a recommendation involves a type of sub-agent work that doesn't fit any role in `skills/references/sub-agent-roles.md`, flag it:
 
 ```markdown
 ### Recommendation: {title}
@@ -229,7 +213,7 @@ Articles, blog posts, and documentation don't get table entries — they're too 
 
 ### How to add
 
-After executing confirmed changes in Step 5, append a row to `~/work/README.md`'s Acknowledgements table:
+After executing confirmed changes in Step 5, append a row to `{base_dir}/README.md`'s Acknowledgements table:
 
 ```markdown
 | [{project name}]({url}) | {author} | {one-line: what we learned / adopted} |
@@ -264,7 +248,7 @@ Process articles from the daily learning queue (populated by the scheduled `dail
 
 ## Step Q1: Read Queue and Filter
 
-Read `~/work/.claude/skills/references/learning-queue.md` and parse all pending items (entries under `## Pending Items`).
+Read `skills/references/learning-queue.md` and parse all pending items (entries under `## Pending Items`).
 
 If queue is empty, tell the user "Queue 是空的，沒有待處理的文章。" and stop.
 
@@ -278,9 +262,9 @@ Show the user a summary of pending items with the Repos column:
 | 3 | ... | framework | all | ... |
 ```
 
-The user may filter by repo: "只看 app-name 相關的" → only process articles where `Relevant Repos` contains `my-app` or `all`. If no filter specified, process all.
+The user may filter by repo: "只看 b2c-web 相關的" → only process articles where `Relevant Repos` contains `my-app` or `all`. If no filter specified, process all.
 
-Ask: "要全部處理，還是選幾篇？可以用 repo 篩選（如：只看 app-name 和 docker 相關的）"
+Ask: "要全部處理，還是選幾篇？可以用 repo 篩選（如：只看 b2c-web 和 docker 相關的）"
 
 ## Step Q2: Process Each Article
 
@@ -394,7 +378,7 @@ Determine which PRs to study based on the user's input:
 |---|---|
 | Specific PR number (`PR #123`) | Direct: `gh pr view 123 --repo {org}/{repo}` |
 | Specific PR URL | Extract owner/repo and number from URL |
-| Person's PRs (`<teammate> 最近的 PR`) | `gh pr list --repo {org}/{repo} --state merged --author <github-username> --limit 10` |
+| Person's PRs (`daniel 最近的 PR`) | `gh pr list --repo {org}/{repo} --state merged --author <github-username> --limit 10` |
 | Time-range (`最近一週的 PR`) | `gh pr list --repo {org}/{repo} --state merged --search "merged:>YYYY-MM-DD" --limit 20` |
 | Repo-specific (`my-app 最近的 PR`) | Target that repo specifically |
 | No repo specified | Use the repo mapping from CLAUDE.md to infer, or ask the user |
@@ -468,9 +452,9 @@ If no learnable patterns found, return an empty array [].
 
 Before writing any lessons, load existing knowledge to avoid duplicates:
 
-1. **Read all review-lesson files** in `~/work/<repo>/.claude/rules/review-lessons/*.md`
-2. **Read all main rule files** in `~/work/<repo>/.claude/rules/*.md` (excluding `review-lessons/` subdirectory)
-3. Also check `~/work/.claude/rules/*.md` (workspace-level rules)
+1. **Read all review-lesson files** in `{base_dir}/<repo>/.claude/rules/review-lessons/*.md`
+2. **Read all main rule files** in `{base_dir}/<repo>/.claude/rules/*.md` (excluding `review-lessons/` subdirectory)
+3. Also check `{base_dir}/.claude/rules/*.md` (workspace-level rules)
 
 For each extracted pattern, compare against existing lessons and rules:
 - **Semantically identical** (same rule, same reasoning) → skip, count as duplicate
@@ -479,7 +463,7 @@ For each extracted pattern, compare against existing lessons and rules:
 
 ## Step P4: Write Review Lessons
 
-Write extracted patterns to `~/work/<repo>/.claude/rules/review-lessons/` using the **exact same format** as `review-pr` Step 6.5:
+Write extracted patterns to `{base_dir}/<repo>/.claude/rules/review-lessons/` using the **exact same format** as `review-pr` Step 6.5:
 
 **File naming**: Topic-based, kebab-case `.md` files (e.g., `typescript-type-safety.md`, `error-handling.md`). Append to existing files of the same topic — do not create a new file if one with the matching topic already exists.
 

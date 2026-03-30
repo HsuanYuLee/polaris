@@ -112,7 +112,7 @@ mcp__claude_ai_Atlassian__transitionJiraIssue
 
 ### Step 4：TDD 開發（預設模式）
 
-在分支上以 **TDD（Red-Green-Refactor）** 實作修正。遵循 `dev-guide` skill 確保程式碼符合專案規範，遵循 `tdd` skill 的 TDD 循環。
+在分支上以 **TDD（Red-Green-Refactor）** 實作修正。遵循專案 CLAUDE.md 確保程式碼符合專案規範，遵循 `tdd` skill 的 TDD 循環。
 
 **TDD 智慧判斷**：對每個要改動的檔案，先嘗試寫測試：
 - 可寫測試（composable、util、store、API handler）→ 走 TDD 循環
@@ -134,7 +134,7 @@ mcp__claude_ai_Atlassian__transitionJiraIssue
 - 建立 PR → 自動轉 JIRA 為 CODE REVIEW
 - 更新 PR 描述
 
-❌ **NEVER** 用 `pr-convention` 替代 — 它只是簡易版 PR 建立，不含品質檢查、coverage 驗證、pre-PR review loop。手動拆開執行會遺漏步驟（KQT-14407 就是因此 CI 掛掉）。
+❌ **NEVER** 用 `pr-convention` 替代 — 它只是簡易版 PR 建立，不含品質檢查、coverage 驗證、pre-PR review loop。手動拆開執行會遺漏步驟（PROJ-12345 就是因此 CI 掛掉）。
 
 直接說「發 PR」即可觸發。
 
@@ -183,7 +183,7 @@ Step 6: 記錄工時？（選擇性）
 |------|--------|------|
 | Step 2 | `jira-estimation` | Bug 根因分析 + 估點 |
 | Step 3 | `start-dev` 邏輯 + `jira-branch-checkout` | 狀態轉換 + 建分支 |
-| Step 4 | `tdd` + `dev-guide` | TDD 開發 + 規範引導 |
+| Step 4 | `tdd` + 專案 CLAUDE.md | TDD 開發 + 規範引導 |
 | Step 5 | `git-pr-workflow` | 品質檢查 → PR 全流程 |
 | Step 6 | `jira-worklog` | 工時記錄 |
 
@@ -209,4 +209,4 @@ Step 6: 記錄工時？（選擇性）
 
 - JIRA MCP 連線正常（Atlassian tools 可用）
 - `gh` CLI 已安裝並認證
-- 對應專案已 clone 到 `~/work/` 下
+- 對應專案已 clone 到 `{base_dir}/` 下（base_dir 從 workspace-config.yaml 取得）

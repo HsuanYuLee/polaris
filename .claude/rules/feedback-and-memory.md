@@ -11,6 +11,18 @@ After completing a full task (opening a PR, fixing review comments, estimation, 
 
 Execute silently. Only notify the user and wait for confirmation before writing when a feedback worth recording is found. Items 3 and 4 may be recorded without user confirmation.
 
+## Post-Task Mechanism Audit
+
+After the feedback reflection above, also scan for **mechanism violations** using `rules/mechanism-registry.md`. This is the second layer of the silent post-task check:
+
+1. Review the conversation for canary signals of the **top 5 priority mechanisms** (see registry § Priority Audit Order)
+2. If a violation is found:
+   - Record a feedback memory with the mechanism ID (e.g., `name: Violated skill-first-invoke`)
+   - Include what happened, why it drifted, and the corrective action
+3. If no violations → no action needed (don't log "all clear")
+
+This audit runs silently alongside the feedback reflection — no separate user notification. The mechanism registry is the source of truth for what to check.
+
 ## Automatic Polaris Backlog Writes
 
 Signals about improving the framework itself should flow into `.claude/polaris-backlog.md`. The following situations trigger a write:
@@ -60,10 +72,10 @@ Based on the semantic content of the feedback, find the most appropriate file in
 
 | Feedback Topic | Target File |
 |----------------|-------------|
-| Sub-agent delegation behavior | `rules/{company}/sub-agent-delegation.md` |
+| Sub-agent delegation behavior | `rules/sub-agent-delegation.md` (or `rules/{company}/` if company-scoped) |
 | PR / Review workflow | `rules/{company}/pr-and-review.md` |
 | JIRA conventions | `rules/{company}/jira-conventions.md` |
-| Skill usage | `rules/{company}/skill-routing.md` |
+| Skill usage | `rules/skill-routing.md` |
 | Other | Determine by semantics, or suggest creating a new rule file |
 
 ### Step 2: Draft the Rule Text

@@ -11,7 +11,7 @@
 
 ## Model Tiers
 
-When launching a sub-agent, specify the model based on task type to balance cost and quality. Planning decisions (SA/SD design, Epic breakdown strategy, scope challenge) stay with the main agent (Opus) and are not delegated:
+When launching a sub-agent, specify the model based on task type to balance cost and quality. Planning decisions (SA/SD design, Epic breakdown strategy, scope challenge) stay with the main agent and are not delegated:
 
 | Task Type | model parameter | Examples |
 |-----------|----------------|---------|

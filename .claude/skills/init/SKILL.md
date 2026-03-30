@@ -357,7 +357,7 @@ Generate `{company}/genericize-map.sed` and `{company}/genericize-jira.sed` from
 - `projects[].name` → repo name replacements (longer names first to avoid partial matches)
 - `projects[].repo` → full repo path replacements
 - Company name → brand replacements (specific before general)
-- Path replacement: `s|{workspace_root}/{company}|{workspace_root}/company|g`
+- Path replacement: `s|{base_dir}/{company}|{base_dir}/company|g`
 
 **genericize-jira.sed** — derived from:
 - `jira.projects[].key` → ticket key replacements (e.g., `s/PROJ-[0-9]\{1,\}/PROJ-123/g`)

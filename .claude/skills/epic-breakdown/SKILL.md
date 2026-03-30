@@ -45,7 +45,7 @@ mcp__claude_ai_Atlassian__getJiraIssue
 
 ### 2. 辨識對應專案
 
-從 Epic 的 **Summary** 中擷取 `[...]` tag，依 `references/project-mapping.md` 對應到本地專案路徑（`~/work/<專案目錄>`）。不分大小寫比對。
+從 Epic 的 **Summary** 中擷取 `[...]` tag，依 `references/project-mapping.md` 對應到本地專案路徑（`{base_dir}/<專案目錄>`）。不分大小寫比對。
 
 若 Summary 中沒有 tag 或無法匹配，詢問使用者指定專案。
 
@@ -386,9 +386,9 @@ git -C {base_dir}/<repo-b> push -u origin feat/<EPIC_KEY>-<description>
 **14c. 為每張子單建立 branch（從對應 repo 的母單 branch 開出）**
 
 ```bash
-git -C ~/work/<repo> checkout feat/<EPIC_KEY>-<description>
-git -C ~/work/<repo> checkout -b task/<SUB_KEY>-<description>
-git -C ~/work/<repo> push -u origin task/<SUB_KEY>-<description>
+git -C {base_dir}/<repo> checkout feat/<EPIC_KEY>-<description>
+git -C {base_dir}/<repo> checkout -b task/<SUB_KEY>-<description>
+git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
 ```
 
 Branch 命名遵循 `{任務類型}/{JIRA-KEY}-{語義說明}` 規範。description 從子單 summary 提取，kebab-case。

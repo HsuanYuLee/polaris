@@ -169,8 +169,8 @@ gh pr view --json number,url -q '.number,.url'
 若以上路徑皆找不到，告知使用者：「Could not find {repo} locally. Please clone it or specify the path.」不可 silently fallback 到任何 hardcoded 路徑。
 
 例如：
-- `github.com/acme-org/my-app/pull/1882` → `~/work/my-app`
-- `github.com/acme-org/another-repo/pull/300` → `~/work/another-repo`
+- `github.com/acme-org/my-app/pull/1882` → `{base_dir}/my-app`
+- `github.com/acme-org/another-repo/pull/300` → `{base_dir}/another-repo`
 
 如果使用者只提供 PR 編號（無 URL），用 `gh pr view` 取得 repo 資訊：
 
@@ -596,7 +596,7 @@ PR Approve 狀況：目前 M/2 valid approve(s)
 
 ### 注意事項
 
-- review-lessons 屬 AI 開發環境，**不 commit**，等使用者準備好再統一處理
+- review-lessons 屬 AI 開發環境（chore/ai-enhancements），**不 commit**，等使用者說「發 AI PR」統一處理
 - 與 fix-pr-review 萃取的 lesson 共用同一目錄，會自動合併同主題
 - **差異**：fix-pr-review 萃取「reviewer 指出的問題」（別人教我的）；此步驟萃取「自己在 review 時發現的 pattern」（我發現的）
 

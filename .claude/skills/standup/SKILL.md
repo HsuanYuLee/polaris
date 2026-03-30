@@ -33,7 +33,7 @@ metadata:
 | Confluence space | `{config: confluence.space}` | 見 `references/shared-defaults.md` |
 | Standup page | 當月頁面 | 動態搜尋 `YYYYMM Standup Meeting` |
 | Timezone | Asia/Taipei (UTC+8) | |
-| Known repos | 見 Step 2 | `~/work/` 下的 git repos |
+| Known repos | 見 Step 2 | `{base_dir}/` 下的 git repos |
 
 如果使用者沒有特別指定，直接用預設值執行，不需要額外確認。
 
@@ -77,7 +77,7 @@ esac
 
 ### 2. Collect git activity (YDY source)
 
-掃描 `~/work/` 下所有 git repos，搜尋使用者在 YDY 日期的 commits：
+掃描 `{base_dir}/` 下所有 git repos，搜尋使用者在 YDY 日期的 commits：
 
 ```bash
 MY_USER=$(gh api user --jq '.login')
@@ -86,10 +86,10 @@ MY_USER=$(gh api user --jq '.login')
 對每個 repo 執行（平行多個 Bash tool call）：
 
 ```bash
-git -C ~/work/<repo> log --author="$MY_USER" --since="$YDY_DATE 00:00 +0800" --until="$YDY_DATE 23:59 +0800" --oneline --no-merges 2>/dev/null
+git -C {base_dir}/<repo> log --author="$MY_USER" --since="$YDY_DATE 00:00 +0800" --until="$YDY_DATE 23:59 +0800" --oneline --no-merges 2>/dev/null
 ```
 
-掃描的 repos：從 `{config: projects[].path}` 讀取清單（只掃 `~/work/` 下有 `.git` 的目錄）。若 config 未設定，fallback 到 `ls ~/work/` 列出所有目錄後逐一檢查。
+掃描的 repos：從 `{config: projects[].path}` 讀取清單（只掃 `{base_dir}/` 下有 `.git` 的目錄）。若 config 未設定，fallback 到 `ls {base_dir}/` 列出所有目錄後逐一檢查。
 
 從 commit messages 中提取 ticket 號（對應 `{config: jira.projects[].key}` 的 pattern，如 `PROJ-\d+`）。記錄每個 ticket 對應的 repo 和 commit 摘要。
 
@@ -319,4 +319,4 @@ mcp__claude_ai_Atlassian__updateConfluencePage
 - `gh` CLI 已認證
 - Atlassian MCP 已連線（JIRA + Confluence）
 - Google Calendar MCP 已連線
-- 使用者的 repos 已 clone 到 `~/work/` 下
+- 使用者的 repos 已 clone 到 `{base_dir}/` 下（base_dir 從 workspace-config.yaml 取得）

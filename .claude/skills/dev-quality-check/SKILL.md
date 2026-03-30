@@ -32,7 +32,7 @@ Script 路徑相對於本 SKILL.md 所在目錄。執行前確認有 `+x` 權限
 
 ```bash
 SKILL_DIR="$(dirname "$(readlink -f "$0")")"  # 或直接用 skill 的絕對路徑
-"$SKILL_DIR/scripts/detect-project-and-changes.sh" --project-dir ~/work/<repo>
+"$SKILL_DIR/scripts/detect-project-and-changes.sh" --project-dir {base_dir}/<repo>
 ```
 
 **輸出 JSON 格式**：

@@ -84,7 +84,7 @@ mcp__claude_ai_Atlassian__getJiraIssue
 
 ### 2. 辨識對應專案
 
-從 ticket 的 **Summary** 中擷取 `[...]` tag，依 `references/project-mapping.md` 對應到本地專案路徑（`~/work/<專案目錄>`）。不分大小寫比對。
+從 ticket 的 **Summary** 中擷取 `[...]` tag，依 `references/project-mapping.md` 對應到本地專案路徑（`{base_dir}/<專案目錄>`）。不分大小寫比對。
 
 若 Summary 中沒有 tag，進一步檢查 **Labels** 和 **Components** 欄位。仍無法匹配時，詢問使用者指定專案。
 

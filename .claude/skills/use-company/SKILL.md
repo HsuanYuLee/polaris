@@ -1,6 +1,7 @@
 ---
+name: use-company
 description: Sets the active company context for this conversation. Use when the user wants to explicitly declare which company they're working with, bypassing auto-detection. Trigger keywords: "use company", "switch company", "切換公司", "用這間", "/use-company", "set company", "公司切換", "我要做 X 公司的".
-user_invocable: true
+user-invocable: true
 ---
 
 # /use-company — Active Company Context Switcher
@@ -14,12 +15,12 @@ Explicitly sets which company context to use for the current conversation, avoid
 ### Step 1 — Resolve Target Company
 
 **If the user provides a company name:**
-1. Read `~/work/workspace-config.yaml` → get `companies[]` list
+1. Read `{workspace_root}/workspace-config.yaml` → get `companies[]` list
 2. Match the provided name against company entries (case-insensitive, partial match OK)
 3. If no match → list available companies and ask the user to choose
 
 **If no company name provided:**
-1. Read `~/work/workspace-config.yaml` → get `companies[]` list
+1. Read `{workspace_root}/workspace-config.yaml` → get `companies[]` list
 2. List all available companies with their key info (base_dir, GitHub org, JIRA projects)
 3. Ask the user to select one
 
