@@ -1,6 +1,6 @@
 # Polaris 快速上手指南
 
-> 這份指南是 [README Quick Start](../README.md#quick-start) 的中文版，內容完全對應。
+> 這份指南是 [中文 README](../README.zh-TW.md) 快速上手部分的精簡版。完整內容請參閱 [README.zh-TW.md](../README.zh-TW.md)。
 
 ## 前置需求
 
@@ -27,28 +27,20 @@
 
 ## 開始設定
 
-### 1. 複製並進入工作區
+### 1. 建立你的工作區
+
+到 GitHub 上的 [Polaris 範本 repo](https://github.com/HsuanYuLee/polaris)，點 **「Use this template」→「Create a new repository」**，然後 clone：
 
 ```bash
-# 從 Polaris 範本建立你的工作區（GitHub → "Use this template"）
-# 然後 clone 你的新 repo：
 git clone https://github.com/YOUR-ORG/your-polaris-workspace ~/polaris-workspace
 cd ~/polaris-workspace
 ```
 
 > **提示**：選一個專用的目錄名稱。避免使用 `~/work` — 很多開發者已經在用這個路徑。
 
-> **PM 和非開發者：** 請團隊的開發者幫你跑步驟 1-3，大約需要 10 分鐘。然後直接跳到步驟 4。
+> **PM 和非開發者：** 請團隊的開發者幫你跑步驟 1-2，大約需要 10 分鐘。然後直接跳到步驟 3。
 
-### 2. 設定 workspace config
-
-```bash
-cp workspace-config.yaml.example workspace-config.yaml
-```
-
-你不需要手動編輯這個檔案 — `/init` 會在下一步幫你填好。
-
-### 3. 初始化公司目錄
+### 2. 執行 `/init` 初始化公司
 
 在工作區內開啟 Claude Code — 在終端機中，從工作區目錄執行 `claude`（或在 VS Code 中開啟資料夾並使用 Claude Code 擴充套件）。然後輸入：
 
@@ -61,7 +53,23 @@ cp workspace-config.yaml.example workspace-config.yaml
 - 建立公司目錄和 `workspace-config.yaml`
 - 設定專案對應（JIRA 票號 → 本地 repo 路徑）
 
-### 4. 開始使用技能
+完成後你的工作區會長這樣：
+
+```
+~/polaris-workspace/              ← 你的工作區根目錄（這個 repo）
+├── CLAUDE.md                     ← AI 策略師指令
+├── workspace-config.yaml         ← 路由 JIRA 票號到對應公司
+├── .claude/
+│   ├── rules/                    ← 通用規則 (L1)
+│   │   └── your-company/         ← 公司專屬規則 (L2)
+│   └── skills/                   ← 29 個工作流技能
+└── your-company/                 ← 由 /init 建立
+    ├── workspace-config.yaml     ← 公司設定（JIRA、Slack、repos）
+    └── your-project/             ← 你的專案 repo（clone 或連結）
+        └── .claude/CLAUDE.md     ← 專案層級規則 (L3)
+```
+
+### 3. 開始使用技能
 
 > **注意：** 像 `/init` 這樣的指令是在 Claude Code 對話中輸入，不是在終端機 shell 中。
 
@@ -88,6 +96,31 @@ cp workspace-config.yaml.example workspace-config.yaml
 | **Tech Lead** | `「排 sprint」` | 拉 backlog → 算容量 → 建議優先順序 |
 
 其他技能在你熟悉之後再慢慢探索。
+
+## 三大支柱
+
+Polaris 圍繞三大支柱組織你的 AI 輔助工作流程：
+
+### 支柱一 — 輔助開發
+
+從 JIRA 到 PR 的完整自動化：`「做 PROJ-123」` → 讀 JIRA → 估點 → 開 branch → 寫 code → 跑測試 → 發 PR → 轉 JIRA 狀態。涵蓋 `work-on`、`fix-bug`、`epic-breakdown`、`tdd`、`git-pr-workflow`、`review-pr` 等技能。
+
+詳細流程 → [Developer Workflow Guide](workflow-guide.md)
+
+### 支柱二 — 自我學習 ★
+
+Polaris 與靜態範本的最大差異：它會從日常使用中累積團隊知識、自動演進規則。
+
+1. **回饋捕捉** — 你糾正 Claude 的做法時，它記下教訓
+2. **模式升格** — 同一回饋被引用 3 次以上，自動升為永久規則
+3. **外部學習** — 研究文章、repo 或 PR，萃取可套用的模式
+4. **挑戰者審計** — 發版前，sub-agent 從新使用者視角審查 workspace
+
+> **範例：** 你在三次不同的 PR 中糾正 Claude 的 import 順序。第三次時，教訓自動升格為永久規則 — 之後所有 PR 自動遵循這個慣例。
+
+### 支柱三 — 日常紀錄
+
+Sprint 生命週期自動化，PM、Scrum Master、開發者都能用：`「standup」` → 收集 JIRA + git + 行事曆 → 整理成站會報告。涵蓋 `standup`、`sprint-planning`、`worklog-report`、`jira-worklog`、`refinement` 等技能。
 
 ## PM 與 Scrum 工作流程
 

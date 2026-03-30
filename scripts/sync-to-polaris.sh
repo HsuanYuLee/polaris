@@ -175,7 +175,18 @@ if [[ -d "$INSTANCE_DIR/_template" ]]; then
   done
 fi
 
-# ── Step 7: Sync top-level files ──────────────────────────────────
+# ── Step 7: Sync docs/ ───────────────────────────────────────────
+
+if [[ -d "$INSTANCE_DIR/docs" ]]; then
+  echo "Docs..."
+  for doc in "$INSTANCE_DIR/docs/"*.md; do
+    [[ -f "$doc" ]] || continue
+    doc_name="$(basename "$doc")"
+    copy_file "$doc" "$POLARIS_DIR/docs/$doc_name" "$doc_name"
+  done
+fi
+
+# ── Step 8: Sync top-level files ──────────────────────────────────
 
 echo "Top-level files..."
 copy_file "$INSTANCE_DIR/CHANGELOG.md" "$POLARIS_DIR/CHANGELOG.md" "CHANGELOG.md"
@@ -184,7 +195,7 @@ copy_file "$INSTANCE_DIR/README.md"       "$POLARIS_DIR/README.md"       "README
 copy_file "$INSTANCE_DIR/README.zh-TW.md" "$POLARIS_DIR/README.zh-TW.md" "README.zh-TW.md"
 copy_file "$INSTANCE_DIR/CLAUDE.md"    "$POLARIS_DIR/CLAUDE.md"    "CLAUDE.md"
 
-# ── Step 8: Auto-commit ──────────────────────────────────────────
+# ── Step 9: Auto-commit ──────────────────────────────────────────
 
 echo ""
 if [[ "$DRY_RUN" == true ]]; then
