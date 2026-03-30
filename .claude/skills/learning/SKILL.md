@@ -479,6 +479,16 @@ Write extracted patterns to `{base_dir}/<repo>/.claude/rules/review-lessons/` us
 
 When appending to an existing file, add new entries after the last existing entry (before EOF). Do not modify existing entries.
 
+### Reverse Sync
+
+寫入完成後，執行 reverse-sync 將 review-lessons 寫回 ai-config（source of truth）：
+
+```bash
+{base_dir}/polaris-sync.sh --reverse {project-name}
+```
+
+其中 `{project-name}` 從 repo 目錄名推導（例如 `kkday-b2c-web`）。
+
 ## Step P5: Summary & Graduation Check
 
 ### Summary output

@@ -611,6 +611,16 @@ PR Approve 狀況：目前 M/2 valid approve(s)
 
 萃取完成後，計算 `{base_dir}/{repo}/.claude/rules/review-lessons/` 的總條目數（每個 `^- ` 開頭的行 = 1 條）。若 >= 15 → invoke `review-lessons-graduation`。若 < 15 → 不輸出任何訊息。
 
+### Reverse Sync（靜默）
+
+萃取完成後，執行 reverse-sync 將 review-lessons 寫回 ai-config（source of truth）：
+
+```bash
+{base_dir}/polaris-sync.sh --reverse {project-name}
+```
+
+其中 `{project-name}` 從 repo 目錄名推導（例如 `kkday-b2c-web`）。
+
 ## 7. Slack 通知（僅當輸入來源為 Slack 時）
 
 若 Step 0 標記了 `slack_source: true`，在 GitHub review 提交完成後，回覆原始 Slack thread 通知 PR 作者。

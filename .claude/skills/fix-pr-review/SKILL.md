@@ -776,13 +776,23 @@ Commit: <sha>
 ### 重要注意事項
 
 - **靜默執行**：只在確實萃取到 lesson 時通知使用者（「已萃取 N 條 review lesson 到 `.claude/rules/review-lessons/`」）
-- **檔案歸屬**：review-lessons 屬於 AI 開發環境設定，由 `chore/ai-enhancements` branch 管理。在 feature branch 上這些檔案被 `ai-env.sh` 標記為 `assume-unchanged`，不會進入 feature PR
-- **不 commit**：萃取的 lesson 檔案不加入本次 fix commit——它們會在下次「發 AI PR」時統一 commit 到 `chore/ai-enhancements`
+- **檔案歸屬**：review-lessons 屬於 Polaris 框架管理的檔案，由 `ai-config/` 統一管理。在專案 repo 中這些檔案被 `.gitignore` 排除，不會進入 feature PR
+- **不 commit**：萃取的 lesson 檔案不加入本次 fix commit——它們透過 reverse-sync 寫回 `ai-config/`
 - **合併而非重複**：同一主題的 lesson 追加到既有檔案，不建新檔
 
 ### Review Lessons 畢業檢查（靜默）
 
 萃取完成後，計算 `{base_dir}/<repo>/.claude/rules/review-lessons/` 的總條目數（每個 `^- ` 開頭的行 = 1 條）。若 >= 15 → invoke `review-lessons-graduation`。若 < 15 → 不輸出任何訊息。
+
+### Reverse Sync（靜默）
+
+萃取完成後，執行 reverse-sync 將 review-lessons 寫回 ai-config（source of truth）：
+
+```bash
+{base_dir}/polaris-sync.sh --reverse {project-name}
+```
+
+其中 `{project-name}` 從 repo 目錄名推導（例如 `kkday-b2c-web`）。
 
 ## 13. Slack 通知（僅當輸入來源為 Slack 時）
 

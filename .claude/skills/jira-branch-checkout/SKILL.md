@@ -144,4 +144,16 @@ If no match found, ask the user to provide the branch name directly.
 bash "<SKILL_DIR>/scripts/create-branch.sh" "<TICKET>" "<DESCRIPTION>" "<BASE_BRANCH>"
 ```
 
-Relay the output to the user and proceed with the requested task.
+Relay the output to the user.
+
+### 6. Deploy AI config
+
+Branch 建立後，部署 Polaris 管理的 AI 設定（review-lessons, skills, settings）到專案：
+
+```bash
+{base_dir}/polaris-sync.sh {project-name}
+```
+
+其中 `{base_dir}` 是 workspace-config.yaml 所在的公司目錄（例如 `/Users/.../work/kkday`），`{project-name}` 是 repo 目錄名。
+
+Proceed with the requested task.

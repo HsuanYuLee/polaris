@@ -60,6 +60,32 @@ Detailed rules live in `.claude/rules/` files.
 - **Skills are version-controlled**: generic skills live in `.claude/skills/` (tracked in git). Company-specific skills go under `.claude/skills/{company}/` (gitignored)
 - **Version bump → auto-sync to Polaris**: after any commit that changes `VERSION`, immediately run `scripts/sync-to-polaris.sh --push` to sync framework changes to the template repo. This is automatic — do not ask for confirmation
 
+## Project File Management
+
+Polaris produces two categories of files in product repos:
+
+### Project Assets (committed to product repo)
+- `.claude/rules/*.md` — Coding guidelines iterated through review-lessons graduation. Valuable for any AI tool or human code review, even without Polaris
+- `.claude/CLAUDE.md` — Project-level AI operating manual
+
+### Framework Files (gitignored, managed by `ai-config/`)
+- `.claude/rules/review-lessons/` — Pre-graduation lesson buffer (temporary)
+- `.claude/skills/` — Polaris-specific skill definitions
+- `.claude/settings.local.json` — Personal/machine settings
+
+### Sync Mechanism
+- **Source of truth**: `{company}/ai-config/{project}/` (local, not in Polaris template)
+- **Deploy** (ai-config → repo): `{company}/polaris-sync.sh {project}` — run after creating a feature branch
+- **Reverse sync** (repo → ai-config): `{company}/polaris-sync.sh --reverse {project}` — run after skills write review-lessons
+- **Status**: `{company}/polaris-sync.sh --status`
+
+Product repos `.gitignore` should include:
+```
+.claude/rules/review-lessons/
+.claude/skills/
+.claude/settings.local.json
+```
+
 ## Workflow Documents
 
 Company-specific workflow docs live under each company directory (e.g., `{company}/docs/`), described by each company's `CLAUDE.md`.

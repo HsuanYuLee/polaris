@@ -64,6 +64,13 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 |----|------|---------------|-------|
 | `no-skill-create-modify-direct` | Create/modify skills only via `/skill-creator` | Direct SKILL.md edits without skill-creator invocation | Medium |
 
+### Framework Iteration (source: `rules/framework-iteration.md`)
+
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `challenger-milestone-only` | Challenger Audit runs pre-release/pre-share only | Challenger triggered after a single PR or during daily work | High |
+| `framework-exp-once-per-task` | At most 1 framework-experience memory per task | Multiple framework-experience memories with the same `last_triggered` date | Low |
+
 ## Priority Audit Order
 
 Post-task audit should check these first (highest drift risk, most impactful):

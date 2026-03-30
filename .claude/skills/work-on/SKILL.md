@@ -166,7 +166,7 @@ Project: {base_dir}/{repo}（base_dir 從 workspace-config.yaml 取得）
 ### 1. 轉 IN DEVELOPMENT + 建 branch
 - 讀取 `start-dev` SKILL.md — 設定需求來源、轉狀態
 - 讀取 `jira-branch-checkout` SKILL.md — 建 branch
-- branch 建立後執行 `{base_dir}/ai-env.sh` setup（若 chore/ai-enhancements branch 存在）
+- branch 建立後執行 `{base_dir}/polaris-sync.sh {project-name}` 部署 AI 設定
 
 ### 2. TDD 開發（預設模式）
 - 讀取專案 CLAUDE.md — 遵循專案規範
@@ -348,11 +348,11 @@ ticket 狀態是 IN DEVELOPMENT 且沒有 branch？
   └→ 檢查 JIRA comments 是否有依賴標記（base on / depends on）
      └→ 有 → 走依賴分支流程（jira-branch-checkout step 4a-4c）
      └→ 無 → 觸發 jira-branch-checkout（標準流程）
-  └→ branch 建立後 → 執行 `{base_dir}/ai-env.sh` setup（若 chore/ai-enhancements 存在）
+  └→ branch 建立後 → 執行 `{base_dir}/polaris-sync.sh {project-name}` 部署 AI 設定
 
 ticket 狀態是 IN DEVELOPMENT 且已有 branch？
   └→ checkout 到該 branch
-  └→ 執行 `{base_dir}/ai-env.sh` setup（若 chore/ai-enhancements 存在）
+  └→ 執行 `{base_dir}/polaris-sync.sh {project-name}` 部署 AI 設定
   └→ 提示：「已在 branch {name}，可以開始開發。」
 ```
 
@@ -443,19 +443,34 @@ mcp__claude_ai_Atlassian__createJiraIssue
 
 建完後列出所有驗證子單連結。
 
-**5f. 🔍 QA Challenge（must-respond）**
+**5f. 🔍 QA Challenge — 自動解決循環（must-respond）**
 
-驗證子單建完後，dispatch **QA Challenger** sub-agent（見 `skills/references/sub-agent-roles.md`）：
+驗證子單建完後，啟動 **QA 自動解決循環**（不需使用者逐條回應）：
 
-- **輸入**：測試計畫全文 + 驗證子單清單 + ticket AC
+**Round 1 — Challenge：**
+Dispatch **QA Challenger** sub-agent（見 `skills/references/sub-agent-roles.md`）：
+- **輸入**：測試計畫全文 + 驗證子單清單 + ticket AC + risk areas
 - **Model**：sonnet
 - **輸出**：挑戰報告（⚠️ 需回應 + ✅ 涵蓋完整）
 
-將 QA Challenge 結果呈現給使用者。使用者必須**逐條回應**每個 ⚠️ 項目：
-- **接受** → 主 agent 根據建議補充測試項目，建立額外的 [驗證] sub-task
-- **駁回（附理由）** → 記錄理由，不新增
+**Round N — Resolve + Re-Challenge 循環：**
+若有 ⚠️ 項目，dispatch **QA Resolver** sub-agent（同 sonnet）自動處理：
 
-所有 ⚠️ 項目回應完畢後才進入開發。
+1. **Resolver pass**：對每個 ⚠️ 提出具體解決方案（更新驗證標準、補充步驟、或附理由駁回）
+2. **Challenger pass**：重新審視所有解決方案，標記 ✅（resolved）或 ⚠️（仍有 gap）
+3. 仍有 ⚠️ → 再一輪 Resolve + Challenge
+4. 全部 ✅ → 循環結束
+
+**循環終止條件**：
+- 所有項目 ✅ → 正常結束
+- 超過 3 輪仍有 ⚠️ → 將剩餘 ⚠️ 提交使用者決策
+
+**結果處理：**
+- 循環結束後，呈現**最終穩定測試計畫**給使用者確認（整體確認，非逐條回應）
+- **新增項目**（Challenge 中發現的 missing scenarios，且被 Resolver 接受的）→ 建立額外的 [驗證] sub-task
+- **被駁回的項目** → 記錄理由，不新增
+
+使用者確認穩定測試計畫後才進入開發。
 
 ### 6. 開發摘要 → 自動進入 TDD 開發 → 品質檢查 → 發 PR
 
@@ -466,7 +481,7 @@ mcp__claude_ai_Atlassian__createJiraIssue
 ├─ 狀態：IN DEVELOPMENT
 ├─ Branch：task/PROJ-448-product-listing-optimization
 ├─ Base：feat/PROJ-460-aggregate-structured-data（依賴 PROJ-450，PR #102）
-├─ AI 設定：已套用（ai-env.sh setup）
+├─ AI 設定：已套用（polaris-sync.sh）
 ├─ Readiness Gate：✅ 通過（AC 品質合格）
 ├─ 測試計畫：3 項（AC Gate 已確認）
 ├─ [驗證] 子任務：TEAM-1003, TEAM-1004, TEAM-1005

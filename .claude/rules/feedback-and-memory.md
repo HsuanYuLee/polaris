@@ -7,7 +7,7 @@ After completing a full task (opening a PR, fixing review comments, estimation, 
 3. **Blocked by a hook or permission denied** → immediately record the command and a suggested pattern; before the task ends, list all blocked commands and fix them (general → `~/.claude/settings.json`, project-specific → `settings.local.json`)
 4. **A command failed and was self-corrected** (wrong path guess, wrong parameter, wrong API format, etc.) → record the "wrong command → correct command" pair as a feedback memory
 5. **Stuck for more than 2 rounds without resolution** → record the root cause and final solution in a feedback memory
-6. **User confirmed a non-obvious approach** (accepted an unusual choice with "yes" / "exactly") → save a positive feedback memory
+6. **User confirmed a non-obvious approach** (accepted an unusual choice with "yes" / "exactly") → save a positive feedback memory. If the confirmation relates to a **framework-level behavior** (skill routing, delegation, reflection mechanism), save a `type: framework-experience` memory instead (see `rules/framework-iteration.md`)
 
 Execute silently. Only notify the user and wait for confirmation before writing when a feedback worth recording is found. Items 3 and 4 may be recorded without user confirmation.
 
@@ -34,6 +34,7 @@ Signals about improving the framework itself should flow into `.claude/polaris-b
 | `/learning` external mode recommendation | Recommendation marked "worth tracking" by user but not acted on immediately | Backlog Medium or Low |
 | User mentions "Polaris should..." / "the framework could be improved..." | Write directly | Backlog by severity |
 | Gap found during skill execution (broken flow, manual steps required) | Record the missing automation | Backlog Medium |
+| Framework-experience memories >= 3 for same pattern | Validated pattern candidate — surface during organize-memory | See `rules/framework-iteration.md` § Validated Pattern Promotion |
 
 **Write format:** `- [ ] **{title}** — {one-line description} — source: {feedback/learning/user/observation}`
 
