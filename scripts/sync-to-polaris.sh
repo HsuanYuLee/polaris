@@ -17,7 +17,7 @@
 #   - .claude/settings.local.json.sub-repo-example
 #   - scripts/*.sh
 #   - _template/
-#   - CHANGELOG.md, VERSION, README.md, CLAUDE.md
+#   - CHANGELOG.md, VERSION, README.md, README.zh-TW.md, CLAUDE.md
 #
 # What it does NOT sync:
 #   - {company}/ directories (config, mapping, docs, CLAUDE.md)
@@ -180,7 +180,8 @@ fi
 echo "Top-level files..."
 copy_file "$INSTANCE_DIR/CHANGELOG.md" "$POLARIS_DIR/CHANGELOG.md" "CHANGELOG.md"
 copy_file "$INSTANCE_DIR/VERSION"      "$POLARIS_DIR/VERSION"      "VERSION"
-copy_file "$INSTANCE_DIR/README.md"    "$POLARIS_DIR/README.md"    "README.md"
+copy_file "$INSTANCE_DIR/README.md"       "$POLARIS_DIR/README.md"       "README.md"
+copy_file "$INSTANCE_DIR/README.zh-TW.md" "$POLARIS_DIR/README.zh-TW.md" "README.zh-TW.md"
 copy_file "$INSTANCE_DIR/CLAUDE.md"    "$POLARIS_DIR/CLAUDE.md"    "CLAUDE.md"
 
 # ── Step 8: Auto-commit ──────────────────────────────────────────
