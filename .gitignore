@@ -49,6 +49,10 @@
 # Personal settings
 .claude/settings.local.json
 
+# User-specific learning data (populated by daily learning scanner)
+.claude/skills/references/learning-queue.md
+.claude/skills/references/learning-archive.md
+
 # Root workspace config (company-specific, not for template)
 workspace-config.yaml
 
