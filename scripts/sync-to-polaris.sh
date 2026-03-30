@@ -130,6 +130,8 @@ echo "References..."
 mkdir -p "$POLARIS_DIR/.claude/skills/references" 2>/dev/null || true
 for ref_file in "$INSTANCE_DIR"/.claude/skills/references/*.md; do
   ref_name=$(basename "$ref_file")
+  # Skip user-specific learning data
+  [[ "$ref_name" == "learning-queue.md" || "$ref_name" == "learning-archive.md" ]] && continue
   copy_file "$ref_file" "$POLARIS_DIR/.claude/skills/references/$ref_name" "$ref_name"
 done
 

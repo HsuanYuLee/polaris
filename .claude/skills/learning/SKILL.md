@@ -1,11 +1,13 @@
 ---
 name: learning
 description: >
-  Three modes: (1) External — researches URLs, repos, articles and analyzes applicability to
+  Four modes: (1) External — researches URLs, repos, articles and analyzes applicability to
   our workspace. (2) PR — extracts review patterns from merged PRs into review-lessons.
-  (3) Queue — processes daily learning queue articles in batch. Trigger: "學習", "learn",
-  "研究一下", "research this", "借鑑", "看看這個", "學習 PR", "learn from PR",
-  "每日學習", "daily learning", "消化 queue", "digest queue", "learning queue",
+  (3) Queue — processes daily learning queue articles in batch.
+  (4) Setup — configure or update the daily learning scanner (RemoteTrigger).
+  Trigger: "學習", "learn", "研究一下", "research this", "借鑑", "看看這個",
+  "學習 PR", "learn from PR", "每日學習", "daily learning", "消化 queue",
+  "digest queue", "learning queue", "設定學習", "learning setup", "更新學習主題",
   or user shares a URL asking to analyze/evaluate it. Do NOT trigger
   for internal codebase exploration (use Explore subagent directly), JIRA ticket analysis (use
   work-on), or PR review (use review-pr for reviewing someone else's code — this skill
@@ -17,10 +19,13 @@ metadata:
 
 # learning
 
-Three modes of learning:
+Four modes of learning:
 - **External mode** — Research external content (articles, repos, talks) and distill actionable insights for our workspace
 - **Queue mode** — Process articles from the daily learning queue, batch-analyze, and archive
 - **PR mode** — Learn from merged PRs by extracting review patterns into review-lessons (feeds into the existing graduation mechanism)
+- **Setup mode** — Configure or update the daily learning scanner schedule and topic preferences
+
+> **首次使用？** 如果你還沒設定每日學習掃描，輸入 `設定學習` 或 `learning setup` 開始設定。設定後每天自動推薦文章到 Slack。
 
 ## Step 0: Mode Detection
 
@@ -33,10 +38,12 @@ Determine which mode based on the user's input:
 | Time-range + PR | **PR mode** | `學習最近一週 merge 的 PR` |
 | External URL, repo, article | **External mode** | `看看這個 github.com/...`, `研究這篇文章` |
 | Mentions "每日學習", "今天有什麼可以學的", "看看今天的推薦", "有新文章嗎", "讀文章", "daily learning", "queue", "消化", or bare "學習" without URL/PR context | **Queue mode** | `每日學習`, `今天有什麼可以學的`, `看看今天的推薦`, `有新文章嗎`, `讀文章` |
+| Mentions "設定學習", "learning setup", "更新學習主題", "update learning topics", "scanner 設定", "調整掃描", "learning scanner" | **Setup mode** | `設定學習`, `learning setup`, `更新學習主題` |
 | Ambiguous | Ask the user | `學習一下` without context |
 
 **PR mode** → jump to [PR Learning Flow](#pr-learning-flow)
 **Queue mode** → jump to [Queue Learning Flow](#queue-learning-flow)
+**Setup mode** → jump to [Setup Learning Flow](#setup-learning-flow)
 **External mode** → continue to Step 1 below
 
 ---
@@ -244,22 +251,24 @@ If multiple recommendations were adopted from the same source, combine into one 
 
 # Queue Learning Flow
 
-Process articles from the daily learning queue (populated by the scheduled `daily-learning-scan` agent). This mode batch-processes pending articles, presents unified recommendations, and archives processed items.
+Process articles from the daily learning queue delivered via Slack (sent by the scheduled `daily-learning-scan` agent). This mode batch-processes the latest queue message, presents unified recommendations, and archives processed items.
 
-## Step Q1: Read Queue and Filter
+## Step Q1: Read Slack Queue and Filter
 
-Read `skills/references/learning-queue.md` and parse all pending items (entries under `## Pending Items`).
+Search for the most recent daily learning queue message. Use `slack_search_public` with query `"📚 Daily Learning Queue"` to find the latest queue message (within 7 days).
 
-If queue is empty, tell the user "Queue 是空的，沒有待處理的文章。" and stop.
+If no queue message found within 7 days, tell the user "最近 7 天沒有 Daily Learning Queue 訊息，可能 scanner 還沒跑或發送失敗。可以用 `learning setup` 設定或重新啟用。" and stop.
 
-Show the user a summary of pending items with the Repos column:
+Parse the article list from the Slack message (each `### N. {Title}` block contains URL, Category, Tags, Relevant Repos, Summary).
+
+Show the user a summary of items with the Repos column:
 
 ```markdown
-| # | Title | Category | Repos | Added |
-|---|-------|----------|-------|-------|
-| 1 | ... | ai-agent | my-skills-repo | ... |
-| 2 | ... | performance | my-app | ... |
-| 3 | ... | framework | all | ... |
+| # | Title | Category | Repos |
+|---|-------|----------|-------|
+| 1 | ... | ai-agent | my-skills-repo |
+| 2 | ... | performance | my-app |
+| 3 | ... | framework | all |
 ```
 
 The user may filter by repo: "只看 b2c-web 相關的" → only process articles where `Relevant Repos` contains `my-app` or `all`. If no filter specified, process all.
@@ -339,15 +348,12 @@ After user confirms which recommendations to execute:
 
 1. **Execute** confirmed changes (edit files, create references, update CLAUDE.md/rules). Follow existing conventions (use `/skill-creator` for skill changes, `skills/references/` for reference docs).
 
-2. **Archive ALL processed articles** (regardless of outcome) — move from `learning-queue.md` to `learning-archive.md`:
-   - Remove the entry from the `## Pending Items` section in `learning-queue.md`
+2. **Archive ALL processed articles** (regardless of outcome) — append to `learning-archive.md` (local file for dedup):
    - Add a row to the table in `learning-archive.md`:
      ```
      | {today's date} | {title} | {url} | {result} | {one-line note} |
      ```
    - Result values: `applied` (recommendation executed), `noted` (interesting but deferred), `skipped` (not applicable)
-
-3. **Commit** changes to my-skills-repo: `chore: process learning queue YYYY-MM-DD`
 
 ## Step Q5: Summary
 
@@ -355,14 +361,164 @@ Report what was done:
 - X articles processed
 - Y recommendations applied (list them)
 - Z articles archived
-- Queue items remaining: N
 
 ## Edge Cases (Queue Mode)
 
 - **Article URL is dead or returns 404**: Mark as `skipped` with note "URL unavailable", archive it, move on
 - **Article content is behind a paywall**: Same as External mode — tell the user, ask them to paste key content, or skip
-- **Queue has > 10 items**: Process the 5 most recent first. Tell the user "Queue 有 N 篇，先處理最近 5 篇，剩下的下次再處理。"
 - **User wants to skip specific articles without reading**: Allow it — mark as `skipped` with note "user skipped" and archive
+
+---
+
+# Setup Learning Flow
+
+Configure or update the daily learning scanner — the scheduled agent that delivers article recommendations to Slack.
+
+## Step S1: Check Existing Scanner
+
+Use `RemoteTrigger list` to check for existing daily-learning-scan triggers (name contains `daily-learning-scan`).
+
+If found and enabled:
+```
+目前已有 daily learning scanner：
+- Trigger: {name} ({trigger_id})
+- 排程: {cron_expression}
+- 狀態: enabled
+
+要更新設定還是停用？(更新 / 停用 / 取消)
+```
+
+- 更新 → continue to Step S2
+- 停用 → `RemoteTrigger update` → `{"enabled": false}`, done
+- 取消 → stop
+
+If not found or disabled: continue to Step S2.
+
+## Step S2: Collect Preferences
+
+Auto-detect as much as possible, then let user confirm/adjust.
+
+### 2a. Slack Channel (from workspace config)
+
+Read the company workspace-config.yaml（使用 `skills/references/workspace-config-reader.md` 流程）to get `slack.channels.ai_notifications`.
+
+If found: show the channel and confirm.
+If not found: ask the user for channel ID or name. If user provides a name, use `slack_search_channels` to resolve to channel ID.
+
+### 2b. Tech Stack (auto-detect first)
+
+Read company workspace-config.yaml `projects` block. For each project, extract tech stack from `tags`, `keywords`, and `tech_stack` fields. Present the detected result:
+
+```
+從 workspace config 偵測到的技術棧：
+  Nuxt 3, Vue 3, TypeScript, Vitest, Turborepo, Docker
+
+要調整嗎？（直接 Enter 確認，或輸入修改版）
+```
+
+If no workspace config or no tags found: ask the user to input manually.
+
+### 2c. Active Repos (auto-detect first)
+
+From the same `projects` block, extract repo names and their tech stacks:
+
+```
+偵測到的 repos：
+  my-app (Nuxt 3, SSR, TypeScript)
+  my-api (Node, Express)
+  web-design-system (Vue 3)
+
+要調整嗎？（直接 Enter 確認，或輸入修改版）
+```
+
+### 2d. Custom Topics (optional)
+
+```
+有特別想關注的主題嗎？（選填）
+例如：SSR performance, testing patterns, AI code review
+
+直接輸入，或 Enter 跳過：
+```
+
+### 2e. Schedule
+
+```
+掃描排程？（預設：每天 21:57，cron: 57 13 * * *）
+直接 Enter 用預設，或輸入自訂 cron expression：
+```
+
+## Step S3: Assemble Trigger Prompt
+
+Read `skills/references/daily-learning-scan-spec.md` for the template structure.
+
+Assemble the RemoteTrigger prompt by filling in user preferences:
+
+1. **AI/Agent searches** (mandatory, always included):
+   - `Claude Code tips tricks {year}`
+   - `Claude Code MCP server tutorial`
+   - `AI coding agent workflow patterns {year}`
+   - `multi-agent orchestration LLM {year}`
+   - `AI-assisted development best practices`
+
+2. **Tech stack searches** (from Step S2a):
+   - For each tech in the stack, generate 1-2 search queries
+   - Example: if tech = "Nuxt", generate `Nuxt 4 performance optimization`, `Nuxt SSR best practices {year}`
+
+3. **Custom topic searches** (from Step S2c, if provided)
+
+4. **Repo tagging rules** (from Step S2b):
+   - Build a topic → repos mapping table
+
+5. **Channel ID** (from Step S2d) — hardcoded in prompt
+
+6. **Dedup**: prompt reads `learning-archive.md` from repo (skip if not found)
+
+The prompt must:
+- Use `slack_send_message` to send to the channel
+- Follow the Slack message format from the spec template
+- NOT commit or push anything to git
+- Include the full search queries (not just "read the spec")
+
+## Step S4: Create RemoteTrigger
+
+1. If updating: disable old trigger with `RemoteTrigger update` → `{"enabled": false}`
+2. Determine the workspace repo URL (read from git remote)
+3. Create new trigger:
+
+```
+RemoteTrigger create:
+  name: daily-learning-scan-v{N}
+  cron_expression: {from Step S2e}
+  model: claude-sonnet-4-6
+  allowed_tools: Read, Glob, Grep, WebSearch, WebFetch, mcp__claude_ai_Slack__slack_send_message
+  sources: [{workspace_repo_url}]
+  prompt: {assembled prompt from Step S3}
+```
+
+4. Confirm trigger created, show trigger ID and next run time
+
+## Step S5: Test Run (optional)
+
+```
+Scanner 已建立。要現在試跑一次嗎？(y/n)
+```
+
+If yes: `RemoteTrigger run` → tell user to check Slack for the queue message.
+
+## Step S6: Summary
+
+```
+✅ Daily Learning Scanner 設定完成
+
+- Trigger: {name} ({trigger_id})
+- 排程: {cron_expression} ({human readable time})
+- Slack Channel: {channel_name or ID}
+- 技術棧: {tech stack}
+- 自訂主題: {custom topics or "無"}
+
+每天會自動掃描文章推薦到 Slack。
+用 `每日學習` 消化推薦文章，用 `learning setup` 更新設定。
+```
 
 ---
 
