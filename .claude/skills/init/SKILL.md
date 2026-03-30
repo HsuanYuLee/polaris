@@ -130,7 +130,7 @@ One JSON object per line:
 | Field | Description |
 |-------|-------------|
 | `ts` | ISO 8601 timestamp |
-| `step` | Step number (0-12) |
+| `step` | Step number (0-14) |
 | `section` | Config section name (github, jira, projects, scrum, etc.) |
 | `action` | What happened: `auto-detect`, `ai-detect`, `mcp-detect`, `confirm`, `adjust`, `skip`, `write` |
 | `value` | The value detected/confirmed/adjusted (string, object, or null) |
@@ -396,7 +396,54 @@ MCP Health Check:
 - If an optional MCP fails → print: "ℹ {server} is not configured. This is optional."
 - Record results in audit trail: `{"step": 12, "section": "mcp_health", "action": "check", "value": {"atlassian": "ok", "slack": "ok", "gcal": "not_configured"}, "source": "mcp"}`
 
-### Step 13: Done
+### Step 13: Daily Learning Scanner (skippable)
+
+Polaris 提供每日技術文章掃描功能（scheduled agent），自動從網路篩選與你的技術棧相關的文章，放入學習佇列供你用 `/learning queue` 消化。
+
+**向使用者說明選文邏輯：**
+
+```
+Daily Learning Scanner（每日技術文章掃描）
+
+Polaris 可以每天自動幫你找 7-10 篇技術文章，放入學習佇列。
+
+選文依據：
+  1. 你的技術棧（從 Step 7 的 projects 偵測）— e.g. Nuxt, Vue, TypeScript, Vitest
+  2. AI/Agent 新知（Claude Code, MCP, multi-agent patterns）— 每日必選 2-3 篇
+  3. 架構 & DX（monorepo, CI/CD, 效能優化）
+
+你可以自訂偏好：
+  - 增減關注的技術領域（如加入 "Rust", "GraphQL"）
+  - 調整每日篇數（預設 7-10）
+  - 指定特別關注的主題（如 "SSR performance", "testing patterns"）
+
+啟用後，每天 ~22:00 自動掃描，結果寫入 learning-queue.md。
+你可以隨時用 /learning queue 消化佇列中的文章。
+
+啟用每日文章掃描？(y/n/自訂)
+```
+
+**使用者回應處理：**
+
+| 回應 | 動作 |
+|------|------|
+| `y` | 用 Step 7 偵測到的技術棧 + 預設 AI/Agent 類別，生成 `daily-learning-scan-spec.md` 並建立 RemoteTrigger schedule |
+| `n` | 跳過，不建立排程。使用者之後可手動用 `/schedule` 啟用 |
+| 自訂（使用者描述偏好） | 將偏好整合進選文邏輯，調整 `daily-learning-scan-spec.md` 的掃描類別與關鍵字，再建立排程 |
+
+**執行步驟（若啟用）：**
+
+1. 從 Step 7 的 projects 設定中提取技術棧（`tags`, `keywords`, repo 技術描述）
+2. 用使用者偏好（如有）調整 `skills/references/daily-learning-scan-spec.md` 的：
+   - § 掃描類別與關鍵字 — 增減類別或調整關鍵字
+   - § Active Repos — 填入實際 repo 名稱和技術棧
+   - § 每日目標量 — 調整篇數比例
+3. 建立 RemoteTrigger（cron `57 13 * * *`，即每天 21:57 UTC+8），prompt 引用 `daily-learning-scan-spec.md`
+4. 確認排程建立成功，顯示 trigger ID 和下次執行時間
+
+Audit: log `action: "daily-learning"`, value: `{"enabled": true/false, "custom_prefs": "..." or null, "trigger_id": "..." or null}`.
+
+### Step 14: Done
 
 Print:
 ```
