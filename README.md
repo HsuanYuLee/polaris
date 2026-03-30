@@ -1,8 +1,8 @@
 # Polaris
 
-A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) workspace template that turns your AI assistant into a strategist — it learns your team's workflow, routes tasks to specialized skills, and evolves its own rules from daily usage.
+English | [中文](./README.zh-TW.md)
 
-> **中文使用者：** [中文快速上手指南](docs/quick-start-zh.md)
+A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) workspace template that turns your AI assistant into a strategist — it learns your team's workflow, routes tasks to specialized skills, and evolves its own rules from daily usage.
 
 ## Who is this for?
 
