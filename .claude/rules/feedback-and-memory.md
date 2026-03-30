@@ -11,6 +11,21 @@ After completing a full task (opening a PR, fixing review comments, estimation, 
 
 Execute silently. Only notify the user and wait for confirmation before writing when a feedback worth recording is found. Items 3 and 4 may be recorded without user confirmation.
 
+## Pre-Write Dedup Check
+
+Before creating a new feedback memory, scan existing feedback memories for semantic overlap:
+
+1. **Read all `type: feedback` entries** in the memory directory (use MEMORY.md index for quick scan)
+2. **Compare** the new feedback's core rule against existing entries — same topic, same file/mechanism, or same behavioral correction = overlap
+3. **If overlap found** → merge into the existing entry:
+   - Update the content to incorporate the new evidence/context
+   - Increment `trigger_count` by 1, update `last_triggered` to today
+   - Do NOT create a new file
+4. **If no overlap** → create a new file as normal
+5. **Post-merge graduation check** — if the merged entry's `trigger_count >= 3`, immediately trigger the Rule Graduation process (see § Feedback → Rule Graduation)
+
+This check prevents duplicate feedback accumulation and ensures graduation triggers at the earliest opportunity.
+
 ## Post-Task Mechanism Audit
 
 After the feedback reflection above, also scan for **mechanism violations** using `rules/mechanism-registry.md`. This is the second layer of the silent post-task check:

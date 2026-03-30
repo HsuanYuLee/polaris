@@ -61,7 +61,7 @@ Review-lessons 是從 PR review 萃取的 coding patterns，存在各專案的 `
 - Source PR 數量 **>= 2**（被不同 PR 驗證過，代表是通用 pattern）
 - 主 rules 中**尚未涵蓋**相同語意的規則
 
-→ 動作：併入對應的主 rule 檔案
+→ 動作：依層級路由到對應的 rule 檔案（見下方 § 框架級路由）
 
 ### 刪除（Delete）
 
@@ -92,6 +92,17 @@ Review-lessons 是從 PR review 萃取的 coding patterns，存在各專案的 `
 
 在審查表中用「合併」標記這類操作。
 
+## 3.5 框架級路由
+
+萃取來源若在 entry 前方標記 `[framework]`（由 review-pr / fix-pr-review 寫入），或內容明顯屬於框架層級（skill 設計、delegation 策略、rules 機制、memory 管理、sub-agent patterns），則該 entry 的畢業目標不是專案 `rules/`，而是 **workspace `rules/`**（`{base_dir}/.claude/rules/*.md`）。
+
+| Entry 層級 | 畢業目標 | 範例 |
+|-----------|---------|------|
+| 專案級（coding patterns、框架慣用法） | `{base_dir}/{repo}/.claude/rules/*.md` | Vue reactivity、TypeScript 型別安全 |
+| 框架級（`[framework]` 標記或內容判斷） | `{base_dir}/.claude/rules/*.md` | Sub-agent delegation 改進、skill 流程 pattern |
+
+判斷順序：有 `[framework]` 標記 → 框架級。無標記 → 依內容語意判斷。不確定 → 預設專案級。
+
 ## 4. 自動執行畢業
 
 分類完成後**直接執行**，不需等待使用者確認。分類邏輯已足夠保守（不確定 → 保留），不會誤畢業。
@@ -100,7 +111,7 @@ Review-lessons 是從 PR review 萃取的 coding patterns，存在各專案的 `
 
 ### 4.1 併入
 
-把 entry 內容融入目標主 rule 檔案：
+把 entry 內容融入目標主 rule 檔案（路由依 § 3.5 決定專案級或框架級）：
 
 - **匹配目標檔的格式風格**：主 rule 用編號章節（### 3.1）就用編號；用 bullet list 就用 bullet
 - **自然融入**：不加 `<!-- Graduated -->` 註解，讓畢業的規則看起來和原本的規則一樣

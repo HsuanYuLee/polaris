@@ -582,7 +582,8 @@ PR Approve 狀況：目前 M/2 valid approve(s)
 
 - **依主題分檔**：一個主題一個 `.md` 檔（如 `type-safety.md`、`error-handling.md`、`vue-patterns.md`）
 - **同主題追加**到既有檔案，不建新檔
-- **去重**：寫入前確認是否已有語意相同的規則，若已存在則跳過
+- **雙層去重**：寫入前比對 (1) 既有 review-lessons 檔案 **和** (2) 主 rules 檔案（`.claude/rules/*.md`），語意相同則跳過
+- **框架級分流**：若 pattern 屬於框架層級（skill 設計、delegation 策略、rules 機制、memory 管理），在 entry 前方標記 `[framework]`，供 review-lessons-graduation 識別路由
 
 檔案格式：
 

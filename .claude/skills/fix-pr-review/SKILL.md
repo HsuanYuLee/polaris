@@ -742,9 +742,10 @@ Commit: <sha>
 
 1. **掃描本次所有 review comments**（Step 4 取得的 `comments` + `issue_comments`），篩選出「已修正」的 comment
 2. **逐一判斷**是否為可通用化 pattern
-3. **檢查既有 lesson**：`ls .claude/rules/review-lessons/` 看是否已有相同主題的檔案
-   - 有 → 讀取後追加新的 Source 記錄，必要時更新規則描述
+3. **雙層去重**：比對 (1) 既有 review-lessons 檔案 **和** (2) 主 rules 檔案（`.claude/rules/*.md`），語意相同則跳過
+   - 既有 lesson 有同主題 → 讀取後追加新的 Source 記錄，必要時更新規則描述
    - 無 → 建立新檔案
+   - **框架級分流**：若 pattern 屬於框架層級（skill 設計、delegation 策略、rules 機制、memory 管理），在 entry 前方標記 `[framework]`
 4. **如果沒有可通用化的 pattern → 直接跳過**，不輸出任何訊息
 
 ### 檔案格式
