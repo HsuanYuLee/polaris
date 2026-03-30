@@ -187,6 +187,16 @@ Worklog report     →  "worklog report 2w" / 「worklog report 2w」
 
 Rules are always loaded. Skills load on-demand — they don't consume context until triggered.
 
+### Workflow orchestration
+
+Skills chain together to automate the full ticket lifecycle. See **[Developer Workflow Guide](docs/workflow-guide.md)** for the complete flow with diagrams, including:
+- Ticket lifecycle (Feature / Bug / Hotfix paths)
+- AC closure gates (4 automated checkpoints)
+- Skill call graph (how skills invoke each other)
+- Code review and learning pipelines
+
+> Your company may have a customized version at `{company}/docs/rd-workflow.md`.
+
 ### Self-evolution
 
 Polaris improves itself through daily use:

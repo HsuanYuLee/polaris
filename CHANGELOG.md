@@ -4,6 +4,12 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.12.0] - 2026-03-30
+
+- **Developer Workflow Guide** — new `docs/workflow-guide.md` extracted from company-specific RD workflow into a generic framework reference. Covers: ticket lifecycle (mermaid), AC closure gates, skill orchestration graph, Feature/Bug/Hotfix paths, code review pipeline, and continuous learning
+- **README: Workflow orchestration section** — added link to workflow guide under "How it works"
+- **sync-to-polaris.sh** — automated instance → template sync with `--push` flag (GitHub account switch for dual-account setups)
+
 ## [1.11.0] - 2026-03-30
 
 **Drift Audit & Mechanism Registry** — stability pass after rapid v1.7–v1.10 iteration
