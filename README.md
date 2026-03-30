@@ -13,9 +13,18 @@ A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) workspace templa
 
 > Not sure? If your team uses JIRA + GitHub and you want Claude Code to follow your workflow instead of improvising, Polaris is for you.
 
-## What does this actually do?
+## The Three Pillars
 
-You tell Claude Code what you want. Polaris figures out how to get there.
+Polaris organizes your AI-assisted workflow around three pillars:
+
+| Development Assistance 輔助開發 | Self-Learning 自我學習 | Daily Operations 日常紀錄 |
+|:---:|:---:|:---:|
+| JIRA → branch → code → PR | Feedback → pattern → rule | Standup, sprint, worklog |
+| Automates the full ticket lifecycle | Evolves its own rules from daily use | Sprint lifecycle for the whole team |
+
+### Pillar 1 — Development Assistance (輔助開發)
+
+You tell Claude Code what you want. Polaris handles the rest:
 
 ```
 You:     "work on PROJ-123"
@@ -25,30 +34,38 @@ Polaris: reads JIRA ticket → checks prerequisites → estimates story points
          → opens PR with coverage report → transitions JIRA to CODE REVIEW
 ```
 
-PMs and Scrum Masters get their own workflows too:
+**Skills:** `work-on`, `fix-bug`, `epic-breakdown`, `tdd`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `dev-quality-check`, `verify-completion`, `jira-branch-checkout`, `start-dev`, `scope-challenge`, `refinement`
+
+Deep dive → [Developer Workflow Guide](docs/workflow-guide.md)
+
+### Pillar 2 — Self-Learning (自我學習) ★
+
+This is what makes Polaris different from a static template. It accumulates team knowledge and evolves its own rules from daily usage:
+
+1. **Feedback capture** — when you correct Claude's approach, it saves the lesson
+2. **Pattern graduation** — feedback referenced 3+ times auto-promotes to a permanent rule
+3. **External learning** — study articles, repos, or PRs and extract patterns applicable to your codebase
+4. **Challenger audit** — pre-release, sub-agents review the workspace from a new user's perspective
+
+> **Example:** You correct Claude's import ordering 3 times across different PRs. On the third correction, the lesson auto-graduates into a permanent rule — all future PRs follow the convention automatically.
+
+**Skills:** `learning`, `review-lessons-graduation` — plus lesson extraction built into `review-pr`, `fix-pr-review`, and `check-pr-approvals`
+
+### Pillar 3 — Daily Operations (日常紀錄)
+
+Sprint lifecycle automation for PMs, Scrum Masters, and developers — no coding required:
 
 ```
 You:     "standup"
-Polaris: collects JIRA activity + calendar meetings → formats standup report
-         → posts to Confluence
+Polaris: collects JIRA activity + git commits + calendar meetings
+         → groups by team → formats as YDY/TDT/BOS → posts to Confluence
 
 You:     "sprint planning"
 Polaris: pulls JIRA backlog → calculates team capacity → detects carry-overs
          → suggests priority order → drafts Release page
 ```
 
-It does this through **skills** (reusable workflows) and **rules** (accumulated team knowledge):
-
-Skills are pre-built workflows you invoke by name or natural language:
-
-| Category | Skills | What they automate | Who uses it |
-|----------|--------|--------------------|-------------|
-| **Plan** | `refinement`, `scope-challenge`, `sprint-planning` | Requirement analysis, estimation, sprint capacity | PM, Tech Lead, Dev |
-| **Operate** | `standup`, `worklog-report`, `jira-worklog` | Daily reports, time tracking | Everyone |
-| **Build** | `work-on`, `fix-bug`, `epic-breakdown`, `tdd` | JIRA → branch → code → PR, end-to-end | Dev |
-| **Review** | `review-pr`, `review-inbox`, `fix-pr-review` | Code review, batch PR scanning, addressing feedback | Dev |
-| **Quality** | `dev-quality-check`, `verify-completion`, `unit-test` | Tests, coverage, behavioral verification | Dev |
-| **Learn** | `learning`, `review-lessons-graduation` | Study external resources, graduate patterns into rules | Everyone |
+**Skills:** `standup`, `sprint-planning`, `worklog-report`, `jira-worklog`, `refinement` (PM perspective), `epic-breakdown` (PM perspective)
 
 ## What is Claude Code?
 
@@ -81,11 +98,11 @@ Skills are pre-built workflows you invoke by name or natural language:
 
 ## Quick Start
 
-### 1. Clone and enter the workspace
+### 1. Create your workspace
+
+Go to the [Polaris template repo](https://github.com/HsuanYuLee/polaris) on GitHub, click **"Use this template" → "Create a new repository"**, then clone it:
 
 ```bash
-# Create your workspace from the Polaris template (GitHub → "Use this template")
-# Then clone your new repo:
 git clone https://github.com/YOUR-ORG/your-polaris-workspace ~/polaris-workspace
 cd ~/polaris-workspace
 ```
@@ -94,15 +111,7 @@ cd ~/polaris-workspace
 
 > **PMs and non-developers:** See the [PM Setup Checklist](docs/pm-setup-checklist.md) — it tells you exactly what to ask your developer and what to do after setup. Then jump straight to Step 4.
 
-### 2. Set up workspace config
-
-```bash
-cp workspace-config.yaml.example workspace-config.yaml
-```
-
-You don't need to edit this file — `/init` will populate it in the next step.
-
-### 3. Initialize your company directory
+### 2. Run `/init` to set up your company
 
 > **Note:** `/commands` like `/init` are typed inside Claude Code conversations, not in your terminal shell.
 
@@ -117,9 +126,25 @@ The interactive wizard will:
 - Create a company directory with `workspace-config.yaml`
 - Set up project mappings (JIRA keys → local repo paths)
 
-After `/init` completes, verify setup by trying: `"work on PROJ-123"` (replace with a real ticket key). If Polaris reads the ticket successfully, you're good to go.
+After `/init` completes, your workspace will look like this:
 
-### 4. Start using skills
+```
+~/polaris-workspace/              ← your workspace root (this repo)
+├── CLAUDE.md                     ← AI strategist instructions
+├── workspace-config.yaml         ← routes JIRA keys to companies
+├── .claude/
+│   ├── rules/                    ← universal rules (L1)
+│   │   └── your-company/         ← company-specific rules (L2)
+│   └── skills/                   ← 29 workflow skills
+└── your-company/                 ← created by /init
+    ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
+    └── your-project/             ← your existing repo (cloned or linked)
+        └── .claude/CLAUDE.md     ← project-level rules (L3)
+```
+
+Verify setup by trying: `"work on PROJ-123"` (replace with a real ticket key). If Polaris reads the ticket successfully, you're good to go.
+
+### 3. Start using skills
 
 Once initialized, just talk to Claude Code naturally — English or 中文 both work:
 
@@ -196,15 +221,6 @@ Skills chain together to automate the full ticket lifecycle. See **[Developer Wo
 - Code review and learning pipelines
 
 > Your company may have a customized version at `{company}/docs/rd-workflow.md`.
-
-### Self-evolution
-
-Polaris improves itself through daily use:
-
-1. **Feedback capture** — when you correct Claude's approach, it saves the lesson
-2. **Pattern graduation** — feedback referenced 3+ times auto-promotes to a permanent rule
-3. **Challenger audit** — a sub-agent periodically reviews the workspace from a new user's perspective
-4. **Backlog tracking** — improvement candidates accumulate over time (maintainers track these separately)
 
 ### Directory structure
 

@@ -1,9 +1,9 @@
 ---
 name: standup
 description: >
-  Generates daily standup reports (YDY/TDT/BOS) by collecting git activity,
+  Generates daily standup reports (YDY/TDT/BOS/口頭同步) by collecting git activity,
   JIRA status changes, and Google Calendar meetings. Merges all sources,
-  deduplicates, groups by configured teams, and formats for Confluence. Use
+  deduplicates, groups by configured teams, and formats all four sections for Confluence. Use
   this skill whenever the user mentions: "standup", "站立會議",
   "standup meeting", "YDY", "今天做了什麼", "what did I do today", "daily standup",
   "產出 standup", "generate standup", "standup report", "寫 standup",
@@ -223,14 +223,20 @@ TDT 的排序邏輯：
 
 組合所有資料，依 `references/standup-template.md` 的模板格式呈現給使用者確認。產出前先 Read 模板確認格式規則。
 
-**核心規則**（詳見模板）：
+**必須產出的四個區塊**（缺一不可）：
+1. `* **YDY – Yesterday I Did**`
+2. `* **TDT – Today's Tasks**`
+3. `* **BOS – Blockers or Struggles**`
+4. `* **口頭同步**` — 用 `_斜體_` 一段話總結 YDY 重點 + TDT 計畫 + BOS 摘要，放在 BOS 之後、`---` 分隔線之前
+
+**口頭同步撰寫規則**：以第一人稱、口語化的方式寫一段 2-4 句話，涵蓋：昨天主要完成什麼（YDY 精華）、今天預計做什麼（TDT 重點）、有無 blocker。不是逐條複述，而是站會上會怎麼講就怎麼寫。
+
+**格式規則**（詳見模板）：
 - YDY 中有 parent Epic 的 ticket → 以 Epic 為最上層巢狀在團隊分組內
 - `{config: jira.projects[0].key}-*` Epic → {config: teams[0].name}（Team A）；`{config: jira.projects[1].key}-*` Epic → {config: teams[1].name}（Team B）；無 JIRA → 自定義標題；會議 → meeting
 - Sub-task 全部通過時折成一行 `（N/N 驗證子單通過）`，有失敗才展開
 - TDT 也用 Epic 巢狀（與 YDY 一致）
 - NO-JIRA 項目用一行摘要帶過
-- 口頭同步用 `_斜體_` 格式（Confluence 不支援 list 內 blockquote）
-- BOS 之後加口頭同步，再加 `---` 分隔線
 
 **資料來源**：Step 3 JIRA 查詢已包含 `parent` 欄位。對 YDY 中出現的每個 ticket：
 1. 取得其 parent（Epic）key
