@@ -4,8 +4,9 @@ description: >
   Smart orchestrator that detects JIRA ticket state and routes to the right next step
   (estimate, breakdown, branch, or coding). Single entry point for working on tickets.
   Supports batch mode via parallel sub-agents. Trigger: "做 PROJ-123", "work on",
-  "開始做", "接這張", "做這張", "估點", "estimate", "幫我估", "下一步", "繼續",
+  "開始做", "接這張", "做這張", "估點", "estimate", "幫我估",
   or user provides JIRA ticket key(s). NOT for single bug fix ("修 bug" → fix-bug).
+  Key distinction: "下一步" / "繼續" without ticket key → next skill (context auto-detect).
 metadata:
   author: Polaris
   version: 2.4.0

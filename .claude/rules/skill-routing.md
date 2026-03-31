@@ -25,6 +25,7 @@ If the input could match multiple skills (e.g., "幫我處理這個 PR" could be
 | Check own PR approvals | "我的 PR", "PR 狀態", "催 review" | `check-pr-approvals` |
 | Scan PRs needing review | "掃 PR", "大家的 PR", "review inbox" | `review-inbox` |
 | Estimate a ticket | "估點", "estimate", "評估" + ticket | `jira-estimation` |
+| Auto-determine next action | "下一步", "next", "繼續", "continue", "然後呢", "接下來" (no ticket key) | `next` |
 | Work on a ticket | "做", "work on" + ticket | `work-on` |
 | Fix a bug | "修 bug", "fix bug" + ticket | `fix-bug` |
 | Break down an epic | "拆單", "拆解", "epic breakdown" | `epic-breakdown` |
