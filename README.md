@@ -65,7 +65,7 @@ Polaris: pulls JIRA backlog → calculates team capacity → detects carry-overs
          → suggests priority order → drafts Release page
 ```
 
-**Skills:** `standup`, `sprint-planning`, `worklog-report`, `jira-worklog`, `refinement` (PM perspective), `epic-breakdown` (PM perspective)
+**Skills:** `standup`, `sprint-planning`, `worklog-report`, `jira-worklog`, `refinement` (PM perspective), `epic-breakdown` (PM perspective), `end-of-day`
 
 ## What is Claude Code?
 

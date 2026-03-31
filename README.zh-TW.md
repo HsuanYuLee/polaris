@@ -65,7 +65,7 @@ Polaris: 拉取 JIRA backlog → 計算團隊容量 → 偵測 carry-over
          → 建議優先順序 → 草擬 Release 頁面
 ```
 
-**技能：** `standup`, `sprint-planning`, `worklog-report`, `jira-worklog`, `refinement`（PM 視角）, `epic-breakdown`（PM 視角）
+**技能：** `standup`, `sprint-planning`, `worklog-report`, `jira-worklog`, `refinement`（PM 視角）, `epic-breakdown`（PM 視角）, `end-of-day`
 
 ## 什麼是 Claude Code？
 

@@ -51,9 +51,52 @@ Review-lessons 是從 PR review 萃取的 coding patterns，存在各專案的 `
 
 2. **所有主 rule 檔案**（`.claude/rules/*.md`，不含 `review-lessons/` 子目錄）：完整讀取，理解每個 rule 檔的主題範圍和已有規則
 
+## 2.5 語意相似度合併（Pre-Classification Grouping）
+
+Step 2 解析完所有 entries 後、分類前，先做一輪語意層面的合併。目的是把不同 PR 萃取出的「同一個 reviewer concern」合在一起，讓 Source 數量反映真正的驗證次數，而非僅因文字差異而各自計 1。
+
+### 為什麼需要這步
+
+萃取來自不同 PR、不同時間點，同一個 pattern 會以不同角度描述。例如：
+- PR#2049:「Nuxt composable 函數 JSDoc 標示 setup context 限制」
+- PR#2038:「Composable 呼叫必須在 setup 同步路徑」
+
+兩者都在說「composable 不能在 setup 外呼叫」，但文字不同。沒有這步，它們各自 Source=1，永遠達不到畢業門檻。
+
+### 執行方式
+
+1. **建立候選組**：掃描所有 entries（跨檔案），找出描述**同一個底層 coding pattern** 的 entries。判斷標準是語意，不是字面：
+   - 核心 concern 相同（例如都在講 composable lifecycle、都在講 Promise error handling）
+   - 解法方向一致（例如都要求在 setup 頂層呼叫、都要求加 `.catch()`）
+   - 即使描述角度不同（一個從 JSDoc 切入，一個從呼叫位置切入），只要底層規則相同就算一組
+
+2. **不算一組的情況**：
+   - 同一主題但不同規則（例如「Promise.all 各項加 .catch()」vs「useFetch 不需要 .catch()」— 都是 Promise 相關但規則相反）
+   - 一個是具體做法、另一個是抽象原則，且具體做法不是抽象原則的特例
+
+3. **合併規則**（對每組）：
+   - **保留最精確、最完整的描述**作為合併後的 entry — 優先保留有 code example 或具體 API 名稱的版本
+   - **合併所有 Source PRs**（去重）— 例如 PR#2049 + PR#2038 = 2 Sources
+   - **合併 Why 說明**：如果多條的 Why 互補（不同面向的理由），合併成一段；如果重複，保留較完整的
+   - **歸檔位置**：保留在主題最貼切的檔案中（與 Step 3 的 Consolidate 邏輯一致）
+   - 被合併掉的 entries 從原檔案移除
+
+4. **輸出**：合併完成後，在 Step 5 的審查表中用「合併（語意）」標記這類操作，與 Step 3 的「合併」（跨檔重複）區分。格式：
+
+```
+| # | Lesson 摘要 | 來源檔 | Sources | 動作 | 目標 |
+| 5 | Composable 呼叫必須在 setup 同步路徑 | vue-component-patterns.md | 2 PRs (合併自 2 條) | 合併（語意） | vue-component-patterns.md |
+```
+
+### 保守原則
+
+- **不確定是否同一 pattern 時，不合併** — 寧可讓兩條各自保留 Source=1，也不要誤合併不同規則
+- **同檔案內的合併也適用** — 不限於跨檔，同一檔案內的語意重複也要合併
+- **合併後立即重新計算 Source 數量** — 這會影響 Step 3 的分類結果（可能從 Keep 變成 Graduate）
+
 ## 3. 逐條分類
 
-對每條 review-lesson entry，依以下條件分類：
+對每條 review-lesson entry（包含 Step 2.5 合併後的結果），依以下條件分類：
 
 ### 併入（Graduate）
 
@@ -82,7 +125,9 @@ Review-lessons 是從 PR review 萃取的 coding patterns，存在各專案的 `
 
 ### 合併跨檔重複（Consolidate）
 
-分類完成後，額外掃描所有「保留」的 entry，找出**跨檔語意重複**的條目（例如 `error-handling.md` 和 `nuxt-ssr-caching.md` 各有一條描述 `defineCachedEventHandler` error handling）。
+> **與 Step 2.5 的區別**：Step 2.5 在分類前做語意合併（不同文字、同一 pattern）。這裡是分類後的補充掃描，處理 Step 2.5 沒捕捉到的跨檔歸類問題（同一條 entry 在兩個檔案各出現一次，但歸檔位置不對）。
+
+分類完成後，額外掃描所有「保留」的 entry，找出**跨檔歸類重複**的條目（例如 `error-handling.md` 和 `nuxt-ssr-caching.md` 各有一條描述 `defineCachedEventHandler` error handling）。
 
 對重複組：
 - 保留主題最貼切的檔案中的那條（例如 SSR caching 相關放 `nuxt-ssr-caching.md`）
