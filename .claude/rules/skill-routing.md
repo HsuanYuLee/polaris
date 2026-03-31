@@ -31,7 +31,8 @@ If the input could match multiple skills (e.g., "幫我處理這個 PR" could be
 | Break down an epic | "拆單", "拆解", "epic breakdown" | `epic-breakdown` |
 | Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `epic-status` |
 | Create/open a PR | "開 PR", "create PR", "發 PR" | `git-pr-workflow` |
-| Triage my epics | "我的 epic", "my epics", "盤點", "triage", "手上有什麼", "排優先" | `my-epics` |
+| Triage my work | "我的 epic", "my epics", "盤點", "triage", "手上有什麼", "排優先", "my work", "我的工作" | `my-triage` |
+| End-of-day routine | "下班", "收工", "準備明天的工作", "end of day", "EOD", "明天 standup" | `end-of-day` |
 | Daily standup | "standup", "站會", "daily" | `standup` |
 | Sprint planning | "sprint planning", "sprint 規劃" | `sprint-planning` |
 | Refinement | "refinement", "grooming", "討論需求" | `refinement` |
@@ -64,3 +65,4 @@ The Fast tier is implicit in CLAUDE.md's delegation table ("Small edit ≤ 3 lin
 2. **Launching sub-agents before Skill invocation** — skill defines the delegation strategy
 3. **Partially executing skill steps manually** — always let the Skill tool load the full SKILL.md
 4. **Skipping skill because "I already know how"** — skills encode quality gates and side effects (lesson extraction, Slack notifications) that manual execution misses
+5. **Manually fixing PR review comments without `fix-pr-review` skill** — when PR review comments (from human reviewers or bots) need fixing, always use `fix-pr-review`. Manual fix-and-push skips comment replies, quality checks, and lesson extraction, causing review patterns to never enter the learning pipeline

@@ -171,8 +171,9 @@ flowchart LR
     SU["standup"]
 
     %% ── Epic Tracking ──
-    ME["my-epics<br/>(triage)"]
+    MT["my-triage<br/>(daily triage)"]
     ES["epic-status<br/>(gap closer)"]
+    EOD["end-of-day<br/>(triage→standup)"]
 
     %% ── Context Router ──
     NX["next<br/>(auto-route)"]
@@ -239,7 +240,9 @@ flowchart LR
 
     %% ── Scrum chain ──
     RF -.-> SP
-    SU -.->|triage rank| ME
+    EOD -->|step 1| MT
+    EOD -->|step 2| SU
+    SU -.->|triage rank| MT
 
     %% ── Styling ──
     classDef orchestrator fill:#fff3e0,stroke:#ff9800,color:#000,stroke-width:2px
@@ -254,14 +257,15 @@ flowchart LR
     class RP,RI,CPA,FPR,RLG review
     class RF,EB,SC,SP planning
     class JE internal
-    class NX,ME,ES orchestrator
+    class NX,MT,ES,EOD orchestrator
     class SU,SDB,UT,UTR,LRN,WTP,DS,WR standalone
 ```
 
 **Connectivity check:**
 - Every skill has at least one inbound edge (invoked by another skill) or is a direct user entry point
 - `next` is a meta-router — auto-determines and invokes the correct next skill based on context (todo, git branch, JIRA status, PR status)
-- `my-epics` triages assigned Epics; feeds priority ranking into `standup` TDT section
+- `my-triage` triages all assigned work (Epics, Bugs, orphan Tasks); feeds priority ranking into `standup` TDT section
+- `end-of-day` chains `my-triage` → `standup` as a single end-of-day routine
 - `epic-status` tracks Epic progress and auto-routes gaps to the appropriate skill
 - `standup`, `systematic-debugging`, `learning`, `wt-parallel`, `unit-test-review`, `docs-sync`, `worklog-report` are standalone skills — triggered directly by the user, not part of the main chain
 

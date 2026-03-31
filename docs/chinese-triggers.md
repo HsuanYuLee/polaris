@@ -44,6 +44,8 @@
 | **refinement** — 需求充實 | 討論需求、需求釐清、補完 Epic、這張單缺什麼、方案討論、想重構、tech debt、sprint prep | refinement, grooming, brainstorm, batch refinement | 四種模式：批次完整度掃描、RD 發起開單（Phase 0）、PM 充實需求（Phase 1）、做法討論（Phase 2） |
 | **sprint-planning** — Sprint 規劃 | 排 sprint、sprint 規劃、下個 sprint、排單、capacity planning、carry over | sprint planning, planning, next sprint, organize sprint, release page, sprint backlog | 互動式 Sprint 規劃助手：拉 JIRA tickets、算 capacity、偵測 carry-over、建議優先序 |
 | **standup** — 每日站會 | 站立會議、產出 standup、寫 standup、今天做了什麼 | standup, daily standup, YDY, standup report, write standup, daily report | 自動從 git commits、JIRA 狀態、Google Calendar 收集工作，產出 YDY/TDT/BOS 格式站會報告 |
+| **my-triage** — 工作盤點 | 我的 epic、盤點、手上有什麼、排優先、我的工作 | my epics, triage, prioritize, my work | 掃描 assigned Epic + Bug + 孤兒 Task，狀態驗證 + GitHub PR 進度，產出優先序 Dashboard |
+| **end-of-day** — 下班收工 | 下班、收工、準備明天的工作 | end of day, EOD | 一鍵跑 triage → standup：先盤點工作寫 triage state，再產出明天 standup |
 | **jira-estimation** — 估點引擎 | 估點、幫我估、這張幾點（透過 work-on 觸發） | estimate（route via work-on） | 內部估點引擎，由 work-on / fix-bug / epic-breakdown 自動呼叫，不直接觸發 |
 | **jira-worklog** — 記工時 | 記工時、記錄工時 | worklog, log time, time tracking, log hours | PR 開出後記錄工時至 JIRA |
 | **worklog-report** — 完成報告 | 完成報告 | worklog report, done report, sprint report, sprint:Q2 S1 | 從 JIRA 查詢已完成 tickets，依 assignee 分組後發送 Slack 報告（支援 `sprint:Q2 S1` 指定特定 sprint） |

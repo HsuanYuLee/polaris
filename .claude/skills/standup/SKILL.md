@@ -201,12 +201,12 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 2. 如果仍然為空，主動詢問使用者「明天預計做什麼？」，不要靜默跳過 TDT 區塊
 
 TDT 的排序邏輯：
-1. **若 `{company}/.epic-triage.json` 存在且為今天或昨天的**：按 triage `rank` 排序 TDT，並附上進度燈號
+1. **若 `{company}/.daily-triage.json` 存在且為今天或昨天的**：按 triage `rank` 排序 TDT，並附上進度燈號
 2. 無 triage state 時 fallback：P0 / Highest priority 最前
 3. 進行中（IN DEVELOPMENT）優先於待開始（開放 / 待辦事項）
 4. 有依賴關係的標註 `↳ unblocks TICKET-KEY`
 
-**Epic Triage 連動**（有 `.epic-triage.json` 時）：
+**Triage 連動**（有 `.daily-triage.json` 時）：
 
 讀取 triage state，對每個 TDT 項目比對 triage 時的 `progress` 和今天的實際狀態：
 - 實際進度超過 triage 預期 → 🟢 超前（例：triage 時 `in_dev`，今天已 `pr_open`）
