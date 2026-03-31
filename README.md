@@ -135,7 +135,7 @@ After `/init` completes, your workspace will look like this:
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 29 workflow skills
+│   └── skills/                   ← 33 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -160,7 +160,7 @@ Once initialized, just talk to Claude Code naturally — English or 中文 both 
 
 ### Start here
 
-Don't try all 30 skills at once. Pick one that matches your role:
+Don't try all 33 skills at once. Pick one that matches your role:
 
 | If you are a... | Try this first | What happens |
 |-----------------|----------------|--------------|
@@ -231,7 +231,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 29 workflow skills
+│   └── skills/                # 33 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory

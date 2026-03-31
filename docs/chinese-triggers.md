@@ -28,11 +28,11 @@
 | 功能 | 中文觸發詞 | 英文觸發詞 | 說明 |
 |------|-----------|-----------|------|
 | **review-pr** — 審查別人的 PR | 幫我 review、review 這個 PR、看一下這個 PR、檢查 PR | review PR, code review, take a look at this PR, check this PR | 以 reviewer 角色審查 PR，留 inline comments，提交 APPROVE 或 REQUEST_CHANGES |
-| **fix-pr-review** — 修正自己 PR 的 review | 修 PR、修正 review、處理 review、回覆 review、CI 沒過 | fix review, address review, fix PR, CI failed, lint/test/coverage failed, pre-commit failed | 讀取 PR review comments，逐一修正，透過 sub-agent 自我審查，回覆每則 comment |
+| **fix-pr-review** — 修正自己 PR 的 review | 修 PR、修正 review、處理 review、回覆 review、CI 沒過、PR 有 review | fix review, address review, fix PR, CI failed, lint/test/coverage failed, pre-commit failed | 讀取 PR review comments，逐一修正，透過 sub-agent 自我審查，回覆每則 comment |
 | **check-pr-approvals** — 我的 PR 狀態 | 我的 PR、PR 狀態、催 review、PR 被 approve 了嗎、幫我掃我的 PR、還有哪些 PR 沒過 | check PR approvals | 掃描自己的 open PR：rebase、自動修 CI 失敗、檢查 approve 數、選擇後發 Slack 催 review |
 | **review-inbox** — 掃大家的 PR | 掃 PR、掃大家的 PR、幫我掃、review 大家的 PR、批次 review、有哪些 PR 要我看 | scan PR, review inbox, batch review | 從 Slack channel 或 need-review label 找出需要自己 review 的 PR，批次執行 review |
 | **pr-convention** — 簡易開 PR | 發 PR（簡單版，無品質檢查） | open PR, gh pr create, gh pr edit, pull request | 依照 PR template 建立或編輯 PR（簡易版，不含品質檢查；完整流程請用 git-pr-workflow） |
-| **review-lessons-graduation** — Review 規則整理 | 整理 review lessons、review lessons 畢業、lesson 整理、畢業 review lessons | organize review lessons, graduate lessons, consolidate lessons, promote review lessons | 將累積的 review-lessons 條目合併進主 rules，保持規則目錄精簡 |
+| **review-lessons-graduation** — Review 規則整理 | 整理 review lessons、review lessons 畢業、lesson 整理、畢業 review lessons、rules 整理一下 | organize review lessons, graduate lessons, consolidate lessons, promote review lessons, clean up lessons, tidy up rules | 將累積的 review-lessons 條目合併進主 rules，保持規則目錄精簡 |
 
 ---
 
@@ -45,7 +45,7 @@
 | **standup** — 每日站會 | 站立會議、產出 standup、寫 standup、今天做了什麼 | standup, daily standup, YDY, standup report, write standup, daily report | 自動從 git commits、JIRA 狀態、Google Calendar 收集工作，產出 YDY/TDT/BOS 格式站會報告 |
 | **jira-estimation** — 估點引擎 | 估點、幫我估、這張幾點（透過 work-on 觸發） | estimate（route via work-on） | 內部估點引擎，由 work-on / fix-bug / epic-breakdown 自動呼叫，不直接觸發 |
 | **jira-worklog** — 記工時 | 記工時、記錄工時 | worklog, log time, time tracking, log hours | PR 開出後記錄工時至 JIRA |
-| **worklog-report** — 完成報告 | 完成報告 | worklog report, done report, sprint report | 從 JIRA 查詢已完成 tickets，依 assignee 分組後發送 Slack 報告 |
+| **worklog-report** — 完成報告 | 完成報告 | worklog report, done report, sprint report, sprint:Q2 S1 | 從 JIRA 查詢已完成 tickets，依 assignee 分組後發送 Slack 報告（支援 `sprint:Q2 S1` 指定特定 sprint） |
 | **scope-challenge** — 需求質疑 | 挑戰需求、需求質疑、需求合理性 | scope challenge, challenge requirements, question requirements, scope review | 在估點前挑戰 ticket scope 合理性，提出替代方案（僅建議，不阻擋流程） |
 
 ---
@@ -57,7 +57,7 @@
 | **systematic-debugging** — 系統化除錯 | 找 bug、為什麼壞了、查問題、這個怎麼回事、根因、排查 | debug, why is this failing, investigate, root cause | 結構化除錯流程：先調查根因再修，避免猜測式修正 |
 | **unit-test** — 寫單元測試 | 寫測試、補測試、怎麼測、測試怎麼寫 | write test, add test, mock imports, test store | 專案感知的單元測試指南，含 mock patterns 與最佳實踐（自動偵測 Jest/Vitest） |
 | **unit-test-review** — 審查測試品質 | 測試審查、review 測試、測試品質、檢查測試品質 | unit test review, review tests, check test quality, review unit test | 審查現有單元測試品質，產出評分報告與缺漏分析（僅審查，不寫新測試） |
-| **learning** — 學習與研究 | 學習、研究一下、借鑑、看看這個、學習 PR、每日學習、消化 queue | learn, research this, learn from PR, daily learning, digest queue, learning queue | 三種模式：研究外部 URL/repo、從已合併 PR 萃取 review patterns、批次消化學習 queue |
+| **learning** — 學習與研究 | 學習、研究一下、借鑑、看看這個、學習 PR、每日學習、消化 queue、設定學習、更新學習主題 | learn, research this, learn from PR, daily learning, digest queue, learning queue, learning setup, scanner 設定 | 四種模式：研究外部 URL/repo、從已合併 PR 萃取 review patterns、批次消化學習 queue、設定學習主題與 scanner（Setup 模式） |
 
 ---
 
@@ -70,6 +70,8 @@
 | **which-company** — 路由診斷 | 哪間公司 | which company, /which-company | 診斷 JIRA ticket 或 project 路由到哪間公司，顯示完整路由解析過程 |
 | **validate-isolation** — 隔離檢查 | 檢查隔離 | validate isolation, /validate-isolation | 掃描 workspace 的多公司隔離問題：L2 rules 缺 scope header、memory 缺 company 欄位等 |
 | **skill-creator** — 建立 Skill | 建 skill、建立 skill | create skill, skill-creator | 建立、修改或評估 Polaris skill（確保 eval、description 優化與完整流程） |
+| **docs-sync** — 同步文件 | 同步文件、更新文件 | sync docs, update docs | 偵測 skill/workflow 變更並更新所有雙語文件（README、workflow-guide、chinese-triggers、quick-start） |
+| **validate-mechanisms** — 檢查機制 | 檢查機制 | validate mechanisms, /validate-mechanisms | 掃描 workspace 檢查行為機制合規性（mechanism-registry.md 中的 canary signals） |
 
 ---
 

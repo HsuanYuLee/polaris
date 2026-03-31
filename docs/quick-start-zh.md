@@ -62,7 +62,7 @@ cd ~/polaris-workspace
 ├── .claude/
 │   ├── rules/                    ← 通用規則 (L1)
 │   │   └── your-company/         ← 公司專屬規則 (L2)
-│   └── skills/                   ← 29 個工作流技能
+│   └── skills/                   ← 33 個工作流技能
 └── your-company/                 ← 由 /init 建立
     ├── workspace-config.yaml     ← 公司設定（JIRA、Slack、repos）
     └── your-project/             ← 你的專案 repo（clone 或連結）
@@ -87,7 +87,7 @@ cd ~/polaris-workspace
 
 ### 從這裡開始
 
-不需要一次學會全部 30 個技能。從符合你角色的開始：
+不需要一次學會全部 33 個技能。從符合你角色的開始：
 
 | 你的角色 | 先試這個 | 會發生什麼 |
 |----------|---------|-----------|
