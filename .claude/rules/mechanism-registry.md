@@ -73,6 +73,7 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 |----|------|---------------|-------|
 | `challenger-milestone-only` | Challenger Audit runs pre-release/pre-share only | Challenger triggered after a single PR or during daily work | High |
 | `framework-exp-once-per-task` | At most 1 framework-experience memory per task | Multiple framework-experience memories with the same `last_triggered` date | Low |
+| `docs-sync-on-version-bump` | After VERSION bump commit, run docs-sync before sync-to-polaris | VERSION bumped and pushed without docs-sync invocation | High |
 
 ## Priority Audit Order
 

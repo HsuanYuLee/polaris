@@ -74,10 +74,19 @@ Why it works: [one-sentence hypothesis]
 During post-task reflection, if the completed task modified files under `rules/` or `skills/`:
 
 - Remind the user: "這次改動涉及框架規則/技能，要升版嗎？"
-- If user confirms → bump `VERSION`, update `CHANGELOG.md`, commit, then `sync-to-polaris.sh --push` runs automatically
+- If user confirms → bump `VERSION`, update `CHANGELOG.md`, commit, then execute the **Post-Version-Bump Chain** below
 - If user declines → no action. Multiple small changes can be batched into one version later
 
 This is a **reminder**, not an automatic bump. The user decides when and how to group changes into a release.
+
+### Post-Version-Bump Chain
+
+After a VERSION bump is committed, execute these steps in order — no user confirmation needed:
+
+1. **docs-sync** — invoke `/docs-sync` to detect and fix documentation drift (new skills, stale counts, missing triggers, translation sync). If changes are found, commit them as a separate `docs:` commit
+2. **sync-to-polaris.sh --push** — sync all changes (including the docs commit) to the template repo
+
+This chain ensures documentation is always up-to-date at release boundaries. The docs-sync step runs unconditionally — even if no skill was added, counts or descriptions may have drifted since the last sync.
 
 ## Validated Pattern Promotion
 
