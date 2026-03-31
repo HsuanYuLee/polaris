@@ -171,10 +171,7 @@ Project: {base_dir}/{repo}（base_dir 從 workspace-config.yaml 取得）
 ### 2. TDD 開發（預設模式）
 - 讀取專案 CLAUDE.md — 遵循專案規範
 - 讀取 `tdd` SKILL.md — 以 Red-Green-Refactor 循環實作
-- **TDD 智慧判斷**：對每個要改動的檔案，先嘗試寫測試：
-  - 可寫測試（composable、util、store、API handler）→ 走 TDD 循環
-  - 無法寫測試（config、純 template、純 style、型別定義）→ 記錄原因，直接實作
-  - 完成後回報：「TDD 覆蓋 X 個檔案，Y 個檔案跳過（原因：...）」
+- **TDD 智慧判斷**：依 `references/tdd-smart-judgment.md` 判斷每個檔案是否走 TDD 循環
 - 發現情況不同時，在 JIRA 新增 comment 標註修正版
 
 ### 3. 品質檢查 → 行為驗證 → PR（自動銜接，順序不可調換）
@@ -491,7 +488,7 @@ Dispatch **QA Challenger** sub-agent（見 `skills/references/sub-agent-roles.md
 
 **自動銜接流程（單張 ticket 模式）：**
 
-1. **TDD 開發**：讀取 `tdd` SKILL.md + 專案 CLAUDE.md，以 Red-Green-Refactor 循環實作。智慧判斷：可寫測試的走 TDD，無法寫的記錄原因跳過
+1. **TDD 開發**：讀取 `tdd` SKILL.md + 專案 CLAUDE.md，以 Red-Green-Refactor 循環實作。依 `references/tdd-smart-judgment.md` 判斷哪些檔案走 TDD
 2. **品質檢查 → 行為驗證 → PR**：開發完成後自動讀取 `git-pr-workflow` SKILL.md 執行完整 PR 流程（品質檢查 → verify-completion → Pre-PR Review Loop → Commit → 發 PR → 轉 CODE REVIEW）
 
 > 此流程與批次模式 Phase 2 sub-agent 的 Step 2-3 完全一致，差別只在單張 ticket 由主 agent 直接執行，不另開 sub-agent。

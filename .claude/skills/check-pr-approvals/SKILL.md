@@ -266,6 +266,8 @@ PR: {pr_url}
 
 ### 4. 查詢每個 PR 的 Approve 數、Stale 狀態與 Label
 
+Stale approval 判定邏輯依 `references/stale-approval-detection.md`。
+
 **此步驟只有在 Step 3 確認所有 PR 的 CI 都通過後才會執行。**
 
 用 bundled script 批次檢查 approval 狀態：
@@ -399,13 +401,7 @@ mcp__claude_ai_Slack__slack_send_message
 
 ### 10. Feature Branch PR Gate
 
-掃描過程中若發現有 PR 已被 merge（`state: MERGED`），對每個 merged PR 執行 `references/feature-branch-pr-gate.md` 的偵測邏輯：
-
-1. 檢查 merged PR 的 `baseRefName` — 若指向 feature branch（非 develop/main），觸發 gate check
-2. 查詢同 feature branch 下所有 task PR 是否全部 merged
-3. 若全部 merged + 尚無 feature → develop PR → 自動建立
-
-此步驟靜默執行，建立後在回報中一併告知使用者。
+掃描過程中若發現有 PR 已被 merge（`state: MERGED`），執行 `references/feature-branch-pr-gate.md` 的偵測邏輯。此步驟靜默執行，建立後在回報中一併告知使用者。
 
 ## Do
 
@@ -430,7 +426,7 @@ mcp__claude_ai_Slack__slack_send_message
 - 不要未經使用者選擇就發送 Slack 或加 label — 必須等使用者指定編號
 - 不要對已達標（2+ valid approve）的 PR 加 label 或發送通知
 - 不要在 Slack 訊息中使用「催促」、「催」、「趕快」等字眼 — 用「麻煩大家幫忙」、「有空幫忙看一下」等柔軟語氣
-- 不要忽略 stale approve — approve 時間早於最後 push 時間的一律視為無效，必須計入需要 re-approve 的清單
+- 不要忽略 stale approve — approve 時間早於最後 push 時間的一律視為無效，必須計入需要 re-approve 的清單 — 詳見 references/stale-approval-detection.md
 - **不要對 CI 沒過的 PR 催 review** — 浪費同仁時間，必須先修好 CI 再請人看
 - **不要分批催 review** — 有任何 PR 的 CI 未通過時，不可先催已通過的那些。一次性催比分批打擾同仁好
 - **不要 poll GitHub CI** — 本地 `dev-quality-check` 通過後 push 即可，不需要反覆 `gh pr checks` 等結果

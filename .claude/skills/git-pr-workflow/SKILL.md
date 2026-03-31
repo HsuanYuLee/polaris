@@ -104,6 +104,8 @@ git create-branch --jira --ci
 
 在 commit 之前，啟動 Sub-Agent 對本地 diff 進行 code review，根據結果修正後再重新送審，直到沒有 blocking issues。這確保 PR 開出來時品質已經過關，減少人工 review 來回。
 
+> Reviewer Sub-Agent 的角色定義基於 `references/sub-agent-roles.md` 的 Critic 角色。以下為本 skill 的流程特化。
+
 #### 流程圖
 
 ```
@@ -318,13 +320,7 @@ AI 從 diff 自動產生 PR 描述。
 
 ## Post-PR: Feature Branch PR Gate
 
-Task PR 建立完成後，執行 `references/feature-branch-pr-gate.md` 的偵測邏輯：
-
-1. 檢查本 PR 的 `baseRefName` — 若指向 feature branch（非 develop/main），觸發 gate check
-2. 查詢同 feature branch 下所有 task PR 是否全部 merged
-3. 若全部 merged + 尚無 feature → develop PR → 自動建立
-
-此步驟靜默執行 — 條件成熟就建，條件不成熟就跳過，不打斷使用者。
+Task PR 建立完成後，執行 `references/feature-branch-pr-gate.md` 的偵測邏輯。此步驟靜默執行 — 條件成熟就建，條件不成熟就跳過，不打斷使用者。
 
 ## Prerequisites
 

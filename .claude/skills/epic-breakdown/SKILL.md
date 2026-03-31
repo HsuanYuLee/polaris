@@ -181,61 +181,19 @@ mcp__claude_ai_Atlassian__getJiraIssue
 
 ### 9. 查詢 Story Points 欄位 ID
 
-建立子單前，先確認目標專案中 Story Points 的正確欄位 ID：
-
-```
-mcp__claude_ai_Atlassian__getJiraIssueTypeMetaWithFields
-  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
-  projectKey: <從 Epic key 提取，如 PROJ>
-  issueTypeName: 任務
-```
-
-在回傳的 fields 中搜尋 `name` 含 "Story Points" 的欄位，取得其 `fieldId`（例如 `customfield_10031`）。後續 Step 10、Step 11 的 editJiraIssue 都使用此 fieldId。
-
-> ⚠️ 不要假設欄位 ID（不同 JIRA 專案的欄位 ID 可能不同），必須動態查詢。
+依 `references/jira-story-points.md` 的流程動態查詢目標專案的 Story Points 欄位 ID。後續 Step 10、Step 11 都使用此 fieldId。
 
 ### 10. 批次建立 JIRA Sub-task
 
-使用者確認後，**對每個子任務依序執行以下兩步驟**（不可省略任何一步）：
+依 `references/jira-subtask-creation.md` 的流程逐一建立子任務並填入估點。
 
-**Step A — 建立子單：**
+本 skill 的特殊設定：
+- `parent` 指向 Epic（EPIC_KEY）
+- `projectKey` 從 Epic key 動態提取（如 `PROJ-123` → `PROJ`）
+- assignee 從 memory `user_scrum_role.md` 取得使用者的 JIRA accountId
+- Step B 驗證失敗時，立即報錯告知使用者，不繼續建立下一張
 
-assignee 從 memory `user_scrum_role.md` 取得使用者的 JIRA accountId。
-
-```
-mcp__claude_ai_Atlassian__createJiraIssue
-  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
-  projectKey: <projectKey>（從 Epic key 提取，例如 PROJ-123 → PROJ，TEAM-456 → TEAM）
-  issueTypeName: 任務
-  summary: <子任務 summary>
-  description: <子任務 description，Markdown 格式>
-  contentFormat: markdown
-  parent: <EPIC_KEY>
-  assignee: <使用者的 JIRA accountId>
-```
-
-**Step B — 填入估點（必須，createIssue 不支援此欄位）：**
-
-建立成功後，**立刻**對同一張子單呼叫 editJiraIssue 補上 story points（使用 Step 9 查到的 fieldId）：
-
-```
-mcp__claude_ai_Atlassian__editJiraIssue
-  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
-  issueIdOrKey: <剛建立的子任務 key>
-  fields:
-    <storyPointsFieldId>: <估點數字>
-```
-
-**Step B 驗證** — editJiraIssue 回傳後，檢查 response 中 `fields.<storyPointsFieldId>` 的值是否等於設定的估點數字。若不符，立即報錯告知使用者「子單 XX 的 story points 設定失敗（預期 N，實際 M）」，不繼續建立下一張。
-
-> 迴圈：對每個子任務重複 Step A → Step B（含驗證），完成後再處理下一個。每完成一個回報進度。
-
-**注意事項：**
-- `projectKey` 從 Epic key 動態提取（如 `PROJ-123` → `PROJ`，`TEAM-456` → `TEAM`），子單開在與母單相同的專案
-- `issueTypeName` 使用 `任務`（中文）— 搭配 `parent` 欄位建立父子關係
-- `parent` 填入 Epic 的 issue key，確保子任務正確歸屬
-- Story points 欄位 ID 必須使用 Step 9 動態查詢的結果，不可寫死
-- **如果漏填估點，JIRA 看板上該子單不會顯示點數，影響 sprint 計算**
+> 迴圈：對每個子任務重複建立 + 填估點（含驗證），完成後再處理下一個。每完成一個回報進度。
 
 ### 11. 更新母單估點（必須）
 
@@ -249,7 +207,7 @@ mcp__claude_ai_Atlassian__editJiraIssue
     <storyPointsFieldId>: <子單點數總和>
 ```
 
-同樣檢查 editJiraIssue 回傳的 `fields.<storyPointsFieldId>` 是否正確寫入，不符則報錯。
+同樣依 `references/jira-story-points.md` 的回查驗證流程確認寫入。
 
 > 這步不可省略。母單點數 = 所有子單點數加總，讓 sprint planning 能正確反映工作量。
 

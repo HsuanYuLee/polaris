@@ -28,31 +28,11 @@ metadata:
 
 > 完整估點標準與考量因素請參考共用文件：`.claude/skills/references/estimation-scale.md`
 
-## Story Points 欄位 ID 查詢
+## Story Points 欄位操作
 
-不同 JIRA 專案的 Story Points 欄位 ID 可能不同（`customfield_10016`、`customfield_10031` 等），**不可寫死**。每次 session 首次寫入估點前，必須動態查詢：
+依 `references/jira-story-points.md` 的流程動態查詢 Story Points 欄位 ID 並執行寫入驗證。
 
-```
-mcp__claude_ai_Atlassian__getJiraIssueTypeMetaWithFields
-  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
-  projectKey: <目標專案 key，如 PROJ 或 BACK>
-  issueTypeName: 任務
-```
-
-在回傳的 fields 中搜尋 `name` 含 "Story Points" 的欄位，取得其 `fieldId`。後續所有 editJiraIssue 寫入估點都使用此 fieldId。
-
-> ⚠️ 查詢一次即可，同一 session 內可重複使用。但不同專案 key 需要各自查詢。
-
-## Story Points 回查驗證流程
-
-所有寫入 story points 的操作都必須遵循此流程：
-
-1. 使用 `editJiraIssue` 寫入動態查詢到的 Story Points fieldId
-2. 檢查 editJiraIssue 回傳的 response 中 `fields.<fieldId>` 是否為預期值
-3. 若不符：
-   - 用 `getJiraIssue` 回查，在 `fields` 中搜尋含有 `story` 或 `point` 的 key
-   - 嘗試用找到的正確欄位 ID 重新寫入
-   - 若仍失敗，告知使用者需手動填入
+本 skill 中所有寫入估點的步驟（Step 8.5 建立子單、母單估點更新）都必須遵循該 reference 的回查驗證流程。
 
 ## Workflow
 
@@ -254,28 +234,13 @@ mcp__claude_ai_Atlassian__editJiraIssue
 
 #### 8.5 批次建立 JIRA Sub-task
 
-使用者確認後，逐一建立子任務。所有子單一律開在目標專案，使用「任務」類型，parent 指向母單：
+依 `references/jira-subtask-creation.md` 的流程逐一建立子任務並填入估點。
 
-```
-mcp__claude_ai_Atlassian__createJiraIssue
-  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
-  projectKey: PROJ
-  issueTypeName: 任務
-  summary: <子任務 summary，格式：[TICKET_KEY] 簡短描述>
-  description: <SASD 格式的 description>
-  contentFormat: markdown
-  parent: <TICKET_KEY>
-```
-
-建立後，立即用 editJiraIssue 補上 story points（使用「Story Points 欄位 ID 查詢」取得的 fieldId），並依「Story Points 回查驗證流程」確認寫入成功：
-
-```
-mcp__claude_ai_Atlassian__editJiraIssue
-  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
-  issueIdOrKey: <新建的子任務 key>
-  fields:
-    <storyPointsFieldId>: <估點數字>
-```
+本 skill 的特殊設定：
+- `parent` 指向母單（TICKET_KEY）
+- `summary` 格式：`[TICKET_KEY] 簡短描述`
+- `description` 使用 SASD 格式
+- assignee：不設定（由使用者或 sprint planning 決定）
 
 若 createJiraIssue 失敗（權限不足、欄位錯誤等），記錄失敗的子單並告知使用者，繼續建立其餘子單。
 

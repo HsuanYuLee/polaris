@@ -136,6 +136,8 @@ echo "$PR_URLS" \
 
 **`review_status` 值對照表**：
 
+> Stale approval 判定邏輯詳見 `references/stale-approval-detection.md`。
+
 | review_status | 說明 | 動作 |
 |---------------|------|------|
 | `needs_first_review` | 從未 review 過 | 需要首次 review |

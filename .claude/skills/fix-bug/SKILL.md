@@ -114,10 +114,7 @@ mcp__claude_ai_Atlassian__transitionJiraIssue
 
 在分支上以 **TDD（Red-Green-Refactor）** 實作修正。遵循專案 CLAUDE.md 確保程式碼符合專案規範，遵循 `tdd` skill 的 TDD 循環。
 
-**TDD 智慧判斷**：對每個要改動的檔案，先嘗試寫測試：
-- 可寫測試（composable、util、store、API handler）→ 走 TDD 循環
-- 無法寫測試（config、純 template、純 style、型別定義）→ 記錄原因，直接實作
-- 完成後回報：「TDD 覆蓋 X 個檔案，Y 個檔案跳過（原因：...）」
+**TDD 智慧判斷**：依 `references/tdd-smart-judgment.md` 判斷每個檔案是否走 TDD 循環。
 
 **實作中發現情況不同時：**
 - 在 JIRA ticket 上**新增一則 comment** 標註修正版（保留原始 comment）

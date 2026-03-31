@@ -253,44 +253,12 @@ TDT 的排序邏輯：
 
 使用者確認後，將 standup 附加到當月 Confluence 頁面。
 
-**Step 10a — 找到當月頁面**：
+依 `references/confluence-page-update.md` 的完整流程（含版本衝突偵測）：
 
-```
-mcp__claude_ai_Atlassian__searchConfluenceUsingCql
-  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
-  cql: space = "{config: confluence.space}" AND title = "YYYYMM Standup Meeting" AND type = page
-```
-
-如果找不到當月頁面，告知使用者需要先建立頁面（或用 `createConfluencePage` 建立）。
-
-**Step 10b — 取得現有內容並記錄版本號**：
-
-```
-mcp__claude_ai_Atlassian__getConfluencePage
-  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
-  pageId: <found_page_id>
-  contentFormat: markdown
-```
-
-從回應中記錄 `version.number`（例如 `30`），後續更新前需比對。
-
-**Step 10c — 比對版本號並附加新 standup**：
-
-更新前，先確認目前版本號與 Step 10b 取得的一致。如果版本號已變動（代表有人在你取得內容後編輯了頁面），**不要直接覆蓋**，而是：
-1. 告知使用者「頁面在你編輯期間被修改（版本從 N 變為 M）」
-2. 重新取得最新內容（回到 Step 10b）
-3. 在最新內容上附加 standup
-
-版本號一致時，在現有內容末尾附加新的 standup entry（保持 `---` 分隔），然後更新頁面：
-
-```
-mcp__claude_ai_Atlassian__updateConfluencePage
-  cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
-  pageId: <page_id>
-  body: <existing_content + new_standup>
-  contentFormat: markdown
-  versionMessage: "Add standup YYYYMMDD"
-```
+1. **搜尋當月頁面**：CQL `space = "{config: confluence.space}" AND title = "YYYYMM Standup Meeting" AND type = page`。找不到則告知使用者需先建立
+2. **取得現有內容**：記錄 `version.number`
+3. **版本衝突偵測**：更新前比對版本號，若已變動則重新取得最新內容
+4. **附加新 standup**：在現有內容末尾附加（保持 `---` 分隔），`versionMessage: "Add standup YYYYMMDD"`
 
 更新完成後告知使用者並附上 Confluence 頁面連結。
 

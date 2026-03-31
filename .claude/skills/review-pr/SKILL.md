@@ -28,26 +28,9 @@ metadata:
 
 ### 從 Slack 訊息擷取 PR 連結
 
-使用者可能提供 Slack 連結而非直接的 PR URL，例如：
-- `review 這個 slack 訊息裡的 PR: https://your-workspace.slack.com/archives/C12345/p1234567890`
-- `review slack #code-review 頻道最新的 PR`
-- `幫我 review slack 上貼的那些 PR`
+依 `references/slack-pr-input.md` 的流程從 Slack 訊息中擷取 PR URL。
 
-**偵測方式**：若使用者輸入包含 Slack URL、提及 Slack 頻道名稱、或提到「slack 上的 PR」，則先從 Slack 取得訊息內容。
-
-**擷取流程**：
-
-1. **Slack URL** → 解析出 channel ID 和 message timestamp，使用 `slack_read_thread` 或 `slack_read_channel` MCP tool 讀取訊息內容
-2. **Slack 頻道名稱**（如 `#code-review`）→ 使用 `slack_search_channels` 找到頻道，再用 `slack_read_channel` 讀取近期訊息
-3. 從訊息內容中提取所有 GitHub PR URL（格式：`https://github.com/{owner}/{repo}/pull/{number}`）
-4. 若找到 PR URL，以這些 URL 作為輸入繼續後續流程
-
-**保留 Slack context**：若輸入來源是 Slack，記住以下資訊供 Step 7 使用：
-- `slack_channel_id`：頻道 ID（read from config: slack.channels.ai_notifications）
-- `slack_thread_ts`：訊息 timestamp（從 URL 的 `p` 參數轉換：去掉 `p` prefix，在倒數第 6 位前插入 `.`，如 `p1773631805068619` → `1773631805.068619`）
-- `slack_source`：標記為 `true`，表示需要在 Step 7 回覆 Slack
-
-**注意**：Slack 訊息中的連結可能被格式化為 `<https://...|顯示文字>` 格式，需要提取 `<` 和 `|` 之間的實際 URL。
+保留的 Slack context（`slack_channel_id` 從 config `slack.channels.ai_notifications` 讀取、`slack_thread_ts`、`slack_source`）供 Step 7 使用。
 
 ### 多 PR 輸入
 
@@ -149,41 +132,11 @@ Script 路徑相對於本 SKILL.md 所在目錄。執行前確認有 `+x` 權限
 
 ## 1. Parse PR Number & 辨識對應專案
 
-從使用者提供的 PR URL 或編號取得 PR 資訊：
+依 `references/pr-input-resolver.md` 的流程解析 PR 資訊並定位本地專案路徑。
 
-- URL 格式：`https://github.com/{owner}/{repo}/pull/<number>`
-- 直接提供數字：`#1882` 或 `1882`
+本 skill 為唯讀 review，若本地找不到 repo 目錄，啟用 `remote_mode: true` 改用 GitHub API 遠端讀取（詳見 reference doc）。
 
-如果使用者未提供，嘗試從當前 branch 取得：
-
-```bash
-gh pr view --json number,url -q '.number,.url'
-```
-
-### 辨識專案路徑
-
-從 PR URL 中提取 repo 名稱，依序搜尋本地路徑：
-1. 當前工作目錄（`./`）
-2. `{base_dir}/{repo名稱}`（`base_dir` 從 workspace config 的 `projects` block 取得）
-
-若以上路徑皆找不到，告知使用者：「Could not find {repo} locally. Please clone it or specify the path.」不可 silently fallback 到任何 hardcoded 路徑。
-
-例如：
-- `github.com/acme-org/my-app/pull/1882` → `{base_dir}/my-app`
-- `github.com/acme-org/another-repo/pull/300` → `{base_dir}/another-repo`
-
-如果使用者只提供 PR 編號（無 URL），用 `gh pr view` 取得 repo 資訊：
-
-```bash
-gh pr view <number> --json url -q .url
-```
-
-後續讀取程式碼時，以此專案路徑為根目錄。
-
-**本地無 clone 的 Fallback**：若本地找不到對應目錄，**不要詢問使用者**，改為使用 GitHub API 遠端讀取檔案：
-- 設定 `remote_mode: true`，後續 Step 3、Step 4a 改用 `gh api` 取得檔案內容
-- 專案規範改從 GitHub 讀取：`gh api repos/{owner}/{repo}/contents/.claude/rules --jq '.[].name'`
-- 檔案內容改用：`gh api repos/{owner}/{repo}/contents/{path}?ref={headRefName} --jq '.content' | base64 -d`
+後續讀取程式碼時，以解析出的專案路徑為根目錄。
 
 ## 2. Fetch PR Information
 

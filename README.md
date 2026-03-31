@@ -160,7 +160,7 @@ Once initialized, just talk to Claude Code naturally — English or 中文 both 
 
 ### Start here
 
-Don't try all 33 skills at once. Pick one that matches your role:
+Don't try all 34 skills at once. Pick one that matches your role:
 
 | If you are a... | Try this first | What happens |
 |-----------------|----------------|--------------|

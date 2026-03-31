@@ -3,8 +3,8 @@ name: epic-status
 description: >
   Epic progress tracker and gap closer. Reads a JIRA Epic, cross-references all child
   tickets with GitHub branch/PR/CI/review status, produces a gap analysis report, and
-  optionally routes to existing skills to close gaps (estimate, create PR, fix CI, nudge
-  review). Use this skill whenever: (1) user pastes an Epic key and asks about progress
+  automatically routes to existing skills to close gaps (fix review, fix CI, nudge
+  review, develop, verify). Use this skill whenever: (1) user pastes an Epic key and asks about progress
   ("離 merge 還多遠", "epic 進度", "這個 epic 做到哪"), (2) user wants a status overview
   of an Epic ("epic status", "epic 狀態", "看 epic"), (3) user asks what's left before
   a feature can merge ("還差什麼", "還有哪些沒做", "哪些卡住"), (4) user says "補全 epic",
@@ -14,7 +14,7 @@ description: >
   Key distinction: "拆單" / "epic breakdown" → epic-breakdown; "epic 進度" / "還差多遠" → here.
 metadata:
   author: Polaris
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # Epic Status — 進度追蹤與差距補全
@@ -76,6 +76,24 @@ gh pr list --search "head:feat/<EPIC_KEY>" --state all --json number,title,headR
 從結果中辨識 feature branch（通常是 `feat/<EPIC_KEY>-*` 或包含 Epic key 的 branch）。
 若找不到 feature branch → 記為「Feature branch 尚未建立」，子單 PR 的 base 判斷跳過。
 
+**3b. 掃描 Feature PR 的 review 狀態**：
+
+找到 feature branch 後，查詢 feature PR（feat → develop/main）的 review 狀態。每個 repo 獨立查：
+
+```bash
+gh pr list --repo {owner}/{repo} --head {feature_branch} --base develop --state open \
+  --json number,title,headRefName,baseRefName,state,mergeable,statusCheckRollup,reviews,isDraft,reviewRequests --limit 1
+```
+
+若存在 open feature PR → 解析其 review 狀態（同 Step 4 的 task PR 解析邏輯）：
+- `reviews` 中有 `state: "CHANGES_REQUESTED"` → 標記為 gap：**修 feature PR review**
+- `reviews` 中有 `state: "APPROVED"` 的數量 vs `reviewRequests` → 計算 approved 比例
+- `statusCheckRollup` → CI 狀態
+- `mergeable` → conflict 狀態
+- **Inline comments 檢查**：`gh api repos/{owner}/{repo}/pulls/{number}/comments --jq 'length'`，若 > 0 且沒有 CHANGES_REQUESTED → 標記為 gap：**有未處理 comments**
+
+Feature PR 的 review 狀態會顯示在狀態矩陣的 **Feature Branch 區塊**，並納入差距分析。
+
 ### 4. 交叉比對 GitHub 狀態
 
 對每張子單，**並行**查詢 GitHub：
@@ -85,6 +103,15 @@ gh pr list --search "head:feat/<EPIC_KEY>" --state all --json number,title,headR
 ```bash
 gh pr list --search "<TICKET_KEY>" --state all --json number,title,headRefName,baseRefName,state,mergeable,statusCheckRollup,reviews,isDraft --limit 5
 ```
+
+**4a-2. 查詢 PR inline comments**（對每個 open PR 額外查詢）：
+
+```bash
+gh api repos/{owner}/{repo}/pulls/{pr_number}/comments --jq 'length'
+```
+
+即使 review state 不是 `CHANGES_REQUESTED`，只要有 **未回覆的 inline comments > 0** 就標記為 gap：**有未處理 comments**。
+這能抓到 Copilot review、COMMENTED state 的人工 review 等「沒有正式 request changes 但有待處理 comments」的情況。
 
 `--state all` 同時抓 open 和 merged 的 PR。注意 `baseRefName` 欄位——用來判斷 PR 的 merge 目標。
 
@@ -134,7 +161,7 @@ gh pr list --search "<TICKET_KEY>" --state all --json number,title,headRefName,b
 ```
 ## Epic: <EPIC_KEY> — <Summary>
 狀態：<Epic Status> | 子單：N 張 | 總估點：X 點
-Feature branch：feat/PROJ-460-product-listing → develop（PR #88, open）
+Feature branch：feat/PROJ-460-product-listing → develop（PR #88, open, CI ✅, Review: ❌ CHANGES_REQUESTED by @reviewer）
 
 | # | Ticket | Summary | Type | JIRA 狀態 | Points | PR | Base | Merged | CI | Review | Gap |
 |---|--------|---------|------|----------|--------|----|----|--------|----|----|-----|
@@ -164,6 +191,8 @@ Feature branch：feat/PROJ-460-product-listing → develop（PR #88, open）
 
 **Review 狀態**：從 `reviews` 計算 approved 數 / requested 數，如 `2/2 ✅` 或 `0/2 ⚠️`
 
+**Inline comments**：對每個 open PR，用 `gh api repos/{owner}/{repo}/pulls/{number}/comments --jq 'length'` 查詢 inline comment 數量。即使沒有 `CHANGES_REQUESTED`，有未處理 comments 也是 gap（常見於 Copilot review 或 COMMENTED state 的人工 review）。
+
 ### 5. 差距分析摘要
 
 在狀態矩陣下方附上差距分析：
@@ -172,10 +201,11 @@ Feature branch：feat/PROJ-460-product-listing → develop（PR #88, open）
 ## 差距分析
 
 ### Feature Branch 完成度
-- Feature branch：`feat/PROJ-460-product-listing` → develop（PR #88, open）
+- Feature branch：`feat/PROJ-460-product-listing` → develop（PR #88, open, CI ✅, Review: ❌ CHANGES_REQUESTED）
 - Task merged → feature branch：1/3 張（33%）| 3/7 點（43%）
 - Task PR open（待 merge）：1/3 張
 - 未開工：1/3 張
+- **Feature PR review 狀態**：若有 CHANGES_REQUESTED → 列為 blocker
 
 ### 開發進度（含未 merge）
 - 完成（Done + PR merged/open）：2/3 張（66%）| 5/7 點（71%）
@@ -217,47 +247,92 @@ Feature branch merge 進度：
 ```
 
 **Blocker 判斷邏輯**：
-- CI 紅 → Blocker（阻擋 merge）
+- CI 紅（task PR 或 feature PR） → Blocker（阻擋 merge）
 - Code Review 超過 2 天且 0 approved → Blocker
+> Review 卡住的判定（含 stale approval）詳見 `references/stale-approval-detection.md`。
 - PR 有 merge conflict → Blocker
+- **Feature PR 有 CHANGES_REQUESTED** → Blocker（即使所有 task PR 已 merge，feature PR 被 request changes 也無法上線）
 - 開發子單 Done 但對應 `[驗證]` 子單未完成 → Blocker（驗證是 merge 的前置條件）
 - 其餘為「待處理」
 
 ---
 
-## Phase 2：補全（可選）
+## Phase 2：自動補全
 
-Phase 1 報告產出後，詢問使用者：
+Phase 1 報告產出後，**不詢問使用者**，直接根據 gap 類型自動路由到對應 skill 執行。
+使用者觸發「補全」就是要動作，不需要再確認一次。
 
-```
-要補全這些缺口嗎？我可以：
-1. 全部補全（自動路由每個 gap 到對應 skill）
-2. 選擇性補全（你挑要處理的項目）
-3. 只看報告，不動作
-```
-
-使用者選擇後，依 gap 類型路由：
+### Gap → Skill 路由表
 
 | Gap 類型 | 路由 Skill | 說明 |
 |---------|-----------|------|
+| CHANGES_REQUESTED（task PR） | `fix-pr-review` | 修 review comments，push 修正 |
+| CHANGES_REQUESTED（feature PR） | `fix-pr-review` | 同上，但對象是 feature PR |
+| 有未處理 inline comments（無 CHANGES_REQUESTED） | `fix-pr-review` | Copilot review、COMMENTED state 的 comments 也要修 |
+| CI 紅（task PR 或 feature PR） | `fix-pr-review` | 修 CI failures |
+| Review 卡住（0 approved 超過 2 天） | `check-pr-approvals` | 催 review + Slack 通知 |
 | 未估點 | `work-on` | 包含估點 + 拆子單 |
 | 未開工（有估點） | `work-on` | 建 branch + 開發 + PR |
 | 有 code 沒 PR | `git-pr-workflow` | 品質檢查 + 發 PR |
-| CI 紅 | `fix-pr-review` | 修 CI failures |
-| Review 卡住 | `check-pr-approvals` | 催 review + 通知 |
-| 驗證未執行（開發已完成） | `verify-completion` | 對應開發子單已 Done/PR merged，執行驗證 |
+| 驗證未執行（開發已完成） | `verify-completion` | 對應開發子單已 Done/PR merged |
 | 驗證未執行（開發未完成） | — | 隨開發流程自動處理，不單獨路由 |
-| PR 有 conflict | 提示使用者 | rebase 需人工判斷 |
+| PR 有 conflict | 提示使用者 | rebase 需人工判斷，不自動執行 |
 | 所有 task PR 已 merge，無 feature PR | 自動建 feature PR | 見 `references/feature-branch-pr-gate.md` |
 
-### 補全執行模式
+### 自動路由判斷邏輯
 
-**選擇性補全**：使用者指定要處理的 ticket，逐一用 Skill tool 觸發對應 skill。
+Phase 1 產出報告後，掃描所有 gap，按以下決策樹自動分類並執行：
 
-**全部補全**：
+```
+for each gap in gaps:
+  if gap.type == "CHANGES_REQUESTED":
+    → fix-pr-review（帶 PR URL）
+  elif gap.type == "HAS_UNRESOLVED_COMMENTS":
+    → fix-pr-review（帶 PR URL，即使沒有 CHANGES_REQUESTED）
+  elif gap.type == "CI_RED":
+    → fix-pr-review（帶 PR URL）
+  elif gap.type == "REVIEW_STUCK":
+    → check-pr-approvals
+  elif gap.type == "NO_ESTIMATE":
+    → work-on（帶 ticket key）
+  elif gap.type == "NOT_STARTED":
+    → work-on（帶 ticket key）
+  elif gap.type == "CODE_NO_PR":
+    → git-pr-workflow
+  elif gap.type == "VERIFICATION_PENDING" and dev_done:
+    → verify-completion
+  elif gap.type == "NO_FEATURE_PR" and all_tasks_merged:
+    → 自動建 feature PR（feature-branch-pr-gate.md）
+  elif gap.type == "CONFLICT":
+    → 不自動執行，報告中標記提醒使用者
+```
+
+### 執行順序
+
+**核心原則：自力可完成的優先，需他人協助的最後。**
+把所有「我們能獨立處理」的 gap 全部做完，收斂到只剩「等同仁 review / approve」才停下來通知。
+這樣使用者每次觸發補全，結束時得到的是一個乾淨的狀態：「你的部分都做完了，只差 review」。
+
+按此原則排序：
+
+**Phase A — 自力可完成（不需他人介入）：**
+1. **修 PR review**（CHANGES_REQUESTED / unresolved comments — 修正 code 是自己的事）
+2. **修 CI**（CI 紅 — 修正 code 是自己的事）
+3. **開發**（未開工的 ticket）
+4. **建 PR**（有 code 沒 PR）
+5. **驗證**（開發完成但驗證未執行）
+6. **建 feature PR**（所有 task merged）
+
+**Phase B — 需他人協助（Phase A 全部完成後才執行）：**
+7. **催 review**（review 卡住 — 發 Slack 通知後只能等）
+
+### 執行模式
+
 - 獨立的 gap 可平行處理（不同 repo 的 ticket、催 review 等 read-only 動作）
 - 同 repo 的開發類 gap 走 `work-on` 批次模式（自帶 worktree 隔離）
-- 執行順序建議：催 review → 修 CI → 未開工的開發（先解除 blocker，再推進新工作）
+- 每個 gap 透過 Skill tool 觸發對應 skill，不手動執行 skill 步驟
+
+### 重掃
 
 補全完成後，**重新跑一次 Phase 1**（快速重掃），產出更新後的狀態矩陣，讓使用者看到即時進度。
 
@@ -279,8 +354,8 @@ Phase 1 報告產出後，詢問使用者：
 - Do: Phase 1 完全 read-only，不修改任何 JIRA 或 GitHub 資料
 - Do: 使用 `--state all` 查 PR，同時看 open 和 merged 的狀態
 - Do: 子單 > 10 張時委派 sub-agent 查 GitHub，避免主 session tool call 爆量
-- Do: Blocker 優先排序 — CI 紅 > review 卡住 > 未開工
-- Do: Phase 2 補全前必須等使用者明確確認
+- Do: Blocker 優先排序 — 修 review > CI 紅 > 催 review > 未開工
+- Do: Phase 2 自動路由，不問確認（使用者說「補全」就是要動作）
 - Do: 補全後重掃一次產出更新報告
 - Do: 將 `[驗證]` 子單納入追蹤 — 驗證是開發流程的一環，未驗證的子單算 gap
 - Do: 在差距分析中分開統計「開發進度」和「驗證進度」，兩者都達 100% 才算 feature 完成
@@ -297,3 +372,6 @@ Phase 1 報告產出後，詢問使用者：
 |---------|------|---------|
 | 1.0.0 | 2026-03-31 | Initial release — Phase 1 scan + Phase 2 gap closing |
 | 1.0.1 | 2026-03-31 | Add Slack channel routing guidance — pr_review for team, ai_notifications for self |
+| 1.1.0 | 2026-03-31 | Phase 1: scan feature PR (feat→develop) review status + CI; Phase 2: auto-route gaps without confirmation |
+| 1.1.1 | 2026-03-31 | Phase 1: detect unresolved inline comments (not just CHANGES_REQUESTED) — catches Copilot review and COMMENTED-state reviews |
+| 1.2.0 | 2026-03-31 | Phase 2: self-first execution principle — do all self-actionable gaps first, leave review-dependent items last |
