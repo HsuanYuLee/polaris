@@ -30,44 +30,25 @@ task PR 的 baseRefName 不是 develop/main
 
 若 task PR 的 base 是 develop/main → 不是 feature branch 模式，跳過此 gate。
 
-### Step 2: 查詢同 repo 所有兄弟子單
-
-從當前 task 的 JIRA ticket 找到 parent Epic：
+### Step 2–4: 查詢狀態（使用共用腳本）
 
 ```bash
-# 從 ticket key 取得 parent
-gh api graphql ... # 或用 JIRA MCP
+references/scripts/check-feature-pr.sh {owner}/{repo} {feature_branch} --base develop
 ```
 
-簡化版（不查 JIRA，純用 GitHub）：
+腳本一次完成三件事：
+- **Step 2** — 列出所有以 feature branch 為 base 的 task PR，統計 merged/open/closed
+- **Step 3** — 判斷是否全部 merged（`open == 0 && merged > 0`）
+- **Step 4** — 檢查 feature PR 是否已存在（含 review、CI、conflict 狀態）
 
-```bash
-# 列出所有以 feature branch 為 base 的 PR
-gh pr list --repo {owner}/{repo} --base {feature_branch} --state all \
-  --json number,title,state,mergedAt --limit 50
-```
+輸出 JSON，`action` 欄位決定下一步：
 
-### Step 3: 判斷是否全部 merged
-
-```
-all_task_prs = 以 feature branch 為 base 的所有 PR
-merged_count = state == "MERGED" 的數量
-open_count = state == "OPEN" 的數量
-
-if open_count == 0 AND merged_count > 0:
-  → 所有 task PR 已 merge，可以建 feature PR
-elif open_count > 0:
-  → 還有 open 的 task PR，不建
-```
-
-### Step 4: 檢查 feature PR 是否已存在
-
-```bash
-gh pr list --repo {owner}/{repo} --head {feature_branch} --base develop --state open \
-  --json number --limit 1
-```
-
-若已有 open PR → 跳過（不重複建立）。
+| action | 意義 | 處理 |
+|--------|------|------|
+| `CREATE_FEATURE_PR` | 全部 merged，尚無 feature PR | 進入「建立 Feature PR」 |
+| `FEATURE_PR_EXISTS` | 全部 merged，feature PR 已存在 | 跳過（冪等） |
+| `TASKS_IN_PROGRESS` | 還有 open task PR | 靜默跳過 |
+| `NO_TASK_PRS` | 找不到 task PR | 靜默跳過 |
 
 ## 建立 Feature PR
 

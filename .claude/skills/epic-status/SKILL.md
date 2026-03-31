@@ -14,7 +14,7 @@ description: >
   Key distinction: "拆單" / "epic breakdown" → epic-breakdown; "epic 進度" / "還差多遠" → here.
 metadata:
   author: Polaris
-  version: 1.1.0
+  version: 1.3.0
 ---
 
 # Epic Status — 進度追蹤與差距補全
@@ -76,23 +76,25 @@ gh pr list --search "head:feat/<EPIC_KEY>" --state all --json number,title,headR
 從結果中辨識 feature branch（通常是 `feat/<EPIC_KEY>-*` 或包含 Epic key 的 branch）。
 若找不到 feature branch → 記為「Feature branch 尚未建立」，子單 PR 的 base 判斷跳過。
 
-**3b. 掃描 Feature PR 的 review 狀態**：
+**3b. 掃描 Feature PR 狀態**：
 
-找到 feature branch 後，查詢 feature PR（feat → develop/main）的 review 狀態。每個 repo 獨立查：
+找到 feature branch 後，使用共用腳本查詢 feature PR 完整狀態（task PR merge 進度 + feature PR review/CI/conflict）：
 
 ```bash
-gh pr list --repo {owner}/{repo} --head {feature_branch} --base develop --state open \
-  --json number,title,headRefName,baseRefName,state,mergeable,statusCheckRollup,reviews,isDraft,reviewRequests --limit 1
+references/scripts/check-feature-pr.sh {owner}/{repo} {feature_branch} --base develop
 ```
 
-若存在 open feature PR → 解析其 review 狀態（同 Step 4 的 task PR 解析邏輯）：
-- `reviews` 中有 `state: "CHANGES_REQUESTED"` → 標記為 gap：**修 feature PR review**
-- `reviews` 中有 `state: "APPROVED"` 的數量 vs `reviewRequests` → 計算 approved 比例
-- `statusCheckRollup` → CI 狀態
-- `mergeable` → conflict 狀態
-- **Inline comments 檢查**：`gh api repos/{owner}/{repo}/pulls/{number}/comments --jq 'length'`，若 > 0 且沒有 CHANGES_REQUESTED → 標記為 gap：**有未處理 comments**
+從腳本輸出的 JSON 解析：
+- `task_prs.all_merged` → 是否所有 task PR 已 merge
+- `feature_pr.exists` → feature PR 是否存在
+- `feature_pr.review.changes_requested > 0` → gap：**修 feature PR review**
+- `feature_pr.review.approved` vs `feature_pr.review.requested` → approved 比例
+- `feature_pr.ci` → CI 狀態（success/failure/pending）
+- `feature_pr.mergeable` → conflict 狀態
+- `feature_pr.inline_comments > 0` 且無 CHANGES_REQUESTED → gap：**有未處理 comments**
+- `action == "CREATE_FEATURE_PR"` → gap：**需建立 feature PR**（Phase 2 路由到 `feature-branch-pr-gate.md`）
 
-Feature PR 的 review 狀態會顯示在狀態矩陣的 **Feature Branch 區塊**，並納入差距分析。
+Feature PR 的狀態會顯示在狀態矩陣的 **Feature Branch 區塊**，並納入差距分析。
 
 ### 4. 交叉比對 GitHub 狀態
 
@@ -375,3 +377,4 @@ for each gap in gaps:
 | 1.1.0 | 2026-03-31 | Phase 1: scan feature PR (feat→develop) review status + CI; Phase 2: auto-route gaps without confirmation |
 | 1.1.1 | 2026-03-31 | Phase 1: detect unresolved inline comments (not just CHANGES_REQUESTED) — catches Copilot review and COMMENTED-state reviews |
 | 1.2.0 | 2026-03-31 | Phase 2: self-first execution principle — do all self-actionable gaps first, leave review-dependent items last |
+| 1.3.0 | 2026-03-31 | Step 3b: use shared `check-feature-pr.sh` script for feature PR status (task PR merge count + review/CI/conflict) |
