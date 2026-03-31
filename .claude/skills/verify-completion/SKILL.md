@@ -10,7 +10,7 @@ description: >
   that pass tests but fail in practice (wrong env var, missing import in SSR, layout shift).
 metadata:
   author: Polaris
-  version: 1.3.0
+  version: 1.5.0
 ---
 
 # Verification Before Completion
@@ -47,7 +47,7 @@ the estimation/breakdown flow include a 「測試計畫」or 「測試計劃」s
 mcp__claude_ai_Atlassian__getJiraIssue
   cloudId: {config: jira.instance}（config: `jira.instance`，fallback: your-domain.atlassian.net）
   issueIdOrKey: <TICKET>
-  fields: ["description"]
+  fields: ["description", "parent"]
   responseContentFormat: markdown
 ```
 
@@ -59,6 +59,26 @@ Look for sections matching these patterns in the description:
 
 If found, these items become the **primary verification checklist**.
 If no test plan is found in the description, fall back to the generic verification checklist in Step 3.
+
+**1b-ii. Scope Filter — exclude Epic-level items:**
+
+當 ticket 有 parent（Epic/Story），測試計畫中可能混入 **Epic 層級的驗證項目** — 這些項目需要多張 ticket 合併後才能驗證，不應掛在單張 ticket 的驗證子單下。
+
+逐條檢查 test plan items，標記為 `ticket-scope` 或 `epic-scope`：
+
+| 信號 | 判定 | 範例 |
+|------|------|------|
+| 效能目標含 aggregate metric（response time 從 X 降至 Y、TTFB < Ns） | `epic-scope` | 「fetch_product response time 從 ~2.2s 降至 < 0.8s」 |
+| 需要「所有 PR 合併」「全部完成後」才能驗 | `epic-scope` | 「整體 TTFB 改善 > 50%」 |
+| 描述的是多個 ticket 共同達成的 end-to-end 行為 | `epic-scope` | 「Category + Product 頁面同時 < 1s」 |
+| 描述的是本 ticket 改動可獨立驗證的功能 | `ticket-scope` | 「Product page 正常顯示」「Coupon 區塊正確」 |
+| 描述的是本 ticket 改動的 regression check | `ticket-scope` | 「不同 vertical 商品測試」 |
+
+**處理方式：**
+- `ticket-scope` items → 進入 1c 建立/檢查驗證子單
+- `epic-scope` items → **不建立子單**。在驗證報告中標註：「以下項目為 Epic 層級驗證，不在本 ticket 範圍：{item list}。建議在 {parent_key} Epic 完成時統一驗證。」
+
+若 ticket 無 parent（獨立 ticket），所有 items 預設為 `ticket-scope`。
 
 **1c. Check for existing verification sub-tasks:**
 
@@ -146,10 +166,96 @@ Then continue to **1d** below (only for pending items).
 |------|---------|---------|
 | **可自動驗證** | curl 打 API、SSR 檢查、console error 檢查 | Sub-agent 平行執行 |
 | **可自動修復** | 補寫測試、修 lint、加 error handling | **先修再驗** — 不等人，直接修完驗 |
+| **效能驗證** | timing 測量、TTFB 比較、parallel vs sequential | **Worktree 隔離 + Mockoon proxy**（見 1d-perf） |
 | **需人工介入** | 測資有問題、需 staging 環境、需視覺比對 | 標記為「需人工」，回報使用者 |
 
 核心原則：**能自動做的都自動做完**，只有真正需要人工判斷的才回報。
 例如「SSR init route 單元測試」→ 這是可自動修復的，直接補寫測試、跑測試、通過後標完成。
+
+**1d-perf. 效能驗證項目的隔離要求：**
+
+效能測量對環境敏感——hot reload、file watcher、其他 dev server 都會干擾 timing。
+效能類驗證項目（含 timing、TTFB、latency 關鍵字）必須用 **A/B worktree 對比法**。
+
+### 核心原則：同機器、同環境、前後對比
+
+不與 JIRA 歷史 baseline 比較（環境不同無意義）。而是：
+
+1. **Worktree A（Before）**：checkout base branch（修改前），啟動 dev server + Mockoon
+2. **Worktree B（After）**：checkout feature branch（修改後），啟動 dev server + Mockoon
+3. **A 先跑、B 後跑**（或反過來），同機器同條件，取 delta
+
+### 執行流程
+
+**Phase 1 — 環境準備：**
+
+1. 確認 Mockoon CLI 已安裝（`which mockoon-cli`）
+   - 若未安裝 → 詢問使用者：「跑 timing 測試需要 Mockoon CLI 提供穩定 API proxy。要安裝嗎？(`npm install -g @mockoon/cli`)」
+   - 使用者拒絕 → 記錄選擇（feedback memory），JIRA comment 標註「無 Mockoon，raw dev 數據」
+2. 找到 Mockoon 環境檔：`{config: mockoon.env_file}` 或掃描 `~/Library/Application Support/mockoon/storage/` 下與 dev host 相關的 .json
+3. 確定 base branch（feature branch 的 merge base）：`git merge-base <feature-branch> <base-branch>`
+
+**Phase 2 — Before 測量（Worktree A）：**
+
+啟動一個 sub-agent（`isolation: "worktree"`）：
+
+```
+你是效能 baseline agent。在 worktree 中測量修改前的 TTFB。
+
+1. git checkout <merge-base-commit>
+2. pnpm install
+3. mockoon-cli start --data "<env_file>" --port <port>
+4. 啟動 dev server（port 3002）
+5. Health check
+6. 5 次 TTFB 測量（每次冷卻 2s），記錄 time_starttransfer + time_total
+7. 停止 dev server + Mockoon
+8. 回傳 raw timing data
+```
+
+**Phase 3 — After 測量（Worktree B）：**
+
+啟動另一個 sub-agent（`isolation: "worktree"`）：
+
+```
+你是效能驗證 agent。在 worktree 中測量修改後的 TTFB。
+
+1. git checkout <feature-branch>
+2. pnpm install
+3. mockoon-cli start --data "<env_file>" --port <port>
+4. 啟動 dev server（port 3003）
+5. Health check
+6. 5 次 TTFB 測量（每次冷卻 2s），記錄 time_starttransfer + time_total
+7. 停止 dev server + Mockoon
+8. 回傳 raw timing data
+```
+
+> **注意**：Phase 2 和 Phase 3 不可平行跑（會互相干擾 CPU/memory），必須 sequential。
+> Mockoon 每次用不同 port 或等上一個停止後再啟動。
+
+**Phase 4 — 比較與報告：**
+
+主 agent 收集兩邊數據後：
+
+```
+## 效能對比結果
+
+| 頁面 | Before (avg TTFB) | After (avg TTFB) | Delta | 改善% |
+|------|-------------------|-------------------|-------|-------|
+| Category | x.xxxs | x.xxxs | -x.xxxs | ↓ xx% |
+| Product  | x.xxxs | x.xxxs | -x.xxxs | ↓ xx% |
+
+Before: <base-branch> @ <commit>
+After: <feature-branch> @ <commit>
+環境: worktree 隔離 + Mockoon CLI proxy
+測量: 5 次取平均，每次冷卻 2s
+```
+
+### 測量規範
+
+- 至少 **5 次**測量，每次間隔 **2 秒**冷卻
+- 丟棄第 1 次（cold start），用第 2-5 次取平均（warm avg）
+- 記錄 `time_starttransfer`（TTFB）和 `time_total`
+- 測完後停止 Mockoon CLI 和 dev server
 
 **1e. Start verification environment + health check + launch ALL sub-agents in parallel:**
 
@@ -515,6 +621,8 @@ Run through these checks based on what applies (supplements the JIRA test plan f
 ✅ SSR init route 單元測試 → PROJ-1008 完成（自動補寫）
 ── JIRA Test Plan: 7/8 passed, 1 blocked
 ── 需人工介入: 0 項
+── Epic-scope（不在本 ticket 驗證範圍）:
+   ⏭️ 效能驗證：整體 TTFB < 0.8s → 待 GT-483 Epic 完成後驗證
 ── Conclusion: BLOCKED — 1 項需解決後重跑 ─────
 ```
 

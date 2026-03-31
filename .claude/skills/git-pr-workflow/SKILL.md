@@ -316,6 +316,16 @@ AI 從 diff 自動產生 PR 描述。
 - Don't: 貼上內部機密或長串聊天紀錄
 - Don't: 找不到 AC 時硬塞空的 AC Coverage section — 直接跳過不留空佔位
 
+## Post-PR: Feature Branch PR Gate
+
+Task PR 建立完成後，執行 `references/feature-branch-pr-gate.md` 的偵測邏輯：
+
+1. 檢查本 PR 的 `baseRefName` — 若指向 feature branch（非 develop/main），觸發 gate check
+2. 查詢同 feature branch 下所有 task PR 是否全部 merged
+3. 若全部 merged + 尚無 feature → develop PR → 自動建立
+
+此步驟靜默執行 — 條件成熟就建，條件不成熟就跳過，不打斷使用者。
+
 ## Prerequisites
 
 * `gh` CLI 已安裝並認證

@@ -28,6 +28,7 @@ If the input could match multiple skills (e.g., "幫我處理這個 PR" could be
 | Work on a ticket | "做", "work on" + ticket | `work-on` |
 | Fix a bug | "修 bug", "fix bug" + ticket | `fix-bug` |
 | Break down an epic | "拆單", "拆解", "epic breakdown" | `epic-breakdown` |
+| Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `epic-status` |
 | Create/open a PR | "開 PR", "create PR", "發 PR" | `git-pr-workflow` |
 | Daily standup | "standup", "站會", "daily" | `standup` |
 | Sprint planning | "sprint planning", "sprint 規劃" | `sprint-planning` |

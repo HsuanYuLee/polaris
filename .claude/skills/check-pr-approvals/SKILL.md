@@ -397,6 +397,16 @@ mcp__claude_ai_Slack__slack_send_message
 - 已為哪些 PR 加上 `👀 need review` label（列出 PR 編號）
 - 已發送 Slack 訊息到哪個 channel
 
+### 10. Feature Branch PR Gate
+
+掃描過程中若發現有 PR 已被 merge（`state: MERGED`），對每個 merged PR 執行 `references/feature-branch-pr-gate.md` 的偵測邏輯：
+
+1. 檢查 merged PR 的 `baseRefName` — 若指向 feature branch（非 develop/main），觸發 gate check
+2. 查詢同 feature branch 下所有 task PR 是否全部 merged
+3. 若全部 merged + 尚無 feature → develop PR → 自動建立
+
+此步驟靜默執行，建立後在回報中一併告知使用者。
+
 ## Do
 
 - 用 `gh api` 查 reviews（避免 `gh pr view` 的 encoding 問題）
