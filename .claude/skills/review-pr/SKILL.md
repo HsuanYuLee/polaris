@@ -642,15 +642,16 @@ slack_send_message({
 
 當使用者提到 re-review、已修正、請重新 review 時，切換到 re-review 模式：
 
-1. 用 GitHub API 讀取上一輪的 review comments
-2. 讀取作者對每個 comment 的回覆
-3. 逐一確認每個 comment 的處理狀況：
+1. **重新取得最新 diff**（`gh api repos/{owner}/{repo}/pulls/{number}/files`）— 作者可能已 push 修正，必須用最新 diff 判斷問題是否已修正，不可沿用首次 review 時的快取 diff
+2. 用 GitHub API 讀取上一輪的 review comments
+3. 讀取作者對每個 comment 的回覆
+4. 逐一確認每個 comment 的處理狀況（**對照最新 diff 判斷**）：
    - 已修正 → 回覆確認 ✅
    - 作者回覆不調整並附理由 → **評估理由是否合理**，合理則接受並回覆認同，不合理則在該 comment thread 留言說明
    - 未修正也未回覆 → 標記未修正 ❌
    - ⚠️ **回覆前先檢查該 comment thread 是否已有自己（reviewer）的確認回覆**，若已回覆過且狀況未變則跳過，避免重複留言
-4. 只有真正新發現的問題才留新的 inline comment
-5. **判斷是否 re-approve**：
+5. 只有真正新發現的問題才留新的 inline comment
+6. **判斷是否 re-approve**：
    - 上一輪所有 must-fix 皆已修正（或理由合理已接受）**且** 本輪無新的 must-fix → 提交 **APPROVE** review
    - 仍有未解決的 must-fix 或本輪發現新的 must-fix → 提交 **REQUEST_CHANGES**
    - 上一輪僅有 should-fix / nit 且皆已處理 → 提交 **APPROVE**
