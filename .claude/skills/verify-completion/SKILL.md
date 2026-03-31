@@ -409,6 +409,51 @@ mcp__claude_ai_Atlassian__addCommentToJiraIssue
 
 ---
 
+## 1.6. Goal-Backward Verification
+
+Before running specific test items, step back and verify the **goal** of the change — not just whether tasks were completed.
+
+**Principle**: Start from the observable outcome the user/ticket expects, derive what must be true for that outcome to hold, then verify bottom-up. This catches "all tasks done but goal not met" situations (e.g., component created but never imported, API endpoint exists but no route wired, store action defined but never called).
+
+**1.6a. Derive must-haves from the ticket goal:**
+
+Read the JIRA ticket's summary and AC. For each AC, identify:
+
+| Layer | Question | Example |
+|-------|----------|---------|
+| **Exists** | Does the artifact exist? | File created, function defined, route registered |
+| **Substantive** | Is it real, not a stub? | Function has logic (not just `// TODO`), component renders content |
+| **Wired** | Is it connected to the system? | Component imported and used in a page, API route registered in router, store action called from component |
+| **Flowing** | Does data actually flow through it? | API response reaches the UI, user input reaches the store, error propagates to error boundary |
+
+**1.6b. Quick wiring check:**
+
+For each artifact created or modified in this task, verify the wiring layer:
+
+```bash
+# Example: check if a new composable is actually imported somewhere
+grep -r "useNewComposable" <project>/src/ --include="*.vue" --include="*.ts" | head -5
+
+# Example: check if a new API route is registered
+grep -r "/api/new-endpoint" <project>/server/ --include="*.ts" | head -5
+```
+
+**1.6c. Report gaps:**
+
+If any artifact fails the wiring or flowing check, report it **before** running detailed test items:
+
+```
+⚠️ Goal-backward check found gaps:
+- composables/useProductPrice.ts exists but is not imported in any component
+- server/api/product/[id].get.ts exists but /api/product/ returns 404 (route not registered)
+
+These must be fixed before proceeding with detailed verification.
+```
+
+Gaps found here block the verification — return to implementation to fix wiring before spending time on detailed test items.
+
+---
+
 ## 2. Determine Verification Strategy
 
 Based on the type of change, pick the appropriate verification method:

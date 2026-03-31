@@ -492,8 +492,24 @@ RemoteTrigger create:
   model: claude-sonnet-4-6
   allowed_tools: Read, Glob, Grep, WebSearch, WebFetch, mcp__claude_ai_Slack__slack_send_message
   sources: [{workspace_repo_url}]
+  mcp_connections: [{connector_uuid: "Slack connector UUID", name: "Slack", url: "https://mcp.slack.com/mcp"}]
   prompt: {assembled prompt from Step S3}
 ```
+
+**Slack connector 注意事項：**
+- `mcp_connections` 必須包含 Slack connector，否則 remote agent 無法發送訊息
+- Slack connector 需要使用者在 Anthropic 帳號中**至少授權過一次**。首次使用的使用者必須先手動授權：
+  ```
+  ⚠ 首次設定需要手動授權 Slack connector（只需一次）：
+
+  1. 到 claude.ai/code/scheduled
+  2. 找到剛建立的 daily-learning-scan trigger
+  3. 點 Schedule 區塊 → Connectors → Add connector → 選 Slack
+  4. 完成 OAuth 授權 → Save
+
+  授權一次後，之後的 setup 都會自動帶上，不需要再手動設定。
+  ```
+- **永遠顯示此提示**（無論 trigger 建立是否成功帶上 `mcp_connections`），因為無法偵測使用者是否已授權過
 
 4. Confirm trigger created, show trigger ID and next run time
 

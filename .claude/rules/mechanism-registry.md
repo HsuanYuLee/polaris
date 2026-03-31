@@ -27,6 +27,7 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `plan-first-large-scope` | > 3 files or arch decision → plan before code | Sub-agent producing 4+ file changes without prior plan | High |
 | `model-tier-selection` | sonnet for explore/execute, haiku for JIRA batch ops | JIRA batch sub-agent using sonnet; explore sub-agent with no model specified | Low |
 | `worktree-for-batch-impl` | Batch mode Phase 2 sub-agents use `isolation: "worktree"` | Parallel implementation sub-agents without worktree isolation | Medium |
+| `subagent-completion-envelope` | All sub-agents must return Status/Artifacts/Summary envelope | Sub-agent return without structured Status line | Medium |
 
 ### Feedback & Memory (source: `rules/feedback-and-memory.md`)
 
@@ -45,6 +46,7 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `max-five-consecutive-reads` | Max 5 Read/Grep calls before conclusion or delegation | 6+ consecutive Read/Grep without intervening conclusion | High |
 | `no-file-reread` | Don't read same file > 2 times unless modified | Same file path in > 2 Read calls in one conversation | Medium |
 | `post-compression-company-context` | After compression, re-confirm active company | Work continues post-compression without company context check | High |
+| `proactive-context-check-at-20` | After 20+ tool calls without milestone, proactively save state and assess delegation | Long conversation without milestone summary or delegation assessment | Medium |
 
 ### Bash Execution (source: `rules/bash-command-splitting.md`)
 

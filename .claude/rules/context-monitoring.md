@@ -41,7 +41,26 @@ The active company context (set by `/use-company`, JIRA ticket routing, or user 
 - **After compression**: if the active company is no longer visible in context, check the todo list first, then ask the user with a specific prompt: "I've lost track of the active company context after compression. You were working on [Company A / Company B / ?] — which should I resume with? (You can also run `/use-company` to set it.)" — never guess or default silently
 - **Multi-company sessions**: when switching companies mid-conversation, record the switch in a todo item so it survives compression
 
-### 5. Segment Large Tasks
+### 5. Runtime Context Awareness
+
+The rules above are self-enforced by the Strategist. For additional protection, a runtime monitoring mechanism can detect context pressure:
+
+**Current mechanism** (prompt-level):
+- The Strategist follows the rules in §1-4 above through self-discipline
+- Post-task audit (see `mechanism-registry.md`) catches violations after the fact
+
+**Future enhancement** (hook-level, tracked in backlog):
+- A `PostToolUse` hook could monitor context window usage percentage
+- At 35% remaining → inject advisory warning ("consider wrapping up current phase")
+- At 25% remaining → inject urgent warning ("save state and delegate remaining work")
+- This would catch context rot that self-monitoring misses in long sessions
+
+**Interim mitigation**: When a conversation has exceeded 20 tool calls without completing a major milestone, the Strategist should proactively:
+1. Write a milestone summary of progress so far
+2. Assess whether remaining work should be delegated to a sub-agent
+3. If the conversation is approaching a natural break, suggest the user start a fresh session
+
+### 6. Segment Large Tasks
 
 When a task is expected to produce many tool calls (> 30):
 - Create a todo list to break the work into phases before starting

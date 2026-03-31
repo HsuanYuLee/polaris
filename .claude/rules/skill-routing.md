@@ -37,6 +37,24 @@ If the input could match multiple skills (e.g., "幫我處理這個 PR" could be
 | Validate mechanisms | "validate mechanisms", "檢查機制" | `validate-mechanisms` |
 | Validate isolation | "validate isolation", "檢查隔離" | `validate-isolation` |
 
+## Complexity Tier — Route by Task Size
+
+Before invoking a skill, assess the task's complexity and route to the appropriate execution depth. This prevents small tasks from incurring full-workflow overhead, and large tasks from skipping necessary planning.
+
+| Tier | Signal | Execution Depth | Example |
+|------|--------|----------------|---------|
+| **Fast** | ≤ 3 lines, 1 file, no architecture decision | Direct edit in main session, no skill needed | Fix a typo, update a config value, add an import |
+| **Standard** | Single skill handles end-to-end | Invoke the matching skill normally | Estimate a ticket, review a PR, fix a bug |
+| **Full** | > 3 files affected, or architectural decision required, or cross-module changes | Skill + plan-first sub-agent (explore → plan → implement → verify) | New feature spanning multiple components, large refactor |
+
+### How to Assess
+
+1. **Check file count**: if the change touches > 3 files → Full tier
+2. **Check decision weight**: if it requires choosing between approaches (new component vs extend existing, new API vs modify existing) → Full tier
+3. **Otherwise** → Standard (let the skill handle it)
+
+The Fast tier is implicit in CLAUDE.md's delegation table ("Small edit ≤ 3 lines, 1 file → Do it directly"). This section makes the full spectrum explicit.
+
 ## Anti-Patterns
 
 1. **Reading Slack/JIRA before invoking skill** — the skill handles data fetching

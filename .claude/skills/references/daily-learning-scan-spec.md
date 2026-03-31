@@ -27,19 +27,24 @@ Scanner 發送一則 Slack 訊息，包含所有文章：
 ```
 📚 Daily Learning Queue — {YYYY-MM-DD}
 
-### 1. {Article Title}
-- *URL*: {url}
-- *Category*: {category}
-- *Tags*: {tag1}, {tag2}
-- *Relevant Repos*: {repo1}, {repo2} 或 all
-- *Summary*: {一段話摘要}
+*1. {Article Title}*
+• URL: {url}
+• Category: {category}
+• Tags: {tag1}, {tag2}
+• Relevant Repos: {repo1}, {repo2} 或 all
+• Summary: {一段話摘要}
 
-### 2. {Article Title}
+*2. {Article Title}*
 ...
 
----
-_Scanned {N} sources, selected {M} articles._
+────────────────────
+Scanned {N} sources, selected {M} articles.
 ```
+
+**Slack 格式注意事項：**
+- 禁用 `---`（horizontal rule）— Slack 會當成 invalid block 拒絕發送
+- 用 `────────────────────`（unicode box drawing）代替分隔線
+- 用 `*bold*` 而非 `### heading`（Slack mrkdwn 不支援 heading）
 
 若無文章通過篩選：`📚 Daily Learning Queue — {date}: No new articles found today.`
 
