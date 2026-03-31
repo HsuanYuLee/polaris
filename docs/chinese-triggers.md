@@ -60,7 +60,7 @@
 | **systematic-debugging** — 系統化除錯 | 找 bug、為什麼壞了、查問題、這個怎麼回事、根因、排查 | debug, why is this failing, investigate, root cause | 結構化除錯流程：先調查根因再修，避免猜測式修正 |
 | **unit-test** — 寫單元測試 | 寫測試、補測試、怎麼測、測試怎麼寫 | write test, add test, mock imports, test store | 專案感知的單元測試指南，含 mock patterns 與最佳實踐（自動偵測 Jest/Vitest） |
 | **unit-test-review** — 審查測試品質 | 測試審查、review 測試、測試品質、檢查測試品質 | unit test review, review tests, check test quality, review unit test | 審查現有單元測試品質，產出評分報告與缺漏分析（僅審查，不寫新測試） |
-| **learning** — 學習與研究 | 學習、研究一下、借鑑、看看這個、學習 PR、每日學習、消化 queue、設定學習、更新學習主題 | learn, research this, learn from PR, daily learning, digest queue, learning queue, learning setup, scanner 設定 | 四種模式：研究外部 URL/repo、從已合併 PR 萃取 review patterns、批次消化學習 queue、設定學習主題與 scanner（Setup 模式） |
+| **learning** — 學習與研究 | 學習、研究一下、借鑑、看看這個、學習 PR、每日學習、消化 queue、設定學習、更新學習主題、掃 review、批次學習、掃歷史 PR、補齊 review lessons | learn, research this, learn from PR, daily learning, digest queue, learning queue, learning setup, scanner 設定, batch learn, scan PR history, backfill lessons | 五種模式：研究外部 URL/repo、從已合併 PR 萃取 review patterns、批次消化學習 queue、設定學習主題與 scanner（Setup 模式）、批次掃描歷史 PR 補齊 review-lessons（Batch 模式） |
 
 ---
 

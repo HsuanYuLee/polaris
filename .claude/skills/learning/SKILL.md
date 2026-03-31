@@ -1,29 +1,34 @@
 ---
 name: learning
 description: >
-  Four modes: (1) External — researches URLs, repos, articles and analyzes applicability to
+  Five modes: (1) External — researches URLs, repos, articles and analyzes applicability to
   our workspace. (2) PR — extracts review patterns from merged PRs into review-lessons.
   (3) Queue — processes daily learning queue articles in batch.
   (4) Setup — configure or update the daily learning scanner (RemoteTrigger).
+  (5) Batch — scans a repo's full PR history, finds unextracted review comments, and
+  batch-fills review-lessons. Automatically triggers graduation afterward.
   Trigger: "學習", "learn", "研究一下", "research this", "借鑑", "看看這個",
   "學習 PR", "learn from PR", "每日學習", "daily learning", "消化 queue",
   "digest queue", "learning queue", "設定學習", "learning setup", "更新學習主題",
+  "掃 review", "batch learn", "批次學習", "掃歷史 PR", "scan PR history",
+  "補齊 review lessons", "backfill lessons",
   or user shares a URL asking to analyze/evaluate it. Do NOT trigger
   for internal codebase exploration (use Explore subagent directly), JIRA ticket analysis (use
   work-on), or PR review (use review-pr for reviewing someone else's code — this skill
   is for LEARNING from already-merged PRs, not reviewing open ones).
 metadata:
   author: Polaris
-  version: 1.4.0
+  version: 1.5.0
 ---
 
 # learning
 
-Four modes of learning:
+Five modes of learning:
 - **External mode** — Research external content (articles, repos, talks) and distill actionable insights for our workspace
 - **Queue mode** — Process articles from the daily learning queue, batch-analyze, and archive
 - **PR mode** — Learn from merged PRs by extracting review patterns into review-lessons (feeds into the existing graduation mechanism)
 - **Setup mode** — Configure or update the daily learning scanner schedule and topic preferences
+- **Batch mode** — Scan a repo's full merged-PR history, skip already-extracted PRs, batch-extract review-lessons from the rest, then trigger graduation
 
 > **首次使用？** 如果你還沒設定每日學習掃描，輸入 `設定學習` 或 `learning setup` 開始設定。設定後每天自動推薦文章到 Slack。
 
@@ -39,9 +44,11 @@ Determine which mode based on the user's input:
 | External URL, repo, article | **External mode** | `看看這個 github.com/...`, `研究這篇文章` |
 | Mentions "每日學習", "今天有什麼可以學的", "看看今天的推薦", "有新文章嗎", "讀文章", "daily learning", "queue", "消化", or bare "學習" without URL/PR context | **Queue mode** | `每日學習`, `今天有什麼可以學的`, `看看今天的推薦`, `有新文章嗎`, `讀文章` |
 | Mentions "設定學習", "learning setup", "更新學習主題", "update learning topics", "scanner 設定", "調整掃描", "learning scanner" | **Setup mode** | `設定學習`, `learning setup`, `更新學習主題` |
+| Mentions "掃 review", "batch learn", "批次學習", "掃歷史 PR", "scan PR history", "補齊 review lessons", "backfill lessons" | **Batch mode** | `掃 b2c-web 的 review`, `batch learn member-ci`, `補齊 review lessons` |
 | Ambiguous | Ask the user | `學習一下` without context |
 
 **PR mode** → jump to [PR Learning Flow](#pr-learning-flow)
+**Batch mode** → jump to [Batch Learning Flow](#batch-learning-flow)
 **Queue mode** → jump to [Queue Learning Flow](#queue-learning-flow)
 **Setup mode** → jump to [Setup Learning Flow](#setup-learning-flow)
 **External mode** → continue to Step 1 below
@@ -702,3 +709,137 @@ If count < 15, mention the current count: "目前 {repo} 有 X 條 review-lesson
 - **User wants to learn from their own PRs**: That's fine — same flow. Their own PRs may have received valuable feedback from reviewers
 - **Review comments are in a mix of languages**: Extract the pattern in whichever language makes it clearest (Chinese or English), matching the style of existing review-lessons in that repo
 - **Reviewer disagreement** (reviewer A says X, reviewer B says Y): Skip the conflicting pattern, or note both sides and let the user decide which to keep
+
+---
+
+# Batch Learning Flow
+
+Scan a repo's merged-PR history, automatically find PRs whose review comments haven't been extracted yet, batch-extract them into review-lessons, then trigger graduation. This is the "backfill" mode — it closes the gap when review-lessons weren't collected in real time (e.g., PRs fixed manually without `fix-pr-review`, or the repo was onboarded after months of existing PRs).
+
+### Difference from PR mode
+
+| | PR mode | Batch mode |
+|---|---|---|
+| **Who picks the PRs** | User specifies PR numbers, person, or time range | Automatic — all merged PRs with unextracted review comments |
+| **Goal** | Study specific PRs for learning | Fill the review-lessons pipeline so graduation can fire |
+| **Dedup** | Semantic only (Step P3) | Layer 1 (Source URL) + Layer 2 (semantic) |
+| **Post-extraction** | Graduation check (count >= 15) | Graduation with Step 2.5 semantic grouping (always) |
+
+## Step B1: Resolve Target Repos
+
+Determine which repos to scan:
+
+| Input | Resolution |
+|---|---|
+| Specific repo name (`掃 b2c-web 的 review`) | Target that repo |
+| No repo specified | Read workspace config (`workspace-config.yaml` → `projects` block), scan all configured repos |
+| Multiple repos (`掃所有 repo`) | Process each repo sequentially |
+
+For each repo, resolve the `{org}/{repo}` from workspace config or git remote.
+
+### Time Range
+
+Default: **3 months** (`merged:>YYYY-MM-DD` where date = today - 90 days).
+
+The user can override: `掃 b2c-web 最近半年` → 6 months. Cap at 12 months to avoid excessive API calls.
+
+## Step B2: Collect Already-Extracted Source PRs
+
+For each repo, read all files in `{base_dir}/<repo>/.claude/rules/review-lessons/*.md`.
+
+Extract every `Source:` line and collect all PR URLs/numbers into a set. These are the PRs that have already been processed — they will be skipped entirely (Layer 1 dedup).
+
+## Step B3: Find Candidate PRs
+
+Query merged PRs within the time range. Two passes to cover both authored and reviewed PRs:
+
+1. **Authored by the user**: `gh search prs --repo {org}/{repo} --author @me --state closed --merged --limit 30 --json number,title,url,closedAt`
+2. **Reviewed by the user**: `gh search prs --repo {org}/{repo} --reviewed-by @me --state closed --merged --limit 20 --json number,title,url,closedAt`
+
+Merge both lists (deduplicate by PR number). Remove any PR already in the Layer 1 set from Step B2.
+
+**Cap**: 30 PRs per repo. If more remain after dedup, take the 30 most recent and inform the user.
+
+## Step B4: Filter PRs With Review Comments
+
+For each candidate PR, check if it has qualifying review comments:
+
+```
+gh api repos/{org}/{repo}/pulls/{number}/comments --paginate
+```
+
+Filter out:
+- Comments by the PR author
+- Bot comments (changeset-bot, codecov-commenter, GitHub Actions)
+- Keep: human reviewer comments and code review bots (Copilot, CodeRabbit)
+
+If 0 qualifying comments after filtering → skip, no lesson to extract.
+
+Report progress: `掃描中... {N}/{total} PRs 有可萃取的 review comments`
+
+## Step B5: Batch Extract
+
+For PRs with qualifying comments, spawn sub-agents to extract in parallel. Reuse the exact same sub-agent prompt from PR mode Step P2, with the same extraction criteria (what to extract / what to skip).
+
+**Parallelism**: maximum 5 sub-agents at a time. If more than 5 PRs, process in batches of 5.
+
+Each sub-agent:
+1. Reads review comments + review summaries
+2. Extracts generalizable patterns
+3. Returns structured JSON (same format as PR mode)
+
+## Step B6: Deduplicate & Write
+
+Collect all extracted patterns from all sub-agents.
+
+**Layer 2 dedup** (same as PR mode Step P3):
+- Compare against existing review-lessons
+- Compare against main rule files
+- Skip semantically identical patterns
+- Append new angles to existing topic files
+
+Write to `{base_dir}/<repo>/.claude/rules/review-lessons/` using the same format as PR mode Step P4.
+
+### Reverse Sync
+
+```bash
+{base_dir}/polaris-sync.sh --reverse {project-name}
+```
+
+## Step B7: Summary & Graduation
+
+### Summary output
+
+```markdown
+## Batch 學習摘要 — {repo}
+
+**掃描範圍**：最近 {N} 個月 merged PRs
+**候選 PR**：{total found} 個（已萃取 {skipped} 個跳過 → 實際掃描 {scanned} 個）
+**有 review comments**：{with_comments} 個
+**新增 lessons**：{new_count} 條
+
+### 新增明細
+| Topic | Rule | Source PR |
+|-------|------|-----------|
+| ... | ... | #123 |
+
+### 跳過的 PR（已在 review-lessons 中）
+{count} 個 — Layer 1 dedup
+```
+
+### Auto-trigger graduation
+
+Batch mode always triggers graduation after extraction (unlike PR mode which only checks the count threshold). The rationale: batch mode is specifically designed to fill the pipeline, so graduation should run immediately to maximize the yield.
+
+```
+Invoke review-lessons-graduation for {repo} (manual trigger — includes Step 2.5 semantic grouping).
+```
+
+If scanning multiple repos, trigger graduation for each repo after its extraction completes.
+
+## Edge Cases (Batch Mode)
+
+- **No unextracted PRs found**: Report "所有 merged PRs 的 review comments 都已萃取完畢，{repo} 的 review-lessons 管線是完整的。" and skip graduation
+- **Rate limiting**: If `gh api` hits rate limits, pause and retry with exponential backoff. Report to user if wait exceeds 30 seconds
+- **Large repos (> 100 merged PRs in range)**: The 30-PR cap applies. Tell the user: "共 {N} 個未萃取的 PR，本次掃描前 30 個。再跑一次 `batch learn {repo}` 可以繼續處理剩餘的。"
+- **Mixed repos**: If scanning all configured repos, report per-repo summaries and a final aggregate
