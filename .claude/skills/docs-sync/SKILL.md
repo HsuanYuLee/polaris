@@ -44,6 +44,10 @@ Scan for discrepancies between skills and docs:
 2. **Read `docs/chinese-triggers.md`** — compare trigger keywords table against skill frontmatter
 3. **Read `README.md`** — check skill lists in each Pillar section
 4. **Read `docs/workflow-guide.md`** — check skill references and workflow steps
+5. **Scan mermaid diagrams in `docs/workflow-guide.md`** — extract all node IDs and skill names from `flowchart` code blocks. Compare against current skill catalog:
+   - Skills in diagrams but no longer in catalog → flag for removal
+   - Skills in catalog that belong in the dev flow but missing from diagrams → flag for addition
+   - Standalone/config skills (`init`, `use-company`, `validate-*`, `which-company`) are intentionally excluded from diagrams — do not flag
 
 For each file, identify:
 - New skills not documented
@@ -51,6 +55,7 @@ For each file, identify:
 - Changed trigger keywords or descriptions
 - Version mismatches
 - Workflow step changes
+- **Mermaid diagram nodes out of sync** with skill catalog
 
 Present the diff report:
 
@@ -88,9 +93,8 @@ Update in this order:
 - Only if a skill was added/removed from a pillar category
 
 ### 2c. `docs/workflow-guide.md`
-- Add new workflow-relevant skills as steps
-- Only if the skill is part of the development flow (not standalone tools)
-- Match existing format: Step N with emoji markers, trigger keyword callout
+- **Mermaid diagrams**: add/remove nodes and edges in both diagrams (Ticket Lifecycle + Skill Orchestration) to match current skill catalog. Assign new nodes to the correct style class (orchestrator, quality, review, planning, standalone, internal). Update the connectivity check prose below Diagram 2
+- **Prose steps**: add new workflow-relevant skills as steps. Only if the skill is part of the development flow (not standalone tools). Match existing format: Step N with emoji markers, trigger keyword callout
 
 ### 2d. `docs/quick-start-zh.md`
 - Update if Quick Start examples or pillar summaries changed

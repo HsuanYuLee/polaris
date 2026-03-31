@@ -34,7 +34,7 @@ flowchart TD
     subgraph feature["📋 Feature / Refactor Path<br/><code>work-on</code>"]
         F1["🤖👤 Refinement (optional)<br/><code>refinement</code>"]
         F2["🤖👤 Breakdown & Estimation<br/><code>epic-breakdown</code><br/>+ scope-challenge loop"]
-        F3["🤖👤 SA/SD (optional)<br/><code>sasd-review</code>"]
+        F3["🤖👤 SA/SD (optional)"]
         F4["🤖 Feasibility Check<br/>Implementation ↔ Estimation"]
     end
 
@@ -146,7 +146,6 @@ flowchart LR
     EB["epic-breakdown"]
     JE["jira-estimation<br/>(internal)"]
     SC["scope-challenge"]
-    SA["sasd-review"]
 
     %% ── Dev Skills ──
     BC["jira-branch-checkout"]
@@ -171,12 +170,21 @@ flowchart LR
     SP["sprint-planning"]
     SU["standup"]
 
+    %% ── Epic Tracking ──
+    ME["my-epics<br/>(triage)"]
+    ES["epic-status<br/>(gap closer)"]
+
+    %% ── Context Router ──
+    NX["next<br/>(auto-route)"]
+
     %% ── Other ──
     SDB["systematic-debugging"]
     UT["unit-test"]
     UTR["unit-test-review"]
     LRN["learning"]
     WTP["wt-parallel"]
+    DS["docs-sync"]
+    WR["worklog-report"]
 
     %% ── Orchestrator routes ──
     WO -->|estimate| JE
@@ -215,8 +223,23 @@ flowchart LR
     FPR -->|lesson extraction| RLG
     CPA -->|lesson extraction| RLG
 
+    %% ── Context router ──
+    NX -.->|work on ticket| WO
+    NX -.->|fix bug| FB
+    NX -.->|fix review| FPR
+    NX -.->|check approvals| CPA
+    NX -.->|epic progress| ES
+
+    %% ── Epic tracking ──
+    ME -.->|pick ticket| WO
+    ES -->|gap: needs dev| WO
+    ES -->|gap: fix review| FPR
+    ES -->|gap: needs approval| CPA
+    ES -->|gap: verify| VC
+
     %% ── Scrum chain ──
     RF -.-> SP
+    SU -.->|triage rank| ME
 
     %% ── Styling ──
     classDef orchestrator fill:#fff3e0,stroke:#ff9800,color:#000,stroke-width:2px
@@ -229,15 +252,18 @@ flowchart LR
     class WO,FB orchestrator
     class QC,VC,TDD quality
     class RP,RI,CPA,FPR,RLG review
-    class RF,EB,SC,SA,SP planning
+    class RF,EB,SC,SP planning
     class JE internal
-    class SU,SDB,UT,UTR,LRN,WTP standalone
+    class NX,ME,ES orchestrator
+    class SU,SDB,UT,UTR,LRN,WTP,DS,WR standalone
 ```
 
 **Connectivity check:**
 - Every skill has at least one inbound edge (invoked by another skill) or is a direct user entry point
-- `standup`, `systematic-debugging`, `learning`, `wt-parallel`, `unit-test-review` are standalone skills — triggered directly by the user, not part of the main chain
-- `sasd-review` is optional; user decides whether to run it
+- `next` is a meta-router — auto-determines and invokes the correct next skill based on context (todo, git branch, JIRA status, PR status)
+- `my-epics` triages assigned Epics; feeds priority ranking into `standup` TDT section
+- `epic-status` tracks Epic progress and auto-routes gaps to the appropriate skill
+- `standup`, `systematic-debugging`, `learning`, `wt-parallel`, `unit-test-review`, `docs-sync`, `worklog-report` are standalone skills — triggered directly by the user, not part of the main chain
 
 ---
 
