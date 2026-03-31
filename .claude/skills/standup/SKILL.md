@@ -201,9 +201,27 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 2. 如果仍然為空，主動詢問使用者「明天預計做什麼？」，不要靜默跳過 TDT 區塊
 
 TDT 的排序邏輯：
-1. P0 / Highest priority 最前
-2. 進行中（IN DEVELOPMENT）優先於待開始（開放 / 待辦事項）
-3. 有依賴關係的標註 `↳ unblocks TICKET-KEY`
+1. **若 `{company}/.epic-triage.json` 存在且為今天或昨天的**：按 triage `rank` 排序 TDT，並附上進度燈號
+2. 無 triage state 時 fallback：P0 / Highest priority 最前
+3. 進行中（IN DEVELOPMENT）優先於待開始（開放 / 待辦事項）
+4. 有依賴關係的標註 `↳ unblocks TICKET-KEY`
+
+**Epic Triage 連動**（有 `.epic-triage.json` 時）：
+
+讀取 triage state，對每個 TDT 項目比對 triage 時的 `progress` 和今天的實際狀態：
+- 實際進度超過 triage 預期 → 🟢 超前（例：triage 時 `in_dev`，今天已 `pr_open`）
+- 實際進度 = 預期 → ⚪ 正常
+- 實際進度落後（同狀態超過 2-3 天）→ 🔴 卡住
+
+進度比較順序：`not_started` < `in_dev` < `pr_open` < `pr_blocked` < `pr_approved` < `pr_merged`
+
+TDT 輸出範例（有 triage state 時）：
+```
+* **TDT – Today's Tasks**
+  * 🟢 GT-483 [CWV] TTFB 優化 — PR approved, 待 merge（超前）
+  * ⚪ GT-478 [CWV] JS Bundle 瘦身 — 開發中
+  * ⚪ GT-495 [SEO] 首頁結構化資料 — 待估點
+```
 
 **Sprint context**：在 TDT 標題後附上 sprint 剩餘天數和剩餘點數（從 JIRA board 或使用者口述取得）。這是 nice-to-have，如果無法自動取得就跳過或問使用者。
 
