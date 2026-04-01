@@ -336,6 +336,7 @@ Polaris draws inspiration from these open-source projects:
 | [superpowers](https://github.com/obra/superpowers) | Jesse Vincent | Agentic skills framework, spec-first development, sub-agent task division |
 | [ab-dotfiles](https://github.com/AlvinBian/ab-dotfiles) | Alvin Bian | AI-driven dev environment management, `/init` smartSelect interaction, audit trail |
 | [get-shit-done](https://github.com/gsd-build/get-shit-done) | TÂCHES | Context engineering patterns, goal-backward verification, sub-agent completion envelope, complexity tier routing |
+| [gstack](https://github.com/garrytan/gstack) | Garry Tan | PreToolUse safety hooks, decision classification (mechanical/taste/user-challenge), self-regulation scoring, anti-rationalization verification gates |
 
 ## License
 

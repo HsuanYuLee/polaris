@@ -337,6 +337,7 @@ Polaris 從以下開源專案汲取靈感：
 | [superpowers](https://github.com/obra/superpowers) | Jesse Vincent | Agentic 技能框架、spec-first 開發、sub-agent 任務分工 |
 | [ab-dotfiles](https://github.com/AlvinBian/ab-dotfiles) | Alvin Bian | AI 驅動的開發環境管理、`/init` smartSelect 互動、audit trail |
 | [get-shit-done](https://github.com/gsd-build/get-shit-done) | TÂCHES | Context engineering 模式、goal-backward 驗證、sub-agent completion envelope、complexity tier 路由 |
+| [gstack](https://github.com/garrytan/gstack) | Garry Tan | PreToolUse 安全 hook、決策分類框架（mechanical/taste/user-challenge）、self-regulation scoring、anti-rationalization 驗證鐵律 |
 
 ## 授權
 

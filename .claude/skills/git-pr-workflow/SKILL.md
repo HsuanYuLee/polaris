@@ -211,6 +211,17 @@ feat: [JIRA-KEY] 簡短描述
 
 3. `git add` + commit changeset
 
+#### Changeset 清理（Inherited Changeset 檢查）
+
+新增 changeset 後，掃描 PR diff 是否包含不屬於本 PR 的 changeset：
+
+1. `git diff origin/{baseRefName} --name-only -- .changeset/` 列出所有 changeset 檔案
+2. 讀取每個 changeset 內容，比對本 PR 的 ticket key
+3. 不匹配的 changeset → `git rm` 刪除（來自 dependency branch 的繼承）
+4. 確保最終只有一個 changeset 且匹配本 PR ticket key
+
+**為什麼**：task branch 若從另一個 task branch 分出（dependency），會繼承 parent 的 changeset，導致 PR diff 出現多個不相關的 changeset。每個 PR 只應有自己的一個 changeset。
+
 ### Step 7：Open PR
 
 1. 讀取 `.github/pull_request_template.md` 取得模板結構

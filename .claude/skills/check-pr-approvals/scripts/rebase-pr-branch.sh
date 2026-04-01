@@ -52,6 +52,91 @@ skip_count=0
 # 記住起始目錄
 ORIGINAL_DIR="$(pwd)"
 
+# --- Cascade Rebase ---
+# 若 task PR 的 base 是 feature branch（非 develop/main/master），先 rebase feature branch 到其 upstream
+# 避免 task PR diff 膨脹（包含 feature branch 落後 develop 的所有差異）
+ORG="${ORG:-}"
+cascade_processed=""
+
+if [ -n "$ORG" ]; then
+  for row in $(echo "$prs" | jq -r '.[] | @base64'); do
+    _jq_cascade() { echo "$row" | base64 --decode | jq -r "$1"; }
+    repo=$(_jq_cascade '.repo')
+    base=$(_jq_cascade '.base')
+
+    # 只處理非 develop/main/master 的 base branch
+    case "$base" in
+      develop|main|master) continue ;;
+    esac
+
+    # 每個 (repo, base) 只處理一次
+    cascade_key="${repo}:${base}"
+    if echo "$cascade_processed" | grep -qF "$cascade_key"; then
+      continue
+    fi
+    cascade_processed="$cascade_processed $cascade_key"
+
+    repo_dir="$WORK_DIR/$repo"
+    if [ ! -d "$repo_dir" ]; then
+      continue
+    fi
+
+    # 查詢 feature branch 的 upstream（從 open PR 取 baseRefName）
+    upstream=$(gh pr list --repo "$ORG/$repo" --head "$base" --state open \
+      --json baseRefName --jq '.[0].baseRefName' 2>/dev/null || echo "")
+
+    if [ -z "$upstream" ] || [ "$upstream" = "null" ]; then
+      echo "  ℹ️ $repo: $base 無 open PR，跳過 cascade rebase" >&2
+      continue
+    fi
+
+    echo "  🔗 Cascade: $repo $base → rebase onto origin/$upstream" >&2
+
+    cd "$repo_dir"
+
+    # Stash
+    cascade_had_stash=false
+    cascade_original_branch=$(git branch --show-current 2>/dev/null || echo "")
+    if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+      if git stash push -m "cascade-rebase-auto-stash" 2>/dev/null; then
+        cascade_had_stash=true
+      fi
+    fi
+
+    # Fetch + checkout feature branch + rebase onto upstream
+    git fetch origin "$upstream" "$base" 2>/dev/null
+    if git checkout "$base" 2>/dev/null; then
+      if git rebase "origin/$upstream" 2>/dev/null; then
+        if [ "$DRY_RUN" = true ]; then
+          echo "  ✅ Cascade: $repo $base rebased onto $upstream（dry-run: skipped push）" >&2
+        elif git push --force-with-lease 2>/dev/null; then
+          echo "  ✅ Cascade: $repo $base rebased + pushed onto $upstream" >&2
+        else
+          echo "  ✅ Cascade: $repo $base already up to date with $upstream" >&2
+        fi
+      else
+        git rebase --abort 2>/dev/null || true
+        echo "  ⚠️ Cascade: $repo $base rebase onto $upstream failed (conflict)" >&2
+      fi
+    fi
+
+    # Restore
+    if [ -n "$cascade_original_branch" ]; then
+      git checkout "$cascade_original_branch" 2>/dev/null || true
+    fi
+    if [ "$cascade_had_stash" = true ]; then
+      git stash pop 2>/dev/null || true
+    fi
+    cd "$ORIGINAL_DIR"
+
+    # Re-fetch 更新後的 base branch（供後續 task rebase 使用）
+    cd "$repo_dir"
+    git fetch origin "$base" 2>/dev/null
+    cd "$ORIGINAL_DIR"
+  done
+fi
+
+# --- Per-PR Rebase ---
 for row in $(echo "$prs" | jq -r '.[] | @base64'); do
   _jq() { echo "$row" | base64 --decode | jq -r "$1"; }
 
