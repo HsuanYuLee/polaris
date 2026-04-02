@@ -536,6 +536,23 @@ Polaris 可以每天自動掃描技術文章，推薦到你的 Slack channel。
 
 Audit: log `action: "daily-learning"`, value: `{"enabled": true/false, "trigger_id": "..." or null}`.
 
+### Step 13.5: Install Framework Dependencies
+
+Install Polaris framework tools (Playwright for E2E, Mockoon CLI for mock fixtures):
+
+```bash
+{workspace_root}/scripts/install-deps.sh
+```
+
+This installs:
+1. `scripts/e2e/node_modules/` — Playwright test runner
+2. `scripts/mockoon/node_modules/` — Mockoon CLI
+3. Playwright Chromium browser
+
+If install fails (network issue), log warning but don't block — skills degrade gracefully without these tools.
+
+Audit: log `action: "install-deps"`, value: `{"e2e": true/false, "mockoon": true/false, "chromium": true/false}`.
+
 ### Step 14: Done
 
 **14a. Deferred fields summary** — scan the generated company config for empty string values. If any exist, list them with guidance:
