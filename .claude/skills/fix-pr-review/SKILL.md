@@ -9,7 +9,7 @@ description: >
   fix. NOT for JIRA bugs (use fix-bug) or reviewing others' PRs (use review-pr).
 metadata:
   author: Polaris
-  version: 2.8.0
+  version: 2.8.1
 ---
 
 # fix-pr-review
@@ -215,6 +215,9 @@ Rebase 後主動掃描是否帶入不屬於本 PR 的 changeset（不等 changes
 3. 從 branch name 或 PR title 提取本 PR 的 ticket key
 4. 讀取每個 changeset 內容，不含本 PR ticket key 的 → `git rm`
 5. 有刪除時 commit：`chore: remove inherited changesets`
+6. **清理後自檢**：重新掃描 `git diff origin/{baseRefName} --name-only -- .changeset/`，確認是否仍有包含本 PR ticket key 的 changeset。若無 → 立即建立（格式參考 Step 6g）並 stage
+
+**為什麼要自檢**：Step 3b 移除繼承 changeset 後，若本 PR 從未建立自己的 changeset，清理後會變成 0 changeset。Step 6g 依賴 changeset-bot 警告來觸發補建，但 bot 檢查的是清理前的狀態（繼承 changeset 還在），不會發出警告——時序缺口導致 PR 最終沒有 changeset。
 
 **為什麼在 rebase 後立即做**：rebase 可能帶入 base branch 上新 merge 的 changeset。早期清理避免 push 後 changeset-bot 誤報或 PR diff 膨脹。
 
@@ -375,11 +378,14 @@ npx tsc --noEmit 2>&1
 
 ### 6g. 補 Changeset（若缺少）
 
-若 issue comments 中有 **changeset-bot** 的「No Changeset found」警告，視為 CI 層面問題，需產生 changeset 檔案。
+在以下任一條件成立時，需產生 changeset 檔案：
+
+1. Issue comments 中有 **changeset-bot** 的「No Changeset found」警告
+2. `git diff origin/{baseRefName} --name-only -- .changeset/` 回傳空（PR diff 中無任何 changeset）
 
 這不是所有專案都有的機制——只在專案根目錄存在 `.changeset/` 目錄時才處理。
 
-**偵測方式**：檢查 Step 4 回傳的 `issue_comments` 中是否有 `changeset-bot` 且 body 包含 `No Changeset found`。
+**偵測方式**：先檢查條件 2（直接掃描 diff），再檢查條件 1（changeset-bot 警告）。條件 2 是主要判斷，條件 1 是 fallback——不依賴 bot 警告的時序。
 
 **產生 changeset**：
 
