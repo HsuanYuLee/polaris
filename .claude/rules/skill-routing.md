@@ -32,8 +32,8 @@ If the input could match multiple skills (e.g., "幫我處理這個 PR" could be
 | Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `epic-status` |
 | Create/open a PR | "開 PR", "create PR", "發 PR" | `git-pr-workflow` |
 | Triage my work | "我的 epic", "my epics", "盤點", "triage", "手上有什麼", "排優先", "my work", "我的工作" | `my-triage` |
-| End-of-day routine | "下班", "收工", "準備明天的工作", "end of day", "EOD", "明天 standup" | `end-of-day` |
-| Daily standup | "standup", "站會", "daily" | `standup` |
+| End-of-day routine | "下班", "收工", "準備明天的工作", "end of day", "EOD", "明天 standup", "今天結束了", "總結一下", "結束今天", "wrap up" | `end-of-day` |
+| Daily standup (standalone) | "standup", "站會", "daily", "寫 standup"（明確只要 standup，不需 triage） | `standup` |
 | Sprint planning | "sprint planning", "sprint 規劃" | `sprint-planning` |
 | Refinement | "refinement", "grooming", "討論需求" | `refinement` |
 | Create a skill | "建 skill", "create skill", "skill-creator" | `skill-creator` |

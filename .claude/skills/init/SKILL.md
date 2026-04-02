@@ -11,7 +11,7 @@ description: >
   Do NOT trigger for editing a single field — just edit the config directly.
 metadata:
   author: Polaris
-  version: 3.0.0
+  version: 3.1.0
 ---
 
 # /init — Workspace Initialization Wizard
@@ -65,8 +65,9 @@ When user picks **Adjust (e)**, ask which row(s) to change and what to change, t
 
 | Step | Detection method | smartSelect columns |
 |------|-----------------|---------------------|
-| 3 JIRA | `getVisibleJiraProjects` MCP | Project key, Name, Team |
-| 7 Projects | `gh repo list` + AI repo analysis | Name, Tags, Keywords |
+| 3 JIRA | `getVisibleJiraProjects` MCP | Project key, Name, Description, Team |
+| 4c Confluence pages | `searchConfluenceUsingCql` | Field, Found title, Page ID |
+| 7 Projects | `gh repo list` + local scan + AI repo analysis | Name, Status, Tags, Keywords |
 | 8 Scrum | Static defaults | Setting, Value |
 
 Steps 2 (GitHub), 4-6, 9 keep their current interaction (simple enough already).
@@ -198,14 +199,17 @@ Audit: log detected orgs and final selection.
 2. Use `getVisibleJiraProjects` MCP tool to fetch all visible projects
 
 **smartSelect presentation:**
+
+Include the project **Description** column from `getVisibleJiraProjects` to help distinguish similar-named projects (e.g., GROW "Growth" vs GT "Growth Team" vs GROWAD "Growth-Adtech"):
+
 ```
 Step 3: JIRA Projects
 
-  #   Select   Key      Name                    Team
-  1   [✓]      PROJ     Main Product             (enter team name)
-  2   [✓]      BACK     Backend Services          (enter team name)
-  3   [ ]      MOB      Mobile App               —
-  4   [ ]      INFRA    Infrastructure           —
+  #   Select   Key      Name                    Description                          Team
+  1   [✓]      GT       Growth Team             Web team growth & SEO initiatives     (enter team name)
+  2   [✓]      KB2CW    KKday B2C Web           B2C frontend development              (enter team name)
+  3   [ ]      GROW     Growth                  Growth marketing campaigns            —
+  4   [ ]      INFRA    Infrastructure          DevOps and infra                      —
 
   Confirm (y) / Adjust (e) / Skip (s)?
 ```
@@ -215,15 +219,28 @@ Pre-select heuristic: projects with recent activity (if detectable) or all if �
 On **Confirm**: for each selected project, if team name is still empty, ask once for all teams in a batch:
 ```
 Teams for selected projects:
-  PROJ → ?
-  BACK → ?
+  GT → ?
+  KB2CW → ?
 ```
+
+**Ticket prefix verification** — after team assignment, confirm the selected keys match what the user actually types in ticket numbers. This catches key-vs-name confusion (common when multiple projects share similar names):
+
+```
+You selected: GT, KB2CW
+
+Quick check — when you reference tickets, do you use these prefixes?
+  e.g., GT-123, KB2CW-456
+
+Correct (y) / Fix (e)?
+```
+
+If user picks **Fix** → show the full project list again for re-selection.
 
 `custom_fields` → tell user this can be configured later, leave empty for now.
 
 If user picks **Skip** → leave entire `jira:` section with empty/default values.
 
-Audit: log detected projects, selections, and team assignments.
+Audit: log detected projects, selections, team assignments, and prefix verification result.
 
 ### Step 4: Confluence (skippable)
 
@@ -233,13 +250,54 @@ Do you use Confluence? (y/n)
 ```
 
 If yes:
+
+**4a. Space selection:**
 1. Instance is usually same as JIRA → pre-fill from Step 3
-2. Try `getConfluenceSpaces` MCP tool to list spaces → select one
-3. `folders` and `pages` → tell user: "Page IDs can be added later as you discover them. Skills will prompt when needed."
+2. Try `getConfluenceSpaces` MCP tool to list spaces → select primary space
 
-If no → leave empty.
+**4b. Additional spaces:**
+After selecting the primary space, ask if the user works with other spaces:
+```
+Primary space: KW (KKday Web)
 
-Audit: log instance, selected space.
+Do you use other Confluence spaces regularly? (y/n)
+```
+If yes → let user select from the remaining spaces list. Write to `additional_spaces` array.
+
+**4c. Page ID guided discovery:**
+Instead of deferring all page IDs, use `searchConfluenceUsingCql` to search for common structures within the selected space. For each config field, run a targeted CQL query:
+
+| Config field | CQL query | Match logic |
+|---|---|---|
+| `folders.sasd` | `space = "{space}" AND title ~ "SA" AND type = folder` | Look for SA/SD folder |
+| `pages.standup_parent` | `space = "{space}" AND title ~ "Standup" AND type = page` | Find parent of monthly standup pages |
+| `pages.release_parent` | `space = "{space}" AND title ~ "Release" AND type = page` | Find parent of sprint release pages |
+| `pages.rd_workflow` | `space = "{space}" AND title ~ "RD workflow" AND type = page` | Direct match |
+| `pages.skills_reference` | `space = "{space}" AND title ~ "skill" AND type = page` | Direct match |
+| `pages.estimation_guide` | `space = "{space}" AND title ~ "estimation" AND type = page` | Direct match |
+
+Present discovered items via smartSelect:
+```
+Step 4c: Confluence Page IDs — auto-detected from space "KW"
+
+  #   Select   Field              Found                              Page ID
+  1   [✓]      SA/SD folder       SA/SD                              425689183
+  2   [?]      Standup parent     (multiple matches — pick one)      —
+  3   [?]      Release parent     (multiple matches — pick one)      —
+  4   [ ]      RD workflow        (not found)                        —
+  5   [ ]      Skills reference   (not found)                        —
+  6   [ ]      Estimation guide   (not found)                        —
+
+  Confirm (y) / Adjust (e) / Skip (s)?
+```
+
+**Handling multiple matches:** When CQL returns multiple results (e.g., multiple "Standup" pages from different months), display the top results and ask the user to pick the parent page — not the individual monthly/sprint pages.
+
+**Handling no match:** Mark as `[ ]` with "(not found)" — user can fill in manually via Adjust, or leave empty. Fields left empty are still deferred, but the user has been actively guided rather than silently skipped.
+
+If no → leave entire `confluence:` section empty.
+
+Audit: log instance, selected spaces, CQL results, and final page ID selections.
 
 ### Step 5: Slack (skippable)
 
@@ -271,9 +329,33 @@ Audit: log hosts and patterns.
 
 ### Step 7: Projects — smartSelect + AI Repo Detection
 
+**Phase 0: Local repo scan**
+Before fetching from GitHub, scan `{base_dir}/` for existing directories that look like git repos:
+- Run `ls` on `{base_dir}/` to list directories
+- For each directory, check if it contains `.git/` (is a cloned repo)
+- Record these as `local_repos` for cross-referencing in Phase 1
+
 **Phase 1: Repo selection**
 - Run `gh repo list {org} --limit 50 --json name,url --jq '.[] | .name'` to list repos
-- Present as checklist: "Select repos you work on (space to toggle, enter to confirm)"
+- **Cross-reference with local_repos**: mark repos that exist locally with `[local]`, and flag local repos that are NOT in the GitHub list with `[local only]`
+- Present as checklist with local status:
+
+```
+Step 7a: Repo Selection
+
+  #   Select   Repo                  Status
+  1   [✓]      your-repo             [local]
+  2   [✓]      your-design-system    [local]
+  3   [ ]      your-api-repo         (not cloned)
+  4   [ ]      your-dev-docker       (not cloned)
+  ──  Local repos not in GitHub top 50  ──
+  5   [ ]      your-legacy-app       [local only]
+  6   [ ]      your-web-skills       [local only]
+
+  Confirm (y) / Adjust (e) / Skip (s)?
+```
+
+The `[local only]` section ensures repos already cloned but not returned by `gh repo list` (archived, different org, or beyond the 50-repo limit) are still visible. If a `[local only]` repo is selected, derive its `repo` field from `git -C {base_dir}/{name} remote get-url origin`.
 
 **Phase 2: AI analysis**
 - For each selected repo, dispatch parallel sub-agents (model: `"haiku"`) to analyze
@@ -281,7 +363,7 @@ Audit: log hosts and patterns.
 
 **Phase 3: smartSelect presentation**
 ```
-Step 7: Projects — AI-detected tags & keywords
+Step 7b: Projects — AI-detected tags & keywords
 
   #   Select   Repo                  Tags        Keywords
   1   [✓]      your-repo             [b2c]       B2C frontend, Nuxt 3 SSR, product page
@@ -294,7 +376,7 @@ Step 7: Projects — AI-detected tags & keywords
 
 On **Adjust**: user specifies which row(s) to change tags/keywords, then re-display.
 
-Audit: log AI-detected values (source: `ai`), final confirmed values (source: `user`).
+Audit: log local scan results, GitHub list, cross-reference matches, AI-detected values (source: `ai`), final confirmed values (source: `user`).
 
 ### Step 8: Scrum Settings — smartSelect
 
@@ -332,17 +414,46 @@ Audit: log infra settings.
 ### Step 10: Review & Write
 
 1. Show the complete generated company config YAML
-2. Ask: "Write to {company}/workspace-config.yaml? (y/n)"
-3. If yes → write company config file
-4. Update root `workspace-config.yaml` — add/update the company entry:
+2. **Verify `default_company` is NOT in the company config** — `default_company` belongs in the root `workspace-config.yaml`, not the company config. If the user wants to set a default company, write it to the root config in step 4 below
+3. Ask: "Write to {company}/workspace-config.yaml? (y/n)"
+4. If yes → write company config file
+5. Update root `workspace-config.yaml` — add/update the company entry:
    ```yaml
    companies:
      - name: {company}
        base_dir: "{actual_path_to_company_dir}"
    ```
    Use the actual absolute path where the company directory was created — do NOT hardcode `~/work/`. If the workspace root is `/home/user/projects/polaris`, then `base_dir` should be `/home/user/projects/polaris/{company}`.
+6. **Set default company** — if this is the only company in root config, ask:
+   ```
+   This is your only configured company. Set "{company}" as default? (y/n)
+   ```
+   If yes → add `default_company: {company}` to root `workspace-config.yaml` (top-level field, not inside `companies[]`)
 
 Audit: log `action: "write"` with the config file path.
+
+### Step 10a: Clone Missing Repos
+
+Compare the repos selected in Step 7 against what actually exists under `{base_dir}/`:
+
+```
+Step 10a: Repo Clone
+
+  These selected repos are not cloned locally:
+
+    your-api-repo       → gh repo clone {org}/your-api-repo {base_dir}/your-api-repo
+    your-dev-docker     → gh repo clone {org}/your-dev-docker {base_dir}/your-dev-docker
+
+  Clone all (a) / Select which to clone (s) / Skip (n)?
+```
+
+- **Clone all (a)** → run `gh repo clone` for each missing repo sequentially
+- **Select (s)** → let user toggle which repos to clone
+- **Skip (n)** → no cloning, continue
+
+Cloning happens sequentially (not parallel) to avoid GitHub rate limits. Show progress as each repo completes.
+
+Audit: log which repos were cloned, which were skipped.
 
 ### Step 11: Generate Genericize Mapping Files
 
@@ -422,18 +533,35 @@ Audit: log `action: "daily-learning"`, value: `{"enabled": true/false, "trigger_
 
 ### Step 14: Done
 
-Print:
+**14a. Deferred fields summary** — scan the generated company config for empty string values. If any exist, list them with guidance:
+
 ```
 Done! {company} is configured.
 
+⚠ The following fields were left empty — you can fill them in later:
+
+  Section        Field                How to fill
+  ──────────     ──────────           ──────────
+  confluence     pages.rd_workflow    Find the page in Confluence → copy page ID from URL
+  confluence     pages.estimation_guide  Same as above
+  jira           custom_fields        Run /init again and select "Edit existing"
+
+  To edit: open {company}/workspace-config.yaml directly, or run /init → Edit existing.
+```
+
+Only show this table if there are actually empty fields. If everything was filled, skip it.
+
+**14b. Next steps:**
+```
 What's next — try your first command:
   "work on PROJ-123" / 「做 PROJ-123」  → reads JIRA, estimates, codes, opens PR
   "standup"                              → generates daily standup report
 
-If something isn't configured yet, Polaris will tell you what's missing.
+Skills degrade gracefully — missing config fields won't break anything,
+but filling them in unlocks the full workflow.
 ```
 
-Audit: log `action: "complete"`.
+Audit: log `action: "complete"`, include list of deferred fields.
 
 ## Important Rules
 

@@ -2,13 +2,14 @@
 name: standup
 description: >
   Generates daily standup reports (YDY/TDT/BOS/口頭同步) by collecting git activity,
-  JIRA status changes, and Google Calendar meetings. Merges all sources,
-  deduplicates, groups by configured teams, and formats all four sections for Confluence. Use
-  this skill whenever the user mentions: "standup", "站立會議",
-  "standup meeting", "YDY", "今天做了什麼", "what did I do today", "daily standup",
-  "產出 standup", "generate standup", "standup report", "寫 standup",
-  "write standup", "daily report", or wants to prepare their daily standup
-  content — even if they don't explicitly say "standup".
+  JIRA status changes, Google Calendar meetings, PR status, and Polaris backlog.
+  Merges all sources, deduplicates, groups by configured teams, and formats all
+  four sections for Confluence. Can be invoked standalone or as part of /end-of-day.
+  Use this skill whenever the user mentions: "standup", "站立會議",
+  "standup meeting", "YDY", "daily standup", "產出 standup", "generate standup",
+  "standup report", "寫 standup", "write standup", "daily report".
+  Note: "今天做了什麼", "總結一下", "今天結束了" should route to /end-of-day
+  (which includes triage + standup) rather than standup alone.
 metadata:
   author: Polaris
   version: 1.5.1
@@ -225,6 +226,41 @@ TDT 輸出範例（有 triage state 時）：
 
 **Sprint context**：在 TDT 標題後附上 sprint 剩餘天數和剩餘點數（從 JIRA board 或使用者口述取得）。這是 nice-to-have，如果無法自動取得就跳過或問使用者。
 
+### 7a. Collect PR status (TDT 補充來源)
+
+JIRA 以外的 code 狀態，分兩類：
+
+**自己的 PR（追 review / merge）**：
+
+```bash
+gh pr list --author @me --state open --json number,title,headRefName,reviews,statusCheckRollup,isDraft --limit 10
+```
+
+對每個 open PR：
+- 有 `CHANGES_REQUESTED` → TDT: 修 review comments
+- CI 紅 → TDT: 修 CI
+- 0 approved → TDT: 追 review
+- approved >= threshold → TDT: 待 merge
+- Draft → 跳過（還在開發中，JIRA 會覆蓋）
+
+歸入對應團隊分組（從 branch name 提取 ticket key → 對應 JIRA project）。與 JIRA TDT 去重：同一 ticket 的 PR 狀態合併到 JIRA 項目行。
+
+**待你 review 的 PR**：
+
+```bash
+gh pr list --search "review-requested:@me" --state open --json number,title,author,headRefName --limit 10
+```
+
+有結果時加入 TDT 獨立區塊「PR Review」。
+
+### 7b. Collect Polaris backlog (TDT 補充來源)
+
+讀取 `{base_dir}/.claude/polaris-backlog.md`，提取 High priority 的未完成項目（`- [ ] **`）。
+
+有 High 項目時加入 TDT 獨立區塊「AI 工具改善（NO-JIRA）」，列出 top 3。
+
+如果 `{base_dir}/.claude/` 下有 uncommitted framework changes（skills/, rules/），額外提醒「有框架改動未 commit」。
+
 ### 8. Collect BOS (Blockers/Obstacles)
 
 兩個來源：
@@ -245,9 +281,13 @@ TDT 輸出範例（有 triage state 時）：
 1. `* **YDY – Yesterday I Did**`
 2. `* **TDT – Today's Tasks**`
 3. `* **BOS – Blockers or Struggles**`
-4. `* **口頭同步**` — 用 `_斜體_` 一段話總結 YDY 重點 + TDT 計畫 + BOS 摘要，放在 BOS 之後、`---` 分隔線之前
+4. `* **口頭同步**` — 用條列式 `_斜體_` 摘要，放在 BOS 之後、`---` 分隔線之前
 
-**口頭同步撰寫規則**：以第一人稱、口語化的方式寫一段 2-4 句話，涵蓋：昨天主要完成什麼（YDY 精華）、今天預計做什麼（TDT 重點）、有無 blocker。不是逐條複述，而是站會上會怎麼講就怎麼寫。
+**口頭同步撰寫規則**：以條列式呈現，每個 bullet 用 `_斜體_` 包裹，方便使用者在站會上逐條念出。分為 3-4 條：
+- **YDY 精華**（1-2 條）：昨天主要完成什麼、關鍵進展
+- **插曲/損失**（0-1 條，有才列）：會議佔滿、blocker、計畫外的事
+- **TDT 計畫**（1 條）：今天預計做什麼
+每條一句話，口語化，不逐條複述 YDY/TDT 的所有項目。
 
 **格式規則**（詳見模板）：
 - YDY 中有 parent Epic 的 ticket → 以 Epic 為最上層巢狀在團隊分組內
@@ -293,7 +333,7 @@ TDT 輸出範例（有 triage state 時）：
 - 產出前先 Read `references/standup-template.md` 確認格式規則
 - Epic 巢狀收在團隊分組內（不另開 section），TDT 也用 Epic 巢狀
 - Sub-task 全通過時折成一行，NO-JIRA 用一行摘要
-- 口頭同步用 `_斜體_` 一併推上 Confluence
+- 口頭同步用條列式 `_斜體_` 一併推上 Confluence
 
 ## Don't
 

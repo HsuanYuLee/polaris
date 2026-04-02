@@ -5,7 +5,8 @@ description: >
   Triage first (prioritize all assigned Epics/Bugs/Tasks, write .daily-triage.json),
   then standup (collect activity, format report, push to Confluence).
   Use when: (1) user says "下班", "收工", "準備明天的工作", "end of day", "EOD",
-  "明天 standup", "寫明天的 standup", (2) user wants to wrap up daily work.
+  "明天 standup", "寫明天的 standup", "今天結束了", "總結一下", "結束今天",
+  "wrap up", (2) user wants to wrap up daily work.
 metadata:
   author: Polaris
   version: 1.0.0

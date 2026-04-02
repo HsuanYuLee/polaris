@@ -4,6 +4,6 @@
 #
 # After running /init, this file will be populated with your companies.
 
-companies: []
-  # - name: my-company
-  #   base_dir: "~/work/my-company"
+companies:
+  - name: kkday
+    base_dir: "/Users/hsuanyu.lee/polaris/kkday"
