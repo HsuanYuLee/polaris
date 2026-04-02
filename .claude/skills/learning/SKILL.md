@@ -1,13 +1,16 @@
 ---
 name: learning
 description: >
-  Five modes: (1) External — researches URLs, repos, articles and analyzes applicability to
-  our workspace. (2) PR — extracts review patterns from merged PRs into review-lessons.
+  Five modes: (1) External — gap-driven deep exploration of URLs, repos, articles with
+  dual-target support (framework or product project). Three depth tiers (Quick/Standard/Deep),
+  gap pre-scan before exploration, and Polaris-specific extraction categories.
+  (2) PR — extracts review patterns from merged PRs into review-lessons.
   (3) Queue — processes daily learning queue articles in batch.
   (4) Setup — configure or update the daily learning scanner (RemoteTrigger).
   (5) Batch — scans a repo's full PR history, finds unextracted review comments, and
   batch-fills review-lessons. Automatically triggers graduation afterward.
   Trigger: "學習", "learn", "研究一下", "research this", "借鑑", "看看這個",
+  "深入學", "deep dive", "像 gstack 那樣學", "全面研究",
   "學習 PR", "learn from PR", "每日學習", "daily learning", "消化 queue",
   "digest queue", "learning queue", "設定學習", "learning setup", "更新學習主題",
   "掃 review", "batch learn", "批次學習", "掃歷史 PR", "scan PR history",
@@ -18,7 +21,7 @@ description: >
   is for LEARNING from already-merged PRs, not reviewing open ones).
 metadata:
   author: Polaris
-  version: 1.5.0
+  version: 2.0.0
 ---
 
 # learning
@@ -57,7 +60,7 @@ Determine which mode based on the user's input:
 
 # External Learning Flow
 
-## Step 1: Understand the Input
+## Step 1: Understand the Input + Detect Target
 
 Identify what the user shared and classify the input type:
 
@@ -69,190 +72,241 @@ Identify what the user shared and classify the input type:
 | Text description | Already in conversation | user describes a pattern verbally |
 | Video / Talk | Ask user for key takeaways (can't watch videos) | YouTube, conference talk |
 
-For GitHub repos: fetch the README first, then assess if you need to explore the repo structure (directory listing, key source files) for deeper understanding.
-
 For URLs that fail to fetch: tell the user and ask them to paste the key content directly.
 
-## Step 2: Scope Assessment — Do We Need Parallel Research?
+### Target detection
 
-After reading the initial content, assess the scope:
+Determine whether learnings should land in the **framework** or a **product project**:
 
-**Single-agent (direct research)** when:
-- Content is a single article or blog post
-- README covers the full picture
-- One clear topic area (e.g., "a new testing pattern")
-
-**Multi-agent (parallel Researchers)** when:
-- GitHub repo with multiple distinct modules or concepts worth studying
-- Content spans 3+ distinct topic areas
-- Cross-referencing needed (e.g., repo + its documentation site + related articles)
-- User explicitly shares multiple URLs
-
-When in doubt, start with single-agent. You can always spawn additional Researchers if the first pass reveals more depth than expected.
-
-## Step 3: Research — Facts Only
-
-### Single-agent path
-
-Research the content yourself. Focus on extracting:
-
-1. **Core concepts** — What is this thing? What problem does it solve?
-2. **Architecture / patterns** — How is it structured? What design decisions were made?
-3. **Notable techniques** — Specific implementations worth noting
-4. **Trade-offs acknowledged** — What limitations or costs does the author mention?
-
-### Multi-agent path
-
-Spawn Researcher sub-agents (`model: "sonnet"`). Each sub-agent uses the **Researcher** role defined in `skills/references/sub-agent-roles.md` — read the Researcher section and include it in the sub-agent prompt.
-
-Sub-agent prompt template:
-
-```
-{引用 references/sub-agent-roles.md 的 Researcher 角色定義}
-
-## 研究對象
-{content description + URL or path}
-
-## 你負責的範圍
-{specific aspect to research — e.g., "architecture and module organization", "testing strategy", "CI/CD pipeline design"}
-```
-
-Split strategies (similar to explore-pattern.md):
-
-| Strategy | When | Example |
+| Signal | Target | Landing zone |
 |---|---|---|
-| By topic area | Content covers multiple distinct concepts | Agent A: architecture, Agent B: testing, Agent C: deployment |
-| By source | User shared multiple URLs | One agent per URL |
-| By depth | Broad overview + deep dive needed | Agent A: high-level structure, Agent B: deep dive into specific module |
+| User mentions "Polaris", "框架", "機制", or content is about AI agent patterns | `framework` | rules/, skills/, scripts/, polaris-backlog.md |
+| User mentions a specific project name ("用在 b2c", "member-ci 可以學") | `project:{name}` | project rules, code patterns, project CLAUDE.md |
+| User is on a project branch | `project:{name}` (inferred) | same as above |
+| Content is about a specific tech stack (Nuxt, Vue, testing) without framework mention | `project` (ask which project) | same as above |
+| Ambiguous | Ask: "這個學習要用在 Polaris 框架，還是特定產品 repo？" | — |
 
-Maximum 3 Researcher sub-agents. If the content needs more, you're probably researching too broadly — narrow the focus with the user first.
+The target determines which gap sources to scan (Step 1.5) and where recommendations land (Step 5).
+
+## Step 1.5: Gap Pre-Scan — Know What We're Looking For
+
+Before exploring external content, scan our own gaps to give the exploration direction. This is the key difference from v1 — **explore with questions, not just curiosity**.
+
+### Framework target gaps
+
+| Source | What to extract | How |
+|---|---|---|
+| `polaris-backlog.md` | Open items — these are known improvement candidates | Read, extract unchecked `- [ ]` items |
+| `mechanism-registry.md` | High-drift mechanisms — areas where rules are frequently violated | Read, filter by `Drift: High` |
+| Recent feedback memories | Pain points from daily usage | Scan MEMORY.md for `type: feedback` entries from last 14 days |
+
+### Project target gaps
+
+| Source | What to extract | How |
+|---|---|---|
+| Project `.claude/rules/review-lessons/` | Recurring review patterns — things reviewers keep flagging | Read lesson files, look for high-source-count entries |
+| Recent PR review comments | Patterns reviewers catch | `gh pr list --state merged --limit 5` → read review comments |
+| Project CLAUDE.md | Known conventions and pain points | Read the project's AI operating manual |
+| Test coverage gaps | Areas with low coverage | Read coverage config if available |
+
+Output: a **lens list** — 5-10 specific questions/topics to look for during exploration. Example:
+
+```
+Gap Pre-Scan Results (framework target):
+  1. Sub-agent safety enforcement (backlog: PreToolUse hooks) ✅ done
+  2. Context window monitoring (backlog: PostToolUse hook) — blocked by platform
+  3. Review-lesson semantic dedup (backlog: entry consolidation)
+  4. PR description language detection (backlog: default_language config)
+  5. Feedback: sub-agents sometimes modify files outside scope
+```
+
+This list guides Step 2-3 exploration — look for how the external source addresses these specific gaps.
+
+## Step 2: Depth Assessment
+
+### Depth tiers
+
+| Tier | Trigger | Exploration scope | Time |
+|------|---------|-------------------|------|
+| **Quick** | "快速看一下", article/blog, small tool | README only, single-agent | ~5 min |
+| **Standard** | Default for repos, no depth signal | README + key configs + 2-3 source files, single or multi-agent | ~15 min |
+| **Deep** | "深入學", "像 gstack 那樣", "全面研究", large framework repo, or user explicitly asks | Multi-round, multi-agent, comprehensive scan | ~30 min |
+
+Auto-escalate to Deep when: repo has its own `.claude/`, `CLAUDE.md`, `rules/`, or `hooks/` directory (signals a structured AI framework worth deep-diving).
+
+### Scope decision (Standard/Deep)
+
+**Standard** — single-agent or up to 2 Researchers:
+- README + directory structure overview
+- 2-3 key files identified from structure
+- Compare against lens list from Step 1.5
+
+**Deep** — multi-round, up to 3 Researchers per round:
+- Round 1: Structure scan (see below)
+- Round 2: Targeted deep-dives guided by lens list
+- Round 3: Cross-reference with our workspace
+
+## Step 3: Research
+
+### Quick path
+
+Read the content yourself. Extract core concepts, notable techniques, and applicability assessment. Skip to Step 4.
+
+### Standard path
+
+Research the content with focus on the lens list from Step 1.5. For each gap in the lens list, actively look for how the external source addresses it (or doesn't).
+
+Extract using **target-specific categories**:
+
+**Framework target categories:**
+
+| Category | Maps to | Look for |
+|---|---|---|
+| Rules & mechanisms | `rules/*.md`, `mechanism-registry.md` | Behavioral constraints, enforcement patterns, canary signals |
+| Skill patterns | `skills/` | Workflow design, step sequencing, error handling |
+| Delegation strategies | `sub-agent-delegation.md` | Task splitting, model selection, isolation patterns |
+| Quality enforcement | `verify-completion`, `dev-quality-check` | Verification gates, test requirements, anti-patterns |
+| Scripts & automation | `scripts/` | Deterministic logic, hook scripts, CLI tools |
+| Context management | `context-monitoring.md` | Window management, compression strategies, state preservation |
+
+**Project target categories:**
+
+| Category | Maps to | Look for |
+|---|---|---|
+| Code patterns | Source code conventions | Component structure, state management, error handling |
+| Testing strategies | Test files, coverage config | Mock patterns, integration tests, fixture management |
+| Performance | Build config, SSR setup | Bundle optimization, caching, lazy loading |
+| Architecture | Directory structure, module boundaries | Feature organization, shared utilities, API design |
+| DX tooling | Config files, scripts | Dev server, linting, formatting, CI pipeline |
+
+### Deep path — Multi-round exploration
+
+**Round 1: Structure scan** (1 Researcher sub-agent, `model: "sonnet"`)
+
+Explore the repo's overall structure:
+- README (full read)
+- Directory listing (top 2 levels)
+- Key config files: `CLAUDE.md`, `.claude/rules/`, `package.json`, `tsconfig.json`, hooks, scripts
+- Identify 5-8 "interesting areas" — files or directories that likely contain the deepest insights
+
+**Round 2: Targeted deep-dives** (up to 3 parallel Researcher sub-agents)
+
+Based on Round 1 findings + lens list from Step 1.5, dispatch Researchers to specific areas:
+
+```
+Researcher A: {area aligned with gap #1 from lens list}
+Researcher B: {area aligned with gap #2 from lens list}
+Researcher C: {most unique/novel aspect of the repo}
+```
+
+Each Researcher reads 3-5 files in their area and extracts findings using the target-specific categories above.
+
+**Round 3: Cross-reference** (Strategist, no sub-agent)
+
+Merge Round 1+2 findings. For each finding, explicitly map to:
+- Which lens list gap it addresses (or "new insight — not in our gap list")
+- Which specific file in our workspace it would modify
+- Whether we already have something similar (check backlog for duplicates)
 
 ## Step 4: Synthesis — Connect to Our Workspace
 
-This is where the value is created. After collecting research findings (from yourself or sub-agents), analyze through this lens:
-
 ### 4a. Comparison Matrix
 
-Build a comparison between the external content and our current workspace:
-
 ```markdown
-| Aspect | External Approach | Our Current Approach | Gap / Opportunity |
-|--------|------------------|---------------------|-------------------|
-| ... | ... | ... | ... |
+| Aspect | External Approach | Our Current State | Gap / Opportunity | Lens Match |
+|--------|------------------|-------------------|-------------------|------------|
+| ... | ... | ... | ... | Gap #N or "new" |
 ```
 
-To fill "Our Current Approach" accurately: read relevant workspace files (CLAUDE.md, skills, references, rules) rather than relying on memory alone. If you need to explore our codebase for a specific aspect, spawn a single Explore subagent (per explore-pattern.md) — don't guess.
+The **Lens Match** column connects each finding back to the gap pre-scan, making it clear which items address known problems vs. surface new ideas.
 
-### 4b. Recommendations
+To fill "Our Current State" accurately: read relevant workspace files rather than relying on memory. Spawn an Explore subagent if needed.
 
-For each gap/opportunity identified, provide:
+### 4b. Backlog cross-reference
+
+Before generating recommendations, check `polaris-backlog.md` (framework target) or project issue tracker (project target) for existing items that match:
+
+- **Existing item found** → mark recommendation as "validates existing: {backlog item title}" — this confirms direction, doesn't duplicate
+- **No existing item** → new recommendation
+
+### 4c. Recommendations
+
+For each gap/opportunity:
 
 ```markdown
 ### Recommendation: {title}
 
-**What**: One-sentence description of the change
-**Why**: What problem it solves or what improvement it brings
-**How**: Concrete action items (files to create/modify, patterns to adopt)
+**What**: One-sentence description
+**Why**: Problem solved or improvement
+**How**: Concrete actions (files to create/modify, patterns to adopt)
+**Landing**: {target-specific: e.g., "rules/sub-agent-delegation.md § Safety Hooks" or "b2c-web composables/useProduct.ts"}
 **Effort**: Low / Medium / High
 **Priority**: Worth doing now / Nice to have / Worth tracking
+**Validates**: {backlog item title, if applicable}
 ```
 
-Prioritization guidance:
-- **Worth doing now**: Addresses a known pain point, low effort, or prevents a recurring issue
-- **Nice to have**: Genuine improvement but no urgency
-- **Worth tracking**: Interesting idea but needs more evidence or a trigger event
+Be honest about what's NOT worth borrowing. Explicitly call out things that look cool but don't fit.
 
-Be honest about what's NOT worth borrowing. Not everything from an external source applies to our context. Explicitly call out things that look cool but don't fit — this builds trust and saves the user from chasing shiny objects.
+### 4d. Present to User
 
-### 4c. Present to User
-
-Present the comparison matrix and recommendations. Wait for the user to react before taking any action.
+Present the lens match summary, comparison matrix, and recommendations. Wait for user reaction.
 
 ## Step 5: Execute (Only After User Confirmation)
 
-Based on the user's response:
-
 | User says | Action |
 |---|---|
-| Confirms specific recommendations | Execute those changes (edit files, create references, update CLAUDE.md) |
-| Wants to discuss further | Continue the conversation, refine recommendations |
-| Wants to save for later | Save a project or reference memory with the key insights |
-| Says "worth tracking" or defers | Add to `.claude/polaris-backlog.md` (see below) |
-| Disagrees with some points | Acknowledge, adjust, don't push |
+| Confirms specific recommendations | Execute changes per target landing zone |
+| Wants to discuss further | Refine recommendations |
+| Save for later | Save a project or reference memory |
+| "Worth tracking" / defers | Route to appropriate backlog (see below) |
+| Disagrees | Acknowledge, adjust, don't push |
 
-For any workspace changes: follow existing conventions (use `/skill-creator` for new skills, edit CLAUDE.md for rules, use `skills/references/` for reference docs).
+### Backlog routing by target
 
-### Backlog routing
+| Target | Backlog location | Format |
+|---|---|---|
+| `framework` | `.claude/polaris-backlog.md` | `- [ ] **{title}** — {description} — source: learning ({URL})` |
+| `project:{name}` | Project issue tracker or project-level backlog | Create JIRA ticket or project TODO |
 
-When a recommendation targets the **Polaris framework itself** (skill flow, rule mechanism, config structure, interaction patterns) rather than company-specific business logic:
+### Execution conventions
 
-- **User confirms and executes now** → normal Step 5 execution + update `CHANGELOG.md` if significant
-- **User says "worth tracking" / "之後再做" / defers** → append to `.claude/polaris-backlog.md` under the appropriate priority section:
-  ```
-  - [ ] **{title}** — {one-line description} — source: learning ({source URL})
-  ```
-- **User explicitly rejects** → don't add to backlog
+- Framework changes: use `/skill-creator` for skills, edit rules directly, use `skills/references/` for docs
+- Project changes: follow project conventions (CLAUDE.md, coding standards, PR workflow)
 
 ## Meta: Role Discovery
 
-When researching external content, watch for division-of-labor patterns that could map to a new sub-agent role. This is how the talent pool grows organically — external inspiration surfaces new specializations we haven't formalized yet.
-
-**Detection**: During Step 4 (Synthesis), if a recommendation involves a type of sub-agent work that doesn't fit any role in `skills/references/sub-agent-roles.md`, flag it:
+During Step 4, watch for division-of-labor patterns that map to new sub-agent roles. If a recommendation involves sub-agent work that doesn't fit any role in `skills/references/sub-agent-roles.md`, flag it:
 
 ```markdown
-### Recommendation: {title}
-...
 🎭 **Potential new role: {RoleName}**
 - Does: {what this role would do}
-- Doesn't: {what it explicitly avoids}
 - Model: sonnet / haiku
-- Would be used by: {which existing skills}
+- Would be used by: {which skills}
 ```
 
-**Execution**: If the user confirms the new role, append it to `sub-agent-roles.md` following the existing format (職責、不做、回傳格式、Model、適用場景). See the Role Lifecycle section in that file for the full process.
-
-Don't force role discovery — most research won't surface new roles, and that's fine. Only flag it when the pattern is clearly distinct from existing roles.
+Only flag when clearly distinct from existing roles. Don't force it.
 
 ## Meta: Attribution
 
-When learning from external content leads to **actual workspace changes** (Step 5), credit the source in `README.md`'s Acknowledgements table.
+When learning leads to **actual workspace changes** (Step 5), credit the source in `README.md`'s Acknowledgements table.
 
-### When to trigger
-
-- The source is a **GitHub repo or a named open-source project** (not a generic blog post or documentation page)
-- At least one recommendation was **confirmed and executed** (files were created or modified)
-- The project is **not already listed** in the Acknowledgements table
-
-Articles, blog posts, and documentation don't get table entries — they're too granular. If an article leads to a significant change, credit the underlying project or author if identifiable.
-
-### How to add
-
-After executing confirmed changes in Step 5, append a row to `{base_dir}/README.md`'s Acknowledgements table:
+**Trigger**: source is a GitHub repo or named OSS project, at least one recommendation was executed, project not already listed.
 
 ```markdown
 | [{project name}]({url}) | {author} | {one-line: what we learned / adopted} |
 ```
 
-- **Project name**: repo name or project title
-- **Author**: GitHub username or real name (from README/profile)
-- **What we learned**: concise — what concept or pattern was adopted, not a full summary
-
-If multiple recommendations were adopted from the same source, combine into one row with a comma-separated description.
-
-### What NOT to add
-
-- Sources where we only read but didn't change anything
-- Internal repos (our own org's projects)
-- Generic tools everyone uses (Node.js, Vue, etc.)
-- Sources already listed — instead, update the "What we learned" column if new insights were adopted later
+Articles and blog posts don't get table entries — too granular. Update existing entries if new insights were adopted later from the same source.
 
 ## Edge Cases (External Mode)
 
-- **Content is behind a paywall or login**: Tell the user you can't access it, ask them to paste the key sections
-- **Content is in a language you can't read well**: Proceed with best effort, flag uncertainty
-- **User shares a very large repo**: Don't try to read everything. Focus on README, architecture docs, and 2-3 key source files. Ask the user what aspect interests them most
-- **Content is outdated or deprecated**: Note this in your analysis — old patterns may have been superseded for good reasons
-- **User just wants a summary, not recommendations**: That's fine. Skip Step 4b-4c and just present the research findings
+- **Content behind paywall/login**: Ask user to paste key sections
+- **Non-English content**: Best effort, flag uncertainty
+- **Very large repo**: Deep mode handles this via multi-round. If Quick/Standard, focus on README + user-specified aspect
+- **Outdated/deprecated content**: Note in analysis — old patterns may be superseded
+- **User just wants a summary**: Skip Step 4b-4d, present research findings only
+- **Repo has no README or sparse docs**: Escalate to Deep mode automatically — read source files directly
+- **External approach conflicts with our conventions**: Note the conflict explicitly, recommend only if the external approach is demonstrably better with evidence
 
 ---
 
