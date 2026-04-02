@@ -29,7 +29,8 @@ If the input could match multiple skills (e.g., "幫我處理這個 PR" could be
 | Work on a ticket | "做", "work on" + ticket | `work-on` |
 | Fix a bug | "修 bug", "fix bug" + ticket | `fix-bug` |
 | Break down an epic | "拆單", "拆解", "epic breakdown" | `epic-breakdown` |
-| Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `epic-status` |
+| Batch converge all work | "收斂", "converge", "推進", "全部推到 review", "把我的單收一收" | `converge` |
+| Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `converge` (Epic-only mode) |
 | Create/open a PR | "開 PR", "create PR", "發 PR" | `git-pr-workflow` |
 | Triage my work | "我的 epic", "my epics", "盤點", "triage", "手上有什麼", "排優先", "my work", "我的工作" | `my-triage` |
 | Daily standup / end-of-day | "standup", "站會", "daily", "寫 standup", "下班", "收工", "準備明天的工作", "end of day", "EOD", "明天 standup", "今天結束了", "總結一下", "結束今天", "wrap up", "今天做了什麼" | `standup` |
