@@ -10,7 +10,7 @@ description: >
   that pass tests but fail in practice (wrong env var, missing import in SSR, layout shift).
 metadata:
   author: Polaris
-  version: 1.5.0
+  version: 1.6.0
 ---
 
 # Verification Before Completion
@@ -572,6 +572,75 @@ These must be fixed before proceeding with detailed verification.
 ```
 
 Gaps found here block the verification — return to implementation to fix wiring before spending time on detailed test items.
+
+---
+
+## 1.7. E2E Browser Verification (Frontend Projects)
+
+**When to run**: the project is a frontend/SSR application (Nuxt, Next, etc.) AND the change affects pages that users see (components, layouts, SSR logic, CSS, i18n).
+
+**Skip when**: the change is backend-only (API util, build config, test-only files) or the dev server is not available.
+
+### Pre-flight
+
+1. Check if the dev environment is running:
+   ```bash
+   curl -sk --max-time 5 -o /dev/null -w "%{http_code}" "https://dev.kkday.com/zh-tw"
+   ```
+2. If NOT reachable (exit code != 0 or HTTP != 2xx/3xx):
+   - **Do NOT block verification** — fall back to Step 2 (non-E2E strategy)
+   - Note in report: "E2E verification skipped — dev server not running"
+3. If reachable → proceed
+
+### Determine Affected Pages
+
+From the git diff, infer which page types were affected:
+
+| Changed file pattern | Page type | Default test URL |
+|---------------------|-----------|-----------------|
+| `components/product/*`, `pages/**/product/*` | `product` | `/zh-tw/product/133300` |
+| `components/category/*`, `pages/**/category/*` | `category` | `/zh-tw/category/global/sightseeing-tours/list` |
+| `components/destination/*`, `pages/**/destination/*` | `destination` | `/zh-tw/destination/japan` |
+| `layouts/*`, `app.vue`, `plugins/*`, `composables/*` | `home` + impacted pages | `/zh-tw` |
+| `server/*`, `utils/ssr-*` | `home` (SSR check) | `/zh-tw` |
+| CSS/SCSS/Tailwind changes | all impacted pages | `/zh-tw` |
+
+If uncertain, default to verifying the homepage (`/zh-tw`).
+
+### Run Verification
+
+Call the framework E2E script:
+
+```bash
+E2E_BASE_URL="https://dev.kkday.com" \
+E2E_PAGES='[{"url":"/zh-tw/product/133300","type":"product"},{"url":"/zh-tw","type":"home"}]' \
+  {workspace_root}/scripts/e2e/e2e-verify.sh
+```
+
+The script runs Playwright checks:
+- **HTTP OK** — page returns 2xx/3xx
+- **Not blank** — page has visible content (> 50 chars)
+- **No hydration errors** — no SSR/hydration/mismatch console errors
+- **No uncaught JS errors** — no `pageerror` events
+- **Critical elements present** — type-specific selectors (h1, product links, images)
+- **No error page** — no "500 Internal Server Error" or "ECONNREFUSED"
+
+### Interpret Results
+
+| Result | Action |
+|--------|--------|
+| All checks pass | ✅ Proceed to Step 2 |
+| `no_hydration_error` fails | 🔴 Block — SSR hydration mismatch, likely a real bug |
+| `no_page_error` fails | 🔴 Block — uncaught JS error, investigate |
+| `not_blank` fails | 🔴 Block — page not rendering |
+| `element:*` fails | ⚠️ Warning — critical element missing, may be expected if the change removed it. Ask user |
+| Pre-flight fails (dev not running) | ⏭️ Skip E2E, note in report, continue with Step 2 |
+
+Screenshots are saved to `{workspace_root}/scripts/e2e/e2e-results/` — attach to the verification report.
+
+### First-Time Setup
+
+If `{workspace_root}/scripts/e2e/node_modules/` doesn't exist, the script auto-installs dependencies via `npm install`. Playwright Chromium browser is also auto-installed on first run. No changes to the product repo needed.
 
 ---
 
