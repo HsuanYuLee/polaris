@@ -21,6 +21,31 @@ When launching a sub-agent, specify the model based on task type to balance cost
 
 > See `skills/references/sub-agent-roles.md` for the full role definitions.
 
+## Decision Classification
+
+When a sub-agent encounters a decision point during planning or implementation, classify it into one of three tiers:
+
+| Tier | Name | When to use | Action |
+|------|------|-------------|--------|
+| **T1** | Mechanical | Single correct answer derivable from code/config/conventions | Decide automatically, no confirmation needed |
+| **T2** | Taste | Multiple valid approaches, guided by project principles | Choose the approach most aligned with existing patterns, note the decision in the plan, proceed without asking |
+| **T3** | User-challenge | Irreversible, cross-module, or involves a tradeoff the user hasn't expressed preference on | Stop and ask the user before proceeding |
+
+### Examples
+
+| Decision | Tier | Reasoning |
+|----------|------|-----------|
+| Which test framework to use | T1 | Read package.json — one correct answer |
+| File naming convention | T1 | Follow existing repo patterns |
+| Component structure (single file vs split) | T2 | Multiple valid approaches — pick what matches neighbors |
+| API response format (REST vs GraphQL) | T3 | Architectural, irreversible, user preference unknown |
+| Delete vs deprecate a module | T3 | Irreversible, affects other teams |
+| Add error handling style (try/catch vs Result type) | T2 | Follow existing codebase convention |
+
+### Escalation bias
+
+When uncertain between T2 and T3, prefer T2 (decide and note) over T3 (stop and ask). Unnecessary confirmation requests slow down the workflow more than a suboptimal-but-reversible choice. The key question: "Can this be easily changed later?" If yes → T2. If no → T3.
+
 ## Operational Rules
 
 - **Prefer local repo for reading files**: when `{base_dir}/<repo>` exists, sub-agents must use the Read tool or local git commands to read files — do not use `gh api repos/.../contents/` for remote reads. Remote mode is only a fallback when no local clone exists

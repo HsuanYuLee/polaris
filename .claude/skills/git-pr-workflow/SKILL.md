@@ -92,6 +92,13 @@ git create-branch --jira --ci
 
 如果報告顯示 ⚠️，應先補測試再繼續。
 
+**Re-test-after-fix rule:** If the quality check found issues and code was modified to fix them, ALL tests and lint checks must be re-run from scratch before proceeding. Stale results from before the fix are invalid. This applies to:
+- Test failures → fix → must re-run tests
+- Lint errors → fix → must re-run lint
+- Coverage drops → fix → must re-run coverage
+
+Never proceed to commit/PR with test results that predate the most recent code change. If in doubt, re-run everything.
+
 ### Step 3.5：Verify Completion（行為驗證）
 
 品質檢查通過後，invoke `verify-completion` 確認改動在實際運行時符合預期。這一步抓「測試過了但實際行不通」的問題——SSR hydration mismatch、missing runtime dependency、layout shift 等。

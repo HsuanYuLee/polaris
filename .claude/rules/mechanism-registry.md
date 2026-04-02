@@ -61,6 +61,13 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 |----|------|---------------|-------|
 | `scope-header-enforcement` | Company rule files must have `Scope:` header | File under `rules/{company}/` without scope header | Medium |
 
+### Quality Gates (source: `skills/git-pr-workflow/SKILL.md`, `skills/verify-completion/SKILL.md`)
+
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `re-test-after-fix` | After fixing quality issues, re-run all tests before proceeding to commit | Git diff shows changes after last test run but commit proceeds without fresh test output | High |
+| `fresh-verification-before-completion` | Every task completion must include fresh verification performed after the final code change | Task marked complete with rationalization phrases ("should work", "trivial change") and no verification output in conversation | High |
+
 ### Skills Management (source: `CLAUDE.md`)
 
 | ID | Rule | Canary Signal | Drift |
@@ -82,5 +89,6 @@ Post-task audit should check these first (highest drift risk, most impactful):
 1. `skill-first-invoke` / `no-manual-skill-steps`
 2. `delegate-exploration` / `delegate-implementation`
 3. `post-task-feedback-reflection`
-4. `no-cd-in-bash` / `no-independent-cmd-chaining`
-5. `feedback-trigger-count-update` / `graduation-at-three-triggers`
+4. `re-test-after-fix` / `fresh-verification-before-completion`
+5. `no-cd-in-bash` / `no-independent-cmd-chaining`
+6. `feedback-trigger-count-update` / `graduation-at-three-triggers`

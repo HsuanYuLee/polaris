@@ -30,6 +30,21 @@ Typical invocation chain:
 implementation → dev-quality-check → verify-completion → commit/PR
 ```
 
+## Verification Iron Rule
+
+**NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION.** Every task must be verified with a live check (dev server, curl, test run, browser render) performed AFTER the final code change. Prior verification that predates the last edit is stale and does not count.
+
+### Anti-Rationalization Patterns
+
+These phrases are red flags — they signal the agent is about to skip verification:
+- "should work now" — verify it does
+- "trivial change, no need to test" — trivial changes break things too
+- "same pattern as before" — patterns can diverge
+- "just updated a string/comment" — strings affect rendering, comments affect docs
+- "tests already passed" — did they pass AFTER this change?
+
+When you catch yourself thinking any of these, treat it as a trigger to run verification, not skip it.
+
 ## 前置：讀取 workspace config
 
 讀取 workspace config（參考 `references/workspace-config-reader.md`）。
