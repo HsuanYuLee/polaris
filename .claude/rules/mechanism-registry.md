@@ -25,9 +25,9 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `delegate-exploration` | > 3 files → dispatch Explorer sub-agent | > 5 consecutive Read/Grep in main session without conclusion | High |
 | `delegate-implementation` | Multi-file edits → dispatch Implementer sub-agent | Edit/Write in main session across > 1 file (unless ≤ 3 lines) | High |
 | `plan-first-large-scope` | > 3 files or arch decision → plan before code | Sub-agent producing 4+ file changes without prior plan | High |
-| `model-tier-selection` | sonnet for explore/execute, haiku for JIRA batch ops | JIRA batch sub-agent using sonnet; explore sub-agent with no model specified | Low |
+| `model-tier-selection` | sonnet for explore/execute, haiku for JIRA batch ops (see `sub-agent-roles.md` § Model Tier) | JIRA batch sub-agent using sonnet; explore sub-agent with no model specified | Low |
 | `worktree-for-batch-impl` | Batch mode Phase 2 sub-agents use `isolation: "worktree"` | Parallel implementation sub-agents without worktree isolation | Medium |
-| `subagent-completion-envelope` | All sub-agents must return Status/Artifacts/Summary envelope | Sub-agent return without structured Status line | Medium |
+| `subagent-completion-envelope` | All sub-agents must return Status/Artifacts/Summary envelope (see `sub-agent-roles.md` § Completion Envelope) | Sub-agent return without structured Status line | Medium |
 
 ### Feedback & Memory (source: `rules/feedback-and-memory.md`)
 

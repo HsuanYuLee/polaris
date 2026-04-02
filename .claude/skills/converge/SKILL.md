@@ -172,19 +172,19 @@ Gaps found: X | Ready: Y | Skipped: Z
 
 ### Gap → Skill 路由
 
-| Gap Type | Skill | Sub-agent Role | Model |
-|----------|-------|---------------|-------|
-| `NO_BREAKDOWN` | `epic-breakdown` | Analyst | sonnet |
-| `NO_ESTIMATE` | `jira-estimation` | Analyst（batch 用 haiku） | sonnet/haiku |
-| `NOT_STARTED` | `work-on` | Implementer | sonnet |
-| `CODE_NO_PR` | `git-pr-workflow` | Implementer | sonnet |
-| `CI_RED` | `fix-pr-review` | Implementer | sonnet |
-| `CHANGES_REQUESTED` | `fix-pr-review` | Implementer | sonnet |
-| `HAS_UNRESOLVED_COMMENTS` | `fix-pr-review` | Implementer | sonnet |
-| `REVIEW_STUCK` | `check-pr-approvals` | Scribe | haiku |
-| `STALE_APPROVAL` | `check-pr-approvals` | Scribe | haiku |
-| `VERIFICATION_PENDING` | `verify-completion` | QA Challenger | sonnet |
-| `NO_FEATURE_PR` | `feature-branch-pr-gate.md` reference | Implementer | sonnet |
+| Gap Type | Skill | Dispatch Pattern | Model |
+|----------|-------|-----------------|-------|
+| `NO_BREAKDOWN` | `epic-breakdown` | Exploration → Analysis | sonnet |
+| `NO_ESTIMATE` | `jira-estimation` | Exploration → Analysis (batch: haiku for JIRA writes) | sonnet/haiku |
+| `NOT_STARTED` | `work-on` | Implementation | sonnet |
+| `CODE_NO_PR` | `git-pr-workflow` | Implementation | sonnet |
+| `CI_RED` | `fix-pr-review` | Implementation | sonnet |
+| `CHANGES_REQUESTED` | `fix-pr-review` | Implementation | sonnet |
+| `HAS_UNRESOLVED_COMMENTS` | `fix-pr-review` | Implementation | sonnet |
+| `REVIEW_STUCK` | `check-pr-approvals` | JIRA + Slack notification | sonnet |
+| `STALE_APPROVAL` | `check-pr-approvals` | JIRA + Slack notification | sonnet |
+| `VERIFICATION_PENDING` | `verify-completion` | Verification (E2E + test plan) | sonnet |
+| `NO_FEATURE_PR` | `feature-branch-pr-gate.md` reference | Implementation | sonnet |
 
 ### 安全機制
 

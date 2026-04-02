@@ -19,7 +19,7 @@ When launching a sub-agent, specify the model based on task type to balance cost
 | **Execute / Fix** | `"sonnet"` | Implementation sub-agent, fix-pr-review worktree, CI fixes, rebase conflict |
 | **JIRA template operations** | `"haiku"` | Batch create sub-tasks, batch create tickets, readiness checklist comparison |
 
-> See `skills/references/sub-agent-roles.md` for the full role definitions.
+> See `skills/references/sub-agent-roles.md` for dispatch standards (Completion Envelope, model tiers), specialized protocols (QA Challenger, Architect Challenger, Critic), and common prompt patterns.
 
 ## Decision Classification
 

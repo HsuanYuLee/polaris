@@ -4,6 +4,10 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.40.0] - 2026-04-03
+
+- **Sub-agent role system rewrite** — `sub-agent-roles.md` restructured from 11-role registry to dispatch patterns reference. Audit found only 4/11 roles were correctly cited by skills — generic roles (Explorer, Implementer, Analyst, Validator, Scribe) removed as named roles, replaced with copy-paste prompt patterns. Three specialized protocols retained with canonical definitions: QA Challenger/Resolver (multi-round challenge loop), Architect Challenger (estimation review), Critic (pre-PR review with JSON return). Mandatory standards (Completion Envelope, Model Tier Selection, Context Isolation) elevated to top of file. Converge routing table fixed: removed role name labels, replaced with dispatch pattern descriptions, corrected VERIFICATION_PENDING (was mislabeled QA Challenger → now Verification) and REVIEW_STUCK (was mislabeled Scribe/haiku → now sonnet). Based on cross-framework research (OpenAI Swarm, CrewAI, LangGraph, Claude Agent SDK, AutoGen, gstack, GSD) — no production framework uses a dynamic role registry; all define roles inline per-dispatch
+
 ## [1.39.0] - 2026-04-03
 
 - **Mockoon CLI runner** — new `scripts/mockoon/` module with `mockoon-runner.sh` supporting start/stop/status, proxy mode (passthrough to SIT) and mock mode (canned responses for E2E). Reads environment JSON files from any directory (framework-agnostic, company provides the data)
