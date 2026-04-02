@@ -173,7 +173,7 @@ flowchart LR
     %% ── Epic Tracking ──
     MT["my-triage<br/>(daily triage)"]
     ES["epic-status<br/>(gap closer)"]
-    EOD["end-of-day<br/>(triage→standup)"]
+    EOD["end-of-day<br/>(deprecated → standup)"]
 
     %% ── Context Router ──
     NX["next<br/>(auto-route)"]
@@ -265,9 +265,10 @@ flowchart LR
 - 每個技能至少有一條入邊（被其他技能呼叫）或是使用者直接觸發的進入點
 - `next` 是元路由器 — 根據上下文（todo、git branch、JIRA 狀態、PR 狀態）自動判斷並呼叫正確的下一個技能
 - `my-triage` 盤點所有已指派工作（Epic、Bug、孤兒 Task）；優先順序排名會傳入 `standup` 的 TDT 區段
-- `end-of-day` 串接 `my-triage` → `standup`，一鍵完成下班收工流程
+- `end-of-day` 已棄用 — 所有下班觸發詞（「下班」、「收工」、「EOD」、「wrap up」等）現在統一路由到 `standup`（v2.0），Step 0 自動跑 triage
 - `epic-status` 追蹤 Epic 進度，自動將缺口路由到對應技能
-- `standup`、`systematic-debugging`、`learning`、`wt-parallel`、`unit-test-review`、`docs-sync`、`worklog-report` 是獨立技能 — 由使用者直接觸發，不在主鏈路中
+- `standup`（v2.0）是每日站會和下班收工的統一進入點 — 含自動 triage（Step 0）；由使用者直接觸發
+- `systematic-debugging`、`learning`、`wt-parallel`、`unit-test-review`、`docs-sync`、`worklog-report` 是獨立技能 — 由使用者直接觸發，不在主鏈路中
 
 ---
 

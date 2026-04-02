@@ -173,7 +173,7 @@ flowchart LR
     %% ── Epic Tracking ──
     MT["my-triage<br/>(daily triage)"]
     ES["epic-status<br/>(gap closer)"]
-    EOD["end-of-day<br/>(triage→standup)"]
+    EOD["end-of-day<br/>(deprecated → standup)"]
 
     %% ── Context Router ──
     NX["next<br/>(auto-route)"]
@@ -265,9 +265,10 @@ flowchart LR
 - Every skill has at least one inbound edge (invoked by another skill) or is a direct user entry point
 - `next` is a meta-router — auto-determines and invokes the correct next skill based on context (todo, git branch, JIRA status, PR status)
 - `my-triage` triages all assigned work (Epics, Bugs, orphan Tasks); feeds priority ranking into `standup` TDT section
-- `end-of-day` chains `my-triage` → `standup` as a single end-of-day routine
+- `end-of-day` is deprecated — all end-of-day triggers ("下班", "收工", "EOD", "wrap up", etc.) now route to `standup` (v2.0), which includes auto-triage in Step 0
 - `epic-status` tracks Epic progress and auto-routes gaps to the appropriate skill
-- `standup`, `systematic-debugging`, `learning`, `wt-parallel`, `unit-test-review`, `docs-sync`, `worklog-report` are standalone skills — triggered directly by the user, not part of the main chain
+- `standup` (v2.0) is the unified entry point for daily standup and end-of-day routines — includes auto-triage (Step 0); triggered directly by the user
+- `systematic-debugging`, `learning`, `wt-parallel`, `unit-test-review`, `docs-sync`, `worklog-report` are standalone skills — triggered directly by the user, not part of the main chain
 
 ---
 

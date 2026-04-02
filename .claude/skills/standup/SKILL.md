@@ -4,15 +4,17 @@ description: >
   Generates daily standup reports (YDY/TDT/BOS/口頭同步) by collecting git activity,
   JIRA status changes, Google Calendar meetings, PR status, and Polaris backlog.
   Merges all sources, deduplicates, groups by configured teams, and formats all
-  four sections for Confluence. Can be invoked standalone or as part of /end-of-day.
+  four sections for Confluence. Auto-triages first if needed (Step 0).
+  This is the single entry point for all end-of-day and standup workflows.
   Use this skill whenever the user mentions: "standup", "站立會議",
   "standup meeting", "YDY", "daily standup", "產出 standup", "generate standup",
-  "standup report", "寫 standup", "write standup", "daily report".
-  Note: "今天做了什麼", "總結一下", "今天結束了" should route to /end-of-day
-  (which includes triage + standup) rather than standup alone.
+  "standup report", "寫 standup", "write standup", "daily report",
+  "下班", "收工", "準備明天的工作", "end of day", "EOD", "明天 standup",
+  "寫明天的 standup", "今天結束了", "總結一下", "結束今天", "wrap up",
+  "今天做了什麼".
 metadata:
   author: Polaris
-  version: 1.5.1
+  version: 2.0.0
 ---
 
 # Standup — 每日站立會議報告產生器
@@ -39,6 +41,17 @@ metadata:
 如果使用者沒有特別指定，直接用預設值執行，不需要額外確認。
 
 ## Workflow
+
+### 0. Auto-triage guard
+
+Before collecting standup data, ensure a fresh triage exists so TDT can reference prioritized work:
+
+1. Read `{company}/.daily-triage.json`
+2. **If exists AND `date` field is today** → skip, proceed to Step 1
+3. **If missing or stale (date is not today)** → read and fully execute `skills/my-triage/SKILL.md` (all steps). This produces the triage dashboard and writes `.daily-triage.json`. Pause for user to review/adjust the triage before continuing
+4. After triage completes (or was already fresh) → proceed to Step 1
+
+This replaces the old `/end-of-day` skill. The standup skill is now the single entry point — triage runs automatically when needed, no separate orchestrator required.
 
 ### 1. Determine dates
 
