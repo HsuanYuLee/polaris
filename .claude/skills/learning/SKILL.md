@@ -1,9 +1,9 @@
 ---
 name: learning
 description: >
-  Five modes: (1) External — gap-driven deep exploration of URLs, repos, articles with
+  Five modes: (1) External — discovery-first exploration of URLs, repos, articles with
   dual-target support (framework or product project). Three depth tiers (Quick/Standard/Deep),
-  gap pre-scan before exploration, and Polaris-specific extraction categories.
+  novelty-driven deep-dives, and baseline comparison to surface unknown unknowns.
   (2) PR — extracts review patterns from merged PRs into review-lessons.
   (3) Queue — processes daily learning queue articles in batch.
   (4) Setup — configure or update the daily learning scanner (RemoteTrigger).
@@ -21,7 +21,7 @@ description: >
   is for LEARNING from already-merged PRs, not reviewing open ones).
 metadata:
   author: Polaris
-  version: 2.0.0
+  version: 3.0.0
 ---
 
 # learning
@@ -88,9 +88,11 @@ Determine whether learnings should land in the **framework** or a **product proj
 
 The target determines which gap sources to scan (Step 1.5) and where recommendations land (Step 5).
 
-## Step 1.5: Gap Pre-Scan — Know What We're Looking For
+## Step 1.5: Baseline Scan — Know Where We Stand
 
-Before exploring external content, scan our own gaps to give the exploration direction. This is the key difference from v1 — **explore with questions, not just curiosity**.
+Before exploring external content, scan our current state as a **comparison baseline** (not as an exploration filter). The scan results are used in Step 4 (Synthesis) to distinguish "known gap confirmed" from "new discovery", not to narrow the exploration.
+
+> **v3 重要改動**：v2 用 gap scan 引導探索方向（「帶著問題去看」），結果會錯過 unknown unknowns。v3 改為先全面理解外部內容，再拿 baseline 比對。探索階段不帶預設。
 
 ### Framework target gaps
 
@@ -109,18 +111,25 @@ Before exploring external content, scan our own gaps to give the exploration dir
 | Project CLAUDE.md | Known conventions and pain points | Read the project's AI operating manual |
 | Test coverage gaps | Areas with low coverage | Read coverage config if available |
 
-Output: a **lens list** — 5-10 specific questions/topics to look for during exploration. Example:
+Output: a **baseline snapshot** — our current state organized by category, used for comparison in Step 4. Example:
 
 ```
-Gap Pre-Scan Results (framework target):
-  1. Sub-agent safety enforcement (backlog: PreToolUse hooks) ✅ done
-  2. Context window monitoring (backlog: PostToolUse hook) — blocked by platform
-  3. Review-lesson semantic dedup (backlog: entry consolidation)
-  4. PR description language detection (backlog: default_language config)
-  5. Feedback: sub-agents sometimes modify files outside scope
+Baseline Snapshot (framework target):
+  Delegation: self-regulation scoring, worktree isolation, model tiers
+  Quality gates: dev-quality-check, verify-completion iron rule, re-test-after-fix
+  Feedback loop: post-task reflection, graduation pipeline, mechanism registry
+  Known gaps: context monitor hook (blocked), wave-based parallel (backlog)
 ```
 
-This list guides Step 2-3 exploration — look for how the external source addresses these specific gaps.
+```
+Baseline Snapshot (project target: b2c-web):
+  Composables: useProduct, useCart, useAuth — setup-only constraint
+  SSR: defineCachedEventHandler, Nitro routes
+  Testing: Vitest + coverage-v8, component + unit
+  Known gaps: E2E coverage (backlog), composable lifecycle docs (review-lessons)
+```
+
+This snapshot is NOT used to guide exploration (Step 2-3). It is used in Step 4 to compare findings against our current state.
 
 ## Step 2: Depth Assessment
 
@@ -139,12 +148,12 @@ Auto-escalate to Deep when: repo has its own `.claude/`, `CLAUDE.md`, `rules/`, 
 **Standard** — single-agent or up to 2 Researchers:
 - README + directory structure overview
 - 2-3 key files identified from structure
-- Compare against lens list from Step 1.5
+- **Discovery-first**: note what's different or novel, not just what matches known gaps
 
 **Deep** — multi-round, up to 3 Researchers per round:
-- Round 1: Structure scan (see below)
-- Round 2: Targeted deep-dives guided by lens list
-- Round 3: Cross-reference with our workspace
+- Round 1: Structure scan — build a comprehensive map
+- Round 2: Selective deep-dives guided by **novelty/unknown signals** from Round 1
+- Round 3: Compare findings against Step 1.5 baseline
 
 ## Step 3: Research
 
@@ -154,7 +163,7 @@ Read the content yourself. Extract core concepts, notable techniques, and applic
 
 ### Standard path
 
-Research the content with focus on the lens list from Step 1.5. For each gap in the lens list, actively look for how the external source addresses it (or doesn't).
+Research the content **without filtering by known gaps**. Explore broadly, noting everything that's interesting, novel, or different from how we work. The Step 1.5 baseline is used later in Step 4 for comparison — not here for filtering.
 
 Extract using **target-specific categories**:
 
@@ -189,36 +198,45 @@ Explore the repo's overall structure:
 - Key config files: `CLAUDE.md`, `.claude/rules/`, `package.json`, `tsconfig.json`, hooks, scripts
 - Identify 5-8 "interesting areas" — files or directories that likely contain the deepest insights
 
-**Round 2: Targeted deep-dives** (up to 3 parallel Researcher sub-agents)
+**Round 2: Selective deep-dives** (up to 3 parallel Researcher sub-agents)
 
-Based on Round 1 findings + lens list from Step 1.5, dispatch Researchers to specific areas:
+Based on Round 1 findings, dispatch Researchers to areas with **novelty or unknown signals** — things that look different from how we work, or concepts we don't have at all:
 
 ```
-Researcher A: {area aligned with gap #1 from lens list}
-Researcher B: {area aligned with gap #2 from lens list}
-Researcher C: {most unique/novel aspect of the repo}
+Researcher A: {area where their approach differs most from ours}
+Researcher B: {concept/mechanism we have no equivalent for}
+Researcher C: {area that seems sophisticated — worth understanding why}
 ```
+
+**Deep-dive signal priority:**
+1. 「我們沒有對應概念」(unknown) → highest priority, always deep-dive
+2. 「做法明顯不同」(novelty) → deep-dive to understand the tradeoff
+3. 「做法類似但更成熟」(refinement) → deep-dive if time allows
 
 Each Researcher reads 3-5 files in their area and extracts findings using the target-specific categories above.
 
-**Round 3: Cross-reference** (Strategist, no sub-agent)
+**Round 3: Compare against baseline** (Strategist, no sub-agent)
 
-Merge Round 1+2 findings. For each finding, explicitly map to:
-- Which lens list gap it addresses (or "new insight — not in our gap list")
-- Which specific file in our workspace it would modify
-- Whether we already have something similar (check backlog for duplicates)
+Merge Round 1+2 findings. For each finding, compare against the Step 1.5 baseline snapshot:
+
+- **Known gap confirmed** → finding addresses an item already in baseline snapshot. Mark: `✅ confirms: {baseline item}`
+- **New discovery** → finding reveals something not in our baseline at all (unknown unknown). Mark: `🔍 new: {description}`
+- **Refinement** → we have the concept but their approach is more mature. Mark: `📈 refines: {our current approach}`
+- **Not applicable** → interesting but doesn't fit our context. Mark: `⏭️ skip: {reason}`
+
+Also map each finding to which specific file in our workspace it would modify, and check backlog for duplicates.
 
 ## Step 4: Synthesis — Connect to Our Workspace
 
 ### 4a. Comparison Matrix
 
 ```markdown
-| Aspect | External Approach | Our Current State | Gap / Opportunity | Lens Match |
-|--------|------------------|-------------------|-------------------|------------|
-| ... | ... | ... | ... | Gap #N or "new" |
+| Aspect | External Approach | Our Current State | Gap / Opportunity | Discovery Type |
+|--------|------------------|-------------------|-------------------|---------------|
+| ... | ... | ... | ... | ✅ confirms / 🔍 new / 📈 refines / ⏭️ skip |
 ```
 
-The **Lens Match** column connects each finding back to the gap pre-scan, making it clear which items address known problems vs. surface new ideas.
+The **Discovery Type** column (from Round 3 classification) makes it immediately clear which findings are **new discoveries (unknown unknowns)** vs confirmations of known gaps. Present `🔍 new` items first — these are the highest-value output of the discovery-first approach.
 
 To fill "Our Current State" accurately: read relevant workspace files rather than relying on memory. Spawn an Explore subagent if needed.
 
