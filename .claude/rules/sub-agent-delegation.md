@@ -111,6 +111,7 @@ Skills that only read data (my-triage, standup, review-pr analysis phase) do not
 - **Prefer local repo for reading files**: when `{base_dir}/<repo>` exists, sub-agents must use the Read tool or local git commands to read files — do not use `gh api repos/.../contents/` for remote reads. Remote mode is only a fallback when no local clone exists
 - **Verify permissions before batch operations**: before launching multiple parallel sub-agents (e.g., batch PR review, cross-repo PR creation), run one complete cycle with a single sub-agent to confirm bash permissions are correct, then launch the rest
 - **Worktree for operations requiring isolation**: operations like fix-pr-review that must not affect the current development branch should use `isolation: "worktree"`. Note: project-level `settings.local.json` project-specific patterns are not available inside a worktree
+- **Worktree path translation**: when a sub-agent runs in a worktree, file paths from the parent context (e.g., `{base_dir}/repo/src/...`) point to the original workspace, not the worktree copy. The dispatch prompt must explicitly state: "你的工作目錄是 `{worktree_path}`，所有檔案操作必須在此目錄下。不要使用原始 workspace 路徑 `{original_path}`。" This prevents the sub-agent from accidentally reading/writing files in the wrong workspace
 - **General permissions go in user-level `~/.claude/settings.json`**: sub-agents running in sub-projects or worktrees fall back to user-level settings
 
 ## Known Platform Limitations

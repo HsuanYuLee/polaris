@@ -291,18 +291,18 @@ Present the lens match summary, comparison matrix, and recommendations. Wait for
 - Framework changes: use `/skill-creator` for skills, edit rules directly, use `skills/references/` for docs
 - Project changes: follow project conventions (CLAUDE.md, coding standards, PR workflow)
 
-## Meta: Role Discovery
+## Meta: Dispatch Pattern Discovery
 
-During Step 4, watch for division-of-labor patterns that map to new sub-agent roles. If a recommendation involves sub-agent work that doesn't fit any role in `skills/references/sub-agent-roles.md`, flag it:
+During Step 4, watch for division-of-labor patterns that could become new **specialized protocols** (multi-step interaction patterns worth standardizing). Only flag when the pattern has a distinct protocol — not just "another sub-agent that reads/writes":
 
 ```markdown
-🎭 **Potential new role: {RoleName}**
-- Does: {what this role would do}
+🎭 **Potential new protocol: {Name}**
+- Protocol: {multi-round? challenge loop? structured return format?}
 - Model: sonnet / haiku
 - Would be used by: {which skills}
 ```
 
-Only flag when clearly distinct from existing roles. Don't force it.
+See `skills/references/sub-agent-roles.md` § Specialized Protocols for existing examples (QA Challenger, Architect Challenger, Critic).
 
 ## Meta: Attribution
 

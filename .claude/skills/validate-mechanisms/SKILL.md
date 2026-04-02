@@ -63,9 +63,9 @@ Scan all memory files in the memory directory:
 #### 2e. Sub-agent Role Definitions (`model-tier-selection`, `delegate-exploration`)
 
 Read `skills/references/sub-agent-roles.md`:
-- Verify it defines roles for Explorer, Implementer, Critic
-- Verify model tier recommendations are present
-- 🟡 WARN if roles are missing or model tiers are undefined
+- Verify it defines the 3 mandatory standards (Completion Envelope, Model Tier Selection, Context Isolation)
+- Verify specialized protocols exist (QA Challenger/Resolver, Architect Challenger, Critic)
+- 🟡 WARN if mandatory standards section or specialized protocols are missing
 
 #### 2f. Feedback Memory Frontmatter (`feedback-trigger-count-update`, `graduation-at-three-triggers`)
 

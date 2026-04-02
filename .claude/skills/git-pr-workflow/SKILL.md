@@ -111,7 +111,7 @@ Never proceed to commit/PR with test results that predate the most recent code c
 
 在 commit 之前，啟動 Sub-Agent 對本地 diff 進行 code review，根據結果修正後再重新送審，直到沒有 blocking issues。這確保 PR 開出來時品質已經過關，減少人工 review 來回。
 
-> Reviewer Sub-Agent 的角色定義基於 `references/sub-agent-roles.md` 的 Critic 角色。以下為本 skill 的流程特化。
+> Reviewer Sub-Agent 遵循 `references/sub-agent-roles.md` § Critic (Pre-PR Review) 的 JSON return format。以下為本 skill 的流程特化。
 
 #### 流程圖
 
