@@ -581,14 +581,7 @@ PR Approve 狀況：目前 M/2 valid approve(s)
 
 ### 7a. 查找 PR 作者的 Slack 帳號
 
-用 `slack_search_users` 搜尋 PR 作者（GitHub username 或 PR 中的 author name）：
-
-```
-slack_search_users({ query: "<author_name>" })
-```
-
-若找到匹配的 Slack user，取得其 user ID（如 `U12345678`）用於 @mention。
-若找不到，使用 GitHub username 作為純文字顯示（不 @mention）。
+依 `references/github-slack-user-mapping.md` 的 lookup chain 查找 PR 作者的 Slack user ID（跳過 Step 1 context match，從 Step 2 開始）。
 
 ### 7b. 組裝 Slack 訊息
 

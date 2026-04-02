@@ -800,13 +800,7 @@ Commit: <sha>
 
 ### 12a. 查找 Reviewer 的 Slack 帳號
 
-從 Step 4 取得的 review comments 中，提取所有 reviewer 的 GitHub username（`user.login`），用 `slack_search_users` 搜尋對應的 Slack 帳號：
-
-```
-slack_search_users({ query: "<reviewer_github_username>" })
-```
-
-若找到匹配的 Slack user，取得其 user ID 用於 @mention。若找不到，使用 GitHub username 作為純文字顯示。
+從 Step 4 取得的 review comments 中，提取所有 reviewer 的 GitHub username（`user.login`），依 `references/github-slack-user-mapping.md` 的 lookup chain 查找 Slack user ID（跳過 Step 1 context match，從 Step 2 開始）。
 
 ### 12b. 組裝 Slack 訊息
 

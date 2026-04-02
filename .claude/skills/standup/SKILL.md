@@ -348,6 +348,17 @@ gh pr list --search "review-requested:@me" --state open --json number,title,auth
 - Sub-task 全通過時折成一行，NO-JIRA 用一行摘要
 - 口頭同步用條列式 `_斜體_` 一併推上 Confluence
 
+## Post-Standup: Review Lessons Graduation Gate
+
+Standup 推送完成後（或使用者略過推送後），輕量檢查 review-lessons 是否需要 graduation：
+
+1. 讀取 workspace config 取得所有 project repos
+2. 對每個 repo，計算 `{base_dir}/<repo>/.claude/rules/review-lessons/` 下的 entry 總數（`^- ` 開頭的行）
+3. **若任一 repo 的 entry >= 15** → 通知使用者：「{repo} 的 review-lessons 有 N 條，建議跑 `/review-lessons-graduation`」
+4. **若全部 < 15** → 靜默，不輸出
+
+這是輕量提醒，不自動執行 graduation。使用者決定是否跑。
+
 ## Don't
 
 - 不要未經使用者確認就推 Confluence

@@ -228,27 +228,9 @@ Reviewer：{my_username}
 
 **Step 5b-1：查找 GitHub username → Slack user ID**
 
-收集所有已 review PR 的作者 GitHub username（去重），依序嘗試以下方式查找 Slack user ID：
+收集所有已 review PR 的作者 GitHub username（去重），依 `references/github-slack-user-mapping.md` 的完整 4-step lookup chain 查找 Slack user ID。
 
-**優先順序：**
-
-1. **從 Step 1 的 Slack 訊息中比對**：PR 通常由作者本人或同事貼到 channel。若 Step 1a 讀到的訊息中，發文者提到的 PR 作者 GitHub username 與該訊息的 Slack user ID 能對應上（例如發文者就是 PR 作者），直接使用該 Slack user ID。這是最可靠的來源，因為資料已在手上，不需額外 API call。
-
-2. **`slack_search_users` 搜尋 GitHub username**：
-   ```
-   slack_search_users({ query: "<github_username>" })
-   ```
-   GitHub username 有時與 Slack display name 不同，實測常搜不到。
-
-3. **取 GitHub 使用者真名後再搜 Slack**：
-   ```bash
-   gh api users/<github_username> --jq '.name'
-   ```
-   取得真名（如 `鄒適齊`）後用 `slack_search_users` 搜尋。
-
-4. **Fallback**：以上都找不到 → 用 `@{github_username}` 純文字顯示（不含 `<@U...>` mention）。
-
-> **效能提示**：方式 1 幾乎不花成本（資料已在 Step 1 讀取的訊息中），優先使用。方式 2-3 需要額外 API call，只在方式 1 無法確認時才執行。
+本 skill 可使用全部 4 步（含 Step 1 context match — Step 1a 讀取的 Slack 訊息可作為比對來源）。
 
 **Step 5b-2：按 (thread_ts, author) 分組**
 
