@@ -237,8 +237,9 @@ if [[ "$AUTO_PUSH" == true ]]; then
   echo ""
   echo "Pushing to remote..."
 
-  # Detect if we need to switch GitHub accounts
+  # Detect repo slug and if we need to switch GitHub accounts
   REMOTE_URL=$(git -C "$POLARIS_DIR" remote get-url origin 2>/dev/null || true)
+  REPO_SLUG=$(echo "$REMOTE_URL" | sed -E 's|.*github\.com[:/]([^/]+/[^/.]+)(\.git)?$|\1|')
   CURRENT_USER=$(gh auth status 2>&1 | grep "Active account: true" -B3 | grep "Logged in" | head -1 | sed 's/.*account //' | awk '{print $1}' || true)
   NEEDS_SWITCH=false
   ORIGINAL_USER="$CURRENT_USER"
@@ -252,6 +253,27 @@ if [[ "$AUTO_PUSH" == true ]]; then
   fi
 
   git -C "$POLARIS_DIR" push origin main --tags
+
+  # Create GitHub release if tag was created and release doesn't exist
+  if [[ -n "$VERSION" ]]; then
+    TAG_NAME="v$VERSION"
+    RELEASE_EXISTS=$(gh release view "$TAG_NAME" --repo "$REPO_SLUG" --json tagName 2>/dev/null || echo "")
+    if [[ -z "$RELEASE_EXISTS" ]]; then
+      # Extract changelog section for this version
+      RELEASE_NOTES=$(awk -v ver="$VERSION" '
+        $0 ~ "^## \\[" ver "\\]" { found=1; next }
+        found && /^## \[/ { exit }
+        found { print }
+      ' "$INSTANCE_DIR/CHANGELOG.md" | sed '/^$/d')
+      [[ -z "$RELEASE_NOTES" ]] && RELEASE_NOTES="Release $TAG_NAME"
+
+      gh release create "$TAG_NAME" \
+        --repo "$REPO_SLUG" \
+        --title "Polaris $TAG_NAME" \
+        --notes "$RELEASE_NOTES" \
+        --verify-tag 2>/dev/null && echo "✓ Release $TAG_NAME created" || echo "⚠ Release creation failed (non-blocking)"
+    fi
+  fi
 
   # Switch back
   if [[ "$NEEDS_SWITCH" == true ]]; then
