@@ -2,7 +2,7 @@
 name: wt-parallel
 description: >
   Orchestrate parallel AI agent work using git worktrees.
-  Supports two modes: `wt` CLI (if installed) or Claude Code built-in `isolation: "worktree"` (fallback).
+  Supports two modes: Claude Code built-in `isolation: "worktree"` (primary, always available) or `wt` CLI (if installed, offers extra features).
   Use when: (1) working on multiple JIRA tickets simultaneously,
   (2) splitting a large task into parallel sub-tasks,
   (3) user mentions "parallel", "worktree", "wt", "平行", "多個 ticket", "拆分".
@@ -15,8 +15,8 @@ Manage git worktrees for parallel AI agent work. Two modes available:
 
 | Mode | When | How |
 |------|------|-----|
-| **wt CLI** | `wt` is installed | User runs commands in separate terminals via `wt switch` |
-| **Built-in** (fallback) | `wt` not installed | Agent spawns sub-agents with `isolation: "worktree"` |
+| **Built-in** (primary) | Always available | Agent spawns sub-agents with `isolation: "worktree"` |
+| **wt CLI** (optional) | `wt` is installed | User runs commands in separate terminals via `wt switch`; adds squash merge, pre-merge hooks |
 
 ---
 
@@ -28,9 +28,13 @@ Manage git worktrees for parallel AI agent work. Two modes available:
 which wt && echo "MODE=wt" || echo "MODE=builtin"
 ```
 
-### If `wt` is found → **wt mode**
+### Default → **builtin mode**
 
-Verify full setup:
+No extra setup needed. Claude Code's `Agent` tool with `isolation: "worktree"` handles worktree creation and cleanup automatically. Use this mode unless the user explicitly has `wt` installed and wants its extra features.
+
+### If `wt` is found → **wt mode** (optional upgrade)
+
+Verify full setup before switching to wt mode:
 
 ```bash
 test -f ~/.config/worktrunk/config.toml && echo OK          # user config exists?
@@ -44,11 +48,7 @@ If anything is missing, follow `references/setup.md` or run:
 bash <skill-dir>/scripts/setup-wt.sh --yes
 ```
 
-### If `wt` is NOT found → **builtin mode**
-
-No extra setup needed. Claude Code's `Agent` tool with `isolation: "worktree"` handles worktree creation and cleanup automatically. Inform the user:
-
-> `wt` CLI 未安裝，將使用 Claude Code 內建的 worktree 隔離模式。如需 `wt` 的進階功能（squash merge、pre-merge hooks），請參考 `references/setup.md` 安裝。
+> `wt` CLI 已安裝，可使用進階功能（squash merge、pre-merge hooks）。若無特殊需求，built-in 模式同樣適用。
 
 **Proceed to the appropriate use case below.**
 
@@ -229,11 +229,11 @@ Every agent working in a worktree MUST (applies to both modes):
 
 ## Prerequisites
 
-**Minimum (builtin mode):**
+**Always required (builtin mode):**
 - `git` installed
 - `gh` CLI authenticated (for PR creation)
 
-**Full (wt mode, optional):**
+**Optional — wt CLI (adds squash merge, pre-merge hooks):**
 - `wt` (worktrunk) CLI installed (`brew install worktrunk`)
 - Shell integration active (`wt` is a shell function, not a binary path)
 - User config at `~/.config/worktrunk/config.toml`

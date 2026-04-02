@@ -182,3 +182,4 @@ The `[company]` prefix in the index enables quick visual scanning without openin
 4. **Overlapping** — two memory entries are highly similar in content → merge into one
 5. **Frontmatter quality** — missing `trigger_count` / `last_triggered` → fill in (`trigger_count: 1`, `last_triggered` from file modification date)
 6. **Company isolation** — memory content is company-specific but missing `company:` field → add the appropriate `company:` value; memory has `company:` but the company no longer exists in workspace config → suggest deletion
+7. **Index integrity** — every entry in MEMORY.md must point to an existing file in the memory directory; every memory file in the directory must have a corresponding entry in MEMORY.md. Fix: add missing index entries, remove dangling pointers

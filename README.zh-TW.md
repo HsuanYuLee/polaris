@@ -223,6 +223,10 @@ Refinement         →  「refinement EPIC-100」
 
 > 你的公司可能有客製化版本在 `{company}/docs/rd-workflow.md`。
 
+### 排程代理
+
+**排程代理** — 定期任務（每日技術文章掃描、週期性檢查）透過 `/schedule` 以 cron 排程執行遠端觸發器。讓 Polaris 能在背景自動執行工作（例如掃描技術文章、執行健康檢查），無需開啟對話。
+
 ### 目錄結構
 
 ```

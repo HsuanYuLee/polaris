@@ -161,6 +161,11 @@ Audit: log `action: "start"` or `action: "restart"`.
 Company name (used as directory name): e.g. "acme", "my-startup"
 ```
 
+**Validation:**
+- Company name must be ASCII lowercase + hyphens only (e.g., `acme`, `my-startup`)
+- Auto-convert simple cases: trim whitespace, lowercase
+- If the result still contains non-ASCII characters, spaces, or uppercase: reject and explain: "Company name is used as a directory name. Please use lowercase ASCII characters and hyphens only (e.g., 'kkday', 'my-company')."
+
 **Auto-detect:**
 - Check if `{company}/` directory already exists
 - If exists and has `workspace-config.yaml` → offer to edit instead of overwrite

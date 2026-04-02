@@ -222,6 +222,10 @@ Skills chain together to automate the full ticket lifecycle. See **[Developer Wo
 
 > Your company may have a customized version at `{company}/docs/rd-workflow.md`.
 
+### Scheduled agents
+
+**Scheduled agents** — recurring tasks (daily learning scan, periodic checks) run as remote triggers on a cron schedule via `/schedule`. This lets Polaris perform background work (e.g., scanning tech articles, running health checks) without requiring a live conversation.
+
 ### Directory structure
 
 ```
