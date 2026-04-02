@@ -46,6 +46,66 @@ When a sub-agent encounters a decision point during planning or implementation, 
 
 When uncertain between T2 and T3, prefer T2 (decide and note) over T3 (stop and ask). Unnecessary confirmation requests slow down the workflow more than a suboptimal-but-reversible choice. The key question: "Can this be easily changed later?" If yes → T2. If no → T3.
 
+## Self-Regulation Scoring
+
+Sub-agents performing implementation work should maintain a mental "risk score" that accumulates as they make changes. When the score exceeds a threshold, they must stop and report back to the Strategist rather than continuing.
+
+### Risk Score Accumulation
+
+| Event | Score Impact |
+|-------|-------------|
+| Each file modified | +5% |
+| Reverting a previous change | +15% |
+| Modifying a file not in the original plan | +10% |
+| Fixing a test that broke due to own changes | +10% |
+| Third consecutive edit to the same file | +10% |
+| Change touches cross-module boundary | +10% |
+
+### Thresholds
+
+| Score | Action |
+|-------|--------|
+| < 20% | Continue normally |
+| 20-35% | Add a caution note to the return summary |
+| > 35% | **Stop immediately.** Return to the Strategist with: current state, what was attempted, what went wrong, and a recommendation for how to proceed |
+
+### Why this matters
+
+AI agents have a tendency to "push through" problems — making fix-on-fix-on-fix changes that compound errors. A human developer would step back and reconsider after the second unexpected failure. This scoring mechanism simulates that instinct. The numbers are approximate — the key behavior is to stop digging when the hole gets deep.
+
+## Pipeline Restore Points
+
+Long-running skills that modify code must create a restore point before starting. This allows clean rollback if the pipeline fails partway through.
+
+### When to create a restore point
+
+Before a sub-agent begins implementation work (Phase 2 of work-on, fix-bug coding step, git-pr-workflow quality fixes), if there are uncommitted changes in the working tree:
+
+1. Run `git stash push -m "polaris-restore-{ticket}-{timestamp}"`
+2. Record the stash ref in the sub-agent's context
+3. Proceed with implementation
+
+If the working tree is clean (no uncommitted changes), skip the stash — the current HEAD commit is the implicit restore point.
+
+### When to restore
+
+If the sub-agent triggers a self-regulation stop (score > 35%) or encounters an unrecoverable error:
+
+1. `git checkout -- .` to discard all uncommitted changes
+2. If a stash was created, `git stash pop` to restore the pre-pipeline state
+3. Report the failure to the Strategist with the restore point info
+
+### Scope
+
+| Skill | Restore point location |
+|-------|----------------------|
+| `work-on` Phase 2 | Before implementation sub-agent starts coding |
+| `fix-bug` | Before coding step begins |
+| `git-pr-workflow` | Before quality-fix loop starts |
+| `fix-pr-review` | Before applying fixes |
+
+Skills that only read data (my-triage, standup, review-pr analysis phase) do not need restore points.
+
 ## Operational Rules
 
 - **Prefer local repo for reading files**: when `{base_dir}/<repo>` exists, sub-agents must use the Read tool or local git commands to read files — do not use `gh api repos/.../contents/` for remote reads. Remote mode is only a fallback when no local clone exists
@@ -57,3 +117,26 @@ When uncertain between T2 and T3, prefer T2 (decide and note) over T3 (stop and 
 
 - **Sub-agents cannot call the Skill tool**: sub-agents must read `SKILL.md` files directly and execute the steps inline. This means updates to a skill's SKILL.md are picked up automatically (sub-agents read the current version), but the execution is duplicated rather than delegated. Not a bug — this is a Claude Code platform constraint
 - **"Plan mode" is prompt-level, not Claude Code native**: when rules say "enter Plan mode", this means the Strategist instructs the sub-agent to produce a plan before coding — it does NOT refer to Claude Code's built-in `--plan` flag. Consider adopting native plan mode for large-impact sub-agent tasks (> 3 files) in future versions
+
+## Safety Hooks
+
+`scripts/safety-gate.sh` provides deterministic enforcement against dangerous operations. Configure it as a PreToolUse hook in `settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|Bash",
+        "command": "POLARIS_SAFE_DIRS=\"/path/to/repo\" /path/to/scripts/safety-gate.sh"
+      }
+    ]
+  }
+}
+```
+
+The script blocks:
+- **Edit/Write** to files outside `POLARIS_SAFE_DIRS` (if set)
+- **Bash** commands matching dangerous patterns (rm -rf /, git push --force main, DROP TABLE, etc.)
+
+This is especially important for sub-agents which may operate with less contextual judgment than the main Strategist session. The hook fires deterministically — no prompt-level instruction can bypass it.
