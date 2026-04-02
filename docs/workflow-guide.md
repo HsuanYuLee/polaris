@@ -651,7 +651,7 @@ open PR
 AI executes the complete PR workflow (`git-pr-workflow`), fully auto-chained:
 
 ```
-Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit → Changeset → Open PR → JIRA transition → Update PR desc → Post-PR Review Comment
+Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit → Changeset → Rebase → Open PR → JIRA transition → Update PR desc → Post-PR Review Comment
 ```
 
 **Step-by-step:**
@@ -664,6 +664,7 @@ Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit →
 | 4 | Pre-PR Review Loop | Sub-agent iterative review (see Step 8), max 3 rounds |
 | 5 | Commit | AI generates a conventional commit message |
 | 6 | Changeset | Auto-adds changeset if applicable |
+| 6.5 | **Rebase** | Rebase to latest base branch (cascade rebase for feature branch workflows); conflict → stop and notify |
 | 7 | Open PR | `gh pr create`; PR description auto-filled |
 | 8 | JIRA transition | Auto-transitions status to `CODE REVIEW` |
 | 9 | Update PR desc | **Embeds AC Coverage checklist** (reads JIRA AC items, marks coverage status) |

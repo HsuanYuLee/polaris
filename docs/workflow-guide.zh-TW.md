@@ -651,7 +651,7 @@ open PR
 AI 執行完整 PR 工作流（`git-pr-workflow`），全自動串接：
 
 ```
-Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit → Changeset → Open PR → JIRA transition → Update PR desc → Post-PR Review Comment
+Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit → Changeset → Rebase → Open PR → JIRA transition → Update PR desc → Post-PR Review Comment
 ```
 
 **步驟明細：**
@@ -664,6 +664,7 @@ Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit →
 | 4 | Pre-PR Review 迴圈 | 子代理迭代審查（見步驟 8），最多 3 輪 |
 | 5 | Commit | AI 產生符合慣例的 commit message |
 | 6 | Changeset | 如適用，自動新增 changeset |
+| 6.5 | **Rebase** | Rebase 到最新 base branch（feature branch 模式含 cascade rebase）；衝突則停下通知 |
 | 7 | 開 PR | `gh pr create`；PR 描述自動填入 |
 | 8 | JIRA 轉狀態 | 自動轉為 `CODE REVIEW` |
 | 9 | 更新 PR 描述 | **嵌入 AC 覆蓋清單**（讀取 JIRA AC 項目，標記覆蓋狀態） |

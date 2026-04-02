@@ -45,10 +45,60 @@ references/scripts/check-feature-pr.sh {owner}/{repo} {feature_branch} --base de
 
 | action | 意義 | 處理 |
 |--------|------|------|
-| `CREATE_FEATURE_PR` | 全部 merged，尚無 feature PR | 進入「建立 Feature PR」 |
+| `CREATE_FEATURE_PR` | 全部 merged，尚無 feature PR | **Rebase feature branch → develop** → 建立 Feature PR |
 | `FEATURE_PR_EXISTS` | 全部 merged，feature PR 已存在 | 跳過（冪等） |
-| `TASKS_IN_PROGRESS` | 還有 open task PR | 靜默跳過 |
+| `TASKS_IN_PROGRESS` | 還有 open task PR | **Sibling Cascade Rebase**（若 merged > 0）→ rebase 所有 open sibling task PRs |
 | `NO_TASK_PRS` | 找不到 task PR | 靜默跳過 |
+
+## Sibling Cascade Rebase（任一 task merge 後）
+
+當 check-feature-pr.sh 回傳 `TASKS_IN_PROGRESS`（還有 open task PR），代表有 task 剛 merge 進 feature branch，其他 sibling task PR 的 base 已過時。此時自動 rebase 所有 open sibling task PRs。
+
+### 觸發條件
+
+`action == "TASKS_IN_PROGRESS"` **且** `merged > 0`（至少有一個 task PR 已 merge）
+
+### 流程
+
+1. 從 check-feature-pr.sh 的輸出取得所有 open task PR 的 head branch
+2. 對每個 open task PR 依序 rebase：
+   ```bash
+   git -C {repo_dir} fetch origin
+   git -C {repo_dir} checkout {task_branch}
+   git -C {repo_dir} rebase origin/{feature_branch}
+   git -C {repo_dir} push --force-with-lease
+   ```
+3. Conflict 處理：同 check-pr-approvals Step 2 的自動解衝突流程（worktree sub-agent）
+4. 結果靜默處理 — 成功不通知，conflict 才列入回報
+
+### 為什麼
+
+- 確保所有 open task PR 的 diff 只顯示自己的改動，不包含已 merge 的兄弟 PR 差異
+- Reviewer 看到的是乾淨的 diff，不需要自行判斷哪些改動是本 PR 的
+- 避免「PR 可以看但 diff 很亂」的狀態
+
+## Feature Branch Rebase（建 Feature PR 前）
+
+當所有 task PR 都 merge 完成（`action == "CREATE_FEATURE_PR"`），在建立 feature PR 之前先 rebase feature branch 到最新的 develop。
+
+### 流程
+
+```bash
+git -C {repo_dir} fetch origin
+git -C {repo_dir} checkout {feature_branch}
+git -C {repo_dir} rebase origin/develop
+git -C {repo_dir} push --force-with-lease
+```
+
+### Conflict 處理
+
+- 嘗試自動解衝突
+- 解不了 → 通知使用者，不建立 feature PR（dirty rebase 開出去的 PR 無意義）
+
+### 為什麼
+
+- Feature PR 的 diff 只包含本 Epic 的改動，不包含 develop 上已有的變更
+- Reviewer 可以專注在 Epic 的整體改動，而非與 develop 的歷史差異
 
 ## 建立 Feature PR
 

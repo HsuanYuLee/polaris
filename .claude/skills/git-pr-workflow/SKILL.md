@@ -14,21 +14,21 @@ description: >
   for the COMPLETE lifecycle including quality gates and iterative AI review.
 metadata:
   author: Polaris
-  version: 3.3.0
+  version: 3.4.0
 ---
 
-# git-pr-workflow (v3.3.0)
+# git-pr-workflow (v3.4.0)
 
-**用途：** 完整 PR 生命週期自動化，從建立分支到 AI Code Review。v3.3.0：PR description 自動嵌入 AC Coverage checklist，讀取 JIRA AC 條目並標記覆蓋狀況。
+**用途：** 完整 PR 生命週期自動化，從建立分支到 AI Code Review。v3.4.0：新增 Step 6.5 Rebase，開 PR 前自動 rebase 到最新 base（含 cascade rebase），確保 PR diff 乾淨。
 
 **原始碼：** `.claude/skills/git-pr-workflow/SKILL.md`
 
 ---
 
-## 流程總覽（10 步）
+## 流程總覽（11 步）
 
 ```
-Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit → Changeset → Open PR → JIRA transition → Update PR desc → Post-PR Review Comment
+Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit → Changeset → Rebase → Open PR → JIRA transition → Update PR desc → Post-PR Review Comment
 ```
 
 ---
@@ -229,6 +229,41 @@ feat: [JIRA-KEY] 簡短描述
 
 **為什麼**：task branch 若從另一個 task branch 分出（dependency），會繼承 parent 的 changeset，導致 PR diff 出現多個不相關的 changeset。每個 PR 只應有自己的一個 changeset。
 
+### Step 6.5：Rebase to Latest Base
+
+在開 PR 前，rebase 到最新的 base branch，確保 PR diff 乾淨、不包含過時差異。
+
+#### 流程
+
+1. 偵測 base branch（同 Step 7 的 Base Branch 偵測邏輯）
+2. Cascade rebase（若 base 是 feature branch）：
+   ```bash
+   # 先確保 feature branch 是最新的
+   git fetch origin
+   # 查 feature branch 的 upstream（通常是 develop）
+   UPSTREAM=$(gh pr list --repo {org}/{repo} --head {feature_branch} --json baseRefName --jq '.[0].baseRefName // "develop"')
+   git checkout {feature_branch}
+   git rebase origin/$UPSTREAM
+   git push --force-with-lease
+   # 再 rebase task branch 到更新後的 feature branch
+   git checkout {task_branch}
+   git rebase origin/{feature_branch}
+   ```
+3. 一般 rebase（若 base 是 develop/main）：
+   ```bash
+   git fetch origin
+   git rebase origin/{base_branch}
+   ```
+4. Conflict 處理：
+   - 嘗試自動解衝突（同 check-pr-approvals Step 2 的邏輯）
+   - 解不了 → 停下來告知使用者，不繼續開 PR
+
+#### 為什麼在這裡 rebase
+
+- Step 5-6 已 commit + changeset，此時 rebase 不會遺漏任何本地改動
+- PR 開出來時 reviewer 立即看到乾淨的 diff，不需要額外 rebase
+- 避免「開完 PR → rebase → dismiss approval → 重新 review」的循環
+
 ### Step 7：Open PR
 
 1. 讀取 `.github/pull_request_template.md` 取得模板結構
@@ -290,6 +325,14 @@ AI 從 diff 自動產生 PR 描述。
 **此步驟已停用。** 自己開的 PR 不應該自己留 review comment（`gh pr review`），PR review 應由其他人來做。Step 3 的 Pre-PR Review Loop 已確保品質，不需要再對自己的 PR 執行 review。
 
 ---
+
+## v3.3.0 → v3.4.0 變更摘要
+
+| 項目 | v3.3.0 | v3.4.0 |
+| --- | --- | --- |
+| Rebase | 無明確步驟（僅 CLAUDE.md rule-level 提及） | **新增 Step 6.5 Rebase to Latest Base**：commit 後、開 PR 前自動 rebase，含 cascade rebase（feature branch → develop → task branch） |
+| 步驟數 | 10 步 | **11 步**（新增 Step 6.5） |
+| 流程 | Branch → Simplify → Quality → Review → Commit → Changeset → Open PR | Branch → Simplify → Quality → Review → Commit → Changeset → **Rebase** → Open PR |
 
 ## v3.2.0 → v3.3.0 變更摘要
 
