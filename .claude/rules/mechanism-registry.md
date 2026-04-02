@@ -75,6 +75,14 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 |----|------|---------------|-------|
 | `no-skill-create-modify-direct` | Create/modify skills only via `/skill-creator` | Direct SKILL.md edits without skill-creator invocation | Medium |
 
+### Cross-Session Knowledge (source: `rules/feedback-and-memory.md`, `skills/references/cross-session-learnings.md`)
+
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `learning-write-post-task` | After task completion, write technical learnings if non-obvious insights were discovered (max 2 per task) | Task involving debugging or unexpected behavior completes with no `polaris-learnings.sh add` call | Medium |
+| `learning-preamble-inject` | At conversation start, query top learnings and use as context | Conversation proceeds without querying learnings when `~/.polaris/projects/` exists | Medium |
+| `timeline-milestone-events` | Log timeline events for skill invocations, PRs, commits, and errors | Skill invoked without corresponding `polaris-timeline.sh append` call | Low |
+
 ### Framework Iteration (source: `rules/framework-iteration.md`)
 
 | ID | Rule | Canary Signal | Drift |

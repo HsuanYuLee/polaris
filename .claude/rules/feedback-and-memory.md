@@ -9,6 +9,8 @@ After completing a full task (opening a PR, fixing review comments, estimation, 
 5. **Stuck for more than 2 rounds without resolution** → record the root cause and final solution in a feedback memory
 6. **User confirmed a non-obvious approach** (accepted an unusual choice with "yes" / "exactly") → save a positive feedback memory. If the confirmation relates to a **framework-level behavior** (skill routing, delegation, reflection mechanism), save a `type: framework-experience` memory instead (see `rules/framework-iteration.md`)
 
+7. **A non-obvious technical insight was discovered** (unexpected behavior, codebase-specific pattern, tool trick) → write a cross-session learning via `polaris-learnings.sh add`. This captures **technical knowledge** (not behavioral corrections — those are feedback memories). See `skills/references/cross-session-learnings.md` for types and constraints (max 2 per task)
+
 Execute silently. Only notify the user and wait for confirmation before writing when a feedback worth recording is found. Items 3 and 4 may be recorded without user confirmation.
 
 ## Pre-Write Dedup Check

@@ -45,11 +45,13 @@ Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
 1. **回饋擷取** — 當你糾正 Claude 的做法時，它會儲存這個教訓
 2. **規則畢業** — 同一個回饋被引用 3 次以上，自動升級為永久規則
 3. **外部學習** — 研讀文章、repo 或 PR，萃取可套用到你 codebase 的模式
-4. **挑戰者審計** — 發版前，sub-agent 從新使用者的角度審視整個工作區
+4. **跨 session 知識** — 技術洞見（模式、陷阱、架構決策）持久化在 `learnings.jsonl`，帶有信心值衰減機制，讓每次 session 都從累積的專案知識啟動，而非從零開始
+5. **Session 時間軸與存檔** — 重要事件（skill 呼叫、PR、commit）記錄在 `timeline.jsonl`，讓 standup 報告更精確；`/checkpoint` 可在長時間工作中儲存和恢復 session 狀態
+6. **挑戰者審計** — 發版前，sub-agent 從新使用者的角度審視整個工作區
 
 > **範例：** 你在不同的 PR 中糾正了 Claude 的 import 排序 3 次。第三次糾正時，這個教訓自動畢業成永久規則——之後所有 PR 都會自動遵循這個慣例。
 
-**技能：** `learning`, `review-lessons-graduation` — 另外 `review-pr`, `fix-pr-review` 和 `check-pr-approvals` 內建教訓萃取功能
+**技能：** `learning`, `review-lessons-graduation`, `checkpoint` — 另外 `review-pr`, `fix-pr-review` 和 `check-pr-approvals` 內建教訓萃取功能
 
 ### 支柱三 — 日常紀錄
 

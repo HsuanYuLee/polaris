@@ -45,11 +45,13 @@ This is what makes Polaris different from a static template. It accumulates team
 1. **Feedback capture** — when you correct Claude's approach, it saves the lesson
 2. **Pattern graduation** — feedback referenced 3+ times auto-promotes to a permanent rule
 3. **External learning** — study articles, repos, or PRs and extract patterns applicable to your codebase
-4. **Challenger audit** — pre-release, sub-agents review the workspace from a new user's perspective
+4. **Cross-session knowledge** — technical insights (patterns, pitfalls, architecture decisions) persist in `learnings.jsonl` across conversations with confidence-based decay, so each session starts with accumulated project knowledge instead of a blank slate
+5. **Session timeline & checkpoints** — significant events (skill invocations, PRs, commits) are logged to `timeline.jsonl` for accurate standup reports; `/checkpoint` saves and restores session state for long-running work
+6. **Challenger audit** — pre-release, sub-agents review the workspace from a new user's perspective
 
 > **Example:** You correct Claude's import ordering 3 times across different PRs. On the third correction, the lesson auto-graduates into a permanent rule — all future PRs follow the convention automatically.
 
-**Skills:** `learning`, `review-lessons-graduation` — plus lesson extraction built into `review-pr`, `fix-pr-review`, and `check-pr-approvals`
+**Skills:** `learning`, `review-lessons-graduation`, `checkpoint` — plus lesson extraction built into `review-pr`, `fix-pr-review`, and `check-pr-approvals`
 
 ### Pillar 3 — Daily Operations (日常紀錄)
 

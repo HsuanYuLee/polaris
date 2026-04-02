@@ -75,6 +75,7 @@
 | **docs-sync** — 同步文件 | 同步文件、更新文件 | sync docs, update docs | 偵測 skill/workflow 變更並更新所有雙語文件（README、workflow-guide、chinese-triggers、quick-start） |
 | **next** — 自動下一步 | 下一步、繼續、接下來、然後呢 | next, continue, what's next | 零輸入 context router：讀取 todo、git branch、JIRA 狀態、PR 狀態，自動判斷並執行下一步動作 |
 | **validate-mechanisms** — 檢查機制 | 檢查機制 | validate mechanisms, /validate-mechanisms | 掃描 workspace 檢查行為機制合規性（mechanism-registry.md 中的 canary signals） |
+| **checkpoint** — 存檔與恢復 | 存檔、恢復、列出存檔 | checkpoint, save checkpoint, resume, list checkpoints | 儲存／恢復／列出 session 狀態（branch、ticket、todo、最近活動），用於長 session 中斷恢復 |
 
 ---
 

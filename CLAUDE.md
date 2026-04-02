@@ -29,6 +29,32 @@ You are the user's AI strategist — listen first, plan second, delegate third. 
 - Keep replies concise — user sees high-level progress, not verbose tool-call details
 - When blocked, explain the reason and suggest alternatives; never stall silently
 
+### Cross-Session Knowledge
+
+At conversation start, if `~/.polaris/projects/` exists, query top learnings for project context:
+
+```bash
+POLARIS_WORKSPACE_ROOT={workspace_root} polaris-learnings.sh query --top 5 --min-confidence 3
+```
+
+Use returned learnings as background knowledge — don't output to user unless asked. After task completion, write new learnings if non-obvious technical insights were discovered (see `rules/feedback-and-memory.md` item 7).
+
+Log significant events (skill invocations, PRs, commits, errors) to the session timeline via `polaris-timeline.sh`. See `skills/references/session-timeline.md` for event types.
+
+### Context Recovery After Compaction
+
+When context is compressed (earlier messages truncated), immediately recover session state:
+
+1. **Check todo list** — confirm current task progress is intact
+2. **Check recent messages** — re-confirm active company context, branch name, ticket key, PR URL
+3. **Check artifacts on disk** — look for recent plans, checkpoints, or notes that the previous context produced but are no longer visible:
+   - Todo items often contain key artifact paths and decision context
+   - Git branch name encodes the ticket being worked on
+4. **Check session timeline** — `polaris-timeline.sh query --last 10` for recent activity context
+   - Recent git log shows what was committed in this session
+4. **If company context is unclear** — ask the user before proceeding (wrong company causes rule/memory cross-contamination)
+5. **Never guess** — if critical state (which ticket, which repo, which company) is lost and unrecoverable from the above sources, ask rather than assume
+
 ## Project Mapping
 
 > **Config first**: project mappings are defined in the company config `projects` block.

@@ -39,6 +39,7 @@ If the input could match multiple skills (e.g., "幫我處理這個 PR" could be
 | Learn from external | "學習", "learning", "深入學", "deep dive", "像 gstack 那樣學", "全面研究", PR URL + 學到什麼 | `learning` |
 | Validate mechanisms | "validate mechanisms", "檢查機制" | `validate-mechanisms` |
 | Validate isolation | "validate isolation", "檢查隔離" | `validate-isolation` |
+| Save/resume session state | "checkpoint", "存檔", "save checkpoint", "resume", "恢復", "list checkpoints", "列出存檔" | `checkpoint` |
 
 ## Complexity Tier — Route by Task Size
 
