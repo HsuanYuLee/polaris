@@ -177,13 +177,9 @@ Sub-agent prompt 範本：
 
 ### Cascade Rebase（Feature Branch 場景）
 
-若 PR 的 base 是 feature branch（非 develop/main/master），必須先 cascade rebase：
+若 PR 的 base 是 feature branch（非 develop/main/master），必須先 cascade rebase。
 
-1. 查詢 feature branch 的 upstream：`gh pr list --repo {org}/{repo} --head {baseRefName} --state open --json baseRefName`
-2. Rebase feature branch 到 upstream：`git checkout {baseRefName} && git rebase origin/{upstream} && git push --force-with-lease`
-3. 再 rebase task branch 到更新後的 feature branch
-
-**為什麼**：若 feature branch 落後 develop，task PR 的 diff 會包含所有 develop 新 commits 的檔案變更，reviewer 無法分辨哪些是本 PR 的修改。
+依 `references/cascade-rebase.md` 執行完整流程（查 upstream → rebase feature → rebase task → conflict 處理）。
 
 ### 執行步驟
 
@@ -209,6 +205,18 @@ git push --force-with-lease
 
 - **無 conflict** → 繼續後續步驟
 - **有 conflict** → 嘗試解決。若 conflict 範圍超過 PR 變動的檔案（即 conflict 來自 base branch 其他人的改動），回報使用者手動處理
+
+## 3b. Post-Rebase Changeset 衛生檢查
+
+Rebase 後主動掃描是否帶入不屬於本 PR 的 changeset（不等 changeset-bot 警告）：
+
+1. 檢查專案是否使用 changeset：`ls .changeset/ 2>/dev/null` — 目錄不存在則跳過
+2. `git diff origin/{baseRefName} --name-only -- .changeset/` 列出所有 changeset
+3. 從 branch name 或 PR title 提取本 PR 的 ticket key
+4. 讀取每個 changeset 內容，不含本 PR ticket key 的 → `git rm`
+5. 有刪除時 commit：`chore: remove inherited changesets`
+
+**為什麼在 rebase 後立即做**：rebase 可能帶入 base branch 上新 merge 的 changeset。早期清理避免 push 後 changeset-bot 誤報或 PR diff 膨脹。
 
 ## 4. Fetch Review Comments
 

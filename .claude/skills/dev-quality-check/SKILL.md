@@ -102,7 +102,27 @@ npx vitest run <test-files> --reporter=verbose
 
 Coverage 是品質檢查的必要步驟，不可跳過。
 
-**執行前先確認 coverage 工具已安裝。** 如果執行時出現 `Failed to load url @vitest/coverage-v8` 或類似的 module not found 錯誤，自動安裝後重跑：
+### Pre-flight：確認 coverage 工具已安裝
+
+在執行 coverage 之前，先主動檢查工具是否存在，不要等跑掛才裝：
+
+**Vitest 專案：**
+```bash
+# 檢查 @vitest/coverage-v8 是否已安裝
+node -e "require.resolve('@vitest/coverage-v8')" 2>/dev/null
+```
+
+若上述指令失敗（exit code !== 0），立即安裝：
+```bash
+VITEST_VER=$(node -p "require('vitest/package.json').version" 2>/dev/null || echo "")
+pnpm -C <project-dir> add -D @vitest/coverage-v8@${VITEST_VER} --filter <package-name>
+```
+
+**Jest 專案**：Jest coverage 內建，無需 pre-flight。
+
+### 自動安裝（fallback）
+
+如果 pre-flight 通過但執行時仍出現 `Failed to load url @vitest/coverage-v8` 或類似的 module not found 錯誤，自動安裝後重跑：
 
 **Vitest 專案 — 自動安裝 coverage-v8：**
 ```bash

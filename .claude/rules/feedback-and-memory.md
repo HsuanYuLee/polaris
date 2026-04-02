@@ -40,18 +40,45 @@ This audit runs silently alongside the feedback reflection — no separate user 
 
 ## Automatic Polaris Backlog Writes
 
-Signals about improving the framework itself should flow into `.claude/polaris-backlog.md`. The following situations trigger a write:
+Signals about improving the framework itself should flow into `.claude/polaris-backlog.md`. Two pathways: **instant** (at feedback creation time) and **batch** (during memory hygiene scans).
+
+### Instant — Feedback → Backlog Classification
+
+When creating a new feedback memory, classify whether it also warrants a backlog entry:
+
+| Classification | Description | Example | Action |
+|---------------|-------------|---------|--------|
+| **FRAMEWORK_GAP** | Skill/reference is missing a step, automation, or quality gate | "feature-branch-pr-gate skips lint before PR creation" | Write both feedback memory AND backlog entry |
+| **BEHAVIORAL** | How to use existing features correctly; no code change needed | "estimation skill must be used, not manual JIRA edits" | Write feedback memory only |
+
+**Decision heuristic — ask: "Does fixing this require changing a SKILL.md, reference, or rule file?"**
+- Yes → FRAMEWORK_GAP → also write backlog
+- No → BEHAVIORAL → feedback memory only
+
+**Backlog entry format:** `- [ ] **{title}** — {description} — source: feedback ({feedback_filename})`
+
+The `source: feedback (...)` cross-reference lets both sides stay traceable. When the backlog item is implemented, the feedback memory can be retired.
+
+### Instant — Other Signals
 
 | Signal | Condition | Write Location |
 |--------|-----------|----------------|
-| New feedback memory added | Pain point is framework-level (skill flow, rule mechanism, config structure) not company-specific business logic | Backlog High or Medium |
 | Hook block / permission denied | Same class of pattern blocked >= 2 times | Backlog High |
 | `/learning` external mode recommendation | Recommendation marked "worth tracking" by user but not acted on immediately | Backlog Medium or Low |
 | User mentions "Polaris should..." / "the framework could be improved..." | Write directly | Backlog by severity |
 | Gap found during skill execution (broken flow, manual steps required) | Record the missing automation | Backlog Medium |
 | Framework-experience memories >= 3 for same pattern | Validated pattern candidate — surface during organize-memory | See `rules/framework-iteration.md` § Validated Pattern Promotion |
 
-**Write format:** `- [ ] **{title}** — {one-line description} — source: {feedback/learning/user/observation}`
+### Batch — Feedback → Backlog Scan
+
+During `organize memory` / `clean up memory` runs, scan ALL feedback memories for uncaptured framework gaps:
+
+1. For each `type: feedback` entry, apply the FRAMEWORK_GAP vs BEHAVIORAL classification
+2. For FRAMEWORK_GAP entries, check if a corresponding backlog item already exists (search `polaris-backlog.md` for the feedback filename)
+3. Missing → propose new backlog entry to user
+4. Already tracked → skip
+
+This catches feedback that was created before the classification mechanism existed, or where the instant classification was missed.
 
 **Do not write to backlog:** company-specific processes (JIRA fields, PR conventions), project-specific rules, one-off bug fixes.
 
@@ -183,3 +210,4 @@ The `[company]` prefix in the index enables quick visual scanning without openin
 5. **Frontmatter quality** — missing `trigger_count` / `last_triggered` → fill in (`trigger_count: 1`, `last_triggered` from file modification date)
 6. **Company isolation** — memory content is company-specific but missing `company:` field → add the appropriate `company:` value; memory has `company:` but the company no longer exists in workspace config → suggest deletion
 7. **Index integrity** — every entry in MEMORY.md must point to an existing file in the memory directory; every memory file in the directory must have a corresponding entry in MEMORY.md. Fix: add missing index entries, remove dangling pointers
+8. **Backlog coverage** — for each `type: feedback` entry, apply FRAMEWORK_GAP vs BEHAVIORAL classification (see § Automatic Polaris Backlog Writes). FRAMEWORK_GAP entries without a corresponding `polaris-backlog.md` item → propose backlog entry

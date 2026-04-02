@@ -37,6 +37,7 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `feedback-pre-write-dedup` | Before creating feedback memory, scan for semantic overlap and merge if found | New feedback file created when an existing entry covers the same topic | High |
 | `feedback-trigger-count-update` | After using a feedback memory, increment trigger_count (once per conversation) | Feedback memory trigger_count unchanged after conversation that referenced it | High |
 | `graduation-at-three-triggers` | trigger_count >= 3 → initiate graduation to rule | Feedback memory with count >= 3 still existing without graduation proposal | High |
+| `feedback-backlog-classification` | New feedback memory that describes a framework gap must also write a backlog entry | FRAMEWORK_GAP feedback created without corresponding `polaris-backlog.md` entry | Medium |
 | `memory-company-hard-skip` | Skip memories with mismatched company field | Company-scoped memory applied to a different company's work | Medium |
 
 ### Context Management (source: `rules/context-monitoring.md`)

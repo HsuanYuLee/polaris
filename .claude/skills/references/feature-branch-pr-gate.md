@@ -100,6 +100,16 @@ git -C {repo_dir} push --force-with-lease
 - Feature PR 的 diff 只包含本 Epic 的改動，不包含 develop 上已有的變更
 - Reviewer 可以專注在 Epic 的整體改動，而非與 develop 的歷史差異
 
+## 品質檢查（建 PR 前必跑）
+
+Feature branch rebase 完成後、建 PR 前，執行品質檢查確保合併後的程式碼沒壞：
+
+1. 讀取 `dev-quality-check` SKILL.md，執行完整品質檢查（lint + test + coverage）
+2. 若品質檢查失敗 → **不建 PR**，回報失敗項目給使用者
+3. 品質檢查通過 → 繼續建立 Feature PR
+
+**為什麼**：個別 task PR 各自通過品質檢查，但合併到 feature branch 後可能產生衝突或整合問題。Feature PR 直接開出去 CI 才跑紅是浪費 reviewer 時間。
+
 ## 建立 Feature PR
 
 ### PR Title

@@ -205,7 +205,9 @@ Project: {base_dir}/{repo}（base_dir 從 workspace-config.yaml 取得）
 | 3 | PROJ-300-1 | — | — ⚠️ | 估點變動 > 30%，需確認 |
 ```
 
-若有 sub-agent 回報問題（估點變動、技術難題、品質檢查失敗），列出待處理事項讓使用者決定。
+**結果驗證**：收集 sub-agent 回傳時，檢查每個「完成」的 ticket 是否包含有效的 PR URL（`https://github.com/...`）。若 sub-agent 回報完成但無 PR URL → 標記為 ⚠️ 待處理（git-pr-workflow 可能被跳過或提前中斷）。
+
+若有 sub-agent 回報問題（估點變動、技術難題、品質檢查失敗、無 PR URL），列出待處理事項讓使用者決定。
 
 **批次摘要統計**（表格下方附上）：
 

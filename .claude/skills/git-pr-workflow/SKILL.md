@@ -236,19 +236,7 @@ feat: [JIRA-KEY] 簡短描述
 #### 流程
 
 1. 偵測 base branch（同 Step 7 的 Base Branch 偵測邏輯）
-2. Cascade rebase（若 base 是 feature branch）：
-   ```bash
-   # 先確保 feature branch 是最新的
-   git fetch origin
-   # 查 feature branch 的 upstream（通常是 develop）
-   UPSTREAM=$(gh pr list --repo {org}/{repo} --head {feature_branch} --json baseRefName --jq '.[0].baseRefName // "develop"')
-   git checkout {feature_branch}
-   git rebase origin/$UPSTREAM
-   git push --force-with-lease
-   # 再 rebase task branch 到更新後的 feature branch
-   git checkout {task_branch}
-   git rebase origin/{feature_branch}
-   ```
+2. Cascade rebase（若 base 是 feature branch）：依 `references/cascade-rebase.md` 執行（查 upstream → rebase feature → rebase task）
 3. 一般 rebase（若 base 是 develop/main）：
    ```bash
    git fetch origin
@@ -257,6 +245,16 @@ feat: [JIRA-KEY] 簡短描述
 4. Conflict 處理：
    - 嘗試自動解衝突（同 check-pr-approvals Step 2 的邏輯）
    - 解不了 → 停下來告知使用者，不繼續開 PR
+
+#### Rebase 後 Changeset 衛生重跑
+
+Rebase 可能帶入新的 inherited changeset（例如 base branch 上有新的 merge）。Rebase 完成後，重新執行 Step 6 的 Changeset 清理：
+
+1. `git diff origin/{baseRefName} --name-only -- .changeset/` 列出所有 changeset
+2. 讀取每個 changeset，比對本 PR 的 ticket key
+3. 不匹配的 → `git rm` + commit
+
+若無 `.changeset/` 目錄（專案不用 changeset）→ 跳過。
 
 #### 為什麼在這裡 rebase
 
