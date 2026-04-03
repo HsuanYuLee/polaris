@@ -456,25 +456,73 @@ For each project selected in Step 7, dispatch parallel sub-agents (model: `"haik
 3. `Makefile` → `dev`, `serve`, `start` targets
 4. `README.md` → setup/development section (regex: `/## *(setup|development|getting started|local)/i`)
 
+**Monorepo detection**: if `package.json` has `workspaces` or `pnpm-workspace.yaml` exists, list all apps/packages with dev scripts and present them for selection — don't assume which app is the "main" one:
+
+```
+Step 9a-0: Monorepo — your-b2c-web
+
+  Multiple apps detected:
+
+  #   App                 Dev Script        Port
+  1   apps/main           pnpm dev:main     3001
+  2   apps/trans          pnpm dev:trans    3002
+  3   apps/demo           pnpm dev:demo    3003
+
+  Which app(s) are your primary development targets? (comma-separated, e.g. 1,2)
+```
+
+**Cross-repo dependency detection**: after scanning all repos individually, check for dependencies between them:
+
+1. Scan each `docker-compose.yml` for volume mounts pointing to other repos (e.g., `../kkday-member-ci:/app`)
+2. Scan `.env` / `.env.example` files for references to other repos' ports or services
+3. Check README for "requires X to be running" patterns
+4. If a repo's HTTP server depends on another repo (e.g., nginx proxies to an app server), mark the dependency
+
+Present dependencies as a warning:
+
+```
+Step 9a-1: Cross-Repo Dependencies
+
+  ⚠ Detected dependencies:
+
+    your-member-ci → requires your-web-docker (nginx proxy)
+    your-b2c-web   → requires your-web-docker (Docker dev environment)
+    your-web-docker is a prerequisite for 2 projects
+
+  This means: start your-web-docker FIRST, then the individual app dev servers.
+
+  Confirm (y) / Adjust (e)?
+```
+
+Output: `projects[].dev_environment.requires` field listing prerequisite repos.
+
+**Missing .env template warning**: if a project has `--dotenv .env.local` or similar in its start script, but no `.env.example` / `.env.template` exists:
+
+```
+  ⚠ your-b2c-web requires .env.local but has no template file.
+    New developers will need environment values from a teammate.
+    Consider adding a .env.example to the repo.
+```
+
 **smartSelect presentation:**
 
 ```
-Step 9a: Dev Environment
+Step 9a-2: Dev Environment
 
-  #   Project              Start Command                          Ready Signal        Base URL
-  1   your-b2c-web         pnpm -C apps/main dev                  Listening on        http://localhost:3000
-  2   your-api              docker compose up -d                   started             http://localhost:8080
-  3   your-design-system   pnpm dev                               ready in            http://localhost:5173
-  4   your-web-docker      docker compose -f docker-compose.yml up ready               https://dev.example.com
+  #   Project              Start Command                          Ready Signal        Base URL          Requires
+  1   your-b2c-web         pnpm dev:main                          Listening on        http://localhost:3001  web-docker
+  2   your-web-docker      docker compose up -d                   started             https://dev.example.com  —
+  3   your-design-system   pnpm dev:3                             VITE ready          http://localhost:3000  —
+  4   your-member-ci       pnpm dev (watch mode, no server)       compiled            (via web-docker)  web-docker
 
   Confirm (y) / Adjust (e) / Skip (s)?
 ```
 
-On **Adjust** → user specifies which row(s) to change. Common adjustments: base_url, ready_signal, env vars.
+On **Adjust** → user specifies which row(s) to change. Common adjustments: base_url, ready_signal, env vars, requires.
 
 On **Skip** → leave `dev_environment` block empty. Visual regression will ask at runtime.
 
-**Health check field**: for each project, also infer a health check URL (typically `{base_url}/` or `{base_url}/health`). This is used by visual-regression skill to verify the server is responding.
+**Health check field**: for each project, also infer a health check URL (typically `{base_url}/` or `{base_url}/health`). For projects that depend on another repo's server (e.g., member-ci via web-docker), use the prerequisite's base_url as health check.
 
 **Output**: populates `projects[].dev_environment` in the company workspace-config:
 
@@ -482,14 +530,15 @@ On **Skip** → leave `dev_environment` block empty. Visual regression will ask 
 projects:
   - name: your-b2c-web
     dev_environment:
-      start_command: "pnpm -C apps/main dev"
+      start_command: "pnpm dev:main"
       ready_signal: "Listening on"
-      base_url: "http://localhost:3000"
-      health_check: "http://localhost:3000/"
+      base_url: "http://localhost:3001"
+      health_check: "http://localhost:3001/"
+      requires: ["your-web-docker"]  # must be running first
       env: {}  # user can add env vars later
 ```
 
-Audit: log detected values (source: `ai`), final confirmed values (source: `user`).
+Audit: log detected values (source: `ai`), dependencies found, missing env templates, final confirmed values (source: `user`).
 
 ### Step 9b: Visual Regression (skippable)
 
@@ -509,48 +558,72 @@ If yes:
 
 **Phase 1: Domain mapping**
 
-Map web projects to their production domains:
+Map web projects to their production domains. **Always ask the user to confirm or enter the domain** — auto-detection from code is unreliable (`.env` typically contains dev URLs, not production; deploy-time templates are unresolvable).
 
 ```
 Step 9b-1: Domain Mapping
 
   Which domain does each web project serve?
+  （.env 裡的 URL 是 dev 環境，這裡要填 production domain）
 
-  #   Project              Domain (auto-detected)
-  1   your-b2c-web         www.example.com
-  2   your-web-docker      (provides dev infra, not a domain)
+  #   Project              Domain (suggested)       Source
+  1   your-b2c-web         _______________          (無法從代碼偵測 — 請輸入)
+  2   your-web-docker      (provides dev infra, skip)
 
-  Confirm (y) / Adjust (e)?
+  Enter domain for #1:
 ```
 
-Auto-detect domain from: project's production URL config, `nuxt.config.*` hostname, package.json `homepage` field, or README.
+The AI may suggest a domain if found in README, `nuxt.config.*` hostname, or `package.json` homepage — but it must be presented as a suggestion requiring explicit confirmation, never auto-applied. If nothing is found, leave blank and require user input.
 
 **Phase 2: Key pages**
 
-For each domain, suggest key pages based on the project's routes:
+For each domain, suggest key pages based on the project's routes.
+
+Auto-detect pages from: `pages/` directory structure (Nuxt/Next), router config, sitemap.xml reference.
+
+**Dynamic route handling**: routes with parameters (e.g., `/product/[id]`, `/destination/[slug]`) need concrete example values to be testable. For each dynamic route detected:
+- Present the route pattern so the user understands the structure
+- **Ask the user to provide an example URL** that works on the SIT/dev environment
+- Skip redirect-only pages (detected by component names like `Forward.vue`, `Redirect.vue`, or containing only `navigateTo`/`redirect`)
+
+**Locale handling**: if the project uses i18n, read the locale list from the i18n config file (e.g., `nuxt.config.ts` → `i18n.locales`) and use the exact locale codes (case-sensitive). Default to testing the primary locale only; user can expand.
 
 ```
 Step 9b-2: Key Pages — www.example.com
 
-  #   Select   Page            Path                  Viewports
-  1   [✓]      homepage        /                     [1280, 375]
-  2   [✓]      product-page    /product/12345        [1280, 375]
-  3   [✓]      search          /search?keyword=test  [1280, 375]
-  4   [ ]      checkout        /checkout             [1280, 375]
+  Auto-detected from pages/ directory. Dynamic routes need example URLs.
+
+  #   Select   Page            Path                        Viewports
+  1   [✓]      homepage        /                           [1280, 375]
+  2   [✓]      product-page    /product/___  (enter ID)    [1280, 375]
+  3   [✓]      destination     /destination/___ (enter slug) [1280, 375]
+  4   [✓]      category        /category/tag/outdoor        [1280, 375]
+  5   [ ]      promo           /promo/___ (enter slug)      [1280, 375]
+
+  Locale: zh-TW (from i18n config, 17 locales available — test primary only by default)
+
+  Enter example ID for #2 (product page): ____
+  Enter example slug for #3 (destination): ____
 
   Confirm (y) / Adjust (e) / Add more (a)?
 ```
 
-Auto-detect pages from: `pages/` directory structure (Nuxt/Next), router config, sitemap.xml reference.
-
 **Phase 3: SIT URL**
+
+**Always ask the user** — do NOT auto-detect from `.env` files. The `.env` typically contains local dev URLs (e.g., `dev.kkday.com`), not the actual SIT/staging environment URL. These are different things and confusing them causes VR to compare against the wrong baseline.
 
 ```
 Step 9b-3: SIT/Staging Environment
 
-  Does www.example.com have a SIT/staging URL? (for before/after comparison)
+  VR 的 before/after 比對需要一個穩定的「改動前」基準。
+  SIT/Staging 環境可以作為這個基準（不需要 git stash）。
 
-  (1) Yes → enter SIT URL
+  ⚠ 注意：這裡要填 staging/SIT 環境的 URL，不是 local dev URL。
+     例如：https://www.sit.example.com（不是 https://dev.example.com）
+
+  Does {domain} have a SIT/staging URL?
+
+  (1) Yes → enter SIT URL: _______________
   (2) No → will use git stash local mode
 ```
 

@@ -4,6 +4,10 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.47.0] - 2026-04-03
+
+- **/init Step 9a+9b friction fixes** — validated via worktree simulation against real kkday repos. Seven fixes: (1) cross-repo dependency detection scans Docker volume mounts and .env cross-references to surface prerequisites (2) SIT URL always asks user — `.env` contains dev URLs not SIT, auto-detection was wrong (3) production domain requires explicit user input — code only has dev/template URLs (4) dynamic routes prompt user for example IDs/slugs (5) missing `.env.example` warning when start script references `.env.local` (6) monorepo multi-app selection instead of assuming which app is primary (7) locale codes read from i18n config for correct case
+
 ## [1.46.0] - 2026-04-03
 
 - **visual-regression before/after rewrite** — SKILL.md completely rewritten from baseline model to before/after comparison. Two modes: SIT (staging vs local dev) and Local (git stash before/after). Leverages Playwright's built-in `--update-snapshots` for temporary baselines — no files committed. Server startup uses health-check-first strategy (reuse running server, only start if needed)
