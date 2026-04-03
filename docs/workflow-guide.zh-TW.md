@@ -169,6 +169,7 @@ flowchart LR
     %% ── Scrum Skills ──
     SP["sprint-planning"]
     SU["standup"]
+    IT["intake-triage<br/>(batch intake)"]
 
     %% ── Epic Tracking ──
     MT["my-triage<br/>(daily triage)"]
@@ -255,7 +256,7 @@ flowchart LR
     class WO,FB orchestrator
     class QC,VC,TDD quality
     class RP,RI,CPA,FPR,RLG review
-    class RF,EB,SC,SP planning
+    class RF,EB,SC,SP,IT planning
     class JE internal
     class NX,MT,ES,EOD orchestrator
     class SU,SDB,UT,UTR,LRN,WTP,DS,WR standalone
@@ -264,6 +265,7 @@ flowchart LR
 **連接性檢查：**
 - 每個技能至少有一條入邊（被其他技能呼叫）或是使用者直接觸發的進入點
 - `next` 是元路由器 — 根據上下文（todo、git branch、JIRA 狀態、PR 狀態）自動判斷並呼叫正確的下一個技能
+- `intake-triage` 分析 PM 開出的一批 ticket，評估優先序，產出 JIRA label + comment + Slack 摘要 — 介於 `my-triage`（個人日常）和 `sprint-planning`（團隊 Sprint）之間
 - `my-triage` 盤點所有已指派工作（Epic、Bug、孤兒 Task）；優先順序排名會傳入 `standup` 的 TDT 區段
 - `end-of-day` 已棄用 — 所有下班觸發詞（「下班」、「收工」、「EOD」、「wrap up」等）現在統一路由到 `standup`（v2.0），Step 0 自動跑 triage
 - `epic-status` 追蹤 Epic 進度，自動將缺口路由到對應技能

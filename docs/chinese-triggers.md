@@ -45,6 +45,7 @@
 | **sprint-planning** — Sprint 規劃 | 排 sprint、sprint 規劃、下個 sprint、排單、capacity planning、carry over | sprint planning, planning, next sprint, organize sprint, release page, sprint backlog | 互動式 Sprint 規劃助手：拉 JIRA tickets、算 capacity、偵測 carry-over、建議優先序 |
 | **standup** — 每日站會 / 下班收工 | 站立會議、產出 standup、寫 standup、今天做了什麼、下班、收工、準備明天的工作、結束今天、總結一下、wrap up | standup, daily standup, YDY, standup report, write standup, daily report, end of day, EOD, wrap up | 自動從 git commits、JIRA 狀態、Google Calendar 收集工作，產出 YDY/TDT/BOS 格式站會報告；Step 0 自動跑 triage（含下班收工情境）。`/end-of-day` 已棄用，所有觸發詞統一路由到 standup |
 | **my-triage** — 工作盤點 | 我的 epic、盤點、手上有什麼、排優先、我的工作 | my epics, triage, prioritize, my work | 掃描 assigned Epic + Bug + 孤兒 Task，狀態驗證 + GitHub PR 進度，產出優先序 Dashboard |
+| **intake-triage** — 批次收單排工 | 收單、排工、這批單幫我看、PM 開了一堆單、幫我排優先 | intake, intake-triage, triage these tickets, prioritize this batch | 分析 PM 開出的一批 ticket，評估優先序，產出 JIRA label + comment + Slack 摘要 |
 | **jira-estimation** — 估點引擎 | 估點、幫我估、這張幾點（透過 work-on 觸發） | estimate（route via work-on） | 內部估點引擎，由 work-on / fix-bug / epic-breakdown 自動呼叫，不直接觸發 |
 | **jira-worklog** — 記工時 | 記工時、記錄工時 | worklog, log time, time tracking, log hours | PR 開出後記錄工時至 JIRA |
 | **worklog-report** — 完成報告 | 完成報告 | worklog report, done report, sprint report, sprint:Q2 S1 | 從 JIRA 查詢已完成 tickets，依 assignee 分組後發送 Slack 報告（支援 `sprint:Q2 S1` 指定特定 sprint） |

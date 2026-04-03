@@ -169,6 +169,7 @@ flowchart LR
     %% ── Scrum Skills ──
     SP["sprint-planning"]
     SU["standup"]
+    IT["intake-triage<br/>(batch intake)"]
 
     %% ── Epic Tracking ──
     MT["my-triage<br/>(daily triage)"]
@@ -255,7 +256,7 @@ flowchart LR
     class WO,FB orchestrator
     class QC,VC,TDD quality
     class RP,RI,CPA,FPR,RLG review
-    class RF,EB,SC,SP planning
+    class RF,EB,SC,SP,IT planning
     class JE internal
     class NX,MT,ES,EOD orchestrator
     class SU,SDB,UT,UTR,LRN,WTP,DS,WR standalone
@@ -264,6 +265,7 @@ flowchart LR
 **Connectivity check:**
 - Every skill has at least one inbound edge (invoked by another skill) or is a direct user entry point
 - `next` is a meta-router — auto-determines and invokes the correct next skill based on context (todo, git branch, JIRA status, PR status)
+- `intake-triage` analyzes a batch of PM-created tickets, evaluates priority, and outputs JIRA labels + comments + a Slack summary — sits between `my-triage` (personal daily) and `sprint-planning` (team sprint)
 - `my-triage` triages all assigned work (Epics, Bugs, orphan Tasks); feeds priority ranking into `standup` TDT section
 - `end-of-day` is deprecated — all end-of-day triggers ("下班", "收工", "EOD", "wrap up", etc.) now route to `standup` (v2.0), which includes auto-triage in Step 0
 - `epic-status` tracks Epic progress and auto-routes gaps to the appropriate skill
