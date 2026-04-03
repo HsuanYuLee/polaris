@@ -16,6 +16,22 @@ This is a hard constraint from the Claude Code platform: "When a skill matches t
 
 If the input could match multiple skills (e.g., "幫我處理這個 PR" could be fix-pr-review or review-pr), resolve ambiguity first by asking the user — but do this **before** any tool calls, not after reading the PR.
 
+### Pre-Processing: Hotfix Without JIRA Ticket
+
+When the user's message has fix intent (「修這個」、「幫我修」、「fix this」) + a Slack URL but **no JIRA ticket key**, the Strategist must create a ticket before routing to `fix-bug`:
+
+1. **Read Slack thread** — extract problem description, affected version/component, reporter, source PR if mentioned
+2. **Resolve JIRA project key** — read `workspace-config.yaml` → `jira.projects`. If only one project → use it. If multiple → infer from context (e.g., repo name, component mentioned in Slack), or ask the user
+3. **Create JIRA Bug ticket** — via `createJiraIssue` MCP:
+   - `issueTypeName`: Bug
+   - `summary`: from Slack thread problem description (concise, one line)
+   - `description`: structured with Root Cause / Impact / Source (Slack link, source PR)
+4. **Route to `fix-bug`** with the new ticket key
+
+This is a **Strategist-level pre-processing rule**, not a skill. It fires before skill routing. The key signal is: fix intent + Slack URL + absence of a JIRA key pattern (`[A-Z]+-\d+`) in the user's message.
+
+> **Why not inside `fix-bug`?** The `fix-bug` skill expects a ticket key as input. Creating the ticket at the Strategist layer keeps `fix-bug` focused on its core job (analyze → fix → PR) and ensures the ticket exists before any skill step begins. It also means the branch name includes the ticket key from the start.
+
 ## Routing Quick Reference
 
 | User Intent | Trigger Patterns | Skill |
@@ -28,6 +44,7 @@ If the input could match multiple skills (e.g., "幫我處理這個 PR" could be
 | Auto-determine next action | "下一步", "next", "繼續", "continue", "然後呢", "接下來" (no ticket key) | `next` |
 | Work on a ticket | "做", "work on" + ticket | `work-on` |
 | Fix a bug | "修 bug", "fix bug" + ticket | `fix-bug` |
+| Fix a bug (no ticket) | "修這個", "fix this" + Slack URL, no JIRA key | Strategist pre-processing → create Bug ticket → `fix-bug` |
 | Break down an epic | "拆單", "拆解", "epic breakdown" | `epic-breakdown` |
 | Batch converge all work | "收斂", "converge", "推進", "全部推到 review", "把我的單收一收" | `converge` |
 | Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `converge` (Epic-only mode) |

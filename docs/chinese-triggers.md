@@ -2,7 +2,7 @@
 
 > Polaris 所有 skill 的中文觸發詞對照。直接輸入中文即可觸發對應功能。
 >
-> 最後更新：2026-04-02
+> 最後更新：2026-04-03
 
 ---
 
@@ -11,13 +11,13 @@
 | 功能 | 中文觸發詞 | 英文觸發詞 | 說明 |
 |------|-----------|-----------|------|
 | **work-on** — 智慧開發路由 | 做 PROJ-123、開始做、接這張、做這張、下一步、繼續 | work on, start dev | 偵測 ticket 狀態，自動路由到估點／拆單／建 branch／開發。支援批次模式（多張 ticket 同時輸入） |
-| **fix-bug** — Bug 修正 | 幫我修正 PROJ-123、修 bug、開始修正、修正這張 | fix bug, help me fix, start fixing, fix this ticket | 端到端 bug 修正：讀單→估點→建 branch→TDD 開發→PR |
+| **fix-bug** — Bug 修正 | 幫我修正 PROJ-123、修 bug、開始修正、修正這張、修這個 + Slack URL | fix bug, help me fix, start fixing, fix this ticket, fix this + Slack URL | 端到端 bug 修正：讀單→估點→建 branch→TDD 開發→PR。Hotfix 無單時自動開 JIRA Bug ticket |
 | **epic-breakdown** — 拆單與估點 | 拆單、拆解、分解任務、子單、評估這張單、評估 epic | break down epic, split tasks, decompose, create sub-tasks, evaluate this ticket | 拆解 Epic 為可執行子任務，逐一估點後批次建立 JIRA sub-task |
 | **epic-status** — Epic 進度追蹤 | epic 進度、epic 狀態、離 merge 還多遠、還差什麼、補全 | epic status, epic progress, close gaps, what's left | 掃描 Epic 子單的 JIRA + GitHub 狀態，產出差距報告，可路由到其他 skill 補全缺口 |
 | **jira-branch-checkout** — 建 Branch | 開 branch PROJ-123、建 branch、切 branch、hotfix branch | create branch, checkout branch | 從 JIRA ticket 建立命名規範的 git branch（`task/PROJ-123-description`） |
 | **start-dev** — 開工轉狀態 | 開始開發、開工、開始 PROJ-123、開工 PROJ-456 | start developing, start working on | 將 JIRA ticket 狀態轉為 In Development |
 | **tdd** — TDD 開發循環 | 先寫測試、紅綠燈、TDD | TDD, test driven, test first, red green refactor | 強制執行 Red-Green-Refactor 循環，以測試驅動實作 |
-| **git-pr-workflow** — 完整 PR 流程 | 準備發 PR（含品質檢查）、full pr flow | 發 PR, PR workflow, commit and PR, changeset, full pr flow, pull request | 完整 PR 生命週期：品質檢查→AI 迭代審查→commit→changeset→開 PR→轉 JIRA CODE REVIEW |
+| **git-pr-workflow** — 完整 PR 流程 | 準備發 PR（含品質檢查）、full pr flow | 發 PR, PR workflow, commit and PR, changeset, full pr flow, pull request | 完整 PR 生命週期：品質檢查→AI 迭代審查→commit→changeset→開 PR→轉 JIRA CODE REVIEW。Changeset 階段偵測無 JIRA key 時自動補開 ticket |
 | **verify-completion** — 行為驗證 | 驗證、確認改好了、真的修好了嗎、驗收 | verify, check it works | 品質檢查通過後的行為驗證，測試實際執行是否正確（dev server、curl、UI render） |
 | **dev-quality-check** — 品質檢查 | 品質檢查、測試檢查、跑測試、確認品質 | quality check, coverage check, run tests, check tests, validate | commit 前的品質把關：測試覆蓋率、lint、相關測試執行 |
 | **wt-parallel** — 平行工作 | 平行、多個 ticket、拆分 | parallel, worktree, wt | 使用 git worktrees 管理多個平行開發工作 |

@@ -807,7 +807,16 @@ log worktime
 
 ### 步驟 1. 👤 收到緊急問題通知
 
-票的細節可以事後補充，**但票必須存在**。
+通常透過 Slack 回報。貼上 Slack URL 並說「修這個」即可。
+
+### 步驟 1.5. 🤖 自動建立 JIRA ticket（若無單）
+
+若未提供 JIRA ticket key，Strategist 會自動：
+1. 讀取 Slack thread 萃取問題描述
+2. 建立 JIRA Bug ticket（project key 從 `workspace-config.yaml` 推斷）
+3. 帶著新 ticket key 路由到 `fix-bug`
+
+作為兜底機制，`git-pr-workflow` 在 changeset 步驟也會偵測缺少 JIRA key 的情況，自動補開 ticket。
 
 ### 步驟 2-12. 與 Bug 修正流程相同
 

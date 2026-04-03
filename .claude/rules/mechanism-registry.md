@@ -17,6 +17,7 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `skill-first-invoke` | Invoke Skill tool as the first tool call when trigger matches | Any Read/Grep/Bash/MCP call before Skill tool on a matched trigger | High |
 | `no-pre-process-skill-input` | Don't fetch Slack/JIRA/PR data before invoking skill | `gh api`, JIRA MCP, or Slack MCP call preceding Skill invocation | High |
 | `no-manual-skill-steps` | Never partially execute skill steps by hand | Git/JIRA/Slack commands matching a skill's steps without Skill invocation | High |
+| `hotfix-auto-ticket` | Fix intent + Slack URL + no JIRA key → create ticket before routing to fix-bug | Changeset or PR title missing JIRA key after hotfix flow | Medium |
 
 ### Delegation (source: `CLAUDE.md`, `rules/sub-agent-delegation.md`)
 

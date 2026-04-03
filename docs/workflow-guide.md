@@ -807,7 +807,16 @@ Executed by the release manager.
 
 ### Step 1. 👤 Receive urgent issue notification
 
-The ticket details can be filled in after the fact, **but a ticket must exist**.
+Typically reported via Slack. Paste the Slack URL and say "修這個" or "fix this".
+
+### Step 1.5. 🤖 Auto-create JIRA ticket (if none exists)
+
+If no JIRA ticket key is provided, the Strategist automatically:
+1. Reads the Slack thread to extract the problem description
+2. Creates a JIRA Bug ticket (project key inferred from `workspace-config.yaml`)
+3. Routes to `fix-bug` with the new ticket key
+
+As a safety net, `git-pr-workflow` also detects missing JIRA keys at the changeset step and auto-creates a ticket if needed.
 
 ### Steps 2–12. Same as Bug Fix flow
 

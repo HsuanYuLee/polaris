@@ -198,6 +198,18 @@ Stage 變更後（`git add`），AI 自動產生並套用 commit message。
 直接用 Write tool 建立 changeset 檔案（不用 `changeset-jira`，它需要互動輸入會在 agent 環境 hang）。
 
 1. 從 branch 名或 commit 取得 JIRA ticket key
+
+#### Step 6.0：JIRA Ticket Safety Net
+
+如果 Step 6.1 找不到 JIRA ticket key（branch name 和 recent commits 都沒有 `[A-Z]+-\d+` pattern），自動補開：
+
+1. **推斷 JIRA project key**：讀 `workspace-config.yaml` → `jira.projects`，單一 project 直接用，多個則從 repo 名稱或 commit 內容推斷
+2. **建立 Bug ticket**：`createJiraIssue` MCP — summary 從最近一次 commit message 萃取，description 從 git log 整理
+3. **更新 PR title**：加上 `[NEW-KEY]` prefix
+4. **繼續 Step 6.1**：用新的 ticket key 寫 changeset
+
+這是 fallback — 正常流程（從 JIRA ticket 開始的 `fix-bug`、`work-on`）不會觸發此邏輯。它防止直接手動開發或 hotfix 場景下，changeset CI 因缺少 JIRA key 而失敗。
+
 2. 用 Write tool 建立 `.changeset/<kebab-case-name>.md`：
 
 ```markdown
