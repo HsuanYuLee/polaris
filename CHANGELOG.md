@@ -4,6 +4,11 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.44.0] - 2026-04-03
+
+- **intake-triage skill** — new kkday-specific skill for batch ticket prioritization from PM. Analyzes tickets across 5 dimensions (Readiness, Effort, Impact, Dependencies, Duplicate Risk) with theme-aware domain lenses (SEO/CWV/a11y/generic). Produces a prioritized verdict table (Do First/Do Soon/Do Later/Skip/Hard Block) with Do First capped at 3, writes JIRA labels + analysis comments, and sends PM-facing Slack summary in non-technical language. Epic + subtask auto-convergence: when both appear in a batch, Epic becomes a summary header while subtasks are individually scored. Tested on 44 real tickets. Execution Queue deferred to Phase B (backlog) with 4 explicit trigger conditions
+- **skill-routing update** — intake-triage added to routing table, "排優先" trigger disambiguated from my-triage (requires multiple ticket keys)
+
 ## [1.43.0] - 2026-04-03
 
 - **Hotfix auto-ticket creation** — two-layer mechanism for hotfix scenarios where no JIRA ticket exists: (1) Strategist pre-processing route: fix intent + Slack URL + no JIRA key → read Slack thread → auto-create Bug ticket → route to `fix-bug` with new ticket key (2) git-pr-workflow Step 6.0 safety net: if changeset step detects no JIRA key in branch/commits → auto-create ticket, update PR title and changeset. Prevents CI failures from missing JIRA key in changeset/PR title. Mechanism registry entry `hotfix-auto-ticket` added for post-task audit

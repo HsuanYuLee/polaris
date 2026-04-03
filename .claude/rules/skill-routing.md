@@ -49,7 +49,8 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Batch converge all work | "收斂", "converge", "推進", "全部推到 review", "把我的單收一收" | `converge` |
 | Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `converge` (Epic-only mode) |
 | Create/open a PR | "開 PR", "create PR", "發 PR" | `git-pr-workflow` |
-| Triage my work | "我的 epic", "my epics", "盤點", "triage", "手上有什麼", "排優先", "my work", "我的工作" | `my-triage` |
+| Triage my work | "我的 epic", "my epics", "盤點", "triage", "手上有什麼", "my work", "我的工作" | `my-triage` |
+| Batch intake from PM | "收單", "排工", "intake", "這批單幫我看", "PM 開了一堆單", "幫我排優先", "prioritize this batch" + 多張 ticket key | `intake-triage` |
 | Daily standup / end-of-day | "standup", "站會", "daily", "寫 standup", "下班", "收工", "準備明天的工作", "end of day", "EOD", "明天 standup", "今天結束了", "總結一下", "結束今天", "wrap up", "今天做了什麼" | `standup` |
 | Sprint planning | "sprint planning", "sprint 規劃" | `sprint-planning` |
 | Refinement | "refinement", "grooming", "討論需求" | `refinement` |
