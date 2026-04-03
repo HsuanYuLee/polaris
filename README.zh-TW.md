@@ -124,6 +124,7 @@ cd ~/polaris-workspace
 ```
 
 互動式精靈會：
+- 設定偏好回應語言（或從現有設定讀取）
 - 偵測你的 GitHub 組織和 repo
 - 建立公司目錄和 `workspace-config.yaml`
 - 設定專案對應（JIRA key → 本地 repo 路徑）
@@ -137,7 +138,7 @@ cd ~/polaris-workspace
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 37 workflow skills
+│   └── skills/                   ← 39 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -164,7 +165,7 @@ cd ~/polaris-workspace
 
 ### 從這裡開始
 
-不要一次嘗試全部 37 個技能。根據你的角色挑一個開始：
+不要一次嘗試全部 39 個技能。根據你的角色挑一個開始：
 
 | 如果你是... | 先試這個 | 會發生什麼 |
 |------------|---------|-----------|
@@ -238,7 +239,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 37 workflow skills
+│   └── skills/                # 39 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory

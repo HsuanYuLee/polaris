@@ -11,6 +11,9 @@
 # Skills read this file via references/workspace-config-reader.md.
 # Leave sections empty to disable features — skills degrade gracefully.
 
+# NOTE: `language` is set in the ROOT workspace-config.yaml, not here.
+# It controls the AI's response language across all companies.
+
 # Optional: default company for single-client setups.
 # When set, this company is used automatically when auto-detection fails
 # (e.g., no JIRA ticket provided, ambiguous context).

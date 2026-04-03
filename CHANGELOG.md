@@ -4,6 +4,10 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.42.0] - 2026-04-03
+
+- **Language preference** — `/init` Step 0a now asks the user's preferred language (zh-TW, en, ja, etc.) and writes it to root `workspace-config.yaml`. The Strategist reads this field at conversation start and responds in that language. Template config updated with a NOTE clarifying that `language` belongs in root config, not company config
+
 ## [1.41.0] - 2026-04-03
 
 - **Learning from tvytlx/ai-agent-deep-dive** — deep-dive into reverse-engineered Claude Code architecture specs (16 docs). Three actionable items applied: (1) `verify-completion` verification sub-agents now default to read-only — cannot modify project files to make verification pass (verifier ≠ fixer), with explicit exception for auto-fix items (2) `sub-agent-delegation.md` adds worktree path translation rule — dispatch prompts must declare the worktree working directory to prevent sub-agents from reading/writing the wrong workspace (3) `e2e-verify.spec.ts` adds adversarial probe mode (`E2E_ADVERSARIAL=1`) with 4 boundary tests: nonexistent product, invalid locale, missing ID, nonexistent category — checks no 5xx, no uncaught JS, non-blank page. Three items deferred to backlog: compact auto-checkpoint, per-agent isolation config, read-only isolation mode

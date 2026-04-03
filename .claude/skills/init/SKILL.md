@@ -154,6 +154,33 @@ One JSON object per line:
 
 Audit: log `action: "start"` or `action: "restart"`.
 
+### Step 0a: Language Preference
+
+After the pre-check, check if `language:` exists in root `workspace-config.yaml`.
+
+**If `language` exists:**
+- Read the value and announce: "Language: {language} (from workspace config)"
+- Use this language for all subsequent prompts in this wizard
+
+**If `language` does NOT exist:**
+- Ask the user:
+  ```
+  Preferred language for AI responses?
+  Common options: zh-TW, en, ja, ko
+  
+  Enter language code: 
+  ```
+- Write the value to root `workspace-config.yaml` (top-level field, before `companies:`)
+- Use this language for all subsequent prompts in this wizard
+
+**Format in config:**
+```yaml
+# Preferred language for AI responses. Set during /init.
+language: zh-TW
+```
+
+Audit: log `{"step": 0, "section": "language", "action": "detect" or "set", "value": "{language}", "source": "config" or "user"}`.
+
 ### Step 1: Company Basics
 
 **Ask:**
