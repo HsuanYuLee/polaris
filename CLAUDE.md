@@ -53,8 +53,21 @@ When context is compressed (earlier messages truncated), immediately recover ses
    - Git branch name encodes the ticket being worked on
 4. **Check session timeline** — `polaris-timeline.sh query --last 10` for recent activity context
    - Recent git log shows what was committed in this session
-4. **If company context is unclear** — ask the user before proceeding (wrong company causes rule/memory cross-contamination)
-5. **Never guess** — if critical state (which ticket, which repo, which company) is lost and unrecoverable from the above sources, ask rather than assume
+5. **If company context is unclear** — ask the user before proceeding (wrong company causes rule/memory cross-contamination)
+6. **Never guess** — if critical state (which ticket, which repo, which company) is lost and unrecoverable from the above sources, ask rather than assume
+
+### Cross-Session Continuity
+
+When the user says "繼續 X" / "continue X" / references work from a previous session:
+
+1. **Search MEMORY.md index** for keywords matching the user's request
+2. **Read the full memory file** — never rely on the index one-liner alone. The index is a pointer, not the content. If the index mentions a topic, the file contains the actionable details (execution plan, decisions made, next steps)
+3. **Read linked artifacts** — if the memory file references plans, checkpoints, or other files, read those too
+4. **Reconstruct context** — from the memory file + artifacts, build a summary of: what was decided, what was done, what's next
+5. **Confirm with the user** — present the reconstructed context: "上次我們決定了 X，做了 Y，下一步是 Z — 從這裡繼續？"
+6. **Never report "memory lost"** when the index has a match — go read the file first
+
+This is critical: memory files are the bridge between sessions. If a memory file says "Step 1: do X", the new session starts at Step 1. The memory system is only as useful as the Strategist's willingness to read it.
 
 ## Project Mapping
 

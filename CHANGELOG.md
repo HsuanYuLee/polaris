@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.46.0] - 2026-04-03
+
+- **visual-regression before/after rewrite** — SKILL.md completely rewritten from baseline model to before/after comparison. Two modes: SIT (staging vs local dev) and Local (git stash before/after). Leverages Playwright's built-in `--update-snapshots` for temporary baselines — no files committed. Server startup uses health-check-first strategy (reuse running server, only start if needed)
+- **Lib layering** — Playwright dependency moved from per-domain `package.json` to company VR level (`ai-config/{company}/visual-regression/package.json`), all domains share one installation. Domain directories contain only test files
+- **Config cleanup** — removed obsolete `baseline_env` and `snapshot_dir` defaults from root workspace-config.yaml. VR config reference updated with before/after mode description, fixture server value proposition, and new directory structure
+- **/init Step 9a + 9b** — new sections: Dev Environment (AI-detects start commands from docker-compose/package.json/Makefile/README, smartSelect presentation) and Visual Regression (domain mapping, key page discovery, SIT URL, test file generation). Populates `projects[].dev_environment` and `visual_regression.domains[]` in company config
+- **workspace-config-reader** — added `dev_environment.*` and domain-level VR field index, removed stale project-level VR fields
+- **skill-routing** — visual-regression triggers added to routing table
+- **Mockoon fixture value** — feedback memory recording why fixture server matters (backend API changes during development cause false positives in screenshot comparison)
+
 ## [1.45.0] - 2026-04-03
 
 - **intake-triage generalized** — promoted from kkday-specific (`skills/kkday/`) to shared skill (`skills/intake-triage/`). Domain lens now config-driven: reads `intake_triage.lenses` from workspace-config.yaml with built-in defaults as fallback. Author changed to Polaris. Skill count 39→40

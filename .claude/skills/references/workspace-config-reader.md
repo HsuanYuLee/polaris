@@ -84,6 +84,21 @@ company config → shared-defaults.md → inline hardcoded 值
 取得本步驟需要的值：`jira.instance`、`github.org`、`slack.channels.pr_review` 等。
 ```
 
+## 三層繼承（defaults → company → project）
+
+Root config 可包含 `defaults` block，定義框架層預設值。Company config 的欄位如果未設定，向上繼承 root defaults。
+
+```
+root: defaults.visual_regression.threshold → 0.02
+company: projects[].visual_regression.threshold → (未設定) → 繼承 0.02
+company: projects[].visual_regression.threshold → 0.01 → 覆寫為 0.01
+```
+
+Skill runtime 負責繼承邏輯：讀到空值就往上層找。
+
+Root config 也包含 `dependencies` block，追蹤框架推薦 lib 的使用者同意狀態。
+詳見 `references/dependency-consent.md`。
+
 ## Config 欄位索引
 
 | 需求 | Config 路徑 | Fallback 來源 |
@@ -104,3 +119,17 @@ company config → shared-defaults.md → inline hardcoded 值
 | Approval threshold | `company: scrum.approval_threshold` | shared-defaults.md |
 | Need review label | `company: scrum.need_review_label` | shared-defaults.md |
 | Ansible repo | `company: infra.ansible_repo` | env-var-workflow.md |
+| VR 預設 fixture 工具 | `root: defaults.visual_regression.fixtures_tool` | `"mockoon"` |
+| VR 預設瀏覽器 | `root: defaults.visual_regression.browsers` | `["chromium"]` |
+| VR 預設 threshold | `root: defaults.visual_regression.threshold` | `0.02` |
+| VR 預設整頁截圖 | `root: defaults.visual_regression.full_page` | `true` |
+| VR 預設 timeouts | `root: defaults.visual_regression.timeouts.*` | 見 visual-regression-config.md |
+| E2E 預設 runner | `root: defaults.e2e.runner` | `"playwright"` |
+| 依賴同意狀態 | `root: dependencies.{lib}.status` | `"pending"` |
+| 依賴支撐功能 | `root: dependencies.{lib}.features` | dependency-consent.md |
+| 專案 Dev 環境 | `company: projects[].dev_environment.*` | /init Step 9a |
+| 專案 Dev 啟動指令 | `company: projects[].dev_environment.start_command` | — |
+| 專案 Dev base URL | `company: projects[].dev_environment.base_url` | — |
+| VR domain 設定 | `company: visual_regression.domains[]` | visual-regression-config.md |
+| VR domain server | `company: visual_regression.domains[].server.*` | visual-regression-config.md |
+| VR domain pages | `company: visual_regression.domains[].pages[]` | visual-regression-config.md |

@@ -34,7 +34,7 @@ Polaris: reads JIRA ticket → checks prerequisites → estimates story points
          → opens PR with coverage report → transitions JIRA to CODE REVIEW
 ```
 
-**Skills:** `work-on`, `fix-bug`, `epic-breakdown`, `epic-status`, `tdd`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `dev-quality-check`, `verify-completion`, `jira-branch-checkout`, `start-dev`, `scope-challenge`, `refinement`, `intake-triage`
+**Skills:** `work-on`, `fix-bug`, `epic-breakdown`, `epic-status`, `tdd`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `dev-quality-check`, `visual-regression`, `verify-completion`, `jira-branch-checkout`, `start-dev`, `scope-challenge`, `refinement`, `intake-triage`
 
 Deep dive → [Developer Workflow Guide](docs/workflow-guide.md)
 
@@ -138,7 +138,7 @@ After `/init` completes, your workspace will look like this:
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 40 workflow skills
+│   └── skills/                   ← 41 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -163,7 +163,7 @@ Once initialized, just talk to Claude Code naturally — English or 中文 both 
 
 ### Start here
 
-Don't try all 40 skills at once. Pick one that matches your role:
+Don't try all 41 skills at once. Pick one that matches your role:
 
 | If you are a... | Try this first | What happens |
 |-----------------|----------------|--------------|
@@ -238,7 +238,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 40 workflow skills
+│   └── skills/                # 41 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory

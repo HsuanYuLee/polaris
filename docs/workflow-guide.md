@@ -54,6 +54,7 @@ flowchart TD
     %% ── Quality → PR (auto chain) ──
     subgraph auto["⚡ Auto-chained<br/><code>git-pr-workflow</code>"]
         Q1["🤖 Quality Check<br/><code>dev-quality-check</code>"]
+        Q1b["🤖👤 Visual Regression<br/><code>visual-regression</code>"]
         Q2["🤖👤 Behavior Verification<br/><code>verify-completion</code>"]
         Q3["🤖 Pre-PR Review Loop<br/>Sub-agent iterative review"]
         Q4["🤖 Commit + Open PR<br/>Transition to CODE REVIEW"]
@@ -90,7 +91,8 @@ flowchart TD
     D1 --> D2
     D2 --> D3
     D3 --> Q1
-    Q1 --> Q2
+    Q1 --> Q1b
+    Q1b --> Q2
     Q2 --> Q3
     Q3 -->|Pass| Q4
     Q3 -->|Blocking issues| D3
@@ -152,6 +154,7 @@ flowchart LR
     SD["start-dev"]
     TDD["tdd"]
     QC["dev-quality-check"]
+    VR["visual-regression"]
     VC["verify-completion"]
 
     %% ── PR Skills ──
@@ -212,6 +215,7 @@ flowchart LR
 
     %% ── Quality chain ──
     GPW -->|quality check| QC
+    QC -.->|optional| VR
     GPW -->|behavior verify| VC
     GPW -->|open PR| PRC
     GPW -.->|log worktime| WL
@@ -254,7 +258,7 @@ flowchart LR
     classDef internal fill:#fafafa,stroke:#999,color:#000,stroke-dasharray:5 5
 
     class WO,FB orchestrator
-    class QC,VC,TDD quality
+    class QC,VR,VC,TDD quality
     class RP,RI,CPA,FPR,RLG review
     class RF,EB,SC,SP,IT planning
     class JE internal
@@ -270,6 +274,7 @@ flowchart LR
 - `end-of-day` is deprecated — all end-of-day triggers ("下班", "收工", "EOD", "wrap up", etc.) now route to `standup` (v2.0), which includes auto-triage in Step 0
 - `epic-status` tracks Epic progress and auto-routes gaps to the appropriate skill
 - `standup` (v2.0) is the unified entry point for daily standup and end-of-day routines — includes auto-triage (Step 0); triggered directly by the user
+- `visual-regression` runs after `dev-quality-check` for UI-touching changes — before `verify-completion`. Optional but recommended for layout/styling changes
 - `systematic-debugging`, `learning`, `wt-parallel`, `unit-test-review`, `docs-sync`, `worklog-report` are standalone skills — triggered directly by the user, not part of the main chain
 
 ---
@@ -595,6 +600,29 @@ AI executes `verify-completion` skill:
 **When to skip:** pure config changes, type-definition-only changes, scenarios fully covered by CI.
 
 > Trigger keywords: `verify`, `confirm it's fixed`, `check it works`, `acceptance check`
+
+### Step 7b. 🤖👤 Visual Regression (optional)
+
+After behavior verification passes, run a before/after screenshot comparison to confirm the change does not break existing page layouts.
+
+```
+visual regression
+```
+
+or:
+
+```
+check if pages look right
+```
+
+AI executes `visual-regression` skill. Two modes:
+
+- **SIT mode** — compares the local dev build against the SIT (staging) environment. Use this when SIT reflects the pre-change state
+- **Local mode** — captures a "before" screenshot from the current branch baseline, applies changes, then captures "after". Use when SIT is unavailable or already updated
+
+**When to run:** UI-touching changes (layout, styling, component restructuring). Skip for API-only, type-only, or config-only changes.
+
+> Trigger keywords: `visual regression`, `visual test`, `screenshot test`, `check if pages look right`, `有沒有跑版`, `截圖比對`
 
 ### Step 8. 🤖 Pre-PR AI Review Loop (Sub-agent Iterative Review)
 

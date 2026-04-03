@@ -443,6 +443,158 @@ If no → leave empty.
 
 Audit: log infra settings.
 
+### Step 9a: Dev Environment (skippable)
+
+Discover how to start the local development environment for each selected project. This information powers visual regression and verify-completion skills.
+
+**Auto-detect per project:**
+
+For each project selected in Step 7, dispatch parallel sub-agents (model: `"haiku"`) to scan:
+
+1. `docker-compose.yml` / `docker-compose.*.yml` → `docker compose up` variant
+2. `package.json` → `scripts.dev`, `scripts.start`, `scripts.serve`
+3. `Makefile` → `dev`, `serve`, `start` targets
+4. `README.md` → setup/development section (regex: `/## *(setup|development|getting started|local)/i`)
+
+**smartSelect presentation:**
+
+```
+Step 9a: Dev Environment
+
+  #   Project              Start Command                          Ready Signal        Base URL
+  1   your-b2c-web         pnpm -C apps/main dev                  Listening on        http://localhost:3000
+  2   your-api              docker compose up -d                   started             http://localhost:8080
+  3   your-design-system   pnpm dev                               ready in            http://localhost:5173
+  4   your-web-docker      docker compose -f docker-compose.yml up ready               https://dev.example.com
+
+  Confirm (y) / Adjust (e) / Skip (s)?
+```
+
+On **Adjust** → user specifies which row(s) to change. Common adjustments: base_url, ready_signal, env vars.
+
+On **Skip** → leave `dev_environment` block empty. Visual regression will ask at runtime.
+
+**Health check field**: for each project, also infer a health check URL (typically `{base_url}/` or `{base_url}/health`). This is used by visual-regression skill to verify the server is responding.
+
+**Output**: populates `projects[].dev_environment` in the company workspace-config:
+
+```yaml
+projects:
+  - name: your-b2c-web
+    dev_environment:
+      start_command: "pnpm -C apps/main dev"
+      ready_signal: "Listening on"
+      base_url: "http://localhost:3000"
+      health_check: "http://localhost:3000/"
+      env: {}  # user can add env vars later
+```
+
+Audit: log detected values (source: `ai`), final confirmed values (source: `user`).
+
+### Step 9b: Visual Regression (skippable)
+
+Configure visual regression testing for web-facing domains.
+
+**Pre-condition**: only show this step if at least one selected project has a web frontend (detected by tags containing `b2c`, `web`, `frontend`, or by the presence of a framework like Nuxt/Next/Vue/React in Step 7 AI analysis).
+
+**Ask:**
+```
+你的專案有 web 前端，要設定 visual regression 嗎？
+（截圖比對，確保改動不破壞既有頁面）
+
+  (y) 設定  (n) 跳過
+```
+
+If yes:
+
+**Phase 1: Domain mapping**
+
+Map web projects to their production domains:
+
+```
+Step 9b-1: Domain Mapping
+
+  Which domain does each web project serve?
+
+  #   Project              Domain (auto-detected)
+  1   your-b2c-web         www.example.com
+  2   your-web-docker      (provides dev infra, not a domain)
+
+  Confirm (y) / Adjust (e)?
+```
+
+Auto-detect domain from: project's production URL config, `nuxt.config.*` hostname, package.json `homepage` field, or README.
+
+**Phase 2: Key pages**
+
+For each domain, suggest key pages based on the project's routes:
+
+```
+Step 9b-2: Key Pages — www.example.com
+
+  #   Select   Page            Path                  Viewports
+  1   [✓]      homepage        /                     [1280, 375]
+  2   [✓]      product-page    /product/12345        [1280, 375]
+  3   [✓]      search          /search?keyword=test  [1280, 375]
+  4   [ ]      checkout        /checkout             [1280, 375]
+
+  Confirm (y) / Adjust (e) / Add more (a)?
+```
+
+Auto-detect pages from: `pages/` directory structure (Nuxt/Next), router config, sitemap.xml reference.
+
+**Phase 3: SIT URL**
+
+```
+Step 9b-3: SIT/Staging Environment
+
+  Does www.example.com have a SIT/staging URL? (for before/after comparison)
+
+  (1) Yes → enter SIT URL
+  (2) No → will use git stash local mode
+```
+
+**Output**: populates `visual_regression.domains[]` in the company workspace-config:
+
+```yaml
+visual_regression:
+  domains:
+    - name: "www.example.com"
+      server:
+        start_command: "{from Step 9a}"
+        ready_signal: "{from Step 9a}"
+        base_url: "{from Step 9a}"
+        sit_url: "https://www.sit.example.com"  # if provided
+      global_masks:
+        - "[data-testid*='date']"
+        - "[data-testid*='price']"
+        - ".ad-banner"
+      locales: [""]
+      locale_strategy: "url_prefix"
+      pages:
+        - name: "homepage"
+          path: "/"
+          source_project: "your-b2c-web"
+          viewports: [1280, 375]
+          scroll_before_capture: true
+```
+
+**Phase 4: Generate test files**
+
+After config is written (Step 10), generate initial test files:
+
+```
+ai-config/{company}/visual-regression/{domain}/
+  ├── playwright.config.ts
+  └── pages.spec.ts
+```
+
+Use the templates from the existing `ai-config/kkday/visual-regression/www.kkday.com/` as reference. Generate based on the configured pages and settings.
+
+If `package.json` doesn't exist at `ai-config/{company}/visual-regression/`, create it with `@playwright/test` dependency.
+
+Audit: log domain mappings, page counts, whether SIT URL was provided, test files generated.
+
 ### Step 10: Review & Write
 
 1. Show the complete generated company config YAML

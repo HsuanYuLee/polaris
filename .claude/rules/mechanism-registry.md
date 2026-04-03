@@ -92,13 +92,21 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `framework-exp-once-per-task` | At most 1 framework-experience memory per task | Multiple framework-experience memories with the same `last_triggered` date | Low |
 | `docs-sync-on-version-bump` | After VERSION bump commit, run docs-sync before sync-to-polaris | VERSION bumped and pushed without docs-sync invocation | High |
 
+### Cross-Session Continuity (source: `CLAUDE.md`)
+
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `cross-session-read-memory-file` | When user says "繼續 X", search MEMORY.md index then READ the full memory file before responding | Strategist reports "memory lost" or "no details" when MEMORY.md index has a matching entry | High |
+| `cross-session-confirm-context` | After reading memory file, present reconstructed context to user for confirmation | New session starts work without summarizing what was decided/done/next from previous session | Medium |
+
 ## Priority Audit Order
 
 Post-task audit should check these first (highest drift risk, most impactful):
 
 1. `skill-first-invoke` / `no-manual-skill-steps`
 2. `delegate-exploration` / `delegate-implementation`
-3. `post-task-feedback-reflection`
-4. `re-test-after-fix` / `fresh-verification-before-completion`
-5. `no-cd-in-bash` / `no-independent-cmd-chaining`
-6. `feedback-trigger-count-update` / `graduation-at-three-triggers`
+3. `cross-session-read-memory-file`
+4. `post-task-feedback-reflection`
+5. `re-test-after-fix` / `fresh-verification-before-completion`
+6. `no-cd-in-bash` / `no-independent-cmd-chaining`
+7. `feedback-trigger-count-update` / `graduation-at-three-triggers`

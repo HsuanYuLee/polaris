@@ -54,6 +54,7 @@ flowchart TD
     %% ── Quality → PR (auto chain) ──
     subgraph auto["⚡ Auto-chained<br/><code>git-pr-workflow</code>"]
         Q1["🤖 Quality Check<br/><code>dev-quality-check</code>"]
+        Q1b["🤖👤 Visual Regression<br/><code>visual-regression</code>"]
         Q2["🤖👤 Behavior Verification<br/><code>verify-completion</code>"]
         Q3["🤖 Pre-PR Review Loop<br/>Sub-agent iterative review"]
         Q4["🤖 Commit + Open PR<br/>Transition to CODE REVIEW"]
@@ -90,7 +91,8 @@ flowchart TD
     D1 --> D2
     D2 --> D3
     D3 --> Q1
-    Q1 --> Q2
+    Q1 --> Q1b
+    Q1b --> Q2
     Q2 --> Q3
     Q3 -->|Pass| Q4
     Q3 -->|Blocking issues| D3
@@ -152,6 +154,7 @@ flowchart LR
     SD["start-dev"]
     TDD["tdd"]
     QC["dev-quality-check"]
+    VR["visual-regression"]
     VC["verify-completion"]
 
     %% ── PR Skills ──
@@ -212,6 +215,7 @@ flowchart LR
 
     %% ── Quality chain ──
     GPW -->|quality check| QC
+    QC -.->|optional| VR
     GPW -->|behavior verify| VC
     GPW -->|open PR| PRC
     GPW -.->|log worktime| WL
@@ -254,7 +258,7 @@ flowchart LR
     classDef internal fill:#fafafa,stroke:#999,color:#000,stroke-dasharray:5 5
 
     class WO,FB orchestrator
-    class QC,VC,TDD quality
+    class QC,VR,VC,TDD quality
     class RP,RI,CPA,FPR,RLG review
     class RF,EB,SC,SP,IT planning
     class JE internal
@@ -270,6 +274,7 @@ flowchart LR
 - `end-of-day` 已棄用 — 所有下班觸發詞（「下班」、「收工」、「EOD」、「wrap up」等）現在統一路由到 `standup`（v2.0），Step 0 自動跑 triage
 - `epic-status` 追蹤 Epic 進度，自動將缺口路由到對應技能
 - `standup`（v2.0）是每日站會和下班收工的統一進入點 — 含自動 triage（Step 0）；由使用者直接觸發
+- `visual-regression` 在 UI 相關變更中於 `dev-quality-check` 之後、`verify-completion` 之前執行。選擇性但建議用於版面/樣式變更
 - `systematic-debugging`、`learning`、`wt-parallel`、`unit-test-review`、`docs-sync`、`worklog-report` 是獨立技能 — 由使用者直接觸發，不在主鏈路中
 
 ---
@@ -595,6 +600,29 @@ AI 執行 `verify-completion` 技能：
 **何時跳過：** 純設定檔變更、僅型別定義變更、CI 已完整覆蓋的情境。
 
 > Trigger keywords: `verify`, `confirm it's fixed`, `check it works`, `acceptance check`
+
+### 步驟 7b. 🤖👤 視覺回歸測試（選擇性）
+
+行為驗證通過後，執行前後截圖比對，確認改動不會破壞既有頁面版面。
+
+```
+visual regression
+```
+
+或：
+
+```
+有沒有跑版
+```
+
+AI 執行 `visual-regression` 技能。兩種模式：
+
+- **SIT 模式** — 將本地 dev build 與 SIT（staging）環境比較。適用於 SIT 反映變更前狀態的情境
+- **Local 模式** — 從當前 branch baseline 擷取「before」截圖，套用變更後擷取「after」。適用於 SIT 無法使用或已更新的情境
+
+**何時執行：** 涉及 UI 的變更（版面、樣式、元件結構調整）。API 專屬、僅型別或設定檔變更可略過。
+
+> Trigger keywords: `visual regression`, `visual test`, `screenshot test`, `check if pages look right`, `有沒有跑版`, `截圖比對`
 
 ### 步驟 8. 🤖 Pre-PR AI Review 迴圈（子代理迭代審查）
 

@@ -59,6 +59,7 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Validate mechanisms | "validate mechanisms", "檢查機制" | `validate-mechanisms` |
 | Validate isolation | "validate isolation", "檢查隔離" | `validate-isolation` |
 | Save/resume session state | "checkpoint", "存檔", "save checkpoint", "resume", "恢復", "list checkpoints", "列出存檔" | `checkpoint` |
+| Visual regression check | "跑 visual regression", "檢查畫面", "頁面有沒有壞", "visual test", "截圖比對", "有沒有跑版", "畫面壞了嗎", "UI 有沒有問題" | `visual-regression` |
 
 ## Complexity Tier — Route by Task Size
 
