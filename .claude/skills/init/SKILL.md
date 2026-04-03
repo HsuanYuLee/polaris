@@ -149,10 +149,38 @@ One JSON object per line:
 
 1. Check if root `workspace-config.yaml` exists
 2. If exists → read it, show existing companies
-   - Ask: "Add a new company / Edit existing company / Cancel?"
+   - Ask: "Add a new company / Edit existing company / Re-init (run new sections) / Cancel?"
 3. If not exists → will create fresh
 
-Audit: log `action: "start"` or `action: "restart"`.
+**Re-init mode** (for existing users after Polaris upgrades):
+
+When user selects "Re-init" or says "re-init", "重跑 init", "補跑 init":
+
+1. Read the existing company workspace-config.yaml
+2. Scan which sections are **missing or empty** by checking for key fields:
+   | Section | Check field | If missing → run |
+   |---------|------------|-----------------|
+   | Dev Environment (9a) | `projects[].dev_environment` | Step 9a |
+   | Visual Regression (9b) | `visual_regression.domains[]` | Step 9b |
+   | Scrum (8) | `scrum.*` | Step 8 |
+   | Daily Learning (13) | `daily_learning_scan` | Step 13 |
+3. Show which sections would be added:
+   ```
+   Re-init: {company}
+
+   已有設定：GitHub ✓, JIRA ✓, Projects ✓, Scrum ✓, Slack ✓
+   缺少設定：
+     → Step 9a: Dev Environment（偵測 dev server 啟動方式）
+     → Step 9b: Visual Regression（截圖比對設定）
+
+   要補跑這些 section 嗎？(y/n)
+   ```
+4. Only run the missing sections — skip all others
+5. Merge new config into existing file (do not overwrite existing fields)
+
+This is the recommended path for users upgrading from pre-v1.46.0 who want the new dev environment and VR capabilities without re-running the full wizard.
+
+Audit: log `action: "re-init"` with list of sections to run.
 
 ### Step 0a: Language Preference
 
@@ -627,6 +655,53 @@ Step 9b-3: SIT/Staging Environment
   (2) No → will use git stash local mode
 ```
 
+**Phase 3.5: Locale expansion**
+
+After confirming pages, ask whether to test additional locales:
+
+```
+  Primary locale: zh-TW (will be tested by default)
+  Available: zh-TW, en, ja, ko, ... (18 locales)
+
+  Test additional locales? (enter codes comma-separated, or press Enter for primary only)
+  > ____
+```
+
+**Output: Server config resolution**
+
+The `server` block in the VR config describes how to access the domain for screenshots. This is NOT necessarily the same as the app's own dev command from Step 9a.
+
+**Resolution logic:**
+1. Check Step 9a-1 dependencies: does this project **require an infrastructure repo** (e.g., Docker stack with nginx)?
+2. **If yes** → the infrastructure repo is the HTTP entry point for this domain. Use its `start_command` and `base_url`:
+   - `start_command` = infrastructure repo's start command (e.g., `docker compose ... up -d`)
+   - `base_url` = infrastructure repo's base URL (e.g., `https://dev.example.com`)
+   - The app's own dev command (`pnpm dev:main`) runs separately as a background process
+3. **If no** (app has its own standalone dev server) → use the app's own `start_command` and `base_url` from Step 9a
+
+Present this to the user for confirmation:
+
+```
+Step 9b-4: VR Server Config — www.example.com
+
+  How should VR access this domain for screenshots?
+
+  kkday-b2c-web depends on kkday-web-docker (detected in Step 9a).
+  → 建議使用 Docker stack 的 URL 作為截圖目標（完整整合環境）。
+
+  Option A (recommended): Docker stack — full integrated environment
+    start_command: docker compose -f .../docker-compose.yml up -d
+    base_url: https://dev.example.com
+    （需同時跑 pnpm dev:main 提供 Nuxt HMR）
+
+  Option B: Standalone Nuxt dev server
+    start_command: pnpm dev:main
+    base_url: http://localhost:3001
+    （部分功能可能缺失 — 無 PHP routes、無 nginx proxy）
+
+  Choose (A/B):
+```
+
 **Output**: populates `visual_regression.domains[]` in the company workspace-config:
 
 ```yaml
@@ -634,15 +709,15 @@ visual_regression:
   domains:
     - name: "www.example.com"
       server:
-        start_command: "{from Step 9a}"
-        ready_signal: "{from Step 9a}"
-        base_url: "{from Step 9a}"
-        sit_url: "https://www.sit.example.com"  # if provided
+        start_command: "docker compose -f .../docker-compose.yml up -d"  # from infra repo
+        ready_signal: "ready"
+        base_url: "https://dev.example.com"  # from infra repo
+        sit_url: "https://www.sit.example.com"  # from Phase 3
       global_masks:
         - "[data-testid*='date']"
         - "[data-testid*='price']"
         - ".ad-banner"
-      locales: [""]
+      locales: ["zh-TW"]  # from Phase 2 + 3.5
       locale_strategy: "url_prefix"
       pages:
         - name: "homepage"

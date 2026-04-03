@@ -4,6 +4,12 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.48.0] - 2026-04-03
+
+- **/init re-init mode** — existing users can run `/init` → "Re-init" to add only new sections (Step 9a Dev Environment, Step 9b Visual Regression) without re-running the full wizard. Scans existing config for missing fields and only runs the gaps. Recommended upgrade path from pre-v1.46.0
+- **/init Step 9b-4 server config resolution** — critical fix from second simulation: when a project depends on an infrastructure repo (Docker stack), VR config now correctly inherits the infra repo's `start_command` and `base_url` instead of the app's standalone dev server. Presents A/B choice to user. Accuracy improved from ~30% to ~80% in simulation
+- **/init Phase 3.5 locale expansion** — after confirming pages, asks whether to test additional locales beyond the primary
+
 ## [1.47.0] - 2026-04-03
 
 - **/init Step 9a+9b friction fixes** — validated via worktree simulation against real kkday repos. Seven fixes: (1) cross-repo dependency detection scans Docker volume mounts and .env cross-references to surface prerequisites (2) SIT URL always asks user — `.env` contains dev URLs not SIT, auto-detection was wrong (3) production domain requires explicit user input — code only has dev/template URLs (4) dynamic routes prompt user for example IDs/slugs (5) missing `.env.example` warning when start script references `.env.local` (6) monorepo multi-app selection instead of assuming which app is primary (7) locale codes read from i18n config for correct case
