@@ -5,8 +5,8 @@ Reference doc for the three-layer verification structure. Not yet integrated int
 ## Status: Draft (pre-graduation)
 
 **Graduation criteria:**
-- [ ] Epic #1 試跑完成，記錄調整項
-- [ ] Reference doc 根據 Epic #1 修正
+- [x] Epic #1 試跑完成，記錄調整項（GT-483, 2026-04-05）
+- [x] Reference doc 根據 Epic #1 修正（加入 Playwright browser-first、URL 規範、測資來源）
 - [ ] Epic #2 驗證完成，無結構性修改
 - [ ] 畢業 → 改進 epic-breakdown, epic-status, work-on, jira-estimation
 
@@ -106,19 +106,33 @@ Reference doc for the three-layer verification structure. Not yet integrated int
 ```yaml
 # 驗證項格式（寫在 JIRA sub-task description 或 comment）
 verification:
-  - name: "i18n 翻譯正常"
-    type: endpoint_check
-    command: "curl -s http://localhost:3001/api/_nuxt/local/i18n.get?locale=zh-tw"
-    assert: "response.data != null && Object.keys(response.data).length > 100"
+  # 首選：Playwright 瀏覽器驗證（有 session、有渲染、有 JS 執行）
+  # {BASE_URL} 由公司層 playwright-testing reference 定義（如 dev.kkday.com）
+  - name: "商品頁 SSR 渲染正常"
+    type: browser
+    command: |
+      npx playwright test --grep "product-page-render"
+      # 或 inline script:
+      # page.goto('{BASE_URL}/zh-tw/product/12345')
+      # expect(page.locator('[data-testid="product-title"]')).toBeVisible()
+    assert: "page renders without error, key elements visible"
 
+  - name: "i18n 翻譯正常（瀏覽器）"
+    type: browser
+    command: |
+      # page.goto('{BASE_URL}/zh-tw/product/12345')
+      # expect(page.locator('text=加入購物車')).toBeVisible()
+    assert: "translated text renders correctly in browser context"
+
+  # API-only 驗證（無渲染需求時才用 curl）
   - name: "footer cache header"
     type: endpoint_check
-    command: "curl -sI http://localhost:3001/api/_nuxt/footer"
+    command: "curl -sI {BASE_URL}/api/_nuxt/footer"
     assert: "headers contains 'x-nitro-cache'"
 
   - name: "TTFB < 1000ms"
     type: performance
-    command: "curl -o /dev/null -s -w '%{time_starttransfer}' http://localhost:3001/zh-TW/"
+    command: "curl -o /dev/null -s -w '%{time_starttransfer}' {BASE_URL}/zh-tw/"
     assert: "time_starttransfer < 1.0"
 
   - name: "SSR 無 waterfall"
@@ -128,7 +142,8 @@ verification:
 
 | Type | 自動化程度 | 說明 |
 |------|-----------|------|
-| `endpoint_check` | 全自動 | curl + response assertion |
+| `browser` | 全自動 | **首選** — Playwright 瀏覽器驗證（有 session、有渲染） |
+| `endpoint_check` | 全自動 | curl + response assertion（僅限無渲染需求的 API） |
 | `performance` | 全自動 | timing assertion |
 | `log_check` | 半自動 | 需人工判讀 log |
 | `visual` | 半自動 | VR 截圖比對 |
@@ -159,6 +174,51 @@ feat branch 整合了新的 sub-task code
 - 如果 Epic 涉及效能 → 效能基準對比
 
 **Form:** 可以是驗收單之一（如「Feature 整合 VR」），或獨立一張。
+
+## GT-483 Lessons Learned (Epic #1 Trial)
+
+GT-483 整合測試試跑產出的具體教訓，已驗證並固化在本文件中。
+
+### 1. 瀏覽器優先，curl 退居 API-only
+
+**問題：** curl 打 endpoint 沒有 session、沒有 cookie、沒有 JS 執行。頁面是否真的渲染正常、翻譯是否正確顯示、CSR hydration 是否成功 — curl 一概看不到。
+
+**規則：** 整合測試的 `type` 首選 `browser`（Playwright）。只有純 API header 檢查（如 cache header）或 timing 測試才用 `endpoint_check`。
+
+### 2. URL 格式規範
+
+b2c-web 的 URL 有嚴格的格式要求，寫錯會 404：
+
+| 欄位 | ✅ 正確 | ❌ 錯誤 |
+|------|--------|--------|
+| locale | `zh-tw`（小寫） | `zh-TW` |
+| location | `tw-taiwan`（urlName） | `A01-001`（area code） |
+| 完整範例 | `/zh-tw/product/12345` | `/zh-TW/product/12345` |
+
+**來源：** SIT 站的實際 URL 是 source of truth，直接從 SIT 複製再換 host。
+
+### 3. 測資來源：SIT → localhost
+
+**SIT DB 和 dev DB 是同一個。** SIT 有的商品、locale、location，dev 環境就有。
+
+**正確做法：**
+1. 到 SIT 站 (`https://sit-www.kkday.com`) 取目標頁面 URL
+2. 記下 URL pattern（locale、location、商品 ID 等）
+3. 替換 host 為 `localhost:3001`
+4. 在 Playwright 裡直接 `page.goto(localUrl)`
+
+**不要：** 自己猜商品 ID、猜 URL path、或從 DB 撈 ID。SIT 站上看得到的就是可用的測資。
+
+### 4. 驗證項選擇
+
+| 好的驗證項 | 不好的驗證項 |
+|-----------|------------|
+| 頁面是否渲染（Playwright 截圖 + 元素斷言） | curl 打 API 看 JSON |
+| 翻譯文字是否出現在畫面上 | i18n API response 有幾個 key |
+| 關鍵互動是否可用（按鈕、連結） | HTTP status code 200 |
+| SSR hydration 完成（無 console error） | 無渲染的 API timing |
+
+---
 
 ## Feature Branch Flow
 
