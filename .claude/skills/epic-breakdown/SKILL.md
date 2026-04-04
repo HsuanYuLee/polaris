@@ -109,6 +109,23 @@ mcp__claude_ai_Atlassian__getJiraIssue
 - Spike / POC 類的探索任務獨立出來
 - 如果是根據已完成的 feature branch 拆單，以實際 commit 的改動範圍為準，而非 description 中的建議
 
+**API-first 排序規則：**
+
+如果 Epic 涉及 cross-repo API 變更（例如 member-ci 加欄位、新的 internal API endpoint），**API 變更 task 必須排在第一張**。
+
+理由：
+1. 前端消費 API — API 先做是自然的依賴順序
+2. API task 完成後可以 re-record Mockoon fixtures，後續所有前端 task 基於穩定的 fixtures 開發
+3. 避免「前端先做了，API 後來改了，前端又要改」的來回
+
+排序結果應為：
+```
+Task 1: API/cross-repo 變更（如 member-ci endpoint）
+Task 2-N: 前端開發（基於穩定 API + fixtures）
+```
+
+判斷依據：子單涉及的 repo 不同於主 project repo → 標記為 cross-repo → 排到前面。
+
 **子任務結構：**
 
 每個子任務需包含：

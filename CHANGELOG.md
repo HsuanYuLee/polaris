@@ -4,6 +4,11 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.62.0] - 2026-04-05
+
+- **Mockoon fixture per-Epic lifecycle** — epic-verification-workflow.md gains Fixture Lifecycle section: record at Epic start, re-record after cross-repo API task, develop on stable fixtures, delete on release. kkday playwright-testing.md gains full Mockoon integration doc (architecture, recording workflow, parallel Epic isolation design). Backlog item updated from "pending" to "design complete"
+- **epic-breakdown API-first ordering rule** — when Epic involves cross-repo API changes, API task must be ordered first. Ensures fixtures can be re-recorded before frontend tasks begin, preventing mid-Epic fixture staleness. Added to Step 6 ordering principles
+
 ## [1.61.0] - 2026-04-05
 
 - **fix-pr-review Step 3b rebase hygiene expansion** — Step 3b renamed to "Post-Rebase 衛生檢查" and split into 3b-1 (full scan of inherited non-PR files: changesets, pre.json, CHANGELOG, package.json version bumps) + 3b-2 (changeset self-check). Previously only cleaned `.changeset/` files, now uses `git checkout origin/{baseRefName}` to restore all inherited files to base state before push. Source: PR #2088 lesson where rebase brought in unrelated CHANGELOG and version bumps

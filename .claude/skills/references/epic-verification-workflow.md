@@ -86,6 +86,19 @@ Reference doc for the three-layer verification structure. Not yet integrated int
 
 **Core rule: 有整合就要驗，不管整合兩個或三個 task。**
 
+### Fixture Lifecycle (per-Epic)
+
+Layer 3 的 determinism 依賴 Mockoon fixtures。Fixtures 跟著 Epic 生命週期：
+
+1. **Epic 開始** — 在 develop branch 上錄 fixtures（Playwright 開所有頁面，Mockoon proxy mode 捕捉 API response）
+2. **API task 完成後** — 若 Epic 有 cross-repo API 變更，re-record fixtures（epic-breakdown 的 API-first 排序確保這發生在前端 task 之前）
+3. **前端開發期間** — 所有整合測試基於穩定 fixtures，VR strict mode（zero-diff）
+4. **Epic release** — fixtures 消滅，下個 Epic 重新錄
+
+沒有 fixtures 時（Epic 間空窗期、fixtures 錄製前），Layer 3 仍可執行但切換為 **non-deterministic mode** — 結果可能包含假陽性。
+
+> 公司層具體操作見 `playwright-testing.md` § Mockoon Fixture Lifecycle
+
 ### Trigger Points
 
 整合驗證不是單一觸發點，而是多層觸發同一個動作：
