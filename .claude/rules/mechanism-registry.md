@@ -39,6 +39,7 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `feedback-trigger-count-update` | After using a feedback memory, increment trigger_count (once per conversation) | Feedback memory trigger_count unchanged after conversation that referenced it | High |
 | `graduation-at-three-triggers` | trigger_count >= 3 → initiate graduation to rule | Feedback memory with count >= 3 still existing without graduation proposal | High |
 | `feedback-backlog-classification` | New feedback memory that describes a framework gap must also write a backlog entry | FRAMEWORK_GAP feedback created without corresponding `polaris-backlog.md` entry | Medium |
+| `project-backlog-classification` | Project memory with action items (待實施/下一步/需要解決) must also write FRAMEWORK_GAP items to backlog | Project memory containing "待實施" or "pending" without corresponding backlog entry | High |
 | `memory-company-hard-skip` | Skip memories with mismatched company field | Company-scoped memory applied to a different company's work | Medium |
 
 ### Context Management (source: `rules/context-monitoring.md`)

@@ -71,16 +71,29 @@ The `source: feedback (...)` cross-reference lets both sides stay traceable. Whe
 | Gap found during skill execution (broken flow, manual steps required) | Record the missing automation | Backlog Medium |
 | Framework-experience memories >= 3 for same pattern | Validated pattern candidate — surface during organize-memory | See `rules/framework-iteration.md` § Validated Pattern Promotion |
 
-### Batch — Feedback → Backlog Scan
+### Instant — Project Memory Action Items
 
-During `organize memory` / `clean up memory` runs, scan ALL feedback memories for uncaptured framework gaps:
+`type: project` memories often contain action items ("待實施", "下一步", "需要解決的問題") that represent framework or tooling gaps. These must also flow into the backlog.
 
-1. For each `type: feedback` entry, apply the FRAMEWORK_GAP vs BEHAVIORAL classification
-2. For FRAMEWORK_GAP entries, check if a corresponding backlog item already exists (search `polaris-backlog.md` for the feedback filename)
+**When writing a `type: project` memory that contains action items:**
+
+1. Scan the content for action item signals: 「待實施」「下一步」「需要解決」「待 debug」「暫 skip」or English equivalents ("TODO", "next step", "pending", "needs fix")
+2. For each action item, apply the same FRAMEWORK_GAP vs BEHAVIORAL classification
+3. FRAMEWORK_GAP items → write to `polaris-backlog.md` immediately, with `source: project ({memory_filename})`
+4. BEHAVIORAL items → leave in the memory only (no backlog)
+
+**Why this matters:** Without this rule, project memories become dead letter boxes — improvements get recorded but never become actionable. The Feedback→Backlog pipeline only covers `type: feedback`, so project-level action items fall through the cracks.
+
+### Batch — Feedback + Project → Backlog Scan
+
+During `organize memory` / `clean up memory` runs, scan ALL feedback **and project** memories for uncaptured framework gaps:
+
+1. For each `type: feedback` or `type: project` entry, apply the FRAMEWORK_GAP vs BEHAVIORAL classification
+2. For FRAMEWORK_GAP entries, check if a corresponding backlog item already exists (search `polaris-backlog.md` for the memory filename)
 3. Missing → propose new backlog entry to user
 4. Already tracked → skip
 
-This catches feedback that was created before the classification mechanism existed, or where the instant classification was missed.
+This catches memories created before the classification mechanism existed, or where the instant classification was missed.
 
 **Do not write to backlog:** company-specific processes (JIRA fields, PR conventions), project-specific rules, one-off bug fixes.
 

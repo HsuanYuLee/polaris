@@ -4,6 +4,12 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.55.0] - 2026-04-04
+
+- **Project→Backlog pipeline fix** — `type: project` memories with action items (待實施/下一步/需要解決) now trigger FRAMEWORK_GAP classification and flow into `polaris-backlog.md` at write time. Previously only `type: feedback` memories were classified, causing project-level improvements to become dead letters. Batch scan during memory hygiene also extended to cover project memories
+- **`project-backlog-classification` mechanism** — new High-drift canary in mechanism-registry: project memory containing action items without corresponding backlog entry. Catches the gap that let VR improvements sit unactioned for a full day
+- **VR reliability trio in backlog** — three items added: Mockoon fixture determinism (fix false positives), polaris-env.sh hardening (Redis/port/pnpm auto), VR strict judgment (zero-diff only when fixtures active)
+
 ## [1.54.0] - 2026-04-04
 
 - **/next v1.1.0 — cross-session recovery** — Level -1 added before todo/git/JIRA checks: scans MEMORY.md for in-progress project memories, `.claude/checkpoints/` for recent checkpoints, and `wip/*` branches. Enables "推進手上的事情" to resume both ticket-based work and memory-based work (e.g., framework improvements, design discussions). Universal improvement — all users benefit, not just framework maintainers
