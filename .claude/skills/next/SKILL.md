@@ -140,16 +140,16 @@ Level 4: 無 ticket context 或 ticket 已完成
 
 ```
 📍 Branch: main（無 ticket context）
-📋 Todo: [in_progress] 修正 GT-480 的 CWV 報表
+📋 Todo: [in_progress] 修正 PROJ-480 的效能報表
 
 → 繼續之前的任務...
 ```
 
 ```
-📍 Branch: main | 📦 Memory: 「KB2CW-3653 VR 驗證待跑」(2026-04-04)
+📍 Branch: main | 📦 Memory: 「PROJ-653 VR 驗證待跑」(2026-04-04)
 📋 Todo: 無
 
-→ 上次在做 GT-483 VR 驗證，下一步是跑 KB2CW-3653（develop vs main）— 從這裡繼續？
+→ 上次在做 EPIC-100 VR 驗證，下一步是跑 PROJ-653（develop vs main）— 從這裡繼續？
 ```
 
 ```
