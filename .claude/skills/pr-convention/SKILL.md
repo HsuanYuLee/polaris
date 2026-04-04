@@ -206,3 +206,10 @@ Before creating or finalising a PR, verify the following items and fix any viola
 - Don't: use non-standard test file suffixes — use `.test.ts` / `.test.js` or `.spec.ts` / `.spec.js`.
 - Don't: 對母單 PR 要求逐行 code review — 子單已各自審過，母單只是合併到 develop。
 - Don't: 找不到 AC 時硬塞空的 AC Coverage section — 直接跳過不留空佔位。
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

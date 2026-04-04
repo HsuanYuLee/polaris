@@ -173,3 +173,10 @@ These break the TDD feedback loop and should be avoided:
 - Test framework detected (Vitest or Jest)
 - `pnpm install` completed in the target project
 - unit-test skill available for mock patterns reference
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

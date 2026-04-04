@@ -233,3 +233,10 @@ Invoke check-pr-approvals to scan my open PRs with the updated rules.
 - 不要在主 rule 檔案中提及 Source PR URL — 那是 review-lessons 的追蹤機制，不屬於 rule
 - 不要改變主 rule 檔案的既有結構（章節編號、H 層級、frontmatter）
 - 不要在非手動觸發時輸出「未達門檻」之類的訊息 — 靜默結束就好
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

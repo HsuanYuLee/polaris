@@ -52,3 +52,10 @@ mcp__claude_ai_Atlassian__addWorklogToJiraIssue
 ### 4. Confirm
 
 > Logged **\<TIME>** to \<TICKET>.
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

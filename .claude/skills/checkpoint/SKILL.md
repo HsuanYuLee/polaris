@@ -150,3 +150,10 @@ Recent Checkpoints:
 ## Preamble
 
 Read `skills/references/polaris-project-dir.md` for slug resolution. The workspace root is the git root of the current working directory.
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

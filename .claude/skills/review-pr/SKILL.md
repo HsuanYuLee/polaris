@@ -736,3 +736,10 @@ Review 時請參考此檔案，對列出的 pattern 不要重複報告。
 
 - `gh` CLI installed and authenticated
 - 本地 clone 搜尋順序：`./` → `{base_dir}/{repo}`（從 workspace config 取得）。找不到時告知使用者，不 silently fallback 到 hardcoded 路徑。
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

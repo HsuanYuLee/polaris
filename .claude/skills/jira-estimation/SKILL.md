@@ -279,3 +279,10 @@ Total: N 點，預估 X 天（以每日 2-3 點計算）
 - 若使用者**拒絕** → 主動接續詢問：「要開始開發嗎？」
   - 若同意 → 進入 CLAUDE.md 定義的「開發功能」流程（轉 JIRA 狀態、建分支、開始實作）
   - 若拒絕 → 流程結束
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

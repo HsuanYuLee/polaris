@@ -931,3 +931,10 @@ The generated company config follows `_template/workspace-config.yaml` structure
 - Inline comments explaining each field
 - Empty strings `""` for skipped optional fields
 - Proper YAML formatting (2-space indent, no trailing spaces)
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

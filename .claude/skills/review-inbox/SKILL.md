@@ -320,3 +320,10 @@ Slack 發送後，在對話中輸出完整摘要：
 - Label 模式仍合成一則彙整訊息發到 channel
 - 不要在 re-approve 時留冗餘 comments — 若無新問題，簡潔 approve 即可
 - 不要對已 REQUEST_CHANGES 但作者尚未回覆 comments 的 PR 再次 review — 即使有新 push 也應跳過，等作者回覆後再看
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

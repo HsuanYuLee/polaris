@@ -149,3 +149,10 @@ When adding a new skill to docs, determine which pillar it belongs to:
 | Learning, review-lessons | 自我學習 | 品質保障 |
 | Standup, sprint, worklog | 日常紀錄 | 專案管理 |
 | Tools, config, init | — | 工具與設定 |
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

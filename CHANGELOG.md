@@ -4,6 +4,10 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.59.0] - 2026-04-04
+
+- **Deterministic post-task reflection checkpoint** — 33 write skills now have a mandatory `## Post-Task Reflection (required)` final step in their SKILL.md, pointing to shared reference `skills/references/post-task-reflection-checkpoint.md`. Covers behavioral feedback scan, technical learning check, mechanism audit (top 5 canaries), and graduation check. 12 read-only skills excluded. Root cause: two GT-483 sessions produced 12+ violations with zero feedback because the Strategist was always "still fixing" and the task-completion trigger never fired. This is 方案 C from the backlog — the lowest-cost deterministic enforcement that makes reflection impossible to skip
+
 ## [1.57.0] - 2026-04-04
 
 - **polaris-env.sh Docker health check fix** — Docker services (Layer 1) now use port-listening check instead of HTTP 200 (nginx returns 404 on `/` but services are up). Requires check for Docker dependencies also uses port-based verification. Fixed `docker compose` → `docker-compose` for Colima compatibility. Added stabilization wait before Layer 4 verification

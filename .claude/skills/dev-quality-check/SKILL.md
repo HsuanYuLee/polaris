@@ -340,3 +340,10 @@ echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) quality-check passed" > "/tmp/.quality-gate
 - Don't: script 回傳 0 files 時直接宣告通過 — 必須用 `git status` 交叉驗證
 - Don't: 只跑 lint + type check 就說「可以 commit」— coverage check 是必要步驟
 - Do: Nuxt 專案跑 `nuxi prepare` smoke test — lint/test 在 Node 環境跑，不會觸發 Nitro module scanning，只有 build smoke test 能抓到 runtime import 問題（如 test 檔案被 Nitro 載入）
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

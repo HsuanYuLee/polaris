@@ -226,3 +226,10 @@ it('fetches data on mount', async () => {
 - Don't: 產生只驗證 mock 回傳值的無效測試
 - Don't: 測試實作細節（private methods）
 - Don't: 在測試中硬編碼大量 mock data，應抽到 fixture/factory
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

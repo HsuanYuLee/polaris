@@ -89,3 +89,10 @@ Done Report sent to #{channel_name}! ({TOTAL_COUNT} tickets, {ASSIGNEE_COUNT} as
 
 - Atlassian MCP integration (for Jira JQL queries)
 - Slack MCP integration (for sending messages and resolving channel names)
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

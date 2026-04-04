@@ -969,3 +969,10 @@ If scanning multiple repos, trigger graduation for each repo after its extractio
 - **Rate limiting**: If `gh api` hits rate limits, pause and retry with exponential backoff. Report to user if wait exceeds 30 seconds
 - **Large repos (> 100 merged PRs in range)**: The 30-PR cap applies. Tell the user: "共 {N} 個未萃取的 PR，本次掃描前 30 個。再跑一次 `batch learn {repo}` 可以繼續處理剩餘的。"
 - **Mixed repos**: If scanning all configured repos, report per-repo summaries and a final aggregate
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

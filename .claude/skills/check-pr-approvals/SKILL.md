@@ -436,3 +436,10 @@ mcp__claude_ai_Slack__slack_send_message
 - **不要因 review comment 修正失敗而阻擋催 review** — 與 CI gate 不同，review comments 可能是建議而非 blocking issue
 - **不要自己寫 CI/review comment 修正邏輯** — 統一委派 `fix-pr-review`，確保 simplify、self-review、quality gate、review lesson 萃取等步驟不被跳過
 - **不要在修正 review comments 前詢問使用者是否要修正** — Step 3.5 是自動執行步驟，發現 actionable comments 就直接 invoke fix-pr-review。只有 Step 6 催 review 才需要使用者選擇
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

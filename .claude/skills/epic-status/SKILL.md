@@ -386,3 +386,10 @@ for each gap in gaps:
 | 1.2.0 | 2026-03-31 | Phase 2: self-first execution principle — do all self-actionable gaps first, leave review-dependent items last |
 | 1.3.0 | 2026-03-31 | Step 3b: use shared `check-feature-pr.sh` script for feature PR status (task PR merge count + review/CI/conflict) |
 | 1.4.0 | 2026-03-31 | Step 4: use shared `get-pr-status.sh` for per-child-ticket PR status (CI, review, unresolved comments, mergeable). Replaces inline gh api calls with thread-based unresolved detection |
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

@@ -157,3 +157,10 @@ Branch 建立後，部署 Polaris 管理的 AI 設定（review-lessons, skills, 
 其中 `{base_dir}` 是 workspace-config.yaml 所在的公司目錄（例如 `/Users/.../work/kkday`），`{project-name}` 是 repo 目錄名。
 
 Proceed with the requested task.
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

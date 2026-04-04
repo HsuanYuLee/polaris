@@ -51,3 +51,10 @@ State explicitly: "For the remainder of this conversation, route all work throug
 - This sets context for the CURRENT conversation only — it does not persist across conversations
 - If the user later references a ticket from a different company, warn them about the context mismatch
 - Works with `/which-company` for diagnostics: use `/which-company` to check routing, `/use-company` to override it
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

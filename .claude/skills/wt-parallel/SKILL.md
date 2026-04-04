@@ -241,3 +241,10 @@ Every agent working in a worktree MUST (applies to both modes):
 - Claude Code permission `Bash(wt:*)` in `.claude/settings.local.json`
 
 > Full wt setup instructions: `references/setup.md`
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

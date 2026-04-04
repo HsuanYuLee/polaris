@@ -452,3 +452,10 @@ refinement
 - **Phase 2**：需求已明確（Phase 0 或 Phase 1 完成）
 - Atlassian MCP 已連線
 - 對應專案已 clone 到 `{base_dir}/`（用於 codebase 分析）
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

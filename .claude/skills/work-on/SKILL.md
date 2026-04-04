@@ -544,3 +544,10 @@ Dispatch **QA Challenger** sub-agent（見 `skills/references/sub-agent-roles.md
 - Don't: 把測試計畫只寫成 JIRA comment — 必須建成 [驗證] sub-task 才能追蹤狀態
 - Don't: 自動決定依賴 branch（一定要確認）
 - Don't: 在 QA 流程中的 ticket 上繼續開發
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

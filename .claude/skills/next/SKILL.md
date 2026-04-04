@@ -177,3 +177,10 @@ Level 4: 無 ticket context 或 ticket 已完成
 |---------|------|---------|
 | 1.0.0 | 2026-03-31 | Initial release — todo + git + JIRA + PR context routing |
 | 1.1.0 | 2026-04-04 | Level -1 cross-session recovery: memory scan, checkpoint detection, wip/* branch detection. Handles "推進手上的事情" for both ticket-based and memory-based work |
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

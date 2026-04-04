@@ -116,3 +116,10 @@ Checkpoint 的目的：
 - Don't: 同時改多個地方然後看哪個有效
 - Don't: 在同一個方向上無限深入（超過 5 個 checkpoint 要停損）
 - Don't: 說「應該修好了」但沒跑驗證
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

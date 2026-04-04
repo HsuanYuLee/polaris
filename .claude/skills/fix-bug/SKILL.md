@@ -207,3 +207,10 @@ Step 6: 記錄工時？（選擇性）
 - JIRA MCP 連線正常（Atlassian tools 可用）
 - `gh` CLI 已安裝並認證
 - 對應專案已 clone 到 `{base_dir}/` 下（base_dir 從 workspace-config.yaml 取得）
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

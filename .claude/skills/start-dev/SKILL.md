@@ -62,3 +62,10 @@ mcp__claude_ai_Atlassian__transitionJiraIssue
 
 - 如果 ticket 當前狀態無法轉換為 `In Development`（例如已在其他狀態），顯示可用的 transitions 讓 RD 選擇
 - 此 skill 只負責狀態轉換，不涉及建立分支或其他開發流程
+
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).
