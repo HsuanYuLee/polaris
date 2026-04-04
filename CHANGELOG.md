@@ -4,6 +4,11 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.67.0] - 2026-04-05
+
+- **Design doc persistence in work-on** — `work-on` now writes a per-ticket design doc to `.claude/designs/{TICKET-KEY}.md` at two points: batch Phase 1 Step 1e (after user confirms analysis) and single-ticket Step 5g (after AC Gate). Design docs capture technical approach, test plan, sub-tasks, and decisions. Phase 2 sub-agents now read the design doc file instead of receiving inline analysis text, reducing prompt size and enabling cross-session resume via file read. `.claude/designs/` added to `.gitignore`
+- **CLAUDE.md updated** — `.claude/designs/` listed in Framework Files section and product repo `.gitignore` recommendation
+
 ## [1.66.0] - 2026-04-05
 
 - **CSO audit: 17 skill descriptions rewritten to trigger-only** — Discovered via Superpowers learning that SKILL.md descriptions containing workflow summaries cause the agent to shortcut (follow description instead of reading full body). Audited all 42 skills: 9 HIGH, 8 MEDIUM flagged. All 17 descriptions rewritten to contain ONLY trigger conditions, never workflow steps. Average reduction from 6-14 lines to 1 line per description

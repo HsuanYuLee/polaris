@@ -127,6 +127,37 @@ Description: {description}
 
 **使用者逐一或整體確認**，可調整估點、修改子單、排除 ticket。
 
+**1e. 持久化 Design Doc**
+
+確認後、JIRA 寫入前，為每張確認的 ticket 寫一份 design doc：
+
+```
+路徑: {base_dir}/{repo}/.claude/designs/{TICKET-KEY}.md
+```
+
+內容從確認後的分析結果提取（不重新分析）：
+
+```markdown
+# {TICKET-KEY}: {Summary}
+
+## Context
+- Type: {Bug/Story/Task/Epic}
+- Repo: {repo_path}
+- Base branch: {base_branch or "TBD"}
+- Created: {today's date}
+
+## Technical Approach
+{Phase 1 sub-agent 分析精華：Root Cause/Solution (Bug) 或 影響檔案 + approach (Story/Task)}
+
+## Sub-tasks
+{拆出的子單列表 + 估點，如有}
+
+## Decisions
+（開發過程中 T2 taste calls 記錄於此 — 初始為空）
+```
+
+此檔案供 Phase 2 sub-agent 讀取（取代 inline 傳遞全文），也供 cross-session resume 使用。`.claude/designs/` 應在 `.gitignore` 中。
+
 確認後，批次執行 JIRA 寫入（可用 sub-agent 平行，`model: "haiku"` — 純 JIRA 模板操作）：
 - Bug → 留 JIRA comment + 更新估點
 - Story/Task → 建立子單 + 更新估點
@@ -157,8 +188,8 @@ Description: {description}
 Type: {issue_type}
 Project: {base_dir}/{repo}（base_dir 從 workspace-config.yaml 取得）
 
-## 已確認的分析結果
-{Phase 1 確認後的分析結果全文}
+## Design Doc
+讀取 `{base_dir}/{repo}/.claude/designs/{ticket_key}.md` 取得完整技術方案。
 
 ## 流程
 
@@ -471,6 +502,40 @@ Dispatch **QA Challenger** sub-agent（見 `skills/references/sub-agent-roles.md
 - **被駁回的項目** → 記錄理由，不新增
 
 使用者確認穩定測試計畫後才進入開發。
+
+### 5g. 持久化 Design Doc（單張 ticket 模式）
+
+AC Gate 結束後、進入開發前，寫一份 design doc 持久化技術方案：
+
+```
+路徑: {base_dir}/{repo}/.claude/designs/{TICKET-KEY}.md
+```
+
+內容從前面步驟已收集的資訊組合（不重新分析）：
+
+```markdown
+# {TICKET-KEY}: {Summary}
+
+## Context
+- Type: {Bug/Story/Task}
+- Repo: {repo_path}
+- Base branch: {branch_name}
+- Created: {today's date}
+
+## Technical Approach
+{Step 5b explore 分析結果、Step 3 Readiness Gate 的 AC、或 JIRA description 中的技術描述}
+
+## Test Plan
+{Step 5 AC Gate 產出的測試計畫 checklist}
+
+## Verification Sub-tasks
+{Step 5d-5e 建立的 [驗證] 子單列表}
+
+## Decisions
+（開發過程中 T2 taste calls 記錄於此 — 初始為空）
+```
+
+此檔案供 cross-session resume 使用（`繼續 {TICKET-KEY}` → 讀取 design doc 恢復 context）。`.claude/designs/` 應在 `.gitignore` 中。
 
 ### 6. 開發摘要 → 自動進入 TDD 開發 → 品質檢查 → 發 PR
 
