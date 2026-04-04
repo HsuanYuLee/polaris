@@ -1,15 +1,6 @@
 ---
 name: scope-challenge
-description: >
-  Lightweight planning gate that challenges the scope and assumptions of a JIRA ticket before
-  estimation begins. Reads ticket content, checks completeness, proposes 2-3 alternative approaches
-  with tradeoffs, and recommends whether to proceed as-is, simplify, split, or request more info.
-  Advisory only — does not block.
-  Use when: (1) user says "scope challenge", "挑戰需求", "challenge requirements",
-  "challenge scope", "需求質疑", "question requirements", "scope review", "review scope",
-  "需求合理性", "requirement reasonableness",
-  (2) invoked by work-on or epic-breakdown before estimation,
-  (3) user wants to validate whether a ticket's scope is reasonable before committing effort.
+description: "Use when a JIRA ticket's scope or assumptions should be questioned before estimation — when requirements feel over-engineered, under-specified, or worth challenging. Advisory only. Trigger: 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑', or invoked by work-on/epic-breakdown before estimation."
 metadata:
   author: Polaris
   version: 1.1.0

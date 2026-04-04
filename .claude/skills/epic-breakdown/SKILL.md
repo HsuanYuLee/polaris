@@ -1,17 +1,6 @@
 ---
 name: epic-breakdown
-description: >
-  Breaks down a JIRA Epic into actionable sub-tasks with story point estimates,
-  then batch-creates them in JIRA after user confirmation. Use this skill whenever
-  the user mentions 拆單, "split tasks", 拆解, "decompose", 分解任務,
-  "break down tasks", 子單, "sub-tasks", "break down epic", "epic breakdown",
-  "create sub-tasks", 評估這張單, "evaluate this ticket", 評估 epic,
-  "assess epic", or provides an Epic and asks to split it into tasks — even if
-  they don't explicitly say "breakdown". Also trigger when the user gives an
-  Epic key and says "evaluate", "assess", "plan", "評估", or asks
-  "help me plan this epic". The key distinction from jira-estimation
-  (single ticket estimation) is that this skill handles Epics that need to be
-  decomposed into multiple sub-tasks with individual estimates.
+description: "Use when the user wants to decompose a JIRA Epic into sub-tasks with story point estimates. Trigger: 拆單, 'split tasks', 拆解, 'decompose', 'break down tasks', 子單, 'sub-tasks', 'epic breakdown', 評估這張單, 'evaluate this ticket'."
 metadata:
   author: Polaris
   version: 1.7.0

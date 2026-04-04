@@ -1,13 +1,6 @@
 ---
 name: my-triage
-description: >
-  Triage and prioritize all assigned work: Epics, Bugs, and orphan Tasks/Stories.
-  Queries JIRA for active items, verifies actual status (catches "looks active but
-  already Done"), sorts by priority + type, checks GitHub PR progress for In Development
-  items, and outputs a prioritized dashboard. Writes triage state for /standup TDT integration.
-  Use when: (1) user says "我的 epic", "my epics", "盤點", "triage", "手上有什麼",
-  "排優先", "prioritize", "my work", "我的工作", (2) user was assigned new work and wants
-  to plan order, (3) sprint start to decide what to work on first.
+description: "Use when the user wants a prioritized view of all currently assigned work (Epics, Bugs, Tasks/Stories) to decide what to work on next. Trigger: '我的 epic', 'my epics', '盤點', 'triage', '手上有什麼', 'my work', '我的工作', '排優先'."
 metadata:
   author: Polaris
   version: 1.1.0

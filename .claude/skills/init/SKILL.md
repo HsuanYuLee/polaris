@@ -1,14 +1,6 @@
 ---
 name: init
-description: >
-  Interactive workspace initialization wizard. Creates a company directory
-  with workspace-config.yaml, and registers it in the root config.
-  Uses auto-detection (GitHub org, repos) and section-by-section Q&A.
-  Each section is skippable.
-  Use when: (1) user says "init", "initialize", "setup workspace", "初始化",
-  "設定 workspace", (2) user just cloned the Polaris template and needs to
-  configure it, (3) user says "填 config", "setup config", "configure".
-  Do NOT trigger for editing a single field — just edit the config directly.
+description: "Use when the user wants to set up a new company workspace from scratch — creating its config directory and registering it. Trigger: 'init', 'initialize', 'setup workspace', '初始化', or when a new company needs to be onboarded."
 metadata:
   author: Polaris
   version: 3.1.0

@@ -1,16 +1,6 @@
 ---
 name: sprint-planning
-description: >
-  Guides Sprint planning discussions by pulling JIRA tickets, calculating
-  capacity, detecting carry-overs, suggesting priority order, and optionally
-  generating a Confluence Release page draft. This skill automates the
-  deterministic parts (data fetching, point tallying, dependency sorting) while
-  leaving decisions to the user. Use this skill whenever the user mentions:
-  "sprint planning", "planning", "下個 sprint", "next sprint", "排 sprint",
-  "organize sprint", "sprint 規劃", "plan sprint", "release page",
-  "sprint backlog", "capacity planning", "carry over", "sprint candidate",
-  "排單", "prioritize tickets", or wants to prepare for or conduct a sprint
-  planning session — even if they don't explicitly say "sprint planning".
+description: "Use when the user wants to conduct or prepare for a Sprint planning session — organizing ticket candidates, reviewing capacity, or preparing a release page. Trigger: 'sprint planning', 'sprint 規劃', '下個 sprint', '排 sprint', 'release page'."
 metadata:
   author: Polaris
   version: 1.0.0

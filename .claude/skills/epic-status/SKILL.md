@@ -1,17 +1,6 @@
 ---
 name: epic-status
-description: >
-  Epic progress tracker and gap closer. Reads a JIRA Epic, cross-references all child
-  tickets with GitHub branch/PR/CI/review status, produces a gap analysis report, and
-  automatically routes to existing skills to close gaps (fix review, fix CI, nudge
-  review, develop, verify). Use this skill whenever: (1) user pastes an Epic key and asks about progress
-  ("離 merge 還多遠", "epic 進度", "這個 epic 做到哪"), (2) user wants a status overview
-  of an Epic ("epic status", "epic 狀態", "看 epic"), (3) user asks what's left before
-  a feature can merge ("還差什麼", "還有哪些沒做", "哪些卡住"), (4) user says "補全 epic",
-  "close the gaps", "把剩下的補完". Trigger keywords: "epic status", "epic 進度",
-  "epic 狀態", "離 merge 還多遠", "還差什麼", "補全", "close gaps", "feature 進度",
-  "看 epic", "epic overview", "epic report".
-  Key distinction: "拆單" / "epic breakdown" → epic-breakdown; "epic 進度" / "還差多遠" → here.
+description: "Use when the user wants to see an Epic's progress against merge — what's blocked, missing, or closeable. Trigger: 'epic 進度', 'epic 狀態', '離 merge 還多遠', '還差什麼', '補全 epic'. Key: '拆單' → epic-breakdown; 'epic 進度' → here."
 metadata:
   author: Polaris
   version: 1.4.0

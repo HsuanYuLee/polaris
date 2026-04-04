@@ -1,10 +1,6 @@
 ---
 name: check-pr-approvals
-description: >
-  Scans the user's own open PRs: rebase, auto-fix CI failures and unaddressed review
-  comments, check approval counts (including stale detection), report to Slack.
-  Trigger: "我的 PR", "check PR approvals", "PR 狀態", "催 review", "PR 被 approve 了嗎",
-  "幫我掃我的 PR", "還有哪些 PR 沒過". Key: "我的 PR" → here; "大家的 PR" → review-inbox.
+description: "Use when the user wants to check, manage, or act on their own open PRs — approval status, CI state, or unaddressed review comments. Trigger: '我的 PR', 'check PR approvals', 'PR 狀態', '催 review', 'PR 被 approve 了嗎', '幫我掃我的 PR'."
 metadata:
   author: ""
   version: 1.7.0

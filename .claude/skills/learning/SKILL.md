@@ -1,24 +1,6 @@
 ---
 name: learning
-description: >
-  Five modes: (1) External — discovery-first exploration of URLs, repos, articles with
-  dual-target support (framework or product project). Three depth tiers (Quick/Standard/Deep),
-  novelty-driven deep-dives, and baseline comparison to surface unknown unknowns.
-  (2) PR — extracts review patterns from merged PRs into review-lessons.
-  (3) Queue — processes daily learning queue articles in batch.
-  (4) Setup — configure or update the daily learning scanner (RemoteTrigger).
-  (5) Batch — scans a repo's full PR history, finds unextracted review comments, and
-  batch-fills review-lessons. Automatically triggers graduation afterward.
-  Trigger: "學習", "learn", "研究一下", "research this", "借鑑", "看看這個",
-  "深入學", "deep dive", "像 gstack 那樣學", "全面研究",
-  "學習 PR", "learn from PR", "每日學習", "daily learning", "消化 queue",
-  "digest queue", "learning queue", "設定學習", "learning setup", "更新學習主題",
-  "掃 review", "batch learn", "批次學習", "掃歷史 PR", "scan PR history",
-  "補齊 review lessons", "backfill lessons",
-  or user shares a URL asking to analyze/evaluate it. Do NOT trigger
-  for internal codebase exploration (use Explore subagent directly), JIRA ticket analysis (use
-  work-on), or PR review (use review-pr for reviewing someone else's code — this skill
-  is for LEARNING from already-merged PRs, not reviewing open ones).
+description: "Use when the user wants to learn from external resources (URLs, repos, articles), extract patterns from merged PRs, process a learning queue, configure the daily learning scanner, or backfill review lessons. Trigger: '學習', 'learn', '研究', 'deep dive', '學習 PR', '每日學習', 'daily learning', '設定學習', '批次學習', '掃歷史 PR', or when user shares a URL to analyze."
 metadata:
   author: Polaris
   version: 3.0.0

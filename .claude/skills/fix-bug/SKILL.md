@@ -1,12 +1,6 @@
 ---
 name: fix-bug
-description: >
-  End-to-end bug fix workflow: read JIRA ticket, identify project, analyze root cause,
-  estimate, develop fix, quality check, and open PR. Use this skill whenever the user
-  mentions 幫我修正, "help me fix", 修 bug, "fix bug", 開始修正, "start fixing",
-  修正這張, "fix this ticket", or provides a JIRA ticket key (not a GitHub PR URL)
-  and asks to fix it. This skill is for fixing
-  bugs reported in JIRA — not for fixing PR review comments (use fix-pr-review for that).
+description: "Use when the user wants to fix a bug reported in JIRA from start to PR. Trigger: 幫我修正, 'help me fix', 修 bug, 'fix bug', 開始修正, 'start fixing', 修正這張, 'fix this ticket'. NOT for fixing PR review comments (use fix-pr-review)."
 metadata:
   author: Polaris
   version: 1.1.0

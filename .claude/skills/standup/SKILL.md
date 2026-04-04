@@ -1,17 +1,6 @@
 ---
 name: standup
-description: >
-  Generates daily standup reports (YDY/TDT/BOS/口頭同步) by collecting git activity,
-  JIRA status changes, Google Calendar meetings, PR status, and Polaris backlog.
-  Merges all sources, deduplicates, groups by configured teams, and formats all
-  four sections for Confluence. Auto-triages first if needed (Step 0).
-  This is the single entry point for all end-of-day and standup workflows.
-  Use this skill whenever the user mentions: "standup", "站立會議",
-  "standup meeting", "YDY", "daily standup", "產出 standup", "generate standup",
-  "standup report", "寫 standup", "write standup", "daily report",
-  "下班", "收工", "準備明天的工作", "end of day", "EOD", "明天 standup",
-  "寫明天的 standup", "今天結束了", "總結一下", "結束今天", "wrap up",
-  "今天做了什麼".
+description: "Use when the user wants to generate a daily standup report or end-of-day summary (YDY/TDT/BOS/口頭同步). Single entry point for all standup and end-of-day workflows. Trigger: 'standup', '站會', 'daily', '寫 standup', '下班', '收工', 'EOD', 'wrap up', '今天做了什麼'."
 metadata:
   author: Polaris
   version: 2.0.0

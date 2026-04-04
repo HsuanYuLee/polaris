@@ -1,13 +1,6 @@
 ---
 name: tdd
-description: >
-  Enforces strict Test-Driven Development (Red-Green-Refactor) workflow during implementation.
-  Each feature is built through small, iterative cycles: write a failing test → minimal code to pass → refactor.
-  Use this skill whenever: (1) user says "TDD", "test driven", "紅綠燈", "先寫測試", "test first",
-  "red green refactor", (2) another skill (work-on, fix-bug) delegates implementation
-  with TDD discipline, (3) user wants to develop a feature or fix with tests leading the way.
-  This skill is about the *development process* — for test writing patterns and mock techniques,
-  it references unit-test.
+description: "Use when the user wants to develop strictly following Test-Driven Development discipline (Red-Green-Refactor). Trigger: 'TDD', 'test driven', '紅綠燈', '先寫測試', 'test first', 'red green refactor', or when another skill delegates implementation with TDD."
 metadata:
   author: Polaris
   version: 1.0.0

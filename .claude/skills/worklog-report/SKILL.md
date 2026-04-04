@@ -1,11 +1,6 @@
 ---
 name: worklog-report
-description: >
-  Query Jira project for tickets in Done/Launched/Closed status, group by
-  assignee, and send the report to Slack. Use when asked for: "worklog report",
-  "done report", "sprint report", "完成報告", or when someone
-  asks what tickets were finished in a date range or sprint.
-  Supports two modes: date range (e.g. "2w", "1m") and sprint (e.g. "sprint:Q2 S1").
+description: "Use when asked to produce a report of completed tickets grouped by team member, sent to Slack. Trigger: 'worklog report', 'done report', 'sprint report', '完成報告', or when someone asks what tickets were finished in a date range."
 metadata:
   author: Polaris
   version: 1.0.0

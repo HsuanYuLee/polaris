@@ -1,17 +1,6 @@
 ---
 name: git-pr-workflow
-description: >
-  Complete PR lifecycle automation: quality check, pre-PR review loop (sub-agent iterative
-  review), commit, changeset, open PR, JIRA transition to CODE REVIEW, and update PR
-  description. This skill handles the post-coding path to PR — once code changes are ready,
-  it runs quality gates, iterative AI review, and creates the PR. Use when the user says
-  "發 PR", "open PR", "create PR", "PR workflow", "commit and PR", "changeset",
-  "full pr flow", "pull request", "update PR description", or "準備發 PR".
-  Do NOT use this for starting work on a ticket (use work-on instead) or for
-  reviewing someone else's PR (use review-pr instead).
-  Do NOT trigger for simple "發 PR" or "open PR" without mentioning quality check, review
-  loop, or full workflow — use pr-convention for simple PR creation. This skill is
-  for the COMPLETE lifecycle including quality gates and iterative AI review.
+description: "Use when code changes are ready and the user wants the complete path to a merged PR — including quality gates and iterative AI review before opening. Trigger: '發 PR', 'open PR', 'create PR', 'PR workflow', '準備發 PR'. For simple PR creation without quality gates, use pr-convention."
 metadata:
   author: Polaris
   version: 3.4.0

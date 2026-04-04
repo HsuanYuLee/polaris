@@ -1,15 +1,6 @@
 ---
 name: converge
-description: >
-  Batch convergence orchestrator — scans all assigned work (Epics, Bugs, orphan Tasks),
-  detects what's blocking each ticket from reaching "only waiting for review", proposes
-  a prioritized execution plan, then auto-routes to downstream skills to close gaps.
-  Absorbs epic-status gap analysis + auto-route logic; epic-status becomes an alias.
-  Trigger: "收斂", "converge", "推進", "全部推到 review", "把我的單收一收",
-  "push everything forward", "close all gaps", "epic 進度", "epic 狀態",
-  "離 merge 還多遠", "還差什麼", "補全".
-  Key distinction: my-triage is read-only dashboard; converge reads AND acts.
-  NOT for: single ticket work (use work-on), single PR fix (use fix-pr-review).
+description: "Use when the user wants to push all in-flight work forward toward review in one pass — closing gaps across Epics, Bugs, and orphan Tasks. NOT for single-ticket work (use work-on) or read-only triage (use my-triage). Trigger: '收斂', 'converge', '推進', '全部推到 review', '把我的單收一收', 'epic 進度', '離 merge 還多遠', '補全'."
 metadata:
   author: Polaris
   version: 1.0.0

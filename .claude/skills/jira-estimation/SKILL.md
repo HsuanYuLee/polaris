@@ -1,14 +1,6 @@
 ---
 name: jira-estimation
-description: >
-  Internal estimation engine — invoked by work-on, fix-bug, and
-  epic-breakdown. Estimates story points based on the Web team's guidelines.
-  Handles Story/Task (creates sub-tasks with descriptions), Bug (root cause comment,
-  no sub-tasks), and Epic (auto-delegates to epic-breakdown).
-  Do NOT trigger this skill directly from user input — route through work-on
-  instead, which auto-detects when estimation is needed. If the user says "估點",
-  "estimate", "幫我估", "這張幾點", route to work-on (it will invoke this
-  skill internally).
+description: "Internal estimation engine — invoked by work-on, fix-bug, and epic-breakdown. Use when another skill needs story point estimation for a Story/Task, Bug, or Epic. Do NOT trigger directly from user input — route through work-on or fix-bug."
 metadata:
   author: Polaris
   version: 1.2.0

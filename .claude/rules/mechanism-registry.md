@@ -19,6 +19,20 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `no-manual-skill-steps` | Never partially execute skill steps by hand | Git/JIRA/Slack commands matching a skill's steps without Skill invocation | High |
 | `hotfix-auto-ticket` | Fix intent + Slack URL + no JIRA key → create ticket before routing to fix-bug | Changeset or PR title missing JIRA key after hotfix flow | Medium |
 
+#### Common Rationalizations — Skill Routing
+
+These are real escape patterns observed in GT-483 and other sessions. When you notice yourself thinking any of these, it is evidence you are about to violate `skill-first-invoke`.
+
+| Thought | Reality |
+|---------|---------|
+| "Let me investigate what went wrong first" | The skill handles investigation. Invoke it — don't pre-read PRs, diffs, or JIRA tickets |
+| "I already know how to do this" | Skills encode quality gates and side effects (lesson extraction, Slack notifications) that manual execution misses. Read the current version |
+| "I need to read the ticket/PR before invoking" | Skills fetch their own data. Your pre-read wastes context and bypasses the skill's own flow |
+| "I'll run quality-check first, then pr-convention" | That's manually decomposing `git-pr-workflow`. The skill runs quality + PR as one unit with coverage |
+| "Let me check the sub-agents before invoking" | The skill defines the delegation strategy, not you. Invoke first |
+| "I can fix these review comments by hand quickly" | Manual fix skips comment replies, quality checks, and lesson extraction. Use `fix-pr-review` |
+| "This is just a simple question, no skill needed" | If a trigger matches, invoke the skill. Simple tasks become complex |
+
 ### Delegation (source: `CLAUDE.md`, `rules/sub-agent-delegation.md`)
 
 | ID | Rule | Canary Signal | Drift |
@@ -29,6 +43,15 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `model-tier-selection` | sonnet for explore/execute, haiku for JIRA batch ops (see `sub-agent-roles.md` § Model Tier) | JIRA batch sub-agent using sonnet; explore sub-agent with no model specified | Low |
 | `worktree-for-batch-impl` | Batch mode Phase 2 sub-agents use `isolation: "worktree"` | Parallel implementation sub-agents without worktree isolation | Medium |
 | `subagent-completion-envelope` | All sub-agents must return Status/Artifacts/Summary envelope (see `sub-agent-roles.md` § Completion Envelope) | Sub-agent return without structured Status line | Medium |
+
+#### Common Rationalizations — Delegation
+
+| Thought | Reality |
+|---------|---------|
+| "I already did this analysis before, so I don't need to re-delegate" | Sub-agents read the latest rules and code. Your in-memory analysis may be stale. Re-delegate |
+| "The scope is small enough to read a few files directly" | Each "small" read chains to the next. By read #6 you've blown the limit without noticing. Delegate at #3 |
+| "Dispatching an explorer sub-agent adds overhead for a quick check" | 5 consecutive reads in main session costs more context than one sub-agent round-trip |
+| "I'll do the analysis first, then hand off the JIRA writes" | Analysis is the expensive part. Only simple MCP writes and routing decisions stay in main session |
 
 ### Feedback & Memory (source: `rules/feedback-and-memory.md`)
 
@@ -74,6 +97,18 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `env-follows-requires` | Dev environment must be started per `workspace-config.projects[].dev_environment.requires` — no shortcuts | Nuxt dev server started standalone when `requires: ["kkday-web-docker"]` is configured; Docker containers not running | High |
 | `http-status-in-verification` | All endpoint verifications must check HTTP status code (200) + response body — status 200 is the minimum bar | Verification reports "data looks correct" without confirming HTTP 200 | Medium |
 | `no-speculation-as-fact` | Do not repeat a speculation after user corrects it — once corrected, internalize the correction | Same wrong claim repeated after user already corrected it (e.g., "SIT 環境" after user said "我在 local") | Medium |
+
+#### Common Rationalizations — Debugging & Verification
+
+| Thought | Reality |
+|---------|---------|
+| "Let me add a helper function to work around this failure" | That's a bandaid. Ask: why did the original design not work? Read the design before patching |
+| "Each workaround looks reasonable individually" | 2+ workarounds for the same feature = design-implementation gap. Stop and reconcile |
+| "The implementation failed, let me try a different approach" | Before switching, query the source-of-truth (original caller, API spec). You may be fixing the wrong thing |
+| "Verification passed in one repo, so it's fine" | If `workspace-config.requires` lists dependencies, verify with the full stack running |
+| "Data looks correct" | Did you check HTTP status code? 200 is the minimum bar. "Looks correct" without status is speculation |
+| "I'm confident this fix is right" | Confidence ≠ evidence. Run the verification command. Skip = lying, not efficiency |
+| "One more fix attempt should do it" | After 3 failed fixes, stop. This is an architectural problem, not a missing patch |
 
 ### Quality Gates (source: `skills/git-pr-workflow/SKILL.md`, `skills/verify-completion/SKILL.md`)
 

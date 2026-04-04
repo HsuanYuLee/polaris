@@ -4,6 +4,12 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.66.0] - 2026-04-05
+
+- **CSO audit: 17 skill descriptions rewritten to trigger-only** — Discovered via Superpowers learning that SKILL.md descriptions containing workflow summaries cause the agent to shortcut (follow description instead of reading full body). Audited all 42 skills: 9 HIGH, 8 MEDIUM flagged. All 17 descriptions rewritten to contain ONLY trigger conditions, never workflow steps. Average reduction from 6-14 lines to 1 line per description
+- **Rationalization tables for top 3 high-drift mechanisms** — Added "Common Rationalizations" sections to mechanism-registry.md for `skill-first-invoke` (7 entries), `delegate-exploration` (4 entries), and `fix-through-not-revert` + debugging/verification (7 entries). All entries sourced from real observed violations (GT-483 sessions, VR env failures), not hypothetical. Pattern inspired by Superpowers' prompt engineering approach
+- **Superpowers learning → 2 backlog items** — Critic two-stage review split (spec-compliance + code-quality), skill-creator baseline failure recording (RED-GREEN-REFACTOR for skills)
+
 ## [1.65.0] - 2026-04-05
 
 - **Fan-in validation for parallel sub-agents** — new "Fan-In Validation" section in `sub-agent-delegation.md`. When dispatching multiple parallel sub-agents, the Strategist now validates all completion envelopes before synthesis: Status must be present, Artifacts must be non-empty for DONE status, and missing/BLOCKED/PARTIAL agents are handled explicitly. Prevents silent partial failures from corrupting synthesis results

@@ -1,12 +1,6 @@
 ---
 name: review-inbox
-description: >
-  Discover and batch-review PRs needing the user's review in the GitHub org. Two modes:
-  **Label mode** (only when user says "need review label") scans GitHub label.
-  **Slack mode** (default) scans Slack channel for PR URLs (default 7 days).
-  Trigger: "掃 PR", "scan PR", "review 大家的 PR", "批次 review", "有哪些 PR 要我看",
-  "掃大家的 PR", "幫我掃", or any phrase about scanning/reviewing team PRs.
-  Default to Slack mode when ambiguous. NOT for reviewing a specific PR (use review-pr).
+description: "Use when the user wants to discover and review PRs across the team awaiting their attention. NOT for a specific PR (use review-pr). Trigger: '掃 PR', 'review 大家的 PR', '批次 review', '有哪些 PR 要我看'. Key: '我的 PR' → check-pr-approvals; '大家的 PR' → here."
 metadata:
   author: Polaris
   version: 2.0.0
