@@ -160,107 +160,39 @@ npx playwright install chromium
 
 Adapt package manager to the project (npm/yarn/pnpm).
 
-### 2b. Start fixture server (optional — if `fixtures` block configured)
+### 2b. Start environment via polaris-env.sh
 
-The fixture server provides stable, deterministic API responses so both before and after screenshots use identical data. Without it, backend data changes can cause false positives.
+Use the shared one-click environment script to start Mockoon fixtures + dev server:
 
-**Step 1: Health check existing instances**
-
-If `fixtures.health_ports` is configured, check all ports first:
 ```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost:{port} --max-time 2
+bash {workspace_root}/scripts/polaris-env.sh start {company} --vr
 ```
 
-| Result | Action |
-|--------|--------|
-| All ports respond 200 | **Reuse** — skip startup, log: `Fixture server 已在執行（ports: {ports}），直接共用` |
-| Some ports respond, some don't | **Partial** — run `fixtures.start_command` (it will skip already-running ports) |
-| No ports respond | **Fresh start** — run full startup below |
+This handles:
+- **Layer 2 (Fixtures)**: starts Mockoon proxy with deterministic API responses. Idempotent — skips already-running instances
+- **Layer 3 (Dev server)**: starts the b2c/web project's dev server with `-C` path. Skips `requires` check in `--vr` profile (Mockoon replaces Docker dependencies)
+- **Layer 4 (Verify)**: health-checks all started services
 
-**Step 2: Start fixture server (if needed)**
+**Check the output** — if any layer fails, `polaris-env.sh` reports which service failed. Decide:
 
-1. Run `fixtures.start_command` as a background process
-2. Wait for `fixtures.ready_signal` in stdout (timeout: `timeouts.fixture_startup`)
-3. Verify all `fixtures.health_ports` respond with 200
-
-**Step 3: Handle failure**
-
-If fixture server fails to start: warn, then proceed without it.
-```
-⚠ Fixture server 啟動失敗。截圖將使用真實 API 資料 — 若後端資料有異動，可能出現假陽性。
-```
-
-Note: In SIT mode, the fixture server only applies to the local dev (after) side. SIT uses its own backend data.
+| Situation | Action |
+|-----------|--------|
+| All layers ✓ | Proceed to Step 3 |
+| Fixtures failed, dev server ✓ | Warn: "截圖將使用真實 API 資料 — 若後端資料有異動，可能出現假陽性" → proceed |
+| Dev server failed | Stop. Check log at `/tmp/polaris-env/{company}/{project}.log` |
 
 **Proxy vs Mock mode:**
-- **Recording fixtures**: `--proxy enabled --log-transaction` (capture real API responses)
-- **Running VR tests**: `--proxy enabled` (fixtures served locally, unmatched routes fall through to proxy)
-- **Pure mock mode** (`--proxy disabled`) is NOT recommended — SSR pages call dynamic endpoints (e.g., `get_ssr_init_state` with varying query params) that need live proxy fallback. Static fixtures for these endpoints return stale data from whichever page was recorded.
+- VR tests use **proxy mode** (`--proxy enabled`) — fixtures served locally, unmatched routes fall through to SIT proxy
+- **Pure mock mode** (`--proxy disabled`) is NOT recommended — SSR pages call dynamic endpoints that need live proxy fallback
 
-### 2c. Server Lifecycle Management
+### 2c. Cleanup plan
 
-VR 自帶完整的 server lifecycle — 不假設外部狀態，不問使用者「你有沒有在跑 server」。自動偵測、共用或接管，跑完還原。
-
-**Extract port from base_url**: parse `server.base_url` to get the port number (e.g., `https://example.com` → 443, `http://localhost:3000` → 3000).
-
-**Step 1: Detect port state**
-
+Record the cleanup command for Step 6:
 ```bash
-lsof -i :{port} -t  # get PID(s) using the port
+bash {workspace_root}/scripts/polaris-env.sh stop {company}
 ```
 
-**Step 2: Decide action based on state**
-
-| Port state | Action | Restore on cleanup? |
-|------------|--------|-------------------|
-| **Free** — no process on port | **Fresh start**: run `server.start_command`, track PID | Kill on cleanup |
-| **Occupied by compatible server** — process is node/nuxt/docker matching the expected dev server | **Reuse**: skip startup, use as-is | Do nothing on cleanup |
-| **Occupied by incompatible process** — different process blocking the port (proxy, other app) | **Take over**: record PID + command → kill → start VR server | Kill VR server + restart original on cleanup |
-
-**Compatibility check** (to decide Reuse vs Take over):
-```bash
-# Get process info for PID occupying the port
-ps -p {pid} -o comm=,args=
-```
-- If process command contains keywords from `server.start_command` (e.g., `nuxt`, `docker`, `node`) → **compatible, reuse**
-- If process is unrelated (e.g., `nginx`, `python`, `caddy`) → **incompatible, take over**
-- If unsure → treat as compatible (safer to reuse than to kill)
-
-**Fresh start flow:**
-1. Build environment: merge `server.env` into current environment
-   - `server.env` typically points dev server at fixture server (e.g., `NUXT_PUBLIC_API_BASE: "http://localhost:3001"`)
-2. Run `server.start_command` as a background process with merged env
-3. Wait for `server.ready_signal` in stdout (timeout: `timeouts.server_startup`)
-4. Verify: `curl -s -o /dev/null -w "%{http_code}" {server.base_url}` → expect 200
-5. Record: `vr_server_pid={PID}`, `vr_server_action="started"`
-
-**Take over flow:**
-1. Record original process: `original_pid={PID}`, `original_cmd=$(ps -p {PID} -o args=)`
-2. Kill: `kill {original_pid}` → wait for port to free (poll `lsof` every 1s, max 10s)
-3. Run Fresh start flow above
-4. Record: `vr_server_action="took_over"`, store `original_cmd` for restore
-
-**Reuse flow:**
-1. Verify health: `curl -s -o /dev/null -w "%{http_code}" {server.base_url}` → expect 200
-2. Log: `Dev server 已在執行（{server.base_url}），直接共用`
-3. Record: `vr_server_action="reused"`
-
-**If all paths fail** → report error and stop. Do not proceed with screenshots.
-
-Note: `server.start_command` can be a direct command (`pnpm dev`) or a path to a script (`ai-config/{company}/start-dev.sh`) for complex multi-step setups.
-
-### 2d. Start required SSR services (if any)
-
-Some SSR frameworks depend on external services (Redis, Memcached, etc.) for caching. If these services aren't running, SSR requests may hang or fail silently.
-
-Check the project's `dev_environment.required_services` in workspace config (if configured), or scan project dependencies (e.g., `ioredis` → Redis, `memcached` → Memcached).
-
-For each required service:
-1. Health check the service (e.g., `redis-cli ping`)
-2. If not running, start it (e.g., `docker run -d -p 6379:6379 redis:alpine`)
-3. Flush caches before VR run to prevent stale data from polluting before/after comparison
-
-If no external services are required, skip this step.
+This stops Mockoon + dev server + any Docker services started by polaris-env.
 
 ---
 

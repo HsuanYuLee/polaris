@@ -4,6 +4,11 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.51.0] - 2026-04-04
+
+- **One-click environment — polaris-env.sh** — new `scripts/polaris-env.sh` with start/stop/status commands and three profiles: `--full` (Docker + dev servers), `--vr` (Mockoon + standalone dev server, skips Docker requires), `--e2e` (all layers). 4-layer architecture: infra → fixtures → dev servers → health verification. Idempotent (skips already-running services), PID tracking in `/tmp/polaris-env/`. VR SKILL.md Step 2 refactored from ~120 lines inline management to a single `polaris-env.sh --vr` call
+- **Polaris naming update** — "About the name" section updated to reflect the original North Star concept (guiding users further than they imagined) rather than the interim Zhang Liang reference
+
 ## [1.50.0] - 2026-04-04
 
 - **Session Start — Fast Check protocol** — every conversation begins with a lightweight WIP detection (`git status` + `stash list` + branch check). If uncommitted changes exist, reports to user and offers: continue WIP or branch-switch. Topic switches use `wip/{topic}` branches instead of stash (explicit, trackable, survives across sessions). Two new mechanism-registry canaries: `session-start-fast-check` and `wip-branch-before-topic-switch` — source: commit 混到 prevention

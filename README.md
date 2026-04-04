@@ -332,7 +332,7 @@ This syncs skills, rules, and references while preserving your company config, L
 
 ## About the name
 
-> Polaris — inspired by Zhang Liang (張良), the strategist who listened first, planned second, and shaped outcomes from behind the scenes.
+> Polaris — the North Star. A fixed point that guided travelers to places they never imagined reaching. This framework does the same: it helps you navigate complexity and arrive further than you thought possible.
 
 ## Acknowledgements
 
