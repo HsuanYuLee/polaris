@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.56.0] - 2026-04-04
+
+- **Deterministic Enforcement Principle** — new framework-level design philosophy in CLAUDE.md: "能用確定性驗證的，不要靠 AI 自律". When behavioral drift is discovered, the fix must push checks into deterministic layers (scripts, hooks, exit codes), not add another behavioral rule. Includes workaround accumulation signal: ≥2 workarounds for the same feature → STOP and check design
+- **polaris-env.sh design fix** — `--vr` profile now starts Layer 1 (Docker) like all other profiles. Previous design incorrectly assumed Mockoon replaces Docker; Docker is infrastructure, Mockoon supplements it. Removed `ensure_redis()` (Redis lives in Docker compose). Restored `requires` check for all profiles
+- **polaris-env.sh hard gate** — Layer 4 verification is now profile-aware and exits non-zero when required services fail health check. Prevents downstream tools from running in a broken environment
+- **VR strict mode** — SKILL.md Step 5: when Mockoon fixtures are active, zero-diff is the only PASS. No "known variance" or "data variation" classification allowed
+- **Decision drift mechanisms** — 4 new canaries in mechanism-registry: `no-workaround-accumulation` (Critical), `design-implementation-reconciliation` (High), `env-hard-gate` (High), `no-bandaid-as-feature` (High). Workaround accumulation is now #1 in Priority Audit Order
+- **Backlog: skill checkpoint gate + clean-room test** — medium-term items for extending deterministic enforcement to skill execution and new script validation
+
 ## [1.55.0] - 2026-04-04
 
 - **Project→Backlog pipeline fix** — `type: project` memories with action items (待實施/下一步/需要解決) now trigger FRAMEWORK_GAP classification and flow into `polaris-backlog.md` at write time. Previously only `type: feedback` memories were classified, causing project-level improvements to become dead letters. Batch scan during memory hygiene also extended to cover project memories

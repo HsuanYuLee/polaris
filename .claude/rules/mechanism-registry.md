@@ -100,6 +100,15 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `cross-session-read-memory-file` | When user says "繼續 X", search MEMORY.md index then READ the full memory file before responding | Strategist reports "memory lost" or "no details" when MEMORY.md index has a matching entry | High |
 | `cross-session-confirm-context` | After reading memory file, present reconstructed context to user for confirmation | New session starts work without summarizing what was decided/done/next from previous session | Medium |
 
+### Deterministic Enforcement (source: `CLAUDE.md`)
+
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `no-workaround-accumulation` | If ≥ 2 workarounds added for the same feature in one session, STOP and check design | Two or more helper functions / manual fixes added to bypass a single failing feature (e.g., ensure_redis + kill_port + manual pnpm install all for "env doesn't start") | **Critical** |
+| `design-implementation-reconciliation` | When first execution fails, check design doc before adding fixes | Implementation fix committed without reading the corresponding design memory/plan | High |
+| `env-hard-gate` | polaris-env.sh required health checks must exit non-zero on failure | polaris-env.sh prints [✗] for required service but exits 0, allowing downstream to proceed | High |
+| `no-bandaid-as-feature` | Workaround helpers must not be committed as framework improvements | Git commit message frames a workaround (e.g., "ensure_redis") as a feature ("polaris-env.sh 補強") | High |
+
 ### Security (source: `rules/feedback-and-memory.md`, `scripts/skill-sanitizer.py`, `scripts/safety-gate.sh`)
 
 | ID | Rule | Canary Signal | Drift |
@@ -114,8 +123,9 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 
 Post-task audit should check these first (highest drift risk, most impactful):
 
-1. `skill-first-invoke` / `no-manual-skill-steps`
-2. `delegate-exploration` / `delegate-implementation`
+1. `no-workaround-accumulation` / `design-implementation-reconciliation`
+2. `skill-first-invoke` / `no-manual-skill-steps`
+3. `delegate-exploration` / `delegate-implementation`
 3. `cross-session-read-memory-file`
 4. `post-task-feedback-reflection`
 5. `re-test-after-fix` / `fresh-verification-before-completion`

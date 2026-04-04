@@ -265,7 +265,20 @@ Playwright outputs:
 | 0 | All match → proceed to report |
 | 1 | Diffs found → classify each |
 
+### Strict mode (fixtures active)
+
+**When Mockoon fixtures are running**, all API data is deterministic. Any visual diff is therefore caused by code changes, NOT data variation. In this mode:
+
+- **Zero-diff is the only PASS** — any diff, regardless of size, is a FAIL
+- Do NOT classify diffs as "data variation" or "known variance" — fixtures eliminate that category
+- Do NOT accept higher thresholds for content-heavy pages — the content is fixed
+- If diffs appear: they are either **intentional** (related code changed) or **regression** (unrelated code caused it). No third option
+
+**When fixtures are NOT running** (fallback to live proxy): the classification below applies, but warn that results may include false positives from non-deterministic API data.
+
 ### Classify each diff
+
+Only applies when fixtures are NOT active, or as secondary analysis when strict mode flags diffs:
 
 For each page with a diff:
 

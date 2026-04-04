@@ -6,9 +6,9 @@
 #   polaris-env.sh stop {company}
 #   polaris-env.sh status {company}
 #
-# Profiles:
+# Profiles (Layer 1 Docker always starts):
 #   --full (default)  Layer1(docker) + Layer3(all dev servers) + Layer4(verify)
-#   --vr              Layer2(mockoon) + Layer3(first web/b2c project) + Layer4(verify)
+#   --vr              Layer1(docker) + Layer2(mockoon) + Layer3(first web/b2c project) + Layer4(verify)
 #   --e2e             Layer1(docker) + Layer2(mockoon) + Layer3(all dev servers) + Layer4(verify)
 
 set -euo pipefail
@@ -61,6 +61,34 @@ wait_for_url() {
 }
 
 port_listening() { lsof -i :"$1" -sTCP:LISTEN >/dev/null 2>&1; }
+
+port_pid() { lsof -i :"$1" -sTCP:LISTEN -t 2>/dev/null | head -1; }
+
+kill_port() {
+  local port="$1" pid
+  pid=$(port_pid "$port")
+  if [[ -n "$pid" ]]; then
+    kill "$pid" 2>/dev/null; sleep 1
+    is_pid_running "$pid" && kill -9 "$pid" 2>/dev/null
+    warn "Killed stale process on port $port (PID $pid)"
+  fi
+}
+
+# Extract port from URL: http://localhost:3001/zh-TW/ → 3001
+url_port() { echo "$1" | sed -n 's|.*://[^:/]*:\([0-9]*\).*|\1|p'; }
+
+ensure_deps_fresh() {
+  local project_dir="$1"
+  local lockfile="$project_dir/pnpm-lock.yaml"
+  local modules_marker="$project_dir/node_modules/.modules.yaml"
+  [[ -f "$lockfile" ]] || return 0
+  if [[ ! -f "$modules_marker" ]] || [[ "$lockfile" -nt "$modules_marker" ]]; then
+    warn "node_modules stale — running pnpm install..."
+    pnpm -C "$project_dir" install --frozen-lockfile > /dev/null 2>&1 \
+      && ok "pnpm install complete" \
+      || warn "pnpm install failed — continuing anyway"
+  fi
+}
 
 wait_for_ports() {
   local timeout=30 elapsed=0
@@ -146,8 +174,8 @@ for r in rows:
     print(r['name']+'|'+r['cmd']+'|'+r['sig']+'|'+r['health']+'|'+','.join(r['req']))
 " | while IFS='|' read -r name cmd sig health requires_csv; do
 
-    # Check requires — skip in --vr profile (Mockoon replaces Docker dependencies)
-    if [[ -n "$requires_csv" ]] && [[ "$profile" != "--vr" ]]; then
+    # Check requires — wait for dependencies to be healthy before starting
+    if [[ -n "$requires_csv" ]]; then
       local ok_reqs=true
       for req in ${requires_csv//,/ }; do
         local req_health; req_health=$(echo "$cfg" | python3 -c "
@@ -165,6 +193,18 @@ for p in json.load(sys.stdin).get('projects',[]):
     if [[ -n "$health" ]] && wait_for_url "$health" 4 2>/dev/null; then
       ok "$name (already running)"; continue
     fi
+
+    # Port conflict resolution: if target port is occupied, kill the stale process
+    if [[ -n "$health" ]]; then
+      local target_port; target_port=$(url_port "$health")
+      if [[ -n "$target_port" ]] && port_listening "$target_port"; then
+        kill_port "$target_port"
+      fi
+    fi
+
+    # Ensure node_modules is up to date (catches branch-switch staleness)
+    local project_dir="$WORKSPACE_ROOT/$company/$name"
+    [[ -d "$project_dir" ]] && ensure_deps_fresh "$project_dir"
 
     local log; log="$(pid_dir "$company")/$name.log"; mkdir -p "$(pid_dir "$company")"
     local resolved_cmd="${cmd/\~/$HOME}"
@@ -189,29 +229,73 @@ for p in json.load(sys.stdin).get('projects',[]):
   done
 }
 
-# ── Layer 4: Verify ──────────────────────────────────────────────────────────
+# ── Layer 4: Verify (hard gate) ─────────────────────────────────────────────
+# Checks health of services started by THIS profile. Required failures → exit 1.
 verify_all() {
-  local cfg="$1"
+  local cfg="$1" profile="$2" filter="$3"
   echo ""; echo "Layer 4: Verification"
 
-  echo "$cfg" | python3 -c "
+  local failures=0
+
+  # Determine which services this profile started
+  local started_services
+  started_services=$(echo "$cfg" | python3 -c "
 import json,sys
-for p in json.load(sys.stdin).get('projects',[]):
+profile='$profile'; filter_p='$filter'
+cfg=json.load(sys.stdin)
+started=[]
+# Layer 1: docker-tagged projects (always started)
+for p in cfg.get('projects',[]):
+    if 'docker' in p.get('tags',[]):
+        d=p.get('dev_environment',{})
+        if d.get('health_check'): started.append(p['name']+'|'+d['health_check'])
+# Layer 3: dev servers per profile
+for p in cfg.get('projects',[]):
     d=p.get('dev_environment',{})
-    if d and d.get('health_check'): print(p['name']+'|'+d['health_check'])
-" | while IFS='|' read -r name url; do
+    if not d or 'docker' in p.get('tags',[]): continue
+    if filter_p and p['name']!=filter_p: continue
+    elif profile=='--vr':
+        if 'b2c' not in p.get('tags',[]): continue
+    if d.get('health_check'): started.append(p['name']+'|'+d['health_check'])
+for s in started: print(s)
+")
+
+  echo "$started_services" | while IFS='|' read -r name url; do
+    [[ -z "$name" ]] && continue
     local code; code=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 15 "$url" 2>/dev/null || echo "000")
-    [[ "$code" =~ ^2 ]] && ok "$(printf '%-28s' "$name")  $url" || fail "$(printf '%-28s' "$name")  $url  (HTTP $code)"
+    if [[ "$code" =~ ^2 ]]; then
+      ok "$(printf '%-28s' "$name")  $url"
+    else
+      fail "$(printf '%-28s' "$name")  $url  (HTTP $code)"
+      echo "VERIFY_FAIL" >> /tmp/polaris-env-verify-$$
+    fi
   done
 
-  local ports_json; ports_json=$(jget "$cfg" "visual_regression.domains[0].fixtures.health_ports" 2>/dev/null || echo "[]")
-  if [[ "$ports_json" != "[]" && -n "$ports_json" ]]; then
-    local ports; ports=($(echo "$ports_json" | python3 -c "import json,sys; print(' '.join(str(p) for p in json.load(sys.stdin)))"))
-    local all=true
-    for p in "${ports[@]}"; do port_listening "$p" || { all=false; break; }; done
-    $all && ok "$(printf '%-28s' "mockoon-fixtures")  ports ${ports[*]}" \
-            || warn "$(printf '%-28s' "mockoon-fixtures")  ports ${ports[*]}  (not running)"
+  # Fixtures check (required for --vr and --e2e)
+  if [[ "$profile" == "--vr" || "$profile" == "--e2e" ]]; then
+    local ports_json; ports_json=$(jget "$cfg" "visual_regression.domains[0].fixtures.health_ports" 2>/dev/null || echo "[]")
+    if [[ "$ports_json" != "[]" && -n "$ports_json" ]]; then
+      local ports; ports=($(echo "$ports_json" | python3 -c "import json,sys; print(' '.join(str(p) for p in json.load(sys.stdin)))"))
+      local all=true
+      for p in "${ports[@]}"; do port_listening "$p" || { all=false; break; }; done
+      if $all; then
+        ok "$(printf '%-28s' "mockoon-fixtures")  ports ${ports[*]}"
+      else
+        fail "$(printf '%-28s' "mockoon-fixtures")  ports ${ports[*]}  (not running)"
+        echo "VERIFY_FAIL" >> /tmp/polaris-env-verify-$$
+      fi
+    fi
   fi
+
+  # Hard gate: any required service failed → exit 1
+  if [[ -f /tmp/polaris-env-verify-$$ ]]; then
+    rm -f /tmp/polaris-env-verify-$$
+    echo ""
+    echo "ERROR: Required services failed health check. Fix the issues above before proceeding."
+    echo "       Logs: $(pid_dir "${4:-unknown}")/"
+    return 1
+  fi
+  rm -f /tmp/polaris-env-verify-$$ 2>/dev/null
 }
 
 # ── Commands ─────────────────────────────────────────────────────────────────
@@ -233,10 +317,12 @@ cmd_start() {
   echo "Starting $company environment  [profile: $profile]"
   mkdir -p "$(pid_dir "$company")"
 
-  if [[ "$profile" == "--full" || "$profile" == "--e2e" ]]; then start_infra "$company" "$cfg"; fi
-  if [[ "$profile" == "--vr"   || "$profile" == "--e2e" ]]; then start_fixtures "$company" "$cfg"; fi
+  start_infra "$company" "$cfg"
+  if [[ "$profile" == "--vr" || "$profile" == "--e2e" ]]; then start_fixtures "$company" "$cfg"; fi
   start_devservers "$company" "$cfg" "$profile" "$filter"
-  verify_all "$cfg"
+  if ! verify_all "$cfg" "$profile" "$filter" "$company"; then
+    exit 1
+  fi
   echo ""; echo "Done. Logs: $(pid_dir "$company")/"
 }
 
