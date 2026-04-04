@@ -206,20 +206,39 @@ git push --force-with-lease
 - **無 conflict** → 繼續後續步驟
 - **有 conflict** → 嘗試解決。若 conflict 範圍超過 PR 變動的檔案（即 conflict 來自 base branch 其他人的改動），回報使用者手動處理
 
-## 3b. Post-Rebase Changeset 衛生檢查
+## 3b. Post-Rebase 衛生檢查
 
-Rebase 後主動掃描是否帶入不屬於本 PR 的 changeset（不等 changeset-bot 警告）：
+Rebase 可能帶入不屬於本 PR 的檔案變更。不只 changeset，還有 CHANGELOG、package.json version bumps、`.changeset/pre.json` 等。必須在 push 前清理。
+
+### 3b-1. 全面掃描 rebase 帶入的非 PR 檔案
+
+1. 列出 PR 的所有變更檔案：`git diff origin/{baseRefName} --name-only`
+2. 從 branch name 或 PR title 提取本 PR 的 ticket key
+3. 比對每個檔案是否屬於本 PR 的改動範圍：
+   - 本 PR 有意修改的檔案（與 ticket 相關的 src/、test/ 等）→ 保留
+   - 以下類型的檔案若非本 PR 刻意修改 → 標記為「繼承」待清理：
+
+| 繼承檔案類型 | 典型路徑 | 來源 |
+|-------------|---------|------|
+| 其他人的 changeset | `.changeset/*.md`（內容不含本 PR ticket key） | dependency branch 繼承 |
+| Changeset pre mode | `.changeset/pre.json` | release branch 帶入 |
+| CHANGELOG 自動產出 | `CHANGELOG.md`, `packages/*/CHANGELOG.md` | changeset version 執行後 |
+| Package version bumps | `package.json` 中只改 `version` 欄位 | changeset version 執行後 |
+
+4. 對所有標記為「繼承」的檔案：`git checkout origin/{baseRefName} -- {file}` 還原到 base 狀態
+5. 有還原時 commit：`chore: remove inherited changes from rebase`
+
+### 3b-2. Changeset 自檢
+
+清理後確認本 PR 的 changeset 狀態（僅在專案使用 changeset 時）：
 
 1. 檢查專案是否使用 changeset：`ls .changeset/ 2>/dev/null` — 目錄不存在則跳過
-2. `git diff origin/{baseRefName} --name-only -- .changeset/` 列出所有 changeset
-3. 從 branch name 或 PR title 提取本 PR 的 ticket key
-4. 讀取每個 changeset 內容，不含本 PR ticket key 的 → `git rm`
-5. 有刪除時 commit：`chore: remove inherited changesets`
-6. **清理後自檢**：重新掃描 `git diff origin/{baseRefName} --name-only -- .changeset/`，確認是否仍有包含本 PR ticket key 的 changeset。若無 → 立即建立（格式參考 Step 6g）並 stage
+2. `git diff origin/{baseRefName} --name-only -- .changeset/` 確認是否仍有包含本 PR ticket key 的 changeset
+3. 若無 → 立即建立（格式參考 Step 6g）並 stage
 
-**為什麼要自檢**：Step 3b 移除繼承 changeset 後，若本 PR 從未建立自己的 changeset，清理後會變成 0 changeset。Step 6g 依賴 changeset-bot 警告來觸發補建，但 bot 檢查的是清理前的狀態（繼承 changeset 還在），不會發出警告——時序缺口導致 PR 最終沒有 changeset。
+**為什麼要自檢**：Step 3b-1 移除繼承 changeset 後，若本 PR 從未建立自己的 changeset，清理後會變成 0 changeset。Step 6g 依賴 changeset-bot 警告來觸發補建，但 bot 檢查的是清理前的狀態（繼承 changeset 還在），不會發出警告——時序缺口導致 PR 最終沒有 changeset。
 
-**為什麼在 rebase 後立即做**：rebase 可能帶入 base branch 上新 merge 的 changeset。早期清理避免 push 後 changeset-bot 誤報或 PR diff 膨脹。
+**為什麼在 rebase 後立即做**：rebase 帶入的繼承檔案會膨脹 PR diff，觸發 bot 誤報，讓 reviewer 看到不相關的變更。早期清理 = 乾淨的 PR。
 
 ## 4. Fetch Review Comments
 
