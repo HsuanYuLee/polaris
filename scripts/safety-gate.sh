@@ -55,6 +55,12 @@ if [[ "$tool_name" == "Bash" ]]; then
   check 'DROP\s+(TABLE|DATABASE)' 'destructive SQL operation'
   check 'chmod\s+777' 'overly permissive chmod 777'
   check '>\s*/dev/sd[a-z]' 'write to block device'
+  check '/dev/tcp/' 'reverse shell via /dev/tcp'
+  check 'mkfifo\s+/tmp/' 'reverse shell via named pipe'
+  check '(nc|ncat|netcat)\s+(-e|-c|--exec)' 'reverse shell via netcat'
+  check 'curl\s+.*\|\s*(bash|sh|zsh)' 'pipe-to-shell execution'
+  check 'wget\s+.*-O\s*-\s*\|\s*(bash|sh)' 'pipe-to-shell execution'
+  check 'crontab\s+' 'cron modification'
 
   exit 0
 fi

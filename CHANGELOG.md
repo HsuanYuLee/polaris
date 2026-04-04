@@ -4,6 +4,10 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.49.0] - 2026-04-04
+
+- **Security hardening — skill-sanitizer + safety-gate expansion** — New `scripts/skill-sanitizer.py`: 5-layer pre-LLM security scanner (credentials, prompt injection/exfil/tamper, suspicious bash, context pollution, trust abuse) with code block context awareness and Unicode normalization. 15 built-in test vectors, `scan-memory` mode for memory file integrity checks. `safety-gate.sh` expanded from 5 to 11 patterns (added reverse shell ×3, pipe-to-shell ×2, crontab). Learning skill Step 1.1 pre-scans external repo SKILL.md files before exploration. Memory integrity guard in `feedback-and-memory.md`. Security section in mechanism-registry (3 canaries). README Security section with zero-telemetry policy. Inspired by [skill-sanitizer](https://github.com/cyberxuan-XBX/skill-sanitizer) — source: gstack telemetry incident response
+
 ## [1.48.0] - 2026-04-03
 
 - **/init re-init mode** — existing users can run `/init` → "Re-init" to add only new sections (Step 9a Dev Environment, Step 9b Visual Regression) without re-running the full wizard. Scans existing config for missing fields and only runs the gaps. Recommended upgrade path from pre-v1.46.0

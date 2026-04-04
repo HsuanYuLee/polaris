@@ -343,7 +343,19 @@ Polaris draws inspiration from these open-source projects:
 | [superpowers](https://github.com/obra/superpowers) | Jesse Vincent | Agentic skills framework, spec-first development, sub-agent task division |
 | [ab-dotfiles](https://github.com/AlvinBian/ab-dotfiles) | Alvin Bian | AI-driven dev environment management, `/init` smartSelect interaction, audit trail |
 | [get-shit-done](https://github.com/gsd-build/get-shit-done) | TÂCHES | Context engineering patterns, goal-backward verification, sub-agent completion envelope, complexity tier routing |
-| [gstack](https://github.com/garrytan/gstack) | Garry Tan | PreToolUse safety hooks, decision classification (mechanical/taste/user-challenge), self-regulation scoring, anti-rationalization verification gates |
+| [skill-sanitizer](https://github.com/cyberxuan-XBX/skill-sanitizer) | cyberxuan-XBX | 7-layer pre-LLM security scanning, code block context awareness, severity scoring with false-positive reduction |
+
+## Security
+
+Polaris operates with a strict **zero-telemetry, zero-cloud** policy:
+
+- **No data leaves your machine** — all memory, learnings, timelines, and session state are stored locally under your workspace and `~/.polaris/`
+- **No analytics or tracking** — no `telemetry-sync`, no `eureka.jsonl`, no usage reporting of any kind
+- **No external network calls** — Polaris never phones home; the only network activity comes from tools you explicitly invoke (git, gh, JIRA, Slack)
+- **PreToolUse safety hooks** — `scripts/safety-gate.sh` blocks dangerous operations (destructive deletes, force-push to main, writes outside allowed directories) at the shell level, before they execute
+- **All code is auditable** — skills, rules, and scripts are plaintext files in your repo. No obfuscated binaries, no symlink farms, no hidden install scripts
+
+When evaluating external Claude Code skills or frameworks, we recommend scanning them with tools like [skill-sanitizer](https://github.com/cyberxuan-XBX/skill-sanitizer) before integration.
 
 ## License
 

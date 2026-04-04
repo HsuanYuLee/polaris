@@ -164,35 +164,103 @@ Adapt package manager to the project (npm/yarn/pnpm).
 
 The fixture server provides stable, deterministic API responses so both before and after screenshots use identical data. Without it, backend data changes can cause false positives.
 
+**Step 1: Health check existing instances**
+
+If `fixtures.health_ports` is configured, check all ports first:
+```bash
+curl -s -o /dev/null -w "%{http_code}" http://localhost:{port} --max-time 2
+```
+
+| Result | Action |
+|--------|--------|
+| All ports respond 200 | **Reuse** — skip startup, log: `Fixture server 已在執行（ports: {ports}），直接共用` |
+| Some ports respond, some don't | **Partial** — run `fixtures.start_command` (it will skip already-running ports) |
+| No ports respond | **Fresh start** — run full startup below |
+
+**Step 2: Start fixture server (if needed)**
+
 1. Run `fixtures.start_command` as a background process
 2. Wait for `fixtures.ready_signal` in stdout (timeout: `timeouts.fixture_startup`)
-3. If fixture server fails to start: warn, then proceed without it
+3. Verify all `fixtures.health_ports` respond with 200
 
+**Step 3: Handle failure**
+
+If fixture server fails to start: warn, then proceed without it.
 ```
 ⚠ Fixture server 啟動失敗。截圖將使用真實 API 資料 — 若後端資料有異動，可能出現假陽性。
 ```
 
 Note: In SIT mode, the fixture server only applies to the local dev (after) side. SIT uses its own backend data.
 
-### 2c. Ensure local dev server is running
+**Proxy vs Mock mode:**
+- **Recording fixtures**: `--proxy enabled --log-transaction` (capture real API responses)
+- **Running VR tests**: `--proxy enabled` (fixtures served locally, unmatched routes fall through to proxy)
+- **Pure mock mode** (`--proxy disabled`) is NOT recommended — SSR pages call dynamic endpoints (e.g., `get_ssr_init_state` with varying query params) that need live proxy fallback. Static fixtures for these endpoints return stale data from whichever page was recorded.
 
-**Health check first — only start if not already running.**
+### 2c. Server Lifecycle Management
 
-Developers usually have the dev server running during development. The skill should use the existing server rather than starting a new one.
+VR 自帶完整的 server lifecycle — 不假設外部狀態，不問使用者「你有沒有在跑 server」。自動偵測、共用或接管，跑完還原。
 
-Steps:
-1. **Health check**: `curl -s -o /dev/null -w "%{http_code}" {server.base_url}` → expect 200
-2. **If server is already responding** → use it, skip startup. Log: `Dev server 已在執行（{server.base_url}）`
-3. **If server is NOT responding** → start it:
-   a. Build environment: merge `server.env` into current environment
-      - `server.env` typically points the dev server at the fixture server (e.g., `NUXT_PUBLIC_API_BASE: "http://localhost:3001"`)
-   b. Run `server.start_command` as a background process with the merged env
-   c. Wait for `server.ready_signal` in stdout (timeout: `timeouts.server_startup`)
-   d. Verify with health check again → expect 200
-   e. Track PID for cleanup in Step 6 (only kill servers started by this skill)
-4. **If neither health check passes nor startup succeeds** → report error and stop
+**Extract port from base_url**: parse `server.base_url` to get the port number (e.g., `https://example.com` → 443, `http://localhost:3000` → 3000).
+
+**Step 1: Detect port state**
+
+```bash
+lsof -i :{port} -t  # get PID(s) using the port
+```
+
+**Step 2: Decide action based on state**
+
+| Port state | Action | Restore on cleanup? |
+|------------|--------|-------------------|
+| **Free** — no process on port | **Fresh start**: run `server.start_command`, track PID | Kill on cleanup |
+| **Occupied by compatible server** — process is node/nuxt/docker matching the expected dev server | **Reuse**: skip startup, use as-is | Do nothing on cleanup |
+| **Occupied by incompatible process** — different process blocking the port (proxy, other app) | **Take over**: record PID + command → kill → start VR server | Kill VR server + restart original on cleanup |
+
+**Compatibility check** (to decide Reuse vs Take over):
+```bash
+# Get process info for PID occupying the port
+ps -p {pid} -o comm=,args=
+```
+- If process command contains keywords from `server.start_command` (e.g., `nuxt`, `docker`, `node`) → **compatible, reuse**
+- If process is unrelated (e.g., `nginx`, `python`, `caddy`) → **incompatible, take over**
+- If unsure → treat as compatible (safer to reuse than to kill)
+
+**Fresh start flow:**
+1. Build environment: merge `server.env` into current environment
+   - `server.env` typically points dev server at fixture server (e.g., `NUXT_PUBLIC_API_BASE: "http://localhost:3001"`)
+2. Run `server.start_command` as a background process with merged env
+3. Wait for `server.ready_signal` in stdout (timeout: `timeouts.server_startup`)
+4. Verify: `curl -s -o /dev/null -w "%{http_code}" {server.base_url}` → expect 200
+5. Record: `vr_server_pid={PID}`, `vr_server_action="started"`
+
+**Take over flow:**
+1. Record original process: `original_pid={PID}`, `original_cmd=$(ps -p {PID} -o args=)`
+2. Kill: `kill {original_pid}` → wait for port to free (poll `lsof` every 1s, max 10s)
+3. Run Fresh start flow above
+4. Record: `vr_server_action="took_over"`, store `original_cmd` for restore
+
+**Reuse flow:**
+1. Verify health: `curl -s -o /dev/null -w "%{http_code}" {server.base_url}` → expect 200
+2. Log: `Dev server 已在執行（{server.base_url}），直接共用`
+3. Record: `vr_server_action="reused"`
+
+**If all paths fail** → report error and stop. Do not proceed with screenshots.
 
 Note: `server.start_command` can be a direct command (`pnpm dev`) or a path to a script (`ai-config/{company}/start-dev.sh`) for complex multi-step setups.
+
+### 2d. Start required SSR services (if any)
+
+Some SSR frameworks depend on external services (Redis, Memcached, etc.) for caching. If these services aren't running, SSR requests may hang or fail silently.
+
+Check the project's `dev_environment.required_services` in workspace config (if configured), or scan project dependencies (e.g., `ioredis` → Redis, `memcached` → Memcached).
+
+For each required service:
+1. Health check the service (e.g., `redis-cli ping`)
+2. If not running, start it (e.g., `docker run -d -p 6379:6379 redis:alpine`)
+3. Flush caches before VR run to prevent stale data from polluting before/after comparison
+
+If no external services are required, skip this step.
 
 ---
 
@@ -312,32 +380,63 @@ Playwright HTML Report:
 Visual regression passed ✅ — {N} 個頁面截圖一致，無畫面異常。
 ```
 
+### 5b. Preserve snapshots for verification artifacts
+
+If the VR run is part of a ticket verification flow (e.g., triggered by `verify-completion` or `work-on`), copy the "after" snapshots to a persistent location before cleanup deletes them:
+
+```bash
+ARTIFACT_DIR="/tmp/polaris-vr-artifacts/{ticket}-{timestamp}"
+mkdir -p "$ARTIFACT_DIR"
+cp -r ai-config/{company}/visual-regression/{domain}/snapshots/ "$ARTIFACT_DIR/"
+```
+
+These snapshots should be attached to the JIRA ticket or PR as verification evidence. The skill reports the artifact path:
+
+```
+VR snapshots saved to: {ARTIFACT_DIR}
+  - desktop/Homepage-visual-regression/homepage.png
+  - mobile/Homepage-visual-regression/homepage.png
+  - ...
+Attach these to the verification ticket or PR description.
+```
+
+If VR was run standalone (not as part of a ticket flow), skip this step — snapshots are ephemeral.
+
 ---
 
 ## Step 6: Cleanup
 
-Always run cleanup regardless of test outcome. Snapshots are ephemeral — do not commit them.
+Always run cleanup regardless of test outcome — including on error. Snapshots are ephemeral — do not commit them.
 
-1. Delete snapshots (temporary baselines):
-   ```bash
-   rm -rf ai-config/{company}/visual-regression/{domain}/snapshots/
-   ```
+**Cleanup is ordered by priority** (most important first, in case cleanup itself fails):
 
-2. Delete test results (diff images):
-   ```bash
-   rm -rf ai-config/{company}/visual-regression/{domain}/test-results/
-   ```
-
-3. Kill local dev server (if started by this skill — track the PID from Step 2c)
-
-4. Kill fixture server (if started by this skill — track the PID from Step 2b)
-
-5. If Local mode stash was created but NOT yet popped (e.g., after error): pop stash now
+1. **Restore git state** — if Local mode stash was created but NOT yet popped:
    ```bash
    git -C {project_dir} stash pop
    ```
 
+2. **Restore server state** — based on `vr_server_action` from Step 2c:
+   | Action | Cleanup |
+   |--------|---------|
+   | `started` (fresh start) | `kill {vr_server_pid}` |
+   | `took_over` | `kill {vr_server_pid}` → restart original: `nohup {original_cmd} &` |
+   | `reused` | Do nothing — leave user's server untouched |
+
+3. **Kill fixture server** (if started by this skill — track PID from Step 2b)
+
+4. **Delete snapshots** (temporary baselines):
+   ```bash
+   rm -rf ai-config/{company}/visual-regression/{domain}/snapshots/
+   ```
+
+5. **Delete test results** (diff images):
+   ```bash
+   rm -rf ai-config/{company}/visual-regression/{domain}/test-results/
+   ```
+
 Note: `playwright-report/` is kept for the user to inspect. It is NOT committed.
+
+**Error safety**: wrap cleanup in a try-finally equivalent — if VR crashes at any step, cleanup still runs. The git stash and server restore are the most critical (user's working state must not be lost).
 
 ---
 
@@ -374,3 +473,13 @@ visual-regression: {PASS | PASS_WITH_DIFFS | BLOCK}
 | No `pages[]` configured | Report config error, stop |
 | `test_dir` doesn't exist | Create it: `mkdir -p ai-config/{company}/visual-regression/{domain}/` |
 | Stash succeeds but stash pop fails after capture | Keep trying. If unrecoverable, report stash ref for manual restore |
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Fix |
+|---------|-------------|-----|
+| Page renders wrong data after recording fixtures | A dynamic endpoint (response varies by query params) was recorded as a static fixture | Remove that fixture route — let it proxy instead |
+| Fixture server won't start ("data too recent") | CLI version older than environment files | Update the fixture server CLI to match |
+| SSR pages hang indefinitely | A required service (Redis, DB) is not running — connection retries block the render | Start the service (see Step 2d) |
+| Page 200 on SIT but 500 locally | Local dev's env vars point to an unreachable backend | Route all API base URLs through the fixture server proxy |
+| First page load slow (60s+) on dev server | SSR cold start — Vite/Nitro compiling on first request | Warm up with a homepage request before running Playwright |

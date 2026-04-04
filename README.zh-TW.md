@@ -344,7 +344,19 @@ Polaris 從以下開源專案汲取靈感：
 | [superpowers](https://github.com/obra/superpowers) | Jesse Vincent | Agentic 技能框架、spec-first 開發、sub-agent 任務分工 |
 | [ab-dotfiles](https://github.com/AlvinBian/ab-dotfiles) | Alvin Bian | AI 驅動的開發環境管理、`/init` smartSelect 互動、audit trail |
 | [get-shit-done](https://github.com/gsd-build/get-shit-done) | TÂCHES | Context engineering 模式、goal-backward 驗證、sub-agent completion envelope、complexity tier 路由 |
-| [gstack](https://github.com/garrytan/gstack) | Garry Tan | PreToolUse 安全 hook、決策分類框架（mechanical/taste/user-challenge）、self-regulation scoring、anti-rationalization 驗證鐵律 |
+| [skill-sanitizer](https://github.com/cyberxuan-XBX/skill-sanitizer) | cyberxuan-XBX | 7 層 pre-LLM 安全掃描、code block context awareness、severity scoring 與 false-positive 降低策略 |
+
+## 安全性
+
+Polaris 遵循嚴格的**零遙測、零雲端**政策：
+
+- **資料不離開你的機器** — 所有記憶、學習紀錄、時間軸和 session 狀態都儲存在本地 workspace 和 `~/.polaris/` 下
+- **無分析或追蹤** — 沒有 `telemetry-sync`、沒有 `eureka.jsonl`、沒有任何使用回報
+- **無外部網路連線** — Polaris 不會回傳任何資料；唯一的網路活動來自你明確呼叫的工具（git、gh、JIRA、Slack）
+- **PreToolUse 安全 hook** — `scripts/safety-gate.sh` 在 shell 層級阻擋危險操作（破壞性刪除、force-push 到 main、寫入允許目錄以外的位置），在執行前攔截
+- **所有程式碼可審計** — 技能、規則和腳本都是 repo 中的純文字檔。沒有混淆過的二進位檔、沒有 symlink 群、沒有隱藏的安裝腳本
+
+評估外部 Claude Code 技能或框架時，建議在整合前使用 [skill-sanitizer](https://github.com/cyberxuan-XBX/skill-sanitizer) 等工具進行掃描。
 
 ## 授權
 
