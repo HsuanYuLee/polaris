@@ -56,6 +56,31 @@ When context is compressed (earlier messages truncated), immediately recover ses
 5. **If company context is unclear** — ask the user before proceeding (wrong company causes rule/memory cross-contamination)
 6. **Never guess** — if critical state (which ticket, which repo, which company) is lost and unrecoverable from the above sources, ask rather than assume
 
+### Session Start — Fast Check
+
+At the start of every conversation, before responding to the user's first message, run a lightweight state check:
+
+1. **`git status`** — are there uncommitted changes? Untracked files?
+2. **`git stash list`** — are there stashed changes from a previous session?
+3. **Current branch** — is it `main` or a topic branch (`wip/*`, `task/*`, `feat/*`)?
+
+If WIP is detected (modified files, non-main branch, or stash entries), report it in one line:
+
+```
+⚠ WIP detected: branch `wip/vr-debug`, 4 modified files. Continue this, or work on something else?
+```
+
+**If the user wants to work on something else** (different topic from the WIP):
+
+1. **Commit WIP to a branch**: `git checkout -b wip/{topic}` (if on main) → `git add -A` → `git commit -m "wip: {brief description}"`
+2. **Switch back to main**: `git checkout main`
+3. Proceed with the new work
+4. When the new work is done and committed/pushed, remind the user: "WIP branch `wip/{topic}` is still pending — 要切回去繼續嗎？"
+
+**If the user wants to continue the WIP**: proceed directly, no branch switch needed.
+
+**Why branch instead of stash**: stash doesn't cover untracked files reliably, has no namespace (multiple stashes get confusing), and isn't visible in `git log`. A WIP branch is explicit, trackable, and survives across sessions. After the WIP is no longer needed, delete the branch.
+
 ### Cross-Session Continuity
 
 When the user says "繼續 X" / "continue X" / references work from a previous session:
