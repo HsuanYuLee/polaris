@@ -293,6 +293,27 @@ HIGH 風險時的提示：
 - 結論：✅ 可以 commit / ⚠️ 需修正後再 commit / 🔴 高風險，需確認
 ```
 
+## 8b. Visual Regression Check (conditional)
+
+**Trigger condition**: the ticket involves changes to projects with `visual_regression` configured in the company workspace-config AND the changed files include frontend-visible code (pages, components, layouts, CSS, SSR logic).
+
+**Detection**:
+1. Read company workspace-config → check if `visual_regression.domains[]` exists
+2. Check if any changed file (from `git diff --name-only`) matches frontend patterns: `pages/`, `components/`, `layouts/`, `composables/`, `*.vue`, `*.css`, `*.scss`, SSR-related (`server/`, `plugins/`)
+3. Also trigger if the ticket's project is `member-ci` or `design-system` (API/component changes affect b2c rendering)
+
+**If both conditions met**: invoke the visual-regression skill in the quality report:
+
+```
+Visual Regression：
+  - 狀態：🔄 建議執行（偵測到前端可見改動）
+  - 指令：polaris-env.sh start {company} --vr → 跑 visual-regression skill
+```
+
+**If conditions NOT met**: skip silently (no mention in report).
+
+**Important**: VR is a recommendation, not a blocker. The quality gate marker (Step 9) is written regardless of VR outcome. VR results are informational — the developer decides whether visual diffs are acceptable.
+
 ## 9. Quality Gate Marker
 
 品質檢查是 pre-push hook 的前置條件。通過品質檢查後寫入 marker file，讓 `.claude/hooks/pre-push-quality-gate.sh` 知道可以放行 `git push`。沒有這個 marker，push 會被擋下來。

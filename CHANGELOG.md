@@ -4,6 +4,11 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.52.0] - 2026-04-04
+
+- **VR conditional trigger in quality gate** — `dev-quality-check` Step 8b: auto-detect frontend-visible changes (pages/, components/, layouts/, *.vue, *.css) and recommend VR when `visual_regression` is configured. Also triggers for member-ci and design-system changes that affect b2c rendering. Informational, not blocking
+- **Epic verification backlog** — three-layer verification structure designed: Task test plans (PR gate records), per-AC verification tickets (Playwright E2E), Feature branch integration tests. Auto-rebase pre-step, auto-generated verification tickets, and feature integration testing planned for upcoming versions
+
 ## [1.51.0] - 2026-04-04
 
 - **One-click environment — polaris-env.sh** — new `scripts/polaris-env.sh` with start/stop/status commands and three profiles: `--full` (Docker + dev servers), `--vr` (Mockoon + standalone dev server, skips Docker requires), `--e2e` (all layers). 4-layer architecture: infra → fixtures → dev servers → health verification. Idempotent (skips already-running services), PID tracking in `/tmp/polaris-env/`. VR SKILL.md Step 2 refactored from ~120 lines inline management to a single `polaris-env.sh --vr` call
