@@ -118,13 +118,26 @@ mcp__claude_ai_Atlassian__getJiraIssue
 2. API task 完成後可以 re-record Mockoon fixtures，後續所有前端 task 基於穩定的 fixtures 開發
 3. 避免「前端先做了，API 後來改了，前端又要改」的來回
 
+**穩定測資單（Fixture Recording Task）：**
+
+如果 Epic 涉及的 project 有 `visual_regression` config（workspace-config.yaml），自動在拆單結果中加入一張「穩定測資」task，排在所有前端 task 之前：
+
+- **Summary**：`[EPIC_KEY] 穩定測資 — 錄製 Mockoon fixtures`
+- **Points**：1（啟動環境 + 瀏覽頁面 + review routes）
+- **Description**：啟動 `polaris-env.sh --vr`，透過 Mockoon proxy 開啟所有 VR 頁面，錄製 API response 作為 fixtures。確認 fixtures 覆蓋所有 VR 頁面後存檔
+- **前置條件**：若有 cross-repo API task → 該 task 完成後才執行本單（fixtures 需反映新 API）
+
 排序結果應為：
 ```
-Task 1: API/cross-repo 變更（如 member-ci endpoint）
-Task 2-N: 前端開發（基於穩定 API + fixtures）
+Task 0: API/cross-repo 變更（如 member-ci endpoint）  ← 若有
+Task 1: 穩定測資 — 錄製 Mockoon fixtures              ← 永遠在前端 task 之前
+Task 2-N: 前端開發（基於穩定 fixtures）
 ```
 
-判斷依據：子單涉及的 repo 不同於主 project repo → 標記為 cross-repo → 排到前面。
+判斷依據：
+- Cross-repo：子單涉及的 repo 不同於主 project repo → 排到最前
+- 穩定測資：project 有 `visual_regression` config → 自動加入，排在 API task 之後、前端 task 之前
+- 不需要測資單的情況：純後端 Epic、不涉及前端頁面渲染的改動
 
 **子任務結構：**
 

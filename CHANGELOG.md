@@ -7,7 +7,7 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 ## [1.62.0] - 2026-04-05
 
 - **Mockoon fixture per-Epic lifecycle** — epic-verification-workflow.md gains Fixture Lifecycle section: record at Epic start, re-record after cross-repo API task, develop on stable fixtures, delete on release. kkday playwright-testing.md gains full Mockoon integration doc (architecture, recording workflow, parallel Epic isolation design). Backlog item updated from "pending" to "design complete"
-- **epic-breakdown API-first ordering rule** — when Epic involves cross-repo API changes, API task must be ordered first. Ensures fixtures can be re-recorded before frontend tasks begin, preventing mid-Epic fixture staleness. Added to Step 6 ordering principles
+- **epic-breakdown API-first ordering + fixture recording task** — when Epic involves cross-repo API changes, API task must be ordered first. Additionally, epic-breakdown now auto-generates a "穩定測資" (fixture recording) task (1pt) for Epics with `visual_regression` config. Ordering: API task → fixture recording → frontend tasks. This makes fixture recording a visible, trackable JIRA ticket instead of hidden skill logic
 
 ## [1.61.0] - 2026-04-05
 
