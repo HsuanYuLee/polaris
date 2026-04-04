@@ -13,6 +13,18 @@ After completing a full task (opening a PR, fixing review comments, estimation, 
 
 Execute silently. Only notify the user and wait for confirmation before writing when a feedback worth recording is found. Items 3 and 4 may be recorded without user confirmation.
 
+### Correction = Immediate Reflection (Do Not Defer)
+
+When the user corrects a behavior mid-task (「為什麼沒用 skill」「你沒修好」「太多問題了」), **reflect and record immediately** — do not wait for task completion. The "after completing a full task" trigger above is the baseline; corrections are a higher-priority trigger that fires instantly.
+
+Why: if the Strategist enters reactive mode (fix → get corrected → fix again), the task-completion trigger never fires, and all feedback is lost. Two consecutive sessions (GT-483 i18n fix) produced 12+ violations with zero feedback written because the Strategist was always "still fixing".
+
+How to apply:
+1. User correction detected → pause the current fix
+2. Write feedback memory (or merge into existing) for the correction
+3. Resume the fix
+4. This takes < 30 seconds and prevents the feedback loop from going silent
+
 ## Pre-Write Dedup Check
 
 Before creating a new feedback memory, scan existing feedback memories for semantic overlap:

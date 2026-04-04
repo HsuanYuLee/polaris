@@ -64,6 +64,17 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 |----|------|---------------|-------|
 | `scope-header-enforcement` | Company rule files must have `Scope:` header | File under `rules/{company}/` without scope header | Medium |
 
+### Debugging & Verification (source: GT-483 session violations, graduated 2026-04-04)
+
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `fix-through-not-revert` | When implementation is broken, find root cause and fix — do not revert or add fallback as first response | Strategist proposes revert/fallback before investigating why the implementation failed | High |
+| `query-original-impl` | Before changing an API call path, query the source-of-truth caller (e.g., member-ci calling api-lang) to confirm endpoint, auth, params, response format | API path changed without reading the original implementation that the change is supposed to match | High |
+| `cross-repo-verification` | Cross-repo changes must be verified across all involved repos with full infra stack | Verification only runs in one repo when the ticket touches multiple repos; `workspace-config.requires` ignored | High |
+| `env-follows-requires` | Dev environment must be started per `workspace-config.projects[].dev_environment.requires` — no shortcuts | Nuxt dev server started standalone when `requires: ["kkday-web-docker"]` is configured; Docker containers not running | High |
+| `http-status-in-verification` | All endpoint verifications must check HTTP status code (200) + response body — status 200 is the minimum bar | Verification reports "data looks correct" without confirming HTTP 200 | Medium |
+| `no-speculation-as-fact` | Do not repeat a speculation after user corrects it — once corrected, internalize the correction | Same wrong claim repeated after user already corrected it (e.g., "SIT 環境" after user said "我在 local") | Medium |
+
 ### Quality Gates (source: `skills/git-pr-workflow/SKILL.md`, `skills/verify-completion/SKILL.md`)
 
 | ID | Rule | Canary Signal | Drift |
@@ -125,9 +136,11 @@ Post-task audit should check these first (highest drift risk, most impactful):
 
 1. `no-workaround-accumulation` / `design-implementation-reconciliation`
 2. `skill-first-invoke` / `no-manual-skill-steps`
-3. `delegate-exploration` / `delegate-implementation`
-3. `cross-session-read-memory-file`
-4. `post-task-feedback-reflection`
-5. `re-test-after-fix` / `fresh-verification-before-completion`
-6. `no-cd-in-bash` / `no-independent-cmd-chaining`
-7. `feedback-trigger-count-update` / `graduation-at-three-triggers`
+3. `fix-through-not-revert` / `query-original-impl`
+4. `delegate-exploration` / `delegate-implementation`
+5. `cross-session-read-memory-file`
+6. `post-task-feedback-reflection` (note: correction = immediate trigger, don't defer)
+7. `re-test-after-fix` / `fresh-verification-before-completion`
+8. `cross-repo-verification` / `env-follows-requires`
+9. `no-cd-in-bash` / `no-independent-cmd-chaining`
+10. `feedback-trigger-count-update` / `graduation-at-three-triggers`

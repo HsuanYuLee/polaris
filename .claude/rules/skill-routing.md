@@ -37,7 +37,7 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | User Intent | Trigger Patterns | Skill |
 |-------------|-----------------|-------|
 | Review someone's PR | "review PR", "review 這個 PR", "幫我 review", PR URL + review | `review-pr` |
-| Fix review comments on own PR | "fix review", "修 PR", "修正 review" | `fix-pr-review` |
+| Fix review comments on own PR | "fix review", "修 PR", "修正 review", "你沒修好" + PR URL, "沒修好", PR URL + 否定語氣 | `fix-pr-review` |
 | Check own PR approvals | "我的 PR", "PR 狀態", "催 review" | `check-pr-approvals` |
 | Scan PRs needing review | "掃 PR", "大家的 PR", "review inbox" | `review-inbox` |
 | Estimate a ticket | "估點", "estimate", "評估" + ticket | `jira-estimation` |
@@ -79,6 +79,16 @@ Before invoking a skill, assess the task's complexity and route to the appropria
 
 The Fast tier is implicit in CLAUDE.md's delegation table ("Small edit ≤ 3 lines, 1 file → Do it directly"). This section makes the full spectrum explicit.
 
+## Negative-Tone Trigger Recognition
+
+User messages with negative tone about a previous action (「沒修好」「壞了」「不對」「又出問題」) + a PR URL or ticket key are **fix intents**, not analysis requests. Route to the appropriate fix skill immediately:
+
+- PR URL + negative tone → `fix-pr-review`
+- Ticket key + negative tone → `fix-bug`
+- No URL/key + negative tone → ask what to fix, then route
+
+**Do not** interpret negative tone as "let me investigate what went wrong" and start reading diffs/comments manually. The skill's own flow handles investigation.
+
 ## Anti-Patterns
 
 1. **Reading Slack/JIRA before invoking skill** — the skill handles data fetching
@@ -86,3 +96,4 @@ The Fast tier is implicit in CLAUDE.md's delegation table ("Small edit ≤ 3 lin
 3. **Partially executing skill steps manually** — always let the Skill tool load the full SKILL.md
 4. **Skipping skill because "I already know how"** — skills encode quality gates and side effects (lesson extraction, Slack notifications) that manual execution misses
 5. **Manually fixing PR review comments without `fix-pr-review` skill** — when PR review comments (from human reviewers or bots) need fixing, always use `fix-pr-review`. Manual fix-and-push skips comment replies, quality checks, and lesson extraction, causing review patterns to never enter the learning pipeline
+6. **Investigating before routing** — when the user says "沒修好" + PR URL, do NOT run `gh pr view`, `gh api`, or `gh pr diff` to "understand the problem first". Invoke `fix-pr-review` immediately. The skill reads review comments and CI status itself. (Graduated from GT-483 session violations: 2 sessions, 4+ occurrences)

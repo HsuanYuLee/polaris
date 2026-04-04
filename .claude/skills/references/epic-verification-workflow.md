@@ -80,11 +80,80 @@ Reference doc for the three-layer verification structure. Not yet integrated int
 
 ## Layer 3: Feature Integration Test
 
-**What:** 所有 task merge 回 feature 後，跑一次整合測試確認 task 互動沒問題。
+**What:** feature branch 每次整合新的 sub-task code 後，重跑**所有已整合子單**的驗證。不是只在「全部 merge 完」才跑一次。
 
-**Why:** GT-483 試跑實證 — 個別 task 都通過但 merge 回 feature 後出問題。
+**Why:** GT-483 試跑實證 — KB2CW-3461 和 KB2CW-3556 各自驗過，但 rebase 整合時 conflict resolution 把正確的 i18n endpoint 蓋掉，個別驗證都沒重跑，直到上線前才發現翻譯全壞。
 
-**Content:**
+**Core rule: 有整合就要驗，不管整合兩個或三個 task。**
+
+### Trigger Points
+
+整合驗證不是單一觸發點，而是多層觸發同一個動作：
+
+| 觸發場景 | 時機 | 信心度 |
+|----------|------|--------|
+| Polaris 幫 merge task → feat | 整合完立刻跑 | 最高（確定性） |
+| 手動 merge 後使用者說「繼續」/「next」 | /next 偵測 feat branch 有新 commit | 高 |
+| 跑 epic-status / converge | 推進前兜底 | 中（可能距離整合已有時間差） |
+| 開 feature PR 到 develop | git-pr-workflow quality gate | 兜底（最後防線） |
+
+四層觸發同一個動作：收集 feat branch 上所有已整合子單的驗證項，全部跑一輪。
+
+### Executable Verification Format
+
+每張子單的驗證項必須是**可執行的**，不能只是 JIRA 文字描述。建立子單時，驗證項需包含至少一個 executable check：
+
+```yaml
+# 驗證項格式（寫在 JIRA sub-task description 或 comment）
+verification:
+  - name: "i18n 翻譯正常"
+    type: endpoint_check
+    command: "curl -s http://localhost:3001/api/_nuxt/local/i18n.get?locale=zh-tw"
+    assert: "response.data != null && Object.keys(response.data).length > 100"
+
+  - name: "footer cache header"
+    type: endpoint_check
+    command: "curl -sI http://localhost:3001/api/_nuxt/footer"
+    assert: "headers contains 'x-nitro-cache'"
+
+  - name: "TTFB < 1000ms"
+    type: performance
+    command: "curl -o /dev/null -s -w '%{time_starttransfer}' http://localhost:3001/zh-TW/"
+    assert: "time_starttransfer < 1.0"
+
+  - name: "SSR 無 waterfall"
+    type: log_check
+    description: "dev server log 不應出現 sequential fetch warning"
+```
+
+| Type | 自動化程度 | 說明 |
+|------|-----------|------|
+| `endpoint_check` | 全自動 | curl + response assertion |
+| `performance` | 全自動 | timing assertion |
+| `log_check` | 半自動 | 需人工判讀 log |
+| `visual` | 半自動 | VR 截圖比對 |
+| `manual` | 手動 | 標記步驟，人工執行 |
+
+### Execution Flow
+
+```
+feat branch 整合了新的 sub-task code
+  ↓
+1. 列出所有已整合的 sub-task（git log 比對）
+2. 從 JIRA 收集每張的 verification items
+3. 起 dev server on feat branch
+4. 逐項執行驗證
+5. 輸出報告：
+   KB2CW-3461 i18n 翻譯    ✅ PASS (data keys: 1847)
+   KB2CW-3461 SSR parallel  ✅ PASS (no waterfall)
+   KB2CW-3462 footer cache  ✅ PASS (x-nitro-cache: HIT)
+   KB2CW-3556 prefetch      ✅ PASS (prefetch triggered)
+   ─────────────────────────
+   Integration: 4/4 PASS
+6. 任一 FAIL → 標記「整合回歸」，阻擋推進
+```
+
+### Content (unchanged)
 - VR 截圖比對（feature branch vs main/develop baseline）
 - E2E smoke test（key user flows）
 - 如果 Epic 涉及效能 → 效能基準對比
