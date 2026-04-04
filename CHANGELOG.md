@@ -4,6 +4,11 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.57.0] - 2026-04-04
+
+- **polaris-env.sh Docker health check fix** — Docker services (Layer 1) now use port-listening check instead of HTTP 200 (nginx returns 404 on `/` but services are up). Requires check for Docker dependencies also uses port-based verification. Fixed `docker compose` → `docker-compose` for Colima compatibility. Added stabilization wait before Layer 4 verification
+- **JIRA attachment upload via REST API** — validated curl-based upload to JIRA tickets using API token stored in `{company}/.env.secrets`. Enables VR screenshots to be attached to verification tickets. Token setup uses IDE file editing (not terminal `read -s` which fails in Claude Code's non-interactive shell)
+
 ## [1.56.0] - 2026-04-04
 
 - **Deterministic Enforcement Principle** — new framework-level design philosophy in CLAUDE.md: "能用確定性驗證的，不要靠 AI 自律". When behavioral drift is discovered, the fix must push checks into deterministic layers (scripts, hooks, exit codes), not add another behavioral rule. Includes workaround accumulation signal: ≥2 workarounds for the same feature → STOP and check design

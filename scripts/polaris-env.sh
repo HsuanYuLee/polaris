@@ -113,14 +113,17 @@ for p in json.load(sys.stdin).get('projects',[]):
     if d and 'docker' in p.get('tags',[]) and not d.get('requires'):
         print(p['name']+'|'+d['start_command']+'|'+d.get('health_check',''))
 " | while IFS='|' read -r name cmd health; do
-    if [[ -n "$health" ]] && wait_for_url "$health" 4 2>/dev/null; then
-      ok "$name (already running)"; continue
+    # Docker services: check port listening (nginx may return non-200 on /)
+    local health_port; health_port=$(url_port "$health")
+    if [[ -n "$health_port" ]] && port_listening "$health_port"; then
+      ok "$name (already running on port $health_port)"; continue
     fi
     local log; log="$(pid_dir "$company")/$name.log"; mkdir -p "$(pid_dir "$company")"
-    eval "$cmd" > "$log" 2>&1 &
+    local resolved_cmd="${cmd/\~/$HOME}"
+    eval "$resolved_cmd" > "$log" 2>&1 &
     save_pid "$company" "$name" $!
-    if [[ -n "$health" ]]; then
-      wait_for_url "$health" 60 && ok "$name  ($health)" || fail "$name timed out — $log"
+    if [[ -n "$health_port" ]]; then
+      wait_for_ports "$name" "$health_port" && ok "$name (port $health_port)" || fail "$name timed out — $log"
     else ok "$name started"; fi
   done
 }
@@ -174,17 +177,25 @@ for r in rows:
     print(r['name']+'|'+r['cmd']+'|'+r['sig']+'|'+r['health']+'|'+','.join(r['req']))
 " | while IFS='|' read -r name cmd sig health requires_csv; do
 
-    # Check requires — wait for dependencies to be healthy before starting
+    # Check requires — Docker deps use port check, others use HTTP
     if [[ -n "$requires_csv" ]]; then
       local ok_reqs=true
       for req in ${requires_csv//,/ }; do
-        local req_health; req_health=$(echo "$cfg" | python3 -c "
+        local req_info; req_info=$(echo "$cfg" | python3 -c "
 import json,sys
 for p in json.load(sys.stdin).get('projects',[]):
-    if p['name']=='$req': print(p.get('dev_environment',{}).get('health_check','')); break
+    if p['name']=='$req':
+        d=p.get('dev_environment',{})
+        is_docker='docker' in p.get('tags',[])
+        print(('docker' if is_docker else 'app')+'|'+d.get('health_check','')); break
 " 2>/dev/null || echo "")
-        if [[ -n "$req_health" ]] && ! wait_for_url "$req_health" 3 2>/dev/null; then
-          ok_reqs=false; break
+        local req_type="${req_info%%|*}" req_health="${req_info#*|}"
+        if [[ -z "$req_health" ]]; then continue; fi
+        if [[ "$req_type" == "docker" ]]; then
+          local req_port; req_port=$(url_port "$req_health")
+          if [[ -n "$req_port" ]] && ! port_listening "$req_port"; then ok_reqs=false; break; fi
+        else
+          if ! wait_for_url "$req_health" 3 2>/dev/null; then ok_reqs=false; break; fi
         fi
       done
       if ! $ok_reqs; then warn "$name skipped (requires $requires_csv not ready)"; continue; fi
@@ -237,30 +248,36 @@ verify_all() {
 
   local failures=0
 
-  # Determine which services this profile started
-  local started_services
-  started_services=$(echo "$cfg" | python3 -c "
+  # Layer 1: Docker services — verify via port listening (nginx may not return 200 on /)
+  echo "$cfg" | python3 -c "
 import json,sys
-profile='$profile'; filter_p='$filter'
-cfg=json.load(sys.stdin)
-started=[]
-# Layer 1: docker-tagged projects (always started)
-for p in cfg.get('projects',[]):
+for p in json.load(sys.stdin).get('projects',[]):
     if 'docker' in p.get('tags',[]):
         d=p.get('dev_environment',{})
-        if d.get('health_check'): started.append(p['name']+'|'+d['health_check'])
-# Layer 3: dev servers per profile
-for p in cfg.get('projects',[]):
+        if d.get('health_check'): print(p['name']+'|'+d['health_check'])
+" | while IFS='|' read -r name url; do
+    [[ -z "$name" ]] && continue
+    local p; p=$(url_port "$url")
+    if [[ -n "$p" ]] && port_listening "$p"; then
+      ok "$(printf '%-28s' "$name")  port $p"
+    else
+      fail "$(printf '%-28s' "$name")  port ${p:-?} (not listening)"
+      echo "VERIFY_FAIL" >> /tmp/polaris-env-verify-$$
+    fi
+  done
+
+  # Layer 3: Dev servers — verify via HTTP 200
+  echo "$cfg" | python3 -c "
+import json,sys
+profile='$profile'; filter_p='$filter'
+for p in json.load(sys.stdin).get('projects',[]):
     d=p.get('dev_environment',{})
     if not d or 'docker' in p.get('tags',[]): continue
     if filter_p and p['name']!=filter_p: continue
     elif profile=='--vr':
         if 'b2c' not in p.get('tags',[]): continue
-    if d.get('health_check'): started.append(p['name']+'|'+d['health_check'])
-for s in started: print(s)
-")
-
-  echo "$started_services" | while IFS='|' read -r name url; do
+    if d.get('health_check'): print(p['name']+'|'+d['health_check'])
+" | while IFS='|' read -r name url; do
     [[ -z "$name" ]] && continue
     local code; code=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 15 "$url" 2>/dev/null || echo "000")
     if [[ "$code" =~ ^2 ]]; then
@@ -320,6 +337,7 @@ cmd_start() {
   start_infra "$company" "$cfg"
   if [[ "$profile" == "--vr" || "$profile" == "--e2e" ]]; then start_fixtures "$company" "$cfg"; fi
   start_devservers "$company" "$cfg" "$profile" "$filter"
+  sleep 5  # Allow services to stabilize after ready_signal
   if ! verify_all "$cfg" "$profile" "$filter" "$company"; then
     exit 1
   fi
