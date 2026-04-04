@@ -4,6 +4,10 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.64.0] - 2026-04-05
+
+- **Chinese developer guide sections** — quick-start-zh.md expanded from quick-start-only to complete developer guide: architecture (three-layer rules, directory structure, workflow orchestration, scheduled agents), multi-company setup (isolation mechanism, diagnostics), customization (safe-to-edit vs framework internals), and upgrading (sync-from-polaris.sh). Chinese-speaking colleagues no longer need to reference the English README
+
 ## [1.63.0] - 2026-04-05
 
 - **sync-to-polaris post-sync leak check** — new `leak_check()` function in `sync-to-polaris.sh` that runs between commit and push. Extracts company-specific patterns from all `workspace-config.yaml` files (JIRA ticket keys as `KEY-\d+`, domain names, Slack channel IDs, GitHub orgs) and greps the polaris template. Warns on matches but does not block push. First scan found 71 hits to genericize over time

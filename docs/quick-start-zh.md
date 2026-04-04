@@ -152,4 +152,113 @@ Sprint 規劃        →  「排 sprint」
 
 ---
 
-> 更多開發者相關內容（架構、自訂、升級）請參考英文版 [README](../README.md#how-it-works)。
+## 架構
+
+### 三層規則
+
+| 層級 | 位置 | 載入時機 | 內容 |
+|------|------|---------|------|
+| **L1 — 工作區** | `CLAUDE.md` + `.claude/rules/` | 每次對話 | Strategist 人格、委派規則 |
+| **L2 — 公司** | `.claude/rules/{company}/` | 每次對話 | PR 慣例、JIRA 流程、技能路由 |
+| **L3 — 專案** | `{company}/{project}/CLAUDE.md` | 進入專案時 | Lint 設定、測試慣例、元件規範 |
+
+規則（rules）永遠載入。技能（skills）按需觸發 — 沒觸發時不佔 context。
+
+### 目錄結構
+
+```
+你的工作區/
+├── CLAUDE.md                  # Strategist 人格 + 委派規則
+├── workspace-config.yaml      # 公司路由（JIRA 票號 → 哪間公司）
+├── .claude/
+│   ├── rules/                 # 通用規則 (L1)
+│   │   └── {company}/         # 公司專屬規則 (L2)
+│   └── skills/                # 41 個工作流技能
+├── _template/                 # 新公司範本 + 規則範例
+├── scripts/                   # 同步工具
+└── {company}/                 # 你的公司目錄
+    ├── workspace-config.yaml  # 公司設定（JIRA、Slack、repos）
+    └── {project}/             # 專案 repo，含 CLAUDE.md (L3)
+```
+
+### 工作流編排
+
+技能之間會自動串接。例如 `「做 PROJ-123」` 會依序觸發：
+
+```
+work-on → jira-estimation → jira-branch-checkout → start-dev → tdd → dev-quality-check → git-pr-workflow
+```
+
+每個技能都有明確的進入條件和輸出，像 pipeline 一樣串起來。詳細流程圖 → [Developer Workflow Guide](workflow-guide.md)
+
+### 排程 Agent
+
+`/schedule` 可以設定定期執行的背景任務（例如每日技術文章掃描、定期健康檢查），不需要開著對話視窗。
+
+## 多公司設定
+
+Polaris 支援在同一個工作區管理多間公司。每間公司有獨立的設定、規則和技能：
+
+```
+你的工作區/
+├── .claude/rules/
+│   ├── *.md                   # 通用規則（所有公司）
+│   ├── acme/                  # Acme 專屬規則
+│   └── bigcorp/               # BigCorp 專屬規則
+├── acme/                      # Acme 專案 + 設定
+└── bigcorp/                   # BigCorp 專案 + 設定
+```
+
+**隔離機制：**
+- `workspace-config.yaml` 把 JIRA 專案代碼對應到公司 — 說 `「做 ACME-123」` 時，Polaris 自動讀 Acme 的設定
+- 公司規則都有 scope header，Strategist 只套用對應公司的規則
+- 共用技能在 `.claude/skills/`（git 追蹤），公司專屬技能在 `.claude/skills/{company}/`（gitignore）
+
+**加入第二間公司：** 再跑一次 `/init`，精靈會偵測已有的公司，在旁邊建立新的。
+
+**診斷工具：**
+- `/which-company PROJ-123` — 查看票號路由到哪間公司
+- `/use-company` — 手動切換公司 context
+- `/validate-isolation` — 掃描隔離問題（scope header 缺失、memory 標籤錯誤）
+
+## 自訂
+
+| 想做什麼 | 在哪裡 | 怎麼做 |
+|---------|--------|--------|
+| 加入新公司 | 執行 `/init` | 互動式精靈幫你建好一切 |
+| 對應 JIRA 專案到 repo | `{company}/workspace-config.yaml` | 在 `projects:` 下新增 |
+| 加公司專屬規則 | `.claude/rules/{company}/` | 建 `.md` 檔 — 每次對話自動載入 |
+| 加專案專屬規則 | `{company}/{project}/CLAUDE.md` | sub-agent 進入專案時載入 |
+| 建立新技能 | 執行 `/skill-creator` | 引導式建立 + 自動測試 |
+| 調整技能路由 | `.claude/rules/{company}/skill-routing.md` | 觸發詞 → 技能對應表 |
+
+### 可以改 vs 不要碰
+
+**可以自由修改：**
+
+| 路徑 | 自訂什麼 |
+|------|---------|
+| `.claude/rules/{company}/` | 你公司的慣例、PR 規範、JIRA 流程 |
+| `{company}/workspace-config.yaml` | JIRA 專案、Slack 頻道、repo 對應 |
+| `{company}/{project}/CLAUDE.md` | 專案層級規則 (L3) |
+
+**框架內部 — 除非你在改 Polaris 本身，否則不要動：**
+
+| 路徑 | 為什麼 |
+|------|--------|
+| `.claude/skills/*/SKILL.md` | 技能定義 — 用 `/skill-creator` 修改 |
+| `.claude/skills/references/` | 技能共用資料（估點量表、範本） |
+| `.claude/rules/*.md` (L1) | 通用規則 — 每次對話都載入 |
+| `CLAUDE.md` | Strategist 人格 — 框架的大腦 |
+
+## 升級
+
+如果你是從 Polaris 範本 clone 的，想拉取框架更新：
+
+```bash
+./scripts/sync-from-polaris.sh --polaris ~/path-to-polaris-template [--dry-run]
+```
+
+這會同步技能、規則和共用資料，**不會覆蓋**你的公司設定、L2 規則和專案檔案。用 `--dry-run` 先預覽變更再套用。
+
+> 升級只更新框架層。你自己加的公司規則、workspace-config、專案 CLAUDE.md 都不受影響。
