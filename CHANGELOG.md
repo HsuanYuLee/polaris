@@ -4,6 +4,12 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.65.0] - 2026-04-05
+
+- **Fan-in validation for parallel sub-agents** — new "Fan-In Validation" section in `sub-agent-delegation.md`. When dispatching multiple parallel sub-agents, the Strategist now validates all completion envelopes before synthesis: Status must be present, Artifacts must be non-empty for DONE status, and missing/BLOCKED/PARTIAL agents are handled explicitly. Prevents silent partial failures from corrupting synthesis results
+- **Return vs Save separation in completion envelope** — `sub-agent-roles.md` Completion Envelope gains a new convention: `User Summary` (concise result for display) vs `Checkpoint State` (full context for cross-session resume). Solves the common failure mode where memory files are either too terse or too verbose for session continuation
+- **LangGraph learning → 4 backlog items** — Deep exploration of langchain-ai/langgraph produced actionable insights: per-skill retry policy (`polaris-retry.sh`), session-level cache (`polaris-cache.sh`), write isolation model documentation, and structured memory namespace. All tracked in backlog Medium with source attribution
+
 ## [1.64.0] - 2026-04-05
 
 - **Chinese developer guide sections** — quick-start-zh.md expanded from quick-start-only to complete developer guide: architecture (three-layer rules, directory structure, workflow orchestration, scheduled agents), multi-company setup (isolation mechanism, diagnostics), customization (safe-to-edit vs framework internals), and upgrading (sync-from-polaris.sh). Chinese-speaking colleagues no longer need to reference the English README

@@ -67,7 +67,7 @@ Polaris: 拉取 JIRA backlog → 計算團隊容量 → 偵測 carry-over
          → 建議優先順序 → 草擬 Release 頁面
 ```
 
-**技能：** `standup`, `sprint-planning`, `worklog-report`, `jira-worklog`, `refinement`（PM 視角）, `epic-breakdown`（PM 視角）, `end-of-day`
+**技能：** `standup`, `sprint-planning`, `worklog-report`, `jira-worklog`, `refinement`（PM 視角）, `epic-breakdown`（PM 視角）
 
 ## 什麼是 Claude Code？
 
@@ -138,7 +138,7 @@ cd ~/polaris-workspace
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 41 workflow skills
+│   └── skills/                   ← 42 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -239,7 +239,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 41 workflow skills
+│   └── skills/                # 42 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory

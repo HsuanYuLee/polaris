@@ -67,7 +67,7 @@ Polaris: pulls JIRA backlog → calculates team capacity → detects carry-overs
          → suggests priority order → drafts Release page
 ```
 
-**Skills:** `standup`, `sprint-planning`, `worklog-report`, `jira-worklog`, `refinement` (PM perspective), `epic-breakdown` (PM perspective), `end-of-day`
+**Skills:** `standup`, `sprint-planning`, `worklog-report`, `jira-worklog`, `refinement` (PM perspective), `epic-breakdown` (PM perspective)
 
 ## What is Claude Code?
 
@@ -138,7 +138,7 @@ After `/init` completes, your workspace will look like this:
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 41 workflow skills
+│   └── skills/                   ← 42 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -238,7 +238,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 41 workflow skills
+│   └── skills/                # 42 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory

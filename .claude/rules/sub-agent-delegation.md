@@ -106,6 +106,26 @@ If the sub-agent triggers a self-regulation stop (score > 35%) or encounters an 
 
 Skills that only read data (my-triage, standup, review-pr analysis phase) do not need restore points.
 
+## Fan-In Validation
+
+When the Strategist dispatches multiple parallel sub-agents and needs to synthesize their results, validate all completion envelopes before proceeding. This prevents silent partial failures from corrupting synthesis.
+
+### Validation steps
+
+1. **Before dispatch**: record the expected agent set (e.g., `expected: ["explorer_a", "explorer_b", "critic"]`)
+2. **On each return**: check the completion envelope:
+   - `Status` must be present (`DONE`, `BLOCKED`, or `PARTIAL`)
+   - `Artifacts` must be non-empty for `DONE` status (otherwise the agent returned "success" with no output)
+   - `Summary` must be present and non-trivial (not just "done")
+3. **Before synthesis**: verify all expected agents have returned. If any is missing or returned `BLOCKED`/`PARTIAL`:
+   - Missing → report to user, do not synthesize with incomplete data
+   - `BLOCKED` → read the `Blocker:` line, decide whether to retry or escalate
+   - `PARTIAL` → read the `Remaining:` line, decide whether partial data is sufficient for synthesis
+
+### Why this matters
+
+The real risk in parallel sub-agent execution is not "agent didn't return" (Claude Code's Agent tool blocks until return) — it's "agent returned `DONE` with empty or garbage content." The envelope validation catches this before the Strategist builds conclusions on incomplete data.
+
 ## Operational Rules
 
 - **Prefer local repo for reading files**: when `{base_dir}/<repo>` exists, sub-agents must use the Read tool or local git commands to read files — do not use `gh api repos/.../contents/` for remote reads. Remote mode is only a fallback when no local clone exists
