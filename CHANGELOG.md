@@ -4,6 +4,11 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.63.0] - 2026-04-05
+
+- **sync-to-polaris post-sync leak check** — new `leak_check()` function in `sync-to-polaris.sh` that runs between commit and push. Extracts company-specific patterns from all `workspace-config.yaml` files (JIRA ticket keys as `KEY-\d+`, domain names, Slack channel IDs, GitHub orgs) and greps the polaris template. Warns on matches but does not block push. First scan found 71 hits to genericize over time
+- **VR strict judgment backlog cleanup** — merged two duplicate entries, confirmed VR SKILL.md already has "Strict mode (fixtures active)" section with zero-diff-only pass criteria
+
 ## [1.62.0] - 2026-04-05
 
 - **Mockoon fixture per-Epic lifecycle** — epic-verification-workflow.md gains Fixture Lifecycle section: record at Epic start, re-record after cross-repo API task, develop on stable fixtures, delete on release. kkday playwright-testing.md gains full Mockoon integration doc (architecture, recording workflow, parallel Epic isolation design). Backlog item updated from "pending" to "design complete"

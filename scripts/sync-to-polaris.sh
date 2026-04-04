@@ -97,6 +97,114 @@ copy_file() {
   echo "  + $label"
 }
 
+# ── Leak check: scan synced files for company-specific patterns ──
+leak_check() {
+  local polaris_dir="$1"
+  shift
+  local company_dirs=("$@")
+
+  if [[ ${#company_dirs[@]} -eq 0 ]]; then return 0; fi
+
+  # Collect patterns from each company's workspace-config.yaml
+  local patterns=()
+  for company in "${company_dirs[@]}"; do
+    local cfg="$INSTANCE_DIR/$company/workspace-config.yaml"
+    [[ -f "$cfg" ]] || continue
+
+    # JIRA project keys as ticket patterns (e.g., GT-\d+, KB2CW-\d+)
+    # Use ticket format (KEY-123) to avoid false positives on short keys like "GT"
+    while IFS= read -r key; do
+      [[ -n "$key" ]] && patterns+=("${key}-[0-9]+")
+    done < <(python3 -c "
+import yaml, sys
+with open('$cfg') as f:
+    d = yaml.safe_load(f)
+for p in d.get('jira', {}).get('projects', []):
+    k = p.get('key', '')
+    if k and len(k) >= 2:
+        print(k)
+" 2>/dev/null || true)
+
+    # Domain names (e.g., kkday.com, sit.kkday.com)
+    while IFS= read -r domain; do
+      [[ -n "$domain" ]] && patterns+=("$domain")
+    done < <(python3 -c "
+import yaml, sys
+with open('$cfg') as f:
+    d = yaml.safe_load(f)
+urls = d.get('web_urls', {})
+for k, v in urls.items():
+    if isinstance(v, str) and '.' in v:
+        # Extract domain from URL
+        import re
+        m = re.search(r'://([^/]+)', v)
+        if m:
+            print(m.group(1))
+ji = d.get('jira', {}).get('instance', '')
+if ji:
+    print(ji)
+" 2>/dev/null || true)
+
+    # Slack channel IDs (e.g., C08NJ2GL204)
+    while IFS= read -r ch; do
+      [[ -n "$ch" ]] && patterns+=("$ch")
+    done < <(python3 -c "
+import yaml, sys
+with open('$cfg') as f:
+    d = yaml.safe_load(f)
+channels = d.get('slack', {}).get('channels', {})
+for k, v in channels.items():
+    if isinstance(v, str) and v.startswith('C'):
+        print(v)
+" 2>/dev/null || true)
+
+    # GitHub org (e.g., kkday-it)
+    while IFS= read -r org; do
+      [[ -n "$org" ]] && patterns+=("$org")
+    done < <(python3 -c "
+import yaml, sys
+with open('$cfg') as f:
+    d = yaml.safe_load(f)
+org = d.get('github', {}).get('org', '')
+if org:
+    print(org)
+" 2>/dev/null || true)
+  done
+
+  if [[ ${#patterns[@]} -eq 0 ]]; then return 0; fi
+
+  # Deduplicate patterns
+  local unique_patterns
+  unique_patterns=$(printf '%s\n' "${patterns[@]}" | sort -u)
+
+  # Build grep pattern (alternation)
+  local grep_pattern
+  grep_pattern=$(echo "$unique_patterns" | paste -sd '|' -)
+
+  # Scan all .md files in the polaris template
+  local hits
+  hits=$(grep -rn -E "$grep_pattern" "$polaris_dir/.claude/" "$polaris_dir/docs/" "$polaris_dir/CLAUDE.md" "$polaris_dir/README.md" "$polaris_dir/README.zh-TW.md" 2>/dev/null | grep -v "Binary file" || true)
+
+  if [[ -n "$hits" ]]; then
+    echo ""
+    echo "⚠  Leak check: company-specific patterns found in template!"
+    echo "   Patterns searched: $(echo "$unique_patterns" | tr '\n' ', ' | sed 's/,$//')"
+    echo ""
+    echo "$hits" | head -20
+    local count
+    count=$(echo "$hits" | wc -l | tr -d ' ')
+    if [[ "$count" -gt 20 ]]; then
+      echo "   ... and $((count - 20)) more matches"
+    fi
+    echo ""
+    echo "   These may be company-specific references that should be genericized."
+    echo "   Continuing push (warn only, not blocking)."
+    return 0
+  fi
+
+  return 0
+}
+
 copy_dir() {
   local src="$1" dst="$2" label="$3"
   if [[ ! -d "$src" ]]; then return; fi
@@ -231,7 +339,13 @@ if [[ "$AUTO_COMMIT" == true ]]; then
   fi
 fi
 
-# ── Step 9: Auto-push (with account switch) ───────────────────────
+# ── Step 9b: Leak check ──────────────────────────────────────────
+
+if [[ "$AUTO_COMMIT" == true ]]; then
+  leak_check "$POLARIS_DIR" "${COMPANY_DIRS[@]}"
+fi
+
+# ── Step 10: Auto-push (with account switch) ──────────────────────
 
 if [[ "$AUTO_PUSH" == true ]]; then
   echo ""
