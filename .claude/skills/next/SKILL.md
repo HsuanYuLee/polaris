@@ -1,15 +1,16 @@
 ---
 name: next
 description: >
-  Zero-input context router — reads todo list, git branch, git status, and JIRA ticket
-  state to auto-determine and invoke the correct next action. Reduces user memory burden
-  after context compression or session breaks. Use when: (1) user says "下一步", "next",
-  "繼續", "continue", "然後呢", "what's next", "接下來", (2) user returns to a session
-  and wants to resume, (3) after completing a task and wondering what to do next.
+  Zero-input context router — reads cross-session memory, todo list, git branch, git status,
+  and JIRA ticket state to auto-determine and invoke the correct next action. Handles both
+  ticket-based work and cross-session recovery (memory, checkpoints, WIP branches).
+  Use when: (1) user says "下一步", "next", "繼續", "continue", "然後呢", "what's next",
+  "接下來", "推進手上的事情", (2) user returns to a session and wants to resume,
+  (3) after completing a task and wondering what to do next.
   Key distinction: "做 PROJ-123" → work-on (explicit ticket); "下一步" with no ticket → here.
 metadata:
   author: Polaris
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # Next — 自動判斷下一步
@@ -20,6 +21,7 @@ metadata:
 
 按優先級依序檢查：
 
+0. **Cross-session memory** — 是否有上次未完成的工作？（跨 session 恢復）
 1. **Todo list** — 是否有未完成的任務？
 2. **Git branch** — 當前 branch 是否包含 JIRA ticket key？
 3. **Git status** — 是否有未 commit 的變更？
@@ -39,7 +41,15 @@ git -C {project_path} status --porcelain
 
 # Git diff stats (if any changes)
 git -C {project_path} diff --stat
+
+# Git stash list (WIP from previous session?)
+git -C {project_path} stash list
 ```
+
+**Cross-session scan**（與上述並行）：
+1. 搜 MEMORY.md index 找 `type: project` 且 description 含「下一步」「待做」「待續」「in-progress」等 signal 的 memory
+2. 搜 checkpoints 目錄（`.claude/checkpoints/`）找最近 7 天內的 checkpoint 檔
+3. 若有 `wip/*` branch 存在（`git branch --list 'wip/*'`），記錄 branch 名稱
 
 從 branch name 提取 JIRA ticket key（格式：`task/PROJ-123-*` 或 `feat/PROJ-123-*`）。
 
@@ -63,6 +73,21 @@ gh pr list --search "<TICKET_KEY>" --state all \
 ## Step 3：決策樹
 
 ```
+Level -1: Cross-session recovery
+├─ 有 checkpoint（< 7 天）→ 讀取 checkpoint，呈現：
+│   「上次在做 {topic}（{date}），要繼續嗎？」
+│   ├─ 確認 → 走 Cross-Session Continuity 流程（CLAUDE.md § Cross-Session Continuity）
+│   └─ 拒絕 → 繼續 Level 0
+├─ 有 wip/* branch → 呈現：
+│   「有 WIP branch `wip/{topic}`，要切回去繼續嗎？」
+│   ├─ 確認 → checkout wip branch，繼續 Level 1
+│   └─ 拒絕 → 繼續 Level 0
+├─ 有 project memory 含「下一步」signal → 呈現：
+│   「Memory 記錄上次在做 {topic}，下一步是 {next_step} — 從這裡繼續？」
+│   ├─ 確認 → 讀完整 memory file，執行 next_step
+│   └─ 拒絕 → 繼續 Level 0
+└─ 以上都沒有 → 繼續 Level 0
+
 Level 0: Todo list
 ├─ 有 in_progress 任務 → 回報任務內容，繼續執行
 ├─ 有 pending 任務（無 in_progress）→ 回報下一個 pending，開始執行
@@ -121,6 +146,13 @@ Level 4: 無 ticket context 或 ticket 已完成
 ```
 
 ```
+📍 Branch: main | 📦 Memory: 「KB2CW-3653 VR 驗證待跑」(2026-04-04)
+📋 Todo: 無
+
+→ 上次在做 GT-483 VR 驗證，下一步是跑 KB2CW-3653（develop vs main）— 從這裡繼續？
+```
+
+```
 📍 Branch: task/PROJ-450-checkout-flow
 📋 JIRA: In Development | 無 PR | Git: 3 files changed
 
@@ -144,3 +176,4 @@ Level 4: 無 ticket context 或 ticket 已完成
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0.0 | 2026-03-31 | Initial release — todo + git + JIRA + PR context routing |
+| 1.1.0 | 2026-04-04 | Level -1 cross-session recovery: memory scan, checkpoint detection, wip/* branch detection. Handles "推進手上的事情" for both ticket-based and memory-based work |
