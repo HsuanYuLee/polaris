@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.70.0] - 2026-04-05
+
+- **VR 架構修正：走 Docker nginx，不走 localhost** — VR base_url 從 `localhost:3001` 改回 `dev.kkday.com`（Docker nginx）。之前因 Docker compose v2 壞掉繞過 nginx，導致整個架構歪掉（Product page "SSR hang"、Search page "不在 b2c-web" 都是偽問題）。現在回到正確路徑：Playwright → Docker nginx → b2c-web / member-ci / mobile-member-ci
+- **移除 Search page** — `kkday.com/zh-tw/search/?keyword=tokyo` production 回 404，頁面不存在。從 spec 和 workspace-config 移除
+- **Product page 解除 skip** — 走 Docker nginx 後 SSR 應能正常 render，之前的 "hang" 可能是 localhost 直打造成的
+- **移除 polaris-env.sh env override 自動注入** — 不再需要 Mockoon 取代 nginx，b2c-web 通過 Docker 網路呼叫 member-ci
+- **feedback memory** — 記錄 workaround 累積導致架構歪掉的完整路徑，`no-workaround-accumulation` 教科書案例
+
 ## [1.69.0] - 2026-04-05
 
 - **VR JIRA 圖文報告** — Step 5b 擴充為三步（收集 artifacts → `jira-upload-attachment.sh` 批次上傳 → 解析 URL）。Step 5c 改為 wiki markup 圖文穿插報告（每頁一 section，PASS 附截圖，FAIL 附 diff 圖，SKIP 附原因）。MCP markdown mode 不支援 attachment 引用，改用 REST API v2 + wiki markup

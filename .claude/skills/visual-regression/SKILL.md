@@ -173,28 +173,35 @@ Adapt package manager to the project (npm/yarn/pnpm).
 
 ### 2b. Start environment via polaris-env.sh
 
-Use the shared one-click environment script to start Mockoon fixtures + dev server:
+Use the shared one-click environment script to start Docker + dev server:
 
 ```bash
 bash {workspace_root}/scripts/polaris-env.sh start {company} --vr
 ```
 
 This handles:
-- **Layer 2 (Fixtures)**: starts Mockoon proxy with deterministic API responses. Idempotent — skips already-running instances
-- **Layer 3 (Dev server)**: starts the b2c/web project's dev server with `-C` path. Skips `requires` check in `--vr` profile (Mockoon replaces Docker dependencies)
+- **Layer 1 (Docker)**: starts kkday-web-docker (nginx + member-ci + mobile-member-ci). Nginx proxies all domain routes to the correct backend
+- **Layer 3 (Dev server)**: starts b2c-web standalone — Docker nginx proxies to it for b2c routes
 - **Layer 4 (Verify)**: health-checks all started services
+
+**Architecture: Playwright → Docker nginx (dev.kkday.com) → upstream repos**
+
+```
+Playwright → dev.kkday.com (Docker nginx)
+                ├── /zh-TW/*           → kkday-b2c-web (localhost:3001)
+                ├── /api/internal/*    → kkday-member-ci (Docker)
+                └── /mobile/*          → kkday-mobile-member-ci (Docker)
+```
+
+All routes that exist in production are testable through nginx. Do NOT bypass nginx by hitting `localhost:3001` directly — that only tests b2c-web routes and misses member-ci/mobile-member-ci.
 
 **Check the output** — if any layer fails, `polaris-env.sh` reports which service failed. Decide:
 
 | Situation | Action |
 |-----------|--------|
 | All layers ✓ | Proceed to Step 3 |
-| Fixtures failed, dev server ✓ | Warn: "截圖將使用真實 API 資料 — 若後端資料有異動，可能出現假陽性" → proceed |
+| Docker failed | Stop. Fix Docker first — all routes depend on nginx |
 | Dev server failed | Stop. Check log at `/tmp/polaris-env/{company}/{project}.log` |
-
-**Proxy vs Mock mode:**
-- VR tests use **proxy mode** (`--proxy enabled`) — fixtures served locally, unmatched routes fall through to SIT proxy
-- **Pure mock mode** (`--proxy disabled`) is NOT recommended — SSR pages call dynamic endpoints that need live proxy fallback
 
 ### 2c. Cleanup plan
 
