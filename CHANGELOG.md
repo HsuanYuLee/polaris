@@ -4,6 +4,12 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.68.0] - 2026-04-05
+
+- **VR domain-level testing principle** — VR tests domains, not repos. Skip reasons changed from "not in this repo" to actionable TODOs (missing fixtures, SSR investigation needed). Feedback memory recorded for cross-session enforcement
+- **VR SKILL.md Step 5c: JIRA update required** — VR results (pass/fail/skip with reasons) must be written to JIRA verification ticket after every run. Structured comment template added
+- **VR backlog: 5 coverage completeness items** — Product page fixture gap, Search Results fixture, dual-endpoint consistency validation, JIRA auto-update AC, polaris-env.sh env override automation
+
 ## [1.67.0] - 2026-04-05
 
 - **Design doc persistence in work-on** — `work-on` now writes a per-ticket design doc to `.claude/designs/{TICKET-KEY}.md` at two points: batch Phase 1 Step 1e (after user confirms analysis) and single-ticket Step 5g (after AC Gate). Design docs capture technical approach, test plan, sub-tasks, and decisions. Phase 2 sub-agents now read the design doc file instead of receiving inline analysis text, reducing prompt size and enabling cross-session resume via file read. `.claude/designs/` added to `.gitignore`

@@ -347,6 +347,34 @@ Attach these to the verification ticket or PR description.
 
 If VR was run standalone (not as part of a ticket flow), skip this step — snapshots are ephemeral.
 
+### 5c. Update JIRA verification ticket (required)
+
+Regardless of pass or fail, VR results **must** be written to the JIRA verification ticket as a comment. This is required — humans need the results to review and tune.
+
+Comment format:
+
+```markdown
+## VR 結果 — {comparison_type} ({date})
+
+**結論：{N}/{total} PASS, {diff_summary}**
+
+| Page | Desktop | Mobile |
+|------|---------|--------|
+| {page} | {result} | {result} |
+
+### Skip 原因
+- {page} — {reason}
+
+### 測試條件
+- Baseline: {baseline_description}
+- Comparison: {comparison_description}
+- Fixtures: {fixture_state}
+```
+
+- **PASS pages**: confirm zero visual impact
+- **FAIL pages**: include diff percentage and which areas changed
+- **SKIP pages**: explain why (missing fixtures, SSR hang, etc.) — reviewer needs to know coverage gaps
+
 ---
 
 ## Step 6: Cleanup

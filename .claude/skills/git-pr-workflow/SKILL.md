@@ -96,6 +96,38 @@ Never proceed to commit/PR with test results that predate the most recent code c
 - 若 verify-completion 回報 FAIL → 回到開發修正，修正後重新從 Step 3 開始
 - 若為純 config 變更、型別定義修改等不需要行為驗證的場景 → 跳過此步驟
 
+### Step 3.7：VR Gate（視覺回歸檢查）
+
+> Reference: `skills/references/epic-verification-workflow.md` § VR Gate
+
+在 commit 前，條件觸發 visual regression 檢查，確保改動不破壞已有頁面的畫面。
+
+**觸發條件**（兩項同時滿足才執行）：
+
+1. 公司 workspace-config 有 `visual_regression.domains[]` 設定
+2. `git diff --name-only` 包含前端可見代碼：
+   - `pages/`, `components/`, `layouts/`, `composables/`
+   - `*.vue`, `*.css`, `*.scss`
+   - `server/`, `plugins/`（SSR 相關）
+
+**執行方式：**
+
+讀取 `visual-regression` SKILL.md 並執行。VR skill 負責啟動環境（`polaris-env.sh --vr`）、截圖比對、清理。
+
+**Gate 行為：**
+
+| VR 結果 | 動作 |
+|---------|------|
+| `PASS` | 繼續 Step 4 |
+| `PASS_WITH_DIFFS` | 顯示 diff 截圖，問使用者是否接受。接受 → 繼續；不接受 → 回到開發修正 |
+| `BLOCK` | 停止。修正後重新從 Step 3 開始 |
+
+**Skip 條件：**
+
+- 觸發條件不滿足（非前端改動或無 VR 設定）→ 靜默跳過
+- 純 config 變更、型別定義修改 → 跳過
+- 使用者明確說「skip VR」→ 跳過，但在 PR description 標記「VR: skipped by developer」
+
 ### Step 4：Pre-PR Review Loop（Sub-Agent 迭代審查）
 
 在 commit 之前，啟動 Sub-Agent 對本地 diff 進行 code review，根據結果修正後再重新送審，直到沒有 blocking issues。這確保 PR 開出來時品質已經過關，減少人工 review 來回。
