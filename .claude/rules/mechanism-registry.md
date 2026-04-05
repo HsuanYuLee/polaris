@@ -64,6 +64,7 @@ These are real escape patterns observed in GT-483 and other sessions. When you n
 | `feedback-backlog-classification` | New feedback memory that describes a framework gap must also write a backlog entry | FRAMEWORK_GAP feedback created without corresponding `polaris-backlog.md` entry | Medium |
 | `project-backlog-classification` | Project memory with action items (待實施/下一步/需要解決) must also write FRAMEWORK_GAP items to backlog | Project memory containing "待實施" or "pending" without corresponding backlog entry | High |
 | `memory-company-hard-skip` | Skip memories with mismatched company field | Company-scoped memory applied to a different company's work | Medium |
+| `cross-session-carry-forward` | Writing next-session memory must diff previous checkpoint's pending items — no silent drops | New project memory's "next steps" missing items from previous checkpoint without (a) done / (b) carry-forward / (c) dropped disposition | **Critical** |
 
 ### Context Management (source: `rules/context-monitoring.md`)
 
@@ -73,6 +74,7 @@ These are real escape patterns observed in GT-483 and other sessions. When you n
 | `no-file-reread` | Don't read same file > 2 times unless modified | Same file path in > 2 Read calls in one conversation | Medium |
 | `post-compression-company-context` | After compression, re-confirm active company | Work continues post-compression without company context check | High |
 | `proactive-context-check-at-20` | After 20+ tool calls without milestone, proactively save state and assess delegation | Long conversation without milestone summary or delegation assessment | Medium |
+| `checkpoint-mode-at-25` | 25+ tool calls with pending work → enter checkpoint mode (save state + diff previous checkpoint + suggest new session) | Long session ends with next-session memory that drops items from previous checkpoint | High |
 
 ### Bash Execution (source: `rules/bash-command-splitting.md`)
 
@@ -173,8 +175,9 @@ Post-task audit should check these first (highest drift risk, most impactful):
 2. `skill-first-invoke` / `no-manual-skill-steps`
 3. `fix-through-not-revert` / `query-original-impl`
 4. `delegate-exploration` / `delegate-implementation`
-5. `cross-session-read-memory-file`
+5. `cross-session-read-memory-file` / `cross-session-carry-forward`
 6. `post-task-feedback-reflection` (note: correction = immediate trigger, don't defer)
+6a. `checkpoint-mode-at-25` (check during long sessions, not just post-task)
 7. `re-test-after-fix` / `fresh-verification-before-completion`
 8. `cross-repo-verification` / `env-follows-requires`
 9. `no-cd-in-bash` / `no-independent-cmd-chaining`

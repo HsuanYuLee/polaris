@@ -60,6 +60,21 @@ The rules above are self-enforced by the Strategist. For additional protection, 
 2. Assess whether remaining work should be delegated to a sub-agent
 3. If the conversation is approaching a natural break, suggest the user start a fresh session
 
+### 5a. Checkpoint Mode on Context Pressure
+
+When **tool call count exceeds 25** AND there are **pending todo items or unfinished work**, the Strategist must proactively enter checkpoint mode:
+
+1. **Save checkpoint memory** — write a `type: project` memory with:
+   - What was completed in this session
+   - What is still pending (with enough context to resume)
+   - Key artifacts (branch name, PR URL, ticket key, file paths)
+2. **Diff previous checkpoint** — apply the Cross-Session Carry-Forward Check (see `feedback-and-memory.md`) to ensure nothing is silently dropped
+3. **Notify the user**: "Context 接近極限，已存檔。建議開新 session 繼續，輸入「繼續 {topic}」即可接續。"
+
+**Why:** v1.71.0 retrospective — a long debugging session consumed all context on fixing gzip headers, then wrote a next-session memory that dropped pending items from the previous checkpoint (JIRA report, verification ticket update). By the time the session ended, the Strategist had lost awareness of earlier obligations.
+
+**The key behavior:** checkpoint mode is not "stop working" — it's "save state thoroughly before context compression makes you forget." The cost of a 30-second checkpoint is far less than a dropped deliverable.
+
 ### 6. Segment Large Tasks
 
 When a task is expected to produce many tool calls (> 30):

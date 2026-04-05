@@ -4,6 +4,12 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.72.0] - 2026-04-06
+
+- **Cross-Session Carry-Forward Check** — 寫 next-session memory 前必須 diff 前一份 checkpoint 的 pending items。每個 item 必須標記為 (a) done / (b) carry-forward / (c) dropped，不允許靜默丟棄。根因：v1.71 session 掉了 JIRA VR 報告，因為 4/6 session 寫新 memory 時沒回頭檢查 4/5 checkpoint 的未完成項
+- **Checkpoint Mode at 25 Tool Calls** — tool call > 25 且有 pending work 時，主動進入存檔模式：寫 checkpoint memory + diff 前一份 checkpoint + 建議開新 session。防止 context 耗盡導致跨 session 狀態遺失
+- **mechanism-registry 新增** — `cross-session-carry-forward` (Critical) + `checkpoint-mode-at-25` (High)，加入 Priority Audit Order #5 和 #6a
+
 ## [1.71.0] - 2026-04-06
 
 - **VR 確定性修復：fixture gzip header 根因** — Mockoon fixture 的 `Content-Encoding: gzip` header 搭配 plain JSON body 導致 Mockoon crash（嘗試解壓非壓縮資料）。這同時是 proxy mode 崩潰和 Product page SSR hang 的根因。移除 14 個 response 的 gzip header 後，8/8 zero-diff、Product page 首次正常渲染

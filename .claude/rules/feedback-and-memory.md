@@ -25,6 +25,22 @@ How to apply:
 3. Resume the fix
 4. This takes < 30 seconds and prevents the feedback loop from going silent
 
+## Cross-Session Carry-Forward Check
+
+When writing a "next session" or checkpoint memory (`type: project` with 下一步/next steps), the Strategist must diff against the previous checkpoint before finalizing:
+
+1. **Read the most recent `type: project` checkpoint** in MEMORY.md for the same topic/ticket
+2. **Compare its pending items** (下一步, 待處理, TODO) against the current session's completed work
+3. **Every pending item must be accounted for** — one of three dispositions:
+   - **(a) Done** — completed in this session → note as completed in the new memory
+   - **(b) Carry-forward** — still pending → copy to the new memory's next steps, mark as `[carry-forward]`
+   - **(c) Dropped** — no longer relevant → note as dropped with reason in the new memory
+4. **No silent drops** — if a pending item from the previous checkpoint doesn't appear in the new memory at all, that's a carry-forward violation
+
+**Why:** v1.71.0 session dropped "JIRA VR 報告" — the 4/5 checkpoint listed it as pending, the 4/6 session wrote new next steps without checking the old list, and the item was silently lost for an entire session.
+
+**When to apply:** Every time a `type: project` memory is created or updated that contains a "next steps" section. This is a write-time check, not a read-time check.
+
 ## Pre-Write Dedup Check
 
 Before creating a new feedback memory, scan existing feedback memories for semantic overlap:
