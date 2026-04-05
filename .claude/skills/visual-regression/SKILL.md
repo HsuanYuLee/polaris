@@ -515,6 +515,90 @@ visual-regression: {PASS | PASS_WITH_DIFFS | BLOCK}
 
 ---
 
+## Fixture Recording Workflow (Record → Compare)
+
+When fixtures need to be created or updated (new domain setup, new API endpoints, stale data), use the two-phase Record → Compare flow. This is **not** a comparison mode — it's a fixture lifecycle operation that produces deterministic baselines for future VR runs.
+
+### When to use
+
+| Trigger | Action |
+|---------|--------|
+| First VR setup for a domain | Record all configured proxy routes |
+| New API endpoint added to `proxy-config.yaml` | Re-record to capture the new route |
+| Fixture data is stale (API response format changed) | Re-record affected routes |
+| User says "重錄 fixture", "re-record", "更新 fixture" | Run this workflow |
+
+### Phase 1: Record (proxy mode)
+
+Start the environment with `--record` flag — Mockoon runs as a **proxy**, forwarding requests to real backends and saving responses as fixtures:
+
+```bash
+bash {workspace_root}/scripts/polaris-env.sh start {company} --vr --record
+```
+
+Then capture baseline screenshots (these validate that proxy mode produces correct pages):
+
+```bash
+VR_BASE_URL={server.base_url} npx playwright test \
+  --update-snapshots \
+  -c ai-config/{company}/visual-regression/{domain}/playwright.config.ts
+```
+
+Review the Mockoon environment file — new routes are appended automatically. Check for:
+- **Unwanted dynamic data** (timestamps, session tokens) that would cause non-determinism
+- **`Content-Encoding: gzip` on plain JSON bodies** — Mockoon cannot decompress; remove the header if body is not actually gzipped
+- **Large responses** (> 1MB) — consider whether they need to be recorded or can be excluded
+
+Stop the environment:
+```bash
+bash {workspace_root}/scripts/polaris-env.sh stop {company}
+```
+
+### Phase 2: Compare (replay mode)
+
+Restart without `--record` — Mockoon replays saved fixtures:
+
+```bash
+bash {workspace_root}/scripts/polaris-env.sh start {company} --vr
+```
+
+Run Playwright normally (compares against Phase 1 baselines):
+
+```bash
+VR_BASE_URL={server.base_url} npx playwright test \
+  -c ai-config/{company}/visual-regression/{domain}/playwright.config.ts
+```
+
+**Expected result: zero-diff.** Proxy-recorded data replayed through the same code should produce identical screenshots. If diffs appear:
+
+| Symptom | Likely cause |
+|---------|-------------|
+| Data-dependent diff (numbers, text changed) | A dynamic endpoint was not captured by proxy — add it to `proxy-config.yaml` |
+| Layout shift | CSS depends on response timing — add `waitForPageReady` delay |
+| Missing content | Fixture response is gzipped but header says so — remove `Content-Encoding: gzip` header from fixture |
+| Completely blank page | SSR hang — fixture server not responding on expected port; check `health_ports` |
+
+### Phase 3: Commit fixtures
+
+After zero-diff is confirmed:
+
+1. Copy updated Mockoon environment files to `ai-config/{company}/mockoon-environments/`
+2. Update `proxy-config.yaml` if new routes were added
+3. Run reverse-sync: `{company}/polaris-sync.sh --reverse {project}`
+4. Fixtures are **not committed to the product repo** — they live in `ai-config/` (gitignored in product repos)
+
+### Relationship to comparison modes
+
+The Record → Compare workflow is orthogonal to the SIT / Local comparison modes:
+
+- **SIT mode** answers: "Does my local code look the same as staging?"
+- **Local mode** answers: "Did my code changes break any pages?"
+- **Record → Compare** answers: "Are my fixtures correct and deterministic?"
+
+After fixtures are validated via Record → Compare, normal VR runs (SIT or Local mode) use replay mode automatically (`polaris-env.sh start {company} --vr` without `--record`).
+
+---
+
 ## Edge Cases
 
 | Situation | Handling |

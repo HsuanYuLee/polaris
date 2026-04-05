@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.71.0] - 2026-04-06
+
+- **VR 確定性修復：fixture gzip header 根因** — Mockoon fixture 的 `Content-Encoding: gzip` header 搭配 plain JSON body 導致 Mockoon crash（嘗試解壓非壓縮資料）。這同時是 proxy mode 崩潰和 Product page SSR hang 的根因。移除 14 個 response 的 gzip header 後，8/8 zero-diff、Product page 首次正常渲染
+- **polaris-env.sh env override 恢復** — `--vr`/`--e2e` 自動從 `proxy-config.yaml` 讀 `env_override` 注入 dev server 啟動指令。v1.70.0 移除後發現仍需要（Mockoon fixture 需要 env override 才能攔截 API calls）
+- **VR SKILL.md：Record → Compare 兩階段流程** — 新增 Fixture Recording Workflow section，文件化 fixture 錄製（proxy mode）→ 驗證（replay mode）→ commit 的完整生命週期
+- **JIRA VR 報告補發** — GT-483 VR 通過 comment（8/8 zero-diff + 確定性措施 + 修復紀錄），修正上次 session 遺漏
+- **proxy-config.yaml 公司層** — 從 GT-483/ Epic 目錄 copy 到 `mockoon-environments/`，成為公司共用 config
+
 ## [1.70.0] - 2026-04-05
 
 - **VR 架構修正：走 Docker nginx，不走 localhost** — VR base_url 從 `localhost:3001` 改回 `dev.kkday.com`（Docker nginx）。之前因 Docker compose v2 壞掉繞過 nginx，導致整個架構歪掉（Product page "SSR hang"、Search page "不在 b2c-web" 都是偽問題）。現在回到正確路徑：Playwright → Docker nginx → b2c-web / member-ci / mobile-member-ci

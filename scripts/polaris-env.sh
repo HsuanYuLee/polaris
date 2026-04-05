@@ -2,13 +2,14 @@
 # polaris-env.sh — One-click environment startup for Polaris
 #
 # Usage:
-#   polaris-env.sh start {company} [--full | --vr | --e2e] [--project {name}]
+#   polaris-env.sh start {company} [--full | --vr | --e2e] [--record] [--project {name}]
 #   polaris-env.sh stop {company}
 #   polaris-env.sh status {company}
 #
 # Profiles (Layer 1 Docker always starts):
 #   --full (default)  Layer1(docker) + Layer3(all dev servers) + Layer4(verify)
-#   --vr              Layer1(docker) + Layer2(mockoon) + Layer3(first web/b2c project) + Layer4(verify)
+#   --vr              Layer1(docker) + Layer2(mockoon replay) + Layer3(b2c) + env overrides + Layer4(verify)
+#   --vr --record     Layer1(docker) + Layer2(mockoon proxy) + Layer3(b2c) + env overrides + Layer4(verify)
 #   --e2e             Layer1(docker) + Layer2(mockoon) + Layer3(all dev servers) + Layer4(verify)
 
 set -euo pipefail
@@ -130,13 +131,19 @@ for p in json.load(sys.stdin).get('projects',[]):
 
 # ── Layer 2: Fixtures (Mockoon) ──────────────────────────────────────────────
 start_fixtures() {
-  local company="$1" cfg="$2"
-  echo ""; echo "Layer 2: Fixtures (Mockoon)"
+  local company="$1" cfg="$2" record="${3:-false}"
+  local mode_label="replay"; [[ "$record" == "true" ]] && mode_label="proxy (record)"
+  echo ""; echo "Layer 2: Fixtures (Mockoon — $mode_label)"
 
   local start_cmd; start_cmd=$(jget "$cfg" "visual_regression.domains[0].fixtures.start_command")
   local ports_json; ports_json=$(jget "$cfg" "visual_regression.domains[0].fixtures.health_ports")
 
   if [[ -z "$start_cmd" ]]; then warn "No fixtures config found"; return 0; fi
+
+  # --record → pass --proxy to mockoon-runner.sh so it forwards unknown routes to real backends
+  if [[ "$record" == "true" ]]; then
+    start_cmd="$start_cmd --proxy"
+  fi
 
   local ports; ports=($(echo "$ports_json" | python3 -c "import json,sys; print(' '.join(str(p) for p in json.load(sys.stdin)))"))
 
@@ -226,10 +233,30 @@ for p in json.load(sys.stdin).get('projects',[]):
     elif [[ "$resolved_cmd" == npm\ * ]] && [[ ! -d "$project_dir/node_modules" ]]; then
       resolved_cmd="npm --prefix $project_dir ${resolved_cmd#npm }"
     fi
-    # Note: env override injection (Mockoon proxy) was removed in v1.70.0.
-    # VR now goes through Docker nginx (dev.kkday.com) — b2c-web calls member-ci
-    # via Docker network, not via Mockoon. Mockoon's role is optional determinism
-    # layer for member-ci's downstream services, configured separately if needed.
+    # VR/E2E: inject env overrides from proxy-config.yaml so SSR API calls go through Mockoon
+    if [[ "$profile" == "--vr" || "$profile" == "--e2e" ]]; then
+      local mockoon_dir; mockoon_dir=$(jget "$cfg" "visual_regression.domains[0].fixtures.start_command" | sed 's/.*start //')
+      mockoon_dir="${mockoon_dir/\~/$HOME}"
+      local proxy_cfg="$mockoon_dir/proxy-config.yaml"
+      if [[ -f "$proxy_cfg" ]]; then
+        local env_prefix; env_prefix=$(python3 -c "
+import yaml, sys
+with open('$proxy_cfg') as f:
+    cfg = yaml.safe_load(f)
+overrides = []
+for r in cfg.get('routes', []):
+    eo = r.get('env_override', '')
+    if eo:
+        overrides.append(eo)
+print(' '.join(overrides))
+" 2>/dev/null || echo "")
+        if [[ -n "$env_prefix" ]]; then
+          resolved_cmd="env $env_prefix $resolved_cmd"
+          local override_count; override_count=$(echo "$env_prefix" | wc -w)
+          warn "VR env overrides: $override_count vars injected from proxy-config.yaml"
+        fi
+      fi
+    fi
 
     eval "$resolved_cmd" > "$log" 2>&1 &
     save_pid "$company" "$name" $!
@@ -323,10 +350,11 @@ for p in json.load(sys.stdin).get('projects',[]):
 # ── Commands ─────────────────────────────────────────────────────────────────
 cmd_start() {
   local company="$1"; shift
-  local profile="--full" filter=""
+  local profile="--full" filter="" record=false
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --full|--vr|--e2e) profile="$1"; shift ;;
+      --record) record=true; shift ;;
       --project) filter="$2"; shift 2 ;;
       *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
@@ -336,11 +364,12 @@ cmd_start() {
   [[ -f "$cfg_path" ]] || { echo "ERROR: Config not found: $cfg_path" >&2; exit 1; }
   local cfg; cfg=$(parse_config "$cfg_path")
 
-  echo "Starting $company environment  [profile: $profile]"
+  local label="$profile"; $record && label="$profile --record"
+  echo "Starting $company environment  [profile: $label]"
   mkdir -p "$(pid_dir "$company")"
 
   start_infra "$company" "$cfg"
-  if [[ "$profile" == "--vr" || "$profile" == "--e2e" ]]; then start_fixtures "$company" "$cfg"; fi
+  if [[ "$profile" == "--vr" || "$profile" == "--e2e" ]]; then start_fixtures "$company" "$cfg" "$record"; fi
   start_devservers "$company" "$cfg" "$profile" "$filter"
   sleep 5  # Allow services to stabilize after ready_signal
   if ! verify_all "$cfg" "$profile" "$filter" "$company"; then
