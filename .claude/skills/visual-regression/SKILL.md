@@ -30,6 +30,17 @@ dev-quality-check → visual-regression → verify-completion → commit/PR
 
 ---
 
+## Core Principle: Domain-Level Testing
+
+VR 的測試單位是 **domain**（如 `www.kkday.com`），不是 repo。
+
+- 頁面清單由 URL path 定義，不以「這頁不在本 repo」為 skip 理由
+- 如果某頁在 local dev 無法載入（由其他 service 服務），VR 仍應嘗試；SIT mode 可完整覆蓋
+- VR 報 diff 時只報「哪一頁有問題」，不負責定位 repo — fix sub-agent 拿到 failing page 後自行查 routing / service map
+- 合法的 skip 理由：fixture 尚未建立、SSR 已知 hang（待修）、環境依賴缺失（待補）
+
+---
+
 ## Step 0: Read Config and Check Prerequisites
 
 ### 0a. Identify the domain
@@ -325,55 +336,121 @@ Playwright HTML Report:
 Visual regression passed ✅ — {N} 個頁面截圖一致，無畫面異常。
 ```
 
-### 5b. Preserve snapshots for verification artifacts
+### 5b. Collect and upload artifacts to JIRA
 
-If the VR run is part of a ticket verification flow (e.g., triggered by `verify-completion` or `work-on`), copy the "after" snapshots to a persistent location before cleanup deletes them:
+If the VR run is part of a ticket verification flow (e.g., triggered by `verify-completion` or `work-on`), collect screenshots and upload them to the JIRA ticket **before** cleanup deletes them.
+
+**Step 5b-1: Collect artifacts to a temp directory**
 
 ```bash
 ARTIFACT_DIR="/tmp/polaris-vr-artifacts/{ticket}-{timestamp}"
 mkdir -p "$ARTIFACT_DIR"
-cp -r ai-config/{company}/visual-regression/{domain}/snapshots/ "$ARTIFACT_DIR/"
+# Copy "after" snapshots (the final state)
+cp -r ai-config/{company}/visual-regression/{domain}/snapshots/ "$ARTIFACT_DIR/snapshots/"
+# Copy diff images if any (Playwright generates these for failures)
+cp -r ai-config/{company}/visual-regression/{domain}/test-results/ "$ARTIFACT_DIR/diffs/" 2>/dev/null || true
 ```
 
-These snapshots should be attached to the JIRA ticket or PR as verification evidence. The skill reports the artifact path:
+**Step 5b-2: Upload all artifacts to JIRA**
 
-```
-VR snapshots saved to: {ARTIFACT_DIR}
-  - desktop/Homepage-visual-regression/homepage.png
-  - mobile/Homepage-visual-regression/homepage.png
-  - ...
-Attach these to the verification ticket or PR description.
-```
+Use the shared upload script to attach screenshots and diff images:
 
-If VR was run standalone (not as part of a ticket flow), skip this step — snapshots are ephemeral.
-
-### 5c. Update JIRA verification ticket (required)
-
-Regardless of pass or fail, VR results **must** be written to the JIRA verification ticket as a comment. This is required — humans need the results to review and tune.
-
-Comment format:
-
-```markdown
-## VR 結果 — {comparison_type} ({date})
-
-**結論：{N}/{total} PASS, {diff_summary}**
-
-| Page | Desktop | Mobile |
-|------|---------|--------|
-| {page} | {result} | {result} |
-
-### Skip 原因
-- {page} — {reason}
-
-### 測試條件
-- Baseline: {baseline_description}
-- Comparison: {comparison_description}
-- Fixtures: {fixture_state}
+```bash
+# Collect all PNG files
+FILES=$(find "$ARTIFACT_DIR" -name "*.png" -type f)
+if [ -n "$FILES" ]; then
+  bash {workspace_root}/scripts/jira-upload-attachment.sh {ticket} $FILES
+fi
 ```
 
-- **PASS pages**: confirm zero visual impact
-- **FAIL pages**: include diff percentage and which areas changed
-- **SKIP pages**: explain why (missing fixtures, SSR hang, etc.) — reviewer needs to know coverage gaps
+The script outputs JSON per file with `filename`, `id`, and `url` fields. **Capture these URLs** — they are needed for the inline report in Step 5c.
+
+**Step 5b-3: Parse upload results**
+
+Store the mapping of `filename → attachment URL` for use in the JIRA comment. The `url` field from the upload response is the direct content URL that can be embedded in JIRA comments.
+
+If VR was run standalone (not as part of a ticket flow), skip upload — snapshots are ephemeral.
+
+### 5c. Write JIRA report with inline screenshots (required)
+
+Regardless of pass or fail, VR results **must** be written to the JIRA verification ticket as a **rich report with inline screenshots**. Plain text tables are insufficient — reviewers need to see the actual screenshots to judge visual quality.
+
+**Report format — interleaved text and images:**
+
+The comment uses JIRA wiki markup (not markdown) for inline image embedding:
+
+```
+h2. VR 結果 — {comparison_type} ({date})
+
+*結論：{N}/{total} PASS, {diff_summary}*
+
+h3. 測試條件
+* Baseline: {baseline_description}
+* Comparison: {comparison_description}
+* Fixtures: {fixture_state}
+
+----
+
+h3. ✅ Homepage — PASS (zero-diff)
+||Desktop||Mobile||
+|!homepage-desktop.png|thumbnail!|!homepage-mobile.png|thumbnail!|
+
+h3. ⚠ Product Page — FAIL (diff 3.2%)
+||Desktop — Diff||
+|!product-page-desktop-diff.png|thumbnail!|
+*變更區域：* footer 高度差異，cache key 遺漏 query params
+
+h3. ⏭ Search Results — SKIP
+*原因：* fixture 尚未建立，需攔截 search API calls 並錄製
+
+----
+
+h3. 判定
+{final_verdict — PASS / PASS_WITH_DIFFS / BLOCK}
+```
+
+**Key rules for the report:**
+
+1. **每頁一個 section** — 用 `h3.` 分隔，包含結果 emoji + 頁面名 + 結論
+2. **PASS pages**: 附 "after" 截圖（desktop + mobile 並排），一行確認無差異
+3. **FAIL pages**: 附 **diff 圖**（Playwright 生成的紅色差異圖）+ before/after 對比。描述差異區域和可能原因
+4. **SKIP pages**: 說明原因和解除條件（何時能啟用）
+5. **圖片用 wiki markup**: `!filename.png|thumbnail!` 讓 JIRA 顯示可點擊的縮圖
+6. **先上傳再寫 comment**: Step 5b 必須完成（圖片已在 JIRA attachments），comment 才能引用檔名
+
+**When screenshots are not available** (standalone run, upload failed):
+
+Fall back to text-only format with the summary table:
+
+```
+|| Page || Desktop || Mobile ||
+| Homepage | ✅ pass | ✅ pass |
+| Product | ⚠ diff 3.2% | ⚠ diff 2.9% |
+```
+
+Add a note: "截圖未上傳 — 請開 Playwright HTML report 查看：`npx playwright show-report ...`"
+
+**Posting method — REST API v2 with wiki markup (NOT MCP markdown)**:
+
+MCP `addCommentToJiraIssue` with `contentFormat: "markdown"` does NOT support `![](filename.png)` for referencing JIRA attachments — images render as broken blob URLs. Instead, post via JIRA REST API v2 which natively supports wiki markup:
+
+```bash
+source {company}/.env.secrets
+curl -s -X POST \
+  -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  "https://{site}.atlassian.net/rest/api/2/issue/{ticket}/comment" \
+  -d '{"body": "{wiki_markup_content}"}'
+```
+
+Wiki markup image syntax: `!filename.png|thumbnail!` — JIRA auto-resolves filenames from the ticket's attachments. Use in tables for side-by-side comparison:
+
+```
+|| || Desktop || Mobile ||
+| *Master baseline* | !before-homepage-desktop.png|thumbnail! | !before-homepage-mobile.png|thumbnail! |
+| *After* | !after-homepage-desktop.png|thumbnail! | !after-homepage-mobile.png|thumbnail! |
+| *Diff* | !diff-homepage-desktop.png|thumbnail! | !diff-homepage-mobile.png|thumbnail! |
+```
 
 ---
 

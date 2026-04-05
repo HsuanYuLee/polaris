@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.69.0] - 2026-04-05
+
+- **VR JIRA 圖文報告** — Step 5b 擴充為三步（收集 artifacts → `jira-upload-attachment.sh` 批次上傳 → 解析 URL）。Step 5c 改為 wiki markup 圖文穿插報告（每頁一 section，PASS 附截圖，FAIL 附 diff 圖，SKIP 附原因）。MCP markdown mode 不支援 attachment 引用，改用 REST API v2 + wiki markup
+- **jira-upload-attachment.sh** — 共用腳本，curl + JIRA REST API 批次上傳 attachment，自動從 `.env.secrets` 讀取 credentials。所有需要 JIRA 附件的 skill 可共用
+- **Fixture 一致性驗證** — `proxy-config.yaml` 新增 `migration_pairs` schema，`record-fixtures.sh` Step 6 自動比對新舊 endpoint 的 JSON key structure。支援 `key_structure` 和 `exact` 兩種比對模式，endpoint 遷移場景（如 i18n member-ci → api-lang）自動抓不一致
+- **polaris-env.sh env override 自動注入** — `--vr`/`--e2e` profile 下自動掃描 `environments_dir/*/proxy-config.yaml`，讀取所有 `env_override` 值 prepend 到 dev server 啟動指令。不再需要手動設定 `.env.local`
+- **Product page SSR hang 重分類** — 確認 fixture 已齊（`fetch_product/10000` + `fetch_packages_data`），hang 是 SSR code 層級 bug（API 全回但 render 不完成）。Backlog 從 "fixture 補全" 更新為 "SSR debug runbook"
+- **Search page 不在 b2c-web** — 確認 `/search/` 由外部服務處理，local dev 無法載入。SIT mode 可覆蓋
+
 ## [1.68.0] - 2026-04-05
 
 - **VR domain-level testing principle** — VR tests domains, not repos. Skip reasons changed from "not in this repo" to actionable TODOs (missing fixtures, SSR investigation needed). Feedback memory recorded for cross-session enforcement

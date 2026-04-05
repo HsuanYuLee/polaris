@@ -226,7 +226,30 @@ for p in json.load(sys.stdin).get('projects',[]):
     elif [[ "$resolved_cmd" == npm\ * ]] && [[ ! -d "$project_dir/node_modules" ]]; then
       resolved_cmd="npm --prefix $project_dir ${resolved_cmd#npm }"
     fi
-    eval "$resolved_cmd" > "$log" 2>&1 &
+    # Env override injection: when running --vr or --e2e, read env_override
+    # values from proxy-config.yaml files to route API calls through Mockoon
+    local env_prefix=""
+    if [[ "$profile" == "--vr" || "$profile" == "--e2e" ]]; then
+      local env_dir; env_dir=$(jget "$cfg" "visual_regression.domains[0].fixtures.environments_dir")
+      env_dir="${env_dir/\~/$HOME}"
+      if [[ -n "$env_dir" && -d "$env_dir" ]]; then
+        for proxy_cfg in "$env_dir"/*/proxy-config.yaml; do
+          [[ -f "$proxy_cfg" ]] || continue
+          while IFS= read -r override; do
+            [[ -n "$override" ]] && env_prefix="$override $env_prefix"
+          done < <(python3 -c "
+import yaml,sys
+with open('$proxy_cfg') as f: c=yaml.safe_load(f)
+for r in c.get('routes',[]):
+    ov=r.get('env_override','')
+    if ov: print(ov)
+" 2>/dev/null)
+        done
+        [[ -n "$env_prefix" ]] && echo "  env override: ${env_prefix% }"
+      fi
+    fi
+
+    eval "$env_prefix $resolved_cmd" > "$log" 2>&1 &
     save_pid "$company" "$name" $!
 
     if [[ -n "$sig" ]]; then
