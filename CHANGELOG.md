@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.73.0] - 2026-04-06
+
+- **Per-Epic Fixture Isolation** — fixture 管理從 root-level 遷移到 per-epic 子目錄（`mockoon-environments/GT-483/`）。每個 Epic 獨立一套完整 fixture，新 Epic 從上一個 copy + 重錄有變動的 route。刪除 root-level 12 個 legacy JSON 檔案
+- **mockoon-runner.sh `--epic` 參數** — `mockoon-runner.sh start <dir> --epic GT-483` 從子目錄載入 fixture。Root-level loading 標記 deprecated
+- **VR SKILL.md 三個 feedback 寫入** — (1) Mockoon CLI proxy 不自動錄 fixture，需手動 curl (2) 首次截圖品質閘門：zero-diff ≠ 正確，需人工確認 (3) JIRA attachment 同名覆蓋陷阱：wiki markup 綁 attachment ID 不是檔名
+- **VR SKILL.md Fixture Lifecycle section** — 文件化 per-epic 目錄結構、bootstrap 流程、runner 整合、設計決策（為何不做 base + overlay）
+- **GT-483 fixture 合併** — 從 root 補齊 11 條 route（mkt 1、svcb2c 2、hotel_product 4、product 4），GT-483 現為完整獨立集合（12 檔、47 routes）
+- **Gzip header 全清** — 最後一個殘留（GT-483/recommend `content-encoding: gzip`）已移除。來源：Mockoon proxy 錄製時抓了真實 server 的壓縮 header 但存了已解壓的 body
+
 ## [1.72.0] - 2026-04-06
 
 - **Cross-Session Carry-Forward Check** — 寫 next-session memory 前必須 diff 前一份 checkpoint 的 pending items。每個 item 必須標記為 (a) done / (b) carry-forward / (c) dropped，不允許靜默丟棄。根因：v1.71 session 掉了 JIRA VR 報告，因為 4/6 session 寫新 memory 時沒回頭檢查 4/5 checkpoint 的未完成項

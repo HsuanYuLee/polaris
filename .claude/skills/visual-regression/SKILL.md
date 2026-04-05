@@ -276,6 +276,16 @@ Playwright outputs:
 
 ## Step 5: Analyze Results
 
+### First-run quality gate
+
+**Zero-diff ≠ correct screenshots.** The first time VR runs after fixture setup or fixture changes, screenshots must be manually reviewed by the user before publishing results. Zero-diff only proves "two runs produced the same output" — if the baseline itself is wrong (missing content, wrong viewport, fixture gaps), the comparison passes with garbage.
+
+Known failure modes caught by this gate:
+- Homepage product area all grey (fixture missing routes → skeleton fallback renders identically both times)
+- Mobile shows desktop layout (UA not set → "wrong" version is consistent → zero-diff)
+
+**Checkpoint:** after the first VR run with new/changed fixtures, show screenshots to the user and ask: "截圖內容正確嗎？" Do NOT auto-publish the JIRA report until confirmed.
+
 ### Parse exit code and output
 
 | Playwright exit code | Meaning |
@@ -359,6 +369,10 @@ cp -r ai-config/{company}/visual-regression/{domain}/test-results/ "$ARTIFACT_DI
 ```
 
 **Step 5b-2: Upload all artifacts to JIRA**
+
+**⚠ JIRA attachment 同名覆蓋陷阱：** JIRA wiki markup `!filename.png|thumbnail!` binds to the attachment ID at comment creation time, not by filename lookup. If you upload a new file with the same name, old comments still point to the old attachment ID. Deleting the old attachment breaks all comments that reference it.
+
+**Safe re-upload flow:** delete old attachment first → upload new file → re-post the comment. Or use versioned filenames (`homepage-desktop-v2.png`), but this accumulates garbage.
 
 Use the shared upload script to attach screenshots and diff images:
 
@@ -544,9 +558,16 @@ VR_BASE_URL={server.base_url} npx playwright test \
   -c ai-config/{company}/visual-regression/{domain}/playwright.config.ts
 ```
 
-Review the Mockoon environment file — new routes are appended automatically. Check for:
+**⚠ Mockoon CLI proxy mode does NOT auto-record fixtures.** `--proxy enabled` only forwards unmatched requests to real backends — it does NOT save responses back to the environment JSON file. To add new fixtures:
+
+1. Start in proxy mode (`polaris-env.sh start {company} --vr --record`)
+2. Manually `curl` each endpoint you want to capture
+3. Copy the response into the Mockoon environment JSON as a new route
+4. Long-term: automate via Node.js recording proxy or Mockoon admin API (backlog)
+
+Review the Mockoon environment file after adding routes. Check for:
 - **Unwanted dynamic data** (timestamps, session tokens) that would cause non-determinism
-- **`Content-Encoding: gzip` on plain JSON bodies** — Mockoon cannot decompress; remove the header if body is not actually gzipped
+- **`Content-Encoding: gzip` on plain JSON bodies** — proxy recording captures real server headers, but Mockoon stores the decompressed body. The header/body mismatch causes Node.js `undici` to fail decompression → SSR API calls 500. **Always remove `Content-Encoding: gzip` from recorded fixtures**
 - **Large responses** (> 1MB) — consider whether they need to be recorded or can be excluded
 
 Stop the environment:
@@ -580,10 +601,10 @@ VR_BASE_URL={server.base_url} npx playwright test \
 
 ### Phase 3: Commit fixtures
 
-After zero-diff is confirmed:
+After zero-diff is confirmed, fixtures stay in the **per-epic directory** — that is the source of truth:
 
-1. Copy updated Mockoon environment files to `ai-config/{company}/mockoon-environments/`
-2. Update `proxy-config.yaml` if new routes were added
+1. Verify all routes are in `ai-config/{company}/mockoon-environments/{epic}/`
+2. Update `proxy-config.yaml` if new routes or env overrides were added
 3. Run reverse-sync: `{company}/polaris-sync.sh --reverse {project}`
 4. Fixtures are **not committed to the product repo** — they live in `ai-config/` (gitignored in product repos)
 
@@ -596,6 +617,65 @@ The Record → Compare workflow is orthogonal to the SIT / Local comparison mode
 - **Record → Compare** answers: "Are my fixtures correct and deterministic?"
 
 After fixtures are validated via Record → Compare, normal VR runs (SIT or Local mode) use replay mode automatically (`polaris-env.sh start {company} --vr` without `--record`).
+
+---
+
+## Fixture Lifecycle: Per-Epic Isolation
+
+Fixtures are organized **per-epic** under `ai-config/{company}/mockoon-environments/{epic}/`. Each epic has a complete, independent set of Mockoon environment JSON files.
+
+### Directory structure
+
+```
+ai-config/{company}/mockoon-environments/
+├── GT-483/                    ← Epic fixtures (source of truth)
+│   ├── dev.kkday.com.json
+│   ├── api-lang.sit.kkday.com.json
+│   ├── recommend.sit.kkday.com.json
+│   └── ...
+├── GT-500/                    ← Next epic (bootstrapped from GT-483)
+│   └── ...
+└── proxy-config.yaml          ← Shared env override config
+```
+
+No root-level `*.json` files — the epic directory IS the environments directory.
+
+### Bootstrap a new epic
+
+When starting a new epic that needs VR:
+
+1. Copy the previous epic's fixtures as a starting point:
+   ```bash
+   cp -r ai-config/{company}/mockoon-environments/{prev-epic}/ ai-config/{company}/mockoon-environments/{new-epic}/
+   ```
+2. Review which routes are relevant — remove stale routes for APIs no longer tested
+3. Re-record any routes where the API response format has changed (see Record → Compare workflow)
+4. Update `workspace-config.yaml` → `fixtures.start_command` to point to the new epic directory via `--epic {new-epic}`
+
+### Why per-epic (not shared base + overlay)
+
+- **Determinism** — each epic is a complete snapshot; no merge layer, no inheritance bugs
+- **Independence** — epic A's fixture changes can't break epic B's tests
+- **Simplicity** — `mockoon-runner.sh --epic GT-483` loads exactly what's in that directory, nothing else
+- **Storage is cheap** — a full fixture set is ~1.5MB; recording time is the real cost, and bootstrap from previous epic eliminates most of it
+
+### Runner integration
+
+`mockoon-runner.sh` supports `--epic {name}` to load from a subdirectory:
+
+```bash
+# Load from GT-483/ subdirectory
+mockoon-runner.sh start <environments_dir> --epic GT-483
+
+# Equivalent to: mockoon-runner.sh start <environments_dir>/GT-483
+```
+
+The `workspace-config.yaml` `start_command` includes the `--epic` flag:
+```yaml
+start_command: "~/work/scripts/mockoon/mockoon-runner.sh start ~/work/kkday/ai-config/kkday/mockoon-environments --epic GT-483"
+```
+
+When switching epics, update the `--epic` value in workspace config.
 
 ---
 
