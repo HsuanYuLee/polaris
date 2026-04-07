@@ -89,6 +89,12 @@ mcp__claude_ai_Atlassian__getJiraIssue
 > **[SOLUTION]**
 > 簡述修正方案，列出需要改動的檔案/模組
 >
+> **[VERIFICATION]**
+> 預計驗證方式（類似 AC），列出如何確認 bug 已修正：
+> - 重現原 bug 的操作步驟 → 預期修正後不再發生
+> - 相關邊界場景 → 預期行為正常
+> - 數據/監控面的確認方式（如適用）
+>
 > **建議點數：X 點**
 >
 > **對應標準：** （引用估點表中對應的描述）
@@ -126,6 +132,12 @@ mcp__claude_ai_Atlassian__addCommentToJiraIssue
 
     ## [SOLUTION]
     <修正方案>
+
+    ## [VERIFICATION]
+    預計驗證方式：
+    - <重現原 bug 步驟> → 預期修正後不再發生
+    - <邊界場景> → 預期行為正常
+    - <數據/監控確認>（如適用）
 
     ## 估點
     <X> 點（<對應標準描述>）

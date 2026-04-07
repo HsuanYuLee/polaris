@@ -4,6 +4,12 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.75.0] - 2026-04-07
+
+- **jira-estimation Bug VERIFICATION section** — Bug ticket 的 [ROOT_CAUSE] + [SOLUTION] 模板新增 `[VERIFICATION]` 段，列出預計驗證方式（重現步驟、邊界場景、數據確認），比照 Task 的 AC 概念
+- **pr-create-guard.sh env bypass** — 新增 `POLARIS_PR_WORKFLOW=1` 環境變數讓 git-pr-workflow skill 合法放行 `gh pr create`。修正 hook 無法區分「隨手開 PR」與「skill 品質檢查後開 PR」的設計缺口
+- **git-pr-workflow v3.4.0 Step 7** — 加上 `POLARIS_PR_WORKFLOW=1` 環境變數說明
+
 ## [1.74.0] - 2026-04-07
 
 - **VR Principles P1-P7** — 將 6 個 session 累積的 hard-won rules 集中寫入 SKILL.md（走 nginx proxy、CSR waitForSelector、mobile UA、proxy/replay mode 差異、首次截圖 quality gate、workers:1、JIRA wiki markup）。P1/P3 泛化為框架層原則，kkday 細節以 blockquote 附註

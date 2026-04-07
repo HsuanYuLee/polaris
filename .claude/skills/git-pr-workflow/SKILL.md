@@ -334,8 +334,10 @@ Rebase 可能帶入新的 inherited changeset（例如 base branch 上有新的 
 偵測結果回報使用者確認：`Base branch: feat/PROJ-483-ttfb-optimization（母單 PROJ-483 的 feature branch）`
 
 ```bash
-gh pr create --base <detected-base> --title "[JIRA-KEY] summary" --body "..."
+POLARIS_PR_WORKFLOW=1 gh pr create --base <detected-base> --title "[JIRA-KEY] summary" --body "..."
 ```
+
+> `POLARIS_PR_WORKFLOW=1` 讓 `pr-create-guard.sh` hook 放行。此環境變數只在 Step 7 使用，確保品質檢查已完成才開 PR。
 
 ### Step 8：Transition JIRA Status → CODE REVIEW
 
