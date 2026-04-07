@@ -4,6 +4,12 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.76.0] - 2026-04-07
+
+- **fix-bug Step 4.5 AC Local Verification** — 開發完成後、發 PR 前，根據 ticket 的 [VERIFICATION] Local 項目逐一驗證（unit test / Playwright 截圖 / 手動確認），結果更新回 JIRA。Post-deploy 項目標記「待 SIT 驗證」不阻擋 PR
+- **fix-bug VR Gate（條件觸發）** — 改動涉及前端可見代碼（pages/components/layouts/*.vue/*.scss）且有 VR 設定時，自動觸發 visual regression 檢查
+- **jira-estimation VERIFICATION 兩層模板** — Bug 的預計驗證方式分 Local（PR 前，RD 負責）和 Post-deploy（SIT/Prod，驗證子任務追蹤）兩層，JIRA comment 模板同步更新
+
 ## [1.75.0] - 2026-04-07
 
 - **jira-estimation Bug VERIFICATION section** — Bug ticket 的 [ROOT_CAUSE] + [SOLUTION] 模板新增 `[VERIFICATION]` 段，列出預計驗證方式（重現步驟、邊界場景、數據確認），比照 Task 的 AC 概念

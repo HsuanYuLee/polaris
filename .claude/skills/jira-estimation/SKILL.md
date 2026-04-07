@@ -90,10 +90,15 @@ mcp__claude_ai_Atlassian__getJiraIssue
 > 簡述修正方案，列出需要改動的檔案/模組
 >
 > **[VERIFICATION]**
-> 預計驗證方式（類似 AC），列出如何確認 bug 已修正：
+> 預計驗證方式（類似 AC），分兩層列出：
+>
+> **Local 驗證（PR 前，RD 負責）：**
 > - 重現原 bug 的操作步驟 → 預期修正後不再發生
 > - 相關邊界場景 → 預期行為正常
-> - 數據/監控面的確認方式（如適用）
+> - 可自動化的寫 unit test，可手動驗的用 Playwright/curl 截圖
+>
+> **Post-deploy 驗證（SIT/Prod，[驗證] 子任務追蹤）：**
+> - 需要真實環境才能確認的項目（第三方服務、數據面、跨服務）
 >
 > **建議點數：X 點**
 >
@@ -134,10 +139,13 @@ mcp__claude_ai_Atlassian__addCommentToJiraIssue
     <修正方案>
 
     ## [VERIFICATION]
-    預計驗證方式：
+    ### Local 驗證（PR 前）
     - <重現原 bug 步驟> → 預期修正後不再發生
     - <邊界場景> → 預期行為正常
+
+    ### Post-deploy 驗證（SIT/Prod）
     - <數據/監控確認>（如適用）
+    - <第三方服務/跨服務確認>（如適用）
 
     ## 估點
     <X> 點（<對應標準描述>）

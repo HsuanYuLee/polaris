@@ -3,7 +3,7 @@ name: fix-bug
 description: "Use when the user wants to fix a bug reported in JIRA from start to PR. Trigger: 幫我修正, 'help me fix', 修 bug, 'fix bug', 開始修正, 'start fixing', 修正這張, 'fix this ticket'. NOT for fixing PR review comments (use fix-pr-review)."
 metadata:
   author: Polaris
-  version: 1.1.0
+  version: 1.2.0
 ---
 
 # Fix Bug — 端到端 Bug 修正流程
@@ -116,6 +116,30 @@ mcp__claude_ai_Atlassian__transitionJiraIssue
 - 與初版的差異說明
 - **估點變動 > 30% 時 pause 讓 RD 確認**
 
+### Step 4.5：AC Local Verification（本地驗證）
+
+開發完成後、發 PR 前，根據 ticket 的 `[VERIFICATION]` Local 驗證項目逐一檢查：
+
+1. **讀取 ticket 的 Local 驗證 AC**（從 Step 2 的 JIRA comment 或 description 取得）
+2. **逐項驗證：**
+   - 能寫 unit test 的 → 寫 unit test（永久回歸保護）
+   - 能用 Playwright / curl 驗的 → 執行並截圖
+   - 需要手動確認的 → 提示 RD 確認
+3. **更新 JIRA comment** — 以 comment 回報 Local 驗證結果，附截圖（如有）
+4. **Post-deploy 項目** → 標記「待 SIT/Prod 驗證」，不阻擋 PR
+
+```
+📋 AC Local Verification
+### Local 驗證
+- [x] <AC 項目> → ✅ unit test 通過 / 截圖確認
+- [x] <AC 項目> → ✅ Playwright 驗證
+
+### Post-deploy（待 SIT 驗證）
+- [ ] <AC 項目> → 需部署後確認
+```
+
+**VR Gate（條件觸發）：** 若改動涉及 `pages/`, `components/`, `layouts/`, `*.vue`, `*.scss`，且 workspace-config 有 `visual_regression` 設定 → 讀取 `visual-regression` SKILL.md 執行 VR 檢查。純 server/config/types 改動則跳過。
+
 ### Step 5：品質檢查 → Pre-PR Review → 發 PR（自動銜接）
 
 開發完成後，**自動 invoke `git-pr-workflow` skill** 處理後續（不需等使用者指示）：
@@ -158,6 +182,10 @@ Step 3.5: AC Gate（檢查/補上測試計畫 + 建 [驗證] 子任務）
 Step 4: TDD 開發（發現不同時更新 JIRA comment，>30% 估點變動 pause）
   │
   ▼
+Step 4.5: AC Local Verification（unit test + Playwright/截圖 → 更新 JIRA）
+  │        ↓ VR Gate（條件觸發：前端改動 + VR 設定存在）
+  │
+  ▼
 👤 RD 確認改動
   │
   ▼
@@ -175,6 +203,7 @@ Step 6: 記錄工時？（選擇性）
 | Step 2 | `jira-estimation` | Bug 根因分析 + 估點 |
 | Step 3 | `start-dev` 邏輯 + `jira-branch-checkout` | 狀態轉換 + 建分支 |
 | Step 4 | `tdd` + 專案 CLAUDE.md | TDD 開發 + 規範引導 |
+| Step 4.5 | `unit-test` + `visual-regression`（條件） | AC Local 驗證 + VR Gate |
 | Step 5 | `git-pr-workflow` | 品質檢查 → PR 全流程 |
 | Step 6 | `jira-worklog` | 工時記錄 |
 
