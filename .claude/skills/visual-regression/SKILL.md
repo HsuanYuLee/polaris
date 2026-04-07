@@ -41,6 +41,42 @@ VR 的測試單位是 **domain**（如 `www.kkday.com`），不是 repo。
 
 ---
 
+## VR Principles (Hard-Won Rules)
+
+These principles were established through debugging sessions. Violating any of them causes non-deterministic results or missed regressions.
+
+### P1. Always go through the production-equivalent proxy
+
+Never bypass the reverse proxy by hitting dev server ports directly (e.g., `localhost:3001`). The proxy (nginx, Caddy, etc.) routes domain paths to the correct upstream services. Direct port access only tests one service's routes and misses cross-service routing. If the proxy is broken, fix the proxy — don't route around it.
+
+> **kkday**: Docker nginx on `dev.kkday.com` routes to b2c-web, member-ci, mobile-member-ci. See `polaris-env.sh` Layer 1.
+
+### P2. Wait for CSR content with `waitForSelector`, never `waitForTimeout`
+
+CSR-rendered content renders AFTER `networkidle` — framework hydration triggers client-side fetches. `waitForTimeout(3000)` is a guess that fails under CPU contention. Instead, wait for a DOM element that only exists when the data has rendered. Define a `waitForCSRContent()` helper that calls `page.locator(selector).waitFor()` for each CSR section.
+
+### P3. Mobile requires User-Agent if the site uses UA-based SSR detection
+
+If the site uses server-side UA detection (e.g., `@nuxtjs/device`, `mobile-detect`) to render different layouts, setting viewport to 375px alone is NOT sufficient — SSR still returns desktop layout. Playwright mobile projects must set a mobile `userAgent` string. Check the site's SSR detection method before creating the mobile project config.
+
+### P4. Proxy mode hides missing fixtures — replay mode exposes them
+
+In proxy mode (`--record`), unmatched requests fall through to SIT → pages render correctly → missing fixtures go unnoticed. After switching to replay mode (`--proxy disabled`), those endpoints return 404 → CSR sections show skeleton/grey. **Always run a full VR pass + human screenshot review after switching to replay mode.**
+
+### P5. First-run quality gate — zero-diff ≠ correct screenshots
+
+Two identical runs of broken screenshots produce zero-diff. The first VR run after fixture setup or changes must be human-reviewed before publishing to JIRA. Known failure modes: all-grey product cards (missing fixture), desktop layout on mobile viewport (missing UA).
+
+### P6. Tests must run sequentially (`workers: 1`)
+
+Parallel Playwright tests overload the shared Mockoon + dev server. 8 tests hitting the same ports causes timeouts, incomplete responses, and memory pressure. Always `workers: 1`.
+
+### P7. JIRA reports use wiki markup via REST API v2
+
+MCP `addCommentToJiraIssue` with `contentFormat: "markdown"` cannot embed attachment images. Use `POST /rest/api/2/issue/{key}/comment` with wiki markup body. Image syntax: `!filename.png|thumbnail!` inside table cells for side-by-side desktop/mobile comparison. See `references/vr-jira-report-template.md` for templates.
+
+---
+
 ## Step 0: Read Config and Check Prerequisites
 
 ### 0a. Identify the domain
@@ -396,6 +432,8 @@ If VR was run standalone (not as part of a ticket flow), skip upload — snapsho
 
 Regardless of pass or fail, VR results **must** be written to the JIRA verification ticket as a **rich report with inline screenshots**. Plain text tables are insufficient — reviewers need to see the actual screenshots to judge visual quality.
 
+**Template reference:** use `references/vr-jira-report-template.md` for the full template catalog (all-pass, mixed results, attachment naming conventions, and posting rules). The inline example below is the minimal format — refer to the template for edge cases.
+
 **Report format — interleaved text and images:**
 
 The comment uses JIRA wiki markup (not markdown) for inline image embedding:
@@ -596,8 +634,17 @@ VR_BASE_URL={server.base_url} npx playwright test \
 |---------|-------------|
 | Data-dependent diff (numbers, text changed) | A dynamic endpoint was not captured by proxy — add it to `proxy-config.yaml` |
 | Layout shift | CSS depends on response timing — add `waitForPageReady` delay |
-| Missing content | Fixture response is gzipped but header says so — remove `Content-Encoding: gzip` header from fixture |
+| Missing content (grey skeleton, empty sections) | CSR endpoint missing from fixtures — proxy mode hid the gap (fallback to SIT), replay mode exposed it. Add the missing route (see P4) |
+| Fixture response gzipped | Remove `Content-Encoding: gzip` header from fixture JSON |
 | Completely blank page | SSR hang — fixture server not responding on expected port; check `health_ports` |
+
+**⚠ Mandatory checkpoint after replay-mode switch:**
+
+1. Run full VR pass (all pages, desktop + mobile)
+2. **Human screenshot review** — open each snapshot and confirm content is correct (not skeleton, not wrong layout). This is not optional — see P4 and P5
+3. Only after human confirmation: proceed to Phase 3
+
+This checkpoint catches the #1 failure mode in fixture setup: proxy mode silently falls through to SIT for unrecorded endpoints, producing correct-looking screenshots. Replay mode returns 404 for those same endpoints, but without a human review, zero-diff between two broken runs looks like "pass."
 
 ### Phase 3: Commit fixtures
 

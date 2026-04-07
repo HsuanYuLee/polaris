@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.74.0] - 2026-04-07
+
+- **VR Principles P1-P7** — 將 6 個 session 累積的 hard-won rules 集中寫入 SKILL.md（走 nginx proxy、CSR waitForSelector、mobile UA、proxy/replay mode 差異、首次截圖 quality gate、workers:1、JIRA wiki markup）。P1/P3 泛化為框架層原則，kkday 細節以 blockquote 附註
+- **VR Phase 2 mandatory checkpoint** — replay mode 切換後強制跑 VR pass + 人工截圖確認，才能進 Phase 3 commit fixtures。防止 proxy fallback 隱藏缺失 fixture
+- **VR JIRA report template** — 新增 `references/vr-jira-report-template.md`，定義 wiki markup 表格穿插截圖格式、all-pass / mixed results 模板、attachment 命名慣例。Step 5c 引用此 template
+- **checklist-before-done 機制** — 宣告任務完成前必須回查 session 起始清單，逐項確認 done/carry-forward/dropped。加入 context-monitoring §5b + mechanism-registry（High drift）
+- **JIRA 附件先刪再傳規則** — 加入 `rules/kkday/jira-conventions.md`，適用所有 JIRA attachment 操作
+- **ai-config version control** — `.gitignore` whitelist VR test files（pages.spec.ts, playwright.config.ts）+ proxy-config.yaml。Fixture JSON 維持 local only。新公司只需加 `!{company}/`
+- **visual-regression-config.md** — 新增 Playwright config 必設項目（workers:1, mobile UA）
+
 ## [1.73.0] - 2026-04-06
 
 - **Per-Epic Fixture Isolation** — fixture 管理從 root-level 遷移到 per-epic 子目錄（`mockoon-environments/GT-483/`）。每個 Epic 獨立一套完整 fixture，新 Epic 從上一個 copy + 重錄有變動的 route。刪除 root-level 12 個 legacy JSON 檔案

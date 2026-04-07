@@ -85,6 +85,15 @@ ai-config/{company}/visual-regression/
 - `snapshots/` 和 `test-results/` 是暫時的 — skill 執行完即清除
 - 不需要 commit 任何截圖檔案
 
+### Playwright config 必設項目
+
+`playwright.config.ts` 生成時必須包含以下設定：
+
+| 設定 | 值 | 原因 |
+|------|---|------|
+| `workers` | `1` | 多 test 並行會打爆 Mockoon + dev server 的 shared port，造成 timeout、記憶體不足、截圖不完整。見 SKILL.md P6 |
+| mobile project `userAgent` | iPhone UA string | UA-based SSR detection（如 `@nuxtjs/device`）需要 mobile UA 才會回 mobile layout。只設 viewport 375px 不夠。見 SKILL.md P3 |
+
 ## 欄位詳細說明
 
 ### `server` — Dev 環境啟動
@@ -138,7 +147,7 @@ skill 會對每個 page × 每個 locale 分別截圖。
 | `name` | string | 是 | 頁面識別名稱，用於截圖檔名 |
 | `path` | string | 是 | URL 路徑，接在 base_url 或 sit_url 後面 |
 | `source_project` | string | 否 | 實作此頁面的 repo 名稱。用於 smart skip — 當某 PR 只改了特定 repo，只跑該 repo 負責的頁面 |
-| `viewports` | number[] | 是 | 截圖寬度列表（px） |
+| `viewports` | number[] | 是 | 截圖寬度列表（px）。**注意：** 375px viewport 不等於 mobile。如果站台使用 UA-based SSR detection（如 `@nuxtjs/device`、`mobile-detect`），Playwright config 必須同時設定 mobile `userAgent`，否則 SSR 仍回 desktop layout。見 SKILL.md P3 |
 | `masks` | string[] | 否 | 此頁面專屬的 CSS selector mask，與 global_masks 合併 |
 | `wait_for` | string | 否 | 截圖前等待此 CSS selector 出現 |
 | `scroll_before_capture` | boolean | 否 | `true` = 截圖前先滾到頁底觸發 lazy-load |

@@ -118,6 +118,7 @@ These are real escape patterns observed in GT-483 and other sessions. When you n
 |----|------|---------------|-------|
 | `re-test-after-fix` | After fixing quality issues, re-run all tests before proceeding to commit | Git diff shows changes after last test run but commit proceeds without fresh test output | High |
 | `fresh-verification-before-completion` | Every task completion must include fresh verification performed after the final code change | Task marked complete with rationalization phrases ("should work", "trivial change") and no verification output in conversation | High |
+| `checklist-before-done` | Before declaring a task complete, review the session's original task list (checkpoint next steps, todo items) and confirm each item is done/carry-forward/dropped | Strategist says "done" or asks "要更新 checkpoint 嗎？" while unchecked items remain from the session's starting checklist | High |
 
 ### Skills Management (source: `CLAUDE.md`)
 
@@ -178,7 +179,7 @@ Post-task audit should check these first (highest drift risk, most impactful):
 5. `cross-session-read-memory-file` / `cross-session-carry-forward`
 6. `post-task-feedback-reflection` (note: correction = immediate trigger, don't defer)
 6a. `checkpoint-mode-at-25` (check during long sessions, not just post-task)
-7. `re-test-after-fix` / `fresh-verification-before-completion`
+7. `re-test-after-fix` / `fresh-verification-before-completion` / `checklist-before-done`
 8. `cross-repo-verification` / `env-follows-requires`
 9. `no-cd-in-bash` / `no-independent-cmd-chaining`
 10. `feedback-trigger-count-update` / `graduation-at-three-triggers`

@@ -75,6 +75,21 @@ When **tool call count exceeds 25** AND there are **pending todo items or unfini
 
 **The key behavior:** checkpoint mode is not "stop working" — it's "save state thoroughly before context compression makes you forget." The cost of a 30-second checkpoint is far less than a dropped deliverable.
 
+### 5b. Checklist Review Before Declaring Done
+
+Before declaring a task complete (saying "done", asking "要更新 checkpoint 嗎？", or proposing to move on), the Strategist must review the session's original task list:
+
+1. **Recall the starting checklist** — the checkpoint's "next steps", todo items, or the user's original request items
+2. **For each item**, confirm one of three dispositions:
+   - **(a) Done** — completed in this session
+   - **(b) Carry-forward** — still pending, will note in checkpoint
+   - **(c) Dropped** — no longer relevant, with reason
+3. **If any item has no disposition**, the task is not complete — address or explicitly carry-forward before declaring done
+
+**Why:** VR session (2026-04-07) — 8/8 zero-diff pass was the technical milestone, but the checkpoint also listed "JIRA 截圖替換" as a next step. The Strategist declared completion without checking the list, and the JIRA update was only caught because the user noticed. The carry-forward check at checkpoint-write time doesn't catch this — the gap is between "technical success" and "all deliverables addressed."
+
+**The key behavior:** "Tests pass" ≠ "task complete." The starting checklist defines what "done" means, not the technical milestone.
+
 ### 6. Segment Large Tasks
 
 When a task is expected to produce many tool calls (> 30):
