@@ -6,6 +6,15 @@
 
 - Story Points 欄位 ID 已透過 `references/jira-story-points.md` 查詢取得
 - 子任務清單已經使用者確認
+- Assignee accountId 已取得（見 § Assignee 規則）
+
+## Assignee 規則
+
+所有子單的 assignee 預設為**母單的 assignee**。從 `getJiraIssue` 回傳的 `fields.assignee.accountId` 取得。
+
+若母單無 assignee，從 memory `user_scrum_role.md` 取得使用者的 JIRA accountId 作為 fallback。
+
+> 不設定 assignee 不是預設行為。子單建出來就應該有 owner。
 
 ## 建立迴圈
 
@@ -57,9 +66,50 @@ mcp__claude_ai_Atlassian__editJiraIssue
 
 同樣依回查驗證流程確認寫入。
 
+## Step C — 建立測試計劃 sub-task（每張實作子單必須）
+
+每張**實作子單**建立完成後（Step A + B 驗證通過），立刻建立對應的測試計劃 sub-task：
+
+```
+mcp__claude_ai_Atlassian__createJiraIssue
+  cloudId: {config: jira.instance}
+  projectKey: <與實作子單相同>
+  issueTypeName: 任務
+  summary: [<實作子單 KEY>][測試計劃] <實作子單 summary 簡寫>
+  parent: <實作子單 KEY>
+  assignee_account_id: <同實作子單的 assignee>
+  contentFormat: markdown
+  description: |
+    ## 測試場景
+
+    （從實作子單的「測試計畫」章節複製）
+    - [ ] 場景 1：...
+    - [ ] 場景 2：...
+
+    ## 測試紀錄
+
+    （開發完成後填入）
+    - 測試方式：unit test / Playwright / curl / 手動
+    - 測試結果：pass / fail
+    - 截圖或 log（如適用）
+```
+
+測試計劃 sub-task **不估點**（紀錄用）。穩定測資單不需要測試計劃。
+
+> 迴圈更新：每張實作子單的完整流程為 Step A → Step B（含驗證）→ Step C，三步完成後再處理下一張。
+
+## Step D — 建立驗收單（所有實作子單完成後）
+
+所有實作子單 + 測試計劃建立完成後，依 `references/epic-verification-structure.md` 的規則建立驗收單：
+
+1. 判斷大/小 Epic（> 8 pts 或 > 2 task → 大 → per-AC；否則 → 小 → 合併一張）
+2. 建立驗收單（`issueTypeName: 任務`，`parent: <母單 KEY>`）
+3. 填入估點（per-AC 每張 1 pt；合併版 ≤ 3 AC → 1 pt，> 3 AC → 2 pt）
+4. 驗收單的母單估點也要計入總和
+
 ## 注意事項
 
 - `projectKey` 從母單 key 動態提取，子單開在與母單相同的專案
 - `issueTypeName` 使用 `任務`（中文）— 搭配 `parent` 欄位建立父子關係
 - 若 createJiraIssue 失敗（權限不足、欄位錯誤等），記錄失敗的子單並告知使用者，繼續建立其餘子單
-- assignee 欄位可選——有些 skill（epic-breakdown）會設定，有些（jira-estimation）不設定，由呼叫端決定
+- **assignee 必須設定**：預設為母單的 assignee（見 § Assignee 規則）

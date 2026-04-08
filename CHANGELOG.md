@@ -4,6 +4,11 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.77.0] - 2026-04-08
+
+- **pr-convention v1.3.0 — Template-aware PR body** — Step 1 偵測專案 PR template 檔案（5 路徑優先順序），Step 4b 以 template section 結構為骨架填入內容。Mapping table 涵蓋常見 section（Description, Changed, Screenshots, Checklist, Breaking Changes 等），不認識的 section 保留 heading 並用 HTML comment hint 生成內容。無 template 則 fallback 到預設格式。AC Coverage 在 template 未定義時自動注入
+- **git-pr-workflow Step 7** — 改為引用 pr-convention 的 template 偵測與 mapping 邏輯，避免重複定義
+
 ## [1.76.0] - 2026-04-07
 
 - **fix-bug Step 4.5 AC Local Verification** — 開發完成後、發 PR 前，根據 ticket 的 [VERIFICATION] Local 項目逐一驗證（unit test / Playwright 截圖 / 手動確認），結果更新回 JIRA。Post-deploy 項目標記「待 SIT 驗證」不阻擋 PR

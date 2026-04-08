@@ -297,10 +297,10 @@ Rebase 可能帶入新的 inherited changeset（例如 base branch 上有新的 
 
 ### Step 7：Open PR
 
-1. 讀取 `.github/pull_request_template.md` 取得模板結構
+1. **讀取 PR template** — 按 `pr-convention` Step 1 的優先順序偵測並解析專案 template 檔案（`.github/pull_request_template.md` 等）。以 template 的 section 結構作為 PR body 骨架；無 template 則 fallback 到預設格式
 2. **偵測 base branch**（見下方邏輯）
 3. PR title 格式：`[JIRA-KEY] <簡短摘要>`
-4. PR body 填入 Description / Changed / **AC Coverage** / Screenshots / Related documents / QA notes
+4. PR body 按 template section 順序填入內容（section 對應 fill logic 見 `pr-convention` Step 4b 的 mapping table）
 
 **AC Coverage 產生規則：**
 - 從 JIRA ticket description 讀取 AC（Acceptance Criteria）條目

@@ -75,6 +75,8 @@ When **tool call count exceeds 25** AND there are **pending todo items or unfini
 
 **The key behavior:** checkpoint mode is not "stop working" — it's "save state thoroughly before context compression makes you forget." The cost of a 30-second checkpoint is far less than a dropped deliverable.
 
+**Proactive session split = checkpoint mode.** When the Strategist decides to suggest switching to a new session (work nature change, long-running task completed, remaining work is independent), the same checkpoint sequence applies: save memory first, then notify. The notification is a statement, not a suggestion — "已存檔，開新 session 輸入「繼續 {topic}」接續", not "建議開新 session". The word "建議" implies optional, which lets the save step get skipped.
+
 ### 5b. Checklist Review Before Declaring Done
 
 Before declaring a task complete (saying "done", asking "要更新 checkpoint 嗎？", or proposing to move on), the Strategist must review the session's original task list:

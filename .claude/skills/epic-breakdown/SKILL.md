@@ -204,15 +204,20 @@ Task 2-N: 前端開發（基於穩定 fixtures）
 
 ### 10. 批次建立 JIRA Sub-task
 
-依 `references/jira-subtask-creation.md` 的流程逐一建立子任務並填入估點。
+依 `references/jira-subtask-creation.md` 的完整流程（Step A → B → C → D）逐一建立子任務：
+
+- Step A: 建立實作子單（含估點）
+- Step B: 填入估點 + 回查驗證
+- Step C: 建立測試計劃 sub-task（每張實作子單必須）
+- Step D: 建立驗收單（依 `references/epic-verification-structure.md` 規則）
 
 本 skill 的特殊設定：
 - `parent` 指向 Epic（EPIC_KEY）
 - `projectKey` 從 Epic key 動態提取（如 `PROJ-123` → `PROJ`）
-- assignee 從 memory `user_scrum_role.md` 取得使用者的 JIRA accountId
+- assignee：從 Epic 的 assignee 取得（見 `references/jira-subtask-creation.md` § Assignee 規則）
 - Step B 驗證失敗時，立即報錯告知使用者，不繼續建立下一張
 
-> 迴圈：對每個子任務重複建立 + 填估點（含驗證），完成後再處理下一個。每完成一個回報進度。
+> 迴圈：每張實作子單完整流程為 Step A → B（含驗證）→ C，三步完成後再處理下一張。所有實作子單完成後執行 Step D（驗收單）。
 
 ### 11. 更新母單估點（必須）
 

@@ -311,9 +311,9 @@ Script 自動處理：
 ```
 | # | Repo | PR | Title | Approvals | Reviewers | Label |
 |---|------|----|-------|-----------|-----------|-------|
-| 1 | repo-a | #1786 | feat: xxx | 0/2 | — | |
-| 2 | repo-a | #1920 | [PROJ-460] xxx | 0/2 (stale) | reviewer-a ⚠️ re-approve | 👀 |
-| 3 | repo-b | #302 | fix: yyy | 1/2 | reviewer-b ✅ | |
+| 1 | repo-a | [#1786](https://github.com/org/repo-a/pull/1786) | feat: xxx | 0/2 | — | |
+| 2 | repo-a | [#1920](https://github.com/org/repo-a/pull/1920) | [PROJ-460] xxx | 0/2 (stale) | reviewer-a ⚠️ re-approve | 👀 |
+| 3 | repo-b | [#302](https://github.com/org/repo-b/pull/302) | fix: yyy | 1/2 | reviewer-b ✅ | |
 ```
 
 - **Approvals 欄**：顯示 valid（非 stale）的 approve 數。若有 stale approve，標註 `(stale)`，例如 `0/2 (stale)` 表示有 approve 但全部因新 push 而失效
@@ -402,6 +402,7 @@ mcp__claude_ai_Slack__slack_send_message
 
 ## Do
 
+- **所有面向使用者的報告（CI 狀態、Approval 清單等）中，PR 編號必須用 markdown 超連結呈現**：`[#number](pr_url)`，讓使用者可以直接點擊前往。純文字 `#number` 不可接受
 - 用 `gh api` 查 reviews（避免 `gh pr view` 的 encoding 問題）
 - 批次在一個 bash command 中處理所有 PR，減少 tool call 次數
 - Slack 訊息按 repo 分組，方便閱讀

@@ -246,13 +246,18 @@ mcp__claude_ai_Atlassian__editJiraIssue
 
 #### 8.5 批次建立 JIRA Sub-task
 
-依 `references/jira-subtask-creation.md` 的流程逐一建立子任務並填入估點。
+依 `references/jira-subtask-creation.md` 的完整流程（Step A → B → C → D）逐一建立子任務：
+
+- Step A: 建立實作子單（含估點）
+- Step B: 填入估點 + 回查驗證
+- Step C: 建立測試計劃 sub-task（每張實作子單必須）
+- Step D: 建立驗收單（依 `references/epic-verification-structure.md` 規則）
 
 本 skill 的特殊設定：
 - `parent` 指向母單（TICKET_KEY）
 - `summary` 格式：`[TICKET_KEY] 簡短描述`
 - `description` 使用 SASD 格式
-- assignee：不設定（由使用者或 sprint planning 決定）
+- assignee：從母單的 assignee 取得（見 `references/jira-subtask-creation.md` § Assignee 規則）
 
 若 createJiraIssue 失敗（權限不足、欄位錯誤等），記錄失敗的子單並告知使用者，繼續建立其餘子單。
 

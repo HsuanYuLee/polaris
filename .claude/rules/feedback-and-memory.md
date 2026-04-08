@@ -150,6 +150,28 @@ A "reference" is counted when **a decision is made or behavior is guided based o
 
 ## Feedback → Rule Graduation (Auto-Evolution)
 
+### Immediate Graduation — Process Design Decisions
+
+`type: project` memories that contain **deliberate process design decisions** (not action items or status updates) graduate immediately — no `trigger_count` threshold required.
+
+**Identification criteria** (all must be true):
+1. The memory describes a **process or structure** (not a one-off fix or status update)
+2. It was **deliberately designed and confirmed** by the user (not an AI suggestion)
+3. It has a **"How to apply"** section that references specific skills or references
+4. The process was **validated in practice** (e.g., tried on a real ticket)
+
+**Graduation target**: `skills/references/` (not `rules/`) — process decisions become shared references that skills import.
+
+**When detected** (during post-task reflection, memory hygiene, or cross-session recovery):
+1. Identify the target reference file (existing or new)
+2. Draft the reference content from the memory
+3. Present to user for confirmation
+4. Write the reference, update importing skills, delete the memory
+
+**Why this is different from feedback graduation**: Feedback memories capture behavioral corrections that need repeated observation to confirm as patterns. Process design decisions are already confirmed — they were discussed, designed, and validated. Delaying graduation means every Epic between the decision and the graduation ships without the process, which is the exact gap this rule prevents.
+
+### Standard Graduation — Behavioral Feedback
+
 When `trigger_count >= 3`, trigger the graduation process:
 
 ### Step 1: Identify the Target Rule File

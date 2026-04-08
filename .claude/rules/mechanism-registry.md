@@ -74,7 +74,7 @@ These are real escape patterns observed in GT-483 and other sessions. When you n
 | `no-file-reread` | Don't read same file > 2 times unless modified | Same file path in > 2 Read calls in one conversation | Medium |
 | `post-compression-company-context` | After compression, re-confirm active company | Work continues post-compression without company context check | High |
 | `proactive-context-check-at-20` | After 20+ tool calls without milestone, proactively save state and assess delegation | Long conversation without milestone summary or delegation assessment | Medium |
-| `checkpoint-mode-at-25` | 25+ tool calls with pending work → enter checkpoint mode (save state + diff previous checkpoint + suggest new session) | Long session ends with next-session memory that drops items from previous checkpoint | High |
+| `checkpoint-mode-at-25` | 25+ tool calls with pending work → enter checkpoint mode (save state + diff previous checkpoint + notify new session). Also applies to proactive session splits: save memory before notifying, never after | Long session ends with next-session memory that drops items from previous checkpoint; OR Strategist says "建議開新 session" without having saved a project memory first | High |
 
 ### Bash Execution (source: `rules/bash-command-splitting.md`)
 

@@ -32,7 +32,7 @@
 | **fix-pr-review** — 修正自己 PR 的 review | 修 PR、修正 review、處理 review、回覆 review、CI 沒過、PR 有 review | fix review, address review, fix PR, CI failed, lint/test/coverage failed, pre-commit failed | 讀取 PR review comments，逐一修正，透過 sub-agent 自我審查，回覆每則 comment |
 | **check-pr-approvals** — 我的 PR 狀態 | 我的 PR、PR 狀態、催 review、PR 被 approve 了嗎、幫我掃我的 PR、還有哪些 PR 沒過 | check PR approvals | 掃描自己的 open PR：rebase、自動修 CI 失敗、檢查 approve 數、選擇後發 Slack 催 review |
 | **review-inbox** — 掃大家的 PR | 掃 PR、掃大家的 PR、幫我掃、review 大家的 PR、批次 review、有哪些 PR 要我看 | scan PR, review inbox, batch review | 從 Slack channel 或 need-review label 找出需要自己 review 的 PR，批次執行 review |
-| **pr-convention** — 簡易開 PR | 發 PR（簡單版，無品質檢查） | open PR, gh pr create, gh pr edit, pull request | 依照 PR template 建立或編輯 PR（簡易版，不含品質檢查；完整流程請用 git-pr-workflow） |
+| **pr-convention** — 簡易開 PR | 發 PR（簡單版，無品質檢查） | open PR, gh pr create, gh pr edit, pull request | 自動讀取專案 PR template 結構，依 section 填入內容（簡易版，不含品質檢查；完整流程請用 git-pr-workflow） |
 | **review-lessons-graduation** — Review 規則整理 | 整理 review lessons、review lessons 畢業、lesson 整理、畢業 review lessons、rules 整理一下 | organize review lessons, graduate lessons, consolidate lessons, promote review lessons, clean up lessons, tidy up rules | 將累積的 review-lessons 條目合併進主 rules，保持規則目錄精簡 |
 
 ---

@@ -11,7 +11,7 @@ description: >
   (use fix-pr-review for that).
 metadata:
   author: Polaris
-  version: 1.4.0
+  version: 1.5.0
 ---
 
 # review-pr
@@ -210,9 +210,10 @@ gh api repos/{owner}/{repo}/pulls/{pr_number} -H "Accept: application/vnd.github
 1. PR 基本資訊（標題、描述、作者、base branch）
 2. 該組檔案的 diff（用 `gh api` 取得完整 diff 後擷取該組檔案的部分，或用 `gh pr diff <number> -- <file1> <file2> ...` 取得特定檔案的 diff）
 3. 專案規範（`.claude/rules/` 內容）— 將規範內容直接嵌入 prompt 中
-4. 專案根目錄路徑
-5. review 維度與嚴重程度定義（見下方 Step 4b、4c）
-6. 明確指示：只做 research（讀檔案、分析程式碼），不要編輯任何檔案、不要提交 review
+4. **已指出問題清單**（Step 3.5 產出）— 嵌入 prompt 中，指示 sub-agent 跳過語意相同的問題
+5. 專案根目錄路徑
+6. review 維度與嚴重程度定義（見下方 Step 4b、4c）
+7. 明確指示：只做 research（讀檔案、分析程式碼），不要編輯任何檔案、不要提交 review
 
 每個 sub-agent 的 prompt 範本：
 
@@ -234,11 +235,15 @@ gh api repos/{owner}/{repo}/pulls/{pr_number} -H "Accept: application/vnd.github
 ## Diff
 {該組檔案的 diff 內容}
 
+## 已指出的問題（其他 reviewer 已留言，不要重複）
+{existing_comments_summary}
+
 ## Review 指示
 1. 讀取每個變更檔案的完整原始碼（路徑: {project_root}/{filename}）以理解上下文
 2. 依據以下維度審查：正確性、型別安全、規範遵循、安全性、效能、可維護性
 3. 將問題分類為 must-fix / should-fix / nit
 4. 不要讀取或 review 不在你負責清單中的檔案
+5. 跳過「已指出的問題」清單中語意相同的問題，只留全新發現
 
 ## 輸出格式
 請以 JSON 格式回傳結果（純文字，不要用 code block）：
@@ -284,6 +289,41 @@ gh api repos/{owner}/{repo}/contents/.claude/rules/{filename}?ref={headRefName} 
 **特別注意**：若存在 `review-learnings.md`，務必仔細閱讀。此檔案記錄了歷次 review 的回饋學習（false positives、accepted patterns、severity calibration），review 時必須參考，避免重複報告已知的 false positive 或對 accepted pattern 提出不必要的建議。
 
 **重要**：如果是分批 review 模式，規範內容需要在 Step 2 的 Step B 中嵌入各 sub-agent 的 prompt，因此在此步驟就要完成讀取。
+
+## 3.5 讀取既有 Review Comments（去重用）
+
+在開始審查之前，先讀取 PR 上已有的 review comments，避免重複指出其他 reviewer（人類或 AI）已經提過的問題。
+
+### 取得既有 comments
+
+```bash
+# 取得所有 review comments（inline comments）
+gh api repos/{owner}/{repo}/pulls/{pr_number}/comments --paginate \
+  --jq '.[] | {path: .path, line: .original_line, body: .body, user: .user.login}'
+
+# 取得所有 review body（頂層 review 意見）
+gh api repos/{owner}/{repo}/pulls/{pr_number}/reviews --paginate \
+  --jq '.[] | select(.body != "" and .body != null) | {body: .body, user: .user.login, state: .state}'
+```
+
+### 建立「已指出問題清單」
+
+從 comments 中提取每個問題的核心語意（哪個檔案、哪段程式碼、什麼問題），建立一份去重參考清單。
+
+### 審查時的去重規則
+
+在 Step 4 審查時，對每個發現的問題，比對「已指出問題清單」：
+
+| 情境 | 動作 |
+|------|------|
+| 同一檔案、同一位置、語意相同的問題已被指出 | **跳過**，不留 comment |
+| 同一檔案、不同位置但相同 pattern 的問題（如「多處缺少 error handling」），已有人在其中一處指出 | **跳過**，除非其他位置有更嚴重的影響（如安全漏洞） |
+| 問題被提出但 reviewer 的分析有誤或遺漏關鍵面向 | **留 comment**，補充遺漏的面向（不重複已說的部分） |
+| 全新的問題，無人提過 | **正常留 comment** |
+
+**核心原則**：已經有人說過的事不需要再說一遍。AI review 的價值在於發現別人沒看到的問題，不是附和已有的意見。
+
+**分批 review 模式**：在 Step 2 的 Step B sub-agent prompt 中，將「已指出問題清單」一併嵌入，讓各 sub-agent 都能去重。
 
 ## 4. Review Each Changed File
 
@@ -730,6 +770,7 @@ Review 時請參考此檔案，對列出的 pattern 不要重複報告。
 - Don't: 建議大規模重構，review 範圍限於 PR 變更內容
 - Don't: review 自動產生的檔案（如 lock files、generated code）
 - Don't: 對 PR description 中已說明的已知限制重複提出
+- Don't: 重複指出其他 reviewer（人類或 AI）已經留言過的問題——AI review 的價值在於發現別人沒看到的
 - Don't: 所有 comment 都用嚴格模板——自然描述問題，重點是有幫助
 
 ## Prerequisites

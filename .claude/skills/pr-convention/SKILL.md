@@ -7,21 +7,46 @@ description: >
   "pull request", "gh pr create", "gh pr edit", "open PR", "發 PR".
 metadata:
   author: Polaris
-  version: 1.2.0
+  version: 1.3.0
 ---
 
 # PR Convention
 
 ## Workflow
 
-### 1. Check for repo PR template
+### 1. Detect and parse repo PR template
+
+Check for a PR template file in this priority order (stop at the first match):
+
+1. `.github/pull_request_template.md`
+2. `.github/PULL_REQUEST_TEMPLATE.md`
+3. `.github/PULL_REQUEST_TEMPLATE/default.md`
+4. `docs/pull_request_template.md`
+5. `pull_request_template.md` (repo root)
 
 ```bash
-cat .github/pull_request_template.md
+# Try each path in order; use the first that exists
+for f in .github/pull_request_template.md \
+         .github/PULL_REQUEST_TEMPLATE.md \
+         .github/PULL_REQUEST_TEMPLATE/default.md \
+         docs/pull_request_template.md \
+         pull_request_template.md; do
+  [ -f "$f" ] && cat "$f" && break
+done
 ```
 
-If the repo has a template, use its section structure. Otherwise fall back to the
-default format in step 4.
+**If a template is found**, parse its `## ` headings as the section skeleton. Each
+heading becomes a section in the PR body, in the same order as the template.
+HTML comments (`<!-- ... -->`) under each heading are hints for what content goes
+there — read them to understand intent, but replace them with actual content.
+
+Store the parsed section list for use in Step 4. Example parse result:
+
+```
+Sections: [Description, Changed, Screenshots (Test Plan), Related documents, QA notes]
+```
+
+**If no template is found**, fall back to the default section list in Step 4b.
 
 ### 2. Determine base branch
 
@@ -95,6 +120,31 @@ JIRA Epic: https://{config: jira.instance}/browse/<EPIC_KEY>
 子單表格從 `gh pr list --base feat/<EPIC_KEY>-* --state merged` 自動取得。
 
 **4b. 一般 PR 模板（非母單）**
+
+**If a template was found in Step 1**, use the template's section order as the
+skeleton. For each section heading from the template:
+
+1. **Known section** — match by heading name (case-insensitive) and fill with
+   skill-generated content per the mapping table below
+2. **Unknown section** — keep the heading as-is; use the template's HTML comment
+   as a hint to generate appropriate content from the diff and commit history
+3. **AC Coverage injection** — if the template does not include an `AC Coverage`
+   section but JIRA AC data is available, insert it after the section closest to
+   "Changed" or "Description" (wherever change details end and evidence begins)
+
+| Template heading (case-insensitive match) | Fill logic |
+|-------------------------------------------|-----------|
+| `Description` | 從 diff + commit 摘要變更目的 |
+| `Changed` | 條列技術改動與 side effect |
+| `AC Coverage` | AC checklist（見下方產生規則） |
+| `Screenshots` / `Test Plan` / `Screenshots (Test Plan)` | 截圖、錄影或文字描述 |
+| `Related documents` | JIRA / Confluence / 討論連結 |
+| `QA notes` | QA 測試方法；N/A 則說明原因 |
+| `Checklist` / `Pre-merge checklist` | 根據 PR 改動勾選對應項目 |
+| `Breaking Changes` / `Breaking changes` | 列出 breaking changes 或標註 None |
+| Other headings | 根據 heading 名稱 + HTML comment hint 生成內容 |
+
+**If no template was found**, use the default section list:
 
 ```md
 ## Description
