@@ -45,6 +45,7 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Work on a ticket | "做", "work on" + ticket | `work-on` |
 | Fix a bug | "修 bug", "fix bug" + ticket | `fix-bug` |
 | Fix a bug (no ticket) | "修這個", "fix this" + Slack URL, no JIRA key | Strategist pre-processing → create Bug ticket → `fix-bug` |
+| SA/SD design doc | "SASD", "SA/SD", "寫 SA", "出 SA/SD", "架構文件", "design doc", "技術設計", "異動範圍", "dev scope" | `sasd-review` |
 | Break down an epic | "拆單", "拆解", "epic breakdown" | `epic-breakdown` |
 | Batch converge all work | "收斂", "converge", "推進", "全部推到 review", "把我的單收一收" | `converge` |
 | Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `converge` (Epic-only mode) |

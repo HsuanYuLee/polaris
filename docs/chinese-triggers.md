@@ -12,6 +12,7 @@
 |------|-----------|-----------|------|
 | **work-on** — 智慧開發路由 | 做 PROJ-123、開始做、接這張、做這張、下一步、繼續 | work on, start dev | 偵測 ticket 狀態，自動路由到估點／拆單／建 branch／開發。支援批次模式（多張 ticket 同時輸入） |
 | **fix-bug** — Bug 修正 | 幫我修正 PROJ-123、修 bug、開始修正、修正這張、修這個 + Slack URL | fix bug, help me fix, start fixing, fix this ticket, fix this + Slack URL | 端到端 bug 修正：讀單→估點→建 branch→TDD 開發→PR。Hotfix 無單時自動開 JIRA Bug ticket |
+| **sasd-review** — SA/SD 設計文件 | 寫 SA、出 SA/SD、SA 文件、SD 文件、架構文件、技術設計、異動範圍、dev scope | SASD, SA/SD, design doc, implementation plan, technical design, dev scope | Design-First Gate：在寫任何程式碼之前產出 SA/SD — 需求分析→歧義收集→2-3 方案比較→確認後產出 Dev Scope + System Flow + Task List |
 | **epic-breakdown** — 拆單與估點 | 拆單、拆解、分解任務、子單、評估這張單、評估 epic | break down epic, split tasks, decompose, create sub-tasks, evaluate this ticket | 拆解 Epic 為可執行子任務，逐一估點後批次建立 JIRA sub-task |
 | **epic-status** — Epic 進度追蹤 | epic 進度、epic 狀態、離 merge 還多遠、還差什麼、補全 | epic status, epic progress, close gaps, what's left | 掃描 Epic 子單的 JIRA + GitHub 狀態，產出差距報告，可路由到其他 skill 補全缺口 |
 | **jira-branch-checkout** — 建 Branch | 開 branch PROJ-123、建 branch、切 branch、hotfix branch | create branch, checkout branch | 從 JIRA ticket 建立命名規範的 git branch（`task/PROJ-123-description`） |

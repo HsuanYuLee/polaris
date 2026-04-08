@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.78.0] - 2026-04-08
+
+- **sasd-review v1.0.0 — Design-First Gate** — 從 kkday 專屬提升為框架級 skill。在寫任何程式碼前產出 SA/SD 設計文件：需求分析 → 歧義收集 → 2-3 方案比較 → 確認後產出（含 Dev Scope、System Flow、Task List with Estimates）。移除 kkday 專有術語（BFF、PC/M），保留通用工程紀律
+- **jira-quality.md — L1 通用 JIRA 規則** — 從 kkday jira-conventions 提升 7 條通用規則：缺資訊主動問不猜、PM 範例 ≠ 實作規格、外部連結需取回內容、建完 issue 附連結、拆單含驗證場景、批次建子單、attachment 先刪再傳。kkday jira-conventions 瘦身為僅保留專案 key 結構和 VR template 格式
+- **清理 kkday 重複 skills** — 刪除 ai-config 中 6 個重複的 skill 副本（kkday-dev-quality-check、kkday-git-pr-workflow、kkday-unit-test、kkday-dev-guide 及對應的 non-prefix stale copies），Polaris 已有更新版本
+- **skill-routing.md** — 新增 sasd-review 路由條目
+
 ## [1.77.0] - 2026-04-08
 
 - **pr-convention v1.3.0 — Template-aware PR body** — Step 1 偵測專案 PR template 檔案（5 路徑優先順序），Step 4b 以 template section 結構為骨架填入內容。Mapping table 涵蓋常見 section（Description, Changed, Screenshots, Checklist, Breaking Changes 等），不認識的 section 保留 heading 並用 HTML comment hint 生成內容。無 template 則 fallback 到預設格式。AC Coverage 在 template 未定義時自動注入
