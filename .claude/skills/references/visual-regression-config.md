@@ -169,15 +169,15 @@ defaults:
       fixture_startup: 30000
       screenshot: 30000
 
-# company: ~/work/kkday/workspace-config.yaml
+# company: ~/work/acme/workspace-config.yaml
 visual_regression:
   domains:
-    - name: "www.kkday.com"
+    - name: "www.example.com"
       server:
-        start_command: "docker compose -f ~/work/kkday/kkday-web-docker/docker-compose.yml up -d"
+        start_command: "docker compose -f ~/work/acme/acme-web-docker/docker-compose.yml up -d"
         ready_signal: "ready"
-        base_url: "https://dev.kkday.com"
-        sit_url: "https://www.sit.kkday.com"
+        base_url: "https://dev.example.com"
+        sit_url: "https://sit.example.com"
       global_masks:
         - "[data-testid*='date']"
         - "[data-testid*='price']"
@@ -187,12 +187,12 @@ visual_regression:
       pages:
         - name: "homepage"
           path: "/"
-          source_project: "kkday-b2c-web"
+          source_project: "acme-web-app"
           viewports: [1280, 375]
           scroll_before_capture: true
         - name: "product-page"
           path: "/product/2825"
-          source_project: "kkday-b2c-web"
+          source_project: "acme-web-app"
           viewports: [1280, 375]
           masks: ["[data-testid='review-count']"]
 ```

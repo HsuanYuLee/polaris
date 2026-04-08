@@ -774,7 +774,7 @@ When appending to an existing file, add new entries after the last existing entr
 {base_dir}/polaris-sync.sh --reverse {project-name}
 ```
 
-其中 `{project-name}` 從 repo 目錄名推導（例如 `kkday-b2c-web`）。
+其中 `{project-name}` 從 repo 目錄名推導（例如 `acme-web-app`）。
 
 ## Step P5: Summary & Graduation Check
 

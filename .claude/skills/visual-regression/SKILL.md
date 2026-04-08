@@ -32,7 +32,7 @@ dev-quality-check → visual-regression → verify-completion → commit/PR
 
 ## Core Principle: Domain-Level Testing
 
-VR 的測試單位是 **domain**（如 `www.kkday.com`），不是 repo。
+VR 的測試單位是 **domain**（如 `www.example.com`），不是 repo。
 
 - 頁面清單由 URL path 定義，不以「這頁不在本 repo」為 skip 理由
 - 如果某頁在 local dev 無法載入（由其他 service 服務），VR 仍應嘗試；SIT mode 可完整覆蓋
@@ -49,7 +49,7 @@ These principles were established through debugging sessions. Violating any of t
 
 Never bypass the reverse proxy by hitting dev server ports directly (e.g., `localhost:3001`). The proxy (nginx, Caddy, etc.) routes domain paths to the correct upstream services. Direct port access only tests one service's routes and misses cross-service routing. If the proxy is broken, fix the proxy — don't route around it.
 
-> **kkday**: Docker nginx on `dev.kkday.com` routes to b2c-web, member-ci, mobile-member-ci. See `polaris-env.sh` Layer 1.
+> **Example**: Docker nginx on `dev.example.com` routes to web-app, member-api, mobile-api. See `polaris-env.sh` Layer 1.
 
 ### P2. Wait for CSR content with `waitForSelector`, never `waitForTimeout`
 
@@ -216,17 +216,17 @@ bash {workspace_root}/scripts/polaris-env.sh start {company} --vr
 ```
 
 This handles:
-- **Layer 1 (Docker)**: starts kkday-web-docker (nginx + member-ci + mobile-member-ci). Nginx proxies all domain routes to the correct backend
+- **Layer 1 (Docker)**: starts acme-web-docker (nginx + member-ci + mobile-member-ci). Nginx proxies all domain routes to the correct backend
 - **Layer 3 (Dev server)**: starts b2c-web standalone — Docker nginx proxies to it for b2c routes
 - **Layer 4 (Verify)**: health-checks all started services
 
-**Architecture: Playwright → Docker nginx (dev.kkday.com) → upstream repos**
+**Architecture: Playwright → Docker nginx (dev.example.com) → upstream repos**
 
 ```
-Playwright → dev.kkday.com (Docker nginx)
-                ├── /zh-TW/*           → kkday-b2c-web (localhost:3001)
-                ├── /api/internal/*    → kkday-member-ci (Docker)
-                └── /mobile/*          → kkday-mobile-member-ci (Docker)
+Playwright → dev.example.com (Docker nginx)
+                ├── /zh-TW/*           → acme-web-app (localhost:3001)
+                ├── /api/internal/*    → acme-member-api (Docker)
+                └── /mobile/*          → acme-mobile-api (Docker)
 ```
 
 All routes that exist in production are testable through nginx. Do NOT bypass nginx by hitting `localhost:3001` directly — that only tests b2c-web routes and misses member-ci/mobile-member-ci.
@@ -675,12 +675,12 @@ Fixtures are organized **per-epic** under `ai-config/{company}/mockoon-environme
 
 ```
 ai-config/{company}/mockoon-environments/
-├── GT-483/                    ← Epic fixtures (source of truth)
-│   ├── dev.kkday.com.json
-│   ├── api-lang.sit.kkday.com.json
-│   ├── recommend.sit.kkday.com.json
+├── PROJ-100/                    ← Epic fixtures (source of truth)
+│   ├── dev.example.com.json
+│   ├── api-lang.sit.example.com.json
+│   ├── recommend.sit.example.com.json
 │   └── ...
-├── GT-500/                    ← Next epic (bootstrapped from GT-483)
+├── PROJ-200/                    ← Next epic (bootstrapped from PROJ-100)
 │   └── ...
 └── proxy-config.yaml          ← Shared env override config
 ```
@@ -703,7 +703,7 @@ When starting a new epic that needs VR:
 
 - **Determinism** — each epic is a complete snapshot; no merge layer, no inheritance bugs
 - **Independence** — epic A's fixture changes can't break epic B's tests
-- **Simplicity** — `mockoon-runner.sh --epic GT-483` loads exactly what's in that directory, nothing else
+- **Simplicity** — `mockoon-runner.sh --epic PROJ-100` loads exactly what's in that directory, nothing else
 - **Storage is cheap** — a full fixture set is ~1.5MB; recording time is the real cost, and bootstrap from previous epic eliminates most of it
 
 ### Runner integration
@@ -711,15 +711,15 @@ When starting a new epic that needs VR:
 `mockoon-runner.sh` supports `--epic {name}` to load from a subdirectory:
 
 ```bash
-# Load from GT-483/ subdirectory
-mockoon-runner.sh start <environments_dir> --epic GT-483
+# Load from PROJ-100/ subdirectory
+mockoon-runner.sh start <environments_dir> --epic PROJ-100
 
-# Equivalent to: mockoon-runner.sh start <environments_dir>/GT-483
+# Equivalent to: mockoon-runner.sh start <environments_dir>/PROJ-100
 ```
 
 The `workspace-config.yaml` `start_command` includes the `--epic` flag:
 ```yaml
-start_command: "~/work/scripts/mockoon/mockoon-runner.sh start ~/work/kkday/ai-config/kkday/mockoon-environments --epic GT-483"
+start_command: "~/work/scripts/mockoon/mockoon-runner.sh start ~/work/acme/ai-config/acme/mockoon-environments --epic PROJ-100"
 ```
 
 When switching epics, update the `--epic` value in workspace config.

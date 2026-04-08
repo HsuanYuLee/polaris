@@ -17,7 +17,7 @@ Execute silently. Only notify the user and wait for confirmation before writing 
 
 When the user corrects a behavior mid-task (「為什麼沒用 skill」「你沒修好」「太多問題了」), **reflect and record immediately** — do not wait for task completion. The "after completing a full task" trigger above is the baseline; corrections are a higher-priority trigger that fires instantly.
 
-Why: if the Strategist enters reactive mode (fix → get corrected → fix again), the task-completion trigger never fires, and all feedback is lost. Two consecutive sessions (GT-483 i18n fix) produced 12+ violations with zero feedback written because the Strategist was always "still fixing".
+Why: if the Strategist enters reactive mode (fix → get corrected → fix again), the task-completion trigger never fires, and all feedback is lost. Two consecutive sessions (i18n fix) produced 12+ violations with zero feedback written because the Strategist was always "still fixing".
 
 How to apply:
 1. User correction detected → pause the current fix

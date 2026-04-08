@@ -211,7 +211,7 @@ Company name (used as directory name): e.g. "acme", "my-startup"
 **Validation:**
 - Company name must be ASCII lowercase + hyphens only (e.g., `acme`, `my-startup`)
 - Auto-convert simple cases: trim whitespace, lowercase
-- If the result still contains non-ASCII characters, spaces, or uppercase: reject and explain: "Company name is used as a directory name. Please use lowercase ASCII characters and hyphens only (e.g., 'kkday', 'my-company')."
+- If the result still contains non-ASCII characters, spaces, or uppercase: reject and explain: "Company name is used as a directory name. Please use lowercase ASCII characters and hyphens only (e.g., 'acme', 'my-company')."
 
 **Auto-detect:**
 - Check if `{company}/` directory already exists
@@ -259,7 +259,7 @@ Step 3: JIRA Projects
 
   #   Select   Key      Name                    Description                          Team
   1   [✓]      GT       Growth Team             Web team growth & SEO initiatives     (enter team name)
-  2   [✓]      KB2CW    KKday B2C Web           B2C frontend development              (enter team name)
+  2   [✓]      TEAM    Acme Web App           B2C frontend development              (enter team name)
   3   [ ]      GROW     Growth                  Growth marketing campaigns            —
   4   [ ]      INFRA    Infrastructure          DevOps and infra                      —
 
@@ -272,16 +272,16 @@ On **Confirm**: for each selected project, if team name is still empty, ask once
 ```
 Teams for selected projects:
   GT → ?
-  KB2CW → ?
+  TEAM → ?
 ```
 
 **Ticket prefix verification** — after team assignment, confirm the selected keys match what the user actually types in ticket numbers. This catches key-vs-name confusion (common when multiple projects share similar names):
 
 ```
-You selected: GT, KB2CW
+You selected: GT, TEAM
 
 Quick check — when you reference tickets, do you use these prefixes?
-  e.g., GT-123, KB2CW-456
+  e.g., PROJ-123, TEAM-456
 
 Correct (y) / Fix (e)?
 ```
@@ -310,7 +310,7 @@ If yes:
 **4b. Additional spaces:**
 After selecting the primary space, ask if the user works with other spaces:
 ```
-Primary space: KW (KKday Web)
+Primary space: AW (Acme Web)
 
 Do you use other Confluence spaces regularly? (y/n)
 ```
@@ -493,7 +493,7 @@ Step 9a-0: Monorepo — your-b2c-web
 
 **Cross-repo dependency detection**: after scanning all repos individually, check for dependencies between them:
 
-1. Scan each `docker-compose.yml` for volume mounts pointing to other repos (e.g., `../kkday-member-ci:/app`)
+1. Scan each `docker-compose.yml` for volume mounts pointing to other repos (e.g., `../acme-member-api:/app`)
 2. Scan `.env` / `.env.example` files for references to other repos' ports or services
 3. Check README for "requires X to be running" patterns
 4. If a repo's HTTP server depends on another repo (e.g., nginx proxies to an app server), mark the dependency
@@ -630,7 +630,7 @@ Step 9b-2: Key Pages — www.example.com
 
 **Phase 3: SIT URL**
 
-**Always ask the user** — do NOT auto-detect from `.env` files. The `.env` typically contains local dev URLs (e.g., `dev.kkday.com`), not the actual SIT/staging environment URL. These are different things and confusing them causes VR to compare against the wrong baseline.
+**Always ask the user** — do NOT auto-detect from `.env` files. The `.env` typically contains local dev URLs (e.g., `dev.example.com`), not the actual SIT/staging environment URL. These are different things and confusing them causes VR to compare against the wrong baseline.
 
 ```
 Step 9b-3: SIT/Staging Environment
@@ -678,7 +678,7 @@ Step 9b-4: VR Server Config — www.example.com
 
   How should VR access this domain for screenshots?
 
-  kkday-b2c-web depends on kkday-web-docker (detected in Step 9a).
+  acme-web-app depends on acme-web-docker (detected in Step 9a).
   → 建議使用 Docker stack 的 URL 作為截圖目標（完整整合環境）。
 
   Option A (recommended): Docker stack — full integrated environment
@@ -729,7 +729,7 @@ ai-config/{company}/visual-regression/{domain}/
   └── pages.spec.ts
 ```
 
-Use the templates from the existing `ai-config/kkday/visual-regression/www.kkday.com/` as reference. Generate based on the configured pages and settings.
+Use the templates from the existing `ai-config/acme/visual-regression/www.example.com/` as reference. Generate based on the configured pages and settings.
 
 If `package.json` doesn't exist at `ai-config/{company}/visual-regression/`, create it with `@playwright/test` dependency.
 

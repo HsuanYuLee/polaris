@@ -591,7 +591,7 @@ Gaps found here block the verification — return to implementation to fix wirin
 
 1. Check if the dev environment is running:
    ```bash
-   curl -sk --max-time 5 -o /dev/null -w "%{http_code}" "https://dev.kkday.com/zh-tw"
+   curl -sk --max-time 5 -o /dev/null -w "%{http_code}" "https://dev.example.com/zh-tw"
    ```
 2. If NOT reachable (exit code != 0 or HTTP != 2xx/3xx):
    - **Do NOT block verification** — fall back to Step 2 (non-E2E strategy)
@@ -618,7 +618,7 @@ If uncertain, default to verifying the homepage (`/zh-tw`).
 Call the framework E2E script:
 
 ```bash
-E2E_BASE_URL="https://dev.kkday.com" \
+E2E_BASE_URL="https://dev.example.com" \
 E2E_PAGES='[{"url":"/zh-tw/product/133300","type":"product"},{"url":"/zh-tw","type":"home"}]' \
   {workspace_root}/scripts/e2e/e2e-verify.sh
 ```
@@ -712,7 +712,7 @@ Run through these checks based on what applies (supplements the JIRA test plan f
 ── JIRA Test Plan: 7/8 passed, 1 blocked
 ── 需人工介入: 0 項
 ── Epic-scope（不在本 ticket 驗證範圍）:
-   ⏭️ 效能驗證：整體 TTFB < 0.8s → 待 GT-483 Epic 完成後驗證
+   ⏭️ 效能驗證：整體 TTFB < 0.8s → 待 PROJ-100 Epic 完成後驗證
 ── Conclusion: BLOCKED — 1 項需解決後重跑 ─────
 ```
 

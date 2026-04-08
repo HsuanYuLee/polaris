@@ -31,13 +31,13 @@ slack_search_users({ query: "<github_username>" })
 gh api users/<github_username> --jq '.name'
 ```
 
-取得 GitHub profile 上的真名（如 `Daniel Lee`），再用真名搜 Slack：
+取得 GitHub profile 上的真名（如 `John Doe`），再用真名搜 Slack：
 
 ```
 slack_search_users({ query: "<real_name>" })
 ```
 
-**為什麼需要這步**：GitHub username（如 `daniel-lee-kk`）常與 Slack display name（如 `Daniel Lee`）不同，Step 2 搜不到時這步通常能命中。
+**為什麼需要這步**：GitHub username（如 `john-doe`）常與 Slack display name（如 `John Doe`）不同，Step 2 搜不到時這步通常能命中。
 
 ### 4. Fallback：純文字
 

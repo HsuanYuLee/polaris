@@ -4,7 +4,7 @@ A **required** final step in every write skill. This step makes the post-task re
 
 ## Why This Exists
 
-Two consecutive GT-483 sessions produced 12+ mechanism violations with zero feedback written. Root cause: the Strategist was always "still fixing", so the task-completion trigger never fired. By embedding reflection as a named skill step, it becomes impossible to skip.
+Two consecutive PROJ-483 sessions produced 12+ mechanism violations with zero feedback written. Root cause: the Strategist was always "still fixing", so the task-completion trigger never fired. By embedding reflection as a named skill step, it becomes impossible to skip.
 
 ## Who Executes
 

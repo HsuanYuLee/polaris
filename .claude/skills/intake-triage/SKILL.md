@@ -424,7 +424,7 @@ PM 開單 → /intake-triage → 判決 + label + comment
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 2.0.0 | 2026-04-03 | 通用化：從 kkday 專屬搬到 shared skills，domain lens 改為 config-driven + 內建預設，author → Polaris |
+| 2.0.0 | 2026-04-03 | 通用化：從公司專屬搬到 shared skills，domain lens 改為 config-driven + 內建預設，author → Polaris |
 | 1.1.0 | 2026-04-03 | Epic + 子單收斂邏輯、混合 theme lens 標注、全域 rank 編號 |
 | 1.0.0 | 2026-04-03 | Initial release — Phase A（label + comment + Slack，不含 execution queue） |
 

@@ -154,7 +154,7 @@ Branch 建立後，部署 Polaris 管理的 AI 設定（review-lessons, skills, 
 {base_dir}/polaris-sync.sh {project-name}
 ```
 
-其中 `{base_dir}` 是 workspace-config.yaml 所在的公司目錄（例如 `/Users/.../work/kkday`），`{project-name}` 是 repo 目錄名。
+其中 `{base_dir}` 是 workspace-config.yaml 所在的公司目錄（例如 `/Users/.../work/acme`），`{project-name}` 是 repo 目錄名。
 
 Proceed with the requested task.
 

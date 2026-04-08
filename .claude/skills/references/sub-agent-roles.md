@@ -24,7 +24,7 @@ Sub-agents should structure their return with two distinct sections when the tas
 
 ```markdown
 ## Status: DONE
-**Artifacts**: PR #123, branch task/KB2CW-3500
+**Artifacts**: PR #123, branch task/TEAM-3500
 **Summary**: Implemented i18n fallback for product page
 
 ### User Summary
@@ -34,10 +34,10 @@ Sub-agents should structure their return with two distinct sections when the tas
 
 ### Checkpoint State
 （給 cross-session resume 用的完整脈絡，存入 memory 或 checkpoint）
-- Branch: task/KB2CW-3500 based on feat/GT-483
+- Branch: task/TEAM-3500 based on feat/PROJ-483
 - Decisions: 選擇 extend existing composable 而非建新的（T2 taste call）
 - Remaining risk: SSR hydration 未在 Docker 環境驗證
-- Dependencies: 需等 feat/GT-483 merge 後 rebase
+- Dependencies: 需等 feat/PROJ-483 merge 後 rebase
 ```
 
 **When to include**: implementation tasks, multi-step analysis, anything the user might say "繼續" for in a future session.

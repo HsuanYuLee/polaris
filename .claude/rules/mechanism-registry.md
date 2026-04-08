@@ -21,7 +21,7 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 
 #### Common Rationalizations — Skill Routing
 
-These are real escape patterns observed in GT-483 and other sessions. When you notice yourself thinking any of these, it is evidence you are about to violate `skill-first-invoke`.
+These are real escape patterns observed in prior sessions. When you notice yourself thinking any of these, it is evidence you are about to violate `skill-first-invoke`.
 
 | Thought | Reality |
 |---------|---------|
@@ -89,14 +89,14 @@ These are real escape patterns observed in GT-483 and other sessions. When you n
 |----|------|---------------|-------|
 | `scope-header-enforcement` | Company rule files must have `Scope:` header | File under `rules/{company}/` without scope header | Medium |
 
-### Debugging & Verification (source: GT-483 session violations, graduated 2026-04-04)
+### Debugging & Verification (source: prior session violations, graduated 2026-04-04)
 
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
 | `fix-through-not-revert` | When implementation is broken, find root cause and fix — do not revert or add fallback as first response | Strategist proposes revert/fallback before investigating why the implementation failed | High |
 | `query-original-impl` | Before changing an API call path, query the source-of-truth caller (e.g., member-ci calling api-lang) to confirm endpoint, auth, params, response format | API path changed without reading the original implementation that the change is supposed to match | High |
 | `cross-repo-verification` | Cross-repo changes must be verified across all involved repos with full infra stack | Verification only runs in one repo when the ticket touches multiple repos; `workspace-config.requires` ignored | High |
-| `env-follows-requires` | Dev environment must be started per `workspace-config.projects[].dev_environment.requires` — no shortcuts | Nuxt dev server started standalone when `requires: ["kkday-web-docker"]` is configured; Docker containers not running | High |
+| `env-follows-requires` | Dev environment must be started per `workspace-config.projects[].dev_environment.requires` — no shortcuts | Nuxt dev server started standalone when `requires: ["project-web-docker"]` is configured; Docker containers not running | High |
 | `http-status-in-verification` | All endpoint verifications must check HTTP status code (200) + response body — status 200 is the minimum bar | Verification reports "data looks correct" without confirming HTTP 200 | Medium |
 | `no-speculation-as-fact` | Do not repeat a speculation after user corrects it — once corrected, internalize the correction | Same wrong claim repeated after user already corrected it (e.g., "SIT 環境" after user said "我在 local") | Medium |
 

@@ -115,23 +115,23 @@ Scanned: N tickets（Epic: A | Bug: B | Task: C）
 Gaps found: X | Ready: Y | Skipped: Z
 
 ⚡ Quick Wins（1 步）
-  1. GT-478 [CWV] JS Bundle 瘦身 — CI_RED on PR #92 → fix-pr-review
-  2. KB2CW-3599 SKU 價格 Bug — CODE_NO_PR → git-pr-workflow
+  1. PROJ-101 [CWV] JS Bundle 瘦身 — CI_RED on PR #92 → fix-pr-review
+  2. TEAM-201 SKU 價格 Bug — CODE_NO_PR → git-pr-workflow
 
 🔨 需要實作（2-3 步）
-  3. GT-509 AI 爬蟲調查 — NOT_STARTED (5 SP) → work-on
-  4. GT-495 首頁結構化資料 — NOT_STARTED → work-on
+  3. PROJ-106 AI 爬蟲調查 — NOT_STARTED (5 SP) → work-on
+  4. PROJ-105 首頁結構化資料 — NOT_STARTED → work-on
 
 📋 需要規劃
-  5. GT-482 HTML + CSS 優化 — NO_ESTIMATE → jira-estimation
-  6. GT-479 Category LCP+CLS — NO_ESTIMATE → jira-estimation
+  5. PROJ-104 HTML + CSS 優化 — NO_ESTIMATE → jira-estimation
+  6. PROJ-102 Category LCP+CLS — NO_ESTIMATE → jira-estimation
 
 ⏸ 等別人（不執行）
-  - GT-483 TTFB 優化 — REVIEW_STUCK (PR #2066, 0 approved, 3 days)
-  - KB2CW-2863 — WAITING_QA
+  - PROJ-100 TTFB 優化 — REVIEW_STUCK (PR #2066, 0 approved, 3 days)
+  - TEAM-203 — WAITING_QA
 
 ✅ Ready（無 gap）
-  - GT-480 CWV 報表 — Ready for Stage
+  - PROJ-103 CWV 報表 — Ready for Stage
 ══════════════════════════════════════
 
 執行？(y/n/調整順序/移除項目)
@@ -212,10 +212,10 @@ Gaps found: X | Ready: Y | Skipped: Z
 
 | Ticket | Before | After | Action Taken |
 |--------|--------|-------|-------------|
-| GT-478 | CI_RED | READY | fix-pr-review → CI pass |
-| GT-509 | NOT_STARTED | CODE_REVIEW | work-on → PR #105 |
-| GT-482 | NO_ESTIMATE | NOT_STARTED | jira-estimation → 8 SP |
-| GT-483 | REVIEW_STUCK | REVIEW_STUCK | ⏸ skipped (等 review) |
+| PROJ-101 | CI_RED | READY | fix-pr-review → CI pass |
+| PROJ-106 | NOT_STARTED | CODE_REVIEW | work-on → PR #105 |
+| PROJ-104 | NO_ESTIMATE | NOT_STARTED | jira-estimation → 8 SP |
+| PROJ-100 | REVIEW_STUCK | REVIEW_STUCK | ⏸ skipped (等 review) |
 
 Summary:
   ✅ Resolved: 3 gaps
@@ -223,8 +223,8 @@ Summary:
   ❌ Failed: 0
 
 Next actions:
-  - GT-483: 催 review（要我發 Slack 嗎？）
-  - KB2CW-2863: 追 QA 進度
+  - PROJ-100: 催 review（要我發 Slack 嗎？）
+  - TEAM-203: 追 QA 進度
 ══════════════════════════════════════
 ```
 
@@ -257,7 +257,7 @@ Next actions:
 
 ## Epic 模式 vs 全域模式
 
-如果使用者指定了特定 Epic key（例：`converge GT-483`），只掃描該 Epic 及其子單，不掃全部。
+如果使用者指定了特定 Epic key（例：`converge PROJ-100`），只掃描該 Epic 及其子單，不掃全部。
 這等同於原本 `epic-status` 的行為。
 
 如果沒指定 ticket → 全域模式，掃描所有 assigned work。

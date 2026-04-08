@@ -432,7 +432,7 @@ npx tsc --noEmit 2>&1
 
 產生或確認 changeset 後，掃描 PR diff 中的 `.changeset/` 檔案，移除不屬於本 PR ticket 的 changeset：
 
-1. 從 branch name 或 PR title 提取本 PR 的 ticket key（如 `KB2CW-3556`）
+1. 從 branch name 或 PR title 提取本 PR 的 ticket key（如 `TEAM-103`）
 2. `git diff origin/{baseRefName} --name-only -- .changeset/` 列出本 PR 新增的所有 changeset 檔案
 3. 讀取每個 changeset 的內容，若描述中不包含本 PR 的 ticket key → 刪除（`git rm`）
 4. 確保最終只剩一個屬於本 PR 的 changeset
@@ -817,7 +817,7 @@ Commit: <sha>
 {base_dir}/polaris-sync.sh --reverse {project-name}
 ```
 
-其中 `{project-name}` 從 repo 目錄名推導（例如 `kkday-b2c-web`）。
+其中 `{project-name}` 從 repo 目錄名推導（例如 `acme-web-app`）。
 
 ## 13. Slack 通知（僅當輸入來源為 Slack 時）
 

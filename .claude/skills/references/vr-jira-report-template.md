@@ -25,7 +25,7 @@ h2. VR 結果 — {Epic/Ticket} Visual Regression（{date}）
 h3. 測試條件
 * Baseline & Comparison: {branch}（Mockoon fixture 隔離，before/after 同源比對）
 * Fixtures: {epic} epic（{N} routes）
-* 環境: Mockoon + Nuxt dev server + Docker nginx (dev.kkday.com)
+* 環境: Mockoon + Nuxt dev server + Docker nginx (dev.example.com)
 * Playwright: desktop 1280x720 + mobile 375x812 (iPhone UA)
 
 ----

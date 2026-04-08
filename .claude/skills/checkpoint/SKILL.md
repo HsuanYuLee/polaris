@@ -49,7 +49,7 @@ Compose a single-line note summarizing the state:
 branch:{branch} ticket:{ticket} phase:{current_phase} next:{next_action}
 ```
 
-Example: `branch:task/GT-500-auth ticket:GT-500 phase:implementation next:write-tests`
+Example: `branch:task/PROJ-200-auth ticket:PROJ-200 phase:implementation next:write-tests`
 
 ### Step 3 — Write to Timeline
 
@@ -140,9 +140,9 @@ Display as a table:
 ```
 Recent Checkpoints:
   #  Time                Branch              Ticket    Note
-  1  2026-04-02 14:30    task/GT-500-auth    GT-500    phase:implementation next:write-tests
-  2  2026-04-02 10:15    task/GT-499-api     GT-499    phase:pr next:fix-review
-  3  2026-04-01 17:00    task/GT-498-refactor GT-498   phase:done next:merge
+  1  2026-04-02 14:30    task/PROJ-200-auth    PROJ-200    phase:implementation next:write-tests
+  2  2026-04-02 10:15    task/PROJ-199-api     PROJ-199    phase:pr next:fix-review
+  3  2026-04-01 17:00    task/PROJ-198-refactor PROJ-198   phase:done next:merge
 ```
 
 ---

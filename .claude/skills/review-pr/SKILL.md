@@ -613,7 +613,7 @@ PR Approve 狀況：目前 M/2 valid approve(s)
 {base_dir}/polaris-sync.sh --reverse {project-name}
 ```
 
-其中 `{project-name}` 從 repo 目錄名推導（例如 `kkday-b2c-web`）。
+其中 `{project-name}` 從 repo 目錄名推導（例如 `acme-web-app`）。
 
 ## 7. Slack 通知（僅當輸入來源為 Slack 時）
 

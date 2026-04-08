@@ -221,9 +221,9 @@ TDT 的排序邏輯：
 TDT 輸出範例（有 triage state 時）：
 ```
 * **TDT – Today's Tasks**
-  * 🟢 GT-483 [CWV] TTFB 優化 — PR approved, 待 merge（超前）
-  * ⚪ GT-478 [CWV] JS Bundle 瘦身 — 開發中
-  * ⚪ GT-495 [SEO] 首頁結構化資料 — 待估點
+  * 🟢 PROJ-100 [CWV] TTFB 優化 — PR approved, 待 merge（超前）
+  * ⚪ PROJ-101 [CWV] JS Bundle 瘦身 — 開發中
+  * ⚪ PROJ-105 [SEO] 首頁結構化資料 — 待估點
 ```
 
 **Sprint context**：在 TDT 標題後附上 sprint 剩餘天數和剩餘點數（從 JIRA board 或使用者口述取得）。這是 nice-to-have，如果無法自動取得就跳過或問使用者。
