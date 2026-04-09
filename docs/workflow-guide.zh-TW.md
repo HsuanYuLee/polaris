@@ -177,6 +177,7 @@ flowchart LR
     %% ── Epic Tracking ──
     MT["my-triage<br/>(daily triage)"]
     ES["epic-status<br/>(gap closer)"]
+    CV["converge<br/>(push to review)"]
     EOD["end-of-day<br/>(deprecated → standup)"]
 
     %% ── Context Router ──
@@ -242,6 +243,8 @@ flowchart LR
     ES -->|gap: fix review| FPR
     ES -->|gap: needs approval| CPA
     ES -->|gap: verify| VC
+    CV -->|batch push| GPW
+    CV -->|gap analysis| ES
 
     %% ── Scrum chain ──
     RF -.-> SP
@@ -262,7 +265,7 @@ flowchart LR
     class RP,RI,CPA,FPR,RLG review
     class RF,EB,SC,SP,IT planning
     class JE internal
-    class NX,MT,ES,EOD orchestrator
+    class NX,MT,ES,CV,EOD orchestrator
     class SU,SDB,UT,UTR,LRN,WTP,DS,WR standalone
 ```
 
@@ -273,6 +276,7 @@ flowchart LR
 - `my-triage` 盤點所有已指派工作（Epic、Bug、孤兒 Task）；優先順序排名會傳入 `standup` 的 TDT 區段
 - `end-of-day` 已棄用 — 所有下班觸發詞（「下班」、「收工」、「EOD」、「wrap up」等）現在統一路由到 `standup`（v2.0），Step 0 自動跑 triage
 - `epic-status` 追蹤 Epic 進度，自動將缺口路由到對應技能
+- `converge` 一次把所有進行中的工作推進到 review：批次觸發 PR、補全缺口，可呼叫 `epic-status` 做 gap analysis（觸發詞：「收斂」、「推進」、「converge」）
 - `standup`（v2.0）是每日站會和下班收工的統一進入點 — 含自動 triage（Step 0）；由使用者直接觸發
 - `visual-regression` 在 UI 相關變更中於 `dev-quality-check` 之後、`verify-completion` 之前執行。選擇性但建議用於版面/樣式變更
 - `systematic-debugging`、`learning`、`wt-parallel`、`unit-test-review`、`docs-sync`、`worklog-report` 是獨立技能 — 由使用者直接觸發，不在主鏈路中

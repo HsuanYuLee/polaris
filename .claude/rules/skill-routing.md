@@ -61,6 +61,9 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Validate isolation | "validate isolation", "檢查隔離" | `validate-isolation` |
 | Save/resume session state | "checkpoint", "存檔", "save checkpoint", "resume", "恢復", "list checkpoints", "列出存檔" | `checkpoint` |
 | Visual regression check | "跑 visual regression", "檢查畫面", "頁面有沒有壞", "visual test", "截圖比對", "有沒有跑版", "畫面壞了嗎", "UI 有沒有問題" | `visual-regression` |
+| Log work time | "worklog", "記工時", "log time", "log hours" | `jira-worklog` |
+| Backfill worklogs | "補工時", "backfill worklog", "工時回填" + date range | `jira-worklog` (batch mode) |
+| Auto worklog (daily) | (auto-triggered by `/standup` post-step) | `jira-worklog` via `standup` |
 
 ## Complexity Tier — Route by Task Size
 

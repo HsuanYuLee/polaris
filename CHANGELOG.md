@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.79.0] - 2026-04-09
+
+- **jira-worklog v2.0 — Daily quota allocation** — 8h per workday split among In Development tickets by story point weight. Smart filtering excludes non-logged ticket types. Batch curl for multi-day backfill. Standup auto-log integration
+- **Story Points dynamic discovery (cross-cutting)** — `jira-story-points.md` rewritten as authoritative reference with mandatory Step 0 field ID discovery. All 7 skills using Story Points (converge, epic-status, intake-triage, jira-worklog, my-triage, jira-subtask-creation, work-on) updated to use `<storyPointsFieldId>` placeholder — hardcoded `customfield_10016` strictly forbidden
+- **epic-verification-structure.md rewrite** — Verification tickets default 0pt (not 1pt), lifecycle flow with PASS/FAIL comment templates, Epic close criteria, implementation task description split into code-level test plan vs business-level AC sections, test sub-tasks as JIRA 子任務 issueType (not Task)
+- **PR review conventions (L1 rule)** — New universal `pr-and-review.md`: inline comments mandatory (no findings in review body), review language follows PR description language. kkday-scoped placeholder added
+- **check-pr-approvals** — PR links must be clickable markdown format
+- **jira-subtask-creation** — Step 0 query existing sub-tasks before creating, assignee param fix
+- **version-bump-reminder canary (Critical)** — Added to mechanism-registry after discovering 6 consecutive sessions modified `skills/` without triggering version bump reminder. Common Rationalizations table added. Backlog item for deterministic PostToolUse hook
+
 ## [1.78.0] - 2026-04-08
 
 - **sasd-review v1.0.0 — Design-First Gate** — 從 kkday 專屬提升為框架級 skill。在寫任何程式碼前產出 SA/SD 設計文件：需求分析 → 歧義收集 → 2-3 方案比較 → 確認後產出（含 Dev Scope、System Flow、Task List with Estimates）。移除 kkday 專有術語（BFF、PC/M），保留通用工程紀律

@@ -141,6 +141,16 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | `challenger-milestone-only` | Challenger Audit runs pre-release/pre-share only | Challenger triggered after a single PR or during daily work | High |
 | `framework-exp-once-per-task` | At most 1 framework-experience memory per task | Multiple framework-experience memories with the same `last_triggered` date | Low |
 | `docs-sync-on-version-bump` | After VERSION bump commit, run docs-sync before sync-to-polaris | VERSION bumped and pushed without docs-sync invocation | High |
+| `version-bump-reminder` | After task completion, if committed files include `rules/` or `skills/` paths, remind user about version bump | Commit modifying `skills/` or `rules/` files followed by session end without version bump reminder | **Critical** |
+
+#### Common Rationalizations — Version Bump Reminder
+
+| Thought | Reality |
+|---------|---------|
+| "This is a small change, not worth a version" | The user decides grouping, not you. Your job is to **remind**, not to judge whether the change is big enough |
+| "I'll remind after the next task" | You won't. 6 consecutive sessions forgot. Remind NOW, at the commit boundary |
+| "The session is about to end, version bump would be disruptive" | A 1-line reminder is not disruptive. Skipping it means the next session also forgets |
+| "This commit only touched docs/references, not core skills" | `skills/references/` IS under `skills/`. The rule says `rules/` or `skills/` — no exceptions for subdirectories |
 
 ### Cross-Session Continuity (source: `CLAUDE.md`)
 
@@ -183,3 +193,4 @@ Post-task audit should check these first (highest drift risk, most impactful):
 8. `cross-repo-verification` / `env-follows-requires`
 9. `no-cd-in-bash` / `no-independent-cmd-chaining`
 10. `feedback-trigger-count-update` / `graduation-at-three-triggers`
+11. `version-bump-reminder` (Critical — 6 consecutive misses discovered 2026-04-09)

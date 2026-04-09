@@ -460,6 +460,8 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 
 **5e. 批次建立 [驗證] sub-task**
 
+> 前置：先依 `references/jira-story-points.md` Step 0 探測 Story Points 欄位 ID（若本 session 尚未探測）。
+
 為每個測試計畫項目建立 JIRA sub-task，平行呼叫 `createJiraIssue`：
 
 ```
@@ -472,7 +474,19 @@ mcp__claude_ai_Atlassian__createJiraIssue
   assignee_account_id: <當前使用者 accountId>
 ```
 
-建完後列出所有驗證子單連結。
+建完後，**立即為每張驗證子單設定 Story Points**（平行呼叫 `editJiraIssue`）：
+
+```
+mcp__claude_ai_Atlassian__editJiraIssue
+  cloudId: {config: jira.instance}
+  issueIdOrKey: <新建的驗證子單 key>
+  fields:
+    <storyPointsFieldId>: 1   # 每張驗證子單 1 pt
+```
+
+> 估點規則：per-AC 驗證子單 = 1 pt；若合併多條 AC 為一張 → ≤ 3 AC = 1 pt，> 3 AC = 2 pt。
+
+建完後列出所有驗證子單連結（含點數）。
 
 **5f. 🔍 QA Challenge — 自動解決循環（must-respond）**
 

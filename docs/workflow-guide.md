@@ -177,6 +177,7 @@ flowchart LR
     %% ── Epic Tracking ──
     MT["my-triage<br/>(daily triage)"]
     ES["epic-status<br/>(gap closer)"]
+    CV["converge<br/>(push to review)"]
     EOD["end-of-day<br/>(deprecated → standup)"]
 
     %% ── Context Router ──
@@ -242,6 +243,8 @@ flowchart LR
     ES -->|gap: fix review| FPR
     ES -->|gap: needs approval| CPA
     ES -->|gap: verify| VC
+    CV -->|batch push| GPW
+    CV -->|gap analysis| ES
 
     %% ── Scrum chain ──
     RF -.-> SP
@@ -262,7 +265,7 @@ flowchart LR
     class RP,RI,CPA,FPR,RLG review
     class RF,EB,SC,SP,IT planning
     class JE internal
-    class NX,MT,ES,EOD orchestrator
+    class NX,MT,ES,CV,EOD orchestrator
     class SU,SDB,UT,UTR,LRN,WTP,DS,WR standalone
 ```
 
@@ -273,6 +276,7 @@ flowchart LR
 - `my-triage` triages all assigned work (Epics, Bugs, orphan Tasks); feeds priority ranking into `standup` TDT section
 - `end-of-day` is deprecated — all end-of-day triggers ("下班", "收工", "EOD", "wrap up", etc.) now route to `standup` (v2.0), which includes auto-triage in Step 0
 - `epic-status` tracks Epic progress and auto-routes gaps to the appropriate skill
+- `converge` pushes all in-flight work toward review in one pass — closes gaps, batch-triggers PRs, and can call `epic-status` for gap analysis (triggered by "收斂", "converge", "push to review")
 - `standup` (v2.0) is the unified entry point for daily standup and end-of-day routines — includes auto-triage (Step 0); triggered directly by the user
 - `visual-regression` runs after `dev-quality-check` for UI-touching changes — before `verify-completion`. Optional but recommended for layout/styling changes
 - `systematic-debugging`, `learning`, `wt-parallel`, `unit-test-review`, `docs-sync`, `worklog-report` are standalone skills — triggered directly by the user, not part of the main chain

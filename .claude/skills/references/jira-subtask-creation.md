@@ -16,6 +16,32 @@
 
 > 不設定 assignee 不是預設行為。子單建出來就應該有 owner。
 
+**MCP 參數名注意**：`createJiraIssue` 的 assignee 參數是 **`assignee_account_id`**（不是 `assignee`）。傳錯參數名會被靜默忽略，導致 assignee 落到專案預設值。
+
+## Step 0 — 查詢既有子單（必須）
+
+在建立任何新子單之前，先查詢母單是否已有子單。`getJiraIssue` 的 `subtasks` 欄位**只回傳同專案的 Sub-task**，跨專案的 Task + parent link 不會出現。必須用 JQL：
+
+```
+mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
+  cloudId: {config: jira.instance}
+  jql: project = {子單專案key} AND parent = {母單key} ORDER BY created ASC
+  fields: ["summary", "status", "<storyPointsFieldId>", "issuetype"]
+  # storyPointsFieldId：依 references/jira-story-points.md Step 0 動態探測，不可寫死
+  maxResults: 50
+```
+
+根據查詢結果決定動作：
+
+| 情境 | 動作 |
+|------|------|
+| 無既有子單 | 正常進入建立迴圈 |
+| 有既有子單，SP 已填 | 回報現有子單，跳過建立，僅補缺（驗收單、測試計劃） |
+| 有既有子單，SP 未填 | 回報現有子單，進入補估點流程（Step B），不重複建立 |
+| 有部分子單 | 回報現有 + 識別缺少的，僅建立缺少的部分 |
+
+> **為什麼不能省略**：kkday 慣例子單建在 KB2CW 用 parent link，`getJiraIssue` 的 `subtasks` 會回傳空陣列，造成「以為沒有子單」的誤判。GT-480 就是此 bug 的實例。
+
 ## 建立迴圈
 
 對每個子任務依序執行以下兩步驟（不可省略任何一步）：
@@ -31,7 +57,7 @@ mcp__claude_ai_Atlassian__createJiraIssue
   description: <子任務 description，Markdown 格式>
   contentFormat: markdown
   parent: <母單 KEY>
-  assignee: <使用者的 JIRA accountId，從 memory 取得>
+  assignee_account_id: <母單 fields.assignee.accountId，fallback: memory user_scrum_role.md>
 ```
 
 ### Step B — 填入估點（必須，createIssue 不支援此欄位）

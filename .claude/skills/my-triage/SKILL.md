@@ -22,7 +22,8 @@ metadata:
 mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
   cloudId: {config: jira.instance}
   jql: assignee = currentUser() AND status not in (Done, Closed, Launched, 完成) AND (issuetype = Epic OR issuetype = Bug OR (issuetype in (Story, Task, 任務, 大型工作) AND "Epic Link" is EMPTY)) AND project in ({config: jira.projects[].key}) ORDER BY priority DESC, created DESC
-  fields: ["summary", "status", "priority", "created", "duedate", "customfield_10016", "fixVersions", "issuetype", "parent"]
+  # storyPointsFieldId：依 references/jira-story-points.md Step 0 探測
+  fields: ["summary", "status", "priority", "created", "duedate", "<storyPointsFieldId>", "fixVersions", "issuetype", "parent"]
   maxResults: 50
 ```
 

@@ -40,11 +40,10 @@ mcp__claude_ai_Atlassian__getJiraIssue
 mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
   cloudId: {config: jira.instance}  # fallback: your-domain.atlassian.net
   jql: parent = <EPIC_KEY> ORDER BY status ASC
-  fields: ["summary", "status", "issuetype", "assignee", "story_points", "customfield_10016"]
+  # storyPointsFieldId：依 references/jira-story-points.md Step 0 探測
+  fields: ["summary", "status", "issuetype", "assignee", "story_points", "<storyPointsFieldId>"]
   maxResults: 50
 ```
-
-> `customfield_10016` 是 Story Points 的常見 custom field，若取不到 story_points 則用此欄位。
 
 若子單數量為 0 → 提示「這張 Epic 還沒有子單，要先拆單嗎？」並建議使用 `/epic-breakdown`。
 

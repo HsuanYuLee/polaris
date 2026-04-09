@@ -58,8 +58,9 @@ jql: parent = {EPIC_KEY} AND status not in (Done, Closed, Launched, 完成)
 mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
   cloudId: {config: jira.instance}
   jql: key in ({keys}) AND status not in (Done, Closed, Launched, 完成)
+  # storyPointsFieldId：依 references/jira-story-points.md Step 0 探測
   fields: ["summary", "description", "status", "priority", "issuetype", "created",
-           "customfield_10016", "issuelinks", "labels", "parent", "comment"]
+           "<storyPointsFieldId>", "issuelinks", "labels", "parent", "comment"]
   maxResults: 50
 ```
 

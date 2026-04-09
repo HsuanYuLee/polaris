@@ -3,7 +3,7 @@ name: scope-challenge
 description: "Use when a JIRA ticket's scope or assumptions should be questioned before estimation — when requirements feel over-engineered, under-specified, or worth challenging. Advisory only. Trigger: 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑', or invoked by work-on/epic-breakdown before estimation."
 metadata:
   author: Polaris
-  version: 1.1.0
+  version: 1.2.0
 ---
 
 # Scope Challenge — 需求質疑
@@ -91,7 +91,11 @@ metadata:
 → 建議採用方案 {X}，原因：{一句話}
 ```
 
-詢問使用者選擇後，繼續後續流程（估點 / 拆單）。使用者也可以選擇跳過，直接進入估點。
+詢問使用者選擇後，執行 Step 5.5，再繼續後續流程（估點 / 拆單）。使用者也可以選擇跳過，直接進入估點（此時省略 Step 5.5）。
+
+## 5.5 寫入 Decision Record（使用者選擇方案後執行）
+
+使用者選定方案後，用 `mcp__claude_ai_Atlassian__addCommentToJiraIssue` 將 scope challenge 結論與推理記錄到 JIRA comment。格式參考 `references/decision-audit-trail.md`。
 
 ## 6. 拆單審查模式（由 epic-breakdown invoke）
 

@@ -34,7 +34,7 @@ Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
          → 開 PR 附上覆蓋率報告 → JIRA 狀態轉為 CODE REVIEW
 ```
 
-**技能：** `work-on`, `fix-bug`, `epic-breakdown`, `epic-status`, `tdd`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `dev-quality-check`, `visual-regression`, `verify-completion`, `jira-branch-checkout`, `start-dev`, `scope-challenge`, `refinement`, `intake-triage`
+**技能：** `work-on`, `fix-bug`, `epic-breakdown`, `epic-status`, `converge`, `tdd`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `dev-quality-check`, `visual-regression`, `verify-completion`, `jira-branch-checkout`, `start-dev`, `scope-challenge`, `refinement`, `intake-triage`
 
 深入了解 → [開發者工作流程指南](docs/workflow-guide.zh-TW.md)
 
@@ -165,7 +165,7 @@ cd ~/polaris-workspace
 
 ### 從這裡開始
 
-不要一次嘗試全部 41 個技能。根據你的角色挑一個開始：
+不要一次嘗試全部 42 個技能。根據你的角色挑一個開始：
 
 | 如果你是... | 先試這個 | 會發生什麼 |
 |------------|---------|-----------|
