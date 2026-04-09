@@ -134,6 +134,29 @@ The real risk in parallel sub-agent execution is not "agent didn't return" (Clau
 - **Worktree path translation**: when a sub-agent runs in a worktree, file paths from the parent context (e.g., `{base_dir}/repo/src/...`) point to the original workspace, not the worktree copy. The dispatch prompt must explicitly state: "你的工作目錄是 `{worktree_path}`，所有檔案操作必須在此目錄下。不要使用原始 workspace 路徑 `{original_path}`。" This prevents the sub-agent from accidentally reading/writing files in the wrong workspace
 - **General permissions go in user-level `~/.claude/settings.json`**: sub-agents running in sub-projects or worktrees fall back to user-level settings
 
+## Write Isolation Model
+
+Three tiers of isolation for sub-agent file operations, ordered by increasing safety:
+
+| Tier | Mechanism | When to Use | Tradeoff |
+|------|-----------|-------------|----------|
+| **Shared** | Sub-agent writes directly to the current workspace | Single sub-agent, ≤ 3 files, sequential execution | Fast, but conflicts if multiple agents write simultaneously |
+| **Worktree** | `isolation: "worktree"` — Claude Code creates a temporary git worktree | Parallel implementation sub-agents, batch mode, any operation that must not affect the current branch | Safe from conflicts; worktree auto-cleaned if no changes. Path translation required (see § Operational Rules) |
+| **Cross-repo** | Sub-agent operates on a different local repo (e.g., `{base_dir}/other-repo`) | Changes span multiple repositories (e.g., API + consumer) | Each repo is independently safe; cross-repo atomicity depends on PR coordination |
+
+### Selection Guide
+
+```
+Single sub-agent, small change?  → Shared
+Parallel sub-agents?             → Worktree (mandatory for batch mode Phase 2)
+Fix-pr-review on non-current branch? → Worktree
+Multiple repos?                  → Cross-repo + worktree per repo if parallel
+```
+
+### Future: Per-Agent Write Buffer
+
+Inspired by LangGraph's per-task write buffer + atomic merge pattern. Currently blocked on Claude Code platform support for per-agent tool restrictions. When available, each sub-agent would write to an isolated buffer, and the Strategist would review + merge atomically. Tracked in backlog as "Per-agent isolation config in frontmatter."
+
 ## Known Platform Limitations
 
 - **Sub-agents cannot call the Skill tool**: sub-agents must read `SKILL.md` files directly and execute the steps inline. This means updates to a skill's SKILL.md are picked up automatically (sub-agents read the current version), but the execution is duplicated rather than delegated. Not a bug — this is a Claude Code platform constraint

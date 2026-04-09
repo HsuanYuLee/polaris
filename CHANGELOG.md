@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.80.0] - 2026-04-09
+
+- **Version bump reminder PostToolUse hook** — Deterministic enforcement for the Critical `version-bump-reminder` mechanism. `hooks/version-bump-reminder.sh` fires after every `git commit`, checks committed files for `skills/` or `rules/` paths, injects a reminder if found. Skips VERSION bump commits to avoid loops. Wired into `settings.json` PostToolUse
+- **Reference Discovery mechanism (Critical)** — New `reference-index-scan` canary in mechanism-registry: before any skill execution, read `skills/references/INDEX.md` and pull trigger-matched references. Added to CLAUDE.md § Reference Discovery as a skill execution prerequisite. Common Rationalizations table included
+- **Write Isolation Model documentation** — `sub-agent-delegation.md` gains § Write Isolation Model: three tiers (Shared / Worktree / Cross-repo) with selection guide, inspired by LangGraph's per-task write buffer pattern
+- **Backlog hygiene** — closed "Standup 口頭同步條列化" (already implemented), closed "Version bump hook" (done this version), closed "Write isolation model 文件化" (done this version)
+
 ## [1.79.0] - 2026-04-09
 
 - **jira-worklog v2.0 — Daily quota allocation** — 8h per workday split among In Development tickets by story point weight. Smart filtering excludes non-logged ticket types. Batch curl for multi-day backfill. Standup auto-log integration

@@ -44,6 +44,20 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | `worktree-for-batch-impl` | Batch mode Phase 2 sub-agents use `isolation: "worktree"` | Parallel implementation sub-agents without worktree isolation | Medium |
 | `subagent-completion-envelope` | All sub-agents must return Status/Artifacts/Summary envelope (see `sub-agent-roles.md` § Completion Envelope) | Sub-agent return without structured Status line | Medium |
 
+### Reference Discovery (source: `CLAUDE.md` § Reference Discovery)
+
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `reference-index-scan` | Before skill execution, read `skills/references/INDEX.md` and pull in trigger-matched references | Skill executes JIRA operations (createJiraIssue, editJiraIssue, epic-breakdown) without prior Read of INDEX.md or relevant reference files | **Critical** |
+
+#### Common Rationalizations — Reference Discovery
+
+| Thought | Reality |
+|---------|---------|
+| "I already know what this reference says" | References get updated. Read the working tree version, not your memory |
+| "The SKILL.md doesn't mention any references" | SKILL.md is not the discovery mechanism. INDEX.md is. New references may not be listed in any SKILL.md yet |
+| "This is a simple JIRA operation, no reference needed" | Simple operations have structural rules (verification structure, SP field ID, subtask creation flow) that silently produce wrong output when skipped |
+
 #### Common Rationalizations — Delegation
 
 | Thought | Reality |
@@ -183,7 +197,7 @@ These are real escape patterns observed in prior sessions. When you notice yours
 Post-task audit should check these first (highest drift risk, most impactful):
 
 1. `no-workaround-accumulation` / `design-implementation-reconciliation`
-2. `skill-first-invoke` / `no-manual-skill-steps`
+2. `skill-first-invoke` / `no-manual-skill-steps` / `reference-index-scan`
 3. `fix-through-not-revert` / `query-original-impl`
 4. `delegate-exploration` / `delegate-implementation`
 5. `cross-session-read-memory-file` / `cross-session-carry-forward`

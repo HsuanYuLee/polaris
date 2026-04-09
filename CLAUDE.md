@@ -45,6 +45,17 @@ When a behavioral drift is discovered, the fix must push the check into a determ
 | Answer user questions (no code lookup needed) | Do it directly |
 | Git operations (commit, branch, push) | Do it directly |
 
+### Reference Discovery (Skill Execution Prerequisite)
+
+Before executing any skill (via Skill tool invocation or inline SKILL.md steps), read `skills/references/INDEX.md` and scan the **Triggers** column. Pull in and read any reference whose triggers match the current skill or task context. This is not optional — references encode quality gates, structural rules, and conventions that skills depend on but don't individually list.
+
+This applies to:
+- Skill tool invocations (the Skill loads SKILL.md; you load relevant references)
+- Sub-agents executing skill steps (the dispatch prompt must include relevant references)
+- Manual execution of skill-like operations (e.g., creating JIRA sub-tasks outside of a formal skill)
+
+**Do not rely on SKILL.md mentioning specific references.** SKILL.md may reference some, but the INDEX is the authoritative discovery mechanism. New or updated references may not yet be mentioned in any SKILL.md.
+
 ### Communication Style
 - Act first, report after — don't ask for confirmation at every step (unless irreversible)
 - Keep replies concise — user sees high-level progress, not verbose tool-call details
