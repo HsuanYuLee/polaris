@@ -4,6 +4,10 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.81.1] - 2026-04-10
+
+- **Reference Discovery INDEX.md tracked** — `skills/references/INDEX.md` now committed to the repo (was untracked). Reference Discovery section added to CLAUDE.md as a supplement to v1.80.0
+
 ## [1.81.0] - 2026-04-10
 
 - **sync-to-polaris auto-genericize** — Before committing to the template repo, automatically applies each company's `genericize-map.sed` + `genericize-jira.sed` to all `.md` files. Company-specific references (JIRA keys, domains, Slack IDs, org names) are replaced with generic placeholders before the template is committed. The post-commit leak check now serves as verification — surviving patterns indicate missing sed rules, not a manual cleanup task. Converts the 18-hit leak warning (v1.79.0) from "remind to fix" to "auto-fixed"
