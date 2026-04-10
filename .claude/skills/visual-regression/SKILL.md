@@ -250,6 +250,24 @@ This stops Mockoon + dev server + any Docker services started by polaris-env.
 
 ---
 
+## Step 2.5: API Contract Check (if fixtures active)
+
+If Mockoon fixtures are running (Layer 2 of polaris-env), run the contract check before capturing screenshots. See `references/api-contract-guard.md`.
+
+```bash
+scripts/contract-check.sh --env-dir <mockoon-environments-dir> --epic <epic>
+```
+
+| Exit code | Action |
+|-----------|--------|
+| 0 | No drift → proceed to Step 3 |
+| 1 (breaking) | Display drift report. Ask user: "API contract 有 breaking change，要先更新 fixture 再跑 VR，還是忽略？" |
+| 2 (env not reachable) | Warn, proceed without check |
+
+If user chooses to update fixtures → switch to `--record` mode, re-capture, then restart from Step 3.
+
+---
+
 ## Step 3: Capture "Before" Screenshots
 
 Run Playwright with `--update-snapshots` to establish temporary baselines.

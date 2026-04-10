@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.85.0] - 2026-04-10
+
+- **API Contract Guard** — Detects schema drift between Mockoon fixtures and live API responses. Prevents stale fixtures from masking real API contract changes (false negatives). Three drift categories: breaking (type change, field removal → blocks task), additive (new field → auto-update), value-only (same schema → no action)
+  - `scripts/contract-check.sh` — schema diff engine (Python, zero deps). Parses Mockoon environment files, hits live API via proxyHost, recursive JSON schema comparison. Exit codes: 0=clean, 1=breaking, 2=unreachable
+  - `skills/references/api-contract-guard.md` — design doc with drift classification, skill integration pattern, fixture update flow
+  - Pre-steps added to 4 skills: `visual-regression` (Step 2.5), `fix-bug` (Step 4.4), `work-on` (Phase 1.5), `verify-completion` (Pre-flight)
+- **Backlog cleanup** — closed 36 items (23 Medium no-pain/premature + 13 Low brainstorm-era). 11 items remain
+
 ## [1.84.0] - 2026-04-10
 
 - **fix-pr-review configurable mode** — Step 0.5 now reads `skill_defaults.fix-pr-review.mode` from `workspace-config.yaml` (default: `auto`). Users set their preferred mode in config; per-invocation keywords (`互動`/`auto`) still override

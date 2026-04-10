@@ -116,6 +116,18 @@ mcp__claude_ai_Atlassian__transitionJiraIssue
 - 與初版的差異說明
 - **估點變動 > 30% 時 pause 讓 RD 確認**
 
+### Step 4.4：API Contract Check（if fixtures involved）
+
+如果當前 bug 修正涉及 API 資料顯示，且環境有跑 Mockoon fixtures，在 local 驗證前先跑 contract check（見 `references/api-contract-guard.md`）：
+
+```bash
+scripts/contract-check.sh --env-dir <mockoon-environments-dir> --epic <epic>
+```
+
+- Exit 0 → 繼續 Step 4.5
+- Exit 1（breaking drift）→ 顯示差異，提醒：fixture 過期可能導致驗證結果不準。使用者決定是否先更新 fixture
+- Exit 2（環境未啟動）→ warn，繼續
+
 ### Step 4.5：AC Local Verification（本地驗證）— Hard Gate
 
 > **🛑 Hard Gate — 不可跳過。** Local 驗證項必須逐項執行並產出證據（test output、curl response、截圖），才能進入 Step 5。「unit test 過了所以跳過行為驗證」不是有效理由 — unit test 驗邏輯正確，local 驗證驗行為正確，兩者互補不可替代。

@@ -49,6 +49,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [tdd-smart-judgment.md](tdd-smart-judgment.md) | 逐檔判斷是否適用 TDD（testable vs config/style/type-def） | tdd, work-on, fix-bug |
+| [api-contract-guard.md](api-contract-guard.md) | Mockoon fixture vs live API schema drift 偵測：分類、流程、skill 接入點 | visual-regression, fix-bug, work-on, verify-completion |
 | [visual-regression-config.md](visual-regression-config.md) | VR config schema：domain、server、fixtures、pages、viewports | visual-regression, /init VR setup |
 | [vr-jira-report-template.md](vr-jira-report-template.md) | VR 結果 JIRA comment 的 wiki markup 模板 | visual-regression, fix-bug AC verification, verify-completion |
 

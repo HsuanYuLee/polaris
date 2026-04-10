@@ -165,6 +165,18 @@ Description: {description}
 
 ---
 
+### Phase 1.5：API Contract Check（if fixtures involved）
+
+若當前 ticket 涉及的頁面有 Mockoon fixtures，在實作前跑 contract check（見 `references/api-contract-guard.md`）：
+
+```bash
+scripts/contract-check.sh --env-dir <mockoon-environments-dir> --epic <epic>
+```
+
+- Exit 0 → 繼續 Phase 2
+- Exit 1（breaking drift）→ 顯示差異報告。Breaking change 可能影響實作方向（型別、欄位名）。提醒使用者先更新 fixture + 型別定義
+- Exit 2 → warn，繼續
+
 ### Phase 2：平行實作
 
 **2a. 篩選可實作的 ticket**：

@@ -587,7 +587,19 @@ Gaps found here block the verification — return to implementation to fix wirin
 
 **Skip when**: the change is backend-only (API util, build config, test-only files) or the dev server is not available.
 
-### Pre-flight
+### Pre-flight: API Contract Check
+
+If the project uses Mockoon fixtures and the dev environment is running, check fixture freshness before E2E verification (see `references/api-contract-guard.md`):
+
+```bash
+scripts/contract-check.sh --env-dir <mockoon-environments-dir> --epic <epic>
+```
+
+- Exit 0 → proceed to browser verification
+- Exit 1 (breaking) → warn: "Fixture drift detected — E2E results may be inaccurate." Show drift summary. User decides to proceed or update fixtures first
+- Exit 2 → skip check, proceed
+
+### Pre-flight: Dev Server
 
 1. Check if the dev environment is running:
    ```bash
