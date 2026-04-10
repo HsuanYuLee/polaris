@@ -84,9 +84,28 @@ This is a **reminder**, not an automatic bump. The user decides when and how to 
 After a VERSION bump is committed, execute these steps in order — no user confirmation needed:
 
 1. **docs-sync** — invoke `/docs-sync` to detect and fix documentation drift (new skills, stale counts, missing triggers, translation sync). If changes are found, commit them as a separate `docs:` commit
-2. **sync-to-polaris.sh --push** — sync all changes (including the docs commit) to the template repo
+2. **backlog-staleness-scan** — scan `polaris-backlog.md` for stale items (see § Backlog Hygiene below)
+3. **sync-to-polaris.sh --push** — sync all changes (including the docs commit) to the template repo
 
-This chain ensures documentation is always up-to-date at release boundaries. The docs-sync step runs unconditionally — even if no skill was added, counts or descriptions may have drifted since the last sync.
+This chain ensures documentation is always up-to-date and backlog stays clean at release boundaries.
+
+### Backlog Hygiene
+
+`polaris-backlog.md` items carry a date tag `(YYYY-MM-DD)` and optional exemption tags (`[platform]`, `[next-epic]`).
+
+**Triggers:**
+1. **Post-version-bump chain** (primary) — Step 2 above
+2. **Monthly standup fallback** — first `/standup` of each month, if no version bump happened that month
+
+**Scan rules:**
+
+| Condition | Action |
+|-----------|--------|
+| `[ ]` item with no exemption tag, date > 60 days ago | Suggest closing — present to user |
+| `[ ]` item with `[platform]` or `[next-epic]` tag, date > 90 days ago | Ask user to confirm tag is still valid |
+| `[ ]` item with no date tag | Add today's date (backfill) |
+
+**Execution:** scan is silent — only surface items that match a rule. If nothing is stale, no output. Present stale candidates as a numbered list; user says which to close or keep (with updated date).
 
 ## Validated Pattern Promotion
 

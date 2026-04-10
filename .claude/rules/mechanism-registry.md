@@ -156,6 +156,7 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | `challenger-milestone-only` | Challenger Audit runs pre-release/pre-share only | Challenger triggered after a single PR or during daily work | High |
 | `framework-exp-once-per-task` | At most 1 framework-experience memory per task | Multiple framework-experience memories with the same `last_triggered` date | Low |
 | `docs-sync-on-version-bump` | After VERSION bump commit, run docs-sync before sync-to-polaris | VERSION bumped and pushed without docs-sync invocation | High |
+| `backlog-staleness-scan` | Post-version-bump chain Step 2 + monthly standup fallback: scan backlog for stale items | Version bump completes without backlog scan; first standup of month skips scan when no bump happened that month | Medium |
 | `version-bump-reminder` | After task completion, if committed files include `rules/` or `skills/` paths, remind user about version bump | Commit modifying `skills/` or `rules/` files followed by session end without version bump reminder | **Critical** |
 
 #### Common Rationalizations — Version Bump Reminder

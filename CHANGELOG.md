@@ -4,6 +4,12 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.83.0] - 2026-04-10
+
+- **Backlog Hygiene mechanism** — Post-version-bump chain 新增 Step 2：掃描 `polaris-backlog.md` 的 stale items。每個 `[ ]` item 帶 `(YYYY-MM-DD)` 日期 tag，可選 `[platform]`/`[next-epic]` 豁免 tag。無 tag > 60 天 → 建議關閉，有 tag > 90 天 → 確認是否仍有效。Fallback：每月首次 `/standup` 觸發
+- **Backlog 大掃除** — 移除 ~75 個完成項，34 個 open items 按主題重新分組，全部標記日期 + 豁免 tag。檔案從 362 行縮到 137 行
+- **`backlog-staleness-scan` mechanism (Medium)** — 新增 mechanism-registry canary，追蹤版本升級和月度 standup 是否觸發 backlog 掃描
+
 ## [1.82.0] - 2026-04-10
 
 - **fix-bug Step 4.5 Hard Gate** — AC Local Verification 升級為 Hard Gate：每個 Local 驗證項必須有 PASS/SKIP/FAIL disposition + 證據（test output、curl response、截圖），不允許「unit test 過了就跳過行為驗證」。來源：KB2CW-3783 hotfix 中跳過了起 dev server 的語系切換驗證，只靠 unit test 就發 PR
