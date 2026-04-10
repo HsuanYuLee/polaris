@@ -43,6 +43,7 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | `model-tier-selection` | sonnet for explore/execute, haiku for JIRA batch ops (see `sub-agent-roles.md` § Model Tier) | JIRA batch sub-agent using sonnet; explore sub-agent with no model specified | Low |
 | `worktree-for-batch-impl` | Batch mode Phase 2 sub-agents use `isolation: "worktree"` | Parallel implementation sub-agents without worktree isolation | Medium |
 | `subagent-completion-envelope` | All sub-agents must return Status/Artifacts/Summary envelope (see `sub-agent-roles.md` § Completion Envelope) | Sub-agent return without structured Status line | Medium |
+| `runtime-claims-need-runtime-evidence` | Sub-agent conclusions about runtime behavior (HTML location, API format, framework defaults) must be verified with actual execution before the Strategist adopts them | Strategist states a runtime behavior as fact citing only sub-agent source code analysis, without curl/test/dev-server evidence | High |
 
 ### Reference Discovery (source: `CLAUDE.md` § Reference Discovery)
 
@@ -66,6 +67,7 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | "The scope is small enough to read a few files directly" | Each "small" read chains to the next. By read #6 you've blown the limit without noticing. Delegate at #3 |
 | "Dispatching an explorer sub-agent adds overhead for a quick check" | 5 consecutive reads in main session costs more context than one sub-agent round-trip |
 | "I'll do the analysis first, then hand off the JIRA writes" | Analysis is the expensive part. Only simple MCP writes and routing decisions stay in main session |
+| "The sub-agent read the source code and confirmed it works this way" | Source code ≠ runtime. Frameworks have plugins, configs, and overrides. Verify with curl/test before stating as fact |
 
 ### Feedback & Memory (source: `rules/feedback-and-memory.md`)
 

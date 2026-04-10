@@ -4,6 +4,11 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.86.0] - 2026-04-10
+
+- **`runtime-claims-need-runtime-evidence` mechanism (High)** — Sub-agent source code analysis about runtime behavior must be verified with actual execution (curl, test, dev server) before adoption. Source: nuxt-schema-org JSON-LD position was incorrectly concluded as `<head>` from code reading; actual production output is in `<body>`
+- **Backlog cleanup addendum** — closed Session-split checkpoint gate (covered by `checkpoint-mode-at-25`)
+
 ## [1.85.0] - 2026-04-10
 
 - **API Contract Guard** — Detects schema drift between Mockoon fixtures and live API responses. Prevents stale fixtures from masking real API contract changes (false negatives). Three drift categories: breaking (type change, field removal → blocks task), additive (new field → auto-update), value-only (same schema → no action)

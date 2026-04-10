@@ -8,6 +8,7 @@
 - **Plan-first**: before a sub-agent writes any code, if the estimated impact exceeds 3 files or requires an architectural decision (create new vs. extend existing component, cross-module changes), enter Plan mode and produce an implementation plan before executing
 - **Explore-then-Implement**: when scanning the codebase, use the adaptive exploration mode from `skills/references/explore-pattern.md`. Goal: keep the implementation phase's context window clean
 - **Sub-agent Talent Pool**: all sub-agent dispatching should reference the role definitions in `skills/references/sub-agent-roles.md`
+- **Runtime claims require runtime evidence**: when a sub-agent's analysis concludes something about runtime behavior (HTML output location, API response format, rendering result, framework default behavior), the Strategist must verify with actual execution (curl, dev server, test run) before adopting the conclusion. Source code analysis is a hypothesis, not evidence — frameworks have plugins, configs, and runtime overrides that change behavior. This applies even when the sub-agent's reasoning sounds plausible
 
 ## Model Tiers
 

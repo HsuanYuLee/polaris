@@ -28,6 +28,7 @@ metadata:
 | 時間範圍 | 7 天 | Slack | 從使用者語意判斷（「三天」→ 3，「這週」→ 到週一天數，無指定 → 7） |
 | Batch size | 5 | 兩者 | 單次最多 review 幾個 PR，使用者可 override |
 | 排序 | PR 建立時間升序 | 兩者 | 最早發出的 PR 優先被 review |
+| Confirm | `skill_defaults.review-inbox.confirm`（預設 `false`） | 兩者 | `false` = 列完清單直接全跑，`true` = 等使用者選編號 |
 
 ## Scripts
 
@@ -143,7 +144,7 @@ echo "$PR_URLS" \
 
 若輸出為空 JSON array `[]`，告知使用者「目前沒有需要 review 的 PR」，流程結束。
 
-### 3. 輸出待 review 清單，等待確認
+### 3. 輸出待 review 清單
 
 顯示帶編號的清單：
 
@@ -163,12 +164,11 @@ echo "$PR_URLS" \
 
 > 共 N 個 PR 需要 review，建議先處理前 5 個（最早發出的），剩餘的下一輪再跑。
 
-詢問使用者：
+**確認模式**（由 `skill_defaults.review-inbox.confirm` 控制）：
 
-> 請輸入要 review 的 PR 編號（例如 `1,3` 或 `all`，輸入 `none` 跳過）：
-> 建議一次不超過 5 個，使用者可自行決定要處理幾個。
-
-**等待使用者確認後才開始 review。**
+- **`confirm: false`（預設）**：列完清單後直接進入 Step 4，自動選取全部（受 batch size 限制，超過上限時先跑前 N 個）。不等使用者輸入。
+- **`confirm: true`**：詢問使用者要 review 哪些 PR，等待確認後才開始：
+  > 請輸入要 review 的 PR 編號（例如 `1,3` 或 `all`，輸入 `none` 跳過）：
 
 ### 4. 批次執行 Review
 
