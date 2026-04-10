@@ -116,27 +116,36 @@ mcp__claude_ai_Atlassian__transitionJiraIssue
 - 與初版的差異說明
 - **估點變動 > 30% 時 pause 讓 RD 確認**
 
-### Step 4.5：AC Local Verification（本地驗證）
+### Step 4.5：AC Local Verification（本地驗證）— Hard Gate
+
+> **🛑 Hard Gate — 不可跳過。** Local 驗證項必須逐項執行並產出證據（test output、curl response、截圖），才能進入 Step 5。「unit test 過了所以跳過行為驗證」不是有效理由 — unit test 驗邏輯正確，local 驗證驗行為正確，兩者互補不可替代。
 
 開發完成後、發 PR 前，根據 ticket 的 `[VERIFICATION]` Local 驗證項目逐一檢查：
 
 1. **讀取 ticket 的 Local 驗證 AC**（從 Step 2 的 JIRA comment 或 description 取得）
-2. **逐項驗證：**
-   - 能寫 unit test 的 → 寫 unit test（永久回歸保護）
-   - 能用 Playwright / curl 驗的 → 執行並截圖
-   - 需要手動確認的 → 提示 RD 確認
-3. **更新 JIRA comment** — 以 comment 回報 Local 驗證結果，附截圖（如有）
-4. **Post-deploy 項目** → 標記「待 SIT/Prod 驗證」，不阻擋 PR
+2. **分類每個 AC 項目：**
+   - **Unit test 可驗** → 寫 unit test（永久回歸保護）
+   - **行為可驗（需 dev server）** → 起環境（`polaris-env.sh`），用 curl / Playwright 驗證實際行為，附輸出證據
+   - **需要手動確認** → 提示 RD 確認
+3. **Hard Gate 規則：**
+   - 每個 Local 驗證項必須有 **三種 disposition 之一**：`✅ PASS（附證據）`、`⏭️ SKIP（附理由，需 RD 確認）`、`❌ FAIL（停止，回到 Step 4 修正）`
+   - **不允許「全部只有 unit test」就跳過行為驗證** — 如果 [VERIFICATION] 列出了需要起 server 才能驗的項目（如「切換語系後 footer 正確」），必須起 server 驗
+   - **允許的 SKIP 理由**：dev 環境無法重現（如第三方 API）、純 type/config 改動無運行行為、RD 明確說 skip
+4. **更新 JIRA comment** — 以 comment 回報 Local 驗證結果，附截圖/output（如有）
+5. **Post-deploy 項目** → 標記「待 SIT/Prod 驗證」，不阻擋 PR
 
 ```
 📋 AC Local Verification
 ### Local 驗證
-- [x] <AC 項目> → ✅ unit test 通過 / 截圖確認
-- [x] <AC 項目> → ✅ Playwright 驗證
+- [x] <AC 項目> → ✅ unit test 通過
+- [x] <AC 項目> → ✅ curl 驗證（附 output）
+- [x] <AC 項目> → ✅ Playwright 截圖確認
 
 ### Post-deploy（待 SIT 驗證）
 - [ ] <AC 項目> → 需部署後確認
 ```
+
+**為什麼是 Hard Gate：** TASK-123 hotfix 中，unit test 驗證 cache key 邏輯正確就跳過了行為驗證（起 server 測切換語系）。如果行為驗證失敗（例如 `$phpRequest` 沒轉發 market header），unit test 不會抓到。行為驗證是最後一道防線，不可省略。
 
 **VR Gate（條件觸發）：** 若改動涉及 `pages/`, `components/`, `layouts/`, `*.vue`, `*.scss`，且 workspace-config 有 `visual_regression` 設定 → 讀取 `visual-regression` SKILL.md 執行 VR 檢查。純 server/config/types 改動則跳過。
 
@@ -214,6 +223,7 @@ Step 6: 記錄工時？（選擇性）
 - Do: Step 3 **先建分支再寫 code** — 不可在現有 branch 上先改再搬
 - Do: 實作中發現不同時，新增 JIRA comment（不覆蓋原始 comment）
 - Do: 估點變動 > 30% 時 pause 讓 RD 確認
+- Do: Step 4.5 **逐項執行 Local 驗證**，每項必須有 PASS/SKIP/FAIL disposition + 證據（output、截圖）。行為驗證不可被 unit test 替代
 - Do: 每個步驟之間保持銜接，不要停住等使用者手動觸發下一個 skill
 - Don't: 自己分析 [ROOT_CAUSE] 然後跳過 `jira-estimation` — 這會導致 JIRA 單上沒有任何紀錄
 - Don't: Step 2 完成後自動繼續 — 必須等使用者回覆
@@ -224,6 +234,7 @@ Step 6: 記錄工時？（選擇性）
 - Don't: Step 5 用 `pr-convention` 替代 `git-pr-workflow` — 前者不含品質檢查和 coverage 驗證，會導致 CI 失敗
 - Don't: Step 5 手動拆開執行（先跑 quality-check 再跑 pr-convention）— 必須整包委派給 `git-pr-workflow`
 - Don't: 使用者說「繼續」或「發 PR」時自行判斷跳過品質檢查 — quality gate 不可省略
+- Don't: Step 4.5 只跑 unit test 就判定「行為驗證通過」— unit test 驗邏輯，行為驗證驗實際運行，兩者不可互相替代（TASK-123 教訓）
 
 ## Prerequisites
 

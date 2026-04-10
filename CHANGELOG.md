@@ -4,6 +4,11 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.82.0] - 2026-04-10
+
+- **fix-bug Step 4.5 Hard Gate** — AC Local Verification 升級為 Hard Gate：每個 Local 驗證項必須有 PASS/SKIP/FAIL disposition + 證據（test output、curl response、截圖），不允許「unit test 過了就跳過行為驗證」。來源：KB2CW-3783 hotfix 中跳過了起 dev server 的語系切換驗證，只靠 unit test 就發 PR
+- **`local-verification-hard-gate` mechanism (Critical)** — 新增 mechanism-registry canary：fix-bug Step 4.5 的 Local 驗證項如果包含行為驗證（需起 server），不可只用 unit test 替代
+
 ## [1.81.1] - 2026-04-10
 
 - **Reference Discovery INDEX.md tracked** — `skills/references/INDEX.md` now committed to the repo (was untracked). Reference Discovery section added to CLAUDE.md as a supplement to v1.80.0
