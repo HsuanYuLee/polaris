@@ -4,6 +4,10 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.84.0] - 2026-04-10
+
+- **fix-pr-review configurable mode** — Step 0.5 now reads `skill_defaults.fix-pr-review.mode` from `workspace-config.yaml` (default: `auto`). Users set their preferred mode in config; per-invocation keywords (`互動`/`auto`) still override
+
 ## [1.83.0] - 2026-04-10
 
 - **Backlog Hygiene mechanism** — Post-version-bump chain 新增 Step 2：掃描 `polaris-backlog.md` 的 stale items。每個 `[ ]` item 帶 `(YYYY-MM-DD)` 日期 tag，可選 `[platform]`/`[next-epic]` 豁免 tag。無 tag > 60 天 → 建議關閉，有 tag > 90 天 → 確認是否仍有效。Fallback：每月首次 `/standup` 觸發
