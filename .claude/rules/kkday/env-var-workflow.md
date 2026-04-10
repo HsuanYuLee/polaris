@@ -1,6 +1,6 @@
 # Environment Variable Workflow
 
-> **Scope: kkday** — applies only when working on kkday tickets or projects.
+> **Scope: your-company** — applies only when working on your-company tickets or projects.
 
 ## Top Rule: Never commit any usable key / token / secret to the repo
 

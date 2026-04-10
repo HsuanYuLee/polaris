@@ -300,7 +300,7 @@ HIGH 風險時的提示：
 **Detection**:
 1. Read company workspace-config → check if `visual_regression.domains[]` exists
 2. Check if any changed file (from `git diff --name-only`) matches frontend patterns: `pages/`, `components/`, `layouts/`, `composables/`, `*.vue`, `*.css`, `*.scss`, SSR-related (`server/`, `plugins/`)
-3. Also trigger if the ticket's project is `member-ci` or `design-system` (API/component changes affect b2c rendering)
+3. Also trigger if the ticket's project is `your-backend` or `design-system` (API/component changes affect b2c rendering)
 
 **If both conditions met**: invoke the visual-regression skill in the quality report:
 

@@ -1,6 +1,6 @@
 # Automatic Feedback Mechanism
 
-> **Scope: kkday** — applies only when working on kkday tickets or projects.
+> **Scope: your-company** — applies only when working on your-company tickets or projects.
 
 After completing a full task (opening a PR, fixing review comments, estimation, reviewing a PR, etc.), silently reflect on the conversation:
 

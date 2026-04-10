@@ -1,6 +1,6 @@
 # Skill Routing Decision Tree
 
-> **Scope: kkday** — applies only when working on kkday tickets or projects.
+> **Scope: your-company** — applies only when working on your-company tickets or projects.
 
 When receiving a user request, match against this table top-down to determine which skill to trigger.
 

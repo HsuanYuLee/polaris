@@ -100,7 +100,7 @@ mcp__claude_ai_Atlassian__getJiraIssue
 
 **API-first 排序規則：**
 
-如果 Epic 涉及 cross-repo API 變更（例如 member-ci 加欄位、新的 internal API endpoint），**API 變更 task 必須排在第一張**。
+如果 Epic 涉及 cross-repo API 變更（例如 your-backend 加欄位、新的 internal API endpoint），**API 變更 task 必須排在第一張**。
 
 理由：
 1. 前端消費 API — API 先做是自然的依賴順序
@@ -118,7 +118,7 @@ mcp__claude_ai_Atlassian__getJiraIssue
 
 排序結果應為：
 ```
-Task 0: API/cross-repo 變更（如 member-ci endpoint）  ← 若有
+Task 0: API/cross-repo 變更（如 your-backend endpoint）  ← 若有
 Task 1: 穩定測資 — 錄製 Mockoon fixtures              ← 永遠在前端 task 之前
 Task 2-N: 前端開發（基於穩定 fixtures）
 ```

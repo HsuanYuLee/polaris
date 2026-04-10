@@ -479,7 +479,7 @@ For each project selected in Step 7, dispatch parallel sub-agents (model: `"haik
 **Monorepo detection**: if `package.json` has `workspaces` or `pnpm-workspace.yaml` exists, list all apps/packages with dev scripts and present them for selection — don't assume which app is the "main" one:
 
 ```
-Step 9a-0: Monorepo — your-b2c-web
+Step 9a-0: Monorepo — your-your-app
 
   Multiple apps detected:
 
@@ -505,8 +505,8 @@ Step 9a-1: Cross-Repo Dependencies
 
   ⚠ Detected dependencies:
 
-    your-member-ci → requires your-web-docker (nginx proxy)
-    your-b2c-web   → requires your-web-docker (Docker dev environment)
+    your-your-backend → requires your-web-docker (nginx proxy)
+    your-your-app   → requires your-web-docker (Docker dev environment)
     your-web-docker is a prerequisite for 2 projects
 
   This means: start your-web-docker FIRST, then the individual app dev servers.
@@ -519,7 +519,7 @@ Output: `projects[].dev_environment.requires` field listing prerequisite repos.
 **Missing .env template warning**: if a project has `--dotenv .env.local` or similar in its start script, but no `.env.example` / `.env.template` exists:
 
 ```
-  ⚠ your-b2c-web requires .env.local but has no template file.
+  ⚠ your-your-app requires .env.local but has no template file.
     New developers will need environment values from a teammate.
     Consider adding a .env.example to the repo.
 ```
@@ -530,10 +530,10 @@ Output: `projects[].dev_environment.requires` field listing prerequisite repos.
 Step 9a-2: Dev Environment
 
   #   Project              Start Command                          Ready Signal        Base URL          Requires
-  1   your-b2c-web         pnpm dev:main                          Listening on        http://localhost:3001  web-docker
+  1   your-your-app         pnpm dev:main                          Listening on        http://localhost:3001  web-docker
   2   your-web-docker      docker compose up -d                   started             https://dev.example.com  —
   3   your-design-system   pnpm dev:3                             VITE ready          http://localhost:3000  —
-  4   your-member-ci       pnpm dev (watch mode, no server)       compiled            (via web-docker)  web-docker
+  4   your-your-backend       pnpm dev (watch mode, no server)       compiled            (via web-docker)  web-docker
 
   Confirm (y) / Adjust (e) / Skip (s)?
 ```
@@ -542,13 +542,13 @@ On **Adjust** → user specifies which row(s) to change. Common adjustments: bas
 
 On **Skip** → leave `dev_environment` block empty. Visual regression will ask at runtime.
 
-**Health check field**: for each project, also infer a health check URL (typically `{base_url}/` or `{base_url}/health`). For projects that depend on another repo's server (e.g., member-ci via web-docker), use the prerequisite's base_url as health check.
+**Health check field**: for each project, also infer a health check URL (typically `{base_url}/` or `{base_url}/health`). For projects that depend on another repo's server (e.g., your-backend via web-docker), use the prerequisite's base_url as health check.
 
 **Output**: populates `projects[].dev_environment` in the company workspace-config:
 
 ```yaml
 projects:
-  - name: your-b2c-web
+  - name: your-your-app
     dev_environment:
       start_command: "pnpm dev:main"
       ready_signal: "Listening on"
@@ -587,7 +587,7 @@ Step 9b-1: Domain Mapping
   （.env 裡的 URL 是 dev 環境，這裡要填 production domain）
 
   #   Project              Domain (suggested)       Source
-  1   your-b2c-web         _______________          (無法從代碼偵測 — 請輸入)
+  1   your-your-app         _______________          (無法從代碼偵測 — 請輸入)
   2   your-web-docker      (provides dev infra, skip)
 
   Enter domain for #1:
@@ -714,7 +714,7 @@ visual_regression:
       pages:
         - name: "homepage"
           path: "/"
-          source_project: "your-b2c-web"
+          source_project: "your-your-app"
           viewports: [1280, 375]
           scroll_before_capture: true
 ```

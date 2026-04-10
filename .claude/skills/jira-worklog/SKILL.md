@@ -110,9 +110,9 @@ Raw In Dev queries often return 50+ tickets per day (verification sub-tasks, par
 
 **1. Exclude verification tickets**: tickets with `[驗證]` or `[驗收]` in summary are batch checks, not sustained development. Skip them.
 
-**2. Epic aggregation**: when an Epic (GT-xxx) and its KB2CW sub-tasks are both In Dev on the same day, keep only the KB2CW sub-tasks. If no sub-tasks are active that day, keep the Epic.
+**2. Epic aggregation**: when an Epic (GT-xxx) and its TASK sub-tasks are both In Dev on the same day, keep only the TASK sub-tasks. If no sub-tasks are active that day, keep the Epic.
 
-**3. GT/KB2CW dedup**: GT tickets marked 已關閉 that have KB2CW equivalents (same summary) are duplicates — skip the GT version.
+**3. GT/TASK dedup**: GT tickets marked 已關閉 that have TASK equivalents (same summary) are duplicates — skip the GT version.
 
 **4. Daily entry cap**: maximum 7 entries per day (each gets at least 1h). If more than 7 tickets remain after filtering:
    - Pick one representative sub-task per active Epic (highest SP or most recently transitioned)
@@ -235,10 +235,10 @@ Present a summary table:
 
 | Date | Ticket | Hours | Status |
 |------|--------|------:|:------:|
-| 03-24 | KB2CW-3486 | 4h | logged |
-| 03-24 | KB2CW-3487 | 4h | logged |
+| 03-24 | TASK-123 | 4h | logged |
+| 03-24 | TASK-123 | 4h | logged |
 | 03-25 | (no tickets in dev) | — | skipped |
-| 03-26 | KB2CW-3488 | 8h | logged |
+| 03-26 | TASK-123 | 8h | logged |
 | ... | ... | ... | ... |
 
 **Total**: Xh logged across Y days, Z tickets
@@ -257,7 +257,7 @@ For batch mode, also show a weekly summary:
 
 ## Logging Hierarchy
 
-Worklogs are logged at the **sub-task level** (KB2CW-xxxx), not the Epic level. JIRA automatically rolls up sub-task time spent to the parent. This matches the existing story point structure: Epic SP = sum of sub-task SP.
+Worklogs are logged at the **sub-task level** (TASK-xxxx), not the Epic level. JIRA automatically rolls up sub-task time spent to the parent. This matches the existing story point structure: Epic SP = sum of sub-task SP.
 
 If a ticket has no sub-tasks (standalone Task or Bug), log directly on that ticket.
 

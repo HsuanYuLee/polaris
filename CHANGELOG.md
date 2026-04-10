@@ -4,6 +4,10 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.81.0] - 2026-04-10
+
+- **sync-to-polaris auto-genericize** — Before committing to the template repo, automatically applies each company's `genericize-map.sed` + `genericize-jira.sed` to all `.md` files. Company-specific references (JIRA keys, domains, Slack IDs, org names) are replaced with generic placeholders before the template is committed. The post-commit leak check now serves as verification — surviving patterns indicate missing sed rules, not a manual cleanup task. Converts the 18-hit leak warning (v1.79.0) from "remind to fix" to "auto-fixed"
+
 ## [1.80.0] - 2026-04-09
 
 - **Version bump reminder PostToolUse hook** — Deterministic enforcement for the Critical `version-bump-reminder` mechanism. `hooks/version-bump-reminder.sh` fires after every `git commit`, checks committed files for `skills/` or `rules/` paths, injects a reminder if found. Skips VERSION bump commits to avoid loops. Wired into `settings.json` PostToolUse

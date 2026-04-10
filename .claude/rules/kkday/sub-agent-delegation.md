@@ -1,6 +1,6 @@
 # Sub-agent Delegation Rules
 
-> **Scope: kkday** — applies only when working on kkday tickets or projects.
+> **Scope: your-company** — applies only when working on your-company tickets or projects.
 
 ## Delegation Patterns
 

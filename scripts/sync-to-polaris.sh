@@ -197,7 +197,8 @@ if org:
       echo "   ... and $((count - 20)) more matches"
     fi
     echo ""
-    echo "   These may be company-specific references that should be genericized."
+    echo "   These references survived auto-genericize. Update your company's"
+    echo "   genericize-map.sed / genericize-jira.sed to cover these patterns."
     echo "   Continuing push (warn only, not blocking)."
     return 0
   fi
@@ -320,6 +321,43 @@ if [[ "$CHANGES" == "0" ]]; then
 fi
 
 echo "$CHANGES file(s) changed in template."
+
+# ── Step 9a: Auto-genericize company-specific references ──────────
+# Apply sed maps from each company directory to the polaris template.
+# This runs BEFORE commit so the template never contains company-specific strings.
+
+genericize_count=0
+for company in "${COMPANY_DIRS[@]}"; do
+  MAP_SED="$INSTANCE_DIR/$company/genericize-map.sed"
+  JIRA_SED="$INSTANCE_DIR/$company/genericize-jira.sed"
+
+  if [[ ! -f "$MAP_SED" && ! -f "$JIRA_SED" ]]; then
+    continue
+  fi
+
+  # Find all .md files in the template (skills, rules, docs, top-level)
+  while IFS= read -r -d '' mdfile; do
+    original=$(cat "$mdfile")
+    modified="$original"
+
+    if [[ -f "$MAP_SED" ]]; then
+      modified=$(echo "$modified" | sed -f "$MAP_SED")
+    fi
+    if [[ -f "$JIRA_SED" ]]; then
+      modified=$(echo "$modified" | sed -f "$JIRA_SED")
+    fi
+
+    if [[ "$modified" != "$original" ]]; then
+      echo "$modified" > "$mdfile"
+      genericize_count=$((genericize_count + 1))
+    fi
+  done < <(find "$POLARIS_DIR/.claude" "$POLARIS_DIR/docs" "$POLARIS_DIR/CLAUDE.md" "$POLARIS_DIR/README.md" "$POLARIS_DIR/README.zh-TW.md" -name '*.md' -print0 2>/dev/null)
+done
+
+if [[ "$genericize_count" -gt 0 ]]; then
+  echo ""
+  echo "Auto-genericized $genericize_count file(s) in template."
+fi
 
 if [[ "$AUTO_COMMIT" == true ]]; then
   echo ""

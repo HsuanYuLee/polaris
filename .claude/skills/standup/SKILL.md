@@ -354,7 +354,7 @@ After standup is pushed (or user skips push), auto-log today's work hours to JIR
 
 **Output**: append the worklog summary (from jira-worklog Step 5) after the Confluence push confirmation. Keep it brief — one-line summary like:
 
-> Worklog: 8h logged (KB2CW-3488 4h, KB2CW-3489 4h)
+> Worklog: 8h logged (TASK-123 4h, TASK-123 4h)
 
 or:
 

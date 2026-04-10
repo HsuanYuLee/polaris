@@ -1,6 +1,6 @@
 # JIRA Conventions
 
-> **Scope: kkday** — applies only when working on kkday tickets or projects.
+> **Scope: your-company** — applies only when working on your-company tickets or projects.
 
 - **Never guess when a JIRA ticket is missing information**: proactively list what is missing (path, Figma, AC, API doc) and ask the user to fill it in
 - **Attach a clickable link after creating a JIRA sub-task**: after `createJiraIssue` completes, the response must include the full JIRA URL (`https://{jira.instance}/browse/XX-NNN`); do not return only the ticket key

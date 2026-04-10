@@ -1,6 +1,6 @@
 # AC Closure Constraints (4 Gates)
 
-> **Scope: kkday** — applies only when working on kkday tickets or projects.
+> **Scope: your-company** — applies only when working on your-company tickets or projects.
 
 AC flows in from the ticket → traced during breakdown → verified during development → presented in the PR. If AC is dropped at any stage, it gets blocked:
 
