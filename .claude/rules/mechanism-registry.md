@@ -115,6 +115,7 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | `env-follows-requires` | Dev environment must be started per `workspace-config.projects[].dev_environment.requires` — no shortcuts | Nuxt dev server started standalone when `requires: ["project-web-docker"]` is configured; Docker containers not running | High |
 | `http-status-in-verification` | All endpoint verifications must check HTTP status code (200) + response body — status 200 is the minimum bar | Verification reports "data looks correct" without confirming HTTP 200 | Medium |
 | `no-speculation-as-fact` | Do not repeat a speculation after user corrects it — once corrected, internalize the correction | Same wrong claim repeated after user already corrected it (e.g., "SIT 環境" after user said "我在 local") | Medium |
+| `api-docs-before-replace` | When a module's behavior doesn't match expectations, query official API docs (function signatures, parameters) BEFORE reading compiled source or proposing replacement. Replacement is a T3 decision requiring user confirmation | Sub-agent reads only `node_modules/` compiled source → concludes "module doesn't support X" → proposes replacement, without checking official docs or npm README | **Critical** |
 
 #### Common Rationalizations — Debugging & Verification
 
@@ -127,6 +128,8 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | "Data looks correct" | Did you check HTTP status code? 200 is the minimum bar. "Looks correct" without status is speculation |
 | "I'm confident this fix is right" | Confidence ≠ evidence. Run the verification command. Skip = lying, not efficiency |
 | "One more fix attempt should do it" | After 3 failed fixes, stop. This is an architectural problem, not a missing patch |
+| "Compiled source shows only one parameter" | Compiled/bundled JS ≠ API surface. Overloads, wrapper layers, and build transforms hide parameters. Check official docs or npm README first |
+| "This module can't do what we need, let me replace it" | Replacement is T3 — confirm with user. First exhaust: (1) official API docs, (2) npm README, (3) GitHub issues/discussions. PROJ-123 lost 3 rounds because compiled source was treated as API truth |
 
 ### Quality Gates (source: `skills/git-pr-workflow/SKILL.md`, `skills/verify-completion/SKILL.md`)
 
@@ -136,6 +139,34 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | `fresh-verification-before-completion` | Every task completion must include fresh verification performed after the final code change | Task marked complete with rationalization phrases ("should work", "trivial change") and no verification output in conversation | High |
 | `local-verification-hard-gate` | fix-bug Step 4.5: every Local verification item must have PASS/SKIP/FAIL disposition with evidence. Unit test alone cannot substitute for behavioral verification when the AC requires running the server | Strategist proceeds to Step 5 (PR) with only unit test output when [VERIFICATION] lists behavioral items (e.g., "切換語系後 footer 正確") | **Critical** |
 | `checklist-before-done` | Before declaring a task complete, review the session's original task list (checkpoint next steps, todo items) and confirm each item is done/carry-forward/dropped | Strategist says "done" or asks "要更新 checkpoint 嗎？" while unchecked items remain from the session's starting checklist | High |
+
+### Deterministic Quality Hooks (source: PROJ-123 restraint mechanisms, 2026-04-10)
+
+These mechanisms are enforced by **scripts + hooks** (exit code driven), not behavioral rules. They physically block the action — the Strategist cannot bypass them without env var override.
+
+| ID | Rule | Enforcement | Script |
+|----|------|-------------|--------|
+| `verification-evidence-required` | `gh pr create` blocked unless `/tmp/polaris-verified-{TICKET}.json` exists with valid ticket, timestamp (< 4h), and non-empty results | PreToolUse hook on Bash, exit 2 to block | `scripts/verification-evidence-gate.sh` |
+| `test-sequence-warning` | When sequence test-fail → production-file-edit → test-pass is detected, inject warning about wrong-fix pattern | PostToolUse hook on Bash + Edit, stdout injection | `scripts/test-sequence-tracker.sh` |
+
+**Evidence file spec** (`/tmp/polaris-verified-{TICKET}.json`):
+```json
+{
+  "ticket": "TASK-123",
+  "timestamp": "2026-04-10T08:30:00Z",
+  "branch": "task/TASK-123-desc",
+  "summary": { "total": 3, "pass": 2, "fail": 0, "skip": 1 },
+  "results": [
+    { "status": "PASS", "detail": "PASS: AC1 breadcrumb position" },
+    { "status": "PASS", "detail": "PASS: AC2 JSON-LD in head" },
+    { "status": "SKIP", "detail": "SKIP: AC3 not applicable" }
+  ]
+}
+```
+
+**Writer**: `scripts/polaris-write-evidence.sh --ticket TASK-123 --result "PASS: AC1 ..."` — called by verify-completion skill or manually after verification.
+
+**Bypass**: `POLARIS_SKIP_EVIDENCE=1` for non-ticket PRs (framework, docs). Branch names without `[A-Z]+-[0-9]+` pattern are auto-allowed.
 
 ### Skills Management (source: `CLAUDE.md`)
 
@@ -202,7 +233,7 @@ Post-task audit should check these first (highest drift risk, most impactful):
 
 1. `no-workaround-accumulation` / `design-implementation-reconciliation`
 2. `skill-first-invoke` / `no-manual-skill-steps` / `reference-index-scan`
-3. `fix-through-not-revert` / `query-original-impl`
+3. `api-docs-before-replace` / `fix-through-not-revert` / `query-original-impl` (Critical — PROJ-123 root cause)
 4. `delegate-exploration` / `delegate-implementation`
 5. `cross-session-read-memory-file` / `cross-session-carry-forward`
 6. `post-task-feedback-reflection` (note: correction = immediate trigger, don't defer)
@@ -212,3 +243,4 @@ Post-task audit should check these first (highest drift risk, most impactful):
 9. `no-cd-in-bash` / `no-independent-cmd-chaining`
 10. `feedback-trigger-count-update` / `graduation-at-three-triggers`
 11. `version-bump-reminder` (Critical — 6 consecutive misses discovered 2026-04-09)
+12. `verification-evidence-required` / `test-sequence-warning` (deterministic hooks — low audit priority because hooks enforce automatically)

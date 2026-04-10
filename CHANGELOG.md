@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.87.0] - 2026-04-10
+
+- **GT-521 拘束機制 — 行為規則推到確定性層**
+  - `scripts/verification-evidence-gate.sh` (PreToolUse) — ticket branch 上 `gh pr create` 必須有 `/tmp/polaris-verified-{TICKET}.json` evidence file（valid JSON、< 4h、ticket match、non-empty results）。無 evidence = exit 2 物理攔截。Bypass: `POLARIS_SKIP_EVIDENCE=1`（非 ticket PR）
+  - `scripts/test-sequence-tracker.sh` (PostToolUse on Bash|Edit|Write) — 追蹤 test-fail → production-file-edit → test-pass 序列，偵測到時注入警告：「你改了 production code 讓測試過，確認這是正確修法？」
+  - `scripts/polaris-write-evidence.sh` — evidence file writer，供 verify-completion / fix-bug 呼叫
+  - `api-docs-before-replace` mechanism (Critical) — 模組行為不符預期時，必須查官方 API 文件再行動。Compiled source ≠ API truth。替換是 T3 決策需使用者確認
+  - mechanism-registry: 新增 Deterministic Quality Hooks section + Priority Audit Order #12
+  - settings.json: 註冊兩支新 hooks
+
 ## [1.86.0] - 2026-04-10
 
 - **`runtime-claims-need-runtime-evidence` mechanism (High)** — Sub-agent source code analysis about runtime behavior must be verified with actual execution (curl, test, dev server) before adoption. Source: nuxt-schema-org JSON-LD position was incorrectly concluded as `<head>` from code reading; actual production output is in `<body>`
