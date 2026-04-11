@@ -130,6 +130,18 @@ Before exploring external content, scan our current state as a **comparison base
 
 > **v3 重要改動**：v2 用 gap scan 引導探索方向（「帶著問題去看」），結果會錯過 unknown unknowns。v3 改為先全面理解外部內容，再拿 baseline 比對。探索階段不帶預設。
 
+### Accumulated learnings (both targets)
+
+Query existing cross-session learnings related to the topic being studied:
+
+```bash
+POLARIS_WORKSPACE_ROOT={workspace_root} polaris-learnings.sh query --top 10 --min-confidence 3
+```
+
+Filter results by relevance to the external content's domain (e.g., if studying SSR patterns, pull learnings with keys matching SSR/rendering/hydration). These become the **knowledge baseline** — what we already know about this topic from prior sessions.
+
+This is the most important baseline source: it captures what we've **already learned and validated**. Without it, each learning session starts from zero and may re-discover known insights or miss contradictions with prior knowledge.
+
 ### Framework target gaps
 
 | Source | What to extract | How |
@@ -151,6 +163,9 @@ Output: a **baseline snapshot** — our current state organized by category, use
 
 ```
 Baseline Snapshot (framework target):
+  Prior learnings (from polaris-learnings.sh):
+    - [pattern] sub-agent completion envelope prevents silent failures (confidence: 8)
+    - [pitfall] worktree path translation missed in 2 sessions (confidence: 6)
   Delegation: self-regulation scoring, worktree isolation, model tiers
   Quality gates: dev-quality-check, verify-completion iron rule, re-test-after-fix
   Feedback loop: post-task reflection, graduation pipeline, mechanism registry
@@ -159,6 +174,9 @@ Baseline Snapshot (framework target):
 
 ```
 Baseline Snapshot (project target: your-app):
+  Prior learnings (from polaris-learnings.sh):
+    - [architecture] Nuxt useHead runs at setup time, not render time (confidence: 7)
+    - [pitfall] useSchemaOrg requires nuxt-schema-org plugin registered (confidence: 9)
   Composables: useProduct, useCart, useAuth — setup-only constraint
   SSR: defineCachedEventHandler, Nitro routes
   Testing: Vitest + coverage-v8, component + unit
@@ -276,14 +294,37 @@ The **Discovery Type** column (from Round 3 classification) makes it immediately
 
 To fill "Our Current State" accurately: read relevant workspace files rather than relying on memory. Spawn an Explore subagent if needed.
 
-### 4b. Backlog cross-reference
+### 4b. Compile — Collide With Accumulated Knowledge
+
+Cross-reference findings against the **prior learnings** from the Step 1.5 baseline. For each finding, determine its relationship to what we already know:
+
+| Relationship | Signal | Action |
+|---|---|---|
+| **Confirm** | Finding validates an existing learning | `polaris-learnings.sh confirm --key {key}` to reset decay and optionally `--boost 1` |
+| **Contradict** | Finding conflicts with an existing learning | Flag explicitly in the matrix. Present both sides to user — this is high-value signal |
+| **Extend** | Finding adds depth or nuance to an existing learning | Update the learning via `polaris-learnings.sh add` (merge mode) with enriched content |
+| **New** | Finding covers a topic with no prior learning | Candidate for a new learning entry (written in Step 5 if user confirms) |
+
+**Why this matters**: without this step, each `/learning` session is independent. With it, knowledge compounds — confirmations strengthen confidence, contradictions surface errors, extensions deepen understanding.
+
+Present the compile results as a section in the synthesis:
+
+```markdown
+### Knowledge Compile Results
+- ✅ Confirmed: {learning key} — "{finding}" validates this
+- ⚠️ Contradicts: {learning key} — prior: "{old}", new: "{finding}". Which is correct?
+- 📈 Extends: {learning key} — adds: "{new nuance}"
+- 🆕 New: "{finding}" — no prior knowledge on this topic
+```
+
+### 4c. Backlog cross-reference
 
 Before generating recommendations, check `polaris-backlog.md` (framework target) or project issue tracker (project target) for existing items that match:
 
 - **Existing item found** → mark recommendation as "validates existing: {backlog item title}" — this confirms direction, doesn't duplicate
 - **No existing item** → new recommendation
 
-### 4c. Recommendations
+### 4d. Recommendations
 
 For each gap/opportunity:
 
@@ -301,9 +342,9 @@ For each gap/opportunity:
 
 Be honest about what's NOT worth borrowing. Explicitly call out things that look cool but don't fit.
 
-### 4d. Present to User
+### 4e. Present to User
 
-Present the lens match summary, comparison matrix, and recommendations. Wait for user reaction.
+Present the lens match summary, comparison matrix, knowledge compile results, and recommendations. Wait for user reaction.
 
 ## Step 5: Execute (Only After User Confirmation)
 
@@ -358,9 +399,68 @@ Articles and blog posts don't get table entries — too granular. Update existin
 - **Non-English content**: Best effort, flag uncertainty
 - **Very large repo**: Deep mode handles this via multi-round. If Quick/Standard, focus on README + user-specified aspect
 - **Outdated/deprecated content**: Note in analysis — old patterns may be superseded
-- **User just wants a summary**: Skip Step 4b-4d, present research findings only
+- **User just wants a summary**: Skip Step 4b-4e, present research findings only
 - **Repo has no README or sparse docs**: Escalate to Deep mode automatically — read source files directly
 - **External approach conflicts with our conventions**: Note the conflict explicitly, recommend only if the external approach is demonstrably better with evidence
+
+## Step 6: Lint — What Should We Learn Next?
+
+After executing recommendations (or saving them), analyze the **combined knowledge landscape** — prior learnings + new findings — to identify gaps and suggest future learning directions. This is the "看得更廣" step.
+
+### 6a. Knowledge Gap Analysis
+
+Review the full set of learnings (`polaris-learnings.sh list`) plus the findings from this session. Look for:
+
+| Gap type | Signal | Example |
+|---|---|---|
+| **Adjacent unknown** | New finding references a concept we have no learnings about | Learned about SSR caching, but no learnings about hydration mismatch |
+| **Stale knowledge** | Existing learning has low effective confidence (decayed) in an area the new finding touches | Learning about Nuxt 2 middleware pattern, but we're now on Nuxt 3 |
+| **Contradiction unresolved** | Step 4b flagged a contradiction but user deferred resolution | Two learnings disagree on whether `useHead` runs at setup or render time |
+| **Depth gap** | We have surface-level knowledge (1-2 learnings) in an area that now appears critical | Only 1 learning about JSON-LD, but we're now working on structured data across 3 Epics |
+
+### 6b. Suggest Next Reads
+
+Based on the gap analysis, generate 1-3 concrete suggestions:
+
+```markdown
+### 🔭 Suggested Next Learning
+
+1. **{Topic}** — {why this gap matters now}
+   - Suggested source: {URL, repo, or search query}
+   - Priority: {High / Medium / Low} based on active work relevance
+
+2. ...
+```
+
+**Constraints:**
+- Only suggest if gaps are real and connected to active work (not academic completionism)
+- Max 3 suggestions — quality over quantity
+- If no meaningful gaps are found, say so explicitly: "目前知識覆蓋完整，沒有明顯盲點"
+- Suggestions are informational only — do not auto-execute or add to any queue
+
+### 6c. Write Learnings
+
+For each **New** item from Step 4b that was confirmed or executed by the user, write a cross-session learning:
+
+```bash
+polaris-learnings.sh add --key "{key}" --type {type} \
+  --content "{actionable insight}" --confidence {N} --source "learning: {URL}"
+```
+
+For each **Confirm** item, refresh the existing learning:
+
+```bash
+polaris-learnings.sh confirm --key "{key}" --boost 1
+```
+
+For each **Extend** item, merge updated content:
+
+```bash
+polaris-learnings.sh add --key "{key}" --type {type} \
+  --content "{enriched content}" --confidence {N} --source "learning: {URL}"
+```
+
+This step ensures every learning session leaves a trace in the knowledge base, enabling future sessions to build on it.
 
 ---
 

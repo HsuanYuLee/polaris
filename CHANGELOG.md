@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.88.0] - 2026-04-11
+
+- **Learning Compile & Lint — 知識複利機制** (inspired by Karpathy's LLM Knowledge Base)
+  - **Step 1.5 增強**: Baseline scan 新增查詢 `polaris-learnings.sh` 既有知識，讓每次學習從已知出發而非從零開始
+  - **Step 4b Compile (新增)**: 新學到的知識與既有 learnings 碰撞 — 明確標注 confirm（增強信心）/ contradict（發現矛盾）/ extend（擴展深度）/ new（全新知識）。自動 confirm/boost 已驗證的 learnings
+  - **Step 6 Lint (新增)**: 學習完成後分析知識盲點 — adjacent unknowns、stale knowledge、unresolved contradictions、depth gaps。產出 1-3 個建議下一步學什麼，並自動回寫 learnings 到 cross-session knowledge base
+  - External flow 從 `Ingest → Extract → Save` 進化為 `Ingest → Extract → Compile → Save → Lint`，知識從此能滾雪球
+
 ## [1.87.0] - 2026-04-10
 
 - **GT-521 拘束機制 — 行為規則推到確定性層**
