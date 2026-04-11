@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.102.0] - 2026-04-12
+
+- **Refinement v2 — Codebase-Backed Technical Validation**
+  - `refinement/SKILL.md` v3.1.0 → v4.0.0: Phase 1 redesigned from checklist filling to 7-step technical verification
+  - Complexity Tier (1/2/3): Tier 2 as floor — codebase exploration + AC hardening by default
+  - AC Hardening: functional + non-functional + negative AC with verification method per criterion
+  - Local-First Workflow: multi-round refinement via local markdown + browser preview, JIRA write-back only on finalization
+  - `scripts/refinement-preview.py` — zero-dependency local preview server (Python stdlib + marked.js CDN, 3s auto-refresh)
+  - `references/refinement-artifact.md` — structured JSON artifact schema for downstream skill consumption (breakdown, estimation, work-on)
+  - `references/confidence-labeling.md` — shared confidence labeling reference (HIGH/MEDIUM/LOW/NOT_RESEARCHED)
+  - Phase 2 enhanced with optional multi-role analysis (RD/QA/Arch lenses) for Tier 3
+  - `references/INDEX.md` updated with new references + refinement added to explore-pattern triggers
+
 ## [1.101.0] - 2026-04-12
 
 - **Dedup Scan + README Lint + Editorial Guideline**

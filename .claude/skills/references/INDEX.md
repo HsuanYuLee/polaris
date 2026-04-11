@@ -19,6 +19,8 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [estimation-scale.md](estimation-scale.md) | Story point scale (1/2/3/5/8/13) 定義與時程換算 | jira-estimation, epic-breakdown, work-on estimation phase |
 | [epic-template.md](epic-template.md) | Epic description 結構化模板與 readiness checklist | refinement, epic-breakdown, PM epic quality review |
 | [project-mapping.md](project-mapping.md) | JIRA ticket → local project 目錄對應（config-first） | jira-estimation, epic-breakdown, sasd-review, work-on |
+| [refinement-artifact.md](refinement-artifact.md) | Refinement 結構化 artifact JSON schema — 供 breakdown/estimation/work-on 消費 | refinement (Tier 2+), epic-breakdown, jira-estimation, work-on |
+| [confidence-labeling.md](confidence-labeling.md) | AI 研究產出信心標示（HIGH/MEDIUM/LOW/NOT_RESEARCHED） | refinement (Tier 3), scope-challenge, learning, sasd-review |
 
 ## PR & Git
 
@@ -42,7 +44,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [sub-agent-roles.md](sub-agent-roles.md) | Sub-agent dispatch 標準：completion envelope、model tier、QA/Architect/Critic | 任何 skill 啟動 sub-agent |
-| [explore-pattern.md](explore-pattern.md) | Adaptive codebase 探索模式：handbook-first → 小範圍直讀 / 大範圍平行 sub-agent → handbook 回寫 | sasd-review, jira-estimation, systematic-debugging, work-on, fix-bug |
+| [explore-pattern.md](explore-pattern.md) | Adaptive codebase 探索模式：handbook-first → 小範圍直讀 / 大範圍平行 sub-agent → handbook 回寫 | refinement (Tier 2+), sasd-review, jira-estimation, systematic-debugging, work-on, fix-bug |
 
 ## Testing & VR
 
