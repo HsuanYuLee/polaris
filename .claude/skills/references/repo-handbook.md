@@ -1,6 +1,6 @@
 # Repo Handbook
 
-A per-repo architectural document that gives AI agents (and humans) a structured understanding of what a repository is and how it works. Lives at `{repo}/.claude/handbook.md`, gitignored.
+A per-repo architectural document that gives AI agents (and humans) a structured understanding of what a repository is and how it works. Lives at `{repo}/.claude/rules/handbook.md`, gitignored.
 
 ## Analogy
 
@@ -74,11 +74,12 @@ Explore the repo and classify it into one of the following types. A repo may hav
 
 ### Detection Method
 
-1. Read top-level config files: `package.json`, `nuxt.config.*`, `next.config.*`, `tsconfig.json`, `Dockerfile`, `docker-compose.yml`, `terraform/`, `prisma/`
-2. Scan directory structure: `pages/`, `server/`, `routes/`, `controllers/`, `apps/`, `packages/`, `src/`
-3. Check for framework indicators in dependencies
-4. Classify primary type + secondary traits
-5. Present to user for confirmation: "This looks like a `frontend-ssr +i18n +docker` repo — correct?"
+1. **Read `README.md` first**: README often contains architecture overview, setup context, cross-repo relationships, and team conventions that cannot be inferred from code. It is the primary source for the Overview and Cross-Repo sections
+2. Read top-level config files: `package.json`, `nuxt.config.*`, `next.config.*`, `tsconfig.json`, `Dockerfile`, `docker-compose.yml`, `terraform/`, `prisma/`
+3. Scan directory structure: `pages/`, `server/`, `routes/`, `controllers/`, `apps/`, `packages/`, `src/`
+4. Check for framework indicators in dependencies
+5. Classify primary type + secondary traits
+6. Present to user for confirmation: "This looks like a `frontend-ssr +i18n +docker` repo — correct?"
 
 ## Step 2: Generate Handbook by Type
 
@@ -228,6 +229,77 @@ After generating the draft, present it to the user section by section:
 - Team conventions not in code (which directory is "don't touch", informal ownership)
 - Cross-repo relationships (this service depends on that service's deploy)
 
+## Step 3a: Nested Handbook Structure
+
+Handbook 主文件保持架構全景（100-300 行），repo-specific 的細節慣例拆進子文件：
+
+```
+{repo}/.claude/rules/
+  handbook.md                    # 主文件：Overview、Tech Stack、Directory、Architecture、Cross-Repo
+  handbook/
+    code-style.md               # 命名、格式、慣例
+    api-conventions.md          # endpoint pattern、error handling、data flow 細節
+    testing.md                  # test 策略、mock pattern、coverage 要求
+    ...（依 repo 需求增加）
+```
+
+### 規則
+
+- **主文件** handbook.md：回答「這個 repo 是什麼、為什麼存在、怎麼運作」。100-300 行
+- **子文件** handbook/*.md：回答「這個 repo 裡怎麼做某件事」。每個 50 行以內，一個主題一個檔案
+- 所有檔案都在 `.claude/rules/` 下，Claude Code 自動載入，sub-agent 不需額外 Read
+- 子文件按需建立，不預先建空檔。第一次 user 糾正某類問題時建立對應子文件
+
+### 主文件 vs 子文件判斷
+
+| 內容 | 歸屬 | 理由 |
+|------|------|------|
+| Repo 存在原因、cross-repo 關係 | handbook.md | 架構全景 |
+| Directory structure、tech stack | handbook.md | 架構全景 |
+| Rendering strategy、data flow | handbook.md | 架構全景 |
+| 命名慣例、code style | handbook/code-style.md | 開發細節 |
+| API endpoint pattern、error format | handbook/api-conventions.md | 開發細節 |
+| Test pattern、mock 策略 | handbook/testing.md | 開發細節 |
+| 特定 module 的使用方式 | handbook/{module}.md | 開發細節 |
+
+## Step 3b: Correction-Driven Update
+
+Handbook 的品質由開發過程中的 friction 驗證，不是生成時的 Q&A。當 user 糾正 AI 行為時，如果糾正涉及 repo-specific 知識，立即更新 handbook，不走 feedback memory。
+
+### 觸發
+
+User 糾正當前工作中的認知錯誤（「這不對」「不是這樣」「你搞錯了」+ 涉及 repo 架構、慣例、data flow、命名規則等）。
+
+### 流程
+
+1. **暫停當前工作** — 不繼續寫 code、不繼續 fix
+2. **讀 handbook**（主文件 + 相關子文件）
+3. **分類糾正**：
+
+| 情況 | 動作 |
+|------|------|
+| 糾正與 handbook 衝突 | 呈現衝突點 →「handbook 說 X，你說 Y — 我更新 handbook？」→ 更新 → **重做受影響的部分** |
+| handbook 沒涵蓋 | 補進適當的子文件（或建新子文件）→ 繼續工作 |
+| 糾正是 Polaris 框架行為（非 repo-specific） | 走 `feedback-and-memory.md` 的 feedback 流程 |
+
+4. **恢復工作** — 基於更新後的 handbook 理解繼續
+
+### 邊界：什麼走 handbook，什麼走 feedback
+
+| 知識類型 | 歸屬 | 範例 |
+|---------|------|------|
+| Repo 架構、routing、data flow | handbook | 「your-app 是取代 your-backend 的」 |
+| Code style、命名、test pattern | handbook 子文件 | 「我們 composable 不加 use prefix」 |
+| 團隊分工、cross-repo 關係 | handbook | 「trans 是另一個團隊」 |
+| Polaris skill routing、delegation 行為 | feedback memory | 「你應該先用 skill 不要自己做」 |
+| Polaris 框架設計決策 | feedback memory | 「worktree 才安全」 |
+
+**判斷捷徑**：糾正的知識換一個 Polaris workspace 還適用嗎？不適用 → handbook（repo-specific）。適用 → feedback（framework-level）。
+
+### 為什麼不用 feedback memory
+
+Feedback memory 的設計是「觀察 → 累積 → 畢業」，適合行為模式的漸進發現。但 repo-specific 知識是**事實性的**（routing 規則、team 分工、API pattern），第一次就該修對，不需要等三次觸發。而且 sub-agent 每次從零開始，不讀 memory，只讀 `.claude/rules/` — 所以 feedback memory 裡的 repo 知識對 sub-agent 是隱形的。
+
 ## Step 4: Ongoing Maintenance (Stale Detection)
 
 Embedded in `git-pr-workflow` and `fix-pr-review` as a post-step.
@@ -238,7 +310,7 @@ After PR is created or review fixes are pushed, before the skill's post-task ref
 
 ### Process
 
-1. **Read the handbook** — `{repo}/.claude/handbook.md`
+1. **Read the handbook** — `{repo}/.claude/rules/handbook.md`
 2. **Get changed files** — from the PR diff or recent commits
 3. **Map changes to handbook sections**:
    - Changed files in `pages/` → check "Page Architecture" section
@@ -274,7 +346,7 @@ After PR is created or review fixes are pushed, before the skill's post-task ref
 
 When a sub-agent or the Strategist begins work on a repo:
 
-1. **Check for handbook**: `{repo}/.claude/handbook.md`
+1. **Check for handbook**: `{repo}/.claude/rules/handbook.md`
 2. **If exists**: read it before any codebase exploration. Use it as the starting mental model
 3. **If not exists**: proceed with normal Explore flow. After task completion, the maintenance step will flag that no handbook exists
 4. **During work**: if you discover the handbook is wrong about something, note it. The post-PR maintenance step will update it
@@ -283,17 +355,32 @@ When a sub-agent or the Strategist begins work on a repo:
 
 ## File Location & Gitignore
 
-- Path: `{repo}/.claude/handbook.md`
+- Path: `{repo}/.claude/rules/handbook.md`
 - Must be in `.gitignore` (or `.git/info/exclude`)
 - Managed by `polaris-sync.sh` alongside other AI files
 - Not committed to the product repo — it's AI working knowledge, not project documentation
+- **Auto-loaded by Claude Code**: files under `.claude/rules/` are automatically loaded into every conversation, so sub-agents get handbook context without explicit Read calls
 
 ## Handbook Size Guidelines
 
+### 主文件 handbook.md
 Target: **100-300 lines** per repo.
 
 - Too short (< 50 lines) → probably missing key sections, same as not having one
 - Too long (> 500 lines) → duplicating code comments, hard to maintain
-- If a section grows beyond 30 lines → it's too detailed. Summarize and let agents read the actual code for specifics
+- If a section grows beyond 30 lines → it's too detailed. Move to a handbook/ sub-file
 
-The handbook answers "what and why", not "how" at the code level. Code-level details belong in code comments and CLAUDE.md.
+### 子文件 handbook/*.md
+Target: **≤ 50 lines** per file.
+
+- 一個主題一個檔案，不混搭
+- 如果超過 50 行 → 考慮拆成更小的主題
+- 按需建立，不預建空檔
+
+### 總量
+handbook.md + handbook/*.md 全部自動載入。Context cost 需控制：
+
+- 主文件 300 行 + 5 個子文件 × 50 行 = 550 行 — 可接受
+- 如果總量 > 800 行 → 需要精簡，有些細節應該留在 code comments 而非 handbook
+
+The handbook answers "what and why", not "how" at the code level. Code-level details belong in code comments and the repo's own CLAUDE.md.

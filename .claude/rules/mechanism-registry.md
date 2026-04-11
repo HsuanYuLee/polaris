@@ -81,6 +81,16 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | `project-backlog-classification` | Project memory with action items (待實施/下一步/需要解決) must also write FRAMEWORK_GAP items to backlog | Project memory containing "待實施" or "pending" without corresponding backlog entry | High |
 | `memory-company-hard-skip` | Skip memories with mismatched company field | Company-scoped memory applied to a different company's work | Medium |
 | `cross-session-carry-forward` | Writing next-session memory must diff previous checkpoint's pending items — no silent drops | New project memory's "next steps" missing items from previous checkpoint without (a) done / (b) carry-forward / (c) dropped disposition | **Critical** |
+| `correction-driven-handbook-update` | User correction about repo-specific knowledge → pause work, update handbook (not feedback memory), resume with new understanding | Repo-specific correction (architecture, code convention, dev environment) saved as feedback memory instead of updating handbook | **Critical** |
+| `repo-knowledge-to-handbook-not-feedback` | Repo-specific knowledge (code patterns, API conventions, test strategies, env setup) belongs in handbook sub-files, not feedback memories | New feedback memory created for repo-specific knowledge that should be in `{repo}/.claude/rules/handbook/*.md` | High |
+
+#### Common Rationalizations — Handbook vs Feedback
+
+| Thought | Reality |
+|---------|---------|
+| "I'll save this as feedback for now and migrate later" | Feedback memories are invisible to sub-agents. Handbook is auto-loaded. Save it right the first time |
+| "This correction is small, doesn't warrant a handbook update" | Small corrections accumulate into wrong mental models. One wrong routing assumption → cascade of wrong decisions |
+| "The handbook doesn't have a sub-file for this topic yet" | Create one. Sub-files are created on demand, triggered by the first correction on that topic |
 
 ### Context Management (source: `rules/context-monitoring.md`)
 
@@ -236,7 +246,7 @@ Post-task audit should check these first (highest drift risk, most impactful):
 3. `api-docs-before-replace` / `fix-through-not-revert` / `query-original-impl` (Critical — PROJ-123 root cause)
 4. `delegate-exploration` / `delegate-implementation`
 5. `cross-session-read-memory-file` / `cross-session-carry-forward`
-6. `post-task-feedback-reflection` (note: correction = immediate trigger, don't defer)
+6. `post-task-feedback-reflection` / `correction-driven-handbook-update` (correction = immediate trigger; repo-specific → handbook, framework → feedback)
 6a. `checkpoint-mode-at-25` (check during long sessions, not just post-task)
 7. `re-test-after-fix` / `fresh-verification-before-completion` / `checklist-before-done`
 8. `cross-repo-verification` / `env-follows-requires`

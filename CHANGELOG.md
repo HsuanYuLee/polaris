@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.90.0] - 2026-04-11
+
+- **Handbook v1 — Correction-Driven Update + Nested Structure**
+  - **Correction-Driven Update** (`repo-handbook.md` Step 3b) — user 糾正 repo-specific 知識時，暫停工作 → 更新 handbook（不建 feedback memory）→ 基於新理解繼續。判斷捷徑：「換一個 workspace 還適用嗎？」No → handbook，Yes → feedback
+  - **Nested handbook structure** (Step 3a) — 主文件 100-300 行（架構全景），子文件 `handbook/*.md` ≤50 行（code style、testing、API conventions），全部在 `.claude/rules/` 自動載入
+  - **Step 1 補強** — handbook 生成第一步改為「先讀 README.md」，README 是 Overview 和 Cross-Repo 段落的 primary source
+  - **feedback-and-memory.md** — item 1 加入 handbook vs feedback 分類邏輯：repo-specific → handbook，framework → feedback
+  - **mechanism-registry.md** — 新增 `correction-driven-handbook-update` (Critical) + `repo-knowledge-to-handbook-not-feedback` (High) canary
+  - **首批 handbook 產出**：kkday-b2c-web（主文件 + 3 子文件：local-dev, testing, cwv-benchmark）、kkday-web-docker（主文件）
+  - **Feedback → Handbook 遷移**：7 筆 kkday repo-specific feedback memory 遷移至 handbook 子文件並刪除
+
 ## [1.89.0] - 2026-04-11
 
 - **Repo Handbook — AI 的新人 onboarding 文件**

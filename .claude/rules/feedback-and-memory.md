@@ -2,7 +2,10 @@
 
 After completing a full task (opening a PR, fixing review comments, estimation, reviewing a PR, etc.), silently reflect on the conversation:
 
-1. **User corrected a behavior** → save a feedback memory recording the rule + Why + How to apply
+1. **User corrected a behavior** → classify the correction first:
+   - **Repo-specific knowledge** (architecture, code conventions, API patterns, dev environment, testing rules) → update the repo's handbook or handbook sub-file immediately per `skills/references/repo-handbook.md` § Step 3b (Correction-Driven Update). **Do not create a feedback memory.**
+   - **Framework-level behavior** (skill routing, delegation, memory management, Polaris workflow) → save a feedback memory recording the rule + Why + How to apply
+   - **Shortcut**: "Would this knowledge apply in a different Polaris workspace?" No → handbook. Yes → feedback memory.
 2. **The same feedback memory is referenced >= 3 times** → trigger the Rule Graduation process (see below)
 3. **Blocked by a hook or permission denied** → immediately record the command and a suggested pattern; before the task ends, list all blocked commands and fix them (general → `~/.claude/settings.json`, project-specific → `settings.local.json`)
 4. **A command failed and was self-corrected** (wrong path guess, wrong parameter, wrong API format, etc.) → record the "wrong command → correct command" pair as a feedback memory
@@ -21,8 +24,8 @@ Why: if the Strategist enters reactive mode (fix → get corrected → fix again
 
 How to apply:
 1. User correction detected → pause the current fix
-2. Write feedback memory (or merge into existing) for the correction
-3. Resume the fix
+2. Classify: repo-specific → update handbook (see § item 1 above); framework → write feedback memory
+3. Resume the fix based on the updated understanding
 4. This takes < 30 seconds and prevents the feedback loop from going silent
 
 ## Cross-Session Carry-Forward Check
