@@ -238,7 +238,7 @@ flowchart LR
     NX -.->|epic progress| ES
 
     %% ── Epic tracking ──
-    ME -.->|pick ticket| WO
+    MT -.->|pick ticket| WO
     ES -->|gap: needs dev| WO
     ES -->|gap: fix review| FPR
     ES -->|gap: needs approval| CPA

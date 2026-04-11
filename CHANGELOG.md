@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.98.0] - 2026-04-12
+
+- **member-ci Handbook v0 + Company Handbook Enrichment**
+  - Generated `kkday-member-ci/.claude/rules/handbook/` — index.md (architecture overview) + 6 sub-files (api-design, php-conventions, security, vue-conventions, logging, testing)
+  - Graduated 4 existing rules files + 11 review-lessons files into handbook sub-files, deleted originals
+  - Key corrections from user Q&A: CodeIgniter 2.1.4 (not 3), pure PHP → Vue 2 history, device routing via CloudFront + UA, internal API design principle (不對外揭露 service)
+  - `rules/kkday/handbook/cross-repo-dependencies.md` — enriched with web-api ↔ member-ci, member-ci ↔ mobile-member-ci (legacy), member-ci ↔ docker dependencies, internal API design principle
+
 ## [1.97.0] - 2026-04-12
 
 - **Review-Lessons Buffer Deprecation + Handbook Direct Write**
