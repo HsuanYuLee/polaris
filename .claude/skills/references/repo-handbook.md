@@ -32,14 +32,18 @@ Like onboarding a new hire: first understand what the system IS, then learn how 
        ▼                                    ▼
   handbook.md v0                     handbook.md v0
 
-         ┌──────────────────────┐
-         │  Ongoing maintenance │
-         └──────┬───────────────┘
+         ┌──────────────────────────────┐
+         │     Ongoing maintenance      │
+         │  (三管道持續寫入 handbook)    │
+         └──────┬───────────────────────┘
                 │
-  git-pr-workflow / fix-pr-review post-step:
-    1. Diff changed files vs handbook modules
-    2. Stale? → update handbook (local write, no PR)
-    3. Not stale? → skip
+  ┌─────────────┼─────────────────┐
+  │             │                 │
+  ▼             ▼                 ▼
+User          Explorer          PR post-step
+correction    回寫              stale detection
+(Step 3b)   (explore-pattern)  (git-pr-workflow)
+validated     generated         generated
 ```
 
 ## Step 1: Repo Type Detection
@@ -372,7 +376,26 @@ PR review 發現 pattern → review-lessons/ buffer → 累積 → graduation
 
 不需要等 graduation 觸發：如果 review 中發現的 pattern 明確是 repo-specific 且 handbook 缺少，可以直接寫入 handbook 子文件。
 
-## Step 4: Ongoing Maintenance (Stale Detection)
+## Step 4: Ongoing Maintenance (Ingest + Stale Detection)
+
+Handbook 有三個寫入管道（ingest channels），按優先級排序：
+
+| 管道 | 觸發 | Confidence | 優先級 |
+|------|------|-----------|--------|
+| **User correction** | User 糾正 AI（Step 3b） | `validated` | 最高 — 永遠覆蓋 |
+| **PR review lesson** | review-lessons-graduation | `validated` | 中 — 來自 code review 實踐 |
+| **Explorer 回寫** | Explorer subagent 回傳 Handbook Observations | `generated` | 最低 — AI 推導，待驗證 |
+| **PR stale detection** | git-pr-workflow / fix-pr-review post-step | `generated` | 最低 — 自動偵測 |
+
+**衝突規則**：高優先級永遠覆蓋低優先級。Explorer 回寫的內容如果與 user correction 或 PR lesson 矛盾，以後兩者為準。詳見 `explore-pattern.md` § Handbook 回寫。
+
+### Explorer 回寫管道
+
+Explorer subagent 在探索中發現的 handbook gaps 和 stale 資訊，由 Strategist 在收到探索結果後處理。這是 handbook **自動成長**的主要機制 — 不需要等 user 糾正或 PR review，每次探索都能補充知識。
+
+流程：見 `explore-pattern.md` § Handbook 回寫（Explorer → Handbook Ingest）。
+
+### PR Stale Detection 管道
 
 Embedded in `git-pr-workflow` and `fix-pr-review` as a post-step.
 
@@ -413,6 +436,94 @@ After PR is created or review fixes are pushed, before the skill's post-task ref
 - Handbook doesn't exist → skip (will be created on next `work-on`)
 - Changes are test-only → skip
 - Changes are config-only (`.env`, CI) → skip unless it affects Tech Stack
+
+## Step 5: Handbook Lint（保鮮機制）
+
+Handbook 內容會隨程式碼演進而過時。三種粒度的 lint 機制確保 handbook 持續準確。
+
+### Lazy Lint（讀到時驗）
+
+**觸發**：Sub-agent 讀 handbook section 作為任務 context 時。
+
+**動作**：順手確認 handbook 宣告 vs 實際狀態。例如：
+- handbook 說「Tech Stack: Nuxt 2.x」→ 讀 `package.json` 確認版本
+- handbook 說「API 走 `/api/internal/`」→ grep 確認路徑還在
+- handbook 說「用 Options API」→ 掃幾個 component 確認
+
+**成本**：幾乎為零 — 只驗正在用的 section，不全掃。
+
+**如果發現不符**：
+- 明確過時 → 直接修正 handbook（`confidence: validated`）
+- 不確定 → 加 `<!-- stale-hint: {description}, {date} -->` 標記
+
+### Event-Driven Lint（變動觸發）
+
+**觸發**：Session start 的 `git status` / `git diff` 偵測到 handbook 相關檔案變動。
+
+**對應表**（哪些檔案變動影響哪些 handbook section）：
+
+| 變動檔案 | 影響的 Handbook Section |
+|----------|----------------------|
+| `package.json` | Tech Stack |
+| `docker-compose.yml`, `Dockerfile` | Dev Environment |
+| `tsconfig.json`, path alias config | Directory Structure, Path Aliases |
+| `nuxt.config.*` / `next.config.*` | Rendering Strategy, Middleware |
+| New directory under `pages/` | Page Architecture |
+| New directory under `server/` | API Architecture |
+| `.env.example` | Environment Variables |
+
+**動作**：
+1. 偵測到相關變動 → 在 handbook 對應 section 加 `<!-- stale-hint: {file} changed, {date} -->`
+2. 下次 lazy lint 讀到帶 stale-hint 的 section → 優先驗證
+3. 驗證後移除 stale-hint（無論結果是更新或確認仍正確）
+
+**何時執行**：Session start fast check 已經跑 `git status`。如果偵測到 handbook 相關檔案在 diff 中，加 stale-hint。不需要額外 tool call — 這是 Strategist 在讀 git status 結果時的附加判斷。
+
+### Batch Lint（定期全掃）
+
+**觸發頻率**：
+
+| 層級 | 觸發時機 | 掛接點 |
+|------|---------|--------|
+| Repo handbook | Sprint planning（每 2 週） | `/sprint-planning` post-step |
+| Company handbook | Monthly standup（每月第一次） | `/standup` 月初觸發 |
+| Framework rules | Version bump | 已有 `validate-mechanisms` |
+
+**Batch lint 流程**：
+
+1. 讀整份 handbook（index + 所有子文件）
+2. 對每個 section，用 Grep/Read 驗證核心宣告：
+   - Tech Stack → `package.json` dependencies
+   - Directory Structure → `ls` top-level dirs
+   - API endpoints → grep key route patterns
+   - Cross-repo dependencies → 確認 import/config 還在
+3. 產出 lint report：
+
+```markdown
+## Handbook Lint Report — {repo} ({date})
+
+| Section | Status | Detail |
+|---------|--------|--------|
+| Tech Stack | ✅ Current | — |
+| Directory Structure | ⚠️ Stale | new `modules/` dir not in handbook |
+| API Integration | ✅ Current | — |
+| Component Conventions | ❓ Unchecked | no grep target defined |
+```
+
+4. Stale sections → 自動更新（明確變動）或提示 user（架構級變動）
+5. 6 個月沒被任何 query 或 lint 觸及的 section → 建議 archive
+
+### Stale-Hint 格式
+
+統一使用 HTML comment，不影響 handbook 可讀性：
+
+```markdown
+<!-- stale-hint: package.json changed, 2026-04-12 -->
+## Tech Stack
+...
+```
+
+Sub-agent 讀到 stale-hint 時知道這個 section 需要優先驗證。Stale-hint 不代表「一定過時」，只代表「有變動信號，值得多看一眼」。
 
 ## Reading the Handbook (Consumer Protocol)
 

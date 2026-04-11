@@ -92,6 +92,16 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | "This correction is small, doesn't warrant a handbook update" | Small corrections accumulate into wrong mental models. One wrong routing assumption → cascade of wrong decisions |
 | "The handbook doesn't have a sub-file for this topic yet" | Create one. Sub-files are created on demand, triggered by the first correction on that topic |
 
+### Handbook Lifecycle (source: `skills/references/repo-handbook.md`, `skills/references/explore-pattern.md`)
+
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `handbook-first-explore` | Explorer subagent reads handbook before codebase scanning | Explorer prompt missing handbook-first instruction; exploration repeats knowledge already in handbook | Medium |
+| `explorer-handbook-ingest` | Strategist processes Explorer's Handbook Observations (gaps → write, stale → fix/mark) after exploration | Explorer returns Gaps/Stale observations but Strategist proceeds without updating handbook | Medium |
+| `ingest-conflict-priority` | Handbook write priority: user correction > PR lesson > Explorer回寫 | Explorer-generated content overwrites a user-validated section | High |
+| `event-driven-stale-hint` | Session start git diff shows handbook-related file changes → add stale-hint to affected section | `package.json` or `nuxt.config` changed in diff but no stale-hint added to handbook | Low |
+| `batch-lint-sprint-planning` | Repo handbook batch lint runs during sprint-planning | Sprint planning completes without handbook lint report | Low |
+
 ### Context Management (source: `rules/context-monitoring.md`)
 
 | ID | Rule | Canary Signal | Drift |

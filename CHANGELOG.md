@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.96.0] - 2026-04-12
+
+- **Handbook Lifecycle — Full Implementation (Generate→Ingest→Query→Lint)**
+  - `explore-pattern.md` — Handbook-First 探索協議：Explorer subagent 先讀 handbook 再做 codebase scan，只探索 gap，減少冗餘 Read
+  - `explore-pattern.md` — Handbook Observations 回傳欄位（Used / Gaps / Stale），Strategist 收到後自動回寫 handbook
+  - `explore-pattern.md` — Handbook 回寫規則：Gap → 寫入 repo/company handbook（`confidence: generated`）、Stale → 直接修正或加 stale-hint
+  - `explore-pattern.md` — Conflict resolution 優先級：user correction > PR lesson > Explorer 回寫
+  - `repo-handbook.md` — Step 4 重組為三管道 ingest channel（user correction / PR lesson / Explorer 回寫），lifecycle diagram 更新
+  - `repo-handbook.md` — Step 5 Handbook Lint 三粒度保鮮機制：Lazy lint（讀到時驗）、Event-driven lint（git diff → stale-hint）、Batch lint（sprint planning / monthly standup）
+  - `mechanism-registry.md` — 新增 Handbook Lifecycle section（5 個 canary signal）
+  - `INDEX.md` — explore-pattern 描述更新
+
 ## [1.95.0] - 2026-04-11
 
 - **AI Files Local-Mode Automation**

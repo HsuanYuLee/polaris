@@ -42,7 +42,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [sub-agent-roles.md](sub-agent-roles.md) | Sub-agent dispatch 標準：completion envelope、model tier、QA/Architect/Critic | 任何 skill 啟動 sub-agent |
-| [explore-pattern.md](explore-pattern.md) | Adaptive codebase 探索模式：小範圍直讀、大範圍平行 sub-agent | sasd-review, jira-estimation, systematic-debugging |
+| [explore-pattern.md](explore-pattern.md) | Adaptive codebase 探索模式：handbook-first → 小範圍直讀 / 大範圍平行 sub-agent → handbook 回寫 | sasd-review, jira-estimation, systematic-debugging, work-on, fix-bug |
 
 ## Testing & VR
 
