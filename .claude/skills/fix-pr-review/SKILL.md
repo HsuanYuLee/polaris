@@ -896,6 +896,17 @@ slack_send_message({
 - Current branch has an open PR, or user provides PR number/URL
 
 
+## Handbook Maintenance (post-fix)
+
+After fixes are pushed, check if the repo has a handbook (`{repo}/.claude/handbook.md`). If it exists, run the stale detection process per `skills/references/repo-handbook.md` § Step 4:
+
+1. Get changed files from the fix commits
+2. Map changes to handbook sections
+3. Update stale sections (direct file write, no commit)
+4. Flag major structural changes to user
+
+Skip if no handbook exists (will be created on next `work-on`).
+
 ## Post-Task Reflection (required)
 
 > **Non-optional.** Execute before reporting task completion.

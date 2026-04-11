@@ -35,6 +35,15 @@ metadata:
 
 ---
 
+### Phase 0.5：Handbook Check（Strategist-level, before sub-agents）
+
+For each unique repo in the ticket set, check if `{repo}/.claude/handbook.md` exists:
+
+- **Exists** → sub-agents will read it in Phase 1 (see sub-agent prompt § Repo Handbook)
+- **Not exists** → after Phase 1 analysis completes and user confirms, generate handbook from the Phase 1 sub-agent's exploration output. Follow `skills/references/repo-handbook.md` § Step 1-3. Present to user for confirmation before proceeding to Phase 2. This is a one-time cost per repo
+
+This check runs at the Strategist level (not inside sub-agents) to avoid generating duplicate handbooks when multiple tickets target the same repo.
+
 ### Phase 1：平行分析
 
 **1a. 平行取得所有 ticket 的 JIRA 資訊**（直接用 MCP tool，不需 sub-agent）：
@@ -74,8 +83,11 @@ Description: {description}
 
 ## 分析指示
 
+### Repo Handbook（先讀再探索）
+如果 `{base_dir}/{repo}/.claude/handbook.md` 存在，先讀它。這是 repo 的架構文件，包含模組結構、tech stack、data flow。用它作為起始 mental model，減少探索範圍。如果不存在，跳過此步。
+
 ### Codebase 探索
-先讀取 `skills/references/explore-pattern.md`，使用自適應探索模式掃描 codebase。探索目標依 issue type 而定（見下方）。探索摘要取得後，再進入估點分析。
+先讀取 `skills/references/explore-pattern.md`，使用自適應探索模式掃描 codebase。探索目標依 issue type 而定（見下方）。探索摘要取得後，再進入估點分析。如果已讀過 handbook，只需驗證和補充 handbook 未覆蓋的部分，不需全面重新探索。
 
 ### 估點參考
 讀取以下 skill 檔案，遵循其中的**分析/估點步驟**（僅分析，不執行寫入操作）：

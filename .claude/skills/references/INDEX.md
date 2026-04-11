@@ -53,6 +53,12 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [visual-regression-config.md](visual-regression-config.md) | VR config schema：domain、server、fixtures、pages、viewports | visual-regression, /init VR setup |
 | [vr-jira-report-template.md](vr-jira-report-template.md) | VR 結果 JIRA comment 的 wiki markup 模板 | visual-regression, fix-bug AC verification, verify-completion |
 
+## Repo Knowledge
+
+| File | Description | Triggers |
+|------|-------------|----------|
+| [repo-handbook.md](repo-handbook.md) | Per-repo 架構文件：repo 類型辨識、handbook 結構生成、stale detection 維護流程 | init (optional), work-on (Phase 0.5), git-pr-workflow (post-PR), fix-pr-review (post-fix) |
+
 ## Config & Infrastructure
 
 | File | Description | Triggers |

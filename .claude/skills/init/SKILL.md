@@ -924,6 +924,23 @@ The generated company config follows `_template/workspace-config.yaml` structure
 - Empty strings `""` for skipped optional fields
 - Proper YAML formatting (2-space indent, no trailing spaces)
 
+## Optional Final Step: Repo Handbook Generation
+
+After the init wizard completes (config written, projects mapped), offer to generate handbooks for the configured repos:
+
+> "要不要為已設定的 repo 建立 handbook？Handbook 是給 AI 看的架構文件，幫助 sub-agent 理解每個 repo 的結構，減少每次重新探索的成本。（可以之後再做，第一次 work-on 時會自動觸發）"
+
+If user accepts:
+
+1. For each repo in the company's `projects` block that has a local path:
+   a. Explore the repo — detect repo type per `skills/references/repo-handbook.md` § Step 1
+   b. Generate handbook draft per § Step 2
+   c. Present to user for confirmation/correction per § Step 3
+   d. Write to `{repo}/.claude/handbook.md`
+2. If multiple repos, process sequentially (each needs user Q&A)
+3. Skip repos where `{repo}/.claude/handbook.md` already exists
+
+If user declines: skip entirely. Handbooks will be auto-generated on first `work-on`.
 
 ## Post-Task Reflection (required)
 

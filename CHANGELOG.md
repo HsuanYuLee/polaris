@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.89.0] - 2026-04-11
+
+- **Repo Handbook — AI 的新人 onboarding 文件**
+  - `skills/references/repo-handbook.md` — 完整設計：repo 類型辨識（10 種 primary type + 6 種 secondary trait）、按類型生成 handbook 結構、user Q&A 校正流程、stale detection 維護機制
+  - `/init` — 最後新增 optional step：老手可在初始化時直接為已設定的 repo 建立 handbook
+  - `work-on` — Phase 0.5 Handbook Check：首次 work-on 自動觸發 handbook 生成；sub-agent prompt 加入「先讀 handbook 再探索」指示
+  - `git-pr-workflow` + `fix-pr-review` — post-step：PR 建好/修完後自動 diff 改動 vs handbook，更新 stale 段落
+  - Handbook 存在 `{repo}/.claude/handbook.md`（gitignored），類比人類的架構文件：README 是給外部人看的，CLAUDE.md 是員工守則，handbook 是系統架構文件
+
 ## [1.88.0] - 2026-04-11
 
 - **Learning Compile & Lint — 知識複利機制** (inspired by Karpathy's LLM Knowledge Base)
