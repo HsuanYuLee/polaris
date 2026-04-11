@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.100.0] - 2026-04-12
+
+- **Backlog Clearance + Learning Refactor + Dedup**
+  - `skills/references/review-lesson-extraction.md` — new shared reference: sub-agent prompt, dedup logic, write format, graduation check (extracted from learning SKILL.md PR/Batch modes, 1060→947 lines)
+  - `skills/references/INDEX.md` — added review-lesson-extraction.md entry
+  - `skills/learning/SKILL.md` — PR mode Steps P2-P4 and Batch mode Steps B5-B7 now reference the shared file instead of duplicating
+  - `CLAUDE.md` — removed Context Recovery section (deduped into context-monitoring.md §4), 195→182 lines
+  - `rules/context-monitoring.md` — enriched §4 Compression Awareness with artifact/timeline checks from CLAUDE.md
+  - `polaris-backlog.md` — closed: skill-script-extraction (already done), learning refactor, CLAUDE.md refactor; merged: PostToolUse hooks ×2→1, isolation ×2→1; added: rules/skills dedup scan, README.md lint-on-bump
+
 ## [1.99.0] - 2026-04-12
 
 - **Library Change Protocol + Blind Spot Scan + Key Libraries**

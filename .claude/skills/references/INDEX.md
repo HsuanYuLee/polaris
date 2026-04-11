@@ -79,6 +79,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 
 | File | Description | Triggers |
 |------|-------------|----------|
+| [review-lesson-extraction.md](review-lesson-extraction.md) | PR review 萃取共用邏輯：sub-agent prompt、dedup、寫入格式、graduation | learning (PR/Batch mode), review-pr Step 6.5 |
 | [cross-session-learnings.md](cross-session-learnings.md) | JSONL 知識庫 schema 與跨 session 技術洞察持久化規則 | post-task-reflection, session-start |
 | [session-timeline.md](session-timeline.md) | JSONL 事件日誌 schema 與 polaris-timeline.sh 介面 | standup, checkpoint, skill invocation logging |
 | [post-task-reflection-checkpoint.md](post-task-reflection-checkpoint.md) | 所有 write skill 的最終步驟 checklist：feedback、learning、mechanism audit | 每個 write skill 的最後一步 |

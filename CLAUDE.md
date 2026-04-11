@@ -79,20 +79,6 @@ Use returned learnings as background knowledge — don't output to user unless a
 
 Log significant events (skill invocations, PRs, commits, errors) to the session timeline via `polaris-timeline.sh`. See `skills/references/session-timeline.md` for event types.
 
-### Context Recovery After Compaction
-
-When context is compressed (earlier messages truncated), immediately recover session state:
-
-1. **Check todo list** — confirm current task progress is intact
-2. **Check recent messages** — re-confirm active company context, branch name, ticket key, PR URL
-3. **Check artifacts on disk** — look for recent plans, checkpoints, or notes that the previous context produced but are no longer visible:
-   - Todo items often contain key artifact paths and decision context
-   - Git branch name encodes the ticket being worked on
-4. **Check session timeline** — `polaris-timeline.sh query --last 10` for recent activity context
-   - Recent git log shows what was committed in this session
-5. **If company context is unclear** — ask the user before proceeding (wrong company causes rule/memory cross-contamination)
-6. **Never guess** — if critical state (which ticket, which repo, which company) is lost and unrecoverable from the above sources, ask rather than assume
-
 ### Session Start — Fast Check
 
 At the start of every conversation, before responding to the user's first message, run a lightweight state check:

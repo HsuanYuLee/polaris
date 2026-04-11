@@ -27,11 +27,16 @@ After completing an independent phase (e.g., ticket breakdown done, PR created, 
 
 ### 4. Compression Awareness
 
-When the system indicates context was compressed:
-- Review the current task's todo list to confirm progress is intact
-- Re-confirm key artifacts (branch name, PR URL, ticket key) are still available
-- **Re-confirm active company context** — check todo list or recent messages for which company was active. If unclear, ask the user before proceeding (wrong company context can cause rule/memory cross-contamination)
-- If in doubt, use memory or todo to restore lost state
+When the system indicates context was compressed, immediately recover session state:
+
+1. **Check todo list** — confirm current task progress is intact
+2. **Check recent messages** — re-confirm active company context, branch name, ticket key, PR URL
+3. **Check artifacts on disk** — look for recent plans, checkpoints, or notes that the previous context produced but are no longer visible:
+   - Todo items often contain key artifact paths and decision context
+   - Git branch name encodes the ticket being worked on
+4. **Check session timeline** — `polaris-timeline.sh query --last 10` for recent activity context; recent git log shows what was committed in this session
+5. **If company context is unclear** — ask the user before proceeding (wrong company causes rule/memory cross-contamination)
+6. **Never guess** — if critical state (which ticket, which repo, which company) is lost and unrecoverable from the above sources, ask rather than assume
 
 ### 4a. Company Context Preservation
 
