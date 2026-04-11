@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.93.0] - 2026-04-11
+
+- **Company Handbook — Three-Layer Knowledge Architecture**
+  - **New concept**: Handbook 分三層 — Framework（個人工作風格）→ Company（跨 repo 知識）→ Repo（單一 repo 架構）。受 Karpathy 知識庫系統啟發：探索效率來自「起點更高」（compiled knowledge），不是「步驟更聰明」
+  - **KKday company handbook** (`rules/kkday/handbook/`): index.md + 4 子文件（cross-repo-dependencies, development-workflow, tools-and-channels, testing-and-verification）
+  - **Three-layer classification** (`repo-handbook.md` Step 3b): Q1「換 workspace 還適用？」→ Q2「換 repo 還適用？」— 三個問題，每個 3 秒可分類
+  - **Company context injection** (`sub-agent-roles.md`): dispatch sub-agent 到子 repo 時，Strategist 注入 company handbook 的 Cross-Repo Dependencies 段落
+  - **feedback-and-memory.md** item 1 改為三層分類邏輯
+  - **12 筆 memory 遷移至 company handbook** 後刪除，MEMORY.md 瘦身
+
 ## [1.92.0] - 2026-04-11
 
 - **Backlog Context Format — 每個項目附帶 Why / Without it / Source**

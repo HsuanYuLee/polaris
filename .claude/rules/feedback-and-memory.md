@@ -2,10 +2,12 @@
 
 After completing a full task (opening a PR, fixing review comments, estimation, reviewing a PR, etc.), silently reflect on the conversation:
 
-1. **User corrected a behavior** → classify the correction first:
-   - **Repo-specific knowledge** (architecture, code conventions, API patterns, dev environment, testing rules) → update the repo's handbook or handbook sub-file immediately per `skills/references/repo-handbook.md` § Step 3b (Correction-Driven Update). **Do not create a feedback memory.**
-   - **Framework-level behavior** (skill routing, delegation, memory management, Polaris workflow) → save a feedback memory recording the rule + Why + How to apply
-   - **Shortcut**: "Would this knowledge apply in a different Polaris workspace?" No → handbook. Yes → feedback memory.
+1. **User corrected a behavior** → classify the correction using the three-layer test (see `skills/references/repo-handbook.md` § Step 3b — Three-Layer Classification):
+   - **Q1: 換一個 Polaris workspace 還適用？** Yes → feedback memory（framework-level）. No → Q2
+   - **Q2: 換同公司另一個 repo 還適用？** Yes → **company handbook**（`rules/{company}/handbook/`）. No → **repo handbook**（`{repo}/.claude/rules/handbook/`）
+   - Company-level knowledge: cross-repo dependencies, team structure, Slack routing, git/changeset conventions, tool locations
+   - Repo-specific knowledge: architecture, code conventions, API patterns, dev environment, testing rules
+   - **Do not create a feedback memory** for repo-specific or company-level knowledge. Handbook is the correct container.
 2. **The same feedback memory is referenced >= 3 times** → trigger the Rule Graduation process (see below)
 3. **Blocked by a hook or permission denied** → immediately record the command and a suggested pattern; before the task ends, list all blocked commands and fix them (general → `~/.claude/settings.json`, project-specific → `settings.local.json`)
 4. **A command failed and was self-corrected** (wrong path guess, wrong parameter, wrong API format, etc.) → record the "wrong command → correct command" pair as a feedback memory

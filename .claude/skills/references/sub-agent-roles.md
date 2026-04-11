@@ -62,6 +62,30 @@ Choose model based on task type to balance cost and quality:
 - Specify what tools the sub-agent should/shouldn't use
 - For implementation tasks, specify `isolation: "worktree"` when parallel execution is needed
 
+### Company Handbook Injection
+
+When dispatching a sub-agent to work on a specific repo, the Strategist must inject relevant **company handbook** context into the dispatch prompt. Sub-agents in sub-repos don't automatically see workspace-level `rules/{company}/handbook/`.
+
+**Before dispatch**:
+1. Read `rules/{company}/handbook/index.md` (already auto-loaded in main session)
+2. Identify sections relevant to the sub-agent's task (especially Cross-Repo Dependencies)
+3. Include the relevant excerpt in the dispatch prompt under a `[Company Context]` block
+
+**Example**:
+```
+你要在 your-app 修改 breadcrumb schema。
+
+[Company Context]
+- your-app 商品頁資料（breadcrumb, product detail, pricing）來自 your-backend internal API
+- your-app SSR 透過 Nuxt server middleware 呼叫 your-backend
+- 改動 your-backend API response 會影響 your-app 顯示
+
+你的任務是...
+```
+
+**When to inject**: any task that may involve cross-repo data flow, API integration, or team conventions.
+**When to skip**: purely isolated tasks (update a CSS style, fix a lint error) with no cross-repo impact.
+
 ---
 
 ## 2. Specialized Protocols

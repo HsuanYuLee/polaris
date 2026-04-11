@@ -286,21 +286,53 @@ User 糾正當前工作中的認知錯誤（「這不對」「不是這樣」「
 
 4. **恢復工作** — 基於更新後的 handbook 理解繼續
 
-### 邊界：什麼走 handbook，什麼走 feedback
+### 三層分類（Correction Classification）
+
+收到 user correction 時，依序問三個問題：
+
+1. **「換一個 Polaris workspace 還適用嗎？」**
+   - Yes → feedback memory（framework-level）
+   - No → 繼續 Q2
+
+2. **「換同公司另一個 repo 還適用嗎？」**
+   - Yes → **company handbook**（`rules/{company}/handbook/`）
+   - No → **repo handbook**（`{repo}/.claude/rules/handbook/`）
+
+3. **更新後通知**：
+   - repo handbook → 無需通知（同 repo sub-agent 自動讀到）
+   - company handbook → 如果當前在某 repo 的 sub-agent 工作中，提醒 Strategist 下次 dispatch 其他 repo 的 sub-agent 時 knowledge 已更新
+
+### 分類參考表
 
 | 知識類型 | 歸屬 | 範例 |
 |---------|------|------|
-| Repo 架構、routing、data flow | handbook | 「your-app 是取代 your-backend 的」 |
-| Code style、命名、test pattern | handbook 子文件 | 「我們 composable 不加 use prefix」 |
-| 團隊分工、cross-repo 關係 | handbook | 「trans 是另一個團隊」 |
+| Repo 架構、routing、data flow | repo handbook | 「your-app 用 Nuxt 2 Options API」 |
+| Code style、命名、test pattern | repo handbook 子文件 | 「我們 composable 不加 use prefix」 |
+| 跨 repo API 依賴、data flow | **company handbook** | 「商品頁資料來自 your-backend API」 |
+| 團隊分工、Sprint 慣例 | **company handbook** | 「GT 做 Epic、TASK 做子單」 |
+| Slack channel routing、工具慣例 | **company handbook** | 「催 review 發 pr_review channel」 |
+| Git branching、changeset 規則 | **company handbook** | 「cascade rebase、一 PR 一 changeset」 |
 | Polaris skill routing、delegation 行為 | feedback memory | 「你應該先用 skill 不要自己做」 |
 | Polaris 框架設計決策 | feedback memory | 「worktree 才安全」 |
 
-**判斷捷徑**：糾正的知識換一個 Polaris workspace 還適用嗎？不適用 → handbook（repo-specific）。適用 → feedback（framework-level）。
+**邊界規則**：只要知識跨了一個 repo 就是 company handbook。不需要「影響所有 repo」才算 company level — 因為 repo handbook 只在該 repo 可見，放在 repo A 的知識在 repo B 的 sub-agent 看不到。
+
+### Company Handbook 位置
+
+```
+.claude/rules/{company}/handbook/
+  index.md                    # 主文件：Team、Cross-Repo Dependencies 概述
+  cross-repo-dependencies.md  # API dependency map
+  development-workflow.md     # Git、changeset、PR 慣例
+  tools-and-channels.md       # Slack、Confluence、documentation policy
+  testing-and-verification.md # 跨 repo 的測試標準
+```
+
+Company handbook 在 workspace root 的 `.claude/rules/` 下，main session 自動載入。Sub-agent 在子 repo 工作時由 Strategist 在 dispatch prompt 注入相關段落。
 
 ### 為什麼不用 feedback memory
 
-Feedback memory 的設計是「觀察 → 累積 → 畢業」，適合行為模式的漸進發現。但 repo-specific 知識是**事實性的**（routing 規則、team 分工、API pattern），第一次就該修對，不需要等三次觸發。而且 sub-agent 每次從零開始，不讀 memory，只讀 `.claude/rules/` — 所以 feedback memory 裡的 repo 知識對 sub-agent 是隱形的。
+Feedback memory 的設計是「觀察 → 累積 → 畢業」，適合行為模式的漸進發現。但 repo-specific 和 company-level 知識是**事實性的**（routing 規則、team 分工、API pattern），第一次就該修對，不需要等三次觸發。而且 sub-agent 每次從零開始，不讀 memory，只讀 `.claude/rules/` — 所以 feedback memory 裡的 repo/company 知識對 sub-agent 是隱形的。
 
 ## Step 3c: Handbook as Review Standard
 
