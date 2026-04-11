@@ -62,16 +62,17 @@ Choose model based on task type to balance cost and quality:
 - Specify what tools the sub-agent should/shouldn't use
 - For implementation tasks, specify `isolation: "worktree"` when parallel execution is needed
 
-### Company Handbook Injection
+### Handbook Knowledge Injection
 
-When dispatching a sub-agent to work on a specific repo, the Strategist must inject relevant **company handbook** context into the dispatch prompt. Sub-agents in sub-repos don't automatically see workspace-level `rules/{company}/handbook/`.
+Sub-agents don't auto-load `.claude/rules/` from sub-repos or the workspace root. Two handbook layers need explicit injection, using **different strategies**:
 
-**Before dispatch**:
-1. Read `rules/{company}/handbook/index.md` (already auto-loaded in main session)
-2. Identify sections relevant to the sub-agent's task (especially Cross-Repo Dependencies)
-3. Include the relevant excerpt in the dispatch prompt under a `[Company Context]` block
+| Layer | Strategy | Why |
+|-------|----------|-----|
+| **Company handbook** | Strategist 選擇性摘錄 | 跨 repo 知識，只有部分段落跟當前任務相關 |
+| **Repo handbook** | Sub-agent 自己全讀 | 在該 repo 工作，整份 handbook 都適用 |
 
-**Example**:
+**Dispatch prompt pattern**:
+
 ```
 你要在 your-app 修改 breadcrumb schema。
 
@@ -80,11 +81,18 @@ When dispatching a sub-agent to work on a specific repo, the Strategist must inj
 - your-app SSR 透過 Nuxt server middleware 呼叫 your-backend
 - 改動 your-backend API response 會影響 your-app 顯示
 
+[Repo Handbook — 先讀再開始]
+讀以下檔案，作為你對這個 repo 的基礎理解：
+1. /absolute/path/to/your-app/.claude/rules/handbook/index.md
+2. 讀完 index 後，讀 index 引用的所有子文件（handbook/*.md）
+讀完後再開始任務。
+
 你的任務是...
 ```
 
-**When to inject**: any task that may involve cross-repo data flow, API integration, or team conventions.
-**When to skip**: purely isolated tasks (update a CSS style, fix a lint error) with no cross-repo impact.
+**Company context — when to inject**: cross-repo data flow, API integration, team conventions.
+**Company context — when to skip**: purely isolated tasks (CSS fix, lint error).
+**Repo handbook — when to inject**: always, if the repo has a handbook. Cost is a few Read calls; benefit is complete repo context equivalent to auto-loaded rules.
 
 ---
 

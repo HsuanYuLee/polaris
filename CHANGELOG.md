@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.94.0] - 2026-04-11
+
+- **Handbook Knowledge Injection — Two-Layer Strategy**
+  - `sub-agent-roles.md` — Company handbook = Strategist 選擇性摘錄；Repo handbook = sub-agent 自己全讀（效果等同 auto-loaded rules）
+  - `repo-handbook.md` — 修正「auto-loaded by Claude Code」的錯誤描述。在 workspace setup 下 repo handbook 不會自動載入，需透過 dispatch prompt 指示 sub-agent 自己讀
+  - 設計原則：company-level 放 workspace（永遠相關，自動載入）；repo-level 留在 repo（按需注入，避免 context 膨脹）
+
 ## [1.93.0] - 2026-04-11
 
 - **Company Handbook — Three-Layer Knowledge Architecture**

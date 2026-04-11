@@ -431,7 +431,7 @@ When a sub-agent or the Strategist begins work on a repo:
 - Must be in `.gitignore` (or `.git/info/exclude`)
 - Managed by `polaris-sync.sh` alongside other AI files
 - Not committed to the product repo — it's AI working knowledge, not project documentation
-- **Auto-loaded by Claude Code**: files under `.claude/rules/` are automatically loaded into every conversation, so sub-agents get handbook context without explicit Read calls
+- **Auto-loading scope**: `.claude/rules/` auto-loading only applies when Claude Code's project root IS the repo. In our workspace setup (project root = `work/`), repo handbooks are **not** auto-loaded. Sub-agents must explicitly read them — see `sub-agent-roles.md` § Handbook Knowledge Injection for the dispatch pattern
 
 ## Handbook Size Guidelines
 
