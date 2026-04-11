@@ -151,6 +151,32 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | "Compiled source shows only one parameter" | Compiled/bundled JS ≠ API surface. Overloads, wrapper layers, and build transforms hide parameters. Check official docs or npm README first |
 | "This module can't do what we need, let me replace it" | Replacement is T3 — confirm with user. First exhaust: (1) official API docs, (2) npm README, (3) GitHub issues/discussions. PROJ-123 lost 3 rounds because compiled source was treated as API truth |
 
+### Library Changes (source: `rules/library-change-protocol.md`)
+
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `lib-exhaust-before-replace` | Before concluding a lib can't do X, exhaust three layers: official docs → GitHub issues → plugin/config combinations | Sub-agent proposes replacement citing only compiled source or "doesn't seem to work" without docs/issues evidence | **Critical** |
+| `lib-replace-is-t3` | Replacing a framework-level module requires user confirmation (T3) | Framework module replaced without user confirmation in conversation | High |
+| `lib-config-registration-check` | Impact assessment must check config-level registration (nuxt.config, webpack.config, composer.json plugins), not just `grep import` | Replacement proposed with "0 imports found" when lib is registered in framework config | High |
+| `lib-lock-file-diff` | Upgrade evaluation must diff lock file for transitive dependency changes | Major/minor upgrade committed without lock file diff check | Medium |
+| `lib-key-libraries-binding` | Handbook Key Libraries section designates concern→library bindings; replacement requires full protocol | Sub-agent replaces a library listed in Key Libraries without running the protocol | High |
+
+#### Common Rationalizations — Library Changes
+
+| Thought | Reality |
+|---------|---------|
+| "This module can't do what we need" | Did you check all three layers (docs, issues, config)? Compiled source ≠ API surface |
+| "It's easier to just use X instead" | Easier now, harder when 20 files depend on the old pattern and tests break |
+| "It's just a minor upgrade" | Check the lock file diff — "minor" can pull in major transitive changes |
+| "Nobody uses this lib anyway" | Did you check config registration? Nuxt modules don't show up in `grep import` |
+| "I'll add a compatibility layer" | That's a workaround. Use the existing lib correctly first |
+
+### Strategist Behavior (source: `CLAUDE.md`)
+
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `blind-spot-scan` | After producing a plan, protocol, or significant decision, pause and self-check (invert, edge cases, silent failure) before presenting or executing | Strategist presents a plan without any "what could go wrong" analysis; user discovers a blind spot the Strategist should have caught | Medium |
+
 ### Quality Gates (source: `skills/git-pr-workflow/SKILL.md`, `skills/verify-completion/SKILL.md`)
 
 | ID | Rule | Canary Signal | Drift |
@@ -253,7 +279,7 @@ Post-task audit should check these first (highest drift risk, most impactful):
 
 1. `no-workaround-accumulation` / `design-implementation-reconciliation`
 2. `skill-first-invoke` / `no-manual-skill-steps` / `reference-index-scan`
-3. `api-docs-before-replace` / `fix-through-not-revert` / `query-original-impl` (Critical — PROJ-123 root cause)
+3. `api-docs-before-replace` / `lib-exhaust-before-replace` / `fix-through-not-revert` / `query-original-impl` (Critical — PROJ-123 root cause + library change protocol)
 4. `delegate-exploration` / `delegate-implementation`
 5. `cross-session-read-memory-file` / `cross-session-carry-forward`
 6. `post-task-feedback-reflection` / `correction-driven-handbook-update` (correction = immediate trigger; repo-specific → handbook, framework → feedback)

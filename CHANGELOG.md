@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.99.0] - 2026-04-12
+
+- **Library Change Protocol + Blind Spot Scan + Key Libraries**
+  - `rules/library-change-protocol.md` — universal protocol for replacing, upgrading, or removing dependencies: three-layer exhaustion check (docs → issues → config), four-question impact assessment, upgrade-specific checks (changelog, migration guide, peer deps, lock file diff), runtime vs build-time distinction, decision tier matrix
+  - `CLAUDE.md` — added Blind Spot Scan as Strategist Responsibility #6: pre-execution self-check (invert, edge cases, silent failure) before presenting plans or decisions
+  - `mechanism-registry.md` — registered 6 new mechanisms: `lib-exhaust-before-replace` (Critical), `lib-replace-is-t3`, `lib-config-registration-check`, `lib-lock-file-diff`, `lib-key-libraries-binding`, `blind-spot-scan`
+  - b2c-web handbook — added Key Libraries section (Nuxt 3, Vue 3, Pinia, @nuxtjs/i18n, nuxt-schema-org, @nuxtjs/device, nuxt-vitalizer, Turborepo, Vitest)
+  - member-ci handbook — added Key Libraries section (CodeIgniter 2, GuzzleHttp, Vue 2, Vuex 3, Vue Router 3, Webpack 5, Optimizely, Adyen)
+  - `polaris-backlog.md` — added CLAUDE.md length refactor as Low priority item
+
 ## [1.98.0] - 2026-04-12
 
 - **member-ci Handbook v0 + Company Handbook Enrichment**
