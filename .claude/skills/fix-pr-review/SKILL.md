@@ -475,7 +475,7 @@ Read tool: path + line context (±20 lines)
 
 修正前，將 review comment 的建議與 handbook 比對：
 
-1. 讀取 `{repo}/.claude/rules/handbook.md` + `{repo}/.claude/rules/handbook/*.md`
+1. 讀取 `{repo}/.claude/rules/handbook/index.md` + `{repo}/.claude/rules/handbook/*.md`
 2. 判斷 comment 建議是否與 handbook 描述衝突
 
 | 比對結果 | 行動 |
@@ -915,7 +915,7 @@ slack_send_message({
 
 ## Handbook Maintenance (post-fix)
 
-After fixes are pushed, check if the repo has a handbook (`{repo}/.claude/handbook.md`). If it exists, run the stale detection process per `skills/references/repo-handbook.md` § Step 4:
+After fixes are pushed, check if the repo has a handbook (`{repo}/.claude/rules/handbook/index.md`). If it exists, run the stale detection process per `skills/references/repo-handbook.md` § Step 4:
 
 1. Get changed files from the fix commits
 2. Map changes to handbook sections
