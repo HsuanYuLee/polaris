@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.95.0] - 2026-04-11
+
+- **AI Files Local-Mode Automation**
+  - `workspace-config.yaml` — 新增 `ai_files_mode` 欄位（`local` / `committed`），公司層級控制 AI 檔案可見性
+  - `polaris-sync.sh` — deploy 後自動設定 `.git/info/exclude` + `skip-worktree`（檢查 .gitignore 避免重複、只對 tracked files 設 skip-worktree、冪等）
+  - `polaris-sync.sh --scan` — 新 mode，一次掃描所有 workspace repos 並修復缺漏的 git-hide 設定
+  - 修正 `get_projects()` parser：只取 `projects:` block，不會誤撈 `visual_regression` 等 nested names
+  - 首次 scan 修復 web-design-system（3 tracked files 缺 skip-worktree）和 kkday-web-docker（缺 exclude entry）
+
 ## [1.94.0] - 2026-04-11
 
 - **Handbook Knowledge Injection — Two-Layer Strategy**
