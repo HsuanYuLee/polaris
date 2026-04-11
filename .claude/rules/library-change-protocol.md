@@ -77,7 +77,7 @@ Repo handbooks may include a **Key Libraries** section listing concern → libra
 
 | Thought | Reality |
 |---------|---------|
-| "This module can't do what we need" | Did you check all three layers? Compiled source ≠ API surface |
+| "This module can't do what we need" | Did you check all three layers (docs, issues, config)? Compiled source ≠ API surface |
 | "It's easier to just use X instead" | Easier now, harder when 20 files depend on the old pattern and tests break |
 | "It's just a minor upgrade" | Check the lock file diff — "minor" can pull in major transitive changes |
 | "Nobody uses this lib anyway" | Did you check config registration? Nuxt modules don't show up in `grep import` |

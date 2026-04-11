@@ -92,3 +92,4 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [challenger-audit.md](challenger-audit.md) | 多角色 UX 審查系統，pre-release 時使用 | challenger, version-release |
+| [docs-editorial-guideline.md](docs-editorial-guideline.md) | README/docs 文風規範：結論先行、show don't tell、structured vs editorial 分層 | docs-sync, version-bump README update |

@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.101.0] - 2026-04-12
+
+- **Dedup Scan + README Lint + Editorial Guideline**
+  - `scripts/dedup-scan.py` — file-level bigram Jaccard overlap scanner for rules/ and references/
+  - `scripts/dedup-scan-sections.py` — section-level containment scanner (finds embedded duplicates)
+  - Resolved 3 true duplications: mechanism-registry § Library Rationalizations → ref to library-change-protocol.md; epic-verification-structure § Assignee → ref to jira-subtask-creation.md; epic-verification-structure § 三層驗證 → ref to epic-verification-workflow.md
+  - `library-change-protocol.md` — enriched Common Rationalizations with `(docs, issues, config)` detail
+  - `scripts/readme-lint.py` — skill count check + undocumented-skill cross-reference + `--fix` auto-correct + `--verbose` mode
+  - `docs/quick-start-zh.md` — auto-fixed 3 stale skill counts (33/41 → 43)
+  - `skills/references/docs-editorial-guideline.md` — new reference: writing style for public docs (conclusion-first, show don't tell, structured vs editorial split)
+  - `rules/framework-iteration.md` — added readme-lint as Step 2 in post-version-bump chain
+  - `polaris-backlog.md` — closed: "Rules/skills dedup scan", "README.md lint-on-bump"
+
 ## [1.100.0] - 2026-04-12
 
 - **Backlog Clearance + Learning Refactor + Dedup**
