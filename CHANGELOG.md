@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.92.0] - 2026-04-11
+
+- **Backlog Context Format — 每個項目附帶 Why / Without it / Source**
+  - `polaris-backlog.md` — 新增 § Item Format 格式規範，所有現有項目補上 context block（動機、後果、來源）
+  - `feedback-and-memory.md` — backlog entry format 從一行模板升級為帶 context block 的多行格式
+  - AI Files Management 3 個子項合併為一個群組項目
+  - 目標：「繼續 Polaris」時讀 backlog 即可判斷優先序，不需翻 memory 重建前因後果
+
 ## [1.91.0] - 2026-04-11
 
 - **Handbook as Review Standard — Review Comment ↔ Handbook Cross-Reference**

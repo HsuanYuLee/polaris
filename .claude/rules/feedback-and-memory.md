@@ -88,9 +88,16 @@ When creating a new feedback memory, classify whether it also warrants a backlog
 - Yes → FRAMEWORK_GAP → also write backlog
 - No → BEHAVIORAL → feedback memory only
 
-**Backlog entry format:** `- [ ] **{title}** — {description} — source: feedback ({feedback_filename})`
+**Backlog entry format** (must include context block — see `polaris-backlog.md` § Item Format):
 
-The `source: feedback (...)` cross-reference lets both sides stay traceable. When the backlog item is implemented, the feedback memory can be retired.
+```markdown
+- [ ] **{title}** (YYYY-MM-DD)
+  > **Why:** {motivation}
+  > **Without it:** {consequence}
+  > **Source:** feedback ({feedback_filename}) / session / user request
+```
+
+The `Source:` cross-reference lets both sides stay traceable. When the backlog item is implemented, the feedback memory can be retired.
 
 ### Instant — Other Signals
 
