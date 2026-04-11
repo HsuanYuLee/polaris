@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.91.0] - 2026-04-11
+
+- **Handbook as Review Standard — Review Comment ↔ Handbook Cross-Reference**
+  - `fix-pr-review` Step 7b 新增：修正前比對 review comment 與 handbook，衝突 → 暫停 → escalate（修 code + 更新 handbook，或回覆 reviewer 說明慣例）
+  - `review-lessons-graduation` 畢業路由三分流：repo-specific → `handbook/*.md` 子文件（優先）、跨 repo 通用 → `rules/*.md`、framework → workspace `rules/*.md`
+  - `repo-handbook.md` Step 3c 新增：Handbook as Review Standard — review-pr / fix-pr-review / graduation 三者統一以 handbook 為 primary context
+  - Reviewer 的意見反過來驗證 handbook：衝突是 handbook 品質的校正信號，每次解決後知識庫更準確
+
 ## [1.90.0] - 2026-04-11
 
 - **Handbook v1 — Correction-Driven Update + Nested Structure**

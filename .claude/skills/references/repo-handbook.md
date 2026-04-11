@@ -300,6 +300,44 @@ User 糾正當前工作中的認知錯誤（「這不對」「不是這樣」「
 
 Feedback memory 的設計是「觀察 → 累積 → 畢業」，適合行為模式的漸進發現。但 repo-specific 知識是**事實性的**（routing 規則、team 分工、API pattern），第一次就該修對，不需要等三次觸發。而且 sub-agent 每次從零開始，不讀 memory，只讀 `.claude/rules/` — 所以 feedback memory 裡的 repo 知識對 sub-agent 是隱形的。
 
+## Step 3c: Handbook as Review Standard
+
+Handbook（主文件 + 子文件）是 repo 的 **review 標準**。所有 review 相關的 skill 都以 handbook 為 primary context。
+
+### Review 流程中的 Handbook 角色
+
+| Skill | Handbook 用法 |
+|-------|--------------|
+| `review-pr` | Reviewer 讀 handbook 作為 review context，依據 handbook 判斷 code 是否符合 repo 慣例 |
+| `fix-pr-review` | Step 7b: 修正前將 review comment 與 handbook 比對，衝突 → 暫停 → escalate |
+| `review-lessons-graduation` | Repo-specific lessons 畢業到 handbook 子文件（不是 `rules/*.md`） |
+
+### Review Comment vs Handbook 衝突處理
+
+當 `fix-pr-review` Step 7b 偵測到衝突：
+
+```
+Reviewer: 「這裡應該用 useHead 不要用 useSchemaOrg」
+Handbook: 「schema.org 結構化數據用 useSchemaOrg（nuxt-schema-org 模組）」
+         ↓
+暫停修正，呈現衝突：
+  (a) Reviewer 是對的 → 修 code + 更新 handbook
+  (b) Handbook 是對的 → 回覆 reviewer 說明慣例
+```
+
+衝突不是壞事 — 它是 handbook 品質的校正信號。每次衝突解決後，handbook 要嘛被修正、要嘛被確認，兩種結果都讓知識庫更準確。
+
+### Review Lessons → Handbook 流程
+
+```
+PR review 發現 pattern → review-lessons/ buffer → 累積 → graduation
+                                                            ↓
+                                              ┌─ repo-specific → handbook 子文件
+                                              └─ framework → workspace rules/
+```
+
+不需要等 graduation 觸發：如果 review 中發現的 pattern 明確是 repo-specific 且 handbook 缺少，可以直接寫入 handbook 子文件。
+
 ## Step 4: Ongoing Maintenance (Stale Detection)
 
 Embedded in `git-pr-workflow` and `fix-pr-review` as a post-step.
