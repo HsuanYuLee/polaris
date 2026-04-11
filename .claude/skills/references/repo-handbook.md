@@ -348,7 +348,7 @@ Handbook（主文件 + 子文件）是 repo 的 **review 標準**。所有 revie
 |-------|--------------|
 | `review-pr` | Reviewer 讀 handbook 作為 review context，依據 handbook 判斷 code 是否符合 repo 慣例 |
 | `fix-pr-review` | Step 7b: 修正前將 review comment 與 handbook 比對，衝突 → 暫停 → escalate |
-| `review-lessons-graduation` | Repo-specific lessons 畢業到 handbook 子文件（不是 `rules/*.md`） |
+| `review-pr` / `fix-pr-review` | PR review 發現的 repo-specific pattern → **直接寫入 handbook 子文件**（不經 review-lessons buffer） |
 
 ### Review Comment vs Handbook 衝突處理
 
@@ -365,16 +365,18 @@ Handbook: 「schema.org 結構化數據用 useSchemaOrg（nuxt-schema-org 模組
 
 衝突不是壞事 — 它是 handbook 品質的校正信號。每次衝突解決後，handbook 要嘛被修正、要嘛被確認，兩種結果都讓知識庫更準確。
 
-### Review Lessons → Handbook 流程
+### PR Review → Handbook（Direct Write，不經 Buffer）
 
 ```
-PR review 發現 pattern → review-lessons/ buffer → 累積 → graduation
-                                                            ↓
-                                              ┌─ repo-specific → handbook 子文件
-                                              └─ framework → workspace rules/
+PR review 發現 pattern → 分類
+                           ├─ repo-specific → 直接寫入 handbook 子文件
+                           ├─ company-level → 直接寫入 company handbook
+                           └─ framework → feedback memory（走累積→畢業流程）
 ```
 
-不需要等 graduation 觸發：如果 review 中發現的 pattern 明確是 repo-specific 且 handbook 缺少，可以直接寫入 handbook 子文件。
+**有 handbook 的 repo，PR review findings 直接寫入 handbook，不經 review-lessons buffer。** Repo-specific 知識是事實性的，第一次就該寫對，不需要等三次累積。review-lessons buffer 已廢除 — 新發現的 pattern 依照 Step 3b 的三層分類直接寫入對應的 handbook 層級。
+
+> `review-lessons-graduation` skill 仍可用於處理尚未遷移的舊 repo（尚無 handbook 的 repo）。有 handbook 的 repo 不再產出 review-lessons。
 
 ## Step 4: Ongoing Maintenance (Ingest + Stale Detection)
 
@@ -383,7 +385,7 @@ Handbook 有三個寫入管道（ingest channels），按優先級排序：
 | 管道 | 觸發 | Confidence | 優先級 |
 |------|------|-----------|--------|
 | **User correction** | User 糾正 AI（Step 3b） | `validated` | 最高 — 永遠覆蓋 |
-| **PR review lesson** | review-lessons-graduation | `validated` | 中 — 來自 code review 實踐 |
+| **PR review finding** | review-pr / fix-pr-review 直接寫入 | `validated` | 中 — 來自 code review 實踐 |
 | **Explorer 回寫** | Explorer subagent 回傳 Handbook Observations | `generated` | 最低 — AI 推導，待驗證 |
 | **PR stale detection** | git-pr-workflow / fix-pr-review post-step | `generated` | 最低 — 自動偵測 |
 

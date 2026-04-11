@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.97.0] - 2026-04-12
+
+- **Review-Lessons Buffer Deprecation + Handbook Direct Write**
+  - `repo-handbook.md` — 有 handbook 的 repo，PR review findings 直接寫入 handbook 子文件，不經 review-lessons/ buffer
+  - `repo-handbook.md` — Ingest channel table 更新：PR review lesson → PR review finding (direct write)
+  - `repo-handbook.md` — Review Lessons → Handbook 流程圖更新為 Direct Write 三層分類
+  - First real-world validation: b2c-web 14 review-lessons files graduated (70+ patterns), review-lessons/ directory deleted
+
 ## [1.96.0] - 2026-04-12
 
 - **Handbook Lifecycle — Full Implementation (Generate→Ingest→Query→Lint)**
