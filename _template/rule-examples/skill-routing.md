@@ -24,7 +24,7 @@ When receiving a user request, match against this table top-down to determine wh
 | "which company" / 「哪間公司」 | `/which-company` | Routing diagnostic |
 | "work on PROJ-123" / 「做 PROJ-123」「接這張」 | `/work-on` | Smart router: estimate/breakdown/branch/dev |
 | "estimate PROJ-123" / 「估點 PROJ-123」「這張幾點」 | `/work-on` | Estimation is integrated, not standalone |
-| "fix bug PROJ-456" / 「修 bug PROJ-456」「修正這張」 | `/fix-bug` | Root cause → fix → PR |
+| "fix bug PROJ-456" / 「修 bug PROJ-456」「修正這張」 | `/bug-triage` | Root cause diagnosis → breakdown → work-on |
 | "review PR" / 「review 這個 PR」「幫我 review」 | `/review-pr` | Code review with inline comments |
 | "fix review" / 「修正 review」「處理 review comments」 | `/fix-pr-review` | Fix review comments on your own PR |
 | "review all PRs" / 「掃大家的 PR」「review inbox」 | `/review-inbox` | Batch review others' PRs |
@@ -46,9 +46,9 @@ When receiving a user request, match against this table top-down to determine wh
 
 - "estimate PROJ-448" (「估點 PROJ-448」) → `/work-on` (estimation is integrated, do **not** trigger `/jira-estimation` directly)
 - "do PROJ-448" (「做 PROJ-448」) → `/work-on` (auto-detects whether estimation is needed)
-- "do PROJ-100 PROJ-101 PROJ-102" → `/work-on` (batch mode, not individual fix-bug calls)
-- "fix this" + JIRA key (「修正這張」+ JIRA key) → `/fix-bug` (not `/fix-pr-review`)
-- "fix this" + PR URL → `/fix-pr-review` (not `/fix-bug`)
+- "do PROJ-100 PROJ-101 PROJ-102" → `/work-on` (batch mode, not individual bug-triage calls)
+- "fix this" + JIRA key (「修正這張」+ JIRA key) → `/bug-triage` (not `/fix-pr-review`)
+- "fix this" + PR URL → `/fix-pr-review` (not `/bug-triage`)
 - "review all PRs" (「掃大家的 PR」) → `/review-inbox` (not `/review-pr`, which is for single PRs)
 - Never self-review your own PR — review is only for others' code
 
@@ -57,6 +57,6 @@ When receiving a user request, match against this table top-down to determine wh
 Skills can invoke the next skill in chain via natural language. Common chains:
 - **Scrum/PM**: `refinement` → `epic-breakdown` → `sprint-planning`
 - **Implementation**: `refinement` → `epic-breakdown` / `jira-estimation` → `work-on` → `tdd` (optional) → `dev-quality-check` → `verify-completion` → `git-pr-workflow`
-- **Bug fix**: `fix-bug` → `tdd` (optional) → `dev-quality-check` → `verify-completion` → PR
+- **Bug fix**: `bug-triage` → `epic-breakdown` → `work-on` → `tdd` (optional) → `dev-quality-check` → `verify-completion` → PR
 
 Each skill can run independently; chains are not mandatory but recommended for complex tasks.

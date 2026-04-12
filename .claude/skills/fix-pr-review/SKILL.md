@@ -6,7 +6,7 @@ description: >
   each comment. Trigger: "fix review", "修正 review", "修 PR", "PR 有 review", "處理
   review", "address review", "回覆 review", "fix PR", "CI 沒過", "CI failed",
   "lint/test/coverage failed", "pre-commit failed", or user shares a PR URL asking to
-  fix. NOT for JIRA bugs (use fix-bug) or reviewing others' PRs (use review-pr).
+  fix. NOT for JIRA bugs (use bug-triage) or reviewing others' PRs (use review-pr).
 metadata:
   author: Polaris
   version: 2.8.1
@@ -767,7 +767,7 @@ Commit: <sha>
 
 ## 12.5 Review Lesson 萃取
 
-修正完成後，靜默分析本次 review comments，將可通用化的 coding pattern 萃取為 `.claude/rules/review-lessons/` 規則檔。目的：避免同類問題在未來的 PR 反覆出現——寫 code 的 skill（work-on、fix-bug、tdd）啟動時會讀取 `.claude/rules/`，等同於把 reviewer 的回饋內建到開發流程中。
+修正完成後，靜默分析本次 review comments，將可通用化的 coding pattern 萃取為 `.claude/rules/review-lessons/` 規則檔。目的：避免同類問題在未來的 PR 反覆出現——寫 code 的 skill（work-on、bug-triage、tdd）啟動時會讀取 `.claude/rules/`，等同於把 reviewer 的回饋內建到開發流程中。
 
 ### 萃取條件
 

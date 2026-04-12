@@ -3,7 +3,7 @@ name: verify-completion
 description: >
   Verifies that a code change actually works as intended before declaring a task done.
   Goes beyond lint/test pass — checks real behavior (dev server, curl, browser, UI render).
-  Use this skill whenever: (1) another skill (fix-bug, work-on, tdd) finishes
+  Use this skill whenever: (1) another skill (bug-triage, work-on, tdd) finishes
   implementation and needs to confirm the fix works end-to-end, (2) user says "驗證", "verify",
   "確認改好了", "真的修好了嗎", "check it works", "驗收", (3) after quality check passes but
   before declaring a task complete. This skill is the last gate before PR — it catches issues

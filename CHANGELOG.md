@@ -4,6 +4,27 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.105.0] - 2026-04-13
+
+- **docs-sync: fix-bug → bug-triage rename across all documentation**
+  - Reflects v1.104.0 3-layer architecture redesign in 12 bilingual doc files
+  - Skill count corrected 43→42 in README.md, README.zh-TW.md, quick-start-zh.md
+  - Mermaid diagrams updated: Bug path now shows `bug-triage` → `epic-breakdown` → `work-on` (3-layer)
+  - Bug Fix prose sections rewritten for diagnosis-only model (workflow-guide EN/zh-TW, rd-workflow)
+  - Template rule-examples updated (skill-routing, scenario-playbooks, pr-and-review)
+  - chinese-triggers.md version bumped to v1.104.0, trigger keywords updated
+
+## [1.104.0] - 2026-04-13
+
+- **Skill Architecture Redesign — 3-Layer Separation (Phase 1)**
+  - Three-layer model: Understanding (bug-triage / refinement) → Planning (breakdown) → Execution (work-on)
+  - New: `bug-triage` v2.0.0 — pure diagnostic skill (root cause analysis → RD confirmation → enriched JIRA ticket)
+  - Rewrite: `work-on` v3.0.0 — execution-only orchestrator, slimmed 56% (657→290 lines), Plan Existence Gate replaces Readiness Gate + AC Gate
+  - Delete: `fix-bug` — replaced by bug-triage (Layer 1) + work-on (Layer 3)
+  - Downgrade: `jira-estimation` v2.0.0 — library skill, callers updated to bug-triage + breakdown
+  - Updated: `skill-routing.md`, `mechanism-registry.md`, and 12+ reference files cleaned of fix-bug references
+  - Phase 2 planned: breakdown expansion as universal planner (Bug + Story/Task + Epic branches)
+
 ## [1.103.0] - 2026-04-12
 
 - **Framework Handbook — User-Facing Working Preferences**

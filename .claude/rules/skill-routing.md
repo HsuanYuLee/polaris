@@ -18,7 +18,7 @@ If the input could match multiple skills (e.g., "幫我處理這個 PR" could be
 
 ### Pre-Processing: Hotfix Without JIRA Ticket
 
-When the user's message has fix intent (「修這個」、「幫我修」、「fix this」) + a Slack URL but **no JIRA ticket key**, the Strategist must create a ticket before routing to `fix-bug`:
+When the user's message has fix intent (「修這個」、「幫我修」、「fix this」) + a Slack URL but **no JIRA ticket key**, the Strategist must create a ticket before routing to `bug-triage`:
 
 1. **Read Slack thread** — extract problem description, affected version/component, reporter, source PR if mentioned
 2. **Resolve JIRA project key** — read `workspace-config.yaml` → `jira.projects`. If only one project → use it. If multiple → infer from context (e.g., repo name, component mentioned in Slack), or ask the user
@@ -26,11 +26,11 @@ When the user's message has fix intent (「修這個」、「幫我修」、「f
    - `issueTypeName`: Bug
    - `summary`: from Slack thread problem description (concise, one line)
    - `description`: structured with Root Cause / Impact / Source (Slack link, source PR)
-4. **Route to `fix-bug`** with the new ticket key
+4. **Route to `bug-triage`** with the new ticket key
 
 This is a **Strategist-level pre-processing rule**, not a skill. It fires before skill routing. The key signal is: fix intent + Slack URL + absence of a JIRA key pattern (`[A-Z]+-\d+`) in the user's message.
 
-> **Why not inside `fix-bug`?** The `fix-bug` skill expects a ticket key as input. Creating the ticket at the Strategist layer keeps `fix-bug` focused on its core job (analyze → fix → PR) and ensures the ticket exists before any skill step begins. It also means the branch name includes the ticket key from the start.
+> **Why not inside `bug-triage`?** The `bug-triage` skill expects a ticket key as input. Creating the ticket at the Strategist layer keeps `bug-triage` focused on its core job (analyze → plan) and ensures the ticket exists before any skill step begins.
 
 ## Routing Quick Reference
 
@@ -40,11 +40,11 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Fix review comments on own PR | "fix review", "修 PR", "修正 review", "你沒修好" + PR URL, "沒修好", PR URL + 否定語氣 | `fix-pr-review` |
 | Check own PR approvals | "我的 PR", "PR 狀態", "催 review" | `check-pr-approvals` |
 | Scan PRs needing review | "掃 PR", "大家的 PR", "review inbox" | `review-inbox` |
-| Estimate a ticket | "估點", "estimate", "評估" + ticket | `jira-estimation` |
+| Estimate a ticket | "估點", "estimate", "評估" + ticket | `epic-breakdown` (Story/Task/Epic) or `bug-triage` (Bug) |
 | Auto-determine next action | "下一步", "next", "繼續", "continue", "然後呢", "接下來" (no ticket key) | `next` |
-| Work on a ticket | "做", "work on" + ticket | `work-on` |
-| Fix a bug | "修 bug", "fix bug" + ticket | `fix-bug` |
-| Fix a bug (no ticket) | "修這個", "fix this" + Slack URL, no JIRA key | Strategist pre-processing → create Bug ticket → `fix-bug` |
+| Work on a ticket | "做", "work on" + ticket | `work-on` (requires existing plan — if no plan, routes to planning skill first) |
+| Triage/plan a bug | "修 bug", "fix bug", "分析 bug", "triage bug" + ticket | `bug-triage` |
+| Triage a bug (no ticket) | "修這個", "fix this" + Slack URL, no JIRA key | Strategist pre-processing → create Bug ticket → `bug-triage` |
 | SA/SD design doc | "SASD", "SA/SD", "寫 SA", "出 SA/SD", "架構文件", "design doc", "技術設計", "異動範圍", "dev scope" | `sasd-review` |
 | Break down an epic | "拆單", "拆解", "epic breakdown" | `epic-breakdown` |
 | Batch converge all work | "收斂", "converge", "推進", "全部推到 review", "把我的單收一收" | `converge` |
@@ -88,7 +88,8 @@ The Fast tier is implicit in CLAUDE.md's delegation table ("Small edit ≤ 3 lin
 User messages with negative tone about a previous action (「沒修好」「壞了」「不對」「又出問題」) + a PR URL or ticket key are **fix intents**, not analysis requests. Route to the appropriate fix skill immediately:
 
 - PR URL + negative tone → `fix-pr-review`
-- Ticket key + negative tone → `fix-bug`
+- Ticket key + negative tone (Bug) → `bug-triage` (if no plan) or `work-on` (if plan exists)
+- Ticket key + negative tone (Story/Task) → `work-on`
 - No URL/key + negative tone → ask what to fix, then route
 
 **Do not** interpret negative tone as "let me investigate what went wrong" and start reading diffs/comments manually. The skill's own flow handles investigation.

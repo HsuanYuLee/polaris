@@ -80,7 +80,7 @@ Long-running skills that modify code must create a restore point before starting
 
 ### When to create a restore point
 
-Before a sub-agent begins implementation work (Phase 2 of work-on, fix-bug coding step, git-pr-workflow quality fixes), if there are uncommitted changes in the working tree:
+Before a sub-agent begins implementation work (Phase 2 of work-on, git-pr-workflow quality fixes), if there are uncommitted changes in the working tree:
 
 1. Run `git stash push -m "polaris-restore-{ticket}-{timestamp}"`
 2. Record the stash ref in the sub-agent's context
@@ -101,7 +101,6 @@ If the sub-agent triggers a self-regulation stop (score > 35%) or encounters an 
 | Skill | Restore point location |
 |-------|----------------------|
 | `work-on` Phase 2 | Before implementation sub-agent starts coding |
-| `fix-bug` | Before coding step begins |
 | `git-pr-workflow` | Before quality-fix loop starts |
 | `fix-pr-review` | Before applying fixes |
 

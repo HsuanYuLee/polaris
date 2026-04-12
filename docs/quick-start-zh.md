@@ -103,7 +103,7 @@ Polaris 圍繞三大支柱組織你的 AI 輔助工作流程：
 
 ### 支柱一 — 輔助開發
 
-從 JIRA 到 PR 的完整自動化：`「做 PROJ-123」` → 讀 JIRA → 估點 → 開 branch → 寫 code → 跑測試 → 發 PR → 轉 JIRA 狀態。涵蓋 `work-on`、`fix-bug`、`epic-breakdown`、`tdd`、`git-pr-workflow`、`review-pr` 等技能。
+從 JIRA 到 PR 的完整自動化：`「做 PROJ-123」` → 讀 JIRA → 估點 → 開 branch → 寫 code → 跑測試 → 發 PR → 轉 JIRA 狀態。涵蓋 `work-on`、`bug-triage`、`epic-breakdown`、`tdd`、`git-pr-workflow`、`review-pr` 等技能。
 
 詳細流程 → [Developer Workflow Guide](workflow-guide.md)
 

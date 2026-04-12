@@ -6,7 +6,7 @@ description: >
   Use when: (1) working on multiple JIRA tickets simultaneously,
   (2) splitting a large task into parallel sub-tasks,
   (3) user mentions "parallel", "worktree", "wt", "平行", "多個 ticket", "拆分".
-  Not for single-branch development — use fix-bug or start-dev instead.
+  Not for single-branch development — use work-on or start-dev instead.
 ---
 
 # Parallel Work with Worktrees

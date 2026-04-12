@@ -17,7 +17,7 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `skill-first-invoke` | Invoke Skill tool as the first tool call when trigger matches | Any Read/Grep/Bash/MCP call before Skill tool on a matched trigger | High |
 | `no-pre-process-skill-input` | Don't fetch Slack/JIRA/PR data before invoking skill | `gh api`, JIRA MCP, or Slack MCP call preceding Skill invocation | High |
 | `no-manual-skill-steps` | Never partially execute skill steps by hand | Git/JIRA/Slack commands matching a skill's steps without Skill invocation | High |
-| `hotfix-auto-ticket` | Fix intent + Slack URL + no JIRA key → create ticket before routing to fix-bug | Changeset or PR title missing JIRA key after hotfix flow | Medium |
+| `hotfix-auto-ticket` | Fix intent + Slack URL + no JIRA key → create ticket before routing to bug-triage | Changeset or PR title missing JIRA key after hotfix flow | Medium |
 
 #### Common Rationalizations — Skill Routing
 
@@ -177,7 +177,7 @@ These are real escape patterns observed in prior sessions. When you notice yours
 |----|------|---------------|-------|
 | `re-test-after-fix` | After fixing quality issues, re-run all tests before proceeding to commit | Git diff shows changes after last test run but commit proceeds without fresh test output | High |
 | `fresh-verification-before-completion` | Every task completion must include fresh verification performed after the final code change | Task marked complete with rationalization phrases ("should work", "trivial change") and no verification output in conversation | High |
-| `local-verification-hard-gate` | fix-bug Step 4.5: every Local verification item must have PASS/SKIP/FAIL disposition with evidence. Unit test alone cannot substitute for behavioral verification when the AC requires running the server | Strategist proceeds to Step 5 (PR) with only unit test output when [VERIFICATION] lists behavioral items (e.g., "切換語系後 footer 正確") | **Critical** |
+| `local-verification-hard-gate` | work-on / verify-completion: every Local verification item must have PASS/SKIP/FAIL disposition with evidence. Unit test alone cannot substitute for behavioral verification when the AC requires running the server | Strategist proceeds to PR with only unit test output when [VERIFICATION] lists behavioral items (e.g., "切換語系後 footer 正確") | **Critical** |
 | `checklist-before-done` | Before declaring a task complete, review the session's original task list (checkpoint next steps, todo items) and confirm each item is done/carry-forward/dropped | Strategist says "done" or asks "要更新 checkpoint 嗎？" while unchecked items remain from the session's starting checklist | High |
 
 ### Deterministic Quality Hooks (source: PROJ-123 restraint mechanisms, 2026-04-10)

@@ -19,7 +19,7 @@ For full skill reference, see `.claude/skills/` and the company skills directory
 
 ## Ticket Lifecycle
 
-`work-on` and `fix-bug` are the two primary orchestrators. Feature, Bug, and Refactor paths share the Quality → PR → Release tail.
+`work-on` is the primary orchestrator. `bug-triage` handles Bug diagnosis before handing off to `work-on` for execution. Feature, Bug, and Refactor paths share the Quality → PR → Release tail.
 
 ```mermaid
 flowchart TD
@@ -39,9 +39,10 @@ flowchart TD
     end
 
     %% ── Bug Path ──
-    subgraph bugfix["🐛 Bug Fix Path<br/><code>fix-bug</code>"]
-        B1["🤖👤 Root Cause Analysis + Estimation<br/><code>jira-estimation</code> (internal)"]
+    subgraph bugfix["🐛 Bug Diagnosis Path<br/><code>bug-triage</code>"]
+        B1["🤖👤 Root Cause Analysis<br/><code>bug-triage</code>"]
         B2["👤 Developer confirms Root Cause"]
+        B3["🤖 Breakdown & Estimation<br/><code>epic-breakdown</code>"]
     end
 
     %% ── Shared Dev ──
@@ -77,7 +78,7 @@ flowchart TD
     %% ── Flow ──
     U --> R
     R -->|"Epic / Story / Task<br/>work / estimate / breakdown"| F1
-    R -->|"Bug<br/>fix bug / fix this"| B1
+    R -->|"Bug<br/>fix bug / triage bug"| B1
 
     F1 --> F2
     F2 --> F3
@@ -86,7 +87,8 @@ flowchart TD
     F4 -->|Technical blockers found| F2
 
     B1 --> B2
-    B2 --> D1
+    B2 --> B3
+    B3 --> D1
 
     D1 --> D2
     D2 --> D3
@@ -141,7 +143,7 @@ How skills invoke and delegate to each other. Solid arrows = invoke (skill calls
 flowchart LR
     %% ── Orchestrators ──
     WO["work-on<br/>(smart router)"]
-    FB["fix-bug<br/>(bug fix)"]
+    BT["bug-triage<br/>(diagnosis)"]
 
     %% ── Planning Skills ──
     RF["refinement"]
@@ -200,11 +202,8 @@ flowchart LR
     WO -->|TDD dev| TDD
     WO -->|auto open PR| GPW
 
-    FB -->|estimate| JE
-    FB -->|create branch| BC
-    FB -->|transition status| SD
-    FB -->|TDD dev| TDD
-    FB -->|auto open PR| GPW
+    BT -->|diagnosis done| EB
+    BT -->|estimate| JE
 
     %% ── Planning chain ──
     RF -.->|when complete| EB
@@ -232,7 +231,7 @@ flowchart LR
 
     %% ── Context router ──
     NX -.->|work on ticket| WO
-    NX -.->|fix bug| FB
+    NX -.->|triage bug| BT
     NX -.->|fix review| FPR
     NX -.->|check approvals| CPA
     NX -.->|epic progress| ES
@@ -260,7 +259,7 @@ flowchart LR
     classDef standalone fill:#fafafa,stroke:#999,color:#000
     classDef internal fill:#fafafa,stroke:#999,color:#000,stroke-dasharray:5 5
 
-    class WO,FB orchestrator
+    class WO,BT orchestrator
     class QC,VR,VC,TDD quality
     class RP,RI,CPA,FPR,RLG review
     class RF,EB,SC,SP,IT planning
@@ -778,28 +777,20 @@ Executed by the release manager. If there are conflicts, the developer resolves 
 
 Receive the bug ticket, confirm the problem description and reproduction steps.
 
-### Step 2. 🤖👤 One-command Fix (fix-bug end-to-end)
+### Step 2. 🤖👤 Bug Diagnosis (bug-triage)
 
 ```
-fix PROJ-432
+修 bug PROJ-432
 ```
 
-AI executes `fix-bug` skill, chaining all steps:
+AI executes `bug-triage` skill — **diagnosis only**, not end-to-end:
 
 1. **Read JIRA ticket** → identify project (auto-matches project mapping)
 2. **Root cause analysis** → scans codebase to find the **Root Cause** (specific code location or logic error)
-3. **Propose fix** → produces **Solution** (files/modules to change) + estimate
-4. **👤 Developer confirms** → Root Cause + Solution + estimate shown as JIRA comment; developer confirms before proceeding
-5. **Create branch** + transition JIRA to `IN DEVELOPMENT`
-6. **Implement fix** — AI follows `.claude/rules/` to ensure code meets project conventions
-7. **Quality check** → tests + coverage (see Feature Development Step 7)
-8. **Behavior verification** → confirm bug no longer reproduces (see Feature Development Step 7a)
-9. **Pre-PR Review Loop** → sub-agent iterative review (see Feature Development Step 8)
-10. **Open PR** → auto-transitions JIRA to `CODE REVIEW`
+3. **Propose solution** → produces **Solution** (files/modules to change)
+4. **👤 Developer confirms** → Root Cause + Solution shown as JIRA comment; developer confirms before proceeding
 
-**If the actual root cause differs from the initial analysis:** AI adds a new JIRA comment flagging the revision (preserving the original comment for audit trail). Updated content includes: revised Root Cause / Solution, adjusted estimate (if changed), and a diff vs. the original.
-
-Estimate changes > 30% trigger a pause for developer confirmation.
+After RD confirmation, the flow hands off to `epic-breakdown` → `work-on` for estimation, branch creation, implementation, and PR.
 
 **JIRA comment format:**
 
@@ -807,11 +798,10 @@ Estimate changes > 30% trigger a pause for developer confirmation.
 |-------|-------------|
 | **Root Cause** | Root cause of the issue; points to specific code location |
 | **Solution** | Fix approach; lists files/modules to change |
-| **Estimate** | X points (aligned to team estimation standards) |
 
-> Note: "fix" + JIRA key → `fix-bug`; "fix" + PR URL → `fix-pr-review`
+> Note: "fix" + JIRA key → `bug-triage`; "fix" + PR URL → `fix-pr-review`
 
-> Trigger keywords: `fix bug`, `fix this`, `start fix`, `fix this ticket`, `fix-bug`
+> Trigger keywords: `修 bug`, `triage bug`, `fix bug`, `fix this ticket`, `bug-triage`
 
 ### Step 3. 🤖👤 Code Review (human focus)
 
@@ -848,7 +838,7 @@ Typically reported via Slack. Paste the Slack URL and say "修這個" or "fix th
 If no JIRA ticket key is provided, the Strategist automatically:
 1. Reads the Slack thread to extract the problem description
 2. Creates a JIRA Bug ticket (project key inferred from `workspace-config.yaml`)
-3. Routes to `fix-bug` with the new ticket key
+3. Routes to `bug-triage` with the new ticket key
 
 As a safety net, `git-pr-workflow` also detects missing JIRA keys at the changeset step and auto-creates a ticket if needed.
 

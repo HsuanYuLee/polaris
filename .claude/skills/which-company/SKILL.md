@@ -6,7 +6,7 @@ description: >
   Use when: (1) user says "which company", "哪間公司", "/which-company",
   (2) user is confused about which company context is active,
   (3) debugging routing issues for a JIRA ticket or project key.
-  Do NOT use for actual work on tickets — use work-on, fix-bug, etc. instead.
+  Do NOT use for actual work on tickets — use work-on, bug-triage, etc. instead.
 metadata:
   author: Polaris
   version: 1.0.0

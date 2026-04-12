@@ -133,3 +133,9 @@ Root config 也包含 `dependencies` block，追蹤框架推薦 lib 的使用者
 | VR domain 設定 | `company: visual_regression.domains[]` | visual-regression-config.md |
 | VR domain server | `company: visual_regression.domains[].server.*` | visual-regression-config.md |
 | VR domain pages | `company: visual_regression.domains[].pages[]` | visual-regression-config.md |
+| Git base branch | `company: git.base_branch` | `"develop"` |
+| Git branch pattern (Epic) | `company: git.branch_patterns.epic` | `"feat/{TICKET}-{slug}"` |
+| Git branch pattern (Task) | `company: git.branch_patterns.task` | `"task/{TICKET}-{slug}"` |
+| 估點量表 | `company: estimation.scale` | `[1, 2, 3, 5, 8, 13]` |
+| 估點 velocity | `company: estimation.velocity_per_day` | `2.5` |
+| 估點標準詳細定義 | `company: estimation.scale_reference` | estimation-scale.md |

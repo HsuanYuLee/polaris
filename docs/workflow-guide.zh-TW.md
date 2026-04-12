@@ -19,7 +19,7 @@ Git Flow 與 PR 慣例請參考公司的 Git 工作流程文件。
 
 ## 單張票的生命週期
 
-`work-on` 和 `fix-bug` 是兩個主要的流程協調器。Feature、Bug 和 Refactor 路徑共用品質檢查 → PR → 發布的尾端流程。
+`work-on` 是主要的流程協調器。`bug-triage` 處理 Bug 診斷，之後交由 `work-on` 執行開發。Feature、Bug 和 Refactor 路徑共用品質檢查 → PR → 發布的尾端流程。
 
 ```mermaid
 flowchart TD
@@ -39,9 +39,10 @@ flowchart TD
     end
 
     %% ── Bug Path ──
-    subgraph bugfix["🐛 Bug Fix Path<br/><code>fix-bug</code>"]
-        B1["🤖👤 Root Cause Analysis + Estimation<br/><code>jira-estimation</code> (internal)"]
+    subgraph bugfix["🐛 Bug Diagnosis Path<br/><code>bug-triage</code>"]
+        B1["🤖👤 Root Cause Analysis<br/><code>bug-triage</code>"]
         B2["👤 Developer confirms Root Cause"]
+        B3["🤖 Breakdown & Estimation<br/><code>epic-breakdown</code>"]
     end
 
     %% ── Shared Dev ──
@@ -77,7 +78,7 @@ flowchart TD
     %% ── Flow ──
     U --> R
     R -->|"Epic / Story / Task<br/>work / estimate / breakdown"| F1
-    R -->|"Bug<br/>fix bug / fix this"| B1
+    R -->|"Bug<br/>fix bug / triage bug"| B1
 
     F1 --> F2
     F2 --> F3
@@ -86,7 +87,8 @@ flowchart TD
     F4 -->|Technical blockers found| F2
 
     B1 --> B2
-    B2 --> D1
+    B2 --> B3
+    B3 --> D1
 
     D1 --> D2
     D2 --> D3
@@ -141,7 +143,7 @@ flowchart TD
 flowchart LR
     %% ── Orchestrators ──
     WO["work-on<br/>(smart router)"]
-    FB["fix-bug<br/>(bug fix)"]
+    BT["bug-triage<br/>(diagnosis)"]
 
     %% ── Planning Skills ──
     RF["refinement"]
@@ -200,11 +202,8 @@ flowchart LR
     WO -->|TDD dev| TDD
     WO -->|auto open PR| GPW
 
-    FB -->|estimate| JE
-    FB -->|create branch| BC
-    FB -->|transition status| SD
-    FB -->|TDD dev| TDD
-    FB -->|auto open PR| GPW
+    BT -->|diagnosis done| EB
+    BT -->|estimate| JE
 
     %% ── Planning chain ──
     RF -.->|when complete| EB
@@ -232,7 +231,7 @@ flowchart LR
 
     %% ── Context router ──
     NX -.->|work on ticket| WO
-    NX -.->|fix bug| FB
+    NX -.->|triage bug| BT
     NX -.->|fix review| FPR
     NX -.->|check approvals| CPA
     NX -.->|epic progress| ES
@@ -260,7 +259,7 @@ flowchart LR
     classDef standalone fill:#fafafa,stroke:#999,color:#000
     classDef internal fill:#fafafa,stroke:#999,color:#000,stroke-dasharray:5 5
 
-    class WO,FB orchestrator
+    class WO,BT orchestrator
     class QC,VR,VC,TDD quality
     class RP,RI,CPA,FPR,RLG review
     class RF,EB,SC,SP,IT planning
@@ -778,28 +777,20 @@ AI 根據變更範圍估算時間，與你確認後自動記錄到 JIRA。
 
 收到 bug 票，確認問題描述與重現步驟。
 
-### 步驟 2. 🤖👤 一鍵修正（fix-bug 端到端）
+### 步驟 2. 🤖👤 Bug 診斷（bug-triage）
 
 ```
-fix PROJ-432
+修 bug PROJ-432
 ```
 
-AI 執行 `fix-bug` 技能，串接所有步驟：
+AI 執行 `bug-triage` 技能 — **僅處理診斷**，非端到端：
 
 1. **讀取 JIRA 票** → 辨識專案（自動對應 project mapping）
 2. **根因分析** → 掃描程式碼找到 **Root Cause**（具體程式碼位置或邏輯錯誤）
-3. **提出修正方案** → 產出 **Solution**（要修改的檔案/模組）+ 估點
-4. **👤 開發者確認** → Root Cause + Solution + 估點以 JIRA 留言呈現；開發者確認後才繼續
-5. **建立分支** + 轉 JIRA 狀態為 `IN DEVELOPMENT`
-6. **實作修正** — AI 遵循 `.claude/rules/` 確保程式碼符合專案慣例
-7. **品質檢查** → 測試 + 覆蓋率（見功能開發步驟 7）
-8. **行為驗證** → 確認 bug 不再重現（見功能開發步驟 7a）
-9. **Pre-PR Review 迴圈** → 子代理迭代審查（見功能開發步驟 8）
-10. **開 PR** → 自動轉 JIRA 狀態為 `CODE REVIEW`
+3. **提出修正方案** → 產出 **Solution**（要修改的檔案/模組）
+4. **👤 開發者確認** → Root Cause + Solution 以 JIRA 留言呈現；開發者確認後才繼續
 
-**若實際根因與初始分析不同：** AI 在 JIRA 新增留言標記修正（保留原始留言作為審計軌跡）。更新內容包括：修正後的 Root Cause / Solution、調整後的估點（若有變更）、以及與原始版本的差異。
-
-估點變化 > 30% 會暫停等待開發者確認。
+RD 確認後，流程交由 `epic-breakdown` → `work-on` 進行估點、建 branch、實作與 PR。
 
 **JIRA 留言格式：**
 
@@ -807,11 +798,10 @@ AI 執行 `fix-bug` 技能，串接所有步驟：
 |-------|-------------|
 | **Root Cause** | 問題的根因；指向具體程式碼位置 |
 | **Solution** | 修正方案；列出要修改的檔案/模組 |
-| **Estimate** | X 點（對齊團隊估點標準） |
 
-> 注意：「fix」+ JIRA key → `fix-bug`；「fix」+ PR URL → `fix-pr-review`
+> 注意：「fix」+ JIRA key → `bug-triage`；「fix」+ PR URL → `fix-pr-review`
 
-> Trigger keywords: `fix bug`, `fix this`, `start fix`, `fix this ticket`, `fix-bug`
+> Trigger keywords: `修 bug`, `triage bug`, `fix bug`, `fix this ticket`, `bug-triage`
 
 ### 步驟 3. 🤖👤 Code Review（以人工為主）
 
@@ -848,7 +838,7 @@ log worktime
 若未提供 JIRA ticket key，Strategist 會自動：
 1. 讀取 Slack thread 萃取問題描述
 2. 建立 JIRA Bug ticket（project key 從 `workspace-config.yaml` 推斷）
-3. 帶著新 ticket key 路由到 `fix-bug`
+3. 帶著新 ticket key 路由到 `bug-triage`
 
 作為兜底機制，`git-pr-workflow` 在 changeset 步驟也會偵測缺少 JIRA key 的情況，自動補開 ticket。
 

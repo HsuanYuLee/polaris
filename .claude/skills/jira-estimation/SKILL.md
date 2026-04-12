@@ -1,9 +1,9 @@
 ---
 name: jira-estimation
-description: "Internal estimation engine — invoked by work-on, fix-bug, and epic-breakdown. Use when another skill needs story point estimation for a Story/Task, Bug, or Epic. Do NOT trigger directly from user input — route through work-on or fix-bug."
+description: "Internal estimation engine — invoked by bug-triage and epic-breakdown. Do NOT trigger directly from user input — route through bug-triage (Bug) or epic-breakdown (Story/Task/Epic). This is a library skill, not a user-facing skill."
 metadata:
   author: Polaris
-  version: 1.2.0
+  version: 2.0.0
 ---
 
 # JIRA 估點建議

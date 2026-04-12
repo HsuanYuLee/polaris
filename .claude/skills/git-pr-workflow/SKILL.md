@@ -229,7 +229,7 @@ Stage 變更後（`git add`），AI 自動產生並套用 commit message。
 3. **更新 PR title**：加上 `[NEW-KEY]` prefix
 4. **繼續 Step 6.1**：用新的 ticket key 寫 changeset
 
-這是 fallback — 正常流程（從 JIRA ticket 開始的 `fix-bug`、`work-on`）不會觸發此邏輯。它防止直接手動開發或 hotfix 場景下，changeset CI 因缺少 JIRA key 而失敗。
+這是 fallback — 正常流程（從 JIRA ticket 開始的 `bug-triage`、`work-on`）不會觸發此邏輯。它防止直接手動開發或 hotfix 場景下，changeset CI 因缺少 JIRA key 而失敗。
 
 2. 用 Write tool 建立 `.changeset/<kebab-case-name>.md`：
 

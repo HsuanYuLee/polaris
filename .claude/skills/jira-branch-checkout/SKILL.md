@@ -4,11 +4,11 @@ description: >
   Create git branches from JIRA ticket numbers following the naming convention
   task/[JIRA_TICKET_NUMBER]-[DESCRIPTION]. Use this skill when: (1) The user explicitly
   asks to create or checkout a branch for a JIRA ticket (e.g. "開 branch PROJ-419",
-  "create branch for PROJ-500"), (2) Another skill (like work-on or fix-bug)
+  "create branch for PROJ-500"), (2) Another skill (like work-on or bug-triage)
   delegates branch creation to this skill. Trigger keywords: "開 branch", "create branch",
   "checkout branch", "建 branch", "切 branch", "hotfix branch".
   Do NOT trigger this skill when the user says "work on", "做", "implement", or "fix" a
-  ticket — those should go to work-on or fix-bug, which will delegate to this
+  ticket — those should go to work-on or bug-triage, which will delegate to this
   skill for branch creation when needed.
 metadata:
   author: Polaris
