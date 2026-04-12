@@ -170,7 +170,7 @@ Polaris produces two categories of files in product repos:
 ### Framework Files (gitignored, managed by `ai-config/`)
 - `.claude/rules/review-lessons/` — Pre-graduation lesson buffer (temporary)
 - `.claude/skills/` — Polaris-specific skill definitions
-- `.claude/designs/` — Per-ticket design docs produced by `work-on` (local, survives context compression)
+- `{company_base_dir}/specs/` — Per-ticket spec folders (refinement, breakdown, implementation plans, verification records)
 - `.claude/settings.local.json` — Personal/machine settings
 
 ### Sync Mechanism
@@ -183,7 +183,7 @@ Product repos `.gitignore` should include:
 ```
 .claude/rules/review-lessons/
 .claude/skills/
-.claude/designs/
+{company_base_dir}/specs/
 .claude/settings.local.json
 ```
 

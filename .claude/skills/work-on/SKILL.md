@@ -144,7 +144,7 @@ Description: {description}
 確認後、JIRA 寫入前，為每張確認的 ticket 寫一份 design doc：
 
 ```
-路徑: {base_dir}/{repo}/.claude/designs/{TICKET-KEY}.md
+路徑: {company_base_dir}/specs/{TICKET-KEY}/plan.md
 ```
 
 內容從確認後的分析結果提取（不重新分析）：
@@ -168,7 +168,7 @@ Description: {description}
 （開發過程中 T2 taste calls 記錄於此 — 初始為空）
 ```
 
-此檔案供 Phase 2 sub-agent 讀取（取代 inline 傳遞全文），也供 cross-session resume 使用。`.claude/designs/` 應在 `.gitignore` 中。
+此檔案供 Phase 2 sub-agent 讀取（取代 inline 傳遞全文），也供 cross-session resume 使用。Spec folders 放在公司層（如 `~/work/company/specs/PROJ-123/`），不進 git。
 
 確認後，批次執行 JIRA 寫入（可用 sub-agent 平行，`model: "haiku"` — 純 JIRA 模板操作）：
 - Bug → 留 JIRA comment + 更新估點
@@ -212,8 +212,8 @@ scripts/contract-check.sh --env-dir <mockoon-environments-dir> --epic <epic>
 Type: {issue_type}
 Project: {base_dir}/{repo}（base_dir 從 workspace-config.yaml 取得）
 
-## Design Doc
-讀取 `{base_dir}/{repo}/.claude/designs/{ticket_key}.md` 取得完整技術方案。
+## Spec Folder
+讀取 `{company_base_dir}/specs/{ticket_key}/plan.md` 取得完整技術方案。
 
 ## 流程
 
@@ -546,7 +546,7 @@ Dispatch **QA Challenger** sub-agent（見 `skills/references/sub-agent-roles.md
 AC Gate 結束後、進入開發前，寫一份 design doc 持久化技術方案：
 
 ```
-路徑: {base_dir}/{repo}/.claude/designs/{TICKET-KEY}.md
+路徑: {company_base_dir}/specs/{TICKET-KEY}/plan.md
 ```
 
 內容從前面步驟已收集的資訊組合（不重新分析）：
@@ -573,7 +573,7 @@ AC Gate 結束後、進入開發前，寫一份 design doc 持久化技術方案
 （開發過程中 T2 taste calls 記錄於此 — 初始為空）
 ```
 
-此檔案供 cross-session resume 使用（`繼續 {TICKET-KEY}` → 讀取 design doc 恢復 context）。`.claude/designs/` 應在 `.gitignore` 中。
+此檔案供 cross-session resume 使用（`繼續 {TICKET-KEY}` → 讀取 design doc 恢復 context）。Spec folders 放在公司層（如 `~/work/company/specs/PROJ-123/`），不進 git。
 
 ### 6. 開發摘要 → 自動進入 TDD 開發 → 品質檢查 → 發 PR
 

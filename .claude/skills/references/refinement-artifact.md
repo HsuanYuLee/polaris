@@ -5,10 +5,10 @@ Refinement 產出的結構化 artifact，供下游 skill（epic-breakdown, jira-
 ## 存放位置
 
 ```
-.claude/designs/{EPIC_KEY}/refinement.json
+{company_base_dir}/specs/{EPIC_KEY}/refinement.json
 ```
 
-`.claude/designs/` 已在 `.gitignore` — artifact 是本地 AI 工作產物，不進 git。
+Spec folders 放在公司層（如 `~/work/company/specs/PROJ-123/`），不進 git。
 
 ## 同步寫入
 
