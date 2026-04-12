@@ -15,7 +15,7 @@ metadata:
 
 # Work On — 純施工路由
 
-使用者說「做 PROJ-448」或「做 PROJ-100 PROJ-101 PROJ-102」，skill 檢查規劃產出是否就緒，然後執行實作。規劃（根因分析、拆單、估點、測試計畫）由 `bug-triage` 或 `epic-breakdown` 負責，本 skill 不做規劃。
+使用者說「做 PROJ-448」或「做 PROJ-100 PROJ-101 PROJ-102」，skill 檢查規劃產出是否就緒，然後執行實作。規劃（根因分析、拆單、估點、測試計畫）由 `bug-triage` 或 `breakdown` 負責，本 skill 不做規劃。
 
 ## 前置：讀取 workspace config
 

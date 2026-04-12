@@ -28,6 +28,5 @@
 ## 適用 Skill
 
 需要分析 codebase 的 skill 都應參考此對應表：
-- `jira-estimation`（Bug 根因分析、Story/Task 拆子單）
-- `epic-breakdown`（Epic 拆單需分析程式碼）
+- `breakdown`（Bug 根因分析、Story/Task/Epic 拆子單與估點）
 - `sasd-review`（SA/SD 需分析異動範圍）

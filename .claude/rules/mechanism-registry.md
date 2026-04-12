@@ -49,7 +49,7 @@ These are real escape patterns observed in prior sessions. When you notice yours
 
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
-| `reference-index-scan` | Before skill execution, read `skills/references/INDEX.md` and pull in trigger-matched references | Skill executes JIRA operations (createJiraIssue, editJiraIssue, epic-breakdown) without prior Read of INDEX.md or relevant reference files | **Critical** |
+| `reference-index-scan` | Before skill execution, read `skills/references/INDEX.md` and pull in trigger-matched references | Skill executes JIRA operations (createJiraIssue, editJiraIssue, breakdown) without prior Read of INDEX.md or relevant reference files | **Critical** |
 
 #### Common Rationalizations — Reference Discovery
 

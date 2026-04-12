@@ -191,7 +191,7 @@ Epic (大型工作)
 ### 建立規則
 
 - **來源**：從實作子單 description 的「## 測試計畫（code-level）」章節，**每個 item 各建一張 Sub-task**
-- **時機**：`epic-breakdown` / `jira-estimation` 拆單建立實作子單時，立刻建立對應的測試 Sub-task
+- **時機**：`breakdown` 拆單建立實作子單時，立刻建立對應的測試 Sub-task
 - **數量**：與「測試計畫」章節的 item 數量 1:1 對應，不合併、不增減
 - **內容邊界**：只能包含 code-level 驗證。「## AC 驗證場景」的內容屬於驗收單，不可出現在測試 Sub-task
 
@@ -202,7 +202,7 @@ Epic (大型工作)
 ## 觸發流程
 
 ```
-epic-breakdown / jira-estimation 拆單完成
+breakdown 拆單完成
   ├─ 每張實作子單：
   │   └─ 讀取「測試計畫（code-level）」章節
   │       └─ 每個 item → 建立 [驗證] Sub-task (issueType: 子任務, parent: 實作子單)

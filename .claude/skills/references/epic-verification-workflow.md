@@ -8,7 +8,7 @@ Reference doc for the three-layer verification structure. Not yet integrated int
 - [x] Epic #1 試跑完成，記錄調整項（PROJ-483, 2026-04-05）
 - [x] Reference doc 根據 Epic #1 修正（加入 Playwright browser-first、URL 規範、測資來源）
 - [ ] Epic #2 驗證完成，無結構性修改
-- [ ] 畢業 → 改進 epic-breakdown, epic-status, work-on, jira-estimation
+- [ ] 畢業 → 改進 breakdown, epic-status, work-on
 
 **Graduation signal:** 連續 2 個 Epic 走完流程且 doc 核心流程不需修改。
 
@@ -248,7 +248,7 @@ Feature PR 前：
 4. PR review：{approved by X}
 ```
 
-**Trigger:** `work-on` 或 `jira-estimation` 建立 task 時自動建 sub-task。dev-quality-check 和 verify-completion 跑完後更新內容。
+**Trigger:** `work-on` 或 `breakdown` 建立 task 時自動建 sub-task。dev-quality-check 和 verify-completion 跑完後更新內容。
 
 **Not a blocker:** task 的 PR merge 不依賴 sub-task 狀態。sub-task 是事後記錄。
 
@@ -265,7 +265,7 @@ Feature PR 前：
 - Epic ≤ 8 pts 或 ≤ 2 tasks → 合併成一張「Epic 驗收」
 
 **When to create:**
-- `epic-breakdown` 拆單時自動在最後產生
+- `breakdown` 拆單時自動在最後產生
 - Status 設為 Open / Waiting for Development
 - 標記依賴：depends on 所有實作單
 
@@ -301,7 +301,7 @@ Feature PR 前：
 Layer 3 的 determinism 依賴 Mockoon fixtures。Fixtures 跟著 Epic 生命週期：
 
 1. **Epic 開始** — 在 develop branch 上錄 fixtures（Playwright 開所有頁面，Mockoon proxy mode 捕捉 API response）
-2. **API task 完成後** — 若 Epic 有 cross-repo API 變更，re-record fixtures（epic-breakdown 的 API-first 排序確保這發生在前端 task 之前）
+2. **API task 完成後** — 若 Epic 有 cross-repo API 變更，re-record fixtures（breakdown 的 API-first 排序確保這發生在前端 task 之前）
 3. **前端開發期間** — 所有整合測試基於穩定 fixtures，VR strict mode（zero-diff）
 4. **Epic release** — fixtures 消滅，下個 Epic 重新錄
 
@@ -510,10 +510,10 @@ VR Gate 在 quality check 之後、commit 之前。這樣 VR fail 時還沒 comm
 | Skill | Change needed |
 |-------|--------------|
 | `refinement` | Phase 1/2 確認 Epic 附有目標驗證頁清單 |
-| `epic-breakdown` | 拆單時在 API 單之後、實作單之前插入穩定測資單；最後自動產生 per-AC 驗收單 + 整合測試單 |
+| `breakdown` | 拆單時在 API 單之後、實作單之前插入穩定測資單；最後自動產生 per-AC 驗收單 + 整合測試單 |
 | `epic-status` | Phase 1 偵測「所有 task merged → 提醒開始驗收」。Phase 2 路由驗收 gap。Check stale fixture folders |
 | `work-on` | 建 task 時自動建測試計劃 sub-task。每張 task 必須通過 VR |
-| `jira-estimation` | 估點時產生測試計劃 template |
+| `breakdown` (estimation) | 估點時產生測試計劃 template |
 | `dev-quality-check` | Step 8b VR 條件觸發（已完成 v1.52.0） |
 | `git-pr-workflow` | Step 3b VR Gate（本次新增）；驗收前 auto-rebase develop |
 | `converge` | Check stale fixture folders（> 30 天 + Epic not in dev → 提醒刪除） |

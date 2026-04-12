@@ -140,7 +140,7 @@ Epic 通常還沒有 story points（估點是 refinement 下游），所以 tier
 ### 4. 引導下一步
 
 - 「哪幾張要深入 refine？」→ 逐張進入 Phase 1
-- 「Ready 的要直接拆單嗎？」→ 觸發 `epic-breakdown`
+- 「Ready 的要直接拆單嗎？」→ 觸發 `breakdown`
 - 「全部看完了，準備 planning」→ 觸發 `sprint-planning`
 
 ---
@@ -462,7 +462,7 @@ python3 scripts/refinement-preview.py {company_base_dir}/specs/{EPIC_KEY}/refine
 
 **7d. Label + 下一步**
 - 更新 JIRA Label：加 `refinement-ready`，移除 `needs-refinement`
-- 建議下一步：`epic-breakdown`（拆子單）或 `jira-estimation`（估點）
+- 建議下一步：`breakdown`（拆子單 + 估點）
 - 關閉 preview server（如還在跑）
 
 ---
@@ -527,15 +527,14 @@ Risk:      DS 改動需要先 merge 才能在 main-repo 用
 ```
 refinement
   ├─ Batch Scan 完成
-  │   ├─ refinement-ready → epic-breakdown / sprint-planning
+  │   ├─ refinement-ready → breakdown / sprint-planning
   │   └─ needs-refinement → Phase 1 逐張深度補充
   │
   ├─ Phase 0 完成（開單）
-  │   → Phase 2（討論做法）→ jira-estimation → work-on
+  │   → Phase 2（討論做法）→ breakdown → work-on
   │
   ├─ Phase 1 完成（Epic 充實 + artifact + label: refinement-ready）
-  │   → epic-breakdown（拆子單 — 讀 artifact）
-  │   → jira-estimation（估點 — 讀 artifact）
+  │   → breakdown（拆子單 + 估點 — 讀 artifact）
   │
   └─ Phase 2 完成（方案確定）
       → sasd-review（複雜需求產出 SA/SD）

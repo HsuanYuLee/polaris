@@ -146,7 +146,7 @@ A multi-round challenge loop for test plan quality assurance.
 
 A one-shot estimation review that challenges story points and technical approach.
 
-**When to use**: `jira-estimation` Step 8.4a, after estimation is complete but before writing to JIRA.
+**When to use**: `breakdown` estimation step, after estimation is complete but before writing to JIRA.
 
 **Persona**: Staff Engineer with 10 years of experience. Not friendly — only finds problems.
 

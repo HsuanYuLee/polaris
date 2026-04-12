@@ -168,7 +168,7 @@ Present as a table. Each task should be an independently deliverable unit
 
 > Estimation scale reference: `references/estimation-scale.md`
 
-If `epic-breakdown` has already produced sub-tasks, reuse them — do not re-split.
+If `breakdown` has already produced sub-tasks, reuse them — do not re-split.
 
 #### 5.6 Timeline
 Total days = total points / daily velocity (typically 2–3 points/day).

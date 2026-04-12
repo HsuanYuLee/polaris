@@ -34,7 +34,7 @@ Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
          → 開 PR 附上覆蓋率報告 → JIRA 狀態轉為 CODE REVIEW
 ```
 
-**技能：** `work-on`, `bug-triage`, `epic-breakdown`, `epic-status`, `converge`, `tdd`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `dev-quality-check`, `visual-regression`, `verify-completion`, `jira-branch-checkout`, `start-dev`, `scope-challenge`, `refinement`, `intake-triage`
+**技能：** `work-on`, `bug-triage`, `breakdown`, `epic-status`, `converge`, `tdd`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `dev-quality-check`, `visual-regression`, `verify-completion`, `jira-branch-checkout`, `start-dev`, `scope-challenge`, `refinement`, `intake-triage`
 
 深入了解 → [開發者工作流程指南](docs/workflow-guide.zh-TW.md)
 
@@ -67,7 +67,7 @@ Polaris: 拉取 JIRA backlog → 計算團隊容量 → 偵測 carry-over
          → 建議優先順序 → 草擬 Release 頁面
 ```
 
-**技能：** `standup`, `sprint-planning`, `worklog-report`, `jira-worklog`, `refinement`（PM 視角）, `epic-breakdown`（PM 視角）
+**技能：** `standup`, `sprint-planning`, `worklog-report`, `jira-worklog`, `refinement`（PM 視角）, `breakdown`（PM 視角）
 
 ## 什麼是 Claude Code？
 
@@ -138,7 +138,7 @@ cd ~/polaris-workspace
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 43 workflow skills
+│   └── skills/                   ← 42 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -165,7 +165,7 @@ cd ~/polaris-workspace
 
 ### 從這裡開始
 
-不要一次嘗試全部 43 個技能。根據你的角色挑一個開始：
+不要一次嘗試全部 42 個技能。根據你的角色挑一個開始：
 
 | 如果你是... | 先試這個 | 會發生什麼 |
 |------------|---------|-----------|
@@ -239,7 +239,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 43 workflow skills
+│   └── skills/                # 42 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory

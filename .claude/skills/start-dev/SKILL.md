@@ -5,7 +5,7 @@ description: >
   to start working on it. Use when: (1) user says "開始開發", "開工", "start developing",
   "start working on", (2) user specifies a JIRA ticket key and wants to begin development,
   (3) user says "開始 PROJ-123", "開工 PROJ-456". This skill handles only the status
-  transition — for Epic breakdown and sub-task creation, use epic-breakdown instead.
+  transition — for Epic breakdown and sub-task creation, use breakdown instead.
 metadata:
   author: Polaris
   version: 1.0.0

@@ -33,7 +33,7 @@ flowchart TD
     %% ── Feature Path ──
     subgraph feature["📋 Feature / Refactor Path<br/><code>work-on</code>"]
         F1["🤖👤 Refinement (optional)<br/><code>refinement</code>"]
-        F2["🤖👤 Breakdown & Estimation<br/><code>epic-breakdown</code><br/>+ scope-challenge loop"]
+        F2["🤖👤 Breakdown & Estimation<br/><code>breakdown</code><br/>+ scope-challenge loop"]
         F3["🤖👤 SA/SD (optional)"]
         F4["🤖 Feasibility Check<br/>Implementation ↔ Estimation"]
     end
@@ -42,7 +42,7 @@ flowchart TD
     subgraph bugfix["🐛 Bug Diagnosis Path<br/><code>bug-triage</code>"]
         B1["🤖👤 Root Cause Analysis<br/><code>bug-triage</code>"]
         B2["👤 Developer confirms Root Cause"]
-        B3["🤖 Breakdown & Estimation<br/><code>epic-breakdown</code>"]
+        B3["🤖 Breakdown & Estimation<br/><code>breakdown</code>"]
     end
 
     %% ── Shared Dev ──
@@ -127,7 +127,7 @@ flowchart TD
 | 閘門 | 時機 | 機制 | 失敗時 |
 |------|------|-----------|------------|
 | **1. 就緒閘門** | `work-on` 開始時 | 檢查票是否有可驗證的 AC；品質不足則阻擋 | 阻擋開發，提示補充 AC |
-| **2. AC ↔ 子任務追溯性** | `epic-breakdown` 之後 | 產出追溯矩陣，確認每條 AC 都有對應的子任務 | 阻擋子任務建立，標示缺漏的 AC |
+| **2. AC ↔ 子任務追溯性** | `breakdown` 之後 | 產出追溯矩陣，確認每條 AC 都有對應的子任務 | 阻擋子任務建立，標示缺漏的 AC |
 | **3. 逐條 AC 驗證** | `verify-completion` 行為檢查 | 逐條確認每個 AC 是否滿足（✅ / ❌） | 阻擋開 PR；❌ 項目必須修正 |
 | **4. AC 覆蓋清單** | `git-pr-workflow` 開 PR 時 | 自動在 PR 描述中嵌入 AC 清單 | Reviewer 一眼就能看到覆蓋狀態 |
 
@@ -147,8 +147,7 @@ flowchart LR
 
     %% ── Planning Skills ──
     RF["refinement"]
-    EB["epic-breakdown"]
-    JE["jira-estimation<br/>(internal)"]
+    EB["breakdown"]
     SC["scope-challenge"]
 
     %% ── Dev Skills ──
@@ -195,7 +194,6 @@ flowchart LR
     WR["worklog-report"]
 
     %% ── Orchestrator routes ──
-    WO -->|estimate| JE
     WO -->|epic breakdown| EB
     WO -->|create branch| BC
     WO -->|transition status| SD
@@ -203,15 +201,12 @@ flowchart LR
     WO -->|auto open PR| GPW
 
     BT -->|diagnosis done| EB
-    BT -->|estimate| JE
 
     %% ── Planning chain ──
     RF -.->|when complete| EB
-    EB -->|per-ticket estimate| JE
     EB -->|create branch| BC
     EB -->|scope review| SC
     SC -->|FAIL feedback| EB
-    JE -.->|epic handoff| EB
 
     %% ── Quality chain ──
     GPW -->|quality check| QC
@@ -263,7 +258,6 @@ flowchart LR
     class QC,VR,VC,TDD quality
     class RP,RI,CPA,FPR,RLG review
     class RF,EB,SC,SP,IT planning
-    class JE internal
     class NX,MT,ES,CV,EOD orchestrator
     class SU,SDB,UT,UTR,LRN,WTP,DS,WR standalone
 ```
@@ -790,7 +784,7 @@ AI 執行 `bug-triage` 技能 — **僅處理診斷**，非端到端：
 3. **提出修正方案** → 產出 **Solution**（要修改的檔案/模組）
 4. **👤 開發者確認** → Root Cause + Solution 以 JIRA 留言呈現；開發者確認後才繼續
 
-RD 確認後，流程交由 `epic-breakdown` → `work-on` 進行估點、建 branch、實作與 PR。
+RD 確認後，流程交由 `breakdown` → `work-on` 進行估點、建 branch、實作與 PR。
 
 **JIRA 留言格式：**
 

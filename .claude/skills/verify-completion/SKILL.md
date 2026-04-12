@@ -99,7 +99,7 @@ If no test plan is found in the description, fall back to the generic verificati
 
 Before creating anything, query JIRA to see if verification sub-tasks already exist for this ticket.
 This handles the common case where a previous run already created them, or another skill (like
-`epic-breakdown`) included verification items during task breakdown.
+`breakdown`) included verification items during task breakdown.
 
 ```
 mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql

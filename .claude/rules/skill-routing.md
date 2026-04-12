@@ -40,13 +40,13 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Fix review comments on own PR | "fix review", "修 PR", "修正 review", "你沒修好" + PR URL, "沒修好", PR URL + 否定語氣 | `fix-pr-review` |
 | Check own PR approvals | "我的 PR", "PR 狀態", "催 review" | `check-pr-approvals` |
 | Scan PRs needing review | "掃 PR", "大家的 PR", "review inbox" | `review-inbox` |
-| Estimate a ticket | "估點", "estimate", "評估" + ticket | `epic-breakdown` (Story/Task/Epic) or `bug-triage` (Bug) |
+| Estimate a ticket | "估點", "estimate", "評估" + ticket | `breakdown` (Story/Task/Epic) or `bug-triage` (Bug) |
 | Auto-determine next action | "下一步", "next", "繼續", "continue", "然後呢", "接下來" (no ticket key) | `next` |
 | Work on a ticket | "做", "work on" + ticket | `work-on` (requires existing plan — if no plan, routes to planning skill first) |
 | Triage/plan a bug | "修 bug", "fix bug", "分析 bug", "triage bug" + ticket | `bug-triage` |
 | Triage a bug (no ticket) | "修這個", "fix this" + Slack URL, no JIRA key | Strategist pre-processing → create Bug ticket → `bug-triage` |
 | SA/SD design doc | "SASD", "SA/SD", "寫 SA", "出 SA/SD", "架構文件", "design doc", "技術設計", "異動範圍", "dev scope" | `sasd-review` |
-| Break down an epic | "拆單", "拆解", "epic breakdown" | `epic-breakdown` |
+| Break down an epic | "拆單", "拆解", "epic breakdown" | `breakdown` |
 | Batch converge all work | "收斂", "converge", "推進", "全部推到 review", "把我的單收一收" | `converge` |
 | Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `converge` (Epic-only mode) |
 | Create/open a PR | "開 PR", "create PR", "發 PR" | `git-pr-workflow` |

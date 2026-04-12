@@ -153,7 +153,7 @@ Carry-over 在排序時有更高優先權（已經開始的工作應該先完成
 
 **Guardrails**：
 - 總點數超過 capacity 10% 以上時主動提醒
-- 有未估點的 tickets 時提醒需要先估點（可觸發 `jira-estimation`）
+- 有未估點的 tickets 時提醒需要先估點（可觸發 `breakdown`）
 - 有依賴衝突時（如 A blocks B 但 B 排在 A 前面）主動提醒
 
 ### 7. Generate Release page draft (optional)

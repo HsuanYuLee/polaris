@@ -197,8 +197,7 @@ User correction > PR review lesson > Explorer 回寫
 | Skill | 探索目標 |
 |-------|---------|
 | sasd-review | 找出與需求相關的所有檔案，分析異動範圍和實作模式 |
-| jira-estimation | 找出與需求相關的檔案，評估改動複雜度和影響範圍 |
+| breakdown | 找出與需求相關的檔案，評估改動複雜度和影響範圍；找出與 Epic 相關的現有程式碼結構，識別可複用模組和依賴順序 |
 | refinement Phase 0 | 分析指定模組的引用關係、測試覆蓋、程式碼品質 |
 | refinement Phase 1 | 找出與 Epic 需求相關的現有實作，產出 scope 和 edge cases 建議 |
-| epic-breakdown | 找出與 Epic 相關的現有程式碼結構，識別可複用模組和依賴順序 |
 | systematic-debugging | 從 bug 症狀追蹤相關程式碼，找出可疑的根因位置 |

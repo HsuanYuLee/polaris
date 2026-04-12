@@ -1,6 +1,6 @@
 ---
 name: scope-challenge
-description: "Use when a JIRA ticket's scope or assumptions should be questioned before estimation — when requirements feel over-engineered, under-specified, or worth challenging. Advisory only. Trigger: 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑', or invoked by work-on/epic-breakdown before estimation."
+description: "Use when a JIRA ticket's scope or assumptions should be questioned before estimation — when requirements feel over-engineered, under-specified, or worth challenging. Advisory only. Trigger: 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑', or invoked by work-on/breakdown before estimation."
 metadata:
   author: Polaris
   version: 1.2.0
@@ -97,9 +97,9 @@ metadata:
 
 使用者選定方案後，用 `mcp__claude_ai_Atlassian__addCommentToJiraIssue` 將 scope challenge 結論與推理記錄到 JIRA comment。格式參考 `references/decision-audit-trail.md`。
 
-## 6. 拆單審查模式（由 epic-breakdown invoke）
+## 6. 拆單審查模式（由 breakdown invoke）
 
-當由 `epic-breakdown` Step 7.5 自動 invoke 時，輸入是**拆單結果表格**而非 JIRA ticket。此模式跳過 Step 1-2，直接進行拆單品質審查。
+當由 `breakdown` 自動 invoke 時，輸入是**拆單結果表格**而非 JIRA ticket。此模式跳過 Step 1-2，直接進行拆單品質審查。
 
 ### 審查項目
 
@@ -131,7 +131,7 @@ FAIL 項目：
 結論：FAIL（2 項需調整）
 ```
 
-回傳結構化結果讓 `epic-breakdown` 可自動處理。
+回傳結構化結果讓 `breakdown` 可自動處理。
 
 ## Do / Don't
 

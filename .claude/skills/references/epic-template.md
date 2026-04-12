@@ -1,6 +1,6 @@
 # Epic Description 結構化模板
 
-供 `refinement`（Phase 1 整合）和 `epic-breakdown`（Step 13 整合）使用。
+供 `refinement`（Phase 1 整合）和 `breakdown`（拆單整合）使用。
 也可分享給 PM 作為開單參考。
 
 ## 模板結構
@@ -52,7 +52,7 @@
 
 ## 拆單總覽
 
-<!-- 拆單完成後由 epic-breakdown 自動填入 -->
+<!-- 拆單完成後由 breakdown 自動填入 -->
 
 | # | Key | Summary | Points |
 |---|-----|---------|--------|

@@ -33,7 +33,7 @@ flowchart TD
     %% ── Feature Path ──
     subgraph feature["📋 Feature / Refactor Path<br/><code>work-on</code>"]
         F1["🤖👤 Refinement (optional)<br/><code>refinement</code>"]
-        F2["🤖👤 Breakdown & Estimation<br/><code>epic-breakdown</code><br/>+ scope-challenge loop"]
+        F2["🤖👤 Breakdown & Estimation<br/><code>breakdown</code><br/>+ scope-challenge loop"]
         F3["🤖👤 SA/SD (optional)"]
         F4["🤖 Feasibility Check<br/>Implementation ↔ Estimation"]
     end
@@ -42,7 +42,7 @@ flowchart TD
     subgraph bugfix["🐛 Bug Diagnosis Path<br/><code>bug-triage</code>"]
         B1["🤖👤 Root Cause Analysis<br/><code>bug-triage</code>"]
         B2["👤 Developer confirms Root Cause"]
-        B3["🤖 Breakdown & Estimation<br/><code>epic-breakdown</code>"]
+        B3["🤖 Breakdown & Estimation<br/><code>breakdown</code>"]
     end
 
     %% ── Shared Dev ──
@@ -127,7 +127,7 @@ Acceptance Criteria pass through 4 automated gates from ticket intake to PR open
 | Gate | When | Mechanism | On Failure |
 |------|------|-----------|------------|
 | **1. Readiness Gate** | `work-on` start | Checks whether the ticket has verifiable AC; blocks if quality is insufficient | Blocks development, prompts to add AC |
-| **2. AC ↔ Sub-task Traceability** | After `epic-breakdown` | Produces a traceability matrix confirming every AC is covered by a sub-task | Blocks sub-task creation, flags missing AC |
+| **2. AC ↔ Sub-task Traceability** | After `breakdown` | Produces a traceability matrix confirming every AC is covered by a sub-task | Blocks sub-task creation, flags missing AC |
 | **3. Per-AC Verification** | `verify-completion` behavior check | Confirms each AC is satisfied (✅ / ❌) | Blocks PR open; ❌ items must be fixed |
 | **4. AC Coverage Checklist** | `git-pr-workflow` PR open | Embeds AC checklist in PR description automatically | Reviewer sees coverage status at a glance |
 
@@ -147,8 +147,7 @@ flowchart LR
 
     %% ── Planning Skills ──
     RF["refinement"]
-    EB["epic-breakdown"]
-    JE["jira-estimation<br/>(internal)"]
+    EB["breakdown"]
     SC["scope-challenge"]
 
     %% ── Dev Skills ──
@@ -195,7 +194,6 @@ flowchart LR
     WR["worklog-report"]
 
     %% ── Orchestrator routes ──
-    WO -->|estimate| JE
     WO -->|epic breakdown| EB
     WO -->|create branch| BC
     WO -->|transition status| SD
@@ -203,15 +201,12 @@ flowchart LR
     WO -->|auto open PR| GPW
 
     BT -->|diagnosis done| EB
-    BT -->|estimate| JE
 
     %% ── Planning chain ──
     RF -.->|when complete| EB
-    EB -->|per-ticket estimate| JE
     EB -->|create branch| BC
     EB -->|scope review| SC
     SC -->|FAIL feedback| EB
-    JE -.->|epic handoff| EB
 
     %% ── Quality chain ──
     GPW -->|quality check| QC
@@ -263,7 +258,6 @@ flowchart LR
     class QC,VR,VC,TDD quality
     class RP,RI,CPA,FPR,RLG review
     class RF,EB,SC,SP,IT planning
-    class JE internal
     class NX,MT,ES,CV,EOD orchestrator
     class SU,SDB,UT,UTR,LRN,WTP,DS,WR standalone
 ```
@@ -790,7 +784,7 @@ AI executes `bug-triage` skill — **diagnosis only**, not end-to-end:
 3. **Propose solution** → produces **Solution** (files/modules to change)
 4. **👤 Developer confirms** → Root Cause + Solution shown as JIRA comment; developer confirms before proceeding
 
-After RD confirmation, the flow hands off to `epic-breakdown` → `work-on` for estimation, branch creation, implementation, and PR.
+After RD confirmation, the flow hands off to `breakdown` → `work-on` for estimation, branch creation, implementation, and PR.
 
 **JIRA comment format:**
 

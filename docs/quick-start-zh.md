@@ -62,7 +62,7 @@ cd ~/polaris-workspace
 ├── .claude/
 │   ├── rules/                    ← 通用規則 (L1)
 │   │   └── your-company/         ← 公司專屬規則 (L2)
-│   └── skills/                   ← 43 個工作流技能
+│   └── skills/                   ← 42 個工作流技能
 └── your-company/                 ← 由 /init 建立
     ├── workspace-config.yaml     ← 公司設定（JIRA、Slack、repos）
     └── your-project/             ← 你的專案 repo（clone 或連結）
@@ -87,7 +87,7 @@ cd ~/polaris-workspace
 
 ### 從這裡開始
 
-不需要一次學會全部 43 個技能。從符合你角色的開始：
+不需要一次學會全部 42 個技能。從符合你角色的開始：
 
 | 你的角色 | 先試這個 | 會發生什麼 |
 |----------|---------|-----------|
@@ -103,7 +103,7 @@ Polaris 圍繞三大支柱組織你的 AI 輔助工作流程：
 
 ### 支柱一 — 輔助開發
 
-從 JIRA 到 PR 的完整自動化：`「做 PROJ-123」` → 讀 JIRA → 估點 → 開 branch → 寫 code → 跑測試 → 發 PR → 轉 JIRA 狀態。涵蓋 `work-on`、`bug-triage`、`epic-breakdown`、`tdd`、`git-pr-workflow`、`review-pr` 等技能。
+從 JIRA 到 PR 的完整自動化：`「做 PROJ-123」` → 讀 JIRA → 估點 → 開 branch → 寫 code → 跑測試 → 發 PR → 轉 JIRA 狀態。涵蓋 `work-on`、`bug-triage`、`breakdown`、`tdd`、`git-pr-workflow`、`review-pr` 等技能。
 
 詳細流程 → [Developer Workflow Guide](workflow-guide.md)
 
@@ -173,7 +173,7 @@ Sprint 規劃        →  「排 sprint」
 ├── .claude/
 │   ├── rules/                 # 通用規則 (L1)
 │   │   └── {company}/         # 公司專屬規則 (L2)
-│   └── skills/                # 43 個工作流技能
+│   └── skills/                # 42 個工作流技能
 ├── _template/                 # 新公司範本 + 規則範例
 ├── scripts/                   # 同步工具
 └── {company}/                 # 你的公司目錄
@@ -186,7 +186,7 @@ Sprint 規劃        →  「排 sprint」
 技能之間會自動串接。例如 `「做 PROJ-123」` 會依序觸發：
 
 ```
-work-on → jira-estimation → jira-branch-checkout → start-dev → tdd → dev-quality-check → git-pr-workflow
+work-on → jira-branch-checkout → start-dev → tdd → dev-quality-check → git-pr-workflow
 ```
 
 每個技能都有明確的進入條件和輸出，像 pipeline 一樣串起來。詳細流程圖 → [Developer Workflow Guide](workflow-guide.md)

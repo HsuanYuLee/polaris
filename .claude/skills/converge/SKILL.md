@@ -75,8 +75,8 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 
 | Gap Type | 條件 | 自動路由 |
 |----------|------|----------|
-| `NO_ESTIMATE` | `customfield_10016` (SP) 為 null 且不是 Bug | `jira-estimation` |
-| `NO_BREAKDOWN` | Epic 無子單 | `epic-breakdown` |
+| `NO_ESTIMATE` | `customfield_10016` (SP) 為 null 且不是 Bug | `breakdown` |
+| `NO_BREAKDOWN` | Epic 無子單 | `breakdown` |
 | `NOT_STARTED` | status = 待辦事項/開放，有估點 | `work-on` |
 | `CODE_NO_PR` | status = In Development，無 open PR | `git-pr-workflow` |
 | `CI_RED` | PR 存在，CI 失敗 | `fix-pr-review` |
@@ -125,8 +125,8 @@ Gaps found: X | Ready: Y | Skipped: Z
   4. PROJ-105 首頁結構化資料 — NOT_STARTED → work-on
 
 📋 需要規劃
-  5. PROJ-104 HTML + CSS 優化 — NO_ESTIMATE → jira-estimation
-  6. PROJ-102 Category LCP+CLS — NO_ESTIMATE → jira-estimation
+  5. PROJ-104 HTML + CSS 優化 — NO_ESTIMATE → breakdown
+  6. PROJ-102 Category LCP+CLS — NO_ESTIMATE → breakdown
 
 ⏸ 等別人（不執行）
   - PROJ-100 TTFB 優化 — REVIEW_STUCK (PR #2066, 0 approved, 3 days)
@@ -167,8 +167,8 @@ Gaps found: X | Ready: Y | Skipped: Z
 
 | Gap Type | Skill | Dispatch Pattern | Model |
 |----------|-------|-----------------|-------|
-| `NO_BREAKDOWN` | `epic-breakdown` | Exploration → Analysis | sonnet |
-| `NO_ESTIMATE` | `jira-estimation` | Exploration → Analysis (batch: haiku for JIRA writes) | sonnet/haiku |
+| `NO_BREAKDOWN` | `breakdown` | Exploration → Analysis | sonnet |
+| `NO_ESTIMATE` | `breakdown` | Exploration → Analysis (batch: haiku for JIRA writes) | sonnet/haiku |
 | `NOT_STARTED` | `work-on` | Implementation | sonnet |
 | `CODE_NO_PR` | `git-pr-workflow` | Implementation | sonnet |
 | `CI_RED` | `fix-pr-review` | Implementation | sonnet |
@@ -216,7 +216,7 @@ Gaps found: X | Ready: Y | Skipped: Z
 |--------|--------|-------|-------------|
 | PROJ-101 | CI_RED | READY | fix-pr-review → CI pass |
 | PROJ-106 | NOT_STARTED | CODE_REVIEW | work-on → PR #105 |
-| PROJ-104 | NO_ESTIMATE | NOT_STARTED | jira-estimation → 8 SP |
+| PROJ-104 | NO_ESTIMATE | NOT_STARTED | breakdown → 8 SP |
 | PROJ-100 | REVIEW_STUCK | REVIEW_STUCK | ⏸ skipped (等 review) |
 
 Summary:
@@ -293,8 +293,7 @@ Next actions:
 | `fix-pr-review` | 不變，converge 的下游執行器 |
 | `check-pr-approvals` | 不變，converge 的下游執行器 |
 | `git-pr-workflow` | 不變，converge 的下游執行器 |
-| `jira-estimation` | 不變，converge 的下游執行器 |
-| `epic-breakdown` | 不變，converge 的下游執行器 |
+| `breakdown` | 不變，converge 的下游執行器 |
 | `verify-completion` | 不變，converge 的下游執行器 |
 
 ---

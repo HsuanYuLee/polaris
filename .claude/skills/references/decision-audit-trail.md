@@ -6,8 +6,8 @@
 
 | 場景 | 觸發 Skill | 紀錄時機 |
 |------|-----------|---------|
-| 估點結果（Story/Task/Bug） | `jira-estimation` | 使用者確認估點後，寫入 JIRA comment，再更新 story points |
-| Epic 拆單策略 | `epic-breakdown` | 使用者確認拆單表格後，在母單寫入 Decision Record，再批次建子單 |
+| 估點結果（Story/Task/Bug） | `breakdown` | 使用者確認估點後，寫入 JIRA comment，再更新 story points |
+| Epic 拆單策略 | `breakdown` | 使用者確認拆單表格後，在母單寫入 Decision Record，再批次建子單 |
 | Scope Challenge 建議 | `scope-challenge` | 使用者選擇方案後，在 JIRA comment 留下最終決策脈絡 |
 | SA/SD 技術選型 | `sasd-review` | 每個重要技術決策寫在 SA/SD 文件對應章節 |
 

@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.106.0] - 2026-04-13
+
+- **Breakdown v2.0.0 — Universal Planning Skill (Phase 2 of 3-Layer Redesign)**
+  - Rename `epic-breakdown` → `breakdown`: now handles Bug / Story / Task / Epic uniformly
+  - New Bug Path (B1-B4): reads `[ROOT_CAUSE]` from bug-triage → estimates → simple (1-2pt) direct handoff or complex (3+pt) subtask split
+  - Story/Task absorbed from `jira-estimation` Step 8: codebase exploration → subtask split → estimation → Quality Challenge
+  - Epic path preserved within unified Planning Path (Steps 4-16)
+  - Delete `jira-estimation` — estimation logic fully internalized into breakdown
+  - Updated 22 reference files: routing, registry, skills, references
+  - Net -402 lines across 24 files (consolidation)
+  - Three-layer architecture now fully implemented: bug-triage/refinement → breakdown → work-on
+
 ## [1.105.0] - 2026-04-13
 
 - **docs-sync: fix-bug → bug-triage rename across all documentation**

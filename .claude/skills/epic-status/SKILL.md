@@ -1,6 +1,6 @@
 ---
 name: epic-status
-description: "Use when the user wants to see an Epic's progress against merge — what's blocked, missing, or closeable. Trigger: 'epic 進度', 'epic 狀態', '離 merge 還多遠', '還差什麼', '補全 epic'. Key: '拆單' → epic-breakdown; 'epic 進度' → here."
+description: "Use when the user wants to see an Epic's progress against merge — what's blocked, missing, or closeable. Trigger: 'epic 進度', 'epic 狀態', '離 merge 還多遠', '還差什麼', '補全 epic'. Key: '拆單' → breakdown; 'epic 進度' → here."
 metadata:
   author: Polaris
   version: 1.4.0
@@ -45,7 +45,7 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
   maxResults: 50
 ```
 
-若子單數量為 0 → 提示「這張 Epic 還沒有子單，要先拆單嗎？」並建議使用 `/epic-breakdown`。
+若子單數量為 0 → 提示「這張 Epic 還沒有子單，要先拆單嗎？」並建議使用 `/breakdown`。
 
 ### 3. 偵測 Feature Branch
 

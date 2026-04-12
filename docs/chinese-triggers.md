@@ -13,7 +13,7 @@
 | **work-on** — 智慧開發路由 | 做 PROJ-123、開始做、接這張、做這張、下一步、繼續 | work on, start dev | 偵測 ticket 狀態，自動路由到估點／拆單／建 branch／開發。支援批次模式（多張 ticket 同時輸入） |
 | **bug-triage** — Bug 診斷 | 修 bug PROJ-123、分析 bug、triage bug、bug 分析、修這張 bug、幫我修正、修這個 + Slack URL | fix bug, triage bug, help me fix, fix this ticket, fix this + Slack URL | Bug 診斷層：讀單→根因分析→RD 確認。僅處理診斷，估點/測試計畫/開發由 breakdown → work-on 接手 |
 | **sasd-review** — SA/SD 設計文件 | 寫 SA、出 SA/SD、SA 文件、SD 文件、架構文件、技術設計、異動範圍、dev scope | SASD, SA/SD, design doc, implementation plan, technical design, dev scope | Design-First Gate：在寫任何程式碼之前產出 SA/SD — 需求分析→歧義收集→2-3 方案比較→確認後產出 Dev Scope + System Flow + Task List |
-| **epic-breakdown** — 拆單與估點 | 拆單、拆解、分解任務、子單、評估這張單、評估 epic | break down epic, split tasks, decompose, create sub-tasks, evaluate this ticket | 拆解 Epic 為可執行子任務，逐一估點後批次建立 JIRA sub-task |
+| **breakdown** — 拆單與估點 | 拆單、拆解、分解任務、子單、評估這張單、評估 epic | break down epic, split tasks, decompose, create sub-tasks, evaluate this ticket | 通用規劃技能：Bug 讀取根因後估點；Story/Task/Epic 探索 codebase 後拆分子任務。觸發詞涵蓋原 epic-breakdown 所有觸發詞 |
 | **epic-status** — Epic 進度追蹤 | epic 進度、epic 狀態 | epic status, epic progress | 掃描 Epic 子單的 JIRA + GitHub 狀態，產出差距報告，可路由到其他 skill 補全缺口 |
 | **converge** — 批次推進到 Review | 收斂、推進、全部推到 review、把我的單收一收、離 merge 還多遠、補全 epic | converge, push to review, close gaps, what's left | 一次把所有進行中的工作推進到 review：掃 Epic + PR 狀態、補全缺口、批次催 review。也支援 Epic-only 模式做 gap analysis |
 | **jira-branch-checkout** — 建 Branch | 開 branch PROJ-123、建 branch、切 branch、hotfix branch | create branch, checkout branch | 從 JIRA ticket 建立命名規範的 git branch（`task/PROJ-123-description`） |
@@ -48,7 +48,6 @@
 | **standup** — 每日站會 / 下班收工 | 站立會議、產出 standup、寫 standup、今天做了什麼、下班、收工、準備明天的工作、結束今天、總結一下、wrap up | standup, daily standup, YDY, standup report, write standup, daily report, end of day, EOD, wrap up | 自動從 git commits、JIRA 狀態、Google Calendar 收集工作，產出 YDY/TDT/BOS 格式站會報告；Step 0 自動跑 triage（含下班收工情境）。`/end-of-day` 已棄用，所有觸發詞統一路由到 standup |
 | **my-triage** — 工作盤點 | 我的 epic、盤點、手上有什麼、排優先、我的工作 | my epics, triage, prioritize, my work | 掃描 assigned Epic + Bug + 孤兒 Task，狀態驗證 + GitHub PR 進度，產出優先序 Dashboard |
 | **intake-triage** — 批次收單排工 | 收單、排工、這批單幫我看、PM 開了一堆單、幫我排優先 | intake, intake-triage, triage these tickets, prioritize this batch | 分析 PM 開出的一批 ticket，評估優先序，產出 JIRA label + comment + Slack 摘要 |
-| **jira-estimation** — 估點引擎 | 估點、幫我估、這張幾點（透過 epic-breakdown 觸發） | estimate（route via epic-breakdown） | 內部估點引擎，由 bug-triage / epic-breakdown 自動呼叫，不直接觸發 |
 | **jira-worklog** — 記工時 | 記工時、記錄工時、補工時、工時回填 | worklog, log time, time tracking, log hours, backfill worklog | 日報工時分配：8h/工作日依 In Development 票據分配，兩種模式（standup auto-log + 批次回填） |
 | **worklog-report** — 完成報告 | 完成報告 | worklog report, done report, sprint report, sprint:Q2 S1 | 從 JIRA 查詢已完成 tickets，依 assignee 分組後發送 Slack 報告（支援 `sprint:Q2 S1` 指定特定 sprint） |
 | **scope-challenge** — 需求質疑 | 挑戰需求、需求質疑、需求合理性 | scope challenge, challenge requirements, question requirements, scope review | 在估點前挑戰 ticket scope 合理性，提出替代方案（僅建議，不阻擋流程） |
@@ -100,7 +99,7 @@
 |------|---------|-----------|
 | 什麼都不知道，想開始做某張單 | 做 PROJ-123 | `work-on`（自動判斷下一步） |
 | 診斷一個 JIRA Bug 單 | 修 bug PROJ-123、分析 bug PROJ-123 | `bug-triage`（診斷）→ `work-on`（開發） |
-| 拆解 Epic 為子任務 | 拆單 PROJ-123、評估 Epic | `epic-breakdown` |
+| 拆解 Epic 為子任務 | 拆單 PROJ-123、評估 Epic | `breakdown` |
 | 看 Epic 進度（掃 JIRA/GitHub 狀態） | epic 進度、epic 狀態 | `epic-status` |
 | 批次推進所有進行中工作、補全缺口 | 收斂、推進、離 merge 還多遠、還差什麼 | `converge` |
 | 充實需求或討論做法 | 討論需求、方案討論、refinement | `refinement` |
