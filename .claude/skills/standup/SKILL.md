@@ -337,29 +337,6 @@ gh pr list --search "review-requested:@me" --state open --json number,title,auth
 - Sub-task 全通過時折成一行，NO-JIRA 用一行摘要
 - 口頭同步用條列式 `_斜體_` 一併推上 Confluence
 
-## Post-Standup: Daily Worklog
-
-After standup is pushed (or user skips push), auto-log today's work hours to JIRA. This ensures compliance worklog records are always up-to-date without manual effort.
-
-**Execute `jira-worklog` in single-day mode for today's date.** Read and follow `skills/jira-worklog/SKILL.md` with these parameters:
-
-- Mode: single-day
-- Target date: today (PRESENT_DATE)
-- Calendar data: reuse Step 4's Google Calendar results (don't re-query). Pass meeting hours to jira-worklog Step 2a
-- All other logic (In Dev query, dedup, available hours calculation, write) follows jira-worklog's workflow
-
-**Skip conditions** (check before executing):
-- Today is a weekend (Saturday/Sunday) → skip
-- User explicitly says "不用記工時" / "skip worklog" → skip
-
-**Output**: append the worklog summary (from jira-worklog Step 5) after the Confluence push confirmation. Keep it brief — one-line summary like:
-
-> Worklog: 8h logged (TASK-123 4h, TASK-123 4h)
-
-or:
-
-> Worklog: skipped (no tickets in dev today)
-
 ## Post-Standup: Review Lessons Graduation Gate
 
 Standup 推送完成後（或使用者略過推送後），輕量檢查 review-lessons 是否需要 graduation：

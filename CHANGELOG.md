@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.109.0] - 2026-04-13
+
+- **jira-worklog moved to company layer** (`skills/kkday/jira-worklog/`)
+  - Decision: worklog compliance is company-driven behavior, not universal developer need
+  - Removed from framework `skill-routing.md` — no company-specific info in framework files
+- **jira-worklog-batch.py — deterministic script replaces AI orchestration**
+  - JIRA fetch, changelog parsing, allocation, delete/write all handled by Python script
+  - AI only handles Google Calendar MCP (OAuth) → passes meeting hours JSON to script
+  - Token consumption: ~100k → ~3k per monthly run
+  - Fixed JIRA API migration: `/rest/api/3/search` → `/rest/api/3/search/jql` (cursor-based pagination)
+- **Standup decoupled from worklog** — removed Post-Standup: Daily Worklog section
+  - Monthly reminder stays in personal handbook (`working-habits.md`)
+
 ## [1.108.0] - 2026-04-13
 
 - **jira-worklog v3.0 — monthly compliance model**
