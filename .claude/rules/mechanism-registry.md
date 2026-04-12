@@ -179,6 +179,7 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | `fresh-verification-before-completion` | Every task completion must include fresh verification performed after the final code change | Task marked complete with rationalization phrases ("should work", "trivial change") and no verification output in conversation | High |
 | `local-verification-hard-gate` | work-on / verify-completion: every Local verification item must have PASS/SKIP/FAIL disposition with evidence. Unit test alone cannot substitute for behavioral verification when the AC requires running the server | Strategist proceeds to PR with only unit test output when [VERIFICATION] lists behavioral items (e.g., "切換語系後 footer 正確") | **Critical** |
 | `checklist-before-done` | Before declaring a task complete, review the session's original task list (checkpoint next steps, todo items) and confirm each item is done/carry-forward/dropped | Strategist says "done" or asks "要更新 checkpoint 嗎？" while unchecked items remain from the session's starting checklist | High |
+| `defer-immediate-capture` | When a decision defers work to a later phase, capture it in todo (same session) or memory (future session) immediately — oral defer is not landed | Conversation contains "等 X 再處理 Y" pattern but no corresponding todo/memory entry created within the next 2 tool calls | High |
 
 ### Deterministic Quality Hooks (source: PROJ-123 restraint mechanisms, 2026-04-10)
 

@@ -82,7 +82,18 @@ When **tool call count exceeds 25** AND there are **pending todo items or unfini
 
 **Proactive session split = checkpoint mode.** When the Strategist decides to suggest switching to a new session (work nature change, long-running task completed, remaining work is independent), the same checkpoint sequence applies: save memory first, then notify. The notification is a statement, not a suggestion — "已存檔，開新 session 輸入「繼續 {topic}」接續", not "建議開新 session". The word "建議" implies optional, which lets the save step get skipped.
 
-### 5b. Checklist Review Before Declaring Done
+### 5b. Defer = Immediate Capture
+
+When a conversation decision defers work to a later phase ("等 X 再處理 Y", "精簡時一起看", "下一步再決定"), the deferred item must be captured **immediately** — not after the current task completes:
+
+- If the deferred phase is **in this session** → add to todo list
+- If the deferred phase is **in a future session** → write to memory
+
+An oral defer ("我們等精簡時再看") without a corresponding todo/memory entry is **not landed**. The Strategist treats it as untracked and captures it before moving on.
+
+**Why:** jira-worklog consolidation session (2026-04-13) — "等精簡時決定 jira-worklog 位置" was agreed verbally but never added to the consolidation todo list. When consolidation executed, the item was invisible and dropped. The user discovered the gap post-task.
+
+### 5c. Checklist Review Before Declaring Done
 
 Before declaring a task complete (saying "done", asking "要更新 checkpoint 嗎？", or proposing to move on), the Strategist must review the session's original task list:
 

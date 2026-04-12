@@ -4,6 +4,22 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.108.0] - 2026-04-13
+
+- **jira-worklog v3.0 — monthly compliance model**
+  - Redesign: `8h = meetings + 1h lunch + ticket work`, meeting hours from Google Calendar are core
+  - Primary trigger changed from daily standup post-step to monthly batch
+  - Phase 2 monthly reconciliation fills gap days, ensures monthly total ≈ expected
+  - Monthly reminder added to personal handbook (last 5 workdays of month)
+- **Skill catalog consolidation: 44 → 32 (-27%)**
+  - Deleted: `end-of-day`, `example`, `start-dev`, `wt-parallel`
+  - Merged: `which-company` → `use-company`, `validate-isolation` + `validate-mechanisms` → `validate`, `worklog-report` → `jira-worklog`, `epic-status` → `converge`, `unit-test-review` → `unit-test`, `systematic-debugging` → `bug-triage`
+  - Downgraded: `kkday/docs-sync`, `kkday/sasd-review` (removed as skills)
+  - `docs-sync` marked `scope: maintainer-only`
+- **New mechanism: `defer-immediate-capture`**
+  - When deferring work ("等 X 再處理 Y"), capture in todo/memory immediately
+  - Added to `context-monitoring.md` §5b and `mechanism-registry.md`
+
 ## [1.107.0] - 2026-04-13
 
 - **Skill catalog consolidation: 33 → 30 skills (cumulative 44 → 30, -32%)**
