@@ -61,6 +61,17 @@ This applies to:
 
 **Do not rely on SKILL.md mentioning specific references.** SKILL.md may reference some, but the INDEX is the authoritative discovery mechanism. New or updated references may not yet be mentioned in any SKILL.md.
 
+### Framework Handbook
+
+`.claude/handbook/` contains the user's working preferences and quality standards — how they prefer to collaborate, what output quality they expect, and how decisions should be made. These are **user-facing habits**, not AI behavioral rules.
+
+At conversation start, read `handbook/*.md` for context. These preferences override defaults without needing per-conversation confirmation.
+
+**Periodic review**: during `organize memory` or version bumps, scan handbook entries and assess whether each should:
+- **Stay** — still a personal preference
+- **Upgrade → rules/** — should apply to all Polaris users
+- **Downgrade → company/repo handbook** — actually company/repo-specific
+
 ### Communication Style
 - Act first, report after — don't ask for confirmation at every step (unless irreversible)
 - Keep replies concise — user sees high-level progress, not verbose tool-call details

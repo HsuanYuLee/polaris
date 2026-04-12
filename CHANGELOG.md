@@ -4,6 +4,20 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.103.0] - 2026-04-12
+
+- **Framework Handbook — User-Facing Working Preferences**
+  - `.claude/handbook/` — new layer for user working habits and quality standards (not AI behavioral rules)
+  - `working-habits.md` — session management, Strategist interaction style, decision patterns
+  - `quality-standards.md` — output format (JIRA links, Slack URL formatting), verification standards
+  - Migrated 6 feedback memories into handbook (session-split-direct, session-split-proactive, strategist-pushback, slack-url-linebreak, jira-ticket-clickable-link, session-split-include-trigger)
+  - `CLAUDE.md` § Framework Handbook — periodic review flow (stay / upgrade to rules / downgrade to company handbook)
+- **Refinement SKILL.md — Two Post-Validation Improvements**
+  - Step 2b: Production Runtime Verification — curl/dev-server verification required when codebase analysis involves runtime behavior (source code ≠ runtime)
+  - Step 5b: Output format constraint — refinement.md only contains implementation-ready information, no historical context or derivation process
+  - Design path changed from `.claude/designs/` to `{company_base_dir}/designs/{EPIC_KEY}/` (ticket workspace model)
+  - Modules table includes `Repo` column for cross-repo traceability
+
 ## [1.102.0] - 2026-04-12
 
 - **Refinement v2 — Codebase-Backed Technical Validation**
