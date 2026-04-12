@@ -150,7 +150,7 @@ refinement 完成時同時產出兩份：
 |-------|---------|------|
 | **breakdown** | `modules`, `dependencies`, `downstream.breakdown_hints`, `modules[].complexity/risk`, `edge_cases`, `acceptance_criteria` | 每個 module action = 一張子單；blocking dependency = 排序依據；complexity + risk + edge case 數量 → 點數加權 |
 | **work-on** | `acceptance_criteria[].verification`, `modules[].path` | 知道要改哪些檔案、怎麼驗證 |
-| **scope-challenge** | `gaps.rd_risks`, `research[].confidence` | 低信心研究 + 高風險 = challenge 候選 |
+| **breakdown** (scope-challenge) | `gaps.rd_risks`, `research[].confidence` | 低信心研究 + 高風險 = challenge 候選 |
 
 ## 版本演進
 

@@ -1,6 +1,11 @@
 ---
 name: use-company
-description: Sets the active company context for this conversation. Use when the user wants to explicitly declare which company they're working with, bypassing auto-detection. Trigger keywords: "use company", "switch company", "切換公司", "用這間", "/use-company", "set company", "公司切換", "我要做 X 公司的".
+description: >
+  Sets the active company context or diagnoses company routing.
+  Two modes: (1) Set — declare which company to work with, bypassing auto-detection.
+  (2) Diagnose — show which company a JIRA ticket or project routes to.
+  Trigger keywords: "use company", "switch company", "切換公司", "用這間", "/use-company",
+  "set company", "公司切換", "我要做 X 公司的", "which company", "哪間公司", "/which-company".
 user-invocable: true
 ---
 
@@ -50,7 +55,25 @@ State explicitly: "For the remainder of this conversation, route all work throug
 
 - This sets context for the CURRENT conversation only — it does not persist across conversations
 - If the user later references a ticket from a different company, warn them about the context mismatch
-- Works with `/which-company` for diagnostics: use `/which-company` to check routing, `/use-company` to override it
+
+## Diagnostic Mode
+
+When the user provides a JIRA ticket key or project prefix and wants to know routing (not set context), display the routing resolution:
+
+```
+🔍 Routing Diagnostic
+
+Ticket:    PROJ-123
+Company:   acme
+Base dir:  {base_dir}
+Config:    {base_dir}/workspace-config.yaml
+
+Resolved via: jira.projects[].key match ("PROJ")
+```
+
+If no match found, list all registered companies and their JIRA project keys.
+
+Flag potential issues: missing config files, undefined `jira.projects`, multiple companies claiming the same project prefix.
 
 
 ## Post-Task Reflection (required)

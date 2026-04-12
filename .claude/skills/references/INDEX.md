@@ -10,7 +10,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [jira-subtask-creation.md](jira-subtask-creation.md) | 批次建 JIRA 子單流程：查既有→建單→估點→測試計畫→驗收 | breakdown, createJiraIssue, work-on |
 | [epic-verification-structure.md](epic-verification-structure.md) | 驗收架構：測試計畫/AC 驗證分離、測試 Sub-task、驗收單 lifecycle | breakdown, jira-subtask-creation, work-on |
 | [epic-verification-workflow.md](epic-verification-workflow.md) | Epic 驗證完整流程：fixture lifecycle、VR gate、feature branch flow | breakdown, git-pr-workflow, visual-regression, converge, epic-status |
-| [decision-audit-trail.md](decision-audit-trail.md) | JIRA Decision Record comment 格式與寫入規則 | breakdown, scope-challenge, sasd-review |
+| [decision-audit-trail.md](decision-audit-trail.md) | JIRA Decision Record comment 格式與寫入規則 | breakdown, sasd-review |
 
 ## Estimation & Planning
 
@@ -20,12 +20,13 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [epic-template.md](epic-template.md) | Epic description 結構化模板與 readiness checklist | refinement, breakdown, PM epic quality review |
 | [project-mapping.md](project-mapping.md) | JIRA ticket → local project 目錄對應（config-first） | breakdown, sasd-review, work-on |
 | [refinement-artifact.md](refinement-artifact.md) | Refinement 結構化 artifact JSON schema — 供 breakdown/estimation/work-on 消費 | refinement (Tier 2+), breakdown, work-on |
-| [confidence-labeling.md](confidence-labeling.md) | AI 研究產出信心標示（HIGH/MEDIUM/LOW/NOT_RESEARCHED） | refinement (Tier 3), scope-challenge, learning, sasd-review |
+| [confidence-labeling.md](confidence-labeling.md) | AI 研究產出信心標示（HIGH/MEDIUM/LOW/NOT_RESEARCHED） | refinement (Tier 3), breakdown (scope-challenge), learning, sasd-review |
 
 ## PR & Git
 
 | File | Description | Triggers |
 |------|-------------|----------|
+| [branch-creation.md](branch-creation.md) | JIRA ticket → branch 建立流程（含 dependency branch 偵測） | work-on, git-pr-workflow, pr-convention |
 | [cascade-rebase.md](cascade-rebase.md) | Feature branch PR stack 的 cascade rebase 邏輯 | git-pr-workflow, fix-pr-review, check-pr-approvals |
 | [feature-branch-pr-gate.md](feature-branch-pr-gate.md) | Task PR 全 merge 後自動建 feature→develop PR 的偵測邏輯 | epic-status, git-pr-workflow, check-pr-approvals, work-on |
 | [pr-input-resolver.md](pr-input-resolver.md) | PR URL/number/branch → owner+repo+number 解析 | review-pr, fix-pr-review, check-pr-approvals |
@@ -50,7 +51,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [tdd-smart-judgment.md](tdd-smart-judgment.md) | 逐檔判斷是否適用 TDD（testable vs config/style/type-def） | tdd, work-on, bug-triage |
+| [tdd-smart-judgment.md](tdd-smart-judgment.md) | 逐檔判斷是否適用 TDD（testable vs config/style/type-def） | unit-test, work-on, bug-triage |
 | [api-contract-guard.md](api-contract-guard.md) | Mockoon fixture vs live API schema drift 偵測：分類、流程、skill 接入點 | visual-regression, work-on, verify-completion |
 | [visual-regression-config.md](visual-regression-config.md) | VR config schema：domain、server、fixtures、pages、viewports | visual-regression, /init VR setup |
 | [vr-jira-report-template.md](vr-jira-report-template.md) | VR 結果 JIRA comment 的 wiki markup 模板 | visual-regression, work-on AC verification, verify-completion |

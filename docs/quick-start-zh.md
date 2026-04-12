@@ -10,7 +10,7 @@
 > **注意：** 大部分 Polaris 技能會使用 sub-agent，需要 **Max 方案**（$100/月）或 API 存取。Pro/Team 方案只能使用單步技能。
 
 - **Atlassian MCP** — 連接 Claude Code 到 JIRA 和 Confluence
-- **Slack MCP** — 用於通知和報表（`standup`、`review-inbox`、`worklog-report`）
+- **Slack MCP** — 用於通知和報表（`standup`、`review-inbox`、`jira-worklog`）
 
 **開發者還需要：**
 - **Git** 和 **GitHub CLI**（`gh`）— 已對組織認證
@@ -62,7 +62,7 @@ cd ~/polaris-workspace
 ├── .claude/
 │   ├── rules/                    ← 通用規則 (L1)
 │   │   └── your-company/         ← 公司專屬規則 (L2)
-│   └── skills/                   ← 42 個工作流技能
+│   └── skills/                   ← 29 個工作流技能
 └── your-company/                 ← 由 /init 建立
     ├── workspace-config.yaml     ← 公司設定（JIRA、Slack、repos）
     └── your-project/             ← 你的專案 repo（clone 或連結）
@@ -87,7 +87,7 @@ cd ~/polaris-workspace
 
 ### 從這裡開始
 
-不需要一次學會全部 42 個技能。從符合你角色的開始：
+不需要一次學會全部 29 個技能。從符合你角色的開始：
 
 | 你的角色 | 先試這個 | 會發生什麼 |
 |----------|---------|-----------|
@@ -103,7 +103,7 @@ Polaris 圍繞三大支柱組織你的 AI 輔助工作流程：
 
 ### 支柱一 — 輔助開發
 
-從 JIRA 到 PR 的完整自動化：`「做 PROJ-123」` → 讀 JIRA → 估點 → 開 branch → 寫 code → 跑測試 → 發 PR → 轉 JIRA 狀態。涵蓋 `work-on`、`bug-triage`、`breakdown`、`tdd`、`git-pr-workflow`、`review-pr` 等技能。
+從 JIRA 到 PR 的完整自動化：`「做 PROJ-123」` → 讀 JIRA → 估點 → 開 branch → 寫 code → 跑測試 → 發 PR → 轉 JIRA 狀態。涵蓋 `work-on`、`bug-triage`、`breakdown`、`unit-test`、`git-pr-workflow`、`review-pr` 等技能。
 
 詳細流程 → [Developer Workflow Guide](workflow-guide.md)
 
@@ -120,7 +120,7 @@ Polaris 與靜態範本的最大差異：它會從日常使用中累積團隊知
 
 ### 支柱三 — 日常紀錄
 
-Sprint 生命週期自動化，PM、Scrum Master、開發者都能用：`「standup」` → 收集 JIRA + git + 行事曆 → 整理成站會報告。涵蓋 `standup`、`sprint-planning`、`worklog-report`、`jira-worklog`、`refinement` 等技能。
+Sprint 生命週期自動化，PM、Scrum Master、開發者都能用：`「standup」` → 收集 JIRA + git + 行事曆 → 整理成站會報告。涵蓋 `standup`、`sprint-planning`、`jira-worklog`、`refinement` 等技能。
 
 ## PM 與 Scrum 工作流程
 
@@ -145,6 +145,7 @@ Sprint 規劃        →  「排 sprint」
 
 工時報表           →  「worklog report 2w」
                        查詢過去兩週完成的票 → 按 assignee 分組 → 發到 Slack
+                       （`jira-worklog` 技能的一部分）
 ```
 
 > 所有 PM 技能需要 **Max 方案**（$100/月）或 API 存取。這些技能不需要寫 code，也不需要了解 git。只要 Claude Code + JIRA MCP + Slack MCP 設定好就能使用。
@@ -173,7 +174,7 @@ Sprint 規劃        →  「排 sprint」
 ├── .claude/
 │   ├── rules/                 # 通用規則 (L1)
 │   │   └── {company}/         # 公司專屬規則 (L2)
-│   └── skills/                # 42 個工作流技能
+│   └── skills/                # 29 個工作流技能
 ├── _template/                 # 新公司範本 + 規則範例
 ├── scripts/                   # 同步工具
 └── {company}/                 # 你的公司目錄
@@ -186,7 +187,7 @@ Sprint 規劃        →  「排 sprint」
 技能之間會自動串接。例如 `「做 PROJ-123」` 會依序觸發：
 
 ```
-work-on → jira-branch-checkout → start-dev → tdd → dev-quality-check → git-pr-workflow
+work-on → branch creation → unit-test (TDD) → dev-quality-check → git-pr-workflow
 ```
 
 每個技能都有明確的進入條件和輸出，像 pipeline 一樣串起來。詳細流程圖 → [Developer Workflow Guide](workflow-guide.md)
@@ -217,9 +218,9 @@ Polaris 支援在同一個工作區管理多間公司。每間公司有獨立的
 **加入第二間公司：** 再跑一次 `/init`，精靈會偵測已有的公司，在旁邊建立新的。
 
 **診斷工具：**
-- `/which-company PROJ-123` — 查看票號路由到哪間公司
+- `/use-company PROJ-123` — 查看票號路由到哪間公司（診斷模式）
 - `/use-company` — 手動切換公司 context
-- `/validate-isolation` — 掃描隔離問題（scope header 缺失、memory 標籤錯誤）
+- `/validate` — 掃描隔離問題與機制合規（scope header 缺失、memory 標籤錯誤、mechanism canary signals）
 
 ## 自訂
 

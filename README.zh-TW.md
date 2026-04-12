@@ -34,7 +34,7 @@ Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
          → 開 PR 附上覆蓋率報告 → JIRA 狀態轉為 CODE REVIEW
 ```
 
-**技能：** `work-on`, `bug-triage`, `breakdown`, `epic-status`, `converge`, `tdd`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `dev-quality-check`, `visual-regression`, `verify-completion`, `jira-branch-checkout`, `start-dev`, `scope-challenge`, `refinement`, `intake-triage`
+**技能：** `work-on`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `dev-quality-check`, `visual-regression`, `verify-completion`, `refinement`, `intake-triage`, `unit-test`
 
 深入了解 → [開發者工作流程指南](docs/workflow-guide.zh-TW.md)
 
@@ -67,7 +67,7 @@ Polaris: 拉取 JIRA backlog → 計算團隊容量 → 偵測 carry-over
          → 建議優先順序 → 草擬 Release 頁面
 ```
 
-**技能：** `standup`, `sprint-planning`, `worklog-report`, `jira-worklog`, `refinement`（PM 視角）, `breakdown`（PM 視角）
+**技能：** `standup`, `sprint-planning`, `jira-worklog`, `refinement`（PM 視角）, `breakdown`（PM 視角）
 
 ## 什麼是 Claude Code？
 
@@ -82,7 +82,7 @@ Polaris: 拉取 JIRA backlog → 計算團隊容量 → 偵測 carry-over
 
 > **重要：** 大多數 Polaris 技能使用 sub-agent，需要 **Max 方案**（$100/月）或 API 存取。在 Pro/Team 方案下，僅單步驟技能可運作。
 - **Atlassian MCP** — 連接 Claude Code 到 JIRA 和 Confluence
-- **Slack MCP** — 用於通知和報告（`standup`, `review-inbox`, `worklog-report`）
+- **Slack MCP** — 用於通知和報告（`standup`, `review-inbox`, `jira-worklog`）
 
 **開發者另外需要：**
 - **Git** 和 **GitHub CLI**（`gh`）— 已通過組織認證
@@ -138,7 +138,7 @@ cd ~/polaris-workspace
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 42 workflow skills
+│   └── skills/                   ← 29 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -165,7 +165,7 @@ cd ~/polaris-workspace
 
 ### 從這裡開始
 
-不要一次嘗試全部 42 個技能。根據你的角色挑一個開始：
+不要一次嘗試全部 29 個技能。根據你的角色挑一個開始：
 
 | 如果你是... | 先試這個 | 會發生什麼 |
 |------------|---------|-----------|
@@ -197,6 +197,7 @@ Refinement         →  「refinement EPIC-100」
 
 工時報告           →  「worklog report 2w」
                       查詢過去 2 週完成的票單 → 依 assignee 分組 → 發到 Slack
+                      （`jira-worklog` 技能的一部分）
 ```
 
 > **PM 和 Scrum Master：** 以下內容是給開發者和框架維護者的。你已經設定完成了！
@@ -239,7 +240,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 42 workflow skills
+│   └── skills/                # 29 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory
@@ -272,7 +273,7 @@ your-workspace/
 - **設定路由** — `workspace-config.yaml` 將 JIRA 專案前綴對應到公司。當你說「做 ACME-123」，Polaris 會讀取 Acme 的設定
 - **規則範圍** — 所有規則都會載入到每次對話（Claude Code 限制），但公司規則包含範圍標頭。策略師只會套用與當前活躍公司相符的規則
 - **技能隔離** — 共用技能在 `.claude/skills/`（由 git 追蹤）。公司專屬技能放在 `.claude/skills/{company}/`（已 gitignore）
-- **診斷工具** — 執行 `/which-company PROJ-123` 查看票單路由到哪家公司，`/use-company` 明確設定 context，或 `/validate-isolation` 掃描範圍標頭問題和 memory 標籤違規
+- **診斷工具** — 執行 `/use-company PROJ-123` 查看票單路由到哪家公司（診斷模式），`/use-company` 明確設定 context，或 `/validate` 掃描範圍標頭問題和 memory 標籤違規
 
 **新增第二家公司：**
 
@@ -280,7 +281,7 @@ your-workspace/
 /init
 ```
 
-精靈會偵測現有的公司，並在旁邊建立新的公司。設定完成後，執行 `/validate-isolation` 確認沒有規則缺少範圍標頭。
+精靈會偵測現有的公司，並在旁邊建立新的公司。設定完成後，執行 `/validate` 確認沒有規則缺少範圍標頭。
 
 > **注意：** 如果兩家公司共用相同的 JIRA 專案前綴，請使用 `/use-company` 明確設定 context——自動路由無法區分它們。
 >

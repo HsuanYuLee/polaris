@@ -34,7 +34,7 @@ Polaris: reads JIRA ticket → checks prerequisites → estimates story points
          → opens PR with coverage report → transitions JIRA to CODE REVIEW
 ```
 
-**Skills:** `work-on`, `bug-triage`, `breakdown`, `epic-status`, `converge`, `tdd`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `dev-quality-check`, `visual-regression`, `verify-completion`, `jira-branch-checkout`, `start-dev`, `scope-challenge`, `refinement`, `intake-triage`
+**Skills:** `work-on`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `dev-quality-check`, `visual-regression`, `verify-completion`, `refinement`, `intake-triage`, `unit-test`
 
 Deep dive → [Developer Workflow Guide](docs/workflow-guide.md)
 
@@ -67,7 +67,7 @@ Polaris: pulls JIRA backlog → calculates team capacity → detects carry-overs
          → suggests priority order → drafts Release page
 ```
 
-**Skills:** `standup`, `sprint-planning`, `worklog-report`, `jira-worklog`, `refinement` (PM perspective), `breakdown` (PM perspective)
+**Skills:** `standup`, `sprint-planning`, `jira-worklog`, `refinement` (PM perspective), `breakdown` (PM perspective)
 
 ## What is Claude Code?
 
@@ -82,7 +82,7 @@ Polaris: pulls JIRA backlog → calculates team capacity → detects carry-overs
 
 > **Important:** Most Polaris skills use sub-agents, which require the **Max plan** ($100/mo) or API access. On Pro/Team plans, only single-step skills will work.
 - **Atlassian MCP** — connects Claude Code to JIRA and Confluence
-- **Slack MCP** — for notifications and reports (`standup`, `review-inbox`, `worklog-report`)
+- **Slack MCP** — for notifications and reports (`standup`, `review-inbox`, `jira-worklog`)
 
 **Developers also need:**
 - **Git** and **GitHub CLI** (`gh`) — authenticated with your org
@@ -138,7 +138,7 @@ After `/init` completes, your workspace will look like this:
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 42 workflow skills
+│   └── skills/                   ← 29 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -163,7 +163,7 @@ Once initialized, just talk to Claude Code naturally — English or 中文 both 
 
 ### Start here
 
-Don't try all 42 skills at once. Pick one that matches your role:
+Don't try all 29 skills at once. Pick one that matches your role:
 
 | If you are a... | Try this first | What happens |
 |-----------------|----------------|--------------|
@@ -196,6 +196,7 @@ Breakdown          →  "work on EPIC-100" / 「做 EPIC-100」
 
 Worklog report     →  "worklog report 2w" / 「worklog report 2w」
                       Queries completed tickets from past 2 weeks → groups by assignee → posts to Slack
+                      (Part of `jira-worklog` skill)
 ```
 
 > **PMs and Scrum Masters:** Everything below this point is for developers and framework maintainers. You're all set!
@@ -238,7 +239,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 42 workflow skills
+│   └── skills/                # 29 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory
@@ -271,7 +272,7 @@ your-workspace/
 - **Config routing** — `workspace-config.yaml` maps JIRA project prefixes to companies. When you say "work on ACME-123", Polaris reads Acme's config
 - **Rules scoping** — all rules load into every conversation (Claude Code limitation), but company rules include a scope header. The Strategist only applies rules matching the active company
 - **Skills isolation** — shared skills are in `.claude/skills/` (tracked in git). Company-specific skills go under `.claude/skills/{company}/` (gitignored)
-- **Diagnostics** — run `/which-company PROJ-123` to see which company a ticket routes to, `/use-company` to explicitly set context, or `/validate-isolation` to scan for scope header issues and memory tag violations
+- **Diagnostics** — run `/use-company PROJ-123` to see which company a ticket routes to (diagnostic mode), `/use-company` to explicitly set context, or `/validate` to scan for scope header issues and memory tag violations
 
 **Adding a second company:**
 
@@ -279,7 +280,7 @@ your-workspace/
 /init
 ```
 
-The wizard detects existing companies and creates the new one alongside them. After setup, run `/validate-isolation` to verify no rules are missing scope headers.
+The wizard detects existing companies and creates the new one alongside them. After setup, run `/validate` to verify no rules are missing scope headers.
 
 > **Note:** If two companies share the same JIRA project prefix, use `/use-company` to explicitly set context — automatic routing cannot distinguish them.
 >

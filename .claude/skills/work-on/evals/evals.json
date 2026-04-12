@@ -77,7 +77,7 @@
       "id": 13,
       "query": "開 branch PROJ-500",
       "should_trigger": false,
-      "notes": "明確開 branch → jira-branch-checkout"
+      "notes": "明確開 branch → work-on (branch creation via references/branch-creation.md)"
     },
     {
       "id": 14,

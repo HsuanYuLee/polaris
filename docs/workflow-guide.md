@@ -33,7 +33,7 @@ flowchart TD
     %% ── Feature Path ──
     subgraph feature["📋 Feature / Refactor Path<br/><code>work-on</code>"]
         F1["🤖👤 Refinement (optional)<br/><code>refinement</code>"]
-        F2["🤖👤 Breakdown & Estimation<br/><code>breakdown</code><br/>+ scope-challenge loop"]
+        F2["🤖👤 Breakdown & Estimation<br/><code>breakdown</code><br/>+ scope challenge mode"]
         F3["🤖👤 SA/SD (optional)"]
         F4["🤖 Feasibility Check<br/>Implementation ↔ Estimation"]
     end
@@ -47,9 +47,9 @@ flowchart TD
 
     %% ── Shared Dev ──
     subgraph dev["🛠️ Development (shared)"]
-        D1["🤖 Create Branch + Transition to IN DEV<br/><code>jira-branch-checkout</code><br/><code>start-dev</code>"]
+        D1["🤖 Create Branch + Transition to IN DEV"]
         D2["🤖 AC Gate<br/>Verify/add test plan<br/>Create verification sub-task"]
-        D3["🤖👤 TDD Development<br/><code>tdd</code>"]
+        D3["🤖👤 TDD Development<br/><code>unit-test</code> TDD mode"]
     end
 
     %% ── Quality → PR (auto chain) ──
@@ -147,13 +147,10 @@ flowchart LR
 
     %% ── Planning Skills ──
     RF["refinement"]
-    EB["breakdown"]
-    SC["scope-challenge"]
+    EB["breakdown<br/>(+ scope challenge)"]
 
     %% ── Dev Skills ──
-    BC["jira-branch-checkout"]
-    SD["start-dev"]
-    TDD["tdd"]
+    UT_TDD["unit-test<br/>(TDD mode)"]
     QC["dev-quality-check"]
     VR["visual-regression"]
     VC["verify-completion"]
@@ -177,36 +174,25 @@ flowchart LR
 
     %% ── Epic Tracking ──
     MT["my-triage<br/>(daily triage)"]
-    ES["epic-status<br/>(gap closer)"]
-    CV["converge<br/>(push to review)"]
-    EOD["end-of-day<br/>(deprecated → standup)"]
+    CV["converge<br/>(push to review<br/>+ epic progress)"]
 
     %% ── Context Router ──
     NX["next<br/>(auto-route)"]
 
     %% ── Other ──
-    SDB["systematic-debugging"]
     UT["unit-test"]
-    UTR["unit-test-review"]
     LRN["learning"]
-    WTP["wt-parallel"]
     DS["docs-sync"]
-    WR["worklog-report"]
 
     %% ── Orchestrator routes ──
     WO -->|epic breakdown| EB
-    WO -->|create branch| BC
-    WO -->|transition status| SD
-    WO -->|TDD dev| TDD
+    WO -->|TDD dev| UT_TDD
     WO -->|auto open PR| GPW
 
     BT -->|diagnosis done| EB
 
     %% ── Planning chain ──
     RF -.->|when complete| EB
-    EB -->|create branch| BC
-    EB -->|scope review| SC
-    SC -->|FAIL feedback| EB
 
     %% ── Quality chain ──
     GPW -->|quality check| QC
@@ -216,7 +202,7 @@ flowchart LR
     GPW -.->|log worktime| WL
     FPR -->|quality check| QC
 
-    TDD -.->|test reference| UT
+    UT_TDD -.->|test reference| UT
 
     %% ── Review chain ──
     RI -->|batch review| RP
@@ -229,21 +215,18 @@ flowchart LR
     NX -.->|triage bug| BT
     NX -.->|fix review| FPR
     NX -.->|check approvals| CPA
-    NX -.->|epic progress| ES
+    NX -.->|epic progress| CV
 
     %% ── Epic tracking ──
     MT -.->|pick ticket| WO
-    ES -->|gap: needs dev| WO
-    ES -->|gap: fix review| FPR
-    ES -->|gap: needs approval| CPA
-    ES -->|gap: verify| VC
     CV -->|batch push| GPW
-    CV -->|gap analysis| ES
+    CV -->|gap: needs dev| WO
+    CV -->|gap: fix review| FPR
+    CV -->|gap: needs approval| CPA
+    CV -->|gap: verify| VC
 
     %% ── Scrum chain ──
     RF -.-> SP
-    EOD -->|step 1| MT
-    EOD -->|step 2| SU
     SU -.->|triage rank| MT
 
     %% ── Styling ──
@@ -255,11 +238,11 @@ flowchart LR
     classDef internal fill:#fafafa,stroke:#999,color:#000,stroke-dasharray:5 5
 
     class WO,BT orchestrator
-    class QC,VR,VC,TDD quality
+    class QC,VR,VC,UT_TDD quality
     class RP,RI,CPA,FPR,RLG review
-    class RF,EB,SC,SP,IT planning
-    class NX,MT,ES,CV,EOD orchestrator
-    class SU,SDB,UT,UTR,LRN,WTP,DS,WR standalone
+    class RF,EB,SP,IT planning
+    class NX,MT,CV orchestrator
+    class SU,UT,LRN,DS standalone
 ```
 
 **Connectivity check:**
@@ -267,12 +250,10 @@ flowchart LR
 - `next` is a meta-router — auto-determines and invokes the correct next skill based on context (todo, git branch, JIRA status, PR status)
 - `intake-triage` analyzes a batch of PM-created tickets, evaluates priority, and outputs JIRA labels + comments + a Slack summary — sits between `my-triage` (personal daily) and `sprint-planning` (team sprint)
 - `my-triage` triages all assigned work (Epics, Bugs, orphan Tasks); feeds priority ranking into `standup` TDT section
-- `end-of-day` is deprecated — all end-of-day triggers ("下班", "收工", "EOD", "wrap up", etc.) now route to `standup` (v2.0), which includes auto-triage in Step 0
-- `epic-status` tracks Epic progress and auto-routes gaps to the appropriate skill
-- `converge` pushes all in-flight work toward review in one pass — closes gaps, batch-triggers PRs, and can call `epic-status` for gap analysis (triggered by "收斂", "converge", "push to review")
+- `converge` pushes all in-flight work toward review in one pass — closes gaps, batch-triggers PRs, and includes Epic progress tracking (formerly `epic-status`). Triggered by "收斂", "converge", "push to review", "epic 進度", "epic 狀態"
 - `standup` (v2.0) is the unified entry point for daily standup and end-of-day routines — includes auto-triage (Step 0); triggered directly by the user
 - `visual-regression` runs after `dev-quality-check` for UI-touching changes — before `verify-completion`. Optional but recommended for layout/styling changes
-- `systematic-debugging`, `learning`, `wt-parallel`, `unit-test-review`, `docs-sync`, `worklog-report` are standalone skills — triggered directly by the user, not part of the main chain
+- `unit-test`, `learning`, `docs-sync` are standalone skills — triggered directly by the user, not part of the main chain
 
 ---
 
@@ -322,7 +303,7 @@ Before breakdown and estimation, AI can challenge the scope assumptions:
 scope challenge PROJ-3000
 ```
 
-AI executes `scope-challenge`: reads the ticket, proposes 2–3 alternative approaches with trade-off comparisons, and recommends one of: proceed as-is / simplify / split / request more info.
+AI executes `breakdown` in Scope Challenge mode: reads the ticket, proposes 2–3 alternative approaches with trade-off comparisons, and recommends one of: proceed as-is / simplify / split / request more info.
 
 **This is an advisory gate — it does not block the flow.** Even if the recommendation is to simplify, the developer can decide to proceed with the original scope.
 
@@ -504,7 +485,7 @@ or:
 write tests first
 ```
 
-AI executes `tdd` skill, enforcing **Red-Green-Refactor** cycles:
+AI executes `unit-test` skill in TDD mode, enforcing **Red-Green-Refactor** cycles:
 
 1. **🔴 RED** — Write a failing test; run it to confirm failure
 2. **🟢 GREEN** — Write minimal code to make the test pass
@@ -685,7 +666,7 @@ Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit →
 
 | # | Step | Description |
 |---|------|-------------|
-| 1 | Create Branch | `jira-branch-checkout` creates the branch |
+| 1 | Create Branch | Branch created following `references/branch-creation.md` conventions |
 | 2 | **Simplify Loop** | Runs `simplify` to iteratively review code for reuse, quality, and efficiency (max 3 rounds) |
 | 3 | Quality Check | `dev-quality-check`: tests + coverage + lint |
 | 4 | Pre-PR Review Loop | Sub-agent iterative review (see Step 8), max 3 rounds |

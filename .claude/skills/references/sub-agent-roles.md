@@ -245,8 +245,8 @@ Project: {repo_path}
 {plan or analysis results}
 
 ## 流程
-1. 建 branch（讀取 jira-branch-checkout SKILL.md）
-2. TDD 開發（讀取 tdd SKILL.md + 專案 CLAUDE.md）
+1. 建 branch（依 `references/branch-creation.md` 流程，或使用 `scripts/create-branch.sh`）
+2. TDD 開發（讀取 `unit-test` SKILL.md + 專案 CLAUDE.md）
 3. 品質檢查（dev-quality-check）→ 行為驗證（verify-completion）→ PR（git-pr-workflow）
 
 ## 限制

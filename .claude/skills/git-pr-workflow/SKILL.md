@@ -30,7 +30,7 @@ Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit →
 git create-branch --jira --ci
 ```
 
-否則使用 `jira-branch-checkout` skill，效果相同。
+否則依 `references/branch-creation.md` 流程建 branch（或使用 `scripts/create-branch.sh`），效果相同。
 
 兩者都會從 JIRA ticket 自動產生 commitlint 格式的分支名稱（如 `feat/PROJ-123-add-user-auth`）。
 

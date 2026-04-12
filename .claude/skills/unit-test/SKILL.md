@@ -1,12 +1,16 @@
 ---
 name: unit-test
 description: >
-  Project-aware unit testing guide with mock patterns and best practices.
+  Project-aware unit testing guide with mock patterns, TDD discipline, and best practices.
   Auto-detects test framework (Jest/Vitest) and provides appropriate examples.
   Use when: (1) writing or fixing unit tests, (2) user says "寫測試", "write test",
   "補測試", "add test", (3) user encounters mock patterns or test failures,
   (4) user asks how to test a composable, component, or store, (5) user says
-  "mock imports", "test store", "怎麼測", "測試怎麼寫".
+  "mock imports", "test store", "怎麼測", "測試怎麼寫",
+  (6) reviewing test quality: "unit test review", "review tests", "check test quality",
+  "測試審查", "review 測試", "測試品質", "檢查測試品質",
+  (7) TDD workflow: "TDD", "test driven", "紅綠燈", "先寫測試", "test first",
+  "red green refactor".
 metadata:
   author: Polaris
   version: 1.0.0
@@ -40,6 +44,71 @@ metadata:
 - **一個測試只測一件事** — 名字裡有 "and" 就該拆
 - **名字描述行為** — `it('returns empty array when no packages match')` 而非 `it('test1')`
 - **測真實邏輯** — import 並執行 source function，不是只操作 mock 物件
+
+## 1.5. TDD Mode — 嚴格紅綠燈流程
+
+當使用者明確要求 TDD（"TDD", "紅綠燈", "先寫測試", "test first"）或其他 skill 委派 TDD 實作時，啟用嚴格模式。
+
+### Setup
+
+1. Detect test framework（同 §0）
+2. Locate existing tests for the target module
+3. Plan test cases as a list before writing any code：
+
+```
+□ returns empty array when no results match
+□ maps API response to display format
+□ handles null price gracefully
+```
+
+Order: simplest → most complex. **Write one test at a time, not all upfront.**
+
+### Red-Green-Refactor Cycle
+
+Repeat for each planned test case:
+
+**RED** — Write exactly ONE failing test. Run it. Must fail.
+```
+🔴 RED: "returns empty array when no results match"
+   → Expected: [] / Got: function not found → ✓ Fails as expected
+```
+
+**GREEN** — Write the **least code** to make it pass. Run full suite.
+```
+🟢 GREEN: Added early return [] when input.length === 0 → ✓ Passes
+```
+
+**REFACTOR** — All tests green → improve code. Run tests after every change.
+```
+🔄 REFACTOR: extracted shared mapping logic → ✓ All still pass
+```
+
+### Cycle Log
+
+After each cycle, output a structured entry:
+```
+── Cycle 1 ──────────────────────────────
+🔴 RED:      it('returns empty array when no results match')
+🟢 GREEN:    Created filterResults() with early return (+8 lines)
+🔄 REFACTOR: (none needed)
+✅ ALL TESTS: 1 passed, 0 failed
+```
+
+### When TDD Adds Friction (Skip Strict Mode)
+
+| Use TDD | Skip TDD (write tests alongside) |
+|---------|----------------------------------|
+| Utility functions, composables | Pure template/style changes |
+| Store actions/mutations | Config files, type definitions |
+| API response transformers | Barrel exports, simple prop-forwarding |
+| Complex conditionals | — |
+
+### TDD Anti-Patterns
+
+- **Batch mode** — writing all tests first, then all code. One test at a time.
+- **Skipping RED** — writing code before the test fails. If it never failed, you don't know if it tests the right thing.
+- **Gold plating in GREEN** — adding "while I'm here" code. GREEN = minimum to pass.
+- **Mega cycles** — 30+ min per cycle = break the behavior into smaller pieces.
 
 ## 2. Jest 測試模式（Vue 2.7 專案）
 

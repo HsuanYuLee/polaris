@@ -2,7 +2,7 @@
 
 > Polaris 所有 skill 的中文觸發詞對照。直接輸入中文即可觸發對應功能。
 >
-> 最後更新：2026-04-13 (v1.104.0)
+> 最後更新：2026-04-13 (v1.107.0)
 
 ---
 
@@ -13,16 +13,11 @@
 | **work-on** — 智慧開發路由 | 做 PROJ-123、開始做、接這張、做這張、下一步、繼續 | work on, start dev | 偵測 ticket 狀態，自動路由到估點／拆單／建 branch／開發。支援批次模式（多張 ticket 同時輸入） |
 | **bug-triage** — Bug 診斷 | 修 bug PROJ-123、分析 bug、triage bug、bug 分析、修這張 bug、幫我修正、修這個 + Slack URL | fix bug, triage bug, help me fix, fix this ticket, fix this + Slack URL | Bug 診斷層：讀單→根因分析→RD 確認。僅處理診斷，估點/測試計畫/開發由 breakdown → work-on 接手 |
 | **sasd-review** — SA/SD 設計文件 | 寫 SA、出 SA/SD、SA 文件、SD 文件、架構文件、技術設計、異動範圍、dev scope | SASD, SA/SD, design doc, implementation plan, technical design, dev scope | Design-First Gate：在寫任何程式碼之前產出 SA/SD — 需求分析→歧義收集→2-3 方案比較→確認後產出 Dev Scope + System Flow + Task List |
-| **breakdown** — 拆單與估點 | 拆單、拆解、分解任務、子單、評估這張單、評估 epic | break down epic, split tasks, decompose, create sub-tasks, evaluate this ticket | 通用規劃技能：Bug 讀取根因後估點；Story/Task/Epic 探索 codebase 後拆分子任務。觸發詞涵蓋原 epic-breakdown 所有觸發詞 |
-| **epic-status** — Epic 進度追蹤 | epic 進度、epic 狀態 | epic status, epic progress | 掃描 Epic 子單的 JIRA + GitHub 狀態，產出差距報告，可路由到其他 skill 補全缺口 |
-| **converge** — 批次推進到 Review | 收斂、推進、全部推到 review、把我的單收一收、離 merge 還多遠、補全 epic | converge, push to review, close gaps, what's left | 一次把所有進行中的工作推進到 review：掃 Epic + PR 狀態、補全缺口、批次催 review。也支援 Epic-only 模式做 gap analysis |
-| **jira-branch-checkout** — 建 Branch | 開 branch PROJ-123、建 branch、切 branch、hotfix branch | create branch, checkout branch | 從 JIRA ticket 建立命名規範的 git branch（`task/PROJ-123-description`） |
-| **start-dev** — 開工轉狀態 | 開始開發、開工、開始 PROJ-123、開工 PROJ-456 | start developing, start working on | 將 JIRA ticket 狀態轉為 In Development |
-| **tdd** — TDD 開發循環 | 先寫測試、紅綠燈、TDD | TDD, test driven, test first, red green refactor | 強制執行 Red-Green-Refactor 循環，以測試驅動實作 |
+| **breakdown** — 拆單、估點與需求質疑 | 拆單、拆解、分解任務、子單、評估這張單、評估 epic、挑戰需求、需求質疑、需求合理性 | break down epic, split tasks, decompose, create sub-tasks, evaluate this ticket, scope challenge, challenge requirements, scope review | 通用規劃技能：Bug 讀取根因後估點；Story/Task/Epic 探索 codebase 後拆分子任務。含 Scope Challenge 模式（在估點前挑戰需求合理性）。觸發詞涵蓋原 epic-breakdown 和 scope-challenge 所有觸發詞 |
+| **converge** — 批次推進到 Review / Epic 進度 | 收斂、推進、全部推到 review、把我的單收一收、離 merge 還多遠、補全 epic、epic 進度、epic 狀態 | converge, push to review, close gaps, what's left, epic status, epic progress | 一次把所有進行中的工作推進到 review：掃 Epic + PR 狀態、補全缺口、批次催 review。也支援 Epic-only 模式做 gap analysis（原 epic-status 已併入） |
 | **git-pr-workflow** — 完整 PR 流程 | 準備發 PR（含品質檢查）、full pr flow | 發 PR, PR workflow, commit and PR, changeset, full pr flow, pull request | 完整 PR 生命週期：品質檢查→AI 迭代審查→commit→changeset→開 PR→轉 JIRA CODE REVIEW。Changeset 階段偵測無 JIRA key 時自動補開 ticket |
 | **verify-completion** — 行為驗證 | 驗證、確認改好了、真的修好了嗎、驗收 | verify, check it works | 品質檢查通過後的行為驗證，測試實際執行是否正確（dev server、curl、UI render） |
 | **dev-quality-check** — 品質檢查 | 品質檢查、測試檢查、跑測試、確認品質 | quality check, coverage check, run tests, check tests, validate | commit 前的品質把關：測試覆蓋率、lint、相關測試執行 |
-| **wt-parallel** — 平行工作 | 平行、多個 ticket、拆分 | parallel, worktree, wt | 使用 git worktrees 管理多個平行開發工作 |
 
 ---
 
@@ -48,9 +43,7 @@
 | **standup** — 每日站會 / 下班收工 | 站立會議、產出 standup、寫 standup、今天做了什麼、下班、收工、準備明天的工作、結束今天、總結一下、wrap up | standup, daily standup, YDY, standup report, write standup, daily report, end of day, EOD, wrap up | 自動從 git commits、JIRA 狀態、Google Calendar 收集工作，產出 YDY/TDT/BOS 格式站會報告；Step 0 自動跑 triage（含下班收工情境）。`/end-of-day` 已棄用，所有觸發詞統一路由到 standup |
 | **my-triage** — 工作盤點 | 我的 epic、盤點、手上有什麼、排優先、我的工作 | my epics, triage, prioritize, my work | 掃描 assigned Epic + Bug + 孤兒 Task，狀態驗證 + GitHub PR 進度，產出優先序 Dashboard |
 | **intake-triage** — 批次收單排工 | 收單、排工、這批單幫我看、PM 開了一堆單、幫我排優先 | intake, intake-triage, triage these tickets, prioritize this batch | 分析 PM 開出的一批 ticket，評估優先序，產出 JIRA label + comment + Slack 摘要 |
-| **jira-worklog** — 記工時 | 記工時、記錄工時、補工時、工時回填 | worklog, log time, time tracking, log hours, backfill worklog | 日報工時分配：8h/工作日依 In Development 票據分配，兩種模式（standup auto-log + 批次回填） |
-| **worklog-report** — 完成報告 | 完成報告 | worklog report, done report, sprint report, sprint:Q2 S1 | 從 JIRA 查詢已完成 tickets，依 assignee 分組後發送 Slack 報告（支援 `sprint:Q2 S1` 指定特定 sprint） |
-| **scope-challenge** — 需求質疑 | 挑戰需求、需求質疑、需求合理性 | scope challenge, challenge requirements, question requirements, scope review | 在估點前挑戰 ticket scope 合理性，提出替代方案（僅建議，不阻擋流程） |
+| **jira-worklog** — 記工時 / 完成報告 | 記工時、記錄工時、補工時、工時回填、完成報告 | worklog, log time, time tracking, log hours, backfill worklog, worklog report, done report, sprint report | 日報工時分配：8h/工作日依 In Development 票據分配，兩種模式（standup auto-log + 批次回填）。含完成報告功能（原 worklog-report 已併入） |
 
 ---
 
@@ -58,9 +51,7 @@
 
 | 功能 | 中文觸發詞 | 英文觸發詞 | 說明 |
 |------|-----------|-----------|------|
-| **systematic-debugging** — 系統化除錯 | 找 bug、為什麼壞了、查問題、這個怎麼回事、根因、排查 | debug, why is this failing, investigate, root cause | 結構化除錯流程：先調查根因再修，避免猜測式修正 |
-| **unit-test** — 寫單元測試 | 寫測試、補測試、怎麼測、測試怎麼寫 | write test, add test, mock imports, test store | 專案感知的單元測試指南，含 mock patterns 與最佳實踐（自動偵測 Jest/Vitest） |
-| **unit-test-review** — 審查測試品質 | 測試審查、review 測試、測試品質、檢查測試品質 | unit test review, review tests, check test quality, review unit test | 審查現有單元測試品質，產出評分報告與缺漏分析（僅審查，不寫新測試） |
+| **unit-test** — 寫單元測試 / TDD / 審查測試 | 寫測試、補測試、怎麼測、測試怎麼寫、先寫測試、紅綠燈、TDD、測試審查、review 測試、測試品質 | write test, add test, mock imports, test store, TDD, test driven, test first, red green refactor, unit test review, review tests, check test quality | 專案感知的單元測試指南，含 mock patterns 與最佳實踐（自動偵測 Jest/Vitest）。含 TDD 模式（紅綠燈循環）與測試品質審查（原 tdd、unit-test-review 已併入） |
 | **visual-regression** — 視覺回歸測試 | 跑 visual regression、檢查畫面、頁面有沒有壞、截圖比對、有沒有跑版、畫面壞了嗎、UI 有沒有問題 | visual test, screenshot test, check if pages look right | Before/after 截圖比對，確保改動不破壞既有頁面。兩種模式：SIT（與 staging 比較）和 Local（前後對比） |
 | **learning** — 學習與研究 | 學習、研究一下、借鑑、看看這個、學習 PR、每日學習、消化 queue、設定學習、更新學習主題、掃 review、批次學習、掃歷史 PR、補齊 review lessons | learn, research this, learn from PR, daily learning, digest queue, learning queue, learning setup, scanner 設定, batch learn, scan PR history, backfill lessons | 五種模式：研究外部 URL/repo、從已合併 PR 萃取 review patterns、批次消化學習 queue、設定學習主題與 scanner（Setup 模式）、批次掃描歷史 PR 補齊 review-lessons（Batch 模式） |
 
@@ -71,13 +62,11 @@
 | 功能 | 中文觸發詞 | 英文觸發詞 | 說明 |
 |------|-----------|-----------|------|
 | **init** — 初始化 Workspace | 初始化、設定 workspace、填 config | init, initialize, setup workspace, setup config, configure | 互動式 Workspace 初始化精靈，建立 company 目錄與 workspace-config.yaml |
-| **use-company** — 切換公司 | 切換公司、用這間、公司切換、我要做 X 公司的 | use company, switch company, set company, /use-company | 明確設定本次對話的 active company context，避免多公司自動偵測錯誤 |
-| **which-company** — 路由診斷 | 哪間公司 | which company, /which-company | 診斷 JIRA ticket 或 project 路由到哪間公司，顯示完整路由解析過程 |
-| **validate-isolation** — 隔離檢查 | 檢查隔離 | validate isolation, /validate-isolation | 掃描 workspace 的多公司隔離問題：L2 rules 缺 scope header、memory 缺 company 欄位等 |
+| **use-company** — 切換公司 / 路由診斷 | 切換公司、用這間、公司切換、我要做 X 公司的、哪間公司 | use company, switch company, set company, which company | 明確設定本次對話的 active company context，避免多公司自動偵測錯誤。含診斷模式（原 which-company 已併入）：診斷 JIRA ticket 路由到哪間公司 |
+| **validate** — 隔離 + 機制檢查 | 檢查隔離、檢查機制 | validate isolation, validate mechanisms | 框架健康檢查，結合隔離（scope header、memory tag）與機制合規（mechanism-registry canary signals）兩種模式（原 validate-isolation 和 validate-mechanisms 已併入） |
 | **skill-creator** — 建立 Skill | 建 skill、建立 skill | create skill, skill-creator | 建立、修改或評估 Polaris skill（確保 eval、description 優化與完整流程） |
 | **docs-sync** — 同步文件 | 同步文件、更新文件 | sync docs, update docs | 偵測 skill/workflow 變更並更新所有雙語文件（README、workflow-guide、chinese-triggers、quick-start） |
 | **next** — 自動下一步 | 下一步、繼續、接下來、然後呢 | next, continue, what's next | 零輸入 context router：讀取 todo、git branch、JIRA 狀態、PR 狀態，自動判斷並執行下一步動作 |
-| **validate-mechanisms** — 檢查機制 | 檢查機制 | validate mechanisms, /validate-mechanisms | 掃描 workspace 檢查行為機制合規性（mechanism-registry.md 中的 canary signals） |
 | **checkpoint** — 存檔與恢復 | 存檔、恢復、列出存檔 | checkpoint, save checkpoint, resume, list checkpoints | 儲存／恢復／列出 session 狀態（branch、ticket、todo、最近活動），用於長 session 中斷恢復 |
 
 ---
@@ -100,7 +89,7 @@
 | 什麼都不知道，想開始做某張單 | 做 PROJ-123 | `work-on`（自動判斷下一步） |
 | 診斷一個 JIRA Bug 單 | 修 bug PROJ-123、分析 bug PROJ-123 | `bug-triage`（診斷）→ `work-on`（開發） |
 | 拆解 Epic 為子任務 | 拆單 PROJ-123、評估 Epic | `breakdown` |
-| 看 Epic 進度（掃 JIRA/GitHub 狀態） | epic 進度、epic 狀態 | `epic-status` |
+| 看 Epic 進度（掃 JIRA/GitHub 狀態） | epic 進度、epic 狀態 | `converge`（Epic-only 模式） |
 | 批次推進所有進行中工作、補全缺口 | 收斂、推進、離 merge 還多遠、還差什麼 | `converge` |
 | 充實需求或討論做法 | 討論需求、方案討論、refinement | `refinement` |
 | 建好 code 要發 PR（含品質檢查） | 準備發 PR（full flow）| `git-pr-workflow` |

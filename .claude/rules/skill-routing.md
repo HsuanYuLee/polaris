@@ -57,8 +57,7 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Refinement | "refinement", "grooming", "討論需求" | `refinement` |
 | Create a skill | "建 skill", "create skill", "skill-creator" | `skill-creator` |
 | Learn from external | "學習", "learning", "深入學", "deep dive", "像 gstack 那樣學", "全面研究", PR URL + 學到什麼 | `learning` |
-| Validate mechanisms | "validate mechanisms", "檢查機制" | `validate-mechanisms` |
-| Validate isolation | "validate isolation", "檢查隔離" | `validate-isolation` |
+| Validate (mechanisms + isolation) | "validate mechanisms", "validate isolation", "檢查機制", "檢查隔離" | `validate` |
 | Save/resume session state | "checkpoint", "存檔", "save checkpoint", "resume", "恢復", "list checkpoints", "列出存檔" | `checkpoint` |
 | Visual regression check | "跑 visual regression", "檢查畫面", "頁面有沒有壞", "visual test", "截圖比對", "有沒有跑版", "畫面壞了嗎", "UI 有沒有問題" | `visual-regression` |
 | Log work time | "worklog", "記工時", "log time", "log hours" | `jira-worklog` |

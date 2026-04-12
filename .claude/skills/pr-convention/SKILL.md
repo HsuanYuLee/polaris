@@ -62,7 +62,7 @@ JIRA_KEY=$(echo "$CURRENT_BRANCH" | grep -oE '[A-Z][A-Z0-9]+-[0-9]+')
 
 Then check JIRA comments for dependency markers (`base on`, `depends on`, `依賴`, `需等`).
 If a dependency ticket is found, locate its branch using multi-strategy search
-(same as jira-branch-checkout step 4b): PR by JIRA key → PR by summary → sub-task keys → git branch.
+(same as references/branch-creation.md § dependency branch): PR by JIRA key → PR by summary → sub-task keys → git branch.
 
 If found and the dependency PR is still open → set base to that branch.
 If the dependency PR is already merged → use `develop` (the dependency code is already in develop).

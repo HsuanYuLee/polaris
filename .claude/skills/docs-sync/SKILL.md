@@ -8,6 +8,7 @@ description: >
 metadata:
   author: Polaris
   version: 2.0.0
+  scope: maintainer-only
 ---
 
 # Documentation Sync

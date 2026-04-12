@@ -767,7 +767,7 @@ Commit: <sha>
 
 ## 12.5 Review Lesson 萃取
 
-修正完成後，靜默分析本次 review comments，將可通用化的 coding pattern 萃取為 `.claude/rules/review-lessons/` 規則檔。目的：避免同類問題在未來的 PR 反覆出現——寫 code 的 skill（work-on、bug-triage、tdd）啟動時會讀取 `.claude/rules/`，等同於把 reviewer 的回饋內建到開發流程中。
+修正完成後，靜默分析本次 review comments，將可通用化的 coding pattern 萃取為 `.claude/rules/review-lessons/` 規則檔。目的：避免同類問題在未來的 PR 反覆出現——寫 code 的 skill（work-on、bug-triage、unit-test）啟動時會讀取 `.claude/rules/`，等同於把 reviewer 的回饋內建到開發流程中。
 
 ### 萃取條件
 

@@ -1,6 +1,6 @@
 ---
 name: breakdown
-description: "Universal planning skill: Bug reads ROOT_CAUSE then estimates; Story/Task/Epic explores codebase then splits into sub-tasks with estimates. Trigger: 拆單, 'split tasks', 拆解, 'breakdown', 'break down', 子單, 'sub-tasks', 評估這張單, 'evaluate this ticket', 估點, 'estimate'."
+description: "Universal planning skill: Bug reads ROOT_CAUSE then estimates; Story/Task/Epic explores codebase then splits into sub-tasks with estimates. Also handles scope challenge (advisory mode). Trigger: 拆單, 'split tasks', 拆解, 'breakdown', 'break down', 子單, 'sub-tasks', 評估這張單, 'evaluate this ticket', 估點, 'estimate', 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑'."
 metadata:
   author: Polaris
   version: 2.0.0
@@ -187,20 +187,42 @@ mcp__claude_ai_Atlassian__getJiraIssue
 
 ### 7.5. Quality Challenge 自動迴圈（最多 3 輪）
 
-拆單 + 估點完成後，**自動** invoke `scope-challenge`（拆單審查模式）。
+拆單 + 估點完成後，**自動**執行品質審查。
 
-**檢查項目：**
-- 每張子單是否 ≤ 5 pt
-- 子單之間是否有循環依賴或邊界不清
-- 每張子單是否有明確 AC 和 Happy Flow
-- 是否有更簡單的替代方案被忽略
-- 是否有隱藏假設未驗證
+**審查項目（逐張子單檢查，標記 PASS / FAIL）：**
+
+| 項目 | PASS 條件 | FAIL 時的建議 |
+|------|----------|-------------|
+| 點數合理 | ≤ 5 pt | 拆成更小的子單 |
+| AC 明確 | 有具體的驗收條件 | 補上 AC |
+| Happy Flow | 有使用者視角的操作步驟 | 補上 Happy Flow |
+| 獨立可測 | 可獨立開發、獨立驗收 | 合併到相關子單或重新劃分邊界 |
+| 無循環依賴 | 子單之間無環形相依 | 調整依賴方向或合併 |
+| 無隱藏假設 | 不依賴未驗證的 API / 元件 | 標明假設或加 Spike 子單 |
+| 更簡單的替代方案 | 沒有被忽略的 80/20 簡化 | 提出替代方案 |
+
+**輸出格式：**
+
+```
+🔍 Quality Challenge — 拆單審查
+
+| # | 子單 | Points | AC | Happy Flow | 獨立可測 | 結果 |
+|---|------|--------|----|------------|---------|------|
+| 1 | ... | ✅ 3pt | ✅ | ✅ | ✅ | PASS |
+| 2 | ... | ❌ 8pt | ✅ | ❌ | ✅ | FAIL |
+
+FAIL 項目：
+- #2：8 點過大，建議拆為「API handler」(3pt) + 「前端串接」(5pt)
+- #2：缺少 Happy Flow
+
+結論：FAIL（2 項需調整）
+```
 
 **迴圈邏輯：**
 ```
-拆單結果 → scope-challenge
+拆單結果 → 品質審查
   → 全部 PASS → Step 8
-  → 有 FAIL → 自動調整 → 再送 scope-challenge → ...
+  → 有 FAIL → 自動調整 → 再審查 → ...
   → 最多 3 輪。超過仍有 FAIL → 連同未解決問題呈現給使用者
 ```
 
@@ -316,6 +338,60 @@ git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
 所有子單已有 branch、測試計畫、驗證子單。
 
 **觸發方式：** `做 <子單 key>` → `work-on`
+
+---
+
+## Scope Challenge Mode（直接觸發：'scope challenge'、'挑戰需求'、'challenge scope'）
+
+當使用者直接要求 scope challenge（而非透過拆單流程自動觸發），執行以下獨立流程：
+
+### SC1. 讀取 Ticket
+
+用 `getJiraIssue` 取得 ticket 內容（Summary、Description、AC、Issue type、子單、linked issues）。
+
+### SC2. 完整性檢查
+
+逐項檢查，缺少的標記 ❌：
+
+| 項目 | 檢查方式 |
+|------|----------|
+| Acceptance Criteria | description 中有明確的 AC 或驗收條件 |
+| 開發路徑（path） | description 中指明哪個專案 / 目錄 |
+| Figma 連結 | description 或 attachment 中有 figma.com URL |
+| API 文件 | description 中有 API endpoint 說明或 Swagger/Postman 連結 |
+| 影響範圍 | 明確說明改動涉及哪些頁面 / 流程 |
+
+缺少 ≥2 項 → 建議補齊後再估點。
+
+### SC3. Scope 挑戰
+
+對 ticket 提出適用的質疑：
+
+- **過大？** — 單張 Story/Task 涵蓋 >3 個獨立功能 → 建議拆分
+- **過度設計？** — 能用既有元件解決但描述中要求從零建造；要求通用化但只有一個使用場景
+- **隱藏假設？** — 假設 API 已存在、Design System 有元件、不需 migration（有明確專案路徑時可啟動 Explore subagent 驗證）
+- **80/20 簡化？** — 是否有更小的改動能達成 80% 效果
+
+### SC4. 替代方案
+
+提出 2-3 個方案（原始 scope / 簡化版 / 拆分），每個方案含預估複雜度、優缺點。小改動（≤2 files, 明確 AC）直接說「scope 合理，建議直接估點」。
+
+### SC5. 輸出與銜接
+
+```
+📋 Scope Challenge Report — {TICKET-KEY}
+
+完整性：✅ AC ✅ Path ❌ Figma ✅ API
+建議：{proceed / simplify / split / needs-more-info}
+
+{替代方案}
+
+→ 建議採用方案 {X}，原因：{一句話}
+```
+
+使用者選定方案後，用 `addCommentToJiraIssue` 將結論寫入 JIRA comment（格式參考 `references/decision-audit-trail.md`）。之後銜接正常拆單流程。
+
+---
 
 ## 注意事項
 

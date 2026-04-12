@@ -4,7 +4,9 @@ description: >
   Bug diagnostic skill: root cause analysis and RD confirmation for Bug tickets.
   Use when the user wants to triage, analyze, or diagnose a Bug ticket — before planning starts.
   Trigger: '修 bug', 'fix bug', '分析 bug', 'triage bug', 'bug 分析', '修這張 bug',
-  'help me fix', '幫我修正', '開始修正', '修正這張', 'fix this ticket' (when issue type is Bug).
+  'help me fix', '幫我修正', '開始修正', '修正這張', 'fix this ticket' (when issue type is Bug),
+  'debug', '找 bug', '為什麼壞了', 'why is this failing', 'investigate', '查問題',
+  '這個怎麼回事', 'root cause', '根因', '排查'.
   NOT for: PR review fixes (use fix-pr-review), already-diagnosed bugs with root cause confirmed (use breakdown → work-on).
   This skill handles DIAGNOSIS only — estimation, test plan, QA challenge, and design doc are delegated to breakdown.
 metadata:

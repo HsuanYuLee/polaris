@@ -107,12 +107,12 @@ Project: {base_dir}/{repo}（base_dir 從 workspace-config.yaml 取得）
 
 ### 1. 轉 IN DEVELOPMENT + 建 branch
 - 讀取 `start-dev` SKILL.md — 設定需求來源、轉狀態
-- 讀取 `jira-branch-checkout` SKILL.md — 建 branch
+- 依 `references/branch-creation.md` 流程建 branch（或使用 `scripts/create-branch.sh`）
 - branch 建立後執行 `{base_dir}/polaris-sync.sh {project-name}` 部署 AI 設定
 
 ### 2. TDD 開發（預設模式）
 - 讀取專案 CLAUDE.md — 遵循專案規範
-- 讀取 `tdd` SKILL.md — 以 Red-Green-Refactor 循環實作
+- 讀取 `unit-test` SKILL.md — 以 Red-Green-Refactor 循環實作
 - **TDD 智慧判斷**：依 `references/tdd-smart-judgment.md` 判斷每個檔案是否走 TDD 循環
 - 發現情況不同時，在 JIRA 新增 comment 標註修正版
 
@@ -246,8 +246,8 @@ ticket 狀態是「開放」或「SA/SD」？
 
 ticket 狀態是 IN DEVELOPMENT 且沒有 branch？
   └→ 檢查 JIRA comments 是否有依賴標記（base on / depends on）
-     └→ 有 → 走依賴分支流程（jira-branch-checkout step 4a-4c）
-     └→ 無 → 觸發 jira-branch-checkout（標準流程）
+     └→ 有 → 走依賴分支流程（references/branch-creation.md § dependency branch）
+     └→ 無 → 依 references/branch-creation.md 建 branch（或使用 scripts/create-branch.sh）
   └→ branch 建立後 → 執行 `{base_dir}/polaris-sync.sh {project-name}` 部署 AI 設定
 
 ticket 狀態是 IN DEVELOPMENT 且已有 branch？
@@ -273,7 +273,7 @@ ticket 狀態是 IN DEVELOPMENT 且已有 branch？
 
 **自動銜接流程：**
 
-1. **TDD 開發**：讀取 `tdd` SKILL.md + 專案 CLAUDE.md，以 Red-Green-Refactor 循環實作。依 `references/tdd-smart-judgment.md` 判斷哪些檔案走 TDD
+1. **TDD 開發**：讀取 `unit-test` SKILL.md + 專案 CLAUDE.md，以 Red-Green-Refactor 循環實作。依 `references/tdd-smart-judgment.md` 判斷哪些檔案走 TDD
 2. **品質檢查 → 行為驗證 → PR**：開發完成後自動讀取 `git-pr-workflow` SKILL.md 執行完整 PR 流程（品質檢查 → verify-completion → Pre-PR Review Loop → Commit → 發 PR → 轉 CODE REVIEW）
 
 > 此流程與批次模式 Phase 2 sub-agent 的 Step 2-3 完全一致，差別只在單張 ticket 由主 agent 直接執行。

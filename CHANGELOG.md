@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.107.0] - 2026-04-13
+
+- **Skill catalog consolidation: 33 → 30 skills (cumulative 44 → 30, -32%)**
+  - `scope-challenge` → `breakdown`: Quality Challenge inlined as Step 7.5; standalone Scope Challenge Mode added (SC1-SC5)
+  - `tdd` → `unit-test`: TDD Mode §1.5 with Red-Green-Refactor cycle, cycle log, and anti-patterns
+  - `jira-branch-checkout` → `references/branch-creation.md` + `scripts/create-branch.sh`: skill wrapper removed, script promoted to shared location
+  - Updated 11 referencing files (INDEX, sub-agent-roles, work-on, git-pr-workflow, pr-convention, fix-pr-review, verify-completion, decision-audit-trail, refinement-artifact, confidence-labeling, tdd-smart-judgment)
+  - Net -272 lines (19 files changed)
+
 ## [1.106.0] - 2026-04-13
 
 - **Breakdown v2.0.0 — Universal Planning Skill (Phase 2 of 3-Layer Redesign)**
