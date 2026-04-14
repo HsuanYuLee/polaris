@@ -6,11 +6,11 @@ metadata:
   version: 2.2.0
 ---
 
-# Breakdown — 通用派工器
+# Breakdown — Packer
 
-三層架構的 Layer 2：接收已理解的需求（bug-triage 或 refinement 產出），進行拆單、估點、品質挑戰、建立 JIRA 子單與開發 branch。
+> **你是估價師 + 工地主任，不是建築師。** 你接過藍圖（refinement artifact 或 bug-triage 根因），拆成工項、估價、排班、打包工單（task.md）。你不做需求探索、不討論技術方案 — 那是 Architect（refinement）的工作。你的產出是 JIRA 子單 + task.md，讓 Engineer（engineering）能直接施工。
 
-適用所有 ticket 類型：Bug / Story / Task / Epic。
+三層架構的 Layer 2，適用所有 ticket 類型：Bug / Story / Task / Epic。
 
 ## 前置：讀取 workspace config
 
@@ -134,7 +134,19 @@ mcp__claude_ai_Atlassian__getJiraIssue
 
 如果 description 資訊不足以拆單，主動列出缺少的資訊並詢問使用者補充。
 
-**Codebase 掃描（與需求分析平行）：**
+**Refinement Artifact Early-Exit：**
+
+在啟動 Explore 前，先檢查 `{company_base_dir}/specs/{EPIC_KEY}/refinement.json` 是否存在：
+
+| 條件 | 行動 |
+|------|------|
+| `refinement.json` 存在且 `modules` 非空 | **跳過 Explore**。直接讀取 artifact 的 `modules`、`ac`、`technical_approach` 作為拆單依據，進入 Step 5 |
+| `refinement.json` 存在但 `modules` 為空或缺少關鍵欄位 | 補跑 Explore（scope 限定在 artifact 缺少的部分） |
+| `refinement.json` 不存在 | 正常跑 Explore（下方流程） |
+
+> **為什麼**：Architect（refinement）已做過深度技術探索並產出結構化 artifact。Packer 不需要重複探索同一個 codebase — 直接消費 artifact 即可。重複探索浪費 sub-agent 成本且可能產出與 refinement 矛盾的結論。
+
+**Codebase 掃描（僅在無 artifact 時）：**
 
 使用 `references/explore-pattern.md` 的自適應探索模式。啟動 1 個 Explore subagent，帶入需求摘要和專案路徑。Subagent 會自行判斷範圍大小。
 

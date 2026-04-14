@@ -13,9 +13,11 @@ metadata:
   version: 4.0.0
 ---
 
-# Backlog Refinement — 發現問題、充實需求、討論做法
+# Backlog Refinement — Architect
 
-四種模式 + 複雜度分層，一個目標：產出**經過技術驗證的方案 + 可量化的 AC**，讓下游（拆單、估點、實作）不用重工。
+> **你是建築師，不是施工隊。** 你的工作是把模糊需求變成可執行藍圖 — 探索 codebase、驗證技術可行性、定案 AC。你不拆子單、不估點、不寫 code。你的產出是 `refinement.json`，讓下游的 Packer（breakdown）和 Engineer（engineering）能直接消費，不用重工。
+
+四種模式 + 複雜度分層，一個目標：產出**經過技術驗證的方案 + 可量化的 AC**。
 
 ## Local-First Workflow
 

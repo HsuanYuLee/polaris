@@ -22,9 +22,9 @@ Core principle: **each skill consumes a self-contained input and produces a well
 
 | Role | Skill | Responsibility | Must Not |
 |------|-------|----------------|----------|
-| **Planning** | refinement | AC 定案、技術方案、估點 | 不建 JIRA 子單 |
-| **Packing** | breakdown | 拆 task + 建 JIRA 子單 + 產 task.md work order | 不做技術探索（refinement 已做） |
-| **Execution** | engineering | 實作 + TDD unit test + 開 PR | 不做 AC 驗證、不診斷 bug |
+| **Architect** (Planning) | refinement | AC 定案、技術方案、codebase 探索 | 不建 JIRA 子單、不估點 |
+| **Packer** (Packing) | breakdown | 拆 task + 建 JIRA 子單 + 產 task.md work order | 不做技術探索（有 `refinement.json` 時直接消費 artifact） |
+| **Engineer** (Execution) | engineering | 實作 + TDD unit test + 開 PR | 不做 AC 驗證、不診斷 bug |
 | **QA** | verify-AC | 跑 AC 驗證步驟、呈現 observed vs expected | 不判斷 FAIL 原因（交給人工 disposition） |
 | **Diagnosis** | bug-triage | Root cause 分析、規劃修復 | 不直接寫 code（交給 engineering） |
 

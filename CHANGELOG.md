@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.8.0] - 2026-04-14
+
+### Pipeline Persona — Architect / Packer / Engineer
+
+三層 pipeline 的角色收斂，每個 skill 有明確的身份宣言和「不做」邊界。
+
+- **refinement** — Architect persona：把模糊需求變成可執行藍圖，不拆單、不估點
+- **breakdown** — Packer persona：接過藍圖拆工單、估價、排班，不做技術探索
+  - Step 4 新增 `refinement.json` early-exit：有 artifact 時跳過 Explore sub-agent，直接消費
+- **engineering** — Engineer persona（v2.6.0 已有）
+- `pipeline-handoff.md` Role Boundaries 表加 persona 標籤
+
 ## [2.7.0] - 2026-04-14
 
 ### Context Pressure Monitor — deterministic session degradation prevention
