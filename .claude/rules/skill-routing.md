@@ -40,6 +40,7 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Fix review comments on own PR | "fix review", "修 PR", "修正 review", "你沒修好" + PR URL, "沒修好", PR URL + 否定語氣 | `fix-pr-review` |
 | Check own PR approvals | "我的 PR", "PR 狀態", "催 review" | `check-pr-approvals` |
 | Scan PRs needing review | "掃 PR", "大家的 PR", "review inbox" | `review-inbox` |
+| Review PRs in Slack thread | Slack thread URL + review intent ("review <slack_url>", "幫我看這串", "這串 PR review 一下") | `review-inbox` (Thread mode) |
 | Estimate a ticket | "估點", "estimate", "評估" + ticket | `breakdown` (Story/Task/Epic) or `bug-triage` (Bug) |
 | Auto-determine next action | "下一步", "next", "繼續", "continue", "然後呢", "接下來" (no ticket key) | `next` |
 | Work on a ticket | "做", "work on" + ticket | `work-on` (requires existing plan — if no plan, routes to planning skill first) |

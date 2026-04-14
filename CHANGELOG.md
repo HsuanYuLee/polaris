@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.4.0] - 2026-04-14
+
+### review-inbox Thread Mode
+
+review-inbox 新增第三種 PR 發現模式：給一個 Slack 討論串 URL，從該 thread 提取 PR URL 並走標準 review pipeline。填補 channel 全掃（太廣）和單一 PR review（太窄）之間的缺口。
+
+- **extract-pr-urls.py** — 新增 `--thread-ts` flag，Thread 模式跳過 per-message 解析，直接撈全文 PR URL
+- **SKILL.md** — Step 0 Thread 偵測、Step 1 Thread pipeline（主 session 直接跑，不需 sub-agent）、Step 5 Thread reply
+- **skill-routing.md** — routing table 新增 Slack thread URL + review intent 觸發
+
+**使用方式**：`review <slack_thread_url>`
+
 ## [2.3.0] - 2026-04-14
 
 ### Verify Command — Developer Self-Test Gate
