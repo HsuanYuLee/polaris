@@ -113,7 +113,7 @@ For each English file that was modified in Step 2, update its zh-TW pair:
 
 Translation rules:
 - Use Traditional Chinese (zh-TW) natural Taiwan usage
-- Keep backtick skill names as-is: `work-on`, `standup`, etc.
+- Keep backtick skill names as-is: `engineering`, `standup`, etc.
 - Keep code blocks, commands, file paths untouched
 - Keep mermaid diagram labels in English
 

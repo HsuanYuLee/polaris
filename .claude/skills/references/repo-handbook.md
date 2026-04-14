@@ -15,7 +15,7 @@ Like onboarding a new hire: first understand what the system IS, then learn how 
 ## Lifecycle
 
 ```
-/init (optional)                    First work-on (if no handbook)
+/init (optional)                    First engineering (if no handbook)
        │                                    │
        ▼                                    ▼
   Explore repo                        Explore repo
@@ -346,7 +346,7 @@ Handbook（主文件 + 子文件）是 repo 的 **coding 準則**。所有角色
 
 | 角色 | 讀 handbook 的目的 |
 |------|-------------------|
-| `work-on`（開發） | 寫出符合 repo 慣例的 code |
+| `engineering`（開發） | 寫出符合 repo 慣例的 code |
 | `review-pr`（review 別人） | 用 repo 慣例判斷 code 對不對 |
 | `fix-pr-review`（修自己 PR） | 按 repo 慣例修正 |
 
@@ -439,7 +439,7 @@ After PR is created or review fixes are pushed, before the skill's post-task ref
 
 ### Skip Conditions
 
-- Handbook doesn't exist → skip (will be created on next `work-on`)
+- Handbook doesn't exist → skip (will be created on next `engineering`)
 - Changes are test-only → skip
 - Changes are config-only (`.env`, CI) → skip unless it affects Tech Stack
 

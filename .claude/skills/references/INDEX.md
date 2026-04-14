@@ -7,37 +7,37 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [jira-story-points.md](jira-story-points.md) | Story Points 欄位 ID 動態探測與讀寫驗證 | breakdown, jira-subtask-creation, editJiraIssue with SP |
-| [jira-subtask-creation.md](jira-subtask-creation.md) | 批次建 JIRA 子單流程：查既有→建單→估點→測試計畫→驗收 | breakdown, createJiraIssue, work-on |
-| [epic-verification-structure.md](epic-verification-structure.md) | 驗收架構：測試計畫/AC 驗證分離、測試 Sub-task、驗收單 lifecycle | breakdown, jira-subtask-creation, work-on |
+| [jira-subtask-creation.md](jira-subtask-creation.md) | 批次建 JIRA 子單流程：查既有→建單→估點→測試計畫→驗收 | breakdown, createJiraIssue, engineering |
+| [epic-verification-structure.md](epic-verification-structure.md) | 驗收架構：測試計畫/AC 驗證分離、測試 Sub-task、驗收單 lifecycle | breakdown, jira-subtask-creation, engineering |
 | [epic-verification-workflow.md](epic-verification-workflow.md) | Epic 驗證完整流程：fixture lifecycle、VR gate、feature branch flow | breakdown, git-pr-workflow, visual-regression, converge, epic-status |
-| [pipeline-handoff.md](pipeline-handoff.md) | Pipeline 角色邊界與 handoff contract：breakdown/work-on/verify-AC/bug-triage + task.md schema + AC-FAIL disposition gate | breakdown, work-on, verify-AC, bug-triage, refinement |
+| [pipeline-handoff.md](pipeline-handoff.md) | Pipeline 角色邊界與 handoff contract：breakdown/engineering/verify-AC/bug-triage + task.md schema + AC-FAIL disposition gate | breakdown, engineering, verify-AC, bug-triage, refinement |
 | [decision-audit-trail.md](decision-audit-trail.md) | JIRA Decision Record comment 格式與寫入規則 | breakdown, sasd-review |
 
 ## Estimation & Planning
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [estimation-scale.md](estimation-scale.md) | Story point scale (1/2/3/5/8/13) 定義與時程換算 | breakdown, work-on estimation phase |
+| [estimation-scale.md](estimation-scale.md) | Story point scale (1/2/3/5/8/13) 定義與時程換算 | breakdown, engineering estimation phase |
 | [epic-template.md](epic-template.md) | Epic description 結構化模板與 readiness checklist | refinement, breakdown, PM epic quality review |
-| [project-mapping.md](project-mapping.md) | JIRA ticket → local project 目錄對應（config-first） | breakdown, sasd-review, work-on |
-| [refinement-artifact.md](refinement-artifact.md) | Refinement 結構化 artifact JSON schema — 供 breakdown/estimation/work-on 消費 | refinement (Tier 2+), breakdown, work-on |
+| [project-mapping.md](project-mapping.md) | JIRA ticket → local project 目錄對應（config-first） | breakdown, sasd-review, engineering |
+| [refinement-artifact.md](refinement-artifact.md) | Refinement 結構化 artifact JSON schema — 供 breakdown/estimation/engineering 消費 | refinement (Tier 2+), breakdown, engineering |
 | [confidence-labeling.md](confidence-labeling.md) | AI 研究產出信心標示（HIGH/MEDIUM/LOW/NOT_RESEARCHED） | refinement (Tier 3), breakdown (scope-challenge), learning, sasd-review |
 
 ## Delivery Flow
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [engineer-delivery-flow.md](engineer-delivery-flow.md) | 工程師交付 backbone：Simplify → Quality → Behavioral Verify → Review → Rebase → Commit → PR。Developer（work-on）與 Admin（git-pr-workflow）共用 | work-on, git-pr-workflow |
-| [quality-check-flow.md](quality-check-flow.md) | lint / test / coverage / risk scoring 自檢流程。engineer-delivery-flow Step 2 消費 | work-on, git-pr-workflow（透過 engineer-delivery-flow） |
+| [engineer-delivery-flow.md](engineer-delivery-flow.md) | 工程師交付 backbone：Simplify → Quality → Behavioral Verify → Review → Rebase → Commit → PR。Developer（engineering）與 Admin（git-pr-workflow）共用 | engineering, git-pr-workflow |
+| [quality-check-flow.md](quality-check-flow.md) | lint / test / coverage / risk scoring 自檢流程。engineer-delivery-flow Step 2 消費 | engineering, git-pr-workflow（透過 engineer-delivery-flow） |
 
 ## PR & Git
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [pr-body-builder.md](pr-body-builder.md) | PR template 偵測、body 組裝、AC Coverage、母單 PR、Bug RCA 偵測 | work-on, git-pr-workflow（透過 engineer-delivery-flow Step 7） |
-| [branch-creation.md](branch-creation.md) | JIRA ticket → branch 建立流程（含 dependency branch 偵測） | work-on, git-pr-workflow |
+| [pr-body-builder.md](pr-body-builder.md) | PR template 偵測、body 組裝、AC Coverage、母單 PR、Bug RCA 偵測 | engineering, git-pr-workflow（透過 engineer-delivery-flow Step 7） |
+| [branch-creation.md](branch-creation.md) | JIRA ticket → branch 建立流程（含 dependency branch 偵測） | engineering, git-pr-workflow |
 | [cascade-rebase.md](cascade-rebase.md) | Feature branch PR stack 的 cascade rebase 邏輯 | git-pr-workflow, fix-pr-review, check-pr-approvals |
-| [feature-branch-pr-gate.md](feature-branch-pr-gate.md) | Task PR 全 merge 後自動建 feature→develop PR 的偵測邏輯 | epic-status, git-pr-workflow, check-pr-approvals, work-on |
+| [feature-branch-pr-gate.md](feature-branch-pr-gate.md) | Task PR 全 merge 後自動建 feature→develop PR 的偵測邏輯 | epic-status, git-pr-workflow, check-pr-approvals, engineering |
 | [pr-input-resolver.md](pr-input-resolver.md) | PR URL/number/branch → owner+repo+number 解析 | review-pr, fix-pr-review, check-pr-approvals |
 | [stale-approval-detection.md](stale-approval-detection.md) | PR approval 失效偵測：approved before last push = 無效 | check-pr-approvals, review-inbox, epic-status |
 
@@ -54,22 +54,22 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [sub-agent-roles.md](sub-agent-roles.md) | Sub-agent dispatch 標準：completion envelope、model tier、QA/Architect/Critic | 任何 skill 啟動 sub-agent |
-| [explore-pattern.md](explore-pattern.md) | Adaptive codebase 探索模式：handbook-first → 小範圍直讀 / 大範圍平行 sub-agent → handbook 回寫 | refinement (Tier 2+), sasd-review, breakdown, systematic-debugging, work-on, bug-triage |
+| [explore-pattern.md](explore-pattern.md) | Adaptive codebase 探索模式：handbook-first → 小範圍直讀 / 大範圍平行 sub-agent → handbook 回寫 | refinement (Tier 2+), sasd-review, breakdown, systematic-debugging, engineering, bug-triage |
 
 ## Testing & VR
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [tdd-smart-judgment.md](tdd-smart-judgment.md) | 逐檔判斷是否適用 TDD（testable vs config/style/type-def） | unit-test, work-on, bug-triage |
-| [api-contract-guard.md](api-contract-guard.md) | Mockoon fixture vs live API schema drift 偵測：分類、流程、skill 接入點 | visual-regression, work-on |
+| [tdd-smart-judgment.md](tdd-smart-judgment.md) | 逐檔判斷是否適用 TDD（testable vs config/style/type-def） | unit-test, engineering, bug-triage |
+| [api-contract-guard.md](api-contract-guard.md) | Mockoon fixture vs live API schema drift 偵測：分類、流程、skill 接入點 | visual-regression, engineering |
 | [visual-regression-config.md](visual-regression-config.md) | VR config schema：domain、server、fixtures、pages、viewports | visual-regression, /init VR setup |
-| [vr-jira-report-template.md](vr-jira-report-template.md) | VR 結果 JIRA comment 的 wiki markup 模板 | visual-regression, work-on |
+| [vr-jira-report-template.md](vr-jira-report-template.md) | VR 結果 JIRA comment 的 wiki markup 模板 | visual-regression, engineering |
 
 ## Repo Knowledge
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [repo-handbook.md](repo-handbook.md) | Per-repo coding 準則：repo 類型辨識、handbook 結構生成、standard-first 校準、stale detection | init (optional), work-on (Phase 0.5), review-pr (Step 3), fix-pr-review (Step 5 + 7b), git-pr-workflow (post-PR) |
+| [repo-handbook.md](repo-handbook.md) | Per-repo coding 準則：repo 類型辨識、handbook 結構生成、standard-first 校準、stale detection | init (optional), engineering (Phase 0.5), review-pr (Step 3), fix-pr-review (Step 5 + 7b), git-pr-workflow (post-PR) |
 
 ## Config & Infrastructure
 

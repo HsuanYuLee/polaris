@@ -4,7 +4,7 @@
 
 - When there are multiple independent improvement points, prefer running sub-agents in parallel to save time
 - When deep investigation is needed (e.g., finding all files that violate a convention), use a sub-agent to avoid bloating the main conversation context
-- **Worktree isolation for batch implementation**: each sub-agent in `work-on` batch mode Phase 2 must use `isolation: "worktree"` to prevent file overwrites or git conflicts during parallel development. Not required for single-ticket sub-agents, but recommended when multiple files are changed
+- **Worktree isolation for batch implementation**: each sub-agent in `engineering` batch mode Phase 2 must use `isolation: "worktree"` to prevent file overwrites or git conflicts during parallel development. Not required for single-ticket sub-agents, but recommended when multiple files are changed
 - **Plan-first**: before a sub-agent writes any code, if the estimated impact exceeds 3 files or requires an architectural decision (create new vs. extend existing component, cross-module changes), enter Plan mode and produce an implementation plan before executing
 - **Explore-then-Implement**: when scanning the codebase, use the adaptive exploration mode from `skills/references/explore-pattern.md`. Goal: keep the implementation phase's context window clean
 - **Sub-agent Talent Pool**: all sub-agent dispatching should reference the role definitions in `skills/references/sub-agent-roles.md`
@@ -57,7 +57,8 @@ Sub-agents performing implementation work should maintain a mental "risk score" 
 |-------|-------------|
 | Each file modified | +5% |
 | Reverting a previous change | +15% |
-| Modifying a file not in the original plan | +10% |
+| Modifying a file not in the original plan | +15% |
+| Modifying a file outside task.md Allowed Files list | +15% |
 | Fixing a test that broke due to own changes | +10% |
 | Third consecutive edit to the same file | +10% |
 | Change touches cross-module boundary | +10% |
@@ -80,7 +81,7 @@ Long-running skills that modify code must create a restore point before starting
 
 ### When to create a restore point
 
-Before a sub-agent begins implementation work (Phase 2 of work-on, git-pr-workflow quality fixes), if there are uncommitted changes in the working tree:
+Before a sub-agent begins implementation work (Phase 2 of engineering, git-pr-workflow quality fixes), if there are uncommitted changes in the working tree:
 
 1. Run `git stash push -m "polaris-restore-{ticket}-{timestamp}"`
 2. Record the stash ref in the sub-agent's context
@@ -100,7 +101,7 @@ If the sub-agent triggers a self-regulation stop (score > 35%) or encounters an 
 
 | Skill | Restore point location |
 |-------|----------------------|
-| `work-on` Phase 2 | Before implementation sub-agent starts coding |
+| `engineering` Phase 2 | Before implementation sub-agent starts coding |
 | `git-pr-workflow` | Before quality-fix loop starts |
 | `fix-pr-review` | Before applying fixes |
 

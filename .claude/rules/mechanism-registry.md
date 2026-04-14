@@ -177,14 +177,14 @@ These are real escape patterns observed in prior sessions. When you notice yours
 |----|------|---------------|-------|
 | `re-test-after-fix` | After fixing quality issues, re-run all tests before proceeding to commit | Git diff shows changes after last test run but commit proceeds without fresh test output | High |
 | `fresh-verification-before-completion` | Every task completion must include fresh verification performed after the final code change | Task marked complete with rationalization phrases ("should work", "trivial change") and no verification output in conversation | High |
-| `local-verification-hard-gate` | work-on (engineer-delivery-flow Step 3): every Layer A+B verification item must have PASS/SKIP/FAIL disposition with evidence. Unit test alone cannot substitute for behavioral verification when the AC requires running the server | Strategist proceeds to PR with only unit test output when [VERIFICATION] lists behavioral items (e.g., "切換語系後 footer 正確") | **Critical** |
+| `local-verification-hard-gate` | engineering (engineer-delivery-flow Step 3): every Layer A+B verification item must have PASS/SKIP/FAIL disposition with evidence. Unit test alone cannot substitute for behavioral verification when the AC requires running the server | Strategist proceeds to PR with only unit test output when [VERIFICATION] lists behavioral items (e.g., "切換語系後 footer 正確") | **Critical** |
 | `verify-command-immutable-execute` | Step 3d: when task.md has `## Verify Command`, sub-agent must execute the exact command (no modifications) and include full output in evidence file. FAIL blocks PR | Sub-agent skips verify command, modifies the command, or claims PASS without showing actual command output in evidence | **Critical** |
-| `work-on-no-ac-verify` | work-on does not run AC business-level verification — that's verify-AC's job. work-on only runs Phase 2.5 Sanity Gate (env up + HTTP 200) | work-on session executing verify-AC steps (逐項跑 AC 驗收 sub-task) instead of routing to verify-AC skill after PR | High |
+| `engineering-no-ac-verify` | engineering does not run AC business-level verification — that's verify-AC's job. engineering only runs Phase 2.5 Sanity Gate (env up + HTTP 200) | engineering session executing verify-AC steps (逐項跑 AC 驗收 sub-task) instead of routing to verify-AC skill after PR | High |
 | `verify-ac-no-judgement` | verify-AC presents observed vs expected as facts — does not judge FAIL reason; disposition is human-driven | verify-AC output contains "this is a bug in X" or "AC is wrong" instead of pure PASS/FAIL + disposition gate | High |
 | `verify-ac-full-rerun` | verify-AC re-runs ALL AC (including previously PASS'd) to catch regression | verify-AC session skips PASS'd AC from last run | Medium |
 | `verify-ac-http-status` | AC endpoint verification must assert HTTP status == 200 before checking body | verify-AC passes an AC based on "body looks right" without recording HTTP status | High |
 | `bug-triage-ac-fail-detection` | When Bug description contains `[VERIFICATION_FAIL]`, bug-triage takes AC-FAIL Path — scoped to feature branch only, uses verify-AC's observed/expected as facts, does not redo verification | bug-triage runs generic Step 3 Explorer on a `[VERIFICATION_FAIL]` Bug (analyzes develop/main instead of feature branch, or re-verifies observed behavior) | High |
-| `ac-fail-bug-branch-from-feature` | work-on opens fix branch for AC-FAIL Bug from the Epic's feature branch (extracted from `[VERIFICATION_FAIL]` block), not from develop | work-on creates fix branch from develop for a Bug whose description contains `[VERIFICATION_FAIL]` — fix never lands on the failing feature branch | High |
+| `ac-fail-bug-branch-from-feature` | engineering opens fix branch for AC-FAIL Bug from the Epic's feature branch (extracted from `[VERIFICATION_FAIL]` block), not from develop | engineering creates fix branch from develop for a Bug whose description contains `[VERIFICATION_FAIL]` — fix never lands on the failing feature branch | High |
 | `checklist-before-done` | Before declaring a task complete, review the session's original task list (checkpoint next steps, todo items) and confirm each item is done/carry-forward/dropped | Strategist says "done" or asks "要更新 checkpoint 嗎？" while unchecked items remain from the session's starting checklist | High |
 | `defer-immediate-capture` | When a decision defers work to a later phase, capture it in todo (same session) or memory (future session) immediately — oral defer is not landed | Conversation contains "等 X 再處理 Y" pattern but no corresponding todo/memory entry created within the next 2 tool calls | High |
 
@@ -192,8 +192,8 @@ These are real escape patterns observed in prior sessions. When you notice yours
 
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
-| `delivery-flow-step-order` | engineer-delivery-flow steps must execute in order (1→2→3→3.5→4→5→6→7→8). No step may be skipped or reordered | Sub-agent jumps from Step 2 to Step 7 (skipping behavioral verify) or runs Step 7 before Step 4 | **Critical** |
-| `delivery-flow-single-backbone` | All PR creation goes through engineer-delivery-flow (via work-on or git-pr-workflow). No standalone PR creation outside the flow | `gh pr create` called outside engineer-delivery-flow context (no evidence file, no simplify/quality/verify steps in conversation) | High |
+| `delivery-flow-step-order` | engineer-delivery-flow steps must execute in order (1→2→3→3.5→4→5→5.5→6→7→8). No step may be skipped or reordered | Sub-agent jumps from Step 2 to Step 7 (skipping behavioral verify) or runs Step 7 before Step 4 | **Critical** |
+| `delivery-flow-single-backbone` | All PR creation goes through engineer-delivery-flow (via engineering or git-pr-workflow). No standalone PR creation outside the flow | `gh pr create` called outside engineer-delivery-flow context (no evidence file, no simplify/quality/verify steps in conversation) | High |
 | `vr-conditional-trigger` | Step 3.5 VR triggers when changed files hit a VR-configured domain page. Not triggering when no VR domain is configured is correct; skipping when a domain IS configured is a violation | VR domain exists in workspace-config and changed files match VR pages, but Step 3.5 was skipped | Medium |
 | `pr-body-from-reference` | PR body must be built using `references/pr-body-builder.md` logic (template detection → section fill → AC Coverage). Manual PR body construction bypasses AC Coverage and Bug RCA detection | PR body written inline without reading pr-body-builder.md; AC Coverage section missing when JIRA AC exists | High |
 | `evidence-file-completeness` | Evidence file must contain both `layer_a` and `layer_b` (Developer) or `layer_a` only (Admin). VR result (`vr` field) must be present when Step 3.5 triggered | Evidence file written without `layer_b` for Developer role, or missing `vr` field when VR was triggered | Medium |
@@ -205,6 +205,7 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 | ID | Rule | Enforcement | Script |
 |----|------|-------------|--------|
 | `verification-evidence-required` | `gh pr create` blocked unless `/tmp/polaris-verified-{TICKET}.json` exists with valid ticket, timestamp (< 4h), and non-empty results | PreToolUse hook on Bash, exit 2 to block | `scripts/verification-evidence-gate.sh` |
+| `quality-evidence-required` | `git commit` blocked unless `/tmp/polaris-quality-{branch}.json` exists with `all_passed: true`. Bypass: `POLARIS_SKIP_QUALITY=1` or `wip:` commit message prefix. Skipped for main/develop and framework repo | PreToolUse hook on Bash, exit 2 to block | `scripts/quality-gate.sh` |
 | `test-sequence-warning` | When sequence test-fail → production-file-edit → test-pass is detected, inject warning about wrong-fix pattern | PostToolUse hook on Bash + Edit, stdout injection | `scripts/test-sequence-tracker.sh` |
 
 **Evidence file spec** (`/tmp/polaris-verified-{TICKET}.json`):
@@ -222,7 +223,7 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 }
 ```
 
-**Writer**: `scripts/polaris-write-evidence.sh --ticket TASK-123 --result "PASS: AC1 ..."` — called by work-on (engineer-delivery-flow Step 3) or manually after verification.
+**Writer**: `scripts/polaris-write-evidence.sh --ticket TASK-123 --result "PASS: AC1 ..."` — called by engineering (engineer-delivery-flow Step 3) or manually after verification.
 
 **Bypass**: `POLARIS_SKIP_EVIDENCE=1` for non-ticket PRs (framework, docs). Branch names without `[A-Z]+-[0-9]+` pattern are auto-allowed.
 
@@ -301,4 +302,4 @@ Post-task audit should check these first (highest drift risk, most impactful):
 9. `no-cd-in-bash` / `no-independent-cmd-chaining`
 10. `feedback-trigger-count-update` / `graduation-at-three-triggers`
 11. `version-bump-reminder` (Critical — 6 consecutive misses discovered 2026-04-09)
-12. `verification-evidence-required` / `test-sequence-warning` (deterministic hooks — low audit priority because hooks enforce automatically)
+12. `verification-evidence-required` / `quality-evidence-required` / `test-sequence-warning` (deterministic hooks — low audit priority because hooks enforce automatically)

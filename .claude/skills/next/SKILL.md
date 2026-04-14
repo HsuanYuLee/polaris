@@ -7,7 +7,7 @@ description: >
   Use when: (1) user says "下一步", "next", "繼續", "continue", "然後呢", "what's next",
   "接下來", "推進手上的事情", (2) user returns to a session and wants to resume,
   (3) after completing a task and wondering what to do next.
-  Key distinction: "做 PROJ-123" → work-on (explicit ticket); "下一步" with no ticket → here.
+  Key distinction: "做 PROJ-123" → engineering (explicit ticket); "下一步" with no ticket → here.
 metadata:
   author: Polaris
   version: 1.1.0
@@ -106,7 +106,7 @@ Level 2: JIRA ticket 狀態
 
 Level 3: GitHub PR + Git 狀態
 ├─ 無 PR + 有 uncommitted changes → 「有改動但還沒 PR」→ invoke git-pr-workflow
-├─ 無 PR + 無 changes → 「branch 是空的」→ 「開始開發？」→ invoke work-on <TICKET>
+├─ 無 PR + 無 changes → 「branch 是空的」→ 「開始開發？」→ invoke engineering <TICKET>
 ├─ PR open + CI 紅 → 「CI 失敗」→ invoke fix-pr-review
 ├─ PR open + CHANGES_REQUESTED → 「有 review 要修」→ invoke fix-pr-review
 ├─ PR open + 0 approved → 「等 review」→ invoke check-pr-approvals

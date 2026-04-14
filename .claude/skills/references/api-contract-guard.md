@@ -19,9 +19,9 @@ Mockoon fixtures stabilize test data (no false positives from API fluctuation), 
 | Caller | Trigger point | Scope |
 |--------|--------------|-------|
 | `visual-regression` | Pre-screenshot (before Step 3) | All fixture routes for the VR domain set |
-| `work-on` | Pre-verification (before implementation) | Fixture routes matching the bug's affected endpoints |
-| `work-on` | Pre-implementation (Phase 2 start) | Fixture routes matching the ticket's affected pages |
-| `work-on` (engineer-delivery-flow Step 3) | Pre-verification | Same as work-on |
+| `engineering` | Pre-verification (before implementation) | Fixture routes matching the bug's affected endpoints |
+| `engineering` | Pre-implementation (Phase 2 start) | Fixture routes matching the ticket's affected pages |
+| `engineering` (engineer-delivery-flow Step 3) | Pre-verification | Same as engineering |
 | Manual | `contract-check.sh` CLI | User-specified scope |
 
 ## Prerequisites

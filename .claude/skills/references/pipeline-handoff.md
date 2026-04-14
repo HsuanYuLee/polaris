@@ -1,19 +1,19 @@
 # Pipeline Handoff Contract
 
-Defines the role boundaries and handoff inputs/outputs between **breakdown → work-on → verify-AC → bug-triage**. This is the contract document — each skill's SKILL.md implements its own side of the contract.
+Defines the role boundaries and handoff inputs/outputs between **breakdown → engineering → verify-AC → bug-triage**. This is the contract document — each skill's SKILL.md implements its own side of the contract.
 
 ## Pipeline Overview
 
 ```
 refinement → breakdown（打包 task.md）
                 ↓
-          work-on（施工 + TDD unit test）
+          engineering（施工 + TDD unit test）
                 ↓
           verify-AC（QA agent）
             ├─ PASS → 驗收單轉 Done、Epic 可 merge
             └─ FAIL（人工 disposition）
-                ├─ 實作偏差 → bug-triage → work-on → re-verify
-                └─ 規格問題 → refinement → breakdown → work-on → verify
+                ├─ 實作偏差 → bug-triage → engineering → re-verify
+                └─ 規格問題 → refinement → breakdown → engineering → verify
 ```
 
 Core principle: **each skill consumes a self-contained input and produces a well-defined output.** No skill needs to reach back into upstream artifacts to fill gaps.
@@ -24,13 +24,13 @@ Core principle: **each skill consumes a self-contained input and produces a well
 |------|-------|----------------|----------|
 | **Planning** | refinement | AC 定案、技術方案、估點 | 不建 JIRA 子單 |
 | **Packing** | breakdown | 拆 task + 建 JIRA 子單 + 產 task.md work order | 不做技術探索（refinement 已做） |
-| **Execution** | work-on | 實作 + TDD unit test + 開 PR | 不做 AC 驗證、不診斷 bug |
+| **Execution** | engineering | 實作 + TDD unit test + 開 PR | 不做 AC 驗證、不診斷 bug |
 | **QA** | verify-AC | 跑 AC 驗證步驟、呈現 observed vs expected | 不判斷 FAIL 原因（交給人工 disposition） |
-| **Diagnosis** | bug-triage | Root cause 分析、規劃修復 | 不直接寫 code（交給 work-on） |
+| **Diagnosis** | bug-triage | Root cause 分析、規劃修復 | 不直接寫 code（交給 engineering） |
 
 ## task.md Schema
 
-Breakdown 產出的 task.md 是 work-on 的唯一輸入（除了 codebase 和自動載入的 handbook）。必須 self-contained。
+Breakdown 產出的 task.md 是 engineering 的唯一輸入（除了 codebase 和自動載入的 handbook）。必須 self-contained。
 
 ```markdown
 # T{n}: {Task summary} ({SP} pt)
@@ -63,6 +63,14 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 |------|------|------|
 | ... | ... | ... |
 
+## Allowed Files
+
+> breakdown 時依改動範圍列出，engineering 超出此清單的修改觸發 risk scoring +15%。
+
+- `{file_path_1}`
+- `{file_path_2}`
+- ...
+
 ## 估點理由
 
 {Why this is {SP} pt}
@@ -76,7 +84,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 
 ## Verify Command
 
-> breakdown 產出，work-on 必須執行並附上 output。不可修改指令內容。
+> breakdown 產出，engineering 必須執行並附上 output。不可修改指令內容。
 
 \`\`\`bash
 {一個可執行的 shell 指令，驗證本 task 的核心改動在 runtime 是否生效}
@@ -97,22 +105,22 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 
 ## Handoff Contracts
 
-### breakdown → work-on
+### breakdown → engineering
 
-**Input to work-on**: `specs/{EPIC}/tasks/T{n}.md`（符合上述 schema）
+**Input to engineering**: `specs/{EPIC}/tasks/T{n}.md`（符合上述 schema）
 
 **Pre-conditions（breakdown 產出前須滿足）**：
 - JIRA task 已建立、Test sub-tasks 已建立、AC 驗收單已建立
 - Feature branch 已存在
 - 所有 JIRA keys 已回填進 task.md
 
-**Contract**：work-on 讀 task.md 即可開工，不需回頭看 breakdown.md 或 refinement.md。
+**Contract**：engineering 讀 task.md 即可開工，不需回頭看 breakdown.md 或 refinement.md。
 
-### work-on → verify-AC
+### engineering → verify-AC
 
 **Input to verify-AC**: `{AC_TICKET_KEY}`（Epic 驗收單 key）
 
-**Pre-conditions（work-on 產出前須滿足）**：
+**Pre-conditions（engineering 產出前須滿足）**：
 - 所有 test sub-tasks → Done
 - PR 已開、unit test pass、CI 綠
 - task.md 在 PR description 中 link 到 AC 驗收單
@@ -295,7 +303,7 @@ Pipeline 收斂在以下任一條件：
 
 - [epic-verification-structure.md](epic-verification-structure.md) — 驗收單本身的結構（本文件描述的是 pipeline handoff，不是 ticket 結構）
 - [jira-subtask-creation.md](jira-subtask-creation.md) — breakdown 建 JIRA 子單的機械步驟
-- [branch-creation.md](branch-creation.md) — task branch 建立流程（work-on 消費）
+- [branch-creation.md](branch-creation.md) — task branch 建立流程（engineering 消費）
 - [sub-agent-roles.md](sub-agent-roles.md) — 各 skill 內部 sub-agent dispatch 規格
 
 ## Implementation Phases
@@ -304,7 +312,7 @@ Pipeline 收斂在以下任一條件：
 
 1. **P1**（本文件）— 定義 task.md schema + 角色邊界
 2. **P2** — 更新 breakdown skill 產出符合 schema 的 task.md
-3. **P3** — 精簡 work-on dispatch prompt 只帶 task.md
+3. **P3** — 精簡 engineering dispatch prompt 只帶 task.md
 4. **P4** — 新建 verify-AC skill（含 disposition gate）
 5. **P5** — 更新 bug-triage 接受 AC-FAIL input + routing table
 

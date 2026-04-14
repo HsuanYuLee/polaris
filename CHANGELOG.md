@@ -4,6 +4,31 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.6.0] - 2026-04-14
+
+### Engineering Mindset — Deterministic Quality Gates & Skill Rename
+
+`work-on` 更名為 `engineering`，搭配三層確定性強化，確保 AI 工程師不再跳過品質檢查。
+
+#### 確定性品質 Gate（P0）
+- **`scripts/pre-commit-quality.sh`** — 自動偵測 lint/typecheck/test 並執行，全過寫 quality evidence
+- **`scripts/quality-gate.sh`** — PreToolUse hook，`git commit` 前檢查 evidence，沒有就 exit 2 擋下
+- Coverage advisory — 列出缺少 test 的 source files（non-blocking）
+- 整合進 `quality-check-flow.md` Step 4b + `mechanism-registry.md`
+
+#### Scope Lock（P1）
+- `pipeline-handoff.md` task.md schema 新增 `## Allowed Files` section
+- `engineer-delivery-flow.md` 新增 Step 5.5 Scope Check（advisory + risk signal）
+- `sub-agent-delegation.md` self-regulation scoring：計畫外檔案 +10% → +15%
+
+#### Skill Rename: work-on → engineering
+- 目錄 `skills/work-on/` → `skills/engineering/`
+- SKILL.md 開頭加工程師 persona 宣言
+- 全框架 ~30 個檔案 cross-reference 更新
+- Routing table 保留 `做`/`work on` trigger，skill name 改為 `engineering`
+
+**設計原則**：能用確定性驗證的，不靠 AI 自律。Hook exit code > 行為規則。
+
 ## [2.5.0] - 2026-04-14
 
 ### Library Change Protocol — Investigation & Workaround Standards

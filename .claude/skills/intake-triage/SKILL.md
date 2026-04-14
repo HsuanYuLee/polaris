@@ -117,7 +117,7 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 
 ### 維度 2：Effort（工作量信號）— S / M / L / XL
 
-**不做 codebase probe**（留給 /work-on 開工時做）。僅從 ticket 內容推斷：
+**不做 codebase probe**（留給 /engineering 開工時做）。僅從 ticket 內容推斷：
 
 | 信號 | Effort |
 |------|--------|
@@ -198,7 +198,7 @@ intake_triage:
 | 畫面高度特化 | 改動只適用特定情境但會影響通用流程 | 標 `blocked-hard`，說明風險 |
 | 做了反而有問題 | 例如移除某 meta tag 會讓 Google 誤判 | 標 `blocked-hard`，說明原因 |
 
-硬限制的判斷來自 ticket 描述的資訊。如果資訊不足以判斷 → 不標硬限制（寧可放行再由 /work-on 階段發現）。
+硬限制的判斷來自 ticket 描述的資訊。如果資訊不足以判斷 → 不標硬限制（寧可放行再由 /engineering 階段發現）。
 
 被標 `blocked-hard` 的 ticket 不進入 Step 4 排序，直接歸入判決表的「硬限制」區塊。
 
@@ -340,7 +340,7 @@ RD 確認後，對每張 ticket 寫入 JIRA。ticket 數量 > 5 時委派 sub-ag
 - [ ] {question 2}
 ```
 
-這個 comment 是**方向指引**，不是執行 spec。不寫檔案路徑或 code-level 細節（那是 /work-on 開工時才做的事）。目的是讓未來的 /work-on 省掉「理解需求」的時間，直接進入 codebase 分析。
+這個 comment 是**方向指引**，不是執行 spec。不寫檔案路徑或 code-level 細節（那是 /engineering 開工時才做的事）。目的是讓未來的 /engineering 省掉「理解需求」的時間，直接進入 codebase 分析。
 
 ### 6c. Skip ticket 額外處理
 
@@ -397,7 +397,7 @@ RD 確認後，對每張 ticket 寫入 JIRA。ticket 數量 > 5 時委派 sub-ag
 - Do: PM 理由用非技術語言，避免提及程式碼、元件名
 - Do: 同批內偵測 duplicate risk，避免 PM 重複開單
 - Do: comment 定位為「方向指引」，不寫檔案路徑
-- Don't: 不做 codebase probe — 留給 /work-on
+- Don't: 不做 codebase probe — 留給 /engineering
 - Don't: 不自動修改 ticket status — 只加 label + comment
 - Don't: 不替代 /refinement — refinement 是深入補完規格，intake-triage 是快速排序
 - Don't: 不替代 /my-triage — my-triage 是個人每日盤點，intake-triage 是批次收單排工
@@ -409,7 +409,7 @@ RD 確認後，對每張 ticket 寫入 JIRA。ticket 數量 > 5 時委派 sub-ag
 
 ```
 PM 開單 → /intake-triage → 判決 + label + comment
-                              ├─ Do First → /my-triage 讀取 label → /work-on 開工
+                              ├─ Do First → /my-triage 讀取 label → /engineering 開工
                               ├─ Do Soon → 下個 sprint /sprint-planning 會撈到
                               ├─ Do Later → backlog
                               ├─ Skip → PM 補完後重新 /intake-triage 或 /refinement

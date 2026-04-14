@@ -465,7 +465,7 @@ Audit: log infra settings.
 
 ### Step 9a: Dev Environment (skippable)
 
-Discover how to start the local development environment for each selected project. This information powers visual regression and work-on behavioral verification (engineer-delivery-flow Step 3).
+Discover how to start the local development environment for each selected project. This information powers visual regression and engineering behavioral verification (engineer-delivery-flow Step 3).
 
 **Auto-detect per project:**
 
@@ -928,7 +928,7 @@ The generated company config follows `_template/workspace-config.yaml` structure
 
 After the init wizard completes (config written, projects mapped), offer to generate handbooks for the configured repos:
 
-> "要不要為已設定的 repo 建立 handbook？Handbook 是給 AI 看的架構文件，幫助 sub-agent 理解每個 repo 的結構，減少每次重新探索的成本。（可以之後再做，第一次 work-on 時會自動觸發）"
+> "要不要為已設定的 repo 建立 handbook？Handbook 是給 AI 看的架構文件，幫助 sub-agent 理解每個 repo 的結構，減少每次重新探索的成本。（可以之後再做，第一次 engineering 時會自動觸發）"
 
 If user accepts:
 
@@ -940,7 +940,7 @@ If user accepts:
 2. If multiple repos, process sequentially (each needs user Q&A)
 3. Skip repos where `{repo}/.claude/handbook.md` already exists
 
-If user declines: skip entirely. Handbooks will be auto-generated on first `work-on`.
+If user declines: skip entirely. Handbooks will be auto-generated on first `engineering`.
 
 ## Post-Task Reflection (required)
 

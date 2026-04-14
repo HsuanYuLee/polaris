@@ -409,7 +409,7 @@ Visual regression passed ✅ — {N} 個頁面截圖一致，無畫面異常。
 
 ### 5b. Collect and upload artifacts to JIRA
 
-If the VR run is part of a ticket verification flow (e.g., triggered by `work-on` or `engineer-delivery-flow Step 3`), collect screenshots and upload them to the JIRA ticket **before** cleanup deletes them.
+If the VR run is part of a ticket verification flow (e.g., triggered by `engineering` or `engineer-delivery-flow Step 3`), collect screenshots and upload them to the JIRA ticket **before** cleanup deletes them.
 
 **Step 5b-1: Collect artifacts to a temp directory**
 

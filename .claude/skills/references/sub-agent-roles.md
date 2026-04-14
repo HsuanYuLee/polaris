@@ -104,7 +104,7 @@ These roles have **multi-step interaction patterns** that warrant a canonical de
 
 A multi-round challenge loop for test plan quality assurance.
 
-**When to use**: `work-on` Step 5f (AC Gate), before implementation begins.
+**When to use**: `engineering` Step 5f (AC Gate), before implementation begins.
 
 **Protocol**:
 1. **QA Challenger** (sonnet) reviews the test plan and flags gaps:

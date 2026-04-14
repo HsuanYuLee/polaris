@@ -4,7 +4,7 @@ description: >
   Admin-role delivery skill for framework/docs repos. Executes the full engineer delivery flow
   (simplify → quality → behavioral verify → review → rebase → commit → PR) without JIRA ceremony.
   Trigger: '發 PR', 'open PR', 'create PR', 'PR workflow', '準備發 PR'.
-  For product repos with JIRA tickets, use work-on instead.
+  For product repos with JIRA tickets, use engineering instead.
   PR body logic is in references/pr-body-builder.md (shared by both roles).
 tier: meta
 admin_only: true
@@ -19,7 +19,7 @@ metadata:
 
 **角色：Admin**（框架維護者）— 豁免 JIRA ticket、task.md、planning ceremony。**不豁免** execution discipline（simplify / quality / verify / review 照跑）。
 
-**產品 repo 禁用**：在產品 repo（your-app、your-backend 等）觸發時，skill-routing 會引導使用者改用 `work-on`。
+**產品 repo 禁用**：在產品 repo（your-app、your-backend 等）觸發時，skill-routing 會引導使用者改用 `engineering`。
 
 ---
 
@@ -27,8 +27,8 @@ metadata:
 
 | 適用 | 不適用 |
 |------|--------|
-| Polaris 框架自身（`~/work/`） | 產品 repo（走 `work-on`） |
-| 通用 docs / template repo | 有 JIRA ticket 的開發（走 `work-on`） |
+| Polaris 框架自身（`~/work/`） | 產品 repo（走 `engineering`） |
+| 通用 docs / template repo | 有 JIRA ticket 的開發（走 `engineering`） |
 | 無 ticket 的 hotfix / cleanup | 需要 task.md 的計劃性開發 |
 
 ---
@@ -96,7 +96,7 @@ After PR is created, check if the repo has a handbook (`{repo}/.claude/rules/han
 
 - Do: 確認當前 repo 是框架/docs repo，不是產品 repo
 - Do: 遵循 `engineer-delivery-flow.md` 完整流程（不跳步驟）
-- Don't: 在產品 repo 使用本 skill（走 `work-on`）
+- Don't: 在產品 repo 使用本 skill（走 `engineering`）
 - Don't: 跳過 quality check 或 behavioral verify
 - Don't: 用模糊 title（如「fix bug」「update code」）
 

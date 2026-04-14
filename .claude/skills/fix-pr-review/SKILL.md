@@ -766,7 +766,7 @@ Commit: <sha>
 
 ## 12.5 Review Lesson 萃取
 
-修正完成後，靜默分析本次 review comments，將可通用化的 coding pattern 萃取為 `.claude/rules/review-lessons/` 規則檔。目的：避免同類問題在未來的 PR 反覆出現——寫 code 的 skill（work-on、bug-triage、unit-test）啟動時會讀取 `.claude/rules/`，等同於把 reviewer 的回饋內建到開發流程中。
+修正完成後，靜默分析本次 review comments，將可通用化的 coding pattern 萃取為 `.claude/rules/review-lessons/` 規則檔。目的：避免同類問題在未來的 PR 反覆出現——寫 code 的 skill（engineering、bug-triage、unit-test）啟動時會讀取 `.claude/rules/`，等同於把 reviewer 的回饋內建到開發流程中。
 
 ### 萃取條件
 
@@ -921,7 +921,7 @@ After fixes are pushed, check if the repo has a handbook (`{repo}/.claude/rules/
 3. Update stale sections (direct file write, no commit)
 4. Flag major structural changes to user
 
-Skip if no handbook exists (will be created on next `work-on`).
+Skip if no handbook exists (will be created on next `engineering`).
 
 ## Post-Task Reflection (required)
 

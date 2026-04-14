@@ -7,7 +7,7 @@ description: >
   'help me fix', '幫我修正', '開始修正', '修正這張', 'fix this ticket' (when issue type is Bug),
   'debug', '找 bug', '為什麼壞了', 'why is this failing', 'investigate', '查問題',
   '這個怎麼回事', 'root cause', '根因', '排查'.
-  NOT for: PR review fixes (use fix-pr-review), already-diagnosed bugs with root cause confirmed (use breakdown → work-on).
+  NOT for: PR review fixes (use fix-pr-review), already-diagnosed bugs with root cause confirmed (use breakdown → engineering).
   This skill handles DIAGNOSIS only — estimation, test plan, QA challenge, and design doc are delegated to breakdown.
 metadata:
   author: Polaris
@@ -18,13 +18,13 @@ metadata:
 
 Bug 票的診斷技能。定位根因、確認方向，為 `breakdown` 提供已確認的技術分析。
 
-**職責邊界**：bug-triage 只做診斷（探索 → 根因 → RD 確認 → enriched ticket）。不做估點、不做測試計畫、不寫 Design Doc — 那是 `breakdown` 的工作。不建 branch、不寫 code、不開 PR — 那是 `work-on` 的工作。
+**職責邊界**：bug-triage 只做診斷（探索 → 根因 → RD 確認 → enriched ticket）。不做估點、不做測試計畫、不寫 Design Doc — 那是 `breakdown` 的工作。不建 branch、不寫 code、不開 PR — 那是 `engineering` 的工作。
 
 **三層架構定位**：
 ```
 Layer 1 理解: bug-triage (Bug) / refinement (Epic/Story)
 Layer 2 派工: breakdown (通用：估點 + 測試 + QA Challenge + Design Doc)
-Layer 3 施工: work-on (branch + TDD + 品質 + PR)
+Layer 3 施工: engineering (branch + TDD + 品質 + PR)
 ```
 
 ## Step 1 — Read Ticket & Identify Project
@@ -33,7 +33,7 @@ Layer 3 施工: work-on (branch + TDD + 品質 + PR)
 2. Parallel:
    - `getJiraIssue` — read full ticket (summary, description, AC, labels, status, assignee)
    - Check `fields.issuetype.name` — if not Bug, tell user and suggest the correct skill:
-     - Story/Task → `breakdown` or `work-on`
+     - Story/Task → `breakdown` or `engineering`
      - Epic → `refinement` → `breakdown`
 3. Identify project per `references/project-mapping.md` (Summary `[tag]` → workspace config `projects` block)
 4. Check if root cause is already confirmed (JIRA comments contain `[ROOT_CAUSE]` section):
@@ -115,7 +115,7 @@ Step 5c 的 handoff 訊息改為：
 | Proposed Fix | ✅ {scope summary} |
 
 ---
-說「做 {BUG_KEY}」進入施工。work-on 會 checkout **{feature_branch_name}**（不是 develop），在上面開 fix branch。
+說「做 {BUG_KEY}」進入施工。engineering 會 checkout **{feature_branch_name}**（不是 develop），在上面開 fix branch。
 修完 PR merge 回 feature branch 後，說「驗 {EPIC_KEY}」跑 verify-AC full re-run。
 ```
 
@@ -245,7 +245,7 @@ If the Explorer sub-agent returned Handbook Observations (gaps or stale info), p
 
 ---
 說「breakdown {TICKET}」進入派工（估點 + 測試計畫 + Design Doc）。
-或說「做 {TICKET}」直接施工（work-on 會檢查 plan 是否存在）。
+或說「做 {TICKET}」直接施工（engineering 會檢查 plan 是否存在）。
 ```
 
 ## Error Handling

@@ -9,7 +9,7 @@ After a long session or across multiple sessions in a day, it's hard to reconstr
 ## Entry Schema
 
 ```jsonl
-{"ts":"2026-04-02T14:30:00+08:00","event":"skill_invoked","skill":"work-on","ticket":"PROJ-500","branch":"task/PROJ-500-feature","outcome":"success","duration_s":180,"note":"implementation + PR opened"}
+{"ts":"2026-04-02T14:30:00+08:00","event":"skill_invoked","skill":"engineering","ticket":"PROJ-500","branch":"task/PROJ-500-feature","outcome":"success","duration_s":180,"note":"implementation + PR opened"}
 ```
 
 | Field | Type | Required | Description |
@@ -65,7 +65,7 @@ See `scripts/polaris-timeline.sh` for the CLI:
 
 ```bash
 # Append an event
-polaris-timeline.sh append --event skill_invoked --skill work-on \
+polaris-timeline.sh append --event skill_invoked --skill engineering \
   --ticket PROJ-500 --branch task/PROJ-500 --company acme
 
 # Query recent events

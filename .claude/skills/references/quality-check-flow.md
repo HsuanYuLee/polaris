@@ -21,8 +21,20 @@
 | Script | 用途 |
 |--------|------|
 | `{workspace_root}/scripts/detect-project-and-changes.sh` | 偵測專案類型 + 變更檔案 + 測試覆蓋狀態 |
+| `{workspace_root}/scripts/pre-commit-quality.sh` | 執行 lint → typecheck → test，寫 quality evidence |
+| `{workspace_root}/scripts/quality-gate.sh` | PreToolUse hook — 沒有 quality evidence 就擋 `git commit` |
 
-> 原位於 `.claude/skills/dev-quality-check/scripts/`，Phase 3 搬到通用 `scripts/` 目錄。在 Phase 3d 實施前，呼叫端需同時知道兩個位置，優先用新位置。
+### Deterministic Gate
+
+`quality-gate.sh` 是 PreToolUse hook，在 `git commit` 前檢查 `/tmp/polaris-quality-{branch}.json` 是否存在且 all_passed。**這是確定性的** — LLM 無法繞過。
+
+**呼叫順序**：
+1. 本 reference 的 Step 0-5 執行品質檢查（行為層）
+2. 檢查全部通過後，呼叫 `pre-commit-quality.sh --repo <path>` 寫入 evidence（確定性層）
+3. `git commit` 時 `quality-gate.sh` hook 驗證 evidence 存在
+4. evidence 不存在或有 FAIL → hook exit 2 擋下 commit
+
+**Bypass**：`POLARIS_SKIP_QUALITY=1`（WIP commit）或 commit message 以 `wip:` 開頭。
 
 ## Step 0 — Detect Project + Changed Files + Test Coverage
 
@@ -163,6 +175,22 @@ npx eslint <changed-files> --no-fix
 
 ---
 
+## Step 4b — Write Quality Evidence
+
+所有品質檢查通過後（Step 1-4 無 FAIL），呼叫 `pre-commit-quality.sh` 寫入確定性 evidence：
+
+```bash
+bash {workspace_root}/scripts/pre-commit-quality.sh --repo <project-dir>
+```
+
+Script 自動偵測 lint / typecheck / test 指令並執行，全部通過時寫入 `/tmp/polaris-quality-{branch}.json`。
+
+**注意**：若 Step 1-3 已經手動跑過 lint/test 並通過，`pre-commit-quality.sh` 會重跑一次 — 這是 by design，確保 evidence 反映最新狀態。
+
+若 script 回報 FAIL（exit 1）→ 回到對應步驟修正，不可手動建 evidence 檔案。
+
+---
+
 ## Step 5 — Risk Scoring（Advisory）
 
 計算變更的風險分數 0-100。**此分數是 advisory**（提示工程師與使用者），**不 block PR**。理由：很多高風險變動（關鍵路徑的必要 bugfix）就是該出，block 只會推使用者繞過；低風險的爛 PR 也不會因為分數低變好。真正 block 的是 evidence file 裡的 FAIL。
@@ -218,6 +246,6 @@ npx eslint <changed-files> --no-fix
 
 ## 來源
 
-從原 `.claude/skills/dev-quality-check/SKILL.md`（v3.2.0）轉型。2026-04-14 work-on 重構 v2 的 Phase 1 產出（見 memory `project_workon_redesign_v2.md`）。
+從原 `.claude/skills/dev-quality-check/SKILL.md`（v3.2.0）轉型。2026-04-14 engineering 重構 v2 的 Phase 1 產出（見 memory `project_workon_redesign_v2.md`）。
 
 原 skill 的 Step 6 Nuxt build smoke 段、Step 8b VR trigger、Step 9 gate marker 已移除或搬移（詳見本文件 § 原 dev-quality-check 的差異）。

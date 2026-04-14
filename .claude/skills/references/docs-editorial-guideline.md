@@ -12,7 +12,7 @@ Writing style rules for public-facing documentation (README.md, docs/*.md). Appl
 |------|-----|-------|
 | **一句能講完不用三句** | "Polaris routes JIRA tickets to skills." | "In order to provide a seamless workflow, Polaris has been designed to route JIRA tickets to the appropriate skills." |
 | **第一句是結論** | "Skills load on-demand." then explain why | "Claude Code has a context window. To save tokens, skills are designed to..." |
-| **Show don't tell** | Code block with actual command | "You can use the work-on skill by typing the command..." |
+| **Show don't tell** | Code block with actual command | "You can use the engineering skill by typing the command..." |
 | **中英對照用 `/`** | `"work on PROJ-123" / 「做 PROJ-123」` | 分段重複同一內容的中英版 |
 | **術語首次解釋，之後直接用** | "Skills (reusable workflow modules) automate..." → 後文直接說 "skills" | 每次都加括號解釋 |
 | **Section ≤ 15 行** | 超過就拆成子 section 或砍贅字 | 一個 section 塞 30 行散文 |

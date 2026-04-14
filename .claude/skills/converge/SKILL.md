@@ -1,6 +1,6 @@
 ---
 name: converge
-description: "Use when the user wants to push all in-flight work forward toward review in one pass — closing gaps across Epics, Bugs, and orphan Tasks. NOT for single-ticket work (use work-on) or read-only triage (use my-triage). Trigger: '收斂', 'converge', '推進', '全部推到 review', '把我的單收一收', 'epic 進度', '離 merge 還多遠', '補全'."
+description: "Use when the user wants to push all in-flight work forward toward review in one pass — closing gaps across Epics, Bugs, and orphan Tasks. NOT for single-ticket work (use engineering) or read-only triage (use my-triage). Trigger: '收斂', 'converge', '推進', '全部推到 review', '把我的單收一收', 'epic 進度', '離 merge 還多遠', '補全'."
 metadata:
   author: Polaris
   version: 1.0.0
@@ -77,14 +77,14 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 |----------|------|----------|
 | `NO_ESTIMATE` | `customfield_10016` (SP) 為 null 且不是 Bug | `breakdown` |
 | `NO_BREAKDOWN` | Epic 無子單 | `breakdown` |
-| `NOT_STARTED` | status = 待辦事項/開放，有估點 | `work-on` |
+| `NOT_STARTED` | status = 待辦事項/開放，有估點 | `engineering` |
 | `CODE_NO_PR` | status = In Development，無 open PR | `git-pr-workflow` |
 | `CI_RED` | PR 存在，CI 失敗 | `fix-pr-review` |
 | `CHANGES_REQUESTED` | PR 有 CHANGES_REQUESTED review | `fix-pr-review` |
 | `HAS_UNRESOLVED_COMMENTS` | PR 有未解決的 review comments（含 COMMENTED 狀態） | `fix-pr-review` |
 | `REVIEW_STUCK` | PR open > 2 天，0 approved | `check-pr-approvals` |
 | `STALE_APPROVAL` | PR approved 但 approval 已過期（新 commit 後未 re-approve） | `check-pr-approvals` |
-| `VERIFICATION_PENDING` | 開發完成但 [驗證] 子單未完成 | `work-on` |
+| `VERIFICATION_PENDING` | 開發完成但 [驗證] 子單未完成 | `engineering` |
 | `NO_FEATURE_PR` | 所有 task PR 已 merge，但無 feature → develop PR | feature-branch-pr-gate 自動建立 |
 | `MERGE_CONFLICT` | PR 有衝突 | 報告，不自動執行 |
 | `WAITING_QA` | status = Waiting for QA | ⏸ 跳過 |
@@ -121,8 +121,8 @@ Gaps found: X | Ready: Y | Skipped: Z
   2. TEAM-201 SKU 價格 Bug — CODE_NO_PR → git-pr-workflow
 
 🔨 需要實作（2-3 步）
-  3. PROJ-106 AI 爬蟲調查 — NOT_STARTED (5 SP) → work-on
-  4. PROJ-105 首頁結構化資料 — NOT_STARTED → work-on
+  3. PROJ-106 AI 爬蟲調查 — NOT_STARTED (5 SP) → engineering
+  4. PROJ-105 首頁結構化資料 — NOT_STARTED → engineering
 
 📋 需要規劃
   5. PROJ-104 HTML + CSS 優化 — NO_ESTIMATE → breakdown
@@ -169,14 +169,14 @@ Gaps found: X | Ready: Y | Skipped: Z
 |----------|-------|-----------------|-------|
 | `NO_BREAKDOWN` | `breakdown` | Exploration → Analysis | sonnet |
 | `NO_ESTIMATE` | `breakdown` | Exploration → Analysis (batch: haiku for JIRA writes) | sonnet/haiku |
-| `NOT_STARTED` | `work-on` | Implementation | sonnet |
+| `NOT_STARTED` | `engineering` | Implementation | sonnet |
 | `CODE_NO_PR` | `git-pr-workflow` | Implementation | sonnet |
 | `CI_RED` | `fix-pr-review` | Implementation | sonnet |
 | `CHANGES_REQUESTED` | `fix-pr-review` | Implementation | sonnet |
 | `HAS_UNRESOLVED_COMMENTS` | `fix-pr-review` | Implementation | sonnet |
 | `REVIEW_STUCK` | `check-pr-approvals` | JIRA + Slack notification | sonnet |
 | `STALE_APPROVAL` | `check-pr-approvals` | JIRA + Slack notification | sonnet |
-| `VERIFICATION_PENDING` | `work-on` | Verification (engineer-delivery-flow Step 3) | sonnet |
+| `VERIFICATION_PENDING` | `engineering` | Verification (engineer-delivery-flow Step 3) | sonnet |
 | `NO_FEATURE_PR` | `feature-branch-pr-gate.md` reference | Implementation | sonnet |
 
 ### 安全機制
@@ -188,9 +188,9 @@ Gaps found: X | Ready: Y | Skipped: Z
 
 ### NOT_STARTED 的特殊處理
 
-`NOT_STARTED` gap 的 ticket 需要完整的 `work-on` 流程（分析 → plan → implement → quality → PR）。這是最重資源的操作：
+`NOT_STARTED` gap 的 ticket 需要完整的 `engineering` 流程（分析 → plan → implement → quality → PR）。這是最重資源的操作：
 
-- 單張 NOT_STARTED ticket → 直接路由 `work-on`
+- 單張 NOT_STARTED ticket → 直接路由 `engineering`
 - 多張 NOT_STARTED tickets → 逐張執行（不 parallel），因為每張都可能修改大量檔案
 - 使用者可以選擇只跑 Quick Wins，跳過 NOT_STARTED（`只跑 quick wins`）
 
@@ -215,7 +215,7 @@ Gaps found: X | Ready: Y | Skipped: Z
 | Ticket | Before | After | Action Taken |
 |--------|--------|-------|-------------|
 | PROJ-101 | CI_RED | READY | fix-pr-review → CI pass |
-| PROJ-106 | NOT_STARTED | CODE_REVIEW | work-on → PR #105 |
+| PROJ-106 | NOT_STARTED | CODE_REVIEW | engineering → PR #105 |
 | PROJ-104 | NO_ESTIMATE | NOT_STARTED | breakdown → 8 SP |
 | PROJ-100 | REVIEW_STUCK | REVIEW_STUCK | ⏸ skipped (等 review) |
 
@@ -289,12 +289,12 @@ Next actions:
 |-------|------|
 | `my-triage` | 不變，純儀表板 |
 | `epic-status` | 保留為 converge 的 Epic-only alias |
-| `work-on` | 不變，converge 的下游執行器 |
+| `engineering` | 不變，converge 的下游執行器 |
 | `fix-pr-review` | 不變，converge 的下游執行器 |
 | `check-pr-approvals` | 不變，converge 的下游執行器 |
 | `git-pr-workflow` | 不變，converge 的下游執行器 |
 | `breakdown` | 不變，converge 的下游執行器 |
-| `work-on` (behavioral verification) | 不變，converge 的下游執行器（含 engineer-delivery-flow Step 3） |
+| `engineering` (behavioral verification) | 不變，converge 的下游執行器（含 engineer-delivery-flow Step 3） |
 
 ---
 

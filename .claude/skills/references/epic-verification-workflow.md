@@ -8,7 +8,7 @@ Reference doc for the three-layer verification structure. Not yet integrated int
 - [x] Epic #1 試跑完成，記錄調整項（PROJ-483, 2026-04-05）
 - [x] Reference doc 根據 Epic #1 修正（加入 Playwright browser-first、URL 規範、測資來源）
 - [ ] Epic #2 驗證完成，無結構性修改
-- [ ] 畢業 → 改進 breakdown, epic-status, work-on
+- [ ] 畢業 → 改進 breakdown, epic-status, engineering
 
 **Graduation signal:** 連續 2 個 Epic 走完流程且 doc 核心流程不需修改。
 
@@ -248,7 +248,7 @@ Feature PR 前：
 4. PR review：{approved by X}
 ```
 
-**Trigger:** `work-on` 或 `breakdown` 建立 task 時自動建 sub-task。quality-check-flow 和 engineer-delivery-flow Step 3 跑完後更新內容。
+**Trigger:** `engineering` 或 `breakdown` 建立 task 時自動建 sub-task。quality-check-flow 和 engineer-delivery-flow Step 3 跑完後更新內容。
 
 **Not a blocker:** task 的 PR merge 不依賴 sub-task 狀態。sub-task 是事後記錄。
 
@@ -512,7 +512,7 @@ VR Gate 在 quality check 之後、commit 之前。這樣 VR fail 時還沒 comm
 | `refinement` | Phase 1/2 確認 Epic 附有目標驗證頁清單 |
 | `breakdown` | 拆單時在 API 單之後、實作單之前插入穩定測資單；最後自動產生 per-AC 驗收單 + 整合測試單 |
 | `epic-status` | Phase 1 偵測「所有 task merged → 提醒開始驗收」。Phase 2 路由驗收 gap。Check stale fixture folders |
-| `work-on` | 建 task 時自動建測試計劃 sub-task。每張 task 必須通過 VR |
+| `engineering` | 建 task 時自動建測試計劃 sub-task。每張 task 必須通過 VR |
 | `breakdown` (estimation) | 估點時產生測試計劃 template |
 | `quality-check-flow` | Step 8b VR 條件觸發（已完成 v1.52.0） |
 | `git-pr-workflow` | Step 3b VR Gate（本次新增）；驗收前 auto-rebase develop |

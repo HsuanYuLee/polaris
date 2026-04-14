@@ -202,4 +202,4 @@ EOB
 
 ## 來源
 
-從原 `pr-convention` skill（v1.3.0）抽出。2026-04-14 work-on 重構 Phase 4 將 PR body 邏輯降級為 reference，消除獨立 skill 的路由歧義。
+從原 `pr-convention` skill（v1.3.0）抽出。2026-04-14 engineering 重構 Phase 4 將 PR body 邏輯降級為 reference，消除獨立 skill 的路由歧義。
