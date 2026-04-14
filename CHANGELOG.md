@@ -4,6 +4,25 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.2.0] - 2026-04-14
+
+### Review Skill Architecture — Discovery / Engine Split
+
+review-inbox 升級為三層 sub-agent 架構（Slack scan → per-PR review → 彙整），review-pr 砍掉批次模式純化為 single-PR review engine。
+
+- **review-inbox v2.1.0** — Slack 模式 Step 1 委派 sub-agent（MCP + extract-pr-urls.py pipeline），原始訊息不進主 session context；Step 4 每個 PR 由獨立平行 sub-agent 執行 review-pr 流程
+- **review-pr v2.0.0** — 移除 Step 0 批次模式（multi-PR dispatch、batch Slack notification），批次調度由 review-inbox 負責
+- **extract-pr-urls.py** — 支援新 MCP 輸出格式（`=== Message from ...` headers + `Message TS`），保留 legacy fallback；thread_ts 從秒級近似提升為微秒精度
+
+**職責分工**：
+| 職責 | 負責者 |
+|------|--------|
+| PR 發現（Slack / Label 掃描） | review-inbox |
+| 批次調度（平行 sub-agent） | review-inbox Step 4 |
+| 單 PR review（diff → 審查 → 提交） | review-pr |
+| 批次 Slack 通知 | review-inbox Step 5 |
+| 單 PR Slack 通知 | review-pr Step 7 |
+
 ## [2.1.0] - 2026-04-14
 
 ### Phase 4 — Delivery Flow Polish

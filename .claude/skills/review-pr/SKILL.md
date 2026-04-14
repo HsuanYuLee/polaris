@@ -11,7 +11,7 @@ description: >
   (use fix-pr-review for that).
 metadata:
   author: Polaris
-  version: 1.5.0
+  version: 2.0.0
 ---
 
 # review-pr
@@ -24,7 +24,7 @@ metadata:
 本步驟需要的值：`github.org`、`slack.channels.ai_notifications`。
 若 config 不存在，使用 `references/shared-defaults.md` 的 fallback 值。
 
-## 0. 偵測輸入來源 & 多 PR 批次模式
+## 0. 偵測輸入來源
 
 ### 從 Slack 訊息擷取 PR 連結
 
@@ -32,93 +32,7 @@ metadata:
 
 保留的 Slack context（`slack_channel_id` 從 config `slack.channels.ai_notifications` 讀取、`slack_thread_ts`、`slack_source`）供 Step 7 使用。
 
-### 多 PR 輸入
-
-使用者可能一次提供多個 PR，例如：
-- 多個 URL：`review 這幾個 PR: https://github.com/.../pull/100 https://github.com/.../pull/200`
-- 多個編號（同 repo）：`review #100 #200 #300`
-- 混合格式：`review https://github.com/.../pull/100 和 #200`
-- Slack 訊息中包含多個 PR 連結
-
-### 判斷方式
-
-解析使用者輸入，提取所有 PR URL 或編號。若偵測到 **2 個以上 PR**，進入批次模式。
-
-### 批次模式流程
-
-1. **為每個 PR 啟動一個獨立的 sub-agent**（使用 Agent tool），**所有 sub-agent 同時平行啟動**
-2. 每個 sub-agent 的 prompt 包含：
-   - 該 PR 的 URL 或編號
-   - 完整的 review 流程指示（Step 1 ~ Step 5 的所有內容）
-   - 明確指示：獨立完成整個 review 流程，包括讀取專案規範、取得 diff、審查、提交 review
-
-每個 sub-agent 的 prompt 範本：
-
-```
-你是 PR code reviewer。請完整 review 以下 PR 並提交 review。
-
-## PR
-{pr_url_or_number}
-
-## Review 流程
-
-### 1. 辨識專案
-從 PR URL 提取 repo 名稱，依序搜尋本地路徑：`./` → `{base_dir}/{repo}`（`base_dir` 從 workspace config 的 `projects` block 取得）。
-若本地找不到，告知使用者：「Could not find {repo} locally. Please clone it or specify the path.」
-- 若存在 → 使用本地模式，用 Read tool 讀取檔案（不要用 gh api 讀檔案內容）
-- 若不存在 → 使用遠端模式（remote_mode），用 `gh api repos/{owner}/{repo}/contents/{path}?ref={headRefName} --jq '.content' | base64 -d` 讀取
-
-### 2. 取得 PR 資訊
-- gh pr view <number> --repo {owner}/{repo} --json title,body,author,baseRefName,headRefName,files
-- gh api repos/{owner}/{repo}/pulls/{number}/files --paginate
-- 計算總變更行數，若 > 800 行則分批處理（見下方分批 review 說明）
-
-### 3. 讀取專案規範與 Handbook
-- 本地模式：用 Read tool 讀取 {base_dir}/{repo}/.claude/rules/ 下所有檔案
-- 遠端模式：用 gh api 讀取
-- **讀取 Repo Handbook**：若 `{base_dir}/{repo}/.claude/rules/handbook/` 存在，讀取 `index.md` + 所有子檔案。Handbook 是該 repo 的 coding 準則，review 時全文遵守 — 符合 handbook 的 pattern 不應被 flag，違反 handbook 的 pattern 應指出
-
-### 4. 審查每個檔案
-- 本地模式：用 Read tool 讀取完整原始碼理解上下文
-- 遠端模式：用 gh api 讀取完整原始碼
-- 審查維度：正確性、型別安全、規範遵循、安全性、效能、可維護性、無障礙性、跨檔案一致性
-- 分類：must-fix / should-fix / nit
-
-### 5. 提交 Review
-用 gh api 提交 review（含 inline comments）：
-- 無問題或只有 nit → APPROVE
-- 有 should-fix 無 must-fix → COMMENT
-- 有 must-fix → REQUEST_CHANGES
-
-### 分批 review（僅 > 800 行時）
-若 PR 太大，將檔案分組（每組 ≤ 600 行），為每組啟動 sub-agent 平行 review，彙整後統一提交。
-
-### 6. 回傳結果
-完成後回傳摘要：PR 編號、標題、作者、review 結果、各嚴重程度數量。
-```
-
-3. **收集所有 sub-agent 結果後，向使用者輸出統一摘要報告**：
-
-```
-批次 PR Review 報告：
-
-1. PR #100 (feature: add login) - APPROVE ✅
-   - must-fix: 0, should-fix: 0, nit: 2
-
-2. PR #200 (fix: cart total) - REQUEST_CHANGES ❌
-   - must-fix: 2, should-fix: 1, nit: 0
-
-3. PR #300 (refactor: api client) - COMMENT 💬
-   - must-fix: 0, should-fix: 3, nit: 1
-```
-
-4. **若輸入來源為 Slack（`slack_source: true`），繼續執行 Step 7** 回覆 Slack thread 通知各 PR 作者。
-
-**Step 7 完成後結束。若非 Slack 來源，摘要報告後結束。**
-
----
-
-若只有 **1 個 PR**，進入下方正常流程：
+> **批次 review 由 review-inbox 負責**：若使用者提供多個 PR，引導至 `review-inbox`（「掃 PR」）。本 skill 專注於單一 PR 的完整 review 流程。
 
 ## Scripts
 
@@ -634,8 +548,6 @@ Handbook 更新：
 
 訊息格式（使用 Slack mrkdwn）：
 
-**單一 PR：**
-
 ```
 📋 *PR Review 完成*
 
@@ -649,19 +561,6 @@ Handbook 更新：
 {如有 must-fix，簡述最重要的 1-2 個問題}
 
 <@{author_slack_user_id}> 請查看 review comments 🙏
-```
-
-**多個 PR（批次模式）：**
-
-```
-📋 *批次 PR Review 完成*（共 N 個）
-
-1. <{pr_url}|#{number} {title}> — ✅ APPROVE
-2. <{pr_url}|#{number} {title}> — ❌ REQUEST_CHANGES (must-fix: 2)
-3. <{pr_url}|#{number} {title}> — 💬 COMMENT (should-fix: 3)
-
-{去重後列出所有 PR 作者} 請查看各自的 review comments 🙏
-例如：<@{author_1_slack_id}> <@{author_2_slack_id}> 請查看各自的 review comments 🙏
 ```
 
 ### 7c. 發送 Slack 訊息
