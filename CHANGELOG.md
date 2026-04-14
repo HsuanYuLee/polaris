@@ -4,6 +4,39 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.1.0] - 2026-04-14
+
+### Phase 4 — Delivery Flow Polish
+
+v2.0.0 follow-up：補齊 contract、VR 整合、pr-convention 降級、delivery canaries。
+
+- **Delivery Contract** — `engineer-delivery-flow.md` 頂部加 Preconditions / Postconditions / 不做的事
+- **VR Step 3.5** — Behavioral Verify 後、Pre-PR Review 前條件觸發 `visual-regression`（Local mode），結果寫入 evidence file
+- **Deleted skill: `pr-convention`** — PR template 偵測、body 組裝、AC Coverage、母單 PR、Bug RCA 偵測邏輯移到新 reference `pr-body-builder.md`，消除獨立 skill 的路由歧義
+- **New reference: `pr-body-builder.md`** — engineer-delivery-flow Step 7 消費
+- **Delivery Contract canaries** — mechanism-registry 新增 5 條 delivery-flow 專屬 canary（step-order、single-backbone、vr-trigger、pr-body、evidence-completeness）
+- **Sweep** — 更新 INDEX.md、git-pr-workflow、bug-rca、mechanism-registry 中所有 pr-convention 引用
+
+## [2.0.0] - 2026-04-14
+
+### BREAKING — Engineer Delivery Flow Redesign
+
+execution backbone 從分散的 skill 統一到共用 reference，work-on 和 git-pr-workflow 共用同一份交付流程。
+
+- **New references**
+  - `engineer-delivery-flow.md` — 共用交付 backbone：Simplify → Quality Check → Behavioral Verify (Layer A+B) → Pre-PR Review → Rebase → Commit → PR → JIRA transition
+  - `quality-check-flow.md` — lint / test / coverage / risk scoring 自檢流程（原 dev-quality-check 內容）
+- **Restructured skills**
+  - `work-on` v4.0.0 — Developer 主入口，TDD 開發後委託 engineer-delivery-flow (Role: Developer)。刪除 Phase 2.5 Sanity Gate（吸收進 delivery-flow Step 3）
+  - `git-pr-workflow` v4.0.0 — 瘦身為 Admin 入口（~440→~90 行），加 `tier: meta` + `admin_only: true`，委託 engineer-delivery-flow (Role: Admin)
+- **Deleted skills**
+  - `verify-completion/` — 行為驗證段 → engineer-delivery-flow Step 3；AC 驗證段 → verify-AC（已獨立）
+  - `dev-quality-check/` — 內容 → quality-check-flow.md；`detect-project-and-changes.sh` → 搬到 `scripts/`
+- **Skill routing**
+  - 新增 § Admin-Only Skill Guard：git-pr-workflow 在產品 repo 引導走 work-on
+- **Reference sweep** — 16 files 更新 verify-completion / dev-quality-check 引用
+- **Evidence gate 合併** — 刪除 `/tmp/.quality-gate-passed-{BRANCH}` + pre-push hook marker，保留 `/tmp/polaris-verified-{TICKET}.json` + pre-PR hook 為唯一 gate
+
 ## [1.110.0] - 2026-04-14
 
 - **Handbook as Coding Standard — review skills now read and enforce repo handbook**

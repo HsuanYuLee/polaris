@@ -28,7 +28,7 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | "Let me investigate what went wrong first" | The skill handles investigation. Invoke it — don't pre-read PRs, diffs, or JIRA tickets |
 | "I already know how to do this" | Skills encode quality gates and side effects (lesson extraction, Slack notifications) that manual execution misses. Read the current version |
 | "I need to read the ticket/PR before invoking" | Skills fetch their own data. Your pre-read wastes context and bypasses the skill's own flow |
-| "I'll run quality-check first, then pr-convention" | That's manually decomposing `git-pr-workflow`. The skill runs quality + PR as one unit with coverage |
+| "I'll run quality-check first, then create the PR separately" | That's manually decomposing `engineer-delivery-flow`. The flow runs quality + verify + PR as one unit |
 | "Let me check the sub-agents before invoking" | The skill defines the delegation strategy, not you. Invoke first |
 | "I can fix these review comments by hand quickly" | Manual fix skips comment replies, quality checks, and lesson extraction. Use `fix-pr-review` |
 | "This is just a simple question, no skill needed" | If a trigger matches, invoke the skill. Simple tasks become complex |
@@ -186,6 +186,16 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | `ac-fail-bug-branch-from-feature` | work-on opens fix branch for AC-FAIL Bug from the Epic's feature branch (extracted from `[VERIFICATION_FAIL]` block), not from develop | work-on creates fix branch from develop for a Bug whose description contains `[VERIFICATION_FAIL]` — fix never lands on the failing feature branch | High |
 | `checklist-before-done` | Before declaring a task complete, review the session's original task list (checkpoint next steps, todo items) and confirm each item is done/carry-forward/dropped | Strategist says "done" or asks "要更新 checkpoint 嗎？" while unchecked items remain from the session's starting checklist | High |
 | `defer-immediate-capture` | When a decision defers work to a later phase, capture it in todo (same session) or memory (future session) immediately — oral defer is not landed | Conversation contains "等 X 再處理 Y" pattern but no corresponding todo/memory entry created within the next 2 tool calls | High |
+
+### Delivery Flow Contract (source: `skills/references/engineer-delivery-flow.md` § Delivery Contract)
+
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `delivery-flow-step-order` | engineer-delivery-flow steps must execute in order (1→2→3→3.5→4→5→6→7→8). No step may be skipped or reordered | Sub-agent jumps from Step 2 to Step 7 (skipping behavioral verify) or runs Step 7 before Step 4 | **Critical** |
+| `delivery-flow-single-backbone` | All PR creation goes through engineer-delivery-flow (via work-on or git-pr-workflow). No standalone PR creation outside the flow | `gh pr create` called outside engineer-delivery-flow context (no evidence file, no simplify/quality/verify steps in conversation) | High |
+| `vr-conditional-trigger` | Step 3.5 VR triggers when changed files hit a VR-configured domain page. Not triggering when no VR domain is configured is correct; skipping when a domain IS configured is a violation | VR domain exists in workspace-config and changed files match VR pages, but Step 3.5 was skipped | Medium |
+| `pr-body-from-reference` | PR body must be built using `references/pr-body-builder.md` logic (template detection → section fill → AC Coverage). Manual PR body construction bypasses AC Coverage and Bug RCA detection | PR body written inline without reading pr-body-builder.md; AC Coverage section missing when JIRA AC exists | High |
+| `evidence-file-completeness` | Evidence file must contain both `layer_a` and `layer_b` (Developer) or `layer_a` only (Admin). VR result (`vr` field) must be present when Step 3.5 triggered | Evidence file written without `layer_b` for Developer role, or missing `vr` field when VR was triggered | Medium |
 
 ### Deterministic Quality Hooks (source: PROJ-123 restraint mechanisms, 2026-04-10)
 

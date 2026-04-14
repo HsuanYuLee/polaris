@@ -5,7 +5,7 @@ description: >
   (simplify → quality → behavioral verify → review → rebase → commit → PR) without JIRA ceremony.
   Trigger: '發 PR', 'open PR', 'create PR', 'PR workflow', '準備發 PR'.
   For product repos with JIRA tickets, use work-on instead.
-  For simple PR creation without quality gates, use pr-convention.
+  PR body logic is in references/pr-body-builder.md (shared by both roles).
 tier: meta
 admin_only: true
 metadata:

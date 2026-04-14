@@ -153,11 +153,8 @@ flowchart LR
     UT_TDD["unit-test<br/>(TDD mode)"]
     QC["dev-quality-check"]
     VR["visual-regression"]
-    VC["verify-completion"]
-
     %% ── PR Skills ──
     GPW["git-pr-workflow"]
-    PRC["pr-convention"]
     FPR["fix-pr-review"]
     WL["jira-worklog"]
 
@@ -197,8 +194,6 @@ flowchart LR
     %% ── Quality chain ──
     GPW -->|quality check| QC
     QC -.->|optional| VR
-    GPW -->|behavior verify| VC
-    GPW -->|open PR| PRC
     GPW -.->|log worktime| WL
     FPR -->|quality check| QC
 

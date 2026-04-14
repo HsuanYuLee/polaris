@@ -34,7 +34,8 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [branch-creation.md](branch-creation.md) | JIRA ticket → branch 建立流程（含 dependency branch 偵測） | work-on, git-pr-workflow, pr-convention |
+| [pr-body-builder.md](pr-body-builder.md) | PR template 偵測、body 組裝、AC Coverage、母單 PR、Bug RCA 偵測 | work-on, git-pr-workflow（透過 engineer-delivery-flow Step 7） |
+| [branch-creation.md](branch-creation.md) | JIRA ticket → branch 建立流程（含 dependency branch 偵測） | work-on, git-pr-workflow |
 | [cascade-rebase.md](cascade-rebase.md) | Feature branch PR stack 的 cascade rebase 邏輯 | git-pr-workflow, fix-pr-review, check-pr-approvals |
 | [feature-branch-pr-gate.md](feature-branch-pr-gate.md) | Task PR 全 merge 後自動建 feature→develop PR 的偵測邏輯 | epic-status, git-pr-workflow, check-pr-approvals, work-on |
 | [pr-input-resolver.md](pr-input-resolver.md) | PR URL/number/branch → owner+repo+number 解析 | review-pr, fix-pr-review, check-pr-approvals |

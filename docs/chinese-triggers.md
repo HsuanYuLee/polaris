@@ -15,9 +15,8 @@
 | **sasd-review** — SA/SD 設計文件 | 寫 SA、出 SA/SD、SA 文件、SD 文件、架構文件、技術設計、異動範圍、dev scope | SASD, SA/SD, design doc, implementation plan, technical design, dev scope | Design-First Gate：在寫任何程式碼之前產出 SA/SD — 需求分析→歧義收集→2-3 方案比較→確認後產出 Dev Scope + System Flow + Task List |
 | **breakdown** — 拆單、估點與需求質疑 | 拆單、拆解、分解任務、子單、評估這張單、評估 epic、挑戰需求、需求質疑、需求合理性 | break down epic, split tasks, decompose, create sub-tasks, evaluate this ticket, scope challenge, challenge requirements, scope review | 通用規劃技能：Bug 讀取根因後估點；Story/Task/Epic 探索 codebase 後拆分子任務。含 Scope Challenge 模式（在估點前挑戰需求合理性）。觸發詞涵蓋原 epic-breakdown 和 scope-challenge 所有觸發詞 |
 | **converge** — 批次推進到 Review / Epic 進度 | 收斂、推進、全部推到 review、把我的單收一收、離 merge 還多遠、補全 epic、epic 進度、epic 狀態 | converge, push to review, close gaps, what's left, epic status, epic progress | 一次把所有進行中的工作推進到 review：掃 Epic + PR 狀態、補全缺口、批次催 review。也支援 Epic-only 模式做 gap analysis（原 epic-status 已併入） |
-| **git-pr-workflow** — 完整 PR 流程 | 準備發 PR（含品質檢查）、full pr flow | 發 PR, PR workflow, commit and PR, changeset, full pr flow, pull request | 完整 PR 生命週期：品質檢查→AI 迭代審查→commit→changeset→開 PR→轉 JIRA CODE REVIEW。Changeset 階段偵測無 JIRA key 時自動補開 ticket |
-| **verify-completion** — 行為驗證 | 驗證、確認改好了、真的修好了嗎、驗收 | verify, check it works | 品質檢查通過後的行為驗證，測試實際執行是否正確（dev server、curl、UI render） |
-| **dev-quality-check** — 品質檢查 | 品質檢查、測試檢查、跑測試、確認品質 | quality check, coverage check, run tests, check tests, validate | commit 前的品質把關：測試覆蓋率、lint、相關測試執行 |
+| **git-pr-workflow** — 完整 PR 流程 | 準備發 PR、發 PR、full pr flow | 發 PR, PR workflow, commit and PR, changeset, full pr flow, pull request | Admin 角色 PR 生命週期：Simplify→品質檢查→行為驗證→Review→Rebase→Commit→PR（框架/docs repo 專用） |
+| **verify-AC** — AC 驗收 | 驗 PROJ-123、verify AC、跑驗收、AC 驗證 | verify AC, run acceptance, check AC | QA agent：逐項執行 Epic AC 驗證，分類 PASS/FAIL/MANUAL_REQUIRED，呈現 observed vs expected 純事實 |
 
 ---
 
@@ -29,7 +28,6 @@
 | **fix-pr-review** — 修正自己 PR 的 review | 修 PR、修正 review、處理 review、回覆 review、CI 沒過、PR 有 review | fix review, address review, fix PR, CI failed, lint/test/coverage failed, pre-commit failed | 讀取 PR review comments，逐一修正，透過 sub-agent 自我審查，回覆每則 comment |
 | **check-pr-approvals** — 我的 PR 狀態 | 我的 PR、PR 狀態、催 review、PR 被 approve 了嗎、幫我掃我的 PR、還有哪些 PR 沒過 | check PR approvals | 掃描自己的 open PR：rebase、自動修 CI 失敗、檢查 approve 數、選擇後發 Slack 催 review |
 | **review-inbox** — 掃大家的 PR | 掃 PR、掃大家的 PR、幫我掃、review 大家的 PR、批次 review、有哪些 PR 要我看 | scan PR, review inbox, batch review | 從 Slack channel 或 need-review label 找出需要自己 review 的 PR，批次執行 review |
-| **pr-convention** — 簡易開 PR | 發 PR（簡單版，無品質檢查） | open PR, gh pr create, gh pr edit, pull request | 自動讀取專案 PR template 結構，依 section 填入內容（簡易版，不含品質檢查；完整流程請用 git-pr-workflow） |
 | **review-lessons-graduation** — Review 規則整理 | 整理 review lessons、review lessons 畢業、lesson 整理、畢業 review lessons、rules 整理一下 | organize review lessons, graduate lessons, consolidate lessons, promote review lessons, clean up lessons, tidy up rules | 將累積的 review-lessons 條目合併進主 rules，保持規則目錄精簡 |
 
 ---
@@ -92,5 +90,4 @@
 | 看 Epic 進度（掃 JIRA/GitHub 狀態） | epic 進度、epic 狀態 | `converge`（Epic-only 模式） |
 | 批次推進所有進行中工作、補全缺口 | 收斂、推進、離 merge 還多遠、還差什麼 | `converge` |
 | 充實需求或討論做法 | 討論需求、方案討論、refinement | `refinement` |
-| 建好 code 要發 PR（含品質檢查） | 準備發 PR（full flow）| `git-pr-workflow` |
-| 只是簡單開一個 PR | 發 PR | `pr-convention` |
+| 建好 code 要發 PR（含品質檢查） | 準備發 PR、發 PR | `git-pr-workflow` |
