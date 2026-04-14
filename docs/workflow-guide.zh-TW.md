@@ -53,12 +53,12 @@ flowchart TD
     end
 
     %% ── Quality → PR (auto chain) ──
-    subgraph auto["⚡ Auto-chained<br/><code>git-pr-workflow</code>"]
-        Q1["🤖 Quality Check<br/><code>dev-quality-check</code>"]
-        Q1b["🤖👤 Visual Regression<br/><code>visual-regression</code>"]
-        Q2["🤖👤 Behavior Verification<br/><code>verify-completion</code>"]
-        Q3["🤖 Pre-PR Review Loop<br/>Sub-agent iterative review"]
-        Q4["🤖 Commit + Open PR<br/>Transition to CODE REVIEW"]
+    subgraph auto["⚡ Auto-chained<br/><code>engineer-delivery-flow</code>"]
+        Q1["🤖 Quality Check<br/>(Step 2)"]
+        Q1b["🤖👤 Visual Regression<br/><code>visual-regression</code> (Step 3.5)"]
+        Q2["🤖👤 Behavior Verification<br/>(Step 3 Layer A+B)"]
+        Q3["🤖 Pre-PR Review Loop<br/>Sub-agent iterative review (Step 4)"]
+        Q4["🤖 Commit + Open PR<br/>Transition to CODE REVIEW (Steps 5-8)"]
     end
 
     %% ── Human Review ──
@@ -128,8 +128,8 @@ flowchart TD
 |------|------|-----------|------------|
 | **1. 就緒閘門** | `work-on` 開始時 | 檢查票是否有可驗證的 AC；品質不足則阻擋 | 阻擋開發，提示補充 AC |
 | **2. AC ↔ 子任務追溯性** | `breakdown` 之後 | 產出追溯矩陣，確認每條 AC 都有對應的子任務 | 阻擋子任務建立，標示缺漏的 AC |
-| **3. 逐條 AC 驗證** | `verify-completion` 行為檢查 | 逐條確認每個 AC 是否滿足（✅ / ❌） | 阻擋開 PR；❌ 項目必須修正 |
-| **4. AC 覆蓋清單** | `git-pr-workflow` 開 PR 時 | 自動在 PR 描述中嵌入 AC 清單 | Reviewer 一眼就能看到覆蓋狀態 |
+| **3. 逐條驗證** | `engineer-delivery-flow` Step 3 (Layer A+B) | 確認環境啟動 + 受影響 URL 回 200 + task.md 行為項目 PASS | 阻擋開 PR；FAIL 項目必須修正 |
+| **4. AC 覆蓋清單** | `engineer-delivery-flow` Step 7（透過 `pr-body-builder`）| 自動在 PR 描述中嵌入 AC 清單 | Reviewer 一眼就能看到覆蓋狀態 |
 
 > 這 4 道閘門確保 AC 不會被遺漏。即使 PM 寫了模糊的 AC，閘門 1 也會在最早的階段攔截。
 
@@ -151,8 +151,8 @@ flowchart LR
 
     %% ── Dev Skills ──
     UT_TDD["unit-test<br/>(TDD mode)"]
-    QC["dev-quality-check"]
     VR["visual-regression"]
+    VAC["verify-AC<br/>(AC verification)"]
     %% ── PR Skills ──
     GPW["git-pr-workflow"]
     FPR["fix-pr-review"]
@@ -192,10 +192,8 @@ flowchart LR
     RF -.->|when complete| EB
 
     %% ── Quality chain ──
-    GPW -->|quality check| QC
-    QC -.->|optional| VR
+    GPW -.->|optional| VR
     GPW -.->|log worktime| WL
-    FPR -->|quality check| QC
 
     UT_TDD -.->|test reference| UT
 
@@ -218,7 +216,7 @@ flowchart LR
     CV -->|gap: needs dev| WO
     CV -->|gap: fix review| FPR
     CV -->|gap: needs approval| CPA
-    CV -->|gap: verify| VC
+    CV -->|gap: verify AC| VAC
 
     %% ── Scrum chain ──
     RF -.-> SP
@@ -233,7 +231,7 @@ flowchart LR
     classDef internal fill:#fafafa,stroke:#999,color:#000,stroke-dasharray:5 5
 
     class WO,BT orchestrator
-    class QC,VR,VC,UT_TDD quality
+    class VR,VAC,UT_TDD quality
     class RP,RI,CPA,FPR,RLG review
     class RF,EB,SP,IT planning
     class NX,MT,CV orchestrator
@@ -247,7 +245,7 @@ flowchart LR
 - `my-triage` 盤點所有已指派工作（Epic、Bug、孤兒 Task）；優先順序排名會傳入 `standup` 的 TDT 區段
 - `converge` 一次把所有進行中的工作推進到 review：批次觸發 PR、補全缺口，含 Epic 進度追蹤（原 `epic-status` 已併入）。觸發詞：「收斂」、「推進」、「converge」、「epic 進度」、「epic 狀態」
 - `standup`（v2.0）是每日站會和下班收工的統一進入點 — 含自動 triage（Step 0）；由使用者直接觸發
-- `visual-regression` 在 UI 相關變更中於 `dev-quality-check` 之後、`verify-completion` 之前執行。選擇性但建議用於版面/樣式變更
+- `visual-regression` 作為 `engineer-delivery-flow` Step 3.5 執行（行為驗證之後、Pre-PR Review 之前），當改動的檔案命中 VR 設定的 domain 時觸發。選擇性但建議用於版面/樣式變更
 - `unit-test`、`learning`、`docs-sync` 是獨立技能 — 由使用者直接觸發，不在主鏈路中
 
 ---
@@ -516,13 +514,14 @@ AI 執行 `unit-test` 技能的 TDD 模式，強制執行 **Red-Green-Refactor**
 quality check
 ```
 
-AI 執行 `dev-quality-check` 技能：
+AI 透過 `engineer-delivery-flow` Step 2（消費 `quality-check-flow.md`）執行品質檢查：
 
 1. 識別變更的原始碼檔案（排除 types、constants、index 檔等）
 2. 檢查每個原始碼檔案是否有對應的測試檔
 3. 執行相關測試；確認全部通過
 4. **執行本地覆蓋率**，對照設定的門檻估算 patch coverage
-5. 輸出品質報告（✅ 通過 / ⚠️ 需要補測試）
+5. 對變更檔案執行 ESLint
+6. 輸出品質報告含風險評分（✅ 通過 / ⚠️ 需要補測試）
 
 **Patch coverage 說明：** 覆蓋率僅測量**當前 PR diff 中新增或修改的行**，而非整個檔案。門檻值在 `workspace-config.yaml` 或同等設定中配置（如 `{coverage_threshold}`）。
 
@@ -536,7 +535,7 @@ AI 執行 `dev-quality-check` 技能：
 
 **若報告顯示 ⚠️ 或預估 patch coverage 低於門檻，請在進入 PR 前補測試。**
 
-> Trigger keywords: `quality check`, `test coverage`, `coverage check`, `dev-quality-check`
+> 此步驟是 `engineer-delivery-flow` 的一部分 — 在 `work-on` 或 `git-pr-workflow` 中自動執行。
 
 ### 步驟 7a. 🤖👤 行為驗證（Verify Completion）
 
@@ -552,27 +551,28 @@ verify
 confirm it's fixed
 ```
 
-AI 執行 `verify-completion` 技能：
+AI 執行 `engineer-delivery-flow` Step 3（Behavioral Verify）：
 
-1. 根據變更類型選擇驗證方式：
-   - **UI 元件** → 啟動 dev server，檢查頁面渲染
-   - **SSR/SEO** → `curl localhost:{port}/{path}`，檢視 HTML 輸出
-   - **Bug 修正** → 重現原始 bug 步驟，確認不再觸發問題
-   - **Build/Config** → 執行 build 指令，確認成功
-2. 逐條檢查 JIRA AC
-3. 輸出驗證報告：
+**Layer A**（一律執行 — 環境啟動 + 受影響 URL 回 200）：
+1. 從 repo handbook 或 codebase 探測取得執行方式
+2. 啟動開發環境
+3. 從 `git diff` 推導受影響 URL，逐一 curl 確認 HTTP 200 + healthy signal
+
+**Layer B**（Developer only — task.md 行為項目）：
+1. 讀取 task.md `§ 行為驗證` section
+2. 逐項驗證：wiring 檢查（grep）、SSR 輸出（curl + grep）、效能目標（A/B worktree）
+3. 逐項記錄 PASS / FAIL / SKIP
 
 ```
 ── Verification Result ──────────────────
-✅ AC match: 3/3 criteria satisfied
-✅ Bug reproduction: original steps no longer trigger the error
-✅ Build: build succeeded
+✅ Layer A: env up, 2/2 URLs return 200
+✅ Layer B: 3/3 behavioral items PASS
 ── Conclusion: PASS (ready for PR) ─────
 ```
 
-**何時跳過：** 純設定檔變更、僅型別定義變更、CI 已完整覆蓋的情境。
+**注意：** 此步驟驗證的是**任務層級行為**，非 Epic 層級 AC。AC 業務驗收由 `verify-AC` 在所有 task PR merge 後執行。
 
-> Trigger keywords: `verify`, `confirm it's fixed`, `check it works`, `acceptance check`
+> 此步驟是 `engineer-delivery-flow` 的一部分 — 自動執行，不需單獨觸發。
 
 ### 步驟 7b. 🤖👤 視覺回歸測試（選擇性）
 
@@ -663,7 +663,7 @@ Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit →
 |---|------|-------------|
 | 1 | 建立分支 | 依 `references/branch-creation.md` 慣例建立分支 |
 | 2 | **簡化迴圈** | 執行 `simplify` 迭代審查程式碼的重用性、品質和效率（最多 3 輪） |
-| 3 | 品質檢查 | `dev-quality-check`：測試 + 覆蓋率 + lint |
+| 3 | 品質檢查 | `engineer-delivery-flow` Step 2：測試 + 覆蓋率 + lint + 風險評分 |
 | 4 | Pre-PR Review 迴圈 | 子代理迭代審查（見步驟 8），最多 3 輪 |
 | 5 | Commit | AI 產生符合慣例的 commit message |
 | 6 | Changeset | 如適用，自動新增 changeset |

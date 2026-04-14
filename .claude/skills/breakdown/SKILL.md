@@ -359,6 +359,7 @@ git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
 5. **改動範圍**表格：檔案 / 動作 / 說明（從 Step 6 的 Dev Scope 轉寫）
 6. **估點理由**：一段話（從 Step 7 的估點邏輯）
 7. **測試計畫（code-level）**：對應 test sub-tasks 的 unit/integration 測試項目
+8. **Verify Command**：一個可執行的 shell 指令，驗證本 task 的核心改動在 runtime 是否生效（見下方「Verify Command 撰寫指南」）
 
 **不放 task.md 的東西**（屬於 refinement 或 AC 層級）：
 - Epic description 全文 / refinement artifact
@@ -397,6 +398,24 @@ scripts/validate-task-md.sh <task.md path>
 - exit 2 → 檔案不存在或用法錯誤，檢查路徑
 
 **為何強制**：pipeline 契約「work-on 只消費 task.md + codebase」的前提是 task.md 完整。靠 AI 自律難保每次產齊，所以用 script exit code 強拘束。見 `CLAUDE.md § Deterministic Enforcement Principle`。
+
+**Verify Command 撰寫指南：**
+
+breakdown 在 codebase exploration 後已掌握改動影響的 URL/endpoint 和預期 runtime 行為，此時為每張 task 寫一個 smoke-level 驗證指令。work-on sub-agent 完成實作後**必須原封不動執行**此指令（不可修改）。
+
+| 改動類型 | Verify Command 範例 |
+|----------|-------------------|
+| SSR HTML 結構（JSON-LD、meta tag） | `curl -sS <url> \| python3 -c "import sys; html=sys.stdin.read(); head=html.split('</head>')[0]; assert '<pattern>' in head, 'NOT FOUND'; print('PASS')"` |
+| API response format | `curl -sS <endpoint> \| python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('key'), 'missing key'; print('PASS')"` |
+| 檔案 wiring（import/export） | `grep -q '<pattern>' <file_path> && echo 'PASS' \|\| echo 'FAIL: pattern not found'` |
+| Config 註冊 | `grep -q '<module_name>' <config_path> && echo 'PASS' \|\| echo 'FAIL: not registered'` |
+
+**撰寫原則：**
+- 一個 task 一個指令（可用 `&&` 串多個 assert，但保持一個 exit code）
+- 指令必須 **self-contained**（不依賴額外安裝的工具，只用 curl/grep/python3/jq）
+- 寫明 **預期輸出**（PASS 時印什麼），讓 evidence file 可對比
+- URL 使用 handbook 的 dev domain（如 `dev.yourapp.com`），不寫 localhost
+- **不能驗的情境**（純視覺、複雜互動）→ 寫 `N/A — 需 VR 或手動驗證` 並說明原因
 
 **與 legacy plan.md 並行（過渡期）：**
 

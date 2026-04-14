@@ -2,13 +2,16 @@
 """
 Extract GitHub PR URLs and thread_ts mapping from Slack MCP output.
 
-Input:  Slack MCP slack_read_channel result (JSON on stdin)
+Input:  Slack MCP slack_read_channel or slack_read_thread result (JSON on stdin)
 Output: PR URLs to stdout (one per line, for piping to fetch-prs-by-url.sh)
 Side:   Writes thread mapping to --mapping file (default /tmp/pr-thread-mapping.json)
 
 Usage:
+  # Channel mode (default): parse per-message thread_ts from MCP format
   cat /tmp/slack-raw.json | python3 extract-pr-urls.py --org kkday-it
-  cat /tmp/slack-raw.json | python3 extract-pr-urls.py --org kkday-it --mapping /tmp/mapping.json
+
+  # Thread mode: all URLs map to the given thread_ts (for slack_read_thread output)
+  cat /tmp/slack-thread.json | python3 extract-pr-urls.py --org kkday-it --thread-ts 1776130982.981829
 """
 
 import json
@@ -23,6 +26,8 @@ def parse_args():
     parser.add_argument("--org", required=True, help="GitHub org to filter (e.g. kkday-it)")
     parser.add_argument("--mapping", default="/tmp/pr-thread-mapping.json",
                         help="Output path for PR URL → thread_ts mapping")
+    parser.add_argument("--thread-ts", default=None,
+                        help="Thread mode: skip per-message parsing, map all URLs to this thread_ts")
     return parser.parse_args()
 
 
@@ -134,6 +139,30 @@ def extract_from_messages(messages_text, org):
     return ordered_urls, mapping
 
 
+def extract_urls_for_thread(text, org, thread_ts):
+    """Thread mode: extract all PR URLs from text, map all to the given thread_ts.
+
+    Used with slack_read_thread output where the thread_ts is already known
+    from the Slack URL. No per-message parsing needed — just find URLs.
+    """
+    pr_url_pattern = re.compile(
+        rf'https://github\.com/{re.escape(org)}/[^/|>\s]+/pull/\d+'
+    )
+
+    seen_urls = set()
+    ordered_urls = []
+    mapping = {}
+
+    for match in pr_url_pattern.finditer(text):
+        url = re.sub(r'#.*$', '', match.group())
+        if url not in seen_urls:
+            seen_urls.add(url)
+            ordered_urls.append(url)
+            mapping[url] = {"thread_ts": thread_ts}
+
+    return ordered_urls, mapping
+
+
 def main():
     args = parse_args()
 
@@ -145,7 +174,10 @@ def main():
         # If not JSON, treat as plain text (e.g. MCP returned raw string)
         messages_text = raw
 
-    urls, mapping = extract_from_messages(messages_text, args.org)
+    if args.thread_ts:
+        urls, mapping = extract_urls_for_thread(messages_text, args.org, args.thread_ts)
+    else:
+        urls, mapping = extract_from_messages(messages_text, args.org)
 
     # Write mapping file
     with open(args.mapping, "w") as f:

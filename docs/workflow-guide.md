@@ -53,12 +53,12 @@ flowchart TD
     end
 
     %% ── Quality → PR (auto chain) ──
-    subgraph auto["⚡ Auto-chained<br/><code>git-pr-workflow</code>"]
-        Q1["🤖 Quality Check<br/><code>dev-quality-check</code>"]
-        Q1b["🤖👤 Visual Regression<br/><code>visual-regression</code>"]
-        Q2["🤖👤 Behavior Verification<br/><code>verify-completion</code>"]
-        Q3["🤖 Pre-PR Review Loop<br/>Sub-agent iterative review"]
-        Q4["🤖 Commit + Open PR<br/>Transition to CODE REVIEW"]
+    subgraph auto["⚡ Auto-chained<br/><code>engineer-delivery-flow</code>"]
+        Q1["🤖 Quality Check<br/>(Step 2)"]
+        Q1b["🤖👤 Visual Regression<br/><code>visual-regression</code> (Step 3.5)"]
+        Q2["🤖👤 Behavior Verification<br/>(Step 3 Layer A+B)"]
+        Q3["🤖 Pre-PR Review Loop<br/>Sub-agent iterative review (Step 4)"]
+        Q4["🤖 Commit + Open PR<br/>Transition to CODE REVIEW (Steps 5-8)"]
     end
 
     %% ── Human Review ──
@@ -128,8 +128,8 @@ Acceptance Criteria pass through 4 automated gates from ticket intake to PR open
 |------|------|-----------|------------|
 | **1. Readiness Gate** | `work-on` start | Checks whether the ticket has verifiable AC; blocks if quality is insufficient | Blocks development, prompts to add AC |
 | **2. AC ↔ Sub-task Traceability** | After `breakdown` | Produces a traceability matrix confirming every AC is covered by a sub-task | Blocks sub-task creation, flags missing AC |
-| **3. Per-AC Verification** | `verify-completion` behavior check | Confirms each AC is satisfied (✅ / ❌) | Blocks PR open; ❌ items must be fixed |
-| **4. AC Coverage Checklist** | `git-pr-workflow` PR open | Embeds AC checklist in PR description automatically | Reviewer sees coverage status at a glance |
+| **3. Per-AC Verification** | `engineer-delivery-flow` Step 3 (Layer A+B) | Confirms env up + changed URLs return 200 + task.md behavioral items pass | Blocks PR open; FAIL items must be fixed |
+| **4. AC Coverage Checklist** | `engineer-delivery-flow` Step 7 (via `pr-body-builder`) | Embeds AC checklist in PR description automatically | Reviewer sees coverage status at a glance |
 
 > These 4 gates ensure AC never falls through the cracks. Even if a PM writes vague AC, Gate 1 catches it at the earliest possible stage.
 
@@ -151,8 +151,8 @@ flowchart LR
 
     %% ── Dev Skills ──
     UT_TDD["unit-test<br/>(TDD mode)"]
-    QC["dev-quality-check"]
     VR["visual-regression"]
+    VAC["verify-AC<br/>(AC verification)"]
     %% ── PR Skills ──
     GPW["git-pr-workflow"]
     FPR["fix-pr-review"]
@@ -192,10 +192,8 @@ flowchart LR
     RF -.->|when complete| EB
 
     %% ── Quality chain ──
-    GPW -->|quality check| QC
-    QC -.->|optional| VR
+    GPW -.->|optional| VR
     GPW -.->|log worktime| WL
-    FPR -->|quality check| QC
 
     UT_TDD -.->|test reference| UT
 
@@ -218,7 +216,7 @@ flowchart LR
     CV -->|gap: needs dev| WO
     CV -->|gap: fix review| FPR
     CV -->|gap: needs approval| CPA
-    CV -->|gap: verify| VC
+    CV -->|gap: verify AC| VAC
 
     %% ── Scrum chain ──
     RF -.-> SP
@@ -233,7 +231,7 @@ flowchart LR
     classDef internal fill:#fafafa,stroke:#999,color:#000,stroke-dasharray:5 5
 
     class WO,BT orchestrator
-    class QC,VR,VC,UT_TDD quality
+    class VR,VAC,UT_TDD quality
     class RP,RI,CPA,FPR,RLG review
     class RF,EB,SP,IT planning
     class NX,MT,CV orchestrator
@@ -247,7 +245,7 @@ flowchart LR
 - `my-triage` triages all assigned work (Epics, Bugs, orphan Tasks); feeds priority ranking into `standup` TDT section
 - `converge` pushes all in-flight work toward review in one pass — closes gaps, batch-triggers PRs, and includes Epic progress tracking (formerly `epic-status`). Triggered by "收斂", "converge", "push to review", "epic 進度", "epic 狀態"
 - `standup` (v2.0) is the unified entry point for daily standup and end-of-day routines — includes auto-triage (Step 0); triggered directly by the user
-- `visual-regression` runs after `dev-quality-check` for UI-touching changes — before `verify-completion`. Optional but recommended for layout/styling changes
+- `visual-regression` runs as `engineer-delivery-flow` Step 3.5 (after behavioral verify, before pre-PR review) when changed files hit a VR-configured domain. Optional but recommended for layout/styling changes
 - `unit-test`, `learning`, `docs-sync` are standalone skills — triggered directly by the user, not part of the main chain
 
 ---
@@ -516,13 +514,14 @@ Before opening a PR, run a quality check to ensure changes have sufficient test 
 quality check
 ```
 
-AI executes `dev-quality-check` skill:
+AI runs quality checks via `engineer-delivery-flow` Step 2 (consuming `quality-check-flow.md`):
 
 1. Identifies changed source files (excludes types, constants, index files, etc.)
 2. Checks whether each source file has a corresponding test file
 3. Runs related tests; confirms all pass
 4. **Runs local coverage** to estimate patch coverage against the configured threshold
-5. Outputs a quality report (✅ pass / ⚠️ needs more tests)
+5. Runs ESLint on changed files
+6. Outputs a quality report with risk scoring (✅ pass / ⚠️ needs more tests)
 
 **Patch coverage note:** Coverage is measured only on the **lines added or modified in the current PR diff**, not the entire file. Configure the threshold in your `workspace-config.yaml` or equivalent (e.g., `{coverage_threshold}`).
 
@@ -536,7 +535,7 @@ AI executes `dev-quality-check` skill:
 
 **If the report shows ⚠️ or estimated patch coverage is below threshold, add tests before proceeding to PR.**
 
-> Trigger keywords: `quality check`, `test coverage`, `coverage check`, `dev-quality-check`
+> This step is part of `engineer-delivery-flow` — it runs automatically as part of `work-on` or `git-pr-workflow`.
 
 ### Step 7a. 🤖👤 Behavior Verification (Verify Completion)
 
@@ -552,27 +551,28 @@ or:
 confirm it's fixed
 ```
 
-AI executes `verify-completion` skill:
+AI runs `engineer-delivery-flow` Step 3 (Behavioral Verify):
 
-1. Chooses verification method based on change type:
-   - **UI components** → run dev server, check page rendering
-   - **SSR/SEO** → `curl localhost:{port}/{path}`, inspect HTML output
-   - **Bug fixes** → reproduce original bug steps, confirm they no longer trigger the issue
-   - **Build/Config** → run build command, confirm it succeeds
-2. Checks each JIRA AC one by one
-3. Outputs a verification report:
+**Layer A** (always runs — env up + changed URLs return 200):
+1. Discovers how to run the repo (from repo handbook or codebase probe)
+2. Starts dev environment
+3. Derives affected URLs from `git diff`, curls each for HTTP 200 + healthy signal
+
+**Layer B** (Developer only — task.md behavioral items):
+1. Reads task.md `§ 行為驗證` section
+2. Verifies each item: wiring checks (grep), SSR output (curl + grep), perf targets (A/B worktree)
+3. Records PASS / FAIL / SKIP per item
 
 ```
 ── Verification Result ──────────────────
-✅ AC match: 3/3 criteria satisfied
-✅ Bug reproduction: original steps no longer trigger the error
-✅ Build: build succeeded
+✅ Layer A: env up, 2/2 URLs return 200
+✅ Layer B: 3/3 behavioral items PASS
 ── Conclusion: PASS (ready for PR) ─────
 ```
 
-**When to skip:** pure config changes, type-definition-only changes, scenarios fully covered by CI.
+**Note:** This step verifies **task-level behavior**, not Epic-level AC. AC business verification is done by `verify-AC` after all task PRs merge.
 
-> Trigger keywords: `verify`, `confirm it's fixed`, `check it works`, `acceptance check`
+> This step is part of `engineer-delivery-flow` — it runs automatically, not triggered separately.
 
 ### Step 7b. 🤖👤 Visual Regression (optional)
 
@@ -663,7 +663,7 @@ Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit →
 |---|------|-------------|
 | 1 | Create Branch | Branch created following `references/branch-creation.md` conventions |
 | 2 | **Simplify Loop** | Runs `simplify` to iteratively review code for reuse, quality, and efficiency (max 3 rounds) |
-| 3 | Quality Check | `dev-quality-check`: tests + coverage + lint |
+| 3 | Quality Check | `engineer-delivery-flow` Step 2: tests + coverage + lint + risk scoring |
 | 4 | Pre-PR Review Loop | Sub-agent iterative review (see Step 8), max 3 rounds |
 | 5 | Commit | AI generates a conventional commit message |
 | 6 | Changeset | Auto-adds changeset if applicable |

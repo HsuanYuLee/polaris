@@ -73,6 +73,16 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 
 - unit test: {描述} → {Test sub-task key}
 - ...
+
+## Verify Command
+
+> breakdown 產出，work-on 必須執行並附上 output。不可修改指令內容。
+
+\`\`\`bash
+{一個可執行的 shell 指令，驗證本 task 的核心改動在 runtime 是否生效}
+\`\`\`
+
+預期輸出：{PASS 時應看到的內容}
 ```
 
 ### Schema 邊界
@@ -81,6 +91,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 |-----------|-------------|
 | Operational context（JIRA keys、branch） | Epic description / refinement artifact |
 | 目標、涉及檔案、測試計畫（code-level） | AC 驗證場景（business-level）→ 在 AC 驗收單 |
+| Verify Command（per-task smoke test） | 完整 AC 驗證流程（verify-AC 的工作） |
 | 估點理由 | 技術方案選項分析（refinement 已定） |
 | References 清單 | handbook 內容（自動載入，不複製） |
 

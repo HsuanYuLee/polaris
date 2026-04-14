@@ -136,9 +136,29 @@
 | 任一 URL ≠ 200 或 healthy signal 缺失 | ❌ 停止。列出具體 URL + status + 差異，回報使用者 |
 | File → URL Mapping 無法推導（改動皆為 util / type / config） | 記錄「N/A」，Layer A 降級為「env-up only」通過 |
 
-### 3d. Layer B — task.md § 行為驗證（僅 Developer）
+### 3d. Layer B — Verify Command（僅 Developer，hard gate）
 
-讀 task.md 的 `## 行為驗證` section（若 breakdown 有填）。逐項實測：
+讀 task.md 的 `## Verify Command` section。**此指令由 breakdown（Tech Lead）鎖定，sub-agent 不可修改。**
+
+**執行流程：**
+
+1. 從 task.md 提取 `## Verify Command` 下的 code block
+2. 若為 `N/A` → 記錄 SKIP + 原因，繼續
+3. 原封不動執行該指令（Bash tool）
+4. 比對 output 與 task.md 中的「預期輸出」
+5. 將**完整的指令 + 實際 output** 寫入 evidence file 的 `layer_b`
+
+| 結果 | 動作 |
+|------|------|
+| 指令 output 符合預期 | ✅ Layer B PASS |
+| 指令 output 不符合預期或 exit code ≠ 0 | ❌ **停止整個流程**，不進 Step 4。回報實際 output vs 預期 |
+| task.md 無 `## Verify Command` section（legacy task.md） | ⚠️ 降級為舊行為：讀 `## 行為驗證` section 逐項實測（見下方 Legacy 段落） |
+
+**為何是 hard gate**：breakdown 時 Tech Lead 已掌握改動的預期 runtime 行為，寫成可執行指令。sub-agent 只管跑指令 — 跑不過就是沒做對，不需要自行判斷「夠不夠好」。這消除了「sub-agent 聲稱 pass 但沒真跑」的結構性弱點。
+
+**Legacy 行為驗證（task.md 無 Verify Command 時的 fallback）：**
+
+讀 task.md 的 `## 行為驗證` section（若有）。逐項實測：
 
 | 類型 | 驗證方式 |
 |------|---------|
@@ -166,10 +186,13 @@
     ],
     "discovery_source": "handbook"               // or "codebase_probe" / "user_prompt"
   },
-  "layer_b": [
-    {"item": "useProductBreadCrumbs imported in product page", "status": "PASS"},
-    {"item": "SSR HTML contains JSON-LD BreadcrumbList", "status": "PASS"}
-  ],
+  "layer_b": {
+    "source": "verify_command",
+    "command": "curl -sS http://dev.yourapp.com/zh-tw/product/24632 | python3 -c \"import sys; html=sys.stdin.read(); head=html.split('</head>')[0]; assert 'application/ld+json' in head, 'NOT FOUND'; print('PASS')\"",
+    "expected": "PASS",
+    "actual_output": "PASS",
+    "status": "PASS"
+  },
   "summary": {"total": 3, "pass": 3, "fail": 0, "skip": 0}
 }
 ```

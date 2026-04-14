@@ -4,6 +4,26 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.3.0] - 2026-04-14
+
+### Verify Command — Developer Self-Test Gate
+
+breakdown（Tech Lead）為每張 task.md 寫一個可執行的 smoke test 指令，work-on（Engineer）實作完後必須原封不動執行。FAIL 直接擋 PR，消除「sub-agent 聲稱 pass 但沒真跑」的結構性弱點。
+
+- **pipeline-handoff.md** — task.md schema 新增 `## Verify Command` section
+- **breakdown SKILL.md** — Step 14.5 新增 Verify Command 撰寫指南（範例、原則、N/A 情境）
+- **engineer-delivery-flow.md** — Step 3d 改為 Verify Command hard gate；舊 `## 行為驗證` 降級為 legacy fallback
+- **mechanism-registry.md** — 新增 `verify-command-immutable-execute` (Critical)
+
+**角色分工**：
+| 角色 | Skill | 驗證職責 |
+|------|-------|---------|
+| Tech Lead | breakdown | 寫 verify command（what to check） |
+| Engineer | work-on | 執行 verify command（self-test） |
+| QA | verify-AC | 跑完整 AC 驗收（business-level） |
+
+**觸發背景**：GT-521 PR #2126 JSON-LD head position 實作未生效，sub-agent 未跑 runtime 驗證即開 PR。
+
 ## [2.2.0] - 2026-04-14
 
 ### Review Skill Architecture — Discovery / Engine Split

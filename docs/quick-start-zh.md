@@ -187,7 +187,7 @@ Sprint 規劃        →  「排 sprint」
 技能之間會自動串接。例如 `「做 PROJ-123」` 會依序觸發：
 
 ```
-work-on → branch creation → unit-test (TDD) → dev-quality-check → git-pr-workflow
+work-on → branch creation → unit-test (TDD) → engineer-delivery-flow (quality → verify → PR)
 ```
 
 每個技能都有明確的進入條件和輸出，像 pipeline 一樣串起來。詳細流程圖 → [Developer Workflow Guide](workflow-guide.md)
