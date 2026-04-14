@@ -73,6 +73,32 @@ Repo handbooks may include a **Key Libraries** section listing concern → libra
 2. The docs link is the **first place to check** when the library seems insufficient
 3. The section title "替換需 user 確認" reinforces T3 escalation
 
+## Config Not Working — Systematic Elimination
+
+When a library's config option appears to be silently ignored, enumerate all possible injection points before trial-and-error:
+
+1. **Confirm the option exists** — read official docs for the config API, not compiled source
+2. **List all injection points** for the framework (e.g., Nuxt: `nuxt.config module option → app.head → layout useHead → page useHead → plugin useHead → unhead hook`)
+3. **Test each point once**, top-down, recording PASS/FAIL per point
+4. **When results contradict** (same code, different outcomes), trust the FAIL and re-test. Dev servers cache aggressively; a PASS after a FAIL may be stale
+
+Do not bounce between injection points based on intuition. The systematic list prevents wasted cycles (and wasted dev server restarts for the user).
+
+## Workaround Documentation Standard
+
+When the only working approach bypasses the library's official API (hooks, monkey patches, custom plugins), the code comment must include the full decision chain:
+
+| Section | Content |
+|---------|---------|
+| **Goal** | What behavior we want |
+| **What we tried** | Which official approaches were attempted, and why each failed (with evidence: ModuleOptions type, source code line, config override behavior) |
+| **Why this approach** | Why hook/patch/plugin instead of fork, PR, or alternative library |
+| **Removal condition** | When this workaround can be replaced with the official API (e.g., "when module exposes `tagPosition` in ModuleOptions") |
+
+**The comment can be longer than the code — this is expected.** A 5-line hook with a 30-line explanation saves the next developer from repeating a multi-hour investigation.
+
+Applies to: work-on sub-agents, fix-pr-review, any code-writing context. Code review should flag workarounds missing the decision chain.
+
 ## Common Rationalizations
 
 | Thought | Reality |
@@ -82,3 +108,6 @@ Repo handbooks may include a **Key Libraries** section listing concern → libra
 | "It's just a minor upgrade" | Check the lock file diff — "minor" can pull in major transitive changes |
 | "Nobody uses this lib anyway" | Did you check config registration? Nuxt modules don't show up in `grep import` |
 | "I'll add a compatibility layer" | That's a workaround. Use the existing lib correctly first |
+| "Config didn't work, let me try a hook" | Did you enumerate all injection points first? You may be setting the right value in the wrong place |
+| "It worked on the second try" | Did it fail the first time? Trust the FAIL — the second PASS may be cached |
+| "The workaround is simple, no need for a long comment" | The next developer will ask "why not just use the config?" — save them the 2-hour investigation |

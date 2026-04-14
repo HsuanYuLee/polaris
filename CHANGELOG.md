@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.5.0] - 2026-04-14
+
+### Library Change Protocol — Investigation & Workaround Standards
+
+從 GT-521 KB2CW-3789（nuxt-schema-org tagPosition）的 debug session 萃取兩條準則，加入 `library-change-protocol.md`：
+
+- **Config Not Working — Systematic Elimination**：config 不生效時，先列出所有注入點再依序排除；驗證結果矛盾以失敗為準
+- **Workaround Documentation Standard**：繞過官方 API 時，code comment 必須包含完整決策鏈（目標 → 試了什麼 → 為什麼選此方案 → 移除條件）
+
+**觸發背景**：T2 修復過程在 5 個注入點之間來回測試，浪費 4 次 dev server 重啟。
+
 ## [2.4.0] - 2026-04-14
 
 ### review-inbox Thread Mode
