@@ -10,7 +10,7 @@
 > **注意：** 大部分 Polaris 技能會使用 sub-agent，需要 **Max 方案**（$100/月）或 API 存取。Pro/Team 方案只能使用單步技能。
 
 - **Atlassian MCP** — 連接 Claude Code 到 JIRA 和 Confluence
-- **Slack MCP** — 用於通知和報表（`standup`、`review-inbox`、`jira-worklog`）
+- **Slack MCP** — 用於通知和報表（`standup`、`review-inbox`、`check-pr-approvals`）
 
 **開發者還需要：**
 - **Git** 和 **GitHub CLI**（`gh`）— 已對組織認證
@@ -103,7 +103,7 @@ Polaris 圍繞三大支柱組織你的 AI 輔助工作流程：
 
 ### 支柱一 — 輔助開發
 
-從 JIRA 到 PR 的完整自動化：`「做 PROJ-123」` → 讀 JIRA → 估點 → 開 branch → 寫 code → 跑測試 → 發 PR → 轉 JIRA 狀態。涵蓋 `work-on`、`bug-triage`、`breakdown`、`unit-test`、`git-pr-workflow`、`review-pr` 等技能。
+從 JIRA 到 PR 的完整自動化：`「做 PROJ-123」` → 讀 JIRA → 估點 → 開 branch → 寫 code → 跑測試 → 發 PR → 轉 JIRA 狀態。涵蓋 `engineering`、`bug-triage`、`breakdown`、`unit-test`、`git-pr-workflow`、`review-pr` 等技能。
 
 詳細流程 → [Developer Workflow Guide](workflow-guide.md)
 
@@ -120,7 +120,7 @@ Polaris 與靜態範本的最大差異：它會從日常使用中累積團隊知
 
 ### 支柱三 — 日常紀錄
 
-Sprint 生命週期自動化，PM、Scrum Master、開發者都能用：`「standup」` → 收集 JIRA + git + 行事曆 → 整理成站會報告。涵蓋 `standup`、`sprint-planning`、`jira-worklog`、`refinement` 等技能。
+Sprint 生命週期自動化，PM、Scrum Master、開發者都能用：`「standup」` → 收集 JIRA + git + 行事曆 → 整理成站會報告。涵蓋 `standup`、`sprint-planning`、`my-triage`、`refinement` 等技能。
 
 ## PM 與 Scrum 工作流程
 
@@ -143,9 +143,9 @@ Sprint 規劃        →  「排 sprint」
 拆單估點           →  「做 EPIC-100」
                        Epic → 拆成子任務 + 估 story point → 批次建在 JIRA
 
-工時報表           →  「worklog report 2w」
-                       查詢過去兩週完成的票 → 按 assignee 分組 → 發到 Slack
-                       （`jira-worklog` 技能的一部分）
+工作盤點           →  「盤點」
+                       掃描所有 assigned Epic + Bug + 孤兒 Task → 驗證狀態 + GitHub PR 進度
+                       → 產出優先序 Dashboard
 ```
 
 > 所有 PM 技能需要 **Max 方案**（$100/月）或 API 存取。這些技能不需要寫 code，也不需要了解 git。只要 Claude Code + JIRA MCP + Slack MCP 設定好就能使用。
@@ -187,7 +187,7 @@ Sprint 規劃        →  「排 sprint」
 技能之間會自動串接。例如 `「做 PROJ-123」` 會依序觸發：
 
 ```
-work-on → branch creation → unit-test (TDD) → engineer-delivery-flow (quality → verify → PR)
+engineering → branch creation → unit-test (TDD) → engineer-delivery-flow (quality → verify → PR)
 ```
 
 每個技能都有明確的進入條件和輸出，像 pipeline 一樣串起來。詳細流程圖 → [Developer Workflow Guide](workflow-guide.md)

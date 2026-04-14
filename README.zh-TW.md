@@ -34,7 +34,7 @@ Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
          → 開 PR 附上覆蓋率報告 → JIRA 狀態轉為 CODE REVIEW
 ```
 
-**技能：** `work-on`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `verify-AC`, `visual-regression`, `refinement`, `intake-triage`, `unit-test`
+**技能：** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `refinement`, `intake-triage`, `my-triage`, `next`, `unit-test`
 
 深入了解 → [開發者工作流程指南](docs/workflow-guide.zh-TW.md)
 
@@ -67,7 +67,7 @@ Polaris: 拉取 JIRA backlog → 計算團隊容量 → 偵測 carry-over
          → 建議優先順序 → 草擬 Release 頁面
 ```
 
-**技能：** `standup`, `sprint-planning`, `jira-worklog`, `refinement`（PM 視角）, `breakdown`（PM 視角）
+**技能：** `standup`, `sprint-planning`, `my-triage`, `refinement`（PM 視角）, `breakdown`（PM 視角）
 
 ## 什麼是 Claude Code？
 
@@ -82,7 +82,7 @@ Polaris: 拉取 JIRA backlog → 計算團隊容量 → 偵測 carry-over
 
 > **重要：** 大多數 Polaris 技能使用 sub-agent，需要 **Max 方案**（$100/月）或 API 存取。在 Pro/Team 方案下，僅單步驟技能可運作。
 - **Atlassian MCP** — 連接 Claude Code 到 JIRA 和 Confluence
-- **Slack MCP** — 用於通知和報告（`standup`, `review-inbox`, `jira-worklog`）
+- **Slack MCP** — 用於通知和報告（`standup`, `review-inbox`, `check-pr-approvals`）
 
 **開發者另外需要：**
 - **Git** 和 **GitHub CLI**（`gh`）— 已通過組織認證
@@ -195,9 +195,9 @@ Refinement         →  「refinement EPIC-100」
 拆單               →  「做 EPIC-100」
                       Epic → 帶有 Story Point 估算的子任務 → 批次建立到 JIRA
 
-工時報告           →  「worklog report 2w」
-                      查詢過去 2 週完成的票單 → 依 assignee 分組 → 發到 Slack
-                      （`jira-worklog` 技能的一部分）
+工作盤點           →  「盤點」
+                      掃描所有 assigned Epic + Bug + 孤兒 Task → 驗證狀態 + GitHub PR 進度
+                      → 產出優先序 Dashboard
 ```
 
 > **PM 和 Scrum Master：** 以下內容是給開發者和框架維護者的。你已經設定完成了！

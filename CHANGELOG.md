@@ -4,6 +4,30 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.9.0] - 2026-04-14
+
+### docs-sync restructure — deterministic lint + git-diff scoping
+
+文件同步從「全量掃描 + 手動修」重構為「確定性偵測 + 差異驅動修復」。
+
+- **`readme-lint.py` 擴充為 docs-lint** — 新增 5 項確定性檢查：
+  - Phantom skill 偵測（doc 引用不存在的 SKILL.md）
+  - chinese-triggers 表格 ↔ catalog 比對
+  - Mermaid diagram node ↔ catalog 比對
+  - `KNOWN_NON_SKILLS` 白名單降低 false positive
+  - 原有 skill count + undocumented skill 檢查保留
+- **`docs-sync` SKILL.md v3.0.0** — 新增 Step 0（git diff + completeness scoring）：
+  - Step 0a: 跑 `readme-lint.py` 確定性檢查
+  - Step 0b: `git diff` 找出上次同步後變更的 SKILL.md
+  - Step 0c: 借 `/learning` baseline→classify 模式分類變更深度
+  - Step 0d: 借 `/refinement` N/M 維度對每個 skill 打 4 維覆蓋分數
+  - 無變更 + lint 通過 → 直接跳到驗證，不跑全量掃描
+- **Post-version-bump chain 調整** — docs-lint 先跑（確定性），有問題才觸發 docs-sync（AI）
+- **文件全面更新** — 修正 7 個 doc 檔案：
+  - `work-on` → `engineering`（全部文件）
+  - 移除 phantom skills（`jira-worklog` 公司層、`skill-creator` Claude 官方）
+  - 新增 `check-pr-approvals`、`my-triage`、`next`、`sasd-review` 到各 doc
+
 ## [2.8.0] - 2026-04-14
 
 ### Pipeline Persona — Architect / Packer / Engineer

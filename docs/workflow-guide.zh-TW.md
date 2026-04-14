@@ -19,7 +19,7 @@ Git Flow 與 PR 慣例請參考公司的 Git 工作流程文件。
 
 ## 單張票的生命週期
 
-`work-on` 是主要的流程協調器。`bug-triage` 處理 Bug 診斷，之後交由 `work-on` 執行開發。Feature、Bug 和 Refactor 路徑共用品質檢查 → PR → 發布的尾端流程。
+`engineering` 是主要的流程協調器。`bug-triage` 處理 Bug 診斷，之後交由 `engineering` 執行開發。Feature、Bug 和 Refactor 路徑共用品質檢查 → PR → 發布的尾端流程。
 
 ```mermaid
 flowchart TD
@@ -31,7 +31,7 @@ flowchart TD
     end
 
     %% ── Feature Path ──
-    subgraph feature["📋 Feature / Refactor Path<br/><code>work-on</code>"]
+    subgraph feature["📋 Feature / Refactor Path<br/><code>engineering</code>"]
         F1["🤖👤 Refinement (optional)<br/><code>refinement</code>"]
         F2["🤖👤 Breakdown & Estimation<br/><code>breakdown</code><br/>+ scope challenge mode"]
         F3["🤖👤 SA/SD (optional)"]
@@ -65,7 +65,7 @@ flowchart TD
     subgraph review["👥 Review"]
         K1["🤖👤 Code Review (human focus)<br/><code>review-pr</code> (reviewer side)"]
         K2["🤖 Fix Review Comments<br/><code>fix-pr-review</code>"]
-        K3["🤖👤 Log Work Time<br/><code>jira-worklog</code>"]
+        K3["🤖👤 Log Work Time"]
     end
 
     %% ── Release ──
@@ -126,7 +126,7 @@ flowchart TD
 
 | 閘門 | 時機 | 機制 | 失敗時 |
 |------|------|-----------|------------|
-| **1. 就緒閘門** | `work-on` 開始時 | 檢查票是否有可驗證的 AC；品質不足則阻擋 | 阻擋開發，提示補充 AC |
+| **1. 就緒閘門** | `engineering` 開始時 | 檢查票是否有可驗證的 AC；品質不足則阻擋 | 阻擋開發，提示補充 AC |
 | **2. AC ↔ 子任務追溯性** | `breakdown` 之後 | 產出追溯矩陣，確認每條 AC 都有對應的子任務 | 阻擋子任務建立，標示缺漏的 AC |
 | **3. 逐條驗證** | `engineer-delivery-flow` Step 3 (Layer A+B) | 確認環境啟動 + 受影響 URL 回 200 + task.md 行為項目 PASS | 阻擋開 PR；FAIL 項目必須修正 |
 | **4. AC 覆蓋清單** | `engineer-delivery-flow` Step 7（透過 `pr-body-builder`）| 自動在 PR 描述中嵌入 AC 清單 | Reviewer 一眼就能看到覆蓋狀態 |
@@ -142,12 +142,13 @@ flowchart TD
 ```mermaid
 flowchart LR
     %% ── Orchestrators ──
-    WO["work-on<br/>(smart router)"]
+    WO["engineering<br/>(smart router)"]
     BT["bug-triage<br/>(diagnosis)"]
 
     %% ── Planning Skills ──
     RF["refinement"]
     EB["breakdown<br/>(+ scope challenge)"]
+    SASD["sasd-review<br/>(SA/SD)"]
 
     %% ── Dev Skills ──
     UT_TDD["unit-test<br/>(TDD mode)"]
@@ -156,7 +157,6 @@ flowchart LR
     %% ── PR Skills ──
     GPW["git-pr-workflow"]
     FPR["fix-pr-review"]
-    WL["jira-worklog"]
 
     %% ── Review Skills ──
     RP["review-pr"]
@@ -190,10 +190,10 @@ flowchart LR
 
     %% ── Planning chain ──
     RF -.->|when complete| EB
+    EB -.->|optional| SASD
 
     %% ── Quality chain ──
     GPW -.->|optional| VR
-    GPW -.->|log worktime| WL
 
     UT_TDD -.->|test reference| UT
 
@@ -233,7 +233,7 @@ flowchart LR
     class WO,BT orchestrator
     class VR,VAC,UT_TDD quality
     class RP,RI,CPA,FPR,RLG review
-    class RF,EB,SP,IT planning
+    class RF,EB,SASD,SP,IT planning
     class NX,MT,CV orchestrator
     class SU,UT,LRN,DS standalone
 ```
@@ -439,7 +439,7 @@ Schedule: A + B + D develop in parallel → start C after A is merged
 
 #### 🤖 批次模式（平行多票開發）
 
-提供多張票時，`work-on` 自動進入批次模式：
+提供多張票時，`engineering` 自動進入批次模式：
 
 ```
 work on PROJ-100 PROJ-101 PROJ-102
@@ -535,7 +535,7 @@ AI 透過 `engineer-delivery-flow` Step 2（消費 `quality-check-flow.md`）執
 
 **若報告顯示 ⚠️ 或預估 patch coverage 低於門檻，請在進入 PR 前補測試。**
 
-> 此步驟是 `engineer-delivery-flow` 的一部分 — 在 `work-on` 或 `git-pr-workflow` 中自動執行。
+> 此步驟是 `engineer-delivery-flow` 的一部分 — 在 `engineering` 或 `git-pr-workflow` 中自動執行。
 
 ### 步驟 7a. 🤖👤 行為驗證（Verify Completion）
 
@@ -760,7 +760,7 @@ AI 執行 `bug-triage` 技能 — **僅處理診斷**，非端到端：
 3. **提出修正方案** → 產出 **Solution**（要修改的檔案/模組）
 4. **👤 開發者確認** → Root Cause + Solution 以 JIRA 留言呈現；開發者確認後才繼續
 
-RD 確認後，流程交由 `breakdown` → `work-on` 進行估點、建 branch、實作與 PR。
+RD 確認後，流程交由 `breakdown` → `engineering` 進行估點、建 branch、實作與 PR。
 
 **JIRA 留言格式：**
 

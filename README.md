@@ -27,14 +27,14 @@ Polaris organizes your AI-assisted workflow around three pillars:
 You tell Claude Code what you want. Polaris handles the rest:
 
 ```
-You:     "work on PROJ-123"
+You:     "做 PROJ-123"
 Polaris: reads JIRA ticket → checks prerequisites → estimates story points
          → breaks into sub-tasks → creates JIRA sub-tickets
          → opens feature branch → implements code → runs tests
          → opens PR with coverage report → transitions JIRA to CODE REVIEW
 ```
 
-**Skills:** `work-on`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `verify-AC`, `visual-regression`, `refinement`, `intake-triage`, `unit-test`
+**Skills:** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `refinement`, `intake-triage`, `my-triage`, `next`, `unit-test`
 
 Deep dive → [Developer Workflow Guide](docs/workflow-guide.md)
 
@@ -67,7 +67,7 @@ Polaris: pulls JIRA backlog → calculates team capacity → detects carry-overs
          → suggests priority order → drafts Release page
 ```
 
-**Skills:** `standup`, `sprint-planning`, `jira-worklog`, `refinement` (PM perspective), `breakdown` (PM perspective)
+**Skills:** `standup`, `sprint-planning`, `my-triage`, `refinement` (PM perspective), `breakdown` (PM perspective)
 
 ## What is Claude Code?
 
@@ -82,7 +82,7 @@ Polaris: pulls JIRA backlog → calculates team capacity → detects carry-overs
 
 > **Important:** Most Polaris skills use sub-agents, which require the **Max plan** ($100/mo) or API access. On Pro/Team plans, only single-step skills will work.
 - **Atlassian MCP** — connects Claude Code to JIRA and Confluence
-- **Slack MCP** — for notifications and reports (`standup`, `review-inbox`, `jira-worklog`)
+- **Slack MCP** — for notifications and reports (`standup`, `review-inbox`, `check-pr-approvals`)
 
 **Developers also need:**
 - **Git** and **GitHub CLI** (`gh`) — authenticated with your org
@@ -145,14 +145,14 @@ After `/init` completes, your workspace will look like this:
         └── .claude/CLAUDE.md     ← project-level rules (L3)
 ```
 
-Verify setup by trying: `"work on PROJ-123"` (replace with a real ticket key). If Polaris reads the ticket successfully, you're good to go.
+Verify setup by trying: `"做 PROJ-123"` (replace with a real ticket key). If Polaris reads the ticket successfully, you're good to go.
 
 ### 3. Start using skills
 
 Once initialized, just talk to Claude Code naturally — English or 中文 both work:
 
 ```
-"work on PROJ-123"    /「做 PROJ-123」       → full development workflow / 完整開發流程
+"做 PROJ-123"         / "work on PROJ-123"   → full development workflow / 完整開發流程
 "fix bug PROJ-456"    /「修 bug PROJ-456」    → root cause → fix → PR / 根因分析 → 修復 → 發 PR
 "review PR"           /「review 這個 PR」     → code review with inline comments
 "estimate PROJ-789"   /「估點 PROJ-789」      → story point estimation / Story point 估算
@@ -167,7 +167,7 @@ Don't try all 26 skills at once. Pick one that matches your role:
 
 | If you are a... | Try this first | What happens |
 |-----------------|----------------|--------------|
-| **Developer** | `"work on PROJ-123"` / `「做 PROJ-123」` | Reads JIRA → estimates → creates branch → codes → opens PR |
+| **Developer** | `「做 PROJ-123」` / `"work on PROJ-123"` | Reads JIRA → estimates → creates branch → codes → opens PR |
 | **PM / Scrum Master** | `"standup"` / `「standup」` | Collects yesterday's JIRA + git activity → formats report |
 | **Tech Lead** | `"sprint planning"` / `「排 sprint」` | Pulls backlog → calculates capacity → suggests priority |
 
@@ -194,9 +194,9 @@ Refinement         →  "refinement EPIC-100" / 「refinement EPIC-100」
 Breakdown          →  "work on EPIC-100" / 「做 EPIC-100」
                       Epic → sub-tasks with story point estimates → batch-creates in JIRA
 
-Worklog report     →  "worklog report 2w" / 「worklog report 2w」
-                      Queries completed tickets from past 2 weeks → groups by assignee → posts to Slack
-                      (Part of `jira-worklog` skill)
+My triage          →  "my work" / 「盤點」
+                      Scans assigned Epics + Bugs + orphan Tasks → validates JIRA status
+                      → produces priority dashboard
 ```
 
 > **PMs and Scrum Masters:** Everything below this point is for developers and framework maintainers. You're all set!

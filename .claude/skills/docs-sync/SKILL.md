@@ -7,7 +7,7 @@ description: >
   "文件有跟上嗎", "docs out of date", or after creating/modifying skills.
 metadata:
   author: Polaris
-  version: 2.0.0
+  version: 3.0.0
   scope: maintainer-only
 ---
 
@@ -37,26 +37,69 @@ Detects changes in skills and workflows, then updates all documentation files to
 | `docs/quick-start-zh.md` | (already zh-TW, standalone) |
 | `docs/chinese-triggers.md` | (already zh-TW, standalone) |
 
-## Step 1: Detect What Changed
+## Step 0: Scope the Sync (git diff + lint)
 
-Scan for discrepancies between skills and docs:
+Before scanning all docs, narrow down what actually changed.
 
-1. **Scan `.claude/skills/*/SKILL.md` frontmatter** — get current skill catalog (name, description, trigger keywords, version)
-2. **Read `docs/chinese-triggers.md`** — compare trigger keywords table against skill frontmatter
-3. **Read `README.md`** — check skill lists in each Pillar section
-4. **Read `docs/workflow-guide.md`** — check skill references and workflow steps
-5. **Scan mermaid diagrams in `docs/workflow-guide.md`** — extract all node IDs and skill names from `flowchart` code blocks. Compare against current skill catalog:
-   - Skills in diagrams but no longer in catalog → flag for removal
-   - Skills in catalog that belong in the dev flow but missing from diagrams → flag for addition
-   - Standalone/config skills (`init`, `use-company`, `validate-*`, `which-company`) are intentionally excluded from diagrams — do not flag
+### 0a. Run deterministic lint
 
-For each file, identify:
-- New skills not documented
-- Removed skills still referenced
-- Changed trigger keywords or descriptions
-- Version mismatches
-- Workflow step changes
-- **Mermaid diagram nodes out of sync** with skill catalog
+```bash
+python3 scripts/readme-lint.py
+```
+
+This catches structural issues without AI: phantom skills (doc references a name with no SKILL.md), undocumented skills, skill count drift, chinese-triggers table mismatches, and mermaid diagram node phantoms.
+
+If lint passes clean (exit 0) **and** no git diff in Step 0b → docs are in sync, skip to Step 4 (verify).
+
+### 0b. Git diff — what skills changed since last sync?
+
+```bash
+# Find the last docs-sync commit
+LAST_SYNC=$(git log --oneline --all --grep="docs: sync" -1 --format="%H")
+
+# What SKILL.md files changed?
+git diff --name-only ${LAST_SYNC:-HEAD~20}..HEAD -- '.claude/skills/*/SKILL.md'
+
+# What specifically changed in frontmatter?
+git diff ${LAST_SYNC:-HEAD~20}..HEAD -- '.claude/skills/*/SKILL.md' | grep '^[+-]' | grep -E 'name:|trigger|description:'
+```
+
+### 0c. Classify changes (borrowing from `/learning` baseline→classify pattern)
+
+For each changed skill, classify the sync depth needed:
+
+| Change Type | Sync Depth | What to Update |
+|-------------|-----------|----------------|
+| **Name/rename** | Full — all 4 docs | Every file that references the old name |
+| **Trigger keywords** | chinese-triggers only | Update the trigger row |
+| **Description** | chinese-triggers + README Pillar list | Update description text |
+| **New skill added** | Full — all 4 docs | Add to chinese-triggers, README Pillar, workflow-guide diagram, quick-start if relevant |
+| **Skill removed** | Full — all 4 docs | Remove from all references |
+| **SKILL.md internal changes** (steps, logic) | None | Docs describe triggers and purpose, not internal steps |
+
+### 0d. Completeness score (borrowing from `/refinement` N/M dimensions)
+
+For each changed skill, check coverage across 4 docs:
+
+| Dimension | File | Check |
+|-----------|------|-------|
+| **Triggers** | `docs/chinese-triggers.md` | Skill name appears in table with correct triggers |
+| **Pillar** | `README.md` + `README.zh-TW.md` | Skill listed in correct Pillar's **Skills:** line |
+| **Diagram** | `docs/workflow-guide.md` | Skill has a node in Diagram 2 (if part of dev flow) |
+| **Quick Start** | `docs/quick-start-zh.md` | Skill mentioned if it's a primary workflow skill |
+
+Score: `N/4` per skill. Only skills scoring < 4/4 need Step 1-3 treatment. Standalone/config skills (`init`, `use-company`, `validate`, `docs-sync`, `checkpoint`) are exempt from Diagram and Quick Start dimensions (score out of 2 instead of 4).
+
+**If Step 0a lint passes clean AND Step 0b shows no changes → report "Docs in sync" and stop.**
+
+## Step 1: Detect What Changed (scoped by Step 0)
+
+Focus only on skills flagged by Step 0 (lint failures or git diff changes). For each flagged skill:
+
+1. **Read its SKILL.md frontmatter** — name, description, trigger keywords
+2. **Compare against each doc dimension** from Step 0d — identify specific gaps
+
+For unchanged skills with full coverage (4/4), skip entirely.
 
 Present the diff report:
 

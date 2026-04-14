@@ -83,8 +83,8 @@ This is a **reminder**, not an automatic bump. The user decides when and how to 
 
 After a VERSION bump is committed, execute these steps in order — no user confirmation needed:
 
-1. **docs-sync** — invoke `/docs-sync` to detect and fix documentation drift (new skills, stale counts, missing triggers, translation sync). If changes are found, commit them as a separate `docs:` commit
-2. **readme-lint** — run `python3 scripts/readme-lint.py --fix` to check skill counts in README.md / README.zh-TW.md match the actual `SKILL.md` count. If fixes are applied, include them in the docs commit (Step 1) or a separate `docs:` commit
+1. **docs-lint** — run `python3 scripts/readme-lint.py --fix` as a fast deterministic check: skill counts, phantom skills, undocumented skills, chinese-triggers table, mermaid diagram nodes. Auto-fixes counts; reports other issues
+2. **docs-sync** — if docs-lint reported issues beyond count fixes (phantom skills, missing entries, stale diagrams), invoke `/docs-sync` to fix them. The skill's Step 0 uses docs-lint output + git diff to scope the sync. If changes are found, commit as a separate `docs:` commit
 3. **backlog-staleness-scan** — scan `polaris-backlog.md` for stale items (see § Backlog Hygiene below)
 4. **sync-to-polaris.sh --push** — sync all changes (including the docs commit) to the template repo
 

@@ -19,7 +19,7 @@ For full skill reference, see `.claude/skills/` and the company skills directory
 
 ## Ticket Lifecycle
 
-`work-on` is the primary orchestrator. `bug-triage` handles Bug diagnosis before handing off to `work-on` for execution. Feature, Bug, and Refactor paths share the Quality → PR → Release tail.
+`engineering` is the primary orchestrator. `bug-triage` handles Bug diagnosis before handing off to `engineering` for execution. Feature, Bug, and Refactor paths share the Quality → PR → Release tail.
 
 ```mermaid
 flowchart TD
@@ -31,7 +31,7 @@ flowchart TD
     end
 
     %% ── Feature Path ──
-    subgraph feature["📋 Feature / Refactor Path<br/><code>work-on</code>"]
+    subgraph feature["📋 Feature / Refactor Path<br/><code>engineering</code>"]
         F1["🤖👤 Refinement (optional)<br/><code>refinement</code>"]
         F2["🤖👤 Breakdown & Estimation<br/><code>breakdown</code><br/>+ scope challenge mode"]
         F3["🤖👤 SA/SD (optional)"]
@@ -65,7 +65,7 @@ flowchart TD
     subgraph review["👥 Review"]
         K1["🤖👤 Code Review (human focus)<br/><code>review-pr</code> (reviewer side)"]
         K2["🤖 Fix Review Comments<br/><code>fix-pr-review</code>"]
-        K3["🤖👤 Log Work Time<br/><code>jira-worklog</code>"]
+        K3["🤖👤 Log Work Time"]
     end
 
     %% ── Release ──
@@ -126,7 +126,7 @@ Acceptance Criteria pass through 4 automated gates from ticket intake to PR open
 
 | Gate | When | Mechanism | On Failure |
 |------|------|-----------|------------|
-| **1. Readiness Gate** | `work-on` start | Checks whether the ticket has verifiable AC; blocks if quality is insufficient | Blocks development, prompts to add AC |
+| **1. Readiness Gate** | `engineering` start | Checks whether the ticket has verifiable AC; blocks if quality is insufficient | Blocks development, prompts to add AC |
 | **2. AC ↔ Sub-task Traceability** | After `breakdown` | Produces a traceability matrix confirming every AC is covered by a sub-task | Blocks sub-task creation, flags missing AC |
 | **3. Per-AC Verification** | `engineer-delivery-flow` Step 3 (Layer A+B) | Confirms env up + changed URLs return 200 + task.md behavioral items pass | Blocks PR open; FAIL items must be fixed |
 | **4. AC Coverage Checklist** | `engineer-delivery-flow` Step 7 (via `pr-body-builder`) | Embeds AC checklist in PR description automatically | Reviewer sees coverage status at a glance |
@@ -142,12 +142,13 @@ How skills invoke and delegate to each other. Solid arrows = invoke (skill calls
 ```mermaid
 flowchart LR
     %% ── Orchestrators ──
-    WO["work-on<br/>(smart router)"]
+    WO["engineering<br/>(smart router)"]
     BT["bug-triage<br/>(diagnosis)"]
 
     %% ── Planning Skills ──
     RF["refinement"]
     EB["breakdown<br/>(+ scope challenge)"]
+    SASD["sasd-review<br/>(SA/SD)"]
 
     %% ── Dev Skills ──
     UT_TDD["unit-test<br/>(TDD mode)"]
@@ -156,7 +157,6 @@ flowchart LR
     %% ── PR Skills ──
     GPW["git-pr-workflow"]
     FPR["fix-pr-review"]
-    WL["jira-worklog"]
 
     %% ── Review Skills ──
     RP["review-pr"]
@@ -190,10 +190,10 @@ flowchart LR
 
     %% ── Planning chain ──
     RF -.->|when complete| EB
+    EB -.->|optional| SASD
 
     %% ── Quality chain ──
     GPW -.->|optional| VR
-    GPW -.->|log worktime| WL
 
     UT_TDD -.->|test reference| UT
 
@@ -233,7 +233,7 @@ flowchart LR
     class WO,BT orchestrator
     class VR,VAC,UT_TDD quality
     class RP,RI,CPA,FPR,RLG review
-    class RF,EB,SP,IT planning
+    class RF,EB,SASD,SP,IT planning
     class NX,MT,CV orchestrator
     class SU,UT,LRN,DS standalone
 ```
@@ -439,7 +439,7 @@ Schedule: A + B + D develop in parallel → start C after A is merged
 
 #### 🤖 Batch Mode (parallel multi-ticket development)
 
-When multiple tickets are provided, `work-on` enters batch mode automatically:
+When multiple tickets are provided, `engineering` enters batch mode automatically:
 
 ```
 work on PROJ-100 PROJ-101 PROJ-102
@@ -535,7 +535,7 @@ AI runs quality checks via `engineer-delivery-flow` Step 2 (consuming `quality-c
 
 **If the report shows ⚠️ or estimated patch coverage is below threshold, add tests before proceeding to PR.**
 
-> This step is part of `engineer-delivery-flow` — it runs automatically as part of `work-on` or `git-pr-workflow`.
+> This step is part of `engineer-delivery-flow` — it runs automatically as part of `engineering` or `git-pr-workflow`.
 
 ### Step 7a. 🤖👤 Behavior Verification (Verify Completion)
 
@@ -760,7 +760,7 @@ AI executes `bug-triage` skill — **diagnosis only**, not end-to-end:
 3. **Propose solution** → produces **Solution** (files/modules to change)
 4. **👤 Developer confirms** → Root Cause + Solution shown as JIRA comment; developer confirms before proceeding
 
-After RD confirmation, the flow hands off to `breakdown` → `work-on` for estimation, branch creation, implementation, and PR.
+After RD confirmation, the flow hands off to `breakdown` → `engineering` for estimation, branch creation, implementation, and PR.
 
 **JIRA comment format:**
 
