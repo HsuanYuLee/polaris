@@ -207,6 +207,7 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 | `verification-evidence-required` | `gh pr create` blocked unless `/tmp/polaris-verified-{TICKET}.json` exists with valid ticket, timestamp (< 4h), and non-empty results | PreToolUse hook on Bash, exit 2 to block | `scripts/verification-evidence-gate.sh` |
 | `quality-evidence-required` | `git commit` blocked unless `/tmp/polaris-quality-{branch}.json` exists with `all_passed: true`. Bypass: `POLARIS_SKIP_QUALITY=1` or `wip:` commit message prefix. Skipped for main/develop and framework repo | PreToolUse hook on Bash, exit 2 to block | `scripts/quality-gate.sh` |
 | `test-sequence-warning` | When sequence test-fail → production-file-edit → test-pass is detected, inject warning about wrong-fix pattern | PostToolUse hook on Bash + Edit, stdout injection | `scripts/test-sequence-tracker.sh` |
+| `context-pressure-monitor` | At 20/25/35 tool calls, inject escalating warnings to save state and delegate. Counts Bash/Edit/Write/Read/Grep/Glob/Agent calls. State: `/tmp/polaris-session-calls.txt`. Reset on reboot | PostToolUse hook, stdout injection (advisory, not blocking) | `scripts/context-pressure-monitor.sh` |
 
 **Evidence file spec** (`/tmp/polaris-verified-{TICKET}.json`):
 ```json

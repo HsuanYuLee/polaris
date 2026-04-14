@@ -50,20 +50,18 @@ The active company context (set by `/use-company`, JIRA ticket routing, or user 
 
 The rules above are self-enforced by the Strategist. For additional protection, a runtime monitoring mechanism can detect context pressure:
 
-**Current mechanism** (prompt-level):
+**Deterministic mechanism** (hook-level):
+- `scripts/context-pressure-monitor.sh` is a PostToolUse hook that counts Bash/Edit/Write/Read/Grep/Glob/Agent calls
+- State: `/tmp/polaris-session-calls.txt` (one timestamp per call, session-scoped)
+- At **20 calls** → advisory: "consider wrapping up current phase"
+- At **25 calls** → urgent: "save state, delegate remaining work"
+- At **35 calls** → critical: "enter checkpoint mode NOW"
+- Registered in `mechanism-registry.md` § Deterministic Quality Hooks
+
+**Behavioral backup** (prompt-level):
 - The Strategist follows the rules in §1-4 above through self-discipline
 - Post-task audit (see `mechanism-registry.md`) catches violations after the fact
-
-**Future enhancement** (hook-level, tracked in backlog):
-- A `PostToolUse` hook could monitor context window usage percentage
-- At 35% remaining → inject advisory warning ("consider wrapping up current phase")
-- At 25% remaining → inject urgent warning ("save state and delegate remaining work")
-- This would catch context rot that self-monitoring misses in long sessions
-
-**Interim mitigation**: When a conversation has exceeded 20 tool calls without completing a major milestone, the Strategist should proactively:
-1. Write a milestone summary of progress so far
-2. Assess whether remaining work should be delegated to a sub-agent
-3. If the conversation is approaching a natural break, suggest the user start a fresh session
+- The hook warnings are advisory (stdout injection, not blocking) — the Strategist must act on them
 
 ### 5a. Checkpoint Mode on Context Pressure
 

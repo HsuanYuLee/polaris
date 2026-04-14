@@ -4,6 +4,22 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.7.0] - 2026-04-14
+
+### Context Pressure Monitor — deterministic session degradation prevention
+
+長 session 中 Strategist 靠自律計算 tool calls 不可靠（v1.71.0 事件），改用 PostToolUse hook 確定性注入警告。
+
+- **`scripts/context-pressure-monitor.sh`** — 計數 Bash/Edit/Write/Read/Grep/Glob/Agent calls，三級警告：
+  - 20 calls → advisory（wrap up current phase）
+  - 25 calls → urgent（save state, delegate）
+  - 35 calls → critical（checkpoint mode NOW）
+- 註冊進 `~/.claude/settings.json` PostToolUse hooks
+- `mechanism-registry.md` 新增 `context-pressure-monitor` entry
+- `context-monitoring.md` §5 從 "Future enhancement" 升級為 "Deterministic mechanism"
+
+**設計原則**：與 `test-sequence-tracker.sh` 同模式 — stdout injection（advisory），不 block。
+
 ## [2.6.0] - 2026-04-14
 
 ### Engineering Mindset — Deterministic Quality Gates & Skill Rename
