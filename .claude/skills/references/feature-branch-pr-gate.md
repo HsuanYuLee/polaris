@@ -104,7 +104,7 @@ git -C {repo_dir} push --force-with-lease
 
 Feature branch rebase 完成後、建 PR 前，執行品質檢查確保合併後的程式碼沒壞：
 
-1. 讀取 `dev-quality-check` SKILL.md，執行完整品質檢查（lint + test + coverage）
+1. 依照 `skills/references/quality-check-flow.md`，執行完整品質檢查（lint + test + coverage）
 2. 若品質檢查失敗 → **不建 PR**，回報失敗項目給使用者
 3. 品質檢查通過 → 繼續建立 Feature PR
 

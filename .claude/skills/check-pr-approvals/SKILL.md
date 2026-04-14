@@ -414,7 +414,7 @@ mcp__claude_ai_Slack__slack_send_message
 - **所有 PR 的 CI 都通過後**才進入 review comments 檢查
 - 所有 code review bot（Copilot、CodeRabbit、dependabot 等）的建議都視為 actionable — 可能揭示安全風險或最佳實踐
 - Rebase 解衝突、CI 修正、review comment 修正都用 `isolation: "worktree"` 避免影響當前工作目錄
-- CI 修正和 review comment 修正後信任本地 `dev-quality-check` 結果，不 poll GitHub CI
+- CI 修正和 review comment 修正後信任本地 `quality-check-flow` 結果，不 poll GitHub CI
 - **Review comment 修正自動執行，不需使用者確認** — 與 Step 6 催 review 的使用者選擇不同。發現 actionable comments 就直接 invoke fix-pr-review，修完再繼續
 
 ## Don't
@@ -427,7 +427,7 @@ mcp__claude_ai_Slack__slack_send_message
 - 不要忽略 stale approve — approve 時間早於最後 push 時間的一律視為無效，必須計入需要 re-approve 的清單 — 詳見 references/stale-approval-detection.md
 - **不要對 CI 沒過的 PR 催 review** — 浪費同仁時間，必須先修好 CI 再請人看
 - **不要分批催 review** — 有任何 PR 的 CI 未通過時，不可先催已通過的那些。一次性催比分批打擾同仁好
-- **不要 poll GitHub CI** — 本地 `dev-quality-check` 通過後 push 即可，不需要反覆 `gh pr checks` 等結果
+- **不要 poll GitHub CI** — 本地 `quality-check-flow` 通過後 push 即可，不需要反覆 `gh pr checks` 等結果
 - **不要修正非 code review 的自動化通知**（changeset-bot、codecov-commenter、your-bot-account）— 這些只是通知，不是 code review。但 Copilot、CodeRabbit、dependabot 等 code review bot 的建議要修
 - **不要修正已有 author 回覆的 comment** — 已處理過的不重複修正
 - **不要因 review comment 修正失敗而阻擋催 review** — 與 CI gate 不同，review comments 可能是建議而非 blocking issue

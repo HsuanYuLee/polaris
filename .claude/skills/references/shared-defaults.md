@@ -18,8 +18,8 @@
 | Bot exclusion list | `scrum.excluded_bots` | check-pr-approvals, fix-pr-review |
 | JIRA instance | `jira.instance` | 全部 JIRA 相關 skill |
 | Confluence space | `confluence.space` | standup, sprint-planning, sasd-review |
-| Dev host | `infra.dev_host` | dev-quality-check, verify-completion |
-| Dev port | `infra.dev_port` | dev-quality-check, verify-completion |
+| Dev host | `infra.dev_host` | quality-check-flow, engineer-delivery-flow |
+| Dev port | `infra.dev_port` | quality-check-flow, engineer-delivery-flow |
 | Kibana hosts | `kibana.host`, `kibana.sit_host`, `kibana.stage_host` | kibana-logs |
 | Kibana index pattern | `kibana.index_pattern` | kibana-logs |
 

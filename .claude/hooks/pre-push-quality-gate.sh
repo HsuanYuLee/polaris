@@ -2,7 +2,7 @@
 # Pre-push Quality Gate
 # Intercepts git push and verifies that quality checks have passed
 #
-# Mechanism: dev-quality-check writes a marker file on pass; this hook checks the marker
+# Mechanism: quality-check-flow writes a marker file on pass; this hook checks the marker
 # Marker: /tmp/.quality-gate-passed-{branch}
 #
 # This hook only fires on `git push*` commands via the `if` field in settings.json.
@@ -62,7 +62,7 @@ fi
 
 # Not first push — block and explain
 cat >&2 <<'EOF'
-⚠️ Quality gate not passed — run dev-quality-check first
+⚠️ Quality gate not passed — run quality-check-flow first
 
 Push requires passing quality checks (lint + test + coverage).
 After the check passes, a marker file is created and push will proceed.

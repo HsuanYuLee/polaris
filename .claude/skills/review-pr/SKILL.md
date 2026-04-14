@@ -73,10 +73,10 @@ metadata:
 - gh api repos/{owner}/{repo}/pulls/{number}/files --paginate
 - 計算總變更行數，若 > 800 行則分批處理（見下方分批 review 說明）
 
-### 3. 讀取專案規範
+### 3. 讀取專案規範與 Handbook
 - 本地模式：用 Read tool 讀取 {base_dir}/{repo}/.claude/rules/ 下所有檔案
 - 遠端模式：用 gh api 讀取
-- 若存在 `review-learnings.md`，務必仔細閱讀（避免重複報告已知 false positive）
+- **讀取 Repo Handbook**：若 `{base_dir}/{repo}/.claude/rules/handbook/` 存在，讀取 `index.md` + 所有子檔案。Handbook 是該 repo 的 coding 準則，review 時全文遵守 — 符合 handbook 的 pattern 不應被 flag，違反 handbook 的 pattern 應指出
 
 ### 4. 審查每個檔案
 - 本地模式：用 Read tool 讀取完整原始碼理解上下文
@@ -229,6 +229,10 @@ gh api repos/{owner}/{repo}/pulls/{pr_number} -H "Accept: application/vnd.github
 ## 專案規範
 {rules_content}
 
+## Repo Handbook（coding 準則，全文遵守）
+{handbook_content}
+（若 handbook 不存在則省略此區塊）
+
 ## 你負責的檔案
 {該組檔案清單}
 
@@ -286,7 +290,7 @@ gh api repos/{owner}/{repo}/contents/.claude/rules/{filename}?ref={headRefName} 
 
 讀取所有規範檔案，作為 review 依據。常見規範類型包含：型別安全、專案架構、狀態管理、API 開發、格式化、命名、元件開發等。若 `.claude/rules/` 不存在（本地或遠端皆無），則僅依通用審查維度進行 review。
 
-**特別注意**：若存在 `review-learnings.md`，務必仔細閱讀。此檔案記錄了歷次 review 的回饋學習（false positives、accepted patterns、severity calibration），review 時必須參考，避免重複報告已知的 false positive 或對 accepted pattern 提出不必要的建議。
+**Repo Handbook 是 review 的 primary standard**：若 `{base_dir}/{repo}/.claude/rules/handbook/` 存在，讀取 `index.md` + 所有子檔案。Handbook 記錄了 repo 的架構、慣例、coding 準則 — review 時全文遵守。符合 handbook 的 pattern 不應被 flag，違反 handbook 的 pattern 應指出。若 handbook 不存在，跳過此步驟。
 
 **重要**：如果是分批 review 模式，規範內容需要在 Step 2 的 Step B 中嵌入各 sub-agent 的 prompt，因此在此步驟就要完成讀取。
 
@@ -547,13 +551,17 @@ PR Approve 狀況：目前 M/2 valid approve(s)
 
 若輸入來源為 Slack（`slack_source: true`），接續執行 Step 7。
 
-## 6.5 Review Lesson 萃取（靜默執行）
+## 6.5 Review 發現 → Handbook 校準（Standard-First）
 
-在輸出摘要後，靜默分析本次 review 中**自己留下的 review comments**，萃取可通用化的 coding pattern 到被 review 專案的 `.claude/rules/review-lessons/` 目錄。
+在輸出摘要後，分析本次 review 中**自己留下的 review comments**，判斷是否有值得寫入 repo handbook 的 coding pattern。
+
+### 核心原則：Standard First
+
+Review 中發現的 repo-specific pattern 應**直接寫入 handbook**，不經 review-lessons buffer。Handbook 是 repo 的 coding 準則 — 發現新 pattern 就更新標準，下次 review 或開發直接按新標準走。
 
 ### 萃取判斷
 
-**萃取**以下類型的 comment：
+**值得寫入 handbook** 的 comment：
 - 框架慣用法（Vue / Nuxt / TypeScript 的正確用法）
 - Error handling 慣例
 - 型別安全 pattern
@@ -561,59 +569,58 @@ PR Approve 狀況：目前 M/2 valid approve(s)
 - 測試撰寫慣例
 - 元件設計原則
 
-**排除**以下情況（不萃取）：
+**排除**（不寫入）：
 - typo、漏 import、copy-paste 錯誤
 - 純格式問題（縮排、換行）
 - 只適用特定業務邏輯的單次性問題
 - nit 等級的風格建議（非規範要求）
 
-若本次 review **沒有任何**符合萃取條件的 comment，跳過此步驟，不輸出任何訊息。
+若本次 review **沒有任何**符合條件的 comment，跳過此步驟，不輸出任何訊息。
 
-### 寫入檔案
+### 分類與寫入
 
-萃取到 lesson 時，寫入 `{base_dir}/{repo}/.claude/rules/review-lessons/` 目錄：
+依 `repo-handbook.md` § Step 3b 的三層分類：
 
-- **依主題分檔**：一個主題一個 `.md` 檔（如 `type-safety.md`、`error-handling.md`、`vue-patterns.md`）
-- **同主題追加**到既有檔案，不建新檔
-- **雙層去重**：寫入前比對 (1) 既有 review-lessons 檔案 **和** (2) 主 rules 檔案（`.claude/rules/*.md`），語意相同則跳過
-- **框架級分流**：若 pattern 屬於框架層級（skill 設計、delegation 策略、rules 機制、memory 管理），在 entry 前方標記 `[framework]`，供 review-lessons-graduation 識別路由
+| 分類 | 目標 | 範例 |
+|------|------|------|
+| Repo-specific | `{repo}/.claude/rules/handbook/` 子文件 | Vue SFC 命名慣例、API error format |
+| Company-level | `rules/{company}/handbook/` 子文件 | 跨 repo 的 changeset 規則 |
+| Framework | feedback memory（走累積→畢業） | Polaris skill routing 行為 |
 
-檔案格式：
+**寫入前去重**：比對 handbook 既有內容 + `rules/` 檔案，語意相同則跳過。
 
-```markdown
-# [主題標題]
+### 衝突處理（Standard-First Calibration）
 
-- [規則描述]
-- Why: [為什麼這樣做]
-- Source: [PR URL] ([日期])
-```
-
-### 注意事項
-
-- review-lessons 屬 AI 開發環境（chore/ai-enhancements），**不 commit**，等使用者說「發 AI PR」統一處理
-- 與 fix-pr-review 萃取的 lesson 共用同一目錄，會自動合併同主題
-- **差異**：fix-pr-review 萃取「reviewer 指出的問題」（別人教我的）；此步驟萃取「自己在 review 時發現的 pattern」（我發現的）
-
-### 完成後輸出（僅有萃取到 lesson 時）
+如果 review 中留的 comment 被 PR author 推回（不同意、不改），**不要自行判斷誰對誰錯**。暫停並回報 Strategist：
 
 ```
-📝 Review Lesson 萃取：
-- 新增 N 條 lesson 到 {base_dir}/{repo}/.claude/rules/review-lessons/<file>.md
+Review 衝突：
+- 我的 comment：「{comment 摘要}」
+- Author 回覆：「{回覆摘要}」
+- Handbook 現狀：{有涵蓋/沒涵蓋}
+
+請確認：(a) 更新 handbook 配合 author → 我撤回 comment
+        (b) 堅持 → 我回覆請 author 修改
 ```
 
-### Review Lessons 畢業檢查（靜默）
+User 確認後：
+- **(a)** → 更新 handbook → 下次 review 按新標準
+- **(b)** → 回覆 author，不更新 handbook
 
-萃取完成後，計算 `{base_dir}/{repo}/.claude/rules/review-lessons/` 的總條目數（每個 `^- ` 開頭的行 = 1 條）。若 >= 15 → invoke `review-lessons-graduation`。若 < 15 → 不輸出任何訊息。
+### 完成後輸出（僅有寫入 handbook 時）
+
+```
+Handbook 更新：
+- 寫入 {base_dir}/{repo}/.claude/rules/handbook/{file}.md：{pattern 摘要}
+```
 
 ### Reverse Sync（靜默）
 
-萃取完成後，執行 reverse-sync 將 review-lessons 寫回 ai-config（source of truth）：
+寫入 handbook 後，執行 reverse-sync：
 
 ```bash
 {base_dir}/polaris-sync.sh --reverse {project-name}
 ```
-
-其中 `{project-name}` 從 repo 目錄名推導（例如 `acme-web-app`）。
 
 ## 7. Slack 通知（僅當輸入來源為 Slack 時）
 

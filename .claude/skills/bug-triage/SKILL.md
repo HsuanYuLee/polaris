@@ -11,7 +11,7 @@ description: >
   This skill handles DIAGNOSIS only — estimation, test plan, QA challenge, and design doc are delegated to breakdown.
 metadata:
   author: Polaris
-  version: 2.0.0
+  version: 2.1.0
 ---
 
 # Bug Triage — 診斷層
@@ -38,6 +38,86 @@ Layer 3 施工: work-on (branch + TDD + 品質 + PR)
 3. Identify project per `references/project-mapping.md` (Summary `[tag]` → workspace config `projects` block)
 4. Check if root cause is already confirmed (JIRA comments contain `[ROOT_CAUSE]` section):
    - If confirmed → "已有根因分析，要重新分析還是直接進派工？（breakdown {TICKET}）"
+5. **Check for AC-FAIL origin**: if ticket description starts with `## [VERIFICATION_FAIL]` (created by verify-AC skill on implementation-drift disposition) → route to **AC-FAIL Path** (Step 2-AF), skipping Step 2-3 full exploration. verify-AC has already presented observed vs expected as facts; bug-triage's job is narrower — locate the code defect on the feature branch.
+
+## Step 2-AF — AC-FAIL Path (for [VERIFICATION_FAIL] Bugs)
+
+When Step 1.5 detects `[VERIFICATION_FAIL]` prefix, skip the generic Step 2-3 exploration and use the structured追溯 info that verify-AC already wrote.
+
+### 2-AF.1 — Parse [VERIFICATION_FAIL] block
+
+Extract from ticket description:
+
+| Field | Example | Usage |
+|-------|---------|-------|
+| 來源 AC 驗收單 | `TASK-123` | Link context, not re-verification |
+| Epic | `PROJ-123` | Root for related work orders |
+| **分析對象 branch** | `feat/PROJ-123-breadcrumblist-seo` | **Primary investigation surface — NOT develop/main** |
+| Repos 涉入 | `your-app, your-backend` | Scope of analysis |
+| 相關 Task keys | `TASK-123, TASK-123` | Link to task.md work orders |
+| 相關 PR numbers | `#2100, #2101` | PR diffs = exact change set |
+| Feature branch commit range | `{base_sha}..{head_sha}` | Bounded git log scope |
+| **失敗項目** | `AC#2: Observed X, Expected Y` | What to reproduce + fix |
+| 復現條件 | URL, locale, viewport, fixtures | How to reproduce |
+| 驗證 metadata | curl / Playwright / timestamp | Reference only |
+
+### 2-AF.2 — Scoped investigation (Explorer sub-agent, feature-branch-only)
+
+Dispatch Explorer (sonnet) with a **narrower** prompt than the generic Step 3:
+
+```
+Prompt: AC 驗證失敗，定位 feature branch 上的 code 缺陷。
+
+來自 verify-AC 的事實（不需重驗證）：
+- Observed: {actual behavior}
+- Expected: {AC spec}
+- 復現條件: {URL, locale, viewport, fixtures}
+
+**分析範圍（硬邊界）**：
+- Branch: {feat/...-branch-name}（不是 develop/main）
+- Repos: {repo_a}, {repo_b}
+- Commit range: {base_sha}..{head_sha}
+- PRs: {#N1}, {#N2}（diff 是確切改動範圍）
+
+任務：
+1. 讀 {repo}/.claude/rules/handbook/ 了解架構
+2. 從 PR diff + feature branch code 找出 observed behavior 的產生點
+3. 對比 expected — 判斷是「缺實作」「實作錯了」「邊界條件漏了」還是「依賴整合出錯」
+4. 評估最小修正範圍（必須在 feature branch 上修，不可回 develop/main）
+
+**禁止**：
+- 跑 `git log --author`、`git blame`（assignee 層的資訊 bug-triage 不應知道）
+- 重跑 verify-AC 已執行的驗證步驟
+- 擴大到 feature branch 以外的 code
+
+回傳格式：同 Step 3 Full Path 的 Root Cause / Impact / Proposed Fix。
+Proposed Fix 的「預估改動」必須限定在 {repos} 的 feature branch 上。
+```
+
+### 2-AF.3 — Fall through to Step 4
+
+AC-FAIL path 產出同樣的 Root Cause / Impact / Proposed Fix 結構 → 直接進 **Step 4 RD Confirmation**（hard stop 不變）→ Step 5 寫回 JIRA。
+
+### 2-AF.4 — Handoff override
+
+Step 5c 的 handoff 訊息改為：
+
+```markdown
+## ✅ AC-FAIL Bug 診斷完成 — {BUG_KEY}
+
+對應 AC 驗收單：{AC_TICKET_KEY}
+分析對象：{feature_branch_name}
+
+| Item | Status |
+|------|--------|
+| Root Cause（feature branch 上的） | ✅ 已確認 |
+| JIRA Comment | ✅ 已更新 |
+| Proposed Fix | ✅ {scope summary} |
+
+---
+說「做 {BUG_KEY}」進入施工。work-on 會 checkout **{feature_branch_name}**（不是 develop），在上面開 fix branch。
+修完 PR merge 回 feature branch 後，說「驗 {EPIC_KEY}」跑 verify-AC full re-run。
+```
 
 ## Step 2 — Fast-Path Detection
 

@@ -1,9 +1,9 @@
 ---
 name: breakdown
-description: "Universal planning skill: Bug reads ROOT_CAUSE then estimates; Story/Task/Epic explores codebase then splits into sub-tasks with estimates. Also handles scope challenge (advisory mode). Trigger: 拆單, 'split tasks', 拆解, 'breakdown', 'break down', 子單, 'sub-tasks', 評估這張單, 'evaluate this ticket', 估點, 'estimate', 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑'."
+description: "Universal planning skill: Bug reads ROOT_CAUSE then estimates; Story/Task/Epic explores codebase then splits into sub-tasks with estimates, and packs each sub-task into a self-contained task.md work order for work-on to consume. Also handles scope challenge (advisory mode). Trigger: 拆單, 'split tasks', 拆解, 'breakdown', 'break down', 子單, 'sub-tasks', 評估這張單, 'evaluate this ticket', 估點, 'estimate', 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑'."
 metadata:
   author: Polaris
-  version: 2.0.0
+  version: 2.2.0
 ---
 
 # Breakdown — 通用派工器
@@ -254,6 +254,7 @@ FAIL 項目：
 - Step B: 填入估點 + 回查驗證
 - Step C: 建立測試計劃 sub-task
 - Step D: 建立驗收單（依 `references/epic-verification-structure.md`）
+  - **AC 依賴**：若某 AC 須先通過另一個 AC 才有意義，在 description 加 `## depends_on` 段列出被依賴 AC 編號（見 `references/epic-verification-structure.md § depends_on 欄位`）。無強依賴時不要硬加
 
 本 skill 設定：
 - `parent` 指向母單（TICKET_KEY）
@@ -329,15 +330,87 @@ git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
 
 **14d. 回報 branch 結構**
 
+### 14.5. 產出 task.md work orders
+
+為每張實作子單產出 self-contained 工單檔案，讓 work-on 只消費 codebase + task.md + handbook（handbook 自動載入）。
+
+**路徑規則：**
+
+| 情境 | 輸出路徑 |
+|------|---------|
+| Epic 拆多張子單 | `{company_base_dir}/specs/{EPIC_KEY}/tasks/T{n}.md` |
+| Story/Task 拆多張子單 | `{company_base_dir}/specs/{TICKET_KEY}/tasks/T{n}.md` |
+| 單一子單 ticket（≤ 5pt） | `{company_base_dir}/specs/{TICKET_KEY}/tasks/T1.md` |
+
+> `{n}` 從 1 起算，對應 Step 8 呈現順序（API-first 排序後的實際排序）。
+
+**檔案 schema** — 嚴格遵循 `references/pipeline-handoff.md` § task.md Schema。每張 task.md 包含：
+
+1. **Header**：`# T{n}: {Task summary} ({SP} pt)` + quote 行 `> Epic: {EPIC_KEY} | JIRA: {TASK_KEY} | Repo: {repo_name}`（無 Epic 時省略 Epic 欄位）
+2. **Operational Context 表格** — 必填欄位：
+   - Task JIRA key、Parent Epic（或母單 key）
+   - Test sub-tasks（Step C 產出的測試計劃 key list）
+   - AC 驗收單（Step D 產出的 verification ticket key）
+   - Base branch（Step 14b 建立的 feature branch；小型 ticket 跳過時寫 `develop`）
+   - Task branch（Step 14c 建立的 `task/{TASK_KEY}-{slug}`）
+   - References to load（見下方「挑選規則」）
+3. **Verification Handoff 段落**：一句話 `AC 驗證不在本 task 範圍，委派至 {AC_TICKET_KEY}（由 verify-AC skill 執行）。`
+4. **目標**：一段話（從 Step 6 的子任務 description 摘要）
+5. **改動範圍**表格：檔案 / 動作 / 說明（從 Step 6 的 Dev Scope 轉寫）
+6. **估點理由**：一段話（從 Step 7 的估點邏輯）
+7. **測試計畫（code-level）**：對應 test sub-tasks 的 unit/integration 測試項目
+
+**不放 task.md 的東西**（屬於 refinement 或 AC 層級）：
+- Epic description 全文 / refinement artifact
+- 業務層 AC 驗證場景（由 AC 驗收單持有）
+- 技術方案選項分析（refinement 已定案）
+- handbook 內容（work-on 自動載入，不複製）
+
+**References to load 挑選規則：**
+
+讀 `skills/references/INDEX.md`，依 task 性質挑選相關項目。常見對應：
+
+| Task 性質 | 建議 references |
+|----------|----------------|
+| 涉及 cross-repo API | `cross-repo-verification.md` |
+| 涉及 i18n / locale | 對應 company handbook 下 i18n 檔 |
+| 涉及 VR / 截圖 | `vr-jira-report-template.md` |
+| 涉及 JIRA 子單寫入 | `jira-subtask-creation.md` |
+| 所有 task | `branch-creation.md`（work-on 起手） |
+
+若無法判斷，至少列 `branch-creation.md` + 對應 repo handbook 入口。
+
+**產出方式：**
+
+以 Write tool 建立檔案。批次產出時可 parallel 呼叫多個 Write。每張檔案獨立，單一失敗不影響其他子單或 JIRA/branch state。
+
+**Schema 強制驗證（deterministic gate）：**
+
+每張 task.md 寫入後，立即呼叫 validator：
+
+```bash
+scripts/validate-task-md.sh <task.md path>
+```
+
+- exit 0 → 該檔案合格，繼續
+- exit 1 → validator 列出缺漏欄位；**就地修補 task.md（補上欄位）並重跑**，直到 pass。不可讓不合格檔案 land
+- exit 2 → 檔案不存在或用法錯誤，檢查路徑
+
+**為何強制**：pipeline 契約「work-on 只消費 task.md + codebase」的前提是 task.md 完整。靠 AI 自律難保每次產齊，所以用 script exit code 強拘束。見 `CLAUDE.md § Deterministic Enforcement Principle`。
+
+**與 legacy plan.md 並行（過渡期）：**
+
+P5 pipeline cutover 前，`specs/{TICKET_KEY}/plan.md` 若已存在不動它；新流程以 `tasks/T{n}.md` 為 work-on 的主要輸入。P5 完成後移除 legacy plan.md 生成。
+
 ### 15. 銜接 SA/SD（選擇性）
 
 詢問使用者是否要產出 SA/SD 文件。確認則觸發 `sasd-review`。
 
 ### 16. 開工準備完成
 
-所有子單已有 branch、測試計畫、驗證子單。
+所有子單已有 branch、測試計畫、驗證子單、**task.md work order**。
 
-**觸發方式：** `做 <子單 key>` → `work-on`
+**觸發方式：** `做 <子單 key>` → `work-on`（讀對應 `specs/{EPIC_KEY}/tasks/T{n}.md`）
 
 ---
 

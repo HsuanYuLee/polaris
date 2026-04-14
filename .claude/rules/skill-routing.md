@@ -43,13 +43,14 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Estimate a ticket | "估點", "estimate", "評估" + ticket | `breakdown` (Story/Task/Epic) or `bug-triage` (Bug) |
 | Auto-determine next action | "下一步", "next", "繼續", "continue", "然後呢", "接下來" (no ticket key) | `next` |
 | Work on a ticket | "做", "work on" + ticket | `work-on` (requires existing plan — if no plan, routes to planning skill first) |
+| Verify Epic AC | "驗 {EPIC}", "verify {TICKET}", "verify AC", "跑驗收", "AC 驗證" | `verify-AC` |
 | Triage/plan a bug | "修 bug", "fix bug", "分析 bug", "triage bug" + ticket | `bug-triage` |
 | Triage a bug (no ticket) | "修這個", "fix this" + Slack URL, no JIRA key | Strategist pre-processing → create Bug ticket → `bug-triage` |
 | SA/SD design doc | "SASD", "SA/SD", "寫 SA", "出 SA/SD", "架構文件", "design doc", "技術設計", "異動範圍", "dev scope" | `sasd-review` |
 | Break down an epic | "拆單", "拆解", "epic breakdown" | `breakdown` |
 | Batch converge all work | "收斂", "converge", "推進", "全部推到 review", "把我的單收一收" | `converge` |
 | Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `converge` (Epic-only mode) |
-| Create/open a PR | "開 PR", "create PR", "發 PR" | `git-pr-workflow` |
+| Create/open a PR (framework/docs repo) | "開 PR", "create PR", "發 PR" | `git-pr-workflow`（Admin — 產品 repo 引導走 `work-on`） |
 | Triage my work | "我的 epic", "my epics", "盤點", "triage", "手上有什麼", "my work", "我的工作" | `my-triage` |
 | Batch intake from PM | "收單", "排工", "intake", "這批單幫我看", "PM 開了一堆單", "幫我排優先", "prioritize this batch" + 多張 ticket key | `intake-triage` |
 | Daily standup / end-of-day | "standup", "站會", "daily", "寫 standup", "下班", "收工", "準備明天的工作", "end of day", "EOD", "明天 standup", "今天結束了", "總結一下", "結束今天", "wrap up", "今天做了什麼" | `standup` |
@@ -60,6 +61,10 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Validate (mechanisms + isolation) | "validate mechanisms", "validate isolation", "檢查機制", "檢查隔離" | `validate` |
 | Save/resume session state | "checkpoint", "存檔", "save checkpoint", "resume", "恢復", "list checkpoints", "列出存檔" | `checkpoint` |
 | Visual regression check | "跑 visual regression", "檢查畫面", "頁面有沒有壞", "visual test", "截圖比對", "有沒有跑版", "畫面壞了嗎", "UI 有沒有問題" | `visual-regression` |
+| Log work time | "worklog", "記工時", "log time", "log hours" | `jira-worklog` |
+| Backfill worklogs | "補工時", "backfill worklog", "工時回填" + date range | `jira-worklog` (batch mode) |
+| Auto worklog (daily) | (auto-triggered by `/standup` post-step) | `jira-worklog` via `standup` |
+| 補寫 Bug RCA | "補 RCA", "bug RCA", "補根因", "backfill RCA", "補 root cause", "幫我補 root cause" | `bug-rca` |
 
 ## Complexity Tier — Route by Task Size
 
@@ -78,6 +83,16 @@ Before invoking a skill, assess the task's complexity and route to the appropria
 3. **Otherwise** → Standard (let the skill handle it)
 
 The Fast tier is implicit in CLAUDE.md's delegation table ("Small edit ≤ 3 lines, 1 file → Do it directly"). This section makes the full spectrum explicit.
+
+## Admin-Only Skill Guard
+
+Skills with `admin_only: true` in their frontmatter (e.g., `git-pr-workflow`) are restricted to framework/docs repos. When the user triggers an admin-only skill in a **product repo** (identified by `workspace-config.yaml` → `projects[]` mapping):
+
+1. **Do not invoke** the admin-only skill
+2. **Redirect**: "這是產品 repo，發 PR 請走 `work-on`（會包含完整品質檢查和驗證流程）。"
+3. If the user has no JIRA ticket, suggest: "沒有 ticket？先建一張，或用 `work-on` 的 bypass mode。"
+
+**判定依據**：當前 git repo root。若 repo 出現在 `workspace-config.yaml` 的 `projects[]`（有 `base_dir`、`repo` 欄位）→ 產品 repo。否則（如 `~/work/` 本身）→ 框架 repo，允許 admin skill。
 
 ## Negative-Tone Trigger Recognition
 

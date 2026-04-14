@@ -15,12 +15,12 @@ Before/after screenshot comparison guard — no long-lived baselines. Each run c
 
 **Position in quality chain:**
 ```
-dev-quality-check → visual-regression → verify-completion → commit/PR
+quality-check-flow → visual-regression → engineer-delivery-flow Step 3 → commit/PR
 ```
 
-- `dev-quality-check`: "Is the new code quality OK?"
+- `quality-check-flow`: "Is the new code quality OK?"
 - `visual-regression`: "Are existing pages still visually intact?"
-- `verify-completion`: "Does the new feature work correctly?"
+- `engineer-delivery-flow Step 3`: "Does the new feature work correctly?"
 
 **How the comparison works (Playwright's built-in diff engine):**
 1. Run Playwright with `--update-snapshots` against the "before" source → creates temporary baselines in `{test_dir}/snapshots/`
@@ -409,7 +409,7 @@ Visual regression passed ✅ — {N} 個頁面截圖一致，無畫面異常。
 
 ### 5b. Collect and upload artifacts to JIRA
 
-If the VR run is part of a ticket verification flow (e.g., triggered by `verify-completion` or `work-on`), collect screenshots and upload them to the JIRA ticket **before** cleanup deletes them.
+If the VR run is part of a ticket verification flow (e.g., triggered by `work-on` or `engineer-delivery-flow Step 3`), collect screenshots and upload them to the JIRA ticket **before** cleanup deletes them.
 
 **Step 5b-1: Collect artifacts to a temp directory**
 

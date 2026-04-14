@@ -465,7 +465,7 @@ Audit: log infra settings.
 
 ### Step 9a: Dev Environment (skippable)
 
-Discover how to start the local development environment for each selected project. This information powers visual regression and verify-completion skills.
+Discover how to start the local development environment for each selected project. This information powers visual regression and work-on behavioral verification (engineer-delivery-flow Step 3).
 
 **Auto-detect per project:**
 

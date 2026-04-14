@@ -79,6 +79,34 @@ gh repo view --json defaultBranchRef -q .defaultBranchRef.name
 
 Only ask if auto-detection fails. Do not list options unprompted.
 
+### 2.5 Bug RCA 偵測
+
+**跳過條件**（符合任一即跳過，繼續 Step 3）：
+- 無法解析 JIRA key（`[NO-JIRA]` 情境）
+- 本次執行為 `edit` 模式（使用者輸入包含 PR number 或明確要求編輯既有 PR）
+- 偵測到母單 PR（branch pattern 為 `feat/<KEY>-*` 且 base 為 develop）
+
+若不符合跳過條件，查詢該 ticket 的 issue type：
+
+```
+mcp__claude_ai_Atlassian__getJiraIssue
+  cloudId: {config: jira.instance}
+  issueIdOrKey: <JIRA_KEY>
+```
+
+**非 Bug 類型**（Story、Task、Epic 等）→ 跳過，繼續 Step 3。
+
+**Bug / 漏洞** → 掃描 ticket comments，搜尋 `[ROOT_CAUSE]`、`[SOLUTION]`、`根因`、`修復說明`、`Root Cause`：
+
+- **JIRA 查詢失敗**（網路錯誤、權限問題、ticket 不存在）→ 視同跳過，繼續 Step 3，不阻擋 PR 流程
+- **已有 RCA comment** → 跳過（不重複補寫），繼續 Step 3。注意：從 `fix-bug` 鏈路觸發時，`jira-estimation` 通常已補寫 RCA，此處會被正確攔截
+- **尚無 RCA** → 詢問開發者：
+
+  > 這是 Bug 單，JIRA 上尚無 `[ROOT_CAUSE]` 紀錄。要在發 PR 後順便補寫 RCA comment 嗎？
+
+  - **確認** → 記錄 `bug_rca_pending = true`，繼續 Step 3。實際補寫在 Step 6 執行
+  - **拒絕** → 繼續 Step 3，不阻擋 PR 流程
+
 ### 3. Build PR title
 
 Format: `[JIRA-KEY] <concise summary>`
@@ -173,7 +201,7 @@ skeleton. For each section heading from the template:
 2. 對照本次 PR 的改動範圍，逐一判斷每條 AC 是否已涵蓋：
    - `[x]` → 此 PR 已實作並驗證
    - `[ ]` → 未涵蓋（需附說明：out of scope、另一張單處理、待後續）
-3. 若 verify-completion 結果可用，以其驗證結果作為 `[x]`/`[ ]` 依據
+3. 若 engineer-delivery-flow Step 3 行為驗證結果可用，以其驗證結果作為 `[x]`/`[ ]` 依據
 4. **每條 AC 連結到對應的 [驗證] 子單**（JIRA URL），讓 reviewer 點進去看驗證報告 comment。格式：`→ [驗證報告](https://{config: jira.instance}/browse/<KEY>)`。注意：GitHub 會 sanitize 掉 `target="_blank"`，所以用標準 Markdown link 即可（外部連結在 GitHub 上預設就會另開分頁）。若該 AC 沒有對應驗證子單則不加連結
 5. **找不到 AC → 跳過此 section**（不阻擋 PR 流程，不留空的 AC Coverage）
 
@@ -227,6 +255,19 @@ EOB
 gh pr view <pr-number> --json title,body
 ```
 
+### 6. Bug RCA 補寫（條件執行）
+
+僅當 Step 2.5 記錄了 `bug_rca_pending = true` 時執行。
+
+**Cross-company guard（跳過條件）**：先檢查 `bug-rca` skill 是否存在。優先從 workspace config（`{config: skills.bug_rca_path}`）讀取路徑，若 config 未設定則使用預設路徑 `.claude/skills/your-company/bug-rca/SKILL.md`。若該路徑不存在，跳過此步驟並告知：「目前環境未安裝 bug-rca skill，可手動補寫 RCA。」
+
+若 skill 存在，讀取該 SKILL.md，跳過 Step 1-3（PR 來源已確定），使用剛建立的 PR 執行：
+
+1. **bug-rca Step 4（分析根因）** — 讀取 PR diff + JIRA ticket description，產出 `[ROOT_CAUSE]` + `[SOLUTION]`，呈現給開發者確認
+2. **bug-rca Step 5（寫入 JIRA comment）** — 確認後以 ADF 格式寫入，「關聯 PR」填入本 skill Step 5 所建立的 PR URL
+
+此步驟失敗或使用者取消不影響已建立的 PR。若失敗，顯示錯誤訊息並建議使用者稍後手動執行 `/補 RCA {ticket-key}`。
+
 ## Pre-merge checklist
 
 Before creating or finalising a PR, verify the following items and fix any violations proactively:
@@ -256,6 +297,8 @@ Before creating or finalising a PR, verify the following items and fix any viola
 - Don't: use non-standard test file suffixes — use `.test.ts` / `.test.js` or `.spec.ts` / `.spec.js`.
 - Don't: 對母單 PR 要求逐行 code review — 子單已各自審過，母單只是合併到 develop。
 - Don't: 找不到 AC 時硬塞空的 AC Coverage section — 直接跳過不留空佔位。
+- Do: Bug 單建立 PR 時偵測是否缺 RCA，詢問開發者是否順便補寫 — 選擇性步驟，拒絕不阻擋 PR。
+- Don't: Step 2.5 JIRA 查詢失敗時阻擋 PR 建立 — 查詢失敗視同跳過，繼續 Step 3。
 
 
 ## Post-Task Reflection (required)

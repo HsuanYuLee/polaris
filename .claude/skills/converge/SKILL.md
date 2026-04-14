@@ -84,7 +84,7 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 | `HAS_UNRESOLVED_COMMENTS` | PR 有未解決的 review comments（含 COMMENTED 狀態） | `fix-pr-review` |
 | `REVIEW_STUCK` | PR open > 2 天，0 approved | `check-pr-approvals` |
 | `STALE_APPROVAL` | PR approved 但 approval 已過期（新 commit 後未 re-approve） | `check-pr-approvals` |
-| `VERIFICATION_PENDING` | 開發完成但 [驗證] 子單未完成 | `verify-completion` |
+| `VERIFICATION_PENDING` | 開發完成但 [驗證] 子單未完成 | `work-on` |
 | `NO_FEATURE_PR` | 所有 task PR 已 merge，但無 feature → develop PR | feature-branch-pr-gate 自動建立 |
 | `MERGE_CONFLICT` | PR 有衝突 | 報告，不自動執行 |
 | `WAITING_QA` | status = Waiting for QA | ⏸ 跳過 |
@@ -176,7 +176,7 @@ Gaps found: X | Ready: Y | Skipped: Z
 | `HAS_UNRESOLVED_COMMENTS` | `fix-pr-review` | Implementation | sonnet |
 | `REVIEW_STUCK` | `check-pr-approvals` | JIRA + Slack notification | sonnet |
 | `STALE_APPROVAL` | `check-pr-approvals` | JIRA + Slack notification | sonnet |
-| `VERIFICATION_PENDING` | `verify-completion` | Verification (E2E + test plan) | sonnet |
+| `VERIFICATION_PENDING` | `work-on` | Verification (engineer-delivery-flow Step 3) | sonnet |
 | `NO_FEATURE_PR` | `feature-branch-pr-gate.md` reference | Implementation | sonnet |
 
 ### 安全機制
@@ -294,7 +294,7 @@ Next actions:
 | `check-pr-approvals` | 不變，converge 的下游執行器 |
 | `git-pr-workflow` | 不變，converge 的下游執行器 |
 | `breakdown` | 不變，converge 的下游執行器 |
-| `verify-completion` | 不變，converge 的下游執行器 |
+| `work-on` (behavioral verification) | 不變，converge 的下游執行器（含 engineer-delivery-flow Step 3） |
 
 ---
 

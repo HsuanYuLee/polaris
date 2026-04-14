@@ -1,0 +1,289 @@
+---
+name: verify-AC
+description: >
+  QA agent: executes Epic AC (Acceptance Criteria) verification against an AC ticket or Epic.
+  Runs all AC steps, classifies each as PASS/FAIL/MANUAL_REQUIRED/UNCERTAIN, and presents
+  observed vs expected as pure facts (no root-cause judgement).
+  On FAIL, surfaces human disposition gate (spec issue vs implementation drift); on PASS,
+  transitions the AC ticket to Done.
+  Trigger: "驗 PROJ-123", "verify {TICKET}", "verify AC", "跑驗收", "AC 驗證".
+  NOT for planning or implementation: implementation drift routes to bug-triage;
+  spec issue routes back to refinement.
+metadata:
+  author: Polaris
+  version: 1.0.0
+---
+
+# verify-AC — Epic 驗收 QA
+
+pipeline 的 **QA** 環節（見 [pipeline-handoff.md](../references/pipeline-handoff.md)）。本 skill stateless + comment-driven：每次都 full re-run，結果全部寫回 JIRA comment，不依賴本地狀態。
+
+## 前置：讀取 workspace config
+
+讀 `references/workspace-config-reader.md`（需要 `jira.instance`、`github.org`、`base_dir`、`projects[].dev_environment`）。Fallback 用 `references/shared-defaults.md`。
+
+## 角色邊界
+
+| Do | Don't |
+|----|-------|
+| 執行 AC 驗證步驟 | 判斷 FAIL 原因（交給人工 disposition） |
+| 呈現 observed vs expected | 直接改 code 或建 bug-fix 分支 |
+| 全部 AC 每次重跑（含 PASS 過的）防 regression | 只跑上次 FAIL 的 AC |
+| PASS 自動轉驗收單 Done | 壓通過（Observed ≠ Expected 就是 FAIL） |
+| FAIL 時在 JIRA 呈現 disposition gate | 自己決定走 bug-triage 還是 refinement |
+
+## 進入點消歧
+
+| 輸入 | 處理 |
+|------|------|
+| AC 驗收單 key（issuetype = Task + summary 含 `[驗證]`） | 直接進入 Step 3 |
+| Epic key | 掃描該 Epic 下所有 AC 驗收單，逐張進入 Step 3（依 depends_on 排序） |
+| Task / Bug / Story（非驗收單） | 拒絕：「這不是驗收單。要驗收請提供 AC 驗收單或 Epic key」 |
+| 未提供 key | 詢問使用者 |
+
+## Workflow
+
+### 1. 解析輸入 + 讀取 ticket
+
+```
+mcp__claude_ai_Atlassian__getJiraIssue
+  cloudId: {config: jira.instance}
+  issueIdOrKey: <INPUT_KEY>
+  fields: ["summary", "status", "issuetype", "description", "parent", "comment", "labels"]
+```
+
+判斷類型：
+- Summary 含 `[驗證]` 且 issuetype = Task → 視為 AC 驗收單
+- issuetype = Epic → 進入 Epic 模式（Step 1.5）
+- 其他 → 拒絕
+
+### 1.5. Epic 模式展開
+
+若輸入為 Epic：
+
+```
+mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
+  cloudId: {config: jira.instance}
+  jql: parent = <EPIC_KEY> AND summary ~ "[驗證]"
+  fields: ["summary", "status", "description", "comment", "labels"]
+```
+
+依 AC description 中 `depends_on: AC#N` 欄位建立執行順序：
+- 無 `depends_on` → 可平行
+- 有 `depends_on` → 等被依賴者 PASS 後才執行
+
+對每張驗收單依序（或並行）跑 Step 2-6。
+
+### 2. Loop-count 警戒
+
+掃描驗收單 + 對應 Bug ticket 的 comments，count `## 驗證結果` 出現次數。若 **≥ 3** → surface 警告：
+
+```
+⚠️ {AC_KEY} 已經驗證 {N} 次仍未通過。繼續前建議檢查：
+- 是否為架構問題（非單點 bug）
+- AC 描述是否有歧義
+- 是否有隱藏依賴未處理
+是否要繼續？（y/n）
+```
+
+### 3. 讀取驗證步驟 + 環境準備
+
+從 AC 驗收單 description 讀取「驗證步驟」章節。若 description 缺驗證步驟 → 標記 **UNCERTAIN**，addComment 說明「無驗證步驟可執行，需補充 AC 描述」，結束本張。
+
+**環境啟動**（local + mockoon 預設）：
+
+從 Epic → task.md → Repo 欄位推導專案，讀 workspace-config `projects[].dev_environment`：
+
+```bash
+bash {base_dir}/scripts/polaris-env.sh <project>
+```
+
+- exit 0 → 繼續
+- exit ≠ 0 → 本張驗證 block，addComment「環境啟動失敗：{stderr tail}」，不標 PASS/FAIL（標 UNCERTAIN）
+
+### 4. 逐步驟執行 + 分類
+
+對每個驗證步驟：
+
+1. 執行操作（curl / playwright / 檢視原始碼 / 檢查 JSON-LD 等）
+2. 擷取 observed（含 HTTP status、response body、screenshot 路徑）
+3. 對比 expected
+4. 分類：
+
+| 分類 | 條件 |
+|------|------|
+| **PASS** | 步驟可機器檢查 + observed == expected（含 HTTP 200 門檻）|
+| **FAIL** | 步驟可機器檢查 + observed ≠ expected |
+| **MANUAL_REQUIRED** | 步驟本質需主觀判斷（UX、視覺、文案）|
+| **UNCERTAIN** | 能跑但 AI 不確定斷言正確性（邊界語意、非確定性輸出）|
+
+**HTTP status 門檻**：任何 endpoint 驗證必須檢查 status code == 200（或 AC 指定值），再看 body。只看 body「看起來正確」= UNCERTAIN。
+
+### 5. Evidence 收集
+
+截圖、curl output、VR diff 等，透過 JIRA attachment 上傳：
+
+```bash
+bash {base_dir}/scripts/jira-upload-attachment.sh <AC_KEY> <file_path>
+```
+
+Comment 使用 VR template wiki markup（見 `references/vr-jira-report-template.md`），圖片以 `!filename.png|thumbnail!` 嵌入表格 cell。
+
+### 6. 整體結論判定 + JIRA Comment
+
+| 組合 | 結論 |
+|------|------|
+| 全部 PASS | **PASS** → Step 7（自動轉 Done）|
+| 任一 FAIL | **FAIL** → Step 8（disposition gate）|
+| 有 MANUAL_REQUIRED / UNCERTAIN 但無 FAIL | **PENDING** → Step 9（等使用者手動判斷）|
+
+Comment 採 wiki markup（**不用 MCP addCommentToJiraIssue**，用 REST API v2）：
+
+```markdown
+## 驗證結果 — {YYYY-MM-DD}
+
+**結論：PASS ✅** （或 FAIL ❌ / PENDING ⏳）
+
+|| 步驟 || 結果 || Observed || Expected ||
+| 1. {操作} | ✅ PASS | {actual, 含 HTTP status} | {expected} |
+| 2. {操作} | ❌ FAIL | {actual} | {expected} |
+| 3. {操作} | 🔍 MANUAL | {actual} | 需人工判斷 UX |
+
+環境：{local + mockoon / staging / ...}
+驗證工具：{curl / playwright / 檢視 HTML}
+執行時間：{timestamp}
+```
+
+若 PASS 格式遵 `references/epic-verification-structure.md § 驗證結果 Comment`。
+
+### 7. PASS → 自動轉 Done
+
+```
+mcp__claude_ai_Atlassian__getTransitionsForJiraIssue  # 查可用 transition ID
+mcp__claude_ai_Atlassian__transitionJiraIssue
+  cloudId: {config: jira.instance}
+  issueIdOrKey: <AC_KEY>
+  transition: { id: <DONE_TRANSITION_ID> }
+```
+
+失敗時退回「貼 comment 模式」（標記結論但不轉狀態），surface 給使用者手動處理。
+
+Epic 模式下，所有 AC 驗收單都 Done 時，額外 notify：「Epic {EPIC_KEY} 全部 AC 通過，可以 merge feature branch。」
+
+### 8. FAIL → Human Disposition Gate
+
+在驗收單貼 comment，附 disposition checkbox（由使用者編輯勾選）：
+
+```markdown
+## Disposition（請人工勾選，二選一）
+
+- [ ] **實作偏差** — code 沒達到 AC 行為 → 建 per-AC Bug → bug-triage
+- [ ] **規格問題** — AC 描述錯誤/不完整 → 回 refinement
+```
+
+**呈現給使用者**：skill 執行完後 prompt：
+
+```
+🚦 {AC_KEY} FAIL — 請選擇 disposition：
+  1. 實作偏差（建 Bug → bug-triage）
+  2. 規格問題（Epic 加 label → refinement）
+  3. 稍後再處理（不路由，保留 FAIL 狀態）
+```
+
+**單一 disposition per cycle**（實作 / 規格互斥）。
+
+#### 8a. 實作偏差 → per-AC Bug
+
+對每條 FAIL 的 AC 建一張 Bug（N 條 FAIL = N 張 Bug）：
+
+```
+mcp__claude_ai_Atlassian__createJiraIssue
+  cloudId: {config: jira.instance}
+  projectKey: {從 Epic 的 project 推}
+  issueTypeName: "Bug"
+  summary: "[{EPIC_KEY}][驗證失敗] AC#{N} — {AC 描述摘要}"
+  parentKey: <EPIC_KEY>
+```
+
+Bug description 填 `pipeline-handoff.md § Bug ticket 必要資訊` 區塊（[VERIFICATION_FAIL]、實作追溯、失敗項目、復現條件、驗證 metadata）。
+
+**不填 assignee**（bug-triage 對 assignee blind，由運維層決定）。
+
+回到 AC 驗收單貼 comment：「FAIL — 追蹤於 {BUG_KEY_1}, {BUG_KEY_2}, ...」。
+
+**Routing**：skill 結束後告知使用者：「建了 {N} 張 Bug：{BUG_KEYS}。跑 `bug-triage {BUG_KEY}` 開始診斷。」
+
+#### 8b. 規格問題 → refinement
+
+在 Epic 上：
+
+1. `editJiraIssue` 加 label `verification-spec-issue`
+2. `addCommentToJiraIssue`（透過 REST API v2 wiki markup）：
+
+```markdown
+## [VERIFICATION_SPEC_ISSUE] AC#{N}
+
+- 來源：verify-AC on {AC_TICKET_KEY}
+- Observed：{actual}
+- Expected (per AC)：{AC spec}
+- 規格問題：{AC 描述哪裡不清楚 / 矛盾 / 不完整}
+- 建議方向：{給 refinement 參考}
+```
+
+回到 AC 驗收單貼 comment：「規格待 refinement 釐清 → 見 Epic {EPIC_KEY} comment」。
+
+**不建新 ticket**。
+
+### 9. PENDING → 等人工
+
+有 MANUAL_REQUIRED / UNCERTAIN 但無 FAIL 時，skill 結束時列出待人工項目：
+
+```
+⏳ {AC_KEY} 有 {N} 項需人工判斷：
+  - Step 3: {MANUAL_REQUIRED 描述}
+  - Step 5: {UNCERTAIN 描述，附 observation}
+
+使用者確認後：
+  - 全部 OK → 執行 `verify-AC {AC_KEY}` 重跑（會標 PASS）
+  - 有問題 → 手動標記 FAIL，觸發 disposition
+```
+
+### 10. 能力擴充素材累積
+
+對每個 MANUAL_REQUIRED / UNCERTAIN，寫一筆 learning：
+
+```bash
+bash {base_dir}/scripts/polaris-learnings.sh add \
+  --type verify-ac-gap \
+  --ticket <AC_KEY> \
+  --note "<步驟描述 + 為何無法自動斷言>"
+```
+
+同類案例累積 3 次 → 抽成自動驗證 pattern（未來加到本 SKILL.md / reference）。
+
+## Re-verify
+
+本 skill stateless，每次執行都 full re-run。觸發方式：
+
+- **Explicit**：使用者說「驗 {EPIC}」或「verify {AC_KEY}」
+- **Opportunistic**：其他 skill（converge / next / my-triage / standup）偵測到「feature branch 所有 task PR 已 merge + AC 驗收單仍 Open + 無進行中 bug-triage」→ surface 建議
+
+## Do / Don't
+
+- Do: 每次 full re-run，含之前 PASS 過的 AC（防 regression）
+- Do: HTTP status code == 200 是最低門檻，status 不對 = FAIL
+- Do: Evidence 上傳為 JIRA attachment，comment 用 wiki markup 嵌入
+- Do: FAIL 時呈現 disposition gate，等人工勾選
+- Do: PASS 自動 transitionJiraIssue 到 Done
+- Do: Epic 模式下，依 AC `depends_on` 排序
+- Don't: 判斷 FAIL 原因（AI 只呈現事實）
+- Don't: 單張 AC 同時走兩條 disposition（互斥）
+- Don't: 只跑上次 FAIL 的 AC（必須 full re-run）
+- Don't: 用 MCP `addCommentToJiraIssue` 貼驗證結果（會丟格式，用 REST API v2）
+- Don't: 跳過無驗證步驟的 AC（標 UNCERTAIN，addComment 要求補 AC）
+
+## Post-Task Reflection (required)
+
+> **Non-optional.** Execute before reporting task completion.
+
+Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).

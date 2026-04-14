@@ -2,20 +2,29 @@
 name: work-on
 description: >
   Execution-only orchestrator: takes a planned JIRA ticket (with existing plan.md or breakdown)
-  and implements it — branch, TDD, quality check, verification, PR.
+  and implements it — branch, TDD, delivery flow (quality + behavioral verify + PR).
   Supports batch mode via parallel sub-agents.
   Trigger: "做 PROJ-123", "work on", "開始做", "接這張", "做這張",
   or user provides JIRA ticket key(s).
   NOT for planning: Bug → bug-triage first; Story/Task/Epic → breakdown first.
   Key distinction: "下一步" / "繼續" without ticket key → next skill (context auto-detect).
+tier: product
 metadata:
   author: Polaris
-  version: 3.0.0
+  version: 4.0.0
 ---
 
 # Work On — 純施工路由
 
 使用者說「做 PROJ-448」或「做 PROJ-100 PROJ-101 PROJ-102」，skill 檢查規劃產出是否就緒，然後執行實作。規劃（根因分析、拆單、估點、測試計畫）由 `bug-triage` 或 `breakdown` 負責，本 skill 不做規劃。
+
+## Pipeline 角色
+
+本 skill 是 pipeline 的 **Execution** 環節（見 [pipeline-handoff.md](../references/pipeline-handoff.md)）。上游 breakdown 已打包出 self-contained task.md work order；本 skill 消費 **codebase + task.md + handbook（自動載入）**，不再回頭讀 breakdown.md / refinement.md。
+
+**輸入優先順序**：
+1. `specs/{EPIC}/tasks/T{n}.md` — breakdown v2 產出（新 pipeline 的主要輸入）
+2. `specs/{TICKET}/plan.md` — legacy 格式（過渡期 fallback；P5 cutover 後移除）
 
 ## 前置：讀取 workspace config
 
@@ -52,15 +61,16 @@ metadata:
 **1c. 呈現路由總覽表**：
 
 ```
-| # | Ticket | Type | Status | Plan | 路由決定 |
-|---|--------|------|--------|------|---------|
-| 1 | TASK-123 | Task | IN DEV | ✅ plan.md | checkout → 開發 → PR |
-| 2 | TASK-123 | Task | 開放 | ✅ plan.md | 轉 IN DEV → 建 branch → 開發 |
-| 3 | TASK-123 | Bug | 開放 | ❌ 無 plan | ⛔ 先跑 bug-triage |
-| 4 | TASK-123 | Task | QA TESTING | — | ⏭️ 跳過（已進入 QA） |
+| # | Ticket | Type | Status | Work Order | 路由決定 |
+|---|--------|------|--------|-----------|---------|
+| 1 | TASK-123 | Task | IN DEV | ✅ task.md | checkout → 開發 → PR |
+| 2 | TASK-123 | Task | 開放 | ✅ task.md | 轉 IN DEV → 建 branch → 開發 |
+| 3 | TASK-123 | Task | IN DEV | ✅ plan.md (legacy) | checkout → 開發 → PR |
+| 4 | TASK-123 | Bug | 開放 | ❌ 無 work order | ⛔ 先跑 bug-triage |
+| 5 | TASK-123 | Task | QA TESTING | — | ⏭️ 跳過（已進入 QA） |
 ```
 
-等使用者確認後繼續。無 plan 的 ticket 自動排除，列出需要先跑哪個規劃 skill。
+等使用者確認後繼續。無 work order 的 ticket 自動排除，列出需要先跑哪個規劃 skill。
 
 ### Phase 1.5：API Contract Check（if fixtures involved）
 
@@ -97,9 +107,19 @@ scripts/contract-check.sh --env-dir <mockoon-environments-dir> --epic <epic>
 Type: {issue_type}
 Project: {base_dir}/{repo}（base_dir 從 workspace-config.yaml 取得）
 
-## Spec Folder
-讀取 `{company_base_dir}/specs/{ticket_key}/plan.md` 取得完整技術方案。
-若為 Epic 子單，讀取 `{company_base_dir}/specs/{epic_key}/` 下的相關 task 檔案。
+## Work Order（唯一輸入來源）
+
+依優先順序定位並讀取：
+1. **新格式（優先）** — 以 JIRA key 定位 task.md：
+   ```bash
+   grep -lE "^> .*JIRA: {ticket_key}\b" {company_base_dir}/specs/{epic_or_ticket}/tasks/T*.md
+   ```
+   命中的檔案即本 task 的 work order（schema 見 `skills/references/pipeline-handoff.md § task.md Schema`）
+2. **Legacy fallback**：`{company_base_dir}/specs/{ticket_key}/plan.md`
+   — 過渡期舊格式，P5 cutover 後移除
+
+task.md / plan.md 已 self-contained（含目標、改動範圍、測試計畫、references 清單）。
+**不要回頭讀 breakdown.md / refinement.md / INDEX.md**；handbook 自動載入。
 
 ## 流程
 
@@ -116,12 +136,10 @@ Project: {base_dir}/{repo}（base_dir 從 workspace-config.yaml 取得）
 - **TDD 智慧判斷**：依 `references/tdd-smart-judgment.md` 判斷每個檔案是否走 TDD 循環
 - 發現情況不同時，在 JIRA 新增 comment 標註修正版
 
-### 3. 品質檢查 → 行為驗證 → PR（自動銜接，順序不可調換）
-- **先跑品質檢查**：讀取 `dev-quality-check` SKILL.md — lint + test + coverage。未通過則先修正
-- **品質檢查通過後才跑行為驗證**：讀取 `verify-completion` SKILL.md — 逐張執行 JIRA [驗證] sub-task
-- **驗證 Gate**：所有驗證子單必須為「完成」才可繼續。若有 BLOCKED/FAIL → 停止，回傳問題描述
-- 驗證全數通過後，讀取 `git-pr-workflow` SKILL.md — **自動執行完整 PR 流程**
-- PR 建立後用 MCP tool 轉 JIRA 為 CODE REVIEW
+### 3. 交付流程（quality → behavioral verify → PR）
+- 讀取 `references/engineer-delivery-flow.md`，以 **Role: Developer** 執行 Step 1-8
+- 流程包含：Simplify → Quality Check → Behavioral Verify (Layer A + Layer B) → Pre-PR Review → Rebase → Commit → PR → JIRA transition
+- **AC 驗證由 verify-AC skill 接手**：work-on 不跑 AC 驗證。PR 開完後使用者跑「驗 {EPIC}」或 opportunistic 偵測觸發
 
 ### 4. 回傳結果
 回傳：ticket key、branch name、PR URL、品質檢查摘要、測試計畫驗證結果。
@@ -198,14 +216,19 @@ git branch --list "*<TICKET>*"
 
 ### 3. Plan Existence Gate
 
-在路由之前，確認規劃產出是否就緒。work-on 是純施工 skill，沒有規劃產出就不開工。
+在路由之前，確認規劃產出（work order）是否就緒。work-on 是純施工 skill，沒有 work order 就不開工。
 
-**檢查順序：**
+**檢查順序（優先取新格式）：**
 
-1. `{company_base_dir}/specs/{TICKET}/plan.md` 存在？→ 讀取，進入 Step 4
-2. Ticket 有 parent Epic？→ `{company_base_dir}/specs/{EPIC}/` 存在？→ 規劃已做，進入 Step 4
-3. JIRA description 有結構化技術方案（`## Technical Approach` 或 `## 測試計畫`）？→ 進入 Step 4
-4. 以上皆無 → 阻擋，告知使用者需要先做規劃：
+1. **新格式** — 以 JIRA key 定位 task.md（task.md header 內建 `> JIRA: {TASK_KEY}` mapping）：
+   - 判斷搜尋範圍：有 parent Epic → `specs/{EPIC}/tasks/`；否則 → `specs/{TICKET}/tasks/`
+   - 執行：`grep -lE "^> .*JIRA: {TICKET}\b" {company_base_dir}/specs/{EPIC_OR_TICKET}/tasks/T*.md`
+   - 命中單一檔案 → 讀取，進入 Step 4（新 pipeline 主要路徑）
+   - 命中多個 → 異常，停下來告知使用者（同一 JIRA key 不該對應多張 task.md）
+2. **Legacy fallback** — `{company_base_dir}/specs/{TICKET}/plan.md` 存在？→ 讀取，進入 Step 4
+3. **舊 breakdown 產出** — 有 parent Epic 且 `{company_base_dir}/specs/{EPIC}/` 存在（無 tasks/ 子目錄）？→ 讀取 Epic 下相關檔案，進入 Step 4
+4. **JIRA 內嵌方案** — description 有結構化技術方案（`## Technical Approach` 或 `## 測試計畫`）？→ 進入 Step 4
+5. 以上皆無 → 阻擋，告知使用者需要先做規劃：
 
 ```
 ⛔ Plan Existence Gate — 找不到規劃產出
@@ -245,9 +268,11 @@ ticket 狀態是「開放」或「SA/SD」？
   └→ 觸發 start-dev → 繼續建 branch
 
 ticket 狀態是 IN DEVELOPMENT 且沒有 branch？
-  └→ 檢查 JIRA comments 是否有依賴標記（base on / depends on）
-     └→ 有 → 走依賴分支流程（references/branch-creation.md § dependency branch）
-     └→ 無 → 依 references/branch-creation.md 建 branch（或使用 scripts/create-branch.sh）
+  └→ **AC-FAIL Bug 偵測**：ticket description 或 comment 含 `[VERIFICATION_FAIL]`？
+     └→ 是 → 從 [VERIFICATION_FAIL] block 擷取「分析對象 branch」（feature_branch_name）→ 作為 base branch → 開 fix branch `task/{BUG_KEY}-{slug}` from feature_branch_name（不是 develop）
+     └→ 否 → 檢查 JIRA comments 是否有依賴標記（base on / depends on）
+         └→ 有 → 走依賴分支流程（references/branch-creation.md § dependency branch）
+         └→ 無 → 依 references/branch-creation.md 建 branch（或使用 scripts/create-branch.sh）
   └→ branch 建立後 → 執行 `{base_dir}/polaris-sync.sh {project-name}` 部署 AI 設定
 
 ticket 狀態是 IN DEVELOPMENT 且已有 branch？
@@ -256,7 +281,7 @@ ticket 狀態是 IN DEVELOPMENT 且已有 branch？
   └→ 提示：「已在 branch {name}，可以開始開發。」
 ```
 
-### 5. 開發摘要 → 自動進入 TDD 開發 → 品質檢查 → 發 PR
+### 5. 開發摘要 → 自動進入 TDD 開發 → 交付流程
 
 路由完成後，顯示開發摘要然後**自動銜接後續流程**（不停下來等使用者）：
 
@@ -266,7 +291,7 @@ ticket 狀態是 IN DEVELOPMENT 且已有 branch？
 ├─ Branch：task/PROJ-448-product-listing-optimization
 ├─ Base：feat/PROJ-460-aggregate-structured-data
 ├─ AI 設定：已套用（polaris-sync.sh）
-├─ Plan：specs/PROJ-448/plan.md ✅
+├─ Work Order：specs/PROJ-460/tasks/T3.md ✅（或 legacy specs/PROJ-448/plan.md）
 └─ PR base：feat/PROJ-460-aggregate-structured-data
 → 開始 TDD 開發...
 ```
@@ -274,15 +299,15 @@ ticket 狀態是 IN DEVELOPMENT 且已有 branch？
 **自動銜接流程：**
 
 1. **TDD 開發**：讀取 `unit-test` SKILL.md + 專案 CLAUDE.md，以 Red-Green-Refactor 循環實作。依 `references/tdd-smart-judgment.md` 判斷哪些檔案走 TDD
-2. **品質檢查 → 行為驗證 → PR**：開發完成後自動讀取 `git-pr-workflow` SKILL.md 執行完整 PR 流程（品質檢查 → verify-completion → Pre-PR Review Loop → Commit → 發 PR → 轉 CODE REVIEW）
+2. **交付流程**：開發完成後讀取 `references/engineer-delivery-flow.md`，以 **Role: Developer** 執行 Step 1-8（Simplify → Quality Check → Behavioral Verify Layer A+B → Pre-PR Review → Rebase → Commit → PR → JIRA transition）。**AC 驗證不在本 skill**，PR 開完後由 verify-AC 接手
 
 > 此流程與批次模式 Phase 2 sub-agent 的 Step 2-3 完全一致，差別只在單張 ticket 由主 agent 直接執行。
 
 ## 路由決策表（快速參考）
 
-| Ticket 狀態 | 有 Plan？ | 有 Branch？ | 動作 |
-|------------|----------|------------|------|
-| 開放 | ✅ | — | 轉 IN DEVELOPMENT → 建 branch → 開發 |
+| Ticket 狀態 | 有 Work Order？ | 有 Branch？ | 動作 |
+|------------|-----------------|------------|------|
+| 開放 | ✅ task.md / plan.md | — | 轉 IN DEVELOPMENT → 建 branch → 開發 |
 | 開放 | ❌ | — | ⛔ 先跑規劃 skill |
 | SA/SD | ✅ | — | 轉 IN DEVELOPMENT → 建 branch → 開發 |
 | IN DEVELOPMENT | ✅ | 無 | 建 branch → 開發 |
@@ -291,6 +316,8 @@ ticket 狀態是 IN DEVELOPMENT 且已有 branch？
 | QA 以後 | — | — | 提示無需開發 |
 | Epic（有子單） | — | — | 列出子單讓使用者選 |
 | Epic（無子單） | — | — | 先跑拆單 |
+
+「Work Order」= `specs/{EPIC}/tasks/T{n}.md`（新）或 `specs/{TICKET}/plan.md`（legacy）。
 
 ## 開發中 Scope 追加
 
@@ -310,17 +337,16 @@ ticket 狀態是 IN DEVELOPMENT 且已有 branch？
 
 ## Do / Don't
 
-- Do: 檢查 plan.md 是否存在，無 plan 不開工（除非使用者明確 bypass）
+- Do: 檢查 task.md（新）或 plan.md（legacy）是否存在，無 work order 不開工（除非使用者明確 bypass）
 - Do: 每個路由決策前都向使用者確認
 - Do: 路由到其他 skill 時使用 Skill tool 觸發
 - Do: 開發預設使用 TDD（Red-Green-Refactor），無法寫測試的檔案記錄原因後跳過
-- Do: 先跑 dev-quality-check，通過後再跑 verify-completion。**順序不可調換**
-- Do: 驗證全數通過後**自動銜接 git-pr-workflow 發 PR**
-- Do: verify-completion 逐項驗證每張 JIRA [驗證] 子單，**全部通過才可 commit/push**
+- Do: 開發完成後讀取 `references/engineer-delivery-flow.md` 執行完整交付流程（Role: Developer）
+- Do: AC 驗證交給 verify-AC skill，PR 開完後使用者或其他 skill 觸發
 - Don't: 在 work-on 裡做規劃（估點、拆單、根因分析、AC 生成）— 那是 breakdown/bug-triage 的工作
+- Don't: 在 work-on 裡跑 AC 驗證 — 那是 verify-AC 的工作
 - Don't: 跳過 Plan Existence Gate
-- Don't: 跳過品質檢查直接做行為驗證
-- Don't: 跳過行為驗證直接 commit/push
+- Don't: 跳過 engineer-delivery-flow 直接 commit/push
 - Don't: 自動決定依賴 branch（一定要確認）
 - Don't: 在 QA 流程中的 ticket 上繼續開發
 

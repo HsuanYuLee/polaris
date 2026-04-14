@@ -171,13 +171,19 @@ These are real escape patterns observed in prior sessions. When you notice yours
 |----|------|---------------|-------|
 | `blind-spot-scan` | After producing a plan, protocol, or significant decision, pause and self-check (invert, edge cases, silent failure) before presenting or executing | Strategist presents a plan without any "what could go wrong" analysis; user discovers a blind spot the Strategist should have caught | Medium |
 
-### Quality Gates (source: `skills/git-pr-workflow/SKILL.md`, `skills/verify-completion/SKILL.md`)
+### Quality Gates (source: `skills/references/engineer-delivery-flow.md`)
 
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
 | `re-test-after-fix` | After fixing quality issues, re-run all tests before proceeding to commit | Git diff shows changes after last test run but commit proceeds without fresh test output | High |
 | `fresh-verification-before-completion` | Every task completion must include fresh verification performed after the final code change | Task marked complete with rationalization phrases ("should work", "trivial change") and no verification output in conversation | High |
-| `local-verification-hard-gate` | work-on / verify-completion: every Local verification item must have PASS/SKIP/FAIL disposition with evidence. Unit test alone cannot substitute for behavioral verification when the AC requires running the server | Strategist proceeds to PR with only unit test output when [VERIFICATION] lists behavioral items (e.g., "切換語系後 footer 正確") | **Critical** |
+| `local-verification-hard-gate` | work-on (engineer-delivery-flow Step 3): every Layer A+B verification item must have PASS/SKIP/FAIL disposition with evidence. Unit test alone cannot substitute for behavioral verification when the AC requires running the server | Strategist proceeds to PR with only unit test output when [VERIFICATION] lists behavioral items (e.g., "切換語系後 footer 正確") | **Critical** |
+| `work-on-no-ac-verify` | work-on does not run AC business-level verification — that's verify-AC's job. work-on only runs Phase 2.5 Sanity Gate (env up + HTTP 200) | work-on session executing verify-AC steps (逐項跑 AC 驗收 sub-task) instead of routing to verify-AC skill after PR | High |
+| `verify-ac-no-judgement` | verify-AC presents observed vs expected as facts — does not judge FAIL reason; disposition is human-driven | verify-AC output contains "this is a bug in X" or "AC is wrong" instead of pure PASS/FAIL + disposition gate | High |
+| `verify-ac-full-rerun` | verify-AC re-runs ALL AC (including previously PASS'd) to catch regression | verify-AC session skips PASS'd AC from last run | Medium |
+| `verify-ac-http-status` | AC endpoint verification must assert HTTP status == 200 before checking body | verify-AC passes an AC based on "body looks right" without recording HTTP status | High |
+| `bug-triage-ac-fail-detection` | When Bug description contains `[VERIFICATION_FAIL]`, bug-triage takes AC-FAIL Path — scoped to feature branch only, uses verify-AC's observed/expected as facts, does not redo verification | bug-triage runs generic Step 3 Explorer on a `[VERIFICATION_FAIL]` Bug (analyzes develop/main instead of feature branch, or re-verifies observed behavior) | High |
+| `ac-fail-bug-branch-from-feature` | work-on opens fix branch for AC-FAIL Bug from the Epic's feature branch (extracted from `[VERIFICATION_FAIL]` block), not from develop | work-on creates fix branch from develop for a Bug whose description contains `[VERIFICATION_FAIL]` — fix never lands on the failing feature branch | High |
 | `checklist-before-done` | Before declaring a task complete, review the session's original task list (checkpoint next steps, todo items) and confirm each item is done/carry-forward/dropped | Strategist says "done" or asks "要更新 checkpoint 嗎？" while unchecked items remain from the session's starting checklist | High |
 | `defer-immediate-capture` | When a decision defers work to a later phase, capture it in todo (same session) or memory (future session) immediately — oral defer is not landed | Conversation contains "等 X 再處理 Y" pattern but no corresponding todo/memory entry created within the next 2 tool calls | High |
 
@@ -205,7 +211,7 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 }
 ```
 
-**Writer**: `scripts/polaris-write-evidence.sh --ticket TASK-123 --result "PASS: AC1 ..."` — called by verify-completion skill or manually after verification.
+**Writer**: `scripts/polaris-write-evidence.sh --ticket TASK-123 --result "PASS: AC1 ..."` — called by work-on (engineer-delivery-flow Step 3) or manually after verification.
 
 **Bypass**: `POLARIS_SKIP_EVIDENCE=1` for non-ticket PRs (framework, docs). Branch names without `[A-Z]+-[0-9]+` pattern are auto-allowed.
 

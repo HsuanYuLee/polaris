@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [1.110.0] - 2026-04-14
+
+- **Handbook as Coding Standard — review skills now read and enforce repo handbook**
+  - `review-pr` Step 3: reads `handbook/index.md` + sub-files as primary review standard (full compliance, not checklist)
+  - `review-pr` Step 6.5: review findings write directly to handbook (Standard-First), replacing review-lessons buffer
+  - `fix-pr-review` Step 5: upfront handbook read for global context before per-comment fixes
+  - `fix-pr-review` Step 7b: upgraded to Standard-First Calibration (conflict → pause → ask user → update handbook or reply reviewer)
+  - `repo-handbook.md` § 3c: reframed from "review context" to "coding standard" — three roles (work-on, review-pr, fix-pr-review) all comply holistically
+  - `INDEX.md`: added `review-pr` to repo-handbook triggers
+- **review-lessons buffer deprecated** for repos with handbook — new patterns go directly to handbook via Standard-First flow
+  - `review-lessons-graduation` skill retained only for legacy repos without handbook
+
 ## [1.109.0] - 2026-04-13
 
 - **jira-worklog moved to company layer** (`skills/kkday/jira-worklog/`)

@@ -1,438 +1,104 @@
 ---
 name: git-pr-workflow
-description: "Use when code changes are ready and the user wants the complete path to a merged PR — including quality gates and iterative AI review before opening. Trigger: '發 PR', 'open PR', 'create PR', 'PR workflow', '準備發 PR'. For simple PR creation without quality gates, use pr-convention."
+description: >
+  Admin-role delivery skill for framework/docs repos. Executes the full engineer delivery flow
+  (simplify → quality → behavioral verify → review → rebase → commit → PR) without JIRA ceremony.
+  Trigger: '發 PR', 'open PR', 'create PR', 'PR workflow', '準備發 PR'.
+  For product repos with JIRA tickets, use work-on instead.
+  For simple PR creation without quality gates, use pr-convention.
+tier: meta
+admin_only: true
 metadata:
   author: Polaris
-  version: 3.4.0
+  version: 4.0.0
 ---
 
-# git-pr-workflow (v3.4.0)
+# git-pr-workflow (v4.0.0) — Admin Delivery Entry
 
-**用途：** 完整 PR 生命週期自動化，從建立分支到 AI Code Review。v3.4.0：新增 Step 6.5 Rebase，開 PR 前自動 rebase 到最新 base（含 cascade rebase），確保 PR diff 乾淨。
+**用途：** 框架、docs、通用 repo 的 PR 生命週期自動化。v4.0.0：execution backbone 抽出到 `references/engineer-delivery-flow.md`，本 skill 僅負責 Admin 角色的輸入解析和路由。
 
-**原始碼：** `.claude/skills/git-pr-workflow/SKILL.md`
+**角色：Admin**（框架維護者）— 豁免 JIRA ticket、task.md、planning ceremony。**不豁免** execution discipline（simplify / quality / verify / review 照跑）。
 
----
-
-## 流程總覽（11 步）
-
-```
-Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit → Changeset → Rebase → Open PR → JIRA transition → Update PR desc → Post-PR Review Comment
-```
+**產品 repo 禁用**：在產品 repo（your-app、your-backend 等）觸發時，skill-routing 會引導使用者改用 `work-on`。
 
 ---
 
-### Step 1：Create Branch
+## 適用場景
 
-如果 `git create-branch` CLI 可用：
+| 適用 | 不適用 |
+|------|--------|
+| Polaris 框架自身（`~/work/`） | 產品 repo（走 `work-on`） |
+| 通用 docs / template repo | 有 JIRA ticket 的開發（走 `work-on`） |
+| 無 ticket 的 hotfix / cleanup | 需要 task.md 的計劃性開發 |
+
+---
+
+## Step 1：Branch（若尚未建立）
+
+若當前在 `main` 且有 uncommitted changes：
 
 ```bash
-git create-branch --jira --ci
+git create-branch --ci
 ```
 
-否則依 `references/branch-creation.md` 流程建 branch（或使用 `scripts/create-branch.sh`），效果相同。
+或依 `references/branch-creation.md` 手動建分支。
 
-兩者都會從 JIRA ticket 自動產生 commitlint 格式的分支名稱（如 `feat/PROJ-123-add-user-auth`）。
-
-### Step 2：Simplify Loop（程式碼簡化）
-
-在品質檢查前，先用 `/simplify` 迭代審查變更的程式碼，確保重用性、品質與效率。
-
-#### 流程
-
-```
-┌────────────────────────────────┐
-│ 1. 執行 /simplify              │
-│ 2. 有修改檔案?                 │
-│    ├─ Yes → 回到 1            │
-│    └─ No  → 進入 Step 3      │
-└────────────────────────────────┘
-```
-
-#### 執行方式
-
-使用 Skill tool 呼叫 `simplify`，它會：
-1. 檢視目前變更的程式碼（與 base branch 的 diff）
-2. 審查重用性（是否有重複邏輯可抽共用）、品質（是否有不必要的複雜度）、效率（是否有低效寫法）
-3. 若發現問題，直接修正檔案
-
-#### 迭代邏輯
-
-- 每輪 `/simplify` 執行後，檢查 `git diff` 是否有新的變更
-- **有變更** → 回報修改內容，再跑一輪 `/simplify`（新的修改可能引入新的簡化機會）
-- **無變更** → `/simplify` 認為程式碼已經足夠乾淨，進入下一步
-- **最多 3 rounds**。超過 3 輪仍有修改，停止迭代並回報，詢問使用者是否繼續
-
-#### 回報格式
-
-每輪結束回報：`Simplify round N/3: <修改摘要 or 無變更，進入品質檢查>`
-
-### Step 3：Quality Check（品質檢查）
-
-在 commit 前執行品質檢查，確保變更有足夠的測試覆蓋。
-
-自動執行：
-
-1. 找出變更的 source files
-2. 檢查對應測試檔案是否存在
-3. 執行相關測試並確認全部通過
-4. 本地跑覆蓋率，預估 Codecov patch coverage（main-core ≥ 60%）
-5. 輸出品質報告
-
-如果報告顯示 ⚠️，應先補測試再繼續。
-
-**Re-test-after-fix rule:** If the quality check found issues and code was modified to fix them, ALL tests and lint checks must be re-run from scratch before proceeding. Stale results from before the fix are invalid. This applies to:
-- Test failures → fix → must re-run tests
-- Lint errors → fix → must re-run lint
-- Coverage drops → fix → must re-run coverage
-
-Never proceed to commit/PR with test results that predate the most recent code change. If in doubt, re-run everything.
-
-### Step 3.5：Verify Completion（行為驗證）
-
-品質檢查通過後，invoke `verify-completion` 確認改動在實際運行時符合預期。這一步抓「測試過了但實際行不通」的問題——SSR hydration mismatch、missing runtime dependency、layout shift 等。
-
-- 若 verify-completion 回報 PASS → 繼續 Step 4
-- 若 verify-completion 回報 FAIL → 回到開發修正，修正後重新從 Step 3 開始
-- 若為純 config 變更、型別定義修改等不需要行為驗證的場景 → 跳過此步驟
-
-### Step 3.7：VR Gate（視覺回歸檢查）
-
-> Reference: `skills/references/epic-verification-workflow.md` § VR Gate
-
-在 commit 前，條件觸發 visual regression 檢查，確保改動不破壞已有頁面的畫面。
-
-**觸發條件**（兩項同時滿足才執行）：
-
-1. 公司 workspace-config 有 `visual_regression.domains[]` 設定
-2. `git diff --name-only` 包含前端可見代碼：
-   - `pages/`, `components/`, `layouts/`, `composables/`
-   - `*.vue`, `*.css`, `*.scss`
-   - `server/`, `plugins/`（SSR 相關）
-
-**執行方式：**
-
-讀取 `visual-regression` SKILL.md 並執行。VR skill 負責啟動環境（`polaris-env.sh --vr`）、截圖比對、清理。
-
-**Gate 行為：**
-
-| VR 結果 | 動作 |
-|---------|------|
-| `PASS` | 繼續 Step 4 |
-| `PASS_WITH_DIFFS` | 顯示 diff 截圖，問使用者是否接受。接受 → 繼續；不接受 → 回到開發修正 |
-| `BLOCK` | 停止。修正後重新從 Step 3 開始 |
-
-**Skip 條件：**
-
-- 觸發條件不滿足（非前端改動或無 VR 設定）→ 靜默跳過
-- 純 config 變更、型別定義修改 → 跳過
-- 使用者明確說「skip VR」→ 跳過，但在 PR description 標記「VR: skipped by developer」
-
-### Step 4：Pre-PR Review Loop（Sub-Agent 迭代審查）
-
-在 commit 之前，啟動 Sub-Agent 對本地 diff 進行 code review，根據結果修正後再重新送審，直到沒有 blocking issues。這確保 PR 開出來時品質已經過關，減少人工 review 來回。
-
-> Reviewer Sub-Agent 遵循 `references/sub-agent-roles.md` § Critic (Pre-PR Review) 的 JSON return format。以下為本 skill 的流程特化。
-
-#### 流程圖
-
-```
-┌─────────────────────────────────────────┐
-│  Dev Agent                              │
-│  ┌───────────────────────────────────┐  │
-│  │ 1. 產生 local diff               │  │
-│  │ 2. 啟動 Reviewer Sub-Agent (前景) │  │
-│  │ 3. 等待 review 結果               │  │
-│  │ 4. 有 blocking issues?            │  │
-│  │    ├─ Yes → 修正 → 回到 1        │  │
-│  │    └─ No  → 進入 Step 5 (Commit) │  │
-│  └───────────────────────────────────┘  │
-│                                          │
-│  ┌───────────────────────────────────┐  │
-│  │ Reviewer Sub-Agent (獨立 context) │  │
-│  │ - 讀取 diff + .claude/rules/     │  │
-│  │ - 逐項檢查                        │  │
-│  │ - 回傳 JSON 結果                  │  │
-│  └───────────────────────────────────┘  │
-└─────────────────────────────────────────┘
-```
-
-#### Reviewer Sub-Agent 檢查面向
-
-| 面向 | 說明 |
-| --- | --- |
-| 型別安全 | interface/type 是否同步更新 |
-| 邊界處理 | null check、fallback、error handling |
-| 測試覆蓋 | 變更的 source file 是否有對應測試 |
-| Changeset | 是否存在且格式正確 |
-| 程式碼風格 | 是否符合 `.claude/rules/` 規範 |
-| Schema.org 合規性 | 結構化資料相關改動（如適用） |
-
-#### Blocking vs Non-blocking
-
-* **Blocking**（必須修正才能發 PR）：型別錯誤、邏輯 bug、安全問題、缺少測試、格式規範違反
-* **Non-blocking**（建議改進但不阻擋）：命名風格、註釋、micro-optimization
-
-#### Sub-Agent 回傳格式
-
-```json
-{
-  "passed": true,
-  "blocking": [
-    { "file": "path/to/file.ts", "line": 42, "issue": "描述問題", "suggestion": "建議修正方式" }
-  ],
-  "non_blocking": [
-    { "file": "path/to/file.ts", "line": 10, "issue": "描述建議", "suggestion": "可選改進" }
-  ],
-  "summary": "一句話總結"
-}
-```
-
-* `passed: true` → 沒有 blocking issues，進入 Step 5
-* `passed: false` → Dev Agent 逐一修正 blocking issues，修正後回到 Step 4 重新 review
-
-#### 迭代限制
-
-* **最多 3 rounds**。如果 3 輪後仍有 blocking issues，停止迭代並列出未解決項目，詢問使用者是否手動處理或強制繼續。
-* 每輪修正後回報進度：`Review round N/3: X blocking issues 已修正，重新送審中...`
-
-#### 實際案例：PROJ-449
-
-| Round | Blocking Issues | 修正內容 |
-| --- | --- | --- |
-| 1 | 2 | if 語句缺少大括號、Changeset 語言格式 |
-| 2 | 2 | Changeset 缺少句尾句號、unstaged changes 提示 |
-| 3 | 0 | 全部通過，進入 commit |
-
-全程約 2.5 分鐘，無需人工介入。
-
-### Step 5：AI Commit
-
-```bash
-git ai-commit --ci
-```
-
-Stage 變更後（`git add`），AI 自動產生並套用 commit message。
-
-### Step 6：Add Changeset
-
-直接用 Write tool 建立 changeset 檔案（不用 `changeset-jira`，它需要互動輸入會在 agent 環境 hang）。
-
-1. 從 branch 名或 commit 取得 JIRA ticket key
-
-#### Step 6.0：JIRA Ticket Safety Net
-
-如果 Step 6.1 找不到 JIRA ticket key（branch name 和 recent commits 都沒有 `[A-Z]+-\d+` pattern），自動補開：
-
-1. **推斷 JIRA project key**：讀 `workspace-config.yaml` → `jira.projects`，單一 project 直接用，多個則從 repo 名稱或 commit 內容推斷
-2. **建立 Bug ticket**：`createJiraIssue` MCP — summary 從最近一次 commit message 萃取，description 從 git log 整理
-3. **更新 PR title**：加上 `[NEW-KEY]` prefix
-4. **繼續 Step 6.1**：用新的 ticket key 寫 changeset
-
-這是 fallback — 正常流程（從 JIRA ticket 開始的 `bug-triage`、`work-on`）不會觸發此邏輯。它防止直接手動開發或 hotfix 場景下，changeset CI 因缺少 JIRA key 而失敗。
-
-2. 用 Write tool 建立 `.changeset/<kebab-case-name>.md`：
-
-```markdown
----
-'@your-org/app-main': patch
----
-
-feat: [JIRA-KEY] 簡短描述
-```
-
-> 套件名稱從專案的 `package.json` name 欄位取得（e.g. `@your-org/app-main`）。
-
-格式規則（參考專案 `.claude/rules/changeset-guideline.md`）：
-* 內文只能一行，必須包含 JIRA 代碼
-* 可加 conventional commit type prefix（`feat:`, `fix:`, `chore:` 等）
-* 版本一律用 `patch`，除非使用者指定
-* 不需版本變更的改動用 `---\n---`（empty changeset）
-
-3. `git add` + commit changeset
-
-#### Changeset 清理（Inherited Changeset 檢查）
-
-新增 changeset 後，掃描 PR diff 是否包含不屬於本 PR 的 changeset：
-
-1. `git diff origin/{baseRefName} --name-only -- .changeset/` 列出所有 changeset 檔案
-2. 讀取每個 changeset 內容，比對本 PR 的 ticket key
-3. 不匹配的 changeset → `git rm` 刪除（來自 dependency branch 的繼承）
-4. 確保最終只有一個 changeset 且匹配本 PR ticket key
-
-**為什麼**：task branch 若從另一個 task branch 分出（dependency），會繼承 parent 的 changeset，導致 PR diff 出現多個不相關的 changeset。每個 PR 只應有自己的一個 changeset。
-
-### Step 6.5：Rebase to Latest Base
-
-在開 PR 前，rebase 到最新的 base branch，確保 PR diff 乾淨、不包含過時差異。
-
-#### 流程
-
-1. 偵測 base branch（同 Step 7 的 Base Branch 偵測邏輯）
-2. Cascade rebase（若 base 是 feature branch）：依 `references/cascade-rebase.md` 執行（查 upstream → rebase feature → rebase task）
-3. 一般 rebase（若 base 是 develop/main）：
-   ```bash
-   git fetch origin
-   git rebase origin/{base_branch}
-   ```
-4. Conflict 處理：
-   - 嘗試自動解衝突（同 check-pr-approvals Step 2 的邏輯）
-   - 解不了 → 停下來告知使用者，不繼續開 PR
-
-#### Rebase 後 Changeset 衛生重跑
-
-Rebase 可能帶入新的 inherited changeset（例如 base branch 上有新的 merge）。Rebase 完成後，重新執行 Step 6 的 Changeset 清理：
-
-1. `git diff origin/{baseRefName} --name-only -- .changeset/` 列出所有 changeset
-2. 讀取每個 changeset，比對本 PR 的 ticket key
-3. 不匹配的 → `git rm` + commit
-
-若無 `.changeset/` 目錄（專案不用 changeset）→ 跳過。
-
-#### 為什麼在這裡 rebase
-
-- Step 5-6 已 commit + changeset，此時 rebase 不會遺漏任何本地改動
-- PR 開出來時 reviewer 立即看到乾淨的 diff，不需要額外 rebase
-- 避免「開完 PR → rebase → dismiss approval → 重新 review」的循環
-
-### Step 7：Open PR
-
-1. **讀取 PR template** — 按 `pr-convention` Step 1 的優先順序偵測並解析專案 template 檔案（`.github/pull_request_template.md` 等）。以 template 的 section 結構作為 PR body 骨架；無 template 則 fallback 到預設格式
-2. **偵測 base branch**（見下方邏輯）
-3. PR title 格式：`[JIRA-KEY] <簡短摘要>`
-4. PR body 按 template section 順序填入內容（section 對應 fill logic 見 `pr-convention` Step 4b 的 mapping table）
-
-**AC Coverage 產生規則：**
-- 從 JIRA ticket description 讀取 AC（Acceptance Criteria）條目
-- 對照本次 PR 的 diff 和 verify-completion 結果，逐一標記：
-  - `[x]` → 此 PR 已實作並驗證
-  - `[ ]` → 未涵蓋（附說明：out of scope / 另一張單 / 待後續）
-- 若 JIRA ticket 無 AC → 跳過此 section（不留空、不阻擋流程）
-
-```md
-## AC Coverage
-- [x] AC1: 點擊日期後價格 300ms 內更新
-- [x] AC2: API timeout → skeleton + retry
-- [ ] AC3: 多幣別切換（out of scope, 見 PROJ-510）
-```
-
-#### Base Branch 偵測邏輯
-
-子單的 PR 應對母單 feature branch 發（不是 develop），這樣 diff 只顯示本子單的改動。
-
-```
-1. 從 branch 名或 commit 取得 JIRA ticket key（如 PROJ-3461）
-2. 查 JIRA ticket 的 parent:
-   getJiraIssue → fields.parent.key（如 PROJ-483）
-3. 若有 parent:
-   a. 用 git branch -r 搜尋 pattern: origin/feat/<PARENT-KEY>-*
-   b. 找到 → base = 該 feature branch（如 feat/PROJ-483-ttfb-optimization）
-   c. 沒找到 → fallback develop
-4. 若無 parent → base = develop（或 repo default branch）
-```
-
-偵測結果回報使用者確認：`Base branch: feat/PROJ-483-ttfb-optimization（母單 PROJ-483 的 feature branch）`
-
-```bash
-POLARIS_PR_WORKFLOW=1 gh pr create --base <detected-base> --title "[JIRA-KEY] summary" --body "..."
-```
-
-> `POLARIS_PR_WORKFLOW=1` 讓 `pr-create-guard.sh` hook 放行。此環境變數只在 Step 7 使用，確保品質檢查已完成才開 PR。
-
-### Step 8：Transition JIRA Status → CODE REVIEW
-
-PR 建立後，自動將 JIRA ticket 狀態轉為 `CODE REVIEW`。如果轉換失敗（ticket 不在 IN DEVELOPMENT 狀態），忽略錯誤不中斷流程。
-
-### Step 9：Update PR Description
-
-```bash
-git update-pr-desc --ci
-```
-
-AI 從 diff 自動產生 PR 描述。
-
-### Step 10：Post-PR Review Comment — 跳過
-
-~~PR 開出後留下 review comment。~~
-
-**此步驟已停用。** 自己開的 PR 不應該自己留 review comment（`gh pr review`），PR review 應由其他人來做。Step 3 的 Pre-PR Review Loop 已確保品質，不需要再對自己的 PR 執行 review。
+若已在 topic branch → 跳過。
 
 ---
 
-## v3.3.0 → v3.4.0 變更摘要
+## Step 2：Execute Engineer Delivery Flow
 
-| 項目 | v3.3.0 | v3.4.0 |
-| --- | --- | --- |
-| Rebase | 無明確步驟（僅 CLAUDE.md rule-level 提及） | **新增 Step 6.5 Rebase to Latest Base**：commit 後、開 PR 前自動 rebase，含 cascade rebase（feature branch → develop → task branch） |
-| 步驟數 | 10 步 | **11 步**（新增 Step 6.5） |
-| 流程 | Branch → Simplify → Quality → Review → Commit → Changeset → Open PR | Branch → Simplify → Quality → Review → Commit → Changeset → **Rebase** → Open PR |
+讀取 `references/engineer-delivery-flow.md`，以 **Role: Admin** 執行 Step 1-7：
 
-## v3.2.0 → v3.3.0 變更摘要
+| Delivery Flow Step | Admin 行為 |
+|-------------------|-----------|
+| Step 1 Simplify | ✅ 正常執行 |
+| Step 2 Quality Check | ✅ 正常執行 |
+| Step 3 Behavioral Verify | ✅ Layer A 正常執行；Layer B 跳過（無 task.md） |
+| Step 4 Pre-PR Review | ✅ 正常執行 |
+| Step 5 Rebase | ✅ 正常執行（base = upstream 或 `origin/main`） |
+| Step 6 Commit + Changeset | ✅ commit 正常；changeset 依 repo 是否使用決定 |
+| Step 7 PR Create | ✅ title 用 conventional commit 格式（無 JIRA key） |
+| Step 8 JIRA Transition | ⏭️ 跳過（無 ticket） |
 
-| 項目 | v3.2.0 | v3.3.0 |
-| --- | --- | --- |
-| PR body | Description / Changed / Screenshots / Related documents / QA notes | **新增 AC Coverage section**：從 JIRA AC 讀取條目，標記 `[x]`/`[ ]` 覆蓋狀況；無 AC 則跳過 |
-| verify-completion 整合 | 行為驗證結果只影響是否繼續 | 驗證結果同時作為 **AC Coverage `[x]`/`[ ]` 依據** |
+### Admin-Specific Context（傳給 delivery flow）
 
-## v3.1.0 → v3.2.0 變更摘要
-
-| 項目 | v3.1.0 | v3.2.0 |
-| --- | --- | --- |
-| Changeset | `npx changeset-jira`（需互動輸入，agent 環境會 hang） | **直接 Write tool 建檔**，不依賴 CLI |
-| Base Branch | 固定 `develop` | **自動偵測母單 feature branch**：查 JIRA parent → 搜 remote branch → fallback develop |
-| changeset-jira 依賴 | 需 `npx changeset-jira init` | **移除** |
-
-## v3.0.0 → v3.1.0 變更摘要
-
-| 項目 | v3.0.0 | v3.1.0 |
-| --- | --- | --- |
-| 程式碼簡化 | 無 | **Simplify Loop**（Step 2）：用 `/simplify` 迭代簡化，最多 3 輪 |
-| 流程順序 | Branch → Quality Check → Review Loop | Branch → **Simplify Loop** → Quality Check → Review Loop |
-| 步驟數 | 9 步 | **10 步**（新增 Step 2） |
-
-## v2.0.0 → v3.0.0 變更摘要
-
-| 項目 | v2.0.0 | v3.0.0 |
-| --- | --- | --- |
-| Review 時機 | PR 開出後（Step 8） | **PR 開出前**迭代審查（Step 3）+ PR 開出後補充（Step 9） |
-| Review 執行方式 | Inline（主 Agent 直接執行） | **Sub-Agent**（獨立 context，客觀第三方） |
-| 問題修正 | 人工根據 review comment 修正 | **Dev Agent 自動修正** blocking issues |
-| 迭代次數 | 無（一次性 review） | 最多 3 輪迭代直到 passed |
-| 步驟數 | 8 步 | **9 步**（新增 Step 3、Step 9） |
+```
+Role: admin
+Branch: <current branch>
+Base branch: <upstream or origin/main>
+PR title format: <type>(<scope>): <summary>
+Evidence file key: /tmp/polaris-verified-<branch-slug>.json
+```
 
 ---
 
-## Do / Don't
+## JIRA Ticket Safety Net
 
-- Do: 每個 PR template section 都要填寫，不能留空
-- Do: Changed 欄位要列出 side effects / risks
-- Do: Test Plan 即使是 config-only 也要寫明
-- Do: PR description 自動嵌入 AC Coverage checklist，讓 reviewer 一眼看出覆蓋狀況
-- Don't: 用模糊的 title（如「fix bug」、「update code」）
-- Don't: 貼上內部機密或長串聊天紀錄
-- Don't: 找不到 AC 時硬塞空的 AC Coverage section — 直接跳過不留空佔位
+如果 branch name 或 commit 含 JIRA key pattern（`[A-Z]+-\d+`），自動帶入 changeset。
+
+如果完全無 JIRA key 且 repo 的 changeset guideline 要求 ticket key：
+- Branch 名含 `wip/` 或 `polaris/` → 允許省略
+- 其他 → 提示使用者補 key，或依 `references/pr-input-resolver.md` fallback
+
+---
 
 ## Post-PR: Feature Branch PR Gate
 
-Task PR 建立完成後，執行 `references/feature-branch-pr-gate.md` 的偵測邏輯。此步驟靜默執行 — 條件成熟就建，條件不成熟就跳過，不打斷使用者。
-
-## Prerequisites
-
-* `gh` CLI 已安裝並認證
-* JIRA credentials：`git pr-ai config --jira`
-* AI agent：`git pr-ai config --agent`
-
+Task PR 建立完成後，執行 `references/feature-branch-pr-gate.md` 的偵測邏輯（靜默執行）。
 
 ## Handbook Maintenance (post-PR)
 
-After PR is created, check if the repo has a handbook (`{repo}/.claude/handbook.md`). If it exists, run the stale detection process per `skills/references/repo-handbook.md` § Step 4:
+After PR is created, check if the repo has a handbook (`{repo}/.claude/rules/handbook/`). If it exists, run stale detection per `skills/references/repo-handbook.md` § Step 4.
 
-1. Get changed files from the PR diff
-2. Map changes to handbook sections
-3. Update stale sections (direct file write, no commit)
-4. Flag major structural changes to user
+## Do / Don't
 
-Skip if no handbook exists (will be created on next `work-on`).
+- Do: 確認當前 repo 是框架/docs repo，不是產品 repo
+- Do: 遵循 `engineer-delivery-flow.md` 完整流程（不跳步驟）
+- Don't: 在產品 repo 使用本 skill（走 `work-on`）
+- Don't: 跳過 quality check 或 behavioral verify
+- Don't: 用模糊 title（如「fix bug」「update code」）
 
 ## Post-Task Reflection (required)
 
