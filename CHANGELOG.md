@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.16.0] - 2026-04-15
+
+### check-pr-approvals: JIRA status revert for 🔧 PRs
+
+補上 v2.10.0 遺漏的 JIRA 狀態回轉邏輯。
+
+- **Step 5 新增**：對 🔧 分類 PR，若 JIRA 狀態為 `CODE REVIEW`，轉回 `IN DEVELOPMENT` 並留 comment 記錄原因
+- **理由**：engineering 的路由表中 `CODE REVIEW` 狀態會導向「修 review comments 嗎？」引導至 fix-pr-review。為了讓「做 KB2CW-XXXX」直接命中 engineering 的「IN DEV + 有 branch」路徑，check-pr-approvals 必須主動回轉狀態
+- **Step 9 回報**：列出哪些 ticket 已回轉狀態
+- **Do**：新增規則「🔧 PR 若 JIRA 狀態為 CODE REVIEW，必須轉回 IN DEVELOPMENT」
+
 ## [2.15.0] - 2026-04-15
 
 ### 清除 v2.12.0 文件殘留 + maintainer-only 感知 lint

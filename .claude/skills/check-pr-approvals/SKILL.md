@@ -169,6 +169,8 @@ Script 自動處理：
 
 **Ticket key 萃取**：對 🔧 分類的 PR，從 branch name 或 PR title 萃取 ticket key（pattern: `[A-Z]+-\d+`）。萃取不到的標記「無對應 ticket」。
 
+**JIRA 狀態回轉**：對有 ticket key 的 🔧 PR，查詢當前 JIRA 狀態。若為 `CODE REVIEW`（PR 已開的常見狀態），轉回 `IN DEVELOPMENT`，並留 JIRA comment 記錄原因（例：「PR #1920 CI failing — reverted to IN DEVELOPMENT for fix」）。理由：讓使用者說「做 TASK-XXXX」時，engineering 直接命中「IN DEV + 有 branch」路由，不會被 CODE REVIEW 分支擋下走進 fix-pr-review 引導。已在 IN DEVELOPMENT 或其他狀態的不動。
+
 排序：🟢 PR 依 valid_approvals 升序（0 票最前面），🔧 PR 依問題嚴重度排列（conflict > CI fail > comments）。
 
 ### 6. 輸出分類報告，等待使用者選擇
@@ -268,11 +270,12 @@ mcp__claude_ai_Slack__slack_send_message
 告知使用者：
 - 已為哪些 PR 加上 `👀 need review` label（列出 PR 編號）
 - 已發送 Slack 訊息到哪個 channel
+- 哪些 🔧 PR 的 JIRA ticket 已從 CODE REVIEW 轉回 IN DEVELOPMENT（列出 ticket keys）
 
 若有 🔧 PR，附上提醒：
 
 ```
-🔧 以下 PR 仍需修正：
+🔧 以下 PR 仍需修正（JIRA 已轉回 IN DEVELOPMENT）：
 - repo-a #1920 (TASK-123) — CI fail
 - repo-c #45 (TASK-123) — rebase conflict
 → 輸入「做 TASK-123」走 engineering 修正
@@ -292,6 +295,7 @@ mcp__claude_ai_Slack__slack_send_message
 - 顯示清單後**必須等待使用者選擇**，不可自動決定
 - 加 label 前先檢查是否已存在，避免重複
 - 🔧 PR 報告中必須包含 ticket key（從 branch name 或 PR title 萃取），方便使用者觸發 engineering 修正
+- 🔧 PR 若 JIRA 狀態為 CODE REVIEW，必須轉回 IN DEVELOPMENT 並留 comment 記錄原因，確保 engineering 路由正確命中「IN DEV + 有 branch」路徑
 - 三分類邏輯嚴格執行：🟢（ready）/ 🔧（needs fix）/ ✅（approved）
 - 每次執行都是冪等的 — 掃描當前狀態，不依賴前次結果
 - 所有 code review bot（Copilot、CodeRabbit、dependabot 等）的建議都視為 actionable comment
