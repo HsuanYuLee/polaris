@@ -10,7 +10,7 @@ description: >
   "sprint prep", or Epic with sparse content needing enrichment.
 metadata:
   author: Polaris
-  version: 4.1.0
+  version: 4.1.1
 ---
 
 # Backlog Refinement — Architect
@@ -21,72 +21,17 @@ metadata:
 
 ## Worktree Isolation（必要）
 
-**從 refinement 階段就要在 git worktree 工作，不動使用者的原始 checkout。**
+**Tier 2+ 從 Phase 1 Step 2（Codebase Exploration + Runtime 驗證）開始前建立 worktree — 不動使用者的主 checkout。**
 
-Refinement 會做 codebase 探索、runtime 驗證，Tier 2+ 可能需要跑 build / 起 dev server 取 baseline 數據（Lighthouse、curl SSR 輸出等）。這些操作會：
-- 修改 `node_modules`（pnpm install）
-- 佔用 dev port（3001 等）
-- 產生 `.output/` 等 build artifact
-- 若使用者當前 checkout 是 WIP branch，會直接干擾其在途工作
+Refinement Tier 2+ 會跑 build / 起 dev server 取 baseline 數據（Lighthouse、curl SSR 輸出等），這些操作會干擾使用者 WIP。完整規則（何時建、絕對規則、執行流程、canary、sub-agent dispatch、例外條款）見共用 reference：
 
-### 何時建立 worktree
+→ [planning-worktree-isolation.md](../references/planning-worktree-isolation.md)
 
-Phase 1 Step 1（Context Gathering）完成後、Step 2（Codebase Exploration + Runtime 驗證）開始前。
-
-### 絕對規則
-
-**不動主 checkout。** 使用者可能停在任何 branch + 有 WIP。Strategist **禁止**：
-- ❌ `git checkout develop`（切換主 checkout 的 branch）
-- ❌ `git stash push`（碰使用者的 working tree）
-- ❌ `git pull`（在主 checkout 更新）
-- ❌ 在主 checkout 跑 `pnpm install` / build / serve
-- ❌ 「先 stash 再切 develop 再建 worktree」這類多步驟繞過
-
-Worktree **直接從 remote 建**，完全不需要主 checkout 切到 develop：
-
-```bash
-# ✅ 正確：主 checkout 保持不動，worktree 指向 origin/develop
-git -C {repo} fetch origin develop
-git -C {repo} worktree add -B refinement/{EPIC_KEY} \
-  {base_dir}/.worktrees/{repo}-refinement-{EPIC_KEY} origin/develop
-```
-
-`git worktree add` 本身就是隔離操作 — 建立一個獨立的 checkout 指向指定的 ref，主 checkout 的 HEAD / index / working tree 完全不動。
-
-### 執行流程
-
-1. **Fetch origin develop**（不 pull）：
-   ```bash
-   git -C {repo} fetch origin develop
-   ```
-2. **從 origin/develop 建 worktree**（主 checkout 狀態完全不變）：
-   ```bash
-   git -C {repo} worktree add -B refinement/{EPIC_KEY} \
-     {base_dir}/.worktrees/{repo}-refinement-{EPIC_KEY} origin/develop
-   ```
-3. **後續所有 bash 操作用 worktree path**：
-   - `pnpm -C {worktree_path} install`
-   - `pnpm -C {worktree_path}/apps/main build`
-   - `node {worktree_path}/apps/main/.output/server/index.mjs`
-4. **refinement 定版後清理**：
-   ```bash
-   git -C {repo} worktree remove {base_dir}/.worktrees/{repo}-refinement-{EPIC_KEY}
-   git -C {repo} branch -D refinement/{EPIC_KEY}
-   ```
-
-### Canary signal（自我檢查）
-
-執行任何 git 指令前問自己：「這會不會改變使用者主 checkout 的 HEAD / branch / working tree？」
-- 會 → 停下，改成針對 worktree path 的指令
-- 不會（worktree add / fetch / log / diff 僅讀）→ 可執行
-
-### Sub-agent dispatch
-
-Runtime 驗證若委派 sub-agent，必須用 `isolation: "worktree"` 或在 prompt 明確指定 worktree path（見 `rules/sub-agent-delegation.md` § Worktree path translation）。
-
-### 例外：純 JIRA / 文件操作
-
-只讀 JIRA、只寫 markdown / JSON artifact 的操作不需要 worktree（refinement 的輸出目錄 `{company_base_dir}/specs/{EPIC_KEY}/` 在主 workspace 的 ai-config 下，與 repo checkout 解耦）。
+Refinement 專用參數：
+- `{skill}` = `refinement`
+- `{TICKET_KEY}` = Epic key（如 `PROJ-123`）
+- Base ref = `origin/develop`
+- 輸出目錄 `{company_base_dir}/specs/{EPIC_KEY}/` 在主 workspace，與 worktree 無關（豁免於 worktree 要求）
 
 ---
 

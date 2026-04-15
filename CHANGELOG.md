@@ -4,6 +4,32 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.4.0] - 2026-04-16
+
+### Planning skill worktree isolation — generalized to all four planning skills
+
+Refinement v4.1.0 introduced Worktree Isolation for Tier 2+ runtime verification (avoiding main-checkout mutation during `pnpm install` / build / dev server operations). The same drift risk applies to `breakdown` (runtime sanity-check during estimation), `bug-triage` (AC-FAIL Path investigates a feature branch; bug reproduction requires a running env), and `sasd-review` (technical feasibility probes). Generalizing this prevents planning skills from silently corrupting user WIP.
+
+- `skills/references/planning-worktree-isolation.md` (**new**):
+  - Shared reference consolidating the worktree isolation protocol — why, absolute rules, execution flow, canary signal, sub-agent dispatch, exceptions
+  - Tier Guidance table per skill: when the worktree requirement activates
+- `skills/refinement/SKILL.md` (v4.1.0 → v4.1.1):
+  - Replaced ~70 lines of inline Worktree Isolation content with a 10-line skill-specific header + link to the shared reference
+- `skills/breakdown/SKILL.md` (v2.2.0 → v2.3.0):
+  - New § **Worktree Isolation (條件性)** — triggers for estimation sanity-check, infra-first decision verification, Scope Challenge runtime checks
+  - Note clarifying Step 14 feature-branch creation is a separate concern (skill's intended output, not runtime verification)
+- `skills/bug-triage/SKILL.md` (v2.1.0 → v2.2.0):
+  - New § **Worktree Isolation (條件性)** — mandatory for AC-FAIL Path (feature-branch investigation), manual bug reproduction, cross-branch behavior comparison
+  - AC-FAIL Path sub-agents must use `isolation: "worktree"` to prevent feature-branch state from leaking into main checkout
+- `skills/sasd-review/SKILL.md` (v1.0.0 → v1.1.0):
+  - New § **Pre-step (conditional): Worktree Isolation** — triggers for feasibility verification (runtime API/module behavior), dev scope quantification via build, A/B alternative comparison
+- `skills/references/INDEX.md`:
+  - New entry under **Estimation & Planning** pointing to `planning-worktree-isolation.md`
+- `rules/mechanism-registry.md`:
+  - New canary **`planning-skill-worktree-isolation`** (High drift) under § Delegation — detects `pnpm install` / build / dev server in main checkout path before any `worktree add`
+- `polaris-backlog.md`:
+  - Closed: **Generalize worktree isolation to breakdown / sasd-review / bug-triage**
+
 ## [3.3.0] - 2026-04-16
 
 ### Breakdown pipeline — split subtasks + SUPERSEDED pattern

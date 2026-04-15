@@ -10,7 +10,7 @@ description: >
   document — even if they don't explicitly say "SA/SD".
 metadata:
   author: Polaris
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # SA/SD Review — Design-First Gate
@@ -81,6 +81,27 @@ go through this flow:
 Read workspace config (see `references/workspace-config-reader.md`).
 Required values: `jira.instance`, `confluence.space` (optional).
 If config is missing, use `references/shared-defaults.md` fallback values.
+
+### Pre-step (conditional): Worktree Isolation
+
+SA/SD 產出本身是文件工作，預設不需要 worktree。但以下情境**必須**先建立 worktree：
+
+| 情境 | 觸發條件 |
+|------|---------|
+| 方案可行性驗證 | Step 5 在 Implementation Design 階段想實際跑 curl / 起服務確認「這個 API 會回傳這個格式」「這個 module 真的支援這個 option」 |
+| Dev Scope 量化 | Step 5.2 想跑 build / grep + 編譯結果量化改動範圍 |
+| 多方案 A/B 比較 | 想在不同 branch / 不同 config 各起一個環境對比行為 |
+
+不要在使用者的主 checkout 上跑 `pnpm install` / build / dev server — 純靜態讀檔（Read / Grep）可以直接針對主 checkout。
+
+完整規則（絕對規則、執行流程、canary、sub-agent dispatch、例外條款）見共用 reference：
+
+→ [planning-worktree-isolation.md](../references/planning-worktree-isolation.md)
+
+SA/SD-specific 參數：
+- `{skill}` = `sasd-review`
+- `{TICKET_KEY}` = 當前 ticket key
+- Base ref = `origin/develop`（或 repo 主要 default branch）
 
 ### Step 1: Fetch JIRA ticket
 

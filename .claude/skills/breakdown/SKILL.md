@@ -3,7 +3,7 @@ name: breakdown
 description: "Universal planning skill: Bug reads ROOT_CAUSE then estimates; Story/Task/Epic explores codebase then splits into sub-tasks with estimates, and packs each sub-task into a self-contained task.md work order for engineering to consume. Also handles scope challenge (advisory mode). Trigger: 拆單, 'split tasks', 拆解, 'breakdown', 'break down', 子單, 'sub-tasks', 評估這張單, 'evaluate this ticket', 估點, 'estimate', 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑'."
 metadata:
   author: Polaris
-  version: 2.2.0
+  version: 2.3.0
 ---
 
 # Breakdown — Packer
@@ -17,6 +17,29 @@ metadata:
 讀取 workspace config（參考 `references/workspace-config-reader.md`）。
 本步驟需要的值：`jira.instance`、`jira.projects`（取得 project keys）。
 若 config 不存在，使用 `references/shared-defaults.md` 的 fallback 值。
+
+## Worktree Isolation（條件性）
+
+Breakdown 預設不碰主 checkout — Step 3（偵測開發進度）、Step 4（Codebase 探索）、Step 6（拆解）都是 JIRA + 靜態讀檔操作，不需要 worktree。
+
+**何時必須建立 worktree：**
+
+| 情境 | 觸發條件 |
+|------|---------|
+| 估點 sanity-check | Planning Path Step 7 想跑 `pnpm -C ... test` / build 評估實際影響範圍 |
+| Infra-first 決策驗證 | Step 6 套用 infra-first 決策框架時，需要 runtime 確認 Mockoon fixtures / VR baseline 是否已足夠 |
+| Scope Challenge runtime check | SC 模式下懷疑 ticket 範圍錯估，想起 env 實際試跑 |
+
+完整規則（絕對規則、執行流程、canary、sub-agent dispatch、例外條款）見共用 reference：
+
+→ [planning-worktree-isolation.md](../references/planning-worktree-isolation.md)
+
+Breakdown 專用參數：
+- `{skill}` = `breakdown`
+- `{TICKET_KEY}` = 當前 ticket key
+- Base ref = `origin/develop`
+
+> **注意**：Step 14（建立 feature / task branch 用於 downstream engineering）是 breakdown 的預期產出，非 runtime 驗證。如果該步驟需要在主 checkout 上 `git checkout develop` 而使用者有 WIP，應先提醒使用者處理 WIP（由 Step 14 自行處理，不屬於 worktree isolation 範疇）。
 
 ## Workflow
 

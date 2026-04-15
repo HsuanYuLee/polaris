@@ -22,6 +22,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [project-mapping.md](project-mapping.md) | JIRA ticket → local project 目錄對應（config-first） | breakdown, sasd-review, engineering |
 | [refinement-artifact.md](refinement-artifact.md) | Refinement 結構化 artifact JSON schema — 供 breakdown/estimation/engineering 消費 | refinement (Tier 2+), breakdown, engineering |
 | [confidence-labeling.md](confidence-labeling.md) | AI 研究產出信心標示（HIGH/MEDIUM/LOW/NOT_RESEARCHED） | refinement (Tier 3), breakdown (scope-challenge), learning, sasd-review |
+| [planning-worktree-isolation.md](planning-worktree-isolation.md) | Planning skill 跑 runtime 驗證（build/dev server/bug 復現）時用 git worktree 隔離，不動使用者主 checkout | refinement (Tier 2+), breakdown (Planning Path runtime check), bug-triage (AC-FAIL / bug 復現), sasd-review (方案可行性驗證) |
 
 ## Delivery Flow
 
