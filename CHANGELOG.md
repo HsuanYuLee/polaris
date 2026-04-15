@@ -4,6 +4,77 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.0.0] - 2026-04-15
+
+### ⚠ Breaking — `fix-pr-review` skill 移除
+
+`fix-pr-review` 整個 skill 已刪除。「修 PR」這件事回歸施工標準：**回讀施工圖（task.md / plan.md）→ 比對 review signals → 重跑完整驗收**，不再是 symptom-driven 的逐 comment patch。
+
+### engineering 擴充為 first-cut + revision 雙模式（v4.0.0 → v5.0.0）
+
+`engineering` 新增 **revision mode**（D1 六步流程），成為所有 PR code 修正的唯一入口：
+
+1. 讀施工圖
+2. 比對 review signals vs 原計劃
+3. Classify：`code drift` / `plan gap` / `spec issue`
+4. 執行修正（依 classification）
+5. 重跑 engineer-delivery-flow（quality + behavioral verify + AC check）
+6. 回覆 reviewer + lesson 萃取
+
+**嚴格性規則**：
+- **Plan gap / spec issue → 硬擋退回上游**（breakdown / refinement），不就地補 plan（避免便宜行事繞過品質關卡）
+- **Legacy PR 無施工圖 → 硬擋**（要求先跑 `/breakdown {TICKET}` 補 plan，或用 `--bypass` 旗標並警告）
+- **Review comments 不分級**：所有 comment（typo 或邏輯漏洞）一律走完整 revision flow，不做 triage
+
+Mode detection 發生在 engineering Step 0：PR 已開 → revision；否則 → first-cut（原有流程保留不變）。
+
+### 新 skill：`pr-pickup` — Slack 協作層
+
+填補 fix-pr-review 原本的 Slack 協作價值，但**只做溝通傳遞，不做 code 修正**：
+
+- **Intake**：從 Slack 訊息擷取 PR URL + thread context
+- **Dispatch**：同步 Skill tool 呼叫 engineering revision mode
+- **Broadcast**：完工後回 Slack thread（✅ 完成 / ⛔ 退回 / ⚠️ 失敗）
+
+觸發：`pr-pickup`、`pickup`、Slack URL + PR intent。
+
+### Learning Pipeline — `plan-gap` + `review-lesson` 標籤
+
+新增兩類 lesson 標籤，對應不同 handbook 目標：
+
+- `plan-gap`（engineering R3a plan gap 退回時寫入）→ 畢業成 refinement / breakdown 的 checklist 條目
+- `review-lesson`（engineering R6 code drift 修完時寫入）→ 畢業成 repo handbook
+
+**閾值**：N=3（同 feedback memory graduation）。自動掃描整合進 standup（post-step）和 sprint-planning（pre-step）。
+
+**CLI 擴充**：`polaris-learnings.sh` 新增 `--tag` / `--metadata` 旗標 + `graduate <tag>` subcommand。
+
+### Design Plan Skill 檔案位置遷移（DP-001 superseded）
+
+原本 `.claude/design-plans/{topic}.md`（committed）改為 `specs/design-plans/DP-NNN-{slug}/plan.md`（gitignored）：
+
+- Plan 檔是個人工作空間的思考紀錄，畢業成 rule/reference 才進 framework git
+- 比照 `{company}/specs/{TICKET}/` 架構，framework 層有對應的 spec folder
+- 非 ticket 用 `DP-NNN` 三位數流水號 + kebab-case slug
+- 每個 plan 是 folder（容納 draft / diagram 子檔）
+
+### 規則 + 文件更新
+
+- `rules/skill-routing.md`：移除 fix-pr-review，新增 engineering revision mode 路由 + pr-pickup 路由
+- `rules/mechanism-registry.md`：Common Rationalizations 更新指向 engineering revision mode
+- `rules/*/mechanism-registry.md` canaries：保留 deterministic 機制規則，移除 skill-specific 殘跡
+- `references/engineer-delivery-flow.md` Step 7：加 revision mode 行為（push to existing PR）
+- `references/cross-session-learnings.md`：新增 Pipeline Learning Tags + Graduation Pipeline section
+- `references/shared-defaults.md`：pr-pickup 列入 config consumers
+- `standup` / `sprint-planning` SKILL：加 learning queue 掃描步驟
+- 25+ 其他 references / skills 的 fix-pr-review 引用清除（bug-triage / review-pr / converge / next / learning / INDEX 等）
+- 雙語 docs 同步：README / workflow-guide / chinese-triggers（EN + zh-TW），mermaid diagram 更新
+- `.claude/settings.local.json` 移除 fix-pr-review 相關 permission
+
+### Dogfood
+
+DP-002 全程走 design-plan 流程產出（LOCKED → 5 個 phase 平行 / 順序 dispatch sub-agents 消費 plan.md 作為 work order）。
+
 ## [2.17.0] - 2026-04-15
 
 ### Design Plan skill — non-ticket architecture discussions

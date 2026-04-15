@@ -2,7 +2,7 @@
 
 Shared logic for extracting learnable patterns from PR review comments, deduplicating against existing knowledge, and writing directly to repo handbook sub-files.
 
-Used by: `learning` (PR mode, Batch mode), `fix-pr-review` (Step 12.5)
+Used by: `learning` (PR mode, Batch mode), `engineering` revision mode (R6b)
 
 ## Sub-agent Prompt Template
 

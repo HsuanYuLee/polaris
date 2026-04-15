@@ -97,7 +97,7 @@ When the only working approach bypasses the library's official API (hooks, monke
 
 **The comment can be longer than the code — this is expected.** A 5-line hook with a 30-line explanation saves the next developer from repeating a multi-hour investigation.
 
-Applies to: engineering sub-agents, fix-pr-review, any code-writing context. Code review should flag workarounds missing the decision chain.
+Applies to: engineering sub-agents, engineering revision mode, any code-writing context. Code review should flag workarounds missing the decision chain.
 
 ## Common Rationalizations
 

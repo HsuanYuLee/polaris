@@ -348,7 +348,7 @@ Handbook（主文件 + 子文件）是 repo 的 **coding 準則**。所有角色
 |------|-------------------|
 | `engineering`（開發） | 寫出符合 repo 慣例的 code |
 | `review-pr`（review 別人） | 用 repo 慣例判斷 code 對不對 |
-| `fix-pr-review`（修自己 PR） | 按 repo 慣例修正 |
+| `engineering` revision mode（修自己 PR） | 按 repo 慣例修正 |
 
 Handbook 不是「背景知識」— 它定義了這個 repo 裡 code 應該怎麼寫。符合 handbook 的 pattern 不應被 flag，違反 handbook 的 pattern 應指出。
 
@@ -387,9 +387,9 @@ Handbook 有三個寫入管道（ingest channels），按優先級排序：
 | 管道 | 觸發 | Confidence | 優先級 |
 |------|------|-----------|--------|
 | **User correction** | User 糾正 AI（Step 3b） | `validated` | 最高 — 永遠覆蓋 |
-| **PR review finding** | review-pr / fix-pr-review 直接寫入 | `validated` | 中 — 來自 code review 實踐 |
+| **PR review finding** | review-pr / engineering revision mode 直接寫入 | `validated` | 中 — 來自 code review 實踐 |
 | **Explorer 回寫** | Explorer subagent 回傳 Handbook Observations | `generated` | 最低 — AI 推導，待驗證 |
-| **PR stale detection** | git-pr-workflow / fix-pr-review post-step | `generated` | 最低 — 自動偵測 |
+| **PR stale detection** | git-pr-workflow / engineering post-step | `generated` | 最低 — 自動偵測 |
 
 **衝突規則**：高優先級永遠覆蓋低優先級。Explorer 回寫的內容如果與 user correction 或 PR lesson 矛盾，以後兩者為準。詳見 `explore-pattern.md` § Handbook 回寫。
 
@@ -401,7 +401,7 @@ Explorer subagent 在探索中發現的 handbook gaps 和 stale 資訊，由 Str
 
 ### PR Stale Detection 管道
 
-Embedded in `git-pr-workflow` and `fix-pr-review` as a post-step.
+Embedded in `git-pr-workflow` and `engineering` as a post-step.
 
 ### Trigger
 

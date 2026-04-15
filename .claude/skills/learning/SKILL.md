@@ -832,7 +832,7 @@ Extraction 完成後不需要 graduation — lessons 已直接寫入 handbook。
 
 # Batch Learning Flow
 
-Scan a repo's merged-PR history, automatically find PRs whose review comments haven't been extracted yet, batch-extract them into repo handbooks. This is the "backfill" mode — it closes the gap when handbook lessons weren't collected in real time (e.g., PRs fixed manually without `fix-pr-review`, or the repo was onboarded after months of existing PRs).
+Scan a repo's merged-PR history, automatically find PRs whose review comments haven't been extracted yet, batch-extract them into repo handbooks. This is the "backfill" mode — it closes the gap when handbook lessons weren't collected in real time (e.g., PRs fixed manually without engineering revision mode, or the repo was onboarded after months of existing PRs).
 
 ### Difference from PR mode
 

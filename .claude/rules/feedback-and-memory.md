@@ -320,7 +320,7 @@ This guard protects against **planted memory files**, not against the Strategist
 6. **Company isolation** — memory content is company-specific but missing `company:` field → add the appropriate `company:` value; memory has `company:` but the company no longer exists in workspace config → suggest deletion
 7. **Index integrity** — every entry in MEMORY.md must point to an existing file in the memory directory; every memory file in the directory must have a corresponding entry in MEMORY.md. Fix: add missing index entries, remove dangling pointers
 8. **Backlog coverage** — for each `type: feedback` entry, apply FRAMEWORK_GAP vs BEHAVIORAL classification (see § Automatic Polaris Backlog Writes). FRAMEWORK_GAP entries without a corresponding `polaris-backlog.md` item → propose backlog entry
-9. **Stale design plans** — scan `.claude/design-plans/*.md` frontmatter:
+9. **Stale design plans** — scan `specs/design-plans/DP-*/plan.md` frontmatter:
    - `status: DISCUSSION` + `created` > 30 days ago → suggest ABANDONED (discussion died) or ask user to resume
    - `status: LOCKED` + `locked_at` > 14 days ago without `implemented_at` → remind user "LOCKED 14+ 天未實作，要繼續嗎？"
    - `status: IMPLEMENTED` → leave as-is (decision record)

@@ -16,7 +16,7 @@
 | `git-pr-workflow` | task PR 建立完成 | 順便檢查同 repo 兄弟子單 |
 | `check-pr-approvals` | 偵測到 task PR 被 merge | merge 是最關鍵的狀態變化 |
 | `engineering` | 完成 task 的完整開發流程 | 委派給 git-pr-workflow 時帶入 |
-| `fix-pr-review` | push 修正後 PR 被 merge | 同 check-pr-approvals |
+| `engineering` revision mode | push 修正後 PR 被 merge | 同 check-pr-approvals |
 
 ## 偵測邏輯
 

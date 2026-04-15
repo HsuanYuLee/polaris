@@ -46,11 +46,15 @@ metadata:
 
 ## 檔案位置與命名
 
-**位置**：`.claude/design-plans/{topic-slug}.md`
+**位置**：`specs/design-plans/DP-NNN-{topic-slug}/plan.md`（workspace root `specs/` 為 framework 層 spec folder，與 `{company}/specs/{TICKET}/` 概念對齊但不綁公司）
 
-**命名**：`{topic-slug}` 用 kebab-case，描述討論核心（例：`check-pr-approvals-v2.md`、`ci-pipeline-refactor.md`）。避免含版本號除非版本是討論核心。
+**命名**：
+- `DP-NNN`：Design Plan 流水號，三位數從 `DP-001` 起，建立時掃 `specs/design-plans/` 取現有最大值 + 1
+- `{topic-slug}`：kebab-case，描述討論核心（例：`check-pr-approvals-v2`、`ci-pipeline-refactor`）。避免含版本號除非版本是討論核心
 
-**Git**：committed，不 ignore。Plan 檔案是決策紀錄，跟 implementation 一起進 git history。
+**為什麼是 folder 不是單檔**：非 ticket 討論沒有 JIRA key 可掛，folder 結構讓後續可放 draft、diagram、子檔案（類比 `{company}/specs/{TICKET}/` 的多檔結構）。主檔固定叫 `plan.md`。
+
+**Git**：gitignored（`/specs/` 在 workspace root 被忽略）。Plan 檔案是個人工作空間的思考紀錄，不進 git history；畢業成 rule/reference 後才進 framework。
 
 ## Plan 檔案結構
 
@@ -115,10 +119,11 @@ Locked at: YYYY-MM-DD by {觸發語句}
 使用者說出明確觸發詞，或多輪偵測成立 → Strategist 建立 plan file：
 
 1. 從討論中提取 topic slug
-2. 建 `.claude/design-plans/{topic-slug}.md`
-3. 填入 Goal / Background / 已累積的 Decisions / Blind Spots
-4. 告知使用者：「已建立 design plan: `.claude/design-plans/{slug}.md`，後續決策會寫入此檔。」
-5. Status: DISCUSSION
+2. 掃 `specs/design-plans/` 現有 `DP-NNN-*` folder 取最大 N，分配下一個編號（首次使用為 `DP-001`）
+3. 建 `specs/design-plans/DP-NNN-{topic-slug}/plan.md`
+4. 填入 Goal / Background / 已累積的 Decisions / Blind Spots
+5. 告知使用者：「已建立 design plan: `specs/design-plans/DP-NNN-{slug}/plan.md`，後續決策會寫入此檔。」
+6. Status: DISCUSSION
 
 ### Phase 2: 討論累積
 
@@ -203,7 +208,7 @@ Locked at: YYYY-MM-DD by {觸發語句}
 - 不要批次打勾 Implementation Checklist — 每勾一項立刻更新檔案
 - 不要在 Plan 有未勾項時宣告 done
 - 不要用 design-plan 處理 ticket-scoped 設計（那是 breakdown / sasd-review 的工作）
-- 不要把 Plan 檔案放在其他位置 — 統一在 `.claude/design-plans/`
+- 不要把 Plan 檔案放在其他位置 — 統一在 `specs/design-plans/DP-NNN-{slug}/plan.md`
 
 ## Integration with Other Skills
 

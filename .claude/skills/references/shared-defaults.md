@@ -10,12 +10,12 @@
 | 用途 | Config 路徑 | 引用 skill |
 |------|------------|-----------|
 | PR Slack channel | `slack.channels.pr_review` | review-inbox, check-pr-approvals, review-pr |
-| AI notifications channel | `slack.channels.ai_notifications` | check-pr-approvals, fix-pr-review |
+| AI notifications channel | `slack.channels.ai_notifications` | check-pr-approvals, engineering, pr-pickup |
 | Worklog report channel | `slack.channels.worklog_report` | worklog-report |
 | Approval threshold | `scrum.approval_threshold` | check-pr-approvals, review-inbox |
 | GitHub org | `github.org` | 全部 |
 | Need review label | `scrum.need_review_label` | check-pr-approvals, review-inbox |
-| Bot exclusion list | `scrum.excluded_bots` | check-pr-approvals, fix-pr-review |
+| Bot exclusion list | `scrum.excluded_bots` | check-pr-approvals, engineering |
 | JIRA instance | `jira.instance` | 全部 JIRA 相關 skill |
 | Confluence space | `confluence.space` | standup, sprint-planning, sasd-review |
 | Dev host | `infra.dev_host` | quality-check-flow, engineer-delivery-flow |

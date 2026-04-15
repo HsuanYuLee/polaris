@@ -89,7 +89,7 @@
       "id": 15,
       "query": "幫我修正 https://github.com/your-org/your-repo/pull/456",
       "should_trigger": false,
-      "notes": "PR URL + 幫我修正 → fix-pr-review"
+      "notes": "PR URL + 幫我修正 → engineering (revision mode)"
     },
     {
       "id": 16,

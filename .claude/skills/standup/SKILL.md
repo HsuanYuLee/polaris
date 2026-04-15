@@ -365,6 +365,19 @@ gh pr list --search "review-requested:@me" --state open --json number,title,auth
 - 不要使用 `<custom data-type="smartlink">` tag — 用 markdown contentFormat 更新 Confluence 時，既有的 smart link（內嵌卡片）會被轉為普通連結，這是 Confluence API 的已知行為。統一用 `[TICKET-KEY title](URL)` markdown link 格式
 - 不要猜測或捏造 Google Meet 連結 — Calendar MCP 不回傳 conferenceData，沒有就不列
 
+## Post-Step: Learning Queue Graduation Scan
+
+在 standup 產出完成（Step 10 推送 Confluence 後），掃 learning queue 檢查畢業候選：
+
+```bash
+POLARIS_WORKSPACE_ROOT={workspace_root} polaris-learnings.sh graduate plan-gap --threshold 3
+POLARIS_WORKSPACE_ROOT={workspace_root} polaris-learnings.sh graduate review-lesson --threshold 3
+```
+
+若有候選達閾值，提醒使用者：「Learning queue 有 {tag} 畢業候選，要跑 `/learning --graduate {tag}` 嗎？」
+
+此掃描靜默執行 — 無候選時不輸出。
+
 ## Prerequisites
 
 - `gh` CLI 已認證

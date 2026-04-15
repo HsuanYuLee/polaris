@@ -107,8 +107,8 @@ Level 2: JIRA ticket 狀態
 Level 3: GitHub PR + Git 狀態
 ├─ 無 PR + 有 uncommitted changes → 「有改動但還沒 PR」→ invoke git-pr-workflow
 ├─ 無 PR + 無 changes → 「branch 是空的」→ 「開始開發？」→ invoke engineering <TICKET>
-├─ PR open + CI 紅 → 「CI 失敗」→ invoke fix-pr-review
-├─ PR open + CHANGES_REQUESTED → 「有 review 要修」→ invoke fix-pr-review
+├─ PR open + CI 紅 → 「CI 失敗」→ invoke engineering
+├─ PR open + CHANGES_REQUESTED → 「有 review 要修」→ invoke engineering
 ├─ PR open + 0 approved → 「等 review」→ invoke check-pr-approvals
 ├─ PR open + approved ≥ threshold → 「已 approved，可以 merge」→ 回報
 ├─ PR merged → 「PR 已 merge」→ 跳至 Level 4
@@ -135,7 +135,7 @@ Level 4: 無 ticket context 或 ticket 已完成
 📍 Branch: task/PROJ-448-product-listing
 📋 JIRA: In Development | PR: #1920 open, CI ✅, Review: CHANGES_REQUESTED
 
-→ 有 review 要修，啟動 fix-pr-review...
+→ 有 review 要修，啟動 engineering...
 ```
 
 ```

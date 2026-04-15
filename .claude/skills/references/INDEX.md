@@ -36,9 +36,9 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 |------|-------------|----------|
 | [pr-body-builder.md](pr-body-builder.md) | PR template 偵測、body 組裝、AC Coverage、母單 PR、Bug RCA 偵測 | engineering, git-pr-workflow（透過 engineer-delivery-flow Step 7） |
 | [branch-creation.md](branch-creation.md) | JIRA ticket → branch 建立流程（含 dependency branch 偵測） | engineering, git-pr-workflow |
-| [cascade-rebase.md](cascade-rebase.md) | Feature branch PR stack 的 cascade rebase 邏輯 | git-pr-workflow, fix-pr-review, check-pr-approvals |
+| [cascade-rebase.md](cascade-rebase.md) | Feature branch PR stack 的 cascade rebase 邏輯 | git-pr-workflow, engineering, check-pr-approvals |
 | [feature-branch-pr-gate.md](feature-branch-pr-gate.md) | Task PR 全 merge 後自動建 feature→develop PR 的偵測邏輯 | epic-status, git-pr-workflow, check-pr-approvals, engineering |
-| [pr-input-resolver.md](pr-input-resolver.md) | PR URL/number/branch → owner+repo+number 解析 | review-pr, fix-pr-review, check-pr-approvals |
+| [pr-input-resolver.md](pr-input-resolver.md) | PR URL/number/branch → owner+repo+number 解析 | review-pr, engineering, check-pr-approvals |
 | [stale-approval-detection.md](stale-approval-detection.md) | PR approval 失效偵測：approved before last push = 無效 | check-pr-approvals, review-inbox, epic-status |
 
 ## Slack Integration
@@ -46,8 +46,8 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [slack-message-format.md](slack-message-format.md) | Slack mrkdwn 格式規則：URL 換行、bold/italic、長度限制 | 任何 slack_send_message, review-inbox, standup |
-| [slack-pr-input.md](slack-pr-input.md) | 從 Slack thread 提取 GitHub PR URL | review-pr, fix-pr-review, review-inbox |
-| [github-slack-user-mapping.md](github-slack-user-mapping.md) | GitHub username → Slack user ID 的 4 步查找鏈 | review-inbox, review-pr, fix-pr-review, check-pr-approvals |
+| [slack-pr-input.md](slack-pr-input.md) | 從 Slack thread 提取 GitHub PR URL | review-pr, engineering, review-inbox |
+| [github-slack-user-mapping.md](github-slack-user-mapping.md) | GitHub username → Slack user ID 的 4 步查找鏈 | review-inbox, review-pr, engineering, check-pr-approvals |
 
 ## Sub-agent & Exploration
 
@@ -69,7 +69,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [repo-handbook.md](repo-handbook.md) | Per-repo coding 準則：repo 類型辨識、handbook 結構生成、standard-first 校準、stale detection | init (optional), engineering (Phase 0.5), review-pr (Step 3), fix-pr-review (Step 5 + 7b), git-pr-workflow (post-PR) |
+| [repo-handbook.md](repo-handbook.md) | Per-repo coding 準則：repo 類型辨識、handbook 結構生成、standard-first 校準、stale detection | init (optional), engineering (Phase 0.5), review-pr (Step 3), engineering (Step 5 + 7b), git-pr-workflow (post-PR) |
 
 ## Config & Infrastructure
 
@@ -91,8 +91,8 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [review-lesson-extraction.md](review-lesson-extraction.md) | PR review 萃取共用邏輯：sub-agent prompt、dedup、寫入 handbook | learning (PR/Batch mode), fix-pr-review Step 12.5 |
-| [cross-session-learnings.md](cross-session-learnings.md) | JSONL 知識庫 schema 與跨 session 技術洞察持久化規則 | post-task-reflection, session-start |
+| [review-lesson-extraction.md](review-lesson-extraction.md) | PR review 萃取共用邏輯：sub-agent prompt、dedup、寫入 handbook | learning (PR/Batch mode), engineering Step 12.5 |
+| [cross-session-learnings.md](cross-session-learnings.md) | JSONL 知識庫 schema 與跨 session 技術洞察持久化規則。含 `plan-gap` / `review-lesson` 標籤規格與畢業 pipeline | post-task-reflection, session-start, engineering (revision mode R3a/R6), learning (--graduate) |
 | [session-timeline.md](session-timeline.md) | JSONL 事件日誌 schema 與 polaris-timeline.sh 介面 | standup, checkpoint, skill invocation logging |
 | [post-task-reflection-checkpoint.md](post-task-reflection-checkpoint.md) | 所有 write skill 的最終步驟 checklist：feedback、learning、mechanism audit | 每個 write skill 的最後一步 |
 | [daily-learning-scan-spec.md](daily-learning-scan-spec.md) | 每日技術文章掃描器的 RemoteTrigger 規格模板 | learning setup, schedule daily scan |

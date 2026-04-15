@@ -47,13 +47,13 @@
       "id": 8,
       "query": "fix review comments on my PR",
       "should_trigger": false,
-      "notes": "修自己的 review → fix-pr-review"
+      "notes": "修自己的 review → engineering (revision mode)"
     },
     {
       "id": 9,
       "query": "修正 review",
       "should_trigger": false,
-      "notes": "修正 review → fix-pr-review"
+      "notes": "修正 review → engineering (revision mode)"
     },
     {
       "id": 10,

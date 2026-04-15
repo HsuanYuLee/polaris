@@ -7,7 +7,7 @@ description: >
   'help me fix', '幫我修正', '開始修正', '修正這張', 'fix this ticket' (when issue type is Bug),
   'debug', '找 bug', '為什麼壞了', 'why is this failing', 'investigate', '查問題',
   '這個怎麼回事', 'root cause', '根因', '排查'.
-  NOT for: PR review fixes (use fix-pr-review), already-diagnosed bugs with root cause confirmed (use breakdown → engineering).
+  NOT for: PR review fixes (use engineering revision mode), already-diagnosed bugs with root cause confirmed (use breakdown → engineering).
   This skill handles DIAGNOSIS only — estimation, test plan, QA challenge, and design doc are delegated to breakdown.
 metadata:
   author: Polaris

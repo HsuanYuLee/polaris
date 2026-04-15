@@ -86,7 +86,7 @@ When a conversation decision defers work to a later phase ("等 X 再處理 Y", 
 
 - If the deferred phase is **in this session** → add to todo list
 - If the deferred phase is **in a future session** → write to memory
-- **If the decision is a design decision in an ongoing design discussion** → update the active `.claude/design-plans/{topic}.md` file (see `skills/design-plan/SKILL.md`)
+- **If the decision is a design decision in an ongoing design discussion** → update the active `specs/design-plans/DP-NNN-{topic}/plan.md` file (see `skills/design-plan/SKILL.md`)
 
 An oral defer ("我們等精簡時再看") without a corresponding todo/memory/plan entry is **not landed**. The Strategist treats it as untracked and captures it before moving on.
 

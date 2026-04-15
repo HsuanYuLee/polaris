@@ -64,7 +64,7 @@ flowchart TD
     %% ── Human Review ──
     subgraph review["👥 Review"]
         K1["🤖👤 Code Review (human focus)<br/><code>review-pr</code> (reviewer side)"]
-        K2["🤖 Fix Review Comments<br/><code>fix-pr-review</code>"]
+        K2["🤖 Fix Review Comments<br/><code>engineering</code> (revision mode)"]
         K3["🤖👤 Log Work Time"]
     end
 
@@ -156,7 +156,7 @@ flowchart LR
     VAC["verify-AC<br/>(AC verification)"]
     %% ── PR Skills ──
     GPW["git-pr-workflow"]
-    FPR["fix-pr-review"]
+    PRP["pr-pickup<br/>(Slack intake)"]
 
     %% ── Review Skills ──
     RP["review-pr"]
@@ -194,13 +194,16 @@ flowchart LR
 
     UT_TDD -.->|test reference| UT
 
+    %% ── Slack intake ──
+    PRP -->|dispatch revision| WO
+
     %% ── Review chain ──
     RI -->|batch review| RP
 
     %% ── Context router ──
     NX -.->|work on ticket| WO
     NX -.->|triage bug| BT
-    NX -.->|fix review| FPR
+    NX -.->|fix review| WO
     NX -.->|check approvals| CPA
     NX -.->|epic progress| CV
 
@@ -208,7 +211,7 @@ flowchart LR
     MT -.->|pick ticket| WO
     CV -->|batch push| GPW
     CV -->|gap: needs dev| WO
-    CV -->|gap: fix review| FPR
+    CV -->|gap: fix review| WO
     CV -->|gap: needs approval| CPA
     CV -->|gap: verify AC| VAC
 
@@ -226,7 +229,7 @@ flowchart LR
 
     class WO,BT orchestrator
     class VR,VAC,UT_TDD quality
-    class RP,RI,CPA,FPR review
+    class RP,RI,CPA,PRP review
     class RF,EB,SASD,SP,IT planning
     class NX,MT,CV orchestrator
     class SU,UT,LRN standalone
@@ -241,7 +244,8 @@ flowchart LR
 - `standup` (v2.0) is the unified entry point for daily standup and end-of-day routines — includes auto-triage (Step 0); triggered directly by the user
 - `visual-regression` runs as `engineer-delivery-flow` Step 3.5 (after behavioral verify, before pre-PR review) when changed files hit a VR-configured domain. Optional but recommended for layout/styling changes
 - `unit-test`, `learning` are standalone skills — triggered directly by the user, not part of the main chain
-- Lesson extraction from `review-pr`, `fix-pr-review`, `check-pr-approvals` writes directly to repo handbook (no intermediate buffer since v2.12.0)
+- `pr-pickup` is the Slack collaboration layer — extracts PR URLs from Slack messages and dispatches to `engineering` (revision mode); does not modify code itself
+- Lesson extraction from `review-pr`, `engineering` (revision mode), `check-pr-approvals` writes directly to repo handbook (no intermediate buffer since v2.12.0)
 
 ---
 
@@ -691,23 +695,21 @@ After receiving review comments from human reviewers or automated tools, AI can 
 fix review #1920
 ```
 
-or paste the PR URL directly.
+or paste the PR URL directly. If the PR was shared in a Slack thread, use `pr-pickup` to pick it up from Slack — it dispatches to `engineering` revision mode automatically.
 
-AI executes `fix-pr-review` skill:
+AI enters `engineering` revision mode:
 
-1. Fetches all review comments on the PR (filters already-replied ones)
-2. Reads `.claude/rules/` convention files
-3. Analyzes each comment:
-   - **Needs fixing** → edits code + replies "Fixed ✅"
-   - **No fix needed** → replies with specific reasoning (cites rule reference)
-   - **Needs discussion** → replies with a question, asks reviewer to confirm
-4. **Re-runs quality check (Step 7) + Pre-PR Review Loop (Step 8)** to ensure fixes didn't introduce new issues
-5. Commits and pushes once all comments are addressed
-6. Outputs a fix summary report
+1. Returns to the work order (task.md) to understand the original plan
+2. Fetches all review comments on the PR (filters already-replied ones)
+3. Classifies each comment (code drift vs plan gap vs spec issue)
+4. For code drift: edits code + replies to reviewer
+5. **Re-runs quality check + behavioral verification** to ensure fixes didn't introduce new issues
+6. Commits and pushes once all comments are addressed
+7. Extracts lessons from review patterns into repo handbook
 
 **Every comment must receive a reply, whether or not a code change was made.**
 
-> Trigger keywords: `fix review`, `address review comments`, `reply to review`
+> Trigger keywords: `fix review`, `修 PR`, `修正 review`, PR URL, `CI 沒過`
 
 ### Step 11. 🤖👤 Log Work Time
 
@@ -764,7 +766,7 @@ After RD confirmation, the flow hands off to `breakdown` → `engineering` for e
 | **Root Cause** | Root cause of the issue; points to specific code location |
 | **Solution** | Fix approach; lists files/modules to change |
 
-> Note: "fix" + JIRA key → `bug-triage`; "fix" + PR URL → `fix-pr-review`
+> Note: "fix" + JIRA key → `bug-triage`; "fix" + PR URL → `engineering` (revision mode)
 
 > Trigger keywords: `修 bug`, `triage bug`, `fix bug`, `fix this ticket`, `bug-triage`
 

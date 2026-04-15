@@ -34,7 +34,7 @@ Polaris: reads JIRA ticket → checks prerequisites → estimates story points
          → opens PR with coverage report → transitions JIRA to CODE REVIEW
 ```
 
-**Skills:** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `design-plan`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `refinement`, `intake-triage`, `my-triage`, `next`, `unit-test`
+**Skills:** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `design-plan`, `git-pr-workflow`, `review-pr`, `pr-pickup`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `refinement`, `intake-triage`, `my-triage`, `next`, `unit-test`
 
 Deep dive → [Developer Workflow Guide](docs/workflow-guide.md)
 
@@ -51,7 +51,7 @@ This is what makes Polaris different from a static template. It accumulates team
 
 > **Example:** You correct Claude's import ordering 3 times across different PRs. On the third correction, the lesson auto-graduates into a permanent rule — all future PRs follow the convention automatically.
 
-**Skills:** `learning`, `checkpoint` — plus lesson extraction built into `review-pr`, `fix-pr-review`, and `check-pr-approvals`
+**Skills:** `learning`, `checkpoint` — plus lesson extraction built into `review-pr`, `engineering` (revision mode), and `check-pr-approvals`
 
 ### Pillar 3 — Daily Operations (日常紀錄)
 

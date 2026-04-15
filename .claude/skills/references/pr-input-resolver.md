@@ -40,7 +40,7 @@
 
 | Skill 類型 | Fallback |
 |-----------|----------|
-| 需要修改程式碼的（fix-pr-review） | 詢問使用者本地路徑 |
+| 需要修改程式碼的（engineering revision mode） | 詢問使用者本地路徑 |
 | 唯讀（review-pr） | 設定 `remote_mode: true`，改用 GitHub API 遠端讀取 |
 
 #### Remote Mode 讀取方式

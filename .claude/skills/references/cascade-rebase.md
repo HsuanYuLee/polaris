@@ -2,7 +2,7 @@
 
 Shared reference for cascade rebase logic. Used by:
 - `git-pr-workflow` Step 6.5
-- `fix-pr-review` Step 3
+- `engineering` revision mode (R5 rebase step)
 - `check-pr-approvals` Step 2 (via `scripts/rebase-pr-branch.sh`)
 
 ## 何時觸發

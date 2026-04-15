@@ -176,7 +176,7 @@ A one-shot estimation review that challenges story points and technical approach
 
 A structured code review that returns findings in a parseable format.
 
-**When to use**: `git-pr-workflow` Step 4 (pre-PR review loop), `fix-pr-review` Step 9 (post-fix self review).
+**When to use**: `git-pr-workflow` Step 4 (pre-PR review loop), `engineering` revision mode R5 (post-fix self review).
 
 **Review scope**: `.claude/rules/` project rules, coding conventions, test coverage, type safety, security.
 

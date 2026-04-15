@@ -79,6 +79,123 @@ Integrated into the post-task reflection (see `rules/feedback-and-memory.md`):
 - Only write when the insight is **non-obvious** — don't record things derivable from package.json, README, or existing rules
 - Learnings are NOT feedback memories — feedback captures behavioral corrections for the Strategist; learnings capture technical knowledge about the codebase/tools
 
+## Pipeline Learning Tags
+
+In addition to the five general types above, the learning pipeline supports **tagged entries** that carry structured metadata and flow into specific handbook targets. Tagged entries use one of the general types (typically `pitfall` or `pattern`) but add a `tag` field and structured `metadata` for downstream processing.
+
+### `plan-gap` Tag
+
+Captures plan/spec deficiencies discovered during engineering revision mode (D3/D7 of DP-002). When a PR review reveals that the original plan missed something, the user fills in "why the plan missed this" — that reason becomes a learning entry.
+
+**Write timing**: engineering revision mode detects plan gap or spec issue → user confirms rollback and provides gap reason (R3a in engineering SKILL.md).
+
+**Entry schema** (extends base JSONL entry):
+
+```jsonl
+{"key":"plan-gap-missing-i18n-edge","type":"pitfall","content":"Breakdown missed i18n plural forms — AC only covered singular","confidence":7,"source":"PROJ-123 PR #2088","company":"your-company","created":"2026-04-15","last_confirmed":"2026-04-15","tag":"plan-gap","metadata":{"subtag":"breakdown","ticket":"PROJ-123","pr_url":"https://github.com/your-org/your-app/pull/2088","reviewer_signal":"Reviewer pointed out plural forms break in zh-TW","gap_reason":"Breakdown AC template has no i18n pluralization check","classification":"plan_gap"}}
+```
+
+| Metadata field | Type | Required | Description |
+|----------------|------|----------|-------------|
+| `subtag` | `"refinement"` \| `"breakdown"` \| `"epic"` | yes | Which upstream stage had the gap |
+| `ticket` | string | yes | JIRA ticket key where the gap was found |
+| `pr_url` | string | yes | PR that surfaced the gap |
+| `reviewer_signal` | string | yes | One-line summary of what the reviewer pointed out |
+| `gap_reason` | string | yes | User's answer to "why did the plan miss this?" |
+| `classification` | `"plan_gap"` \| `"spec_issue"` | yes | `plan_gap` = plan missed a case; `spec_issue` = AC itself was wrong |
+
+**Handbook flow target**:
+- `subtag: "refinement"` or `subtag: "epic"` → refinement checklist (future `skills/references/refinement-checklist.md` or inline section in refinement SKILL.md)
+- `subtag: "breakdown"` → breakdown checklist (future `skills/references/breakdown-checklist.md` or inline section in breakdown SKILL.md)
+
+### `review-lesson` Tag
+
+Captures coding patterns and conventions learned from PR review comments during engineering revision mode (R6 in engineering SKILL.md). Unlike `review-lesson-extraction.md` (which writes directly to handbook during `/learning` or engineering revision mode), this tag queues the lesson for batch graduation — appropriate when the lesson needs accumulation evidence before becoming a handbook rule.
+
+**Write timing**: engineering revision mode completes code drift fix → extracts lesson from review comment → writes to learning queue.
+
+**Entry schema** (extends base JSONL entry):
+
+```jsonl
+{"key":"review-lesson-server-route-error-handling","type":"pattern","content":"Nuxt server routes must return { statusCode, body } on error, not throw createError()","confidence":6,"source":"TASK-123 PR #2102","company":"your-company","created":"2026-04-15","last_confirmed":"2026-04-15","tag":"review-lesson","metadata":{"ticket":"TASK-123","pr_url":"https://github.com/your-org/your-app/pull/2102","review_comment":"createError() in server routes causes unhandled rejection in production","lesson":"Nuxt server routes must return error objects, not throw createError()","repo":"your-org/your-app","file_path":"server/api/product/detail.ts"}}
+```
+
+| Metadata field | Type | Required | Description |
+|----------------|------|----------|-------------|
+| `ticket` | string | yes | JIRA ticket key |
+| `pr_url` | string | yes | PR where the review comment appeared |
+| `review_comment` | string | yes | Reviewer's original comment (abbreviated) |
+| `lesson` | string | yes | Generalized handbook entry draft extracted from the comment |
+| `repo` | string | yes | `owner/repo` format |
+| `file_path` | string | no | File path that triggered the comment (for grouping) |
+
+**Handbook flow target**: repo-level handbook at `{repo}/.claude/rules/handbook/` — the specific sub-file is determined by the `lesson` topic (e.g., error-handling → `error-handling.md`).
+
+### Relationship to `review-lesson-extraction.md`
+
+Two distinct pathways exist for review lessons:
+
+| Pathway | Trigger | Write target | When to use |
+|---------|---------|-------------|-------------|
+| **Direct write** (`review-lesson-extraction.md`) | `/learning` PR mode, batch PR scan | Immediately writes to repo handbook | High-confidence patterns from merged PRs with clear reviewer consensus |
+| **Queue + graduate** (`review-lesson` tag) | engineering revision mode R6 | Learning queue → graduates to handbook at threshold | Single-PR observations that need accumulation before becoming rules |
+
+The two pathways are complementary. Direct write handles batch extraction from historical PRs. The queue pathway handles real-time, incremental lesson capture during active development. A lesson that enters the queue and later appears in a batch extraction is deduplicated by the standard `key` + `type` merge logic.
+
+## Graduation Pipeline (Tagged Entries)
+
+Tagged learning entries (`plan-gap`, `review-lesson`) accumulate in the JSONL knowledge base and graduate into handbook/checklist entries when sufficient evidence exists.
+
+### Graduation Threshold
+
+**Default N = 3** — consistent with feedback memory's `trigger_count >= 3` graduation rule.
+
+Specifically:
+- **`plan-gap`**: >= 3 entries with the same `subtag` value (e.g., 3 entries all with `subtag: "breakdown"`) indicate a systematic blind spot in that planning stage
+- **`review-lesson`**: >= 3 entries with the same `repo` AND similar `lesson` topic (determined by keyword overlap or same handbook sub-file target) indicate a recurring pattern worth codifying
+
+### Graduation Triggers
+
+| Trigger | Mechanism | Scope |
+|---------|-----------|-------|
+| **Automatic scan** | During `standup` or `sprint-planning`, scan learning queue for tagged entries that meet threshold | All tags |
+| **Manual trigger** | User runs `/learning --graduate plan-gap` or `/learning --graduate review-lesson` | Specified tag |
+| **On-write check** | When a new tagged entry is written, check if the threshold is now met for its group | The newly-written tag |
+
+### Graduation Flow
+
+1. **Identify candidates**: query learning entries by tag, group by graduation key:
+   - `plan-gap`: group by `metadata.subtag`
+   - `review-lesson`: group by `metadata.repo` + lesson topic similarity
+2. **Present to user**: "These N learnings point to the same blind spot. Proposed handbook/checklist entry: {draft}. Confirm?"
+3. **User confirms** → write to target:
+   - `plan-gap` → append checklist item to the appropriate refinement/breakdown reference (create the reference file if it doesn't exist yet)
+   - `review-lesson` → append entry to repo handbook sub-file (following `review-lesson-extraction.md` write format)
+4. **Mark graduated**: add `"graduated": true` and `"graduated_to": "{target_file_path}"` to each graduated entry. Graduated entries remain in the JSONL file (for audit trail) but are excluded from future graduation scans and `query` results.
+
+### Graduated Entry Schema Extension
+
+```jsonl
+{"key":"...","type":"...","tag":"plan-gap","graduated":true,"graduated_to":"skills/references/refinement-checklist.md","graduated_at":"2026-05-01",...}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `graduated` | boolean | `true` when the entry has been promoted to a handbook/checklist |
+| `graduated_to` | string | Relative path of the target file the entry was promoted into |
+| `graduated_at` | date | ISO date of graduation |
+
+### Handbook Write Targets (Summary)
+
+| Tag | Subtag / Grouping | Target | Notes |
+|-----|-------------------|--------|-------|
+| `plan-gap` | `subtag: "refinement"` | `skills/references/refinement-checklist.md` | Checklist items for refinement quality gates |
+| `plan-gap` | `subtag: "breakdown"` | `skills/references/breakdown-checklist.md` | Checklist items for breakdown quality gates |
+| `plan-gap` | `subtag: "epic"` | `skills/references/refinement-checklist.md` | Epic-level gaps typically originate in refinement |
+| `review-lesson` | `repo` + topic | `{repo}/.claude/rules/handbook/{topic}.md` | Repo-specific coding conventions |
+
+**Note**: `refinement-checklist.md` and `breakdown-checklist.md` do not need to exist yet. They will be created on first graduation. Phase 4 defines the spec; the files are created organically when data flows through the pipeline.
+
 ## Script Interface
 
 See `scripts/polaris-learnings.sh` for the CLI:

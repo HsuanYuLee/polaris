@@ -169,7 +169,7 @@ Script 自動處理：
 
 **Ticket key 萃取**：對 🔧 分類的 PR，從 branch name 或 PR title 萃取 ticket key（pattern: `[A-Z]+-\d+`）。萃取不到的標記「無對應 ticket」。
 
-**JIRA 狀態回轉**：對有 ticket key 的 🔧 PR，查詢當前 JIRA 狀態。若為 `CODE REVIEW`（PR 已開的常見狀態），轉回 `IN DEVELOPMENT`，並留 JIRA comment 記錄原因（例：「PR #1920 CI failing — reverted to IN DEVELOPMENT for fix」）。理由：讓使用者說「做 TASK-XXXX」時，engineering 直接命中「IN DEV + 有 branch」路由，不會被 CODE REVIEW 分支擋下走進 fix-pr-review 引導。已在 IN DEVELOPMENT 或其他狀態的不動。
+**JIRA 狀態回轉**：對有 ticket key 的 🔧 PR，查詢當前 JIRA 狀態。若為 `CODE REVIEW`（PR 已開的常見狀態），轉回 `IN DEVELOPMENT`，並留 JIRA comment 記錄原因（例：「PR #1920 CI failing — reverted to IN DEVELOPMENT for fix」）。理由：讓使用者說「做 TASK-XXXX」時，engineering 直接命中「IN DEV + 有 branch」路由，不會被 CODE REVIEW 分支擋下。已在 IN DEVELOPMENT 或其他狀態的不動。
 
 排序：🟢 PR 依 valid_approvals 升序（0 票最前面），🔧 PR 依問題嚴重度排列（conflict > CI fail > comments）。
 

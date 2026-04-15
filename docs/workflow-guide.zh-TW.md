@@ -64,7 +64,7 @@ flowchart TD
     %% ── Human Review ──
     subgraph review["👥 Review"]
         K1["🤖👤 Code Review (human focus)<br/><code>review-pr</code> (reviewer side)"]
-        K2["🤖 Fix Review Comments<br/><code>fix-pr-review</code>"]
+        K2["🤖 Fix Review Comments<br/><code>engineering</code> (revision mode)"]
         K3["🤖👤 Log Work Time"]
     end
 
@@ -156,7 +156,7 @@ flowchart LR
     VAC["verify-AC<br/>(AC verification)"]
     %% ── PR Skills ──
     GPW["git-pr-workflow"]
-    FPR["fix-pr-review"]
+    PRP["pr-pickup<br/>(Slack intake)"]
 
     %% ── Review Skills ──
     RP["review-pr"]
@@ -194,13 +194,16 @@ flowchart LR
 
     UT_TDD -.->|test reference| UT
 
+    %% ── Slack intake ──
+    PRP -->|dispatch revision| WO
+
     %% ── Review chain ──
     RI -->|batch review| RP
 
     %% ── Context router ──
     NX -.->|work on ticket| WO
     NX -.->|triage bug| BT
-    NX -.->|fix review| FPR
+    NX -.->|fix review| WO
     NX -.->|check approvals| CPA
     NX -.->|epic progress| CV
 
@@ -208,7 +211,7 @@ flowchart LR
     MT -.->|pick ticket| WO
     CV -->|batch push| GPW
     CV -->|gap: needs dev| WO
-    CV -->|gap: fix review| FPR
+    CV -->|gap: fix review| WO
     CV -->|gap: needs approval| CPA
     CV -->|gap: verify AC| VAC
 
@@ -226,7 +229,7 @@ flowchart LR
 
     class WO,BT orchestrator
     class VR,VAC,UT_TDD quality
-    class RP,RI,CPA,FPR review
+    class RP,RI,CPA,PRP review
     class RF,EB,SASD,SP,IT planning
     class NX,MT,CV orchestrator
     class SU,UT,LRN standalone
@@ -241,7 +244,8 @@ flowchart LR
 - `standup`（v2.0）是每日站會和下班收工的統一進入點 — 含自動 triage（Step 0）；由使用者直接觸發
 - `visual-regression` 作為 `engineer-delivery-flow` Step 3.5 執行（行為驗證之後、Pre-PR Review 之前），當改動的檔案命中 VR 設定的 domain 時觸發。選擇性但建議用於版面/樣式變更
 - `unit-test`、`learning` 是獨立技能 — 由使用者直接觸發，不在主鏈路中
-- `review-pr`、`fix-pr-review`、`check-pr-approvals` 的 lesson extraction 直接寫入 repo handbook（v2.12.0 起取消中間 buffer）
+- `pr-pickup` 是 Slack 協作層——從 Slack 訊息擷取 PR URL 並 dispatch 給 `engineering`（revision mode）；本身不改程式碼
+- `review-pr`、`engineering`（revision mode）、`check-pr-approvals` 的 lesson extraction 直接寫入 repo handbook（v2.12.0 起取消中間 buffer）
 
 ---
 
@@ -691,23 +695,21 @@ Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit →
 fix review #1920
 ```
 
-或直接貼上 PR URL。
+或直接貼上 PR URL。若 PR 是透過 Slack thread 分享的，使用 `pr-pickup` 從 Slack 接手——它會自動 dispatch 給 `engineering` revision mode。
 
-AI 執行 `fix-pr-review` 技能：
+AI 進入 `engineering` revision mode：
 
-1. 取得 PR 上所有 review 留言（過濾已回覆的）
-2. 讀取 `.claude/rules/` 慣例檔
-3. 分析每條留言：
-   - **需要修正** → 編輯程式碼 + 回覆 "Fixed ✅"
-   - **不需修正** → 回覆具體理由（引用規則參考）
-   - **需要討論** → 回覆提問，請 reviewer 確認
-4. **重新執行品質檢查（步驟 7）+ Pre-PR Review 迴圈（步驟 8）** 確保修正未引入新問題
-5. 所有留言處理完後 commit 並 push
-6. 輸出修正摘要報告
+1. 回到施工單（task.md）理解原始計畫
+2. 取得 PR 上所有 review 留言（過濾已回覆的）
+3. 分類每條留言（code drift / plan gap / spec issue）
+4. 若為 code drift：修改程式碼 + 回覆 reviewer
+5. **重新執行品質檢查 + 行為驗證** 確保修正未引入新問題
+6. 所有留言處理完後 commit 並 push
+7. 從 review 模式萃取教訓寫入 repo handbook
 
 **每條留言都必須回覆，不論是否有程式碼變更。**
 
-> Trigger keywords: `fix review`, `address review comments`, `reply to review`
+> Trigger keywords: `fix review`、`修 PR`、`修正 review`、PR URL、`CI 沒過`
 
 ### 步驟 11. 🤖👤 記錄工時
 
@@ -764,7 +766,7 @@ RD 確認後，流程交由 `breakdown` → `engineering` 進行估點、建 bra
 | **Root Cause** | 問題的根因；指向具體程式碼位置 |
 | **Solution** | 修正方案；列出要修改的檔案/模組 |
 
-> 注意：「fix」+ JIRA key → `bug-triage`；「fix」+ PR URL → `fix-pr-review`
+> 注意：「fix」+ JIRA key → `bug-triage`；「fix」+ PR URL → `engineering`（revision mode）
 
 > Trigger keywords: `修 bug`, `triage bug`, `fix bug`, `fix this ticket`, `bug-triage`
 

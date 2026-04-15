@@ -30,7 +30,7 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | "I need to read the ticket/PR before invoking" | Skills fetch their own data. Your pre-read wastes context and bypasses the skill's own flow |
 | "I'll run quality-check first, then create the PR separately" | That's manually decomposing `engineer-delivery-flow`. The flow runs quality + verify + PR as one unit |
 | "Let me check the sub-agents before invoking" | The skill defines the delegation strategy, not you. Invoke first |
-| "I can fix these review comments by hand quickly" | Manual fix skips comment replies, quality checks, and lesson extraction. Use `fix-pr-review` |
+| "I can fix these review comments by hand quickly" | Manual fix skips comment replies, quality checks, and lesson extraction. Use `engineering` revision mode |
 | "This is just a simple question, no skill needed" | If a trigger matches, invoke the skill. Simple tasks become complex |
 
 ### Delegation (source: `CLAUDE.md`, `rules/sub-agent-delegation.md`)
@@ -170,7 +170,7 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
 | `blind-spot-scan` | After producing a plan, protocol, or significant decision, pause and self-check (invert, edge cases, silent failure) before presenting or executing | Strategist presents a plan without any "what could go wrong" analysis; user discovers a blind spot the Strategist should have caught | Medium |
-| `design-plan-creation` | When user starts a non-ticket design discussion (triggers in `skill-routing.md` § design-plan row, or multi-turn architecture back-and-forth), create `.claude/design-plans/{topic}.md` in the first turn | Design discussion proceeds 3+ turns without a plan file existing; decisions accumulate only in conversation | **Critical** |
+| `design-plan-creation` | When user starts a non-ticket design discussion (triggers in `skill-routing.md` § design-plan row, or multi-turn architecture back-and-forth), create `specs/design-plans/DP-NNN-{topic}/plan.md` in the first turn | Design discussion proceeds 3+ turns without a plan file existing; decisions accumulate only in conversation | **Critical** |
 | `design-plan-decision-capture` | Each confirmed design decision (user says「可以」「同意」「乾淨」「好」「這樣做」) must update the plan file in the **very next tool call** — not batched, not deferred | Decision confirmed in conversation but plan file not updated before other tool calls | **Critical** |
 | `design-plan-reference-at-impl` | Before implementation begins on a topic with an active design plan, read the plan file completely; do not rely on conversation memory | Strategist writes code / SKILL.md on a topic with existing plan file but no Read call on that plan in the current session | **Critical** |
 | `design-plan-checklist-done` | Plan's Implementation Checklist must be fully checked before declaring done; each item ticked off in the file (not in memory) as it completes | Task declared done while plan file has unchecked `[ ]` items in Implementation Checklist | High |

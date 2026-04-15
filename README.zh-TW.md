@@ -34,7 +34,7 @@ Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
          → 開 PR 附上覆蓋率報告 → JIRA 狀態轉為 CODE REVIEW
 ```
 
-**技能：** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `design-plan`, `git-pr-workflow`, `review-pr`, `fix-pr-review`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `refinement`, `intake-triage`, `my-triage`, `next`, `unit-test`
+**技能：** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `design-plan`, `git-pr-workflow`, `review-pr`, `pr-pickup`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `refinement`, `intake-triage`, `my-triage`, `next`, `unit-test`
 
 深入了解 → [開發者工作流程指南](docs/workflow-guide.zh-TW.md)
 
@@ -51,7 +51,7 @@ Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
 
 > **範例：** 你在不同的 PR 中糾正了 Claude 的 import 排序 3 次。第三次糾正時，這個教訓自動畢業成永久規則——之後所有 PR 都會自動遵循這個慣例。
 
-**技能：** `learning`, `checkpoint` — 另外 `review-pr`, `fix-pr-review` 和 `check-pr-approvals` 內建教訓萃取功能
+**技能：** `learning`, `checkpoint` — 另外 `review-pr`、`engineering`（revision mode）和 `check-pr-approvals` 內建教訓萃取功能
 
 ### 支柱三 — 日常紀錄
 

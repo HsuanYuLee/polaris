@@ -527,5 +527,5 @@ VR Gate 在 quality check 之後、commit 之前。這樣 VR fail 時還沒 comm
 | AC 只能在 stage 驗 | 標記 `env:stage`，feature branch 階段跳過，stage deploy 後跑 |
 | 驗收跑出非預期差異 | 評估是否開 fix ticket 或接受差異，記錄在驗收 ticket comment |
 | Feature branch 跟 develop 衝突 | rebase + 解衝突後重跑整合測試 |
-| 某張 task PR 一直沒 merge | `epic-status` Phase 2 路由 → fix-pr-review 或催 review |
+| 某張 task PR 一直沒 merge | `epic-status` Phase 2 路由 → engineering revision mode 或催 review |
 | QA/PM 沒提供 happy flow | RD 根據 Epic AC 自擬，標記「RD 推斷，待 PM 確認」 |

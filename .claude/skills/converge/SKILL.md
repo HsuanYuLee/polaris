@@ -79,9 +79,9 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 | `NO_BREAKDOWN` | Epic 無子單 | `breakdown` |
 | `NOT_STARTED` | status = 待辦事項/開放，有估點 | `engineering` |
 | `CODE_NO_PR` | status = In Development，無 open PR | `git-pr-workflow` |
-| `CI_RED` | PR 存在，CI 失敗 | `fix-pr-review` |
-| `CHANGES_REQUESTED` | PR 有 CHANGES_REQUESTED review | `fix-pr-review` |
-| `HAS_UNRESOLVED_COMMENTS` | PR 有未解決的 review comments（含 COMMENTED 狀態） | `fix-pr-review` |
+| `CI_RED` | PR 存在，CI 失敗 | `engineering` |
+| `CHANGES_REQUESTED` | PR 有 CHANGES_REQUESTED review | `engineering` |
+| `HAS_UNRESOLVED_COMMENTS` | PR 有未解決的 review comments（含 COMMENTED 狀態） | `engineering` |
 | `REVIEW_STUCK` | PR open > 2 天，0 approved | `check-pr-approvals` |
 | `STALE_APPROVAL` | PR approved 但 approval 已過期（新 commit 後未 re-approve） | `check-pr-approvals` |
 | `VERIFICATION_PENDING` | 開發完成但 [驗證] 子單未完成 | `engineering` |
@@ -117,7 +117,7 @@ Scanned: N tickets（Epic: A | Bug: B | Task: C）
 Gaps found: X | Ready: Y | Skipped: Z
 
 ⚡ Quick Wins（1 步）
-  1. PROJ-101 [CWV] JS Bundle 瘦身 — CI_RED on PR #92 → fix-pr-review
+  1. PROJ-101 [CWV] JS Bundle 瘦身 — CI_RED on PR #92 → engineering
   2. TEAM-201 SKU 價格 Bug — CODE_NO_PR → git-pr-workflow
 
 🔨 需要實作（2-3 步）
@@ -171,9 +171,9 @@ Gaps found: X | Ready: Y | Skipped: Z
 | `NO_ESTIMATE` | `breakdown` | Exploration → Analysis (batch: haiku for JIRA writes) | sonnet/haiku |
 | `NOT_STARTED` | `engineering` | Implementation | sonnet |
 | `CODE_NO_PR` | `git-pr-workflow` | Implementation | sonnet |
-| `CI_RED` | `fix-pr-review` | Implementation | sonnet |
-| `CHANGES_REQUESTED` | `fix-pr-review` | Implementation | sonnet |
-| `HAS_UNRESOLVED_COMMENTS` | `fix-pr-review` | Implementation | sonnet |
+| `CI_RED` | `engineering` | Implementation | sonnet |
+| `CHANGES_REQUESTED` | `engineering` | Implementation | sonnet |
+| `HAS_UNRESOLVED_COMMENTS` | `engineering` | Implementation | sonnet |
 | `REVIEW_STUCK` | `check-pr-approvals` | JIRA + Slack notification | sonnet |
 | `STALE_APPROVAL` | `check-pr-approvals` | JIRA + Slack notification | sonnet |
 | `VERIFICATION_PENDING` | `engineering` | Verification (engineer-delivery-flow Step 3) | sonnet |
@@ -214,7 +214,7 @@ Gaps found: X | Ready: Y | Skipped: Z
 
 | Ticket | Before | After | Action Taken |
 |--------|--------|-------|-------------|
-| PROJ-101 | CI_RED | READY | fix-pr-review → CI pass |
+| PROJ-101 | CI_RED | READY | engineering → CI pass |
 | PROJ-106 | NOT_STARTED | CODE_REVIEW | engineering → PR #105 |
 | PROJ-104 | NO_ESTIMATE | NOT_STARTED | breakdown → 8 SP |
 | PROJ-100 | REVIEW_STUCK | REVIEW_STUCK | ⏸ skipped (等 review) |
@@ -290,7 +290,7 @@ Next actions:
 | `my-triage` | 不變，純儀表板 |
 | `epic-status` | 保留為 converge 的 Epic-only alias |
 | `engineering` | 不變，converge 的下游執行器 |
-| `fix-pr-review` | 不變，converge 的下游執行器 |
+| `engineering` | 不變，converge 的下游執行器 |
 | `check-pr-approvals` | 不變，converge 的下游執行器 |
 | `git-pr-workflow` | 不變，converge 的下游執行器 |
 | `breakdown` | 不變，converge 的下游執行器 |

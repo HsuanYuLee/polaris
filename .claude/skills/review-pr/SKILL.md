@@ -8,7 +8,7 @@ description: >
   to review it, (3) user says "看一下這個 PR", "take a look at this PR", "檢查 PR",
   "check this PR", "review pull request". This skill is
   for REVIEWING someone else's code — not for fixing review comments on your own PR
-  (use fix-pr-review for that).
+  (use engineering revision mode for that).
 metadata:
   author: Polaris
   version: 2.0.0
