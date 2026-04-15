@@ -309,9 +309,26 @@ gh pr list --search "review-requested:@me" --state open --json number,title,auth
 - 新增/移除某些項目
 - 說「OK」或「推上去」表示確認
 
-### 10. Push to Confluence
+### 10. Save local markdown + Push to Confluence
 
-使用者確認後，將 standup 附加到當月 Confluence 頁面。
+使用者確認後，先存本地 markdown，再推 Confluence。
+
+#### 10a. Save local markdown
+
+將確認後的 standup 內容寫入本地檔案：
+
+```
+{base_dir}/standups/{YYYY}/{MM}/{YYYYMMDD}.md
+```
+
+例如：`your-company/standups/2026/04/20260415.md`
+
+- 如果目錄不存在，自動建立（`mkdir -p`）
+- 檔案內容 = Step 9 確認後的完整 standup entry（包含 `## YYYYMMDD` 標題到 `---` 結尾）
+- 這一步無條件執行（不需使用者額外確認），作為 Confluence 推送前的本地備份
+- 如果檔案已存在（例如當天重新產 standup），直接覆寫
+
+#### 10b. Push to Confluence
 
 依 `references/confluence-page-update.md` 的完整流程（含版本衝突偵測）：
 
@@ -320,7 +337,7 @@ gh pr list --search "review-requested:@me" --state open --json number,title,auth
 3. **版本衝突偵測**：更新前比對版本號，若已變動則重新取得最新內容
 4. **附加新 standup**：在現有內容末尾附加（保持 `---` 分隔），`versionMessage: "Add standup YYYYMMDD"`
 
-更新完成後告知使用者並附上 Confluence 頁面連結。
+更新完成後告知使用者並附上 Confluence 頁面連結 + 本地檔案路徑。
 
 ## Do
 

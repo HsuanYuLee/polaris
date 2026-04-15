@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.11.0] - 2026-04-15
+
+### standup local markdown backup
+
+Standup 確認後自動存本地 markdown 檔案，作為 Confluence 推送前的備份。
+
+- **路徑結構**：`{base_dir}/standups/{YYYY}/{MM}/{YYYYMMDD}.md`（年/月兩層，檔名帶完整日期）
+- **執行順序**：Step 10a 存本地 → Step 10b 推 Confluence（local first, 離線也有紀錄）
+- **自動建目錄**：`mkdir -p` 建立不存在的年/月目錄
+- **覆寫設計**：同日重跑直接覆寫
+
 ## [2.10.0] - 2026-04-15
 
 ### check-pr-approvals v2.0.0 — detect + report only
