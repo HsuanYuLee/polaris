@@ -4,6 +4,32 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.7.0] - 2026-04-16
+
+### Infra-first decision framework (AC-verification-driven)
+
+When breakdown decomposes an Epic, deciding whether to insert 1–2 "infra prerequisite" subtasks (Mockoon fixtures, VR baseline, stable data seed) before feature subtasks was previously done by Strategist improvisation — with two failure modes. (1) Over-engineering: simple Epics got infra prereq inserted because `visual_regression` config existed, even when AC were all `unit_test`. (2) Under-engineering: complex Epics shipped without fixtures and verify-AC hit backend API drift. Pattern had been applied intuitively across GT-483 / GT-478 / GT-521; this version lifts it into an explicit, shared reference.
+
+The decision tree is fully AC-driven. Q1: does any AC use `lighthouse` / `playwright` / `curl`? Q2: any `modules[].api_change`? + exception list (i18n / docs / static-config / research / Epic-is-infra / existing-infra-covers). Output is a structured `decision_trace[]` auditable by the new mechanism-registry canary.
+
+- `skills/references/infra-first-decision.md` — **new** shared reference (Why / Inputs / Classification / Decision tree / Exceptions / Output / Graceful degrade / Tier Guidance / Canary / Edge cases). Mirrors `planning-worktree-isolation.md` structure.
+- `skills/references/refinement-artifact.md` (schema `version: 1.0 → 1.1`):
+  - `modules[]` gains optional `api_change: "none" | "additive" | "breaking"` (defaults to `"none"` when absent; backward-compat safe)
+  - New downstream rows: breakdown Step 5.5 + refinement Step 5 preview consumers
+  - New § `modules[].api_change` documenting the signal
+- `skills/references/INDEX.md` — new row for `infra-first-decision.md` under § Estimation & Planning
+- `skills/references/pipeline-handoff.md` — breakdown → engineering Pre-conditions now reference infra-first-decision.md with graceful-degrade note
+- `skills/breakdown/SKILL.md` (v2.5.0 → v2.6.0):
+  - **New Step 5.5 Infra-first 決策** (Planning Path only) — reads refinement.json, outputs infra_subtasks + ordering_rule + decision_trace
+  - Step 6 old "API-first 排序規則 + 穩定測資單 (Fixture Recording Task)" (bound to `visual_regression` config) replaced with "消費 Step 5.5 輸出" section; old logic becomes documented fallback path
+- `skills/refinement/SKILL.md` (v4.1.1 → v4.2.0):
+  - Step 5 § 子單結構 template now includes an infra-first summary line generated from the same decision tree (identical source, rendered during refinement preview)
+  - Step 5b prose updated to explain preview/breakdown consistency contract
+- `rules/mechanism-registry.md`:
+  - New canary **`breakdown-infra-first-applied`** (Medium drift) — detects Planning Path breakdown missing infra-first decision trace, or ordering violating decision tree, or refinement preview missing the summary line
+- `polaris-backlog.md`:
+  - Closed: **breakdown：infra-first 決策框架（AC-verification-driven）**
+
 ## [3.6.0] - 2026-04-16
 
 ### Breakdown Step 14 — no main-checkout mutation during branch creation

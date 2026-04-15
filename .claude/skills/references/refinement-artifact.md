@@ -24,7 +24,7 @@ refinement 完成時同時產出兩份：
 {
   // --- Metadata ---
   "epic": "PROJ-123",                    // JIRA key
-  "version": "1.0",                    // artifact schema version
+  "version": "1.1",                    // artifact schema version
   "tier": 2,                           // detected complexity tier (1/2/3)
   "tier_signals": [                    // why this tier was chosen
     "3+ modules affected",
@@ -57,7 +57,8 @@ refinement 完成時同時產出兩份：
       "complexity": "medium",           // "low" | "medium" | "high"
       "risk": "low",                    // "low" | "medium" | "high"
       "reason": "需加入 error handling + cache，被 12 個檔案引用",
-      "references": 12                  // how many files reference this module
+      "references": 12,                 // how many files reference this module
+      "api_change": "additive"          // optional — "none" | "additive" | "breaking" (defaults to "none")
     }
   ],
 
@@ -152,6 +153,18 @@ refinement 完成時同時產出兩份：
 | **breakdown** (Step 3a — AC drift) | `acceptance_criteria[].id` | 比對既有子單 description 的 AC 引用，偵測 refinement 重整後的編號漂移 |
 | **engineering** | `acceptance_criteria[].verification`, `modules[].path` | 知道要改哪些檔案、怎麼驗證 |
 | **breakdown** (scope-challenge) | `gaps.rd_risks`, `research[].confidence` | 低信心研究 + 高風險 = challenge 候選 |
+| **breakdown** (Step 5.5 — infra-first) | `acceptance_criteria[].verification.method`, `modules[].api_change` | 決定是否插入 infra 前置子單 + ordering 規則。見 `skills/references/infra-first-decision.md` |
+| **refinement** (Step 5 — § 子單結構 preview) | 同上 | Preview breakdown 將產出的 infra 子單數量，確保規格階段跟施工階段訊息一致 |
+
+### `modules[].api_change` 欄位（v1.1 新增，optional）
+
+Refinement Step 2（Codebase Exploration）分析模組時填入，幫助下游判斷 API 變動性質：
+
+- **`"none"`**（預設）— 不涉及 API 變動或 API 為內部 helper
+- **`"additive"`** — 新增 endpoint/field 或選擇性參數，舊 client 不受影響
+- **`"breaking"`** — 刪除/改名 endpoint、改變回傳 shape、必填參數變動
+
+缺 `api_change` 欄位時，下游（breakdown / engineering）應視為 `"none"`。v1.0 artifact 不會含此欄位 — 向後相容。
 
 ### AC ID 格式約定
 

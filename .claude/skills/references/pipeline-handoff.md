@@ -121,6 +121,10 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 
 **Contract**：engineering 讀 task.md 即可開工，不需回頭看 breakdown.md 或 refinement.md。
 
+**Breakdown 消費 refinement.json 的額外規則**：
+- Step 5.5 — 依 [infra-first-decision.md](infra-first-decision.md) 評估是否需要插入 infra 前置子單（Mockoon fixtures / VR baseline / 穩定 env），以 `acceptance_criteria[].verification.method` + `modules[].api_change` 為輸入
+- 無 refinement.json → 略過 infra-first 框架，使用 Step 6 舊排序邏輯並通知使用者
+
 ### engineering → verify-AC
 
 **Input to verify-AC**: `{AC_TICKET_KEY}`（Epic 驗收單 key）

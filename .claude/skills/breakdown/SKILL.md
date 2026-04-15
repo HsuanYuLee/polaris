@@ -3,7 +3,7 @@ name: breakdown
 description: "Universal planning skill: Bug reads ROOT_CAUSE then estimates; Story/Task/Epic explores codebase then splits into sub-tasks with estimates, and packs each sub-task into a self-contained task.md work order for engineering to consume. Also handles scope challenge (advisory mode). Trigger: 拆單, 'split tasks', 拆解, 'breakdown', 'break down', 子單, 'sub-tasks', 評估這張單, 'evaluate this ticket', 估點, 'estimate', 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑'."
 metadata:
   author: Polaris
-  version: 2.5.0
+  version: 2.6.0
 ---
 
 # Breakdown — Packer
@@ -237,6 +237,21 @@ Drift 偵測是純靜態比對（讀 JIRA + 讀 refinement.json + regex），可
 | 中型 | 6-13 pt | 拆為 2-4 張子單 |
 | 大型 | 13+ pt | 拆為 4+ 張子單，每張 2-5 pt |
 
+### 5.5. Infra-first 決策（Planning Path only）
+
+讀 `skills/references/infra-first-decision.md`，以 refinement.json 為輸入（`acceptance_criteria[].verification.method` + `modules[].api_change`），輸出：
+
+- `infra_subtasks[]` — 0-N 張 infra 前置子單（每張含 summary / points / reason）
+- `ordering_rule` — `api_first_then_infra` / `parallel` / `no_api_change`
+- `skipped` + `skip_reason` — 若匹配 exceptions 或無 refinement artifact
+- `decision_trace[]` — 決策軌跡，必填（供 `breakdown-infra-first-applied` canary 檢驗）
+
+**Graceful degrade（無 refinement.json 或 `skipped: true`）：**
+- 通知使用者：「無 refinement artifact / 匹配例外（{reason}），略過 infra-first 框架，使用 Step 6 舊排序邏輯」
+- 繼續 Step 6 時使用傳統 fallback：若 project 有 `visual_regression` config → 插入 1pt 穩定測資 task
+
+將 Step 5.5 輸出帶入 Step 6。
+
 ### 6. 拆解子任務
 
 將 ticket 拆解為具體的開發任務。
@@ -250,15 +265,23 @@ Drift 偵測是純靜態比對（讀 JIRA + 讀 refinement.json + regex），可
 - Spike / POC 類探索獨立出來
 - 已有 feature branch 時，以實際 commit 改動範圍為準
 
-**API-first 排序規則：**
+**子單排序（消費 Step 5.5 輸出）：**
 
-涉及 cross-repo API 變更時，API 變更 task 排第一（前端消費 API，自然依賴順序）。
+1. 先排 API change task（若 `modules[].api_change` 為 `breaking`）
+2. 接著 `infra_subtasks[]`（Mockoon fixtures / VR baseline / 穩定測資）
+3. 最後 feature 子單
 
-**穩定測資單（Fixture Recording Task）：**
+**Ordering rule 對應：**
 
-若 project 有 `visual_regression` config，自動加入穩定測資 task（1pt），排在 API task 之後、前端 task 之前。
+| `ordering_rule` | 排序 |
+|-----------------|------|
+| `api_first_then_infra` | API change → infra → feature（序列，fixtures 必須對準新 API 錄） |
+| `parallel` | infra 與 API change 可同起跑（additive 不破壞既有 fixtures） |
+| `no_api_change` | infra → feature（無 API 變動依賴） |
 
-排序：`API/cross-repo → 穩定測資 → 前端開發`
+**Fallback（Step 5.5 skipped）：**
+- 舊 API-first 排序：cross-repo API 變更 task 排第一
+- 舊 Fixture Recording Task：`visual_regression` config 存在時插入 1pt 穩定測資 task，排於 API task 之後、前端之前
 
 **子任務結構（每張需包含）：**
 
