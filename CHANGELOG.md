@@ -4,6 +4,23 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.0.1] - 2026-04-15
+
+### `design-plan` skill — 新增 Sub-agent Handoff 模式（v1.1.0）
+
+Phase 4 實作階段新增雙模式選擇：
+
+- **4a. Main-agent 模式**：小 scope（Checklist ≤ 3 項、單檔案）走 Strategist 直接執行
+- **4b. Sub-agent Handoff 模式**：大 scope 走「dispatch sub-agents 消費 plan.md 作為 work order」的 pattern，類比 `breakdown → task.md → engineering`
+
+**Sub-agent Handoff 要點**：
+- Dispatch prompt 只傳 plan file **路徑**（sub-agent 自己讀），不 copy plan 內容
+- Phases 依賴關係決定平行 vs 順序；多 sub-agent 寫同檔時用 worktree isolation
+- Main agent 只做 orchestration + fan-in validate + 統一 tick off Checklist
+- Sub-agent 偏離 plan 必須 STOP + 回報，不擅自決策
+
+**Dogfood 驗證**：DP-002 重構（engineering revision mode + pr-pickup + fix-pr-review 移除）透過此模式執行——5 個 phases 全部 DONE、零 user 修正。
+
 ## [3.0.0] - 2026-04-15
 
 ### ⚠ Breaking — `fix-pr-review` skill 移除

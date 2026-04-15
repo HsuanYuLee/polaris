@@ -3,7 +3,7 @@ name: design-plan
 description: "Create and maintain persistent design plan files for non-ticket architecture discussions. Auto-triggers when user starts a design discussion; accumulates decisions as file not memory; locks when user approves; implementation reads plan as spec. Fills the gap between refinement/sasd-review (ticket-scoped) and informal conversation (ephemeral). Trigger: '想討論', '怎麼設計', '重構', '重新設計', '要怎麼改', '要怎麼重做', 'design plan', 'ADR'."
 metadata:
   author: Polaris
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # Design Plan — 非 Ticket 架構討論的落地機制
@@ -151,10 +151,55 @@ Locked at: YYYY-MM-DD by {觸發語句}
 
 **實作開始前**：讀完整份 plan file，不依賴對話記憶。
 
-**實作過程中**：逐項勾 Implementation Checklist。每勾一項，立刻更新 plan file。
+#### 選擇執行模式
 
-**實作時發現需偏離 plan**：
-1. **停下來**，不靜默改
+| 模式 | 適用 | 特色 |
+|------|------|------|
+| **4a. Main-agent 模式** | Checklist ≤ 3 項且每項 ≤ 1 個檔案 | Strategist 直接執行，簡單快速 |
+| **4b. Sub-agent Handoff 模式** | Checklist > 3 項、跨多檔案、或分多個 phase | Dispatch sub-agents 消費 plan.md 作為 work order，main agent 只做 orchestration |
+
+判斷準則：參照 `rules/sub-agent-delegation.md` 的 delegation threshold（> 1 個檔案、> 3 行改動）→ 超過就走 4b。
+
+#### 4a. Main-agent 模式
+
+Strategist 逐項勾 Implementation Checklist。每勾一項，**立刻更新 plan file**（下一個 tool call）。
+
+#### 4b. Sub-agent Handoff 模式
+
+LOCKED 的 plan 即 self-contained work order。跟 `breakdown → task.md → engineering` 同一個 pattern——main agent 只 dispatch + review，實作由 sub-agent 消費 plan 完成。
+
+**Dispatch 流程**：
+
+1. 依 Implementation Checklist 的 Phase/Section 切分工作包
+2. 每個 sub-agent 的 prompt 只給：
+   - Plan file 的絕對路徑（**spec 唯一來源，sub-agent 自己讀**——不要 copy plan 內容進 prompt）
+   - 本 phase 的 scope 限制（可改/可讀/不可動的檔案清單）
+   - Completion envelope 格式：`Status: DONE|BLOCKED|PARTIAL` / `Artifacts:` / `Summary:`
+3. Main agent 等回傳後 fan-in validate envelope
+
+**平行 vs 順序**：
+
+| 情境 | 模式 |
+|------|------|
+| Phases 修改的檔案不重疊且無 interface 依賴 | 平行 dispatch（單訊息多個 Agent tool）|
+| Phase 依賴前一個 phase 的 interface 或檔案結構 | 順序 dispatch（前一個回傳後再 dispatch 下一個）|
+| 多個 sub-agent 可能修改相同檔案 | 平行 + `isolation: "worktree"`（見 `rules/sub-agent-delegation.md`）|
+
+**Sub-agent 責任**：
+- 讀完整 plan.md，不跳讀
+- 只做分配到的 phase scope，不越界
+- 偏離 plan 立刻 STOP + 回報（不擅自決策）
+- 回報時說明「下一個 phase 需要注意的 interface contract」（若有）
+
+**Main agent 責任**：
+- Dispatch 前確認 plan 為 LOCKED 狀態 + Checklist 切分合理
+- 每個 sub-agent 回傳後 fan-in validate（envelope 完整 + Status == DONE + Artifacts 非空）
+- 整合 Checklist 更新（tick off 對應項目 — 統一由 main agent 寫回 plan file，避免多 sub-agent 並發寫檔）
+- 全部 phases 完成後進 Phase 5
+
+#### 實作時發現需偏離 plan（兩模式通用）
+
+1. **停下來**，不靜默改（4b 模式：sub-agent STOP + 回報給 main agent）
 2. 在 plan 新增 Decision 條目說明偏離理由（例：`### D11: 實作時發現 X 不可行，改為 Y`）
 3. 更新 Implementation Checklist
 4. 繼續實作
