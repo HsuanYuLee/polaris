@@ -140,7 +140,7 @@ After `/init` completes, your workspace will look like this:
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 25 workflow skills
+│   └── skills/                   ← 26 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -165,7 +165,7 @@ Once initialized, just talk to Claude Code naturally — English or 中文 both 
 
 ### Start here
 
-Don't try all 25 skills at once. Pick one that matches your role:
+Don't try all 26 skills at once. Pick one that matches your role:
 
 | If you are a... | Try this first | What happens |
 |-----------------|----------------|--------------|
@@ -241,7 +241,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 25 workflow skills
+│   └── skills/                # 26 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory
@@ -330,6 +330,10 @@ If you cloned from the Polaris template and want to pull framework updates:
 ```
 
 This syncs skills, rules, and references while preserving your company config, L2 rules, and project-specific files. Use `--dry-run` to preview changes before applying.
+
+After apply mode, the upgrade flow also runs:
+- `scripts/transpile-rules-to-codex.sh`
+- `scripts/verify-cross-llm-parity.sh`
 
 > See `scripts/sync-from-polaris.sh --help` for full options.
 

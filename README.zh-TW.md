@@ -140,7 +140,7 @@ cd ~/polaris-workspace
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 25 workflow skills
+│   └── skills/                   ← 26 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -167,7 +167,7 @@ cd ~/polaris-workspace
 
 ### 從這裡開始
 
-不要一次嘗試全部 25 個技能。根據你的角色挑一個開始：
+不要一次嘗試全部 26 個技能。根據你的角色挑一個開始：
 
 | 如果你是... | 先試這個 | 會發生什麼 |
 |------------|---------|-----------|
@@ -242,7 +242,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 25 workflow skills
+│   └── skills/                # 26 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory
@@ -331,6 +331,10 @@ your-workspace/
 ```
 
 這會同步技能、規則和參考資料，同時保留你的公司設定、L2 規則和專案專屬檔案。使用 `--dry-run` 在套用前預覽變更。
+
+套用模式完成後，升版流程也會自動執行：
+- `scripts/transpile-rules-to-codex.sh`
+- `scripts/verify-cross-llm-parity.sh`
 
 > 完整選項請參閱 `scripts/sync-from-polaris.sh --help`。
 

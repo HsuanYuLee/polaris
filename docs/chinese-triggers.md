@@ -61,6 +61,7 @@
 | 功能 | 中文觸發詞 | 英文觸發詞 | 說明 |
 |------|-----------|-----------|------|
 | **init** — 初始化 Workspace | 初始化、設定 workspace、填 config | init, initialize, setup workspace, setup config, configure | 互動式 Workspace 初始化精靈，建立 company 目錄與 workspace-config.yaml |
+| **codex-mcp-setup** — Codex MCP 初始化 | codex mcp、同步 mcp、設定 codex mcp、讓 codex 接 mcp | codex mcp, codex mcp setup, sync mcp | 初始化 Codex 相容層：同步 MCP（Atlassian/Slack，可選 Calendar）、同步 skills、跑 parity 與 doctor 檢查 |
 | **use-company** — 切換公司 / 路由診斷 | 切換公司、用這間、公司切換、我要做 X 公司的、哪間公司 | use company, switch company, set company, which company | 明確設定本次對話的 active company context，避免多公司自動偵測錯誤。含診斷模式（原 which-company 已併入）：診斷 JIRA ticket 路由到哪間公司 |
 | **validate** — 隔離 + 機制檢查 | 檢查隔離、檢查機制 | validate isolation, validate mechanisms | 框架健康檢查，結合隔離（scope header、memory tag）與機制合規（mechanism-registry canary signals）兩種模式（原 validate-isolation 和 validate-mechanisms 已併入） |
 | **next** — 自動下一步 | 下一步、繼續、接下來、然後呢 | next, continue, what's next | 零輸入 context router：讀取 todo、git branch、JIRA 狀態、PR 狀態，自動判斷並執行下一步動作 |

@@ -7,6 +7,7 @@
 - 直接沿用既有資產：`CLAUDE.md`、`.claude/rules/`、`.claude/skills/`
 - 觸發語句不變（例如：`「做 PROJ-123」`、`「standup」`、`「refinement EPIC-100」`）
 - 由 Codex 直接讀 `SKILL.md` 並執行步驟
+- 單一維護來源放在 `.claude/**`；`.agents/**` 與 `.codex/**` 視為產生物，不手動編輯
 
 ## 在 Codex 下的差異
 
@@ -45,6 +46,53 @@ bash scripts/sync-skills-cross-runtime.sh --to-agents
 ```
 
 若你想避免雙份檔案，可用 `--link`（建立 `.agents/skills -> .claude/skills` 符號連結）。
+同步會只輸出**公開共用 skills**（排除 `scope: maintainer-only` 與 company-specific skills）。
+
+### 2.6 驗證機制一致性
+
+用 parity 稽核確認 Claude/Codex skill 樹沒有漂移：
+
+```bash
+bash scripts/mechanism-parity.sh --strict
+```
+
+### 2.7 同步 Codex 的 MCP 基線
+
+先預覽變更：
+
+```bash
+bash scripts/sync-codex-mcp.sh --dry-run
+```
+
+確認後套用並做 OAuth 登入：
+
+```bash
+bash scripts/sync-codex-mcp.sh --apply --login
+```
+
+這會在 Codex 建立 Polaris 基線 MCP servers：
+- `claude_ai_Atlassian`
+- `claude_ai_Slack`
+
+### 2.8 轉譯 rules 到 Codex AGENTS
+
+從 `.claude/rules` 產生 Codex 端規則鏡像：
+
+```bash
+bash scripts/transpile-rules-to-codex.sh
+```
+
+會產生：
+- `.codex/AGENTS.md`
+- `.codex/.generated/rules-manifest.txt`
+
+### 2.9 驗證跨 LLM 一致性（可放 CI）
+
+一個指令檢查 skills + rules 同步狀態：
+
+```bash
+bash scripts/verify-cross-llm-parity.sh
+```
 
 ### 3. 初始化設定（給 Codex 的提示詞）
 

@@ -7,6 +7,7 @@ This workspace is built for Claude Code first, but you can run the same Polaris 
 - Reuse existing Polaris assets: `CLAUDE.md`, `.claude/rules/`, `.claude/skills/`
 - Keep the same trigger language (`"work on PROJ-123"`, `"standup"`, `"refinement EPIC-100"`)
 - Let Codex execute skill steps by reading `SKILL.md` files directly
+- Maintain a single source of truth in `.claude/**`; treat `.agents/**` and `.codex/**` as generated outputs
 
 ## What changes in Codex
 
@@ -45,6 +46,53 @@ bash scripts/sync-skills-cross-runtime.sh --to-agents
 ```
 
 Use `--link` if you prefer a symlink (`.agents/skills -> .claude/skills`).
+The sync exports **public shared skills only** (excludes `scope: maintainer-only` and company-specific skill folders).
+
+### 2.6 Verify mechanism parity
+
+Run parity audit to ensure Claude/Codex skill trees are aligned:
+
+```bash
+bash scripts/mechanism-parity.sh --strict
+```
+
+### 2.7 Sync MCP baseline for Codex
+
+Preview MCP changes first:
+
+```bash
+bash scripts/sync-codex-mcp.sh --dry-run
+```
+
+Apply and run OAuth login:
+
+```bash
+bash scripts/sync-codex-mcp.sh --apply --login
+```
+
+This sets up baseline Polaris MCP servers in Codex:
+- `claude_ai_Atlassian`
+- `claude_ai_Slack`
+
+### 2.8 Transpile rules to Codex AGENTS
+
+Generate Codex-side rule mirror from `.claude/rules`:
+
+```bash
+bash scripts/transpile-rules-to-codex.sh
+```
+
+This generates:
+- `.codex/AGENTS.md`
+- `.codex/.generated/rules-manifest.txt`
+
+### 2.9 Verify cross-LLM parity (CI-friendly)
+
+Run one command to verify both skill and rule parity:
+
+```bash
+bash scripts/verify-cross-llm-parity.sh
+```
 
 ### 3. Initialize config (Codex prompt)
 

@@ -4,6 +4,77 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.1.0] - 2026-04-16
+
+### Refinement skill — Worktree Isolation
+
+- `refinement` skill bumped `4.0.0 → 4.1.0`:
+  - Added **§ Worktree Isolation** section with absolute-rule framing and canary signal
+  - Tier 2+ refinement must create `refinement/{EPIC_KEY}` worktree from `origin/{base_branch}` before any codebase/runtime work
+  - **No mutation of user's main checkout**: forbids `git checkout`, `git stash`, `git pull` in main workspace
+  - Canary signal: before any git command, self-check "will this change the main checkout's HEAD/branch/working tree?"
+  - Prerequisites section updated to call out worktree requirement
+
+### Backlog — Planning pipeline evolution
+
+Three High-priority framework items added to `polaris-backlog.md`:
+
+- **Generalize worktree isolation** to `breakdown` / `sasd-review` / `bug-triage` (same pattern, Tier 2+ runtime work)
+- **`specs/{EPIC}/` as Epic single source of truth** — consolidate refinement artifacts, task.md, Lighthouse reports, Mockoon fixtures, verification evidence into one folder. Affects mockoon workspace-config path, breakdown task.md location, verify-AC evidence placement
+- **`breakdown` infra-first decision framework** — AC-verification-driven decision tree: if hardest AC requires runtime state (Mockoon fixtures / VR baseline / specific data) → infra subtask first; else feature-first. API changes: breaking → API-first-then-fixtures; additive → parallel
+
+### Framework experience
+
+- Real-session drift discovered and corrected: first draft of Worktree Isolation only said "build worktree" without forbidding main-checkout mutation — Strategist still executed stash→checkout→pull sequence before running build. v4.1.0 second pass adds absolute rules + canary signal to prevent misinterpretation
+
+## [3.0.4] - 2026-04-15
+
+### Docs alignment after Codex parity rollout
+
+- Updated skill count references from **25 → 26** in:
+  - `README.md`
+  - `README.zh-TW.md`
+  - `docs/quick-start-zh.md`
+- Added `codex-mcp-setup` to `docs/chinese-triggers.md` so trigger catalog matches the actual skill inventory.
+- Re-ran docs lint and confirmed no drift:
+  - `Docs lint: OK (26 skills, all documented)`
+
+## [3.0.3] - 2026-04-15
+
+### Codex bootstrap + cross-LLM parity hardening
+
+- Added `scripts/sync-codex-mcp.sh`:
+  - Syncs baseline Codex MCP servers (`claude_ai_Atlassian`, `claude_ai_Slack`)
+  - Supports `--dry-run` / `--apply` and optional `--login`
+  - Skips OAuth login automatically for `stdio` transport servers
+- Added `codex-mcp-setup` skill (Claude + Codex mirrored layouts):
+  - Standardized Codex setup flow (MCP sync + skills link + parity + doctor)
+- Added `scripts/transpile-rules-to-codex.sh`:
+  - Source of truth: `.claude/rules/**/*.md`
+  - Generates `.codex/AGENTS.md` + `.codex/.generated/rules-manifest.txt`
+  - Supports `--check` drift validation for CI
+- Added `scripts/verify-cross-llm-parity.sh`:
+  - Runs `mechanism-parity.sh --strict` + `transpile-rules-to-codex.sh --check`
+  - Provides a single CI-friendly cross-LLM parity gate
+
+### Init / upgrade workflow integration
+
+- `init` skill now includes **Step 13.6 Codex Bootstrap** (skippable):
+  - Runs skills sync, Codex MCP sync, rules transpile, cross-LLM parity verification, and Codex doctor
+  - Keeps init non-blocking on Codex bootstrap failures (warn + continue)
+- `init` Step 14 "Done" summary now reports Codex bootstrap status:
+  - `✓ enabled` / `— skipped` / `⚠ partial`
+- `scripts/sync-from-polaris.sh` upgrade flow now runs post-upgrade:
+  - `scripts/transpile-rules-to-codex.sh`
+  - `scripts/verify-cross-llm-parity.sh`
+
+### Docs
+
+- Updated Codex quick-start (EN + zh-TW):
+  - Documented MCP baseline sync, rules transpile, and cross-LLM parity check
+  - Declared `.claude/**` as SSOT and `.agents/**`, `.codex/**` as generated outputs
+- Updated README upgrade section (EN + zh-TW) to reflect post-upgrade Codex parity checks
+
 ## [3.0.2] - 2026-04-15
 
 ### Codex compatibility — skills path sync bridge

@@ -8,7 +8,7 @@
 #   ./scripts/sync-skills-cross-runtime.sh --to-agents --link
 #
 # Notes:
-# - --to-agents: .claude/skills  -> .agents/skills
+# - --to-agents: .claude/skills  -> .agents/skills (public shared skills only)
 # - --to-claude: .agents/skills  -> .claude/skills
 # - --both:      run --to-agents first, then --to-claude
 # - --link:      only valid with --to-agents, create symlink .agents/skills -> ../.claude/skills
@@ -21,6 +21,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CLAUDE_SKILLS="$ROOT_DIR/.claude/skills"
 AGENTS_DIR="$ROOT_DIR/.agents"
 AGENTS_SKILLS="$AGENTS_DIR/skills"
+COMPANY_DIRS=()
 
 MODE=""
 DRY_RUN=false
@@ -67,9 +68,32 @@ if [[ "$LINK_MODE" == true && "$MODE" != "to-agents" ]]; then
   exit 1
 fi
 
-rsync_mirror() {
+while IFS= read -r line; do
+  [[ -n "$line" ]] && COMPANY_DIRS+=("$line")
+done < <(
+  find "$ROOT_DIR" -mindepth 1 -maxdepth 1 -type d \
+    ! -name ".git" ! -name ".claude" ! -name ".agents" ! -name "docs" ! -name "scripts" ! -name "_template" \
+    -exec test -f "{}/workspace-config.yaml" ';' -print | xargs -n1 basename 2>/dev/null || true
+)
+
+is_company_skill() {
+  local skill="$1"
+  for c in "${COMPANY_DIRS[@]:-}"; do
+    [[ "$skill" == "$c" ]] && return 0
+  done
+  return 1
+}
+
+is_maintainer_only() {
+  local skill_file="$1/SKILL.md"
+  [[ -f "$skill_file" ]] || return 1
+  grep -q 'scope:.*maintainer-only' "$skill_file" 2>/dev/null
+}
+
+rsync_dir() {
   local src="$1"
   local dst="$2"
+  local delete_flag="${3:-false}"
 
   [[ -d "$src" ]] || {
     echo "Source not found: $src" >&2
@@ -80,14 +104,9 @@ rsync_mirror() {
     mkdir -p "$dst"
   fi
 
-  local args=(
-    -a
-    --delete
-    --exclude 'references/learning-queue.md'
-    --exclude 'references/learning-archive.md'
-    "$src/"
-    "$dst/"
-  )
+  local args=(-a)
+  [[ "$delete_flag" == "true" ]] && args+=(--delete)
+  args+=("$src/" "$dst/")
   if [[ "$DRY_RUN" == true ]]; then
     args=(--dry-run "${args[@]}")
   fi
@@ -108,7 +127,34 @@ to_agents() {
     echo "Linked: $AGENTS_SKILLS -> ../.claude/skills"
     return 0
   fi
-  rsync_mirror "$CLAUDE_SKILLS" "$AGENTS_SKILLS"
+
+  if [[ "$DRY_RUN" == false ]]; then
+    mkdir -p "$AGENTS_SKILLS"
+    find "$AGENTS_SKILLS" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
+  else
+    echo "DRY RUN: would clean existing directories in $AGENTS_SKILLS"
+  fi
+
+  # Sync shared references first.
+  rsync_dir "$CLAUDE_SKILLS/references" "$AGENTS_SKILLS/references" true
+  if [[ "$DRY_RUN" == false ]]; then
+    rm -f "$AGENTS_SKILLS/references/learning-queue.md" "$AGENTS_SKILLS/references/learning-archive.md"
+  fi
+
+  for skill_dir in "$CLAUDE_SKILLS"/*/; do
+    [[ -d "$skill_dir" ]] || continue
+    skill_name="$(basename "$skill_dir")"
+    [[ "$skill_name" == "references" ]] && continue
+    if is_company_skill "$skill_name"; then
+      echo "Skip: $skill_name (company-specific)"
+      continue
+    fi
+    if is_maintainer_only "$skill_dir"; then
+      echo "Skip: $skill_name (maintainer-only)"
+      continue
+    fi
+    rsync_dir "$skill_dir" "$AGENTS_SKILLS/$skill_name" true
+  done
 }
 
 to_claude() {
@@ -117,7 +163,11 @@ to_claude() {
     echo "Skip: $AGENTS_SKILLS is a symlink; no reverse sync needed."
     return 0
   fi
-  rsync_mirror "$AGENTS_SKILLS" "$CLAUDE_SKILLS"
+  # Reverse sync is intentionally non-destructive: don't delete anything in .claude/skills.
+  rsync_dir "$AGENTS_SKILLS" "$CLAUDE_SKILLS" false
+  if [[ "$DRY_RUN" == false ]]; then
+    rm -f "$CLAUDE_SKILLS/references/learning-queue.md" "$CLAUDE_SKILLS/references/learning-archive.md"
+  fi
 }
 
 case "$MODE" in

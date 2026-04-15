@@ -872,12 +872,48 @@ If install fails (network issue), log warning but don't block — skills degrade
 
 Audit: log `action: "install-deps"`, value: `{"e2e": true/false, "mockoon": true/false, "chromium": true/false}`.
 
+### Step 13.6: Codex Bootstrap (skippable)
+
+If the user also uses Codex, offer to initialize Codex compatibility in the same run:
+
+```
+Do you also use Codex for this workspace? (y/n)
+```
+
+If `y`, run:
+
+```bash
+bash {workspace_root}/scripts/sync-skills-cross-runtime.sh --to-agents --link
+bash {workspace_root}/scripts/sync-codex-mcp.sh --apply
+bash {workspace_root}/scripts/transpile-rules-to-codex.sh
+bash {workspace_root}/scripts/verify-cross-llm-parity.sh
+bash {workspace_root}/scripts/polaris-codex-doctor.sh
+```
+
+Expected outcome:
+- `.agents/skills` linked to `.claude/skills` (single source of truth)
+- Codex MCP baseline added (`claude_ai_Atlassian`, `claude_ai_Slack`)
+- Claude/Codex skill parity verified
+- Codex compatibility doctor passes (or prints actionable warnings)
+
+Rules:
+- Never block init on Codex bootstrap failure — warn and continue.
+- If `codex` command is missing, print: `ℹ Codex CLI not found; skip Codex bootstrap.`
+- `sync-codex-mcp.sh` defaults to stdio MCP servers; OAuth login is not required for this baseline.
+
+Audit: log `action: "codex-bootstrap"`, value: `{"enabled": true/false, "skills_linked": true/false, "mcp_synced": true/false, "doctor_passed": true/false}`.
+
 ### Step 14: Done
 
 **14a. Deferred fields summary** — scan the generated company config for empty string values. If any exist, list them with guidance:
 
 ```
 Done! {company} is configured.
+
+Codex bootstrap:
+  - linked + MCP synced + doctor pass → `✓ enabled`
+  - user chose skip                 → `— skipped`
+  - attempted but failed            → `⚠ partial` (see warning above)
 
 ⚠ The following fields were left empty — you can fill them in later:
 
@@ -891,6 +927,7 @@ Done! {company} is configured.
 ```
 
 Only show this table if there are actually empty fields. If everything was filled, skip it.
+Always show the Codex bootstrap line when Step 13.6 was offered.
 
 **14b. Next steps:**
 ```

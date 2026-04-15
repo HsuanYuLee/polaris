@@ -16,6 +16,7 @@
 #   - .claude/settings.local.json.example
 #   - .claude/settings.local.json.sub-repo-example
 #   - scripts/sync-from-upstream.sh, scripts/sync-from-polaris.sh
+#   - scripts/transpile-rules-to-codex.sh, scripts/verify-cross-llm-parity.sh
 #   - _template/ (updated templates)
 #
 # What it does NOT touch:
@@ -191,6 +192,28 @@ for tmpl_file in "$POLARIS_DIR"/_template/*; do
   tmpl_name=$(basename "$tmpl_file")
   copy_file "$tmpl_file" "$INSTANCE_DIR/_template/$tmpl_name" "$tmpl_name"
 done
+
+# ── Step 8: Post-upgrade cross-LLM parity checks ────────────────────
+
+echo "Running post-upgrade Codex compatibility checks..."
+if [[ "$DRY_RUN" == true ]]; then
+  echo "  + would run transpile-rules-to-codex.sh"
+  echo "  + would run verify-cross-llm-parity.sh"
+else
+  if [[ -x "$INSTANCE_DIR/scripts/transpile-rules-to-codex.sh" ]]; then
+    bash "$INSTANCE_DIR/scripts/transpile-rules-to-codex.sh"
+    echo "  + transpile-rules-to-codex: OK"
+  else
+    echo "  WARNING: scripts/transpile-rules-to-codex.sh missing or not executable" >&2
+  fi
+
+  if [[ -x "$INSTANCE_DIR/scripts/verify-cross-llm-parity.sh" ]]; then
+    bash "$INSTANCE_DIR/scripts/verify-cross-llm-parity.sh"
+    echo "  + verify-cross-llm-parity: OK"
+  else
+    echo "  WARNING: scripts/verify-cross-llm-parity.sh missing or not executable" >&2
+  fi
+fi
 
 # ── Summary ──────────────────────────────────────────────────────────
 
