@@ -97,6 +97,14 @@ for skill_dir in "$WORKSPACE_DIR"/.claude/skills/*/; do
   done
   [[ "$skip" == true ]] && continue
 
+  # Skip maintainer-only skills (framework internal)
+  if [[ -f "$skill_dir/SKILL.md" ]]; then
+    if grep -q 'scope:.*maintainer-only' "$skill_dir/SKILL.md" 2>/dev/null; then
+      echo "  ~ $skill_name/ (maintainer-only, skipped)"
+      continue
+    fi
+  fi
+
   if [[ "$DRY_RUN" == false ]]; then
     rm -rf "$TARGET_POLARIS/$skill_name"
     cp -r "$skill_dir" "$TARGET_POLARIS/$skill_name"

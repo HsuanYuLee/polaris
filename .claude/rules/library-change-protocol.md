@@ -65,6 +65,24 @@ Framework modules carry the highest risk — they interleave with the framework 
 
 **When uncertain between T2 and T3 → choose T3.** The cost of asking is low; the cost of a wrong replacement is high.
 
+## Reviewer-Suggested Upgrades in Revision Mode
+
+When a PR reviewer suggests upgrading a library / framework module during revision mode (e.g., "要不要升級 X 看看"、"try upgrading to v5"), treat it as a **T3 decision point** — pause and ask the user before deciding.
+
+**Do not unilaterally:**
+- Reply "we'll defer this to next sprint" and close the thread
+- Reply "current version doesn't support this, upgrading is T3" without asking the user
+- Dismiss the suggestion as "reply-only, no code change needed"
+
+**Correct behavior:**
+1. Sub-agent or revision-mode flow stops and reports to main agent: "reviewer suggests upgrade — user decision required"
+2. Main agent pauses and asks user: "reviewer 建議升級 X 從 v{current} → v{suggested}，要評估嗎？(Y = 跑 upgrade protocol / N = 以此理由回覆拒絕)"
+3. User decides. If Y → run the Upgrade Evaluation (import count, config registration, CHANGELOG, peer deps, lock diff). If N → reply with user's reasoning.
+
+**Why:** revision mode sub-agents optimize for "closing the PR" and may default to deferring hard decisions. But a reviewer suggesting an upgrade is often load-bearing feedback (they've seen a newer version solve the exact problem). Silently deferring means losing a legitimate improvement path and potentially burning reviewer trust ("我都提了你還是用 workaround").
+
+**Scope:** applies to any library/framework/module upgrade suggestion in PR review — not just Nuxt modules. Includes version bumps, package swaps, or "use X instead of Y" suggestions.
+
 ## Handbook Integration
 
 Repo handbooks may include a **Key Libraries** section listing concern → library bindings with official docs links. When a sub-agent encounters a library in this list:
@@ -111,3 +129,4 @@ Applies to: engineering sub-agents, engineering revision mode, any code-writing 
 | "Config didn't work, let me try a hook" | Did you enumerate all injection points first? You may be setting the right value in the wrong place |
 | "It worked on the second try" | Did it fail the first time? Trust the FAIL — the second PASS may be cached |
 | "The workaround is simple, no need for a long comment" | The next developer will ask "why not just use the config?" — save them the 2-hour investigation |
+| "Reviewer suggests upgrade — I'll reply 'defer to next sprint'" | That's unilateral deferral. Upgrade suggestions from reviewers are T3 decision points — pause and ask the user whether to attempt it |

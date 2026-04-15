@@ -100,6 +100,8 @@ Polaris: pulls JIRA backlog → calculates team capacity → detects carry-overs
 
 ## Quick Start
 
+Using Codex instead of Claude Code? See [Polaris for Codex](docs/codex-quick-start.md).
+
 ### 1. Create your workspace
 
 Go to the [Polaris template repo](https://github.com/HsuanYuLee/polaris) on GitHub, click **"Use this template" → "Create a new repository"**, then clone it:

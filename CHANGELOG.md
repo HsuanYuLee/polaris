@@ -4,6 +4,26 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.0.2] - 2026-04-15
+
+### Codex compatibility — skills path sync bridge
+
+- Added `scripts/sync-skills-cross-runtime.sh` to sync skills between:
+  - `.claude/skills` (Claude layout)
+  - `.agents/skills` (Codex layout)
+- Supports:
+  - `--to-agents` / `--to-claude` / `--both`
+  - `--link` mode (`.agents/skills -> .claude/skills` symlink)
+- Added `.agents/skills` whitelist in `.gitignore` so repo-scoped Codex skills can be version-controlled.
+- Updated Codex quick-start docs with explicit skill sync step:
+  - `docs/codex-quick-start.md`
+  - `docs/codex-quick-start.zh-TW.md`
+
+### Maintainer-only skill boundary hardening
+
+- `scripts/sync-to-skills.sh` now skips skills marked with `scope: maintainer-only` in SKILL frontmatter.
+- This aligns vendoring behavior with `sync-to-polaris.sh` and prevents framework-internal maintenance skills from being exported to external/team skills repos.
+
 ## [3.0.1] - 2026-04-15
 
 ### `design-plan` skill — 新增 Sub-agent Handoff 模式（v1.1.0）

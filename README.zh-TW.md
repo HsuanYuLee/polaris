@@ -100,6 +100,8 @@ Polaris: 拉取 JIRA backlog → 計算團隊容量 → 偵測 carry-over
 
 ## 快速上手
 
+如果你要用 Codex 而不是 Claude Code，請看：[Polaris 給 Codex 用（相容層）](docs/codex-quick-start.zh-TW.md)。
+
 ### 1. 建立你的工作區
 
 到 GitHub 上的 [Polaris 模板 repo](https://github.com/HsuanYuLee/polaris)，點選 **「Use this template」→「Create a new repository」**，然後 clone 下來：

@@ -160,6 +160,7 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | `lib-config-registration-check` | Impact assessment must check config-level registration (nuxt.config, webpack.config, composer.json plugins), not just `grep import` | Replacement proposed with "0 imports found" when lib is registered in framework config | High |
 | `lib-lock-file-diff` | Upgrade evaluation must diff lock file for transitive dependency changes | Major/minor upgrade committed without lock file diff check | Medium |
 | `lib-key-libraries-binding` | Handbook Key Libraries section designates concern→library bindings; replacement requires full protocol | Sub-agent replaces a library listed in Key Libraries without running the protocol | High |
+| `lib-reviewer-upgrade-pause` | When PR reviewer suggests a library/module upgrade in revision mode, pause and ask user — do not unilaterally defer or dismiss | Revision-mode reply says "T3 deferred to next sprint" or "current version doesn't support this" without asking user whether to attempt the upgrade | High |
 
 #### Common Rationalizations — Library Changes
 
