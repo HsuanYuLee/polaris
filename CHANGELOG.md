@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.14.0] - 2026-04-15
+
+### sync-to-polaris: maintainer-only skill exclusion
+
+- **`scope: maintainer-only`**：SKILL.md frontmatter 新增此欄位的 skill 不會 sync 到 template repo
+- **`docs-sync` 從 template 移除**：framework 文件維護是個人行為，不應暴露給所有使用者
+- **通用機制**：任何 skill 加 `scope: maintainer-only` 即自動排除，不需改 sync 腳本
+
 ## [2.13.0] - 2026-04-15
 
 ### docs-sync fix + version-docs-lint-gate hook

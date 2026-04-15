@@ -230,6 +230,14 @@ for skill_dir in "$INSTANCE_DIR"/.claude/skills/*/; do
   done
   [[ "$skip" == true ]] && continue
 
+  # Skip maintainer-only skills (scope: maintainer-only in SKILL.md frontmatter)
+  if [[ -f "$skill_dir/SKILL.md" ]]; then
+    if grep -q 'scope:.*maintainer-only' "$skill_dir/SKILL.md" 2>/dev/null; then
+      echo "  ~ $skill_name/ (maintainer-only, skipped)"
+      continue
+    fi
+  fi
+
   copy_dir "$skill_dir" "$POLARIS_DIR/.claude/skills/$skill_name" "$skill_name"
 done
 
