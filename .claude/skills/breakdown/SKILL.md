@@ -3,7 +3,7 @@ name: breakdown
 description: "Universal planning skill: Bug reads ROOT_CAUSE then estimates; Story/Task/Epic explores codebase then splits into sub-tasks with estimates, and packs each sub-task into a self-contained task.md work order for engineering to consume. Also handles scope challenge (advisory mode). Trigger: 拆單, 'split tasks', 拆解, 'breakdown', 'break down', 子單, 'sub-tasks', 評估這張單, 'evaluate this ticket', 估點, 'estimate', 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑'."
 metadata:
   author: Polaris
-  version: 2.4.0
+  version: 2.5.0
 ---
 
 # Breakdown — Packer
@@ -39,7 +39,7 @@ Breakdown 專用參數：
 - `{TICKET_KEY}` = 當前 ticket key
 - Base ref = `origin/develop`
 
-> **注意**：Step 14（建立 feature / task branch 用於 downstream engineering）是 breakdown 的預期產出，非 runtime 驗證。如果該步驟需要在主 checkout 上 `git checkout develop` 而使用者有 WIP，應先提醒使用者處理 WIP（由 Step 14 自行處理，不屬於 worktree isolation 範疇）。
+> **注意**：Step 14（建立 feature / task branch）使用 `git branch <name> origin/develop`（不帶 `-b`，不切 checkout）+ `git push` 推上 remote，主 checkout 狀態完全不變，不需要 worktree。詳見 § 14 絕對規則。
 
 ## Workflow
 
@@ -394,28 +394,39 @@ Total: N pt，預估 X 天
 
 ### 14. 建立 Branch
 
+**絕對規則**：14 全段禁止切換主 checkout 的 HEAD。使用者可能有 WIP，任何 `git checkout` / `git pull` / `git stash` 都會破壞狀態。改用 `git branch <name> <start>`（不帶 `-b`，只建 ref，不碰 working tree）+ `git push` 推上 remote。
+
 **14a. 按專案分組子單**（從子單 description 或 Step 2 的專案辨識結果）
 
 **14b. 建立母單 feature branch**（每個涉及的 repo 一個）
 
 ```bash
-git -C {base_dir}/<repo> checkout develop
-git -C {base_dir}/<repo> pull origin develop
-git -C {base_dir}/<repo> checkout -b feat/<TICKET_KEY>-<description>
+# Fetch remote but do NOT pull (pull would touch main checkout)
+git -C {base_dir}/<repo> fetch origin develop
+
+# Create branch ref at remote develop's tip — main checkout's HEAD/branch/working tree untouched
+git -C {base_dir}/<repo> branch feat/<TICKET_KEY>-<description> origin/develop
+
+# Push + set upstream
 git -C {base_dir}/<repo> push -u origin feat/<TICKET_KEY>-<description>
 ```
 
-> 小型 ticket（≤ 5pt，單一子單）可跳過 feature branch，直接從 develop 開 task branch。
+> 小型 ticket（≤ 5pt，單一子單）可跳過 feature branch，直接從 `origin/develop` 開 task branch。
 
-**14c. 為每張子單建立 branch**（從對應 repo 的母單 branch 開出）
+**14c. 為每張子單建立 branch**（從對應 repo 的母單 branch ref 開出，同樣不切 checkout）
 
 ```bash
-git -C {base_dir}/<repo> checkout feat/<TICKET_KEY>-<description>
-git -C {base_dir}/<repo> checkout -b task/<SUB_KEY>-<description>
+git -C {base_dir}/<repo> branch task/<SUB_KEY>-<description> feat/<TICKET_KEY>-<description>
 git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
 ```
 
 **14d. 回報 branch 結構**
+
+**為什麼不用 `checkout -b`？**
+
+`checkout -b` 會把主 checkout 的 HEAD 移到新 branch，並要求 working tree clean — 若使用者有 WIP，`checkout` 會失敗或破壞 staging。`git branch` 只建 ref，不動 working tree；engineering 之後會自行 `checkout` 到 task branch 開工，那時才需要使用者狀態乾淨。Breakdown 只負責產出 branch ref + 推上 remote，不負責切換使用者的工作目錄。
+
+**Canary signal**：Step 14 執行期間若主 checkout 的 `git status` 輸出有任何變化，就是違規。
 
 ### 14.5. 產出 task.md work orders
 

@@ -4,6 +4,25 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.6.0] - 2026-04-16
+
+### Breakdown Step 14 — no main-checkout mutation during branch creation
+
+Step 14 previously ran `git checkout develop` + `git pull` + `git checkout -b feat/...` directly on the user's main checkout. If the user had WIP, checkout would fail or corrupt staging. Discovered as a scoped-out note during v3.4.0 worktree isolation work.
+
+The solution turned out to be simpler than the worktree approach proposed in the backlog: **don't switch checkout at all.** `git branch <name> <start>` (without `-b`) creates the ref without touching the working tree. Then `git push -u origin <name>` uploads it. Main checkout's HEAD / branch / working tree never change.
+
+- `skills/breakdown/SKILL.md` (v2.4.0 → v2.5.0):
+  - Step 14 absolute rule: forbid `git checkout` / `git pull` / `git stash` on main checkout
+  - 14b: replaced `checkout develop + pull + checkout -b + push` with `fetch origin develop + git branch feat/... origin/develop + push`
+  - 14c: same pattern for task branches (`git branch task/X feat/Y`)
+  - Added "為什麼不用 `checkout -b`？" + canary signal (git status on main checkout must not change during Step 14)
+  - Updated the Worktree Isolation section's footnote (previously said branch creation would touch main checkout)
+- `rules/mechanism-registry.md`:
+  - New canary **`breakdown-step14-no-checkout`** (High drift) — detects `git checkout` / `git pull` on main checkout path during breakdown Step 14, or changes to main checkout HEAD/branch/working tree after Step 14
+- `polaris-backlog.md`:
+  - Closed: **breakdown Step 14 main-checkout mutation**
+
 ## [3.5.0] - 2026-04-16
 
 ### Breakdown Step 3a — AC drift detection vs refinement artifact
