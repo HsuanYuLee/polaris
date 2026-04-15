@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.15.0] - 2026-04-15
+
+### 清除 v2.12.0 文件殘留 + maintainer-only 感知 lint
+
+v2.13 的 docs-sync 只修了 phantom 引用和 skill count，但遺漏了其他殘留：
+
+- **Skill Orchestration 圖修復**：移除 `DS` (docs-sync) 節點、移除 self-loop edges（`RP/FPR/CPA → self`）、移除 `DS` class 分類。連通性說明改為「lesson extraction 直接寫 handbook，不需中繼節點」
+- **chinese-triggers.md**：移除 docs-sync 行；`learning` 描述的 review-lessons 改為 handbook
+- **workflow-guide Learning Modes 表**：「write to review-lessons」改為「write to repo handbook」
+- **readme-lint.py**：動態讀取 SKILL.md 的 `scope: maintainer-only`，自動從 doc-mention 檢查排除。與 sync-to-polaris.sh 同一機制
+- **Skill count**：25 → 24（扣除 maintainer-only 的 docs-sync）
+
 ## [2.14.0] - 2026-04-15
 
 ### sync-to-polaris: maintainer-only skill exclusion

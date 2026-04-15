@@ -50,7 +50,7 @@
 |------|-----------|-----------|------|
 | **unit-test** — 寫單元測試 / TDD / 審查測試 | 寫測試、補測試、怎麼測、測試怎麼寫、先寫測試、紅綠燈、TDD、測試審查、review 測試、測試品質 | write test, add test, mock imports, test store, TDD, test driven, test first, red green refactor, unit test review, review tests, check test quality | 專案感知的單元測試指南，含 mock patterns 與最佳實踐（自動偵測 Jest/Vitest）。含 TDD 模式（紅綠燈循環）與測試品質審查（原 tdd、unit-test-review 已併入） |
 | **visual-regression** — 視覺回歸測試 | 跑 visual regression、檢查畫面、頁面有沒有壞、截圖比對、有沒有跑版、畫面壞了嗎、UI 有沒有問題 | visual test, screenshot test, check if pages look right | Before/after 截圖比對，確保改動不破壞既有頁面。兩種模式：SIT（與 staging 比較）和 Local（前後對比） |
-| **learning** — 學習與研究 | 學習、研究一下、借鑑、看看這個、學習 PR、每日學習、消化 queue、設定學習、更新學習主題、掃 review、批次學習、掃歷史 PR、補齊 review lessons | learn, research this, learn from PR, daily learning, digest queue, learning queue, learning setup, scanner 設定, batch learn, scan PR history, backfill lessons | 五種模式：研究外部 URL/repo、從已合併 PR 萃取 review patterns、批次消化學習 queue、設定學習主題與 scanner（Setup 模式）、批次掃描歷史 PR 補齊 review-lessons（Batch 模式） |
+| **learning** — 學習與研究 | 學習、研究一下、借鑑、看看這個、學習 PR、每日學習、消化 queue、設定學習、更新學習主題、掃 review、批次學習、掃歷史 PR、補齊 handbook | learn, research this, learn from PR, daily learning, digest queue, learning queue, learning setup, scanner 設定, batch learn, scan PR history, backfill handbook | 五種模式：研究外部 URL/repo、從已合併 PR 萃取 review patterns → handbook、批次消化學習 queue、設定學習主題與 scanner（Setup 模式）、批次掃描歷史 PR 補齊 handbook（Batch 模式） |
 
 ---
 
@@ -61,7 +61,6 @@
 | **init** — 初始化 Workspace | 初始化、設定 workspace、填 config | init, initialize, setup workspace, setup config, configure | 互動式 Workspace 初始化精靈，建立 company 目錄與 workspace-config.yaml |
 | **use-company** — 切換公司 / 路由診斷 | 切換公司、用這間、公司切換、我要做 X 公司的、哪間公司 | use company, switch company, set company, which company | 明確設定本次對話的 active company context，避免多公司自動偵測錯誤。含診斷模式（原 which-company 已併入）：診斷 JIRA ticket 路由到哪間公司 |
 | **validate** — 隔離 + 機制檢查 | 檢查隔離、檢查機制 | validate isolation, validate mechanisms | 框架健康檢查，結合隔離（scope header、memory tag）與機制合規（mechanism-registry canary signals）兩種模式（原 validate-isolation 和 validate-mechanisms 已併入） |
-| **docs-sync** — 同步文件 | 同步文件、更新文件 | sync docs, update docs | 偵測 skill/workflow 變更並更新所有雙語文件（README、workflow-guide、chinese-triggers、quick-start） |
 | **next** — 自動下一步 | 下一步、繼續、接下來、然後呢 | next, continue, what's next | 零輸入 context router：讀取 todo、git branch、JIRA 狀態、PR 狀態，自動判斷並執行下一步動作 |
 | **checkpoint** — 存檔與恢復 | 存檔、恢復、列出存檔 | checkpoint, save checkpoint, resume, list checkpoints | 儲存／恢復／列出 session 狀態（branch、ticket、todo、最近活動），用於長 session 中斷恢復 |
 

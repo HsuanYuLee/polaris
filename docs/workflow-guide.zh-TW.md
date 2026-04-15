@@ -177,7 +177,6 @@ flowchart LR
     %% ── Other ──
     UT["unit-test"]
     LRN["learning"]
-    DS["docs-sync"]
 
     %% ── Orchestrator routes ──
     WO -->|epic breakdown| EB
@@ -197,9 +196,6 @@ flowchart LR
 
     %% ── Review chain ──
     RI -->|batch review| RP
-    RP -->|lesson → handbook| RP
-    FPR -->|lesson → handbook| FPR
-    CPA -->|lesson → handbook| CPA
 
     %% ── Context router ──
     NX -.->|work on ticket| WO
@@ -233,7 +229,7 @@ flowchart LR
     class RP,RI,CPA,FPR review
     class RF,EB,SASD,SP,IT planning
     class NX,MT,CV orchestrator
-    class SU,UT,LRN,DS standalone
+    class SU,UT,LRN standalone
 ```
 
 **連接性檢查：**
@@ -244,7 +240,8 @@ flowchart LR
 - `converge` 一次把所有進行中的工作推進到 review：批次觸發 PR、補全缺口，含 Epic 進度追蹤（原 `epic-status` 已併入）。觸發詞：「收斂」、「推進」、「converge」、「epic 進度」、「epic 狀態」
 - `standup`（v2.0）是每日站會和下班收工的統一進入點 — 含自動 triage（Step 0）；由使用者直接觸發
 - `visual-regression` 作為 `engineer-delivery-flow` Step 3.5 執行（行為驗證之後、Pre-PR Review 之前），當改動的檔案命中 VR 設定的 domain 時觸發。選擇性但建議用於版面/樣式變更
-- `unit-test`、`learning`、`docs-sync` 是獨立技能 — 由使用者直接觸發，不在主鏈路中
+- `unit-test`、`learning` 是獨立技能 — 由使用者直接觸發，不在主鏈路中
+- `review-pr`、`fix-pr-review`、`check-pr-approvals` 的 lesson extraction 直接寫入 repo handbook（v2.12.0 起取消中間 buffer）
 
 ---
 
@@ -878,7 +875,7 @@ AI 自動：
 | 模式 | 用途 | 觸發範例 |
 |------|---------|----------------|
 | **External** | 研究外部文章或 repo；分析對你的工作空間的適用性 | `look at github.com/...`, `research this article` |
-| **PR** | 從已合併的 PR 萃取 review 模式 → 寫入 review-lessons | `learn from PR #123`, `learn from PRs this week` |
+| **PR** | 從已合併的 PR 萃取 review 模式 → 寫入 repo handbook | `learn from PR #123`, `learn from PRs this week` |
 | **Queue** | 處理每日學習掃描收集的文章（見下方） | `daily learning`, `what can I learn today` |
 
 ### Queue 模式架構

@@ -177,7 +177,6 @@ flowchart LR
     %% ── Other ──
     UT["unit-test"]
     LRN["learning"]
-    DS["docs-sync"]
 
     %% ── Orchestrator routes ──
     WO -->|epic breakdown| EB
@@ -197,9 +196,6 @@ flowchart LR
 
     %% ── Review chain ──
     RI -->|batch review| RP
-    RP -->|lesson → handbook| RP
-    FPR -->|lesson → handbook| FPR
-    CPA -->|lesson → handbook| CPA
 
     %% ── Context router ──
     NX -.->|work on ticket| WO
@@ -233,7 +229,7 @@ flowchart LR
     class RP,RI,CPA,FPR review
     class RF,EB,SASD,SP,IT planning
     class NX,MT,CV orchestrator
-    class SU,UT,LRN,DS standalone
+    class SU,UT,LRN standalone
 ```
 
 **Connectivity check:**
@@ -244,7 +240,8 @@ flowchart LR
 - `converge` pushes all in-flight work toward review in one pass — closes gaps, batch-triggers PRs, and includes Epic progress tracking (formerly `epic-status`). Triggered by "收斂", "converge", "push to review", "epic 進度", "epic 狀態"
 - `standup` (v2.0) is the unified entry point for daily standup and end-of-day routines — includes auto-triage (Step 0); triggered directly by the user
 - `visual-regression` runs as `engineer-delivery-flow` Step 3.5 (after behavioral verify, before pre-PR review) when changed files hit a VR-configured domain. Optional but recommended for layout/styling changes
-- `unit-test`, `learning`, `docs-sync` are standalone skills — triggered directly by the user, not part of the main chain
+- `unit-test`, `learning` are standalone skills — triggered directly by the user, not part of the main chain
+- Lesson extraction from `review-pr`, `fix-pr-review`, `check-pr-approvals` writes directly to repo handbook (no intermediate buffer since v2.12.0)
 
 ---
 
@@ -878,7 +875,7 @@ AI automatically:
 | Mode | Purpose | Trigger example |
 |------|---------|----------------|
 | **External** | Research an external article or repo; analyze applicability to your workspace | `look at github.com/...`, `research this article` |
-| **PR** | Extract review patterns from merged PRs → write to review-lessons | `learn from PR #123`, `learn from PRs this week` |
+| **PR** | Extract review patterns from merged PRs → write to repo handbook | `learn from PR #123`, `learn from PRs this week` |
 | **Queue** | Process articles collected by the daily learning scan (see below) | `daily learning`, `what can I learn today` |
 
 ### Queue Mode Architecture
