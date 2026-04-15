@@ -4,6 +4,28 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.5.0] - 2026-04-16
+
+### Breakdown Step 3a — AC drift detection vs refinement artifact
+
+When refinement v2+ reshapes AC structure (e.g., `AC#1/2/3-5` → `AC1-14`), any existing subtasks still referencing the old AC numbers silently go stale. Downstream consumers (engineering, verify-AC) then read the wrong AC IDs. GT-478 breakdown caught this only because the Strategist manually cross-referenced `refinement.json` with each subtask description. Automating this in Step 3 closes the gap.
+
+- `skills/breakdown/SKILL.md` (v2.3.0 → v2.4.0):
+  - Step 3: added detection item 4 — AC 引用對齊（當 `refinement.json` 存在且有既有子單時）
+  - New § **3a AC 引用漂移偵測與調和** — trigger conditions, detection flow (regex extract + normalize + compare), 4-option reconcile decision (SUPERSEDE / UPDATE / RECREATE / KEEP), user-facing presentation format, sub-agent dispatch boundary (static comparison stays in main session, batch editJiraIssue uses haiku sub-agent)
+  - `jira-subtask-creation.md § Retiring Obsolete Subtasks` (already exists) is the SUPERSEDE implementation reference
+- `skills/references/refinement-artifact.md`:
+  - New row in downstream table: `breakdown (Step 3a — AC drift)` consumes `acceptance_criteria[].id`
+  - New § **AC ID 格式約定** documenting the stable anchor contract: `AC1/AC2/...`, `AC-NEG1/...`, `AC2.1/...`; subtask descriptions must use `ACn` or `AC#n` (normalized for drift comparison); warning that refinement v2+ AC restructuring must co-process existing subtasks
+- `polaris-backlog.md`:
+  - Closed: **breakdown Step 3 偵測既有子單 AC 編號漂移**
+
+### Backlog hygiene — split conjoined items, add Step 14 mutation guard
+
+- `polaris-backlog.md`:
+  - Split one malformed `- [ ]` entry that had two `**Why:**` blocks into separate items: **infra-first decision framework** and **Epic-centric specs folder structure**
+  - Added **Breakdown Step 14 main-checkout mutation** entry (scoped-out note from v3.4.0 worktree isolation session): Step 14 feature/task branch creation directly mutates main checkout (`git checkout develop` + `git pull`), which conflicts with user WIP. Three solution options documented (pre-check clean state / worktree-add-B pattern / move branch creation to engineering)
+
 ## [3.4.0] - 2026-04-16
 
 ### Planning skill worktree isolation — generalized to all four planning skills

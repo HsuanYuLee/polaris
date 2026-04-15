@@ -3,7 +3,7 @@ name: breakdown
 description: "Universal planning skill: Bug reads ROOT_CAUSE then estimates; Story/Task/Epic explores codebase then splits into sub-tasks with estimates, and packs each sub-task into a self-contained task.md work order for engineering to consume. Also handles scope challenge (advisory mode). Trigger: 拆單, 'split tasks', 拆解, 'breakdown', 'break down', 子單, 'sub-tasks', 評估這張單, 'evaluate this ticket', 估點, 'estimate', 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑'."
 metadata:
   author: Polaris
-  version: 2.3.0
+  version: 2.4.0
 ---
 
 # Breakdown — Packer
@@ -84,11 +84,63 @@ mcp__claude_ai_Atlassian__getJiraIssue
 1. **檢查既有子單** — 用 JQL `parent = <TICKET_KEY>` 查詢
 2. **檢查 feature branch** — `git branch -a | grep <TICKET_KEY>`
 3. **檢查 commit 紀錄** — 如果有 branch，用 `git log` 檢視已完成的工作
+4. **檢查 AC 引用對齊**（當 `refinement.json` 存在且有既有子單時） — 掃既有子單 description 中的 AC 引用，比對 refinement artifact 的 AC 結構
 
 根據偵測結果調整行為：
 - **已有子單** → 列出既有子單，詢問是否要補充
 - **已有 branch + commits 但無子單** → 提示根據已完成工作建立子單追蹤
+- **AC 引用漂移** → 按 § 3a AC 漂移調和 流程處理
 - **全新** → 進入正常流程
+
+#### 3a. AC 引用漂移偵測與調和
+
+**何時觸發：**
+
+同時滿足兩個條件：
+1. `{company_base_dir}/specs/{EPIC_KEY}/refinement.json` 存在
+2. Step 3.1 找到既有子單
+
+否則跳過（小 ticket 無 refinement artifact、全新 ticket 無子單皆適用）。
+
+**偵測流程：**
+
+1. 讀取 `refinement.json` 的 `acceptance_criteria[].id`（authoritative AC 集合，例：`["AC1", "AC2", "AC-NEG1"]`）
+2. 對每張既有子單的 `description` / `summary`，用 regex `\bAC-?\w*\d+\w*\b` 擷取所有 AC 引用（例：`AC1`、`AC#2`、`AC-NEG1`、`AC2-1`）
+3. 正規化：去掉 `#`、大小寫統一，與 `acceptance_criteria[].id` 比對
+4. 分類每個子單：
+   - **aligned** — 所有 AC 引用都存在於 `refinement.json`
+   - **drift** — 有 AC 引用**不在** `refinement.json` 中（例：子單引用 `AC#3`，artifact 只有 AC1/2/AC-NEG1）
+   - **no-ref** — description 中無 AC 引用（例：infra 前置子單）
+5. Drift 子單 → 進入調和決策
+
+**調和決策（drift 每張子單獨立問）：**
+
+| 選項 | 適用情境 | 動作 |
+|------|---------|------|
+| **SUPERSEDE** | 舊子單的 AC 已整併/拆分/重寫，新結構下已有對應的新子單取代 | 按 `jira-subtask-creation.md § Retiring Obsolete Subtasks` 流程：`[SUPERSEDED]` prefix + SP=0 + comment 指向新子單 |
+| **UPDATE** | 只是 AC 編號變動（例 `AC#3` → `AC2`），內容實質不變 | editJiraIssue 更新 description 中的 AC 引用 |
+| **RECREATE** | 舊子單 scope 已完全改變，保留反而混淆 | SUPERSEDE 舊 + 建新子單 |
+| **KEEP** | 子單仍為有效工單但 AC 引用是歷史版本（例：refinement 迭代中保留追蹤） | 不動，僅在 breakdown summary 標註 |
+
+**呈現格式（給使用者選擇）：**
+
+```
+⚠ 偵測到 AC 引用漂移（refinement.json 已有新 AC 結構，既有子單仍引用舊編號）
+
+refinement.json 當前 AC：AC1, AC2, AC-NEG1
+
+Drift 子單：
+- TASK-123：引用 AC#1/2/3（AC#3 已不存在）
+  建議：SUPERSEDE（驗證子單已在新結構下拆為 TASK-123/3821）
+- TASK-123：引用 AC#4（AC#4 已不存在）
+  建議：UPDATE → 對應新 AC-NEG1
+
+逐張確認？或全部套用建議（Y/N）？
+```
+
+**與 Sub-agent dispatch：**
+
+Drift 偵測是純靜態比對（讀 JIRA + 讀 refinement.json + regex），可在 main session 直接跑；不需要 sub-agent。實際執行 SUPERSEDE / UPDATE 的 editJiraIssue batch 才委派 haiku sub-agent。
 
 ---
 
