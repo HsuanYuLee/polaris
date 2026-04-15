@@ -170,6 +170,19 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
 | `blind-spot-scan` | After producing a plan, protocol, or significant decision, pause and self-check (invert, edge cases, silent failure) before presenting or executing | Strategist presents a plan without any "what could go wrong" analysis; user discovers a blind spot the Strategist should have caught | Medium |
+| `design-plan-creation` | When user starts a non-ticket design discussion (triggers in `skill-routing.md` § design-plan row, or multi-turn architecture back-and-forth), create `.claude/design-plans/{topic}.md` in the first turn | Design discussion proceeds 3+ turns without a plan file existing; decisions accumulate only in conversation | **Critical** |
+| `design-plan-decision-capture` | Each confirmed design decision (user says「可以」「同意」「乾淨」「好」「這樣做」) must update the plan file in the **very next tool call** — not batched, not deferred | Decision confirmed in conversation but plan file not updated before other tool calls | **Critical** |
+| `design-plan-reference-at-impl` | Before implementation begins on a topic with an active design plan, read the plan file completely; do not rely on conversation memory | Strategist writes code / SKILL.md on a topic with existing plan file but no Read call on that plan in the current session | **Critical** |
+| `design-plan-checklist-done` | Plan's Implementation Checklist must be fully checked before declaring done; each item ticked off in the file (not in memory) as it completes | Task declared done while plan file has unchecked `[ ]` items in Implementation Checklist | High |
+
+#### Common Rationalizations — Design Plan
+
+| Thought | Reality |
+|---------|---------|
+| "這次討論沒那麼複雜，不用建 plan" | check-pr-approvals v2.10.0 也是這樣想的，結果掉棒。門檻是「非 ticket 架構決策」，不是「很複雜」 |
+| "等討論完再整理成 plan" | 整理時要回憶每個決策 = 回到原本的記憶模式。建檔要在討論開始，不是結束 |
+| "我記得我們討論過 X 了" | 你記得的可能是最後一輪的 phrasing，不是早期的決策。讀 plan file，別依賴記憶 |
+| "實作時偏離 plan 沒關係，等實作完再更新" | 那就是掉棒。發現偏離 → 立刻停下更新 plan + 加 Decision 條目 |
 
 ### Quality Gates (source: `skills/references/engineer-delivery-flow.md`)
 
@@ -293,6 +306,7 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 Post-task audit should check these first (highest drift risk, most impactful):
 
 1. `no-workaround-accumulation` / `design-implementation-reconciliation`
+1a. `design-plan-creation` / `design-plan-decision-capture` / `design-plan-reference-at-impl` (Critical — check-pr-approvals v2.10→v2.16 掉棒事件)
 2. `skill-first-invoke` / `no-manual-skill-steps` / `reference-index-scan`
 3. `api-docs-before-replace` / `lib-exhaust-before-replace` / `fix-through-not-revert` / `query-original-impl` (Critical — PROJ-123 root cause + library change protocol)
 4. `delegate-exploration` / `delegate-implementation`

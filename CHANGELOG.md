@@ -4,6 +4,33 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.17.0] - 2026-04-15
+
+### Design Plan skill — non-ticket architecture discussions
+
+新增 `design-plan` skill，填補 breakdown/refinement/sasd-review 之間的 gap：**非 ticket 設計討論的持久化落地機制**。
+
+- **新 skill**：`.claude/skills/design-plan/SKILL.md`
+- **檔案位置**：`.claude/design-plans/{topic}.md`（committed to git，類似 ADR）
+- **Status 流轉**：DISCUSSION → LOCKED → IMPLEMENTED / ABANDONED
+- **觸發**：使用者說「想討論」「怎麼設計」「重構」「重新設計」「要怎麼改」等，或多輪架構討論自動回溯建檔
+- **決策即寫檔**：每個確認的決策，下一個 tool call 必須更新 plan file
+- **實作時讀 plan**：implementation 階段必須讀 plan file，不依賴對話記憶
+- **Checklist-based done**：Implementation Checklist 全打勾才能宣告完成
+
+**Dogfood**：本 skill 的實作本身經過 design-plan 流程產出，plan file 一起 commit 作為決策紀錄（`.claude/design-plans/design-plan-skill.md`）。
+
+### 規則更新
+
+- `rules/skill-routing.md`：新增 design-plan routing 條目
+- `rules/context-monitoring.md § 5b Defer = Immediate Capture`：加「design decision → plan file」case + check-pr-approvals v2.10→v2.16 掉棒事件說明
+- `rules/feedback-and-memory.md § Memory Hygiene Checks`：新增第 9 項 stale design-plan 掃描（DISCUSSION > 30 天 / LOCKED > 14 天未實作）
+- `rules/mechanism-registry.md § Strategist Behavior`：新增 4 個 canaries（`design-plan-creation` / `design-plan-decision-capture` / `design-plan-reference-at-impl` Critical；`design-plan-checklist-done` High）+ Common Rationalizations + Priority Audit Order 1a
+
+### 為什麼這個 skill 存在
+
+check-pr-approvals v2.10.0 重設計時，早期決策「check-pr-approvals 發現問題 PR 轉 JIRA 狀態」在後續討論中被「engineering 零改動」覆蓋，實作時掉棒，v2.16.0 才補回。這次事件暴露了「非 ticket 設計討論」缺乏 landing point，設計決策只存在對話記憶中，容易被後續 phrasing 覆蓋。design-plan 把決策從記憶轉成檔案，讓實作有確定性的 spec 可讀。
+
 ## [2.16.0] - 2026-04-15
 
 ### check-pr-approvals: JIRA status revert for 🔧 PRs
