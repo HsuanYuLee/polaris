@@ -40,7 +40,6 @@ When receiving a user request, match against this table top-down to determine wh
 | "quality check" / 「品質檢查」「跑測試」 | `/dev-quality-check` | Tests + coverage + lint |
 | "learn from \<url\>" / 「研究一下」「學習」 | `/learning` | External learning mode |
 | "learn from PRs" / 「學習 PR」 | `/learning` | PR learning mode |
-| "graduate lessons" / 「整理 review lessons」 | `/review-lessons-graduation` | Consolidate lessons into rules |
 
 ## Common Misroutes
 

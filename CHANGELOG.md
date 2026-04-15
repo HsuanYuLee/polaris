@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.13.0] - 2026-04-15
+
+### docs-sync fix + version-docs-lint-gate hook
+
+v2.12.0 刪除 `review-lessons-graduation` 後漏跑 post-version-bump chain，導致 14 處文件殘留引用。
+
+- **文件修復**：skill count 26→25（9 處）、phantom skill 引用（6 處）、mermaid 圖節點+邊
+- **確定性拘束**：新增 `version-docs-lint-gate.sh` — VERSION staged 時自動跑 `readme-lint.py`，lint fail 則 block commit
+- **Local-only 設計**：hook 註冊在 `settings.local.json`（gitignored），腳本在 repo 但不自動生效，避免暴露個人行為到 template
+- **Handbook 條目**：`working-habits.md` § 框架維護，記錄 bump 後必跑 docs-sync 的個人習慣
+- **Mechanism registry**：新增 `version-docs-lint-gate` + 更新 `docs-sync-on-version-bump` 加註確定性備援
+
 ## [2.11.0] - 2026-04-15
 
 ### standup local markdown backup

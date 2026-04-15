@@ -162,8 +162,6 @@ flowchart LR
     RP["review-pr"]
     RI["review-inbox"]
     CPA["check-pr-approvals"]
-    RLG["review-lessons-graduation"]
-
     %% ── Scrum Skills ──
     SP["sprint-planning"]
     SU["standup"]
@@ -199,9 +197,9 @@ flowchart LR
 
     %% ── Review chain ──
     RI -->|batch review| RP
-    RP -->|lesson extraction| RLG
-    FPR -->|lesson extraction| RLG
-    CPA -->|lesson extraction| RLG
+    RP -->|lesson → handbook| RP
+    FPR -->|lesson → handbook| FPR
+    CPA -->|lesson → handbook| CPA
 
     %% ── Context router ──
     NX -.->|work on ticket| WO
@@ -232,7 +230,7 @@ flowchart LR
 
     class WO,BT orchestrator
     class VR,VAC,UT_TDD quality
-    class RP,RI,CPA,FPR,RLG review
+    class RP,RI,CPA,FPR review
     class RF,EB,SASD,SP,IT planning
     class NX,MT,CV orchestrator
     class SU,UT,LRN,DS standalone

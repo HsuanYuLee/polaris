@@ -51,7 +51,7 @@ Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
 
 > **範例：** 你在不同的 PR 中糾正了 Claude 的 import 排序 3 次。第三次糾正時，這個教訓自動畢業成永久規則——之後所有 PR 都會自動遵循這個慣例。
 
-**技能：** `learning`, `review-lessons-graduation`, `checkpoint` — 另外 `review-pr`, `fix-pr-review` 和 `check-pr-approvals` 內建教訓萃取功能
+**技能：** `learning`, `checkpoint` — 另外 `review-pr`, `fix-pr-review` 和 `check-pr-approvals` 內建教訓萃取功能
 
 ### 支柱三 — 日常紀錄
 
@@ -138,7 +138,7 @@ cd ~/polaris-workspace
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 26 workflow skills
+│   └── skills/                   ← 25 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -165,7 +165,7 @@ cd ~/polaris-workspace
 
 ### 從這裡開始
 
-不要一次嘗試全部 26 個技能。根據你的角色挑一個開始：
+不要一次嘗試全部 25 個技能。根據你的角色挑一個開始：
 
 | 如果你是... | 先試這個 | 會發生什麼 |
 |------------|---------|-----------|
@@ -240,7 +240,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 26 workflow skills
+│   └── skills/                # 25 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory

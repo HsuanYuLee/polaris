@@ -208,6 +208,7 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 | `quality-evidence-required` | `git commit` blocked unless `/tmp/polaris-quality-{branch}.json` exists with `all_passed: true`. Bypass: `POLARIS_SKIP_QUALITY=1` or `wip:` commit message prefix. Skipped for main/develop and framework repo | PreToolUse hook on Bash, exit 2 to block | `scripts/quality-gate.sh` |
 | `test-sequence-warning` | When sequence test-fail → production-file-edit → test-pass is detected, inject warning about wrong-fix pattern | PostToolUse hook on Bash + Edit, stdout injection | `scripts/test-sequence-tracker.sh` |
 | `context-pressure-monitor` | At 20/25/35 tool calls, inject escalating warnings to save state and delegate. Counts Bash/Edit/Write/Read/Grep/Glob/Agent calls. State: `/tmp/polaris-session-calls.txt`. Reset on reboot | PostToolUse hook, stdout injection (advisory, not blocking) | `scripts/context-pressure-monitor.sh` |
+| `version-docs-lint-gate` | `git commit` blocked when VERSION is staged but `readme-lint.py` fails (phantom skills, count drift, undocumented skills). Bypass: `POLARIS_SKIP_DOCS_LINT=1`. Only fires in repos with VERSION file. **Local-only** — registered in `settings.local.json` (gitignored), not shipped to template | PreToolUse hook on Bash, exit 2 to block | `.claude/hooks/version-docs-lint-gate.sh` |
 
 **Evidence file spec** (`/tmp/polaris-verified-{TICKET}.json`):
 ```json
@@ -248,7 +249,7 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 |----|------|---------------|-------|
 | `challenger-milestone-only` | Challenger Audit runs pre-release/pre-share only | Challenger triggered after a single PR or during daily work | High |
 | `framework-exp-once-per-task` | At most 1 framework-experience memory per task | Multiple framework-experience memories with the same `last_triggered` date | Low |
-| `docs-sync-on-version-bump` | After VERSION bump commit, run docs-sync before sync-to-polaris | VERSION bumped and pushed without docs-sync invocation | High |
+| `docs-sync-on-version-bump` | After VERSION bump commit, run docs-sync before sync-to-polaris. **Deterministic backup:** `version-docs-lint-gate` hook blocks commit if VERSION staged + lint fails | VERSION bumped and pushed without docs-sync invocation | High |
 | `backlog-staleness-scan` | Post-version-bump chain Step 2 + monthly standup fallback: scan backlog for stale items | Version bump completes without backlog scan; first standup of month skips scan when no bump happened that month | Medium |
 | `version-bump-reminder` | After task completion, if committed files include `rules/` or `skills/` paths, remind user about version bump | Commit modifying `skills/` or `rules/` files followed by session end without version bump reminder | **Critical** |
 
