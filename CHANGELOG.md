@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [2.10.0] - 2026-04-15
+
+### check-pr-approvals v2.0.0 — detect + report only
+
+check-pr-approvals 從「偵測 + 自動修正 + 催 review」瘦身為「偵測 + 報告 + 催 review」。
+
+- **移除所有自動修正邏輯**：CI 修正、rebase conflict 解衝突、review comment 修正（原委派 fix-pr-review）全部移除
+- **三分類報告**：🟢 可催 review / 🔧 需先修正（附 ticket key）/ ✅ 已達標
+- **修正走 engineering**：問題 PR 由使用者主動「做 KB2CW-XXXX」觸發 engineering 完整流程（TDD + behavioral verify），確保功能不被改壞
+- **冪等設計**：每次執行重新掃描當前狀態，不等修正完成、不輪詢遠端 CI
+- **移除 review lessons 萃取**：lesson 萃取應在 engineering 修正時自然產生，不在掃描時回溯
+- **Backlog**：review-lessons buffer 廢除排入 Medium backlog
+
+淨減 124 行（78 insertions, 202 deletions）。四個 bundled scripts 不動，engineering 不動。
+
 ## [2.9.0] - 2026-04-14
 
 ### docs-sync restructure — deterministic lint + git-diff scoping
