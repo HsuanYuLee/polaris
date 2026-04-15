@@ -32,8 +32,13 @@ Core principle: **each skill consumes a self-contained input and produces a well
 
 Breakdown 產出的 task.md 是 engineering 的唯一輸入（除了 codebase 和自動載入的 handbook）。必須 self-contained。
 
+**Header numbering**:
+- Sequential T-numbers per implementation subtask (T1..TN). AC 驗收單不佔 T-number（獨立 ticket）。
+- Split subtasks preserve parent index + alpha suffix (T8 → T8a, T8b) to avoid renumbering siblings and breaking downstream references.
+- Validator regex: `T[0-9]+[a-z]*`（見 `scripts/validate-task-md.sh`）。
+
 ```markdown
-# T{n}: {Task summary} ({SP} pt)
+# T{n}[suffix]: {Task summary} ({SP} pt)
 
 > Epic: {EPIC_KEY} | JIRA: {TASK_KEY} | Repo: {repo_name}
 

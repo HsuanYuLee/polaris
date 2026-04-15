@@ -4,6 +4,23 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.3.0] - 2026-04-16
+
+### Breakdown pipeline — split subtasks + SUPERSEDED pattern
+
+Addresses two gaps surfaced by GT-478 breakdown (11 implementation subtasks, 1 of which was split; 3 obsolete verification subtasks needing retirement).
+
+- `scripts/validate-task-md.sh`:
+  - Header regex relaxed `^# T[0-9]+:` → `^# T[0-9]+[a-z]*:` to allow split subtask headers (T8a, T8b)
+  - Rationale: preserving parent T-number + alpha suffix avoids renumbering siblings and breaking downstream task.md references
+- `skills/references/pipeline-handoff.md`:
+  - § task.md Schema: added **Header numbering** note documenting sequential + suffix convention and validator regex
+- `skills/references/jira-subtask-creation.md`:
+  - New § **Retiring Obsolete Subtasks** — `[SUPERSEDED]` summary prefix + SP=0 + comment pattern for workflows without direct Open → Cancel transition
+  - Applies to any company workflow lacking Cancelled/Rejected transition from initial state
+- `polaris-backlog.md`:
+  - Added **Breakdown: AC drift detection vs refinement artifact** (High) — Step 3 should flag mismatched AC numbering between existing subtasks and refinement.json
+
 ## [3.2.0] - 2026-04-16
 
 ### Library change protocol — reviewer-suggested upgrade pause

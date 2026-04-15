@@ -25,9 +25,10 @@ fi
 
 errors=()
 
-# --- Header: # T{n}: {summary} ({SP} pt) ---
-if ! grep -qE '^# T[0-9]+: .+\([0-9.]+ ?pt\)' "$FILE"; then
-  errors+=("missing or malformed header: expected '# T{n}: {summary} ({SP} pt)'")
+# --- Header: # T{n}[suffix]: {summary} ({SP} pt) ---
+# Suffix (a-z*) supports split subtasks (e.g. T8a, T8b) without renumbering siblings.
+if ! grep -qE '^# T[0-9]+[a-z]*: .+\([0-9.]+ ?pt\)' "$FILE"; then
+  errors+=("missing or malformed header: expected '# T{n}[suffix]: {summary} ({SP} pt)'")
 fi
 
 # --- Metadata quote line: > Epic: ... | JIRA: {KEY} | Repo: ... ---

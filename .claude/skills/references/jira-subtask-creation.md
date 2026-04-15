@@ -133,6 +133,24 @@ mcp__claude_ai_Atlassian__createJiraIssue
 3. 填入估點（per-AC 每張 1 pt；合併版 ≤ 3 AC → 1 pt，> 3 AC → 2 pt）
 4. 驗收單的母單估點也要計入總和
 
+## Retiring Obsolete Subtasks（作廢既有子單）
+
+當既有子單需作廢（scope 整併、refinement 重整 AC 結構、ticket 重建等）但 workflow 無 direct cancel transition 時（YourOrg workflow 從 Open 不可直接轉 Cancelled），改用 `[SUPERSEDED]` 模式：
+
+1. **Summary prefix** `[SUPERSEDED]`（editJiraIssue.fields.summary）
+2. **SP=0**（不列入 sprint 工作量；editJiraIssue.fields.<storyPointsFieldId>）
+3. **Comment 指向取代者**（含新 ticket 連結 + 原因）
+4. **保留 Open 狀態**，不強行 transition
+
+適用情境：
+- Refinement v2 改動 AC 結構，舊驗證子單引用的 AC 編號已失效
+- Scope 整併，既有子單合併到另一張
+- Ticket 重建（新 ticket 有更完整描述）
+
+這是**最穩的通用處理**，不依賴各公司的 workflow transition 配置。若公司 workflow 支援 `Cancelled` / `Rejected` 狀態且可從 Open 直接 transition，先嘗試 transition；不支援才退回此模式。
+
+先用 `getTransitionsForJiraIssue` 確認可用 transition 再決定路線。
+
 ## 注意事項
 
 - `projectKey` 從母單 key 動態提取，子單開在與母單相同的專案
