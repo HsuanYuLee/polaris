@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.2.0] - 2026-04-16
+
+### Library change protocol — reviewer-suggested upgrade pause
+
+Addresses drift in `engineering` revision mode where sub-agents default to closing PRs by silently deferring reviewer-suggested library upgrades ("defer to next sprint", "current version doesn't support this"). Reviewer upgrade suggestions are often load-bearing signals — silently dismissing them loses legitimate improvement paths and burns reviewer trust.
+
+- `rules/library-change-protocol.md`:
+  - New § **Reviewer-Suggested Upgrades in Revision Mode** — pause and escalate to user before deciding
+  - Forbidden defaults: unilateral deferral, "T3 so deferred" auto-response, "reply-only no code change"
+  - Correct flow: sub-agent stops → main agent asks user → user decides Y (upgrade protocol) or N (reply with reason)
+  - Scope: any library/framework/module upgrade suggestion in PR review, not just Nuxt modules
+  - New Common Rationalization row added
+- `rules/mechanism-registry.md`:
+  - New canary **`lib-reviewer-upgrade-pause`** (High drift) — detects "deferred to next sprint" replies without user consultation
+
 ## [3.1.0] - 2026-04-16
 
 ### Refinement skill — Worktree Isolation
