@@ -1,8 +1,8 @@
 # Review Lesson Extraction
 
-Shared logic for extracting learnable patterns from PR review comments, deduplicating against existing knowledge, and writing to review-lessons files.
+Shared logic for extracting learnable patterns from PR review comments, deduplicating against existing knowledge, and writing directly to repo handbook sub-files.
 
-Used by: `learning` (PR mode, Batch mode), `review-pr` (Step 6.5)
+Used by: `learning` (PR mode, Batch mode), `fix-pr-review` (Step 12.5)
 
 ## Sub-agent Prompt Template
 
@@ -57,12 +57,24 @@ Return a JSON array:
 If no learnable patterns found, return an empty array [].
 ```
 
+## Three-Layer Classification
+
+Before writing any pattern, classify it into one of three layers:
+
+| Layer | Scope | Write target |
+|-------|-------|-------------|
+| **Repo-specific** | Applies only to this repo's stack, architecture, or conventions | `{repo}/.claude/rules/handbook/` |
+| **Company-level** | Applies across multiple repos in the same company | `rules/{company}/handbook/` |
+| **Framework-level** | Applies across all companies and repos | Mark `[framework]`, write as feedback memory instead |
+
+Reference `repo-handbook.md` Step 3b for the full three-layer classification logic. When in doubt, default to repo-specific — it is always safe to start narrow and promote later.
+
 ## Deduplication Logic
 
 Before writing any lessons, load existing knowledge to avoid duplicates:
 
-1. **Read all review-lesson files** in `{base_dir}/<repo>/.claude/rules/review-lessons/*.md`
-2. **Read all main rule files** in `{base_dir}/<repo>/.claude/rules/*.md` (excluding `review-lessons/` subdirectory)
+1. **Read all handbook sub-files** in `{base_dir}/<repo>/.claude/rules/handbook/*.md`
+2. **Read all main rule files** in `{base_dir}/<repo>/.claude/rules/*.md` (excluding `handbook/` subdirectory)
 3. Also check `{base_dir}/.claude/rules/*.md` (workspace-level rules)
 
 For each extracted pattern, compare against existing lessons and rules:
@@ -72,7 +84,7 @@ For each extracted pattern, compare against existing lessons and rules:
 
 ## Write Format
 
-Write extracted patterns to `{base_dir}/<repo>/.claude/rules/review-lessons/` :
+Write extracted patterns directly to `{base_dir}/<repo>/.claude/rules/handbook/`:
 
 **File naming**: Topic-based, kebab-case `.md` files (e.g., `typescript-type-safety.md`, `error-handling.md`). Append to existing files of the same topic — do not create a new file if one with the matching topic already exists.
 
@@ -88,22 +100,14 @@ Write extracted patterns to `{base_dir}/<repo>/.claude/rules/review-lessons/` :
 
 When appending to an existing file, add new entries after the last existing entry (before EOF). Do not modify existing entries.
 
+> **Bootstrap note**: If the repo does not yet have a handbook directory, create it. The first lesson extraction for a repo bootstraps the handbook.
+
 ### Reverse Sync
 
-After writing, reverse-sync review-lessons back to ai-config (source of truth):
+After writing, reverse-sync the handbook back to ai-config (source of truth):
 
 ```bash
 {base_dir}/polaris-sync.sh --reverse {project-name}
 ```
 
 Where `{project-name}` is derived from the repo directory name (e.g., `acme-web-app`).
-
-## Graduation Check
-
-After extraction, check whether graduation should trigger:
-
-| Mode | Condition | Action |
-|------|-----------|--------|
-| **PR mode** (incremental) | Count total `^- ` lines across all review-lesson files in the repo. If >= 15 → trigger | `Invoke review-lessons-graduation to consolidate review-lessons in <repo>.` |
-| **PR mode** (below threshold) | Count < 15 | Report: "目前 {repo} 有 X 條 review-lessons，累積到 15 條後會自動觸發 graduation。" |
-| **Batch mode** | Always trigger (batch is designed to fill the pipeline) | `Invoke review-lessons-graduation for {repo} (manual trigger — includes Step 2.5 semantic grouping).` |

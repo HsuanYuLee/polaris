@@ -164,11 +164,10 @@ Detailed rules live in `.claude/rules/` files.
 Polaris produces two categories of files in product repos:
 
 ### Project Assets (committed to product repo)
-- `.claude/rules/*.md` — Coding guidelines iterated through review-lessons graduation. Valuable for any AI tool or human code review, even without Polaris
+- `.claude/rules/*.md` — Coding guidelines (including `handbook/` sub-files from PR review extraction). Valuable for any AI tool or human code review, even without Polaris
 - `.claude/CLAUDE.md` — Project-level AI operating manual
 
 ### Framework Files (gitignored, managed by `ai-config/`)
-- `.claude/rules/review-lessons/` — Pre-graduation lesson buffer (temporary)
 - `.claude/skills/` — Polaris-specific skill definitions
 - `{company_base_dir}/specs/` — Per-ticket spec folders (refinement, breakdown, implementation plans, verification records)
 - `.claude/settings.local.json` — Personal/machine settings
@@ -176,12 +175,11 @@ Polaris produces two categories of files in product repos:
 ### Sync Mechanism
 - **Source of truth**: `{company}/ai-config/{project}/` (local, not in Polaris template)
 - **Deploy** (ai-config → repo): `{company}/polaris-sync.sh {project}` — run after creating a feature branch
-- **Reverse sync** (repo → ai-config): `{company}/polaris-sync.sh --reverse {project}` — run after skills write review-lessons
+- **Reverse sync** (repo → ai-config): `{company}/polaris-sync.sh --reverse {project}` — run after skills write handbook lessons
 - **Status**: `{company}/polaris-sync.sh --status`
 
 Product repos `.gitignore` should include:
 ```
-.claude/rules/review-lessons/
 .claude/skills/
 {company_base_dir}/specs/
 .claude/settings.local.json

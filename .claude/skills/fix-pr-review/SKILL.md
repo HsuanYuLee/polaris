@@ -764,9 +764,9 @@ Post-fix Self Review：
 Commit: <sha>
 ```
 
-## 12.5 Review Lesson 萃取
+## 12.5 Review Lesson 萃取（Handbook Direct Write）
 
-修正完成後，靜默分析本次 review comments，將可通用化的 coding pattern 萃取為 `.claude/rules/review-lessons/` 規則檔。目的：避免同類問題在未來的 PR 反覆出現——寫 code 的 skill（engineering、bug-triage、unit-test）啟動時會讀取 `.claude/rules/`，等同於把 reviewer 的回饋內建到開發流程中。
+修正完成後，靜默分析本次 review comments，將可通用化的 coding pattern 直接寫入 `.claude/rules/handbook/` repo handbook。目的：避免同類問題在未來的 PR 反覆出現——寫 code 的 skill（engineering、bug-triage、unit-test）啟動時會讀取 handbook，等同於把 reviewer 的回饋內建到開發流程中。
 
 ### 萃取條件
 
@@ -789,15 +789,16 @@ Commit: <sha>
 
 1. **掃描本次所有 review comments**（Step 4 取得的 `comments` + `issue_comments`），篩選出「已修正」的 comment
 2. **逐一判斷**是否為可通用化 pattern
-3. **雙層去重**：比對 (1) 既有 review-lessons 檔案 **和** (2) 主 rules 檔案（`.claude/rules/*.md`），語意相同則跳過
-   - 既有 lesson 有同主題 → 讀取後追加新的 Source 記錄，必要時更新規則描述
+3. **雙層去重**：比對 (1) 既有 handbook 子檔案（`{repo}/.claude/rules/handbook/*.md`）**和** (2) 主 rules 檔案（`.claude/rules/*.md`），語意相同則跳過
+   - 既有 handbook 子檔案有同主題 → 讀取後追加新的 Source 記錄，必要時更新規則描述
    - 無 → 建立新檔案
    - **框架級分流**：若 pattern 屬於框架層級（skill 設計、delegation 策略、rules 機制、memory 管理），在 entry 前方標記 `[framework]`
+   - **三層分類**：repo-specific → handbook（`{repo}/.claude/rules/handbook/`）, company-level → `rules/{company}/handbook/`, framework → feedback memory（參考 `repo-handbook.md` Step 3b）
 4. **如果沒有可通用化的 pattern → 直接跳過**，不輸出任何訊息
 
 ### 檔案格式
 
-檔名：`review-lessons/<主題>.md`（kebab-case，如 `vue-reactivity.md`、`error-handling.md`）
+檔名：`handbook/<主題>.md`（kebab-case，如 `vue-reactivity.md`、`error-handling.md`）
 
 ```markdown
 # [主題標題]
@@ -823,18 +824,14 @@ Commit: <sha>
 
 ### 重要注意事項
 
-- **靜默執行**：只在確實萃取到 lesson 時通知使用者（「已萃取 N 條 review lesson 到 `.claude/rules/review-lessons/`」）
-- **檔案歸屬**：review-lessons 屬於 Polaris 框架管理的檔案，由 `ai-config/` 統一管理。在專案 repo 中這些檔案被 `.gitignore` 排除，不會進入 feature PR
+- **靜默執行**：只在確實萃取到 lesson 時通知使用者（「已萃取 N 條 review lesson 到 repo handbook」）
+- **檔案歸屬**：handbook 子檔案屬於 Polaris 框架管理的檔案，由 `ai-config/` 統一管理。在專案 repo 中這些檔案被 `.gitignore` 排除，不會進入 feature PR
 - **不 commit**：萃取的 lesson 檔案不加入本次 fix commit——它們透過 reverse-sync 寫回 `ai-config/`
 - **合併而非重複**：同一主題的 lesson 追加到既有檔案，不建新檔
 
-### Review Lessons 畢業檢查（靜默）
-
-萃取完成後，計算 `{base_dir}/<repo>/.claude/rules/review-lessons/` 的總條目數（每個 `^- ` 開頭的行 = 1 條）。若 >= 15 → invoke `review-lessons-graduation`。若 < 15 → 不輸出任何訊息。
-
 ### Reverse Sync（靜默）
 
-萃取完成後，執行 reverse-sync 將 review-lessons 寫回 ai-config（source of truth）：
+萃取完成後，執行 reverse-sync 將 handbook lessons 寫回 ai-config（source of truth）：
 
 ```bash
 {base_dir}/polaris-sync.sh --reverse {project-name}

@@ -378,9 +378,7 @@ PR review 發現 pattern → 分類（Step 3b 三層分類）
                            └─ framework → feedback memory（走累積→畢業流程）
 ```
 
-**有 handbook 的 repo，PR review findings 直接寫入 handbook，不經 review-lessons buffer。** Repo-specific 知識是事實性的，第一次就該寫對，不需要等三次累積。review-lessons buffer 已廢除。
-
-> `review-lessons-graduation` skill 仍可用於處理尚未遷移的舊 repo（尚無 handbook 的 repo）。有 handbook 的 repo 不再產出 review-lessons。
+**所有 repo 的 PR review findings 直接寫入 handbook，不經中間 buffer。** Repo-specific 知識是事實性的，第一次就該寫對，不需要等累積。如果 repo 尚無 handbook 目錄，第一次 lesson extraction 會自動建立。
 
 ## Step 4: Ongoing Maintenance (Ingest + Stale Detection)
 

@@ -471,7 +471,7 @@ PR Approve 狀況：目前 M/2 valid approve(s)
 
 ### 核心原則：Standard First
 
-Review 中發現的 repo-specific pattern 應**直接寫入 handbook**，不經 review-lessons buffer。Handbook 是 repo 的 coding 準則 — 發現新 pattern 就更新標準，下次 review 或開發直接按新標準走。
+Review 中發現的 repo-specific pattern 應**直接寫入 handbook**。Handbook 是 repo 的 coding 準則 — 發現新 pattern 就更新標準，下次 review 或開發直接按新標準走。
 
 ### 萃取判斷
 

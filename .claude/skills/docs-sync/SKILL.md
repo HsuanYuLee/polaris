@@ -190,7 +190,7 @@ When adding a new skill to docs, determine which pillar it belongs to:
 | Skill Type | Pillar | chinese-triggers Category |
 |------------|--------|--------------------------|
 | Dev workflow (branch, code, PR) | 輔助開發 | 開發流程 or 程式碼審查 |
-| Learning, review-lessons | 自我學習 | 品質保障 |
+| Learning | 自我學習 | 品質保障 |
 | Standup, sprint, worklog | 日常紀錄 | 專案管理 |
 | Tools, config, init | — | 工具與設定 |
 

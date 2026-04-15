@@ -118,7 +118,7 @@ Level 4: 無 ticket context 或 ticket 已完成
 ├─ 有 parent Epic → 「看 Epic 進度？」→ 建議 epic-status <EPIC_KEY>
 └─ 無 context → 「沒有進行中的工作，要做什麼？」
     → 建議最近的 JIRA ticket 或 sprint backlog
-    → 順帶檢查 review-lessons: 計算 review-lessons/ entry 數，>= 15 則建議跑 graduation
+    → 建議查看 sprint backlog 或 `/my-triage`
 ```
 
 ## Step 4：執行

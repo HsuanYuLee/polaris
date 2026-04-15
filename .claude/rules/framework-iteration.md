@@ -7,7 +7,7 @@ How Polaris improves itself. Three cadences, each with its own mechanism.
 | Cadence | When | Mechanism | Source |
 |---------|------|-----------|--------|
 | Micro | After every task | Post-task reflection → feedback memory / backlog | `rules/feedback-and-memory.md` |
-| Meso | After every PR | review-lessons → graduation to rules | skill: `review-lessons-graduation` |
+| Meso | After every PR | PR review → handbook direct write | `repo-handbook.md` Step 3b + `review-lesson-extraction.md` |
 | Macro | Pre-release only | Challenger Audit → polaris-backlog | This file § Challenger Audit |
 
 Daily iteration is driven by **real usage** (Micro + Meso), not simulated review.

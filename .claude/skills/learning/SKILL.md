@@ -11,9 +11,9 @@ metadata:
 Five modes of learning:
 - **External mode** — Research external content (articles, repos, talks) and distill actionable insights for our workspace
 - **Queue mode** — Process articles from the daily learning queue, batch-analyze, and archive
-- **PR mode** — Learn from merged PRs by extracting review patterns into review-lessons (feeds into the existing graduation mechanism)
+- **PR mode** — Learn from merged PRs by extracting review patterns directly into the repo handbook
 - **Setup mode** — Configure or update the daily learning scanner schedule and topic preferences
-- **Batch mode** — Scan a repo's full merged-PR history, skip already-extracted PRs, batch-extract review-lessons from the rest, then trigger graduation
+- **Batch mode** — Scan a repo's full merged-PR history, skip already-extracted PRs, batch-extract patterns to the repo handbook
 
 > **首次使用？** 如果你還沒設定每日學習掃描，輸入 `設定學習` 或 `learning setup` 開始設定。設定後每天自動推薦文章到 Slack。
 
@@ -154,7 +154,7 @@ This is the most important baseline source: it captures what we've **already lea
 
 | Source | What to extract | How |
 |---|---|---|
-| Project `.claude/rules/review-lessons/` | Recurring review patterns — things reviewers keep flagging | Read lesson files, look for high-source-count entries |
+| Project `.claude/rules/handbook/` | Recurring review patterns — things reviewers keep flagging | Read handbook files, look for high-source-count entries |
 | Recent PR review comments | Patterns reviewers catch | `gh pr list --state merged --limit 5` → read review comments |
 | Project CLAUDE.md | Known conventions and pain points | Read the project's AI operating manual |
 | Test coverage gaps | Areas with low coverage | Read coverage config if available |
@@ -180,7 +180,7 @@ Baseline Snapshot (project target: your-app):
   Composables: useProduct, useCart, useAuth — setup-only constraint
   SSR: defineCachedEventHandler, Nitro routes
   Testing: Vitest + coverage-v8, component + unit
-  Known gaps: E2E coverage (backlog), composable lifecycle docs (review-lessons)
+  Known gaps: E2E coverage (backlog), composable lifecycle docs (handbook)
 ```
 
 This snapshot is NOT used to guide exploration (Step 2-3). It is used in Step 4 to compare findings against our current state.
@@ -755,7 +755,7 @@ If yes: `RemoteTrigger run` → tell user to check Slack for the queue message.
 
 # PR Learning Flow
 
-Learn from merged PRs by extracting review patterns into review-lessons. The value: knowledge that was exchanged in PR reviews (corrections, suggestions, pattern enforcement) gets systematically captured so the whole team benefits — not just the PR author and reviewer.
+Learn from merged PRs by extracting review patterns into repo handbooks. The value: knowledge that was exchanged in PR reviews (corrections, suggestions, pattern enforcement) gets systematically captured so the whole team benefits — not just the PR author and reviewer.
 
 ## Step P1: Resolve Target PRs
 
@@ -790,7 +790,7 @@ Sub-agent prompt, dedup logic, write format, and reverse sync are defined in `@r
 
 Follow `review-lesson-extraction.md` § Deduplication Logic.
 
-## Step P4: Write Review Lessons
+## Step P4: Write to Handbook
 
 Follow `review-lesson-extraction.md` § Write Format + § Reverse Sync.
 
@@ -817,9 +817,7 @@ Present a summary to the user:
 - #456 — {reason: e.g., "only LGTM comments", "all comments were typo fixes"}
 ```
 
-### Graduation check
-
-Follow `review-lesson-extraction.md` § Graduation Check (PR mode: threshold >= 15).
+Extraction 完成後不需要 graduation — lessons 已直接寫入 handbook。
 
 ## Edge Cases (PR Mode)
 
@@ -827,23 +825,23 @@ Follow `review-lesson-extraction.md` § Graduation Check (PR mode: threshold >= 
 - **PR is not merged**: Warn the user — learning is designed for merged PRs where the review cycle is complete. Open PRs may have unresolved discussions. Proceed if the user insists
 - **Cannot determine repo**: Ask the user which repo to target
 - **User wants to learn from their own PRs**: That's fine — same flow. Their own PRs may have received valuable feedback from reviewers
-- **Review comments are in a mix of languages**: Extract the pattern in whichever language makes it clearest (Chinese or English), matching the style of existing review-lessons in that repo
+- **Review comments are in a mix of languages**: Extract the pattern in whichever language makes it clearest (Chinese or English), matching the style of existing handbook entries in that repo
 - **Reviewer disagreement** (reviewer A says X, reviewer B says Y): Skip the conflicting pattern, or note both sides and let the user decide which to keep
 
 ---
 
 # Batch Learning Flow
 
-Scan a repo's merged-PR history, automatically find PRs whose review comments haven't been extracted yet, batch-extract them into review-lessons, then trigger graduation. This is the "backfill" mode — it closes the gap when review-lessons weren't collected in real time (e.g., PRs fixed manually without `fix-pr-review`, or the repo was onboarded after months of existing PRs).
+Scan a repo's merged-PR history, automatically find PRs whose review comments haven't been extracted yet, batch-extract them into repo handbooks. This is the "backfill" mode — it closes the gap when handbook lessons weren't collected in real time (e.g., PRs fixed manually without `fix-pr-review`, or the repo was onboarded after months of existing PRs).
 
 ### Difference from PR mode
 
 | | PR mode | Batch mode |
 |---|---|---|
 | **Who picks the PRs** | User specifies PR numbers, person, or time range | Automatic — all merged PRs with unextracted review comments |
-| **Goal** | Study specific PRs for learning | Fill the review-lessons pipeline so graduation can fire |
+| **Goal** | Study specific PRs for learning | Fill the handbook with patterns from historical PRs |
 | **Dedup** | Semantic only (Step P3) | Layer 1 (Source URL) + Layer 2 (semantic) |
-| **Post-extraction** | Graduation check (count >= 15) | Graduation with Step 2.5 semantic grouping (always) |
+| **Post-extraction** | Summary report | Summary report |
 
 ## Step B1: Resolve Target Repos
 
@@ -865,7 +863,7 @@ The user can override: `掃 your-app 最近半年` → 6 months. Cap at 12 month
 
 ## Step B2: Collect Already-Extracted Source PRs
 
-For each repo, read all files in `{base_dir}/<repo>/.claude/rules/review-lessons/*.md`.
+For each repo, read all files in `{base_dir}/<repo>/.claude/rules/handbook/*.md`.
 
 Extract every `Source:` line and collect all PR URLs/numbers into a set. These are the PRs that have already been processed — they will be skipped entirely (Layer 1 dedup).
 
@@ -924,17 +922,15 @@ Collect all extracted patterns from all sub-agents. Follow `review-lesson-extrac
 |-------|------|-----------|
 | ... | ... | #123 |
 
-### 跳過的 PR（已在 review-lessons 中）
+### 跳過的 PR（已在 handbook 中）
 {count} 個 — Layer 1 dedup
 ```
 
-### Auto-trigger graduation
-
-Follow `review-lesson-extraction.md` § Graduation Check (Batch mode: always trigger). If scanning multiple repos, trigger graduation for each repo after its extraction completes.
+Extraction 完成後不需要 graduation — lessons 已直接寫入 handbook。
 
 ## Edge Cases (Batch Mode)
 
-- **No unextracted PRs found**: Report "所有 merged PRs 的 review comments 都已萃取完畢，{repo} 的 review-lessons 管線是完整的。" and skip graduation
+- **No unextracted PRs found**: Report "所有 merged PRs 的 review comments 都已萃取完畢，{repo} 的 handbook 萃取管線是完整的。" and skip
 - **Rate limiting**: If `gh api` hits rate limits, pause and retry with exponential backoff. Report to user if wait exceeds 30 seconds
 - **Large repos (> 100 merged PRs in range)**: The 30-PR cap applies. Tell the user: "共 {N} 個未萃取的 PR，本次掃描前 30 個。再跑一次 `batch learn {repo}` 可以繼續處理剩餘的。"
 - **Mixed repos**: If scanning all configured repos, report per-repo summaries and a final aggregate
