@@ -212,10 +212,17 @@ LOCKED 的 plan 即 self-contained work order。跟 `breakdown → task.md → e
 
 所有 Checklist 打勾 → Strategist：
 
-1. Status: LOCKED → IMPLEMENTED
-2. 填 `implemented_at`
-3. 加 Implementation Notes（實作過程觀察、後續 follow-up）
-4. Plan file 跟 implementation 一起 commit
+1. **Checklist completeness gate（deterministic）**：
+   ```bash
+   grep -c '^\- \[ \]' {plan_file_path}
+   ```
+   - 回傳 > 0（有未勾項）→ **BLOCK**：列出未勾項，逐一確認 done/dropped 後再繼續
+   - 回傳 0（全部勾完）→ proceed
+   - 這是硬門檻，不可跳過。最常漏勾的是「最後一項（commit/sync）」——因為完成時注意力已離開 plan file
+2. Status: LOCKED → IMPLEMENTED
+3. 填 `implemented_at`
+4. 加 Implementation Notes（實作過程觀察、後續 follow-up）
+5. Plan file 跟 implementation 一起 commit
 
 ## Pivot 處理
 

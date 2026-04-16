@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.8.1] - 2026-04-16
+
+### Design plan checklist completeness gate
+
+design-plan Phase 5 now runs `grep -c '- [ ]'` before allowing status → IMPLEMENTED. If any unchecked items remain, the transition is blocked until each is confirmed done or dropped. Fixes the "last item forgot to tick" pattern discovered in DP-003 (commit/sync completed but checklist not updated because attention had moved to session memory).
+
+- `skills/design-plan/SKILL.md` — Phase 5 gains a deterministic grep gate as Step 1, before status change
+
 ## [3.8.0] - 2026-04-16
 
 ### Epic-centric specs folder (unified artifact structure)
