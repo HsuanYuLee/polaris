@@ -23,18 +23,27 @@
 | Kibana hosts | `kibana.host`, `kibana.sit_host`, `kibana.stage_host` | kibana-logs |
 | Kibana index pattern | `kibana.index_pattern` | kibana-logs |
 
-## 動態值（非常數）
+## User Identity（config 優先 → dynamic fallback）
 
-以下值不應寫死，每次執行時動態取得：
-
-| 值 | 取得方式 | 說明 |
-|----|----------|------|
-| GitHub username | `gh api user --jq '.login'` | 當前使用者的 GitHub 帳號，用於排除自己的 PR、搜尋自己的 PR 等 |
+| 值 | 主要來源 | Fallback | 說明 |
+|----|----------|----------|------|
+| GitHub username | `workspace-config.yaml` → `user.github_username` | `gh api user --jq '.login'` | 當前使用者的 GitHub 帳號，用於排除自己的 PR、搜尋自己的 PR 等 |
 
 各 skill workflow 開頭應執行：
 
 ```bash
-MY_USER=$(gh api user --jq '.login')
+# Config 優先，fallback dynamic
+MY_USER=$(python3 -c "
+import yaml, sys
+try:
+    cfg = yaml.safe_load(open('$WORKSPACE_ROOT/workspace-config.yaml'))
+    u = cfg.get('user', {}).get('github_username', '')
+    if u: print(u); sys.exit(0)
+except: pass
+sys.exit(1)
+" 2>/dev/null) || MY_USER=$(gh api user --jq '.login')
 ```
 
 再將 `$MY_USER` 傳入 scripts 的 `--author` / `--exclude-author` 參數。
+
+> **不可在 rules/ 或 handbook 中 hardcode user-specific data**（GitHub username、email、Slack ID）。這些值必須從 workspace-config `user:` section 或動態取得。見 DP-007。

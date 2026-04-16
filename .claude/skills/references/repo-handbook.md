@@ -12,6 +12,16 @@ handbook.md  = 給 AI 看的架構文件（這個系統長什麼樣）
 
 Like onboarding a new hire: first understand what the system IS, then learn how to work with it.
 
+## Content Constraints
+
+| Rule | Reason |
+|------|--------|
+| **No user-specific data** — GitHub username, personal email, Slack user ID, personal name | Handbook is shared across all framework users. User identity comes from `workspace-config.yaml` `user:` section or dynamic detection (`gh api user`). See DP-007 |
+| **No secrets** — API keys, tokens, passwords | Handbook lives in `.claude/rules/` (git tracked for company handbooks) |
+| **Company-level identifiers are OK** — GitHub org, JIRA project key, Slack channel ID | These are shared across the team |
+
+Enforced by `scripts/scan-user-data-leak.sh` (integrated into `/validate` isolation mode).
+
 ## Lifecycle
 
 ```

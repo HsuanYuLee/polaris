@@ -4,6 +4,26 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.12.0] - 2026-04-17
+
+### DP-007: User Config Isolation + Docs Viewer Hot Reload
+
+Fixes user-specific data leakage when sharing the framework with teammates. Colleague discovered hardcoded GitHub username (`daniel-lee-kk`) in company handbook leaking to all framework users.
+
+**User config isolation (DP-007)**
+- Removed hardcoded `developer account daniel-lee-kk` from `rules/kkday/handbook/index.md`
+- Added `user:` section to `workspace-config.yaml` — config-first, fallback `gh api user`
+- Updated `workspace-config.yaml.example` with user section template
+- Updated `skills/references/shared-defaults.md` — GitHub username lookup now reads config first
+- New `scripts/scan-user-data-leak.sh` — detects hardcoded user data in `rules/`
+- Integrated scan into `validate` skill (Isolation mode check #5)
+- Added Content Constraints section to `skills/references/repo-handbook.md` — no user-specific data in handbooks
+- Deferred: `/init` graceful fallback when `gh api` unavailable (backlog Medium)
+
+**Docs viewer improvements**
+- New PostToolUse hook `specs-sidebar-sync.sh` — auto-regenerates sidebar when specs files are written/edited
+- Hot reload for docs-viewer — 1s polling on `_sidebar.md` Last-Modified, pauses when tab hidden
+
 ## [3.11.0] - 2026-04-16
 
 ### MCP Transport Migration + Codex Compatibility

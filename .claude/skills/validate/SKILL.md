@@ -37,6 +37,7 @@ Scans for multi-company contamination issues.
 2. **Cross-company conflicts** — contradictory rules across companies, hardcoded cross-company references
 3. **Memory company tags** — company-specific memories must have `company:` frontmatter
 4. **MEMORY.md index format** — company-scoped entries need `[company]` prefix
+5. **User data leak** — run `scripts/scan-user-data-leak.sh` to detect hardcoded user-specific data (GitHub username, email) in shared rules. See DP-007
 
 ### Report format
 

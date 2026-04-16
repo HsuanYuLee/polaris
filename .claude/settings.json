@@ -22,6 +22,24 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/version-bump-reminder.sh\""
           }
         ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/specs-sidebar-sync.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/specs-sidebar-sync.sh\""
+          }
+        ]
       }
     ]
   },
