@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.16.0] - 2026-04-17
+
+### DP-009 Close: Deterministic Checklist Gate + D3 Detail Path Propagation
+
+**design-plan-checklist-gate (new deterministic hook)**
+- `scripts/design-plan-checklist-gate.sh`: PreToolUse hook on Edit/Write — blocks `status: IMPLEMENTED` when plan has unchecked `[ ]` items in Implementation Checklist
+- Registered in `settings.json` PreToolUse, `mechanism-registry.md` upgraded from behavioral to deterministic
+- Root cause: Strategist skipped checklist check when closing DP-009 — behavioral rule failed, now enforced by hook
+
+**D3 Detail path propagation (gap fix)**
+- 13 SKILL.md files updated with Completion Envelope Detail path instructions in sub-agent dispatch prompts
+- Root cause: v3.14.0 deferred this item claiming "Reference Discovery auto pull-in" — but sub-agents don't read INDEX.md; dispatch prompts are the only delivery mechanism
+
 ## [3.15.0] - 2026-04-17
 
 ### DP-009: Context Consumption Optimization (D2 — Rules Slimming)
