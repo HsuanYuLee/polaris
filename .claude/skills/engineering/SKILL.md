@@ -190,7 +190,10 @@ Sub-agent **不會**自動載入 `.claude/rules/`。你必須自己讀：
 - **AC 驗證由 verify-AC skill 接手**：work-on 不跑 AC 驗證。PR 開完後使用者跑「驗 {EPIC}」或 opportunistic 偵測觸發
 
 ### 4. 回傳結果
-回傳：ticket key、branch name、PR URL、品質檢查摘要、測試計畫驗證結果。
+
+使用 Completion Envelope 格式（見 `skills/references/sub-agent-roles.md`）：
+- Summary ≤ 3 句（ticket key、PR URL、品質摘要）
+- Detail 寫入 `specs/{EPIC}/artifacts/engineering-{ticket_key}-{timestamp}.md`（完整品質檢查輸出、測試計畫驗證結果）
 
 ## 限制
 - 你無法使用 Skill tool，改為讀取 SKILL.md 並直接執行步驟

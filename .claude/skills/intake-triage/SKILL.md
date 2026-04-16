@@ -15,6 +15,10 @@ metadata:
 
 批次分析 PM 開出的 ticket，產出優先序建議。核心價值：讓 PM 拿到一張清楚的「先做 / 後做 / 補規格」清單，附帶非技術語言的理由。
 
+## Sub-agent Completion Envelope
+
+本 skill 的所有 sub-agent dispatch（Step 2 分析、Step 6 JIRA 寫回）都必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`）。Detail 統一寫入 `/tmp/polaris-agent-{timestamp}.md`。
+
 ## 前置：讀取 workspace config
 
 讀取 workspace config（參考 `references/workspace-config-reader.md`）。

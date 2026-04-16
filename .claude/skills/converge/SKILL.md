@@ -161,7 +161,7 @@ Gaps found: X | Ready: Y | Skipped: Z
 1. 根據 gap type 路由到對應 skill（見 Phase 1 Step 4 表格）
 2. Sub-agent 讀取目標 skill 的 SKILL.md 並 inline 執行
 3. **Handbook 前置**：若目標 skill 涉及 code 修改（engineering、git-pr-workflow），sub-agent dispatch prompt 須包含：「開工前先讀 `{repo}/.claude/rules/handbook/index.md` 及其子文件，遵循 coding conventions」
-4. 執行完成後回報結果（使用 Completion Envelope）
+4. 執行完成後回報結果（使用 Completion Envelope，見 `skills/references/sub-agent-roles.md`），Detail 寫入 `specs/{EPIC}/artifacts/converge-{ticket_key}-{timestamp}.md`
 5. 主 agent 記錄結果，繼續下一張
 
 ### Gap → Skill 路由
@@ -257,6 +257,8 @@ Next actions:
 - 只做查詢，不修改任何東西
 - 找不到 PR 就標 "no PR"
 ```
+
+Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`），Detail 寫入 `/tmp/polaris-agent-{timestamp}.md`（完整 PR 狀態表）。
 
 ## Epic 模式 vs 全域模式
 

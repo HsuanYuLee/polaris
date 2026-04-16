@@ -176,7 +176,7 @@ LOCKED 的 plan 即 self-contained work order。跟 `breakdown → task.md → e
    - Plan file 的絕對路徑（**spec 唯一來源，sub-agent 自己讀**——不要 copy plan 內容進 prompt）
    - 本 phase 的 scope 限制（可改/可讀/不可動的檔案清單）
    - Repo handbook 讀取指示（若改動涉及產品 repo）：「開工前先讀 `{repo}/.claude/rules/handbook/index.md` 及其子文件，遵循 coding conventions」
-   - Completion envelope 格式：`Status: DONE|BLOCKED|PARTIAL` / `Artifacts:` / `Summary:`
+   - Completion envelope 格式（見 `skills/references/sub-agent-roles.md`）：`Status: DONE|BLOCKED|PARTIAL` / `Artifacts:` / `Detail: specs/design-plans/DP-NNN/artifacts/{phase}-{timestamp}.md` / `Summary:`
 3. Main agent 等回傳後 fan-in validate envelope
 
 **平行 vs 順序**：

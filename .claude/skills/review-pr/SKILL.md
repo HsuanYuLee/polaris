@@ -174,8 +174,12 @@ gh api repos/{owner}/{repo}/pulls/{pr_number} -H "Accept: application/vnd.github
       "body": "comment 內容（含嚴重程度標籤、問題描述、規範引用、建議修改）"
     }
   ],
-  "summary": "這組檔案的整體評價（1-2 句）"
+  "summary": "這組檔案的整體評價（1-2 句）
 }
+
+使用 Completion Envelope 格式（見 `skills/references/sub-agent-roles.md`）：
+- Summary ≤ 3 句（findings 總結）
+- Detail 寫入 `/tmp/polaris-agent-{timestamp}.md`（完整 JSON comments 陣列）
 ```
 
 **Step C — 彙整結果**

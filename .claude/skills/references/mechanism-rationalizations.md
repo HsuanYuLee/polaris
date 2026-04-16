@@ -111,3 +111,4 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 | `test-sequence-warning` | `scripts/test-sequence-tracker.sh` | — (advisory only) |
 | `context-pressure-monitor` | `scripts/context-pressure-monitor.sh` | — (advisory only) |
 | `version-docs-lint-gate` | `.claude/hooks/version-docs-lint-gate.sh` | `POLARIS_SKIP_DOCS_LINT=1` |
+| `design-plan-checklist-done` | `scripts/design-plan-checklist-gate.sh` | — (no bypass; resolve items first) |

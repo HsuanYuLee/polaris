@@ -94,6 +94,8 @@ Prompt: AC 驗證失敗，定位 feature branch 上的 code 缺陷。
 Proposed Fix 的「預估改動」必須限定在 {repos} 的 feature branch 上。
 ```
 
+Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`），Detail 寫入 `specs/{EPIC}/artifacts/bug-triage-af-{timestamp}.md`。
+
 ### 2-AF.3 — Fall through to Step 4
 
 AC-FAIL path 產出同樣的 Root Cause / Impact / Proposed Fix 結構 → 直接進 **Step 4 RD Confirmation**（hard stop 不變）→ Step 5 寫回 JIRA。
@@ -173,6 +175,10 @@ Ticket 資訊：
 - Gaps: {handbook 缺少的相關資訊}
 - Stale: {handbook 中過時的資訊}
 ```
+
+回傳使用 Completion Envelope 格式（見 `skills/references/sub-agent-roles.md`）：
+- Summary ≤ 3 句（根因、影響範圍、修正方向）
+- Detail 寫入 `specs/{EPIC}/artifacts/bug-triage-{timestamp}.md`（完整分析）
 
 ### Fast Path
 

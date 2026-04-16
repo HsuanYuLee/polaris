@@ -124,6 +124,8 @@ Dispatch 1 Explore sub-agent with the ticket summary and project path.
 The sub-agent will auto-calibrate scope — small tickets get a quick scan,
 large tickets spawn multiple parallel sub-explores.
 
+Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`），Detail 寫入 `specs/{TICKET}/artifacts/explore-{timestamp}.md`。
+
 **After receiving the exploration summary**, proceed directly to Step 5.
 Do not re-read source files. If a specific area needs more detail, dispatch
 a targeted single Explore sub-agent — do not restart a full scan.

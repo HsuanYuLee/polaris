@@ -19,6 +19,10 @@ metadata:
 
 四種模式 + 複雜度分層，一個目標：產出**經過技術驗證的方案 + 可量化的 AC**。
 
+## Sub-agent Completion Envelope
+
+本 skill 的所有 sub-agent dispatch（Batch Scan 平行讀取、Explore subagent、多角色分析）都必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`）。Detail 統一寫入 `specs/{EPIC}/artifacts/{agent-type}-{timestamp}.md`。
+
 ## Local-First Workflow
 
 多輪 refinement 不逐輪寫回 JIRA。改為本地 markdown 迭代 + browser 預覽，定版後一次寫入。

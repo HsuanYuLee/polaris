@@ -15,6 +15,10 @@ Five modes of learning:
 - **Setup mode** — Configure or update the daily learning scanner schedule and topic preferences
 - **Batch mode** — Scan a repo's full merged-PR history, skip already-extracted PRs, batch-extract patterns to the repo handbook
 
+## Sub-agent Completion Envelope
+
+本 skill 的所有 sub-agent dispatch（External Deep mode Researcher、Queue mode batch、PR mode per-PR、Batch mode sub-agents）都必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`）。Detail 統一寫入 `/tmp/polaris-agent-{timestamp}.md`（完整分析、萃取的 patterns）。
+
 > **首次使用？** 如果你還沒設定每日學習掃描，輸入 `設定學習` 或 `learning setup` 開始設定。設定後每天自動推薦文章到 Slack。
 
 ## Step 0: Mode Detection

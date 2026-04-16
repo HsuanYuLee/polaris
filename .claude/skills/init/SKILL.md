@@ -10,6 +10,10 @@ metadata:
 
 Interactive wizard that creates a company directory with `workspace-config.yaml` and registers it in the root config.
 
+## Sub-agent Completion Envelope
+
+本 skill 的所有 sub-agent dispatch（Step 7 Phase 2 AI repo detection、Step 9a dev environment detection）都必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`）。Detail 統一寫入 `/tmp/polaris-agent-{timestamp}.md`。
+
 ## Two-Layer Config Architecture
 
 ```

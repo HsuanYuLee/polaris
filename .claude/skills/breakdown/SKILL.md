@@ -150,6 +150,8 @@ mcp__claude_ai_Atlassian__getJiraIssue
 
 使用 `references/explore-pattern.md` 的自適應探索模式。啟動 1 個 Explore subagent，帶入需求摘要和專案路徑。Subagent 會自行判斷範圍大小。
 
+Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`），Detail 寫入 `specs/{EPIC}/artifacts/explore-{timestamp}.md`。
+
 收到探索摘要後，彙整 codebase 現況，結合需求進入 Step 5。
 
 ### 5. 評估拆單粒度
