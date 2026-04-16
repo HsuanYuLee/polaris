@@ -160,8 +160,9 @@ Gaps found: X | Ready: Y | Skipped: Z
 
 1. 根據 gap type 路由到對應 skill（見 Phase 1 Step 4 表格）
 2. Sub-agent 讀取目標 skill 的 SKILL.md 並 inline 執行
-3. 執行完成後回報結果（使用 Completion Envelope）
-4. 主 agent 記錄結果，繼續下一張
+3. **Handbook 前置**：若目標 skill 涉及 code 修改（engineering、git-pr-workflow），sub-agent dispatch prompt 須包含：「開工前先讀 `{repo}/.claude/rules/handbook/index.md` 及其子文件，遵循 coding conventions」
+4. 執行完成後回報結果（使用 Completion Envelope）
+5. 主 agent 記錄結果，繼續下一張
 
 ### Gap → Skill 路由
 

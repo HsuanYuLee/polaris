@@ -124,6 +124,7 @@ Locked at: YYYY-MM-DD by {觸發語句}
 4. 填入 Goal / Background / 已累積的 Decisions / Blind Spots
 5. 告知使用者：「已建立 design plan: `specs/design-plans/DP-NNN-{slug}/plan.md`，後續決策會寫入此檔。」
 6. Status: DISCUSSION
+7. 更新 Specs Viewer sidebar：`bash scripts/generate-specs-sidebar.sh`
 
 ### Phase 2: 討論累積
 
@@ -174,6 +175,7 @@ LOCKED 的 plan 即 self-contained work order。跟 `breakdown → task.md → e
 2. 每個 sub-agent 的 prompt 只給：
    - Plan file 的絕對路徑（**spec 唯一來源，sub-agent 自己讀**——不要 copy plan 內容進 prompt）
    - 本 phase 的 scope 限制（可改/可讀/不可動的檔案清單）
+   - Repo handbook 讀取指示（若改動涉及產品 repo）：「開工前先讀 `{repo}/.claude/rules/handbook/index.md` 及其子文件，遵循 coding conventions」
    - Completion envelope 格式：`Status: DONE|BLOCKED|PARTIAL` / `Artifacts:` / `Summary:`
 3. Main agent 等回傳後 fan-in validate envelope
 
@@ -222,7 +224,8 @@ LOCKED 的 plan 即 self-contained work order。跟 `breakdown → task.md → e
 2. Status: LOCKED → IMPLEMENTED
 3. 填 `implemented_at`
 4. 加 Implementation Notes（實作過程觀察、後續 follow-up）
-5. Plan file 跟 implementation 一起 commit
+5. 更新 Specs Viewer sidebar：`bash scripts/generate-specs-sidebar.sh`（讓 IMPLEMENTED 顯示綠色）
+6. Plan file + sidebar 跟 implementation 一起 commit
 
 ## Pivot 處理
 

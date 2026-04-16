@@ -104,6 +104,14 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | `ingest-conflict-priority` | Handbook write priority: user correction > PR lesson > Explorer回寫 | Explorer-generated content overwrites a user-validated section | High |
 | `event-driven-stale-hint` | Session start git diff shows handbook-related file changes → add stale-hint to affected section | `package.json` or `nuxt.config` changed in diff but no stale-hint added to handbook | Low |
 | `batch-lint-sprint-planning` | Repo handbook batch lint runs during sprint-planning | Sprint planning completes without handbook lint report | Low |
+| `handbook-injection-in-subagent` | Implementation sub-agent dispatch prompts must include handbook reading instruction (`{repo}/.claude/rules/handbook/`) | Sub-agent writes code without prior Read of handbook index.md; implementation violates coding convention already documented in handbook | High |
+
+### Test Environment (source: DP-005, `skills/references/pipeline-handoff.md`)
+
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `test-command-in-task-md` | task.md must contain `## Test Command` section with project-specific test command from workspace-config `test_command` | task.md produced by breakdown missing `## Test Command` section; or section contains generic `npx vitest run` when workspace-config has a specific `test_command` | High |
+| `test-env-hard-gate` | Engineering sub-agent must use task.md's Test Command to run tests; if test environment fails (exit ≠ 0, resolver error), stop and report — do not silently skip or fall back to CI-only | Engineering sub-agent runs `npx vitest run` instead of task.md's Test Command; or test failure is ignored and PR is opened without passing local tests | **Critical** |
 
 ### Context Management (source: `rules/context-monitoring.md`)
 

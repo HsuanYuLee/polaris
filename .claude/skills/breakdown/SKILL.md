@@ -344,7 +344,7 @@ git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
 
 ### 14.5. 產出 task.md work orders
 
-為每張實作子單產出 self-contained 工單檔案，讓 engineering 只消費 codebase + task.md + handbook（handbook 自動載入）。
+為每張實作子單產出 self-contained 工單檔案，讓 engineering 只消費 codebase + task.md + repo handbook（sub-agent 須自行讀取 `{repo}/.claude/rules/handbook/`，不會自動載入）。
 
 **路徑規則：**
 
@@ -371,13 +371,14 @@ git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
 5. **改動範圍**表格：檔案 / 動作 / 說明（從 Step 6 的 Dev Scope 轉寫）
 6. **估點理由**：一段話（從 Step 7 的估點邏輯）
 7. **測試計畫（code-level）**：對應 test sub-tasks 的 unit/integration 測試項目
-8. **Verify Command**：一個可執行的 shell 指令，驗證本 task 的核心改動在 runtime 是否生效（見下方「Verify Command 撰寫指南」）
+8. **Test Command**：專案特定的測試指令（見下方「Test Command 填寫規則」）
+9. **Verify Command**：一個可執行的 shell 指令，驗證本 task 的核心改動在 runtime 是否生效（見下方「Verify Command 撰寫指南」）
 
 **不放 task.md 的東西**（屬於 refinement 或 AC 層級）：
 - Epic description 全文 / refinement artifact
 - 業務層 AC 驗證場景（由 AC 驗收單持有）
 - 技術方案選項分析（refinement 已定案）
-- handbook 內容（engineering 自動載入，不複製）
+- handbook 內容（engineering sub-agent 須自行讀取 `{repo}/.claude/rules/handbook/`，不複製進 task.md）
 
 **References to load 挑選規則：**
 
@@ -411,6 +412,17 @@ scripts/validate-task-md.sh <task.md path>
 - exit 2 → 檔案不存在或用法錯誤，檢查路徑
 
 **為何強制**：pipeline 契約「engineering 只消費 task.md + codebase」的前提是 task.md 完整。靠 AI 自律難保每次產齊，所以用 script exit code 強拘束。見 `CLAUDE.md § Deterministic Enforcement Principle`。
+
+**Test Command 填寫規則：**
+
+每張 task.md 必須包含專案特定的測試指令，讓 engineering sub-agent 直接使用，不自行推導。
+
+來源優先順序：
+1. `workspace-config.yaml` → `projects[].dev_environment.test_command`（首選，已含 monorepo 工作目錄）
+2. 專案 CLAUDE.md 的測試指令
+3. Fallback: `npx vitest run`（最後手段）
+
+讀取方式：在 Step 14.5 產出 task.md 前，讀 workspace-config 的 `test_command` 欄位。若為 monorepo（`is_monorepo: true`），指令已包含正確子目錄路徑。
 
 **Verify Command 撰寫指南：**
 

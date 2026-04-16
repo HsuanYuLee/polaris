@@ -30,7 +30,7 @@ Core principle: **each skill consumes a self-contained input and produces a well
 
 ## task.md Schema
 
-Breakdown 產出的 task.md 是 engineering 的唯一輸入（除了 codebase 和自動載入的 handbook）。必須 self-contained。
+Breakdown 產出的 task.md 是 engineering 的唯一輸入（除了 codebase 和 repo handbook — sub-agent 須自行讀取 `{repo}/.claude/rules/handbook/`，不會自動載入）。必須 self-contained。
 
 ```markdown
 # T{n}: {Task summary} ({SP} pt)
@@ -82,6 +82,16 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 - unit test: {描述} → {Test sub-task key}
 - ...
 
+## Test Command
+
+> breakdown 產出。engineering 跑測試時**必須使用此指令**，不可自行推導。
+> 來源優先順序：workspace-config `projects[].dev_environment.test_command` → 專案 CLAUDE.md → fallback `npx vitest run`。
+> Monorepo 須包含正確的工作目錄（如 `pnpm -C apps/main vitest run`）。
+
+\`\`\`bash
+{專案特定的測試指令，含正確工作目錄}
+\`\`\`
+
 ## Verify Command
 
 > breakdown 產出，engineering 必須執行並附上 output。不可修改指令內容。
@@ -100,8 +110,9 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 | Operational context（JIRA keys、branch） | Epic description / refinement artifact |
 | 目標、涉及檔案、測試計畫（code-level） | AC 驗證場景（business-level）→ 在 AC 驗收單 |
 | Verify Command（per-task smoke test） | 完整 AC 驗證流程（verify-AC 的工作） |
+| Test Command（專案特定的測試指令） | 通用 test 指令（sub-agent 不可自行推導） |
 | 估點理由 | 技術方案選項分析（refinement 已定） |
-| References 清單 | handbook 內容（自動載入，不複製） |
+| References 清單 | handbook 內容（sub-agent 須自行讀取，不複製進 task.md） |
 
 ## Handoff Contracts
 

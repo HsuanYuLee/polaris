@@ -4,6 +4,28 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.10.0] - 2026-04-16
+
+### DP-005: Engineering Test Command + Handbook Injection
+
+Closes two quality gaps discovered in GT-521/KB2CW-3788: (1) engineering sub-agents used generic `npx vitest run` instead of project-specific test commands, (2) sub-agent dispatch prompts omitted handbook injection, causing coding conventions to be ignored.
+
+**Test Command pipeline (new)**
+- `pipeline-handoff.md` — task.md schema gains `## Test Command` section (between 測試計畫 and Verify Command)
+- `breakdown/SKILL.md` — Step 14.5 fills Test Command from `workspace-config.yaml` → `projects[].dev_environment.test_command`
+- `workspace-config-reader.md` — documents new `test_command` config field
+- `validate-task-md.sh` — enforces `## Test Command` as required section
+- `engineering/SKILL.md` — sub-agent must use task.md's Test Command; environment failure = hard stop
+
+**Handbook injection (fix)**
+- `engineering/SKILL.md` — removed "handbook 自動載入" lie; added explicit handbook injection block for batch + first-cut modes
+- `breakdown/SKILL.md` — corrected "handbook 自動載入" to accurate wording
+- `design-plan/SKILL.md` — Phase 4b sub-agent prompt adds handbook reading instruction; Phase 5 adds sidebar regeneration step
+- `converge/SKILL.md` — Phase 3 execution sub-agents gain handbook pre-read for code-modifying skills
+
+**Mechanism canaries (new)**
+- `mechanism-registry.md` — `handbook-injection-in-subagent` (High), `test-command-in-task-md` (High), `test-env-hard-gate` (Critical)
+
 ## [3.9.1] - 2026-04-16
 
 ### Specs Viewer: Home link

@@ -48,6 +48,7 @@ required_sections=(
   "## 改動範圍"
   "## 估點理由"
   "## 測試計畫"
+  "## Test Command"
 )
 for section in "${required_sections[@]}"; do
   if ! grep -qF "$section" "$FILE"; then
