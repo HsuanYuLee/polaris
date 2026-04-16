@@ -156,7 +156,7 @@ npx eslint <changed-files> --no-fix
 有錯時：
 1. 嘗試自動修正：`npx eslint <changed-files> --fix`
 2. 無法自動修正的 → 列具體錯誤 + 修正建議
-3. **禁止使用 `eslint-disable` 繞過** — 理由是 lint 規則背後通常有 reviewable patterns（通常來自 review lessons graduation），繞過等於埋地雷
+3. **禁止使用 `eslint-disable` 繞過** — 理由是 lint 規則背後通常有 reviewable patterns（通常來自 review lessons），繞過等於埋地雷
 
 ---
 

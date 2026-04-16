@@ -61,7 +61,7 @@ Static smoke test of canaries from `rules/mechanism-registry.md`.
 3. **Skill routing completeness** — every routed skill exists, every skill has routing entry
 4. **Memory company isolation** — same as isolation mode (skip if already run)
 5. **Sub-agent role definitions** — `sub-agent-roles.md` has mandatory standards
-6. **Feedback memory frontmatter** — `trigger_count` + `last_triggered` present; flag `count >= 3` (should graduate)
+6. **Feedback memory frontmatter** — `trigger_count` + `last_triggered` present
 7. **Registry freshness** — mechanism source files still exist
 8. **Ghost references** — no references to deleted skills (e.g., `dev-guide`)
 9. **Hardcoded paths** — no `~/work/` literals in generic SKILL.md files

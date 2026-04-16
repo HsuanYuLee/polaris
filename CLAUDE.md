@@ -147,7 +147,7 @@ Detailed rules live in `.claude/rules/` files.
 - **Sub-agent delegation** — model tiers, worktree isolation, explore-then-implement
 - **Bash commands** — avoid `cd`, don't chain with `&&`, use tool path parameters
 - **Context monitoring** — delegate exploration, avoid re-reading files, compression awareness
-- **Feedback & Memory** — auto-review, feedback→rule graduation, memory hygiene
+- **Feedback & Memory** — auto-review, feedback→direct rule write, memory hygiene
 - **Multi-company isolation** — scope headers, company context, defensive rule writing
 
 **Company-specific rules** (set up via `/init`, live in `rules/{company}/`):

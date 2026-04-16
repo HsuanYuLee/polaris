@@ -39,9 +39,9 @@ Scan the conversation against the top 5 priority canaries from `rules/mechanism-
 
 If a violation is found → save feedback memory with the mechanism ID.
 
-### 4. Graduation Check
+### 4. Rule Promotion Check
 
-If any feedback memory was updated and now has `trigger_count >= 3` → initiate Rule Graduation (see `skills/references/feedback-memory-procedures.md` § Feedback → Rule Graduation).
+If any feedback memory is confirmed correct and represents a clear pattern → propose direct rule write (see `skills/references/feedback-memory-procedures.md` § Feedback → Direct Rule Write).
 
 ### 5. Checkpoint Todo-Diff (when splitting session)
 

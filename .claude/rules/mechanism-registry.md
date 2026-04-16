@@ -55,7 +55,6 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `post-task-feedback-reflection` | After task completion, silently reflect for corrections/blocks/confirmations | Task ends with no reflection when user corrected behavior or command self-corrected | High |
 | `feedback-pre-write-dedup` | Before creating feedback memory, scan for semantic overlap and merge if found | New feedback file created when an existing entry covers the same topic | High |
 | `feedback-trigger-count-update` | After using a feedback memory, increment trigger_count (once per conversation) | Feedback memory trigger_count unchanged after conversation that referenced it | High |
-| `graduation-at-three-triggers` | trigger_count >= 3 → initiate graduation to rule | Feedback memory with count >= 3 still existing without graduation proposal | High |
 | `feedback-backlog-classification` | New feedback memory that describes a framework gap must also write a backlog entry | FRAMEWORK_GAP feedback created without corresponding `polaris-backlog.md` entry | Medium |
 | `project-backlog-classification` | Project memory with action items (待實施/下一步/需要解決) must also write FRAMEWORK_GAP items to backlog | Project memory containing "待實施" or "pending" without corresponding backlog entry | High |
 | `memory-company-hard-skip` | Skip memories with mismatched company field | Company-scoped memory applied to a different company's work | Medium |
@@ -267,6 +266,6 @@ Post-task audit should check these first (highest drift risk, most impactful):
 7. `re-test-after-fix` / `fresh-verification-before-completion` / `checklist-before-done`
 8. `cross-repo-verification` / `env-follows-requires`
 9. `no-cd-in-bash` / `no-independent-cmd-chaining`
-10. `feedback-trigger-count-update` / `graduation-at-three-triggers`
+10. `feedback-trigger-count-update`
 11. `version-bump-reminder` (Critical — 6 consecutive misses discovered 2026-04-09)
 12. `verification-evidence-required` / `quality-evidence-required` / `test-sequence-warning` (deterministic hooks — low audit priority because hooks enforce automatically)

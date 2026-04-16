@@ -4,6 +4,36 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.17.0] - 2026-04-17
+
+### Remove Graduation Mechanism — Direct Rule Write
+
+Replaced the `trigger_count >= 3` graduation pipeline with immediate direct rule write. Confirmed corrections are now promoted to rules immediately, not after 3 triggers.
+
+**Core behavior change:**
+- `feedback-and-memory.md` item 2: "referenced >= 3 times → graduation" → "confirmed correct → direct rule write"
+- `mechanism-registry.md`: deleted `graduation-at-three-triggers` canary row + Priority Audit #10 reference
+- `framework-iteration.md`: updated framework-experience signals table + constraints
+- `trigger_count` field retained as usage frequency tracker, no longer a promotion gate
+
+**References rewritten (7 files):**
+- `feedback-memory-procedures.md`: "Standard Graduation" → "Direct Rule Write", manual trigger updated
+- `cross-session-learnings.md`: "Graduation Pipeline" → "Promotion Pipeline", schema fields `graduated` → `promoted`
+- `post-task-reflection-checkpoint.md`: "Graduation Check" → "Rule Promotion Check"
+- `INDEX.md`: 2 description updates
+- `quality-check-flow.md`, `epic-verification-workflow.md`: terminology updates
+
+**Skills updated (5 files):**
+- `validate/SKILL.md`: removed `(should graduate)` flag from check 6
+- `sprint-planning/SKILL.md`: deleted Pre-Step graduation scan (12 lines)
+- `standup/SKILL.md`: deleted Post-Step graduation scan (12 lines)
+- `learning/SKILL.md`: 3 graduation references updated
+- `review-pr/SKILL.md`: classification table updated
+
+**Script:** `polaris-learnings.sh` — `graduate` subcommand renamed to `promote` (backward compat alias kept)
+
+**Other:** CLAUDE.md, README.md (Pillar 2 rewrite), `_template/rule-examples/`, `kkday/docs/rd-workflow.md` (removed phantom `review-lessons-graduation` node)
+
 ## [3.16.0] - 2026-04-17
 
 ### DP-009 Close: Deterministic Checklist Gate + D3 Detail Path Propagation

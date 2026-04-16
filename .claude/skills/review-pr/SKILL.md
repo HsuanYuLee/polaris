@@ -503,7 +503,7 @@ Review 中發現的 repo-specific pattern 應**直接寫入 handbook**。Handboo
 |------|------|------|
 | Repo-specific | `{repo}/.claude/rules/handbook/` 子文件 | Vue SFC 命名慣例、API error format |
 | Company-level | `rules/{company}/handbook/` 子文件 | 跨 repo 的 changeset 規則 |
-| Framework | feedback memory（走累積→畢業） | Polaris skill routing 行為 |
+| Framework | feedback memory（確認後直接寫入 rule） | Polaris skill routing 行為 |
 
 **寫入前去重**：比對 handbook 既有內容 + `rules/` 檔案，語意相同則跳過。
 

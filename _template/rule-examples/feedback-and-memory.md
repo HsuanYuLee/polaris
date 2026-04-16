@@ -50,9 +50,9 @@ A "reference" is counted when **a decision is made or behavior is guided based o
 2. If the same feedback is referenced multiple times within the same conversation, count it only once
 3. Pure hygiene checks (scanning frontmatter) do not count as a reference
 
-## Feedback → Rule Graduation (Auto-Evolution)
+## Feedback → Direct Rule Write (Auto-Evolution)
 
-When `trigger_count >= 3`, trigger the graduation process:
+When a feedback memory is confirmed correct, promote it directly to a rule. Do not wait for a trigger count threshold — confirmed corrections are written immediately.
 
 ### Step 1: Identify the Target Rule File
 
@@ -76,9 +76,9 @@ Convert the feedback content into rule format:
 ### Step 3: Present to User for Confirmation
 
 ```
-Feedback Graduation Proposal
+Feedback → Rule Proposal
 
-"{feedback name}" has been referenced {N} times and is ready to be promoted to a rule:
+"{feedback name}" is a confirmed correction, promoting to rule:
 
 Target: {rules/company/xxx.md} § {section}
 Content to add:
@@ -99,8 +99,8 @@ Upon confirmation I will:
 
 ### Manual Trigger
 
-When the user says "organize feedback" / "graduate feedback" → scan all feedback memories:
-- `trigger_count >= 3` → enter the graduation process
+When the user says "organize feedback" / "clean up feedback" → scan all feedback memories:
+- Confirmed patterns → propose direct rule write
 - `trigger_count == 0` and `last_triggered` is more than 30 days ago → suggest deletion (may be outdated)
 - Otherwise → leave unchanged
 

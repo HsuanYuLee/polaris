@@ -1,10 +1,10 @@
 # Epic Verification Workflow
 
-Reference doc for the three-layer verification structure. Not yet integrated into skills — validate with 2 Epic cycles before graduating to skill changes.
+Reference doc for the three-layer verification structure. Not yet integrated into skills — validate with 2 Epic cycles before promoting to skill changes.
 
-## Status: Draft (pre-graduation)
+## Status: Draft (pre-promotion)
 
-**Graduation criteria:**
+**Promotion criteria:**
 - [x] Epic #1 試跑完成，記錄調整項（PROJ-483, 2026-04-05）
 - [x] Reference doc 根據 Epic #1 修正（加入 Playwright browser-first、URL 規範、測資來源）
 - [ ] Epic #2 驗證完成，無結構性修改
@@ -505,7 +505,7 @@ VR Gate 在 quality check 之後、commit 之前。這樣 VR fail 時還沒 comm
 
 ---
 
-## Skill Integration Map (post-graduation)
+## Skill Integration Map (post-promotion)
 
 | Skill | Change needed |
 |-------|--------------|

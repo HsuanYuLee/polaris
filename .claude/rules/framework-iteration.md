@@ -35,7 +35,7 @@ During the existing post-task reflection pass (feedback-and-memory.md § item 6)
 | Signal | What to record |
 |--------|---------------|
 | Skill flow completes with zero user corrections | Which skill, what flow design held up, why |
-| Feedback memory graduates successfully | Pipeline validation — topic, graduation latency |
+| Feedback confirmed correct and promoted to rule/reference | Which feedback, promotion target, how fast |
 | User explicitly praises framework behavior | What the Strategist did, which rule/skill enabled it |
 | Mechanism canary NOT triggered when it could have been | Mechanism ID, the condition that was correctly handled |
 | Same skill works across 2+ companies unmodified | Skill name, universality evidence |
@@ -44,7 +44,7 @@ During the existing post-task reflection pass (feedback-and-memory.md § item 6)
 
 - **At most 1 framework-experience memory per task** — if multiple signals fire, combine into one entry
 - **Optional, not mandatory** — only write when the signal is clear and non-obvious. If in doubt, skip
-- **No graduation** — framework-experience memories do NOT trigger the `trigger_count >= 3` graduation workflow. They are observations, not corrections
+- **No rule promotion** — framework-experience memories are observations, not corrections. They do not trigger the direct-write-to-rule workflow
 
 ## Version Bump Reminder
 

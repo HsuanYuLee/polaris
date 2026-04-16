@@ -172,7 +172,7 @@ Baseline Snapshot (framework target):
     - [pitfall] worktree path translation missed in 2 sessions (confidence: 6)
   Delegation: self-regulation scoring, worktree isolation, model tiers
   Quality gates: dev-quality-check, verify-completion iron rule, re-test-after-fix
-  Feedback loop: post-task reflection, graduation pipeline, mechanism registry
+  Feedback loop: post-task reflection, direct rule promotion, mechanism registry
   Known gaps: context monitor hook (blocked), wave-based parallel (backlog)
 ```
 
@@ -821,7 +821,7 @@ Present a summary to the user:
 - #456 — {reason: e.g., "only LGTM comments", "all comments were typo fixes"}
 ```
 
-Extraction 完成後不需要 graduation — lessons 已直接寫入 handbook。
+Extraction 完成後 lessons 已直接寫入 handbook。
 
 ## Edge Cases (PR Mode)
 
@@ -930,7 +930,7 @@ Collect all extracted patterns from all sub-agents. Follow `review-lesson-extrac
 {count} 個 — Layer 1 dedup
 ```
 
-Extraction 完成後不需要 graduation — lessons 已直接寫入 handbook。
+Extraction 完成後 lessons 已直接寫入 handbook。
 
 ## Edge Cases (Batch Mode)
 

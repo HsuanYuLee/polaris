@@ -8,7 +8,7 @@ After completing a full task (opening a PR, fixing review comments, estimation, 
    - Company-level knowledge: cross-repo dependencies, team structure, Slack routing, git/changeset conventions, tool locations
    - Repo-specific knowledge: architecture, code conventions, API patterns, dev environment, testing rules
    - **Do not create a feedback memory** for repo-specific or company-level knowledge. Handbook is the correct container.
-2. **The same feedback memory is referenced >= 3 times** → trigger the Rule Graduation process (see `skills/references/feedback-memory-procedures.md` § Feedback → Rule Graduation)
+2. **Feedback confirmed correct** → directly write it into the appropriate rule or reference file (see `skills/references/feedback-memory-procedures.md` § Feedback → Direct Rule Write). Do not wait for repeated triggers — confirmed corrections are promoted immediately
 3. **Blocked by a hook or permission denied** → immediately record the command and a suggested pattern; before the task ends, list all blocked commands and fix them (general → `~/.claude/settings.json`, project-specific → `settings.local.json`)
 4. **A command failed and was self-corrected** (wrong path guess, wrong parameter, wrong API format, etc.) → record the "wrong command → correct command" pair as a feedback memory
 5. **Stuck for more than 2 rounds without resolution** → record the root cause and final solution in a feedback memory
@@ -18,7 +18,7 @@ After completing a full task (opening a PR, fixing review comments, estimation, 
 
 Execute silently. Only notify the user and wait for confirmation before writing when a feedback worth recording is found. Items 3 and 4 may be recorded without user confirmation.
 
-> For detailed procedures — Pre-Write Dedup Check, Cross-Session Carry-Forward Check, backlog entry formats, batch scan, frontmatter spec, graduation steps, memory hygiene checklist, MEMORY.md index format, and prompt injection scan — see `skills/references/feedback-memory-procedures.md`.
+> For detailed procedures — Pre-Write Dedup Check, Cross-Session Carry-Forward Check, backlog entry formats, batch scan, frontmatter spec, direct rule write, memory hygiene checklist, MEMORY.md index format, and prompt injection scan — see `skills/references/feedback-memory-procedures.md`.
 
 ### Correction = Immediate Reflection (Do Not Defer)
 

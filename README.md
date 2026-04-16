@@ -43,13 +43,13 @@ Deep dive → [Developer Workflow Guide](docs/workflow-guide.md)
 This is what makes Polaris different from a static template. It accumulates team knowledge and evolves its own rules from daily usage:
 
 1. **Feedback capture** — when you correct Claude's approach, it saves the lesson
-2. **Pattern graduation** — feedback referenced 3+ times auto-promotes to a permanent rule
+2. **Direct rule promotion** — confirmed corrections are immediately promoted to permanent rules, no waiting for repeated triggers
 3. **External learning** — study articles, repos, or PRs and extract patterns applicable to your codebase
 4. **Cross-session knowledge** — technical insights (patterns, pitfalls, architecture decisions) persist in `learnings.jsonl` across conversations with confidence-based decay, so each session starts with accumulated project knowledge instead of a blank slate
 5. **Session timeline & checkpoints** — significant events (skill invocations, PRs, commits) are logged to `timeline.jsonl` for accurate standup reports; `/checkpoint` saves and restores session state for long-running work
 6. **Challenger audit** — pre-release, sub-agents review the workspace from a new user's perspective
 
-> **Example:** You correct Claude's import ordering 3 times across different PRs. On the third correction, the lesson auto-graduates into a permanent rule — all future PRs follow the convention automatically.
+> **Example:** You correct Claude's import ordering in a PR review. The correction is saved, confirmed as a real pattern, and immediately promoted to a permanent rule — all future PRs follow the convention automatically.
 
 **Skills:** `learning`, `checkpoint` — plus lesson extraction built into `review-pr`, `engineering` (revision mode), and `check-pr-approvals`
 

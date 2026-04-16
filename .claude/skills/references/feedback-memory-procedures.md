@@ -1,6 +1,6 @@
 # Feedback & Memory Procedures
 
-> **When to load**: when writing feedback memories, running memory hygiene, graduating feedback to rules, or executing the backlog classification workflow. Contains detailed procedures extracted from `rules/feedback-and-memory.md`. Loaded on-demand.
+> **When to load**: when writing feedback memories, running memory hygiene, promoting feedback to rules, or executing the backlog classification workflow. Contains detailed procedures extracted from `rules/feedback-and-memory.md`. Loaded on-demand.
 
 ## Cross-Session Carry-Forward Check
 
@@ -29,9 +29,9 @@ Before creating a new feedback memory, scan existing feedback memories for seman
    - Increment `trigger_count` by 1, update `last_triggered` to today
    - Do NOT create a new file
 4. **If no overlap** → create a new file as normal
-5. **Post-merge graduation check** — if the merged entry's `trigger_count >= 3`, immediately trigger the Rule Graduation process (see § Feedback → Rule Graduation)
+5. **Post-merge rule write check** — if the merged entry clearly represents a confirmed pattern, consider promoting it directly to a rule (see § Feedback → Direct Rule Write)
 
-This check prevents duplicate feedback accumulation and ensures graduation triggers at the earliest opportunity.
+This check prevents duplicate feedback accumulation.
 
 ## Automatic Polaris Backlog Writes — Detailed Procedures
 
@@ -105,7 +105,7 @@ last_triggered: 2026-03-29  # Date last referenced
 
 ### Immediate Graduation — Process Design Decisions
 
-`type: project` memories that contain **deliberate process design decisions** (not action items or status updates) graduate immediately — no `trigger_count` threshold required.
+`type: project` memories that contain **deliberate process design decisions** (not action items or status updates) should be promoted immediately.
 
 **Identification criteria** (all must be true):
 1. The memory describes a **process or structure** (not a one-off fix or status update)
@@ -113,7 +113,7 @@ last_triggered: 2026-03-29  # Date last referenced
 3. It has a **"How to apply"** section that references specific skills or references
 4. The process was **validated in practice** (e.g., tried on a real ticket)
 
-**Graduation target**: `skills/references/` (not `rules/`) — process decisions become shared references that skills import.
+**Promotion target**: `skills/references/` (not `rules/`) — process decisions become shared references that skills import.
 
 **When detected** (during post-task reflection, memory hygiene, or cross-session recovery):
 1. Identify the target reference file (existing or new)
@@ -121,11 +121,9 @@ last_triggered: 2026-03-29  # Date last referenced
 3. Present to user for confirmation
 4. Write the reference, update importing skills, delete the memory
 
-**Why this is different from feedback graduation**: Feedback memories capture behavioral corrections that need repeated observation to confirm as patterns. Process design decisions are already confirmed — they were discussed, designed, and validated. Delaying graduation means every Epic between the decision and the graduation ships without the process, which is the exact gap this rule prevents.
+### Direct Rule Write — Behavioral Feedback
 
-### Standard Graduation — Behavioral Feedback
-
-When `trigger_count >= 3`, trigger the graduation process:
+When a feedback memory is confirmed correct (user validated the correction, or the pattern is clearly established), promote it directly to a rule. Do not wait for a trigger count threshold — confirmed corrections are written immediately.
 
 #### Step 1: Identify the Target Rule File
 
@@ -149,9 +147,9 @@ Convert the feedback content into rule format:
 #### Step 3: Present to User for Confirmation
 
 ```
-Feedback Graduation Proposal
+Feedback → Rule Proposal
 
-"{feedback name}" has been referenced {N} times and is ready to be promoted to a rule:
+"{feedback name}" is a confirmed correction, promoting to rule:
 
 Target: {rules/company/xxx.md} § {section}
 Content to add:
@@ -172,8 +170,8 @@ Upon confirmation I will:
 
 ### Manual Trigger
 
-When the user says "organize feedback" / "graduate feedback" → scan all feedback memories:
-- `trigger_count >= 3` → enter the graduation process
+When the user says "organize feedback" / "clean up feedback" → scan all feedback memories:
+- Confirmed patterns → propose direct rule write
 - `trigger_count == 0` and `last_triggered` is more than 30 days ago → suggest deletion (may be outdated)
 - Otherwise → leave unchanged
 

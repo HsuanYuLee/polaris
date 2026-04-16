@@ -99,7 +99,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [review-lesson-extraction.md](review-lesson-extraction.md) | PR review 萃取共用邏輯：sub-agent prompt、dedup、寫入 handbook | learning (PR/Batch mode), engineering Step 12.5 |
-| [cross-session-learnings.md](cross-session-learnings.md) | JSONL 知識庫 schema 與跨 session 技術洞察持久化規則。含 `plan-gap` / `review-lesson` 標籤規格與畢業 pipeline | post-task-reflection, session-start, engineering (revision mode R3a/R6), learning (--graduate) |
+| [cross-session-learnings.md](cross-session-learnings.md) | JSONL 知識庫 schema 與跨 session 技術洞察持久化規則。含 `plan-gap` / `review-lesson` 標籤規格與 promotion pipeline | post-task-reflection, session-start, engineering (revision mode R3a/R6), learning (--promote) |
 | [session-timeline.md](session-timeline.md) | JSONL 事件日誌 schema 與 polaris-timeline.sh 介面 | standup, checkpoint, skill invocation logging |
 | [post-task-reflection-checkpoint.md](post-task-reflection-checkpoint.md) | 所有 write skill 的最終步驟 checklist：feedback、learning、mechanism audit | 每個 write skill 的最後一步 |
 | [daily-learning-scan-spec.md](daily-learning-scan-spec.md) | 每日技術文章掃描器的 RemoteTrigger 規格模板 | learning setup, schedule daily scan |
@@ -113,6 +113,6 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [challenger-audit.md](challenger-audit.md) | 多角色 UX 審查系統，pre-release 時使用 | challenger, version-release |
 | [docs-editorial-guideline.md](docs-editorial-guideline.md) | README/docs 文風規範：結論先行、show don't tell、structured vs editorial 分層 | docs-sync, version-bump README update |
 | [framework-iteration-procedures.md](framework-iteration-procedures.md) | 框架自迭代 procedures：Post-Version-Bump Chain、Backlog Hygiene scan、Validated Pattern Promotion、Framework Experience frontmatter | version-bump, organize-memory, docs-sync, standup (monthly) |
-| [feedback-memory-procedures.md](feedback-memory-procedures.md) | Feedback/memory 操作流程：graduation steps、hygiene checks、carry-forward、dedup、backlog format、frontmatter spec、injection scan | post-task-reflection, organize-memory, feedback write, graduation |
+| [feedback-memory-procedures.md](feedback-memory-procedures.md) | Feedback/memory 操作流程：direct rule write、hygiene checks、carry-forward、dedup、backlog format、frontmatter spec、injection scan | post-task-reflection, organize-memory, feedback write, rule promotion |
 | [mechanism-rationalizations.md](mechanism-rationalizations.md) | Mechanism Registry 的 Common Rationalizations 查表集 + Deterministic Quality Hooks 技術細節（evidence file spec、bypass flags） | post-task mechanism audit (when drift suspected), hook configuration, verification-evidence debugging |
 | [library-change-protocol.md](library-change-protocol.md) | 依賴變更完整協議：三層調查、替換/升級評估、Decision Tier、config 系統性排除、workaround 文件標準 | engineering (library evaluation), review-pr (reviewer suggests upgrade), bug-triage (dependency issue) |
