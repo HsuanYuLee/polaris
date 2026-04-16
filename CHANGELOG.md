@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.13.0] - 2026-04-17
+
+### DP-006: verify-AC Fixture/Environment Gap
+
+Closes the fixture gap that caused GT-521 AC verification to return all UNCERTAIN — verify-AC couldn't start fixture servers because breakdown didn't produce verification task.md files.
+
+- **breakdown SKILL.md** Step 10D: verification tickets now generate `task.md` with `fixture_required`, `fixture_path`, `fixture_start_command`, `test_urls`, `env_start_command`
+- **verify-AC SKILL.md** Step 3: restructured into 3a–3d sub-steps — read task.md → fallback auto-detect `specs/{EPIC}/tests/mockoon/` → start dev server → start fixture server
+- **engineer-delivery-flow.md** Step 3b+: new fixture existence advisory check (warning when `fixture_required: true` but mockoon dir empty)
+- **pipeline-handoff.md**: updated verify-AC contract — now reads task.md for fixture config + JIRA description for verification steps
+
 ## [3.12.0] - 2026-04-17
 
 ### DP-007: User Config Isolation + Docs Viewer Hot Reload

@@ -136,7 +136,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 - PR 已開、unit test pass、CI 綠
 - task.md 在 PR description 中 link 到 AC 驗收單
 
-**Contract**：verify-AC 從 AC 驗收單 description 讀取驗證步驟，不需讀 task.md。
+**Contract**：verify-AC 從驗收單 task.md（`specs/{EPIC}/tasks/{V-KEY}.md`）讀取 fixture 設定與環境指令，從 AC 驗收單 JIRA description 讀取驗證步驟。若無 task.md → fallback 到 `specs/{EPIC}/tests/mockoon/` 自動偵測。
 
 ### verify-AC PASS
 

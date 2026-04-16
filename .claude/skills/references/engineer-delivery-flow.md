@@ -120,6 +120,17 @@
 - 啟動命令 exit 0 + health check URL 回 200 → 繼續 3c
 - 啟動失敗 → 停止。回報具體失敗原因（不要只說「起不來」）
 
+### 3b+. Fixture Existence Advisory Check（僅 Developer）
+
+若 task.md 有 `fixture_required: true`（指向驗收單的 fixture 需求），檢查 `specs/{EPIC_KEY}/tests/mockoon/` 是否有 `.json` 檔案：
+
+| 結果 | 動作 |
+|------|------|
+| 目錄有 `.json` 檔案 | ✅ 繼續（fixture 已建） |
+| 目錄為空或不存在 | ⚠️ **Advisory warning**（不 block）：「task.md 標記 fixture_required 但 mockoon 目錄為空 — 驗收階段可能缺測資。若本 task 負責建 fixture，請在實作中完成」 |
+
+> 不 block 的原因：fixture 可能由其他子單負責建立，本 task 不一定是 fixture 的生產者。但 warning 確保開發者意識到 fixture 需求。
+
 ### 3c. 推導受影響 URL + curl 200 + healthy signal
 
 從 `git diff {base_branch}..HEAD --name-only` 取改到的檔案清單。對照 handbook 的 **File → URL Mapping** 推導受影響的 URL。

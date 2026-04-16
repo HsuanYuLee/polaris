@@ -267,6 +267,13 @@ FAIL 項目：
 - Step C: 建立測試計劃 sub-task
 - Step D: 建立驗收單（依 `references/epic-verification-structure.md`）
   - **AC 依賴**：若某 AC 須先通過另一個 AC 才有意義，在 description 加 `## depends_on` 段列出被依賴 AC 編號（見 `references/epic-verification-structure.md § depends_on 欄位`）。無強依賴時不要硬加
+  - **驗收單 task.md**：每張驗收單同步產出 `specs/{EPIC_KEY}/tasks/{V-KEY}.md`，讓 verify-AC 能自主起環境。Schema：
+    - `fixture_required: true/false`（判斷依據：該 AC 是否需要 runtime 頁面資料，純 unit test/config 檢查 → false）
+    - `fixture_path: specs/{EPIC_KEY}/tests/mockoon/`（fixture_required=true 時填寫，使用 deterministic convention path）
+    - `fixture_start_command: mockoon-runner.sh start {fixture_path}`（啟動指令）
+    - `test_urls: [...]`（verify-AC 要打的具體 URL）
+    - `env_start_command: bash {base_dir}/scripts/polaris-env.sh <project>`
+    - 驗證步驟與預期結果（從 JIRA description 同步）
 
 本 skill 設定：
 - `parent` 指向母單（TICKET_KEY）

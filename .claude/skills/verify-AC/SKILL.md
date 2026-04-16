@@ -90,9 +90,19 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 
 從 AC 驗收單 description 讀取「驗證步驟」章節。若 description 缺驗證步驟 → 標記 **UNCERTAIN**，addComment 說明「無驗證步驟可執行，需補充 AC 描述」，結束本張。
 
-**環境啟動**（local + mockoon 預設）：
+**環境啟動**（local + fixture server）：
 
-從 Epic → task.md → Repo 欄位推導專案，讀 workspace-config `projects[].dev_environment`：
+**Step 3a. 讀驗收單 task.md**
+
+查找驗收單對應的 task.md：`specs/{EPIC_KEY}/tasks/{AC_TICKET_KEY}.md`。若存在 → 讀取 fixture 設定；若不存在 → fallback 到 Step 3b。
+
+**Step 3b. Fixture 自動偵測（fallback）**
+
+若無 task.md，自動偵測 `specs/{EPIC_KEY}/tests/mockoon/` 是否有 `.json` 檔案。有 → 視為 `fixture_required: true`，使用 conventional path。無 → 視為不需 fixture，只起 dev server。
+
+**Step 3c. 啟動環境**
+
+從 task.md 的 `env_start_command` 或 Epic → Repo 欄位推導專案，讀 workspace-config `projects[].dev_environment`：
 
 ```bash
 bash {base_dir}/scripts/polaris-env.sh <project>
@@ -100,6 +110,16 @@ bash {base_dir}/scripts/polaris-env.sh <project>
 
 - exit 0 → 繼續
 - exit ≠ 0 → 本張驗證 block，addComment「環境啟動失敗：{stderr tail}」，不標 PASS/FAIL（標 UNCERTAIN）
+
+**Step 3d. 啟動 Fixture Server**（僅 `fixture_required: true`）
+
+```bash
+mockoon-runner.sh start {fixture_path}
+```
+
+- `{fixture_path}` 來自 task.md 的 `fixture_path` 欄位，或 fallback 的 conventional path
+- 啟動後確認 fixture server ready（mockoon-runner.sh 的 ready signal）
+- 啟動失敗 → 本張 UNCERTAIN，addComment「fixture server 啟動失敗」
 
 ### 4. 逐步驟執行 + 分類
 
