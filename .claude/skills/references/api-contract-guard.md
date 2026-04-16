@@ -36,14 +36,14 @@ If Docker is not running, the check should **warn and skip** (not block). The ca
 ## Script Interface
 
 ```bash
-# Check all fixtures for an epic
-contract-check.sh --env-dir <mockoon-environments-dir> --epic <epic-name>
+# Check all fixtures for an epic (path per references/epic-folder-structure.md)
+contract-check.sh --env-dir {company_base_dir}/specs/PROJ-123/tests/mockoon
 
 # Check specific environment file
 contract-check.sh --file <environment.json>
 
 # Output format
-contract-check.sh --env-dir <dir> --epic PROJ-123 --format json|text
+contract-check.sh --env-dir {company_base_dir}/specs/PROJ-123/tests/mockoon --format json|text
 ```
 
 ### Output Structure

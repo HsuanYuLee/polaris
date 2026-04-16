@@ -11,7 +11,7 @@ description: >
   This skill handles DIAGNOSIS only — estimation, test plan, QA challenge, and design doc are delegated to breakdown.
 metadata:
   author: Polaris
-  version: 2.2.0
+  version: 2.1.0
 ---
 
 # Bug Triage — 診斷層
@@ -26,28 +26,6 @@ Layer 1 理解: bug-triage (Bug) / refinement (Epic/Story)
 Layer 2 派工: breakdown (通用：估點 + 測試 + QA Challenge + Design Doc)
 Layer 3 施工: engineering (branch + TDD + 品質 + PR)
 ```
-
-## Worktree Isolation（條件性）
-
-Bug-triage 的診斷工作大多是 JIRA + 靜態 codebase 讀取，不需要 worktree。但以下情境**必須**在 worktree 中進行：
-
-| 情境 | 觸發條件 | Base ref |
-|------|---------|---------|
-| AC-FAIL Path（Step 2-AF） | ticket description 含 `[VERIFICATION_FAIL]` → 分析對象是 feature branch | `[VERIFICATION_FAIL]` block 的 `分析對象 branch` |
-| 手動復現 bug | 需要起 dev server / 實際執行驗證「這個 bug 是否還存在」 | `origin/develop` 或指定的 ticket branch |
-| 跨 branch 比對 | 想在兩個 branch 分別起環境對照行為差異 | 兩個 branch 各建一個 worktree |
-
-**不要**在使用者的主 checkout 上 `git checkout <feature-branch>` — 使用者可能有 WIP，feature branch 也可能有 commit 未 push，直接切換容易破壞狀態。
-
-完整規則（絕對規則、執行流程、canary、sub-agent dispatch、例外條款）見共用 reference：
-
-→ [planning-worktree-isolation.md](../references/planning-worktree-isolation.md)
-
-Bug-triage 專用參數：
-- `{skill}` = `bug-triage`
-- `{TICKET_KEY}` = Bug ticket key
-- Base ref 依情境（見上表）
-- AC-FAIL Path 的 sub-agent 必須用 `isolation: "worktree"` 或明確 worktree path（Explorer 會掃 feature branch 檔案）
 
 ## Step 1 — Read Ticket & Identify Project
 

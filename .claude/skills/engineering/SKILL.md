@@ -115,7 +115,8 @@ gh pr list --search "<TICKET>" --state open --json number,headRefName,url --limi
 若當前 ticket 涉及的頁面有 Mockoon fixtures，在實作前跑 contract check（見 `references/api-contract-guard.md`）：
 
 ```bash
-scripts/contract-check.sh --env-dir <mockoon-environments-dir> --epic <epic>
+# Mockoon fixtures path: specs/{EPIC}/tests/mockoon/ (see references/epic-folder-structure.md)
+scripts/contract-check.sh --env-dir {company_base_dir}/specs/{EPIC}/tests/mockoon
 ```
 
 - Exit 0 → 繼續 Phase 2

@@ -24,7 +24,7 @@ refinement 完成時同時產出兩份：
 {
   // --- Metadata ---
   "epic": "PROJ-123",                    // JIRA key
-  "version": "1.1",                    // artifact schema version
+  "version": "1.0",                    // artifact schema version
   "tier": 2,                           // detected complexity tier (1/2/3)
   "tier_signals": [                    // why this tier was chosen
     "3+ modules affected",
@@ -57,8 +57,7 @@ refinement 完成時同時產出兩份：
       "complexity": "medium",           // "low" | "medium" | "high"
       "risk": "low",                    // "low" | "medium" | "high"
       "reason": "需加入 error handling + cache，被 12 個檔案引用",
-      "references": 12,                 // how many files reference this module
-      "api_change": "additive"          // optional — "none" | "additive" | "breaking" (defaults to "none")
+      "references": 12                  // how many files reference this module
     }
   ],
 
@@ -150,33 +149,8 @@ refinement 完成時同時產出兩份：
 | Skill | 讀取欄位 | 用途 |
 |-------|---------|------|
 | **breakdown** | `modules`, `dependencies`, `downstream.breakdown_hints`, `modules[].complexity/risk`, `edge_cases`, `acceptance_criteria` | 每個 module action = 一張子單；blocking dependency = 排序依據；complexity + risk + edge case 數量 → 點數加權 |
-| **breakdown** (Step 3a — AC drift) | `acceptance_criteria[].id` | 比對既有子單 description 的 AC 引用，偵測 refinement 重整後的編號漂移 |
 | **engineering** | `acceptance_criteria[].verification`, `modules[].path` | 知道要改哪些檔案、怎麼驗證 |
 | **breakdown** (scope-challenge) | `gaps.rd_risks`, `research[].confidence` | 低信心研究 + 高風險 = challenge 候選 |
-| **breakdown** (Step 5.5 — infra-first) | `acceptance_criteria[].verification.method`, `modules[].api_change` | 決定是否插入 infra 前置子單 + ordering 規則。見 `skills/references/infra-first-decision.md` |
-| **refinement** (Step 5 — § 子單結構 preview) | 同上 | Preview breakdown 將產出的 infra 子單數量，確保規格階段跟施工階段訊息一致 |
-
-### `modules[].api_change` 欄位（v1.1 新增，optional）
-
-Refinement Step 2（Codebase Exploration）分析模組時填入，幫助下游判斷 API 變動性質：
-
-- **`"none"`**（預設）— 不涉及 API 變動或 API 為內部 helper
-- **`"additive"`** — 新增 endpoint/field 或選擇性參數，舊 client 不受影響
-- **`"breaking"`** — 刪除/改名 endpoint、改變回傳 shape、必填參數變動
-
-缺 `api_change` 欄位時，下游（breakdown / engineering）應視為 `"none"`。v1.0 artifact 不會含此欄位 — 向後相容。
-
-### AC ID 格式約定
-
-`acceptance_criteria[].id` 是 downstream 消費者的**唯一穩定錨點**。規範：
-
-- 正面 AC：`AC1`, `AC2`, `AC3` …（連號，從 1 開始）
-- 負面 AC：`AC-NEG1`, `AC-NEG2` …（獨立序列）
-- 子 AC（若需要）：`AC2.1`, `AC2.2` …（點號分隔）
-
-**子單 description 引用 AC 時統一用 `ACn` 或 `AC#n`（兩者等價，Step 3a 比對時正規化處理）**。避免 `要求 1`, `驗收項目 A` 等非結構化指稱 — 它們無法被 drift 偵測器辨識。
-
-Refinement v2+ 重整 AC 結構（合併、拆分、重編）時，既有子單若已存在，必須同步處理，否則 breakdown Step 3a 會觸發 drift 警告。見 `skills/breakdown/SKILL.md` § 3a AC 引用漂移偵測與調和。
 
 ## 版本演進
 

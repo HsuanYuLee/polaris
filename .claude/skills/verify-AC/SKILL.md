@@ -121,8 +121,16 @@ bash {base_dir}/scripts/polaris-env.sh <project>
 
 ### 5. Evidence 收集
 
-截圖、curl output、VR diff 等，透過 JIRA attachment 上傳：
+截圖、curl output、VR diff 等，先存本地留底再上傳 JIRA：
 
+**5a. 本地留底**（見 `references/epic-folder-structure.md`）：
+```bash
+# Evidence 存放路徑：specs/{EPIC}/verification/{AC_KEY}/{timestamp}/
+mkdir -p {company_base_dir}/specs/{EPIC}/verification/{AC_KEY}/$(date +%Y%m%d-%H%M%S)
+# 複製所有 evidence 到該目錄
+```
+
+**5b. JIRA 上傳**：
 ```bash
 bash {base_dir}/scripts/jira-upload-attachment.sh <AC_KEY> <file_path>
 ```

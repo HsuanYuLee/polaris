@@ -255,7 +255,8 @@ This stops Mockoon + dev server + any Docker services started by polaris-env.
 If Mockoon fixtures are running (Layer 2 of polaris-env), run the contract check before capturing screenshots. See `references/api-contract-guard.md`.
 
 ```bash
-scripts/contract-check.sh --env-dir <mockoon-environments-dir> --epic <epic>
+# Mockoon fixtures path: specs/{EPIC}/tests/mockoon/ (see references/epic-folder-structure.md)
+scripts/contract-check.sh --env-dir {company_base_dir}/specs/{EPIC}/tests/mockoon
 ```
 
 | Exit code | Action |
@@ -668,10 +669,9 @@ This checkpoint catches the #1 failure mode in fixture setup: proxy mode silentl
 
 After zero-diff is confirmed, fixtures stay in the **per-epic directory** — that is the source of truth:
 
-1. Verify all routes are in `ai-config/{company}/mockoon-environments/{epic}/`
-2. Update `proxy-config.yaml` if new routes or env overrides were added
-3. Run reverse-sync: `{company}/polaris-sync.sh --reverse {project}`
-4. Fixtures are **not committed to the product repo** — they live in `ai-config/` (gitignored in product repos)
+1. Verify all routes are in `specs/{epic}/tests/mockoon/` (see `references/epic-folder-structure.md`)
+2. Update shared `{company_base_dir}/mockoon-config/proxy-config.yaml` if new routes or env overrides were added
+3. Fixtures are **not committed to the product repo** — they live in `specs/` (gitignored)
 
 ### Relationship to comparison modes
 
@@ -687,23 +687,23 @@ After fixtures are validated via Record → Compare, normal VR runs (SIT or Loca
 
 ## Fixture Lifecycle: Per-Epic Isolation
 
-Fixtures are organized **per-epic** under `ai-config/{company}/mockoon-environments/{epic}/`. Each epic has a complete, independent set of Mockoon environment JSON files.
+Fixtures are organized **per-epic** under `specs/{EPIC}/tests/mockoon/`. Each epic has a complete, independent set of Mockoon environment JSON files. See `references/epic-folder-structure.md` for the full folder schema.
 
 ### Directory structure
 
 ```
-ai-config/{company}/mockoon-environments/
-├── PROJ-100/                    ← Epic fixtures (source of truth)
-│   ├── dev.example.com.json
-│   ├── api-lang.sit.example.com.json
-│   ├── recommend.sit.example.com.json
-│   └── ...
-├── PROJ-200/                    ← Next epic (bootstrapped from PROJ-100)
-│   └── ...
-└── proxy-config.yaml          ← Shared env override config
+specs/{EPIC}/tests/mockoon/          ← Epic fixtures (source of truth)
+├── dev.example.com.json
+├── api-lang.sit.example.com.json
+├── recommend.sit.example.com.json
+└── ...
+
+{company_base_dir}/mockoon-config/   ← Shared cross-epic config
+├── proxy-config.yaml
+└── demo.json (optional)
 ```
 
-No root-level `*.json` files — the epic directory IS the environments directory.
+No root-level `*.json` files — the epic mockoon directory IS the environments directory.
 
 ### Bootstrap a new epic
 
@@ -711,36 +711,29 @@ When starting a new epic that needs VR:
 
 1. Copy the previous epic's fixtures as a starting point:
    ```bash
-   cp -r ai-config/{company}/mockoon-environments/{prev-epic}/ ai-config/{company}/mockoon-environments/{new-epic}/
+   cp -r specs/{prev-epic}/tests/mockoon/ specs/{new-epic}/tests/mockoon/
    ```
 2. Review which routes are relevant — remove stale routes for APIs no longer tested
 3. Re-record any routes where the API response format has changed (see Record → Compare workflow)
-4. Update `workspace-config.yaml` → `fixtures.start_command` to point to the new epic directory via `--epic {new-epic}`
+4. No workspace-config update needed — path is derived from the Epic key at runtime
 
 ### Why per-epic (not shared base + overlay)
 
 - **Determinism** — each epic is a complete snapshot; no merge layer, no inheritance bugs
 - **Independence** — epic A's fixture changes can't break epic B's tests
-- **Simplicity** — `mockoon-runner.sh --epic PROJ-100` loads exactly what's in that directory, nothing else
+- **Simplicity** — `mockoon-runner.sh start specs/{EPIC}/tests/mockoon/` loads exactly what's in that directory, nothing else
 - **Storage is cheap** — a full fixture set is ~1.5MB; recording time is the real cost, and bootstrap from previous epic eliminates most of it
 
 ### Runner integration
 
-`mockoon-runner.sh` supports `--epic {name}` to load from a subdirectory:
+`mockoon-runner.sh` accepts a directory containing `*.json` files:
 
 ```bash
-# Load from PROJ-100/ subdirectory
-mockoon-runner.sh start <environments_dir> --epic PROJ-100
-
-# Equivalent to: mockoon-runner.sh start <environments_dir>/PROJ-100
+# Load directly from the epic mockoon directory
+mockoon-runner.sh start {company_base_dir}/specs/PROJ-100/tests/mockoon
 ```
 
-The `workspace-config.yaml` `start_command` includes the `--epic` flag:
-```yaml
-start_command: "~/work/scripts/mockoon/mockoon-runner.sh start ~/work/acme/ai-config/acme/mockoon-environments --epic PROJ-100"
-```
-
-When switching epics, update the `--epic` value in workspace config.
+The workspace-config `fixtures.runner` specifies the runner script path. The Epic-specific mockoon directory is resolved at runtime from the active Epic context — no hardcoded `--epic` flag or `environments_dir` needed.
 
 ---
 

@@ -32,13 +32,8 @@ Core principle: **each skill consumes a self-contained input and produces a well
 
 Breakdown 產出的 task.md 是 engineering 的唯一輸入（除了 codebase 和自動載入的 handbook）。必須 self-contained。
 
-**Header numbering**:
-- Sequential T-numbers per implementation subtask (T1..TN). AC 驗收單不佔 T-number（獨立 ticket）。
-- Split subtasks preserve parent index + alpha suffix (T8 → T8a, T8b) to avoid renumbering siblings and breaking downstream references.
-- Validator regex: `T[0-9]+[a-z]*`（見 `scripts/validate-task-md.sh`）。
-
 ```markdown
-# T{n}[suffix]: {Task summary} ({SP} pt)
+# T{n}: {Task summary} ({SP} pt)
 
 > Epic: {EPIC_KEY} | JIRA: {TASK_KEY} | Repo: {repo_name}
 
@@ -120,10 +115,6 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 - 所有 JIRA keys 已回填進 task.md
 
 **Contract**：engineering 讀 task.md 即可開工，不需回頭看 breakdown.md 或 refinement.md。
-
-**Breakdown 消費 refinement.json 的額外規則**：
-- Step 5.5 — 依 [infra-first-decision.md](infra-first-decision.md) 評估是否需要插入 infra 前置子單（Mockoon fixtures / VR baseline / 穩定 env），以 `acceptance_criteria[].verification.method` + `modules[].api_change` 為輸入
-- 無 refinement.json → 略過 infra-first 框架，使用 Step 6 舊排序邏輯並通知使用者
 
 ### engineering → verify-AC
 

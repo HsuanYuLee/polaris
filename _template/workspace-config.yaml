@@ -88,6 +88,33 @@ scrum:
   excluded_bots:               # Bots to exclude from PR review
     - "github-actions[bot]"
 
+# ── Visual Regression ──
+# Domain-level visual regression — test target is a domain, not a repo.
+# VR tooling (playwright config, test specs): ai-config/{company}/visual-regression/{domain}/
+# Per-epic artifacts (mockoon fixtures, VR baseline): specs/{EPIC}/tests/{mockoon,vr}/
+# See references/visual-regression-config.md + references/epic-folder-structure.md.
+# Leave empty if not using visual regression.
+visual_regression:
+  domains: []
+  # Example:
+  # domains:
+  #   - name: "www.example.com"
+  #     server:
+  #       base_url: "https://dev.example.com"
+  #       sit_url: "https://sit.example.com"
+  #     fixtures:
+  #       type: "mockoon"
+  #       runner: "~/work/scripts/mockoon/mockoon-runner.sh"
+  #       stop_command: "~/work/scripts/mockoon/mockoon-runner.sh stop"
+  #       health_ports: [4001, 4002]
+  #       ready_signal: "Started"
+  #       shared_config_dir: "~/work/my-company/mockoon-config"  # cross-epic shared config
+  #     pages:
+  #       - name: "homepage"
+  #         path: "/"
+  #         source_project: "my-app"
+  #         viewports: [1280, 375]
+
 # ── Infra ──
 # Leave empty if not using ansible
 infra:

@@ -4,6 +4,39 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.8.0] - 2026-04-16
+
+### Epic-centric specs folder (unified artifact structure)
+
+All Epic artifacts now live under `specs/{EPIC}/` — mockoon fixtures, VR baselines, verification evidence, lighthouse reports, refinement artifacts, and task work orders. Previously, mockoon fixtures lived in `ai-config/{company}/mockoon-environments/{epic}/` separate from refinement data. This migration unifies everything so an Epic folder is self-contained: one folder to share, archive, or delete at Epic completion.
+
+**Design decisions (DP-003):**
+- D1: proxy-config.yaml stays at company level (`{company_base_dir}/mockoon-config/`) — cross-epic shared config
+- D2: VR baselines become permanent per-epic (`specs/{EPIC}/tests/vr/baseline/`) — specs folder is gitignored, no size concern
+- D3: verify-AC evidence gets local copy (`specs/{EPIC}/verification/{TICKET}/{timestamp}/`) before JIRA upload
+
+**Changes:**
+- `skills/references/epic-folder-structure.md` — **new** reference defining the complete folder schema, path resolution, artifact lifecycle, and bootstrap rules
+- `skills/references/INDEX.md` — new § Epic Folder Structure section
+- `skills/references/visual-regression-config.md` — directory structure split into tooling (domain-level) and data (per-epic); fixtures schema updated (`runner` + `shared_config_dir` replace `environments_dir` + `active_epic` + hardcoded `start_command`)
+- `skills/references/api-contract-guard.md` — contract-check invocation updated to new path
+- `skills/references/epic-verification-workflow.md` — fixture folder paths + cleanup flow updated
+- `skills/visual-regression/SKILL.md` — fixture lifecycle section rewritten for `specs/{EPIC}/tests/mockoon/`; bootstrap, runner integration, and Phase 3 commit flow updated
+- `skills/verify-AC/SKILL.md` — Step 5 split into 5a (local evidence copy) + 5b (JIRA upload)
+- `skills/engineering/SKILL.md` — Phase 1.5 contract-check path updated
+- `skills/breakdown/SKILL.md` — references-to-load table gains `epic-folder-structure.md`
+- `kkday/workspace-config.yaml` — fixtures block: removed `environments_dir`, `active_epic`, hardcoded `start_command`; added `runner`, `shared_config_dir`
+- `_template/workspace-config.yaml` — new `visual_regression` section with updated schema example
+- `kkday/ai-config/kkday/visual-regression/record-fixtures.sh` — MOCKOON_DIR parameterized (env var or argument), no longer hardcoded
+- `rules/mechanism-registry.md` — new canary `epic-folder-structure-compliance` (Medium)
+- `polaris-backlog.md` — closed "Epic-centric specs folder" item
+
+**Data migration (kkday):**
+- `kkday/ai-config/kkday/mockoon-environments/GT-478/` → `kkday/specs/GT-478/tests/mockoon/`
+- `kkday/ai-config/kkday/mockoon-environments/GT-483/` → `kkday/specs/GT-483/tests/mockoon/`
+- `kkday/ai-config/kkday/mockoon-environments/proxy-config.yaml` → `kkday/mockoon-config/proxy-config.yaml`
+- `kkday/ai-config/kkday/mockoon-environments/demo.json` → `kkday/mockoon-config/demo.json`
+
 ## [3.7.0] - 2026-04-16
 
 ### Infra-first decision framework (AC-verification-driven)

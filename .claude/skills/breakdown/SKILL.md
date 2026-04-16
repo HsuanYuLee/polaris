@@ -3,7 +3,7 @@ name: breakdown
 description: "Universal planning skill: Bug reads ROOT_CAUSE then estimates; Story/Task/Epic explores codebase then splits into sub-tasks with estimates, and packs each sub-task into a self-contained task.md work order for engineering to consume. Also handles scope challenge (advisory mode). Trigger: 拆單, 'split tasks', 拆解, 'breakdown', 'break down', 子單, 'sub-tasks', 評估這張單, 'evaluate this ticket', 估點, 'estimate', 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑'."
 metadata:
   author: Polaris
-  version: 2.6.0
+  version: 2.2.0
 ---
 
 # Breakdown — Packer
@@ -17,29 +17,6 @@ metadata:
 讀取 workspace config（參考 `references/workspace-config-reader.md`）。
 本步驟需要的值：`jira.instance`、`jira.projects`（取得 project keys）。
 若 config 不存在，使用 `references/shared-defaults.md` 的 fallback 值。
-
-## Worktree Isolation（條件性）
-
-Breakdown 預設不碰主 checkout — Step 3（偵測開發進度）、Step 4（Codebase 探索）、Step 6（拆解）都是 JIRA + 靜態讀檔操作，不需要 worktree。
-
-**何時必須建立 worktree：**
-
-| 情境 | 觸發條件 |
-|------|---------|
-| 估點 sanity-check | Planning Path Step 7 想跑 `pnpm -C ... test` / build 評估實際影響範圍 |
-| Infra-first 決策驗證 | Step 6 套用 infra-first 決策框架時，需要 runtime 確認 Mockoon fixtures / VR baseline 是否已足夠 |
-| Scope Challenge runtime check | SC 模式下懷疑 ticket 範圍錯估，想起 env 實際試跑 |
-
-完整規則（絕對規則、執行流程、canary、sub-agent dispatch、例外條款）見共用 reference：
-
-→ [planning-worktree-isolation.md](../references/planning-worktree-isolation.md)
-
-Breakdown 專用參數：
-- `{skill}` = `breakdown`
-- `{TICKET_KEY}` = 當前 ticket key
-- Base ref = `origin/develop`
-
-> **注意**：Step 14（建立 feature / task branch）使用 `git branch <name> origin/develop`（不帶 `-b`，不切 checkout）+ `git push` 推上 remote，主 checkout 狀態完全不變，不需要 worktree。詳見 § 14 絕對規則。
 
 ## Workflow
 
@@ -84,63 +61,11 @@ mcp__claude_ai_Atlassian__getJiraIssue
 1. **檢查既有子單** — 用 JQL `parent = <TICKET_KEY>` 查詢
 2. **檢查 feature branch** — `git branch -a | grep <TICKET_KEY>`
 3. **檢查 commit 紀錄** — 如果有 branch，用 `git log` 檢視已完成的工作
-4. **檢查 AC 引用對齊**（當 `refinement.json` 存在且有既有子單時） — 掃既有子單 description 中的 AC 引用，比對 refinement artifact 的 AC 結構
 
 根據偵測結果調整行為：
 - **已有子單** → 列出既有子單，詢問是否要補充
 - **已有 branch + commits 但無子單** → 提示根據已完成工作建立子單追蹤
-- **AC 引用漂移** → 按 § 3a AC 漂移調和 流程處理
 - **全新** → 進入正常流程
-
-#### 3a. AC 引用漂移偵測與調和
-
-**何時觸發：**
-
-同時滿足兩個條件：
-1. `{company_base_dir}/specs/{EPIC_KEY}/refinement.json` 存在
-2. Step 3.1 找到既有子單
-
-否則跳過（小 ticket 無 refinement artifact、全新 ticket 無子單皆適用）。
-
-**偵測流程：**
-
-1. 讀取 `refinement.json` 的 `acceptance_criteria[].id`（authoritative AC 集合，例：`["AC1", "AC2", "AC-NEG1"]`）
-2. 對每張既有子單的 `description` / `summary`，用 regex `\bAC-?\w*\d+\w*\b` 擷取所有 AC 引用（例：`AC1`、`AC#2`、`AC-NEG1`、`AC2-1`）
-3. 正規化：去掉 `#`、大小寫統一，與 `acceptance_criteria[].id` 比對
-4. 分類每個子單：
-   - **aligned** — 所有 AC 引用都存在於 `refinement.json`
-   - **drift** — 有 AC 引用**不在** `refinement.json` 中（例：子單引用 `AC#3`，artifact 只有 AC1/2/AC-NEG1）
-   - **no-ref** — description 中無 AC 引用（例：infra 前置子單）
-5. Drift 子單 → 進入調和決策
-
-**調和決策（drift 每張子單獨立問）：**
-
-| 選項 | 適用情境 | 動作 |
-|------|---------|------|
-| **SUPERSEDE** | 舊子單的 AC 已整併/拆分/重寫，新結構下已有對應的新子單取代 | 按 `jira-subtask-creation.md § Retiring Obsolete Subtasks` 流程：`[SUPERSEDED]` prefix + SP=0 + comment 指向新子單 |
-| **UPDATE** | 只是 AC 編號變動（例 `AC#3` → `AC2`），內容實質不變 | editJiraIssue 更新 description 中的 AC 引用 |
-| **RECREATE** | 舊子單 scope 已完全改變，保留反而混淆 | SUPERSEDE 舊 + 建新子單 |
-| **KEEP** | 子單仍為有效工單但 AC 引用是歷史版本（例：refinement 迭代中保留追蹤） | 不動，僅在 breakdown summary 標註 |
-
-**呈現格式（給使用者選擇）：**
-
-```
-⚠ 偵測到 AC 引用漂移（refinement.json 已有新 AC 結構，既有子單仍引用舊編號）
-
-refinement.json 當前 AC：AC1, AC2, AC-NEG1
-
-Drift 子單：
-- TASK-123：引用 AC#1/2/3（AC#3 已不存在）
-  建議：SUPERSEDE（驗證子單已在新結構下拆為 TASK-123/3821）
-- TASK-123：引用 AC#4（AC#4 已不存在）
-  建議：UPDATE → 對應新 AC-NEG1
-
-逐張確認？或全部套用建議（Y/N）？
-```
-
-**與 Sub-agent dispatch：**
-
-Drift 偵測是純靜態比對（讀 JIRA + 讀 refinement.json + regex），可在 main session 直接跑；不需要 sub-agent。實際執行 SUPERSEDE / UPDATE 的 editJiraIssue batch 才委派 haiku sub-agent。
 
 ---
 
@@ -237,21 +162,6 @@ Drift 偵測是純靜態比對（讀 JIRA + 讀 refinement.json + regex），可
 | 中型 | 6-13 pt | 拆為 2-4 張子單 |
 | 大型 | 13+ pt | 拆為 4+ 張子單，每張 2-5 pt |
 
-### 5.5. Infra-first 決策（Planning Path only）
-
-讀 `skills/references/infra-first-decision.md`，以 refinement.json 為輸入（`acceptance_criteria[].verification.method` + `modules[].api_change`），輸出：
-
-- `infra_subtasks[]` — 0-N 張 infra 前置子單（每張含 summary / points / reason）
-- `ordering_rule` — `api_first_then_infra` / `parallel` / `no_api_change`
-- `skipped` + `skip_reason` — 若匹配 exceptions 或無 refinement artifact
-- `decision_trace[]` — 決策軌跡，必填（供 `breakdown-infra-first-applied` canary 檢驗）
-
-**Graceful degrade（無 refinement.json 或 `skipped: true`）：**
-- 通知使用者：「無 refinement artifact / 匹配例外（{reason}），略過 infra-first 框架，使用 Step 6 舊排序邏輯」
-- 繼續 Step 6 時使用傳統 fallback：若 project 有 `visual_regression` config → 插入 1pt 穩定測資 task
-
-將 Step 5.5 輸出帶入 Step 6。
-
 ### 6. 拆解子任務
 
 將 ticket 拆解為具體的開發任務。
@@ -265,23 +175,15 @@ Drift 偵測是純靜態比對（讀 JIRA + 讀 refinement.json + regex），可
 - Spike / POC 類探索獨立出來
 - 已有 feature branch 時，以實際 commit 改動範圍為準
 
-**子單排序（消費 Step 5.5 輸出）：**
+**API-first 排序規則：**
 
-1. 先排 API change task（若 `modules[].api_change` 為 `breaking`）
-2. 接著 `infra_subtasks[]`（Mockoon fixtures / VR baseline / 穩定測資）
-3. 最後 feature 子單
+涉及 cross-repo API 變更時，API 變更 task 排第一（前端消費 API，自然依賴順序）。
 
-**Ordering rule 對應：**
+**穩定測資單（Fixture Recording Task）：**
 
-| `ordering_rule` | 排序 |
-|-----------------|------|
-| `api_first_then_infra` | API change → infra → feature（序列，fixtures 必須對準新 API 錄） |
-| `parallel` | infra 與 API change 可同起跑（additive 不破壞既有 fixtures） |
-| `no_api_change` | infra → feature（無 API 變動依賴） |
+若 project 有 `visual_regression` config，自動加入穩定測資 task（1pt），排在 API task 之後、前端 task 之前。
 
-**Fallback（Step 5.5 skipped）：**
-- 舊 API-first 排序：cross-repo API 變更 task 排第一
-- 舊 Fixture Recording Task：`visual_regression` config 存在時插入 1pt 穩定測資 task，排於 API task 之後、前端之前
+排序：`API/cross-repo → 穩定測資 → 前端開發`
 
 **子任務結構（每張需包含）：**
 
@@ -417,39 +319,28 @@ Total: N pt，預估 X 天
 
 ### 14. 建立 Branch
 
-**絕對規則**：14 全段禁止切換主 checkout 的 HEAD。使用者可能有 WIP，任何 `git checkout` / `git pull` / `git stash` 都會破壞狀態。改用 `git branch <name> <start>`（不帶 `-b`，只建 ref，不碰 working tree）+ `git push` 推上 remote。
-
 **14a. 按專案分組子單**（從子單 description 或 Step 2 的專案辨識結果）
 
 **14b. 建立母單 feature branch**（每個涉及的 repo 一個）
 
 ```bash
-# Fetch remote but do NOT pull (pull would touch main checkout)
-git -C {base_dir}/<repo> fetch origin develop
-
-# Create branch ref at remote develop's tip — main checkout's HEAD/branch/working tree untouched
-git -C {base_dir}/<repo> branch feat/<TICKET_KEY>-<description> origin/develop
-
-# Push + set upstream
+git -C {base_dir}/<repo> checkout develop
+git -C {base_dir}/<repo> pull origin develop
+git -C {base_dir}/<repo> checkout -b feat/<TICKET_KEY>-<description>
 git -C {base_dir}/<repo> push -u origin feat/<TICKET_KEY>-<description>
 ```
 
-> 小型 ticket（≤ 5pt，單一子單）可跳過 feature branch，直接從 `origin/develop` 開 task branch。
+> 小型 ticket（≤ 5pt，單一子單）可跳過 feature branch，直接從 develop 開 task branch。
 
-**14c. 為每張子單建立 branch**（從對應 repo 的母單 branch ref 開出，同樣不切 checkout）
+**14c. 為每張子單建立 branch**（從對應 repo 的母單 branch 開出）
 
 ```bash
-git -C {base_dir}/<repo> branch task/<SUB_KEY>-<description> feat/<TICKET_KEY>-<description>
+git -C {base_dir}/<repo> checkout feat/<TICKET_KEY>-<description>
+git -C {base_dir}/<repo> checkout -b task/<SUB_KEY>-<description>
 git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
 ```
 
 **14d. 回報 branch 結構**
-
-**為什麼不用 `checkout -b`？**
-
-`checkout -b` 會把主 checkout 的 HEAD 移到新 branch，並要求 working tree clean — 若使用者有 WIP，`checkout` 會失敗或破壞 staging。`git branch` 只建 ref，不動 working tree；engineering 之後會自行 `checkout` 到 task branch 開工，那時才需要使用者狀態乾淨。Breakdown 只負責產出 branch ref + 推上 remote，不負責切換使用者的工作目錄。
-
-**Canary signal**：Step 14 執行期間若主 checkout 的 `git status` 輸出有任何變化，就是違規。
 
 ### 14.5. 產出 task.md work orders
 
@@ -498,6 +389,7 @@ git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
 | 涉及 i18n / locale | 對應 company handbook 下 i18n 檔 |
 | 涉及 VR / 截圖 | `vr-jira-report-template.md` |
 | 涉及 JIRA 子單寫入 | `jira-subtask-creation.md` |
+| 涉及 mockoon / fixture / lighthouse / VR baseline | `epic-folder-structure.md` |
 | 所有 task | `branch-creation.md`（engineering 起手） |
 
 若無法判斷，至少列 `branch-creation.md` + 對應 repo handbook 入口。

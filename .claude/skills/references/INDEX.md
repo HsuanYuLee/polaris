@@ -22,8 +22,6 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [project-mapping.md](project-mapping.md) | JIRA ticket → local project 目錄對應（config-first） | breakdown, sasd-review, engineering |
 | [refinement-artifact.md](refinement-artifact.md) | Refinement 結構化 artifact JSON schema — 供 breakdown/estimation/engineering 消費 | refinement (Tier 2+), breakdown, engineering |
 | [confidence-labeling.md](confidence-labeling.md) | AI 研究產出信心標示（HIGH/MEDIUM/LOW/NOT_RESEARCHED） | refinement (Tier 3), breakdown (scope-challenge), learning, sasd-review |
-| [planning-worktree-isolation.md](planning-worktree-isolation.md) | Planning skill 跑 runtime 驗證（build/dev server/bug 復現）時用 git worktree 隔離，不動使用者主 checkout | refinement (Tier 2+), breakdown (Planning Path runtime check), bug-triage (AC-FAIL / bug 復現), sasd-review (方案可行性驗證) |
-| [infra-first-decision.md](infra-first-decision.md) | AC-verification-driven 決策：是否插入 infra 前置子單（Mockoon fixtures / VR baseline / 穩定 env），輸出 ordered subtask 清單 + ordering 規則 | breakdown (Step 5.5 Planning Path), refinement (Step 5 § 子單結構 preview) |
 
 ## Delivery Flow
 
@@ -72,6 +70,12 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [repo-handbook.md](repo-handbook.md) | Per-repo coding 準則：repo 類型辨識、handbook 結構生成、standard-first 校準、stale detection | init (optional), engineering (Phase 0.5), review-pr (Step 3), engineering (Step 5 + 7b), git-pr-workflow (post-PR) |
+
+## Epic Folder Structure
+
+| File | Description | Triggers |
+|------|-------------|----------|
+| [epic-folder-structure.md](epic-folder-structure.md) | Epic artifact 統一 folder schema：specs/{EPIC}/ 下 refinement、tasks、tests（lighthouse/mockoon/vr）、verification | breakdown, refinement, engineering, verify-AC, visual-regression, mockoon-runner |
 
 ## Config & Infrastructure
 

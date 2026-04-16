@@ -135,14 +135,14 @@ routes:
 **Folder 結構：**
 
 ```
-mockoon-environments/
-├── PROJ-483/                  # Epic-specific fixtures
-│   ├── proxy-config.yaml    # AI 生成的 proxy routing config
-│   ├── dev.example.com.json   # 主要 fixture（錄製的 API responses）
-│   └── ...                  # 其他 service fixtures（如需要）
-├── PROJ-500/                  # 另一個 Epic
-│   └── ...
-└── (base fixtures)          # 共用基礎（如果有）
+specs/{EPIC_KEY}/tests/mockoon/    # Per-epic fixtures (see references/epic-folder-structure.md)
+├── dev.example.com.json           # 主要 fixture（錄製的 API responses）
+├── api-lang.sit.example.com.json  # 其他 service fixtures
+└── ...
+
+{company_base_dir}/mockoon-config/ # 跨 Epic 共用 config
+├── proxy-config.yaml
+└── demo.json (optional)
 ```
 
 **前置條件：** API 調整單已完成（如果有）。這確保錄到的 fixture 包含了新 API 的 response。
@@ -167,7 +167,7 @@ mockoon-environments/
 ### Epic 完成 — Fixture Cleanup
 
 Feature PR merge 到 develop 後：
-1. 刪除 `mockoon-environments/{EPIC_KEY}/` folder
+1. 刪除 `specs/{EPIC_KEY}/tests/mockoon/` folder（或保留作為 archive — 見 `references/epic-folder-structure.md`）
 2. 更新 workspace-config 移除 active fixture set 指向
 
 **象徵意義：** fixture folder 的刪除代表這個功能或 bug 完整做完了。
@@ -450,7 +450,7 @@ feature/{EPIC_KEY}-{description}
   │
   │  ── 前置階段 ──
   ├── API 調整單（如果有）→ PR to feature branch
-  ├── 📦 穩定測資單 → 錄製 mockoon-environments/{EPIC_KEY}/
+  ├── 📦 穩定測資單 → 錄製 specs/{EPIC_KEY}/tests/mockoon/
   │
   │  ── 實作階段（基於固定測資）──
   ├── task/{TICKET_KEY}-{desc} → PR to feature branch（必須通過 VR）
@@ -469,7 +469,7 @@ feature/{EPIC_KEY}-{description}
   ├── feature → develop PR（VR Gate 必須 PASS）
   │
   │  ── Cleanup ──
-  └── PR merged → 刪除 mockoon-environments/{EPIC_KEY}/
+  └── PR merged → cleanup specs/{EPIC_KEY}/tests/mockoon/ (optional archive)
 ```
 
 ## VR Gate (git-pr-workflow integration)

@@ -2,10 +2,11 @@
 
 visual-regression skill 的 config 結構說明。測試對象是 **domain**（使用者看到的網站），不是 repo。
 
-**比對模式：Before/After（非 Baseline）**
-- 不維護長期 baseline 截圖
-- 每次執行抓兩組截圖（before + after），比完即刪
+**比對模式：Before/After + Per-Epic Baseline**
+- 每次執行抓兩組截圖（before + after），diff 完即刪
 - 利用 Playwright `--update-snapshots` 建暫時 baseline，正常 run 比對
+- VR baseline 永久存 `specs/{EPIC}/tests/vr/baseline/`（見 `references/epic-folder-structure.md`）
+- Mockoon fixtures 存 `specs/{EPIC}/tests/mockoon/`（per-epic 隔離）
 
 ## 兩層繼承
 
@@ -68,10 +69,14 @@ visual_regression:
 
 ## 目錄結構
 
+VR 分為 **tooling（domain-level）** 和 **data（per-epic）** 兩層：
+
+### Tooling（domain-level）
 ```
 ai-config/{company}/visual-regression/
   ├── package.json              # 共用 Playwright 依賴（跨 domain 共享）
   ├── node_modules/             # 共用安裝
+  ├── record-fixtures.sh        # VR 錄製工具
   └── {domain}/
       ├── playwright.config.ts  # Playwright 設定（讀 VR_BASE_URL env var）
       ├── pages.spec.ts         # 測試案例（從 config 生成初版，用戶可修改）
@@ -80,10 +85,22 @@ ai-config/{company}/visual-regression/
       └── playwright-report/    # HTML report（保留供檢視，不 commit）
 ```
 
-- `package.json` 在公司 VR 層（非 domain 層），所有 domain 共用同一個 Playwright
-- Polaris 生成初版測試檔，用戶可自由新增或修改
+### Data（per-epic，見 `references/epic-folder-structure.md`）
+```
+specs/{EPIC}/tests/
+  ├── mockoon/                  # Mockoon environment JSONs（per-epic 隔離）
+  │   ├── dev.example.com.json
+  │   └── ...
+  └── vr/
+      └── baseline/             # VR baseline screenshots（永久，per-epic 快照）
+          ├── homepage-zh-tw-1280.png
+          └── ...
+```
+
+- Tooling 層是 domain-level：所有 Epic 共用同一個 Playwright 和測試設定
+- Data 層是 per-epic：每個 Epic 有獨立的 fixtures 和 baseline
 - `snapshots/` 和 `test-results/` 是暫時的 — skill 執行完即清除
-- 不需要 commit 任何截圖檔案
+- 不需要 commit 任何截圖檔案（specs/ 已 gitignore）
 
 ### Playwright config 必設項目
 
@@ -116,10 +133,15 @@ ai-config/{company}/visual-regression/
 | 欄位 | 型別 | 必填 | 說明 |
 |------|------|------|------|
 | `type` | string | 否 | 工具標識（mockoon / prism / json-server）。用於 log，不影響行為 |
-| `start_command` | string | 是（如果有 fixtures block） | 啟動 fixture server 的指令 |
+| `runner` | string | 是（如果有 fixtures block） | Runner 腳本路徑（如 `~/work/scripts/mockoon/mockoon-runner.sh`）。Skill 在 runtime 組合 `{runner} start {company_base_dir}/specs/{EPIC}/tests/mockoon` 啟動 |
+| `stop_command` | string | 是（如果有 fixtures block） | 停止 fixture server 的指令 |
+| `health_ports` | number[] | 否 | 健康檢查端口列表 |
 | `ready_signal` | string | 是（如果有 fixtures block） | 同 server.ready_signal 邏輯 |
+| `shared_config_dir` | string | 否 | 跨 Epic 共用 config 目錄（proxy-config.yaml 等）。見 `references/epic-folder-structure.md` |
 
 整個 fixtures block 是 optional。打 SIT 時通常不需要 fixtures（SIT 有自己的資料）。
+
+**Fixture 路徑解析**：不再使用 `environments_dir` + `active_epic` 拼接。Skill 從 active Epic context 推導 mockoon 路徑：`{company_base_dir}/specs/{EPIC}/tests/mockoon/`。
 
 **為什麼建議使用 fixture server：** 開發期間後端 API 可能調整（欄位變更、資料異動），導致截圖比對出現假陽性。Fixture server 提供穩定、可控的 API 回應，確保 before/after 差異只來自前端代碼變更。
 
@@ -178,6 +200,13 @@ visual_regression:
         ready_signal: "ready"
         base_url: "https://dev.example.com"
         sit_url: "https://sit.example.com"
+      fixtures:
+        type: "mockoon"
+        runner: "~/work/scripts/mockoon/mockoon-runner.sh"
+        stop_command: "~/work/scripts/mockoon/mockoon-runner.sh stop"
+        health_ports: [4001, 4002]
+        ready_signal: "Started"
+        shared_config_dir: "~/work/acme/mockoon-config"
       global_masks:
         - "[data-testid*='date']"
         - "[data-testid*='price']"
