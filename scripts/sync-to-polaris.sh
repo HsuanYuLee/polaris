@@ -359,7 +359,7 @@ for company in "${COMPANY_DIRS[@]}"; do
       echo "$modified" > "$mdfile"
       genericize_count=$((genericize_count + 1))
     fi
-  done < <(find "$POLARIS_DIR/.claude" "$POLARIS_DIR/docs" "$POLARIS_DIR/CLAUDE.md" "$POLARIS_DIR/README.md" "$POLARIS_DIR/README.zh-TW.md" -name '*.md' -print0 2>/dev/null)
+  done < <(find "$POLARIS_DIR/.claude" "$POLARIS_DIR/docs" "$POLARIS_DIR/CLAUDE.md" "$POLARIS_DIR/README.md" "$POLARIS_DIR/README.zh-TW.md" \( -name '*.md' -o -name '*.py' -o -name '*.sh' \) -print0 2>/dev/null)
 done
 
 if [[ "$genericize_count" -gt 0 ]]; then

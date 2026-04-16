@@ -8,10 +8,10 @@ Side:   Writes thread mapping to --mapping file (default /tmp/pr-thread-mapping.
 
 Usage:
   # Channel mode (default): parse per-message thread_ts from MCP format
-  cat /tmp/slack-raw.json | python3 extract-pr-urls.py --org kkday-it
+  cat /tmp/slack-raw.json | python3 extract-pr-urls.py --org your-org
 
   # Thread mode: all URLs map to the given thread_ts (for slack_read_thread output)
-  cat /tmp/slack-thread.json | python3 extract-pr-urls.py --org kkday-it --thread-ts 1776130982.981829
+  cat /tmp/slack-thread.json | python3 extract-pr-urls.py --org your-org --thread-ts 1776130982.981829
 """
 
 import json
@@ -23,7 +23,7 @@ from datetime import datetime, timezone, timedelta
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Extract PR URLs from Slack MCP output")
-    parser.add_argument("--org", required=True, help="GitHub org to filter (e.g. kkday-it)")
+    parser.add_argument("--org", required=True, help="GitHub org to filter (e.g. your-org)")
     parser.add_argument("--mapping", default="/tmp/pr-thread-mapping.json",
                         help="Output path for PR URL → thread_ts mapping")
     parser.add_argument("--thread-ts", default=None,
