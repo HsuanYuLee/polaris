@@ -65,6 +65,7 @@ Static smoke test of canaries from `rules/mechanism-registry.md`.
 7. **Registry freshness** — mechanism source files still exist
 8. **Ghost references** — no references to deleted skills (e.g., `dev-guide`)
 9. **Hardcoded paths** — no `~/work/` literals in generic SKILL.md files
+10. **Hooks in settings.local.json** — scan each project's `.claude/settings.local.json` for a top-level `hooks` key → 🟡 WARN. All hooks must live in `settings.json`; `settings.local.json` with `hooks` causes shallow merge to silently override the entire `hooks` object, disabling all shared PostToolUse/PreToolUse hooks
 
 ### Report format
 

@@ -6,17 +6,37 @@ How to dispatch sub-agents effectively. Three mandatory standards, three special
 
 ### Completion Envelope
 
-All sub-agents must return results with this 3-line header so the orchestrator can determine success without parsing prose:
+All sub-agents must return results with this header so the orchestrator can determine success without parsing prose:
 
 ```markdown
 ## Status: {DONE | BLOCKED | PARTIAL}
 **Artifacts**: {files, URLs, ticket keys — or "none"}
-**Summary**: {one-sentence result}
+**Detail**: {/path/to/detail-file.md | "inline" if short enough}
+**Summary**: {≤ 3 sentences — decision-relevant conclusions only}
 ```
 
 - `DONE` — task completed. Orchestrator proceeds.
 - `BLOCKED` — cannot proceed. Must include `**Blocker**:` line.
 - `PARTIAL` — some done, some not. Must include `**Remaining**:` line.
+
+#### Summary vs Detail Separation
+
+The **Summary** goes into the main session's context window. The **Detail** stays on disk. This is the primary mechanism for controlling context consumption.
+
+| Content type | Where it goes | Example |
+|-------------|---------------|---------|
+| Conclusions, decisions, blockers | Summary (≤ 3 sentences) | "3 files need changes; composable X is the right extension point; no breaking changes" |
+| Full analysis, file-by-file breakdown, diffs, evidence | Detail file on disk | Exploration report, review findings, test output |
+| File paths, URLs, ticket keys | Artifacts line | PR #123, branch name, JIRA key |
+
+**Detail file write rules:**
+- Epic-scoped work → `specs/{EPIC}/artifacts/{agent-type}-{timestamp}.md`
+- Design Plan-scoped work → `specs/design-plans/DP-NNN/artifacts/{agent-type}-{timestamp}.md`
+- No scope → `/tmp/polaris-agent-{timestamp}.md`
+- After writing, verify file exists: `test -f {path}` before reporting `Detail: {path}`
+- If Detail is `"inline"` — the full content fits in ≤ 5 lines and is included in the Summary section itself
+
+**Why:** sub-agent returns without length constraints can dump thousands of tokens into the main context. The Strategist reads the Summary for routing decisions; if deeper analysis is needed, it reads the Detail file on demand.
 
 #### Return vs Save Separation
 
@@ -220,8 +240,10 @@ For codebase scanning. Always reference `explore-pattern.md` for adaptive explor
 用 Glob、Grep、Read 探索。不編輯任何檔案。
 
 ## 回傳
-- 檔案清單 + 實作模式摘要
-- 影響範圍評估
+使用 Completion Envelope 格式：
+- Summary ≤ 3 句（結論 + 決策相關重點）
+- Detail 寫入檔案：{detail_path}（完整分析、檔案清單、影響範圍）
+- 寫完後 `test -f {detail_path}` 確認檔案存在
 
 ## 限制
 - 只做讀取，不編輯

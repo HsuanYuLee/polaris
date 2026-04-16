@@ -4,6 +4,30 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.14.0] - 2026-04-17
+
+### DP-009: Context Consumption Optimization (D1, D3, D4)
+
+Structural improvements to reduce per-session context consumption. D2 (rules slimming) deferred to a separate session.
+
+**D1: hooks override prevention**
+- `/validate` Mechanisms mode check 10: scans `settings.local.json` for `hooks` key → warn
+- `polaris-sync.sh` deploy: post-sync check warns if deployed `settings.local.json` contains `hooks`
+- New rule in `CLAUDE.md` Additional Rules: `settings.local.json` must not define `hooks` key
+- `mechanism-registry.md`: new `no-hooks-in-local-settings` canary; updated `version-docs-lint-gate` description (now in `settings.json`)
+
+**D3: sub-agent structured return**
+- `sub-agent-roles.md` Completion Envelope: new `Detail` line + Summary ≤ 3 sentences + "Summary vs Detail Separation" section with write path rules (Epic/DP/tmp) and verified flag
+- `epic-folder-structure.md`: new `artifacts/` subdirectory for sub-agent detail files
+- Exploration Pattern dispatch prompt updated to reference Envelope format
+- `mechanism-registry.md`: `subagent-completion-envelope` canary upgraded to High with Detail check
+
+**D4: skill-completion session split + checkpoint todo-diff**
+- `context-monitoring.md` § 5a-bis: skill completion as natural session split point (decision table + override rules)
+- New `scripts/checkpoint-todo-diff.sh`: fuzzy-matches todo items against checkpoint content, exit 1 on missing items
+- `post-task-reflection-checkpoint.md` Step 5: todo-diff as hard gate before session split notification
+- `mechanism-registry.md`: new `skill-completion-split` + `checkpoint-todo-completeness` canaries
+
 ## [3.13.0] - 2026-04-17
 
 ### DP-006: verify-AC Fixture/Environment Gap

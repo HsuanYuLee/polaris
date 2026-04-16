@@ -158,6 +158,7 @@ Detailed rules live in `.claude/rules/` files.
 - **Create / modify skills via `/skill-creator`**: ensures eval, description optimization, and full workflow
 - **Skills are version-controlled**: generic skills live in `.claude/skills/` (tracked in git). Company-specific skills go under `.claude/skills/{company}/` (gitignored)
 - **Version bump → auto-sync to Polaris**: after any commit that changes `VERSION`, immediately run `scripts/sync-to-polaris.sh --push` to sync framework changes to the template repo. This is automatic — do not ask for confirmation
+- **Never define `hooks` in `settings.local.json`**: Claude Code's shallow merge means a `hooks` key in `settings.local.json` silently overrides the **entire** `hooks` object from `settings.json` — all shared PreToolUse/PostToolUse hooks stop firing. All hooks must live in `settings.json`. Local-only hooks that should skip certain repos use repo-detection logic inside the hook script itself (e.g., `version-docs-lint-gate.sh` checks for `VERSION` file). `/validate` check 10 and `polaris-sync.sh` deploy warn on violations
 
 ## Project File Management
 

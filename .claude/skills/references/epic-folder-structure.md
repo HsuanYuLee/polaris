@@ -25,6 +25,8 @@ specs/{EPIC_KEY}/
 │       └── baseline/              # VR baseline screenshots（永久，per-epic 快照）
 │           ├── homepage-zh-tw-1280.png
 │           └── ...
+├── artifacts/                     # sub-agent detail files（exploration reports, analysis, intermediate output）
+│   └── explorer-2026-04-17T0830.md
 └── verification/                  # verify-AC evidence（上傳 JIRA 前的本地留底）
     └── {TICKET_KEY}/
         └── {timestamp}/

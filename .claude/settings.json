@@ -8,6 +8,11 @@
             "type": "command",
             "if": "Bash(git push*)",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-push-quality-gate.sh\""
+          },
+          {
+            "type": "command",
+            "if": "Bash(git*commit*)",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/version-docs-lint-gate.sh\""
           }
         ]
       }
