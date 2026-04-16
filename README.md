@@ -91,11 +91,23 @@ Polaris: pulls JIRA backlog → calculates team capacity → detects carry-overs
 - **Google Calendar MCP** — adds meeting context to `standup`
 - **Figma MCP** — used when JIRA tickets reference Figma designs
 
-> **MCP setup**: MCP servers connect Claude Code to external services. Add them in Claude Code settings or via CLI:
+> **MCP setup**: MCP servers connect Claude Code/Codex to external services.
+>
+> **Claude Code (recommended):**
+> - Use `/mcp` to connect claude.ai connectors directly
+> - Slack: `https://mcp.slack.com/mcp`
+> - Atlassian: `https://mcp.atlassian.com/v1/mcp`
+>
+> **Codex (mirror the same connectors):**
+> ```bash
+> codex mcp add claude_ai_Slack --url https://mcp.slack.com/mcp
+> codex mcp add claude_ai_Atlassian --url https://mcp.atlassian.com/v1/mcp
+> codex mcp login claude_ai_Slack
+> codex mcp login claude_ai_Atlassian
+> codex mcp list
 > ```
-> claude mcp add atlassian -- npx -y @anthropic-ai/claude-code-mcp-atlassian
-> claude mcp add slack -- npx -y @anthropic-ai/claude-code-mcp-slack
-> ```
+>
+> Note: legacy stdio `npx @anthropic-ai/claude-code-mcp-*` setup is deprecated in this framework.
 > See [MCP server docs](https://docs.anthropic.com/en/docs/claude-code/mcp-servers) for Google Calendar and Figma setup.
 
 ## Quick Start

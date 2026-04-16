@@ -91,11 +91,23 @@ Polaris: 拉取 JIRA backlog → 計算團隊容量 → 偵測 carry-over
 - **Google Calendar MCP** — 為 `standup` 增加會議脈絡
 - **Figma MCP** — 當 JIRA 票單引用 Figma 設計時使用
 
-> **MCP 設定**：MCP 伺服器將 Claude Code 連接到外部服務。在 Claude Code 設定中新增，或透過 CLI：
+> **MCP 設定**：MCP 伺服器將 Claude Code/Codex 連接到外部服務。
+>
+> **Claude Code（建議）：**
+> - 用 `/mcp` 直接連 claude.ai connector
+> - Slack：`https://mcp.slack.com/mcp`
+> - Atlassian：`https://mcp.atlassian.com/v1/mcp`
+>
+> **Codex（鏡像同一組 connector）：**
+> ```bash
+> codex mcp add claude_ai_Slack --url https://mcp.slack.com/mcp
+> codex mcp add claude_ai_Atlassian --url https://mcp.atlassian.com/v1/mcp
+> codex mcp login claude_ai_Slack
+> codex mcp login claude_ai_Atlassian
+> codex mcp list
 > ```
-> claude mcp add atlassian -- npx -y @anthropic-ai/claude-code-mcp-atlassian
-> claude mcp add slack -- npx -y @anthropic-ai/claude-code-mcp-slack
-> ```
+>
+> 註：本框架不再建議使用舊的 stdio `npx @anthropic-ai/claude-code-mcp-*` 設定。
 > 參閱 [MCP 伺服器文件](https://docs.anthropic.com/en/docs/claude-code/mcp-servers) 了解 Google Calendar 和 Figma 的設定方式。
 
 ## 快速上手

@@ -4,6 +4,22 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.11.0] - 2026-04-16
+
+### MCP Transport Migration + Codex Compatibility
+
+Migrates baseline MCP servers (Atlassian, Slack) from legacy stdio (`npx @anthropic-ai/claude-code-mcp-*`) to streamable HTTP connectors, and adds Codex mirror instructions.
+
+**sync-codex-mcp.sh**
+- Baseline servers now use `add_streamable_server` with official connector URLs
+- Added transport type/URL detection — automatically replaces servers with wrong transport
+- `existing_transport_type()` / `existing_streamable_url()` helpers for introspection
+- Google Calendar example URL updated to `gcal.mcp.claude.com`
+
+**Documentation**
+- README + README.zh-TW: MCP setup rewritten with Claude Code `/mcp` connector flow + Codex mirror commands
+- Legacy stdio npx setup marked as deprecated
+
 ## [3.10.0] - 2026-04-16
 
 ### DP-005: Engineering Test Command + Handbook Injection

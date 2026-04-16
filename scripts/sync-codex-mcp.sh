@@ -12,7 +12,7 @@ set -euo pipefail
 #   bash scripts/sync-codex-mcp.sh --apply
 #   bash scripts/sync-codex-mcp.sh --apply --login
 #   bash scripts/sync-codex-mcp.sh --apply \
-#     --with-google-calendar-url "https://<your-server>/sse" \
+#     --with-google-calendar-url "https://gcal.mcp.claude.com/mcp" \
 #     --google-calendar-token-env GOOGLE_CALENDAR_MCP_TOKEN
 
 APPLY=false
@@ -23,6 +23,9 @@ GOOGLE_CALENDAR_TOKEN_ENV=""
 ATLASSIAN_NAME="claude_ai_Atlassian"
 SLACK_NAME="claude_ai_Slack"
 GOOGLE_CALENDAR_NAME="claude_ai_Google_Calendar"
+
+ATLASSIAN_URL_DEFAULT="https://mcp.atlassian.com/v1/mcp"
+SLACK_URL_DEFAULT="https://mcp.slack.com/mcp"
 
 usage() {
   cat <<'EOF'
@@ -70,6 +73,16 @@ have_server() {
   codex mcp list 2>/dev/null | awk 'NR>1 && NF>0 {print $1}' | grep -Fxq "$name"
 }
 
+existing_transport_type() {
+  local name="$1"
+  codex mcp get "$name" --json 2>/dev/null | jq -r '.transport.type // ""'
+}
+
+existing_streamable_url() {
+  local name="$1"
+  codex mcp get "$name" --json 2>/dev/null | jq -r '.transport.url // ""'
+}
+
 print_header() {
   echo "Codex MCP Sync"
   echo "Mode: $([[ "$APPLY" == true ]] && echo "APPLY" || echo "DRY-RUN")"
@@ -77,6 +90,8 @@ print_header() {
 }
 
 add_stdio_server() {
+  # Deprecated path kept intentionally to avoid hard break if reused by older callers.
+  # New baseline servers should use add_streamable_server.
   local name="$1"
   local npm_pkg="$2"
 
@@ -101,8 +116,24 @@ add_streamable_server() {
   local token_env="$3"
 
   if have_server "$name"; then
-    echo "✓ $name already exists"
-    return 0
+    local current_type current_url
+    current_type="$(existing_transport_type "$name")"
+    current_url="$(existing_streamable_url "$name")"
+
+    if [[ "$current_type" == "streamable_http" && "$current_url" == "$url" ]]; then
+      echo "✓ $name already exists (url match)"
+      return 0
+    fi
+
+    if [[ "$APPLY" == false ]]; then
+      echo "→ would replace $name"
+      echo "  current: type=$current_type url=$current_url"
+      echo "  target : type=streamable_http url=$url"
+      return 0
+    fi
+
+    echo "→ replacing $name"
+    codex mcp remove "$name"
   fi
 
   if [[ "$APPLY" == false ]]; then
@@ -154,8 +185,8 @@ login_server() {
 
 print_header
 
-add_stdio_server "$ATLASSIAN_NAME" "@anthropic-ai/claude-code-mcp-atlassian"
-add_stdio_server "$SLACK_NAME" "@anthropic-ai/claude-code-mcp-slack"
+add_streamable_server "$ATLASSIAN_NAME" "$ATLASSIAN_URL_DEFAULT" ""
+add_streamable_server "$SLACK_NAME" "$SLACK_URL_DEFAULT" ""
 
 if [[ -n "$GOOGLE_CALENDAR_URL" ]]; then
   add_streamable_server "$GOOGLE_CALENDAR_NAME" "$GOOGLE_CALENDAR_URL" "$GOOGLE_CALENDAR_TOKEN_ENV"
