@@ -4,6 +4,12 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.9.1] - 2026-04-16
+
+### Specs Viewer: Home link
+
+- `generate-specs-sidebar.sh` — add Home link at top of sidebar for navigation back to landing page
+
 ## [3.9.0] - 2026-04-16
 
 ### Polaris Specs Viewer
