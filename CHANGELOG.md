@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.9.0] - 2026-04-16
+
+### Polaris Specs Viewer
+
+Docsify-based browser for design plans, Epic refinements, and task work orders. One command (`scripts/polaris-viewer.sh`) generates a navigation sidebar and opens a local web viewer.
+
+- `scripts/generate-specs-sidebar.sh` — scans `specs/design-plans/` and `{company}/specs/` to build sidebar with status badges (💬/🔒/✅/❌), deduplicates title prefixes, skips empty epics
+- `scripts/polaris-viewer.sh` — launcher: generate sidebar → start HTTP server → open browser
+- `docs-viewer/` — docsify SPA with home page; `_sidebar.md` is generated (gitignored)
+- `.gitignore` — whitelist `docs-viewer/`, exclude generated sidebar
+
 ## [3.8.1] - 2026-04-16
 
 ### Design plan checklist completeness gate
