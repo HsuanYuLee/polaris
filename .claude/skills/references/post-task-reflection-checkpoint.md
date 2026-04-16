@@ -41,7 +41,7 @@ If a violation is found → save feedback memory with the mechanism ID.
 
 ### 4. Graduation Check
 
-If any feedback memory was updated and now has `trigger_count >= 3` → initiate Rule Graduation (see `rules/feedback-and-memory.md`).
+If any feedback memory was updated and now has `trigger_count >= 3` → initiate Rule Graduation (see `skills/references/feedback-memory-procedures.md` § Feedback → Rule Graduation).
 
 ### 5. Checkpoint Todo-Diff (when splitting session)
 

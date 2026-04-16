@@ -4,6 +4,26 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.15.0] - 2026-04-17
+
+### DP-009: Context Consumption Optimization (D2 — Rules Slimming)
+
+Rules auto-load reduced from 1,520 → 879 lines (−641, 42%). Procedure and reference content moved to `skills/references/` (loaded on-demand via INDEX.md triggers).
+
+**Whole file moves:**
+- `library-change-protocol.md` → `skills/references/library-change-protocol.md` (rules/ stub: 7 lines)
+
+**Split extractions:**
+- `framework-iteration.md`: procedures → `skills/references/framework-iteration-procedures.md` (119→57 lines)
+- `feedback-and-memory.md`: graduation, hygiene, carry-forward, dedup, backlog, frontmatter, injection scan → `skills/references/feedback-memory-procedures.md` (328→103 lines)
+- `sub-agent-delegation.md`: model tiers, T1/T2/T3, scoring, isolation, restore, fan-in, safety hooks → `skills/references/sub-agent-reference.md` (188→21 lines)
+- `mechanism-registry.md`: all Common Rationalizations + Deterministic Hooks detail → `skills/references/mechanism-rationalizations.md` (338→272 lines)
+
+**Reference integrity:**
+- INDEX.md: 5 new entries with triggers
+- 4 SKILL.md broken path fixes (learning, converge, design-plan, post-task-reflection-checkpoint)
+- mechanism-registry source path updated for library-change-protocol
+
 ## [3.14.0] - 2026-04-17
 
 ### DP-009: Context Consumption Optimization (D1, D3, D4)

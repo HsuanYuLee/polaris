@@ -183,7 +183,7 @@ Gaps found: X | Ready: Y | Skipped: Z
 ### 安全機制
 
 - **Restore point**：Phase 3 開始前，若 working tree 有 uncommitted changes → `git stash push -m "polaris-restore-converge-{timestamp}"`
-- **Self-regulation scoring**：每個 sub-agent 獨立累計風險分數（見 `rules/sub-agent-delegation.md`），> 35% 停止並回報
+- **Self-regulation scoring**：每個 sub-agent 獨立累計風險分數（見 `skills/references/sub-agent-reference.md`），> 35% 停止並回報
 - **Worktree isolation**：parallel 執行的 sub-agent 使用 `isolation: "worktree"` 避免衝突
 - **Abort**：任一 sub-agent 回報 BLOCKED 且影響後續 ticket → 暫停，回報使用者
 

@@ -54,6 +54,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [sub-agent-roles.md](sub-agent-roles.md) | Sub-agent dispatch 標準：completion envelope、model tier、QA/Architect/Critic | 任何 skill 啟動 sub-agent |
+| [sub-agent-reference.md](sub-agent-reference.md) | Sub-agent 輔助參考：model tier 表、T1/T2/T3 決策分類、self-regulation scoring、pipeline restore points、fan-in validation、write isolation model、safety hooks | 任何 skill 啟動 sub-agent, engineering batch mode, parallel sub-agent dispatch |
 | [explore-pattern.md](explore-pattern.md) | Adaptive codebase 探索模式：handbook-first → 小範圍直讀 / 大範圍平行 sub-agent → handbook 回寫 | refinement (Tier 2+), sasd-review, breakdown, systematic-debugging, engineering, bug-triage |
 
 ## Testing & VR
@@ -111,3 +112,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 |------|-------------|----------|
 | [challenger-audit.md](challenger-audit.md) | 多角色 UX 審查系統，pre-release 時使用 | challenger, version-release |
 | [docs-editorial-guideline.md](docs-editorial-guideline.md) | README/docs 文風規範：結論先行、show don't tell、structured vs editorial 分層 | docs-sync, version-bump README update |
+| [framework-iteration-procedures.md](framework-iteration-procedures.md) | 框架自迭代 procedures：Post-Version-Bump Chain、Backlog Hygiene scan、Validated Pattern Promotion、Framework Experience frontmatter | version-bump, organize-memory, docs-sync, standup (monthly) |
+| [feedback-memory-procedures.md](feedback-memory-procedures.md) | Feedback/memory 操作流程：graduation steps、hygiene checks、carry-forward、dedup、backlog format、frontmatter spec、injection scan | post-task-reflection, organize-memory, feedback write, graduation |
+| [mechanism-rationalizations.md](mechanism-rationalizations.md) | Mechanism Registry 的 Common Rationalizations 查表集 + Deterministic Quality Hooks 技術細節（evidence file spec、bypass flags） | post-task mechanism audit (when drift suspected), hook configuration, verification-evidence debugging |
+| [library-change-protocol.md](library-change-protocol.md) | 依賴變更完整協議：三層調查、替換/升級評估、Decision Tier、config 系統性排除、workaround 文件標準 | engineering (library evaluation), review-pr (reviewer suggests upgrade), bug-triage (dependency issue) |

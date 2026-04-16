@@ -185,7 +185,7 @@ LOCKED 的 plan 即 self-contained work order。跟 `breakdown → task.md → e
 |------|------|
 | Phases 修改的檔案不重疊且無 interface 依賴 | 平行 dispatch（單訊息多個 Agent tool）|
 | Phase 依賴前一個 phase 的 interface 或檔案結構 | 順序 dispatch（前一個回傳後再 dispatch 下一個）|
-| 多個 sub-agent 可能修改相同檔案 | 平行 + `isolation: "worktree"`（見 `rules/sub-agent-delegation.md`）|
+| 多個 sub-agent 可能修改相同檔案 | 平行 + `isolation: "worktree"`（見 `skills/references/sub-agent-reference.md`）|
 
 **Sub-agent 責任**：
 - 讀完整 plan.md，不跳讀

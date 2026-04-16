@@ -334,7 +334,7 @@ For each gap/opportunity:
 **What**: One-sentence description
 **Why**: Problem solved or improvement
 **How**: Concrete actions (files to create/modify, patterns to adopt)
-**Landing**: {target-specific: e.g., "rules/sub-agent-delegation.md § Safety Hooks" or "your-app composables/useProduct.ts"}
+**Landing**: {target-specific: e.g., "skills/references/sub-agent-reference.md § Safety Hooks" or "your-app composables/useProduct.ts"}
 **Effort**: Low / Medium / High
 **Priority**: Worth doing now / Nice to have / Worth tracking
 **Validates**: {backlog item title, if applicable}
