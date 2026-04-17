@@ -4,6 +4,27 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.19.0] - 2026-04-17
+
+### Revision Mode — Behavioral Verification Hard Gate
+
+Rebase-only revision (no review comments to fix) was silently skipping R5 behavioral verification. Now R5 is mandatory for ALL revision paths.
+
+**Engineering SKILL.md:**
+- New § R2d Empty-Signal Route: when review signals are empty (QA-reported, rebase-only), skip R3-R4 but still run R5
+- R5 title updated to "硬門檻 — 所有 revision path 必經", explicit that rebase-only must verify
+
+**Mechanism Registry:**
+- New `revision-r5-mandatory` (Critical): canary detects `git push` in revision mode without behavioral verification
+
+### Specs Sidebar — Universal Auto-Sync
+
+Previously only design-plan triggered sidebar regeneration. Now all skills writing to `specs/` (bug-triage, breakdown, refinement) auto-trigger via broadened hook pattern.
+
+**specs-sidebar-sync.sh:** Pattern `*/specs/*/*.md` covers plan.md, refinement.md, and any spec file
+**generate-specs-sidebar.sh:** Detects `plan.md` in company epic dirs (standalone bug/ticket specs no longer skipped); title dedup strips ticket key prefix
+**docs-viewer/index.html:** Sidebar overflow scroll fix + docsify-sidebar-collapse plugin for collapsible epic sections
+
 ## [3.18.0] - 2026-04-17
 
 ### Pre-Work Rebase — Mandatory Before Development/Revision

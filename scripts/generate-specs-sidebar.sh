@@ -93,18 +93,25 @@ status_badge() {
       [ -d "$epic_dir" ] || continue
       epic=$(basename "$epic_dir")
 
-      # Skip empty epics (no refinement, no tasks)
+      # Skip empty epics (no refinement, no tasks, no plan)
       has_refinement=false
       has_tasks=false
+      has_plan=false
       [ -f "$epic_dir/refinement.md" ] && has_refinement=true
       [ -d "$epic_dir/tasks" ] && [ -n "$(ls "$epic_dir/tasks/"*.md 2>/dev/null)" ] && has_tasks=true
-      if ! $has_refinement && ! $has_tasks; then
+      [ -f "$epic_dir/plan.md" ] && has_plan=true
+      if ! $has_refinement && ! $has_tasks && ! $has_plan; then
         continue
       fi
 
-      # Epic header
+      # Epic/ticket header
       if [ -f "$epic_dir/refinement.md" ]; then
         echo "  * [$epic — Refinement]($company/specs/$epic/refinement.md)"
+      elif [ -f "$epic_dir/plan.md" ]; then
+        plan_title=$(grep -m1 '^# ' "$epic_dir/plan.md" 2>/dev/null | sed 's/^# //' || echo "$epic")
+        # Strip leading ticket key from title to avoid "KEY — KEY — title" duplication
+        plan_title=$(echo "$plan_title" | sed "s/^${epic}[[:space:]]*[—–-][[:space:]]*//")
+        echo "  * [$epic — $plan_title]($company/specs/$epic/plan.md)"
       else
         echo "  * **$epic**"
       fi
