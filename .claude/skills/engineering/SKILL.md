@@ -176,6 +176,10 @@ Sub-agent **不會**自動載入 `.claude/rules/`。你必須自己讀：
 - 依 `references/branch-creation.md` 流程建 branch（或使用 `scripts/create-branch.sh`）
 - branch 建立後執行 `{base_dir}/polaris-sync.sh {project-name}` 部署 AI 設定
 
+### 1.5. Pre-Development Rebase（強制）
+- 依 `references/cascade-rebase.md` rebase 到最新 base branch（含 cascade if needed）
+- Conflict → **停止，回報問題**，不開始開發
+
 ### 2. TDD 開發（預設模式）
 - 讀取專案 CLAUDE.md — 遵循專案規範
 - 讀取 `unit-test` SKILL.md — 以 Red-Green-Refactor 循環實作
@@ -334,6 +338,21 @@ ticket 狀態是 IN DEVELOPMENT 且已有 branch？
   └→ 提示：「已在 branch {name}，可以開始開發。」
 ```
 
+### 4.5. Pre-Development Rebase（強制）
+
+Branch checkout 完成後、開發前，**必須 rebase 到最新 base branch**。先發現 conflict 再動手，不要做完才 rebase 發現衝突又修一次。
+
+依 `references/cascade-rebase.md` 邏輯：
+
+1. **偵測 base branch**：從 task.md § Operational Context 讀 `Base branch`，或以 JIRA parent 查 feature branch
+2. **Cascade（若 base 是 feature branch）**：先 rebase feature branch onto develop，再 rebase task branch onto updated feature branch
+3. **一般情境（base 是 develop/main）**：直接 `git rebase origin/{base}`
+4. **Conflict 處理**：
+   - 無 conflict → 繼續 Step 5
+   - 有 conflict → **停止**。回報衝突檔案，不開始開發。使用者解完 conflict 再繼續
+
+> **為什麼在開發前而非開發後**：若開發後才 rebase（舊 delivery flow Step 5），遇 conflict 需要在已修改的 code 上解衝突，可能導致修正白費或二次返工。
+
 ### 5. 開發摘要 → 自動進入 TDD 開發 → 交付流程
 
 路由完成後，顯示開發摘要然後**自動銜接後續流程**（不停下來等使用者）：
@@ -395,6 +414,14 @@ ticket 狀態是 IN DEVELOPMENT 且已有 branch？
 
 > 適用於：ticket 已有 open PR，需要回施工圖處理 review signals（review comments + CI failures）。
 > 核心原則（D1）：「修 PR」= 回施工圖重新施工，不是逐一 patch review comments。
+
+### R0. Pre-Revision Rebase（強制）
+
+Revision mode 進入後、讀施工圖前，**先 rebase PR branch 到最新 base**。理由同 first-cut § 4.5：先發現 conflict 再動手。
+
+1. 從 PR 的 `baseRefName` 取得 base branch
+2. 依 `references/cascade-rebase.md` 邏輯 rebase（含 cascade if needed）
+3. Conflict → **停止**，回報使用者。不進入 R1
 
 ### 前置：Plan Existence Gate（Legacy PR 硬擋，D8）
 

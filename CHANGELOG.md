@@ -4,6 +4,27 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.18.0] - 2026-04-17
+
+### Pre-Work Rebase — Mandatory Before Development/Revision
+
+Rebase moved from delivery-time (Step 5) to pre-development/pre-revision, so conflicts surface before coding starts — not after.
+
+**Engineering SKILL.md:**
+- New § 4.5 Pre-Development Rebase (first-cut): rebase after branch checkout, before TDD
+- New § R0 Pre-Revision Rebase (revision mode): rebase before reading work order
+- Batch sub-agent prompt: new § 1.5 mirrors the same gate
+
+**cascade-rebase.md → Pre-Work Rebase (renamed):**
+- Generalized from "feature branch only" to all branch types (task→feature, feature→develop, task→develop)
+- Added "why before development" rationale and feature PR edge case
+
+**engineer-delivery-flow.md:**
+- Step 5 downgraded to "Final Re-Sync" — skips when base hasn't moved since pre-work rebase
+
+**mechanism-registry.md:**
+- New `pre-work-rebase` entry (High drift): canary = Edit/Write on source files without prior `git rebase`
+
 ## [3.17.0] - 2026-04-17
 
 ### Remove Graduation Mechanism — Direct Rule Write
