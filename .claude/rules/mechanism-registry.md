@@ -196,6 +196,9 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 | `context-pressure-monitor` | At 20/25/35 tool calls, inject escalating warnings to save state and delegate. Counts Bash/Edit/Write/Read/Grep/Glob/Agent calls. State: `/tmp/polaris-session-calls.txt`. Reset on reboot | PostToolUse hook, stdout injection (advisory, not blocking) | `scripts/context-pressure-monitor.sh` |
 | `version-docs-lint-gate` | `git commit` blocked when VERSION is staged but `readme-lint.py` fails (phantom skills, count drift, undocumented skills). Bypass: `POLARIS_SKIP_DOCS_LINT=1`. Only fires in repos with VERSION file. Hook lives in `settings.json` with repo-detection logic (non-framework repos auto-skip) | PreToolUse hook on Bash, exit 2 to block | `.claude/hooks/version-docs-lint-gate.sh` |
 | `no-hooks-in-local-settings` | `settings.local.json` must not contain a `hooks` key — shallow merge silently overrides all `settings.json` hooks. `/validate` check 10 warns; `polaris-sync.sh` deploy warns | `/validate` Mechanisms mode + `polaris-sync.sh` post-deploy check (advisory) | — |
+| `post-compact-context-restore` | After auto-compaction, re-inject branch, ticket, modified file count, and company context hint. Previously behavioral-only (`post-compression-company-context`) — now deterministic | PostCompact hook (auto), stdout injection | `.claude/hooks/post-compact-context-restore.sh` |
+| `stop-todo-check` | On substantial sessions (10+ tool calls), block stopping until Strategist confirms all todo items have dispositions. Prevents premature completion. Must check `stop_hook_active` to avoid infinite loop | Stop hook, JSON `{"decision":"block"}` output | `.claude/hooks/stop-todo-check.sh` |
+| `auto-compact-window` | `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000` triggers compaction before reasoning degrades (300-400k range). Complements `context-pressure-monitor` (tool-call count) with token-level precision | Environment variable in `~/.claude/settings.json` `env` block | — |
 
 For evidence file spec, writer script, bypass flags, and hook script reference — see `skills/references/mechanism-rationalizations.md` § Deterministic Quality Hooks — Detail.
 
@@ -270,4 +273,4 @@ Post-task audit should check these first (highest drift risk, most impactful):
 9. `no-cd-in-bash` / `no-independent-cmd-chaining`
 10. `feedback-trigger-count-update`
 11. `version-bump-reminder` (Critical — 6 consecutive misses discovered 2026-04-09)
-12. `verification-evidence-required` / `quality-evidence-required` / `test-sequence-warning` (deterministic hooks — low audit priority because hooks enforce automatically)
+12. `verification-evidence-required` / `quality-evidence-required` / `test-sequence-warning` / `post-compact-context-restore` / `stop-todo-check` / `auto-compact-window` (deterministic hooks — low audit priority because hooks enforce automatically)

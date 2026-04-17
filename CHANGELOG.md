@@ -4,6 +4,29 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.20.0] - 2026-04-17
+
+### Deterministic Context & Completion Hooks
+
+Three new mechanisms inspired by Boris Cherny's Claude Code tips, pushing behavioral rules into deterministic enforcement:
+
+**PostCompact hook** (`.claude/hooks/post-compact-context-restore.sh`):
+- Fires after auto-compaction, re-injects branch, ticket, modified file count, stash count
+- Prompts Strategist to confirm company context — replaces behavioral-only `post-compression-company-context`
+- Registered in settings.json as PostCompact hook (auto trigger only)
+
+**Stop hook** (`.claude/hooks/stop-todo-check.sh`):
+- On substantial sessions (10+ tool calls), blocks Claude from stopping until todo review is confirmed
+- Prevents premature completion — the #1 quality drift in long sessions
+- Checks `stop_hook_active` to prevent infinite loops
+
+**Auto-compact window** (`CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000`):
+- Added to `~/.claude/settings.json` env block
+- Triggers compaction at 400k tokens, before reasoning quality degrades (300-400k range)
+- Complements `context-pressure-monitor.sh` (tool-call count) with token-level precision
+
+**Mechanism registry + context-monitoring.md** updated with all three new entries.
+
 ## [3.19.0] - 2026-04-17
 
 ### Revision Mode — Behavioral Verification Hard Gate

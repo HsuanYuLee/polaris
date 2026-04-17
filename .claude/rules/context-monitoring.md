@@ -58,6 +58,21 @@ The rules above are self-enforced by the Strategist. For additional protection, 
 - At **35 calls** → critical: "enter checkpoint mode NOW"
 - Registered in `mechanism-registry.md` § Deterministic Quality Hooks
 
+**PostCompact hook** (deterministic context restore):
+- `.claude/hooks/post-compact-context-restore.sh` fires after auto-compaction
+- Re-injects: branch name, active ticket (from branch), modified file count, stash count
+- Prompts Strategist to confirm company context — replaces the behavioral-only `post-compression-company-context` rule
+
+**Stop hook** (deterministic completion gate):
+- `.claude/hooks/stop-todo-check.sh` fires when Claude finishes responding
+- On substantial sessions (10+ tool calls), blocks stopping until Strategist confirms todo dispositions
+- Prevents premature completion — replaces behavioral-only `checklist-before-done` for the common case
+
+**Auto-compact window** (token-level compaction trigger):
+- `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000` in `~/.claude/settings.json` `env` block
+- Triggers compaction before reasoning quality degrades (300-400k token range)
+- Complements tool-call-count monitoring with token-level precision
+
 **Behavioral backup** (prompt-level):
 - The Strategist follows the rules in §1-4 above through self-discipline
 - Post-task audit (see `mechanism-registry.md`) catches violations after the fact
