@@ -4,6 +4,26 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.21.0] - 2026-04-17
+
+### review-inbox Context Optimization
+
+Three changes to reduce review-inbox's main session context consumption:
+
+**Step 5 notification sub-agent delegation**:
+- Slack notification logic (GitHub→Slack user mapping + thread replies) moved entirely to a sub-agent
+- Main session no longer runs the 4-step lookup chain per author or assembles mrkdwn messages
+- Applies to both Label mode (channel summary) and Slack/Thread mode (per-thread replies)
+
+**SKILL.md slimdown** (397 → 273 lines, −31%):
+- Format templates (JSON schema, review_status table, Slack mrkdwn, conversation summary) extracted to `references/review-inbox-templates.md`
+- SKILL.md retains flow logic only; sub-agents read templates from reference file
+
+**Review dispatch prompt scripting** (`scripts/build-review-prompt.sh`):
+- Generates per-PR prompt files from candidates JSON, eliminating manual prompt assembly in main session
+- Outputs manifest JSON for Strategist to iterate and dispatch sub-agents
+- Step 4 now: run script → read manifest → parallel dispatch (each sub-agent reads its prompt file)
+
 ## [3.20.0] - 2026-04-17
 
 ### Deterministic Context & Completion Hooks
