@@ -4,6 +4,34 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.28.0] - 2026-04-20
+
+### Memory Hot/Warm/Cold tiering (DP-015 Part B B8–B14 + B16)
+
+Complete the memory tiering system designed in `DP-015-polaris-context-efficiency`. Before this change, `memory/` was a flat pile of 92 files with no decay: `MEMORY.md` was drifting toward the 200-line truncation risk and every conversation loaded every entry. Now entries live in three tiers — Hot (loaded every session), Warm (per-topic folder, pulled on demand), Cold (`archive/`, never auto-loaded) — with a session-start advisory and a manual `/memory-hygiene` skill for pruning.
+
+**Added**
+
+- `scripts/memory-hygiene-tiering.py` — three modes: `dry-run` (classify without moving + markdown or JSON output), `apply` (execute a plan from stdin JSON, move files, rewrite `MEMORY.md`, create topic `index.md` files, write `.migration-log.md`), `decay-scan` (advisory, lists candidates without moving). Classification: `pinned` OR `last_triggered >= today-30d` OR `trigger_count >= 5` -> Hot; `last_triggered >= today-90d` -> Warm (grouped by `topic`); else Cold.
+- `.claude/hooks/memory-decay-scan.sh` — SessionStart hook that runs `decay-scan` once per day (stamped at `/tmp/polaris-memory-decay-scan-YYYY-MM-DD`). Advisory output only, never blocks session start.
+- `.claude/skills/memory-hygiene/SKILL.md` — manual `/memory-hygiene` skill with three modes (scan / dry-run / apply). Used when the SessionStart advisory fires, `MEMORY.md` Hot grows past the 15-entry soft limit, or for periodic cleanup.
+
+**Changed**
+
+- `.claude/rules/feedback-and-memory.md` — new `§ Memory Tiering (Hot / Warm / Cold)` section: tier table, write discipline (check topic folder first, otherwise flat), frontmatter fields (`pinned: bool`, `topic: string`), decay & migration flow, boundary with `polaris-learnings.sh`.
+
+**User-level** (not in this repo, done manually)
+
+- `~/.claude/CLAUDE.md` — new `# Memory Tiering Rules` section (three rules per D7.5: topic-folder routing, <= 15 Hot soft limit, pinned/topic frontmatter).
+- `~/.claude/settings.json` — register `SessionStart` hook pointing at `.claude/hooks/memory-decay-scan.sh`.
+- `MEMORY.md` — header tiering-overview block (soft limit note + format spec + frontmatter fields).
+
+**Status**
+
+- B15 (fresh-session end-to-end validation) deferred to next new session — V1–V4 (script, hook script, dry-run, header) verified in-place; V6–V8 (real SessionStart fire, skill trigger, Hot <= 15 apply run) require a new session.
+
+---
+
 ## [3.27.0] - 2026-04-20
 
 ### Task-level done marking on PR creation (and setup-only exception)

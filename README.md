@@ -47,11 +47,12 @@ This is what makes Polaris different from a static template. It accumulates team
 3. **External learning** — study articles, repos, or PRs and extract patterns applicable to your codebase
 4. **Cross-session knowledge** — technical insights (patterns, pitfalls, architecture decisions) persist in `learnings.jsonl` across conversations with confidence-based decay, so each session starts with accumulated project knowledge instead of a blank slate
 5. **Session timeline & checkpoints** — significant events (skill invocations, PRs, commits) are logged to `timeline.jsonl` for accurate standup reports; `/checkpoint` saves and restores session state for long-running work
-6. **Challenger audit** — pre-release, sub-agents review the workspace from a new user's perspective
+6. **Memory tiering** — `memory/` entries follow a Hot/Warm/Cold lifecycle so `MEMORY.md` stays small and every new session starts with only relevant context; `/memory-hygiene` prunes manually, a session-start hook surfaces decay candidates automatically
+7. **Challenger audit** — pre-release, sub-agents review the workspace from a new user's perspective
 
 > **Example:** You correct Claude's import ordering in a PR review. The correction is saved, confirmed as a real pattern, and immediately promoted to a permanent rule — all future PRs follow the convention automatically.
 
-**Skills:** `learning`, `checkpoint` — plus lesson extraction built into `review-pr`, `engineering` (revision mode), and `check-pr-approvals`
+**Skills:** `learning`, `checkpoint`, `memory-hygiene` — plus lesson extraction built into `review-pr`, `engineering` (revision mode), and `check-pr-approvals`
 
 ### Pillar 3 — Daily Operations (日常紀錄)
 
@@ -152,7 +153,7 @@ After `/init` completes, your workspace will look like this:
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 26 workflow skills
+│   └── skills/                   ← 27 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -177,7 +178,7 @@ Once initialized, just talk to Claude Code naturally — English or 中文 both 
 
 ### Start here
 
-Don't try all 26 skills at once. Pick one that matches your role:
+Don't try all 27 skills at once. Pick one that matches your role:
 
 | If you are a... | Try this first | What happens |
 |-----------------|----------------|--------------|
@@ -253,7 +254,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 26 workflow skills
+│   └── skills/                # 27 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory

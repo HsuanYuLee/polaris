@@ -47,11 +47,12 @@ Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
 3. **外部學習** — 研讀文章、repo 或 PR，萃取可套用到你 codebase 的模式
 4. **跨 session 知識** — 技術洞見（模式、陷阱、架構決策）持久化在 `learnings.jsonl`，帶有信心值衰減機制，讓每次 session 都從累積的專案知識啟動，而非從零開始
 5. **Session 時間軸與存檔** — 重要事件（skill 呼叫、PR、commit）記錄在 `timeline.jsonl`，讓 standup 報告更精確；`/checkpoint` 可在長時間工作中儲存和恢復 session 狀態
-6. **挑戰者審計** — 發版前，sub-agent 從新使用者的角度審視整個工作區
+6. **記憶分層** — `memory/` 條目採 Hot/Warm/Cold 生命週期，`MEMORY.md` 保持精簡、每個新 session 只載入相關 context；`/memory-hygiene` 手動整理，SessionStart hook 自動提示降級候選
+7. **挑戰者審計** — 發版前，sub-agent 從新使用者的角度審視整個工作區
 
 > **範例：** 你在不同的 PR 中糾正了 Claude 的 import 排序 3 次。第三次糾正時，這個教訓自動畢業成永久規則——之後所有 PR 都會自動遵循這個慣例。
 
-**技能：** `learning`, `checkpoint` — 另外 `review-pr`、`engineering`（revision mode）和 `check-pr-approvals` 內建教訓萃取功能
+**技能：** `learning`, `checkpoint`, `memory-hygiene` — 另外 `review-pr`、`engineering`（revision mode）和 `check-pr-approvals` 內建教訓萃取功能
 
 ### 支柱三 — 日常紀錄
 
@@ -152,7 +153,7 @@ cd ~/polaris-workspace
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 26 workflow skills
+│   └── skills/                   ← 27 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -179,7 +180,7 @@ cd ~/polaris-workspace
 
 ### 從這裡開始
 
-不要一次嘗試全部 26 個技能。根據你的角色挑一個開始：
+不要一次嘗試全部 27 個技能。根據你的角色挑一個開始：
 
 | 如果你是... | 先試這個 | 會發生什麼 |
 |------------|---------|-----------|
@@ -254,7 +255,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 26 workflow skills
+│   └── skills/                # 27 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory

@@ -66,6 +66,7 @@
 | **validate** — 隔離 + 機制檢查 | 檢查隔離、檢查機制 | validate isolation, validate mechanisms | 框架健康檢查，結合隔離（scope header、memory tag）與機制合規（mechanism-registry canary signals）兩種模式（原 validate-isolation 和 validate-mechanisms 已併入） |
 | **next** — 自動下一步 | 下一步、繼續、接下來、然後呢 | next, continue, what's next | 零輸入 context router：讀取 todo、git branch、JIRA 狀態、PR 狀態，自動判斷並執行下一步動作 |
 | **checkpoint** — 存檔與恢復 | 存檔、恢復、列出存檔 | checkpoint, save checkpoint, resume, list checkpoints | 儲存／恢復／列出 session 狀態（branch、ticket、todo、最近活動），用於長 session 中斷恢復 |
+| **memory-hygiene** — 記憶分層整理 | 整理記憶、memory 降級、memory 清理、decay scan | memory-hygiene, tier memory, memory tier | 手動觸發 Hot/Warm/Cold 三溫層整理：scan 看候選、dry-run 看完整分類、apply 實際搬檔 + 更新 MEMORY.md。搭配 SessionStart advisory hook 自動提醒 |
 
 ---
 
