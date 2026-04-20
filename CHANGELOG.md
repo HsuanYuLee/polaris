@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.24.0] - 2026-04-20
+
+### Pipeline Unification — bug-triage produces refinement artifacts (DP-013)
+
+Unified the pipeline so all ticket types (Bug, Epic, Story, Task) share the same Layer 2-4 flow. bug-triage now produces `refinement.md` + `refinement.json` (same schema as refinement skill), enabling breakdown to consume a single artifact format regardless of ticket type.
+
+- **bug-triage SKILL.md** (v2.2.0): Step 5 expanded — after RD confirmation, produces `specs/{BUG_KEY}/refinement.md` + `refinement.json` alongside JIRA comment
+- **breakdown SKILL.md**: Bug Path B1 now checks `refinement.json` first (same early-exit as Planning Path); JIRA comment parsing is fallback for legacy bugs. Added `fix/{BUG_KEY}-{slug}` branch pattern for Bug tickets
+- **pipeline-handoff.md**: Rewritten pipeline overview as 4-layer unified architecture (Layer 1 varies by ticket type, Layer 2-4 identical)
+- **refinement-artifact.md**: `epic` field description updated to "ticket key (Epic, Story, Task, or Bug)"
+- **workspace-config.yaml**: Added `fix` branch pattern to `git.branch_patterns`
+
 ## [3.23.0] - 2026-04-17
 
 ### review-inbox Slack Fallback Hardening
