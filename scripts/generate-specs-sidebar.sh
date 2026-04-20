@@ -17,8 +17,9 @@ mkdir -p "$VIEWER_DIR"
 
 extract_frontmatter_field() {
   local file="$1" field="$2"
+  # Tolerate missing field / missing frontmatter — return empty instead of failing the pipeline
   sed -n '/^---$/,/^---$/p' "$file" 2>/dev/null \
-    | grep "^${field}:" \
+    | { grep "^${field}:" || true; } \
     | head -1 \
     | sed "s/^${field}:[[:space:]]*//"
 }
@@ -120,16 +121,39 @@ status_badge() {
         esac
       fi
 
-      # Ticket header (badge inside link text to prevent line break)
+      # Ticket header — anchor file determines status source
+      # refinement.md (if present) wins; otherwise plan.md
+      anchor_file=""
+      [ -f "$epic_dir/refinement.md" ] && anchor_file="$epic_dir/refinement.md"
+      [ -z "$anchor_file" ] && [ -f "$epic_dir/plan.md" ] && anchor_file="$epic_dir/plan.md"
+
+      ticket_status=""
+      ticket_badge=""
+      if [ -n "$anchor_file" ]; then
+        ticket_status=$(extract_frontmatter_field "$anchor_file" "status")
+        ticket_badge=$(status_badge "$anchor_file")
+      fi
+
       if [ -f "$epic_dir/refinement.md" ]; then
-        echo "  * [$type_badge $epic — Refinement]($company/specs/$epic/refinement.md)"
+        link_text="$type_badge $epic — Refinement$ticket_badge"
+        link_href="$company/specs/$epic/refinement.md"
       elif [ -f "$epic_dir/plan.md" ]; then
         plan_title=$(grep -m1 '^# ' "$epic_dir/plan.md" 2>/dev/null | sed 's/^# //' || echo "$epic")
         # Strip leading ticket key from title to avoid "KEY — KEY — title" duplication
         plan_title=$(echo "$plan_title" | sed "s/^${epic}[[:space:]]*[—–-][[:space:]]*//")
-        echo "  * [$type_badge $epic — $plan_title]($company/specs/$epic/plan.md)"
+        link_text="$type_badge $epic — $plan_title$ticket_badge"
+        link_href="$company/specs/$epic/plan.md"
       else
         echo "  * **$type_badge $epic**"
+        link_text=""
+      fi
+
+      if [ -n "$link_text" ]; then
+        if [ "$ticket_status" = "IMPLEMENTED" ] || [ "$ticket_status" = "ABANDONED" ]; then
+          echo "  * <span class=\"done\">[$link_text]($link_href)</span>"
+        else
+          echo "  * [$link_text]($link_href)"
+        fi
       fi
 
       # Tasks

@@ -196,7 +196,10 @@ mcp__claude_ai_Atlassian__transitionJiraIssue
 
 失敗時退回「貼 comment 模式」（標記結論但不轉狀態），surface 給使用者手動處理。
 
-Epic 模式下，所有 AC 驗收單都 Done 時，額外 notify：「Epic {EPIC_KEY} 全部 AC 通過，可以 merge feature branch。」
+Epic 模式下，所有 AC 驗收單都 Done 時：
+
+1. Notify：「Epic {EPIC_KEY} 全部 AC 通過，可以 merge feature branch。」
+2. 執行 `scripts/mark-spec-implemented.sh {EPIC_KEY}`，將 `{company}/specs/{EPIC_KEY}/refinement.md` frontmatter `status` 標為 `IMPLEMENTED`，讓 docs-viewer sidebar 顯示灰+✅。idempotent（已標過就 no-op）。
 
 ### 8. FAIL → Human Disposition Gate
 

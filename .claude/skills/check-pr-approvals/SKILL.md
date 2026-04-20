@@ -285,6 +285,16 @@ mcp__claude_ai_Slack__slack_send_message
 
 掃描過程中若發現有 PR 已被 merge（`state: MERGED`），執行 `references/feature-branch-pr-gate.md` 的偵測邏輯。此步驟靜默執行，建立後在回報中一併告知使用者。
 
+### 10.1 Spec Done Marker
+
+Step 10 掃出 MERGED PR 時，從 PR branch / title 萃取 ticket key，若 `{company}/specs/{TICKET}/` 存在，執行：
+
+```bash
+scripts/mark-spec-implemented.sh {TICKET}
+```
+
+將 `refinement.md` / `plan.md` 的 frontmatter `status` 標為 `IMPLEMENTED`，讓 docs-viewer sidebar 顯示灰+✅。idempotent（已標過就 no-op）。Epic（`GT-*`）的 IMPLEMENTED 由 verify-AC 寫，這裡不動；只處理 Bug 和 ad-hoc task（非 Epic 類型）。
+
 ## Do
 
 - **所有面向使用者的報告中，PR 編號必須用 markdown 超連結呈現**：`[#number](pr_url)`，讓使用者可以直接點擊前往

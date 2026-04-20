@@ -4,6 +4,34 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.26.0] - 2026-04-20
+
+### Epic/Bug Done Marker in docs-viewer
+
+DP-014 — mirror the DP pattern: completed Epic/Bug/task spec entries in the docs-viewer sidebar are now greyed out + ✅ when marked `status: IMPLEMENTED`. Previously only Design Plans had this; Epic/Bug entries looked identical whether done or untouched.
+
+**Added**
+
+- `scripts/mark-spec-implemented.sh` — idempotent helper to set `status: IMPLEMENTED` / `ABANDONED` / `LOCKED` / `DISCUSSION` in `{company}/specs/{TICKET}/refinement.md` (or `plan.md`) frontmatter. Creates frontmatter if absent; only rewrites the status line if present.
+
+**Changed**
+
+- `scripts/generate-specs-sidebar.sh` — detects `status` frontmatter on `refinement.md` / `plan.md` and wraps Epic/Bug entries in `<span class="done">` when `IMPLEMENTED` or `ABANDONED`. Also made `extract_frontmatter_field` tolerate missing fields (prevents `set -e` abort when anchor files have no frontmatter).
+- `.claude/skills/verify-AC/SKILL.md` — Step 7 (Epic mode, all AC PASS) now calls `mark-spec-implemented.sh {EPIC_KEY}` after notifying the user that the Epic is mergeable.
+- `.claude/skills/check-pr-approvals/SKILL.md` — new Step 10.1: when Step 10 detects a MERGED PR, extract the ticket key and call `mark-spec-implemented.sh {TICKET}` for Bug / ad-hoc task specs. Epic IMPLEMENTED marking stays with verify-AC.
+
+**Mechanism**
+
+- New canary `spec-status-mark-on-done` (Medium drift) in `.claude/rules/mechanism-registry.md` under Delivery Flow Contract.
+
+**Design Plan**
+
+- `specs/design-plans/DP-014-epic-bug-done-marker/plan.md` — design decisions, writer responsibilities, out-of-scope items (Epic aggregation, JIRA sync).
+
+**Out of scope**
+
+- Engineering (PR open) does NOT mark IMPLEMENTED — PR open ≠ merged. Marking happens at merge detection (`check-pr-approvals`) or AC pass (`verify-AC`). Manual override via direct frontmatter edit remains supported.
+
 ## [3.25.0] - 2026-04-20
 
 ### Codecov Patch Gate — Deterministic Enforcement
