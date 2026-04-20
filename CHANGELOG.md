@@ -4,6 +4,48 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.23.0] - 2026-04-17
+
+### review-inbox Slack Fallback Hardening
+
+Improved review-inbox reliability when Slack MCP is unavailable by adding a deterministic CLI fallback path.
+
+- Added `scripts/slack-webapi.sh` for Slack Web API fallback (`read-channel`, `read-thread`, `send-message`)
+- Updated `review-inbox/SKILL.md` to explicitly route Slack/Thread modes through MCP first, then fallback CLI
+- Extended `scripts/extract-pr-urls.py` to parse both MCP-formatted output and Slack Web API `messages[]` JSON
+
+### Cross-LLM Parity Script Reliability
+
+Fixed parity verification edge cases that could produce false drift in Codex bootstrap flows.
+
+- `scripts/mechanism-parity.sh`: guard empty-array loops under `set -u`
+- `scripts/mechanism-parity.sh`: follow symlinked `.agents/skills` with `find -L`
+- Re-verified with `scripts/verify-cross-llm-parity.sh` (`CROSS-LLM PARITY OK`)
+
+## [3.22.0] - 2026-04-17
+
+### Claude/Codex Compatibility Gates (DP-012 P1-P3)
+
+Completed DP-012 rollout for deterministic gate parity between Claude and Codex.
+
+**Codex fallback wrappers added**:
+- `scripts/gate-hook-adapter.sh` to execute Claude-style gate scripts with synthetic hook JSON
+- `scripts/codex-guarded-git-commit.sh` (`quality-evidence-required`, `version-docs-lint-gate`)
+- `scripts/codex-guarded-gh-pr-create.sh` (`verification-evidence-required`)
+- `scripts/codex-guarded-git-push.sh` (`pre-push-quality-gate`)
+- `scripts/codex-guarded-bash.sh` (`safety-gate`)
+- `scripts/codex-mark-design-plan-implemented.sh` (`design-plan-checklist-gate`)
+
+**Parity verification strengthened**:
+- `scripts/verify-cross-llm-parity.sh` now checks fallback wiring + smoke tests for P0/P0.5/P1 wrappers
+
+### Docs Viewer Sidebar Sync Hardening
+
+Resolved the mismatch where design plan status could be updated via Bash wrapper without triggering Claude `PostToolUse(Edit/Write)` sidebar sync.
+
+- `codex-mark-design-plan-implemented.sh` now invokes `scripts/docs-viewer-sync-hook.sh` after successful status transition
+- Ensures `docs-viewer/_sidebar.md` reflects `IMPLEMENTED` plans immediately in Codex wrapper flow
+
 ## [3.21.0] - 2026-04-17
 
 ### review-inbox Context Optimization

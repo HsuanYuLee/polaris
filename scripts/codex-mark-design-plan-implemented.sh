@@ -120,4 +120,11 @@ awk -v today="$today" '
 ' "$plan_file" > "$tmp_file"
 
 mv "$tmp_file" "$plan_file"
+
+# Keep docs-viewer sidebar in sync for Codex/bash-driven status transitions.
+sync_hook="$ROOT_DIR/scripts/docs-viewer-sync-hook.sh"
+if [[ -x "$sync_hook" ]]; then
+  "$sync_hook" "$ROOT_DIR" "$plan_file" >/dev/null 2>&1 || true
+fi
+
 echo "PASS: marked IMPLEMENTED for $plan_file"

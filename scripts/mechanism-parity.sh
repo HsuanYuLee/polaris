@@ -78,7 +78,7 @@ done < <(find "$CLAUDE_SKILLS" -mindepth 1 -maxdepth 1 -type d -exec basename {}
 AGENTS_ALL=()
 while IFS= read -r line; do
   [[ -n "$line" ]] && AGENTS_ALL+=("$line")
-done < <(find "$AGENTS_SKILLS" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort)
+done < <(find -L "$AGENTS_SKILLS" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort)
 
 PUBLIC_CLAUDE=()
 MAINTAINER_ONLY=()
@@ -98,22 +98,22 @@ for skill in "${CLAUDE_ALL[@]}"; do
 done
 
 MISSING_IN_AGENTS=()
-for skill in "${PUBLIC_CLAUDE[@]}"; do
+for skill in "${PUBLIC_CLAUDE[@]:-}"; do
   [[ -d "$AGENTS_SKILLS/$skill" ]] || MISSING_IN_AGENTS+=("$skill")
 done
 
 EXTRA_IN_AGENTS=()
-for skill in "${AGENTS_ALL[@]}"; do
+for skill in "${AGENTS_ALL[@]:-}"; do
   [[ "$skill" == "references" ]] && continue
   found=false
-  for c in "${PUBLIC_CLAUDE[@]}"; do
+  for c in "${PUBLIC_CLAUDE[@]:-}"; do
     [[ "$skill" == "$c" ]] && found=true && break
   done
   [[ "$found" == true ]] || EXTRA_IN_AGENTS+=("$skill")
 done
 
 CHANGED_SKILLS=()
-for skill in "${PUBLIC_CLAUDE[@]}"; do
+for skill in "${PUBLIC_CLAUDE[@]:-}"; do
   [[ -d "$AGENTS_SKILLS/$skill" ]] || continue
   if ! diff -qr "$CLAUDE_SKILLS/$skill" "$AGENTS_SKILLS/$skill" >/dev/null 2>&1; then
     CHANGED_SKILLS+=("$skill")

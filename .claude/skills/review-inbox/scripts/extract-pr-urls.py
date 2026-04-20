@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Extract GitHub PR URLs and thread_ts mapping from Slack MCP output.
+Extract GitHub PR URLs and thread_ts mapping from Slack output.
 
-Input:  Slack MCP slack_read_channel or slack_read_thread result (JSON on stdin)
+Input:  Slack MCP output OR Slack Web API JSON (from conversations.history / replies)
 Output: PR URLs to stdout (one per line, for piping to fetch-prs-by-url.sh)
 Side:   Writes thread mapping to --mapping file (default /tmp/pr-thread-mapping.json)
 
@@ -163,21 +163,69 @@ def extract_urls_for_thread(text, org, thread_ts):
     return ordered_urls, mapping
 
 
+def extract_from_webapi_messages(messages, org):
+    """Parse Slack Web API messages array.
+
+    Supports payloads from:
+    - conversations.history
+    - conversations.replies
+    """
+    pr_url_pattern = re.compile(
+        rf'https://github\.com/{re.escape(org)}/[^/|>\s]+/pull/\d+'
+    )
+
+    seen_urls = set()
+    ordered_urls = []
+    mapping = {}
+
+    for msg in messages:
+        text = msg.get("text", "") or ""
+        if not text:
+            continue
+
+        message_ts = msg.get("ts")
+        thread_ts = msg.get("thread_ts") or message_ts
+        author = msg.get("user", "unknown")
+
+        for match in pr_url_pattern.finditer(text):
+            url = re.sub(r'#.*$', '', match.group())
+            if url in seen_urls:
+                continue
+            seen_urls.add(url)
+            ordered_urls.append(url)
+            mapping[url] = {
+                "thread_ts": thread_ts,
+                "author": author,
+            }
+
+    return ordered_urls, mapping
+
+
 def main():
     args = parse_args()
 
     raw = sys.stdin.read()
     try:
         data = json.loads(raw)
-        messages_text = data.get("messages", "")
     except json.JSONDecodeError:
-        # If not JSON, treat as plain text (e.g. MCP returned raw string)
-        messages_text = raw
+        data = None
 
-    if args.thread_ts:
-        urls, mapping = extract_urls_for_thread(messages_text, args.org, args.thread_ts)
+    if isinstance(data, dict) and isinstance(data.get("messages"), list):
+        urls, mapping = extract_from_webapi_messages(data["messages"], args.org)
+        if args.thread_ts:
+            for url in mapping:
+                mapping[url]["thread_ts"] = args.thread_ts
     else:
-        urls, mapping = extract_from_messages(messages_text, args.org)
+        if isinstance(data, dict):
+            messages_text = data.get("messages", "")
+        else:
+            # If not JSON, treat as plain text (e.g. MCP returned raw string)
+            messages_text = raw
+
+        if args.thread_ts:
+            urls, mapping = extract_urls_for_thread(messages_text, args.org, args.thread_ts)
+        else:
+            urls, mapping = extract_from_messages(messages_text, args.org)
 
     # Write mapping file
     with open(args.mapping, "w") as f:
