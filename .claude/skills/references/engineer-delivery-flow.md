@@ -88,6 +88,40 @@
 
 本 step 通過後才能進 Step 3。未通過就繼續 = 欺騙下游。
 
+### 2a. Coverage Gate Check（硬門檻）
+
+Push 前必須確認 repo 的 Codecov patch gate（若有）會過。這一步抓「改動太小所以不寫測試」的誤判。
+
+**偵測**（repo root 任一命中即視為有 gate）：
+1. `codecov.yml` 或 `.codecov.yml` 含 `type: patch`
+2. `.github/workflows/*.yml` 提到 `codecov/patch`
+
+**有 gate 時，強制執行**（無 gate 直接跳到 Step 3）：
+
+1. `git diff {base}..HEAD --name-only` 取改動檔案清單，排除 test 檔、type 檔、config、changeset、docs
+2. 對每個剩下的 source file，跑 coverage（命令由 repo handbook `testing.md` 或 CLAUDE.md 提供，如 your-app：`pnpm --filter @your-org/your-app-main exec vitest run --coverage --coverage.include='<file>'`）
+3. 確認改動的可執行 line 都在 coverage 報告中（不強求 100% line coverage，但 **PR diff 內的每個新/改 line 都必須至少被一個 test 碰到**）
+4. 未達標 → 補測試，回 Step 2 開頭重跑
+5. 達標 → 呼叫 writer 寫 evidence：
+
+```bash
+"$CLAUDE_PROJECT_DIR/scripts/write-coverage-evidence.sh" \
+  --status PASS \
+  --branch "$(git rev-parse --abbrev-ref HEAD)" \
+  --note "patch lines covered: <summary>" \
+  --file "<changed_file_1>" --file "<changed_file_2>"
+```
+
+Evidence 檔：`/tmp/polaris-coverage-{branch-slug}.json`（TTL 4h）。
+
+**Hook 保險**：`coverage-gate.sh` 會在 `git push` 時讀這個檔。檔案不存在 / status≠PASS / >4h 過期 → exit 2 擋下 push。
+
+**Bypass**（罕見情境）：
+- `POLARIS_SKIP_COVERAGE=1 git push ...` — docs-only / config-only / 純 test 調整
+- HEAD commit message 前綴 `wip:` — 草稿 push（hook 自動放行）
+
+**為什麼是硬門檻**：TASK-123 事件 — engineering 判定「只加一行 `key` option」不需測試，本地 quality check PASS 但 CI `codecov/patch/main-core` fail。破功點是 TDD smart judgment 沒把 CI gate 納入。規則：**repo 有 patch gate → 所有 source 改動一律補測試**，不以「改動小」為由豁免。
+
 ---
 
 ## Step 3 — Behavioral Verify（Layer A + Layer B）

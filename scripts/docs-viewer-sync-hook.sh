@@ -103,9 +103,34 @@ fi
 
 if [[ ${#CANDIDATE_PATHS[@]} -eq 0 ]]; then
   TOOL_INPUT="${CLAUDE_TOOL_INPUT:-${CODEX_TOOL_INPUT:-${TOOL_INPUT:-}}}"
-  while IFS= read -r p; do
-    [[ -n "$p" ]] && CANDIDATE_PATHS+=("$p")
-  done < <(extract_paths_from_tool_input "$TOOL_INPUT")
+
+  # For Bash tool calls: detect git operations that bring in new files (merge, rebase, checkout)
+  if is_git_tree_change="$(printf '%s' "$TOOL_INPUT" | python3 -c '
+import json, sys, re
+raw = sys.stdin.read().strip()
+if not raw: sys.exit(1)
+try:
+    obj = json.loads(raw)
+except Exception:
+    sys.exit(1)
+cmd = obj.get("command", "")
+if re.search(r"\bgit\b.*\b(merge|rebase|cherry-pick|checkout|switch|pull)\b", cmd):
+    print("yes")
+else:
+    sys.exit(1)
+' 2>/dev/null)"; then
+    # Git tree-change operation detected — check if specs files were affected
+    while IFS= read -r p; do
+      [[ -n "$p" ]] && CANDIDATE_PATHS+=("$p")
+    done < <(git -C "$WORKSPACE_ROOT" diff --name-only HEAD@{1} HEAD -- '*/specs/' 'specs/' 2>/dev/null || true)
+  fi
+
+  # Standard path extraction from tool input (Edit/Write)
+  if [[ ${#CANDIDATE_PATHS[@]} -eq 0 ]]; then
+    while IFS= read -r p; do
+      [[ -n "$p" ]] && CANDIDATE_PATHS+=("$p")
+    done < <(extract_paths_from_tool_input "$TOOL_INPUT")
+  fi
 fi
 
 if [[ ${#CANDIDATE_PATHS[@]} -eq 0 ]]; then

@@ -87,7 +87,7 @@ status_badge() {
     epic_count=$(find "$specs_dir" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
     [ "$epic_count" -gt 0 ] || continue
 
-    echo "* **$company — Epics**"
+    echo "* **$company — Specs**"
 
     for epic_dir in "$specs_dir"/*/; do
       [ -d "$epic_dir" ] || continue
@@ -104,16 +104,32 @@ status_badge() {
         continue
       fi
 
-      # Epic/ticket header
+      # Detect issue type badge: refinement.json "type" > plan.md "> Type:" > default (Epic)
+      type_badge="📦"  # default: Epic
+      if [ -f "$epic_dir/refinement.json" ]; then
+        json_type=$(python3 -c "import json,sys; print(json.load(open('$epic_dir/refinement.json')).get('type',''))" 2>/dev/null || true)
+        case "$json_type" in
+          bug|Bug)   type_badge="🐛" ;;
+          task|Task) type_badge="📋" ;;
+        esac
+      elif [ -f "$epic_dir/plan.md" ]; then
+        plan_type=$(grep -m1 '^> Type:' "$epic_dir/plan.md" 2>/dev/null | sed 's/^> Type:[[:space:]]*//' || true)
+        case "$plan_type" in
+          Bug|bug)   type_badge="🐛" ;;
+          Task|task) type_badge="📋" ;;
+        esac
+      fi
+
+      # Ticket header (badge inside link text to prevent line break)
       if [ -f "$epic_dir/refinement.md" ]; then
-        echo "  * [$epic — Refinement]($company/specs/$epic/refinement.md)"
+        echo "  * [$type_badge $epic — Refinement]($company/specs/$epic/refinement.md)"
       elif [ -f "$epic_dir/plan.md" ]; then
         plan_title=$(grep -m1 '^# ' "$epic_dir/plan.md" 2>/dev/null | sed 's/^# //' || echo "$epic")
         # Strip leading ticket key from title to avoid "KEY — KEY — title" duplication
         plan_title=$(echo "$plan_title" | sed "s/^${epic}[[:space:]]*[—–-][[:space:]]*//")
-        echo "  * [$epic — $plan_title]($company/specs/$epic/plan.md)"
+        echo "  * [$type_badge $epic — $plan_title]($company/specs/$epic/plan.md)"
       else
-        echo "  * **$epic**"
+        echo "  * **$type_badge $epic**"
       fi
 
       # Tasks

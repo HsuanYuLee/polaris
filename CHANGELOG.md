@@ -4,6 +4,23 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.25.0] - 2026-04-20
+
+### Codecov Patch Gate — Deterministic Enforcement
+
+KB2CW-3847 retrospective — a framework-produced PR failed CI because new source lines had no test coverage. Lesson pushed into a deterministic layer (hook + skill gates) rather than behavioral memory.
+
+- **New hook** `.claude/hooks/coverage-gate.sh` (PreToolUse, `git push*`): detects repos with Codecov patch gate (`codecov.yml` `type: patch` or workflow referencing `codecov/patch`), blocks push unless `/tmp/polaris-coverage-{branch-slug}.json` exists with status=PASS, fresh (<4h), and branch match. Bypass via `POLARIS_SKIP_COVERAGE=1` or `wip:` commit prefix.
+- **New script** `scripts/write-coverage-evidence.sh`: writes the evidence JSON (`{branch, status, timestamp, note, patch_files[]}`) for skills to record PASS/FAIL
+- **`engineering/SKILL.md`**: surfaces coverage gate awareness in TDD section + automated flow
+- **`references/engineer-delivery-flow.md`**: new § Step 2a Coverage Gate Check (detection signals, required steps, evidence writer invocation, bypass)
+- **`references/tdd-smart-judgment.md`**: § 0 precondition — repo with patch gate overrides the judgment table (all source file changes require tests)
+- **`rules/mechanism-registry.md`**: Quality Gates section gains `codecov-patch-gate` canary (Critical); Deterministic Quality Hooks section gains `coverage-evidence-required` entry
+
+### Settings
+
+- `.claude/settings.json`: registers `coverage-gate.sh` as second PreToolUse hook on `Bash(git push*)`
+
 ## [3.24.0] - 2026-04-20
 
 ### Pipeline Unification — bug-triage produces refinement artifacts (DP-013)
