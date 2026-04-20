@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.26.1] - 2026-04-20
+
+### Task entries inherit parent done status
+
+Follow-up on v3.26.0 DP-014: when the parent Epic/Bug is `IMPLEMENTED` or `ABANDONED`, task entries under it (`tasks/*.md`) now also render with `<span class="done">` in the sidebar. Previously the parent was greyed but the tasks underneath were not, making completed Epic subtrees look half-done.
+
+**Changed**
+
+- `scripts/generate-specs-sidebar.sh` — tasks inherit parent ticket's done state. No change to writer contract (task-level `status:` frontmatter still out of scope for DP-014).
+
 ## [3.26.0] - 2026-04-20
 
 ### Epic/Bug Done Marker in docs-viewer

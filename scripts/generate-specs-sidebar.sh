@@ -156,7 +156,12 @@ status_badge() {
         fi
       fi
 
-      # Tasks
+      # Tasks — inherit parent status: if parent is IMPLEMENTED/ABANDONED, grey out all tasks
+      parent_done=false
+      if [ "$ticket_status" = "IMPLEMENTED" ] || [ "$ticket_status" = "ABANDONED" ]; then
+        parent_done=true
+      fi
+
       if [ -d "$epic_dir/tasks" ]; then
         for task_file in "$epic_dir/tasks/"*.md; do
           [ -f "$task_file" ] || continue
@@ -164,9 +169,14 @@ status_badge() {
           task_title=$(grep -m1 '^# ' "$task_file" 2>/dev/null | sed 's/^# //' || echo "$task_name")
           # Avoid duplicate prefix: if title already starts with task_name, use title only
           if echo "$task_title" | grep -q "^${task_name}[: ]"; then
-            echo "    * [$task_title]($company/specs/$epic/tasks/$task_name.md)"
+            task_entry="[$task_title]($company/specs/$epic/tasks/$task_name.md)"
           else
-            echo "    * [$task_name: $task_title]($company/specs/$epic/tasks/$task_name.md)"
+            task_entry="[$task_name: $task_title]($company/specs/$epic/tasks/$task_name.md)"
+          fi
+          if $parent_done; then
+            echo "    * <span class=\"done\">$task_entry</span>"
+          else
+            echo "    * $task_entry"
           fi
         done
       fi
