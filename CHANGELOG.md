@@ -4,6 +4,24 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.27.0] - 2026-04-20
+
+### Task-level done marking on PR creation (and setup-only exception)
+
+Extend v3.26.x Epic/Bug done marker down to individual tasks. Previously `mark-spec-implemented.sh` only resolved `specs/{TICKET}/refinement.md` / `plan.md`; now it also resolves `specs/{EPIC}/tasks/T*.md` by matching the `> JIRA: KEY` header. Engineering now auto-calls the helper after PR creation (new **Step 8a**), so task-level specs get marked done the moment their PR lands. Also documents the setup-only task path (no code to commit — e.g., KB2CW-3821 Mockoon fixture setup — transitions directly to Done).
+
+**Changed**
+
+- `scripts/mark-spec-implemented.sh` — two-path resolution: Epic-anchor first, Task-anchor (by `> JIRA: KEY` header grep across `specs/*/tasks/T*.md`) fallback. Same idempotent behavior. Error message lists both search paths.
+- `scripts/generate-specs-sidebar.sh` — reads each task.md's own `status:` frontmatter. Task's own status overrides parent inheritance. Task entries get the same `✅` / `❌` badge as Epic entries.
+- `.claude/skills/references/engineer-delivery-flow.md` — new **Step 8a** (Developer only): call `mark-spec-implemented.sh {TICKET}` after Step 8 JIRA transition. Admin mode skips.
+- `.claude/skills/engineering/SKILL.md` — documents the setup-only task path (no code → skip delivery flow → JIRA transition + helper call + branch cleanup). Rare exception, not the common path.
+- `.claude/rules/mechanism-registry.md` — `spec-status-mark-on-done` rule extended to cover Task-level anchors and engineering writers (Step 8a + setup-only exception).
+
+**Rationale**
+
+Discovered during KB2CW-3821 (GT-478 T1 — Mockoon fixtures) execution. The task transitioned directly to JIRA Done (no PR because all deliverables were gitignored), but T1.md remained at full opacity in docs-viewer — sidebar showed incomplete state while the task was already done. Follow-up analysis also revealed that normal task flows (PR → merged) were not marking task.md either, because the v3.26.x helper only handled Epic-level anchors. v3.27.0 closes both gaps.
+
 ## [3.26.1] - 2026-04-20
 
 ### Task entries inherit parent done status

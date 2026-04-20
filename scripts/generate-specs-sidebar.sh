@@ -167,13 +167,22 @@ status_badge() {
           [ -f "$task_file" ] || continue
           task_name=$(basename "$task_file" .md)
           task_title=$(grep -m1 '^# ' "$task_file" 2>/dev/null | sed 's/^# //' || echo "$task_name")
+          task_status=$(extract_frontmatter_field "$task_file" "status")
+          task_badge=$(status_badge "$task_file")
           # Avoid duplicate prefix: if title already starts with task_name, use title only
           if echo "$task_title" | grep -q "^${task_name}[: ]"; then
-            task_entry="[$task_title]($company/specs/$epic/tasks/$task_name.md)"
+            task_entry="[${task_title}${task_badge}]($company/specs/$epic/tasks/$task_name.md)"
           else
-            task_entry="[$task_name: $task_title]($company/specs/$epic/tasks/$task_name.md)"
+            task_entry="[${task_name}: ${task_title}${task_badge}]($company/specs/$epic/tasks/$task_name.md)"
           fi
-          if $parent_done; then
+          # Task's own status overrides parent inheritance
+          task_done=false
+          if [ "$task_status" = "IMPLEMENTED" ] || [ "$task_status" = "ABANDONED" ]; then
+            task_done=true
+          elif $parent_done; then
+            task_done=true
+          fi
+          if $task_done; then
             echo "    * <span class=\"done\">$task_entry</span>"
           else
             echo "    * $task_entry"

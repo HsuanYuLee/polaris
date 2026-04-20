@@ -583,6 +583,19 @@ Fixed — [簡要說明修正方式 + 對應 plan 的哪個預期行為]
 
 ---
 
+## Setup-Only Task 特例（無 code 可 commit）
+
+少數任務（Mockoon fixture 建立、環境設定、dev-only infra）的 deliverable 完全在 workspace gitignore 範圍內 — 跑 delivery flow 會產出空 PR。此時：
+
+1. 確認 task.md 的 Allowed Files 都屬於 gitignored 路徑（`specs/{EPIC}/tests/*`、`.env.local`、fixture JSON 等）
+2. 跳過 Step 3.5 之後的 PR 流程
+3. 在 JIRA 留 comment 記錄驗證證據（檔案清單、curl PASS 輸出、啟動指令）
+4. Transition JIRA 直接到 `完成`（子任務開發完畢 transition）
+5. **呼叫 helper 標記 task.md**：`{workspace_root}/scripts/mark-spec-implemented.sh {TICKET}`
+6. 清理 task branch（local + remote，無 commit 可 push）
+
+此路徑是例外不是常態 — 若任務有任何 code 會 commit，走標準 delivery flow（Step 8a 會自動呼叫同一 helper）。
+
 ## Do / Don't
 
 - Do: 檢查 task.md（新）或 plan.md（legacy）是否存在，無 work order 不開工（除非使用者明確 bypass）

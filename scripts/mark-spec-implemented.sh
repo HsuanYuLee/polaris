@@ -11,7 +11,9 @@
 #   mark-spec-implemented.sh GT-483 --status ABANDONED
 #
 # Behavior:
-#   - Scans {workspace_root}/*/specs/<ticket_key>/ for refinement.md or plan.md
+#   - First tries Epic-level anchor: {workspace}/*/specs/<ticket>/refinement.md or plan.md
+#   - Falls back to Task-level anchor: {workspace}/*/specs/*/tasks/T*.md whose header
+#     contains "> JIRA: <ticket_key>" (task.md schema from pipeline-handoff.md)
 #   - If file has no frontmatter, prepends one with status
 #   - If file has frontmatter with status, replaces only the status line
 #   - Idempotent: if status is already set to the target value, does nothing
@@ -60,28 +62,35 @@ case "$STATUS" in
     ;;
 esac
 
-# Find the spec folder
-SPEC_DIR=""
+# Resolve anchor file — two resolution paths:
+#   1) Epic-level: {workspace}/*/specs/<ticket>/refinement.md or plan.md
+#   2) Task-level: {workspace}/*/specs/*/tasks/T*.md whose header contains "> JIRA: <ticket>"
+ANCHOR=""
+
+# Path 1 — Epic-level
 for company_dir in "$WORKSPACE_ROOT"/*/; do
   candidate="${company_dir}specs/${TICKET}"
   if [ -d "$candidate" ]; then
-    SPEC_DIR="$candidate"
-    break
+    [ -f "$candidate/refinement.md" ] && ANCHOR="$candidate/refinement.md" && break
+    [ -f "$candidate/plan.md" ] && ANCHOR="$candidate/plan.md" && break
   fi
 done
 
-if [ -z "$SPEC_DIR" ]; then
-  echo "ERROR: no spec folder found for ticket $TICKET under $WORKSPACE_ROOT/*/specs/" >&2
-  exit 1
+# Path 2 — Task-level (only if Path 1 missed)
+if [ -z "$ANCHOR" ]; then
+  # Match "> JIRA: KEY" with word boundary (space, |, newline, EOF)
+  # e.g., "> Epic: GT-478 | JIRA: KB2CW-3821 | Repo: kkday-b2c-web"
+  while IFS= read -r f; do
+    ANCHOR="$f"
+    break
+  done < <(grep -lE "^> .*JIRA: ${TICKET}([[:space:]]|\$|\|)" "$WORKSPACE_ROOT"/*/specs/*/tasks/T*.md 2>/dev/null)
 fi
 
-# Pick anchor file: refinement.md wins, else plan.md
-ANCHOR=""
-[ -f "$SPEC_DIR/refinement.md" ] && ANCHOR="$SPEC_DIR/refinement.md"
-[ -z "$ANCHOR" ] && [ -f "$SPEC_DIR/plan.md" ] && ANCHOR="$SPEC_DIR/plan.md"
-
 if [ -z "$ANCHOR" ]; then
-  echo "ERROR: no refinement.md or plan.md in $SPEC_DIR" >&2
+  echo "ERROR: no spec found for $TICKET" >&2
+  echo "  Searched:" >&2
+  echo "    - $WORKSPACE_ROOT/*/specs/$TICKET/{refinement.md,plan.md}" >&2
+  echo "    - $WORKSPACE_ROOT/*/specs/*/tasks/T*.md (by '> JIRA: $TICKET' header)" >&2
   exit 1
 fi
 
