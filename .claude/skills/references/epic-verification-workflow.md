@@ -316,7 +316,7 @@ Layer 3 的 determinism 依賴 Mockoon fixtures。Fixtures 跟著 Epic 生命週
 | 觸發場景 | 時機 | 信心度 |
 |----------|------|--------|
 | Polaris 幫 merge task → feat | 整合完立刻跑 | 最高（確定性） |
-| 手動 merge 後使用者說「繼續」/「next」 | /next 偵測 feat branch 有新 commit | 高 |
+| 手動 merge 後使用者說「繼續」/「next」 | my-triage Step 0 Resume scan 偵測 feat branch 有新 commit | 高 |
 | 跑 epic-status / converge | 推進前兜底 | 中（可能距離整合已有時間差） |
 | 開 feature PR 到 develop | git-pr-workflow quality gate | 兜底（最後防線） |
 

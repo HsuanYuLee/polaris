@@ -4,6 +4,31 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.29.0] - 2026-04-20
+
+### Absorb `/next` into `/my-triage` (DP-017)
+
+`/next` skill removed. The "zero-input what should I do" scenario — its original intent — turned out to be already covered by `/my-triage` (assigned work + Bug priority + PR progress). `/next`'s own Level 4 fallback admitted this by deferring to `/my-triage`. Rather than maintain two skills with overlapping scope and fragile PR/JIRA state auto-routing (Level 0-3), zero-input triggers now land directly on `/my-triage` with a new Step 0 Resume scan that covers cross-session recovery (branch-ticket context, MEMORY.md Hot signals, recent checkpoints, `wip/*` branches).
+
+**Changed**
+
+- `.claude/skills/my-triage/SKILL.md` — v1.1.0 → v1.2.0: description + triggers extended with zero-input tokens (下一步、繼續、然後呢、what's next、接下來、推進手上的事情); new Step 0 Resume scan (branch-ticket priority → MEMORY.md Hot scan → checkpoints 7d → `wip/*` branches); new Group 0 「🔄 上次未完成」 ordered ahead of Bug group.
+- `.claude/rules/skill-routing.md` — removed `/next` routing row; `my-triage` trigger row extended with zero-input tokens and disambiguation note (`when no ticket key / topic keyword follows`); new sub-section under Core Rule: "Zero-input Triggers in Active Skill Session" (triggers do not auto-route when an active skill session is in progress).
+- `CLAUDE.md` — § Cross-Session Continuity opening clause added: trigger requires topic keyword (e.g., 「繼續 DP-015」); bare 「繼續」 / 「下一步」 → `/my-triage`.
+- `.claude/skills/engineering/SKILL.md`, `.claude/skills/references/epic-verification-workflow.md` (and `.agents/` mirrors) — `/next` references replaced with `/my-triage`.
+- `docs/workflow-guide.md` — removed `NX` Mermaid node + 5 edges; expanded `MT` node to cover auto-route duties.
+- `.claude/polaris-backlog.md` — historical item annotated with absorption note.
+
+**Removed**
+
+- `.claude/skills/next/` — folder deleted. Four blind spots from DP-017 plan each have corresponding mitigation in the changes above.
+
+**Rationale**
+
+Original `/next` design as "quick entry point when the user doesn't know what to do next" drifted over time as sibling skills matured — `/check-pr-approvals` took PR inspection, `/my-triage` ranked all assigned work, Cross-Session Continuity rules handled explicit "繼續 X". What remained for `/next` was a shrinking middle ground that its own Level 4 deferred to `/my-triage`. Consolidating the last unique niche (cross-session resume without topic keyword) into `/my-triage` Step 0 collapses "what should I work on?" into a single skill and eliminates fragile auto-routing across PR/JIRA state combinations.
+
+---
+
 ## [3.28.0] - 2026-04-20
 
 ### Memory Hot/Warm/Cold tiering (DP-015 Part B B8–B14 + B16)

@@ -117,6 +117,8 @@ If WIP is detected (modified files, non-main branch, or stash entries), report i
 
 ### Cross-Session Continuity
 
+**觸發需帶 topic keyword**（例：「繼續 DP-015」、「繼續 PROJ-123」、「continue DP-017」）。單獨說「繼續」或「下一步」、「接下來」等 zero-input 詞（後面不帶關鍵字）→ 走 `/my-triage`（Step 0 Resume scan 會自動掃 MEMORY.md Hot + checkpoints + wip/* branches）。Cross-Session Continuity 規則只在 `X` 為明確 topic（ticket key、DP 編號、專案代稱）時生效。
+
 When the user says "繼續 X" / "continue X" / references work from a previous session:
 
 1. **Search MEMORY.md index** for keywords matching the user's request

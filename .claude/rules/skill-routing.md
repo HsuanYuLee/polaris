@@ -16,6 +16,17 @@ This is a hard constraint from the Claude Code platform: "When a skill matches t
 
 If the input could match multiple skills (e.g., "幫我處理這個 PR" could be engineering or review-pr), resolve ambiguity first by asking the user — but do this **before** any tool calls, not after reading the PR.
 
+### Zero-input Triggers in Active Skill Session
+
+當主對話處於 **active skill session**（最近的 tool call 歷史包含一次 Skill tool invocation，且該 skill 尚未產出終局輸出）時，zero-input triggers（「下一步」「繼續」「然後呢」「接下來」「what's next」「next」）**不自動 route 到 `my-triage`**，而由當前 skill 的 context 主導解釋。
+
+例如：
+- 在 `design-plan` session 中使用者說「接下來呢」→ 指 design plan 的下一個議題，不跑 my-triage
+- 在 `engineering` session 中使用者說「繼續」→ 指該 ticket 的下一步，不跑 my-triage
+- 在 `breakdown` session 中使用者說「下一步」→ 指 breakdown 流程下一步，不跑 my-triage
+
+Zero-input trigger 只有在「**無 active skill + 無明確 topic keyword**」時才 route 到 `my-triage`。Strategist 判斷當前是否在 skill session 的方式：檢查最近 tool calls 是否剛 invoke 過 Skill，且 skill 的流程尚未抵達終點（未產出 dashboard / PR URL / final summary）。
+
 ### Pre-Processing: Hotfix Without JIRA Ticket
 
 When the user's message has fix intent (「修這個」、「幫我修」、「fix this」) + a Slack URL but **no JIRA ticket key**, the Strategist must create a ticket before routing to `bug-triage`:
@@ -43,7 +54,6 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Scan PRs needing review | "掃 PR", "大家的 PR", "review inbox" | `review-inbox` |
 | Review PRs in Slack thread | Slack thread URL + review intent ("review <slack_url>", "幫我看這串", "這串 PR review 一下") | `review-inbox` (Thread mode) |
 | Estimate a ticket | "估點", "estimate", "評估" + ticket | `breakdown` (Story/Task/Epic) or `bug-triage` (Bug) |
-| Auto-determine next action | "下一步", "next", "繼續", "continue", "然後呢", "接下來" (no ticket key) | `next` |
 | Work on a ticket | "做", "work on", "engineering" + ticket | `engineering` (formerly work-on, requires existing plan — if no plan, routes to planning skill first) |
 | Verify Epic AC | "驗 {EPIC}", "verify {TICKET}", "verify AC", "跑驗收", "AC 驗證" | `verify-AC` |
 | Triage/plan a bug | "修 bug", "fix bug", "分析 bug", "triage bug" + ticket | `bug-triage` |
@@ -53,7 +63,7 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Batch converge all work | "收斂", "converge", "推進", "全部推到 review", "把我的單收一收" | `converge` |
 | Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `converge` (Epic-only mode) |
 | Create/open a PR (framework/docs repo) | "開 PR", "create PR", "發 PR" | `git-pr-workflow`（Admin — 產品 repo 引導走 `engineering`） |
-| Triage my work | "我的 epic", "my epics", "盤點", "triage", "手上有什麼", "my work", "我的工作" | `my-triage` |
+| Triage my work / zero-input next | "我的 epic", "my epics", "盤點", "triage", "手上有什麼", "my work", "我的工作", "排優先"；以及 zero-input 詞：「下一步」、「next」、「繼續」、「continue」、「然後呢」、「what's next」、「接下來」、「推進手上的事情」（後面無 topic keyword；「繼續 DP-015」這類帶 topic 的走 CLAUDE.md § Cross-Session Continuity） | `my-triage` |
 | Batch intake from PM | "收單", "排工", "intake", "這批單幫我看", "PM 開了一堆單", "幫我排優先", "prioritize this batch" + 多張 ticket key | `intake-triage` |
 | Daily standup / end-of-day | "standup", "站會", "daily", "寫 standup", "下班", "收工", "準備明天的工作", "end of day", "EOD", "明天 standup", "今天結束了", "總結一下", "結束今天", "wrap up", "今天做了什麼" | `standup` |
 | Sprint planning | "sprint planning", "sprint 規劃" | `sprint-planning` |

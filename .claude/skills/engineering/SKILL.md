@@ -8,7 +8,7 @@ description: >
   "修 PROJ-123", "fix review on PROJ-123", PR URL (from pr-pickup or direct),
   or user provides JIRA ticket key(s).
   NOT for planning: Bug → bug-triage first; Story/Task/Epic → breakdown first.
-  Key distinction: "下一步" / "繼續" without ticket key → next skill (context auto-detect).
+  Key distinction: "下一步" / "繼續" without ticket key → my-triage (zero-input router + resume scan).
 tier: product
 metadata:
   author: Polaris

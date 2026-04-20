@@ -168,11 +168,8 @@ flowchart LR
     IT["intake-triage<br/>(batch intake)"]
 
     %% ── Epic Tracking ──
-    MT["my-triage<br/>(daily triage)"]
+    MT["my-triage<br/>(daily triage<br/>+ zero-input router)"]
     CV["converge<br/>(push to review<br/>+ epic progress)"]
-
-    %% ── Context Router ──
-    NX["next<br/>(auto-route)"]
 
     %% ── Other ──
     UT["unit-test"]
@@ -200,15 +197,10 @@ flowchart LR
     %% ── Review chain ──
     RI -->|batch review| RP
 
-    %% ── Context router ──
-    NX -.->|work on ticket| WO
-    NX -.->|triage bug| BT
-    NX -.->|fix review| WO
-    NX -.->|check approvals| CPA
-    NX -.->|epic progress| CV
-
     %% ── Epic tracking ──
     MT -.->|pick ticket| WO
+    MT -.->|resume branch-ticket| WO
+    MT -.->|resume PR review| CPA
     CV -->|batch push| GPW
     CV -->|gap: needs dev| WO
     CV -->|gap: fix review| WO
@@ -231,15 +223,14 @@ flowchart LR
     class VR,VAC,UT_TDD quality
     class RP,RI,CPA,PRP review
     class RF,EB,SASD,SP,IT planning
-    class NX,MT,CV orchestrator
+    class MT,CV orchestrator
     class SU,UT,LRN standalone
 ```
 
 **Connectivity check:**
 - Every skill has at least one inbound edge (invoked by another skill) or is a direct user entry point
-- `next` is a meta-router — auto-determines and invokes the correct next skill based on context (todo, git branch, JIRA status, PR status)
 - `intake-triage` analyzes a batch of PM-created tickets, evaluates priority, and outputs JIRA labels + comments + a Slack summary — sits between `my-triage` (personal daily) and `sprint-planning` (team sprint)
-- `my-triage` triages all assigned work (Epics, Bugs, orphan Tasks); feeds priority ranking into `standup` TDT section
+- `my-triage` triages all assigned work (Epics, Bugs, orphan Tasks); also acts as the zero-input router (「下一步」「繼續」等 no-topic-keyword 詞) via Step 0 Resume scan (branch-ticket + MEMORY.md Hot + recent checkpoints + wip/* branches); feeds priority ranking into `standup` TDT section
 - `converge` pushes all in-flight work toward review in one pass — closes gaps, batch-triggers PRs, and includes Epic progress tracking (formerly `epic-status`). Triggered by "收斂", "converge", "push to review", "epic 進度", "epic 狀態"
 - `standup` (v2.0) is the unified entry point for daily standup and end-of-day routines — includes auto-triage (Step 0); triggered directly by the user
 - `visual-regression` runs as `engineer-delivery-flow` Step 3.5 (after behavioral verify, before pre-PR review) when changed files hit a VR-configured domain. Optional but recommended for layout/styling changes
