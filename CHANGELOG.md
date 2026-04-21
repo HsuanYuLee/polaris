@@ -4,6 +4,33 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.32.0] - 2026-04-21
+
+### task.md `## Test Environment` section — pointer mode for dev env handoff
+
+GT-478 實作期間發現 engineering sub-agent 讀 task.md 後不知道如何起測試環境（T3 需 `pnpm build` 產 `.output/`，T2 需 curl live dev.kkday.com）。breakdown 只把 workspace-config 的 `test_command` 抽到 task.md，沒寫 dev server / docker / mockoon 啟動指引，pipeline handoff 契約缺這一段。
+
+**Added**
+
+- `skills/references/pipeline-handoff.md` task.md schema 新增 `## Test Environment` 區塊：
+  - `Level: {static | build | runtime}` — 告訴 engineering 本 task Verify Command 需要的環境層級
+  - `Dev env config` — 指向 `workspace-config.yaml` → `projects[{repo}].dev_environment`（pointer 模式，不複製細節）
+  - `Fixtures` — mockoon fixture path 或 `N/A`
+- `skills/breakdown/SKILL.md` Step 14.5 新增 Test Environment 填寫規則，含 Level 決策流程表（依 Verify Command 特徵判斷）
+- `scripts/validate-task-md.sh` 新增 `## Test Environment` 為必要區塊，並驗證 Level 值合法性
+- `skills/engineering/SKILL.md` sub-agent prompt 新增 Level-based 環境準備流程（static → skip / build → `pnpm build` / runtime → 依 `dev_environment.requires` + `start_command` + 選配 mockoon）
+- `rules/mechanism-registry.md` 新增兩條 canary：
+  - `task-md-test-env-section` (High) — task.md 必須含 Test Environment 區塊
+  - `engineering-reads-test-env` (High) — engineering 必須依 Level 起環境
+
+**Changed**
+
+- GT-478 T1-T9 task.md 全數補上 `## Test Environment` 區塊（T1 runtime + fixtures, T2/T6/T7 runtime, T3/T4/T5 build, T8a/T8b/T9 static）
+
+**Why pointer mode**：dev_environment 細節（`start_command`、`requires`、`health_check`、`is_monorepo`）已在 workspace-config，單一來源。複製進 task.md 會 stale — workspace-config 改了沒人同步。engineering sub-agent 依 Level 自行讀 workspace-config。
+
+**Deterministic enforcement**：`validate-task-md.sh` 硬性擋缺漏（exit 1），不靠 AI 自律。符合 `CLAUDE.md § Deterministic Enforcement Principle`。
+
 ## [3.31.0] - 2026-04-21
 
 ### /learning 知識落地鏈路 (DP-019)

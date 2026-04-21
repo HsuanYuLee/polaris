@@ -49,12 +49,21 @@ required_sections=(
   "## 估點理由"
   "## 測試計畫"
   "## Test Command"
+  "## Test Environment"
 )
 for section in "${required_sections[@]}"; do
   if ! grep -qF "$section" "$FILE"; then
     errors+=("missing section: $section")
   fi
 done
+
+# --- Test Environment Level (must be static | build | runtime) ---
+if grep -qF "## Test Environment" "$FILE"; then
+  if ! grep -qE '^\*\*Level\*\*: (static|build|runtime)\b' "$FILE" \
+     && ! grep -qE '^- \*\*Level\*\*: (static|build|runtime)\b' "$FILE"; then
+    errors+=("Test Environment section missing or malformed Level line: expected '- **Level**: {static|build|runtime}'")
+  fi
+fi
 
 # --- Operational Context required fields (must appear as table cells) ---
 required_fields=(

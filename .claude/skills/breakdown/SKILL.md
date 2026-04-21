@@ -381,7 +381,8 @@ git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
 6. **估點理由**：一段話（從 Step 7 的估點邏輯）
 7. **測試計畫（code-level）**：對應 test sub-tasks 的 unit/integration 測試項目
 8. **Test Command**：專案特定的測試指令（見下方「Test Command 填寫規則」）
-9. **Verify Command**：一個可執行的 shell 指令，驗證本 task 的核心改動在 runtime 是否生效（見下方「Verify Command 撰寫指南」）
+9. **Test Environment**：本 task Verify Command 需要的環境層級 + workspace-config pointer + fixtures（見下方「Test Environment 填寫規則」）
+10. **Verify Command**：一個可執行的 shell 指令，驗證本 task 的核心改動在 runtime 是否生效（見下方「Verify Command 撰寫指南」）
 
 **不放 task.md 的東西**（屬於 refinement 或 AC 層級）：
 - Epic description 全文 / refinement artifact
@@ -432,6 +433,37 @@ scripts/validate-task-md.sh <task.md path>
 3. Fallback: `npx vitest run`（最後手段）
 
 讀取方式：在 Step 14.5 產出 task.md 前，讀 workspace-config 的 `test_command` 欄位。若為 monorepo（`is_monorepo: true`），指令已包含正確子目錄路徑。
+
+**Test Environment 填寫規則：**
+
+每張 task.md 必須包含 `## Test Environment` 區塊，標示 Verify Command 需要的環境層級（Level），讓 engineering sub-agent 知道是否需要起 dev server / docker / fixture。
+
+**Level 決策流程**（依 Verify Command 的形式判斷）：
+
+| Verify Command 特徵 | Level | 範例 |
+|-------------------|-------|------|
+| 只 `grep` / `ls` source 或 config，不需要 build 產物 | `static` | `grep -q 'pattern' src/file.ts` |
+| 需讀 `.output/` / `dist/` / build artifact | `build` | `ls .output/public/_nuxt/*.js`（如 PROJ-123 T3 `grep moment .output`） |
+| 需 `curl` live endpoint / 瀏覽器互動 / runtime API | `runtime` | `curl -sk https://dev.yourapp.com/zh-tw`（如 PROJ-123 T2 `curl dev.yourapp.com`） |
+
+**產出格式**：
+
+```markdown
+## Test Environment
+
+> engineering 執行 Verify Command 前，依本區塊決定如何準備環境。
+
+- **Level**: {static | build | runtime}
+- **Dev env config**: `workspace-config.yaml` → `projects[{repo_name}].dev_environment`
+- **Fixtures**: {`specs/{EPIC_KEY}/tests/mockoon/` 或 `N/A`}
+```
+
+**填寫細節**：
+- `{repo_name}` 填實際 repo name（如 `your-app`），對應 workspace-config `projects[].name`
+- **Fixtures 判斷**：若 Epic 有 mockoon fixtures（`specs/{EPIC}/tests/mockoon/` 存在且本 task 的 runtime Verify 會經過這些 route），填 fixture path；否則填 `N/A`
+- `static` level 的 Fixtures 一律 `N/A`（不需 runtime env）
+
+**為何 pointer 模式**：dev_environment 細節（start_command, requires, health_check, is_monorepo）已在 workspace-config，單一來源。複製到 task.md 會 stale — workspace-config 改了沒人同步 task.md。engineering sub-agent 自己讀 workspace-config。
 
 **Verify Command 撰寫指南：**
 

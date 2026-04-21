@@ -185,6 +185,11 @@ Sub-agent **不會**自動載入 `.claude/rules/`。你必須自己讀：
 - 讀取 `unit-test` SKILL.md — 以 Red-Green-Refactor 循環實作
 - **Test Command**：task.md 若有 `## Test Command` 欄位，**必須使用該指令跑測試**（不可自行推導）。若無此欄位，讀專案 CLAUDE.md 或 workspace-config 取得正確指令
 - **測試環境硬門檻**：test command 執行失敗（exit ≠ 0、`#imports` resolver error、vitest config 找不到）→ **立刻停止，回報問題**，不可靜默跳過或假設 CI 會處理
+- **Test Environment（Verify Command 前置）**：task.md 的 `## Test Environment` 區塊標示本 task Verify Command 需要的 Level：
+  - `static` → 不需起環境，直接跑 Verify Command
+  - `build` → 先跑 `pnpm build`（或 repo 對應 build 指令）產 `.output/` / `dist/`，無需啟動 dev server
+  - `runtime` → 讀 `workspace-config.yaml` → `projects[{repo_name}].dev_environment`，依序啟動：(1) `requires` 列出的所有 dependencies（如 `your-dev-proxy`），(2) `start_command` 起 dev server，(3) `health_check` URL 驗證 ready（預期 HTTP 200）。若 Fixtures 非 `N/A`，額外 `mockoon-runner.sh start {fixture_path}` 起 fixture server
+  - 啟動失敗 → **停止，回報使用者**，不繼續跑 Verify Command（Verify 會假 pass 或誤報 fail）
 - **TDD 智慧判斷**：依 `references/tdd-smart-judgment.md` 判斷每個檔案是否走 TDD 循環
 - **Coverage Gate**：若 repo 有 Codecov patch gate（見 `references/engineer-delivery-flow.md` § Step 2a），改動的 source file 一律補測試，不以「改動小」為由豁免。push 前由 `coverage-gate.sh` hook 硬擋
 - 發現情況不同時，在 JIRA 新增 comment 標註修正版

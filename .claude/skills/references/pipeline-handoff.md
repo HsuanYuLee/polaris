@@ -92,6 +92,27 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 {專案特定的測試指令，含正確工作目錄}
 \`\`\`
 
+## Test Environment
+
+> engineering 執行 Verify Command 前，依本區塊決定如何準備環境。**pointer 模式** — 不把 dev env 細節複製進 task.md，由 engineering sub-agent 自行讀 workspace-config 和 fixture runner。
+
+- **Level**: {static | build | runtime}
+- **Dev env config**: `workspace-config.yaml` → `projects[{repo_name}].dev_environment`
+- **Fixtures**: {`specs/{EPIC}/tests/mockoon/` 或 `N/A`}
+
+**Level 定義**：
+
+| Level | 需要什麼 | Engineering 須執行 |
+|-------|---------|------------------|
+| `static` | 只讀 source code（grep、檔案存在性、config 註冊） | 無 — 直接跑 Verify Command |
+| `build` | 需要 `pnpm build` 產 `.output/` 才能跑 Verify Command | 在 worktree 跑 build，不需啟動 dev server |
+| `runtime` | 需要 live endpoint（curl / dev server / nginx）才能跑 Verify Command | 依 `dev_environment.requires` 啟動 dependencies（如 `your-dev-proxy`）+ `start_command` 起 dev server + `health_check` 驗證 ready，**若 Fixtures 非 N/A**，同時起 `mockoon-runner.sh start {fixture_path}` |
+
+**不放進 task.md 的細節**（engineering sub-agent 自己從 workspace-config 讀）：
+- `start_command`、`ready_signal`、`base_url`、`health_check`
+- `requires`（依賴的其他 service，如 `your-dev-proxy`）
+- `is_monorepo` / `monorepo_apps`
+
 ## Verify Command
 
 > breakdown 產出，engineering 必須執行並附上 output。不可修改指令內容。
@@ -111,6 +132,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 | 目標、涉及檔案、測試計畫（code-level） | AC 驗證場景（business-level）→ 在 AC 驗收單 |
 | Verify Command（per-task smoke test） | 完整 AC 驗證流程（verify-AC 的工作） |
 | Test Command（專案特定的測試指令） | 通用 test 指令（sub-agent 不可自行推導） |
+| Test Environment Level + pointer | dev env 細節（start_command / requires / health_check） |
 | 估點理由 | 技術方案選項分析（refinement 已定） |
 | References 清單 | handbook 內容（sub-agent 須自行讀取，不複製進 task.md） |
 
