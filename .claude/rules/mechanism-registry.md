@@ -48,6 +48,13 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 
 > See `skills/references/mechanism-rationalizations.md` § Common Rationalizations — Reference Discovery and § Common Rationalizations — Delegation.
 
+### Knowledge Compilation (source: `skills/references/knowledge-compilation-protocol.md`)
+
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `knowledge-source-of-truth-boundary` | Framework policy changes must be written in Atom layer first; derived outputs cannot become the only source of policy truth | Session edits translation/summary/generated docs that introduce new policy wording without corresponding update in `rules/*.md` or `skills/references/*.md` | High |
+| `parallel-doc-naming-lock` | Parallel docs/reference generation must pre-lock filename/slug slots before fan-out; workers fill assigned slots only | Same concept lands as multiple ad-hoc filenames in one session (`*-protocol.md` and `*-workflow.md`) without prior slot map or coordinator decision | Medium |
+
 ### Feedback & Memory (source: `rules/feedback-and-memory.md`)
 
 | ID | Rule | Canary Signal | Drift |

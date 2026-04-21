@@ -42,6 +42,8 @@ Determine which mode based on the user's input:
 **Setup mode** → jump to [Setup Learning Flow](#setup-learning-flow)
 **External mode** → continue to Step 1 below
 
+> **External mode landing routes (Step 5)**: after synthesis, each recommendation can be routed three ways — **(A)** open `/design-plan` discussion (seeds a `DP-NNN` folder with `research-report.md` + stub `plan.md`), **(B)** enter `polaris-backlog`, or **(C)** write `polaris-learnings` only. The user can mix routes across recommendations. See Step 5 for the full prompt and the seeding sub-flow. Note: Route (A) is **disabled** for Quick-path depth tier.
+
 ---
 
 # External Learning Flow
@@ -235,6 +237,7 @@ Extract using **target-specific categories**:
 | Quality enforcement | `verify-completion`, `dev-quality-check` | Verification gates, test requirements, anti-patterns |
 | Scripts & automation | `scripts/` | Deterministic logic, hook scripts, CLI tools |
 | Context management | `context-monitoring.md` | Window management, compression strategies, state preservation |
+| Knowledge compilation | `skills/references/knowledge-compilation-protocol.md` | Atom vs Derived boundary, backwrite policy, parallel naming lock |
 
 **Project target categories:**
 
@@ -298,6 +301,8 @@ The **Discovery Type** column (from Round 3 classification) makes it immediately
 
 To fill "Our Current State" accurately: read relevant workspace files rather than relying on memory. Spawn an Explore subagent if needed.
 
+When the finding involves compile/source-of-truth/naming conventions, normalize wording to the canonical framework terms from `skills/references/knowledge-compilation-protocol.md` (Atom layer, Derived layer, Naming Lock).
+
 ### 4b. Compile — Collide With Accumulated Knowledge
 
 Cross-reference findings against the **prior learnings** from the Step 1.5 baseline. For each finding, determine its relationship to what we already know:
@@ -352,25 +357,162 @@ Present the lens match summary, comparison matrix, knowledge compile results, an
 
 ## Step 5: Execute (Only After User Confirmation)
 
-| User says | Action |
-|---|---|
-| Confirms specific recommendations | Execute changes per target landing zone |
-| Wants to discuss further | Refine recommendations |
-| Save for later | Save a project or reference memory |
-| "Worth tracking" / defers | Route to appropriate backlog (see below) |
-| Disagrees | Acknowledge, adjust, don't push |
+After presenting the synthesis in Step 4e, **actively present the three landing routes** for each confirmed recommendation. Do not wait for the user to propose a route — prompt them explicitly. The user can **mix routes** across recommendations (e.g., Rec #1 → DP, Rec #2 → backlog, Rec #3 → learnings-only).
 
-### Backlog routing by target
+### 5a. Present the three routes
+
+For each recommendation the user wants to act on, offer:
+
+| Route | When | Outcome |
+|---|---|---|
+| **(A) 開 `/design-plan` 討論** | Cross-cutting change, multiple tradeoffs, needs multi-round discussion before coding | Seed a new `specs/design-plans/DP-NNN-{slug}/` with `research-report.md` + stub `plan.md` (`status: SEEDED`). User runs `/design-plan DP-NNN` later to start discussion |
+| **(B) 進 `polaris-backlog`** | Small framework gap with clear path; track for later cleanup | Append one-line entry to `.claude/polaris-backlog.md` |
+| **(C) 只寫 `polaris-learnings`** | Knowledge sink only; no action to track | Skip backlog, write learning entry in Step 6c |
+
+Prompt explicitly, e.g.:
+
+```
+以上 N 個 recommendation，每個想走哪條路？
+  (A) 開 /design-plan 討論 — 深入討論再實作
+  (B) 進 polaris-backlog — 記一行待辦
+  (C) 只寫 polaris-learnings — 沉澱知識不追蹤
+你可以混選，例：#1→A, #2→B, #3→C
+```
+
+### 5b. Route (A) — `/design-plan` seeding sub-flow
+
+Triggered when the user picks (A) for a recommendation. Execute per-recommendation (each route-(A) pick seeds its own DP folder).
+
+#### 5b.1 Quick-path gate
+
+If Step 2 depth tier **== Quick**, route (A) is **disabled** for this recommendation. Show:
+
+```
+Quick path report 沒有 Comparison Matrix / Knowledge Compile，走 DP 路線請重跑 Standard 或 Deep path 再決定。
+```
+
+Offer the user routes (B) or (C) instead. Skip the rest of 5b for this recommendation.
+
+#### 5b.2 Pre-check: fuzzy slug match against existing DPs
+
+Before allocating a new DP-NNN, scan existing plans to avoid duplicates:
+
+1. List entries under `specs/design-plans/` matching `DP-*`
+2. For each existing DP folder, read `plan.md` frontmatter (at minimum `status` and `topic`)
+3. Compute fuzzy slug similarity between the proposed slug (derived from the recommendation title) and each existing DP's slug/topic
+
+If a **match** is found, branch by the existing DP's `status`:
+
+| Existing status | Action |
+|---|---|
+| `SEEDED` or `DISCUSSION` | Ask user: "找到相近的 DP-NNN（status: {S}）— 要 append research 到既有 DP-NNN，還是新開一個？" |
+| `LOCKED` or `IMPLEMENTED` | Force new DP (既有是終局). In the new plan's Background section, add `See also: DP-NNN` pointing to the existing one |
+| `ABANDONED` | Ask user: "找到已放棄的 DP-NNN — 要 revive（切回 DISCUSSION）並 append，還是新開一個？" |
+
+**Append variant**: when user chooses append, write the research report to `specs/design-plans/DP-NNN-{existing-slug}/artifacts/research-report-{today}.md` (name-suffix to avoid clobbering the original snapshot). Do not edit the existing `plan.md`. Skip the rest of 5b (no stub plan, no new DP-NNN).
+
+If no match → continue to 5b.3.
+
+#### 5b.3 Allocate DP-NNN
+
+Inline scan logic (no separate script required):
+
+1. List directory entries under `specs/design-plans/`
+2. Filter entries matching `DP-NNN-*` prefix (three-digit zero-padded number)
+3. Take `max(NNN) + 1`, zero-padded to three digits
+4. Slugify the recommendation title (lowercase, `-` separators, strip non-alphanum)
+5. Proposed folder: `specs/design-plans/DP-{NNN}-{slug}/`
+
+#### 5b.4 Create folder structure
+
+Create: `specs/design-plans/DP-{NNN}-{slug}/artifacts/`
+
+#### 5b.5 Generate `research-report.md` (static snapshot)
+
+Write `specs/design-plans/DP-{NNN}-{slug}/artifacts/research-report.md` with this **fixed structure** — one section each, no editing after initial write:
+
+```markdown
+---
+source: /learning
+created: {today}
+recommendation: {recommendation title}
+---
+
+# Research Report — {recommendation title}
+
+## Goal
+{from recommendation's What + Why, phrased as the research goal}
+
+## Comparison Matrix
+{full table from Step 4a — all rows, including Discovery Type column}
+
+## Knowledge Compile Results
+{full results from Step 4b — Confirm / Contradict / Extend / New entries}
+
+## Recommendations
+### {Recommendation Title}
+- **What**: ...
+- **Why**: ...
+- **How**: ...
+- **Landing**: ...
+- **Effort**: ...
+- **Priority**: ...
+
+{repeat for each recommendation included in this DP's scope — typically the one the user tagged (A), but user may bundle sibling recs}
+```
+
+Treat this file as a **static snapshot**. Do not edit it in later steps or later sessions — `/design-plan` consumes it read-only.
+
+#### 5b.6 Create stub `plan.md`
+
+Write `specs/design-plans/DP-{NNN}-{slug}/plan.md` with **frontmatter only + single-line body**:
+
+```markdown
+---
+topic: {slug}
+created: {today}
+status: SEEDED
+---
+
+Plan pending — run `/design-plan DP-{NNN}` to start discussion. Research 見 `artifacts/research-report.md`.
+```
+
+#### 5b.7 Inform the user (do NOT auto-invoke `/design-plan`)
+
+```
+已建 DP-{NNN}-{slug}，要開始討論輸入 `/design-plan DP-{NNN}`
+```
+
+**Critical**: do NOT invoke `/design-plan` from within `/learning`. D12 supersedes the D9 auto-invoke mechanism — seeding is async, user picks the moment to start the discussion.
+
+#### 5b.8 Route (A) backlog/learnings policy (per D4)
+
+- **Skip** `polaris-backlog` entry for this recommendation — the DP plan file is the tracking artifact
+- **Still write** `polaris-learnings` in Step 6c for this recommendation
+
+### 5c. Route (B) — `polaris-backlog` entry
+
+Triggered when the user picks (B). Keep existing behavior:
 
 | Target | Backlog location | Format |
 |---|---|---|
 | `framework` | `.claude/polaris-backlog.md` | `- [ ] **{title}** — {description} — source: learning ({URL})` |
 | `project:{name}` | Project issue tracker or project-level backlog | Create JIRA ticket or project TODO |
 
-### Execution conventions
+Also write `polaris-learnings` in Step 6c.
+
+### 5d. Route (C) — `polaris-learnings` only
+
+Triggered when the user picks (C). No backlog entry, no DP seed. The knowledge flows only into `polaris-learnings.sh` via Step 6c.
+
+### 5e. Direct execution (immediate edits)
+
+Independent of the three routes above: if the user also wants a specific recommendation's edits applied **now** (e.g., "do this one immediately, track the others"), execute the changes per target landing zone:
 
 - Framework changes: use `/skill-creator` for skills, edit rules directly, use `skills/references/` for docs
 - Project changes: follow project conventions (CLAUDE.md, coding standards, PR workflow)
+
+Immediate execution still triggers Step 6c learnings write for that recommendation.
 
 ## Meta: Dispatch Pattern Discovery
 
@@ -422,9 +564,19 @@ Review the full set of learnings (`polaris-learnings.sh list`) plus the findings
 | **Contradiction unresolved** | Step 4b flagged a contradiction but user deferred resolution | Two learnings disagree on whether `useHead` runs at setup or render time |
 | **Depth gap** | We have surface-level knowledge (1-2 learnings) in an area that now appears critical | Only 1 learning about JSON-LD, but we're now working on structured data across 3 Epics |
 
-### 6b. Suggest Next Reads
+### 6b. Suggest Next Reads (conditional)
 
-Based on the gap analysis, generate 1-3 concrete suggestions:
+Based on the gap analysis, optionally generate 1-3 concrete suggestions.
+
+**When to run 6b:**
+
+| Scenario | Run 6b? |
+|---|---|
+| No route (A) was taken in Step 5 | **Run** — standard behavior |
+| Route (A) was taken and the suggestions would **genuinely extend the DP's research direction** (e.g., adjacent unknowns the DP will need to resolve) | **Run** — frame the suggestions as "future research that would feed DP-NNN" |
+| Route (A) was taken and suggestions are unrelated to the DP's topic, or are academic completionism, or would dilute the DP's focus | **Skip** — the DP's own discussion will surface what needs further learning |
+
+The rationale (BS#6): under route (A), the DP takes over as the primary tracking vehicle. Blindly emitting "next reads" can clutter the DP's scope. Only surface next-reads when they would measurably sharpen the DP's research.
 
 ```markdown
 ### 🔭 Suggested Next Learning

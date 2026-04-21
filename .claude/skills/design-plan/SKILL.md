@@ -3,7 +3,7 @@ name: design-plan
 description: "Create and maintain persistent design plan files for non-ticket architecture discussions. Auto-triggers when user starts a design discussion; accumulates decisions as file not memory; locks when user approves; implementation reads plan as spec. Fills the gap between refinement/sasd-review (ticket-scoped) and informal conversation (ephemeral). Trigger: '想討論', '怎麼設計', '重構', '重新設計', '要怎麼改', '要怎麼重做', 'design plan', 'ADR'."
 metadata:
   author: Polaris
-  version: 1.1.0
+  version: 1.2.0
 ---
 
 # Design Plan — 非 Ticket 架構討論的落地機制
@@ -62,7 +62,7 @@ metadata:
 ---
 topic: {Human-readable title}
 created: YYYY-MM-DD
-status: DISCUSSION | LOCKED | IMPLEMENTED | ABANDONED
+status: SEEDED | DISCUSSION | LOCKED | IMPLEMENTED | ABANDONED
 locked_at: YYYY-MM-DD  # 只在 LOCKED 後出現
 implemented_at: YYYY-MM-DD  # 只在 IMPLEMENTED 後出現
 ---
@@ -112,11 +112,25 @@ Locked at: YYYY-MM-DD by {觸發語句}
 {實作過程中的觀察、偏離理由、後續 follow-up}
 ```
 
+## Status 狀態定義
+
+| Status | 意義 |
+|--------|------|
+| `SEEDED` | Plan shell 已建、`artifacts/research-report.md` 已放好，等待使用者輸入 `/design-plan DP-NNN` 啟動討論。由 `/learning` 的 handoff 流程建立；不是從對話直接 lock 的狀態 |
+| `DISCUSSION` | 討論進行中，決策持續累積 |
+| `LOCKED` | 所有 Decisions / Blind Spots / Implementation Checklist 都齊備，進入實作階段 |
+| `IMPLEMENTED` | Implementation Checklist 全打勾、實作完成 |
+| `ABANDONED` | 討論後決定不做（保留檔案記錄決策過程） |
+
 ## Workflow
 
 ### Phase 1: 偵測 + 建檔
 
-使用者說出明確觸發詞，或多輪偵測成立 → Strategist 建立 plan file：
+此 Phase 有兩條 trigger mode，依 skill 呼叫方式分流：
+
+#### Mode A: 人工觸發（無 argument，原有流程）
+
+使用者說出明確觸發詞，或多輪偵測成立 → 從對話脈絡建立 plan file。此 mode **不期待** `artifacts/research-report.md` 存在，研究內容直接寫進 plan 即可：
 
 1. 從討論中提取 topic slug
 2. 掃 `specs/design-plans/` 現有 `DP-NNN-*` folder 取最大 N，分配下一個編號（首次使用為 `DP-001`）
@@ -125,6 +139,36 @@ Locked at: YYYY-MM-DD by {觸發語句}
 5. 告知使用者：「已建立 design plan: `specs/design-plans/DP-NNN-{slug}/plan.md`，後續決策會寫入此檔。」
 6. Status: DISCUSSION
 7. 更新 Specs Viewer sidebar：`bash scripts/generate-specs-sidebar.sh`
+
+#### Mode B: Handoff 消費（argument = `DP-NNN`，e.g. `/design-plan DP-019`）
+
+此 mode 由 `/learning` 的 seeding handoff 觸發——`/learning` 已建好 DP folder + stub plan + research report，使用者稍後呼叫 `/design-plan DP-NNN` 來啟動討論。
+
+1. **定位 DP folder**：掃 `specs/design-plans/DP-NNN-*/` 找唯一 match 的 folder（slug 任意）
+   - 找不到 → **Fail loud**：「錯誤：找不到 `DP-NNN` 對應的 folder。handoff branch 必須有 seeded folder，請確認 `/learning` 是否正確建立。」中止流程，不 fallback 到對話脈絡
+2. **檢查既有 plan 狀態**（BS#19）：讀 `plan.md` frontmatter `status`
+   - `SEEDED` → 正常 handoff 消費路徑，繼續 Step 3
+   - `DISCUSSION` → 允許繼續（可能是先前被中斷、使用者想接續討論）
+   - `ABANDONED` → 詢問使用者要不要 revive；要 → 視為 DISCUSSION 繼續；不要 → 中止
+   - `LOCKED` / `IMPLEMENTED` → **Fail loud**：「錯誤：DP-NNN 已 {status}，不得將新 report 消費進既有 plan。請建立新 DP（新 DP 的 Background 加 `See also: DP-NNN`）。」中止流程
+3. **定位 research report**：讀 `specs/design-plans/DP-NNN-*/artifacts/research-report.md`
+   - 找不到 → **Fail loud**：「錯誤：DP-NNN 的 `artifacts/research-report.md` 不存在。handoff branch 明示指定 seeded folder，report 必須存在，不 fallback 到對話脈絡。請確認 `/learning` 是否正確產出 report。」中止流程（BS#16）
+4. **讀取 report** 並做分析映射（BS#3' mapping rules）：
+   - Report `## Goal` → plan `## Goal`（可直接引用或精簡）
+   - Report `## Comparison Matrix` + `## Knowledge Compile Results` → plan `## Background` 的摘要段落 + 「詳見 [artifacts/research-report.md](artifacts/research-report.md)」link
+   - Report 每個 `## Recommendations` 項目 → 一個 D{N} 候選：
+     - `Context` = Recommendation 的 Why
+     - `Decision` = Recommendation 的 What
+     - `Rationale` = Recommendation 的 How + Landing
+     - **不** copy Effort / Priority（排序不是 plan 的職責）
+   - 每個 D{N} 以候選形式寫入（使用者後續 Phase 2 討論時確認或修改）
+5. **升級 stub plan**：把 frontmatter `status: SEEDED` 改為 `status: DISCUSSION`
+6. 告知使用者：「已讀取 DP-NNN 的 research report，產出初版 Goal / Background / {N} 個 Decision 候選。後續討論會累積進此 plan。」
+7. 更新 Specs Viewer sidebar：`bash scripts/generate-specs-sidebar.sh`
+
+**關鍵差別**：
+- Mode A 無 argument，不期待 report，從對話建 plan
+- Mode B 有 `DP-NNN` argument，**必須**有 report，缺任何一項（folder / report）都 fail loud 不 fallback——這是 handoff 契約，silent fallback 會變成空 plan（BS#16）
 
 ### Phase 2: 討論累積
 
@@ -273,6 +317,7 @@ LOCKED 的 plan 即 self-contained work order。跟 `breakdown → task.md → e
 | `sasd-review` | 跨團隊可見的技術設計 — design-plan 是團隊內 / 框架層，sasd-review 是對外正式文件。兩者可並存（先 design-plan 收斂，再 sasd-review 正式化） |
 | `engineering` | 實作時若存在對應 design-plan，engineering 必須讀 plan 才能開工（參考 `mechanism-registry.md` `design-plan-reference-at-impl` canary） |
 | `checkpoint` | Design plan 是 checkpoint 的補充 — checkpoint 存 session 狀態，design plan 存決策脈絡 |
+| `/learning` | **Seeding handoff**：當 `/learning` Step 5 使用者選擇「開 /design-plan 討論」路線，`/learning` 會分配 DP-NNN、建 `specs/design-plans/DP-NNN-{slug}/artifacts/research-report.md`、建 stub `plan.md`（`status: SEEDED`），並告知使用者輸入 `/design-plan DP-NNN` 啟動討論。`/learning` **不自動 invoke**，使用者掌握時機。`/design-plan DP-NNN` 進入 Phase 1 Mode B 消費 report，升級狀態至 DISCUSSION。同 session 可建多個獨立 DP（N recommendations → N DPs，不擠同一 plan）。參考 DP-019 |
 
 ## Post-Task Reflection (required)
 

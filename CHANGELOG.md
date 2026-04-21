@@ -4,6 +4,84 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.31.0] - 2026-04-21
+
+### /learning 知識落地鏈路 (DP-019)
+
+兩條主軸：Track 1 新增 /learning → /design-plan seeding handoff 讓 rich research 不再只存在對話裡；Track 2 把 version-bump backlog scan 從 aspirational 變 deterministic（warn-only v1）。
+
+**Added**
+
+- `.claude/skills/design-plan/SKILL.md` (v1.2.0):
+  - 新增 `SEEDED` 作為 plan frontmatter `status` 合法值（原有：DISCUSSION / LOCKED / IMPLEMENTED / ABANDONED）
+  - Phase 1 新增 Mode B（DP-NNN argument trigger）：`/design-plan DP-019` 讀 `artifacts/research-report.md` 產初版 Goal / Background / D1 候選
+  - Mode B fail loud if report missing（BS#16 — 不 silent fallback）
+  - Mode B status-based 分支：SEEDED/DISCUSSION/ABANDONED 可 consume；LOCKED/IMPLEMENTED 強制新開 DP（BS#19）
+  - Report → plan mapping 規則（BS#3'）：Goal → Goal；Matrix+Compile → Background summary+link；每個 Recommendation → D{N} 候選（Context=Why, Decision=What, Rationale=How+Landing；Effort/Priority 不帶進 plan）
+  - Integration table 新增 `/learning` 列
+
+- `.claude/skills/learning/SKILL.md`:
+  - Step 5 改為主動呈現三路徑（DP / backlog / learnings-only），支援混選（D10 — 不做自動分類樹，由使用者判斷）
+  - 新增 "design-plan seeding" sub-flow（D12）：建 DP folder + artifacts/ + research-report.md（固定 structure：Goal / Comparison Matrix / Knowledge Compile Results / Recommendations）+ stub plan.md (status: SEEDED) + 告知 DP 編號，**不** auto-invoke /design-plan
+  - Quick-path gate（BS#15）：depth tier == Quick 時禁走 DP 路線
+  - Fuzzy slug pre-check against existing DPs，status-based 分支（BS#5/#19）
+  - Inline DP-NNN allocation（BS#2 — 不抽 script）
+  - DP route 下 skip polaris-backlog entry，照寫 learnings（D4）
+
+- `.claude/hooks/version-docs-lint-gate.sh`:
+  - VERSION staged 時新增 backlog scan（D11 + BS#20 warn-only v1）
+  - 列出所有 open `[ ]` 項目 + age（days since `(YYYY-MM-DD)` creation date）
+  - 標記 age > 14d 且無 park tag（`[next-epic]`/`[platform]`）的項目
+  - Warn-only：不 block commit（觀察期再決定是否升級 block-mode）
+  - Bypass: `POLARIS_SKIP_BACKLOG_SCAN=1`
+
+- `scripts/generate-specs-sidebar.sh`:
+  - SEEDED 狀態 → 🌱 badge（BS#21）
+
+**Design Notes**
+
+- DP-019 本身經過 scope 擴大：從「單點 handoff」升級成「/learning 知識落地完整鏈路」，涵蓋 Track 1（大 gap → /design-plan → 實作）和 Track 2（小 gap → backlog → version bump 帶走）
+- D2 原提議 /learning direct-write 進 plan.md，被 D9 取代為 research-report.md artifact 模式（separation of concerns）
+- D9 原提議 /learning 自動 invoke /design-plan，被 D12 取代為 seeding 模式（使用者用 `/design-plan DP-NNN` 顯式消費），解決 Quick-path report 殘缺、silent fallback、多 recommendation fan-out 等 blind spots
+- Track 2 依 Explorer 證據（`specs/design-plans/DP-019-.../artifacts/backlog-close-pattern.md`）：68% done entries 在 VERSION bump 時被帶走、median time-to-close = 0 天、7 個 open 項目無真正 rot。結論：不加新 actor，強化既有 trigger 即可
+
+**Deferred**
+
+- BS#13 closure-intent convention 具體格式（`Backlog-closes:` PR desc / commit trailer / 同 commit 同做）
+- BS#14 monthly standup fallback 命運（enforce 或刪殭屍）
+- 兩者待 D11 hook 觀察期後依 friction 決定
+
+## [3.30.0] - 2026-04-20
+
+### Knowledge Compilation Protocol (DP-018) + docs-viewer done-link active color
+
+Added a framework-level canonical reference for knowledge compilation semantics (Atom vs Derived boundary + backwrite policy + parallel naming lock), wired it into learning/reference discovery, and introduced two behavioral canaries for auditability. Also fixed docs-viewer sidebar styling so completed entries remain green when selected (active state).
+
+**Added**
+
+- `.claude/skills/references/knowledge-compilation-protocol.md` (and `.agents/` mirror) — canonical framework policy:
+  - Atom vs Derived contract
+  - Backwrite requirements when editing derived artifacts first
+  - Parallel naming lock protocol (pre-locked slots before fan-out)
+  - Mapping and compliance IDs
+
+**Changed**
+
+- `.claude/rules/mechanism-registry.md` — new Knowledge Compilation section:
+  - `knowledge-source-of-truth-boundary` (High drift)
+  - `parallel-doc-naming-lock` (Medium drift)
+- `.claude/skills/references/INDEX.md` (and `.agents/` mirror) — indexed `knowledge-compilation-protocol.md` as canonical entry
+- `.claude/skills/learning/SKILL.md` (and `.agents/` mirror):
+  - added “Knowledge compilation” extraction category
+  - synthesis wording now normalizes compile/source-of-truth findings to canonical terms (Atom layer / Derived layer / Naming Lock)
+- `docs-viewer/index.html` — completed sidebar entries (`.done`) keep green color in active state (`.done a.active`), avoiding docsify default blue override
+
+**Notes**
+
+- DP-018 design-plan file lives under `specs/design-plans/` and remains local-only per workspace `.gitignore` convention; release includes the implemented framework policy/docs changes.
+
+---
+
 ## [3.29.0] - 2026-04-20
 
 ### Absorb `/next` into `/my-triage` (DP-017)

@@ -40,6 +40,7 @@ status_badge() {
   local status
   status=$(extract_frontmatter_field "$file" "status")
   case "$status" in
+    SEEDED)       echo " 🌱" ;;
     DISCUSSION)   echo " 💬" ;;
     LOCKED)       echo " 🔒" ;;
     IMPLEMENTED)  echo " ✅" ;;
