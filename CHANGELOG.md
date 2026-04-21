@@ -4,6 +4,25 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.33.0] - 2026-04-21
+
+### Branch switching = worktree — universal framework default
+
+多工並行是 Polaris 預設前提：使用者主 checkout 隨時可能有平行 WIP（編輯中、dev server 跑著、另一 session 在用）。先前 worktree 規則只收斂 engineering batch mode / revision / planning skills Tier 2+ 等窄路徑，逐個 skill 補規則會漏。本版將「任何會改變主 checkout HEAD/branch/working tree 的操作都須用 worktree」提升為 framework-level universal default。
+
+**Added**
+
+- `rules/sub-agent-delegation.md` § Operational Rules 新增「Branch switching = worktree (universal default)」bullet — 適用 Strategist、所有 skill、所有 sub-agent；列出例外（read-only 檢視、純 JIRA/Confluence/Slack、當前主 checkout 分支的編輯）+ worktree 命名慣例
+- `rules/mechanism-registry.md` 新增 canary `branch-switch-requires-worktree` (High drift) — 任何 `git checkout` / `git switch` / `git pull` 在主 checkout path 執行都觸發
+- Memory `feedback_branch_switch_requires_worktree.md` (pinned) 記錄決策背景與 canary signal
+
+**Changed**
+
+- `rules/sub-agent-delegation.md` 移除舊的「Worktree isolation for batch implementation」窄規則（已被通則吸收）；「Worktree for operations requiring isolation」bullet 重寫為通則的具體應用清單
+- `rules/mechanism-registry.md` 舊 canary `worktree-for-batch-impl` 標註為 `branch-switch-requires-worktree` 的具體子案例
+
+**Why**：避免「planning skill 要 worktree、engineering 第一次實作不用、Strategist 主 session 順手切分支沒規則可管」這種逐例外補洞的累積。Universal default + specific reinforcement 比散落在各 skill 的規則好維護。
+
 ## [3.32.0] - 2026-04-21
 
 ### task.md `## Test Environment` section — pointer mode for dev env handoff
