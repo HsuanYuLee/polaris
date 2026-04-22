@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.43.0] - 2026-04-22
+
+### Worktree Isolation — All Code Changes
+
+**Changed**
+
+- Worktree isolation rule upgraded from "branch switching only" to **all code changes** — no "stay on current branch" exception, including framework repo itself.
+- Mechanism `branch-switch-requires-worktree` renamed to `all-code-changes-require-worktree`, drift escalated to **Critical**.
+- Exceptions narrowed to: read-only operations, JIRA/Slack/Confluence, and memory/todo/plan file edits.
+
 ## [3.42.0] - 2026-04-22
 
 ### Framework Sync Alignment
