@@ -135,12 +135,16 @@ fi
 
 if [[ ${#CANDIDATE_PATHS[@]} -eq 0 ]]; then
   # Fallback: scan for recently modified specs files (covers gitignored specs/)
-  # Use 10-second window to catch edits that just happened
-  cutoff="$(date -v-10S '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || date -d '10 seconds ago' '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || echo '')"
-  if [[ -n "$cutoff" && -d "$WORKSPACE_ROOT/specs" ]]; then
-    while IFS= read -r p; do
-      [[ -n "$p" ]] && CANDIDATE_PATHS+=("$p")
-    done < <(find "$WORKSPACE_ROOT/specs" -name '*.md' -newermt "$cutoff" -type f 2>/dev/null || true)
+  # Create a reference file 10 seconds in the past, then use -newer (POSIX-compatible)
+  if [[ -d "$WORKSPACE_ROOT/specs" ]]; then
+    ref_file="/tmp/polaris-sidebar-ref-$$"
+    touch -t "$(date -v-10S '+%Y%m%d%H%M.%S' 2>/dev/null || date -d '10 seconds ago' '+%Y%m%d%H%M.%S' 2>/dev/null)" "$ref_file" 2>/dev/null || true
+    if [[ -f "$ref_file" ]]; then
+      while IFS= read -r p; do
+        [[ -n "$p" ]] && CANDIDATE_PATHS+=("$p")
+      done < <(find "$WORKSPACE_ROOT/specs" -name '*.md' -newer "$ref_file" -type f 2>/dev/null || true)
+      rm -f "$ref_file"
+    fi
   fi
 fi
 
@@ -152,12 +156,14 @@ if [[ ${#CANDIDATE_PATHS[@]} -eq 0 ]]; then
 fi
 
 needs_sync=false
-for path in "${CANDIDATE_PATHS[@]}"; do
-  if is_specs_target "$path"; then
-    needs_sync=true
-    break
-  fi
-done
+if [[ ${#CANDIDATE_PATHS[@]} -gt 0 ]]; then
+  for path in "${CANDIDATE_PATHS[@]}"; do
+    if is_specs_target "$path"; then
+      needs_sync=true
+      break
+    fi
+  done
+fi
 
 if [[ "$needs_sync" != true ]]; then
   exit 0
