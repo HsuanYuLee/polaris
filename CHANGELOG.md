@@ -4,6 +4,33 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.45.0] - 2026-04-22
+
+### Codex Compatibility Fixes (from workspace PR #5)
+
+**Fixed**
+
+- `codex-mcp-setup` SKILL.md frontmatter: quoted `description` field to fix YAML parsing in Codex (both `.claude/` and `.agents/` mirrors).
+- `sync-skills-cross-runtime.sh`: replaced `rsync` dependency with `cp -R` for broader compatibility; simplified dry-run output.
+
+**Added**
+
+- `polaris-codex-doctor.sh`: expanded from 4 to 5 checks — added `.agents/skills` path validation, SKILL.md frontmatter YAML parsing (via PyYAML), and Codex MCP hints (`~/.codex/config.toml` inspection).
+- `sync-codex-mcp.sh`: added troubleshooting hints at script completion for login and optional connector removal.
+- `docs/codex-quick-start.md` + `zh-TW`: added Troubleshooting section covering `invalid YAML` and `MCP startup incomplete` scenarios.
+
+## [3.44.0] - 2026-04-22
+
+### Sidebar Sync Hook Fix + DP-010 Closure
+
+**Fixed**
+
+- `docs-viewer-sync-hook.sh`: `CLAUDE_TOOL_INPUT` is empty in PostToolUse Edit hooks — added `find`-based fallback to scan recently modified specs files (10-second window), bypassing both missing env var and gitignored `specs/` directory.
+
+**Changed**
+
+- DP-010 (CWV/SEO Epic Full Classification) plan status → IMPLEMENTED. All 4 rounds complete; GT-542 "[SEO] Product Heading 整理" Epic created with Relates links from GT-488/489/490.
+
 ## [3.43.0] - 2026-04-22
 
 ### Worktree Isolation — All Code Changes

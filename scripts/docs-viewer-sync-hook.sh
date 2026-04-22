@@ -134,6 +134,18 @@ else:
 fi
 
 if [[ ${#CANDIDATE_PATHS[@]} -eq 0 ]]; then
+  # Fallback: scan for recently modified specs files (covers gitignored specs/)
+  # Use 10-second window to catch edits that just happened
+  cutoff="$(date -v-10S '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || date -d '10 seconds ago' '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || echo '')"
+  if [[ -n "$cutoff" && -d "$WORKSPACE_ROOT/specs" ]]; then
+    while IFS= read -r p; do
+      [[ -n "$p" ]] && CANDIDATE_PATHS+=("$p")
+    done < <(find "$WORKSPACE_ROOT/specs" -name '*.md' -newermt "$cutoff" -type f 2>/dev/null || true)
+  fi
+fi
+
+# Secondary fallback: git diff for tracked specs (rare case)
+if [[ ${#CANDIDATE_PATHS[@]} -eq 0 ]]; then
   while IFS= read -r p; do
     [[ -n "$p" ]] && CANDIDATE_PATHS+=("$p")
   done < <(git -C "$WORKSPACE_ROOT" diff --name-only -- specs 2>/dev/null || true)

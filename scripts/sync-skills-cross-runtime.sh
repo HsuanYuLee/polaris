@@ -100,18 +100,23 @@ rsync_dir() {
     return 1
   }
 
-  if [[ "$DRY_RUN" == false ]]; then
+  if [[ "$DRY_RUN" == true ]]; then
+    echo "DRY RUN: would sync $src -> $dst"
+    if [[ "$delete_flag" == "true" ]]; then
+      echo "DRY RUN: would replace existing contents under $dst"
+    fi
+    return 0
+  fi
+
+  if [[ "$delete_flag" == "true" ]]; then
+    rm -rf "$dst"
+    mkdir -p "$dst"
+  else
     mkdir -p "$dst"
   fi
-
-  local args=(-a)
-  [[ "$delete_flag" == "true" ]] && args+=(--delete)
-  args+=("$src/" "$dst/")
-  if [[ "$DRY_RUN" == true ]]; then
-    args=(--dry-run "${args[@]}")
-  fi
-
-  rsync "${args[@]}"
+  local cp_args=(-R)
+  [[ "$(uname)" == "Darwin" ]] && cp_args+=(-X)
+  cp "${cp_args[@]}" "$src/." "$dst/"
 }
 
 to_agents() {
@@ -130,9 +135,8 @@ to_agents() {
 
   if [[ "$DRY_RUN" == false ]]; then
     mkdir -p "$AGENTS_SKILLS"
-    find "$AGENTS_SKILLS" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
   else
-    echo "DRY RUN: would clean existing directories in $AGENTS_SKILLS"
+    echo "DRY RUN: would update existing directories in $AGENTS_SKILLS"
   fi
 
   # Sync shared references first.

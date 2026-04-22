@@ -210,3 +210,8 @@ if [[ "$APPLY" == false ]]; then
 else
   echo "Apply complete."
 fi
+
+echo
+echo "Troubleshooting:"
+echo "- If Codex startup says a server is 'not logged in', run: codex mcp login <name>"
+echo "- If an optional server is not needed (for example 'figma'), remove it: codex mcp remove <name>"

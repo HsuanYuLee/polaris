@@ -1,6 +1,6 @@
 ---
 name: codex-mcp-setup
-description: Set up and sync Codex MCP servers (Atlassian/Slack baseline, optional Google Calendar), then verify Codex/Claude parity for Polaris workflows. Trigger: "codex mcp", "同步 mcp", "設定 codex mcp", "讓 codex 接 mcp", "codex mcp setup".
+description: "Use when the user wants to set up or sync Codex MCP servers for Polaris workflows. Trigger: 'codex mcp', '同步 mcp', '設定 codex mcp', '讓 codex 接 mcp', 'codex mcp setup'."
 ---
 
 # Codex MCP Setup
@@ -59,4 +59,3 @@ Summarize:
 - Added / already existing MCP servers
 - Login status per server
 - Any manual follow-up needed
-

@@ -94,6 +94,43 @@ bash scripts/transpile-rules-to-codex.sh
 bash scripts/verify-cross-llm-parity.sh
 ```
 
+## 疑難排解
+
+### 載入 skill 時出現 `invalid YAML`
+
+這代表某個 `SKILL.md` 的 frontmatter 格式壞了。先跑：
+
+```bash
+bash scripts/polaris-codex-doctor.sh
+```
+
+如果 `.claude/skills` 和 `.agents/skills` 不一致，重新同步 Codex 鏡像：
+
+```bash
+bash scripts/sync-skills-cross-runtime.sh --to-agents
+```
+
+### 出現 `MCP startup incomplete` 或 `server is not logged in`
+
+這是 MCP connector 的登入問題，不是 Polaris skill 本身壞掉。
+
+- `claude_ai_Atlassian` 和 `claude_ai_Slack` 是 Polaris 的基線 connector
+- `figma` 是選配，只有在你要跑 Figma 相關流程時才需要
+
+可用以下方式修正：
+
+```bash
+codex mcp login claude_ai_Slack
+codex mcp login claude_ai_Atlassian
+codex mcp login figma
+```
+
+如果某個選配 connector 不需要，可以直接移除：
+
+```bash
+codex mcp remove figma
+```
+
 ### 3. 初始化設定（給 Codex 的提示詞）
 
 若缺 `workspace-config.yaml`，可直接對 Codex 說：

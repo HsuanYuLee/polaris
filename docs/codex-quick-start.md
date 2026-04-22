@@ -94,6 +94,43 @@ Run one command to verify both skill and rule parity:
 bash scripts/verify-cross-llm-parity.sh
 ```
 
+## Troubleshooting
+
+### `invalid YAML` while loading a skill
+
+This means a `SKILL.md` frontmatter block is malformed. Run:
+
+```bash
+bash scripts/polaris-codex-doctor.sh
+```
+
+If `.claude/skills` and `.agents/skills` are out of sync, refresh the Codex mirror:
+
+```bash
+bash scripts/sync-skills-cross-runtime.sh --to-agents
+```
+
+### `MCP startup incomplete` or `server is not logged in`
+
+This is an MCP connector auth issue, not a Polaris skill issue.
+
+- `claude_ai_Atlassian` and `claude_ai_Slack` are the Polaris baseline connectors.
+- `figma` is optional. Keep it only if you use Figma-linked workflows.
+
+Fix options:
+
+```bash
+codex mcp login claude_ai_Slack
+codex mcp login claude_ai_Atlassian
+codex mcp login figma
+```
+
+If you do not need an optional connector, remove it:
+
+```bash
+codex mcp remove figma
+```
+
 ### 3. Initialize config (Codex prompt)
 
 If `workspace-config.yaml` is missing, ask Codex:
