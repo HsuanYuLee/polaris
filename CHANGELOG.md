@@ -4,6 +4,28 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.46.0] - 2026-04-22
+
+### Pipeline Handoff + Skill Workflow Upgrades
+
+**Added**
+
+- New handoff evidence reference: `skills/references/handoff-artifact.md` (and `.agents` mirror), defining Summary/Raw Evidence schema, 20KB cap, secret scrub contract, and on-demand consumer behavior.
+- New `memory-hygiene` skill (in `.agents`) for manual Hot/Warm/Cold memory tiering operations.
+- Stop-hook backup for session summary capture: `.claude/hooks/session-summary-stop.sh`.
+
+**Changed**
+
+- Updated multiple core skills and mirrors (`engineering`, `bug-triage`, `breakdown`, `verify-AC`, `learning`, `design-plan`, `my-triage`, `checkpoint`) to align pipeline boundaries, handoff artifacts, and resume/triage behavior.
+- Expanded `pipeline-handoff.md` with artifact schema and cross-file validation expectations.
+- Strengthened engineering quality guidance with explicit coverage-gate integration in `engineer-delivery-flow.md` and `tdd-smart-judgment.md`.
+- Updated timeline behavior (`scripts/polaris-timeline.sh`) to support `session_summary` dedup via `--session-id`.
+
+**Fixed**
+
+- Improved PreCompact session-summary hook to consume stdin session metadata and emit dedup-ready command output (`.claude/hooks/session-summary-precompact.sh`).
+- Corrected script path references in checkpoint workflows to use `scripts/polaris-timeline.sh` directly.
+
 ## [3.45.0] - 2026-04-22
 
 ### Codex Compatibility Fixes (from workspace PR #5)
