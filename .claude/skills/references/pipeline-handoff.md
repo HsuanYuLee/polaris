@@ -344,8 +344,18 @@ Pipeline 收斂在以下任一條件：
 
 如果 verify-AC ↔ bug-triage 來回 **≥ 3 輪**，Strategist 必須介入檢查：是否為架構問題，而非單點 bug。
 
+## Evidence Artifact（Handoff 層的證據載體）
+
+本文件定義 handoff contract 的**結論文件**（task.md、JIRA comment）。支撐這些結論的**原始 tool return**（grep 結果、error trace、endpoint response）由 evidence artifact 承載：
+
+- 規格：[handoff-artifact.md](handoff-artifact.md) — Summary/Raw Evidence 格式、20KB cap、secret scrub
+- 位置：`specs/{EPIC}/artifacts/{skill}-{scope}-{ticket}-{ts}.md`（與 Completion Envelope Detail 合流）
+- 讀取：下游 sub-agent **on-demand**，預設信任結論文件
+- P4 pilot：bug-triage → engineering（DP-024 P4 2026-04-22）
+
 ## 和其他 references 的關係
 
+- [handoff-artifact.md](handoff-artifact.md) — Evidence artifact 格式規範（本文件結論層的補充）
 - [epic-verification-structure.md](epic-verification-structure.md) — 驗收單本身的結構（本文件描述的是 pipeline handoff，不是 ticket 結構）
 - [jira-subtask-creation.md](jira-subtask-creation.md) — breakdown 建 JIRA 子單的機械步驟
 - [branch-creation.md](branch-creation.md) — task branch 建立流程（engineering 消費）

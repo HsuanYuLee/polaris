@@ -12,7 +12,7 @@ description: >
 tier: product
 metadata:
   author: Polaris
-  version: 5.0.0
+  version: 5.1.0
 ---
 
 # Engineering — 工程師施工
@@ -159,6 +159,20 @@ Project: {base_dir}/{repo}（base_dir 從 workspace-config.yaml 取得）
 
 task.md / plan.md 已 self-contained（含目標、改動範圍、測試計畫、references 清單）。
 **不要回頭讀 breakdown.md / refinement.md / INDEX.md**。
+
+## Handoff Artifact (on-demand)
+
+上游 skill（bug-triage / breakdown / verify-AC）可能在 `specs/{EPIC}/artifacts/` 放
+evidence artifact（格式見 `skills/references/handoff-artifact.md`）。預設**不讀**，
+完全信任 task.md / plan.md / JIRA comment 當唯一工作指令。只在以下情況打開：
+
+- task.md 或 JIRA comment 缺少特定細節，阻礙施工判斷（例：不確定要改的函式位置）
+- 需要驗證某個聲明（例：task.md 說「X 檔案的 Y 行有 bug」，要 cross-check）
+- 懷疑結論過時或與現在 codebase 不一致
+
+路徑：`{company_base_dir}/specs/{EPIC_OR_TICKET}/artifacts/{skill}-*.md`（例：`bug-triage-root-cause-{TICKET}-*.md`）
+格式：`## Summary` (≤500 字決策摘要) + `## Raw Evidence` (capped raw tool output)
+先讀 Summary；Summary 解不了才掃 Raw Evidence。
 
 ## Repo Handbook — 先讀再開始
 

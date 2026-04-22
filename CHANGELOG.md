@@ -4,6 +4,45 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.40.0] - 2026-04-22
+
+### DP-024 P4 pilot — Pipeline handoff evidence artifact (bug-triage → engineering)
+
+承接 v3.39.0 P3，本版啟動 DP-024 P4 pipeline handoff evidence 層。Skill 交接現在可以把支撐結論的原始 tool return（grep 結果、error trace、endpoint response）封裝成 scrubbed + capped artifact，下游 skill 預設信任結論、only on-demand 讀。
+
+P4 pilot 範圍：bug-triage → engineering 單一 handoff。其餘 4 個 handoff 點（breakdown→engineering、engineering→verify-AC、verify-AC FAIL→bug-triage、refinement→breakdown）等 pilot 驗證後再擴散。
+
+**Added**
+
+- `skills/references/handoff-artifact.md` — artifact 格式規範
+  - Frontmatter schema（`skill` / `ticket` / `scope` / `timestamp` / `truncated` / `scrubbed`）
+  - `## Summary` (≤ 500 字決策摘要) + `## Raw Evidence` (原始 tool return)
+  - 20KB 硬上限：head 13KB + `[truncated, N bytes omitted]` marker + tail 6KB
+  - Per-skill 「結論不自明」判定（bug-triage: Full Path + AC-FAIL 寫、Fast Path 跳過）
+  - On-demand 讀 dispatch prompt 注入模板
+- `scripts/snapshot-scrub.py` — 在寫入前 scrub secrets + 20KB cap + frontmatter flag 更新
+  - 10+ 種 secret pattern（GitHub PAT/OAuth、OpenAI、Anthropic、Slack、AWS、Bearer、Basic auth、URL token params、labelled secrets）
+  - `--file PATH` 原地改寫；`--stdin` 讀 stdin 寫 stdout
+  - Smoke test：10/10 patterns 全部 redact、30KB 輸入 → 19KB head+tail+marker
+
+**Changed**
+
+- `skills/bug-triage/SKILL.md` v2.1.0 → v2.2.0
+  - Step 3 Full Path Explorer dispatch：artifact 檔名從 `bug-triage-{ts}.md` 改為 `bug-triage-root-cause-{TICKET}-{ts}.md`，明確要求 Summary/Raw Evidence 格式 + 寫入後跑 scrub
+  - Step 2-AF.2 AC-FAIL Explorer dispatch：同步換命名為 `bug-triage-ac-fail-{BUG_KEY}-{ts}.md` + scrub
+  - Step 5c Handoff + Step 2-AF.4 AC-FAIL handoff：Items 表新增「Evidence artifact」列，讓 engineering 看得到路徑
+- `skills/engineering/SKILL.md` v5.0.0 → v5.1.0
+  - Phase 2b sub-agent dispatch prompt 新增「## Handoff Artifact (on-demand)」段落，明示預設不讀、只在 task.md ambiguous / 需驗證 claim / 懷疑結論 stale 時打開
+- `skills/references/pipeline-handoff.md`：新增 `## Evidence Artifact（Handoff 層的證據載體）`區塊 + 相關 references 清單連到 handoff-artifact.md
+- `skills/references/INDEX.md`：JIRA Operations 表格新增 handoff-artifact.md 條目
+- `specs/design-plans/DP-024-memory-system-enhancement/plan.md`：新增 D5 decision（P4 pilot 切 bug-triage→engineering、per-skill 判定）、更新 Implementation Checklist 勾選 P4 基礎建設
+
+**Known issue / Follow-up**
+
+- Pilot 尚未跑過真實 bug-triage → engineering 流程驗證端到端。下次 Bug ticket 出現時觀察：artifact 實際寫入、scrub 正常、engineering 正確 on-demand 讀（或正確忽略）
+- 擴散到 engineering→verify-AC、verify-AC FAIL→bug-triage 等另 4 個 handoff 點，待 pilot 驗證後再做
+- BS#7 規則文件 vs 實作一致性掃描仍是 P4 Implementation Checklist 最後一項
+
 ## [3.39.0] - 2026-04-22
 
 ### DP-024 P3 — Semantic query for cross-session learnings (D2)

@@ -11,7 +11,7 @@ description: >
   This skill handles DIAGNOSIS only — estimation, test plan, QA challenge, and design doc are delegated to breakdown.
 metadata:
   author: Polaris
-  version: 2.1.0
+  version: 2.2.0
 ---
 
 # Bug Triage — 診斷層
@@ -94,7 +94,11 @@ Prompt: AC 驗證失敗，定位 feature branch 上的 code 缺陷。
 Proposed Fix 的「預估改動」必須限定在 {repos} 的 feature branch 上。
 ```
 
-Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`），Detail 寫入 `specs/{EPIC}/artifacts/bug-triage-af-{timestamp}.md`。
+Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`）。Detail 同時是下一 skill（engineering）的 handoff artifact（見 `skills/references/handoff-artifact.md`）：
+
+- **路徑**：`specs/{EPIC}/artifacts/bug-triage-ac-fail-{BUG_KEY}-{timestamp}.md`（timestamp 格式 `YYYY-MM-DDTHHMMSSZ` UTC）
+- **格式**：frontmatter（`skill: bug-triage`、`ticket: {BUG_KEY}`、`scope: ac-fail`、`timestamp`、`truncated: false`、`scrubbed: false`）+ `## Summary`（≤ 500 字，Root Cause / Impact / Proposed Fix 壓縮版）+ `## Raw Evidence`（grep 結果、PR diff 片段、[VERIFICATION_FAIL] block、suspect code 行號）
+- **寫入後必跑 scrub + cap**：`python3 scripts/snapshot-scrub.py --file {artifact_path}`（scrub secrets、20KB 截斷、更新 frontmatter flag）。Sub-agent 完成寫入後執行一次，然後才把 Detail 路徑回傳給 Strategist
 
 ### 2-AF.3 — Fall through to Step 4
 
@@ -115,6 +119,7 @@ Step 5c 的 handoff 訊息改為：
 | Root Cause（feature branch 上的） | ✅ 已確認 |
 | JIRA Comment | ✅ 已更新 |
 | Proposed Fix | ✅ {scope summary} |
+| Evidence artifact | {artifact_path} |
 
 ---
 說「做 {BUG_KEY}」進入施工。engineering 會 checkout **{feature_branch_name}**（不是 develop），在上面開 fix branch。
@@ -176,9 +181,12 @@ Ticket 資訊：
 - Stale: {handbook 中過時的資訊}
 ```
 
-回傳使用 Completion Envelope 格式（見 `skills/references/sub-agent-roles.md`）：
-- Summary ≤ 3 句（根因、影響範圍、修正方向）
-- Detail 寫入 `specs/{EPIC}/artifacts/bug-triage-{timestamp}.md`（完整分析）
+回傳使用 Completion Envelope 格式（見 `skills/references/sub-agent-roles.md`）。Detail 同時是下一 skill（engineering）的 handoff artifact（見 `skills/references/handoff-artifact.md`）：
+
+- Summary ≤ 3 句（根因、影響範圍、修正方向）回傳給 Strategist
+- **Detail 寫入**：`specs/{EPIC}/artifacts/bug-triage-root-cause-{TICKET}-{timestamp}.md`（timestamp 格式 `YYYY-MM-DDTHHMMSSZ` UTC）
+- **格式**：frontmatter（`skill: bug-triage`、`ticket: {TICKET}`、`scope: root-cause`、`timestamp`、`truncated: false`、`scrubbed: false`）+ `## Summary`（≤ 500 字，Root Cause / Impact / Proposed Fix 壓縮版）+ `## Raw Evidence`（grep 結果、suspect code 行號、commit hash、error trace、handbook relevant excerpt）
+- **寫入後必跑 scrub + cap**：`python3 scripts/snapshot-scrub.py --file {artifact_path}`（scrub secrets、20KB 截斷、更新 frontmatter flag）。Sub-agent 完成寫入後執行一次，然後才把 Detail 路徑回傳給 Strategist
 
 ### Fast Path
 
@@ -240,6 +248,8 @@ If the Explorer sub-agent returned Handbook Observations (gaps or stale info), p
 
 ### 5c — Handoff
 
+Fast Path 沒有 Explorer 產 artifact；Full Path 的 artifact 路徑會在 handoff 訊息標出來讓 engineering on-demand 讀：
+
 ```markdown
 ## ✅ Bug 診斷完成 — {TICKET}
 
@@ -248,6 +258,7 @@ If the Explorer sub-agent returned Handbook Observations (gaps or stale info), p
 | Root Cause | ✅ 已確認 |
 | JIRA Comment | ✅ 已更新 |
 | Proposed Fix | ✅ {scope summary} |
+| Evidence artifact | {artifact_path or "— (Fast Path)"} |
 
 ---
 說「breakdown {TICKET}」進入派工（估點 + 測試計畫 + Design Doc）。
