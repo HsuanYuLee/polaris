@@ -197,17 +197,45 @@ polaris-learnings.sh add --key "vue-ref-setup" --type pattern \
   --content "Vue composables must call useRoute() at setup top-level" \
   --confidence 8 --source "PR #2049"
 
-# Query top N entries (with decay applied)
+# Query top N entries by effective confidence (decay applied)
 polaris-learnings.sh query --top 5 --min-confidence 3
+
+# Semantic query (vector similarity) — requires reindex first
+polaris-learnings.sh query --semantic "how do Vue composables work?" --top 5
 
 # Confirm an entry (reset decay)
 polaris-learnings.sh confirm --key "vue-ref-setup"
 
 # List all entries with effective confidence
 polaris-learnings.sh list
+
+# Build or refresh the semantic embeddings index
+polaris-learnings.sh reindex           # only re-embed changed/new entries
+polaris-learnings.sh reindex --force   # rebuild all vectors
 ```
 
 Environment variables:
 - `POLARIS_WORKSPACE_ROOT` — workspace root path (required)
 - `POLARIS_PROJECT_SLUG` — override slug (optional)
-- `POLARIS_COMPANY` — filter by company (optional, used by query)
+- `POLARIS_COMPANY` — filter by company (optional, used by query; applies to both confidence and semantic modes)
+- `POLARIS_VENV` — Python venv for semantic query (default: `~/.polaris/venv`)
+- `POLARIS_EMBED_MODEL` — embedding model (default: `sentence-transformers/all-MiniLM-L6-v2`, 384-dim)
+
+## Semantic Query (DP-024 P3)
+
+`query --semantic "text"` finds entries by vector similarity rather than key match — useful when you remember the concept but not the slug (e.g., "hydration bug" finds `ssr-client-mismatch` without the exact key).
+
+**Setup (one-time):**
+
+```bash
+scripts/polaris-embed-setup.sh     # creates ~/.polaris/venv and installs fastembed
+polaris-learnings.sh reindex       # builds ~/.polaris/projects/{slug}/embeddings.json
+```
+
+**Storage:** `~/.polaris/projects/{slug}/embeddings.json` — one record per `{key}::{type}` with `embedding_model`, `embedding_version`, `text_hash` (sha256 of content, first 16 hex chars), and `vector` (JSON array, 384 float32 for the default model).
+
+**Model versioning:** each index record stores its model+version. `reindex` re-embeds entries whose `embedding_model`, `embedding_version`, or `text_hash` differ from the current target (content drift, model upgrade, or forced rebuild). Query refuses to run if `POLARIS_EMBED_MODEL` doesn't match what the index was built with — fail-fast rather than silently return garbage similarity.
+
+**Company hard-skip:** semantic query applies the same filter as confidence-mode query — entries with a `company` field that doesn't match the active `POLARIS_COMPANY` are skipped before scoring. Entries without a `company` field are treated as workspace-wide.
+
+**Dependencies:** Python 3.13 venv with [`fastembed`](https://github.com/qdrant/fastembed) (pulls in `onnxruntime` + `numpy`). Model auto-downloads on first use (~90MB for `all-MiniLM-L6-v2`, cached under `~/.cache/huggingface/`). Subsequent embeds: ~10ms per query.

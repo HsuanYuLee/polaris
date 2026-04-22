@@ -4,6 +4,70 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.39.0] - 2026-04-22
+
+### DP-024 P3 — Semantic query for cross-session learnings (D2)
+
+承接 v3.38.0 P2，本版把 D2 向量查詢層補上。`polaris-learnings.sh query` 現支援 `--semantic "text"` 語意搜尋，資料源仍是人為 curated JSONL（no auto-capture, no AI 壓縮），只新增索引層。
+
+**Added**
+
+- `scripts/polaris-embed.py` — Python CLI（在 polaris venv 跑）
+  - `embed --text TEXT` 輸出單筆向量 JSON
+  - `build-index --learnings FILE --output FILE [--force]` 建/更新 embeddings；按 `text_hash` + `embedding_model` + `embedding_version` 判定需重算的 entry
+  - `query --learnings FILE --embeddings FILE --query TEXT [--top N] [--min-confidence M] [--min-similarity F] [--company C]` 回傳 top-N entries（附 `similarity` 與 `effective_confidence`）
+  - Model mismatch fail-fast：index 記錄的 model 與查詢 model 不一致直接 exit 3 建議 reindex
+  - Company hard-skip：entry `company` 不為空且 != `POLARIS_COMPANY` → 跳過
+- `scripts/polaris-embed-setup.sh` — 建立 `~/.polaris/venv`（python3.13）+ 裝 fastembed，idempotent
+- `scripts/polaris-learnings.sh` 擴充
+  - `reindex [--force] [--model M] [--version V]` 呼叫 embed.py 建/更新索引
+  - `query --semantic "text" [--min-similarity F]` 走向量；未附 `--semantic` 維持原信心衰減模式
+  - 新增 env：`POLARIS_VENV`、`POLARIS_EMBED_MODEL`（default `sentence-transformers/all-MiniLM-L6-v2`）、`POLARIS_EMBED_VERSION`
+- `.claude/skills/references/cross-session-learnings.md § Semantic Query (DP-024 P3)` — setup / 儲存 schema / model versioning / company hard-skip / 依賴說明
+
+**Storage**
+
+`~/.polaris/projects/{slug}/embeddings.json`：
+```json
+{
+  "version": 1,
+  "entries": {
+    "{key}::{type}": {
+      "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+      "embedding_version": "1",
+      "text_hash": "sha256:abcd...",
+      "vector": [384 floats]
+    }
+  }
+}
+```
+
+**Blind spots resolved**
+
+- BS#2 (embedding model 版本綁定)：每筆記 model+version+text_hash；reindex 漸進重算；query mismatch fail-fast
+- BS#4 (multi-company isolation)：query 回傳前套 `POLARIS_COMPANY` hard-skip（與既有 memory 規則一致）
+
+**Dependencies**
+
+- Python 3.13（via Homebrew `python@3.13`）
+- `fastembed`（pip install 會帶 onnxruntime + numpy，~120MB）
+- 模型首次使用自動下載（`all-MiniLM-L6-v2` ~90MB，cache 在 `~/.cache/huggingface/`）
+- 後續 embed ~10ms/query
+
+**Verified behaviors**
+
+- Reindex 建 4 筆原有 learnings → 384 dim 向量落地
+- 語意搜尋 "verification agent should not modify files" → 正確命中 `verification-read-only-principle` (similarity 0.54)，其他 entry 遠低於此
+- Force reindex 對於 content 未變動但 schema 變動的 entry 全量重算
+- Company hard-skip：加一筆 `company: kkday` 測試，`POLARIS_COMPANY=kkday` 可見、`POLARIS_COMPANY=other` 隱藏 ✓
+- Model mismatch 警報：`POLARIS_EMBED_MODEL=BAAI/bge-small-en-v1.5` 走 query 直接 fail 並建議 reindex ✓
+
+**Known gaps（P3 follow-up）**
+
+- 多語 learnings（zh-TW/English 混合）的 semantic quality 用 `all-MiniLM-L6-v2` 僅驗證 key 命中，完整多語品質待實際使用累積後評估（e.g. 是否換 `paraphrase-multilingual-MiniLM-L12-v2`）
+- Strategist preamble injection 尚未整合 semantic 查詢（目前仍走 `query --top 5 --min-confidence 3`）
+- P4 D3 pipeline handoff evidence 尚未啟動
+
 ## [3.38.0] - 2026-04-22
 
 ### DP-024 P2 — PreCompact session summary hook (D4 minimum loop)

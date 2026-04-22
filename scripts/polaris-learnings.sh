@@ -8,6 +8,12 @@ set -euo pipefail
 SLUG="${POLARIS_PROJECT_SLUG:-$(basename "$POLARIS_WORKSPACE_ROOT")}"
 PROJECT_DIR="$HOME/.polaris/projects/$SLUG"
 LEARNINGS_FILE="$PROJECT_DIR/learnings.jsonl"
+EMBEDDINGS_FILE="$PROJECT_DIR/embeddings.json"
+VENV_DIR="${POLARIS_VENV:-$HOME/.polaris/venv}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EMBED_PY="$SCRIPT_DIR/polaris-embed.py"
+EMBED_MODEL="${POLARIS_EMBED_MODEL:-sentence-transformers/all-MiniLM-L6-v2}"
+EMBED_VERSION="${POLARIS_EMBED_VERSION:-1}"
 mkdir -p "$PROJECT_DIR"
 touch "$LEARNINGS_FILE"
 
@@ -17,15 +23,19 @@ Usage: polaris-learnings.sh <command> [options]
 
 Commands:
   add       Add or merge a learning (dedup by key+type)
-  query     Query entries sorted by effective confidence (decay applied)
+  query     Query entries sorted by effective confidence (decay applied);
+            add --semantic "text" for vector similarity search
   confirm   Reset last_confirmed to today; optional --boost adjusts confidence
   list      Emit every entry with effective_confidence attached
+  reindex   Build/refresh the semantic embeddings index (requires polaris venv)
   help      Show this help
 
 Env:
   POLARIS_WORKSPACE_ROOT   Workspace root (required)
   POLARIS_PROJECT_SLUG     Override slug (default: basename of root)
   POLARIS_COMPANY          Active company; query applies hard-skip filter
+  POLARIS_VENV             Python venv path (default: ~/.polaris/venv)
+  POLARIS_EMBED_MODEL      Embedding model (default: sentence-transformers/all-MiniLM-L6-v2)
 
 Run '<command> --help' for command-specific flags.
 EOF
@@ -126,6 +136,7 @@ cmd_add() {
 
 cmd_query() {
   local top=10 min_conf=0 company="${POLARIS_COMPANY:-}" type_filter="" tag_filter=""
+  local semantic="" min_sim=0.0
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --top) top="$2"; shift 2 ;;
@@ -133,11 +144,33 @@ cmd_query() {
       --company) company="$2"; shift 2 ;;
       --type) type_filter="$2"; shift 2 ;;
       --tag) tag_filter="$2"; shift 2 ;;
-      --help) echo "query [--top N] [--min-confidence M] [--company C] [--type T] [--tag T]"; return 0 ;;
+      --semantic) semantic="$2"; shift 2 ;;
+      --min-similarity) min_sim="$2"; shift 2 ;;
+      --help)
+        echo "query [--top N] [--min-confidence M] [--company C] [--type T] [--tag T]"
+        echo "      [--semantic \"text\" [--min-similarity F]]"
+        return 0 ;;
       *) die "unknown flag: $1" ;;
     esac
   done
   [[ ! -s "$LEARNINGS_FILE" ]] && return 0
+
+  if [[ -n "$semantic" ]]; then
+    [[ -x "$VENV_DIR/bin/python" ]] \
+      || die "venv missing at $VENV_DIR. Run scripts/polaris-embed-setup.sh."
+    [[ -s "$EMBEDDINGS_FILE" ]] \
+      || die "no embeddings index at $EMBEDDINGS_FILE. Run 'polaris-learnings.sh reindex'."
+    "$VENV_DIR/bin/python" "$EMBED_PY" query \
+      --learnings "$LEARNINGS_FILE" \
+      --embeddings "$EMBEDDINGS_FILE" \
+      --query "$semantic" \
+      --top "$top" \
+      --min-confidence "$min_conf" \
+      --min-similarity "$min_sim" \
+      --company "$company" \
+      --model "$EMBED_MODEL"
+    return $?
+  fi
 
   jq -c --arg today "$(date +%Y-%m-%d)" --argjson min "$min_conf" \
        --arg company "$company" --arg type_filter "$type_filter" --arg tag_filter "$tag_filter" '
@@ -205,6 +238,28 @@ cmd_list() {
   ' "$LEARNINGS_FILE"
 }
 
+cmd_reindex() {
+  local force="" model="$EMBED_MODEL" version="$EMBED_VERSION"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --force) force="--force"; shift ;;
+      --model) model="$2"; shift 2 ;;
+      --version) version="$2"; shift 2 ;;
+      --help) echo "reindex [--force] [--model M] [--version V]"; return 0 ;;
+      *) die "unknown flag: $1" ;;
+    esac
+  done
+  [[ -x "$VENV_DIR/bin/python" ]] \
+    || die "venv missing at $VENV_DIR. Run scripts/polaris-embed-setup.sh."
+  [[ -s "$LEARNINGS_FILE" ]] || { echo "no learnings to index"; return 0; }
+  "$VENV_DIR/bin/python" "$EMBED_PY" build-index \
+    --learnings "$LEARNINGS_FILE" \
+    --output "$EMBEDDINGS_FILE" \
+    --model "$model" \
+    --version "$version" \
+    $force
+}
+
 cmd="${1:-help}"
 [[ $# -gt 0 ]] && shift
 case "$cmd" in
@@ -212,6 +267,7 @@ case "$cmd" in
   query)    cmd_query "$@" ;;
   confirm)  cmd_confirm "$@" ;;
   list)     cmd_list "$@" ;;
+  reindex)  cmd_reindex "$@" ;;
   help|--help|-h) usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 2 ;;
 esac
