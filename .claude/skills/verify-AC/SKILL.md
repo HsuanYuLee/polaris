@@ -11,7 +11,7 @@ description: >
   spec issue routes back to refinement.
 metadata:
   author: Polaris
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # verify-AC — Epic 驗收 QA
@@ -21,6 +21,18 @@ pipeline 的 **QA** 環節（見 [pipeline-handoff.md](../references/pipeline-ha
 ## 前置：讀取 workspace config
 
 讀 `references/workspace-config-reader.md`（需要 `jira.instance`、`github.org`、`base_dir`、`projects[].dev_environment`）。Fallback 用 `references/shared-defaults.md`。
+
+## Handoff Artifact (on-demand)
+
+上游 skill（engineering）完成 PR 後會在 `{company_base_dir}/specs/{EPIC}/artifacts/engineering-*.md` 留下 evidence artifact（格式見 `skills/references/handoff-artifact.md § engineering`）。預設**不讀** — Epic AC 驗收步驟本身就是事實基準，engineering 的 Layer B 輸出只是參考。只在以下情況打開：
+
+- AC 驗證 observation 與 engineering 的 behavioral verify 結論矛盾（例：engineering 回報「切語系後 footer 正確」，但 AC 驗證觀察到 footer 文字沒變）
+- 需要 cross-check engineering 是否已測過本 AC 對應的行為（避免兩邊重跑同一條）
+- 懷疑 implementation commit 就已經 drift（例：PR 中的 commit SHA 與目前 HEAD 不符）
+
+路徑：`{company_base_dir}/specs/{EPIC}/artifacts/engineering-{ticket_key}-*.md`
+格式：`## Summary` (≤500 字 implementation + quality 摘要) + `## Raw Evidence` (test output、Layer B 輸出、commit SHAs)
+先讀 Summary；需要對帳才掃 Raw Evidence。
 
 ## 角色邊界
 
@@ -239,6 +251,15 @@ mcp__claude_ai_Atlassian__createJiraIssue
 Bug description 填 `pipeline-handoff.md § Bug ticket 必要資訊` 區塊（[VERIFICATION_FAIL]、實作追溯、失敗項目、復現條件、驗證 metadata）。
 
 **不填 assignee**（bug-triage 對 assignee blind，由運維層決定）。
+
+**Handoff artifact 寫入**（DP-024 D3 擴散；見 `skills/references/handoff-artifact.md § verify-AC`）：
+
+對每張新建的 Bug，寫一份 evidence artifact 給下一 skill（bug-triage AC-FAIL Path）on-demand 讀：
+
+- **路徑**：`{company_base_dir}/specs/{EPIC}/artifacts/verify-ac-verify-fail-{BUG_KEY}-{timestamp}.md`（timestamp 格式 `YYYY-MM-DDTHHMMSSZ` UTC）
+- **格式**：frontmatter（`skill: verify-ac`、`ticket: {BUG_KEY}`、`scope: verify-fail`、`timestamp`、`truncated: false`、`scrubbed: false`）+ `## Summary`（≤ 500 字：AC# + 期望行為 + 實際觀察 + HTTP status + env snapshot）+ `## Raw Evidence`（失敗步驟 transcript、curl output / playwright trace、evidence attachment 路徑、AC ticket description 引用、被驗證的 commit SHA / dev server URL / fixture path）
+- **寫入後必跑 scrub + cap**：`python3 scripts/snapshot-scrub.py --file {artifact_path}`（scrub secrets、20KB 截斷、更新 frontmatter flag）
+- artifact 路徑加進 Bug description 的 `[VERIFICATION_FAIL]` metadata 區塊，bug-triage Step 2-AF 會在需要時讀
 
 回到 AC 驗收單貼 comment：「FAIL — 追蹤於 {BUG_KEY_1}, {BUG_KEY_2}, ...」。
 

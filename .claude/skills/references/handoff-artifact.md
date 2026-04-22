@@ -113,13 +113,32 @@ Each producing skill decides its own write rules. Keep the rule concrete: what *
 | AC-FAIL Path (Step 2-AF.2, Explorer dispatched) | **Write** | `ac-fail` | Same as root-cause plus `[VERIFICATION_FAIL]` block from Bug description; mapping of AC# → suspect code location |
 | Fast Path (Step 2, inline, ≤ 3 files) | **Skip** | — | Conclusion is self-evident from ticket + trivial file read; no evidence to preserve |
 
-### engineering (subsequent expansion — not in P4 pilot)
+### engineering
 
-To be defined when engineering → verify-AC handoff is wired.
+| Path | Artifact? | Scope | Raw Evidence content |
+|------|-----------|-------|----------------------|
+| First-cut delivery (PR opened, transitioning to QA) | **Write** | — (scope omitted) | Final commit SHAs on the branch; test command + full output (pass/fail counts, timing); quality-gate results (lint, typecheck, coverage); Layer B behavioral verify output (curl output, screenshots paths, dev-server logs); evidence-file JSON contents; task.md items marked PASS/FAIL/SKIP |
+| Revision mode (fix on existing PR) | **Write** | `revision` | Delta commit SHAs; re-test output; Layer B re-verify output; responses to review comments; any regression catches |
+| Batch mode (parallel sub-agents) | **Write per ticket** | — | Same as first-cut, one artifact per ticket |
 
-### verify-AC (subsequent expansion — not in P4 pilot)
+Filename examples:
+- `engineering-TASK-123-2026-04-22T154500Z.md` (first-cut)
+- `engineering-revision-TASK-123-2026-04-22T170000Z.md` (revision)
 
-To be defined when verify-AC FAIL → bug-triage handoff is wired.
+Why write unconditionally: engineering's work IS the delivered change. verify-AC needs the Layer B evidence trail to understand what was tested locally vs what it's about to re-verify. This is also the Completion Envelope Detail file for the dispatching Strategist — single file, dual consumer (see § Interaction with Existing Mechanisms below).
+
+### verify-AC
+
+| Path | Artifact? | Scope | Raw Evidence content |
+|------|-----------|-------|----------------------|
+| PASS (all AC pass) | **Skip** | — | Comment + JIRA transition are sufficient; no downstream handoff |
+| FAIL → 實作偏差 disposition (per-AC Bug created) | **Write per Bug** | `verify-fail` | AC# + expected vs observed (including HTTP status when applicable); failing step transcript (curl output / playwright trace / evidence paths); env snapshot (dev server URL, fixture path, commit SHA under test); AC ticket description excerpt; links to evidence attachments |
+| FAIL → 規格問題 disposition | **Skip** | — | Routes back to refinement (a planning skill), not through the artifact consumer chain |
+| PENDING (MANUAL_REQUIRED / UNCERTAIN) | **Skip** | — | Human judgement pending; artifact premature |
+
+Filename: `verify-ac-verify-fail-{BUG_KEY}-{timestamp}.md` (one per Bug created for 實作偏差)
+
+Why: bug-triage AC-FAIL Path (`[VERIFICATION_FAIL]` block detection in Bug description) uses the Bug description as primary work order. The artifact adds the raw observed/expected evidence verify-AC collected, so bug-triage's Explorer can triangulate the broken code without re-running the AC.
 
 ## On-Demand Read — Dispatch Prompt Template
 

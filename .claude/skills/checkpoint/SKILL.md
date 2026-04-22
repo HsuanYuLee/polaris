@@ -9,7 +9,7 @@ triggers:
   - "恢復"
   - "list checkpoints"
   - "列出存檔"
-version: 1.0.0
+version: 1.1.0
 ---
 
 # /checkpoint — Session State Save & Resume
@@ -63,7 +63,32 @@ POLARIS_WORKSPACE_ROOT={workspace_root} \
   --note "{checkpoint_note}"
 ```
 
-### Step 4 — Confirm to User
+### Step 4 — Also Append `session_summary` (DP-024 D4)
+
+Immediately after the `checkpoint` event, append a matching `session_summary`
+event so the next-session resume scan (MEMORY.md + timeline query) can pick up
+a narrative line without having to parse the checkpoint note:
+
+```bash
+POLARIS_WORKSPACE_ROOT={workspace_root} \
+  {base_dir}/scripts/polaris-timeline.sh append \
+  --event session_summary \
+  --text "checkpoint: {one-line narrative derived from phase+next_action}" \
+  --session-id "{session_id}" \
+  --field 'branches=["{branch}"]' \
+  --field 'tickets=["{ticket}"]'
+```
+
+Rationale: `checkpoint` is a structured state capture for the `/checkpoint resume`
+path; `session_summary` is the narrative query target (`timeline query --event
+session_summary`) used by cross-session continuity and preamble injection.
+Writing both keeps the two query paths consistent. Dedup on `--session-id`
+means a later PreCompact/Stop summary replaces this one, so no duplicate noise.
+
+If the session_id is unknown (running outside a Claude Code session), skip
+the `--session-id` flag — the entry is still appended, just without dedup.
+
+### Step 5 — Confirm to User
 
 ```
 Checkpoint saved.

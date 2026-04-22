@@ -12,7 +12,7 @@ description: >
 tier: product
 metadata:
   author: Polaris
-  version: 5.1.0
+  version: 5.2.0
 ---
 
 # Engineering — 工程師施工
@@ -217,9 +217,12 @@ Sub-agent **不會**自動載入 `.claude/rules/`。你必須自己讀：
 
 ### 4. 回傳結果
 
-使用 Completion Envelope 格式（見 `skills/references/sub-agent-roles.md`）：
-- Summary ≤ 3 句（ticket key、PR URL、品質摘要）
-- Detail 寫入 `specs/{EPIC}/artifacts/engineering-{ticket_key}-{timestamp}.md`（完整品質檢查輸出、測試計畫驗證結果）
+使用 Completion Envelope 格式（見 `skills/references/sub-agent-roles.md`）。Detail 同時是下一 skill（verify-AC）的 handoff artifact（見 `skills/references/handoff-artifact.md § engineering`）：
+
+- **Summary ≤ 3 句**（ticket key、PR URL、品質摘要）回傳給 Strategist
+- **Detail 寫入**：`{company_base_dir}/specs/{EPIC}/artifacts/engineering-{ticket_key}-{timestamp}.md`（timestamp 格式 `YYYY-MM-DDTHHMMSSZ` UTC）。Revision mode 用 `engineering-revision-{ticket_key}-{timestamp}.md`
+- **格式**：frontmatter（`skill: engineering`、`ticket: {ticket_key}`、optional `scope: revision`、`timestamp`、`truncated: false`、`scrubbed: false`）+ `## Summary`（≤ 500 字：實作要點、test/coverage/quality pass 狀態、Layer B behavioral verify 結論）+ `## Raw Evidence`（final commit SHAs、test command + 完整輸出、quality-gate 結果、Layer B 行為驗證（curl output / screenshot 路徑 / dev-server logs）、evidence-file JSON 內容）
+- **寫入後必跑 scrub + cap**：`python3 scripts/snapshot-scrub.py --file {artifact_path}`（scrub secrets、20KB 截斷、更新 frontmatter flag）。sub-agent 完成寫入後執行一次，然後才把 Detail 路徑回傳給 Strategist
 
 ## 限制
 - 你無法使用 Skill tool，改為讀取 SKILL.md 並直接執行步驟

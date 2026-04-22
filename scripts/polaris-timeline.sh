@@ -63,7 +63,7 @@ resolve_since_epoch() {
 
 cmd_append() {
   local event="" skill="" ticket="" branch="" pr_url=""
-  local outcome="" duration="" note="" company="" text=""
+  local outcome="" duration="" note="" company="" text="" session_id=""
   # Allow arbitrary extra fields via --field key=value (JSON-encoded value)
   local -a extra_fields=()
   while [[ $# -gt 0 ]]; do
@@ -78,11 +78,16 @@ cmd_append() {
       --note) note="$2"; shift 2 ;;
       --company) company="$2"; shift 2 ;;
       --text) text="$2"; shift 2 ;;
+      --session-id) session_id="$2"; shift 2 ;;
       --field) extra_fields+=("$2"); shift 2 ;;
       --help)
         echo "append --event E [--skill S] [--ticket T] [--branch B] [--pr-url U]"
         echo "       [--outcome success|fail|partial|skipped] [--duration N] [--note N]"
-        echo "       [--company C] [--text T] [--field key=jsonvalue ...]"
+        echo "       [--company C] [--text T] [--session-id ID] [--field key=jsonvalue ...]"
+        echo ""
+        echo "Dedup: when --event session_summary is combined with --session-id,"
+        echo "       prior entries sharing the same (event, session_id) are removed"
+        echo "       before the new entry is appended (latest summary wins per session)."
         return 0 ;;
       *) die "unknown flag: $1" ;;
     esac
@@ -99,7 +104,8 @@ cmd_append() {
   obj=$(jq -cn --arg ts "$ts" --arg event "$event" \
     --arg skill "$skill" --arg ticket "$ticket" --arg branch "$branch" \
     --arg pr_url "$pr_url" --arg outcome "$outcome" --arg duration "$duration" \
-    --arg note "$note" --arg company "$company" --arg text "$text" '
+    --arg note "$note" --arg company "$company" --arg text "$text" \
+    --arg session_id "$session_id" '
     {ts: $ts, event: $event}
     | (if $skill != "" then . + {skill: $skill} else . end)
     | (if $ticket != "" then . + {ticket: $ticket} else . end)
@@ -110,6 +116,7 @@ cmd_append() {
     | (if $note != "" then . + {note: $note} else . end)
     | (if $company != "" then . + {company: $company} else . end)
     | (if $text != "" then . + {text: $text} else . end)
+    | (if $session_id != "" then . + {session_id: $session_id} else . end)
   ')
 
   # Merge extra fields (format: key=jsonvalue)
@@ -120,6 +127,18 @@ cmd_append() {
     echo "$v" | jq -e . >/dev/null 2>&1 || die "--field '$k' value is not valid JSON: $v"
     obj=$(echo "$obj" | jq -c --arg k "$k" --argjson v "$v" '. + {($k): $v}')
   done
+
+  # Dedup session_summary by session_id: rewrite file removing prior matching entries.
+  # Rationale (DP-024 D4): one PreCompact + one Stop may fire in the same session;
+  # the later narrative is always the authoritative one. Non-session_summary events
+  # keep append-only semantics.
+  if [[ "$event" == "session_summary" && -n "$session_id" && -s "$TIMELINE_FILE" ]]; then
+    local tmp="${TIMELINE_FILE}.tmp"
+    jq -c --arg sid "$session_id" '
+      select(.event != "session_summary" or (.session_id // "") != $sid)
+    ' "$TIMELINE_FILE" > "$tmp"
+    mv "$tmp" "$TIMELINE_FILE"
+  fi
 
   echo "$obj" >> "$TIMELINE_FILE"
   echo "appended: event=$event"
