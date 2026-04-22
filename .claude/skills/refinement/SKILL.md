@@ -235,7 +235,7 @@ Phase 1 是 refinement 的核心，從 checklist 填空升級為 **codebase-back
 **1b. Handbook + Learnings**（Tier 2+）
 - 根據 `references/project-mapping.md` 確認對應專案
 - 讀取該 repo 的 handbook（`{repo}/.claude/rules/handbook/`）
-- `polaris-learnings.sh query --project {project} --top 5` 查歷史教訓
+- `POLARIS_WORKSPACE_ROOT={workspace_root} polaris-learnings.sh query --top 5 --min-confidence 3` 查歷史教訓（slug 自動由 workspace_root 推導）
 
 **1c. External Content**（Tier 3 — 當 Epic 含外部 URL）
 - WebFetch PM 提供的範例網站、Figma、Google Docs 連結

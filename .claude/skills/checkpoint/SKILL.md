@@ -55,7 +55,7 @@ Example: `branch:task/PROJ-200-auth ticket:PROJ-200 phase:implementation next:wr
 
 ```bash
 POLARIS_WORKSPACE_ROOT={workspace_root} \
-  {base_dir}/.claude/skills/references/scripts/polaris-timeline.sh append \
+  {base_dir}/scripts/polaris-timeline.sh append \
   --event checkpoint \
   --branch "{branch}" \
   --ticket "{ticket}" \
@@ -85,7 +85,7 @@ Restore context from the most recent checkpoint (or a specific one).
 
 ```bash
 POLARIS_WORKSPACE_ROOT={workspace_root} \
-  {base_dir}/.claude/skills/references/scripts/polaris-timeline.sh checkpoints --last 5
+  {base_dir}/scripts/polaris-timeline.sh checkpoints --last 5
 ```
 
 ### Step 2 — Select Checkpoint
@@ -130,7 +130,7 @@ Show recent checkpoints for review.
 
 ```bash
 POLARIS_WORKSPACE_ROOT={workspace_root} \
-  {base_dir}/.claude/skills/references/scripts/polaris-timeline.sh checkpoints --last 10
+  {base_dir}/scripts/polaris-timeline.sh checkpoints --last 10
 ```
 
 ### Step 2 — Format Output

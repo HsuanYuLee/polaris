@@ -284,10 +284,15 @@ Bug description 填 `pipeline-handoff.md § Bug ticket 必要資訊` 區塊（[V
 對每個 MANUAL_REQUIRED / UNCERTAIN，寫一筆 learning：
 
 ```bash
-bash {base_dir}/scripts/polaris-learnings.sh add \
-  --type verify-ac-gap \
-  --ticket <AC_KEY> \
-  --note "<步驟描述 + 為何無法自動斷言>"
+POLARIS_WORKSPACE_ROOT={workspace_root} \
+  bash {base_dir}/scripts/polaris-learnings.sh add \
+  --key "verify-ac-gap-<AC_KEY>-<step_slug>" \
+  --type pitfall \
+  --tag verify-ac-gap \
+  --content "<步驟描述 + 為何無法自動斷言>" \
+  --confidence 5 \
+  --source "verify-AC <AC_KEY>" \
+  --metadata '{"ac_ticket":"<AC_KEY>","step":"<step_id>"}'
 ```
 
 同類案例累積 3 次 → 抽成自動驗證 pattern（未來加到本 SKILL.md / reference）。

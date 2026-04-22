@@ -9,12 +9,12 @@ After a long session or across multiple sessions in a day, it's hard to reconstr
 ## Entry Schema
 
 ```jsonl
-{"ts":"2026-04-02T14:30:00+08:00","event":"skill_invoked","skill":"engineering","ticket":"PROJ-500","branch":"task/PROJ-500-feature","outcome":"success","duration_s":180,"note":"implementation + PR opened"}
+{"ts":"2026-04-02T06:30:00Z","event":"skill_invoked","skill":"engineering","ticket":"PROJ-500","branch":"task/PROJ-500-feature","outcome":"success","duration_s":180,"note":"implementation + PR opened"}
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `ts` | string | yes | ISO 8601 timestamp with timezone |
+| `ts` | string | yes | ISO 8601 UTC timestamp with `Z` suffix (e.g., `2026-04-02T06:30:00Z`) |
 | `event` | enum | yes | Event type (see table below) |
 | `skill` | string | no | Skill name (for skill_invoked events) |
 | `ticket` | string | no | JIRA ticket key |

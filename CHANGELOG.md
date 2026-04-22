@@ -4,6 +4,44 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.37.0] - 2026-04-22
+
+### DP-024 P1 — Memory system bootstrap (polaris-learnings + polaris-timeline)
+
+把 rules/skills 大量引用卻不存在的兩個 script 實作出來，補齊 `polaris-learnings.sh` 與 `polaris-timeline.sh` 的骨架，並對齊幽靈 reference。純 POSIX bash + `jq`，無 Python 依賴；向量查詢（P3）與 session summary 自動化（P2）留待後續 phase。
+
+**Added**
+
+- `scripts/polaris-learnings.sh` — JSONL 策劃知識庫
+  - Subcommands：`add` / `query` / `confirm` / `list`
+  - `add` 用 `key+type` dedup merge，衝突時取 max(confidence)，`last_confirmed` 更新為今天
+  - `query` 支援 `--top` / `--min-confidence` / `--company` / `--type` / `--tag`，套 confidence decay（每 30 天 -1）+ multi-company hard-skip
+  - `confirm --key K [--type T] [--boost N]` 重置 decay，可選增信心
+  - `list` 輸出所有條目 + effective_confidence
+- `scripts/polaris-timeline.sh` — append-only JSONL 事件日誌
+  - Subcommands：`append` / `query` / `checkpoints`
+  - `append` 支援標準欄位（event/skill/ticket/branch/pr_url/outcome/duration/note/company/text）+ 任意 `--field key=jsonvalue` 讓 D4 session_summary 塞 tickets/skills/branches 陣列
+  - `query --since today|Nh|YYYY-MM-DD` 解析多種時間表示；`--event` / `--last` 過濾
+  - 時戳統一寫 UTC `Z`，reader 容忍 legacy `+0800` / `+08:00`（現有 `~/.polaris/projects/work/timeline.jsonl` 9 筆舊資料無損讀取）
+
+**Changed**
+
+- `.claude/skills/references/session-timeline.md` — schema 範例時戳改為 UTC `Z`（`2026-04-02T06:30:00Z`），`ts` 欄位描述標明「ISO 8601 UTC with Z suffix」
+- `.claude/skills/checkpoint/SKILL.md` — 修正 3 處錯誤路徑 `{base_dir}/.claude/skills/references/scripts/polaris-timeline.sh` → `{base_dir}/scripts/polaris-timeline.sh`
+- `.claude/skills/refinement/SKILL.md` — 移除 `polaris-learnings.sh query --project {project}` 的不存在 flag，改用 `POLARIS_WORKSPACE_ROOT={workspace_root} polaris-learnings.sh query --top 5 --min-confidence 3`
+- `.claude/skills/verify-AC/SKILL.md` — `add` 呼叫原本用的 `--note` / `--ticket` / `--type verify-ac-gap` 不符 v1 CLI，改為 `--key "verify-ac-gap-<AC_KEY>-<step_slug>" --type pitfall --tag verify-ac-gap --content "..." --metadata '{...}'`
+- `.claude/designs/problem-analysis-protocol/design.md` — 同樣移除 `--project {project}` flag（gitignored，本地修改）
+
+**Rationale**
+
+rules/skills 過去大量引用 `polaris-learnings.sh` 和 `polaris-timeline.sh`（抄寫在 CLAUDE.md、feedback-and-memory.md、mechanism-registry.md、learning/refinement/verify-AC SKILL.md 等多處），但實作從未存在。DP-024 LOCKED 2026-04-22 後，P1 Bootstrap 先把骨架立起來，讓 `~/.polaris/projects/$SLUG/` 目錄真的有 script 寫入、其他 skill 可 actually 呼叫。P1 範圍刻意不含向量查詢、session summary 自動化、pipeline handoff evidence — 這些在 P2/P3/P4 分別實作。
+
+**Known gaps**
+
+- `.agents/` mirror 仍有同樣的 CLI drift（`--project` flag、錯誤路徑），需下次 `polaris-sync.sh` 同步 `.claude/` → `.agents/`
+- `decay-scan` subcommand 未實作（`query`/`list` 已套 decay，先替代）
+- D4 session_summary dedup（同 session_id 多次觸發只留最後一筆）P1 未做，P2 設計時決定
+
 ## [3.36.0] - 2026-04-21
 
 ### Dynamic CI contract parity gate (cross-repo)
