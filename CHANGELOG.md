@@ -4,6 +4,36 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.38.0] - 2026-04-22
+
+### DP-024 P2 — PreCompact session summary hook (D4 minimum loop)
+
+承接 v3.37.0 的 P1 bootstrap，把 D4 session summary 寫入路徑的主要觸發點（PreCompact）接好。壓縮前 Claude Code 觸發 hook → hook 注入 prompt 要求 Strategist 寫一行 `session_summary` 到 `polaris-timeline`，下一個 session 可查。
+
+**Added**
+
+- `.claude/hooks/session-summary-precompact.sh` — PreCompact hook
+  - Exit 0（永不阻擋壓縮），stdout 注入 prompt
+  - Hook 預先從 `git` 和 `polaris-timeline.sh query --since 4h` 推算 `branches` / `tickets` / `skills` / `commits` metadata，組成可直接貼到 shell 的 `polaris-timeline.sh append --event session_summary` 指令範本
+  - Strategist 只填 `--text` 一行敘述，metadata 都由 hook 帶好
+- `.claude/settings.json` — 新增 `PreCompact` slot 註冊該 hook，`matcher: "auto"`（與現有 `PostCompact` / `post-compact-context-restore` 對稱）
+- `mechanism-registry.md § Deterministic Quality Hooks` 新增 `session-summary-precompact` 條目
+
+**Design note**
+
+Hook 不直接寫 timeline — 原因在 D4.5：Strategist 寫 `text`（session 敘述），hook 補 metadata。讓 text 反映實際做了什麼，不是 hook 猜的。v1 不做 dedup（同 session 多次 PreCompact 會有多筆 summary），follow-up 再處理。
+
+**Pairs with**
+
+- `PostCompact` `post-compact-context-restore.sh`（v3.x 前已存在）：壓縮前寫 summary → 壓縮後重建 context 指向最後一筆 summary，形成「壓縮前寫 / 壓縮後讀」的對稱閉環
+
+**Known gaps（P2 follow-up，非 blocker）**
+
+- Stop hook 補位路徑（短 session 從不壓縮的情境）尚未實作
+- Dedup（同 `session_id` 多次觸發只保留最後一筆）尚未實作
+- `checkpoint` skill 擴充（寫 memory 時同步 append session_summary）尚未實作
+- PreCompact hook v1 還沒跑過真實壓縮驗證 — 等實際觸發 auto-compact 時觀察端到端行為
+
 ## [3.37.0] - 2026-04-22
 
 ### DP-024 P1 — Memory system bootstrap (polaris-learnings + polaris-timeline)
