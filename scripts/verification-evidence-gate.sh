@@ -4,7 +4,7 @@
 #
 # Evidence file: /tmp/polaris-verified-{TICKET}.json
 # Created by verify-completion skill or verify-http.sh wrapper.
-# Must contain: { "ticket": "...", "timestamp": "...", "results": [...] }
+# Must contain: { "ticket": "...", "timestamp": "...", "results": [...], "runtime_contract": {...} }
 #
 # The file is intentionally in /tmp (ephemeral) — each session must verify fresh.
 # POLARIS_PR_WORKFLOW=1 must also be set (checked by pr-create-guard.sh).
@@ -71,6 +71,20 @@ try:
     assert d.get('ticket') == '${ticket}', 'ticket mismatch'
     assert d.get('timestamp'), 'missing timestamp'
     assert d.get('results') and len(d['results']) > 0, 'empty results'
+    rc = d.get('runtime_contract')
+    assert isinstance(rc, dict), 'missing runtime_contract'
+    level = str(rc.get('level', '')).lower()
+    assert level in ('static', 'build', 'runtime'), 'runtime_contract.level must be static|build|runtime'
+    if level == 'runtime':
+        target = str(rc.get('runtime_verify_target', '')).strip()
+        assert target and target.lower() != 'n/a', 'runtime level requires runtime_verify_target'
+        assert target.startswith('http://') or target.startswith('https://'), 'runtime_verify_target must be live URL'
+        verify_url = str(rc.get('verify_command_url', '')).strip()
+        assert verify_url, 'runtime level requires verify_command_url'
+        target_host = str(rc.get('runtime_verify_target_host', '')).strip().lower()
+        verify_host = str(rc.get('verify_command_url_host', '')).strip().lower()
+        assert target_host and verify_host, 'unable to parse runtime hosts'
+        assert target_host == verify_host, f'host mismatch: target={target_host}, verify={verify_host}'
     print('valid')
 except Exception as e:
     print(f'invalid: {e}')
@@ -80,7 +94,8 @@ if [[ "$valid" != "valid" ]]; then
   echo "BLOCKED: Verification evidence file is malformed for ${ticket}" >&2
   echo "  ${evidence_file}: ${valid}" >&2
   echo "" >&2
-  echo "Evidence must contain: ticket, timestamp, and non-empty results array." >&2
+  echo "Evidence must contain: ticket, timestamp, non-empty results, and runtime_contract." >&2
+  echo "Use: scripts/polaris-write-evidence.sh --ticket ${ticket} --task-md <path> --result \"PASS: ...\"" >&2
   exit 2
 fi
 
@@ -103,6 +118,53 @@ if [[ "$age_check" != "fresh" ]]; then
   echo "  ${evidence_file}: ${age_check}" >&2
   echo "  Re-run verify-completion to produce fresh evidence." >&2
   exit 2
+fi
+
+# CI contract parity gate (pre-PR): if repo has Codecov patch gate, require fresh PASS coverage evidence.
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+has_patch_gate=false
+if [[ -n "$repo_root" ]]; then
+  for cfg in codecov.yml .codecov.yml; do
+    if [[ -f "$repo_root/$cfg" ]] && grep -qE '^\s*-?\s*type:\s*patch' "$repo_root/$cfg"; then
+      has_patch_gate=true
+      break
+    fi
+  done
+fi
+
+if $has_patch_gate; then
+  branch_slug=$(printf '%s' "$branch" | tr '/' '-')
+  coverage_file="/tmp/polaris-coverage-${branch_slug}.json"
+
+  if [[ ! -f "$coverage_file" ]]; then
+    echo "BLOCKED: Missing CI contract coverage evidence for ${branch}" >&2
+    echo "  Expected: ${coverage_file}" >&2
+    echo "  Run: scripts/ci-contract-run.sh --repo ${repo_root} --skip-install --write-coverage-evidence" >&2
+    exit 2
+  fi
+
+  coverage_valid=$(python3 -c "
+import json
+from datetime import datetime, timezone, timedelta
+try:
+    with open('${coverage_file}') as f:
+        d = json.load(f)
+    assert d.get('branch') == '${branch}', 'branch mismatch'
+    assert str(d.get('status', '')).upper() == 'PASS', 'status is not PASS'
+    ts = datetime.fromisoformat(str(d.get('timestamp', '')).replace('Z', '+00:00'))
+    age = datetime.now(timezone.utc) - ts
+    assert age <= timedelta(hours=4), f'stale: {age.total_seconds()/3600:.1f}h old'
+    print('valid')
+except Exception as e:
+    print(f'invalid: {e}')
+" 2>/dev/null || echo "invalid: parse error")
+
+  if [[ "$coverage_valid" != "valid" ]]; then
+    echo "BLOCKED: Invalid CI contract coverage evidence for ${branch}" >&2
+    echo "  ${coverage_file}: ${coverage_valid}" >&2
+    echo "  Re-run: scripts/ci-contract-run.sh --repo ${repo_root} --skip-install --write-coverage-evidence" >&2
+    exit 2
+  fi
 fi
 
 exit 0

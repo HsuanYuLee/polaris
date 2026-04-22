@@ -400,6 +400,7 @@ Slack 發送後，在對話中輸出完整摘要：
 - 用 bundled scripts 做掃描和狀態判斷，不要手動組裝 API 查詢
   - Label 模式：`scan-need-review-prs.sh` + `check-my-review-status.sh`（主 session 直接執行）
   - Slack 模式：整包委派 sub-agent（先試 MCP；失敗改 `slack-webapi.sh` → `extract-pr-urls.py` → `fetch-prs-by-url.sh` → `check-my-review-status.sh`），主 session 只收 filtered JSON
+- **Scan freshness（硬性規定）**：Scan 是 point-in-time snapshot。每次進入 Step 3（show list）或 Step 4（review）前，檢查 `/tmp/slack-raw.json` / scan 結果的 mtime；若距離現在超過 **60 秒**，必須重跑 Step 1（重 dispatch sub-agent 或重跑 script），不可沿用舊 candidates。適用情境：使用者在同一 session 中繼續詢問、確認 PR、或投入新的 review 意圖時，期間 channel 可能有新訊息
 - Step 4 的 review 也由平行 sub-agent 執行，每個 PR 一個 sub-agent 讀 review-pr SKILL.md 跑完整流程
 - 用 `gh api` 查 reviews（避免 `gh pr view` 的 encoding 問題）
 - 列清單後等使用者確認才開始 review
@@ -417,6 +418,7 @@ Slack 發送後，在對話中輸出完整摘要：
 - Label 模式仍合成一則彙整訊息發到 channel
 - 不要在 re-approve 時留冗餘 comments — 若無新問題，簡潔 approve 即可
 - 不要對已 REQUEST_CHANGES 但作者尚未回覆 comments 的 PR 再次 review — 即使有新 push 也應跳過，等作者回覆後再看
+- 不要在 scan snapshot 超過 60 秒後沿用舊 candidates JSON 回答 review 相關問題 — 期間 channel 可能有新訊息，必須重跑 Step 1
 
 
 ## Post-Task Reflection (required)

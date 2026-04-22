@@ -467,7 +467,7 @@ If no → leave empty.
 
 Audit: log infra settings.
 
-### Step 9a: Dev Environment (skippable)
+### Step 9a: Dev Environment (runtime contract)
 
 Discover how to start the local development environment for each selected project. This information powers visual regression and engineering behavioral verification (engineer-delivery-flow Step 3).
 
@@ -544,9 +544,28 @@ Step 9a-2: Dev Environment
 
 On **Adjust** → user specifies which row(s) to change. Common adjustments: base_url, ready_signal, env vars, requires.
 
-On **Skip** → leave `dev_environment` block empty. Visual regression will ask at runtime.
+On **Skip**:
+- 僅允許在該 project 明確屬於 `static-only`（沒有 dev server、沒有 runtime 驗證需求）時使用。
+- 若 project 需要 runtime 驗證（web frontend、API server、或被其他 project 依賴為 HTTP entry），**不可 skip**，必須填完 runtime contract。
 
 **Health check field**: for each project, also infer a health check URL (typically `{base_url}/` or `{base_url}/health`). For projects that depend on another repo's server (e.g., your-backend via web-docker), use the prerequisite's base_url as health check.
+
+**Hard contract: Runtime Entry (必填 for runtime projects)**
+
+`dev_environment` 不是參考資訊，而是可執行契約。對需要 runtime 的 project，以下欄位缺一不可：
+
+- `start_command`
+- `ready_signal`
+- `health_check`
+- `requires`（可為空陣列，但欄位必須存在）
+
+這些欄位必須可被標準入口腳本直接消費：
+
+```bash
+scripts/polaris-env.sh start <company> --project <repo>
+```
+
+若偵測到設定無法被上面入口消費（例如缺欄位、`requires` 與依賴掃描矛盾、`health_check` 非 URL），init 視為未完成，不可進入後續 engineering / runtime 驗證流程。
 
 **Output**: populates `projects[].dev_environment` in the company workspace-config:
 

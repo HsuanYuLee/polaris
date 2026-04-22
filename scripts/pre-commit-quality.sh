@@ -113,6 +113,7 @@ failed=false
 results_lint="SKIP"
 results_typecheck="SKIP"
 results_test="SKIP"
+results_ci_contract="SKIP"
 failure_details=""
 
 # 4a. Lint
@@ -180,6 +181,24 @@ else
   echo "⏭️  [3/3] Test — no test framework detected, skipping" >&2
 fi
 
+# 4d. CI contract parity (repo-specific dynamic gate)
+if [[ "${POLARIS_SKIP_CI_CONTRACT:-}" == "1" ]]; then
+  echo "⏭️  [4/4] CI contract parity — POLARIS_SKIP_CI_CONTRACT=1, skipping" >&2
+  results_ci_contract="SKIP"
+else
+  echo "🔍 [4/4] CI contract parity..." >&2
+  ci_output=""
+  if ci_output=$("$SCRIPT_DIR/ci-contract-run.sh" --repo "$REPO_DIR" --skip-install --write-coverage-evidence 2>&1); then
+    results_ci_contract="PASS"
+    echo "  ✅ ci contract parity passed" >&2
+  else
+    results_ci_contract="FAIL"
+    failed=true
+    failure_details="${failure_details}--- CI CONTRACT FAILURE ---\n$(echo "$ci_output" | tail -60)\n\n"
+    echo "  ❌ ci contract parity failed" >&2
+  fi
+fi
+
 # ── Step 5: Coverage advisory (non-blocking) ────────────────────────
 
 advisory=""
@@ -209,9 +228,10 @@ evidence = {
     'results': {
         'lint': '${results_lint}',
         'typecheck': '${results_typecheck}',
-        'test': '${results_test}'
+        'test': '${results_test}',
+        'ci_contract': '${results_ci_contract}'
     },
-    'all_passed': '${results_lint}' != 'FAIL' and '${results_typecheck}' != 'FAIL' and '${results_test}' != 'FAIL',
+    'all_passed': '${results_lint}' != 'FAIL' and '${results_typecheck}' != 'FAIL' and '${results_test}' != 'FAIL' and '${results_ci_contract}' != 'FAIL',
     'advisory': {
         'missing_test_count': ${missing_count},
         'missing_tests': $(printf '%s' "$detect_json" | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin).get('missing_tests',[])))" 2>/dev/null || echo "[]")
@@ -232,7 +252,7 @@ if $failed; then
   exit 1
 else
   echo "━━━ ALL PASSED ━━━" >&2
-  echo "  lint: $results_lint | typecheck: $results_typecheck | test: $results_test" >&2
+  echo "  lint: $results_lint | typecheck: $results_typecheck | test: $results_test | ci_contract: $results_ci_contract" >&2
   echo "  Quality evidence: $evidence_file" >&2
   exit 0
 fi

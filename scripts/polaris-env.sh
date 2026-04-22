@@ -55,8 +55,11 @@ else: print(cur)
 wait_for_url() {
   local url="$1" timeout="${2:-60}" elapsed=0
   while [[ $elapsed -lt $timeout ]]; do
-    local code; code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "$url" 2>/dev/null || echo "000")
-    [[ "$code" =~ ^2 ]] && return 0
+    local raw code
+    raw=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "$url" 2>/dev/null || echo "000")
+    code=$(echo "$raw" | tr -cd '0-9' | sed -E 's/^([0-9]{3}).*/\1/')
+    [[ -z "$code" ]] && code="000"
+    [[ "$code" =~ ^[23] ]] && return 0
     sleep 2; elapsed=$((elapsed + 2))
   done; return 1
 }
@@ -298,7 +301,7 @@ for p in json.load(sys.stdin).get('projects',[]):
     fi
   done
 
-  # Layer 3: Dev servers — verify via HTTP 200
+  # Layer 3: Dev servers — verify via HTTP 2xx/3xx (ready endpoints may redirect)
   echo "$cfg" | python3 -c "
 import json,sys
 profile='$profile'; filter_p='$filter'
@@ -311,8 +314,11 @@ for p in json.load(sys.stdin).get('projects',[]):
     if d.get('health_check'): print(p['name']+'|'+d['health_check'])
 " | while IFS='|' read -r name url; do
     [[ -z "$name" ]] && continue
-    local code; code=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 15 "$url" 2>/dev/null || echo "000")
-    if [[ "$code" =~ ^2 ]]; then
+    local raw code
+    raw=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$url" 2>/dev/null || echo "000")
+    code=$(echo "$raw" | tr -cd '0-9' | sed -E 's/^([0-9]{3}).*/\1/')
+    [[ -z "$code" ]] && code="000"
+    if [[ "$code" =~ ^[23] ]]; then
       ok "$(printf '%-28s' "$name")  $url"
     else
       fail "$(printf '%-28s' "$name")  $url  (HTTP $code)"
@@ -421,10 +427,13 @@ for p in json.load(sys.stdin).get('projects',[]):
     kind='Docker' if 'docker' in p.get('tags',[]) else 'Dev server'
     print(p['name']+'|'+d.get('health_check',d.get('base_url',''))+'|'+kind)
 " | while IFS='|' read -r name url kind; do
-    local code; code=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 10 "$url" 2>/dev/null || echo "000")
-    [[ "$code" =~ ^2 ]] \
+    local raw code
+    raw=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url" 2>/dev/null || echo "000")
+    code=$(echo "$raw" | tr -cd '0-9' | sed -E 's/^([0-9]{3}).*/\1/')
+    [[ -z "$code" ]] && code="000"
+    [[ "$code" =~ ^[23] ]] \
       && ok "$(printf '%-28s' "$name")  $url  ($kind)" \
-      || fail "$(printf '%-28s' "$name")  $url  ($kind)"
+      || fail "$(printf '%-28s' "$name")  $url  ($kind, HTTP $code)"
   done
 
   local ports_json; ports_json=$(jget "$cfg" "visual_regression.domains[0].fixtures.health_ports" 2>/dev/null || echo "[]")

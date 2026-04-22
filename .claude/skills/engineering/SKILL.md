@@ -185,6 +185,8 @@ Sub-agent **不會**自動載入 `.claude/rules/`。你必須自己讀：
 - 讀取 `unit-test` SKILL.md — 以 Red-Green-Refactor 循環實作
 - **Test Command**：task.md 若有 `## Test Command` 欄位，**必須使用該指令跑測試**（不可自行推導）。若無此欄位，讀專案 CLAUDE.md 或 workspace-config 取得正確指令
 - **測試環境硬門檻**：test command 執行失敗（exit ≠ 0、`#imports` resolver error、vitest config 找不到）→ **立刻停止，回報問題**，不可靜默跳過或假設 CI 會處理
+- **Test Environment 消費硬門檻**：必讀 task.md `## Test Environment`。若 `Level=runtime`，必須先執行 `Env bootstrap command`，再對 `Runtime verify target` 做連線檢查（至少一次 HTTP request；接受 2xx 或任務明確預期碼），不可跳過
+- **Runtime 一致性硬門檻**：`Level=runtime` 但 `Verify Command` 只做 static 檢查（僅 grep/檔案存在性）時，停止並回報「work order 不一致」，要求回 upstream 修正 task.md，不得自行當作通過
 - **Test Environment（Verify Command 前置）**：task.md 的 `## Test Environment` 區塊標示本 task Verify Command 需要的 Level：
   - `static` → 不需起環境，直接跑 Verify Command
   - `build` → 先跑 `pnpm build`（或 repo 對應 build 指令）產 `.output/` / `dist/`，無需啟動 dev server

@@ -25,6 +25,15 @@ if [[ $# -gt 0 ]]; then
   pr_cmd="gh pr create $*"
 fi
 
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+if [[ "${POLARIS_SKIP_CI_CONTRACT:-}" != "1" ]]; then
+  if [[ "$dry_run" == true ]]; then
+    "$SCRIPT_DIR/ci-contract-run.sh" --repo "$repo_root" --skip-install --dry-run >/dev/null
+  else
+    "$SCRIPT_DIR/ci-contract-run.sh" --repo "$repo_root" --skip-install --write-coverage-evidence >/dev/null
+  fi
+fi
+
 "$ADAPTER" "$ROOT_DIR/scripts/verification-evidence-gate.sh" "$pr_cmd"
 
 if [[ "$dry_run" == true ]]; then

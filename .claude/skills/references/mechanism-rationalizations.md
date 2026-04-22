@@ -92,13 +92,23 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
   "summary": { "total": 3, "pass": 2, "fail": 0, "skip": 1 },
   "results": [
     { "status": "PASS", "detail": "PASS: AC1 breadcrumb position" },
-    { "status": "PASS", "detail": "PASS: AC2 JSON-LD in head" },
-    { "status": "SKIP", "detail": "SKIP: AC3 not applicable" }
-  ]
+      { "status": "PASS", "detail": "PASS: AC2 JSON-LD in head" },
+      { "status": "SKIP", "detail": "SKIP: AC3 not applicable" }
+  ],
+  "runtime_contract": {
+    "level": "runtime",
+    "runtime_verify_target": "https://dev.yourapp.com/zh-tw",
+    "runtime_verify_target_host": "dev.yourapp.com",
+    "verify_command": "curl -sk https://dev.yourapp.com/zh-tw | ...",
+    "verify_command_url": "https://dev.yourapp.com/zh-tw",
+    "verify_command_url_host": "dev.yourapp.com"
+  }
 }
 ```
 
-**Writer**: `scripts/polaris-write-evidence.sh --ticket TASK-123 --result "PASS: AC1 ..."` — called by engineering (engineer-delivery-flow Step 3) or manually after verification.
+**Writer**: `scripts/polaris-write-evidence.sh --ticket TASK-123 --task-md <path/to/task.md> --result "PASS: ..."` — called by engineering (engineer-delivery-flow Step 3) or manually after verification.
+
+`runtime_contract` 是 PR gate 的硬門檻。`level=runtime` 時，gate 會檢查 live target 與 verify URL host 對齊，不合規直接 block `gh pr create`。
 
 **Bypass**: `POLARIS_SKIP_EVIDENCE=1` for non-ticket PRs (framework, docs). Branch names without `[A-Z]+-[0-9]+` pattern are auto-allowed.
 

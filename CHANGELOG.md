@@ -4,6 +4,102 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.36.0] - 2026-04-21
+
+### Dynamic CI contract parity gate (cross-repo)
+
+把「本地品質檢查」從固定 lint/test 指令擴充為動態 CI contract：先讀 repo 的 CI YAML，再依策略在 local 做同構驗證，提前攔截 PR 才會看到的 patch coverage 失敗。
+
+**Added**
+
+- `scripts/ci-contract-discover.sh`
+  - 自動偵測 CI provider（Woodpecker / GitHub Actions / GitLab CI）
+  - 正規化輸出 checks contract（install/lint/typecheck/test/coverage）
+  - 解析 `codecov.yml` 的 patch gate（flag、target、include/exclude）
+- `scripts/ci-contract-run.sh`
+  - 執行本地可重現的 contract commands（跳過 upload/token 步驟）
+  - 依 codecov patch gate 計算 patch coverage 並做 hard gate
+  - 支援 `--dry-run`（只列執行計畫不實跑）
+  - 可寫入 `/tmp/polaris-coverage-{branch}.json` evidence
+
+**Changed**
+
+- `scripts/pre-commit-quality.sh`
+  - 新增 `CI contract parity` 步驟，結果寫入 quality evidence 的 `results.ci_contract`
+  - `all_passed` 現在包含 `ci_contract`（FAIL 直接擋下 quality gate）
+- `scripts/codex-guarded-gh-pr-create.sh`
+  - 在 PR create gate 前自動執行 `ci-contract-run.sh`（dry-run / real-run 分流）
+- `scripts/verification-evidence-gate.sh`
+  - repo 含 Codecov patch gate 時，PR 前強制檢查 coverage evidence（PASS + <4h）
+- `skills/references/quality-check-flow.md`
+  - 新增 `CI Contract Parity` 為 mandatory step，並記錄 `--dry-run` 用法
+- `skills/review-inbox/SKILL.md`
+  - Scan freshness 硬性規定：snapshot 超過 60 秒必須重跑 Step 1
+
+**Fixed**
+
+- GT-478 task title numbering drift:
+  - `kkday/specs/GT-478/tasks/T8b.md`: `T9` → `T8b`
+  - `kkday/specs/GT-478/tasks/T9.md`: `T10` → `T9`
+
+## [3.35.0] - 2026-04-21
+
+### Runtime contract hardening end-to-end (DP-023)
+
+把「公司 runtime 啟動入口」從慣例升級為可執行契約，並在 `init → breakdown/engineering → validator → PR gate` 全鏈 enforce，避免 runtime 任務被 static 檢查誤判通過。
+
+**Added**
+
+- New design plan: `specs/design-plans/DP-023-runtime-entry-contract/plan.md`（LOCKED）
+- `scripts/validate-task-md.sh` 新增 runtime deterministic checks:
+  - `## Verify Command` 必填
+  - `Level=runtime` 必須有 live endpoint URL
+  - Verify URL host 必須與 `Runtime verify target` host 對齊
+- `scripts/polaris-write-evidence.sh` 新增 `runtime_contract` evidence metadata（支援 `--task-md` 自動抽取）
+- `scripts/verification-evidence-gate.sh` 新增 runtime contract gate（`level=runtime` 時強制 target/verify host 對齊）
+
+**Changed**
+
+- `init`（`.agents` / `.claude`）Step 9a 明確定義 runtime entry contract（runtime project 不可 skip，且設定必須可被 `scripts/polaris-env.sh start <company> --project <repo>` 消費）
+- `pipeline-handoff`（`.agents` / `.claude`）明確 Target-first：`health_check` 僅 readiness、`Runtime verify target` 才是行為驗證目標
+- `breakdown` / `engineering`（`.claude`）補齊與 `.agents` 一致的 runtime consistency hard-gate 語意
+- `mechanism-registry` / `mechanism-rationalizations` / `engineer-delivery-flow` 更新 evidence 與 gate 契約描述
+
+**Validation**
+
+- Contract samples passed: runtime+live endpoint（PASS）、runtime+grep-only（FAIL）、static+grep-only（PASS）
+- PR gate samples passed: missing runtime_contract（BLOCK）、runtime host mismatch（BLOCK）、合法 runtime_contract（ALLOW）
+- Active runtime tasks scan: `kkday/specs/**/tasks/*.md` 中 `Level=runtime` 檔案皆通過新版 validator
+
+## [3.34.0] - 2026-04-21
+
+### Runtime env handoff becomes framework-level contract (breaking)
+
+`task.md` 的 runtime 驗證資訊從「隱含於公司知識」升級為 framework 契約，避免 engineering 對 `health_check` / 驗證 URL / 起環境指令產生歧義（例如 local domain 與 localhost 混用情境）。
+
+**Breaking**
+
+- `scripts/validate-task-md.sh` 現在強制 `## Test Environment` 必須包含：
+  - `Runtime verify target`
+  - `Env bootstrap command`
+- 當 `Level=runtime` 時，上述兩欄不可為 `N/A`
+- 當 `Level=static|build` 時，上述兩欄必須為 `N/A`
+
+**Changed**
+
+- `skills/references/pipeline-handoff.md`（`.claude` / `.agents`）task.md schema 新增：
+  - `Runtime verify target`
+  - `Env bootstrap command`
+- `skills/breakdown/SKILL.md`（`.claude` / `.agents`）Step 14.5 補充：
+  - runtime URL 可為 localhost 或 local domain（不預設視為遠端）
+  - runtime 優先引用 workspace/company 的標準啟環境腳本（framework 泛化）
+- `skills/breakdown/SKILL.md` metadata version：`2.2.0` → `3.0.0`
+
+**Why**
+
+- `dev_environment.health_check` 只代表 ready probe，不一定是 smoke 驗證入口
+- `Runtime verify target` 與 `Env bootstrap command` 顯式化後，engineering 可 deterministic 地起環境與驗證，不依賴公司 tacit knowledge
+
 ## [3.33.0] - 2026-04-21
 
 ### Branch switching = worktree — universal framework default

@@ -99,6 +99,8 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 - **Level**: {static | build | runtime}
 - **Dev env config**: `workspace-config.yaml` → `projects[{repo_name}].dev_environment`
 - **Fixtures**: {`specs/{EPIC}/tests/mockoon/` 或 `N/A`}
+- **Runtime verify target**: {`https://dev.yourapp.com/...` | `http://localhost:3001/...` | `N/A`}
+- **Env bootstrap command**: {`./scripts/polaris-env.sh start <company> --project <repo>` | `<company>/scripts/*.sh` | `N/A`}
 
 **Level 定義**：
 
@@ -108,6 +110,15 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 | `build` | 需要 `pnpm build` 產 `.output/` 才能跑 Verify Command | 在 worktree 跑 build，不需啟動 dev server |
 | `runtime` | 需要 live endpoint（curl / dev server / nginx）才能跑 Verify Command | 依 `dev_environment.requires` 啟動 dependencies（如 `your-dev-proxy`）+ `start_command` 起 dev server + `health_check` 驗證 ready，**若 Fixtures 非 N/A**，同時起 `mockoon-runner.sh start {fixture_path}` |
 
+**`runtime` 補充說明（避免 URL 誤解）**：
+- `dev_environment.health_check` 只用於「服務是否 ready」檢查，未必等於 smoke 驗證入口。
+- `Runtime verify target` 才是 Verify Command 要打的實際 URL。
+- 目標 URL 可能是 localhost 或 local domain（透過 hosts / docker proxy 指到本機），不應預設視為遠端環境。
+- 若 workspace / company 有標準啟環境腳本，`Env bootstrap command` 應優先引用該腳本，避免把公司知識硬編在 skill 內。
+- `Level=runtime` 時，`Runtime verify target` 視為**必填硬契約**；`health_check` 不可替代此欄位。
+- `Level=runtime` 時，Verify Command 必須對 live endpoint 驗證，且目標 host 必須與 `Runtime verify target` 一致（同 host，可不同 path）。
+- Deterministic validator 規則：`Level=runtime` 但 Verify Command 無 live endpoint 或 host 不一致，`scripts/validate-task-md.sh` 直接 fail。
+
 **不放進 task.md 的細節**（engineering sub-agent 自己從 workspace-config 讀）：
 - `start_command`、`ready_signal`、`base_url`、`health_check`
 - `requires`（依賴的其他 service，如 `your-dev-proxy`）
@@ -116,6 +127,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 ## Verify Command
 
 > breakdown 產出，engineering 必須執行並附上 output。不可修改指令內容。
+> `Level=runtime` 時，此指令必須命中 `Runtime verify target`（同 host）做 runtime 驗證；僅 grep / 檔案存在性檢查不合格。
 
 \`\`\`bash
 {一個可執行的 shell 指令，驗證本 task 的核心改動在 runtime 是否生效}
@@ -132,7 +144,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 | 目標、涉及檔案、測試計畫（code-level） | AC 驗證場景（business-level）→ 在 AC 驗收單 |
 | Verify Command（per-task smoke test） | 完整 AC 驗證流程（verify-AC 的工作） |
 | Test Command（專案特定的測試指令） | 通用 test 指令（sub-agent 不可自行推導） |
-| Test Environment Level + pointer | dev env 細節（start_command / requires / health_check） |
+| Test Environment Level + pointer + Runtime verify target + Env bootstrap command | dev env 細節（start_command / requires / health_check） |
 | 估點理由 | 技術方案選項分析（refinement 已定） |
 | References 清單 | handbook 內容（sub-agent 須自行讀取，不複製進 task.md） |
 
