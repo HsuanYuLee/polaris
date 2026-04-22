@@ -4,6 +4,58 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.42.0] - 2026-04-22
+
+### Framework Sync Alignment
+
+**Changed**
+
+- Cross-runtime skills mirror synced (`.claude/skills` → `.agents/skills`) to keep Codex runtime artifacts aligned with latest framework updates.
+- Synced framework changes into Polaris template via `scripts/sync-to-polaris.sh` (local template updated, no auto-push).
+
+## [3.41.0] - 2026-04-22
+
+### DP-025 — Pipeline Artifact Schema Enforcement
+
+延續 DP-023 的 runtime slice 成果，把 validator + PreToolUse hook + exit-code gate 模式擴張到 Polaris pipeline 全鏈 artifact（refinement → breakdown → engineering）。Producer 寫完 artifact 當下即 fail-fast，不等 consumer 在下游炸掉。
+
+**使用者裁示**：強約束、立即上線、上線後掃補。無 warning-tier、無分階段 rollout。
+
+**Added**
+
+- `scripts/validate-refinement-json.sh` — 新 validator：檢查 `specs/*/refinement.json` 必填欄位（`epic` / `version` / `created_at` / `modules[]` with `path`+`action` / `acceptance_criteria[]` with `id`+`text`+`verification{method,detail}` / `dependencies[]` / `edge_cases[]`）。支援 `--scan {workspace_root}` 盤點模式。Hard-fail on any missing required field
+- `scripts/validate-task-md-deps.sh` — 新 validator：跨檔案檢查 `specs/{EPIC}/tasks/` 目錄。驗證 `depends_on` 指向同目錄既有 task.md（broken ref）+ DAG 無 cycle（DFS coloring）+ `## Test Environment` `Fixtures:` path 在檔案系統存在（解析順序：Epic dir → company base dir → workspace root）。支援 `--scan` 模式
+- `scripts/pipeline-artifact-gate.sh` — PreToolUse dispatcher（runtime-agnostic）。從 `CLAUDE_TOOL_INPUT` / 命令列 / stdin 擷取 file path，依 path pattern 分派到對應 validator：
+  - `*/specs/*/refinement.json` → `validate-refinement-json.sh`
+  - `*/specs/*/tasks/T*.md` → `validate-task-md.sh` + `validate-task-md-deps.sh`
+  - Validator exit ≠ 0 → hook exit 2 blocks Edit/Write
+  - Bypass: `POLARIS_SKIP_ARTIFACT_GATE=1`
+- `.claude/hooks/pipeline-artifact-gate.sh` — Claude hook wrapper（跟隨 `specs-sidebar-sync.sh` 的 thin wrapper 模式）
+- `skills/references/pipeline-handoff.md` § Artifact Schemas — 新增 authoritative schema 章節（Atom 層 single source of truth）。列出 refinement.json / task.md / cross-file / fixture 各 artifact 的必填欄位與驗證規則；validator script 從此文件派生
+- `rules/mechanism-registry.md` § Pipeline Artifact Schema — 新增 canary 區塊：`refinement-schema-compliance`、`task-md-full-schema`、`task-md-deps-closure`、`fixture-path-existence`。Drift: High. Enforcement: Deterministic (hook + exit code)
+- `/tmp/dp025-scan-report.md` — 上線後 baseline 盤點報告
+
+**Changed**
+
+- `scripts/validate-task-md.sh` — 擴充 DP-025 非 runtime 檢查：
+  - `## Operational Context` 必須含 JIRA key（pattern `[A-Z][A-Z0-9]+-[0-9]+`）
+  - `## 目標` / `## 改動範圍` / `## 估點理由` 必須非空（至少 1 行實質內容，跳過 blockquote 註解）
+  - `## Test Command` / `## Verify Command` 必須內含 fenced code block
+  - 新增 `--scan {workspace_root}` 盤點模式，過濾 `.worktrees` / `node_modules` / `archive`
+  - DP-023 runtime 規則原封不動保留
+- `.claude/settings.json` — PreToolUse Edit|Write matcher 新增 `pipeline-artifact-gate.sh` hook（與 `design-plan-checklist-gate.sh` 並列）
+- `specs/design-plans/DP-025-pipeline-artifact-schema-enforcement/plan.md` — Implementation Checklist 勾選實作完成項目；status 保持 LOCKED（盤點後回補由使用者驅動，checklist 仍有 `[ ]`）
+
+**Scan results (2026-04-22 baseline)**
+
+| Artifact | Scanned | Pass | Fail |
+|----------|---------|------|------|
+| refinement.json | 2 | 2 | 0 |
+| task.md | 13 | 13 | 0 |
+| task.md deps | 3 Epics | 3 | 0 |
+
+All existing kkday artifacts 通過新 schema — 無需回補。未來 artifact 若違反 schema 會在 Edit/Write 當下被 hook 攔截。
+
 ## [3.40.0] - 2026-04-22
 
 ### DP-024 P4 pilot — Pipeline handoff evidence artifact (bug-triage → engineering)

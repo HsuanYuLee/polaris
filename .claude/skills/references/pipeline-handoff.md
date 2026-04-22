@@ -28,6 +28,75 @@ Core principle: **each skill consumes a self-contained input and produces a well
 | **QA** | verify-AC | 跑 AC 驗證步驟、呈現 observed vs expected | 不判斷 FAIL 原因（交給人工 disposition） |
 | **Diagnosis** | bug-triage | Root cause 分析、規劃修復 | 不直接寫 code（交給 engineering） |
 
+## Artifact Schemas
+
+**此章節為 Atom 層 single source of truth**。所有 pipeline validator script（`scripts/validate-*.sh`）都從此文件派生；skill 產出 artifact 時的必填欄位以此為準。若本章節與個別 skill 的 SKILL.md 描述衝突，**以本章節為準**。
+
+作用範圍（DP-025 locked 2026-04-22）：檔案型 artifact（refinement.json / task.md）。**不含** JIRA comment 結構（bug-triage `[ROOT_CAUSE]`、verify-AC `## 驗證結果`），見 DP-025 scope boundary。
+
+所有欄位驗證以 **hard-fail**（validator exit 2）為預設；若實務上發現必填欄位阻礙 refinement / breakdown 推進，再個別討論降級。
+
+### refinement.json Schema（producer: refinement Tier 2+）
+
+完整欄位與型別定義見 `refinement-artifact.md`。本節只列 validator 必驗的**必填欄位**與**結構硬條件**。
+
+| 欄位 | 型別 | 必填？ | 驗證規則 |
+|------|------|-------|----------|
+| `epic` | string | **必填** | 非空；JIRA key 格式 `[A-Z][A-Z0-9]+-[0-9]+` |
+| `version` | string | **必填** | 非空 |
+| `created_at` | string | **必填** | 非空；ISO8601 建議 |
+| `modules` | array | **必填** | 長度 ≥ 1；每個 module 必含 `path`（string, 非空）+ `action`（string, `create`/`modify`/`delete`/`investigate`） |
+| `acceptance_criteria` | array | **必填** | 長度 ≥ 1；每個 AC 必含 `id`（string, 非空）+ `text`（string, 非空）+ `verification`（object） |
+| `acceptance_criteria[].verification` | object | **必填** | 必含 `method`（string, `playwright`/`lighthouse`/`curl`/`unit_test`/`manual`）+ `detail`（string, 非空） |
+| `dependencies` | array | **必填**（可為空陣列） | 若非空，每個 dep 必含 `type`（string）+ `target`（string）+ `blocking`（bool） |
+| `edge_cases` | array | **必填**（可為空陣列） | 若非空，每個 edge case 必含 `scenario`（string, 非空）+ `handling`（string, 非空） |
+
+**可選欄位**（不驗但 refinement-artifact.md 定義）：`tier`、`tier_signals`、`refinement_round`、`completeness`、`rd_decisions`、`gaps`、`downstream`、`research`、`references`、`type`、`direction_assessment`。
+
+Validator：`scripts/validate-refinement-json.sh <path>` 或 `--scan <workspace_root>`。
+
+### task.md Schema（producer: breakdown / engineering update）
+
+詳細章節模板見下方 `## task.md Schema`。Validator 必驗項目：
+
+| 項目 | 驗證規則 |
+|------|----------|
+| Header `# T{n}[suffix]: {summary} ({SP} pt)` | 必須存在且格式正確（`[suffix]` 為 `a-z*` 支援 split subtasks） |
+| Metadata line `> Epic: ... \| JIRA: {KEY} \| Repo: ...` | `JIRA:` 必含 key（`[A-Z][A-Z0-9]+-[0-9]+`）；`Repo:` 必含非空值 |
+| `## Operational Context` | 必須存在；必含表格 cells：`Task JIRA key`、`Parent Epic`、`Test sub-tasks`、`AC 驗收單`、`Base branch`、`Task branch`、`References to load`；且全檔案至少出現 1 個 JIRA key pattern |
+| `## Verification Handoff` | 必須存在 |
+| `## 目標` | 必須存在且非空 |
+| `## 改動範圍` | 必須存在且非空（至少 1 行表格 data 或 bullet） |
+| `## 估點理由` | 必須存在且非空（至少 1 行非空文字） |
+| `## 測試計畫` | 必須存在 |
+| `## Test Command` | 必須存在；內含 fenced code block |
+| `## Test Environment` | 必須存在；詳細規則見下方 "Test Environment Level" 段 + DP-023 runtime contract |
+| `## Verify Command` | 必須存在；內含 fenced code block |
+| Frontmatter `status` | 可選；若存在應為 `IN_PROGRESS` / `IMPLEMENTED` / `BLOCKED` 其中之一（目前不 enforce；留給 `scripts/mark-spec-implemented.sh`） |
+| Frontmatter `depends_on` | 可選；若存在須為 array of task id strings（如 `["T1", "T2"]`）；驗證拓撲見下方 |
+
+Validator：`scripts/validate-task-md.sh <path>` 或 `--scan <workspace_root>`。
+
+**Runtime contract fields**（DP-023）：`Level` / `Runtime verify target` / `Env bootstrap command` 三欄位 + `Level=runtime` 時 Verify Command host alignment — 繼續由 `validate-task-md.sh` 的 runtime block enforce，不在此重述。
+
+### task.md Cross-File Schema（depends_on + fixture 存在性）
+
+依賴同 Epic 其他 task.md 或檔案系統：
+
+| 規則 | 驗證邏輯 |
+|------|----------|
+| `depends_on` 必須指向同目錄既有 task | 每個 `depends_on` item（如 `"T1"`）對應 `{tasks_dir}/T1.md` 必須存在 |
+| `depends_on` 不可循環 | DFS 偵測 cycle；發現 cycle 直接 fail 並印出 cycle chain |
+| `## Test Environment` 若宣告 `Fixtures: {path}`（非 `N/A`），該 path 必須存在 | `{path}` 相對於 workspace_root 或 Epic folder 解析；找不到檔案/目錄 → fail |
+
+Validator：`scripts/validate-task-md-deps.sh <tasks_dir>` 或 `--scan <workspace_root>`。
+
+### Schema 演進
+
+- 新增欄位採 optional（下游 skill 用 `?.` 存取），`version` 遞增
+- 必填欄位升級為 required 前，先發 validator 公告（使用 `--scan` 盤點現況）
+- 刪除欄位需走 deprecation path（先 optional 標記 + warning，一個 minor 後移除）
+
 ## task.md Schema
 
 Breakdown 產出的 task.md 是 engineering 的唯一輸入（除了 codebase 和 repo handbook — sub-agent 須自行讀取 `{repo}/.claude/rules/handbook/`，不會自動載入）。必須 self-contained。
@@ -99,7 +168,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 - **Level**: {static | build | runtime}
 - **Dev env config**: `workspace-config.yaml` → `projects[{repo_name}].dev_environment`
 - **Fixtures**: {`specs/{EPIC}/tests/mockoon/` 或 `N/A`}
-- **Runtime verify target**: {`https://dev.yourapp.com/...` | `http://localhost:3001/...` | `N/A`}
+- **Runtime verify target**: {`https://dev.kkday.com/...` | `http://localhost:3001/...` | `N/A`}
 - **Env bootstrap command**: {`./scripts/polaris-env.sh start <company> --project <repo>` | `<company>/scripts/*.sh` | `N/A`}
 
 **Level 定義**：
@@ -108,7 +177,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 |-------|---------|------------------|
 | `static` | 只讀 source code（grep、檔案存在性、config 註冊） | 無 — 直接跑 Verify Command |
 | `build` | 需要 `pnpm build` 產 `.output/` 才能跑 Verify Command | 在 worktree 跑 build，不需啟動 dev server |
-| `runtime` | 需要 live endpoint（curl / dev server / nginx）才能跑 Verify Command | 依 `dev_environment.requires` 啟動 dependencies（如 `your-dev-proxy`）+ `start_command` 起 dev server + `health_check` 驗證 ready，**若 Fixtures 非 N/A**，同時起 `mockoon-runner.sh start {fixture_path}` |
+| `runtime` | 需要 live endpoint（curl / dev server / nginx）才能跑 Verify Command | 依 `dev_environment.requires` 啟動 dependencies（如 `kkday-web-docker`）+ `start_command` 起 dev server + `health_check` 驗證 ready，**若 Fixtures 非 N/A**，同時起 `mockoon-runner.sh start {fixture_path}` |
 
 **`runtime` 補充說明（避免 URL 誤解）**：
 - `dev_environment.health_check` 只用於「服務是否 ready」檢查，未必等於 smoke 驗證入口。
@@ -121,7 +190,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 
 **不放進 task.md 的細節**（engineering sub-agent 自己從 workspace-config 讀）：
 - `start_command`、`ready_signal`、`base_url`、`health_check`
-- `requires`（依賴的其他 service，如 `your-dev-proxy`）
+- `requires`（依賴的其他 service，如 `kkday-web-docker`）
 - `is_monorepo` / `monorepo_apps`
 
 ## Verify Command
@@ -373,4 +442,4 @@ Pipeline 收斂在以下任一條件：
 
 ## 來源
 
-設計決策：2026-04-13，PROJ-123 breakdown v2 試跑後討論 pipeline 權責拆分。
+設計決策：2026-04-13，GT-521 breakdown v2 試跑後討論 pipeline 權責拆分。
