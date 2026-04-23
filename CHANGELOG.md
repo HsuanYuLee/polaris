@@ -4,6 +4,55 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.49.0] - 2026-04-24
+
+### DP-029 Phase A + Phase B — CI-Equivalent Coverage: Hook Detection + Codecov Patch Gate Simulation
+
+Closes the gap where `ci-contract-run.sh` marks a local run PASS while Codecov's `patch` status fails on the same commit. Root cause on PR #2206 (`kkday-b2c-web`): discover only scanned the first `patch` status per flag and ignored `threshold`; runner treated `target: auto` as auto-pass; `choose_base_branch` hardcoded `develop/main/master` so task branches with upstream task bases computed diff against the wrong ref; and the monorepo lcov file paths (relative to package root) did not reconcile with git diff paths (relative to repo root).
+
+**Added (Phase A — hook-layer detection, rough)**
+
+- `scripts/ci-contract-discover.sh`: three new dev-hook scanners feeding a new top-level `dev_hooks[]` field in the contract output:
+  - `.husky/*` — reads every file under `.husky/`, strips boilerplate (`echo`, shebang, husky self-source lines), categorises the remaining commands via the existing `categorize_command`.
+  - `.pre-commit-config.yaml` / `.pre-commit-hooks.yaml` — parses `repos[].hooks[]` and records hook entries with the `entry` or `id` as command and the first `stages` value as `hook_type` (fallback `pre-commit`).
+  - `package.json` — scans root plus `apps/*/package.json` and `packages/*/package.json` for legacy `husky.hooks` and `lint-staged` fields; emits a marker entry for standalone `.lintstagedrc.{js,cjs,mjs,json,yaml}` files.
+- `scripts/ci-contract-run.sh`: new `--include-hooks` CLI flag; currently a pass-through (runner does not execute dev hooks — deferred to Phase C), value surfaces as `report.contract.include_hooks`.
+
+**Added (Phase B — codecov patch gate simulation)**
+
+- `scripts/ci-contract-discover.sh`: schema bumped to `schema_version: 2`. New `codecov_flag_gates[]` field replaces the old `codecov_patch_gates[]` (break change per DP-029 D9 — no fallback). Each entry records `flag`, `include_paths`, `exclude_paths`, and a full `statuses[]` list preserving per-status `type` (patch / project), `target_raw` (original string, e.g. `"60%"` or `"auto"`), `target_percent` (parsed float, null when auto), `threshold_percent` (parsed float, null when absent), and `is_auto` (true when target is literal `auto`). Flags without `statuses` are still listed (empty list) for report-only configurations.
+- `scripts/ci-contract-run.sh`: new `--base-branch <name>` CLI flag lets callers override the `develop → main → master` fallback when the effective base is an upstream task branch. Value surfaces as `report.contract.base_branch`.
+- `scripts/ci-contract-run.sh`: new per-status patch gate loop. Each flag's statuses are evaluated individually:
+  - `type: patch` + explicit numeric target → `effective_target = target_percent - (threshold_percent or 0)`; PASS when `coverage_percent >= effective_target`, FAIL otherwise.
+  - `type: patch` + `is_auto: true` → SKIP with `reason: patch_auto_target_not_supported_locally` (auto requires base-commit coverage, out of scope for Phase B).
+  - `type: project` → SKIP with `reason: project_gate_not_implemented` (deferred to Phase C).
+  - Flag with empty statuses → SKIP with `reason: flag_has_no_statuses`.
+  - `total_lines == 0` (no instrumented patch lines) → SKIP with `reason: no_instrumented_patch_lines`.
+- `scripts/ci-contract-run.sh`: monorepo path reconciliation in `compute_flag_coverage`. When direct `lcov_map.get(f)` misses, the runner now strips each flag `include_path` prefix (e.g. `apps/main/`) before retrying, and falls back to a bidirectional suffix match. Fixes a Phase B bug surfaced during real b2c-web dogfood where SF paths relative to `apps/main/` (e.g. `SF:app.vue`) did not match git diff paths relative to repo root (e.g. `apps/main/app.vue`).
+- Evidence schema: previous `patch_gates` array replaced by `flag_results[]`. Each entry includes `flag`, `status_type`, `target_raw`, `target_percent`, `threshold_percent`, `effective_target_percent`, `is_auto`, `status` (PASS/FAIL/SKIP/PLANNED), `reason` (when SKIP), `covered_lines`, `total_lines`, `coverage_percent`, and `matched_files[]`. Any `flag_results[*].status == "FAIL"` drives `report.status = "FAIL"` and exit 1. SKIP does not count as FAIL. `summary.flag_gate_failures` mirrors the FAIL count.
+
+**Dogfood**
+
+- Synthetic FAIL scenario (`/tmp/dp029-synthetic`, 3/3 new lines uncovered): coverage 0% < effective_target 60%, `flag_results[0].status: FAIL`, `summary.flag_gate_failures: 1`, exit 1. ✅
+- Synthetic PASS scenario (same repo, fully covered): coverage 100%, `flag_results[0].status: PASS`, overall PASS, exit 0. ✅
+- Synthetic `target: auto` scenario: `flag_results[0].status: SKIP`, `reason: patch_auto_target_not_supported_locally`, overall PASS, exit 0. ✅
+- `.pre-commit-config.yaml` synthetic dogfood: 2 hook entries (`trailing-whitespace`, `check-yaml`), `hook_type: pre-commit`. ✅
+- Real b2c-web dogfood (branch `task/KB2CW-3468-lodash-cdn-unify` against develop): 5 `dev_hooks` entries (husky pre-commit w/ `pnpm exec lint-staged` → `lint`, commit-msg commitlint, post-merge `pnpm install` → `install`, `.lintstagedrc.mjs` marker), schema v2 flag gates correct (`main-core` project auto+threshold 1% + patch 60%, `multiples` report-only), monorepo prefix strip resolved — `main-core` patch coverage 20.67% (43 / 208 changed lines), which in non-dry-run mode drives exit 1 via deterministic `if coverage < effective_target` branch.
+
+**Scope boundaries (explicit)**
+
+- Phase A is intentionally rough — "可用即可" per DP-029 D9. False positives acceptable; no runner execution of dev hooks yet.
+- Phase B acceptance target is PR #2206's class of failure (absolute-numeric patch target + monorepo paths). `target: auto` patch and all `type: project` gates are SKIP with explicit reasons; their full simulation is Phase C.
+- `scripts/coverage-gate.sh`, `scripts/write-coverage-evidence.sh`, `pre-commit-quality.sh`, and `verification-evidence-gate.sh` are callers — their migration to the new `flag_results` schema lives in Phase C.
+
+**Files**
+
+- `scripts/ci-contract-discover.sh` — new scanners + schema v2
+- `scripts/ci-contract-run.sh` — per-status patch gate + `--base-branch` + `--include-hooks` + monorepo prefix fix
+- `specs/design-plans/DP-029-engineering-ci-equivalent-coverage/plan.md` — Phase A+B checklist ticked, Delivery Log added, Phase C remains open (`status: LOCKED` kept deliberately)
+- `VERSION` — 3.49.0
+- `CHANGELOG.md` — this entry
+
 ## [3.48.0] - 2026-04-23
 
 ### DP-028 — `depends_on` Branch Binding

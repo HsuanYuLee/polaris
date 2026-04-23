@@ -2,7 +2,13 @@
 # ci-contract-run.sh — Execute normalized CI contract locally
 #
 # Usage:
-#   scripts/ci-contract-run.sh --repo <path> [--intent pr|push|tag|manual|all] [--skip-install] [--write-coverage-evidence] [--dry-run]
+#   scripts/ci-contract-run.sh --repo <path> [--intent pr|push|tag|manual|all] [--skip-install] [--write-coverage-evidence] [--include-hooks] [--dry-run]
+#
+# --include-hooks: Phase A pass-through flag — records include_hooks=true in the
+# output report's contract metadata. The runner does NOT currently execute
+# repo dev hooks (husky / pre-commit / lint-staged) — that is deferred to
+# Phase C. This flag exists so callers (engineering sub-agent) can signal
+# intent without changing runtime behavior yet.
 #
 # Exit 0: contract pass
 # Exit 1: contract fail
@@ -13,7 +19,9 @@ REPO_DIR=""
 SKIP_INSTALL=0
 WRITE_COVERAGE_EVIDENCE=0
 DRY_RUN=0
+INCLUDE_HOOKS=0
 INTENT="pr"
+BASE_BRANCH_OVERRIDE=""
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 while [[ $# -gt 0 ]]; do
@@ -22,19 +30,21 @@ while [[ $# -gt 0 ]]; do
     --skip-install) SKIP_INSTALL=1; shift ;;
     --write-coverage-evidence) WRITE_COVERAGE_EVIDENCE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --include-hooks) INCLUDE_HOOKS=1; shift ;;
     --intent) INTENT="$2"; shift 2 ;;
+    --base-branch) BASE_BRANCH_OVERRIDE="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
 
 if [[ -z "$REPO_DIR" ]]; then
-  echo "Usage: ci-contract-run.sh --repo <path> [--intent pr|push|tag|manual|all] [--skip-install] [--write-coverage-evidence] [--dry-run]" >&2
+  echo "Usage: ci-contract-run.sh --repo <path> [--intent pr|push|tag|manual|all] [--base-branch <name>] [--skip-install] [--write-coverage-evidence] [--include-hooks] [--dry-run]" >&2
   exit 1
 fi
 
 REPO_DIR="$(cd "$REPO_DIR" && pwd)"
 
-python3 - "$REPO_DIR" "$SKIP_INSTALL" "$WRITE_COVERAGE_EVIDENCE" "$DRY_RUN" "$SCRIPT_DIR" "$INTENT" <<'PY'
+python3 - "$REPO_DIR" "$SKIP_INSTALL" "$WRITE_COVERAGE_EVIDENCE" "$DRY_RUN" "$SCRIPT_DIR" "$INTENT" "$BASE_BRANCH_OVERRIDE" "$INCLUDE_HOOKS" <<'PY'
 import json
 import os
 import re
@@ -49,6 +59,8 @@ write_coverage_evidence = sys.argv[3] == "1"
 dry_run = sys.argv[4] == "1"
 script_dir = Path(sys.argv[5])
 intent = (sys.argv[6] or "pr").strip().lower()
+base_branch_override = (sys.argv[7] or "").strip() if len(sys.argv) > 7 else ""
+include_hooks = (sys.argv[8] == "1") if len(sys.argv) > 8 else False
 
 if intent not in {"pr", "push", "tag", "manual", "all"}:
     raise SystemExit(f"Unknown --intent value: {intent}")
@@ -119,7 +131,9 @@ for category in ordered_categories:
             failed = True
 
 
-def choose_base_branch():
+def resolve_base_branch(override: str):
+    if override:
+        return override
     for candidate in ["develop", "main", "master"]:
         if git(["rev-parse", f"origin/{candidate}"]):
             return candidate
@@ -155,7 +169,7 @@ def merge_line_maps(*maps):
     return merged
 
 
-base_branch = choose_base_branch()
+base_branch = resolve_base_branch(base_branch_override)
 merge_base = git(["merge-base", "HEAD", f"origin/{base_branch}"]) or git(["merge-base", "HEAD", base_branch])
 
 branch_diff = ""
@@ -226,24 +240,32 @@ def path_matches(path: str, include_patterns, exclude_patterns):
     return True
 
 
-patch_gate_results = []
-for gate in contract.get("codecov_patch_gates", []):
-    target = gate.get("target_percent")
-    include = gate.get("include_paths", [])
-    exclude = gate.get("exclude_paths", [])
-
+def compute_flag_coverage(include, exclude):
+    """Compute (matched_files, covered_lines, total_lines) for a flag's paths."""
     matched_files = [f for f in changed_lines.keys() if path_matches(f, include, exclude)]
     total = 0
     covered = 0
+    include_prefixes = [inc.rstrip("/") for inc in (include or []) if inc and "*" not in inc]
 
     for f in matched_files:
         lines = changed_lines.get(f, set())
 
         lcov_lines = lcov_map.get(f)
         if lcov_lines is None:
-            # fallback: suffix match (lcov may output with different prefix)
+            # Monorepo: lcov SF paths are typically relative to package root
+            # (e.g. apps/main/coverage/lcov.info has SF:app.vue), while git
+            # diff emits paths from repo root (apps/main/app.vue). Try
+            # stripping each flag include_path prefix before lookup.
+            for prefix in include_prefixes:
+                if f.startswith(prefix + "/"):
+                    stripped = f[len(prefix) + 1 :]
+                    lcov_lines = lcov_map.get(stripped)
+                    if lcov_lines is not None:
+                        break
+        if lcov_lines is None:
+            # Fallback: bidirectional suffix match.
             for key, val in lcov_map.items():
-                if key.endswith(f):
+                if key.endswith(f) or f.endswith(key):
                     lcov_lines = val
                     break
 
@@ -256,45 +278,120 @@ for gate in contract.get("codecov_patch_gates", []):
             total += 1
             if lcov_lines[ln] > 0:
                 covered += 1
+    return matched_files, covered, total
 
-    if total == 0:
-        patch_gate_results.append(
+
+flag_results = []
+for gate in contract.get("codecov_flag_gates", []):
+    flag_name = gate.get("flag")
+    include = gate.get("include_paths", [])
+    exclude = gate.get("exclude_paths", [])
+    statuses = gate.get("statuses", []) or []
+
+    matched_files, covered, total = compute_flag_coverage(include, exclude)
+    coverage_percent = round((covered / total) * 100, 2) if total > 0 else None
+
+    if not statuses:
+        # Flag exists but has no enforcement — e.g. report-only.
+        flag_results.append(
             {
-                "flag": gate.get("flag"),
-                "target_percent": target,
+                "flag": flag_name,
+                "status_type": None,
+                "target_raw": None,
+                "target_percent": None,
+                "threshold_percent": None,
+                "effective_target_percent": None,
+                "is_auto": False,
                 "status": "PLANNED" if dry_run else "SKIP",
-                "reason": "no_instrumented_patch_lines",
+                "reason": "flag_has_no_statuses",
                 "covered_lines": covered,
                 "total_lines": total,
-                "coverage_percent": None,
+                "coverage_percent": coverage_percent,
+                "matched_files": matched_files,
             }
         )
         continue
 
-    pct = (covered / total) * 100
-    if dry_run:
-        status = "PLANNED"
-    else:
-        status = "PASS" if (target is None or pct >= float(target)) else "FAIL"
-    patch_gate_results.append(
-        {
-            "flag": gate.get("flag"),
-            "target_percent": target,
-            "status": status,
+    for status in statuses:
+        status_type = status.get("type")
+        target_raw = status.get("target_raw")
+        target_percent = status.get("target_percent")
+        threshold_percent = status.get("threshold_percent")
+        is_auto = bool(status.get("is_auto"))
+
+        if target_percent is not None:
+            effective_target = float(target_percent) - float(threshold_percent or 0)
+        else:
+            effective_target = None
+
+        # Base entry template — fields may be overridden below.
+        entry = {
+            "flag": flag_name,
+            "status_type": status_type,
+            "target_raw": target_raw,
+            "target_percent": target_percent,
+            "threshold_percent": threshold_percent,
+            "effective_target_percent": effective_target,
+            "is_auto": is_auto,
             "covered_lines": covered,
             "total_lines": total,
-            "coverage_percent": round(pct, 2),
+            "coverage_percent": coverage_percent,
             "matched_files": matched_files,
         }
-    )
-    if (not dry_run) and status == "FAIL":
-        failed = True
+
+        # Decide disposition.
+        if status_type == "project":
+            # Project gate — deferred to Phase C.
+            entry["status"] = "PLANNED" if dry_run else "SKIP"
+            entry["reason"] = "project_gate_not_implemented"
+            flag_results.append(entry)
+            continue
+
+        if status_type == "patch" and is_auto:
+            entry["status"] = "PLANNED" if dry_run else "SKIP"
+            entry["reason"] = "patch_auto_target_not_supported_locally"
+            flag_results.append(entry)
+            continue
+
+        if status_type != "patch":
+            # Unknown status type — be strict, SKIP with reason.
+            entry["status"] = "PLANNED" if dry_run else "SKIP"
+            entry["reason"] = f"unknown_status_type_{status_type}"
+            flag_results.append(entry)
+            continue
+
+        # Patch, explicit numeric target.
+        if total == 0:
+            entry["status"] = "PLANNED" if dry_run else "SKIP"
+            entry["reason"] = "no_instrumented_patch_lines"
+            flag_results.append(entry)
+            continue
+
+        if effective_target is None:
+            entry["status"] = "PLANNED" if dry_run else "SKIP"
+            entry["reason"] = "patch_target_missing"
+            flag_results.append(entry)
+            continue
+
+        if dry_run:
+            entry["status"] = "PLANNED"
+            entry["reason"] = None
+        else:
+            if coverage_percent is not None and coverage_percent >= effective_target:
+                entry["status"] = "PASS"
+                entry["reason"] = None
+            else:
+                entry["status"] = "FAIL"
+                entry["reason"] = None
+                failed = True
+
+        flag_results.append(entry)
 
 summary = {
     "provider": contract.get("provider"),
     "executed_checks": len(results),
     "failed_checks": len([r for r in results if r["status"] == "FAIL"]),
-    "patch_gate_failures": len([g for g in patch_gate_results if g["status"] == "FAIL"]),
+    "flag_gate_failures": len([g for g in flag_results if g["status"] == "FAIL"]),
 }
 
 report = {
@@ -302,22 +399,31 @@ report = {
         "provider": contract.get("provider"),
         "files": contract.get("files", []),
         "intent": intent,
+        "base_branch": base_branch,
+        "include_hooks": include_hooks,
     },
     "checks": results,
-    "patch_gates": patch_gate_results,
+    "flag_results": flag_results,
     "summary": summary,
     "status": "DRY_RUN" if dry_run else ("FAIL" if failed else "PASS"),
 }
 
-if write_coverage_evidence and contract.get("codecov_patch_gates") and not dry_run:
+if write_coverage_evidence and contract.get("codecov_flag_gates") and not dry_run:
     branch = git(["rev-parse", "--abbrev-ref", "HEAD"]) or "unknown"
     note_parts = []
-    for g in patch_gate_results:
-        if g.get("status") in {"PASS", "FAIL"}:
+    for g in flag_results:
+        status_label = g.get("status")
+        if status_label in {"PASS", "FAIL"}:
             note_parts.append(
-                f"{g.get('flag')}: {g.get('coverage_percent')}% (target {g.get('target_percent')}%)"
+                f"{g.get('flag')} {g.get('status_type')}: "
+                f"{g.get('coverage_percent')}% (target {g.get('target_raw')}) {status_label}"
             )
-    note = "; ".join(note_parts) if note_parts else "patch gate: no instrumented patch lines"
+        elif status_label == "SKIP":
+            reason = g.get("reason") or "skip"
+            note_parts.append(
+                f"{g.get('flag')} {g.get('status_type') or 'flag'}: SKIP ({reason})"
+            )
+    note = "; ".join(note_parts) if note_parts else "flag gate: no instrumented patch lines"
     status = "PASS" if report["status"] == "PASS" else "FAIL"
     script = script_dir / "write-coverage-evidence.sh"
     subprocess.run(
