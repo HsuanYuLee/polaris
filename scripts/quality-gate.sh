@@ -28,7 +28,7 @@ printf '%s' "$command" | grep -qE '\bgit\b.*\bcommit\b' || exit 0
 # The key gate: any git commit should have quality evidence
 
 # Bypass for WIP commits (commit message starts with "wip:")
-if printf '%s' "$command" | grep -qiE -- '-m\s+["\x27"]wip:'; then
+if printf '%s' "$command" | grep -qiE -- '-m[[:space:]]+["\x27"]wip:'; then
   exit 0
 fi
 
@@ -39,8 +39,8 @@ fi
 
 # Extract repo path from git -C <path> or use current dir
 repo_dir=""
-if printf '%s' "$command" | grep -qE 'git\s+-C\s+'; then
-  repo_dir=$(printf '%s' "$command" | sed -nE 's/.*git\s+-C\s+([^ ]+).*/\1/p')
+if printf '%s' "$command" | grep -qE 'git[[:space:]]+-C[[:space:]]+'; then
+  repo_dir=$(printf '%s' "$command" | sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^ ]+).*/\1/p')
 fi
 
 # Get branch name

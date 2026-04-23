@@ -25,7 +25,7 @@ tool_name=$(printf '%s' "$input" | python3 -c "import sys,json; d=json.load(sys.
 command=$(printf '%s' "$input" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || true)
 
 # Only intercept gh pr create
-printf '%s' "$command" | grep -qiE '^gh\s+pr\s+create\b' || exit 0
+printf '%s' "$command" | grep -qiE '^gh[[:space:]]+pr[[:space:]]+create\b' || exit 0
 
 # Bypass for non-ticket PRs (framework, docs, etc.)
 if [[ "${POLARIS_SKIP_EVIDENCE:-}" == "1" ]]; then
@@ -125,7 +125,7 @@ repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
 has_patch_gate=false
 if [[ -n "$repo_root" ]]; then
   for cfg in codecov.yml .codecov.yml; do
-    if [[ -f "$repo_root/$cfg" ]] && grep -qE '^\s*-?\s*type:\s*patch' "$repo_root/$cfg"; then
+    if [[ -f "$repo_root/$cfg" ]] && grep -qE '^[[:space:]]*-?[[:space:]]*type:[[:space:]]*patch' "$repo_root/$cfg"; then
       has_patch_gate=true
       break
     fi

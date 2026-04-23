@@ -43,7 +43,7 @@ while IFS= read -r file; do
   company=$(basename "$(dirname "$file")")
 
   # Check first 10 lines for Scope: header
-  if ! head -10 "$file" | grep -qiE '>\s*\*?\*?Scope:\s' 2>/dev/null; then
+  if ! head -10 "$file" | grep -qiE '>[[:space:]]*\*?\*?Scope:[[:space:]]' 2>/dev/null; then
     violations+=("$file (missing Scope: header, expected company: $company)")
   fi
 done <<< "$files"

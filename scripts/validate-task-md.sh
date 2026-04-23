@@ -140,8 +140,8 @@ validate_file() {
     # and the leading commentary. Count lines that have real text.
     local content_lines
     content_lines=$(printf '%s\n' "$body" | awk '
-      /^\s*$/ { next }                         # skip blank
-      /^\s*>/ { next }                         # skip blockquote commentary
+      /^[[:space:]]*$/ { next }                # skip blank
+      /^[[:space:]]*>/ { next }                # skip blockquote commentary
       { count++ }
       END { print count+0 }
     ')

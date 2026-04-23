@@ -31,8 +31,8 @@ block() {
 }
 
 block 'pnpm\b.*\b(dev|dev:main|dev:trans|dev:demo|hot)\b' 'Direct pnpm dev server startup — use polaris-env.sh'
-block 'npm\b.*\brun\s+(dev|start|serve)\b' 'Direct npm dev server startup — use polaris-env.sh'
+block 'npm\b.*\brun[[:space:]]+(dev|start|serve)\b' 'Direct npm dev server startup — use polaris-env.sh'
 block 'docker-compose\b.*\bup\b' 'Direct docker-compose up — use polaris-env.sh'
-block 'docker\s+compose\b.*\bup\b' 'Direct docker compose up — use polaris-env.sh'
+block 'docker[[:space:]]+compose\b.*\bup\b' 'Direct docker compose up — use polaris-env.sh'
 
 exit 0

@@ -197,4 +197,4 @@ status_badge() {
 
 } > "$SIDEBAR"
 
-echo "Generated: $SIDEBAR ($(grep -c '^\s*\*' "$SIDEBAR") entries)"
+echo "Generated: $SIDEBAR ($(grep -cE '^[[:space:]]*\*' "$SIDEBAR") entries)"

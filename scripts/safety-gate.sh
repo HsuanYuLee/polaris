@@ -50,17 +50,17 @@ if [[ "$tool_name" == "Bash" ]]; then
     fi
   }
 
-  check 'rm\s+-rf\s+(/|~|/\*)' 'recursive delete of root or home'
-  check 'git\s+push\s+.*--force\s+.*(main|master)|git\s+push\s+.*-f\s+.*(main|master)' 'force-push to main/master'
-  check 'DROP\s+(TABLE|DATABASE)' 'destructive SQL operation'
-  check 'chmod\s+777' 'overly permissive chmod 777'
-  check '>\s*/dev/sd[a-z]' 'write to block device'
+  check 'rm[[:space:]]+-rf[[:space:]]+(/|~|/\*)' 'recursive delete of root or home'
+  check 'git[[:space:]]+push[[:space:]]+.*--force[[:space:]]+.*(main|master)|git[[:space:]]+push[[:space:]]+.*-f[[:space:]]+.*(main|master)' 'force-push to main/master'
+  check 'DROP[[:space:]]+(TABLE|DATABASE)' 'destructive SQL operation'
+  check 'chmod[[:space:]]+777' 'overly permissive chmod 777'
+  check '>[[:space:]]*/dev/sd[a-z]' 'write to block device'
   check '/dev/tcp/' 'reverse shell via /dev/tcp'
-  check 'mkfifo\s+/tmp/' 'reverse shell via named pipe'
-  check '(nc|ncat|netcat)\s+(-e|-c|--exec)' 'reverse shell via netcat'
-  check 'curl\s+.*\|\s*(bash|sh|zsh)' 'pipe-to-shell execution'
-  check 'wget\s+.*-O\s*-\s*\|\s*(bash|sh)' 'pipe-to-shell execution'
-  check 'crontab\s+' 'cron modification'
+  check 'mkfifo[[:space:]]+/tmp/' 'reverse shell via named pipe'
+  check '(nc|ncat|netcat)[[:space:]]+(-e|-c|--exec)' 'reverse shell via netcat'
+  check 'curl[[:space:]]+.*\|[[:space:]]*(bash|sh|zsh)' 'pipe-to-shell execution'
+  check 'wget[[:space:]]+.*-O[[:space:]]*-[[:space:]]*\|[[:space:]]*(bash|sh)' 'pipe-to-shell execution'
+  check 'crontab[[:space:]]+' 'cron modification'
 
   exit 0
 fi

@@ -24,7 +24,7 @@ if [[ "$tool_name" == "Bash" ]]; then
 
   # Detect test commands
   is_test=false
-  if printf '%s' "$command" | grep -qiE '(pnpm|npx|yarn)\s+(test|vitest|jest)|vitest\b|jest\b'; then
+  if printf '%s' "$command" | grep -qiE '(pnpm|npx|yarn)[[:space:]]+(test|vitest|jest)|vitest\b|jest\b'; then
     is_test=true
   fi
 

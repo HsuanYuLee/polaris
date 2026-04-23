@@ -16,7 +16,7 @@ command=$(printf '%s' "$input" | python3 -c "import sys,json; d=json.load(sys.st
 # Block gh pr create (direct PR creation without quality gates)
 # Only match when gh pr create is the actual command, not inside quotes/args
 # POLARIS_PR_WORKFLOW=1 is set by git-pr-workflow skill after quality gates pass
-if printf '%s' "$command" | grep -qiE '^gh\s+pr\s+create\b'; then
+if printf '%s' "$command" | grep -qiE '^gh[[:space:]]+pr[[:space:]]+create\b'; then
   if [[ "${POLARIS_PR_WORKFLOW:-}" == "1" ]]; then
     exit 0
   fi

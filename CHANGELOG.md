@@ -4,6 +4,41 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.49.1] - 2026-04-24
+
+### Fix — BSD sed/grep/awk `\s` incompatibility on macOS
+
+Closes a latent portability bug discovered during the DP-028 v3.48.0 commit session: macOS default BSD `sed` / `grep -E` / `awk` do not expand `\s` (GNU extension). Patterns silently matched nothing, causing the most visible symptom where `quality-gate.sh` could not extract `repo_dir` from `git -C <path>` commands, fell back to `cwd`, and misidentified the branch when Claude Code's Bash tool CWD diverged from the commit target repo (→ `BLOCKED: No quality evidence for branch 'task/XXX'` false positive).
+
+**Changed** — 22 occurrences across 12 files, `\s` → `[[:space:]]` and `\S` → `[^[:space:]]` (Python heredoc blocks preserved since `re` module supports `\s`):
+
+- `scripts/quality-gate.sh` (L31 grep, L42 grep, L43 sed — root cause of the false-block symptom)
+- `scripts/verification-evidence-gate.sh` (L28, L128)
+- `scripts/dev-server-guard.sh` (L34, L36)
+- `scripts/pr-create-guard.sh` (L19)
+- `scripts/check-scope-headers.sh` (L46)
+- `scripts/validate-task-md.sh` (L143, L144 — awk `/^\s*$/`, also BSD-incompatible)
+- `scripts/test-sequence-tracker.sh` (L27)
+- `scripts/safety-gate.sh` (L53-63 — 10 dangerous-pattern regexes)
+- `scripts/generate-specs-sidebar.sh` (L200)
+- `.claude/hooks/coverage-gate.sh` (L69)
+- `.claude/hooks/version-docs-lint-gate.sh` (L30, L31)
+- `.claude/hooks/version-bump-reminder.sh` (L21, also fixed `\S` → `[^[:space:]]`)
+
+**Dogfood** — macOS BSD sed now correctly extracts paths:
+```bash
+echo 'git -C /Users/hsuanyu.lee/work commit -m "test"' | \
+  sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^ ]+).*/\1/p'
+# → /Users/hsuanyu.lee/work   (previously: empty string)
+```
+
+**Files**
+
+- 12 shell scripts / hooks (see list above)
+- `.claude/polaris-backlog.md` — TODO entry flipped `[ ]` → `[x]` with fix note
+- `VERSION` — 3.49.1
+- `CHANGELOG.md` — this entry
+
 ## [3.49.0] - 2026-04-24
 
 ### DP-029 Phase A + Phase B — CI-Equivalent Coverage: Hook Detection + Codecov Patch Gate Simulation
