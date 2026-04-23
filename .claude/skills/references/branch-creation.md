@@ -68,3 +68,22 @@ After branch creation, deploy Polaris AI config:
 ```bash
 {base_dir}/polaris-sync.sh {project-name}
 ```
+
+## Consumer Side Note — engineering reads Base branch via resolve-task-base.sh
+
+本文件描述 breakdown-side 如何建立 task branch 並在 task.md 寫入 `Base branch` 欄位。**engineering 消費此欄位時，不可直接讀字面值** — 必須經過 resolve helper：
+
+```bash
+RESOLVED_BASE=$("${CLAUDE_PROJECT_DIR}/scripts/resolve-task-base.sh" "<path/to/task.md>")
+```
+
+Helper 會在「上游 task branch 已 merged 到 Epic feature branch」時自動回退到 feature branch 值，避免 rebase / PR 指向已刪除的 remote branch。
+
+若本文件的 branch 建立指令有消費者場景（如使用者手動建新 branch 時指定 base），同樣建議走 resolve helper：
+
+```bash
+RESOLVED_BASE=$("${CLAUDE_PROJECT_DIR}/scripts/resolve-task-base.sh" "<path/to/task.md>")
+bash scripts/create-branch.sh <TICKET> <DESCRIPTION> "${RESOLVED_BASE}"
+```
+
+應用細節（§ 4.5 / § R0 / Step 7 三處消費點）見 `references/engineer-delivery-flow.md § Base Branch Resolution`（DP-028 D2 / D4 / D6）。

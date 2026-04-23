@@ -16,6 +16,8 @@
 # DP-023 enforces runtime contract fields (Level / Runtime verify target / Env bootstrap).
 # DP-025 extends to non-runtime required sections (Operational Context JIRA keys, 改動範圍
 # non-empty, 估點理由 non-empty) and adds --scan mode.
+# DP-028 adds cross-field rule for `Depends on` + `Base branch`: when Depends on is non-empty
+# (not "N/A" / "-" / whitespace), Base branch must start with `task/` (stacked PR).
 
 set -euo pipefail
 
@@ -49,6 +51,36 @@ extract_first_fenced_code_block() {
     }
     in_block { print }
   '
+}
+
+# Extract the value cell of an Operational Context table row.
+# task.md convention: `| {field} | {value} |` — the first match wins.
+# Returns the trimmed value (no leading/trailing whitespace, no trailing `|`).
+# Returns empty string if the field is not present.
+extract_op_ctx_field() {
+  local file="$1"
+  local field="$2"
+  # Match rows like "| Depends on | KB2CW-3711 ... |" — allow surrounding whitespace around the field name.
+  awk -v field="$field" '
+    BEGIN {
+      # Build regex for the field cell: start of row = `|`, optional spaces, field, optional spaces, `|`
+      # We match literally via split + trim.
+    }
+    /^\|/ {
+      # Split on `|`; task.md uses exactly two content columns, so fields[2] = name, fields[3] = value
+      n = split($0, fields, "|")
+      if (n < 4) next
+      name = fields[2]
+      val  = fields[3]
+      # Trim leading/trailing whitespace
+      sub(/^[[:space:]]+/, "", name); sub(/[[:space:]]+$/, "", name)
+      sub(/^[[:space:]]+/, "", val);  sub(/[[:space:]]+$/, "", val)
+      if (name == field) {
+        print val
+        exit
+      }
+    }
+  ' "$file"
 }
 
 # Returns 0 (pass) / 1 (fail) / 2 (file not found). Writes errors to stderr.
@@ -218,6 +250,28 @@ validate_file() {
       errors+=("missing Operational Context field: $field")
     fi
   done
+
+  # --- DP-028: Cross-field rule — Depends on (non-empty) ⇒ Base branch must be task/... ---
+  # When `Depends on` row has a real value (not N/A / - / empty / whitespace), the task is
+  # stacked on a dependency's task branch — `Base branch` must start with `task/`.
+  local depends_on_val base_branch_val
+  depends_on_val=$(extract_op_ctx_field "$FILE" "Depends on")
+  base_branch_val=$(extract_op_ctx_field "$FILE" "Base branch")
+  # Treat these as "no dependency" sentinels (case-insensitive)
+  local deps_normalized
+  deps_normalized=$(echo "$depends_on_val" | tr '[:upper:]' '[:lower:]' | xargs || true)
+  if [[ -n "$deps_normalized" \
+        && "$deps_normalized" != "n/a" \
+        && "$deps_normalized" != "-" \
+        && "$deps_normalized" != "無" \
+        && "$deps_normalized" != "none" ]]; then
+    # Depends on is non-empty → Base branch must be a task/ branch
+    if [[ -z "$base_branch_val" ]]; then
+      errors+=("[FAIL] $FILE: depends_on non-empty but Base branch is not a task/ branch (found: <empty>). See DP-028.")
+    elif [[ "$base_branch_val" != task/* ]]; then
+      errors+=("[FAIL] $FILE: depends_on non-empty but Base branch is not a task/ branch (found: $base_branch_val). See DP-028.")
+    fi
+  fi
 
   # --- DP-025: Test Command / Verify Command must contain a fenced code block ---
   local test_cmd verify_cmd

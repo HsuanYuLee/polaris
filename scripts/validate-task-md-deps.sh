@@ -17,6 +17,7 @@
 #   1. `depends_on` (frontmatter) references only existing T{n}[suffix].md in the same dir
 #   2. `depends_on` graph is a DAG — no cycles
 #   3. `Fixtures:` paths in `## Test Environment` exist on filesystem (when non-N/A)
+#   4. `depends_on` graph is a linear chain (each task has ≤ 1 dep) — DP-028 is-linear-dag rule
 
 set -euo pipefail
 
@@ -183,6 +184,17 @@ for tid in deps_graph:
         if dfs(tid):
             break
 
+# --- Linearity check (DP-028 is-linear-dag) ---
+# Each task may have ≤ 1 depends_on. Non-linear depends_on (task depends on ≥ 2
+# independent tasks) is rejected — breakdown must either linearize the order or split the Epic.
+for tid in sorted(deps_graph):
+    deps = deps_graph[tid]
+    if len(deps) > 1:
+        errors.append(
+            f"{tid}.md: non-linear depends_on DAG — {tid} depends on {deps}. "
+            f"DP-028 requires linear chain. Either linearize the dependency order or split the Epic."
+        )
+
 # --- Fixture path existence ---
 def resolve_fixture(raw):
     """Return list of candidate absolute paths to check.
@@ -310,6 +322,12 @@ def dfs(node):
 for tid in deps_graph:
     if color[tid] == 0:
         if dfs(tid): break
+
+# DP-028 is-linear-dag
+for tid in sorted(deps_graph):
+    deps = deps_graph[tid]
+    if len(deps) > 1:
+        errors.append(f"{tid}.md: non-linear depends_on DAG — {tid} depends on {deps}. DP-028 requires linear chain. Either linearize the dependency order or split the Epic.")
 
 def resolve_fixture(raw):
     raw = raw.strip()

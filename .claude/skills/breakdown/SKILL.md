@@ -332,30 +332,149 @@ Total: N pt，預估 X 天
 
 結構化 description 參考 `references/epic-template.md`，必須包含**拆單總覽**（子單 Key + Summary + Points）。
 
-### 14. 建立 Branch
+### 14. 建立 Branch（依 depends_on DAG topological 順序）
+
+> **DP-028 D4 / D5 / D6**：task branch 依 `depends_on` DAG topological 順序建立；非線性 DAG 先拒絕；`Base branch` 寫入 snapshot 當下的正確值，無 `PR base` 欄位。engineering 開工時若 snapshot 過時（依賴已 merge），Resolve 層在 `engineer-delivery-flow.md § 4.5 / § R0 / § Step 7` 動態改值——snapshot **不是永遠不變**。
+>
+> 本步驟沿用 `breakdown-step14-no-checkout` canary：**只用 `git branch <name> <start>` + `git push`，不使用 `git checkout` / `git checkout -b` / `git pull origin develop`**。主 checkout 的 HEAD / working tree 在 Step 14 執行後必須完全不動，使用者 WIP 不受干擾。
 
 **14a. 按專案分組子單**（從子單 description 或 Step 2 的專案辨識結果）
 
-**14b. 建立母單 feature branch**（每個涉及的 repo 一個）
+**14a'. 非線性 DAG 拒絕（D5 pre-check）**
+
+在建立任何 branch 之前，先確認同 Epic 的 task.md depends_on graph 是線性的：
 
 ```bash
-git -C {base_dir}/<repo> checkout develop
-git -C {base_dir}/<repo> pull origin develop
-git -C {base_dir}/<repo> checkout -b feat/<TICKET_KEY>-<description>
+bash "${CLAUDE_PROJECT_DIR}/scripts/validate-task-md-deps.sh" \
+  {company_base_dir}/specs/{EPIC_KEY}/tasks/
+```
+
+- exit 0 → 線性 DAG，繼續 14b
+- exit 1 → validator 列出違反項目（含 `non-linear depends_on DAG` 或 cycle）。**停下來，不建任何 branch**，把非線性依賴 + 建議呈現給使用者：
+
+  ```
+  ⛔ 非線性 depends_on DAG 偵測：
+  - T{n}.md: {TASK_KEY} 同時 depends on [{depA}, {depB}] — 兩者無前後順序
+
+  breakdown **不支援** multi-base 或 merge-commit 方案（deterministic 優先）。請擇一處理：
+  1. **線性化**：調整 depends_on 順序使成鏈狀（例 T3d depends on T3c、T3c depends on T3b）
+  2. **拆 Epic**：把互不依賴的分支拆成兩個獨立 Epic / feature branch
+
+  確認選擇後再跑 Step 14。
+  ```
+
+- exit 2 → 使用錯誤或路徑不存在，修正後重跑
+
+> 為什麼硬性要線性：`Base branch` 只能指向一個上游；非線性 DAG 需 merge-commit 或同時切多個 base，與 deterministic snapshot 模型衝突（DP-028 Blind #4）。
+
+**14b. 建立母單 feature branch**（每個涉及的 repo 一個）
+
+先取得 develop 最新 commit 當 start point，再**只用 `git branch`** 建立本地 branch（不切走）：
+
+```bash
+git -C {base_dir}/<repo> fetch origin develop
+DEVELOP_SHA=$(git -C {base_dir}/<repo> rev-parse origin/develop)
+git -C {base_dir}/<repo> branch feat/<TICKET_KEY>-<description> "$DEVELOP_SHA"
 git -C {base_dir}/<repo> push -u origin feat/<TICKET_KEY>-<description>
 ```
 
-> 小型 ticket（≤ 5pt，單一子單）可跳過 feature branch，直接從 develop 開 task branch。
+> 小型 ticket（≤ 5pt，單一子單）可跳過 feature branch，後續 14c 直接用 `$DEVELOP_SHA` 當 start point 開 task branch。
 
-**14c. 為每張子單建立 branch**（從對應 repo 的母單 branch 開出）
+**14c. 依 depends_on DAG 依序建立子單 branch（D4 topological ordering）**
+
+同一個 Epic 的 task branch **必須依 topological 順序建**：一張 task 的 depends_on 指向的 task branch 必須先於它建立，確保 `git branch <name> <start>` 的 start point 永遠存在。
+
+**排序演算法**：
+
+讀取 `{company_base_dir}/specs/{EPIC_KEY}/tasks/T*.md` 的 frontmatter `depends_on`，跑 Kahn's algorithm（bash 或 python 皆可；以下用 python 示意）：
 
 ```bash
-git -C {base_dir}/<repo> checkout feat/<TICKET_KEY>-<description>
-git -C {base_dir}/<repo> checkout -b task/<SUB_KEY>-<description>
+python3 <<'PY'
+import os, re, sys
+from pathlib import Path
+
+tasks_dir = Path(os.environ["TASKS_DIR"])  # e.g. specs/{EPIC}/tasks/
+graph = {}   # task_id → list of deps (task_id)
+for f in sorted(tasks_dir.glob("T*.md")):
+    text = f.read_text()
+    m = re.search(r"^---\n(.*?)\n---", text, re.DOTALL)
+    fm = m.group(1) if m else ""
+    task_id = f.stem
+    dm = re.search(r"^depends_on:\s*\[(.*?)\]", fm, re.MULTILINE)
+    deps = []
+    if dm and dm.group(1).strip():
+        deps = [d.strip().strip('"\'') for d in dm.group(1).split(",") if d.strip()]
+    graph[task_id] = deps
+
+# Kahn topological sort — 線性 DAG 已由 14a' 保證
+indeg = {t: len(d) for t, d in graph.items()}
+ready = [t for t, n in indeg.items() if n == 0]
+order = []
+while ready:
+    t = ready.pop(0)
+    order.append(t)
+    for u, deps in graph.items():
+        if t in deps:
+            indeg[u] -= 1
+            if indeg[u] == 0:
+                ready.append(u)
+# 結果：order = ['T1', 'T2', 'T3', 'T3a', 'T3b', ...]
+print("\n".join(order))
+PY
+```
+
+**依序建立 branch（snapshot Base branch → D2 + D6）**：
+
+對 `order` 中每張 task，依其 `depends_on` 決定 start point（= snapshot 當下 Base branch 值）：
+
+| 情境 | start point（= task.md `Base branch` snapshot 值）|
+|------|----|
+| `depends_on: []`（無依賴）| `feat/<TICKET_KEY>-<description>`（母單 feature branch；小型 ticket 單一子單時 = develop 的 SHA）|
+| `depends_on: [<UPSTREAM_KEY>]`（有依賴）| 最下游依賴的 task branch，即 `task/<UPSTREAM_KEY>-<description>`（該 branch 已於本迴圈前一輪建好）|
+
+```bash
+# 無 depends_on 的 task（從 feat 切）
+git -C {base_dir}/<repo> branch task/<SUB_KEY>-<description> feat/<TICKET_KEY>-<description>
+git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
+
+# 有 depends_on 的 task（從上游 task branch 切，stacked）
+git -C {base_dir}/<repo> branch task/<SUB_KEY>-<description> task/<UPSTREAM_KEY>-<description>
 git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
 ```
 
+**Snapshot 寫入 task.md（14.5 產出時）**：
+
+建完 branch 後，Step 14.5 產 task.md 時 `Base branch` 欄位填**該 task 的 start point 值**（即上表第二欄）。**不新增 `PR base` 欄位**（D6）——`gh pr create --base` 直接使用 `Base branch`（經 engineering Resolve 層調整後）的值。
+
+> Snapshot ≠ 永遠不變：engineering 開工 / revision 時 `engineer-delivery-flow.md § 4.5 / § R0 / § Step 7` 會重跑 `scripts/resolve-task-base.sh`——若 snapshot 指向的 upstream branch 已 merge 到 feat，resolve 層自動改為從 feat 切 / 對 feat 開 PR（D2 三層消費模型的 Resolve 層）。
+
+**14c'. Chain depth advisory**（非阻擋）
+
+對 `order` 中每張 task 計算其 depends_on chain 長度（從根 task 算起的邊數）。若任一 chain 長度 > 3，印出 warning（不擋流程）：
+
+```
+⚠ Stacked PR chain 超過 3 層：
+  T3a → T3b → T3c → T3d（長度 4）
+
+Chain 越長，CI / rebase 成本上升、reviewer 追蹤負擔加重。考慮：
+- 把末端 task 併回上游（減少 chain 層數）
+- 拆 Epic（兩條獨立 chain 各自開 feature branch）
+```
+
+> 此為 advisory（DP-028 Blind #2 explicit non-goal），使用者可忽略後繼續。
+
 **14d. 回報 branch 結構**
+
+列出 feature branch 與所有 task branch，附 snapshot Base branch 關係：
+
+```
+feat/PROJ-123-...
+  ├── task/TASK-123-... (T3a, Base: feat/PROJ-123-...)
+  │     └── task/TASK-123-... (T3b, Base: task/TASK-123-..., stacked)
+  │     └── task/TASK-123-... (T3c, Base: task/TASK-123-..., stacked)
+  │           └── task/TASK-123-... (T3d, Base: task/TASK-123-..., stacked, chain depth 3)
+  └── task/TASK-123xxx-... (無 depends_on, Base: feat/PROJ-123-...)
+```
 
 ### 14.5. 產出 task.md work orders
 
@@ -380,8 +499,12 @@ git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
    - Task JIRA key、Parent Epic（或母單 key）
    - Test sub-tasks（Step C 產出的測試計劃 key list）
    - AC 驗收單（Step D 產出的 verification ticket key）
-   - Base branch（Step 14b 建立的 feature branch；小型 ticket 跳過時寫 `develop`）
+   - Base branch — **DP-028 snapshot 值（D2 / D6）**：
+     - `depends_on: []`（無依賴）→ Step 14b 建立的 `feat/{TICKET_KEY}-{slug}`（小型 ticket 跳過 feature branch 時寫 `develop`）
+     - `depends_on: [<UPSTREAM_KEY>]`（有依賴）→ 最下游依賴的 task branch `task/{UPSTREAM_KEY}-{slug}`（stacked）
+     - 不新增 `PR base` 欄位：`gh pr create --base` 直接用本欄位（engineering Resolve 層可能動態改值，見 `engineer-delivery-flow.md § 4.5 / § R0 / § Step 7`）
    - Task branch（Step 14c 建立的 `task/{TASK_KEY}-{slug}`）
+   - Depends on（frontmatter `depends_on` 的 human-readable 摘要，例 `TASK-123 (T3a — 需 dayjs plugin 就緒)`；無依賴時省略）
    - References to load（見下方「挑選規則」）
 3. **Verification Handoff 段落**：一句話 `AC 驗證不在本 task 範圍，委派至 {AC_TICKET_KEY}（由 verify-AC skill 執行）。`
 4. **目標**：一段話（從 Step 6 的子任務 description 摘要）

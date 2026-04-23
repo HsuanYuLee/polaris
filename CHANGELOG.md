@@ -4,6 +4,32 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.48.0] - 2026-04-23
+
+### DP-028 — `depends_on` Branch Binding
+
+Closes the gap where multi-task Epics let engineering open PRs against stale or wrong base branches when upstream tasks weren't yet merged. Enforcement is deterministic (script + hook), not behavioral.
+
+**Added**
+
+- New script `scripts/resolve-task-base.sh` — reads task.md's `Base branch`, traces `depends_on` chain, checks `git merge-base --is-ancestor` to determine whether the upstream is already merged into develop, and returns the correct base dynamically.
+- New script `scripts/resolve-task-md-by-branch.sh` — maps a git branch name back to its task.md via the `Task branch` field; supports `--current` and handles worktree roots (prefers outermost `workspace-config.yaml`, then `git rev-parse --git-common-dir`).
+- New PreToolUse hook `.claude/hooks/pr-base-gate.sh` — extracts `--base X` from `gh pr create` / `gh pr edit` commands, compares with `resolve-task-base.sh` output, and blocks on mismatch (exit 2). Fail-open on resolver failure. Bypass: `POLARIS_SKIP_PR_BASE_GATE=1`.
+
+**Changed**
+
+- `scripts/validate-task-md.sh`: added cross-field rule — when `Depends on` is non-empty, `Base branch` must start with `task/` (snapshot points at the task branch until upstream merges).
+- `scripts/validate-task-md-deps.sh`: added is-linear-dag check — a task may depend on at most one predecessor. Multi-dependency rejected to keep the dispatch chain unambiguous.
+- `breakdown` Step 14: rewritten to produce DAG-topological ordering (Kahn's algorithm), snapshot `Base branch` at breakdown time, and emit chain-depth advisory. Pre-check rejects multi-dependency graphs.
+- `engineering` SKILL.md § R0 Pre-Revision Rebase + PR Base Sync: engineering revision mode now rebases onto `resolve-task-base.sh` output (not PR `baseRefName`) and syncs PR base via `gh pr edit --base` when it drifts. The hook blocks mismatched edits.
+- `references/engineer-delivery-flow.md`: Base Branch Resolution table now lists four consumption points including § R0 step 4 PR base sync.
+- `references/pipeline-handoff.md`: added `Dependency Binding (DP-028)` section documenting the three-layer consumption model (Snapshot / Resolve / Gate) and cross-field rule.
+- `rules/mechanism-registry.md`: added `engineering-consume-depends-on` (High) and `depends-on-linear-chain` (Medium); updated `breakdown-step14-no-checkout` canary to cover DAG topological ordering.
+
+**Dogfood**
+
+- GT-478 T3b/T3c/T3d PRs (#2206, #2205, #2207) had stale `feat/GT-478-cwv-js-bundle` base because T3a (KB2CW-3711) hadn't merged. Mechanism detected, engineering revision mode R0 applied `gh pr edit --base task/KB2CW-3711-dayjs-infra-util` to all three, hook validated each edit. Three PRs now stacked correctly against the predecessor task branch.
+
 ## [3.47.0] - 2026-04-23
 
 ### Worktree Dispatch Paths for Cross-LLM Compat
