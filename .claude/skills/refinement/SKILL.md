@@ -249,6 +249,12 @@ Phase 1 是 refinement 的核心，從 checklist 填空升級為 **codebase-back
 
 **2a. 自適應 Codebase 探索**（Tier 2+）
 
+**Worktree dispatch — 主 checkout 絕對路徑**
+Sub-agent 在 worktree 執行；`specs/` 與 `.claude/skills/` 是 gitignored（worktree 無此檔）。dispatch prompt 須以主 checkout 絕對路徑讀寫：
+- task.md: `{company_base_dir}/specs/{EPIC}/tasks/T{n}.md`
+- artifacts / verification: `{company_base_dir}/specs/{EPIC}/artifacts/`、`.../verification/`
+詳見 `skills/references/worktree-dispatch-paths.md`。
+
 使用 `references/explore-pattern.md` 掃描 codebase，探索目標：
 
 - 找出與 Epic 需求相關的現有實作（哪些檔案要改、哪些要新增）

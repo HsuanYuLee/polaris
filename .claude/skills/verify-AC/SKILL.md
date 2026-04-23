@@ -106,7 +106,13 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 
 **Step 3a. 讀驗收單 task.md**
 
-查找驗收單對應的 task.md：`specs/{EPIC_KEY}/tasks/{AC_TICKET_KEY}.md`。若存在 → 讀取 fixture 設定；若不存在 → fallback 到 Step 3b。
+**Worktree dispatch — 主 checkout 絕對路徑**
+Sub-agent 在 worktree 執行；`specs/` 與 `.claude/skills/` 是 gitignored（worktree 無此檔）。dispatch prompt 須以主 checkout 絕對路徑讀寫：
+- task.md: `{company_base_dir}/specs/{EPIC}/tasks/T{n}.md`
+- artifacts / verification: `{company_base_dir}/specs/{EPIC}/artifacts/`、`.../verification/`
+詳見 `skills/references/worktree-dispatch-paths.md`。
+
+查找驗收單對應的 task.md：`{company_base_dir}/specs/{EPIC_KEY}/tasks/{AC_TICKET_KEY}.md`。若存在 → 讀取 fixture 設定；若不存在 → fallback 到 Step 3b。
 
 **Step 3b. Fixture 自動偵測（fallback）**
 

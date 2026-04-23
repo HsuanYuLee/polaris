@@ -148,6 +148,12 @@ mcp__claude_ai_Atlassian__getJiraIssue
 
 **Codebase 掃描（僅在無 artifact 時）：**
 
+**Worktree dispatch — 主 checkout 絕對路徑**
+Sub-agent 在 worktree 執行；`specs/` 與 `.claude/skills/` 是 gitignored（worktree 無此檔）。dispatch prompt 須以主 checkout 絕對路徑讀寫：
+- task.md: `{company_base_dir}/specs/{EPIC}/tasks/T{n}.md`
+- artifacts / verification: `{company_base_dir}/specs/{EPIC}/artifacts/`、`.../verification/`
+詳見 `skills/references/worktree-dispatch-paths.md`。
+
 使用 `references/explore-pattern.md` 的自適應探索模式。啟動 1 個 Explore subagent，帶入需求摘要和專案路徑。Subagent 會自行判斷範圍大小。
 
 Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`），Detail 寫入 `specs/{EPIC}/artifacts/explore-{timestamp}.md`。
@@ -354,6 +360,8 @@ git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
 ### 14.5. 產出 task.md work orders
 
 為每張實作子單產出 self-contained 工單檔案，讓 engineering 只消費 codebase + task.md + repo handbook（sub-agent 須自行讀取 `{repo}/.claude/rules/handbook/`，不會自動載入）。
+
+**Worktree 提醒**：task.md Write 路徑須用主 checkout 絕對路徑 `{company_base_dir}/specs/{EPIC_KEY}/tasks/T{n}.md`（gitignored，跨 worktree 共享）。詳見 `skills/references/worktree-dispatch-paths.md`。
 
 **路徑規則：**
 

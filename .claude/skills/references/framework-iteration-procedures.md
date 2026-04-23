@@ -31,6 +31,8 @@ Why it works: [one-sentence hypothesis]
 
 After a VERSION bump is committed, execute these steps in order — no user confirmation needed:
 
+0. **One commit for everything** — first write `VERSION` + `CHANGELOG.md`, then run `git add -A` to stage all changes together (framework code + VERSION + CHANGELOG), then commit once. Never run `git add -A` before writing VERSION/CHANGELOG (they won't be staged), and never commit VERSION/CHANGELOG separately while code diffs remain in the working tree
+
 1. **docs-lint** — run `python3 scripts/readme-lint.py --fix` as a fast deterministic check: skill counts, phantom skills, undocumented skills, chinese-triggers table, mermaid diagram nodes. Auto-fixes counts; reports other issues
 2. **docs-sync** — if docs-lint reported issues beyond count fixes (phantom skills, missing entries, stale diagrams), invoke `/docs-sync` to fix them. The skill's Step 0 uses docs-lint output + git diff to scope the sync. If changes are found, commit as a separate `docs:` commit
 3. **backlog-staleness-scan** — scan `polaris-backlog.md` for stale items (see § Backlog Hygiene below)

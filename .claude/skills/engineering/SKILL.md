@@ -148,6 +148,12 @@ Project: {base_dir}/{repo}（base_dir 從 workspace-config.yaml 取得）
 
 ## Work Order（唯一輸入來源）
 
+**Worktree dispatch — 主 checkout 絕對路徑**
+Sub-agent 在 worktree 執行；`specs/` 與 `.claude/skills/` 是 gitignored（worktree 無此檔）。dispatch prompt 須以主 checkout 絕對路徑讀寫：
+- task.md: `{company_base_dir}/specs/{EPIC}/tasks/T{n}.md`
+- artifacts / verification: `{company_base_dir}/specs/{EPIC}/artifacts/`、`.../verification/`
+詳見 `skills/references/worktree-dispatch-paths.md`。
+
 依優先順序定位並讀取：
 1. **新格式（優先）** — 以 JIRA key 定位 task.md：
    ```bash

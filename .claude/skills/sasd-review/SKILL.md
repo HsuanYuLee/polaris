@@ -115,6 +115,12 @@ Read Summary, Description, and Acceptance Criteria to understand:
 
 ### Step 4: Explore the codebase (adaptive)
 
+**Worktree dispatch — 主 checkout 絕對路徑**
+Sub-agent 在 worktree 執行；`specs/` 與 `.claude/skills/` 是 gitignored（worktree 無此檔）。dispatch prompt 須以主 checkout 絕對路徑讀寫：
+- task.md: `{company_base_dir}/specs/{EPIC}/tasks/T{n}.md`
+- artifacts / verification: `{company_base_dir}/specs/{EPIC}/artifacts/`、`.../verification/`
+詳見 `skills/references/worktree-dispatch-paths.md`。
+
 Use `references/explore-pattern.md` to scan the codebase.
 
 **Goal**: Find all files related to the requirements. Understand the current
@@ -124,7 +130,7 @@ Dispatch 1 Explore sub-agent with the ticket summary and project path.
 The sub-agent will auto-calibrate scope — small tickets get a quick scan,
 large tickets spawn multiple parallel sub-explores.
 
-Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`），Detail 寫入 `specs/{TICKET}/artifacts/explore-{timestamp}.md`。
+Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`），Detail 寫入 `{company_base_dir}/specs/{TICKET}/artifacts/explore-{timestamp}.md`。
 
 **After receiving the exploration summary**, proceed directly to Step 5.
 Do not re-read source files. If a specific area needs more detail, dispatch

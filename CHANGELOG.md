@@ -4,6 +4,25 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.47.0] - 2026-04-23
+
+### Worktree Dispatch Paths for Cross-LLM Compat
+
+**Added**
+
+- New reference `skills/references/worktree-dispatch-paths.md` — canonical path map for worktree sub-agents accessing gitignored framework artifacts (`specs/`, `.claude/skills/`). Includes a copy-paste dispatch block and rationale. Indexed under Sub-agent & Exploration in `references/INDEX.md`.
+- Backlog entries for related worktree friction surfaced during KB2CW-3711: Verify Command hardcoded main-checkout paths, and `pre-commit-quality.sh` full-repo vs scoped-to-changed scanning.
+
+**Changed**
+
+- `rules/sub-agent-delegation.md`: worktree path translation split into two bullets — tracked source code stays inside the worktree; gitignored framework artifacts (`specs/`, `.claude/skills/`) are read from and written to the main checkout via absolute paths.
+- `engineering`, `breakdown`, `verify-AC`, `refinement`, `bug-triage`, `sasd-review` SKILL.md: inlined a ≤ 6-line path-rule block at each skill's sub-agent dispatch site so Codex and other LLMs that don't auto-load `rules/` can follow the rule verbatim.
+- `framework-iteration-procedures.md`: added Step 0 "One commit for everything" to the post-version-bump chain to prevent partial commits that omit `VERSION`/`CHANGELOG.md`.
+
+**Fixed**
+
+- `bug-triage` Step 2-AF artifact path was relative (`specs/{EPIC}/artifacts/...`), corrected to absolute (`{company_base_dir}/specs/{EPIC}/artifacts/...`) so sub-agents running in worktrees can locate it.
+
 ## [3.46.0] - 2026-04-22
 
 ### Pipeline Handoff + Skill Workflow Upgrades
