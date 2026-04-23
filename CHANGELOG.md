@@ -4,6 +4,35 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.52.0] - 2026-04-24
+
+### Feat — DP-030 Phase 2A: L2 embedding meta-linter infrastructure
+
+承接 Phase 1 POC（v3.51.0），建立 DP-030 Phase 2 系統性下放的**監督層**：meta-linter registry 記錄「哪個 canary 對應哪支 script / 嵌在哪個 skill / 哪個 hook fallback」，validator 比對實際檔案抓斷連，避免 Phase 2B/2C 批次下放時漏嵌被忽略。（plan.md BS#8）
+
+**Added — L2 embedding registry**:
+
+- `.claude/skills/references/l2-embedding-registry.md` — machine-parseable markdown table（`<!-- registry:start -->` / `<!-- registry:end -->` 包起）記錄每個已下放 canary 的 9 欄位資訊：Canary ID / Script / Layer（L2+L1 / L1-only / L2-only）/ L2 Skill anchor / L2 Expected Grep / L1 Hook / L1 Event / L1 Matcher / L1 Expected Grep。Phase 1 POC 兩條 entry（`cross-session-carry-forward`、`no-cd-in-bash`）為 seed
+
+**Added — Meta-linter validator**:
+
+- `scripts/validate-l2-embedding.sh` — 讀 registry 表格，逐 row 驗：
+  - Script 檔案存在
+  - L2 Skill 檔案存在 + 內含指定 anchor（Step 標題字串） + L2 Expected Grep 字串
+  - L1 Hook 檔案存在 + 內含 L1 Expected Grep 字串
+  - L1 Hook basename 有註冊到 `.claude/settings.json`
+  - Layer 宣告與實際填寫欄位一致（L2+L1 必須兩者都填；L1-only 不能有 L2 Skill；L2-only 不能有 L1 Hook）
+  - Exit 0 = 全 pass；exit 1 = 至少一 row fail；exit 2 = registry 檔不存在 / 表格 marker 缺
+
+**Added — `/validate` Mechanisms mode check #11**:
+
+- `.claude/skills/validate/SKILL.md` — Mechanisms mode checks 表擴到 11 項，新增「L2 embedding integrity」項，直接呼叫 validator + 將 per-entry error surface 給使用者
+
+**Follow-up (Phase 2B/2C, pending)**:
+
+- Phase 2B — L1-only canary batch（`no-independent-cmd-chaining`、`max-five-consecutive-reads`、`no-file-reread`）
+- Phase 2C — L2 canary batch（`feedback-trigger-count-update`、`post-task-feedback-reflection`、`version-bump-reminder`）
+
 ## [3.51.0] - 2026-04-24
 
 ### Feat — DP-030 Phase 1 POC: LLM judgment → deterministic script migration
