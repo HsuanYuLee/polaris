@@ -213,12 +213,12 @@ Sub-agent **不會**自動載入 `.claude/rules/`。你必須自己讀：
   - `runtime` → 讀 `workspace-config.yaml` → `projects[{repo_name}].dev_environment`，依序啟動：(1) `requires` 列出的所有 dependencies（如 `your-dev-proxy`），(2) `start_command` 起 dev server，(3) `health_check` URL 驗證 ready（預期 HTTP 200）。若 Fixtures 非 `N/A`，額外 `mockoon-runner.sh start {fixture_path}` 起 fixture server
   - 啟動失敗 → **停止，回報使用者**，不繼續跑 Verify Command（Verify 會假 pass 或誤報 fail）
 - **TDD 智慧判斷**：依 `references/tdd-smart-judgment.md` 判斷每個檔案是否走 TDD 循環
-- **Coverage Gate**：若 repo 有 Codecov patch gate（見 `references/engineer-delivery-flow.md` § Step 2a），改動的 source file 一律補測試，不以「改動小」為由豁免。push 前由 `coverage-gate.sh` hook 硬擋
+- **CI Contract Parity (Dimension B)**：若 repo 有配 Codecov patch gate / 其他 workflow checks（見 `references/engineer-delivery-flow.md` § Step 2a），`ci-contract-run.sh` 會在 push 前模擬跑；repo 沒配就跳過。patch coverage 歸 repo 責任，不以「改動小」為由豁免 repo 自己的 CI 要求
 - 發現情況不同時，在 JIRA 新增 comment 標註修正版
 
 ### 3. 交付流程（quality → behavioral verify → PR）
 - 讀取 `references/engineer-delivery-flow.md`，以 **Role: Developer** 執行 Step 1-8
-- 流程包含：Simplify → Quality Check + **Coverage Gate (§ 2a)** → Behavioral Verify (Layer A + Layer B) → Pre-PR Review → Rebase → Commit → PR → JIRA transition
+- 流程包含：Simplify → Quality Check + **CI Contract Parity (§ 2a, Dimension B)** → Behavioral Verify (Layer A + Layer B) → Pre-PR Review → Rebase → Commit → PR → JIRA transition
 - **AC 驗證由 verify-AC skill 接手**：work-on 不跑 AC 驗證。PR 開完後使用者跑「驗 {EPIC}」或 opportunistic 偵測觸發
 
 ### 4. 回傳結果

@@ -188,7 +188,7 @@ if [[ "${POLARIS_SKIP_CI_CONTRACT:-}" == "1" ]]; then
 else
   echo "🔍 [4/4] CI contract parity..." >&2
   ci_output=""
-  if ci_output=$("$SCRIPT_DIR/ci-contract-run.sh" --repo "$REPO_DIR" --skip-install --write-coverage-evidence 2>&1); then
+  if ci_output=$("$SCRIPT_DIR/ci-contract-run.sh" --repo "$REPO_DIR" --skip-install 2>&1); then
     results_ci_contract="PASS"
     echo "  ✅ ci contract parity passed" >&2
   else

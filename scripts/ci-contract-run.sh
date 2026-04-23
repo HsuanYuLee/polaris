@@ -2,7 +2,7 @@
 # ci-contract-run.sh — Execute normalized CI contract locally
 #
 # Usage:
-#   scripts/ci-contract-run.sh --repo <path> [--intent pr|push|tag|manual|all] [--skip-install] [--write-coverage-evidence] [--include-hooks] [--dry-run]
+#   scripts/ci-contract-run.sh --repo <path> [--intent pr|push|tag|manual|all] [--skip-install] [--include-hooks] [--dry-run]
 #
 # --include-hooks: Phase A pass-through flag — records include_hooks=true in the
 # output report's contract metadata. The runner does NOT currently execute
@@ -17,7 +17,6 @@ set -euo pipefail
 
 REPO_DIR=""
 SKIP_INSTALL=0
-WRITE_COVERAGE_EVIDENCE=0
 DRY_RUN=0
 INCLUDE_HOOKS=0
 INTENT="pr"
@@ -28,7 +27,6 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO_DIR="$2"; shift 2 ;;
     --skip-install) SKIP_INSTALL=1; shift ;;
-    --write-coverage-evidence) WRITE_COVERAGE_EVIDENCE=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --include-hooks) INCLUDE_HOOKS=1; shift ;;
     --intent) INTENT="$2"; shift 2 ;;
@@ -38,13 +36,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$REPO_DIR" ]]; then
-  echo "Usage: ci-contract-run.sh --repo <path> [--intent pr|push|tag|manual|all] [--base-branch <name>] [--skip-install] [--write-coverage-evidence] [--include-hooks] [--dry-run]" >&2
+  echo "Usage: ci-contract-run.sh --repo <path> [--intent pr|push|tag|manual|all] [--base-branch <name>] [--skip-install] [--include-hooks] [--dry-run]" >&2
   exit 1
 fi
 
 REPO_DIR="$(cd "$REPO_DIR" && pwd)"
 
-python3 - "$REPO_DIR" "$SKIP_INSTALL" "$WRITE_COVERAGE_EVIDENCE" "$DRY_RUN" "$SCRIPT_DIR" "$INTENT" "$BASE_BRANCH_OVERRIDE" "$INCLUDE_HOOKS" <<'PY'
+python3 - "$REPO_DIR" "$SKIP_INSTALL" "$DRY_RUN" "$SCRIPT_DIR" "$INTENT" "$BASE_BRANCH_OVERRIDE" "$INCLUDE_HOOKS" <<'PY'
 import json
 import os
 import re
@@ -55,12 +53,11 @@ from pathlib import Path
 
 repo = Path(sys.argv[1])
 skip_install = sys.argv[2] == "1"
-write_coverage_evidence = sys.argv[3] == "1"
-dry_run = sys.argv[4] == "1"
-script_dir = Path(sys.argv[5])
-intent = (sys.argv[6] or "pr").strip().lower()
-base_branch_override = (sys.argv[7] or "").strip() if len(sys.argv) > 7 else ""
-include_hooks = (sys.argv[8] == "1") if len(sys.argv) > 8 else False
+dry_run = sys.argv[3] == "1"
+script_dir = Path(sys.argv[4])
+intent = (sys.argv[5] or "pr").strip().lower()
+base_branch_override = (sys.argv[6] or "").strip() if len(sys.argv) > 6 else ""
+include_hooks = (sys.argv[7] == "1") if len(sys.argv) > 7 else False
 
 if intent not in {"pr", "push", "tag", "manual", "all"}:
     raise SystemExit(f"Unknown --intent value: {intent}")
@@ -407,32 +404,6 @@ report = {
     "summary": summary,
     "status": "DRY_RUN" if dry_run else ("FAIL" if failed else "PASS"),
 }
-
-if write_coverage_evidence and contract.get("codecov_flag_gates") and not dry_run:
-    branch = git(["rev-parse", "--abbrev-ref", "HEAD"]) or "unknown"
-    note_parts = []
-    for g in flag_results:
-        status_label = g.get("status")
-        if status_label in {"PASS", "FAIL"}:
-            note_parts.append(
-                f"{g.get('flag')} {g.get('status_type')}: "
-                f"{g.get('coverage_percent')}% (target {g.get('target_raw')}) {status_label}"
-            )
-        elif status_label == "SKIP":
-            reason = g.get("reason") or "skip"
-            note_parts.append(
-                f"{g.get('flag')} {g.get('status_type') or 'flag'}: SKIP ({reason})"
-            )
-    note = "; ".join(note_parts) if note_parts else "flag gate: no instrumented patch lines"
-    status = "PASS" if report["status"] == "PASS" else "FAIL"
-    script = script_dir / "write-coverage-evidence.sh"
-    subprocess.run(
-        ["bash", str(script), "--branch", branch, "--status", status, "--note", note],
-        cwd=str(repo),
-        check=False,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
 
 print(json.dumps(report, ensure_ascii=False, indent=2))
 sys.exit(1 if failed else 0)

@@ -4,6 +4,48 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.50.0] - 2026-04-24
+
+### Break — DP-029 Phase C Quick-Win: coverage-gate 下架、Dimension A/B 釐清
+
+Phase C 以 **Quick-Win 原則**（D12）收尾：8 個 sub-topic 中做 3 項、其餘 5 項 deliberate closure。patch coverage 自此歸 repo 責任，框架不維持獨立 Dimension A coverage gate。難解部分（LLM judgment → script migration）承接到 DP-030 另案。
+
+**Removed — framework-level coverage gate 整組下架（D6 revision v2 / D11）**:
+
+- `.claude/hooks/coverage-gate.sh` — push-time PreToolUse hook 刪除
+- `scripts/write-coverage-evidence.sh` — evidence writer 刪除
+- `.claude/settings.json` — `git push*` 第二個 hook 註冊移除
+- `scripts/ci-contract-run.sh` — `--write-coverage-evidence` flag + 對應 Python 區塊整組移除（不再寫 `/tmp/polaris-coverage-*.json`）
+- `scripts/codex-guarded-gh-pr-create.sh` / `scripts/pre-commit-quality.sh` — caller 移除 `--write-coverage-evidence` 參數
+- `.claude/rules/mechanism-registry.md` — `coverage-evidence-required`（Deterministic Quality Hooks 表）+ `codecov-patch-gate`（Quality Gates 表）canary 整組移除；Priority Audit Order line 12 同步更新
+- `POLARIS_SKIP_COVERAGE=1` env var 作廢（無對應 gate 可 skip）
+
+**Rationale**: Dimension A Framework Baseline 剩下 **TDD / Verify Command / VR（conditional）** 三層，bug 早期偵測已足夠。Patch coverage 抓的是「改 prod 沒補 test」，這是 TDD 紀律後驗、不是 bug 防線。配合使用者「快速迭代、快做快修」哲學，不在框架層累積補救性 gate。repo 有配 `codecov.yml` → 由 Dimension B（`ci-contract-run.sh` Phase B patch gate 模擬）接手；repo 沒配 → 不主動追加。
+
+**Added — D8 revision canary `tdd-bypass-no-assertion-weakening`**:
+
+- `.claude/rules/mechanism-registry.md` Quality Gates 表新增 canary：gate fail → 禁止放寬 assertion / `.skip()` / `as any` / `@ts-ignore` 繞過，必須回實作階段修 root cause
+- 定位從原訂的 `ci-equivalent-no-patch-to-pass`（綁 coverage gate）改為通用 gate-fail 後的 TDD 紀律檢查，涵蓋 build / lint / typecheck / test / functional-verify / CI-equivalent 全部 gate
+
+**Changed — engineer-delivery-flow Step 2a Dimension A/B 文件化**:
+
+- `.claude/skills/references/engineer-delivery-flow.md` § Step 2a 從「Coverage Gate Check（硬門檻）」改為「CI Contract Parity」
+- 明文分離 Dimension A（framework baseline）vs Dimension B（repo CI-equivalent），說明 `ci-contract-run.sh` 如何 owner-based 執行（有配就跑、沒配就跳過）
+- 移除 `POLARIS_SKIP_COVERAGE` bypass 說明，改為 `POLARIS_SKIP_CI_CONTRACT=1`
+- `.claude/skills/engineering/SKILL.md` § 工程規範 / § 交付流程 coverage-gate 引用同步更新為 CI Contract Parity
+
+**Closed — Phase C 其餘 5 項 deliberate closure (D12)**:
+
+- Advisory section（「repo CI 未配置的常見 check」）→ out of scope（D11 後框架不主動追加）
+- workspace-config `ci_equivalent` overrides schema → deferred（無實際需求）
+- Evidence 持久化 `/tmp → specs/{EPIC}/verification/` → deferred（ephemeral 模式沒抱怨）
+- Monorepo advanced（path filter per job / per-package context）→ deferred（Phase B 已解當前痛點）
+- Matrix / conditional / reusable → deferred（無真實 repo 受阻）
+
+`specs/design-plans/DP-029-engineering-ci-equivalent-coverage/plan.md` 狀態：LOCKED → **IMPLEMENTED**（2026-04-24）。
+
+**DP-030 seeded**: LLM judgment → script migration — mechanism-registry 裡「可腳本化但仍 behavioral canary」的系統性下放 hook layer，對應使用者主張「LLM 判斷力留給有價值的事，機械式檢查該腳本化」。
+
 ## [3.49.1] - 2026-04-24
 
 ### Fix — BSD sed/grep/awk `\s` incompatibility on macOS

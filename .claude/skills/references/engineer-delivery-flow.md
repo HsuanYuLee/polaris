@@ -88,39 +88,28 @@
 
 本 step 通過後才能進 Step 3。未通過就繼續 = 欺騙下游。
 
-### 2a. Coverage Gate Check（硬門檻）
+### 2a. CI Contract Parity（repo 有配就跑、沒配就跳過）
 
-Push 前必須確認 repo 的 Codecov patch gate（若有）會過。這一步抓「改動太小所以不寫測試」的誤判。
+> **Dimension model (DP-029, D6 v2 / D11)**：engineering 的品質要求分兩層：
+> - **Dimension A — Framework Baseline（一律執行）**：TDD discipline（red-green-refactor）+ 功能驗證（`Verify Command` Step 3d）+ VR（conditional, Step 3.5）
+> - **Dimension B — Repo CI-Equivalent（依 repo 配置執行）**：`ci-contract-run.sh` 讀 `codecov.yml` / `.github/workflows/*.yml` / `.husky/*`，模擬 repo CI 的 patch gate / lint / typecheck / 其他 workflow jobs。repo 有配就跑，沒配就不跑 — **patch coverage 歸 repo 責任，框架不主動追加**
+>
+> Push 前必須確認 Dimension B 全綠（repo CI 模擬通過）。Dimension A 的 TDD discipline 由 `tdd-bypass-no-assertion-weakening` canary 把關（見 `mechanism-registry.md`）。
 
-**偵測**（repo root 任一命中即視為有 gate）：
-1. `codecov.yml` 或 `.codecov.yml` 含 `type: patch`
-2. `.github/workflows/*.yml` 提到 `codecov/patch`
-
-**有 gate 時，強制執行**（無 gate 直接跳到 Step 3）：
-
-1. `git diff {base}..HEAD --name-only` 取改動檔案清單，排除 test 檔、type 檔、config、changeset、docs
-2. 對每個剩下的 source file，跑 coverage（命令由 repo handbook `testing.md` 或 CLAUDE.md 提供，如 your-app：`pnpm --filter @your-org/your-app-main exec vitest run --coverage --coverage.include='<file>'`）
-3. 確認改動的可執行 line 都在 coverage 報告中（不強求 100% line coverage，但 **PR diff 內的每個新/改 line 都必須至少被一個 test 碰到**）
-4. 未達標 → 補測試，回 Step 2 開頭重跑
-5. 達標 → 呼叫 writer 寫 evidence：
+**執行**：
 
 ```bash
-"$CLAUDE_PROJECT_DIR/scripts/write-coverage-evidence.sh" \
-  --status PASS \
-  --branch "$(git rev-parse --abbrev-ref HEAD)" \
-  --note "patch lines covered: <summary>" \
-  --file "<changed_file_1>" --file "<changed_file_2>"
+"$CLAUDE_PROJECT_DIR/scripts/ci-contract-run.sh" --repo "$(git rev-parse --show-toplevel)" --skip-install
 ```
 
-Evidence 檔：`/tmp/polaris-coverage-{branch-slug}.json`（TTL 4h）。
+- exit 0 → Dimension B PASS，進 Step 3
+- exit 1 → Dimension B FAIL，**回到實作階段修 root cause**，禁止放寬 assertion / `.skip()` / `as any` 繞過（canary: `tdd-bypass-no-assertion-weakening`）；修完回 Step 2 開頭重跑
 
-**Hook 保險**：`coverage-gate.sh` 會在 `git push` 時讀這個檔。檔案不存在 / status≠PASS / >4h 過期 → exit 2 擋下 push。
+**沒有 repo CI 配置（例如框架 repo / prototype）**：`ci-contract-run.sh` 偵測不到 `codecov.yml` / workflow → 跳過 patch gate 模擬，直接 PASS。這是 design — 框架尊重 repo maintainer 的 CI 決策，不主動強加 coverage baseline。
 
-**Bypass**（罕見情境）：
-- `POLARIS_SKIP_COVERAGE=1 git push ...` — docs-only / config-only / 純 test 調整
-- HEAD commit message 前綴 `wip:` — 草稿 push（hook 自動放行）
+**Bypass**：`POLARIS_SKIP_CI_CONTRACT=1` — 純文件 / config-only 改動可用；一般情況不用。
 
-**為什麼是硬門檻**：TASK-123 事件 — engineering 判定「只加一行 `key` option」不需測試，本地 quality check PASS 但 CI `codecov/patch/main-core` fail。破功點是 TDD smart judgment 沒把 CI gate 納入。規則：**repo 有 patch gate → 所有 source 改動一律補測試**，不以「改動小」為由豁免。
+**歷史**：TASK-123 事件（useFetch key 改動沒補測試、本地 quality PASS 但 CI `codecov/patch/main-core` FAIL）促成了 DP-029 Phase B 的 patch gate 精確模擬，讓 CI failure 在 push 前就被擋下。早期版本另掛了 framework-level `coverage-gate.sh`（D6 v1），後來 D6 v2 (2026-04-24) 判定「repo 有配就由 Dimension B 接、沒配不追加」更乾淨，coverage-gate 下架。
 
 ---
 

@@ -30,7 +30,7 @@ if [[ "${POLARIS_SKIP_CI_CONTRACT:-}" != "1" ]]; then
   if [[ "$dry_run" == true ]]; then
     "$SCRIPT_DIR/ci-contract-run.sh" --repo "$repo_root" --skip-install --dry-run >/dev/null
   else
-    "$SCRIPT_DIR/ci-contract-run.sh" --repo "$repo_root" --skip-install --write-coverage-evidence >/dev/null
+    "$SCRIPT_DIR/ci-contract-run.sh" --repo "$repo_root" --skip-install >/dev/null
   fi
 fi
 
