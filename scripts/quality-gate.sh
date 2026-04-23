@@ -67,7 +67,7 @@ else
   repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
 fi
 
-if [[ "$repo_root" == "$HOME/work" ]]; then
+if [[ -n "$repo_root" && -f "$repo_root/VERSION" ]]; then
   exit 0
 fi
 

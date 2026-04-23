@@ -6,6 +6,10 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/no-cd-in-bash.sh\""
+          },
+          {
+            "type": "command",
             "if": "Bash(git push*)",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-push-quality-gate.sh\""
           },
@@ -36,6 +40,10 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pipeline-artifact-gate.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/checkpoint-carry-forward-fallback.sh\""
           }
         ]
       }

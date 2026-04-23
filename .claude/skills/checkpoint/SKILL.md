@@ -51,6 +51,52 @@ branch:{branch} ticket:{ticket} phase:{current_phase} next:{next_action}
 
 Example: `branch:task/PROJ-200-auth ticket:PROJ-200 phase:implementation next:write-tests`
 
+### Step 2.5 — L2 Deterministic Check: cross-session-carry-forward
+
+Before writing any checkpoint artifact, run the carry-forward validator. It
+diffs the **new** project-memory checkpoint being produced against the most
+recent prior checkpoint on the same topic and fails when pending items are
+silently dropped without an explicit disposition.
+
+Preconditions:
+- The Strategist has already written the new project-memory file to disk
+  (typical path: `{memory_dir}/project_{topic}.md` or
+  `{memory_dir}/{topic}/project_*.md`). If only a draft exists in
+  conversation, write it to disk first — this script compares files on
+  disk.
+- `{memory_dir}` is the workspace memory root, e.g.
+  `~/.claude/projects/-Users-hsuanyu-lee-work/memory/`.
+
+Run:
+
+```bash
+bash "$CLAUDE_PROJECT_DIR/scripts/check-carry-forward.sh" \
+  --new-checkpoint "{new_checkpoint_path}" \
+  --memory-dir "{memory_dir}"
+```
+
+Exit code handling:
+
+- **exit 0** — PASS. Continue to Step 3.
+- **exit 1** — RECOVERABLE_FAIL (usage error, missing file, missing arg).
+  Read stderr, fix the invocation / path, and re-run. Retry budget **3
+  rounds**; a 4th failure → STOP and report the issue to the user.
+- **exit 2** — HARD_STOP. Do **not** retry. The prior checkpoint had
+  pending items that are missing from the new checkpoint's "next steps /
+  still pending" section without any `(a) done` / `(b) carry-forward` /
+  `(c) dropped` marker. The stderr message lists the missing items; show
+  those to the user verbatim and ask them for the disposition of each.
+  Update the new checkpoint file per the user's dispositions, then re-run
+  this step until it passes. Never edit the missing-items list away to
+  silence the gate — that defeats the point of the check.
+
+Rationale: this canary was previously behavioral (`cross-session-carry-
+forward` in `rules/mechanism-registry.md`). DP-030 moves it to deterministic
+L2 enforcement so cross-LLM sessions (Cursor / Codex / Copilot / Gemini)
+inherit the same discipline. See `skills/references/l2-script-conventions.md`
+for the shared exit-code semantics and
+`specs/design-plans/DP-030-llm-to-script-migration/plan.md` for the design.
+
 ### Step 3 — Write to Timeline
 
 ```bash

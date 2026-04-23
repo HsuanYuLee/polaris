@@ -66,9 +66,10 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `feedback-backlog-classification` | New feedback memory that describes a framework gap must also write a backlog entry | FRAMEWORK_GAP feedback created without corresponding `polaris-backlog.md` entry | Medium |
 | `project-backlog-classification` | Project memory with action items (待實施/下一步/需要解決) must also write FRAMEWORK_GAP items to backlog | Project memory containing "待實施" or "pending" without corresponding backlog entry | High |
 | `memory-company-hard-skip` | Skip memories with mismatched company field | Company-scoped memory applied to a different company's work | Medium |
-| `cross-session-carry-forward` | Writing next-session memory must diff previous checkpoint's pending items — no silent drops | New project memory's "next steps" missing items from previous checkpoint without (a) done / (b) carry-forward / (c) dropped disposition | **Critical** |
 | `correction-driven-handbook-update` | User correction about repo-specific knowledge → pause work, update handbook (not feedback memory), resume with new understanding | Repo-specific correction (architecture, code convention, dev environment) saved as feedback memory instead of updating handbook | **Critical** |
 | `repo-knowledge-to-handbook-not-feedback` | Repo-specific knowledge (code patterns, API conventions, test strategies, env setup) belongs in handbook sub-files, not feedback memories | New feedback memory created for repo-specific knowledge that should be in `{repo}/.claude/rules/handbook/*.md` | High |
+
+> `cross-session-carry-forward` graduated to deterministic enforcement via DP-030 Phase 1 POC (2026-04-24) — see § Deterministic Quality Hooks.
 
 #### Common Rationalizations — Handbook vs Feedback
 
@@ -126,8 +127,9 @@ Enforcement is **deterministic** via PreToolUse hook `.claude/hooks/pipeline-art
 
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
-| `no-cd-in-bash` | Never use `cd` in Bash; use tool path parameters | `cd ` appearing in any Bash command | High |
 | `no-independent-cmd-chaining` | Don't chain independent commands with `&&` | Multiple independent commands joined by `&&` in one Bash call | High |
+
+> `no-cd-in-bash` graduated to deterministic enforcement via DP-030 Phase 1 POC (2026-04-24) — see § Deterministic Quality Hooks.
 
 ### Company Isolation (source: `rules/multi-company-isolation.md`)
 
@@ -232,6 +234,8 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 | `session-summary-precompact` | Before context compaction, inject prompt for Strategist to write `session_summary` to polaris-timeline so next session can reconstruct what happened. Hook pre-computes metadata (branch/tickets/skills/commits) from git + timeline; Strategist fills only `--text`. D4 main path (DP-024 P2). Pairs with `post-compact-context-restore` | PreCompact hook (auto), stdout injection | `.claude/hooks/session-summary-precompact.sh` |
 | `stop-todo-check` | On substantial sessions (10+ tool calls), block stopping until Strategist confirms all todo items have dispositions. Prevents premature completion. Must check `stop_hook_active` to avoid infinite loop | Stop hook, JSON `{"decision":"block"}` output | `.claude/hooks/stop-todo-check.sh` |
 | `auto-compact-window` | `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000` triggers compaction before reasoning degrades (300-400k range). Complements `context-pressure-monitor` (tool-call count) with token-level precision | Environment variable in `~/.claude/settings.json` `env` block | — |
+| `no-cd-in-bash` | Block `cd` in Bash commands; must use tool path parameters (`git -C`, `pnpm -C`, `gh --repo`) or absolute paths. See `rules/bash-command-splitting.md`. Graduated from behavioral to deterministic via DP-030 Phase 1 POC (2026-04-24) | PreToolUse hook on Bash, exit 2 to block | `.claude/hooks/no-cd-in-bash.sh` (calls `scripts/check-no-cd-in-bash.sh`) |
+| `cross-session-carry-forward` | Writing a new checkpoint (`type: project` memory with pending section) must carry forward prior pending items with explicit disposition (done / carry-forward / dropped). Graduated from behavioral to deterministic via DP-030 Phase 1 POC (2026-04-24). See `skills/references/l2-script-conventions.md` for exit-code semantics | L2 skill-embedded (`.claude/skills/checkpoint/SKILL.md` Step 2.5) + L1 PreToolUse hook on Write/Edit to `**/memory/*.md` (fallback for skill bypass), exit 2 to block | `scripts/check-carry-forward.sh` (invoked by both L2 embed and `.claude/hooks/checkpoint-carry-forward-fallback.sh`) |
 
 For evidence file spec, writer script, bypass flags, and hook script reference — see `skills/references/mechanism-rationalizations.md` § Deterministic Quality Hooks — Detail.
 
@@ -298,12 +302,12 @@ Post-task audit should check these first (highest drift risk, most impactful):
 2. `skill-first-invoke` / `no-manual-skill-steps` / `reference-index-scan`
 3. `api-docs-before-replace` / `lib-exhaust-before-replace` / `fix-through-not-revert` / `query-original-impl` (Critical — PROJ-123 root cause + library change protocol)
 4. `delegate-exploration` / `delegate-implementation`
-5. `cross-session-read-memory-file` / `cross-session-carry-forward`
+5. `cross-session-read-memory-file` (note: `cross-session-carry-forward` graduated to deterministic — see § Deterministic Quality Hooks)
 6. `post-task-feedback-reflection` / `correction-driven-handbook-update` (correction = immediate trigger; repo-specific → handbook, framework → feedback)
 6a. `checkpoint-mode-at-25` (check during long sessions, not just post-task)
 7. `re-test-after-fix` / `fresh-verification-before-completion` / `checklist-before-done`
 8. `cross-repo-verification` / `env-follows-requires`
-9. `no-cd-in-bash` / `no-independent-cmd-chaining`
+9. `no-independent-cmd-chaining` (note: `no-cd-in-bash` graduated to deterministic — see § Deterministic Quality Hooks)
 10. `feedback-trigger-count-update`
 11. `version-bump-reminder` (Critical — 6 consecutive misses discovered 2026-04-09)
 12. `verification-evidence-required` / `quality-evidence-required` / `test-sequence-warning` / `post-compact-context-restore` / `stop-todo-check` / `auto-compact-window` (deterministic hooks — low audit priority because hooks enforce automatically)

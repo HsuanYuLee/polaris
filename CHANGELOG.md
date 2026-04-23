@@ -4,6 +4,50 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.51.0] - 2026-04-24
+
+### Feat — DP-030 Phase 1 POC: LLM judgment → deterministic script migration
+
+第一批「機械式 canary」下放到 deterministic 執行層，對齊 CLAUDE.md § Deterministic Enforcement Principle（「能用確定性驗證的，不要靠 AI 自律」）。本次兩個示範 canary：L1 hook only (`no-cd-in-bash`) + L2 skill-embedded primary + L1 fallback (`cross-session-carry-forward`)。
+
+**Added — L2 script conventions reference**:
+
+- `.claude/skills/references/l2-script-conventions.md` — 規範 L2 script 的 exit code 語意（0/PASS, 1/RECOVERABLE_FAIL, 2/HARD_STOP）、retry budget（3 輪）、呼叫模板；讓其他 LLM（Cursor / Codex / Copilot / Gemini）藉由 SKILL.md embedded script call 取得跨 LLM 一致行為（DP-030 D2/D3/D4）
+
+**Added — POC canary #1 `no-cd-in-bash` → L1 hook only**:
+
+- `scripts/check-no-cd-in-bash.sh` — regex-based validator，偵測 bash command 開頭或 chain 分隔符（`&&` / `||` / `;` / `|` / `` ` `` / `$(`）後的 `cd ` token，block with exit 2 + stderr 說明替代方案（`git -C` / `pnpm -C` / `gh --repo` / 絕對路徑）
+- `.claude/hooks/no-cd-in-bash.sh` — PreToolUse wrapper，從 stdin JSON 解析 `tool_input.command` 轉呼叫 validator
+- `.claude/settings.json` — PreToolUse Bash 註冊（skill-agnostic primary，不綁特定 skill）
+
+**Added — POC canary #2 `cross-session-carry-forward` → L2 primary + L1 fallback**:
+
+- `scripts/check-carry-forward.sh` — python3 核心 heuristic：抓 new checkpoint 的 `topic` identifier → 找 memory_dir 內同 topic 最近一筆 prior project memory → 抽 prior 的 pending items → 檢查 new checkpoint 是否用 `(a) done / (b) carry-forward / (c) dropped` disposition marker 或 next-steps section 的關鍵詞覆蓋每項。Missing → exit 2 HARD_STOP + stderr missing list（`l2-script-conventions` D4 規則：retry 只會誘發偽造，禁止）
+- `.claude/skills/checkpoint/SKILL.md` — 新增 Step 2.5「L2 Deterministic Check」，embedded script call + exit code handling + rationale
+- `.claude/hooks/checkpoint-carry-forward-fallback.sh` — PreToolUse on Write/Edit fallback，當 user bypass checkpoint skill 直接寫 memory file 時攔截；過濾非 memory path / 非 `type: project` memory 以避免吵
+- `.claude/settings.json` — PreToolUse（無 matcher 限定，由 hook 內部過濾 path）
+
+**Removed from behavioral mechanism-registry (D5 直切 no shadow)**:
+
+- `.claude/rules/mechanism-registry.md` § Bash Execution — 移除 `no-cd-in-bash` canary row
+- `.claude/rules/mechanism-registry.md` § Feedback & Memory — 移除 `cross-session-carry-forward` canary row
+- 兩者改列於 § Deterministic Quality Hooks 表格（Enforcement + Script 欄位）
+- § Priority Audit Order item 5 和 item 9 同步更新，deterministic graduation 註記加在原區塊下
+
+**Fixed — `quality-gate.sh` framework repo 偵測**（DP-030 D6 warm-up）:
+
+- `scripts/quality-gate.sh` line 70 — `[[ "$repo_root" == "$HOME/work" ]]` → `[[ -n "$repo_root" && -f "$repo_root/VERSION" ]]`。原條件在 worktree 環境（e.g., `.worktrees/framework-*`）失敗，導致 framework repo 的 worktree commit 被誤攔 quality evidence；改偵測 VERSION 檔存在更 robust
+
+**Impact**:
+
+- Behavioral audit list 減 2 條（High + Critical 各一），post-task scan 更聚焦
+- L2 script + SKILL.md embed 為後續 Phase 2 系統性下放（`post-task-feedback-reflection` / `version-bump-reminder` 等 6+ canary）奠基
+- Cross-LLM 一致性：SKILL.md 文字化 script call + exit code handling，Cursor / Codex 走 skill flow 也會觸發同一支 check
+
+**Bypass**: L1 hook 若誤擋可用 `POLARIS_SKIP_ARTIFACT_GATE=1` 以外的個別 env var 跳過（Phase 2 視需要加）— 目前建議觸發時讀 stderr 決定是否 rewrite command；L2 HARD_STOP 不提供 bypass（對齊 D4 設計意圖）。
+
+Next: DP-030 Phase 2 系統性下放 candidate 表其餘 canary（見 `specs/design-plans/DP-030-llm-to-script-migration/plan.md` Implementation Checklist）。
+
 ## [3.50.0] - 2026-04-24
 
 ### Break — DP-029 Phase C Quick-Win: coverage-gate 下架、Dimension A/B 釐清
