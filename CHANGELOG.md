@@ -4,6 +4,60 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.53.0] - 2026-04-24
+
+### Feat — DP-030 Phase 2B: L1-only canary batch migration
+
+承接 Phase 2A（v3.52.0）meta-linter 基礎建設，Phase 2B 把三條純 tool-use 層級的 behavioral canary 下放到 L1 deterministic hooks。這些 canary 不依附任何 skill flow，直接由 PreToolUse / PostToolUse hook 觸發對應 `scripts/check-*.sh`；違反時 block（exit 2）或 advisory（stdout 警告）。
+
+**Added — `no-independent-cmd-chaining` → L1 hook (hard block)**:
+
+- `scripts/check-no-independent-cmd-chaining.sh` — python3 `shlex.split(posix=True)` 逐 token 掃描 `&&` 作為 top-level 運算子；引號內的 `&&` (e.g., `git commit -m "a && b"`) 仍合法通過。PreToolUse 語意：exit 2 HARD_STOP，stderr 附替代做法（多個並行 Bash tool call）
+- `.claude/hooks/no-independent-cmd-chaining.sh` — PreToolUse wrapper，從 stdin JSON 解析 `tool_input.command` 轉呼叫 validator
+- `.claude/settings.json` — PreToolUse Bash 註冊（skill-agnostic primary）
+
+**Added — `max-five-consecutive-reads` → L1 hook (advisory)**:
+
+- `scripts/check-consecutive-reads.sh` — 狀態檔 `/tmp/polaris-consecutive-reads.txt` 累計 Read/Grep；當 `Bash|Edit|Write|Agent|NotebookEdit|Glob` 等「產生結論」的 tool 觸發就 reset；超過 5 連發時 stdout 發 advisory 建議 delegate Explorer
+- `.claude/hooks/consecutive-reads-monitor.sh` — PostToolUse wrapper（broad matcher 觀察全部 state-relevant tools）
+- `.claude/settings.json` — PostToolUse `Bash|Edit|Write|Read|Grep|Glob|Agent|NotebookEdit` 註冊
+
+**Added — `no-file-reread` → L1 hook (advisory)**:
+
+- `scripts/check-no-file-reread.sh` — 狀態檔 `/tmp/polaris-file-reads.txt` 每 path 獨立計數；偵測 file mtime，若檔案被修改則 counter 重置為 1；超過 2 次同 path 讀取時 stdout 警告並建議從 milestone summary 引用
+- `.claude/hooks/no-file-reread-monitor.sh` — PostToolUse wrapper 解析 `tool_input.file_path`
+- `.claude/settings.json` — PostToolUse Read 註冊
+
+**Fixed — `scripts/validate-l2-embedding.sh` escaped-pipe parsing**:
+
+- Registry 中 L1 Matcher 欄位含 `Bash\|Edit\|...` 這類 markdown-escaped 的 pipe，原 `IFS='|' read` 會在第一個 pipe 就錯切 column。改為先 `sed 's/\\|/\x1e/g'` 保護再 split、split 完再還原。`cross-session-carry-forward` row 先前是靠巧合（'Edit' 剛好在 fallback hook 出現）才 pass，Phase 2B 擴表後問題暴露，順手修
+- 抽出 `trim_restore()` helper 統一處理 whitespace trim + placeholder 還原
+
+**Updated — L2 embedding registry**:
+
+- `.claude/skills/references/l2-embedding-registry.md` — 新增三條 L1-only entry；validator 本地 run 5/5 ✅
+
+**Removed from behavioral mechanism-registry (D5 直切 no shadow)**:
+
+- `.claude/rules/mechanism-registry.md` § Context Management — 移除 `max-five-consecutive-reads`、`no-file-reread` canary rows；加 graduation 註記
+- `.claude/rules/mechanism-registry.md` § Bash Execution — 整個 table 移除（唯一 canary `no-independent-cmd-chaining` 下放完畢），改為 graduation 註記
+- 三條改列 § Deterministic Quality Hooks 表格（Enforcement + Script 欄位）
+- § Priority Audit Order item 9 同步更新
+
+**Framework gap noted (not fixed in this release)**:
+
+- `scripts/context-pressure-monitor.sh` 存在但 `.claude/settings.json` 未註冊對應 hook — plan.md 原本「`max-five-consecutive-reads` 與 context-pressure-monitor 整併」的整併方向改為「先獨立運作」以保持本 PR scope；整併工作留待 context-pressure-monitor 被正式註冊後再做
+
+**Impact**:
+
+- Behavioral audit list 減 3 條（High + High + Medium），Bash 層 behavioral canary 歸零
+- 與 Phase 1 POC `no-cd-in-bash` 風格一致：同一支 `scripts/check-*.sh` 可被 hook 與（未來）其他 LLM 直接呼叫
+- 整體 deterministic 執行層累計：7 條 L1 hooks + 1 條 L2 embed + ~3 其他 hooks，behavioral layer 持續瘦身
+
+**Bypass**: L1 hook 失誤攔截時可暫時從 `.claude/settings.json` 移除對應 hook entry；無專用 env var（advisory 兩條本來就不擋），`no-independent-cmd-chaining` 擋到時建議 rewrite 成多個 Bash tool call。
+
+Next: DP-030 Phase 2C — L2 canary batch（`feedback-trigger-count-update` / `post-task-feedback-reflection` / `version-bump-reminder`），改動 SKILL.md 並在 DP-027 dogfood context 驗證跨 LLM 一致行為。
+
 ## [3.52.0] - 2026-04-24
 
 ### Feat — DP-030 Phase 2A: L2 embedding meta-linter infrastructure

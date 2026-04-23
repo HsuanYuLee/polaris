@@ -10,6 +10,10 @@
           },
           {
             "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/no-independent-cmd-chaining.sh\""
+          },
+          {
+            "type": "command",
             "if": "Bash(git push*)",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-push-quality-gate.sh\""
           },
@@ -98,6 +102,24 @@
             "type": "command",
             "if": "Bash(git*merge*)|Bash(git*rebase*)|Bash(git*cherry-pick*)|Bash(git*checkout*)|Bash(git*switch*)|Bash(git*pull*)",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/specs-sidebar-sync.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Edit|Write|Read|Grep|Glob|Agent|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/consecutive-reads-monitor.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/no-file-reread-monitor.sh\""
           }
         ]
       },

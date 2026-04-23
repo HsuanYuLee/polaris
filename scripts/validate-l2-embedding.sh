@@ -66,21 +66,26 @@ pass=0
 fail=0
 
 # Parse each row. Columns (| Canary | Script | Layer | L2 Skill | L2 Expected Grep | L1 Hook | L1 Event | L1 Matcher | L1 Expected Grep |).
+# Escaped pipes in cell content (`\|`, used in regex matchers like `Bash\|Edit`)
+# are temporarily replaced with record-separator (\x1e) before the IFS split so
+# they don't corrupt column boundaries.
+trim_restore() { printf '%s' "$1" | sed 's/\x1e/|/g' | awk '{$1=$1; print}'; }
+
 while IFS= read -r row; do
   [[ -z "$row" ]] && continue
-  # Split by |. Leading pipe gives empty first field; trailing pipe gives empty last field.
-  IFS='|' read -r _ canary script layer l2_skill l2_grep l1_hook l1_event l1_matcher l1_grep _ <<< "$row"
+  row_protected=$(printf '%s' "$row" | sed 's/\\|/\x1e/g')
+  IFS='|' read -r _ canary script layer l2_skill l2_grep l1_hook l1_event l1_matcher l1_grep _ <<< "$row_protected"
 
-  # Trim whitespace on every field
-  canary="$(echo "$canary" | awk '{$1=$1; print}')"
-  script="$(echo "$script" | awk '{$1=$1; print}')"
-  layer="$(echo "$layer" | awk '{$1=$1; print}')"
-  l2_skill="$(echo "$l2_skill" | awk '{$1=$1; print}')"
-  l2_grep="$(echo "$l2_grep" | awk '{$1=$1; print}')"
-  l1_hook="$(echo "$l1_hook" | awk '{$1=$1; print}')"
-  l1_event="$(echo "$l1_event" | awk '{$1=$1; print}')"
-  l1_matcher="$(echo "$l1_matcher" | awk '{$1=$1; print}')"
-  l1_grep="$(echo "$l1_grep" | awk '{$1=$1; print}')"
+  # Trim whitespace on every field; restore escaped pipes back from \x1e.
+  canary="$(trim_restore "$canary")"
+  script="$(trim_restore "$script")"
+  layer="$(trim_restore "$layer")"
+  l2_skill="$(trim_restore "$l2_skill")"
+  l2_grep="$(trim_restore "$l2_grep")"
+  l1_hook="$(trim_restore "$l1_hook")"
+  l1_event="$(trim_restore "$l1_event")"
+  l1_matcher="$(trim_restore "$l1_matcher")"
+  l1_grep="$(trim_restore "$l1_grep")"
 
   [[ -z "$canary" || "$canary" == "Canary" ]] && continue
 

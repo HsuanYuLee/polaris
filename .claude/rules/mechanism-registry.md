@@ -115,21 +115,17 @@ Enforcement is **deterministic** via PreToolUse hook `.claude/hooks/pipeline-art
 
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
-| `max-five-consecutive-reads` | Max 5 Read/Grep calls before conclusion or delegation | 6+ consecutive Read/Grep without intervening conclusion | High |
-| `no-file-reread` | Don't read same file > 2 times unless modified | Same file path in > 2 Read calls in one conversation | Medium |
 | `post-compression-company-context` | After compression, re-confirm active company | Work continues post-compression without company context check | High |
 | `proactive-context-check-at-20` | After 20+ tool calls without milestone, proactively save state and assess delegation | Long conversation without milestone summary or delegation assessment | Medium |
 | `checkpoint-mode-at-25` | 25+ tool calls with pending work → enter checkpoint mode (save state + diff previous checkpoint + notify new session). Also applies to proactive session splits: save memory before notifying, never after | Long session ends with next-session memory that drops items from previous checkpoint; OR Strategist says "建議開新 session" without having saved a project memory first | High |
 | `skill-completion-split` | After completing a skill, if next action is a different skill/topic → run checkpoint sequence + `checkpoint-todo-diff.sh` before notifying (see `context-monitoring.md` § 5a-bis) | Strategist switches from one skill to a different skill without checkpoint; or checkpoint written but `checkpoint-todo-diff.sh` not run | Medium |
 | `checkpoint-todo-completeness` | When writing a checkpoint memory, run `scripts/checkpoint-todo-diff.sh` to verify all todo items have dispositions (done/carry-forward/dropped). Hard gate: notification blocked until diff passes | Checkpoint memory written with todo items missing from content; or session split notification sent before diff script confirms all items covered | High |
 
+> `max-five-consecutive-reads` and `no-file-reread` graduated to deterministic enforcement via DP-030 Phase 2B (2026-04-24) — see § Deterministic Quality Hooks.
+
 ### Bash Execution (source: `rules/bash-command-splitting.md`)
 
-| ID | Rule | Canary Signal | Drift |
-|----|------|---------------|-------|
-| `no-independent-cmd-chaining` | Don't chain independent commands with `&&` | Multiple independent commands joined by `&&` in one Bash call | High |
-
-> `no-cd-in-bash` graduated to deterministic enforcement via DP-030 Phase 1 POC (2026-04-24) — see § Deterministic Quality Hooks.
+> `no-cd-in-bash` and `no-independent-cmd-chaining` graduated to deterministic enforcement via DP-030 Phase 1 / Phase 2B (2026-04-24) — see § Deterministic Quality Hooks.
 
 ### Company Isolation (source: `rules/multi-company-isolation.md`)
 
@@ -236,6 +232,9 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 | `auto-compact-window` | `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000` triggers compaction before reasoning degrades (300-400k range). Complements `context-pressure-monitor` (tool-call count) with token-level precision | Environment variable in `~/.claude/settings.json` `env` block | — |
 | `no-cd-in-bash` | Block `cd` in Bash commands; must use tool path parameters (`git -C`, `pnpm -C`, `gh --repo`) or absolute paths. See `rules/bash-command-splitting.md`. Graduated from behavioral to deterministic via DP-030 Phase 1 POC (2026-04-24) | PreToolUse hook on Bash, exit 2 to block | `.claude/hooks/no-cd-in-bash.sh` (calls `scripts/check-no-cd-in-bash.sh`) |
 | `cross-session-carry-forward` | Writing a new checkpoint (`type: project` memory with pending section) must carry forward prior pending items with explicit disposition (done / carry-forward / dropped). Graduated from behavioral to deterministic via DP-030 Phase 1 POC (2026-04-24). See `skills/references/l2-script-conventions.md` for exit-code semantics | L2 skill-embedded (`.claude/skills/checkpoint/SKILL.md` Step 2.5) + L1 PreToolUse hook on Write/Edit to `**/memory/*.md` (fallback for skill bypass), exit 2 to block | `scripts/check-carry-forward.sh` (invoked by both L2 embed and `.claude/hooks/checkpoint-carry-forward-fallback.sh`) |
+| `no-independent-cmd-chaining` | Block Bash commands that chain multiple commands with `&&` (quoted `&&` inside args still allowed). See `rules/bash-command-splitting.md`. Graduated from behavioral to deterministic via DP-030 Phase 2B (2026-04-24) | PreToolUse hook on Bash, exit 2 to block | `.claude/hooks/no-independent-cmd-chaining.sh` (calls `scripts/check-no-independent-cmd-chaining.sh`) |
+| `max-five-consecutive-reads` | Track consecutive Read/Grep calls; warn (stdout advisory) when count exceeds 5 without an intervening conclusion-producing tool (Bash/Edit/Write/Agent/NotebookEdit/Glob). See `rules/context-monitoring.md` § 1. Graduated via DP-030 Phase 2B (2026-04-24) | PostToolUse hook (broad matcher), stdout injection (advisory, not blocking). State: `/tmp/polaris-consecutive-reads.txt` | `.claude/hooks/consecutive-reads-monitor.sh` (calls `scripts/check-consecutive-reads.sh`) |
+| `no-file-reread` | Track per-file Read counts per session; warn (stdout advisory) when the same absolute path is read > 2 times unless modified (mtime advance resets count). See `rules/context-monitoring.md` § 3. Graduated via DP-030 Phase 2B (2026-04-24) | PostToolUse hook on Read, stdout injection (advisory, not blocking). State: `/tmp/polaris-file-reads.txt` | `.claude/hooks/no-file-reread-monitor.sh` (calls `scripts/check-no-file-reread.sh`) |
 
 For evidence file spec, writer script, bypass flags, and hook script reference — see `skills/references/mechanism-rationalizations.md` § Deterministic Quality Hooks — Detail.
 
@@ -307,7 +306,7 @@ Post-task audit should check these first (highest drift risk, most impactful):
 6a. `checkpoint-mode-at-25` (check during long sessions, not just post-task)
 7. `re-test-after-fix` / `fresh-verification-before-completion` / `checklist-before-done`
 8. `cross-repo-verification` / `env-follows-requires`
-9. `no-independent-cmd-chaining` (note: `no-cd-in-bash` graduated to deterministic — see § Deterministic Quality Hooks)
+9. (all Bash-chain canaries graduated to deterministic — `no-cd-in-bash` via DP-030 Phase 1, `no-independent-cmd-chaining` via DP-030 Phase 2B; see § Deterministic Quality Hooks)
 10. `feedback-trigger-count-update`
 11. `version-bump-reminder` (Critical — 6 consecutive misses discovered 2026-04-09)
 12. `verification-evidence-required` / `quality-evidence-required` / `test-sequence-warning` / `post-compact-context-restore` / `stop-todo-check` / `auto-compact-window` (deterministic hooks — low audit priority because hooks enforce automatically)
