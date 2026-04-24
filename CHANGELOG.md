@@ -4,6 +4,27 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.56.0] - 2026-04-24
+
+### Feat — DP-031: Revision Push Evidence Gate
+
+Revision mode 只做 `git push`（不經 `gh pr create`），完全繞過 DP-029 建立的 evidence gate — 修 CI fail 的 revision 反而是最需要 CI 模擬的場景，卻是唯一沒被攔的路徑。
+
+**D1 — L1 hook: `verification-evidence-gate.sh` 擴展攔截 `git push`**:
+- 新增 `git push` 攔截（條件：`task/*` / `fix/*` branch + repo 有 codecov config + 非 `--delete`/`--tags`）
+- `wip/*`、`feat/*`、framework repo、tag push 不攔
+- `.claude/settings.json` 新增 `Bash(git push*)` hook entry
+
+**D2 — L2 skill embed: engineering SKILL.md R5 明確列出 `ci-contract-run.sh`**:
+- Revision R5 重跑完整驗收時，Step 2a（ci-contract-run.sh）標示為必跑步驟
+- 警告區塊說明 revision mode 是最需要 CI 模擬的場景
+
+**D2b — mechanism-registry.md 更新**:
+- `verification-evidence-required`：補充 `git push` 攔截描述 + DP-031 條件
+- `revision-r5-mandatory`：補充 DP-031 deterministic backup 說明
+
+**Origin**: KB2CW-3900 session — PR #2206 revision 補測試，ci-contract-run.sh 未執行，git push 成功，evidence 完全不存在。
+
 ## [3.55.1] - 2026-04-24
 
 ### Fix — review-pr Step 4d severity calibration: language/library behavior claims require verification

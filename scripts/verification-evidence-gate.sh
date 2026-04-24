@@ -41,7 +41,7 @@ fi
 # --- Push-specific filters: only block task/fix branches on product repos ---
 if [[ "$MODE" == "push" ]]; then
   # Extract repo path from git -C <path> push, or use current dir
-  push_repo=$(printf '%s' "$command" | grep -oE 'git -C [^ ]+' | head -1 | sed 's/git -C //')
+  push_repo=$(printf '%s' "$command" | grep -oE 'git -C [^ ]+' | head -1 | sed 's/git -C //' || true)
   push_repo="${push_repo:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
 
   # Only intercept task/* and fix/* branches (skip wip/*, feat/*, main, develop)
