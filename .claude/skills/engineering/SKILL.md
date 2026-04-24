@@ -630,6 +630,46 @@ Fixed — [簡要說明修正方式 + 對應 plan 的哪個預期行為]
 
 ---
 
+## Post-Delivery L2 Deterministic Checks
+
+First-cut 的 § 5 交付流程或 Revision mode 的 § R5 重跑跑完、PR 已建立 / 既有 PR 已 push 後，執行下列兩項 advisory 檢查。兩者 exit 0 恆成立（advisory only，不擋 flow），stdout 若有訊息代表 Strategist 要依訊息反思或補動作。
+
+### Step 9 — L2 Deterministic Check: version-bump-reminder
+
+改動若落在 `rules/` 或 `.claude/skills/` 且本次未同步 bump `VERSION`，提醒升版。
+
+```bash
+bash "$CLAUDE_PROJECT_DIR/scripts/check-version-bump-reminder.sh" \
+  --mode post-pr \
+  --base "<PR base branch, e.g. develop or main>" \
+  --repo "$CLAUDE_PROJECT_DIR"
+```
+
+根據 exit code（advisory — script 恆 exit 0）：
+- **exit 0 + 無 stdout** — 沒 framework 檔改動或已 bump VERSION，繼續 Step 10
+- **exit 0 + 有 stdout** — 提醒使用者「這次改動涉及框架規則/技能，要升版嗎？」依框架升版 chain（VERSION + CHANGELOG + docs-sync + sync-to-polaris）決定是否執行
+
+此 canary 原列 `rules/mechanism-registry.md § Framework Iteration`（behavioral），DP-030 Phase 2C 下放為 deterministic。L1 fallback 由 PostToolUse hook on `git commit`（`.claude/hooks/version-bump-reminder.sh`）補位，當 engineer 繞過本 skill 直接 commit 時仍會觸發。
+
+### Step 10 — L2 Deterministic Check: post-task-feedback-reflection
+
+本 session 若出現自糾正 / 自修 command 之類信號但無新 feedback memory 檔案，提醒反思。
+
+```bash
+bash "$CLAUDE_PROJECT_DIR/scripts/check-feedback-signals.sh" \
+  --skill engineering
+```
+
+根據 exit code（advisory — script 恆 exit 0）：
+- **exit 0 + 無 stdout** — 無反思訊號，繼續後續收尾
+- **exit 0 + 有 stdout** — 依訊息做 `rules/feedback-and-memory.md` 的三層分類（framework / company handbook / repo handbook），決定寫 feedback memory 或更新 handbook
+
+L1 fallback 由 Stop hook（`.claude/hooks/feedback-reflection-stop.sh`）在對話結束時再檢一次，防止 skill flow 中斷或使用者繞過本 skill。
+
+> 兩個 check 都遵循 `skills/references/l2-script-conventions.md` 的 advisory 呼叫約定；exit 0 + stdout 的組合代表「提醒而非阻擋」，不吃 retry budget。
+
+---
+
 ## Setup-Only Task 特例（無 code 可 commit）
 
 少數任務（Mockoon fixture 建立、環境設定、dev-only infra）的 deliverable 完全在 workspace gitignore 範圍內 — 跑 delivery flow 會產出空 PR。此時：

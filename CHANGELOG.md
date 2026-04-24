@@ -4,6 +4,77 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.54.0] - 2026-04-24
+
+### Feat — DP-030 Phase 2C: L2 canary batch (path B advisory)
+
+承接 Phase 2B（v3.53.0）L1-only batch，Phase 2C 把 `rules/mechanism-registry.md` 最後三條本質「部分語意」的 behavioral canary 下放到 advisory 組合（L1 Stop hook / PostToolUse signal capture + L2 skill embed）。行為寫入責任仍保留給 LLM — hook 只攔截訊號並在 Stop 時 surface 給 Strategist，從不 block；這是 Explorer sub-agent BS#1/BS#2 的 path B 折衷（硬下放會稀釋 DP-030 招牌，完全保留又違反確定性原則）。
+
+**Added — `version-bump-reminder` → L2 + L1 advisory (full graduation)**:
+
+- `scripts/check-version-bump-reminder.sh` — 接 `--mode post-commit|post-pr` + `--base`；post-commit 讀 `git log -1 --name-only HEAD`，post-pr 讀 `${base}..HEAD`；偵測 `rules/` / `.claude/skills/` 改動且無同 commit `VERSION` bump 時 stdout 提醒。Exit 0 恆成立
+- `.claude/hooks/version-bump-reminder.sh` — 重寫為 delegate-only wrapper，從 stdin JSON 取 command 呼叫 validator（原本 inline logic 約 50 行壓到 34 行）
+- `.claude/skills/engineering/SKILL.md` Step 9、`.claude/skills/git-pr-workflow/SKILL.md` Step 3 — L2 embed post-PR tail，呼叫同一支 `scripts/check-version-bump-reminder.sh --mode post-pr`
+
+**Added — `feedback-trigger-count-update` → L1-only signal capture + Stop advisory**:
+
+- `.claude/hooks/feedback-read-logger.sh` — PostToolUse on Read，比對 `memory/(topic/)?feedback[_-]*.md` pattern，match 時 dedup append 到 `/tmp/polaris-session-feedback-reads.txt`
+- `scripts/check-feedback-trigger-count.sh` — 讀 state file，對每個 path 檢查 frontmatter `last_triggered` 是否 == today；stale entry 於 stdout 列出。接 `--clear` 選項（Stop hook 不用，保留狀態以便後續訊號）
+- `.claude/hooks/feedback-trigger-advisory.sh` — Stop hook，honor `stop_hook_active` 防遞迴，呼叫 validator
+- 不嵌任何 SKILL.md — 信號時機在 Read 發生時，不適合 skill flow 綁定。純訊號捕獲 + Stop advisory
+
+**Added — `post-task-feedback-reflection` → L2 (4 skills) + L1 Stop advisory**:
+
+- `scripts/check-feedback-signals.sh` — 合成兩種自糾正信號：(1) `/tmp/polaris-test-sequence.json`（test-sequence-tracker 餵料）、(2) `/tmp/polaris-cmd-self-correct.txt` sentinel（預留，目前無 writer）。Session start epoch 從 `/tmp/polaris-session-calls.txt` mtime 推估；掃 `memory/` 下本 session 內新建的 `feedback*.md` 檔。若「自糾正信號 > 0 且 無新 feedback 檔」才 stdout 提醒
+- `.claude/hooks/feedback-reflection-stop.sh` — Stop hook，呼叫 validator with `--skill stop`
+- L2 embed（tail 收尾）：`.claude/skills/engineering/SKILL.md` Step 10、`.claude/skills/git-pr-workflow/SKILL.md` Step 4、`.claude/skills/verify-AC/SKILL.md` § 11、`.claude/skills/breakdown/SKILL.md` § 17、`.claude/skills/refinement/SKILL.md` Step 8
+- SKILL.md 注入點一致：skill flow 結束前呼叫 `check-feedback-signals.sh --skill <name>`，解讀 stdout，依 `rules/feedback-and-memory.md` 三層分類決定寫 feedback / handbook / 忽略
+
+**Updated — settings.json**:
+
+- PostToolUse Read：新增 `feedback-read-logger.sh` entry
+- Stop：新增 `feedback-trigger-advisory.sh` + `feedback-reflection-stop.sh` entries（並列 `stop-todo-check.sh`，advisory-only hooks 不走 `decision: block`）
+
+**Updated — L2 embedding registry**:
+
+- `.claude/skills/references/l2-embedding-registry.md` — 加 7 行（B3 × 2 + B1 × 1 + B2 × 4）；preamble 新增「Multi-skill canary」慣例說明：同 canary 嵌多 skill 時每組合佔一 row，canary 欄允許重複
+- Validator 本地 run 12/12 ✅
+
+**Updated — mechanism-registry (partial / full graduation)**:
+
+- § Framework Iteration — 移除 `version-bump-reminder` row，加 graduation 註記指向 § Deterministic Quality Hooks
+- § Feedback & Memory — `post-task-feedback-reflection` + `feedback-trigger-count-update` 兩 row **保留**（behavioral write 仍由 LLM 負責），後面加 block quote 說明 DP-030 Phase 2C 加掛 deterministic advisory signal-capture
+- § Deterministic Quality Hooks — 新增 3 row（version-bump-reminder / feedback-trigger-count-update / post-task-feedback-reflection）
+- Priority Audit Order — item 6 調整描述（post-task-feedback-reflection graduated 為 signal-capture，audit priority 降低）；item 10/11 加 graduation 註記
+
+**Path B rationale**:
+
+- B1/B2 本質 semantic — user correction 的分類（framework / company handbook / repo handbook）、self-correct 的判斷（真錯誤 vs. 正常 iteration）無法純由 script 決定
+- 硬下放為 blocking 會：(a) false positive 干擾正常 flow，(b) 稀釋 DP-030「deterministic 只下放可腳本化」的招牌
+- Path B 折衷：deterministic 層抓訊號 + 在 Stop / skill tail surface，behavioral write 仍 LLM 決定。Stop hook 不 block（advisory）保持 session 流暢，但遺漏訊號變可觀察
+
+**Known risks / follow-up**:
+
+- Advisory 不擋 drift — 1–2 週觀察期後若遺漏率高考慮升級為 blocking（屆時需補 `POLARIS_SKIP_*` env bypass）
+- `scripts/check-feedback-signals.sh` self-correct 訊號單一來源（目前只接 test-sequence-tracker）；預留 `POLARIS_CMD_SELFCORRECT` sentinel 待後續 PostToolUse 偵測「同指令不同參數 rerun」pattern 自動寫入
+- Session start epoch 用 `stat -f %B` APFS 可能回 0，fallback 走 `/tmp/polaris-session-calls.txt` mtime；偏保守（可能多發 advisory），但不會漏
+- engineering Setup-Only 特例在 Step 9/10 會 silent exit 0（無 commit），dogfood 時若反覆 surface 再加 bypass 說明
+- 跨 LLM dogfood（BS#3）未在本 PR 執行，建議挑 engineering Step 9 在 Cursor / Codex session 實測 exit 0 + stdout surface 行為
+
+**Impact**:
+
+- Behavioral audit list 減 1 條完全（version-bump-reminder），2 條改為 partial graduation（保留 row + 加 block quote，audit priority 降低）
+- DP-030 Phase 2 完成：Phase 2A meta-linter 基建（v3.52.0）+ Phase 2B L1-only × 3（v3.53.0）+ Phase 2C L2 advisory × 3（本版本）= 6 條 canary 下放 + 1 條 meta-linter validator
+- 累計 deterministic 執行層：10 條 L1 hooks + 6 條 L2 embed（分屬 4 skill）+ scripts 共 9 支
+- Bash 層 behavioral canary 歸零（Phase 2B 完成），Feedback 層保留 2 條 partial graduated
+
+**Bypass**:
+
+- Advisory hooks 不擋，暫無 env bypass；失誤時從 settings.json 移除對應 entry
+- 若 B1/B2 未來升級為 blocking → 加 `POLARIS_SKIP_FEEDBACK_REFLECTION=1` / `POLARIS_SKIP_VERSION_BUMP_REMINDER=1`
+
+Next: Phase 2C 觀察 1–2 週後（或 Phase 3 mechanism-registry 最終 audit）決定是否再硬化；剩餘 behavioral canary 歸類為純 semantic（api-docs-before-replace、delegate-exploration、blind-spot-scan 等），保留 L3。
+
 ## [3.53.0] - 2026-04-24
 
 ### Feat — DP-030 Phase 2B: L1-only canary batch migration

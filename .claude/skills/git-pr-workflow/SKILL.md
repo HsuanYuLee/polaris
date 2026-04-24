@@ -88,6 +88,42 @@ Evidence file key: /tmp/polaris-verified-<branch-slug>.json
 
 Task PR 建立完成後，執行 `references/feature-branch-pr-gate.md` 的偵測邏輯（靜默執行）。
 
+## Post-PR L2 Deterministic Checks
+
+PR 建立後（或既有 PR 推送新 commit 後），跑兩項 advisory check。兩者 exit 0 恆成立，stdout 若有訊息代表 Admin 要依訊息補動作。
+
+### Step 3 — L2 Deterministic Check: version-bump-reminder
+
+改動若落在 `rules/` 或 `.claude/skills/` 且本次未同步 bump `VERSION`，提醒升版。
+
+```bash
+bash "$CLAUDE_PROJECT_DIR/scripts/check-version-bump-reminder.sh" \
+  --mode post-pr \
+  --base "<PR base branch, e.g. main>" \
+  --repo "$CLAUDE_PROJECT_DIR"
+```
+
+根據 exit code（advisory — script 恆 exit 0）：
+- **exit 0 + 無 stdout** — 沒 framework 檔改動或已 bump VERSION，繼續
+- **exit 0 + 有 stdout** — Admin 依訊息決定是否 bump VERSION + CHANGELOG + 跑 Post-Version-Bump Chain
+
+此 canary 原列 `rules/mechanism-registry.md § Framework Iteration`（behavioral），DP-030 Phase 2C 下放為 deterministic。L1 fallback 由 PostToolUse hook on `git commit`（`.claude/hooks/version-bump-reminder.sh`）補位。
+
+### Step 4 — L2 Deterministic Check: post-task-feedback-reflection
+
+本 session 若出現自糾正信號但無新 feedback memory 檔案，提醒反思。
+
+```bash
+bash "$CLAUDE_PROJECT_DIR/scripts/check-feedback-signals.sh" \
+  --skill git-pr-workflow
+```
+
+根據 exit code（advisory — script 恆 exit 0）：
+- **exit 0 + 無 stdout** — 無反思訊號，繼續
+- **exit 0 + 有 stdout** — 依訊息決定是否寫 feedback memory
+
+L1 fallback 由 Stop hook 在對話結束時再檢一次。兩個 check 均遵循 `skills/references/l2-script-conventions.md` advisory 約定。
+
 ## Handbook Maintenance (post-PR)
 
 After PR is created, check if the repo has a handbook (`{repo}/.claude/rules/handbook/`). If it exists, run stale detection per `skills/references/repo-handbook.md` § Step 4.

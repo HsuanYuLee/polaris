@@ -477,6 +477,21 @@ python3 scripts/refinement-preview.py {company_base_dir}/specs/{EPIC_KEY}/refine
 - 建議下一步：`breakdown`（拆子單 + 估點）
 - 關閉 preview server（如還在跑）
 
+### Step 8 — L2 Deterministic Check: post-task-feedback-reflection
+
+定版寫入 / artifact 產出完成後，跑 advisory check：session 內若出現自糾正信號但無新 feedback memory 檔案 → 提示反思。
+
+```bash
+bash "$CLAUDE_PROJECT_DIR/scripts/check-feedback-signals.sh" \
+  --skill refinement
+```
+
+根據 exit code（advisory — script 恆 exit 0）：
+- **exit 0 + 無 stdout** — 無反思訊號，refinement 輪次正式收尾
+- **exit 0 + 有 stdout** — 依 `rules/feedback-and-memory.md` 判斷是否寫 feedback memory 或更新 handbook
+
+此 canary 原列 `rules/mechanism-registry.md § Feedback & Memory`（behavioral），DP-030 Phase 2C 下放為 deterministic。L1 fallback 由 Stop hook（`.claude/hooks/feedback-reflection-stop.sh`）補位。遵循 `skills/references/l2-script-conventions.md` advisory 約定。Phase 2（方案討論）收尾時亦建議重跑一次。
+
 ---
 
 ## Phase 2：方案討論（怎麼做）

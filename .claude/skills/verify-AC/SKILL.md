@@ -324,6 +324,21 @@ POLARIS_WORKSPACE_ROOT={workspace_root} \
 
 同類案例累積 3 次 → 抽成自動驗證 pattern（未來加到本 SKILL.md / reference）。
 
+### 11. L2 Deterministic Check: post-task-feedback-reflection
+
+整輪驗證結束（PASS / FAIL / PENDING 三路皆適用）後，跑 advisory check：session 內若出現自糾正信號（command 失敗後自修 / rerun）但無新 feedback memory 檔案 → 提示反思。
+
+```bash
+bash "$CLAUDE_PROJECT_DIR/scripts/check-feedback-signals.sh" \
+  --skill verify-AC
+```
+
+根據 exit code（advisory — script 恆 exit 0）：
+- **exit 0 + 無 stdout** — 無反思訊號，直接結案
+- **exit 0 + 有 stdout** — 依 `rules/feedback-and-memory.md` 判斷是否寫 feedback memory 或更新 handbook
+
+此 canary 原列 `rules/mechanism-registry.md § Feedback & Memory`（behavioral），DP-030 Phase 2C 下放為 deterministic。L1 fallback 由 Stop hook（`.claude/hooks/feedback-reflection-stop.sh`）補位。遵循 `skills/references/l2-script-conventions.md` advisory 約定。
+
 ## Re-verify
 
 本 skill stateless，每次執行都 full re-run。觸發方式：
