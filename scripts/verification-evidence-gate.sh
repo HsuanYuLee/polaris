@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # verification-evidence-gate.sh — PreToolUse hook
-# Blocks `gh pr create` unless verification evidence exists for the ticket.
+# Blocks `gh pr create` and `git push` (to task/fix branches on product repos)
+# unless verification evidence exists for the ticket.
+#
+# Intercepts:
+#   - `gh pr create` — all cases (original DP-029 behavior)
+#   - `git push` — only task/* and fix/* branches on repos with codecov config (DP-031)
 #
 # Evidence file: /tmp/polaris-verified-{TICKET}.json
 # Created by verify-completion skill or verify-http.sh wrapper.
 # Must contain: { "ticket": "...", "timestamp": "...", "results": [...], "runtime_contract": {...} }
 #
 # The file is intentionally in /tmp (ephemeral) — each session must verify fresh.
-# POLARIS_PR_WORKFLOW=1 must also be set (checked by pr-create-guard.sh).
 #
 # Env:
 #   POLARIS_SKIP_EVIDENCE=1  — bypass (for non-ticket PRs like framework changes)
@@ -24,8 +28,46 @@ tool_name=$(printf '%s' "$input" | python3 -c "import sys,json; d=json.load(sys.
 
 command=$(printf '%s' "$input" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || true)
 
-# Only intercept gh pr create
-printf '%s' "$command" | grep -qiE '^gh[[:space:]]+pr[[:space:]]+create\b' || exit 0
+# Determine which command we're intercepting
+MODE=""
+if printf '%s' "$command" | grep -qiE '^gh[[:space:]]+pr[[:space:]]+create\b'; then
+  MODE="pr-create"
+elif printf '%s' "$command" | grep -qiE '^git[[:space:]]+((-C[[:space:]]+[^[:space:]]+[[:space:]]+)?push|push)\b'; then
+  MODE="push"
+fi
+
+[[ -n "$MODE" ]] || exit 0
+
+# --- Push-specific filters: only block task/fix branches on product repos ---
+if [[ "$MODE" == "push" ]]; then
+  # Extract repo path from git -C <path> push, or use current dir
+  push_repo=$(printf '%s' "$command" | grep -oE 'git -C [^ ]+' | head -1 | sed 's/git -C //')
+  push_repo="${push_repo:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+
+  # Only intercept task/* and fix/* branches (skip wip/*, feat/*, main, develop)
+  push_branch=$(git -C "${push_repo:-.}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+  case "$push_branch" in
+    task/*|fix/*) ;; # continue checking
+    *) exit 0 ;;     # not a delivery branch, allow
+  esac
+
+  # Only intercept product repos (those with codecov config)
+  has_codecov=false
+  for cfg in codecov.yml .codecov.yml; do
+    [[ -f "${push_repo:-.}/$cfg" ]] && has_codecov=true && break
+  done
+  # Also check .woodpecker/codecov.yml
+  [[ -f "${push_repo:-.}/.woodpecker/codecov.yml" ]] && has_codecov=true
+
+  if ! $has_codecov; then
+    exit 0  # No CI coverage config — not a product repo, allow
+  fi
+
+  # Skip destructive/tag pushes
+  if printf '%s' "$command" | grep -qE '\-\-delete|\-\-tags'; then
+    exit 0
+  fi
+fi
 
 # Bypass for non-ticket PRs (framework, docs, etc.)
 if [[ "${POLARIS_SKIP_EVIDENCE:-}" == "1" ]]; then
@@ -34,6 +76,11 @@ fi
 
 # Extract ticket key from current branch name
 branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+
+# For push mode, use the repo we already resolved
+if [[ "$MODE" == "push" ]]; then
+  branch="$push_branch"
+fi
 ticket=""
 
 # Match patterns: task/KB2CW-1234-desc, feat/GT-521-desc, fix/KB2CW-1234
@@ -120,8 +167,13 @@ if [[ "$age_check" != "fresh" ]]; then
   exit 2
 fi
 
-# CI contract parity gate (pre-PR): if repo has Codecov patch gate, require fresh PASS coverage evidence.
+# CI contract parity gate: if repo has Codecov patch gate, require fresh PASS coverage evidence.
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+
+# For push mode, use the repo we already resolved
+if [[ "$MODE" == "push" && -n "${push_repo:-}" ]]; then
+  repo_root="$push_repo"
+fi
 has_patch_gate=false
 if [[ -n "$repo_root" ]]; then
   for cfg in codecov.yml .codecov.yml; do

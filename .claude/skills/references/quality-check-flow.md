@@ -234,8 +234,10 @@ Script 自動偵測 lint / typecheck / test 指令並執行，全部通過時寫
 ─ 結論: {✅ 可進入 behavioral verify | ⚠️ 需修正後重跑}
 ```
 
-**結論 ✅** → engineer-delivery-flow 進 Step 3
+**結論 ✅** → engineer-delivery-flow 進 **§ 2a CI Contract Parity（必跑）** → Step 3
 **結論 ⚠️** → 修正後從 Step 1 重跑
+
+> **⚠️ Step 2 通過不等於可以進 Step 3。** engineer-delivery-flow 的 § 2a（CI Contract Parity / Dimension B）是 Step 2 之後、Step 3 之前的**必經步驟**。跳過會導致 `gh pr create` 被 `verification-evidence-gate.sh` hook 擋下（查 `/tmp/polaris-coverage-{branch_slug}.json`）。
 
 ---
 

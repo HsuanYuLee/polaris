@@ -19,6 +19,11 @@
           },
           {
             "type": "command",
+            "if": "Bash(git push*)",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/verification-evidence-gate.sh\""
+          },
+          {
+            "type": "command",
             "if": "Bash(git*commit*)",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/version-docs-lint-gate.sh\""
           },
@@ -26,6 +31,11 @@
             "type": "command",
             "if": "Bash(gh pr create*)",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pr-base-gate.sh\""
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh pr create*)",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/verification-evidence-gate.sh\""
           },
           {
             "type": "command",

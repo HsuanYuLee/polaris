@@ -86,7 +86,9 @@
 
 **Re-test-after-fix 鐵律**：若本 step 發現問題並修改 code，所有測試和 lint 必須**重跑一次**。上一輪修改前的結果無效。
 
-本 step 通過後才能進 Step 3。未通過就繼續 = 欺騙下游。
+本 step 通過後**進 § 2a（必跑）**；2a 通過後才能進 Step 3。未通過就繼續 = 欺騙下游。
+
+> **⚠️ § 2a 是 top-level 必經步驟，不是 Step 2 的附註。** 跳過 2a 等於跳過 Dimension B（repo CI 模擬）；`verification-evidence-gate.sh` hook 會在 `gh pr create` 前查 `/tmp/polaris-coverage-{branch_slug}.json`（由 `ci-contract-run.sh` 寫入），evidence 缺失或非 PASS 時 block PR。
 
 ### 2a. CI Contract Parity（repo 有配就跑、沒配就跳過）
 
@@ -105,7 +107,9 @@
 - exit 0 → Dimension B PASS，進 Step 3
 - exit 1 → Dimension B FAIL，**回到實作階段修 root cause**，禁止放寬 assertion / `.skip()` / `as any` 繞過（canary: `tdd-bypass-no-assertion-weakening`）；修完回 Step 2 開頭重跑
 
-**沒有 repo CI 配置（例如框架 repo / prototype）**：`ci-contract-run.sh` 偵測不到 `codecov.yml` / workflow → 跳過 patch gate 模擬，直接 PASS。這是 design — 框架尊重 repo maintainer 的 CI 決策，不主動強加 coverage baseline。
+**Evidence file（自動寫入）**：`ci-contract-run.sh` 執行完必寫 `/tmp/polaris-coverage-{branch_slug}.json`（status / branch / timestamp / summary）。`verification-evidence-gate.sh` hook 在 `gh pr create` 前讀此檔案；無檔案或非 PASS → block PR。跳過本 step = 沒寫 evidence = PR 建不起來（確定性 gate）。
+
+**沒有 repo CI 配置（例如框架 repo / prototype）**：`ci-contract-run.sh` 偵測不到 `codecov.yml` / workflow → 跳過 patch gate 模擬，直接 PASS（仍會寫 evidence file status: PASS）。這是 design — 框架尊重 repo maintainer 的 CI 決策，不主動強加 coverage baseline。
 
 **Bypass**：`POLARIS_SKIP_CI_CONTRACT=1` — 純文件 / config-only 改動可用；一般情況不用。
 

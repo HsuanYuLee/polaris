@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.55.1] - 2026-04-24
+
+### Fix — review-pr Step 4d severity calibration: language/library behavior claims require verification
+
+Review-inbox session (web-design-system PR #667) 中 sub-agent 以「`DS_IMPORT_RE` 缺 `s` flag 因 `[^}]+` 無法跨行匹配」為由送出 must-fix + REQUEST_CHANGES，事實上 JS character class `[^}]+` 不受 `dotAll` 影響、本來就可跨行 — must-fix 判斷為誤，雖 reply 撤回但 REQUEST_CHANGES 仍在 GitHub 擋 merge。
+
+**Updated — `.claude/skills/review-pr/SKILL.md § 4d Severity Calibration 注意事項`**:
+- 新增一列：語言 / 函式庫行為推論（regex、array 方法、framework 預設值等） → 未驗證前最多 should-fix，驗證（Node REPL / MDN / 官方文件）後才可升 must-fix；附上 `[^}]+` dotAll 誤判為標準案例
+- 核心原則段落補「語言/函式庫特性若未當場驗證，同樣最多 should-fix」
+
+**Not graduated to deterministic**: 無法自動化偵測 review comment 中語言特性的事實錯誤（需要執行 runtime 驗證才能判斷）。這條與既有 `runtime-claims-need-runtime-evidence` canary 同屬 behavioral 層，但覆蓋 sub-agent 對外送出的 must-fix 判斷，不只是 Strategist 的內部結論採納。
+
 ## [3.55.0] - 2026-04-24
 
 ### Feat — DP-030 Phase 3: finalization (mechanism-registry audit + CLAUDE.md landed case study)

@@ -309,8 +309,9 @@ gh api repos/{owner}/{repo}/contents/{filename}?ref={headRefName} --jq '.content
 | API payload key 命名與相鄰方法不一致 | **should-fix** | 不同 API endpoint 可能有不同 contract，不可在未驗證 API spec 的情況下標為 must-fix。應建議作者確認 API 文件，若有 `@see` 連結則引用 |
 | 僅基於「其他地方都這樣寫」的推論 | **should-fix** | 一致性問題不等於正確性問題，除非有明確規範要求 |
 | 無法從 diff 或原始碼直接驗證的外部行為假設 | **should-fix** | 例如「後端 API 會拒絕」「第三方服務不支援」——無法驗證的推測不應標為 must-fix，改為 should-fix 並請作者確認 |
+| 語言 / 函式庫行為推論（regex、array 方法、framework 預設值等） | **未驗證前 should-fix；驗證後才可升 must-fix** | 須用 Node REPL / MDN / 官方文件當場實測再下判斷。無法驗證 → should-fix 並請作者確認。誤判範例：JS regex `[^}]+` 在無 `s` flag 下仍可跨行匹配（character class 不受 dotAll 影響），反向宣稱「缺 `s` flag」為 bug 是錯誤 — 這類錯誤若已送出 REQUEST_CHANGES 會卡住作者 merge |
 
-**核心原則**：must-fix 必須是「從程式碼可直接證明會出錯」的問題（型別錯誤、null dereference、XSS）。基於推測或慣例推論的問題，最多 should-fix。
+**核心原則**：must-fix 必須是「從程式碼可直接證明會出錯」的問題（型別錯誤、null dereference、XSS）。基於推測或慣例推論的問題，最多 should-fix。語言/函式庫特性（regex、array 方法、framework 預設等）若未當場驗證，同樣最多 should-fix。
 
 ## 5. Compose & Submit Review
 

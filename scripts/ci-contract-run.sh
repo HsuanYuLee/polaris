@@ -405,6 +405,29 @@ report = {
     "status": "DRY_RUN" if dry_run else ("FAIL" if failed else "PASS"),
 }
 
+# Write evidence file for verification-evidence-gate.sh (Dimension B gate).
+# Hook reads /tmp/polaris-coverage-{branch_slug}.json on `gh pr create`.
+# See rules/mechanism-registry.md § verification-evidence-required.
+from datetime import datetime, timezone
+
+branch_name = git(["rev-parse", "--abbrev-ref", "HEAD"]) or ""
+if branch_name:
+    branch_slug = branch_name.replace("/", "-")
+    evidence = {
+        "branch": branch_name,
+        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "status": report["status"],
+        "summary": summary,
+        "intent": intent,
+        "dry_run": dry_run,
+    }
+    evidence_path = f"/tmp/polaris-coverage-{branch_slug}.json"
+    try:
+        with open(evidence_path, "w") as f:
+            json.dump(evidence, f, indent=2)
+    except Exception as e:
+        print(f"[ci-contract-run] warn: failed to write evidence file: {e}", file=sys.stderr)
+
 print(json.dumps(report, ensure_ascii=False, indent=2))
 sys.exit(1 if failed else 0)
 PY
