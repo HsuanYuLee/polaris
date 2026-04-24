@@ -4,6 +4,34 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.55.0] - 2026-04-24
+
+### Feat — DP-030 Phase 3: finalization (mechanism-registry audit + CLAUDE.md landed case study)
+
+DP-030 收尾不碰 hook / script，只收 doc：
+
+**Audited — `mechanism-registry.md`**:
+
+- 確認 6 條強下放 canary（`no-cd-in-bash`、`no-independent-cmd-chaining`、`cross-session-carry-forward`、`max-five-consecutive-reads`、`no-file-reread`、`version-bump-reminder`）只剩 § Deterministic Quality Hooks 的 row，原 behavioral 分類僅存 block quote cross-reference
+- 確認 2 條 partial-graduation canary（`post-task-feedback-reflection`、`feedback-trigger-count-update`）按 path B 設計保留 behavioral row + deterministic signal-capture row + annotation block quote
+- 確認 6 條 Non-candidate canary（`skill-first-invoke`、`delegate-exploration`、`api-docs-before-replace`、`runtime-claims-need-runtime-evidence`、`design-plan-*`、`blind-spot-scan`）仍是 L3 residual 核心
+- Priority Audit Order：items 1-8 是 live behavioral 重點；items 9-12 為 graduation trail / deterministic hook 低優先級提醒 — 此次無需再調整
+
+**Updated — `CLAUDE.md § Deterministic Enforcement Principle`**:
+
+- 在 Workaround accumulation signal 段落後加「Landed case study — DP-030」簡述：2026-04-24 v3.54.0 系統性下放 6 條 canary（全下放）+ 2 條（partial graduation），歸納 pattern 為「同一支 script 供 hook 和 SKILL embed 共用」、「exit 2 hard-stop vs exit 1 retry-able」、「behavioral 只保留不可簡化的語意判斷」。指向 `specs/design-plans/DP-030-llm-to-script-migration/plan.md` 作 canonical record
+
+**Plan status flip**:
+
+- `specs/design-plans/DP-030-llm-to-script-migration/plan.md`：status `LOCKED` → `IMPLEMENTED`、新增 `implemented_at: 2026-04-24`、Locked 下補 `## Implemented` 段落列 v3.51.0 ~ v3.55.0 五個版本 shipped 內容（plan.md 本身 gitignored，僅在主 checkout 維護）
+- 所有 Implementation Checklist 8 項與 Blind Spots #3/#4 皆標為 checked；跨 LLM 驗證（BS#3）交棒給 DP-027 Phase 1E C19/C20；memory-hygiene L2 embed 因 Stop advisory 已覆蓋主要 drift signal 改列 backlog follow-up
+
+**Also — `.claude/polaris-backlog.md`**:
+
+- 補上 Phase 2C 親歷的 `.claude/hooks/checkpoint-carry-forward-fallback.sh` 既存檔 Write overwrite probe bug 條目（line 124 `! -f "$file_path"` 條件誤用 on-disk 舊內容當 probe），列入 framework follow-up，不阻擋 DP-030 收尾
+
+**Why now**: Phase 2C 實作落地後，Phase 3 完成 canonical 文件與引用，讓未來 workspace / skill 作者在看 `CLAUDE.md § Deterministic Enforcement Principle` 時就能找到實戰參考，而不是從 backlog 考古。
+
 ## [3.54.0] - 2026-04-24
 
 ### Feat — DP-030 Phase 2C: L2 canary batch (path B advisory)
