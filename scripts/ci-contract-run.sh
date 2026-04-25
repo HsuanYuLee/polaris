@@ -93,6 +93,38 @@ ordered_categories = ["install", "lint", "typecheck", "test", "coverage"]
 results = []
 failed = False
 
+# --- Framework env prep: ensure .nuxt/ exists for Nuxt projects ---
+# Worktrees are fresh checkouts without generated dirs. If vitest depends on
+# Nuxt auto-imports (resolved via .nuxt/), tests silently produce 0 coverage.
+# Detect Nuxt project and run `nuxt prepare` before test/coverage categories.
+if not dry_run:
+    nuxt_config = any(
+        (repo / f).exists()
+        for f in ("nuxt.config.ts", "nuxt.config.js")
+    )
+    if not nuxt_config:
+        # Monorepo: check apps/*/nuxt.config.ts
+        nuxt_config = bool(list(repo.glob("apps/*/nuxt.config.ts")))
+    if nuxt_config:
+        # Find all nuxt app dirs that need .nuxt/ prepared
+        nuxt_dirs = []
+        for cfg in repo.glob("**/nuxt.config.ts"):
+            app_dir = cfg.parent
+            nuxt_dir = app_dir / ".nuxt"
+            if not nuxt_dir.exists():
+                nuxt_dirs.append(app_dir)
+        for cfg in repo.glob("**/nuxt.config.js"):
+            app_dir = cfg.parent
+            nuxt_dir = app_dir / ".nuxt"
+            if not nuxt_dir.exists() and app_dir not in nuxt_dirs:
+                nuxt_dirs.append(app_dir)
+        for app_dir in nuxt_dirs:
+            print(f"[ci-contract-run] Nuxt project detected at {app_dir.relative_to(repo)}, running nuxt prepare...", file=sys.stderr)
+            prep_rc, prep_out = run_cmd("npx nuxt prepare", app_dir)
+            if prep_rc != 0:
+                print(f"[ci-contract-run] WARN: nuxt prepare failed (exit {prep_rc}) at {app_dir.relative_to(repo)}", file=sys.stderr)
+                print(prep_out[-500:] if len(prep_out) > 500 else prep_out, file=sys.stderr)
+
 for category in ordered_categories:
     if category == "install" and skip_install:
         continue
@@ -383,6 +415,39 @@ for gate in contract.get("codecov_flag_gates", []):
                 failed = True
 
         flag_results.append(entry)
+
+# --- Empty-coverage safety net ---
+# If all patch gates with explicit targets resulted in SKIP("no_instrumented_patch_lines")
+# BUT there are changed source files matching those gates, tests likely didn't produce
+# coverage data (e.g., Nuxt .nuxt/ missing, vitest skipped all files).
+# Treat this as FAIL to prevent silent pass-through.
+if not dry_run and not failed:
+    patch_explicit_gates = [
+        g for g in flag_results
+        if g.get("status_type") == "patch"
+        and g.get("target_percent") is not None
+        and not g.get("is_auto")
+    ]
+    if patch_explicit_gates:
+        all_skip_no_lines = all(
+            g.get("status") == "SKIP" and g.get("reason") == "no_instrumented_patch_lines"
+            for g in patch_explicit_gates
+        )
+        has_matched_files = any(
+            len(g.get("matched_files", [])) > 0
+            for g in patch_explicit_gates
+        )
+        if all_skip_no_lines and has_matched_files:
+            print(
+                "[ci-contract-run] FAIL: all patch gates show 0 instrumented lines "
+                "but changed files exist in gate paths. Tests likely did not produce "
+                "coverage data (missing framework build, vitest skipped, etc.).",
+                file=sys.stderr,
+            )
+            failed = True
+            for g in patch_explicit_gates:
+                g["status"] = "FAIL"
+                g["reason"] = "no_coverage_data_with_changed_files"
 
 summary = {
     "provider": contract.get("provider"),

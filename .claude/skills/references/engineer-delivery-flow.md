@@ -111,6 +111,10 @@
 
 **沒有 repo CI 配置（例如框架 repo / prototype）**：`ci-contract-run.sh` 偵測不到 `codecov.yml` / workflow → 跳過 patch gate 模擬，直接 PASS（仍會寫 evidence file status: PASS）。這是 design — 框架尊重 repo maintainer 的 CI 決策，不主動強加 coverage baseline。
 
+**Worktree 框架環境自動準備**：`ci-contract-run.sh` 在跑 test/coverage 之前，會自動偵測 Nuxt 專案（`nuxt.config.ts` / `nuxt.config.js`），若 `.nuxt/` 目錄不存在則自動執行 `npx nuxt prepare`。這解決 worktree 環境缺少生成目錄導致 vitest 靜默跳過、coverage 為零卻報 PASS 的問題（TASK-123 事件）。
+
+**Empty-coverage 安全網**：若所有 patch gate 結果為 SKIP（`no_instrumented_patch_lines`）但 diff 中有匹配 gate path 的檔案，`ci-contract-run.sh` 判定 FAIL（tests 很可能沒跑出 coverage data）。這是 defense-in-depth — 正常情況 framework prep 會解決問題，此 check 攔截 prep 失敗或其他未預見原因。
+
 **Bypass**：`POLARIS_SKIP_CI_CONTRACT=1` — 純文件 / config-only 改動可用；一般情況不用。
 
 **歷史**：TASK-123 事件（useFetch key 改動沒補測試、本地 quality PASS 但 CI `codecov/patch/main-core` FAIL）促成了 DP-029 Phase B 的 patch gate 精確模擬，讓 CI failure 在 push 前就被擋下。早期版本另掛了 framework-level `coverage-gate.sh`（D6 v1），後來 D6 v2 (2026-04-24) 判定「repo 有配就由 Dimension B 接、沒配不追加」更乾淨，coverage-gate 下架。

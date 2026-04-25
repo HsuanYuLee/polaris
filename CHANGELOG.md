@@ -4,6 +4,53 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.57.0] - 2026-04-25
+
+### Feat — DP-032 Wave α: deterministic extraction infrastructure
+
+Land the foundational scripts and reference docs for the engineering-deterministic-extraction plan. No breaking changes; legacy `ci-contract-run.sh` and `quality-gate.sh` remain in place — D12-c (next release) will retire them.
+
+**D11 — env primitives + L3 orchestrator**:
+- `scripts/env/_lib.sh` (workspace-config router→company resolver, yaml→json, dotted-path field extract, fail-loud helper)
+- `scripts/env/health-check.sh` / `fixtures-start.sh` / `start-command.sh` / `ensure-dependencies.sh` (4 L2 primitives)
+- `scripts/env/selftest.sh` (25 assertions)
+- `scripts/start-test-env.sh` (L3 orchestrator: ensure-deps → start-command → health-check → [fixtures-start])
+- Callsite rewiring deferred to Wave γ
+
+**D8 — task.md central parser**:
+- `scripts/parse-task-md.sh` (bash + python3 inline parser)
+- Two output modes: full JSON envelope or `--field <key>` flat alias
+- N/A sentinel normalized to null; resolves base via `resolve-task-base.sh` with soft-fail
+- Selftest passes; smoke-tested against GT-478 T1/T3b/T3d
+- Callsite rewiring deferred to Wave γ
+
+**D25 — JIRA transition unified entry**:
+- `scripts/polaris-jira-transition.sh` (cross-LLM REST API; bash 3.2 compatible)
+- Built-in default slug→name map (in_development / code_review / done / waiting_qa / qa_pass / blocked)
+- Aggressive soft-fail (per D25 reframe: JIRA transition is a nice-to-have display layer; task.md is authoritative)
+- Smoke-tested on KB2CW-3711
+- Callsite rewiring (engineering / verify-AC / bug-triage / start-dev) deferred to Wave γ
+
+**D12-b — tool-agnostic CI mirror generator**:
+- `scripts/ci-local-generate.sh` produces per-repo `{repo}/scripts/ci-local.sh`
+- Reuses `ci-contract-discover.sh` to parse 4 of 5 CI providers (Woodpecker / GitHub Actions / GitLab CI + .husky/ + .pre-commit-config.yaml + package.json scripts; CircleCI deferred)
+- Strict filtering: install/lint/typecheck/test/coverage categories only, `local_executable=true`, no `$CI_*` env dep
+- `scripts/ci-local-generate-selftest.sh` (50 assertions across 6 fixtures)
+
+**D22 + D24 — L3 default convention specs**:
+- `references/commit-convention-default.md` (L3 fallback for commit messages: type enum, `{TICKET}` derivation, multi-commit, revision rules)
+- `references/changeset-convention-default.md` (L3 fallback for changesets: filename slug, `{package}: patch` default, description = stripped task title, `ticket_prefix_handling=strip`)
+
+**A0 — Polaris CI baseline (dog-food)**:
+- `.github/workflows/ci.yml` (lint + selftest jobs)
+- `.pre-commit-config.yaml` (mirrors workflow for local pre-commit framework)
+- shellcheck `--severity=error` gate (0 errors today; warning + info + style cleanup deferred — separate session via "cleanup polaris shellcheck warnings" trigger)
+- ruff check (5 files auto-fixed in this release; 0 issues today)
+
+### Fix — KB2CW-3900 interim (subsumed by D12-c)
+
+`ci-contract-run.sh` Nuxt prepare auto-detect + empty-coverage safety net. Both additions document the bug to fix in D12-c (full `ci-contract-run.sh` deletion, ci-local.sh take over).
+
 ## [3.56.0] - 2026-04-24
 
 ### Feat — DP-031: Revision Push Evidence Gate

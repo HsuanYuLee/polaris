@@ -64,14 +64,14 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `feedback-pre-write-dedup` | Before creating feedback memory, scan for semantic overlap and merge if found | New feedback file created when an existing entry covers the same topic | High |
 | `feedback-trigger-count-update` | After using a feedback memory, increment trigger_count (once per conversation) | Feedback memory trigger_count unchanged after conversation that referenced it | High |
 
-> `post-task-feedback-reflection` 和 `feedback-trigger-count-update` 透過 DP-030 Phase 2C（2026-04-24）加掛 deterministic advisory signal-capture — PostToolUse Read logger + Stop advisory hook + 4 skill L2 embed。Behavioral write（寫 feedback memory / bump `trigger_count` + `last_triggered`）**仍由 LLM 負責**，但 deterministic 層會在 Stop 時 surface 遺漏訊號。見 § Deterministic Quality Hooks 對應 row。
+> `post-task-feedback-reflection` 和 `feedback-trigger-count-update` 已加掛 deterministic signal-capture（DP-030 Phase 2C）。Behavioral write 仍由 LLM 負責。見 `skills/references/deterministic-hooks-registry.md`。
 | `feedback-backlog-classification` | New feedback memory that describes a framework gap must also write a backlog entry | FRAMEWORK_GAP feedback created without corresponding `polaris-backlog.md` entry | Medium |
 | `project-backlog-classification` | Project memory with action items (待實施/下一步/需要解決) must also write FRAMEWORK_GAP items to backlog | Project memory containing "待實施" or "pending" without corresponding backlog entry | High |
 | `memory-company-hard-skip` | Skip memories with mismatched company field | Company-scoped memory applied to a different company's work | Medium |
 | `correction-driven-handbook-update` | User correction about repo-specific knowledge → pause work, update handbook (not feedback memory), resume with new understanding | Repo-specific correction (architecture, code convention, dev environment) saved as feedback memory instead of updating handbook | **Critical** |
 | `repo-knowledge-to-handbook-not-feedback` | Repo-specific knowledge (code patterns, API conventions, test strategies, env setup) belongs in handbook sub-files, not feedback memories | New feedback memory created for repo-specific knowledge that should be in `{repo}/.claude/rules/handbook/*.md` | High |
 
-> `cross-session-carry-forward` graduated to deterministic enforcement via DP-030 Phase 1 POC (2026-04-24) — see § Deterministic Quality Hooks.
+> `cross-session-carry-forward` 已畢業至 deterministic（DP-030 Phase 1）。見 `skills/references/deterministic-hooks-registry.md`。
 
 #### Common Rationalizations — Handbook vs Feedback
 
@@ -123,11 +123,7 @@ Enforcement is **deterministic** via PreToolUse hook `.claude/hooks/pipeline-art
 | `skill-completion-split` | After completing a skill, if next action is a different skill/topic → run checkpoint sequence + `checkpoint-todo-diff.sh` before notifying (see `context-monitoring.md` § 5a-bis) | Strategist switches from one skill to a different skill without checkpoint; or checkpoint written but `checkpoint-todo-diff.sh` not run | Medium |
 | `checkpoint-todo-completeness` | When writing a checkpoint memory, run `scripts/checkpoint-todo-diff.sh` to verify all todo items have dispositions (done/carry-forward/dropped). Hard gate: notification blocked until diff passes | Checkpoint memory written with todo items missing from content; or session split notification sent before diff script confirms all items covered | High |
 
-> `max-five-consecutive-reads` and `no-file-reread` graduated to deterministic enforcement via DP-030 Phase 2B (2026-04-24) — see § Deterministic Quality Hooks.
-
-### Bash Execution (source: `rules/bash-command-splitting.md`)
-
-> `no-cd-in-bash` and `no-independent-cmd-chaining` graduated to deterministic enforcement via DP-030 Phase 1 / Phase 2B (2026-04-24) — see § Deterministic Quality Hooks.
+> `max-five-consecutive-reads`、`no-file-reread`、`no-cd-in-bash`、`no-independent-cmd-chaining` 已畢業至 deterministic（DP-030）。見 `skills/references/deterministic-hooks-registry.md`。
 
 ### Company Isolation (source: `rules/multi-company-isolation.md`)
 
@@ -219,27 +215,7 @@ Enforcement is **deterministic** via PreToolUse hook `.claude/hooks/pipeline-art
 
 These mechanisms are enforced by **scripts + hooks** (exit code driven), not behavioral rules. They physically block the action — the Strategist cannot bypass them without env var override.
 
-| ID | Rule | Enforcement | Script |
-|----|------|-------------|--------|
-| `verification-evidence-required` | `gh pr create` **and** `git push` (to `task/*/fix/*` branches on product repos with codecov config) blocked unless `/tmp/polaris-verified-{TICKET}.json` exists with valid ticket, timestamp (< 4h), non-empty results, and `runtime_contract` metadata. If `runtime_contract.level=runtime`, gate additionally requires live `runtime_verify_target`, `verify_command_url`, and host alignment. **Additionally (Dimension B)**: 若 repo `codecov.yml` 有 `type: patch` 設定（即 repo 把 patch coverage 列為 CI 要求），gate 再要求 `/tmp/polaris-coverage-{branch_slug}.json` 存在、`status: PASS`、timestamp < 4h。此檔由 `ci-contract-run.sh`（engineer-delivery-flow § 2a）執行完自動寫入。跳過 § 2a = 沒寫 evidence = PR/push 被 block。**DP-031 擴展**：revision mode 只做 `git push`（不 `gh pr create`），原本繞過 gate — 現在 `git push` 也受攔截（條件：`task/*/fix/*` branch + repo 有 codecov config + 非 `--delete`/`--tags`）。`wip/*`、`feat/*`、framework repo 不攔 | PreToolUse hook on `Bash(gh pr create*)` + `Bash(git push*)`, exit 2 to block. Hook registered in `.claude/settings.json` Bash hook chain | `scripts/verification-evidence-gate.sh`（Layer A/B + Dimension B coverage）+ `scripts/ci-contract-run.sh`（writer） |
-| `quality-evidence-required` | `git commit` blocked unless `/tmp/polaris-quality-{branch}.json` exists with `all_passed: true`. Bypass: `POLARIS_SKIP_QUALITY=1` or `wip:` commit message prefix. Skipped for main/develop and framework repo | PreToolUse hook on Bash, exit 2 to block | `scripts/quality-gate.sh` |
-| `test-sequence-warning` | When sequence test-fail → production-file-edit → test-pass is detected, inject warning about wrong-fix pattern | PostToolUse hook on Bash + Edit, stdout injection | `scripts/test-sequence-tracker.sh` |
-| `context-pressure-monitor` | At 20/25/35 tool calls, inject escalating warnings to save state and delegate. Counts Bash/Edit/Write/Read/Grep/Glob/Agent calls. State: `/tmp/polaris-session-calls.txt`. Reset on reboot | PostToolUse hook, stdout injection (advisory, not blocking) | `scripts/context-pressure-monitor.sh` |
-| `version-docs-lint-gate` | `git commit` blocked when VERSION is staged but `readme-lint.py` fails (phantom skills, count drift, undocumented skills). Bypass: `POLARIS_SKIP_DOCS_LINT=1`. Only fires in repos with VERSION file. Hook lives in `settings.json` with repo-detection logic (non-framework repos auto-skip) | PreToolUse hook on Bash, exit 2 to block | `.claude/hooks/version-docs-lint-gate.sh` |
-| `docs-viewer-sidebar-sync` | When specs files are edited/written, auto-regenerate `docs-viewer/_sidebar.md` so Design Plans/Epic specs remain navigable without manual sync. Runtime-agnostic entrypoint supports Claude hook env + generic path args | PostToolUse hook on Edit/Write (Claude) and reusable script for Codex/manual flows, stdout injection | `scripts/docs-viewer-sync-hook.sh` (wrapper: `.claude/hooks/specs-sidebar-sync.sh`) |
-| `no-hooks-in-local-settings` | `settings.local.json` must not contain a `hooks` key — shallow merge silently overrides all `settings.json` hooks. `/validate` check 10 warns; `polaris-sync.sh` deploy warns | `/validate` Mechanisms mode + `polaris-sync.sh` post-deploy check (advisory) | — |
-| `post-compact-context-restore` | After auto-compaction, re-inject branch, ticket, modified file count, and company context hint. Previously behavioral-only (`post-compression-company-context`) — now deterministic | PostCompact hook (auto), stdout injection | `.claude/hooks/post-compact-context-restore.sh` |
-| `session-summary-precompact` | Before context compaction, inject prompt for Strategist to write `session_summary` to polaris-timeline so next session can reconstruct what happened. Hook pre-computes metadata (branch/tickets/skills/commits) from git + timeline; Strategist fills only `--text`. D4 main path (DP-024 P2). Pairs with `post-compact-context-restore` | PreCompact hook (auto), stdout injection | `.claude/hooks/session-summary-precompact.sh` |
-| `stop-todo-check` | On substantial sessions (10+ tool calls), block stopping until Strategist confirms all todo items have dispositions. Prevents premature completion. Must check `stop_hook_active` to avoid infinite loop | Stop hook, JSON `{"decision":"block"}` output | `.claude/hooks/stop-todo-check.sh` |
-| `auto-compact-window` | `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000` triggers compaction before reasoning degrades (300-400k range). Complements `context-pressure-monitor` (tool-call count) with token-level precision | Environment variable in `~/.claude/settings.json` `env` block | — |
-| `no-cd-in-bash` | Block `cd` in Bash commands; must use tool path parameters (`git -C`, `pnpm -C`, `gh --repo`) or absolute paths. See `rules/bash-command-splitting.md`. Graduated from behavioral to deterministic via DP-030 Phase 1 POC (2026-04-24) | PreToolUse hook on Bash, exit 2 to block | `.claude/hooks/no-cd-in-bash.sh` (calls `scripts/check-no-cd-in-bash.sh`) |
-| `cross-session-carry-forward` | Writing a new checkpoint (`type: project` memory with pending section) must carry forward prior pending items with explicit disposition (done / carry-forward / dropped). Graduated from behavioral to deterministic via DP-030 Phase 1 POC (2026-04-24). See `skills/references/l2-script-conventions.md` for exit-code semantics | L2 skill-embedded (`.claude/skills/checkpoint/SKILL.md` Step 2.5) + L1 PreToolUse hook on Write/Edit to `**/memory/*.md` (fallback for skill bypass), exit 2 to block | `scripts/check-carry-forward.sh` (invoked by both L2 embed and `.claude/hooks/checkpoint-carry-forward-fallback.sh`) |
-| `no-independent-cmd-chaining` | Block Bash commands that chain multiple commands with `&&` (quoted `&&` inside args still allowed). See `rules/bash-command-splitting.md`. Graduated from behavioral to deterministic via DP-030 Phase 2B (2026-04-24) | PreToolUse hook on Bash, exit 2 to block | `.claude/hooks/no-independent-cmd-chaining.sh` (calls `scripts/check-no-independent-cmd-chaining.sh`) |
-| `max-five-consecutive-reads` | Track consecutive Read/Grep calls; warn (stdout advisory) when count exceeds 5 without an intervening conclusion-producing tool (Bash/Edit/Write/Agent/NotebookEdit/Glob). See `rules/context-monitoring.md` § 1. Graduated via DP-030 Phase 2B (2026-04-24) | PostToolUse hook (broad matcher), stdout injection (advisory, not blocking). State: `/tmp/polaris-consecutive-reads.txt` | `.claude/hooks/consecutive-reads-monitor.sh` (calls `scripts/check-consecutive-reads.sh`) |
-| `no-file-reread` | Track per-file Read counts per session; warn (stdout advisory) when the same absolute path is read > 2 times unless modified (mtime advance resets count). See `rules/context-monitoring.md` § 3. Graduated via DP-030 Phase 2B (2026-04-24) | PostToolUse hook on Read, stdout injection (advisory, not blocking). State: `/tmp/polaris-file-reads.txt` | `.claude/hooks/no-file-reread-monitor.sh` (calls `scripts/check-no-file-reread.sh`) |
-| `version-bump-reminder` | Detect commits / PR diffs that touched `rules/` or `.claude/skills/` without bumping `VERSION` and emit an advisory reminder. See `rules/framework-iteration.md` § Version Bump Reminder. Graduated from behavioral (was `Critical` drift) to deterministic via DP-030 Phase 2C (2026-04-24). Advisory posture: exit 0 + stdout reminder — never blocks | PostToolUse hook on `Bash(git*commit*)` + L2 embed in `engineering` Step 9 / `git-pr-workflow` Step 3 (post-PR tail) | `.claude/hooks/version-bump-reminder.sh` + `scripts/check-version-bump-reminder.sh` |
-| `feedback-trigger-count-update` | Capture Read tool calls on feedback memory files into a session state log; at Stop time, advise if any read-but-not-bumped files remain (frontmatter `last_triggered` ≠ today). Graduated from behavioral to deterministic signal-capture via DP-030 Phase 2C (2026-04-24) — **behavioral write still required** (LLM still bumps `trigger_count` + `last_triggered`). See `rules/feedback-and-memory.md` § Trigger Count Update Rules | PostToolUse hook on Read (signal capture) + Stop advisory hook | `.claude/hooks/feedback-read-logger.sh` + `.claude/hooks/feedback-trigger-advisory.sh` + `scripts/check-feedback-trigger-count.sh` |
-| `post-task-feedback-reflection` | Detect self-correct signals (test-sequence-tracker state, optional sentinel) combined with no new feedback memory file written this session; advise reflection when both fire. Graduated from behavioral to deterministic signal-capture via DP-030 Phase 2C (2026-04-24) — **behavioral write still required**. See `rules/feedback-and-memory.md` § Correction = Immediate Reflection | Stop advisory hook + L2 embed in `engineering` / `verify-AC` / `breakdown` / `refinement` (post-flow tail) | `.claude/hooks/feedback-reflection-stop.sh` + `scripts/check-feedback-signals.sh` |
+> Full hook table (ID, Rule, Enforcement, Script) is in `skills/references/deterministic-hooks-registry.md`. Audit priority: low — hooks enforce automatically (Priority Audit Order #12).
 
 For evidence file spec, writer script, bypass flags, and hook script reference — see `skills/references/mechanism-rationalizations.md` § Deterministic Quality Hooks — Detail.
 
@@ -266,11 +242,11 @@ For evidence file spec, writer script, bypass flags, and hook script reference �
 | `docs-sync-on-version-bump` | After VERSION bump commit, run docs-sync before sync-to-polaris. **Deterministic backup:** `version-docs-lint-gate` hook blocks commit if VERSION staged + lint fails | VERSION bumped and pushed without docs-sync invocation | High |
 | `backlog-staleness-scan` | Post-version-bump chain Step 2 + monthly standup fallback: scan backlog for stale items | Version bump completes without backlog scan; first standup of month skips scan when no bump happened that month | Medium |
 
-> `version-bump-reminder` graduated to deterministic enforcement via DP-030 Phase 2C (2026-04-24) — see § Deterministic Quality Hooks.
+> `version-bump-reminder` 已畢業至 deterministic（DP-030 Phase 2C）。見 `skills/references/deterministic-hooks-registry.md`。
 
 #### Common Rationalizations — Version Bump Reminder
 
-> See `skills/references/mechanism-rationalizations.md` § Common Rationalizations — Version Bump Reminder. (Now superseded in practice by the deterministic advisory; rationalizations retained for post-hoc audit reference.)
+> See `skills/references/mechanism-rationalizations.md` § Common Rationalizations — Version Bump Reminder.
 
 ### Cross-Session Continuity (source: `CLAUDE.md`)
 
@@ -307,12 +283,10 @@ Post-task audit should check these first (highest drift risk, most impactful):
 2. `skill-first-invoke` / `no-manual-skill-steps` / `reference-index-scan`
 3. `api-docs-before-replace` / `lib-exhaust-before-replace` / `fix-through-not-revert` / `query-original-impl` (Critical — PROJ-123 root cause + library change protocol)
 4. `delegate-exploration` / `delegate-implementation`
-5. `cross-session-read-memory-file` (note: `cross-session-carry-forward` graduated to deterministic — see § Deterministic Quality Hooks)
-6. `correction-driven-handbook-update` (correction = immediate trigger; repo-specific → handbook, framework → feedback). Note: `post-task-feedback-reflection` graduated to deterministic signal-capture via DP-030 Phase 2C — see § Deterministic Quality Hooks; the behavioral write remains, but audit priority drops because the Stop hook surfaces the miss
+5. `cross-session-read-memory-file` (`cross-session-carry-forward` 已畢業至 deterministic)
+6. `correction-driven-handbook-update` (repo-specific → handbook, framework → feedback). `post-task-feedback-reflection` 已有 deterministic signal-capture
 6a. `checkpoint-mode-at-25` (check during long sessions, not just post-task)
 7. `re-test-after-fix` / `fresh-verification-before-completion` / `checklist-before-done`
 8. `cross-repo-verification` / `env-follows-requires`
-9. (all Bash-chain canaries graduated to deterministic — `no-cd-in-bash` via DP-030 Phase 1, `no-independent-cmd-chaining` via DP-030 Phase 2B; see § Deterministic Quality Hooks)
-10. (`feedback-trigger-count-update` graduated to deterministic signal-capture via DP-030 Phase 2C — see § Deterministic Quality Hooks; behavioral write still required)
-11. (`version-bump-reminder` graduated to deterministic advisory via DP-030 Phase 2C — see § Deterministic Quality Hooks)
-12. `verification-evidence-required` / `quality-evidence-required` / `test-sequence-warning` / `post-compact-context-restore` / `stop-todo-check` / `auto-compact-window` (deterministic hooks — low audit priority because hooks enforce automatically)
+9–11. Bash-chain / `feedback-trigger-count-update` / `version-bump-reminder` — 已畢業至 deterministic（見 `deterministic-hooks-registry.md`）
+12. 其餘 deterministic hooks — hook 自動 enforce，audit priority 低

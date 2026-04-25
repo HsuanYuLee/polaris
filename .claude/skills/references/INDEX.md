@@ -36,6 +36,8 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [pr-body-builder.md](pr-body-builder.md) | PR template 偵測、body 組裝、AC Coverage、母單 PR、Bug RCA 偵測 | engineering, git-pr-workflow（透過 engineer-delivery-flow Step 7） |
+| [commit-convention-default.md](commit-convention-default.md) | Commit message L3 兜底規範（L1 tooling / L2 handbook / L3 default fallback chain；type enum；`{TICKET}` 推導；multi-commit；revision 規格） | engineering, git-pr-workflow（透過 engineer-delivery-flow Step 6a） |
+| [changeset-convention-default.md](changeset-convention-default.md) | Changeset L3 兜底規範（filename slug、frontmatter `{package}: patch` default、description = task title、`ticket_prefix_handling=strip` default、idempotent skip） | engineering, breakdown（task.md `deliverables.changeset` 宣告生產端） |
 | [branch-creation.md](branch-creation.md) | JIRA ticket → branch 建立流程（含 dependency branch 偵測） | engineering, git-pr-workflow |
 | [cascade-rebase.md](cascade-rebase.md) | Feature branch PR stack 的 cascade rebase 邏輯 | git-pr-workflow, engineering, check-pr-approvals |
 | [feature-branch-pr-gate.md](feature-branch-pr-gate.md) | Task PR 全 merge 後自動建 feature→develop PR 的偵測邏輯 | epic-status, git-pr-workflow, check-pr-approvals, engineering |
@@ -117,5 +119,6 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [framework-iteration-procedures.md](framework-iteration-procedures.md) | 框架自迭代 procedures：Post-Version-Bump Chain、Backlog Hygiene scan、Validated Pattern Promotion、Framework Experience frontmatter | version-bump, organize-memory, docs-sync, standup (monthly) |
 | [feedback-memory-procedures.md](feedback-memory-procedures.md) | Feedback/memory 操作流程：direct rule write、hygiene checks、carry-forward、dedup、backlog format、frontmatter spec、injection scan | post-task-reflection, organize-memory, feedback write, rule promotion |
 | [mechanism-rationalizations.md](mechanism-rationalizations.md) | Mechanism Registry 的 Common Rationalizations 查表集 + Deterministic Quality Hooks 技術細節（evidence file spec、bypass flags） | post-task mechanism audit (when drift suspected), hook configuration, verification-evidence debugging |
+| [deterministic-hooks-registry.md](deterministic-hooks-registry.md) | Deterministic Quality Hooks 完整表（ID、Rule、Enforcement、Script）— 從 mechanism-registry.md 拆出以降低 rules 載入成本 | hook configuration, hook debugging, validate-mechanisms |
 | [library-change-protocol.md](library-change-protocol.md) | 依賴變更完整協議：三層調查、替換/升級評估、Decision Tier、config 系統性排除、workaround 文件標準 | engineering (library evaluation), review-pr (reviewer suggests upgrade), bug-triage (dependency issue) |
 | [knowledge-compilation-protocol.md](knowledge-compilation-protocol.md) | Framework 知識編譯協議：Atom vs Derived 邊界、backwrite、parallel naming lock | learning (External mode framework target), docs-sync, framework docs/rules updates |
