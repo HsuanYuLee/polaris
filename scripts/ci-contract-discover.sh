@@ -448,9 +448,22 @@ def discover_pre_commit_config():
                 if not isinstance(hook, dict):
                     continue
                 hook_id = str(hook.get("id", "")).strip()
+                if not hook_id:
+                    continue
                 entry_cmd = hook.get("entry")
                 entry_cmd_str = str(entry_cmd).strip() if entry_cmd else ""
-                command = entry_cmd_str or hook_id
+                # pre-commit defaults pass_filenames to True; only False means
+                # the entry is fully self-contained (no file args appended).
+                pass_filenames = hook.get("pass_filenames", True)
+
+                if entry_cmd_str and pass_filenames is False:
+                    # Self-contained local entry — runnable as-is without pre-commit.
+                    command = entry_cmd_str
+                else:
+                    # Either no entry (community hook fetched from upstream) or
+                    # entry needs file expansion. Delegate to pre-commit so it
+                    # honors entry/args/files filter from the YAML.
+                    command = f"pre-commit run {hook_id} --all-files"
 
                 stages = hook.get("stages")
                 if isinstance(stages, list) and stages:

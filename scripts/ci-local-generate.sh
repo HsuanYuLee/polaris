@@ -591,7 +591,9 @@ else:
     parts.append('    "summary": summary,')
     parts.append('}')
     parts.append('with open(ev_path, "w") as f: json.dump(payload, f, indent=2)')
-    parts.append('print(f"[ci-local] {overall}: {summary[\\"failed_checks\\"]} check failures, {summary[\\"codecov_failures\\"]} codecov failures (evidence: {ev_path})")')
+    # NOTE: single-quoted dict keys keep the f-string compatible with
+    # Python <3.12 (PEP 701 lifted the backslash-in-expression restriction).
+    parts.append("print(f\"[ci-local] {overall}: {summary['failed_checks']} check failures, {summary['codecov_failures']} codecov failures (evidence: {ev_path})\")")
     parts.append('sys.exit(0 if overall == "PASS" else 1)')
     parts.append('CILOCAL_FIN_PY')
 

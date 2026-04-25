@@ -233,16 +233,27 @@ T4="$TMPROOT/precommit-repo"
 mkdir -p "$T4"
 cat > "$T4/.pre-commit-config.yaml" <<'YAML'
 repos:
+  # Community hook (no entry) — must delegate to `pre-commit run`
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.11.0
+    hooks:
+      - id: shellcheck
+        args: ["--severity=error"]
+  # Entry hook with default pass_filenames (true) — needs file expansion, delegate
   - repo: https://github.com/psf/black
     rev: 24.0.0
     hooks:
       - id: black
         entry: black
         stages: [pre-commit]
+  # Local hook with entry + pass_filenames: false — runnable as-is
   - repo: local
     hooks:
-      - id: ruff-check
-        entry: ruff check
+      - id: readme-lint
+        name: readme-lint
+        entry: python3 scripts/readme-lint.py
+        language: system
+        pass_filenames: false
         stages: [pre-commit]
 YAML
 init_git_repo "$T4"
@@ -251,8 +262,17 @@ OUT4="$T4/scripts/ci-local.sh"
 assert "Test 4: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT4" 2>/dev/null
 assert "Test 4: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-assert_contains "Test 4: includes black hook" "$OUT4" "black"
-assert_contains "Test 4: includes ruff check hook" "$OUT4" "ruff check"
+# Community hook (no entry) → delegated
+assert_contains "Test 4: delegates shellcheck (no entry) to pre-commit run" "$OUT4" "pre-commit run shellcheck --all-files"
+# Entry hook with default pass_filenames=true → still delegated (entry alone can't expand files)
+assert_contains "Test 4: delegates black (pass_filenames default) to pre-commit run" "$OUT4" "pre-commit run black --all-files"
+# Local hook with explicit pass_filenames: false → uses entry directly
+assert_contains "Test 4: uses readme-lint entry directly" "$OUT4" "python3 scripts/readme-lint.py"
+assert_not_contains "Test 4: readme-lint not delegated to pre-commit run" "$OUT4" "pre-commit run readme-lint"
+# Hook id alone must never appear as a heredoc body line (regression guard
+# against the pre-fix bug where `id: shellcheck` became a bare command line).
+if grep -qFx "shellcheck" "$OUT4"; then assert "Test 4: shellcheck not emitted as bare command line" 0; else assert "Test 4: shellcheck not emitted as bare command line" 1; fi
+if grep -qFx "ruff-check" "$OUT4"; then assert "Test 4: ruff-check id not emitted as bare command line" 0; else assert "Test 4: ruff-check id not emitted as bare command line" 1; fi
 
 # ============================================================================
 echo "== Test 5: NO_CHECKS_CONFIGURED (empty repo) =="

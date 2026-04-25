@@ -4,6 +4,50 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.57.2] - 2026-04-25
+
+### Fix — ci-local-generate two latent bugs surfaced by Polaris dog-food
+
+D12-b's `ci-local-generate.sh` shipped working for b2c-web pilot (which only
+exercises husky + GitHub Actions paths) but two bugs blocked Polaris from
+dog-fooding its own generator. Both fixed before D12-c; selftest extended
+from 50 to 54 assertions to cover the new paths.
+
+**Bug 1 — `.pre-commit-config.yaml` hooks emitted hook id as bare command**
+(`scripts/ci-contract-discover.sh` `discover_pre_commit_config`):
+
+`command = entry_cmd_str or hook_id` fell back to the hook id whenever
+`entry` was absent. For community hooks (e.g., `id: shellcheck` /
+`id: ruff-check` from upstream pre-commit repos), the YAML legitimately
+omits `entry` because pre-commit fetches the implementation from the hook's
+own repo. The generator then wrote literal `shellcheck` / `ruff-check`
+lines into `ci-local.sh` — which fail at runtime (no such binary, or wrong
+invocation). Even hooks with explicit `entry` plus default
+`pass_filenames: true` were broken because the entry alone (e.g.,
+`python3 -m py_compile`) needs file args appended by pre-commit.
+
+Fix: when `entry` is absent, OR present but `pass_filenames` is not
+explicitly `false`, delegate to `pre-commit run <hook-id> --all-files`.
+Only `entry` + `pass_filenames: false` (truly self-contained local hooks
+like `python3 scripts/readme-lint.py`) keeps the direct entry path.
+
+**Bug 2 — embedded f-string with backslash-escaped dict key (Python <3.12 SyntaxError)**
+(`scripts/ci-local-generate.sh` final aggregation block):
+
+The generator emitted `print(f"... {summary[\"failed_checks\"]} ...")` into
+the heredoc that becomes `ci-local.sh`. Python <3.12 forbids backslashes
+inside the expression part of an f-string — pre-PEP-701 this is a
+`SyntaxError`. The generator's own host (Python 3.14 here) tolerated it,
+masking the bug; downstream environments on 3.11 / 3.10 would crash at
+parse time. Switched to single-quoted dict keys
+(`summary['failed_checks']`) — works on all Python 3.7+.
+
+**Selftest extension (Test 4)**: fixture rewritten to cover three paths:
+community hook (no entry), entry hook with default `pass_filenames` (still
+delegated), local hook with explicit `pass_filenames: false` (direct entry).
+New regression guards (`grep -Fx`) verify that bare hook ids never appear
+as standalone command lines. 54 assertions, all passing.
+
 ## [3.57.1] - 2026-04-25
 
 ### Fix — sync-to-polaris.sh recursive scripts/ glob
