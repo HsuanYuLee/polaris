@@ -2,8 +2,10 @@
 # pipeline-artifact-gate.sh — runtime-agnostic PreToolUse dispatcher for pipeline artifacts.
 #
 # Reads tool input (Edit/Write), extracts file path, and routes to the matching validator:
-#   - `*/specs/*/refinement.json`     → validate-refinement-json.sh
-#   - `*/specs/*/tasks/T*.md`         → validate-task-md.sh + validate-task-md-deps.sh
+#   - `*/specs/*/refinement.json`            → validate-refinement-json.sh
+#   - `*/specs/*/tasks/complete/*.md`         → skip (D6: completed tasks leave validator scope)
+#   - `*/specs/*/tasks/T*.md`                → validate-task-md.sh + validate-task-md-deps.sh
+#   - `*/specs/*/tasks/V*.md`                → validate-task-md.sh only (Phase B will add V-schema)
 #
 # Invoked by:
 #   - Claude hook: `.claude/hooks/pipeline-artifact-gate.sh` (wrapper)
@@ -107,7 +109,16 @@ for path in "${CANDIDATE_PATHS[@]}"; do
       ;;
   esac
 
-  # --- task.md (specs/*/tasks/T*.md) ---
+  # --- complete/ skip (D6: completed tasks move out of validator scope) ---
+  # Order matters: this branch must precede T*.md / V*.md so that
+  # complete/T1.md is never re-validated after being moved.
+  case "$path" in
+    */specs/*/tasks/complete/*.md)
+      continue
+      ;;
+  esac
+
+  # --- implementation task.md (specs/*/tasks/T*.md) ---
   case "$path" in
     */specs/*/tasks/T*.md)
       if [[ -x "$VALIDATE_TASK_MD" ]]; then
@@ -115,13 +126,29 @@ for path in "${CANDIDATE_PATHS[@]}"; do
           block=1
         fi
       fi
-      # Also validate the Epic's cross-file topology
+      # Also validate the Epic's cross-file topology (deps closure, linear chain)
       tasks_dir=$(dirname "$path")
       if [[ -x "$VALIDATE_TASK_MD_DEPS" ]] && [[ -d "$tasks_dir" ]]; then
         if ! "$VALIDATE_TASK_MD_DEPS" "$tasks_dir" >&2; then
           block=1
         fi
       fi
+      continue
+      ;;
+  esac
+
+  # --- verification task.md (specs/*/tasks/V*.md) ---
+  # DP-033 Phase B will activate full V-schema dispatch here.
+  # For now: run validate-task-md.sh (it tolerates V-key per A2 title regex).
+  # deps validator is skipped for V*.md — cross-type rules belong to Phase B B4.
+  case "$path" in
+    */specs/*/tasks/V*.md)
+      if [[ -x "$VALIDATE_TASK_MD" ]]; then
+        if ! "$VALIDATE_TASK_MD" "$path" >&2; then
+          block=1
+        fi
+      fi
+      # DP-033 Phase B will activate full V-schema dispatch here.
       continue
       ;;
   esac

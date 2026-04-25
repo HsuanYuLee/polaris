@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# parse-task-md.sh — DP-032 D8: central parser for task.md work orders.
+# parse-task-md.sh — DP-032 D8 / DP-033 D8: central parser for task.md work orders.
 #
 # Reads a task.md produced by breakdown and emits structured JSON capturing
 # frontmatter, header, Operational Context table, Test Environment, Test
@@ -9,10 +9,18 @@
 # rather than grep'ing rows themselves — single point of schema evolution.
 #
 # Usage:
-#   parse-task-md.sh <path/to/task.md>                # full JSON to stdout
-#   parse-task-md.sh <path/to/task.md> --field <key>  # single value to stdout
-#   parse-task-md.sh <path/to/task.md> --no-resolve   # skip resolve-task-base
-#   PARSE_TASK_MD_SELFTEST=1 bash parse-task-md.sh    # run embedded selftest
+#   parse-task-md.sh <path/to/task.md>                    # full JSON to stdout
+#   parse-task-md.sh <path/to/task.md> --field <key>      # single value to stdout
+#   parse-task-md.sh <path/to/task.md> --no-resolve       # skip resolve-task-base
+#   parse-task-md.sh --key <TASK_KEY> --tasks-dir <dir>   # key-based lookup with active→complete fallback (DP-033 D8)
+#   parse-task-md.sh --key <TASK_KEY> --tasks-dir <dir> --field <key>
+#   PARSE_TASK_MD_SELFTEST=1 bash parse-task-md.sh        # run embedded selftest
+#
+# Key-based lookup (DP-033 D8 reader fallback):
+#   Given --key T1 --tasks-dir /path/to/specs/EPIC/tasks/:
+#     1. Try {tasks_dir}/T1.md  (active)
+#     2. Try {tasks_dir}/complete/T1.md  (completed fallback)
+#     3. If both miss → exit 2 with "broken ref" message
 #
 # Field keys for --field (flat alias of nested JSON paths):
 #   status, task_id, summary, story_points,
@@ -25,7 +33,7 @@
 # Exit codes:
 #   0 — success (JSON or single field on stdout)
 #   1 — file parse error / unknown field
-#   2 — usage error / file not found
+#   2 — usage error / file not found / broken ref (key-based lookup)
 #
 # Soft-failure model:
 #   * Missing markdown sections → corresponding JSON fields are null / [].
@@ -45,7 +53,12 @@ usage() {
 usage: parse-task-md.sh <path/to/task.md>
        parse-task-md.sh <path/to/task.md> --field <key>
        parse-task-md.sh <path/to/task.md> --no-resolve
+       parse-task-md.sh --key <TASK_KEY> --tasks-dir <dir>
+       parse-task-md.sh --key <TASK_KEY> --tasks-dir <dir> --field <key>
        PARSE_TASK_MD_SELFTEST=1 bash parse-task-md.sh
+
+Key-based lookup (DP-033 D8): resolves active tasks/{key}.md first,
+  then fallback to tasks/complete/{key}.md. Exit 2 if both missing.
 
 Field keys: status, task_id, summary, story_points, epic, jira, repo,
             task_jira_key, parent_epic, test_sub_tasks, ac_verification_ticket,
@@ -623,6 +636,8 @@ fi
 file=""
 field=""
 no_resolve=0
+task_key=""
+tasks_dir=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -634,6 +649,17 @@ while [[ $# -gt 0 ]]; do
     --no-resolve)
       no_resolve=1
       shift
+      ;;
+    --key)
+      # DP-033 D8: key-based lookup with active→complete fallback
+      [[ $# -ge 2 ]] || { usage; exit 2; }
+      task_key="$2"
+      shift 2
+      ;;
+    --tasks-dir)
+      [[ $# -ge 2 ]] || { usage; exit 2; }
+      tasks_dir="$2"
+      shift 2
       ;;
     -h|--help)
       usage
@@ -655,6 +681,31 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# DP-033 D8: key-based lookup mode
+if [[ -n "$task_key" ]]; then
+  if [[ -z "$tasks_dir" ]]; then
+    echo "error: --key requires --tasks-dir" >&2
+    usage
+    exit 2
+  fi
+  if [[ ! -d "$tasks_dir" ]]; then
+    echo "error: tasks-dir not found: $tasks_dir" >&2
+    exit 2
+  fi
+  tasks_dir_abs="$(abs_path "$tasks_dir")"
+  # Lookup order: active → complete fallback
+  active_path="${tasks_dir_abs}/${task_key}.md"
+  complete_path="${tasks_dir_abs}/complete/${task_key}.md"
+  if [[ -f "$active_path" ]]; then
+    file="$active_path"
+  elif [[ -f "$complete_path" ]]; then
+    file="$complete_path"
+  else
+    echo "error: broken ref — task key '${task_key}' not found in ${tasks_dir_abs}/ or ${tasks_dir_abs}/complete/" >&2
+    exit 2
+  fi
+fi
 
 if [[ -z "$file" ]]; then
   usage

@@ -4,6 +4,134 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.59.0] - 2026-04-26
+
+### Feat — DP-033 Phase A: task.md schema closure + lifecycle gates
+
+Lands the implementation half of DP-033 (Phase A). Phase B (verification
+schema V{n}.md + verify-AC write-back) remains as future work; the design
+plan stays at `status: DISCUSSION` until Phase B closes.
+
+**Spec consolidation**
+
+- New `skills/references/task-md-schema.md` (538 lines) — single
+  authoritative reference for task.md schemas across the pipeline. All
+  producers / consumers / validators / hooks now derive from this file.
+  Filename pattern is the only type signal: `T{n}[suffix].md` =
+  implementation, `V{n}[suffix].md` = verification (Phase B placeholder).
+  Frontmatter `type` field deliberately omitted (D2: ground truth is
+  filename, redundant `type` would silently rot on rename).
+
+**Validator → enforcer (D5 four-tier)**
+
+- `scripts/validate-task-md.sh` upgraded from minimum validator to full
+  enforcer:
+  - Hard required (exit 1 on missing/empty): title regex, JIRA + Repo
+    metadata, `## Operational Context` (with cells), `## 改動範圍`,
+    `## Allowed Files` (upgraded from Soft per D5; no grace, no
+    warn-only), `## 估點理由`, `## Test Command`, `## Test Environment`,
+    `## Verify Command` when Level≠static
+  - Soft required (warn only): `## 目標`,
+    `## 測試計畫（code-level）`, header `Epic:` cell
+  - Lifecycle-conditional (skip when absent, validate schema when
+    present): frontmatter `deliverable.{pr_url, pr_state, head_sha}` and
+    `jira_transition_log[]` (loose list-of-maps, freeform keys)
+  - Optional (no check): `## Verification Handoff`
+- New § 5.5 hard invariant (exit 2): frontmatter `status: IMPLEMENTED`
+  outside `tasks/complete/` is a HARD FAIL. Pairs with the move-first
+  writer below.
+
+**`tasks/complete/` convention + reader fallback (D6 + D8)**
+
+- `scripts/mark-spec-implemented.sh` refactored to **move-first** for
+  task.md: `mv tasks/T.md → tasks/complete/T.md` first, then update
+  frontmatter `status: IMPLEMENTED` in the complete/ location only. The
+  active `tasks/` directory therefore never contains a transient
+  IMPLEMENTED state. Idempotent for already-moved files; same-key
+  conflicts with different content exit 2 (no clobber). Epic-anchor
+  flow (refinement.md / plan.md in-place) preserved unchanged.
+- `scripts/parse-task-md.sh` and `scripts/validate-task-md-deps.sh` add
+  unified active → complete fallback when looking up a task key.
+  `depends_on` chains stay intact across the boundary (T5 depending on
+  completed T1 no longer false-fails).
+- `scripts/resolve-task-md-by-branch.sh` covers both
+  `tasks/` and `tasks/complete/`.
+- `validate-task-md-deps.sh` adds the same-key uniqueness invariant
+  (active + complete duplicate → exit 2) — surfaces D6 move-first
+  failures as silent-corruption signals.
+
+**Lifecycle write-back (D7)**
+
+- New `scripts/write-deliverable.sh` — atomic frontmatter writer for
+  the `deliverable` block. Writes via Python → temp file → POSIX `mv`,
+  with 3-attempt exponential backoff. On permanent failure: HARD STOP
+  with the spec-required "task is in inconsistent state — PR created
+  but task.md not updated. Manual recovery required." message. No
+  /tmp fallback. Verifies post-write by re-reading the file.
+- Validator does **not** block writes (lifecycle-conditional means
+  optional during breakdown), but enforces schema strictly when the
+  block is present (`pr_url` regex, `pr_state` enum, `head_sha` hex).
+- `jira_transition_log[]` schema deliberately loose: list-of-maps,
+  `time` recommended (ISO 8601) but not enforced, other keys freeform
+  per company-specific JIRA conventions.
+
+**Pipeline gate dispatch (A4)**
+
+- `scripts/pipeline-artifact-gate.sh` now dispatches by filename:
+  `tasks/T*.md` → implementation validator + deps validator;
+  `tasks/V*.md` → implementation validator (Phase B placeholder, full
+  V-schema dispatch deferred); `tasks/complete/*.md` → exit 0 (D6 skip
+  rule, checked first).
+
+**Breakdown gate (A3)**
+
+- `breakdown` Path A Step 14.5 now runs `validate-task-md.sh` per file
+  + `validate-task-md-deps.sh` over the produced batch. Any non-zero
+  exit blocks progression to JIRA sub-task creation / branch creation.
+
+**Migration tooling (A7)**
+
+- New `scripts/dp033-migrate-tasks.sh` — one-shot inventory and
+  migration script. Dry-run (default for review): inventory all
+  `specs/*/tasks/T*.md`, classify (move-to-complete / backfill-active /
+  unchanged / fail-loud), report counts. Apply mode mutates files;
+  fail-loud halts on Operational Context Hard cells that cannot be
+  fabricated (Task JIRA key / Base branch / Task branch). Backfill
+  TODO marker convention (`TODO(DP-033-migration):`) for grep-driven
+  follow-up.
+- Live workspace dry-run: 16 T*.md files (5 to move, 2 to backfill, 9
+  unchanged, 0 fail). Apply is owned by the human, not run automatically.
+
+**Dogfood (A10 + A11)**
+
+- A10 schema dogfood against GT-478: 0 false positives. All 7 findings
+  are true positives that A7 migration apply will resolve cleanly.
+- A11 synthetic end-to-end (10 steps in `/tmp` exercising A2 + A3 + A4
+  + A5 + A6 + A8 + § 5.5 + same-key uniqueness): 10/10 PASS.
+
+**SKILL / reference touch-ups**
+
+- `engineering/SKILL.md` Step 7c language updated to call
+  `write-deliverable.sh` and halt the delivery flow on its failure
+  (no silent fallback). Step 8a calls `mark-spec-implemented.sh` as
+  the only authoritative complete-mover.
+- `verify-AC/SKILL.md` annotated with one-line reader-fallback note.
+  Full Verify-AC consumer refactor is deferred to DP-039.
+- `engineer-delivery-flow.md` Step 7c / Step 8a / reader paths aligned
+  with the new contracts.
+- `breakdown/SKILL.md` adds Step 14.5 validator gate + top-of-skill
+  reference to `task-md-schema.md` as the authoritative spec.
+
+**Out of scope (deferred to follow-ups)**
+
+- Phase B (V{n}.md verification schema + verify-AC write-back) — same
+  DP, future Implementation Checklist B1-B7
+- DP-039 `/verify-AC refactor` — consumer-side rewrite plus migration
+  of existing `KB2CW-XXXX.md` verification files to `V{n}.md`
+- Backlog: `scripts/design-plan-checklist-gate.sh` substring match
+  false positive (separately committed earlier this session) —
+  unrelated framework hygiene
+
 ## [3.58.0] - 2026-04-25
 
 ### Feat — DP-032 D12-c: per-repo `ci-local.sh` replaces framework-level CI mirror (BREAKING)

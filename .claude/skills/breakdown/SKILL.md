@@ -18,6 +18,8 @@ metadata:
 本步驟需要的值：`jira.instance`、`jira.projects`（取得 project keys）。
 若 config 不存在，使用 `references/shared-defaults.md` 的 fallback 值。
 
+> **Task.md schema reference（DP-033 A3）**：實作 task.md（T{n}.md）的完整 schema（required sections、frontmatter 欄位、cross-field invariants、validator mapping）統一在 `skills/references/task-md-schema.md`。本 SKILL.md 內的 task.md 格式說明皆以該文件為準；若有衝突以 `task-md-schema.md` 為主。
+
 ## Workflow
 
 ### 1. 取得 Ticket + 偵測類型
@@ -492,7 +494,7 @@ feat/PROJ-123-...
 
 > `{n}` 從 1 起算，對應 Step 8 呈現順序（API-first 排序後的實際排序）。
 
-**檔案 schema** — 嚴格遵循 `references/pipeline-handoff.md` § task.md Schema。每張 task.md 包含：
+**檔案 schema** — 嚴格遵循 `references/task-md-schema.md`（DP-033 Phase A 升格為單一權威 spec；`pipeline-handoff.md § task.md Schema` 為舊入口，以本 reference 為準）。每張 task.md 包含：
 
 1. **Header**：`# T{n}: {Task summary} ({SP} pt)` + quote 行 `> Epic: {EPIC_KEY} | JIRA: {TASK_KEY} | Repo: {repo_name}`（無 Epic 時省略 Epic 欄位）
 2. **Operational Context 表格** — 必填欄位：
@@ -553,6 +555,28 @@ scripts/validate-task-md.sh <task.md path>
 - exit 2 → 檔案不存在或用法錯誤，檢查路徑
 
 **為何強制**：pipeline 契約「engineering 只消費 task.md + codebase」的前提是 task.md 完整。靠 AI 自律難保每次產齊，所以用 script exit code 強拘束。見 `CLAUDE.md § Deterministic Enforcement Principle`。
+
+**Batch cross-file gate（DP-033 A3）：所有 T*.md 寫完後，再跑一次跨檔案驗證：**
+
+```bash
+scripts/validate-task-md-deps.sh {company_base_dir}/specs/{EPIC_KEY}/tasks/
+```
+
+此 script 驗證：
+- `depends_on[]` 所有引用存在（含 `complete/` fallback）
+- DAG 無 cycle（DFS coloring）
+- linear chain（每個 task `depends_on` ≤ 1 其他 task）
+- `Fixtures:` 路徑存在性（非 `N/A` 時）
+- 同一 key 不同時出現在 `tasks/` 與 `tasks/complete/`
+
+結果判斷：
+- exit 0 → 所有 T*.md 依賴關係合規，繼續 Step 15
+- exit 1 → 列出違反項目；**停下來，修補對應 task.md 並重跑**，直到 pass。不可在跨檔案驗證 FAIL 的狀態下繼續建 branch 或 JIRA 子單
+- exit 2 → 路徑不存在或用法錯誤，確認 tasks/ 目錄存在後重跑
+
+> **注意**：Step 14a'（非線性 DAG pre-check）已在 branch 建立前跑一次 `validate-task-md-deps.sh`；本步驟是「所有 T*.md 內容完整填寫後」的最終確認，時間點不同（14a' 在 branch 建立前，本 gate 在 task.md 內容寫完後）。
+
+# DP-033 Phase B will add V*.md batch gate here（驗收 task.md 的跨檔案 validator，待 Phase B 實作）
 
 **Test Command 填寫規則：**
 

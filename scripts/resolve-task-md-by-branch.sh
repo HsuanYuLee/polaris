@@ -87,10 +87,12 @@ resolve_task_md_scan() {
       matches+=("$f")
     fi
   done < <(
+    # DP-033 D8: also search tasks/complete/ so completed tasks remain
+    # locatable by branch (e.g., revision mode on a completed task's PR).
     find "$root" \
       \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
       -o \
-      -type f -name 'T*.md' -path '*/specs/*/tasks/*' -print0
+      \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/complete/*.md' \) -print0 \)
   )
 
   if [[ ${#matches[@]} -eq 0 ]]; then

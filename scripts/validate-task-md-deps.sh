@@ -7,17 +7,26 @@
 #
 # Exit:  0 = schema pass (single) / scan complete (scan mode, always 0)
 #        1 = schema violations (single mode; details printed to stderr)
-#        2 = usage error / directory not found
+#        2 = usage error / directory not found / hard invariant violation (same-key duplicate)
 #
 # Contract source: skills/references/pipeline-handoff.md § Artifact Schemas —
 #                  task.md Cross-File Schema
+#           also:  skills/references/task-md-schema.md § 5.5 + § 6 (DP-033 D6 + D8)
 # Called by:       .claude/hooks/pipeline-artifact-gate.sh (PreToolUse hook)
 #
 # Validates:
 #   1. `depends_on` (frontmatter) references only existing T{n}[suffix].md in the same dir
+#      — with active→complete fallback (DP-033 D8): if tasks/{id}.md missing, check
+#        tasks/complete/{id}.md before reporting broken ref.
 #   2. `depends_on` graph is a DAG — no cycles
 #   3. `Fixtures:` paths in `## Test Environment` exist on filesystem (when non-N/A)
 #   4. `depends_on` graph is a linear chain (each task has ≤ 1 dep) — DP-028 is-linear-dag rule
+#   5. Same-key uniqueness (DP-033 D6 § 5.5): if the same task key exists in BOTH tasks/
+#      and tasks/complete/, exit 2 (HARD FAIL — D6 move-first invariant violated).
+#
+# Scope: only T*.md files in the tasks/ top-level directory are scanned for schema.
+#   Files under tasks/complete/ are never scanned (they retain their historical shape).
+#   However, complete/ IS searched when resolving depends_on references.
 
 set -euo pipefail
 
@@ -57,20 +66,60 @@ import sys
 
 tasks_dir, epic_dir, workspace_root = sys.argv[1], sys.argv[2], sys.argv[3]
 
-errors = []
+# complete/ subdirectory for reader fallback (DP-033 D8)
+complete_dir = os.path.join(tasks_dir, "complete")
 
-# --- Enumerate T*.md files ---
+errors = []
+hard_errors = []  # exit 2 violations (same-key uniqueness)
+
+# --- Enumerate T*.md files (active tasks/ only — complete/ is skipped for schema scanning) ---
 task_files = []
 for name in sorted(os.listdir(tasks_dir)):
     if re.match(r'^T[0-9]+[a-z]*\.md$', name):
         task_files.append(name)
 
 if not task_files:
-    # Nothing to validate; not an error.
-    sys.exit(0)
+    # Nothing to validate in active dir; not an error.
+    # Still check same-key uniqueness if complete/ exists.
+    pass
 
 # task_id = basename without .md (e.g., "T1", "T8a")
 task_ids = {f[:-3] for f in task_files}
+
+# --- DP-033 D6 § 5.5: Same-key uniqueness hard check ---
+# If the same task key exists in BOTH tasks/ and tasks/complete/, that is a
+# D6 move-first invariant violation — hard fail (exit 2).
+if os.path.isdir(complete_dir):
+    complete_ids = set()
+    for name in os.listdir(complete_dir):
+        if re.match(r'^T[0-9]+[a-z]*\.md$', name):
+            complete_ids.add(name[:-3])
+    duplicates = task_ids & complete_ids
+    if duplicates:
+        for dup in sorted(duplicates):
+            hard_errors.append(
+                f"D6 move-first invariant violated: task key '{dup}' exists in BOTH "
+                f"{tasks_dir}/{dup}.md AND {complete_dir}/{dup}.md — "
+                f"manual recovery required (rm the stale copy or complete the mv)."
+            )
+
+if hard_errors:
+    for e in hard_errors:
+        print(e)
+    sys.exit(2)
+
+# --- Build set of all resolvable task ids (active + complete) for depends_on fallback ---
+# DP-033 D8: depends_on may reference a task that has been moved to complete/.
+# We treat any T*.md found in either location as a valid reference target.
+all_known_ids = set(task_ids)
+if os.path.isdir(complete_dir):
+    for name in os.listdir(complete_dir):
+        if re.match(r'^T[0-9]+[a-z]*\.md$', name):
+            all_known_ids.add(name[:-3])
+
+if not task_files:
+    # Nothing active to validate further.
+    sys.exit(0)
 
 # --- Parse frontmatter + Test Environment Fixtures line per file ---
 FRONTMATTER_RE = re.compile(r'^---\s*\n(.*?)\n---\s*\n', re.DOTALL)
@@ -143,12 +192,13 @@ for fname in task_files:
     deps = parse_depends_on(front)
     deps_graph[tid] = deps
 
-    # --- Check broken refs ---
+    # --- Check broken refs (with active→complete fallback per DP-033 D8) ---
     for dep in deps:
-        if dep not in task_ids:
+        if dep not in all_known_ids:
             errors.append(
                 f"{fname}: depends_on references '{dep}' but no such task.md "
-                f"in {tasks_dir} (existing: {sorted(task_ids)})"
+                f"in {tasks_dir}/ or {complete_dir}/ "
+                f"(active tasks: {sorted(task_ids)})"
             )
 
     # --- Fixture path extraction ---
@@ -245,6 +295,14 @@ PY
     return 0
   fi
 
+  # DP-033 D6: exit 2 = hard invariant violation (same-key duplicate).
+  # Propagate exit 2 directly — do not re-run diagnostics, the Python already printed to stdout.
+  if [[ $rc -eq 2 ]]; then
+    echo "✗ HARD FAIL (exit 2): D6 move-first invariant violated in $tasks_dir" >&2
+    echo "  Manual recovery required. See output above for details." >&2
+    return 2
+  fi
+
   echo "✗ task.md cross-file schema violations in $tasks_dir:" >&2
   # Re-run to surface errors already printed to stdout by python (we captured above with status only).
   # Simpler: just mark failure — python already printed to stdout which got swallowed.
@@ -252,6 +310,8 @@ PY
   python3 - "$tasks_dir" "$epic_dir" "$workspace_root" <<'PY' 2>/dev/null | sed 's/^/  - /' >&2 || true
 import os, re, sys
 tasks_dir, epic_dir, workspace_root = sys.argv[1], sys.argv[2], sys.argv[3]
+# DP-033 D8: complete/ directory for reader fallback
+complete_dir = os.path.join(tasks_dir, "complete")
 errors = []
 
 FRONTMATTER_RE = re.compile(r'^---\s*\n(.*?)\n---\s*\n', re.DOTALL)
@@ -261,6 +321,12 @@ FIXTURES_LINE_RE = re.compile(r'^\s*[-*]?\s*\*\*Fixtures\*\*\s*:\s*(.+?)$', re.M
 
 task_files = sorted([n for n in os.listdir(tasks_dir) if re.match(r'^T[0-9]+[a-z]*\.md$', n)])
 task_ids = {f[:-3] for f in task_files}
+# All known ids = active + complete (for fallback resolution)
+all_known_ids = set(task_ids)
+if os.path.isdir(complete_dir):
+    for name in os.listdir(complete_dir):
+        if re.match(r'^T[0-9]+[a-z]*\.md$', name):
+            all_known_ids.add(name[:-3])
 deps_graph = {}
 fixture_paths = {}
 
@@ -300,8 +366,8 @@ for fname in task_files:
     deps = parse_depends_on(front)
     deps_graph[tid] = deps
     for dep in deps:
-        if dep not in task_ids:
-            errors.append(f"{fname}: depends_on references '{dep}' but no such task.md in {tasks_dir} (existing: {sorted(task_ids)})")
+        if dep not in all_known_ids:
+            errors.append(f"{fname}: depends_on references '{dep}' but no such task.md in {tasks_dir}/ or {complete_dir}/ (active tasks: {sorted(task_ids)})")
     fixture_paths[tid] = parse_fixtures(content)
 
 color = {tid: 0 for tid in deps_graph}
@@ -353,6 +419,7 @@ for e in errors: print(e)
 PY
   echo "" >&2
   echo "Contract: skills/references/pipeline-handoff.md § Artifact Schemas — task.md Cross-File Schema" >&2
+  echo "         skills/references/task-md-schema.md § 5.5 + § 6 (DP-033 D6 + D8)" >&2
   return 1
 }
 

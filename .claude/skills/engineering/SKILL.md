@@ -24,7 +24,7 @@ metadata:
 本 skill 是 pipeline 的 **Execution** 環節（見 [pipeline-handoff.md](../references/pipeline-handoff.md)）。上游 breakdown 已打包出 self-contained task.md work order；本 skill 消費 **codebase + task.md + repo handbook（須主動讀取 `{repo}/.claude/rules/handbook/`）**，不再回頭讀 breakdown.md / refinement.md。
 
 **輸入優先順序**：
-1. `specs/{EPIC}/tasks/T{n}.md` — breakdown v2 產出（新 pipeline 的主要輸入）
+1. `specs/{EPIC}/tasks/T{n}.md` — breakdown v2 產出（新 pipeline 的主要輸入）；若 active `tasks/` 找不到，fallback `tasks/complete/T{n}.md`（DP-033 D8）
 2. `specs/{TICKET}/plan.md` — legacy 格式（過渡期 fallback；P5 cutover 後移除）
 
 ## 前置：讀取 workspace config
@@ -159,7 +159,8 @@ Sub-agent 在 worktree 執行；`specs/` 與 `.claude/skills/` 是 gitignored（
    ```bash
    grep -lE "^> .*JIRA: {ticket_key}\b" {company_base_dir}/specs/{epic_or_ticket}/tasks/T*.md
    ```
-   命中的檔案即本 task 的 work order（schema 見 `skills/references/pipeline-handoff.md § task.md Schema`）
+   命中的檔案即本 task 的 work order（schema 見 `skills/references/pipeline-handoff.md § task.md Schema`）。
+   **DP-033 D8 reader fallback**：`tasks/` 頂層找不到時，fallback `tasks/complete/`（task 可能已完結並搬移）。
 2. **Legacy fallback**：`{company_base_dir}/specs/{ticket_key}/plan.md`
    — 過渡期舊格式，P5 cutover 後移除
 
