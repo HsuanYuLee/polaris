@@ -15,10 +15,10 @@ Before/after screenshot comparison guard — no long-lived baselines. Each run c
 
 **Position in quality chain:**
 ```
-quality-check-flow → visual-regression → engineer-delivery-flow Step 3 → commit/PR
+engineer-delivery-flow Step 2 (ci-local.sh) → visual-regression (Step 3.5) → engineer-delivery-flow Step 3 → commit/PR
 ```
 
-- `quality-check-flow`: "Is the new code quality OK?"
+- `engineer-delivery-flow Step 2`: "Is the new code quality OK?" (Local CI Mirror — `ci-local.sh`)
 - `visual-regression`: "Are existing pages still visually intact?"
 - `engineer-delivery-flow Step 3`: "Does the new feature work correctly?"
 

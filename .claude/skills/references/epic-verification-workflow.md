@@ -248,7 +248,7 @@ Feature PR 前：
 4. PR review：{approved by X}
 ```
 
-**Trigger:** `engineering` 或 `breakdown` 建立 task 時自動建 sub-task。quality-check-flow 和 engineer-delivery-flow Step 3 跑完後更新內容。
+**Trigger:** `engineering` 或 `breakdown` 建立 task 時自動建 sub-task。engineer-delivery-flow Step 2（Local CI Mirror）和 Step 3（Behavioral Verify）跑完後更新內容。
 
 **Not a blocker:** task 的 PR merge 不依賴 sub-task 狀態。sub-task 是事後記錄。
 
@@ -495,13 +495,13 @@ Feature PR 到 develop 前，git-pr-workflow 新增 **Step 3b: VR Gate**。
 ### 在 pipeline 中的位置
 
 ```
-git-pr-workflow:
-  Step 1-3: branch, simplify, quality check (quality-check-flow)
-  Step 3b [NEW]: VR Gate（條件觸發，呼叫 visual-regression skill）
-  Step 4-11: commit, changeset, rebase, PR, JIRA...
+git-pr-workflow / engineering:
+  Step 1-2: branch, simplify, Local CI Mirror (engineer-delivery-flow § Step 2)
+  Step 3.5: VR Gate（條件觸發，呼叫 visual-regression skill）
+  Step 4-8: review, rebase, commit, PR, JIRA...
 ```
 
-VR Gate 在 quality check 之後、commit 之前。這樣 VR fail 時還沒 commit，可以直接修。
+VR Gate 在 Local CI Mirror 之後、commit 之前。這樣 VR fail 時還沒 commit，可以直接修。
 
 ---
 
@@ -514,7 +514,7 @@ VR Gate 在 quality check 之後、commit 之前。這樣 VR fail 時還沒 comm
 | `epic-status` | Phase 1 偵測「所有 task merged → 提醒開始驗收」。Phase 2 路由驗收 gap。Check stale fixture folders |
 | `engineering` | 建 task 時自動建測試計劃 sub-task。每張 task 必須通過 VR |
 | `breakdown` (estimation) | 估點時產生測試計劃 template |
-| `quality-check-flow` | Step 8b VR 條件觸發（已完成 v1.52.0） |
+| `engineer-delivery-flow` § Step 3.5 | VR 條件觸發 |
 | `git-pr-workflow` | Step 3b VR Gate（本次新增）；驗收前 auto-rebase develop |
 | `converge` | Check stale fixture folders（> 30 天 + Epic not in dev → 提醒刪除） |
 | `mockoon-runner.sh` | 支援 per-Epic folder 參數（需改動腳本） |

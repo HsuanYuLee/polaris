@@ -104,9 +104,9 @@ git -C {repo_dir} push --force-with-lease
 
 Feature branch rebase 完成後、建 PR 前，執行品質檢查確保合併後的程式碼沒壞：
 
-1. 依照 `skills/references/quality-check-flow.md`，執行完整品質檢查（lint + test + coverage）
-2. 若品質檢查失敗 → **不建 PR**，回報失敗項目給使用者
-3. 品質檢查通過 → 繼續建立 Feature PR
+1. 依照 `skills/references/engineer-delivery-flow.md § Step 2 Local CI Mirror`，執行 `ci-local.sh`（lint + test + coverage 由 repo CI config 推導內含）
+2. 若 `ci-local.sh` 失敗 → **不建 PR**，回報失敗項目給使用者
+3. `ci-local.sh` 通過 → 繼續建立 Feature PR
 
 **為什麼**：個別 task PR 各自通過品質檢查，但合併到 feature branch 後可能產生衝突或整合問題。Feature PR 直接開出去 CI 才跑紅是浪費 reviewer 時間。
 

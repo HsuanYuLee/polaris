@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# verification-evidence-gate.sh — PreToolUse hook
+# verification-evidence-gate.sh — PreToolUse hook (Dimension A only)
 # Blocks `gh pr create` and `git push` (to task/fix branches on product repos)
-# unless verification evidence exists for the ticket.
+# unless runtime/build verification evidence exists for the ticket.
 #
 # Intercepts:
 #   - `gh pr create` — all cases (original DP-029 behavior)
-#   - `git push` — only task/* and fix/* branches on repos with codecov config (DP-031)
+#   - `git push` — only task/* and fix/* branches on repos with scripts/ci-local.sh (DP-031 + DP-032 D12-c)
 #
 # Evidence file: /tmp/polaris-verified-{TICKET}.json
-# Created by verify-completion skill or verify-http.sh wrapper.
-# Must contain: { "ticket": "...", "timestamp": "...", "results": [...], "runtime_contract": {...} }
-#
+# Created by verify-completion skill or polaris-write-evidence.sh.
+# Schema: { ticket, timestamp, results[], runtime_contract{} }
 # The file is intentionally in /tmp (ephemeral) — each session must verify fresh.
+#
+# Dimension B (ci-local mirror evidence) is enforced separately by ci-local-gate.sh
+# (DP-032 D12-c). The two hooks both register on `gh pr create` + `git push` and
+# share the same task/* + scripts/ci-local.sh filter for product-repo gating.
 #
 # Env:
 #   POLARIS_SKIP_EVIDENCE=1  — bypass (for non-ticket PRs like framework changes)
@@ -51,16 +54,9 @@ if [[ "$MODE" == "push" ]]; then
     *) exit 0 ;;     # not a delivery branch, allow
   esac
 
-  # Only intercept product repos (those with codecov config)
-  has_codecov=false
-  for cfg in codecov.yml .codecov.yml; do
-    [[ -f "${push_repo:-.}/$cfg" ]] && has_codecov=true && break
-  done
-  # Also check .woodpecker/codecov.yml
-  [[ -f "${push_repo:-.}/.woodpecker/codecov.yml" ]] && has_codecov=true
-
-  if ! $has_codecov; then
-    exit 0  # No CI coverage config — not a product repo, allow
+  # Only intercept repos with scripts/ci-local.sh (DP-032 D12-c)
+  if [[ ! -f "${push_repo:-.}/scripts/ci-local.sh" ]]; then
+    exit 0  # No ci-local.sh — repo not onboarded to D12 mirror, allow
   fi
 
   # Skip destructive/tag pushes
@@ -167,56 +163,6 @@ if [[ "$age_check" != "fresh" ]]; then
   exit 2
 fi
 
-# CI contract parity gate: if repo has Codecov patch gate, require fresh PASS coverage evidence.
-repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
-
-# For push mode, use the repo we already resolved
-if [[ "$MODE" == "push" && -n "${push_repo:-}" ]]; then
-  repo_root="$push_repo"
-fi
-has_patch_gate=false
-if [[ -n "$repo_root" ]]; then
-  for cfg in codecov.yml .codecov.yml; do
-    if [[ -f "$repo_root/$cfg" ]] && grep -qE '^[[:space:]]*-?[[:space:]]*type:[[:space:]]*patch' "$repo_root/$cfg"; then
-      has_patch_gate=true
-      break
-    fi
-  done
-fi
-
-if $has_patch_gate; then
-  branch_slug=$(printf '%s' "$branch" | tr '/' '-')
-  coverage_file="/tmp/polaris-coverage-${branch_slug}.json"
-
-  if [[ ! -f "$coverage_file" ]]; then
-    echo "BLOCKED: Missing CI contract coverage evidence for ${branch}" >&2
-    echo "  Expected: ${coverage_file}" >&2
-    echo "  Run: scripts/ci-contract-run.sh --repo ${repo_root} --skip-install --write-coverage-evidence" >&2
-    exit 2
-  fi
-
-  coverage_valid=$(python3 -c "
-import json
-from datetime import datetime, timezone, timedelta
-try:
-    with open('${coverage_file}') as f:
-        d = json.load(f)
-    assert d.get('branch') == '${branch}', 'branch mismatch'
-    assert str(d.get('status', '')).upper() == 'PASS', 'status is not PASS'
-    ts = datetime.fromisoformat(str(d.get('timestamp', '')).replace('Z', '+00:00'))
-    age = datetime.now(timezone.utc) - ts
-    assert age <= timedelta(hours=4), f'stale: {age.total_seconds()/3600:.1f}h old'
-    print('valid')
-except Exception as e:
-    print(f'invalid: {e}')
-" 2>/dev/null || echo "invalid: parse error")
-
-  if [[ "$coverage_valid" != "valid" ]]; then
-    echo "BLOCKED: Invalid CI contract coverage evidence for ${branch}" >&2
-    echo "  ${coverage_file}: ${coverage_valid}" >&2
-    echo "  Re-run: scripts/ci-contract-run.sh --repo ${repo_root} --skip-install --write-coverage-evidence" >&2
-    exit 2
-  fi
-fi
+# Dimension B (ci-local mirror evidence) is handled by ci-local-gate.sh — DP-032 D12-c
 
 exit 0

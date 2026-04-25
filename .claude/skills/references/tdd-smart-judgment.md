@@ -45,4 +45,4 @@ Coverage gate: [detected / absent]
 
 呼叫端（engineering、bug-triage 等）在進入開發階段時套用此判斷，無需重複描述規則。
 
-TDD 完成後、push 前必須依 `engineer-delivery-flow.md § Step 2a Coverage Gate Check` 跑 coverage 並寫 evidence（若 repo 有 patch gate）。
+TDD 完成後、push 前必須依 `engineer-delivery-flow.md § Step 2 Local CI Mirror` 跑 `ci-local.sh` 並寫 evidence（若 repo 有 `ci-local.sh`；patch gate / lint / typecheck 等 workflow checks 由 `ci-local-generate.sh` 從 repo CI config 推導內含）。

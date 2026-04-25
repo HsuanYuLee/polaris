@@ -504,7 +504,7 @@ Before opening a PR, run a quality check to ensure changes have sufficient test 
 quality check
 ```
 
-AI runs quality checks via `engineer-delivery-flow` Step 2 (consuming `quality-check-flow.md`):
+AI runs quality checks via `engineer-delivery-flow` Step 2 (Local CI Mirror — `ci-local.sh`, generated per repo from CI config by `ci-local-generate.sh`):
 
 1. Identifies changed source files (excludes types, constants, index files, etc.)
 2. Checks whether each source file has a corresponding test file

@@ -269,7 +269,7 @@ Project: {repo_path}
 ## 流程
 1. 建 branch（依 `references/branch-creation.md` 流程，或使用 `scripts/create-branch.sh`）
 2. TDD 開發（讀取 `unit-test` SKILL.md + 專案 CLAUDE.md）
-3. 品質檢查（quality-check-flow）→ 行為驗證（engineer-delivery-flow Step 3）→ PR（git-pr-workflow）
+3. Local CI Mirror（engineer-delivery-flow § Step 2 — `ci-local.sh`）→ 行為驗證（engineer-delivery-flow Step 3）→ PR（git-pr-workflow）
 
 ## 限制
 - 你無法使用 Skill tool，讀取 SKILL.md 並直接執行步驟

@@ -3,7 +3,7 @@
 # Codex fallback command gate for git commit.
 #
 # Runs P0 commit gates:
-#  - quality-evidence-required
+#  - ci-local-required (Dimension B; D12-c)
 #  - version-docs-lint-gate
 #
 # Usage:
@@ -27,7 +27,7 @@ fi
 
 commit_cmd="git commit $*"
 
-"$ADAPTER" "$ROOT_DIR/scripts/quality-gate.sh" "$commit_cmd"
+"$ADAPTER" "$ROOT_DIR/.claude/hooks/ci-local-gate.sh" "$commit_cmd"
 "$ADAPTER" "$ROOT_DIR/.claude/hooks/version-docs-lint-gate.sh" "$commit_cmd"
 
 if [[ "$dry_run" == true ]]; then

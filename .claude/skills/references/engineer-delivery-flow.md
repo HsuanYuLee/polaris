@@ -80,44 +80,38 @@
 
 ---
 
-## Step 2 — Quality Check
+## Step 2 — Local CI Mirror
 
-執行 `references/quality-check-flow.md` 的完整流程（lint / test / coverage / risk scoring）。
+執行 `bash "$(git rev-parse --show-toplevel)"/scripts/ci-local.sh`。
 
-**Re-test-after-fix 鐵律**：若本 step 發現問題並修改 code，所有測試和 lint 必須**重跑一次**。上一輪修改前的結果無效。
+此 script 由 `scripts/ci-local-generate.sh` 從 repo 的 CI config（Woodpecker / GitHub Actions / GitLab CI / husky / `.pre-commit-config.yaml` / `package.json` scripts）推導產出，序列化執行 install / lint / typecheck / test / coverage 類別的 commands，並嵌入 codecov patch coverage compute。每個 repo 一份 self-contained script，框架本體不再做 CI re-discovery。
 
-本 step 通過後**進 § 2a（必跑）**；2a 通過後才能進 Step 3。未通過就繼續 = 欺騙下游。
+**Re-test-after-fix 鐵律**：若本 step 發現問題並修改 code，必須**重跑一次** `ci-local.sh`。上一輪修改前的結果無效。
 
-> **⚠️ § 2a 是 top-level 必經步驟，不是 Step 2 的附註。** 跳過 2a 等於跳過 Dimension B（repo CI 模擬）；`verification-evidence-gate.sh` hook 會在 `gh pr create` 前查 `/tmp/polaris-coverage-{branch_slug}.json`（由 `ci-contract-run.sh` 寫入），evidence 缺失或非 PASS 時 block PR。
-
-### 2a. CI Contract Parity（repo 有配就跑、沒配就跳過）
-
-> **Dimension model (DP-029, D6 v2 / D11)**：engineering 的品質要求分兩層：
+> **Dimension model (DP-029 D6 v2 / D11；DP-032 D12-c)**：engineering 的品質要求分兩層：
 > - **Dimension A — Framework Baseline（一律執行）**：TDD discipline（red-green-refactor）+ 功能驗證（`Verify Command` Step 3d）+ VR（conditional, Step 3.5）
-> - **Dimension B — Repo CI-Equivalent（依 repo 配置執行）**：`ci-contract-run.sh` 讀 `codecov.yml` / `.github/workflows/*.yml` / `.husky/*`，模擬 repo CI 的 patch gate / lint / typecheck / 其他 workflow jobs。repo 有配就跑，沒配就不跑 — **patch coverage 歸 repo 責任，框架不主動追加**
+> - **Dimension B — Repo CI-Equivalent（repo 有 `ci-local.sh` 就跑、沒有就跳）**：`ci-local.sh` 模擬 repo CI 的 patch gate / lint / typecheck / 其他 workflow jobs。repo 有配就跑，沒配就不跑 — **patch coverage 歸 repo 責任，框架不主動追加**
 >
-> Push 前必須確認 Dimension B 全綠（repo CI 模擬通過）。Dimension A 的 TDD discipline 由 `tdd-bypass-no-assertion-weakening` canary 把關（見 `mechanism-registry.md`）。
+> Commit / push / `gh pr create` 前必須確認 Dimension B 全綠。Dimension A 的 TDD discipline 由 `tdd-bypass-no-assertion-weakening` canary 把關（見 `mechanism-registry.md`）。
 
 **執行**：
 
 ```bash
-"$CLAUDE_PROJECT_DIR/scripts/ci-contract-run.sh" --repo "$(git rev-parse --show-toplevel)" --skip-install
+bash "$(git rev-parse --show-toplevel)"/scripts/ci-local.sh
 ```
 
 - exit 0 → Dimension B PASS，進 Step 3
 - exit 1 → Dimension B FAIL，**回到實作階段修 root cause**，禁止放寬 assertion / `.skip()` / `as any` 繞過（canary: `tdd-bypass-no-assertion-weakening`）；修完回 Step 2 開頭重跑
 
-**Evidence file（自動寫入）**：`ci-contract-run.sh` 執行完必寫 `/tmp/polaris-coverage-{branch_slug}.json`（status / branch / timestamp / summary）。`verification-evidence-gate.sh` hook 在 `gh pr create` 前讀此檔案；無檔案或非 PASS → block PR。跳過本 step = 沒寫 evidence = PR 建不起來（確定性 gate）。
+**Evidence file（自動寫入）**：`ci-local.sh` 執行完必寫 `/tmp/polaris-ci-local-{branch}-{head_sha}.json`（status / branch / head_sha / timestamp / commands / summary）。`ci-local-gate.sh` PreToolUse hook 在 `git commit` / `git push` / `gh pr create` 前讀此檔案：cache hit (head_sha + status PASS) → 放行；cache miss 或非 PASS → **同步實跑** `ci-local.sh`，PASS 放行 / FAIL 擋。跳過本 step ≠ 漏網 — hook 會在第一個 git/gh 動作補位執行。
 
-**沒有 repo CI 配置（例如框架 repo / prototype）**：`ci-contract-run.sh` 偵測不到 `codecov.yml` / workflow → 跳過 patch gate 模擬，直接 PASS（仍會寫 evidence file status: PASS）。這是 design — 框架尊重 repo maintainer 的 CI 決策，不主動強加 coverage baseline。
+**沒有 repo CI 配置（例如框架 repo / prototype）**：`ci-local-generate.sh` 偵測不到任何可推導的 commands → 產出 NO_CHECKS_CONFIGURED 純路徑 `ci-local.sh`，直接 PASS（仍寫 evidence file status: PASS）。這是 design — 框架尊重 repo maintainer 的 CI 決策，不主動強加 coverage baseline。
 
-**Worktree 框架環境自動準備**：`ci-contract-run.sh` 在跑 test/coverage 之前，會自動偵測 Nuxt 專案（`nuxt.config.ts` / `nuxt.config.js`），若 `.nuxt/` 目錄不存在則自動執行 `npx nuxt prepare`。這解決 worktree 環境缺少生成目錄導致 vitest 靜默跳過、coverage 為零卻報 PASS 的問題（TASK-123 事件）。
+**Empty-coverage 安全網（`ci-local.sh` 內建 invariant）**：若所有 patch gate 結果為 SKIP（`no_instrumented_patch_lines`）但 diff 中有匹配 gate path 的檔案，`ci-local.sh` 判定 FAIL（tests 很可能沒跑出 coverage data）。defense-in-depth — 攔截 test runner 靜默跳過 / coverage 生成失敗等未預見原因。
 
-**Empty-coverage 安全網**：若所有 patch gate 結果為 SKIP（`no_instrumented_patch_lines`）但 diff 中有匹配 gate path 的檔案，`ci-contract-run.sh` 判定 FAIL（tests 很可能沒跑出 coverage data）。這是 defense-in-depth — 正常情況 framework prep 會解決問題，此 check 攔截 prep 失敗或其他未預見原因。
+**Bypass**：`POLARIS_SKIP_CI_LOCAL=1` — emergency escape only，不應日常使用。**沒有** `wip:` commit-msg skip / **沒有** main-develop branch skip / **沒有** deprecation shim（D12-c 一次到位的 breaking change）。
 
-**Bypass**：`POLARIS_SKIP_CI_CONTRACT=1` — 純文件 / config-only 改動可用；一般情況不用。
-
-**歷史**：TASK-123 事件（useFetch key 改動沒補測試、本地 quality PASS 但 CI `codecov/patch/main-core` FAIL）促成了 DP-029 Phase B 的 patch gate 精確模擬，讓 CI failure 在 push 前就被擋下。早期版本另掛了 framework-level `coverage-gate.sh`（D6 v1），後來 D6 v2 (2026-04-24) 判定「repo 有配就由 Dimension B 接、沒配不追加」更乾淨，coverage-gate 下架。
+**歷史**：TASK-123 事件（useFetch key 改動沒補測試、本地 quality PASS 但 CI `codecov/patch/main-core` FAIL）促成 DP-029 Phase B 的 patch gate 精確模擬。早期版本掛了 framework-level `coverage-gate.sh`（D6 v1），D6 v2 (2026-04-24) 判定「repo 有配就由 Dimension B 接、沒配不追加」更乾淨，coverage-gate 下架。D12-c (v3.58.0) 進一步把 `ci-contract-run.sh` / `quality-gate.sh` / `pre-commit-quality.sh` 整批下架，改由 `ci-local-generate.sh` 為每個 repo 生成 self-contained `ci-local.sh`，框架本體只保留 `ci-local-gate.sh` PreToolUse hook 做 evidence 把關。
 
 ---
 
@@ -586,7 +580,6 @@ Risk signal（若多次觸發，呼叫端應停下回報使用者而非繼續）
 
 ## 和其他 reference 的關係
 
-- [quality-check-flow.md](quality-check-flow.md) — Step 2 內容
 - [behavioral-verification.md](behavioral-verification.md) — Step 3 的效能 A/B Worktree、goal-backward wiring 等延伸工具（Layer B 高階驗證使用）
 - [pipeline-handoff.md](pipeline-handoff.md) — 角色邊界與 task.md schema（Developer 上游）
 - [repo-handbook.md](repo-handbook.md) — handbook 結構（Step 3a Discovery 讀取來源）

@@ -504,7 +504,7 @@ AI 執行 `unit-test` 技能的 TDD 模式，強制執行 **Red-Green-Refactor**
 quality check
 ```
 
-AI 透過 `engineer-delivery-flow` Step 2（消費 `quality-check-flow.md`）執行品質檢查：
+AI 透過 `engineer-delivery-flow` Step 2（Local CI Mirror — `ci-local.sh`，由 `ci-local-generate.sh` 從 repo CI config 生成）執行品質檢查：
 
 1. 識別變更的原始碼檔案（排除 types、constants、index 檔等）
 2. 檢查每個原始碼檔案是否有對應的測試檔
