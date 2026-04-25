@@ -15,7 +15,7 @@
 #   - .claude/settings.json
 #   - .claude/settings.local.json.example
 #   - .claude/settings.local.json.sub-repo-example
-#   - scripts/*.sh
+#   - scripts/**/*.sh (recursive, includes scripts/env/ subfolder)
 #   - _template/
 #   - CHANGELOG.md, VERSION, README.md, README.zh-TW.md, CLAUDE.md
 #
@@ -272,13 +272,17 @@ copy_file "$INSTANCE_DIR/.claude/settings.local.json.example" \
 copy_file "$INSTANCE_DIR/.claude/settings.local.json.sub-repo-example" \
           "$POLARIS_DIR/.claude/settings.local.json.sub-repo-example" "settings.local.json.sub-repo-example"
 
-# ── Step 5: Sync scripts ──────────────────────────────────────────
+# ── Step 5: Sync scripts (recursive — supports scripts/env/ etc.) ─
 
 echo "Scripts..."
-for script_file in "$INSTANCE_DIR"/scripts/*.sh; do
-  script_name=$(basename "$script_file")
-  copy_file "$script_file" "$POLARIS_DIR/scripts/$script_name" "$script_name"
-done
+while IFS= read -r script_file; do
+  # Preserve subfolder structure (e.g., scripts/env/_lib.sh)
+  rel_path="${script_file#"$INSTANCE_DIR"/}"
+  target_path="$POLARIS_DIR/$rel_path"
+  target_dir=$(dirname "$target_path")
+  mkdir -p "$target_dir"
+  copy_file "$script_file" "$target_path" "$rel_path"
+done < <(find "$INSTANCE_DIR/scripts" -name "*.sh" -type f -not -path "*/node_modules/*" -not -path "*/e2e-results/*")
 
 # ── Step 6: Sync _template/ ───────────────────────────────────────
 

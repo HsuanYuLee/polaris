@@ -4,6 +4,23 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.57.1] - 2026-04-25
+
+### Fix — sync-to-polaris.sh recursive scripts/ glob
+
+Single-level `scripts/*.sh` glob in `sync-to-polaris.sh` Step 5 missed the
+`scripts/env/` subfolder, leaving the v3.57.0 template release without the
+six DP-032 D11 env primitives (`_lib.sh`, `health-check.sh`,
+`fixtures-start.sh`, `start-command.sh`, `ensure-dependencies.sh`,
+`selftest.sh`).
+
+Replaced with `find scripts -name "*.sh" -type f` while preserving relative
+paths under scripts/. Also excludes `node_modules/` and `e2e-results/`
+trees. Header comment updated to `scripts/**/*.sh (recursive)`.
+
+Discovered immediately after v3.57.0 sync — env/ files exist in workspace
+repo but not in the public template. This release pushes them.
+
 ## [3.57.0] - 2026-04-25
 
 ### Feat — DP-032 Wave α: deterministic extraction infrastructure
