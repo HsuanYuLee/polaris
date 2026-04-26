@@ -4,6 +4,63 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.61.0] - 2026-04-26
+
+### Feat — DP-033 Phase B: V{n}.md verification schema dual-path
+
+Closes the dual-schema lifecycle started in DP-033 Phase A. Phase B adds the
+verification side (V{n}.md) so an Epic now has a fully symmetric pair:
+
+- T{n}.md = implementation task (engineering, `deliverable` + PR)
+- V{n}.md = verification task (verify-AC, `ac_verification` + AC results)
+
+**Symmetry principle**: verification is also engineering. All shared
+infrastructure stays as one canonical implementation — `parse-task-md.sh` /
+`mark-spec-implemented.sh` / `pipeline-artifact-gate.sh` / D6 `complete/` /
+D7 atomic-write contract / `jira_transition_log[]` are reused by T and V.
+Phase B adds **only** what the verification side genuinely needs:
+
+- `task-md-schema.md` § 4 Verification Schema (B1 + B2 + B5):
+  full V{n}.md schema mirroring § 3 — required sections inventory,
+  Operational Context cells (V version drops `Test sub-tasks` / `AC 驗收單` /
+  `Task branch`, adds `Implementation tasks`), `## 驗收項目`, `## 驗收步驟`,
+  `## Test Environment` reuses T mode rules, `ac_verification` writer
+  contract symmetric to D7 `deliverable` (atomic + verify + retry-3 +
+  fail-stop), `ac_verification_log[]` loose list-of-maps (same精神 as
+  `jira_transition_log[]`)
+- `scripts/validate-task-md.sh` (B3): filename-dispatched dual-path
+  validator. T mode unchanged (zero-regression dogfood: 7 pass / 9 fail /
+  5 hard-fail same as Phase A baseline). V mode adds `## 驗收項目` /
+  `## 驗收步驟` / Operational Context V cells / `ac_verification` schema
+  (status enum / ISO 8601 last_run_at / count sum invariant /
+  human_disposition conditional) / `ac_verification_log[]` loose check.
+- `scripts/validate-task-md-deps.sh` (B4): filename pattern extended from
+  `T*.md` to `[TV]*.md`. Same DAG / linear / fixture / D6 same-key
+  invariants now apply across T+V. New cross-type direction check:
+  V→T pass / V→V pass / T→V fail (DP-033 D4 § 5.3). Synthetic dogfood
+  confirmed both sides fire correctly; existing kkday/specs scan: 3 pass /
+  0 fail (no regression).
+- `.claude/hooks/pipeline-artifact-gate.sh`: V*.md branch now also runs
+  `validate-task-md-deps.sh` (Phase A had a TODO comment; Phase B activates).
+- `breakdown/SKILL.md` Step D (B6): V{n}.md naming spec written into the
+  skill (sequential V1, sub-split V1a/V1b, symmetric to T). **Producer
+  cutover (`{V-KEY}.md` → `V{n}.md`) deferred to DP-039** — verify-AC
+  consumer rewrite + existing `{V-KEY}.md` migration script must land in
+  the same atomic switch to avoid a producer/consumer drift window.
+  Step 6 now carries a segmented-AC advisory: when breakdown detects two
+  disjoint AC groups + two disjoint task groups, it suggests splitting the
+  Epic (PM-level decision; validator only hard-fails T→V invariant).
+
+**Plan checklist gate**: A1-A12 (Phase A) + B1-B7 (Phase B) = 19/19
+checked; `design-plan-checklist-gate.sh` no longer blocks
+`status: IMPLEMENTED` flip on `specs/design-plans/DP-033-task-md-lifecycle-closure/plan.md`.
+
+**Handoff to DP-039**: § Implementation Notes lists the verify-AC consumer
+rewrite, breakdown producer cutover, and existing `{V-KEY}.md` migration
+script as the atomic switch DP-039 owns. DP-033 Phase B defines the target
+schema + validator + breakdown spec; DP-039 lands the producer/consumer
+cutover and the migration.
+
 ## [3.60.0] - 2026-04-26
 
 ### Feat — DP-032 Wave γ: deterministic engine wiring complete

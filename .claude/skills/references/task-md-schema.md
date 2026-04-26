@@ -1,8 +1,8 @@
 # task.md Schema — Single Source of Truth
 
-> **Status**: v0 draft (DP-033 Phase A). 實作 schema 為主；驗收 schema 為 placeholder，待 Phase B 填寫。
+> **Status**: v1 (DP-033 Phase A + Phase B)。實作 schema (T{n}.md) + 驗收 schema (V{n}.md) 雙路徑齊備；對稱原則：驗收也是工程，所有共用基礎設施 (parser / closer / hook / D6 complete / D7 atomic write contract / jira_transition_log) 一份權威、T/V 共用。
 >
-> **Source DPs**: DP-023 (runtime contract) · DP-025 (artifact schema enforcement) · DP-028 (depends_on / Base branch binding) · DP-032 (deliverable / jira_transition_log lifecycle write-back) · DP-033 (本 reference — schema 整合 + lifecycle closure)
+> **Source DPs**: DP-023 (runtime contract) · DP-025 (artifact schema enforcement) · DP-028 (depends_on / Base branch binding) · DP-032 (deliverable / jira_transition_log lifecycle write-back) · DP-033 (本 reference — schema 整合 + lifecycle closure；Phase A 實作 schema、Phase B 驗收 schema)
 
 本 reference 是 task.md 的單一權威 schema 文件 — pipeline 的所有 producer / consumer / validator / hook 都從此派生。若本檔與個別 SKILL.md / DP plan / `pipeline-handoff.md` 描述衝突，**以本檔為準**。
 
@@ -17,7 +17,7 @@ Polaris pipeline 的 task.md 分兩類，都存在於同一個 Epic 的 `specs/{
 | 類型 | Filename pattern | Producer | Consumer | Schema 章節 |
 |------|------------------|----------|----------|-------------|
 | 實作 task.md | `T{n}[suffix].md`（`T1.md` / `T3a.md` / `T8b.md`） | `breakdown` Path A | `engineering` | § 3 Implementation Schema |
-| 驗收 task.md | `V{n}[suffix].md`（`V1.md` / `V2a.md`） | `breakdown` Step D | `verify-AC` | § 4 Verification Schema (placeholder) |
+| 驗收 task.md | `V{n}[suffix].md`（`V1.md` / `V2a.md`） | `breakdown` Step D | `verify-AC` | § 4 Verification Schema |
 
 > **Reader fallback callout（DP-033 D8）**：所有用 task key 找 file 的 reader（`parse-task-md.sh` / `validate-task-md-deps.sh` / `verify-AC` / `engineering` / 未來 Specs Viewer）在 active `tasks/` 找不到 key 時，必須 fallback `tasks/complete/`，避免歷史 reference 在 task 完結後斷鏈。完整 fallback 規則 + lookup 優先順序見 § 6 Validator Mapping。
 
@@ -26,9 +26,9 @@ Polaris pipeline 的 task.md 分兩類，都存在於同一個 Epic 的 `specs/{
 `pipeline-artifact-gate.sh` PreToolUse hook 用 filename pattern dispatch validator：
 
 ```
-specs/*/tasks/T*.md   → validate-task-md.sh + validate-task-md-deps.sh（implementation）
-specs/*/tasks/V*.md   → validate-task-md.sh（verification mode，待 Phase B）
-specs/*/tasks/complete/*.md → 完全 skip（D6 complete 機制；validator 不掃 complete/）
+specs/*/tasks/T*.md   → validate-task-md.sh (T mode) + validate-task-md-deps.sh
+specs/*/tasks/V*.md   → validate-task-md.sh (V mode) + validate-task-md-deps.sh（同 deps validator，自動掃 T+V）
+specs/*/tasks/complete/*.md → 完全 skip（D6 complete 機制；validator 不掃 complete/，但 reader fallback 會搜）
 其他 .md             → 不適用 task.md schema
 ```
 
@@ -358,16 +358,329 @@ curl -sf http://localhost:3100/api/activities ...
 
 ## 4. Verification Schema (V{n}.md)
 
-> **Phase B 待寫**。
->
-> DP-033 Phase B 完成後在此填入：
->
-> - Filename pattern：`V{n}[suffix].md`（V1.md / V2a.md，sequential 從 V1 起，sub-split `V1a/V1b`，與 T{n} 同規則 — DP-033 D2 + BS#10）。**Filename 為唯一 type 訊號，不引入 frontmatter `type` 欄位**（D2 修正版，2026-04-26）
-> - Required sections：包含 breakdown 寫入的 fields（`test_urls` / `depends_on` 含 V→T binding）+ verify-AC 寫回的 `ac_verification` lifecycle section
-> - Cross-section invariant：V→T `depends_on` 合法、T→V `depends_on` 禁止（DP-033 D4）
-> - verify-AC 寫回 `ac_verification` 的 contract（atomic / 重跑覆寫語意，比照 DP-033 D7 `deliverable` 的 atomic + verify + fail-stop 模式）
->
-> 既有以 `{JIRA-KEY}.md` 命名的驗收 task.md migration 移交 **DP-039 `/verify-AC refactor` seed**（DP-033 D3 + BS#7）；本檔不 cover migration script。
+驗收 task.md schema。對稱原則：與 § 3 Implementation Schema 對齊，所有共用基礎設施（中央 parser、move-first closer、PreToolUse hook dispatch、D6 complete/、D7 atomic write contract、`jira_transition_log[]`）一份權威、T/V 共用，**不平行造**。
+
+**Filename pattern**：`V{n}[suffix].md`（`V1.md` / `V2a.md` / `V8b.md`）— sequential 從 `V1` 起、sub-split 用 `V1a` / `V1b`（與 T{n} 同規則 — DP-033 D2 + BS#10）。**Filename 為唯一 type 訊號**，frontmatter **不**引入 `type` 欄位（DP-033 D2 修正版，2026-04-26）。
+
+> **既有 `{JIRA-KEY}.md` 命名的驗收 task.md migration（filename 從 TASK-XXXX.md 改為 V{n}.md）+ verify-AC consumer 重構（讀 V*.md / 寫回 `ac_verification`）→ 移交 DP-039 `/verify-AC refactor`**（DP-033 D3 + BS#7 + BS#8）。本 § 4 只定義 target schema 與 contract，producer / consumer 切換由 DP-039 atomic 切到位。
+
+### 4.1 Required sections inventory
+
+| 章節 | Required 層級 | 來源 DP | Validator | T 對應 |
+|------|--------------|---------|-----------|--------|
+| 標題行 `# V{n}[suffix]: ...` | **Hard** | DP-033 Phase B | `validate-task-md.sh`（V mode）regex `^# V[0-9]+[a-z]*: .+\([0-9.]+ ?pt\)` | 同 T |
+| Header `> Epic\|JIRA\|Repo` | **Hard**（`JIRA` + `Repo`），Soft（`Epic`） | DP-033 Phase B | `validate-task-md.sh`（V mode；§ 2.3 規則同 T，含 Bug task 無 Epic 場景） | 同 T |
+| `## Operational Context` | **Hard** | DP-033 Phase B | `validate-task-md.sh`（V mode；cells 集合 § 4.2，與 T cells 對應但部分 V-specific） | 同 T |
+| `## Verification Handoff` | Optional | DP-033 Phase B | 不檢；breakdown 慣例寫一句「驗收將由 verify-AC 觸發」 | 同 T |
+| `## 目標` | **Soft** | DP-033 Phase B | 章節存在 + 非空（warn-only） | 同 T |
+| `## 驗收項目` | **Hard** | DP-033 Phase B | `validate-task-md.sh`（V mode；章節存在 + 非空 body — markdown row 或 bullet ≥ 1） | 對應 T 的 `## 改動範圍`（語意對稱：T 列檔案改動，V 列 AC 覆蓋；命名分開避免混淆）|
+| `## 估點理由` | **Hard** | DP-033 Phase B | 章節存在 + 非空 body | 同 T |
+| `## 驗收計畫（AC level）` | **Soft** | DP-033 Phase B | 章節存在；內容不檢 | 對應 T 的 `## 測試計畫（code-level）`（語意對稱：T 是 code-level 測試，V 是 AC-level 驗收計畫）|
+| `## Test Environment` | **Hard** | DP-023 / DP-033 Phase B | `validate-task-md.sh`（V mode；§ 3.3 整節適用，Level enum + Runtime cross-field 全共用 T mode） | 同 T |
+| `## 驗收步驟` | **Hard**（`Level≠static` 時） | DP-033 Phase B | `validate-task-md.sh`（V mode；章節存在 + 含 fenced code block + Level=runtime 時 host alignment 同 § 3.3） | 對應 T 的 `## Verify Command`（語意對稱：T 是 deterministic shell，V 是 verify-AC LLM driver entry + 逐 AC 步驟描述）|
+
+**合理省略（不對稱、相對 T；驗收不寫 code）**：
+
+| T 章節 | V 為何省略 |
+|--------|-----------|
+| `## Allowed Files` | 驗收不寫 code，無 Scope Check 概念（engineer-delivery-flow Step 5.5 不適用 V） |
+| `## Test Command` | 驗收跑 AC、不跑 unit test（unit test 屬實作 T 範疇） |
+
+> **對稱原則註**：基礎設施 reuse — `parse-task-md.sh` 中央 parser（filename 自動識別 T/V）、`mark-spec-implemented.sh` move-first closer（filename dispatch 對 T/V 共用，§ 4.6）、`pipeline-artifact-gate.sh` PreToolUse hook、D6 `tasks/complete/` 機制、D7 atomic + retry-3 + fail-stop write-back contract、`jira_transition_log[]` lifecycle 欄位 — 全部 T/V 共用，新增的只有 `ac_verification` / `ac_verification_log[]` 兩個 frontmatter 欄位 + `validate-task-md.sh` V mode 規則集。
+
+### 4.2 `## Operational Context` table cells (V 版)
+
+對應 § 3.2，但 cells 集合略不同（T-only cells 移除，V-specific cells 新增）：
+
+| Cell | 內容 | Required | T 版差異 |
+|------|------|----------|----------|
+| `Task JIRA key` | 該 V 的 JIRA key（AC 驗收單，如 `TASK-123`） | **Hard** | 同 T |
+| `Parent Epic` | Epic key | **Hard** | 同 T |
+| `Implementation tasks` | 該 V 驗證的實作 task 列表（如 `T1, T3a, T3b`） | **Hard** | **V 新增**；對稱 T 的 `Test sub-tasks`（T 列驗測 sub-task；V 列被驗 implementation tasks）|
+| `Base branch` | 驗收跑的 branch（通常 `feat/...` 或 `develop`） | **Hard** | 同 T；V 用法是「在哪條 branch 跑驗收」，**通常不會是 `task/...`**（task branch 是個別 implementation 範疇） |
+| `Depends on` | 同 Epic 內 V→T 或 V→V 依賴（如 `TASK-123 (T3d — adapter cleanup)`），無依賴 = `N/A` / `-` / 空 | **Soft**（cell 可缺；存在時參與 cross-field rule） | 同 T；**V→T 合法、V→V 線性合法**（§ 5.3）|
+| `References to load` | verify-AC sub-agent 須讀的 reference 列表（HTML `<br>` 換行） | **Hard** | 同 T；典型如 `verify-AC` skill 內 reference、Epic-specific test plan |
+
+V 不適用的 T cells（**移除**，validator V mode 不檢）：
+
+- `Test sub-tasks` — T 用來列驗測 sub-task；V 自己就是 driver，不需要列再下一層 sub-task
+- `AC 驗收單` — T 用來指向 V；V 自己就是 AC 驗收單，不指向自己
+- `Task branch` — V 不開 branch（驗收不開 fix branch；AC FAIL 走 bug-triage 開新 T）
+
+範例（節錄自 PROJ-123 的 V1，未來 DP-039 migration 落地後）：
+
+```markdown
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Task JIRA key | TASK-123 |
+| Parent Epic | PROJ-123 |
+| Implementation tasks | T1, T3a, T3b, T3c, T3d |
+| Base branch | feat/PROJ-123-moment-to-dayjs |
+| Depends on | TASK-123 (T3d — adapter cleanup) |
+| References to load | - `skills/references/verify-AC.md`<br>- `specs/PROJ-123/refinement.json` |
+```
+
+### 4.3 `## 驗收項目`（對應 T 的 `## 改動範圍`）
+
+列舉 V*.md 涵蓋的 AC + 對應的實作 task；verify-AC 跑此清單、逐項回填 `ac_verification_log[]`：
+
+```markdown
+## 驗收項目
+
+> breakdown 產出。verify-AC 跑下列 AC，逐項回填 frontmatter `ac_verification_log[]`。
+
+| AC | 摘要 | 對應實作 task | 驗證類型 |
+|----|------|--------------|---------|
+| AC-1 | dayjs API 計算結果與 moment 一致（datetime range） | T1, T3a | runtime |
+| AC-2 | products 頁面 SSR 顯示正確時區 | T3b | runtime |
+| AC-3 | i18n locale 正確套用 | T3b, T3c | runtime |
+| AC-4 | adapter cleanup 不留 moment import | T3d | static |
+```
+
+或 bullet list（簡單 case，validator 接受兩種）：
+
+```markdown
+## 驗收項目
+
+- AC-1: dayjs 計算結果與 moment 一致 — covers T1, T3a (runtime)
+- AC-2: products SSR 時區正確 — covers T3b (runtime)
+- AC-3: ...
+```
+
+Validator (V mode): 章節存在 + 至少 1 個 markdown row（`|` 開頭）或 bullet（`- ` 開頭），與 § 3.4 `## Allowed Files` 同精神。
+
+### 4.4 `## Test Environment` schema
+
+V mode **完全共用** T mode 的 Test Environment 規則（§ 3.3 整節適用）：
+
+- Level enum (`static` / `build` / `runtime`)
+- Runtime cross-field rules（`Runtime verify target` http/https URL + `Env bootstrap command` 必填 + `Verify Command` URL host alignment — 對 V 來說是 `## 驗收步驟` 內 fenced block 的 URL）
+- Static / build 規則（`Runtime verify target` / `Env bootstrap command` 必須 `N/A`）
+- `Fixtures:` 路徑存在性（DP-025，由 `validate-task-md-deps.sh` enforce）
+
+verify-AC 與 engineering 共用 Epic 內的 fixtures / dev environment / runtime verify target — 不重複定義。
+
+### 4.5 `## 驗收步驟`（對應 T 的 `## Verify Command`）
+
+對稱原則下，V*.md 也定義可執行 entry — 但 V 的 entry 是 verify-AC LLM driver，section 內容是「逐 AC 步驟描述 + 預期結果」：
+
+```markdown
+## 驗收步驟
+
+> breakdown 產出。verify-AC 跑此 V*.md 時逐項執行，並把結果回填 frontmatter `ac_verification` + `ac_verification_log[]`。
+
+​```bash
+# Entry: verify-AC consumes this V*.md per AC step list below.
+# verify-AC LLM driver 逐項跑 AC（含 Test Environment 啟動、HTTP curl、UI 檢查），
+# 觀察結果與下方 Expected 比對，最後寫回 ac_verification + ac_verification_log。
+echo "AC steps defined below — verify-AC executes this V*.md."
+​```
+
+### AC-1: dayjs API 計算結果與 moment 一致
+
+**Step**:
+1. 啟動 dev environment：`bash polaris-env.sh start your-company --project your-app`
+2. `curl -sf http://localhost:3100/api/products?dateFrom=2026-01-01&dateTo=2026-01-31`
+
+**Expected**:
+- HTTP 200
+- response.data.priceRange 與 main branch（pre-migration）數值一致
+
+### AC-2: products 頁面 SSR 顯示正確時區
+
+**Step**:
+1. browser visit `https://localhost:3100/zh-tw/product/123`
+2. 觀察日期顯示
+
+**Expected**:
+- 日期顯示為 UTC+8（台北時區）
+- 不出現 `NaN` / `Invalid Date`
+```
+
+Validator (V mode):
+
+- 章節存在
+- 含至少 1 個 fenced code block（entry 訊號）
+- Level=runtime 時，code block 內須含 http/https URL，URL host 須等於 `Runtime verify target` host（同 § 3.3 / § 5.1 cross-field rule，T mode 邏輯共用）
+
+> **個別 AC 步驟結構不檢**：避免過度束縛 — `### AC-N: ...` / `**Step**` / `**Expected**` 是慣例 markdown，breakdown 產出依此模板但 validator 不 enforce 細節結構（內容由 verify-AC LLM 解讀）。
+
+### 4.6 Lifecycle-conditional sections (V 版)
+
+對應 § 3.6，但 V 用 `ac_verification` + `ac_verification_log[]` 取代 `deliverable`；`jira_transition_log[]` T/V 共用：
+
+| Field | Writer | Trigger | 結構檢查 |
+|-------|--------|---------|----------|
+| frontmatter `ac_verification` | verify-AC（每輪覆寫，§ 4.7 contract） | 每跑完一輪 AC verification | map；status enum / last_run_at ISO8601 / 計數 int / human_disposition enum (conditional) |
+| frontmatter `ac_verification_log[]` | verify-AC（每輪 append，§ 4.7 contract） | 每跑完一輪 AC verification | list-of-maps；`time` ISO 8601 建議；其他欄位 freeform（同 `jira_transition_log[]` 寬鬆原則） |
+| frontmatter `jira_transition_log[]` | engineering / verify-AC（共用，append-only） | 跑 JIRA transition 後 | 同 § 2.1 寬鬆 schema |
+
+**T / V 對稱關係表**：
+
+| 維度 | Implementation (T) | Verification (V) | 共通結構 |
+|------|---------------------|-------------------|----------|
+| 主交付 | PR | AC 驗收結果 | — |
+| 摘要單筆（最新狀態，覆寫） | `deliverable` (pr_url / pr_state / head_sha) | `ac_verification` (status / last_run_at / 計數 / human_disposition) | frontmatter map，每次寫覆寫 |
+| 歷次列表（append-only） | `jira_transition_log[]` | `ac_verification_log[]` + `jira_transition_log[]` | frontmatter list-of-maps，寬鬆 schema |
+| Writer contract | atomic + verify + retry-3 + fail-stop (§ 2.1 D7) | 同 contract（§ 4.7） | 一份 D7，T/V 共用 |
+| 完結觸發 | engineering Step 8a → IMPLEMENTED → mark-spec-implemented.sh → `complete/T*.md` | verify-AC 全 PASS + human_disposition=passed → IMPLEMENTED → mark-spec-implemented.sh → `complete/V*.md` | 同一支 closer script（filename dispatch 自動識別 T/V，已實裝） |
+| 中央 parser | `parse-task-md.sh` | 同 | filename dispatch（已實裝） |
+| Hook | `pipeline-artifact-gate.sh` | 同（filename pattern `V*.md` branch） | 同一支 hook |
+| Schema validator | `validate-task-md.sh` (T mode) | `validate-task-md.sh` (V mode) | 同一支 script，filename 分流 |
+| Cross-file validator | `validate-task-md-deps.sh`（掃 T+V） | 同（含 V→T pass / T→V fail invariant） | 同一支 script |
+
+### 4.7 `ac_verification` writer contract（atomic + verify + fail-stop，對稱 D7）
+
+verify-AC Phase B 啟動後（DP-039 consumer 重構落地），每跑完一輪 AC verification 必須遵下列 contract（與 § 2.1 `deliverable` writer contract **對稱** — 同一份 D7，T/V 共用）：
+
+#### Schema (when present)
+
+`ac_verification` (frontmatter map)：
+
+| 欄位 | Required | 規則 |
+|------|----------|------|
+| `status` | required | enum：`PASS` / `FAIL` / `MANUAL_REQUIRED` / `UNCERTAIN` / `IN_PROGRESS` |
+| `last_run_at` | required | ISO 8601 timestamp（建議 UTC 或帶 timezone） |
+| `ac_total` | required | int ≥ 0 |
+| `ac_pass` / `ac_fail` / `ac_manual_required` / `ac_uncertain` | required | int ≥ 0；總和 == `ac_total` |
+| `human_disposition` | conditional | enum：`passed` / `rejected` / `deferred`；當 `status` ≠ `PASS` 時必填（FAIL/MANUAL/UNCERTAIN 需人類裁決） |
+| 額外欄位 | optional | freeform（如 `disposition_reason` / `last_run_by` / 公司自訂欄位） |
+
+`ac_verification_log[]` (frontmatter list-of-maps，寬鬆)：
+
+- 欄位若存在必須是 list（YAML array）
+- 每個 entry 必須是 map（YAML object）
+- `time` 欄位（ISO 8601）**建議**有（為了排序與未來 doc viewer 顯示），但**不強制**
+- 其他欄位（如 `run_by` / `result` / `fail_acs` / `disposition` / `disposition_reason` / 公司自訂欄位）freeform，validator 不 enforce
+
+> 寬鬆原則與 `jira_transition_log[]` (§ 2.1) 完全一致 — 各公司 / 各驗收 flow / error pattern 不同，強 schema 會擋掉採用。
+
+#### Writer contract（verify-AC，DP-039 啟動後）
+
+1. 跑完一輪 AC verification 後 → **立刻**嘗試寫回 V*.md：
+   - **覆寫** `ac_verification` block（最新一輪狀態）
+   - **Append** `ac_verification_log[]` 一筆 entry（包含本輪詳情，由 verify-AC 自選欄位）
+2. 寫入失敗（exit ≠ 0 / 被 hook 擋）→ retry **最多 3 次**（exponential backoff）
+3. 重試仍失敗 → **HARD STOP**，回報：
+   - V*.md path
+   - 失敗原因（hook output / 錯誤訊息）
+   - 訊息：「V*.md is in inconsistent state — verification ran but task.md not updated. Manual recovery required.」
+4. **不繼續執行下游步驟**（JIRA transition / `mark-spec-implemented.sh` / Slack 通知 / next handoff）— 寧可 stop，不可 silent fallback
+5. 寫入後 **verify**：re-read 檔案、確認 `ac_verification.last_run_at` == 本輪時間戳；mismatch → 同 step 3 fail-stop
+6. 全 PASS 且 `human_disposition: passed` → 觸發 `mark-spec-implemented.sh {V_KEY} --status IMPLEMENTED` → move-first 到 `tasks/complete/V{n}.md`（move-first 順序與 T 完全一致，§ 2.4）
+
+#### Validator 配合
+
+- Lifecycle-conditional：**不檢查存在性**（breakdown 階段不存在合法）
+- **存在時必須驗 schema**（status enum / last_run_at ISO8601 / 計數 int / human_disposition conditional）
+- 不可有「validator 太嚴」擋住 verify-AC 自己的合法寫入（schema 寬度 ⊇ writer 輸出）
+
+#### Rationale
+
+與 `deliverable` 對稱 — silent fallback（log 到 `/tmp` 或繼續執行）= V*.md 與真實狀態不一致 → 下次 verify-AC 重跑時誤判為首次（重複執行）或誤判為已通過（漏跑） → AC 結果與 task.md 紀錄分裂。Inconsistent state 必須立刻被人類看到並處理。
+
+對稱意義：driver（engineering vs verify-AC）不同，但「寫回失敗 = HARD STOP」的工程紀律一致，工程師對兩種任務的 lifecycle 期待相同。
+
+### 4.8 完整範例（節錄結構）
+
+```markdown
+---
+status: IMPLEMENTED
+depends_on: [T3d]
+ac_verification:
+  status: PASS
+  last_run_at: 2026-04-27T14:00:00Z
+  ac_total: 4
+  ac_pass: 4
+  ac_fail: 0
+  ac_manual_required: 0
+  ac_uncertain: 0
+  human_disposition: passed
+ac_verification_log:
+  - time: 2026-04-26T10:30:00Z
+    run_by: verify-AC
+    result: FAIL (1/4)
+    fail_acs: [AC-2]
+    disposition: rejected
+    disposition_reason: spec issue — AC-2 expected wrong timezone
+  - time: 2026-04-27T14:00:00Z
+    run_by: verify-AC
+    result: PASS (4/4)
+    disposition: passed
+jira_transition_log:
+  - time: 2026-04-26T10:30:00Z
+    from: TO_DO
+    to: VERIFICATION_IN_PROGRESS
+  - time: 2026-04-27T14:05:00Z
+    from: VERIFICATION_IN_PROGRESS
+    to: DONE
+---
+
+# V1: dayjs 遷移驗收 (3 pt)
+
+> Epic: PROJ-123 | JIRA: TASK-123 | Repo: your-app
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Task JIRA key | TASK-123 |
+| Parent Epic | PROJ-123 |
+| Implementation tasks | T1, T3a, T3b, T3c, T3d |
+| Base branch | feat/PROJ-123-moment-to-dayjs |
+| Depends on | TASK-123 (T3d — adapter cleanup) |
+| References to load | - `skills/references/verify-AC.md` |
+
+## Verification Handoff
+
+驗收委派 verify-AC skill 執行；FAIL 走 bug-triage AC-FAIL Path（`bug-triage-ac-fail-detection` canary）。
+
+## 目標
+
+驗證 PROJ-123 dayjs 遷移完整無 regression（API 計算 + UI SSR + i18n + cleanup）。
+
+## 驗收項目
+
+| AC | 摘要 | 對應實作 task | 驗證類型 |
+|----|------|--------------|---------|
+| AC-1 | dayjs API 計算結果與 moment 一致 | T1, T3a | runtime |
+| AC-2 | products 頁面 SSR 顯示正確時區 | T3b | runtime |
+| AC-3 | i18n locale 正確套用 | T3b, T3c | runtime |
+| AC-4 | adapter cleanup 不留 moment import | T3d | static |
+
+## 估點理由
+
+3 pt — 4 個 AC，含 runtime + static 混合；首輪 FAIL 後手動 disposition AC-2 為 spec issue（非實作 bug），重跑 PASS。
+
+## 驗收計畫（AC level）
+
+- AC-1/AC-2/AC-3 走 mockoon fixtures (runtime)
+- AC-4 走 `grep -r 'moment'` 檢查 (static)
+
+## Test Environment
+
+- **Level**: runtime
+- **Fixtures**: `specs/PROJ-123/tests/mockoon/`
+- **Runtime verify target**: http://localhost:3100
+- **Env bootstrap command**: bash /Users/hsuanyu.lee/work/scripts/polaris-env.sh start your-company --project your-app
+
+## 驗收步驟
+
+​```bash
+# Entry: verify-AC consumes this V*.md per AC step list below.
+echo "verify-AC dispatches AC-1 .. AC-4."
+​```
+
+### AC-1: dayjs API 計算結果與 moment 一致
+**Step**: ...
+**Expected**: ...
+
+### AC-2: ...
+```
+
+具體 instance 將由 DP-039 producer cutover 後產出（既有以 `{JIRA-KEY}.md` 命名的驗收 task.md migration 同步移交）。
 
 ---
 
@@ -383,25 +696,39 @@ curl -sf http://localhost:3100/api/activities ...
 | `build` | fenced code block 必填；可包含 `pnpm build` + 後續 artifact 檢查 |
 | `runtime` | fenced code block 必填；**必須**包含 http/https URL；URL host **必須等於** `Runtime verify target` host |
 
-違反 → `validate-task-md.sh` exit 1 → `pipeline-artifact-gate.sh` PreToolUse hook 擋 Edit/Write（exit 2）。
+違反 → `validate-task-md.sh` exit 1 → `pipeline-artifact-gate.sh` PreToolUse hook 擋 Edit/Write（exit 2）。**T/V 共用**（V mode 完整 reuse § 3.3 cross-field rules）。
 
 ### 5.2 depends_on 規則（DP-025 + DP-028）
 
 | 規則 | Validator | 違反行為 |
 |------|-----------|----------|
 | frontmatter `depends_on` 須為 array of task id strings | `validate-task-md-deps.sh` | exit 1 |
-| 每個 entry 必對應同 `tasks/` dir 既有 task.md（`tasks/{ID}.md`；找不到時 fallback `tasks/complete/{ID}.md` — DP-033 D6 + D8） | `validate-task-md-deps.sh` | exit 1，列出 broken ref |
-| graph 須為 DAG（無 cycle） | `validate-task-md-deps.sh`（DFS coloring） | exit 1，印出 cycle chain |
-| 陣列長度 ≤ 1（強制線性 chain — DP-028 D5） | `validate-task-md-deps.sh`（is-linear-dag） | exit 1，建議線性化或拆 Epic |
-| `Depends on`（Operational Context cell）非空 ⇒ `Base branch` cell 必須 `task/...`（DP-028 cross-field） | `validate-task-md.sh` | exit 1 |
+| 每個 entry 必對應同 `tasks/` dir 既有 task.md（`tasks/{ID}.md`；找不到時 fallback `tasks/complete/{ID}.md` — DP-033 D6 + D8）；**T/V 跨類型 reference 合法**（V→T / V→V，§ 5.3） | `validate-task-md-deps.sh`（filename pattern `[TV]*.md`） | exit 1，列出 broken ref |
+| graph 須為 DAG（無 cycle） | `validate-task-md-deps.sh`（DFS coloring，跨 T/V 同圖） | exit 1，印出 cycle chain |
+| 陣列長度 ≤ 1（強制線性 chain — DP-028 D5；T/V 共用） | `validate-task-md-deps.sh`（is-linear-dag） | exit 1，建議線性化或拆 Epic |
+| **T→V 禁止**（DP-033 D4，§ 5.3）— T*.md 的 `depends_on` 不可指向 V*.md | `validate-task-md-deps.sh`（cross-type direction check） | exit 1，列出違規 + 建議拆 Epic |
+| `Depends on`（Operational Context cell）非空 ⇒ `Base branch` cell 必須 `task/...`（DP-028 cross-field，T mode 適用；V mode 不檢此 cross-field — V 通常從 `feat/...` 或 `develop` 跑驗收） | `validate-task-md.sh`（T mode only） | exit 1 |
 
-### 5.3 V → T / T → V 方向性（DP-033 D4，Phase B 實作）
+### 5.3 V → T / T → V 方向性（DP-033 D4，Phase B 已實作）
 
-- **V→T 合法**：驗收前提是相關實作完成（如 V1 `depends_on: [T2]`）
-- **T→V 禁止**：實作不應卡在驗收 — 避免循環依賴 + Epic 內 phase 化
-- **分段驗收場景**（T1+T2 → V1 → T3+T4 → V2）：breakdown 偵測到此需求時主動提示「建議拆 Epic」（兩個交付 = 兩個 Epic）
+跨類型 `depends_on` 方向性規則（由 `validate-task-md-deps.sh` filename pattern 從 `T*.md` 擴展為 `[TV]*.md` 後 enforce）：
 
-Phase B 在 `validate-task-md-deps.sh` 加跨類型方向性檢查（BS#9）。
+| 方向 | 範例 | 規則 | Validator 行為 |
+|------|------|------|---------------|
+| V→T | `V1.md` `depends_on: [T2]` | **合法** — 驗收前提是相關實作完成 | pass |
+| V→V | `V2.md` `depends_on: [V1]` | **合法** — 驗收 chain（前置驗收先過再跑下一輪） | pass（仍受 DP-028 線性 chain 限制：≤ 1 dep） |
+| T→V | `T5.md` `depends_on: [V1]` | **禁止** — 實作不應卡在驗收（避免循環依賴 + Epic 內 phase 化） | exit 1，列出違規 task |
+| T→T | `T2.md` `depends_on: [T1]` | 合法（既有規則 § 5.2） | pass |
+
+**分段驗收場景**（T1+T2 → V1 → T3+T4 → V2）：
+
+由 `breakdown` SKILL.md Step 6 / Step 7.5 Quality Challenge 偵測（兩組互不依賴 AC + 兩組互不依賴實作 task 群），主動提示「建議拆 Epic」（兩個交付 = 兩個 Epic 是 PM 視角的自然分法） — validator 不 enforce（advisory，留 PM 判斷）。原因：
+
+- schema 規則最簡單（validator 邏輯乾淨）
+- 兩個交付 = 兩個 Epic 是 PM 視角的自然分法（JIRA 上看兩個 Epic 比帶 phase label 的單一 Epic 直覺）
+- 過去 PROJ-123 / PROJ-123 / PROJ-123 都是「實作完一次驗收」模式，無真實分段需求
+
+**未來擴張空間**：若分段驗收需求強烈，再開新 DP 升級到 Path B（允許 T→V 加警示）或 Path C（雙欄位 `depends_on` + `requires_ac`）。Phase B 不預先支援。
 
 ### 5.4 Fixture 路徑存在性（DP-025）
 
@@ -427,8 +754,8 @@ Phase B 在 `validate-task-md-deps.sh` 加跨類型方向性檢查（BS#9）。
 #### Invariant: 同 key 唯一性
 
 - 同一 task key（`T{n}` / `V{n}`）不可同時存在 `tasks/` 與 `tasks/complete/`
-- 違反場景：`tasks/T1.md` 與 `tasks/complete/T1.md` 並存 → validator **HARD FAIL**（D6 move-first 失敗的 silent corruption signal）
-- 由 `validate-task-md-deps.sh`（cross-file 階段）enforce
+- 違反場景：`tasks/T1.md` 與 `tasks/complete/T1.md` 並存 → validator **HARD FAIL**（D6 move-first 失敗的 silent corruption signal）；`tasks/V1.md` 與 `tasks/complete/V1.md` 並存同樣 HARD FAIL
+- 由 `validate-task-md-deps.sh`（cross-file 階段，filename pattern `[TV]*.md`）enforce — T/V 共用同一條 invariant
 
 #### 邊界
 
@@ -440,22 +767,38 @@ Phase B 在 `validate-task-md-deps.sh` 加跨類型方向性檢查（BS#9）。
 
 ## 6. Validator Mapping
 
+**T mode rules（filename `T*.md`，§ 3 Implementation Schema）**：
+
 | Rule | Layer | Script | Exit code | Bypass env var |
 |------|-------|--------|-----------|----------------|
 | 標題 / Header / 章節存在性 / Operational Context cells / Test Command 含 code block | Implementation single-file | `scripts/validate-task-md.sh <path>` | 1 (violations) / 2 (usage) | — |
 | Test Environment Level enum + Runtime contract（`Runtime verify target` / `Env bootstrap` / Verify Command host alignment） | Implementation single-file (DP-023) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
 | `## 改動範圍` / `## 估點理由` / `## 目標` 非空 + Operational Context 含 JIRA key | Implementation single-file (DP-025) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
-| `Depends on` (cell) 非空 ⇒ `Base branch` `task/...` | Implementation single-file (DP-028 cross-field) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
-| frontmatter `depends_on[]` 引用存在性 + DAG 無 cycle + 線性 chain (≤1 dep) | Cross-file (DP-025 / DP-028) | `scripts/validate-task-md-deps.sh <tasks_dir>` | 1 / 2 | — |
-| `## Test Environment` Fixtures path 存在性 | Cross-file (DP-025) | `scripts/validate-task-md-deps.sh <tasks_dir>` | 1 / 2 | — |
-| 全部上述規則自動 dispatch | PreToolUse Hook（physical block） | `.claude/hooks/pipeline-artifact-gate.sh` → `scripts/pipeline-artifact-gate.sh` | 2 (block Edit/Write) | `POLARIS_SKIP_ARTIFACT_GATE=1`（emergency only） |
-| Filename `T*.md` / `V*.md` → schema dispatch | PreToolUse Hook | 同上（Phase B 加入 V*.md branch） | 2 | 同上 |
-| V→T / T→V 方向性 | Cross-file (DP-033 D4) | `scripts/validate-task-md-deps.sh`（Phase B B4） | 1 / 2 | — |
+| `Depends on` (cell) 非空 ⇒ `Base branch` `task/...` | Implementation single-file (DP-028 cross-field, T mode only) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
 | `## Allowed Files` 章節存在 + 非空 | Implementation single-file (DP-033 D5 升 Hard，無 grace) | `scripts/validate-task-md.sh`（Phase A A2 升級） | 1 / 2 | — |
 | Lifecycle-conditional 結構（`deliverable` / `jira_transition_log`） | Implementation single-file (DP-032 D2/D3 + DP-033 D5/D7) | `scripts/validate-task-md.sh`（Phase A A2 加入；只在欄位存在時檢查；`deliverable` 必驗 schema、`jira_transition_log` 寬鬆 list-of-maps） | 1 / 2 | — |
-| 完結 task 物理位置（`status: IMPLEMENTED` ⇒ 位於 `tasks/complete/`） | Single-file (DP-033 D6 § 5.5) | `scripts/validate-task-md.sh`（檢查 frontmatter status × 檔案路徑） | 2 (hard fail) | — |
-| 同 key 唯一性（active 與 complete 不並存） | Cross-file (DP-033 D6 § 5.5) | `scripts/validate-task-md-deps.sh`（cross-folder 掃描） | 2 (hard fail) | — |
+
+**V mode rules（filename `V*.md`，§ 4 Verification Schema）**：
+
+| Rule | Layer | Script | Exit code | Bypass env var |
+|------|-------|--------|-----------|----------------|
+| 標題 / Header / 章節存在性 / Operational Context cells (V 版，§ 4.2) / 驗收步驟含 code block | Verification single-file (DP-033 Phase B) | `scripts/validate-task-md.sh <path>`（V mode） | 1 / 2 | — |
+| Test Environment Level enum + Runtime contract（**完全共用 T mode**，§ 4.4 / § 3.3） | Verification single-file (DP-023 reuse) | `scripts/validate-task-md.sh <path>`（V mode） | 1 / 2 | — |
+| `## 驗收項目` / `## 估點理由` / `## 目標` 非空 + Operational Context 含 JIRA key | Verification single-file (DP-033 Phase B) | `scripts/validate-task-md.sh <path>`（V mode） | 1 / 2 | — |
+| Lifecycle-conditional 結構（`ac_verification` / `ac_verification_log` / `jira_transition_log`） | Verification single-file (DP-033 Phase B § 4.7 對稱 D7) | `scripts/validate-task-md.sh`（V mode；`ac_verification` 必驗 schema、`ac_verification_log` / `jira_transition_log` 寬鬆 list-of-maps） | 1 / 2 | — |
+
+**Shared rules（T/V 共用，filename pattern 擴展為 `[TV]*.md`）**：
+
+| Rule | Layer | Script | Exit code | Bypass env var |
+|------|-------|--------|-----------|----------------|
+| frontmatter `depends_on[]` 引用存在性 + DAG 無 cycle + 線性 chain (≤1 dep) | Cross-file (DP-025 / DP-028) | `scripts/validate-task-md-deps.sh <tasks_dir>` | 1 / 2 | — |
+| **V→T pass / T→V fail 方向性**（DP-033 D4，§ 5.3） | Cross-file (DP-033 Phase B B4) | `scripts/validate-task-md-deps.sh` | 1 / 2 | — |
+| `## Test Environment` Fixtures path 存在性（T/V 共用） | Cross-file (DP-025) | `scripts/validate-task-md-deps.sh <tasks_dir>` | 1 / 2 | — |
+| 完結 task 物理位置（`status: IMPLEMENTED` ⇒ 位於 `tasks/complete/`，T/V 共用） | Single-file (DP-033 D6 § 5.5) | `scripts/validate-task-md.sh`（檢查 frontmatter status × 檔案路徑） | 2 (hard fail) | — |
+| 同 key 唯一性（active 與 complete 不並存，T/V 共用） | Cross-file (DP-033 D6 § 5.5) | `scripts/validate-task-md-deps.sh`（filename pattern `[TV]*.md`） | 2 (hard fail) | — |
 | Complete scope skip（`tasks/complete/` 下檔案完全跳過 schema 驗證） | Both validators | 上述 scripts 內建 `case */complete/*: continue` | n/a | — |
+| Filename `T*.md` / `V*.md` → schema dispatch | PreToolUse Hook | `.claude/hooks/pipeline-artifact-gate.sh` → `scripts/pipeline-artifact-gate.sh` | 2 (block Edit/Write) | `POLARIS_SKIP_ARTIFACT_GATE=1`（emergency only） |
+| 全部上述規則自動 dispatch | PreToolUse Hook（physical block） | 同上 | 2 | 同上 |
 
 ### Scan mode
 
@@ -492,19 +835,20 @@ Phase B 在 `validate-task-md-deps.sh` 加跨類型方向性檢查（BS#9）。
 
 | Producer | 寫入時機 | Hook trigger |
 |----------|---------|--------------|
-| `breakdown` Step 14 (Path A) | 產 T*.md | Edit/Write → hook 跑 implementation validator |
-| `breakdown` Step D | 產 V*.md（Phase B） | Edit/Write → hook 跑 verification validator |
-| `engineering` Step 7c | 寫入 `deliverable.pr_url` | hook 跑 implementation validator（含 lifecycle 結構檢查） |
-| `engineering` `jira-transition.sh` | append `jira_transition_log[]` | 同上 |
-| `engineering` Step 8a / `verify-AC` 全 PASS | `status: IMPLEMENTED` + complete move | hook 跑 implementation validator → `mark-spec-implemented.sh` move-first（先 mv 到 `complete/` 再 update frontmatter） |
-| `verify-AC` Step 3a（Phase B） | 寫入 V*.md `ac_verification` | hook 跑 verification validator |
+| `breakdown` Step 14 (Path A) | 產 T*.md | Edit/Write → hook 跑 T mode validator + deps validator |
+| `breakdown` Step D | 產 V*.md（Phase B 規格已落地；producer cutover 從 `{JIRA-KEY}.md` → `V{n}.md` 移交 DP-039 atomic 切） | Edit/Write → hook 跑 V mode validator + deps validator |
+| `engineering` Step 7c | 寫入 frontmatter `deliverable` | hook 跑 T mode validator（含 lifecycle 結構檢查） |
+| `engineering` `jira-transition.sh` | append `jira_transition_log[]`（T*.md） | 同上 |
+| `engineering` Step 8a | T*.md `status: IMPLEMENTED` + complete move | hook 跑 T mode validator → `mark-spec-implemented.sh` move-first（先 mv 到 `complete/` 再 update frontmatter）|
+| `verify-AC`（DP-039 重構後） | 每跑完一輪 AC verification 寫回 V*.md `ac_verification`（覆寫摘要） + `ac_verification_log[]`（append）+ `jira_transition_log[]`（append） | hook 跑 V mode validator（lifecycle 結構檢查） |
+| `verify-AC` 全 PASS + human_disposition=passed（DP-039 重構後） | V*.md `status: IMPLEMENTED` + complete move | hook 跑 V mode validator → `mark-spec-implemented.sh`（**同一支 closer，filename dispatch 對 T/V 共用**） |
 
 | Consumer | 讀取方式 |
 |----------|---------|
 | `engineering`（first-cut + revision R0） | `scripts/parse-task-md.sh` 中央 parser；不直接 grep |
-| `verify-AC` | 解析 V*.md（Phase B contract 待定 — § 4） |
+| `verify-AC`（DP-039 重構後） | 同 `scripts/parse-task-md.sh`（filename dispatch 自動識別 V*.md，**T/V 共用同一支 parser**） |
 | `pr-base-gate.sh` | `scripts/resolve-task-md-by-branch.sh` + `scripts/resolve-task-base.sh`（DP-028 三層消費） |
-| `mark-spec-implemented.sh` | 直接編輯 frontmatter `status` |
+| `mark-spec-implemented.sh` | 直接編輯 frontmatter `status`；filename dispatch 對 T/V 共用 move-first 流程 |
 
 ---
 

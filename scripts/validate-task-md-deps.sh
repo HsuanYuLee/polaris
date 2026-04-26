@@ -11,20 +11,25 @@
 #
 # Contract source: skills/references/pipeline-handoff.md § Artifact Schemas —
 #                  task.md Cross-File Schema
-#           also:  skills/references/task-md-schema.md § 5.5 + § 6 (DP-033 D6 + D8)
+#           also:  skills/references/task-md-schema.md § 5.2 + § 5.3 + § 5.5 + § 6
+#                  (DP-033 Phase A D6 + D8; Phase B 跨類型 V→T / T→V 方向性)
 # Called by:       .claude/hooks/pipeline-artifact-gate.sh (PreToolUse hook)
 #
-# Validates:
-#   1. `depends_on` (frontmatter) references only existing T{n}[suffix].md in the same dir
+# Validates (T*.md AND V*.md, DP-033 Phase B 雙路徑共用):
+#   1. `depends_on` (frontmatter) references only existing T{n}/V{n}[suffix].md in the same dir
 #      — with active→complete fallback (DP-033 D8): if tasks/{id}.md missing, check
 #        tasks/complete/{id}.md before reporting broken ref.
-#   2. `depends_on` graph is a DAG — no cycles
+#   2. `depends_on` graph is a DAG — no cycles (跨 T/V 同圖)
 #   3. `Fixtures:` paths in `## Test Environment` exist on filesystem (when non-N/A)
 #   4. `depends_on` graph is a linear chain (each task has ≤ 1 dep) — DP-028 is-linear-dag rule
 #   5. Same-key uniqueness (DP-033 D6 § 5.5): if the same task key exists in BOTH tasks/
 #      and tasks/complete/, exit 2 (HARD FAIL — D6 move-first invariant violated).
+#   6. **V→T / T→V cross-type direction (DP-033 D4 § 5.3，Phase B 新增)**:
+#      - V→T 合法（驗收前提是相關實作完成）
+#      - V→V 合法（驗收 chain，仍受線性限制）
+#      - T→V 禁止（實作不應卡在驗收，避免 Epic 內 phase 化；exit 1，建議拆 Epic）
 #
-# Scope: only T*.md files in the tasks/ top-level directory are scanned for schema.
+# Scope: T*.md and V*.md files in the tasks/ top-level directory are scanned for schema.
 #   Files under tasks/complete/ are never scanned (they retain their historical shape).
 #   However, complete/ IS searched when resolving depends_on references.
 
@@ -72,10 +77,13 @@ complete_dir = os.path.join(tasks_dir, "complete")
 errors = []
 hard_errors = []  # exit 2 violations (same-key uniqueness)
 
-# --- Enumerate T*.md files (active tasks/ only — complete/ is skipped for schema scanning) ---
+# --- Enumerate T*.md / V*.md files (active tasks/ only — complete/ is skipped for schema scanning) ---
+# DP-033 Phase B: filename pattern 從 T*.md 擴展為 [TV]*.md (T = implementation, V = verification).
+TASK_FILE_RE = re.compile(r'^[TV][0-9]+[a-z]*\.md$')
+
 task_files = []
 for name in sorted(os.listdir(tasks_dir)):
-    if re.match(r'^T[0-9]+[a-z]*\.md$', name):
+    if TASK_FILE_RE.match(name):
         task_files.append(name)
 
 if not task_files:
@@ -83,16 +91,16 @@ if not task_files:
     # Still check same-key uniqueness if complete/ exists.
     pass
 
-# task_id = basename without .md (e.g., "T1", "T8a")
+# task_id = basename without .md (e.g., "T1", "T8a", "V1", "V2a")
 task_ids = {f[:-3] for f in task_files}
 
-# --- DP-033 D6 § 5.5: Same-key uniqueness hard check ---
+# --- DP-033 D6 § 5.5: Same-key uniqueness hard check (T/V 共用) ---
 # If the same task key exists in BOTH tasks/ and tasks/complete/, that is a
 # D6 move-first invariant violation — hard fail (exit 2).
 if os.path.isdir(complete_dir):
     complete_ids = set()
     for name in os.listdir(complete_dir):
-        if re.match(r'^T[0-9]+[a-z]*\.md$', name):
+        if TASK_FILE_RE.match(name):
             complete_ids.add(name[:-3])
     duplicates = task_ids & complete_ids
     if duplicates:
@@ -110,11 +118,11 @@ if hard_errors:
 
 # --- Build set of all resolvable task ids (active + complete) for depends_on fallback ---
 # DP-033 D8: depends_on may reference a task that has been moved to complete/.
-# We treat any T*.md found in either location as a valid reference target.
+# We treat any T*.md / V*.md found in either location as a valid reference target.
 all_known_ids = set(task_ids)
 if os.path.isdir(complete_dir):
     for name in os.listdir(complete_dir):
-        if re.match(r'^T[0-9]+[a-z]*\.md$', name):
+        if TASK_FILE_RE.match(name):
             all_known_ids.add(name[:-3])
 
 if not task_files:
@@ -203,6 +211,22 @@ for fname in task_files:
 
     # --- Fixture path extraction ---
     fixture_paths[tid] = parse_fixtures(content)
+
+# --- DP-033 D4 § 5.3: V→T / T→V cross-type direction (Phase B) ---
+# V→T 合法 (驗收前提是相關實作完成)
+# V→V 合法 (驗收 chain，仍受 DP-028 線性限制)
+# T→V 禁止 (實作不應卡在驗收，避免 Epic 內 phase 化)
+# T→T 合法 (既有規則，§ 5.2)
+for tid in sorted(deps_graph):
+    if not tid.startswith('T'):
+        continue
+    for dep in deps_graph[tid]:
+        if dep.startswith('V'):
+            errors.append(
+                f"{tid}.md: T→V depends_on is forbidden — '{tid}' depends on '{dep}'. "
+                f"DP-033 D4 § 5.3：實作不應卡在驗收（避免循環依賴 + Epic 內 phase 化）。"
+                f"考慮拆 Epic（兩個交付 = 兩個 Epic）或重新排序 task。"
+            )
 
 # --- Cycle detection (DFS coloring: 0=unvisited, 1=in-stack, 2=done) ---
 color = {tid: 0 for tid in deps_graph}
@@ -319,13 +343,14 @@ DEPENDS_ON_ARRAY_RE = re.compile(r'^depends_on\s*:\s*\[(.*?)\]\s*$', re.MULTILIN
 DEPENDS_ON_YAML_LIST_RE = re.compile(r'^depends_on\s*:\s*\n((?:\s*-\s*\S+.*\n)+)', re.MULTILINE)
 FIXTURES_LINE_RE = re.compile(r'^\s*[-*]?\s*\*\*Fixtures\*\*\s*:\s*(.+?)$', re.MULTILINE)
 
-task_files = sorted([n for n in os.listdir(tasks_dir) if re.match(r'^T[0-9]+[a-z]*\.md$', n)])
+TASK_FILE_RE = re.compile(r'^[TV][0-9]+[a-z]*\.md$')
+task_files = sorted([n for n in os.listdir(tasks_dir) if TASK_FILE_RE.match(n)])
 task_ids = {f[:-3] for f in task_files}
 # All known ids = active + complete (for fallback resolution)
 all_known_ids = set(task_ids)
 if os.path.isdir(complete_dir):
     for name in os.listdir(complete_dir):
-        if re.match(r'^T[0-9]+[a-z]*\.md$', name):
+        if TASK_FILE_RE.match(name):
             all_known_ids.add(name[:-3])
 deps_graph = {}
 fixture_paths = {}
@@ -369,6 +394,13 @@ for fname in task_files:
         if dep not in all_known_ids:
             errors.append(f"{fname}: depends_on references '{dep}' but no such task.md in {tasks_dir}/ or {complete_dir}/ (active tasks: {sorted(task_ids)})")
     fixture_paths[tid] = parse_fixtures(content)
+
+# DP-033 D4 § 5.3: V→T pass / T→V fail (Phase B)
+for tid in sorted(deps_graph):
+    if not tid.startswith('T'): continue
+    for dep in deps_graph[tid]:
+        if dep.startswith('V'):
+            errors.append(f"{tid}.md: T→V depends_on is forbidden — '{tid}' depends on '{dep}'. DP-033 D4 § 5.3：實作不應卡在驗收（避免循環依賴 + Epic 內 phase 化）。考慮拆 Epic（兩個交付 = 兩個 Epic）或重新排序 task。")
 
 color = {tid: 0 for tid in deps_graph}
 stack = []

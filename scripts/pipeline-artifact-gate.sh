@@ -4,8 +4,10 @@
 # Reads tool input (Edit/Write), extracts file path, and routes to the matching validator:
 #   - `*/specs/*/refinement.json`            → validate-refinement-json.sh
 #   - `*/specs/*/tasks/complete/*.md`         → skip (D6: completed tasks leave validator scope)
-#   - `*/specs/*/tasks/T*.md`                → validate-task-md.sh + validate-task-md-deps.sh
-#   - `*/specs/*/tasks/V*.md`                → validate-task-md.sh only (Phase B will add V-schema)
+#   - `*/specs/*/tasks/T*.md`                → validate-task-md.sh (T mode) + validate-task-md-deps.sh
+#   - `*/specs/*/tasks/V*.md`                → validate-task-md.sh (V mode) + validate-task-md-deps.sh
+#                                              (DP-033 Phase B：V mode dispatch by filename，cross-file
+#                                              validator 同支共用 — 自動掃 T+V 並檢 V→T pass / T→V fail)
 #
 # Invoked by:
 #   - Claude hook: `.claude/hooks/pipeline-artifact-gate.sh` (wrapper)
@@ -137,10 +139,10 @@ for path in "${CANDIDATE_PATHS[@]}"; do
       ;;
   esac
 
-  # --- verification task.md (specs/*/tasks/V*.md) ---
-  # DP-033 Phase B will activate full V-schema dispatch here.
-  # For now: run validate-task-md.sh (it tolerates V-key per A2 title regex).
-  # deps validator is skipped for V*.md — cross-type rules belong to Phase B B4.
+  # --- verification task.md (specs/*/tasks/V*.md, DP-033 Phase B) ---
+  # V mode dispatch — same validator script, filename-driven mode (§ 4 Verification Schema).
+  # deps validator is the same — Phase B extended its filename pattern to [TV]*.md and
+  # added V→T pass / T→V fail cross-type direction check (§ 5.3).
   case "$path" in
     */specs/*/tasks/V*.md)
       if [[ -x "$VALIDATE_TASK_MD" ]]; then
@@ -148,7 +150,13 @@ for path in "${CANDIDATE_PATHS[@]}"; do
           block=1
         fi
       fi
-      # DP-033 Phase B will activate full V-schema dispatch here.
+      # Cross-file topology (depends_on closure / linear chain / V→T pass / T→V fail / fixture paths)
+      tasks_dir=$(dirname "$path")
+      if [[ -x "$VALIDATE_TASK_MD_DEPS" ]] && [[ -d "$tasks_dir" ]]; then
+        if ! "$VALIDATE_TASK_MD_DEPS" "$tasks_dir" >&2; then
+          block=1
+        fi
+      fi
       continue
       ;;
   esac

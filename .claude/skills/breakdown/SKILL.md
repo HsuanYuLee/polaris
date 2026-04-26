@@ -18,7 +18,11 @@ metadata:
 本步驟需要的值：`jira.instance`、`jira.projects`（取得 project keys）。
 若 config 不存在，使用 `references/shared-defaults.md` 的 fallback 值。
 
-> **Task.md schema reference（DP-033 A3）**：實作 task.md（T{n}.md）的完整 schema（required sections、frontmatter 欄位、cross-field invariants、validator mapping）統一在 `skills/references/task-md-schema.md`。本 SKILL.md 內的 task.md 格式說明皆以該文件為準；若有衝突以 `task-md-schema.md` 為主。
+> **Task.md schema reference（DP-033 Phase A + Phase B）**：兩種 task.md 的完整 schema 統一在 `skills/references/task-md-schema.md`：
+> - **實作 task.md（T{n}.md）** — § 3 Implementation Schema（DP-033 Phase A）
+> - **驗收 task.md（V{n}.md）** — § 4 Verification Schema（DP-033 Phase B；對稱 T{n}.md，所有共用基礎設施 reuse — 不平行造）
+>
+> 本 SKILL.md 內的 task.md 格式說明皆以該文件為準；若有衝突以 `task-md-schema.md` 為主。
 
 ## Workflow
 
@@ -189,6 +193,14 @@ Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/reference
 
 涉及 cross-repo API 變更時，API 變更 task 排第一（前端消費 API，自然依賴順序）。
 
+**分段驗收偵測（DP-033 D4 § 5.3，advisory）：**
+
+如果偵測到「兩組互不依賴 AC + 兩組互不依賴的實作 task 群」（例：T1+T2 → V1（前段驗收） → T3+T4 → V2（後段驗收）），主動提示：
+
+> 「偵測到分段驗收結構（V1 ← T1+T2，V2 ← T3+T4，前後不交集）。**建議拆 Epic**：兩個交付 = 兩個 Epic 是 PM 視角的自然分法（JIRA 上看兩個 Epic 比帶 phase label 的單一 Epic 直覺）。是否拆 Epic？」
+
+由 PM / 使用者判斷是否拆。**Validator 不 enforce** — `validate-task-md-deps.sh` 只 hard fail T→V 方向（避免 phase 化的根本問題），分段驗收偵測屬規劃層 advisory（DP-033 § 5.3 表格末段）。
+
 **穩定測資單（Fixture Recording Task）：**
 
 若 project 有 `visual_regression` config，自動加入穩定測資 task（1pt），排在 API task 之後、前端 task 之前。
@@ -277,13 +289,17 @@ FAIL 項目：
 - Step C: 建立測試計劃 sub-task
 - Step D: 建立驗收單（依 `references/epic-verification-structure.md`）
   - **AC 依賴**：若某 AC 須先通過另一個 AC 才有意義，在 description 加 `## depends_on` 段列出被依賴 AC 編號（見 `references/epic-verification-structure.md § depends_on 欄位`）。無強依賴時不要硬加
-  - **驗收單 task.md**：每張驗收單同步產出 `specs/{EPIC_KEY}/tasks/{V-KEY}.md`，讓 verify-AC 能自主起環境。Schema：
-    - `fixture_required: true/false`（判斷依據：該 AC 是否需要 runtime 頁面資料，純 unit test/config 檢查 → false）
-    - `fixture_path: specs/{EPIC_KEY}/tests/mockoon/`（fixture_required=true 時填寫，使用 deterministic convention path）
-    - `fixture_start_command: mockoon-runner.sh start {fixture_path}`（啟動指令）
-    - `test_urls: [...]`（verify-AC 要打的具體 URL）
-    - `env_start_command: bash {base_dir}/scripts/polaris-env.sh <project>`
-    - 驗證步驟與預期結果（從 JIRA description 同步）
+  - **驗收 task.md schema（DP-033 Phase B 已定義）**：完整 schema（required sections / Operational Context cells / `ac_verification` lifecycle / 驗收步驟 entry / Test Environment / V→T 合法 / T→V 禁止）見 `skills/references/task-md-schema.md` § 4。本 step 產出驗收 task.md 必須通過 `scripts/validate-task-md.sh`（V mode）+ `scripts/validate-task-md-deps.sh`（跨類型方向性 V→T pass / T→V fail）。
+  - **檔名命名（producer cutover 規範 — DP-039 一起 atomic 切）**：
+    - **目標命名**：`V{n}[suffix].md`（V1.md / V2a.md，sequential 從 V1 起、sub-split 用 V1a/V1b — 對稱 T{n}.md）
+    - **過渡期命名（DP-039 重構 verify-AC consumer 落地前）**：保留 `{V-KEY}.md`（如 TASK-123.md，以 JIRA key 命名）— 因為 verify-AC 仍在讀 `{V-KEY}.md` 路徑；breakdown 同步切到 V{n}.md 會造成 producer / consumer 不同步
+    - **DP-039 atomic 切換之後**：breakdown 改產 V{n}.md + verify-AC 改讀 V{n}.md + 既有 `{V-KEY}.md` migration script rename → 全部一起切到位
+  - **驗收 task.md 必填內容**（依 § 4 schema，過渡期相容 `{V-KEY}.md` 命名）：
+    - 標題、Header、`## Operational Context`（含 V-specific cells：`Implementation tasks` 取代 T 的 `Test sub-tasks`，移除 `AC 驗收單` / `Task branch`）
+    - `## 驗收項目`（對應 T 的 `## 改動範圍`）— AC 清單與對應實作 task
+    - `## 估點理由`、`## Test Environment`、`## 驗收步驟`（對應 T 的 `## Verify Command`）
+    - frontmatter `depends_on`（V→T 合法，V→V 線性合法）
+    - lifecycle 欄位（`ac_verification` / `ac_verification_log[]` / `jira_transition_log[]`）由 verify-AC 寫入（breakdown 階段省略）
 
 本 skill 設定：
 - `parent` 指向母單（TICKET_KEY）
@@ -576,7 +592,9 @@ scripts/validate-task-md-deps.sh {company_base_dir}/specs/{EPIC_KEY}/tasks/
 
 > **注意**：Step 14a'（非線性 DAG pre-check）已在 branch 建立前跑一次 `validate-task-md-deps.sh`；本步驟是「所有 T*.md 內容完整填寫後」的最終確認，時間點不同（14a' 在 branch 建立前，本 gate 在 task.md 內容寫完後）。
 
-# DP-033 Phase B will add V*.md batch gate here（驗收 task.md 的跨檔案 validator，待 Phase B 實作）
+# DP-033 Phase B 已實裝：V*.md 共用同一支 validate-task-md-deps.sh — filename 自動掃 T*.md + V*.md，
+# 包含 V→T pass / T→V fail 跨類型方向性檢查（§ 5.3）。
+# 過渡期 producer 仍產 {V-KEY}.md（TASK-XXXX.md），DP-039 切到 V{n}.md 後同此 script 自動覆蓋。
 
 **Test Command 填寫規則：**
 

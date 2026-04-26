@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# validate-task-md.sh — full enforcer for implementation task.md (T{n}.md) schema.
+# validate-task-md.sh — full enforcer for task.md schema (T{n}.md + V{n}.md, dual-path).
 #
 # Usage:
 #   validate-task-md.sh <path/to/task.md>
@@ -10,16 +10,29 @@
 #        2 = hard fail — completion invariant violated (status: IMPLEMENTED in tasks/)
 #            OR usage error / file not found
 #
-# Schema source:  skills/references/task-md-schema.md (DP-033 Phase A, single source of truth)
+# Schema source:  skills/references/task-md-schema.md (DP-033 Phase A + Phase B, single source of truth)
 # Called by:      skills/breakdown/SKILL.md Step 14.5 (after Write)
 #                 .claude/hooks/pipeline-artifact-gate.sh (PreToolUse hook)
+#
+# Mode dispatch (DP-033 Phase B):
+#   filename T*.md → T mode (Implementation Schema, § 3)
+#   filename V*.md → V mode (Verification Schema, § 4)
+#   filename 由 entry 偵測；mode 為 唯一 type 訊號（DP-033 D2，frontmatter 無 type 欄位）
+#   T/V 共用：Title regex / Header / status invariant / Test Environment / jira_transition_log /
+#             complete-skip / move-first / depends_on schema (cross-file, validate-task-md-deps.sh)
+#   T-only:   ## 改動範圍 / ## Allowed Files / ## Test Command / ## Verify Command /
+#             Operational Context Test sub-tasks/AC 驗收單/Task branch cells /
+#             DP-028 Depends on ⇒ task/ Base branch cross-field /
+#             deliverable lifecycle
+#   V-only:   ## 驗收項目 / ## 驗收步驟 / Operational Context Implementation tasks cell /
+#             ac_verification + ac_verification_log lifecycle (§ 4.7 對稱 D7)
 #
 # DP history:
 #   DP-023 — runtime contract fields (Level / Runtime verify target / Env bootstrap)
 #   DP-025 — non-runtime required sections (Operational Context JIRA keys, 改動範圍 / 估點理由 non-empty)
 #   DP-028 — cross-field rule: Depends on (non-empty) ⇒ Base branch must be task/...
 #   DP-032 — lifecycle write-back: deliverable / jira_transition_log
-#   DP-033 — full enforcer upgrade: D5 four-tier classification, D6 complete/ invariant (exit 2), D7 lifecycle schema
+#   DP-033 — Phase A enforcer (D5/D6/D7 T mode); Phase B V mode dual-path + ac_verification
 
 set -euo pipefail
 
@@ -163,6 +176,28 @@ validate_file() {
       ;;
   esac
 
+  # --- Mode detection (DP-033 Phase B): filename pattern → schema mode ---
+  local _basename mode verify_section_name
+  _basename=$(basename "$FILE")
+  case "$_basename" in
+    T[0-9]*.md)  mode="T" ;;
+    V[0-9]*.md)  mode="V" ;;
+    *)
+      # Fallback: file is not a T*.md or V*.md → apply T mode (backward compat)
+      # for legacy/unknown filenames; the dispatch hook should have routed
+      # canonical V*.md / T*.md before this point.
+      mode="T"
+      ;;
+  esac
+  # Driver section that holds the executable / step block:
+  #   T mode: ## Verify Command  (deterministic shell, fenced code block)
+  #   V mode: ## 驗收步驟        (verify-AC LLM driver entry + per-AC step list)
+  if [[ "$mode" == "V" ]]; then
+    verify_section_name="## 驗收步驟"
+  else
+    verify_section_name="## Verify Command"
+  fi
+
   local errors=()
   local warnings=()
 
@@ -206,28 +241,46 @@ validate_file() {
   fi
 
   # ---------------------------------------------------------------------------
-  # HARD REQUIRED: Section existence (§ 3.1)
+  # HARD REQUIRED: Section existence (§ 3.1 / § 4.1, mode-aware)
   # ---------------------------------------------------------------------------
-  local hard_sections=(
-    "## Operational Context"
-    "## 改動範圍"
-    "## Allowed Files"
-    "## 估點理由"
-    "## Test Command"
-    "## Test Environment"
-  )
+  local hard_sections=()
+  local soft_sections=()
+  if [[ "$mode" == "T" ]]; then
+    hard_sections=(
+      "## Operational Context"
+      "## 改動範圍"
+      "## Allowed Files"
+      "## 估點理由"
+      "## Test Command"
+      "## Test Environment"
+    )
+    soft_sections=(
+      "## 目標"
+      "## 測試計畫（code-level）"
+    )
+  else
+    # V mode (DP-033 Phase B § 4.1) — symmetric to T but driver section names differ:
+    #   T 改動範圍       → V 驗收項目      (語意對稱：T 列檔案改動，V 列 AC 覆蓋)
+    #   T 測試計畫 code-level → V 驗收計畫（AC level）
+    # T-only sections (Allowed Files / Test Command) are omitted — V doesn't write code.
+    # Verify Command analog `## 驗收步驟` is checked separately below (level-conditional).
+    hard_sections=(
+      "## Operational Context"
+      "## 驗收項目"
+      "## 估點理由"
+      "## Test Environment"
+    )
+    soft_sections=(
+      "## 目標"
+      "## 驗收計畫（AC level）"
+    )
+  fi
   local section
   for section in "${hard_sections[@]}"; do
     if ! grep -qF "$section" "$FILE"; then
       errors+=("missing Hard required section: $section")
     fi
   done
-
-  # SOFT REQUIRED: warn-only sections (§ 3.1)
-  local soft_sections=(
-    "## 目標"
-    "## 測試計畫（code-level）"
-  )
   for section in "${soft_sections[@]}"; do
     if ! grep -qF "$section" "$FILE"; then
       warnings+=("missing Soft required section: $section (warn only — presence expected but not enforced)")
@@ -258,14 +311,33 @@ validate_file() {
     fi
   }
 
-  check_section_non_empty "## 改動範圍" "Hard required"
+  if [[ "$mode" == "T" ]]; then
+    check_section_non_empty "## 改動範圍" "Hard required"
+  else
+    # V mode (§ 4.3): 驗收項目 must be non-empty (≥ 1 markdown row OR bullet)
+    if grep -qF "## 驗收項目" "$FILE"; then
+      local v_body
+      v_body=$(extract_markdown_section "$FILE" "## 驗收項目")
+      local v_lines
+      v_lines=$(printf '%s\n' "$v_body" | awk '
+        /^[[:space:]]*$/ { next }
+        /^[[:space:]]*>/ { next }
+        /^[[:space:]]*\|/ { count++ }
+        /^[[:space:]]*-/ { count++ }
+        END { print count+0 }
+      ')
+      if [[ "$v_lines" -eq 0 ]]; then
+        errors+=("section '## 驗收項目' has no AC entries (Hard required — must have at least one markdown row '|' or bullet '- ')")
+      fi
+    fi
+  fi
   check_section_non_empty "## 估點理由" "Hard required"
 
   # ---------------------------------------------------------------------------
-  # HARD REQUIRED: ## Allowed Files — non-empty bullet list (DP-033 D5, no grace)
-  # Upgrade from Soft to Hard (2026-04-26 lock); A7 migration script backfills.
+  # HARD REQUIRED (T mode only): ## Allowed Files — non-empty bullet list (DP-033 D5, no grace)
+  # V mode 不寫 code → 不需 Allowed Files。
   # ---------------------------------------------------------------------------
-  if grep -qF "## Allowed Files" "$FILE"; then
+  if [[ "$mode" == "T" ]] && grep -qF "## Allowed Files" "$FILE"; then
     local allowed_files_body
     allowed_files_body=$(extract_markdown_section "$FILE" "## Allowed Files")
     local bullet_lines
@@ -293,16 +365,29 @@ validate_file() {
       errors+=("Operational Context section missing JIRA key (pattern [A-Z][A-Z0-9]+-[0-9]+)")
     fi
 
-    # Hard required cells (§ 3.2 table)
-    local required_cells=(
-      "Task JIRA key"
-      "Parent Epic"
-      "Test sub-tasks"
-      "AC 驗收單"
-      "Base branch"
-      "Task branch"
-      "References to load"
-    )
+    # Hard required cells — mode-aware (§ 3.2 for T, § 4.2 for V)
+    local required_cells=()
+    if [[ "$mode" == "T" ]]; then
+      required_cells=(
+        "Task JIRA key"
+        "Parent Epic"
+        "Test sub-tasks"
+        "AC 驗收單"
+        "Base branch"
+        "Task branch"
+        "References to load"
+      )
+    else
+      # V mode (§ 4.2): drops T-only cells (Test sub-tasks / AC 驗收單 / Task branch)
+      # and adds Implementation tasks (the T list this V verifies).
+      required_cells=(
+        "Task JIRA key"
+        "Parent Epic"
+        "Implementation tasks"
+        "Base branch"
+        "References to load"
+      )
+    fi
     local cell
     for cell in "${required_cells[@]}"; do
       if ! grep -qF "$cell" "$FILE"; then
@@ -310,7 +395,7 @@ validate_file() {
       fi
     done
 
-    # Soft: 'Depends on' — warn only (absent = no deps, which is valid)
+    # Soft: 'Depends on' — warn only (absent = no deps, which is valid; T/V common)
     if ! grep -qF "Depends on" "$FILE"; then
       warnings+=("Operational Context missing 'Depends on' cell (Soft — N/A is valid; warn only)")
     fi
@@ -376,15 +461,15 @@ validate_file() {
           errors+=("Level=runtime requires non-N/A Env bootstrap command")
         fi
 
-        # Verify Command host must equal Runtime verify target host (§ 5.1 rule 4)
-        if grep -qF "## Verify Command" "$FILE"; then
+        # Verify Command / 驗收步驟 host must equal Runtime verify target host (§ 5.1 rule 4)
+        if grep -qF "$verify_section_name" "$FILE"; then
           local verify_section verify_cmd verify_cmd_compact
-          verify_section=$(extract_markdown_section "$FILE" "## Verify Command")
+          verify_section=$(extract_markdown_section "$FILE" "$verify_section_name")
           verify_cmd=$(printf '%s\n' "$verify_section" | extract_first_fenced_code_block)
           verify_cmd_compact=$(printf '%s' "$verify_cmd" | tr '\n' ' ' | sed -E 's/[[:space:]]+/ /g' | xargs 2>/dev/null || true)
 
           if [[ -z "$verify_cmd_compact" ]]; then
-            errors+=("## Verify Command fenced code block is empty (Level=runtime requires a live endpoint URL inside)")
+            errors+=("$verify_section_name fenced code block is empty (Level=runtime requires a live endpoint URL inside)")
           else
             local verify_url target_host verify_host
             verify_url=$(python3 -c "
@@ -435,37 +520,40 @@ print((urlparse(u).hostname or '').lower())
   fi
 
   # ---------------------------------------------------------------------------
-  # HARD REQUIRED: ## Verify Command — only Hard when Level ≠ static (§ 3.1)
+  # HARD REQUIRED: ## Verify Command (T) / ## 驗收步驟 (V) — only Hard when Level ≠ static
+  # § 3.1 / § 4.1 / § 4.5
   # For Level=static: section is Optional (no check).
   # For Level=build|runtime: section must exist with fenced code block.
   # (runtime host-alignment check already done above inside Test Environment block.)
+  # T/V 共用，使用 verify_section_name 動態指向。
   # ---------------------------------------------------------------------------
   if [[ -n "$level" && "$level" != "static" ]]; then
-    if ! grep -qF "## Verify Command" "$FILE"; then
-      errors+=("missing Hard required section: ## Verify Command (required when Level=$level)")
+    if ! grep -qF "$verify_section_name" "$FILE"; then
+      errors+=("missing Hard required section: $verify_section_name (required when Level=$level)")
     else
       local vc_code
-      vc_code=$(extract_markdown_section "$FILE" "## Verify Command" | extract_first_fenced_code_block | tr -d '[:space:]')
+      vc_code=$(extract_markdown_section "$FILE" "$verify_section_name" | extract_first_fenced_code_block | tr -d '[:space:]')
       if [[ -z "$vc_code" ]]; then
-        errors+=("## Verify Command section missing executable fenced code block (required when Level=$level)")
+        errors+=("$verify_section_name section missing executable fenced code block (required when Level=$level)")
       fi
     fi
   elif [[ -z "$level" ]]; then
-    # Level unknown (Test Environment missing or malformed) — check Verify Command section integrity
+    # Level unknown (Test Environment missing or malformed) — check section integrity
     # if the section exists, it must have a code block (preserve prior behavior).
-    if grep -qF "## Verify Command" "$FILE"; then
+    if grep -qF "$verify_section_name" "$FILE"; then
       local vc_code2
-      vc_code2=$(extract_markdown_section "$FILE" "## Verify Command" | extract_first_fenced_code_block | tr -d '[:space:]')
+      vc_code2=$(extract_markdown_section "$FILE" "$verify_section_name" | extract_first_fenced_code_block | tr -d '[:space:]')
       if [[ -z "$vc_code2" ]]; then
-        errors+=("## Verify Command section missing executable fenced code block")
+        errors+=("$verify_section_name section missing executable fenced code block")
       fi
     fi
   fi
 
   # ---------------------------------------------------------------------------
-  # HARD REQUIRED: ## Test Command must contain a fenced code block (§ 3.5)
+  # HARD REQUIRED (T mode only): ## Test Command must contain a fenced code block (§ 3.5)
+  # V mode 不跑 unit test → 不需 Test Command（§ 4.1 「合理省略」）。
   # ---------------------------------------------------------------------------
-  if grep -qF "## Test Command" "$FILE"; then
+  if [[ "$mode" == "T" ]] && grep -qF "## Test Command" "$FILE"; then
     local tc_code
     tc_code=$(extract_markdown_section "$FILE" "## Test Command" | extract_first_fenced_code_block | tr -d '[:space:]')
     if [[ -z "$tc_code" ]]; then
@@ -474,31 +562,34 @@ print((urlparse(u).hostname or '').lower())
   fi
 
   # ---------------------------------------------------------------------------
-  # DP-028 Cross-field: Depends on (non-empty) ⇒ Base branch must start with task/
-  # § 5.2
+  # DP-028 Cross-field (T mode only): Depends on (non-empty) ⇒ Base branch must start with task/
+  # § 5.2 — V mode 通常從 feat/... 或 develop 跑驗收，不適用此 cross-field（§ 5.2 表格）。
   # ---------------------------------------------------------------------------
-  local depends_on_val base_branch_val
-  depends_on_val=$(extract_op_ctx_field "$FILE" "Depends on")
-  base_branch_val=$(extract_op_ctx_field "$FILE" "Base branch")
-  local deps_normalized
-  deps_normalized=$(printf '%s' "$depends_on_val" | tr '[:upper:]' '[:lower:]' | xargs 2>/dev/null || true)
-  if [[ -n "$deps_normalized" \
-        && "$deps_normalized" != "n/a" \
-        && "$deps_normalized" != "-" \
-        && "$deps_normalized" != "無" \
-        && "$deps_normalized" != "none" ]]; then
-    if [[ -z "$base_branch_val" ]]; then
-      errors+=("DP-028 cross-field: 'Depends on' is non-empty but 'Base branch' is not a task/ branch (got: <empty>)")
-    elif [[ "$base_branch_val" != task/* ]]; then
-      errors+=("DP-028 cross-field: 'Depends on' is non-empty but 'Base branch' is not a task/ branch (got: '$base_branch_val')")
+  if [[ "$mode" == "T" ]]; then
+    local depends_on_val base_branch_val
+    depends_on_val=$(extract_op_ctx_field "$FILE" "Depends on")
+    base_branch_val=$(extract_op_ctx_field "$FILE" "Base branch")
+    local deps_normalized
+    deps_normalized=$(printf '%s' "$depends_on_val" | tr '[:upper:]' '[:lower:]' | xargs 2>/dev/null || true)
+    if [[ -n "$deps_normalized" \
+          && "$deps_normalized" != "n/a" \
+          && "$deps_normalized" != "-" \
+          && "$deps_normalized" != "無" \
+          && "$deps_normalized" != "none" ]]; then
+      if [[ -z "$base_branch_val" ]]; then
+        errors+=("DP-028 cross-field: 'Depends on' is non-empty but 'Base branch' is not a task/ branch (got: <empty>)")
+      elif [[ "$base_branch_val" != task/* ]]; then
+        errors+=("DP-028 cross-field: 'Depends on' is non-empty but 'Base branch' is not a task/ branch (got: '$base_branch_val')")
+      fi
     fi
   fi
 
   # ---------------------------------------------------------------------------
-  # LIFECYCLE-CONDITIONAL: deliverable schema (§ 2.1 + § 3.6 + DP-033 D7)
+  # LIFECYCLE-CONDITIONAL (T mode only): deliverable schema (§ 2.1 + § 3.6 + DP-033 D7)
   # Not required to exist; validator only checks schema WHEN the block is present.
+  # V mode 對稱 lifecycle 是 ac_verification（見下方 V-only block）。
   # ---------------------------------------------------------------------------
-  if frontmatter_key_exists "$FILE" "deliverable" 2>/dev/null; then
+  if [[ "$mode" == "T" ]] && frontmatter_key_exists "$FILE" "deliverable" 2>/dev/null; then
     local fm_block
     fm_block=$(extract_frontmatter_block "$FILE")
 
@@ -546,6 +637,140 @@ print((urlparse(u).hostname or '').lower())
       errors+=("deliverable.head_sha is missing or empty (required when deliverable block is present)")
     elif ! printf '%s' "$head_sha" | grep -qE '^[0-9a-fA-F]{7,}$'; then
       errors+=("deliverable.head_sha must be a hex string of ≥ 7 characters (got: '$head_sha')")
+    fi
+  fi
+
+  # ---------------------------------------------------------------------------
+  # LIFECYCLE-CONDITIONAL (V mode only): ac_verification schema (§ 4.6 + § 4.7,
+  # symmetric to deliverable D7). verify-AC writes summary on every run.
+  # Not required to exist (breakdown stage absent is legal); only check WHEN present.
+  # ---------------------------------------------------------------------------
+  if [[ "$mode" == "V" ]] && frontmatter_key_exists "$FILE" "ac_verification" 2>/dev/null; then
+    local fm_block_v
+    fm_block_v=$(extract_frontmatter_block "$FILE")
+
+    # Helper: extract scalar field under `ac_verification:` block (state machine).
+    # Stops at the next top-level (unindented) YAML key.
+    extract_av_field() {
+      printf '%s\n' "$fm_block_v" | awk -v key="$1" '
+        /^ac_verification:/ { in_block=1; next }
+        in_block && /^[^[:space:]#]/ { exit }
+        in_block && match($0, "^[[:space:]]+" key ":[[:space:]]") {
+          val = $0; sub(/^[^:]*:[[:space:]]*/, "", val); sub(/[[:space:]]+$/, "", val)
+          print val; exit
+        }
+      '
+    }
+
+    local av_status av_last_run av_total av_pass av_fail av_manual av_uncertain av_disposition
+    av_status=$(extract_av_field "status")
+    av_last_run=$(extract_av_field "last_run_at")
+    av_total=$(extract_av_field "ac_total")
+    av_pass=$(extract_av_field "ac_pass")
+    av_fail=$(extract_av_field "ac_fail")
+    av_manual=$(extract_av_field "ac_manual_required")
+    av_uncertain=$(extract_av_field "ac_uncertain")
+    av_disposition=$(extract_av_field "human_disposition")
+
+    # status enum
+    if [[ -z "$av_status" ]]; then
+      errors+=("ac_verification.status is missing or empty (required when ac_verification block is present)")
+    else
+      case "$av_status" in
+        PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|IN_PROGRESS) ;;
+        *) errors+=("ac_verification.status must be PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|IN_PROGRESS (got: '$av_status')") ;;
+      esac
+    fi
+
+    # last_run_at ISO 8601 (loose: must look like YYYY-MM-DDThh:mm:ss with optional Z/±offset)
+    if [[ -z "$av_last_run" ]]; then
+      errors+=("ac_verification.last_run_at is missing or empty (required when ac_verification block is present)")
+    elif ! printf '%s' "$av_last_run" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})?$'; then
+      errors+=("ac_verification.last_run_at must be ISO 8601 timestamp (got: '$av_last_run')")
+    fi
+
+    # ac_total / ac_pass / ac_fail / ac_manual_required / ac_uncertain — int ≥ 0; sum == total
+    local _is_int='^-?[0-9]+$'
+    local sum=0 has_count_error=0
+    local field val
+    for field in ac_total ac_pass ac_fail ac_manual_required ac_uncertain; do
+      val=$(extract_av_field "$field")
+      if [[ -z "$val" ]]; then
+        errors+=("ac_verification.$field is missing or empty (required when ac_verification block is present)")
+        has_count_error=1
+        continue
+      fi
+      if ! [[ "$val" =~ ^[0-9]+$ ]]; then
+        errors+=("ac_verification.$field must be a non-negative integer (got: '$val')")
+        has_count_error=1
+        continue
+      fi
+      if [[ "$field" != "ac_total" ]]; then
+        sum=$((sum + val))
+      fi
+    done
+    if [[ "$has_count_error" -eq 0 && -n "$av_total" ]]; then
+      if [[ "$sum" -ne "$av_total" ]]; then
+        errors+=("ac_verification: ac_pass + ac_fail + ac_manual_required + ac_uncertain ($sum) must equal ac_total ($av_total)")
+      fi
+    fi
+
+    # human_disposition: required when status != PASS
+    if [[ -n "$av_status" && "$av_status" != "PASS" && "$av_status" != "IN_PROGRESS" ]]; then
+      if [[ -z "$av_disposition" ]]; then
+        errors+=("ac_verification.human_disposition is required when status='$av_status' (FAIL/MANUAL_REQUIRED/UNCERTAIN need human triage)")
+      else
+        case "$av_disposition" in
+          passed|rejected|deferred) ;;
+          *) errors+=("ac_verification.human_disposition must be passed|rejected|deferred (got: '$av_disposition')") ;;
+        esac
+      fi
+    elif [[ -n "$av_disposition" ]]; then
+      # status=PASS or IN_PROGRESS but human_disposition is set — must still be valid enum
+      case "$av_disposition" in
+        passed|rejected|deferred) ;;
+        *) errors+=("ac_verification.human_disposition must be passed|rejected|deferred (got: '$av_disposition')") ;;
+      esac
+    fi
+  fi
+
+  # ---------------------------------------------------------------------------
+  # LIFECYCLE-CONDITIONAL (V mode only): ac_verification_log schema (§ 4.6 + § 4.7, loose)
+  # Same精神 as jira_transition_log — list-of-maps，time 建議不強制；其他欄位 freeform。
+  # ---------------------------------------------------------------------------
+  if [[ "$mode" == "V" ]] && frontmatter_key_exists "$FILE" "ac_verification_log" 2>/dev/null; then
+    local fm_block_avl
+    fm_block_avl=$(extract_frontmatter_block "$FILE")
+
+    # Reject inline scalar (e.g., `ac_verification_log: some_string`).
+    local avl_inline
+    avl_inline=$(printf '%s\n' "$fm_block_avl" | awk '
+      /^ac_verification_log:/ {
+        val = $0
+        sub(/^ac_verification_log:[[:space:]]*/, "", val)
+        sub(/[[:space:]]+$/, "", val)
+        if (val != "" && val != "[]" && val != "~" && val != "null") {
+          print val
+        }
+        exit
+      }
+    ')
+    if [[ -n "$avl_inline" ]]; then
+      errors+=("ac_verification_log must be a YAML list (array), not a scalar (got inline value: '$avl_inline')")
+    else
+      # Each entry must be a map (key: value), not a bare scalar.
+      local avl_bad
+      avl_bad=$(printf '%s\n' "$fm_block_avl" | awk '
+        /^ac_verification_log:/ { in_blk=1; next }
+        in_blk && /^[^[:space:]]/ { exit }
+        in_blk && /^[[:space:]]+-[[:space:]]+[^{]/ {
+          sub(/^[[:space:]]+-[[:space:]]*/, "", $0)
+          if ($0 !~ /:/) { print "bare scalar entry: " $0 }
+        }
+      ')
+      if [[ -n "$avl_bad" ]]; then
+        errors+=("ac_verification_log entries must be YAML maps (key: value), not bare scalars ($avl_bad)")
+      fi
     fi
   fi
 
@@ -624,8 +849,9 @@ print((urlparse(u).hostname or '').lower())
 }
 
 # ---------------------------------------------------------------------------
-# Scan mode: recursively validate all T*.md in specs/*/tasks/ (skip complete/)
+# Scan mode: recursively validate all T*.md and V*.md in specs/*/tasks/ (skip complete/)
 # Always exits 0; produces PASS/FAIL/HARD summary lines.
+# DP-033 Phase B: filename pattern擴展到 V*.md (filename dispatch 對 T/V 共用).
 # ---------------------------------------------------------------------------
 if [[ "$1" == "--scan" ]]; then
   if [[ $# -ne 2 ]]; then
@@ -647,6 +873,7 @@ if [[ "$1" == "--scan" ]]; then
     esac
     case "$f" in
       */specs/*/tasks/T*.md) ;;
+      */specs/*/tasks/V*.md) ;;
       *) continue ;;
     esac
 
@@ -669,7 +896,7 @@ if [[ "$1" == "--scan" ]]; then
         fail=$((fail+1))
         ;;
     esac
-  done < <(find "$root" -type f -name 'T*.md' 2>/dev/null | sort)
+  done < <(find "$root" -type f \( -name 'T*.md' -o -name 'V*.md' \) 2>/dev/null | sort)
 
   echo ""
   echo "task.md scan: $pass pass, $fail fail ($hard hard-fail) — total $((pass+fail))"
