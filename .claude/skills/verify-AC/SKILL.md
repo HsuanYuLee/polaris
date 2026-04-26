@@ -118,26 +118,20 @@ Sub-agent 在 worktree 執行；`specs/` 與 `.claude/skills/` 是 gitignored（
 
 若無 task.md，自動偵測 `specs/{EPIC_KEY}/tests/mockoon/` 是否有 `.json` 檔案。有 → 視為 `fixture_required: true`，使用 conventional path。無 → 視為不需 fixture，只起 dev server。
 
-**Step 3c. 啟動環境**
+**Step 3c. 啟動環境（含 Fixture）**
 
-從 task.md 的 `env_start_command` 或 Epic → Repo 欄位推導專案，讀 workspace-config `projects[].dev_environment`：
-
-```bash
-bash {base_dir}/scripts/polaris-env.sh <project>
-```
-
-- exit 0 → 繼續
-- exit ≠ 0 → 本張驗證 block，addComment「環境啟動失敗：{stderr tail}」，不標 PASS/FAIL（標 UNCERTAIN）
-
-**Step 3d. 啟動 Fixture Server**（僅 `fixture_required: true`）
+跑 D11 L3 orchestrator，一支命令包住「dependencies → start-command → health-check → fixtures-start」全鏈：
 
 ```bash
-mockoon-runner.sh start {fixture_path}
+bash {polaris_root}/scripts/start-test-env.sh --task-md {task_md_path} [--with-fixtures]
 ```
 
-- `{fixture_path}` 來自 task.md 的 `fixture_path` 欄位，或 fallback 的 conventional path
-- 啟動後確認 fixture server ready（mockoon-runner.sh 的 ready signal）
-- 啟動失敗 → 本張 UNCERTAIN，addComment「fixture server 啟動失敗」
+- 加 `--with-fixtures` 的條件：Step 3a 解出 `fixture_required: true`，**或** Step 3b fallback 偵測到 `specs/{EPIC_KEY}/tests/mockoon/` 有 `.json`。orchestrator 會自己讀 task.md 的 `## Test Environment` `Fixtures:` 欄抽路徑（N/A → 報錯 exit 1，由 sub-agent fall back 到 conventional path 並改用 `--fixtures-dir <path>` 重跑）
+- orchestrator 自抽 project name（從 `test_environment.dev_env_config`），讀 workspace-config 推 dependencies / start_command / health_check URL；每步輸出 JSON 證據（`primitive: start-test-env`），任一步 FAIL → exit 1
+- exit 0 → 繼續 Step 4（dev server + fixture server 都已 ready）
+- exit ≠ 0 → 本張驗證 block，addComment「環境啟動失敗：第 {step} 步」（`step` 從 stderr / 最後一行 JSON 讀），不標 PASS/FAIL（標 UNCERTAIN）
+
+> 不要再分別呼叫 `polaris-env.sh` + `mockoon-runner.sh`；orchestrator 已包住 D11 L2 primitives。Fallback 到舊路徑只在該 repo 還沒被 task.md schema 涵蓋時使用，需在 sub-agent return 中標註原因。
 
 ### 4. 逐步驟執行 + 分類
 
@@ -204,15 +198,11 @@ Comment 採 wiki markup（**不用 MCP addCommentToJiraIssue**，用 REST API v2
 
 ### 7. PASS → 自動轉 Done
 
-```
-mcp__claude_ai_Atlassian__getTransitionsForJiraIssue  # 查可用 transition ID
-mcp__claude_ai_Atlassian__transitionJiraIssue
-  cloudId: {config: jira.instance}
-  issueIdOrKey: <AC_KEY>
-  transition: { id: <DONE_TRANSITION_ID> }
+```bash
+{workspace_root}/scripts/polaris-jira-transition.sh <AC_KEY> done
 ```
 
-失敗時退回「貼 comment 模式」（標記結論但不轉狀態），surface 給使用者手動處理。
+`polaris-jira-transition.sh`（D25）為跨 LLM runtime 的統一入口：built-in slug map（`done` → "Done"），workspace-config `jira.transitions.done` 可覆寫；ticket 已在 Done / 找不到 transition / 沒 creds / API error 一律 stderr 訊息 + exit 0，不阻擋驗收流程。失敗時自動退回「貼 comment 模式」（標記結論但不轉狀態），surface 給使用者手動處理。
 
 Epic 模式下，所有 AC 驗收單都 Done 時：
 
@@ -352,7 +342,7 @@ bash "$CLAUDE_PROJECT_DIR/scripts/check-feedback-signals.sh" \
 - Do: HTTP status code == 200 是最低門檻，status 不對 = FAIL
 - Do: Evidence 上傳為 JIRA attachment，comment 用 wiki markup 嵌入
 - Do: FAIL 時呈現 disposition gate，等人工勾選
-- Do: PASS 自動 transitionJiraIssue 到 Done
+- Do: PASS 自動透過 `polaris-jira-transition.sh` 轉到 Done（D25）
 - Do: Epic 模式下，依 AC `depends_on` 排序
 - Don't: 判斷 FAIL 原因（AI 只呈現事實）
 - Don't: 單張 AC 同時走兩條 disposition（互斥）

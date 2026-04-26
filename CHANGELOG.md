@@ -4,6 +4,80 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.60.0] - 2026-04-26
+
+### Feat — DP-032 Wave γ: deterministic engine wiring complete
+
+Lands the four prose-rewiring batches that connect already-shipped DP-032
+deterministic engines into the SKILL.md / reference callsites that drive
+engineering / verify-AC / engineer-delivery-flow. No new primitives — pure
+wiring of D11 / D8 / D22 / D25 into consumers.
+
+**Batch 1 — JIRA transition (D25)**
+
+- `verify-AC/SKILL.md` § 7 + Do/Don't and `engineer-delivery-flow.md` § Step 8
+  now dispatch to `polaris-jira-transition.sh <ticket> <slug>` instead of
+  ad-hoc `transitionJiraIssue` MCP calls or hand-rolled wiki lookups.
+
+**Batch 2 — parse-task-md (D8)**
+
+- 13 prose callsites switched from grep-the-section-and-pray to
+  `scripts/parse-task-md.sh --field <key>`: `engineer-delivery-flow.md` (5
+  callsites incl. § 3a Repo, § 3d Verify Command + Legacy fallback, § 5.5
+  Allowed Files, Inputs row note, behavioral verify forward-compat note);
+  `engineering/SKILL.md` (5 callsites: location-detection note, Test Command,
+  Test Environment, pre-work rebase Base branch, R1 revision context rebuild);
+  `verify-AC/SKILL.md` (2 callsites: Step 3c env_bootstrap_command + Step 3d
+  fixtures). Parser uses flat alias names (`level`, `repo`, `fixtures`, etc.),
+  not dotted paths — corrected from earlier inventory.
+
+**Batch 3 — env primitives (D11)**
+
+- 3 callsites switch to `scripts/start-test-env.sh --task-md <path>
+  [--with-fixtures]` (D11 L3 orchestrator that chains
+  ensure-dependencies → start-command → health-check → fixtures-start):
+  `engineer-delivery-flow.md` § 3b (orchestrator becomes primary, polaris-env.sh
+  retained as fallback for Admin / no-task.md / handbook-driven repos);
+  `engineering/SKILL.md` runtime branch in Phase 2 Test Environment (line
+  215 cluster) — explicitly forbids hand-rolled `docker compose up` /
+  `pnpm dev` / `mockoon-runner.sh start`; `verify-AC/SKILL.md` § Step 3c
+  collapses prior 3c/3d (env start + fixture start) into one orchestrator
+  call.
+
+**Batch 4 — commit convention (D22) + H-class scan**
+
+- `engineer-delivery-flow.md` § Step 6a Commit drops the `git ai-commit --ci`
+  assumption; new prose explicitly traverses the L1 → L2 → L3 fallback chain
+  defined in `references/commit-convention-default.md` (repo commitlint
+  config / handbook commit section / Polaris L3 default).
+- H-class scan results (DP-032 plan § H bulk migration list):
+  `transitionJiraIssue` = 0 residuals in framework skills (cleaned by batch
+  1); `git ai-commit` = only intentional self-mentions inside
+  `commit-convention-default.md` itself, which explicitly excludes user-level
+  tools from spec scope.
+
+**Inventory corrections vs the original Wave γ checkpoint memory**
+
+- `start-dev/` skill does not exist in framework `.claude/skills/` (only in
+  kkday fork; out of scope).
+- `bug-triage/SKILL.md` has no transition pattern — no rewiring needed.
+- `engineering/SKILL.md` shares the JIRA transition with delivery-flow §
+  Step 8 (single source of truth, no separate engineering callsite).
+- `run-test.sh` / `run-verify-command.sh` not yet shipped (D10 / D15 are
+  Wave β / δ scope) — Wave γ does not touch them.
+
+**`.agents/` mirror discipline**
+
+- Every batch manually `cp`s only the files it touched; no
+  `sync-skills-cross-runtime.sh --to-agents` bulk runs (those would commit
+  unrelated long-stale drift). Net result: all rewired prose lands
+  identically in `.agents/` mirror for Codex / Cursor / Gemini CLI runtimes.
+
+**DP-032 plan.md**
+
+- Wave γ rows in Implementation Checklist ticked; plan retains LOCKED
+  status until Wave δ (run-test / run-verify-command) closes.
+
 ## [3.59.0] - 2026-04-26
 
 ### Feat — DP-033 Phase A: task.md schema closure + lifecycle gates

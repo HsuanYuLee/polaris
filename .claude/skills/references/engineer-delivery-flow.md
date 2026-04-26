@@ -14,7 +14,7 @@
 |------|-----------|-------|
 | Branch | Task branch 已 checkout（`task/PROJ-NNN-*`）| 非 main 的工作 branch |
 | Code | 實作完成、可 commit 的狀態 | 變更完成 |
-| task.md | 路徑或完整內容（含 Repo、測試計畫、行為驗證 Layer B）| 不需要 |
+| task.md | 路徑或完整內容（含 Repo、測試計畫、行為驗證 Layer B）；所有欄位讀取走 `scripts/parse-task-md.sh`（DP-032 D8） | 不需要 |
 | JIRA ticket key | 必填 | 不需要 |
 | Base branch | 從 task.md 或 JIRA parent 推導 | 當前 branch upstream 或 `origin/main` |
 | Role declaration | context 明確說 `role: developer` | context 明確說 `role: admin` |
@@ -122,7 +122,7 @@ bash "$(git rev-parse --show-toplevel)"/scripts/ci-local.sh
 ### 3a. Discovery（repo 怎麼跑）
 
 從 task.md 或當前 repo 決定 target：
-- Developer：讀 task.md § Operational Context 的 `Repo` 欄位
+- Developer：經 `scripts/parse-task-md.sh <path/to/task.md> --field repo` 取得 Repo 值（不直接 grep table）
 - Admin：當前 git repo root
 
 查該 repo 的執行方式，**優先序**：
@@ -135,15 +135,27 @@ bash "$(git rev-parse --show-toplevel)"/scripts/ci-local.sh
 
 ### 3b. 啟環境
 
-依 discovery 結果執行 start command。常見型態：
-- `bash {base_dir}/scripts/polaris-env.sh <project>`（已有 Docker + dev server 整合）
+**首選路徑（task.md 已落地時）**：
+
+```bash
+bash {polaris_root}/scripts/start-test-env.sh --task-md {task_md_path} [--with-fixtures]
+```
+
+`start-test-env.sh` 是 D11 L3 orchestrator，依序鏈接 L2 primitives：`ensure-dependencies → start-command → health-check → [fixtures-start]`。它會自己讀 task.md（`test_environment.dev_env_config` 抽 project name，`test_environment.fixtures` 抽 fixture path），讀 workspace-config 推 cwd，並對每一步輸出 JSON 證據；任何一步 FAIL → exit 1，下游自動跳過。**Developer 必走此路徑**（若 task.md 有 `## Test Environment` 段、且 level=runtime）。`--with-fixtures` 由 task.md 是否標 `fixture_required: true` 決定。
+
+**Fallback（無 task.md / Admin 模式 / handbook-driven repo）**：
+
+依 discovery 結果直接執行 start command。常見型態：
+- `bash {base_dir}/scripts/polaris-env.sh <project>`（D11 之前的舊整合 entry，仍可用）
 - `pnpm -C <path> dev`
 - `make run` / `docker compose up -d`
 - `python manage.py runserver` / `bundle exec rails s`
 
+> Fallback 只在沒有 task.md（Admin 角色）或該 repo 還沒被 D11 涵蓋時使用。**首選 = orchestrator**；orchestrator FAIL ≠ 自動降級到 fallback。
+
 **判定**：
-- 啟動命令 exit 0 + health check URL 回 200 → 繼續 3c
-- 啟動失敗 → 停止。回報具體失敗原因（不要只說「起不來」）
+- start-test-env.sh exit 0（或 fallback 啟動命令 exit 0 + health check URL 回 200）→ 繼續 3c
+- 啟動失敗 → 停止。回報具體失敗原因（不要只說「起不來」），列出 orchestrator 哪一步 FAIL 或 fallback 命令的 stderr tail
 
 ### 3b+. Fixture Existence Advisory Check（僅 Developer）
 
@@ -174,27 +186,27 @@ bash "$(git rev-parse --show-toplevel)"/scripts/ci-local.sh
 
 ### 3d. Layer B — Verify Command（僅 Developer，hard gate）
 
-讀 task.md 的 `## Verify Command` section。**此指令由 breakdown（Tech Lead）鎖定，sub-agent 不可修改。**
+經 `scripts/parse-task-md.sh <path/to/task.md> --field verify_command` 取得指令內容。**此指令由 breakdown（Tech Lead）鎖定，sub-agent 不可修改。**
 
 **執行流程：**
 
-1. 從 task.md 提取 `## Verify Command` 下的 code block
-2. 若為 `N/A` → 記錄 SKIP + 原因，繼續
+1. 透過 `parse-task-md.sh --field verify_command` 抽出 fenced code block 內容（不要自己 grep `## Verify Command`）
+2. 若為 `N/A` 或 parser 回傳空（section 缺失）→ 記錄 SKIP + 原因，繼續
 3. 原封不動執行該指令（Bash tool）
-4. 比對 output 與 task.md 中的「預期輸出」
+4. 比對 output 與 task.md 中的「預期輸出」（此段仍由 LLM 讀 task.md 對應段落比對）
 5. 將**完整的指令 + 實際 output** 寫入 evidence file 的 `layer_b`
 
 | 結果 | 動作 |
 |------|------|
 | 指令 output 符合預期 | ✅ Layer B PASS |
 | 指令 output 不符合預期或 exit code ≠ 0 | ❌ **停止整個流程**，不進 Step 4。回報實際 output vs 預期 |
-| task.md 無 `## Verify Command` section（legacy task.md） | ⚠️ 降級為舊行為：讀 `## 行為驗證` section 逐項實測（見下方 Legacy 段落） |
+| `parse-task-md.sh --field verify_command` 回傳空（legacy task.md 無此 section） | ⚠️ 降級為舊行為：讀 `## 行為驗證` section 逐項實測（見下方 Legacy 段落） |
 
 **為何是 hard gate**：breakdown 時 Tech Lead 已掌握改動的預期 runtime 行為，寫成可執行指令。sub-agent 只管跑指令 — 跑不過就是沒做對，不需要自行判斷「夠不夠好」。這消除了「sub-agent 聲稱 pass 但沒真跑」的結構性弱點。
 
 **Legacy 行為驗證（task.md 無 Verify Command 時的 fallback）：**
 
-讀 task.md 的 `## 行為驗證` section（若有）。逐項實測：
+`parse-task-md.sh` 目前未把 `## 行為驗證` 暴露成獨立 field（僅 `verify_command` 是中央化欄位）；本 fallback 路徑仍由 LLM 直接讀 task.md 對應段落。若未來 parser 擴出 `behavioral_verification` field，這段改用 `--field behavioral_verification`。逐項實測：
 
 | 類型 | 驗證方式 |
 |------|---------|
@@ -346,7 +358,7 @@ git log --oneline HEAD..origin/${RESOLVED_BASE} | head -1
 
 比對 `git diff --name-only` 與 task.md `## Allowed Files` 清單：
 
-1. 讀 task.md `## Allowed Files` section
+1. 經 `scripts/parse-task-md.sh <path/to/task.md> --field allowed_files` 取得 Allowed Files 陣列（一行一條）
 2. 執行 `git diff {base}..HEAD --name-only` 取得實際改動檔案
 3. 比對：
 
@@ -357,7 +369,7 @@ git log --oneline HEAD..origin/${RESOLVED_BASE} | head -1
 
 **不 block commit**，但 self-regulation scoring 對計畫外檔案加 +15%（原 +10%）。
 
-若 task.md 無 `## Allowed Files` section（legacy format）→ 跳過本步驟。
+若 `parse-task-md.sh --field allowed_files` 回傳空（legacy format 無此 section）→ 跳過本步驟。
 
 ---
 
@@ -365,7 +377,15 @@ git log --oneline HEAD..origin/${RESOLVED_BASE} | head -1
 
 ### 6a. Commit
 
-使用專案慣例（`git ai-commit --ci` 若可用，否則手動寫 commit message + `git commit`）。commit message 參照 repo 的 `.claude/rules/` commit convention。
+依 `references/commit-convention-default.md` 的 fallback chain 解析 commit message 規範：
+
+1. **L1 — Repo tooling**：`{repo}/.commitlintrc.*` / `commitlint.config.*` / `package.json#commitlint` / husky `commit-msg` hook（最權威；機器規則 + commit-msg hook 同源 SoT）
+2. **L2 — Repo handbook**：`{repo}/.claude/rules/handbook/**/*.md` 的 commit convention 段（補 L1 未宣告的敘述要求）
+3. **L3 — Polaris default**：`references/commit-convention-default.md`（本 framework 兜底；headline 格式、type enum、subject 規則、squash 策略、revision 規格皆由此檔提供）
+
+**規則衝突處理**：L1 命中即停（type enum / scope / subject limit 走 L1）；L2 / L3 只在 L1 未宣告的維度補充。
+
+**做法**：手動寫 commit message + `git commit`（不假設 `git ai-commit` 等 user-level 工具可用，DP-032 D22 已從 framework 拔除）。commit-msg hook fail → 讀 stderr → 對照 L1 config 修 msg → 重試。
 
 ### 6b. Changeset（若 repo 使用 changesets）
 
@@ -458,9 +478,13 @@ HEAD_SHA=$(git rev-parse HEAD)
 
 ## Step 8 — JIRA Transition（Developer only）
 
-PR 建立後，轉 JIRA ticket 狀態為 `CODE REVIEW`（`transitionJiraIssue`，transition id 見 `references/jira-*.md`）。
+PR 建立後，轉 JIRA ticket 狀態為 `CODE REVIEW`：
 
-轉換失敗（ticket 已不在 IN DEVELOPMENT）則忽略，不中斷流程。
+```bash
+{workspace_root}/scripts/polaris-jira-transition.sh {TICKET} code_review
+```
+
+`polaris-jira-transition.sh`（D25，DP-032 Wave α）統一所有 JIRA transition 呼叫，跨 LLM runtime 共用：built-in slug map（`code_review` → "Code Review"），workspace-config `jira.transitions.code_review` 可覆寫；ticket 已在目標狀態 / 找不到 transition / 沒 creds / API error 一律 stderr 訊息 + exit 0，不阻擋 delivery flow。
 
 **Admin 模式跳過本 step**（無 ticket）。
 
