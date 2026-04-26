@@ -1,82 +1,6 @@
 {
   "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/no-cd-in-bash.sh\""
-          },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/no-independent-cmd-chaining.sh\""
-          },
-          {
-            "type": "command",
-            "if": "Bash(git push*)",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-push-quality-gate.sh\""
-          },
-          {
-            "type": "command",
-            "if": "Bash(git push*)",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/verification-evidence-gate.sh\""
-          },
-          {
-            "type": "command",
-            "if": "Bash(git push*)",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/ci-local-gate.sh\""
-          },
-          {
-            "type": "command",
-            "if": "Bash(git*commit*)",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/version-docs-lint-gate.sh\""
-          },
-          {
-            "type": "command",
-            "if": "Bash(git*commit*)",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/ci-local-gate.sh\""
-          },
-          {
-            "type": "command",
-            "if": "Bash(gh pr create*)",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pr-base-gate.sh\""
-          },
-          {
-            "type": "command",
-            "if": "Bash(gh pr create*)",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/verification-evidence-gate.sh\""
-          },
-          {
-            "type": "command",
-            "if": "Bash(gh pr create*)",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/ci-local-gate.sh\""
-          },
-          {
-            "type": "command",
-            "if": "Bash(gh pr edit*)",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pr-base-gate.sh\""
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/design-plan-checklist-gate.sh\""
-          },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pipeline-artifact-gate.sh\""
-          },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/checkpoint-carry-forward-fallback.sh\""
-          }
-        ]
-      }
-    ],
+    "PreToolUse": [],
     "PreCompact": [
       {
         "matcher": "auto",
@@ -139,21 +63,8 @@
         ]
       },
       {
-        "matcher": "Bash|Edit|Write|Read|Grep|Glob|Agent|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/consecutive-reads-monitor.sh\""
-          }
-        ]
-      },
-      {
         "matcher": "Read",
         "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/no-file-reread-monitor.sh\""
-          },
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/feedback-read-logger.sh\""
