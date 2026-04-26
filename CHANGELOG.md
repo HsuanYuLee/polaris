@@ -4,6 +4,51 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.65.0] - 2026-04-26
+
+### Add — `scripts/revision-rebase.sh`: deterministic engineering revision R0
+
+Backlog Roadmap item #3 closed. The four inline bash steps that opened
+`engineering/SKILL.md § Revision Mode R0` (locate task.md → resolve base →
+fetch + rebase → PR base sync) are extracted into a single deterministic
+script that engineering revision-mode now calls as its first step. Removes
+the "AI must remember to do this" failure mode that surfaced in the
+KB2CW-2863 revision session.
+
+- **`scripts/revision-rebase.sh`** — pure deterministic R0 automation.
+  Defaults derive from cwd via `git rev-parse --show-toplevel` +
+  `resolve-task-md-by-branch.sh --current` + `gh pr view --json
+  number,baseRefName`; all overridable via `--repo` / `--task-md` / `--pr`.
+  Internally chains: resolve task.md → `resolve-task-base.sh` → `git
+  fetch origin` → `git rebase origin/<RESOLVED_BASE>` → PR base sync via
+  `gh pr edit --base` (only when `pr.baseRefName ≠ RESOLVED_BASE`). Emits
+  JSON evidence on stdout (`task_md` / `resolved_base` / `rebase_status` /
+  `pr_base_synced` / `legacy_fallback` / `writer` / `at`). Exit
+  contract: 0 = clean rebase + PR base aligned; 1 = conflict / fetch
+  failure / PR base edit blocked (leaves git in rebase-in-progress with
+  explicit abort advisory — does NOT auto-abort, since R0 spec is
+  "stop, report, manual handle"); 2 = usage error. **No bypass env
+  var**.
+
+- **Legacy PR fallback** — if no task.md is found for the current
+  branch, the script falls back to `gh pr view --json baseRefName` for
+  the rebase target but **skips** the PR base sync step (no
+  source-of-truth to compare against). `legacy_fallback: true` in the
+  evidence + stderr advisory.
+
+- **`scripts/revision-rebase-selftest.sh`** — 52/52 PASS. Each case
+  builds an isolated tmp repo + bare origin to prevent state bleed,
+  uses fake `gh` binary (FAKE_GH_PR_VIEW + FAKE_GH_LOG env vars) to
+  stub `gh pr view --json` and capture `gh pr edit` invocations.
+
+- **`engineering/SKILL.md § R0`** — replaced 24 lines of inline bash
+  with a single `${CLAUDE_PROJECT_DIR}/scripts/revision-rebase.sh` call.
+  Preserves the `pr-base-gate.sh` hook note and adds explicit legacy
+  fallback semantics. `.agents/` mirror synced.
+
+- **`.claude/polaris-backlog.md` item #3** marked `[x]` per the
+  `繼續 polaris` standing-trigger contract.
+
 ## [3.64.0] - 2026-04-26
 
 ### Add — Cross-session warm-folder scan deterministic backup
