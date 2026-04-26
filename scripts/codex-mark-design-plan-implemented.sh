@@ -43,16 +43,46 @@ if [[ "$plan_file" != *"/design-plans/"*"/plan.md" ]]; then
   exit 1
 fi
 
+# Build a synthetic Write payload to feed the checklist gate for validation.
+# The 2099-12-31 placeholder is never written to disk. The real file rewrite
+# below uses today's date; the gate only needs a structurally valid post-write
+# payload with status: IMPLEMENTED so it can inspect checklist completeness.
 payload="$(python3 - "$plan_file" <<'PY'
 import json
 import sys
 
 plan_file = sys.argv[1]
+with open(plan_file, "r", encoding="utf-8") as fh:
+    content = fh.read()
+
+if content.startswith("---\n"):
+    parts = content.split("\n---\n", 1)
+    if len(parts) == 2:
+        frontmatter, body = parts
+        fm_lines = frontmatter.splitlines()
+        seen_status = False
+        seen_implemented_at = False
+        out = []
+        for line in fm_lines:
+            if line.startswith("status:"):
+                out.append("status: IMPLEMENTED")
+                seen_status = True
+            elif line.startswith("implemented_at:"):
+                out.append("implemented_at: 2099-12-31")
+                seen_implemented_at = True
+            else:
+                out.append(line)
+        if not seen_status:
+            out.append("status: IMPLEMENTED")
+        if not seen_implemented_at:
+            out.append("implemented_at: 2099-12-31")
+        content = "\n".join(out) + "\n---\n" + body
+
 print(json.dumps({
     "tool_name": "Write",
     "tool_input": {
         "file_path": plan_file,
-        "content": "status: IMPLEMENTED"
+        "content": content
     }
 }))
 PY

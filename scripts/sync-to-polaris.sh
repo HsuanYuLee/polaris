@@ -11,6 +11,8 @@
 #   - .claude/skills/ (only generic skills; company-specific excluded)
 #   - .claude/skills/references/
 #   - .claude/rules/*.md (L1 rules only, not {company}/ subdirs)
+#   - .agents/skills symlink (Codex runtime alias)
+#   - .codex/AGENTS.md + .codex/.generated/
 #   - .claude/hooks/*.sh (all hook scripts)
 #   - .claude/settings.json
 #   - .claude/settings.local.json.example
@@ -222,6 +224,16 @@ copy_dir() {
   echo "  + $label/"
 }
 
+create_symlink() {
+  local target="$1" link_path="$2" label="$3"
+  if [[ "$DRY_RUN" == false ]]; then
+    mkdir -p "$(dirname "$link_path")"
+    rm -rf "$link_path"
+    ln -s "$target" "$link_path"
+  fi
+  echo "  + $label -> $target"
+}
+
 # ── Step 1: Sync skills (exclude company-specific) ─────────────────
 
 echo "Skills..."
@@ -283,6 +295,16 @@ copy_file "$INSTANCE_DIR/.claude/settings.local.json.example" \
           "$POLARIS_DIR/.claude/settings.local.json.example" "settings.local.json.example"
 copy_file "$INSTANCE_DIR/.claude/settings.local.json.sub-repo-example" \
           "$POLARIS_DIR/.claude/settings.local.json.sub-repo-example" "settings.local.json.sub-repo-example"
+
+# ── Step 4b: Sync Codex generated outputs / runtime alias ──────────
+
+echo "Codex compatibility..."
+create_symlink "../.claude/skills" "$POLARIS_DIR/.agents/skills" ".agents/skills"
+mkdir -p "$POLARIS_DIR/.codex/.generated" 2>/dev/null || true
+copy_file "$INSTANCE_DIR/.codex/AGENTS.md" \
+          "$POLARIS_DIR/.codex/AGENTS.md" "AGENTS.md"
+copy_file "$INSTANCE_DIR/.codex/.generated/rules-manifest.txt" \
+          "$POLARIS_DIR/.codex/.generated/rules-manifest.txt" "rules-manifest.txt"
 
 # ── Step 5: Sync scripts (recursive — supports scripts/env/ etc.) ─
 
@@ -412,6 +434,21 @@ if [[ "$PRUNE" == true ]]; then
       prune_count=$((prune_count + 1))
     fi
   done < <(find "$POLARIS_DIR/scripts" -name "*.sh" -type f -not -path "*/node_modules/*" 2>/dev/null)
+
+  # 8c-5b: Codex generated files — remove stale files in polaris/.codex/.generated
+  if [[ -d "$POLARIS_DIR/.codex/.generated" ]]; then
+    while IFS= read -r polaris_codex_file; do
+      [[ -f "$polaris_codex_file" ]] || continue
+      rel_path="${polaris_codex_file#"$POLARIS_DIR"/}"
+      if [[ ! -f "$INSTANCE_DIR/$rel_path" ]]; then
+        if [[ "$DRY_RUN" == false ]]; then
+          rm -f "$polaris_codex_file"
+        fi
+        echo "  ✂ $rel_path"
+        prune_count=$((prune_count + 1))
+      fi
+    done < <(find "$POLARIS_DIR/.codex/.generated" -type f 2>/dev/null)
+  fi
 
   # 8c-6: Docs — remove .md files in polaris/docs/ that don't exist in instance
   if [[ -d "$POLARIS_DIR/docs" ]]; then

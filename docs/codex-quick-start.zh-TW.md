@@ -39,14 +39,23 @@ bash scripts/polaris-codex-doctor.sh
 
 ### 2.5 同步 skills 到 Codex 路徑
 
-Codex 會從 `.agents/skills` 讀取 repo skills。先把 Polaris skills 同步過去：
+Codex 會從 `.agents/skills` 讀取 repo skills。**建議模式是 symlink**，讓 Claude 與 Codex 共用同一份 source of truth：
+
+```bash
+bash scripts/sync-skills-cross-runtime.sh --to-agents --link
+```
+
+這會建立 `.agents/skills -> ../.claude/skills`。
+
+若你明確需要複製鏡像而不是 symlink，才用：
 
 ```bash
 bash scripts/sync-skills-cross-runtime.sh --to-agents
 ```
 
-若你想避免雙份檔案，可用 `--link`（建立 `.agents/skills -> .claude/skills` 符號連結）。
-同步會只輸出**公開共用 skills**（排除 `scope: maintainer-only` 與 company-specific skills）。
+複製模式只會輸出**公開共用 skills**（排除 `scope: maintainer-only` 與 company-specific skills），但它屬於 degraded mode，因為鏡像可能漂移。`scripts/check-skills-mirror-mode.sh` 與 cross-LLM parity 檢查預期使用 symlink 模式。
+
+若你是 Windows 使用者或 clone 設定 `core.symlinks=false`，請見 `.claude/rules/cross-llm-skill-source-of-truth.md` 的 Platform Notes 取得修復步驟。
 
 ### 2.6 驗證機制一致性
 

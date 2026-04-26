@@ -11,6 +11,7 @@
 #   - .claude/skills/ (only skills that exist in Polaris; company-specific skills untouched)
 #   - .claude/skills/references/ (except company-specific ones)
 #   - .claude/rules/*.md (L1 rules — framework-level)
+#   - rebuilds .agents/skills as symlink to ../.claude/skills
 #   - .claude/hooks/
 #   - .claude/settings.json
 #   - .claude/settings.local.json.example
@@ -197,9 +198,17 @@ done
 
 echo "Running post-upgrade Codex compatibility checks..."
 if [[ "$DRY_RUN" == true ]]; then
+  echo "  + would run sync-skills-cross-runtime.sh --to-agents --link"
   echo "  + would run transpile-rules-to-codex.sh"
   echo "  + would run verify-cross-llm-parity.sh"
 else
+  if [[ -x "$INSTANCE_DIR/scripts/sync-skills-cross-runtime.sh" ]]; then
+    bash "$INSTANCE_DIR/scripts/sync-skills-cross-runtime.sh" --to-agents --link
+    echo "  + sync-skills-cross-runtime --link: OK"
+  else
+    echo "  WARNING: scripts/sync-skills-cross-runtime.sh missing or not executable" >&2
+  fi
+
   if [[ -x "$INSTANCE_DIR/scripts/transpile-rules-to-codex.sh" ]]; then
     bash "$INSTANCE_DIR/scripts/transpile-rules-to-codex.sh"
     echo "  + transpile-rules-to-codex: OK"

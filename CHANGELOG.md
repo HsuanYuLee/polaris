@@ -4,6 +4,33 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.70.0] - 2026-04-27
+
+### Add — Codex skill source-of-truth hardening
+
+Shared skill authoring now uses a single source-of-truth layout: `.claude/skills/`
+is primary and `.agents/skills` is required to be a symlink to it. This removes
+copy-mirror drift between Claude- and Codex-facing skill paths and promotes the
+constraint into framework rules, parity checks, and sync flows.
+
+- **New L1 rule** — `.claude/rules/cross-llm-skill-source-of-truth.md` defines
+  `.claude/skills/` as the only authoring surface for shared skills, requires
+  `.agents/skills -> ../.claude/skills`, and documents Windows / `core.symlinks=false`
+  recovery steps.
+- **New guard** — `scripts/check-skills-mirror-mode.sh` validates symlink mode and
+  is enforced first by `scripts/verify-cross-llm-parity.sh`.
+- **Doctor / parity updates** — `scripts/polaris-codex-doctor.sh` now follows symlinks
+  when counting skill dirs; `scripts/mechanism-parity.sh` understands symlink mode and
+  warns when a copied mirror is used as degraded fallback.
+- **Sync flow updates** — `scripts/sync-to-polaris.sh` now syncs the `.agents/skills`
+  symlink and `.codex/` generated outputs; `scripts/sync-from-polaris.sh` rebuilds the
+  symlink mirror via `sync-skills-cross-runtime.sh --to-agents --link` before parity checks.
+- **Codex fallback gate fix** — `scripts/codex-mark-design-plan-implemented.sh` now
+  builds a structurally valid synthetic Write payload for the checklist gate before
+  rewriting frontmatter on disk.
+- **Docs** — `docs/codex-quick-start.md` and `docs/codex-quick-start.zh-TW.md` now
+  document symlink mode as the recommended Codex setup and link Windows/platform notes.
+
 ## [3.65.0] - 2026-04-26
 
 ### Add — `scripts/revision-rebase.sh`: deterministic engineering revision R0

@@ -20,6 +20,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CLAUDE_DIR="$ROOT_DIR/.claude"
 CLAUDE_SKILLS="$CLAUDE_DIR/skills"
 AGENTS_SKILLS="$ROOT_DIR/.agents/skills"
+MIRROR_MODE="copy"
 
 DO_SYNC=false
 STRICT=false
@@ -45,6 +46,7 @@ fi
 
 [[ -d "$CLAUDE_SKILLS" ]] || { echo "Missing $CLAUDE_SKILLS" >&2; exit 1; }
 [[ -d "$AGENTS_SKILLS" ]] || { echo "Missing $AGENTS_SKILLS" >&2; exit 1; }
+[[ -L "$AGENTS_SKILLS" ]] && MIRROR_MODE="symlink"
 
 COMPANY_DIRS=()
 while IFS= read -r line; do
@@ -143,6 +145,7 @@ echo "Public shared skills:    ${#PUBLIC_CLAUDE[@]}"
 echo "Maintainer-only skills:  ${#MAINTAINER_ONLY[@]}"
 echo "Company-specific skills: ${#COMPANY_SKILLS[@]}"
 echo "Codex skills (.agents):  $((${#AGENTS_ALL[@]} - 1))"
+echo "Mirror mode:             $MIRROR_MODE"
 echo
 
 if [[ ${#MAINTAINER_ONLY[@]} -gt 0 ]]; then
@@ -152,6 +155,32 @@ fi
 
 echo
 echo "=== Claude/Codex Parity Check ==="
+
+if [[ "$MIRROR_MODE" == "symlink" ]]; then
+  if "$SCRIPT_DIR/check-skills-mirror-mode.sh" >/dev/null 2>&1; then
+    echo "mirror mode: OK (.agents/skills symlinked to ../.claude/skills)"
+    echo "references/: OK (shared by symlink)"
+    echo "missing in .agents: none"
+    echo "extra in .agents: none (symlink mode shares full tree by design)"
+    echo "changed skill dirs: none (symlink mode shares same files)"
+    echo
+    echo "Result: IN SYNC"
+    exit 0
+  fi
+
+  echo "mirror mode: DRIFT"
+  echo
+  echo "Result: DRIFT DETECTED"
+  echo "Fix: ./scripts/sync-skills-cross-runtime.sh --to-agents --link"
+  [[ "$STRICT" == true ]] && exit 1
+  exit 0
+fi
+
+echo "WARNING: .agents/skills is a copied directory (degraded mode)." >&2
+echo "         Symlink mode is the supported configuration. Run:" >&2
+echo "         bash scripts/sync-skills-cross-runtime.sh --to-agents --link" >&2
+echo >&2
+
 [[ "$REFERENCES_IN_SYNC" == true ]] && echo "references/: OK" || echo "references/: DRIFT"
 
 if [[ ${#MISSING_IN_AGENTS[@]} -eq 0 ]]; then

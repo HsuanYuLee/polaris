@@ -44,7 +44,7 @@ check_skill_tree() {
   local path="$2"
   if [[ -d "$path" ]]; then
     local skill_count
-    skill_count="$(find "$path" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+    skill_count="$(find -L "$path" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
     pass "$label exists"
     pass "detected ${skill_count} top-level skills under $path"
   else

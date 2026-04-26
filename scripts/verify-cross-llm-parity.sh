@@ -9,20 +9,25 @@ set -euo pipefail
 #   bash scripts/verify-cross-llm-parity.sh
 #
 # This script checks:
-#   1) .claude/skills -> .agents/skills parity
-#   2) .claude/rules -> .codex/AGENTS.md parity
+#   1) .agents/skills mirror mode
+#   2) .claude/skills -> .agents/skills parity
+#   3) .claude/rules -> .codex/AGENTS.md parity
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-echo "[1/3] Verify Claude/Codex skills parity"
+echo "[1/4] Verify skills mirror mode"
+bash "$SCRIPT_DIR/check-skills-mirror-mode.sh"
+
+echo
+echo "[2/4] Verify Claude/Codex skills parity"
 bash "$SCRIPT_DIR/mechanism-parity.sh" --strict
 
 echo
-echo "[2/3] Verify Codex rules transpile parity"
+echo "[3/4] Verify Codex rules transpile parity"
 bash "$SCRIPT_DIR/transpile-rules-to-codex.sh" --check
 
 echo
-echo "[3/3] Verify Codex fallback gate wiring"
+echo "[4/4] Verify Codex fallback gate wiring"
 test -x "$SCRIPT_DIR/codex-guarded-git-commit.sh"
 test -x "$SCRIPT_DIR/codex-guarded-gh-pr-create.sh"
 test -x "$SCRIPT_DIR/codex-guarded-git-push.sh"

@@ -39,14 +39,23 @@ This checks:
 
 ### 2.5 Sync skills to Codex path
 
-Codex reads repository skills from `.agents/skills`. Mirror existing Polaris skills:
+Codex reads repository skills from `.agents/skills`. The recommended mode is a symlink so Claude and Codex share one source of truth:
+
+```bash
+bash scripts/sync-skills-cross-runtime.sh --to-agents --link
+```
+
+This makes `.agents/skills -> ../.claude/skills`.
+
+If you explicitly need a copied mirror instead of a symlink:
 
 ```bash
 bash scripts/sync-skills-cross-runtime.sh --to-agents
 ```
 
-Use `--link` if you prefer a symlink (`.agents/skills -> .claude/skills`).
-The sync exports **public shared skills only** (excludes `scope: maintainer-only` and company-specific skill folders).
+The copy sync exports **public shared skills only** (excludes `scope: maintainer-only` and company-specific skill folders), but it is considered a degraded mode because copied mirrors can drift. `scripts/check-skills-mirror-mode.sh` and cross-LLM parity checks expect symlink mode.
+
+If you are on Windows or your clone uses `core.symlinks=false`, see the Platform Notes in `.claude/rules/cross-llm-skill-source-of-truth.md` for recovery steps.
 
 ### 2.6 Verify mechanism parity
 
