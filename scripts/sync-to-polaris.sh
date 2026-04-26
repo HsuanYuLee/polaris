@@ -5,7 +5,7 @@
 # from your working instance back to the Polaris template repo.
 #
 # Usage:
-#   ./scripts/sync-to-polaris.sh [--polaris ~/polaris] [--dry-run] [--commit] [--push] [--prune]
+#   ./scripts/sync-to-polaris.sh [--polaris ~/polaris] [--dry-run] [--commit] [--push] [--no-prune]
 #
 # What it syncs:
 #   - .claude/skills/ (only generic skills; company-specific excluded)
@@ -30,7 +30,7 @@
 #
 # --commit: auto-commit in template with version from VERSION file
 # --push:   auto-push (includes gh auth switch for dual-account setups)
-# --prune:  remove files/dirs in template that no longer exist in the instance
+# --no-prune: skip removing stale files in template (prune is ON by default)
 
 set -euo pipefail
 
@@ -40,7 +40,7 @@ POLARIS_DIR="${HOME}/polaris"
 DRY_RUN=false
 AUTO_COMMIT=false
 AUTO_PUSH=false
-PRUNE=false
+PRUNE=true
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -49,6 +49,7 @@ while [[ $# -gt 0 ]]; do
     --commit) AUTO_COMMIT=true; shift ;;
     --push) AUTO_PUSH=true; AUTO_COMMIT=true; shift ;;
     --prune) PRUNE=true; shift ;;
+    --no-prune) PRUNE=false; shift ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
