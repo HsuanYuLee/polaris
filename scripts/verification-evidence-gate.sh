@@ -7,10 +7,21 @@
 #   - `gh pr create` — all cases (original DP-029 behavior)
 #   - `git push` — only task/* and fix/* branches on repos with scripts/ci-local.sh (DP-031 + DP-032 D12-c)
 #
-# Evidence file: /tmp/polaris-verified-{TICKET}.json
-# Created by verify-completion skill or polaris-write-evidence.sh.
-# Schema: { ticket, timestamp, results[], runtime_contract{} }
-# The file is intentionally in /tmp (ephemeral) — each session must verify fresh.
+# Evidence file (preferred, DP-032 Wave β D15):
+#   /tmp/polaris-verified-{TICKET}-{HEAD_SHA}.json
+#     - written by run-verify-command.sh
+#     - head_sha-bound (auto-stale on rebase; no 4h age check needed)
+#     - schema: { ticket, head_sha, writer, exit_code, at, level, ... }
+#
+# Evidence file (legacy, pre-D15):
+#   /tmp/polaris-verified-{TICKET}.json
+#     - written by polaris-write-evidence.sh / verify-completion skill
+#     - 4-hour stale check + strict runtime_contract validation
+#     - retained for backward compatibility during D15 rollout
+#
+# Writer whitelist: evidence `writer` field must be in
+#   { run-verify-command.sh, polaris-write-evidence.sh }
+# Missing `writer` field is treated as polaris-write-evidence.sh (legacy compat).
 #
 # Dimension B (ci-local mirror evidence) is enforced separately by ci-local-gate.sh
 # (DP-032 D12-c). The two hooks both register on `gh pr create` + `git push` and
@@ -90,30 +101,97 @@ if [[ -z "$ticket" ]]; then
   exit 0
 fi
 
-evidence_file="/tmp/polaris-verified-${ticket}.json"
+# --- Resolve evidence file: prefer head_sha-bound (D15), fallback to legacy ----
+EVIDENCE_FILE=""
+EVIDENCE_FORMAT=""   # "new" or "legacy"
 
-if [[ ! -f "$evidence_file" ]]; then
+# Resolve repo root for head_sha lookup. For push mode, $push_repo is already set;
+# otherwise use cwd. Best-effort — failure leaves head_sha empty and we fall back.
+HEAD_SHA=""
+gate_repo="${push_repo:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
+if [[ -n "$gate_repo" ]] && [[ -d "$gate_repo/.git" || -f "$gate_repo/.git" ]]; then
+  HEAD_SHA="$(git -C "$gate_repo" rev-parse HEAD 2>/dev/null || true)"
+fi
+
+new_evidence="/tmp/polaris-verified-${ticket}-${HEAD_SHA}.json"
+legacy_evidence="/tmp/polaris-verified-${ticket}.json"
+
+if [[ -n "$HEAD_SHA" && -f "$new_evidence" ]]; then
+  EVIDENCE_FILE="$new_evidence"
+  EVIDENCE_FORMAT="new"
+elif [[ -f "$legacy_evidence" ]]; then
+  EVIDENCE_FILE="$legacy_evidence"
+  EVIDENCE_FORMAT="legacy"
+else
   echo "BLOCKED: No verification evidence for ${ticket}" >&2
   echo "" >&2
-  echo "Before creating a PR, run verify-completion to produce evidence:" >&2
-  echo "  Evidence file expected at: ${evidence_file}" >&2
+  echo "Expected one of:" >&2
+  echo "  ${new_evidence}      (DP-032 Wave β D15 — head_sha-bound, written by run-verify-command.sh)" >&2
+  echo "  ${legacy_evidence}     (legacy — written by polaris-write-evidence.sh / verify-completion)" >&2
   echo "" >&2
-  echo "The file must be created by verify-completion or polaris-write-evidence.sh," >&2
-  echo "containing ticket, timestamp, and verification results." >&2
-  echo "" >&2
+  echo "Run scripts/run-verify-command.sh --task-md <path> [--ticket ${ticket}] to produce evidence." >&2
   echo "If this is a non-ticket PR, set POLARIS_SKIP_EVIDENCE=1" >&2
   exit 2
 fi
 
-# Validate evidence file is not empty and has required fields
-valid=$(python3 -c "
-import json, sys
+# --- Validate evidence per format ------------------------------------------
+if [[ "$EVIDENCE_FORMAT" == "new" ]]; then
+  # D15 schema (head_sha-bound, looser): ticket, head_sha, writer, exit_code, at
+  # writer ∈ { run-verify-command.sh, polaris-write-evidence.sh } (whitelist)
+  # No 4h stale check — head_sha self-binds freshness (rebase invalidates filename)
+  valid=$(python3 -c "
+import json
+WHITELIST = {'run-verify-command.sh', 'polaris-write-evidence.sh'}
 try:
-    with open('${evidence_file}') as f:
+    with open('${EVIDENCE_FILE}') as f:
+        d = json.load(f)
+    assert d.get('ticket') == '${ticket}', 'ticket mismatch'
+    assert d.get('head_sha') == '${HEAD_SHA}', 'head_sha mismatch'
+    writer = d.get('writer', 'polaris-write-evidence.sh')  # default = legacy writer
+    assert writer in WHITELIST, f'writer not in whitelist: {writer!r}'
+    assert 'exit_code' in d, 'missing exit_code'
+    assert isinstance(d['exit_code'], int), 'exit_code must be int'
+    assert d.get('at'), 'missing at'
+    print('valid')
+except Exception as e:
+    print(f'invalid: {e}')
+" 2>/dev/null || echo "invalid: parse error")
+
+  if [[ "$valid" != "valid" ]]; then
+    echo "BLOCKED: head_sha-bound evidence file is malformed for ${ticket}" >&2
+    echo "  ${EVIDENCE_FILE}: ${valid}" >&2
+    echo "" >&2
+    echo "Evidence must contain: ticket, head_sha, writer (whitelisted), exit_code, at." >&2
+    echo "Re-run: scripts/run-verify-command.sh --task-md <path> --ticket ${ticket}" >&2
+    exit 2
+  fi
+
+  # exit_code must be 0 — verify command must have passed
+  exit_code_pass=$(python3 -c "
+import json
+with open('${EVIDENCE_FILE}') as f:
+    d = json.load(f)
+print('pass' if int(d.get('exit_code', -1)) == 0 else 'fail')
+" 2>/dev/null || echo "fail")
+  if [[ "$exit_code_pass" != "pass" ]]; then
+    echo "BLOCKED: Verification evidence shows verify command FAIL for ${ticket}" >&2
+    echo "  ${EVIDENCE_FILE}: exit_code != 0" >&2
+    echo "  Fix the underlying issue and re-run scripts/run-verify-command.sh." >&2
+    exit 2
+  fi
+else
+  # Legacy schema (timestamp-based, 4h stale check, strict runtime_contract)
+  valid=$(python3 -c "
+import json
+WHITELIST = {'run-verify-command.sh', 'polaris-write-evidence.sh'}
+try:
+    with open('${EVIDENCE_FILE}') as f:
         d = json.load(f)
     assert d.get('ticket') == '${ticket}', 'ticket mismatch'
     assert d.get('timestamp'), 'missing timestamp'
     assert d.get('results') and len(d['results']) > 0, 'empty results'
+    writer = d.get('writer', 'polaris-write-evidence.sh')
+    assert writer in WHITELIST, f'writer not in whitelist: {writer!r}'
     rc = d.get('runtime_contract')
     assert isinstance(rc, dict), 'missing runtime_contract'
     level = str(rc.get('level', '')).lower()
@@ -133,20 +211,20 @@ except Exception as e:
     print(f'invalid: {e}')
 " 2>/dev/null || echo "invalid: parse error")
 
-if [[ "$valid" != "valid" ]]; then
-  echo "BLOCKED: Verification evidence file is malformed for ${ticket}" >&2
-  echo "  ${evidence_file}: ${valid}" >&2
-  echo "" >&2
-  echo "Evidence must contain: ticket, timestamp, non-empty results, and runtime_contract." >&2
-  echo "Use: scripts/polaris-write-evidence.sh --ticket ${ticket} --task-md <path> --result \"PASS: ...\"" >&2
-  exit 2
-fi
+  if [[ "$valid" != "valid" ]]; then
+    echo "BLOCKED: Legacy verification evidence file is malformed for ${ticket}" >&2
+    echo "  ${EVIDENCE_FILE}: ${valid}" >&2
+    echo "" >&2
+    echo "Evidence must contain: ticket, timestamp, non-empty results, runtime_contract, writer (whitelisted)." >&2
+    echo "Use: scripts/polaris-write-evidence.sh --ticket ${ticket} --task-md <path> --result \"PASS: ...\"" >&2
+    exit 2
+  fi
 
-# Check evidence age — must be from this session (< 4 hours old)
-age_check=$(python3 -c "
-import json, sys
+  # Legacy: 4-hour staleness check
+  age_check=$(python3 -c "
+import json
 from datetime import datetime, timezone, timedelta
-with open('${evidence_file}') as f:
+with open('${EVIDENCE_FILE}') as f:
     d = json.load(f)
 ts = datetime.fromisoformat(d['timestamp'].replace('Z', '+00:00'))
 age = datetime.now(timezone.utc) - ts
@@ -156,11 +234,12 @@ else:
     print('fresh')
 " 2>/dev/null || echo "fresh")
 
-if [[ "$age_check" != "fresh" ]]; then
-  echo "BLOCKED: Verification evidence is stale for ${ticket}" >&2
-  echo "  ${evidence_file}: ${age_check}" >&2
-  echo "  Re-run verify-completion to produce fresh evidence." >&2
-  exit 2
+  if [[ "$age_check" != "fresh" ]]; then
+    echo "BLOCKED: Legacy verification evidence is stale for ${ticket}" >&2
+    echo "  ${EVIDENCE_FILE}: ${age_check}" >&2
+    echo "  Re-run verify-completion (or migrate to scripts/run-verify-command.sh)." >&2
+    exit 2
+  fi
 fi
 
 # Dimension B (ci-local mirror evidence) is handled by ci-local-gate.sh — DP-032 D12-c

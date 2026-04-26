@@ -4,6 +4,76 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.62.0] - 2026-04-26
+
+### Add — DP-032 Wave β: deterministic verify execution + changeset primitives
+
+Three new scripts plus one hook extension graduate the engineering delivery
+flow's verify / changeset legs into deterministic primitives. All four
+ship with comprehensive selftests (115 assertions total, all green).
+
+- **`scripts/run-verify-command.sh`** (D15) — atomic verify execution
+  bound to `head_sha`. Reads `## Verify Command` and Test Environment Level
+  from task.md via `parse-task-md.sh`, dispatches to the correct env-prep
+  ladder (static / build / runtime → `start-test-env.sh`), executes the
+  fenced shell, captures exit + stdout hash + best-effort URL→status
+  pairs, and writes evidence to
+  `/tmp/polaris-verified-{ticket}-{head_sha}.json` with a `writer` field.
+  Exit 0 only when the command exits 0 **and** the evidence file lands
+  with a parseable schema. No bypass env var. First-cut and revision R5
+  share this script — no separate revision path. Selftest:
+  `run-verify-command-selftest.sh` (34/34).
+
+- **`scripts/verification-evidence-gate.sh`** extended (D15 hook side) —
+  the gate now prefers the new head_sha-bound filename
+  (`polaris-verified-{TICKET}-{head_sha}.json`) and falls back to the
+  legacy filename only if the new one is absent. New evidence files are
+  validated against a relaxed schema (`ticket` / `head_sha` / `writer` /
+  `exit_code` / `at` required) and exempted from the legacy 4-hour stale
+  check (head_sha binding already guarantees freshness). The `writer`
+  field must be one of `run-verify-command.sh` / `polaris-write-evidence.sh`
+  (D16 cross-LLM whitelist). Legacy callers continue to work unchanged.
+  Selftest: `verification-evidence-gate-selftest.sh` (21/21).
+
+- **`scripts/polaris-changeset.sh new`** (D24) — mechanical changeset
+  generator. Reads task.md via `parse-task-md.sh`; if the
+  `deliverables.changeset` block is present (DP-033 future scope) it is
+  used directly, otherwise the script derives `package_scope` from
+  `.changeset/config.json` (single-package ⇒ use it; multi-package ⇒
+  fail-loud requesting an explicit declaration), `filename_slug` from
+  `{ticket}-kebab + {short-desc}-kebab` (≤60 chars, word-boundary truncate),
+  and applies the L3 default `strip` to remove `[TICKET]` / `TICKET:`
+  prefixes from the body. `--bump` defaults to `patch`. Idempotent: same
+  slug already on disk ⇒ silent skip + exit 0 (rebase-safe). Description
+  cannot be overridden by flag — body is always the stripped task title.
+  Selftest: `polaris-changeset-selftest.sh` (30/30).
+
+- **`scripts/changeset-clean-inherited.sh`** (D24) — pure git-state
+  hygiene for cascade-rebased branches. Diffs `.changeset/*.md` against
+  `origin/{base}`, extracts the ticket key from each filename slug, and
+  `git rm`s any changeset whose ticket ≠ `--current-ticket`. Files whose
+  ticket cannot be extracted are left alone (conservative). Designed to
+  be invoked by `engineering-rebase.sh` post-rebase — completely
+  separated from `polaris-changeset.sh new`. Selftest:
+  `changeset-clean-inherited-selftest.sh` (30/30).
+
+DP-033 has not yet added the `deliverables.changeset` block to the task.md
+schema. Wave β scripts work today via derivation fallback; once DP-033
+declares the block, `polaris-changeset.sh` will prefer the declared values
+without code changes. The D16 PreToolUse `no-direct-evidence-write.sh`
+hook is intentionally deferred to a follow-up wave.
+
+Wave γ wiring (call-site updates in `engineer-delivery-flow.md` /
+`engineering/SKILL.md` / `verify-AC/SKILL.md`) is also deferred — these
+primitives are ready to be wired when the delivery-flow rewrite begins.
+
+DP-032 plan.md Implementation Checklist:
+- A class `run-verify-command.sh` ✅ landed
+- A class `polaris-changeset.sh` ✅ landed
+- A class `changeset-clean-inherited.sh` ✅ landed
+- B class `verification-evidence-gate.sh` D15 portion ✅ landed
+  (D12 portion already landed in v3.58.0)
+
 ## [3.61.1] - 2026-04-26
 
 ### Fix — three deterministic hooks that physically blocked legitimate work
