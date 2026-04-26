@@ -996,9 +996,9 @@ If user accepts:
    a. Explore the repo — detect repo type per `skills/references/repo-handbook.md` § Step 1
    b. Generate handbook draft per § Step 2
    c. Present to user for confirmation/correction per § Step 3
-   d. Write to `{repo}/.claude/handbook.md`
+   d. Write to `{repo}/.claude/rules/handbook/index.md`
 2. If multiple repos, process sequentially (each needs user Q&A)
-3. Skip repos where `{repo}/.claude/handbook.md` already exists
+3. Skip repos where `{repo}/.claude/rules/handbook/index.md` already exists
 
 If user declines: skip entirely. Handbooks will be auto-generated on first `engineering`.
 

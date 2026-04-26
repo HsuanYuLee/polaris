@@ -65,13 +65,19 @@ This applies to:
 
 ### Framework Handbook
 
-`.claude/handbook/` contains the user's working preferences and quality standards — how they prefer to collaborate, what output quality they expect, and how decisions should be made. These are **user-facing habits**, not AI behavioral rules.
+`.claude/rules/handbook/` is the **AI collaboration manual** for working with this user — output format expectations, session-management style, interaction tone, periodic-task reminders. It sits in `rules/` alongside the framework's three handbook scopes:
 
-At conversation start, read `handbook/*.md` for context. These preferences override defaults without needing per-conversation confirmation.
+- `.claude/rules/handbook/` — framework scope (how AI works with this user globally)
+- `.claude/rules/{company}/handbook/` — company scope (cross-repo company knowledge)
+- `{repo}/.claude/rules/handbook/` — repo scope (architecture, code conventions, dev env)
+
+All three are **operational knowledge** loaded by Claude Code's automatic rule loader. Distinction from the rest of `rules/`: handbook entries describe AI's approach (no enforcement canary); top-level `rules/*.md` define behavioral rules with mechanism canaries audited post-task.
+
+At conversation start, the handbook entries load automatically with the rest of `rules/`. These preferences override defaults without needing per-conversation confirmation.
 
 **Periodic review**: during `organize memory` or version bumps, scan handbook entries and assess whether each should:
-- **Stay** — still a personal preference
-- **Upgrade → rules/** — should apply to all Polaris users
+- **Stay** — still operational knowledge
+- **Upgrade → `rules/*.md`** — has clear canary signal, should be enforced as a behavioral rule
 - **Downgrade → company/repo handbook** — actually company/repo-specific
 
 ### Communication Style
