@@ -4,6 +4,61 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.63.0] - 2026-04-26
+
+### Change — DP-032 D21: Self-Review moves to Phase 3 exit gate
+
+The Pre-PR Self-Review Loop (originally engineer-delivery-flow Step 4) is
+relocated to **Step 1.3** — the exit gate of Phase 3 (LLM implementation
+段). Phase 3 = TDD → /simplify → Self-Review (iterable, fail-cheap);
+Phase 4 Step 1.5 onward = mechanical verify段 (linear fail-stop). Self-Review
+blocking never crosses the segment boundary.
+
+- **Reviewer baseline = handbook-first**：handbook + repo CLAUDE.md +
+  `{repo}/.claude/rules/**` is the **primary compliance baseline**;
+  task.md `## 改動範圍` / `## 估點理由` is **context only**;
+  task.md `Allowed Files` / `verification.*` / `depends_on` are **not
+  read** (handled by D20 Scope Gate / D15 verify evidence / D14 artifact
+  gate). Eliminates the task.md rubber-stamp risk where a workaround
+  passes review just because it stays inside `Allowed Files`.
+
+- **Iteration**：`passed: false` → return to **Phase 3** (LLM may freely
+  edit tests / impl / re-run /simplify), not just back to /simplify;
+  Phase 3 exit condition forces TDD → /simplify → Self-Review re-run.
+  **Hard cap 3 rounds**, beyond which the flow halts for user
+  intervention. **NO bypass** flag (consistent with D11 / D12 / D14 /
+  D15 / D16 / D20 — LLM cannot decide to skip a gate).
+
+- **Evidence**：Self-Review writes **no** evidence file and is **not**
+  part of the Layer A+B+C AND gate. Self-Review is a semantic
+  checkpoint, not a CI-class gate. Detail artifact still records
+  Self-Review output for traceability.
+
+- **Revision mode R5 does NOT re-run Phase 3** (incl. Self-Review). R5
+  only re-runs Layer A+B+C mechanical evidence — the self-review verdict
+  reached in first-cut is not re-litigated when fixing PR review
+  comments.
+
+- **Critic role spec**（`references/sub-agent-roles.md § Critic`）：
+  When-to-use updated to "engineering Phase 3 exit gate (replaces
+  pre-PR Step 4); revision mode R5 does NOT call this agent". Review
+  scope upgraded to handbook-first hard spec table. Return format adds
+  `blocking[].rule` field pointing to specific handbook path /
+  rule section so Phase 3 has an unambiguous fix target.
+
+- **engineering/SKILL.md** Step 3 delivery flow updated: list now
+  includes Step 1.3 Self-Review explicitly; Phase 3 exit condition
+  documented as "test 綠 + simplified + Self-Review passed"; revision
+  mode R5 carve-out documented inline.
+
+- **Step 4 placeholder kept** in engineer-delivery-flow.md to avoid
+  breaking downstream references (D19 / D20 / Phase 4 walkthrough refer
+  to Step 5/6/7/8 by number).
+
+DP-032 D1 (Phase 0 collapse) is **not** in this release — it requires a
+new `scripts/resolve-task-md.sh` (with `--from-input` mode) which is
+deferred to a follow-up wave.
+
 ## [3.62.0] - 2026-04-26
 
 ### Add — DP-032 Wave β: deterministic verify execution + changeset primitives

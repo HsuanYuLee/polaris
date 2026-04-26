@@ -220,8 +220,10 @@ Sub-agent **不會**自動載入 `.claude/rules/`。你必須自己讀：
 
 ### 3. 交付流程（quality → behavioral verify → PR）
 - 讀取 `references/engineer-delivery-flow.md`，以 **Role: Developer** 執行 Step 1-8
-- 流程包含：Simplify → **Local CI Mirror (Step 2, Dimension B — `ci-local.sh`)** → Behavioral Verify (Layer A + Layer B) → Pre-PR Review → Rebase → Commit → PR → JIRA transition
-- **AC 驗證由 verify-AC skill 接手**：work-on 不跑 AC 驗證。PR 開完後使用者跑「驗 {EPIC}」或 opportunistic 偵測觸發
+- 流程包含：Simplify → **Self-Review (Step 1.3, Phase 3 exit gate, DP-032 D21)** → Scope Gate (Step 1.5) → **Local CI Mirror (Step 2, Dimension B — `ci-local.sh`)** → Behavioral Verify (Layer A + Layer B) → Rebase → Commit → PR → JIRA transition
+- **Phase 3 exit condition**（DP-032 D21）：test 綠 + simplified + Self-Review `passed: true`。任一項未滿足 → 不進 Step 1.5 機械自驗段。Self-Review blocking → 回 Phase 3（不只回 /simplify），hard cap 3 輪，**NO bypass**
+- **Revision mode R5 不重跑 Phase 3**（含 Self-Review）— R5 只跑 Layer A+B+C 機械 evidence
+- **AC 驗證由 verify-AC skill 接手**：engineering 不跑 AC 驗證。PR 開完後使用者跑「驗 {EPIC}」或 opportunistic 偵測觸發
 
 ### 4. 回傳結果
 

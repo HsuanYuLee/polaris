@@ -196,28 +196,54 @@ A one-shot estimation review that challenges story points and technical approach
 
 A structured code review that returns findings in a parseable format.
 
-**When to use**: `git-pr-workflow` Step 4 (pre-PR review loop), `engineering` revision mode R5 (post-fix self review).
+**When to use**: `engineering` first-cut **Phase 3 exit gate**（取代原 pre-PR Step 4，DP-032 D21）；發生在 `/simplify` 之後、Step 1.5 Scope Gate 之前。**Revision mode R5 不呼叫此 agent** — R5 只跑 Layer A+B+C 機械 evidence，Phase 3（含 Self-Review）不重跑。
 
-**Review scope**: `.claude/rules/` project rules, coding conventions, test coverage, type safety, security.
+**Review scope (handbook-first hard spec)**：
+
+| 來源 | 用途 |
+|------|------|
+| `{repo}/.claude/rules/handbook/**/*.md` + `{repo}/CLAUDE.md` + `{repo}/.claude/rules/**/*.md` | **Primary compliance baseline**（judge against；repo long-term convention 是 SoT） |
+| task.md `## 改動範圍` / `## 估點理由` | **Context only**（理解 PR 意圖，**不**作 compliance spec — 避免 task.md rubber stamp workaround） |
+| task.md `Allowed Files` / `verification.*` / `depends_on` | **不讀**（D20 Scope Gate / D15 verify evidence / D14 artifact gate 已處理） |
+
+Reviewer 以「這 PR 對 repo 是不是好的」為基準，不是「這 PR 是否符合 task.md 文字」。
+
+**Iteration rules**:
+
+- `passed: true` → Phase 3 exit，dispatcher 進 Step 1.5 Scope Gate
+- `passed: false` → dispatcher 回 **Phase 3**（LLM 可自由改 test / 改實作 / 重跑 /simplify 任一）
+- 回到 Phase 3 後**必然重走** TDD → /simplify → Self-Review（Phase 3 exit condition 強制）
+- **Hard cap 3 輪**，超過 → halt → 使用者手動介入
+- **NO bypass**（無「強制繼續」flag）
 
 **Return format** (JSON):
 ```json
 {
   "passed": true,
-  "blocking": [],
-  "non_blocking": [
+  "blocking": [
     {
       "file": "path/to/file.ts",
       "line": 42,
+      "rule": "{repo}/.claude/rules/handbook/code-conventions.md § Composables",
+      "message": "..."
+    }
+  ],
+  "non_blocking": [
+    {
+      "file": "path/to/file.ts",
+      "line": 80,
       "severity": "suggestion",
       "message": "..."
     }
-  ]
+  ],
+  "summary": "..."
 }
 ```
 
-- `blocking` items prevent PR creation — must be fixed first
-- `non_blocking` items are reported but don't block
+- `blocking[]` items prevent Phase 3 exit — must be fixed first；每項**必須**含 `rule` 欄位指向具體 handbook path / 具體 rule 段落（dispatcher 才能把 fix target 還給 Phase 3 的 LLM）
+- `non_blocking[]` items are reported but don't block
+
+**Evidence**: Critic does **not** write evidence file，**not** part of Layer A+B+C AND gate. Self-Review 是 LLM 語意 checkpoint，不是 CI-class gate.
 
 ---
 

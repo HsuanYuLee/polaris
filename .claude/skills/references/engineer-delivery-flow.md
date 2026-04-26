@@ -50,11 +50,12 @@
 |------|---------------------|------------------------|
 | Input | task.md（含 Repo、測試計畫、行為驗證 Layer B）；active `tasks/` 找不到時 fallback `tasks/complete/`（DP-033 D8）| 無 — 直接讀當前 diff |
 | Step 1 Simplify | ✅ | ✅ |
+| **Step 1.3 Self-Review（Phase 3 exit gate，DP-032 D21）** | ✅ | ✅ |
 | Step 2 Quality Check | ✅ | ✅ |
 | Step 3 Behavioral Verify Layer A（discovery + env + URL 200 + healthy signal）| ✅ | ✅ |
 | Step 3 Layer B（task.md § 行為驗證 逐項跑） | ✅ | ⏭️ 無 task.md 則跳過 |
 | Step 3.5 Visual Regression（條件觸發） | ✅ 若 VR domain 命中 | ✅ 若 VR domain 命中 |
-| Step 4 Pre-PR Self-Review | ✅ | ✅ |
+| ~~Step 4~~（已搬至 Step 1.3 — Phase 3 exit gate，編號留空避免下游 reference 斷裂） | — | — |
 | Step 5 Final Rebase Re-Sync | ✅（通常 skip — 主 rebase 在開發前） | ✅ |
 | Step 6 Commit + Changeset | ✅ | ✅ |
 | Step 7 PR Create | ✅ | ✅ |
@@ -77,6 +78,41 @@
 - **最多 3 輪**。第 3 輪仍有修改則停止，記錄並報給使用者判斷
 
 **不要**做：範圍超出本次 diff 的重構、重新命名無關檔案的變數、為了「美化」而動測試檔案。
+
+---
+
+## Step 1.3 — Self-Review（Phase 3 exit gate）
+
+> **DP-032 D21（v3.63.0+）**：原 Step 4 Pre-PR Self-Review Loop 概念前移為 Phase 3 的 exit gate，發生在 Step 1 /simplify 之後、Step 1.5 Scope Gate 之前。Phase 3 = LLM 實作段（TDD → /simplify → Self-Review，可迭代，fail-cheap）；Phase 4 Step 1.5 起 = 機械自驗段（線性 fail-stop）。Self-Review blocking **絕不跨段回圈**。
+
+啟動獨立 Reviewer sub-agent 對本地 diff 做 code review。
+
+**Reviewer 規格**：見 `references/sub-agent-roles.md § Critic (Pre-PR Review)`。回傳 JSON `{ passed, blocking[], non_blocking[], summary }`，`blocking[]` 細項含 `file:line` + `rule`（引 handbook path）+ `message`。
+
+**Reviewer baseline — handbook-first 硬規格**：
+
+| 來源 | 用途 |
+|------|------|
+| `{repo}/.claude/rules/handbook/**/*.md` + `{repo}/CLAUDE.md` + `{repo}/.claude/rules/**/*.md` | **Primary compliance baseline**（judge against） |
+| task.md `## 改動範圍` / `## 估點理由` | **Context only**（理解 PR 意圖，**不**作 compliance spec） |
+| task.md `Allowed Files` / `verification.*` / `depends_on` | **不讀**（D20 Scope Gate / D15 verify evidence / D14 artifact gate 已處理） |
+
+Rationale：handbook 是 repo long-term convention（repo SoT）；reviewer 以「這 PR 對 repo 是不是好的」為基準，不是「這 PR 是否符合 task.md 文字」。避免 task.md rubber stamp workaround。
+
+**迭代規則**：
+
+- `passed: true` → Phase 3 exit，進 Step 1.5 Scope Gate
+- `passed: false` → 回 **Phase 3**（LLM 可自由改 test / 改實作 / 重跑 /simplify 任一），不只是回 /simplify
+- 回到 Phase 3 後**必然重走** TDD → /simplify → Self-Review（Phase 3 exit condition 強制）
+- **Hard cap 3 輪**，超過 → halt → 使用者手動介入
+- **NO bypass**（無「強制繼續」flag；承 D11 / D12 / D14 / D15 / D16 / D20 一致立場：LLM 不自己決定跳過 gate）
+
+**Evidence**：
+
+- Self-Review **不寫 evidence file**，**不進 Layer A+B+C AND gate**（gate 仍只涵蓋 Layer A verify + Layer B behavioral + Layer C VR）
+- Self-Review 是 LLM 語意 checkpoint，不是 CI-class gate；加 evidence 成本高、revision R5 重跑無益
+- Self-Review 產出仍可記入 Phase 6 Detail artifact（`specs/{EPIC}/artifacts/engineering-{ticket}-{ts}.md`），可追溯不擋 PR
+- **Revision mode R5 不重跑 Self-Review**（R5 只跑 Layer A+B+C 機械 evidence；Phase 3 全段不進 R5）
 
 ---
 
@@ -287,16 +323,14 @@ VR 結果附加到 evidence file：
 
 ---
 
-## Step 4 — Pre-PR Self-Review Loop
+## Step 4 — _(已搬至 Step 1.3 — Phase 3 exit gate)_
 
-啟動獨立 Reviewer sub-agent 對本地 diff 做 code review（格式、型別、邊界、測試覆蓋、convention）。
-
-**Reviewer 規格**：見 `references/sub-agent-roles.md § Critic (Pre-PR Review)`。回傳 JSON `{ passed, blocking[], non_blocking[], summary }`。
-
-**迭代**：
-- `passed: true` → 進 Step 5
-- `passed: false` → 逐項修 blocking → 回 Step 1（修改後要重新 simplify / quality check / behavioral verify）
-- **最多 3 輪**，超過詢問使用者手動處理或強制繼續
+> **DP-032 D21（v3.63.0+）**：原 Pre-PR Self-Review Loop 概念前移為 Phase 3 的 exit gate，發生在 /simplify 之後、Step 1.5 Scope Gate 之前。
+>
+> - 新位置：本檔 § Step 1.3
+> - Reviewer baseline：handbook-first（見 § Step 1.3）
+> - 迭代：blocking → 回 **Phase 3**（不只 /simplify），hard cap 3 輪，**NO bypass**
+> - Step 4 編號保留作為 placeholder，不重編後續 Step 5/6/7/8 以免下游 reference 斷裂
 
 ---
 
