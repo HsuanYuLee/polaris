@@ -11,10 +11,11 @@
 #   - .claude/skills/ (only generic skills; company-specific excluded)
 #   - .claude/skills/references/
 #   - .claude/rules/*.md (L1 rules only, not {company}/ subdirs)
-#   - .claude/hooks/
+#   - .claude/hooks/*.sh (all hook scripts)
 #   - .claude/settings.json
 #   - .claude/settings.local.json.example
 #   - .claude/settings.local.json.sub-repo-example
+#   - .github/copilot-instructions.md + .github/.generated/
 #   - scripts/**/*.sh (recursive, includes scripts/env/ subfolder)
 #   - _template/
 #   - CHANGELOG.md, VERSION, README.md, README.zh-TW.md, CLAUDE.md
@@ -262,9 +263,15 @@ done
 
 # ── Step 4: Sync hooks & settings ──────────────────────────────────
 
-echo "Hooks & settings..."
-copy_file "$INSTANCE_DIR/.claude/hooks/pre-push-quality-gate.sh" \
-          "$POLARIS_DIR/.claude/hooks/pre-push-quality-gate.sh" "pre-push-quality-gate.sh"
+echo "Hooks..."
+mkdir -p "$POLARIS_DIR/.claude/hooks" 2>/dev/null || true
+for hook_file in "$INSTANCE_DIR"/.claude/hooks/*.sh; do
+  [[ -f "$hook_file" ]] || continue
+  hook_name=$(basename "$hook_file")
+  copy_file "$hook_file" "$POLARIS_DIR/.claude/hooks/$hook_name" "$hook_name"
+done
+
+echo "Settings..."
 copy_file "$INSTANCE_DIR/.claude/settings.json" \
           "$POLARIS_DIR/.claude/settings.json" "settings.json"
 copy_file "$INSTANCE_DIR/.claude/settings.local.json.example" \
@@ -317,6 +324,17 @@ copy_file "$INSTANCE_DIR/VERSION"      "$POLARIS_DIR/VERSION"      "VERSION"
 copy_file "$INSTANCE_DIR/README.md"       "$POLARIS_DIR/README.md"       "README.md"
 copy_file "$INSTANCE_DIR/README.zh-TW.md" "$POLARIS_DIR/README.zh-TW.md" "README.zh-TW.md"
 copy_file "$INSTANCE_DIR/CLAUDE.md"    "$POLARIS_DIR/CLAUDE.md"    "CLAUDE.md"
+
+# ── Step 8b: Sync .github/ (Copilot instructions + workflows) ────
+
+if [[ -d "$INSTANCE_DIR/.github" ]]; then
+  echo "GitHub config..."
+  mkdir -p "$POLARIS_DIR/.github/.generated" 2>/dev/null || true
+  copy_file "$INSTANCE_DIR/.github/copilot-instructions.md" \
+            "$POLARIS_DIR/.github/copilot-instructions.md" "copilot-instructions.md"
+  copy_file "$INSTANCE_DIR/.github/.generated/copilot-rules-manifest.txt" \
+            "$POLARIS_DIR/.github/.generated/copilot-rules-manifest.txt" "copilot-rules-manifest.txt"
+fi
 
 # ── Step 9: Auto-commit ──────────────────────────────────────────
 
