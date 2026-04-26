@@ -8,9 +8,9 @@ PR template 偵測、body 組裝、AC Coverage 產生的共用流程。
 
 ---
 
-## 1. Detect PR Template
+## 1. Detect PR Template（L1→L2→L3 fallback chain，D23）
 
-依序檢查以下路徑（命中即停）：
+**L1 — Repo template**（最權威）：依序檢查以下路徑（命中即停）：
 
 1. `.github/pull_request_template.md`
 2. `.github/PULL_REQUEST_TEMPLATE.md`
@@ -20,7 +20,28 @@ PR template 偵測、body 組裝、AC Coverage 產生的共用流程。
 
 **命中**：解析 `## ` headings 作為 section skeleton。HTML comments（`<!-- ... -->`）是 hints — 讀取理解但以實際內容取代。
 
-**未命中**：使用 § 3 的預設 section list。
+**L2 — Company config**：L1 未命中時，檢查 workspace-config `pr_template` 路徑（若有設定）。
+
+**L3 — Polaris default**：L1 + L2 均未命中 → 使用 § 3b 的預設 skeleton。
+
+**規則衝突**：L1 命中即停 — L2/L3 不補充 L1 已覆蓋的 section。
+
+---
+
+## 1.5. Section Classification（D23）
+
+每個 PR body section 分為三類：
+
+| 分類 | 定義 | 範例 |
+|------|------|------|
+| **must-inject** | engineering **一定**填入，無論 template 有無該 heading | `AC Coverage`（Developer）、`Evidence Summary`（evidence AND gate 摘要） |
+| **conditional** | 有相關資料才填 | `Screenshots`、`Bug RCA`、`Breaking Changes`、`VR Diff` |
+| **follow-template** | 依 L1 template heading 填充，template 無此 heading 就不加 | `QA notes`、`Checklist`、`Pre-merge checklist`、其他自定義 heading |
+
+**Injection 規則**：
+- must-inject section 若 template 已有對應 heading → 就地填充
+- must-inject section 若 template 無對應 heading → 在 `Changed` 或 `Description` 之後插入
+- conditional section 條件未觸發 → 整段不出現（不留空佔位）
 
 ---
 
@@ -110,9 +131,39 @@ JIRA Epic: https://{jira_instance}/browse/<EPIC_KEY>
 <QA 測試方法 / N/A + 原因>
 ```
 
-### 3c. AC Coverage injection
+### 3c. Evidence Summary injection（must-inject，D23+D15）
 
-若 template 無 `AC Coverage` section 但 JIRA AC 可用 → 在 `Changed` 或 `Description` 之後插入。
+PR body 必須包含 evidence AND gate 摘要（must-inject section）。若 template 無 `Evidence` heading，在 `AC Coverage` 或 `Changed` 之後插入。
+
+**Developer 格式**：
+
+```md
+## Evidence Summary
+
+| Layer | Status | Evidence |
+|-------|--------|----------|
+| A — CI (`ci-local.sh`) | ✅ PASS | `head_sha` matches |
+| B — Verify (`run-verify-command.sh`) | ✅ PASS | `head_sha` matches |
+| C — VR (`run-visual-snapshot.sh`) | ⏭️ N/A | VR not triggered |
+```
+
+**Admin 格式**：only Layer A（CI）row。
+
+---
+
+## 3d. Revision Fragment Overlay（D23）
+
+Revision mode 更新 PR body 時，**overlay 變更 section，不重寫整份**。
+
+| Section | Revision 行為 |
+|---------|--------------|
+| `Description` | 在末尾追加 `### Revision R{n}` 段落（修正摘要、signal 來源） |
+| `AC Coverage` | 保持原始 checklist；新修正若影響 AC → 補充 note |
+| `Evidence Summary` | 重寫（evidence AND gate 重新評估） |
+| `Changed` | 在末尾追加修正項目（不刪原始 diff 摘要） |
+| 其他 section | 不動 |
+
+更新用 `gh pr edit --body`。
 
 ---
 
@@ -202,4 +253,4 @@ EOB
 
 ## 來源
 
-從原 `pr-convention` skill（v1.3.0）抽出。2026-04-14 engineering 重構 Phase 4 將 PR body 邏輯降級為 reference，消除獨立 skill 的路由歧義。
+從原 `pr-convention` skill（v1.3.0）抽出。2026-04-14 engineering 重構 Phase 4 將 PR body 邏輯降級為 reference，消除獨立 skill 的路由歧義。DP-032 D23 增加 L1→L2→L3 fallback chain、section classification、Evidence Summary must-inject、Revision fragment overlay。
