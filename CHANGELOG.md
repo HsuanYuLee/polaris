@@ -4,6 +4,54 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.61.1] - 2026-04-26
+
+### Fix — three deterministic hooks that physically blocked legitimate work
+
+Three PreToolUse hooks were producing false-positive blocks during routine
+framework work. All three have the same root cause: the hook reasoned about
+the **wrong slice of state** — body text instead of frontmatter, on-disk file
+instead of proposed write content. Fixed without adding bypass flags.
+
+- `scripts/design-plan-checklist-gate.sh`: stopped using naive substring
+  match on `"status: IMPLEMENTED"` in `new_content`. The hook now simulates
+  the post-edit content (Write: `tool_input.content`; Edit: on-disk content
+  with `old_string` → `new_string` applied) and parses YAML frontmatter to
+  detect a real `status:` transition to `IMPLEMENTED`. Plan bodies that
+  discuss lifecycle, archive rules, or contain self-referential checklist
+  items no longer trip the gate. Backlog #2 / #171.
+
+- `scripts/pipeline-artifact-gate.sh`: PreToolUse on `Write` fired before
+  the file existed on disk; validator was given a non-existent path and
+  returned exit 2, blocking every new `task.md` / `refinement.json`. The
+  hook now extracts `tool_input.content` for `Write`, base64-stages it to a
+  tmp probe whose basename mirrors the target (so filename-keyed dispatch
+  for `T*.md` / `V*.md` / `*.json` still routes correctly), and runs the
+  validator against the probe. `Edit` on a missing file remains a no-op
+  (Edit's `new_string` is a diff fragment, not a full file). Backlog #3.
+
+- `.claude/hooks/checkpoint-carry-forward-fallback.sh`: probe staging was
+  gated on `! -f "$file_path"`, which meant `Write` overwrites of existing
+  checkpoint memories handed the validator the **stale on-disk content**,
+  not the user's proposed new content. The check then compared old
+  pending against old pending and HARD_STOP'd. Hook now stages a tmp probe
+  whenever `tool_name == Write` (regardless of whether the target exists);
+  Edit still uses on-disk because Edit's `new_string` is a fragment.
+  Backlog #4.
+
+Each fix was verified end-to-end with stdin JSON dispatch:
+- design-plan gate: body-only mention of `status: IMPLEMENTED` → allow;
+  frontmatter transition with unchecked items → block; frontmatter
+  transition with all checked → allow.
+- pipeline gate: `Write` of a new `T1.md` with garbage content → validator
+  runs against tmp probe and blocks; non-pipeline path → allow; `Edit` on
+  missing file → allow.
+- checkpoint gate: `Write` overwrite on existing project memory → validator
+  receives `/tmp/carry-forward-probe.*`, not the on-disk path.
+
+Pure deterministic-layer fixes — no behavioral rule changes, no skill
+edits, no LLM-side workarounds. Hooks now match their original design intent.
+
 ## [3.61.0] - 2026-04-26
 
 ### Feat — DP-033 Phase B: V{n}.md verification schema dual-path

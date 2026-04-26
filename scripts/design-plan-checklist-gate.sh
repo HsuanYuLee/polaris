@@ -2,6 +2,12 @@
 # design-plan-checklist-gate.sh — PreToolUse hook for Edit/Write
 # Blocks marking a design plan as IMPLEMENTED when Implementation Checklist
 # has unchecked items ([ ]).
+#
+# Trigger: only fires when the edit/write actually transitions the YAML
+# frontmatter `status:` field to IMPLEMENTED. Body text mentioning the
+# string "status: IMPLEMENTED" (lifecycle docs, archive rules,
+# self-referential checklist items) does not trigger the gate.
+#
 # Exit 0 = allow, Exit 2 = block
 
 set -euo pipefail
@@ -15,7 +21,7 @@ if [[ "$tool_name" != "Edit" && "$tool_name" != "Write" ]]; then
   exit 0
 fi
 
-# Extract file_path and new content separately
+# Extract file_path
 file_path=$(printf '%s' "$input" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || true)
 
 # Only care about design plan files
@@ -23,16 +29,63 @@ if [[ "$file_path" != *"/design-plans/"*"/plan.md" ]]; then
   exit 0
 fi
 
-# For Edit: new_string; for Write: content
-new_content=$(printf '%s' "$input" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-ti = d.get('tool_input', {})
-print(ti.get('new_string', '') or ti.get('content', ''))
+# Determine post-edit frontmatter status by simulating the edit:
+#   - Write: post-content == tool_input.content
+#   - Edit:  post-content == on-disk content with old_string → new_string
+# Then parse YAML frontmatter from post-content and check `status:` field.
+post_status=$(printf '%s' "$input" | python3 -c "
+import sys, json, re
+
+def extract_frontmatter_status(content: str) -> str:
+    if not content.startswith('---'):
+        return ''
+    lines = content.splitlines()
+    if not lines or lines[0].strip() != '---':
+        return ''
+    end_idx = None
+    for i, line in enumerate(lines[1:], start=1):
+        if line.strip() == '---':
+            end_idx = i
+            break
+    if end_idx is None:
+        return ''
+    fm_block = '\n'.join(lines[1:end_idx])
+    m = re.search(r'^status:\s*(\S+)\s*$', fm_block, re.MULTILINE)
+    return m.group(1) if m else ''
+
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+
+ti = d.get('tool_input', {}) or {}
+tool = d.get('tool_name', '')
+file_path = ti.get('file_path', '')
+
+post_content = ''
+if tool == 'Write':
+    post_content = ti.get('content', '') or ''
+elif tool == 'Edit':
+    old = ti.get('old_string', '') or ''
+    new = ti.get('new_string', '') or ''
+    replace_all = bool(ti.get('replace_all', False))
+    try:
+        with open(file_path, 'r', encoding='utf-8') as fh:
+            on_disk = fh.read()
+    except Exception:
+        on_disk = ''
+    if not on_disk:
+        post_content = ''
+    elif replace_all:
+        post_content = on_disk.replace(old, new)
+    else:
+        post_content = on_disk.replace(old, new, 1)
+
+print(extract_frontmatter_status(post_content))
 " 2>/dev/null || true)
 
-# Only care if the edit introduces "status: IMPLEMENTED"
-if [[ "$new_content" != *"status: IMPLEMENTED"* ]]; then
+# Only fire when post-edit frontmatter status is exactly IMPLEMENTED.
+if [[ "$post_status" != "IMPLEMENTED" ]]; then
   exit 0
 fi
 
