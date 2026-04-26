@@ -5,7 +5,7 @@
 # from your working instance back to the Polaris template repo.
 #
 # Usage:
-#   ./scripts/sync-to-polaris.sh [--polaris ~/polaris] [--dry-run] [--commit] [--push]
+#   ./scripts/sync-to-polaris.sh [--polaris ~/polaris] [--dry-run] [--commit] [--push] [--prune]
 #
 # What it syncs:
 #   - .claude/skills/ (only generic skills; company-specific excluded)
@@ -30,6 +30,7 @@
 #
 # --commit: auto-commit in template with version from VERSION file
 # --push:   auto-push (includes gh auth switch for dual-account setups)
+# --prune:  remove files/dirs in template that no longer exist in the instance
 
 set -euo pipefail
 
@@ -39,6 +40,7 @@ POLARIS_DIR="${HOME}/polaris"
 DRY_RUN=false
 AUTO_COMMIT=false
 AUTO_PUSH=false
+PRUNE=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -46,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=true; shift ;;
     --commit) AUTO_COMMIT=true; shift ;;
     --push) AUTO_PUSH=true; AUTO_COMMIT=true; shift ;;
+    --prune) PRUNE=true; shift ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -86,6 +89,7 @@ echo "Polaris:   $POLARIS_DIR"
 echo "Version:   ${VERSION:-unknown}"
 echo "Companies: ${COMPANY_DIRS[*]:-none} (excluded from sync)"
 [[ "$DRY_RUN" == true ]] && echo "Mode:      DRY RUN"
+[[ "$PRUNE" == true ]] && echo "Prune:     ON (will remove stale files)"
 echo ""
 
 copy_file() {
@@ -336,7 +340,99 @@ if [[ -d "$INSTANCE_DIR/.github" ]]; then
             "$POLARIS_DIR/.github/.generated/copilot-rules-manifest.txt" "copilot-rules-manifest.txt"
 fi
 
-# ── Step 9: Auto-commit ──────────────────────────────────────────
+# ── Step 8c: Prune — remove files in template that no longer exist ─
+
+if [[ "$PRUNE" == true ]]; then
+  echo "Pruning stale files..."
+  prune_count=0
+
+  # 8c-1: Skills — remove dirs in polaris/.claude/skills/ not in instance
+  for polaris_skill in "$POLARIS_DIR"/.claude/skills/*/; do
+    [[ -d "$polaris_skill" ]] || continue
+    skill_name=$(basename "$polaris_skill")
+    [[ "$skill_name" == "references" ]] && continue
+    if [[ ! -d "$INSTANCE_DIR/.claude/skills/$skill_name" ]]; then
+      if [[ "$DRY_RUN" == false ]]; then
+        rm -rf "$polaris_skill"
+      fi
+      echo "  ✂ skills/$skill_name/"
+      prune_count=$((prune_count + 1))
+    fi
+  done
+
+  # 8c-2: References — remove files in polaris that don't exist in instance
+  for polaris_ref in "$POLARIS_DIR"/.claude/skills/references/*.md; do
+    [[ -f "$polaris_ref" ]] || continue
+    ref_name=$(basename "$polaris_ref")
+    if [[ ! -f "$INSTANCE_DIR/.claude/skills/references/$ref_name" ]]; then
+      if [[ "$DRY_RUN" == false ]]; then
+        rm -f "$polaris_ref"
+      fi
+      echo "  ✂ references/$ref_name"
+      prune_count=$((prune_count + 1))
+    fi
+  done
+
+  # 8c-3: L1 Rules — remove rule files in polaris that don't exist in instance
+  for polaris_rule in "$POLARIS_DIR"/.claude/rules/*.md; do
+    [[ -f "$polaris_rule" ]] || continue
+    rule_name=$(basename "$polaris_rule")
+    if [[ ! -f "$INSTANCE_DIR/.claude/rules/$rule_name" ]]; then
+      if [[ "$DRY_RUN" == false ]]; then
+        rm -f "$polaris_rule"
+      fi
+      echo "  ✂ rules/$rule_name"
+      prune_count=$((prune_count + 1))
+    fi
+  done
+
+  # 8c-4: Hooks — remove hook files in polaris that don't exist in instance
+  for polaris_hook in "$POLARIS_DIR"/.claude/hooks/*.sh; do
+    [[ -f "$polaris_hook" ]] || continue
+    hook_name=$(basename "$polaris_hook")
+    if [[ ! -f "$INSTANCE_DIR/.claude/hooks/$hook_name" ]]; then
+      if [[ "$DRY_RUN" == false ]]; then
+        rm -f "$polaris_hook"
+      fi
+      echo "  ✂ hooks/$hook_name"
+      prune_count=$((prune_count + 1))
+    fi
+  done
+
+  # 8c-5: Scripts — remove .sh files in polaris/scripts/ that don't exist in instance
+  while IFS= read -r polaris_script; do
+    [[ -f "$polaris_script" ]] || continue
+    rel_path="${polaris_script#"$POLARIS_DIR"/}"
+    if [[ ! -f "$INSTANCE_DIR/$rel_path" ]]; then
+      if [[ "$DRY_RUN" == false ]]; then
+        rm -f "$polaris_script"
+      fi
+      echo "  ✂ $rel_path"
+      prune_count=$((prune_count + 1))
+    fi
+  done < <(find "$POLARIS_DIR/scripts" -name "*.sh" -type f -not -path "*/node_modules/*" 2>/dev/null)
+
+  # 8c-6: Docs — remove .md files in polaris/docs/ that don't exist in instance
+  if [[ -d "$POLARIS_DIR/docs" ]]; then
+    for polaris_doc in "$POLARIS_DIR/docs/"*.md; do
+      [[ -f "$polaris_doc" ]] || continue
+      doc_name=$(basename "$polaris_doc")
+      if [[ ! -f "$INSTANCE_DIR/docs/$doc_name" ]]; then
+        if [[ "$DRY_RUN" == false ]]; then
+          rm -f "$polaris_doc"
+        fi
+        echo "  ✂ docs/$doc_name"
+        prune_count=$((prune_count + 1))
+      fi
+    done
+  fi
+
+  if [[ "$prune_count" -eq 0 ]]; then
+    echo "  (nothing to prune)"
+  else
+    echo "  Pruned $prune_count stale item(s)."
+  fi
+fi
 
 echo ""
 if [[ "$DRY_RUN" == true ]]; then
