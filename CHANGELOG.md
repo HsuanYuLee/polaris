@@ -4,6 +4,66 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.64.0] - 2026-04-26
+
+### Add — Cross-session warm-folder scan deterministic backup
+
+Closes Roadmap to Done item #2 (`polaris-backlog.md`) — the cross-session
+continuity rule in `CLAUDE.md` is now backed by a deterministic
+UserPromptSubmit hook that surfaces memory matches across **all tiers**
+(Hot flat root + Warm `{topic}/` folders + Cold `archive/`) when the user
+types `繼續 X` / `continue X`.
+
+- **`.claude/hooks/cross-session-warm-scan.sh`** (new) — UserPromptSubmit
+  hook. Detects the trigger pattern, extracts up to 3 keywords (JIRA
+  keys + alphanumeric tokens ≥ 3 chars, stop-word filtered), strips
+  leading verb particles (`繼續做 KB2CW-3711` → `KB2CW-3711`), and
+  recursively `find -iname '*{kw}*.md'` against the memory directory.
+  Dash-normalized matching handles JIRA keys vs filename convention
+  (`GT-478` matches `project_gt478_*.md`). Top-level `MEMORY.md` index
+  is excluded from results (it's a pointer, not content). Caps at 3
+  keywords × 8 files each to avoid noise on rich prompts. Memory dir
+  path overridable via `POLARIS_MEMORY_DIR` for selftests. Memory dir
+  absent → silent skip. Stdout injected as advisory; never blocks.
+
+- **`scripts/cross-session-warm-scan-selftest.sh`** (new) — 23
+  assertions covering zero-input forms (silent), keyword extraction,
+  dash normalization across both JIRA-key and filename variants, multi-
+  keyword caps, stop-word filtering, malformed JSON handling, fallback
+  `prompt` field, `archive/` Cold tier surfacing, and missing-memory-dir
+  silent skip. All 23 PASS.
+
+- **`CLAUDE.md` § Cross-Session Continuity** — step 1 expanded into 3
+  ordered steps: (1) MEMORY.md Hot index, (2) explicit Warm topic
+  folder scan with `Read {topic}/index.md`, (3) recursive
+  `find {memory_dir} -type f -iname '*{keyword}*.md'`. Explicitly
+  rejects `ls memory/ | grep` as the only search method. Mentions the
+  hook output as authoritative when injected. Plan vs memory分工 line
+  added (plan = decisions, memory = session handoff — both must be
+  read).
+
+- **`rules/mechanism-registry.md`** — new canary
+  `cross-session-warm-folder-scan` (Medium drift) under § Cross-Session
+  Continuity, pointing to the hook as deterministic backup.
+
+- **`skills/references/deterministic-hooks-registry.md`** — hook
+  registered with full enforcement spec (UserPromptSubmit advisory
+  posture, dash normalization rules, override env var, selftest path).
+
+- **`~/.claude/settings.json`** — UserPromptSubmit event added with
+  `*` matcher pointing at the new hook script.
+
+**Trigger fix:** the `繼續\b` regex previously failed to match
+`繼續做 KB2CW-3711` because Python's ASCII word-boundary `\b` requires
+`\w` on one side and Chinese chars are non-word — replaced with
+`繼續\s*` plus a leading-verb stripper. Verified by selftest case [9].
+
+**Why a UserPromptSubmit hook (not SessionStart):** the backlog wording
+said "SessionStart hook" but SessionStart fires before any prompt is
+visible — it can't extract the keyword. UserPromptSubmit is the
+semantically correct event; the spirit (deterministic find on `繼續 X`)
+is preserved.
+
 ## [3.63.0] - 2026-04-26
 
 ### Change — DP-032 D21: Self-Review moves to Phase 3 exit gate

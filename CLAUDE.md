@@ -123,14 +123,16 @@ If WIP is detected (modified files, non-main branch, or stash entries), report i
 
 When the user says "繼續 X" / "continue X" / references work from a previous session:
 
-1. **Search MEMORY.md index** for keywords matching the user's request
-2. **Read the full memory file** — never rely on the index one-liner alone. The index is a pointer, not the content. If the index mentions a topic, the file contains the actionable details (execution plan, decisions made, next steps)
-3. **Read linked artifacts** — if the memory file references plans, checkpoints, or other files, read those too
-4. **Reconstruct context** — from the memory file + artifacts, build a summary of: what was decided, what was done, what's next
-5. **Confirm with the user** — present the reconstructed context: "上次我們決定了 X，做了 Y，下一步是 Z — 從這裡繼續？"
-6. **Never report "memory lost"** when the index has a match — go read the file first
+1. **Search MEMORY.md Hot index** for keywords matching the user's request (Hot is loaded into every session via system prompt)
+2. **Scan MEMORY.md Warm folder pointers** — every `{topic}/` listed under `## Warm` is a tier-2 folder loaded on demand. For each topic whose slug or known content overlaps the keyword, run `Read {memory_dir}/{topic}/index.md`. Examples: framework / DP-NNN / Polaris topics → `polaris-framework/index.md`; cross-session continuity / handoff topics → `session-management/index.md`; Epic by company → that company's topic folder
+3. **Recursive filesystem search** — run `find {memory_dir} -type f -iname '*{keyword}*.md'` to catch files outside the index (case-insensitive, includes Warm folders). **Do NOT** use `ls memory/ | grep` — non-recursive, misses every Warm `{topic}/` folder. The deterministic backup `cross-session-warm-scan.sh` UserPromptSubmit hook also surfaces matches automatically; if the hook injected `[繼續] Memory matches detected`, treat its file list as authoritative
+4. **Read the full memory file** — never rely on the index one-liner alone. The index is a pointer, not the content. If the index mentions a topic, the file contains the actionable details (execution plan, decisions made, next steps)
+5. **Read linked artifacts** — if the memory file references plans, checkpoints, or other files, read those too. Plan vs memory分工：plan = decisions; memory = session handoff (流程指示). 兩者都要讀
+6. **Reconstruct context** — from the memory file + artifacts, build a summary of: what was decided, what was done, what's next
+7. **Confirm with the user** — present the reconstructed context: "上次我們決定了 X，做了 Y，下一步是 Z — 從這裡繼續？"
+8. **Never report "memory lost"** when the index has a match — go read the file first
 
-This is critical: memory files are the bridge between sessions. If a memory file says "Step 1: do X", the new session starts at Step 1. The memory system is only as useful as the Strategist's willingness to read it.
+This is critical: memory files are the bridge between sessions. If a memory file says "Step 1: do X", the new session starts at Step 1. The memory system is only as useful as the Strategist's willingness to read it — including Warm tier folders, not just flat root.
 
 ## Project Mapping
 
