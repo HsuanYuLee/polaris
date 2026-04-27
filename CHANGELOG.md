@@ -4,6 +4,20 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.8] - 2026-04-27
+
+### Changed — engineering local completion authority
+
+- Clarified that `engineering` completion is governed by local LLM gates and
+  mechanical evidence gates: `ci-local.sh`, `run-verify-command.sh`, VR when
+  triggered, evidence AND gate, and completion gate.
+- Remote repo CI in queued / pending / running state no longer blocks
+  user-facing completion. A remote check only becomes a revision signal after it
+  has completed and clearly failed.
+- Removed `framework-release` from the shared Polaris framework skill catalog.
+  Release orchestration remains an operator-local skill under the agent home,
+  not a template-facing workflow shipped to downstream workspaces.
+
 ## [3.73.7] - 2026-04-27
 
 ### Fixed — `resolve-task-base.sh` complete/ fallback

@@ -62,7 +62,6 @@
 |------|-----------|-----------|------|
 | **init** — 初始化 Workspace | 初始化、設定 workspace、填 config | init, initialize, setup workspace, setup config, configure | 互動式 Workspace 初始化精靈，建立 company 目錄與 workspace-config.yaml |
 | **codex-mcp-setup** — Codex MCP 初始化 | codex mcp、同步 mcp、設定 codex mcp、讓 codex 接 mcp | codex mcp, codex mcp setup, sync mcp | 初始化 Codex 相容層：同步 MCP（Atlassian/Slack，可選 Calendar）、同步 skills、跑 parity 與 doctor 檢查 |
-| **framework-release** — Polaris 框架發布 | 升版、發版、同步到 polaris、推 framework、發布 framework | framework release, polaris release, sync to polaris, push framework | 本機發布 Polaris/framework 變更：提交 workspace、同步 Polaris template、建立 tag/release，並驗證兩個 repo 對齊 |
 | **use-company** — 切換公司 / 路由診斷 | 切換公司、用這間、公司切換、我要做 X 公司的、哪間公司 | use company, switch company, set company, which company | 明確設定本次對話的 active company context，避免多公司自動偵測錯誤。含診斷模式（原 which-company 已併入）：診斷 JIRA ticket 路由到哪間公司 |
 | **validate** — 隔離 + 機制檢查 | 檢查隔離、檢查機制 | validate isolation, validate mechanisms | 框架健康檢查，結合隔離（scope header、memory tag）與機制合規（mechanism-registry canary signals）兩種模式（原 validate-isolation 和 validate-mechanisms 已併入） |
 | **checkpoint** — 存檔與恢復 | 存檔、恢復、列出存檔 | checkpoint, save checkpoint, resume, list checkpoints | 儲存／恢復／列出 session 狀態（branch、ticket、todo、最近活動），用於長 session 中斷恢復 |
