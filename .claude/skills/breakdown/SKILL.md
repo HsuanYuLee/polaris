@@ -129,6 +129,64 @@ mcp__claude_ai_Atlassian__getJiraIssue
 
 ---
 
+## Scope-Escalation Intake Path（DP-044）
+
+> 這條路徑專門接 `engineering` 寫出的 escalation sidecar。觸發於：
+>
+> - 使用者明說「處理 escalation」「breakdown intake」/ 直接給 sidecar 路徑
+> - 對 active task 的 `specs/{EPIC}/escalations/T{n}-{count}.md` 還沒處理，且使用者請求 `breakdown {EPIC}` / `breakdown {TASK_KEY}`
+>
+> 入口 distinct，不與 Bug Path / Planning Path 混跑。本路徑的目的是**還原規劃權威**：engineering 留下證據，breakdown 決定 scope 怎麼修。
+
+### E1. 讀 sidecar
+
+掃 `{company_base_dir}/specs/{EPIC}/escalations/` — 取**最高 `count`** 的 `T{n}-{count}.md`（即最近一次 escalation）作為 primary input。同 lineage 的舊 sidecar 視為歷史證據可一併讀。
+
+```bash
+ls -1 "{company_base_dir}/specs/{EPIC}/escalations/T{n}-"*.md 2>/dev/null | sort -V | tail -1
+```
+
+讀 frontmatter（`flavor` / `escalation_count` / `ticket` / `epic`） + `## Summary` + `## Raw Evidence`。
+
+### E2. Flavor decision
+
+把 engineering 提的 `flavor` 當 **hint，不是綁定**（DP-044 D4）。對照 `skills/references/escalation-flavor-guide.md` 的決策樹自行判斷實際 flavor，並依 flavor 決定分析深度：
+
+| 接受的 flavor | 分析深度 |
+|---------------|---------|
+| `plan-defect` | 修現有 task.md（補 Allowed Files / 改 estimate / 改 Test Command / Verify Command / Test Environment）；不另開 task |
+| `scope-drift` | 拆新 task；新 task `depends_on: [<原 task>]`；原 task 等新 task 落地後 rebase |
+| `env-drift` | 多半只需 baseline bump approval / 等 sibling 就緒；可能完全不動 task.md |
+
+**re-classification 必須明寫**：在主對話與最終 JIRA comment / task.md 改動說明中，標註其一：
+
+- `accepted flavor: <X>`（與 engineering 提案相同），或
+- `re-classified to <Y>: <reason>`（與 engineering 提案不同）
+
+兩者擇一硬性要求。沒寫 = drift（見 `mechanism-registry.md § Scope Escalation`）。
+
+### E3. 提案 scope 修正（user-confirmation gate reuse）
+
+把擬議的 task.md 異動 / 新 task 拆解 / baseline approval 整成 preview 給使用者，**沿用 Planning Path Step 8 / Step 11 的同一個 user-confirmation gate**——不額外發明新 gate。沒得到 explicit confirmation 之前不寫 JIRA、不改 task.md。
+
+### E4. 落地 + 標記 sidecar 為 processed
+
+User 確認後：
+
+1. **task.md 異動權威由 breakdown 持有**：`plan-defect` 直接 Edit 既有 task.md；`scope-drift` 走 § 14.5 schema 產新 T{n}.md（依正常 validator gate）；`env-drift` 多半不改 task.md，只在 JIRA / handbook 留 baseline approval 紀錄
+2. JIRA 同步（estimate / sub-task / comment 一併更新；用 `references/jira-subtask-creation.md` 對應段落）
+3. **Sidecar 標記為 processed**：在 sidecar frontmatter 加一行 `processed: true`（in-place edit；不改檔名）。下一次 engineering 進來時看到 `processed: true` 即視為歷史紀錄，不再 trigger E1-E5 流程
+
+> 為什麼選 `processed: true` 不選改檔名：保留檔名穩定，使外部引用（JIRA comment / Slack 訊息中的路徑）不會失效；validator 只檢 schema 必填欄位，不在意這個 optional 欄位。
+
+### E5. 接續方向
+
+- 原 task 的 task.md 已被修正 / 新 task 已建立 → **回到 `engineering`**
+- engineering 的 `scripts/resolve-task-base.sh` + `depends_on` resolver 會自動挑下一張 READY task；不需要 breakdown 額外指派 `next_engineering_task`（DP-044 Blind Spot #3）
+- 若 lineage 已達 `escalation_count == 2` 且本次仍然失敗 → **不再回 engineering**；改開 `refinement {EPIC}`（D5 cap）
+
+---
+
 ## Planning Path（Story / Task / Epic）
 
 ### 4. 分析需求 + Codebase 探索（自適應 Explore）

@@ -4,6 +4,40 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.0] - 2026-04-27
+
+### Added — Engineering scope-escalation handoff (DP-044)
+
+Closes the longstanding pipeline gap where `engineering` discovers mid-task that
+the planned scope is wrong but has no deterministic way to return to planning.
+Without this, scope blockers ended either as ad-hoc "edit task.md and continue"
+(silent scope expansion) or unstructured user-mediated handoff.
+
+- **Sidecar evidence** — engineering halts when a mechanical gate fails on files
+  outside `Allowed Files` AND the fix would alter planner-owned fields. Writes
+  evidence to `specs/{EPIC}/escalations/T{n}-{count}.md` (D2, D7); never edits
+  `task.md` from inside engineering.
+- **Flavor classification** (D4) — engineering proposes `plan-defect`,
+  `scope-drift`, or `env-drift` as a hint; breakdown re-classifies if evidence
+  contradicts and must log `accepted flavor: X` or `re-classified to Y: reason`.
+- **Lineage cap = 2** (D5) — third escalation routes to `refinement`, not
+  another `breakdown` cycle. Validator blocks `escalation_count > 2`.
+- **Breakdown intake path** — new top-level path in `skills/breakdown/SKILL.md`
+  consumes the sidecar, reuses Planning Path's user-confirmation gate, marks
+  sidecar `processed: true` post-confirm.
+- **Engineering halt step** — new sub-section in `skills/engineering/SKILL.md`
+  under "## 開發中 Scope 追加"; reuses `scripts/snapshot-scrub.py` for evidence.
+- **Validator** — `scripts/validate-escalation-sidecar.sh` checks frontmatter
+  (flavor enum, count ∈ {1,2}), 20KB body cap, lineage cap; `--self-test` mode
+  for local validation.
+- **Flavor decision tree** — `skills/references/escalation-flavor-guide.md`
+  with worked examples (incl. GT-478 T3a / KkStorage.ts as `env-drift` case).
+- **Mechanism registry** — 3 new entries (`engineering-escalation-sidecar-only`
+  Critical, `escalation-count-cap` High, `breakdown-escalation-intake` Medium).
+
+Design plan: `specs/design-plans/DP-044-engineering-scope-escalation-handoff/plan.md`
+(status `IMPLEMENTING` pending dogfood).
+
 ## [3.72.2] - 2026-04-27
 
 ### Changed — mechanism-registry.md slimmed (~−18% bytes)

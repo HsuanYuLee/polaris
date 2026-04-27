@@ -29,6 +29,7 @@ metadata:
 - **若想偏離 skill**（例：跳過 `ci-local.sh`、不進 revision mode、先修 blocker 再補 gate），必須先停下來取得使用者明確同意；未同意前一律視為違規
 - **「技術上能修好」不等於「流程上可這樣做」**。engineering 的完成權限不在 LLM 自述，在 mechanical evidence + gates
 - **任何以「hook 之後會擋」「問題很聚焦」「改動很小」「這次只是 patch coverage」為理由的 shortcut，預設無效**
+- **Scope escalation 證據只能寫 sidecar，不能改 task.md**：當機械 gate 失敗且修法會踩到 planner-owned 欄位（Allowed Files / estimate / Test Command / Verify Command / Test Environment / depends_on），停止施工、寫 `specs/{EPIC}/escalations/T{n}-{count}.md` sidecar、交回 `breakdown`（DP-044）。engineering 內部**永遠不**對 task.md 動 Edit/Write
 
 ## Pipeline 角色
 
@@ -168,6 +169,51 @@ bash "${POLARIS_ROOT}/scripts/check-delivery-completion.sh" \
 
 **不需要追加測試計畫**：改動只影響內部實作，API 回傳結構不變，現有驗證子單已涵蓋。
 **需要追加測試計畫**：改動引入新的 API 欄位、新的錯誤處理路徑、新的 service 依賴。
+
+### 開發中 Scope Escalation（DP-044）
+
+> 這是「無法在 engineering 內部消化」的 scope 追加分支。本節**取代**任何「直接修 task.md 然後繼續做」的衝動。
+>
+> 觸發條件（同時成立才適用）：
+> 1. 機械 gate 失敗（`ci-local.sh`、`tsc:baseline`、`run-verify-command.sh` 等回非 0）
+> 2. 失敗檔案落在本 task `Allowed Files` **之外**
+> 3. 修這個失敗的方式會異動 planner-owned 欄位：`Allowed Files` / estimates / `Test Command` / `Verify Command` / `Test Environment` / `depends_on`
+>
+> 三條只要少一條就走前面的 § 開發中 Scope 追加 流程，不寫 sidecar。
+
+**步驟（依序）：**
+
+1. **立即停下所有 Edit/Write**。本節之後不允許再修 source code，直到 sidecar 落地、breakdown 接手。
+2. **計算 `escalation_count`**：
+   ```bash
+   ls "{company_base_dir}/specs/{EPIC}/escalations/T{n}-"*.md 2>/dev/null | wc -l
+   ```
+   既有檔案數 + 1 = 本次 `count`。
+3. **Lineage cap 檢查（DP-044 D5）**：若 `count` 將 > 2，**不要**寫 sidecar；改向使用者回報「lineage 已達 cap，請改跑 `refinement {EPIC}`（不是 `breakdown`）」並結束本 session。
+4. **First-pass flavor 分類**：依 `references/escalation-flavor-guide.md` 的決策樹挑選 `plan-defect | scope-drift | env-drift`。一張 sidecar 一個主 flavor；其他 flavor 的補述寫在 `## Summary` 段落。
+5. **Scrub 原始證據**：把要進 `## Raw Evidence` 的內容（gate 輸出、normalized 失敗檔案清單、相關 commit / baseline 比對）先存暫存檔，再透過 scrubber 過濾後再 Write 進 sidecar：
+   ```bash
+   python3 "${POLARIS_ROOT}/scripts/snapshot-scrub.py" --file "{tmp_path}"
+   ```
+6. **產 sidecar**（D7 schema 對齊 `references/handoff-artifact.md`，刪 `scope` 欄、增 `flavor` + `escalation_count`）：
+   ```
+   {company_base_dir}/specs/{EPIC}/escalations/T{n}-{count}.md
+   ```
+   Frontmatter required：`skill: engineering`、`ticket`、`epic`、`flavor` ∈ {plan-defect, scope-drift, env-drift}、`escalation_count` ∈ {1,2}、`timestamp`（ISO 8601 with `Z`）、`truncated`、`scrubbed`。
+   Body required：`## Summary`（≤ 500 chars，含 headline gate / out-of-scope 路徑 / proposed flavor + rationale）+ `## Raw Evidence`（command + exit code、baseline 參考、normalized 比對、Allowed Files snapshot）。
+7. **Validator gate（hard）**：
+   ```bash
+   bash "${POLARIS_ROOT}/scripts/validate-escalation-sidecar.sh" \
+     "{company_base_dir}/specs/{EPIC}/escalations/T{n}-{count}.md"
+   ```
+   exit ≠ 0 → 修補 sidecar 直到 pass。**未過 validator 不得結束本 session**。
+8. **Halt + report**：在主對話回報使用者：
+   - sidecar 絕對路徑
+   - 提案 flavor
+   - 建議下一步：`breakdown {EPIC}`（intake mode；breakdown 會自動掃 `escalations/`）
+   不要繼續實作、不要 push、不要開 PR。
+
+**硬性紅線（DP-044 D2）**：自進入本流程後，engineering session 對 `task.md` 一律 read-only。所有 task.md 異動必須由 `breakdown` 在 intake path 執行。違反 = critical drift（見 `mechanism-registry.md` § Scope Escalation）。
 
 ---
 

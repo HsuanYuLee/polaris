@@ -11,6 +11,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [epic-verification-structure.md](epic-verification-structure.md) | 驗收架構：測試計畫/AC 驗證分離、測試 Sub-task、驗收單 lifecycle | breakdown, jira-subtask-creation, engineering |
 | [epic-verification-workflow.md](epic-verification-workflow.md) | Epic 驗證完整流程：fixture lifecycle、VR gate、feature branch flow | breakdown, git-pr-workflow, visual-regression, converge, epic-status |
 | [pipeline-handoff.md](pipeline-handoff.md) | Pipeline 角色邊界與 handoff contract：breakdown/engineering/verify-AC/bug-triage + task.md schema + AC-FAIL disposition gate | breakdown, engineering, verify-AC, bug-triage, refinement |
+| [escalation-flavor-guide.md](escalation-flavor-guide.md) | Engineering scope-escalation sidecar 的 flavor 分類決策樹（plan-defect / scope-drift / env-drift）+ worked examples | engineering（寫 sidecar）, breakdown（intake path 重新分類） |
 | [handoff-artifact.md](handoff-artifact.md) | Pipeline handoff evidence artifact 格式（Summary/Raw Evidence、20KB cap、secret scrub、on-demand read） | bug-triage, engineering, verify-AC（producer or consumer of handoff artifact） |
 | [decision-audit-trail.md](decision-audit-trail.md) | JIRA Decision Record comment 格式與寫入規則 | breakdown, sasd-review |
 
