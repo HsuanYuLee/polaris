@@ -86,7 +86,7 @@ find_company_config() {
     return 0
   fi
 
-  local seen=() probe gc gc_abs p2
+  local seen=() probe p2
   probe="$(pwd)"
   while [[ "$probe" != "/" && -n "$probe" ]]; do
     if [[ -f "$probe/workspace-config.yaml" ]]; then
@@ -96,19 +96,15 @@ find_company_config() {
   done
 
   if command -v git >/dev/null 2>&1; then
-    gc="$(git rev-parse --git-common-dir 2>/dev/null || true)"
-    if [[ -n "$gc" ]]; then
-      [[ "$gc" = /* ]] || gc="$(pwd)/$gc"
-      gc_abs="$(cd "$gc" 2>/dev/null && pwd || true)"
-      if [[ -n "$gc_abs" ]]; then
-        p2="$(dirname "$gc_abs")"
-        while [[ "$p2" != "/" && -n "$p2" ]]; do
-          if [[ -f "$p2/workspace-config.yaml" ]]; then
-            seen+=("$p2/workspace-config.yaml")
-          fi
-          p2="$(dirname "$p2")"
-        done
-      fi
+    # shellcheck source=lib/main-checkout.sh
+    . "$(dirname "$0")/lib/main-checkout.sh"
+    if p2="$(resolve_main_checkout 2>/dev/null)"; then
+      while [[ "$p2" != "/" && -n "$p2" ]]; do
+        if [[ -f "$p2/workspace-config.yaml" ]]; then
+          seen+=("$p2/workspace-config.yaml")
+        fi
+        p2="$(dirname "$p2")"
+      done
     fi
   fi
 

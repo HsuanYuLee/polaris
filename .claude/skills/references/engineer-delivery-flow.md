@@ -209,11 +209,11 @@ Rebase 改變 HEAD → 舊 evidence 的 `head_sha` 自動失效 → 所有下游
 
 ## Step 2 — Local CI Mirror
 
-執行 `bash "$(git rev-parse --show-toplevel)"/.claude/scripts/ci-local.sh`。
+執行 `bash "${POLARIS_ROOT}/scripts/ci-local-run.sh"`（wrapper 自動解 main checkout canonical + 用 `--repo $PWD` 跑當前 worktree／checkout）。
 
 此 script 由 `scripts/ci-local-generate.sh` 從 repo 的 CI config（Woodpecker / GitHub Actions / GitLab CI / husky / `.pre-commit-config.yaml` / `package.json` scripts）推導產出，序列化執行 install / lint / typecheck / test / coverage 類別的 commands，並嵌入 codecov patch coverage compute。每個 repo 一份 self-contained script，框架本體不再做 CI re-discovery。
 
-**Existence invariant**：repo root 只要存在 `.claude/scripts/ci-local.sh`，就視為此 repo 已宣告 Local CI Mirror；該檔由 generator 產出且自動寫進 `.git/info/exclude`（不入 commit）。是否需要跑由檔案存在決定，不由 git status 類型決定。
+**Existence invariant**：**main checkout** 的 `.claude/scripts/ci-local.sh` 存在 → 此 repo 已宣告 Local CI Mirror，所有 worktree 共用此 canonical script（DP-043 follow-up）。該檔由 generator 產出且自動寫進 `.git/info/exclude`（不入 commit）。是否需要跑由檔案存在決定，不由 git status 類型決定。
 
 **Re-test-after-fix 鐵律**：若本 step 發現問題並修改 code，必須**重跑一次** `ci-local.sh`。上一輪修改前的結果無效。
 
@@ -226,7 +226,7 @@ Rebase 改變 HEAD → 舊 evidence 的 `head_sha` 自動失效 → 所有下游
 **執行**：
 
 ```bash
-bash "$(git rev-parse --show-toplevel)"/.claude/scripts/ci-local.sh
+bash "${POLARIS_ROOT}/scripts/ci-local-run.sh"
 ```
 
 - exit 0 → Dimension B PASS，進 Step 3

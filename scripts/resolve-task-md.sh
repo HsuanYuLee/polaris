@@ -92,8 +92,6 @@ detect_workspace_root() {
   local explicit_root="${1:-}"
   local root=""
   local probe=""
-  local gc=""
-  local gc_abs=""
   local main_checkout=""
 
   if [[ -n "$explicit_root" ]]; then
@@ -111,20 +109,17 @@ detect_workspace_root() {
   done
 
   if [[ -z "$root" ]] && command -v git >/dev/null 2>&1; then
-    if gc="$(git rev-parse --git-common-dir 2>/dev/null)" && [[ -n "$gc" ]]; then
-      [[ "$gc" = /* ]] || gc="$(pwd)/$gc"
-      gc_abs="$(cd "$gc" 2>/dev/null && pwd || true)"
-      if [[ -n "$gc_abs" ]]; then
-        main_checkout="$(dirname "$gc_abs")"
-        probe="$main_checkout"
-        while [[ "$probe" != "/" && -n "$probe" ]]; do
-          if [[ -f "$probe/workspace-config.yaml" ]]; then
-            root="$probe"
-            break
-          fi
-          probe="$(dirname "$probe")"
-        done
-      fi
+    # shellcheck source=lib/main-checkout.sh
+    . "$(dirname "$0")/lib/main-checkout.sh"
+    if main_checkout="$(resolve_main_checkout 2>/dev/null)"; then
+      probe="$main_checkout"
+      while [[ "$probe" != "/" && -n "$probe" ]]; do
+        if [[ -f "$probe/workspace-config.yaml" ]]; then
+          root="$probe"
+          break
+        fi
+        probe="$(dirname "$probe")"
+      done
     fi
   fi
 

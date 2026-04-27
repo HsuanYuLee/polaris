@@ -334,6 +334,44 @@ echo "$DRY_OUT" | head -1 | grep -q "^#!/usr/bin/env bash"
 assert "Test 6: --dry-run output starts with shebang" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 
 # ============================================================================
+echo "== Test 7: --repo flag (cross-worktree invocation, DP-043 follow-up) =="
+# ============================================================================
+T7="$TMPROOT/repo-flag-fixture"
+mkdir -p "$T7"
+init_git_repo "$T7"
+OUT7="$T7/.claude/scripts/ci-local.sh"
+"$GEN" --repo "$T7" --out "$OUT7" --force >/dev/null 2>&1
+assert "Test 7: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+# Generated script must accept --repo flag (NO_CHECKS path is fine — we just
+# want to confirm flag parsing works and the script targets the given repo).
+T7_HELP_OUT="$(bash "$OUT7" --help 2>&1)"
+case "$T7_HELP_OUT" in
+  *"--repo"*) assert "Test 7: --help mentions --repo" 1 ;;
+  *) assert "Test 7: --help mentions --repo (got: $T7_HELP_OUT)" 0 ;;
+esac
+# Invoke with --repo from a different cwd; evidence file branch_slug should
+# come from $T7's HEAD, not from /tmp.
+T7_RUN_OUT="$(cd /tmp && bash "$OUT7" --repo "$T7" 2>&1)"
+T7_RUN_RC=$?
+assert "Test 7: --repo invocation exit 0" "$([ $T7_RUN_RC -eq 0 ] && echo 1 || echo 0)"
+# Locate the most-recent evidence and check its head_sha matches T7's HEAD
+T7_HEAD="$(git -C "$T7" rev-parse --short=12 HEAD 2>/dev/null)"
+LATEST_EV="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+if [ -f "$LATEST_EV" ]; then
+  EV_SHA="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('head_sha',''))" "$LATEST_EV")"
+  if [ "$EV_SHA" = "$T7_HEAD" ]; then
+    assert "Test 7: evidence head_sha matches target repo (not cwd)" 1
+  else
+    assert "Test 7: evidence head_sha matches target repo (expected $T7_HEAD, got $EV_SHA)" 0
+  fi
+  rm -f "$LATEST_EV"
+fi
+# Bad --repo path must fail with exit 2
+bash "$OUT7" --repo /no/such/path/exists 2>/dev/null
+T7_BAD_RC=$?
+assert "Test 7: bad --repo exits 2" "$([ $T7_BAD_RC -eq 2 ] && echo 1 || echo 0)"
+
+# ============================================================================
 echo
 echo "== Summary =="
 echo "  Assertions: $ASSERTIONS"

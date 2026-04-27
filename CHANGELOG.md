@@ -4,6 +4,63 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.72.1] - 2026-04-27
+
+### Fixed — ci-local.sh now cross-worktree (DP-043 follow-up)
+
+DP-043 v3.72.0 relocated `ci-local.sh` to `<repo>/.claude/scripts/` but kept a
+"per-checkout materialized" model. From inside a `git worktree`, the generated
+script would either be missing (triggering regeneration on every engineering
+run) or — if invoked from main checkout — operate on the wrong branch because
+`git rev-parse --show-toplevel` resolves to the script's physical location, not
+the target worktree. Net effect: every worktree-based `/engineering` run
+re-generated `ci-local.sh`, defeating the cache and confusing evidence files.
+
+The fix consolidates the cross-worktree resolution into a single helper and
+adds `--repo` support to the generated script, so the same canonical
+`ci-local.sh` (in main checkout) serves every worktree of the same repo.
+
+- **New — `scripts/lib/main-checkout.sh`**: shared `resolve_main_checkout`
+  helper. Single source of truth for "given a path inside a worktree, return
+  the main checkout". Three places that previously duplicated the
+  `git rev-parse --git-common-dir` logic (`polaris-jira-transition.sh`,
+  `resolve-task-md.sh`, `resolve-task-md-by-branch.sh`) now source this helper.
+- **`scripts/lib/ci-local-path.sh`** — added `ci_local_canonical_path` helper
+  (builds on `resolve_main_checkout`).
+- **`scripts/ci-local-generate.sh`** — generated script accepts `--repo <path>`
+  flag. When provided, the script operates on `<path>` instead of its physical
+  location's toplevel. Legacy auto-detect retained as fallback.
+- **New — `scripts/ci-local-run.sh`**: wrapper that resolves canonical script
+  path + invokes with `--repo $PWD`. This is what `engineer-delivery-flow`
+  Step 2 now calls — keeps the doc instruction simple.
+- **`.claude/hooks/ci-local-gate.sh`** — uses canonical resolution via
+  `resolve_main_checkout`, invokes the canonical script with `--repo
+  <target>`. Worktree-local script path retained as legacy fallback.
+- **`skills/references/engineer-delivery-flow.md`** — Step 2 now uses
+  `${POLARIS_ROOT}/scripts/ci-local-run.sh`. Existence invariant updated to
+  mention "main checkout" canonical script (shared across worktrees).
+- **`.claude/rules/sub-agent-delegation.md`** — gitignored framework artifacts
+  policy now includes `.claude/scripts/ci-local.sh` alongside
+  `specs/{EPIC}/` and `.claude/skills/`.
+- **`scripts/ci-local-generate-selftest.sh`** — added Test 7 (4 assertions on
+  `--repo` flag): generator exit, `--help` mentions `--repo`, `--repo`
+  invocation produces evidence with target repo's HEAD SHA, bad `--repo`
+  exits 2.
+
+**Result**: LLM running `/engineering` Step 2 from a worktree automatically
+hits the main-checkout canonical script + operates on `--repo <worktree>`.
+Zero regeneration, zero behavioral burden on the LLM.
+
+**Edge case**: feature branch modifying CI config → canonical script becomes
+stale relative to that branch. Generated script's existing staleness advisory
+warns (does not block); explicit regeneration via `ci-local-generate.sh
+--repo <worktree>` updates the canonical when needed. Rare in practice.
+
+**Selftest**: 59/59 + 21/21 PASS (`ci-local-generate-selftest.sh` and
+`verification-evidence-gate-selftest.sh`).
+
+**Plan**: `specs/design-plans/DP-043-ci-local-relocation/plan.md` § Follow-up.
+
 ## [3.72.0] - 2026-04-27
 
 ### Breaking — ci-local.sh relocated to `.claude/scripts/`

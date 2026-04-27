@@ -55,13 +55,30 @@ if [[ "${POLARIS_SKIP_CI_LOCAL:-}" == "1" ]]; then
   exit 0
 fi
 
-# Resolve repo root
+# Resolve repo root (target — could be main checkout or worktree)
 extracted=$(printf '%s' "$command" | grep -oE 'git -C [^ ]+' | head -1 | sed 's/git -C //' || true)
 repo_root="${extracted:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
 
 [[ -n "$repo_root" ]] || exit 0
-ci_local_abs="$(ci_local_path_for_repo "$repo_root")"
-[[ -f "$ci_local_abs" ]] || exit 0
+
+# Resolve canonical ci-local.sh path (in main checkout — shared across worktrees).
+# DP-043 follow-up: ci-local.sh lives only in the main checkout; worktrees
+# invoke the same canonical script via --repo. Falls back to worktree-local
+# path for legacy clones that may have a per-worktree script.
+# shellcheck source=../../scripts/lib/main-checkout.sh
+. "$HOOK_DIR/../../scripts/lib/main-checkout.sh"
+canonical_script=""
+if main_checkout="$(resolve_main_checkout "$repo_root" 2>/dev/null)"; then
+  candidate="$main_checkout/$CI_LOCAL_RELATIVE_PATH"
+  [[ -f "$candidate" ]] && canonical_script="$candidate"
+fi
+# Legacy fallback: worktree-local script (shouldn't exist with new design)
+if [[ -z "$canonical_script" ]]; then
+  candidate="$(ci_local_path_for_repo "$repo_root")"
+  [[ -f "$candidate" ]] && canonical_script="$candidate"
+fi
+[[ -n "$canonical_script" ]] || exit 0
+ci_local_abs="$canonical_script"
 
 # Push mode: skip non-delivery branches and destructive pushes
 if [[ "$MODE" == "push" ]]; then
@@ -102,7 +119,7 @@ fi
 echo "[ci-local-gate] $MODE intercepted on ${branch} — running ${ci_local_abs} ..." >&2
 ci_log=$(mktemp -t ci-local-gate.XXXXXX)
 
-bash "$ci_local_abs" >"$ci_log" 2>&1
+bash "$ci_local_abs" --repo "$repo_root" >"$ci_log" 2>&1
 rc=$?
 
 if [[ $rc -eq 0 ]]; then
@@ -116,5 +133,5 @@ echo "" >&2
 tail -60 "$ci_log" >&2
 echo "" >&2
 echo "  Full log: ${ci_log}" >&2
-echo "  Re-run:   bash ${ci_local_abs}" >&2
+echo "  Re-run:   bash ${ci_local_abs} --repo ${repo_root}" >&2
 exit 2

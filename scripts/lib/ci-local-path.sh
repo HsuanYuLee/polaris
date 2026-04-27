@@ -41,3 +41,19 @@ ci_local_path_for_repo() {
   fi
   printf '%s/%s\n' "$repo_root" "$CI_LOCAL_RELATIVE_PATH"
 }
+
+# Source the main-checkout resolver (lazy — only loaded when this helper is called).
+_ci_local_path_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ci_local_canonical_path [start_dir]
+#   Echo absolute path to the canonical ci-local.sh — i.e., the one in the
+#   MAIN checkout, shared across all worktrees of the same repo (DP-043 follow-up).
+#   No filesystem check; pure path composition.
+ci_local_canonical_path() {
+  local start="${1:-$(pwd)}"
+  # shellcheck source=main-checkout.sh
+  . "${_ci_local_path_lib_dir}/main-checkout.sh"
+  local main
+  main="$(resolve_main_checkout "$start")" || return 1
+  printf '%s/%s\n' "$main" "$CI_LOCAL_RELATIVE_PATH"
+}

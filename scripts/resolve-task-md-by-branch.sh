@@ -293,23 +293,19 @@ else
   done
 
   if [[ -z "$root" ]] && command -v git >/dev/null 2>&1; then
-    # Worktree / product-repo case: locate main checkout via git-common-dir,
-    # then check its parent for workspace-config.yaml.
-    if gc="$(git rev-parse --git-common-dir 2>/dev/null)" && [[ -n "$gc" ]]; then
-      [[ "$gc" = /* ]] || gc="$(pwd)/$gc"
-      gc_abs="$(cd "$gc" 2>/dev/null && pwd || true)"
-      if [[ -n "$gc_abs" ]]; then
-        main_checkout="$(dirname "$gc_abs")"
-        # Walk up from main checkout looking for workspace-config.yaml
-        p2="$main_checkout"
-        while [[ "$p2" != "/" && -n "$p2" ]]; do
-          if [[ -f "$p2/workspace-config.yaml" ]]; then
-            root="$p2"
-            break
-          fi
-          p2="$(dirname "$p2")"
-        done
-      fi
+    # Worktree / product-repo case: locate main checkout via shared resolver,
+    # then walk up looking for workspace-config.yaml.
+    # shellcheck source=lib/main-checkout.sh
+    . "$(dirname "$0")/lib/main-checkout.sh"
+    if main_checkout="$(resolve_main_checkout 2>/dev/null)"; then
+      p2="$main_checkout"
+      while [[ "$p2" != "/" && -n "$p2" ]]; do
+        if [[ -f "$p2/workspace-config.yaml" ]]; then
+          root="$p2"
+          break
+        fi
+        p2="$(dirname "$p2")"
+      done
     fi
   fi
 
