@@ -4,6 +4,28 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.2] - 2026-04-27
+
+### Fixed — DP-044 gate-closure escalation
+
+- Reframed engineering scope escalation around mandatory gate closure instead of
+  first out-of-scope files. Engineering sidecars must now state pass condition,
+  baseline/actual measurements, explained deltas, proposed fixes, residual
+  blockers, closure forecast, and the full set of planner decisions required to
+  make the failed gate pass.
+- Updated `engineering` to challenge necessary-but-insufficient scope approvals:
+  if approving only one candidate fix still leaves the gate failing, the sidecar
+  must say so before routing to breakdown.
+- Updated `breakdown` intake to consume gate-closure sections and handle all
+  required planner decisions in one preview; it may not return a work order to
+  engineering when the closure forecast still says the gate will fail.
+- Strengthened `validate-escalation-sidecar.sh` so old first-file sidecars fail
+  schema validation unless they include `Gate Closure`, `Current Measurement`,
+  `Explained Delta`, `Proposed Fixes`, `Residual Blockers`,
+  `Closure Forecast`, and `Required Planner Decisions`.
+- Updated `escalation-flavor-guide.md` and `mechanism-registry.md` with the new
+  gate-closure canary.
+
 ## [3.73.1] - 2026-04-27
 
 ### Changed — breakdown CI gate scope triage

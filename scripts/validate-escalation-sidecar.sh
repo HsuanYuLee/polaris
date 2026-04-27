@@ -12,6 +12,7 @@
 #
 # Schema source: skills/references/handoff-artifact.md (mirrored, with field
 #                reductions per DP-044 D7) + skills/references/escalation-flavor-guide.md
+#                gate-closure minimum.
 # Called by:     skills/engineering/SKILL.md § 開發中 Scope Escalation step,
 #                after Write of the sidecar.
 
@@ -185,6 +186,35 @@ validate_file() {
   if ! grep -qF "## Raw Evidence" "$FILE"; then
     errors+=("missing required section '## Raw Evidence'")
   fi
+  local required_sections=(
+    "## Gate Closure"
+    "## Current Measurement"
+    "## Explained Delta"
+    "## Proposed Fixes"
+    "## Residual Blockers"
+    "## Closure Forecast"
+    "## Required Planner Decisions"
+  )
+  local section section_body section_size
+  for section in "${required_sections[@]}"; do
+    if ! grep -qF "$section" "$FILE"; then
+      errors+=("missing required gate-closure section '$section'")
+    else
+      section_body=$(extract_section "$FILE" "$section")
+      section_size=$(printf '%s' "$section_body" | wc -c | tr -d ' ')
+      if [[ "$section_size" -eq 0 ]]; then
+        errors+=("required gate-closure section '$section' is empty")
+      fi
+    fi
+  done
+
+  # A sidecar that cannot answer whether the proposed fix closes the gate is
+  # exactly the DP-044 failure mode this validator is meant to prevent.
+  local closure_body
+  closure_body=$(extract_section "$FILE" "## Closure Forecast" || true)
+  if [[ -n "$closure_body" ]] && ! printf '%s\n' "$closure_body" | grep -qiE '\b(yes|no|pass|fail|sufficient|insufficient|會過|不會過|仍會失敗|足夠|不足)\b'; then
+    errors+=("'## Closure Forecast' must explicitly say whether the proposed planner decision is sufficient to pass the gate")
+  fi
 
   # ---- Size cap on body (frontmatter excluded) ----
   local body_size
@@ -270,9 +300,37 @@ scrubbed: true
 
 ## Summary
 
-CI gate `tsc:baseline` failed; failing files normalize to `apps/main/libs/KkStorage.ts`,
-which is outside this task's Allowed Files. Proposed flavor: env-drift (sibling task
-not yet merged).
+CI gate `tsc:baseline` failed: baseline 10, actual 12. Proposed storage fix is necessary
+but insufficient; residual baseline drift remains.
+
+## Gate Closure
+
+Gate: tsc baseline. Pass condition: actual type errors must be <= baseline.
+
+## Current Measurement
+
+Baseline: 10. Actual: 12. Exit code: 1.
+
+## Explained Delta
+
++1 storage helper typing; +1 residual baseline drift.
+
+## Proposed Fixes
+
+Add storage helper to Allowed Files and approve residual baseline handling.
+
+## Residual Blockers
+
+If only storage is approved, actual becomes 11 and still exceeds baseline 10.
+
+## Closure Forecast
+
+No — storage-only permission is insufficient; both planner decisions are required to pass.
+
+## Required Planner Decisions
+
+1. Approve storage helper typing fix.
+2. Decide residual baseline/env handling.
 
 ## Raw Evidence
 
@@ -329,6 +387,34 @@ scrubbed: true
 ## Summary
 
 Second escalation on the same lineage; planner re-classified flavor.
+
+## Gate Closure
+
+Gate: tsc baseline. Pass condition: actual <= baseline.
+
+## Current Measurement
+
+Baseline: 10. Actual: 11.
+
+## Explained Delta
+
+Residual baseline drift remains.
+
+## Proposed Fixes
+
+Route to refinement or approve env handling.
+
+## Residual Blockers
+
+No in-task source file remains that can close the gate.
+
+## Closure Forecast
+
+No — another task.md scope tweak is insufficient.
+
+## Required Planner Decisions
+
+Route to refinement or approve baseline/env handling.
 
 ## Raw Evidence
 

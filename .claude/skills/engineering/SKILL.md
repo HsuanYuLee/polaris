@@ -30,6 +30,7 @@ metadata:
 - **「技術上能修好」不等於「流程上可這樣做」**。engineering 的完成權限不在 LLM 自述，在 mechanical evidence + gates
 - **任何以「hook 之後會擋」「問題很聚焦」「改動很小」「這次只是 patch coverage」為理由的 shortcut，預設無效**
 - **Scope escalation 證據只能寫 sidecar，不能改 task.md**：當機械 gate 失敗且修法會踩到 planner-owned 欄位（Allowed Files / estimate / Test Command / Verify Command / Test Environment / depends_on），停止施工、寫 `specs/{EPIC}/escalations/T{n}-{count}.md` sidecar、交回 `breakdown`（DP-044）。engineering 內部**永遠不**對 task.md 動 Edit/Write
+- **Scope escalation 必須以 gate closure 為單位**：engineering 不只是找第一個 out-of-scope file，而是要診斷「要讓這個 mandatory gate 通過，需要哪些 planner decision」。若 proposed scope change 只是必要但不充分，sidecar 必須明寫 residual blockers 與 closure forecast，不得把半套權限請求交回 breakdown
 
 ## Pipeline 角色
 
@@ -184,32 +185,50 @@ bash "${POLARIS_ROOT}/scripts/check-delivery-completion.sh" \
 **步驟（依序）：**
 
 1. **立即停下所有 Edit/Write**。本節之後不允許再修 source code，直到 sidecar 落地、breakdown 接手。
-2. **計算 `escalation_count`**：
+2. **Gate Closure Diagnosis（LLM 必做，不可只列第一批檔案）**：
+   - Gate to close：哪個 mandatory gate 失敗（例：`ci-local` / `type baseline` / `verify command` / `coverage`）
+   - Pass condition：該 gate 的通過條件（例：`actual type_errors <= baseline type_errors`）
+   - Current measurement：baseline、actual、exit code、evidence file
+   - Explained delta：把可歸因的 delta 拆成因果群（例：`+2 storage typing`、`+12 residual baseline/env drift`）
+   - Candidate fixes：每個因果群的可能修法、是否在 Allowed Files、是否需要 planner-owned 欄位異動
+   - Closure forecast：若只批准某個候選修法，gate 是否會過；若答案是 No，必須明寫 residual blockers
+   - Required planner decisions：讓 gate 可能通過的最小完整決策集合，不是第一個越界檔案集合
+3. **計算 `escalation_count`**：
    ```bash
    ls "{company_base_dir}/specs/{EPIC}/escalations/T{n}-"*.md 2>/dev/null | wc -l
    ```
    既有檔案數 + 1 = 本次 `count`。
-3. **Lineage cap 檢查（DP-044 D5）**：若 `count` 將 > 2，**不要**寫 sidecar；改向使用者回報「lineage 已達 cap，請改跑 `refinement {EPIC}`（不是 `breakdown`）」並結束本 session。
-4. **First-pass flavor 分類**：依 `references/escalation-flavor-guide.md` 的決策樹挑選 `plan-defect | scope-drift | env-drift`。一張 sidecar 一個主 flavor；其他 flavor 的補述寫在 `## Summary` 段落。
-5. **Scrub 原始證據**：把要進 `## Raw Evidence` 的內容（gate 輸出、normalized 失敗檔案清單、相關 commit / baseline 比對）先存暫存檔，再透過 scrubber 過濾後再 Write 進 sidecar：
+4. **Lineage cap 檢查（DP-044 D5）**：若 `count` 將 > 2，**不要**寫 sidecar；改向使用者回報「lineage 已達 cap，請改跑 `refinement {EPIC}`（不是 `breakdown`）」並結束本 session。
+5. **First-pass flavor 分類**：依 `references/escalation-flavor-guide.md` 的 gate-closure 決策樹挑選 primary `flavor`。一張 sidecar 可以有多個 components；frontmatter `flavor` 放最能代表 gate closure 的 primary hint，細項放 `## Explained Delta` / `## Required Planner Decisions`。
+6. **Scrub 原始證據**：把要進 `## Raw Evidence` 的內容（gate 輸出、normalized 失敗檔案清單、相關 commit / baseline 比對）先存暫存檔，再透過 scrubber 過濾後再 Write 進 sidecar：
    ```bash
    python3 "${POLARIS_ROOT}/scripts/snapshot-scrub.py" --file "{tmp_path}"
    ```
-6. **產 sidecar**（D7 schema 對齊 `references/handoff-artifact.md`，刪 `scope` 欄、增 `flavor` + `escalation_count`）：
+7. **產 sidecar**（D7 schema 對齊 `references/handoff-artifact.md`，刪 `scope` 欄、增 `flavor` + `escalation_count`，並加 gate-closure 必填段落）：
    ```
    {company_base_dir}/specs/{EPIC}/escalations/T{n}-{count}.md
    ```
    Frontmatter required：`skill: engineering`、`ticket`、`epic`、`flavor` ∈ {plan-defect, scope-drift, env-drift}、`escalation_count` ∈ {1,2}、`timestamp`（ISO 8601 with `Z`）、`truncated`、`scrubbed`。
-   Body required：`## Summary`（≤ 500 chars，含 headline gate / out-of-scope 路徑 / proposed flavor + rationale）+ `## Raw Evidence`（command + exit code、baseline 參考、normalized 比對、Allowed Files snapshot）。
-7. **Validator gate（hard）**：
+   Body required：
+   - `## Summary`（≤ 500 chars；headline gate + closure forecast）
+   - `## Gate Closure`
+   - `## Current Measurement`
+   - `## Explained Delta`
+   - `## Proposed Fixes`
+   - `## Residual Blockers`
+   - `## Closure Forecast`
+   - `## Required Planner Decisions`
+   - `## Raw Evidence`
+8. **Validator gate（hard）**：
    ```bash
    bash "${POLARIS_ROOT}/scripts/validate-escalation-sidecar.sh" \
      "{company_base_dir}/specs/{EPIC}/escalations/T{n}-{count}.md"
    ```
    exit ≠ 0 → 修補 sidecar 直到 pass。**未過 validator 不得結束本 session**。
-8. **Halt + report**：在主對話回報使用者：
+9. **Halt + report**：在主對話回報使用者：
    - sidecar 絕對路徑
    - 提案 flavor
+   - closure forecast（特別是「若只批准部分修法，gate 是否仍會 fail」）
    - 建議下一步：`breakdown {EPIC}`（intake mode；breakdown 會自動掃 `escalations/`）
    不要繼續實作、不要 push、不要開 PR。
 

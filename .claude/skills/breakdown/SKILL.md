@@ -146,11 +146,22 @@ mcp__claude_ai_Atlassian__getJiraIssue
 ls -1 "{company_base_dir}/specs/{EPIC}/escalations/T{n}-"*.md 2>/dev/null | sort -V | tail -1
 ```
 
-讀 frontmatter（`flavor` / `escalation_count` / `ticket` / `epic`） + `## Summary` + `## Raw Evidence`。
+讀 frontmatter（`flavor` / `escalation_count` / `ticket` / `epic`） + `## Summary` + gate-closure sections：
+
+- `## Gate Closure`
+- `## Current Measurement`
+- `## Explained Delta`
+- `## Proposed Fixes`
+- `## Residual Blockers`
+- `## Closure Forecast`
+- `## Required Planner Decisions`
+- `## Raw Evidence`
+
+若 sidecar 缺 gate-closure sections，視為舊格式或不完整 evidence：要求 engineering 重建 sidecar，不要只根據第一批 out-of-scope files 做規劃。
 
 ### E2. Flavor decision
 
-把 engineering 提的 `flavor` 當 **hint，不是綁定**（DP-044 D4）。對照 `skills/references/escalation-flavor-guide.md` 的決策樹自行判斷實際 flavor，並依 flavor 決定分析深度：
+把 engineering 提的 `flavor` 當 **hint，不是綁定**（DP-044 D4）。對照 `skills/references/escalation-flavor-guide.md` 的 gate-closure 決策樹自行判斷實際 flavor，並依 flavor 決定分析深度：
 
 | 接受的 flavor | 分析深度 |
 |---------------|---------|
@@ -165,6 +176,8 @@ CI fail 是 blocker；breakdown 只決定修法歸屬，不可放行失敗 CI。
 - 小型、機械性 unblock（約 1-2 檔）、無獨立交付/驗收價值 → `plan-defect`，補原 task.md Allowed Files，不新開 task。
 - 需要新模組、新流程、跨頁面驗證，或可獨立 review/交付 → `scope-drift`，拆新 task。
 - 來自 base/sibling/external drift，原 task 無合理 in-scope 修法 → `env-drift`，記錄等待/approval；仍不可放行 CI。
+- 若 `## Closure Forecast` 顯示單一修法「必要但不充分」，breakdown 必須一次處理 `## Required Planner Decisions` 的完整集合；不可只補第一個 Allowed Files 後把注定仍失敗的 work order 丟回 engineering。
+- 若 residual blocker 需要 baseline approval / env decision，必須在同一次 intake preview 裡與 plan-defect/scope-drift 一起呈現。不能把 residual 當「下一輪再說」。
 
 **re-classification 必須明寫**：在主對話與最終 JIRA comment / task.md 改動說明中，標註其一：
 
@@ -176,6 +189,8 @@ CI fail 是 blocker；breakdown 只決定修法歸屬，不可放行失敗 CI。
 ### E3. 提案 scope 修正（user-confirmation gate reuse）
 
 把擬議的 task.md 異動 / 新 task 拆解 / baseline approval 整成 preview 給使用者，**沿用 Planning Path Step 8 / Step 11 的同一個 user-confirmation gate**——不額外發明新 gate。沒得到 explicit confirmation 之前不寫 JIRA、不改 task.md。
+
+Preview 必須包含 sidecar 的 `Closure Forecast` 摘要，並明確回答：「本次 proposal 是否足以讓 failed gate 具備 pass 條件？」若答案是 No，不能回 engineering；要補齊 planner decision 或改 route refinement。
 
 ### E4. 落地 + 標記 sidecar 為 processed
 
