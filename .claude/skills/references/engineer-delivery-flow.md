@@ -28,6 +28,7 @@
 - VR PASS（if triggered）— evidence: `/tmp/polaris-vr-{ticket}-{head_sha}.json`（Layer C，via `run-visual-snapshot.sh`）
 - **Layer A+B(+C) evidence AND gate**：所有必要 evidence 檔案存在且 `head_sha` 匹配當前 HEAD 才放行 PR
 - **Completion gate before user-facing done**：回報完成前必須再檢查一次 Layer A（and Developer Layer B）是否仍對應當前 HEAD，避免在 git 動作前先口頭結案
+- **Remote repo CI is non-blocking when still queued / pending / running**：本流程以本地 LLM + mechanism evidence 為 completion authority；不等待遠端 CI 排隊或長時間執行完畢
 - PR 建立在正確 base branch，body 依 repo template 填充
 - JIRA 狀態轉為 CODE REVIEW（Developer only，soft-fail）
 - task.md `deliverable.pr_url` + `head_sha` 寫回（Developer only）
@@ -222,6 +223,8 @@ Rebase 改變 HEAD → 舊 evidence 的 `head_sha` 自動失效 → 所有下游
 > - **Dimension B — Repo CI-Equivalent（repo 有 `ci-local.sh` 就跑、沒有就跳）**：`ci-local.sh` 模擬 repo CI 的 patch gate / lint / typecheck / 其他 workflow jobs。repo 有配就跑，沒配就不跑 — **patch coverage 歸 repo 責任，框架不主動追加**
 >
 > Commit / push / `gh pr create` 前必須確認 Dimension B 全綠。Dimension A 的 TDD discipline 由 `tdd-bypass-no-assertion-weakening` canary 把關（見 `mechanism-registry.md`）。
+>
+> **Remote CI wait policy**：`ci-local.sh` 是 repo CI-equivalent 的本地 authority。push / PR 後，GitHub / Woodpecker / GitLab 等遠端 CI 若仍是 queued / pending / running，不阻擋 Step 8.5 或 user-facing complete。遠端 check 若已完成且明確 FAIL，才進 revision mode 作為 CI failure signal；不因等待遠端 CI 太久而延後 complete。
 
 **執行**：
 
@@ -594,6 +597,8 @@ bash "${POLARIS_ROOT}/scripts/check-delivery-completion.sh" --repo "$(git rev-pa
   - missing / malformed / stale verify evidence → block
 - exit 0 = 可以回報完成
 - exit 2 = **HALT**，不得回報「完成 / 可交付 / 已驗完」
+
+Completion gate 不查詢或等待遠端 repo CI。只要本地 LLM gates 與 mechanical evidence gates 已通過，queued / pending / running 的遠端 CI 不阻擋完成回報。
 
 ### Why this exists
 

@@ -4,6 +4,20 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.7] - 2026-04-27
+
+### Fixed — `resolve-task-base.sh` complete/ fallback
+
+- `find_task_md_by_jira` now searches `tasks/T*.md` first then
+  `tasks/complete/T*.md`, completing the DP-033 D8 fallback so revision-rebase
+  works after `mark-spec-implemented.sh` move-first archives an upstream task.
+- Without this, any downstream task whose `depends_on` points to a completed
+  upstream errored out with `cannot find upstream task.md for JIRA key …`,
+  blocking `revision-rebase.sh` and `engineering` revision mode for stacked
+  Epics (e.g. GT-478 T3b/T3c/T3d once T3a was archived).
+- Added selftest case 9 covering the upstream-in-complete/ path; full suite
+  now 9/9 green.
+
 ## [3.73.6] - 2026-04-27
 
 ### Added — framework release skill

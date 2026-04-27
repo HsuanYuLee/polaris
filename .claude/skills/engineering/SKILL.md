@@ -17,7 +17,7 @@ metadata:
 
 # Engineering — 工程師施工
 
-使用者說「做 PROJ-448」或「做 PROJ-100 PROJ-101 PROJ-102」，engineering skill 以工程師標準執行：品質檢查是確定性 gate（不是可跳過的步驟）、scope 變更需要理由、CI 全綠才能開 PR。規劃（根因分析、拆單、估點、測試計畫）由 `bug-triage` 或 `breakdown` 負責，本 skill 不做規劃。
+使用者說「做 PROJ-448」或「做 PROJ-100 PROJ-101 PROJ-102」，engineering skill 以工程師標準執行：品質檢查是確定性 gate（不是可跳過的步驟）、scope 變更需要理由、本地 LLM + mechanism gates 全綠才能開 PR。規劃（根因分析、拆單、估點、測試計畫）由 `bug-triage` 或 `breakdown` 負責，本 skill 不做規劃。
 
 ## Authority Boundary（DP-032 意圖補全）
 
@@ -28,6 +28,7 @@ metadata:
 - **更短路徑只能發生在 skill 明文允許的分流內**；若 skill 沒寫可裁剪，LLM 無權自行裁剪
 - **若想偏離 skill**（例：跳過 `ci-local.sh`、不進 revision mode、先修 blocker 再補 gate），必須先停下來取得使用者明確同意；未同意前一律視為違規
 - **「技術上能修好」不等於「流程上可這樣做」**。engineering 的完成權限不在 LLM 自述，在 mechanical evidence + gates
+- **本地完成權限**：當 Phase 3 LLM gates + Phase 4 mechanical gates（`ci-local.sh` / `run-verify-command.sh` / VR if triggered / evidence AND gate / completion gate）全通過，engineering 可回報 complete。遠端 repo CI 的 queued / pending / running 狀態不阻擋 complete，也不要求等待；已完成且明確 fail 的遠端 check 才作為 revision signal 處理。
 - **任何以「hook 之後會擋」「問題很聚焦」「改動很小」「這次只是 patch coverage」為理由的 shortcut，預設無效**
 - **Scope escalation 證據只能寫 sidecar，不能改 planner-owned 欄位**：當機械 gate 失敗且修法會踩到 planner-owned 欄位（Allowed Files / estimate / Test Command / Verify Command / Test Environment / depends_on），停止施工、寫 `specs/{EPIC}/escalations/T{n}-{count}.md` sidecar、交回 `breakdown`（DP-044）。engineering **不得直接 Edit/Write task.md**；唯一例外是透過 approved lifecycle writer scripts 寫回 execution-owned metadata（例如 `write-deliverable.sh` 寫 `deliverable.*`、`mark-spec-implemented.sh` 寫 `status: IMPLEMENTED` + move-first）
 - **task.md 欄位權限分層**：planner-owned 欄位一律由 `breakdown` / `bug-triage` 維護；engineering 只能透過 helper-only contract 寫 execution-owned lifecycle metadata（`deliverable.pr_url` / `deliverable.pr_state` / `deliverable.head_sha` / `status: IMPLEMENTED` / `jira_transition_log[]`）。不得手動編輯 lifecycle 欄位，也不得新增 helper 以外的 task.md write-back path
@@ -315,7 +316,7 @@ gh pr checks {pr_number} --repo {org}/{repo}
 
 **2d. Empty-Signal 路由（Rebase-Only Path）**：
 
-若 R2 收集結果為空（所有 review comments 已回覆、CI 全綠、無新 signal），代表這是一次 **rebase-only revision**（常見觸發：QA 回報問題、rebase 後重測、使用者主動要求）。
+若 R2 收集結果為空（所有 review comments 已回覆、沒有已完成且明確 FAIL 的 remote check、無新 signal；queued / pending / running 不算 signal），代表這是一次 **rebase-only revision**（常見觸發：QA 回報問題、rebase 後重測、使用者主動要求）。
 
 此時跳過 R3-R4（無 signal 需分類/修正），**直接進入 R5**（重跑完整驗收）。
 
