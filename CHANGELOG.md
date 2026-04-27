@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.3] - 2026-04-27
+
+### Fixed — breakdown escalation intake closure gate
+
+- Added `scripts/validate-breakdown-escalation-intake.sh`, a breakdown-side hard
+  gate that validates planner decisions before task.md edits, JIRA writes, or
+  `processed: true` sidecar marking.
+- Blocks routing a scope-escalation sidecar back to engineering when the
+  sidecar's `Closure Forecast` says the proposed fix is insufficient and the
+  breakdown decision does not explicitly handle residual baseline/env decisions.
+- Updated `breakdown` E4 so scope-escalation intake must pass the new gate
+  before landing any planner-owned changes.
+
 ## [3.73.2] - 2026-04-27
 
 ### Fixed — DP-044 gate-closure escalation
