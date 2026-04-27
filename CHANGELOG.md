@@ -4,6 +4,35 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.72.2] - 2026-04-27
+
+### Changed — mechanism-registry.md slimmed (~−18% bytes)
+
+`rules/mechanism-registry.md` is loaded into every conversation via the auto rule
+loader, so its size translates directly into token cost on every turn. This pass
+removes redirect cruft and compresses the longest Rule cells without dropping
+any canary signals.
+
+- **Removed** 6 "Common Rationalizations" stub sections (each was 3 lines that
+  only said "See `mechanism-rationalizations.md` § X"). Replaced with a single
+  top-of-file pointer in § How to Use.
+- **Removed** 4 "已畢業至 deterministic" callout blockquotes — the graduated
+  mechanisms are documented in `deterministic-hooks-registry.md`; the inline
+  callouts were duplicate notes.
+- **Compressed** the Deterministic Quality Hooks section header (7 lines → 3),
+  Pipeline Artifact Schema intro (lines 88/98–100 boilerplate consolidated),
+  and Priority Audit Order tail (#9–12 collapsed to one line).
+- **Compressed** ~14 verbose Rule cells (200–700 chars each) down to their
+  essence. Largest reductions: `engineering-consume-depends-on` (~700 → ~250),
+  `spec-status-mark-on-done` (~450 → ~200), `tdd-bypass-no-assertion-weakening`
+  (~400 → ~200), `breakdown-step14-no-checkout`, `revision-r5-mandatory`,
+  `cross-session-warm-folder-scan`. Implementation details (writer assignments,
+  helper script paths, DP source pointers) moved to `(source: ...)` headers or
+  the corresponding source files. Canary Signal column untouched — post-task
+  audit observability is unchanged.
+
+Net: 294 → 249 lines (−15%), 42754 → 35208 bytes (−18%).
+
 ## [3.72.1] - 2026-04-27
 
 ### Fixed — ci-local.sh now cross-worktree (DP-043 follow-up)
