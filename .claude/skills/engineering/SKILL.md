@@ -29,7 +29,8 @@ metadata:
 - **若想偏離 skill**（例：跳過 `ci-local.sh`、不進 revision mode、先修 blocker 再補 gate），必須先停下來取得使用者明確同意；未同意前一律視為違規
 - **「技術上能修好」不等於「流程上可這樣做」**。engineering 的完成權限不在 LLM 自述，在 mechanical evidence + gates
 - **任何以「hook 之後會擋」「問題很聚焦」「改動很小」「這次只是 patch coverage」為理由的 shortcut，預設無效**
-- **Scope escalation 證據只能寫 sidecar，不能改 task.md**：當機械 gate 失敗且修法會踩到 planner-owned 欄位（Allowed Files / estimate / Test Command / Verify Command / Test Environment / depends_on），停止施工、寫 `specs/{EPIC}/escalations/T{n}-{count}.md` sidecar、交回 `breakdown`（DP-044）。engineering 內部**永遠不**對 task.md 動 Edit/Write
+- **Scope escalation 證據只能寫 sidecar，不能改 planner-owned 欄位**：當機械 gate 失敗且修法會踩到 planner-owned 欄位（Allowed Files / estimate / Test Command / Verify Command / Test Environment / depends_on），停止施工、寫 `specs/{EPIC}/escalations/T{n}-{count}.md` sidecar、交回 `breakdown`（DP-044）。engineering **不得直接 Edit/Write task.md**；唯一例外是透過 approved lifecycle writer scripts 寫回 execution-owned metadata（例如 `write-deliverable.sh` 寫 `deliverable.*`、`mark-spec-implemented.sh` 寫 `status: IMPLEMENTED` + move-first）
+- **task.md 欄位權限分層**：planner-owned 欄位一律由 `breakdown` / `bug-triage` 維護；engineering 只能透過 helper-only contract 寫 execution-owned lifecycle metadata（`deliverable.pr_url` / `deliverable.pr_state` / `deliverable.head_sha` / `status: IMPLEMENTED` / `jira_transition_log[]`）。不得手動編輯 lifecycle 欄位，也不得新增 helper 以外的 task.md write-back path
 - **Scope escalation 必須以 gate closure 為單位**：engineering 不只是找第一個 out-of-scope file，而是要診斷「要讓這個 mandatory gate 通過，需要哪些 planner decision」。若 proposed scope change 只是必要但不充分，sidecar 必須明寫 residual blockers 與 closure forecast，不得把半套權限請求交回 breakdown
 
 ## Pipeline 角色
@@ -232,7 +233,7 @@ bash "${POLARIS_ROOT}/scripts/check-delivery-completion.sh" \
    - 建議下一步：`breakdown {EPIC}`（intake mode；breakdown 會自動掃 `escalations/`）
    不要繼續實作、不要 push、不要開 PR。
 
-**硬性紅線（DP-044 D2）**：自進入本流程後，engineering session 對 `task.md` 一律 read-only。所有 task.md 異動必須由 `breakdown` 在 intake path 執行。違反 = critical drift（見 `mechanism-registry.md` § Scope Escalation）。
+**硬性紅線（DP-044 D2）**：自進入本流程後，engineering session 對 `task.md` 的 planner-owned 欄位一律 read-only。所有 planner-owned 欄位異動必須由 `breakdown` 在 intake path 執行。進入本流程後不得再進行 delivery lifecycle write-back（不 push、不開 PR、不跑 `write-deliverable.sh` / `mark-spec-implemented.sh`）；違反 = critical drift（見 `mechanism-registry.md` § Scope Escalation）。
 
 ---
 

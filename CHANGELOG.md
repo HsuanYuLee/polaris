@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.5] - 2026-04-27
+
+### Fixed — engineering lifecycle write-back boundary
+
+- Clarified that `engineering` may not directly edit `task.md`, and may never
+  alter planner-owned fields such as `Allowed Files`, estimates, test commands,
+  verify commands, test environment, or `depends_on`.
+- Preserved required delivery lifecycle write-back by allowing only approved
+  helper scripts to update execution-owned metadata: `write-deliverable.sh` for
+  `deliverable.*`, `mark-spec-implemented.sh` for `status: IMPLEMENTED`, and
+  transition helpers for `jira_transition_log[]`.
+- Tightened the DP-044 escalation halt rule so once engineering enters the
+  sidecar handoff path, it performs no delivery lifecycle write-back, push, or
+  PR creation.
+
 ## [3.73.4] - 2026-04-27
 
 ### Fixed — worktree gitignored framework artifact resolution
