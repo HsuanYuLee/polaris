@@ -158,6 +158,14 @@ ls -1 "{company_base_dir}/specs/{EPIC}/escalations/T{n}-"*.md 2>/dev/null | sort
 | `scope-drift` | 拆新 task；新 task `depends_on: [<原 task>]`；原 task 等新 task 落地後 rebase |
 | `env-drift` | 多半只需 baseline bump approval / 等 sibling 就緒；可能完全不動 task.md |
 
+**CI gate scope triage（breakdown-only）**：
+
+CI fail 是 blocker；breakdown 只決定修法歸屬，不可放行失敗 CI。
+
+- 小型、機械性 unblock（約 1-2 檔）、無獨立交付/驗收價值 → `plan-defect`，補原 task.md Allowed Files，不新開 task。
+- 需要新模組、新流程、跨頁面驗證，或可獨立 review/交付 → `scope-drift`，拆新 task。
+- 來自 base/sibling/external drift，原 task 無合理 in-scope 修法 → `env-drift`，記錄等待/approval；仍不可放行 CI。
+
 **re-classification 必須明寫**：在主對話與最終 JIRA comment / task.md 改動說明中，標註其一：
 
 - `accepted flavor: <X>`（與 engineering 提案相同），或

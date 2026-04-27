@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.1] - 2026-04-27
+
+### Changed — breakdown CI gate scope triage
+
+- Added a breakdown-only CI gate scope triage note to the scope-escalation
+  intake path: CI failures are blockers; breakdown decides ownership of the
+  fix, not whether CI can be ignored.
+- Clarified that small mechanical gate unblocks with no independent delivery or
+  acceptance value should be re-classified as `plan-defect` and folded into the
+  original task.md Allowed Files instead of creating a new task.
+
 ## [3.73.0] - 2026-04-27
 
 ### Added — Engineering scope-escalation handoff (DP-044)
