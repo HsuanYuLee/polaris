@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# ci-local-gate.sh — PreToolUse hook (DP-032 D12-c)
-# Enforces repo CI mirror (scripts/ci-local.sh) for git commit / gh pr create / git push.
+# ci-local-gate.sh — PreToolUse hook (DP-032 D12-c + DP-043).
+# Enforces repo CI mirror (.claude/scripts/ci-local.sh) for git commit / gh pr create / git push.
 #
 # Behavior (per D12 Decision 4 — "skill main / hook fallback"):
-#   1. Repo without scripts/ci-local.sh → allow (engineering/git-pr-workflow handles
-#      first-run gate at skill layer; hook stays defensive on cross-LLM portability)
+#   1. Repo without .claude/scripts/ci-local.sh → allow (engineering/git-pr-workflow
+#      handles first-run gate at skill layer; hook stays defensive on cross-LLM
+#      portability)
 #   2. evidence /tmp/polaris-ci-local-{branch_slug}-{head_sha}.json exists,
 #      branch + head_sha match HEAD, status==PASS → allow (cache hit, zero cost)
-#   3. cache miss / FAIL → run `bash {repo}/scripts/ci-local.sh` synchronously
+#   3. cache miss / FAIL → run `bash {repo}/.claude/scripts/ci-local.sh` synchronously
 #      - exit 0 → allow (ci-local.sh wrote fresh evidence)
 #      - exit ≠0 → block + tail of ci-local.sh log
 #
@@ -25,6 +26,12 @@
 # Exit 0 = allow, Exit 2 = block
 
 set -uo pipefail
+
+# Resolve the framework workspace root from this hook's location so we can
+# source the path constant. Hook lives in <workspace>/.claude/hooks/.
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../scripts/lib/ci-local-path.sh
+. "$HOOK_DIR/../../scripts/lib/ci-local-path.sh"
 
 input=$(cat)
 tool_name=$(printf '%s' "$input" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null || true)
@@ -53,7 +60,8 @@ extracted=$(printf '%s' "$command" | grep -oE 'git -C [^ ]+' | head -1 | sed 's/
 repo_root="${extracted:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
 
 [[ -n "$repo_root" ]] || exit 0
-[[ -f "$repo_root/scripts/ci-local.sh" ]] || exit 0
+ci_local_abs="$(ci_local_path_for_repo "$repo_root")"
+[[ -f "$ci_local_abs" ]] || exit 0
 
 # Push mode: skip non-delivery branches and destructive pushes
 if [[ "$MODE" == "push" ]]; then
@@ -91,10 +99,10 @@ except Exception:
 fi
 
 # Cache miss / FAIL → run ci-local.sh synchronously
-echo "[ci-local-gate] $MODE intercepted on ${branch} — running ${repo_root}/scripts/ci-local.sh ..." >&2
+echo "[ci-local-gate] $MODE intercepted on ${branch} — running ${ci_local_abs} ..." >&2
 ci_log=$(mktemp -t ci-local-gate.XXXXXX)
 
-bash "$repo_root/scripts/ci-local.sh" >"$ci_log" 2>&1
+bash "$ci_local_abs" >"$ci_log" 2>&1
 rc=$?
 
 if [[ $rc -eq 0 ]]; then
@@ -108,5 +116,5 @@ echo "" >&2
 tail -60 "$ci_log" >&2
 echo "" >&2
 echo "  Full log: ${ci_log}" >&2
-echo "  Re-run:   bash ${repo_root}/scripts/ci-local.sh" >&2
+echo "  Re-run:   bash ${ci_local_abs}" >&2
 exit 2

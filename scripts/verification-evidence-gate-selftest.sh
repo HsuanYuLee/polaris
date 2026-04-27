@@ -54,10 +54,10 @@ make_fake_repo() {
   git -C "$repo_dir" -c user.email=t@t.t -c user.name=t commit --allow-empty -q -m init
   # Create a task branch so the push filter exercises
   git -C "$repo_dir" checkout -q -b "task/VEG-1-selftest"
-  # Create scripts/ci-local.sh sentinel for push mode
-  mkdir -p "$repo_dir/scripts"
-  echo '#!/bin/sh' > "$repo_dir/scripts/ci-local.sh"
-  chmod +x "$repo_dir/scripts/ci-local.sh"
+  # Create .claude/scripts/ci-local.sh sentinel for push mode (DP-043 path)
+  mkdir -p "$repo_dir/.claude/scripts"
+  echo '#!/bin/sh' > "$repo_dir/.claude/scripts/ci-local.sh"
+  chmod +x "$repo_dir/.claude/scripts/ci-local.sh"
 }
 
 # Build PreToolUse JSON input for `gh pr create`

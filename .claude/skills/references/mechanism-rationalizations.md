@@ -117,7 +117,7 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 | Hook ID | Script | Bypass |
 |---------|--------|--------|
 | `verification-evidence-required` | `scripts/verification-evidence-gate.sh` (Dimension A only post-D12-c) | `POLARIS_SKIP_EVIDENCE=1` |
-| `ci-local-required` | `.claude/hooks/ci-local-gate.sh` + `{repo}/scripts/ci-local.sh` | `POLARIS_SKIP_CI_LOCAL=1` (emergency only) |
+| `ci-local-required` | `.claude/hooks/ci-local-gate.sh` + `{repo}/.claude/scripts/ci-local.sh` | `POLARIS_SKIP_CI_LOCAL=1` (emergency only) |
 | `test-sequence-warning` | `scripts/test-sequence-tracker.sh` | — (advisory only) |
 | `context-pressure-monitor` | `scripts/context-pressure-monitor.sh` | — (advisory only) |
 | `version-docs-lint-gate` | `.claude/hooks/version-docs-lint-gate.sh` | `POLARIS_SKIP_DOCS_LINT=1` |

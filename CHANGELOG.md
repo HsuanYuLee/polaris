@@ -4,6 +4,152 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.72.0] - 2026-04-27
+
+### Breaking — ci-local.sh relocated to `.claude/scripts/`
+
+`ci-local.sh` (the framework-generated Local CI Mirror) now lives at
+`<repo>/.claude/scripts/ci-local.sh` instead of `<repo>/scripts/ci-local.sh`.
+The old path is no longer read or written by any framework script. Existing
+files at the old path are inert orphans — `rm` them by hand. Nobody was
+consuming the old mechanism in production yet, so this is a clean cut without
+a migration window.
+
+- **`<repo>/scripts/` was a repo source tree path** that risked accidental
+  commits — the file was untracked but never declared in `.gitignore`. The new
+  `<repo>/.claude/scripts/` location follows the same "framework auxiliary
+  artifact under `.claude/`" convention as the auto-generated handbook
+  (`.claude/rules/handbook/`).
+- **No `.gitignore` changes** in any product repo. `ci-local-generate.sh` now
+  writes a per-clone `.git/info/exclude` entry when generating the file
+  (same mechanism as `ai_files_mode: "local"`). Top principle: don't affect the
+  product repo's tracked state.
+- **New file — `scripts/lib/ci-local-path.sh`**: single source of truth for
+  the path. Exposes `CI_LOCAL_RELATIVE_PATH` constant and
+  `ci_local_path_for_repo <repo_root>` helper. Generator, gate
+  (`scripts/gates/gate-ci-local.sh`), hook (`.claude/hooks/ci-local-gate.sh`),
+  and `verification-evidence-gate.sh` all source this — no other place
+  hardcodes the path.
+- **Generator updates**: default `--out` resolves through the helper; the
+  generated `ci-local.sh`'s `REPO_ROOT` detection now uses
+  `git rev-parse --show-toplevel` (with a `../..` fallback) instead of the
+  position-bound `cd .. && pwd`. The generated script no longer breaks if
+  relocated again.
+- **References updated**: `engineer-delivery-flow.md`, `tdd-loop.md`,
+  `mechanism-rationalizations.md`, `deterministic-hooks-registry.md`,
+  `engineering/SKILL.md`, `transpile-to-copilot.sh`, and the regenerated
+  `.github/copilot-instructions.md`. `grep -rn "scripts/ci-local\.sh"` no
+  longer matches the old path in tracked source.
+- **Selftests**: `ci-local-generate-selftest.sh` 54/54 PASS,
+  `verification-evidence-gate-selftest.sh` 21/21 PASS. Dogfood against
+  `kkday-b2c-web` confirmed: new file landed under `.claude/scripts/`,
+  `.git/info/exclude` entry written, `git status` clean, old file removed.
+
+Canonical record: `specs/design-plans/DP-043-ci-local-relocation/plan.md`.
+
+## [3.71.2] - 2026-04-27
+
+### Change — entry resolution made harder to bypass in engineering
+
+This patch closes the failure mode where an agent successfully resolved the
+authoritative work order, then overrode it with an ad-hoc manual search over
+`specs/**/tasks`, producing a false "work order not found" conclusion.
+
+- **`scripts/resolve-task-md.sh` now supports authoritative session locks**:
+  `--write-lock` records the resolved work order in `/tmp/polaris-work-order-lock-*.json`,
+  and `--clear-lock` explicitly discards that authority when needed.
+- **New Claude Code Bash guard — `.claude/hooks/no-manual-work-order-search.sh`**:
+  once a fresh resolver lock exists, ad-hoc `find` / `rg` / `grep` / `fd`
+  searches over `specs/**/tasks` / `plan.md` are blocked so a human-crafted
+  fallback cannot silently override the resolver result.
+- **Engineering skill wiring**: `.claude/skills/engineering/SKILL.md` now
+  requires `resolve-task-md.sh --write-lock ...` for Entry Resolution and states
+  that resolver success is authoritative until the lock is explicitly cleared.
+
+## [3.71.1] - 2026-04-27
+
+### Change — engineering D1/D7/D16 follow-up hardening
+
+This patch does not close DP-032, but it makes `engineering` materially more
+usable than the prior revision by landing the missing consumer-side primitives
+that the rewritten skill now depends on.
+
+- **New script — `scripts/resolve-task-md.sh`**: implements DP-032 D1 entry
+  resolution as a real resolver instead of prose. Supports direct work-order
+  path, JIRA key, PR URL / number, `--current`, and `--from-input`, with
+  workspace-aware lookup across nested `*/specs/*/tasks/*.md`,
+  `tasks/complete/`, and legacy `specs/{TICKET}/plan.md`.
+- **Engineering skill wiring**: `.claude/skills/engineering/SKILL.md` now
+  points its entry-resolution contract at `resolve-task-md.sh`, adds an
+  explicit `Authority Boundary` section, and rewires first-cut resolution to a
+  script-first flow instead of hand-rolled grep / gh lookup logic.
+- **New reference — `.claude/skills/references/tdd-loop.md`**: lands the D7
+  consumer-side TDD reference so engineering no longer depends on `unit-test`
+  skill frontmatter for its default red-green-refactor loop. The `unit-test`
+  skill itself is not sunset yet; this is partial D7 progress, not full close.
+- **New hook — `.claude/hooks/no-direct-evidence-write.sh`**: lands the D16
+  direct-write block for evidence JSON files and registers it in
+  `.claude/settings.json` `PreToolUse` for `Write` / `Edit`. The pattern set
+  covers verify, ci-local, and VR evidence paths.
+- **Branch reverse-lookup fix**: `scripts/resolve-task-md-by-branch.sh` was
+  fixed so the new resolver's branch-based paths no longer fail on valid task
+  branches.
+
+## [3.71.0] - 2026-04-27
+
+### Add — completion gate + deterministic dependency hydration for engineering delivery
+
+Engineering already hard-gated commit / push / PR via portable scripts, but an
+agent could still claim "done" before touching those exits. This release adds a
+completion-time hard gate so user-facing completion reports now reuse the same
+delivery evidence invariants as git/PR actions.
+
+- **New script — `scripts/check-delivery-completion.sh`**: a completion-time
+  gate that reuses portable delivery checks before any "done / deliverable /
+  complete" report. It always runs Layer A via `scripts/gates/gate-ci-local.sh`
+  when repo root contains `scripts/ci-local.sh`, and for Developer flows also
+  runs Layer B via `scripts/gates/gate-evidence.sh`. No new bypass env var was
+  introduced.
+- **Existence invariant promoted to explicit rule**: `.claude/skills/engineering/SKILL.md`
+  and `.claude/skills/references/engineer-delivery-flow.md` now state that repo
+  root `scripts/ci-local.sh` means "required" regardless of git tracking state
+  (`tracked` / `untracked` / generated all count). The decision is file-existence
+  based, not git-status based.
+- **New delivery-flow step — Step 8.5 Completion Gate**: the shared
+  `engineer-delivery-flow.md` backbone now inserts a pre-report hard gate after
+  JIRA/IMPLEMENTED bookkeeping and before any user-facing completion report.
+  This complements Step 7a Evidence AND Gate: Step 7a means "cannot open PR";
+  Step 8.5 means "cannot mouth-complete".
+- **Engineering skill wiring**: `engineering/SKILL.md` now requires
+  `check-delivery-completion.sh` before writing completion output, both in
+  first-cut and revision-mode descriptions.
+- **New script — `scripts/env/install-project-deps.sh`**: resolves the project
+  from `--task-md` / `--project`, prefers
+  `workspace-config.yaml -> projects[].dev_environment.install_command`, and
+  falls back to lockfile / manifest detection (`pnpm-lock.yaml` → `pnpm install
+  --frozen-lockfile`, `package-lock.json` → `npm ci`, `requirements.txt` →
+  `python3 -m pip install -r ...`, etc.). It emits JSON evidence and fails
+  loudly on real install failures.
+- **Runtime orchestrator wiring**: `scripts/start-test-env.sh` now chains
+  `ensure-dependencies → install-project-deps → start-command → health-check →
+  [fixtures-start]`, so runtime verification in a fresh worktree hydrates the
+  project before boot.
+- **Engineering contract update**: `engineering/SKILL.md` now requires
+  `install-project-deps.sh` before any test / build / dev-server command in a
+  worktree or fresh checkout. "Install deps first" is no longer an LLM memory
+  heuristic.
+- **Workspace config schema**: `projects[].dev_environment.install_command` is
+  now documented in the config reader and seeded in KKday workspace examples for
+  pnpm repos.
+
+## [3.70.1] - 2026-04-27
+
+### Change — framework handbook moved under rules/
+
+- Relocated the framework handbook into `.claude/rules/` so shared framework
+  guidance follows the same source-of-truth layout as the rest of the rule
+  stack.
+
 ## [3.70.0] - 2026-04-27
 
 ### Add — Codex skill source-of-truth hardening

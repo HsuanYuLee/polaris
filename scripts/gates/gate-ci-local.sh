@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# gate-ci-local.sh — Portable git-hook gate (DP-032 Wave δ)
+# gate-ci-local.sh — Portable git-hook gate (DP-032 Wave δ + DP-043).
 # Extracted from .claude/hooks/ci-local-gate.sh for cross-LLM portability.
 # Can be called from: git pre-commit/pre-push hooks, polaris-pr-create.sh, or directly.
 #
@@ -13,6 +13,9 @@ set -euo pipefail
 
 PREFIX="[polaris gate-ci-local]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=../lib/ci-local-path.sh
+. "$SCRIPT_DIR/../lib/ci-local-path.sh"
+
 REPO_ROOT=""
 PUSH_MODE=0
 
@@ -43,8 +46,9 @@ if [[ "${POLARIS_SKIP_CI_LOCAL:-}" == "1" ]]; then
   exit 0
 fi
 
-# Repo must have scripts/ci-local.sh to be onboarded
-[[ -f "$REPO_ROOT/scripts/ci-local.sh" ]] || exit 0
+# Repo must have ci-local.sh to be onboarded (DP-043: located in .claude/scripts/)
+CI_LOCAL_ABS="$(ci_local_path_for_repo "$REPO_ROOT")"
+[[ -f "$CI_LOCAL_ABS" ]] || exit 0
 
 # Branch detection
 branch=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
@@ -83,10 +87,10 @@ except Exception:
 fi
 
 # Cache miss / FAIL → run ci-local.sh synchronously
-echo "$PREFIX Running ${REPO_ROOT}/scripts/ci-local.sh on ${branch} ..." >&2
+echo "$PREFIX Running ${CI_LOCAL_ABS} on ${branch} ..." >&2
 ci_log="${REPO_ROOT}/.polaris-ci-local-gate.log"
 
-if bash "$REPO_ROOT/scripts/ci-local.sh" >"$ci_log" 2>&1; then
+if bash "$CI_LOCAL_ABS" >"$ci_log" 2>&1; then
   rm -f "$ci_log"
   echo "$PREFIX ✅ ci-local.sh passed." >&2
   exit 0
@@ -99,5 +103,5 @@ echo "" >&2
 tail -60 "$ci_log" >&2
 echo "" >&2
 echo "  Full log: ${ci_log}" >&2
-echo "  Re-run:   bash ${REPO_ROOT}/scripts/ci-local.sh" >&2
+echo "  Re-run:   bash ${CI_LOCAL_ABS}" >&2
 exit 2

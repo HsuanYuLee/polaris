@@ -130,7 +130,7 @@ Before running `git push`, execute these checks:
 
 | Gate | Script | What it validates |
 |------|--------|-------------------|
-| CI local | `scripts/ci-local.sh` (repo-specific) | Local CI mirror passes |
+| CI local | `.claude/scripts/ci-local.sh` (repo-specific, gitignored) | Local CI mirror passes |
 | Quality gate | Check `/tmp/.quality-gate-passed-{branch}` | Quality check flow completed |
 | Base freshness | `scripts/check-base-fresh.sh --task-md {path}` | Target base branch is recent |
 

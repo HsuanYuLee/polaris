@@ -86,14 +86,10 @@ resolve_task_md_scan() {
     if [[ -n "$val" && "$val" == "$branch" ]]; then
       matches+=("$f")
     fi
-  done < <(
-    # DP-033 D8: also search tasks/complete/ so completed tasks remain
-    # locatable by branch (e.g., revision mode on a completed task's PR).
-    find "$root" \
-      \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
-      -o \
-      \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/complete/*.md' \) -print0 \)
-  )
+  done < <(find "$root" \
+    \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
+    -o \
+    \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/complete/*.md' \) -print0 \))
 
   if [[ ${#matches[@]} -eq 0 ]]; then
     echo "no task.md matched 'Task branch = $branch' (scanned $scanned file(s) under $root)" >&2

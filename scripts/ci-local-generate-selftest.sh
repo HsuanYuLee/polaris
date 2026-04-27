@@ -116,7 +116,7 @@ SHELL
 chmod +x "$T1/.husky/pre-commit"
 init_git_repo "$T1"
 
-OUT1="$T1/scripts/ci-local.sh"
+OUT1="$T1/.claude/scripts/ci-local.sh"
 "$GEN" --repo "$T1" --out "$OUT1" --force >/dev/null 2>&1
 T1_RC=$?
 assert "Test 1: generator exit 0" "$([ $T1_RC -eq 0 ] && echo 1 || echo 0)"
@@ -178,7 +178,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 YAML
 init_git_repo "$T2"
-OUT2="$T2/scripts/ci-local.sh"
+OUT2="$T2/.claude/scripts/ci-local.sh"
 "$GEN" --repo "$T2" --out "$OUT2" --force >/dev/null 2>&1
 assert "Test 2: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT2" 2>/dev/null
@@ -216,7 +216,7 @@ deploy:
     - curl -X POST $DEPLOY_URL
 YAML
 init_git_repo "$T3"
-OUT3="$T3/scripts/ci-local.sh"
+OUT3="$T3/.claude/scripts/ci-local.sh"
 "$GEN" --repo "$T3" --out "$OUT3" --force >/dev/null 2>&1
 assert "Test 3: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT3" 2>/dev/null
@@ -257,7 +257,7 @@ repos:
         stages: [pre-commit]
 YAML
 init_git_repo "$T4"
-OUT4="$T4/scripts/ci-local.sh"
+OUT4="$T4/.claude/scripts/ci-local.sh"
 "$GEN" --repo "$T4" --out "$OUT4" --force >/dev/null 2>&1
 assert "Test 4: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT4" 2>/dev/null
@@ -280,7 +280,7 @@ echo "== Test 5: NO_CHECKS_CONFIGURED (empty repo) =="
 T5="$TMPROOT/empty-repo"
 mkdir -p "$T5"
 init_git_repo "$T5"
-OUT5="$T5/scripts/ci-local.sh"
+OUT5="$T5/.claude/scripts/ci-local.sh"
 "$GEN" --repo "$T5" --out "$OUT5" --force >/dev/null 2>&1
 assert "Test 5: generator exit 0 even on empty repo" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT5" 2>/dev/null
@@ -320,7 +320,7 @@ echo "== Test 6: --force / no-force / --dry-run flags =="
 T6="$TMPROOT/flags-repo"
 mkdir -p "$T6"
 init_git_repo "$T6"
-OUT6="$T6/scripts/ci-local.sh"
+OUT6="$T6/.claude/scripts/ci-local.sh"
 "$GEN" --repo "$T6" --out "$OUT6" >/dev/null 2>&1
 assert "Test 6: first run (no flag) creates file" "$([ -f "$OUT6" ] && echo 1 || echo 0)"
 "$GEN" --repo "$T6" --out "$OUT6" >/dev/null 2>&1

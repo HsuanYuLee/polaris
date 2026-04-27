@@ -559,6 +559,8 @@ On **Skip**:
 - `health_check`
 - `requires`（可為空陣列，但欄位必須存在）
 
+`install_command` 建議一併宣告，供 worktree/fresh checkout 在跑 test / build / dev-server 前補齊依賴。若未宣告，framework 會 fallback 到 manifest detector（例如 `pnpm-lock.yaml` → `pnpm install --frozen-lockfile`），但對非標準 repo 最好明寫。
+
 這些欄位必須可被標準入口腳本直接消費：
 
 ```bash
@@ -573,6 +575,7 @@ scripts/polaris-env.sh start <company> --project <repo>
 projects:
   - name: your-your-app
     dev_environment:
+      install_command: "pnpm install --frozen-lockfile"
       start_command: "pnpm dev:main"
       ready_signal: "Listening on"
       base_url: "http://localhost:3001"

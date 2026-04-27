@@ -193,6 +193,7 @@ Enforcement is **deterministic** via PreToolUse hook `.claude/hooks/pipeline-art
 | `ac-fail-bug-branch-from-feature` | engineering opens fix branch for AC-FAIL Bug from the Epic's feature branch (extracted from `[VERIFICATION_FAIL]` block), not from develop | engineering creates fix branch from develop for a Bug whose description contains `[VERIFICATION_FAIL]` — fix never lands on the failing feature branch | High |
 | `checklist-before-done` | Before declaring a task complete, review the session's original task list (checkpoint next steps, todo items) and confirm each item is done/carry-forward/dropped | Strategist says "done" or asks "要更新 checkpoint 嗎？" while unchecked items remain from the session's starting checklist | High |
 | `defer-immediate-capture` | When a decision defers work to a later phase, capture it in todo (same session) or memory (future session) immediately — oral defer is not landed | Conversation contains "等 X 再處理 Y" pattern but no corresponding todo/memory entry created within the next 2 tool calls | High |
+| `completion-gate-before-done-report` | Before any user-facing "done / complete / 可交付" report in engineering flow, run Step 8.5 `check-delivery-completion.sh`. This is behavioral L3, not a deterministic hook | Assistant reports completion for a delivery task without a preceding completion-gate invocation or evidence that Layer A/B gates were rechecked at report time | Medium |
 
 ### Delivery Flow Contract (source: `skills/references/engineer-delivery-flow.md` § Delivery Contract)
 

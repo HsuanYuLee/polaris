@@ -24,6 +24,7 @@ HC="$SCRIPT_DIR/health-check.sh"
 FX="$SCRIPT_DIR/fixtures-start.sh"
 SC="$SCRIPT_DIR/start-command.sh"
 ED="$SCRIPT_DIR/ensure-dependencies.sh"
+IPD="$SCRIPT_DIR/install-project-deps.sh"
 SE="$(cd "$SCRIPT_DIR/.." && pwd)/start-test-env.sh"
 
 : "${DEBUG:=0}"
@@ -49,6 +50,17 @@ projects:
       base_url: "http://127.0.0.1:$PORT_HTTP2"
       health_check: "http://127.0.0.1:$PORT_HTTP2/"
       requires: ["leaf-service"]
+  - name: install-configured
+    dev_environment:
+      install_command: "python3 -c \"from pathlib import Path; Path('.deps-installed').write_text('ok')\""
+      start_command: "true"
+      health_check: "http://127.0.0.1:$PORT_HTTP/"
+      requires: []
+  - name: install-detected
+    dev_environment:
+      start_command: "true"
+      health_check: "http://127.0.0.1:$PORT_HTTP/"
+      requires: []
   - name: missing-requires
     dev_environment:
       start_command: "echo hi"
@@ -141,6 +153,26 @@ run_silent "$HC" "http://127.0.0.1:$PORT_HTTP/" --timeout 5
 assert_eq "$?" "0" "leaf-service responds to health-check"
 
 echo ""
+echo "=== install-project-deps.sh ==="
+run_silent "$IPD"; assert_eq "$?" "2" "usage error"
+mkdir -p "$WORK_DIR/install-configured" "$WORK_DIR/install-detected" "$WORK_DIR/bin"
+cat > "$WORK_DIR/bin/npm" <<EOF
+#!/usr/bin/env bash
+mkdir -p "$WORK_DIR/install-detected/node_modules"
+exit 0
+EOF
+chmod +x "$WORK_DIR/bin/npm"
+touch "$WORK_DIR/install-detected/package-lock.json"
+run_silent "$IPD" --project install-configured --cwd "$WORK_DIR/install-configured"
+assert_eq "$?" "0" "configured install command"
+[[ -f "$WORK_DIR/install-configured/.deps-installed" ]]
+assert_eq "$?" "0" "configured install wrote marker"
+PATH="$WORK_DIR/bin:$PATH" run_silent "$IPD" --project install-detected --cwd "$WORK_DIR/install-detected"
+assert_eq "$?" "0" "detected install command"
+[[ -d "$WORK_DIR/install-detected/node_modules" ]]
+assert_eq "$?" "0" "detected install created node_modules"
+
+echo ""
 echo "=== ensure-dependencies.sh ==="
 run_silent "$ED"; assert_eq "$?" "2" "usage error"
 run_silent "$ED" --project empty-deps; assert_eq "$?" "0" "empty requires (no-op)"
@@ -188,12 +220,14 @@ fi
 assert_eq "$RC_SE" "0" "full chain (ensure-deps → start → health-check)"
 echo "$se_out" | grep -q '"step":"ensure-dependencies","status":"PASS"'
 assert_eq "$?" "0" "step 1 evidence emitted"
+echo "$se_out" | grep -q '"step":"install-project-deps","status":"PASS"'
+assert_eq "$?" "0" "step 2 install-project-deps evidence emitted"
 echo "$se_out" | grep -q '"step":"start-command","status":"PASS"'
-assert_eq "$?" "0" "step 2 evidence emitted"
+assert_eq "$?" "0" "step 3 start-command evidence emitted"
 echo "$se_out" | grep -q '"step":"health-check","status":"PASS"'
-assert_eq "$?" "0" "step 3 evidence emitted"
+assert_eq "$?" "0" "step 4 health-check evidence emitted"
 echo "$se_out" | grep -q '"step":"fixtures-start","status":"SKIP"'
-assert_eq "$?" "0" "step 4 SKIP without --with-fixtures"
+assert_eq "$?" "0" "step 5 SKIP without --with-fixtures"
 echo "$se_out" | grep -q '"summary":true.*"status":"PASS"'
 assert_eq "$?" "0" "final summary PASS"
 

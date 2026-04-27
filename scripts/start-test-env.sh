@@ -4,7 +4,8 @@
 # Chains the L2 env primitives in the canonical order required by
 # engineering's runtime verification gate:
 #
-#   ensure-dependencies → start-command → health-check → [fixtures-start]
+#   ensure-dependencies → install-project-deps → start-command → health-check
+#   → [fixtures-start]
 #
 # Reads workspace-config.yaml + task.md to resolve which project to start,
 # where its repo lives (cwd), and whether per-task fixtures need to come up.
@@ -37,6 +38,7 @@ ENV_DIR="$SCRIPT_DIR/env"
 source "$ENV_DIR/_lib.sh"
 
 ENSURE_DEPS="$ENV_DIR/ensure-dependencies.sh"
+INSTALL_DEPS="$ENV_DIR/install-project-deps.sh"
 START_CMD="$ENV_DIR/start-command.sh"
 HEALTH_CHECK="$ENV_DIR/health-check.sh"
 FIXTURES_START="$ENV_DIR/fixtures-start.sh"
@@ -47,7 +49,8 @@ Usage:
   $(basename "$0") --task-md PATH  [--workspace-config PATH] [--with-fixtures] [--ready-timeout SECONDS]
   $(basename "$0") --project NAME [--workspace-config PATH] [--with-fixtures] [--fixtures-dir PATH] [--epic NAME] [--ready-timeout SECONDS]
 
-Chains L2 primitives: ensure-dependencies → start-command → health-check → [fixtures-start].
+Chains L2 primitives: ensure-dependencies → install-project-deps → start-command
+→ health-check → [fixtures-start].
 
 Exit:  0 = all PASS, 1 = first FAIL halts chain, 2 = usage error.
 EOF
@@ -186,47 +189,57 @@ if ! "$ENSURE_DEPS" "${ed_args[@]}"; then
 fi
 echo "{\"primitive\":\"start-test-env\",\"step\":\"ensure-dependencies\",\"status\":\"PASS\"}"
 
-# ── Step 2: start-command (target project) ──────────────────────────────────
-env_lib_log_info "Step 2/4: start-command for $PROJECT"
+# ── Step 2: install-project-deps (target project) ───────────────────────────
+env_lib_log_info "Step 2/5: install-project-deps for $PROJECT"
+id_args=("--project" "$PROJECT" "--workspace-config" "$WORKSPACE_CONFIG")
+[[ -n "$PROJECT_CWD" ]] && id_args+=("--cwd" "$PROJECT_CWD")
+id_out="$("$INSTALL_DEPS" "${id_args[@]}")" || {
+  env_lib_log_fail "Step 2/5 install-project-deps FAILED"
+  exit 1
+}
+echo "{\"primitive\":\"start-test-env\",\"step\":\"install-project-deps\",\"status\":\"PASS\",\"detail\":$id_out}"
+
+# ── Step 3: start-command (target project) ──────────────────────────────────
+env_lib_log_info "Step 3/5: start-command for $PROJECT"
 sc_args=("--project" "$PROJECT" "--workspace-config" "$WORKSPACE_CONFIG" "--ready-timeout" "$READY_TIMEOUT")
 [[ -n "$PROJECT_CWD" ]] && sc_args+=("--cwd" "$PROJECT_CWD")
 sc_out="$("$START_CMD" "${sc_args[@]}")" || {
-  env_lib_log_fail "Step 2/4 start-command FAILED"
+  env_lib_log_fail "Step 3/5 start-command FAILED"
   exit 1
 }
 # Surface the start-command JSON line as our own evidence too.
 echo "{\"primitive\":\"start-test-env\",\"step\":\"start-command\",\"status\":\"PASS\",\"detail\":$sc_out}"
 
-# ── Step 3: health-check (target project) ───────────────────────────────────
+# ── Step 4: health-check (target project) ───────────────────────────────────
 env_json="$(env_lib_get_project_env "$WORKSPACE_CONFIG" "$PROJECT" 2>/dev/null || true)"
 target_url="$(printf '%s' "$env_json" | env_lib_get_field 'health_check' 2>/dev/null || true)"
 if [[ -z "$target_url" ]]; then
   env_lib_fail_loud_missing_field "$PROJECT" "health_check" "$WORKSPACE_CONFIG" '"http://localhost:..."  # so the orchestrator can confirm liveness"'
   exit 1
 fi
-env_lib_log_info "Step 3/4: health-check $target_url"
+env_lib_log_info "Step 4/5: health-check $target_url"
 if ! "$HEALTH_CHECK" "$target_url" --timeout "$READY_TIMEOUT" --interval 2 > /dev/null; then
-  env_lib_log_fail "Step 3/4 health-check FAILED for $target_url"
+  env_lib_log_fail "Step 4/5 health-check FAILED for $target_url"
   exit 1
 fi
 echo "{\"primitive\":\"start-test-env\",\"step\":\"health-check\",\"status\":\"PASS\",\"url\":\"$target_url\"}"
 
-# ── Step 4 (optional): fixtures-start ───────────────────────────────────────
+# ── Step 5 (optional): fixtures-start ───────────────────────────────────────
 if $WITH_FIXTURES; then
   if [[ -z "$FIXTURES_DIR" ]]; then
     env_lib_log_fail "--with-fixtures requested but FIXTURES_DIR could not be resolved"
     exit 1
   fi
-  env_lib_log_info "Step 4/4: fixtures-start $FIXTURES_DIR"
+  env_lib_log_info "Step 5/5: fixtures-start $FIXTURES_DIR"
   fx_args=("$FIXTURES_DIR")
   [[ -n "$EPIC" ]] && fx_args+=("--epic" "$EPIC")
   if ! "$FIXTURES_START" "${fx_args[@]}" > /dev/null; then
-    env_lib_log_fail "Step 4/4 fixtures-start FAILED"
+    env_lib_log_fail "Step 5/5 fixtures-start FAILED"
     exit 1
   fi
   echo "{\"primitive\":\"start-test-env\",\"step\":\"fixtures-start\",\"status\":\"PASS\",\"path\":\"$FIXTURES_DIR\"}"
 else
-  env_lib_log_info "Step 4/4: fixtures-start SKIPPED (no --with-fixtures)"
+  env_lib_log_info "Step 5/5: fixtures-start SKIPPED (no --with-fixtures)"
   echo "{\"primitive\":\"start-test-env\",\"step\":\"fixtures-start\",\"status\":\"SKIP\"}"
 fi
 

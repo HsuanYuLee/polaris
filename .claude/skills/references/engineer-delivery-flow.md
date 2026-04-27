@@ -27,6 +27,7 @@
 - Behavioral verify PASS — evidence: `/tmp/polaris-verified-{ticket}-{head_sha}.json`（Layer B，via `run-verify-command.sh`）
 - VR PASS（if triggered）— evidence: `/tmp/polaris-vr-{ticket}-{head_sha}.json`（Layer C，via `run-visual-snapshot.sh`）
 - **Layer A+B(+C) evidence AND gate**：所有必要 evidence 檔案存在且 `head_sha` 匹配當前 HEAD 才放行 PR
+- **Completion gate before user-facing done**：回報完成前必須再檢查一次 Layer A（and Developer Layer B）是否仍對應當前 HEAD，避免在 git 動作前先口頭結案
 - PR 建立在正確 base branch，body 依 repo template 填充
 - JIRA 狀態轉為 CODE REVIEW（Developer only，soft-fail）
 - task.md `deliverable.pr_url` + `head_sha` 寫回（Developer only）
@@ -44,7 +45,7 @@
 ## 設計原則
 
 1. **單一源** — execution 紀律在此定義，skill 不重寫。skill SKILL.md 只負責路由、輸入解析、角色標註，具體怎麼做全部讀這份。
-2. **框架無關** — 不寫死 Nuxt / Laravel / Rails 的命令。repo 的啟動方式由 **workspace-config + handbook config** 宣告（D11 composable primitives），script 消費宣告，不假設 stack。
+2. **框架無關** — 不寫死 Nuxt / Laravel / Rails 的命令。repo 的啟動方式由 **workspace-config + handbook config** 宣告（D11 composable primitives），script 消費宣告，不假設 stack。這也包含 **依賴安裝**：worktree / fresh checkout 在跑任何 test / build / dev-server 前，先透過 `scripts/env/install-project-deps.sh` 讀 `projects[].dev_environment.install_command`；未宣告時才由 script 根據 lockfile / manifest 決定（`pnpm-lock.yaml` → `pnpm install --frozen-lockfile`、`poetry.lock` → `poetry install --sync` 等），避免把「先裝套件」留給 LLM 自行猜測。
 3. **task.md authoritative（D1）** — task.md 是 engineering 內部的唯一 state container。Verification URLs, allowed files, verify command, deliverable 全在 task.md。Engineering 對 JIRA 是 write-only（side-effect display）。
 4. **Positive-evidence + fail-loud（D11/D12）** — script exit 0 必須代表「實際做了且通過」；config 缺失 → fail loud，不 fallback 推論。
 5. **Evidence 只由 script 產出（D15/D16）** — LLM 不直接寫 evidence file（hook 物理擋 Write/Edit on `/tmp/polaris-verified-*` / `/tmp/polaris-ci-local-*`）；evidence `writer` 欄位 + whitelist gate 提供 cross-LLM 保護。
@@ -60,7 +61,7 @@
 └────────────────────────────────────────┘  └──────────────────────────────────────────────┘
 ```
 
-**Step 完整序列**：Step 1 Simplify → Step 1.3 Self-Review → Step 1.5 Scope Gate → Step 2 前置 Rebase → Step 2 Local CI Mirror → Step 3 Verify → Step 3.5 VR → Step 5 Base Freshness → Step 6 Commit+Changeset → Step 7 PR → Step 8 JIRA → Step 8a IMPLEMENTED
+**Step 完整序列**：Step 1 Simplify → Step 1.3 Self-Review → Step 1.5 Scope Gate → Step 2 前置 Rebase → Step 2 Local CI Mirror → Step 3 Verify → Step 3.5 VR → Step 5 Base Freshness → Step 6 Commit+Changeset → Step 7 PR → Step 8 JIRA → Step 8a IMPLEMENTED → Step 8.5 Completion Gate
 
 ## Role Matrix
 
@@ -80,6 +81,7 @@
 | Step 7 PR Create（含 7a Evidence AND Gate） | ✅ | ✅ |
 | Step 8 JIRA Transition → CODE REVIEW | ✅ | ⏭️ 跳過（無 JIRA ticket） |
 | Step 8a Mark IMPLEMENTED | ✅ | ⏭️ 跳過 |
+| **Step 8.5 Completion Gate（`check-delivery-completion.sh`）** | ✅ | ✅（`--admin`） |
 | Evidence file 鍵 | `/tmp/polaris-verified-{TICKET}-{head_sha}.json` | `/tmp/polaris-verified-{branch-slug}-{head_sha}.json` |
 
 **Role 由呼叫端傳入**，reference 不做角色偵測。呼叫端在 dispatch prompt 或 context 說明「你是 Developer / Admin」。
@@ -207,9 +209,11 @@ Rebase 改變 HEAD → 舊 evidence 的 `head_sha` 自動失效 → 所有下游
 
 ## Step 2 — Local CI Mirror
 
-執行 `bash "$(git rev-parse --show-toplevel)"/scripts/ci-local.sh`。
+執行 `bash "$(git rev-parse --show-toplevel)"/.claude/scripts/ci-local.sh`。
 
 此 script 由 `scripts/ci-local-generate.sh` 從 repo 的 CI config（Woodpecker / GitHub Actions / GitLab CI / husky / `.pre-commit-config.yaml` / `package.json` scripts）推導產出，序列化執行 install / lint / typecheck / test / coverage 類別的 commands，並嵌入 codecov patch coverage compute。每個 repo 一份 self-contained script，框架本體不再做 CI re-discovery。
+
+**Existence invariant**：repo root 只要存在 `.claude/scripts/ci-local.sh`，就視為此 repo 已宣告 Local CI Mirror；該檔由 generator 產出且自動寫進 `.git/info/exclude`（不入 commit）。是否需要跑由檔案存在決定，不由 git status 類型決定。
 
 **Re-test-after-fix 鐵律**：若本 step 發現問題並修改 code，必須**重跑一次** `ci-local.sh`。上一輪修改前的結果無效。
 
@@ -222,7 +226,7 @@ Rebase 改變 HEAD → 舊 evidence 的 `head_sha` 自動失效 → 所有下游
 **執行**：
 
 ```bash
-bash "$(git rev-parse --show-toplevel)"/scripts/ci-local.sh
+bash "$(git rev-parse --show-toplevel)"/.claude/scripts/ci-local.sh
 ```
 
 - exit 0 → Dimension B PASS，進 Step 3
@@ -565,6 +569,38 @@ Helper 會自動：
 
 ---
 
+## Step 8.5 — Completion Gate（pre-report hard gate）
+
+> 目的不是取代 Step 7a，而是封住另一個出口：agent 在還沒碰到 git / PR gate 前，就先口頭宣稱「完成」。
+
+在任何 user-facing completion report 之前，執行：
+
+```bash
+bash "${POLARIS_ROOT}/scripts/check-delivery-completion.sh" --repo "$(git rev-parse --show-toplevel)" --ticket "<TICKET>"
+```
+
+Admin mode（無 ticket）：
+
+```bash
+bash "${POLARIS_ROOT}/scripts/check-delivery-completion.sh" --repo "$(git rev-parse --show-toplevel)" --admin
+```
+
+### Script contract
+
+- Layer A：呼叫 `scripts/gates/gate-ci-local.sh --repo <path>`
+  - repo root 無 `.claude/scripts/ci-local.sh` → skip
+  - repo root 有 `.claude/scripts/ci-local.sh` → required，cache miss 會同步實跑 `ci-local.sh`
+- Layer B（Developer only）：呼叫 `scripts/gates/gate-evidence.sh --repo <path> --ticket <TICKET>`
+  - missing / malformed / stale verify evidence → block
+- exit 0 = 可以回報完成
+- exit 2 = **HALT**，不得回報「完成 / 可交付 / 已驗完」
+
+### Why this exists
+
+Step 7a 保證「不能開 PR」；Step 8.5 保證「不能嘴上結案」。兩者一起才算完整的 no-bypass delivery contract。
+
+---
+
 ## Halting Conditions
 
 流程在任何步驟失敗皆停止，不靜默繼續：
@@ -582,6 +618,7 @@ Helper 會自動：
 | Step 7a Evidence AND gate missing/stale | **halt** — 不開 PR，回頭檢查遺漏的 evidence |
 | Step 7d PR create hook 擋 | 停止。回頭檢查 evidence |
 | Step 7d deliverable 回寫失敗 | **HALT** — inconsistent state，不繼續 Step 8 |
+| Step 8.5 Completion Gate FAIL | **HALT** — 不得回報完成，回頭補齊 Layer A/B evidence |
 
 ---
 
@@ -612,6 +649,7 @@ Helper 會自動：
 | `gate-evidence.sh` git pre-push | `git push` | Layer B evidence + Layer C if triggered | 四通 |
 | `gate-base-check.sh` in `polaris-pr-create.sh` | PR 建立 | base branch = resolve 結果 | 四通 |
 | `polaris-pr-create.sh` wrapper | PR 建立 | 依序跑 base-check → evidence → ci-local | 四通 |
+| `check-delivery-completion.sh` | user-facing completion report | Layer A always if `ci-local.sh` exists; Layer B for Developer | 四通 |
 | `no-direct-evidence-write.sh` PostToolUse | Write/Edit on evidence paths | **Blocks** — LLM 不可偽造 evidence | Claude Code only（advisory） |
 
 > **Legacy hooks removed（DP-032 Wave δ）**：`ci-local-gate.sh`、`verification-evidence-gate.sh`、`pr-base-gate.sh`、`pr-create-guard.sh` PreToolUse hooks 已刪除，功能全部移至 portable gate scripts + git hooks。

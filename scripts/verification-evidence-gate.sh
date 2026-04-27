@@ -5,7 +5,8 @@
 #
 # Intercepts:
 #   - `gh pr create` — all cases (original DP-029 behavior)
-#   - `git push` — only task/* and fix/* branches on repos with scripts/ci-local.sh (DP-031 + DP-032 D12-c)
+#   - `git push` — only task/* and fix/* branches on repos with .claude/scripts/ci-local.sh
+#     (DP-031 + DP-032 D12-c + DP-043: path relocated from scripts/ to .claude/scripts/)
 #
 # Evidence file (preferred, DP-032 Wave β D15):
 #   /tmp/polaris-verified-{TICKET}-{HEAD_SHA}.json
@@ -25,7 +26,7 @@
 #
 # Dimension B (ci-local mirror evidence) is enforced separately by ci-local-gate.sh
 # (DP-032 D12-c). The two hooks both register on `gh pr create` + `git push` and
-# share the same task/* + scripts/ci-local.sh filter for product-repo gating.
+# share the same task/* + .claude/scripts/ci-local.sh filter for product-repo gating.
 #
 # Env:
 #   POLARIS_SKIP_EVIDENCE=1  — bypass (for non-ticket PRs like framework changes)
@@ -33,6 +34,11 @@
 # Exit 0 = allow, Exit 2 = block
 
 set -euo pipefail
+
+# Single source of truth for the ci-local.sh repo-relative path (DP-043).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/ci-local-path.sh
+. "$SCRIPT_DIR/lib/ci-local-path.sh"
 
 input=$(cat)
 
@@ -65,8 +71,8 @@ if [[ "$MODE" == "push" ]]; then
     *) exit 0 ;;     # not a delivery branch, allow
   esac
 
-  # Only intercept repos with scripts/ci-local.sh (DP-032 D12-c)
-  if [[ ! -f "${push_repo:-.}/scripts/ci-local.sh" ]]; then
+  # Only intercept repos with ci-local.sh (DP-032 D12-c + DP-043)
+  if [[ ! -f "$(ci_local_path_for_repo "${push_repo:-.}")" ]]; then
     exit 0  # No ci-local.sh — repo not onboarded to D12 mirror, allow
   fi
 
