@@ -97,6 +97,42 @@ def normalize_events(raw):
     return events
 
 
+def normalize_string_list(raw):
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        return [raw.strip()] if raw.strip() else []
+    if isinstance(raw, (int, float)):
+        return [str(raw)]
+    values = []
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, (str, int, float)):
+                s = str(item).strip()
+                if s:
+                    values.append(s)
+    return values
+
+
+def normalize_woodpecker_conditions(when):
+    if not isinstance(when, dict):
+        return {}
+    conditions = {}
+    events = [normalize_event_name(e) for e in normalize_events(when.get("event"))]
+    if events:
+        conditions["events"] = events
+    branches = normalize_string_list(when.get("branch"))
+    if branches:
+        conditions["branches"] = branches
+    refs = normalize_string_list(when.get("ref"))
+    if refs:
+        conditions["refs"] = refs
+    statuses = normalize_string_list(when.get("status"))
+    if statuses:
+        conditions["statuses"] = [s.lower() for s in statuses]
+    return conditions
+
+
 def normalize_event_name(event: str):
     normalized = event.strip().lower().replace("-", "_")
     aliases = {
@@ -181,6 +217,7 @@ def discover_woodpecker():
             events = []
             if isinstance(when, dict):
                 events = normalize_events(when.get("event"))
+            conditions = normalize_woodpecker_conditions(when)
             intents = infer_intents("woodpecker", events)
             for cmd in flatten_commands(job.get("commands")):
                 category = categorize_command(cmd)
@@ -192,6 +229,7 @@ def discover_woodpecker():
                         "command": cmd,
                         "events": [normalize_event_name(e) for e in events],
                         "intents": intents,
+                        "conditions": conditions,
                         "local_executable": is_local_executable(cmd),
                     }
                 )
@@ -245,6 +283,7 @@ def discover_github_actions():
                             "command": cmd,
                             "events": [normalize_event_name(e) for e in events],
                             "intents": intents,
+                            "conditions": {},
                             "local_executable": is_local_executable(cmd),
                         }
                     )
@@ -303,6 +342,7 @@ def discover_gitlab_ci():
                     "command": cmd,
                     "events": [normalize_event_name(e) for e in events],
                     "intents": intents,
+                    "conditions": {},
                     "local_executable": is_local_executable(cmd),
                 }
             )

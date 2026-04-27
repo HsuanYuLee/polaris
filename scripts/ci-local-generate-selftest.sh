@@ -372,6 +372,52 @@ T7_BAD_RC=$?
 assert "Test 7: bad --repo exits 2" "$([ $T7_BAD_RC -eq 2 ] && echo 1 || echo 0)"
 
 # ============================================================================
+echo "== Test 8: Woodpecker when.branch condition evaluation =="
+# ============================================================================
+T8="$TMPROOT/woodpecker-branch-conditions"
+mkdir -p "$T8/.woodpecker"
+cat > "$T8/.woodpecker/lint.yml" <<'YAML'
+pipeline:
+  lint-and-type-check:
+    image: node:22
+    commands:
+      - echo lint-for-develop
+    when:
+      event: pull_request
+      branch:
+        - develop
+        - rc
+YAML
+init_git_repo "$T8"
+OUT8="$T8/.claude/scripts/ci-local.sh"
+"$GEN" --repo "$T8" --out "$OUT8" --force >/dev/null 2>&1
+assert "Test 8: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+bash -n "$OUT8" 2>/dev/null
+assert "Test 8: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+assert_contains "Test 8: generated script includes branch condition" "$OUT8" '"branches":["develop","rc"]'
+
+(cd "$T8" && bash "$OUT8" --repo "$T8" --event pull_request --base-branch feat/topic >/tmp/ci-local-test8-skip.out 2>&1)
+T8_SKIP_RC=$?
+assert "Test 8: feature-base run exits 0" "$([ $T8_SKIP_RC -eq 0 ] && echo 1 || echo 0)"
+assert_contains "Test 8: feature-base output records SKIP" /tmp/ci-local-test8-skip.out "SKIP (branch_not_matched)"
+T8_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+python3 - "$T8_EVIDENCE" <<'PY' >/tmp/ci-local-test8-skip-evidence.out
+import json, sys
+d=json.load(open(sys.argv[1]))
+print(d["checks"][0]["status"])
+print(d["checks"][0].get("reason"))
+print(d["summary"].get("skipped_checks"))
+PY
+assert_contains "Test 8: evidence status is SKIP" /tmp/ci-local-test8-skip-evidence.out "SKIP"
+assert_contains "Test 8: evidence reason is branch_not_matched" /tmp/ci-local-test8-skip-evidence.out "branch_not_matched"
+
+rm -f "$T8_EVIDENCE"
+(cd "$T8" && bash "$OUT8" --repo "$T8" --event pull_request --base-branch develop >/tmp/ci-local-test8-run.out 2>&1)
+T8_RUN_RC=$?
+assert "Test 8: develop-base run exits 0" "$([ $T8_RUN_RC -eq 0 ] && echo 1 || echo 0)"
+assert_contains "Test 8: develop-base command executed" /tmp/ci-local-test8-run.out "lint-for-develop"
+
+# ============================================================================
 echo
 echo "== Summary =="
 echo "  Assertions: $ASSERTIONS"

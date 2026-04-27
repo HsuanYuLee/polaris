@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.10] - 2026-04-28
+
+### Fixed — ci-local Woodpecker branch conditions
+
+- `ci-contract-discover.sh` now preserves Woodpecker `when.event`,
+  `when.branch`, `when.ref`, and `when.status` metadata for discovered checks.
+- Generated `ci-local.sh` evaluates runtime context (`event`, base branch,
+  source branch, and ref) before running each check, recording excluded checks
+  as `SKIP` evidence instead of over-enforcing jobs that online CI would not
+  select.
+- Added selftest coverage for `when.branch: [develop, rc]` so feature-branch
+  PR bases skip those checks while develop-targeted runs still execute them.
+
 ## [3.73.9] - 2026-04-27
 
 ### Added — branch chain cascade rebase
