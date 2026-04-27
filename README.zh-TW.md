@@ -153,7 +153,7 @@ cd ~/polaris-workspace
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 26 workflow skills
+│   └── skills/                   ← 27 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -180,7 +180,7 @@ cd ~/polaris-workspace
 
 ### 從這裡開始
 
-不要一次嘗試全部 26 個技能。根據你的角色挑一個開始：
+不要一次嘗試全部 27 個技能。根據你的角色挑一個開始：
 
 | 如果你是... | 先試這個 | 會發生什麼 |
 |------------|---------|-----------|
@@ -255,7 +255,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 26 workflow skills
+│   └── skills/                # 27 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory
@@ -311,6 +311,7 @@ your-workspace/
 | 新增公司專屬規則 | `.claude/rules/{company}/` | 建立 `.md` 檔案——每次對話自動載入 |
 | 新增專案專屬規則 | `{company}/{project}/CLAUDE.md` | sub-agent 進入專案時載入 |
 | 建立新技能 | 執行 `/skill-creator` | 引導式技能建立，含評估 |
+| 發布框架變更 | 執行 `/framework-release` | 將 workspace 變更發布到 Polaris template repo |
 | 修改技能路由 | `.claude/rules/{company}/skill-routing.md` | 對應觸發詞 → 技能 |
 
 ## 不要動的檔案

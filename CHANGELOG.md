@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.6] - 2026-04-27
+
+### Added — framework release skill
+
+- Added `framework-release` as a shared Polaris skill so release requests route
+  through the full workspace commit, push, template sync, tag, GitHub release,
+  account restoration, and final verification chain.
+- Synced the new skill into the Claude-side source layout and documented it in
+  README customization guidance and Chinese trigger references.
+- Updated public skill counts from 26 to 27 and verified Claude/Codex skill
+  parity through the repo-level `.agents/skills` symlink.
+
 ## [3.73.5] - 2026-04-27
 
 ### Fixed — engineering lifecycle write-back boundary
