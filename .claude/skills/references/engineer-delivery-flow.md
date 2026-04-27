@@ -519,12 +519,22 @@ Helper 的行為（見 DP-028 D2 — Resolve 層）：
 - 若 task.md 的 `Base branch`（即上游 task branch）**已 merged** 回 Epic feature branch → 回傳 feature branch 值
 - 否則 → 回傳原 `Base branch` 字面值
 
+task.md 若含 `Branch chain`，engineering 在 first-cut branch setup / revision R0 會先跑 cascade rebase：
+
+```bash
+"${CLAUDE_PROJECT_DIR}/scripts/cascade-rebase-chain.sh" \
+  --repo "$(git rev-parse --show-toplevel)" \
+  --task-md "<path/to/task.md>"
+```
+
+`Branch chain` 只表達 rebase 順序（例：`develop -> feat/PROJ-123-... -> task/TASK-123-... -> task/TASK-123-...`）。PR base 仍只取 `resolve-task-base.sh` 的輸出，避免 `Base branch` / `PR base` 雙欄位同步問題。
+
 **應用位置**（engineering SKILL.md 四處必呼叫 resolve helper）：
 
 | 位置 | 目的 | 呼叫時機 |
 |------|------|---------|
-| § 4.5 Pre-Development Rebase | `git rebase origin/<RESOLVED_BASE>` 的 target | first-cut 開工前 |
-| § R0 Pre-Revision Rebase（步驟 1-3） | `git rebase origin/<RESOLVED_BASE>` 的 target | revision mode 進入後，讀施工圖前 |
+| § 4.5 Pre-Development Rebase | `Branch chain` cascade rebase；再以 `git rebase origin/<RESOLVED_BASE>` 的 target 切 / 對齊 task branch | first-cut 開工前 |
+| § R0 Pre-Revision Rebase（步驟 1-3） | `Branch chain` cascade rebase；再以 `git rebase origin/<RESOLVED_BASE>` 的 target 對齊 PR branch | revision mode 進入後，讀施工圖前 |
 | § R0 Pre-Revision Rebase（步驟 4） | `gh pr edit <PR> --base <RESOLVED_BASE>` 同步 PR base 欄位（若 PR baseRefName 不符） | 同上，rebase 成功後、讀施工圖前 |
 | § Step 7d (本 flow) | `gh pr create --base <RESOLVED_BASE>` 的 `--base` 值 | 建新 PR 時（first-cut） |
 

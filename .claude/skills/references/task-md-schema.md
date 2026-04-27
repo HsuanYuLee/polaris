@@ -190,7 +190,8 @@ Complete 觸發（DP-033 D6，**move-first 順序鎖定**）：`status` 轉為 `
 | `Parent Epic` | Epic key（如 `PROJ-123`） | **Hard** |
 | `Test sub-tasks` | Test sub-task JIRA keys（comma-separated） | **Hard** |
 | `AC 驗收單` | Verification ticket JIRA key（V*.md 對應的 ticket，或 verify-AC 消費的 AC ticket） | **Hard** |
-| `Base branch` | 切 task branch 用的 base — 有 `Depends on` 時必須 `task/...`（DP-028 cross-field）；無依賴時通常 `feat/...` | **Hard** |
+| `Base branch` | 切 task branch / PR base 用的 base — 有 `Depends on` 時必須 `task/...`（DP-028 cross-field）；無依賴時通常 `feat/...` | **Hard** |
+| `Branch chain` | 從 integration branch 到本 task branch 的完整 rebase 鏈（例：`develop -> feat/PROJ-123-... -> task/TASK-123-... -> task/TASK-123-...`）；engineering 用 `scripts/cascade-rebase-chain.sh` 消費；PR base 仍由 `Base branch` + `resolve-task-base.sh` 決定 | **Soft**（新 breakdown 必填；legacy task 缺漏時 reader fallback） |
 | `Task branch` | 該 task 自己的 branch（`task/{TASK_KEY}-{slug}`） | **Hard** |
 | `Depends on` | 同 Epic 內依賴的 task 描述（如 `TASK-123 (T3a — dayjs infra)`）；無依賴 = `N/A` / `-` / 空 | **Soft**（cell 可缺；存在時參與 cross-field rule） |
 | `References to load` | engineering sub-agent 須讀的 reference 列表（HTML `<br>` 換行） | **Hard** |
@@ -207,6 +208,7 @@ Complete 觸發（DP-033 D6，**move-first 順序鎖定**）：`status` 轉為 `
 | Test sub-tasks | TASK-123 |
 | AC 驗收單 | TASK-123 |
 | Base branch | task/TASK-123-dayjs-infra-util |
+| Branch chain | develop -> feat/PROJ-123-moment-to-dayjs -> task/TASK-123-dayjs-infra-util -> task/TASK-123-moment-to-dayjs-products |
 | Task branch | task/TASK-123-moment-to-dayjs-products |
 | Depends on | TASK-123 (T3a — dayjs infra) |
 | References to load | - `skills/references/branch-creation.md`<br>- ... |

@@ -26,7 +26,7 @@
 #   status, task_id, summary, story_points,
 #   epic, jira, repo,
 #   task_jira_key, parent_epic, test_sub_tasks, ac_verification_ticket,
-#   base_branch, task_branch, depends_on, references_to_load,
+#   base_branch, branch_chain, task_branch, depends_on, references_to_load,
 #   level, dev_env_config, fixtures, runtime_verify_target, env_bootstrap_command,
 #   test_command, verify_command, allowed_files, resolved_base
 #
@@ -62,7 +62,7 @@ Key-based lookup (DP-033 D8): resolves active tasks/{key}.md first,
 
 Field keys: status, task_id, summary, story_points, epic, jira, repo,
             task_jira_key, parent_epic, test_sub_tasks, ac_verification_ticket,
-            base_branch, task_branch, depends_on, references_to_load,
+            base_branch, branch_chain, task_branch, depends_on, references_to_load,
             level, dev_env_config, fixtures, runtime_verify_target,
             env_bootstrap_command, test_command, verify_command,
             allowed_files, resolved_base
@@ -196,6 +196,7 @@ operational_context = {
     "test_sub_tasks": opf("Test sub-tasks"),
     "ac_verification_ticket": opf("AC 驗收單"),
     "base_branch": opf("Base branch"),
+    "branch_chain": opf("Branch chain"),
     "task_branch": opf("Task branch"),
     "depends_on": opf("Depends on"),
     "references_to_load": opf("References to load"),
@@ -317,6 +318,7 @@ aliases = {
     "test_sub_tasks":          ["operational_context", "test_sub_tasks"],
     "ac_verification_ticket":  ["operational_context", "ac_verification_ticket"],
     "base_branch":             ["operational_context", "base_branch"],
+    "branch_chain":            ["operational_context", "branch_chain"],
     "task_branch":             ["operational_context", "task_branch"],
     "depends_on":              ["operational_context", "depends_on"],
     "references_to_load":      ["operational_context", "references_to_load"],
@@ -392,6 +394,7 @@ status: IMPLEMENTED
 | Test sub-tasks | KB2CW-3826 |
 | AC 驗收單 | KB2CW-3713 |
 | Base branch | task/KB2CW-3711-dayjs-infra-util |
+| Branch chain | develop -> feat/GT-478-cwv-js-bundle -> task/KB2CW-3711-dayjs-infra-util -> task/KB2CW-3900-moment-to-dayjs-products |
 | Task branch | task/KB2CW-3900-moment-to-dayjs-products |
 | Depends on | KB2CW-3711 (T3a — dayjs infra) |
 | References to load | - foo<br>- bar |
@@ -463,6 +466,7 @@ MD
 | Test sub-tasks | KB2CW-3823 |
 | AC 驗收單 | KB2CW-3713 |
 | Base branch | feat/GT-478-cwv-js-bundle |
+| Branch chain | develop -> feat/GT-478-cwv-js-bundle -> task/KB2CW-3821-mockoon-fixtures |
 | Task branch | task/KB2CW-3821-mockoon-fixtures |
 | References to load | - api-contract-guard |
 
@@ -543,6 +547,7 @@ MD
   expect_field "$fixture" task_jira_key          "KB2CW-3900"            "F1.task_jira_key"
   expect_field "$fixture" parent_epic            "GT-478"                "F1.parent_epic"
   expect_field "$fixture" base_branch            "task/KB2CW-3711-dayjs-infra-util"          "F1.base_branch"
+  expect_field "$fixture" branch_chain           "develop -> feat/GT-478-cwv-js-bundle -> task/KB2CW-3711-dayjs-infra-util -> task/KB2CW-3900-moment-to-dayjs-products" "F1.branch_chain"
   expect_field "$fixture" task_branch            "task/KB2CW-3900-moment-to-dayjs-products"  "F1.task_branch"
   expect_field "$fixture" depends_on             "KB2CW-3711 (T3a — dayjs infra)"            "F1.depends_on"
   expect_field "$fixture" level                  "static"                "F1.level"

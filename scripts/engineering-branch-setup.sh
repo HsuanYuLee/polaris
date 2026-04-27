@@ -28,6 +28,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARSE_TASK_MD="$SCRIPT_DIR/parse-task-md.sh"
+CASCADE_REBASE_CHAIN="$SCRIPT_DIR/cascade-rebase-chain.sh"
 
 usage() {
   cat <<EOF >&2
@@ -205,6 +206,7 @@ TASK_KEY=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdi
 SUMMARY=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('header',{}).get('summary') or '')" 2>/dev/null)
 RESOLVED_BASE=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('resolved_base') or '')" 2>/dev/null)
 REPO_NAME=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('metadata',{}).get('repo') or '')" 2>/dev/null)
+BRANCH_CHAIN=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('operational_context',{}).get('branch_chain') or '')" 2>/dev/null)
 
 if [[ -z "$TASK_KEY" ]]; then
   echo "ERROR: task_jira_key not found in $TASK_MD" >&2
@@ -213,6 +215,17 @@ fi
 if [[ -z "$RESOLVED_BASE" || "$RESOLVED_BASE" == "null" ]]; then
   echo "ERROR: could not resolve base branch from $TASK_MD" >&2
   exit 2
+fi
+
+# Step 1.5: If breakdown supplied an explicit branch chain, align upstream
+# branches before cutting the task branch. The task branch does not exist yet,
+# so cascade-rebase-chain skips the missing last link.
+if [[ -n "$BRANCH_CHAIN" && -f "$CASCADE_REBASE_CHAIN" ]]; then
+  echo "ℹ Aligning branch chain before task branch creation..." >&2
+  "$CASCADE_REBASE_CHAIN" --repo "$(git rev-parse --show-toplevel)" --task-md "$TASK_MD" --skip-missing-last >/dev/null || {
+    echo "ERROR: branch chain rebase failed; resolve upstream branch first." >&2
+    exit 2
+  }
 fi
 
 # Step 2: Verify resolved_base exists on remote

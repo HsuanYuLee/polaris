@@ -54,6 +54,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVE_TASK_MD_BY_BRANCH="$SCRIPT_DIR/resolve-task-md-by-branch.sh"
 RESOLVE_TASK_BASE="$SCRIPT_DIR/resolve-task-base.sh"
+CASCADE_REBASE_CHAIN="$SCRIPT_DIR/cascade-rebase-chain.sh"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -304,6 +305,27 @@ if ! git -C "$REPO" fetch origin >/dev/null 2>&1; then
     "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" \
     "$([ "$LEGACY_FALLBACK" = "true" ] && echo true || echo false)"
   exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Step 5.5: Cascade branch-chain rebase (task.md only)
+# ---------------------------------------------------------------------------
+
+if [ "$LEGACY_FALLBACK" != "true" ] && [ -f "$CASCADE_REBASE_CHAIN" ]; then
+  BRANCH_CHAIN_FIELD=""
+  if [ -f "$SCRIPT_DIR/parse-task-md.sh" ]; then
+    BRANCH_CHAIN_FIELD=$("$SCRIPT_DIR/parse-task-md.sh" "$TASK_MD" --field branch_chain --no-resolve 2>/dev/null || true)
+  fi
+  if [ -n "$BRANCH_CHAIN_FIELD" ]; then
+    CASCADE_OUT=$("$CASCADE_REBASE_CHAIN" --repo "$REPO" --task-md "$TASK_MD" 2>/dev/null) && cascade_rc=0 || cascade_rc=$?
+    if [ "$cascade_rc" != "0" ]; then
+      log_err "cascade branch-chain rebase failed"
+      emit_evidence "$REPO" "${TASK_MD:-__NULL__}" "$RESOLVED_BASE" "conflict" \
+        "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" "false"
+      exit 1
+    fi
+    log_info "cascade branch-chain rebase PASS: $CASCADE_OUT"
+  fi
 fi
 
 # ---------------------------------------------------------------------------

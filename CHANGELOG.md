@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.9] - 2026-04-27
+
+### Added — branch chain cascade rebase
+
+- Added task.md `Branch chain` support so breakdown records the full rebase
+  path, such as `develop -> feat/GT-478-... -> task/KB2CW-...`.
+- Added `resolve-branch-chain.sh` and `cascade-rebase-chain.sh` so engineering
+  can deterministically rebase the chain from upstream to downstream before
+  first-cut branch setup or revision work.
+- Updated `engineering-branch-setup.sh`, `revision-rebase.sh`, task.md parsing,
+  and branch references so PR base still comes from `Base branch` via
+  `resolve-task-base.sh`, while `Branch chain` only controls rebase order.
+
 ## [3.73.8] - 2026-04-27
 
 ### Changed — engineering local completion authority
