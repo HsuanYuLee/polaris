@@ -129,14 +129,14 @@ engineering 是純施工 skill，沒有 work order 就不施工。
 
 ### 4. TDD 開發
 
-1. 讀 `{repo}/.claude/rules/handbook/index.md` + 引用子文件
+1. 讀 repo handbook：若在 git worktree 內，先用 `scripts/lib/main-checkout.sh` 的 `resolve_main_checkout` 找 repo 主 checkout，再讀 `{main_checkout}/.claude/rules/handbook/index.md` + 引用子文件（repo handbook 是 gitignored local artifact，不保證存在於 worktree）
 2. 讀專案 `CLAUDE.md`
 3. 讀 `references/tdd-loop.md` 與 `references/tdd-smart-judgment.md`
 4. 先跑依賴安裝：`bash {polaris_root}/scripts/env/install-project-deps.sh --task-md {task_md_path} --cwd "$(git rev-parse --show-toplevel)"`
 5. 用 `scripts/parse-task-md.sh <task_md_path> --field test_command` 取得測試指令；不可自行推導
 6. 用 `scripts/parse-task-md.sh <task_md_path> --field level` / `--field fixtures` 決定 verify 前置環境
 7. `level=runtime` 時，透過 `scripts/start-test-env.sh` 啟動；不要手動拼 `docker compose up` / `pnpm dev`
-8. repo root 有 `.claude/scripts/ci-local.sh` 就必跑；`hook` 只負責補位，不是可省略理由
+8. repo 主 checkout 有 `.claude/scripts/ci-local.sh` 就必跑；在 worktree 內一律用 `bash "${POLARIS_ROOT}/scripts/ci-local-run.sh" --repo "$(git rev-parse --show-toplevel)"`，不要直接查 worktree 的 `.claude/scripts/ci-local.sh`；`hook` 只負責補位，不是可省略理由
 
 > `Runtime consistency` 不再由 engineering 消費時臨場判斷；它屬於 work order 合法性，應由上游 artifact gate 擋住。
 

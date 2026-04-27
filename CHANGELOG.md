@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.4] - 2026-04-27
+
+### Fixed — worktree gitignored framework artifact resolution
+
+- Updated `engineering` so worktree sessions resolve the repo main checkout
+  before reading the repo handbook, instead of assuming
+  `{worktree}/.claude/rules/handbook/` exists.
+- Clarified that Local CI mirror execution in worktrees must go through
+  `scripts/ci-local-run.sh --repo <worktree>`, which dispatches to the
+  canonical main-checkout `.claude/scripts/ci-local.sh`.
+- Extended `worktree-dispatch-paths.md` to include repo handbooks and
+  canonical `ci-local.sh` as gitignored main-checkout artifacts.
+
 ## [3.73.3] - 2026-04-27
 
 ### Fixed — breakdown escalation intake closure gate

@@ -3,6 +3,8 @@
 **When to load**: your skill dispatches a sub-agent that runs in a `git worktree add` copy AND that sub-agent needs to read or write any of:
 
 - `specs/{EPIC}/` (task.md, refinement, verification evidence, mockoon fixtures, VR baselines)
+- repo `.claude/rules/handbook/` (repo handbook)
+- repo `.claude/scripts/ci-local.sh` (canonical Local CI mirror)
 - `.claude/skills/` (cross-skill references)
 
 Both are gitignored in product repos → they do not exist in a fresh worktree.
@@ -13,7 +15,9 @@ Both are gitignored in product repos → they do not exist in a fresh worktree.
 |------|-------|------------------------|
 | Tracked source code | Worktree-relative | 預設；`{worktree_path}/src/...` |
 | `specs/{EPIC}/` artifacts | 主 checkout（gitignored） | **絕對路徑**：`{company_base_dir}/specs/{EPIC}/...` |
-| `.claude/skills/` references | 主 checkout（gitignored） | **絕對路徑**：`{base_dir}/.claude/skills/...` |
+| Repo handbook | repo 主 checkout（gitignored） | **先 resolve main checkout**，再讀 `{main_checkout}/.claude/rules/handbook/index.md` |
+| Local CI mirror | repo 主 checkout（gitignored） | 用 `bash {base_dir}/scripts/ci-local-run.sh --repo {worktree_path}`，不要直接查 worktree 的 `.claude/scripts/ci-local.sh` |
+| `.claude/skills/` references | workspace 主 checkout（gitignored） | **絕對路徑**：`{base_dir}/.claude/skills/...` |
 
 ## Copy-Paste Block for Dispatch Prompts
 
@@ -27,6 +31,8 @@ Embed verbatim near the "Work Order" / "讀取來源" section of every worktree-
 > - task.md / work order：`{company_base_dir}/specs/{EPIC}/tasks/T{n}.md`
 > - artifacts / handoff：`{company_base_dir}/specs/{EPIC}/artifacts/`
 > - verification evidence：`{company_base_dir}/specs/{EPIC}/verification/`
+> - repo handbook：先用 `{base_dir}/scripts/lib/main-checkout.sh` 的 `resolve_main_checkout "{worktree_path}"` 取得 repo 主 checkout，再讀 `{main_checkout}/.claude/rules/handbook/index.md`
+> - Local CI mirror：用 `bash {base_dir}/scripts/ci-local-run.sh --repo "{worktree_path}"`；script 會自動讀主 checkout 的 `.claude/scripts/ci-local.sh`
 > - skills reference（若需）：`{base_dir}/.claude/skills/references/...`
 >
 > 寫入 artifact 也用主 checkout 絕對路徑，使 downstream skill（verify-AC、check-pr-approvals）在主 checkout 讀得到。
