@@ -627,15 +627,20 @@ Step 7a 保證「不能開 PR」；Step 8.5 保證「不能嘴上結案」。兩
 
 ## Step 8.6 — Worktree Cleanup
 
-PR 建立 / 既有 PR branch push 完成、task deliverable 已回寫、Completion Gate PASS 後，清掉本次 implementation worktree：
+PR 建立 / 既有 PR branch push 完成、task deliverable 已回寫、Completion Gate PASS 後，清掉本次 implementation worktree。不要手動猜路徑或直接 `rm -rf`，一律用 helper 做 guard 後清理：
 
 ```bash
-git worktree remove "<worktree_path>"
+bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
+  --task-md "<path/to/task.md>" \
+  --repo "$(git rev-parse --show-toplevel)"
 ```
 
 - PR 後不保留常駐 worktree；若後續 review / CI 需要 revision，從當下 PR branch/head 重新建立 fresh worktree
+- helper 只會移除 `.worktrees/` 底下、Git 已登記、狀態乾淨、且 `deliverable.head_sha` 等於 worktree `HEAD` 的 implementation worktree
+- 若目前是在 main checkout 直接修 revision，helper 會找不到 implementation worktree 並輸出 `nothing to clean`；這是合法 no-op
 - 可刪除已不需要的 local temp branch；不要刪 remote PR branch
 - 若 worktree 有 uncommitted changes，先停下來分類（應提交 / 應搬到 artifact / stale experiment），不得 silent discard
+- helper 會確保 main checkout 的 `.git/info/exclude` 含 `.worktrees/`，避免 worktree 目錄長期污染 `git status`
 
 驗證型 worktree（只用於 verify / reproduce / compare / inspect）不等 PR flow；驗證結果、log、evidence 捕捉完就立即 `git worktree remove`。
 

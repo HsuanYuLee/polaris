@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.25] - 2026-04-28
+
+### Fixed — engineering worktree cleanup
+
+- Added `engineering-clean-worktree.sh`, a guarded cleanup helper that removes
+  delivered implementation worktrees only when they are registered, under
+  `.worktrees/`, clean, and aligned with `deliverable.head_sha`.
+- Updated engineering delivery Step 8.6 to call the helper instead of relying on
+  manual `git worktree remove` path memory.
+- Made the helper add `.worktrees/` to the main checkout exclude file so
+  product worktree folders do not keep polluting `git status`.
+
 ## [3.73.24] - 2026-04-28
 
 ### Fixed — ci-local stacked PR coverage base
