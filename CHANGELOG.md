@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.21] - 2026-04-28
+
+### Changed — PR body language policy
+
+- Required PR body prose to follow the root `workspace-config.yaml` `language`
+  value before falling back to the user's language.
+- Clarified that code identifiers, commands, file paths, package names, and
+  official product terms keep their original spelling while explanatory prose
+  follows the configured language.
+
 ## [3.73.20] - 2026-04-28
 
 ### Fixed — PR body template enforcement

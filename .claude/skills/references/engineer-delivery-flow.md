@@ -453,6 +453,8 @@ Missing 或 stale evidence → **halt**。不繼續 PR creation。
 
 ### 7c. 組 PR body
 
+內文語言必須依 `references/pr-body-builder.md § 3.0`：先讀 root `workspace-config.yaml` 的 `language`，未設定才 fallback 到使用者本輪主要語言；template headings 保留 repo 原文。
+
 | Template section | 填充來源 |
 |------------------|---------|
 | Description | Developer：task.md § 目標；Admin：commit messages 概要 |

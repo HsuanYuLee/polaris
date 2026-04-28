@@ -69,6 +69,24 @@ PR template 偵測、body 組裝、AC Coverage 產生的共用流程。
 
 ## 3. Build PR Body
 
+### 3.0. Body language
+
+PR body 的說明性文字必須使用 root `workspace-config.yaml` 的 `language` 值。
+
+讀取順序：
+
+1. root `workspace-config.yaml` 的 `language`（例如 `zh-TW`）
+2. 若未設定，使用使用者本輪主要語言
+3. 若仍無法判斷，使用 repo PR template HTML comments / headings 的主要語言
+
+規則：
+
+- `language: zh-TW` → PR body prose 用台灣繁體中文。
+- `language: en` → PR body prose 用英文。
+- code identifiers、commands、file paths、package names、JIRA keys、API names、official product names 保留原文。
+- Template headings 保留 repo template 原文，不翻譯 heading。
+- 不要混用「Summary / Verification」等非 template section 來避開 template；仍按 § 1 / § 1.5 / § 3b 填入既有 headings。
+
 ### 3a. 母單 PR 偵測
 
 若 head branch 是 `feat/<EPIC_KEY>-*` 且 base 是 `develop` → 母單 PR。子單已各自 code review，不需逐行審查：
