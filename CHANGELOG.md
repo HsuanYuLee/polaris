@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.11] - 2026-04-28
+
+### Fixed — ci-local CI-like timezone
+
+- Generated `ci-local.sh` now executes mirrored CI commands with `CI=true`
+  and `TZ=UTC` by default, matching common CI container behavior instead of
+  inheriting the developer machine timezone.
+- Added `CI_LOCAL_CI` and `CI_LOCAL_TZ` overrides for repos that intentionally
+  need a different local mirror environment.
+- Recorded the effective command environment in ci-local evidence and added
+  selftest coverage for the generated UTC runner.
+
 ## [3.73.10] - 2026-04-28
 
 ### Fixed — ci-local Woodpecker branch conditions

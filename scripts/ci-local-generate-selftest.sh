@@ -136,6 +136,8 @@ assert_not_contains "Test 1: skips gh pr comment" "$OUT1" "gh pr comment"
 assert_not_contains "Test 1: skips CI env-dep PR_NUMBER" "$OUT1" "CI_COMMIT_REF"
 assert_contains "Test 1: codecov post-check section emitted" "$OUT1" "Codecov patch coverage compute"
 assert_contains "Test 1: empty-coverage net retained" "$OUT1" "no_coverage_data_with_changed_files"
+assert_contains "Test 1: command env defaults to UTC" "$OUT1" 'COMMAND_TZ="${CI_LOCAL_TZ:-${TZ:-UTC}}"'
+assert_contains "Test 1: command runner exports TZ" "$OUT1" 'TZ="$COMMAND_TZ" bash -lc'
 assert_contains "Test 1: install before lint (ordering)" "$OUT1" "Check 1:"
 # Verify the install command is the first run_check
 FIRST_RUN_LINE="$(grep -n 'run_check ' "$OUT1" | head -1)"
