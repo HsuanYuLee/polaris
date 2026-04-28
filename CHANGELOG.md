@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.24] - 2026-04-28
+
+### Fixed — ci-local stacked PR coverage base
+
+- Made generated `ci-local.sh` compute Codecov patch coverage against the
+  resolved PR base branch instead of defaulting to `develop`/`main`.
+- Added event/base/source/ref context to ci-local evidence cache keys so the
+  same head SHA cannot reuse a PASS result from the wrong PR base.
+- Routed `ci-local-run.sh` and CI gates through task.md base resolution, keeping
+  hook fallback behavior aligned with engineering's stacked-branch workflow.
+
 ## [3.73.23] - 2026-04-28
 
 ### Fixed — engineering handbook and Codecov blockers

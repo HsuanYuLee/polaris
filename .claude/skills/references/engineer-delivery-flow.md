@@ -226,6 +226,8 @@ Rebase 改變 HEAD → 舊 evidence 的 `head_sha` 自動失效 → 所有下游
 >
 > **Remote CI wait policy**：`ci-local.sh` 是 repo CI-equivalent 的本地 authority。push / PR 後，GitHub / Woodpecker / GitLab 等遠端 CI 若仍是 queued / pending / running，不阻擋 Step 8.5 或 user-facing complete。遠端 check 若已完成且明確 FAIL，才進 revision mode 作為 CI failure signal；不因等待遠端 CI 太久而延後 complete。
 
+`ci-local-run.sh` 會先嘗試用目前 branch 對應的 `task.md` 解析 resolved base，再把 `--base-branch` 傳給 generated `ci-local.sh`。這讓 stacked PR 的本地 Codecov patch diff 對齊實際 PR base，而不是誤用 branch upstream 或 `develop`。
+
 **執行**：
 
 ```bash
@@ -235,7 +237,7 @@ bash "${POLARIS_ROOT}/scripts/ci-local-run.sh"
 - exit 0 → Dimension B PASS，進 Step 3
 - exit 1 → Dimension B FAIL，**回到實作階段修 root cause**，禁止放寬 assertion / `.skip()` / `as any` 繞過（canary: `tdd-bypass-no-assertion-weakening`）；修完回 Step 2 開頭重跑
 
-**Evidence file（自動寫入）**：`ci-local.sh` 執行完必寫 `/tmp/polaris-ci-local-{branch}-{head_sha}.json`（status / branch / head_sha / timestamp / commands / summary）。`gate-ci-local.sh` 在 git pre-commit / pre-push 及 `polaris-pr-create.sh` 前讀此檔案：cache hit (head_sha + status PASS) → 放行；cache miss 或非 PASS → **同步實跑** `ci-local.sh`，PASS 放行 / FAIL 擋。跳過本 step ≠ 漏網 — gate 會在第一個 git 動作補位執行。
+**Evidence file（自動寫入）**：`ci-local.sh` 執行完必寫 `/tmp/polaris-ci-local-{branch}-{head_sha}-{context_hash}.json`（status / branch / head_sha / CI context / timestamp / commands / summary）。`context_hash` 來自 event/base/source/ref，避免同一 head 在不同 PR base 下誤用 PASS cache。`gate-ci-local.sh` 在 git pre-commit / pre-push 及 `polaris-pr-create.sh` 前會呼叫 `ci-local-run.sh`；cache hit 由 generated `ci-local.sh` 自行處理，cache miss 或非 PASS 則同步實跑，PASS 放行 / FAIL 擋。跳過本 step ≠ 漏網 — gate 會在第一個 git 動作補位執行。
 
 **沒有 repo CI 配置（例如框架 repo / prototype）**：`ci-local-generate.sh` 偵測不到任何可推導的 commands → 產出 NO_CHECKS_CONFIGURED 純路徑 `ci-local.sh`，直接 PASS（仍寫 evidence file status: PASS）。這是 design — 框架尊重 repo maintainer 的 CI 決策，不主動強加 coverage baseline。
 

@@ -46,10 +46,6 @@ if [[ "${POLARIS_SKIP_CI_LOCAL:-}" == "1" ]]; then
   exit 0
 fi
 
-# Repo must have ci-local.sh to be onboarded (DP-043: located in .claude/scripts/)
-CI_LOCAL_ABS="$(ci_local_path_for_repo "$REPO_ROOT")"
-[[ -f "$CI_LOCAL_ABS" ]] || exit 0
-
 # Branch detection
 branch=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 
@@ -63,34 +59,14 @@ if [[ "$PUSH_MODE" -eq 1 ]]; then
   esac
 fi
 
-# Compute evidence path
-branch_slug=$(printf '%s' "$branch" | tr '/' '-')
 head_sha=$(git -C "$REPO_ROOT" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
-evidence="/tmp/polaris-ci-local-${branch_slug}-${head_sha}.json"
 
-# Cache hit?
-if [[ -f "$evidence" ]]; then
-  cached_status=$(python3 -c "
-import json
-try:
-    with open('${evidence}') as f:
-        d = json.load(f)
-    assert d.get('branch') == '${branch}' and d.get('head_sha') == '${head_sha}'
-    print(d.get('status', ''))
-except Exception:
-    print('')
-" 2>/dev/null || echo "")
-  if [[ "$cached_status" == "PASS" ]]; then
-    echo "$PREFIX ✅ Cache hit (${evidence##*/}) — skipping." >&2
-    exit 0
-  fi
-fi
-
-# Cache miss / FAIL → run ci-local.sh synchronously
-echo "$PREFIX Running ${CI_LOCAL_ABS} on ${branch} ..." >&2
+# Run ci-local.sh synchronously. The generated script owns context-aware
+# evidence caching because the cache key includes base/event/source/ref.
+echo "$PREFIX Running ci-local on ${branch} ..." >&2
 ci_log="${REPO_ROOT}/.polaris-ci-local-gate.log"
 
-if bash "$CI_LOCAL_ABS" >"$ci_log" 2>&1; then
+if bash "$SCRIPT_DIR/../ci-local-run.sh" --repo "$REPO_ROOT" >"$ci_log" 2>&1; then
   rm -f "$ci_log"
   echo "$PREFIX ✅ ci-local.sh passed." >&2
   exit 0
@@ -103,5 +79,5 @@ echo "" >&2
 tail -60 "$ci_log" >&2
 echo "" >&2
 echo "  Full log: ${ci_log}" >&2
-echo "  Re-run:   bash ${CI_LOCAL_ABS}" >&2
+echo "  Re-run:   bash ${SCRIPT_DIR}/../ci-local-run.sh --repo ${REPO_ROOT}" >&2
 exit 2

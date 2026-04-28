@@ -6,9 +6,9 @@
 #   1. Repo without .claude/scripts/ci-local.sh → allow (engineering/git-pr-workflow
 #      handles first-run gate at skill layer; hook stays defensive on cross-LLM
 #      portability)
-#   2. evidence /tmp/polaris-ci-local-{branch_slug}-{head_sha}.json exists,
-#      branch + head_sha match HEAD, status==PASS → allow (cache hit, zero cost)
-#   3. cache miss / FAIL → run `bash {repo}/.claude/scripts/ci-local.sh` synchronously
+#   2. evidence /tmp/polaris-ci-local-{branch_slug}-{head_sha}-{context_hash}.json exists,
+#      branch + head_sha + CI context match HEAD, status==PASS → allow (cache hit, zero cost)
+#   3. cache miss / FAIL → run `scripts/ci-local-run.sh` synchronously
 #      - exit 0 → allow (ci-local.sh wrote fresh evidence)
 #      - exit ≠0 → block + tail of ci-local.sh log
 #
@@ -61,25 +61,6 @@ repo_root="${extracted:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
 
 [[ -n "$repo_root" ]] || exit 0
 
-# Resolve canonical ci-local.sh path (in main checkout — shared across worktrees).
-# DP-043 follow-up: ci-local.sh lives only in the main checkout; worktrees
-# invoke the same canonical script via --repo. Falls back to worktree-local
-# path for legacy clones that may have a per-worktree script.
-# shellcheck source=../../scripts/lib/main-checkout.sh
-. "$HOOK_DIR/../../scripts/lib/main-checkout.sh"
-canonical_script=""
-if main_checkout="$(resolve_main_checkout "$repo_root" 2>/dev/null)"; then
-  candidate="$main_checkout/$CI_LOCAL_RELATIVE_PATH"
-  [[ -f "$candidate" ]] && canonical_script="$candidate"
-fi
-# Legacy fallback: worktree-local script (shouldn't exist with new design)
-if [[ -z "$canonical_script" ]]; then
-  candidate="$(ci_local_path_for_repo "$repo_root")"
-  [[ -f "$candidate" ]] && canonical_script="$candidate"
-fi
-[[ -n "$canonical_script" ]] || exit 0
-ci_local_abs="$canonical_script"
-
 # Push mode: skip non-delivery branches and destructive pushes
 if [[ "$MODE" == "push" ]]; then
   push_branch=$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
@@ -92,34 +73,15 @@ if [[ "$MODE" == "push" ]]; then
   fi
 fi
 
-# Compute current evidence path
 branch=$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
-branch_slug=$(printf '%s' "$branch" | tr '/' '-')
 head_sha=$(git -C "$repo_root" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
-evidence="/tmp/polaris-ci-local-${branch_slug}-${head_sha}.json"
 
-# Cache hit?
-if [[ -f "$evidence" ]]; then
-  cached_status=$(python3 -c "
-import json
-try:
-    with open('${evidence}') as f:
-        d = json.load(f)
-    assert d.get('branch') == '${branch}' and d.get('head_sha') == '${head_sha}'
-    print(d.get('status', ''))
-except Exception:
-    print('')
-" 2>/dev/null || echo "")
-  if [[ "$cached_status" == "PASS" ]]; then
-    exit 0
-  fi
-fi
-
-# Cache miss / FAIL → run ci-local.sh synchronously
-echo "[ci-local-gate] $MODE intercepted on ${branch} — running ${ci_local_abs} ..." >&2
+# Run ci-local.sh synchronously. The generated script owns context-aware
+# evidence caching because the cache key includes base/event/source/ref.
+echo "[ci-local-gate] $MODE intercepted on ${branch} — running ci-local-run ..." >&2
 ci_log=$(mktemp -t ci-local-gate.XXXXXX)
 
-bash "$ci_local_abs" --repo "$repo_root" >"$ci_log" 2>&1
+bash "$HOOK_DIR/../../scripts/ci-local-run.sh" --repo "$repo_root" >"$ci_log" 2>&1
 rc=$?
 
 if [[ $rc -eq 0 ]]; then
@@ -133,5 +95,5 @@ echo "" >&2
 tail -60 "$ci_log" >&2
 echo "" >&2
 echo "  Full log: ${ci_log}" >&2
-echo "  Re-run:   bash ${ci_local_abs} --repo ${repo_root}" >&2
+echo "  Re-run:   bash ${HOOK_DIR}/../../scripts/ci-local-run.sh --repo ${repo_root}" >&2
 exit 2

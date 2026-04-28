@@ -420,6 +420,92 @@ assert "Test 8: develop-base run exits 0" "$([ $T8_RUN_RC -eq 0 ] && echo 1 || e
 assert_contains "Test 8: develop-base command executed" /tmp/ci-local-test8-run.out "lint-for-develop"
 
 # ============================================================================
+echo "== Test 9: Codecov patch uses explicit stacked PR base =="
+# ============================================================================
+T9="$TMPROOT/codecov-stacked-base"
+mkdir -p "$T9/src" "$T9/coverage"
+cat > "$T9/codecov.yml" <<'YAML'
+flag_management:
+  individual_flags:
+    - name: unit
+      paths: [src/]
+      statuses:
+        - type: patch
+          target: 60%
+YAML
+init_git_repo "$T9"
+git -C "$T9" branch -M develop
+cat > "$T9/src/foo.ts" <<'TS'
+export const existing = 1;
+TS
+git -C "$T9" add .
+git -C "$T9" -c user.email=t@t -c user.name=t commit -q -m "develop base"
+git -C "$T9" update-ref refs/remotes/origin/develop HEAD
+git -C "$T9" checkout -q -b feature/base
+cat >> "$T9/src/foo.ts" <<'TS'
+export const upstreamCovered1 = 1;
+export const upstreamCovered2 = 2;
+export const upstreamCovered3 = 3;
+export const upstreamCovered4 = 4;
+export const upstreamCovered5 = 5;
+TS
+git -C "$T9" add .
+git -C "$T9" -c user.email=t@t -c user.name=t commit -q -m "feature base"
+git -C "$T9" update-ref refs/remotes/origin/feature/base HEAD
+git -C "$T9" checkout -q -b task/demo
+cat >> "$T9/src/foo.ts" <<'TS'
+export const taskCovered = 6;
+export const taskUncovered1 = 7;
+export const taskUncovered2 = 8;
+export const taskUncovered3 = 9;
+TS
+git -C "$T9" add .
+git -C "$T9" -c user.email=t@t -c user.name=t commit -q -m "task change"
+cat > "$T9/coverage/lcov.info" <<'LCOV'
+TN:
+SF:src/foo.ts
+DA:1,1
+DA:2,1
+DA:3,1
+DA:4,1
+DA:5,1
+DA:6,1
+DA:7,1
+DA:8,0
+DA:9,0
+DA:10,0
+end_of_record
+LCOV
+OUT9="$T9/.claude/scripts/ci-local.sh"
+"$GEN" --repo "$T9" --out "$OUT9" --force >/dev/null 2>&1
+assert "Test 9: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+bash -n "$OUT9" 2>/dev/null
+assert "Test 9: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+
+(cd "$T9" && bash "$OUT9" --repo "$T9" --base-branch develop >/tmp/ci-local-test9-develop.out 2>&1)
+T9_DEVELOP_RC=$?
+assert "Test 9: develop-base run passes" "$([ $T9_DEVELOP_RC -eq 0 ] && echo 1 || echo 0)"
+
+(cd "$T9" && bash "$OUT9" --repo "$T9" --base-branch feature/base >/tmp/ci-local-test9-feature.out 2>&1)
+T9_FEATURE_RC=$?
+assert "Test 9: feature-base run fails patch coverage" "$([ $T9_FEATURE_RC -ne 0 ] && echo 1 || echo 0)"
+T9_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+python3 - "$T9_EVIDENCE" <<'PY' >/tmp/ci-local-test9-evidence.out
+import json, sys
+d=json.load(open(sys.argv[1]))
+g=[x for x in d["codecov_results"] if x.get("status_type")=="patch"][0]
+print(d["status"])
+print(d["context"]["base_branch"])
+print(g["diff_base_ref"])
+print(g["coverage_percent"])
+PY
+assert_contains "Test 9: evidence status FAIL" /tmp/ci-local-test9-evidence.out "FAIL"
+assert_contains "Test 9: evidence context records feature base" /tmp/ci-local-test9-evidence.out "feature/base"
+assert_contains "Test 9: codecov used origin feature base" /tmp/ci-local-test9-evidence.out "origin/feature/base"
+assert_contains "Test 9: feature-base coverage reflects task-only diff" /tmp/ci-local-test9-evidence.out "25.0"
+rm -f "$T9_EVIDENCE"
+
+# ============================================================================
 echo
 echo "== Summary =="
 echo "  Assertions: $ASSERTIONS"
