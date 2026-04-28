@@ -506,6 +506,67 @@ assert_contains "Test 9: feature-base coverage reflects task-only diff" /tmp/ci-
 rm -f "$T9_EVIDENCE"
 
 # ============================================================================
+echo "== Test 10: Codecov empty-line net allows files with lcov data =="
+# ============================================================================
+T10="$TMPROOT/codecov-covered-file-no-patch-lines"
+mkdir -p "$T10/src" "$T10/coverage"
+cat > "$T10/codecov.yml" <<'YAML'
+flag_management:
+  individual_flags:
+    - name: unit
+      paths: [src/]
+      statuses:
+        - type: patch
+          target: 60%
+YAML
+init_git_repo "$T10"
+git -C "$T10" branch -M develop
+cat > "$T10/src/foo.ts" <<'TS'
+export const covered1 = 1;
+export const covered2 = 2;
+TS
+git -C "$T10" add .
+git -C "$T10" -c user.email=t@t -c user.name=t commit -q -m "develop base"
+git -C "$T10" update-ref refs/remotes/origin/develop HEAD
+git -C "$T10" checkout -q -b task/no-instrumented-lines
+cat >> "$T10/src/foo.ts" <<'TS'
+export const typeOnlyOrUninstrumented = 3;
+TS
+git -C "$T10" add .
+git -C "$T10" -c user.email=t@t -c user.name=t commit -q -m "task change"
+cat > "$T10/coverage/lcov.info" <<'LCOV'
+TN:
+SF:src/foo.ts
+DA:1,1
+DA:2,1
+end_of_record
+LCOV
+OUT10="$T10/.claude/scripts/ci-local.sh"
+"$GEN" --repo "$T10" --out "$OUT10" --force >/dev/null 2>&1
+assert "Test 10: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+bash -n "$OUT10" 2>/dev/null
+assert "Test 10: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+
+(cd "$T10" && bash "$OUT10" --repo "$T10" --base-branch develop >/tmp/ci-local-test10.out 2>&1)
+T10_RC=$?
+assert "Test 10: run exits 0 when matched file has lcov data" "$([ $T10_RC -eq 0 ] && echo 1 || echo 0)"
+T10_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+python3 - "$T10_EVIDENCE" <<'PY' >/tmp/ci-local-test10-evidence.out
+import json, sys
+d=json.load(open(sys.argv[1]))
+g=[x for x in d["codecov_results"] if x.get("status_type")=="patch"][0]
+print(d["status"])
+print(g["status"])
+print(g.get("reason"))
+print(",".join(g.get("files_with_coverage_data", [])))
+PY
+assert_contains "Test 10: evidence status PASS" /tmp/ci-local-test10-evidence.out "PASS"
+assert_contains "Test 10: patch gate remains SKIP no instrumented lines" /tmp/ci-local-test10-evidence.out "SKIP"
+assert_contains "Test 10: reason remains no_instrumented_patch_lines" /tmp/ci-local-test10-evidence.out "no_instrumented_patch_lines"
+assert_contains "Test 10: records files with coverage data" /tmp/ci-local-test10-evidence.out "src/foo.ts"
+rm -f "$T10_EVIDENCE" /tmp/ci-local-test10.out /tmp/ci-local-test10-evidence.out
+
+# ============================================================================
 echo
 echo "== Summary =="
 echo "  Assertions: $ASSERTIONS"

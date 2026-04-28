@@ -13,8 +13,8 @@
 # fatal (exit 1).
 #
 # Usage:
-#   start-test-env.sh --task-md PATH  [--workspace-config PATH] [--with-fixtures] [--ready-timeout SECONDS]
-#   start-test-env.sh --project NAME [--workspace-config PATH] [--with-fixtures] [--fixtures-dir PATH] [--epic NAME] [--ready-timeout SECONDS]
+#   start-test-env.sh --task-md PATH  [--workspace-config PATH] [--repo PATH] [--with-fixtures] [--ready-timeout SECONDS]
+#   start-test-env.sh --project NAME [--workspace-config PATH] [--repo PATH] [--with-fixtures] [--fixtures-dir PATH] [--epic NAME] [--ready-timeout SECONDS]
 #
 # When --task-md is used, the orchestrator extracts:
 #   - project name from `test_environment.dev_env_config`
@@ -46,8 +46,8 @@ FIXTURES_START="$ENV_DIR/fixtures-start.sh"
 usage() {
   cat <<EOF >&2
 Usage:
-  $(basename "$0") --task-md PATH  [--workspace-config PATH] [--with-fixtures] [--ready-timeout SECONDS]
-  $(basename "$0") --project NAME [--workspace-config PATH] [--with-fixtures] [--fixtures-dir PATH] [--epic NAME] [--ready-timeout SECONDS]
+  $(basename "$0") --task-md PATH  [--workspace-config PATH] [--repo PATH] [--with-fixtures] [--ready-timeout SECONDS]
+  $(basename "$0") --project NAME [--workspace-config PATH] [--repo PATH] [--with-fixtures] [--fixtures-dir PATH] [--epic NAME] [--ready-timeout SECONDS]
 
 Chains L2 primitives: ensure-dependencies → install-project-deps → start-command
 → health-check → [fixtures-start].
@@ -60,6 +60,7 @@ EOF
 PROJECT=""
 TASK_MD=""
 WORKSPACE_CONFIG=""
+REPO_OVERRIDE=""
 WITH_FIXTURES=false
 FIXTURES_DIR=""
 EPIC=""
@@ -70,6 +71,7 @@ while [[ $# -gt 0 ]]; do
     --project) PROJECT="${2:-}"; shift 2 ;;
     --task-md) TASK_MD="${2:-}"; shift 2 ;;
     --workspace-config) WORKSPACE_CONFIG="${2:-}"; shift 2 ;;
+    --repo) REPO_OVERRIDE="${2:-}"; shift 2 ;;
     --with-fixtures) WITH_FIXTURES=true; shift ;;
     --fixtures-dir) FIXTURES_DIR="${2:-}"; shift 2 ;;
     --epic) EPIC="${2:-}"; shift 2 ;;
@@ -90,6 +92,7 @@ if [[ -z "$WORKSPACE_CONFIG" ]]; then
 fi
 
 PROJECT_CWD=""
+COMPANY_BASE_DIR=""
 
 if [[ -n "$TASK_MD" ]]; then
   if [[ ! -f "$TASK_MD" ]]; then
@@ -170,9 +173,17 @@ if not out and data.get("companies"):
     out = data["companies"][0].get("base_dir", "")
 print(os.path.expanduser(out))
 ' "$router_cfg")
+  COMPANY_BASE_DIR="$base_dir"
   if [[ -n "$base_dir" && -d "$base_dir/$PROJECT" ]]; then
     PROJECT_CWD="$base_dir/$PROJECT"
   fi
+fi
+
+if [[ -n "$REPO_OVERRIDE" ]]; then
+  PROJECT_CWD="$(cd "$(env_lib_expand_path "$REPO_OVERRIDE")" 2>/dev/null && pwd)" || {
+    env_lib_log_fail "--repo path does not exist: $REPO_OVERRIDE"
+    exit 2
+  }
 fi
 
 env_lib_log_info "orchestrator config: project=$PROJECT, cwd=${PROJECT_CWD:-<PWD>}, fixtures=${WITH_FIXTURES} (${FIXTURES_DIR:-N/A})"
@@ -181,7 +192,7 @@ env_lib_log_info "orchestrator config: project=$PROJECT, cwd=${PROJECT_CWD:-<PWD
 env_lib_log_info "Step 1/4: ensure-dependencies"
 ed_args=("--project" "$PROJECT" "--workspace-config" "$WORKSPACE_CONFIG" "--ready-timeout" "$READY_TIMEOUT")
 if [[ -n "$PROJECT_CWD" ]]; then
-  ed_args+=("--cwd-base" "$(dirname "$PROJECT_CWD")")
+  ed_args+=("--cwd-base" "${COMPANY_BASE_DIR:-$(dirname "$PROJECT_CWD")}")
 fi
 if ! "$ENSURE_DEPS" "${ed_args[@]}"; then
   env_lib_log_fail "Step 1/4 ensure-dependencies FAILED"

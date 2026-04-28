@@ -188,7 +188,7 @@ case "$LEVEL" in
       echo "run-verify-command: runtime-level requires scripts/start-test-env.sh — orchestrator missing" >&2
       exit 1
     fi
-    if ! "$START_TEST_ENV" --task-md "$TASK_MD" >&2; then
+    if ! "$START_TEST_ENV" --task-md "$TASK_MD" --repo "$REPO_PATH" >&2; then
       echo "run-verify-command: scripts/start-test-env.sh failed (runtime-level env start)" >&2
       exit 1
     fi

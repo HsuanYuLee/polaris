@@ -32,6 +32,8 @@ SE="$(cd "$SCRIPT_DIR/.." && pwd)/start-test-env.sh"
 PORT_HTTP=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
 PORT_HTTP2=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
 PORT_HC_PROBE=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
+PORT_DOCKER=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
+PORT_OVERRIDE=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
 
 TEST_CONFIG="$WORK_DIR/workspace-config.yaml"
 cat > "$TEST_CONFIG" <<EOF
@@ -56,6 +58,25 @@ projects:
       start_command: "true"
       health_check: "http://127.0.0.1:$PORT_HTTP/"
       requires: []
+  - name: repo-override-service
+    dev_environment:
+      install_command: "python3 -c \"from pathlib import Path; Path('.repo-override-installed').write_text('ok')\""
+      start_command: "python3 -u -m http.server $PORT_OVERRIDE --bind 127.0.0.1"
+      ready_signal: "Serving HTTP on 127.0.0.1"
+      health_check: "http://127.0.0.1:$PORT_OVERRIDE/"
+      requires: []
+  - name: docker-dep
+    tags: ["docker"]
+    dev_environment:
+      start_command: "python3 -u -m http.server $PORT_DOCKER --bind 127.0.0.1"
+      ready_signal: "Serving HTTP on 127.0.0.1"
+      health_check: "http://127.0.0.1:$PORT_DOCKER/definitely-not-a-real-page"
+      requires: []
+  - name: app-with-docker-dep
+    dev_environment:
+      start_command: "true"
+      health_check: "http://127.0.0.1:$PORT_HTTP/"
+      requires: ["docker-dep"]
   - name: install-detected
     dev_environment:
       start_command: "true"
@@ -97,7 +118,11 @@ assert_eq() {
 
 cleanup() {
   # Kill any lingering http.server processes from start-command via PID files.
-  for pid_file in /tmp/polaris-env-d11/leaf-service.pid /tmp/polaris-env-d11/app-service.pid; do
+  for pid_file in \
+    /tmp/polaris-env-d11/leaf-service.pid \
+    /tmp/polaris-env-d11/app-service.pid \
+    /tmp/polaris-env-d11/docker-dep.pid \
+    /tmp/polaris-env-d11/repo-override-service.pid; do
     [[ -f "$pid_file" ]] || continue
     pid=$(cat "$pid_file" 2>/dev/null || true)
     if [[ -n "$pid" ]]; then
@@ -144,6 +169,11 @@ echo "=== start-command.sh ==="
 run_silent "$SC"; assert_eq "$?" "2" "usage error"
 run_silent "$SC" --project ghost; assert_eq "$?" "1" "unknown project"
 run_silent "$SC" --project no-dev-env; assert_eq "$?" "1" "no dev_environment"
+sc_out="$("$SC" --project install-configured 2>/dev/null)"
+RC_SC_COMPLETE=$?
+assert_eq "$RC_SC_COMPLETE" "0" "instant success start_command exits 0"
+echo "$sc_out" | grep -q '"status": "completed"'
+assert_eq "$?" "0" "instant success start_command emits completed status"
 # Real launch: leaf-service starts a python http.server, ready_signal fires
 run_silent "$SC" --project leaf-service --ready-timeout 10
 RC_LEAF=$?
@@ -195,6 +225,16 @@ ed_out="$("$ED" --project app-service --ready-timeout 10 2>/dev/null)"
 echo "$ed_out" | grep -q '"started"'
 assert_eq "$?" "0" "ensure-deps started leaf-service from cold"
 
+# Docker-tagged dependencies can expose a proxy port while the app route used
+# by health_check returns non-2xx. The dependency check should treat the
+# listening port as healthy; otherwise runtime verification can be blocked by
+# the target app route before the dependency layer is even classified ready.
+run_silent "$SC" --project docker-dep --ready-timeout 10
+assert_eq "$?" "0" "docker-tag dep launched"
+ed_out="$("$ED" --project app-with-docker-dep --ready-timeout 10 2>/dev/null)"
+echo "$ed_out" | grep -q '"already-healthy"'
+assert_eq "$?" "0" "docker-tag dep uses port listening health"
+
 # Cleanup leaf
 PID=$(cat /tmp/polaris-env-d11/leaf-service.pid 2>/dev/null || true)
 if [[ -n "$PID" ]]; then
@@ -241,6 +281,18 @@ for s in leaf-service app-service; do
   fi
   rm -f "/tmp/polaris-env-d11/${s}.pid"
 done
+
+repo_override_dir="$WORK_DIR/repo-override-service"
+mkdir -p "$repo_override_dir"
+se_out="$("$SE" --project repo-override-service --repo "$repo_override_dir" --ready-timeout 10 2>"$WORK_DIR/se-repo.err")"
+RC_SE_REPO=$?
+if [[ "$RC_SE_REPO" != "0" ]]; then
+  echo "    se --repo stderr:"; sed 's/^/      /' "$WORK_DIR/se-repo.err"
+  echo "    se --repo stdout:"; printf '      %s\n' "$se_out"
+fi
+assert_eq "$RC_SE_REPO" "0" "start-test-env --repo full chain"
+[[ -f "$repo_override_dir/.repo-override-installed" ]]
+assert_eq "$?" "0" "start-test-env --repo runs install in override cwd"
 
 echo ""
 echo "=== Summary ==="

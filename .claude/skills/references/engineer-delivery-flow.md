@@ -241,7 +241,7 @@ bash "${POLARIS_ROOT}/scripts/ci-local-run.sh"
 
 **沒有 repo CI 配置（例如框架 repo / prototype）**：`ci-local-generate.sh` 偵測不到任何可推導的 commands → 產出 NO_CHECKS_CONFIGURED 純路徑 `ci-local.sh`，直接 PASS（仍寫 evidence file status: PASS）。這是 design — 框架尊重 repo maintainer 的 CI 決策，不主動強加 coverage baseline。
 
-**Empty-coverage 安全網（`ci-local.sh` 內建 invariant）**：若所有 patch gate 結果為 SKIP（`no_instrumented_patch_lines`）但 diff 中有匹配 gate path 的檔案，`ci-local.sh` 判定 FAIL（tests 很可能沒跑出 coverage data）。defense-in-depth — 攔截 test runner 靜默跳過 / coverage 生成失敗等未預見原因。
+**Empty-coverage 安全網（`ci-local.sh` 內建 invariant）**：若所有 patch gate 結果為 SKIP（`no_instrumented_patch_lines`）、diff 中有匹配 gate path 的檔案、且沒有任何匹配檔案出現在 lcov coverage data，`ci-local.sh` 判定 FAIL（tests 很可能沒跑出 coverage data）。若 lcov 已包含該檔案但本次 patch lines 不可 instrument，維持 SKIP。defense-in-depth — 攔截 test runner 靜默跳過 / coverage 生成失敗等未預見原因，同時避免把有 coverage data 的 type-only / non-instrumented patch 誤判成 coverage 沒跑。
 
 **Bypass**：`POLARIS_SKIP_CI_LOCAL=1` — emergency escape only，不應日常使用。**沒有** `wip:` commit-msg skip / **沒有** main-develop branch skip / **沒有** deprecation shim（D12-c 一次到位的 breaking change）。
 
@@ -265,7 +265,7 @@ bash "${POLARIS_ROOT}/scripts/run-verify-command.sh" "<path/to/task.md>"
 2. D17 level-based dispatch：
    - `Level=static` → 直接執行 verify command
    - `Level=build` → 先呼叫 `run-test-prep.sh` → 再執行
-   - `Level=runtime` → 先呼叫 `start-test-env.sh` orchestrator（D11 L3）→ 再執行
+   - `Level=runtime` → 先呼叫 `start-test-env.sh` orchestrator（D11 L3；透過 `--repo` 指向實際 checkout/worktree）→ 再執行
 3. 執行 fenced shell verify command，captures stdout/stderr/exit + sha256 hash
 4. Best-effort `curl URL → HTTP status` extraction from output
 5. 原子寫入 evidence 到 `/tmp/polaris-verified-{ticket}-{head_sha}.json`（writer=`run-verify-command.sh`）

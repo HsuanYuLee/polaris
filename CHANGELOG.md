@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.28] - 2026-04-28
+
+### Fixed — runtime env startup and coverage evidence
+
+- Routed runtime verification env startup through the actual checkout/worktree
+  path and kept dependency cwd inference anchored at the company base.
+- Treated docker-tagged dependencies as healthy when their declared health-check
+  port is listening, and allowed one-shot start commands that exit 0 to count as
+  completed startup.
+- Refined the ci-local empty-coverage safety net so matched files with lcov data
+  are not mistaken for missing coverage output when patch lines are not
+  instrumented.
+
 ## [3.73.27] - 2026-04-28
 
 ### Fixed — template release hygiene
