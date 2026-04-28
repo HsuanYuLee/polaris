@@ -634,6 +634,10 @@ def discover_codecov_flag_gates():
         if not isinstance(payload, dict):
             continue
 
+        global_ignore = [
+            p for p in (payload.get("ignore", []) or [])
+            if isinstance(p, str) and p.strip()
+        ]
         fm = payload.get("flag_management", {})
         individual_flags = fm.get("individual_flags", []) if isinstance(fm, dict) else []
         for flag in individual_flags:
@@ -678,7 +682,7 @@ def discover_codecov_flag_gates():
                     "source_file": filename,
                     "flag": str(flag.get("name", "default")),
                     "include_paths": include,
-                    "exclude_paths": exclude,
+                    "exclude_paths": exclude + global_ignore,
                     "statuses": statuses,
                 }
             )

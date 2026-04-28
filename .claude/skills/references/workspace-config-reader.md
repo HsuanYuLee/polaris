@@ -132,6 +132,7 @@ Root config 也包含 `dependencies` block，追蹤框架推薦 lib 的使用者
 | 專案 Dev 啟動指令 | `company: projects[].dev_environment.start_command` | — |
 | 專案 Test 指令 | `company: projects[].dev_environment.test_command` | breakdown 產 task.md `## Test Command` 的來源 |
 | 專案 Dev base URL | `company: projects[].dev_environment.base_url` | — |
+| 專案 PR title 規則 | `company: projects[].delivery.pr_title.developer` | `"[{TICKET}] {summary}"` |
 | VR domain 設定 | `company: visual_regression.domains[]` | visual-regression-config.md |
 | VR domain server | `company: visual_regression.domains[].server.*` | visual-regression-config.md |
 | VR domain pages | `company: visual_regression.domains[].pages[]` | visual-regression-config.md |

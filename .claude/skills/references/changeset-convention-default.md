@@ -18,13 +18,13 @@ Polaris 提供的 changeset 兜底規範。當 repo **L1 config**（`.changeset/
 
 **規則衝突處理**：L1 是機器設定（`.changeset/config.json` schema），L2 / L3 是語意慣例 — 兩者**不衝突**（互補）。L2 有定義就用 L2；L2 無 → 用 L3 default。
 
-`.changeset/config.json` 不存在 → 該 repo 不走 changeset → engineering 不主動產 changeset 檔。
+`.changeset/config.json` 不存在 → 該 repo 不走 changeset → engineering 不主動產 changeset 檔。只有 `.changeset/` 空目錄不算啟用；偵測條件必須是 repo root 下存在 `.changeset/config.json`。
 
 ---
 
 ## 2. task.md 宣告契約（DP-033 scope）
 
-breakdown 偵測 repo `.changeset/config.json` 存在 → task.md frontmatter 注入 `deliverables.changeset` block：
+breakdown / engineering 先偵測 repo `.changeset/config.json` 存在，確認該 repo 有啟用 Changesets 後，才啟動 changeset deliverable 流程。breakdown 偵測成立時 task.md frontmatter 注入 `deliverables.changeset` block：
 
 ```yaml
 deliverables:
@@ -36,7 +36,7 @@ deliverables:
 
 **Allowed Files** 自動把 `.changeset/{filename_slug}.md` 加入。
 
-`.changeset/config.json` 不存在 → 不宣告 → engineering 不動 changeset。
+`.changeset/config.json` 不存在 → 不宣告 → engineering 不動 changeset；`polaris-changeset.sh` 與 `gate-changeset.sh` 也必須 no-op exit 0。
 
 > 註：DP-033 完成前，breakdown 端的注入流程仍在演化；本檔規範**消費端**行為（script 與 LLM 該怎麼解析這些欄位），生產端 schema 鎖定屬 DP-033。
 

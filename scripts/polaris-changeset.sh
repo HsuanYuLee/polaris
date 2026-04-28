@@ -8,7 +8,8 @@
 #   L3 Polaris default (this script's behavior)
 #
 # Contract:
-#   polaris-changeset.sh new --task-md PATH [--bump patch|minor|major]
+#   polaris-changeset.sh new --task-md PATH [--repo PATH] [--bump patch|minor|major]
+#   polaris-changeset.sh check --task-md PATH [--repo PATH] [--bump patch|minor|major]
 #
 # Behavior:
 #   1. Resolve repo path from task.md `repo` field (walk ancestors)
@@ -16,8 +17,9 @@
 #   3. Try task.md frontmatter `deliverables.changeset.*` (DP-033 — currently
 #      not present; expected to fail and fall through to derivation)
 #   4. Derivation fallback:
-#        - package_scope: parse .changeset/config.json → if .packages glob
-#          resolves to a single package match, use it; otherwise fail-loud
+#        - package_scope: parse .changeset/config.json → if .packages /
+#          workspace glob resolves to a single publishable or configured
+#          private-tagged package match, use it; otherwise fail-loud
 #          (multi-package needs DP-033 declaration or repo handbook override)
 #        - bump_level_default: L3 = patch (overridable via --bump)
 #        - filename_slug: kebab(ticket) + "-" + kebab(strip(title))
@@ -30,7 +32,7 @@
 #
 # Exit codes:
 #   0  Success (file written or idempotent skip or no-op when no changesets/)
-#   1  Fail-loud (parse error, multi-package without declaration, etc.)
+#   1  Fail-loud (parse error, multi-package without declaration, missing on check, etc.)
 #   2  Usage error
 
 set -uo pipefail
@@ -41,10 +43,14 @@ PARSE_TASK_MD="$SCRIPT_DIR/parse-task-md.sh"
 usage() {
   cat <<EOF >&2
 Usage:
-  $(basename "$0") new --task-md PATH [--bump patch|minor|major]
+  $(basename "$0") new --task-md PATH [--repo PATH] [--bump patch|minor|major]
+  $(basename "$0") check --task-md PATH [--repo PATH] [--bump patch|minor|major]
 
 Mechanically writes .changeset/{slug}.md from a task.md per
 references/changeset-convention-default.md (L3 default).
+
+The check subcommand derives the same expected file and verifies it exists
+without writing anything.
 
 Exit:  0 = success / no-op / idempotent skip, 1 = fail-loud, 2 = usage error.
 EOF
@@ -54,6 +60,7 @@ EOF
 SUB=""
 TASK_MD=""
 BUMP_OVERRIDE=""
+REPO_OVERRIDE=""
 
 if [[ $# -lt 1 ]]; then
   usage; exit 2
@@ -61,7 +68,7 @@ fi
 SUB="$1"; shift
 
 case "$SUB" in
-  new) ;;
+  new|check) ;;
   -h|--help) usage; exit 0 ;;
   *) echo "polaris-changeset: unknown subcommand: $SUB" >&2; usage; exit 2 ;;
 esac
@@ -69,6 +76,7 @@ esac
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --task-md) TASK_MD="${2:-}"; shift 2 ;;
+    --repo)    REPO_OVERRIDE="${2:-}"; shift 2 ;;
     --bump)    BUMP_OVERRIDE="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "polaris-changeset: unknown arg: $1" >&2; usage; exit 2 ;;
@@ -104,6 +112,7 @@ parse_field() {
 REPO_NAME="$(parse_field repo)"
 TICKET="$(parse_field task_jira_key)"
 SUMMARY="$(parse_field summary)"
+ALLOWED_FILES_RAW="$(parse_field allowed_files)"
 
 if [[ -z "$REPO_NAME" ]]; then
   echo "polaris-changeset: failed to parse 'repo' from $TASK_MD" >&2
@@ -133,7 +142,15 @@ resolve_repo_path() {
   return 1
 }
 
-REPO_PATH="$(resolve_repo_path "$REPO_NAME" || true)"
+if [[ -n "$REPO_OVERRIDE" ]]; then
+  if [[ ! -d "$REPO_OVERRIDE" ]]; then
+    echo "polaris-changeset: --repo path not found: $REPO_OVERRIDE" >&2
+    exit 1
+  fi
+  REPO_PATH="$(cd "$REPO_OVERRIDE" && pwd)"
+else
+  REPO_PATH="$(resolve_repo_path "$REPO_NAME" || true)"
+fi
 if [[ -z "$REPO_PATH" ]]; then
   echo "polaris-changeset: could not locate repo '$REPO_NAME' as ancestor of $TASK_MD" >&2
   exit 1
@@ -160,13 +177,14 @@ if [[ -n "$DECLARED_PACKAGE_SCOPE" ]]; then
 else
   # Derive from .changeset/config.json + repo workspace.
   # Strategy: parse config.json's `packages` (if present); resolve glob against
-  # repo's package.json files. If a single package matches → use its name.
-  # If multiple → fail-loud (multi-package needs DP-033 declaration).
-  PACKAGE_SCOPE="$(python3 - "$REPO_PATH" "$CHANGESET_CONFIG" <<'PY' || true
+  # repo's package.json files. If multiple packages match, narrow by task
+  # Allowed Files path prefixes. If still multiple → fail-loud.
+  PACKAGE_SCOPE="$(python3 - "$REPO_PATH" "$CHANGESET_CONFIG" "$ALLOWED_FILES_RAW" <<'PY' || true
 import json, os, sys, glob, re
 
 repo_path = sys.argv[1]
 cfg_path = sys.argv[2]
+allowed_raw = sys.argv[3] if len(sys.argv) > 3 else ""
 
 try:
     with open(cfg_path) as f:
@@ -176,8 +194,25 @@ except Exception:
 
 # Two layouts:
 # 1. cfg["packages"] — explicit glob list (newer @changesets schema)
-# 2. fallback to root package.json `name` (single-package repo)
+# 2. fallback to root package.json name (single-package repo)
 candidates = []
+include_private = bool((cfg.get("privatePackages") or {}).get("tag"))
+
+def add_candidate(name, directory):
+    rel = os.path.relpath(directory, repo_path).replace(os.sep, "/")
+    candidates.append((name, rel))
+
+def allowed_paths(raw):
+    paths = []
+    for line in raw.splitlines():
+        s = line.strip()
+        tick = chr(96)
+        if s.startswith(tick) and tick in s[1:]:
+            s = s[1:s.find(tick, 1)]
+        s = s.split("（", 1)[0].strip()
+        if s and ("/" in s or "." in s):
+            paths.append(s.rstrip("/"))
+    return paths
 
 cfg_packages = cfg.get("packages")
 if isinstance(cfg_packages, list) and cfg_packages:
@@ -190,8 +225,8 @@ if isinstance(cfg_packages, list) and cfg_packages:
                 with open(pkg_json) as f:
                     pkg = json.load(f)
                 name = pkg.get("name")
-                if name and not pkg.get("private", False):
-                    candidates.append(name)
+                if name and (include_private or not pkg.get("private", False)):
+                    add_candidate(name, d)
             except Exception:
                 continue
 else:
@@ -201,7 +236,7 @@ else:
         # Parse pnpm-workspace.yaml packages globs without yaml dep
         with open(pnpm_ws) as f:
             text = f.read()
-        # Very simple: lines like `  - apps/*` under `packages:` block
+        # Very simple: package glob lines under the packages block.
         in_pkg = False
         globs = []
         for ln in text.splitlines():
@@ -224,8 +259,8 @@ else:
                     with open(pkg_json) as f:
                         pkg = json.load(f)
                     name = pkg.get("name")
-                    if name and not pkg.get("private", False):
-                        candidates.append(name)
+                    if name and (include_private or not pkg.get("private", False)):
+                        add_candidate(name, d)
                 except Exception:
                     continue
 
@@ -238,17 +273,29 @@ else:
                     pkg = json.load(f)
                 name = pkg.get("name")
                 if name:
-                    candidates.append(name)
+                    add_candidate(name, repo_path)
             except Exception:
                 pass
 
-unique = sorted(set(candidates))
+unique = sorted(set(name for name, _ in candidates))
 if len(unique) == 1:
     print(unique[0])
 elif len(unique) == 0:
     print("__NONE__")
 else:
-    print("__MULTI__:" + ",".join(unique))
+    allowed = allowed_paths(allowed_raw)
+    narrowed = []
+    for name, rel in candidates:
+        prefix = "" if rel == "." else rel.rstrip("/") + "/"
+        if prefix and any(p == rel or p.startswith(prefix) for p in allowed):
+            narrowed.append(name)
+    narrowed_unique = sorted(set(narrowed))
+    if len(narrowed_unique) == 1:
+        print(narrowed_unique[0])
+    elif narrowed_unique:
+        print("__MULTI__:" + ",".join(narrowed_unique))
+    else:
+        print("__MULTI__:" + ",".join(unique))
 PY
 )"
 
@@ -353,8 +400,18 @@ OUTPUT_FILE="$CHANGESET_DIR/${FILENAME_SLUG}.md"
 
 # --- Idempotent skip if file exists ----------------------------------------
 if [[ -f "$OUTPUT_FILE" ]]; then
-  echo "polaris-changeset: idempotent skip — $OUTPUT_FILE already exists" >&2
+  if [[ "$SUB" == "check" ]]; then
+    echo "polaris-changeset: check passed — $OUTPUT_FILE exists" >&2
+  else
+    echo "polaris-changeset: idempotent skip — $OUTPUT_FILE already exists" >&2
+  fi
   exit 0
+fi
+
+if [[ "$SUB" == "check" ]]; then
+  echo "polaris-changeset: check failed — expected changeset is missing: $OUTPUT_FILE" >&2
+  echo "  Run: scripts/polaris-changeset.sh new --task-md \"$TASK_MD\"" >&2
+  exit 1
 fi
 
 # --- Description: task.md title with strip mode (L3 default) ---------------

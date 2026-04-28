@@ -54,12 +54,19 @@ REPO_PATH="${REPO_PATH:-$(pwd)}"
 
 # --- Extract --base from GH_ARGS ---
 BASE_BRANCH=""
+PR_TITLE=""
 for (( i=0; i<${#GH_ARGS[@]}; i++ )); do
   case "${GH_ARGS[$i]}" in
     --base=*) BASE_BRANCH="${GH_ARGS[$i]#--base=}" ;;
+    --title=*) PR_TITLE="${GH_ARGS[$i]#--title=}" ;;
     --base)
       if [[ $(( i + 1 )) -lt ${#GH_ARGS[@]} ]]; then
         BASE_BRANCH="${GH_ARGS[$(( i + 1 ))]}"
+      fi
+      ;;
+    --title)
+      if [[ $(( i + 1 )) -lt ${#GH_ARGS[@]} ]]; then
+        PR_TITLE="${GH_ARGS[$(( i + 1 ))]}"
       fi
       ;;
   esac
@@ -115,6 +122,16 @@ fi
 
 # Gate 3: ci-local (always)
 run_gate gate-ci-local.sh --repo "$REPO_PATH"
+
+# Gate 4: Developer PR title (managed task branches only)
+if [[ "$IS_TICKET_BRANCH" -eq 1 && -n "$PR_TITLE" ]]; then
+  run_gate gate-pr-title.sh --repo "$REPO_PATH" --title "$PR_TITLE"
+fi
+
+# Gate 5: task changeset (managed task branches in changeset repos)
+if [[ "$IS_TICKET_BRANCH" -eq 1 ]]; then
+  run_gate gate-changeset.sh --repo "$REPO_PATH"
+fi
 
 echo "$PREFIX All gates passed — creating PR..."
 exec gh pr create "${GH_ARGS[@]}"

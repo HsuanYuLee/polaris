@@ -79,6 +79,11 @@ projects:
     repo: "your-org/my-app"
     tags: ["app"]
     keywords: ["frontend", "main app"]
+    delivery:
+      pr_title:
+        # Repo-specific Developer PR title template.
+        # Supported placeholders: {TICKET}, {ticket}, {summary}
+        developer: "[{TICKET}] {summary}"
 
 # ── Scrum ──
 scrum:

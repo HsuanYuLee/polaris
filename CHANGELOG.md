@@ -4,6 +4,25 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.14] - 2026-04-28
+
+### Fixed — engineering delivery metadata gates
+
+- Added deterministic Developer PR title and task changeset gates to PR
+  creation and completion checks, so title naming and changeset deliverables are
+  validated before engineering reports completion.
+- Made changeset handling activate only when a repo has
+  `.changeset/config.json`; repos without Changesets now skip creation and
+  checks instead of being inferred from an incidental directory.
+- Added repo-specific Developer PR title templates under
+  `projects[].delivery.pr_title.developer` in company workspace config, with
+  `[{TICKET}] {summary}` as the fallback.
+- Improved changeset derivation for monorepos by supporting explicit `--repo`,
+  check-only mode, private package tagging, and Allowed Files based package
+  narrowing.
+- Treated generated `.changeset/*.md` files as engineering delivery metadata in
+  scope checks and applied Codecov global ignores to discovered flag gates.
+
 ## [3.73.13] - 2026-04-28
 
 ### Changed — worktree cleanup lifecycle

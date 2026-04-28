@@ -11,7 +11,9 @@
 # Steps:
 #   1. parse-task-md.sh → allowed_files array + resolved_base + task_jira_key
 #   2. git diff --name-only origin/{resolved_base}..HEAD → changed files
-#   3. For each changed file: check against allowed patterns
+#   3. Ignore delivery metadata that engineering itself must produce
+#      (.changeset/*.md), then check each remaining changed file against
+#      allowed patterns
 #   4. Emit JSON: {within_scope, scope_additions, task_key, allowed_count, diff_count}
 #
 # Pattern matching:
@@ -117,6 +119,9 @@ for p in patterns:
 within = []
 additions = []
 for f in files:
+    if f.startswith('.changeset/') and f.endswith('.md'):
+        within.append(f)
+        continue
     matched = any(match_pattern(f, p) for p in clean_patterns)
     if matched:
         within.append(f)

@@ -71,4 +71,10 @@ if [[ "$MODE" != "admin" && -n "$TICKET" ]]; then
   bash "${SCRIPT_DIR}/gates/gate-evidence.sh" --repo "$REPO_ROOT" --ticket "$TICKET"
 fi
 
+# Developer PR metadata/deliverable gates.
+if [[ "$MODE" != "admin" ]]; then
+  bash "${SCRIPT_DIR}/gates/gate-pr-title.sh" --repo "$REPO_ROOT"
+  bash "${SCRIPT_DIR}/gates/gate-changeset.sh" --repo "$REPO_ROOT"
+fi
+
 echo "$PREFIX ✅ completion gates satisfied." >&2
