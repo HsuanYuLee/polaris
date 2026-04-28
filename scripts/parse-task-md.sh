@@ -430,7 +430,7 @@ AC 驗證**不在本 task 範圍**。
 ## Test Command
 
 ```bash
-pnpm -C apps/main vitest run
+pnpm --dir apps/main exec vitest run
 ```
 
 ## Test Environment
@@ -499,7 +499,7 @@ MD
 ## Test Command
 
 ```bash
-pnpm -C apps/main vitest run
+pnpm --dir apps/main exec vitest run
 ```
 
 ## Test Environment
@@ -554,7 +554,7 @@ MD
   expect_field "$fixture" runtime_verify_target  ""                      "F1.runtime_target_NA"
   expect_field "$fixture" env_bootstrap_command  ""                      "F1.bootstrap_NA"
   expect_field "$fixture" fixtures               ""                      "F1.fixtures_NA"
-  expect_field "$fixture" test_command           "pnpm -C apps/main vitest run" "F1.test_command"
+  expect_field "$fixture" test_command           "pnpm --dir apps/main exec vitest run" "F1.test_command"
 
   # verify_command spans single-line; just check it's non-empty + contains key
   vc="$(emit_json "$fixture" "" | emit_field verify_command)"

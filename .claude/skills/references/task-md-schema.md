@@ -260,7 +260,15 @@ Bullet list 格式：
 
 ### 3.5 `## Test Command` / `## Verify Command`
 
-兩者皆必須包含 fenced code block（內容由 LLM 不可改寫 — `verify-command-immutable-execute` canary）：
+兩者皆必須包含 fenced code block（內容由 LLM 不可改寫 — `verify-command-immutable-execute` canary）。
+
+`## Test Command` 的內容不是 schema 固定值，必須由 producer 依下列來源解析後填入：
+
+1. `workspace-config.yaml` → `projects[].dev_environment.test_command`
+2. 專案 CLAUDE.md 的測試指令
+3. Fallback：`npx vitest run`
+
+Monorepo 指令必須能從該 repo / worktree root 執行，並包含正確子目錄；例如 `pnpm --dir {app_dir} exec vitest run` 只適用於 repo root 下確實存在 `{app_dir}` 的專案，不能作為所有 task.md 的固定範例。
 
 ```markdown
 ## Test Command
@@ -268,7 +276,7 @@ Bullet list 格式：
 > breakdown 產出。engineering 跑測試時**必須使用此指令**，不可自行推導。
 
 ​```bash
-pnpm -C apps/main vitest run
+{project-specific test_command}
 ​```
 
 ## Verify Command
@@ -339,7 +347,7 @@ AC 驗證委派至 TASK-123（由 verify-AC skill 執行）。
 
 ## Test Command
 ​```bash
-pnpm -C apps/main vitest run
+{project-specific test_command}
 ​```
 
 ## Test Environment

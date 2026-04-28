@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.22] - 2026-04-28
+
+### Fixed — task.md test command guidance
+
+- Replaced invalid `pnpm -C apps/main vitest run` task.md examples with
+  `pnpm --dir apps/main exec vitest run`, matching pnpm's executable invocation
+  semantics for monorepo app directories.
+- Clarified that task.md `## Test Command` is project-specific output from
+  workspace config or repo guidance, not a fixed schema value.
+- Updated the task parser self-test fixture so future checks no longer encode
+  the invalid command form.
+
 ## [3.73.21] - 2026-04-28
 
 ### Changed — PR body language policy
