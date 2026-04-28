@@ -37,6 +37,50 @@ source "$SCRIPT_DIR/_lib.sh"
 START_CMD="$SCRIPT_DIR/start-command.sh"
 HEALTH_CHECK="$SCRIPT_DIR/health-check.sh"
 
+dep_has_docker_tag() {
+  local dep="$1" config="$2"
+  python3 - "$config" "$dep" <<'PY'
+import sys, yaml
+config, dep = sys.argv[1], sys.argv[2]
+with open(config) as f:
+    data = yaml.safe_load(f) or {}
+for p in data.get("projects", []) or []:
+    if p.get("name") == dep:
+        print("yes" if "docker" in (p.get("tags") or []) else "no")
+        raise SystemExit(0)
+print("no")
+PY
+}
+
+health_url_port() {
+  python3 - "$1" <<'PY'
+import sys
+from urllib.parse import urlparse
+u = urlparse(sys.argv[1])
+if u.port:
+    print(u.port)
+elif u.scheme == "https":
+    print(443)
+elif u.scheme == "http":
+    print(80)
+PY
+}
+
+port_listening() {
+  local port="$1"
+  [[ -n "$port" ]] || return 1
+  lsof -i :"$port" -sTCP:LISTEN >/dev/null 2>&1
+}
+
+dep_health_passes() {
+  local dep="$1" url="$2" timeout="${3:-4}" interval="${4:-2}"
+  if [[ "$(dep_has_docker_tag "$dep" "$WORKSPACE_CONFIG")" == "yes" ]]; then
+    port_listening "$(health_url_port "$url")"
+  else
+    "$HEALTH_CHECK" "$url" --timeout "$timeout" --interval "$interval" > /dev/null 2>&1
+  fi
+}
+
 usage() {
   cat <<EOF >&2
 Usage: $(basename "$0") --project NAME [--workspace-config PATH] [--cwd-base DIR] [--ready-timeout SECONDS]
@@ -168,7 +212,7 @@ print(json.dumps({"primitive":"ensure-dependencies","dep":sys.argv[1],"action":"
   fi
 
   # Step A: probe health (fast — 4s window for "is it already up?")
-  if "$HEALTH_CHECK" "$dep_health_url" --timeout 4 --interval 2 > /dev/null 2>&1; then
+  if dep_health_passes "$dep" "$dep_health_url" 4 2; then
     env_lib_log_pass "dep '$dep' already healthy"
     ok=$((ok + 1))
     python3 -c '
@@ -192,7 +236,7 @@ print(json.dumps({"primitive":"ensure-dependencies","dep":sys.argv[1],"action":"
 
   env_lib_log_info "starting dep '$dep'"
   if "$START_CMD" "${start_args[@]}" > /dev/null; then
-    if "$HEALTH_CHECK" "$dep_health_url" --timeout "$READY_TIMEOUT" --interval 2 > /dev/null; then
+    if dep_health_passes "$dep" "$dep_health_url" "$READY_TIMEOUT" 2; then
       env_lib_log_pass "dep '$dep' started and healthy"
       ok=$((ok + 1))
       python3 -c '

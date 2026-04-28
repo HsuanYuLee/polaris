@@ -84,6 +84,12 @@ engineering 的入口目標只有一個：**找到 authoritative work order**，
 | `deliverable.pr_url` 有值，且 `gh pr view` 顯示 `OPEN` | **revision mode** |
 | `deliverable.pr_url` 有值，但 PR `MERGED` / `CLOSED` | **fail loud**（先修 task.md / deliverable 狀態） |
 
+### 0d. Duplicate Work Guard
+
+First-cut mode 在建 branch / worktree 前必須由 `scripts/engineering-branch-setup.sh` 執行 duplicate guard。若同一張 `Task JIRA key` 已存在任何 `task/{KEY}-*` local branch、`origin/task/{KEY}-*` remote branch、或 `{repo_base}/.worktrees/{repo}-engineering-{KEY}` worktree path，且不是同一條已註冊 worktree 的續做情境，script 必須 fail loud。
+
+阻擋理由：`deliverable.pr_url` 只代表 PR lifecycle；它無法涵蓋「branch 已開但 PR 尚未寫回 task.md」、「summary slug 改變造成新 branch 名稱」、「前次 worktree path 已存在但 branch setup retry」等中途失敗狀態。這些狀態一律先 resume / revision / cleanup，不得再開第二條 implementation branch。
+
 ## 批次模式（精簡）
 
 當輸入包含多張 ticket / 多個 task 路徑時：
@@ -130,6 +136,7 @@ engineering 是純施工 skill，沒有 work order 就不施工。
 
 - JIRA transition：`{workspace_root}/scripts/polaris-jira-transition.sh {TICKET} in_development`（D25，soft-fail）
 - 建 branch / worktree：`bash "${POLARIS_ROOT}/scripts/engineering-branch-setup.sh" "<path/to/task.md>"`（若 work order 有 `Branch chain`，此 script 會先對齊 `develop -> feat/... -> task/...` 上游鏈，再切本 task branch）
+- `engineering-branch-setup.sh` 是唯一允許建立 first-cut task branch / implementation worktree 的入口；若它回報 existing same-ticket branch、remote branch、或 stale worktree path，停止施工並回報使用者，不得手動改名再開新 branch
 
 **注意**：first-cut **不再有獨立 pre-development rebase**。D4 已把它消化進 branch setup 契約；新 branch 從 `origin/{resolved_base}` tip 切出，本質上不需要再 rebase 一次。
 

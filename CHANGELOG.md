@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.26] - 2026-04-28
+
+### Fixed — engineering duplicate branch guard
+
+- Made `engineering-branch-setup.sh` fail before creating refs when the same
+  task already has a local branch, remote branch, or stale engineering worktree.
+- Kept exact local branch retries resumable while blocking remote-only task
+  branches that would otherwise fork a second first-cut from the base branch.
+- Documented the duplicate work guard in the engineering skill so agents must
+  resume, enter revision, or clean stale state instead of opening another branch.
+
 ## [3.73.25] - 2026-04-28
 
 ### Fixed — engineering worktree cleanup
