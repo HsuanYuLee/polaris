@@ -16,6 +16,73 @@ REPO_ROOT=""
 TICKET=""
 MODE="auto"
 
+extract_frontmatter_nested_scalar() {
+  local file="$1"
+  local parent="$2"
+  local child="$3"
+
+  python3 - "$file" "$parent" "$child" <<'PY'
+import sys
+
+path, parent, child = sys.argv[1:4]
+try:
+    text = open(path, "r", encoding="utf-8").read()
+except OSError:
+    sys.exit(0)
+
+if not (text.startswith("---\n") and "\n---\n" in text[4:]):
+    sys.exit(0)
+
+fm_end = text.find("\n---\n", 4)
+if fm_end == -1:
+    sys.exit(0)
+
+frontmatter = text[4:fm_end].splitlines()
+in_parent = False
+for raw in frontmatter:
+    if raw.startswith(parent + ":"):
+        in_parent = True
+        continue
+    if not in_parent:
+        continue
+    if raw and raw[0] not in (" ", "\t"):
+        break
+    stripped = raw.strip()
+    if stripped.startswith(child + ":"):
+        _, _, value = stripped.partition(":")
+        print(value.strip())
+        sys.exit(0)
+
+print("")
+PY
+}
+
+resolve_task_for_completion_check() {
+  if [[ "$MODE" == "admin" ]]; then
+    return 1
+  fi
+
+  local candidate=""
+  local candidates=()
+
+  if [[ -n "$TICKET" ]] && candidate="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$REPO_ROOT" "$TICKET" 2>/dev/null || true)"; then
+    candidates+=("$candidate")
+  fi
+
+  if candidate="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$REPO_ROOT" --current 2>/dev/null || true)"; then
+    candidates+=("$candidate")
+  fi
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)
@@ -75,6 +142,24 @@ fi
 if [[ "$MODE" != "admin" ]]; then
   bash "${SCRIPT_DIR}/gates/gate-pr-title.sh" --repo "$REPO_ROOT"
   bash "${SCRIPT_DIR}/gates/gate-changeset.sh" --repo "$REPO_ROOT"
+
+  TASK_MD_PATH=""
+  if ! TASK_MD_PATH="$(resolve_task_for_completion_check)"; then
+    echo "$PREFIX unable to resolve task.md for completion freshness check (supply --ticket or call from task-bound context)" >&2
+    exit 2
+  fi
+
+  DELIVERABLE_HEAD_SHA="$(extract_frontmatter_nested_scalar "$TASK_MD_PATH" "deliverable" "head_sha")"
+  if [[ -z "$DELIVERABLE_HEAD_SHA" ]]; then
+    echo "$PREFIX completion freshness check failed: deliverable.head_sha missing in ${TASK_MD_PATH}" >&2
+    exit 2
+  fi
+
+  CURRENT_HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+  if [[ "$CURRENT_HEAD_SHA" != "$DELIVERABLE_HEAD_SHA" && "$CURRENT_HEAD_SHA" != "${DELIVERABLE_HEAD_SHA}"* ]]; then
+    echo "$PREFIX completion freshness check failed: deliverable.head_sha (${DELIVERABLE_HEAD_SHA}) != HEAD (${CURRENT_HEAD_SHA}) in ${TASK_MD_PATH}" >&2
+    exit 2
+  fi
 fi
 
 echo "$PREFIX ✅ completion gates satisfied." >&2

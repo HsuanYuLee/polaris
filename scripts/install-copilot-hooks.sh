@@ -91,6 +91,11 @@ fi
 if [[ -x "$GATES_DIR/gate-evidence.sh" ]]; then
   bash "$GATES_DIR/gate-evidence.sh" --repo "$REPO_ROOT"
 fi
+
+# Gate: changeset (developer ticket branches only)
+if [[ -x "$GATES_DIR/gate-changeset.sh" ]]; then
+  bash "$GATES_DIR/gate-changeset.sh" --repo "$REPO_ROOT"
+fi
 '
 
 # ---------------------------------------------------------------------------

@@ -502,10 +502,11 @@ HEAD_SHA=$(git rev-parse HEAD)
 當 engineering 以 revision mode 觸發時，PR 已存在（PR URL 是輸入之一）。此時不建新 PR，改為 push to existing PR：
 
 1. **PR base sync 已於 R0 完成**（engineering SKILL.md § R0 步驟 4）：若 PR `baseRefName` != `RESOLVED_BASE` → R0 已跑 `gh pr edit --base "$RESOLVED_BASE"` 同步；`gate-base-check.sh`（git hook / `polaris-pr-create.sh` wrapper）同時擋 PR base 不符 resolve 結果
-2. `git push` 到既有 PR 的 remote branch（branch 已 checkout）
-3. 跳過 `gh pr create`（hook 不觸發）
-4. 若 PR body 需更新（如新增修正摘要），用 `gh pr edit --body` 更新（不帶 `--base` 不會觸發 gate）
-5. **更新 head_sha**（revision mode）：push 成功後更新 task.md 的 `deliverable.head_sha`（同 write-deliverable.sh；`pr_state` 不變，維持 `OPEN`）
+2. **Revision push 前要求 changeset gate**：至少執行 `polaris-changeset.sh new --task-md "<path/to/task.md>" --repo "<repo_root>"`；若暫時不能執行則至少執行 `gate-changeset.sh --repo "<repo_root>"`（revision mode 的 git pre-push 已包裝）以避免可追溯性缺口。
+3. `git push` 到既有 PR 的 remote branch（branch 已 checkout）
+4. 跳過 `gh pr create`（hook 不觸發）
+5. 若 PR body 需更新（如新增修正摘要），用 `gh pr edit --body` 更新（不帶 `--base` 不會觸發 gate）
+6. **更新 head_sha**（revision mode）：push 成功後更新 task.md 的 `deliverable.head_sha`（同 write-deliverable.sh；`pr_state` 不變，維持 `OPEN`）
 
 `POLARIS_PR_WORKFLOW=1` 讓 legacy `pr-create-guard.sh` hook 放行（已被 `polaris-pr-create.sh` wrapper 取代）。僅 first-cut mode 需要。
 
@@ -680,6 +681,7 @@ git worktree remove "<worktree_path>"
 | `gate-ci-local.sh` git pre-commit | `git commit` | Layer A evidence | 四通（Claude / Codex / Copilot / 人類） |
 | `gate-ci-local.sh` git pre-push | `git push` | Layer A evidence（push mode） | 四通 |
 | `gate-evidence.sh` git pre-push | `git push` | Layer B evidence + Layer C if triggered | 四通 |
+| `gate-changeset.sh` git pre-push | `git push` | Developer ticket-bound changeset 缺漏檢查 | 四通 |
 | `gate-base-check.sh` in `polaris-pr-create.sh` | PR 建立 | base branch = resolve 結果 | 四通 |
 | `polaris-pr-create.sh` wrapper | PR 建立 | 依序跑 base-check → evidence → ci-local | 四通 |
 | `check-delivery-completion.sh` | user-facing completion report | Layer A always if `ci-local.sh` exists; Layer B for Developer | 四通 |
