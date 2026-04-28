@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.19] - 2026-04-28
+
+### Fixed — revision inline reply enforcement
+
+- Updated engineering revision mode to collect GitHub review thread state in
+  addition to flat pull request comments, so unresolved, non-outdated inline
+  threads are handled explicitly.
+- Required every fixed code-drift root inline comment to receive an inline
+  reply through GitHub's review comment reply endpoint.
+- Added a hard inline reply verification gate before completion: pushed commits
+  or PR summary comments no longer count as replying to fixed inline feedback.
+
 ## [3.73.18] - 2026-04-28
 
 ### Fixed — revision-mode changeset gate hardening
