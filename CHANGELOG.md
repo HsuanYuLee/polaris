@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.17] - 2026-04-28
+
+### Fixed — legacy hook wrapper retirement
+
+- Removed retired Claude Code L1 hook wrappers for carry-forward fallback,
+  command-splitting checks, consecutive-read tracking, and file reread tracking.
+- Updated active deterministic hook registries and Copilot/Codex references so
+  current wiring no longer points at retired hook files.
+- Kept reusable compatibility scripts available for manual/Copilot diagnostics
+  and relaxed build-level verify preparation when repo prep primitives are
+  absent.
+
 ## [3.73.16] - 2026-04-28
 
 ### Changed — engineering task-only work orders
