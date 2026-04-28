@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.12] - 2026-04-28
+
+### Added — run-verify worktree backlog item
+
+- Added a Polaris backlog item for `run-verify-command.sh` resolving sibling
+  worktree tasks back to the main checkout, which can produce evidence for the
+  wrong HEAD and block completion gates.
+
 ## [3.73.11] - 2026-04-28
 
 ### Fixed — ci-local CI-like timezone
