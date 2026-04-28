@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.27] - 2026-04-28
+
+### Fixed — template release hygiene
+
+- Corrected the Polaris template sync after v3.73.26 so unrelated local script
+  edits are not included in the published template release.
+
 ## [3.73.26] - 2026-04-28
 
 ### Fixed — engineering duplicate branch guard

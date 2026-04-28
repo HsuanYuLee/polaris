@@ -168,24 +168,6 @@ echo "$PID" > "$PID_FILE"
 # Quick sanity: does the process die immediately?
 sleep 1
 if ! kill -0 "$PID" 2>/dev/null; then
-  rc=0
-  wait "$PID" || rc=$?
-  if [[ "$rc" -eq 0 ]]; then
-    status="completed"
-    env_lib_log_pass "$PROJECT start_command completed (pid=$PID, status=$status)"
-    python3 -c '
-import json, sys
-project, pid, log, status = sys.argv[1:5]
-print(json.dumps({
-  "primitive": "start-command",
-  "project": project,
-  "pid": int(pid),
-  "log": log,
-  "status": status,
-}))
-' "$PROJECT" "$PID" "$LOG_FILE" "$status"
-    exit 0
-  fi
   env_lib_log_fail "start_command died immediately for $PROJECT (log tail below)"
   tail -20 "$LOG_FILE" >&2 || true
   rm -f "$PID_FILE"
