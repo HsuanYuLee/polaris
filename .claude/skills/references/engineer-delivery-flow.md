@@ -616,6 +616,22 @@ Step 7a 保證「不能開 PR」；Step 8.5 保證「不能嘴上結案」。兩
 
 ---
 
+## Step 8.6 — Worktree Cleanup
+
+PR 建立 / 既有 PR branch push 完成、task deliverable 已回寫、Completion Gate PASS 後，清掉本次 implementation worktree：
+
+```bash
+git worktree remove "<worktree_path>"
+```
+
+- PR 後不保留常駐 worktree；若後續 review / CI 需要 revision，從當下 PR branch/head 重新建立 fresh worktree
+- 可刪除已不需要的 local temp branch；不要刪 remote PR branch
+- 若 worktree 有 uncommitted changes，先停下來分類（應提交 / 應搬到 artifact / stale experiment），不得 silent discard
+
+驗證型 worktree（只用於 verify / reproduce / compare / inspect）不等 PR flow；驗證結果、log、evidence 捕捉完就立即 `git worktree remove`。
+
+---
+
 ## Halting Conditions
 
 流程在任何步驟失敗皆停止，不靜默繼續：

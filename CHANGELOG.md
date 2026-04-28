@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.13] - 2026-04-28
+
+### Changed — worktree cleanup lifecycle
+
+- Clarified that implementation worktrees are removed after PR creation or PR
+  branch push once evidence and deliverables are recorded; PR revisions must
+  recreate a fresh worktree from the current PR branch/head.
+- Added an explicit engineering delivery cleanup step and required
+  verification-only worktrees to be removed immediately after results, logs, or
+  evidence are captured.
+
 ## [3.73.12] - 2026-04-28
 
 ### Added — run-verify worktree backlog item
