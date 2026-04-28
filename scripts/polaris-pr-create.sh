@@ -3,7 +3,7 @@ set -euo pipefail
 
 # polaris-pr-create.sh — PR creation wrapper with pre-flight gates (DP-032 Wave δ)
 # Replaces bare `gh pr create` in Polaris engineering flows.
-# Runs base-check + evidence + ci-local gates before PR creation.
+# Runs base-check + evidence + ci-local + PR metadata gates before PR creation.
 #
 # Usage:
 #   bash scripts/polaris-pr-create.sh [--repo <path>] [--skip-gates] -- <gh pr create args...>
@@ -55,10 +55,15 @@ REPO_PATH="${REPO_PATH:-$(pwd)}"
 # --- Extract --base from GH_ARGS ---
 BASE_BRANCH=""
 PR_TITLE=""
+PR_BODY=""
+PR_BODY_FILE=""
+PR_BODY_SOURCE=""
 for (( i=0; i<${#GH_ARGS[@]}; i++ )); do
   case "${GH_ARGS[$i]}" in
     --base=*) BASE_BRANCH="${GH_ARGS[$i]#--base=}" ;;
     --title=*) PR_TITLE="${GH_ARGS[$i]#--title=}" ;;
+    --body=*) PR_BODY="${GH_ARGS[$i]#--body=}"; PR_BODY_SOURCE="body" ;;
+    --body-file=*) PR_BODY_FILE="${GH_ARGS[$i]#--body-file=}"; PR_BODY_SOURCE="file" ;;
     --base)
       if [[ $(( i + 1 )) -lt ${#GH_ARGS[@]} ]]; then
         BASE_BRANCH="${GH_ARGS[$(( i + 1 ))]}"
@@ -67,6 +72,18 @@ for (( i=0; i<${#GH_ARGS[@]}; i++ )); do
     --title)
       if [[ $(( i + 1 )) -lt ${#GH_ARGS[@]} ]]; then
         PR_TITLE="${GH_ARGS[$(( i + 1 ))]}"
+      fi
+      ;;
+    --body)
+      if [[ $(( i + 1 )) -lt ${#GH_ARGS[@]} ]]; then
+        PR_BODY="${GH_ARGS[$(( i + 1 ))]}"
+        PR_BODY_SOURCE="body"
+      fi
+      ;;
+    --body-file)
+      if [[ $(( i + 1 )) -lt ${#GH_ARGS[@]} ]]; then
+        PR_BODY_FILE="${GH_ARGS[$(( i + 1 ))]}"
+        PR_BODY_SOURCE="file"
       fi
       ;;
   esac
@@ -128,7 +145,14 @@ if [[ "$IS_TICKET_BRANCH" -eq 1 && -n "$PR_TITLE" ]]; then
   run_gate gate-pr-title.sh --repo "$REPO_PATH" --title "$PR_TITLE"
 fi
 
-# Gate 5: task changeset (managed task branches in changeset repos)
+# Gate 5: PR body preserves repo pull request template headings.
+if [[ "$PR_BODY_SOURCE" == "file" ]]; then
+  run_gate gate-pr-body-template.sh --repo "$REPO_PATH" --body-file "$PR_BODY_FILE"
+elif [[ "$PR_BODY_SOURCE" == "body" ]]; then
+  run_gate gate-pr-body-template.sh --repo "$REPO_PATH" --body "$PR_BODY"
+fi
+
+# Gate 6: task changeset (managed task branches in changeset repos)
 if [[ "$IS_TICKET_BRANCH" -eq 1 ]]; then
   run_gate gate-changeset.sh --repo "$REPO_PATH"
 fi

@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.20] - 2026-04-28
+
+### Fixed — PR body template enforcement
+
+- Added `gate-pr-body-template.sh` to block PR creation when a repo PR template
+  exists but the supplied PR body does not preserve its `##` headings.
+- Wired the gate into `polaris-pr-create.sh`, alongside existing base,
+  evidence, CI, title, and changeset gates.
+- Updated engineering PR body guidance to prefer `--body-file`, preventing
+  shell quoting from escaping Markdown inline code/backticks.
+
 ## [3.73.19] - 2026-04-28
 
 ### Fixed — revision inline reply enforcement
