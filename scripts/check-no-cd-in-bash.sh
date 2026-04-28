@@ -5,24 +5,19 @@
 #          (see rules/bash-command-splitting.md) requires tool path
 #          parameters (git -C, pnpm -C, gh --repo) or absolute paths instead.
 #
-# Canary: no-cd-in-bash (L1 hook primary — tool-use layer, not skill-bound)
+# Canary: no-cd-in-bash (manual/Copilot compatibility check; legacy L1 hook
+#         wrapper retired)
 #
 # Exit codes:
 #   0 — PASS (no `cd` command detected)
-#   2 — HARD_STOP / block tool call (hook context)
+#   2 — command violates the check
 #
 # Usage:
 #   check-no-cd-in-bash.sh --command "<bash_command_string>"
 #   check-no-cd-in-bash.sh "<bash_command_string>"   # positional fallback
 #
-# Invoked by:
-#   - .claude/hooks/no-cd-in-bash.sh (PreToolUse on Bash; passes the
-#     tool_input.command extracted from the hook stdin JSON)
-#
-# Why exit 2 (not 1): this is a L1 hook wrapper. In hook context, exit 2
-# blocks the Bash tool call outright; there is no retry concept. The check
-# is purely mechanical (regex) — no amount of "retry" would change its
-# verdict on the same command string.
+# This script is intentionally kept as a reusable validator even though the
+# Claude Code L1 hook wrapper was retired.
 
 set -u
 

@@ -27,9 +27,6 @@
 #
 # Invoked by:
 #   - .claude/skills/checkpoint/SKILL.md Step 2.5 (L2 primary)
-#   - .claude/hooks/checkpoint-carry-forward-fallback.sh (L1 fallback
-#     for users who write memory directly via Write/Edit without going
-#     through the checkpoint skill)
 
 set -u
 

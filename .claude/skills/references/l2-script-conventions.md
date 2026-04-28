@@ -2,7 +2,7 @@
 
 L2 = skill-embedded deterministic check。SKILL.md 明寫 `bash scripts/check-X.sh`（或等效呼叫）+ 依 exit code 決定流程動作。這份 reference 規定 L2 script 的寫作模板與 skill 端的呼叫模板，讓不同 LLM（Claude Code / Cursor / Codex / Copilot / Gemini）行為一致。
 
-> 來源：DP-030 D2/D3/D4（`specs/design-plans/DP-030-llm-to-script-migration/plan.md`）。Phase 1 POC 已落地 `cross-session-carry-forward`（L2 主） + `no-cd-in-bash`（L1 only）為首批下放。
+> 來源：DP-030 D2/D3/D4（`specs/design-plans/DP-030-llm-to-script-migration/plan.md`）。Phase 1 POC 已落地 `cross-session-carry-forward`（L2 主） + `no-cd-in-bash`（legacy L1）為首批下放；legacy Claude Code L1 wrappers later retired.
 
 ## Why L2（vs L1 hook）
 
@@ -56,7 +56,7 @@ Budget = 3 輪
 # scripts/check-{canary-id}.sh
 #
 # Purpose: {一句話描述這支 script 檢查什麼}
-# Canary: {mechanism-registry.md 對應 canary ID，或「L1 hook primary」}
+# Canary: {mechanism-registry.md 對應 canary ID，或 reusable/manual check ID}
 # Exit codes:
 #   0 — PASS
 #   1 — RECOVERABLE_FAIL（可由 LLM 自癒）
@@ -165,7 +165,7 @@ rm -f /tmp/l2-stderr.$$
 - 呼叫**同一支** `scripts/check-X.sh`，讀 exit code 決定是否 exit 2 阻擋
 - 維護成本：一個 script、兩個呼叫端
 
-L1 hook 專用、無 L2 對應的 script（例：`no-cd-in-bash`）不需 L2 整合 — 它是 tool-use 層級純檢查，不依附 skill flow。
+無 L2 對應的 reusable script（例：`no-cd-in-bash`）不需 L2 整合；若沒有 active hook，它只是 manual/Copilot compatibility check，不依附 skill flow。
 
 ## Registry 同步規定
 

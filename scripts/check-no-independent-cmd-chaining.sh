@@ -5,19 +5,16 @@
 #          Rule (rules/bash-command-splitting.md § Do Not Chain Independent
 #          Commands) says: split into separate Bash tool calls instead.
 #
-# Canary: no-independent-cmd-chaining (L1 hook primary — tool-use layer, not
-#         skill-bound)
+# Canary: no-independent-cmd-chaining (manual/Copilot compatibility check;
+#         legacy L1 hook wrapper retired)
 #
 # Exit codes:
 #   0 — PASS (no `&&` chain detected outside quotes)
-#   2 — HARD_STOP / block tool call (hook context — no retry concept)
+#   2 — command violates the check
 #
 # Usage:
 #   check-no-independent-cmd-chaining.sh --command "<bash_command_string>"
 #   check-no-independent-cmd-chaining.sh "<bash_command_string>"   # positional
-#
-# Invoked by:
-#   - .claude/hooks/no-independent-cmd-chaining.sh (PreToolUse on Bash)
 #
 # Quote-awareness: `&&` inside single/double-quoted arguments is allowed.
 #                  Detection uses python3 `shlex.split(posix=True)` so that

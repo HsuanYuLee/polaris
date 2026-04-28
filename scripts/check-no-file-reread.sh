@@ -6,7 +6,8 @@
 #          (rules/context-monitoring.md § 3 Avoid Re-Reading Files) says note
 #          key info from a Read and reference it directly later.
 #
-# Canary: no-file-reread (L1-only — hook-observable via tool_input.file_path)
+# Canary: no-file-reread (legacy Claude Code L1 hook retired; script kept for
+#         historical/manual diagnostics)
 #
 # Mode: Advisory only. Exit 0 always; warning emitted on stdout on the
 #       3rd-or-later Read of the same absolute path.
@@ -25,9 +26,6 @@
 #
 # Usage:
 #   check-no-file-reread.sh --file-path "<absolute_file_path>"
-#
-# Invoked by:
-#   - .claude/hooks/no-file-reread-monitor.sh (PostToolUse on Read)
 
 set -u
 

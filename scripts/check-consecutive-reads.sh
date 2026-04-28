@@ -7,11 +7,10 @@
 #          session without producing a conclusion — delegate to Explorer
 #          instead.
 #
-# Canary: max-five-consecutive-reads (L1-only — hook-observable, no skill
-#         flow binding)
+# Canary: max-five-consecutive-reads (legacy Claude Code L1 hook retired;
+#         script kept for historical/manual diagnostics)
 #
-# Mode: Advisory only. Exit 0 always; warning emitted on stdout (PostToolUse
-#       convention — warnings surface back to the LLM as a system-reminder).
+# Mode: Advisory only. Exit 0 always; warning emitted on stdout.
 #
 # Exit codes:
 #   0 — always (stdout carries the advisory when threshold hit)
@@ -22,9 +21,6 @@
 #
 # Usage:
 #   check-consecutive-reads.sh --tool-name "<ToolName>"
-#
-# Invoked by:
-#   - .claude/hooks/consecutive-reads-monitor.sh (PostToolUse, broad matcher)
 
 set -u
 

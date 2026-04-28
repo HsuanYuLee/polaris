@@ -39,7 +39,7 @@ When a behavioral drift is discovered, the fix must push the check into a determ
 
 **Workaround accumulation signal:** If ≥ 2 workarounds are added for the same feature in one session, STOP — this is a design-implementation gap, not a missing helper. Read the design doc (memory, plan, SKILL.md) before continuing.
 
-**Landed case study — DP-030 (LLM judgment → script migration, IMPLEMENTED 2026-04-24, v3.54.0):** systematically graduated 6 mechanical canaries from behavioral (L3) to deterministic via L1 PreToolUse/PostToolUse hooks and L2 skill-embedded script calls (`no-cd-in-bash`, `no-independent-cmd-chaining`, `cross-session-carry-forward`, `max-five-consecutive-reads`, `no-file-reread`, `version-bump-reminder`), plus 2 partial graduations where the deterministic layer captures signals but the LLM still writes (`post-task-feedback-reflection`, `feedback-trigger-count-update`). Key patterns: same script invoked by both hook and SKILL embed (cross-LLM portability), exit 2 for hard-stop vs exit 1 for retry-able, behavioral rows retained only when semantic judgment is irreducible. Canonical record: `specs/design-plans/DP-030-llm-to-script-migration/plan.md`.
+**Landed case study — DP-030 (LLM judgment → script migration, IMPLEMENTED 2026-04-24, v3.54.0):** systematically graduated mechanical canaries from behavioral (L3) to deterministic scripts, active hooks, and L2 skill-embedded calls. Current active wiring is authoritative in `skills/references/deterministic-hooks-registry.md`; some early Claude Code L1 wrappers from the original rollout were retired as legacy. Canonical record: `specs/design-plans/DP-030-llm-to-script-migration/plan.md`.
 
 ### Delegation Principles
 | Task type | Approach |
