@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.23] - 2026-04-28
+
+### Fixed — engineering handbook and Codecov blockers
+
+- Required engineering to read the company handbook index and all linked child
+  documents before repo handbook consumption in first-cut, revision, and batch
+  dispatch paths.
+- Added a mechanism canary that treats incomplete company/repo handbook loading
+  as drift for implementation agents.
+- Made failed `codecov/patch` checks explicit CI blockers in engineering
+  revision mode, even when Codecov also shows author activation or member
+  visibility messages.
+
 ## [3.73.22] - 2026-04-28
 
 ### Fixed — task.md test command guidance

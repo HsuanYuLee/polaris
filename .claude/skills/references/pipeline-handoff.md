@@ -135,7 +135,7 @@ engineering revision mode（`§ R0` pre-work rebase）每次進入都重跑 Reso
 
 ## task.md Schema
 
-Breakdown 產出的 task.md 是 engineering 的唯一輸入（除了 codebase 和 repo handbook — sub-agent 須自行讀取 `{repo}/.claude/rules/handbook/`，不會自動載入）。必須 self-contained。
+Breakdown 產出的 task.md 是 engineering 的唯一施工輸入（除了 codebase、company handbook、repo handbook）。Engineering / sub-agent 須自行讀取 `{base_dir}/.claude/rules/{company}/handbook/index.md` + index 引用子文件，以及 `{repo}/.claude/rules/handbook/index.md` + index 引用子文件；handbook 不會自動載入。必須 self-contained。
 
 ```markdown
 # T{n}: {Task summary} ({SP} pt)
