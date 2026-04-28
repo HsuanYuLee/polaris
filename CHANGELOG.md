@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.18] - 2026-04-28
+
+### Fixed — revision-mode changeset gate hardening
+
+- For products using repository-level changesets, added a workflow hardening note:
+  PR checks from Codecov about activation/permission visibility must not be treated
+  as an unblock reason by itself; PR quality decisions must rely on actual CI
+  pass/fail results.
+
 ## [3.73.17] - 2026-04-28
 
 ### Fixed — legacy hook wrapper retirement
