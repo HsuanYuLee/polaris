@@ -8,7 +8,7 @@
 #   4.  task.md path + conflict → exit 1 + rebase_status: conflict + rebase-in-progress state
 #   5.  task.md path + PR base aligned → pr_base_synced: false + already_aligned: true
 #   6.  task.md path + PR base drift → gh pr edit invoked + pr_base_synced: true
-#   7.  No task.md (legacy fallback) → exit 0, uses PR baseRefName, no PR base sync
+#   7.  No task.md → exit 1, no PR base fallback
 #   8.  --repo external path resolves correctly
 #   9.  --pr explicit override
 #   10. --task-md explicit override
@@ -397,9 +397,9 @@ else
 fi
 
 # ────────────────────────────────────────────────────────────────────────────
-# Case 7: legacy fallback (no task.md) → uses PR baseRefName, no PR base sync
+# Case 7: no task.md → fail loud, no PR base fallback
 # ────────────────────────────────────────────────────────────────────────────
-printf '\n--- Case 7: legacy fallback ---\n'
+printf '\n--- Case 7: no task.md fail-loud ---\n'
 C7="$WORK_DIR/case7"
 mkdir -p "$C7"
 mk_repo "$C7/repo" "feat/demo" "task/DEMO-1"
@@ -416,19 +416,20 @@ out=$(PATH="$C7/bin:$PATH" \
   bash "$RR" --repo "$C7/repo" 2>/tmp/rr-c7-stderr)
 rc=$?
 [ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat /tmp/rr-c7-stderr; }
-assert_eq "$rc" "0" "case7.exit"
-assert_json_eq "$out" "legacy_fallback" "true" "case7"
+assert_eq "$rc" "1" "case7.exit"
+assert_json_eq "$out" "legacy_fallback" "false" "case7"
 assert_json_eq "$out" "task_md" "null" "case7"
-assert_json_eq "$out" "resolved_base" "feat/demo" "case7"
-# Even if drift, legacy fallback skips PR base sync
+assert_json_eq "$out" "resolved_base" "null" "case7"
 assert_json_eq "$out" "pr_base_synced" "false" "case7"
 if grep -q "pr edit" "$FAKE_GH_LOG"; then
   FAIL=$((FAIL + 1))
-  printf "  [FAIL] case7.no-pr-edit — legacy must not invoke pr edit\n"
+  printf "  [FAIL] case7.no-pr-edit — missing task must not invoke pr edit\n"
 else
   PASS=$((PASS + 1))
   [ "$DEBUG" = "1" ] && printf "  [ok] case7.no-pr-edit\n"
 fi
+stderr_c7=$(cat /tmp/rr-c7-stderr)
+assert_contains "$stderr_c7" "no task.md for current branch" "case7.advisory"
 
 # ────────────────────────────────────────────────────────────────────────────
 # Case 8: --repo external path resolution

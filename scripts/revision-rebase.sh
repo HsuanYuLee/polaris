@@ -37,7 +37,7 @@
 #     "pr_base_before": "<branch|null>",
 #     "pr_base_after": "<branch|null>",
 #     "pr_base_synced": true|false,
-#     "legacy_fallback": true|false,
+#     "legacy_fallback": false,
 #     "writer": "revision-rebase.sh",
 #     "at": "<ISO 8601 UTC>"
 #   }
@@ -129,7 +129,7 @@ def maybe_bool(v):
 evidence = {
     "repo": repo,
     "task_md": maybe_null(task_md),
-    "resolved_base": resolved_base,
+    "resolved_base": maybe_null(resolved_base),
     "rebase_status": rebase_status,
     "pr_number": maybe_int_null(pr_number),
     "pr_base_before": maybe_null(pr_base_before),
@@ -140,7 +140,7 @@ evidence = {
     "writer": "revision-rebase.sh",
     "at": at,
 }
-# pr_base_already_aligned: only meaningful when we attempted PR base sync; for legacy_fallback it's vacuously True
+# pr_base_already_aligned is only meaningful when a PR exists and base sync can run.
 sys.stdout.write(json.dumps(evidence, separators=(",", ":")) + "\n")
 PYEOF
 }
@@ -194,10 +194,9 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# Step 2: Resolve task.md (or legacy fallback)
+# Step 2: Resolve task.md
 # ---------------------------------------------------------------------------
 
-LEGACY_FALLBACK=false
 TASK_MD=""
 
 if [ -n "$TASK_MD_ARG" ]; then
@@ -218,13 +217,15 @@ else
     # Take first line if multi-match.
     TASK_MD=$(printf '%s\n' "$TASK_MD_OUT" | head -n 1)
   else
-    LEGACY_FALLBACK=true
-    log_info "no task.md for current branch — entering legacy fallback (PR baseRefName as base, no PR base sync)"
+    log_err "no task.md for current branch — engineering revision requires specs/{EPIC}/tasks/T*.md"
+    emit_evidence "$REPO" "__NULL__" "__NULL__" "conflict" "__NULL__" \
+      "__NULL__" "__NULL__" "false" "false"
+    exit 1
   fi
 fi
 
 # ---------------------------------------------------------------------------
-# Step 3: Resolve PR number (always — even legacy fallback needs it for base lookup)
+# Step 3: Resolve PR number
 # ---------------------------------------------------------------------------
 
 PR_NUMBER="__NULL__"
@@ -273,27 +274,17 @@ fi
 
 RESOLVED_BASE=""
 
-if [ "$LEGACY_FALLBACK" = "true" ]; then
-  if [ "$PR_BASE_BEFORE" = "__NULL__" ] || [ -z "$PR_BASE_BEFORE" ]; then
-    log_err "legacy fallback requires PR baseRefName but none found (no task.md, no PR)"
-    emit_evidence "$REPO" "__NULL__" "" "conflict" "$PR_NUMBER" \
-      "$PR_BASE_BEFORE" "__NULL__" "false" "true"
-    exit 1
-  fi
-  RESOLVED_BASE="$PR_BASE_BEFORE"
-else
-  if [ ! -f "$RESOLVE_TASK_BASE" ]; then
-    log_err "helper missing: $RESOLVE_TASK_BASE"
-    exit 1
-  fi
-  RESOLVED_BASE=$("$RESOLVE_TASK_BASE" "$TASK_MD" 2>/dev/null) && rc=0 || rc=$?
-  if [ "$rc" != "0" ] || [ -z "$RESOLVED_BASE" ]; then
-    log_err "resolve-task-base.sh failed for $TASK_MD (exit $rc)"
-    exit 1
-  fi
+if [ ! -f "$RESOLVE_TASK_BASE" ]; then
+  log_err "helper missing: $RESOLVE_TASK_BASE"
+  exit 1
+fi
+RESOLVED_BASE=$("$RESOLVE_TASK_BASE" "$TASK_MD" 2>/dev/null) && rc=0 || rc=$?
+if [ "$rc" != "0" ] || [ -z "$RESOLVED_BASE" ]; then
+  log_err "resolve-task-base.sh failed for $TASK_MD (exit $rc)"
+  exit 1
 fi
 
-log_info "repo=$REPO  task_md=${TASK_MD:-<legacy>}  resolved_base=$RESOLVED_BASE  pr=$PR_NUMBER"
+log_info "repo=$REPO  task_md=$TASK_MD  resolved_base=$RESOLVED_BASE  pr=$PR_NUMBER"
 
 # ---------------------------------------------------------------------------
 # Step 5: git fetch origin
@@ -301,9 +292,8 @@ log_info "repo=$REPO  task_md=${TASK_MD:-<legacy>}  resolved_base=$RESOLVED_BASE
 
 if ! git -C "$REPO" fetch origin >/dev/null 2>&1; then
   log_err "git fetch origin failed in $REPO"
-  emit_evidence "$REPO" "${TASK_MD:-__NULL__}" "$RESOLVED_BASE" "conflict" \
-    "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" \
-    "$([ "$LEGACY_FALLBACK" = "true" ] && echo true || echo false)"
+  emit_evidence "$REPO" "$TASK_MD" "$RESOLVED_BASE" "conflict" \
+    "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" "false"
   exit 1
 fi
 
@@ -311,7 +301,7 @@ fi
 # Step 5.5: Cascade branch-chain rebase (task.md only)
 # ---------------------------------------------------------------------------
 
-if [ "$LEGACY_FALLBACK" != "true" ] && [ -f "$CASCADE_REBASE_CHAIN" ]; then
+if [ -f "$CASCADE_REBASE_CHAIN" ]; then
   BRANCH_CHAIN_FIELD=""
   if [ -f "$SCRIPT_DIR/parse-task-md.sh" ]; then
     BRANCH_CHAIN_FIELD=$("$SCRIPT_DIR/parse-task-md.sh" "$TASK_MD" --field branch_chain --no-resolve 2>/dev/null || true)
@@ -341,9 +331,8 @@ if ! git -C "$REPO" rev-parse --verify --quiet "$REBASE_TARGET" >/dev/null 2>&1;
     log_info "origin/$RESOLVED_BASE not found; falling back to local $RESOLVED_BASE"
   else
     log_err "neither origin/$RESOLVED_BASE nor local $RESOLVED_BASE exists in $REPO"
-    emit_evidence "$REPO" "${TASK_MD:-__NULL__}" "$RESOLVED_BASE" "conflict" \
-      "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" \
-      "$([ "$LEGACY_FALLBACK" = "true" ] && echo true || echo false)"
+    emit_evidence "$REPO" "$TASK_MD" "$RESOLVED_BASE" "conflict" \
+      "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" "false"
     exit 1
   fi
 fi
@@ -370,24 +359,20 @@ else
     REBASE_STATUS="conflict"
     log_err "Conflict during rebase onto $REBASE_TARGET — manual resolution required"
     log_err "(repo is in rebase-in-progress state; run 'git -C $REPO rebase --abort' to back out)"
-    emit_evidence "$REPO" "${TASK_MD:-__NULL__}" "$RESOLVED_BASE" "$REBASE_STATUS" \
-      "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" \
-      "$([ "$LEGACY_FALLBACK" = "true" ] && echo true || echo false)"
+    emit_evidence "$REPO" "$TASK_MD" "$RESOLVED_BASE" "$REBASE_STATUS" \
+      "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" "false"
     exit 1
   fi
 fi
 
 # ---------------------------------------------------------------------------
-# Step 7: PR base sync (only when not in legacy fallback)
+# Step 7: PR base sync
 # ---------------------------------------------------------------------------
 
 PR_BASE_AFTER="__NULL__"
 PR_BASE_SYNCED="false"
 
-if [ "$LEGACY_FALLBACK" = "true" ]; then
-  log_info "legacy fallback — skipping PR base sync"
-  PR_BASE_AFTER="$PR_BASE_BEFORE"  # unchanged
-elif [ "$PR_NUMBER" = "__NULL__" ] || [ "$PR_BASE_BEFORE" = "__NULL__" ]; then
+if [ "$PR_NUMBER" = "__NULL__" ] || [ "$PR_BASE_BEFORE" = "__NULL__" ]; then
   log_info "no PR for current branch — skipping PR base sync"
   PR_BASE_AFTER="$PR_BASE_BEFORE"
 else
@@ -415,8 +400,7 @@ fi
 # Step 8: Emit evidence + exit 0
 # ---------------------------------------------------------------------------
 
-emit_evidence "$REPO" "${TASK_MD:-__NULL__}" "$RESOLVED_BASE" "$REBASE_STATUS" \
-  "$PR_NUMBER" "$PR_BASE_BEFORE" "$PR_BASE_AFTER" "$PR_BASE_SYNCED" \
-  "$([ "$LEGACY_FALLBACK" = "true" ] && echo true || echo false)"
+emit_evidence "$REPO" "$TASK_MD" "$RESOLVED_BASE" "$REBASE_STATUS" \
+  "$PR_NUMBER" "$PR_BASE_BEFORE" "$PR_BASE_AFTER" "$PR_BASE_SYNCED" "false"
 
 exit 0

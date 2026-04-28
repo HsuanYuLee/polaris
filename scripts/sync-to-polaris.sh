@@ -240,20 +240,24 @@ echo "Skills..."
 for skill_dir in "$INSTANCE_DIR"/.claude/skills/*/; do
   skill_name=$(basename "$skill_dir")
   [[ "$skill_name" == "references" ]] && continue
+  if [[ ! -f "$skill_dir/SKILL.md" ]]; then
+    echo "  ~ $skill_name/ (namespace/no SKILL.md, skipped)"
+    continue
+  fi
 
   # Skip company-specific skill directories
   skip=false
-  for company in "${COMPANY_DIRS[@]}"; do
-    [[ "$skill_name" == "$company" ]] && skip=true && break
-  done
+  if [[ ${#COMPANY_DIRS[@]} -gt 0 ]]; then
+    for company in "${COMPANY_DIRS[@]}"; do
+      [[ "$skill_name" == "$company" ]] && skip=true && break
+    done
+  fi
   [[ "$skip" == true ]] && continue
 
   # Skip maintainer-only skills (scope: maintainer-only in SKILL.md frontmatter)
-  if [[ -f "$skill_dir/SKILL.md" ]]; then
-    if grep -q 'scope:.*maintainer-only' "$skill_dir/SKILL.md" 2>/dev/null; then
-      echo "  ~ $skill_name/ (maintainer-only, skipped)"
-      continue
-    fi
+  if grep -q 'scope:.*maintainer-only' "$skill_dir/SKILL.md" 2>/dev/null; then
+    echo "  ~ $skill_name/ (maintainer-only, skipped)"
+    continue
   fi
 
   copy_dir "$skill_dir" "$POLARIS_DIR/.claude/skills/$skill_name" "$skill_name"
@@ -374,7 +378,9 @@ if [[ "$PRUNE" == true ]]; then
     [[ -d "$polaris_skill" ]] || continue
     skill_name=$(basename "$polaris_skill")
     [[ "$skill_name" == "references" ]] && continue
-    if [[ ! -d "$INSTANCE_DIR/.claude/skills/$skill_name" ]]; then
+    instance_skill_dir="$INSTANCE_DIR/.claude/skills/$skill_name"
+    if [[ ! -d "$instance_skill_dir" || ! -f "$instance_skill_dir/SKILL.md" ]] \
+      || grep -q 'scope:.*maintainer-only' "$instance_skill_dir/SKILL.md" 2>/dev/null; then
       if [[ "$DRY_RUN" == false ]]; then
         rm -rf "$polaris_skill"
       fi
@@ -491,32 +497,34 @@ echo "$CHANGES file(s) changed in template."
 # This runs BEFORE commit so the template never contains company-specific strings.
 
 genericize_count=0
-for company in "${COMPANY_DIRS[@]}"; do
-  MAP_SED="$INSTANCE_DIR/$company/genericize-map.sed"
-  JIRA_SED="$INSTANCE_DIR/$company/genericize-jira.sed"
+if [[ ${#COMPANY_DIRS[@]} -gt 0 ]]; then
+  for company in "${COMPANY_DIRS[@]}"; do
+    MAP_SED="$INSTANCE_DIR/$company/genericize-map.sed"
+    JIRA_SED="$INSTANCE_DIR/$company/genericize-jira.sed"
 
-  if [[ ! -f "$MAP_SED" && ! -f "$JIRA_SED" ]]; then
-    continue
-  fi
-
-  # Find all .md files in the template (skills, rules, docs, top-level)
-  while IFS= read -r -d '' mdfile; do
-    original=$(cat "$mdfile")
-    modified="$original"
-
-    if [[ -f "$MAP_SED" ]]; then
-      modified=$(echo "$modified" | sed -f "$MAP_SED")
-    fi
-    if [[ -f "$JIRA_SED" ]]; then
-      modified=$(echo "$modified" | sed -f "$JIRA_SED")
+    if [[ ! -f "$MAP_SED" && ! -f "$JIRA_SED" ]]; then
+      continue
     fi
 
-    if [[ "$modified" != "$original" ]]; then
-      echo "$modified" > "$mdfile"
-      genericize_count=$((genericize_count + 1))
-    fi
-  done < <(find "$POLARIS_DIR/.claude" "$POLARIS_DIR/docs" "$POLARIS_DIR/CLAUDE.md" "$POLARIS_DIR/README.md" "$POLARIS_DIR/README.zh-TW.md" \( -name '*.md' -o -name '*.py' -o -name '*.sh' \) -print0 2>/dev/null)
-done
+    # Find all .md files in the template (skills, rules, docs, top-level)
+    while IFS= read -r -d '' mdfile; do
+      original=$(cat "$mdfile")
+      modified="$original"
+
+      if [[ -f "$MAP_SED" ]]; then
+        modified=$(echo "$modified" | sed -f "$MAP_SED")
+      fi
+      if [[ -f "$JIRA_SED" ]]; then
+        modified=$(echo "$modified" | sed -f "$JIRA_SED")
+      fi
+
+      if [[ "$modified" != "$original" ]]; then
+        echo "$modified" > "$mdfile"
+        genericize_count=$((genericize_count + 1))
+      fi
+    done < <(find "$POLARIS_DIR/.claude" "$POLARIS_DIR/docs" "$POLARIS_DIR/CLAUDE.md" "$POLARIS_DIR/README.md" "$POLARIS_DIR/README.zh-TW.md" \( -name '*.md' -o -name '*.py' -o -name '*.sh' \) -print0 2>/dev/null)
+  done
+fi
 
 if [[ "$genericize_count" -gt 0 ]]; then
   echo ""
@@ -544,7 +552,9 @@ fi
 # ── Step 9b: Leak check ──────────────────────────────────────────
 
 if [[ "$AUTO_COMMIT" == true ]]; then
-  leak_check "$POLARIS_DIR" "${COMPANY_DIRS[@]}"
+  if [[ ${#COMPANY_DIRS[@]} -gt 0 ]]; then
+    leak_check "$POLARIS_DIR" "${COMPANY_DIRS[@]}"
+  fi
 fi
 
 # ── Step 10: Auto-push (with account switch) ──────────────────────

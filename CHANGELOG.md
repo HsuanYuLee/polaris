@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.16] - 2026-04-28
+
+### Changed — engineering task-only work orders
+
+- Removed engineering's legacy `specs/{TICKET}/plan.md` fallback; work orders
+  must now be `specs/{EPIC}/tasks/T*.md` or `tasks/pr-release/T*.md`.
+- Made PR revision rebase fail loud when no task.md maps to the branch instead
+  of falling back to the PR base branch.
+- Updated the engineering skill and resolver self-test to enforce task-only
+  resolution for JIRA keys, PR URLs, and current-branch entry.
+- Fixed `sync-to-polaris.sh` so releases can run from a clean framework
+  worktree with no company directories.
+
 ## [3.73.15] - 2026-04-28
 
 ### Changed — task lifecycle folder naming

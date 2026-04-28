@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# resolve-task-md.sh — DP-032 D1 task.md / plan.md entry resolver
+# resolve-task-md.sh — DP-032 D1 task.md entry resolver
 #
 # Resolves exactly one engineering work order from:
-#   - direct task.md / plan.md path
+#   - direct task.md path
 #   - JIRA ticket key
 #   - PR URL / PR number
 #   - current branch
@@ -26,7 +26,7 @@ usage: resolve-task-md.sh <path|jira-key|pr-url|pr-number>
        resolve-task-md.sh --scan-root <path> --current
        resolve-task-md.sh --scan-root <path> --from-input "<raw user message>"
 
-stdout: absolute path to exactly one task.md / plan.md
+stdout: absolute path to exactly one task.md
 exit: 0 = resolved
       1 = not found / ambiguous / dependency missing
       2 = usage error
@@ -157,7 +157,7 @@ resolve_direct_path() {
   local candidate="$1"
   [[ -f "$candidate" ]] || return 1
   case "$candidate" in
-    *.md) abs_path "$candidate" ;;
+    */specs/*/tasks/T*.md|*/specs/*/tasks/pr-release/T*.md) abs_path "$candidate" ;;
     *) return 1 ;;
   esac
 }
@@ -166,7 +166,6 @@ resolve_by_jira() {
   local root="$1"
   local jira_key="$2"
   local -a task_matches=()
-  local -a legacy_plan_matches=()
   local line=""
 
   while IFS= read -r -d '' line; do
@@ -185,21 +184,7 @@ resolve_by_jira() {
     return $?
   fi
 
-  while IFS= read -r -d '' line; do
-    legacy_plan_matches+=("$line")
-  done < <(
-    find "$root" \
-      \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
-      -o \
-      \( -type f -path "*/specs/${jira_key}/plan.md" -print0 \)
-  )
-
-  if [[ ${#legacy_plan_matches[@]} -gt 0 ]]; then
-    emit_unique_match "legacy plan ${jira_key}" "${legacy_plan_matches[@]}"
-    return $?
-  fi
-
-  echo "error: no task.md / plan.md found for JIRA ${jira_key}" >&2
+  echo "error: no task.md found for JIRA ${jira_key}" >&2
   return 1
 }
 
@@ -313,10 +298,6 @@ MD
 > Epic: GT-478 | JIRA: GT-479 | Repo: kkday
 MD
 
-  cat > "$tmpdir/specs/GT-999/plan.md" <<'MD'
-# Legacy plan
-MD
-
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-480)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/GT-478/tasks/T3b.md" ]] || { echo "[selftest] jira active FAIL"; return 1; }
 
@@ -326,7 +307,7 @@ MD
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-999)" || rc=$?
-  [[ $rc -eq 0 && "$out" == *"/specs/GT-999/plan.md" ]] || { echo "[selftest] legacy plan FAIL"; return 1; }
+  [[ $rc -eq 1 ]] || { echo "[selftest] missing task FAIL"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 GT-480')" || rc=$?

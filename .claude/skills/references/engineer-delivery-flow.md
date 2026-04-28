@@ -243,7 +243,7 @@ bash "${POLARIS_ROOT}/scripts/ci-local-run.sh"
 
 **Bypass**：`POLARIS_SKIP_CI_LOCAL=1` — emergency escape only，不應日常使用。**沒有** `wip:` commit-msg skip / **沒有** main-develop branch skip / **沒有** deprecation shim（D12-c 一次到位的 breaking change）。
 
-**歷史**：TASK-123 事件（useFetch key 改動沒補測試、本地 quality PASS 但 CI `codecov/patch/main-core` FAIL）促成 DP-029 Phase B 的 patch gate 精確模擬。早期版本掛了 framework-level `coverage-gate.sh`（D6 v1），D6 v2 (2026-04-24) 判定「repo 有配就由 Dimension B 接、沒配不追加」更乾淨，coverage-gate 下架。D12-c (v3.58.0) 進一步把 `ci-contract-run.sh` / `quality-gate.sh` / `pre-commit-quality.sh` 整批下架，改由 `ci-local-generate.sh` 為每個 repo 生成 self-contained `ci-local.sh`，框架本體只保留 `ci-local-gate.sh` PreToolUse hook 做 evidence 把關。
+**歷史**：KB2CW-3847 事件（useFetch key 改動沒補測試、本地 quality PASS 但 CI `codecov/patch/main-core` FAIL）促成 DP-029 Phase B 的 patch gate 精確模擬。早期版本掛了 framework-level `coverage-gate.sh`（D6 v1），D6 v2 (2026-04-24) 判定「repo 有配就由 Dimension B 接、沒配不追加」更乾淨，coverage-gate 下架。D12-c (v3.58.0) 進一步把 `ci-contract-run.sh` / `quality-gate.sh` / `pre-commit-quality.sh` 整批下架，改由 `ci-local-generate.sh` 為每個 repo 生成 self-contained `ci-local.sh`，框架本體只保留 `ci-local-gate.sh` PreToolUse hook 做 evidence 把關。
 
 ---
 
@@ -292,7 +292,7 @@ bash "${POLARIS_ROOT}/scripts/run-verify-command.sh" "<path/to/task.md>"
 
 ```json
 {
-  "ticket": "PROJ-123",
+  "ticket": "GT-521",
   "head_sha": "abc1234",
   "writer": "run-verify-command.sh",
   "exit_code": 0,
@@ -531,7 +531,7 @@ task.md 若含 `Branch chain`，engineering 在 first-cut branch setup / revisio
   --task-md "<path/to/task.md>"
 ```
 
-`Branch chain` 只表達 rebase 順序（例：`develop -> feat/PROJ-123-... -> task/TASK-123-... -> task/TASK-123-...`）。PR base 仍只取 `resolve-task-base.sh` 的輸出，避免 `Base branch` / `PR base` 雙欄位同步問題。
+`Branch chain` 只表達 rebase 順序（例：`develop -> feat/GT-478-... -> task/KB2CW-3711-... -> task/KB2CW-3900-...`）。PR base 仍只取 `resolve-task-base.sh` 的輸出，避免 `Base branch` / `PR base` 雙欄位同步問題。
 
 **應用位置**（engineering SKILL.md 四處必呼叫 resolve helper）：
 
@@ -565,15 +565,13 @@ PR 建立後，轉 JIRA ticket 狀態為 `CODE REVIEW`：
 
 ### 8a. Mark task spec as IMPLEMENTED（Developer only）
 
-PR 建立成功後，將對應的 task.md 或 plan.md frontmatter 標為 `status: IMPLEMENTED`，讓 docs-viewer sidebar 顯示綠底完成樣式：
+PR 建立成功後，將對應的 task.md frontmatter 標為 `status: IMPLEMENTED`，讓 docs-viewer sidebar 顯示綠底完成樣式：
 
 ```bash
 {workspace_root}/scripts/mark-spec-implemented.sh {TICKET}
 ```
 
-Helper 會自動：
-- 先找 Epic-level anchor（`specs/{TICKET}/refinement.md` / `plan.md`）→ in-place frontmatter update
-- 找不到時 fallback 到 Task-level anchor（T{n}/V{n} key 或 `> JIRA: {TICKET}` header 比對）→ **move-first 順序**（DP-033 D6）：
+Helper 會自動找 Task-level anchor（T{n}/V{n} key 或 `> JIRA: {TICKET}` header 比對）→ **move-first 順序**（DP-033 D6）：
   1. `mv tasks/{T}.md → tasks/pr-release/{T}.md`（先搬，永遠不會在 active `tasks/` 內寫 IMPLEMENTED）
   2. 在 `tasks/pr-release/{T}.md` 更新 frontmatter `status: IMPLEMENTED`
 - `tasks/pr-release/` 若不存在自動建立
@@ -696,7 +694,7 @@ git worktree remove "<worktree_path>"
 ### Developer 呼叫端責任（engineering SKILL.md）
 
 呼叫前：
-- 已通過 Plan Existence Gate（task.md 存在）
+- 已通過 Task Existence Gate（task.md 存在）
 - 已 checkout 正確 branch（或現在建立）
 - 已執行 `polaris-sync.sh` 部署 AI 設定
 

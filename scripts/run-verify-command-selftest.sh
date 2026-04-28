@@ -260,7 +260,7 @@ HEAD_B="$(git -C "$REPO_B" rev-parse HEAD)"
 EV_B="/tmp/polaris-verified-RVC-B1-${HEAD_B}.json"
 assert_file_exists "$EV_B" "build level evidence file"
 
-# Build-level missing primitive → warn and run verify against current repo state.
+# Build-level missing primitive → fail-loud
 FAKE_BUILD_BAD_DIR="$WORK_DIR/fake-scripts-build-bad"
 mkdir -p "$FAKE_BUILD_BAD_DIR"
 cp "$RVC" "$FAKE_BUILD_BAD_DIR/run-verify-command.sh"
@@ -270,8 +270,8 @@ chmod +x "$FAKE_BUILD_BAD_DIR"/*.sh 2>/dev/null
 # No env/run-test-prep.sh in this tree
 "$FAKE_BUILD_BAD_DIR/run-verify-command.sh" --task-md "$TASK_B" >/dev/null 2>"$WORK_DIR/build_missing.err"
 RC_BB=$?
-assert_eq "$RC_BB" "0" "build level missing prep → warning + exit 0"
-assert_contains "$(cat "$WORK_DIR/build_missing.err")" "WARN build-level prep primitive missing" "build missing prep warning message"
+assert_eq "$RC_BB" "1" "build level missing prep → exit 1"
+assert_contains "$(cat "$WORK_DIR/build_missing.err")" "primitive missing" "build missing prep error message"
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== runtime level (mock start-test-env.sh + python http server) ==="

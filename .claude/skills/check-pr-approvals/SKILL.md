@@ -10,7 +10,7 @@ metadata:
 
 掃描 `{config: github.org}` org（fallback: your-org）下指定使用者的所有 open PR，偵測 rebase 狀態、CI 結果、未回覆 review comments、approval 數量（含 stale/dismissed 偵測），分類後由使用者決定下一步。核心原則：**偵測問題、分類呈報、由使用者決定修正或催 review**。
 
-本 skill 不做任何自動修正。問題 PR 附上 ticket key，使用者可用「做 TASK-XXXX」觸發 engineering 完整流程修正。
+本 skill 不做任何自動修正。問題 PR 附上 ticket key，使用者可用「做 KB2CW-XXXX」觸發 engineering 完整流程修正。
 
 ## 前置：讀取 workspace config
 
@@ -169,7 +169,7 @@ Script 自動處理：
 
 **Ticket key 萃取**：對 🔧 分類的 PR，從 branch name 或 PR title 萃取 ticket key（pattern: `[A-Z]+-\d+`）。萃取不到的標記「無對應 ticket」。
 
-**JIRA 狀態回轉**：對有 ticket key 的 🔧 PR，查詢當前 JIRA 狀態。若為 `CODE REVIEW`（PR 已開的常見狀態），轉回 `IN DEVELOPMENT`，並留 JIRA comment 記錄原因（例：「PR #1920 CI failing — reverted to IN DEVELOPMENT for fix」）。理由：讓使用者說「做 TASK-XXXX」時，engineering 直接命中「IN DEV + 有 branch」路由，不會被 CODE REVIEW 分支擋下。已在 IN DEVELOPMENT 或其他狀態的不動。
+**JIRA 狀態回轉**：對有 ticket key 的 🔧 PR，查詢當前 JIRA 狀態。若為 `CODE REVIEW`（PR 已開的常見狀態），轉回 `IN DEVELOPMENT`，並留 JIRA comment 記錄原因（例：「PR #1920 CI failing — reverted to IN DEVELOPMENT for fix」）。理由：讓使用者說「做 KB2CW-XXXX」時，engineering 直接命中「IN DEV + 有 branch」路由，不會被 CODE REVIEW 分支擋下。已在 IN DEVELOPMENT 或其他狀態的不動。
 
 排序：🟢 PR 依 valid_approvals 升序（0 票最前面），🔧 PR 依問題嚴重度排列（conflict > CI fail > comments）。
 
@@ -185,11 +185,11 @@ Script 自動處理：
 🔧 需先修正（N 個）：
 | Repo | PR | Ticket | 問題 |
 |------|----|--------|------|
-| repo-a | [#1920](url) | TASK-123 | CI fail (codecov/patch) |
-| repo-c | [#45](url) | TASK-123 | rebase conflict (3 files) |
+| repo-a | [#1920](url) | KB2CW-3788 | CI fail (codecov/patch) |
+| repo-c | [#45](url) | KB2CW-3801 | rebase conflict (3 files) |
 | repo-d | [#67](url) | （無對應 ticket） | 2 unresolved review comments |
 
-→ 要修嗎？輸入「做 TASK-123」走 engineering
+→ 要修嗎？輸入「做 KB2CW-3788」走 engineering
 
 ✅ 已達標（N 個）：repo-a [#100](url), repo-b [#200](url)
 ```
@@ -276,9 +276,9 @@ mcp__claude_ai_Slack__slack_send_message
 
 ```
 🔧 以下 PR 仍需修正（JIRA 已轉回 IN DEVELOPMENT）：
-- repo-a #1920 (TASK-123) — CI fail
-- repo-c #45 (TASK-123) — rebase conflict
-→ 輸入「做 TASK-123」走 engineering 修正
+- repo-a #1920 (KB2CW-3788) — CI fail
+- repo-c #45 (KB2CW-3801) — rebase conflict
+→ 輸入「做 KB2CW-3788」走 engineering 修正
 ```
 
 ### 10. Feature Branch PR Gate

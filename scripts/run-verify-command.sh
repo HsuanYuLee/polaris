@@ -6,7 +6,7 @@
 # run verify → write evidence) with a single deterministic invocation.
 #
 # Contract:
-#   run-verify-command.sh --task-md PATH [--ticket KEY] [--repo PATH]
+#   run-verify-command.sh --task-md PATH [--ticket KEY]
 #
 # Behavior:
 #   1. Parse Verify Command from task.md (fenced shell block)
@@ -14,8 +14,7 @@
 #   3. Parse ticket key from task.md (if not given via --ticket)
 #   4. Per-level env preparation:
 #        static  → no env prep
-#        build   → invoke scripts/env/run-test-prep.sh when present; otherwise
-#                  warn and run the Verify Command against current repo state
+#        build   → invoke scripts/env/run-test-prep.sh (fail-loud if absent)
 #        runtime → invoke scripts/start-test-env.sh --task-md (idempotent)
 #   5. Compute head_sha = git rev-parse HEAD (in repo derived from task.md)
 #   6. Execute verify command, capture stdout/stderr/exit_code
@@ -56,7 +55,7 @@ START_TEST_ENV="$SCRIPT_DIR/start-test-env.sh"
 usage() {
   cat <<EOF >&2
 Usage:
-  $(basename "$0") --task-md PATH [--ticket KEY] [--repo PATH]
+  $(basename "$0") --task-md PATH [--ticket KEY]
 
 Atomically prepares env, executes task.md \`## Verify Command\`, and writes
 head_sha-bound evidence to /tmp/polaris-verified-{TICKET}-{HEAD_SHA}.json.
@@ -68,13 +67,11 @@ EOF
 # --- Args -------------------------------------------------------------------
 TASK_MD=""
 TICKET=""
-REPO_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --task-md) TASK_MD="${2:-}"; shift 2 ;;
     --ticket)  TICKET="${2:-}";  shift 2 ;;
-    --repo)    REPO_OVERRIDE="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "run-verify-command: unknown arg: $1" >&2; usage; exit 2 ;;
   esac
@@ -149,15 +146,7 @@ resolve_repo_path() {
   return 1
 }
 
-if [[ -n "$REPO_OVERRIDE" ]]; then
-  if [[ ! -d "$REPO_OVERRIDE" ]]; then
-    echo "run-verify-command: --repo path not found: $REPO_OVERRIDE" >&2
-    exit 1
-  fi
-  REPO_PATH="$(cd "$REPO_OVERRIDE" && pwd)"
-else
-  REPO_PATH="$(resolve_repo_path "$REPO_NAME" || true)"
-fi
+REPO_PATH="$(resolve_repo_path "$REPO_NAME" || true)"
 if [[ -z "$REPO_PATH" ]]; then
   echo "run-verify-command: could not locate repo '$REPO_NAME' as ancestor of $TASK_MD" >&2
   echo "  search walks ancestors of task.md looking for {ancestor}/$REPO_NAME with .git" >&2
@@ -177,8 +166,10 @@ case "$LEVEL" in
     ;;
   build)
     if [[ ! -x "$RUN_TEST_PREP" ]]; then
-      echo "run-verify-command: WARN build-level prep primitive missing; running Verify Command against current repo state" >&2
-    elif ! "$RUN_TEST_PREP" --task-md "$TASK_MD" --repo "$REPO_PATH" >&2; then
+      echo "run-verify-command: build-level requires scripts/env/run-test-prep.sh — primitive missing (repo not yet onboarded to D11)" >&2
+      exit 1
+    fi
+    if ! "$RUN_TEST_PREP" --task-md "$TASK_MD" >&2; then
       echo "run-verify-command: scripts/env/run-test-prep.sh failed (build-level prep)" >&2
       exit 1
     fi

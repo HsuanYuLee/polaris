@@ -38,9 +38,11 @@ metadata:
 
 本 skill 是 pipeline 的 **Execution** 環節（見 [pipeline-handoff.md](../references/pipeline-handoff.md)）。上游 breakdown 已打包出 self-contained task.md work order；本 skill 消費 **codebase + task.md + repo handbook（須主動讀取 `{repo}/.claude/rules/handbook/`）**，不再回頭讀 breakdown.md / refinement.md。
 
-**輸入優先順序**：
-1. `specs/{EPIC}/tasks/T{n}.md` — breakdown v2 產出（新 pipeline 的主要輸入）；若 active `tasks/` 找不到，fallback `tasks/pr-release/T{n}.md`（DP-033 D8）
-2. `specs/{TICKET}/plan.md` — legacy 格式（過渡期 fallback；P5 cutover 後移除）
+**唯一合法輸入**：
+
+- `specs/{EPIC}/tasks/T{n}.md` — breakdown / bug-triage 產出的 work order；若 active `tasks/` 找不到，reader 可 fallback 到 `tasks/pr-release/T{n}.md`（DP-033 D8）
+
+`specs/{TICKET}/plan.md` legacy work order 已移除。舊 Bug / PR 需要繼續施工時，先轉成 `specs/{EPIC}/tasks/T{n}.md`。
 
 ## 前置：讀取 workspace config
 
@@ -56,14 +58,14 @@ engineering 的入口目標只有一個：**找到 authoritative work order**，
 
 | 輸入形式 | 解析方式 |
 |----------|---------|
-| `task.md` / `plan.md` 路徑 | `scripts/resolve-task-md.sh --write-lock <path>` |
+| `task.md` 路徑 | `scripts/resolve-task-md.sh --write-lock <path>` |
 | JIRA ticket key（`[A-Z]+-\d+`） | `scripts/resolve-task-md.sh --write-lock <KEY>` |
 | PR URL / PR number | `scripts/resolve-task-md.sh --write-lock <PR_REF>` |
 | 目前 branch / 原始使用者訊息 | `scripts/resolve-task-md.sh --write-lock --current` / `scripts/resolve-task-md.sh --write-lock --from-input "{raw_user_msg}"` |
 
 ### 0b. Work Order Gate
 
-- **唯一合法輸入**：`task.md`（優先）或 legacy `plan.md`
+- **唯一合法輸入**：`task.md`
 - **resolver 成功後的結果是 authoritative**：不得再用 `find` / `rg` / `grep` 對 `specs/**/tasks` 做人肉 fallback 覆寫結論；若要放棄當前 resolver 結論，先 `scripts/resolve-task-md.sh --clear-lock` 再重新 resolve
 - **JIRA 在 engineering 是 write-only side-effect**：可寫 transition / comment；**不可**把 task ticket 的 description / comment / status 當施工指令來源
 - **不要 fallback 到舊 breakdown 產物或 JIRA 內嵌方案**
@@ -84,7 +86,7 @@ engineering 的入口目標只有一個：**找到 authoritative work order**，
 
 當輸入包含多張 ticket / 多個 task 路徑時：
 
-1. 先把每一項都 resolve 成單一 `task.md` / `plan.md`
+1. 先把每一項都 resolve 成單一 `task.md`
 2. 無法 resolve 的項目直接標示阻擋，不進施工
 3. 可 resolve 的項目依同一套規則派生成 `first-cut` 或 `revision`
 4. 同 repo 使用 worktree 隔離；跨 repo 可平行
@@ -92,7 +94,7 @@ engineering 的入口目標只有一個：**找到 authoritative work order**，
 批次 dispatch prompt 保持最小化，避免把過時流程複製進子代理：
 
 ```text
-你是開發 agent。唯一工作指令來源是 task.md / plan.md。
+你是開發 agent。唯一工作指令來源是 task.md。
 
 - 先讀 repo handbook：{repo}/.claude/rules/handbook/index.md + 引用子文件
 - 不要讀 JIRA task description/comment 當施工來源
@@ -109,10 +111,10 @@ engineering 的入口目標只有一個：**找到 authoritative work order**，
 
 ### 1. Resolve Work Order
 
-先用 `scripts/resolve-task-md.sh --write-lock --from-input "{raw_user_msg}"` 或等價單一輸入，定位單一 `task.md` / `plan.md`。找不到就阻擋，不開工。
+先用 `scripts/resolve-task-md.sh --write-lock --from-input "{raw_user_msg}"` 或等價單一輸入，定位單一 `task.md`。找不到就阻擋，不開工。
 
 ```text
-⛔ Work Order Gate — 找不到 task.md / plan.md
+⛔ Work Order Gate — 找不到 task.md
 
 engineering 是純施工 skill，沒有 work order 就不施工。
 請先回上游補 breakdown / bug-triage 產出。
@@ -247,7 +249,7 @@ bash "${POLARIS_ROOT}/scripts/check-delivery-completion.sh" \
 
 Revision mode 進入後、讀施工圖前，**先依 task.md 的 `Branch chain` 做 cascade rebase，再把 PR branch rebase 到 task.md 規定的 resolved base**，同步修正 PR 的 base 欄位。理由和 first-cut 的 branch-setup 原則一致：先把整條鏈對齊，再開始語意工作；且 PR 的 `baseRefName` 本身可能就是錯的（這正是 DP-028 要洗掉的情境）。
 
-**單一指令** — 所有邏輯（task.md 定位、Branch chain cascade rebase、resolve base、fetch、rebase、PR base sync、legacy fallback）都在 script 內處理：
+**單一指令** — 所有邏輯（task.md 定位、Branch chain cascade rebase、resolve base、fetch、rebase、PR base sync）都在 script 內處理：
 
 ```bash
 "${CLAUDE_PROJECT_DIR}/scripts/revision-rebase.sh"
@@ -264,33 +266,29 @@ Stdout 為單行 JSON evidence（schema 見 script header）。
 
 > **為什麼不讀 PR baseRefName**：PR 可能建立時就指向錯 base（pre-DP-028 手動建 PR 或其他漂移），把它當事實會複製錯誤。task.md 是 snapshot source-of-truth，resolve helper 是動態調整層。Script 內部已實作此邏輯（先 `resolve-task-md-by-branch.sh --current` 再 `resolve-task-base.sh`）。
 
-> **Legacy PR fallback**：找不到 task.md → script 自動 fall back 到 PR `baseRefName` 當 base 做 fetch + rebase，但**不**做 PR base sync 步驟（無 source-of-truth 比對）。stderr 會印 advisory，evidence `legacy_fallback: true`。
-
 > **Portable gate enforcement**：`gate-base-check.sh`（DP-032 Wave δ）在 `polaris-pr-create.sh` wrapper 及 git pre-push 中擋不符 resolve 結果的 base — 跳過 script 自己手動跑等價指令也會被 block。
 
-### 前置：Plan Existence Gate（Legacy PR 硬擋，D8）
+### 前置：Task Existence Gate
 
-Revision mode 進入後，先檢查 work order 是否存在（同 § Plan Existence Gate 邏輯）。
+Revision mode 進入後，先檢查 work order 是否存在（同 § Task Existence Gate 邏輯）。
 
-- **有 plan（task.md / plan.md）** → 繼續 R1
-- **無 plan（legacy PR）** → **硬擋**：
+- **有 task.md** → 繼續 R1
+- **無 task.md** → **硬擋**：
 
 ```
-⛔ Revision Mode — 此 PR 無施工圖（legacy）
+⛔ Revision Mode — 此 PR 無 task.md
 
-Review signals 無法與原計劃比對，因為沒有計劃。
+Review signals 無法與原計劃比對，因為沒有新版 work order。
 
 建議：
-  1. 先跑「breakdown {TICKET}」補一份施工圖，再回來修 review
-  2. 或使用 `--bypass` 旗標跳過計劃比對（⚠️ 警告：會跳過 D1 驗證，
-     直接以 reviewer comments 為指令修改 code，失去系統化工程標準保護）
+  1. Bug 先跑「bug-triage {TICKET}」補 task.md
+  2. Story/Task/Epic 先跑「breakdown {TICKET}」補 task.md
+  3. 舊 `specs/{TICKET}/plan.md` 必須轉成 `specs/{EPIC}/tasks/T{n}.md`
 ```
-
-若使用者加 `--bypass` → 退化為 comment-driven 修正（讀 comments → 改 code → 跑 engineer-delivery-flow），但在 JIRA 留 comment 記錄「revision mode bypassed — no work order」。
 
 ### R1. 讀施工圖
 
-讀取 work order（task.md / plan.md），重建原始實作計劃的完整上下文。task.md 欄位讀取走 `scripts/parse-task-md.sh <task_md_path>`（一次取整包 JSON）或 `--field <key>` 抽單欄位（`allowed_files`、`test_command`、`verify_command`、`level` / `env_bootstrap_command` / `runtime_verify_target` / `fixtures` 等 Test Environment 欄位）：
+讀取 work order（task.md），重建原始實作計劃的完整上下文。task.md 欄位讀取走 `scripts/parse-task-md.sh <task_md_path>`（一次取整包 JSON）或 `--field <key>` 抽單欄位（`allowed_files`、`test_command`、`verify_command`、`level` / `env_bootstrap_command` / `runtime_verify_target` / `fixtures` 等 Test Environment 欄位）：
 - 改動範圍（`--field allowed_files` 取 Allowed Files、目標行為仍由 LLM 讀 § 目標 段落）
 - 測試計畫（`--field test_command` 取單元測試指令；behavioral verify 仍由 LLM 讀 § 行為驗證 / `--field verify_command`）
 - AC 驗收標準（以 work order 內的 `ac_verification_ticket` / Operational Context 為準；不要回頭讀 JIRA 補語意）
@@ -486,7 +484,7 @@ L1 fallback 由 Stop hook（`.claude/hooks/feedback-reflection-stop.sh`）在對
 
 ## Do / Don't
 
-- Do: 檢查 task.md（新）或 plan.md（legacy）是否存在，無 work order 不開工（除非使用者明確 bypass）
+- Do: 檢查 task.md 是否存在，無 work order 不開工
 - Do: 開發預設使用 TDD（Red-Green-Refactor），無法寫測試的檔案記錄原因後跳過
 - Do: 開發完成後讀取 `references/engineer-delivery-flow.md` 執行完整交付流程（Role: Developer）
 - Do: AC 驗證交給 verify-AC skill，PR 開完後使用者或其他 skill 觸發
@@ -494,10 +492,10 @@ L1 fallback 由 Stop hook（`.claude/hooks/feedback-reflection-stop.sh`）在對
 - Do: Revision mode plan gap 時硬擋並要求使用者填退回理由
 - Do: 把 hook / wrapper 視為 enforcement backup，不是執行流程的替代品
 - Do: 若判斷有更短路徑，先向使用者提案並等待同意；未同意前仍照 skill 原流程執行
-- Do: 對 task ticket 維持 JIRA write-only 姿態；施工語意以 task.md / plan.md 為準
+- Do: 對 task ticket 維持 JIRA write-only 姿態；施工語意以 task.md 為準
 - Don't: 在 work-on 裡做規劃（估點、拆單、根因分析、AC 生成）— 那是 breakdown/bug-triage 的工作
 - Don't: 在 work-on 裡跑 AC 驗證 — 那是 verify-AC 的工作
-- Don't: 跳過 Plan Existence Gate（first-cut 和 revision mode 都適用）
+- Don't: 跳過 Task Existence Gate（first-cut 和 revision mode 都適用）
 - Don't: 跳過 engineer-delivery-flow 直接 commit/push
 - Don't: 用「我已經用 targeted tests / patch checker 驗過」取代 skill 明定的 mandatory gate
 - Don't: 用「hook 之後會擋」「completion gate 最後會抓」當成前面不執行 gate 的理由
