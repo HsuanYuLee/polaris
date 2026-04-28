@@ -68,7 +68,7 @@
 
 | 步驟 | Developer（engineering） | Admin（git-pr-workflow） |
 |------|---------------------|------------------------|
-| Input | task.md（含 Repo、測試計畫、行為驗證）；active `tasks/` 找不到時 fallback `tasks/complete/`（DP-033 D8）| 無 — 直接讀當前 diff |
+| Input | task.md（含 Repo、測試計畫、行為驗證）；active `tasks/` 找不到時 fallback `tasks/pr-release/`（DP-033 D8）| 無 — 直接讀當前 diff |
 | Step 1 Simplify | ✅ | ✅ |
 | **Step 1.3 Self-Review（Phase 3 exit gate，D21）** | ✅ | ✅ |
 | **Step 1.5 Scope Gate（`check-scope.sh`，D20）** | ✅ | ⏭️ 無 task.md 則跳過 |
@@ -574,11 +574,11 @@ PR 建立成功後，將對應的 task.md 或 plan.md frontmatter 標為 `status
 Helper 會自動：
 - 先找 Epic-level anchor（`specs/{TICKET}/refinement.md` / `plan.md`）→ in-place frontmatter update
 - 找不到時 fallback 到 Task-level anchor（T{n}/V{n} key 或 `> JIRA: {TICKET}` header 比對）→ **move-first 順序**（DP-033 D6）：
-  1. `mv tasks/{T}.md → tasks/complete/{T}.md`（先搬，永遠不會在 active `tasks/` 內寫 IMPLEMENTED）
-  2. 在 `tasks/complete/{T}.md` 更新 frontmatter `status: IMPLEMENTED`
-- `tasks/complete/` 若不存在自動建立
-- Idempotent — 已在 complete/ 且已標過相同 status 不做事
-- 同 key 衝突（active 與 complete/ 並存且內容不同）→ exit 2，須人工解決
+  1. `mv tasks/{T}.md → tasks/pr-release/{T}.md`（先搬，永遠不會在 active `tasks/` 內寫 IMPLEMENTED）
+  2. 在 `tasks/pr-release/{T}.md` 更新 frontmatter `status: IMPLEMENTED`
+- `tasks/pr-release/` 若不存在自動建立
+- Idempotent — 已在 pr-release/ 且已標過相同 status 不做事
+- 同 key 衝突（active 與 pr-release/ 並存且內容不同）→ exit 2，須人工解決
 
 失敗（找不到 anchor 等）不中斷流程，但需在對話中告知使用者。
 

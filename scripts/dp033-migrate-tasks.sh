@@ -8,13 +8,13 @@
 #
 # Actions per task:
 #   IMPLEMENTED (status: IMPLEMENTED in frontmatter)
-#     → move to tasks/complete/{filename}   (move-first per D6)
+#     → move to tasks/pr-release/{filename}   (move-first per D6)
 #   Active (no IMPLEMENTED status)
 #     → run validate-task-md.sh
 #     → if FAIL: attempt force-backfill of missing Hard sections
 #     → if still FAIL after backfill: FAIL LOUD and stop
 #
-# Idempotency: already-moved tasks (in complete/) are skipped; already-valid tasks
+# Idempotency: already-moved tasks (in pr-release/) are skipped; already-valid tasks
 # are marked UNCHANGED.
 #
 # Exit:
@@ -86,7 +86,7 @@ find_task_files() {
   # Prioritize {company}/specs patterns
   find "$root" \
     \( -path "*/.worktrees/*" -o -path "*/node_modules/*" \) -prune -o \
-    -path "*/specs/*/tasks/T*.md" -not -path "*/complete/*" \
+    -path "*/specs/*/tasks/T*.md" -not -path "*/pr-release/*" \
     -type f -print 2>/dev/null | sort
 }
 
@@ -584,17 +584,17 @@ move_to_complete() {
   local dry_run="$2"
   local tasks_dir
   tasks_dir="$(dirname "$file")"
-  local complete_dir="${tasks_dir}/complete"
+  local pr_release_dir="${tasks_dir}/pr-release"
   local filename
   filename="$(basename "$file")"
-  local dest="${complete_dir}/${filename}"
+  local dest="${pr_release_dir}/${filename}"
 
   if [[ "$dry_run" == "true" ]]; then
     log "  [DRY-RUN] Would move: $file → $dest"
     return 0
   fi
 
-  mkdir -p "$complete_dir"
+  mkdir -p "$pr_release_dir"
   mv "$file" "$dest"
   log "  Moved: $file → $dest"
 }
@@ -612,10 +612,10 @@ migrate_file() {
   log_to_file ""
   log_to_file "### $rel_file"
 
-  # ── 0. Already in complete/? (idempotency) ──────────────────────────────
-  if [[ "$file" == */complete/* ]]; then
-    log "  UNCHANGED (already in complete/)"
-    log_to_file "- action: UNCHANGED (already in complete/)"
+  # ── 0. Already in pr-release/? (idempotency) ──────────────────────────────
+  if [[ "$file" == */pr-release/* ]]; then
+    log "  UNCHANGED (already in pr-release/)"
+    log_to_file "- action: UNCHANGED (already in pr-release/)"
     COUNT_UNCHANGED=$((COUNT_UNCHANGED + 1))
     return 0
   fi
@@ -624,10 +624,10 @@ migrate_file() {
   if is_implemented "$file"; then
     local tasks_dir
     tasks_dir="$(dirname "$file")"
-    local complete_dir="${tasks_dir}/complete"
+    local pr_release_dir="${tasks_dir}/pr-release"
     local filename
     filename="$(basename "$file")"
-    local dest="${complete_dir}/${filename}"
+    local dest="${pr_release_dir}/${filename}"
 
     if [[ -f "$dest" ]]; then
       log "  UNCHANGED (dest already exists: $dest)"
@@ -636,7 +636,7 @@ migrate_file() {
       return 0
     fi
 
-    log "  Status: IMPLEMENTED → moving to complete/"
+    log "  Status: IMPLEMENTED → moving to pr-release/"
     log_to_file "- action: MOVED"
     log_to_file "- source: $file"
     log_to_file "- dest: $dest"
@@ -832,9 +832,9 @@ cat >> "$LOG_FILE" <<SUMMARY
 
 | Action | Count |
 |--------|-------|
-| moved (IMPLEMENTED → complete/) | $COUNT_MOVED |
+| moved (IMPLEMENTED → pr-release/) | $COUNT_MOVED |
 | backfilled (Hard sections inserted) | $COUNT_BACKFILLED |
-| unchanged (already valid or already complete) | $COUNT_UNCHANGED |
+| unchanged (already valid or already pr-release) | $COUNT_UNCHANGED |
 | failed (human intervention required) | $COUNT_FAILED |
 | **total** | **$TOTAL** |
 

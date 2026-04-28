@@ -23,7 +23,7 @@ fi
 if ! printf '%s' "$command" | grep -qE '^(find|rg|grep|fd)\b'; then
   exit 0
 fi
-if ! printf '%s' "$command" | grep -qE 'specs/.*/tasks|specs|tasks/complete|plan\.md|T[0-9]+[a-z]?\.md'; then
+if ! printf '%s' "$command" | grep -qE 'specs/.*/tasks|specs|tasks/pr-release|plan\.md|T[0-9]+[a-z]?\.md'; then
   exit 0
 fi
 

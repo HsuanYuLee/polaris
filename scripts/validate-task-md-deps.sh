@@ -17,21 +17,21 @@
 #
 # Validates (T*.md AND V*.md, DP-033 Phase B 雙路徑共用):
 #   1. `depends_on` (frontmatter) references only existing T{n}/V{n}[suffix].md in the same dir
-#      — with active→complete fallback (DP-033 D8): if tasks/{id}.md missing, check
-#        tasks/complete/{id}.md before reporting broken ref.
+#      — with active→pr-release fallback (DP-033 D8): if tasks/{id}.md missing, check
+#        tasks/pr-release/{id}.md before reporting broken ref.
 #   2. `depends_on` graph is a DAG — no cycles (跨 T/V 同圖)
 #   3. `Fixtures:` paths in `## Test Environment` exist on filesystem (when non-N/A)
 #   4. `depends_on` graph is a linear chain (each task has ≤ 1 dep) — DP-028 is-linear-dag rule
 #   5. Same-key uniqueness (DP-033 D6 § 5.5): if the same task key exists in BOTH tasks/
-#      and tasks/complete/, exit 2 (HARD FAIL — D6 move-first invariant violated).
+#      and tasks/pr-release/, exit 2 (HARD FAIL — D6 move-first invariant violated).
 #   6. **V→T / T→V cross-type direction (DP-033 D4 § 5.3，Phase B 新增)**:
 #      - V→T 合法（驗收前提是相關實作完成）
 #      - V→V 合法（驗收 chain，仍受線性限制）
 #      - T→V 禁止（實作不應卡在驗收，避免 Epic 內 phase 化；exit 1，建議拆 Epic）
 #
 # Scope: T*.md and V*.md files in the tasks/ top-level directory are scanned for schema.
-#   Files under tasks/complete/ are never scanned (they retain their historical shape).
-#   However, complete/ IS searched when resolving depends_on references.
+#   Files under tasks/pr-release/ are never scanned (they retain their historical shape).
+#   However, pr-release/ IS searched when resolving depends_on references.
 
 set -euo pipefail
 
@@ -71,13 +71,13 @@ import sys
 
 tasks_dir, epic_dir, workspace_root = sys.argv[1], sys.argv[2], sys.argv[3]
 
-# complete/ subdirectory for reader fallback (DP-033 D8)
-complete_dir = os.path.join(tasks_dir, "complete")
+# pr-release/ subdirectory for reader fallback (DP-033 D8)
+pr_release_dir = os.path.join(tasks_dir, "pr-release")
 
 errors = []
 hard_errors = []  # exit 2 violations (same-key uniqueness)
 
-# --- Enumerate T*.md / V*.md files (active tasks/ only — complete/ is skipped for schema scanning) ---
+# --- Enumerate T*.md / V*.md files (active tasks/ only — pr-release/ is skipped for schema scanning) ---
 # DP-033 Phase B: filename pattern 從 T*.md 擴展為 [TV]*.md (T = implementation, V = verification).
 TASK_FILE_RE = re.compile(r'^[TV][0-9]+[a-z]*\.md$')
 
@@ -88,18 +88,18 @@ for name in sorted(os.listdir(tasks_dir)):
 
 if not task_files:
     # Nothing to validate in active dir; not an error.
-    # Still check same-key uniqueness if complete/ exists.
+    # Still check same-key uniqueness if pr-release/ exists.
     pass
 
 # task_id = basename without .md (e.g., "T1", "T8a", "V1", "V2a")
 task_ids = {f[:-3] for f in task_files}
 
 # --- DP-033 D6 § 5.5: Same-key uniqueness hard check (T/V 共用) ---
-# If the same task key exists in BOTH tasks/ and tasks/complete/, that is a
+# If the same task key exists in BOTH tasks/ and tasks/pr-release/, that is a
 # D6 move-first invariant violation — hard fail (exit 2).
-if os.path.isdir(complete_dir):
+if os.path.isdir(pr_release_dir):
     complete_ids = set()
-    for name in os.listdir(complete_dir):
+    for name in os.listdir(pr_release_dir):
         if TASK_FILE_RE.match(name):
             complete_ids.add(name[:-3])
     duplicates = task_ids & complete_ids
@@ -107,7 +107,7 @@ if os.path.isdir(complete_dir):
         for dup in sorted(duplicates):
             hard_errors.append(
                 f"D6 move-first invariant violated: task key '{dup}' exists in BOTH "
-                f"{tasks_dir}/{dup}.md AND {complete_dir}/{dup}.md — "
+                f"{tasks_dir}/{dup}.md AND {pr_release_dir}/{dup}.md — "
                 f"manual recovery required (rm the stale copy or complete the mv)."
             )
 
@@ -116,12 +116,12 @@ if hard_errors:
         print(e)
     sys.exit(2)
 
-# --- Build set of all resolvable task ids (active + complete) for depends_on fallback ---
-# DP-033 D8: depends_on may reference a task that has been moved to complete/.
+# --- Build set of all resolvable task ids (active + pr-release) for depends_on fallback ---
+# DP-033 D8: depends_on may reference a task that has been moved to pr-release/.
 # We treat any T*.md / V*.md found in either location as a valid reference target.
 all_known_ids = set(task_ids)
-if os.path.isdir(complete_dir):
-    for name in os.listdir(complete_dir):
+if os.path.isdir(pr_release_dir):
+    for name in os.listdir(pr_release_dir):
         if TASK_FILE_RE.match(name):
             all_known_ids.add(name[:-3])
 
@@ -200,12 +200,12 @@ for fname in task_files:
     deps = parse_depends_on(front)
     deps_graph[tid] = deps
 
-    # --- Check broken refs (with active→complete fallback per DP-033 D8) ---
+    # --- Check broken refs (with active→pr-release fallback per DP-033 D8) ---
     for dep in deps:
         if dep not in all_known_ids:
             errors.append(
                 f"{fname}: depends_on references '{dep}' but no such task.md "
-                f"in {tasks_dir}/ or {complete_dir}/ "
+                f"in {tasks_dir}/ or {pr_release_dir}/ "
                 f"(active tasks: {sorted(task_ids)})"
             )
 
@@ -334,8 +334,8 @@ PY
   python3 - "$tasks_dir" "$epic_dir" "$workspace_root" <<'PY' 2>/dev/null | sed 's/^/  - /' >&2 || true
 import os, re, sys
 tasks_dir, epic_dir, workspace_root = sys.argv[1], sys.argv[2], sys.argv[3]
-# DP-033 D8: complete/ directory for reader fallback
-complete_dir = os.path.join(tasks_dir, "complete")
+# DP-033 D8: pr-release/ directory for reader fallback
+pr_release_dir = os.path.join(tasks_dir, "pr-release")
 errors = []
 
 FRONTMATTER_RE = re.compile(r'^---\s*\n(.*?)\n---\s*\n', re.DOTALL)
@@ -346,10 +346,10 @@ FIXTURES_LINE_RE = re.compile(r'^\s*[-*]?\s*\*\*Fixtures\*\*\s*:\s*(.+?)$', re.M
 TASK_FILE_RE = re.compile(r'^[TV][0-9]+[a-z]*\.md$')
 task_files = sorted([n for n in os.listdir(tasks_dir) if TASK_FILE_RE.match(n)])
 task_ids = {f[:-3] for f in task_files}
-# All known ids = active + complete (for fallback resolution)
+# All known ids = active + pr-release (for fallback resolution)
 all_known_ids = set(task_ids)
-if os.path.isdir(complete_dir):
-    for name in os.listdir(complete_dir):
+if os.path.isdir(pr_release_dir):
+    for name in os.listdir(pr_release_dir):
         if TASK_FILE_RE.match(name):
             all_known_ids.add(name[:-3])
 deps_graph = {}
@@ -392,7 +392,7 @@ for fname in task_files:
     deps_graph[tid] = deps
     for dep in deps:
         if dep not in all_known_ids:
-            errors.append(f"{fname}: depends_on references '{dep}' but no such task.md in {tasks_dir}/ or {complete_dir}/ (active tasks: {sorted(task_ids)})")
+            errors.append(f"{fname}: depends_on references '{dep}' but no such task.md in {tasks_dir}/ or {pr_release_dir}/ (active tasks: {sorted(task_ids)})")
     fixture_paths[tid] = parse_fixtures(content)
 
 # DP-033 D4 § 5.3: V→T pass / T→V fail (Phase B)

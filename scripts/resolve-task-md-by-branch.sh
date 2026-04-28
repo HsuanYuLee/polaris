@@ -89,7 +89,7 @@ resolve_task_md_scan() {
   done < <(find "$root" \
     \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
     -o \
-    \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/complete/*.md' \) -print0 \))
+    \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/pr-release/*.md' \) -print0 \))
 
   if [[ ${#matches[@]} -eq 0 ]]; then
     echo "no task.md matched 'Task branch = $branch' (scanned $scanned file(s) under $root)" >&2

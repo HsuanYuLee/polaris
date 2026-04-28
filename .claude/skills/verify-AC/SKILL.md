@@ -112,7 +112,7 @@ Sub-agent 在 worktree 執行；`specs/` 與 `.claude/skills/` 是 gitignored（
 - artifacts / verification: `{company_base_dir}/specs/{EPIC}/artifacts/`、`.../verification/`
 詳見 `skills/references/worktree-dispatch-paths.md`。
 
-查找驗收單對應的 task.md：`{company_base_dir}/specs/{EPIC_KEY}/tasks/{AC_TICKET_KEY}.md`。若存在 → 讀取 fixture 設定；若不存在 → fallback `tasks/complete/{AC_TICKET_KEY}.md`（DP-033 D8 reader fallback）；兩者皆無 → fallback 到 Step 3b。
+查找驗收單對應的 task.md：`{company_base_dir}/specs/{EPIC_KEY}/tasks/{AC_TICKET_KEY}.md`。若存在 → 讀取 fixture 設定；若不存在 → fallback `tasks/pr-release/{AC_TICKET_KEY}.md`（DP-033 D8 reader fallback）；兩者皆無 → fallback 到 Step 3b。
 
 **Step 3b. Fixture 自動偵測（fallback）**
 

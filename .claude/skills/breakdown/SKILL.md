@@ -679,11 +679,11 @@ scripts/validate-task-md-deps.sh {company_base_dir}/specs/{EPIC_KEY}/tasks/
 ```
 
 此 script 驗證：
-- `depends_on[]` 所有引用存在（含 `complete/` fallback）
+- `depends_on[]` 所有引用存在（含 `pr-release/` fallback）
 - DAG 無 cycle（DFS coloring）
 - linear chain（每個 task `depends_on` ≤ 1 其他 task）
 - `Fixtures:` 路徑存在性（非 `N/A` 時）
-- 同一 key 不同時出現在 `tasks/` 與 `tasks/complete/`
+- 同一 key 不同時出現在 `tasks/` 與 `tasks/pr-release/`
 
 結果判斷：
 - exit 0 → 所有 T*.md 依賴關係合規，繼續 Step 15

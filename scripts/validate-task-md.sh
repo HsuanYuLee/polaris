@@ -19,7 +19,7 @@
 #   filename V*.md → V mode (Verification Schema, § 4)
 #   filename 由 entry 偵測；mode 為 唯一 type 訊號（DP-033 D2，frontmatter 無 type 欄位）
 #   T/V 共用：Title regex / Header / status invariant / Test Environment / jira_transition_log /
-#             complete-skip / move-first / depends_on schema (cross-file, validate-task-md-deps.sh)
+#             pr-release-skip / move-first / depends_on schema (cross-file, validate-task-md-deps.sh)
 #   T-only:   ## 改動範圍 / ## Allowed Files / ## Test Command / ## Verify Command /
 #             Operational Context Test sub-tasks/AC 驗收單/Task branch cells /
 #             DP-028 Depends on ⇒ task/ Base branch cross-field /
@@ -169,9 +169,9 @@ validate_file() {
     return 2
   fi
 
-  # --- G: Skip rule — files under tasks/complete/ are never validated (DP-033 D6) ---
+  # --- G: Skip rule — files under tasks/pr-release/ are never validated (DP-033 D6) ---
   case "$FILE" in
-    */tasks/complete/*)
+    */tasks/pr-release/*)
       return 0
       ;;
   esac
@@ -203,7 +203,7 @@ validate_file() {
 
   # ---------------------------------------------------------------------------
   # § 5.5 Hard invariant — completion location (exit 2, DP-033 D6)
-  # If frontmatter status: IMPLEMENTED AND file is NOT in tasks/complete/ → HARD FAIL.
+  # If frontmatter status: IMPLEMENTED AND file is NOT in tasks/pr-release/ → HARD FAIL.
   # move-first contract: mark-spec-implemented.sh always mv before updating frontmatter,
   # so the only way to hit this is a manual edit that bypassed the helper.
   # ---------------------------------------------------------------------------
@@ -211,8 +211,8 @@ validate_file() {
   fm_status=$(extract_frontmatter_scalar "$FILE" "status" 2>/dev/null || true)
   if [[ "$fm_status" == "IMPLEMENTED" ]]; then
     echo "✗✗ HARD FAIL (exit 2) — task.md completion invariant violated in $FILE:" >&2
-    echo "   frontmatter 'status: IMPLEMENTED' but file is NOT in tasks/complete/." >&2
-    echo "   Fix: run 'scripts/mark-spec-implemented.sh' (move-first: mv tasks/T.md tasks/complete/T.md → update frontmatter)." >&2
+    echo "   frontmatter 'status: IMPLEMENTED' but file is NOT in tasks/pr-release/." >&2
+    echo "   Fix: run 'scripts/mark-spec-implemented.sh' (move-first: mv tasks/T.md tasks/pr-release/T.md → update frontmatter)." >&2
     echo "   Reference: skills/references/task-md-schema.md § 5.5 + DP-033 D6" >&2
     return 2
   fi
@@ -849,7 +849,7 @@ print((urlparse(u).hostname or '').lower())
 }
 
 # ---------------------------------------------------------------------------
-# Scan mode: recursively validate all T*.md and V*.md in specs/*/tasks/ (skip complete/)
+# Scan mode: recursively validate all T*.md and V*.md in specs/*/tasks/ (skip pr-release/)
 # Always exits 0; produces PASS/FAIL/HARD summary lines.
 # DP-033 Phase B: filename pattern擴展到 V*.md (filename dispatch 對 T/V 共用).
 # ---------------------------------------------------------------------------
@@ -869,7 +869,7 @@ if [[ "$1" == "--scan" ]]; then
   while IFS= read -r f; do
     case "$f" in
       */.worktrees/*|*/node_modules/*) continue ;;
-      */tasks/complete/*) continue ;;
+      */tasks/pr-release/*) continue ;;
     esac
     case "$f" in
       */specs/*/tasks/T*.md) ;;

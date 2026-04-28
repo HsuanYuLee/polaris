@@ -177,7 +177,7 @@ resolve_by_jira() {
     find "$root" \
       \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
       -o \
-      \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/complete/*.md' \) -print0 \)
+      \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/pr-release/*.md' \) -print0 \)
   )
 
   if [[ ${#task_matches[@]} -gt 0 ]]; then
@@ -299,7 +299,7 @@ run_selftest() {
 
   tmpdir="$(mktemp -d -t resolve-task-md-selftest.XXXXXX)"
   trap "rm -rf '$tmpdir'" EXIT
-  mkdir -p "$tmpdir/specs/GT-478/tasks/complete" "$tmpdir/specs/GT-478/tasks" "$tmpdir/specs/GT-999"
+  mkdir -p "$tmpdir/specs/GT-478/tasks/pr-release" "$tmpdir/specs/GT-478/tasks" "$tmpdir/specs/GT-999"
 
   cat > "$tmpdir/specs/GT-478/tasks/T3b.md" <<'MD'
 # T3b: Example (1 pt)
@@ -308,7 +308,7 @@ run_selftest() {
 | Task branch | task/GT-480-example |
 MD
 
-  cat > "$tmpdir/specs/GT-478/tasks/complete/T3a.md" <<'MD'
+  cat > "$tmpdir/specs/GT-478/tasks/pr-release/T3a.md" <<'MD'
 # T3a: Example (1 pt)
 > Epic: GT-478 | JIRA: GT-479 | Repo: kkday
 MD
@@ -322,7 +322,7 @@ MD
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-479)" || rc=$?
-  [[ $rc -eq 0 && "$out" == *"/specs/GT-478/tasks/complete/T3a.md" ]] || { echo "[selftest] jira complete FAIL"; return 1; }
+  [[ $rc -eq 0 && "$out" == *"/specs/GT-478/tasks/pr-release/T3a.md" ]] || { echo "[selftest] jira complete FAIL"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-999)" || rc=$?

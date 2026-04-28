@@ -118,11 +118,11 @@ find_task_md_by_jira() {
     local key="$1"
     local tasks_dir="$2"
     local candidate value
-    # Glob T*.md in active tasks/ first, then tasks/complete/ (DP-033 D8 fallback —
-    # downstream tasks must still resolve when an upstream has been moved to complete/
+    # Glob T*.md in active tasks/ first, then tasks/pr-release/ (DP-033 D8 fallback —
+    # downstream tasks must still resolve when an upstream has been moved to pr-release/
     # by mark-spec-implemented.sh's move-first sequence).
     shopt -s nullglob
-    for candidate in "$tasks_dir"/T*.md "$tasks_dir"/complete/T*.md; do
+    for candidate in "$tasks_dir"/T*.md "$tasks_dir"/pr-release/T*.md; do
         value=$(parse_table_field "Task JIRA key" "$candidate")
         if [ "$value" = "$key" ]; then
             printf '%s' "$candidate"
@@ -585,12 +585,12 @@ EOF
         fails=$((fails + 1))
     fi
 
-    # Case 9: Stacked + upstream task.md moved to tasks/complete/ (DP-033 D8 fallback).
-    # find_task_md_by_jira must locate the upstream via complete/ glob; with no real
+    # Case 9: Stacked + upstream task.md moved to tasks/pr-release/ (DP-033 D8 fallback).
+    # find_task_md_by_jira must locate the upstream via pr-release/ glob; with no real
     # git repo, is_merged_into returns rc=2 → fallback to original base.
-    mkdir -p "$tmpdir/case1/tasks/complete"
-    cat >"$tmpdir/case1/tasks/complete/T7.md" <<'EOF'
-# T7 upstream — moved to complete/
+    mkdir -p "$tmpdir/case1/tasks/pr-release"
+    cat >"$tmpdir/case1/tasks/pr-release/T7.md" <<'EOF'
+# T7 upstream — moved to pr-release/
 
 > Repo: nonexistent-repo
 
@@ -603,7 +603,7 @@ EOF
 | Task branch | task/DEMO-700-upstream |
 EOF
     cat >"$tmpdir/case1/tasks/T8.md" <<'EOF'
-# T8 downstream stacked on T7 (which is in complete/)
+# T8 downstream stacked on T7 (which is in pr-release/)
 
 > Repo: nonexistent-repo
 
@@ -619,7 +619,7 @@ EOF
     out=$(resolve_task_base "$tmpdir/case1/tasks/T8.md" 2>/dev/null)
     rc=$?
     if [ "$rc" = "0" ] && [ "$out" = "task/DEMO-700-upstream" ]; then
-        echo "PASS case9: upstream in tasks/complete/ → resolved + fallback to original base"
+        echo "PASS case9: upstream in tasks/pr-release/ → resolved + fallback to original base"
         pass=$((pass + 1))
     else
         echo "FAIL case9: expected 'task/DEMO-700-upstream' exit 0, got '$out' exit $rc"

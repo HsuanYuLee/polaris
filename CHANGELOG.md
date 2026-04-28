@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.15] - 2026-04-28
+
+### Changed — task lifecycle folder naming
+
+- Renamed completed task work-order storage from `tasks/complete/` to
+  `tasks/pr-release/`, reflecting that engineering completion means a PR has
+  been opened and the work is waiting for release.
+- Updated engineering, breakdown, verify-AC, task schema references, resolver
+  helpers, parser fallback, artifact gates, and task validators to use the new
+  `pr-release/` lifecycle folder.
+- Kept active task validation strict while preserving reader fallback for
+  downstream dependency resolution across released-to-PR tasks.
+
 ## [3.73.14] - 2026-04-28
 
 ### Fixed — engineering delivery metadata gates

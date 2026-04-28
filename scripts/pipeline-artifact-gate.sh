@@ -3,7 +3,7 @@
 #
 # Reads tool input (Edit/Write), extracts file path, and routes to the matching validator:
 #   - `*/specs/*/refinement.json`            → validate-refinement-json.sh
-#   - `*/specs/*/tasks/complete/*.md`         → skip (D6: completed tasks leave validator scope)
+#   - `*/specs/*/tasks/pr-release/*.md`         → skip (D6: completed tasks leave validator scope)
 #   - `*/specs/*/tasks/T*.md`                → validate-task-md.sh (T mode) + validate-task-md-deps.sh
 #   - `*/specs/*/tasks/V*.md`                → validate-task-md.sh (V mode) + validate-task-md-deps.sh
 #                                              (DP-033 Phase B：V mode dispatch by filename，cross-file
@@ -182,10 +182,10 @@ for i in "${!CANDIDATE_PATHS[@]}"; do
       ;;
   esac
 
-  # --- complete/ skip (D6: completed tasks move out of validator scope) ---
-  # Must precede T*.md / V*.md so complete/T1.md is never re-validated.
+  # --- pr-release/ skip (D6: completed tasks move out of validator scope) ---
+  # Must precede T*.md / V*.md so pr-release/T1.md is never re-validated.
   case "$path" in
-    */specs/*/tasks/complete/*.md)
+    */specs/*/tasks/pr-release/*.md)
       continue
       ;;
   esac
