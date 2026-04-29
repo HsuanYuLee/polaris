@@ -204,6 +204,10 @@ CI fail 是 blocker；breakdown 只決定修法歸屬，不可放行失敗 CI。
 
 Preview 必須包含 sidecar 的 `Closure Forecast` 摘要，並明確回答：「本次 proposal 是否足以讓 failed gate 具備 pass 條件？」若答案是 No，不能回 engineering；要補齊 planner decision 或改 route refinement。
 
+若 route 是 `refinement`，preview 不能把 raw sidecar 直接交給 refinement。必須改產
+`references/refinement-return-inbox.md` 定義的 refinement-facing inbox record，讓 refinement
+只消化 breakdown 的 planner decision。
+
 ### E4. 落地 + 標記 sidecar 為 processed
 
 User 確認後：
@@ -226,7 +230,23 @@ User 確認後：
 
 2. **task.md 異動權威由 breakdown 持有**：`plan-defect` 直接 Edit 既有 task.md；`scope-drift` 走 § 14.5 schema 產新 T{n}.md（依正常 validator gate）；`env-drift` 多半不改 task.md，只在 JIRA / handbook 留 baseline approval 紀錄
 3. JIRA 同步（estimate / sub-task / comment 一併更新；用 `references/jira-subtask-creation.md` 對應段落）
-4. **Sidecar 標記為 processed**：在 sidecar frontmatter 加一行 `processed: true`（in-place edit；不改檔名）。下一次 engineering 進來時看到 `processed: true` 即視為歷史紀錄，不再 trigger E1-E5 流程
+4. **若 route = `refinement`：建立 refinement inbox record（hard）**
+   - 位置：
+     ```text
+     {company_base_dir}/specs/{EPIC}/refinement-inbox/T{n}-{count}-{YYYYMMDDTHHMMSSZ}.md
+     ```
+   - Schema 以 `references/refinement-return-inbox.md` 為準；frontmatter producer 必須是
+     `skill: breakdown`，`target_skill: refinement`，`route: refinement`，`consumed: false`
+   - Body 只寫 `## Decision` / `## Refinement Context` / `## Decisions Needed` /
+     `## Source Audit`；不得包含 `## Raw Evidence` 或完整 command logs
+   - `source_sidecar` 只作 audit pointer；refinement 不得打開它
+   - 寫完立刻跑：
+     ```bash
+     scripts/validate-refinement-inbox-record.sh \
+       "{company_base_dir}/specs/{EPIC}/refinement-inbox/T{n}-{count}-{YYYYMMDDTHHMMSSZ}.md"
+     ```
+     exit != 0 → 修 inbox record；不得 route refinement、不得標 sidecar processed
+5. **Sidecar 標記為 processed**：在 sidecar frontmatter 加一行 `processed: true`（in-place edit；不改檔名）。下一次 engineering 進來時看到 `processed: true` 即視為歷史紀錄，不再 trigger E1-E5 流程
 
 > 為什麼選 `processed: true` 不選改檔名：保留檔名穩定，使外部引用（JIRA comment / Slack 訊息中的路徑）不會失效；validator 只檢 schema 必填欄位，不在意這個 optional 欄位。
 
@@ -234,7 +254,8 @@ User 確認後：
 
 - 原 task 的 task.md 已被修正 / 新 task 已建立 → **回到 `engineering`**
 - engineering 的 `scripts/resolve-task-base.sh` + `depends_on` resolver 會自動挑下一張 READY task；不需要 breakdown 額外指派 `next_engineering_task`（DP-044 Blind Spot #3）
-- 若 lineage 已達 `escalation_count == 2` 且本次仍然失敗 → **不再回 engineering**；改開 `refinement {EPIC}`（D5 cap）
+- 若 lineage 已達 `escalation_count == 2` 且本次仍然失敗 → **不再回 engineering**；建立 refinement inbox record 後才提示 `refinement {EPIC}`（D5 cap）
+- `refinement` 的唯一 escalation return input 是 `refinement-inbox/*.md`；breakdown 不可要求 refinement 直接讀 `escalations/` raw sidecar
 
 ---
 

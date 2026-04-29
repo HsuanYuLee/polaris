@@ -631,11 +631,76 @@ assert_contains "Test 11: records coverage path" /tmp/ci-local-test11-evidence.o
 rm -f "$T11_EVIDENCE" /tmp/ci-local-test11.out /tmp/ci-local-test11-evidence.out
 
 # ============================================================================
-echo "== Test 12: install DNS failure classified as BLOCKED_ENV =="
+echo "== Test 12: stale generated mirror blocks and regenerated mirror ignores stale cache =="
 # ============================================================================
-T12="$TMPROOT/blocked-env-install"
+T12="$TMPROOT/stale-mirror-cache"
 mkdir -p "$T12/.github/workflows" "$T12/.bin"
+cat > "$T12/.bin/pnpm" <<'SH'
+#!/usr/bin/env bash
+echo "$*"
+exit 0
+SH
+chmod +x "$T12/.bin/pnpm"
 cat > "$T12/.github/workflows/ci.yml" <<'YAML'
+name: CI
+on: [pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: pnpm test:first
+YAML
+init_git_repo "$T12"
+OUT12="$T12/.claude/scripts/ci-local.sh"
+"$GEN" --repo "$T12" --out "$OUT12" --force >/dev/null 2>&1
+assert "Test 12: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+bash -n "$OUT12" 2>/dev/null
+assert "Test 12: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+
+(cd "$T12" && PATH="$T12/.bin:$PATH" bash "$OUT12" --repo "$T12" >/tmp/ci-local-test12-first.out 2>&1)
+assert "Test 12: first run exits 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+T12_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+python3 - "$T12_EVIDENCE" <<'PY' >/tmp/ci-local-test12-evidence.out
+import json, sys
+d=json.load(open(sys.argv[1]))
+print(d["status"])
+print(bool(d.get("ci_local_mirror_hash")))
+PY
+assert_contains "Test 12: evidence status PASS" /tmp/ci-local-test12-evidence.out "PASS"
+assert_contains "Test 12: evidence has mirror hash" /tmp/ci-local-test12-evidence.out "True"
+
+sleep 1
+cat > "$T12/.github/workflows/ci.yml" <<'YAML'
+name: CI
+on: [pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: pnpm test:second
+YAML
+
+set +e
+(cd "$T12" && PATH="$T12/.bin:$PATH" bash "$OUT12" --repo "$T12" >/tmp/ci-local-test12-stale.out 2>&1)
+T12_RC=$?
+set -e
+assert "Test 12: stale script exits non-zero" "$([ $T12_RC -ne 0 ] && echo 1 || echo 0)"
+assert_contains "Test 12: stale script blocks before cache" /tmp/ci-local-test12-stale.out "CI config changed after ci-local.sh generation"
+assert_not_contains "Test 12: stale script does not use cache" /tmp/ci-local-test12-stale.out "cache hit"
+
+"$GEN" --repo "$T12" --out "$OUT12" --force >/dev/null 2>&1
+assert_contains "Test 12: regenerated mirror contains new command" "$OUT12" "test:second"
+(cd "$T12" && PATH="$T12/.bin:$PATH" bash "$OUT12" --repo "$T12" >/tmp/ci-local-test12-second.out 2>&1)
+assert "Test 12: regenerated run exits 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+assert_not_contains "Test 12: regenerated mirror ignores stale pass cache" /tmp/ci-local-test12-second.out "cache hit"
+rm -f "$T12_EVIDENCE" /tmp/ci-local-test12-first.out /tmp/ci-local-test12-stale.out /tmp/ci-local-test12-second.out /tmp/ci-local-test12-evidence.out
+
+# ============================================================================
+echo "== Test 13: install DNS failure classified as BLOCKED_ENV =="
+# ============================================================================
+T13="$TMPROOT/blocked-env-install"
+mkdir -p "$T13/.github/workflows" "$T13/.bin"
+cat > "$T13/.github/workflows/ci.yml" <<'YAML'
 name: CI
 on: [pull_request]
 jobs:
@@ -645,7 +710,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: echo SHOULD_NOT_RUN
 YAML
-cat > "$T12/.bin/pnpm" <<'SH'
+cat > "$T13/.bin/pnpm" <<'SH'
 #!/usr/bin/env bash
 if [[ "$1" == "install" ]]; then
   echo "ERR_PNPM_META_FETCH_FAIL getaddrinfo ENOTFOUND nexus3.sit.kkday.com" >&2
@@ -654,23 +719,23 @@ fi
 echo "unexpected pnpm command: $*" >&2
 exit 1
 SH
-chmod +x "$T12/.bin/pnpm"
-init_git_repo "$T12"
-OUT12="$T12/.claude/scripts/ci-local.sh"
-"$GEN" --repo "$T12" --out "$OUT12" --force >/dev/null 2>&1
-assert "Test 12: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-bash -n "$OUT12" 2>/dev/null
-assert "Test 12: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+chmod +x "$T13/.bin/pnpm"
+init_git_repo "$T13"
+OUT13="$T13/.claude/scripts/ci-local.sh"
+"$GEN" --repo "$T13" --out "$OUT13" --force >/dev/null 2>&1
+assert "Test 13: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+bash -n "$OUT13" 2>/dev/null
+assert "Test 13: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 
 set +e
-(cd "$T12" && PATH="$T12/.bin:$PATH" bash "$OUT12" --repo "$T12" >/tmp/ci-local-test12.out 2>&1)
-T12_RC=$?
+(cd "$T13" && PATH="$T13/.bin:$PATH" bash "$OUT13" --repo "$T13" >/tmp/ci-local-test13.out 2>&1)
+T13_RC=$?
 set -e
-assert "Test 12: run exits non-zero" "$([ $T12_RC -ne 0 ] && echo 1 || echo 0)"
-assert_contains "Test 12: output includes BLOCKED_ENV" /tmp/ci-local-test12.out "BLOCKED_ENV"
-assert_not_contains "Test 12: downstream command not run" /tmp/ci-local-test12.out "SHOULD_NOT_RUN"
-T12_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
-python3 - "$T12_EVIDENCE" <<'PY' >/tmp/ci-local-test12-evidence.out
+assert "Test 13: run exits non-zero" "$([ $T13_RC -ne 0 ] && echo 1 || echo 0)"
+assert_contains "Test 13: output includes BLOCKED_ENV" /tmp/ci-local-test13.out "BLOCKED_ENV"
+assert_not_contains "Test 13: downstream command not run" /tmp/ci-local-test13.out "SHOULD_NOT_RUN"
+T13_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+python3 - "$T13_EVIDENCE" <<'PY' >/tmp/ci-local-test13-evidence.out
 import json, sys
 d=json.load(open(sys.argv[1]))
 print(d["status"])
@@ -678,11 +743,11 @@ print(d["summary"]["blocked_env_checks"])
 print(d["blocked_env"]["reason"])
 print(d["blocked_env"]["host"])
 PY
-assert_contains "Test 12: evidence status BLOCKED_ENV" /tmp/ci-local-test12-evidence.out "BLOCKED_ENV"
-assert_contains "Test 12: evidence has blocked count" /tmp/ci-local-test12-evidence.out "1"
-assert_contains "Test 12: evidence reason dns" /tmp/ci-local-test12-evidence.out "dns_resolution_failed"
-assert_contains "Test 12: evidence host recorded" /tmp/ci-local-test12-evidence.out "nexus3.sit.kkday.com"
-rm -f "$T12_EVIDENCE" /tmp/ci-local-test12.out /tmp/ci-local-test12-evidence.out
+assert_contains "Test 13: evidence status BLOCKED_ENV" /tmp/ci-local-test13-evidence.out "BLOCKED_ENV"
+assert_contains "Test 13: evidence has blocked count" /tmp/ci-local-test13-evidence.out "1"
+assert_contains "Test 13: evidence reason dns" /tmp/ci-local-test13-evidence.out "dns_resolution_failed"
+assert_contains "Test 13: evidence host recorded" /tmp/ci-local-test13-evidence.out "nexus3.sit.kkday.com"
+rm -f "$T13_EVIDENCE" /tmp/ci-local-test13.out /tmp/ci-local-test13-evidence.out
 
 # ============================================================================
 echo

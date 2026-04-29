@@ -38,6 +38,50 @@ metadata:
 
 **Trigger migration**：原本屬於 `design-plan` 的「想討論 / 怎麼設計 / 重構 / ADR / design plan」入口，改 route 到本 skill 的 ticketless mode。`design-plan` skill 已 sunset；legacy `/design-plan DP-NNN` prompt 也應轉入 `refinement DP-NNN`。
 
+## Return Inbox Intake（breakdown → refinement）
+
+當 `breakdown` 判定 scope-escalation intake 已超出 task-md 修補能力，必須先把
+engineering raw sidecar 轉譯成 refinement-facing inbox record。`refinement` 發動時只讀
+inbox record，不直接讀 `engineering` escalation sidecar。
+
+Contract source：`references/refinement-return-inbox.md`
+
+### R0. Scan inbox before normal refinement
+
+Source resolution 得到 `{source_container}` 後，先掃：
+
+```text
+{source_container}/refinement-inbox/*.md
+```
+
+若有 `consumed: false` 的 record：
+
+1. 取最新一筆（檔名 timestamp 最大；若使用者指定 record path，讀指定那筆）
+2. 先跑 validator：
+   ```bash
+   scripts/validate-refinement-inbox-record.sh \
+     "{source_container}/refinement-inbox/{record}.md"
+   ```
+3. 只讀 inbox record 的 `## Decision` / `## Refinement Context` /
+   `## Decisions Needed` / `## Source Audit`
+4. 把 `## Decisions Needed` 轉成本輪 refinement 的 agenda，更新
+   `refinement.md` 的 Decisions / Blind Spots / Acceptance Criteria /
+   Technical Approach（依實際問題歸位）
+5. 定版並產出新的 `refinement.json` 後，把該 inbox record frontmatter 改為
+   `consumed: true`
+
+### R1. Raw sidecar ban
+
+- 不讀 `{source_container}/escalations/T{n}-{count}.md`
+- 不讀 engineering `## Raw Evidence` 來補 refinement context
+- 使用者若直接給 sidecar path 並要求 refinement，回覆 routing error：
+  「請先跑 `breakdown {EPIC}` scope-escalation intake，讓 breakdown 產
+  `refinement-inbox/*.md`；refinement 只消化 inbox decision。」
+- 若 inbox context 不足，不自行開 sidecar；要求 `breakdown` 重寫或補一筆 inbox record
+
+此規則的目的不是丟失證據，而是維持權威邊界：engineering raw sidecar 是 execution evidence，
+breakdown 才能把它轉成 planner decision；refinement 只重新決策 AC / 技術方案。
+
 ## Sub-agent Completion Envelope
 
 本 skill 的所有 sub-agent dispatch（Batch Scan 平行讀取、Explore subagent、多角色分析）都必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`）。Detail 統一寫入 `specs/{EPIC}/artifacts/{agent-type}-{timestamp}.md`。

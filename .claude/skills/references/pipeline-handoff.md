@@ -18,6 +18,12 @@ refinement → breakdown（打包 task.md）
 
 Core principle: **each skill consumes a self-contained input and produces a well-defined output.** No skill needs to reach back into upstream artifacts to fill gaps.
 
+Scope-escalation returns follow the same rule. `engineering` raw sidecars are
+consumed by `breakdown` only. If `breakdown` decides the issue must return to
+`refinement`, it writes a `refinement-inbox/*.md` decision record first; `refinement`
+reads that inbox record and never opens the raw sidecar. See
+`refinement-return-inbox.md`.
+
 ## Role Boundaries
 
 | Role | Skill | Responsibility | Must Not |

@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.42] - 2026-04-29
+
+### Fixed — ci-local stale mirror cache
+
+- Generated `ci-local.sh` now fail-stops when source CI declarations changed
+  after generation instead of warning and continuing with a stale mirror.
+- Added a mirror hash to ci-local evidence and PASS cache validation so
+  regenerated mirrors cannot reuse stale PASS evidence from an older CI mirror.
+- Added self-test coverage for stale mirror blocking and stale cache rejection.
+
 ## [3.73.41] - 2026-04-29
 
 ### Added — product CI config read-only boundary

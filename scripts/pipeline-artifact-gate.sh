@@ -3,6 +3,7 @@
 #
 # Reads tool input (Edit/Write), extracts file path, and routes to the matching validator:
 #   - `*/specs/*/refinement.json`            → validate-refinement-json.sh
+#   - `*/specs/*/refinement-inbox/*.md`      → validate-refinement-inbox-record.sh
 #   - `*/specs/*/tasks/pr-release/*.md`         → skip (D6: completed tasks leave validator scope)
 #   - `*/specs/*/tasks/T*.md`                → validate-task-md.sh (T mode) + validate-task-md-deps.sh
 #   - `*/specs/*/tasks/V*.md`                → validate-task-md.sh (V mode) + validate-task-md-deps.sh
@@ -41,6 +42,7 @@ if [[ -z "$WORKSPACE_ROOT" ]]; then
 fi
 
 VALIDATE_REFINEMENT="$WORKSPACE_ROOT/scripts/validate-refinement-json.sh"
+VALIDATE_REFINEMENT_INBOX="$WORKSPACE_ROOT/scripts/validate-refinement-inbox-record.sh"
 VALIDATE_TASK_MD="$WORKSPACE_ROOT/scripts/validate-task-md.sh"
 VALIDATE_TASK_MD_DEPS="$WORKSPACE_ROOT/scripts/validate-task-md-deps.sh"
 
@@ -197,6 +199,18 @@ for i in "${!CANDIDATE_PATHS[@]}"; do
     */specs/*/refinement.json)
       if [[ -x "$VALIDATE_REFINEMENT" ]] && [[ -f "$probe" ]]; then
         if ! "$VALIDATE_REFINEMENT" "$probe" >&2; then
+          block=1
+        fi
+      fi
+      continue
+      ;;
+  esac
+
+  # --- refinement return inbox record ---
+  case "$path" in
+    */specs/*/refinement-inbox/*.md)
+      if [[ -x "$VALIDATE_REFINEMENT_INBOX" ]] && [[ -f "$probe" ]]; then
+        if ! "$VALIDATE_REFINEMENT_INBOX" "$probe" >&2; then
           block=1
         fi
       fi

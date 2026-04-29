@@ -62,7 +62,7 @@ if [[ -x "$GATES_DIR/gate-version-lint.sh" ]]; then
   bash "$GATES_DIR/gate-version-lint.sh" --repo "$REPO_ROOT"
 fi
 
-# Gate: artifact-schema (task.md + refinement.json)
+# Gate: artifact-schema (task.md + refinement.json + refinement inbox)
 if [[ -x "$GATES_DIR/gate-artifact-schema.sh" ]]; then
   bash "$GATES_DIR/gate-artifact-schema.sh" --repo "$REPO_ROOT"
 fi
