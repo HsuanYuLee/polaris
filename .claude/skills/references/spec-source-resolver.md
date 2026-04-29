@@ -18,7 +18,7 @@ JIRA sync is optional decoration
 
 | Type | Input examples | Canonical container | Primary owner |
 |------|----------------|---------------------|---------------|
-| `jira` | `GT-478`, `KB2CW-3711` | `{company_base_dir}/specs/{TICKET}/` plus JIRA issue | `refinement` / `breakdown` |
+| `jira` | `PROJ-123`, `TASK-123` | `{company_base_dir}/specs/{TICKET}/` plus JIRA issue | `refinement` / `breakdown` |
 | `dp` | `DP-045`, `specs/design-plans/DP-045-*/plan.md` | `{workspace_root}/specs/design-plans/DP-NNN-{slug}/` | `refinement` |
 | `topic` | `討論 CI local blocker`, `refinement "想重構 skill routing"` | newly allocated DP folder | `refinement` |
 | `artifact_path` | direct `refinement.json`, `refinement.md`, `tasks/T1.md` path | nearest containing specs folder | stage-specific consumer |
@@ -121,4 +121,4 @@ If `breakdown` finds a technical decision wrong or incomplete, it must route bac
 
 ## Compatibility
 
-Legacy `design-plan` triggers such as `想討論`, `怎麼設計`, `ADR`, and `design plan` should be treated as aliases for `refinement` ticketless mode. A temporary `design-plan` shim may create or locate the DP folder, but it must immediately hand off to `refinement` and must not maintain a separate pipeline.
+Legacy `design-plan` triggers such as `想討論`, `怎麼設計`, `ADR`, `design plan`, and `/design-plan DP-NNN` are aliases for `refinement` ticketless mode. The `design-plan` skill has been removed; no separate shim pipeline remains.

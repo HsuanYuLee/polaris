@@ -16,7 +16,7 @@
 | **breakdown** — 拆單、估點與需求質疑 | 拆單、拆解、分解任務、子單、評估這張單、評估 epic、挑戰需求、需求質疑、需求合理性 | break down epic, split tasks, decompose, create sub-tasks, evaluate this ticket, scope challenge, challenge requirements, scope review | 通用規劃技能：Bug 讀取根因後估點；Story/Task/Epic 探索 codebase 後拆分子任務。含 Scope Challenge 模式（在估點前挑戰需求合理性）。觸發詞涵蓋原 epic-breakdown 和 scope-challenge 所有觸發詞 |
 | **converge** — 批次推進到 Review / Epic 進度 | 收斂、推進、全部推到 review、把我的單收一收、離 merge 還多遠、補全 epic、epic 進度、epic 狀態 | converge, push to review, close gaps, what's left, epic status, epic progress | 一次把所有進行中的工作推進到 review：掃 Epic + PR 狀態、補全缺口、批次催 review。也支援 Epic-only 模式做 gap analysis（原 epic-status 已併入） |
 | **git-pr-workflow** — 完整 PR 流程 | 準備發 PR、發 PR、full pr flow | 發 PR, PR workflow, commit and PR, changeset, full pr flow, pull request | Admin 角色 PR 生命週期：Simplify→品質檢查→行為驗證→Review→Rebase→Commit→PR（框架/docs repo 專用） |
-| **verify-AC** — AC 驗收 | 驗 GT-521、verify AC、跑驗收、AC 驗證 | verify AC, run acceptance, check AC | QA agent：逐項執行 Epic AC 驗證，分類 PASS/FAIL/MANUAL_REQUIRED，呈現 observed vs expected 純事實 |
+| **verify-AC** — AC 驗收 | 驗 PROJ-123、verify AC、跑驗收、AC 驗證 | verify AC, run acceptance, check AC | QA agent：逐項執行 Epic AC 驗證，分類 PASS/FAIL/MANUAL_REQUIRED，呈現 observed vs expected 純事實 |
 
 ---
 
@@ -37,8 +37,7 @@
 
 | 功能 | 中文觸發詞 | 英文觸發詞 | 說明 |
 |------|-----------|-----------|------|
-| **refinement** — 需求充實 / 非 ticket 設計討論 | 討論需求、需求釐清、補完 Epic、這張單缺什麼、方案討論、想重構、tech debt、sprint prep、想討論、怎麼設計、重構、重新設計、要怎麼改、要怎麼重做、ADR | refinement, grooming, brainstorm, batch refinement, design plan, ADR, architecture decision | JIRA-backed refinement 與 ticketless DP 討論的統一入口；非 ticket 設計會建立/接續 `specs/design-plans/DP-NNN-*`，產 `refinement.md` / `refinement.json` |
-| **design-plan** — legacy shim | design-plan DP-NNN、/design-plan DP-NNN | design-plan DP-NNN | 相容舊入口；只定位/建立 DP shell 後轉交 `refinement DP-NNN` 或 `breakdown DP-NNN`，不再負責研究、決策收斂或拆工 |
+| **refinement** — 需求充實 / 非 ticket 設計討論 | 討論需求、需求釐清、補完 Epic、這張單缺什麼、方案討論、想重構、tech debt、sprint prep、想討論、怎麼設計、重構、重新設計、要怎麼改、要怎麼重做、ADR、design-plan DP-NNN、/design-plan DP-NNN | refinement, grooming, brainstorm, batch refinement, design plan, ADR, architecture decision | JIRA-backed refinement 與 ticketless DP 討論的統一入口；非 ticket 設計會建立/接續 `specs/design-plans/DP-NNN-*`，產 `refinement.md` / `refinement.json` |
 | **sprint-planning** — Sprint 規劃 | 排 sprint、sprint 規劃、下個 sprint、排單、capacity planning、carry over | sprint planning, planning, next sprint, organize sprint, release page, sprint backlog | 互動式 Sprint 規劃助手：拉 JIRA tickets、算 capacity、偵測 carry-over、建議優先序 |
 | **standup** — 每日站會 / 下班收工 | 站立會議、產出 standup、寫 standup、今天做了什麼、下班、收工、準備明天的工作、結束今天、總結一下、wrap up | standup, daily standup, YDY, standup report, write standup, daily report, end of day, EOD, wrap up | 自動從 git commits、JIRA 狀態、Google Calendar 收集工作，產出 YDY/TDT/BOS 格式站會報告；Step 0 自動跑 triage（含下班收工情境）。`/end-of-day` 已棄用，所有觸發詞統一路由到 standup |
 | **my-triage** — 工作盤點 | 我的 epic、盤點、手上有什麼、排優先、我的工作 | my epics, triage, prioritize, my work | 掃描 assigned Epic + Bug + 孤兒 Task，狀態驗證 + GitHub PR 進度，產出優先序 Dashboard |

@@ -67,8 +67,7 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Batch intake from PM | "收單", "排工", "intake", "這批單幫我看", "PM 開了一堆單", "幫我排優先", "prioritize this batch" + 多張 ticket key | `intake-triage` |
 | Daily standup / end-of-day | "standup", "站會", "daily", "寫 standup", "下班", "收工", "準備明天的工作", "end of day", "EOD", "明天 standup", "今天結束了", "總結一下", "結束今天", "wrap up", "今天做了什麼" | `standup` |
 | Sprint planning | "sprint planning", "sprint 規劃" | `sprint-planning` |
-| Refinement / ticketless design discussion | "refinement", "grooming", "討論需求", "想討論", "怎麼設計", "重構", "重新設計", "要怎麼改", "要怎麼重做", "design plan", "ADR" | `refinement` |
-| Legacy design-plan handoff | "design-plan DP-NNN", "/design-plan DP-NNN" | `design-plan` compatibility shim → `refinement DP-NNN` / `breakdown DP-NNN` |
+| Refinement / ticketless design discussion | "refinement", "grooming", "討論需求", "想討論", "怎麼設計", "重構", "重新設計", "要怎麼改", "要怎麼重做", "design plan", "ADR", "design-plan DP-NNN", "/design-plan DP-NNN" | `refinement` |
 | Create a skill | "建 skill", "create skill", "skill-creator" | `skill-creator` |
 | Learn from external | "學習", "learning", "深入學", "deep dive", "像 gstack 那樣學", "全面研究", PR URL + 學到什麼 | `learning` |
 | Validate (mechanisms + isolation) | "validate mechanisms", "validate isolation", "檢查機制", "檢查隔離" | `validate` |

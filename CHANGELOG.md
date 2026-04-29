@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.33] - 2026-04-29
+
+### Changed — DP-backed framework release lane
+
+- Documented the `engineering` maintainer-release lane for DP-backed framework
+  work orders that hand off to `framework-release` instead of opening product
+  PRs or writing fake PR deliverables.
+
+### Removed — design-plan skill
+
+- Removed the deprecated `design-plan` skill after ticketless DP ownership moved
+  to `refinement` and DP-backed work-order packing moved to `breakdown`.
+- Routed legacy `design-plan DP-NNN` and `/design-plan DP-NNN` prompts directly
+  to `refinement DP-NNN`; DP folders remain the ticketless source container.
+
 ## [3.73.32] - 2026-04-29
 
 ### Added — ci-local environment blocker classification

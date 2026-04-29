@@ -34,7 +34,7 @@ Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
          → 開 PR 附上覆蓋率報告 → JIRA 狀態轉為 CODE REVIEW
 ```
 
-**技能：** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `design-plan`, `git-pr-workflow`, `review-pr`, `pr-pickup`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `refinement`, `intake-triage`, `my-triage`, `next`, `unit-test`
+**技能：** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `refinement`, `git-pr-workflow`, `review-pr`, `pr-pickup`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `intake-triage`, `my-triage`, `next`, `unit-test`
 
 深入了解 → [開發者工作流程指南](docs/workflow-guide.zh-TW.md)
 
@@ -153,7 +153,7 @@ cd ~/polaris-workspace
 ├── .claude/
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 26 workflow skills
+│   └── skills/                   ← 25 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     └── your-project/             ← your existing repo (cloned or linked)
@@ -180,7 +180,7 @@ cd ~/polaris-workspace
 
 ### 從這裡開始
 
-不要一次嘗試全部 26 個技能。根據你的角色挑一個開始：
+不要一次嘗試全部 25 個技能。根據你的角色挑一個開始：
 
 | 如果你是... | 先試這個 | 會發生什麼 |
 |------------|---------|-----------|
@@ -255,7 +255,7 @@ your-workspace/
 ├── .claude/
 │   ├── rules/                 # Universal rules (L1)
 │   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 26 workflow skills
+│   └── skills/                # 25 workflow skills
 ├── _template/                 # Template for new companies + rule examples
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory
