@@ -64,7 +64,7 @@
 └────────────────────────────────────────┘  └──────────────────────────────────────────────┘
 ```
 
-**Step 完整序列**：Step 1 Simplify → Step 1.3 Self-Review → Step 1.5 Scope Gate → Step 2 前置 Rebase → Step 2 Local CI Mirror → Step 3 Verify → Step 3.5 VR → Step 5 Base Freshness → Step 6 Commit+Changeset → Step 7 PR / Local Extension Handoff → Step 8 JIRA / Extension Verification → Step 8a IMPLEMENTED → Step 8.5 Completion Gate
+**Step 完整序列**：Step 1 Simplify → Step 1.3 Self-Review → Step 1.5 Scope Gate → Step 2 前置 Rebase → Step 2 Local CI Mirror → Step 3 Verify → Step 3.5 VR → Step 5 Base Freshness → Step 6 Commit+Changeset → Step 7 PR / Local Extension Handoff → Step 8 JIRA / Extension Verification → Step 8a Finalize Delivery（Completion Gate + IMPLEMENTED）
 
 ## Role Matrix
 
@@ -248,7 +248,7 @@ bash "${POLARIS_ROOT}/scripts/ci-local-run.sh"
 
 **Bypass**：`POLARIS_SKIP_CI_LOCAL=1` — emergency escape only，不應日常使用。**沒有** `wip:` commit-msg skip / **沒有** main-develop branch skip / **沒有** deprecation shim（D12-c 一次到位的 breaking change）。
 
-**歷史**：TASK-123 事件（useFetch key 改動沒補測試、本地 quality PASS 但 CI `codecov/patch/main-core` FAIL）促成 DP-029 Phase B 的 patch gate 精確模擬。早期版本掛了 framework-level `coverage-gate.sh`（D6 v1），D6 v2 (2026-04-24) 判定「repo 有配就由 Dimension B 接、沒配不追加」更乾淨，coverage-gate 下架。D12-c (v3.58.0) 進一步把 `ci-contract-run.sh` / `quality-gate.sh` / `pre-commit-quality.sh` 整批下架，改由 `ci-local-generate.sh` 為每個 repo 生成 self-contained `ci-local.sh`，框架本體只保留 `ci-local-gate.sh` PreToolUse hook 做 evidence 把關。
+**歷史**：KB2CW-3847 事件（useFetch key 改動沒補測試、本地 quality PASS 但 CI `codecov/patch/main-core` FAIL）促成 DP-029 Phase B 的 patch gate 精確模擬。早期版本掛了 framework-level `coverage-gate.sh`（D6 v1），D6 v2 (2026-04-24) 判定「repo 有配就由 Dimension B 接、沒配不追加」更乾淨，coverage-gate 下架。D12-c (v3.58.0) 進一步把 `ci-contract-run.sh` / `quality-gate.sh` / `pre-commit-quality.sh` 整批下架，改由 `ci-local-generate.sh` 為每個 repo 生成 self-contained `ci-local.sh`，框架本體只保留 `ci-local-gate.sh` PreToolUse hook 做 evidence 把關。
 
 ---
 
@@ -297,7 +297,7 @@ bash "${POLARIS_ROOT}/scripts/run-verify-command.sh" "<path/to/task.md>"
 
 ```json
 {
-  "ticket": "PROJ-123",
+  "ticket": "GT-521",
   "head_sha": "abc1234",
   "writer": "run-verify-command.sh",
   "exit_code": 0,
@@ -575,7 +575,7 @@ task.md 若含 `Branch chain`，engineering 在 first-cut branch setup / revisio
   --task-md "<path/to/task.md>"
 ```
 
-`Branch chain` 只表達 rebase 順序（例：`develop -> feat/PROJ-123-... -> task/TASK-123-... -> task/TASK-123-...`）。PR base 仍只取 `resolve-task-base.sh` 的輸出，避免 `Base branch` / `PR base` 雙欄位同步問題。
+`Branch chain` 只表達 rebase 順序（例：`develop -> feat/GT-478-... -> task/KB2CW-3711-... -> task/KB2CW-3900-...`）。PR base 仍只取 `resolve-task-base.sh` 的輸出，避免 `Base branch` / `PR base` 雙欄位同步問題。
 
 **應用位置**（engineering SKILL.md 四處必呼叫 resolve helper）：
 
@@ -607,22 +607,30 @@ PR 建立後，轉 JIRA ticket 狀態為 `CODE REVIEW`：
 
 **Admin 模式跳過本 step**（無 ticket）。
 
-### 8a. Mark task spec as IMPLEMENTED（Developer only）
+### 8a. Finalize Delivery（Developer only）
 
-PR 建立成功後，將對應的 task.md frontmatter 標為 `status: IMPLEMENTED`，讓 docs-viewer sidebar 顯示綠底完成樣式：
+PR 建立成功或 revision mode 既有 PR branch push 完成後，在任何 user-facing completion report 之前，呼叫 finalize helper。此 helper 會先跑 Completion Gate，PASS 後才將對應的 task.md frontmatter 標為 `status: IMPLEMENTED`，讓 docs-viewer sidebar 顯示綠底完成樣式：
 
 ```bash
-{workspace_root}/scripts/mark-spec-implemented.sh {TICKET}
+bash "${POLARIS_ROOT}/scripts/finalize-engineering-delivery.sh" \
+  --repo "$(git rev-parse --show-toplevel)" \
+  --ticket "<TICKET_OR_DP_TASK_ID>" \
+  --workspace "<workspace_root>"
 ```
 
-Helper 會自動找 Task-level anchor（T{n}/V{n} key 或 `> JIRA: {TICKET}` header 比對）→ **move-first 順序**（DP-033 D6）：
+Helper contract：
+- 先呼叫 `check-delivery-completion.sh --repo <repo> --ticket <ticket>`；失敗則 **不改 task.md lifecycle**
+- Completion Gate PASS 後呼叫 `mark-spec-implemented.sh <ticket> --status IMPLEMENTED --workspace <workspace_root>`
+- 最後驗證 resolved task path 位於 `tasks/pr-release/`，且 frontmatter `status: IMPLEMENTED`
+
+`mark-spec-implemented.sh` 會自動找 Task-level anchor（T{n}/V{n} key 或 `> JIRA: {TICKET}` header 比對）→ **move-first 順序**（DP-033 D6）：
   1. `mv tasks/{T}.md → tasks/pr-release/{T}.md`（先搬，永遠不會在 active `tasks/` 內寫 IMPLEMENTED）
   2. 在 `tasks/pr-release/{T}.md` 更新 frontmatter `status: IMPLEMENTED`
 - `tasks/pr-release/` 若不存在自動建立
 - Idempotent — 已在 pr-release/ 且已標過相同 status 不做事
 - 同 key 衝突（active 與 pr-release/ 並存且內容不同）→ exit 2，須人工解決
 
-失敗（找不到 anchor 等）不中斷流程，但需在對話中告知使用者。
+失敗 = **HALT**，不得回報「完成 / 可交付 / 已驗完」。這避免 PR 已推、Completion Gate 已過，但 task lifecycle 忘記 move 到 `pr-release/`。
 
 **Admin 模式跳過本 step**（無 ticket / task.md）。
 
@@ -632,7 +640,7 @@ Helper 會自動找 Task-level anchor（T{n}/V{n} key 或 `> JIRA: {TICKET}` hea
 
 > 目的不是取代 Step 7a，而是封住另一個出口：agent 在還沒碰到 git / PR gate 前，就先口頭宣稱「完成」。
 
-在任何 user-facing completion report 之前，執行：
+Developer mode 通常由 Step 8a 的 `finalize-engineering-delivery.sh` 代跑本 gate。若只需要診斷 gate 本身，可直接執行：
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/check-delivery-completion.sh" --repo "$(git rev-parse --show-toplevel)" --ticket "<TICKET_OR_DP_TASK_ID>"
@@ -663,7 +671,7 @@ bash "${POLARIS_ROOT}/scripts/gates/gate-evidence.sh" --repo "$(git rev-parse --
 - exit 0 = 可以回報完成
 - exit 2 = **HALT**，不得回報「完成 / 可交付 / 已驗完」
 
-Completion gate 不查詢或等待遠端 repo CI。只要本地 LLM gates 與 mechanical evidence gates 已通過，queued / pending / running 的遠端 CI 不阻擋完成回報。Local Extension lane 另需 local policy final verification，不能只靠本地 evidence gates 回報完成。
+Completion gate 不查詢或等待遠端 repo CI。只要本地 LLM gates 與 mechanical evidence gates 已通過，queued / pending / running 的遠端 CI 不阻擋完成回報。Developer lane 的 user-facing complete 還必須通過 Step 8a finalize helper，確保 task lifecycle 也已 move-first closeout。Local Extension lane 另需 local policy final verification，不能只靠本地 evidence gates 回報完成。
 
 ### Why this exists
 
@@ -673,7 +681,7 @@ Step 7a 保證「不能開 PR」；Step 8.5 保證「不能嘴上結案」。兩
 
 ## Step 8.6 — Worktree Cleanup
 
-PR 建立 / 既有 PR branch push 完成，或 local extension final verification 完成後，task deliverable / extension metadata 已回寫、Completion Gate PASS，才清掉本次 implementation worktree。不要手動猜路徑或直接 `rm -rf`，一律用 helper 做 guard 後清理：
+PR 建立 / 既有 PR branch push 完成，或 local extension final verification 完成後，task deliverable / extension metadata 已回寫、Developer finalize helper PASS（或 Local Extension final verification PASS），才清掉本次 implementation worktree。不要手動猜路徑或直接 `rm -rf`，一律用 helper 做 guard 後清理：
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
@@ -709,7 +717,7 @@ bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
 | Step 7a Evidence AND gate missing/stale | **halt** — 不開 PR，回頭檢查遺漏的 evidence |
 | Step 7d PR create hook 擋 | 停止。回頭檢查 evidence |
 | Step 7d deliverable 回寫失敗 | **HALT** — inconsistent state，不繼續 Step 8 |
-| Step 8.5 Completion Gate FAIL | **HALT** — 不得回報完成，回頭補齊 Layer A/B evidence |
+| Step 8a Finalize Delivery FAIL | **HALT** — 不得回報完成；若 completion gate fail，回頭補齊 Layer A/B evidence；若 lifecycle mark fail，修 task.md/pr-release invariant |
 
 ---
 

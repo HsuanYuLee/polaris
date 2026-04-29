@@ -168,7 +168,7 @@ First-cut mode 在建 branch / worktree 前必須由 `scripts/engineering-branch
 - first-cut：用 scripts/engineering-branch-setup.sh 建 branch + worktree；若 task.md 有 `Branch chain`，script 會先跑 cascade rebase 對齊上游鏈；不要再跑獨立 pre-dev rebase
 - revision：先跑 scripts/revision-rebase.sh（含 `Branch chain` cascade rebase + PR base sync），再進 R1-R6
 - TDD 參考 references/tdd-loop.md，不依賴 unit-test skill frontmatter
-- 驗證與交付依 references/engineer-delivery-flow.md；完成前必跑 check-delivery-completion.sh
+- 驗證與交付依 references/engineer-delivery-flow.md；完成前必跑 finalize-engineering-delivery.sh（Developer lane；內含 completion gate + task lifecycle move-first closeout）
 ```
 
 ## First-Cut Workflow
@@ -222,9 +222,10 @@ engineering 是純施工 skill，沒有 work order 就不施工。
 Developer lane 完成前必跑：
 
 ```bash
-bash "${POLARIS_ROOT}/scripts/check-delivery-completion.sh" \
+bash "${POLARIS_ROOT}/scripts/finalize-engineering-delivery.sh" \
   --repo "$(git rev-parse --show-toplevel)" \
-  --ticket "{ticket_key}"
+  --ticket "{ticket_key}" \
+  --workspace "{workspace_root}"
 ```
 
 Local Extension lane 在 extension-specific completion helper 尚未落地前，不得用 Developer completion gate 假裝完成（它會期待 PR deliverable）。改為在 handoff 前分別跑 Layer A / Layer B gate，extension 後以 local policy 定義的 final verification 作為 completion evidence：

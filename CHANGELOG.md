@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.36] - 2026-04-29
+
+### Added — engineering delivery finalizer
+
+- Added `finalize-engineering-delivery.sh` to bind completion gate success to
+  task lifecycle closeout, preventing delivered PRs from staying in active
+  `tasks/` after the local gates pass.
+- Updated engineering delivery flow to use the finalizer for both first-cut PRs
+  and revision pushes before user-facing completion.
+
 ## [3.73.35] - 2026-04-29
 
 ### Fixed — completion gate task resolution
