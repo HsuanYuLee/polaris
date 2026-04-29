@@ -31,6 +31,8 @@
 #     extract `Task branch` value from the Operational Context table
 #     (format: `| Task branch | <value> |`) and compare string-equal to
 #     the input branch.
+#   This includes product specs roots (`{company}/specs/{EPIC}/tasks/`) and
+#   framework DP specs roots (`specs/design-plans/DP-NNN-*/tasks/`).
 #
 # Notes
 #   * Excludes .worktrees/, node_modules/, .git/ to avoid duplicate hits
@@ -119,6 +121,7 @@ if [[ "${RESOLVE_TASK_MD_SELFTEST:-0}" == "1" ]]; then
   trap 'rm -rf "$tmpdir"' EXIT
 
   mkdir -p "$tmpdir/specs/EPIC-1/tasks" "$tmpdir/specs/EPIC-2/tasks" \
+           "$tmpdir/specs/design-plans/DP-047-framework-work-order-bridge/tasks" \
            "$tmpdir/.worktrees/shadow/specs/EPIC-1/tasks" \
            "$tmpdir/node_modules/x/specs/EPIC-3/tasks"
 
@@ -144,6 +147,14 @@ MD
 | 欄位 | 值 |
 |------|-----|
 | Task branch | task/BAR-99-gamma |
+MD
+
+  cat > "$tmpdir/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" <<'MD'
+# T1
+## Operational Context
+| 欄位 | 值 |
+|------|-----|
+| Task branch | task/DP-047-T1-framework-bridge |
 MD
 
   # Worktree shadow copy — must be ignored by prune.
@@ -204,10 +215,20 @@ MD
   if ! grep -q 'EPIC-1/tasks/T2.md' "$out_file"; then echo "[selftest] case3 wrong path"; fail=1; fi
   if grep -q 'node_modules' "$out_file"; then echo "[selftest] case3 leaked node_modules path"; fail=1; fi
 
+  # Case 4: framework DP task root.
+  run_case case4 task/DP-047-T1-framework-bridge 0
+  local_count="$(wc -l < "$out_file" | tr -d ' ')"
+  if [[ "$local_count" != "1" ]]; then
+    echo "[selftest] case4 expected 1 line, got $local_count"; fail=1
+  fi
+  if ! grep -q 'design-plans/DP-047-framework-work-order-bridge/tasks/T1.md' "$out_file"; then
+    echo "[selftest] case4 missing DP task path"; fail=1
+  fi
+
   rm -f "$out_file" "$err_file"
 
   if [[ $fail -eq 0 ]]; then
-    echo "[selftest] PASS (3 cases)"
+    echo "[selftest] PASS (4 cases)"
     exit 0
   else
     echo "[selftest] FAIL"

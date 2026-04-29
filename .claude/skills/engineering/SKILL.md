@@ -43,6 +43,7 @@ metadata:
 **唯一合法輸入**：
 
 - `specs/{EPIC}/tasks/T{n}.md` — breakdown / bug-triage 產出的 work order；若 active `tasks/` 找不到，reader 可 fallback 到 `tasks/pr-release/T{n}.md`（DP-033 D8）
+- `specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md` — design-plan 產出的 framework work order（DP-047）；同樣可 fallback 到 `tasks/pr-release/T{n}.md`
 
 `specs/{TICKET}/plan.md` legacy work order 已移除。舊 Bug / PR 需要繼續施工時，先轉成 `specs/{EPIC}/tasks/T{n}.md`。
 
@@ -62,6 +63,7 @@ engineering 的入口目標只有一個：**找到 authoritative work order**，
 |----------|---------|
 | `task.md` 路徑 | `scripts/resolve-task-md.sh --write-lock <path>` |
 | JIRA ticket key（`[A-Z]+-\d+`） | `scripts/resolve-task-md.sh --write-lock <KEY>` |
+| DP pseudo-task ID（`DP-NNN-Tn`） | `scripts/resolve-task-md.sh --write-lock <KEY>` |
 | PR URL / PR number | `scripts/resolve-task-md.sh --write-lock <PR_REF>` |
 | 目前 branch / 原始使用者訊息 | `scripts/resolve-task-md.sh --write-lock --current` / `scripts/resolve-task-md.sh --write-lock --from-input "{raw_user_msg}"` |
 

@@ -157,9 +157,41 @@ resolve_direct_path() {
   local candidate="$1"
   [[ -f "$candidate" ]] || return 1
   case "$candidate" in
-    */specs/*/tasks/T*.md|*/specs/*/tasks/pr-release/T*.md) abs_path "$candidate" ;;
+    specs/*/tasks/T*.md|specs/*/tasks/pr-release/T*.md|*/specs/*/tasks/T*.md|*/specs/*/tasks/pr-release/T*.md) abs_path "$candidate" ;;
     *) return 1 ;;
   esac
+}
+
+resolve_by_dp_task() {
+  local root="$1"
+  local dp_task="$2"
+  local dp_id=""
+  local task_id=""
+  local -a matches=()
+  local line=""
+
+  if [[ ! "$dp_task" =~ ^(DP-[0-9]{3})-(T[0-9]+[a-z]*)$ ]]; then
+    return 1
+  fi
+  dp_id="${BASH_REMATCH[1]}"
+  task_id="${BASH_REMATCH[2]}"
+
+  while IFS= read -r -d '' line; do
+    matches+=("$line")
+  done < <(
+    find "$root/specs/design-plans" \
+      -path "$root/specs/design-plans/${dp_id}-*/tasks/${task_id}.md" -print0 \
+      -o -path "$root/specs/design-plans/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \
+      2>/dev/null
+  )
+
+  if [[ ${#matches[@]} -gt 0 ]]; then
+    emit_unique_match "DP task ${dp_task}" "${matches[@]}"
+    return $?
+  fi
+
+  echo "error: no DP task.md found for ${dp_task}" >&2
+  return 1
 }
 
 resolve_by_jira() {
@@ -227,6 +259,7 @@ import sys
 
 raw = sys.argv[1]
 patterns = [
+    ("dp_task", r"\b(DP-\d{3}-T\d+[a-z]*)\b"),
     ("path", r"((?:\.\.?/|~/|/)?[^\s'\"]+\.md)\b"),
     ("pr_url", r"(https?://github\.com/[^/\s]+/[^/\s]+/pull/\d+)"),
     ("jira", r"\b([A-Z][A-Z0-9]+-\d+)\b"),
@@ -247,6 +280,9 @@ PY
   kind="${extracted%%$'\t'*}"
   value="${extracted#*$'\t'}"
   case "$kind" in
+    dp_task)
+      resolve_by_dp_task "$root" "$value"
+      ;;
     path)
       value="${value/#\~/$HOME}"
       if [[ -f "$value" ]]; then
@@ -298,6 +334,15 @@ MD
 > Epic: GT-478 | JIRA: GT-479 | Repo: kkday
 MD
 
+  mkdir -p "$tmpdir/specs/design-plans/DP-047-framework-work-order-bridge/tasks"
+  cat > "$tmpdir/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" <<'MD'
+# T1: DP task (1 pt)
+> Epic: DP-047 | JIRA: DP-047-T1 | Repo: workspace
+## Operational Context
+| Task JIRA key | DP-047-T1 |
+| Task branch | task/DP-047-T1-framework-bridge |
+MD
+
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-480)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/GT-478/tasks/T3b.md" ]] || { echo "[selftest] jira active FAIL"; return 1; }
 
@@ -312,6 +357,14 @@ MD
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 GT-480')" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/GT-478/tasks/T3b.md" ]] || { echo "[selftest] from-input jira FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" DP-047-T1)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] || { echo "[selftest] dp task FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input 'engineering DP-047-T1')" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] || { echo "[selftest] from-input dp task FAIL"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --write-lock GT-480)" || rc=$?
@@ -408,6 +461,8 @@ case "$mode" in
   direct)
     if resolve_direct_path "$input_value" >/dev/null 2>&1; then
       resolved_path="$(resolve_direct_path "$input_value")"
+    elif [[ "$input_value" =~ ^DP-[0-9]{3}-T[0-9]+[a-z]*$ ]]; then
+      resolved_path="$(resolve_by_dp_task "$root" "$input_value")"
     elif [[ "$input_value" =~ ^[A-Z][A-Z0-9]+-[0-9]+$ ]]; then
       resolved_path="$(resolve_by_jira "$root" "$input_value")"
     elif [[ "$input_value" =~ ^https?://github\.com/.+/pull/[0-9]+$ || "$input_value" =~ ^#?[0-9]+$ ]]; then

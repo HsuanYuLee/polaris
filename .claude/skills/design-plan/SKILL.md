@@ -196,6 +196,23 @@ Locked at: YYYY-MM-DD by {觸發語句}
 
 **實作開始前**：讀完整份 plan file，不依賴對話記憶。
 
+#### DP-backed engineering work order（DP-047）
+
+LOCKED plan 本身不是 source-code execution authority。凡是會修改 framework source、scripts、skills、rules、docs，必須先產出 `engineering` 可消費的 DP-backed task.md：
+
+```text
+specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md
+```
+
+這份 task.md 沿用 `breakdown` implementation schema；差異只在 identity / root：
+
+- `Task JIRA key`: `DP-NNN-Tn`
+- `Parent Epic`: `DP-NNN`
+- 無 JIRA test sub-task / AC ticket 時填 `N/A - framework work order`
+- `Task branch`: `task/DP-NNN-Tn-{slug}`
+
+產出 task.md 後，交由 `engineering` 消費該 task path 或 `DP-NNN-Tn`。`design-plan` 不直接改 source；只更新 plan、task artifact、viewer metadata，以及在 engineering 完成後依 checklist completeness gate 更新 plan 狀態。
+
 #### 選擇執行模式
 
 | 模式 | 適用 | 特色 |

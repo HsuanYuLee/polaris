@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.29] - 2026-04-29
+
+### Added — DP-backed framework work orders
+
+- Added DP-backed task resolution so framework design plans can produce
+  engineering-consumable work orders under
+  `specs/design-plans/DP-NNN-*/tasks/T*.md`.
+- Extended branch reverse lookup, task validation, completion freshness, and
+  lifecycle move-first helpers to support `DP-NNN-Tn` pseudo task identities.
+- Documented the shared task.md schema for DP tasks and product tasks, and
+  added the framework repo PR template copied from `kkday-b2c-web`.
+
 ## [3.73.28] - 2026-04-28
 
 ### Fixed — runtime env startup and coverage evidence

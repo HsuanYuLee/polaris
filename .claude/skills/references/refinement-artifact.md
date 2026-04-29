@@ -8,7 +8,7 @@ Refinement 產出的結構化 artifact，供下游 skill（breakdown, engineerin
 {company_base_dir}/specs/{EPIC_KEY}/refinement.json
 ```
 
-Spec folders 放在公司層（如 `~/work/company/specs/PROJ-123/`），不進 git。
+Spec folders 放在公司層（如 `~/work/kkday/specs/GT-521/`），不進 git。
 
 ## 同步寫入
 
@@ -23,7 +23,7 @@ refinement 完成時同時產出兩份：
 ```jsonc
 {
   // --- Metadata ---
-  "epic": "PROJ-123",                    // JIRA key
+  "epic": "GT-530",                    // JIRA key
   "version": "1.0",                    // artifact schema version
   "tier": 2,                           // detected complexity tier (1/2/3)
   "tier_signals": [                    // why this tier was chosen

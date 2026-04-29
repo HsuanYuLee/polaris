@@ -146,7 +146,8 @@ is_task_key() {
 # Resolve anchor file — three resolution paths:
 #   1) Epic-level: {workspace}/*/specs/<ticket>/refinement.md or plan.md
 #   2) Task-level (task key T{n}/V{n}): scan specs/*/tasks/ by filename
-#   3) Task-level (JIRA key): specs/*/tasks/T*.md whose header has "> JIRA: <ticket>"
+#   3) DP task-level (DP-NNN-Tn): scan root specs/design-plans/DP-NNN-*/tasks/Tn.md
+#   4) Task-level (JIRA key): specs/*/tasks/T*.md whose header has "> JIRA: <ticket>"
 # ---------------------------------------------------------------------------
 ANCHOR=""
 ANCHOR_TYPE=""  # "epic" | "task"
@@ -197,7 +198,29 @@ if [ -z "$ANCHOR" ] && is_task_key "$TICKET"; then
   \) 2>/dev/null)
 fi
 
-# Path 3 — Task-level by JIRA key in header (only if Path 1 and 2 missed)
+# Path 3 — DP task key (DP-NNN-Tn) — look up by DP folder + task filename
+if [ -z "$ANCHOR" ] && echo "$TICKET" | grep -qE '^DP-[0-9]{3}-T[0-9]+[a-z]*$'; then
+  dp_id="$(printf '%s' "$TICKET" | sed -E 's/^(DP-[0-9]{3})-T[0-9]+[a-z]*$/\1/')"
+  task_stem="$(printf '%s' "$TICKET" | sed -E 's/^DP-[0-9]{3}-(T[0-9]+[a-z]*)$/\1/')"
+  for f in \
+    "$WORKSPACE_ROOT"/specs/design-plans/"$dp_id"-*/tasks/"$task_stem".md \
+    "$WORKSPACE_ROOT"/specs/design-plans/"$dp_id"-*/tasks/pr-release/"$task_stem".md
+  do
+    [ -f "$f" ] || continue
+    ANCHOR="$f"
+    TASK_FILENAME="$(basename "$f")"
+    dir="$(dirname "$f")"
+    if [ "$(basename "$dir")" = "pr-release" ]; then
+      TASKS_DIR="$(dirname "$dir")"
+    else
+      TASKS_DIR="$dir"
+    fi
+    ANCHOR_TYPE="task"
+    break
+  done
+fi
+
+# Path 4 — Task-level by JIRA key in header (only if Path 1-3 missed)
 if [ -z "$ANCHOR" ]; then
   # Search active tasks/ and tasks/pr-release/ for "> JIRA: KEY" header
   while IFS= read -r f; do
@@ -212,6 +235,10 @@ if [ -z "$ANCHOR" ]; then
     ANCHOR_TYPE="task"
     break
   done < <(grep -lE "^> .*JIRA: ${TICKET}([[:space:]]|\$|\|)" \
+    "$WORKSPACE_ROOT"/specs/design-plans/*/tasks/T*.md \
+    "$WORKSPACE_ROOT"/specs/design-plans/*/tasks/V*.md \
+    "$WORKSPACE_ROOT"/specs/design-plans/*/tasks/pr-release/T*.md \
+    "$WORKSPACE_ROOT"/specs/design-plans/*/tasks/pr-release/V*.md \
     "$WORKSPACE_ROOT"/*/specs/*/tasks/T*.md \
     "$WORKSPACE_ROOT"/*/specs/*/tasks/V*.md \
     "$WORKSPACE_ROOT"/*/specs/*/tasks/pr-release/T*.md \
@@ -224,6 +251,7 @@ if [ -z "$ANCHOR" ]; then
   echo "  Searched:" >&2
   echo "    - $WORKSPACE_ROOT/*/specs/$TICKET/{refinement.md,plan.md}" >&2
   echo "    - $WORKSPACE_ROOT/*/specs/*/tasks/{T,V}*.md (by filename key '$TICKET')" >&2
+  echo "    - $WORKSPACE_ROOT/specs/design-plans/DP-NNN-*/tasks/{T,V}*.md (by DP task key / header)" >&2
   echo "    - $WORKSPACE_ROOT/*/specs/*/tasks/{T,V}*.md (by '> JIRA: $TICKET' header)" >&2
   echo "    - $WORKSPACE_ROOT/*/specs/*/tasks/pr-release/*.md (active→pr-release fallback)" >&2
   exit 1

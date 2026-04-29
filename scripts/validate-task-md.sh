@@ -157,6 +157,30 @@ extract_frontmatter_block() {
 }
 
 # ---------------------------------------------------------------------------
+# Helper: task identity grammar.
+# Product tasks use JIRA keys (PROJ-123). Framework DP-backed tasks use
+# pseudo-task IDs (DP-047-T1) but otherwise follow the same task.md schema.
+# ---------------------------------------------------------------------------
+is_valid_task_identity() {
+  local value="$1"
+  [[ "$value" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ || "$value" =~ ^DP-[0-9]{3}-T[0-9]+[a-z]*$ ]]
+}
+
+extract_header_jira_token() {
+  local file="$1"
+  awk '
+    /^> / && /JIRA:/ {
+      line = $0
+      sub(/^.*JIRA:[[:space:]]*/, "", line)
+      sub(/[[:space:]]*\|.*$/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      print line
+      exit
+    }
+  ' "$file"
+}
+
+# ---------------------------------------------------------------------------
 # Main single-file validator.
 # Returns 0 (pass) / 1 (violations) / 2 (hard fail — completion invariant).
 # Writes all output to stderr.
@@ -229,8 +253,12 @@ validate_file() {
   # HARD REQUIRED: Header metadata line — JIRA + Repo (§ 2.3)
   # SOFT: Epic (warn only — Bug tasks may omit Epic)
   # ---------------------------------------------------------------------------
-  if ! grep -qE '^> .*JIRA: [A-Z][A-Z0-9]*-[0-9]+' "$FILE"; then
-    errors+=("missing JIRA key in metadata line: expected '> ... | JIRA: {KEY} | ...' (regex: ^> .*JIRA: [A-Z][A-Z0-9]*-[0-9]+)")
+  local header_jira_token
+  header_jira_token="$(extract_header_jira_token "$FILE")"
+  if [[ -z "$header_jira_token" ]]; then
+    errors+=("missing JIRA key in metadata line: expected '> ... | JIRA: {KEY} | ...'")
+  elif ! is_valid_task_identity "$header_jira_token"; then
+    errors+=("invalid task identity in metadata line: got '$header_jira_token' (expected JIRA key like PROJ-123 or DP pseudo-task like DP-047-T1)")
   fi
   if ! grep -qE '^> .*Repo: \S+' "$FILE"; then
     errors+=("missing Repo in metadata line: expected '> ... | Repo: {repo_name}'")
@@ -360,9 +388,12 @@ validate_file() {
     local op_ctx
     op_ctx=$(extract_markdown_section "$FILE" "## Operational Context")
 
-    # At least one JIRA key anywhere in the section
-    if ! printf '%s' "$op_ctx" | grep -qE '[A-Z][A-Z0-9]+-[0-9]+'; then
-      errors+=("Operational Context section missing JIRA key (pattern [A-Z][A-Z0-9]+-[0-9]+)")
+    local task_identity
+    task_identity="$(extract_op_ctx_field "$FILE" "Task JIRA key")"
+    if [[ -z "$task_identity" ]]; then
+      errors+=("Operational Context section missing Task JIRA key value")
+    elif ! is_valid_task_identity "$task_identity"; then
+      errors+=("Operational Context Task JIRA key has invalid identity '$task_identity' (expected JIRA key like PROJ-123 or DP pseudo-task like DP-047-T1)")
     fi
 
     # Hard required cells — mode-aware (§ 3.2 for T, § 4.2 for V)

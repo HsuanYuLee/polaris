@@ -65,8 +65,24 @@ resolve_task_for_completion_check() {
   local candidate=""
   local candidates=()
 
-  if [[ -n "$TICKET" ]] && candidate="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$REPO_ROOT" "$TICKET" 2>/dev/null || true)"; then
-    candidates+=("$candidate")
+  local scan_roots=("$REPO_ROOT")
+  if [[ -f "${REPO_ROOT}/.git" ]]; then
+    local main_checkout=""
+    # shellcheck source=lib/main-checkout.sh
+    . "${SCRIPT_DIR}/lib/main-checkout.sh"
+    if main_checkout="$(resolve_main_checkout "$REPO_ROOT" 2>/dev/null)" && [[ -n "$main_checkout" ]]; then
+      scan_roots+=("$main_checkout")
+    fi
+  fi
+
+  if [[ -n "$TICKET" ]]; then
+    local scan_root=""
+    for scan_root in "${scan_roots[@]}"; do
+      if candidate="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$scan_root" "$TICKET" 2>/dev/null || true)" && [[ -n "$candidate" ]]; then
+        candidates+=("$candidate")
+        break
+      fi
+    done
   fi
 
   if candidate="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$REPO_ROOT" --current 2>/dev/null || true)"; then
