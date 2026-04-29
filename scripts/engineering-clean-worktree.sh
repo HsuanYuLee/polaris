@@ -13,7 +13,7 @@
 #   - target must live under a `.worktrees/` directory
 #   - target must not be the main checkout
 #   - target git status must be clean
-#   - task.md deliverable.head_sha must match target HEAD
+#   - task.md deliverable.head_sha or extension_deliverable.task_head_sha must match target HEAD
 #
 # Exit:
 #   0 = removed or no matching implementation worktree found
@@ -79,6 +79,19 @@ for raw in frontmatter:
         print(value.strip())
         sys.exit(0)
 PY
+}
+
+task_delivered_head_sha() {
+  local file="$1"
+  local head_sha
+
+  head_sha="$(extract_frontmatter_nested_scalar "$file" "deliverable" "head_sha")"
+  if [[ -n "$head_sha" ]]; then
+    printf '%s\n' "$head_sha"
+    return 0
+  fi
+
+  extract_frontmatter_nested_scalar "$file" "extension_deliverable" "task_head_sha"
 }
 
 canonical_path() {
@@ -179,6 +192,46 @@ TASK
   [[ ! -d "$wt" ]] || { echo "self-test failed: worktree still exists" >&2; return 1; }
   grep -qxF ".worktrees/" "${main}/.git/info/exclude" || { echo "self-test failed: exclude not updated" >&2; return 1; }
 
+  git -C "$main" branch task/TEST-EXT-clean main
+  git -C "$main" worktree add "${main}/.worktrees/repo-engineering-TEST-EXT" task/TEST-EXT-clean >/dev/null 2>&1
+  wt="${main}/.worktrees/repo-engineering-TEST-EXT"
+  head="$(git -C "$wt" rev-parse HEAD)"
+  task_md="${tmp}/T-ext.md"
+  cat >"$task_md" <<TASK
+---
+extension_deliverable:
+  endpoint: local_extension
+  extension_id: framework-release
+  task_head_sha: ${head}
+  workspace_commit: ${head}
+  template_commit: ${head}
+  version_tag: v1.2.3
+  release_url: https://example.test/releases/v1.2.3
+  evidence:
+    ci_local: N/A
+    verify: /tmp/example-verify.json
+    vr: N/A
+status: IMPLEMENTED
+---
+# T-ext: Local extension cleanup (1 pt)
+
+> Epic: TEST-EXT | JIRA: TEST-EXT | Repo: repo
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Task JIRA key | TEST-EXT |
+| Parent Epic | TEST-EXT |
+| Base branch | main |
+| Task branch | task/TEST-EXT-clean |
+TASK
+
+  out="$("$0" --task-md "$task_md" --repo "$main" 2>&1)"
+  rc=$?
+  [[ "$rc" == "0" ]] || { echo "self-test failed: local-extension remove rc=$rc output=$out" >&2; return 1; }
+  [[ ! -d "$wt" ]] || { echo "self-test failed: local-extension worktree still exists" >&2; return 1; }
+
   git -C "$main" branch task/TEST-2-dirty main
   git -C "$main" worktree add "${main}/.worktrees/repo-engineering-TEST-2" task/TEST-2-dirty >/dev/null 2>&1
   wt="${main}/.worktrees/repo-engineering-TEST-2"
@@ -266,14 +319,14 @@ REPO="$(canonical_path "$REPO")"
 TASK_JSON="$(bash "$PARSE_TASK_MD" "$TASK_MD")"
 TASK_BRANCH="$(json_field "$TASK_JSON" "d.get('operational_context',{}).get('task_branch')")"
 TASK_KEY="$(json_field "$TASK_JSON" "d.get('operational_context',{}).get('task_jira_key') or d.get('metadata',{}).get('jira')")"
-DELIVERABLE_HEAD_SHA="$(extract_frontmatter_nested_scalar "$TASK_MD" "deliverable" "head_sha")"
+DELIVERED_HEAD_SHA="$(task_delivered_head_sha "$TASK_MD")"
 
 if [[ -z "$TASK_BRANCH" ]]; then
   echo "$PREFIX task branch missing in task.md" >&2
   exit 2
 fi
-if [[ -z "$DELIVERABLE_HEAD_SHA" ]]; then
-  echo "$PREFIX deliverable.head_sha missing in task.md" >&2
+if [[ -z "$DELIVERED_HEAD_SHA" ]]; then
+  echo "$PREFIX deliverable.head_sha or extension_deliverable.task_head_sha missing in task.md" >&2
   exit 2
 fi
 
@@ -329,8 +382,8 @@ if [[ -n "$STATUS" ]]; then
 fi
 
 CURRENT_HEAD_SHA="$(git -C "$WORKTREE" rev-parse HEAD)"
-if [[ "$CURRENT_HEAD_SHA" != "$DELIVERABLE_HEAD_SHA" && "$CURRENT_HEAD_SHA" != "${DELIVERABLE_HEAD_SHA}"* ]]; then
-  echo "$PREFIX blocked: deliverable.head_sha (${DELIVERABLE_HEAD_SHA}) != worktree HEAD (${CURRENT_HEAD_SHA})" >&2
+if [[ "$CURRENT_HEAD_SHA" != "$DELIVERED_HEAD_SHA" && "$CURRENT_HEAD_SHA" != "${DELIVERED_HEAD_SHA}"* ]]; then
+  echo "$PREFIX blocked: delivered head (${DELIVERED_HEAD_SHA}) != worktree HEAD (${CURRENT_HEAD_SHA})" >&2
   exit 2
 fi
 

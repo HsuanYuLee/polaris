@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.47] - 2026-04-29
+
+### Fixed — local extension worktree cleanup
+
+- Updated `engineering-clean-worktree.sh` to accept
+  `extension_deliverable.task_head_sha` as the delivered task head for
+  local-extension workflows while preserving the existing PR deliverable path.
+- Added self-test coverage for cleaning a local-extension implementation
+  worktree that has no PR deliverable metadata.
+
 ## [3.73.46] - 2026-04-29
 
 ### Fixed — framework release clean-source gate
