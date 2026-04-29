@@ -140,6 +140,63 @@ line_at() {
   sed -n "${1}p" "$CHAIN_FILE"
 }
 
+parse_table_field() {
+  local field="$1"
+  local file="$2"
+  awk -F '|' -v key="$field" '
+    {
+      if ($0 ~ /^[[:space:]]*\|[[:space:]]*-+/) next
+      if (NF < 3) next
+      f = $2
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", f)
+      if (f == key) {
+        v = $3
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+        print v
+        exit
+      }
+    }
+  ' "$file"
+}
+
+branch_ticket_key() {
+  local branch="$1"
+  case "$branch" in
+    task/*)
+      printf '%s' "$branch" | sed -nE 's#^task/([A-Z][A-Z0-9]*-[0-9]+)-.*#\1#p'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+task_dir_contains_key() {
+  local key="$1"
+  local tasks_dir
+  tasks_dir=$(dirname "$TASK_MD")
+  local candidate value
+  for candidate in "$tasks_dir"/T*.md "$tasks_dir"/pr-release/T*.md; do
+    [ -f "$candidate" ] || continue
+    value=$(parse_table_field "Task JIRA key" "$candidate")
+    if [ "$value" = "$key" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+is_external_task_anchor() {
+  local branch="$1"
+  local key
+  key=$(branch_ticket_key "$branch" || true)
+  [ -n "$key" ] || return 1
+  if task_dir_contains_key "$key"; then
+    return 1
+  fi
+  return 0
+}
+
 ensure_local_branch() {
   local branch="$1"
   if git -C "$REPO" show-ref --verify --quiet "refs/heads/$branch"; then
@@ -164,6 +221,25 @@ while [ "$i" -le "$CHAIN_LEN" ]; do
   branch=$(line_at "$i")
   is_last=false
   [ "$i" -eq "$CHAIN_LEN" ] && is_last=true
+
+  if [ "$is_last" != "true" ] && is_external_task_anchor "$branch"; then
+    if git -C "$REPO" rev-parse --verify --quiet "origin/$branch" >/dev/null 2>&1; then
+      printf '{"branch":%s,"upstream":%s,"status":"skipped_external_anchor","reason":"task branch is not owned by this task set"}\n' \
+        "$(json_escape "$branch")" "$(json_escape "$upstream")" >> "$STEPS_FILE"
+      i=$((i + 1))
+      continue
+    fi
+    if git -C "$REPO" rev-parse --verify --quiet "$branch" >/dev/null 2>&1; then
+      printf '{"branch":%s,"upstream":%s,"status":"skipped_external_anchor","reason":"task branch is not owned by this task set"}\n' \
+        "$(json_escape "$branch")" "$(json_escape "$upstream")" >> "$STEPS_FILE"
+      i=$((i + 1))
+      continue
+    fi
+    log "external anchor branch not found locally or on origin: $branch"
+    emit_evidence "$REPO" "$TASK_MD" "missing_external_anchor" "$CHAIN_FILE" "$STEPS_FILE"
+    restore_original_branch
+    exit 1
+  fi
 
   target_ref="origin/$upstream"
   if ! git -C "$REPO" rev-parse --verify --quiet "$target_ref" >/dev/null 2>&1; then

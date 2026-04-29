@@ -678,6 +678,7 @@ PY
 |------|----|----|
 | `depends_on: []`（無依賴）| `feat/<TICKET_KEY>-<description>`（母單 feature branch；小型 ticket 單一子單時 = `develop`）| `develop -> feat/<TICKET_KEY>-<description> -> task/<SUB_KEY>-<description>`（小型 ticket 無 feature branch 時 `develop -> task/<SUB_KEY>-<description>`） |
 | `depends_on: [<UPSTREAM_KEY>]`（有依賴）| 最下游依賴的 task branch，即 `task/<UPSTREAM_KEY>-<description>`（該 branch 已於本迴圈前一輪建好）| 上游 task 的 `Branch chain` + `-> task/<SUB_KEY>-<description>` |
+| 外部 base branch（例如別人開的 `task/<KEY>-...` 或外部 PR head）| 外部 branch 本身；本 Epic 的 feature/task branch 從它切出並 target 回它 | `task/<EXTERNAL_KEY>-... -> feat/<TICKET_KEY>-<description> -> task/<SUB_KEY>-<description>`；**不要**在前面加 `develop ->`，外部 branch 是 anchor，不是本 Epic 可 cascade rebase 的 owned branch |
 
 ```bash
 # 無 depends_on 的 task（從 feat 切）
@@ -694,6 +695,7 @@ git -C {base_dir}/<repo> push -u origin task/<SUB_KEY>-<description>
 建完 branch 後，Step 14.5 產 task.md 時：
 - `Base branch` 欄位填**該 task 的 start point 值**（即上表第二欄）
 - `Branch chain` 欄位填**從 integration branch 到本 task branch 的完整線性鏈**（即上表第三欄）
+- 若 start point 是外部 dependency branch，`Branch chain` 必須**從該外部 branch 開始**。不可寫成 `develop -> task/<EXTERNAL_KEY> -> ...`，否則 engineering 會把外部 branch 誤判為本 Epic 可維護鏈並嘗試 rebase/push。
 - **不新增 `PR base` 欄位**（D6）——`gh pr create --base` 仍直接使用 `Base branch`（經 engineering Resolve 層調整後）的值；`Branch chain` 只負責 rebase 順序
 
 > Snapshot ≠ 永遠不變：engineering 開工 / revision 時 `scripts/cascade-rebase-chain.sh` 先依 `Branch chain` 自上而下 rebase；接著 `engineer-delivery-flow.md § 4.5 / § R0 / § Step 7` 重跑 `scripts/resolve-task-base.sh`——若 snapshot 指向的 upstream branch 已 merge 到 feat，resolve 層自動改為從 feat 切 / 對 feat 開 PR（D2 三層消費模型的 Resolve 層）。

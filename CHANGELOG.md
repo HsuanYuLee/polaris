@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.50] - 2026-04-30
+
+### Fixed — external branch-chain anchors
+
+- Updated branch-chain schema guidance so external dependency branches start
+  the cascade chain instead of being placed after `develop`.
+- Added `cascade-rebase-chain.sh` protection that treats task branches without
+  a matching work order in the current task set as external anchors and skips
+  rebase/push ownership.
+- Documented external branch anchor examples for breakdown and branch creation
+  so product tasks can base on another team's unmerged branch without taking
+  ownership of it.
+
 ## [3.73.49] - 2026-04-29
 
 ### Fixed — source-aware task resolver lifecycle

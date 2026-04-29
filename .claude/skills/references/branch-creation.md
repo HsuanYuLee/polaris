@@ -87,6 +87,14 @@ develop -> feat/PROJ-123-cwv-js-bundle -> task/TASK-123-dayjs-infra -> task/TASK
 
 engineering first-cut / revision 會以 `scripts/cascade-rebase-chain.sh` 先自上而下 rebase 這條鏈；但 `gh pr create --base` / `gh pr edit --base` 仍只使用 `resolve-task-base.sh` 的輸出。
 
+外部 dependency branch 不是本 Epic 的 owned branch。若 task 需要 base on 別人的 unmerged branch / PR head，`Branch chain` 從該外部 branch 開始：
+
+```text
+task/TASK-123-nuxt-3-16-unhead-v2-upgrade -> feat/PROJ-123-homepage-structured-data -> task/TASK-123-schema-locales-corporation
+```
+
+不要寫成 `develop -> task/TASK-123-... -> ...`，否則 engineering 會把外部 branch 當作可 cascade rebase 的 owned branch。
+
 若本文件的 branch 建立指令有消費者場景（如使用者手動建新 branch 時指定 base），同樣建議走 resolve helper：
 
 ```bash
