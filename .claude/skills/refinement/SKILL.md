@@ -22,7 +22,8 @@ metadata:
 ## Source Resolution（JIRA optional）
 
 `refinement` 的入口不再只限 JIRA Epic。所有 source 解析先讀
-`references/spec-source-resolver.md`，再依 source type 分流：
+`references/spec-source-resolver.md`，再依 source type 分流。DP / topic source 的低頻操作細節在
+`references/refinement-dp-source-mode.md`，只在命中 ticketless mode 時載入：
 
 | Source type | 入口例 | Container | 行為 |
 |-------------|--------|-----------|------|
@@ -35,6 +36,7 @@ metadata:
 - `DP-NNN` 必須唯一對應 `specs/design-plans/DP-NNN-*/`
 - 找不到或多筆 match 都 fail loud，不 fallback 成新 topic
 - `LOCKED` / `IMPLEMENTED` DP 不可被新 topic overwrite；要改方向就新開 DP，並在 Background 加 see-also
+- DP creation、docs-viewer sync、local preview、artifact output、LOCKED handoff 的操作步驟見 `references/refinement-dp-source-mode.md`
 
 **Trigger migration**：原本屬於 `design-plan` 的「想討論 / 怎麼設計 / 重構 / ADR / design plan」入口，改 route 到本 skill 的 ticketless mode。`design-plan` skill 已 sunset；legacy `/design-plan DP-NNN` prompt 也應轉入 `refinement DP-NNN`。
 
@@ -240,93 +242,23 @@ Epic 通常還沒有 story points（估點是 refinement 下游），所以 tier
 
 適用於非 JIRA source：framework skill/rule/reference 設計、repo convention、CI/deployment 流程、ADR 類討論，以及原本會進 `design-plan` 的「想討論 XXX」入口。
 
-### T0. Resolve source
+### T0. Load DP source-mode reference
 
-依 `references/spec-source-resolver.md` 判斷 source type：
-
-| Input | 行動 |
-|-------|------|
-| `DP-NNN` | 定位唯一 `specs/design-plans/DP-NNN-*/plan.md` |
-| direct DP plan path | 使用該 DP folder 作為 source container |
-| 一句話 topic | 分配下一個 `DP-NNN-{slug}`，建立 `plan.md`，status = `DISCUSSION` |
-| `SEEDED` DP | 讀 `artifacts/research-report.md`（若存在）並轉成候選 Decisions |
-| `LOCKED` / `IMPLEMENTED` DP | fail loud：不得把新討論塞進已定版 / 已完成 DP |
-
-新建 DP folder 或首次建立 `plan.md` 後，必須同步 docs-viewer sidebar，讓 `http://localhost:4000/docs-viewer` 立即出現新 DP：
-
-```bash
-bash scripts/docs-viewer-sync-hook.sh {workspace_root} {workspace_root}/specs/design-plans/DP-NNN-{slug}/plan.md
-```
-
-若 hook entrypoint 無法判斷路徑，直接 fallback：
-
-```bash
-bash scripts/generate-specs-sidebar.sh {workspace_root}
-```
-
-### T1. Build or update DP plan
-
-`refinement` 擁有下列 DP sections：
-
-- `## Goal`
-- `## Background`
-- `## Decisions`
-- `## Blind Spots`
-- `## Acceptance Criteria`
-- `## Technical Approach` / `## 技術方案`
-
-每輪使用者確認的設計決策都要寫入 DP plan；不能只留在對話記憶。若出現 pivot，依 `spec-source-resolver.md` 的 source container 規則新開 DP 並互相 see-also。
-
-每次新增或更新 DP `plan.md` / `refinement.md` 後，若不是由 Claude Code Write/Edit hook 自動觸發 sidebar sync，需手動呼叫：
-
-```bash
-bash scripts/docs-viewer-sync-hook.sh {workspace_root} {changed_dp_markdown_path}
-```
-
-### T2. Local-first refinement
-
-Ticketless source 仍使用 local-first workflow：
-
-```bash
-python3 scripts/refinement-preview.py {workspace_root}/specs/design-plans/DP-NNN-{slug}/refinement.md
-```
-
-`refinement.md` 只放下游需要的實作資訊：scope、technical approach、AC、edge cases、risks、references。不放完整討論歷史；完整決策歷史留在 `plan.md`。
-
-### T3. Artifact output
-
-定版後產出：
+命中 `dp` / `topic` / DP `artifact_path` 時，先讀：
 
 ```text
-specs/design-plans/DP-NNN-{slug}/refinement.md
-specs/design-plans/DP-NNN-{slug}/refinement.json
+references/refinement-dp-source-mode.md
 ```
 
-`refinement.json` 必須包含：
+該 reference 是 DP locator、topic DP creation、docs-viewer sync、local preview、artifact output、`LOCKED` handoff 的權威操作步驟。
 
-```jsonc
-{
-  "epic": null,
-  "source": {
-    "type": "dp",
-    "id": "DP-NNN",
-    "container": "{workspace_root}/specs/design-plans/DP-NNN-{slug}",
-    "plan_path": "{workspace_root}/specs/design-plans/DP-NNN-{slug}/plan.md",
-    "jira_key": null
-  }
-}
-```
+### T1. Decision boundary retained in SKILL.md
 
-### T4. Lock and handoff
-
-使用者說「定版 / 開始做 / 可以執行 / lock」後：
-
-1. 檢查 Goal / Decisions / Blind Spots / AC / Technical Approach 是否足夠讓 breakdown 拆工
-2. 將 DP frontmatter `status` 改為 `LOCKED`，填 `locked_at`
-3. 產出 / 更新 `refinement.json`
-4. 下一步提示 `breakdown DP-NNN`
-
-Ticketless source 不寫 JIRA comment、不改 JIRA label、不建 JIRA ticket。若使用者需要跨團隊正式文件，另走 `sasd-review` 或手動建立 JIRA。
+- `refinement` owns DP Goal / Background / Decisions / Blind Spots / Acceptance Criteria / Technical Approach.
+- `breakdown` owns Implementation Checklist finalization and work-order packing after `LOCKED`.
+- 使用者確認的設計決策必須立即寫入 DP `plan.md`；不能只留在對話。
+- Ticketless source 不寫 JIRA comment、不改 JIRA label、不建 JIRA ticket。
+- `LOCKED` handoff 前必須確認 `refinement.md` + `refinement.json` 足以讓 `breakdown DP-NNN` 拆工。
 
 ---
 

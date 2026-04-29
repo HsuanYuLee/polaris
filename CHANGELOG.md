@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.57] - 2026-04-30
+
+### Changed — refinement DP source progressive disclosure
+
+- Moved low-frequency ticketless DP source-mode details from `refinement`
+  into `refinement-dp-source-mode.md`.
+- Kept source routing, DP hard rules, ownership boundaries, and `LOCKED`
+  handoff checks in the primary `refinement` skill body.
+- Indexed the new reference so DP/topic refinement loads detailed procedures
+  only when needed.
+
 ## [3.73.56] - 2026-04-30
 
 ### Changed — mechanism registry audit reduction
