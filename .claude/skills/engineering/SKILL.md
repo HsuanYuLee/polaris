@@ -43,7 +43,7 @@ metadata:
 **唯一合法輸入**：
 
 - `specs/{EPIC}/tasks/T{n}.md` — breakdown / bug-triage 產出的 work order；若 active `tasks/` 找不到，reader 可 fallback 到 `tasks/pr-release/T{n}.md`（DP-033 D8）
-- `specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md` — design-plan 產出的 framework work order（DP-047）；同樣可 fallback 到 `tasks/pr-release/T{n}.md`
+- `specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md` — breakdown 產出的 DP-backed framework work order（DP-047）；同樣可 fallback 到 `tasks/pr-release/T{n}.md`
 
 `specs/{TICKET}/plan.md` legacy work order 已移除。舊 Bug / PR 需要繼續施工時，先轉成 `specs/{EPIC}/tasks/T{n}.md`。
 

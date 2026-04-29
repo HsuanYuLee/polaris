@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.31] - 2026-04-29
+
+### Changed — design-plan shim cleanup
+
+- Reduced `design-plan` to a compatibility shim for legacy `/design-plan DP-NNN`
+  prompts; new non-ticket design discussions now route to `refinement`
+  ticketless mode.
+- Updated skill routing, learning handoff copy, README, Chinese trigger docs,
+  and design-decision mechanisms so `refinement` owns DP research and decision
+  capture while `breakdown` owns DP-backed work-order packing.
+
 ## [3.73.30] - 2026-04-29
 
 ### Added — ticketless DP pipeline source model

@@ -124,13 +124,13 @@ When a conversation decision defers work to a later phase ("等 X 再處理 Y", 
 
 - If the deferred phase is **in this session** → add to todo list
 - If the deferred phase is **in a future session** → write to memory
-- **If the decision is a design decision in an ongoing design discussion** → update the active `specs/design-plans/DP-NNN-{topic}/plan.md` file (see `skills/design-plan/SKILL.md`)
+- **If the decision is a design decision in an ongoing ticketless refinement / DP discussion** → update the active `specs/design-plans/DP-NNN-{topic}/plan.md` file (see `skills/refinement/SKILL.md` and `skills/references/spec-source-resolver.md`)
 
 An oral defer ("我們等精簡時再看") without a corresponding todo/memory/plan entry is **not landed**. The Strategist treats it as untracked and captures it before moving on.
 
 **Why:** jira-worklog consolidation session (2026-04-13) — "等精簡時決定 jira-worklog 位置" was agreed verbally but never added to the consolidation todo list. When consolidation executed, the item was invisible and dropped. The user discovered the gap post-task.
 
-**Design decision variant (2026-04-15, check-pr-approvals v2.16.0)** — in a multi-turn design discussion, an early decision ("轉狀態回 IN DEVELOPMENT → 乾淨") got overwritten by later phrasing ("engineering 零改動"). When implementation started, the early decision was silently dropped. Mitigation: design discussions trigger `design-plan` skill at the start; each confirmed decision updates the plan file in the **very next tool call**. See mechanism-registry `design-plan-creation` / `design-plan-reference-at-impl`.
+**Design decision variant (2026-04-15, check-pr-approvals v2.16.0)** — in a multi-turn design discussion, an early decision ("轉狀態回 IN DEVELOPMENT → 乾淨") got overwritten by later phrasing ("engineering 零改動"). When implementation started, the early decision was silently dropped. Mitigation: ticketless design discussions route to `refinement` DP mode; each confirmed decision updates the plan file in the **very next tool call**. See mechanism-registry `design-plan-creation` / `design-plan-reference-at-impl`.
 
 ### 5c. Checklist Review Before Declaring Done
 

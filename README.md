@@ -34,7 +34,7 @@ Polaris: reads JIRA ticket → checks prerequisites → estimates story points
          → opens PR with coverage report → transitions JIRA to CODE REVIEW
 ```
 
-**Skills:** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `design-plan`, `git-pr-workflow`, `review-pr`, `pr-pickup`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `refinement`, `intake-triage`, `my-triage`, `next`, `unit-test`
+**Skills:** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `refinement`, `design-plan` (legacy shim), `git-pr-workflow`, `review-pr`, `pr-pickup`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `intake-triage`, `my-triage`, `next`, `unit-test`
 
 Deep dive → [Developer Workflow Guide](docs/workflow-guide.md)
 

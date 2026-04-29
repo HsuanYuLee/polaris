@@ -42,7 +42,7 @@ Determine which mode based on the user's input:
 **Setup mode** → jump to [Setup Learning Flow](#setup-learning-flow)
 **External mode** → continue to Step 1 below
 
-> **External mode landing routes (Step 5)**: after synthesis, each recommendation can be routed three ways — **(A)** open `/design-plan` discussion (seeds a `DP-NNN` folder with `research-report.md` + stub `plan.md`), **(B)** enter `polaris-backlog`, or **(C)** write `polaris-learnings` only. The user can mix routes across recommendations. See Step 5 for the full prompt and the seeding sub-flow. Note: Route (A) is **disabled** for Quick-path depth tier.
+> **External mode landing routes (Step 5)**: after synthesis, each recommendation can be routed three ways — **(A)** open ticketless refinement / DP discussion (seeds a `DP-NNN` folder with `research-report.md` + stub `plan.md`), **(B)** enter `polaris-backlog`, or **(C)** write `polaris-learnings` only. The user can mix routes across recommendations. See Step 5 for the full prompt and the seeding sub-flow. Note: Route (A) is **disabled** for Quick-path depth tier.
 
 ---
 
@@ -365,7 +365,7 @@ For each recommendation the user wants to act on, offer:
 
 | Route | When | Outcome |
 |---|---|---|
-| **(A) 開 `/design-plan` 討論** | Cross-cutting change, multiple tradeoffs, needs multi-round discussion before coding | Seed a new `specs/design-plans/DP-NNN-{slug}/` with `research-report.md` + stub `plan.md` (`status: SEEDED`). User runs `/design-plan DP-NNN` later to start discussion |
+| **(A) 開 ticketless refinement / DP 討論** | Cross-cutting change, multiple tradeoffs, needs multi-round discussion before coding | Seed a new `specs/design-plans/DP-NNN-{slug}/` with `research-report.md` + stub `plan.md` (`status: SEEDED`). User runs `refinement DP-NNN` later to start discussion |
 | **(B) 進 `polaris-backlog`** | Small framework gap with clear path; track for later cleanup | Append one-line entry to `.claude/polaris-backlog.md` |
 | **(C) 只寫 `polaris-learnings`** | Knowledge sink only; no action to track | Skip backlog, write learning entry in Step 6c |
 
@@ -373,13 +373,13 @@ Prompt explicitly, e.g.:
 
 ```
 以上 N 個 recommendation，每個想走哪條路？
-  (A) 開 /design-plan 討論 — 深入討論再實作
+  (A) 開 ticketless refinement / DP 討論 — 深入討論再實作
   (B) 進 polaris-backlog — 記一行待辦
   (C) 只寫 polaris-learnings — 沉澱知識不追蹤
 你可以混選，例：#1→A, #2→B, #3→C
 ```
 
-### 5b. Route (A) — `/design-plan` seeding sub-flow
+### 5b. Route (A) — ticketless refinement / DP seeding sub-flow
 
 Triggered when the user picks (A) for a recommendation. Execute per-recommendation (each route-(A) pick seeds its own DP folder).
 
@@ -461,7 +461,7 @@ recommendation: {recommendation title}
 {repeat for each recommendation included in this DP's scope — typically the one the user tagged (A), but user may bundle sibling recs}
 ```
 
-Treat this file as a **static snapshot**. Do not edit it in later steps or later sessions — `/design-plan` consumes it read-only.
+Treat this file as a **static snapshot**. Do not edit it in later steps or later sessions — `refinement DP-NNN` consumes it read-only.
 
 #### 5b.6 Create stub `plan.md`
 
@@ -474,16 +474,16 @@ created: {today}
 status: SEEDED
 ---
 
-Plan pending — run `/design-plan DP-{NNN}` to start discussion. Research 見 `artifacts/research-report.md`.
+Plan pending — run `refinement DP-{NNN}` to start discussion. Research 見 `artifacts/research-report.md`.
 ```
 
-#### 5b.7 Inform the user (do NOT auto-invoke `/design-plan`)
+#### 5b.7 Inform the user (do NOT auto-invoke `refinement`)
 
 ```
-已建 DP-{NNN}-{slug}，要開始討論輸入 `/design-plan DP-{NNN}`
+已建 DP-{NNN}-{slug}，要開始討論輸入 `refinement DP-{NNN}`
 ```
 
-**Critical**: do NOT invoke `/design-plan` from within `/learning`. D12 supersedes the D9 auto-invoke mechanism — seeding is async, user picks the moment to start the discussion.
+**Critical**: do NOT invoke `refinement` from within `/learning`. Seeding is async; the user picks the moment to start the discussion.
 
 #### 5b.8 Route (A) backlog/learnings policy (per D4)
 

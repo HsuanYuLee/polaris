@@ -37,8 +37,8 @@
 
 | 功能 | 中文觸發詞 | 英文觸發詞 | 說明 |
 |------|-----------|-----------|------|
-| **refinement** — 需求充實 | 討論需求、需求釐清、補完 Epic、這張單缺什麼、方案討論、想重構、tech debt、sprint prep | refinement, grooming, brainstorm, batch refinement | 四種模式：批次完整度掃描、RD 發起開單（Phase 0）、PM 充實需求（Phase 1）、做法討論（Phase 2） |
-| **design-plan** — 非 ticket 架構討論 | 想討論、怎麼設計、重構、重新設計、要怎麼改、要怎麼重做、design plan、ADR | design plan, ADR, architecture decision, how should we design | 非 ticket 設計討論的持久化落地機制：偵測到討論開始立即建 `.claude/design-plans/{topic}.md`，決策隨討論寫入檔案（非記憶），LOCKED 後實作讀檔作為 spec |
+| **refinement** — 需求充實 / 非 ticket 設計討論 | 討論需求、需求釐清、補完 Epic、這張單缺什麼、方案討論、想重構、tech debt、sprint prep、想討論、怎麼設計、重構、重新設計、要怎麼改、要怎麼重做、ADR | refinement, grooming, brainstorm, batch refinement, design plan, ADR, architecture decision | JIRA-backed refinement 與 ticketless DP 討論的統一入口；非 ticket 設計會建立/接續 `specs/design-plans/DP-NNN-*`，產 `refinement.md` / `refinement.json` |
+| **design-plan** — legacy shim | design-plan DP-NNN、/design-plan DP-NNN | design-plan DP-NNN | 相容舊入口；只定位/建立 DP shell 後轉交 `refinement DP-NNN` 或 `breakdown DP-NNN`，不再負責研究、決策收斂或拆工 |
 | **sprint-planning** — Sprint 規劃 | 排 sprint、sprint 規劃、下個 sprint、排單、capacity planning、carry over | sprint planning, planning, next sprint, organize sprint, release page, sprint backlog | 互動式 Sprint 規劃助手：拉 JIRA tickets、算 capacity、偵測 carry-over、建議優先序 |
 | **standup** — 每日站會 / 下班收工 | 站立會議、產出 standup、寫 standup、今天做了什麼、下班、收工、準備明天的工作、結束今天、總結一下、wrap up | standup, daily standup, YDY, standup report, write standup, daily report, end of day, EOD, wrap up | 自動從 git commits、JIRA 狀態、Google Calendar 收集工作，產出 YDY/TDT/BOS 格式站會報告；Step 0 自動跑 triage（含下班收工情境）。`/end-of-day` 已棄用，所有觸發詞統一路由到 standup |
 | **my-triage** — 工作盤點 | 我的 epic、盤點、手上有什麼、排優先、我的工作 | my epics, triage, prioritize, my work | 掃描 assigned Epic + Bug + 孤兒 Task，狀態驗證 + GitHub PR 進度，產出優先序 Dashboard |
