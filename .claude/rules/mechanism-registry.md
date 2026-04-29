@@ -4,10 +4,35 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 
 ## How to Use
 
-- **Post-task**: after completing a task, scan the High-drift mechanisms for violations in the current conversation
+- **Post-task**: after completing a task, scan the Priority Audit Order for semantic judgment drift in the current conversation
 - **Periodic**: run `/validate-mechanisms` (future skill) for a full smoke test
 - **On drift discovery**: if a mechanism was violated, record it as a feedback memory with the mechanism ID
 - **Rationalizations & graduated mechanisms**: see `skills/references/mechanism-rationalizations.md` (per-section rationalizations) and `skills/references/deterministic-hooks-registry.md` (mechanisms graduated to hooks — auto-enforced, low audit priority)
+
+## Disposition Legend
+
+Behavioral rows are retained only when the canary still provides useful human/LLM judgment. Deterministic rows are kept as pointers, not routine manual audit items.
+
+| Disposition | Meaning | Manual audit posture |
+|-------------|---------|----------------------|
+| `semantic_only` | Requires intent, context, or tradeoff judgment | Keep in Semantic Priority Audit when high impact |
+| `script_candidate` | Observable invariant without sufficient enforcement yet | Track as migration candidate; audit until scripted |
+| `already_deterministic_reduce_audit` | Covered by validator, gate, hook, or helper | Do not manually re-audit first; check gate evidence only |
+| `reference_only` | Useful rationale/background, not a live canary | Keep in references/rationalizations |
+| `obsolete` | Superseded by stronger mechanism | Remove after review |
+
+## Deterministic Contracts
+
+These mechanisms are contract-lane checks. Their source of truth is the script/gate registry; the behavioral registry keeps only a compact pointer so post-task audit stays focused on semantic mistakes.
+
+| Contract group | Covered invariants | Deterministic source | Disposition |
+|----------------|--------------------|----------------------|-------------|
+| Artifact schemas | refinement/task artifact shape, task dependency closure, fixture paths, design-plan checklist closure | `pipeline-artifact-gate.sh`, `validate-refinement-json.sh`, `validate-task-md.sh`, `validate-task-md-deps.sh`, `design-plan-checklist-gate.sh` | `already_deterministic_reduce_audit` |
+| Handoff and L2 gates | refinement handoff, carry-forward, version bump reminders, feedback reflection signals | `l2-embedding-registry.md`, `refinement-handoff-gate.sh`, `check-carry-forward.sh`, `check-version-bump-reminder.sh`, `check-feedback-signals.sh` | `already_deterministic_reduce_audit` |
+| Delivery wrappers | PR body template preservation, verification evidence, ci-local evidence, base resolution | `deterministic-hooks-registry.md`, `polaris-pr-create.sh`, `gate-pr-body-template.sh`, `verification-evidence-gate.sh`, `ci-local-gate.sh`, `resolve-task-base.sh` | `already_deterministic_reduce_audit` |
+| Session and safety hooks | context pressure, cross-session warm scan, safety gate, no hooks in local settings | `deterministic-hooks-registry.md`, hook wrappers under `.claude/hooks/`, safety scripts under `scripts/` | `already_deterministic_reduce_audit` |
+
+Manual audit still applies when the agent ignores, bypasses, or misinterprets a deterministic failure. The ordinary question is not "did every gate run?" but "did the agent make a semantic judgment error around the gate result?"
 
 ## Registry
 
@@ -90,6 +115,8 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 
 Enforcement: deterministic via `pipeline-artifact-gate.sh` PreToolUse hook (validators in `scripts/validate-*.sh`). Bypass: `POLARIS_SKIP_ARTIFACT_GATE=1`. Audit priority: low.
 
+Disposition: `already_deterministic_reduce_audit`. Keep these rows as contract documentation; routine post-task audit should inspect validator failures only when the agent ignored or bypassed them.
+
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
 | `refinement-schema-compliance` | `refinement.json` 必填欄位齊全（epic, version, modules[], acceptance_criteria[] with verification, dependencies[], edge_cases[]） | Edit/Write on refinement.json rejected by hook; OR committed file 缺必填欄位 | High |
@@ -150,6 +177,8 @@ Enforcement: deterministic via `pipeline-artifact-gate.sh` PreToolUse hook (vali
 
 ### Quality Gates (source: `skills/references/engineer-delivery-flow.md`)
 
+Disposition: mixed. Semantic-only rows stay audit-relevant when they require judging whether evidence addresses the claim. Rows backed by wrapper/gate evidence are contract pointers and should not crowd the top priority audit.
+
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
 | `re-test-after-fix` | After fixing quality issues, re-run all tests before proceeding to commit | Git diff shows changes after last test run but commit proceeds without fresh test output | High |
@@ -195,6 +224,8 @@ Enforcement: deterministic via `pipeline-artifact-gate.sh` PreToolUse hook (vali
 ### Deterministic Quality Hooks
 
 Hook-enforced mechanisms (exit code driven, physically block). Full table + bypass flags + script paths in `skills/references/deterministic-hooks-registry.md` and `skills/references/mechanism-rationalizations.md` § Deterministic Quality Hooks — Detail. Audit priority: low.
+
+Disposition: `already_deterministic_reduce_audit`.
 
 ### Skills Management (source: `CLAUDE.md`)
 
@@ -248,16 +279,14 @@ Hook-enforced mechanisms (exit code driven, physically block). Full table + bypa
 
 ## Priority Audit Order
 
-Post-task audit should check these first (highest drift risk, most impactful):
+Post-task audit should check these semantic items first: they are high-impact judgment failures that cannot be fully reduced to an exit code.
 
-1. `no-workaround-accumulation` / `design-implementation-reconciliation`
-1a. `design-plan-creation` / `design-plan-decision-capture` / `design-plan-reference-at-impl` (Critical — check-pr-approvals v2.10→v2.16 掉棒事件)
-2. `skill-first-invoke` / `no-manual-skill-steps` / `reference-index-scan`
-3. `api-docs-before-replace` / `lib-exhaust-before-replace` / `fix-through-not-revert` / `query-original-impl` (Critical — PROJ-123 root cause + library change protocol)
-4. `delegate-exploration` / `delegate-implementation`
-5. `cross-session-read-memory-file`
-6. `correction-driven-handbook-update` (repo-specific → handbook, framework → feedback)
-6a. `checkpoint-mode-at-25` (check during long sessions, not just post-task)
-7. `re-test-after-fix` / `fresh-verification-before-completion` / `checklist-before-done`
-8. `cross-repo-verification` / `env-follows-requires`
-9. Deterministic hooks/scripts (`feedback-trigger-count-update` / `version-bump-reminder` / `cross-session-carry-forward` / etc.) — auto-enforced where active, low priority. See `deterministic-hooks-registry.md`
+1. Design and workaround judgment (`semantic_only`): `no-workaround-accumulation` / `design-implementation-reconciliation` / `fix-through-not-revert`
+2. Design-plan lifecycle judgment (`semantic_only`): `design-plan-creation` / `design-plan-decision-capture` / `design-plan-reference-at-impl`
+3. Skill routing and reference discovery (`semantic_only`): `skill-first-invoke` / `no-manual-skill-steps` / `reference-index-scan`
+4. External-source exhaustion (`semantic_only`): `api-docs-before-replace` / `lib-exhaust-before-replace` / `query-original-impl`
+5. Delegation judgment (`semantic_only`): `delegate-exploration` / `delegate-implementation`
+6. Cross-session and correction judgment (`semantic_only`): `cross-session-read-memory-file` / `correction-driven-handbook-update`
+7. Runtime claim judgment (`semantic_only`): `runtime-claims-need-runtime-evidence` / `cross-repo-verification` / `env-follows-requires`
+8. Long-session control (`script_candidate` where not yet covered): `checkpoint-mode-at-25` / `checklist-before-done`
+9. Deterministic contract failures (`already_deterministic_reduce_audit`): only audit when the agent ignored, bypassed, or misinterpreted a failed gate. See `## Deterministic Contracts`, `deterministic-hooks-registry.md`, and `l2-embedding-registry.md`.

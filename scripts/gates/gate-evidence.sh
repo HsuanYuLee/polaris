@@ -43,12 +43,21 @@ if [[ "${POLARIS_SKIP_EVIDENCE:-}" == "1" ]]; then
   exit 0
 fi
 
-# Extract ticket from branch if not provided
+extract_task_key_from_branch() {
+  local branch="$1"
+  local key=""
+  key="$(printf '%s' "$branch" | grep -oE 'DP-[0-9]{3}-T[0-9]+[a-z]*' | head -n 1 || true)"
+  if [[ -n "$key" ]]; then
+    printf '%s' "$key"
+    return 0
+  fi
+  printf '%s' "$branch" | grep -oE '[A-Z][A-Z0-9]+-[0-9]+' | head -n 1 || true
+}
+
+# Extract ticket/task identity from branch if not provided.
 if [[ -z "$TICKET" ]]; then
   branch=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
-  if [[ "$branch" =~ ([A-Z][A-Z0-9]+-[0-9]+) ]]; then
-    TICKET="${BASH_REMATCH[1]}"
-  fi
+  TICKET="$(extract_task_key_from_branch "$branch")"
 fi
 
 # No ticket → framework/docs PR, allow

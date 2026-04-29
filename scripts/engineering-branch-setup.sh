@@ -267,6 +267,7 @@ SUMMARY=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin
 RESOLVED_BASE=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('resolved_base') or '')" 2>/dev/null)
 REPO_NAME=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('metadata',{}).get('repo') or '')" 2>/dev/null)
 BRANCH_CHAIN=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('operational_context',{}).get('branch_chain') or '')" 2>/dev/null)
+BASE_BRANCH=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('operational_context',{}).get('base_branch') or '')" 2>/dev/null)
 
 if [[ -z "$TASK_KEY" ]]; then
   echo "ERROR: task_jira_key not found in $TASK_MD" >&2
@@ -281,11 +282,15 @@ fi
 # branches before cutting the task branch. The task branch does not exist yet,
 # so cascade-rebase-chain skips the missing last link.
 if [[ -n "$BRANCH_CHAIN" && -f "$CASCADE_REBASE_CHAIN" ]]; then
+  if [[ "$BASE_BRANCH" == task/* && "$RESOLVED_BASE" != "$BASE_BRANCH" ]]; then
+    echo "ℹ Stacked base resolved to $RESOLVED_BASE; skipping stale branch-chain cascade for completed upstream." >&2
+  else
   echo "ℹ Aligning branch chain before task branch creation..." >&2
   "$CASCADE_REBASE_CHAIN" --repo "$(git rev-parse --show-toplevel)" --task-md "$TASK_MD" --skip-missing-last >/dev/null || {
     echo "ERROR: branch chain rebase failed; resolve upstream branch first." >&2
     exit 2
   }
+  fi
 fi
 
 # Step 2: Verify resolved_base exists on remote

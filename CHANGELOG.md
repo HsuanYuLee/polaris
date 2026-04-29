@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.56] - 2026-04-30
+
+### Changed — mechanism registry audit reduction
+
+- Reduced the mechanism registry priority audit to semantic judgment checks.
+- Added deterministic contract pointers for script-backed artifact, delivery,
+  handoff, session, and safety gates.
+- Fixed DP-backed stacked task base resolution after local-extension upstream
+  tasks move to `tasks/pr-release/`.
+
 ## [3.73.55] - 2026-04-30
 
 ### Fixed — workspace language inheritance

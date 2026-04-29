@@ -67,12 +67,17 @@ parse_table_field() {
     ' "$file"
 }
 
-# Extract JIRA key (e.g. KB2CW-3711 / GT-478) from "Depends on" value.
-# Accepts values like "KB2CW-3711 (T3a — ...)" or "KB2CW-3711, KB2CW-3712".
-# For Phase 1 we assume single upstream dep; take the first JIRA key.
-extract_jira_key() {
+# Extract task identity from "Depends on" value.
+# Prefer DP pseudo-task IDs before generic JIRA-style keys; otherwise
+# DP-049-T1 would be truncated to DP-049 by the generic regex.
+extract_task_key() {
     local val="$1"
-    # Grep for first JIRA-style key.
+    local key
+    key=$(printf '%s' "$val" | grep -oE 'DP-[0-9]{3}-T[0-9]+[a-z]*' | head -n 1)
+    if [ -n "$key" ]; then
+        printf '%s' "$key"
+        return 0
+    fi
     printf '%s' "$val" | grep -oE '[A-Z][A-Z0-9]+-[0-9]+' | head -n 1
 }
 
@@ -95,11 +100,23 @@ derive_repo_path() {
     if [ -z "$repo_name" ]; then
         return 1
     fi
-    # specs is at <base_dir>/specs/<EPIC>/tasks/<file>.md → base_dir is 3 levels up.
-    local tasks_dir specs_epic_dir specs_dir base_dir
-    tasks_dir=$(dirname "$task_md")
-    specs_epic_dir=$(dirname "$tasks_dir")
-    specs_dir=$(dirname "$specs_epic_dir")
+    # Product tasks live at <base_dir>/specs/<EPIC>/tasks/<file>.md.
+    # DP-backed tasks live at <base_dir>/specs/design-plans/<DP>/tasks/<file>.md.
+    # Walk upward to the nearest specs/ ancestor so both shapes resolve to
+    # the workspace base dir instead of assuming a fixed path depth.
+    local dir specs_dir base_dir
+    dir=$(cd "$(dirname "$task_md")" && pwd)
+    specs_dir=""
+    while [ "$dir" != "/" ]; do
+        if [ "$(basename "$dir")" = "specs" ]; then
+            specs_dir="$dir"
+            break
+        fi
+        dir=$(dirname "$dir")
+    done
+    if [ -z "$specs_dir" ]; then
+        return 1
+    fi
     base_dir=$(dirname "$specs_dir")
     local candidate="$base_dir/$repo_name"
     if [ -d "$candidate/.git" ] || [ -d "$candidate" ]; then
@@ -109,12 +126,12 @@ derive_repo_path() {
     return 1
 }
 
-# Find sibling task.md in the same tasks/ dir whose "Task JIRA key" field
-# matches the given JIRA key.
-# Arg 1: jira key (e.g. KB2CW-3711)
+# Find sibling task.md in the same tasks/ dir whose canonical "Task ID" or
+# legacy "Task JIRA key" matches the given task identity.
+# Arg 1: task key (e.g. KB2CW-3711 or DP-049-T1)
 # Arg 2: tasks/ dir
 # Output: path to matching T*.md (first match) or empty.
-find_task_md_by_jira() {
+find_task_md_by_key() {
     local key="$1"
     local tasks_dir="$2"
     local candidate value
@@ -123,6 +140,12 @@ find_task_md_by_jira() {
     # by mark-spec-implemented.sh's move-first sequence).
     shopt -s nullglob
     for candidate in "$tasks_dir"/T*.md "$tasks_dir"/pr-release/T*.md; do
+        value=$(parse_table_field "Task ID" "$candidate")
+        if [ "$value" = "$key" ]; then
+            printf '%s' "$candidate"
+            shopt -u nullglob
+            return 0
+        fi
         value=$(parse_table_field "Task JIRA key" "$candidate")
         if [ "$value" = "$key" ]; then
             printf '%s' "$candidate"
@@ -132,6 +155,80 @@ find_task_md_by_jira() {
     done
     shopt -u nullglob
     return 1
+}
+
+parse_frontmatter_scalar() {
+    local field="$1"
+    local file="$2"
+    awk -v key="$field" '
+        BEGIN { in_fm = 0 }
+        NR == 1 && $0 == "---" { in_fm = 1; next }
+        in_fm && $0 == "---" { exit }
+        in_fm && $0 ~ "^[[:space:]]*" key ":" {
+            sub("^[[:space:]]*" key ":[[:space:]]*", "")
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+            print
+            exit
+        }
+    ' "$file"
+}
+
+parse_frontmatter_nested_scalar() {
+    local parent="$1"
+    local field="$2"
+    local file="$3"
+    awk -v parent="$parent" -v key="$field" '
+        BEGIN { in_fm = 0; in_parent = 0 }
+        NR == 1 && $0 == "---" { in_fm = 1; next }
+        in_fm && $0 == "---" { exit }
+        in_fm && $0 ~ "^[^[:space:]].*:" { in_parent = 0 }
+        in_fm && $0 ~ "^" parent ":[[:space:]]*$" { in_parent = 1; next }
+        in_fm && in_parent && $0 ~ "^[[:space:]]+" key ":" {
+            sub("^[[:space:]]+" key ":[[:space:]]*", "")
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+            print
+            exit
+        }
+    ' "$file"
+}
+
+is_sha_ancestor_of_ref() {
+    local repo_dir="$1"
+    local sha="$2"
+    local ref="$3"
+
+    if [ -z "$sha" ] || [ -z "$ref" ]; then
+        return 1
+    fi
+
+    if [ -n "$repo_dir" ] && [ -d "$repo_dir" ]; then
+        git -C "$repo_dir" rev-parse --verify --quiet "$sha^{commit}" >/dev/null 2>&1 || return 1
+        git -C "$repo_dir" rev-parse --verify --quiet "$ref" >/dev/null 2>&1 || return 1
+        git -C "$repo_dir" merge-base --is-ancestor "$sha" "$ref" >/dev/null 2>&1
+    else
+        git rev-parse --verify --quiet "$sha^{commit}" >/dev/null 2>&1 || return 1
+        git rev-parse --verify --quiet "$ref" >/dev/null 2>&1 || return 1
+        git merge-base --is-ancestor "$sha" "$ref" >/dev/null 2>&1
+    fi
+}
+
+find_upstream_task() {
+    local cur_task="$1"
+    local depends_on depends_key tasks_dir upstream
+    depends_on=$(parse_table_field "Depends on" "$cur_task")
+    if [ -z "$depends_on" ]; then
+        return 1
+    fi
+    depends_key=$(extract_task_key "$depends_on")
+    if [ -z "$depends_key" ]; then
+        return 1
+    fi
+    tasks_dir=$(dirname "$cur_task")
+    upstream=$(find_task_md_by_key "$depends_key" "$tasks_dir")
+    if [ -z "$upstream" ]; then
+        return 1
+    fi
+    printf '%s' "$upstream"
 }
 
 # Recursively resolve "final feat branch" by walking depends_on chain.
@@ -165,15 +262,15 @@ resolve_final_feat_branch() {
                 log_err "Base branch is '$base' but no 'Depends on' field in $cur_task (stacked task missing upstream)"
                 return 1
             fi
-            depends_key=$(extract_jira_key "$depends_on")
+            depends_key=$(extract_task_key "$depends_on")
             if [ -z "$depends_key" ]; then
-                log_err "cannot extract JIRA key from Depends on='$depends_on' in $cur_task"
+                log_err "cannot extract task key from Depends on='$depends_on' in $cur_task"
                 return 1
             fi
             tasks_dir=$(dirname "$cur_task")
-            upstream=$(find_task_md_by_jira "$depends_key" "$tasks_dir")
+            upstream=$(find_task_md_by_key "$depends_key" "$tasks_dir")
             if [ -z "$upstream" ]; then
-                log_err "cannot find upstream task.md for JIRA key $depends_key in $tasks_dir"
+                log_err "cannot find upstream task.md for task key $depends_key in $tasks_dir"
                 return 1
             fi
             resolve_final_feat_branch "$upstream" $((depth + 1))
@@ -280,6 +377,8 @@ resolve_task_base() {
     # The upstream task's Base branch (task/...) — we need the upstream task_branch
     # to check merge state, not our own task_branch. Our Base branch IS the upstream task_branch.
     local upstream_task_branch="$base"
+    local upstream_task=""
+    upstream_task=$(find_upstream_task "$task_md" || true)
 
     is_merged_into "$repo_dir" "$upstream_task_branch" "$feat_branch"
     local rc=$?
@@ -295,6 +394,19 @@ resolve_task_base() {
             return 0
             ;;
         2)
+            # Local-extension framework tasks may move their upstream task.md to
+            # tasks/pr-release/ without leaving a pushed task branch. In that
+            # case, trust the recorded completion SHA only if it is already
+            # contained by the final base branch.
+            if [ -n "$upstream_task" ]; then
+                local upstream_status upstream_head
+                upstream_status=$(parse_frontmatter_scalar "status" "$upstream_task")
+                upstream_head=$(parse_frontmatter_nested_scalar "extension_deliverable" "task_head_sha" "$upstream_task")
+                if [ "$upstream_status" = "IMPLEMENTED" ] && is_sha_ancestor_of_ref "$repo_dir" "$upstream_head" "$feat_branch"; then
+                    printf '%s' "$feat_branch"
+                    return 0
+                fi
+            fi
             log_err "warn: cannot verify merge state (branch missing or git error) for $upstream_task_branch vs $feat_branch in repo='${repo_dir:-$PWD}'; assuming not merged"
             printf '%s' "$base"
             return 0
@@ -623,6 +735,65 @@ EOF
         pass=$((pass + 1))
     else
         echo "FAIL case9: expected 'task/DEMO-700-upstream' exit 0, got '$out' exit $rc"
+        fails=$((fails + 1))
+    fi
+
+    # Case 10: DP pseudo-task dependency + upstream completed by local extension.
+    # The upstream branch is absent, but its recorded task_head_sha is already
+    # contained by main, so the stack resolves to main.
+    local repo10="$tmpdir/case10-base/polaris-framework"
+    mkdir -p "$repo10"
+    git -C "$repo10" init -q -b main
+    git -C "$repo10" config user.email "self-test@example.com"
+    git -C "$repo10" config user.name "self-test"
+    echo "init" >"$repo10/f.txt"
+    git -C "$repo10" add f.txt && git -C "$repo10" commit -q -m init
+    echo "t1" >>"$repo10/f.txt" && git -C "$repo10" commit -q -am "DP-049-T1"
+    local t1_sha
+    t1_sha=$(git -C "$repo10" rev-parse HEAD)
+
+    mkdir -p "$tmpdir/case10-base/specs/design-plans/DP-049-demo/tasks/pr-release"
+    cat >"$tmpdir/case10-base/specs/design-plans/DP-049-demo/tasks/pr-release/T1.md" <<EOF
+---
+extension_deliverable:
+  endpoint: local_extension
+  extension_id: framework-release
+  task_head_sha: $t1_sha
+status: IMPLEMENTED
+---
+# T1 upstream
+
+> Epic: DP-049 | JIRA: DP-049-T1 | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Task JIRA key | DP-049-T1 |
+| Base branch | main |
+| Task branch | task/DP-049-T1-release-clean-source-gate |
+EOF
+    cat >"$tmpdir/case10-base/specs/design-plans/DP-049-demo/tasks/T2.md" <<'EOF'
+# T2 downstream
+
+> Epic: DP-049 | JIRA: DP-049-T2 | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Task JIRA key | DP-049-T2 |
+| Base branch | task/DP-049-T1-release-clean-source-gate |
+| Task branch | task/DP-049-T2-mechanism-registry-priority-audit |
+| Depends on | DP-049-T1 (T1 — release clean-source gate) |
+EOF
+    out=$(resolve_task_base "$tmpdir/case10-base/specs/design-plans/DP-049-demo/tasks/T2.md" 2>/dev/null)
+    rc=$?
+    if [ "$rc" = "0" ] && [ "$out" = "main" ]; then
+        echo "PASS case10: DP completed upstream local extension → return final base"
+        pass=$((pass + 1))
+    else
+        echo "FAIL case10: expected 'main' exit 0, got '$out' exit $rc"
         fails=$((fails + 1))
     fi
 
