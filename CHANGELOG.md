@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.40] - 2026-04-29
+
+### Fixed — ci-local Codecov path parity
+
+- Updated generated `ci-local` Codecov patch checks to fail when LCOV `SF:`
+  paths only match changed files through fuzzy prefix stripping or suffix
+  fallback, preventing false local passes when remote Codecov cannot map
+  coverage paths to repo-relative diff paths.
+- Added self-test coverage for LCOV path mismatch detection.
+
 ## [3.73.39] - 2026-04-29
 
 ### Fixed — template sync correction
