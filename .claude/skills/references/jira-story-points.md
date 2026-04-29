@@ -9,7 +9,7 @@
 ```
 mcp__claude_ai_Atlassian__getJiraIssueTypeMetaWithFields
   cloudId: {config: jira.instance}
-  projectIdOrKey: <目標專案 key，如 KB2CW>
+  projectIdOrKey: <目標專案 key，如 TASK>
   issueTypeId: <目標 issue type ID，如 10005（任務）>
 ```
 

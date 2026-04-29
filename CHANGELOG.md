@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.37] - 2026-04-29
+
+### Added — refinement breakdown handoff gate
+
+- Added `refinement-handoff-gate.sh` to block `refinement` from handing off to
+  `breakdown` unless the same spec container has a valid `refinement.json`.
+- Added self-test coverage for missing, valid, and invalid refinement artifacts.
+- Updated the refinement skill and mechanism registries so "ready for
+  breakdown" now deterministically triggers the artifact handoff gate.
+
 ## [3.73.36] - 2026-04-29
 
 ### Added — engineering delivery finalizer
