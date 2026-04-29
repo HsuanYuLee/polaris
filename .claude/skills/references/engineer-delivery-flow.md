@@ -236,6 +236,7 @@ bash "${POLARIS_ROOT}/scripts/ci-local-run.sh"
 
 - exit 0 → Dimension B PASS，進 Step 3
 - exit 1 → Dimension B FAIL，**回到實作階段修 root cause**，禁止放寬 assertion / `.skip()` / `as any` 繞過（canary: `tdd-bypass-no-assertion-weakening`）；修完回 Step 2 開頭重跑
+- exit 1 + evidence `status: BLOCKED_ENV` → Dimension B 仍然 **blocking**，但不是 implementation FAIL。`ci-local-run.sh` 會用同一 repo/context 自動重跑一次；若仍 blocked，輸出 runtime-neutral `RETRY_WITH_ESCALATION` payload（原始 command、reason、host、context hash、manual remediation）。真正 elevated / unsandboxed execution 由當前 runtime adapter 或人類 shell 處理，framework core 不自行升權，也不把 `BLOCKED_ENV` 當 degraded pass。
 
 **Evidence file（自動寫入）**：`ci-local.sh` 執行完必寫 `/tmp/polaris-ci-local-{branch}-{head_sha}-{context_hash}.json`（status / branch / head_sha / CI context / timestamp / commands / summary）。`context_hash` 來自 event/base/source/ref，避免同一 head 在不同 PR base 下誤用 PASS cache。`gate-ci-local.sh` 在 git pre-commit / pre-push 及 `polaris-pr-create.sh` 前會呼叫 `ci-local-run.sh`；cache hit 由 generated `ci-local.sh` 自行處理，cache miss 或非 PASS 則同步實跑，PASS 放行 / FAIL 擋。跳過本 step ≠ 漏網 — gate 會在第一個 git 動作補位執行。
 

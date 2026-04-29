@@ -14,10 +14,13 @@
 #   - If main checkout has no `.claude/scripts/ci-local.sh` → exit 0 (skip; consistent
 #     with hook/gate's "no ci-local declared" semantics)
 #   - Otherwise: bash <main>/.claude/scripts/ci-local.sh --repo <target>
+#   - BLOCKED_ENV is retried once in the same context, then surfaced as a
+#     runtime-neutral RETRY_WITH_ESCALATION payload for Codex/Claude/human shell
+#     adapters to handle. The wrapper never performs elevated execution itself.
 #   - If no --base-branch is provided, attempts to resolve the task.md base
 #     from the current branch so stacked PR local Codecov checks match CI.
 #
-# Exit codes: forwarded from ci-local.sh (0 PASS, 1 FAIL, 2 invalid usage).
+# Exit codes: forwarded from ci-local.sh (0 PASS, 1 FAIL/BLOCKED_ENV, 2 invalid usage).
 
 set -uo pipefail
 
@@ -76,4 +79,161 @@ args=(--repo "$TARGET_REPO")
 [[ -n "$SOURCE_BRANCH" ]] && args+=(--source-branch "$SOURCE_BRANCH")
 [[ -n "$REF" ]] && args+=(--ref "$REF")
 
-exec bash "$canonical_script" "${args[@]}"
+wrapper_command=(bash "$SCRIPT_DIR/ci-local-run.sh" --repo "$TARGET_REPO")
+[[ -n "$EVENT" ]] && wrapper_command+=(--event "$EVENT")
+[[ -n "$BASE_BRANCH" ]] && wrapper_command+=(--base-branch "$BASE_BRANCH")
+[[ -n "$SOURCE_BRANCH" ]] && wrapper_command+=(--source-branch "$SOURCE_BRANCH")
+[[ -n "$REF" ]] && wrapper_command+=(--ref "$REF")
+
+run_ci_local_capture() {
+  local log_path="$1"
+  shift
+  : > "$log_path"
+  bash "$canonical_script" "$@" 2>&1 | tee -a "$log_path"
+  return "${PIPESTATUS[0]}"
+}
+
+latest_evidence_from_log() {
+  python3 - "$1" <<'PY'
+import re
+import sys
+
+try:
+    text = open(sys.argv[1], "r", encoding="utf-8", errors="replace").read()
+except OSError:
+    sys.exit(0)
+
+matches = re.findall(r"evidence(?: written)?:\s*([^\s)]+)", text)
+if matches:
+    print(matches[-1])
+PY
+}
+
+evidence_status() {
+  python3 - "$1" <<'PY'
+import json
+import sys
+
+try:
+    print(json.load(open(sys.argv[1], "r", encoding="utf-8")).get("status", ""))
+except Exception:
+    print("")
+PY
+}
+
+evidence_identity() {
+  python3 - "$1" <<'PY'
+import hashlib
+import json
+import sys
+
+try:
+    data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+except Exception:
+    sys.exit(0)
+
+context = data.get("context") or {}
+raw = "|".join(str(context.get(k) or "") for k in ("event", "base_branch", "source_branch", "ref"))
+context_hash = hashlib.sha1(raw.encode()).hexdigest()[:12]
+print("|".join([
+    str(data.get("branch") or ""),
+    str(data.get("head_sha") or ""),
+    context_hash,
+]))
+PY
+}
+
+emit_blocked_env_payload() {
+  local evidence_path="$1"
+  shift
+  python3 - "$evidence_path" "$@" <<'PY'
+import hashlib
+import json
+import shlex
+import sys
+
+evidence_path = sys.argv[1]
+command = sys.argv[2:]
+
+try:
+    data = json.load(open(evidence_path, "r", encoding="utf-8"))
+except Exception as exc:
+    print(f"[ci-local-run] BLOCKED_ENV evidence could not be read: {exc}", file=sys.stderr)
+    sys.exit(0)
+
+blocked = data.get("blocked_env") or {}
+context = data.get("context") or {}
+raw_context = "|".join(str(context.get(k) or "") for k in ("event", "base_branch", "source_branch", "ref"))
+context_hash = hashlib.sha1(raw_context.encode()).hexdigest()[:12]
+reason = blocked.get("reason") or "unknown"
+host = blocked.get("host") or ""
+manual_remediation = "Connect the required VPN/private network or run the same command from an unsandboxed shell, then rerun the exact command."
+
+payload = {
+    "action": "RETRY_WITH_ESCALATION",
+    "status": "BLOCKED_ENV",
+    "reason": reason,
+    "host": host,
+    "stage": blocked.get("stage") or "",
+    "package_manager": blocked.get("package_manager") or "",
+    "context_hash": context_hash,
+    "head_sha": data.get("head_sha") or "",
+    "evidence": evidence_path,
+    "command": " ".join(shlex.quote(part) for part in command),
+    "manual_remediation": manual_remediation,
+}
+
+print(f"[ci-local-run] BLOCKED_ENV still present after same-context retry: reason={reason} host={host or 'unknown'}", file=sys.stderr)
+print(json.dumps(payload, indent=2, sort_keys=True), file=sys.stderr)
+PY
+}
+
+first_log="$(mktemp)"
+second_log="$(mktemp)"
+trap 'rm -f "$first_log" "$second_log"' EXIT
+
+run_ci_local_capture "$first_log" "${args[@]}"
+rc=$?
+if [[ "$rc" -eq 0 ]]; then
+  exit 0
+fi
+
+first_evidence="$(latest_evidence_from_log "$first_log")"
+first_status=""
+if [[ -n "$first_evidence" && -f "$first_evidence" ]]; then
+  first_status="$(evidence_status "$first_evidence")"
+fi
+
+if [[ "$first_status" != "BLOCKED_ENV" ]]; then
+  exit "$rc"
+fi
+
+if [[ "${CI_LOCAL_ENV_RETRY_ONCE_DONE:-}" != "1" ]]; then
+  echo "[ci-local-run] BLOCKED_ENV detected; retrying once with the same ci-local context." >&2
+  CI_LOCAL_ENV_RETRY_ONCE_DONE=1 run_ci_local_capture "$second_log" "${args[@]}"
+  rc=$?
+  if [[ "$rc" -eq 0 ]]; then
+    exit 0
+  fi
+
+  second_evidence="$(latest_evidence_from_log "$second_log")"
+  second_status=""
+  if [[ -n "$second_evidence" && -f "$second_evidence" ]]; then
+    second_status="$(evidence_status "$second_evidence")"
+  fi
+
+  if [[ "$second_status" == "BLOCKED_ENV" ]]; then
+    first_identity="$(evidence_identity "$first_evidence")"
+    second_identity="$(evidence_identity "$second_evidence")"
+    if [[ -z "$first_identity" || -z "$second_identity" || "$first_identity" != "$second_identity" ]]; then
+      echo "[ci-local-run] ERROR: BLOCKED_ENV retry context changed; refusing escalation payload." >&2
+      echo "[ci-local-run] first=${first_identity:-unreadable} second=${second_identity:-unreadable}" >&2
+      exit 2
+    fi
+    emit_blocked_env_payload "$second_evidence" "${wrapper_command[@]}"
+  fi
+  exit "$rc"
+fi
+
+emit_blocked_env_payload "$first_evidence" "${wrapper_command[@]}"
+exit "$rc"

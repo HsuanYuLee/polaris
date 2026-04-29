@@ -567,6 +567,60 @@ assert_contains "Test 10: records files with coverage data" /tmp/ci-local-test10
 rm -f "$T10_EVIDENCE" /tmp/ci-local-test10.out /tmp/ci-local-test10-evidence.out
 
 # ============================================================================
+echo "== Test 11: install DNS failure classified as BLOCKED_ENV =="
+# ============================================================================
+T11="$TMPROOT/blocked-env-install"
+mkdir -p "$T11/.github/workflows" "$T11/.bin"
+cat > "$T11/.github/workflows/ci.yml" <<'YAML'
+name: CI
+on: [pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: pnpm install --frozen-lockfile
+      - run: echo SHOULD_NOT_RUN
+YAML
+cat > "$T11/.bin/pnpm" <<'SH'
+#!/usr/bin/env bash
+if [[ "$1" == "install" ]]; then
+  echo "ERR_PNPM_META_FETCH_FAIL getaddrinfo ENOTFOUND nexus3.sit.kkday.com" >&2
+  exit 1
+fi
+echo "unexpected pnpm command: $*" >&2
+exit 1
+SH
+chmod +x "$T11/.bin/pnpm"
+init_git_repo "$T11"
+OUT11="$T11/.claude/scripts/ci-local.sh"
+"$GEN" --repo "$T11" --out "$OUT11" --force >/dev/null 2>&1
+assert "Test 11: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+bash -n "$OUT11" 2>/dev/null
+assert "Test 11: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+
+set +e
+(cd "$T11" && PATH="$T11/.bin:$PATH" bash "$OUT11" --repo "$T11" >/tmp/ci-local-test11.out 2>&1)
+T11_RC=$?
+set -e
+assert "Test 11: run exits non-zero" "$([ $T11_RC -ne 0 ] && echo 1 || echo 0)"
+assert_contains "Test 11: output includes BLOCKED_ENV" /tmp/ci-local-test11.out "BLOCKED_ENV"
+assert_not_contains "Test 11: downstream command not run" /tmp/ci-local-test11.out "SHOULD_NOT_RUN"
+T11_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+python3 - "$T11_EVIDENCE" <<'PY' >/tmp/ci-local-test11-evidence.out
+import json, sys
+d=json.load(open(sys.argv[1]))
+print(d["status"])
+print(d["summary"]["blocked_env_checks"])
+print(d["blocked_env"]["reason"])
+print(d["blocked_env"]["host"])
+PY
+assert_contains "Test 11: evidence status BLOCKED_ENV" /tmp/ci-local-test11-evidence.out "BLOCKED_ENV"
+assert_contains "Test 11: evidence has blocked count" /tmp/ci-local-test11-evidence.out "1"
+assert_contains "Test 11: evidence reason dns" /tmp/ci-local-test11-evidence.out "dns_resolution_failed"
+assert_contains "Test 11: evidence host recorded" /tmp/ci-local-test11-evidence.out "nexus3.sit.kkday.com"
+rm -f "$T11_EVIDENCE" /tmp/ci-local-test11.out /tmp/ci-local-test11-evidence.out
+
+# ============================================================================
 echo
 echo "== Summary =="
 echo "  Assertions: $ASSERTIONS"

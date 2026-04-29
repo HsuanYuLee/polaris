@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.32] - 2026-04-29
+
+### Added — ci-local environment blocker classification
+
+- Added a stdlib-only `ci-local` environment classifier for dependency install
+  failures caused by DNS, timeout, TLS/proxy, auth, or private-network access.
+- Generated `ci-local.sh` now records `BLOCKED_ENV` evidence for dependency
+  infrastructure blockers, stops downstream checks after bootstrap blockers,
+  and keeps the status blocking instead of treating it as implementation PASS.
+- `ci-local-run.sh` now retries `BLOCKED_ENV` once in the same context and then
+  emits a runtime-neutral `RETRY_WITH_ESCALATION` payload for Codex, Claude, or
+  human-shell adapters.
+
 ## [3.73.31] - 2026-04-29
 
 ### Changed — design-plan shim cleanup

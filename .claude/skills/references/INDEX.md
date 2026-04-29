@@ -31,6 +31,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [engineer-delivery-flow.md](engineer-delivery-flow.md) | 工程師交付 backbone：Simplify → Local CI Mirror (`ci-local.sh`) → Behavioral Verify → Review → Rebase → Commit → PR。Developer（engineering）與 Admin（git-pr-workflow）共用 | engineering, git-pr-workflow |
+| [ci-local-env-blocker.md](ci-local-env-blocker.md) | Local CI mirror 的 `BLOCKED_ENV` status、environment blocker reason enum、classifier adapter contract、secret scrub 與 gate semantics | engineering, git-pr-workflow, ci-local, completion-gate |
 
 ## PR & Git
 

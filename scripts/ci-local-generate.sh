@@ -71,8 +71,9 @@ trap 'rm -f "$CONTRACT_FILE"' EXIT
 "$DISCOVER" --repo "$REPO_DIR" > "$CONTRACT_FILE"
 
 GENERATOR_HASH="$(shasum -a 256 "$0" | cut -c1-12)"
+ENV_CLASSIFIER="$SCRIPT_DIR/ci-local-env-classify.py"
 
-python3 - "$REPO_DIR" "$OUT_PATH" "$FORCE" "$DRY_RUN" "$CONTRACT_FILE" "$GENERATOR_HASH" <<'PY'
+python3 - "$REPO_DIR" "$OUT_PATH" "$FORCE" "$DRY_RUN" "$CONTRACT_FILE" "$GENERATOR_HASH" "$ENV_CLASSIFIER" <<'PY'
 import datetime
 import hashlib
 import json
@@ -87,6 +88,7 @@ force = sys.argv[3] == "1"
 dry_run = sys.argv[4] == "1"
 contract_file = sys.argv[5]
 generator_hash = sys.argv[6]
+env_classifier = sys.argv[7]
 
 contract = json.loads(Path(contract_file).read_text(encoding="utf-8"))
 
@@ -321,6 +323,7 @@ parts.append('EVIDENCE_PATH="/tmp/polaris-ci-local-${BRANCH_SLUG}-${HEAD_SHA}-${
 parts.append('echo "[ci-local] context: event=$EVENT base_branch=${BASE_BRANCH:-unknown} source_branch=${SOURCE_BRANCH:-unknown} ref=${REF:-unknown}"')
 parts.append('COMMAND_CI="${CI_LOCAL_CI:-${CI:-true}}"')
 parts.append('COMMAND_TZ="${CI_LOCAL_TZ:-${TZ:-UTC}}"')
+parts.append(f'CILOCAL_ENV_CLASSIFIER={shell_quote(env_classifier)}')
 parts.append('echo "[ci-local] command env: CI=$COMMAND_CI TZ=$COMMAND_TZ"')
 parts.append("")
 parts.append('# --- Cache check: same head_sha + PASS evidence → exit 0 (no rerun)')
@@ -372,6 +375,8 @@ else:
     parts.append('CMD_OUT_DIR=$(mktemp -d)')
     parts.append('trap \'rm -rf "$RESULTS_TMP" "$CMD_OUT_DIR"\' EXIT')
     parts.append('FAILED=0')
+    parts.append('BLOCKED_ENV=0')
+    parts.append('INSTALL_ABORT=0')
     parts.append("")
     parts.append('condition_result() {')
     parts.append('  local conditions_json="$1"')
@@ -453,8 +458,12 @@ else:
     parts.append('  local out_file="$CMD_OUT_DIR/${idx}.out"')
     parts.append('  local rc=0')
     parts.append('  CI="$COMMAND_CI" TZ="$COMMAND_TZ" bash -lc "$(cat "$cmd_file")" >"$out_file" 2>&1 || rc=$?')
-    parts.append('  python3 - "$RESULTS_TMP" "$idx" "$category" "$job" "$source_file" "$cmd_file" "$out_file" "$rc" "$COMMAND_CI" "$COMMAND_TZ" <<\'CILOCAL_RC_PY\'')
-    parts.append('import json, sys, os')
+    parts.append('  local classification_json=""')
+    parts.append('  if [ $rc -ne 0 ] && [ -f "$CILOCAL_ENV_CLASSIFIER" ]; then')
+    parts.append('    classification_json="$(python3 "$CILOCAL_ENV_CLASSIFIER" --repo "$REPO_ROOT" --category "$category" --command "$(cat "$cmd_file")" --output-file "$out_file" 2>/dev/null || true)"')
+    parts.append('  fi')
+    parts.append('  CILOCAL_ENV_CLASSIFICATION_JSON="$classification_json" python3 - "$RESULTS_TMP" "$idx" "$category" "$job" "$source_file" "$cmd_file" "$out_file" "$rc" "$COMMAND_CI" "$COMMAND_TZ" <<\'CILOCAL_RC_PY\'')
+    parts.append('import json, os, sys')
     parts.append('results_path, idx, category, job, source_file, cmd_file, out_file, rc, command_ci, command_tz = sys.argv[1:11]')
     parts.append('rc = int(rc)')
     parts.append('cmd = open(cmd_file).read().rstrip()')
@@ -464,6 +473,24 @@ else:
     parts.append('    output = ""')
     parts.append('lines = output.strip().splitlines()')
     parts.append('tail = "\\n".join(lines[-40:])')
+    parts.append('classification = {}')
+    parts.append('raw_classification = os.environ.get("CILOCAL_ENV_CLASSIFICATION_JSON") or ""')
+    parts.append('if raw_classification:')
+    parts.append('    try: classification = json.loads(raw_classification)')
+    parts.append('    except Exception: classification = {}')
+    parts.append('status = "PASS" if rc == 0 else "FAIL"')
+    parts.append('blocked_env = None')
+    parts.append('if rc != 0 and classification.get("status") == "BLOCKED_ENV":')
+    parts.append('    status = "BLOCKED_ENV"')
+    parts.append('    blocked_env = {')
+    parts.append('        "reason": classification.get("reason"),')
+    parts.append('        "detail": classification.get("detail"),')
+    parts.append('        "stage": classification.get("stage"),')
+    parts.append('        "host": classification.get("host"),')
+    parts.append('        "package_manager": classification.get("package_manager"),')
+    parts.append('        "registry_hosts": classification.get("registry_hosts") or [],')
+    parts.append('        "output_tail": classification.get("output_tail") or tail,')
+    parts.append('    }')
     parts.append('entry = {')
     parts.append('    "idx": int(idx),')
     parts.append('    "category": category,')
@@ -471,14 +498,26 @@ else:
     parts.append('    "source_file": source_file,')
     parts.append('    "command": cmd,')
     parts.append('    "exit_code": rc,')
-    parts.append('    "status": "PASS" if rc == 0 else "FAIL",')
+    parts.append('    "status": status,')
     parts.append('    "environment": {"CI": command_ci, "TZ": command_tz},')
     parts.append('    "output_tail": tail,')
     parts.append('}')
+    parts.append('if blocked_env:')
+    parts.append('    entry["blocked_env"] = blocked_env')
     parts.append('with open(results_path, "a") as f:')
     parts.append('    f.write(json.dumps(entry) + "\\n")')
     parts.append('CILOCAL_RC_PY')
     parts.append('  if [ $rc -ne 0 ]; then')
+    parts.append('    local classified_status=""')
+    parts.append('    if [ -n "$classification_json" ]; then classified_status="$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get(\'status\', \'\'))" "$classification_json" 2>/dev/null || true)"; fi')
+    parts.append('    if [ "$classified_status" = "BLOCKED_ENV" ]; then')
+    parts.append('      BLOCKED_ENV=1')
+    parts.append('      echo "  ✗ BLOCKED_ENV (exit $rc) — dependency environment blocker" >&2')
+    parts.append('      python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(\'    reason=\'+str(d.get(\'reason\'))+\' host=\'+str(d.get(\'host\')))" "$classification_json" >&2 || true')
+    parts.append('      FAILED=1')
+    parts.append('      [ "$category" = "install" ] && INSTALL_ABORT=1')
+    parts.append('      return 1')
+    parts.append('    fi')
     parts.append('    if [ "$category" = "install" ]; then')
     parts.append('      echo "  ✗ install FAIL (exit $rc) — aborting (downstream checks meaningless)" >&2')
     parts.append('      tail -40 "$out_file" >&2 || true')
@@ -518,9 +557,11 @@ else:
         all_runs.append((idx, cat, ht, src, "{}"))
     parts.append("")
     for idx_, cat, job, src, conditions in all_runs:
+        parts.append('if [ "$INSTALL_ABORT" = "0" ]; then')
         parts.append(
             f'run_check {idx_} {shell_quote(cat)} {shell_quote(job)} {shell_quote(src)} "$CMD_OUT_DIR/{idx_}.cmd" {shell_quote(conditions)} || true'
         )
+        parts.append('fi')
     parts.append("")
 
     # ---------- Codecov post-check ----------
@@ -725,10 +766,11 @@ else:
 
     # ---------- Evidence write + final exit ----------
     parts.append('# --- Aggregate results, write evidence, exit')
-    parts.append('python3 - "$RESULTS_TMP" "$EVIDENCE_PATH" "$BRANCH" "$HEAD_SHA" "$FAILED" "$EVENT" "$BASE_BRANCH" "$SOURCE_BRANCH" "$REF" <<\'CILOCAL_FIN_PY\'')
+    parts.append('python3 - "$RESULTS_TMP" "$EVIDENCE_PATH" "$BRANCH" "$HEAD_SHA" "$FAILED" "$BLOCKED_ENV" "$EVENT" "$BASE_BRANCH" "$SOURCE_BRANCH" "$REF" <<\'CILOCAL_FIN_PY\'')
     parts.append('import json, sys, datetime')
-    parts.append('results_path, ev_path, branch, sha, failed, event, base_branch, source_branch, ref = sys.argv[1:10]')
+    parts.append('results_path, ev_path, branch, sha, failed, blocked_env_flag, event, base_branch, source_branch, ref = sys.argv[1:11]')
     parts.append('failed = int(failed)')
+    parts.append('blocked_env_flag = int(blocked_env_flag)')
     parts.append('checks, codecov = [], []')
     parts.append('try:')
     parts.append('    for line in open(results_path):')
@@ -743,10 +785,12 @@ else:
     parts.append('summary = {')
     parts.append('    "executed_checks": len(checks),')
     parts.append('    "failed_checks": sum(1 for c in checks if c.get("status") == "FAIL"),')
+    parts.append('    "blocked_env_checks": sum(1 for c in checks if c.get("status") == "BLOCKED_ENV"),')
     parts.append('    "skipped_checks": sum(1 for c in checks if c.get("status") == "SKIP"),')
     parts.append('    "codecov_failures": sum(1 for g in codecov if g.get("status") == "FAIL"),')
     parts.append('}')
-    parts.append('overall = "FAIL" if failed else "PASS"')
+    parts.append('overall = "BLOCKED_ENV" if blocked_env_flag or summary["blocked_env_checks"] else ("FAIL" if failed else "PASS")')
+    parts.append('first_blocked = next((c.get("blocked_env") for c in checks if c.get("status") == "BLOCKED_ENV" and c.get("blocked_env")), None)')
     parts.append('payload = {')
     parts.append('    "branch": branch, "head_sha": sha,')
     parts.append('    "context": {"event": event, "base_branch": base_branch, "source_branch": source_branch, "ref": ref},')
@@ -757,6 +801,8 @@ else:
     parts.append('    "codecov_results": codecov,')
     parts.append('    "summary": summary,')
     parts.append('}')
+    parts.append('if first_blocked:')
+    parts.append('    payload["blocked_env"] = first_blocked')
     parts.append('with open(ev_path, "w") as f: json.dump(payload, f, indent=2)')
     # NOTE: single-quoted dict keys keep the f-string compatible with
     # Python <3.12 (PEP 701 lifted the backslash-in-expression restriction).

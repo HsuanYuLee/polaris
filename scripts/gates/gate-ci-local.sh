@@ -74,7 +74,12 @@ fi
 
 rc=$?
 echo "" >&2
-echo "$PREFIX BLOCKED: ci-local.sh FAILED for ${branch} @ ${head_sha} (exit ${rc})" >&2
+if grep -q "BLOCKED_ENV" "$ci_log"; then
+  echo "$PREFIX BLOCKED_ENV: ci-local.sh was blocked by local network/dependency infrastructure for ${branch} @ ${head_sha} (exit ${rc})" >&2
+  echo "$PREFIX This remains a hard delivery block. Use the RETRY_WITH_ESCALATION payload below, or remediate VPN/proxy/registry access and rerun." >&2
+else
+  echo "$PREFIX BLOCKED: ci-local.sh FAILED for ${branch} @ ${head_sha} (exit ${rc})" >&2
+fi
 echo "" >&2
 tail -60 "$ci_log" >&2
 echo "" >&2

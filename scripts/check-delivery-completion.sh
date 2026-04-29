@@ -147,6 +147,8 @@ echo "$PREFIX checking completion gates for ${REPO_ROOT}" >&2
 
 # Layer A: repo-level Local CI Mirror. Existing script must be treated as
 # authoritative regardless of git tracking state (tracked/untracked/generated).
+# BLOCKED_ENV from Layer A is intentionally still blocking; gate-ci-local owns
+# the environment remediation / RETRY_WITH_ESCALATION message.
 bash "${SCRIPT_DIR}/gates/gate-ci-local.sh" --repo "$REPO_ROOT"
 
 # Layer B: ticket-bound verify evidence for Developer flows.
