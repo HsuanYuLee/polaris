@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.59] - 2026-04-30
+
+### Added — commit message language gate
+
+- 新增 `gate-commit-language.sh`，在 git commit 前檢查 commit subject/body 的
+  自然語言內容。
+- 串接到 `codex-guarded-git-commit.sh` 與 `codex-guarded-bash.sh`，讓 `git commit -m`
+  與 `git commit -F` 的可攔截 path 都會先跑語言 gate。
+- 補上 PR author language、PR description fallback、workspace language fallback、
+  conventional commit structural token 排除的 self-test。
+
 ## [3.73.58] - 2026-04-30
 
 ### Added — GitHub PR language gate

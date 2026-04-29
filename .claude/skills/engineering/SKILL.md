@@ -243,6 +243,11 @@ bash "${POLARIS_ROOT}/scripts/validate-language-policy.sh" \
 先以該規則決定 `--language` / `--mode`，再執行同一支 script。不得因為內容是 PR body
 或 handoff text 就跳過 language gate。
 
+Commit message 的自然語言 subject/body 也必須過 gate：既有 PR branch 依 PR author
+主要語言；若 PR author 語言無法判定，fallback PR description 主要語言；尚未開 PR 的
+first-cut commit fallback root workspace language。Conventional commit type/scope、ticket key、
+file path、API name 等 structural tokens 不納入自然語言判定。
+
 Developer lane 完成前必跑：
 
 ```bash

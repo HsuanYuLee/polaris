@@ -22,11 +22,21 @@ if [[ "${1:-}" == "--dry-run" ]]; then
 fi
 
 if [[ $# -eq 0 ]]; then
-  set -- -m "wip: gated commit dry-run placeholder"
+  set -- -m "chore: 測試 gated commit"
 fi
 
-commit_cmd="git commit $*"
+# Commit message language checks are delegated to gate-commit-language.sh,
+# which wraps validate-language-policy.sh-compatible workspace language policy.
+commit_cmd="$(
+  python3 - "$@" <<'PY'
+import shlex
+import sys
 
+print(" ".join(shlex.quote(part) for part in ["git", "commit", *sys.argv[1:]]))
+PY
+)"
+
+"$ROOT_DIR/scripts/gates/gate-commit-language.sh" --repo "${GATE_PROJECT_DIR:-$(pwd)}" --command "$commit_cmd"
 "$ADAPTER" "$ROOT_DIR/.claude/hooks/ci-local-gate.sh" "$commit_cmd"
 "$ADAPTER" "$ROOT_DIR/.claude/hooks/version-docs-lint-gate.sh" "$commit_cmd"
 
