@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.45] - 2026-04-29
+
+### Added — local extension release completion
+
+- Added `extension_deliverable` lifecycle metadata for local delivery
+  extensions so DP-backed framework tasks can record real release evidence
+  without fake PR URLs.
+- Added local extension completion helpers that validate release metadata,
+  task-head freshness, and Layer A/B evidence before task lifecycle closeout.
+- Updated engineering and delivery references so portable workflows expose only
+  the generic `local_extension` boundary while maintainer release details stay
+  in local policy.
+
 ## [3.73.44] - 2026-04-29
 
 ### Added — refinement return inbox contract

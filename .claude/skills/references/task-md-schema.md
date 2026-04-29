@@ -58,6 +58,19 @@ deliverable:                # Lifecycle-conditional（DP-032 D2）；engineering
   pr_url: https://github.com/.../pull/2202
   pr_state: OPEN            # OPEN | MERGED | CLOSED
   head_sha: abc1234
+extension_deliverable:      # Lifecycle-conditional（DP-048）；local_extension completion 寫入
+  endpoint: local_extension
+  extension_id: example-extension
+  task_head_sha: abc1234
+  workspace_commit: def5678
+  template_commit: fedcba9
+  version_tag: v3.73.45
+  release_url: https://github.com/org/repo/releases/tag/v3.73.45
+  completed_at: 2026-04-29T00:00:00Z
+  evidence:
+    ci_local: /tmp/polaris-ci-local-task-DP-048-T1-abc1234.json
+    verify: /tmp/polaris-verified-DP-048-T1-abc1234.json
+    vr: N/A
 jira_transition_log:        # Lifecycle-conditional（DP-033 D7）；engineering / verify-AC append
   - time: 2026-04-26T10:30:00Z   # ISO 8601；建議但不強制
     # 其他欄位 freeform — 各公司 / 各 transition flow 自訂
@@ -71,6 +84,7 @@ jira_transition_log:        # Lifecycle-conditional（DP-033 D7）；engineering
 | `status` | breakdown 寫初值（可省略）；engineering Step 8a 標 `IMPLEMENTED`；verify-AC 全 PASS 標 `IMPLEMENTED`（Epic level）| Optional（值若存在須為 enum） |
 | `depends_on` | breakdown Step 14 |  Optional；存在則須為 array、長度 ≤ 1、所有 entry 須對應同 `tasks/` 下既有 task.md（含 `pr-release/` fallback，見 § 5.2） |
 | `deliverable` | engineering Step 7c (`gh pr create` 成功後) | Lifecycle-conditional — breakdown 階段不存在；engineering 寫入後須結構正確（schema + writer contract 見下） |
+| `extension_deliverable` | local_extension completion helper（DP-048） | Lifecycle-conditional — 只用於不建立 PR 的 local delivery extension；不得與 fake `deliverable.pr_url` 混用 |
 | `jira_transition_log` | engineering / verify-AC 每次跑 JIRA transition 後 append（成功 / 失敗皆記） | Lifecycle-conditional — 同上 |
 
 > Filename 為唯一 type 訊號（DP-033 D2 修正版）— frontmatter **不再有 `type` 欄位**。所有 schema dispatch 都依 filename pattern（T*.md / V*.md），請勿在 frontmatter 加 `type` 欄位。
@@ -116,6 +130,37 @@ Writer：engineering / verify-AC 在做 JIRA transition 時 append entry — 成
 - 不可有「validator 太嚴」擋住 engineering 自己的合法寫入（schema 寬度 ⊇ writer 輸出）
 
 **Rationale**：silent fallback（log 到 /tmp、繼續執行）= task.md 與真實狀態不一致 → 下次 engineering 重跑時誤判為 first-cut → 重複建 PR。Inconsistent state 必須立刻被人類看到並處理。
+
+#### `extension_deliverable` schema + writer contract（DP-048，local_extension）
+
+用於 DP-backed framework task 走 local maintainer release endpoint 時，記錄真實 release deliverable，而不是把假 PR URL 塞進 `deliverable.pr_url`。
+
+```yaml
+extension_deliverable:
+  endpoint: local_extension
+  extension_id: example-extension
+  task_head_sha: abc1234          # engineering gates 驗證過的 task HEAD
+  workspace_commit: def5678       # workspace release commit
+  template_commit: fedcba9        # extension-owned release commit
+  version_tag: v3.73.45           # 若 local policy 無 tag，可寫 N/A
+  release_url: https://github.com/org/repo/releases/tag/v3.73.45
+  completed_at: 2026-04-29T00:00:00Z
+  evidence:
+    ci_local: /tmp/polaris-ci-local-...
+    verify: /tmp/polaris-verified-DP-NNN-Tn-...
+    vr: N/A
+```
+
+Writer：`scripts/write-extension-deliverable.sh`。
+
+Completion gate：`scripts/check-local-extension-completion.sh`，檢查：
+
+- `extension_deliverable.endpoint == local_extension`，`extension_id` 符合呼叫端指定值
+- `task_head_sha`、`workspace_commit`、`template_commit` 格式正確；`workspace_commit` 必須包含 `task_head_sha`
+- Layer A `ci_local` evidence 與 Layer B `verify` evidence 均存在、PASS、且 `head_sha` 對應 `task_head_sha`
+- `workspace_commit` 對應目前 workspace HEAD；若提供 template repo，`template_commit` 對應 template HEAD，`version_tag` 存在
+
+`extension_deliverable` 只能由 helper 寫入。local_extension lane 若 helper 尚未成功，不得標 `status: IMPLEMENTED`。
 
 ### 2.2 標題行
 
@@ -305,6 +350,7 @@ curl -sf http://localhost:3100/api/activities -o /dev/null -w "%{http_code}" | p
 | frontmatter `deliverable.pr_url` | engineering Step 7（atomic + retry-3 + fail-stop，見 § 2.1） | `gh pr create` 成功 | URL regex `^https://github\.com/.+/pull/\d+$` |
 | frontmatter `deliverable.pr_state` | engineering Step 7 / 啟動時 refresh | `gh pr view --json state` | enum: `OPEN` / `MERGED` / `CLOSED` |
 | frontmatter `deliverable.head_sha` | engineering 每次 push 後 | `git push` 成功 | 7+ char hex |
+| frontmatter `extension_deliverable.*` | local_extension completion helper（DP-048） | release metadata 寫回 | `endpoint=local_extension`、SHA/tag/URL/evidence schema；由 `check-local-extension-completion.sh` 做 freshness gate |
 | frontmatter `jira_transition_log[]` | engineering / verify-AC 跑 JIRA transition 後 | append-only | list-of-maps；`time` 建議（不強制）；其他欄位 freeform（見 § 2.1 寬鬆 schema） |
 
 ### 3.7 Optional sections
@@ -794,7 +840,7 @@ echo "verify-AC dispatches AC-1 .. AC-4."
 | `## 改動範圍` / `## 估點理由` / `## 目標` 非空 + Operational Context 含 JIRA key | Implementation single-file (DP-025) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
 | `Depends on` (cell) 非空 ⇒ `Base branch` `task/...` | Implementation single-file (DP-028 cross-field, T mode only) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
 | `## Allowed Files` 章節存在 + 非空 | Implementation single-file (DP-033 D5 升 Hard，無 grace) | `scripts/validate-task-md.sh`（Phase A A2 升級） | 1 / 2 | — |
-| Lifecycle-conditional 結構（`deliverable` / `jira_transition_log`） | Implementation single-file (DP-032 D2/D3 + DP-033 D5/D7) | `scripts/validate-task-md.sh`（Phase A A2 加入；只在欄位存在時檢查；`deliverable` 必驗 schema、`jira_transition_log` 寬鬆 list-of-maps） | 1 / 2 | — |
+| Lifecycle-conditional 結構（`deliverable` / `extension_deliverable` / `jira_transition_log`） | Implementation single-file (DP-032 D2/D3 + DP-033 D5/D7 + DP-048) | `scripts/validate-task-md.sh`（只在欄位存在時檢查；`deliverable` / `extension_deliverable` 必驗 schema、`jira_transition_log` 寬鬆 list-of-maps） | 1 / 2 | — |
 
 **V mode rules（filename `V*.md`，§ 4 Verification Schema）**：
 

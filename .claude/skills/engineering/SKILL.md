@@ -141,7 +141,7 @@ Local extension lane 的完成權限來自兩段 AND：
 1. engineering evidence gates：Layer A `ci-local` + Layer B `run-verify-command` + Layer C VR（if triggered）都對應 `task_head_sha`
 2. local extension final verification：由 local policy 定義，且必須產生可回溯 completion evidence
 
-在 extension-specific deliverable helper 尚未落地前，不得把 fake PR URL 寫進 `deliverable.pr_url`。若 task lifecycle 需要標 `IMPLEMENTED`，必須在 extension 成功後以 extension metadata 補上可回溯紀錄；補不上就回報「delivery complete, task lifecycle metadata pending」，不要宣稱 task lifecycle fully closed。
+Extension 成功後必須用 `scripts/write-extension-deliverable.sh` 寫回 `extension_deliverable` metadata，記錄 `task_head_sha`、workspace commit、template commit、version tag、release URL（若有）與 Layer A/B/C evidence path。不得把 fake PR URL 寫進 `deliverable.pr_url`。task lifecycle 只有在 `scripts/check-local-extension-completion.sh` PASS 後才能標 `IMPLEMENTED`。
 
 ### 0d. Duplicate Work Guard
 
@@ -229,11 +229,26 @@ bash "${POLARIS_ROOT}/scripts/finalize-engineering-delivery.sh" \
   --workspace "{workspace_root}"
 ```
 
-Local Extension lane 在 extension-specific completion helper 尚未落地前，不得用 Developer completion gate 假裝完成（它會期待 PR deliverable）。改為在 handoff 前分別跑 Layer A / Layer B gate，extension 後以 local policy 定義的 final verification 作為 completion evidence：
+Local Extension lane 不得用 Developer completion gate 假裝完成（它會期待 PR deliverable）。在 handoff 前先跑 Layer A / Layer B gate，extension 後用 local policy 產出的 release metadata 寫回 `extension_deliverable`，再跑 local extension completion gate：
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/gates/gate-ci-local.sh" --repo "$(git rev-parse --show-toplevel)"
 bash "${POLARIS_ROOT}/scripts/gates/gate-evidence.sh" --repo "$(git rev-parse --show-toplevel)" --ticket "{dp_task_key}"
+bash "${POLARIS_ROOT}/scripts/write-extension-deliverable.sh" "<path/to/task.md>" \
+  --extension-id "<local extension id>" \
+  --task-head-sha "<validated task head sha>" \
+  --workspace-commit "<workspace release commit>" \
+  --template-commit "<template release commit>" \
+  --version-tag "<version tag or N/A>" \
+  --release-url "<release URL or N/A>" \
+  --ci-local-evidence "<Layer A evidence path>" \
+  --verify-evidence "<Layer B evidence path>" \
+  --vr-evidence "<Layer C evidence path or N/A>"
+bash "${POLARIS_ROOT}/scripts/check-local-extension-completion.sh" \
+  --repo "$(git rev-parse --show-toplevel)" \
+  --task-md "<path/to/task.md>" \
+  --task-id "{dp_task_key}" \
+  --extension-id "<local extension id>"
 ```
 
 若本次施工使用 implementation worktree，Developer lane 在 Completion Gate PASS 後、Local Extension lane 在 extension final verification 後，必跑 cleanup helper；不得手動 `rm -rf`：

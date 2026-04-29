@@ -85,7 +85,7 @@
 | Step 7 PR Create（含 7a Evidence AND Gate） | ✅ | ⏭️ 改走 local extension handoff | ✅ |
 | Step 8 JIRA Transition → CODE REVIEW | ✅ | ⏭️ 跳過（無 JIRA ticket） | ⏭️ 跳過（無 JIRA ticket） |
 | Step 8a Mark IMPLEMENTED | ✅ | ✅ 但只在 extension final verification 成功後 | ⏭️ 跳過 |
-| **Step 8.5 Completion Gate（`check-delivery-completion.sh`）** | ✅ | ⚠️ extension-specific helper 待補；暫時手動跑 Layer A+B gates + local extension final verification | ✅（`--admin`） |
+| **Step 8.5 Completion Gate（`check-delivery-completion.sh` / `check-local-extension-completion.sh`）** | ✅ | ✅ `extension_deliverable` metadata + Layer A/B freshness gate | ✅（`--admin`） |
 | Evidence file 鍵 | `/tmp/polaris-verified-{TICKET}-{head_sha}.json` | `/tmp/polaris-verified-{TASK_ID}-{head_sha}.json` | `/tmp/polaris-verified-{branch-slug}-{head_sha}.json` |
 
 **Role 由呼叫端傳入**，reference 不做角色偵測。呼叫端在 dispatch prompt 或 context 說明「你是 Developer / Local Extension / Admin」。Local Extension 的具體 endpoint、repo、release/push 權限、final verification 全部由 workspace-local policy 定義，不進 portable reference。
@@ -471,9 +471,9 @@ The local extension owns all delivery side effects after handoff. Portable engin
 2. integration rules（how the validated task head is consumed）
 3. final verification evidence
 4. failure / rollback reporting
-5. lifecycle metadata writer, if task.md should be marked implemented
+5. lifecycle metadata writer (`write-extension-deliverable.sh`) before task.md is marked implemented
 
-Local Extension role must not write fake `deliverable.pr_url`. Until extension-specific deliverable helper lands, report extension metadata explicitly and mark task lifecycle as pending if it cannot be recorded safely.
+Local Extension role must not write fake `deliverable.pr_url`. The extension must write `extension_deliverable` metadata with `scripts/write-extension-deliverable.sh`, then pass `scripts/check-local-extension-completion.sh` before task lifecycle closeout.
 
 ### 7a. Evidence AND Gate（pre-PR / pre-release verification）
 
@@ -655,16 +655,31 @@ Admin mode（無 ticket）：
 bash "${POLARIS_ROOT}/scripts/check-delivery-completion.sh" --repo "$(git rev-parse --show-toplevel)" --admin
 ```
 
-Local Extension mode 暫行（extension-specific completion helper 尚未落地）：
+Local Extension mode：
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/gates/gate-ci-local.sh" --repo "$(git rev-parse --show-toplevel)"
 bash "${POLARIS_ROOT}/scripts/gates/gate-evidence.sh" --repo "$(git rev-parse --show-toplevel)" --ticket "<DP_TASK_ID>"
+bash "${POLARIS_ROOT}/scripts/write-extension-deliverable.sh" "<path/to/task.md>" \
+  --extension-id "<local extension id>" \
+  --task-head-sha "<validated task head sha>" \
+  --workspace-commit "<workspace release commit>" \
+  --template-commit "<template release commit>" \
+  --version-tag "<version tag or N/A>" \
+  --release-url "<release URL or N/A>" \
+  --ci-local-evidence "<Layer A evidence path>" \
+  --verify-evidence "<Layer B evidence path>" \
+  --vr-evidence "<Layer C evidence path or N/A>"
+bash "${POLARIS_ROOT}/scripts/check-local-extension-completion.sh" \
+  --repo "$(git rev-parse --show-toplevel)" \
+  --task-md "<path/to/task.md>" \
+  --task-id "<DP_TASK_ID>" \
+  --extension-id "<local extension id>"
 ```
 
-再以 local policy 定義的 final verification 作為 completion evidence。不得呼叫 Developer completion gate 後忽略其 PR deliverable failure。
+不得呼叫 Developer completion gate 後忽略其 PR deliverable failure。Local Extension completion gate 的 authority 是 `extension_deliverable` metadata、Layer A/B evidence 對應 `task_head_sha`、以及 local policy release commit freshness。
 
-### Script contract（Developer / Admin；Local Extension helper 待補）
+### Script contract（Developer / Admin / Local Extension）
 
 - Layer A：呼叫 `scripts/gates/gate-ci-local.sh --repo <path>`
   - repo root 無 `.claude/scripts/ci-local.sh` → skip
@@ -674,7 +689,7 @@ bash "${POLARIS_ROOT}/scripts/gates/gate-evidence.sh" --repo "$(git rev-parse --
 - exit 0 = 可以回報完成
 - exit 2 = **HALT**，不得回報「完成 / 可交付 / 已驗完」
 
-Completion gate 不查詢或等待遠端 repo CI。只要本地 LLM gates 與 mechanical evidence gates 已通過，queued / pending / running 的遠端 CI 不阻擋完成回報。Developer lane 的 user-facing complete 還必須通過 Step 8a finalize helper，確保 task lifecycle 也已 move-first closeout。Local Extension lane 另需 local policy final verification，不能只靠本地 evidence gates 回報完成。
+Completion gate 不查詢或等待遠端 repo CI。只要本地 LLM gates 與 mechanical evidence gates 已通過，queued / pending / running 的遠端 CI 不阻擋完成回報。Developer lane 的 user-facing complete 還必須通過 Step 8a finalize helper，確保 task lifecycle 也已 move-first closeout。Local Extension lane 另需 `check-local-extension-completion.sh` PASS，不能只靠本地 evidence gates 回報完成。
 
 ### Why this exists
 

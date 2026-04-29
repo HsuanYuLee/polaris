@@ -24,6 +24,13 @@
 #
 # Field keys for --field (flat alias of nested JSON paths):
 #   status, task_id, summary, story_points,
+#   deliverable_pr_url, deliverable_pr_state, deliverable_head_sha,
+#   extension_deliverable_endpoint, extension_deliverable_extension_id,
+#   extension_deliverable_task_head_sha, extension_deliverable_workspace_commit,
+#   extension_deliverable_template_commit, extension_deliverable_version_tag,
+#   extension_deliverable_release_url, extension_deliverable_completed_at,
+#   extension_deliverable_evidence_ci_local, extension_deliverable_evidence_verify,
+#   extension_deliverable_evidence_vr,
 #   epic, jira, repo,
 #   task_jira_key, parent_epic, test_sub_tasks, ac_verification_ticket,
 #   base_branch, branch_chain, task_branch, depends_on, references_to_load,
@@ -61,6 +68,17 @@ Key-based lookup (DP-033 D8): resolves active tasks/{key}.md first,
   then fallback to tasks/pr-release/{key}.md. Exit 2 if both missing.
 
 Field keys: status, task_id, summary, story_points, epic, jira, repo,
+            deliverable_pr_url, deliverable_pr_state, deliverable_head_sha,
+            extension_deliverable_endpoint, extension_deliverable_extension_id,
+            extension_deliverable_task_head_sha,
+            extension_deliverable_workspace_commit,
+            extension_deliverable_template_commit,
+            extension_deliverable_version_tag,
+            extension_deliverable_release_url,
+            extension_deliverable_completed_at,
+            extension_deliverable_evidence_ci_local,
+            extension_deliverable_evidence_verify,
+            extension_deliverable_evidence_vr,
             task_jira_key, parent_epic, test_sub_tasks, ac_verification_ticket,
             base_branch, branch_chain, task_branch, depends_on, references_to_load,
             level, dev_env_config, fixtures, runtime_verify_target,
@@ -93,6 +111,88 @@ except OSError as e:
 lines = text.splitlines()
 
 # ---- frontmatter -----------------------------------------------------------
+def parse_scalar(value):
+    value = value.strip()
+    if value == "":
+        return None
+    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+        return value[1:-1]
+    if value == "[]":
+        return []
+    if value.startswith("[") and value.endswith("]"):
+        body = value[1:-1].strip()
+        if not body:
+            return []
+        return [parse_scalar(part.strip()) for part in body.split(",")]
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    return value
+
+def parse_frontmatter_lines(fm_lines):
+    """Parse the YAML subset used by task.md lifecycle metadata.
+
+    This intentionally avoids a PyYAML dependency. It supports top-level
+    scalars, bracket lists, 2-space nested maps, and one 4-space nested map
+    level (for extension_deliverable.evidence).
+    """
+    out = {}
+    i = 0
+    while i < len(fm_lines):
+        raw = fm_lines[i]
+        if not raw.strip() or raw.lstrip().startswith("#") or raw[0].isspace() or ":" not in raw:
+            i += 1
+            continue
+        key, _, value = raw.partition(":")
+        key = key.strip()
+        value = value.strip()
+        if value:
+            out[key] = parse_scalar(value)
+            i += 1
+            continue
+
+        mapping = {}
+        i += 1
+        while i < len(fm_lines):
+            child_raw = fm_lines[i]
+            if not child_raw.strip():
+                i += 1
+                continue
+            child_indent = len(child_raw) - len(child_raw.lstrip(" "))
+            if child_indent == 0:
+                break
+            child_stripped = child_raw.strip()
+            if child_indent != 2 or ":" not in child_stripped:
+                i += 1
+                continue
+            child_key, _, child_value = child_stripped.partition(":")
+            child_key = child_key.strip()
+            child_value = child_value.strip()
+            if child_value:
+                mapping[child_key] = parse_scalar(child_value)
+                i += 1
+                continue
+
+            nested = {}
+            i += 1
+            while i < len(fm_lines):
+                nested_raw = fm_lines[i]
+                if not nested_raw.strip():
+                    i += 1
+                    continue
+                nested_indent = len(nested_raw) - len(nested_raw.lstrip(" "))
+                if nested_indent <= 2:
+                    break
+                nested_stripped = nested_raw.strip()
+                if nested_indent == 4 and ":" in nested_stripped:
+                    nested_key, _, nested_value = nested_stripped.partition(":")
+                    nested[nested_key.strip()] = parse_scalar(nested_value.strip())
+                i += 1
+            mapping[child_key] = nested
+        out[key] = mapping
+    return out
+
 frontmatter = {}
 body_start = 0
 if lines and lines[0].strip() == "---":
@@ -102,10 +202,7 @@ if lines and lines[0].strip() == "---":
             end = i
             break
     if end is not None:
-        for raw in lines[1:end]:
-            if ":" in raw:
-                k, _, v = raw.partition(":")
-                frontmatter[k.strip()] = v.strip()
+        frontmatter = parse_frontmatter_lines(lines[1:end])
         body_start = end + 1
 
 body_lines = lines[body_start:]
@@ -269,9 +366,7 @@ for ln in section_lines("## Allowed Files"):
 
 out = {
     "task_md_path": path,
-    "frontmatter": {
-        "status": frontmatter.get("status") or None,
-    },
+    "frontmatter": frontmatter,
     "header": header,
     "metadata": metadata,
     "operational_context": operational_context,
@@ -307,6 +402,20 @@ except json.JSONDecodeError as e:
 
 aliases = {
     "status":                  ["frontmatter", "status"],
+    "deliverable_pr_url":      ["frontmatter", "deliverable", "pr_url"],
+    "deliverable_pr_state":    ["frontmatter", "deliverable", "pr_state"],
+    "deliverable_head_sha":    ["frontmatter", "deliverable", "head_sha"],
+    "extension_deliverable_endpoint":          ["frontmatter", "extension_deliverable", "endpoint"],
+    "extension_deliverable_extension_id":      ["frontmatter", "extension_deliverable", "extension_id"],
+    "extension_deliverable_task_head_sha":     ["frontmatter", "extension_deliverable", "task_head_sha"],
+    "extension_deliverable_workspace_commit":  ["frontmatter", "extension_deliverable", "workspace_commit"],
+    "extension_deliverable_template_commit":   ["frontmatter", "extension_deliverable", "template_commit"],
+    "extension_deliverable_version_tag":       ["frontmatter", "extension_deliverable", "version_tag"],
+    "extension_deliverable_release_url":       ["frontmatter", "extension_deliverable", "release_url"],
+    "extension_deliverable_completed_at":      ["frontmatter", "extension_deliverable", "completed_at"],
+    "extension_deliverable_evidence_ci_local": ["frontmatter", "extension_deliverable", "evidence", "ci_local"],
+    "extension_deliverable_evidence_verify":   ["frontmatter", "extension_deliverable", "evidence", "verify"],
+    "extension_deliverable_evidence_vr":       ["frontmatter", "extension_deliverable", "evidence", "vr"],
     "task_id":                 ["header", "task_id"],
     "summary":                 ["header", "summary"],
     "story_points":            ["header", "story_points"],
@@ -379,6 +488,23 @@ if [[ "${PARSE_TASK_MD_SELFTEST:-0}" == "1" ]]; then
   cat > "$fixture" <<'MD'
 ---
 status: IMPLEMENTED
+deliverable:
+  pr_url: https://github.com/kkday-it/example/pull/123
+  pr_state: OPEN
+  head_sha: abc1234
+extension_deliverable:
+  endpoint: local_extension
+  extension_id: example-extension
+  task_head_sha: abc1234
+  workspace_commit: def5678
+  template_commit: fedcba9
+  version_tag: v1.2.3
+  release_url: https://github.com/example/template/releases/tag/v1.2.3
+  completed_at: 2026-04-29T00:00:00Z
+  evidence:
+    ci_local: /tmp/polaris-ci-local.json
+    verify: /tmp/polaris-verified.json
+    vr: N/A
 ---
 
 # T3b: products pages moment→dayjs 替換 (5 pt)
@@ -538,6 +664,20 @@ MD
 
   # ---- Fixture 1 (T3b) basic field extraction ------------------------------
   expect_field "$fixture" status                 "IMPLEMENTED"           "F1.status"
+  expect_field "$fixture" deliverable_pr_url     "https://github.com/kkday-it/example/pull/123" "F1.deliverable_pr_url"
+  expect_field "$fixture" deliverable_pr_state   "OPEN"                  "F1.deliverable_pr_state"
+  expect_field "$fixture" deliverable_head_sha   "abc1234"               "F1.deliverable_head_sha"
+  expect_field "$fixture" extension_deliverable_endpoint "local_extension" "F1.extension_endpoint"
+  expect_field "$fixture" extension_deliverable_extension_id "example-extension" "F1.extension_id"
+  expect_field "$fixture" extension_deliverable_task_head_sha "abc1234"  "F1.extension_task_head"
+  expect_field "$fixture" extension_deliverable_workspace_commit "def5678" "F1.extension_workspace_commit"
+  expect_field "$fixture" extension_deliverable_template_commit "fedcba9" "F1.extension_template_commit"
+  expect_field "$fixture" extension_deliverable_version_tag "v1.2.3"     "F1.extension_version_tag"
+  expect_field "$fixture" extension_deliverable_release_url "https://github.com/example/template/releases/tag/v1.2.3" "F1.extension_release_url"
+  expect_field "$fixture" extension_deliverable_completed_at "2026-04-29T00:00:00Z" "F1.extension_completed_at"
+  expect_field "$fixture" extension_deliverable_evidence_ci_local "/tmp/polaris-ci-local.json" "F1.extension_evidence_ci"
+  expect_field "$fixture" extension_deliverable_evidence_verify "/tmp/polaris-verified.json" "F1.extension_evidence_verify"
+  expect_field "$fixture" extension_deliverable_evidence_vr "N/A"        "F1.extension_evidence_vr"
   expect_field "$fixture" task_id                "T3b"                   "F1.task_id"
   expect_field "$fixture" summary                "products pages moment→dayjs 替換" "F1.summary"
   expect_field "$fixture" story_points           "5"                     "F1.story_points"

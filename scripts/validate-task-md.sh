@@ -23,7 +23,7 @@
 #   T-only:   ## 改動範圍 / ## Allowed Files / ## Test Command / ## Verify Command /
 #             Operational Context Test sub-tasks/AC 驗收單/Task branch cells /
 #             DP-028 Depends on ⇒ task/ Base branch cross-field /
-#             deliverable lifecycle
+#             deliverable / extension_deliverable lifecycle
 #   V-only:   ## 驗收項目 / ## 驗收步驟 / Operational Context Implementation tasks cell /
 #             ac_verification + ac_verification_log lifecycle (§ 4.7 對稱 D7)
 #
@@ -33,6 +33,7 @@
 #   DP-028 — cross-field rule: Depends on (non-empty) ⇒ Base branch must be task/...
 #   DP-032 — lifecycle write-back: deliverable / jira_transition_log
 #   DP-033 — Phase A enforcer (D5/D6/D7 T mode); Phase B V mode dual-path + ac_verification
+#   DP-048 — local_extension release metadata lifecycle
 
 set -euo pipefail
 
@@ -668,6 +669,101 @@ print((urlparse(u).hostname or '').lower())
       errors+=("deliverable.head_sha is missing or empty (required when deliverable block is present)")
     elif ! printf '%s' "$head_sha" | grep -qE '^[0-9a-fA-F]{7,}$'; then
       errors+=("deliverable.head_sha must be a hex string of ≥ 7 characters (got: '$head_sha')")
+    fi
+  fi
+
+  # ---------------------------------------------------------------------------
+  # LIFECYCLE-CONDITIONAL (T mode only): extension_deliverable schema (DP-048)
+  # Used by local_extension delivery endpoints that do not create a PR. It is
+  # mutually compatible with absent deliverable; validator only checks structure
+  # WHEN the block is present.
+  # ---------------------------------------------------------------------------
+  if [[ "$mode" == "T" ]] && frontmatter_key_exists "$FILE" "extension_deliverable" 2>/dev/null; then
+    local fm_block_ext
+    fm_block_ext=$(extract_frontmatter_block "$FILE")
+
+    extract_ext_field() {
+      printf '%s\n' "$fm_block_ext" | awk -v key="$1" '
+        /^extension_deliverable:/ { in_block=1; in_evidence=0; next }
+        in_block && /^[^[:space:]#]/ { exit }
+        in_block && /^[[:space:]]+evidence:/ { in_evidence=1; next }
+        in_block && /^[[:space:]]+[A-Za-z0-9_.-]+:/ { in_evidence=0 }
+        in_block && !in_evidence && match($0, "^[[:space:]]+" key ":[[:space:]]") {
+          val = $0; sub(/^[^:]*:[[:space:]]*/, "", val); sub(/[[:space:]]+$/, "", val)
+          print val; exit
+        }
+      '
+    }
+
+    extract_ext_evidence_field() {
+      printf '%s\n' "$fm_block_ext" | awk -v key="$1" '
+        /^extension_deliverable:/ { in_block=1; next }
+        in_block && /^[^[:space:]#]/ { exit }
+        in_block && /^[[:space:]]+evidence:/ { in_evidence=1; next }
+        in_evidence && /^[[:space:]]{4}/ && match($0, "^[[:space:]]+" key ":[[:space:]]") {
+          val = $0; sub(/^[^:]*:[[:space:]]*/, "", val); sub(/[[:space:]]+$/, "", val)
+          print val; exit
+        }
+        in_evidence && /^[[:space:]]{2}[A-Za-z0-9_.-]+:/ { exit }
+      '
+    }
+
+    local ext_endpoint ext_extension_id ext_task_head ext_workspace_commit ext_template_commit ext_version_tag ext_release_url ext_completed_at
+    local ext_ci_evidence ext_verify_evidence ext_vr_evidence
+    ext_endpoint=$(extract_ext_field "endpoint")
+    ext_extension_id=$(extract_ext_field "extension_id")
+    ext_task_head=$(extract_ext_field "task_head_sha")
+    ext_workspace_commit=$(extract_ext_field "workspace_commit")
+    ext_template_commit=$(extract_ext_field "template_commit")
+    ext_version_tag=$(extract_ext_field "version_tag")
+    ext_release_url=$(extract_ext_field "release_url")
+    ext_completed_at=$(extract_ext_field "completed_at")
+    ext_ci_evidence=$(extract_ext_evidence_field "ci_local")
+    ext_verify_evidence=$(extract_ext_evidence_field "verify")
+    ext_vr_evidence=$(extract_ext_evidence_field "vr")
+
+    if [[ "$ext_endpoint" != "local_extension" ]]; then
+      errors+=("extension_deliverable.endpoint must be local_extension (got: '${ext_endpoint:-<empty>}')")
+    fi
+    if [[ -z "$ext_extension_id" ]]; then
+      errors+=("extension_deliverable.extension_id is missing or empty")
+    elif ! printf '%s' "$ext_extension_id" | grep -qE '^[A-Za-z0-9._-]+$'; then
+      errors+=("extension_deliverable.extension_id contains unsupported characters (got: '$ext_extension_id')")
+    fi
+    for field in task_head_sha workspace_commit template_commit; do
+      local field_value
+      case "$field" in
+        task_head_sha) field_value="$ext_task_head" ;;
+        workspace_commit) field_value="$ext_workspace_commit" ;;
+        template_commit) field_value="$ext_template_commit" ;;
+      esac
+      if [[ -z "$field_value" ]]; then
+        errors+=("extension_deliverable.$field is missing or empty")
+      elif ! printf '%s' "$field_value" | grep -qE '^[0-9a-fA-F]{7,40}$'; then
+        errors+=("extension_deliverable.$field must be a 7-40 char hex SHA (got: '$field_value')")
+      fi
+    done
+    if [[ -z "$ext_version_tag" ]]; then
+      errors+=("extension_deliverable.version_tag is missing or empty")
+    elif [[ "$ext_version_tag" != "N/A" ]] && ! printf '%s' "$ext_version_tag" | grep -qE '^v[0-9][A-Za-z0-9._-]*$'; then
+      errors+=("extension_deliverable.version_tag must look like v1.2.3 or be N/A (got: '$ext_version_tag')")
+    fi
+    if [[ -n "$ext_release_url" && "$ext_release_url" != "N/A" ]] && ! printf '%s' "$ext_release_url" | grep -qE '^https://github\.com/.+/releases/tag/.+$'; then
+      errors+=("extension_deliverable.release_url must be a GitHub release URL or N/A (got: '$ext_release_url')")
+    fi
+    if [[ -z "$ext_completed_at" ]]; then
+      errors+=("extension_deliverable.completed_at is missing or empty")
+    elif ! printf '%s' "$ext_completed_at" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})?$'; then
+      errors+=("extension_deliverable.completed_at must be ISO 8601 timestamp (got: '$ext_completed_at')")
+    fi
+    if [[ -z "$ext_ci_evidence" || "$ext_ci_evidence" == "N/A" ]]; then
+      errors+=("extension_deliverable.evidence.ci_local is missing or N/A")
+    fi
+    if [[ -z "$ext_verify_evidence" || "$ext_verify_evidence" == "N/A" ]]; then
+      errors+=("extension_deliverable.evidence.verify is missing or N/A")
+    fi
+    if [[ -z "$ext_vr_evidence" ]]; then
+      errors+=("extension_deliverable.evidence.vr is missing (use N/A when VR did not run)")
     fi
   fi
 

@@ -16,47 +16,6 @@ REPO_ROOT=""
 TICKET=""
 MODE="auto"
 
-extract_frontmatter_nested_scalar() {
-  local file="$1"
-  local parent="$2"
-  local child="$3"
-
-  python3 - "$file" "$parent" "$child" <<'PY'
-import sys
-
-path, parent, child = sys.argv[1:4]
-try:
-    text = open(path, "r", encoding="utf-8").read()
-except OSError:
-    sys.exit(0)
-
-if not (text.startswith("---\n") and "\n---\n" in text[4:]):
-    sys.exit(0)
-
-fm_end = text.find("\n---\n", 4)
-if fm_end == -1:
-    sys.exit(0)
-
-frontmatter = text[4:fm_end].splitlines()
-in_parent = False
-for raw in frontmatter:
-    if raw.startswith(parent + ":"):
-        in_parent = True
-        continue
-    if not in_parent:
-        continue
-    if raw and raw[0] not in (" ", "\t"):
-        break
-    stripped = raw.strip()
-    if stripped.startswith(child + ":"):
-        _, _, value = stripped.partition(":")
-        print(value.strip())
-        sys.exit(0)
-
-print("")
-PY
-}
-
 find_workspace_root_for_path() {
   local path="$1"
   local probe=""
@@ -217,7 +176,7 @@ if [[ "$MODE" != "admin" ]]; then
     exit 2
   fi
 
-  DELIVERABLE_HEAD_SHA="$(extract_frontmatter_nested_scalar "$TASK_MD_PATH" "deliverable" "head_sha")"
+  DELIVERABLE_HEAD_SHA="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$TASK_MD_PATH" --no-resolve --field deliverable_head_sha)"
   if [[ -z "$DELIVERABLE_HEAD_SHA" ]]; then
     echo "$PREFIX completion freshness check failed: deliverable.head_sha missing in ${TASK_MD_PATH}" >&2
     exit 2
