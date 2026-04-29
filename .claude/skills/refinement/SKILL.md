@@ -28,7 +28,7 @@ metadata:
 |-------------|--------|-----------|------|
 | `jira` | `refinement PROJ-123` | `{company_base_dir}/specs/{TICKET}/` + JIRA issue | 既有 JIRA-backed refinement；定版後寫 JIRA comment / label / description |
 | `dp` | `refinement DP-045` | `{workspace_root}/specs/design-plans/DP-NNN-*/` | 讀既有 DP plan，進入 ticketless refinement；不寫 JIRA |
-| `topic` | `refinement "討論 XXX"`、`想討論 XXX`、`ADR XXX`、`design plan XXX` | 新建 DP folder | 建立 DP container 後進入 ticketless refinement；不寫 JIRA |
+| `topic` | `refinement "討論 XXX"`、`想討論 XXX`、`ADR XXX`、`design plan XXX` | 新建 DP folder | 建立 DP container 後進入 ticketless refinement；同步 docs-viewer sidebar；不寫 JIRA |
 | `artifact_path` | direct `refinement.md` / `refinement.json` path | nearest specs container | 接續 artifact 所屬 source |
 
 **DP locator hard rules**：
@@ -187,6 +187,18 @@ Epic 通常還沒有 story points（估點是 refinement 下游），所以 tier
 | `SEEDED` DP | 讀 `artifacts/research-report.md`（若存在）並轉成候選 Decisions |
 | `LOCKED` / `IMPLEMENTED` DP | fail loud：不得把新討論塞進已定版 / 已完成 DP |
 
+新建 DP folder 或首次建立 `plan.md` 後，必須同步 docs-viewer sidebar，讓 `http://localhost:4000/docs-viewer` 立即出現新 DP：
+
+```bash
+bash scripts/docs-viewer-sync-hook.sh {workspace_root} {workspace_root}/specs/design-plans/DP-NNN-{slug}/plan.md
+```
+
+若 hook entrypoint 無法判斷路徑，直接 fallback：
+
+```bash
+bash scripts/generate-specs-sidebar.sh {workspace_root}
+```
+
 ### T1. Build or update DP plan
 
 `refinement` 擁有下列 DP sections：
@@ -199,6 +211,12 @@ Epic 通常還沒有 story points（估點是 refinement 下游），所以 tier
 - `## Technical Approach` / `## 技術方案`
 
 每輪使用者確認的設計決策都要寫入 DP plan；不能只留在對話記憶。若出現 pivot，依 `spec-source-resolver.md` 的 source container 規則新開 DP 並互相 see-also。
+
+每次新增或更新 DP `plan.md` / `refinement.md` 後，若不是由 Claude Code Write/Edit hook 自動觸發 sidebar sync，需手動呼叫：
+
+```bash
+bash scripts/docs-viewer-sync-hook.sh {workspace_root} {changed_dp_markdown_path}
+```
 
 ### T2. Local-first refinement
 

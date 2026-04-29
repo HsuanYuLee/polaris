@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.38] - 2026-04-29
+
+### Fixed — refinement DP viewer sync
+
+- Updated the `refinement` ticketless DP flow to explicitly sync the
+  docs-viewer sidebar after creating or updating DP markdown, covering
+  non-Claude hook paths where new DPs otherwise would not appear at
+  `http://localhost:4000/docs-viewer`.
+
 ## [3.73.37] - 2026-04-29
 
 ### Added — refinement breakdown handoff gate
