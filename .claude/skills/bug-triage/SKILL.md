@@ -223,6 +223,14 @@ After RD confirmation:
 
 Add a JIRA comment with confirmed root cause (REST API v2 wiki markup):
 
+**Workspace language policy gate（blocking）**：完整規則見 `references/workspace-language-policy.md`。送出 JIRA diagnostic comment 前，先把最終 comment body 寫成 temp markdown，執行：
+
+```bash
+bash scripts/validate-language-policy.sh --blocking --mode artifact <bug-triage-root-cause-comment.md>
+```
+
+exit ≠ 0 → 修正 comment 主敘述語言後重跑；不可把未通過 gate 的 `[ROOT_CAUSE]` / `[IMPACT]` / `[PROPOSED_FIX]` 寫入 JIRA。
+
 ```
 h3. [ROOT_CAUSE]
 {confirmed root cause description}

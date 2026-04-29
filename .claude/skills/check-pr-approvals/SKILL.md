@@ -233,6 +233,14 @@ gh pr edit <number> --repo {config: github.org}/<repo> --add-label ":eyes: need 
 
 使用 Slack MCP tool 發送訊息到指定 channel：
 
+**Workspace language policy gate（blocking）**：完整規則見 `references/workspace-language-policy.md`。Slack reminder 送出前，先把最終 message 寫成 temp markdown，執行：
+
+```bash
+bash scripts/validate-language-policy.sh --blocking --mode artifact <check-pr-approvals-slack.md>
+```
+
+exit ≠ 0 → 修正 reminder 語言後重跑；不可把未通過 gate 的 Slack 訊息送出。
+
 ```
 mcp__claude_ai_Slack__slack_send_message
   channel_id: <channel>

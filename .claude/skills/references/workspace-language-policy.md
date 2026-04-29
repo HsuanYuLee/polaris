@@ -95,3 +95,13 @@ Commit message 不是完全排除，也不是一律跟 workspace language。
 
 若 gate fail，先修輸出語言並重跑；不可把 fail 的內容送到 GitHub、JIRA、Slack、Confluence
 或下游 skill。
+
+## 8. External write rollout status
+
+T5 第一版已接入下列 producer-level gate：
+
+- JIRA comment：`bug-rca`、`bug-triage`、`intake-triage`、`jira-worklog`。
+- Slack message：`standup` 的 Confluence 前本地 artifact、`check-pr-approvals`、`review-inbox`、`intake-triage`、`learning`。
+- Confluence page：`standup`、`sasd-review`、`sprint-planning`。
+
+剩餘風險：MCP runtime 本身仍沒有全域 preflight interception；在 MCP hook 存在前，責任落在 skill producer 必須先產生 temp artifact 並執行本檔定義的 gate。

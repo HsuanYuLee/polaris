@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.61] - 2026-04-30
+
+### Added — external write language gates
+
+- 補上 `bug-rca` 與 `standup` 的 blocking temp artifact language gate，
+  覆蓋 JIRA RCA comment 與 standup / EOD Confluence write path。
+- 更新 bug-triage、sasd-review、intake-triage、review-inbox、check-pr-approvals、
+  jira-worklog、learning、sprint-planning 的 external write 接入點，統一引用
+  `workspace-language-policy.md`。
+- 在共用 language policy reference 記錄 external write rollout status 與 MCP
+  runtime interception 的剩餘風險。
+
 ## [3.73.60] - 2026-04-30
 
 ### Added — shared workspace language policy reference

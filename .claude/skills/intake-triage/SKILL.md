@@ -319,6 +319,14 @@ RD 確認後，對每張 ticket 寫入 JIRA。ticket 數量 > 5 時委派 sub-ag
 
 每張 ticket 加一個 comment，格式：
 
+**Workspace language policy gate（blocking）**：完整規則見 `references/workspace-language-policy.md`。每張 ticket 的 comment 在寫入 JIRA 前，必須先落成 temp markdown 並執行：
+
+```bash
+bash scripts/validate-language-policy.sh --blocking --mode artifact <intake-triage-comment.md>
+```
+
+exit ≠ 0 → 修正 comment 主敘述語言後重跑；不可把未通過 gate 的 intake 分析寫入 JIRA。
+
 ```markdown
 ## 收單分析 — {date}
 
@@ -355,6 +363,14 @@ RD 確認後，對每張 ticket 寫入 JIRA。ticket 數量 > 5 時委派 sub-ag
 ## Step 7：PM 摘要 + 發送
 
 自動產出非技術語言的 Slack 摘要。先呈現給 RD 審閱，RD 確認後發送。
+
+**Workspace language policy gate（blocking）**：Slack 摘要送出前，先把最終 message 寫成 temp markdown，執行：
+
+```bash
+bash scripts/validate-language-policy.sh --blocking --mode artifact <intake-triage-slack-summary.md>
+```
+
+exit ≠ 0 → 修正摘要語言後重跑；不可把未通過 gate 的 Slack summary 發送給 PM / RD。
 
 ### 摘要格式
 

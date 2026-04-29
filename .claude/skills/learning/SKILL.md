@@ -849,6 +849,9 @@ The prompt must:
 - Follow the Slack message format from the spec template
 - NOT commit or push anything to git
 - Include the full search queries (not just "read the spec")
+- Run the workspace language policy gate before Slack send. See
+  `references/workspace-language-policy.md`; write the final digest to temp
+  markdown and run `bash scripts/validate-language-policy.sh --blocking --mode artifact <learning-digest.md>`.
 
 ## Step S4: Create RemoteTrigger
 

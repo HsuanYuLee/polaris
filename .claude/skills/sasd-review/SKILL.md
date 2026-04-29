@@ -188,6 +188,14 @@ Present the SA/SD to the user and ask:
 - Add to JIRA as a comment?
 - Create a Confluence page? (see `references/sasd-confluence.md` for location conventions)
 
+**Workspace language policy gate（blocking）**：完整規則見 `references/workspace-language-policy.md`。若使用者確認要寫入 JIRA 或 Confluence，先把最終 SA/SD 內容落成 temp markdown，執行：
+
+```bash
+bash scripts/validate-language-policy.sh --blocking --mode artifact <sasd-output.md>
+```
+
+exit ≠ 0 → 修正 SA/SD 主敘述語言後重跑；不可把未通過 gate 的 SA/SD comment 或 page 寫入外部系統。
+
 ### Step 7: Scope calibration
 
 - **Small changes (≤ 3 points, single module)**: A full SA/SD is overkill. Produce a brief

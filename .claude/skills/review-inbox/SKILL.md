@@ -327,6 +327,14 @@ Reviewer：{my_username}
 
 對每個 `(thread_ts, author)` 組合，優先用 `slack_send_message` MCP tool；若 MCP 失敗，改用 CLI fallback 回覆到該討論串：
 
+**Workspace language policy gate（blocking）**：完整規則見 `references/workspace-language-policy.md`。每則 thread reply 送出前，先把最終 message 寫成 temp markdown，執行：
+
+```bash
+bash scripts/validate-language-policy.sh --blocking --mode artifact <review-inbox-thread-reply.md>
+```
+
+exit ≠ 0 → 修正 thread reply 語言後重跑；不可把未通過 gate 的 Slack 訊息送出。若同一輪會送多則 reply，每則都要 gate。
+
 ```
 slack_send_message({
   channel_id: "<PR_CHANNEL_ID>",

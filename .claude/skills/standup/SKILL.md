@@ -33,14 +33,14 @@ metadata:
 
 ### 0. Auto-triage guard
 
-Before collecting standup data, ensure a fresh triage exists so TDT can reference prioritized work:
+收集 standup 資料前，先確認今天已有新的 triage state，讓 TDT 可引用已排好的優先序：
 
 1. Read `{company}/.daily-triage.json`
 2. **If exists AND `date` field is today** → skip, proceed to Step 1
-3. **If missing or stale (date is not today)** → read and fully execute `skills/my-triage/SKILL.md` (all steps). This produces the triage dashboard and writes `.daily-triage.json`. Pause for user to review/adjust the triage before continuing
-4. After triage completes (or was already fresh) → proceed to Step 1
+3. **If missing or stale (date is not today)** → 讀取並完整執行 `skills/my-triage/SKILL.md`。它會產生 triage dashboard 並寫入 `.daily-triage.json`；繼續前先讓使用者檢視與調整 triage
+4. triage 完成，或既有 triage 已是今天 → proceed to Step 1
 
-This replaces the old `/end-of-day` skill. The standup skill is now the single entry point — triage runs automatically when needed, no separate orchestrator required.
+這取代舊的 `/end-of-day` skill。`standup` 是 standup / EOD 的單一入口；需要 triage 時自動先跑，不再需要另一個 orchestrator。
 
 ### 1. Determine dates
 
@@ -158,33 +158,33 @@ mcp__claude_ai_Google_Calendar__gcal_list_events
 
 ### 6. Plan vs Actual comparison
 
-Compare today's YDY items against the previous day's TDT (planned tasks) to track planning accuracy. This gives the user visibility into what went as planned, what was unplanned work, and what planned work didn't happen.
+把今天的 YDY 項目與上一個 standup 的 TDT 規劃比對，用來追蹤計畫準確度。這讓使用者看得出哪些工作照計畫完成、哪些是插入工作、哪些原本規劃但沒有發生。
 
-**Prerequisite**: Fetch the current month's Confluence standup page content before this step (use the same search + get flow described in Step 10a/10b). If the page content was not yet fetched, fetch it now and cache the result for reuse in Step 10.
+**前置條件**：本步驟前先取得當月 Confluence standup 頁面內容（使用 Step 10a/10b 描述的 search + get 流程）。若尚未取得，現在取得並暫存，供 Step 10 重用。
 
-**Extract previous day's TDT**:
-1. In the Confluence page content, find the most recent standup entry before today (look for the `## YYYYMMDD` heading closest to but before today's date)
-2. Parse the `TDT – Today's Tasks` section from that entry
-3. Extract each planned item: JIRA ticket key (e.g., `PROJ-123`, `TEAM-45`) and description
+**擷取上一個 standup 的 TDT**：
+1. 在 Confluence 頁面內容中，找到今天以前最近的一筆 standup entry（找最接近今天、但日期更早的 `## YYYYMMDD` heading）
+2. 從該 entry 解析 `TDT – Today's Tasks` section
+3. 擷取每個規劃項目：JIRA ticket key（例如 `PROJ-123`、`TEAM-45`）與描述
 
-**Skip conditions** — skip this step entirely and proceed to Step 7 if:
-- No previous standup entry exists on the page (first day of the month, after vacation, new page)
-- The previous entry has no TDT section
+**Skip 條件**：以下情境直接跳過本步驟，進入 Step 7：
+- 頁面上沒有上一筆 standup entry（例如月初第一天、休假後、新頁面）
+- 上一筆 entry 沒有 TDT section
 
-**Comparison logic**:
+**比對邏輯**：
 
-For each YDY item that has a JIRA ticket key:
-- If the ticket key matches a previous TDT item → append `` `✅ planned` `` to the YDY line
-- If the ticket key is NOT in previous TDT → append `` `🟢 additional` `` to the YDY line
+對每個有 JIRA ticket key 的 YDY 項目：
+- 若 ticket key 命中上一個 TDT 項目 → 在 YDY 行尾加上 `` `✅ planned` ``
+- 若 ticket key 不在上一個 TDT → 在 YDY 行尾加上 `` `🟢 additional` ``
 
-For each previous TDT item NOT found in today's YDY:
-- Add it to the YDY list as: `🔴 loss: [reason]` — ask the user for the reason if it's not obvious (e.g., ticket was deprioritized, blocked, context-switched). If the user already mentioned it in conversation, use that context
+對每個未出現在今天 YDY 的上一個 TDT 項目：
+- 加到 YDY list，格式為 `🔴 loss: [reason]`。若原因不明顯，詢問使用者；若使用者已在對話提到原因，沿用該脈絡
 
-For non-ticket items (meetings, generic descriptions like "refinement"):
-- Match by keyword similarity (e.g., "refinement" in TDT matches "Refinement 會議" in YDY)
-- **Calendar/meeting items are excluded from comparison** — they don't get plan vs actual annotations because meetings are externally scheduled and not "planned work" in the sprint sense
+對沒有 ticket 的項目（會議、`refinement` 這類泛用描述）：
+- 以關鍵字相似度比對（例如 TDT 的 `refinement` 可對應 YDY 的 `Refinement 會議`）
+- **Calendar / meeting 項目排除在比對外**：會議是外部排程，不是 sprint sense 的 planned work，不加 plan vs actual 標記
 
-Present the annotated YDY to the user as part of the confirmation step (Step 9). The annotations help the user see their planning accuracy at a glance.
+在 Step 9 確認時一併呈現標記後的 YDY，讓使用者快速看出計畫準確度。
 
 ### 7. Collect TDT candidates
 
@@ -329,6 +329,14 @@ gh pr list --search "review-requested:@me" --state open --json number,title,auth
 - 如果檔案已存在（例如當天重新產 standup），直接覆寫
 
 #### 10b. Push to Confluence
+
+**Workspace language policy gate（blocking）**：完整規則見 `references/workspace-language-policy.md`。推送 Confluence 前，必須對 Step 10a 儲存的本地 markdown 執行：
+
+```bash
+bash scripts/validate-language-policy.sh --blocking --mode artifact "{base_dir}/standups/{YYYY}/{MM}/{YYYYMMDD}.md"
+```
+
+exit ≠ 0 → 修正 standup entry 的自然語言後重跑；不可把未通過 gate 的 standup / EOD summary 寫入 Confluence。
 
 依 `references/confluence-page-update.md` 的完整流程（含版本衝突偵測）：
 
