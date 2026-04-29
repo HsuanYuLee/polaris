@@ -33,10 +33,12 @@ test -x "$SCRIPT_DIR/codex-guarded-gh-pr-create.sh"
 test -x "$SCRIPT_DIR/codex-guarded-git-push.sh"
 test -x "$SCRIPT_DIR/codex-guarded-bash.sh"
 test -x "$SCRIPT_DIR/codex-mark-design-plan-implemented.sh"
+test -x "$SCRIPT_DIR/close-parent-spec-if-complete.sh"
 bash "$SCRIPT_DIR/codex-guarded-git-commit.sh" --dry-run >/dev/null
 POLARIS_SKIP_EVIDENCE=1 bash "$SCRIPT_DIR/codex-guarded-gh-pr-create.sh" --dry-run >/dev/null
 bash "$SCRIPT_DIR/codex-guarded-git-push.sh" --dry-run >/dev/null
 bash "$SCRIPT_DIR/codex-guarded-bash.sh" --dry-run -- "echo parity-smoke" >/dev/null
+CLOSE_PARENT_SPEC_SELFTEST=1 bash "$SCRIPT_DIR/close-parent-spec-if-complete.sh" >/dev/null
 
 tmp_root="$(mktemp -d)"
 tmp_dir="$tmp_root/specs/design-plans/DP-999-parity-smoke"

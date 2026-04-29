@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.53] - 2026-04-30
+
+### Added — parent spec closeout flow
+
+- Added `close-parent-spec-if-complete.sh` to close parent Epic / DP specs only
+  after all sibling tasks are implemented under `tasks/pr-release/`.
+- Wired parent closeout into `finalize-engineering-delivery.sh` so completed
+  Epic task sets can automatically update docs-viewer done state.
+- Added parity coverage for the parent closeout helper and documented the
+  helper-only boundary in `engineering`.
+
 ## [3.73.52] - 2026-04-30
 
 ### Changed — artifact language gate wiring

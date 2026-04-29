@@ -152,4 +152,10 @@ if [[ "$ACTUAL_STATUS" != "$STATUS" ]]; then
   exit 1
 fi
 
+echo "$PREFIX attempting parent spec closeout for ${TICKET} ..." >&2
+if ! bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" --task-md "$TASK_MD_PATH" --workspace "$WORKSPACE_ROOT"; then
+  echo "$PREFIX parent spec closeout failed after task lifecycle finalized" >&2
+  exit 2
+fi
+
 echo "$PREFIX ✅ finalized ${TICKET}: ${TASK_MD_PATH}" >&2

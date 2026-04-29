@@ -252,6 +252,13 @@ bash "${POLARIS_ROOT}/scripts/finalize-engineering-delivery.sh" \
   --workspace "{workspace_root}"
 ```
 
+`finalize-engineering-delivery.sh` 會在單張 task move-first closeout 後呼叫
+`close-parent-spec-if-complete.sh`。這是 parent lifecycle 補位：若同一個
+Epic / DP 底下還有 active 或未 IMPLEMENTED 的 sibling task，helper 只會
+NOOP；若已是最後一張完成 task，才會關閉 parent `refinement.md` / `plan.md`
+並同步 docs-viewer done 狀態。engineering 不得自行用人肉掃 folder 來改寫
+parent lifecycle；一律透過 helper。
+
 Local Extension lane 不得用不符合 local policy 的 completion gate 假裝完成。若 local policy 要求 workspace PR，先完成 Developer PR creation/writeback；若 local policy 不建 PR，則不要呼叫 Developer completion gate 假裝有 PR deliverable。在 handoff 前先跑 Layer A / Layer B gate，extension 後用 local policy 產出的 release metadata 寫回 `extension_deliverable`，再跑 local extension completion gate：
 
 ```bash
