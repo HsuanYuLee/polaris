@@ -760,7 +760,7 @@ else:
         parts.append('            entry["status"] = "SKIP"; entry["reason"] = "patch_auto_target_not_supported_locally"')
         parts.append('        elif st != "patch":')
         parts.append('            entry["status"] = "SKIP"; entry["reason"] = f"unknown_status_type_{st}"')
-        parts.append('        elif path_mismatch_files:')
+        parts.append('        elif path_mismatch_files and not files_with_coverage_data:')
         parts.append('            entry["status"] = "FAIL"; entry["reason"] = "coverage_path_mismatch"')
         parts.append('        elif total == 0:')
         parts.append('            entry["status"] = "SKIP"; entry["reason"] = "no_instrumented_patch_lines"')

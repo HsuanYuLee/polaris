@@ -567,7 +567,7 @@ assert_contains "Test 10: records files with coverage data" /tmp/ci-local-test10
 rm -f "$T10_EVIDENCE" /tmp/ci-local-test10.out /tmp/ci-local-test10-evidence.out
 
 # ============================================================================
-echo "== Test 11: Codecov path mismatch fails instead of fuzzy passing =="
+echo "== Test 11: Codecov path mismatch with coverage data passes =="
 # ============================================================================
 T11="$TMPROOT/codecov-path-mismatch"
 mkdir -p "$T11/app/src" "$T11/coverage"
@@ -609,11 +609,9 @@ assert "Test 11: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT11" 2>/dev/null
 assert "Test 11: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 
-set +e
 (cd "$T11" && bash "$OUT11" --repo "$T11" --base-branch develop >/tmp/ci-local-test11.out 2>&1)
 T11_RC=$?
-set -e
-assert "Test 11: run exits non-zero on path mismatch" "$([ $T11_RC -ne 0 ] && echo 1 || echo 0)"
+assert "Test 11: run exits zero when coverage data exists" "$([ $T11_RC -eq 0 ] && echo 1 || echo 0)"
 T11_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
 python3 - "$T11_EVIDENCE" <<'PY' >/tmp/ci-local-test11-evidence.out
 import json, sys
@@ -624,11 +622,71 @@ print(g["status"])
 print(g.get("reason"))
 print(g.get("path_mismatch_files", []))
 PY
-assert_contains "Test 11: evidence status FAIL" /tmp/ci-local-test11-evidence.out "FAIL"
-assert_contains "Test 11: codecov reason path mismatch" /tmp/ci-local-test11-evidence.out "coverage_path_mismatch"
+assert_contains "Test 11: evidence status PASS" /tmp/ci-local-test11-evidence.out "PASS"
+assert_contains "Test 11: codecov status PASS" /tmp/ci-local-test11-evidence.out "PASS"
 assert_contains "Test 11: records changed path" /tmp/ci-local-test11-evidence.out "app/src/foo.ts"
 assert_contains "Test 11: records coverage path" /tmp/ci-local-test11-evidence.out "src/foo.ts"
 rm -f "$T11_EVIDENCE" /tmp/ci-local-test11.out /tmp/ci-local-test11-evidence.out
+
+# ============================================================================
+echo "== Test 11b: Codecov path mismatch without coverage data still fails =="
+# ============================================================================
+T11B="$TMPROOT/codecov-path-mismatch-empty"
+mkdir -p "$T11B/app/src" "$T11B/coverage"
+cat > "$T11B/codecov.yml" <<'YAML'
+flag_management:
+  individual_flags:
+    - name: app
+      paths: [app/src/]
+      statuses:
+        - type: patch
+          target: 60%
+YAML
+init_git_repo "$T11B"
+git -C "$T11B" branch -M develop
+cat > "$T11B/app/src/foo.ts" <<'TS'
+export const covered1 = 1;
+TS
+git -C "$T11B" add .
+git -C "$T11B" -c user.email=t@t -c user.name=t commit -q -m "develop base"
+git -C "$T11B" update-ref refs/remotes/origin/develop HEAD
+git -C "$T11B" checkout -q -b task/path-mismatch-empty
+cat >> "$T11B/app/src/foo.ts" <<'TS'
+export const covered2 = 2;
+TS
+git -C "$T11B" add .
+git -C "$T11B" -c user.email=t@t -c user.name=t commit -q -m "task change"
+cat > "$T11B/coverage/lcov.info" <<'LCOV'
+TN:
+SF:src/foo.ts
+end_of_record
+LCOV
+OUT11B="$T11B/.claude/scripts/ci-local.sh"
+"$GEN" --repo "$T11B" --out "$OUT11B" --force >/dev/null 2>&1
+assert "Test 11b: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+bash -n "$OUT11B" 2>/dev/null
+assert "Test 11b: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+
+set +e
+(cd "$T11B" && bash "$OUT11B" --repo "$T11B" --base-branch develop >/tmp/ci-local-test11b.out 2>&1)
+T11B_RC=$?
+set -e
+assert "Test 11b: run exits non-zero without coverage data" "$([ $T11B_RC -ne 0 ] && echo 1 || echo 0)"
+T11B_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+python3 - "$T11B_EVIDENCE" <<'PY' >/tmp/ci-local-test11b-evidence.out
+import json, sys
+d=json.load(open(sys.argv[1]))
+g=[x for x in d["codecov_results"] if x.get("status_type")=="patch"][0]
+print(d["status"])
+print(g["status"])
+print(g.get("reason"))
+print(g.get("path_mismatch_files", []))
+PY
+assert_contains "Test 11b: evidence status FAIL" /tmp/ci-local-test11b-evidence.out "FAIL"
+assert_contains "Test 11b: codecov reason path mismatch" /tmp/ci-local-test11b-evidence.out "coverage_path_mismatch"
+assert_contains "Test 11b: records changed path" /tmp/ci-local-test11b-evidence.out "app/src/foo.ts"
+assert_contains "Test 11b: records coverage path" /tmp/ci-local-test11b-evidence.out "src/foo.ts"
+rm -f "$T11B_EVIDENCE" /tmp/ci-local-test11b.out /tmp/ci-local-test11b-evidence.out
 
 # ============================================================================
 echo "== Test 12: stale generated mirror blocks and regenerated mirror ignores stale cache =="

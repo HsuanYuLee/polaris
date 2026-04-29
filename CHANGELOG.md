@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.54] - 2026-04-30
+
+### Fixed — ci-local coverage path mismatch false positive
+
+- Kept Codecov patch gates passing when lcov coverage data exists under a
+  fuzzy-matched path, avoiding false `coverage_path_mismatch` failures for
+  prefix-stripped or suffix-matched coverage files.
+- Added self-test coverage for both fuzzy path match with coverage data and
+  true path mismatch without coverage data.
+
 ## [3.73.53] - 2026-04-30
 
 ### Added — parent spec closeout flow

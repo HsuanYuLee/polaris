@@ -36,7 +36,7 @@ fi
 
 # --- Git state ---
 BRANCH=$(git -C "$REPO" branch --show-current 2>/dev/null || echo "unknown")
-# Active ticket: extract from branch name patterns like task/KB2CW-1234, feat/GT-500, wip/GT-521
+# Active ticket: extract from branch name patterns like task/TASK-123, feat/PROJ-123, wip/PROJ-123
 TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1 || true)
 
 # Today's commit SHAs (short) on current branch
