@@ -30,6 +30,7 @@ metadata:
 - **若想偏離 skill**（例：跳過 `ci-local.sh`、不進 revision mode、先修 blocker 再補 gate），必須先停下來取得使用者明確同意；未同意前一律視為違規
 - **「技術上能修好」不等於「流程上可這樣做」**。engineering 的完成權限不在 LLM 自述，在 mechanical evidence + gates
 - **本地完成權限**：當 Phase 3 LLM gates + Phase 4 mechanical gates（`ci-local.sh` / `run-verify-command.sh` / VR if triggered / evidence AND gate / completion gate）全通過，engineering 可回報 complete。遠端 repo CI 的 queued / pending / running 狀態不阻擋 complete，也不要求等待；已完成且明確 fail 的遠端 check 才作為 revision signal 處理。
+- **產品 repo CI 設定不可作為 engineering 修補面**：Woodpecker / GitHub Actions / GitLab CI / Codecov / husky / pre-commit / package script 等 repo CI declarations 是 repo-owner policy。產品 ticket 或 revision mode 不得為了讓 `ci-local`、coverage、或遠端 check 綠燈而修改這些設定；若 root cause 指向 CI 設定或 local/remote CI parity，停止並記錄 framework/repo-owner 決策需求，不把 CI config change 混進產品 PR。
 - **Local delivery extension 是 workspace-local policy，不是 portable shortcut**：本 skill 只允許在本地明確宣告的 extension 接手交付尾段；extension 不得降低 engineering gates，也不得套用到產品 ticket。
 - **任何以「hook 之後會擋」「問題很聚焦」「改動很小」「這次只是 patch coverage」為理由的 shortcut，預設無效**
 - **Scope escalation 證據只能寫 sidecar，不能改 planner-owned 欄位**：當機械 gate 失敗且修法會踩到 planner-owned 欄位（Allowed Files / estimate / Test Command / Verify Command / Test Environment / depends_on），停止施工、寫 `specs/{EPIC}/escalations/T{n}-{count}.md` sidecar、交回 `breakdown`（DP-044）。engineering **不得直接 Edit/Write task.md**；唯一例外是透過 approved lifecycle writer scripts 寫回 execution-owned metadata（例如 `write-deliverable.sh` 寫 `deliverable.*`、`mark-spec-implemented.sh` 寫 `status: IMPLEMENTED` + move-first）

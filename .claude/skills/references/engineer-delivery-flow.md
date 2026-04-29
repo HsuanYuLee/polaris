@@ -53,6 +53,7 @@
 4. **Positive-evidence + fail-loud（D11/D12）** — script exit 0 必須代表「實際做了且通過」；config 缺失 → fail loud，不 fallback 推論。
 5. **Evidence 只由 script 產出（D15/D16）** — LLM 不直接寫 evidence file（hook 物理擋 Write/Edit on `/tmp/polaris-verified-*` / `/tmp/polaris-ci-local-*`）；evidence `writer` 欄位 + whitelist gate 提供 cross-LLM 保護。
 6. **終態是 evidence AND gate** — Layer A（`ci-local.sh`）+ Layer B（`run-verify-command.sh`）+ Layer C（`run-visual-snapshot.sh`, conditional）三檔 evidence 全部 `head_sha` 匹配當前 HEAD 才放行 PR 或 local extension handoff。
+7. **產品 repo CI 設定唯讀** — Engineering 讀取 repo CI declarations 來建立 local mirror，但不得在產品 ticket / revision PR 中修改 Woodpecker、GitHub Actions、GitLab CI、Codecov、husky、pre-commit、或 package script 等 CI 設定來修綠燈。若 gate failure 的 root cause 是 CI config 或 local/remote parity，應 fail-stop 並回報 framework / repo-owner decision，而不是把 CI policy change 混入產品交付。
 
 ## Two-Segment Architecture（D21）
 
@@ -215,6 +216,8 @@ Rebase 改變 HEAD → 舊 evidence 的 `head_sha` 自動失效 → 所有下游
 執行 `bash "${POLARIS_ROOT}/scripts/ci-local-run.sh"`（wrapper 自動解 main checkout canonical + 用 `--repo $PWD` 跑當前 worktree／checkout）。
 
 此 script 由 `scripts/ci-local-generate.sh` 從 repo 的 CI config（Woodpecker / GitHub Actions / GitLab CI / husky / `.pre-commit-config.yaml` / `package.json` scripts）推導產出，序列化執行 install / lint / typecheck / test / coverage 類別的 commands，並嵌入 codecov patch coverage compute。每個 repo 一份 self-contained script，框架本體不再做 CI re-discovery。
+
+**CI declaration read-only boundary**：Step 2 只消費 repo CI declarations，不修改它們。若 `ci-local` 與遠端 CI 的差異指向 Woodpecker / GitHub Actions / GitLab CI / Codecov / husky / pre-commit / package script 設定，Developer lane 必須停止並記錄 framework 或 repo-owner 決策需求；不得在產品 PR 內改 CI config 來讓 local/remote gate 通過。
 
 **Existence invariant**：**main checkout** 的 `.claude/scripts/ci-local.sh` 存在 → 此 repo 已宣告 Local CI Mirror，所有 worktree 共用此 canonical script（DP-043 follow-up）。該檔由 generator 產出且自動寫進 `.git/info/exclude`（不入 commit）。是否需要跑由檔案存在決定，不由 git status 類型決定。
 

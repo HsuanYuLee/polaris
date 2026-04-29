@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.41] - 2026-04-29
+
+### Added — product CI config read-only boundary
+
+- Recorded the engineering decision that product-ticket delivery must treat
+  repo CI declarations as read-only repo-owner policy.
+- Added the boundary to the engineering authority rules, delivery flow Step 2,
+  and mechanism registry canary so future CI/local-parity issues fail-stop
+  instead of being fixed by modifying product repo CI settings.
+
 ## [3.73.40] - 2026-04-29
 
 ### Fixed — ci-local Codecov path parity
