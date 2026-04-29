@@ -26,6 +26,18 @@ metadata:
 
 ## Workflow
 
+### 0. Source Resolution（JIRA optional）
+
+先讀 `references/spec-source-resolver.md` 判斷輸入 source type，再進入對應 path：
+
+| Source type | 入口例 | Path |
+|-------------|--------|------|
+| `jira` | `breakdown GT-478` / `breakdown KB2CW-3711` | 既有 Bug Path / Planning Path / Scope-Escalation Intake Path |
+| `dp` | `breakdown DP-NNN` | Ticketless / DP Intake Path |
+| `artifact_path` | direct `refinement.json` / `tasks/T1.md` path | 依 artifact 所屬 container 進入 JIRA 或 DP path |
+
+`breakdown` 不擁有 DP 的 Goal / Background / Decisions / Blind Spots / Technical Approach。若 DP source 還不夠拆工，或需要改技術決策，必須 route back to `refinement DP-NNN`，不可在 breakdown 階段直接改 refinement-owned sections。
+
 ### 1. 取得 Ticket + 偵測類型
 
 從以下來源取得 ticket key（優先順序）：
@@ -223,6 +235,105 @@ User 確認後：
 - 原 task 的 task.md 已被修正 / 新 task 已建立 → **回到 `engineering`**
 - engineering 的 `scripts/resolve-task-base.sh` + `depends_on` resolver 會自動挑下一張 READY task；不需要 breakdown 額外指派 `next_engineering_task`（DP-044 Blind Spot #3）
 - 若 lineage 已達 `escalation_count == 2` 且本次仍然失敗 → **不再回 engineering**；改開 `refinement {EPIC}`（D5 cap）
+
+---
+
+## Ticketless / DP Intake Path（DP-NNN only）
+
+> 本路徑 consume `refinement` 產出的 locked DP / ticketless refinement artifact，負責拆 implementation work orders。它不寫 JIRA、不建 JIRA sub-task、不估 JIRA story points；它產出 DP-backed `tasks/T{n}.md`。
+
+### D1. Resolve DP source
+
+依 `references/spec-source-resolver.md` 定位：
+
+```text
+{workspace_root}/specs/design-plans/DP-NNN-{slug}/plan.md
+{workspace_root}/specs/design-plans/DP-NNN-{slug}/refinement.json
+```
+
+Hard rules：
+
+- `DP-NNN` 必須唯一 match 一個 DP folder
+- `plan.md` 必須存在
+- frontmatter `status` 必須是 `LOCKED`
+- 若 `status: DISCUSSION` → 停下，提示先跑 `refinement DP-NNN`
+- 若 `refinement.json` 不存在 → 可從 locked `plan.md` 做 minimal intake，但必須在 preview 中標示 artifact 缺失；若 scope / AC / technical approach 不足，route back to `refinement DP-NNN`
+
+### D2. Read source without rewriting decisions
+
+讀取：
+
+- `plan.md`：Goal / Decisions / Blind Spots / Acceptance Criteria / Technical Approach
+- `refinement.json`：`source`, `modules`, `dependencies`, `edge_cases`, `acceptance_criteria`, `downstream.breakdown_hints`
+
+Ownership：
+
+- `refinement` owns：Goal / Background / Decisions / Blind Spots / AC / Technical Approach
+- `breakdown` owns：Implementation Checklist finalization、Work Orders / Task Mapping、`tasks/T{n}.md`
+
+若發現 Decisions 或 Technical Approach 不足，不補寫；route back to `refinement DP-NNN`。
+
+### D3. Split DP work orders
+
+依 Planning Path Step 5-8 的拆解原則產出 preview，但輸出是 DP-backed task，不是 JIRA sub-task：
+
+```text
+specs/design-plans/DP-NNN-{slug}/tasks/T1.md
+specs/design-plans/DP-NNN-{slug}/tasks/T2.md
+...
+```
+
+Task identity：
+
+```text
+DP-NNN-T1
+DP-NNN-T2
+```
+
+Branch naming：
+
+```text
+task/DP-NNN-T1-{slug}
+```
+
+Task schema 沿用 `references/task-md-schema.md` implementation schema，依 DP-047 bridge：
+
+- `Task JIRA key` = pseudo-task ID（例如 `DP-045-T1`）
+- `Parent Epic` = source DP（例如 `DP-045`）
+- `Test sub-tasks` = `N/A - framework work order`
+- `AC 驗收單` = `N/A - framework work order`，直到 ticketless verify-AC 完成前皆如此
+
+### D4. User confirmation gate
+
+沿用 Planning Path Step 8 的 confirmation gate。使用者確認前不可寫 task.md、不可改 DP Implementation Checklist。
+
+Preview 必須包含：
+
+- 每張 DP task 的 summary / points / allowed files
+- depends_on chain
+- source DP path
+- 是否有 artifact 缺失或需要 route back to refinement 的問題
+
+### D5. Write work orders and validate
+
+使用 `tasks/T{n}.md` 寫入 DP folder，然後執行：
+
+```bash
+scripts/validate-task-md.sh {workspace_root}/specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md
+scripts/validate-task-md-deps.sh {workspace_root}/specs/design-plans/DP-NNN-{slug}/tasks/
+```
+
+所有 validator pass 後，更新 `plan.md` 的 Implementation Checklist / Work Orders linkage，將 checklist item 對應到 `tasks/T{n}.md`。若 validator fail，修 task.md，不得把 invalid work order 交給 engineering。
+
+### D6. Handoff
+
+完成後提示：
+
+```text
+做 DP-NNN-T1
+```
+
+`engineering` 透過 DP-047 resolver 消費 `DP-NNN-Tn`，不得走 JIRA lookup。
 
 ---
 

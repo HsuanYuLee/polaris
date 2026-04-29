@@ -19,6 +19,25 @@ metadata:
 
 四種模式 + 複雜度分層，一個目標：產出**經過技術驗證的方案 + 可量化的 AC**。
 
+## Source Resolution（JIRA optional）
+
+`refinement` 的入口不再只限 JIRA Epic。所有 source 解析先讀
+`references/spec-source-resolver.md`，再依 source type 分流：
+
+| Source type | 入口例 | Container | 行為 |
+|-------------|--------|-----------|------|
+| `jira` | `refinement GT-478` | `{company_base_dir}/specs/{TICKET}/` + JIRA issue | 既有 JIRA-backed refinement；定版後寫 JIRA comment / label / description |
+| `dp` | `refinement DP-045` | `{workspace_root}/specs/design-plans/DP-NNN-*/` | 讀既有 DP plan，進入 ticketless refinement；不寫 JIRA |
+| `topic` | `refinement "討論 XXX"`、`想討論 XXX`、`ADR XXX`、`design plan XXX` | 新建 DP folder | 建立 DP container 後進入 ticketless refinement；不寫 JIRA |
+| `artifact_path` | direct `refinement.md` / `refinement.json` path | nearest specs container | 接續 artifact 所屬 source |
+
+**DP locator hard rules**：
+- `DP-NNN` 必須唯一對應 `specs/design-plans/DP-NNN-*/`
+- 找不到或多筆 match 都 fail loud，不 fallback 成新 topic
+- `LOCKED` / `IMPLEMENTED` DP 不可被新 topic overwrite；要改方向就新開 DP，並在 Background 加 see-also
+
+**Trigger migration**：原本屬於 `design-plan` 的「想討論 / 怎麼設計 / 重構 / ADR / design plan」入口，改 route 到本 skill 的 ticketless mode。`design-plan` 只可作 compatibility shim，不再維持獨立 research → breakdown pipeline。
+
 ## Sub-agent Completion Envelope
 
 本 skill 的所有 sub-agent dispatch（Batch Scan 平行讀取、Explore subagent、多角色分析）都必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`）。Detail 統一寫入 `specs/{EPIC}/artifacts/{agent-type}-{timestamp}.md`。
@@ -29,12 +48,12 @@ metadata:
 
 ```
 Round 1-N（本地迭代）
-  {company_base_dir}/specs/{EPIC_KEY}/refinement.md  ← Strategist 每輪更新
+  {source_container}/refinement.md                   ← Strategist 每輪更新
   localhost:3333                              ← browser 即時預覽（大螢幕討論用）
   ↕ 使用者 + 其他 RD 討論、修正
 
 定版後（一次寫入）
-  refinement.md → JIRA comment（人讀）
+  refinement.md → JIRA comment（人讀，JIRA-backed only）
   refinement.md → refinement.json（機器讀 artifact）
 ```
 
@@ -47,11 +66,11 @@ python3 scripts/refinement-preview.py {company_base_dir}/specs/{EPIC_KEY}/refine
 ```
 
 **Flow：**
-1. Phase 1 Step 1-4 的產出寫入 `refinement.md`（不寫 JIRA）
+1. Phase 1 Step 1-4 的產出寫入 `{source_container}/refinement.md`（不寫 JIRA）
 2. 啟動 preview server，使用者在 browser 查看、和團隊討論
 3. 使用者回饋 → Strategist 更新 `refinement.md` → browser 自動刷新
 4. 重複直到使用者說「定版」
-5. Step 7 一次性寫入 JIRA comment + 產出 artifact JSON
+5. Step 7 一次性產出 artifact JSON；JIRA-backed source 才同步寫 JIRA comment / label / description
 
 ## 模式總覽
 
@@ -61,6 +80,7 @@ python3 scripts/refinement-preview.py {company_base_dir}/specs/{EPIC_KEY}/refine
 | **Phase 0：發現 & 開單** | 為什麼要做？值不值得？ | RD 主動發起 | code smell / 效能問題 / tech debt | JIRA ticket + 問題分析 + 影響評估 |
 | **Phase 1：需求充實** | 這張單到底要做什麼？ | PM 開的粗略 Epic | Epic 標題 + PM 的零散描述 | 完整 Epic + structured artifact |
 | **Phase 2：方案討論** | 怎麼做比較好？ | 需求已明確 | 完整的 Epic / ticket | Decision Record（選定方案 + trade-offs） |
+| **Ticketless / DP Source** | 非 ticket 討論如何進 pipeline？ | `DP-NNN` 或一句話 topic | DP plan / topic | DP-backed `refinement.md` + `refinement.json` |
 
 各模式可以獨立使用，也可以串接（Batch Scan → 挑出 needs-refinement 的 → Phase 1 深度補充）。
 
@@ -148,6 +168,82 @@ Epic 通常還沒有 story points（估點是 refinement 下游），所以 tier
 - 「哪幾張要深入 refine？」→ 逐張進入 Phase 1
 - 「Ready 的要直接拆單嗎？」→ 觸發 `breakdown`
 - 「全部看完了，準備 planning」→ 觸發 `sprint-planning`
+
+---
+
+## Ticketless / DP Source Mode
+
+適用於非 JIRA source：framework skill/rule/reference 設計、repo convention、CI/deployment 流程、ADR 類討論，以及原本會進 `design-plan` 的「想討論 XXX」入口。
+
+### T0. Resolve source
+
+依 `references/spec-source-resolver.md` 判斷 source type：
+
+| Input | 行動 |
+|-------|------|
+| `DP-NNN` | 定位唯一 `specs/design-plans/DP-NNN-*/plan.md` |
+| direct DP plan path | 使用該 DP folder 作為 source container |
+| 一句話 topic | 分配下一個 `DP-NNN-{slug}`，建立 `plan.md`，status = `DISCUSSION` |
+| `SEEDED` DP | 讀 `artifacts/research-report.md`（若存在）並轉成候選 Decisions |
+| `LOCKED` / `IMPLEMENTED` DP | fail loud：不得把新討論塞進已定版 / 已完成 DP |
+
+### T1. Build or update DP plan
+
+`refinement` 擁有下列 DP sections：
+
+- `## Goal`
+- `## Background`
+- `## Decisions`
+- `## Blind Spots`
+- `## Acceptance Criteria`
+- `## Technical Approach` / `## 技術方案`
+
+每輪使用者確認的設計決策都要寫入 DP plan；不能只留在對話記憶。若出現 pivot，依 `spec-source-resolver.md` 的 source container 規則新開 DP 並互相 see-also。
+
+### T2. Local-first refinement
+
+Ticketless source 仍使用 local-first workflow：
+
+```bash
+python3 scripts/refinement-preview.py {workspace_root}/specs/design-plans/DP-NNN-{slug}/refinement.md
+```
+
+`refinement.md` 只放下游需要的實作資訊：scope、technical approach、AC、edge cases、risks、references。不放完整討論歷史；完整決策歷史留在 `plan.md`。
+
+### T3. Artifact output
+
+定版後產出：
+
+```text
+specs/design-plans/DP-NNN-{slug}/refinement.md
+specs/design-plans/DP-NNN-{slug}/refinement.json
+```
+
+`refinement.json` 必須包含：
+
+```jsonc
+{
+  "epic": null,
+  "source": {
+    "type": "dp",
+    "id": "DP-NNN",
+    "container": "{workspace_root}/specs/design-plans/DP-NNN-{slug}",
+    "plan_path": "{workspace_root}/specs/design-plans/DP-NNN-{slug}/plan.md",
+    "jira_key": null
+  }
+}
+```
+
+### T4. Lock and handoff
+
+使用者說「定版 / 開始做 / 可以執行 / lock」後：
+
+1. 檢查 Goal / Decisions / Blind Spots / AC / Technical Approach 是否足夠讓 breakdown 拆工
+2. 將 DP frontmatter `status` 改為 `LOCKED`，填 `locked_at`
+3. 產出 / 更新 `refinement.json`
+4. 下一步提示 `breakdown DP-NNN`
+
+Ticketless source 不寫 JIRA comment、不改 JIRA label、不建 JIRA ticket。若使用者需要跨團隊正式文件，另走 `sasd-review` 或手動建立 JIRA。
 
 ---
 

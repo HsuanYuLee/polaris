@@ -3,10 +3,12 @@ name: design-plan
 description: "Create and maintain persistent design plan files for non-ticket architecture discussions. Auto-triggers when user starts a design discussion; accumulates decisions as file not memory; locks when user approves; implementation reads plan as spec. Fills the gap between refinement/sasd-review (ticket-scoped) and informal conversation (ephemeral). Trigger: '想討論', '怎麼設計', '重構', '重新設計', '要怎麼改', '要怎麼重做', 'design plan', 'ADR'."
 metadata:
   author: Polaris
-  version: 1.2.0
+  version: 1.2.1
 ---
 
 # Design Plan — 非 Ticket 架構討論的落地機制
+
+> **Sunset notice**：`design-plan` 正在退場為 compatibility shim。新的非 ticket 設計討論應 route 到 `refinement` ticketless mode（見 `refinement DP-NNN` / `refinement "討論 XXX"`）。本 skill 短期只保留舊 trigger 相容、DP folder 定位與 handoff 說明，不再作為獨立 research → breakdown → engineering pipeline。
 
 解決「討論 → 實作」轉換時早期決策被覆蓋的問題。把對話中的設計決策從記憶轉成檔案，讓實作階段有確定性的 spec 可讀，消除掉棒風險。
 
@@ -124,6 +126,32 @@ Locked at: YYYY-MM-DD by {觸發語句}
 
 ## Workflow
 
+### Phase 0: Compatibility shim route
+
+若使用者以舊入口觸發 `design-plan`（例如「想討論」「怎麼設計」「ADR」「design plan」），先讀 `references/spec-source-resolver.md`，然後立即 handoff：
+
+| Input | Shim 行為 |
+|-------|-----------|
+| `design-plan DP-NNN` | 定位 DP folder 後提示 / 轉入 `refinement DP-NNN` |
+| `想討論 XXX` / `design plan XXX` / `ADR XXX` | 建立或定位 DP source 後轉入 `refinement "XXX"` |
+| 已 LOCKED / IMPLEMENTED DP | fail loud；不得把新討論塞進既有 DP |
+
+Shim 可以直接做的事只限：
+
+- 定位既有 DP folder
+- 建立新 DP shell（若 routing 層尚未由 `refinement` 直接承接）
+- 更新 Specs Viewer sidebar
+- 告知使用者下一步是 `refinement DP-NNN` 或 `breakdown DP-NNN`
+
+Shim 不再負責：
+
+- 深度 codebase research
+- 決策收斂的主要 workflow
+- implementation checklist 拆工
+- 產生 engineering work order
+
+上述職責分別由 `refinement` 與 `breakdown` 承接。
+
 ### Phase 1: 偵測 + 建檔
 
 此 Phase 有兩條 trigger mode，依 skill 呼叫方式分流：
@@ -213,63 +241,28 @@ specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md
 
 產出 task.md 後，交由 `engineering` 消費該 task path 或 `DP-NNN-Tn`。`design-plan` 不直接改 source；只更新 plan、task artifact、viewer metadata，以及在 engineering 完成後依 checklist completeness gate 更新 plan 狀態。
 
-#### 選擇執行模式
+#### design-plan 可直接做的事
 
-| 模式 | 適用 | 特色 |
-|------|------|------|
-| **4a. Main-agent 模式** | Checklist ≤ 3 項且每項 ≤ 1 個檔案 | Strategist 直接執行，簡單快速 |
-| **4b. Sub-agent Handoff 模式** | Checklist > 3 項、跨多檔案、或分多個 phase | Dispatch sub-agents 消費 plan.md 作為 work order，main agent 只做 orchestration |
+Design plan skill 只能直接修改 plan 自身與 viewer metadata：
 
-判斷準則：參照 `rules/sub-agent-delegation.md` 的 delegation threshold（> 1 個檔案、> 3 行改動）→ 超過就走 4b。
+- 更新 plan Decisions / Blind Spots / Implementation Checklist
+- 更新 plan status（DISCUSSION / LOCKED / IMPLEMENTED / ABANDONED）
+- 更新 Specs Viewer sidebar
+- 記錄 handoff 到哪些 engineering work orders
 
-#### 4a. Main-agent 模式
+上述以外的 code / docs / scripts / skills / rules 實作，一律走 `engineering`。
 
-Strategist 逐項勾 Implementation Checklist。每勾一項，**立刻更新 plan file**（下一個 tool call）。
+#### 實作時發現需偏離 plan
 
-#### 4b. Sub-agent Handoff 模式
-
-LOCKED 的 plan 即 self-contained work order。跟 `breakdown → task.md → engineering` 同一個 pattern——main agent 只 dispatch + review，實作由 sub-agent 消費 plan 完成。
-
-**Dispatch 流程**：
-
-1. 依 Implementation Checklist 的 Phase/Section 切分工作包
-2. 每個 sub-agent 的 prompt 只給：
-   - Plan file 的絕對路徑（**spec 唯一來源，sub-agent 自己讀**——不要 copy plan 內容進 prompt）
-   - 本 phase 的 scope 限制（可改/可讀/不可動的檔案清單）
-   - Repo handbook 讀取指示（若改動涉及產品 repo）：「開工前先讀 `{repo}/.claude/rules/handbook/index.md` 及其子文件，遵循 coding conventions」
-   - Completion envelope 格式（見 `skills/references/sub-agent-roles.md`）：`Status: DONE|BLOCKED|PARTIAL` / `Artifacts:` / `Detail: specs/design-plans/DP-NNN/artifacts/{phase}-{timestamp}.md` / `Summary:`
-3. Main agent 等回傳後 fan-in validate envelope
-
-**平行 vs 順序**：
-
-| 情境 | 模式 |
-|------|------|
-| Phases 修改的檔案不重疊且無 interface 依賴 | 平行 dispatch（單訊息多個 Agent tool）|
-| Phase 依賴前一個 phase 的 interface 或檔案結構 | 順序 dispatch（前一個回傳後再 dispatch 下一個）|
-| 多個 sub-agent 可能修改相同檔案 | 平行 + `isolation: "worktree"`（見 `skills/references/sub-agent-reference.md`）|
-
-**Sub-agent 責任**：
-- 讀完整 plan.md，不跳讀
-- 只做分配到的 phase scope，不越界
-- 偏離 plan 立刻 STOP + 回報（不擅自決策）
-- 回報時說明「下一個 phase 需要注意的 interface contract」（若有）
-
-**Main agent 責任**：
-- Dispatch 前確認 plan 為 LOCKED 狀態 + Checklist 切分合理
-- 每個 sub-agent 回傳後 fan-in validate（envelope 完整 + Status == DONE + Artifacts 非空）
-- 整合 Checklist 更新（tick off 對應項目 — 統一由 main agent 寫回 plan file，避免多 sub-agent 並發寫檔）
-- 全部 phases 完成後進 Phase 5
-
-#### 實作時發現需偏離 plan（兩模式通用）
-
-1. **停下來**，不靜默改（4b 模式：sub-agent STOP + 回報給 main agent）
+1. **停下來**，不靜默改
 2. 在 plan 新增 Decision 條目說明偏離理由（例：`### D11: 實作時發現 X 不可行，改為 Y`）
 3. 更新 Implementation Checklist
-4. 繼續實作
+4. 重新產出 / 更新 engineering work order，再回 `engineering` 施工
 
 **不可**：
 - 口頭同意偏離但沒更新 plan
 - 一次實作完所有項目最後再勾
+- LOCK 後由 design-plan 直接改 source code / scripts / docs / skills / rules
 
 ### Phase 5: 完成
 
@@ -330,7 +323,8 @@ LOCKED 的 plan 即 self-contained work order。跟 `breakdown → task.md → e
 
 | Skill | 互動方式 |
 |-------|---------|
-| `breakdown` | Ticket-scoped — 不重疊。但如果某 Epic 需要先做架構討論，可以先 design-plan → lock 後再 breakdown |
+| `refinement` | `design-plan` trigger 的主要 successor。非 ticket 討論、DP-NNN 接續、ADR 類入口都應轉入 `refinement` ticketless mode |
+| `breakdown` | consume locked DP / ticketless refinement artifact，產 DP-backed `tasks/T{n}.md`；不再由 design-plan 自己拆 implementation checklist |
 | `sasd-review` | 跨團隊可見的技術設計 — design-plan 是團隊內 / 框架層，sasd-review 是對外正式文件。兩者可並存（先 design-plan 收斂，再 sasd-review 正式化） |
 | `engineering` | 實作時若存在對應 design-plan，engineering 必須讀 plan 才能開工（參考 `mechanism-registry.md` `design-plan-reference-at-impl` canary） |
 | `checkpoint` | Design plan 是 checkpoint 的補充 — checkpoint 存 session 狀態，design plan 存決策脈絡 |

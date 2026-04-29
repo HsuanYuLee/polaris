@@ -2,13 +2,27 @@
 
 Refinement 產出的結構化 artifact，供下游 skill（breakdown, engineering）直接消費。
 
+此 artifact 支援 JIRA-backed 與 ticketless / DP-backed source。Source resolution 規則以
+[`spec-source-resolver.md`](spec-source-resolver.md) 為準。
+
 ## 存放位置
+
+JIRA-backed ticket：
 
 ```
 {company_base_dir}/specs/{EPIC_KEY}/refinement.json
 ```
 
 Spec folders 放在公司層（如 `~/work/kkday/specs/GT-521/`），不進 git。
+
+Ticketless / DP-backed work：
+
+```
+{workspace_root}/specs/design-plans/DP-NNN-{slug}/refinement.json
+```
+
+DP folder 放在 workspace root `specs/design-plans/`，不綁公司；`plan.md` 是 durable decision
+record，`refinement.json` 是 machine-readable artifact。
 
 ## 同步寫入
 
@@ -24,6 +38,13 @@ refinement 完成時同時產出兩份：
 {
   // --- Metadata ---
   "epic": "GT-530",                    // JIRA key
+  "source": {
+    "type": "jira",                    // "jira" | "dp" | "topic"
+    "id": "GT-530",                    // JIRA key or DP-NNN
+    "container": "{company_base_dir}/specs/GT-530",
+    "plan_path": null,                 // DP-backed only: specs/design-plans/DP-NNN-*/plan.md
+    "jira_key": "GT-530"               // null for ticketless work
+  },
   "version": "1.0",                    // artifact schema version
   "tier": 2,                           // detected complexity tier (1/2/3)
   "tier_signals": [                    // why this tier was chosen
@@ -144,6 +165,28 @@ refinement 完成時同時產出兩份：
 }
 ```
 
+### Ticketless / DP-backed metadata example
+
+```jsonc
+{
+  "epic": null,
+  "source": {
+    "type": "dp",
+    "id": "DP-045",
+    "container": "/Users/name/work/specs/design-plans/DP-045-refinement-design-plan-unification",
+    "plan_path": "/Users/name/work/specs/design-plans/DP-045-refinement-design-plan-unification/plan.md",
+    "jira_key": null
+  },
+  "version": "1.0",
+  "tier": 2,
+  "created_at": "2026-04-28T10:00:00Z",
+  "refinement_round": 1
+}
+```
+
+For backward compatibility, existing JIRA artifacts may still expose top-level `epic`.
+New producers should write `source` and keep `epic` as a convenience alias only when a JIRA Epic exists.
+
 ## 下游 Skill 如何使用
 
 | Skill | 讀取欄位 | 用途 |
@@ -152,9 +195,18 @@ refinement 完成時同時產出兩份：
 | **engineering** | `acceptance_criteria[].verification`, `modules[].path` | 知道要改哪些檔案、怎麼驗證 |
 | **breakdown** (scope-challenge) | `gaps.rd_risks`, `research[].confidence` | 低信心研究 + 高風險 = challenge 候選 |
 
+`source.type = dp` 時，`breakdown` 產出 DP-backed tasks：
+
+```
+{workspace_root}/specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md
+```
+
+`source.type = jira` 時，`breakdown` 維持既有 JIRA sub-task + company specs path。
+
 ## 版本演進
 
 當 artifact schema 需要新增欄位時：
 - 新增欄位用 optional（下游 skill 用 `?.` 存取）
 - `version` 欄位標記 schema 版本
 - 不刪除既有欄位（向後相容）
+- `source` 欄位為新 producer 必填；legacy artifact 若缺少 `source`，consumer 可從 `epic` 推導 `source.type = jira`

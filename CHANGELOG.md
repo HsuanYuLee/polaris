@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.30] - 2026-04-29
+
+### Added — ticketless DP pipeline source model
+
+- Added a shared spec source resolver reference for JIRA, DP, topic, and
+  artifact-path inputs, including DP locator rules and section ownership.
+- Extended refinement with ticketless / DP source mode so non-ticket design
+  discussions can produce DP-backed `refinement.md` and `refinement.json`
+  artifacts without writing to JIRA.
+- Extended breakdown with DP intake so locked design plans can be packed into
+  DP-backed `tasks/T*.md` work orders, and turned design-plan into a
+  compatibility shim for the refinement-led pipeline.
+
 ## [3.73.29] - 2026-04-29
 
 ### Added — DP-backed framework work orders
