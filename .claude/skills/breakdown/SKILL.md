@@ -807,6 +807,7 @@ scripts/validate-task-md.sh <task.md path>
 **為何強制**：pipeline 契約「engineering 只消費 task.md + codebase」的前提是 task.md 完整。靠 AI 自律難保每次產齊，所以用 script exit code 強拘束。見 `CLAUDE.md § Deterministic Enforcement Principle`。
 
 **Workspace language policy gate（deterministic hard gate）：**
+完整規則見 `references/workspace-language-policy.md`；本段只定義 breakdown 的接入點。
 
 每張 task.md / V*.md 寫入並通過 schema 後，立即以 root `workspace-config.yaml language`
 檢查自然語言段落：

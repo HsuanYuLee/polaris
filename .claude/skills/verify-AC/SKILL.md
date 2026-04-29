@@ -198,6 +198,8 @@ Comment 採 wiki markup（**不用 MCP addCommentToJiraIssue**，用 REST API v2
 
 **Workspace language policy gate（advisory rollout）**
 
+完整規則見 `references/workspace-language-policy.md`；本段只定義 verify-AC 的接入點。
+
 JIRA comment / 驗收報告送出前，先將最終 comment body 寫入暫存 markdown，執行：
 
 ```bash

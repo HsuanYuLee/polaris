@@ -317,6 +317,8 @@ gh api repos/{owner}/{repo}/contents/{filename}?ref={headRefName} --jq '.content
 
 ### 5.0 Workspace language policy gate
 
+完整規則見 `references/workspace-language-policy.md`；本段只定義 review-pr 的接入點。
+
 Review 產物的語言以 PR description / thread 的主要語言為準；若無法判斷，fallback 到
 root `workspace-config.yaml language`。送出 review body 與 inline comments 前，先把最終文字
 寫成暫存 markdown，執行同一支 gate：

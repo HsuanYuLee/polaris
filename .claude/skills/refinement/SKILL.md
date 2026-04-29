@@ -591,6 +591,8 @@ bash scripts/refinement-handoff-gate.sh {company_base_dir}/specs/{EPIC_KEY}/refi
 - exit 1/2 → 停下來補 `refinement.json` 或修 artifact；不可只用 `refinement.md` 交給 breakdown
 
 **7b''. Workspace language policy gate（hard）**
+完整規則見 `references/workspace-language-policy.md`；本段只定義 refinement 的接入點。
+
 在任何 refinement artifact 對下游公開前，必須依 root `workspace-config.yaml language`
 檢查自然語言內容。`refinement.md` 一律 blocking；DP / ticketless source 若同一
 container 有 `plan.md`，也一併檢查。`refinement.json` 的結構由 handoff gate 管，

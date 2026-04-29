@@ -225,6 +225,8 @@ engineering 是純施工 skill，沒有 work order 就不施工。
 
 ### Workspace Language Policy Gate
 
+完整規則見 `references/workspace-language-policy.md`；本段只定義 engineering 的接入點。
+
 Engineering 產出的 downstream-facing 文字都必須遵守 root `workspace-config.yaml language`。
 在提交或發布前，先把下列內容落成暫存 markdown，再跑語言 gate：
 

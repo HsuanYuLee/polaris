@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.60] - 2026-04-30
+
+### Added — shared workspace language policy reference
+
+- 新增 `workspace-language-policy.md`，集中定義 downstream-facing artifact、
+  GitHub、JIRA、Slack、Confluence、commit message 與 release prose 的語言 gate 規則。
+- 更新 refinement、breakdown、engineering、verify-AC、review-pr、docs-sync 等核心
+  skills，讓各自的 write path 引用同一份 language policy reference。
+- 保留 docs-sync 的 bilingual source / translation mode，避免 English source docs 被
+  zh-TW-only artifact gate 誤擋。
+
 ## [3.73.59] - 2026-04-30
 
 ### Added — commit message language gate
