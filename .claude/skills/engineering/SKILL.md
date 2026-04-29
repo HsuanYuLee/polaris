@@ -2,7 +2,8 @@
 name: engineering
 description: >
   Engineer-minded execution orchestrator: takes a planned JIRA ticket and implements it with strict quality discipline — TDD, lint, typecheck, test, behavioral verify, PR.
-  Three modes: first-cut (new implementation), revision (fix PR review comments by returning to the work order), and DP-backed maintainer release lane for framework work orders.
+  Two modes: first-cut (new implementation) and revision (fix PR review comments by returning to the work order).
+  Local-only workflows may register delivery extensions, but those extensions are not part of the portable skill contract.
   Supports batch mode via parallel sub-agents.
   Trigger: "做 PROJ-123", "work on", "engineering", "開始做", "接這張", "做這張",
   "修 PROJ-123", "fix review on PROJ-123", PR URL (from pr-pickup or direct),
@@ -17,7 +18,7 @@ metadata:
 
 # Engineering — 工程師施工
 
-使用者說「做 PROJ-448」或「做 PROJ-100 PROJ-101 PROJ-102」，engineering skill 以工程師標準執行：品質檢查是確定性 gate（不是可跳過的步驟）、scope 變更需要理由、本地 LLM + mechanism gates 全綠才能交付。產品 work order 的終態是 PR；DP-backed framework work order 可走 maintainer release lane，終態改由 `framework-release` 完成 workspace repo + Polaris template repo 兩邊上版。規劃（根因分析、拆單、估點、測試計畫）由 `bug-triage` 或 `breakdown` 負責，本 skill 不做規劃。
+使用者說「做 PROJ-448」或「做 PROJ-100 PROJ-101 PROJ-102」，engineering skill 以工程師標準執行：品質檢查是確定性 gate（不是可跳過的步驟）、scope 變更需要理由、本地 LLM + mechanism gates 全綠才能交付。portable 預設終態是 PR；若某個 workspace 有 local delivery extension，extension 的權限與 release 細節必須留在 local policy / local skill，不寫進本通用 skill。規劃（根因分析、拆單、估點、測試計畫）由 `bug-triage` 或 `breakdown` 負責，本 skill 不做規劃。
 
 ## Authority Boundary（DP-032 意圖補全）
 
@@ -29,7 +30,7 @@ metadata:
 - **若想偏離 skill**（例：跳過 `ci-local.sh`、不進 revision mode、先修 blocker 再補 gate），必須先停下來取得使用者明確同意；未同意前一律視為違規
 - **「技術上能修好」不等於「流程上可這樣做」**。engineering 的完成權限不在 LLM 自述，在 mechanical evidence + gates
 - **本地完成權限**：當 Phase 3 LLM gates + Phase 4 mechanical gates（`ci-local.sh` / `run-verify-command.sh` / VR if triggered / evidence AND gate / completion gate）全通過，engineering 可回報 complete。遠端 repo CI 的 queued / pending / running 狀態不阻擋 complete，也不要求等待；已完成且明確 fail 的遠端 check 才作為 revision signal 處理。
-- **DP-backed maintainer release lane 是明文分流，不是 shortcut**：只有 DP-backed framework work order 可用；它保留 engineering 的品質 gates，只把 PR/JIRA 終態替換成 `framework-release` release chain。產品 ticket 不可使用此 lane。
+- **Local delivery extension 是 workspace-local policy，不是 portable shortcut**：本 skill 只允許在本地明確宣告的 extension 接手交付尾段；extension 不得降低 engineering gates，也不得套用到產品 ticket。
 - **任何以「hook 之後會擋」「問題很聚焦」「改動很小」「這次只是 patch coverage」為理由的 shortcut，預設無效**
 - **Scope escalation 證據只能寫 sidecar，不能改 planner-owned 欄位**：當機械 gate 失敗且修法會踩到 planner-owned 欄位（Allowed Files / estimate / Test Command / Verify Command / Test Environment / depends_on），停止施工、寫 `specs/{EPIC}/escalations/T{n}-{count}.md` sidecar、交回 `breakdown`（DP-044）。engineering **不得直接 Edit/Write task.md**；唯一例外是透過 approved lifecycle writer scripts 寫回 execution-owned metadata（例如 `write-deliverable.sh` 寫 `deliverable.*`、`mark-spec-implemented.sh` 寫 `status: IMPLEMENTED` + move-first）
 - **task.md 欄位權限分層**：planner-owned 欄位一律由 `breakdown` / `bug-triage` 維護；engineering 只能透過 helper-only contract 寫 execution-owned lifecycle metadata（`deliverable.pr_url` / `deliverable.pr_state` / `deliverable.head_sha` / `status: IMPLEMENTED` / `jira_transition_log[]`）。不得手動編輯 lifecycle 欄位，也不得新增 helper 以外的 task.md write-back path
@@ -87,60 +88,59 @@ engineering 的入口目標只有一個：**找到 authoritative work order**，
 | `deliverable.pr_url` 有值，且 `gh pr view` 顯示 `OPEN` | **revision mode** |
 | `deliverable.pr_url` 有值，但 PR `MERGED` / `CLOSED` | **fail loud**（先修 task.md / deliverable 狀態） |
 
-若 work order 是 `specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md` 或 task identity 為 `DP-NNN-Tn`，且 Repo 指向 Polaris framework workspace，則 first-cut 的交付尾段改走 **Maintainer Release Lane**（見下節）。這個判斷只影響交付終態，不影響前面的 resolver、handbook、TDD、scope、ci-local、verify、VR、base freshness gates。
+若 work order 是 `specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md` 或 task identity 為 `DP-NNN-Tn`，且本 workspace 有明確的 local delivery extension 宣告，first-cut 的交付尾段可交給該 extension。這個判斷只影響交付終態，不影響前面的 resolver、handbook、TDD、scope、ci-local、verify、VR、base freshness gates。
 
-## DP-backed Maintainer Release Lane（framework only）
+## Local Delivery Extension Boundary（local-only）
 
-> 適用於：DP-backed framework work order，例如 `specs/design-plans/DP-048-*/tasks/T1.md` / `DP-048-T1`。目標是維護 Polaris framework，不是產品 repo 功能。
+> 適用於：workspace local policy 自行維護的特殊交付管道。portable Polaris skill 不內建任何具體 direct release 流程。
 
 ### 合法條件
 
 三個條件必須同時成立：
 
-1. authoritative work order 位於 `specs/design-plans/DP-NNN-*/tasks/T*.md`，或 `Task JIRA key` 為 `DP-NNN-Tn`
-2. work order 的 `Repo` 是 framework workspace repo（Polaris / `/Users/hsuanyu.lee/work` 類型），不是 product repo
-3. 使用者明確要求 maintainer release / framework release / 直接兩邊上版，或 DP plan 明確宣告終態由 `framework-release` 發版
+1. authoritative work order 是 local policy 允許的類型（例如 DP-backed framework work order）；product ticket 預設不可用
+2. 本 workspace 以 local skill / local rule / local config 明確宣告 extension id、適用 repo、權限邊界、交付證據與 rollback / failure rules
+3. 使用者明確要求該 local extension，或 DP plan / local policy 明確宣告終態由該 extension 接手
 
-任一條件不成立 → 回一般 first-cut / revision，不得自行改走 direct release。
+任一條件不成立 → 回一般 first-cut / revision；不得自行推導 direct release、direct push、或其他 PR bypass。
 
 ### 執行原則
 
 - 前半段完全同 first-cut：Resolve Work Order → Optional Contract Check → Branch + Worktree Setup → TDD 開發 → handbook gate → dependency install → task.md `test_command` / `verify_command` → `ci-local.sh` / behavior verify / VR / base freshness。
-- 仍讀 `references/engineer-delivery-flow.md`，但 role 宣告為 `maintainer-release`。這個 role 有 task.md，因此不可用 Admin mode 跳過 scope / behavioral verify。
-- 不開一般 PR，不寫 fake `deliverable.pr_url`，不轉 JIRA `CODE REVIEW`。
-- `framework-release` 是唯一 release authority；engineering 不手拼 sync-to-polaris / tag / release 指令。
+- 仍讀 `references/engineer-delivery-flow.md`，但 role 宣告為 `local-extension`。這個 role 有 task.md，因此不可用 Admin mode 跳過 scope / behavioral verify。
+- portable engineering 不知道 extension 的 release 細節；它只負責在 local gates 全通過後產生 handoff package。
+- 不開一般 PR時，也不得寫 fake `deliverable.pr_url`。extension 必須提供自己的 completion evidence。
 
-### Release Handoff Package
+### Handoff Package
 
-在本地 gates 全通過後，交給 `framework-release` 前必須整理下列資訊：
+在本地 gates 全通過後，交給 local extension 前必須整理下列資訊：
 
 ```text
-role: maintainer-release
+role: local-extension
+extension_id: <local extension id>
 task_md: <absolute path to DP task.md>
-task_id: DP-NNN-Tn
-repo: /Users/hsuanyu.lee/work
+task_id: <task key or DP pseudo-task id>
+repo: <repo root>
 task_branch: <current branch>
 task_head_sha: <git rev-parse HEAD>
 evidence:
   ci_local: /tmp/polaris-ci-local-...
-  verify: /tmp/polaris-verified-DP-NNN-Tn-...
-  vr: /tmp/polaris-vr-DP-NNN-Tn-... (if triggered)
-release_intent:
-  version_bump: <patch|minor|major|none + reason>
-  changelog_summary: <human summary>
-  changed_files: <intentional framework files only>
+  verify: /tmp/polaris-verified-...
+  vr: /tmp/polaris-vr-... (if triggered)
+delivery_intent:
+  endpoint: local_extension
+  summary: <human summary>
+  changed_files: <intentional files only>
 ```
-
-`framework-release` 接手後負責：確認 workspace/template repo 狀態、將 validated task head 整合到 workspace main、寫 VERSION / CHANGELOG（如需要）、commit workspace repo、push main、`sync-to-polaris.sh --push`、template tag / GitHub release、final two-repo verification、回傳 release deliverable。
 
 ### Completion
 
-Maintainer release lane 的完成權限來自兩段 AND：
+Local extension lane 的完成權限來自兩段 AND：
 
 1. engineering evidence gates：Layer A `ci-local` + Layer B `run-verify-command` + Layer C VR（if triggered）都對應 `task_head_sha`
-2. `framework-release` final verification：workspace commit SHA、template commit SHA、version tag、release URL（若有）、兩 repo clean、GitHub account restored
+2. local extension final verification：由 local policy 定義，且必須產生可回溯 completion evidence
 
-在 release deliverable helper 尚未落地前，不得把 fake PR URL 寫進 `deliverable.pr_url`。若 task lifecycle 需要標 `IMPLEMENTED`，必須在 release 成功後以 release metadata 補上可回溯紀錄；補不上就回報「release complete, task lifecycle metadata pending」，不要宣稱 task lifecycle fully closed。
+在 extension-specific deliverable helper 尚未落地前，不得把 fake PR URL 寫進 `deliverable.pr_url`。若 task lifecycle 需要標 `IMPLEMENTED`，必須在 extension 成功後以 extension metadata 補上可回溯紀錄；補不上就回報「delivery complete, task lifecycle metadata pending」，不要宣稱 task lifecycle fully closed。
 
 ### 0d. Duplicate Work Guard
 
@@ -213,11 +213,11 @@ engineering 是純施工 skill，沒有 work order 就不施工。
 
 ### 5. 交付流程
 
-開發完成後，讀 `references/engineer-delivery-flow.md`，以 **Role: Developer** 執行；若命中 DP-backed maintainer release lane，改以 **Role: Maintainer Release** 執行：
+開發完成後，讀 `references/engineer-delivery-flow.md`，以 **Role: Developer** 執行；若命中 local delivery extension，改以 **Role: Local Extension** 執行：
 
 - Phase 3：Simplify → Self-Review
 - Phase 4（Developer）：Scope Gate → Step 2 `ci-local.sh` → Step 3 `run-verify-command.sh` → Step 3.5 VR → Base Freshness → Commit → PR → JIRA → Completion Gate → Worktree Cleanup
-- Phase 4（Maintainer Release）：Scope Gate → Step 2 `ci-local.sh` → Step 3 `run-verify-command.sh` → Step 3.5 VR → Base Freshness → Commit/Integration Handoff → `framework-release` → Release Verification → Worktree Cleanup
+- Phase 4（Local Extension）：Scope Gate → Step 2 `ci-local.sh` → Step 3 `run-verify-command.sh` → Step 3.5 VR → Base Freshness → Handoff Package → Local Extension → Extension Verification → Worktree Cleanup
 
 Developer lane 完成前必跑：
 
@@ -227,14 +227,14 @@ bash "${POLARIS_ROOT}/scripts/check-delivery-completion.sh" \
   --ticket "{ticket_key}"
 ```
 
-Maintainer Release lane 在 `check-delivery-completion.sh --maintainer-release` 尚未落地前，不得用 Developer completion gate 假裝完成（它會期待 PR deliverable）。改為在 handoff 前分別跑 Layer A / Layer B gate，release 後以 `framework-release` final verification 作為 release completion evidence：
+Local Extension lane 在 extension-specific completion helper 尚未落地前，不得用 Developer completion gate 假裝完成（它會期待 PR deliverable）。改為在 handoff 前分別跑 Layer A / Layer B gate，extension 後以 local policy 定義的 final verification 作為 completion evidence：
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/gates/gate-ci-local.sh" --repo "$(git rev-parse --show-toplevel)"
 bash "${POLARIS_ROOT}/scripts/gates/gate-evidence.sh" --repo "$(git rev-parse --show-toplevel)" --ticket "{dp_task_key}"
 ```
 
-若本次施工使用 implementation worktree，Developer lane 在 Completion Gate PASS 後、Maintainer Release lane 在 `framework-release` final verification 後，必跑 cleanup helper；不得手動 `rm -rf`：
+若本次施工使用 implementation worktree，Developer lane 在 Completion Gate PASS 後、Local Extension lane 在 extension final verification 後，必跑 cleanup helper；不得手動 `rm -rf`：
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \

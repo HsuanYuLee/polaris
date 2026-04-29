@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.34] - 2026-04-29
+
+### Changed — local delivery extension boundary
+
+- Changed the DP-backed direct-release design from a portable `engineering`
+  maintainer lane into a generic local delivery extension boundary.
+- Kept high-privilege maintainer release details in local-only policy / skills,
+  while preserving engineering gates and forbidding fake PR deliverables.
+
 ## [3.73.33] - 2026-04-29
 
 ### Changed — DP-backed framework release lane
