@@ -287,7 +287,7 @@ bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
    ls "{company_base_dir}/specs/{EPIC}/escalations/T{n}-"*.md 2>/dev/null | wc -l
    ```
    既有檔案數 + 1 = 本次 `count`。
-4. **Lineage cap 檢查（DP-044 D5）**：若 `count` 將 > 2，**不要**寫 sidecar；改向使用者回報「lineage 已達 cap，請改跑 `refinement {EPIC}`（不是 `breakdown`）」並結束本 session。
+4. **Lineage cap 檢查（DP-044 D5）**：若 `count` 將 > 2，**不要**寫 sidecar；改向使用者回報「lineage 已達 cap，請先跑 `breakdown {EPIC}` scope-escalation intake，讓 breakdown 產 `refinement-inbox/*.md` 後再進 `refinement {EPIC}`」並結束本 session。`refinement` 不直接讀 engineering raw sidecar。
 5. **First-pass flavor 分類**：依 `references/escalation-flavor-guide.md` 的 gate-closure 決策樹挑選 primary `flavor`。一張 sidecar 可以有多個 components；frontmatter `flavor` 放最能代表 gate closure 的 primary hint，細項放 `## Explained Delta` / `## Required Planner Decisions`。
 6. **Scrub 原始證據**：把要進 `## Raw Evidence` 的內容（gate 輸出、normalized 失敗檔案清單、相關 commit / baseline 比對）先存暫存檔，再透過 scrubber 過濾後再 Write 進 sidecar：
    ```bash

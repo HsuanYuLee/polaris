@@ -122,6 +122,7 @@ Before running `git commit`, execute these checks:
 | Version docs lint | `scripts/check-version-bump-reminder.sh` | If VERSION staged, run readme-lint |
 | Task.md schema | `scripts/validate-task-md.sh {path}` | Required sections present |
 | Refinement schema | `scripts/validate-refinement-json.sh {path}` | Required fields in refinement.json |
+| Refinement inbox schema | `scripts/validate-refinement-inbox-record.sh {path}` | breakdown-produced return inbox has no raw sidecar evidence |
 | Task.md deps | `scripts/validate-task-md-deps.sh {dir}` | Dependencies form valid DAG |
 
 ### Deterministic Gates (Pre-Push)

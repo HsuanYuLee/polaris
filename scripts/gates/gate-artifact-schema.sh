@@ -8,6 +8,7 @@ set -euo pipefail
 # Validates staged pipeline artifacts:
 #   - */tasks/T*.md and */tasks/V*.md → validate-task-md.sh
 #   - */refinement.json               → validate-refinement-json.sh
+#   - */refinement-inbox/*.md         → validate-refinement-inbox-record.sh
 #   - specs directories with tasks    → validate-task-md-deps.sh
 #
 # Usage:
@@ -49,11 +50,13 @@ fi
 WORKSPACE_SCRIPTS="${SCRIPT_DIR}/.."
 VALIDATE_TASK_MD=""
 VALIDATE_REFINEMENT=""
+VALIDATE_REFINEMENT_INBOX=""
 VALIDATE_DEPS=""
 
 for search_dir in "$REPO_ROOT/scripts" "$WORKSPACE_SCRIPTS"; do
   [[ -z "$VALIDATE_TASK_MD" && -f "$search_dir/validate-task-md.sh" ]] && VALIDATE_TASK_MD="$search_dir/validate-task-md.sh"
   [[ -z "$VALIDATE_REFINEMENT" && -f "$search_dir/validate-refinement-json.sh" ]] && VALIDATE_REFINEMENT="$search_dir/validate-refinement-json.sh"
+  [[ -z "$VALIDATE_REFINEMENT_INBOX" && -f "$search_dir/validate-refinement-inbox-record.sh" ]] && VALIDATE_REFINEMENT_INBOX="$search_dir/validate-refinement-inbox-record.sh"
   [[ -z "$VALIDATE_DEPS" && -f "$search_dir/validate-task-md-deps.sh" ]] && VALIDATE_DEPS="$search_dir/validate-task-md-deps.sh"
 done
 
@@ -97,6 +100,25 @@ if [[ -n "$VALIDATE_REFINEMENT" ]]; then
         echo "$PREFIX Validating refinement.json: $staged_file ..." >&2
         if ! bash "$VALIDATE_REFINEMENT" "$full_path" 2>&1; then
           echo "$PREFIX ❌ refinement.json schema validation failed: $staged_file" >&2
+          FAILED=$((FAILED + 1))
+        fi
+        ;;
+    esac
+  done <<< "$staged_files"
+fi
+
+# --- Gate 2.5: Validate refinement inbox records ---
+if [[ -n "$VALIDATE_REFINEMENT_INBOX" ]]; then
+  while IFS= read -r staged_file; do
+    [[ -z "$staged_file" ]] && continue
+    case "$staged_file" in
+      */refinement-inbox/*.md)
+        full_path="$REPO_ROOT/$staged_file"
+        [[ -f "$full_path" ]] || continue
+        CHECKED=$((CHECKED + 1))
+        echo "$PREFIX Validating refinement inbox record: $staged_file ..." >&2
+        if ! bash "$VALIDATE_REFINEMENT_INBOX" "$full_path" 2>&1; then
+          echo "$PREFIX ❌ refinement inbox schema validation failed: $staged_file" >&2
           FAILED=$((FAILED + 1))
         fi
         ;;
