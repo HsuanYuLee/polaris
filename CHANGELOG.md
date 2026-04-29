@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.39] - 2026-04-29
+
+### Fixed — template sync correction
+
+- Re-synced the Polaris template from a clean workspace HEAD so the template
+  release does not include unrelated local `ci-local` working-tree changes.
+- Keeps v3.73.38's refinement DP docs-viewer sidebar sync change as the
+  intended framework behavior.
+
 ## [3.73.38] - 2026-04-29
 
 ### Fixed — refinement DP viewer sync

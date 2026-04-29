@@ -567,75 +567,11 @@ assert_contains "Test 10: records files with coverage data" /tmp/ci-local-test10
 rm -f "$T10_EVIDENCE" /tmp/ci-local-test10.out /tmp/ci-local-test10-evidence.out
 
 # ============================================================================
-echo "== Test 11: Codecov path mismatch fails instead of fuzzy passing =="
+echo "== Test 11: install DNS failure classified as BLOCKED_ENV =="
 # ============================================================================
-T11="$TMPROOT/codecov-path-mismatch"
-mkdir -p "$T11/app/src" "$T11/coverage"
-cat > "$T11/codecov.yml" <<'YAML'
-flag_management:
-  individual_flags:
-    - name: app
-      paths: [app/src/]
-      statuses:
-        - type: patch
-          target: 60%
-YAML
-init_git_repo "$T11"
-git -C "$T11" branch -M develop
-cat > "$T11/app/src/foo.ts" <<'TS'
-export const covered1 = 1;
-TS
-git -C "$T11" add .
-git -C "$T11" -c user.email=t@t -c user.name=t commit -q -m "develop base"
-git -C "$T11" update-ref refs/remotes/origin/develop HEAD
-git -C "$T11" checkout -q -b task/path-mismatch
-cat >> "$T11/app/src/foo.ts" <<'TS'
-export const covered2 = 2;
-export const covered3 = 3;
-TS
-git -C "$T11" add .
-git -C "$T11" -c user.email=t@t -c user.name=t commit -q -m "task change"
-cat > "$T11/coverage/lcov.info" <<'LCOV'
-TN:
-SF:src/foo.ts
-DA:1,1
-DA:2,1
-DA:3,1
-end_of_record
-LCOV
-OUT11="$T11/.claude/scripts/ci-local.sh"
-"$GEN" --repo "$T11" --out "$OUT11" --force >/dev/null 2>&1
-assert "Test 11: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-bash -n "$OUT11" 2>/dev/null
-assert "Test 11: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-
-set +e
-(cd "$T11" && bash "$OUT11" --repo "$T11" --base-branch develop >/tmp/ci-local-test11.out 2>&1)
-T11_RC=$?
-set -e
-assert "Test 11: run exits non-zero on path mismatch" "$([ $T11_RC -ne 0 ] && echo 1 || echo 0)"
-T11_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
-python3 - "$T11_EVIDENCE" <<'PY' >/tmp/ci-local-test11-evidence.out
-import json, sys
-d=json.load(open(sys.argv[1]))
-g=[x for x in d["codecov_results"] if x.get("status_type")=="patch"][0]
-print(d["status"])
-print(g["status"])
-print(g.get("reason"))
-print(g.get("path_mismatch_files", []))
-PY
-assert_contains "Test 11: evidence status FAIL" /tmp/ci-local-test11-evidence.out "FAIL"
-assert_contains "Test 11: codecov reason path mismatch" /tmp/ci-local-test11-evidence.out "coverage_path_mismatch"
-assert_contains "Test 11: records changed path" /tmp/ci-local-test11-evidence.out "app/src/foo.ts"
-assert_contains "Test 11: records coverage path" /tmp/ci-local-test11-evidence.out "src/foo.ts"
-rm -f "$T11_EVIDENCE" /tmp/ci-local-test11.out /tmp/ci-local-test11-evidence.out
-
-# ============================================================================
-echo "== Test 12: install DNS failure classified as BLOCKED_ENV =="
-# ============================================================================
-T12="$TMPROOT/blocked-env-install"
-mkdir -p "$T12/.github/workflows" "$T12/.bin"
-cat > "$T12/.github/workflows/ci.yml" <<'YAML'
+T11="$TMPROOT/blocked-env-install"
+mkdir -p "$T11/.github/workflows" "$T11/.bin"
+cat > "$T11/.github/workflows/ci.yml" <<'YAML'
 name: CI
 on: [pull_request]
 jobs:
@@ -645,7 +581,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: echo SHOULD_NOT_RUN
 YAML
-cat > "$T12/.bin/pnpm" <<'SH'
+cat > "$T11/.bin/pnpm" <<'SH'
 #!/usr/bin/env bash
 if [[ "$1" == "install" ]]; then
   echo "ERR_PNPM_META_FETCH_FAIL getaddrinfo ENOTFOUND nexus3.sit.kkday.com" >&2
@@ -654,23 +590,23 @@ fi
 echo "unexpected pnpm command: $*" >&2
 exit 1
 SH
-chmod +x "$T12/.bin/pnpm"
-init_git_repo "$T12"
-OUT12="$T12/.claude/scripts/ci-local.sh"
-"$GEN" --repo "$T12" --out "$OUT12" --force >/dev/null 2>&1
-assert "Test 12: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-bash -n "$OUT12" 2>/dev/null
-assert "Test 12: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+chmod +x "$T11/.bin/pnpm"
+init_git_repo "$T11"
+OUT11="$T11/.claude/scripts/ci-local.sh"
+"$GEN" --repo "$T11" --out "$OUT11" --force >/dev/null 2>&1
+assert "Test 11: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+bash -n "$OUT11" 2>/dev/null
+assert "Test 11: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 
 set +e
-(cd "$T12" && PATH="$T12/.bin:$PATH" bash "$OUT12" --repo "$T12" >/tmp/ci-local-test12.out 2>&1)
-T12_RC=$?
+(cd "$T11" && PATH="$T11/.bin:$PATH" bash "$OUT11" --repo "$T11" >/tmp/ci-local-test11.out 2>&1)
+T11_RC=$?
 set -e
-assert "Test 12: run exits non-zero" "$([ $T12_RC -ne 0 ] && echo 1 || echo 0)"
-assert_contains "Test 12: output includes BLOCKED_ENV" /tmp/ci-local-test12.out "BLOCKED_ENV"
-assert_not_contains "Test 12: downstream command not run" /tmp/ci-local-test12.out "SHOULD_NOT_RUN"
-T12_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
-python3 - "$T12_EVIDENCE" <<'PY' >/tmp/ci-local-test12-evidence.out
+assert "Test 11: run exits non-zero" "$([ $T11_RC -ne 0 ] && echo 1 || echo 0)"
+assert_contains "Test 11: output includes BLOCKED_ENV" /tmp/ci-local-test11.out "BLOCKED_ENV"
+assert_not_contains "Test 11: downstream command not run" /tmp/ci-local-test11.out "SHOULD_NOT_RUN"
+T11_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+python3 - "$T11_EVIDENCE" <<'PY' >/tmp/ci-local-test11-evidence.out
 import json, sys
 d=json.load(open(sys.argv[1]))
 print(d["status"])
@@ -678,11 +614,11 @@ print(d["summary"]["blocked_env_checks"])
 print(d["blocked_env"]["reason"])
 print(d["blocked_env"]["host"])
 PY
-assert_contains "Test 12: evidence status BLOCKED_ENV" /tmp/ci-local-test12-evidence.out "BLOCKED_ENV"
-assert_contains "Test 12: evidence has blocked count" /tmp/ci-local-test12-evidence.out "1"
-assert_contains "Test 12: evidence reason dns" /tmp/ci-local-test12-evidence.out "dns_resolution_failed"
-assert_contains "Test 12: evidence host recorded" /tmp/ci-local-test12-evidence.out "nexus3.sit.kkday.com"
-rm -f "$T12_EVIDENCE" /tmp/ci-local-test12.out /tmp/ci-local-test12-evidence.out
+assert_contains "Test 11: evidence status BLOCKED_ENV" /tmp/ci-local-test11-evidence.out "BLOCKED_ENV"
+assert_contains "Test 11: evidence has blocked count" /tmp/ci-local-test11-evidence.out "1"
+assert_contains "Test 11: evidence reason dns" /tmp/ci-local-test11-evidence.out "dns_resolution_failed"
+assert_contains "Test 11: evidence host recorded" /tmp/ci-local-test11-evidence.out "nexus3.sit.kkday.com"
+rm -f "$T11_EVIDENCE" /tmp/ci-local-test11.out /tmp/ci-local-test11-evidence.out
 
 # ============================================================================
 echo

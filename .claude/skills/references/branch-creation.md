@@ -18,7 +18,7 @@ The script validates ticket format, sanitises description to kebab-case, handles
 
 ## Branch Naming Convention
 
-Format: `task/<TICKET>-<description>` (e.g. `task/TASK-123-remove-presale-ab-test-logic`)
+Format: `task/<TICKET>-<description>` (e.g. `task/KB2CW-3461-remove-presale-ab-test-logic`)
 
 ### Deriving DESCRIPTION from JIRA Summary
 
@@ -82,7 +82,7 @@ Helper 會在「上游 task branch 已 merged 到 Epic feature branch」時自�
 新 task.md 同時寫入 `Branch chain`，用來表達完整 cascade rebase 順序，例如：
 
 ```text
-develop -> feat/PROJ-123-cwv-js-bundle -> task/TASK-123-dayjs-infra -> task/TASK-123-products
+develop -> feat/GT-478-cwv-js-bundle -> task/KB2CW-3711-dayjs-infra -> task/KB2CW-3900-products
 ```
 
 engineering first-cut / revision 會以 `scripts/cascade-rebase-chain.sh` 先自上而下 rebase 這條鏈；但 `gh pr create --base` / `gh pr edit --base` 仍只使用 `resolve-task-base.sh` 的輸出。

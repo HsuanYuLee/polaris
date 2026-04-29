@@ -19,7 +19,7 @@ STASH_COUNT=$(git -C "$REPO" stash list 2>/dev/null | wc -l | tr -d ' ')
 MODIFIED=$(git -C "$REPO" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
 
 # --- Active ticket (extract from branch name) ---
-# Patterns: task/TASK-123-desc, feat/PROJ-123-desc, wip/PROJ-123-debug
+# Patterns: task/KB2CW-1234-desc, feat/GT-500-desc, wip/GT-521-debug
 TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+' | head -1 || true)
 
 # --- Todo file (check for active todos) ---
