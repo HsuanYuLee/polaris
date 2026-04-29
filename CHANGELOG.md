@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.43] - 2026-04-29
+
+### Fixed — template sync correction
+
+- Re-synced the Polaris template from a clean workspace HEAD so the template
+  release contains only the v3.73.42 ci-local stale mirror/cache fix and not
+  unrelated local working-tree changes.
+
 ## [3.73.42] - 2026-04-29
 
 ### Fixed — ci-local stale mirror cache

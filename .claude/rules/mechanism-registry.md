@@ -119,7 +119,7 @@ Enforcement: deterministic via `pipeline-artifact-gate.sh` PreToolUse hook (vali
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
 | `fix-through-not-revert` | When implementation is broken, find root cause and fix — do not revert or add fallback as first response | Strategist proposes revert/fallback before investigating why the implementation failed | High |
-| `query-original-impl` | Before changing an API call path, query the source-of-truth caller (e.g., your-backend calling api-lang) to confirm endpoint, auth, params, response format | API path changed without reading the original implementation that the change is supposed to match | High |
+| `query-original-impl` | Before changing an API call path, query the source-of-truth caller (e.g., member-ci calling api-lang) to confirm endpoint, auth, params, response format | API path changed without reading the original implementation that the change is supposed to match | High |
 | `cross-repo-verification` | Cross-repo changes must be verified across all involved repos with full infra stack | Verification only runs in one repo when the ticket touches multiple repos; `workspace-config.requires` ignored | High |
 | `env-follows-requires` | Dev environment must be started per `workspace-config.projects[].dev_environment.requires` — no shortcuts | Nuxt dev server started standalone when `requires: ["project-web-docker"]` is configured; Docker containers not running | High |
 | `http-status-in-verification` | All endpoint verifications must check HTTP status code (200) + response body — status 200 is the minimum bar | Verification reports "data looks correct" without confirming HTTP 200 | Medium |
@@ -189,7 +189,6 @@ Enforcement: deterministic via `pipeline-artifact-gate.sh` PreToolUse hook (vali
 | `engineering-escalation-gate-closure` | Scope escalation sidecar must diagnose the whole failed gate: pass condition, baseline/actual, explained delta, proposed fixes, residual blockers, closure forecast, and required planner decisions. Necessary-but-insufficient fixes must be flagged before routing to breakdown | Sidecar only lists first out-of-scope file(s); OR closure forecast missing; OR later rerun exposes residual blockers already visible in the first gate output/math; OR breakdown receives a sidecar that cannot tell whether proposed scope change will make the gate pass | **Critical** |
 | `escalation-count-cap` | Escalation lineage capped at 2; third escalation routes to `refinement`, not `breakdown`. Validator (`scripts/validate-escalation-sidecar.sh`) blocks `escalation_count > 2` and duplicate slots | Sidecar written with `escalation_count > 2` (validator should have blocked); OR session attempts a third sidecar on the same lineage and dispatches `breakdown` instead of `refinement`; OR validator FAIL ignored and engineering proceeds | High |
 | `breakdown-escalation-intake` | breakdown reads sidecar (highest `count` for the lineage), may re-classify flavor, must log `accepted flavor: X` or `re-classified to Y: reason`; reuses Planning Path user-confirmation gate before any task.md edit / JIRA write; handles all `Required Planner Decisions` needed for gate closure; marks sidecar `processed: true` post-confirm | breakdown session updates task.md from a sidecar without an explicit accepted/re-classified line; OR only handles the first proposed fix while `Closure Forecast` says gate still fails; OR new user-confirmation gate invented instead of reusing Planning Path Step 8/11; OR sidecar not marked `processed: true` after writes complete | Medium |
-| `breakdown-refinement-return-inbox` | If breakdown routes an escalation to refinement, it must first write and validate `refinement-inbox/*.md` (`skill: breakdown`, `target_skill: refinement`, no `## Raw Evidence`); refinement consumes only that inbox record and marks it `consumed: true` after updating refinement artifacts | refinement directly reads `escalations/T{n}-{count}.md`; OR breakdown tells the user to run `refinement {EPIC}` without producing a valid inbox record; OR inbox contains raw command logs / `## Raw Evidence`; OR source sidecar is marked `processed: true` before inbox validation passes | High |
 
 ### Deterministic Quality Hooks
 
@@ -252,7 +251,7 @@ Post-task audit should check these first (highest drift risk, most impactful):
 1. `no-workaround-accumulation` / `design-implementation-reconciliation`
 1a. `design-plan-creation` / `design-plan-decision-capture` / `design-plan-reference-at-impl` (Critical — check-pr-approvals v2.10→v2.16 掉棒事件)
 2. `skill-first-invoke` / `no-manual-skill-steps` / `reference-index-scan`
-3. `api-docs-before-replace` / `lib-exhaust-before-replace` / `fix-through-not-revert` / `query-original-impl` (Critical — PROJ-123 root cause + library change protocol)
+3. `api-docs-before-replace` / `lib-exhaust-before-replace` / `fix-through-not-revert` / `query-original-impl` (Critical — GT-521 root cause + library change protocol)
 4. `delegate-exploration` / `delegate-implementation`
 5. `cross-session-read-memory-file`
 6. `correction-driven-handbook-update` (repo-specific → handbook, framework → feedback)

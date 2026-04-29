@@ -50,11 +50,11 @@ Extract from ticket description:
 
 | Field | Example | Usage |
 |-------|---------|-------|
-| 來源 AC 驗收單 | `TASK-123` | Link context, not re-verification |
-| Epic | `PROJ-123` | Root for related work orders |
-| **分析對象 branch** | `feat/PROJ-123-breadcrumblist-seo` | **Primary investigation surface — NOT develop/main** |
-| Repos 涉入 | `your-app, your-backend` | Scope of analysis |
-| 相關 Task keys | `TASK-123, TASK-123` | Link to task.md work orders |
+| 來源 AC 驗收單 | `KB2CW-4001` | Link context, not re-verification |
+| Epic | `GT-521` | Root for related work orders |
+| **分析對象 branch** | `feat/GT-521-breadcrumblist-seo` | **Primary investigation surface — NOT develop/main** |
+| Repos 涉入 | `kkday-b2c-web, member-ci` | Scope of analysis |
+| 相關 Task keys | `KB2CW-3800, KB2CW-3801` | Link to task.md work orders |
 | 相關 PR numbers | `#2100, #2101` | PR diffs = exact change set |
 | Feature branch commit range | `{base_sha}..{head_sha}` | Bounded git log scope |
 | **失敗項目** | `AC#2: Observed X, Expected Y` | What to reproduce + fix |
