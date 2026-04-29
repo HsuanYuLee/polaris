@@ -30,7 +30,7 @@ JIRA-backed specs:
 Example:
 
 ```text
-your-company/specs/PROJ-123/refinement-inbox/T3a-2-20260429T093000Z.md
+kkday/specs/GT-478/refinement-inbox/T3a-2-20260429T093000Z.md
 ```
 
 Ticketless / DP specs:
@@ -47,10 +47,10 @@ skill: breakdown
 target_skill: refinement
 source: scope-escalation
 route: refinement
-epic: PROJ-123             # JIRA Epic key, or DP-NNN for ticketless / DP-backed work
+epic: GT-478             # JIRA Epic key, or DP-NNN for ticketless / DP-backed work
 source_task: T3a
-source_ticket: TASK-123
-source_sidecar: your-company/specs/PROJ-123/escalations/T3a-2.md
+source_ticket: KB2CW-3711
+source_sidecar: kkday/specs/GT-478/escalations/T3a-2.md
 escalation_count: 2
 created_at: 2026-04-29T09:30:00Z
 consumed: false

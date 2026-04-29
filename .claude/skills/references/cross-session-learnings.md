@@ -92,7 +92,7 @@ Captures plan/spec deficiencies discovered during engineering revision mode (D3/
 **Entry schema** (extends base JSONL entry):
 
 ```jsonl
-{"key":"plan-gap-missing-i18n-edge","type":"pitfall","content":"Breakdown missed i18n plural forms — AC only covered singular","confidence":7,"source":"PROJ-123 PR #2088","company":"your-company","created":"2026-04-15","last_confirmed":"2026-04-15","tag":"plan-gap","metadata":{"subtag":"breakdown","ticket":"PROJ-123","pr_url":"https://github.com/your-org/your-app/pull/2088","reviewer_signal":"Reviewer pointed out plural forms break in zh-TW","gap_reason":"Breakdown AC template has no i18n pluralization check","classification":"plan_gap"}}
+{"key":"plan-gap-missing-i18n-edge","type":"pitfall","content":"Breakdown missed i18n plural forms — AC only covered singular","confidence":7,"source":"GT-521 PR #2088","company":"kkday","created":"2026-04-15","last_confirmed":"2026-04-15","tag":"plan-gap","metadata":{"subtag":"breakdown","ticket":"GT-521","pr_url":"https://github.com/kkday-it/b2c-web/pull/2088","reviewer_signal":"Reviewer pointed out plural forms break in zh-TW","gap_reason":"Breakdown AC template has no i18n pluralization check","classification":"plan_gap"}}
 ```
 
 | Metadata field | Type | Required | Description |
@@ -117,7 +117,7 @@ Captures coding patterns and conventions learned from PR review comments during 
 **Entry schema** (extends base JSONL entry):
 
 ```jsonl
-{"key":"review-lesson-server-route-error-handling","type":"pattern","content":"Nuxt server routes must return { statusCode, body } on error, not throw createError()","confidence":6,"source":"TASK-123 PR #2102","company":"your-company","created":"2026-04-15","last_confirmed":"2026-04-15","tag":"review-lesson","metadata":{"ticket":"TASK-123","pr_url":"https://github.com/your-org/your-app/pull/2102","review_comment":"createError() in server routes causes unhandled rejection in production","lesson":"Nuxt server routes must return error objects, not throw createError()","repo":"your-org/your-app","file_path":"server/api/product/detail.ts"}}
+{"key":"review-lesson-server-route-error-handling","type":"pattern","content":"Nuxt server routes must return { statusCode, body } on error, not throw createError()","confidence":6,"source":"KB2CW-3788 PR #2102","company":"kkday","created":"2026-04-15","last_confirmed":"2026-04-15","tag":"review-lesson","metadata":{"ticket":"KB2CW-3788","pr_url":"https://github.com/kkday-it/b2c-web/pull/2102","review_comment":"createError() in server routes causes unhandled rejection in production","lesson":"Nuxt server routes must return error objects, not throw createError()","repo":"kkday-it/b2c-web","file_path":"server/api/product/detail.ts"}}
 ```
 
 | Metadata field | Type | Required | Description |

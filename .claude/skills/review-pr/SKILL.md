@@ -315,6 +315,25 @@ gh api repos/{owner}/{repo}/contents/{filename}?ref={headRefName} --jq '.content
 
 ## 5. Compose & Submit Review
 
+### 5.0 Workspace language policy gate
+
+Review 產物的語言以 PR description / thread 的主要語言為準；若無法判斷，fallback 到
+root `workspace-config.yaml language`。送出 review body 與 inline comments 前，先把最終文字
+寫成暫存 markdown，執行同一支 gate：
+
+```bash
+bash scripts/validate-language-policy.sh \
+  --advisory \
+  --mode artifact \
+  --language "<pr_primary_language_or_workspace_language>" \
+  <review-output.md>
+```
+
+第一版先 advisory，避免誤擋必要引用：原 PR 英文描述、程式碼符號、error message、
+GitHub suggestion block、以及作者原文。升級成 blocking 的條件：PR-language 偵測穩定、
+suggestion block / code quote stripping 穩定，且連續 release 無 false positive。即使 advisory，
+reviewer 自己撰寫的問題描述與 summary 仍必須跟隨上述語言決策。
+
 ### 5a. 組裝 review comments
 
 將所有問題整理為 inline review comments：

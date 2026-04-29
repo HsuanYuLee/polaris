@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.52] - 2026-04-30
+
+### Changed — artifact language gate wiring
+
+- Wired `validate-language-policy.sh` into refinement and breakdown as blocking
+  gates before downstream artifacts are handed off.
+- Documented language policy entry points for engineering, verify-AC, review-pr,
+  and docs-sync, including advisory rollout and bilingual documentation modes.
+
 ## [3.73.51] - 2026-04-30
 
 ### Added — workspace language policy gate

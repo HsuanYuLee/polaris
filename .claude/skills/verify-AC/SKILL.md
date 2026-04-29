@@ -196,6 +196,20 @@ Comment 採 wiki markup（**不用 MCP addCommentToJiraIssue**，用 REST API v2
 
 若 PASS 格式遵 `references/epic-verification-structure.md § 驗證結果 Comment`。
 
+**Workspace language policy gate（advisory rollout）**
+
+JIRA comment / 驗收報告送出前，先將最終 comment body 寫入暫存 markdown，執行：
+
+```bash
+bash scripts/validate-language-policy.sh --advisory --mode artifact <verify-ac-comment.md>
+```
+
+第一版先 advisory，因為 verify-AC 會引用 AC 原文、HTTP response、錯誤訊息與多語系畫面
+文字；這些片段不應被誤判為 skill 輸出語言漂移。升級成 blocking 的條件：常見 AC
+引用 / response transcript 已有 allowlist 或 wrapper mode，且連續 release 無 false positive。
+即使 advisory，主敘述（Observed / Expected / disposition 說明）仍必須使用 workspace
+language。
+
 ### 7. PASS → 自動轉 Done
 
 ```bash
@@ -255,6 +269,7 @@ Bug description 填 `pipeline-handoff.md § Bug ticket 必要資訊` 區塊（[V
 - **路徑**：`{company_base_dir}/specs/{EPIC}/artifacts/verify-ac-verify-fail-{BUG_KEY}-{timestamp}.md`（timestamp 格式 `YYYY-MM-DDTHHMMSSZ` UTC）
 - **格式**：frontmatter（`skill: verify-ac`、`ticket: {BUG_KEY}`、`scope: verify-fail`、`timestamp`、`truncated: false`、`scrubbed: false`）+ `## Summary`（≤ 500 字：AC# + 期望行為 + 實際觀察 + HTTP status + env snapshot）+ `## Raw Evidence`（失敗步驟 transcript、curl output / playwright trace、evidence attachment 路徑、AC ticket description 引用、被驗證的 commit SHA / dev server URL / fixture path）
 - **寫入後必跑 scrub + cap**：`python3 scripts/snapshot-scrub.py --file {artifact_path}`（scrub secrets、20KB 截斷、更新 frontmatter flag）
+- **寫入後必跑 language advisory**：`bash scripts/validate-language-policy.sh --advisory --mode artifact {artifact_path}`；若主敘述違反 workspace language，修正後再交給 bug-triage
 - artifact 路徑加進 Bug description 的 `[VERIFICATION_FAIL]` metadata 區塊，bug-triage Step 2-AF 會在需要時讀
 
 回到 AC 驗收單貼 comment：「FAIL — 追蹤於 {BUG_KEY_1}, {BUG_KEY_2}, ...」。
