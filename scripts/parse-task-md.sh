@@ -32,6 +32,7 @@
 #   extension_deliverable_evidence_ci_local, extension_deliverable_evidence_verify,
 #   extension_deliverable_evidence_vr,
 #   epic, jira, repo,
+#   source_type, source_id, work_item_id, jira_key,
 #   task_jira_key, parent_epic, test_sub_tasks, ac_verification_ticket,
 #   base_branch, branch_chain, task_branch, depends_on, references_to_load,
 #   level, dev_env_config, fixtures, runtime_verify_target, env_bootstrap_command,
@@ -68,6 +69,7 @@ Key-based lookup (DP-033 D8): resolves active tasks/{key}.md first,
   then fallback to tasks/pr-release/{key}.md. Exit 2 if both missing.
 
 Field keys: status, task_id, summary, story_points, epic, jira, repo,
+            source_type, source_id, work_item_id, jira_key,
             deliverable_pr_url, deliverable_pr_state, deliverable_head_sha,
             extension_deliverable_endpoint, extension_deliverable_extension_id,
             extension_deliverable_task_head_sha,
@@ -225,15 +227,23 @@ for ln in body_lines:
         break
 
 
-# ---- metadata quote line: > Epic: ... | JIRA: KEY | Repo: ... -------------
-metadata = {"epic": None, "jira": None, "repo": None}
+# ---- metadata quote line --------------------------------------------------
+# Legacy:
+#   > Epic: ... | JIRA: KEY | Repo: ...
+# Canonical candidate (DP-050):
+#   > Source: DP-050 | Task: DP-050-T1 | JIRA: N/A | Repo: ...
+metadata = {"epic": None, "source": None, "task": None, "jira": None, "repo": None}
 for ln in body_lines:
     mm = re.match(r"^>\s*(.+)$", ln)
-    if not mm or "JIRA:" not in mm.group(1):
+    if not mm or ("JIRA:" not in mm.group(1) and "Task:" not in mm.group(1)):
         continue
     for p in [s.strip() for s in mm.group(1).split("|")]:
         if p.startswith("Epic:"):
             metadata["epic"] = p[len("Epic:"):].strip() or None
+        elif p.startswith("Source:"):
+            metadata["source"] = p[len("Source:"):].strip() or None
+        elif p.startswith("Task:"):
+            metadata["task"] = p[len("Task:"):].strip() or None
         elif p.startswith("JIRA:"):
             metadata["jira"] = p[len("JIRA:"):].strip() or None
         elif p.startswith("Repo:"):
@@ -289,6 +299,10 @@ def opf(label, allow_sentinel=False):
 
 operational_context = {
     "task_jira_key": opf("Task JIRA key"),
+    "source_type": opf("Source type"),
+    "source_id": opf("Source ID"),
+    "task_id": opf("Task ID"),
+    "jira_key": opf("JIRA key"),
     "parent_epic": opf("Parent Epic"),
     "test_sub_tasks": opf("Test sub-tasks"),
     "ac_verification_ticket": opf("AC 驗收單"),
@@ -298,6 +312,59 @@ operational_context = {
     "depends_on": opf("Depends on"),
     "references_to_load": opf("References to load"),
 }
+
+
+# ---- Canonical identity (DP-050) -----------------------------------------
+def normalize_jira(value):
+    if value is None:
+        return None
+    v = value.strip()
+    if v in NA_SENTINELS or v.upper() == "N/A":
+        return None
+    return v
+
+def infer_source_type(source_id, work_item_id, jira_key):
+    explicit = operational_context.get("source_type")
+    if explicit:
+        return explicit.lower()
+    if (source_id or "").startswith("DP-") or re.match(r"^DP-\d{3}-T\d+[a-z]*$", work_item_id or ""):
+        return "dp"
+    if jira_key:
+        return "jira"
+    return None
+
+source_id = (
+    operational_context.get("source_id")
+    or metadata.get("source")
+    or operational_context.get("parent_epic")
+    or metadata.get("epic")
+)
+work_item_id = (
+    operational_context.get("task_id")
+    or metadata.get("task")
+    or operational_context.get("task_jira_key")
+    or metadata.get("jira")
+)
+jira_key = normalize_jira(operational_context.get("jira_key") or metadata.get("jira"))
+source_type = infer_source_type(source_id, work_item_id, jira_key)
+if source_type == "dp":
+    jira_key = normalize_jira(operational_context.get("jira_key"))
+elif source_type == "jira" and jira_key is None:
+    jira_key = work_item_id
+
+identity = {
+    "source_type": source_type,
+    "source_id": source_id,
+    "work_item_id": work_item_id,
+    "jira_key": jira_key,
+}
+
+# Migration aliases. Product aliases equal the real JIRA key; DP aliases return
+# work_item_id so old consumers keep resolving framework pseudo-tasks.
+if operational_context["task_jira_key"] is None and work_item_id:
+    operational_context["task_jira_key"] = work_item_id
+if metadata["jira"] is not None and normalize_jira(metadata["jira"]) is None:
+    metadata["jira"] = None
 
 
 # ---- Test Environment ----------------------------------------------------
@@ -369,6 +436,7 @@ out = {
     "frontmatter": frontmatter,
     "header": header,
     "metadata": metadata,
+    "identity": identity,
     "operational_context": operational_context,
     "test_environment": test_env,
     "test_command": test_command,
@@ -422,6 +490,10 @@ aliases = {
     "epic":                    ["metadata", "epic"],
     "jira":                    ["metadata", "jira"],
     "repo":                    ["metadata", "repo"],
+    "source_type":             ["identity", "source_type"],
+    "source_id":               ["identity", "source_id"],
+    "work_item_id":            ["identity", "work_item_id"],
+    "jira_key":                ["identity", "jira_key"],
     "task_jira_key":           ["operational_context", "task_jira_key"],
     "parent_epic":             ["operational_context", "parent_epic"],
     "test_sub_tasks":          ["operational_context", "test_sub_tasks"],
@@ -684,6 +756,10 @@ MD
   expect_field "$fixture" epic                   "GT-478"                "F1.epic"
   expect_field "$fixture" jira                   "KB2CW-3900"            "F1.jira"
   expect_field "$fixture" repo                   "kkday-b2c-web"         "F1.repo"
+  expect_field "$fixture" source_type            "jira"                  "F1.source_type"
+  expect_field "$fixture" source_id              "GT-478"                "F1.source_id"
+  expect_field "$fixture" work_item_id           "KB2CW-3900"            "F1.work_item_id"
+  expect_field "$fixture" jira_key               "KB2CW-3900"            "F1.jira_key"
   expect_field "$fixture" task_jira_key          "KB2CW-3900"            "F1.task_jira_key"
   expect_field "$fixture" parent_epic            "GT-478"                "F1.parent_epic"
   expect_field "$fixture" base_branch            "task/KB2CW-3711-dayjs-infra-util"          "F1.base_branch"
@@ -734,6 +810,44 @@ MD
   if [[ "$(emit_json "$fixture2" "" | emit_field env_bootstrap_command)" != "bash /path/to/polaris-env.sh start kkday" ]]; then
     echo "[selftest] F2.env_bootstrap mismatch"; fail=1
   fi
+
+  # ---- Fixture 3 (DP canonical identity) ---------------------------------
+  fixture3="$tmpdir/T1-dp-canonical.md"
+  cat > "$fixture3" <<'MD'
+# T1: Canonical task identity schema, parser, and validator (5 pt)
+
+> Source: DP-050 | Task: DP-050-T1 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-050 |
+| Task ID | DP-050-T1 |
+| JIRA key | N/A |
+| Test sub-tasks | N/A - framework work order |
+| AC 驗收單 | N/A - framework work order |
+| Base branch | main |
+| Branch chain | main -> task/DP-050-T1-canonical-task-identity |
+| Task branch | task/DP-050-T1-canonical-task-identity |
+| Depends on | N/A |
+| References to load | - task-md-schema |
+
+## Test Environment
+
+- **Level**: static
+- **Dev env config**: N/A
+- **Fixtures**: N/A
+- **Runtime verify target**: N/A
+- **Env bootstrap command**: N/A
+MD
+  expect_field "$fixture3" source_type            "dp"                    "F3.source_type"
+  expect_field "$fixture3" source_id              "DP-050"                "F3.source_id"
+  expect_field "$fixture3" work_item_id           "DP-050-T1"             "F3.work_item_id"
+  expect_field "$fixture3" jira_key               ""                      "F3.jira_key_empty"
+  expect_field "$fixture3" jira                   ""                      "F3.legacy_jira_empty"
+  expect_field "$fixture3" task_jira_key          "DP-050-T1"             "F3.task_jira_key_alias"
 
   # ---- Full JSON shape sanity (validates JSON parseability) ---------------
   if ! emit_json "$fixture" "" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then

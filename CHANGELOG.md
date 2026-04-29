@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.48] - 2026-04-29
+
+### Added — canonical task identity
+
+- Added source-neutral task identity parsing with `source_type`, `source_id`,
+  `work_item_id`, and nullable `jira_key` fields.
+- Updated task.md validation to accept canonical DP-backed metadata with
+  `JIRA: N/A` while preserving legacy `Task JIRA key` compatibility.
+- Updated task schema and pipeline handoff references so DP pseudo-task IDs are
+  treated as task identities rather than real JIRA keys.
+
 ## [3.73.47] - 2026-04-29
 
 ### Fixed — local extension worktree cleanup

@@ -19,13 +19,13 @@ Polaris pipeline 的 task.md 分兩類，都存在於同一個 Epic 的 `specs/{
 | 實作 task.md | `T{n}[suffix].md`（`T1.md` / `T3a.md` / `T8b.md`） | `breakdown` Path A | `engineering` | § 3 Implementation Schema |
 | 驗收 task.md | `V{n}[suffix].md`（`V1.md` / `V2a.md`） | `breakdown` Step D | `verify-AC` | § 4 Verification Schema |
 
-Framework DP-backed work orders（DP-047）使用同一份 Implementation Schema，只是 root 從 product specs folder 換成：
+Framework DP-backed work orders（DP-047 / DP-050）使用同一份 Implementation Schema，只是 root 從 product specs folder 換成：
 
 ```text
 specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md
 ```
 
-DP-backed task 不新增 schema 欄位；`Task JIRA key` 使用 pseudo-task ID（例如 `DP-047-T1`），`Parent Epic` 使用來源 DP（例如 `DP-047`），沒有 JIRA test sub-task / AC ticket 時填 `N/A - framework work order`。
+DP-backed task 使用 source-neutral identity：`source_type=dp`、`source_id=DP-NNN`、`work_item_id=DP-NNN-Tn`、`jira_key=null`。Migration 期仍接受舊 task.md 把 pseudo-task ID 放在 `Task JIRA key` / `JIRA:`，但新 DP-backed task 應使用 canonical metadata row，並保留 `JIRA: N/A` 讓舊 reader 不因欄位缺失失效。
 
 > **Reader fallback callout（DP-033 D8）**：所有用 task key 找 file 的 reader（`parse-task-md.sh` / `validate-task-md-deps.sh` / `verify-AC` / `engineering` / 未來 Specs Viewer）在 active `tasks/` 找不到 key 時，必須 fallback `tasks/pr-release/`，避免歷史 reference 在 task 完結後斷鏈。完整 fallback 規則 + lookup 優先順序見 § 6 Validator Mapping。
 
@@ -180,20 +180,52 @@ Validator regex：`^# (T|V)[0-9]+[a-z]*: .+\([0-9.]+ ?pt\)`
 
 緊接標題後一行：
 
+Legacy product / historical DP metadata:
+
 ```
 > Epic: {EPIC_KEY} | JIRA: {TASK_KEY} | Repo: {repo_name}
 ```
 
-- `Epic:` **Soft required**（DP-033 D5 + 2026-04-26 鎖定）— Bug task 是真實無 Epic 場景（hotfix-auto-ticket 建出的 standalone Bug），硬 require 只會逼填假 Epic；warn 但放行
-- `JIRA:` **必填** — product task 使用 JIRA key 格式 `[A-Z][A-Z0-9]+-[0-9]+`；DP-backed framework task 使用 pseudo-task ID `DP-NNN-Tn`
+Canonical source-neutral metadata（DP-050 migration candidate）:
+
+```
+> Source: {SOURCE_ID} | Task: {WORK_ITEM_ID} | JIRA: {JIRA_KEY_OR_N/A} | Repo: {repo_name}
+```
+
+- `Epic:` / `Source:` **Soft required**（DP-033 D5 + DP-050）— product task 通常用 `Epic:`，source-neutral task 用 `Source:`；Bug task 是真實無 Epic 場景，硬 require 只會逼填假 Epic
+- `Task:` **canonical task identity** — source-neutral `work_item_id`。Product task 可等於 JIRA key；DP-backed framework task 使用 pseudo-task ID `DP-NNN-Tn`
+- `JIRA:` **migration required segment** — 真實 JIRA key；若來源不是 JIRA（例如 DP task）填 `N/A`。Legacy task 可只用 `JIRA:` 承載 task identity
 - `Repo:` **必填** — 非空字串
 
-Validator regex（任一項缺失即 fail）：
+Validator accepts either legacy or canonical shape:
 
 ```regex
-^> .*JIRA: ([A-Z][A-Z0-9]*-[0-9]+|DP-[0-9]{3}-T[0-9]+[a-z]*)
+legacy:    ^> .*JIRA: ([A-Z][A-Z0-9]*-[0-9]+|DP-[0-9]{3}-T[0-9]+[a-z]*)
+canonical: ^> .*Task: ([A-Z][A-Z0-9]*-[0-9]+|DP-[0-9]{3}-T[0-9]+[a-z]*).*JIRA: ([A-Z][A-Z0-9]*-[0-9]+|N/A)
 ^> .*Repo: \S+
 ```
+
+Parser canonical output:
+
+```json
+{
+  "identity": {
+    "source_type": "dp",
+    "source_id": "DP-050",
+    "work_item_id": "DP-050-T1",
+    "jira_key": null
+  }
+}
+```
+
+Migration aliases:
+
+| Field | Product task | DP-backed task |
+|-------|--------------|----------------|
+| `work_item_id` | Real task JIRA key | DP pseudo-task ID |
+| `jira_key` | Real task JIRA key | `null` / empty field output |
+| `task_jira_key` | Alias of `work_item_id` | Compatibility alias of `work_item_id`; deprecated for new consumers |
+| `jira` | Legacy metadata alias | Empty when metadata says `JIRA: N/A` |
 
 ### 2.4 Status 規則 + PR-release 邊界
 
@@ -240,8 +272,12 @@ PR-release 觸發（DP-033 D6，**move-first 順序鎖定**）：`status` 轉為
 
 | Cell | 內容 | Required |
 |------|------|----------|
-| `Task JIRA key` | 該 task 的 JIRA key（如 `TASK-123`）；DP-backed task 使用 pseudo-task ID（如 `DP-047-T1`） | **Hard** |
-| `Parent Epic` | Epic key（如 `PROJ-123`）；DP-backed task 使用來源 DP（如 `DP-047`） | **Hard** |
+| `Source type` | Canonical source type：`jira` / `dp` | **Hard in canonical identity** |
+| `Source ID` | Parent source/container：product Epic key（如 `PROJ-123`）或 DP id（如 `DP-050`） | **Hard in canonical identity** |
+| `Task ID` | Canonical `work_item_id`：product task JIRA key 或 DP pseudo-task ID（如 `DP-050-T1`） | **Hard in canonical identity** |
+| `JIRA key` | 真實 JIRA issue key；無 JIRA 時填 `N/A` | **Hard in canonical identity** |
+| `Task JIRA key` | Legacy identity cell；migration 期仍接受。新 DP-backed task 不應使用此 cell 承載 pseudo-task ID | **Hard in legacy identity** |
+| `Parent Epic` | Legacy parent cell；migration 期仍接受 | **Hard in legacy identity** |
 | `Test sub-tasks` | Test sub-task JIRA keys（comma-separated） | **Hard** |
 | `AC 驗收單` | Verification ticket JIRA key（V*.md 對應的 ticket，或 verify-AC 消費的 AC ticket） | **Hard** |
 | `Base branch` | 切 task branch / PR base 用的 base — 有 `Depends on` 時必須 `task/...`（DP-028 cross-field）；無依賴時通常 `feat/...` | **Hard** |
@@ -266,6 +302,28 @@ PR-release 觸發（DP-033 D6，**move-first 順序鎖定**）：`status` 轉為
 | Task branch | task/TASK-123-moment-to-dayjs-products |
 | Depends on | TASK-123 (T3a — dayjs infra) |
 | References to load | - `skills/references/branch-creation.md`<br>- ... |
+```
+
+Canonical DP-backed task example:
+
+```markdown
+> Source: DP-050 | Task: DP-050-T1 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-050 |
+| Task ID | DP-050-T1 |
+| JIRA key | N/A |
+| Test sub-tasks | N/A - framework work order |
+| AC 驗收單 | N/A - framework work order |
+| Base branch | main |
+| Branch chain | main -> task/DP-050-T1-canonical-task-identity |
+| Task branch | task/DP-050-T1-canonical-task-identity |
+| Depends on | N/A |
+| References to load | - `skills/references/task-md-schema.md` |
 ```
 
 ### 3.3 `## Test Environment` schema (DP-023 runtime contract)

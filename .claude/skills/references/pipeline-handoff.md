@@ -68,8 +68,9 @@ Validator：`scripts/validate-refinement-json.sh <path>` 或 `--scan <workspace_
 | 項目 | 驗證規則 |
 |------|----------|
 | Header `# T{n}[suffix]: {summary} ({SP} pt)` | 必須存在且格式正確（`[suffix]` 為 `a-z*` 支援 split subtasks） |
-| Metadata line `> Epic: ... \| JIRA: {KEY} \| Repo: ...` | `JIRA:` 必含 key（`[A-Z][A-Z0-9]+-[0-9]+`）；`Repo:` 必含非空值 |
-| `## Operational Context` | 必須存在；必含表格 cells：`Task JIRA key`、`Parent Epic`、`Test sub-tasks`、`AC 驗收單`、`Base branch`、`Task branch`、`References to load`；且全檔案至少出現 1 個 JIRA key pattern |
+| Metadata line | Legacy `> Epic: ... \| JIRA: {KEY} \| Repo: ...` 或 canonical `> Source: {SOURCE_ID} \| Task: {WORK_ITEM_ID} \| JIRA: {JIRA_KEY_OR_N/A} \| Repo: ...`；`Repo:` 必含非空值 |
+| Identity | Parser 輸出 canonical `identity.source_type` / `identity.source_id` / `identity.work_item_id` / nullable `identity.jira_key`；legacy `task_jira_key` 只是 migration alias |
+| `## Operational Context` | 必須存在；identity cells 可為 legacy `Task JIRA key` + `Parent Epic`，或 canonical `Source type` + `Source ID` + `Task ID` + `JIRA key`；另必含 `Test sub-tasks`、`AC 驗收單`、`Base branch`、`Task branch`、`References to load` |
 | `## Verification Handoff` | 必須存在 |
 | `## 目標` | 必須存在且非空 |
 | `## 改動範圍` | 必須存在且非空（至少 1 行表格 data 或 bullet） |
@@ -146,14 +147,16 @@ Breakdown 產出的 task.md 是 engineering 的唯一施工輸入（除了 codeb
 ```markdown
 # T{n}: {Task summary} ({SP} pt)
 
-> Epic: {EPIC_KEY} | JIRA: {TASK_KEY} | Repo: {repo_name}
+> Source: {SOURCE_ID} | Task: {WORK_ITEM_ID} | JIRA: {JIRA_KEY_OR_N/A} | Repo: {repo_name}
 
 ## Operational Context
 
 | 欄位 | 值 |
 |------|-----|
-| Task JIRA key | {TASK_KEY} |
-| Parent Epic | {EPIC_KEY} |
+| Source type | {jira|dp} |
+| Source ID | {EPIC_KEY_OR_DP_ID} |
+| Task ID | {WORK_ITEM_ID} |
+| JIRA key | {JIRA_KEY_OR_N/A} |
 | Test sub-tasks | {KEYS}, ... |
 | AC 驗收單 | {AC_TICKET_KEY} |
 | Base branch | {feature_branch_name} |

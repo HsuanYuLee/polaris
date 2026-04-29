@@ -167,16 +167,37 @@ is_valid_task_identity() {
   [[ "$value" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ || "$value" =~ ^DP-[0-9]{3}-T[0-9]+[a-z]*$ ]]
 }
 
-extract_header_jira_token() {
+is_valid_jira_key() {
+  local value="$1"
+  [[ "$value" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]]
+}
+
+is_na_value() {
+  local value
+  value=$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]' | xargs 2>/dev/null || true)
+  [[ -z "$value" || "$value" == "n/a" || "$value" == "-" || "$value" == "none" || "$value" == "無" ]]
+}
+
+extract_header_token() {
   local file="$1"
-  awk '
-    /^> / && /JIRA:/ {
+  local label="$2"
+  awk -v label="$label" '
+    /^> / {
       line = $0
-      sub(/^.*JIRA:[[:space:]]*/, "", line)
-      sub(/[[:space:]]*\|.*$/, "", line)
-      sub(/[[:space:]]+$/, "", line)
-      print line
-      exit
+      n = split(line, parts, "|")
+      for (i = 1; i <= n; i++) {
+        part = parts[i]
+        sub(/^>[[:space:]]*/, "", part)
+        sub(/^[[:space:]]+/, "", part)
+        sub(/[[:space:]]+$/, "", part)
+        prefix = label ":[[:space:]]*"
+        if (part ~ "^" prefix) {
+          sub("^" prefix, "", part)
+          sub(/[[:space:]]+$/, "", part)
+          print part
+          exit
+        }
+      }
     }
   ' "$file"
 }
@@ -251,21 +272,31 @@ validate_file() {
   fi
 
   # ---------------------------------------------------------------------------
-  # HARD REQUIRED: Header metadata line — JIRA + Repo (§ 2.3)
+  # HARD REQUIRED: Header metadata line — task identity + Repo (§ 2.3 / DP-050)
   # SOFT: Epic (warn only — Bug tasks may omit Epic)
   # ---------------------------------------------------------------------------
-  local header_jira_token
-  header_jira_token="$(extract_header_jira_token "$FILE")"
-  if [[ -z "$header_jira_token" ]]; then
-    errors+=("missing JIRA key in metadata line: expected '> ... | JIRA: {KEY} | ...'")
-  elif ! is_valid_task_identity "$header_jira_token"; then
-    errors+=("invalid task identity in metadata line: got '$header_jira_token' (expected JIRA key like PROJ-123 or DP pseudo-task like DP-047-T1)")
+  local header_jira_token header_task_token
+  header_jira_token="$(extract_header_token "$FILE" "JIRA")"
+  header_task_token="$(extract_header_token "$FILE" "Task")"
+  if [[ -n "$header_task_token" ]]; then
+    if ! is_valid_task_identity "$header_task_token"; then
+      errors+=("invalid Task identity in metadata line: got '$header_task_token' (expected JIRA key like PROJ-123 or DP pseudo-task like DP-047-T1)")
+    fi
+    if [[ -n "$header_jira_token" ]] && ! is_na_value "$header_jira_token" && ! is_valid_jira_key "$header_jira_token"; then
+      errors+=("invalid JIRA key in metadata line: got '$header_jira_token' (expected real JIRA key like PROJ-123 or N/A for DP-backed task)")
+    fi
+  else
+    if [[ -z "$header_jira_token" ]]; then
+      errors+=("missing task identity in metadata line: expected legacy 'JIRA: {KEY}' or canonical 'Task: {ID}'")
+    elif ! is_valid_task_identity "$header_jira_token"; then
+      errors+=("invalid task identity in metadata line: got '$header_jira_token' (expected JIRA key like PROJ-123 or legacy DP pseudo-task like DP-047-T1)")
+    fi
   fi
   if ! grep -qE '^> .*Repo: \S+' "$FILE"; then
     errors+=("missing Repo in metadata line: expected '> ... | Repo: {repo_name}'")
   fi
   # Soft: Epic: — warn only (Bug tasks are a real no-Epic case, per DP-033 D5)
-  if ! grep -qE '^> .*Epic: \S+' "$FILE"; then
+  if ! grep -qE '^> .*Epic: \S+' "$FILE" && ! grep -qE '^> .*Source: \S+' "$FILE"; then
     warnings+=("metadata line missing 'Epic:' cell — Soft required (Bug tasks may omit; warn only)")
   fi
 
@@ -390,19 +421,59 @@ validate_file() {
     op_ctx=$(extract_markdown_section "$FILE" "## Operational Context")
 
     local task_identity
-    task_identity="$(extract_op_ctx_field "$FILE" "Task JIRA key")"
+    task_identity="$(extract_op_ctx_field "$FILE" "Task ID")"
     if [[ -z "$task_identity" ]]; then
-      errors+=("Operational Context section missing Task JIRA key value")
+      task_identity="$(extract_op_ctx_field "$FILE" "Task JIRA key")"
+    fi
+    if [[ -z "$task_identity" ]]; then
+      errors+=("Operational Context section missing task identity value (expected canonical 'Task ID' or legacy 'Task JIRA key')")
     elif ! is_valid_task_identity "$task_identity"; then
-      errors+=("Operational Context Task JIRA key has invalid identity '$task_identity' (expected JIRA key like PROJ-123 or DP pseudo-task like DP-047-T1)")
+      errors+=("Operational Context task identity has invalid value '$task_identity' (expected JIRA key like PROJ-123 or DP pseudo-task like DP-047-T1)")
+    fi
+
+    local canonical_identity=0
+    if [[ -n "$(extract_op_ctx_field "$FILE" "Task ID")" \
+          || -n "$(extract_op_ctx_field "$FILE" "Source type")" \
+          || -n "$(extract_op_ctx_field "$FILE" "Source ID")" \
+          || -n "$(extract_op_ctx_field "$FILE" "JIRA key")" ]]; then
+      canonical_identity=1
+    fi
+
+    if [[ "$canonical_identity" -eq 1 ]]; then
+      local source_type source_id jira_key_cell
+      source_type="$(extract_op_ctx_field "$FILE" "Source type")"
+      source_id="$(extract_op_ctx_field "$FILE" "Source ID")"
+      jira_key_cell="$(extract_op_ctx_field "$FILE" "JIRA key")"
+      case "$source_type" in
+        dp|jira) ;;
+        *) errors+=("Operational Context canonical identity requires Source type = dp|jira (got: '${source_type:-<empty>}')") ;;
+      esac
+      if [[ -z "$source_id" ]]; then
+        errors+=("Operational Context canonical identity missing Source ID")
+      fi
+      if [[ -z "$(extract_op_ctx_field "$FILE" "Task ID")" ]]; then
+        errors+=("Operational Context canonical identity missing Task ID")
+      fi
+      if [[ -z "$jira_key_cell" ]]; then
+        errors+=("Operational Context canonical identity missing JIRA key cell (use N/A when absent)")
+      elif ! is_na_value "$jira_key_cell" && ! is_valid_jira_key "$jira_key_cell"; then
+        errors+=("Operational Context JIRA key must be a real JIRA key or N/A (got: '$jira_key_cell')")
+      elif [[ "$source_type" == "jira" ]] && is_na_value "$jira_key_cell"; then
+        errors+=("Operational Context source_type=jira requires a real JIRA key (got: '$jira_key_cell')")
+      fi
+    else
+      if [[ -z "$(extract_op_ctx_field "$FILE" "Task JIRA key")" ]]; then
+        errors+=("Operational Context legacy identity missing Task JIRA key")
+      fi
+      if [[ -z "$(extract_op_ctx_field "$FILE" "Parent Epic")" ]]; then
+        errors+=("Operational Context legacy identity missing Parent Epic")
+      fi
     fi
 
     # Hard required cells — mode-aware (§ 3.2 for T, § 4.2 for V)
     local required_cells=()
     if [[ "$mode" == "T" ]]; then
       required_cells=(
-        "Task JIRA key"
-        "Parent Epic"
         "Test sub-tasks"
         "AC 驗收單"
         "Base branch"
@@ -413,8 +484,6 @@ validate_file() {
       # V mode (§ 4.2): drops T-only cells (Test sub-tasks / AC 驗收單 / Task branch)
       # and adds Implementation tasks (the T list this V verifies).
       required_cells=(
-        "Task JIRA key"
-        "Parent Epic"
         "Implementation tasks"
         "Base branch"
         "References to load"
