@@ -152,6 +152,26 @@ bash "$ROOT_DIR/scripts/check-local-extension-completion.sh" \
 
 bash "$ROOT_DIR/scripts/validate-task-md.sh" "$task_md"
 
+bash "$ROOT_DIR/scripts/write-extension-deliverable.sh" "$task_md" \
+  --extension-id example-extension \
+  --task-head-sha "$task_head_sha" \
+  --workspace-commit "$workspace_commit" \
+  --template-commit "$template_commit" \
+  --version-tag v0.0.1 \
+  --release-url https://github.com/example/template/releases/tag/v0.0.1 \
+  --ci-local-evidence N/A \
+  --verify-evidence "$verify_evidence" \
+  --completed-at 2026-04-29T00:00:00Z
+
+bash "$ROOT_DIR/scripts/check-local-extension-completion.sh" \
+  --repo "$workspace" \
+  --task-md "$task_md" \
+  --task-id DP-048-T1 \
+  --extension-id example-extension \
+  --template-repo "$template"
+
+bash "$ROOT_DIR/scripts/validate-task-md.sh" "$task_md"
+
 rm -f "$ci_evidence" "$verify_evidence"
 
 echo "PASS: local extension completion smoke test"

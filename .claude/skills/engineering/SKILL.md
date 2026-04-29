@@ -241,7 +241,7 @@ bash "${POLARIS_ROOT}/scripts/write-extension-deliverable.sh" "<path/to/task.md>
   --template-commit "<template release commit>" \
   --version-tag "<version tag or N/A>" \
   --release-url "<release URL or N/A>" \
-  --ci-local-evidence "<Layer A evidence path>" \
+  --ci-local-evidence "<Layer A evidence path or N/A when no ci-local is declared>" \
   --verify-evidence "<Layer B evidence path>" \
   --vr-evidence "<Layer C evidence path or N/A>"
 bash "${POLARIS_ROOT}/scripts/check-local-extension-completion.sh" \

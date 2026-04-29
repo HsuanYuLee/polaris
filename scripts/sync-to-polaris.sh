@@ -64,6 +64,30 @@ if [[ ! -d "$POLARIS_DIR/.claude/skills" ]]; then
   exit 1
 fi
 
+require_clean_tracked_source() {
+  local dirty
+
+  if ! git -C "$INSTANCE_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "ERROR: release sync source must be a clean git worktree: $INSTANCE_DIR" >&2
+    echo "Commit your release changes, stash local edits, or run from a clean worktree before using --commit/--push." >&2
+    exit 1
+  fi
+
+  dirty="$(git -C "$INSTANCE_DIR" status --porcelain --untracked-files=no)"
+  if [[ -n "$dirty" ]]; then
+    echo "ERROR: dirty tracked source tree detected before template sync." >&2
+    echo "Commit the tracked changes, stash them, or run sync-to-polaris from a clean worktree before using --commit/--push." >&2
+    echo "" >&2
+    echo "Dirty tracked files:" >&2
+    printf '%s\n' "$dirty" | sed 's/^/  /' >&2
+    exit 1
+  fi
+}
+
+if [[ "$AUTO_COMMIT" == true && "$DRY_RUN" == false ]]; then
+  require_clean_tracked_source
+fi
+
 # Read version from instance
 VERSION=""
 if [[ -f "$INSTANCE_DIR/VERSION" ]]; then

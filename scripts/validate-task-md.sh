@@ -756,8 +756,8 @@ print((urlparse(u).hostname or '').lower())
     elif ! printf '%s' "$ext_completed_at" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})?$'; then
       errors+=("extension_deliverable.completed_at must be ISO 8601 timestamp (got: '$ext_completed_at')")
     fi
-    if [[ -z "$ext_ci_evidence" || "$ext_ci_evidence" == "N/A" ]]; then
-      errors+=("extension_deliverable.evidence.ci_local is missing or N/A")
+    if [[ -z "$ext_ci_evidence" ]]; then
+      errors+=("extension_deliverable.evidence.ci_local is missing (use N/A when no ci-local is declared)")
     fi
     if [[ -z "$ext_verify_evidence" || "$ext_verify_evidence" == "N/A" ]]; then
       errors+=("extension_deliverable.evidence.verify is missing or N/A")

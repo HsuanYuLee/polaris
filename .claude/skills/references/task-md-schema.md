@@ -146,7 +146,7 @@ extension_deliverable:
   release_url: https://github.com/org/repo/releases/tag/v3.73.45
   completed_at: 2026-04-29T00:00:00Z
   evidence:
-    ci_local: /tmp/polaris-ci-local-...
+    ci_local: /tmp/polaris-ci-local-...  # or N/A when repo has no ci-local declared
     verify: /tmp/polaris-verified-DP-NNN-Tn-...
     vr: N/A
 ```
@@ -157,7 +157,8 @@ Completion gate：`scripts/check-local-extension-completion.sh`，檢查：
 
 - `extension_deliverable.endpoint == local_extension`，`extension_id` 符合呼叫端指定值
 - `task_head_sha`、`workspace_commit`、`template_commit` 格式正確；`workspace_commit` 必須包含 `task_head_sha`
-- Layer A `ci_local` evidence 與 Layer B `verify` evidence 均存在、PASS、且 `head_sha` 對應 `task_head_sha`
+- Layer A `ci_local` evidence 若 repo 宣告 ci-local 則必須存在、PASS、且 `head_sha` 對應 `task_head_sha`；若 repo 無 ci-local，寫 `N/A`
+- Layer B `verify` evidence 必須存在、PASS、且 `head_sha` 對應 `task_head_sha`
 - `workspace_commit` 對應目前 workspace HEAD；若提供 template repo，`template_commit` 對應 template HEAD，`version_tag` 存在
 
 `extension_deliverable` 只能由 helper 寫入。local_extension lane 若 helper 尚未成功，不得標 `status: IMPLEMENTED`。

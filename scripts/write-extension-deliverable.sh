@@ -14,7 +14,7 @@ set -uo pipefail
 #     --workspace-commit <sha> \
 #     --template-commit <sha> \
 #     --version-tag <tag|N/A> \
-#     --ci-local-evidence <path> \
+#     --ci-local-evidence <path|N/A> \
 #     --verify-evidence <path> \
 #     [--vr-evidence <path|N/A>] \
 #     [--release-url <url|N/A>] \

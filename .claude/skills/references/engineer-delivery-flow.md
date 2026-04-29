@@ -667,7 +667,7 @@ bash "${POLARIS_ROOT}/scripts/write-extension-deliverable.sh" "<path/to/task.md>
   --template-commit "<template release commit>" \
   --version-tag "<version tag or N/A>" \
   --release-url "<release URL or N/A>" \
-  --ci-local-evidence "<Layer A evidence path>" \
+  --ci-local-evidence "<Layer A evidence path or N/A when no ci-local is declared>" \
   --verify-evidence "<Layer B evidence path>" \
   --vr-evidence "<Layer C evidence path or N/A>"
 bash "${POLARIS_ROOT}/scripts/check-local-extension-completion.sh" \
@@ -677,7 +677,7 @@ bash "${POLARIS_ROOT}/scripts/check-local-extension-completion.sh" \
   --extension-id "<local extension id>"
 ```
 
-不得呼叫 Developer completion gate 後忽略其 PR deliverable failure。Local Extension completion gate 的 authority 是 `extension_deliverable` metadata、Layer A/B evidence 對應 `task_head_sha`、以及 local policy release commit freshness。
+不得呼叫 Developer completion gate 後忽略其 PR deliverable failure。Local Extension completion gate 的 authority 是 `extension_deliverable` metadata、Layer B evidence 對應 `task_head_sha`、Layer A evidence（若 repo 宣告 ci-local）、以及 local policy release commit freshness。
 
 ### Script contract（Developer / Admin / Local Extension）
 

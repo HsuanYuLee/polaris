@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.46] - 2026-04-29
+
+### Fixed — framework release clean-source gate
+
+- Added a clean-source gate to `sync-to-polaris.sh --push` so release sync
+  fails before template copy when the workspace source has dirty tracked
+  changes.
+- Added a selftest covering dirty tracked fail-fast, clean source pass,
+  untracked scratch files, dry-run behavior, and non-push sync behavior.
+- Updated local extension completion so repos without a declared `ci-local.sh`
+  can record `ci_local: N/A` while still requiring Layer B verify evidence.
+
 ## [3.73.45] - 2026-04-29
 
 ### Added — local extension release completion

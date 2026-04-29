@@ -19,6 +19,9 @@ set -euo pipefail
 
 PREFIX="[polaris local-extension-completion]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck disable=SC1091
+# shellcheck source=lib/ci-local-path.sh
+. "${SCRIPT_DIR}/lib/ci-local-path.sh"
 
 REPO_ROOT=""
 TASK_MD=""
@@ -147,6 +150,12 @@ current_workspace_head="$(git -C "$REPO_ROOT" rev-parse HEAD)"
 sha_matches "$workspace_commit" "$current_workspace_head" \
   || block "workspace_commit (${workspace_commit}) is stale; current HEAD is ${current_workspace_head}"
 
+ci_local_required() {
+  local canonical
+  canonical="$(ci_local_canonical_path "$REPO_ROOT" 2>/dev/null || true)"
+  [[ -n "$canonical" && -f "$canonical" ]]
+}
+
 check_ci_evidence() {
   local evidence="$1"
   [[ -n "$evidence" && "$evidence" != "N/A" ]] || block "ci_local evidence path missing"
@@ -202,8 +211,14 @@ except Exception as exc:
 PY
 }
 
-if ! check_ci_evidence "$ci_local_evidence"; then
-  block "ci_local evidence is malformed or stale: $ci_local_evidence"
+if ci_local_required; then
+  if ! check_ci_evidence "$ci_local_evidence"; then
+    block "ci_local evidence is malformed or stale: $ci_local_evidence"
+  fi
+elif [[ -n "$ci_local_evidence" && "$ci_local_evidence" != "N/A" ]]; then
+  if ! check_ci_evidence "$ci_local_evidence"; then
+    block "ci_local evidence is malformed or stale: $ci_local_evidence"
+  fi
 fi
 if ! check_verify_evidence "$verify_evidence"; then
   block "verify evidence is malformed or stale: $verify_evidence"
