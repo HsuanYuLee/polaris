@@ -32,6 +32,7 @@ fi
 
 command_string="$*"
 
+"$ROOT_DIR/scripts/gates/gate-pr-language.sh" --repo "${GATE_PROJECT_DIR:-$(pwd)}" --command "$command_string"
 "$ADAPTER" "$ROOT_DIR/scripts/safety-gate.sh" "$command_string"
 
 if [[ "$dry_run" == true ]]; then

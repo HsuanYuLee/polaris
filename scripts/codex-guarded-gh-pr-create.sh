@@ -21,11 +21,16 @@ if [[ "${1:-}" == "--dry-run" ]]; then
   shift
 fi
 
-pr_cmd="gh pr create"
-if [[ $# -gt 0 ]]; then
-  pr_cmd="gh pr create $*"
-fi
+pr_cmd="$(
+  python3 - "$@" <<'PY'
+import shlex
+import sys
 
+print(" ".join(shlex.quote(part) for part in ["gh", "pr", "create", *sys.argv[1:]]))
+PY
+)"
+
+"$ROOT_DIR/scripts/gates/gate-pr-language.sh" --repo "${GATE_PROJECT_DIR:-$(pwd)}" --command "$pr_cmd"
 "$ADAPTER" "$ROOT_DIR/.claude/hooks/ci-local-gate.sh" "$pr_cmd"
 "$ADAPTER" "$ROOT_DIR/scripts/verification-evidence-gate.sh" "$pr_cmd"
 

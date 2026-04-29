@@ -152,7 +152,19 @@ elif [[ "$PR_BODY_SOURCE" == "body" ]]; then
   run_gate gate-pr-body-template.sh --repo "$REPO_PATH" --body "$PR_BODY"
 fi
 
-# Gate 6: task changeset (managed task branches in changeset repos)
+# Gate 6: PR title/body language policy via gate-pr-language.sh
+# (central wrapper around validate-language-policy.sh).
+if [[ -n "$PR_TITLE" || "$PR_BODY_SOURCE" == "file" || "$PR_BODY_SOURCE" == "body" ]]; then
+  if [[ "$PR_BODY_SOURCE" == "file" ]]; then
+    run_gate gate-pr-language.sh --repo "$REPO_PATH" --title "$PR_TITLE" --body-file "$PR_BODY_FILE"
+  elif [[ "$PR_BODY_SOURCE" == "body" ]]; then
+    run_gate gate-pr-language.sh --repo "$REPO_PATH" --title "$PR_TITLE" --body "$PR_BODY"
+  else
+    run_gate gate-pr-language.sh --repo "$REPO_PATH" --title "$PR_TITLE"
+  fi
+fi
+
+# Gate 7: task changeset (managed task branches in changeset repos)
 if [[ "$IS_TICKET_BRANCH" -eq 1 ]]; then
   run_gate gate-changeset.sh --repo "$REPO_PATH"
 fi

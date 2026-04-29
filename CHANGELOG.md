@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.58] - 2026-04-30
+
+### Added — GitHub PR language gate
+
+- 新增 `gate-pr-language.sh`，在 GitHub write path 送出 generated prose 前檢查
+  PR title、body、comment 與 review text。
+- 串接到 `polaris-pr-create.sh`、Codex PR create fallback、guarded Bash execution，
+  以及 PR create/edit/comment/review hook path。
+- 補上 self-test，覆蓋 zh-TW PR metadata、英文 title/body blocking，以及英文
+  template headings 搭配 zh-TW prose 的合法情境。
+
 ## [3.73.57] - 2026-04-30
 
 ### Changed — refinement DP source progressive disclosure
