@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.55] - 2026-04-30
+
+### Fixed — workspace language inheritance
+
+- Updated `validate-language-policy.sh` to inherit the nearest non-empty
+  `language:` from parent workspace configs instead of stopping at a company
+  config that does not override language.
+- Added `--selftest` and self-test coverage for inherited root language,
+  `language_unset`, bilingual mode, and code-heavy artifacts.
+
 ## [3.73.54] - 2026-04-30
 
 ### Fixed — ci-local coverage path mismatch false positive
