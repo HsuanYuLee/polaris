@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.35] - 2026-04-29
+
+### Fixed — completion gate task resolution
+
+- Fixed `check-delivery-completion.sh` so completion freshness can resolve
+  task.md files stored under the company workspace `specs/` root when `--repo`
+  points at a product repo sibling.
+
 ## [3.73.34] - 2026-04-29
 
 ### Changed — local delivery extension boundary

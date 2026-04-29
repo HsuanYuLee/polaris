@@ -57,6 +57,43 @@ print("")
 PY
 }
 
+find_workspace_root_for_path() {
+  local path="$1"
+  local probe=""
+  local root=""
+
+  [[ -d "$path" ]] || return 1
+  probe="$(cd "$path" && pwd)"
+
+  while [[ "$probe" != "/" && -n "$probe" ]]; do
+    if [[ -f "$probe/workspace-config.yaml" ]]; then
+      root="$probe"
+    fi
+    probe="$(dirname "$probe")"
+  done
+
+  [[ -n "$root" ]] || return 1
+  printf '%s\n' "$root"
+}
+
+append_unique_scan_root() {
+  local root="$1"
+  local existing=""
+
+  [[ -n "$root" && -d "$root" ]] || return 0
+  root="$(cd "$root" && pwd)"
+
+  if declare -p scan_roots >/dev/null 2>&1; then
+    for existing in ${scan_roots[@]+"${scan_roots[@]}"}; do
+      if [[ "$existing" == "$root" ]]; then
+        return 0
+      fi
+    done
+  fi
+
+  scan_roots+=("$root")
+}
+
 resolve_task_for_completion_check() {
   if [[ "$MODE" == "admin" ]]; then
     return 1
@@ -64,20 +101,30 @@ resolve_task_for_completion_check() {
 
   local candidate=""
   local candidates=()
+  local main_checkout=""
+  local workspace_root=""
+  local scan_root=""
 
-  local scan_roots=("$REPO_ROOT")
-  if [[ -f "${REPO_ROOT}/.git" ]]; then
-    local main_checkout=""
+  local -a scan_roots
+  scan_roots=()
+  append_unique_scan_root "$REPO_ROOT"
+  if workspace_root="$(find_workspace_root_for_path "$REPO_ROOT" 2>/dev/null)" && [[ -n "$workspace_root" ]]; then
+    append_unique_scan_root "$workspace_root"
+  fi
+
+  if [[ -e "${REPO_ROOT}/.git" ]]; then
     # shellcheck source=lib/main-checkout.sh
     . "${SCRIPT_DIR}/lib/main-checkout.sh"
     if main_checkout="$(resolve_main_checkout "$REPO_ROOT" 2>/dev/null)" && [[ -n "$main_checkout" ]]; then
-      scan_roots+=("$main_checkout")
+      append_unique_scan_root "$main_checkout"
+      if workspace_root="$(find_workspace_root_for_path "$main_checkout" 2>/dev/null)" && [[ -n "$workspace_root" ]]; then
+        append_unique_scan_root "$workspace_root"
+      fi
     fi
   fi
 
   if [[ -n "$TICKET" ]]; then
-    local scan_root=""
-    for scan_root in "${scan_roots[@]}"; do
+    for scan_root in ${scan_roots[@]+"${scan_roots[@]}"}; do
       if candidate="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$scan_root" "$TICKET" 2>/dev/null || true)" && [[ -n "$candidate" ]]; then
         candidates+=("$candidate")
         break
@@ -85,9 +132,12 @@ resolve_task_for_completion_check() {
     done
   fi
 
-  if candidate="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$REPO_ROOT" --current 2>/dev/null || true)"; then
-    candidates+=("$candidate")
-  fi
+  for scan_root in ${scan_roots[@]+"${scan_roots[@]}"}; do
+    if candidate="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$scan_root" --current 2>/dev/null || true)" && [[ -n "$candidate" ]]; then
+      candidates+=("$candidate")
+      break
+    fi
+  done
 
   for candidate in "${candidates[@]}"; do
     if [[ -f "$candidate" ]]; then
