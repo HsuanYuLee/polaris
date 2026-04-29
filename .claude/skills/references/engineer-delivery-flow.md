@@ -267,7 +267,7 @@ bash "${POLARIS_ROOT}/scripts/run-verify-command.sh" "<path/to/task.md>"
 
 **Script 行為**：
 
-1. 透過 `parse-task-md.sh --field verify_command,level,task_jira_key,repo` 讀取 task.md
+1. 透過 `parse-task-md.sh --field verify_command,level,work_item_id,jira_key,repo` 讀取 task.md。`work_item_id` 是 evidence / branch / local-extension handoff 的 task identity；`jira_key` 只用於 JIRA side effect，無 JIRA 的 DP-backed task 會是空值。Migration 期舊 consumer 可讀 `task_jira_key` compatibility alias，但新流程不得把它當 canonical 欄位。
 2. D17 level-based dispatch：
    - `Level=static` → 直接執行 verify command
    - `Level=build` → 先呼叫 `run-test-prep.sh` → 再執行
@@ -451,7 +451,7 @@ Handoff package 必須包含：
 role: local-extension
 extension_id: <local extension id>
 task_md: <absolute path to DP task.md>
-task_id: <task key or DP pseudo-task id>
+task_id: <identity.work_item_id>
 repo: <repo root>
 task_branch: <current branch>
 task_head_sha: <current HEAD>

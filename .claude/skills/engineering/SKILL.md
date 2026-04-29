@@ -120,7 +120,7 @@ engineering 的入口目標只有一個：**找到 authoritative work order**，
 role: local-extension
 extension_id: <local extension id>
 task_md: <absolute path to DP task.md>
-task_id: <task key or DP pseudo-task id>
+task_id: <identity.work_item_id>
 repo: <repo root>
 task_branch: <current branch>
 task_head_sha: <git rev-parse HEAD>
@@ -145,7 +145,7 @@ Extension 成功後必須用 `scripts/write-extension-deliverable.sh` 寫回 `ex
 
 ### 0d. Duplicate Work Guard
 
-First-cut mode 在建 branch / worktree 前必須由 `scripts/engineering-branch-setup.sh` 執行 duplicate guard。若同一張 `Task JIRA key` 已存在任何 `task/{KEY}-*` local branch、`origin/task/{KEY}-*` remote branch、或 `{repo_base}/.worktrees/{repo}-engineering-{KEY}` worktree path，且不是同一條已註冊 worktree 的續做情境，script 必須 fail loud。
+First-cut mode 在建 branch / worktree 前必須由 `scripts/engineering-branch-setup.sh` 執行 duplicate guard。若同一個 `identity.work_item_id` 已存在任何 `task/{KEY}-*` local branch、`origin/task/{KEY}-*` remote branch、或 `{repo_base}/.worktrees/{repo}-engineering-{KEY}` worktree path，且不是同一條已註冊 worktree 的續做情境，script 必須 fail loud。`jira_key` 只用於 JIRA side effect；branch / worktree / handoff identity 一律使用 `work_item_id`（migration 期 legacy `task_jira_key` 仍可作 compatibility alias）。
 
 阻擋理由：`deliverable.pr_url` 只代表 PR lifecycle；它無法涵蓋「branch 已開但 PR 尚未寫回 task.md」、「summary slug 改變造成新 branch 名稱」、「前次 worktree path 已存在但 branch setup retry」等中途失敗狀態。這些狀態一律先 resume / revision / cleanup，不得再開第二條 implementation branch。
 

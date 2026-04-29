@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.49] - 2026-04-29
+
+### Fixed — source-aware task resolver lifecycle
+
+- Updated task resolution to prefer canonical `jira_key` parsing while keeping
+  legacy `> JIRA:` lookup as fallback.
+- Added DP pseudo-task resolution coverage for released task files under
+  `tasks/pr-release/`.
+- Updated lifecycle helpers and engineering handoff references to use
+  `work_item_id` for task identity and reserve `jira_key` for JIRA side effects.
+
 ## [3.73.48] - 2026-04-29
 
 ### Added — canonical task identity

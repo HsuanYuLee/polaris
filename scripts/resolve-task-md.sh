@@ -12,6 +12,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BY_BRANCH_SCRIPT="${SCRIPT_DIR}/resolve-task-md-by-branch.sh"
+PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
 
 usage() {
   cat >&2 <<'USAGE'
@@ -199,9 +200,16 @@ resolve_by_jira() {
   local jira_key="$2"
   local -a task_matches=()
   local line=""
+  local parsed_jira=""
 
   while IFS= read -r -d '' line; do
-    if grep -Eq "^>.*\\bJIRA:\\s*${jira_key}\\b" "$line"; then
+    parsed_jira=""
+    if [[ -x "$PARSE_TASK_MD" ]]; then
+      parsed_jira="$(bash "$PARSE_TASK_MD" "$line" --no-resolve --field jira_key 2>/dev/null || true)"
+    fi
+    if [[ "$parsed_jira" == "$jira_key" ]]; then
+      task_matches+=("$line")
+    elif grep -Eq "^>.*\\bJIRA:\\s*${jira_key}\\b" "$line"; then
       task_matches+=("$line")
     fi
   done < <(
@@ -334,6 +342,16 @@ MD
 > Epic: GT-478 | JIRA: GT-479 | Repo: kkday
 MD
 
+  cat > "$tmpdir/specs/GT-478/tasks/T4.md" <<'MD'
+# T4: Canonical product task (1 pt)
+> Source: GT-478 | Task: GT-481 | JIRA: GT-481 | Repo: kkday
+## Operational Context
+| Source type | jira |
+| Source ID | GT-478 |
+| Task ID | GT-481 |
+| JIRA key | GT-481 |
+MD
+
   mkdir -p "$tmpdir/specs/design-plans/DP-047-framework-work-order-bridge/tasks"
   cat > "$tmpdir/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" <<'MD'
 # T1: DP task (1 pt)
@@ -343,12 +361,27 @@ MD
 | Task branch | task/DP-047-T1-framework-bridge |
 MD
 
+  mkdir -p "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release"
+  cat > "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" <<'MD'
+# T1: Canonical DP task (1 pt)
+> Source: DP-050 | Task: DP-050-T1 | JIRA: N/A | Repo: workspace
+## Operational Context
+| Source type | dp |
+| Source ID | DP-050 |
+| Task ID | DP-050-T1 |
+| JIRA key | N/A |
+MD
+
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-480)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/GT-478/tasks/T3b.md" ]] || { echo "[selftest] jira active FAIL"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-479)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/GT-478/tasks/pr-release/T3a.md" ]] || { echo "[selftest] jira complete FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-481)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/GT-478/tasks/T4.md" ]] || { echo "[selftest] canonical jira lookup FAIL"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-999)" || rc=$?
@@ -365,6 +398,10 @@ MD
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input 'engineering DP-047-T1')" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] || { echo "[selftest] from-input dp task FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" DP-050-T1)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" ]] || { echo "[selftest] canonical dp pr-release task FAIL"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --write-lock GT-480)" || rc=$?

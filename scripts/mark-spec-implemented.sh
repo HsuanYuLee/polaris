@@ -37,6 +37,49 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
+
+run_selftest() {
+  local tmpdir=""
+  local rc=0
+
+  tmpdir="$(mktemp -d -t mark-spec-implemented-selftest.XXXXXX)"
+  trap "rm -rf '$tmpdir'" EXIT
+
+  mkdir -p "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks"
+  cat > "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/T1.md" <<'MD'
+# T1: Canonical DP task (1 pt)
+
+> Source: DP-050 | Task: DP-050-T1 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-050 |
+| Task ID | DP-050-T1 |
+| JIRA key | N/A |
+| Base branch | main |
+| Task branch | task/DP-050-T1-canonical |
+MD
+
+  rc=0
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" DP-050-T1 --workspace "$tmpdir" >/dev/null || rc=$?
+  [[ "$rc" -eq 0 ]] || { echo "[selftest] canonical DP mark implemented failed"; return 1; }
+  [[ ! -f "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/T1.md" ]] || { echo "[selftest] active task was not moved"; return 1; }
+  [[ -f "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" ]] || { echo "[selftest] pr-release task missing"; return 1; }
+  grep -q '^status: IMPLEMENTED$' "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" || { echo "[selftest] status missing"; return 1; }
+
+  echo "[selftest] PASS"
+}
+
+if [[ "${MARK_SPEC_IMPLEMENTED_SELFTEST:-0}" == "1" ]]; then
+  run_selftest
+  exit $?
+fi
+
 TICKET=""
 STATUS="IMPLEMENTED"
 WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -147,7 +190,7 @@ is_task_key() {
 #   1) Epic-level: {workspace}/*/specs/<ticket>/refinement.md or plan.md
 #   2) Task-level (task key T{n}/V{n}): scan specs/*/tasks/ by filename
 #   3) DP task-level (DP-NNN-Tn): scan root specs/design-plans/DP-NNN-*/tasks/Tn.md
-#   4) Task-level (JIRA key): specs/*/tasks/T*.md whose header has "> JIRA: <ticket>"
+#   4) Task-level (JIRA key): parser jira_key match first, legacy "> JIRA: <ticket>" fallback
 # ---------------------------------------------------------------------------
 ANCHOR=""
 ANCHOR_TYPE=""  # "epic" | "task"
@@ -222,28 +265,35 @@ fi
 
 # Path 4 — Task-level by JIRA key in header (only if Path 1-3 missed)
 if [ -z "$ANCHOR" ]; then
-  # Search active tasks/ and tasks/pr-release/ for "> JIRA: KEY" header
+  # Search active tasks/ and tasks/pr-release/ by canonical parser jira_key
+  # first, then legacy "> JIRA: KEY" header fallback.
   while IFS= read -r f; do
-    ANCHOR="$f"
-    TASK_FILENAME="$(basename "$f")"
-    dir="$(dirname "$f")"
-    if [ "$(basename "$dir")" = "pr-release" ]; then
-      TASKS_DIR="$(dirname "$dir")"
-    else
-      TASKS_DIR="$dir"
+    parsed_jira=""
+    if [ -x "$PARSE_TASK_MD" ]; then
+      parsed_jira="$(bash "$PARSE_TASK_MD" "$f" --no-resolve --field jira_key 2>/dev/null || true)"
     fi
-    ANCHOR_TYPE="task"
-    break
-  done < <(grep -lE "^> .*JIRA: ${TICKET}([[:space:]]|\$|\|)" \
-    "$WORKSPACE_ROOT"/specs/design-plans/*/tasks/T*.md \
-    "$WORKSPACE_ROOT"/specs/design-plans/*/tasks/V*.md \
-    "$WORKSPACE_ROOT"/specs/design-plans/*/tasks/pr-release/T*.md \
-    "$WORKSPACE_ROOT"/specs/design-plans/*/tasks/pr-release/V*.md \
-    "$WORKSPACE_ROOT"/*/specs/*/tasks/T*.md \
-    "$WORKSPACE_ROOT"/*/specs/*/tasks/V*.md \
-    "$WORKSPACE_ROOT"/*/specs/*/tasks/pr-release/T*.md \
-    "$WORKSPACE_ROOT"/*/specs/*/tasks/pr-release/V*.md \
-    2>/dev/null)
+    if [ "$parsed_jira" = "$TICKET" ] || grep -Eq "^> .*JIRA: ${TICKET}([[:space:]]|\$|\|)" "$f"; then
+      ANCHOR="$f"
+      TASK_FILENAME="$(basename "$f")"
+      dir="$(dirname "$f")"
+      if [ "$(basename "$dir")" = "pr-release" ]; then
+        TASKS_DIR="$(dirname "$dir")"
+      else
+        TASKS_DIR="$dir"
+      fi
+      ANCHOR_TYPE="task"
+      break
+    fi
+  done < <(find "$WORKSPACE_ROOT" -type f \( \
+    -path "*/specs/design-plans/*/tasks/T*.md" \
+    -o -path "*/specs/design-plans/*/tasks/V*.md" \
+    -o -path "*/specs/design-plans/*/tasks/pr-release/T*.md" \
+    -o -path "*/specs/design-plans/*/tasks/pr-release/V*.md" \
+    -o -path "*/specs/*/tasks/T*.md" \
+    -o -path "*/specs/*/tasks/V*.md" \
+    -o -path "*/specs/*/tasks/pr-release/T*.md" \
+    -o -path "*/specs/*/tasks/pr-release/V*.md" \
+  \) 2>/dev/null)
 fi
 
 if [ -z "$ANCHOR" ]; then
