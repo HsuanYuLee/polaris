@@ -89,7 +89,7 @@ engineering 的入口目標只有一個：**找到 authoritative work order**，
 | `deliverable.pr_url` 有值，且 `gh pr view` 顯示 `OPEN` | **revision mode** |
 | `deliverable.pr_url` 有值，但 PR `MERGED` / `CLOSED` | **fail loud**（先修 task.md / deliverable 狀態） |
 
-若 work order 是 `specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md` 或 task identity 為 `DP-NNN-Tn`，且本 workspace 有明確的 local delivery extension 宣告，first-cut 的交付尾段可交給該 extension。這個判斷只影響交付終態，不影響前面的 resolver、handbook、TDD、scope、ci-local、verify、VR、base freshness gates。
+若 work order 是 `specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md` 或 task identity 為 `DP-NNN-Tn`，且本 workspace 有明確的 local delivery extension 宣告，first-cut 的交付尾段可交給該 extension。extension 可能是「不建 PR 的 local endpoint」，也可能是「workspace PR merge 後的 release tail」（例如 `framework-release`）。這個判斷只影響交付終態，不影響前面的 resolver、handbook、TDD、scope、ci-local、verify、VR、base freshness gates。
 
 ## Local Delivery Extension Boundary（local-only）
 
@@ -109,8 +109,9 @@ engineering 的入口目標只有一個：**找到 authoritative work order**，
 
 - 前半段完全同 first-cut：Resolve Work Order → Optional Contract Check → Branch + Worktree Setup → TDD 開發 → handbook gate → dependency install → task.md `test_command` / `verify_command` → `ci-local.sh` / behavior verify / VR / base freshness。
 - 仍讀 `references/engineer-delivery-flow.md`，但 role 宣告為 `local-extension`。這個 role 有 task.md，因此不可用 Admin mode 跳過 scope / behavioral verify。
-- portable engineering 不知道 extension 的 release 細節；它只負責在 local gates 全通過後產生 handoff package。
-- 不開一般 PR時，也不得寫 fake `deliverable.pr_url`。extension 必須提供自己的 completion evidence。
+- portable engineering 不知道 extension 的 release 細節；它只負責在 local gates 全通過後產生 extension 所需的 handoff package。
+- 若 local policy 要求 workspace PR（例如 `framework-release`），engineering 必須先完成一般 PR 建立 / 更新，並把真實 workspace PR 放進 `deliverable.pr_url` 與 handoff package。不得用 direct push 或假 PR URL 取代。
+- 若 local policy 明確允許不建 PR，也不得寫 fake `deliverable.pr_url`。extension 必須提供自己的 completion evidence。
 
 ### Handoff Package
 
@@ -122,6 +123,8 @@ extension_id: <local extension id>
 task_md: <absolute path to DP task.md>
 task_id: <identity.work_item_id>
 repo: <repo root>
+workspace_pr_url: <workspace PR URL, if local policy requires PR>
+workspace_pr_number: <workspace PR number, if local policy requires PR>
 task_branch: <current branch>
 task_head_sha: <git rev-parse HEAD>
 evidence:
@@ -141,7 +144,7 @@ Local extension lane 的完成權限來自兩段 AND：
 1. engineering evidence gates：Layer A `ci-local` + Layer B `run-verify-command` + Layer C VR（if triggered）都對應 `task_head_sha`
 2. local extension final verification：由 local policy 定義，且必須產生可回溯 completion evidence
 
-Extension 成功後必須用 `scripts/write-extension-deliverable.sh` 寫回 `extension_deliverable` metadata，記錄 `task_head_sha`、workspace commit、template commit、version tag、release URL（若有）與 Layer A/B/C evidence path。不得把 fake PR URL 寫進 `deliverable.pr_url`。task lifecycle 只有在 `scripts/check-local-extension-completion.sh` PASS 後才能標 `IMPLEMENTED`。
+Extension 成功後必須用 `scripts/write-extension-deliverable.sh` 寫回 `extension_deliverable` metadata，記錄 `task_head_sha`、workspace commit、template commit、version tag、release URL（若有）與 Layer A/B/C evidence path。若已有真實 workspace PR，`deliverable` 與 `extension_deliverable` 可並存；若沒有真實 PR，仍不得把 fake PR URL 寫進 `deliverable.pr_url`。task lifecycle 只有在 `scripts/check-local-extension-completion.sh` PASS 後才能標 `IMPLEMENTED`。
 
 ### 0d. Duplicate Work Guard
 
@@ -218,7 +221,7 @@ engineering 是純施工 skill，沒有 work order 就不施工。
 
 - Phase 3：Simplify → Self-Review
 - Phase 4（Developer）：Scope Gate → Step 2 `ci-local.sh` → Step 3 `run-verify-command.sh` → Step 3.5 VR → Base Freshness → Commit → PR → JIRA → Completion Gate → Worktree Cleanup
-- Phase 4（Local Extension）：Scope Gate → Step 2 `ci-local.sh` → Step 3 `run-verify-command.sh` → Step 3.5 VR → Base Freshness → Handoff Package → Local Extension → Extension Verification → Worktree Cleanup
+- Phase 4（Local Extension）：Scope Gate → Step 2 `ci-local.sh` → Step 3 `run-verify-command.sh` → Step 3.5 VR → Base Freshness → PR（if required by local policy）→ Handoff Package → Local Extension → Extension Verification → Worktree Cleanup
 
 Developer lane 完成前必跑：
 
@@ -229,7 +232,7 @@ bash "${POLARIS_ROOT}/scripts/finalize-engineering-delivery.sh" \
   --workspace "{workspace_root}"
 ```
 
-Local Extension lane 不得用 Developer completion gate 假裝完成（它會期待 PR deliverable）。在 handoff 前先跑 Layer A / Layer B gate，extension 後用 local policy 產出的 release metadata 寫回 `extension_deliverable`，再跑 local extension completion gate：
+Local Extension lane 不得用不符合 local policy 的 completion gate 假裝完成。若 local policy 要求 workspace PR，先完成 Developer PR creation/writeback；若 local policy 不建 PR，則不要呼叫 Developer completion gate 假裝有 PR deliverable。在 handoff 前先跑 Layer A / Layer B gate，extension 後用 local policy 產出的 release metadata 寫回 `extension_deliverable`，再跑 local extension completion gate：
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/gates/gate-ci-local.sh" --repo "$(git rev-parse --show-toplevel)"

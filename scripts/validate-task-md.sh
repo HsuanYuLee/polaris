@@ -743,9 +743,10 @@ print((urlparse(u).hostname or '').lower())
 
   # ---------------------------------------------------------------------------
   # LIFECYCLE-CONDITIONAL (T mode only): extension_deliverable schema (DP-048)
-  # Used by local_extension delivery endpoints that do not create a PR. It is
-  # mutually compatible with absent deliverable; validator only checks structure
-  # WHEN the block is present.
+  # Used by local_extension delivery endpoints. It may supplement a real
+  # workspace PR deliverable for post-PR release tails, or stand alone for
+  # explicitly PR-bypass endpoints; validator only checks structure WHEN the
+  # block is present.
   # ---------------------------------------------------------------------------
   if [[ "$mode" == "T" ]] && frontmatter_key_exists "$FILE" "extension_deliverable" 2>/dev/null; then
     local fm_block_ext

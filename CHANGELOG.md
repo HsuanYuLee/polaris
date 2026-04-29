@@ -4,6 +4,25 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.51] - 2026-04-30
+
+### Added — workspace language policy gate
+
+- Added `validate-language-policy.sh` to enforce workspace artifact language
+  policy from `workspace-config.yaml`.
+- Added blocking/advisory modes plus bilingual document modes for rollout and
+  README source/translation pairs.
+- Added conservative paragraph detection that ignores code blocks, inline code,
+  URLs, paths, CLI flags, branch names, ticket keys, and schema-style tokens.
+
+### Changed — framework release PR boundary
+
+- Clarified that `framework-release` is a post-workspace-PR release tail:
+  engineering still owns implementation, gates, and workspace PR creation.
+- Updated local extension contracts so `extension_deliverable` can supplement a
+  real workspace PR deliverable for template sync / release evidence, while
+  still forbidding fake PR URLs.
+
 ## [3.73.50] - 2026-04-30
 
 ### Fixed — external branch-chain anchors
