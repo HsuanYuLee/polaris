@@ -130,8 +130,9 @@ flowchart TD
 | **2. AC ↔ 子任務追溯性** | `breakdown` 之後 | 產出追溯矩陣，確認每條 AC 都有對應的子任務 | 阻擋子任務建立，標示缺漏的 AC |
 | **3. 逐條驗證** | `engineer-delivery-flow` Step 3 (Layer A+B) | 確認環境啟動 + 受影響 URL 回 200 + task.md 行為項目 PASS | 阻擋開 PR；FAIL 項目必須修正 |
 | **4. AC 覆蓋清單** | `engineer-delivery-flow` Step 7（透過 `pr-body-builder`）| 自動在 PR 描述中嵌入 AC 清單 | Reviewer 一眼就能看到覆蓋狀態 |
+| **5. Workspace Language Policy** | external write 前 | 依 workspace language 檢查 PR/JIRA/Slack/Confluence/commit/release 文案，雙語文件則使用 English source docs 專用 mode | 阻擋或 fail-stop，直到文案語言修正 |
 
-> 這 4 道閘門確保 AC 不會被遺漏。即使 PM 寫了模糊的 AC，閘門 1 也會在最早的階段攔截。
+> 這 5 道閘門確保 AC 與 downstream-facing handoff text 不會被遺漏。即使 PM 寫了模糊的 AC，閘門 1 也會在最早的階段攔截。
 
 ---
 

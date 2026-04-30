@@ -373,6 +373,7 @@ Polaris operates with a strict **zero-telemetry, zero-cloud** policy:
 - **No analytics or tracking** — no `telemetry-sync`, no `eureka.jsonl`, no usage reporting of any kind
 - **No external network calls** — Polaris never phones home; the only network activity comes from tools you explicitly invoke (git, gh, JIRA, Slack)
 - **PreToolUse safety hooks** — `scripts/safety-gate.sh` blocks dangerous operations (destructive deletes, force-push to main, writes outside allowed directories) at the shell level, before they execute
+- **Workspace language policy gate** — downstream-facing PR, JIRA, Slack, Confluence, commit, and release prose is checked against the configured workspace language; bilingual documentation uses explicit source/translation modes so English source docs stay valid
 - **All code is auditable** — skills, rules, and scripts are plaintext files in your repo. No obfuscated binaries, no symlink farms, no hidden install scripts
 
 When evaluating external Claude Code skills or frameworks, we recommend scanning them with tools like [skill-sanitizer](https://github.com/cyberxuan-XBX/skill-sanitizer) before integration.

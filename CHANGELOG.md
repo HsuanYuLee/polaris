@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.62] - 2026-04-30
+
+### Added — language policy registry parity
+
+- 在 deterministic hooks registry 登記 `workspace-language-policy-gate`，包含 PR、
+  commit、artifact gate、自測與 exception policy。
+- 在 mechanism registry 補上 language policy gate 的 health-check canary 與
+  deterministic contract pointer。
+- 更新 docs-sync 與 README / workflow docs，明確記錄 bilingual docs mode 與
+  workspace language policy gate 的關係。
+
 ## [3.73.61] - 2026-04-30
 
 ### Added — external write language gates

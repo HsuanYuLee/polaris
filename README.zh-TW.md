@@ -374,6 +374,7 @@ Polaris 遵循嚴格的**零遙測、零雲端**政策：
 - **無分析或追蹤** — 沒有 `telemetry-sync`、沒有 `eureka.jsonl`、沒有任何使用回報
 - **無外部網路連線** — Polaris 不會回傳任何資料；唯一的網路活動來自你明確呼叫的工具（git、gh、JIRA、Slack）
 - **PreToolUse 安全 hook** — `scripts/safety-gate.sh` 在 shell 層級阻擋危險操作（破壞性刪除、force-push 到 main、寫入允許目錄以外的位置），在執行前攔截
+- **Workspace language policy gate** — PR、JIRA、Slack、Confluence、commit、release 等 downstream-facing 文案會依 workspace 設定語言檢查；雙語文件使用明確的 source / translation mode，避免 English source docs 被誤擋
 - **所有程式碼可審計** — 技能、規則和腳本都是 repo 中的純文字檔。沒有混淆過的二進位檔、沒有 symlink 群、沒有隱藏的安裝腳本
 
 評估外部 Claude Code 技能或框架時，建議在整合前使用 [skill-sanitizer](https://github.com/cyberxuan-XBX/skill-sanitizer) 等工具進行掃描。

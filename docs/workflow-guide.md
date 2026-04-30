@@ -130,8 +130,9 @@ Acceptance Criteria pass through 4 automated gates from ticket intake to PR open
 | **2. AC ↔ Sub-task Traceability** | After `breakdown` | Produces a traceability matrix confirming every AC is covered by a sub-task | Blocks sub-task creation, flags missing AC |
 | **3. Per-AC Verification** | `engineer-delivery-flow` Step 3 (Layer A+B) | Confirms env up + changed URLs return 200 + task.md behavioral items pass | Blocks PR open; FAIL items must be fixed |
 | **4. AC Coverage Checklist** | `engineer-delivery-flow` Step 7 (via `pr-body-builder`) | Embeds AC checklist in PR description automatically | Reviewer sees coverage status at a glance |
+| **5. Workspace Language Policy** | Before external write | Checks PR/JIRA/Slack/Confluence/commit/release prose against workspace language, with bilingual docs mode for English source docs | Blocks or fail-stops the write until prose language is corrected |
 
-> These 4 gates ensure AC never falls through the cracks. Even if a PM writes vague AC, Gate 1 catches it at the earliest possible stage.
+> These 5 gates ensure AC and downstream-facing handoff text never fall through the cracks. Even if a PM writes vague AC, Gate 1 catches it at the earliest possible stage.
 
 ---
 
