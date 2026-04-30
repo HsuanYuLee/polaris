@@ -19,7 +19,7 @@ metadata:
 
 **角色：Admin**（框架維護者）— 豁免 JIRA ticket、task.md、planning ceremony。**不豁免** execution discipline（simplify / quality / verify / review 照跑）。
 
-**產品 repo 禁用**：在產品 repo（your-app、your-backend 等）觸發時，skill-routing 會引導使用者改用 `engineering`。
+**產品 repo 禁用**：在產品 repo（kkday-b2c-web、member-ci 等）觸發時，skill-routing 會引導使用者改用 `engineering`。
 
 ---
 

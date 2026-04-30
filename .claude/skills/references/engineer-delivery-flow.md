@@ -251,7 +251,7 @@ bash "${POLARIS_ROOT}/scripts/ci-local-run.sh"
 
 **Bypass**：`POLARIS_SKIP_CI_LOCAL=1` — emergency escape only，不應日常使用。**沒有** `wip:` commit-msg skip / **沒有** main-develop branch skip / **沒有** deprecation shim（D12-c 一次到位的 breaking change）。
 
-**歷史**：TASK-123 事件（useFetch key 改動沒補測試、本地 quality PASS 但 CI `codecov/patch/main-core` FAIL）促成 DP-029 Phase B 的 patch gate 精確模擬。早期版本掛了 framework-level `coverage-gate.sh`（D6 v1），D6 v2 (2026-04-24) 判定「repo 有配就由 Dimension B 接、沒配不追加」更乾淨，coverage-gate 下架。D12-c (v3.58.0) 進一步把 `ci-contract-run.sh` / `quality-gate.sh` / `pre-commit-quality.sh` 整批下架，改由 `ci-local-generate.sh` 為每個 repo 生成 self-contained `ci-local.sh`，框架本體只保留 `ci-local-gate.sh` PreToolUse hook 做 evidence 把關。
+**歷史**：KB2CW-3847 事件（useFetch key 改動沒補測試、本地 quality PASS 但 CI `codecov/patch/main-core` FAIL）促成 DP-029 Phase B 的 patch gate 精確模擬。早期版本掛了 framework-level `coverage-gate.sh`（D6 v1），D6 v2 (2026-04-24) 判定「repo 有配就由 Dimension B 接、沒配不追加」更乾淨，coverage-gate 下架。D12-c (v3.58.0) 進一步把 `ci-contract-run.sh` / `quality-gate.sh` / `pre-commit-quality.sh` 整批下架，改由 `ci-local-generate.sh` 為每個 repo 生成 self-contained `ci-local.sh`，框架本體只保留 `ci-local-gate.sh` PreToolUse hook 做 evidence 把關。
 
 ---
 
@@ -300,7 +300,7 @@ bash "${POLARIS_ROOT}/scripts/run-verify-command.sh" "<path/to/task.md>"
 
 ```json
 {
-  "ticket": "PROJ-123",
+  "ticket": "GT-521",
   "head_sha": "abc1234",
   "writer": "run-verify-command.sh",
   "exit_code": 0,
@@ -468,6 +468,8 @@ delivery_intent:
   endpoint: local_extension
   summary: <summary>
   changed_files: <intentional files>
+release_closeout:
+  helper: scripts/framework-release-closeout.sh (when declared by local policy)
 ```
 
 The local extension owns all delivery side effects after handoff. Portable engineering only requires that local policy define:
@@ -476,9 +478,9 @@ The local extension owns all delivery side effects after handoff. Portable engin
 2. integration rules（how the validated task head is consumed; whether a workspace PR is required）
 3. final verification evidence
 4. failure / rollback reporting
-5. lifecycle metadata writer (`write-extension-deliverable.sh`) before task.md is marked implemented
+5. lifecycle metadata writer / closeout helper before task.md is marked implemented. Post-PR framework release endpoints must use `scripts/framework-release-closeout.sh` rather than manually stitching writer, completion gate, parent closeout, and cleanup.
 
-Local Extension role must not write fake `deliverable.pr_url`. If a real workspace PR exists, keep the real `deliverable` metadata and add `extension_deliverable` for the release tail. If no real PR exists, leave `deliverable` absent and let the extension write `extension_deliverable` metadata with `scripts/write-extension-deliverable.sh`, then pass `scripts/check-local-extension-completion.sh` before task lifecycle closeout.
+Local Extension role must not write fake `deliverable.pr_url`. If a real workspace PR exists, keep the real `deliverable` metadata and add `extension_deliverable` for the release tail. If the local policy provides a closeout helper, that helper owns `extension_deliverable`, `check-local-extension-completion.sh`, task implemented move, parent closeout, and worktree cleanup. If no closeout helper exists, leave `deliverable` absent and let the extension write `extension_deliverable` metadata with `scripts/write-extension-deliverable.sh`, then pass `scripts/check-local-extension-completion.sh` before task lifecycle closeout.
 
 ### 7a. Evidence AND Gate（pre-PR / pre-release verification）
 
@@ -583,7 +585,7 @@ task.md 若含 `Branch chain`，engineering 在 first-cut branch setup / revisio
   --task-md "<path/to/task.md>"
 ```
 
-`Branch chain` 只表達 rebase 順序（例：`develop -> feat/PROJ-123-... -> task/TASK-123-... -> task/TASK-123-...`）。PR base 仍只取 `resolve-task-base.sh` 的輸出，避免 `Base branch` / `PR base` 雙欄位同步問題。
+`Branch chain` 只表達 rebase 順序（例：`develop -> feat/GT-478-... -> task/KB2CW-3711-... -> task/KB2CW-3900-...`）。PR base 仍只取 `resolve-task-base.sh` 的輸出，避免 `Base branch` / `PR base` 雙欄位同步問題。
 
 **應用位置**（engineering SKILL.md 四處必呼叫 resolve helper）：
 
@@ -665,6 +667,22 @@ Local Extension mode：
 ```bash
 bash "${POLARIS_ROOT}/scripts/gates/gate-ci-local.sh" --repo "$(git rev-parse --show-toplevel)"
 bash "${POLARIS_ROOT}/scripts/gates/gate-evidence.sh" --repo "$(git rev-parse --show-toplevel)" --ticket "<DP_TASK_ID>"
+bash "${POLARIS_ROOT}/scripts/framework-release-closeout.sh" \
+  --repo "$(git rev-parse --show-toplevel)" \
+  --template-repo "<template repo path>" \
+  --task-md "<path/to/task.md>" \
+  --verify-evidence "<Layer B evidence path>" \
+  --ci-local-evidence "<Layer A evidence path or N/A when no ci-local is declared>" \
+  --vr-evidence "<Layer C evidence path or N/A>" \
+  --workspace-commit "<workspace release commit>" \
+  --template-commit "<template release commit>" \
+  --version-tag "<version tag or N/A>" \
+  --release-url "<release URL or N/A>"
+```
+
+Generic local-extension fallback（only when local policy does not declare a closeout helper）：
+
+```bash
 bash "${POLARIS_ROOT}/scripts/write-extension-deliverable.sh" "<path/to/task.md>" \
   --extension-id "<local extension id>" \
   --task-head-sha "<validated task head sha>" \
@@ -682,7 +700,7 @@ bash "${POLARIS_ROOT}/scripts/check-local-extension-completion.sh" \
   --extension-id "<local extension id>"
 ```
 
-不得呼叫不符合 local policy 的 completion gate 後忽略其 deliverable failure。Post-PR release endpoint 必須保留真實 workspace PR deliverable；PR-bypass endpoint 不得偽造 PR deliverable。Local Extension completion gate 的 authority 是 `extension_deliverable` metadata、Layer B evidence 對應 `task_head_sha`、Layer A evidence（若 repo 宣告 ci-local）、以及 local policy release commit freshness。
+不得呼叫不符合 local policy 的 completion gate 後忽略其 deliverable failure。Post-PR release endpoint 必須保留真實 workspace PR deliverable；PR-bypass endpoint 不得偽造 PR deliverable。Local Extension completion gate 的 authority 是 `extension_deliverable` metadata、Layer B evidence 對應 `task_head_sha`、Layer A evidence（若 repo 宣告 ci-local）、以及 local policy release commit freshness。對 `framework-release`，這個 authority 必須透過 `framework-release-closeout.sh` 產生並驗證。
 
 ### Script contract（Developer / Admin / Local Extension）
 
@@ -704,7 +722,7 @@ Step 7a 保證「不能開 PR」；Step 8.5 保證「不能嘴上結案」。兩
 
 ## Step 8.6 — Worktree Cleanup
 
-PR 建立 / 既有 PR branch push 完成，或 local extension final verification 完成後，task deliverable / extension metadata 已回寫、Developer finalize helper PASS（或 Local Extension final verification PASS），才清掉本次 implementation worktree。不要手動猜路徑或直接 `rm -rf`，一律用 helper 做 guard 後清理：
+PR 建立 / 既有 PR branch push 完成，或 local extension final verification 完成後，task deliverable / extension metadata 已回寫、Developer finalize helper PASS（或 Local Extension closeout helper PASS），才清掉本次 implementation worktree。不要手動猜路徑或直接 `rm -rf`，一律用 helper 做 guard 後清理。若 local policy 使用 `framework-release-closeout.sh`，該 helper 已負責呼叫 `engineering-clean-worktree.sh`，不要再手動重跑 cleanup 除非前次 helper 明確失敗並要求人工恢復。
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \

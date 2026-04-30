@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.66] - 2026-04-30
+
+### Added — framework release closeout automation
+
+- 新增 `framework-release-closeout.sh` 與 selftest，讓 framework release 後可批次
+  closeout DP-backed tasks：寫入 `extension_deliverable`、跑 local-extension
+  completion gate、標記 task implemented、關閉 parent DP、清理 implementation
+  worktree。
+- 支援 stacked task release，task list 必須明確傳入，避免從 branch name 猜測並
+  誤清其他 DP。
+- 更新 engineering / delivery flow / mechanism registry，將 post-PR
+  `framework-release` endpoint 指向 deterministic closeout helper。
+
 ## [3.73.65] - 2026-04-30
 
 ### Added — cross-LLM model tier policy

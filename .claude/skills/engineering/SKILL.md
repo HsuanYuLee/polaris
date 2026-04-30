@@ -135,6 +135,9 @@ delivery_intent:
   endpoint: local_extension
   summary: <human summary>
   changed_files: <intentional files only>
+release_closeout:
+  helper: scripts/framework-release-closeout.sh (when local policy declares it)
+  template_repo: <template repo path, if any>
 ```
 
 ### Completion
@@ -144,7 +147,7 @@ Local extension lane 的完成權限來自兩段 AND：
 1. engineering evidence gates：Layer A `ci-local` + Layer B `run-verify-command` + Layer C VR（if triggered）都對應 `task_head_sha`
 2. local extension final verification：由 local policy 定義，且必須產生可回溯 completion evidence
 
-Extension 成功後必須用 `scripts/write-extension-deliverable.sh` 寫回 `extension_deliverable` metadata，記錄 `task_head_sha`、workspace commit、template commit、version tag、release URL（若有）與 Layer A/B/C evidence path。若已有真實 workspace PR，`deliverable` 與 `extension_deliverable` 可並存；若沒有真實 PR，仍不得把 fake PR URL 寫進 `deliverable.pr_url`。task lifecycle 只有在 `scripts/check-local-extension-completion.sh` PASS 後才能標 `IMPLEMENTED`。
+Extension 成功後必須用 local policy 宣告的 deterministic closeout path 寫回 `extension_deliverable` metadata，記錄 `task_head_sha`、workspace commit、template commit、version tag、release URL（若有）與 Layer A/B/C evidence path。若 endpoint 是 post-PR framework release，必須由 `scripts/framework-release-closeout.sh` 統一執行 metadata write、`check-local-extension-completion.sh`、task implemented move、parent closeout、worktree cleanup；不得只手動跑 `write-extension-deliverable.sh` / `check-local-extension-completion.sh` 後宣稱完成。若已有真實 workspace PR，`deliverable` 與 `extension_deliverable` 可並存；若沒有真實 PR，仍不得把 fake PR URL 寫進 `deliverable.pr_url`。task lifecycle 只有在 local-extension completion gate PASS 後才能標 `IMPLEMENTED`。
 
 ### 0d. Duplicate Work Guard
 
@@ -266,11 +269,27 @@ NOOP；若已是最後一張完成 task，才會關閉 parent `refinement.md` / 
 並同步 docs-viewer done 狀態。engineering 不得自行用人肉掃 folder 來改寫
 parent lifecycle；一律透過 helper。
 
-Local Extension lane 不得用不符合 local policy 的 completion gate 假裝完成。若 local policy 要求 workspace PR，先完成 Developer PR creation/writeback；若 local policy 不建 PR，則不要呼叫 Developer completion gate 假裝有 PR deliverable。在 handoff 前先跑 Layer A / Layer B gate，extension 後用 local policy 產出的 release metadata 寫回 `extension_deliverable`，再跑 local extension completion gate：
+Local Extension lane 不得用不符合 local policy 的 completion gate 假裝完成。若 local policy 要求 workspace PR，先完成 Developer PR creation/writeback；若 local policy 不建 PR，則不要呼叫 Developer completion gate 假裝有 PR deliverable。在 handoff 前先跑 Layer A / Layer B gate。extension 後若 local policy 宣告 closeout helper（例如 `framework-release`），必須呼叫 helper；generic local extension 才可直接使用低階 writer / completion gate：
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/gates/gate-ci-local.sh" --repo "$(git rev-parse --show-toplevel)"
 bash "${POLARIS_ROOT}/scripts/gates/gate-evidence.sh" --repo "$(git rev-parse --show-toplevel)" --ticket "{dp_task_key}"
+bash "${POLARIS_ROOT}/scripts/framework-release-closeout.sh" \
+  --repo "$(git rev-parse --show-toplevel)" \
+  --template-repo "<template repo path>" \
+  --task-md "<path/to/task.md>" \
+  --verify-evidence "<Layer B evidence path>" \
+  --ci-local-evidence "<Layer A evidence path or N/A when no ci-local is declared>" \
+  --vr-evidence "<Layer C evidence path or N/A>" \
+  --workspace-commit "<workspace release commit>" \
+  --template-commit "<template release commit>" \
+  --version-tag "<version tag or N/A>" \
+  --release-url "<release URL or N/A>"
+```
+
+Generic local-extension fallback（只有 local policy 未提供 closeout helper 時使用）：
+
+```bash
 bash "${POLARIS_ROOT}/scripts/write-extension-deliverable.sh" "<path/to/task.md>" \
   --extension-id "<local extension id>" \
   --task-head-sha "<validated task head sha>" \
