@@ -24,13 +24,13 @@ pipeline 的 **QA** 環節（見 [pipeline-handoff.md](../references/pipeline-ha
 
 ## Handoff Artifact (on-demand)
 
-上游 skill（engineering）完成 PR 後會在 `{company_base_dir}/specs/{EPIC}/artifacts/engineering-*.md` 留下 evidence artifact（格式見 `skills/references/handoff-artifact.md § engineering`）。預設**不讀** — Epic AC 驗收步驟本身就是事實基準，engineering 的 Layer B 輸出只是參考。只在以下情況打開：
+上游 skill（engineering）完成 PR 後會在 `{company_specs_dir}/{EPIC}/artifacts/engineering-*.md` 留下 evidence artifact（格式見 `skills/references/handoff-artifact.md § engineering`）。預設**不讀** — Epic AC 驗收步驟本身就是事實基準，engineering 的 Layer B 輸出只是參考。只在以下情況打開：
 
 - AC 驗證 observation 與 engineering 的 behavioral verify 結論矛盾（例：engineering 回報「切語系後 footer 正確」，但 AC 驗證觀察到 footer 文字沒變）
 - 需要 cross-check engineering 是否已測過本 AC 對應的行為（避免兩邊重跑同一條）
 - 懷疑 implementation commit 就已經 drift（例：PR 中的 commit SHA 與目前 HEAD 不符）
 
-路徑：`{company_base_dir}/specs/{EPIC}/artifacts/engineering-{ticket_key}-*.md`
+路徑：`{company_specs_dir}/{EPIC}/artifacts/engineering-{ticket_key}-*.md`
 格式：`## Summary` (≤500 字 implementation + quality 摘要) + `## Raw Evidence` (test output、Layer B 輸出、commit SHAs)
 先讀 Summary；需要對帳才掃 Raw Evidence。
 
@@ -108,11 +108,11 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 
 **Worktree dispatch — 主 checkout 絕對路徑**
 Sub-agent 在 worktree 執行；`specs/` 與 `.claude/skills/` 是 gitignored（worktree 無此檔）。dispatch prompt 須以主 checkout 絕對路徑讀寫：
-- task.md: `{company_base_dir}/specs/{EPIC}/tasks/T{n}.md`
-- artifacts / verification: `{company_base_dir}/specs/{EPIC}/artifacts/`、`.../verification/`
+- task.md: `{company_specs_dir}/{EPIC}/tasks/T{n}.md`
+- artifacts / verification: `{company_specs_dir}/{EPIC}/artifacts/`、`.../verification/`
 詳見 `skills/references/worktree-dispatch-paths.md`。
 
-查找驗收單對應的 task.md：`{company_base_dir}/specs/{EPIC_KEY}/tasks/{AC_TICKET_KEY}.md`。若存在 → 讀取 fixture 設定；若不存在 → fallback `tasks/pr-release/{AC_TICKET_KEY}.md`（DP-033 D8 reader fallback）；兩者皆無 → fallback 到 Step 3b。
+查找驗收單對應的 task.md：`{company_specs_dir}/{EPIC_KEY}/tasks/{AC_TICKET_KEY}.md`。若存在 → 讀取 fixture 設定；若不存在 → fallback `tasks/pr-release/{AC_TICKET_KEY}.md`（DP-033 D8 reader fallback）；兩者皆無 → fallback 到 Step 3b。
 
 **Step 3b. Fixture 自動偵測（fallback）**
 
@@ -158,7 +158,7 @@ bash {polaris_root}/scripts/start-test-env.sh --task-md {task_md_path} [--with-f
 **5a. 本地留底**（見 `references/epic-folder-structure.md`）：
 ```bash
 # Evidence 存放路徑：specs/{EPIC}/verification/{AC_KEY}/{timestamp}/
-mkdir -p {company_base_dir}/specs/{EPIC}/verification/{AC_KEY}/$(date +%Y%m%d-%H%M%S)
+mkdir -p {company_specs_dir}/{EPIC}/verification/{AC_KEY}/$(date +%Y%m%d-%H%M%S)
 # 複製所有 evidence 到該目錄
 ```
 
@@ -223,7 +223,7 @@ language。
 Epic 模式下，所有 AC 驗收單都 Done 時：
 
 1. Notify：「Epic {EPIC_KEY} 全部 AC 通過，可以 merge feature branch。」
-2. 執行 `scripts/mark-spec-implemented.sh {EPIC_KEY}`，將 `{company}/specs/{EPIC_KEY}/refinement.md` frontmatter `status` 標為 `IMPLEMENTED`，讓 docs-viewer sidebar 顯示灰+✅。idempotent（已標過就 no-op）。
+2. 執行 `scripts/mark-spec-implemented.sh {EPIC_KEY}`，將 `specs/companies/{company}/{EPIC_KEY}/refinement.md` frontmatter `status` 標為 `IMPLEMENTED`，讓 docs-viewer sidebar 顯示灰+✅。idempotent（已標過就 no-op）。
 
 ### 8. FAIL → Human Disposition Gate
 
@@ -268,7 +268,7 @@ Bug description 填 `pipeline-handoff.md § Bug ticket 必要資訊` 區塊（[V
 
 對每張新建的 Bug，寫一份 evidence artifact 給下一 skill（bug-triage AC-FAIL Path）on-demand 讀：
 
-- **路徑**：`{company_base_dir}/specs/{EPIC}/artifacts/verify-ac-verify-fail-{BUG_KEY}-{timestamp}.md`（timestamp 格式 `YYYY-MM-DDTHHMMSSZ` UTC）
+- **路徑**：`{company_specs_dir}/{EPIC}/artifacts/verify-ac-verify-fail-{BUG_KEY}-{timestamp}.md`（timestamp 格式 `YYYY-MM-DDTHHMMSSZ` UTC）
 - **格式**：frontmatter（`skill: verify-ac`、`ticket: {BUG_KEY}`、`scope: verify-fail`、`timestamp`、`truncated: false`、`scrubbed: false`）+ `## Summary`（≤ 500 字：AC# + 期望行為 + 實際觀察 + HTTP status + env snapshot）+ `## Raw Evidence`（失敗步驟 transcript、curl output / playwright trace、evidence attachment 路徑、AC ticket description 引用、被驗證的 commit SHA / dev server URL / fixture path）
 - **寫入後必跑 scrub + cap**：`python3 scripts/snapshot-scrub.py --file {artifact_path}`（scrub secrets、20KB 截斷、更新 frontmatter flag）
 - **寫入後必跑 language advisory**：`bash scripts/validate-language-policy.sh --advisory --mode artifact {artifact_path}`；若主敘述違反 workspace language，修正後再交給 bug-triage

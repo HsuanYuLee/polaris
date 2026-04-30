@@ -216,8 +216,8 @@ bash {workspace_root}/scripts/polaris-env.sh start {company} --vr
 ```
 
 This handles:
-- **Layer 1 (Docker)**: starts acme-web-docker (nginx + member-ci + mobile-member-ci). Nginx proxies all domain routes to the correct backend
-- **Layer 3 (Dev server)**: starts b2c-web standalone — Docker nginx proxies to it for b2c routes
+- **Layer 1 (Docker)**: starts acme-web-docker (nginx + your-backend + mobile-your-backend). Nginx proxies all domain routes to the correct backend
+- **Layer 3 (Dev server)**: starts your-app standalone — Docker nginx proxies to it for b2c routes
 - **Layer 4 (Verify)**: health-checks all started services
 
 **Architecture: Playwright → Docker nginx (dev.example.com) → upstream repos**
@@ -229,7 +229,7 @@ Playwright → dev.example.com (Docker nginx)
                 └── /mobile/*          → acme-mobile-api (Docker)
 ```
 
-All routes that exist in production are testable through nginx. Do NOT bypass nginx by hitting `localhost:3001` directly — that only tests b2c-web routes and misses member-ci/mobile-member-ci.
+All routes that exist in production are testable through nginx. Do NOT bypass nginx by hitting `localhost:3001` directly — that only tests your-app routes and misses your-backend/mobile-your-backend.
 
 **Check the output** — if any layer fails, `polaris-env.sh` reports which service failed. Decide:
 
@@ -256,7 +256,7 @@ If Mockoon fixtures are running (Layer 2 of polaris-env), run the contract check
 
 ```bash
 # Mockoon fixtures path: specs/{EPIC}/tests/mockoon/ (see references/epic-folder-structure.md)
-scripts/contract-check.sh --env-dir {company_base_dir}/specs/{EPIC}/tests/mockoon
+scripts/contract-check.sh --env-dir {company_specs_dir}/{EPIC}/tests/mockoon
 ```
 
 | Exit code | Action |
@@ -730,7 +730,7 @@ When starting a new epic that needs VR:
 
 ```bash
 # Load directly from the epic mockoon directory
-mockoon-runner.sh start {company_base_dir}/specs/PROJ-100/tests/mockoon
+mockoon-runner.sh start {company_specs_dir}/PROJ-100/tests/mockoon
 ```
 
 The workspace-config `fixtures.runner` specifies the runner script path. The Epic-specific mockoon directory is resolved at runtime from the active Epic context — no hardcoded `--epic` flag or `environments_dir` needed.

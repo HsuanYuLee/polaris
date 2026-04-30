@@ -133,7 +133,7 @@ specs/{EPIC}/tests/
 | 欄位 | 型別 | 必填 | 說明 |
 |------|------|------|------|
 | `type` | string | 否 | 工具標識（mockoon / prism / json-server）。用於 log，不影響行為 |
-| `runner` | string | 是（如果有 fixtures block） | Runner 腳本路徑（如 `~/work/scripts/mockoon/mockoon-runner.sh`）。Skill 在 runtime 組合 `{runner} start {company_base_dir}/specs/{EPIC}/tests/mockoon` 啟動 |
+| `runner` | string | 是（如果有 fixtures block） | Runner 腳本路徑（如 `~/work/scripts/mockoon/mockoon-runner.sh`）。Skill 在 runtime 組合 `{runner} start {company_specs_dir}/{EPIC}/tests/mockoon` 啟動 |
 | `stop_command` | string | 是（如果有 fixtures block） | 停止 fixture server 的指令 |
 | `health_ports` | number[] | 否 | 健康檢查端口列表 |
 | `ready_signal` | string | 是（如果有 fixtures block） | 同 server.ready_signal 邏輯 |
@@ -141,7 +141,7 @@ specs/{EPIC}/tests/
 
 整個 fixtures block 是 optional。打 SIT 時通常不需要 fixtures（SIT 有自己的資料）。
 
-**Fixture 路徑解析**：不再使用 `environments_dir` + `active_epic` 拼接。Skill 從 active Epic context 推導 mockoon 路徑：`{company_base_dir}/specs/{EPIC}/tests/mockoon/`。
+**Fixture 路徑解析**：不再使用 `environments_dir` + `active_epic` 拼接。Skill 從 active Epic context 推導 mockoon 路徑：`{company_specs_dir}/{EPIC}/tests/mockoon/`。
 
 **為什麼建議使用 fixture server：** 開發期間後端 API 可能調整（欄位變更、資料異動），導致截圖比對出現假陽性。Fixture server 提供穩定、可控的 API 回應，確保 before/after 差異只來自前端代碼變更。
 

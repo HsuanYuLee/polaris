@@ -4,6 +4,20 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.0] - 2026-04-30
+
+### Changed — Starlight specs viewer and archive lifecycle
+
+- 將 docs-viewer 由 docsify sidebar 改為 Starlight / Astro app，直接 mirror
+  workspace `specs/` tree，支援 nested collapse、search 與 clean routes。
+- 新增 `archive-spec.sh --sweep --dry-run` / `--sweep --apply`，用 parent
+  status 機械判斷 `IMPLEMENTED` / `ABANDONED` specs，並在 duplicate archive
+  destination 時 fail loud。
+- 將 resolver、closeout、viewer sync hook 與相關 skill references 改為 root
+  `specs/companies/{company}` namespace，active lookup 預設排除 archive。
+- 這是 viewer route breaking change：舊 docsify `#/specs/...` route 不再是正式
+  viewer contract；新 route 跟隨 Starlight generated content path。
+
 ## [3.73.66] - 2026-04-30
 
 ### Added — framework release closeout automation

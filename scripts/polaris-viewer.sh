@@ -2,7 +2,7 @@
 # Launch Polaris Specs Viewer in browser
 # Usage: polaris-viewer.sh [--port 8080] [--no-open]
 #
-# Generates sidebar, starts HTTP server, opens browser.
+# Syncs viewer navigation, starts Starlight dev server, opens browser.
 # Ctrl+C to stop.
 
 set -euo pipefail
@@ -19,8 +19,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# 1. Generate sidebar
-echo "Generating sidebar..."
+# 1. Sync viewer navigation/content
+echo "Syncing viewer navigation..."
 "$WORKSPACE_ROOT/scripts/generate-specs-sidebar.sh" "$WORKSPACE_ROOT"
 
 # 2. Check if port is already in use
@@ -37,4 +37,10 @@ if [ "$OPEN_BROWSER" = true ]; then
   (sleep 1 && open "http://localhost:$PORT/docs-viewer/") &
 fi
 
-python3 -m http.server "$PORT" --directory "$WORKSPACE_ROOT" --bind 127.0.0.1
+cd "$WORKSPACE_ROOT/docs-viewer"
+if [ ! -d node_modules ]; then
+  echo "Installing docs-viewer dependencies..."
+  npm install
+fi
+
+npm run dev -- --host 127.0.0.1 --port "$PORT" --strictPort

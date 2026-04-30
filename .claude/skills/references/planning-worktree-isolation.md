@@ -101,7 +101,7 @@ See `rules/sub-agent-delegation.md` § Worktree path translation.
 Worktree isolation is **not** required when the skill only:
 
 - Reads JIRA / Confluence / Slack via MCP
-- Writes markdown / JSON artifacts to `{company_base_dir}/specs/{TICKET_KEY}/` (the spec folder is outside the repo checkout, so it's always safe)
+- Writes markdown / JSON artifacts to `{company_specs_dir}/{TICKET_KEY}/` (the spec folder is outside the repo checkout, so it's always safe)
 - Runs static code reads (`Read`, `Grep`, `Glob`) against the main checkout — these don't mutate state
 
 The worktree requirement kicks in the moment the skill needs to run `pnpm install`, build, start a server, or run tests.

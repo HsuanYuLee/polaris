@@ -172,7 +172,7 @@ route: refinement
 epic: GT-478
 source_task: T3a
 source_ticket: KB2CW-3711
-source_sidecar: kkday/specs/GT-478/escalations/T3a-2.md
+source_sidecar: specs/companies/kkday/GT-478/escalations/T3a-2.md
 escalation_count: 2
 created_at: 2026-04-29T09:30:00Z
 consumed: false
@@ -208,7 +208,7 @@ route: refinement
 epic: GT-478
 source_task: T3a
 source_ticket: KB2CW-3711
-source_sidecar: kkday/specs/GT-478/escalations/T3a-2.md
+source_sidecar: specs/companies/kkday/GT-478/escalations/T3a-2.md
 escalation_count: 2
 created_at: 2026-04-29T09:30:00Z
 consumed: false

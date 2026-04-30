@@ -6,7 +6,7 @@
 #   polaris-write-evidence.sh --ticket KB2CW-1234 --result "PASS: AC1 breadcrumb position" [--result "PASS: AC2 ..."]
 #   polaris-write-evidence.sh --ticket KB2CW-1234 --result "FAIL: AC3 missing entry" --result "PASS: AC1"
 #   polaris-write-evidence.sh --ticket KB2CW-1234 --from-file /tmp/verify-results.txt
-#   polaris-write-evidence.sh --ticket KB2CW-1234 --task-md kkday/specs/GT-478/tasks/T9.md --result "PASS: runtime verify"
+#   polaris-write-evidence.sh --ticket KB2CW-1234 --task-md specs/companies/kkday/GT-478/tasks/T9.md --result "PASS: runtime verify"
 #
 # Output: /tmp/polaris-verified-{TICKET}.json
 #

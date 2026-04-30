@@ -50,11 +50,11 @@ Extract from ticket description:
 
 | Field | Example | Usage |
 |-------|---------|-------|
-| 來源 AC 驗收單 | `KB2CW-4001` | Link context, not re-verification |
-| Epic | `GT-521` | Root for related work orders |
-| **分析對象 branch** | `feat/GT-521-breadcrumblist-seo` | **Primary investigation surface — NOT develop/main** |
-| Repos 涉入 | `kkday-b2c-web, member-ci` | Scope of analysis |
-| 相關 Task keys | `KB2CW-3800, KB2CW-3801` | Link to task.md work orders |
+| 來源 AC 驗收單 | `TASK-123` | Link context, not re-verification |
+| Epic | `PROJ-123` | Root for related work orders |
+| **分析對象 branch** | `feat/PROJ-123-breadcrumblist-seo` | **Primary investigation surface — NOT develop/main** |
+| Repos 涉入 | `your-app, your-backend` | Scope of analysis |
+| 相關 Task keys | `TASK-123, TASK-123` | Link to task.md work orders |
 | 相關 PR numbers | `#2100, #2101` | PR diffs = exact change set |
 | Feature branch commit range | `{base_sha}..{head_sha}` | Bounded git log scope |
 | **失敗項目** | `AC#2: Observed X, Expected Y` | What to reproduce + fix |
@@ -96,7 +96,7 @@ Proposed Fix 的「預估改動」必須限定在 {repos} 的 feature branch 上
 
 Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`）。Detail 同時是下一 skill（engineering）的 handoff artifact（見 `skills/references/handoff-artifact.md`）：
 
-- **路徑**：`{company_base_dir}/specs/{EPIC}/artifacts/bug-triage-ac-fail-{BUG_KEY}-{timestamp}.md`（timestamp 格式 `YYYY-MM-DDTHHMMSSZ` UTC）。主 checkout 絕對路徑（gitignored，worktree 以此讀寫）。詳見 `skills/references/worktree-dispatch-paths.md`。
+- **路徑**：`{company_specs_dir}/{EPIC}/artifacts/bug-triage-ac-fail-{BUG_KEY}-{timestamp}.md`（timestamp 格式 `YYYY-MM-DDTHHMMSSZ` UTC）。主 checkout 絕對路徑（gitignored，worktree 以此讀寫）。詳見 `skills/references/worktree-dispatch-paths.md`。
 - **格式**：frontmatter（`skill: bug-triage`、`ticket: {BUG_KEY}`、`scope: ac-fail`、`timestamp`、`truncated: false`、`scrubbed: false`）+ `## Summary`（≤ 500 字，Root Cause / Impact / Proposed Fix 壓縮版）+ `## Raw Evidence`（grep 結果、PR diff 片段、[VERIFICATION_FAIL] block、suspect code 行號）
 - **寫入後必跑 scrub + cap**：`python3 scripts/snapshot-scrub.py --file {artifact_path}`（scrub secrets、20KB 截斷、更新 frontmatter flag）。Sub-agent 完成寫入後執行一次，然後才把 Detail 路徑回傳給 Strategist
 

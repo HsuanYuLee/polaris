@@ -15,7 +15,7 @@ Both are gitignored in product repos → they do not exist in a fresh worktree.
 | What | Where | How in dispatch prompt |
 |------|-------|------------------------|
 | Tracked source code | Worktree-relative | 預設；`{worktree_path}/src/...` |
-| `specs/{EPIC}/` artifacts | 主 checkout（gitignored） | **絕對路徑**：`{company_base_dir}/specs/{EPIC}/...` |
+| `specs/{EPIC}/` artifacts | 主 checkout（gitignored） | **絕對路徑**：`{company_specs_dir}/{EPIC}/...` |
 | Company handbook | workspace 主 checkout | **絕對路徑**：`{base_dir}/.claude/rules/{company}/handbook/index.md`，並展開 index 引用子文件 |
 | Repo handbook | repo 主 checkout（gitignored） | **先 resolve main checkout**，再讀 `{main_checkout}/.claude/rules/handbook/index.md` |
 | Local CI mirror | repo 主 checkout（gitignored） | 用 `bash {base_dir}/scripts/ci-local-run.sh --repo {worktree_path}`，不要直接查 worktree 的 `.claude/scripts/ci-local.sh` |
@@ -31,9 +31,9 @@ Embed verbatim near the "Work Order" / "讀取來源" section of every worktree-
 > 你的工作目錄是 worktree：`{worktree_path}`。tracked source file 的讀寫限定於此目錄。
 >
 > 以下 gitignored 框架檔案在此 worktree 不存在，必須以**主 checkout 絕對路徑**存取：
-> - task.md / work order：`{company_base_dir}/specs/{EPIC}/tasks/T{n}.md`
-> - artifacts / handoff：`{company_base_dir}/specs/{EPIC}/artifacts/`
-> - verification evidence：`{company_base_dir}/specs/{EPIC}/verification/`
+> - task.md / work order：`{company_specs_dir}/{EPIC}/tasks/T{n}.md`
+> - artifacts / handoff：`{company_specs_dir}/{EPIC}/artifacts/`
+> - verification evidence：`{company_specs_dir}/{EPIC}/verification/`
 > - company handbook：`{base_dir}/.claude/rules/{company}/handbook/index.md` + index 引用子文件
 > - repo handbook：先用 `{base_dir}/scripts/lib/main-checkout.sh` 的 `resolve_main_checkout "{worktree_path}"` 取得 repo 主 checkout，再讀 `{main_checkout}/.claude/rules/handbook/index.md` + index 引用子文件
 > - Local CI mirror：用 `bash {base_dir}/scripts/ci-local-run.sh --repo "{worktree_path}"`；script 會自動讀主 checkout 的 `.claude/scripts/ci-local.sh`

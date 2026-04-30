@@ -355,7 +355,7 @@ bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
    - Required planner decisions：讓 gate 可能通過的最小完整決策集合，不是第一個越界檔案集合
 3. **計算 `escalation_count`**：
    ```bash
-   ls "{company_base_dir}/specs/{EPIC}/escalations/T{n}-"*.md 2>/dev/null | wc -l
+   ls "{company_specs_dir}/{EPIC}/escalations/T{n}-"*.md 2>/dev/null | wc -l
    ```
    既有檔案數 + 1 = 本次 `count`。
 4. **Lineage cap 檢查（DP-044 D5）**：若 `count` 將 > 2，**不要**寫 sidecar；改向使用者回報「lineage 已達 cap，請先跑 `breakdown {EPIC}` scope-escalation intake，讓 breakdown 產 `refinement-inbox/*.md` 後再進 `refinement {EPIC}`」並結束本 session。`refinement` 不直接讀 engineering raw sidecar。
@@ -366,7 +366,7 @@ bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
    ```
 7. **產 sidecar**（D7 schema 對齊 `references/handoff-artifact.md`，刪 `scope` 欄、增 `flavor` + `escalation_count`，並加 gate-closure 必填段落）：
    ```
-   {company_base_dir}/specs/{EPIC}/escalations/T{n}-{count}.md
+   {company_specs_dir}/{EPIC}/escalations/T{n}-{count}.md
    ```
    Frontmatter required：`skill: engineering`、`ticket`、`epic`、`flavor` ∈ {plan-defect, scope-drift, env-drift}、`escalation_count` ∈ {1,2}、`timestamp`（ISO 8601 with `Z`）、`truncated`、`scrubbed`。
    Body required：
@@ -382,7 +382,7 @@ bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
 8. **Validator gate（hard）**：
    ```bash
    bash "${POLARIS_ROOT}/scripts/validate-escalation-sidecar.sh" \
-     "{company_base_dir}/specs/{EPIC}/escalations/T{n}-{count}.md"
+     "{company_specs_dir}/{EPIC}/escalations/T{n}-{count}.md"
    ```
    exit ≠ 0 → 修補 sidecar 直到 pass。**未過 validator 不得結束本 session**。
 9. **Halt + report**：在主對話回報使用者：

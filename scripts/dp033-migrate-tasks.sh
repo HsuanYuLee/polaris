@@ -83,7 +83,7 @@ detect_workspace_root() {
 find_task_files() {
   local root="$1"
   # Search in both the worktree root and the parent workspace
-  # Prioritize {company}/specs patterns
+  # Prioritize company-scoped specs patterns
   find "$root" \
     \( -path "*/.worktrees/*" -o -path "*/node_modules/*" \) -prune -o \
     -path "*/specs/*/tasks/T*.md" -not -path "*/pr-release/*" \

@@ -17,7 +17,7 @@ Lifting the decision tree into an explicit reference eliminates both failure mod
 
 ## Inputs
 
-Read from `{company_base_dir}/specs/{EPIC_KEY}/refinement.json`:
+Read from `{company_specs_dir}/{EPIC_KEY}/refinement.json`:
 
 | Field | Values | Meaning |
 |-------|--------|---------|
@@ -161,4 +161,4 @@ Violating canary = drift per `mechanism-registry.md` § `breakdown-infra-first-a
 
 ## Source
 
-Designed 2026-04-16 after GT-478 refinement. The pattern had been applied intuitively across multiple Epics (GT-483 VR baseline, GT-478 Mockoon, GT-521 curl); lifting it into a reference removes the per-Epic improvisation cost and gives refinement / breakdown a shared, auditable decision source.
+Designed 2026-04-16 after PROJ-123 refinement. The pattern had been applied intuitively across multiple Epics (PROJ-123 VR baseline, PROJ-123 Mockoon, PROJ-123 curl); lifting it into a reference removes the per-Epic improvisation cost and gives refinement / breakdown a shared, auditable decision source.

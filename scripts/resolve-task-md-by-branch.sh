@@ -31,7 +31,7 @@
 #     extract `Task branch` value from the Operational Context table
 #     (format: `| Task branch | <value> |`) and compare string-equal to
 #     the input branch.
-#   This includes product specs roots (`{company}/specs/{EPIC}/tasks/`) and
+#   This includes product specs roots (`specs/companies/{company}/{EPIC}/tasks/`) and
 #   framework DP specs roots (`specs/design-plans/DP-NNN-*/tasks/`).
 #
 # Notes
@@ -89,7 +89,7 @@ resolve_task_md_scan() {
       matches+=("$f")
     fi
   done < <(find "$root" \
-    \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
+    \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
     -o \
     \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/pr-release/*.md' \) -print0 \))
 
@@ -122,6 +122,7 @@ if [[ "${RESOLVE_TASK_MD_SELFTEST:-0}" == "1" ]]; then
 
   mkdir -p "$tmpdir/specs/EPIC-1/tasks" "$tmpdir/specs/EPIC-2/tasks" \
            "$tmpdir/specs/design-plans/DP-047-framework-work-order-bridge/tasks" \
+           "$tmpdir/specs/companies/kkday/archive/EPIC-9/tasks" \
            "$tmpdir/.worktrees/shadow/specs/EPIC-1/tasks" \
            "$tmpdir/node_modules/x/specs/EPIC-3/tasks"
 
@@ -165,6 +166,11 @@ MD
   # node_modules shadow copy — must be ignored by prune.
   cat > "$tmpdir/node_modules/x/specs/EPIC-3/tasks/T1.md" <<'MD'
 | Task branch | task/FOO-2-beta |
+MD
+
+  # Archived copy — must be ignored by default active lookup.
+  cat > "$tmpdir/specs/companies/kkday/archive/EPIC-9/tasks/T1.md" <<'MD'
+| Task branch | task/ARCHIVED-1-only |
 MD
 
   # Duplicate branch binding across Epics (multi-match case).
@@ -225,10 +231,14 @@ MD
     echo "[selftest] case4 missing DP task path"; fail=1
   fi
 
+  # Case 5: archive-only branch is intentionally invisible to active lookup.
+  run_case case5 task/ARCHIVED-1-only 1
+  if [[ -s "$out_file" ]]; then echo "[selftest] case5 stdout should be empty"; fail=1; fi
+
   rm -f "$out_file" "$err_file"
 
   if [[ $fail -eq 0 ]]; then
-    echo "[selftest] PASS (4 cases)"
+    echo "[selftest] PASS (5 cases)"
     exit 0
   else
     echo "[selftest] FAIL"

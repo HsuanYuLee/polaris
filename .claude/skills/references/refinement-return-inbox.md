@@ -24,13 +24,13 @@ This keeps ownership clear:
 JIRA-backed specs:
 
 ```text
-{company_base_dir}/specs/{EPIC}/refinement-inbox/{TASK_ID}-{COUNT}-{timestamp}.md
+{company_specs_dir}/{EPIC}/refinement-inbox/{TASK_ID}-{COUNT}-{timestamp}.md
 ```
 
 Example:
 
 ```text
-kkday/specs/GT-478/refinement-inbox/T3a-2-20260429T093000Z.md
+specs/companies/your-company/PROJ-123/refinement-inbox/T3a-2-20260429T093000Z.md
 ```
 
 Ticketless / DP specs:
@@ -47,10 +47,10 @@ skill: breakdown
 target_skill: refinement
 source: scope-escalation
 route: refinement
-epic: GT-478             # JIRA Epic key, or DP-NNN for ticketless / DP-backed work
+epic: PROJ-123             # JIRA Epic key, or DP-NNN for ticketless / DP-backed work
 source_task: T3a
-source_ticket: KB2CW-3711
-source_sidecar: kkday/specs/GT-478/escalations/T3a-2.md
+source_ticket: TASK-123
+source_sidecar: specs/companies/your-company/PROJ-123/escalations/T3a-2.md
 escalation_count: 2
 created_at: 2026-04-29T09:30:00Z
 consumed: false
@@ -102,7 +102,7 @@ repair because the selected technical approach / AC boundary must be re-decided.
 
 ```bash
 scripts/validate-refinement-inbox-record.sh \
-  {company_base_dir}/specs/{EPIC}/refinement-inbox/{record}.md
+  {company_specs_dir}/{EPIC}/refinement-inbox/{record}.md
 ```
 
 The validator blocks:

@@ -47,7 +47,9 @@ run_selftest() {
   tmpdir="$(mktemp -d -t mark-spec-implemented-selftest.XXXXXX)"
   trap "rm -rf '$tmpdir'" EXIT
 
-  mkdir -p "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks"
+  mkdir -p "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks" \
+           "$tmpdir/specs/companies/kkday/GT-001/tasks" \
+           "$tmpdir/specs/companies/kkday/archive/GT-OLD/tasks"
   cat > "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/T1.md" <<'MD'
 # T1: Canonical DP task (1 pt)
 
@@ -71,6 +73,33 @@ MD
   [[ ! -f "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/T1.md" ]] || { echo "[selftest] active task was not moved"; return 1; }
   [[ -f "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" ]] || { echo "[selftest] pr-release task missing"; return 1; }
   grep -q '^status: IMPLEMENTED$' "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" || { echo "[selftest] status missing"; return 1; }
+
+  cat > "$tmpdir/specs/companies/kkday/GT-001/tasks/T2.md" <<'MD'
+# T2: Active product task (1 pt)
+> Source: GT-001 | Task: GT-001 | JIRA: GT-001 | Repo: kkday
+## Operational Context
+| 欄位 | 值 |
+|------|-----|
+| Source type | jira |
+| Source ID | GT-001 |
+| Task ID | GT-001 |
+| JIRA key | GT-001 |
+| Base branch | main |
+| Task branch | task/GT-001-active |
+MD
+
+  cat > "$tmpdir/specs/companies/kkday/archive/GT-OLD/tasks/T2.md" <<'MD'
+# T2: Archived product task (1 pt)
+> Source: GT-OLD | Task: GT-OLD | JIRA: GT-OLD | Repo: kkday
+## Operational Context
+| Task branch | task/GT-OLD-archived |
+MD
+
+  rc=0
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" T2 --workspace "$tmpdir" >/dev/null || rc=$?
+  [[ "$rc" -eq 0 ]] || { echo "[selftest] active task key mark implemented failed"; return 1; }
+  [[ -f "$tmpdir/specs/companies/kkday/GT-001/tasks/pr-release/T2.md" ]] || { echo "[selftest] active T2 pr-release task missing"; return 1; }
+  [[ -f "$tmpdir/specs/companies/kkday/archive/GT-OLD/tasks/T2.md" ]] || { echo "[selftest] archived T2 was moved unexpectedly"; return 1; }
 
   echo "[selftest] PASS"
 }
@@ -187,7 +216,7 @@ is_task_key() {
 
 # ---------------------------------------------------------------------------
 # Resolve anchor file — three resolution paths:
-#   1) Epic-level: {workspace}/*/specs/<ticket>/refinement.md or plan.md
+#   1) Epic-level: {workspace}/specs/companies/<company>/<ticket>/refinement.md or plan.md
 #   2) Task-level (task key T{n}/V{n}): scan specs/*/tasks/ by filename
 #   3) DP task-level (DP-NNN-Tn): scan root specs/design-plans/DP-NNN-*/tasks/Tn.md
 #   4) Task-level (JIRA key): parser jira_key match first, legacy "> JIRA: <ticket>" fallback
@@ -198,8 +227,9 @@ TASK_FILENAME=""  # basename of task file (T1.md, T3b.md, V1.md, ...)
 TASKS_DIR=""    # absolute path to the tasks/ directory containing the task
 
 # Path 1 — Epic-level
-for company_dir in "$WORKSPACE_ROOT"/*/; do
-  candidate="${company_dir}specs/${TICKET}"
+for company_specs_dir in "$WORKSPACE_ROOT"/specs/companies/*/; do
+  [ -d "$company_specs_dir" ] || continue
+  candidate="${company_specs_dir}${TICKET}"
   if [ -d "$candidate" ]; then
     if [ -f "$candidate/refinement.md" ]; then
       ANCHOR="$candidate/refinement.md"
@@ -235,10 +265,12 @@ if [ -z "$ANCHOR" ] && is_task_key "$TICKET"; then
       ANCHOR_TYPE="task"
       break
     fi
-  done < <(find "$WORKSPACE_ROOT" -type f \( \
-    -path "*/tasks/${TICKET}.md" \
-    -o -path "*/tasks/pr-release/${TICKET}.md" \
-  \) 2>/dev/null)
+  done < <(find "$WORKSPACE_ROOT" \
+    \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
+    -o \( -type f \( \
+      -path "*/tasks/${TICKET}.md" \
+      -o -path "*/tasks/pr-release/${TICKET}.md" \
+    \) -print \) 2>/dev/null)
 fi
 
 # Path 3 — DP task key (DP-NNN-Tn) — look up by DP folder + task filename
@@ -284,22 +316,24 @@ if [ -z "$ANCHOR" ]; then
       ANCHOR_TYPE="task"
       break
     fi
-  done < <(find "$WORKSPACE_ROOT" -type f \( \
-    -path "*/specs/design-plans/*/tasks/T*.md" \
-    -o -path "*/specs/design-plans/*/tasks/V*.md" \
-    -o -path "*/specs/design-plans/*/tasks/pr-release/T*.md" \
-    -o -path "*/specs/design-plans/*/tasks/pr-release/V*.md" \
-    -o -path "*/specs/*/tasks/T*.md" \
-    -o -path "*/specs/*/tasks/V*.md" \
-    -o -path "*/specs/*/tasks/pr-release/T*.md" \
-    -o -path "*/specs/*/tasks/pr-release/V*.md" \
-  \) 2>/dev/null)
+  done < <(find "$WORKSPACE_ROOT" \
+    \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
+    -o \( -type f \( \
+      -path "*/specs/design-plans/*/tasks/T*.md" \
+      -o -path "*/specs/design-plans/*/tasks/V*.md" \
+      -o -path "*/specs/design-plans/*/tasks/pr-release/T*.md" \
+      -o -path "*/specs/design-plans/*/tasks/pr-release/V*.md" \
+      -o -path "*/specs/*/tasks/T*.md" \
+      -o -path "*/specs/*/tasks/V*.md" \
+      -o -path "*/specs/*/tasks/pr-release/T*.md" \
+      -o -path "*/specs/*/tasks/pr-release/V*.md" \
+    \) -print \) 2>/dev/null)
 fi
 
 if [ -z "$ANCHOR" ]; then
   echo "ERROR: no spec found for $TICKET" >&2
   echo "  Searched:" >&2
-  echo "    - $WORKSPACE_ROOT/*/specs/$TICKET/{refinement.md,plan.md}" >&2
+  echo "    - $WORKSPACE_ROOT/specs/companies/*/$TICKET/{refinement.md,plan.md}" >&2
   echo "    - $WORKSPACE_ROOT/*/specs/*/tasks/{T,V}*.md (by filename key '$TICKET')" >&2
   echo "    - $WORKSPACE_ROOT/specs/design-plans/DP-NNN-*/tasks/{T,V}*.md (by DP task key / header)" >&2
   echo "    - $WORKSPACE_ROOT/*/specs/*/tasks/{T,V}*.md (by '> JIRA: $TICKET' header)" >&2

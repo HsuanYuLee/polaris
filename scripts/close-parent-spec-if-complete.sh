@@ -81,7 +81,7 @@ MD
     return 1
   }
 
-  company_dir="$tmpdir/kkday/specs/GT-999"
+  company_dir="$tmpdir/specs/companies/kkday/GT-999"
   mkdir -p "$company_dir/tasks/pr-release"
   cat >"$company_dir/refinement.md" <<'MD'
 ---

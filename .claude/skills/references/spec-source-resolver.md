@@ -14,11 +14,43 @@ pipeline stage decides what to do with it
 JIRA sync is optional decoration
 ```
 
+## Path Variables
+
+```text
+{workspace_root}     Polaris workspace root
+{company}            active company key resolved from workspace config / JIRA project mapping
+{company_specs_dir}  {workspace_root}/specs/companies/{company}
+```
+
+## Active And Archive Namespaces
+
+Default source resolution is active-only. Skills that start or continue work must scan these active containers:
+
+```text
+{workspace_root}/specs/design-plans/DP-NNN-{slug}/
+{workspace_root}/specs/companies/{company}/{TICKET}/
+```
+
+Completed or abandoned containers may be moved to archive:
+
+```text
+{workspace_root}/specs/design-plans/archive/DP-NNN-{slug}/
+{workspace_root}/specs/companies/{company}/archive/{TICKET}/
+```
+
+Rules:
+
+- active lookup must prune `archive/` so historical tasks do not resolve as current work
+- direct archived artifact paths are allowed for read-only audit
+- broad historical lookup requires an explicit mode such as `--include-archive`
+- the same DP or ticket container must not exist in both active and archive namespaces
+- docs-viewer mirrors the physical `specs/` tree, so archived content is browsed under the generated Starlight routes for `specs/design-plans/archive/...` or `specs/companies/{company}/archive/...`
+
 ## Source Types
 
 | Type | Input examples | Canonical container | Primary owner |
 |------|----------------|---------------------|---------------|
-| `jira` | `GT-478`, `KB2CW-3711` | `{company_base_dir}/specs/{TICKET}/` plus JIRA issue | `refinement` / `breakdown` |
+| `jira` | `PROJ-123`, `TASK-123` | `{company_specs_dir}/{TICKET}/` plus JIRA issue | `refinement` / `breakdown` |
 | `dp` | `DP-045`, `specs/design-plans/DP-045-*/plan.md` | `{workspace_root}/specs/design-plans/DP-NNN-{slug}/` | `refinement` |
 | `topic` | `討論 CI local blocker`, `refinement "想重構 skill routing"` | newly allocated DP folder | `refinement` |
 | `artifact_path` | direct `refinement.json`, `refinement.md`, `tasks/T1.md` path | nearest containing specs folder | stage-specific consumer |
@@ -62,9 +94,9 @@ The topic slug is kebab-case and describes the durable subject, not the current 
 For JIRA-backed work:
 
 ```text
-{company_base_dir}/specs/{TICKET}/refinement.md
-{company_base_dir}/specs/{TICKET}/refinement.json
-{company_base_dir}/specs/{TICKET}/tasks/T{n}.md
+{company_specs_dir}/{TICKET}/refinement.md
+{company_specs_dir}/{TICKET}/refinement.json
+{company_specs_dir}/{TICKET}/tasks/T{n}.md
 ```
 
 For DP-backed ticketless work:
@@ -89,6 +121,31 @@ For DP-backed ticketless work:
 | `ABANDONED` | decision was not to proceed | read-only unless revived by user |
 
 `breakdown DP-NNN` must require `LOCKED` unless the user explicitly asks for advisory review. If source is still `DISCUSSION`, route back to `refinement DP-NNN`.
+
+## Archive Sweep
+
+Terminal specs can be archived one-by-one or by sweep:
+
+```bash
+scripts/archive-spec.sh DP-NNN
+scripts/archive-spec.sh TICKET-123
+scripts/archive-spec.sh --sweep --dry-run
+scripts/archive-spec.sh --sweep --apply
+```
+
+Sweep uses the same namespace rules as source resolution:
+
+- DP container status comes from `plan.md`
+- JIRA/company container status comes from `refinement.md`, falling back to `plan.md`
+- only `IMPLEMENTED` and `ABANDONED` are archive candidates
+- non-terminal or missing status containers stay active and are reported as `skip`
+- destination conflicts fail before any apply move
+
+After sweep apply, sync docs-viewer content before reading or publishing:
+
+```bash
+scripts/generate-specs-sidebar.sh {workspace_root}
+```
 
 ## Section Ownership
 

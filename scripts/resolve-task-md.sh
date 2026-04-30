@@ -18,6 +18,7 @@ usage() {
   cat >&2 <<'USAGE'
 usage: resolve-task-md.sh <path|jira-key|pr-url|pr-number>
        resolve-task-md.sh --current
+       resolve-task-md.sh --include-archive <path|jira-key|pr-url|pr-number>
        resolve-task-md.sh --clear-lock
        resolve-task-md.sh --write-lock <path|jira-key|pr-url|pr-number>
        resolve-task-md.sh --write-lock --current
@@ -166,6 +167,7 @@ resolve_direct_path() {
 resolve_by_dp_task() {
   local root="$1"
   local dp_task="$2"
+  local include_archive="${3:-0}"
   local dp_id=""
   local task_id=""
   local -a matches=()
@@ -177,14 +179,28 @@ resolve_by_dp_task() {
   dp_id="${BASH_REMATCH[1]}"
   task_id="${BASH_REMATCH[2]}"
 
-  while IFS= read -r -d '' line; do
-    matches+=("$line")
-  done < <(
-    find "$root/specs/design-plans" \
-      -path "$root/specs/design-plans/${dp_id}-*/tasks/${task_id}.md" -print0 \
-      -o -path "$root/specs/design-plans/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \
-      2>/dev/null
-  )
+  if [[ "$include_archive" == "1" ]]; then
+    while IFS= read -r -d '' line; do
+      matches+=("$line")
+    done < <(
+      find "$root/specs/design-plans" \
+        \( -path "$root/specs/design-plans/${dp_id}-*/tasks/${task_id}.md" -print0 \) \
+        -o \( -path "$root/specs/design-plans/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \) \
+        -o \( -path "$root/specs/design-plans/archive/${dp_id}-*/tasks/${task_id}.md" -print0 \) \
+        -o \( -path "$root/specs/design-plans/archive/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \) \
+        2>/dev/null
+    )
+  else
+    while IFS= read -r -d '' line; do
+      matches+=("$line")
+    done < <(
+      find "$root/specs/design-plans" \
+        \( -type d -name archive -prune \) \
+        -o \( -path "$root/specs/design-plans/${dp_id}-*/tasks/${task_id}.md" -print0 \) \
+        -o \( -path "$root/specs/design-plans/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \) \
+        2>/dev/null
+    )
+  fi
 
   if [[ ${#matches[@]} -gt 0 ]]; then
     emit_unique_match "DP task ${dp_task}" "${matches[@]}"
@@ -198,6 +214,7 @@ resolve_by_dp_task() {
 resolve_by_jira() {
   local root="$1"
   local jira_key="$2"
+  local include_archive="${3:-0}"
   local -a task_matches=()
   local line=""
   local parsed_jira=""
@@ -213,10 +230,17 @@ resolve_by_jira() {
       task_matches+=("$line")
     fi
   done < <(
-    find "$root" \
-      \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
-      -o \
-      \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/pr-release/*.md' \) -print0 \)
+    if [[ "$include_archive" == "1" ]]; then
+      find "$root" \
+        \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
+        -o \
+        \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/pr-release/*.md' \) -print0 \)
+    else
+      find "$root" \
+        \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
+        -o \
+        \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/pr-release/*.md' \) -print0 \)
+    fi
   )
 
   if [[ ${#task_matches[@]} -gt 0 ]]; then
@@ -249,6 +273,7 @@ resolve_by_pr() {
 resolve_from_input() {
   local root="$1"
   local raw="$2"
+  local include_archive="${3:-0}"
   local extracted=""
   local kind=""
   local value=""
@@ -289,7 +314,7 @@ PY
   value="${extracted#*$'\t'}"
   case "$kind" in
     dp_task)
-      resolve_by_dp_task "$root" "$value"
+      resolve_by_dp_task "$root" "$value" "$include_archive"
       ;;
     path)
       value="${value/#\~/$HOME}"
@@ -312,7 +337,7 @@ PY
       resolve_by_pr "$root" "$value"
       ;;
     jira)
-      resolve_by_jira "$root" "$value"
+      resolve_by_jira "$root" "$value" "$include_archive"
       ;;
     *)
       echo "error: could not resolve work order from raw input" >&2
@@ -328,7 +353,8 @@ run_selftest() {
 
   tmpdir="$(mktemp -d -t resolve-task-md-selftest.XXXXXX)"
   trap "rm -rf '$tmpdir'" EXIT
-  mkdir -p "$tmpdir/specs/GT-478/tasks/pr-release" "$tmpdir/specs/GT-478/tasks" "$tmpdir/specs/GT-999"
+  mkdir -p "$tmpdir/specs/GT-478/tasks/pr-release" "$tmpdir/specs/GT-478/tasks" "$tmpdir/specs/GT-999" \
+           "$tmpdir/specs/companies/kkday/archive/GT-999/tasks"
 
   cat > "$tmpdir/specs/GT-478/tasks/T3b.md" <<'MD'
 # T3b: Example (1 pt)
@@ -350,6 +376,16 @@ MD
 | Source ID | GT-478 |
 | Task ID | GT-481 |
 | JIRA key | GT-481 |
+MD
+
+  cat > "$tmpdir/specs/companies/kkday/archive/GT-999/tasks/T1.md" <<'MD'
+# T1: Archived task (1 pt)
+> Source: GT-999 | Task: GT-999 | JIRA: GT-999 | Repo: kkday
+## Operational Context
+| Source type | jira |
+| Source ID | GT-999 |
+| Task ID | GT-999 |
+| JIRA key | GT-999 |
 MD
 
   mkdir -p "$tmpdir/specs/design-plans/DP-047-framework-work-order-bridge/tasks"
@@ -385,7 +421,11 @@ MD
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-999)" || rc=$?
-  [[ $rc -eq 1 ]] || { echo "[selftest] missing task FAIL"; return 1; }
+  [[ $rc -eq 1 ]] || { echo "[selftest] default archive exclusion FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --include-archive --scan-root "$tmpdir" GT-999)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/companies/kkday/archive/GT-999/tasks/T1.md" ]] || { echo "[selftest] include-archive lookup FAIL"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 GT-480')" || rc=$?
@@ -421,6 +461,7 @@ mode=""
 input_value=""
 write_lock_flag=0
 print_lock_path_flag=0
+include_archive_flag=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -428,6 +469,10 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 ]] || { usage; exit 2; }
       scan_root="$2"
       shift 2
+      ;;
+    --include-archive)
+      include_archive_flag=1
+      shift
       ;;
     --write-lock)
       write_lock_flag=1
@@ -493,15 +538,15 @@ case "$mode" in
     resolved_path="$(resolve_by_branch "$root" "$branch")"
     ;;
   from-input)
-    resolved_path="$(resolve_from_input "$root" "$input_value")"
+    resolved_path="$(resolve_from_input "$root" "$input_value" "$include_archive_flag")"
     ;;
   direct)
     if resolve_direct_path "$input_value" >/dev/null 2>&1; then
       resolved_path="$(resolve_direct_path "$input_value")"
     elif [[ "$input_value" =~ ^DP-[0-9]{3}-T[0-9]+[a-z]*$ ]]; then
-      resolved_path="$(resolve_by_dp_task "$root" "$input_value")"
+      resolved_path="$(resolve_by_dp_task "$root" "$input_value" "$include_archive_flag")"
     elif [[ "$input_value" =~ ^[A-Z][A-Z0-9]+-[0-9]+$ ]]; then
-      resolved_path="$(resolve_by_jira "$root" "$input_value")"
+      resolved_path="$(resolve_by_jira "$root" "$input_value" "$include_archive_flag")"
     elif [[ "$input_value" =~ ^https?://github\.com/.+/pull/[0-9]+$ || "$input_value" =~ ^#?[0-9]+$ ]]; then
       resolved_path="$(resolve_by_pr "$root" "${input_value#\#}")"
     else

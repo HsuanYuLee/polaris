@@ -36,6 +36,21 @@ detect_workspace_root() {
 is_specs_target() {
   local path="$1"
   case "$path" in
+    */specs/companies/*/archive/*/tasks/*|specs/companies/*/archive/*/tasks/*)
+      return 0
+      ;;
+    */specs/companies/*/archive/*/*.md|specs/companies/*/archive/*/*.md)
+      return 0
+      ;;
+    */specs/companies/*/*/tasks/*|specs/companies/*/*/tasks/*)
+      return 0
+      ;;
+    */specs/companies/*/*/*.md|specs/companies/*/*/*.md)
+      return 0
+      ;;
+    */specs/design-plans/archive/*|specs/design-plans/archive/*)
+      return 0
+      ;;
     */specs/design-plans/*|specs/design-plans/*)
       return 0
       ;;
