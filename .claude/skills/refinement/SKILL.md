@@ -257,6 +257,9 @@ references/refinement-dp-source-mode.md
 - `refinement` owns DP Goal / Background / Decisions / Blind Spots / Acceptance Criteria / Technical Approach.
 - `breakdown` owns Implementation Checklist finalization and work-order packing after `LOCKED`.
 - 使用者確認的設計決策必須立即寫入 DP `plan.md`；不能只留在對話。
+- DP `plan.md` / `refinement.md` 每次建立或更新後，必須依
+  `references/refinement-dp-source-mode.md` 先跑 blocking language gate，再做
+  docs-viewer sync、local preview、使用者 review 或 downstream handoff。
 - Ticketless source 不寫 JIRA comment、不改 JIRA label、不建 JIRA ticket。
 - `LOCKED` handoff 前必須確認 `refinement.md` + `refinement.json` 足以讓 `breakdown DP-NNN` 拆工。
 

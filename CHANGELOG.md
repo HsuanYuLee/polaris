@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.63] - 2026-04-30
+
+### Fixed — refinement DP language gate
+
+- 在 `refinement-dp-source-mode.md` 補上 DP-backed `plan.md` / `refinement.md`
+  create/update 後的 blocking language gate。
+- 明確要求 sidebar sync、local preview、user-facing review 與 downstream handoff
+  前都必須先通過 `validate-language-policy.sh --blocking --mode artifact`。
+- 在 mechanism registry 新增 `refinement-dp-language-gate` canary，防止
+  ticketless refinement 再次繞過 workspace 語言設定。
+
 ## [3.73.62] - 2026-04-30
 
 ### Added — language policy registry parity

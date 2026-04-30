@@ -57,9 +57,23 @@ For a new topic:
 
 Every user-confirmed design decision must update `plan.md` before unrelated work continues. Do not keep confirmed decisions only in conversation memory.
 
+每次建立或更新 `plan.md` 後，必須先跑 workspace language gate，通過後才能
+sidebar sync 或回報給使用者：
+
+```bash
+bash scripts/validate-language-policy.sh \
+  --blocking \
+  --mode artifact \
+  {workspace_root}/specs/design-plans/DP-NNN-{slug}/plan.md
+```
+
+若 gate 失敗，先修正自然語言內容並重跑。`plan.md` 違反 workspace language
+時，不可宣稱 DP 已可 review。
+
 ## T2. Docs-Viewer Sidebar Sync
 
-After creating or editing a DP markdown file, make it navigable in docs-viewer.
+建立或編輯 DP markdown 後，讓它可在 docs-viewer 導覽。必須先跑 T1/T3 的
+language gate；docs-viewer 不應暴露未通過 workspace language policy 的新產生 prose。
 
 Preferred:
 
@@ -99,6 +113,19 @@ python3 scripts/refinement-preview.py {workspace_root}/specs/design-plans/DP-NNN
 - references
 
 Keep full decision history in `plan.md`.
+
+每次建立或更新 `refinement.md` 後，必須先跑 workspace language gate，通過後才能
+preview、sidebar sync 或 downstream handoff：
+
+```bash
+bash scripts/validate-language-policy.sh \
+  --blocking \
+  --mode artifact \
+  {workspace_root}/specs/design-plans/DP-NNN-{slug}/refinement.md
+```
+
+同一輪若同時改了 `plan.md` 與 `refinement.md`，用同一個 command 一起驗。若 gate
+失敗，先修正 artifact language，再開 preview 或繼續 refinement flow。
 
 ## T4. Artifact Output
 
