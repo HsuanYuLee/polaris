@@ -185,7 +185,128 @@ def filter_dev_hooks(dev_hooks):
     return keep
 
 
+def changeset_policy_command() -> str:
+    return r'''python3 - "$BASE_BRANCH" <<'CILOCAL_CHANGESET_POLICY_PY'
+import pathlib
+import re
+import subprocess
+import sys
+
+base_branch = sys.argv[1].strip()
+ticket_re = re.compile(r"\[[A-Z0-9]+-[0-9]+\]")
+
+
+def git(args):
+    proc = subprocess.run(
+        ["git", *args],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def ref_exists(ref):
+    return bool(git(["rev-parse", "--verify", ref]))
+
+
+def resolve_base_ref():
+    candidates = []
+    if base_branch:
+        if base_branch.startswith("origin/"):
+            candidates.extend([base_branch, base_branch[len("origin/"):]])
+        else:
+            candidates.extend([f"origin/{base_branch}", base_branch])
+    for cand in candidates:
+        if ref_exists(cand):
+            return cand
+    for cand in ("origin/develop", "develop", "origin/main", "main", "origin/master", "master"):
+        if ref_exists(cand):
+            return cand
+    return ""
+
+
+def names_from_diff(args):
+    output = git(["diff", "--name-only", *args])
+    return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+base_ref = resolve_base_ref()
+changed = set()
+if base_ref:
+    merge_base = git(["merge-base", "HEAD", base_ref])
+    if merge_base:
+        changed.update(names_from_diff([f"{merge_base}...HEAD"]))
+changed.update(names_from_diff([]))
+changed.update(names_from_diff(["--cached"]))
+
+files = sorted(
+    path
+    for path in changed
+    if path.startswith(".changeset/")
+    and path.endswith(".md")
+    and pathlib.Path(path).name.lower() != "readme.md"
+)
+
+if not files:
+    print("[ci-local] FAIL: no .changeset/*.md file found in PR diff", file=sys.stderr)
+    raise SystemExit(1)
+
+missing_ticket = []
+for file_name in files:
+    try:
+        text = pathlib.Path(file_name).read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"[ci-local] FAIL: cannot read {file_name}: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+    if not ticket_re.search(text):
+        missing_ticket.append(file_name)
+
+if missing_ticket:
+    print(
+        "[ci-local] FAIL: changeset missing JIRA ticket ID: "
+        + ", ".join(missing_ticket),
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+print("[ci-local] changeset policy PASS: " + ", ".join(files))
+CILOCAL_CHANGESET_POLICY_PY'''
+
+
+def synthesize_policy_checks(checks):
+    """Replace known CI policy jobs with local equivalents.
+
+    CI containers often express a policy gate as several setup/control-flow
+    fragments. Replaying those fragments locally is brittle, so the mirror
+    emits a single deterministic check for each supported policy.
+    """
+    synthesized = []
+    seen = set()
+    for c in checks or []:
+        source = c.get("source_file", "")
+        job = c.get("job", "")
+        key_text = f"{source}\n{job}".lower()
+        if "changeset" not in key_text:
+            continue
+        key = ("changeset", source, job)
+        if key in seen:
+            continue
+        seen.add(key)
+        synthesized.append(
+            {
+                "category": "policy",
+                "source_file": source,
+                "job": job,
+                "command": changeset_policy_command(),
+                "conditions": c.get("conditions") or {},
+            }
+        )
+    return synthesized
+
+
 checks = filter_checks(contract.get("checks", []))
+policy_checks = synthesize_policy_checks(contract.get("checks", []))
 dev_hooks = filter_dev_hooks(contract.get("dev_hooks", []))
 codecov_gates = contract.get("codecov_flag_gates", []) or []
 provider = contract.get("provider", "unknown")
@@ -197,7 +318,7 @@ for c in checks:
     if c.get("category") == "install":
         c["conditions"] = {}
 
-has_anything = bool(checks) or bool(dev_hooks) or bool(codecov_gates)
+has_anything = bool(checks) or bool(policy_checks) or bool(dev_hooks) or bool(codecov_gates)
 
 # ---------- Source fingerprints (for staleness advisory) ----------
 def file_fingerprint(rel_path: str):
@@ -564,9 +685,9 @@ else:
     # Emit numbered command files
     idx = 0
     all_runs = []
-    for c in checks:
+    for c in checks + policy_checks:
         idx += 1
-        cat = c.get("category", "other")
+        cat = c.get("category", "policy")
         job = c.get("job", "")
         src = c.get("source_file", "")
         cmd_body = c.get("command", "").rstrip("\n")
@@ -576,7 +697,7 @@ else:
         all_runs.append((idx, cat, job, src, conditions))
     for h in dev_hooks:
         idx += 1
-        cat = h.get("category", "other")
+        cat = h.get("category", "policy")
         ht = h.get("hook_type", "pre-commit")
         src = h.get("source_file", "")
         cmd_body = h.get("command", "").rstrip("\n")

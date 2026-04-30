@@ -808,6 +808,97 @@ assert_contains "Test 13: evidence host recorded" /tmp/ci-local-test13-evidence.
 rm -f "$T13_EVIDENCE" /tmp/ci-local-test13.out /tmp/ci-local-test13-evidence.out
 
 # ============================================================================
+echo "== Test 14: Woodpecker changeset policy mirror =="
+# ============================================================================
+T14="$TMPROOT/woodpecker-changeset-policy"
+mkdir -p "$T14/.woodpecker"
+cat > "$T14/.woodpecker/check_changeset.yml" <<'YAML'
+pipeline:
+  check_changeset:
+    image: alpine/git
+    secrets:
+      - github_oauth_token
+    commands:
+      - |
+        PR_NUMBER=$(echo $CI_COMMIT_REF | sed -n 's#refs/pull/\([0-9]*\)/head#\1#p')
+      - apk add --no-cache github-cli jq
+      - echo $GITHUB_OAUTH_TOKEN | gh auth login --with-token
+      - |
+        CHANGESET_FILES=$(gh pr view $PR_NUMBER --repo $CI_REPO --json files -q '.files[] | select(.path | startswith(".changeset/") and endswith(".md")) | .path')
+      - |
+        if [ -z "$CHANGESET_FILES" ]; then
+          echo "no changeset"
+          exit 1
+        fi
+      - |
+        for FILE in $CHANGESET_FILES; do
+          grep -qE '\[[A-Z0-9]+-[0-9]+\]' "$FILE"
+        done
+    when:
+      event: pull_request
+      branch: develop
+YAML
+init_git_repo "$T14"
+git -C "$T14" branch -M develop
+git -C "$T14" update-ref refs/remotes/origin/develop HEAD
+git -C "$T14" checkout -q -b task/no-changeset
+CONTRACT14="$T14/contract.json"
+"$SCRIPT_DIR/ci-contract-discover.sh" --repo "$T14" > "$CONTRACT14"
+python3 - "$CONTRACT14" <<'PY' >/tmp/ci-local-test14-categories.out
+import json, sys
+d = json.load(open(sys.argv[1]))
+print(",".join(sorted({c["category"] for c in d["checks"]})))
+PY
+assert_not_contains "Test 14: discover no longer emits other category" /tmp/ci-local-test14-categories.out "other"
+assert_contains "Test 14: discover classifies changeset as policy" /tmp/ci-local-test14-categories.out "policy"
+
+OUT14="$T14/.claude/scripts/ci-local.sh"
+"$GEN" --repo "$T14" --out "$OUT14" --force >/dev/null 2>&1
+assert "Test 14: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+bash -n "$OUT14" 2>/dev/null
+assert "Test 14: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+assert_contains "Test 14: generated policy check emitted" "$OUT14" "[policy] .woodpecker/check_changeset.yml::check_changeset"
+assert_contains "Test 14: generated local changeset mirror emitted" "$OUT14" "changeset policy PASS"
+assert_not_contains "Test 14: does not replay apk setup" "$OUT14" "apk add --no-cache github-cli jq"
+assert_not_contains "Test 14: does not replay gh auth" "$OUT14" "gh auth login"
+assert_not_contains "Test 14: does not call gh pr view" "$OUT14" "gh pr view"
+
+set +e
+(cd "$T14" && bash "$OUT14" --repo "$T14" --base-branch develop >/tmp/ci-local-test14-fail.out 2>&1)
+T14_FAIL_RC=$?
+set -e
+assert "Test 14: missing changeset fails" "$([ $T14_FAIL_RC -ne 0 ] && echo 1 || echo 0)"
+assert_contains "Test 14: missing changeset reason" /tmp/ci-local-test14-fail.out "no .changeset/*.md file found"
+
+mkdir -p "$T14/.changeset"
+cat > "$T14/.changeset/kb2cw-1234-demo.md" <<'MD'
+---
+'@demo/pkg': patch
+---
+
+fix: [KB2CW-1234] add demo changeset
+MD
+git -C "$T14" add .changeset/kb2cw-1234-demo.md
+git -C "$T14" -c user.email=t@t -c user.name=t commit -q -m "fix: [KB2CW-1234] add changeset"
+(cd "$T14" && bash "$OUT14" --repo "$T14" --base-branch develop >/tmp/ci-local-test14-pass.out 2>&1)
+T14_PASS_RC=$?
+assert "Test 14: changeset with ticket passes" "$([ $T14_PASS_RC -eq 0 ] && echo 1 || echo 0)"
+T14_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+python3 - "$T14_EVIDENCE" <<'PY' >/tmp/ci-local-test14-evidence.out
+import json, sys
+d=json.load(open(sys.argv[1]))
+print(d["status"])
+print(d["checks"][0]["category"])
+print(d["summary"]["executed_checks"])
+print(d["checks"][0]["output_tail"])
+PY
+assert_contains "Test 14: evidence status PASS" /tmp/ci-local-test14-evidence.out "PASS"
+assert_contains "Test 14: evidence category policy" /tmp/ci-local-test14-evidence.out "policy"
+assert_contains "Test 14: evidence executed one check" /tmp/ci-local-test14-evidence.out "1"
+assert_contains "Test 14: evidence lists changeset" /tmp/ci-local-test14-evidence.out ".changeset/kb2cw-1234-demo.md"
+rm -f "$T14_EVIDENCE" /tmp/ci-local-test14-categories.out /tmp/ci-local-test14-fail.out /tmp/ci-local-test14-pass.out /tmp/ci-local-test14-evidence.out
+
+# ============================================================================
 echo
 echo "== Summary =="
 echo "  Assertions: $ASSERTIONS"

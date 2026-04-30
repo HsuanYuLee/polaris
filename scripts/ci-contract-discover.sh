@@ -62,6 +62,9 @@ def flatten_commands(raw):
 def categorize_command(cmd: str):
     lower = cmd.lower()
 
+    if any(k in lower for k in ["changeset", ".changeset/", "changeset_files"]):
+        return "policy"
+
     if any(k in lower for k in ["pnpm install", "npm ci", "npm install", "yarn install", "bundle install", "composer install", "pip install"]):
         return "install"
 
@@ -77,7 +80,23 @@ def categorize_command(cmd: str):
     if re.search(r"\b(test|vitest|jest|pytest|go test|phpunit|rspec)\b", lower):
         return "test"
 
-    return "other"
+    if any(k in lower for k in ["gh pr comment", "gh release", "changeset version"]):
+        return "delivery"
+
+    if any(k in lower for k in ["apk add", "apt-get", "brew install", "corepack enable", "gh auth login"]):
+        return "setup"
+
+    if lower.startswith(("echo ", "if ", "for ", "while ", "case ", "export ")) or re.match(r"^[a-z_][a-z0-9_]*=", lower):
+        return "setup"
+
+    return "policy"
+
+
+def categorize_ci_command(cmd: str, source_file: str = "", job_name: str = ""):
+    context = f"{source_file}\n{job_name}".lower()
+    if "changeset" in context:
+        return "policy"
+    return categorize_command(cmd)
 
 
 def normalize_events(raw):
@@ -220,7 +239,7 @@ def discover_woodpecker():
             conditions = normalize_woodpecker_conditions(when)
             intents = infer_intents("woodpecker", events)
             for cmd in flatten_commands(job.get("commands")):
-                category = categorize_command(cmd)
+                category = categorize_ci_command(cmd, str(path.relative_to(repo)), job_name)
                 checks.append(
                     {
                         "source_file": str(path.relative_to(repo)),
@@ -274,7 +293,7 @@ def discover_github_actions():
                 if not run:
                     continue
                 for cmd in flatten_commands(run):
-                    category = categorize_command(cmd)
+                    category = categorize_ci_command(cmd, str(path.relative_to(repo)), job_name)
                     checks.append(
                         {
                             "source_file": str(path.relative_to(repo)),
@@ -333,7 +352,7 @@ def discover_gitlab_ci():
         intents = infer_intents("gitlab_ci", events)
         script = job.get("script")
         for cmd in flatten_commands(script):
-            category = categorize_command(cmd)
+            category = categorize_ci_command(cmd, str(path.relative_to(repo)), str(job_name))
             checks.append(
                 {
                     "source_file": str(path.relative_to(repo)),

@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.4] - 2026-04-30
+
+### Fixed — ci-local changeset policy mirror
+
+- `ci-contract-discover.sh` no longer falls back to an `other` category; CI
+  setup/delivery/policy commands are classified explicitly.
+- `ci-local-generate.sh` now converts Woodpecker changeset policy jobs into a
+  local deterministic `.changeset/*.md` + JIRA ticket check instead of dropping
+  them from the local mirror.
+- Added self-test coverage for missing changeset failures, valid changeset
+  passes, and avoiding unsafe replay of CI-only `apk` / `gh auth` / `gh pr`
+  fragments.
+
 ## [3.74.3] - 2026-04-30
 
 ### Fixed — docs-viewer local origin contract
