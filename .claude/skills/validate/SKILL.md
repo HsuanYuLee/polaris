@@ -68,6 +68,7 @@ Static smoke test of canaries from `rules/mechanism-registry.md`.
 10. **Hooks in settings.local.json** — scan each project's `.claude/settings.local.json` for a top-level `hooks` key → 🟡 WARN. All hooks must live in `settings.json`; `settings.local.json` with `hooks` causes shallow merge to silently override the entire `hooks` object, disabling all shared PostToolUse/PreToolUse hooks
 11. **L2 embedding integrity** — run `scripts/validate-l2-embedding.sh` against `skills/references/l2-embedding-registry.md`. Validates every registered DP-030 canary's script exists, SKILL.md step anchor matches, L1 hook file + settings.json registration exist, and Layer declaration is consistent. Exit 1 → 🔴 FAIL (surface per-entry errors to user); exit 2 → 🔴 FAIL (registry meta error)
 12. **Cross-LLM skill mirror mode** — run `scripts/check-skills-mirror-mode.sh`. `.agents/skills` must be a symlink to `../.claude/skills`; copied mirror dirs are 🔴 FAIL because they reintroduce drift between Claude and Codex paths
+13. **Model tier policy drift** — run `scripts/validate-model-tier-policy.sh`. Raw provider model policy (`haiku`, `sonnet`, concrete `gpt-*` / `claude-*` IDs) must stay in the approved central mapping / config / release-note locations; skill workflow prose must use semantic classes from `skills/references/model-tier-policy.md`
 
 ### Report format
 

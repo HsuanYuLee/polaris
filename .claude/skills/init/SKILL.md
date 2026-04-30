@@ -85,7 +85,7 @@ When repos are selected in Step 7, analyze each repo to generate `tags` and `key
 ### Detection flow
 
 1. User selects repos from the `gh repo list` checklist
-2. For each selected repo, dispatch a **parallel sub-agent** (model: `"haiku"`) to:
+2. For each selected repo, dispatch a **parallel sub-agent** (model class: `small_fast`) to:
    - Read detection sources from `{base_dir}/{repo_name}/` (local path)
    - If local clone doesn't exist, use `gh api repos/{org}/{name}/contents/package.json` as fallback
    - Return: `{ tags: string[], keywords: string[] }`
@@ -414,7 +414,7 @@ Step 7a: Repo Selection
 The `[local only]` section ensures repos already cloned but not returned by `gh repo list` (archived, different org, or beyond the 50-repo limit) are still visible. If a `[local only]` repo is selected, derive its `repo` field from `git -C {base_dir}/{name} remote get-url origin`.
 
 **Phase 2: AI analysis**
-- For each selected repo, dispatch parallel sub-agents (model: `"haiku"`) to analyze
+- For each selected repo, dispatch parallel sub-agents (model class: `small_fast`) to analyze
 - See "AI Repo Detection" section above for detection sources and rules
 
 **Phase 3: smartSelect presentation**
@@ -473,7 +473,7 @@ Discover how to start the local development environment for each selected projec
 
 **Auto-detect per project:**
 
-For each project selected in Step 7, dispatch parallel sub-agents (model: `"haiku"`) to scan:
+For each project selected in Step 7, dispatch parallel sub-agents (model class: `small_fast`) to scan:
 
 1. `docker-compose.yml` / `docker-compose.*.yml` → `docker compose up` variant
 2. `package.json` → `scripts.dev`, `scripts.start`, `scripts.serve`

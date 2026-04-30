@@ -4,15 +4,20 @@
 
 ## Model Tiers
 
-When launching a sub-agent, specify the model based on task type to balance cost and quality. Planning decisions (SA/SD design, Epic breakdown strategy, scope challenge) stay with the main agent and are not delegated:
+When launching a sub-agent, specify a provider-neutral model class based on task type. Planning decisions (SA/SD design, Epic breakdown strategy, scope challenge) stay with the main agent and are not delegated.
 
-| Task Type | model parameter | Examples |
-|-----------|----------------|---------|
-| **Explore / Analyze** | `"sonnet"` | Explore subagent, PR review, code analysis, Phase 1 ticket analysis |
-| **Execute / Fix** | `"sonnet"` | Implementation sub-agent, engineering revision mode, CI fixes, rebase conflict |
-| **JIRA template operations** | `"haiku"` | Batch create sub-tasks, batch create tickets, readiness checklist comparison |
+Use [model-tier-policy.md](model-tier-policy.md) as the source of truth for class semantics, runtime-specific mappings, approved small-model candidates, and risk gates.
 
-> See `skills/references/sub-agent-roles.md` for dispatch standards (Completion Envelope, model tiers), specialized protocols (QA Challenger, Architect Challenger, Critic), and common prompt patterns.
+| Task Type | Model Class | Examples |
+|-----------|-------------|---------|
+| **Read-only extraction / batch templates** | `small_fast` | Batch create sub-tasks, batch create tickets, readiness checklist comparison |
+| **Low-latency interactive iteration** | `realtime_fast` | Explicit fast Codex coding loop when runtime access and task risk allow |
+| **Explore / Analyze with decisions** | `standard_coding` | Explore subagent, PR review, code analysis, Phase 1 ticket analysis |
+| **Execute / Fix** | `standard_coding` | Implementation sub-agent, engineering revision mode, CI fixes, rebase conflict |
+| **Architecture / final arbitration** | `frontier_reasoning` | Cross-system tradeoff, irreversible planning, high-risk review |
+| **No override needed** | `inherit` | Parent session model is already appropriate |
+
+> See `skills/references/sub-agent-roles.md` for dispatch standards (Completion Envelope, model class selection), specialized protocols (QA Challenger, Architect Challenger, Critic), and common prompt patterns.
 
 ## Decision Classification
 

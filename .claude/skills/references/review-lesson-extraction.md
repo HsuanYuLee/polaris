@@ -6,7 +6,7 @@ Used by: `learning` (PR mode, Batch mode), `engineering` revision mode (R6b)
 
 ## Sub-agent Prompt Template
 
-Spawn sub-agents (`model: "sonnet"`) to extract patterns from merged PRs. Maximum 5 parallel sub-agents; batch if more.
+Spawn sub-agents (`model class: standard_coding`) to extract patterns from merged PRs. Maximum 5 parallel sub-agents; batch if more.
 
 ```
 You are analyzing a merged PR to extract learnable patterns from its review comments.

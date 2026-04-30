@@ -20,14 +20,16 @@ This avoids copy drift between Claude-facing and Codex-facing paths. If the mirr
 - When updating a shared reference consumed by skills, edit `.claude/skills/references/*`
 - Company-specific skills remain under `.claude/skills/{company}/`
 - Maintainer-only skills remain under `.claude/skills/` with their existing scope controls
+- Runtime-specific adapter examples must point back to `.claude/skills/references/model-tier-policy.md`; do not duplicate concrete model policy in `.agents/skills`, generated prompts, or runtime notes
 
 ## Verification
 
 Before declaring cross-LLM parity healthy:
 
 1. Verify `.agents/skills` is a symlink to `../.claude/skills`
-2. Verify Codex rule transpile is in sync
-3. Verify parity checks pass
+2. Run `scripts/validate-model-tier-policy.sh`
+3. Verify Codex rule transpile is in sync
+4. Verify parity checks pass
 
 ## Why
 

@@ -85,7 +85,7 @@ Each persona is a sub-agent with a distinct background and priorities. Run them 
 
 ## Sub-agent Setup
 
-- **Model**: `"sonnet"` for each persona
+- **Model class**: `standard_coding` for each persona
 - **Persona rules**: Be HARSH, not polite. Real users don't file polite bug reports.
 - **Scope**: Read only the GitHub-visible files (README, CHANGELOG, CLAUDE.md, rules/, references/). Skills are local-only.
 

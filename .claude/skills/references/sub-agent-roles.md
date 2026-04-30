@@ -67,13 +67,18 @@ The Strategist uses `User Summary` for the response and `Checkpoint State` for m
 
 ### Model Tier Selection
 
-Choose model based on task type to balance cost and quality:
+Choose a provider-neutral model class based on task type. The authoritative class definitions, Codex / Claude runtime mappings, approved small-model candidates, and risk gates live in [model-tier-policy.md](model-tier-policy.md).
 
-| Task Type | Model | Examples |
-|-----------|-------|---------|
-| **Explore / Analyze** | `"sonnet"` | Codebase scan, PR review, ticket analysis |
-| **Execute / Fix** | `"sonnet"` | Implementation, fix review comments, CI fixes |
-| **Template operations** | `"haiku"` | Batch JIRA sub-task creation, ticket field updates |
+| Task Type | Model Class | Examples |
+|-----------|-------------|---------|
+| **Read-only extraction / batch templates** | `small_fast` | Batch JIRA sub-task creation, ticket field updates, checklist comparison |
+| **Low-latency interactive iteration** | `realtime_fast` | Explicit Codex Spark-style interactive coding loop when access and risk gates pass |
+| **Explore / Analyze with decisions** | `standard_coding` | Codebase scan, PR review, ticket analysis, CI/debug analysis |
+| **Execute / Fix** | `standard_coding` | Implementation, fix review comments, CI fixes |
+| **Architecture / final arbitration** | `frontier_reasoning` | High-risk review, cross-system tradeoff, irreversible planning decision |
+| **No override needed** | `inherit` | Parent session already selected the appropriate model |
+
+Do not encode raw provider model names here. If a runtime needs a concrete value, resolve it through `model-tier-policy.md`.
 
 ### Context Isolation
 
@@ -127,10 +132,10 @@ A multi-round challenge loop for test plan quality assurance.
 **When to use**: `engineering` Step 5f (AC Gate), before implementation begins.
 
 **Protocol**:
-1. **QA Challenger** (sonnet) reviews the test plan and flags gaps:
+1. **QA Challenger** (`standard_coding`) reviews the test plan and flags gaps:
    - Negative cases, boundary conditions, regression risks, environment differences, concurrency
    - Returns `⚠️ 需回應` or `✅ 涵蓋完整` per item
-2. **QA Resolver** (sonnet) addresses each ⚠️ with concrete solutions
+2. **QA Resolver** (`standard_coding`) addresses each ⚠️ with concrete solutions
 3. **QA Challenger** re-evaluates the solutions
 4. Repeat until all ✅, or max 3 rounds → remaining ⚠️ escalated to user
 
@@ -276,7 +281,7 @@ For codebase scanning. Always reference `explore-pattern.md` for adaptive explor
 - 用本地 repo，不用 gh api repos/.../contents/
 ```
 
-**Model**: sonnet
+**Model class**: `standard_coding`
 
 ### Implementation Pattern
 
@@ -303,7 +308,7 @@ Project: {repo_path}
 - 估點變動 > 30% → 停止，回傳問題描述
 ```
 
-**Model**: sonnet | **Isolation**: `"worktree"` when parallel
+**Model class**: `standard_coding` | **Isolation**: `"worktree"` when parallel
 
 ### JIRA Batch Operations Pattern
 
@@ -321,7 +326,7 @@ For template-based JIRA writes (sub-task creation, field updates).
 - 回傳每筆操作的結果 + 連結
 ```
 
-**Model**: haiku
+**Model class**: `small_fast`
 
 ### GitHub Status Scan Pattern
 
@@ -344,7 +349,7 @@ For batch PR status checking.
 - 只查詢，不修改
 ```
 
-**Model**: sonnet
+**Model class**: `standard_coding`
 
 ---
 

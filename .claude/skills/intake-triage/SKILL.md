@@ -101,7 +101,7 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 
 ## Step 2：平行 per-ticket 分析
 
-每張 ticket 評估 5 個維度。ticket 數量 ≤ 5 時主 agent 直接分析；> 5 時委派 sub-agent（model: haiku）平行處理。
+每張 ticket 評估 5 個維度。ticket 數量 ≤ 5 時主 agent 直接分析；> 5 時委派 sub-agent（model class: `small_fast`）平行處理。
 
 ### 維度 1：Readiness（規格完整度）— 0 到 3 分
 
@@ -301,7 +301,7 @@ RD 可以：
 
 ## Step 6：JIRA 寫回
 
-RD 確認後，對每張 ticket 寫入 JIRA。ticket 數量 > 5 時委派 sub-agent（model: haiku）平行處理。
+RD 確認後，對每張 ticket 寫入 JIRA。ticket 數量 > 5 時委派 sub-agent（model class: `small_fast`）平行處理。
 
 ### 6a. Label
 

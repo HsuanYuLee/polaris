@@ -20,6 +20,7 @@ Both are gitignored in product repos → they do not exist in a fresh worktree.
 | Repo handbook | repo 主 checkout（gitignored） | **先 resolve main checkout**，再讀 `{main_checkout}/.claude/rules/handbook/index.md` |
 | Local CI mirror | repo 主 checkout（gitignored） | 用 `bash {base_dir}/scripts/ci-local-run.sh --repo {worktree_path}`，不要直接查 worktree 的 `.claude/scripts/ci-local.sh` |
 | `.claude/skills/` references | workspace 主 checkout（gitignored） | **絕對路徑**：`{base_dir}/.claude/skills/...` |
+| Runtime model adapter policy | workspace 主 checkout | **絕對路徑**：`{base_dir}/.claude/skills/references/model-tier-policy.md`；dispatch prompt 使用 semantic model class，runtime adapter 再映射 concrete model / effort |
 
 ## Copy-Paste Block for Dispatch Prompts
 
@@ -37,12 +38,15 @@ Embed verbatim near the "Work Order" / "讀取來源" section of every worktree-
 > - repo handbook：先用 `{base_dir}/scripts/lib/main-checkout.sh` 的 `resolve_main_checkout "{worktree_path}"` 取得 repo 主 checkout，再讀 `{main_checkout}/.claude/rules/handbook/index.md` + index 引用子文件
 > - Local CI mirror：用 `bash {base_dir}/scripts/ci-local-run.sh --repo "{worktree_path}"`；script 會自動讀主 checkout 的 `.claude/scripts/ci-local.sh`
 > - skills reference（若需）：`{base_dir}/.claude/skills/references/...`
+> - model tier policy（若需指定 sub-agent model class）：`{base_dir}/.claude/skills/references/model-tier-policy.md`；prompt 中寫 semantic class，避免直接寫 provider model ID
 >
 > 寫入 artifact 也用主 checkout 絕對路徑，使 downstream skill（verify-AC、check-pr-approvals）在主 checkout 讀得到。
 
 ## Cross-LLM Compatibility
 
 Codex and other LLMs do not auto-load `.claude/rules/`. SKILL.md files that dispatch worktree sub-agents must embed this path map inline (not just a reference link), so the dispatching model has the paths in context without an extra file load.
+
+For model selection, embed only the semantic class from `model-tier-policy.md` in the dispatch prompt. Runtime-specific adapter examples live in that policy file; copied concrete model names in worktree prompts are treated as drift.
 
 ## Rationale
 

@@ -197,7 +197,7 @@ Epic 通常還沒有 story points（估點是 refinement 下游），所以 tier
 
 ### 1. 平行讀取所有 Epic
 
-用 **sub-agent 平行**（`model: "haiku"` — 純 JIRA 讀取 + checklist 比對）對每張 Epic 執行：
+用 **sub-agent 平行**（`model class: small_fast` — 純 JIRA 讀取 + checklist 比對）對每張 Epic 執行：
 1. `getJiraIssue` 讀取 Summary、Description、Comments、Labels
 2. 根據 `references/project-mapping.md` 確認對應專案
 3. 對照 Readiness Checklist（`references/epic-template.md`）逐項檢查
@@ -665,7 +665,7 @@ Risk:      DS 改動需要先 merge 才能在 main-repo 用
 
 3. **多角色分析**（Tier 3 或使用者要求時）
 
-   類似 challenger audit 的模式，啟動 3 個 sonnet sub-agent 平行分析：
+   類似 challenger audit 的模式，啟動 3 個 `standard_coding` sub-agent 平行分析：
 
    - **RD lens**: 技術可行性、影響範圍、歷史教訓、隱藏複雜度
    - **QA lens**: AC 可驗證嗎？邊界案例？需要什麼測試基礎設施？

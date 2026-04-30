@@ -251,7 +251,7 @@ Extract using **target-specific categories**:
 
 ### Deep path — Multi-round exploration
 
-**Round 1: Structure scan** (1 Researcher sub-agent, `model: "sonnet"`)
+**Round 1: Structure scan** (1 Researcher sub-agent, `model class: standard_coding`)
 
 Explore the repo's overall structure:
 - README (full read)
@@ -521,7 +521,7 @@ During Step 4, watch for division-of-labor patterns that could become new **spec
 ```markdown
 🎭 **Potential new protocol: {Name}**
 - Protocol: {multi-round? challenge loop? structured return format?}
-- Model: sonnet / haiku
+- Model class: `standard_coding` / `small_fast`
 - Would be used by: {which skills}
 ```
 
@@ -654,7 +654,7 @@ For each selected article, follow the **External Learning Flow** (Step 1-4) usin
 - Step 4 synthesis: compare against our workspace as usual, but **batch the findings** — don't ask for confirmation after each article
 
 For efficiency with multiple articles:
-- Process up to 3 articles in parallel using Researcher sub-agents (`model: "sonnet"`)
+- Process up to 3 articles in parallel using Researcher sub-agents (`model class: standard_coding`)
 - Each sub-agent reads one article, extracts facts (Step 3), and returns findings
 - **Sub-agent must return enough info for the condensed summary**: one-line description, what's applicable to our stack (bullet points), and what's not applicable — so we don't need to re-read the article later
 - Main agent collects all sub-agent results, then presents the condensed summary (Step Q2.5)
@@ -863,7 +863,7 @@ The prompt must:
 RemoteTrigger create:
   name: daily-learning-scan-v{N}
   cron_expression: {from Step S2e}
-  model: claude-sonnet-4-6
+  model_class: standard_coding
   allowed_tools: Read, Glob, Grep, WebSearch, WebFetch, mcp__claude_ai_Slack__slack_send_message
   sources: [{workspace_repo_url}]
   mcp_connections: [{connector_uuid: "Slack connector UUID", name: "Slack", url: "https://mcp.slack.com/mcp"}]
@@ -941,7 +941,7 @@ For each PR, collect:
 2. **Review summaries** — `gh api repos/{org}/{repo}/pulls/<number>/reviews --paginate` (top-level review body with APPROVE/REQUEST_CHANGES)
 3. **PR diff** — `gh pr diff <number> --repo {org}/{repo}` (to understand what was changed and how the fix addressed the review)
 
-For **batch mode** (multiple PRs): spawn one sub-agent per PR (`model: "sonnet"`) to extract in parallel. Each sub-agent returns structured findings (see Step P3 format). Maximum 5 parallel sub-agents — if more than 5 PRs, process in batches.
+For **batch mode** (multiple PRs): spawn one sub-agent per PR (`model class: standard_coding`) to extract in parallel. Each sub-agent returns structured findings (see Step P3 format). Maximum 5 parallel sub-agents — if more than 5 PRs, process in batches.
 
 Sub-agent prompt, dedup logic, write format, and reverse sync are defined in `@reference review-lesson-extraction.md`. Use that reference for Steps P2–P4.
 

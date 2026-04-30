@@ -67,6 +67,6 @@ Prompt 結構：
 ## 排程建議
 
 - **預設 cron**: `57 13 * * *`（每天 21:57 UTC+8）
-- **Model**: `claude-sonnet-4-6`
+- **Model class**: `standard_coding`
 - **Allowed tools**: `Read`, `Glob`, `Grep`, `WebSearch`, `WebFetch`, `mcp__claude_ai_Slack__slack_send_message`
 - **Sources**: 使用者的 workspace repo（需包含 `learning-archive.md`）

@@ -63,7 +63,7 @@ Extract from ticket description:
 
 ### 2-AF.2 — Scoped investigation (Explorer sub-agent, feature-branch-only)
 
-Dispatch Explorer (sonnet) with a **narrower** prompt than the generic Step 3:
+Dispatch Explorer (`standard_coding`) with a **narrower** prompt than the generic Step 3:
 
 ```
 Prompt: AC 驗證失敗，定位 feature branch 上的 code 缺陷。
@@ -143,7 +143,7 @@ Fast path simplification: Step 3 analyzes inline (no Explorer sub-agent).
 
 ### Full Path
 
-Dispatch an **Explorer sub-agent** (sonnet) to investigate the codebase:
+Dispatch an **Explorer sub-agent** (`standard_coding`) to investigate the codebase:
 
 ```
 Prompt: 分析 Bug {TICKET} 的根因。

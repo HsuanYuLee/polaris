@@ -60,6 +60,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 
 | File | Description | Triggers |
 |------|-------------|----------|
+| [model-tier-policy.md](model-tier-policy.md) | 跨 LLM model selection policy：semantic classes、Codex / Claude runtime mapping、approved small-model candidates、risk gates、effort 分離 | sub-agent dispatch, model tier, small_fast, realtime_fast, model override |
 | [sub-agent-roles.md](sub-agent-roles.md) | Sub-agent dispatch 標準：completion envelope、model tier、QA/Architect/Critic | 任何 skill 啟動 sub-agent |
 | [sub-agent-reference.md](sub-agent-reference.md) | Sub-agent 輔助參考：model tier 表、T1/T2/T3 決策分類、self-regulation scoring、pipeline restore points、fan-in validation、write isolation model、safety hooks | 任何 skill 啟動 sub-agent, engineering batch mode, parallel sub-agent dispatch |
 | [explore-pattern.md](explore-pattern.md) | Adaptive codebase 探索模式：handbook-first → 小範圍直讀 / 大範圍平行 sub-agent → handbook 回寫 | refinement (Tier 2+), sasd-review, breakdown, systematic-debugging, engineering, bug-triage |

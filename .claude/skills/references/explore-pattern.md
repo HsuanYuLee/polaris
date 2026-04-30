@@ -4,9 +4,9 @@
 
 ## 使用方式
 
-主 agent 啟動 **1 個 Explore subagent**（`model: "sonnet"`），帶入完整的任務描述和專案路徑。Explore subagent 自行判斷範圍大小，決定直接探索或分裂成多個 sub-Explore。
+主 agent 啟動 **1 個 Explore subagent**（`model class: standard_coding`），帶入完整的任務描述和專案路徑。Explore subagent 自行判斷範圍大小，決定直接探索或分裂成多個 sub-Explore。
 
-> **Model 選擇**：Explore subagent 用 **Sonnet** — 搜尋 + 摘要不需要最強推理，Sonnet 的程式碼理解能力足以產出高品質摘要。分裂出的 sub-sub-Explore 也用 Sonnet。
+> **Model 選擇**：Explore subagent 用 `standard_coding` class — 搜尋 + 摘要不需要最強推理，但需要可靠的程式碼理解能力。分裂出的 sub-sub-Explore 也用 `standard_coding`。
 
 ## Handbook-First 探索協議
 

@@ -166,19 +166,19 @@ Gaps found: X | Ready: Y | Skipped: Z
 
 ### Gap → Skill 路由
 
-| Gap Type | Skill | Dispatch Pattern | Model |
-|----------|-------|-----------------|-------|
-| `NO_BREAKDOWN` | `breakdown` | Exploration → Analysis | sonnet |
-| `NO_ESTIMATE` | `breakdown` | Exploration → Analysis (batch: haiku for JIRA writes) | sonnet/haiku |
-| `NOT_STARTED` | `engineering` | Implementation | sonnet |
-| `CODE_NO_PR` | `git-pr-workflow` | Implementation | sonnet |
-| `CI_RED` | `engineering` | Implementation | sonnet |
-| `CHANGES_REQUESTED` | `engineering` | Implementation | sonnet |
-| `HAS_UNRESOLVED_COMMENTS` | `engineering` | Implementation | sonnet |
-| `REVIEW_STUCK` | `check-pr-approvals` | JIRA + Slack notification | sonnet |
-| `STALE_APPROVAL` | `check-pr-approvals` | JIRA + Slack notification | sonnet |
-| `VERIFICATION_PENDING` | `engineering` | Verification (engineer-delivery-flow Step 3) | sonnet |
-| `NO_FEATURE_PR` | `feature-branch-pr-gate.md` reference | Implementation | sonnet |
+| Gap Type | Skill | Dispatch Pattern | Model Class |
+|----------|-------|-----------------|-------------|
+| `NO_BREAKDOWN` | `breakdown` | Exploration → Analysis | `standard_coding` |
+| `NO_ESTIMATE` | `breakdown` | Exploration → Analysis (batch: `small_fast` for JIRA writes) | `standard_coding` / `small_fast` |
+| `NOT_STARTED` | `engineering` | Implementation | `standard_coding` |
+| `CODE_NO_PR` | `git-pr-workflow` | Implementation | `standard_coding` |
+| `CI_RED` | `engineering` | Implementation | `standard_coding` |
+| `CHANGES_REQUESTED` | `engineering` | Implementation | `standard_coding` |
+| `HAS_UNRESOLVED_COMMENTS` | `engineering` | Implementation | `standard_coding` |
+| `REVIEW_STUCK` | `check-pr-approvals` | JIRA + Slack notification | `standard_coding` |
+| `STALE_APPROVAL` | `check-pr-approvals` | JIRA + Slack notification | `standard_coding` |
+| `VERIFICATION_PENDING` | `engineering` | Verification (engineer-delivery-flow Step 3) | `standard_coding` |
+| `NO_FEATURE_PR` | `feature-branch-pr-gate.md` reference | Implementation | `standard_coding` |
 
 ### 安全機制
 
@@ -197,7 +197,7 @@ Gaps found: X | Ready: Y | Skipped: Z
 
 ### 批次估點的特殊處理
 
-多張 `NO_ESTIMATE` tickets → 可以用 haiku model batch 建子單 + 估點，效率更高：
+多張 `NO_ESTIMATE` tickets → 可以用 `small_fast` model class batch 建子單 + 估點，效率更高：
 
 1. 一次讀取所有待估 Epic 的 description
 2. 批次產出子單 + 估點建議

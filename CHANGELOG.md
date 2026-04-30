@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.65] - 2026-04-30
+
+### Added — cross-LLM model tier policy
+
+- 新增 central `model-tier-policy.md`，用 `small_fast`、`realtime_fast`、
+  `standard_coding`、`frontier_reasoning`、`inherit` 統一跨 LLM model
+  selection。
+- 將 sub-agent references、mechanism registry 與相關 skills 的 inline
+  `haiku` / `sonnet` wording 改為 semantic model classes，避免 workflow
+  prose 綁死 provider-specific model name。
+- 新增 `validate-model-tier-policy.sh` 與 selftest，檢查 raw provider model
+  policy drift 以及 `.agents/skills` mirror mode。
+- 補 Codex / Claude runtime adapter examples，明確分離 model class 與
+  `model_reasoning_effort` / runtime effort。
+
 ## [3.73.64] - 2026-04-30
 
 ### Fixed — DP refinement JSON handoff
