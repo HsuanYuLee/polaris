@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.2] - 2026-04-30
+
+### Fixed — breakdown language preview policy
+
+- `breakdown` now reads root `workspace-config.yaml language` as part of
+  workspace config intake.
+- Added conversation-level language policy for Step 8 and DP D4 confirmation
+  previews, so planning output follows the configured language before artifact
+  writes happen.
+- Kept the existing `task.md` / `V*.md` deterministic artifact language gate as
+  the downstream handoff guard.
+
 ## [3.74.1] - 2026-04-30
 
 ### Fixed — multi-package changeset gate

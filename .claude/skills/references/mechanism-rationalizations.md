@@ -54,7 +54,7 @@ These are real escape patterns observed in prior sessions. When you notice yours
 | "I'm confident this fix is right" | Confidence ≠ evidence. Run the verification command. Skip = lying, not efficiency |
 | "One more fix attempt should do it" | After 3 failed fixes, stop. This is an architectural problem, not a missing patch |
 | "Compiled source shows only one parameter" | Compiled/bundled JS ≠ API surface. Overloads, wrapper layers, and build transforms hide parameters. Check official docs or npm README first |
-| "This module can't do what we need, let me replace it" | Replacement is T3 — confirm with user. First exhaust: (1) official API docs, (2) npm README, (3) GitHub issues/discussions. GT-521 lost 3 rounds because compiled source was treated as API truth |
+| "This module can't do what we need, let me replace it" | Replacement is T3 — confirm with user. First exhaust: (1) official API docs, (2) npm README, (3) GitHub issues/discussions. PROJ-123 lost 3 rounds because compiled source was treated as API truth |
 
 ## Common Rationalizations — Library Changes
 
@@ -86,9 +86,9 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 
 ```json
 {
-  "ticket": "KB2CW-1234",
+  "ticket": "TASK-123",
   "timestamp": "2026-04-10T08:30:00Z",
-  "branch": "task/KB2CW-1234-desc",
+  "branch": "task/TASK-123-desc",
   "summary": { "total": 3, "pass": 2, "fail": 0, "skip": 1 },
   "results": [
     { "status": "PASS", "detail": "PASS: AC1 breadcrumb position" },
@@ -97,16 +97,16 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
   ],
   "runtime_contract": {
     "level": "runtime",
-    "runtime_verify_target": "https://dev.kkday.com/zh-tw",
-    "runtime_verify_target_host": "dev.kkday.com",
-    "verify_command": "curl -sk https://dev.kkday.com/zh-tw | ...",
-    "verify_command_url": "https://dev.kkday.com/zh-tw",
-    "verify_command_url_host": "dev.kkday.com"
+    "runtime_verify_target": "https://dev.yourapp.com/zh-tw",
+    "runtime_verify_target_host": "dev.yourapp.com",
+    "verify_command": "curl -sk https://dev.yourapp.com/zh-tw | ...",
+    "verify_command_url": "https://dev.yourapp.com/zh-tw",
+    "verify_command_url_host": "dev.yourapp.com"
   }
 }
 ```
 
-**Writer**: `scripts/polaris-write-evidence.sh --ticket KB2CW-1234 --task-md <path/to/task.md> --result "PASS: ..."` — called by engineering (engineer-delivery-flow Step 3) or manually after verification.
+**Writer**: `scripts/polaris-write-evidence.sh --ticket TASK-123 --task-md <path/to/task.md> --result "PASS: ..."` — called by engineering (engineer-delivery-flow Step 3) or manually after verification.
 
 `runtime_contract` 是 PR gate 的硬門檻。`level=runtime` 時，gate 會檢查 live target 與 verify URL host 對齊，不合規直接 block `gh pr create`。
 
