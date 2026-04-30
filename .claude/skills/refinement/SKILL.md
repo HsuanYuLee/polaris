@@ -577,17 +577,19 @@ python3 scripts/refinement-preview.py {company_base_dir}/specs/{EPIC_KEY}/refine
 
 使用者確認定版後，一次性產出三份：
 
-**7a. JIRA comment**
-以 `refinement.md` 的最終版內容為基礎，寫入 JIRA comment（格式同上述 markdown 結構）。
+**7a. JIRA comment（JIRA-backed only）**
+JIRA-backed source 以 `refinement.md` 的最終版內容為基礎，寫入 JIRA comment（格式同上述 markdown 結構）。
+DP / ticketless source 不寫 JIRA；只更新本地 DP artifacts。
 
 **7b. Artifact JSON**（Tier 2+）
-根據 `references/refinement-artifact.md` schema 產出 `{company_base_dir}/specs/{EPIC_KEY}/refinement.json`。
+根據 `references/refinement-artifact.md` schema 產出 `{source_container}/refinement.json`。
+JIRA-backed source 的 `source_container` 為 `{company_base_dir}/specs/{EPIC_KEY}`；DP-backed source 的 `source_container` 為 `{workspace_root}/specs/design-plans/DP-NNN-{slug}`。
 
 **7b'. Handoff artifact gate（hard）**
 在說「可進 breakdown」或提示下一步 `breakdown` 前，必須跑：
 
 ```bash
-bash scripts/refinement-handoff-gate.sh {company_base_dir}/specs/{EPIC_KEY}/refinement.md
+bash scripts/refinement-handoff-gate.sh {source_container}/refinement.md
 ```
 
 - exit 0 → `refinement.json` 存在且通過 schema validation，才可繼續 7c/7d 並提示 breakdown
@@ -602,8 +604,8 @@ container 有 `plan.md`，也一併檢查。`refinement.json` 的結構由 hando
 自然語言摘要若已同步進 markdown，不另以 JSON 原文作語言判定來源。
 
 ```bash
-files=("{company_base_dir}/specs/{EPIC_KEY}/refinement.md")
-[[ -f "{company_base_dir}/specs/{EPIC_KEY}/plan.md" ]] && files+=("{company_base_dir}/specs/{EPIC_KEY}/plan.md")
+files=("{source_container}/refinement.md")
+[[ -f "{source_container}/plan.md" ]] && files+=("{source_container}/plan.md")
 bash scripts/validate-language-policy.sh --blocking --mode artifact "${files[@]}"
 ```
 

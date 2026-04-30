@@ -79,6 +79,45 @@ assert_ok "spec directory with valid artifact passes" "$gate" "$spec"
 assert_ok "refinement.md path resolves sibling artifact" "$gate" "$spec/refinement.md"
 assert_ok "refinement.json path validates directly" "$gate" "$spec/refinement.json"
 
+dp_spec="$tmp/specs/design-plans/DP-999-test"
+mkdir -p "$dp_spec"
+printf '# DP-999\n' > "$dp_spec/refinement.md"
+printf '# DP-999 Plan\n' > "$dp_spec/plan.md"
+cat > "$dp_spec/refinement.json" <<JSON
+{
+  "epic": null,
+  "source": {
+    "type": "dp",
+    "id": "DP-999",
+    "container": "$dp_spec",
+    "plan_path": "$dp_spec/plan.md",
+    "jira_key": null
+  },
+  "version": "1.0",
+  "created_at": "2026-04-30T00:00:00+08:00",
+  "modules": [
+    {
+      "path": ".claude/skills/references/model-tier-policy.md",
+      "action": "create"
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "text": "DP-backed refinement artifacts can be validated.",
+      "verification": {
+        "method": "unit_test",
+        "detail": "Run refinement handoff gate selftest."
+      }
+    }
+  ],
+  "dependencies": [],
+  "edge_cases": []
+}
+JSON
+
+assert_ok "DP-backed artifact with epic null passes" "$gate" "$dp_spec"
+
 cat > "$spec/refinement.json" <<'JSON'
 {
   "epic": "GT-999",
@@ -99,4 +138,3 @@ if [[ "$fail" -ne 0 ]]; then
 fi
 
 echo "refinement-handoff-gate selftest: $pass pass, $fail fail"
-

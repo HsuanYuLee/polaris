@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.73.64] - 2026-04-30
+
+### Fixed — DP refinement JSON handoff
+
+- `validate-refinement-json.sh` 支援 DP-backed `refinement.json`：
+  `epic: null`、`source.type=dp`、`plan_path` 與 `jira_key: null`。
+- `refinement-handoff-gate-selftest.sh` 補上 DP-backed artifact case，避免
+  ticketless refinement handoff 再被 JIRA-only schema 誤擋。
+- 收緊 refinement / breakdown handoff 規則：新 DP 缺 `refinement.json` 時不得
+  直接 minimal intake，必須回 refinement 補 artifact 並通過 handoff gate。
+
 ## [3.73.63] - 2026-04-30
 
 ### Fixed — refinement DP language gate

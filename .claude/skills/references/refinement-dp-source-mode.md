@@ -158,13 +158,13 @@ The artifact must preserve enough scope, AC, dependencies, edge cases, and downs
 When the user says "定版", "開始做", "可以執行", "lock", or equivalent:
 
 1. Check that Goal, Decisions, Blind Spots, Acceptance Criteria, and Technical Approach are sufficient for breakdown.
-2. Ensure `refinement.md` and `refinement.json` are current.
+2. Ensure `refinement.md` and `refinement.json` are current; `refinement.json` must pass `scripts/refinement-handoff-gate.sh`.
 3. Change DP frontmatter to:
    ```yaml
    status: LOCKED
    locked_at: YYYY-MM-DD
    ```
-4. Run the relevant artifact validator / handoff gate when present.
+4. Run the relevant artifact validator / handoff gate. If it fails or `refinement.json` is missing, stop and produce/fix the artifact before continuing.
 5. Sync docs-viewer sidebar.
 6. Tell the user the next command:
    ```text

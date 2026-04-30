@@ -278,7 +278,7 @@ Hard rules：
 - `plan.md` 必須存在
 - frontmatter `status` 必須是 `LOCKED`
 - 若 `status: DISCUSSION` → 停下，提示先跑 `refinement DP-NNN`
-- 若 `refinement.json` 不存在 → 可從 locked `plan.md` 做 minimal intake，但必須在 preview 中標示 artifact 缺失；若 scope / AC / technical approach 不足，route back to `refinement DP-NNN`
+- 若 `refinement.json` 不存在 → 對新 DP 視為 hard block，route back to `refinement DP-NNN` 補 artifact 並通過 `scripts/refinement-handoff-gate.sh`；只有明確標記為 legacy 的舊 DP 可在使用者確認後 minimal intake，preview 必須標示 artifact 缺失
 
 ### D2. Read source without rewriting decisions
 

@@ -60,6 +60,7 @@ if not isinstance(data, dict):
     sys.exit(1)
 
 JIRA_KEY = re.compile(r"^[A-Z][A-Z0-9]+-[0-9]+$")
+DP_ID = re.compile(r"^DP-[0-9]{3}$")
 
 # --- Top-level required fields ---
 def require_nonempty_string(field):
@@ -69,9 +70,49 @@ def require_nonempty_string(field):
         return None
     return val
 
-epic = require_nonempty_string("epic")
-if epic is not None and not JIRA_KEY.match(epic):
-    errors.append(f"'epic' value '{epic}' does not match JIRA key format [A-Z][A-Z0-9]+-[0-9]+")
+source = data.get("source")
+source_type = "jira"
+if source is not None:
+    if not isinstance(source, dict):
+        errors.append("'source' must be an object when present")
+    else:
+        raw_source_type = source.get("type")
+        if not isinstance(raw_source_type, str) or not raw_source_type.strip():
+            errors.append("source.type is required when source is present")
+        else:
+            source_type = raw_source_type
+
+if source_type not in {"jira", "dp", "topic"}:
+    errors.append(f"source.type '{source_type}' is invalid (must be one of ['jira', 'dp', 'topic'])")
+
+if source_type == "jira":
+    epic = require_nonempty_string("epic")
+    if epic is not None and not JIRA_KEY.match(epic):
+        errors.append(f"'epic' value '{epic}' does not match JIRA key format [A-Z][A-Z0-9]+-[0-9]+")
+else:
+    epic = data.get("epic")
+    if epic is not None:
+        errors.append(f"'epic' must be null for source.type={source_type}")
+    if not isinstance(source, dict):
+        errors.append(f"source object is required for source.type={source_type}")
+    else:
+        source_id = source.get("id")
+        if not isinstance(source_id, str) or not source_id.strip():
+            errors.append("source.id is required for DP-backed refinement artifacts")
+        elif source_type == "dp" and not DP_ID.match(source_id):
+            errors.append(f"source.id '{source_id}' does not match DP id format DP-NNN")
+
+        container = source.get("container")
+        if not isinstance(container, str) or not container.strip():
+            errors.append("source.container is required for DP-backed refinement artifacts")
+
+        plan_path = source.get("plan_path")
+        if source_type == "dp" and (not isinstance(plan_path, str) or not plan_path.strip()):
+            errors.append("source.plan_path is required for source.type=dp")
+
+        jira_key = source.get("jira_key")
+        if jira_key not in (None, "", "N/A"):
+            errors.append(f"source.jira_key must be null/N/A for source.type={source_type}")
 
 require_nonempty_string("version")
 require_nonempty_string("created_at")

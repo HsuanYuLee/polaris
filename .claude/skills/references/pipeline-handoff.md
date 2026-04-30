@@ -48,7 +48,8 @@ reads that inbox record and never opens the raw sidecar. See
 
 | 欄位 | 型別 | 必填？ | 驗證規則 |
 |------|------|-------|----------|
-| `epic` | string | **必填** | 非空；JIRA key 格式 `[A-Z][A-Z0-9]+-[0-9]+` |
+| `epic` | string / null | **source-aware 必填** | `source.type=jira` 或 legacy artifact：非空 JIRA key；`source.type=dp/topic`：必須為 `null` 或省略 |
+| `source` | object | **新 producer 必填** | `type` 為 `jira` / `dp` / `topic`；DP-backed artifact 必含 `id`、`container`、`plan_path`，且 `jira_key` 為 `null` / `N/A` |
 | `version` | string | **必填** | 非空 |
 | `created_at` | string | **必填** | 非空；ISO8601 建議 |
 | `modules` | array | **必填** | 長度 ≥ 1；每個 module 必含 `path`（string, 非空）+ `action`（string, `create`/`modify`/`delete`/`investigate`） |
