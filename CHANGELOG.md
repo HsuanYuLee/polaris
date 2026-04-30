@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.1] - 2026-04-30
+
+### Fixed — multi-package changeset gate
+
+- `parse-task-md.sh` now exposes `deliverables.changeset.*` fields so
+  changeset package scope metadata can be consumed mechanically.
+- `polaris-changeset.sh check` now accepts an existing ticket changeset that
+  covers every discovered package for a multi-package task, instead of
+  blocking valid hand-authored multi-package changesets.
+- Extended parser and changeset self-tests to cover the new completion gate
+  path.
+
 ## [3.74.0] - 2026-04-30
 
 ### Changed — Starlight specs viewer and archive lifecycle

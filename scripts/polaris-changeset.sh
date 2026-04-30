@@ -299,6 +299,53 @@ else:
 PY
 )"
 
+  multi_changeset_covers_candidates() {
+    local candidate_list="$1"
+    python3 - "$CHANGESET_DIR" "$TICKET" "$candidate_list" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+changeset_dir = Path(sys.argv[1])
+ticket = sys.argv[2].strip()
+candidates = {p.strip() for p in sys.argv[3].split(",") if p.strip()}
+
+if not ticket or not candidates:
+    sys.exit(1)
+
+ticket_lower = ticket.lower()
+pkg_re = re.compile(r"""^\s*['"]?([^'":]+?)['"]?\s*:\s*(patch|minor|major)\s*$""")
+
+for path in sorted(changeset_dir.glob("*.md")):
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        continue
+
+    # Avoid accepting inherited or unrelated changesets in stacked branches.
+    if ticket_lower not in path.name.lower() and ticket not in text:
+        continue
+
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        continue
+
+    packages = set()
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        match = pkg_re.match(line)
+        if match:
+            packages.add(match.group(1).strip())
+
+    if candidates.issubset(packages):
+        print(path)
+        sys.exit(0)
+
+sys.exit(1)
+PY
+  }
+
   case "$PACKAGE_SCOPE" in
     __NONE__)
       echo "polaris-changeset: could not derive package_scope from $CHANGESET_CONFIG (no public packages found)" >&2
@@ -307,6 +354,10 @@ PY
       ;;
     __MULTI__:*)
       multi_list="${PACKAGE_SCOPE#__MULTI__:}"
+      if [[ "$SUB" == "check" ]] && matched_changeset="$(multi_changeset_covers_candidates "$multi_list" 2>/dev/null)"; then
+        echo "polaris-changeset: check passed — multi-package changeset covers $multi_list ($matched_changeset)" >&2
+        exit 0
+      fi
       echo "polaris-changeset: multi-package changeset requires task.md 'deliverables.changeset.package_scope' declaration (DP-033 scope) or repo handbook override" >&2
       echo "  Candidates discovered: $multi_list" >&2
       exit 1

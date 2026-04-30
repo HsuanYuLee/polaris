@@ -340,6 +340,19 @@ else
   printf "  [FAIL] multi-pkg should list both candidate packages\n    err: %s\n" "$(cat "$ERR_OUT")"
 fi
 
+# Existing hand-authored multi-package changesets are valid for `check` when
+# they cover every discovered package for the task ticket.
+cat > "$REPO_M/.changeset/pcs-9-multi-pkg-test.md" <<'EOF'
+---
+"@selftest/main": patch
+"@selftest/admin": patch
+---
+
+fix: [PCS-9] multi package coverage
+EOF
+"$PCS" check --task-md "$TASK_M" >/dev/null 2>&1
+assert_eq "$?" "0" "multi-pkg existing coverage changeset → check exit 0"
+
 # ────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "=== Summary ==="

@@ -25,6 +25,9 @@
 # Field keys for --field (flat alias of nested JSON paths):
 #   status, task_id, summary, story_points,
 #   deliverable_pr_url, deliverable_pr_state, deliverable_head_sha,
+#   deliverables_changeset_package_scope,
+#   deliverables_changeset_bump_level_default,
+#   deliverables_changeset_filename_slug,
 #   extension_deliverable_endpoint, extension_deliverable_extension_id,
 #   extension_deliverable_task_head_sha, extension_deliverable_workspace_commit,
 #   extension_deliverable_template_commit, extension_deliverable_version_tag,
@@ -71,6 +74,9 @@ Key-based lookup (DP-033 D8): resolves active tasks/{key}.md first,
 Field keys: status, task_id, summary, story_points, epic, jira, repo,
             source_type, source_id, work_item_id, jira_key,
             deliverable_pr_url, deliverable_pr_state, deliverable_head_sha,
+            deliverables_changeset_package_scope,
+            deliverables_changeset_bump_level_default,
+            deliverables_changeset_filename_slug,
             extension_deliverable_endpoint, extension_deliverable_extension_id,
             extension_deliverable_task_head_sha,
             extension_deliverable_workspace_commit,
@@ -473,6 +479,9 @@ aliases = {
     "deliverable_pr_url":      ["frontmatter", "deliverable", "pr_url"],
     "deliverable_pr_state":    ["frontmatter", "deliverable", "pr_state"],
     "deliverable_head_sha":    ["frontmatter", "deliverable", "head_sha"],
+    "deliverables_changeset_package_scope":       ["frontmatter", "deliverables", "changeset", "package_scope"],
+    "deliverables_changeset_bump_level_default":  ["frontmatter", "deliverables", "changeset", "bump_level_default"],
+    "deliverables_changeset_filename_slug":       ["frontmatter", "deliverables", "changeset", "filename_slug"],
     "extension_deliverable_endpoint":          ["frontmatter", "extension_deliverable", "endpoint"],
     "extension_deliverable_extension_id":      ["frontmatter", "extension_deliverable", "extension_id"],
     "extension_deliverable_task_head_sha":     ["frontmatter", "extension_deliverable", "task_head_sha"],
@@ -564,6 +573,11 @@ deliverable:
   pr_url: https://github.com/kkday-it/example/pull/123
   pr_state: OPEN
   head_sha: abc1234
+deliverables:
+  changeset:
+    package_scope: "@kkday/b2c-web-main"
+    bump_level_default: patch
+    filename_slug: kb2cw-3900-products-dayjs
 extension_deliverable:
   endpoint: local_extension
   extension_id: example-extension
@@ -739,6 +753,9 @@ MD
   expect_field "$fixture" deliverable_pr_url     "https://github.com/kkday-it/example/pull/123" "F1.deliverable_pr_url"
   expect_field "$fixture" deliverable_pr_state   "OPEN"                  "F1.deliverable_pr_state"
   expect_field "$fixture" deliverable_head_sha   "abc1234"               "F1.deliverable_head_sha"
+  expect_field "$fixture" deliverables_changeset_package_scope "@kkday/b2c-web-main" "F1.changeset_package_scope"
+  expect_field "$fixture" deliverables_changeset_bump_level_default "patch" "F1.changeset_bump"
+  expect_field "$fixture" deliverables_changeset_filename_slug "kb2cw-3900-products-dayjs" "F1.changeset_slug"
   expect_field "$fixture" extension_deliverable_endpoint "local_extension" "F1.extension_endpoint"
   expect_field "$fixture" extension_deliverable_extension_id "example-extension" "F1.extension_id"
   expect_field "$fixture" extension_deliverable_task_head_sha "abc1234"  "F1.extension_task_head"
