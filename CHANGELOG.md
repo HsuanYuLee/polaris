@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.3] - 2026-04-30
+
+### Fixed — docs-viewer local origin contract
+
+- `docs-viewer` local `site` origin is now driven by
+  `POLARIS_DOCS_VIEWER_SITE`, while keeping a safe 8080 fallback.
+- `polaris-viewer.sh` now exports the resolved origin, opens the same origin,
+  and verifies an occupied port is an actual Polaris Specs viewer before
+  reusing it.
+- Added `verify-docs-viewer-runtime.sh` to check 8080 and non-8080 ports with
+  browser navigation for sidebar and pagination origin stability.
+
 ## [3.74.2] - 2026-04-30
 
 ### Fixed — breakdown language preview policy
