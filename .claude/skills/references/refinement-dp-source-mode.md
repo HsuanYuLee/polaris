@@ -50,10 +50,28 @@ For a new topic:
 
 - `## Goal`
 - `## Background`
+- `## Target State`
+- `## Decision Policy`
+- `## Migration Boundaries`
 - `## Decisions`
 - `## Blind Spots`
 - `## Acceptance Criteria`
 - `## Technical Approach` / `## 技術方案`
+
+For framework contract DPs, the plan must include target-state-first sections
+before handoff:
+
+- `## Target State` — final source of truth, runtime ownership, handoff
+  boundary, and steady-state paths after migration.
+- `## Decision Policy` — rules used to choose direct migration vs phased
+  delivery.
+- `## Migration Boundaries` — any temporary compatibility / fallback / bridge /
+  mirror / dual-source mechanism, with owner, removal criteria, verification
+  method, and follow-up task.
+
+If a framework DP proposes phased compatibility without these fields, stop and
+complete the design before implementation or breakdown. Compatibility scaffolding
+cannot be the steady state.
 
 Every user-confirmed design decision must update `plan.md` before unrelated work continues. Do not keep confirmed decisions only in conversation memory.
 

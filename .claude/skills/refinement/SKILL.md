@@ -10,7 +10,7 @@ description: >
   "sprint prep", or Epic with sparse content needing enrichment.
 metadata:
   author: Polaris
-  version: 4.0.0
+  version: 4.0.1
 ---
 
 # Backlog Refinement — Architect
@@ -54,10 +54,17 @@ workflow boundary 的變更時，預設是**設計流程**，不是直接 implem
 
 執行規則：
 
-1. 先把變更整理成 DP / ticketless refinement proposal（Goal、Decisions、AC / acceptance checks、Implementation scope）
+1. 先把變更整理成 DP / ticketless refinement proposal（Goal、Target State、Decisions、AC / acceptance checks、Implementation scope）
 2. 在主對話呈現 proposal 與風險；未得到使用者明確確認前，不改 `SKILL.md`、`rules/`、`scripts/`、validator
 3. 使用者說「定版 / 套用 / 直接改 / 可以上」後，才進 implementation；若要改 skill 本身，必須同時套用 `skill-creator` 的修改規範
 4. 例外只限 typo、格式、broken link，或使用者明確要求 hotfix / 直接修改；final 必須標明這次是 explicit bypass
+
+Target-state-first contract：
+
+- Framework contract proposal 必須先定義乾淨目標態：最終 source of truth、runtime ownership、handoff boundary、移除後的 steady-state path。
+- 可以規劃 phased migration，但 phase 只能是 delivery slice，不能把 compatibility / fallback / bridge / mirror / dual-source 當穩態。
+- 若 proposal 需要 temporary compatibility，必須列出 owner、移除條件、驗證方式、follow-up task；缺任一欄位時不可進 implementation。
+- 若 direct migration 會破壞外部使用者，必須明確寫出 breaking surface、release path 與驗證策略；不可用 silent fallback 掩蓋。
 
 不可接受的 shortcut：只讀 refinement 規則當背景，然後直接改跨 skill contract。這會讓 Architect 的決策流程消失，也讓下游無法知道哪些 decision 已被使用者確認。
 

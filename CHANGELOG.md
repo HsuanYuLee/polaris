@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.7] - 2026-05-01
+
+### Changed — refinement target-state planning contract
+
+- `refinement` framework contract proposals now require a target state before
+  implementation, including source of truth, runtime ownership, handoff
+  boundaries, and steady-state paths.
+- DP source mode now documents target-state-first sections for framework DPs:
+  `Target State`, `Decision Policy`, and `Migration Boundaries`.
+- Phased compatibility in framework DPs must specify owner, removal criteria,
+  verification method, and follow-up task before breakdown or implementation.
+
 ## [3.74.6] - 2026-05-01
 
 ### Changed — framework target-state planning policy
