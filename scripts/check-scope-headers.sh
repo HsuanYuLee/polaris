@@ -8,6 +8,7 @@
 # Company rule files live under .claude/rules/{company}/*.md.
 # Each must contain a "> **Scope: {company}**" line within the first 10 lines.
 # Files directly under .claude/rules/ (L1 universal rules) are not checked.
+# Universal subdirectories such as .claude/rules/handbook/ are not checked.
 #
 # Exit 0 = all pass, Exit 1 = violations found
 
@@ -18,6 +19,7 @@ RULES_DIR="${1:-.claude/rules}"
 # --- Staged mode: only check staged .md files under rules/{company}/ ---
 if [[ "${1:-}" == "--staged" ]]; then
   files=$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null | grep -E '\.claude/rules/[^/]+/.+\.md$' || true)
+  files=$(printf '%s\n' "$files" | grep -Ev '^\.claude/rules/handbook/' || true)
   if [[ -z "$files" ]]; then
     exit 0  # No company rule files staged
   fi
@@ -28,6 +30,7 @@ else
     exit 0
   fi
   files=$(find "$RULES_DIR" -mindepth 2 -name '*.md' -type f 2>/dev/null || true)
+  files=$(printf '%s\n' "$files" | grep -Ev "^${RULES_DIR%/}/handbook/" || true)
   if [[ -z "$files" ]]; then
     exit 0  # No company rule files exist
   fi

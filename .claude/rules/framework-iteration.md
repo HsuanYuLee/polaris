@@ -4,6 +4,20 @@ How Polaris improves itself. Three cadences, each with its own mechanism.
 
 > Detailed procedures (Iteration Cadence Map, Post-Version-Bump Chain steps, Backlog Hygiene scan rules, Validated Pattern Promotion steps, Framework Experience frontmatter template) are in `skills/references/framework-iteration-procedures.md`.
 
+## Target-State First Framework Development
+
+Framework planning starts from the clean target state. Compatibility can be a delivery tool, but it must be temporary by contract.
+
+Rules:
+
+- Define the durable target architecture before splitting work. The target must describe the final source of truth, runtime ownership, and contract boundaries.
+- Phases are allowed only as delivery slices toward that target. A phase is not acceptable if it leaves a mirror, fallback, compatibility alias, or dual-source contract as the intended steady state.
+- Short-lived migration aids must have an owner, explicit removal criteria, verification method, and follow-up task in the same plan.
+- When AI-assisted development makes a direct migration cheaper than maintaining compatibility, prefer the direct migration and pay the verification cost instead of carrying transitional complexity.
+- If the direct migration would break external users, document the breakage and release path explicitly; do not hide it behind silent fallback behavior.
+
+This does not ban phased migration, safety checks, or graceful runtime handling. It bans using compatibility scaffolding as a substitute for completing the design.
+
 ## Challenger Audit: Milestone Self-Check
 
 Challenger Audit (see `skills/references/challenger-audit.md`) launches 6 persona sub-agents to review the framework from external-user perspectives. It is **expensive** (6 parallel sonnet sub-agents) and produces **simulated** signals (AI reviewing AI).

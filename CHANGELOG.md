@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.6] - 2026-05-01
+
+### Changed — framework target-state planning policy
+
+- Added a target-state-first framework planning rule: plans must define the
+  clean target architecture before splitting delivery phases.
+- Clarified that phased compatibility is allowed only as a temporary delivery
+  tool with an owner, removal criteria, verification method, and follow-up task.
+- Added a mechanism-registry canary for fallback / mirror / dual-source plans
+  that drift into steady-state compatibility instead of completing the design.
+- Fixed the scope-header gate so universal `rules/handbook/` files are not
+  misclassified as company-scoped rule files.
+
 ## [3.74.5] - 2026-05-01
 
 ### Fixed — DP-061 docs viewer release metadata

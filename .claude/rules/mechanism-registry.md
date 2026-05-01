@@ -176,6 +176,7 @@ Disposition: `already_deterministic_reduce_audit`. Keep these rows as contract d
 | `design-plan-decision-capture` | Each confirmed ticketless design decision (user says「可以」「同意」「乾淨」「好」「這樣做」) must update the DP plan file in the **very next tool call** — not batched, not deferred | Decision confirmed in conversation but plan file not updated before other tool calls | **Critical** |
 | `design-plan-reference-at-impl` | Before implementation begins on a topic with an active design plan, read the plan file completely; do not rely on conversation memory | Strategist writes code / SKILL.md on a topic with existing plan file but no Read call on that plan in the current session | **Critical** |
 | `design-plan-checklist-done` | Plan's Implementation Checklist must be fully checked before `status: IMPLEMENTED`. Deterministic backup: `design-plan-checklist-gate.sh` blocks the IMPLEMENTED edit when `[ ]` items remain | Edit/Write to plan.md with `status: IMPLEMENTED` blocked by hook when unchecked items exist | High |
+| `target-state-first-planning` | Framework plans must define the clean target state first; phased compatibility is allowed only as a temporary delivery tool with owner, removal criteria, verification method, and follow-up task | Plan proposes "phase 1 keep both paths and later decide" without removal criteria; or treats fallback/mirror/dual-source compatibility as the steady state | High |
 
 ### Quality Gates (source: `skills/references/engineer-delivery-flow.md`)
 
