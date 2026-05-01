@@ -10,6 +10,13 @@ git_quiet() {
 
 write_plan() {
   local dp_dir="$1"
+  local task_count="${2:-2}"
+  local t2_checklist="- [ ] T2: Second task — \`tasks/T2.md\`"
+  local t2_work_order="| T2 | \`tasks/T2.md\` |"
+  if [[ "$task_count" == "1" ]]; then
+    t2_checklist=""
+    t2_work_order=""
+  fi
   cat >"${dp_dir}/plan.md" <<'MD'
 ---
 topic: release closeout selftest
@@ -23,15 +30,21 @@ locked_at: 2026-04-30
 ## Implementation Checklist
 
 - [ ] T1: First task — `tasks/T1.md`
-- [ ] T2: Second task — `tasks/T2.md`
+MD
+  if [[ -n "$t2_checklist" ]]; then
+    printf '%s\n' "$t2_checklist" >>"${dp_dir}/plan.md"
+  fi
+  cat >>"${dp_dir}/plan.md" <<'MD'
 
 ## Work Orders
 
 | Task | Work order |
 |------|------------|
 | T1 | `tasks/T1.md` |
-| T2 | `tasks/T2.md` |
 MD
+  if [[ -n "$t2_work_order" ]]; then
+    printf '%s\n' "$t2_work_order" >>"${dp_dir}/plan.md"
+  fi
 }
 
 write_task() {
@@ -182,7 +195,7 @@ merge_task_branch() {
 }
 
 run_single_task_case() {
-  local tmp repos repo template dp_dir task_md branch wt task_head workspace_commit template_commit evidence
+  local tmp repos repo template dp_dir archived_dp_dir task_md branch wt task_head workspace_commit template_commit evidence
   tmp="$(mktemp -d -t framework-closeout-single.XXXXXX)"
   trap 'rm -rf "$tmp"' RETURN
   repos="$(make_repos "$tmp")"
@@ -191,7 +204,7 @@ run_single_task_case() {
 
   dp_dir="${repo}/specs/design-plans/DP-999-release-closeout"
   mkdir -p "${dp_dir}/tasks"
-  write_plan "$dp_dir"
+  write_plan "$dp_dir" 1
   branch="task/DP-999-T1-closeout"
   task_md="${dp_dir}/tasks/T1.md"
   write_task "$task_md" T1 "$branch" ""
@@ -213,13 +226,15 @@ run_single_task_case() {
     --version-tag v0.0.1 \
     --release-url https://github.com/example/polaris/releases/tag/v0.0.1
 
-  [[ -f "${dp_dir}/tasks/pr-release/T1.md" ]] || { echo "[selftest] single task was not moved" >&2; return 1; }
-  grep -q '^status: IMPLEMENTED$' "${dp_dir}/tasks/pr-release/T1.md" || { echo "[selftest] single task status missing" >&2; return 1; }
+  archived_dp_dir="${repo}/specs/design-plans/archive/DP-999-release-closeout"
+  [[ ! -d "$dp_dir" && -d "$archived_dp_dir" ]] || { echo "[selftest] single parent DP was not archived" >&2; return 1; }
+  [[ -f "${archived_dp_dir}/tasks/pr-release/T1.md" ]] || { echo "[selftest] single task was not moved" >&2; return 1; }
+  grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/tasks/pr-release/T1.md" || { echo "[selftest] single task status missing" >&2; return 1; }
   [[ ! -d "$wt" ]] || { echo "[selftest] single task worktree was not removed" >&2; return 1; }
 }
 
 run_stacked_task_case() {
-  local tmp repos repo template dp_dir branch1 branch2 task1 task2 wt1 wt2 head1 head2 workspace_commit template_commit ev1 ev2
+  local tmp repos repo template dp_dir archived_dp_dir branch1 branch2 task1 task2 wt1 wt2 head1 head2 workspace_commit template_commit ev1 ev2
   tmp="$(mktemp -d -t framework-closeout-stacked.XXXXXX)"
   trap 'rm -rf "$tmp"' RETURN
   repos="$(make_repos "$tmp")"
@@ -260,8 +275,10 @@ run_stacked_task_case() {
     --version-tag v0.0.1 \
     --release-url https://github.com/example/polaris/releases/tag/v0.0.1
 
-  [[ -f "${dp_dir}/tasks/pr-release/T1.md" && -f "${dp_dir}/tasks/pr-release/T2.md" ]] || { echo "[selftest] stacked tasks were not moved" >&2; return 1; }
-  grep -q '^status: IMPLEMENTED$' "${dp_dir}/plan.md" || { echo "[selftest] parent DP was not closed" >&2; return 1; }
+  archived_dp_dir="${repo}/specs/design-plans/archive/DP-999-release-closeout"
+  [[ ! -d "$dp_dir" && -d "$archived_dp_dir" ]] || { echo "[selftest] stacked parent DP was not archived" >&2; return 1; }
+  [[ -f "${archived_dp_dir}/tasks/pr-release/T1.md" && -f "${archived_dp_dir}/tasks/pr-release/T2.md" ]] || { echo "[selftest] stacked tasks were not moved" >&2; return 1; }
+  grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/plan.md" || { echo "[selftest] parent DP was not closed" >&2; return 1; }
   [[ ! -d "$wt1" && ! -d "$wt2" ]] || { echo "[selftest] stacked worktrees were not removed" >&2; return 1; }
 }
 

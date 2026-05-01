@@ -478,7 +478,7 @@ The local extension owns all delivery side effects after handoff. Portable engin
 2. integration rules（how the validated task head is consumed; whether a workspace PR is required）
 3. final verification evidence
 4. failure / rollback reporting
-5. lifecycle metadata writer / closeout helper before task.md is marked implemented. Post-PR framework release endpoints must use `scripts/framework-release-closeout.sh` rather than manually stitching writer, completion gate, parent closeout, and cleanup.
+5. lifecycle metadata writer / closeout helper before task.md is marked implemented. Post-PR framework release endpoints must use `scripts/framework-release-closeout.sh` rather than manually stitching writer, completion gate, parent closeout, cleanup, and archive.
 
 Local Extension role must not write fake `deliverable.pr_url`. If a real workspace PR exists, keep the real `deliverable` metadata and add `extension_deliverable` for the release tail. If the local policy provides a closeout helper, that helper owns `extension_deliverable`, `check-local-extension-completion.sh`, task implemented move, parent closeout, and worktree cleanup. If no closeout helper exists, leave `deliverable` absent and let the extension write `extension_deliverable` metadata with `scripts/write-extension-deliverable.sh`, then pass `scripts/check-local-extension-completion.sh` before task lifecycle closeout.
 
@@ -727,7 +727,7 @@ Step 7a 保證「不能開 PR」；Step 8.5 保證「不能嘴上結案」。兩
 
 ## Step 8.6 — Worktree Cleanup
 
-PR 建立 / 既有 PR branch push 完成，或 local extension final verification 完成後，task deliverable / extension metadata 已回寫、Developer finalize helper PASS（或 Local Extension closeout helper PASS），才清掉本次 implementation worktree。不要手動猜路徑或直接 `rm -rf`，一律用 helper 做 guard 後清理。若 local policy 使用 `framework-release-closeout.sh`，該 helper 已負責呼叫 `engineering-clean-worktree.sh`，不要再手動重跑 cleanup 除非前次 helper 明確失敗並要求人工恢復。
+PR 建立 / 既有 PR branch push 完成，或 local extension final verification 完成後，task deliverable / extension metadata 已回寫、Developer finalize helper PASS（或 Local Extension closeout helper PASS），才清掉本次 implementation worktree。不要手動猜路徑或直接 `rm -rf`，一律用 helper 做 guard 後清理。若 local policy 使用 `framework-release-closeout.sh`，該 helper 已負責呼叫 `engineering-clean-worktree.sh`，並在 parent DP terminal 後 archive canonical DP container；不要再手動重跑 cleanup/archive 除非前次 helper 明確失敗並要求人工恢復。
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \

@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.12] - 2026-05-01
+
+### Changed — framework DP closeout archive
+
+- `framework-release-closeout.sh` now archives a DP container automatically once
+  the parent DP reaches terminal status after release closeout.
+- Lifecycle docs now treat docs-manager as a direct canonical specs reader:
+  framework DP closeout moves files; no viewer sync step is required.
+
 ## [3.74.11] - 2026-05-01
 
 ### Fixed — docs-manager template sync flow

@@ -95,7 +95,7 @@ import playwright from './scripts/e2e/node_modules/playwright/index.js';
 const origin = process.env.DOCS_MANAGER_ORIGIN;
 const previewMode = process.env.DOCS_MANAGER_PREVIEW_MODE === 'true';
 const home = `${origin}/docs-manager/`;
-const sampleRoute = `${origin}/docs-manager/specs/design-plans/DP-063-docs-manager-source-unification/tasks/pr-release/T2/`;
+const sampleRoute = `${origin}/docs-manager/specs/design-plans/archive/DP-063-docs-manager-source-unification/tasks/pr-release/T2/`;
 const { chromium } = playwright;
 
 function assert(condition, message) {
@@ -113,7 +113,7 @@ async function gotoOk(url) {
 
 await gotoOk(home);
 await gotoOk(sampleRoute);
-assert((await page.textContent('body'))?.includes('direct specs content loader') || (await page.textContent('body'))?.includes('canonical specs'), 'Canonical DP-063 T2 route content not found');
+assert((await page.textContent('body'))?.includes('direct specs content loader') || (await page.textContent('body'))?.includes('canonical specs'), 'Archived canonical DP-063 T2 route content not found');
 
 await page.goto(home, { waitUntil: 'networkidle', timeout: 20_000 });
 const sidebarLink = page.locator('a[href*="/docs-manager/specs/"]:visible').first();

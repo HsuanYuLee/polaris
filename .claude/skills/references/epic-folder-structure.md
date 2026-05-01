@@ -68,13 +68,17 @@ Archive 是整個 container 的 move，不是 copy；active namespace 與 archiv
 | `tests/vr/baseline/` | visual-regression (record) | visual-regression (compare) | Epic 存續期 |
 | `verification/` | verify-AC | verify-AC (re-run), human review | Epic 存續期 |
 
-Closeout 後若不再需要留在 active sidebar，執行 archive helper：
+Framework DP release closeout 會在 parent DP 變成 `IMPLEMENTED` 後自動執行 archive
+move；docs-manager 直接讀 canonical `specs/`，因此不需要額外 viewer sync。
+
+Product Epic / Bug / Task closeout 後若不再需要留在 active sidebar，執行 archive helper：
 
 ```bash
 scripts/archive-spec.sh {EPIC_KEY}
 ```
 
-這一步刻意不是自動化 closeout 的一部分；執行者需確認該 Epic / Bug / Task container 已完成或已放棄，且短期不需要作為 active work 入口。
+產品 specs 的 archive 刻意不是自動化 closeout 的一部分；執行者需確認該
+Epic / Bug / Task container 已完成或已放棄，且短期不需要作為 active work 入口。
 
 需要批次整理既有完成或放棄 specs 時，先產 dry-run report，再 apply：
 
