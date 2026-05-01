@@ -1,9 +1,5 @@
 # Polaris Docs Manager
 
-<p align="center">
-  <img src="src/assets/polaris-logo.png" alt="Polaris" width="360">
-</p>
-
 Polaris Docs Manager 是 Starlight / Astro 文件 app，用來管理與瀏覽 workspace 的 canonical specs 文件樹。
 
 ## Maintenance Sources

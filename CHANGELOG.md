@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.24] - 2026-05-02
+
+### Changed — README brand logo placement
+
+- Moved the Polaris logo into the root English and zh-TW README files as the
+  project brand mark, while keeping the docs-manager README focused on
+  maintenance notes.
+
 ## [3.74.23] - 2026-05-02
 
 ### Fixed — Polaris template sync allowlist

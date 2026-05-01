@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs-manager/src/assets/polaris-logo.png" alt="Polaris" width="320">
+</p>
+
 [English](./README.md) | 中文
 
 # Polaris
