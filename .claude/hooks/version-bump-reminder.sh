@@ -2,7 +2,7 @@
 # .claude/hooks/version-bump-reminder.sh — PostToolUse hook for git commit
 #
 # DP-030 Phase 2C: graduates the `version-bump-reminder` canary to
-# deterministic enforcement. The behavioral canary (previously in
+# deterministic advisory coverage. The behavioral canary (previously in
 # mechanism-registry.md § Framework Iteration) is superseded by:
 #   - this PostToolUse hook on `git commit` (L1, advisory)
 #   - L2 embeds in engineering / git-pr-workflow SKILL.md (post-PR tail)
@@ -12,8 +12,9 @@
 #
 # The hook reads the Claude Code PostToolUse JSON from stdin, extracts the
 # executed command, verifies it is a `git commit` invocation, and delegates
-# to scripts/check-version-bump-reminder.sh in post-commit mode. The script
-# is advisory (exit 0 always); stdout carries the reminder when applicable.
+# to scripts/check-version-bump-reminder.sh in post-commit mode. The checker
+# owns the portable framework file allowlist and remains advisory (exit 0
+# always); stdout carries the reminder when applicable.
 #
 # Design: specs/design-plans/DP-030-llm-to-script-migration/plan.md
 #         § Phase 2C (2026-04-24)

@@ -52,6 +52,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARSE_TASK_MD="$SCRIPT_DIR/parse-task-md.sh"
 RUN_TEST_PREP="$SCRIPT_DIR/env/run-test-prep.sh"
 START_TEST_ENV="$SCRIPT_DIR/start-test-env.sh"
+BOOTSTRAP_PIDS=()
+TMP_OUT=""
+TMP_ERR=""
 
 usage() {
   cat <<EOF >&2
@@ -104,6 +107,9 @@ VERIFY_COMMAND="$(parse_field verify_command)"
 LEVEL="$(parse_field level)"
 REPO_NAME="$(parse_field repo)"
 TASK_TICKET="$(parse_field task_jira_key)"
+DEV_ENV_CONFIG="$(parse_field dev_env_config)"
+ENV_BOOTSTRAP_COMMAND="$(parse_field env_bootstrap_command)"
+RUNTIME_VERIFY_TARGET="$(parse_field runtime_verify_target)"
 
 if [[ -z "$TICKET" ]]; then
   TICKET="$TASK_TICKET"
@@ -170,6 +176,87 @@ if [[ -z "$HEAD_SHA" ]]; then
   exit 1
 fi
 
+is_na_value() {
+  local value
+  value="$(printf '%s' "${1:-}" | xargs 2>/dev/null || true)"
+  [[ -z "$value" || "$value" == "N/A" || "$value" == "n/a" || "$value" == "-" || "$value" == "none" ]]
+}
+
+cleanup_bootstrap() {
+  local pid
+  for pid in "${BOOTSTRAP_PIDS[@]:-}"; do
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+    fi
+  done
+}
+
+cleanup_tmp() {
+  [[ -n "${TMP_OUT:-}" ]] && rm -f "$TMP_OUT" 2>/dev/null || true
+  [[ -n "${TMP_ERR:-}" ]] && rm -f "$TMP_ERR" 2>/dev/null || true
+}
+
+cleanup_all() {
+  cleanup_bootstrap
+  cleanup_tmp
+}
+trap cleanup_all EXIT
+
+wait_for_runtime_target() {
+  local target="$1"
+  local timeout="${2:-120}"
+  local elapsed=0
+
+  if ! printf '%s' "$target" | grep -Eq '^https?://'; then
+    return 0
+  fi
+
+  while [[ "$elapsed" -lt "$timeout" ]]; do
+    if curl -fsS "$target" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+    elapsed=$((elapsed + 2))
+  done
+
+  echo "run-verify-command: timed out waiting for runtime target: $target" >&2
+  return 1
+}
+
+run_env_bootstrap_command() {
+  local command="$1"
+  local target="$2"
+  local log_file="/tmp/polaris-verify-bootstrap-${TICKET}-${HEAD_SHA}.log"
+  local pid
+
+  echo "run-verify-command: starting Env bootstrap command" >&2
+  (
+    cd "$REPO_PATH" || exit 1
+    bash -c "$command"
+  ) >"$log_file" 2>&1 &
+  pid="$!"
+  BOOTSTRAP_PIDS+=("$pid")
+
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      wait "$pid"
+      local rc="$?"
+      if [[ "$rc" -ne 0 ]]; then
+        echo "run-verify-command: Env bootstrap command failed ($rc); log: $log_file" >&2
+        cat "$log_file" >&2 || true
+        return 1
+      fi
+      echo "run-verify-command: Env bootstrap command completed" >&2
+      return 0
+    fi
+    sleep 0.2
+  done
+
+  echo "run-verify-command: Env bootstrap command is still running (pid=$pid); log: $log_file" >&2
+  wait_for_runtime_target "$target" 120
+}
+
 # --- Env preparation per level ---------------------------------------------
 case "$LEVEL" in
   static)
@@ -184,12 +271,22 @@ case "$LEVEL" in
     fi
     ;;
   runtime)
-    if [[ ! -x "$START_TEST_ENV" ]]; then
-      echo "run-verify-command: runtime-level requires scripts/start-test-env.sh — orchestrator missing" >&2
-      exit 1
-    fi
-    if ! "$START_TEST_ENV" --task-md "$TASK_MD" --repo "$REPO_PATH" >&2; then
-      echo "run-verify-command: scripts/start-test-env.sh failed (runtime-level env start)" >&2
+    if printf '%s' "$DEV_ENV_CONFIG" | grep -q 'projects\[[^]]*\]\.dev_environment'; then
+      if [[ ! -x "$START_TEST_ENV" ]]; then
+        echo "run-verify-command: runtime-level requires scripts/start-test-env.sh — orchestrator missing" >&2
+        exit 1
+      fi
+      if ! "$START_TEST_ENV" --task-md "$TASK_MD" --repo "$REPO_PATH" >&2; then
+        echo "run-verify-command: scripts/start-test-env.sh failed (runtime-level env start)" >&2
+        exit 1
+      fi
+    elif ! is_na_value "$ENV_BOOTSTRAP_COMMAND"; then
+      if ! run_env_bootstrap_command "$ENV_BOOTSTRAP_COMMAND" "$RUNTIME_VERIFY_TARGET"; then
+        echo "run-verify-command: Env bootstrap command failed (runtime-level env start)" >&2
+        exit 1
+      fi
+    else
+      echo "run-verify-command: runtime-level task has no projects[...] dev env config and no Env bootstrap command" >&2
       exit 1
     fi
     ;;
@@ -198,18 +295,12 @@ esac
 # --- Execute verify command -------------------------------------------------
 TMP_OUT="$(mktemp -t polaris-verify-stdout.XXXXXX)"
 TMP_ERR="$(mktemp -t polaris-verify-stderr.XXXXXX)"
-cleanup_tmp() { rm -f "$TMP_OUT" "$TMP_ERR" 2>/dev/null || true; }
-trap cleanup_tmp EXIT
 
 bash -c "$VERIFY_COMMAND" >"$TMP_OUT" 2>"$TMP_ERR"
 VERIFY_EXIT=$?
 
 # --- Compute runtime contract (if level == runtime) ------------------------
 # Extract first URL from verify command for host comparison.
-RUNTIME_VERIFY_TARGET=""
-if [[ "$LEVEL" == "runtime" ]]; then
-  RUNTIME_VERIFY_TARGET="$(parse_field runtime_verify_target)"
-fi
 
 # --- Write evidence file ---------------------------------------------------
 EVIDENCE_FILE="/tmp/polaris-verified-${TICKET}-${HEAD_SHA}.json"

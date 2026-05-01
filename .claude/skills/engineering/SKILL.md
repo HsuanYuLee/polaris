@@ -653,7 +653,7 @@ First-cut 的 § 5 交付流程或 Revision mode 的 § R5 重跑跑完、PR 已
 
 ### Step 9 — L2 Deterministic Check: version-bump-reminder
 
-改動若落在 `rules/` 或 `.claude/skills/` 且本次未同步 bump `VERSION`，提醒升版。
+改動若落在 framework distribution/tooling files（由 `scripts/check-version-bump-reminder.sh` 的 portable allowlist 定義）且本次未同步 bump `VERSION`，提醒升版。
 
 ```bash
 bash "$CLAUDE_PROJECT_DIR/scripts/check-version-bump-reminder.sh" \
@@ -663,8 +663,8 @@ bash "$CLAUDE_PROJECT_DIR/scripts/check-version-bump-reminder.sh" \
 ```
 
 根據 exit code（advisory — script 恆 exit 0）：
-- **exit 0 + 無 stdout** — 沒 framework 檔改動或已 bump VERSION，繼續 Step 10
-- **exit 0 + 有 stdout** — 提醒使用者「這次改動涉及框架規則/技能，要升版嗎？」依框架升版 chain（VERSION + CHANGELOG + docs-sync + sync-to-polaris）決定是否執行
+- **exit 0 + 無 stdout** — 沒 framework distribution/tooling 改動或已 bump VERSION，繼續 Step 10
+- **exit 0 + 有 stdout** — 提醒使用者「這次改動涉及框架發佈檔案或工具，要升版嗎？」依 repo version policy 決定是否 bump `VERSION` + 更新 `CHANGELOG.md`；任何 local release tail 必須留在 local policy / local skill，不寫入 portable engineering 流程
 
 此 canary 原列 `rules/mechanism-registry.md § Framework Iteration`（behavioral），DP-030 Phase 2C 下放為 deterministic。L1 fallback 由 PostToolUse hook on `git commit`（`.claude/hooks/version-bump-reminder.sh`）補位，當 engineer 繞過本 skill 直接 commit 時仍會觸發。
 

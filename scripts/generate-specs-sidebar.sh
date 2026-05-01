@@ -85,6 +85,102 @@ def yaml_quote(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def task_label(title: str) -> str:
+    match = re.match(r"^(T\d+[a-z]*):\s*(.+?)\s*\([0-9.]+\s*pt\)\s*$", title, re.IGNORECASE)
+    if match:
+        return f"{match.group(1)}: {match.group(2)}"
+    return title
+
+
+def title_case_slug(value: str) -> str:
+    return re.sub(r"\s+", " ", value.replace("-", " ").replace("_", " ")).strip().title()
+
+
+def sidebar_label_for(rel: Path, title: str) -> str:
+    name = rel.name.lower()
+    parts = [part.lower() for part in rel.parts]
+    if name == "plan.md":
+        return "Plan"
+    if name == "refinement.md":
+        return "Refinement"
+    if name == "breakdown.md":
+        return "Breakdown"
+    if "tasks" in parts:
+        return task_label(title)
+    if "artifacts" in parts:
+        return title_case_slug(rel.stem)
+    if "escalations" in parts:
+        return rel.stem.upper()
+    if "verification" in parts or "refinement-inbox" in parts:
+        return title_case_slug(rel.stem)
+    return title
+
+
+def task_order(stem: str) -> int:
+    match = re.match(r"t(\d+)([a-z]*)$", stem.lower())
+    if not match:
+        return 199
+    suffix = match.group(2)
+    suffix_weight = 0
+    if suffix:
+        suffix_weight = ord(suffix[0]) - ord("a") + 1
+    return 100 + int(match.group(1)) * 10 + suffix_weight
+
+
+def sidebar_order_for(rel: Path) -> int:
+    name = rel.name.lower()
+    parts = [part.lower() for part in rel.parts]
+    if name == "plan.md":
+        return 0
+    if name == "refinement.md":
+        return 10
+    if name == "breakdown.md":
+        return 20
+    if "tasks" in parts:
+        return task_order(rel.stem)
+    if "artifacts" in parts:
+        return 300
+    if "escalations" in parts:
+        return 400
+    if "refinement-inbox" in parts:
+        return 500
+    if "verification" in parts:
+        return 600
+    return 200
+
+
+def hide_from_sidebar(rel: Path) -> bool:
+    parts = {part.lower() for part in rel.parts}
+    return bool({"verification", "refinement-inbox"} & parts)
+
+
+def exclude_from_search(rel: Path) -> bool:
+    parts = {part.lower() for part in rel.parts}
+    return bool({"verification", "refinement-inbox"} & parts)
+
+
+def normalize_heading(value: str) -> str:
+    value = re.sub(r"[🌱💬🔒✅❌]", "", value)
+    value = value.replace("：", ":")
+    value = re.sub(r"[^a-z0-9]+", " ", value.lower())
+    value = re.sub(r"\s+", " ", value).strip()
+    return re.sub(r"^dp \d+ ", "", value)
+
+
+def remove_duplicate_h1(body: str, title: str) -> str:
+    lines = body.splitlines(keepends=True)
+    for idx, line in enumerate(lines):
+        if not line.startswith("# "):
+            if line.strip():
+                return body
+            continue
+        heading = line[2:].strip()
+        if normalize_heading(heading) == normalize_heading(title):
+            return "".join(lines[:idx] + lines[idx + 1 :]).lstrip()
+        return body
+    return body
+
+
 count = 0
 for source in sorted(specs_root.rglob("*.md")):
     if any(part in SKIP_DIRS for part in source.relative_to(specs_root).parts):
@@ -96,15 +192,26 @@ for source in sorted(specs_root.rglob("*.md")):
     raw = source.read_text(encoding="utf-8")
     metadata, body = split_frontmatter(raw)
     title = title_for(source, metadata, body)
+    body = remove_duplicate_h1(body, title)
     source_path = source.relative_to(workspace_root)
-    generated = (
-        "---\n"
-        f"title: {yaml_quote(title)}\n"
-        f"description: {yaml_quote(str(source_path))}\n"
-        "---\n\n"
-        f"> Source: `{source_path}`\n\n"
-        f"{body.lstrip()}"
-    )
+    sidebar_label = sidebar_label_for(rel, title)
+    sidebar_order = sidebar_order_for(rel)
+
+    frontmatter = [
+        "---",
+        f"title: {yaml_quote(title)}",
+        f"description: {yaml_quote(str(source_path))}",
+        "sidebar:",
+        f"  label: {yaml_quote(sidebar_label)}",
+        f"  order: {sidebar_order}",
+    ]
+    if hide_from_sidebar(rel):
+        frontmatter.append("  hidden: true")
+    if exclude_from_search(rel):
+        frontmatter.append("pagefind: false")
+    frontmatter.append("---")
+
+    generated = "\n".join(frontmatter) + "\n\n" + f"> Source: `{source_path}`\n\n" + body.lstrip()
     dest.write_text(generated, encoding="utf-8")
     count += 1
 

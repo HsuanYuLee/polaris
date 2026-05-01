@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # scripts/check-version-bump-reminder.sh
 #
-# Purpose: Detect framework changes (files under rules/ or .claude/skills/)
-#          that landed without a VERSION bump, and emit an advisory reminder.
+# Purpose: Detect framework distribution/tooling changes that landed without a
+#          VERSION bump, and emit an advisory reminder.
 #          Rule source: rules/framework-iteration.md § Version Bump Reminder.
 #
 # Canary: version-bump-reminder (DP-030 Phase 2C graduation to deterministic)
@@ -25,6 +25,7 @@
 # Usage:
 #   check-version-bump-reminder.sh --mode post-commit [--repo /path/to/repo]
 #   check-version-bump-reminder.sh --mode post-pr --base develop [--repo PATH]
+#   check-version-bump-reminder.sh --self-test
 #
 # Invoked by:
 #   - .claude/hooks/version-bump-reminder.sh (PostToolUse Bash on git commit)
@@ -39,9 +40,73 @@ set -u
 MODE=""
 BASE=""
 REPO=""
+SELF_TEST=0
+
+FRAMEWORK_FILE_REGEX='^(\.claude/rules/[^/]+\.md|rules/[^/]+\.md|\.claude/skills/.*|skills/.*|\.claude/hooks/[^/]+\.sh|\.claude/settings\.json|\.claude/settings\.local\.json\.example|\.claude/settings\.local\.json\.sub-repo-example|\.github/copilot-instructions\.md|\.github/\.generated/.*|\.codex/AGENTS\.md|\.codex/\.generated/.*|scripts/.*\.sh|_template/.*|docs/[^/]+\.md|docs-viewer/.*|README\.md|README\.zh-TW\.md|CLAUDE\.md|CHANGELOG\.md|VERSION)$'
+
+select_framework_files() {
+  grep -E "$FRAMEWORK_FILE_REGEX" || true
+}
+
+run_self_test() {
+  local fixture actual expected
+
+  fixture=$(cat <<'EOF'
+.claude/rules/framework-iteration.md
+.claude/rules/company/private.md
+.claude/skills/engineering/SKILL.md
+.claude/hooks/version-bump-reminder.sh
+.claude/settings.local.json.example
+scripts/check-version-bump-reminder.sh
+scripts/lib/runtime.sh
+docs/release.md
+docs/nested/ignored.md
+docs-viewer/README.md
+_template/CLAUDE.md
+.github/.generated/copilot-instructions.md
+.codex/AGENTS.md
+README.zh-TW.md
+specs/design-plans/DP-061/plan.md
+src/product-code.ts
+EOF
+)
+
+  expected=$(cat <<'EOF'
+.claude/rules/framework-iteration.md
+.claude/skills/engineering/SKILL.md
+.claude/hooks/version-bump-reminder.sh
+.claude/settings.local.json.example
+scripts/check-version-bump-reminder.sh
+scripts/lib/runtime.sh
+docs/release.md
+docs-viewer/README.md
+_template/CLAUDE.md
+.github/.generated/copilot-instructions.md
+.codex/AGENTS.md
+README.zh-TW.md
+EOF
+)
+
+  actual=$(printf '%s\n' "$fixture" | select_framework_files)
+
+  if [[ "$actual" != "$expected" ]]; then
+    echo "[version-bump-reminder] self-test failed" >&2
+    echo "--- expected" >&2
+    printf '%s\n' "$expected" >&2
+    echo "--- actual" >&2
+    printf '%s\n' "$actual" >&2
+    return 1
+  fi
+
+  echo "[version-bump-reminder] self-test passed"
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --self-test)
+      SELF_TEST=1
+      shift
+      ;;
     --mode)
       MODE="${2:-}"
       shift 2
@@ -75,6 +140,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$SELF_TEST" -eq 1 ]]; then
+  run_self_test
+  exit $?
+fi
 
 if [[ -z "$MODE" ]]; then
   echo "[version-bump-reminder] WARN: --mode not specified — skipping" >&2
@@ -124,12 +194,10 @@ if printf '%s\n' "$changed_files" | grep -qE '^VERSION$'; then
   exit 0
 fi
 
-# Select framework files. Accept both `rules/` (tracked at repo root) and
-# `.claude/skills/` (inside .claude/). We avoid matching `_template/`,
-# `docs/`, `specs/` etc — those are non-framework.
-framework_files=$(printf '%s\n' "$changed_files" \
-  | grep -E '^(\.claude/rules/|rules/|\.claude/skills/|skills/)' \
-  || true)
+# Select framework distribution/tooling files. The allowlist intentionally
+# stays generic: local release actions live in local scripts/skills,
+# not in this portable advisory.
+framework_files=$(printf '%s\n' "$changed_files" | select_framework_files)
 
 if [[ -z "$framework_files" ]]; then
   exit 0
@@ -142,14 +210,14 @@ current_version=$(cat "$REPO/VERSION" 2>/dev/null | tr -d '[:space:]' || true)
 # back to the LLM / user as a reminder).
 cat <<EOF
 
-[version-bump-reminder] ${MODE}: ${file_count} framework file(s) changed under rules/ or .claude/skills/ without a VERSION bump:
+[version-bump-reminder] ${MODE}: ${file_count} framework distribution/tooling file(s) changed without a VERSION bump:
 $(printf '%s\n' "$framework_files" | head -5 | sed 's/^/  - /')
 $([ "$file_count" -gt 5 ] && echo "  ... and $((file_count - 5)) more")
 
 Current version: ${current_version:-<unknown>}
 
-這次改動涉及框架規則/技能，要升版嗎？
-  - 升版：bump VERSION + 更新 CHANGELOG.md + 執行 Post-Version-Bump Chain（docs-lint → docs-sync → backlog scan → sync-to-polaris）
+這次改動涉及框架發佈檔案或工具，要升版嗎？
+  - 升版：bump VERSION + 更新 CHANGELOG.md，並依本 workspace release policy 執行後續 release chain
   - 不升版：在此次 session 或下一次提交前合併到後續變更（批次升版）
   - 已 opt-out：忽略此訊息（advisory only，不擋）
 EOF

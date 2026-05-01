@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Launch Polaris Specs Viewer in browser
-# Usage: polaris-viewer.sh [--port 8080] [--no-open]
+# Usage: polaris-viewer.sh [--port 8080] [--no-open] [--preview|--mode dev|preview]
 #
-# Syncs viewer navigation, starts Starlight dev server, opens browser.
+# Syncs viewer navigation, starts Starlight dev or production preview server, opens browser.
 # Ctrl+C to stop.
 
 set -euo pipefail
@@ -11,11 +11,22 @@ WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PORT=8080
 OPEN_BROWSER=true
 HOST=127.0.0.1
+MODE=dev
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --port) PORT="$2"; shift 2 ;;
+    --host) HOST="$2"; shift 2 ;;
     --no-open) OPEN_BROWSER=false; shift ;;
+    --preview) MODE=preview; shift ;;
+    --mode)
+      MODE="${2:-}"
+      if [[ "$MODE" != "dev" && "$MODE" != "preview" ]]; then
+        echo "Invalid --mode value: $MODE (expected dev or preview)" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -70,7 +81,7 @@ if lsof -i :"$PORT" -sTCP:LISTEN &>/dev/null; then
 fi
 
 # 3. Start server
-echo "Starting server on $VIEWER_URL"
+echo "Starting $MODE server on $VIEWER_URL"
 if [ "$OPEN_BROWSER" = true ]; then
   # Small delay to let server start before opening browser
   (sleep 1 && open "$VIEWER_URL") &
@@ -82,4 +93,9 @@ if [ ! -d node_modules ]; then
   npm install
 fi
 
-npm run dev -- --host "$HOST" --port "$PORT" --strictPort
+if [ "$MODE" = "preview" ]; then
+  npm run build
+  npm run preview -- --host "$HOST" --port "$PORT" --strictPort
+else
+  npm run dev -- --host "$HOST" --port "$PORT" --strictPort
+fi

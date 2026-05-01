@@ -4,6 +4,27 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.5] - 2026-05-01
+
+### Fixed — DP-061 docs viewer release metadata
+
+- `polaris-viewer.sh` and the docs-viewer runtime verifier now preserve
+  non-default viewer origins and emit browser-based runtime evidence for local
+  verification.
+- `run-verify-command.sh` now keeps bootstrap commands in the Layer B evidence
+  stream so verification setup is auditable.
+- `generate-specs-sidebar.sh` now emits Starlight-compatible navigation
+  metadata for specs sidebar rendering.
+
+### Fixed — framework version bump reminder coverage
+
+- `check-version-bump-reminder.sh` now detects framework distribution/tooling
+  files such as scripts, hooks, docs, docs-viewer assets, templates, and
+  generated agent guidance, instead of only rules and skills.
+- `engineering` and `git-pr-workflow` keep version reminders portable: they
+  surface `VERSION` / `CHANGELOG.md` decisions while leaving local release
+  tails in local policy and local skills.
+
 ## [3.74.4] - 2026-04-30
 
 ### Fixed — ci-local changeset policy mirror
