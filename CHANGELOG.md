@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.18] - 2026-05-02
+
+### Fixed — pre-push hook quality marker drift
+
+- Reinstalled the local generated pre-push hook and updated the Claude/Codex
+  fallback pre-push gate to delegate to the current `gate-ci-local`, evidence,
+  and changeset gates instead of the retired `/tmp/.quality-gate-passed-*`
+  marker advisory.
+- Added `install-copilot-hooks-selftest.sh` to prevent generated or fallback
+  pre-push gates from regressing to the old quality marker warning.
+
 ## [3.74.17] - 2026-05-02
 
 ### Fixed — framework release closeout archive idempotency

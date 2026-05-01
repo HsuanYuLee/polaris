@@ -2,8 +2,7 @@
 # codex-guarded-git-push.sh
 # Codex fallback command gate for git push.
 #
-# Runs P0.5 push gate:
-#  - pre-push-quality-gate
+# Runs the portable pre-push delivery gate.
 #
 # Usage:
 #   codex-guarded-git-push.sh [--dry-run] [git push args...]

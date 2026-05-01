@@ -1,72 +1,56 @@
-#!/bin/bash
-# Pre-push Quality Gate
-# Intercepts git push and verifies that quality checks have passed
+#!/usr/bin/env bash
+# Pre-push delivery gate.
 #
-# Mechanism: quality-check-flow writes a marker file on pass; this hook checks the marker
-# Marker: /tmp/.quality-gate-passed-{branch}
-#
-# This hook only fires on `git push*` commands via the `if` field in settings.json.
-# Environment variables (provided by Claude Code hooks):
-#   CLAUDE_TOOL_INPUT — JSON input of the Bash tool call
+# Legacy versions checked /tmp/.quality-gate-passed-* marker files. That marker
+# flow is retired; push readiness now delegates to the same portable gates used
+# by generated git hooks and PR creation.
 
-# 取得專案目錄（從 CLAUDE_PROJECT_DIR 或 fallback）
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+set -euo pipefail
 
-# 從 tool input 提取實際操作的 repo（支援 git -C /path push）
-REPO_PATH=$(echo "$CLAUDE_TOOL_INPUT" | grep -oE 'git -C [^ ]+' | head -1 | sed 's/git -C //')
-if [ -n "$REPO_PATH" ]; then
-  PROJECT_DIR="$REPO_PATH"
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$HOOK_DIR/../.." && pwd)"
+GATES_DIR="$ROOT_DIR/scripts/gates"
+
+input="$(cat || true)"
+if [[ -z "$input" && -n "${CLAUDE_TOOL_INPUT:-}" ]]; then
+  input="$CLAUDE_TOOL_INPUT"
 fi
 
-# 取得 branch 名稱
-BRANCH=$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null)
+command="$(printf '%s' "$input" | python3 -c 'import json,sys
+try:
+    d=json.load(sys.stdin)
+    print(d.get("tool_input",{}).get("command",""))
+except Exception:
+    print("")
+' 2>/dev/null || true)"
 
-# 主要 branch 不攔截（通常不會直接 push）
-case "$BRANCH" in
-  main|master|develop) exit 0 ;;
-esac
+[[ -z "$command" || "$command" =~ (^|[[:space:]])git[[:space:]]+(-C[[:space:]]+[^[:space:]]+[[:space:]]+)?push\b ]] || exit 0
 
-# 檢查 marker file
-MARKER="/tmp/.quality-gate-passed-${BRANCH}"
-
-if [ -f "$MARKER" ]; then
-  # Marker 存在，檢查是否過期（超過 24 小時視為過期）
-  if [ "$(uname)" = "Darwin" ]; then
-    MARKER_AGE=$(( $(date +%s) - $(stat -f %m "$MARKER") ))
-  else
-    MARKER_AGE=$(( $(date +%s) - $(stat -c %Y "$MARKER") ))
-  fi
-
-  if [ "$MARKER_AGE" -lt 86400 ]; then
-    exit 0  # 有效 marker，放行
-  else
-    rm -f "$MARKER"  # 過期，刪除
-  fi
+repo_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+if [[ -n "$command" ]]; then
+  extracted="$(printf '%s' "$command" | grep -oE 'git -C [^ ]+' | head -1 | sed 's/git -C //' || true)"
+  [[ -n "$extracted" ]] && repo_root="$extracted"
 fi
 
-# No valid marker — check if this is the user's first push ever (no markers exist)
-FIRST_PUSH=true
-for existing_marker in /tmp/.quality-gate-passed-*; do
-  [ -e "$existing_marker" ] && FIRST_PUSH=false && break
-done
+[[ -d "$repo_root" ]] || exit 0
 
-if [ "$FIRST_PUSH" = true ]; then
-  cat >&2 <<'EOF'
-ℹ️  First push detected — quality gate is skipping this time.
-
-In future pushes, run "quality check" (or 「品質檢查」) before pushing.
-The quality gate ensures lint, tests, and coverage pass before code is pushed.
-EOF
+if printf '%s' "$command" | grep -qE -- '--delete|--tags'; then
   exit 0
 fi
 
-# Not first push — block and explain
-cat >&2 <<'EOF'
-⚠️ Quality gate not passed — run quality-check-flow first
+branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+case "$branch" in
+  ""|HEAD|main|master|develop) exit 0 ;;
+esac
 
-Push requires passing quality checks (lint + test + coverage).
-After the check passes, a marker file is created and push will proceed.
+if [[ -x "$GATES_DIR/gate-ci-local.sh" ]]; then
+  bash "$GATES_DIR/gate-ci-local.sh" --repo "$repo_root" --push-mode
+fi
 
-Tip: say "quality check" or "品質檢查" to trigger it.
-EOF
-exit 2
+if [[ -x "$GATES_DIR/gate-evidence.sh" ]]; then
+  bash "$GATES_DIR/gate-evidence.sh" --repo "$repo_root"
+fi
+
+if [[ -x "$GATES_DIR/gate-changeset.sh" ]]; then
+  bash "$GATES_DIR/gate-changeset.sh" --repo "$repo_root"
+fi
