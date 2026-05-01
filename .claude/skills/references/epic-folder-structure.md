@@ -18,7 +18,7 @@ specs/companies/{company}/{EPIC_KEY}/
 │   │   ├── baseline-YYYY-MM-DD/   # Lighthouse JSON reports
 │   │   └── direction-eval-YYYY-MM-DD/
 │   ├── mockoon/                   # Mockoon environment JSONs（從 fixtures recording 或 bootstrap）
-│   │   ├── dev.yourapp.com.json
+│   │   ├── dev.kkday.com.json
 │   │   ├── api-*.json
 │   │   └── ...
 │   └── vr/
@@ -40,7 +40,7 @@ specs/companies/{company}/{EPIC_KEY}/
 specs/companies/{company}/archive/{EPIC_KEY}/
 ```
 
-Archive 是整個 container 的 move，不是 copy；active namespace 與 archive namespace 不可同時保留同一張單。只有 parent container 已標 `IMPLEMENTED` 或 `ABANDONED` 時，才可執行 `scripts/archive-spec.sh {EPIC_KEY}`。Archive 後 docs-viewer 會直接 mirror `specs/companies/{company}/archive/{EPIC_KEY}/` folder tree；resolver / engineering 預設不再把它當 active work。
+Archive 是整個 container 的 move，不是 copy；active namespace 與 archive namespace 不可同時保留同一張單。只有 parent container 已標 `IMPLEMENTED` 或 `ABANDONED` 時，才可執行 `scripts/archive-spec.sh {EPIC_KEY}`。Archive 後 docs-manager 會直接讀取 `specs/companies/{company}/archive/{EPIC_KEY}/` canonical folder tree；resolver / engineering 預設不再把它當 active work。
 
 ## Path Resolution
 
@@ -89,7 +89,7 @@ Sweep 規則：
 - `IMPLEMENTED` / `ABANDONED` 會搬到 archive
 - `SEEDED` / `DISCUSSION` / `LOCKED` / missing status 只會保留在 active namespace
 - destination 已存在時 fail loud，避免 active/archive duplicate
-- sweep 後執行 `scripts/generate-specs-sidebar.sh` 或 docs-viewer build，讓 Starlight navigation 更新
+- sweep 後 docs-manager 會直接讀 canonical specs；需要 review 時執行 `scripts/polaris-viewer.sh --mode dev`，需要 static/search 驗證時執行 `scripts/verify-docs-manager-runtime.sh --preview`
 
 ## Bootstrap（新 Epic）
 

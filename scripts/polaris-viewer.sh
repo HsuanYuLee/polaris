@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Launch Polaris Specs Viewer in browser
-# Usage: polaris-viewer.sh [--port 8080] [--no-open] [--preview|--mode dev|preview]
+# Launch Polaris docs-manager in browser.
+# Usage: polaris-viewer.sh [--port 8080] [--host 127.0.0.1] [--no-open] [--preview|--mode dev|preview]
 #
-# Syncs viewer navigation, starts Starlight dev or production preview server, opens browser.
-# Ctrl+C to stop.
+# Dev mode serves live canonical specs from {workspace_root}/specs.
+# Preview mode builds first, then serves static output for production/search checks.
 
 set -euo pipefail
 
@@ -27,69 +27,54 @@ while [[ $# -gt 0 ]]; do
       fi
       shift 2
       ;;
-    *) echo "Unknown option: $1"; exit 1 ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
 
 ORIGIN="http://$HOST:$PORT"
-VIEWER_URL="$ORIGIN/docs-viewer/"
-export POLARIS_DOCS_VIEWER_SITE="$ORIGIN"
+MANAGER_URL="$ORIGIN/docs-manager/"
+export POLARIS_DOCS_MANAGER_SITE="$ORIGIN"
 
-viewer_available() {
+docs_manager_available() {
   local url="$1"
   local body
   body="$(curl -fsS --max-time 5 "$url" 2>/dev/null || true)"
   [[ "$body" == *"Polaris Specs"* && "$body" == *"starlight"* ]]
 }
 
-ensure_specs_source() {
-  if [[ -d "$WORKSPACE_ROOT/specs" ]]; then
-    return 0
-  fi
+if [[ ! -d "$WORKSPACE_ROOT/docs-manager" ]]; then
+  echo "docs-manager directory not found under $WORKSPACE_ROOT" >&2
+  exit 1
+fi
 
-  # Gitignored specs live only in the main checkout. Linked worktrees need a
-  # local pointer so the existing sync script can populate this viewer copy.
-  local main_checkout
-  # shellcheck source=scripts/lib/main-checkout.sh
-  source "$WORKSPACE_ROOT/scripts/lib/main-checkout.sh"
-  main_checkout="$(resolve_main_checkout "$WORKSPACE_ROOT" || true)"
-  if [[ -n "$main_checkout" && -d "$main_checkout/specs" ]]; then
-    mkdir -p "$WORKSPACE_ROOT/specs"
-    rsync -a --delete \
-      --exclude '.git' \
-      --exclude '.worktrees' \
-      --exclude 'node_modules' \
-      "$main_checkout/specs/" "$WORKSPACE_ROOT/specs/"
-  fi
-}
+if [[ -d "$WORKSPACE_ROOT/specs" ]]; then
+  export POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT"
+else
+  # Gitignored specs live only in the main checkout. T2's direct loader can
+  # resolve them from the main checkout when launched from a linked worktree.
+  # This warning is informational; no mirror copy is created here.
+  echo "WARN: $WORKSPACE_ROOT/specs not found; docs-manager will resolve canonical specs from the main checkout if available." >&2
+fi
 
-# 1. Sync viewer navigation/content
-echo "Syncing viewer navigation..."
-ensure_specs_source
-"$WORKSPACE_ROOT/scripts/generate-specs-sidebar.sh" "$WORKSPACE_ROOT"
-
-# 2. Check if port is already in use
 if lsof -i :"$PORT" -sTCP:LISTEN &>/dev/null; then
-  if ! viewer_available "$VIEWER_URL"; then
-    echo "Port $PORT is already in use, but $VIEWER_URL is not a Polaris Specs viewer." >&2
+  if ! docs_manager_available "$MANAGER_URL"; then
+    echo "Port $PORT is already in use, but $MANAGER_URL is not Polaris docs-manager." >&2
     echo "Choose another port with --port <port> or stop the existing service." >&2
     exit 1
   fi
-  echo "Port $PORT already has a Polaris Specs viewer. Opening existing server."
-  [ "$OPEN_BROWSER" = true ] && open "$VIEWER_URL"
+  echo "Port $PORT already has Polaris docs-manager. Opening existing server."
+  [ "$OPEN_BROWSER" = true ] && open "$MANAGER_URL"
   exit 0
 fi
 
-# 3. Start server
-echo "Starting $MODE server on $VIEWER_URL"
+echo "Starting $MODE server on $MANAGER_URL"
 if [ "$OPEN_BROWSER" = true ]; then
-  # Small delay to let server start before opening browser
-  (sleep 1 && open "$VIEWER_URL") &
+  (sleep 1 && open "$MANAGER_URL") &
 fi
 
-cd "$WORKSPACE_ROOT/docs-viewer"
+cd "$WORKSPACE_ROOT/docs-manager"
 if [ ! -d node_modules ]; then
-  echo "Installing docs-viewer dependencies..."
+  echo "Installing docs-manager dependencies..."
   npm install
 fi
 

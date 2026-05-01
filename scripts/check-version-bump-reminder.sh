@@ -42,7 +42,7 @@ BASE=""
 REPO=""
 SELF_TEST=0
 
-FRAMEWORK_FILE_REGEX='^(\.claude/rules/[^/]+\.md|rules/[^/]+\.md|\.claude/skills/.*|skills/.*|\.claude/hooks/[^/]+\.sh|\.claude/settings\.json|\.claude/settings\.local\.json\.example|\.claude/settings\.local\.json\.sub-repo-example|\.github/copilot-instructions\.md|\.github/\.generated/.*|\.codex/AGENTS\.md|\.codex/\.generated/.*|scripts/.*\.sh|_template/.*|docs/[^/]+\.md|docs-viewer/.*|README\.md|README\.zh-TW\.md|CLAUDE\.md|CHANGELOG\.md|VERSION)$'
+FRAMEWORK_FILE_REGEX='^(\.claude/rules/[^/]+\.md|rules/[^/]+\.md|\.claude/skills/.*|skills/.*|\.claude/hooks/[^/]+\.sh|\.claude/settings\.json|\.claude/settings\.local\.json\.example|\.claude/settings\.local\.json\.sub-repo-example|\.github/copilot-instructions\.md|\.github/\.generated/.*|\.codex/AGENTS\.md|\.codex/\.generated/.*|scripts/.*\.sh|_template/.*|docs/[^/]+\.md|docs-manager/.*|README\.md|README\.zh-TW\.md|CLAUDE\.md|CHANGELOG\.md|VERSION)$'
 
 select_framework_files() {
   grep -E "$FRAMEWORK_FILE_REGEX" || true
@@ -61,7 +61,7 @@ scripts/check-version-bump-reminder.sh
 scripts/lib/runtime.sh
 docs/release.md
 docs/nested/ignored.md
-docs-viewer/README.md
+docs-manager/README.md
 _template/CLAUDE.md
 .github/.generated/copilot-instructions.md
 .codex/AGENTS.md
@@ -79,7 +79,7 @@ EOF
 scripts/check-version-bump-reminder.sh
 scripts/lib/runtime.sh
 docs/release.md
-docs-viewer/README.md
+docs-manager/README.md
 _template/CLAUDE.md
 .github/.generated/copilot-instructions.md
 .codex/AGENTS.md

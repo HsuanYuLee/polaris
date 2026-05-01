@@ -6,7 +6,7 @@ set -euo pipefail
 # PR body does not preserve the template's level-2 section headings.
 #
 # Usage:
-#   bash scripts/gates/gate-pr-body-template.sh [--repo <path>] (--body <body> | --body-file <path> | --pr <number-or-url>)
+#   bash scripts/gates/gate-pr-body-template.sh [--repo <path>] (--body <body> | --body-file <path>)
 #
 # Exit: 0 = pass/skip, 2 = block
 # Bypass: POLARIS_SKIP_PR_BODY_TEMPLATE_GATE=1
@@ -16,7 +16,6 @@ PREFIX="[polaris gate-pr-body-template]"
 REPO_ROOT=""
 BODY=""
 BODY_FILE=""
-PR_REF=""
 BODY_PROVIDED=0
 
 while [[ $# -gt 0 ]]; do
@@ -24,9 +23,8 @@ while [[ $# -gt 0 ]]; do
     --repo) REPO_ROOT="${2:-}"; shift 2 ;;
     --body) BODY="${2:-}"; BODY_PROVIDED=1; shift 2 ;;
     --body-file) BODY_FILE="${2:-}"; BODY_PROVIDED=1; shift 2 ;;
-    --pr) PR_REF="${2:-}"; BODY_PROVIDED=1; shift 2 ;;
     -h|--help)
-      echo "Usage: bash scripts/gates/gate-pr-body-template.sh [--repo <path>] (--body <body> | --body-file <path> | --pr <number-or-url>)"
+      echo "Usage: bash scripts/gates/gate-pr-body-template.sh [--repo <path>] (--body <body> | --body-file <path>)"
       exit 0
       ;;
     *) shift ;;
@@ -79,62 +77,6 @@ if [[ -n "$BODY_FILE" ]]; then
     BODY="$(<"$REPO_ROOT/$BODY_FILE")"
   else
     echo "$PREFIX BLOCKED: --body-file does not exist: $BODY_FILE" >&2
-    exit 2
-  fi
-fi
-
-parse_pr_ref() {
-  local pr_ref="$1"
-  local repo_root="$2"
-
-  python3 - "$pr_ref" "$repo_root" <<'PY'
-import re
-import subprocess
-import sys
-
-pr_ref, repo_root = sys.argv[1:3]
-match = re.match(r"^https://github\.com/([^/]+)/([^/]+)/pull/([0-9]+)(?:[/?#].*)?$", pr_ref)
-if match:
-    owner, repo, number = match.groups()
-    print(f"{owner}/{repo}\t{number}")
-    raise SystemExit(0)
-
-if re.match(r"^[0-9]+$", pr_ref):
-    try:
-        remote = subprocess.check_output(
-            ["git", "-C", repo_root, "config", "--get", "remote.origin.url"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        ).strip()
-    except Exception:
-        raise SystemExit(1)
-    remote = re.sub(r"^git@github\.com:", "", remote)
-    remote = re.sub(r"^https://github\.com/", "", remote)
-    remote = re.sub(r"\.git$", "", remote).strip("/")
-    if re.match(r"^[^/]+/[^/]+$", remote):
-        print(f"{remote}\t{pr_ref}")
-        raise SystemExit(0)
-
-raise SystemExit(1)
-PY
-}
-
-if [[ -n "$PR_REF" ]]; then
-  parsed_pr=""
-  gh_repo=""
-  gh_pr_number=""
-  command -v gh >/dev/null 2>&1 || {
-    echo "$PREFIX BLOCKED: gh CLI is required for --pr source." >&2
-    exit 2
-  }
-  if ! parsed_pr="$(parse_pr_ref "$PR_REF" "$REPO_ROOT")"; then
-    echo "$PREFIX BLOCKED: --pr must be a GitHub PR URL or number resolvable from repo origin: $PR_REF" >&2
-    exit 2
-  fi
-  gh_repo="${parsed_pr%%$'\t'*}"
-  gh_pr_number="${parsed_pr##*$'\t'}"
-  if ! BODY="$(gh pr view "$gh_pr_number" --repo "$gh_repo" --json body --jq .body)"; then
-    echo "$PREFIX BLOCKED: unable to read PR body for $PR_REF" >&2
     exit 2
   fi
 fi

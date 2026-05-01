@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# Claude PostToolUse wrapper for docs-viewer sidebar sync.
-# Delegates logic to runtime-agnostic entrypoint.
+# Legacy PostToolUse hook retained as a no-op while docs-manager reads canonical specs.
 
 set -euo pipefail
 
-WORKSPACE_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
-exec bash "$WORKSPACE_ROOT/scripts/docs-viewer-sync-hook.sh" "$WORKSPACE_ROOT"
+echo "specs sidebar sync is retired; docs-manager reads canonical specs directly." >&2

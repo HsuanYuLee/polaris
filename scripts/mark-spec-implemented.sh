@@ -33,7 +33,7 @@
 #
 # Non-goals:
 #   - Does NOT sync to JIRA
-#   - Does NOT regenerate sidebar (docs-viewer-sync-hook handles that via PostToolUse)
+#   - Does NOT regenerate docs-manager routes; docs-manager reads canonical specs directly
 
 set -euo pipefail
 

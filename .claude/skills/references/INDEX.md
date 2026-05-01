@@ -25,7 +25,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [project-mapping.md](project-mapping.md) | JIRA ticket → local project 目錄對應（config-first） | breakdown, sasd-review, engineering |
 | [refinement-artifact.md](refinement-artifact.md) | Refinement 結構化 artifact JSON schema — 供 breakdown/estimation/engineering 消費 | refinement (Tier 2+), breakdown, engineering |
 | [spec-source-resolver.md](spec-source-resolver.md) | JIRA / DP-NNN / ticketless topic / artifact path 的共用 source resolution contract，含 DP locator、artifact path、section ownership | refinement, breakdown, engineering, verify-AC |
-| [refinement-dp-source-mode.md](refinement-dp-source-mode.md) | refinement ticketless / DP-backed source mode 操作細節：DP creation、docs-viewer sync、local preview、artifact output、LOCKED handoff | refinement DP-NNN, ticketless topic, design plan, ADR, DP artifact_path |
+| [refinement-dp-source-mode.md](refinement-dp-source-mode.md) | refinement ticketless / DP-backed source mode 操作細節：DP creation、docs-manager preview、artifact output、LOCKED handoff | refinement DP-NNN, ticketless topic, design plan, ADR, DP artifact_path |
 | [confidence-labeling.md](confidence-labeling.md) | AI 研究產出信心標示（HIGH/MEDIUM/LOW/NOT_RESEARCHED） | refinement (Tier 3), breakdown (scope-challenge), learning, sasd-review |
 
 ## Delivery Flow

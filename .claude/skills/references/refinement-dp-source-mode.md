@@ -88,21 +88,22 @@ bash scripts/validate-language-policy.sh \
 若 gate 失敗，先修正自然語言內容並重跑。`plan.md` 違反 workspace language
 時，不可宣稱 DP 已可 review。
 
-## T2. Docs-Viewer Sidebar Sync
+## T2. Docs-Manager Preview
 
-建立或編輯 DP markdown 後，讓它可在 docs-viewer 導覽。必須先跑 T1/T3 的
-language gate；docs-viewer 不應暴露未通過 workspace language policy 的新產生 prose。
+建立或編輯 DP markdown 後，docs-manager 會直接從 `{workspace_root}/specs/`
+讀取 canonical source。必須先跑 T1/T3 的 language gate；未通過 workspace
+language policy 的新產生 prose 不可進入 review 或 downstream handoff。
 
-Preferred:
+Live review:
 
 ```bash
-bash scripts/docs-viewer-sync-hook.sh {workspace_root} {changed_dp_markdown_path}
+bash scripts/polaris-viewer.sh --mode dev
 ```
 
-Fallback when the hook entrypoint cannot classify the path:
+Static/search verification:
 
 ```bash
-bash scripts/generate-specs-sidebar.sh {workspace_root}
+bash scripts/verify-docs-manager-runtime.sh --preview
 ```
 
 This applies to `plan.md`, `refinement.md`, and any DP markdown artifact intended for review.
@@ -183,7 +184,7 @@ When the user says "定版", "開始做", "可以執行", "lock", or equivalent:
    locked_at: YYYY-MM-DD
    ```
 4. Run the relevant artifact validator / handoff gate. If it fails or `refinement.json` is missing, stop and produce/fix the artifact before continuing.
-5. Sync docs-viewer sidebar.
+5. If route/search review is needed, run docs-manager dev or preview verification.
 6. Tell the user the next command:
    ```text
    breakdown DP-NNN

@@ -274,7 +274,7 @@ PR-release 觸發（DP-033 D6，**move-first 順序鎖定**）：`status` 轉為
 | Cell | 內容 | Required |
 |------|------|----------|
 | `Source type` | Canonical source type：`jira` / `dp` | **Hard in canonical identity** |
-| `Source ID` | Parent source/container：product Epic key（如 `PROJ-123`）或 DP id（如 `DP-050`） | **Hard in canonical identity** |
+| `Source ID` | Parent source/container：product Epic key（如 `GT-478`）或 DP id（如 `DP-050`） | **Hard in canonical identity** |
 | `Task ID` | Canonical `work_item_id`：product task JIRA key 或 DP pseudo-task ID（如 `DP-050-T1`） | **Hard in canonical identity** |
 | `JIRA key` | 真實 JIRA issue key；無 JIRA 時填 `N/A` | **Hard in canonical identity** |
 | `Task JIRA key` | Legacy identity cell；migration 期仍接受。新 DP-backed task 不應使用此 cell 承載 pseudo-task ID | **Hard in legacy identity** |
@@ -282,26 +282,26 @@ PR-release 觸發（DP-033 D6，**move-first 順序鎖定**）：`status` 轉為
 | `Test sub-tasks` | Test sub-task JIRA keys（comma-separated） | **Hard** |
 | `AC 驗收單` | Verification ticket JIRA key（V*.md 對應的 ticket，或 verify-AC 消費的 AC ticket） | **Hard** |
 | `Base branch` | 切 task branch / PR base 用的 base — 有 `Depends on` 時必須 `task/...`（DP-028 cross-field）；無依賴時通常 `feat/...` | **Hard** |
-| `Branch chain` | 從本 work owner 可維護的最上游 anchor 到本 task branch 的完整 rebase 鏈（例：`develop -> feat/PROJ-123-... -> task/TASK-123-... -> task/TASK-123-...`）。若 base 是外部 dependency branch（例如別人開的 `task/<KEY>-...` / 外部 PR head），chain 必須從該外部 branch 開始，例：`task/<EXTERNAL_KEY>-... -> feat/PROJ-123-... -> task/TASK-123-...`，不可寫成 `develop -> task/<EXTERNAL_KEY>-... -> ...`；engineering 用 `scripts/cascade-rebase-chain.sh` 消費；PR base 仍由 `Base branch` + `resolve-task-base.sh` 決定 | **Soft**（新 breakdown 必填；legacy task 缺漏時 reader fallback） |
+| `Branch chain` | 從本 work owner 可維護的最上游 anchor 到本 task branch 的完整 rebase 鏈（例：`develop -> feat/GT-478-... -> task/KB2CW-3711-... -> task/KB2CW-3900-...`）。若 base 是外部 dependency branch（例如別人開的 `task/<KEY>-...` / 外部 PR head），chain 必須從該外部 branch 開始，例：`task/<EXTERNAL_KEY>-... -> feat/GT-495-... -> task/KB2CW-3662-...`，不可寫成 `develop -> task/<EXTERNAL_KEY>-... -> ...`；engineering 用 `scripts/cascade-rebase-chain.sh` 消費；PR base 仍由 `Base branch` + `resolve-task-base.sh` 決定 | **Soft**（新 breakdown 必填；legacy task 缺漏時 reader fallback） |
 | `Task branch` | 該 task 自己的 branch（`task/{TASK_KEY}-{slug}`） | **Hard** |
-| `Depends on` | 同 Epic 內依賴的 task 描述（如 `TASK-123 (T3a — dayjs infra)`）；無依賴 = `N/A` / `-` / 空 | **Soft**（cell 可缺；存在時參與 cross-field rule） |
+| `Depends on` | 同 Epic 內依賴的 task 描述（如 `KB2CW-3711 (T3a — dayjs infra)`）；無依賴 = `N/A` / `-` / 空 | **Soft**（cell 可缺；存在時參與 cross-field rule） |
 | `References to load` | engineering sub-agent 須讀的 reference 列表（HTML `<br>` 換行） | **Hard** |
 
-範例（節錄自 PROJ-123 T3b）：
+範例（節錄自 GT-478 T3b）：
 
 ```markdown
 ## Operational Context
 
 | 欄位 | 值 |
 |------|-----|
-| Task JIRA key | TASK-123 |
-| Parent Epic | PROJ-123 |
-| Test sub-tasks | TASK-123 |
-| AC 驗收單 | TASK-123 |
-| Base branch | task/TASK-123-dayjs-infra-util |
-| Branch chain | develop -> feat/PROJ-123-moment-to-dayjs -> task/TASK-123-dayjs-infra-util -> task/TASK-123-moment-to-dayjs-products |
-| Task branch | task/TASK-123-moment-to-dayjs-products |
-| Depends on | TASK-123 (T3a — dayjs infra) |
+| Task JIRA key | KB2CW-3900 |
+| Parent Epic | GT-478 |
+| Test sub-tasks | KB2CW-3826 |
+| AC 驗收單 | KB2CW-3713 |
+| Base branch | task/KB2CW-3711-dayjs-infra-util |
+| Branch chain | develop -> feat/GT-478-moment-to-dayjs -> task/KB2CW-3711-dayjs-infra-util -> task/KB2CW-3900-moment-to-dayjs-products |
+| Task branch | task/KB2CW-3900-moment-to-dayjs-products |
+| Depends on | KB2CW-3711 (T3a — dayjs infra) |
 | References to load | - `skills/references/branch-creation.md`<br>- ... |
 ```
 
@@ -336,7 +336,7 @@ Bullet list 格式：
 - **Dev env config**: `workspace-config.yaml → projects[{repo}].dev_environment`
 - **Fixtures**: `specs/{EPIC}/tests/mockoon/`（Mockoon CLI port 3100）
 - **Runtime verify target**: http://localhost:3100
-- **Env bootstrap command**: bash /Users/hsuanyu.lee/work/scripts/polaris-env.sh start your-company --project {repo}
+- **Env bootstrap command**: bash /Users/hsuanyu.lee/work/scripts/polaris-env.sh start kkday --project {repo}
 ```
 
 | 欄位 | Required | Level=static | Level=build | Level=runtime |
@@ -424,7 +424,7 @@ curl -sf http://localhost:3100/api/activities -o /dev/null -w "%{http_code}" | p
 ---
 status: IMPLEMENTED
 deliverable:
-  pr_url: https://github.com/your-org/your-app/pull/2202
+  pr_url: https://github.com/kkday-it/kkday-b2c-web/pull/2202
   pr_state: OPEN
   head_sha: c7b4bf3a
 jira_transition_log:
@@ -436,13 +436,13 @@ jira_transition_log:
 
 # T1: Mockoon fixtures 建立/擴充 (2 pt)
 
-> Epic: PROJ-123 | JIRA: TASK-123 | Repo: your-app
+> Epic: GT-478 | JIRA: KB2CW-3821 | Repo: kkday-b2c-web
 
 ## Operational Context
 | 欄位 | 值 | ... |
 
 ## Verification Handoff
-AC 驗證委派至 TASK-123（由 verify-AC skill 執行）。
+AC 驗證委派至 KB2CW-3713（由 verify-AC skill 執行）。
 
 ## 目標
 {What this task accomplishes}
@@ -451,13 +451,13 @@ AC 驗證委派至 TASK-123（由 verify-AC skill 執行）。
 | 檔案 | 動作 | 說明 |
 
 ## Allowed Files
-- `your-company/mockoon/fixtures/gt478/`
+- `kkday/mockoon/fixtures/gt478/`
 
 ## 估點理由
 2 pt — ...
 
 ## 測試計畫（code-level）
-- build check: ... → TASK-123
+- build check: ... → KB2CW-3823
 
 ## Test Command
 ​```bash
@@ -466,9 +466,9 @@ AC 驗證委派至 TASK-123（由 verify-AC skill 執行）。
 
 ## Test Environment
 - **Level**: runtime
-- **Fixtures**: `specs/PROJ-123/tests/mockoon/`
+- **Fixtures**: `specs/GT-478/tests/mockoon/`
 - **Runtime verify target**: http://localhost:3100
-- **Env bootstrap command**: bash /path/to/polaris-env.sh start your-company --project your-app
+- **Env bootstrap command**: bash /path/to/polaris-env.sh start kkday --project kkday-b2c-web
 
 ## Verify Command
 ​```bash
@@ -476,7 +476,7 @@ curl -sf http://localhost:3100/api/activities ...
 ​```
 ```
 
-具體 instance 見 `specs/companies/your-company/PROJ-123/tasks/T1.md`、`T9.md`（或完結後的 `specs/companies/your-company/PROJ-123/tasks/pr-release/T1.md`）。
+具體 instance 見 `specs/companies/kkday/GT-478/tasks/T1.md`、`T9.md`（或完結後的 `specs/companies/kkday/GT-478/tasks/pr-release/T1.md`）。
 
 ---
 
@@ -486,7 +486,7 @@ curl -sf http://localhost:3100/api/activities ...
 
 **Filename pattern**：`V{n}[suffix].md`（`V1.md` / `V2a.md` / `V8b.md`）— sequential 從 `V1` 起、sub-split 用 `V1a` / `V1b`（與 T{n} 同規則 — DP-033 D2 + BS#10）。**Filename 為唯一 type 訊號**，frontmatter **不**引入 `type` 欄位（DP-033 D2 修正版，2026-04-26）。
 
-> **既有 `{JIRA-KEY}.md` 命名的驗收 task.md migration（filename 從 TASK-XXXX.md 改為 V{n}.md）+ verify-AC consumer 重構（讀 V*.md / 寫回 `ac_verification`）→ 移交 DP-039 `/verify-AC refactor`**（DP-033 D3 + BS#7 + BS#8）。本 § 4 只定義 target schema 與 contract，producer / consumer 切換由 DP-039 atomic 切到位。
+> **既有 `{JIRA-KEY}.md` 命名的驗收 task.md migration（filename 從 KB2CW-XXXX.md 改為 V{n}.md）+ verify-AC consumer 重構（讀 V*.md / 寫回 `ac_verification`）→ 移交 DP-039 `/verify-AC refactor`**（DP-033 D3 + BS#7 + BS#8）。本 § 4 只定義 target schema 與 contract，producer / consumer 切換由 DP-039 atomic 切到位。
 
 ### 4.1 Required sections inventory
 
@@ -518,11 +518,11 @@ curl -sf http://localhost:3100/api/activities ...
 
 | Cell | 內容 | Required | T 版差異 |
 |------|------|----------|----------|
-| `Task JIRA key` | 該 V 的 JIRA key（AC 驗收單，如 `TASK-123`） | **Hard** | 同 T |
+| `Task JIRA key` | 該 V 的 JIRA key（AC 驗收單，如 `KB2CW-3713`） | **Hard** | 同 T |
 | `Parent Epic` | Epic key | **Hard** | 同 T |
 | `Implementation tasks` | 該 V 驗證的實作 task 列表（如 `T1, T3a, T3b`） | **Hard** | **V 新增**；對稱 T 的 `Test sub-tasks`（T 列驗測 sub-task；V 列被驗 implementation tasks）|
 | `Base branch` | 驗收跑的 branch（通常 `feat/...` 或 `develop`） | **Hard** | 同 T；V 用法是「在哪條 branch 跑驗收」，**通常不會是 `task/...`**（task branch 是個別 implementation 範疇） |
-| `Depends on` | 同 Epic 內 V→T 或 V→V 依賴（如 `TASK-123 (T3d — adapter cleanup)`），無依賴 = `N/A` / `-` / 空 | **Soft**（cell 可缺；存在時參與 cross-field rule） | 同 T；**V→T 合法、V→V 線性合法**（§ 5.3）|
+| `Depends on` | 同 Epic 內 V→T 或 V→V 依賴（如 `KB2CW-3902 (T3d — adapter cleanup)`），無依賴 = `N/A` / `-` / 空 | **Soft**（cell 可缺；存在時參與 cross-field rule） | 同 T；**V→T 合法、V→V 線性合法**（§ 5.3）|
 | `References to load` | verify-AC sub-agent 須讀的 reference 列表（HTML `<br>` 換行） | **Hard** | 同 T；典型如 `verify-AC` skill 內 reference、Epic-specific test plan |
 
 V 不適用的 T cells（**移除**，validator V mode 不檢）：
@@ -531,19 +531,19 @@ V 不適用的 T cells（**移除**，validator V mode 不檢）：
 - `AC 驗收單` — T 用來指向 V；V 自己就是 AC 驗收單，不指向自己
 - `Task branch` — V 不開 branch（驗收不開 fix branch；AC FAIL 走 bug-triage 開新 T）
 
-範例（節錄自 PROJ-123 的 V1，未來 DP-039 migration 落地後）：
+範例（節錄自 GT-478 的 V1，未來 DP-039 migration 落地後）：
 
 ```markdown
 ## Operational Context
 
 | 欄位 | 值 |
 |------|-----|
-| Task JIRA key | TASK-123 |
-| Parent Epic | PROJ-123 |
+| Task JIRA key | KB2CW-3713 |
+| Parent Epic | GT-478 |
 | Implementation tasks | T1, T3a, T3b, T3c, T3d |
-| Base branch | feat/PROJ-123-moment-to-dayjs |
-| Depends on | TASK-123 (T3d — adapter cleanup) |
-| References to load | - `skills/references/verify-AC.md`<br>- `specs/PROJ-123/refinement.json` |
+| Base branch | feat/GT-478-moment-to-dayjs |
+| Depends on | KB2CW-3902 (T3d — adapter cleanup) |
+| References to load | - `skills/references/verify-AC.md`<br>- `specs/GT-478/refinement.json` |
 ```
 
 ### 4.3 `## 驗收項目`（對應 T 的 `## 改動範圍`）
@@ -605,7 +605,7 @@ echo "AC steps defined below — verify-AC executes this V*.md."
 ### AC-1: dayjs API 計算結果與 moment 一致
 
 **Step**:
-1. 啟動 dev environment：`bash polaris-env.sh start your-company --project your-app`
+1. 啟動 dev environment：`bash polaris-env.sh start kkday --project kkday-b2c-web`
 2. `curl -sf http://localhost:3100/api/products?dateFrom=2026-01-01&dateTo=2026-01-31`
 
 **Expected**:
@@ -744,17 +744,17 @@ jira_transition_log:
 
 # V1: dayjs 遷移驗收 (3 pt)
 
-> Epic: PROJ-123 | JIRA: TASK-123 | Repo: your-app
+> Epic: GT-478 | JIRA: KB2CW-3713 | Repo: kkday-b2c-web
 
 ## Operational Context
 
 | 欄位 | 值 |
 |------|-----|
-| Task JIRA key | TASK-123 |
-| Parent Epic | PROJ-123 |
+| Task JIRA key | KB2CW-3713 |
+| Parent Epic | GT-478 |
 | Implementation tasks | T1, T3a, T3b, T3c, T3d |
-| Base branch | feat/PROJ-123-moment-to-dayjs |
-| Depends on | TASK-123 (T3d — adapter cleanup) |
+| Base branch | feat/GT-478-moment-to-dayjs |
+| Depends on | KB2CW-3902 (T3d — adapter cleanup) |
 | References to load | - `skills/references/verify-AC.md` |
 
 ## Verification Handoff
@@ -763,7 +763,7 @@ jira_transition_log:
 
 ## 目標
 
-驗證 PROJ-123 dayjs 遷移完整無 regression（API 計算 + UI SSR + i18n + cleanup）。
+驗證 GT-478 dayjs 遷移完整無 regression（API 計算 + UI SSR + i18n + cleanup）。
 
 ## 驗收項目
 
@@ -786,9 +786,9 @@ jira_transition_log:
 ## Test Environment
 
 - **Level**: runtime
-- **Fixtures**: `specs/PROJ-123/tests/mockoon/`
+- **Fixtures**: `specs/GT-478/tests/mockoon/`
 - **Runtime verify target**: http://localhost:3100
-- **Env bootstrap command**: bash /Users/hsuanyu.lee/work/scripts/polaris-env.sh start your-company --project your-app
+- **Env bootstrap command**: bash /Users/hsuanyu.lee/work/scripts/polaris-env.sh start kkday --project kkday-b2c-web
 
 ## 驗收步驟
 
@@ -850,7 +850,7 @@ echo "verify-AC dispatches AC-1 .. AC-4."
 
 - schema 規則最簡單（validator 邏輯乾淨）
 - 兩個交付 = 兩個 Epic 是 PM 視角的自然分法（JIRA 上看兩個 Epic 比帶 phase label 的單一 Epic 直覺）
-- 過去 PROJ-123 / PROJ-123 / PROJ-123 都是「實作完一次驗收」模式，無真實分段需求
+- 過去 GT-478 / GT-521 / GT-542 都是「實作完一次驗收」模式，無真實分段需求
 
 **未來擴張空間**：若分段驗收需求強烈，再開新 DP 升級到 Path B（允許 T→V 加警示）或 Path C（雙欄位 `depends_on` + `requires_ac`）。Phase B 不預先支援。
 

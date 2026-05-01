@@ -64,12 +64,12 @@ Explore the repo and classify it into one of the following types. A repo may hav
 
 | Type | Signals | Examples |
 |------|---------|---------|
-| `frontend-ssr` | Nuxt/Next config, `pages/` dir, SSR middleware, `server/` routes | your-app, admin-web |
+| `frontend-ssr` | Nuxt/Next config, `pages/` dir, SSR middleware, `server/` routes | b2c-web, admin-web |
 | `frontend-csr` | Vite/CRA config, SPA router, no server dir | dashboard-app |
-| `backend-api` | Express/Fastify/NestJS, `routes/` or `controllers/`, API endpoints | your-backend, api-gateway |
+| `backend-api` | Express/Fastify/NestJS, `routes/` or `controllers/`, API endpoints | member-ci, api-gateway |
 | `backend-worker` | Queue consumers, cron jobs, no HTTP endpoints | notification-worker |
 | `bff` | Backend-for-frontend, aggregates multiple APIs, serves one frontend | mobile-bff |
-| `monorepo` | Turborepo/Nx/pnpm workspaces, `apps/` + `packages/` | your-company-web (Nuxt monorepo) |
+| `monorepo` | Turborepo/Nx/pnpm workspaces, `apps/` + `packages/` | kkday-web (Nuxt monorepo) |
 | `library` | `src/index.ts` exports, `package.json` main/exports, no app entrypoint | shared-utils, design-system |
 | `data-schema` | Prisma/TypeORM schemas, migration files, no app logic | db-schema |
 | `infra` | Terraform/Pulumi/Docker Compose, CI/CD configs, no app code | infra-config |
@@ -320,10 +320,10 @@ User 糾正當前工作中的認知錯誤（「這不對」「不是這樣」「
 
 | 知識類型 | 歸屬 | 範例 |
 |---------|------|------|
-| Repo 架構、routing、data flow | repo handbook | 「your-app 用 Nuxt 2 Options API」 |
+| Repo 架構、routing、data flow | repo handbook | 「b2c-web 用 Nuxt 2 Options API」 |
 | Code style、命名、test pattern | repo handbook 子文件 | 「我們 composable 不加 use prefix」 |
-| 跨 repo API 依賴、data flow | **company handbook** | 「商品頁資料來自 your-backend API」 |
-| 團隊分工、Sprint 慣例 | **company handbook** | 「GT 做 Epic、TASK 做子單」 |
+| 跨 repo API 依賴、data flow | **company handbook** | 「商品頁資料來自 member-ci API」 |
+| 團隊分工、Sprint 慣例 | **company handbook** | 「GT 做 Epic、KB2CW 做子單」 |
 | Slack channel routing、工具慣例 | **company handbook** | 「催 review 發 pr_review channel」 |
 | Git branching、changeset 規則 | **company handbook** | 「cascade rebase、一 PR 一 changeset」 |
 | Polaris skill routing、delegation 行為 | feedback memory | 「你應該先用 skill 不要自己做」 |

@@ -223,7 +223,7 @@ engineering 是純施工 skill，沒有 work order 就不施工。
 開發完成後，讀 `references/engineer-delivery-flow.md`，以 **Role: Developer** 執行；若命中 local delivery extension，改以 **Role: Local Extension** 執行：
 
 - Phase 3：Simplify → Self-Review
-- Phase 4（Developer）：Scope Gate → Step 2 `ci-local.sh` → Step 3 `run-verify-command.sh` → Step 3.5 VR → Base Freshness → Commit → PR（`polaris-pr-create.sh`、不可 draft）→ JIRA → Completion Gate（remote PR readiness/body）→ Worktree Cleanup
+- Phase 4（Developer）：Scope Gate → Step 2 `ci-local.sh` → Step 3 `run-verify-command.sh` → Step 3.5 VR → Base Freshness → Commit → PR → JIRA → Completion Gate → Worktree Cleanup
 - Phase 4（Local Extension）：Scope Gate → Step 2 `ci-local.sh` → Step 3 `run-verify-command.sh` → Step 3.5 VR → Base Freshness → PR（if required by local policy）→ Handoff Package → Local Extension → Extension Verification → Worktree Cleanup
 
 ### Workspace Language Policy Gate
@@ -234,7 +234,6 @@ Engineering 產出的 downstream-facing 文字都必須遵守 root `workspace-co
 在提交或發布前，先把下列內容落成暫存 markdown，再跑語言 gate：
 
 - PR body（`polaris-pr-create.sh` / PR body builder 送出前）
-- PR body edit（`gh pr edit --body-file` 前，先 materialize body file 並同時跑 template gate + language gate）
 - handoff package / escalation sidecar / local extension handoff text
 - completion summary / final delivery summary（回使用者或貼到 JIRA / Slack 前）
 
@@ -244,8 +243,6 @@ bash "${POLARIS_ROOT}/scripts/validate-language-policy.sh" \
   --mode artifact \
   "<artifact-text-file>"
 ```
-
-Developer lane 不得裸用 `gh pr create` 或 `gh pr create --draft` 作為交付終點。正常 create path 是 `scripts/polaris-pr-create.sh`；completion path 會用 `check-delivery-completion.sh` 讀 remote PR `state`、`isDraft`、`body` 與 head metadata。Draft PR、非 open PR、或 invalid remote PR body 一律不得進入 `IMPLEMENTED` lifecycle。
 
 若產物有既有局部語言規則（例如 PR template 指定英文、或 reviewer thread 要沿用原文），
 先以該規則決定 `--language` / `--mode`，再執行同一支 script。不得因為內容是 PR body
@@ -269,7 +266,7 @@ bash "${POLARIS_ROOT}/scripts/finalize-engineering-delivery.sh" \
 `close-parent-spec-if-complete.sh`。這是 parent lifecycle 補位：若同一個
 Epic / DP 底下還有 active 或未 IMPLEMENTED 的 sibling task，helper 只會
 NOOP；若已是最後一張完成 task，才會關閉 parent `refinement.md` / `plan.md`
-並同步 docs-viewer done 狀態。engineering 不得自行用人肉掃 folder 來改寫
+並更新 canonical specs status；docs-manager 會直接讀取該狀態。engineering 不得自行用人肉掃 folder 來改寫
 parent lifecycle；一律透過 helper。
 
 Local Extension lane 不得用不符合 local policy 的 completion gate 假裝完成。若 local policy 要求 workspace PR，先完成 Developer PR creation/writeback；若 local policy 不建 PR，則不要呼叫 Developer completion gate 假裝有 PR deliverable。在 handoff 前先跑 Layer A / Layer B gate。extension 後若 local policy 宣告 closeout helper（例如 `framework-release`），必須呼叫 helper；generic local extension 才可直接使用低階 writer / completion gate：

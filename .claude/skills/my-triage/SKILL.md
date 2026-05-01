@@ -22,7 +22,7 @@ metadata:
 
 ### 0a. Branch-ticket context（最優先）
 
-檢查當前 branch 是否含 ticket key（`[A-Z]+-\d+` pattern，如 `task/PROJ-123-desc`、`feat/TASK-123-xxx`）：
+檢查當前 branch 是否含 ticket key（`[A-Z]+-\d+` pattern，如 `task/PROJ-123-desc`、`feat/KB2CW-3847-xxx`）：
 
 - **有 ticket key** → 透過 `getJiraIssue` 查狀態：
   - status = `In Development` / `進行中` → 提示「在 `{TICKET}` 上（{status}），繼續做？」候選列為「🔄 上次未完成」群組第一筆。若使用者確認，依 PR state 自動路由：
@@ -66,7 +66,7 @@ git -C /Users/hsuanyu.lee/work branch --list 'wip/*'
 🔄 上次未完成（跨 session）
   0a. 在 task/PROJ-123 上（In Development）— 繼續做？
   0b. 繼續 DP-015 實作（memory: project_dp015_*.md）
-  0c. 繼續 TASK-123 revision（checkpoint: 2026-04-19）
+  0c. 繼續 KB2CW-3847 revision（checkpoint: 2026-04-19）
   0d. wip/vr-debug branch 有 4 個 modified files（見 Session Start 回報）
 ```
 

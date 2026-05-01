@@ -6,11 +6,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 ## [3.74.8] - 2026-05-01
 
-### Changed — PR readiness completion gate
+### Changed — docs-manager direct-source closeout
 
-- Completion gate now reads deliverable PR remote metadata/body before task closeout and blocks draft, non-open, stale-head, or invalid-template PRs.
-- PR body template gate now supports remote PR body sources while reusing the existing heading parser.
-- Engineering docs, PR body builder guidance, and mechanism registries now define `polaris-pr-create.sh` plus completion-time PR readiness as the cross-runtime delivery contract.
+- Removed the legacy specs sidebar generator and sync hook entrypoints from the
+  steady-state docs flow.
+- Documented docs-manager as the direct reader of canonical `{workspace_root}/specs/`
+  content for dev, preview, search, and archive routes.
+- Kept release validation centered on `verify-docs-manager-runtime.sh` and
+  `archive-spec-selftest.sh`.
 
 ## [3.74.7] - 2026-05-01
 

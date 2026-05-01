@@ -256,10 +256,8 @@ run_sweep() {
   done <"$report_file"
 
   if [[ "$moved" -gt 0 ]]; then
-    sync_hook="$WORKSPACE_ROOT/scripts/docs-viewer-sync-hook.sh"
-    if [[ -x "$sync_hook" ]]; then
-      "$sync_hook" "$WORKSPACE_ROOT" "$WORKSPACE_ROOT/specs" >/dev/null 2>&1 || true
-    fi
+    echo "Docs-manager reads canonical specs directly. For live review, run: scripts/polaris-viewer.sh --mode dev"
+    echo "For static/search verification, run: scripts/verify-docs-manager-runtime.sh --preview"
   fi
 }
 
@@ -351,7 +349,5 @@ mkdir -p "$archive_parent"
 mv "$container" "$destination"
 echo "ARCHIVED: $container -> $destination"
 
-sync_hook="$WORKSPACE_ROOT/scripts/docs-viewer-sync-hook.sh"
-if [[ -x "$sync_hook" ]]; then
-  "$sync_hook" "$WORKSPACE_ROOT" "$destination" >/dev/null 2>&1 || true
-fi
+echo "Docs-manager reads canonical specs directly. For live review, run: scripts/polaris-viewer.sh --mode dev"
+echo "For static/search verification, run: scripts/verify-docs-manager-runtime.sh --preview"

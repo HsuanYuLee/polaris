@@ -223,7 +223,7 @@ language。
 Epic 模式下，所有 AC 驗收單都 Done 時：
 
 1. Notify：「Epic {EPIC_KEY} 全部 AC 通過，可以 merge feature branch。」
-2. 執行 `scripts/mark-spec-implemented.sh {EPIC_KEY}`，將 `specs/companies/{company}/{EPIC_KEY}/refinement.md` frontmatter `status` 標為 `IMPLEMENTED`，讓 docs-viewer sidebar 顯示灰+✅。idempotent（已標過就 no-op）。
+2. 執行 `scripts/mark-spec-implemented.sh {EPIC_KEY}`，將 `specs/companies/{company}/{EPIC_KEY}/refinement.md` frontmatter `status` 標為 `IMPLEMENTED`；docs-manager 會直接讀取 canonical specs status。idempotent（已標過就 no-op）。
 
 ### 8. FAIL → Human Disposition Gate
 

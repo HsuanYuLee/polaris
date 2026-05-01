@@ -33,7 +33,7 @@ Determine which mode based on the user's input:
 | External URL, repo, article | **External mode** | `看看這個 github.com/...`, `研究這篇文章` |
 | Mentions "每日學習", "今天有什麼可以學的", "看看今天的推薦", "有新文章嗎", "讀文章", "daily learning", "queue", "消化", or bare "學習" without URL/PR context | **Queue mode** | `每日學習`, `今天有什麼可以學的`, `看看今天的推薦`, `有新文章嗎`, `讀文章` |
 | Mentions "設定學習", "learning setup", "更新學習主題", "update learning topics", "scanner 設定", "調整掃描", "learning scanner" | **Setup mode** | `設定學習`, `learning setup`, `更新學習主題` |
-| Mentions "掃 review", "batch learn", "批次學習", "掃歷史 PR", "scan PR history", "補齊 review lessons", "backfill lessons" | **Batch mode** | `掃 your-app 的 review`, `batch learn your-backend`, `補齊 review lessons` |
+| Mentions "掃 review", "batch learn", "批次學習", "掃歷史 PR", "scan PR history", "補齊 review lessons", "backfill lessons" | **Batch mode** | `掃 b2c-web 的 review`, `batch learn member-ci`, `補齊 review lessons` |
 | Ambiguous | Ask the user | `學習一下` without context |
 
 **PR mode** → jump to [PR Learning Flow](#pr-learning-flow)
@@ -69,7 +69,7 @@ Determine whether learnings should land in the **framework** or a **product proj
 | Signal | Target | Landing zone |
 |---|---|---|
 | User mentions "Polaris", "框架", "機制", or content is about AI agent patterns | `framework` | rules/, skills/, scripts/, polaris-backlog.md |
-| User mentions a specific project name ("用在 b2c", "your-backend 可以學") | `project:{name}` | project rules, code patterns, project CLAUDE.md |
+| User mentions a specific project name ("用在 b2c", "member-ci 可以學") | `project:{name}` | project rules, code patterns, project CLAUDE.md |
 | User is on a project branch | `project:{name}` (inferred) | same as above |
 | Content is about a specific tech stack (Nuxt, Vue, testing) without framework mention | `project` (ask which project) | same as above |
 | Ambiguous | Ask: "這個學習要用在 Polaris 框架，還是特定產品 repo？" | — |
@@ -179,7 +179,7 @@ Baseline Snapshot (framework target):
 ```
 
 ```
-Baseline Snapshot (project target: your-app):
+Baseline Snapshot (project target: b2c-web):
   Prior learnings (from polaris-learnings.sh):
     - [architecture] Nuxt useHead runs at setup time, not render time (confidence: 7)
     - [pitfall] useSchemaOrg requires nuxt-schema-org plugin registered (confidence: 9)
@@ -343,7 +343,7 @@ For each gap/opportunity:
 **What**: One-sentence description
 **Why**: Problem solved or improvement
 **How**: Concrete actions (files to create/modify, patterns to adopt)
-**Landing**: {target-specific: e.g., "skills/references/sub-agent-reference.md § Safety Hooks" or "your-app composables/useProduct.ts"}
+**Landing**: {target-specific: e.g., "skills/references/sub-agent-reference.md § Safety Hooks" or "b2c-web composables/useProduct.ts"}
 **Effort**: Low / Medium / High
 **Priority**: Worth doing now / Nice to have / Worth tracking
 **Validates**: {backlog item title, if applicable}
@@ -642,9 +642,9 @@ Show the user a summary of items with the Repos column:
 | 3 | ... | framework | all |
 ```
 
-The user may filter by repo: "只看 your-app 相關的" → only process articles where `Relevant Repos` contains `my-app` or `all`. If no filter specified, process all.
+The user may filter by repo: "只看 b2c-web 相關的" → only process articles where `Relevant Repos` contains `my-app` or `all`. If no filter specified, process all.
 
-Ask: "要全部處理，還是選幾篇？可以用 repo 篩選（如：只看 your-app 和 docker 相關的）"
+Ask: "要全部處理，還是選幾篇？可以用 repo 篩選（如：只看 b2c-web 和 docker 相關的）"
 
 ## Step Q2: Process Each Article
 
@@ -797,7 +797,7 @@ From the same `projects` block, extract repo names and their tech stacks:
 偵測到的 repos：
   my-app (Nuxt 3, SSR, TypeScript)
   my-api (Node, Express)
-  your-design-system (Vue 3)
+  web-design-system (Vue 3)
 
 要調整嗎？（直接 Enter 確認，或輸入修改版）
 ```
@@ -1008,7 +1008,7 @@ Determine which repos to scan:
 
 | Input | Resolution |
 |---|---|
-| Specific repo name (`掃 your-app 的 review`) | Target that repo |
+| Specific repo name (`掃 b2c-web 的 review`) | Target that repo |
 | No repo specified | Read workspace config (`workspace-config.yaml` → `projects` block), scan all configured repos |
 | Multiple repos (`掃所有 repo`) | Process each repo sequentially |
 
@@ -1018,7 +1018,7 @@ For each repo, resolve the `{org}/{repo}` from workspace config or git remote.
 
 Default: **3 months** (`merged:>YYYY-MM-DD` where date = today - 90 days).
 
-The user can override: `掃 your-app 最近半年` → 6 months. Cap at 12 months to avoid excessive API calls.
+The user can override: `掃 b2c-web 最近半年` → 6 months. Cap at 12 months to avoid excessive API calls.
 
 ## Step B2: Collect Already-Extracted Source PRs
 

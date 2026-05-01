@@ -44,13 +44,13 @@ Rules:
 - direct archived artifact paths are allowed for read-only audit
 - broad historical lookup requires an explicit mode such as `--include-archive`
 - the same DP or ticket container must not exist in both active and archive namespaces
-- docs-viewer mirrors the physical `specs/` tree, so archived content is browsed under the generated Starlight routes for `specs/design-plans/archive/...` or `specs/companies/{company}/archive/...`
+- docs-manager reads the physical `specs/` tree directly, so archived content is browsed under Starlight routes for `specs/design-plans/archive/...` or `specs/companies/{company}/archive/...`
 
 ## Source Types
 
 | Type | Input examples | Canonical container | Primary owner |
 |------|----------------|---------------------|---------------|
-| `jira` | `PROJ-123`, `TASK-123` | `{company_specs_dir}/{TICKET}/` plus JIRA issue | `refinement` / `breakdown` |
+| `jira` | `GT-478`, `KB2CW-3711` | `{company_specs_dir}/{TICKET}/` plus JIRA issue | `refinement` / `breakdown` |
 | `dp` | `DP-045`, `specs/design-plans/DP-045-*/plan.md` | `{workspace_root}/specs/design-plans/DP-NNN-{slug}/` | `refinement` |
 | `topic` | `討論 CI local blocker`, `refinement "想重構 skill routing"` | newly allocated DP folder | `refinement` |
 | `artifact_path` | direct `refinement.json`, `refinement.md`, `tasks/T1.md` path | nearest containing specs folder | stage-specific consumer |
@@ -141,10 +141,11 @@ Sweep uses the same namespace rules as source resolution:
 - non-terminal or missing status containers stay active and are reported as `skip`
 - destination conflicts fail before any apply move
 
-After sweep apply, sync docs-viewer content before reading or publishing:
+After sweep apply, docs-manager reads the moved canonical specs directly. For live review or static/search verification:
 
 ```bash
-scripts/generate-specs-sidebar.sh {workspace_root}
+scripts/polaris-viewer.sh --mode dev
+scripts/verify-docs-manager-runtime.sh --preview
 ```
 
 ## Section Ownership
