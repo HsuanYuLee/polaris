@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.11] - 2026-05-01
+
+### Fixed — docs-manager template sync flow
+
+- `sync-to-polaris.sh` now includes the framework `docs-manager/` app when
+  publishing the template, while excluding generated runtime output and mirror
+  content.
+- `sync-from-polaris.sh` now restores `docs-manager/` into instances and
+  removes the retired `docs-viewer/` app during framework sync.
+
 ## [3.74.10] - 2026-05-01
 
 ### Fixed — task branch contract

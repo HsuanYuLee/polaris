@@ -20,6 +20,7 @@
 #   - .github/copilot-instructions.md + .github/.generated/
 #   - scripts/**/*.sh (recursive, includes scripts/env/ subfolder)
 #   - _template/
+#   - docs-manager/ (framework docs browser app, excluding generated outputs)
 #   - CHANGELOG.md, VERSION, README.md, README.zh-TW.md, CLAUDE.md
 #
 # What it does NOT sync:
@@ -248,6 +249,32 @@ copy_dir() {
   echo "  + $label/"
 }
 
+copy_dir_filtered() {
+  local src="$1" dst="$2" label="$3"
+  shift 3
+  local exclude_args=("$@")
+  local find_args=()
+
+  if [[ ! -d "$src" ]]; then return; fi
+
+  for pattern in "${exclude_args[@]}"; do
+    find_args+=(-not -path "$pattern")
+  done
+
+  if [[ "$DRY_RUN" == false ]]; then
+    rm -rf "$dst"
+    mkdir -p "$dst"
+    while IFS= read -r -d '' file; do
+      local rel_path target_path
+      rel_path="${file#"$src"/}"
+      target_path="$dst/$rel_path"
+      mkdir -p "$(dirname "$target_path")"
+      cp -p "$file" "$target_path"
+    done < <(find "$src" -type f "${find_args[@]}" -print0)
+  fi
+  echo "  + $label/"
+}
+
 create_symlink() {
   local target="$1" link_path="$2" label="$3"
   if [[ "$DRY_RUN" == false ]]; then
@@ -369,6 +396,18 @@ if [[ -d "$INSTANCE_DIR/docs" ]]; then
     doc_name="$(basename "$doc")"
     copy_file "$doc" "$POLARIS_DIR/docs/$doc_name" "$doc_name"
   done
+fi
+
+# ── Step 7b: Sync docs-manager app ─────────────────────────────────
+
+if [[ -d "$INSTANCE_DIR/docs-manager" ]]; then
+  echo "Docs-manager..."
+  copy_dir_filtered "$INSTANCE_DIR/docs-manager" "$POLARIS_DIR/docs-manager" "docs-manager" \
+    "$INSTANCE_DIR/docs-manager/.astro/*" \
+    "$INSTANCE_DIR/docs-manager/dist/*" \
+    "$INSTANCE_DIR/docs-manager/node_modules/*" \
+    "$INSTANCE_DIR/docs-manager/_sidebar.md" \
+    "$INSTANCE_DIR/docs-manager/src/content/docs/specs/*"
 fi
 
 # ── Step 8: Sync top-level files ──────────────────────────────────
@@ -493,6 +532,15 @@ if [[ "$PRUNE" == true ]]; then
         prune_count=$((prune_count + 1))
       fi
     done
+  fi
+
+  # 8c-7: Docs-manager — remove retired template app when the source no longer has it.
+  if [[ -d "$POLARIS_DIR/docs-manager" && ! -d "$INSTANCE_DIR/docs-manager" ]]; then
+    if [[ "$DRY_RUN" == false ]]; then
+      rm -rf "$POLARIS_DIR/docs-manager"
+    fi
+    echo "  ✂ docs-manager/"
+    prune_count=$((prune_count + 1))
   fi
 
   if [[ "$prune_count" -eq 0 ]]; then

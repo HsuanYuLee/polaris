@@ -171,10 +171,47 @@ non_push_sync_is_not_blocked() {
   grep -q 'file(s) changed in template' <<<"$output" || fail "non-push sync did not reach template mutation path"
 }
 
+docs_manager_sync_filters_generated_outputs() {
+  local fixture source_dir polaris_dir output status
+  fixture="$(new_fixture docs-manager-sync)"
+  source_dir="$(printf '%s\n' "$fixture" | sed -n '1p')"
+  polaris_dir="$(printf '%s\n' "$fixture" | sed -n '2p')"
+
+  mkdir -p "$source_dir/docs-manager/src/content/docs/specs/design-plans/DP-001"
+  mkdir -p "$source_dir/docs-manager/.astro" "$source_dir/docs-manager/dist" "$source_dir/docs-manager/node_modules/pkg"
+  cat > "$source_dir/docs-manager/package.json" <<'PKG'
+{"name":"docs-manager"}
+PKG
+  echo 'source config' > "$source_dir/docs-manager/astro.config.mjs"
+  echo 'generated sidebar' > "$source_dir/docs-manager/_sidebar.md"
+  echo 'generated astro' > "$source_dir/docs-manager/.astro/settings.json"
+  echo 'generated dist' > "$source_dir/docs-manager/dist/index.html"
+  echo 'generated dependency' > "$source_dir/docs-manager/node_modules/pkg/index.js"
+  echo 'generated mirror' > "$source_dir/docs-manager/src/content/docs/specs/design-plans/DP-001/plan.md"
+
+  git -C "$source_dir" add docs-manager/package.json docs-manager/astro.config.mjs
+  git -C "$source_dir" commit -q -m "add docs-manager source"
+
+  set +e
+  output="$("$source_dir/scripts/sync-to-polaris.sh" --polaris "$polaris_dir" 2>&1)"
+  status=$?
+  set -e
+
+  [[ "$status" -eq 0 ]] || fail "docs-manager sync failed: $output"
+  [[ -f "$polaris_dir/docs-manager/package.json" ]] || fail "docs-manager package was not synced"
+  [[ -f "$polaris_dir/docs-manager/astro.config.mjs" ]] || fail "docs-manager config was not synced"
+  [[ ! -e "$polaris_dir/docs-manager/_sidebar.md" ]] || fail "generated sidebar was synced"
+  [[ ! -e "$polaris_dir/docs-manager/.astro/settings.json" ]] || fail ".astro output was synced"
+  [[ ! -e "$polaris_dir/docs-manager/dist/index.html" ]] || fail "dist output was synced"
+  [[ ! -e "$polaris_dir/docs-manager/node_modules/pkg/index.js" ]] || fail "node_modules output was synced"
+  [[ ! -e "$polaris_dir/docs-manager/src/content/docs/specs/design-plans/DP-001/plan.md" ]] || fail "mirror specs content was synced"
+}
+
 dirty_push_fails_before_template_copy
 clean_push_reaches_existing_sync_path
 untracked_only_source_is_allowed
 dry_run_does_not_require_clean_source
 non_push_sync_is_not_blocked
+docs_manager_sync_filters_generated_outputs
 
 echo "PASS: sync-to-polaris clean-source selftest"

@@ -19,6 +19,7 @@
 #   - scripts/sync-from-upstream.sh, scripts/sync-from-polaris.sh
 #   - scripts/transpile-rules-to-codex.sh, scripts/verify-cross-llm-parity.sh
 #   - _template/ (updated templates)
+#   - docs-manager/ (framework docs browser app)
 #
 # What it does NOT touch:
 #   - CLAUDE.md (instance has its own version)
@@ -194,7 +195,20 @@ for tmpl_file in "$POLARIS_DIR"/_template/*; do
   copy_file "$tmpl_file" "$INSTANCE_DIR/_template/$tmpl_name" "$tmpl_name"
 done
 
-# ── Step 8: Post-upgrade cross-LLM parity checks ────────────────────
+# ── Step 8: Sync docs-manager app ───────────────────────────────────
+
+if [[ -d "$POLARIS_DIR/docs-manager" ]]; then
+  echo "Syncing docs-manager/..."
+  copy_dir "$POLARIS_DIR/docs-manager" "$INSTANCE_DIR/docs-manager" "docs-manager/"
+  if [[ -d "$INSTANCE_DIR/docs-viewer" ]]; then
+    if [[ "$DRY_RUN" == false ]]; then
+      rm -rf "$INSTANCE_DIR/docs-viewer"
+    fi
+    echo "  - docs-viewer/ (retired)"
+  fi
+fi
+
+# ── Step 9: Post-upgrade cross-LLM parity checks ────────────────────
 
 echo "Running post-upgrade Codex compatibility checks..."
 if [[ "$DRY_RUN" == true ]]; then
