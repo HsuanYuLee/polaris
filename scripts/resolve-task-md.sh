@@ -13,6 +13,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BY_BRANCH_SCRIPT="${SCRIPT_DIR}/resolve-task-md-by-branch.sh"
 PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
+# shellcheck source=lib/specs-root.sh
+. "$SCRIPT_DIR/lib/specs-root.sh"
 
 usage() {
   cat >&2 <<'USAGE'
@@ -170,6 +172,7 @@ resolve_by_dp_task() {
   local include_archive="${3:-0}"
   local dp_id=""
   local task_id=""
+  local specs_root=""
   local -a matches=()
   local line=""
 
@@ -178,26 +181,27 @@ resolve_by_dp_task() {
   fi
   dp_id="${BASH_REMATCH[1]}"
   task_id="${BASH_REMATCH[2]}"
+  specs_root="$(resolve_specs_root "$root")" || return 1
 
   if [[ "$include_archive" == "1" ]]; then
     while IFS= read -r -d '' line; do
       matches+=("$line")
     done < <(
-      find "$root/specs/design-plans" \
-        \( -path "$root/specs/design-plans/${dp_id}-*/tasks/${task_id}.md" -print0 \) \
-        -o \( -path "$root/specs/design-plans/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \) \
-        -o \( -path "$root/specs/design-plans/archive/${dp_id}-*/tasks/${task_id}.md" -print0 \) \
-        -o \( -path "$root/specs/design-plans/archive/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \) \
+      find "$specs_root/design-plans" \
+        \( -path "$specs_root/design-plans/${dp_id}-*/tasks/${task_id}.md" -print0 \) \
+        -o \( -path "$specs_root/design-plans/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \) \
+        -o \( -path "$specs_root/design-plans/archive/${dp_id}-*/tasks/${task_id}.md" -print0 \) \
+        -o \( -path "$specs_root/design-plans/archive/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \) \
         2>/dev/null
     )
   else
     while IFS= read -r -d '' line; do
       matches+=("$line")
     done < <(
-      find "$root/specs/design-plans" \
+      find "$specs_root/design-plans" \
         \( -type d -name archive -prune \) \
-        -o \( -path "$root/specs/design-plans/${dp_id}-*/tasks/${task_id}.md" -print0 \) \
-        -o \( -path "$root/specs/design-plans/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \) \
+        -o \( -path "$specs_root/design-plans/${dp_id}-*/tasks/${task_id}.md" -print0 \) \
+        -o \( -path "$specs_root/design-plans/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \) \
         2>/dev/null
     )
   fi
@@ -215,9 +219,11 @@ resolve_by_jira() {
   local root="$1"
   local jira_key="$2"
   local include_archive="${3:-0}"
+  local specs_root=""
   local -a task_matches=()
   local line=""
   local parsed_jira=""
+  specs_root="$(resolve_specs_root "$root")" || return 1
 
   while IFS= read -r -d '' line; do
     parsed_jira=""
@@ -231,15 +237,15 @@ resolve_by_jira() {
     fi
   done < <(
     if [[ "$include_archive" == "1" ]]; then
-      find "$root" \
+      find "$specs_root" \
         \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
         -o \
-        \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/pr-release/*.md' \) -print0 \)
+        \( -type f -name 'T*.md' \( -path '*/tasks/*.md' -o -path '*/tasks/pr-release/*.md' \) -print0 \)
     else
-      find "$root" \
+      find "$specs_root" \
         \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
         -o \
-        \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/pr-release/*.md' \) -print0 \)
+        \( -type f -name 'T*.md' \( -path '*/tasks/*.md' -o -path '*/tasks/pr-release/*.md' \) -print0 \)
     fi
   )
 
@@ -353,22 +359,22 @@ run_selftest() {
 
   tmpdir="$(mktemp -d -t resolve-task-md-selftest.XXXXXX)"
   trap "rm -rf '$tmpdir'" EXIT
-  mkdir -p "$tmpdir/specs/GT-478/tasks/pr-release" "$tmpdir/specs/GT-478/tasks" "$tmpdir/specs/GT-999" \
-           "$tmpdir/specs/companies/kkday/archive/GT-999/tasks"
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks/pr-release" "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks" "$tmpdir/docs-manager/src/content/docs/specs/GT-999" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/GT-999/tasks"
 
-  cat > "$tmpdir/specs/GT-478/tasks/T3b.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks/T3b.md" <<'MD'
 # T3b: Example (1 pt)
 > Epic: GT-478 | JIRA: GT-480 | Repo: kkday
 ## Operational Context
 | Task branch | task/GT-480-example |
 MD
 
-  cat > "$tmpdir/specs/GT-478/tasks/pr-release/T3a.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks/pr-release/T3a.md" <<'MD'
 # T3a: Example (1 pt)
 > Epic: GT-478 | JIRA: GT-479 | Repo: kkday
 MD
 
-  cat > "$tmpdir/specs/GT-478/tasks/T4.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks/T4.md" <<'MD'
 # T4: Canonical product task (1 pt)
 > Source: GT-478 | Task: GT-481 | JIRA: GT-481 | Repo: kkday
 ## Operational Context
@@ -378,7 +384,7 @@ MD
 | JIRA key | GT-481 |
 MD
 
-  cat > "$tmpdir/specs/companies/kkday/archive/GT-999/tasks/T1.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/GT-999/tasks/T1.md" <<'MD'
 # T1: Archived task (1 pt)
 > Source: GT-999 | Task: GT-999 | JIRA: GT-999 | Repo: kkday
 ## Operational Context
@@ -388,8 +394,8 @@ MD
 | JIRA key | GT-999 |
 MD
 
-  mkdir -p "$tmpdir/specs/design-plans/DP-047-framework-work-order-bridge/tasks"
-  cat > "$tmpdir/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" <<'MD'
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-047-framework-work-order-bridge/tasks"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" <<'MD'
 # T1: DP task (1 pt)
 > Epic: DP-047 | JIRA: DP-047-T1 | Repo: workspace
 ## Operational Context
@@ -397,8 +403,8 @@ MD
 | Task branch | task/DP-047-T1-framework-bridge |
 MD
 
-  mkdir -p "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release"
-  cat > "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" <<'MD'
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" <<'MD'
 # T1: Canonical DP task (1 pt)
 > Source: DP-050 | Task: DP-050-T1 | JIRA: N/A | Repo: workspace
 ## Operational Context

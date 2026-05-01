@@ -5,7 +5,7 @@
 ## Folder Schema
 
 ```
-specs/companies/{company}/{EPIC_KEY}/
+docs-manager/src/content/docs/specs/companies/{company}/{EPIC_KEY}/
 ├── refinement.md              # 多輪迭代紀錄（人讀）
 ├── refinement.json            # 定版 artifact（機器讀，schema: refinement-artifact.md）
 ├── breakdown.md               # breakdown summary（optional）
@@ -37,10 +37,10 @@ specs/companies/{company}/{EPIC_KEY}/
 完成或放棄後可 archive，路徑固定為：
 
 ```
-specs/companies/{company}/archive/{EPIC_KEY}/
+docs-manager/src/content/docs/specs/companies/{company}/archive/{EPIC_KEY}/
 ```
 
-Archive 是整個 container 的 move，不是 copy；active namespace 與 archive namespace 不可同時保留同一張單。只有 parent container 已標 `IMPLEMENTED` 或 `ABANDONED` 時，才可執行 `scripts/archive-spec.sh {EPIC_KEY}`。Archive 後 docs-manager 會直接讀取 `specs/companies/{company}/archive/{EPIC_KEY}/` canonical folder tree；resolver / engineering 預設不再把它當 active work。
+Archive 是整個 container 的 move，不是 copy；active namespace 與 archive namespace 不可同時保留同一張單。只有 parent container 已標 `IMPLEMENTED` 或 `ABANDONED` 時，才可執行 `scripts/archive-spec.sh {EPIC_KEY}`。Archive 後 docs-manager 會直接讀取 `docs-manager/src/content/docs/specs/companies/{company}/archive/{EPIC_KEY}/` canonical folder tree；resolver / engineering 預設不再把它當 active work。
 
 ## Path Resolution
 
@@ -50,7 +50,7 @@ Archive 是整個 container 的 move，不是 copy；active namespace 與 archiv
 {company_specs_dir}/{EPIC_KEY}/{artifact_subpath}
 ```
 
-- `{company_specs_dir}`：`{workspace_root}/specs/companies/{company}`
+- `{company_specs_dir}`：`{workspace_root}/docs-manager/src/content/docs/specs/companies/{company}`
 - `{EPIC_KEY}`：從 JIRA ticket、git branch（`feat/{EPIC}-*`）、或 command-line `--epic` 推導
 - `{artifact_subpath}`：本 reference 定義
 

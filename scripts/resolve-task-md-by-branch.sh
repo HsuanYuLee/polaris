@@ -31,8 +31,8 @@
 #     extract `Task branch` value from the Operational Context table
 #     (format: `| Task branch | <value> |`) and compare string-equal to
 #     the input branch.
-#   This includes product specs roots (`specs/companies/{company}/{EPIC}/tasks/`) and
-#   framework DP specs roots (`specs/design-plans/DP-NNN-*/tasks/`).
+#   This includes product specs roots (`docs-manager/src/content/docs/specs/companies/{company}/{EPIC}/tasks/`) and
+#   framework DP specs roots (`docs-manager/src/content/docs/specs/design-plans/DP-NNN-*/tasks/`).
 #
 # Notes
 #   * Excludes .worktrees/, node_modules/, .git/ to avoid duplicate hits
@@ -47,6 +47,10 @@
 #     so it works in sandboxed / fork-limited environments).
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/specs-root.sh
+. "$SCRIPT_DIR/lib/specs-root.sh"
 
 usage() {
   cat >&2 <<'USAGE'
@@ -67,9 +71,11 @@ USAGE
 resolve_task_md_scan() {
   local root="$1"
   local branch="$2"
+  local specs_root=""
   local scanned=0
   local -a matches=()
   local f val
+  specs_root="$(resolve_specs_root "$root")" || return 1
 
   while IFS= read -r -d '' f; do
     scanned=$((scanned + 1))
@@ -88,13 +94,13 @@ resolve_task_md_scan() {
     if [[ -n "$val" && "$val" == "$branch" ]]; then
       matches+=("$f")
     fi
-  done < <(find "$root" \
+  done < <(find "$specs_root" \
     \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
     -o \
-    \( -type f -name 'T*.md' \( -path '*/specs/*/tasks/*.md' -o -path '*/specs/*/tasks/pr-release/*.md' \) -print0 \))
+    \( -type f -name 'T*.md' \( -path '*/tasks/*.md' -o -path '*/tasks/pr-release/*.md' \) -print0 \))
 
   if [[ ${#matches[@]} -eq 0 ]]; then
-    echo "no task.md matched 'Task branch = $branch' (scanned $scanned file(s) under $root)" >&2
+    echo "no task.md matched 'Task branch = $branch' (scanned $scanned file(s) under $specs_root)" >&2
     return 1
   fi
 
@@ -120,13 +126,13 @@ if [[ "${RESOLVE_TASK_MD_SELFTEST:-0}" == "1" ]]; then
   tmpdir="$(mktemp -d -t resolve-task-md-selftest.XXXXXX)"
   trap 'rm -rf "$tmpdir"' EXIT
 
-  mkdir -p "$tmpdir/specs/EPIC-1/tasks" "$tmpdir/specs/EPIC-2/tasks" \
-           "$tmpdir/specs/design-plans/DP-047-framework-work-order-bridge/tasks" \
-           "$tmpdir/specs/companies/kkday/archive/EPIC-9/tasks" \
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/EPIC-1/tasks" "$tmpdir/docs-manager/src/content/docs/specs/EPIC-2/tasks" \
+           "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-047-framework-work-order-bridge/tasks" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/EPIC-9/tasks" \
            "$tmpdir/.worktrees/shadow/specs/EPIC-1/tasks" \
            "$tmpdir/node_modules/x/specs/EPIC-3/tasks"
 
-  cat > "$tmpdir/specs/EPIC-1/tasks/T1.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/EPIC-1/tasks/T1.md" <<'MD'
 # T1
 ## Operational Context
 | 欄位 | 值 |
@@ -134,7 +140,7 @@ if [[ "${RESOLVE_TASK_MD_SELFTEST:-0}" == "1" ]]; then
 | Task branch | task/FOO-1-alpha |
 MD
 
-  cat > "$tmpdir/specs/EPIC-1/tasks/T2.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/EPIC-1/tasks/T2.md" <<'MD'
 # T2
 ## Operational Context
 | 欄位 | 值 |
@@ -142,7 +148,7 @@ MD
 | Task branch | task/FOO-2-beta |
 MD
 
-  cat > "$tmpdir/specs/EPIC-2/tasks/T1.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/EPIC-2/tasks/T1.md" <<'MD'
 # T1
 ## Operational Context
 | 欄位 | 值 |
@@ -150,7 +156,7 @@ MD
 | Task branch | task/BAR-99-gamma |
 MD
 
-  cat > "$tmpdir/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" <<'MD'
 # T1
 ## Operational Context
 | 欄位 | 值 |
@@ -169,12 +175,12 @@ MD
 MD
 
   # Archived copy — must be ignored by default active lookup.
-  cat > "$tmpdir/specs/companies/kkday/archive/EPIC-9/tasks/T1.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/EPIC-9/tasks/T1.md" <<'MD'
 | Task branch | task/ARCHIVED-1-only |
 MD
 
   # Duplicate branch binding across Epics (multi-match case).
-  cat > "$tmpdir/specs/EPIC-2/tasks/T-dup.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/EPIC-2/tasks/T-dup.md" <<'MD'
 ## Operational Context
 | Task branch | task/FOO-1-alpha |
 MD

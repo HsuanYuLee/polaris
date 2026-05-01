@@ -39,7 +39,7 @@ When a behavioral drift is discovered, the fix must push the check into a determ
 
 **Workaround accumulation signal:** If ≥ 2 workarounds are added for the same feature in one session, STOP — this is a design-implementation gap, not a missing helper. Read the design doc (memory, plan, SKILL.md) before continuing.
 
-**Landed case study — DP-030 (LLM judgment → script migration, IMPLEMENTED 2026-04-24, v3.54.0):** systematically graduated mechanical canaries from behavioral (L3) to deterministic scripts, active hooks, and L2 skill-embedded calls. Current active wiring is authoritative in `skills/references/deterministic-hooks-registry.md`; some early Claude Code L1 wrappers from the original rollout were retired as legacy. Canonical record: `specs/design-plans/DP-030-llm-to-script-migration/plan.md`.
+**Landed case study — DP-030 (LLM judgment → script migration, IMPLEMENTED 2026-04-24, v3.54.0):** systematically graduated mechanical canaries from behavioral (L3) to deterministic scripts, active hooks, and L2 skill-embedded calls. Current active wiring is authoritative in `skills/references/deterministic-hooks-registry.md`; some early Claude Code L1 wrappers from the original rollout were retired as legacy. Canonical record: `docs-manager/src/content/docs/specs/design-plans/DP-030-llm-to-script-migration/plan.md`.
 
 ### Delegation Principles
 | Task type | Approach |

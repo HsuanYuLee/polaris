@@ -30,6 +30,8 @@ set -euo pipefail
 PREFIX="[framework-release-closeout]"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=lib/specs-root.sh
+. "$SCRIPT_DIR/lib/specs-root.sh"
 TEMPLATE_REPO=""
 EXTENSION_ID="framework-release"
 WORKSPACE_COMMIT=""
@@ -160,13 +162,14 @@ delete_branch_if_safe() {
 
 archive_parent_dp_if_terminal() {
   local moved_task_md="$1"
-  local parser_json source_type source_id dp_dir plan_status
+  local parser_json source_type source_id specs_root dp_dir plan_status
 
   parser_json="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$moved_task_md" --no-resolve)" || die "unable to parse implemented task.md: ${moved_task_md}"
   source_type="$(json_field "$parser_json" "d.get('identity', {}).get('source_type')")"
   source_id="$(json_field "$parser_json" "d.get('identity', {}).get('source_id')")"
 
   [[ "$source_type" == "dp" && "$source_id" =~ ^DP-[0-9]{3}$ ]] || return 0
+  specs_root="$(resolve_specs_root "$REPO_ROOT")" || die "unable to resolve specs root"
 
   dp_dir=""
   while IFS= read -r -d '' match; do
@@ -174,7 +177,7 @@ archive_parent_dp_if_terminal() {
       die "multiple active DP containers match ${source_id}"
     fi
     dp_dir="$match"
-  done < <(find "$REPO_ROOT/specs/design-plans" -maxdepth 1 -type d -name "${source_id}-*" -print0 2>/dev/null)
+  done < <(find "$specs_root/design-plans" -maxdepth 1 -type d -name "${source_id}-*" -print0 2>/dev/null)
 
   if [[ -z "$dp_dir" ]]; then
     info "parent ${source_id} is already archived or absent; archive skipped"

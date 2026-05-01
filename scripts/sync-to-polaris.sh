@@ -30,6 +30,7 @@
 #   - .claude/polaris-backlog.md (instance-specific)
 #   - workspace-config.yaml (instance-specific)
 #   - .claude/settings.local.json (personal settings)
+#   - docs-manager/src/content/docs/specs/ (local canonical specs source)
 #
 # --commit: auto-commit in template with version from VERSION file
 # --push:   auto-push (includes gh auth switch for dual-account setups)

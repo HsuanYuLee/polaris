@@ -46,7 +46,7 @@ metadata:
 **唯一合法輸入**：
 
 - `specs/{EPIC}/tasks/T{n}.md` — breakdown / bug-triage 產出的 work order；若 active `tasks/` 找不到，reader 可 fallback 到 `tasks/pr-release/T{n}.md`（DP-033 D8）
-- `specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md` — breakdown 產出的 DP-backed framework work order（DP-047）；同樣可 fallback 到 `tasks/pr-release/T{n}.md`
+- `docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md` — breakdown 產出的 DP-backed framework work order（DP-047）；同樣可 fallback 到 `tasks/pr-release/T{n}.md`
 
 `specs/{TICKET}/plan.md` legacy work order 已移除。舊 Bug / PR 需要繼續施工時，先轉成 `specs/{EPIC}/tasks/T{n}.md`。
 
@@ -89,7 +89,7 @@ engineering 的入口目標只有一個：**找到 authoritative work order**，
 | `deliverable.pr_url` 有值，且 `gh pr view` 顯示 `OPEN` | **revision mode** |
 | `deliverable.pr_url` 有值，但 PR `MERGED` / `CLOSED` | **fail loud**（先修 task.md / deliverable 狀態） |
 
-若 work order 是 `specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md` 或 task identity 為 `DP-NNN-Tn`，且本 workspace 有明確的 local delivery extension 宣告，first-cut 的交付尾段可交給該 extension。extension 可能是「不建 PR 的 local endpoint」，也可能是「workspace PR merge 後的 release tail」（例如 `framework-release`）。這個判斷只影響交付終態，不影響前面的 resolver、handbook、TDD、scope、ci-local、verify、VR、base freshness gates。
+若 work order 是 `docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md` 或 task identity 為 `DP-NNN-Tn`，且本 workspace 有明確的 local delivery extension 宣告，first-cut 的交付尾段可交給該 extension。extension 可能是「不建 PR 的 local endpoint」，也可能是「workspace PR merge 後的 release tail」（例如 `framework-release`）。這個判斷只影響交付終態，不影響前面的 resolver、handbook、TDD、scope、ci-local、verify、VR、base freshness gates。
 
 ## Local Delivery Extension Boundary（local-only）
 

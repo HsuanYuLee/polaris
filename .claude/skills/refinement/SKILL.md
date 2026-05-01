@@ -28,12 +28,12 @@ metadata:
 | Source type | 入口例 | Container | 行為 |
 |-------------|--------|-----------|------|
 | `jira` | `refinement PROJ-123` | `{company_specs_dir}/{TICKET}/` + JIRA issue | 既有 JIRA-backed refinement；定版後寫 JIRA comment / label / description |
-| `dp` | `refinement DP-045` | `{workspace_root}/specs/design-plans/DP-NNN-*/` | 讀既有 DP plan，進入 ticketless refinement；不寫 JIRA |
+| `dp` | `refinement DP-045` | `{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-*/` | 讀既有 DP plan，進入 ticketless refinement；不寫 JIRA |
 | `topic` | `refinement "討論 XXX"`、`想討論 XXX`、`ADR XXX`、`design plan XXX` | 新建 DP folder | 建立 DP container 後進入 ticketless refinement；docs-manager 可直接預覽 canonical specs；不寫 JIRA |
 | `artifact_path` | direct `refinement.md` / `refinement.json` path | nearest specs container | 接續 artifact 所屬 source |
 
 **DP locator hard rules**：
-- `DP-NNN` 必須唯一對應 `specs/design-plans/DP-NNN-*/`
+- `DP-NNN` 必須唯一對應 `docs-manager/src/content/docs/specs/design-plans/DP-NNN-*/`
 - 找不到或多筆 match 都 fail loud，不 fallback 成新 topic
 - `LOCKED` / `IMPLEMENTED` DP 不可被新 topic overwrite；要改方向就新開 DP，並在 Background 加 see-also
 - DP creation、docs-manager preview、artifact output、LOCKED handoff 的操作步驟見 `references/refinement-dp-source-mode.md`
@@ -590,7 +590,7 @@ DP / ticketless source 不寫 JIRA；只更新本地 DP artifacts。
 
 **7b. Artifact JSON**（Tier 2+）
 根據 `references/refinement-artifact.md` schema 產出 `{source_container}/refinement.json`。
-JIRA-backed source 的 `source_container` 為 `{company_specs_dir}/{EPIC_KEY}`；DP-backed source 的 `source_container` 為 `{workspace_root}/specs/design-plans/DP-NNN-{slug}`。
+JIRA-backed source 的 `source_container` 為 `{company_specs_dir}/{EPIC_KEY}`；DP-backed source 的 `source_container` 為 `{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}`。
 
 **7b'. Handoff artifact gate（hard）**
 在說「可進 breakdown」或提示下一步 `breakdown` 前，必須跑：

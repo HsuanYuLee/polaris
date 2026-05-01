@@ -202,7 +202,7 @@ run_single_task_case() {
   repo="$(printf '%s\n' "$repos" | sed -n '1p')"
   template="$(printf '%s\n' "$repos" | sed -n '2p')"
 
-  dp_dir="${repo}/specs/design-plans/DP-999-release-closeout"
+  dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/DP-999-release-closeout"
   mkdir -p "${dp_dir}/tasks"
   write_plan "$dp_dir" 1
   branch="task/DP-999-T1-closeout"
@@ -226,7 +226,7 @@ run_single_task_case() {
     --version-tag v0.0.1 \
     --release-url https://github.com/example/polaris/releases/tag/v0.0.1
 
-  archived_dp_dir="${repo}/specs/design-plans/archive/DP-999-release-closeout"
+  archived_dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/archive/DP-999-release-closeout"
   [[ ! -d "$dp_dir" && -d "$archived_dp_dir" ]] || { echo "[selftest] single parent DP was not archived" >&2; return 1; }
   [[ -f "${archived_dp_dir}/tasks/pr-release/T1.md" ]] || { echo "[selftest] single task was not moved" >&2; return 1; }
   grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/tasks/pr-release/T1.md" || { echo "[selftest] single task status missing" >&2; return 1; }
@@ -241,7 +241,7 @@ run_stacked_task_case() {
   repo="$(printf '%s\n' "$repos" | sed -n '1p')"
   template="$(printf '%s\n' "$repos" | sed -n '2p')"
 
-  dp_dir="${repo}/specs/design-plans/DP-999-release-closeout"
+  dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/DP-999-release-closeout"
   mkdir -p "${dp_dir}/tasks"
   write_plan "$dp_dir"
   branch1="task/DP-999-T1-closeout"
@@ -275,7 +275,7 @@ run_stacked_task_case() {
     --version-tag v0.0.1 \
     --release-url https://github.com/example/polaris/releases/tag/v0.0.1
 
-  archived_dp_dir="${repo}/specs/design-plans/archive/DP-999-release-closeout"
+  archived_dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/archive/DP-999-release-closeout"
   [[ ! -d "$dp_dir" && -d "$archived_dp_dir" ]] || { echo "[selftest] stacked parent DP was not archived" >&2; return 1; }
   [[ -f "${archived_dp_dir}/tasks/pr-release/T1.md" && -f "${archived_dp_dir}/tasks/pr-release/T2.md" ]] || { echo "[selftest] stacked tasks were not moved" >&2; return 1; }
   grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/plan.md" || { echo "[selftest] parent DP was not closed" >&2; return 1; }
@@ -290,7 +290,7 @@ run_stale_evidence_case() {
   repo="$(printf '%s\n' "$repos" | sed -n '1p')"
   template="$(printf '%s\n' "$repos" | sed -n '2p')"
 
-  dp_dir="${repo}/specs/design-plans/DP-999-release-closeout"
+  dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/DP-999-release-closeout"
   mkdir -p "${dp_dir}/tasks"
   write_plan "$dp_dir"
   branch="task/DP-999-T1-closeout"
@@ -330,7 +330,7 @@ run_dirty_worktree_case() {
   repo="$(printf '%s\n' "$repos" | sed -n '1p')"
   template="$(printf '%s\n' "$repos" | sed -n '2p')"
 
-  dp_dir="${repo}/specs/design-plans/DP-999-release-closeout"
+  dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/DP-999-release-closeout"
   mkdir -p "${dp_dir}/tasks"
   write_plan "$dp_dir"
   branch="task/DP-999-T1-closeout"

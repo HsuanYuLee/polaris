@@ -2,12 +2,13 @@
 # Launch Polaris docs-manager in browser.
 # Usage: polaris-viewer.sh [--port 8080] [--host 127.0.0.1] [--no-open] [--preview|--mode dev|preview]
 #
-# Dev mode serves live canonical specs from {workspace_root}/specs.
+# Dev mode serves live canonical specs from {workspace_root}/docs-manager/src/content/docs/specs.
 # Preview mode builds first, then serves static output for production/search checks.
 
 set -euo pipefail
 
 WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PORT=8080
 OPEN_BROWSER=true
 HOST=127.0.0.1
@@ -47,13 +48,16 @@ if [[ ! -d "$WORKSPACE_ROOT/docs-manager" ]]; then
   exit 1
 fi
 
-if [[ -d "$WORKSPACE_ROOT/specs" ]]; then
+# shellcheck source=lib/specs-root.sh
+. "$SCRIPT_DIR/lib/specs-root.sh"
+SPECS_ROOT="$(resolve_specs_root "$WORKSPACE_ROOT" 2>/dev/null || true)"
+if [[ -n "$SPECS_ROOT" && -d "$SPECS_ROOT" ]]; then
   export POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT"
 else
   # Gitignored specs live only in the main checkout. T2's direct loader can
   # resolve them from the main checkout when launched from a linked worktree.
   # This warning is informational; no mirror copy is created here.
-  echo "WARN: $WORKSPACE_ROOT/specs not found; docs-manager will resolve canonical specs from the main checkout if available." >&2
+  echo "WARN: $WORKSPACE_ROOT/docs-manager/src/content/docs/specs not found; docs-manager will resolve canonical specs from the main checkout if available." >&2
 fi
 
 if lsof -i :"$PORT" -sTCP:LISTEN &>/dev/null; then

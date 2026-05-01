@@ -13,15 +13,15 @@ JIRA-backed ticket：
 {company_specs_dir}/{EPIC_KEY}/refinement.json
 ```
 
-Spec folders 放在 workspace root 的 company namespace（如 `~/work/specs/companies/your-company/PROJ-123/`），不進 git。
+Spec folders 放在 docs-manager 的 company namespace（如 `~/work/docs-manager/src/content/docs/specs/companies/your-company/PROJ-123/`），不進 git。
 
 Ticketless / DP-backed work：
 
 ```
-{workspace_root}/specs/design-plans/DP-NNN-{slug}/refinement.json
+{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/refinement.json
 ```
 
-DP folder 放在 workspace root `specs/design-plans/`，不綁公司；`plan.md` 是 durable decision
+DP folder 放在 `docs-manager/src/content/docs/specs/design-plans/`，不綁公司；`plan.md` 是 durable decision
 record，`refinement.json` 是 machine-readable artifact。
 
 ## 同步寫入
@@ -42,7 +42,7 @@ refinement 完成時同時產出兩份：
     "type": "jira",                    // "jira" | "dp" | "topic"
     "id": "PROJ-123",                    // JIRA key or DP-NNN
     "container": "{company_specs_dir}/PROJ-123",
-    "plan_path": null,                 // DP-backed only: specs/design-plans/DP-NNN-*/plan.md
+    "plan_path": null,                 // DP-backed only: docs-manager/src/content/docs/specs/design-plans/DP-NNN-*/plan.md
     "jira_key": "PROJ-123"               // null for ticketless work
   },
   "version": "1.0",                    // artifact schema version
@@ -173,8 +173,8 @@ refinement 完成時同時產出兩份：
   "source": {
     "type": "dp",
     "id": "DP-045",
-    "container": "/Users/name/work/specs/design-plans/DP-045-refinement-design-plan-unification",
-    "plan_path": "/Users/name/work/specs/design-plans/DP-045-refinement-design-plan-unification/plan.md",
+    "container": "/Users/name/work/docs-manager/src/content/docs/specs/design-plans/DP-045-refinement-design-plan-unification",
+    "plan_path": "/Users/name/work/docs-manager/src/content/docs/specs/design-plans/DP-045-refinement-design-plan-unification/plan.md",
     "jira_key": null
   },
   "version": "1.0",
@@ -184,8 +184,8 @@ refinement 完成時同時產出兩份：
 }
 ```
 
-For backward compatibility, existing JIRA artifacts may still expose top-level `epic`.
-New producers should write `source` and keep `epic` as a convenience alias only when a JIRA Epic exists.
+為了相容既有 JIRA artifacts，舊資料可以保留 top-level `epic`。新 producer 應寫入
+`source`；只有 JIRA Epic 存在時，才把 `epic` 當作 convenience alias 保留。
 
 ## 下游 Skill 如何使用
 
@@ -198,7 +198,7 @@ New producers should write `source` and keep `epic` as a convenience alias only 
 `source.type = dp` 時，`breakdown` 產出 DP-backed tasks：
 
 ```
-{workspace_root}/specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md
+{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md
 ```
 
 `source.type = jira` 時，`breakdown` 維持既有 JIRA sub-task + company specs path。

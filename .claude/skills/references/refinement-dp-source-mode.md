@@ -1,50 +1,51 @@
 # Refinement DP Source Mode
 
-Progressive-disclosure reference for `refinement` ticketless / DP-backed source handling.
+`refinement` ticketless / DP-backed source handling 的 progressive-disclosure reference。
 
-Use this when `refinement` resolves a source as:
+當 `refinement` 將 source 解析為以下類型時使用：
 
-- `dp`: existing `DP-NNN` design-plan container
-- `topic`: new ticketless topic that must become a DP container
-- `artifact_path`: a path under `specs/design-plans/DP-NNN-*`
+- `dp`：既有 `DP-NNN` design-plan container
+- `topic`：必須成為 DP container 的新 ticketless topic
+- `artifact_path`：`docs-manager/src/content/docs/specs/design-plans/DP-NNN-*` 底下的 path
 
-Core boundary: `refinement` owns the design record and artifact output; it does not write JIRA for DP-backed work.
+核心邊界：`refinement` owns design record 與 artifact output；DP-backed work 不寫 JIRA。
 
 ## T0. Resolve Source
 
-Resolve source via `spec-source-resolver.md`.
+透過 `spec-source-resolver.md` resolve source。
 
 | Input | Action |
 |-------|--------|
-| `DP-NNN` | Locate exactly one `specs/design-plans/DP-NNN-*/plan.md` |
-| direct DP plan/refinement path | Use that DP folder as `source_container` |
-| topic phrase | Allocate the next `DP-NNN-{slug}` folder, create `plan.md`, set `status: DISCUSSION` |
-| `SEEDED` DP | Read `artifacts/research-report.md` when present and convert relevant findings into candidate Decisions |
-| `LOCKED` / `IMPLEMENTED` DP | Fail loud for new topic overwrite; continue only when the user is explicitly resuming/reviewing that DP |
+| `DP-NNN` | Locate exactly one `docs-manager/src/content/docs/specs/design-plans/DP-NNN-*/plan.md` |
+| direct DP plan/refinement path | 使用該 DP folder 作為 `source_container` |
+| topic phrase | 分配下一個 `DP-NNN-{slug}` folder，建立 `plan.md`，設定 `status: DISCUSSION` |
+| `SEEDED` DP | 若存在 `artifacts/research-report.md`，讀取並轉成 candidate Decisions |
+| `LOCKED` / `IMPLEMENTED` DP | 新 topic overwrite 必須 fail loud；只有使用者明確 resuming/reviewing 該 DP 時才繼續 |
 
-DP locator hard rules:
+DP locator hard rules：
 
-- `DP-NNN` must uniquely match one folder.
-- Zero or multiple matches fail loud.
-- Do not silently create a replacement DP for the same number.
-- `LOCKED` / `IMPLEMENTED` DP cannot be overwritten by a new topic. Open a new DP and add see-also links when direction changes.
+- `DP-NNN` 必須唯一 match 一個 folder。
+- Zero 或 multiple matches 必須 fail loud。
+- 不可默默建立同號 replacement DP。
+- `LOCKED` / `IMPLEMENTED` DP 不可被 new topic overwrite。方向改變時，開新 DP 並加 see-also links。
 
 ## T1. Create Or Update DP Plan
 
-For a new topic:
+新 topic：
 
-1. Scan `{workspace_root}/specs/design-plans/DP-*`.
-2. Allocate max existing number + 1.
-3. Create `{workspace_root}/specs/design-plans/DP-NNN-{topic-slug}/plan.md`.
-4. Write frontmatter:
+1. 掃描 `{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-*`。
+2. 分配既有最大 number + 1。
+3. 建立 `{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{topic-slug}/plan.md`。
+4. 寫入 frontmatter：
    ```yaml
    ---
+   title: "DP-NNN: <durable topic>"
    topic: <durable topic>
    created: YYYY-MM-DD
    status: DISCUSSION
    ---
    ```
-5. Add initial `## Goal`, `## Background`, and open decision placeholders if known.
+5. 加上初始 `## Goal`、`## Background`，若已知 open decisions 則先放 placeholders。
 
 `refinement` owns these DP sections:
 
@@ -58,22 +59,15 @@ For a new topic:
 - `## Acceptance Criteria`
 - `## Technical Approach` / `## 技術方案`
 
-For framework contract DPs, the plan must include target-state-first sections
-before handoff:
+Framework contract DPs 在 handoff 前，plan 必須包含 target-state-first sections：
 
-- `## Target State` — final source of truth, runtime ownership, handoff
-  boundary, and steady-state paths after migration.
-- `## Decision Policy` — rules used to choose direct migration vs phased
-  delivery.
-- `## Migration Boundaries` — any temporary compatibility / fallback / bridge /
-  mirror / dual-source mechanism, with owner, removal criteria, verification
-  method, and follow-up task.
+- `## Target State`：migration 後的 final source of truth、runtime ownership、handoff boundary、steady-state paths。
+- `## Decision Policy`：選擇 direct migration 或 phased delivery 的規則。
+- `## Migration Boundaries`：任何 temporary compatibility / fallback / bridge / mirror / dual-source mechanism，必須寫 owner、removal criteria、verification method、follow-up task。
 
-If a framework DP proposes phased compatibility without these fields, stop and
-complete the design before implementation or breakdown. Compatibility scaffolding
-cannot be the steady state.
+如果 framework DP 提出 phased compatibility 但缺少這些欄位，先停下來補完 design，再進 implementation 或 breakdown。Compatibility scaffolding 不可成為 steady state。
 
-Every user-confirmed design decision must update `plan.md` before unrelated work continues. Do not keep confirmed decisions only in conversation memory.
+每個使用者確認的 design decision 都必須先更新 `plan.md`，再繼續 unrelated work。不可只把 confirmed decisions 留在 conversation memory。
 
 每次建立或更新 `plan.md` 後，必須先跑 workspace language gate，通過後才能
 sidebar sync 或回報給使用者：
@@ -82,47 +76,51 @@ sidebar sync 或回報給使用者：
 bash scripts/validate-language-policy.sh \
   --blocking \
   --mode artifact \
-  {workspace_root}/specs/design-plans/DP-NNN-{slug}/plan.md
+  {workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/plan.md
 ```
 
 若 gate 失敗，先修正自然語言內容並重跑。`plan.md` 違反 workspace language
 時，不可宣稱 DP 已可 review。
 
+Starlight `docsSchema()` 要求每個 docs markdown 都有 `title`。`refinement`
+建立任何新的 `plan.md` 或 `refinement.md` 時，必須寫入 stable `title`
+frontmatter；不可依賴 docs-manager 在 build 時補 metadata。
+
 ## T2. Docs-Manager Preview
 
-建立或編輯 DP markdown 後，docs-manager 會直接從 `{workspace_root}/specs/`
+建立或編輯 DP markdown 後，docs-manager 會直接從 `{workspace_root}/docs-manager/src/content/docs/specs/`
 讀取 canonical source。必須先跑 T1/T3 的 language gate；未通過 workspace
 language policy 的新產生 prose 不可進入 review 或 downstream handoff。
 
-Live review:
+Live review：
 
 ```bash
 bash scripts/polaris-viewer.sh --mode dev
 ```
 
-Static/search verification:
+Static/search verification：
 
 ```bash
 bash scripts/verify-docs-manager-runtime.sh --preview
 ```
 
-This applies to `plan.md`, `refinement.md`, and any DP markdown artifact intended for review.
+這適用於 `plan.md`、`refinement.md`，以及任何準備進 review 的 DP markdown artifact。
 
 ## T3. Local Preview
 
-Ticketless source still uses local-first refinement. Write discussion output to:
+Ticketless source 仍採 local-first refinement。Discussion output 寫入：
 
 ```text
-{workspace_root}/specs/design-plans/DP-NNN-{slug}/refinement.md
+{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/refinement.md
 ```
 
-Preview:
+Preview：
 
 ```bash
-python3 scripts/refinement-preview.py {workspace_root}/specs/design-plans/DP-NNN-{slug}/refinement.md
+python3 scripts/refinement-preview.py {workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/refinement.md
 ```
 
-`refinement.md` should contain downstream implementation information only:
+`refinement.md` 只應包含 downstream implementation information：
 
 - scope
 - technical approach
@@ -131,7 +129,7 @@ python3 scripts/refinement-preview.py {workspace_root}/specs/design-plans/DP-NNN
 - risks
 - references
 
-Keep full decision history in `plan.md`.
+完整 decision history 保留在 `plan.md`。
 
 每次建立或更新 `refinement.md` 後，必須先跑 workspace language gate，通過後才能
 preview、sidebar sync 或 downstream handoff：
@@ -140,7 +138,7 @@ preview、sidebar sync 或 downstream handoff：
 bash scripts/validate-language-policy.sh \
   --blocking \
   --mode artifact \
-  {workspace_root}/specs/design-plans/DP-NNN-{slug}/refinement.md
+  {workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/refinement.md
 ```
 
 同一輪若同時改了 `plan.md` 與 `refinement.md`，用同一個 command 一起驗。若 gate
@@ -148,14 +146,14 @@ bash scripts/validate-language-policy.sh \
 
 ## T4. Artifact Output
 
-When ready for handoff, produce or update:
+準備 handoff 時，produce 或 update：
 
 ```text
-specs/design-plans/DP-NNN-{slug}/refinement.md
-specs/design-plans/DP-NNN-{slug}/refinement.json
+docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/refinement.md
+docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/refinement.json
 ```
 
-DP-backed `refinement.json` must include:
+DP-backed `refinement.json` 必須包含：
 
 ```json
 {
@@ -163,31 +161,31 @@ DP-backed `refinement.json` must include:
   "source": {
     "type": "dp",
     "id": "DP-NNN",
-    "container": "{workspace_root}/specs/design-plans/DP-NNN-{slug}",
-    "plan_path": "{workspace_root}/specs/design-plans/DP-NNN-{slug}/plan.md",
+    "container": "{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}",
+    "plan_path": "{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/plan.md",
     "jira_key": null
   }
 }
 ```
 
-The artifact must preserve enough scope, AC, dependencies, edge cases, and downstream hints for `breakdown DP-NNN` to create work orders without redoing refinement.
+Artifact 必須保留足夠的 scope、AC、dependencies、edge cases、downstream hints，讓 `breakdown DP-NNN` 不需要重做 refinement 就能 create work orders。
 
 ## T5. LOCKED Handoff Gate
 
-When the user says "定版", "開始做", "可以執行", "lock", or equivalent:
+當使用者說「定版」、「開始做」、「可以執行」、「lock」或同義語：
 
-1. Check that Goal, Decisions, Blind Spots, Acceptance Criteria, and Technical Approach are sufficient for breakdown.
-2. Ensure `refinement.md` and `refinement.json` are current; `refinement.json` must pass `scripts/refinement-handoff-gate.sh`.
-3. Change DP frontmatter to:
+1. 檢查 Goal、Decisions、Blind Spots、Acceptance Criteria、Technical Approach 是否足夠交給 breakdown。
+2. 確認 `refinement.md` 與 `refinement.json` 是 current；`refinement.json` 必須通過 `scripts/refinement-handoff-gate.sh`。
+3. 將 DP frontmatter 改為：
    ```yaml
    status: LOCKED
    locked_at: YYYY-MM-DD
    ```
-4. Run the relevant artifact validator / handoff gate. If it fails or `refinement.json` is missing, stop and produce/fix the artifact before continuing.
-5. If route/search review is needed, run docs-manager dev or preview verification.
-6. Tell the user the next command:
+4. 跑相關 artifact validator / handoff gate。若失敗或缺 `refinement.json`，先停下來 produce/fix artifact。
+5. 若需要 route/search review，跑 docs-manager dev 或 preview verification。
+6. 告知使用者下一個 command：
    ```text
    breakdown DP-NNN
    ```
 
-Ticketless source never writes JIRA comments, labels, descriptions, or sub-tasks. If a formal cross-team document is needed, route to `sasd-review` or create a JIRA ticket explicitly.
+Ticketless source 不寫 JIRA comments、labels、descriptions、sub-tasks。若需要正式 cross-team document，route 到 `sasd-review` 或明確建立 JIRA ticket。

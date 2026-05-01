@@ -12,17 +12,17 @@
 
 ### 兩種 task.md
 
-Polaris pipeline 的 task.md 分兩類，都存在於同一個 Epic 的 `specs/{EPIC}/tasks/` 下：
+Polaris pipeline 的 task.md 分兩類，都存在於同一個 Epic 的 `{specs_root}/companies/{company}/{EPIC}/tasks/` 下：
 
 | 類型 | Filename pattern | Producer | Consumer | Schema 章節 |
 |------|------------------|----------|----------|-------------|
 | 實作 task.md | `T{n}[suffix].md`（`T1.md` / `T3a.md` / `T8b.md`） | `breakdown` Path A | `engineering` | § 3 Implementation Schema |
 | 驗收 task.md | `V{n}[suffix].md`（`V1.md` / `V2a.md`） | `breakdown` Step D | `verify-AC` | § 4 Verification Schema |
 
-Framework DP-backed work orders（DP-047 / DP-050）使用同一份 Implementation Schema，只是 root 從 product specs folder 換成：
+Framework DP-backed work orders（DP-047 / DP-050）使用同一份 Implementation Schema，只是 root 從 company specs folder 換成：
 
 ```text
-specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md
+{specs_root}/design-plans/DP-NNN-{slug}/tasks/T{n}.md
 ```
 
 DP-backed task 使用 source-neutral identity：`source_type=dp`、`source_id=DP-NNN`、`work_item_id=DP-NNN-Tn`、`jira_key=null`。Migration 期仍接受舊 task.md 把 pseudo-task ID 放在 `Task JIRA key` / `JIRA:`，但新 DP-backed task 應使用 canonical metadata row，並保留 `JIRA: N/A` 讓舊 reader 不因欄位缺失失效。
@@ -53,6 +53,7 @@ specs/**/archive/**/tasks/*.md → 完全 skip（歷史 container，不屬 activ
 
 ```yaml
 ---
+title: "T1: Example implementation task (3 pt)"
 status: IN_PROGRESS         # optional：IN_PROGRESS | IMPLEMENTED | BLOCKED
 depends_on: [T1]            # optional：array of task id strings；長度 ≤ 1（DP-028 強制線性）
 deliverable:                # Lifecycle-conditional（DP-032 D2）；engineering Step 7c 寫入
@@ -82,6 +83,7 @@ jira_transition_log:        # Lifecycle-conditional（DP-033 D7）；engineering
 
 | 欄位 | 寫入時機 | Required 層級 |
 |------|---------|---------------|
+| `title` | breakdown 建立 task.md 時寫入，須與 H1 summary 穩定對應 | Required for docs-manager Starlight `docsSchema()` |
 | `status` | breakdown 寫初值（可省略）；engineering Step 8a 標 `IMPLEMENTED`；verify-AC 全 PASS 標 `IMPLEMENTED`（Epic level）| Optional（值若存在須為 enum） |
 | `depends_on` | breakdown Step 14 |  Optional；存在則須為 array、長度 ≤ 1、所有 entry 須對應同 `tasks/` 下既有 task.md（含 `pr-release/` fallback，見 § 5.2） |
 | `deliverable` | engineering Step 7c (`gh pr create` 成功後) | Lifecycle-conditional — breakdown 階段不存在；engineering 寫入後須結構正確（schema + writer contract 見下） |
@@ -89,6 +91,8 @@ jira_transition_log:        # Lifecycle-conditional（DP-033 D7）；engineering
 | `jira_transition_log` | engineering / verify-AC 每次跑 JIRA transition 後 append（成功 / 失敗皆記） | Lifecycle-conditional — 同上 |
 
 > Filename 為唯一 type 訊號（DP-033 D2 修正版）— frontmatter **不再有 `type` 欄位**。所有 schema dispatch 都依 filename pattern（T*.md / V*.md），請勿在 frontmatter 加 `type` 欄位。
+>
+> `title` 是 docs-manager source contract，不是 type 訊號。Starlight `docsSchema()` 直接讀 `{specs_root}`，因此 task producer 必須把 `title` 寫回 source markdown，不可仰賴 generated mirror 或 custom loader 補齊。
 
 #### `jira_transition_log[]` schema（DP-033 D7，寬鬆）
 

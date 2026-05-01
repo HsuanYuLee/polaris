@@ -7,8 +7,8 @@
 #   archive-spec.sh [--workspace <path>] --sweep --apply
 #
 # Moves:
-#   specs/design-plans/DP-NNN-*         -> specs/design-plans/archive/DP-NNN-*
-#   specs/companies/{company}/{TICKET}  -> specs/companies/{company}/archive/{TICKET}
+#   docs-manager/src/content/docs/specs/design-plans/DP-NNN-*        -> docs-manager/src/content/docs/specs/design-plans/archive/DP-NNN-*
+#   docs-manager/src/content/docs/specs/companies/{company}/{TICKET} -> docs-manager/src/content/docs/specs/companies/{company}/archive/{TICKET}
 #
 # Only parent specs with status IMPLEMENTED or ABANDONED may be archived.
 
@@ -16,10 +16,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+SPECS_ROOT=""
 DRY_RUN=0
 APPLY=0
 SWEEP=0
 SOURCE=""
+
+# shellcheck source=lib/specs-root.sh
+. "$SCRIPT_DIR/lib/specs-root.sh"
 
 usage() {
   sed -n '2,21p' "$0" >&2
@@ -58,6 +62,11 @@ rel_path() {
   printf '%s\n' "${path#"$WORKSPACE_ROOT"/}"
 }
 
+specs_rel_path() {
+  local path="$1"
+  printf '%s\n' "${path#"$SPECS_ROOT"/}"
+}
+
 resolve_dp_by_id() {
   local dp_id="$1"
   local -a matches=()
@@ -65,7 +74,7 @@ resolve_dp_by_id() {
 
   while IFS= read -r -d '' match; do
     matches+=("$match")
-  done < <(find "$WORKSPACE_ROOT/specs/design-plans" -maxdepth 1 -type d -name "${dp_id}-*" -print0 2>/dev/null)
+  done < <(find "$SPECS_ROOT/design-plans" -maxdepth 1 -type d -name "${dp_id}-*" -print0 2>/dev/null)
 
   [[ ${#matches[@]} -gt 0 ]] || fail "no active design plan found for ${dp_id}"
   [[ ${#matches[@]} -eq 1 ]] || {
@@ -81,7 +90,7 @@ resolve_ticket_by_key() {
   local -a matches=()
   local company_dir=""
 
-  for company_dir in "$WORKSPACE_ROOT"/specs/companies/*/; do
+  for company_dir in "$SPECS_ROOT"/companies/*/; do
     [[ -d "$company_dir" ]] || continue
     [[ "$(basename "$company_dir")" == "archive" ]] && continue
     if [[ -d "${company_dir}${ticket}" ]]; then
@@ -109,18 +118,18 @@ resolve_direct_path() {
   fi
 
   case "$path" in
-    "$WORKSPACE_ROOT"/specs/design-plans/archive/*|"$WORKSPACE_ROOT"/specs/companies/*/archive/*)
+    "$SPECS_ROOT"/design-plans/archive/*|"$SPECS_ROOT"/companies/*/archive/*)
       fail "spec is already archived: $path"
       ;;
   esac
 
-  rel="${path#"$WORKSPACE_ROOT"/}"
+  rel="${path#"$SPECS_ROOT"/}"
   case "$rel" in
-    specs/design-plans/DP-[0-9][0-9][0-9]-*|specs/design-plans/DP-[0-9][0-9][0-9]-*/*)
-      container="$WORKSPACE_ROOT/$(printf '%s\n' "$rel" | awk -F/ '{print $1 "/" $2 "/" $3}')"
+    design-plans/DP-[0-9][0-9][0-9]-*|design-plans/DP-[0-9][0-9][0-9]-*/*)
+      container="$SPECS_ROOT/$(printf '%s\n' "$rel" | awk -F/ '{print $1 "/" $2}')"
       ;;
-    specs/companies/*/*|specs/companies/*/*/*)
-      container="$WORKSPACE_ROOT/$(printf '%s\n' "$rel" | awk -F/ '{print $1 "/" $2 "/" $3 "/" $4}')"
+    companies/*/*|companies/*/*/*)
+      container="$SPECS_ROOT/$(printf '%s\n' "$rel" | awk -F/ '{print $1 "/" $2 "/" $3}')"
       ;;
     *)
       fail "path is not inside an active spec container: $input"
@@ -136,18 +145,18 @@ metadata_for_container() {
   local kind="" anchor="" destination="" company="" status=""
 
   case "$container" in
-    "$WORKSPACE_ROOT"/specs/design-plans/archive/*|"$WORKSPACE_ROOT"/specs/companies/*/archive/*)
+    "$SPECS_ROOT"/design-plans/archive/*|"$SPECS_ROOT"/companies/*/archive/*)
       fail "spec is already archived: $container"
       ;;
   esac
 
   case "$container" in
-    "$WORKSPACE_ROOT"/specs/design-plans/DP-[0-9][0-9][0-9]-*)
+    "$SPECS_ROOT"/design-plans/DP-[0-9][0-9][0-9]-*)
       kind="dp"
       anchor="$container/plan.md"
-      destination="$WORKSPACE_ROOT/specs/design-plans/archive/$(basename "$container")"
+      destination="$SPECS_ROOT/design-plans/archive/$(basename "$container")"
       ;;
-    "$WORKSPACE_ROOT"/specs/companies/*/*)
+    "$SPECS_ROOT"/companies/*/*)
       kind="company"
       if [[ -f "$container/refinement.md" ]]; then
         anchor="$container/refinement.md"
@@ -155,7 +164,7 @@ metadata_for_container() {
         anchor="$container/plan.md"
       fi
       company="$(basename "$(dirname "$container")")"
-      destination="$WORKSPACE_ROOT/specs/companies/$company/archive/$(basename "$container")"
+      destination="$SPECS_ROOT/companies/$company/archive/$(basename "$container")"
       ;;
     *)
       fail "unsupported spec container: $container"
@@ -173,14 +182,14 @@ metadata_for_container() {
 sweep_containers() {
   local path="" company_dir=""
 
-  if [[ -d "$WORKSPACE_ROOT/specs/design-plans" ]]; then
+  if [[ -d "$SPECS_ROOT/design-plans" ]]; then
     while IFS= read -r -d '' path; do
       printf '%s\n' "$path"
-    done < <(find "$WORKSPACE_ROOT/specs/design-plans" -maxdepth 1 -type d -name 'DP-[0-9][0-9][0-9]-*' -print0 2>/dev/null)
+    done < <(find "$SPECS_ROOT/design-plans" -maxdepth 1 -type d -name 'DP-[0-9][0-9][0-9]-*' -print0 2>/dev/null)
   fi
 
-  if [[ -d "$WORKSPACE_ROOT/specs/companies" ]]; then
-    for company_dir in "$WORKSPACE_ROOT"/specs/companies/*; do
+  if [[ -d "$SPECS_ROOT/companies" ]]; then
+    for company_dir in "$SPECS_ROOT"/companies/*; do
       [[ -d "$company_dir" ]] || continue
       [[ "$(basename "$company_dir")" == "archive" ]] && continue
       while IFS= read -r -d '' path; do
@@ -201,8 +210,8 @@ sweep_report() {
   while IFS= read -r container; do
     [[ -n "$container" ]] || continue
     IFS='|' read -r kind anchor status destination < <(metadata_for_container "$container")
-    source_rel="$(rel_path "$container")"
-    destination_rel="$(rel_path "$destination")"
+    source_rel="$(specs_rel_path "$container")"
+    destination_rel="$(specs_rel_path "$destination")"
 
     case "$status" in
       IMPLEMENTED|ABANDONED)
@@ -245,8 +254,8 @@ run_sweep() {
   while IFS=$'\t' read -r kind status action source_rel destination_rel reason; do
     [[ "$kind" == "TYPE" ]] && continue
     [[ "$action" == "archive" ]] || continue
-    source_abs="$WORKSPACE_ROOT/$source_rel"
-    destination_abs="$WORKSPACE_ROOT/$destination_rel"
+    source_abs="$SPECS_ROOT/$source_rel"
+    destination_abs="$SPECS_ROOT/$destination_rel"
     [[ -d "$source_abs" ]] || fail "sweep source disappeared before apply: $source_abs"
     [[ ! -e "$destination_abs" ]] || fail "archive destination already exists: $destination_abs"
     mkdir -p "$(dirname "$destination_abs")"
@@ -296,6 +305,7 @@ done
 
 [[ -d "$WORKSPACE_ROOT" ]] || fail "workspace not found: $WORKSPACE_ROOT"
 WORKSPACE_ROOT="$(cd "$WORKSPACE_ROOT" && pwd)"
+SPECS_ROOT="$(resolve_specs_root "$WORKSPACE_ROOT")" || fail "unable to resolve specs root"
 
 if [[ "$SWEEP" -eq 1 ]]; then
   [[ -z "$SOURCE" ]] || fail "--sweep does not accept a source argument"

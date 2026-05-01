@@ -36,7 +36,7 @@ run_selftest() {
   tmpdir="$(mktemp -d -t parent-closeout-selftest.XXXXXX)"
   trap "rm -rf '$tmpdir'" EXIT
 
-  dp_dir="$tmpdir/specs/design-plans/DP-999-parent-closeout"
+  dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-999-parent-closeout"
   mkdir -p "$dp_dir/tasks/pr-release"
   cat >"$dp_dir/plan.md" <<'MD'
 ---
@@ -81,7 +81,7 @@ MD
     return 1
   }
 
-  company_dir="$tmpdir/specs/companies/kkday/GT-999"
+  company_dir="$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-999"
   mkdir -p "$company_dir/tasks/pr-release"
   cat >"$company_dir/refinement.md" <<'MD'
 ---

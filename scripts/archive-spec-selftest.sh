@@ -36,42 +36,42 @@ expect_fail() {
 tmpdir="$(mktemp -d -t archive-spec-selftest.XXXXXX)"
 trap 'rm -rf "$tmpdir" /tmp/archive-spec-selftest.out /tmp/archive-spec-selftest.err' EXIT
 
-mkdir -p "$tmpdir/specs/design-plans" "$tmpdir/specs/companies/acme"
+mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans" "$tmpdir/docs-manager/src/content/docs/specs/companies/acme"
 
 # DP by ID.
-write_plan "$tmpdir/specs/design-plans/DP-999-implemented/plan.md" "IMPLEMENTED" "DP-999"
+write_plan "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-999-implemented/plan.md" "IMPLEMENTED" "DP-999"
 bash "$ARCHIVE_SPEC" --workspace "$tmpdir" DP-999 >/dev/null
-[[ ! -d "$tmpdir/specs/design-plans/DP-999-implemented" ]] || fail "active DP remained after archive"
-[[ -f "$tmpdir/specs/design-plans/archive/DP-999-implemented/plan.md" ]] || fail "archived DP missing"
+[[ ! -d "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-999-implemented" ]] || fail "active DP remained after archive"
+[[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-999-implemented/plan.md" ]] || fail "archived DP missing"
 
 # Company ticket by key.
-write_plan "$tmpdir/specs/companies/acme/BUG-1/refinement.md" "ABANDONED" "BUG-1"
+write_plan "$tmpdir/docs-manager/src/content/docs/specs/companies/acme/BUG-1/refinement.md" "ABANDONED" "BUG-1"
 bash "$ARCHIVE_SPEC" --workspace "$tmpdir" BUG-1 >/dev/null
-[[ ! -d "$tmpdir/specs/companies/acme/BUG-1" ]] || fail "active company spec remained after archive"
-[[ -f "$tmpdir/specs/companies/acme/archive/BUG-1/refinement.md" ]] || fail "archived company spec missing"
+[[ ! -d "$tmpdir/docs-manager/src/content/docs/specs/companies/acme/BUG-1" ]] || fail "active company spec remained after archive"
+[[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/acme/archive/BUG-1/refinement.md" ]] || fail "archived company spec missing"
 
 # Direct path input.
-write_plan "$tmpdir/specs/design-plans/DP-996-direct-path/plan.md" "IMPLEMENTED" "DP-996"
-bash "$ARCHIVE_SPEC" --workspace "$tmpdir" "$tmpdir/specs/design-plans/DP-996-direct-path/plan.md" >/dev/null
-[[ -f "$tmpdir/specs/design-plans/archive/DP-996-direct-path/plan.md" ]] || fail "direct path archive missing"
+write_plan "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-996-direct-path/plan.md" "IMPLEMENTED" "DP-996"
+bash "$ARCHIVE_SPEC" --workspace "$tmpdir" "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-996-direct-path/plan.md" >/dev/null
+[[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-996-direct-path/plan.md" ]] || fail "direct path archive missing"
 
 # Status guard.
-write_plan "$tmpdir/specs/design-plans/DP-998-locked/plan.md" "LOCKED" "DP-998"
+write_plan "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-998-locked/plan.md" "LOCKED" "DP-998"
 expect_fail "locked DP should not archive" bash "$ARCHIVE_SPEC" --workspace "$tmpdir" DP-998
-[[ -d "$tmpdir/specs/design-plans/DP-998-locked" ]] || fail "locked DP moved despite guard"
+[[ -d "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-998-locked" ]] || fail "locked DP moved despite guard"
 
 # Missing status guard.
-mkdir -p "$tmpdir/specs/companies/acme/NO-1"
-cat >"$tmpdir/specs/companies/acme/NO-1/refinement.md" <<'MD'
+mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/companies/acme/NO-1"
+cat >"$tmpdir/docs-manager/src/content/docs/specs/companies/acme/NO-1/refinement.md" <<'MD'
 # NO-1
 MD
 expect_fail "missing status should not archive" bash "$ARCHIVE_SPEC" --workspace "$tmpdir" NO-1
 
 # Duplicate destination guard.
-write_plan "$tmpdir/specs/design-plans/DP-997-duplicate/plan.md" "IMPLEMENTED" "DP-997 active"
-write_plan "$tmpdir/specs/design-plans/archive/DP-997-duplicate/plan.md" "IMPLEMENTED" "DP-997 archived"
+write_plan "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-997-duplicate/plan.md" "IMPLEMENTED" "DP-997 active"
+write_plan "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-997-duplicate/plan.md" "IMPLEMENTED" "DP-997 archived"
 expect_fail "duplicate destination should fail" bash "$ARCHIVE_SPEC" --workspace "$tmpdir" DP-997
-[[ -f "$tmpdir/specs/design-plans/DP-997-duplicate/plan.md" ]] || fail "duplicate source moved despite guard"
+[[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-997-duplicate/plan.md" ]] || fail "duplicate source moved despite guard"
 
 # Unknown namespace guard.
 mkdir -p "$tmpdir/random"
@@ -80,18 +80,18 @@ expect_fail "unknown direct path should fail" bash "$ARCHIVE_SPEC" --workspace "
 
 # Sweep dry-run/apply.
 sweepdir="$tmpdir/sweep"
-mkdir -p "$sweepdir/specs/design-plans" "$sweepdir/specs/companies/acme"
-write_plan "$sweepdir/specs/design-plans/DP-995-sweep-implemented/plan.md" "IMPLEMENTED" "DP-995"
-write_plan "$sweepdir/specs/design-plans/DP-994-sweep-abandoned/plan.md" "ABANDONED" "DP-994"
-write_plan "$sweepdir/specs/design-plans/DP-993-sweep-locked/plan.md" "LOCKED" "DP-993"
-mkdir -p "$sweepdir/specs/design-plans/DP-992-sweep-missing"
-cat >"$sweepdir/specs/design-plans/DP-992-sweep-missing/plan.md" <<'MD'
+mkdir -p "$sweepdir/docs-manager/src/content/docs/specs/design-plans" "$sweepdir/docs-manager/src/content/docs/specs/companies/acme"
+write_plan "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-995-sweep-implemented/plan.md" "IMPLEMENTED" "DP-995"
+write_plan "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-994-sweep-abandoned/plan.md" "ABANDONED" "DP-994"
+write_plan "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-993-sweep-locked/plan.md" "LOCKED" "DP-993"
+mkdir -p "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-992-sweep-missing"
+cat >"$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-992-sweep-missing/plan.md" <<'MD'
 # DP-992
 MD
-write_plan "$sweepdir/specs/companies/acme/DONE-1/refinement.md" "IMPLEMENTED" "DONE-1"
-write_plan "$sweepdir/specs/companies/acme/SKIP-1/refinement.md" "DISCUSSION" "SKIP-1"
-mkdir -p "$sweepdir/specs/companies/acme/NO-2"
-cat >"$sweepdir/specs/companies/acme/NO-2/refinement.md" <<'MD'
+write_plan "$sweepdir/docs-manager/src/content/docs/specs/companies/acme/DONE-1/refinement.md" "IMPLEMENTED" "DONE-1"
+write_plan "$sweepdir/docs-manager/src/content/docs/specs/companies/acme/SKIP-1/refinement.md" "DISCUSSION" "SKIP-1"
+mkdir -p "$sweepdir/docs-manager/src/content/docs/specs/companies/acme/NO-2"
+cat >"$sweepdir/docs-manager/src/content/docs/specs/companies/acme/NO-2/refinement.md" <<'MD'
 # NO-2
 MD
 
@@ -100,23 +100,23 @@ grep -q 'TYPE[[:space:]]STATUS[[:space:]]ACTION[[:space:]]SOURCE' "$sweepdir/dry
 grep -q 'DP-995-sweep-implemented' "$sweepdir/dry-run.tsv" || fail "sweep dry-run omitted implemented DP"
 grep -q 'DONE-1' "$sweepdir/dry-run.tsv" || fail "sweep dry-run omitted implemented company spec"
 grep -q 'missing status' "$sweepdir/dry-run.tsv" || fail "sweep dry-run omitted missing-status skip"
-[[ -d "$sweepdir/specs/design-plans/DP-995-sweep-implemented" ]] || fail "dry-run moved implemented DP"
-[[ -d "$sweepdir/specs/companies/acme/DONE-1" ]] || fail "dry-run moved implemented company spec"
+[[ -d "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-995-sweep-implemented" ]] || fail "dry-run moved implemented DP"
+[[ -d "$sweepdir/docs-manager/src/content/docs/specs/companies/acme/DONE-1" ]] || fail "dry-run moved implemented company spec"
 
 bash "$ARCHIVE_SPEC" --workspace "$sweepdir" --sweep --apply >"$sweepdir/apply.tsv"
-[[ -f "$sweepdir/specs/design-plans/archive/DP-995-sweep-implemented/plan.md" ]] || fail "sweep apply did not archive implemented DP"
-[[ -f "$sweepdir/specs/design-plans/archive/DP-994-sweep-abandoned/plan.md" ]] || fail "sweep apply did not archive abandoned DP"
-[[ -f "$sweepdir/specs/companies/acme/archive/DONE-1/refinement.md" ]] || fail "sweep apply did not archive implemented company spec"
-[[ -d "$sweepdir/specs/design-plans/DP-993-sweep-locked" ]] || fail "sweep apply moved locked DP"
-[[ -d "$sweepdir/specs/design-plans/DP-992-sweep-missing" ]] || fail "sweep apply moved missing-status DP"
-[[ -d "$sweepdir/specs/companies/acme/SKIP-1" ]] || fail "sweep apply moved discussion company spec"
-[[ -d "$sweepdir/specs/companies/acme/NO-2" ]] || fail "sweep apply moved missing-status company spec"
+[[ -f "$sweepdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-995-sweep-implemented/plan.md" ]] || fail "sweep apply did not archive implemented DP"
+[[ -f "$sweepdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-994-sweep-abandoned/plan.md" ]] || fail "sweep apply did not archive abandoned DP"
+[[ -f "$sweepdir/docs-manager/src/content/docs/specs/companies/acme/archive/DONE-1/refinement.md" ]] || fail "sweep apply did not archive implemented company spec"
+[[ -d "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-993-sweep-locked" ]] || fail "sweep apply moved locked DP"
+[[ -d "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-992-sweep-missing" ]] || fail "sweep apply moved missing-status DP"
+[[ -d "$sweepdir/docs-manager/src/content/docs/specs/companies/acme/SKIP-1" ]] || fail "sweep apply moved discussion company spec"
+[[ -d "$sweepdir/docs-manager/src/content/docs/specs/companies/acme/NO-2" ]] || fail "sweep apply moved missing-status company spec"
 
 # Sweep duplicate destination guard.
 dupdir="$tmpdir/sweep-duplicate"
-mkdir -p "$dupdir/specs/design-plans"
-write_plan "$dupdir/specs/design-plans/DP-991-duplicate/plan.md" "IMPLEMENTED" "DP-991 active"
-write_plan "$dupdir/specs/design-plans/archive/DP-991-duplicate/plan.md" "IMPLEMENTED" "DP-991 archived"
+mkdir -p "$dupdir/docs-manager/src/content/docs/specs/design-plans"
+write_plan "$dupdir/docs-manager/src/content/docs/specs/design-plans/DP-991-duplicate/plan.md" "IMPLEMENTED" "DP-991 active"
+write_plan "$dupdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-991-duplicate/plan.md" "IMPLEMENTED" "DP-991 archived"
 expect_fail "sweep duplicate destination should fail" bash "$ARCHIVE_SPEC" --workspace "$dupdir" --sweep --dry-run
 
 echo "[selftest] PASS"

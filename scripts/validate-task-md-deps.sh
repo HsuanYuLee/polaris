@@ -35,6 +35,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/specs-root.sh
+. "$SCRIPT_DIR/lib/specs-root.sh"
+
 usage() {
   cat >&2 <<EOF
 usage: $0 <path/to/specs/{EPIC}/tasks/>
@@ -465,6 +469,10 @@ if [[ "$1" == "--scan" ]]; then
     echo "error: scan root not found: $root" >&2
     exit 2
   fi
+  specs_root="$(resolve_specs_root "$root")" || {
+    echo "error: could not resolve specs root under: $root" >&2
+    exit 2
+  }
 
   pass=0
   fail=0
@@ -480,7 +488,7 @@ if [[ "$1" == "--scan" ]]; then
       validate_epic_tasks_dir "$d" 2>&1 | sed 's/^/      /' >&2 || true
       fail=$((fail+1))
     fi
-  done < <(find "$root" -type d -name 'tasks' -path '*/specs/*/tasks' 2>/dev/null | sort)
+  done < <(find "$specs_root" -type d -name 'tasks' -path '*/tasks' 2>/dev/null | sort)
 
   echo ""
   echo "task.md deps scan: $pass pass, $fail fail (total $((pass+fail)))"

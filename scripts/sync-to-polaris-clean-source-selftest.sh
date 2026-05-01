@@ -178,6 +178,7 @@ docs_manager_sync_filters_generated_outputs() {
   polaris_dir="$(printf '%s\n' "$fixture" | sed -n '2p')"
 
   mkdir -p "$source_dir/docs-manager/src/content/docs/specs/design-plans/DP-001"
+  mkdir -p "$source_dir/docs-manager/src/content/docs/specs/design-plans/DP-002"
   mkdir -p "$source_dir/docs-manager/.astro" "$source_dir/docs-manager/dist" "$source_dir/docs-manager/node_modules/pkg"
   cat > "$source_dir/docs-manager/package.json" <<'PKG'
 {"name":"docs-manager"}
@@ -188,6 +189,7 @@ PKG
   echo 'generated dist' > "$source_dir/docs-manager/dist/index.html"
   echo 'generated dependency' > "$source_dir/docs-manager/node_modules/pkg/index.js"
   echo 'generated mirror' > "$source_dir/docs-manager/src/content/docs/specs/design-plans/DP-001/plan.md"
+  echo 'local canonical specs' > "$source_dir/docs-manager/src/content/docs/specs/design-plans/DP-002/plan.md"
 
   git -C "$source_dir" add docs-manager/package.json docs-manager/astro.config.mjs
   git -C "$source_dir" commit -q -m "add docs-manager source"
@@ -205,6 +207,7 @@ PKG
   [[ ! -e "$polaris_dir/docs-manager/dist/index.html" ]] || fail "dist output was synced"
   [[ ! -e "$polaris_dir/docs-manager/node_modules/pkg/index.js" ]] || fail "node_modules output was synced"
   [[ ! -e "$polaris_dir/docs-manager/src/content/docs/specs/design-plans/DP-001/plan.md" ]] || fail "mirror specs content was synced"
+  [[ ! -e "$polaris_dir/docs-manager/src/content/docs/specs/design-plans/DP-002/plan.md" ]] || fail "local canonical specs content was synced"
 }
 
 dirty_push_fails_before_template_copy

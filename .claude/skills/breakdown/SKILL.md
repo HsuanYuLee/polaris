@@ -275,8 +275,8 @@ User 確認後：
 依 `references/spec-source-resolver.md` 定位：
 
 ```text
-{workspace_root}/specs/design-plans/DP-NNN-{slug}/plan.md
-{workspace_root}/specs/design-plans/DP-NNN-{slug}/refinement.json
+{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/plan.md
+{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/refinement.json
 ```
 
 Hard rules：
@@ -306,8 +306,8 @@ Ownership：
 依 Planning Path Step 5-8 的拆解原則產出 preview，但輸出是 DP-backed task，不是 JIRA sub-task：
 
 ```text
-specs/design-plans/DP-NNN-{slug}/tasks/T1.md
-specs/design-plans/DP-NNN-{slug}/tasks/T2.md
+docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/tasks/T1.md
+docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/tasks/T2.md
 ...
 ```
 
@@ -348,8 +348,8 @@ Preview 必須包含：
 使用 `tasks/T{n}.md` 寫入 DP folder，然後執行：
 
 ```bash
-scripts/validate-task-md.sh {workspace_root}/specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md
-scripts/validate-task-md-deps.sh {workspace_root}/specs/design-plans/DP-NNN-{slug}/tasks/
+scripts/validate-task-md.sh {workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md
+scripts/validate-task-md-deps.sh {workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/tasks/
 ```
 
 所有 validator pass 後，更新 `plan.md` 的 Implementation Checklist / Work Orders linkage，將 checklist item 對應到 `tasks/T{n}.md`。若 validator fail，修 task.md，不得把 invalid work order 交給 engineering。

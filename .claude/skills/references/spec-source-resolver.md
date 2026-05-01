@@ -1,97 +1,103 @@
 # Spec Source Resolver
 
-Shared source resolution contract for JIRA-backed and ticketless Polaris pipeline work.
+JIRA-backed 與 ticketless Polaris pipeline 共用的 source resolution contract。
 
 ## Goal
 
-`refinement`, `breakdown`, `engineering`, and `verify-AC` must not each invent their own way to parse work sources. This reference defines the common source model used when a user provides a JIRA key, a design-plan ID, a direct artifact path, or a new ticketless topic.
+`refinement`、`breakdown`、`engineering`、`verify-AC` 不應各自發明 work source 解析方式。本 reference 定義共用 source model，涵蓋使用者提供 JIRA key、design-plan ID、直接 artifact path，或新的 ticketless topic。
 
-The core rule is:
+核心規則：
 
 ```text
-source resolver decides where the work lives
-pipeline stage decides what to do with it
-JIRA sync is optional decoration
+source resolver 決定 work 住在哪裡
+pipeline stage 決定要做什麼
+JIRA sync 只是 optional side effect
 ```
 
 ## Path Variables
 
 ```text
 {workspace_root}     Polaris workspace root
-{company}            active company key resolved from workspace config / JIRA project mapping
-{company_specs_dir}  {workspace_root}/specs/companies/{company}
+{company}            從 workspace config / JIRA project mapping 解析出的 active company key
+{specs_root}         {workspace_root}/docs-manager/src/content/docs/specs
+{company_specs_dir}  {specs_root}/companies/{company}
 ```
 
 ## Active And Archive Namespaces
 
-Default source resolution is active-only. Skills that start or continue work must scan these active containers:
+預設 source resolution 只看 active namespace。開始或續做 work 的 skills 必須掃描這些 active containers：
 
 ```text
-{workspace_root}/specs/design-plans/DP-NNN-{slug}/
-{workspace_root}/specs/companies/{company}/{TICKET}/
+{specs_root}/design-plans/DP-NNN-{slug}/
+{specs_root}/companies/{company}/{TICKET}/
 ```
 
-Completed or abandoned containers may be moved to archive:
+完成或放棄的 containers 可以移到 archive：
 
 ```text
-{workspace_root}/specs/design-plans/archive/DP-NNN-{slug}/
-{workspace_root}/specs/companies/{company}/archive/{TICKET}/
+{specs_root}/design-plans/archive/DP-NNN-{slug}/
+{specs_root}/companies/{company}/archive/{TICKET}/
 ```
 
-Rules:
+規則：
 
-- active lookup must prune `archive/` so historical tasks do not resolve as current work
-- direct archived artifact paths are allowed for read-only audit
-- broad historical lookup requires an explicit mode such as `--include-archive`
-- the same DP or ticket container must not exist in both active and archive namespaces
-- docs-manager reads the physical `specs/` tree directly, so archived content is browsed under Starlight routes for `specs/design-plans/archive/...` or `specs/companies/{company}/archive/...`
+- active lookup 必須 prune `archive/`，避免歷史 tasks 被解析成目前 work
+- 直接給 archived artifact path 時，可以做 read-only audit
+- 大範圍 historical lookup 必須使用明確模式，例如 `--include-archive`
+- 同一個 DP 或 ticket container 不可同時存在於 active 與 archive namespaces
+- docs-manager 直接讀 physical `docs-manager/src/content/docs/specs` tree，因此 archived content 仍從 Starlight routes `specs/design-plans/archive/...` 或 `specs/companies/{company}/archive/...` 瀏覽
 
 ## Source Types
 
 | Type | Input examples | Canonical container | Primary owner |
 |------|----------------|---------------------|---------------|
-| `jira` | `PROJ-123`, `TASK-123` | `{company_specs_dir}/{TICKET}/` plus JIRA issue | `refinement` / `breakdown` |
-| `dp` | `DP-045`, `specs/design-plans/DP-045-*/plan.md` | `{workspace_root}/specs/design-plans/DP-NNN-{slug}/` | `refinement` |
-| `topic` | `討論 CI local blocker`, `refinement "想重構 skill routing"` | newly allocated DP folder | `refinement` |
-| `artifact_path` | direct `refinement.json`, `refinement.md`, `tasks/T1.md` path | nearest containing specs folder | stage-specific consumer |
+| `jira` | `PROJ-123`, `TASK-123` | `{company_specs_dir}/{TICKET}/` 加上 JIRA issue | `refinement` / `breakdown` |
+| `dp` | `DP-045`, `docs-manager/src/content/docs/specs/design-plans/DP-045-*/plan.md` | `{specs_root}/design-plans/DP-NNN-{slug}/` | `refinement` |
+| `topic` | `討論 CI local blocker`, `refinement "想重構 skill routing"` | 新分配的 DP folder | `refinement` |
+| `artifact_path` | direct `refinement.json`, `refinement.md`, `tasks/T1.md` path | 最近的 containing specs folder | stage-specific consumer |
 
 ## DP Locator
 
-When input contains `DP-NNN`, locate exactly one folder:
+當 input 包含 `DP-NNN` 時，必須定位到唯一 folder：
 
 ```text
-{workspace_root}/specs/design-plans/DP-NNN-*/
+{specs_root}/design-plans/DP-NNN-*/
 ```
 
-Rules:
+規則：
 
-- zero matches: fail loud; do not silently create a replacement DP with the same number
-- multiple matches: fail loud; user or maintainer must resolve the duplicate
-- one match: canonical DP root is that folder
-- `plan.md` is required for `refinement DP-NNN` and `breakdown DP-NNN`
-- `tasks/T{n}.md` is optional until `breakdown` produces work orders
+- zero matches：fail loud，不可默默建立同號 replacement DP
+- multiple matches：fail loud，由使用者或 maintainer 解 duplicate
+- one match：該 folder 就是 canonical DP root
+- `refinement DP-NNN` 與 `breakdown DP-NNN` 必須有 `plan.md`
+- `tasks/T{n}.md` 在 `breakdown` 產出 work orders 前是 optional
 
-The canonical plan path is:
+Canonical plan path：
 
 ```text
-{workspace_root}/specs/design-plans/DP-NNN-{slug}/plan.md
+{specs_root}/design-plans/DP-NNN-{slug}/plan.md
 ```
 
 ## Topic To DP Creation
 
-When input is a ticketless topic instead of an existing `DP-NNN`:
+當 input 是 ticketless topic 而不是既有 `DP-NNN`：
 
-1. scan `{workspace_root}/specs/design-plans/DP-*`
-2. allocate max existing N + 1
-3. create `{workspace_root}/specs/design-plans/DP-NNN-{topic-slug}/plan.md`
-4. set frontmatter `status: DISCUSSION`
-5. route into `refinement` ticketless mode
+1. 掃描 `{specs_root}/design-plans/DP-*`
+2. 分配既有最大 N + 1
+3. 建立 `{specs_root}/design-plans/DP-NNN-{topic-slug}/plan.md`
+4. 設定 frontmatter `title` 與 `status: DISCUSSION`
+5. route 到 `refinement` ticketless mode
 
-The topic slug is kebab-case and describes the durable subject, not the current implementation step.
+topic slug 採 kebab-case，描述 durable subject，不描述當下 implementation step。
+
+因為 docs-manager 使用 Starlight `docsLoader()` + `docsSchema()` 直接讀取
+`{specs_root}`，所有 specs markdown 都必須有 `title` frontmatter。新 producer
+建立 `plan.md`、`refinement.md` 或 task work order 時，必須在 source file 寫入
+stable title；不可依賴額外 loader 或 generated mirror 補齊 metadata。
 
 ## Artifact Paths
 
-For JIRA-backed work:
+JIRA-backed work：
 
 ```text
 {company_specs_dir}/{TICKET}/refinement.md
@@ -99,32 +105,32 @@ For JIRA-backed work:
 {company_specs_dir}/{TICKET}/tasks/T{n}.md
 ```
 
-For DP-backed ticketless work:
+DP-backed ticketless work：
 
 ```text
-{workspace_root}/specs/design-plans/DP-NNN-{slug}/plan.md
-{workspace_root}/specs/design-plans/DP-NNN-{slug}/refinement.md
-{workspace_root}/specs/design-plans/DP-NNN-{slug}/refinement.json
-{workspace_root}/specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md
+{specs_root}/design-plans/DP-NNN-{slug}/plan.md
+{specs_root}/design-plans/DP-NNN-{slug}/refinement.md
+{specs_root}/design-plans/DP-NNN-{slug}/refinement.json
+{specs_root}/design-plans/DP-NNN-{slug}/tasks/T{n}.md
 ```
 
-`refinement.json` is the machine-readable artifact. `plan.md` is the durable decision record. They may share information, but consumers should prefer `refinement.json` when they need structured fields.
+`refinement.json` 是 machine-readable artifact。`plan.md` 是 durable decision record。兩者可以共享資訊，但 consumer 需要 structured fields 時應優先讀 `refinement.json`。
 
 ## Status Rules
 
 | Status | Meaning | Allowed next stage |
 |--------|---------|--------------------|
-| `SEEDED` | DP shell exists, usually from learning handoff | `refinement` only |
-| `DISCUSSION` | requirements / decisions are still changing | `refinement` only |
-| `LOCKED` | source is stable enough for breakdown | `breakdown` |
-| `IMPLEMENTED` | work is complete | read-only / audit |
-| `ABANDONED` | decision was not to proceed | read-only unless revived by user |
+| `SEEDED` | DP shell 已存在，通常來自 learning handoff | 只能進 `refinement` |
+| `DISCUSSION` | requirements / decisions 仍在變動 | 只能進 `refinement` |
+| `LOCKED` | source 已穩定到可以 breakdown | `breakdown` |
+| `IMPLEMENTED` | work 已完成 | read-only / audit |
+| `ABANDONED` | 決策是不繼續 | read-only，除非使用者明確 revive |
 
-`breakdown DP-NNN` must require `LOCKED` unless the user explicitly asks for advisory review. If source is still `DISCUSSION`, route back to `refinement DP-NNN`.
+`breakdown DP-NNN` 必須要求 `LOCKED`，除非使用者明確要求 advisory review。若 source 仍是 `DISCUSSION`，route 回 `refinement DP-NNN`。
 
 ## Archive Sweep
 
-Terminal specs can be archived one-by-one or by sweep:
+Terminal specs 可以逐一 archive，也可以 sweep：
 
 ```bash
 scripts/archive-spec.sh DP-NNN
@@ -133,15 +139,15 @@ scripts/archive-spec.sh --sweep --dry-run
 scripts/archive-spec.sh --sweep --apply
 ```
 
-Sweep uses the same namespace rules as source resolution:
+Sweep 使用與 source resolution 相同的 namespace rules：
 
-- DP container status comes from `plan.md`
-- JIRA/company container status comes from `refinement.md`, falling back to `plan.md`
-- only `IMPLEMENTED` and `ABANDONED` are archive candidates
-- non-terminal or missing status containers stay active and are reported as `skip`
-- destination conflicts fail before any apply move
+- DP container status 來自 `plan.md`
+- JIRA/company container status 來自 `refinement.md`，fallback 到 `plan.md`
+- 只有 `IMPLEMENTED` 與 `ABANDONED` 是 archive candidates
+- non-terminal 或 missing status containers 留在 active，並回報為 `skip`
+- destination conflict 必須在任何 apply move 前 fail
 
-After sweep apply, docs-manager reads the moved canonical specs directly. For live review or static/search verification:
+Sweep apply 後，docs-manager 會直接讀 moved canonical specs。Live review 或 static/search verification：
 
 ```bash
 scripts/polaris-viewer.sh --mode dev
@@ -150,33 +156,35 @@ scripts/verify-docs-manager-runtime.sh --preview
 
 ## Section Ownership
 
-This section ownership rule prevents `refinement` and `breakdown` from competing over the same DP content.
+這個 section ownership rule 防止 `refinement` 與 `breakdown` 競爭同一份 DP content。
 
 | Section | Owner | Notes |
 |---------|-------|-------|
-| frontmatter `topic`, `created`, `status`, `locked_at` | `refinement` | `breakdown` reads; it does not lock a plan |
+| frontmatter `title`, `topic`, `created`, `status`, `locked_at` | `refinement` | `breakdown` 只讀，不負責 lock plan |
 | `## Goal` | `refinement` | requirement intent |
-| `## Background` | `refinement` | context and current state |
-| `## Decisions` | `refinement` | selected direction and rationale |
-| `## Blind Spots` | `refinement` | risks and mitigations |
-| `## Acceptance Criteria` | `refinement` | ticketless AC for future `verify-AC` |
-| `## Technical Approach` / `## 技術方案` | `refinement` | implementation direction, not task slicing |
-| `## Implementation Checklist` | `breakdown` after LOCKED | may map items to `tasks/T{n}.md`; before LOCKED, `refinement` may draft candidates |
-| `## Work Orders` / `## Task Mapping` | `breakdown` | records generated task files and dependencies |
-| `## Implementation Notes` | stage-specific | only append facts from the current stage |
+| `## Background` | `refinement` | context 與 current state |
+| `## Decisions` | `refinement` | selected direction 與 rationale |
+| `## Blind Spots` | `refinement` | risks 與 mitigations |
+| `## Acceptance Criteria` | `refinement` | 未來 `verify-AC` 使用的 ticketless AC |
+| `## Technical Approach` / `## 技術方案` | `refinement` | implementation direction，不是 task slicing |
+| `## Implementation Checklist` | `breakdown` after LOCKED | 可 map 到 `tasks/T{n}.md`；LOCKED 前 `refinement` 可先 draft candidates |
+| `## Work Orders` / `## Task Mapping` | `breakdown` | 記錄 generated task files 與 dependencies |
+| `## Implementation Notes` | stage-specific | 只 append current stage 的 facts |
 
-If `breakdown` finds a technical decision wrong or incomplete, it must route back to `refinement`; it must not rewrite `Decisions` or `Technical Approach` silently.
+如果 `breakdown` 發現 technical decision 錯誤或不完整，必須 route 回 `refinement`；不可默默 rewrite `Decisions` 或 `Technical Approach`。
 
 ## Stage Routing
 
 | Input | Stage command | Behavior |
 |-------|---------------|----------|
-| `refinement DP-NNN` | refinement | locate DP, continue discussion / produce artifact |
-| `refinement "topic"` | refinement | allocate DP, start ticketless refinement |
-| `breakdown DP-NNN` | breakdown | require LOCKED DP, consume artifact / plan, create tasks |
-| `engineering DP-NNN-Tn` | engineering | resolve to DP-backed task.md via DP-047 bridge |
-| `verify-AC DP-NNN` | verify-AC | future ticketless verification mode |
+| `refinement DP-NNN` | refinement | locate DP，繼續 discussion / produce artifact |
+| `refinement "topic"` | refinement | allocate DP，開始 ticketless refinement |
+| `breakdown DP-NNN` | breakdown | 要求 LOCKED DP，consume artifact / plan，create tasks |
+| `engineering DP-NNN-Tn` | engineering | 透過 DP-047 bridge resolve 到 DP-backed task.md |
+| `verify-AC DP-NNN` | verify-AC | 未來 ticketless verification mode |
 
 ## Compatibility
 
-Legacy `design-plan` triggers such as `想討論`, `怎麼設計`, `ADR`, `design plan`, and `/design-plan DP-NNN` are aliases for `refinement` ticketless mode. The `design-plan` skill has been removed; no separate shim pipeline remains.
+Legacy `design-plan` triggers，例如 `想討論`、`怎麼設計`、`ADR`、`design plan`、`/design-plan DP-NNN`，都是 `refinement` ticketless mode 的 aliases。`design-plan` skill 已移除，不再保留 separate shim pipeline。
+
+Legacy top-level `{workspace_root}/specs` 已由 DP-066 sunset。Runtime 與 lifecycle scripts 必須使用 `scripts/resolve-specs-root.sh` 或 `scripts/lib/specs-root.sh`，不可 hard-code 任一 root。

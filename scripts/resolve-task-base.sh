@@ -91,8 +91,9 @@ parse_repo_name() {
 }
 
 # Given a task.md path, try to derive the git repo path it belongs to.
-# Convention: task.md lives at {base_dir}/specs/{EPIC}/tasks/T*.md.
-# With "Repo: <name>" in header, repo path is {base_dir}/<name>.
+# Canonical convention: task.md lives under
+# {workspace_root}/docs-manager/src/content/docs/specs/.../tasks/T*.md.
+# With "Repo: <name>" in header, repo path is {workspace_root}/<name>.
 derive_repo_path() {
     local task_md="$1"
     local repo_name
@@ -100,10 +101,10 @@ derive_repo_path() {
     if [ -z "$repo_name" ]; then
         return 1
     fi
-    # Product tasks live at <base_dir>/specs/<EPIC>/tasks/<file>.md.
-    # DP-backed tasks live at <base_dir>/specs/design-plans/<DP>/tasks/<file>.md.
-    # Walk upward to the nearest specs/ ancestor so both shapes resolve to
-    # the workspace base dir instead of assuming a fixed path depth.
+    # Product tasks live under the canonical docs-manager specs root.
+    # DP-backed tasks live under the same specs root at design-plans/<DP>/tasks/.
+    # Walk upward to the nearest specs/ ancestor so both shapes resolve without
+    # assuming a fixed task path depth.
     local dir specs_dir base_dir
     dir=$(cd "$(dirname "$task_md")" && pwd)
     specs_dir=""
@@ -117,7 +118,15 @@ derive_repo_path() {
     if [ -z "$specs_dir" ]; then
         return 1
     fi
-    base_dir=$(dirname "$specs_dir")
+    case "$specs_dir" in
+        */docs-manager/src/content/docs/specs)
+            base_dir="${specs_dir%/docs-manager/src/content/docs/specs}"
+            ;;
+        *)
+            # Legacy selftests and historical workspaces used {workspace}/specs.
+            base_dir=$(dirname "$specs_dir")
+            ;;
+    esac
     local candidate="$base_dir/$repo_name"
     if [ -d "$candidate/.git" ] || [ -d "$candidate" ]; then
         printf '%s' "$candidate"
@@ -794,6 +803,68 @@ EOF
         pass=$((pass + 1))
     else
         echo "FAIL case10: expected 'main' exit 0, got '$out' exit $rc"
+        fails=$((fails + 1))
+    fi
+
+    # Case 11: Same DP shape under the canonical docs-manager specs root.
+    local case11_base="$tmpdir/case11-base"
+    local repo11="$case11_base/polaris-framework"
+    mkdir -p "$repo11"
+    git -C "$repo11" init -q -b main
+    git -C "$repo11" config user.email "self-test@example.com"
+    git -C "$repo11" config user.name "self-test"
+    echo "init" >"$repo11/f.txt"
+    git -C "$repo11" add f.txt && git -C "$repo11" commit -q -m init
+    echo "t1" >>"$repo11/f.txt" && git -C "$repo11" commit -q -am "DP-066-T1"
+    local t11_sha
+    t11_sha=$(git -C "$repo11" rev-parse HEAD)
+
+    mkdir -p "$case11_base/docs-manager/src/content/docs/specs/design-plans/DP-066-demo/tasks/pr-release"
+    cat >"$case11_base/docs-manager/src/content/docs/specs/design-plans/DP-066-demo/tasks/pr-release/T1.md" <<EOF
+---
+title: "T1: canonical root upstream"
+extension_deliverable:
+  endpoint: local_extension
+  extension_id: framework-release
+  task_head_sha: $t11_sha
+status: IMPLEMENTED
+---
+# T1 upstream
+
+> Epic: DP-066 | JIRA: DP-066-T1 | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Task JIRA key | DP-066-T1 |
+| Base branch | main |
+| Task branch | task/DP-066-T1-canonical-root |
+EOF
+    cat >"$case11_base/docs-manager/src/content/docs/specs/design-plans/DP-066-demo/tasks/T2.md" <<'EOF'
+---
+title: "T2: canonical root downstream"
+---
+# T2 downstream
+
+> Epic: DP-066 | JIRA: DP-066-T2 | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Task JIRA key | DP-066-T2 |
+| Base branch | task/DP-066-T1-canonical-root |
+| Task branch | task/DP-066-T2-downstream |
+| Depends on | DP-066-T1 (T1 — canonical root upstream) |
+EOF
+    out=$(resolve_task_base "$case11_base/docs-manager/src/content/docs/specs/design-plans/DP-066-demo/tasks/T2.md" 2>/dev/null)
+    rc=$?
+    if [ "$rc" = "0" ] && [ "$out" = "main" ]; then
+        echo "PASS case11: canonical docs-manager specs root resolves workspace repo"
+        pass=$((pass + 1))
+    else
+        echo "FAIL case11: expected 'main' exit 0, got '$out' exit $rc"
         fails=$((fails + 1))
     fi
 

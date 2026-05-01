@@ -39,6 +39,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
+# shellcheck source=lib/specs-root.sh
+. "$SCRIPT_DIR/lib/specs-root.sh"
 
 run_selftest() {
   local tmpdir=""
@@ -47,10 +49,10 @@ run_selftest() {
   tmpdir="$(mktemp -d -t mark-spec-implemented-selftest.XXXXXX)"
   trap "rm -rf '$tmpdir'" EXIT
 
-  mkdir -p "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks" \
-           "$tmpdir/specs/companies/kkday/GT-001/tasks" \
-           "$tmpdir/specs/companies/kkday/archive/GT-OLD/tasks"
-  cat > "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/T1.md" <<'MD'
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-001/tasks" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/GT-OLD/tasks"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/T1.md" <<'MD'
 # T1: Canonical DP task (1 pt)
 
 > Source: DP-050 | Task: DP-050-T1 | JIRA: N/A | Repo: polaris-framework
@@ -70,11 +72,11 @@ MD
   rc=0
   env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" DP-050-T1 --workspace "$tmpdir" >/dev/null || rc=$?
   [[ "$rc" -eq 0 ]] || { echo "[selftest] canonical DP mark implemented failed"; return 1; }
-  [[ ! -f "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/T1.md" ]] || { echo "[selftest] active task was not moved"; return 1; }
-  [[ -f "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" ]] || { echo "[selftest] pr-release task missing"; return 1; }
-  grep -q '^status: IMPLEMENTED$' "$tmpdir/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" || { echo "[selftest] status missing"; return 1; }
+  [[ ! -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/T1.md" ]] || { echo "[selftest] active task was not moved"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" ]] || { echo "[selftest] pr-release task missing"; return 1; }
+  grep -q '^status: IMPLEMENTED$' "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" || { echo "[selftest] status missing"; return 1; }
 
-  cat > "$tmpdir/specs/companies/kkday/GT-001/tasks/T2.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-001/tasks/T2.md" <<'MD'
 # T2: Active product task (1 pt)
 > Source: GT-001 | Task: GT-001 | JIRA: GT-001 | Repo: kkday
 ## Operational Context
@@ -88,7 +90,7 @@ MD
 | Task branch | task/GT-001-active |
 MD
 
-  cat > "$tmpdir/specs/companies/kkday/archive/GT-OLD/tasks/T2.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/GT-OLD/tasks/T2.md" <<'MD'
 # T2: Archived product task (1 pt)
 > Source: GT-OLD | Task: GT-OLD | JIRA: GT-OLD | Repo: kkday
 ## Operational Context
@@ -98,8 +100,8 @@ MD
   rc=0
   env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" T2 --workspace "$tmpdir" >/dev/null || rc=$?
   [[ "$rc" -eq 0 ]] || { echo "[selftest] active task key mark implemented failed"; return 1; }
-  [[ -f "$tmpdir/specs/companies/kkday/GT-001/tasks/pr-release/T2.md" ]] || { echo "[selftest] active T2 pr-release task missing"; return 1; }
-  [[ -f "$tmpdir/specs/companies/kkday/archive/GT-OLD/tasks/T2.md" ]] || { echo "[selftest] archived T2 was moved unexpectedly"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-001/tasks/pr-release/T2.md" ]] || { echo "[selftest] active T2 pr-release task missing"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/GT-OLD/tasks/T2.md" ]] || { echo "[selftest] archived T2 was moved unexpectedly"; return 1; }
 
   echo "[selftest] PASS"
 }
@@ -112,6 +114,7 @@ fi
 TICKET=""
 STATUS="IMPLEMENTED"
 WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SPECS_ROOT=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -132,6 +135,11 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
+
+SPECS_ROOT="$(resolve_specs_root "$WORKSPACE_ROOT")" || {
+  echo "ERROR: unable to resolve specs root" >&2
+  exit 1
+}
 
 if [ -z "$TICKET" ]; then
   echo "ERROR: ticket key required (e.g., GT-521 or KB2CW-3847)" >&2
@@ -216,9 +224,9 @@ is_task_key() {
 
 # ---------------------------------------------------------------------------
 # Resolve anchor file — three resolution paths:
-#   1) Epic-level: {workspace}/specs/companies/<company>/<ticket>/refinement.md or plan.md
+#   1) Epic-level: {workspace}/docs-manager/src/content/docs/specs/companies/<company>/<ticket>/refinement.md or plan.md
 #   2) Task-level (task key T{n}/V{n}): scan specs/*/tasks/ by filename
-#   3) DP task-level (DP-NNN-Tn): scan root specs/design-plans/DP-NNN-*/tasks/Tn.md
+#   3) DP task-level (DP-NNN-Tn): scan docs-manager/src/content/docs/specs/design-plans/DP-NNN-*/tasks/Tn.md
 #   4) Task-level (JIRA key): parser jira_key match first, legacy "> JIRA: <ticket>" fallback
 # ---------------------------------------------------------------------------
 ANCHOR=""
@@ -227,7 +235,7 @@ TASK_FILENAME=""  # basename of task file (T1.md, T3b.md, V1.md, ...)
 TASKS_DIR=""    # absolute path to the tasks/ directory containing the task
 
 # Path 1 — Epic-level
-for company_specs_dir in "$WORKSPACE_ROOT"/specs/companies/*/; do
+for company_specs_dir in "$SPECS_ROOT"/companies/*/; do
   [ -d "$company_specs_dir" ] || continue
   candidate="${company_specs_dir}${TICKET}"
   if [ -d "$candidate" ]; then
@@ -265,7 +273,7 @@ if [ -z "$ANCHOR" ] && is_task_key "$TICKET"; then
       ANCHOR_TYPE="task"
       break
     fi
-  done < <(find "$WORKSPACE_ROOT" \
+  done < <(find "$SPECS_ROOT" \
     \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
     -o \( -type f \( \
       -path "*/tasks/${TICKET}.md" \
@@ -278,8 +286,8 @@ if [ -z "$ANCHOR" ] && echo "$TICKET" | grep -qE '^DP-[0-9]{3}-T[0-9]+[a-z]*$'; 
   dp_id="$(printf '%s' "$TICKET" | sed -E 's/^(DP-[0-9]{3})-T[0-9]+[a-z]*$/\1/')"
   task_stem="$(printf '%s' "$TICKET" | sed -E 's/^DP-[0-9]{3}-(T[0-9]+[a-z]*)$/\1/')"
   for f in \
-    "$WORKSPACE_ROOT"/specs/design-plans/"$dp_id"-*/tasks/"$task_stem".md \
-    "$WORKSPACE_ROOT"/specs/design-plans/"$dp_id"-*/tasks/pr-release/"$task_stem".md
+    "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/"$task_stem".md \
+    "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/pr-release/"$task_stem".md
   do
     [ -f "$f" ] || continue
     ANCHOR="$f"
@@ -316,28 +324,24 @@ if [ -z "$ANCHOR" ]; then
       ANCHOR_TYPE="task"
       break
     fi
-  done < <(find "$WORKSPACE_ROOT" \
+  done < <(find "$SPECS_ROOT" \
     \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
     -o \( -type f \( \
-      -path "*/specs/design-plans/*/tasks/T*.md" \
-      -o -path "*/specs/design-plans/*/tasks/V*.md" \
-      -o -path "*/specs/design-plans/*/tasks/pr-release/T*.md" \
-      -o -path "*/specs/design-plans/*/tasks/pr-release/V*.md" \
-      -o -path "*/specs/*/tasks/T*.md" \
-      -o -path "*/specs/*/tasks/V*.md" \
-      -o -path "*/specs/*/tasks/pr-release/T*.md" \
-      -o -path "*/specs/*/tasks/pr-release/V*.md" \
+      -path "*/tasks/T*.md" \
+      -o -path "*/tasks/V*.md" \
+      -o -path "*/tasks/pr-release/T*.md" \
+      -o -path "*/tasks/pr-release/V*.md" \
     \) -print \) 2>/dev/null)
 fi
 
 if [ -z "$ANCHOR" ]; then
   echo "ERROR: no spec found for $TICKET" >&2
   echo "  Searched:" >&2
-  echo "    - $WORKSPACE_ROOT/specs/companies/*/$TICKET/{refinement.md,plan.md}" >&2
-  echo "    - $WORKSPACE_ROOT/*/specs/*/tasks/{T,V}*.md (by filename key '$TICKET')" >&2
-  echo "    - $WORKSPACE_ROOT/specs/design-plans/DP-NNN-*/tasks/{T,V}*.md (by DP task key / header)" >&2
-  echo "    - $WORKSPACE_ROOT/*/specs/*/tasks/{T,V}*.md (by '> JIRA: $TICKET' header)" >&2
-  echo "    - $WORKSPACE_ROOT/*/specs/*/tasks/pr-release/*.md (active→pr-release fallback)" >&2
+  echo "    - $SPECS_ROOT/companies/*/$TICKET/{refinement.md,plan.md}" >&2
+  echo "    - $SPECS_ROOT/**/tasks/{T,V}*.md (by filename key '$TICKET')" >&2
+  echo "    - $SPECS_ROOT/design-plans/DP-NNN-*/tasks/{T,V}*.md (by DP task key / header)" >&2
+  echo "    - $SPECS_ROOT/**/tasks/{T,V}*.md (by '> JIRA: $TICKET' header)" >&2
+  echo "    - $SPECS_ROOT/**/tasks/pr-release/*.md (active→pr-release fallback)" >&2
   exit 1
 fi
 
