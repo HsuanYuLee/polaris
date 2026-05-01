@@ -50,7 +50,7 @@ Rules:
 
 | Type | Input examples | Canonical container | Primary owner |
 |------|----------------|---------------------|---------------|
-| `jira` | `GT-478`, `KB2CW-3711` | `{company_specs_dir}/{TICKET}/` plus JIRA issue | `refinement` / `breakdown` |
+| `jira` | `PROJ-123`, `TASK-123` | `{company_specs_dir}/{TICKET}/` plus JIRA issue | `refinement` / `breakdown` |
 | `dp` | `DP-045`, `specs/design-plans/DP-045-*/plan.md` | `{workspace_root}/specs/design-plans/DP-NNN-{slug}/` | `refinement` |
 | `topic` | `討論 CI local blocker`, `refinement "想重構 skill routing"` | newly allocated DP folder | `refinement` |
 | `artifact_path` | direct `refinement.json`, `refinement.md`, `tasks/T1.md` path | nearest containing specs folder | stage-specific consumer |
