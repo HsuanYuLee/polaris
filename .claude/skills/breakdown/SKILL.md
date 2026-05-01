@@ -228,12 +228,14 @@ User 確認後：
      --route "{engineering|refinement|wait|baseline_approval|task_update}" \
      --closes-gate "{true|false}" \
      --flavor "{accepted_or_reclassified_flavor}" \
+     --disposition "{accepted flavor: X | re-classified to Y: reason}" \
      --decision "{planner decision 1}" \
      --decision "{planner decision 2}"
    ```
 
    - exit 0 → proposal 可落地，繼續本 step
    - exit 1/2 → **停下來**，不可改 task.md、不可寫 JIRA、不可標 `processed: true`
+   - `--disposition` 必須逐字對應 E2 的 accepted/re-classified 行；validator 會比對 sidecar frontmatter 的 engineering flavor，避免 #5 mis-classification 只靠文字約定
    - 若 sidecar `Closure Forecast` 顯示單一修法不足，且 route 是 `engineering`，script 會要求 decisions 覆蓋 residual / baseline / env handling；只補第一個 Allowed Files 會被 hard fail
 
 2. **task.md 異動權威由 breakdown 持有**：`plan-defect` 直接 Edit 既有 task.md；`scope-drift` 走 § 14.5 schema 產新 T{n}.md（依正常 validator gate）；`env-drift` 多半不改 task.md，只在 JIRA / handbook 留 baseline approval 紀錄

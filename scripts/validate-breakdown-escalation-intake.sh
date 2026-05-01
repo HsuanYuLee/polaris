@@ -11,6 +11,7 @@
 #     --route engineering|refinement|wait|baseline_approval|task_update \
 #     --closes-gate true|false \
 #     --flavor plan-defect|scope-drift|env-drift \
+#     --disposition "accepted flavor: env-drift" \
 #     --decision "storage helper typing folded into T3a" \
 #     --decision "residual baseline/env handled by waiting for sibling baseline correction"
 #
@@ -33,13 +34,37 @@ ALLOWED_FLAVORS_REGEX='^(plan-defect|scope-drift|env-drift)$'
 
 usage() {
   cat >&2 <<EOF
-usage: $0 --sidecar <path> --route <route> --closes-gate <true|false> --flavor <flavor> --decision <text> [--decision <text>...]
+usage: $0 --sidecar <path> --route <route> --closes-gate <true|false> --flavor <flavor> --disposition <text> --decision <text> [--decision <text>...]
        $0 --self-test
 
 routes: engineering | refinement | wait | baseline_approval | task_update
 flavor: plan-defect | scope-drift | env-drift
+disposition: "accepted flavor: X" when X matches sidecar flavor, or "re-classified to X: reason" when it differs
 EOF
   exit 2
+}
+
+extract_frontmatter_scalar() {
+  local file="$1"
+  local key="$2"
+  awk -v key="$key" '
+    /^---$/ { if (fm==0) { fm=1; next } else { exit } }
+    fm==1 {
+      if (/^[[:space:]]/) next
+      n = split($0, parts, ":")
+      if (n >= 2) {
+        k = parts[1]
+        sub(/^[[:space:]]+/, "", k); sub(/[[:space:]]+$/, "", k)
+        if (k == key) {
+          val = $0
+          sub(/^[^:]*:[[:space:]]*/, "", val)
+          sub(/[[:space:]]+$/, "", val)
+          print val
+          exit
+        }
+      }
+    }
+  ' "$file"
 }
 
 extract_section() {
@@ -77,12 +102,26 @@ mentions_residual_decision() {
     '(residual|baseline|env|environment|upstream|sibling|wait|refinement|剩餘|殘留|基線|環境|等待|上游|同線|同支|改開 refinement|退 refinement)'
 }
 
+validate_flavor_disposition() {
+  local source_flavor="$1"
+  local final_flavor="$2"
+  local disposition="$3"
+
+  if [[ "$final_flavor" == "$source_flavor" ]]; then
+    printf '%s\n' "$disposition" | grep -qiE "^accepted flavor:[[:space:]]*${final_flavor}([[:space:]]|$)"
+    return $?
+  fi
+
+  printf '%s\n' "$disposition" | grep -qiE "^re-classified to[[:space:]]+${final_flavor}:[[:space:]]*[^[:space:]].*"
+}
+
 validate() {
   local sidecar="$1"
   local route="$2"
   local closes_gate="$3"
   local flavor="$4"
-  shift 4
+  local disposition="$5"
+  shift 5
   local decisions=("$@")
   local errors=()
 
@@ -98,6 +137,20 @@ validate() {
   fi
   if ! [[ "$flavor" =~ $ALLOWED_FLAVORS_REGEX ]]; then
     errors+=("flavor must be one of plan-defect|scope-drift|env-drift (got '$flavor')")
+  fi
+  local source_flavor
+  source_flavor=$(extract_frontmatter_scalar "$sidecar" "flavor" || true)
+  if ! [[ "$source_flavor" =~ $ALLOWED_FLAVORS_REGEX ]]; then
+    errors+=("sidecar frontmatter 'flavor' must be one of plan-defect|scope-drift|env-drift (got '$source_flavor')")
+  fi
+  if [[ -z "$(printf '%s' "$disposition" | tr -d '[:space:]')" ]]; then
+    errors+=("--disposition is required and must contain the breakdown flavor disposition")
+  elif [[ "$source_flavor" =~ $ALLOWED_FLAVORS_REGEX && "$flavor" =~ $ALLOWED_FLAVORS_REGEX ]] && ! validate_flavor_disposition "$source_flavor" "$flavor" "$disposition"; then
+    if [[ "$flavor" == "$source_flavor" ]]; then
+      errors+=("--disposition must start with 'accepted flavor: $flavor' when breakdown keeps the engineering flavor")
+    else
+      errors+=("--disposition must start with 're-classified to $flavor: <reason>' when breakdown changes engineering flavor '$source_flavor'")
+    fi
   fi
   if [[ "${#decisions[@]}" -eq 0 ]]; then
     errors+=("at least one --decision is required")
@@ -190,18 +243,34 @@ EOF
 
   echo "self-test: partial route to engineering must FAIL"
   if validate "$sidecar" "engineering" "true" "plan-defect" \
+      "re-classified to plan-defect: storage helper belongs to this task" \
       "storage helper typing folded into T3a" >/dev/null 2>&1; then
     echo "self-test failed: partial engineering decision passed" >&2
     return 1
   fi
 
+  echo "self-test: accepted flavor requires accepted disposition"
+  if validate "$sidecar" "wait" "false" "env-drift" \
+      "re-classified to env-drift: missing accepted wording" \
+      "residual baseline/env handled by waiting for sibling baseline correction" >/dev/null 2>&1; then
+    echo "self-test failed: accepted flavor with re-classified wording passed" >&2
+    return 1
+  fi
+
   echo "self-test: complete route to engineering must PASS"
   validate "$sidecar" "engineering" "true" "env-drift" \
+    "accepted flavor: env-drift" \
     "storage helper typing folded into T3a" \
     "residual baseline/env handled by waiting for sibling baseline correction before engineering resumes"
 
+  echo "self-test: re-classified disposition must PASS"
+  validate "$sidecar" "refinement" "false" "plan-defect" \
+    "re-classified to plan-defect: storage helper belongs to the original task and residual scope needs replanning" \
+    "residual baseline/env indicates deeper planning drift; route refinement instead of engineering"
+
   echo "self-test: route to refinement with closes=false must PASS"
   validate "$sidecar" "refinement" "false" "env-drift" \
+    "accepted flavor: env-drift" \
     "residual baseline/env indicates deeper planning drift; route refinement instead of engineering"
 }
 
@@ -214,6 +283,7 @@ sidecar=""
 route=""
 closes_gate=""
 flavor=""
+disposition=""
 decisions=()
 
 while [[ $# -gt 0 ]]; do
@@ -238,6 +308,11 @@ while [[ $# -gt 0 ]]; do
       flavor="$2"
       shift 2
       ;;
+    --disposition)
+      [[ $# -ge 2 ]] || usage
+      disposition="$2"
+      shift 2
+      ;;
     --decision)
       [[ $# -ge 2 ]] || usage
       decisions+=("$2")
@@ -253,8 +328,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$sidecar" || -z "$route" || -z "$closes_gate" || -z "$flavor" ]]; then
+if [[ -z "$sidecar" || -z "$route" || -z "$closes_gate" || -z "$flavor" || -z "$disposition" ]]; then
   usage
 fi
 
-validate "$sidecar" "$route" "$closes_gate" "$flavor" "${decisions[@]}"
+validate "$sidecar" "$route" "$closes_gate" "$flavor" "$disposition" "${decisions[@]}"
