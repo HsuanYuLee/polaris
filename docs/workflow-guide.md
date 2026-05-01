@@ -120,9 +120,9 @@ flowchart TD
 
 ---
 
-## AC Closure Gates
+## AC and Handoff Gates
 
-Acceptance Criteria pass through 4 automated gates from ticket intake to PR open, ensuring nothing is missed:
+Acceptance Criteria and downstream-facing handoff text pass through 5 deterministic gates from ticket intake to external write:
 
 | Gate | When | Mechanism | On Failure |
 |------|------|-----------|------------|
@@ -152,6 +152,7 @@ flowchart LR
     SASD["sasd-review<br/>(SA/SD)"]
 
     %% ── Dev Skills ──
+    EDF["engineer-delivery-flow<br/>(quality + verify + PR gates)"]
     UT_TDD["unit-test<br/>(TDD mode)"]
     VR["visual-regression"]
     VAC["verify-AC<br/>(AC verification)"]
@@ -179,7 +180,8 @@ flowchart LR
     %% ── Orchestrator routes ──
     WO -->|epic breakdown| EB
     WO -->|TDD dev| UT_TDD
-    WO -->|auto open PR| GPW
+    WO -->|ticket delivery gates| EDF
+    GPW -->|admin PR gates| EDF
 
     BT -->|diagnosis done| EB
 
@@ -188,7 +190,7 @@ flowchart LR
     EB -.->|optional| SASD
 
     %% ── Quality chain ──
-    GPW -.->|optional| VR
+    EDF -.->|optional| VR
 
     UT_TDD -.->|test reference| UT
 
@@ -226,6 +228,7 @@ flowchart LR
     class RF,EB,SASD,SP,IT planning
     class MT,CV orchestrator
     class SU,UT,LRN standalone
+    class EDF internal
 ```
 
 **Connectivity check:**
@@ -634,7 +637,7 @@ Dev Agent                          Reviewer Sub-Agent (isolated context)
 
 **Iteration limit: max 3 rounds.** If blocking issues remain after 3 rounds, lists remaining issues and asks the developer whether to fix manually or force-proceed.
 
-> This step is part of the `git-pr-workflow` skill and runs automatically when you say "open PR".
+> This step is part of `engineer-delivery-flow`. Product ticket work reaches it through `engineering`; admin/framework PR work reaches it through `git-pr-workflow`.
 
 ### Step 9. 🤖 Development Complete — Open PR
 
@@ -642,7 +645,7 @@ Dev Agent                          Reviewer Sub-Agent (isolated context)
 open PR
 ```
 
-AI executes the complete PR workflow (`git-pr-workflow`), fully auto-chained:
+For product ticket work, `engineering` runs the shared delivery flow automatically. For admin/framework repositories, `git-pr-workflow` runs the same quality, review, rebase, PR, and completion gates when you say "open PR":
 
 ```
 Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit → Changeset → Rebase → Open PR → JIRA transition → Update PR desc → Post-PR Review Comment

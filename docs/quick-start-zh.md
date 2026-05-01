@@ -5,9 +5,9 @@
 ## 前置需求
 
 **所有人都需要：**
-- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** — CLI、桌面應用程式或 IDE 擴充套件。需要 Claude Pro、Team 或 Enterprise 方案
+- **支援的 agent runtime** — [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（CLI、桌面應用程式或 IDE 擴充套件），或依照 [Codex quick start](codex-quick-start.zh-TW.md) 設定的 Codex
 
-> **注意：** 大部分 Polaris 技能會使用 sub-agent，需要 **Max 方案**（$100/月）或 API 存取。Pro/Team 方案只能使用單步技能。
+> **Claude Code 注意事項：** 大部分 Polaris 技能會使用 sub-agent，需要 **Max 方案**（$100/月）或 API 存取。Pro/Team 方案只能使用單步技能。
 
 - **Atlassian MCP** — 連接 Claude Code 到 JIRA 和 Confluence
 - **Slack MCP** — 用於通知和報表（`standup`、`review-inbox`、`check-pr-approvals`）
@@ -103,7 +103,7 @@ Polaris 圍繞三大支柱組織你的 AI 輔助工作流程：
 
 ### 支柱一 — 輔助開發
 
-從 JIRA 到 PR 的完整自動化：`「做 PROJ-123」` → 讀 JIRA → 估點 → 開 branch → 寫 code → 跑測試 → 發 PR → 轉 JIRA 狀態。涵蓋 `engineering`、`bug-triage`、`breakdown`、`unit-test`、`git-pr-workflow`、`review-pr` 等技能。
+從 JIRA 到 PR 的完整自動化：`「做 PROJ-123」` → 讀 JIRA → 估點 → 開 branch → 寫 code → 跑測試 → 發 PR → 轉 JIRA 狀態。產品票由 `engineering` 串接 delivery flow；admin/framework PR 則由 `git-pr-workflow` 執行同一組品質與開 PR 閘門。涵蓋 `engineering`、`bug-triage`、`breakdown`、`unit-test`、`review-pr` 等技能。
 
 詳細流程 → [Developer Workflow Guide](workflow-guide.md)
 
@@ -112,11 +112,11 @@ Polaris 圍繞三大支柱組織你的 AI 輔助工作流程：
 Polaris 與靜態範本的最大差異：它會從日常使用中累積團隊知識、自動演進規則。
 
 1. **回饋捕捉** — 你糾正 Claude 的做法時，它記下教訓
-2. **模式升格** — 同一回饋被引用 3 次以上，自動升為永久規則
+2. **直接規則升級** — 已確認的修正會立即升級為永久規則，不必等待重複觸發
 3. **外部學習** — 研究文章、repo 或 PR，萃取可套用的模式
 4. **挑戰者審計** — 發版前，sub-agent 從新使用者視角審查 workspace
 
-> **範例：** 你在三次不同的 PR 中糾正 Claude 的 import 順序。第三次時，教訓自動升格為永久規則 — 之後所有 PR 自動遵循這個慣例。
+> **範例：** 你在 PR review 中糾正 Claude 的 import 順序。這個修正被儲存、確認為真實模式，並立即升級成永久規則 — 之後所有 PR 自動遵循這個慣例。
 
 ### 支柱三 — 日常紀錄
 

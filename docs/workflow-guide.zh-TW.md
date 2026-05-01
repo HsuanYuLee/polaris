@@ -120,9 +120,9 @@ flowchart TD
 
 ---
 
-## AC 關閉閘門
+## AC 與交接閘門
 
-驗收條件（Acceptance Criteria）從接單到開 PR 會經過 4 道自動化閘門，確保不遺漏任何項目：
+驗收條件（Acceptance Criteria）與 downstream-facing 交接文字從接單到 external write 會經過 5 道確定性閘門：
 
 | 閘門 | 時機 | 機制 | 失敗時 |
 |------|------|-----------|------------|
@@ -152,6 +152,7 @@ flowchart LR
     SASD["sasd-review<br/>(SA/SD)"]
 
     %% ── Dev Skills ──
+    EDF["engineer-delivery-flow<br/>(quality + verify + PR gates)"]
     UT_TDD["unit-test<br/>(TDD mode)"]
     VR["visual-regression"]
     VAC["verify-AC<br/>(AC verification)"]
@@ -179,7 +180,8 @@ flowchart LR
     %% ── Orchestrator routes ──
     WO -->|epic breakdown| EB
     WO -->|TDD dev| UT_TDD
-    WO -->|auto open PR| GPW
+    WO -->|ticket delivery gates| EDF
+    GPW -->|admin PR gates| EDF
 
     BT -->|diagnosis done| EB
 
@@ -188,7 +190,7 @@ flowchart LR
     EB -.->|optional| SASD
 
     %% ── Quality chain ──
-    GPW -.->|optional| VR
+    EDF -.->|optional| VR
 
     UT_TDD -.->|test reference| UT
 
@@ -226,6 +228,7 @@ flowchart LR
     class RF,EB,SASD,SP,IT planning
     class MT,CV orchestrator
     class SU,UT,LRN standalone
+    class EDF internal
 ```
 
 **連接性檢查：**
@@ -634,7 +637,7 @@ Dev Agent                          Reviewer Sub-Agent (isolated context)
 
 **迭代上限：最多 3 輪。** 若 3 輪後仍有阻擋性問題，列出剩餘問題並詢問開發者是否手動修正或強制繼續。
 
-> 此步驟屬於 `git-pr-workflow` 技能的一部分，當你說「open PR」時自動執行。
+> 此步驟屬於 `engineer-delivery-flow`。產品票開發會透過 `engineering` 進入；admin/framework PR 會透過 `git-pr-workflow` 進入。
 
 ### 步驟 9. 🤖 開發完成 — 開 PR
 
@@ -642,7 +645,7 @@ Dev Agent                          Reviewer Sub-Agent (isolated context)
 open PR
 ```
 
-AI 執行完整 PR 工作流（`git-pr-workflow`），全自動串接：
+產品票開發會由 `engineering` 自動執行共用 delivery flow。Admin/framework repo 則在你說「open PR」時，由 `git-pr-workflow` 執行同一組品質檢查、review、rebase、開 PR 與完成檢查：
 
 ```
 Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit → Changeset → Rebase → Open PR → JIRA transition → Update PR desc → Post-PR Review Comment

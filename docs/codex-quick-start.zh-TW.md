@@ -1,8 +1,8 @@
-# Polaris 給 Codex 用（相容層）
+# Polaris 給 Codex 用
 
-這個 workspace 原本以 Claude Code 為主，但可以在 Codex 套用同一套 Polaris 工作流。
+Polaris 已把 Codex 納入一等 runtime：共用同一份 `.claude/**` 來源資產，並產生 Codex 端的 skills、rules 與 MCP 設定鏡像。
 
-## 相容範圍
+## 支援範圍
 
 - 直接沿用既有資產：`CLAUDE.md`、`.claude/rules/`、`.claude/skills/`
 - 觸發語句不變（例如：`「做 PROJ-123」`、`「standup」`、`「refinement EPIC-100」`）
@@ -113,10 +113,10 @@ bash scripts/verify-cross-llm-parity.sh
 bash scripts/polaris-codex-doctor.sh
 ```
 
-如果 `.claude/skills` 和 `.agents/skills` 不一致，重新同步 Codex 鏡像：
+如果 `.claude/skills` 和 `.agents/skills` 不一致，恢復共用 symlink：
 
 ```bash
-bash scripts/sync-skills-cross-runtime.sh --to-agents
+bash scripts/sync-skills-cross-runtime.sh --to-agents --link
 ```
 
 ### 出現 `MCP startup incomplete` 或 `server is not logged in`

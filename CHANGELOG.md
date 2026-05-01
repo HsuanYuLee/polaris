@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.15] - 2026-05-01
+
+### Changed — framework docs health preflight
+
+- Documented Codex as a supported agent runtime instead of a compatibility
+  layer, including the symlink-based skill repair flow.
+- Updated README and workflow docs to reflect the current `engineering` /
+  `git-pr-workflow` boundary and shared delivery flow.
+- Clarified that `docs-sync` can delegate semantic drift review to the
+  maintainer-local docs health audit when available.
+
 ## [3.74.14] - 2026-05-01
 
 ### Fixed — docs-manager duplicate page titles

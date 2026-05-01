@@ -1,6 +1,6 @@
-# Polaris for Codex (Compatibility Layer)
+# Polaris for Codex
 
-This workspace is built for Claude Code first, but you can run the same Polaris workflow in Codex.
+Polaris supports Codex as a first-class runtime by sharing the same `.claude/**` source assets and generating Codex-facing mirrors for skills, rules, and MCP setup.
 
 ## Scope
 
@@ -26,7 +26,7 @@ git clone https://github.com/YOUR-ORG/your-polaris-workspace ~/polaris-workspace
 cd ~/polaris-workspace
 ```
 
-### 2. Run compatibility doctor
+### 2. Run Codex doctor
 
 ```bash
 bash scripts/polaris-codex-doctor.sh
@@ -113,10 +113,10 @@ This means a `SKILL.md` frontmatter block is malformed. Run:
 bash scripts/polaris-codex-doctor.sh
 ```
 
-If `.claude/skills` and `.agents/skills` are out of sync, refresh the Codex mirror:
+If `.claude/skills` and `.agents/skills` are out of sync, restore the shared symlink:
 
 ```bash
-bash scripts/sync-skills-cross-runtime.sh --to-agents
+bash scripts/sync-skills-cross-runtime.sh --to-agents --link
 ```
 
 ### `MCP startup incomplete` or `server is not logged in`

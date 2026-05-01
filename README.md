@@ -2,7 +2,7 @@
 
 English | [中文](./README.zh-TW.md)
 
-A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) workspace template that turns your AI assistant into a strategist — it learns your team's workflow, routes tasks to specialized skills, and evolves its own rules from daily usage.
+A Claude Code / Codex workspace template that turns your AI assistant into a strategist — it learns your team's workflow, routes tasks to specialized skills, and evolves its own rules from daily usage.
 
 ## Who is this for?
 
@@ -34,7 +34,7 @@ Polaris: reads JIRA ticket → checks prerequisites → estimates story points
          → opens PR with coverage report → transitions JIRA to CODE REVIEW
 ```
 
-**Skills:** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `refinement`, `git-pr-workflow`, `review-pr`, `pr-pickup`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `intake-triage`, `my-triage`, `next`, `unit-test`
+**Skills:** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `refinement`, `git-pr-workflow`, `review-pr`, `pr-pickup`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `intake-triage`, `my-triage`, `unit-test`
 
 Deep dive → [Developer Workflow Guide](docs/workflow-guide.md)
 
@@ -79,9 +79,9 @@ Polaris: pulls JIRA backlog → calculates team capacity → detects carry-overs
 ## Prerequisites
 
 **Everyone needs:**
-- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** — CLI, desktop app, or IDE extension. Requires a Claude Pro, Team, or Enterprise plan
+- **A supported agent runtime** — [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (CLI, desktop app, or IDE extension) or Codex configured with the [Codex quick start](docs/codex-quick-start.md)
 
-> **Important:** Most Polaris skills use sub-agents, which require the **Max plan** ($100/mo) or API access. On Pro/Team plans, only single-step skills will work.
+> **Claude Code note:** Most Polaris skills use sub-agents, which require the **Max plan** ($100/mo) or API access. On Pro/Team plans, only single-step skills will work.
 - **Atlassian MCP** — connects Claude Code to JIRA and Confluence
 - **Slack MCP** — for notifications and reports (`standup`, `review-inbox`, `check-pr-approvals`)
 
@@ -235,7 +235,7 @@ Rules are always loaded. Skills load on-demand — they don't consume context un
 
 Skills chain together to automate the full ticket lifecycle. See **[Developer Workflow Guide](docs/workflow-guide.md)** for the complete flow with diagrams, including:
 - Ticket lifecycle (Feature / Bug / Hotfix paths)
-- AC closure gates (4 automated checkpoints)
+- AC and handoff gates (5 deterministic checkpoints)
 - Skill call graph (how skills invoke each other)
 - Code review and learning pipelines
 

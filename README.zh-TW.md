@@ -2,7 +2,7 @@
 
 # Polaris
 
-一個 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 工作區模板，將你的 AI 助手變成策略師——它學習你團隊的工作流程、將任務路由到專門的技能、並從日常使用中演化自己的規則。
+一個支援 Claude Code / Codex 的工作區模板，將你的 AI 助手變成策略師——它學習你團隊的工作流程、將任務路由到專門的技能、並從日常使用中演化自己的規則。
 
 ## 適合誰？
 
@@ -34,7 +34,7 @@ Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
          → 開 PR 附上覆蓋率報告 → JIRA 狀態轉為 CODE REVIEW
 ```
 
-**技能：** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `refinement`, `git-pr-workflow`, `review-pr`, `pr-pickup`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `intake-triage`, `my-triage`, `next`, `unit-test`
+**技能：** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `refinement`, `git-pr-workflow`, `review-pr`, `pr-pickup`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `intake-triage`, `my-triage`, `unit-test`
 
 深入了解 → [開發者工作流程指南](docs/workflow-guide.zh-TW.md)
 
@@ -43,14 +43,14 @@ Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
 這是 Polaris 與靜態模板的根本差異。它累積團隊知識，並從日常使用中演化自己的規則：
 
 1. **回饋擷取** — 當你糾正 Claude 的做法時，它會儲存這個教訓
-2. **規則畢業** — 同一個回饋被引用 3 次以上，自動升級為永久規則
+2. **直接規則升級** — 已確認的修正會立即升級為永久規則，不必等待重複觸發
 3. **外部學習** — 研讀文章、repo 或 PR，萃取可套用到你 codebase 的模式
 4. **跨 session 知識** — 技術洞見（模式、陷阱、架構決策）持久化在 `learnings.jsonl`，帶有信心值衰減機制，讓每次 session 都從累積的專案知識啟動，而非從零開始
 5. **Session 時間軸與存檔** — 重要事件（skill 呼叫、PR、commit）記錄在 `timeline.jsonl`，讓 standup 報告更精確；`/checkpoint` 可在長時間工作中儲存和恢復 session 狀態
 6. **記憶分層** — `memory/` 條目採 Hot/Warm/Cold 生命週期，`MEMORY.md` 保持精簡、每個新 session 只載入相關 context；`/memory-hygiene` 手動整理，SessionStart hook 自動提示降級候選
 7. **挑戰者審計** — 發版前，sub-agent 從新使用者的角度審視整個工作區
 
-> **範例：** 你在不同的 PR 中糾正了 Claude 的 import 排序 3 次。第三次糾正時，這個教訓自動畢業成永久規則——之後所有 PR 都會自動遵循這個慣例。
+> **範例：** 你在 PR review 中糾正 Claude 的 import 排序。這個修正被儲存、確認為真實模式，並立即升級成永久規則——之後所有 PR 都會自動遵循這個慣例。
 
 **技能：** `learning`, `checkpoint`, `memory-hygiene` — 另外 `review-pr`、`engineering`（revision mode）和 `check-pr-approvals` 內建教訓萃取功能
 
@@ -79,9 +79,9 @@ Polaris: 拉取 JIRA backlog → 計算團隊容量 → 偵測 carry-over
 ## 前置需求
 
 **所有人都需要：**
-- **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** — CLI、桌面應用或 IDE 擴充套件。需要 Claude Pro、Team 或 Enterprise 方案
+- **支援的 agent runtime** — [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（CLI、桌面應用或 IDE 擴充套件），或依照 [Codex quick start](docs/codex-quick-start.zh-TW.md) 設定的 Codex
 
-> **重要：** 大多數 Polaris 技能使用 sub-agent，需要 **Max 方案**（$100/月）或 API 存取。在 Pro/Team 方案下，僅單步驟技能可運作。
+> **Claude Code 注意事項：** 大多數 Polaris 技能使用 sub-agent，需要 **Max 方案**（$100/月）或 API 存取。在 Pro/Team 方案下，僅單步驟技能可運作。
 - **Atlassian MCP** — 連接 Claude Code 到 JIRA 和 Confluence
 - **Slack MCP** — 用於通知和報告（`standup`, `review-inbox`, `check-pr-approvals`）
 
@@ -113,7 +113,7 @@ Polaris: 拉取 JIRA backlog → 計算團隊容量 → 偵測 carry-over
 
 ## 快速上手
 
-如果你要用 Codex 而不是 Claude Code，請看：[Polaris 給 Codex 用（相容層）](docs/codex-quick-start.zh-TW.md)。
+如果你要用 Codex 而不是 Claude Code，請看：[Polaris 給 Codex 用](docs/codex-quick-start.zh-TW.md)。
 
 ### 1. 建立你的工作區
 
@@ -236,7 +236,7 @@ Refinement         →  「refinement EPIC-100」
 
 技能互相串聯以自動化完整的票單生命週期。詳見 **[開發者工作流程指南](docs/workflow-guide.zh-TW.md)**，包含：
 - 票單生命週期（Feature / Bug / Hotfix 路徑）
-- AC 關閉閘門（4 個自動化檢查點）
+- AC 與交接閘門（5 個確定性檢查點）
 - 技能呼叫圖（技能如何互相調用）
 - Code Review 和學習管線
 
