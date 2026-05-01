@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.14] - 2026-05-01
+
+### Fixed — docs-manager duplicate page titles
+
+- Added a docs-manager remark plugin that removes a markdown H1 when it matches
+  the Starlight `title` frontmatter, preventing duplicate page titles.
+- Extended docs-manager runtime verification to fail on duplicate H1 titles.
+
 ## [3.74.13] - 2026-05-01
 
 ### Changed — Starlight-native docs-manager specs root
