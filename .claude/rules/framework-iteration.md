@@ -18,6 +18,24 @@ Rules:
 
 This does not ban phased migration, safety checks, or graceful runtime handling. It bans using compatibility scaffolding as a substitute for completing the design.
 
+## Viewer Availability Convention
+
+Keep the docs-manager viewer available for the user whenever framework work
+touches specs, design plans, docs-manager, or release validation.
+
+Rules:
+
+- Treat `http://127.0.0.1:8080/docs-manager/` as the user's default browsing
+  surface. Do not leave it stopped after validation or release work.
+- If runtime verification needs preview/search mode, prefer a separate port
+  such as `3334` instead of taking over the user's long-lived dev viewer.
+- If a stale or incompatible viewer on `8080` must be stopped to unblock a
+  deterministic check, restart the dev viewer afterward with:
+  `bash scripts/polaris-viewer.sh --mode dev --port 8080 --no-open`
+- Before final response on docs-manager/specs work, confirm whether a viewer is
+  listening on `8080`; if not, either start it or explicitly report why it was
+  left down.
+
 ## Challenger Audit: Milestone Self-Check
 
 Challenger Audit (see `skills/references/challenger-audit.md`) launches 6 persona sub-agents to review the framework from external-user perspectives. It is **expensive** (6 parallel sonnet sub-agents) and produces **simulated** signals (AI reviewing AI).

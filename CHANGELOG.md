@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.21] - 2026-05-02
+
+### Changed — docs-manager viewer availability convention
+
+- Added a framework-level convention to keep the user's default docs-manager
+  viewer available at `http://127.0.0.1:8080/docs-manager/` during specs,
+  docs-manager, and release work.
+- Documented that preview/search verification should use a separate port when
+  possible, and that any necessary stop of port 8080 must be followed by
+  restarting the dev viewer before handoff.
+
 ## [3.74.20] - 2026-05-02
 
 ### Fixed — DP-044 flavor disposition gate
