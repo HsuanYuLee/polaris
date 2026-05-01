@@ -255,9 +255,11 @@ Epic 通常還沒有 story points（估點是 refinement 下游），所以 tier
 
 ```text
 references/refinement-dp-source-mode.md
+references/starlight-authoring-contract.md
 ```
 
 該 reference 是 DP locator、topic DP creation、docs-manager preview、artifact output、`LOCKED` handoff 的權威操作步驟。
+`starlight-authoring-contract.md` 是所有寫入 `docs-manager/src/content/docs/specs` 的 Markdown source contract；DP `plan.md` / `refinement.md` 必須有 `title` 與 `description frontmatter`，且不得產生 duplicate H1。
 
 ### T1. Decision boundary retained in SKILL.md
 
@@ -614,9 +616,10 @@ container 有 `plan.md`，也一併檢查。`refinement.json` 的結構由 hando
 files=("{source_container}/refinement.md")
 [[ -f "{source_container}/plan.md" ]] && files+=("{source_container}/plan.md")
 bash scripts/validate-language-policy.sh --blocking --mode artifact "${files[@]}"
+bash scripts/validate-starlight-authoring.sh check "${files[@]}"
 ```
 
-exit ≠ 0 → 修 artifact 語言後重跑；不可用英文 refinement artifact 交給 breakdown。
+exit ≠ 0 → 修 artifact 語言或 Starlight authoring drift 後重跑；不可用英文 refinement artifact、缺 `description`、或 duplicate H1 的 specs markdown 交給 breakdown。
 
 **7c. 整合母單 description**
 用 `editJiraIssue` 更新母單 description — 結構化格式（`references/epic-template.md`）。

@@ -269,9 +269,10 @@ Bug description 填 `pipeline-handoff.md § Bug ticket 必要資訊` 區塊（[V
 對每張新建的 Bug，寫一份 evidence artifact 給下一 skill（bug-triage AC-FAIL Path）on-demand 讀：
 
 - **路徑**：`{company_specs_dir}/{EPIC}/artifacts/verify-ac-verify-fail-{BUG_KEY}-{timestamp}.md`（timestamp 格式 `YYYY-MM-DDTHHMMSSZ` UTC）
-- **格式**：frontmatter（`skill: verify-ac`、`ticket: {BUG_KEY}`、`scope: verify-fail`、`timestamp`、`truncated: false`、`scrubbed: false`）+ `## Summary`（≤ 500 字：AC# + 期望行為 + 實際觀察 + HTTP status + env snapshot）+ `## Raw Evidence`（失敗步驟 transcript、curl output / playwright trace、evidence attachment 路徑、AC ticket description 引用、被驗證的 commit SHA / dev server URL / fixture path）
+- **格式**：遵守 `references/starlight-authoring-contract.md`，frontmatter 必含 `title`、`description`、`skill: verify-ac`、`ticket: {BUG_KEY}`、`scope: verify-fail`、`timestamp`、`truncated: false`、`scrubbed: false`；body 從 `## Summary` 開始，避免 duplicate H1，再接 `## Raw Evidence`（失敗步驟 transcript、curl output / playwright trace、evidence attachment 路徑、AC ticket description 引用、被驗證的 commit SHA / dev server URL / fixture path）
 - **寫入後必跑 scrub + cap**：`python3 scripts/snapshot-scrub.py --file {artifact_path}`（scrub secrets、20KB 截斷、更新 frontmatter flag）
 - **寫入後必跑 language advisory**：`bash scripts/validate-language-policy.sh --advisory --mode artifact {artifact_path}`；若主敘述違反 workspace language，修正後再交給 bug-triage
+- **寫入後必跑 Starlight authoring check**：`bash scripts/validate-starlight-authoring.sh check {artifact_path}`；不可把缺 description frontmatter 或 duplicate H1 的 specs artifact 交給 bug-triage
 - artifact 路徑加進 Bug description 的 `[VERIFICATION_FAIL]` metadata 區塊，bug-triage Step 2-AF 會在需要時讀
 
 回到 AC 驗收單貼 comment：「FAIL — 追蹤於 {BUG_KEY_1}, {BUG_KEY_2}, ...」。

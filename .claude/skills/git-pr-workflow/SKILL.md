@@ -51,6 +51,12 @@ git create-branch --ci
 
 讀取 `references/engineer-delivery-flow.md`，以 **Role: Admin** 執行 Step 1-7：
 
+若 Admin cleanup / docs work 會 create / update / move-in Markdown 到 `docs-manager/src/content/docs/specs`，必須讀 `references/starlight-authoring-contract.md`，產物要有 `title` + `description frontmatter`、避免 duplicate H1，並在提交前以 explicit path 執行：
+
+```bash
+bash scripts/validate-starlight-authoring.sh check <specs-markdown-path>
+```
+
 | Delivery Flow Step | Admin 行為 |
 |-------------------|-----------|
 | Step 1 Simplify | ✅ 正常執行 |

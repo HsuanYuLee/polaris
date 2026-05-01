@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.16] - 2026-05-02
+
+### Changed — Starlight specs authoring contract
+
+- Added a shared Starlight authoring contract for specs Markdown, requiring
+  `title` and `description` frontmatter and avoiding duplicate H1 page titles.
+- Added duplicate-title cleanup, legacy description inference, and Starlight
+  authoring validator scripts with self-test fixtures.
+- Removed the docs-manager duplicate-title remark transition plugin now that
+  source specs are converted and validated directly.
+
 ## [3.74.15] - 2026-05-01
 
 ### Changed — framework docs health preflight

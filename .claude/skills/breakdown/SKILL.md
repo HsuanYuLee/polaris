@@ -30,6 +30,7 @@ metadata:
 > - **驗收 task.md（V{n}.md）** — § 4 Verification Schema（DP-033 Phase B；對稱 T{n}.md，所有共用基礎設施 reuse — 不平行造）
 >
 > 本 SKILL.md 內的 task.md 格式說明皆以該文件為準；若有衝突以 `task-md-schema.md` 為主。
+> **Starlight authoring contract（DP-067）**：所有寫入 `docs-manager/src/content/docs/specs` 的 `breakdown.md`、`tasks/*.md`、`V*.md` 必須同時遵守 `references/starlight-authoring-contract.md`：`title` + `description frontmatter` 必填，避免 duplicate H1；若 task schema 過渡期仍要求 H1，frontmatter `title` 不得與第一個 H1 完全相同。
 
 ## Workflow
 
@@ -825,10 +826,11 @@ scripts/validate-task-md.sh <task.md path>
 
 ```bash
 scripts/validate-language-policy.sh --blocking --mode artifact <task.md path>
+scripts/validate-starlight-authoring.sh check <task.md path>
 ```
 
 - exit 0 → 該 work order 可交給 engineering / verify-AC
-- exit 1 → 就地修正文案語言並重跑；不可把英文自然語言 artifact 交給下游
+- exit 1 → 就地修正文案語言或 Starlight authoring drift 並重跑；不可把英文自然語言、缺 `description`、或 duplicate H1 的 artifact 交給下游
 
 此 gate 只管 producer 產物，不要求 skill source 本身全中文；code block、URLs、paths、
 CLI flags、branch names、ticket keys、schema keys 由 validator 放行。

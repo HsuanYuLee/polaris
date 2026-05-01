@@ -245,6 +245,12 @@ bash "${POLARIS_ROOT}/scripts/validate-language-policy.sh" \
   "<artifact-text-file>"
 ```
 
+若 downstream-facing markdown 會寫入 `docs-manager/src/content/docs/specs`，同一產物還必須遵守 `references/starlight-authoring-contract.md`：`title` 與 `description frontmatter` 必填，避免 duplicate H1，且寫入後用 explicit path 呼叫 authoring validator：
+
+```bash
+bash "${POLARIS_ROOT}/scripts/validate-starlight-authoring.sh" check "<artifact-text-file>"
+```
+
 Developer lane 不得裸用 `gh pr create` 或 `gh pr create --draft` 作為交付終點。正常 create path 是 `scripts/polaris-pr-create.sh`；completion path 會用 `check-delivery-completion.sh` 讀 remote PR `state`、`isDraft`、`body` 與 head metadata。Draft PR、非 open PR、或 invalid remote PR body 一律不得進入 `IMPLEMENTED` lifecycle。
 
 若產物有既有局部語言規則（例如 PR template 指定英文、或 reviewer thread 要沿用原文），

@@ -1,0 +1,102 @@
+# Starlight Authoring Contract for Specs Markdown
+
+本文件定義所有寫入 specs folder 的 Markdown 產物要遵守的 Starlight authoring contract。它是 producer skill、維護腳本、臨時轉換腳本與後續 validator 的共同參考。
+
+## Scope
+
+適用範圍：
+
+- `docs-manager/src/content/docs/specs/**/*.md`
+- 任何 create / update / move-in 到 specs folder 的 skill 或 script
+- 從其他來源轉換後會被 Starlight 讀取的 Markdown artifact
+
+不適用範圍：
+
+- `docs-manager/dist`：這是 Starlight build output，不是可手改 source。
+- JSON、Mockoon、Lighthouse raw output 等 machine artifacts。若 artifact 需要在 Starlight 顯示，應新增 Markdown summary 或 index 連到 raw artifact。
+
+## Frontmatter
+
+每個 specs Markdown source 都必須有 YAML frontmatter。最低要求：
+
+```yaml
+---
+title: "Human-readable page title"
+description: "One-sentence summary used by Starlight metadata, search, and previews."
+---
+```
+
+規則：
+
+- `title` 必填。它是 Starlight page title 的 source of truth。
+- `description` 必填。新產物不得依賴 docs-manager 在 build 時補 metadata。
+- 額外欄位可以保留既有 domain metadata，例如 `topic`、`created`、`status`、`locked_at`、`depends_on`、`deliverable`。
+- 不要為了 schema dispatch 加重複欄位；例如 task type 仍由 filename pattern 判斷，不在 frontmatter 放 `type`。
+
+## Headings
+
+Starlight 會用 frontmatter `title` 呈現頁面標題，所以 body 的第一個 visible heading 不應重複同一個 page title。
+
+目標態：
+
+- 不產生與 frontmatter `title` 完全相同的 first `# H1`。
+- body 從 `##` section 開始，或使用語意不同的 `#` heading。
+- 避免 duplicate H1，因為它會在 Starlight 頁面上造成重複標題與搜尋摘要噪音。
+
+過渡期例外：
+
+- 若既有 `task.md` schema 暫時要求 body H1，producer 可以讓 frontmatter `title` 與 body H1 不完全相同，例如 `title: "DP-067-T1: shared Starlight authoring contract reference"` 搭配 `# T1: shared Starlight authoring contract reference`。
+- 此例外只為了支援 schema migration；validator 與 template 完成後，producer 應回到目標態。
+
+## Markdown Body
+
+產文應使用 Starlight-friendly Markdown：
+
+- 使用 fenced code block 並標明 language，例如 `bash`、`json`、`yaml`、`ts`。
+- 使用 Starlight asides 表達提示或風險：`:::note`、`:::tip`、`:::caution`、`:::danger`。
+- 圖片必須有有意義的 alt text。
+- 長 raw evidence 放在 appendix、details，或連到 artifact path；主文保留摘要與決策。
+- internal links 指向 canonical source path，不連到 `docs-manager/dist` 內的 build output。
+
+## Producer Boundary
+
+所有 specs folder 寫入點都要套用這份 contract：
+
+- create / update / move-in：檢查 frontmatter、heading、links、code fences、aside syntax 與 artifact index。
+- delete / move-out：不跑 authoring check；改跑 route、link、reference integrity check，確認沒有 stale links 或孤兒 index。
+
+這個邊界避免把「寫入品質」和「移除後完整性」混成同一個 validator。
+
+## Validator Interface
+
+validator 必須接受明確路徑，不得依賴 parent repo 的 `git diff` 判斷 specs 變更。原因是 specs folder 目前被 Polaris parent repo ignore，parent `git diff` 不會可靠列出使用者工作文件。
+
+建議介面：
+
+```bash
+scripts/validate-starlight-authoring.sh path/to/file.md
+scripts/validate-starlight-authoring.sh path/to/spec-container
+```
+
+未來若 specs folder 採用獨立 git，validator 可以新增 diff mode，但 explicit path/container mode 仍必須保留，作為 skill 與 hook 的穩定 contract。
+
+## Legacy Migration
+
+遷移順序：
+
+1. 新 producer 先遵守本 contract。
+2. 對 legacy docs 產出 non-blocking report，分類缺 `description`、duplicate H1、link 問題、code fence 問題。
+3. 用臨時轉換腳本處理 deterministic fixes，例如從第一段摘要補 `description`、移除可判定 duplicate H1。
+4. 不安全推論的 `description` 標成 manual-needed，不用低信心文字自動補。
+5. legacy report 清乾淨後，validator 才切成 blocking。
+
+`remarkRemoveDuplicateTitle` 是 transition logic。只有在 producer template、legacy conversion、validator、docs-manager build/preview 都穩定後，才能 sunset。
+
+## Verification Expectations
+
+寫入 specs Markdown 後至少跑：
+
+- specs authoring validator，使用 explicit file/container path。
+- `validate-task-md.sh` 與 `validate-task-md-deps.sh`，若產物是 `tasks/T*.md` 或 `tasks/V*.md`。
+- language policy gate，確保文件語言符合 workspace 規則。
+- docs-manager build 或 preview smoke，若變更會影響 Starlight render surface。
