@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.22] - 2026-05-02
+
+### Changed — docs-manager branding and quick links
+
+- Added the Polaris logo asset to docs-manager and wired it into the Starlight
+  site title plus docs-manager README.
+- Replaced the scaffold quick start copy with stable docs-manager entry points
+  that link to concrete rendered spec pages instead of folder-only routes.
+
 ## [3.74.21] - 2026-05-02
 
 ### Changed — docs-manager viewer availability convention
