@@ -98,6 +98,90 @@ frontmatter_status() {
   ' "$file"
 }
 
+update_frontmatter_status() {
+  local file="$1"
+  local new_status="$2"
+  python3 - "$file" "$new_status" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+new_status = sys.argv[2]
+
+content = path.read_text(encoding="utf-8")
+lines = content.split("\n")
+
+if lines and lines[0] == "---":
+    try:
+        close_idx = lines.index("---", 1)
+    except ValueError:
+        print(f"ERROR: unclosed frontmatter in {path}", file=sys.stderr)
+        sys.exit(1)
+
+    fm = lines[1:close_idx]
+    found = False
+    for idx, line in enumerate(fm):
+        if re.match(r"^status:\s*", line):
+            fm[idx] = f"status: {new_status}"
+            found = True
+            break
+    if not found:
+        fm.append(f"status: {new_status}")
+
+    new_content = "---\n" + "\n".join(fm) + "\n---\n" + "\n".join(lines[close_idx + 1:])
+else:
+    new_content = f"---\nstatus: {new_status}\n---\n\n" + content
+
+path.write_text(new_content, encoding="utf-8")
+PY
+}
+
+mark_task_implemented() {
+  local task_md="$1"
+  local task_id="$2"
+  local status="IMPLEMENTED"
+  local dir task_file tasks_dir pr_release_dir pr_release_path existing_status
+
+  if [[ "$task_md" == */design-plans/archive/*/tasks/* ]]; then
+    dir="$(dirname "$task_md")"
+    task_file="$(basename "$task_md")"
+    if [[ "$(basename "$dir")" == "pr-release" ]]; then
+      pr_release_path="$task_md"
+    else
+      tasks_dir="$dir"
+      pr_release_dir="${tasks_dir}/pr-release"
+      pr_release_path="${pr_release_dir}/${task_file}"
+      mkdir -p "$pr_release_dir"
+      if [[ -f "$pr_release_path" ]]; then
+        if ! cmp -s "$task_md" "$pr_release_path"; then
+          die "same-key invariant violation for archived ${task_file}; active and pr-release copies differ"
+        fi
+        rm "$task_md"
+      else
+        mv "$task_md" "$pr_release_path"
+      fi
+    fi
+
+    existing_status="$(frontmatter_status "$pr_release_path")"
+    if [[ "$existing_status" != "$status" ]]; then
+      update_frontmatter_status "$pr_release_path" "$status"
+      info "marked archived task ${task_id} as ${status}: ${pr_release_path}"
+    else
+      info "archived task ${task_id} already has status: ${status}"
+    fi
+    printf '%s\n' "$pr_release_path"
+    return 0
+  fi
+
+  bash "${SCRIPT_DIR}/mark-spec-implemented.sh" "$task_id" --workspace "$REPO_ROOT" >&2
+  if [[ -f "$task_md" ]]; then
+    printf '%s\n' "$task_md"
+  else
+    printf '%s/pr-release/%s\n' "$(dirname "$task_md")" "$(basename "$task_md")"
+  fi
+}
+
 registered_worktree_for_branch() {
   local branch="$1"
   git -C "$REPO_ROOT" worktree list --porcelain | awk -v branch="refs/heads/${branch}" '
@@ -318,12 +402,7 @@ for i in "${!ABS_TASK_MDS[@]}"; do
     --extension-id "$EXTENSION_ID" \
     ${TEMPLATE_REPO:+--template-repo "$TEMPLATE_REPO"}
 
-  bash "${SCRIPT_DIR}/mark-spec-implemented.sh" "$task_id" --workspace "$REPO_ROOT"
-
-  moved_task_md="${task_md}"
-  if [[ ! -f "$moved_task_md" ]]; then
-    moved_task_md="$(dirname "$task_md")/pr-release/$(basename "$task_md")"
-  fi
+  moved_task_md="$(mark_task_implemented "$task_md" "$task_id")"
   [[ -f "$moved_task_md" ]] || die "implemented task file not found after mark-spec-implemented: ${task_id}"
 
   bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" --task-md "$moved_task_md" --workspace "$REPO_ROOT"

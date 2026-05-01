@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.17] - 2026-05-02
+
+### Fixed — framework release closeout archive idempotency
+
+- `framework-release-closeout.sh` now accepts already archived DP task paths
+  under `tasks/pr-release/` without resolving the task ID through the active
+  specs tree.
+- Added self-test coverage for archived DP release closeout so post-release
+  metadata writes, parent closeout, and worktree cleanup remain idempotent.
+
 ## [3.74.16] - 2026-05-02
 
 ### Changed — Starlight specs authoring contract

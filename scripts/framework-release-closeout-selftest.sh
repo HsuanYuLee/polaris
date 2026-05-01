@@ -282,6 +282,45 @@ run_stacked_task_case() {
   [[ ! -d "$wt1" && ! -d "$wt2" ]] || { echo "[selftest] stacked worktrees were not removed" >&2; return 1; }
 }
 
+run_archived_pr_release_case() {
+  local tmp repos repo template archived_dp_dir branch task_md wt task_head workspace_commit template_commit evidence
+  tmp="$(mktemp -d -t framework-closeout-archived.XXXXXX)"
+  trap 'rm -rf "$tmp"' RETURN
+  repos="$(make_repos "$tmp")"
+  repo="$(printf '%s\n' "$repos" | sed -n '1p')"
+  template="$(printf '%s\n' "$repos" | sed -n '2p')"
+
+  archived_dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/archive/DP-999-release-closeout"
+  mkdir -p "${archived_dp_dir}/tasks/pr-release"
+  write_plan "$archived_dp_dir" 1
+  branch="task/DP-999-T1-closeout"
+  task_md="${archived_dp_dir}/tasks/pr-release/T1.md"
+  write_task "$task_md" T1 "$branch" ""
+  wt="$(add_task_branch_and_worktree "$repo" "$branch" "t1")"
+  task_head="$(git -C "$wt" rev-parse HEAD)"
+  merge_task_branch "$repo" "$branch"
+  workspace_commit="$(git -C "$repo" rev-parse HEAD)"
+  template_commit="$(git -C "$template" rev-parse HEAD)"
+  evidence="${tmp}/verify-t1.json"
+  write_verify_evidence "$evidence" DP-999-T1 "$task_head"
+
+  bash "$CLOSEOUT" \
+    --repo "$repo" \
+    --template-repo "$template" \
+    --task-md "$task_md" \
+    --verify-evidence "$evidence" \
+    --workspace-commit "$workspace_commit" \
+    --template-commit "$template_commit" \
+    --version-tag v0.0.1 \
+    --release-url https://github.com/example/polaris/releases/tag/v0.0.1
+
+  [[ -d "$archived_dp_dir" ]] || { echo "[selftest] archived DP directory disappeared" >&2; return 1; }
+  [[ -f "$task_md" ]] || { echo "[selftest] archived pr-release task missing" >&2; return 1; }
+  grep -q '^status: IMPLEMENTED$' "$task_md" || { echo "[selftest] archived task status missing" >&2; return 1; }
+  grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/plan.md" || { echo "[selftest] archived parent DP was not closed" >&2; return 1; }
+  [[ ! -d "$wt" ]] || { echo "[selftest] archived task worktree was not removed" >&2; return 1; }
+}
+
 run_stale_evidence_case() {
   local tmp repos repo template dp_dir branch task_md wt task_head workspace_commit template_commit evidence rc
   tmp="$(mktemp -d -t framework-closeout-stale.XXXXXX)"
@@ -364,6 +403,7 @@ run_dirty_worktree_case() {
 
 run_single_task_case
 run_stacked_task_case
+run_archived_pr_release_case
 run_stale_evidence_case
 run_dirty_worktree_case
 
