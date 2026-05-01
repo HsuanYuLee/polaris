@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.8] - 2026-05-01
+
+### Changed — PR readiness completion gate
+
+- Completion gate now reads deliverable PR remote metadata/body before task closeout and blocks draft, non-open, stale-head, or invalid-template PRs.
+- PR body template gate now supports remote PR body sources while reusing the existing heading parser.
+- Engineering docs, PR body builder guidance, and mechanism registries now define `polaris-pr-create.sh` plus completion-time PR readiness as the cross-runtime delivery contract.
+
 ## [3.74.7] - 2026-05-01
 
 ### Changed — refinement target-state planning contract

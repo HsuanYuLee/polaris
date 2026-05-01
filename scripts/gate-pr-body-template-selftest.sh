@@ -127,6 +127,20 @@ cat > "$escaped_body" <<'EOF'
 - N/A
 EOF
 
+mockbin="$TMPROOT/bin"
+mkdir -p "$mockbin"
+cat > "$mockbin/gh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\$1 \$2" == "pr view" ]]; then
+  cat "$valid_body"
+  exit 0
+fi
+echo "unexpected gh call: \$*" >&2
+exit 1
+EOF
+chmod +x "$mockbin/gh"
+
 set +e
 out="$("$GATE" --repo "$repo" --body-file "$valid_body" 2>&1)"
 rc=$?
@@ -147,6 +161,13 @@ rc=$?
 set -e
 assert_rc "escaped backtick blocks" "$rc" "2"
 assert_contains "escaped backtick message" "$out" "escaped Markdown backticks"
+
+set +e
+out="$(PATH="$mockbin:$PATH" "$GATE" --repo "$repo" --pr "https://github.com/demo/example/pull/1" 2>&1)"
+rc=$?
+set -e
+assert_rc "remote pr body source passes" "$rc" "0"
+assert_contains "remote pr source message" "$out" "preserves repo template headings"
 
 printf '\n=== pr-body-template selftest: %d/%d PASS ===\n' "$PASS" "$TOTAL"
 [[ "$PASS" -eq "$TOTAL" ]]

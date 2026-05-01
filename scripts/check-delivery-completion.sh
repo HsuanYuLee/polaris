@@ -16,6 +16,132 @@ REPO_ROOT=""
 TICKET=""
 MODE="auto"
 
+parse_github_pr_url() {
+  local pr_url="$1"
+
+  python3 - "$pr_url" <<'PY'
+import re
+import sys
+
+value = sys.argv[1].strip()
+match = re.match(r"^https://github\.com/([^/]+)/([^/]+)/pull/([0-9]+)(?:[/?#].*)?$", value)
+if not match:
+    sys.exit(1)
+
+owner, repo, number = match.groups()
+print(f"{owner}/{repo}\t{number}")
+PY
+}
+
+json_field() {
+  local file="$1"
+  local field="$2"
+
+  python3 - "$file" "$field" <<'PY'
+import json
+import sys
+
+path, field = sys.argv[1:3]
+try:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+except Exception:
+    sys.exit(1)
+
+value = data.get(field)
+if value is None:
+    sys.exit(0)
+if isinstance(value, bool):
+    print("true" if value else "false")
+else:
+    print(value)
+PY
+}
+
+write_json_field_to_file() {
+  local json_file="$1"
+  local field="$2"
+  local output_file="$3"
+
+  python3 - "$json_file" "$field" "$output_file" <<'PY'
+import json
+import sys
+
+json_path, field, output_path = sys.argv[1:4]
+with open(json_path, encoding="utf-8") as f:
+    data = json.load(f)
+
+value = data.get(field) or ""
+with open(output_path, "w", encoding="utf-8") as f:
+    f.write(str(value))
+PY
+}
+
+check_deliverable_pr_remote_truth() {
+  local task_md_path="$1"
+  local deliverable_head_sha="$2"
+  local pr_url=""
+  local parsed=""
+  local gh_repo=""
+  local pr_number=""
+  local pr_json=""
+  local pr_body_file=""
+  local pr_state=""
+  local pr_is_draft=""
+  local pr_head_oid=""
+
+  pr_url="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field deliverable_pr_url)"
+  if [[ -z "$pr_url" ]]; then
+    echo "$PREFIX PR readiness check failed: deliverable.pr_url missing in ${task_md_path}" >&2
+    exit 2
+  fi
+
+  if ! parsed="$(parse_github_pr_url "$pr_url")"; then
+    echo "$PREFIX PR readiness check failed: deliverable.pr_url is not a GitHub PR URL: ${pr_url}" >&2
+    exit 2
+  fi
+
+  gh_repo="${parsed%%$'\t'*}"
+  pr_number="${parsed##*$'\t'}"
+
+  command -v gh >/dev/null 2>&1 || {
+    echo "$PREFIX PR readiness check failed: gh CLI is required to inspect ${pr_url}" >&2
+    exit 2
+  }
+
+  pr_json="$(mktemp -t polaris-pr-metadata.XXXXXX.json)"
+  pr_body_file="$(mktemp -t polaris-pr-body.XXXXXX.md)"
+  trap 'rm -f "${pr_json:-}" "${pr_body_file:-}"' RETURN
+
+  if ! gh pr view "$pr_number" --repo "$gh_repo" --json body,isDraft,state,url,headRefName,headRefOid,baseRefName >"$pr_json"; then
+    echo "$PREFIX PR readiness check failed: unable to read GitHub PR metadata for ${pr_url}" >&2
+    exit 2
+  fi
+
+  pr_state="$(json_field "$pr_json" state || true)"
+  pr_is_draft="$(json_field "$pr_json" isDraft || true)"
+  pr_head_oid="$(json_field "$pr_json" headRefOid || true)"
+  write_json_field_to_file "$pr_json" body "$pr_body_file"
+
+  if [[ "$pr_state" != "OPEN" ]]; then
+    echo "$PREFIX PR readiness check failed: deliverable PR must be OPEN (got ${pr_state:-<empty>}) for ${pr_url}" >&2
+    exit 2
+  fi
+
+  if [[ "$pr_is_draft" == "true" ]]; then
+    echo "$PREFIX PR readiness check failed: deliverable PR is draft; mark it ready for review before Developer completion: ${pr_url}" >&2
+    exit 2
+  fi
+
+  if [[ -n "$pr_head_oid" && -n "$deliverable_head_sha" && "$pr_head_oid" != "$deliverable_head_sha" && "$pr_head_oid" != "${deliverable_head_sha}"* ]]; then
+    echo "$PREFIX PR freshness check failed: remote headRefOid (${pr_head_oid}) != deliverable.head_sha (${deliverable_head_sha}) for ${pr_url}" >&2
+    exit 2
+  fi
+
+  bash "${SCRIPT_DIR}/gates/gate-pr-body-template.sh" --repo "$REPO_ROOT" --body-file "$pr_body_file"
+  echo "$PREFIX ✅ PR readiness/body gate passed for ${pr_url}" >&2
+}
+
 find_workspace_root_for_path() {
   local path="$1"
   local probe=""
@@ -187,6 +313,8 @@ if [[ "$MODE" != "admin" ]]; then
     echo "$PREFIX completion freshness check failed: deliverable.head_sha (${DELIVERABLE_HEAD_SHA}) != HEAD (${CURRENT_HEAD_SHA}) in ${TASK_MD_PATH}" >&2
     exit 2
   fi
+
+  check_deliverable_pr_remote_truth "$TASK_MD_PATH" "$DELIVERABLE_HEAD_SHA"
 fi
 
 echo "$PREFIX ✅ completion gates satisfied." >&2

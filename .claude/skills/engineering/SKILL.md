@@ -223,7 +223,7 @@ engineering 是純施工 skill，沒有 work order 就不施工。
 開發完成後，讀 `references/engineer-delivery-flow.md`，以 **Role: Developer** 執行；若命中 local delivery extension，改以 **Role: Local Extension** 執行：
 
 - Phase 3：Simplify → Self-Review
-- Phase 4（Developer）：Scope Gate → Step 2 `ci-local.sh` → Step 3 `run-verify-command.sh` → Step 3.5 VR → Base Freshness → Commit → PR → JIRA → Completion Gate → Worktree Cleanup
+- Phase 4（Developer）：Scope Gate → Step 2 `ci-local.sh` → Step 3 `run-verify-command.sh` → Step 3.5 VR → Base Freshness → Commit → PR（`polaris-pr-create.sh`、不可 draft）→ JIRA → Completion Gate（remote PR readiness/body）→ Worktree Cleanup
 - Phase 4（Local Extension）：Scope Gate → Step 2 `ci-local.sh` → Step 3 `run-verify-command.sh` → Step 3.5 VR → Base Freshness → PR（if required by local policy）→ Handoff Package → Local Extension → Extension Verification → Worktree Cleanup
 
 ### Workspace Language Policy Gate
@@ -234,6 +234,7 @@ Engineering 產出的 downstream-facing 文字都必須遵守 root `workspace-co
 在提交或發布前，先把下列內容落成暫存 markdown，再跑語言 gate：
 
 - PR body（`polaris-pr-create.sh` / PR body builder 送出前）
+- PR body edit（`gh pr edit --body-file` 前，先 materialize body file 並同時跑 template gate + language gate）
 - handoff package / escalation sidecar / local extension handoff text
 - completion summary / final delivery summary（回使用者或貼到 JIRA / Slack 前）
 
@@ -243,6 +244,8 @@ bash "${POLARIS_ROOT}/scripts/validate-language-policy.sh" \
   --mode artifact \
   "<artifact-text-file>"
 ```
+
+Developer lane 不得裸用 `gh pr create` 或 `gh pr create --draft` 作為交付終點。正常 create path 是 `scripts/polaris-pr-create.sh`；completion path 會用 `check-delivery-completion.sh` 讀 remote PR `state`、`isDraft`、`body` 與 head metadata。Draft PR、非 open PR、或 invalid remote PR body 一律不得進入 `IMPLEMENTED` lifecycle。
 
 若產物有既有局部語言規則（例如 PR template 指定英文、或 reviewer thread 要沿用原文），
 先以該規則決定 `--language` / `--mode`，再執行同一支 script。不得因為內容是 PR body

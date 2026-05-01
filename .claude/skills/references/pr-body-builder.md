@@ -238,29 +238,36 @@ cat > "$PR_BODY_FILE" <<'EOB'
 <body content>
 EOB
 
-POLARIS_PR_WORKFLOW=1 gh pr create \
+bash "${CLAUDE_PROJECT_DIR}/scripts/polaris-pr-create.sh" \
   --base <detected-base> \
   --title "<title>" \
   --body-file "$PR_BODY_FILE"
 ```
 
-`POLARIS_PR_WORKFLOW=1` 讓 pre-PR hook 放行。`polaris-pr-create.sh`
-會執行 `gate-pr-body-template.sh`，確認 body 保留 repo PR template 的
-`##` section headings；請使用 `--body-file`，不要用 shell inline `--body`
-手拼 Markdown，避免 backtick / code block 被 shell escape 弄壞。
+`polaris-pr-create.sh` 會執行 `gate-pr-body-template.sh` 與 PR language gate，確認 body 保留 repo PR template 的 `##` section headings 且符合 workspace 語言政策；請使用 `--body-file`，不要用 shell inline `--body` 手拼 Markdown，避免 backtick / code block 被 shell escape 弄壞。裸 `gh pr create` 與 `gh pr create --draft` 不可作為 Developer delivery endpoint；completion gate 會再讀 remote PR metadata/body，阻擋 draft、非 open、或 invalid remote PR body。
 
 ### Edit
 
 ```bash
+set -euo pipefail
 PR_BODY_FILE="$(mktemp -t polaris-pr-body.XXXXXX.md)"
 cat > "$PR_BODY_FILE" <<'EOB'
 <body content>
 EOB
 
+bash "${CLAUDE_PROJECT_DIR}/scripts/gates/gate-pr-body-template.sh" \
+  --repo "$(git rev-parse --show-toplevel)" \
+  --body-file "$PR_BODY_FILE"
+bash "${CLAUDE_PROJECT_DIR}/scripts/validate-language-policy.sh" \
+  --blocking \
+  --mode artifact \
+  "$PR_BODY_FILE"
 gh pr edit <pr-number> \
   --title "<title>" \
   --body-file "$PR_BODY_FILE"
 ```
+
+Edit path 必須 fail-stop：template gate 或 language gate 任一失敗，就不得執行 `gh pr edit`。Completion gate 只是最後兜底，不能取代 edit 前的 preflight。
 
 ---
 
@@ -268,6 +275,8 @@ gh pr edit <pr-number> \
 
 - Do: 每個 template section 都填實際內容，不留 placeholder
 - Do: 使用 `--body-file` 送出 PR body，避免 shell quoting 破壞 Markdown
+- Do: create 走 `polaris-pr-create.sh`，edit 先跑 template gate + language gate
+- Don't: 裸用 `gh pr create`、`gh pr create --draft`、或 `gh pr edit --body`
 - Do: PR description 自動嵌入 AC Coverage checklist
 - Do: Bug 單詢問 RCA — 選擇性步驟，拒絕不阻擋
 - Don't: 母單 PR 要求逐行 review
