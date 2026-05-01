@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.10] - 2026-05-01
+
+### Fixed — task branch contract
+
+- `engineering-branch-setup.sh` now resolves first-cut branches from the
+  task.md `Task branch` contract before falling back to deterministic slugging.
+- Added `resolve-task-branch.sh` with explicit branch validation and self-test
+  coverage for legacy fallback, invalid refs, and wrong task prefixes.
+
 ## [3.74.9] - 2026-05-01
 
 ### Changed — docs-manager direct-source closeout

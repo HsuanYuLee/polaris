@@ -13,11 +13,11 @@
 #   1. parse-task-md.sh → task_jira_key, summary, resolved_base, repo
 #   2. Verify resolved_base exists on origin (git ls-remote)
 #   3. git fetch origin {resolved_base}
-#   4. Derive branch name: task/{KEY}-{slug}
+#   4. Resolve branch name from task.md `Task branch` contract
 #   5. Duplicate guard: refuse same-ticket local/remote branches and stale worktree paths
-#   6. git branch task/{KEY}-{slug} origin/{resolved_base}
+#   6. git branch {resolved_task_branch} origin/{resolved_base}
 #   7. Derive worktree path: {repo_base}/.worktrees/{repo}-engineering-{KEY}
-#   8. git worktree add {worktree_path} task/{KEY}-{slug}
+#   8. git worktree add {worktree_path} {resolved_task_branch}
 #   9. stdout last line: absolute worktree path (for caller consumption)
 #
 # Exit codes:
@@ -30,6 +30,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARSE_TASK_MD="$SCRIPT_DIR/parse-task-md.sh"
 CASCADE_REBASE_CHAIN="$SCRIPT_DIR/cascade-rebase-chain.sh"
+RESOLVE_TASK_BRANCH="$SCRIPT_DIR/resolve-task-branch.sh"
 
 usage() {
   cat <<EOF >&2
@@ -145,7 +146,7 @@ if [[ "${ENGINEERING_BRANCH_SETUP_SELFTEST:-}" == "1" ]]; then
 | Task JIRA key | PROJ-101 |
 | Parent Epic | PROJ-100 |
 | Base branch | main |
-| Task branch | task/PROJ-101-fix-login-validation |
+| Task branch | task/PROJ-101-contract-branch-name |
 | Depends on | — |
 
 ## Test Command
@@ -168,9 +169,9 @@ TASK
   wt_path=$(echo "$out" | tail -1)
   [[ -d "$wt_path" ]] && t="exists" || t="missing"
   _assert "$t" "exists" "T1: worktree directory should exist"
-  # Branch should exist
-  (cd "$LOCAL" && git branch --list 'task/PROJ-101-*' | grep -q 'task/PROJ-101') && t="found" || t="missing"
-  _assert "$t" "found" "T1: task branch should exist"
+  # Branch should match task.md Task branch even when the summary slug differs.
+  (cd "$LOCAL" && git show-ref --verify --quiet refs/heads/task/PROJ-101-contract-branch-name) && t="found" || t="missing"
+  _assert "$t" "found" "T1: task.md Task branch should exist"
 
   # T2: idempotent — running again should exit 1 (branch exists)
   out=$(cd "$LOCAL" && _run "$TASK_MD" --repo-base "$TMPDIR_ST" 2>/dev/null)
@@ -307,12 +308,16 @@ git fetch origin "$RESOLVED_BASE" >/dev/null 2>&1 || {
   exit 2
 }
 
-# Step 4: Derive branch name
-SLUG=$(slugify "$SUMMARY")
-if [[ -z "$SLUG" ]]; then
-  SLUG="impl"
+# Step 4: Resolve branch name from task.md contract
+if [[ ! -x "$RESOLVE_TASK_BRANCH" ]]; then
+  echo "ERROR: resolve-task-branch.sh not executable at $RESOLVE_TASK_BRANCH" >&2
+  exit 2
 fi
-BRANCH_NAME="task/${TASK_KEY}-${SLUG}"
+BRANCH_NAME="$("$RESOLVE_TASK_BRANCH" "$TASK_MD" 2>/tmp/polaris-resolve-task-branch.err)" || {
+  cat /tmp/polaris-resolve-task-branch.err >&2 2>/dev/null || true
+  echo "ERROR: failed to resolve task branch from $TASK_MD" >&2
+  exit 2
+}
 
 # Step 4.5: Derive worktree path before creating any branch. If the path is
 # already present, fail before touching refs; otherwise a retry can leave a
