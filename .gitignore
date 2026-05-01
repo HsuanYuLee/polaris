@@ -68,3 +68,25 @@ workspace-config.yaml
 .DS_Store
 node_modules/
 .vite/
+
+# ── docs-manager/ specs browser (Starlight app) ──
+!docs-manager/
+!docs-manager/**
+docs-manager/_sidebar.md
+docs-manager/.astro/
+docs-manager/dist/
+docs-manager/node_modules/
+docs-manager/src/content/docs/specs/
+
+# ── GitHub config (Copilot instructions + generated manifests) ──
+!.github/
+!.github/**
+
+# ── Codex compatibility files ──
+!.agents/
+!.agents/skills
+!.agents/skills/**
+!.codex/
+!.codex/AGENTS.md
+!.codex/.generated/
+!.codex/.generated/**

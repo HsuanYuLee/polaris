@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>Polaris Docs Manager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify-themeable@0/dist/css/theme-simple.css">
+  <style>
+    :root {
+      --sidebar-width: 300px;
+      --sidebar-nav-link-color--active: #2563eb;
+      --sidebar-nav-link-border-color--active: #2563eb;
+    }
+    .sidebar-nav > ul > li > p {
+      font-weight: 700;
+      margin: 1.2em 0 0.4em;
+      color: #374151;
+      font-size: 0.8em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .markdown-section { max-width: 900px; }
+    .app-name { font-weight: 700; font-size: 1.1em; }
+    /* Ensure sidebar scrolls when content overflows */
+    .sidebar { overflow-y: auto !important; }
+    .sidebar-nav { padding-bottom: 40px; }
+    /* Completed items: muted + green background */
+    .sidebar-nav .done a {
+      opacity: 0.55;
+      color: #166534;
+      background: #f0fdf4;
+      border-radius: 3px;
+      padding: 1px 4px;
+    }
+    /* Keep completed color even when link is active (docsify default is blue) */
+    .sidebar-nav .done a.active {
+      color: #166534;
+      border-color: #22c55e;
+      opacity: 0.85;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">Loading...</div>
+  <script>
+    window.$docsify = {
+      name: 'Polaris Specs',
+      loadSidebar: true,
+      alias: {
+        '/.*/_sidebar.md': '/docs-manager/_sidebar.md',
+        '/_sidebar.md': '/docs-manager/_sidebar.md',
+      },
+      subMaxLevel: 2,
+      search: 'auto',
+      auto2top: true,
+      basePath: '/',
+      homepage: '/docs-manager/home.md',
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify-sidebar-collapse@1/dist/docsify-sidebar-collapse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
+  <script>
+    // Hot reload: poll sidebar Last-Modified, reload on change
+    (function() {
+      var POLL_INTERVAL = 1000;
+      var sidebarPath = '/docs-manager/_sidebar.md';
+      var lastModified = null;
+      var timer = null;
+
+      function check() {
+        fetch(sidebarPath, { method: 'HEAD', cache: 'no-store' })
+          .then(function(res) {
+            var lm = res.headers.get('Last-Modified');
+            if (lastModified && lm !== lastModified) {
+              location.reload();
+            }
+            lastModified = lm;
+          })
+          .catch(function() {});
+      }
+
+      function start() {
+        if (!timer) timer = setInterval(check, POLL_INTERVAL);
+      }
+
+      function stop() {
+        if (timer) { clearInterval(timer); timer = null; }
+      }
+
+      document.addEventListener('visibilitychange', function() {
+        document.hidden ? stop() : start();
+      });
+
+      start();
+    })();
+  </script>
+</body>
+</html>

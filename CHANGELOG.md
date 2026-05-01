@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.23] - 2026-05-02
+
+### Fixed — Polaris template sync allowlist
+
+- Updated `sync-to-polaris.sh` to maintain the template `.gitignore`
+  allowlist for docs-manager, GitHub config, and Codex compatibility files so
+  copied framework assets are actually tracked and published in the template
+  repository.
+
 ## [3.74.22] - 2026-05-02
 
 ### Changed — docs-manager branding and quick links

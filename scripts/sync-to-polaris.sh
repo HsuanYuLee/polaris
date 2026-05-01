@@ -276,6 +276,45 @@ copy_dir_filtered() {
   echo "  + $label/"
 }
 
+ensure_template_gitignore_allowlist() {
+  local gitignore="$POLARIS_DIR/.gitignore"
+
+  [[ "$DRY_RUN" == false ]] || return 0
+  [[ -f "$gitignore" ]] || return 0
+
+  if grep -q '^!docs-manager/$' "$gitignore" \
+    && grep -q '^!.github/$' "$gitignore" \
+    && grep -q '^!.agents/$' "$gitignore" \
+    && grep -q '^!.codex/$' "$gitignore"; then
+    return 0
+  fi
+
+  cat >> "$gitignore" <<'EOF'
+
+# ── docs-manager/ specs browser (Starlight app) ──
+!docs-manager/
+!docs-manager/**
+docs-manager/_sidebar.md
+docs-manager/.astro/
+docs-manager/dist/
+docs-manager/node_modules/
+docs-manager/src/content/docs/specs/
+
+# ── GitHub config (Copilot instructions + generated manifests) ──
+!.github/
+!.github/**
+
+# ── Codex compatibility files ──
+!.agents/
+!.agents/skills
+!.agents/skills/**
+!.codex/
+!.codex/AGENTS.md
+!.codex/.generated/
+!.codex/.generated/**
+EOF
+}
+
 create_symlink() {
   local target="$1" link_path="$2" label="$3"
   if [[ "$DRY_RUN" == false ]]; then
@@ -414,6 +453,7 @@ fi
 # ── Step 8: Sync top-level files ──────────────────────────────────
 
 echo "Top-level files..."
+ensure_template_gitignore_allowlist
 copy_file "$INSTANCE_DIR/CHANGELOG.md" "$POLARIS_DIR/CHANGELOG.md" "CHANGELOG.md"
 copy_file "$INSTANCE_DIR/VERSION"      "$POLARIS_DIR/VERSION"      "VERSION"
 copy_file "$INSTANCE_DIR/README.md"       "$POLARIS_DIR/README.md"       "README.md"
