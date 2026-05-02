@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.34] - 2026-05-02
+
+### Changed — framework backlog convergence closeout
+
+- Closed the DP-075 active Design Plan sweep by archiving parking/dependent
+  design seeds and leaving only active discussion / re-refinement candidates.
+- Added the refinement research container contract and learning import wiring
+  so future refinement work can track research snapshots inside the source
+  container.
+- Added the workspace overlay resolver and docs-manager release cleanup so
+  framework work can distinguish tracked implementation files from local specs
+  and generated runtime output.
+- Slimmed `check-pr-approvals` by moving low-frequency reporting, Slack, label,
+  and remediation guidance into a lazy-loaded reference.
+
 ## [3.74.33] - 2026-05-02
 
 ### Fixed — docs-manager unified spec sidebar routing

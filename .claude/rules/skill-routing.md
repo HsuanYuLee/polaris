@@ -62,7 +62,7 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Break down an epic | "拆單", "拆解", "epic breakdown" | `breakdown` |
 | Batch converge all work | "收斂", "converge", "推進", "全部推到 review", "把我的單收一收" | `converge` |
 | Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `converge` (Epic-only mode) |
-| Create/open a PR (framework/docs repo) | "開 PR", "create PR", "發 PR" | `git-pr-workflow`（Admin — 產品 repo 引導走 `engineering`） |
+| Create/open a PR (framework/docs repo) | "開 PR", "create PR", "發 PR" | 若已有 DP-backed `task.md`，走 `engineering`；若沒有，fail-stop 並要求先跑 `refinement` / `breakdown` |
 | Triage my work / zero-input next | "我的 epic", "my epics", "盤點", "triage", "手上有什麼", "my work", "我的工作", "排優先"；以及 zero-input 詞：「下一步」、「next」、「繼續」、「continue」、「然後呢」、「what's next」、「接下來」、「推進手上的事情」（後面無 topic keyword；「繼續 DP-015」這類帶 topic 的走 CLAUDE.md § Cross-Session Continuity） | `my-triage` |
 | Batch intake from PM | "收單", "排工", "intake", "這批單幫我看", "PM 開了一堆單", "幫我排優先", "prioritize this batch" + 多張 ticket key | `intake-triage` |
 | Daily standup / end-of-day | "standup", "站會", "daily", "寫 standup", "下班", "收工", "準備明天的工作", "end of day", "EOD", "明天 standup", "今天結束了", "總結一下", "結束今天", "wrap up", "今天做了什麼" | `standup` |
@@ -96,15 +96,15 @@ Before invoking a skill, assess the task's complexity and route to the appropria
 
 The Fast tier is implicit in CLAUDE.md's delegation table ("Small edit ≤ 3 lines, 1 file → Do it directly"). This section makes the full spectrum explicit.
 
-## Admin-Only Skill Guard
+## Deprecated Admin Entrypoint Guard
 
-Skills with `admin_only: true` in their frontmatter (e.g., `git-pr-workflow`) are restricted to framework/docs repos. When the user triggers an admin-only skill in a **product repo** (identified by `workspace-config.yaml` → `projects[]` mapping):
+舊的無 task.md Admin PR entrypoint 已 sunset。當使用者要求 framework/docs repo 直接「開 PR」或「發 PR」時，先確認是否能 resolve 到 DP-backed `task.md`：
 
-1. **Do not invoke** the admin-only skill
-2. **Redirect**: "這是產品 repo，發 PR 請走 `engineering`（會包含完整品質檢查和驗證流程）。"
-3. If the user has no JIRA ticket, suggest: "沒有 ticket？先建一張，或用 `engineering` 的 bypass mode。"
+1. **有 DP-backed task.md**：route to `engineering`，由 `engineering-branch-setup.sh` 建 task worktree 並走完整 delivery flow。
+2. **沒有 task.md**：不要開 branch、不要 commit、不要建立 PR；回覆「framework/docs PR 需要先有 DP-backed work order，請先跑 `refinement DP-NNN` / `breakdown DP-NNN`」。
+3. **產品 repo**：仍走一般 `engineering`；若沒有 JIRA / task.md，回上游補規劃，不使用 framework shortcut。
 
-**判定依據**：當前 git repo root。若 repo 出現在 `workspace-config.yaml` 的 `projects[]`（有 `base_dir`、`repo` 欄位）→ 產品 repo。否則（如 `~/work/` 本身）→ 框架 repo，允許 admin skill。
+**判定依據**：當前 git repo root + `workspace-config.yaml` projects mapping + `scripts/resolve-task-md.sh` 結果。無法 resolve 單一 work order 時一律 fail-stop。
 
 ## Negative-Tone Trigger Recognition
 

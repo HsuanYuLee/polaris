@@ -490,6 +490,58 @@ Plan pending — run `refinement DP-{NNN}` to start discussion. Research 見 `ar
 - **Skip** `polaris-backlog` entry for this recommendation — the DP plan file is the tracking artifact
 - **Still write** `polaris-learnings` in Step 6c for this recommendation
 
+### 5b-refinement-import. Import to active refinement container
+
+只有在使用者明確要求 learning 將研究 import 到既有 refinement source container 時才啟用；target 必須是下列其中一種：
+
+- `learning ... --for DP-NNN`
+- `learning ... --container {source_container}`
+
+這和 Route (A) DP seeding 不同。Route (A) 會依 recommendation 建立新的 SEEDED DP；refinement import 則是把 research snapshot 寫入已指定的 source container。
+
+#### Target resolution
+
+| Target | Resolution rule |
+|---|---|
+| `--for DP-NNN` | 透過 specs source resolver 定位 active DP container。若 DP 不存在、多筆匹配或已歸檔，除非使用者給 explicit archived path，否則 fail loud。 |
+| `--container {source_container}` | 只使用使用者提供的既有 container path。該路徑必須包含 `plan.md`、`refinement.md` 或 `refinement.json` 這類 specs container artifact；不要猜 sibling folder。 |
+| 無 explicit target | 不從對話上下文推測 active refinement container，維持一般 Route (A)/(B)/(C) 行為。 |
+
+#### Snapshot output
+
+Imported research snapshot 寫入：
+
+```text
+{source_container}/artifacts/research/YYYY-MM-DD-{slug}.md
+```
+
+使用最小 frontmatter：
+
+```yaml
+---
+source: learning
+created: {today}
+topic: {research topic}
+confidence: HIGH|MEDIUM|LOW
+imported_from: {url-or-local-source-or-N/A}
+consumed_by_refinement: false
+---
+```
+
+Body 使用下列 section：
+
+- `## Summary`
+- `## Findings`
+- `## Source Notes`
+- `## Relevance To Refinement`
+- `## Open Questions`
+
+#### Boundary rule
+
+Snapshot 只能當 evidence。`learning` must do NOT auto-invoke `refinement`，不能把 snapshot 標成 consumed，也不能更新 final refinement decisions。使用者之後明確執行 `refinement DP-NNN` 或 `refinement {source}` 時，才由 refinement 消化 snapshot 並改寫 decisions / AC / technical approach。
+
+若一般 learning policy 適用，仍在 Step 6c 寫入可跨 session 重用的 `polaris-learnings`。
+
 ### 5c. Route (B) — `polaris-backlog` entry
 
 Triggered when the user picks (B). Keep existing behavior:

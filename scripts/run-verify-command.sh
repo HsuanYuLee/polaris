@@ -18,7 +18,7 @@
 #                  warn and run the Verify Command against current repo state
 #        runtime → invoke scripts/start-test-env.sh --task-md (idempotent)
 #   5. Compute head_sha = git rev-parse HEAD (in repo derived from task.md)
-#   6. Execute verify command, capture stdout/stderr/exit_code
+#   6. Execute verify command in repo/worktree cwd, capture stdout/stderr/exit_code
 #   7. Write /tmp/polaris-verified-{TICKET}-{HEAD_SHA}.json
 #   8. Exit 0 only when verify exit == 0 AND evidence write succeeds
 #
@@ -30,6 +30,7 @@
 #     "exit_code": 0,
 #     "stdout_hash": "<sha256>",
 #     "writer": "run-verify-command.sh",
+#     "execution_cwd": "/path/to/repo-or-worktree",
 #     "at": "2026-04-26T12:34:56Z",
 #     "level": "runtime",
 #     "results": [
@@ -296,7 +297,10 @@ esac
 TMP_OUT="$(mktemp -t polaris-verify-stdout.XXXXXX)"
 TMP_ERR="$(mktemp -t polaris-verify-stderr.XXXXXX)"
 
-bash -c "$VERIFY_COMMAND" >"$TMP_OUT" 2>"$TMP_ERR"
+(
+  cd "$REPO_PATH" || exit 1
+  bash -c "$VERIFY_COMMAND"
+) >"$TMP_OUT" 2>"$TMP_ERR"
 VERIFY_EXIT=$?
 
 # --- Compute runtime contract (if level == runtime) ------------------------
@@ -316,6 +320,7 @@ export RVC_LEVEL="$LEVEL"
 export RVC_RUNTIME_TARGET="$RUNTIME_VERIFY_TARGET"
 export RVC_OUTPUT_FILE="$EVIDENCE_FILE"
 export RVC_STDOUT_FILE="$TMP_OUT"
+export RVC_EXECUTION_CWD="$REPO_PATH"
 
 python3 - <<'PY'
 import hashlib, json, os, re
@@ -330,6 +335,7 @@ level = os.environ["RVC_LEVEL"]
 runtime_target = os.environ.get("RVC_RUNTIME_TARGET", "") or ""
 output_file = os.environ["RVC_OUTPUT_FILE"]
 stdout_file = os.environ["RVC_STDOUT_FILE"]
+execution_cwd = os.environ["RVC_EXECUTION_CWD"]
 
 with open(stdout_file, "rb") as f:
     stdout_bytes = f.read()
@@ -378,6 +384,7 @@ evidence = {
     "exit_code": exit_code,
     "stdout_hash": stdout_hash,
     "writer": "run-verify-command.sh",
+    "execution_cwd": execution_cwd,
     "at": at,
     "level": level,
     "results": results,
@@ -428,6 +435,7 @@ try:
     assert d['ticket'] == '$TICKET', 'ticket mismatch'
     assert d['head_sha'] == '$HEAD_SHA', 'head_sha mismatch'
     assert d['writer'] == 'run-verify-command.sh', 'writer mismatch'
+    assert d['execution_cwd'] == '$REPO_PATH', 'execution_cwd mismatch'
     assert 'exit_code' in d, 'missing exit_code'
     assert d['at'], 'missing at'
     print('valid')

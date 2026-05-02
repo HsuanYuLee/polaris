@@ -221,9 +221,11 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 
 | Level | 需要什麼 | Engineering 須執行 |
 |-------|---------|------------------|
-| `static` | 只讀 source code（grep、檔案存在性、config 註冊） | 無 — 直接跑 Verify Command |
+| `static` | 只讀 source code（grep、檔案存在性、config 註冊） | 依賴安裝 primitive 回傳 `noop_static` PASS，接著直接跑 Verify Command |
 | `build` | 需要 `pnpm build` 產 `.output/` 才能跑 Verify Command | 在 worktree 跑 build，不需啟動 dev server |
 | `runtime` | 需要 live endpoint（curl / dev server / nginx）才能跑 Verify Command | 依 `dev_environment.requires` 啟動 dependencies（如 `your-dev-proxy`）+ `start_command` 起 dev server + `health_check` 驗證 ready，**若 Fixtures 非 N/A**，同時起 `mockoon-runner.sh start {fixture_path}` |
+
+`Level=static` 是 `scripts/env/install-project-deps.sh --task-md <task.md>` 的 deterministic no-op contract：script 不解析 `projects[{repo}].dev_environment`、不要求 workspace project、也不跑 package manager detector。它必須輸出 `mode: noop_static`、`level: static` 的 PASS JSON，讓 engineering 不需要用 LLM 判斷「這張靜態 framework task 不需要安裝依賴」。
 
 **`runtime` 補充說明（避免 URL 誤解）**：
 - `dev_environment.health_check` 只用於「服務是否 ready」檢查，未必等於 smoke 驗證入口。
@@ -243,6 +245,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 
 > breakdown 產出，engineering 必須執行並附上 output。不可修改指令內容。
 > `Level=runtime` 時，此指令必須命中 `Runtime verify target`（同 host）做 runtime 驗證；僅 grep / 檔案存在性檢查不合格。
+> Verify Command 的相對路徑一律以 `scripts/run-verify-command.sh --repo <repo-or-worktree>` 解析出的 repo/worktree root 為基準；evidence 必須記錄 `execution_cwd`。
 
 \`\`\`bash
 {一個可執行的 shell 指令，驗證本 task 的核心改動在 runtime 是否生效}

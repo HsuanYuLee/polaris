@@ -201,6 +201,38 @@ PATH="$WORK_DIR/bin:$PATH" run_silent "$IPD" --project install-detected --cwd "$
 assert_eq "$?" "0" "detected install command"
 [[ -d "$WORK_DIR/install-detected/node_modules" ]]
 assert_eq "$?" "0" "detected install created node_modules"
+STATIC_TASK="$WORK_DIR/static-task.md"
+cat > "$STATIC_TASK" <<'EOF'
+---
+title: "Work Order - T1: static no-op selftest (1 pt)"
+description: "Selftest fixture."
+---
+
+# T1: static no-op selftest (1 pt)
+
+> Source: DP-999 | Task: DP-999-T1 | JIRA: N/A | Repo: framework
+
+## Test Environment
+
+- **Level**: static
+- **Dev env config**: N/A
+- **Fixtures**: N/A
+- **Runtime verify target**: N/A
+- **Env bootstrap command**: N/A
+
+## Verify Command
+
+```bash
+echo ok
+```
+EOF
+ipd_static_out="$("$IPD" --task-md "$STATIC_TASK" --cwd "$WORK_DIR" 2>/dev/null)"
+RC_IPD_STATIC=$?
+assert_eq "$RC_IPD_STATIC" "0" "static task install no-op exits 0"
+printf '%s' "$ipd_static_out" | python3 -c 'import json, sys; d=json.load(sys.stdin); assert d["status"] == "PASS"; assert d["mode"] == "noop_static"; assert d["level"] == "static"'
+assert_eq "$?" "0" "static task no-op emits PASS JSON"
+run_silent "$IPD" --project install-configured --task-md "$STATIC_TASK" --cwd "$WORK_DIR/install-configured"
+assert_eq "$?" "2" "--project and --task-md are mutually exclusive"
 
 echo ""
 echo "=== ensure-dependencies.sh ==="

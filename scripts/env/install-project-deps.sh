@@ -55,7 +55,20 @@ if [[ -z "$PROJECT" && -z "$TASK_MD" ]]; then
   exit 2
 fi
 
-if [[ -z "$PROJECT" ]]; then
+if [[ -n "$PROJECT" && -n "$TASK_MD" ]]; then
+  env_lib_log_fail "--project and --task-md are mutually exclusive"
+  usage
+  exit 2
+fi
+
+target_cwd="${CWD:-$PWD}"
+target_cwd="$(env_lib_expand_path "$target_cwd")"
+if [[ ! -d "$target_cwd" ]]; then
+  env_lib_log_fail "--cwd path does not exist: $target_cwd"
+  exit 1
+fi
+
+if [[ -n "$TASK_MD" ]]; then
   if [[ ! -f "$TASK_MD" ]]; then
     env_lib_log_fail "--task-md path not found: $TASK_MD"; exit 2
   fi
@@ -63,6 +76,26 @@ if [[ -z "$PROJECT" ]]; then
   if [[ ! -x "$parser" ]]; then
     env_lib_log_fail "parse-task-md.sh not executable at $parser"; exit 1
   fi
+
+  TASK_LEVEL="$("$parser" "$TASK_MD" --field level 2>/dev/null | xargs 2>/dev/null || true)"
+  if [[ "$TASK_LEVEL" == "static" ]]; then
+    env_lib_log_pass "static task does not require dependency installation"
+    python3 -c '
+import json, sys
+print(json.dumps({
+  "primitive": "install-project-deps",
+  "project": None,
+  "status": "PASS",
+  "mode": "noop_static",
+  "level": "static",
+  "reason": "static task does not require dependency installation",
+  "cwd": sys.argv[1],
+  "task_md": sys.argv[2],
+}))
+' "$target_cwd" "$TASK_MD"
+    exit 0
+  fi
+
   PROJECT=$("$parser" "$TASK_MD" 2>/dev/null | python3 -c '
 import json, re, sys
 data = json.loads(sys.stdin.read() or "{}")
@@ -95,12 +128,6 @@ fi
 
 install_command="$(printf '%s' "$env_json" | env_lib_get_field 'install_command' 2>/dev/null || true)"
 mode="configured"
-target_cwd="${CWD:-$PWD}"
-target_cwd="$(env_lib_expand_path "$target_cwd")"
-if [[ ! -d "$target_cwd" ]]; then
-  env_lib_log_fail "--cwd path does not exist: $target_cwd"
-  exit 1
-fi
 
 detect_install_command() {
   local cwd="$1"

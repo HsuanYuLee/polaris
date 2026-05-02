@@ -141,17 +141,26 @@ refinement 完成時同時產出兩份：
     ]
   },
 
-  // --- Research (Tier 3 only, optional) ---
+  // --- Research (optional consumed summary) ---
   "research": [
     {
       "topic": "商品頁即時價格更新的業界做法",
       "findings": "主流做法是 client-side fetch + skeleton，Shopify/Amazon 均用此模式",
       "confidence": "HIGH",              // see confidence-labeling.md
       "sources": [
-        { "url": "https://shopify.dev/docs/...", "type": "official_docs" }
+        { "url": "https://shopify.dev/docs/...", "type": "official_docs" },
+        { "path": "artifacts/research/2026-05-02-price-update.md", "type": "snapshot" }
       ]
     }
   ],
+
+  // --- Research Gate (optional for new producer) ---
+  "research_gate": {
+    "status": "none",                    // "none" | "recommended" | "required"
+    "deferred": false,
+    "defer_reason": null,
+    "missing_research": []
+  },
 
   // --- Downstream Hints ---
   "downstream": {
@@ -193,7 +202,23 @@ refinement 完成時同時產出兩份：
 |-------|---------|------|
 | **breakdown** | `modules`, `dependencies`, `downstream.breakdown_hints`, `modules[].complexity/risk`, `edge_cases`, `acceptance_criteria` | 每個 module action = 一張子單；blocking dependency = 排序依據；complexity + risk + edge case 數量 → 點數加權 |
 | **engineering** | `acceptance_criteria[].verification`, `modules[].path` | 知道要改哪些檔案、怎麼驗證 |
-| **breakdown** (scope-challenge) | `gaps.rd_risks`, `research[].confidence` | 低信心研究 + 高風險 = challenge 候選 |
+| **breakdown** (scope-challenge) | `gaps.rd_risks`, `research[].confidence`, `research_gate` | 低信心研究 + 高風險 = challenge 候選 |
+
+## Research Snapshot Relationship
+
+`research[]` 是 refinement 已消化的 summary，不是完整研究紀錄。Full research detail 應保存在 source container：
+
+```text
+{source_container}/artifacts/research/YYYY-MM-DD-{slug}.md
+```
+
+Snapshot schema 與 Research Sufficiency Gate 見 `refinement-research-container.md`。
+
+Producer rule：
+
+- `research[].sources[]` 可引用 external URL、PR、local path，或 `type: "snapshot"` 的 `artifacts/research/*.md` path。
+- Gate status 為 `required` 時，若沒有 usable snapshot，必須在 `research_gate.defer_reason` 記錄 explicit low-confidence defer reason。
+- Legacy artifacts 可以沒有 `research_gate`；新 producer 應寫入。
 
 `source.type = dp` 時，`breakdown` 產出 DP-backed tasks：
 

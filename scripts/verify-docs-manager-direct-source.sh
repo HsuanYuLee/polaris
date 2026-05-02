@@ -94,8 +94,8 @@ assert(labels.some((label) => label.includes('GT-522')), 'company Epic folder la
 assert(!labels.includes('Refinement — GT-478: [CWV] JS Bundle 瘦身（Product + Category 共通）'), 'folder label did not strip Refinement prefix');
 assert(links.includes('/specs/companies/kkday/gt-478/tasks/t5/'), 'company Epic task route missing from sidebar');
 assert(links.includes('/specs/companies/kkday/gt-478/tasks/pr-release/t1/'), 'company Epic pr-release task route missing from sidebar');
-assert(links.includes('/specs/design-plans/dp-058-docs-viewer-starlight-theme-link-recovery/tasks/t2/'), 'DP task route missing from sidebar');
-assert(links.includes('/specs/design-plans/dp-058-docs-viewer-starlight-theme-link-recovery/tasks/pr-release/t1/'), 'DP pr-release task route missing from sidebar');
+assert(links.includes('/specs/design-plans/dp-062-refinement-research-container-flow/tasks/t2/'), 'DP task route missing from sidebar');
+assert(links.includes('/specs/design-plans/archive/dp-063-docs-manager-source-unification/tasks/pr-release/t1/'), 'archived DP pr-release task route missing from sidebar');
 
 const companyImplementing = findItem(kkday.items, (item) => item.label?.includes('GT-478'));
 assert(companyImplementing?.badge?.text === 'IMPLEMENTING', 'company Epic IMPLEMENTING badge missing');
@@ -109,13 +109,13 @@ const companyLocked = findItem(kkday.items, (item) => item.label?.includes('GT-5
 assert(companyLocked?.badge?.text === 'LOCKED', 'company Epic LOCKED badge missing');
 assert(companyLocked?.badge?.variant === 'tip', 'company Epic LOCKED badge variant should be tip');
 
-const dpLocked = findItem(designPlans.items, (item) => item.label?.includes('DP-058'));
+const dpLocked = findItem(designPlans.items, (item) => item.label?.includes('DP-062'));
 assert(dpLocked?.badge?.text === 'LOCKED / P1', 'DP status/priority badge was not derived consistently');
 assert(dpLocked?.badge?.variant === 'tip', 'DP P1 locked badge variant should be tip');
 
-const dpSeeded = findItem(designPlans.items, (item) => item.label?.includes('DP-020'));
-assert(dpSeeded?.badge?.text === 'SEEDED / P3', 'DP status/priority badge text was not derived consistently');
-assert(dpSeeded?.badge?.variant === 'note', 'DP non-P1 badge variant should be note');
+const dpDiscussion = findItem(designPlans.items, (item) => item.label?.includes('DP-034'));
+assert(dpDiscussion?.badge?.text === 'DISCUSSION / P2', 'DP status/priority badge text was not derived consistently');
+assert(dpDiscussion?.badge?.variant === 'note', 'DP non-P1 badge variant should be note');
 
 const archivedBug = findItem(kkday.items, (item) => item.label?.includes('KB2CW-3847'));
 assert(archivedBug?.badge?.text === 'IMPLEMENTED', 'company archived ticket status badge missing');

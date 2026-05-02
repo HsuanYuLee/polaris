@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 啟動 Polaris docs-manager browser viewer。
-# Usage: polaris-viewer.sh [--port 8080] [--host 127.0.0.1] [--no-open] [--preview|--mode dev|preview] [--detach|--status|--stop]
+# Usage: polaris-viewer.sh [--port 8080] [--host 127.0.0.1] [--no-open] [--preview|--mode dev|preview] [--detach|--status|--stop|--reload]
 #
 # Dev mode 直接讀 canonical specs；preview mode 會先 build 再提供 search/production 檢查。
 
@@ -19,12 +19,14 @@ usage() {
 Usage:
   scripts/polaris-viewer.sh [--port 8080] [--host 127.0.0.1] [--no-open] [--preview|--mode dev|preview]
   scripts/polaris-viewer.sh --detach [--port 8080] [--host 127.0.0.1] [--no-open] [--preview|--mode dev|preview]
+  scripts/polaris-viewer.sh --reload [--port 8080] [--host 127.0.0.1] [--preview|--mode dev|preview]
   scripts/polaris-viewer.sh --status [--port 8080] [--host 127.0.0.1]
   scripts/polaris-viewer.sh --stop [--port 8080]
 
 Modes:
   default      前景啟動 docs-manager。
   --detach    啟動或重用持久 docs-manager session，啟動後離開 shell。
+  --reload    重啟持久 docs-manager session，用於刷新 sidebar folder tree。
   --status    回報指定 port 的 listener / session 狀態。
   --stop      停止受管理的 docs-manager session 或健康 docs-manager listener。
 EOF
@@ -37,6 +39,7 @@ while [[ $# -gt 0 ]]; do
     --no-open) OPEN_BROWSER=false; shift ;;
     --preview) MODE=preview; shift ;;
     --detach) ACTION=detach; OPEN_BROWSER=false; shift ;;
+    --reload) ACTION=reload; OPEN_BROWSER=false; shift ;;
     --status) ACTION=status; OPEN_BROWSER=false; shift ;;
     --stop) ACTION=stop; OPEN_BROWSER=false; shift ;;
     --help|-h) usage; exit 0 ;;
@@ -160,6 +163,21 @@ stop_docs_manager() {
   fi
 }
 
+reload_docs_manager() {
+  local pid
+  pid="$(listener_pid)"
+  if [[ -n "$pid" ]] && ! docs_manager_available "$MANAGER_URL"; then
+    echo "Port $PORT 已被使用，但 $MANAGER_URL 不是 Polaris docs-manager；拒絕 reload。" >&2
+    return 1
+  fi
+
+  if [[ -n "$pid" ]]; then
+    stop_docs_manager >/dev/null
+  fi
+
+  bash "$0" --detach --port "$PORT" --host "$HOST" --mode "$MODE" --no-open
+}
+
 if [[ ! -d "$WORKSPACE_ROOT/docs-manager" ]]; then
   echo "$WORKSPACE_ROOT 底下找不到 docs-manager 目錄" >&2
   exit 1
@@ -184,6 +202,11 @@ if [[ -n "$SPECS_ROOT" && -d "$SPECS_ROOT" ]]; then
 else
   # gitignored specs 只存在 main checkout；linked worktree 會由 loader 回主 checkout 解析。
   echo "WARN: 找不到 $WORKSPACE_ROOT/docs-manager/src/content/docs/specs；docs-manager 會在可行時從 main checkout 解析 canonical specs。" >&2
+fi
+
+if [[ "$ACTION" == "reload" ]]; then
+  reload_docs_manager
+  exit $?
 fi
 
 if lsof -i :"$PORT" -sTCP:LISTEN &>/dev/null; then

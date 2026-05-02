@@ -72,8 +72,7 @@ refresh_docs_manager_viewer_if_running() {
   [[ -x "$POLARIS_VIEWER" ]] || return 0
 
   if bash "$POLARIS_VIEWER" --status --port 8080 2>/dev/null | grep -q '^docs-manager: healthy$'; then
-    bash "$POLARIS_VIEWER" --stop --port 8080 >/dev/null 2>&1 || true
-    bash "$POLARIS_VIEWER" --detach --port 8080 --no-open >/dev/null 2>&1 || true
+    bash "$POLARIS_VIEWER" --reload --port 8080 --no-open >/dev/null 2>&1 || true
     echo "RELOADED: docs-manager viewer at http://127.0.0.1:8080/docs-manager/"
   fi
 }
@@ -289,7 +288,7 @@ run_sweep() {
 
   if [[ "$moved" -gt 0 ]]; then
     refresh_docs_manager_viewer_if_running
-    echo "Docs-manager reads canonical specs directly. For live review, run: scripts/polaris-viewer.sh --mode dev"
+    echo "Docs-manager reads canonical specs directly. For live sidebar refresh, run: scripts/polaris-viewer.sh --reload --mode dev"
     echo "For static/search verification, run: scripts/verify-docs-manager-runtime.sh --preview"
   fi
 }
@@ -385,5 +384,5 @@ mv "$container" "$destination"
 echo "ARCHIVED: $container -> $destination"
 
 refresh_docs_manager_viewer_if_running
-echo "Docs-manager reads canonical specs directly. For live review, run: scripts/polaris-viewer.sh --mode dev"
+echo "Docs-manager reads canonical specs directly. For live sidebar refresh, run: scripts/polaris-viewer.sh --reload --mode dev"
 echo "For static/search verification, run: scripts/verify-docs-manager-runtime.sh --preview"

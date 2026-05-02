@@ -78,6 +78,7 @@ engineering 的入口目標只有一個：**找到 authoritative work order**，
 - **不要 fallback 到舊 breakdown 產物或 JIRA 內嵌方案**
 - **Epic key 不直接進 engineering**：若找不到單一 task.md，fail loud，回上游挑子單或補規劃
 - **命中多個 task.md**：fail loud；同一 JIRA key 不應對應多張 work order
+- **Framework/docs work 也必須有 DP-backed task.md**：framework repo 的「開 PR / 發 PR」不再有無 task.md Admin shortcut。若無法 resolve 到 `docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md`，fail loud，要求先 `refinement DP-NNN` / `breakdown DP-NNN`。
 
 ### 0c. Mode 由 Work Order 派生
 
@@ -90,6 +91,8 @@ engineering 的入口目標只有一個：**找到 authoritative work order**，
 | `deliverable.pr_url` 有值，但 PR `MERGED` / `CLOSED` | **fail loud**（先修 task.md / deliverable 狀態） |
 
 若 work order 是 `docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md` 或 task identity 為 `DP-NNN-Tn`，且本 workspace 有明確的 local delivery extension 宣告，first-cut 的交付尾段可交給該 extension。extension 可能是「不建 PR 的 local endpoint」，也可能是「workspace PR merge 後的 release tail」（例如 `framework-release`）。這個判斷只影響交付終態，不影響前面的 resolver、handbook、TDD、scope、ci-local、verify、VR、base freshness gates。
+
+Framework worktree 若需要讀 main checkout 的 ignored specs、`.codex/` runtime context、或 maintainer-local skills，必須依 `.claude/skills/references/workspace-overlay.md` 使用 `scripts/resolve-workspace-overlay.sh` 解析 read-only overlay path。Overlay 只能用於 validation / context；tracked implementation、commit、PR 仍必須留在 task worktree。`docs-manager/dist` 等 generated output 永遠不是 authoring source。
 
 ## Local Delivery Extension Boundary（local-only）
 

@@ -198,6 +198,26 @@ assert_eq "$EV_EXIT" "0" "evidence: exit_code reflects PASS"
 EV_LEVEL="$(python3 -c "import json; print(json.load(open('$EV_S'))['level'])" 2>/dev/null)"
 assert_eq "$EV_LEVEL" "static" "evidence: level field"
 
+EV_EXEC_CWD="$(python3 -c "import json; print(json.load(open('$EV_S'))['execution_cwd'])" 2>/dev/null)"
+assert_eq "$EV_EXEC_CWD" "$REPO_S" "evidence: execution_cwd field"
+
+# --repo must also be the Verify Command cwd. This catches cases where HEAD is
+# read from --repo but the command still runs from the caller cwd.
+echo "repo-cwd-ok" > "$REPO_S/repo-only.txt"
+TASK_CWD="$PARENT_S/specs/SELFTEST-001/tasks/T_cwd.md"
+make_fake_task_md "$REPO_S" "myrepo" "$TASK_CWD" "static" 'test -f repo-only.txt && cat repo-only.txt' "RVC-CWD"
+(
+  cd "$WORK_DIR" || exit 1
+  "$RVC" --task-md "$TASK_CWD" --repo "$REPO_S"
+) >"$WORK_DIR/cwd.out" 2>"$WORK_DIR/cwd.err"
+RC_CWD=$?
+assert_eq "$RC_CWD" "0" "--repo executes Verify Command in repo cwd"
+assert_contains "$(cat "$WORK_DIR/cwd.out")" "repo-cwd-ok" "repo cwd verify sees repo-only file"
+EV_CWD="/tmp/polaris-verified-RVC-CWD-${HEAD_S}.json"
+assert_file_exists "$EV_CWD" "repo cwd evidence file"
+EV_CWD_FIELD="$(python3 -c "import json; print(json.load(open('$EV_CWD'))['execution_cwd'])" 2>/dev/null)"
+assert_eq "$EV_CWD_FIELD" "$REPO_S" "repo cwd evidence records execution_cwd"
+
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== verify command FAIL → exit 1, evidence still written ==="
 TASK_F="$PARENT_S/specs/SELFTEST-001/tasks/T_fail.md"
@@ -512,7 +532,7 @@ else
 fi
 
 # Cleanup the static evidence we created
-rm -f "$EV_S" "$EV_S2" "$EV_F" "$EV_T" "$EV_B" "$EV_R" 2>/dev/null
+rm -f "$EV_S" "$EV_S2" "$EV_F" "$EV_T" "$EV_B" "$EV_R" "$EV_CWD" 2>/dev/null
 
 # ────────────────────────────────────────────────────────────────────────────
 echo ""

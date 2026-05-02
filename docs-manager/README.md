@@ -65,8 +65,11 @@ Live review:
 
 ```bash
 bash ../scripts/polaris-viewer.sh --detach --mode dev --port 8080 --no-open
+bash ../scripts/polaris-viewer.sh --reload --mode dev --port 8080
 bash ../scripts/polaris-viewer.sh --status --port 8080
 ```
+
+新增、搬移或歸檔 spec folder 後，使用 `--reload` 重新載入 dev viewer。Markdown 內容更新通常會由 dev server hot reload；sidebar folder tree 由 `sidebar.mjs` 在 Astro config 載入時產生，folder 結構變更需要 reload 才會穩定反映。
 
 Static/search verification:
 

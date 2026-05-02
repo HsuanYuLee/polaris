@@ -95,6 +95,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [shared-defaults.md](shared-defaults.md) | 跨 skill 共用預設值（Slack channels、JIRA、GitHub、infra） | 所有讀 workspace-config 的 skill |
 | [dependency-consent.md](dependency-consent.md) | Optional dependency 的使用者同意管理（playwright、mockoon-cli） | /init, visual-regression, e2e |
 | [polaris-project-dir.md](polaris-project-dir.md) | ~/.polaris/projects/$SLUG/ 目錄結構與 slug 解析 | polaris-learnings.sh, polaris-timeline.sh |
+| [workspace-overlay.md](workspace-overlay.md) | Framework worktree 與 main-checkout overlay 邊界：ignored specs、`.codex/`、local maintainer skills、generated output 的 read-only resolver contract | engineering, framework-release, framework-docs-health, docs-manager |
 
 ## Confluence & Docs
 

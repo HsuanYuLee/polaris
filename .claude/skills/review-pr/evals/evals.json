@@ -59,7 +59,7 @@
       "id": 10,
       "query": "發 PR",
       "should_trigger": false,
-      "notes": "發 PR → git-pr-workflow"
+      "notes": "發 PR alone is not review-pr; framework/docs needs DP-backed task.md then engineering"
     },
     {
       "id": 11,
