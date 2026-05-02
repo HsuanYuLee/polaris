@@ -10,7 +10,7 @@ usage: validate-dp-metadata.sh [file-or-directory...]
 Default path:
   docs-manager/src/content/docs/specs/design-plans
 
-Use scripts/sync-dp-sidebar-metadata.sh --apply to repair deterministic drift.
+Use scripts/sync-spec-sidebar-metadata.sh --apply to repair deterministic drift.
 EOF
   exit 2
 }
@@ -149,7 +149,7 @@ rows = []
 for file in files:
     data, parse_errors = parse_frontmatter(file)
     for error in parse_errors:
-        add(rows, file, error, "run sync-dp-sidebar-metadata.sh after fixing frontmatter")
+        add(rows, file, error, "run sync-spec-sidebar-metadata.sh after fixing frontmatter")
     if data is None:
         continue
 

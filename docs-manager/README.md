@@ -83,14 +83,14 @@ bash ../scripts/validate-starlight-authoring.sh check src/content/docs/specs/pat
 bash ../scripts/validate-starlight-authoring.sh legacy-report src/content/docs/specs
 ```
 
-Design Plan sidebar metadata:
+Spec sidebar metadata:
 
 ```bash
-bash ../scripts/sync-dp-sidebar-metadata.sh --apply src/content/docs/specs/design-plans
+bash ../scripts/sync-spec-sidebar-metadata.sh --apply src/content/docs/specs
 bash ../scripts/validate-dp-metadata.sh src/content/docs/specs/design-plans
 ```
 
-DP `plan.md` 必須包含 lifecycle `status`、work `priority` 與 Starlight `sidebar` metadata。Sync script 會把 `SEED` 正規化成 `SEEDED`，依 status 推導缺漏的 priority，並寫入 `sidebar.label` / `sidebar.order` / `sidebar.badge`。
+DP `plan.md` 必須包含 lifecycle `status`、work `priority` 與 Starlight `sidebar` metadata；company spec parent 也必須讓 `sidebar.badge` 對齊 lifecycle `status`。Sync script 會把 DP 的 `SEED` 正規化成 `SEEDED`，依 status 推導缺漏的 priority，並寫入 sidebar metadata。
 
 Archive folders 是同一個 canonical tree 的一部分。當 specs 移到 `docs-manager/src/content/docs/specs/design-plans/archive/` 或 `docs-manager/src/content/docs/specs/companies/{company}/archive/` 時，docs-manager 會在下一次 dev refresh 或 build 直接讀到新 route。
 

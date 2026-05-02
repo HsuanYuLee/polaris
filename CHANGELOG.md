@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.30] - 2026-05-02
+
+### Changed — spec sidebar metadata single entrypoint
+
+- 移除 `sync-dp-sidebar-metadata.sh` 與對應 selftest，不保留 DP-only
+  compatibility wrapper。
+- 文件與 validator repair hint 全部改用共用
+  `sync-spec-sidebar-metadata.sh`，讓 DP 與一般工單 parent 使用同一個
+  lifecycle sidebar metadata 入口。
+
 ## [3.74.29] - 2026-05-02
 
 ### Fixed — spec closeout sidebar refresh

@@ -57,7 +57,7 @@ sidebar:
 - `priority` 允許值：`P0`、`P1`、`P2`、`P3`、`P4`。
 - `sidebar.order` 使用 DP number，例如 `DP-070` 寫 `70`。
 - `sidebar.badge.text` 固定為 `{status} / {priority}`。
-- Deterministic drift 先用 `scripts/sync-dp-sidebar-metadata.sh --apply <path>` 修正，再跑 `scripts/validate-dp-metadata.sh <path>` 驗證。
+- Deterministic drift 先用 `scripts/sync-spec-sidebar-metadata.sh --apply <path>` 修正，再跑 `scripts/validate-dp-metadata.sh <path>` 驗證 DP metadata。
 
 ## Headings
 
