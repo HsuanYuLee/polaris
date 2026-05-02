@@ -200,7 +200,7 @@ gate 視為通過。這只適用於 `check`；`new` 仍 fail loud，避免 frame
 ## 8. Admin Mode
 
 - Admin 流程**無 task.md** → 無 `deliverables.changeset` 宣告 → engineering 不主動產
-- Admin repo 若 CI 要求 changeset → 由 `git-pr-workflow` skill 的 Admin 流程處理（**本 spec 不鎖**；歸 DP-036 / DP-037 sunset 討論）
+- Framework repo 若 CI 要求 changeset → 由 DP-backed `engineering` task.md 明確宣告；不再走 Admin PR skill。
 - Admin 手動產 changeset 時可參考本 spec 格式（subject 用 commit-style headline、`{type}: {summary}`）
 
 ---

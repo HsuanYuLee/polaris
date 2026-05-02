@@ -318,7 +318,7 @@ Layer 3 的 determinism 依賴 Mockoon fixtures。Fixtures 跟著 Epic 生命週
 | Polaris 幫 merge task → feat | 整合完立刻跑 | 最高（確定性） |
 | 手動 merge 後使用者說「繼續」/「next」 | my-triage Step 0 Resume scan 偵測 feat branch 有新 commit | 高 |
 | 跑 epic-status / converge | 推進前兜底 | 中（可能距離整合已有時間差） |
-| 開 feature PR 到 develop | git-pr-workflow quality gate | 兜底（最後防線） |
+| 開 feature PR 到 develop | engineering quality gate | 兜底（最後防線） |
 
 四層觸發同一個動作：收集 feat branch 上所有已整合子單的驗證項，全部跑一輪。
 
@@ -472,9 +472,9 @@ feature/{EPIC_KEY}-{description}
   └── PR merged → cleanup specs/{EPIC_KEY}/tests/mockoon/ (optional archive)
 ```
 
-## VR Gate (git-pr-workflow integration)
+## VR Gate (engineering integration)
 
-Feature PR 到 develop 前，git-pr-workflow 新增 **Step 3b: VR Gate**。
+Feature PR 到 develop 前，engineering delivery flow 執行 VR Gate。
 
 ### 觸發條件
 
@@ -495,7 +495,7 @@ Feature PR 到 develop 前，git-pr-workflow 新增 **Step 3b: VR Gate**。
 ### 在 pipeline 中的位置
 
 ```
-git-pr-workflow / engineering:
+engineering:
   Step 1-2: branch, simplify, Local CI Mirror (engineer-delivery-flow § Step 2)
   Step 3.5: VR Gate（條件觸發，呼叫 visual-regression skill）
   Step 4-8: review, rebase, commit, PR, JIRA...
@@ -515,7 +515,7 @@ VR Gate 在 Local CI Mirror 之後、commit 之前。這樣 VR fail 時還沒 co
 | `engineering` | 建 task 時自動建測試計劃 sub-task。每張 task 必須通過 VR |
 | `breakdown` (estimation) | 估點時產生測試計劃 template |
 | `engineer-delivery-flow` § Step 3.5 | VR 條件觸發 |
-| `git-pr-workflow` | Step 3b VR Gate（本次新增）；驗收前 auto-rebase develop |
+| `engineering` | Step 3b VR Gate；驗收前 auto-rebase develop |
 | `converge` | Check stale fixture folders（> 30 天 + Epic not in dev → 提醒刪除） |
 | `mockoon-runner.sh` | 支援 per-Epic folder 參數（需改動腳本） |
 

@@ -6,7 +6,7 @@ Used by:
 - `engineering` § 4.5 Pre-Development Rebase（first-cut）
 - `engineering` § R0 Pre-Revision Rebase（revision mode）
 - `engineer-delivery-flow` Step 5 Final Re-Sync
-- `git-pr-workflow` Step 6.5
+- `engineering` delivery flow
 - `check-pr-approvals` Step 2 (via `scripts/rebase-pr-branch.sh`)
 - `feature-branch-pr-gate` § Feature Branch Rebase
 

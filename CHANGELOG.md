@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.31] - 2026-05-02
+
+### Changed — framework engineering flow
+
+- Sunset `git-pr-workflow` as an active Admin PR skill. Framework repo changes
+  now route through DP-backed `refinement` -> `breakdown` -> `engineering`.
+- Removed active docs and routing references that sent framework/docs PR work to
+  `git-pr-workflow`, including README skill lists, workflow guide diagrams, and
+  Copilot routing instructions.
+- Added `framework-release-pr-lane.sh` plus selftest to preflight stacked
+  framework workspace PRs before `framework-release` syncs workspace main to
+  the Polaris template repo.
+
 ## [3.74.30] - 2026-05-02
 
 ### Changed — spec sidebar metadata single entrypoint

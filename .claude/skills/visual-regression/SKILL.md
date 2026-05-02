@@ -6,7 +6,7 @@ description: >
   each run and deletes after comparison. Config-driven from workspace-config.yaml.
   Use when: "跑 visual regression", "檢查畫面", "頁面有沒有壞", "visual test", "screenshot test",
   "畫面測試", "截圖比對", "有沒有跑版", "畫面壞了嗎", "UI 有沒有問題", "check if pages look right",
-  or when git-pr-workflow detects visual_regression enabled on the current domain.
+  or when engineering detects visual_regression enabled on the current domain.
 ---
 
 # Visual Regression
@@ -84,7 +84,7 @@ MCP `addCommentToJiraIssue` with `contentFormat: "markdown"` cannot embed attach
 Determine the active domain from:
 1. Git branch → `projects[]` match → `visual_regression.domain` field in company workspace-config.yaml
 2. User's explicit mention of a domain name
-3. JIRA ticket context (when invoked from `git-pr-workflow`)
+3. JIRA ticket or DP task context (when invoked from `engineering`)
 
 Read workspace config using `references/workspace-config-reader.md`. Find the matching `visual_regression.domains[]` entry in the company workspace-config.yaml.
 
@@ -568,17 +568,17 @@ Note: `playwright-report/` is kept for the user to inspect. It is NOT committed.
 
 ---
 
-## Integration: git-pr-workflow
+## Integration: engineering
 
 When invoked as part of the PR quality chain (not user-initiated):
 
 - Auto-select mode: SIT if `sit_url` configured and reachable, otherwise Local
-- Skip the smart-skip check (git-pr-workflow already determined changes are significant)
+- Skip the smart-skip check (engineering already determined changes are significant)
 - **All pass** → one-line confirmation, continue PR workflow
 - **Intentional diffs only** → report diffs but do NOT block PR; note that visual changes are expected
 - **Any regressions or major diffs** → block PR workflow, report findings, require user investigation before proceeding
 
-Return format for git-pr-workflow:
+Return format for engineering:
 ```
 visual-regression: {PASS | PASS_WITH_DIFFS | BLOCK}
 {one-line summary}

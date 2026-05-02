@@ -157,7 +157,6 @@ flowchart LR
     VR["visual-regression"]
     VAC["verify-AC<br/>(AC verification)"]
     %% ── PR Skills ──
-    GPW["git-pr-workflow"]
     PRP["pr-pickup<br/>(Slack intake)"]
 
     %% ── Review Skills ──
@@ -181,8 +180,6 @@ flowchart LR
     WO -->|epic breakdown| EB
     WO -->|TDD dev| UT_TDD
     WO -->|ticket delivery gates| EDF
-    GPW -->|admin PR gates| EDF
-
     BT -->|diagnosis done| EB
 
     %% ── Planning chain ──
@@ -529,7 +526,7 @@ AI runs quality checks via `engineer-delivery-flow` Step 2 (Local CI Mirror — 
 
 **If the report shows ⚠️ or estimated patch coverage is below threshold, add tests before proceeding to PR.**
 
-> This step is part of `engineer-delivery-flow` — it runs automatically as part of `engineering` or `git-pr-workflow`.
+> This step is part of `engineer-delivery-flow` — it runs automatically as part of `engineering`.
 
 ### Step 7a. 🤖👤 Behavior Verification (Verify Completion)
 
@@ -637,7 +634,7 @@ Dev Agent                          Reviewer Sub-Agent (isolated context)
 
 **Iteration limit: max 3 rounds.** If blocking issues remain after 3 rounds, lists remaining issues and asks the developer whether to fix manually or force-proceed.
 
-> This step is part of `engineer-delivery-flow`. Product ticket work reaches it through `engineering`; admin/framework PR work reaches it through `git-pr-workflow`.
+> This step is part of `engineer-delivery-flow`. Product ticket work and DP-backed framework work both reach it through `engineering`.
 
 ### Step 9. 🤖 Development Complete — Open PR
 
@@ -645,7 +642,7 @@ Dev Agent                          Reviewer Sub-Agent (isolated context)
 open PR
 ```
 
-For product ticket work, `engineering` runs the shared delivery flow automatically. For admin/framework repositories, `git-pr-workflow` runs the same quality, review, rebase, PR, and completion gates when you say "open PR":
+For product ticket work, `engineering` runs the shared delivery flow automatically. Framework repository work must first have a DP-backed task.md (`refinement DP-NNN` → `breakdown DP-NNN`), then `engineering DP-NNN-Tn` runs the same quality, review, rebase, PR, and completion gates:
 
 ```
 Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit → Changeset → Rebase → Open PR → JIRA transition → Update PR desc → Post-PR Review Comment
@@ -667,7 +664,7 @@ Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit →
 | 9 | Update PR desc | **Embeds AC Coverage checklist** (reads JIRA AC items, marks coverage status) |
 | 10 | Post-PR Review | Background sub-agent leaves a review comment |
 
-> Trigger keywords: `open PR`, `create PR`, `PR workflow`, `commit and PR`, `changeset`, `full pr flow`, `pull request`, `ready for PR`
+> Trigger keywords: `work on`, `engineering`, `做 DP-NNN-Tn`, `fix review`, `CI failed`, `ready for PR`
 
 ### Step 10. 🤖👤 Code Review (human focus)
 
@@ -802,7 +799,7 @@ If no JIRA ticket key is provided, the Strategist automatically:
 2. Creates a JIRA Bug ticket (project key inferred from `workspace-config.yaml`)
 3. Routes to `bug-triage` with the new ticket key
 
-As a safety net, `git-pr-workflow` also detects missing JIRA keys at the changeset step and auto-creates a ticket if needed.
+Framework hotfixes without a ticket should still enter the planning lane first: create or locate the relevant JIRA/DP source, then continue through `breakdown` and `engineering`.
 
 ### Steps 2–12. Same as Bug Fix flow
 

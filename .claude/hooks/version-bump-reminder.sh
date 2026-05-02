@@ -5,7 +5,7 @@
 # deterministic advisory coverage. The behavioral canary (previously in
 # mechanism-registry.md § Framework Iteration) is superseded by:
 #   - this PostToolUse hook on `git commit` (L1, advisory)
-#   - L2 embeds in engineering / git-pr-workflow SKILL.md (post-PR tail)
+#   - L2 embeds in engineering SKILL.md (post-PR tail)
 #
 # Hook type: PostToolUse
 # Matcher:   Bash (filtered upstream in settings.json via `if: Bash(git*commit*)`)

@@ -1,24 +1,23 @@
 # Engineer Delivery Flow
 
 共用的「工程師交付」執行流程。**受消費者**：
-- **`engineering`**（Developer 角色，ticket-driven，產品 repo）
+- **`engineering`**（Developer 角色，ticket-driven 或 DP-backed framework work）
 - **`engineering`**（Local Extension 角色，workspace-local delivery endpoint）
-- **`git-pr-workflow`**（Admin 角色，無 ticket，框架/docs 維護）
 
-兩個 skill 都 include 本 reference 作為 execution backbone。唯一分歧在少數 role-specific 步驟（見 § Role Matrix）。
+`git-pr-workflow` 已 sunset；framework repo 改動也必須先有 DP-backed task.md，再由 `engineering` 進入本 delivery backbone。
 
 ## Delivery Contract
 
 ### Preconditions（呼叫端必須提供）
 
-| 項目 | Developer | Local Extension | Admin |
-|------|-----------|--------------------|-------|
-| Branch | Task branch 已 checkout（`task/PROJ-NNN-*`）| Local-policy-approved task branch 已 checkout | 非 main 的工作 branch |
-| Code | 實作完成、可 commit 的狀態 | 實作完成、可 local extension handoff 的狀態 | 變更完成 |
-| task.md | 路徑或完整內容（含 Repo、測試計畫、行為驗證 Layer B）；所有欄位讀取走 `scripts/parse-task-md.sh`（DP-032 D8） | task.md，同 Developer | 不需要 |
-| JIRA ticket key | 必填 | 依 local policy；可使用 DP pseudo-task ID | 不需要 |
-| Base branch | 從 task.md 或 JIRA parent 推導 | 從 task.md / local policy 推導 | 當前 branch upstream 或 `origin/main` |
-| Role declaration | context 明確說 `role: developer` | context 明確說 `role: local-extension` | context 明確說 `role: admin` |
+| 項目 | Developer | Local Extension |
+|------|-----------|--------------------|
+| Branch | Task branch 已 checkout（`task/PROJ-NNN-*` 或 `task/DP-NNN-Tn-*`）| Local-policy-approved task branch 已 checkout |
+| Code | 實作完成、可 commit 的狀態 | 實作完成、可 local extension handoff 的狀態 |
+| task.md | 路徑或完整內容（含 Repo、測試計畫、行為驗證 Layer B）；所有欄位讀取走 `scripts/parse-task-md.sh`（DP-032 D8） | task.md，同 Developer |
+| JIRA ticket key | 產品 ticket 必填；DP-backed framework work 使用 DP pseudo-task ID | 依 local policy；可使用 DP pseudo-task ID |
+| Base branch | 從 task.md 或 JIRA parent 推導 | 從 task.md / local policy 推導 |
+| Role declaration | context 明確說 `role: developer` | context 明確說 `role: local-extension` |
 
 ### Postconditions（本流程保證）
 
@@ -30,7 +29,7 @@
 - **Layer A+B(+C) evidence AND gate**：所有必要 evidence 檔案存在且 `head_sha` 匹配當前 HEAD 才放行 PR、local extension handoff、或 post-PR release handoff
 - **Completion gate before user-facing done**：回報完成前必須再檢查一次 Layer A（and Developer Layer B）是否仍對應當前 HEAD，避免在 git 動作前先口頭結案
 - **Remote repo CI is non-blocking when still queued / pending / running**：本流程以本地 LLM + mechanism evidence 為 completion authority；不等待遠端 CI 排隊或長時間執行完畢
-- Developer/Admin：PR 建立在正確 base branch，body 依 repo template 填充
+- Developer：PR 建立在正確 base branch，body 依 repo template 填充
 - Developer：JIRA 狀態轉為 CODE REVIEW（soft-fail）
 - Developer：task.md `deliverable.pr_url` + `head_sha` 寫回
 - Local Extension：交付給 workspace-local extension，由 local policy 定義是否需要 workspace PR、final verification 與 completion evidence；例如 `framework-release` 必須消費已建立 / 已 merge 的 workspace PR，而不是 direct push workspace `main`
@@ -69,26 +68,26 @@
 
 ## Role Matrix
 
-| 步驟 | Developer（engineering） | Local Extension（engineering + workspace-local policy） | Admin（git-pr-workflow） |
-|------|---------------------|-----------------------------------------------|------------------------|
-| Input | task.md（含 Repo、測試計畫、行為驗證）；active `tasks/` 找不到時 fallback `tasks/pr-release/`（DP-033 D8）| task.md（同 Developer schema；eligibility 由 local policy 定義） | 無 — 直接讀當前 diff |
-| Step 1 Simplify | ✅ | ✅ | ✅ |
-| **Step 1.3 Self-Review（Phase 3 exit gate，D21）** | ✅ | ✅ | ✅ |
-| **Step 1.5 Scope Gate（`check-scope.sh`，D20）** | ✅ | ✅ | ⏭️ 無 task.md 則跳過 |
-| **Step 2 前置 Rebase（`engineering-rebase.sh`，D6/D19）** | ✅ | ✅ | ✅ |
-| Step 2 Local CI Mirror（`ci-local.sh`，D12） | ✅ | ✅ | ✅ |
-| Step 3 Behavioral Verify（`run-verify-command.sh`，D15） | ✅ | ✅ | ⏭️ 無 task.md 則跳過 |
-| Step 3.5 Visual Regression（`run-visual-snapshot.sh`，conditional，D18） | ✅ 若 task.md VR 觸發 | ✅ 若 task.md VR 觸發 | ⏭️ 無 task.md 則跳過 |
-| ~~Step 4~~（已搬至 Step 1.3 — Phase 3 exit gate，編號留空避免下游 reference 斷裂） | — | — | — |
-| Step 5 Base Freshness Detection（`check-base-fresh.sh`，D19） | ✅ | ✅ | ✅ |
-| Step 6 Commit + Changeset | ✅ | 依 local policy；portable flow 至少產生 handoff package | ✅ |
-| Step 7 PR Create（含 7a Evidence AND Gate） | ✅ | 依 local policy：PR-bypass endpoint 改走 handoff；post-PR release endpoint 仍須建立 / 更新 workspace PR | ✅ |
-| Step 8 JIRA Transition → CODE REVIEW | ✅ | ⏭️ 跳過（無 JIRA ticket） | ⏭️ 跳過（無 JIRA ticket） |
-| Step 8a Mark IMPLEMENTED | ✅ | ✅ 但只在 extension final verification 成功後 | ⏭️ 跳過 |
-| **Step 8.5 Completion Gate（`check-delivery-completion.sh` / `check-local-extension-completion.sh`）** | ✅ | ✅ `extension_deliverable` metadata + Layer A/B freshness gate | ✅（`--admin`） |
-| Evidence file 鍵 | `/tmp/polaris-verified-{TICKET}-{head_sha}.json` | `/tmp/polaris-verified-{TASK_ID}-{head_sha}.json` | `/tmp/polaris-verified-{branch-slug}-{head_sha}.json` |
+| 步驟 | Developer（engineering） | Local Extension（engineering + workspace-local policy） |
+|------|---------------------|-----------------------------------------------|
+| Input | task.md（含 Repo、測試計畫、行為驗證）；active `tasks/` 找不到時 fallback `tasks/pr-release/`（DP-033 D8）| task.md（同 Developer schema；eligibility 由 local policy 定義） |
+| Step 1 Simplify | ✅ | ✅ |
+| **Step 1.3 Self-Review（Phase 3 exit gate，D21）** | ✅ | ✅ |
+| **Step 1.5 Scope Gate（`check-scope.sh`，D20）** | ✅ | ✅ |
+| **Step 2 前置 Rebase（`engineering-rebase.sh`，D6/D19）** | ✅ | ✅ |
+| Step 2 Local CI Mirror（`ci-local.sh`，D12） | ✅ | ✅ |
+| Step 3 Behavioral Verify（`run-verify-command.sh`，D15） | ✅ | ✅ |
+| Step 3.5 Visual Regression（`run-visual-snapshot.sh`，conditional，D18） | ✅ 若 task.md VR 觸發 | ✅ 若 task.md VR 觸發 |
+| ~~Step 4~~（已搬至 Step 1.3 — Phase 3 exit gate，編號留空避免下游 reference 斷裂） | — | — |
+| Step 5 Base Freshness Detection（`check-base-fresh.sh`，D19） | ✅ | ✅ |
+| Step 6 Commit + Changeset | ✅ | 依 local policy；portable flow 至少產生 handoff package |
+| Step 7 PR Create（含 7a Evidence AND Gate） | ✅ | 依 local policy：PR-bypass endpoint 改走 handoff；post-PR release endpoint 仍須建立 / 更新 workspace PR |
+| Step 8 JIRA Transition → CODE REVIEW | ✅ | ⏭️ 跳過（無 JIRA ticket） |
+| Step 8a Mark IMPLEMENTED | ✅ | ✅ 但只在 extension final verification 成功後 |
+| **Step 8.5 Completion Gate（`check-delivery-completion.sh` / `check-local-extension-completion.sh`）** | ✅ | ✅ `extension_deliverable` metadata + Layer A/B freshness gate |
+| Evidence file 鍵 | `/tmp/polaris-verified-{TICKET}-{head_sha}.json` 或 `/tmp/polaris-verified-{TASK_ID}-{head_sha}.json` | `/tmp/polaris-verified-{TASK_ID}-{head_sha}.json` |
 
-**Role 由呼叫端傳入**，reference 不做角色偵測。呼叫端在 dispatch prompt 或 context 說明「你是 Developer / Local Extension / Admin」。Local Extension 的具體 endpoint、repo、release/push 權限、final verification 全部由 workspace-local policy 定義，不進 portable reference。
+**Role 由呼叫端傳入**，reference 不做角色偵測。呼叫端在 dispatch prompt 或 context 說明「你是 Developer / Local Extension」。Local Extension 的具體 endpoint、repo、release/push 權限、final verification 全部由 workspace-local policy 定義，不進 portable reference。
 
 ---
 
@@ -550,7 +549,6 @@ HEAD_SHA=$(git rev-parse HEAD)
   ```
 - **不得繼續執行 Step 8**（JIRA transition / Slack 通知 / next handoff）直到此步驟 exit 0
 - 不得用 `/tmp` fallback 或 silent continue — inconsistent state 必須立刻被人類看到
-- Admin 模式（無 task.md）跳過本段
 
 **Revision mode**（既有 PR）：
 
@@ -563,7 +561,7 @@ HEAD_SHA=$(git rev-parse HEAD)
 5. 若 PR body 需更新（如新增修正摘要），先 materialize body file 並跑 `gate-pr-body-template.sh --body-file` + `validate-language-policy.sh --blocking --mode artifact`，兩者通過後才用 `gh pr edit --body-file` 更新；不得用 inline `--body`
 6. **更新 head_sha**（revision mode）：push 成功後更新 task.md 的 `deliverable.head_sha`（同 write-deliverable.sh；`pr_state` 不變，維持 `OPEN`）
 
-`POLARIS_PR_WORKFLOW=1` 讓 legacy `pr-create-guard.sh` hook 放行（已被 `polaris-pr-create.sh` wrapper 取代）。僅 first-cut mode 需要。
+`POLARIS_PR_WORKFLOW=1` 是 legacy `pr-create-guard.sh` hook escape hatch；新流程使用 `polaris-pr-create.sh` wrapper，不應新增依賴。
 
 ### Base Branch Resolution（適用於 § 4.5 / § R0 / 本 Step 7d）
 
@@ -817,19 +815,6 @@ bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
 - JIRA ticket key
 - Base branch
 
-### Admin 呼叫端責任（git-pr-workflow SKILL.md）
-
-呼叫前：
-- 確認當前 repo 是 Polaris framework / docs / 通用 repo（skill-routing 會擋產品 repo）
-- 當前 branch 非 main
-
-呼叫時 context：
-- Role: `admin`
-- 當前 branch
-- PR type（framework / docs / other）
-
----
-
 ## Iteration & Halting Metrics
 
 Risk signal（若多次觸發，呼叫端應停下回報使用者而非繼續）：
@@ -856,4 +841,4 @@ Risk signal（若多次觸發，呼叫端應停下回報使用者而非繼續）
 
 ## 來源
 
-本 reference 從原 `git-pr-workflow` Step 2-9、原 `verify-completion` 行為驗證段、原 `dev-quality-check` Step 6 smoke test 整併而來。2026-04-14 engineering（原 work-on）重構 v2 抽出作為共用 backbone（見 memory `project_workon_redesign_v2.md`）。DP-032 Wave γ-δ 重構為 Two-Segment Architecture：LLM 實作段（Phase 3）+ 機械自驗段（Step 1.5+），引入 script-mediated evidence AND gate model、scope gate、前置 rebase、base freshness detection、VR skill sunset。
+本 reference 從早期 Admin PR flow、原 `verify-completion` 行為驗證段、原 `dev-quality-check` Step 6 smoke test 整併而來。2026-04-14 engineering（原 work-on）重構 v2 抽出作為共用 backbone（見 memory `project_workon_redesign_v2.md`）。DP-032 Wave γ-δ 重構為 Two-Segment Architecture：LLM 實作段（Phase 3）+ 機械自驗段（Step 1.5+），引入 script-mediated evidence AND gate model、scope gate、前置 rebase、base freshness detection、VR skill sunset。DP-040 後，framework repo 也透過 DP-backed `engineering` 進入本流程。

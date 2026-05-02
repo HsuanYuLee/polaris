@@ -13,9 +13,8 @@
 | Skill / 流程 | 觸發條件 | 說明 |
 |--------------|---------|------|
 | `epic-status` Phase 1 | 掃描完所有子單狀態 | 差距分析自然發現 |
-| `git-pr-workflow` | task PR 建立完成 | 順便檢查同 repo 兄弟子單 |
 | `check-pr-approvals` | 偵測到 task PR 被 merge | merge 是最關鍵的狀態變化 |
-| `engineering` | 完成 task 的完整開發流程 | 委派給 git-pr-workflow 時帶入 |
+| `engineering` | 完成 task 的完整開發流程 | 直接由 task.md delivery flow 帶入 |
 | `engineering` revision mode | push 修正後 PR 被 merge | 同 check-pr-approvals |
 
 ## 偵測邏輯

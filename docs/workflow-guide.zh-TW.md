@@ -157,7 +157,6 @@ flowchart LR
     VR["visual-regression"]
     VAC["verify-AC<br/>(AC verification)"]
     %% ── PR Skills ──
-    GPW["git-pr-workflow"]
     PRP["pr-pickup<br/>(Slack intake)"]
 
     %% ── Review Skills ──
@@ -181,8 +180,6 @@ flowchart LR
     WO -->|epic breakdown| EB
     WO -->|TDD dev| UT_TDD
     WO -->|ticket delivery gates| EDF
-    GPW -->|admin PR gates| EDF
-
     BT -->|diagnosis done| EB
 
     %% ── Planning chain ──
@@ -529,7 +526,7 @@ AI 透過 `engineer-delivery-flow` Step 2（Local CI Mirror — `ci-local.sh`，
 
 **若報告顯示 ⚠️ 或預估 patch coverage 低於門檻，請在進入 PR 前補測試。**
 
-> 此步驟是 `engineer-delivery-flow` 的一部分 — 在 `engineering` 或 `git-pr-workflow` 中自動執行。
+> 此步驟是 `engineer-delivery-flow` 的一部分 — 在 `engineering` 中自動執行。
 
 ### 步驟 7a. 🤖👤 行為驗證（Verify Completion）
 
@@ -637,7 +634,7 @@ Dev Agent                          Reviewer Sub-Agent (isolated context)
 
 **迭代上限：最多 3 輪。** 若 3 輪後仍有阻擋性問題，列出剩餘問題並詢問開發者是否手動修正或強制繼續。
 
-> 此步驟屬於 `engineer-delivery-flow`。產品票開發會透過 `engineering` 進入；admin/framework PR 會透過 `git-pr-workflow` 進入。
+> 此步驟屬於 `engineer-delivery-flow`。產品票開發與 DP-backed framework work 都會透過 `engineering` 進入。
 
 ### 步驟 9. 🤖 開發完成 — 開 PR
 
@@ -645,7 +642,7 @@ Dev Agent                          Reviewer Sub-Agent (isolated context)
 open PR
 ```
 
-產品票開發會由 `engineering` 自動執行共用 delivery flow。Admin/framework repo 則在你說「open PR」時，由 `git-pr-workflow` 執行同一組品質檢查、review、rebase、開 PR 與完成檢查：
+產品票開發會由 `engineering` 自動執行共用 delivery flow。Framework repo 改動必須先有 DP-backed task.md（`refinement DP-NNN` → `breakdown DP-NNN`），再由 `engineering DP-NNN-Tn` 執行同一組品質檢查、review、rebase、開 PR 與完成檢查：
 
 ```
 Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit → Changeset → Rebase → Open PR → JIRA transition → Update PR desc → Post-PR Review Comment
@@ -667,7 +664,7 @@ Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit →
 | 9 | 更新 PR 描述 | **嵌入 AC 覆蓋清單**（讀取 JIRA AC 項目，標記覆蓋狀態） |
 | 10 | Post-PR Review | 背景子代理留下 review 留言 |
 
-> Trigger keywords: `open PR`, `create PR`, `PR workflow`, `commit and PR`, `changeset`, `full pr flow`, `pull request`, `ready for PR`
+> Trigger keywords: `work on`, `engineering`, `做 DP-NNN-Tn`, `fix review`, `CI failed`, `ready for PR`
 
 ### 步驟 10. 🤖👤 Code Review（以人工為主）
 
@@ -802,7 +799,7 @@ log worktime
 2. 建立 JIRA Bug ticket（project key 從 `workspace-config.yaml` 推斷）
 3. 帶著新 ticket key 路由到 `bug-triage`
 
-作為兜底機制，`git-pr-workflow` 在 changeset 步驟也會偵測缺少 JIRA key 的情況，自動補開 ticket。
+Framework hotfix 若沒有 ticket，也應先進入規劃 lane：建立或定位對應的 JIRA / DP source，再接 `breakdown` 與 `engineering`。
 
 ### 步驟 2-12. 與 Bug 修正流程相同
 

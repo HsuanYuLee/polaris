@@ -9,7 +9,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [jira-story-points.md](jira-story-points.md) | Story Points 欄位 ID 動態探測與讀寫驗證 | breakdown, jira-subtask-creation, editJiraIssue with SP |
 | [jira-subtask-creation.md](jira-subtask-creation.md) | 批次建 JIRA 子單流程：查既有→建單→估點→測試計畫→驗收 | breakdown, createJiraIssue, engineering |
 | [epic-verification-structure.md](epic-verification-structure.md) | 驗收架構：測試計畫/AC 驗證分離、測試 Sub-task、驗收單 lifecycle | breakdown, jira-subtask-creation, engineering |
-| [epic-verification-workflow.md](epic-verification-workflow.md) | Epic 驗證完整流程：fixture lifecycle、VR gate、feature branch flow | breakdown, git-pr-workflow, visual-regression, converge, epic-status |
+| [epic-verification-workflow.md](epic-verification-workflow.md) | Epic 驗證完整流程：fixture lifecycle、VR gate、feature branch flow | breakdown, engineering, visual-regression, converge, epic-status |
 | [pipeline-handoff.md](pipeline-handoff.md) | Pipeline 角色邊界與 handoff contract：breakdown/engineering/verify-AC/bug-triage + task.md schema + AC-FAIL disposition gate | breakdown, engineering, verify-AC, bug-triage, refinement |
 | [escalation-flavor-guide.md](escalation-flavor-guide.md) | Engineering scope-escalation sidecar 的 flavor 分類決策樹（plan-defect / scope-drift / env-drift）+ worked examples | engineering（寫 sidecar）, breakdown（intake path 重新分類） |
 | [refinement-return-inbox.md](refinement-return-inbox.md) | breakdown route refinement 時的 inbox record 契約；refinement 只讀 inbox、不讀 engineering raw sidecar | breakdown（route refinement）, refinement（return inbox intake）, engineering（lineage cap routing） |
@@ -32,19 +32,19 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [engineer-delivery-flow.md](engineer-delivery-flow.md) | 工程師交付 backbone：Simplify → Local CI Mirror (`ci-local.sh`) → Behavioral Verify → Review → Rebase → Commit → PR。Developer（engineering）與 Admin（git-pr-workflow）共用 | engineering, git-pr-workflow |
-| [ci-local-env-blocker.md](ci-local-env-blocker.md) | Local CI mirror 的 `BLOCKED_ENV` status、environment blocker reason enum、classifier adapter contract、secret scrub 與 gate semantics | engineering, git-pr-workflow, ci-local, completion-gate |
+| [engineer-delivery-flow.md](engineer-delivery-flow.md) | 工程師交付 backbone：Simplify → Local CI Mirror (`ci-local.sh`) → Behavioral Verify → Review → Rebase → Commit → PR。由 engineering 消費，含 Developer 與 Local Extension role | engineering |
+| [ci-local-env-blocker.md](ci-local-env-blocker.md) | Local CI mirror 的 `BLOCKED_ENV` status、environment blocker reason enum、classifier adapter contract、secret scrub 與 gate semantics | engineering, ci-local, completion-gate |
 
 ## PR & Git
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [pr-body-builder.md](pr-body-builder.md) | PR template 偵測、body 組裝、AC Coverage、母單 PR、Bug RCA 偵測 | engineering, git-pr-workflow（透過 engineer-delivery-flow Step 7） |
-| [commit-convention-default.md](commit-convention-default.md) | Commit message L3 兜底規範（L1 tooling / L2 handbook / L3 default fallback chain；type enum；`{TICKET}` 推導；multi-commit；revision 規格） | engineering, git-pr-workflow（透過 engineer-delivery-flow Step 6a） |
+| [pr-body-builder.md](pr-body-builder.md) | PR template 偵測、body 組裝、AC Coverage、母單 PR、Bug RCA 偵測 | engineering（透過 engineer-delivery-flow Step 7） |
+| [commit-convention-default.md](commit-convention-default.md) | Commit message L3 兜底規範（L1 tooling / L2 handbook / L3 default fallback chain；type enum；`{TICKET}` 推導；multi-commit；revision 規格） | engineering（透過 engineer-delivery-flow Step 6a） |
 | [changeset-convention-default.md](changeset-convention-default.md) | Changeset L3 兜底規範（filename slug、frontmatter `{package}: patch` default、description = task title、`ticket_prefix_handling=strip` default、idempotent skip） | engineering, breakdown（task.md `deliverables.changeset` 宣告生產端） |
-| [branch-creation.md](branch-creation.md) | JIRA ticket → branch 建立流程（含 dependency branch 偵測） | engineering, git-pr-workflow |
-| [cascade-rebase.md](cascade-rebase.md) | Feature branch PR stack 的 cascade rebase 邏輯 | git-pr-workflow, engineering, check-pr-approvals |
-| [feature-branch-pr-gate.md](feature-branch-pr-gate.md) | Task PR 全 merge 後自動建 feature→develop PR 的偵測邏輯 | epic-status, git-pr-workflow, check-pr-approvals, engineering |
+| [branch-creation.md](branch-creation.md) | JIRA ticket / DP task → branch 建立流程（含 dependency branch 偵測） | engineering |
+| [cascade-rebase.md](cascade-rebase.md) | Feature branch PR stack 的 cascade rebase 邏輯 | engineering, check-pr-approvals |
+| [feature-branch-pr-gate.md](feature-branch-pr-gate.md) | Task PR 全 merge 後自動建 feature→develop PR 的偵測邏輯 | epic-status, check-pr-approvals, engineering |
 | [pr-input-resolver.md](pr-input-resolver.md) | PR URL/number/branch → owner+repo+number 解析 | review-pr, engineering, check-pr-approvals |
 | [stale-approval-detection.md](stale-approval-detection.md) | PR approval 失效偵測：approved before last push = 無效 | check-pr-approvals, review-inbox, epic-status |
 
@@ -79,7 +79,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [repo-handbook.md](repo-handbook.md) | Per-repo coding 準則：repo 類型辨識、handbook 結構生成、standard-first 校準、stale detection | init (optional), engineering (Phase 0.5), review-pr (Step 3), engineering (Step 5 + 7b), git-pr-workflow (post-PR) |
+| [repo-handbook.md](repo-handbook.md) | Per-repo coding 準則：repo 類型辨識、handbook 結構生成、standard-first 校準、stale detection | init (optional), engineering (Phase 0.5), review-pr (Step 3), engineering (Step 5 + 7b) |
 
 ## Epic Folder Structure
 

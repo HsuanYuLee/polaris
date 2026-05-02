@@ -52,7 +52,7 @@ Enforced by `scripts/scan-user-data-leak.sh` (integrated into `/validate` isolat
   ▼             ▼                 ▼
 User          Explorer          PR post-step
 correction    回寫              stale detection
-(Step 3b)   (explore-pattern)  (git-pr-workflow)
+(Step 3b)   (explore-pattern)  (engineering)
 validated     generated         generated
 ```
 
@@ -399,7 +399,7 @@ Handbook 有三個寫入管道（ingest channels），按優先級排序：
 | **User correction** | User 糾正 AI（Step 3b） | `validated` | 最高 — 永遠覆蓋 |
 | **PR review finding** | review-pr / engineering revision mode 直接寫入 | `validated` | 中 — 來自 code review 實踐 |
 | **Explorer 回寫** | Explorer subagent 回傳 Handbook Observations | `generated` | 最低 — AI 推導，待驗證 |
-| **PR stale detection** | git-pr-workflow / engineering post-step | `generated` | 最低 — 自動偵測 |
+| **PR stale detection** | engineering post-step | `generated` | 最低 — 自動偵測 |
 
 **衝突規則**：高優先級永遠覆蓋低優先級。Explorer 回寫的內容如果與 user correction 或 PR lesson 矛盾，以後兩者為準。詳見 `explore-pattern.md` § Handbook 回寫。
 
@@ -411,7 +411,7 @@ Explorer subagent 在探索中發現的 handbook gaps 和 stale 資訊，由 Str
 
 ### PR Stale Detection 管道
 
-Embedded in `git-pr-workflow` and `engineering` as a post-step.
+Embedded in `engineering` as a post-step.
 
 ### Trigger
 

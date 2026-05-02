@@ -78,7 +78,7 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 | `NO_ESTIMATE` | `customfield_10016` (SP) 為 null 且不是 Bug | `breakdown` |
 | `NO_BREAKDOWN` | Epic 無子單 | `breakdown` |
 | `NOT_STARTED` | status = 待辦事項/開放，有估點 | `engineering` |
-| `CODE_NO_PR` | status = In Development，無 open PR | `git-pr-workflow` |
+| `CODE_NO_PR` | status = In Development，無 open PR | `engineering` |
 | `CI_RED` | PR 存在，CI 失敗 | `engineering` |
 | `CHANGES_REQUESTED` | PR 有 CHANGES_REQUESTED review | `engineering` |
 | `HAS_UNRESOLVED_COMMENTS` | PR 有未解決的 review comments（含 COMMENTED 狀態） | `engineering` |
@@ -118,7 +118,7 @@ Gaps found: X | Ready: Y | Skipped: Z
 
 ⚡ Quick Wins（1 步）
   1. PROJ-101 [CWV] JS Bundle 瘦身 — CI_RED on PR #92 → engineering
-  2. TEAM-201 SKU 價格 Bug — CODE_NO_PR → git-pr-workflow
+  2. TEAM-201 SKU 價格 Bug — CODE_NO_PR → engineering
 
 🔨 需要實作（2-3 步）
   3. PROJ-106 AI 爬蟲調查 — NOT_STARTED (5 SP) → engineering
@@ -160,7 +160,7 @@ Gaps found: X | Ready: Y | Skipped: Z
 
 1. 根據 gap type 路由到對應 skill（見 Phase 1 Step 4 表格）
 2. Sub-agent 讀取目標 skill 的 SKILL.md 並 inline 執行
-3. **Handbook 前置**：若目標 skill 涉及 code 修改（engineering、git-pr-workflow），sub-agent dispatch prompt 須包含：「開工前先讀 `{repo}/.claude/rules/handbook/index.md` 及其子文件，遵循 coding conventions」
+3. **Handbook 前置**：若目標 skill 涉及 code 修改（engineering），sub-agent dispatch prompt 須包含：「開工前先讀 `{repo}/.claude/rules/handbook/index.md` 及其子文件，遵循 coding conventions」
 4. 執行完成後回報結果（使用 Completion Envelope，見 `skills/references/sub-agent-roles.md`），Detail 寫入 `specs/{EPIC}/artifacts/converge-{ticket_key}-{timestamp}.md`
 5. 主 agent 記錄結果，繼續下一張
 
@@ -171,7 +171,7 @@ Gaps found: X | Ready: Y | Skipped: Z
 | `NO_BREAKDOWN` | `breakdown` | Exploration → Analysis | `standard_coding` |
 | `NO_ESTIMATE` | `breakdown` | Exploration → Analysis (batch: `small_fast` for JIRA writes) | `standard_coding` / `small_fast` |
 | `NOT_STARTED` | `engineering` | Implementation | `standard_coding` |
-| `CODE_NO_PR` | `git-pr-workflow` | Implementation | `standard_coding` |
+| `CODE_NO_PR` | `engineering` | Implementation | `standard_coding` |
 | `CI_RED` | `engineering` | Implementation | `standard_coding` |
 | `CHANGES_REQUESTED` | `engineering` | Implementation | `standard_coding` |
 | `HAS_UNRESOLVED_COMMENTS` | `engineering` | Implementation | `standard_coding` |
@@ -295,7 +295,6 @@ Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/reference
 | `engineering` | 不變，converge 的下游執行器 |
 | `engineering` | 不變，converge 的下游執行器 |
 | `check-pr-approvals` | 不變，converge 的下游執行器 |
-| `git-pr-workflow` | 不變，converge 的下游執行器 |
 | `breakdown` | 不變，converge 的下游執行器 |
 | `engineering` (behavioral verification) | 不變，converge 的下游執行器（含 engineer-delivery-flow Step 3） |
 

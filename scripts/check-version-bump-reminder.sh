@@ -12,7 +12,7 @@
 #                        `git log -1 --name-only HEAD`. Used by the PostToolUse
 #                        hook on `git commit`.
 #   --mode post-pr       Inspect `${base}..HEAD` when a base is provided. Used
-#                        by L2 embeds in engineering / git-pr-workflow after PR
+#                        by L2 embeds in engineering after PR
 #                        creation. Fallback to HEAD if --base is omitted.
 #
 # Mode: Advisory only. Exit 0 on every path (framework change with no bump
@@ -30,7 +30,6 @@
 # Invoked by:
 #   - .claude/hooks/version-bump-reminder.sh (PostToolUse Bash on git commit)
 #   - .claude/skills/engineering/SKILL.md (L2 post-PR tail)
-#   - .claude/skills/git-pr-workflow/SKILL.md (L2 post-PR tail)
 #
 # Framework-repo detection: only fires when both `VERSION` and `CHANGELOG.md`
 # exist at repo root (aligns with .claude/hooks/version-docs-lint-gate.sh).

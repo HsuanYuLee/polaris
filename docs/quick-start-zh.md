@@ -62,7 +62,7 @@ cd ~/polaris-workspace
 ├── .claude/
 │   ├── rules/                    ← 通用規則 (L1)
 │   │   └── your-company/         ← 公司專屬規則 (L2)
-│   └── skills/                   ← 25 個工作流技能
+│   └── skills/                   ← 24 個工作流技能
 └── your-company/                 ← 由 /init 建立
     ├── workspace-config.yaml     ← 公司設定（JIRA、Slack、repos）
     └── your-project/             ← 你的專案 repo（clone 或連結）
@@ -87,7 +87,7 @@ cd ~/polaris-workspace
 
 ### 從這裡開始
 
-不需要一次學會全部 25 個技能。從符合你角色的開始：
+不需要一次學會全部 24 個技能。從符合你角色的開始：
 
 | 你的角色 | 先試這個 | 會發生什麼 |
 |----------|---------|-----------|
@@ -103,7 +103,7 @@ Polaris 圍繞三大支柱組織你的 AI 輔助工作流程：
 
 ### 支柱一 — 輔助開發
 
-從 JIRA 到 PR 的完整自動化：`「做 PROJ-123」` → 讀 JIRA → 估點 → 開 branch → 寫 code → 跑測試 → 發 PR → 轉 JIRA 狀態。產品票由 `engineering` 串接 delivery flow；admin/framework PR 則由 `git-pr-workflow` 執行同一組品質與開 PR 閘門。涵蓋 `engineering`、`bug-triage`、`breakdown`、`unit-test`、`review-pr` 等技能。
+從 JIRA 到 PR 的完整自動化：`「做 PROJ-123」` → 讀 JIRA → 估點 → 開 branch → 寫 code → 跑測試 → 發 PR → 轉 JIRA 狀態。產品票由 `engineering` 串接 delivery flow；framework repo 改動則先由 `refinement DP-NNN` / `breakdown DP-NNN` 產生 DP-backed task.md，再交給 `engineering` 執行同一組品質與開 PR 閘門。涵蓋 `engineering`、`bug-triage`、`breakdown`、`unit-test`、`review-pr` 等技能。
 
 詳細流程 → [Developer Workflow Guide](workflow-guide.md)
 
@@ -174,7 +174,7 @@ Sprint 規劃        →  「排 sprint」
 ├── .claude/
 │   ├── rules/                 # 通用規則 (L1)
 │   │   └── {company}/         # 公司專屬規則 (L2)
-│   └── skills/                # 25 個工作流技能
+│   └── skills/                # 24 個工作流技能
 ├── _template/                 # 新公司範本 + 規則範例
 ├── scripts/                   # 同步工具
 └── {company}/                 # 你的公司目錄
