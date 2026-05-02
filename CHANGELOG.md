@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.33] - 2026-05-02
+
+### Fixed — docs-manager unified spec sidebar routing
+
+- Unified Design Plan and company spec sidebar generation so both namespaces use
+  the same folder traversal and badge derivation logic.
+- Fixed company Epic folder labels collapsing to `refinement` while preserving
+  per-file refinement labels.
+- Added regression coverage for company and Design Plan task routes, including
+  `tasks/pr-release/`, plus lifecycle badge canaries for both namespaces.
+
 ## [3.74.32] - 2026-05-02
 
 ### Fixed — terminal parent archive closeout

@@ -29,7 +29,7 @@ export function specsSidebar() {
     {
       label: 'design-plans',
       collapsed: false,
-      items: [...designPlanItems(false), archiveGroup('archive', designPlanItems(true))],
+      items: namespaceItems(path.join(specsRoot, 'design-plans')),
     },
     {
       label: 'companies',
@@ -39,19 +39,12 @@ export function specsSidebar() {
   ].filter((item) => !('items' in item) || item.items.length > 0);
 }
 
-function designPlanItems(archived) {
-  const base = archived
-    ? path.join(specsRoot, 'design-plans/archive')
-    : path.join(specsRoot, 'design-plans');
-  if (!fs.existsSync(base)) return [];
-
-  return fs
-    .readdirSync(base, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .filter((entry) => entry.name.startsWith('DP-'))
-    .map((entry) => folderItem(path.join(base, entry.name), { metadataFile: 'plan.md' }))
-    .filter(Boolean)
-    .sort(sortByOrderThenLabel);
+function namespaceItems(baseDir) {
+  const activeItems = folderChildren(baseDir);
+  const archivedItems = folderChildren(path.join(baseDir, 'archive'));
+  return [...activeItems, archiveGroup('archive', archivedItems)].filter(
+    (item) => !('items' in item) || item.items.length > 0
+  );
 }
 
 function companyItems() {
@@ -63,25 +56,24 @@ function companyItems() {
     .filter((entry) => entry.isDirectory())
     .map((entry) => {
       const companyDir = path.join(companiesRoot, entry.name);
-      const items = [...ticketItems(companyDir, false), archiveGroup('archive', ticketItems(companyDir, true))];
+      const items = namespaceItems(companyDir);
       return {
         label: entry.name,
         collapsed: false,
-        items: items.filter((item) => !('items' in item) || item.items.length > 0),
+        items,
       };
     })
     .filter((item) => item.items.length > 0);
 }
 
-function ticketItems(companyDir, archived) {
-  const base = archived ? path.join(companyDir, 'archive') : companyDir;
-  if (!fs.existsSync(base)) return [];
+function folderChildren(baseDir) {
+  if (!fs.existsSync(baseDir)) return [];
 
   return fs
-    .readdirSync(base, { withFileTypes: true })
+    .readdirSync(baseDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .filter((entry) => entry.name !== 'archive')
-    .map((entry) => folderItem(path.join(base, entry.name)))
+    .map((entry) => folderItem(path.join(baseDir, entry.name)))
     .filter(Boolean)
     .sort(sortByOrderThenLabel);
 }
@@ -94,10 +86,10 @@ function archiveGroup(label, items) {
   };
 }
 
-function folderItem(dir, options = {}) {
+function folderItem(dir) {
   if (!fs.existsSync(dir)) return undefined;
 
-  const metadata = readFolderMetadata(dir, options.metadataFile);
+  const metadata = readFolderMetadata(dir);
   const items = fs
     .readdirSync(dir, { withFileTypes: true })
     .filter((entry) => entry.name !== '.DS_Store')
@@ -135,7 +127,7 @@ function linkItem(file) {
     link: routePath(file),
   };
 
-  const badge = sidebar.badge || statusBadge(frontmatter.status);
+  const badge = resolveBadge(frontmatter, sidebar);
   if (badge) item.badge = badge;
   if (Number.isFinite(sidebar.order)) {
     Object.defineProperty(item, '__order', { value: sidebar.order, enumerable: false });
@@ -145,19 +137,15 @@ function linkItem(file) {
   return item;
 }
 
-function readFolderMetadata(dir, preferredFile) {
-  const names = preferredFile
-    ? [preferredFile, ...folderMetadataDocNames.filter((name) => name !== preferredFile)]
-    : folderMetadataDocNames;
-
-  for (const name of names) {
+function readFolderMetadata(dir) {
+  for (const name of folderMetadataDocNames) {
     const file = path.join(dir, name);
     if (!fs.existsSync(file)) continue;
     const frontmatter = readFrontmatter(file);
     const sidebar = frontmatter.sidebar ?? {};
     return {
-      label: sidebar.label || cleanLabel(frontmatter.title, file) || path.basename(dir),
-      badge: sidebar.badge || statusBadge(frontmatter.status),
+      label: sidebar.label || cleanFolderLabel(frontmatter.title, file) || path.basename(dir),
+      badge: resolveBadge(frontmatter, sidebar),
       order: Number.isFinite(sidebar.order) ? sidebar.order : undefined,
     };
   }
@@ -185,9 +173,30 @@ function cleanLabel(title, file) {
     .trim();
 }
 
-function statusBadge(status) {
+function cleanFolderLabel(title, file) {
+  const container = path.basename(path.dirname(file));
+  if (!title) return container;
+  return title
+    .replace(/^Refinement\s+[—-]\s+/i, '')
+    .replace(/^Breakdown\s+[—-]\s+/i, '')
+    .replace(/^Work Order\s+[—-]\s+/i, '')
+    .trim();
+}
+
+function resolveBadge(frontmatter, sidebar = {}) {
+  const status = frontmatter.status;
+  if (!status) return sidebar.badge;
+  const priority = frontmatter.priority;
+  const normalizedStatus = String(status).trim().toUpperCase();
+  const normalizedPriority = priority ? String(priority).trim().toUpperCase() : '';
+  return {
+    text: normalizedPriority ? `${normalizedStatus} / ${normalizedPriority}` : normalizedStatus,
+    variant: badgeVariant(normalizedStatus, normalizedPriority),
+  };
+}
+
+function badgeVariant(status, priority = '') {
   if (!status) return undefined;
-  const normalized = String(status).trim().toUpperCase();
   const variants = {
     IMPLEMENTED: 'success',
     IN_PROGRESS: 'caution',
@@ -197,10 +206,8 @@ function statusBadge(status) {
     SEEDED: 'note',
     ABANDONED: 'danger',
   };
-  return {
-    text: normalized,
-    variant: variants[normalized] ?? 'note',
-  };
+  if (status === 'LOCKED' && priority && priority !== 'P1') return 'note';
+  return variants[status] ?? 'note';
 }
 
 function sortByOrderThenLabel(a, b) {

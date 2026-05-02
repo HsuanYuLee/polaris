@@ -43,4 +43,87 @@ if [[ "${SPECS_ROOT}" != "${DOCS_MANAGER}/src/content/docs/specs" ]]; then
   exit 1
 fi
 
+node --input-type=module <<'NODE'
+import { specsSidebar } from './docs-manager/sidebar.mjs';
+
+function assert(condition, message) {
+  if (!condition) {
+    console.error(`FAIL: ${message}`);
+    process.exit(1);
+  }
+}
+
+function findItem(items, predicate) {
+  let found;
+  walk(items, (item) => {
+    if (!found && predicate(item)) found = item;
+  });
+  return found;
+}
+
+const sidebar = specsSidebar();
+const labels = [];
+const links = [];
+
+function walk(items, visitor = undefined) {
+  for (const item of items) {
+    if (visitor) visitor(item);
+    if (item.label) labels.push(item.label);
+    if (item.link) links.push(item.link);
+    if (item.items) walk(item.items, visitor);
+  }
+}
+
+walk(sidebar);
+
+const designPlans = sidebar.find((item) => item.label === 'design-plans');
+const companies = sidebar.find((item) => item.label === 'companies');
+assert(designPlans, 'design-plans sidebar group is missing');
+assert(companies, 'companies sidebar group is missing');
+
+const kkday = companies.items?.find((item) => item.label === 'kkday');
+assert(kkday, 'kkday company sidebar group is missing');
+for (const ticket of kkday.items ?? []) {
+  if (ticket.label === 'archive') continue;
+  assert(ticket.label !== 'refinement', 'company ticket folder collapsed to refinement');
+}
+
+assert(labels.some((label) => label.includes('GT-478')), 'company Epic folder label GT-478 is missing');
+assert(labels.some((label) => label.includes('GT-521')), 'company Epic folder label GT-521 is missing');
+assert(labels.some((label) => label.includes('GT-522')), 'company Epic folder label GT-522 is missing');
+assert(!labels.includes('Refinement — GT-478: [CWV] JS Bundle 瘦身（Product + Category 共通）'), 'folder label did not strip Refinement prefix');
+assert(links.includes('/specs/companies/kkday/gt-478/tasks/t5/'), 'company Epic task route missing from sidebar');
+assert(links.includes('/specs/companies/kkday/gt-478/tasks/pr-release/t1/'), 'company Epic pr-release task route missing from sidebar');
+assert(links.includes('/specs/design-plans/dp-058-docs-viewer-starlight-theme-link-recovery/tasks/t2/'), 'DP task route missing from sidebar');
+assert(links.includes('/specs/design-plans/dp-058-docs-viewer-starlight-theme-link-recovery/tasks/pr-release/t1/'), 'DP pr-release task route missing from sidebar');
+
+const companyImplementing = findItem(kkday.items, (item) => item.label?.includes('GT-478'));
+assert(companyImplementing?.badge?.text === 'IMPLEMENTING', 'company Epic IMPLEMENTING badge missing');
+assert(companyImplementing?.badge?.variant === 'caution', 'company Epic IMPLEMENTING badge variant should be caution');
+
+const companyDiscussion = findItem(kkday.items, (item) => item.label?.includes('GT-527'));
+assert(companyDiscussion?.badge?.text === 'DISCUSSION', 'company Epic DISCUSSION badge missing');
+assert(companyDiscussion?.badge?.variant === 'note', 'company Epic DISCUSSION badge variant should be note');
+
+const companyLocked = findItem(kkday.items, (item) => item.label?.includes('GT-528'));
+assert(companyLocked?.badge?.text === 'LOCKED', 'company Epic LOCKED badge missing');
+assert(companyLocked?.badge?.variant === 'tip', 'company Epic LOCKED badge variant should be tip');
+
+const dpLocked = findItem(designPlans.items, (item) => item.label?.includes('DP-058'));
+assert(dpLocked?.badge?.text === 'LOCKED / P1', 'DP status/priority badge was not derived consistently');
+assert(dpLocked?.badge?.variant === 'tip', 'DP P1 locked badge variant should be tip');
+
+const dpSeeded = findItem(designPlans.items, (item) => item.label?.includes('DP-020'));
+assert(dpSeeded?.badge?.text === 'SEEDED / P3', 'DP status/priority badge text was not derived consistently');
+assert(dpSeeded?.badge?.variant === 'note', 'DP non-P1 badge variant should be note');
+
+const archivedBug = findItem(kkday.items, (item) => item.label?.includes('KB2CW-3847'));
+assert(archivedBug?.badge?.text === 'IMPLEMENTED', 'company archived ticket status badge missing');
+assert(archivedBug?.badge?.variant === 'success', 'company archived ticket badge variant should be success');
+
+const inProgressTask = findItem(kkday.items, (item) => item.link === '/specs/companies/kkday/kb2cw-2863/tasks/t1/');
+assert(inProgressTask?.badge?.text === 'IN_PROGRESS', 'company task status badge missing');
+assert(inProgressTask?.badge?.variant === 'caution', 'company task IN_PROGRESS badge variant should be caution');
+NODE
+
 echo "PASS: docs-manager Starlight-native source contract"
