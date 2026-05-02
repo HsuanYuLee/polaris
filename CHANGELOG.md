@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.32] - 2026-05-02
+
+### Fixed — terminal parent archive closeout
+
+- Added explicit terminal parent archive mode to `close-parent-spec-if-complete.sh`
+  so DP-backed framework closeout can archive a parent DP at the same moment it
+  becomes `IMPLEMENTED`.
+- Reordered `framework-release-closeout.sh` so task worktree / branch cleanup
+  happens before parent archive moves the DP container.
+- Added delayed-terminal archive regression coverage for the DP-040 failure
+  shape: non-task checklist blocks initial closeout, then later parent closeout
+  archives the terminal DP.
+
 ## [3.74.31] - 2026-05-02
 
 ### Changed — framework engineering flow

@@ -244,42 +244,6 @@ delete_branch_if_safe() {
   fi
 }
 
-archive_parent_dp_if_terminal() {
-  local moved_task_md="$1"
-  local parser_json source_type source_id specs_root dp_dir plan_status
-
-  parser_json="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$moved_task_md" --no-resolve)" || die "unable to parse implemented task.md: ${moved_task_md}"
-  source_type="$(json_field "$parser_json" "d.get('identity', {}).get('source_type')")"
-  source_id="$(json_field "$parser_json" "d.get('identity', {}).get('source_id')")"
-
-  [[ "$source_type" == "dp" && "$source_id" =~ ^DP-[0-9]{3}$ ]] || return 0
-  specs_root="$(resolve_specs_root "$REPO_ROOT")" || die "unable to resolve specs root"
-
-  dp_dir=""
-  while IFS= read -r -d '' match; do
-    if [[ -n "$dp_dir" ]]; then
-      die "multiple active DP containers match ${source_id}"
-    fi
-    dp_dir="$match"
-  done < <(find "$specs_root/design-plans" -maxdepth 1 -type d -name "${source_id}-*" -print0 2>/dev/null)
-
-  if [[ -z "$dp_dir" ]]; then
-    info "parent ${source_id} is already archived or absent; archive skipped"
-    return 0
-  fi
-
-  plan_status="$(frontmatter_status "$dp_dir/plan.md")"
-  case "$plan_status" in
-    IMPLEMENTED|ABANDONED)
-      info "archiving parent ${source_id}"
-      bash "${SCRIPT_DIR}/archive-spec.sh" --workspace "$REPO_ROOT" "$source_id"
-      ;;
-    *)
-      info "parent ${source_id} not terminal yet; archive skipped"
-      ;;
-  esac
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO_ROOT="${2:-}"; shift 2 ;;
@@ -405,10 +369,12 @@ for i in "${!ABS_TASK_MDS[@]}"; do
   moved_task_md="$(mark_task_implemented "$task_md" "$task_id")"
   [[ -f "$moved_task_md" ]] || die "implemented task file not found after mark-spec-implemented: ${task_id}"
 
-  bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" --task-md "$moved_task_md" --workspace "$REPO_ROOT"
   bash "${SCRIPT_DIR}/engineering-clean-worktree.sh" --task-md "$moved_task_md" --repo "$REPO_ROOT"
   delete_branch_if_safe "$task_branch" "$task_head_sha"
-  archive_parent_dp_if_terminal "$moved_task_md"
+  bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" \
+    --task-md "$moved_task_md" \
+    --workspace "$REPO_ROOT" \
+    --archive-terminal-parent
 
   info "closed out ${task_id}"
 done

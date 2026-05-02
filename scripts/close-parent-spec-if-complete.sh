@@ -6,7 +6,7 @@ set -euo pipefail
 # Best-effort parent lifecycle closer for task-based specs.
 #
 # Usage:
-#   bash scripts/close-parent-spec-if-complete.sh --task-md <task.md> [--workspace <path>] [--dry-run]
+#   bash scripts/close-parent-spec-if-complete.sh --task-md <task.md> [--workspace <path>] [--dry-run] [--archive-terminal-parent]
 #   CLOSE_PARENT_SPEC_SELFTEST=1 bash scripts/close-parent-spec-if-complete.sh
 #
 # Behavior:
@@ -20,15 +20,18 @@ set -euo pipefail
 #   - Design plans use codex-mark-design-plan-implemented.sh so checklist
 #     governance still applies.
 #   - Product/company specs use mark-spec-implemented.sh against the parent key.
+#   - With --archive-terminal-parent, a design-plan parent closed by this helper
+#     is immediately archived through archive-spec.sh after the status write.
 
 PREFIX="[polaris parent-closeout]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TASK_MD=""
 DRY_RUN=0
+ARCHIVE_TERMINAL_PARENT=0
 
 usage() {
-  sed -n '3,21p' "$0" >&2
+  sed -n '3,23p' "$0" >&2
 }
 
 run_selftest() {
@@ -80,6 +83,45 @@ MD
     echo "[selftest] DP task links were not rewritten" >&2
     return 1
   }
+  [[ -d "$dp_dir" ]] || {
+    echo "[selftest] default DP closeout unexpectedly archived parent" >&2
+    return 1
+  }
+
+  dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-998-parent-archive-closeout"
+  mkdir -p "$dp_dir/tasks/pr-release"
+  cat >"$dp_dir/plan.md" <<'MD'
+---
+topic: parent archive closeout smoke
+created: 2026-05-02
+status: LOCKED
+locked_at: 2026-05-02
+---
+
+# DP-998
+
+## Implementation Checklist
+
+- [ ] T1: First task — `tasks/T1.md`
+MD
+  cat >"$dp_dir/tasks/pr-release/T1.md" <<'MD'
+---
+status: IMPLEMENTED
+---
+# T1
+
+> Source: DP-998 | Task: DP-998-T1 | JIRA: N/A | Repo: polaris-framework
+MD
+
+  env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T1.md" --workspace "$tmpdir" --archive-terminal-parent >/dev/null
+  [[ ! -d "$dp_dir" ]] || {
+    echo "[selftest] explicit archive mode did not move active DP parent" >&2
+    return 1
+  }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-998-parent-archive-closeout/plan.md" ]] || {
+    echo "[selftest] explicit archive mode missing archived DP parent" >&2
+    return 1
+  }
 
   company_dir="$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-999"
   mkdir -p "$company_dir/tasks/pr-release"
@@ -128,6 +170,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --dry-run)
       DRY_RUN=1
+      shift
+      ;;
+    --archive-terminal-parent)
+      ARCHIVE_TERMINAL_PARENT=1
       shift
       ;;
     -h|--help)
@@ -200,7 +246,8 @@ if not parent_dir.exists():
 is_design_plan = "/specs/design-plans/" in str(parent_dir)
 if is_design_plan:
     parent_file = parent_dir / "plan.md"
-    parent_key = next((p for p in parent_dir.name.split("-")[:2] if p.startswith("DP")), "")
+    match = re.match(r"(DP-\d{3})(?:-|$)", parent_dir.name)
+    parent_key = match.group(1) if match else ""
 else:
     parent_file = parent_dir / "refinement.md"
     if not parent_file.exists():
@@ -352,6 +399,17 @@ if [[ "$parent_type" == "design-plan" ]]; then
   bash "${SCRIPT_DIR}/codex-mark-design-plan-implemented.sh" "$parent_file"
 else
   bash "${SCRIPT_DIR}/mark-spec-implemented.sh" "$parent_key" --workspace "$WORKSPACE_ROOT"
+fi
+
+if [[ "$ARCHIVE_TERMINAL_PARENT" -eq 1 ]]; then
+  case "$parent_file" in
+    */specs/design-plans/archive/*|*/specs/companies/*/archive/*)
+      echo "$PREFIX archive skipped: parent already under archive (${parent_file})"
+      ;;
+    *)
+      bash "${SCRIPT_DIR}/archive-spec.sh" --workspace "$WORKSPACE_ROOT" "$parent_key"
+      ;;
+  esac
 fi
 
 echo "$PREFIX ✅ parent implemented: ${parent_file}"
