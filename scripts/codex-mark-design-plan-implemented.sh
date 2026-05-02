@@ -19,6 +19,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 GATE_SCRIPT="$ROOT_DIR/scripts/design-plan-checklist-gate.sh"
+SYNC_SPEC_SIDEBAR="$ROOT_DIR/scripts/sync-spec-sidebar-metadata.sh"
 
 dry_run=false
 if [[ "${1:-}" == "--dry-run" ]]; then
@@ -150,6 +151,10 @@ awk -v today="$today" '
 ' "$plan_file" > "$tmp_file"
 
 mv "$tmp_file" "$plan_file"
+
+if [[ -x "$SYNC_SPEC_SIDEBAR" ]]; then
+  bash "$SYNC_SPEC_SIDEBAR" --apply "$plan_file" >/dev/null
+fi
 
 echo "PASS: marked IMPLEMENTED for $plan_file"
 echo "Docs-manager reads canonical specs directly; run scripts/verify-docs-manager-runtime.sh --preview for static/search verification."

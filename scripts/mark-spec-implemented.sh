@@ -39,6 +39,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
+SYNC_SPEC_SIDEBAR="${SCRIPT_DIR}/sync-spec-sidebar-metadata.sh"
 # shellcheck source=lib/specs-root.sh
 . "$SCRIPT_DIR/lib/specs-root.sh"
 
@@ -102,6 +103,26 @@ MD
   [[ "$rc" -eq 0 ]] || { echo "[selftest] active task key mark implemented failed"; return 1; }
   [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-001/tasks/pr-release/T2.md" ]] || { echo "[selftest] active T2 pr-release task missing"; return 1; }
   [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/GT-OLD/tasks/T2.md" ]] || { echo "[selftest] archived T2 was moved unexpectedly"; return 1; }
+
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-PARENT"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-PARENT/refinement.md" <<'MD'
+---
+title: "GT-PARENT"
+status: DISCUSSION
+sidebar:
+  badge:
+    text: "DISCUSSION"
+    variant: "note"
+---
+
+# GT-PARENT
+MD
+
+  rc=0
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" GT-PARENT --workspace "$tmpdir" >/dev/null || rc=$?
+  [[ "$rc" -eq 0 ]] || { echo "[selftest] parent mark implemented failed"; return 1; }
+  grep -q '^status: IMPLEMENTED$' "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-PARENT/refinement.md" || { echo "[selftest] parent status not updated"; return 1; }
+  grep -q 'text: "IMPLEMENTED"' "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-PARENT/refinement.md" || { echo "[selftest] parent sidebar badge not refreshed"; return 1; }
 
   echo "[selftest] PASS"
 }
@@ -198,6 +219,12 @@ else:
 path.write_text(new_content, encoding="utf-8")
 print(f"OK: {path} → status: {new_status}")
 PY
+}
+
+sync_parent_sidebar_metadata() {
+  local file="$1"
+  [[ -x "$SYNC_SPEC_SIDEBAR" ]] || return 0
+  bash "$SYNC_SPEC_SIDEBAR" --apply "$file" >/dev/null
 }
 
 # ---------------------------------------------------------------------------
@@ -351,10 +378,12 @@ fi
 if [ "$ANCHOR_TYPE" = "epic" ]; then
   existing_status="$(get_existing_status "$ANCHOR")"
   if [ "$existing_status" = "$STATUS" ]; then
+    sync_parent_sidebar_metadata "$ANCHOR"
     echo "NOOP: $ANCHOR already has status: $STATUS"
     exit 0
   fi
   update_frontmatter_status "$ANCHOR" "$STATUS"
+  sync_parent_sidebar_metadata "$ANCHOR"
   exit 0
 fi
 

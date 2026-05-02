@@ -42,7 +42,7 @@ grep -q "priority: P3" "$tmpdir/design-plans/DP-070-sidebar-metadata/plan.md" ||
 grep -q 'text: "SEEDED / P3"' "$tmpdir/design-plans/DP-070-sidebar-metadata/plan.md" || fail "badge text missing"
 
 bash "$SYNC" --check "$tmpdir/design-plans" >/tmp/dp-sidebar-metadata.out
-grep -q "PASS: DP sidebar metadata check" /tmp/dp-sidebar-metadata.out || fail "check did not pass after sync"
+grep -q "PASS: spec sidebar metadata check" /tmp/dp-sidebar-metadata.out || fail "check did not pass after sync"
 
 bash "$VALIDATE" "$tmpdir/design-plans" >/tmp/dp-sidebar-metadata.out
 grep -q "PASS: DP metadata validation" /tmp/dp-sidebar-metadata.out || fail "validator did not pass"

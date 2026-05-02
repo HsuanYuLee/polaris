@@ -16,6 +16,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+SCRIPT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+SYNC_SPEC_SIDEBAR="${SCRIPT_DIR}/sync-spec-sidebar-metadata.sh"
+POLARIS_VIEWER="${SCRIPT_DIR}/polaris-viewer.sh"
 SPECS_ROOT=""
 DRY_RUN=0
 APPLY=0
@@ -55,6 +58,24 @@ frontmatter_status() {
       exit
     }
   ' "$file"
+}
+
+sync_sidebar_metadata() {
+  local anchor="$1"
+  [[ -f "$anchor" && -x "$SYNC_SPEC_SIDEBAR" ]] || return 0
+  bash "$SYNC_SPEC_SIDEBAR" --apply "$anchor" >/dev/null
+}
+
+refresh_docs_manager_viewer_if_running() {
+  [[ "${POLARIS_SKIP_VIEWER_RESTART:-0}" != "1" ]] || return 0
+  [[ "$WORKSPACE_ROOT" == "$SCRIPT_ROOT" ]] || return 0
+  [[ -x "$POLARIS_VIEWER" ]] || return 0
+
+  if bash "$POLARIS_VIEWER" --status --port 8080 2>/dev/null | grep -q '^docs-manager: healthy$'; then
+    bash "$POLARIS_VIEWER" --stop --port 8080 >/dev/null 2>&1 || true
+    bash "$POLARIS_VIEWER" --detach --port 8080 --no-open >/dev/null 2>&1 || true
+    echo "RELOADED: docs-manager viewer at http://127.0.0.1:8080/docs-manager/"
+  fi
 }
 
 rel_path() {
@@ -258,6 +279,8 @@ run_sweep() {
     destination_abs="$SPECS_ROOT/$destination_rel"
     [[ -d "$source_abs" ]] || fail "sweep source disappeared before apply: $source_abs"
     [[ ! -e "$destination_abs" ]] || fail "archive destination already exists: $destination_abs"
+    IFS='|' read -r kind _anchor _status _destination < <(metadata_for_container "$source_abs")
+    sync_sidebar_metadata "$_anchor"
     mkdir -p "$(dirname "$destination_abs")"
     mv "$source_abs" "$destination_abs"
     echo "ARCHIVED: $source_rel -> $destination_rel"
@@ -265,6 +288,7 @@ run_sweep() {
   done <"$report_file"
 
   if [[ "$moved" -gt 0 ]]; then
+    refresh_docs_manager_viewer_if_running
     echo "Docs-manager reads canonical specs directly. For live review, run: scripts/polaris-viewer.sh --mode dev"
     echo "For static/search verification, run: scripts/verify-docs-manager-runtime.sh --preview"
   fi
@@ -356,8 +380,10 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 mkdir -p "$archive_parent"
+sync_sidebar_metadata "$anchor"
 mv "$container" "$destination"
 echo "ARCHIVED: $container -> $destination"
 
+refresh_docs_manager_viewer_if_running
 echo "Docs-manager reads canonical specs directly. For live review, run: scripts/polaris-viewer.sh --mode dev"
 echo "For static/search verification, run: scripts/verify-docs-manager-runtime.sh --preview"

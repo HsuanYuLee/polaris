@@ -43,12 +43,14 @@ write_plan "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-999-impl
 bash "$ARCHIVE_SPEC" --workspace "$tmpdir" DP-999 >/dev/null
 [[ ! -d "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-999-implemented" ]] || fail "active DP remained after archive"
 [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-999-implemented/plan.md" ]] || fail "archived DP missing"
+grep -q 'text: "IMPLEMENTED / P4"' "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-999-implemented/plan.md" || fail "archived DP sidebar badge was not refreshed"
 
 # Company ticket by key.
 write_plan "$tmpdir/docs-manager/src/content/docs/specs/companies/acme/BUG-1/refinement.md" "ABANDONED" "BUG-1"
 bash "$ARCHIVE_SPEC" --workspace "$tmpdir" BUG-1 >/dev/null
 [[ ! -d "$tmpdir/docs-manager/src/content/docs/specs/companies/acme/BUG-1" ]] || fail "active company spec remained after archive"
 [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/acme/archive/BUG-1/refinement.md" ]] || fail "archived company spec missing"
+grep -q 'text: "ABANDONED"' "$tmpdir/docs-manager/src/content/docs/specs/companies/acme/archive/BUG-1/refinement.md" || fail "archived company sidebar badge was not refreshed"
 
 # Direct path input.
 write_plan "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-996-direct-path/plan.md" "IMPLEMENTED" "DP-996"

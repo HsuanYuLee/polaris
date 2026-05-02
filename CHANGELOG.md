@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.29] - 2026-05-02
+
+### Fixed — spec closeout sidebar refresh
+
+- 新增共用 `sync-spec-sidebar-metadata.sh`，讓 Design Plan 與 company spec
+  parent 都能在 lifecycle status 改變後同步 Starlight sidebar badge。
+- `mark-spec-implemented.sh`、`codex-mark-design-plan-implemented.sh` 與
+  `archive-spec.sh` 現在會在 closeout / archive path 自動同步 parent
+  sidebar metadata，避免 `status` 與 `sidebar.badge` drift。
+- `archive-spec.sh` 在真實 workspace archive 後會重啟已存在的 8080
+  docs-manager viewer，讓 startup-time sidebar config 重新計算。
+
 ## [3.74.28] - 2026-05-02
 
 ### Fixed — task gate contract hardening
