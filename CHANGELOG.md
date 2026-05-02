@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.26] - 2026-05-02
+
+### Fixed — docs-manager runtime lifecycle ownership
+
+- 新增 `polaris-viewer.sh --detach`、`--status`、`--stop`，讓使用者看的
+  docs-manager preview 可以獨立於 shell lifetime 持續存在。
+- 更新 docs-manager runtime verification，只 cleanup verifier 自己啟動的
+  ephemeral server，並保留被 reuse 的 persistent preview server。
+- 在 docs-manager maintenance guide 補上 persistent preview 與 verification
+  runtime 的 lifecycle 差異。
+
 ## [3.74.25] - 2026-05-02
 
 ### Changed — docs-manager folder-native refinement preview

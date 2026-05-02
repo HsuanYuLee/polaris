@@ -1,31 +1,55 @@
 #!/usr/bin/env bash
 # Verify docs-manager local runtime contract across one or more ports.
 # Usage:
-#   scripts/verify-docs-manager-runtime.sh --ports 8080,3334 [--preview]
+#   scripts/verify-docs-manager-runtime.sh --ports 8080,3334 [--preview] [--keep-server]
 
 set -euo pipefail
 
 WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PORTS="8080"
 PREVIEW_MODE=false
+KEEP_SERVER=false
 PIDS=()
+STARTED_PORTS=()
+
+usage() {
+  cat <<EOF
+Usage:
+  scripts/verify-docs-manager-runtime.sh --ports 8080,3334 [--preview] [--keep-server]
+
+Options:
+  --ports        要驗證的 comma-separated port list。
+  --preview      使用 docs-manager preview mode，包含 production search 檢查。
+  --keep-server  保留 verifier 自己啟動的 server；預設只 cleanup verifier 自己啟動的 server。
+EOF
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --ports) PORTS="${2:-}"; shift 2 ;;
     --preview) PREVIEW_MODE=true; shift ;;
-    *) echo "Unknown option: $1" >&2; exit 2 ;;
+    --keep-server) KEEP_SERVER=true; shift ;;
+    --help|-h) usage; exit 0 ;;
+    *) echo "未知選項：$1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
 cd "$WORKSPACE_ROOT"
 
 cleanup() {
+  if [[ "$KEEP_SERVER" == "true" ]]; then
+    return 0
+  fi
+
   for pid in "${PIDS[@]:-}"; do
     if kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
       wait "$pid" 2>/dev/null || true
     fi
+  done
+
+  for port in "${STARTED_PORTS[@]:-}"; do
+    bash "$WORKSPACE_ROOT/scripts/polaris-viewer.sh" --stop --port "$port" >/dev/null 2>&1 || true
   done
 }
 trap cleanup EXIT
@@ -37,16 +61,67 @@ is_docs_manager_available() {
   [[ "$body" == *"Polaris Specs"* && "$body" == *"starlight"* ]]
 }
 
+is_preview_search_available() {
+  local origin="$1"
+  curl -fsS --max-time 5 "$origin/docs-manager/pagefind/pagefind-ui.js" >/dev/null 2>&1
+}
+
+listener_pid() {
+  local port="$1"
+  lsof -tiTCP:"$port" -sTCP:LISTEN -n -P 2>/dev/null | head -n1 || true
+}
+
+listener_cwd() {
+  local pid="$1"
+  local cwd=""
+  cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -n1 || true)"
+  if [[ -n "$cwd" && -d "$cwd" ]]; then
+    (cd "$cwd" && pwd -P)
+  fi
+}
+
+expected_docs_manager_cwd() {
+  (cd "$WORKSPACE_ROOT/docs-manager" && pwd -P)
+}
+
+ensure_docs_manager_owner() {
+  local port="$1"
+  local origin="$2"
+  local pid cwd expected
+
+  pid="$(listener_pid "$port")"
+  if [[ -z "$pid" ]]; then
+    echo "Port $port 沒有 listener，無法確認 docs-manager owner。" >&2
+    return 1
+  fi
+
+  cwd="$(listener_cwd "$pid")"
+  expected="$(expected_docs_manager_cwd)"
+  if [[ -n "$cwd" && "$cwd" != "$expected" ]]; then
+    echo "Port $port 的 docs-manager 來自不同 workspace，拒絕重用。" >&2
+    echo "Expected cwd: $expected" >&2
+    echo "Actual cwd: $cwd" >&2
+    echo "URL: $origin/docs-manager/" >&2
+    return 1
+  fi
+
+  if [[ -z "$cwd" ]]; then
+    echo "WARN: 無法讀取 port $port listener cwd；已確認 body 是 docs-manager，繼續驗證。" >&2
+  fi
+}
+
 wait_for_docs_manager() {
   local origin="$1"
+  local port="$2"
   local deadline=$((SECONDS + 60))
   while (( SECONDS < deadline )); do
     if is_docs_manager_available "$origin"; then
+      ensure_docs_manager_owner "$port" "$origin"
       return 0
     fi
     sleep 1
   done
-  echo "Timed out waiting for $origin/docs-manager/" >&2
+  echo "等待 $origin/docs-manager/ 逾時" >&2
   return 1
 }
 
@@ -65,10 +140,16 @@ start_or_reuse_docs_manager() {
 
   if lsof -i :"$port" -sTCP:LISTEN >/dev/null 2>&1; then
     if is_docs_manager_available "$origin"; then
-      echo "Reusing docs-manager on $origin/docs-manager/"
+      if [[ "$PREVIEW_MODE" == "true" ]] && ! is_preview_search_available "$origin"; then
+        echo "Port $port 是 docs-manager dev server，但 --preview 需要 production preview/search assets。" >&2
+        echo "請改用其他 port，或先用 polaris-viewer.sh --stop 停掉該 port 後再跑 preview verification。" >&2
+        return 1
+      fi
+      ensure_docs_manager_owner "$port" "$origin"
+      echo "重用 docs-manager：$origin/docs-manager/"
       return 0
     fi
-    echo "Port $port is occupied by a non-docs-manager service." >&2
+    echo "Port $port 已被非 docs-manager 服務占用。" >&2
     return 1
   fi
 
@@ -77,10 +158,11 @@ start_or_reuse_docs_manager() {
     mode_args+=(--preview)
   fi
 
-  echo "Starting docs-manager on $origin/docs-manager/"
+  echo "啟動 docs-manager：$origin/docs-manager/"
   bash "$WORKSPACE_ROOT/scripts/polaris-viewer.sh" --port "$port" --no-open "${mode_args[@]+"${mode_args[@]}"}" >"/tmp/polaris-docs-manager-$port.log" 2>&1 &
   PIDS+=("$!")
-  wait_for_docs_manager "$origin"
+  STARTED_PORTS+=("$port")
+  wait_for_docs_manager "$origin" "$port"
 }
 
 run_browser_assertions() {
@@ -96,7 +178,7 @@ const origin = process.env.DOCS_MANAGER_ORIGIN;
 const previewMode = process.env.DOCS_MANAGER_PREVIEW_MODE === 'true';
   const home = `${origin}/docs-manager/`;
   const sampleRoute = `${origin}/docs-manager/specs/design-plans/archive/dp-063-docs-manager-source-unification/tasks/pr-release/t2/`;
-  const dp071Route = `${origin}/docs-manager/specs/design-plans/dp-071-docs-manager-folder-native-preview/refinement/`;
+  const activeDpRoute = `${origin}/docs-manager/specs/design-plans/dp-073-docs-manager-runtime-lifecycle/refinement/`;
   const companyRefinementRoute = `${origin}/docs-manager/specs/companies/kkday/gt-478/refinement/`;
   const { chromium } = playwright;
 
@@ -116,28 +198,28 @@ async function gotoOk(url) {
 await gotoOk(home);
 assert(await page.getByText('design-plans', { exact: true }).first().isVisible(), 'Top-level specs groups are not visible');
 assert(!(await page.getByText('DP-001-design-plan-skill', { exact: true }).first().isVisible()), 'Autogenerated specs subgroups should be collapsed by default');
-const dp071Label = page.getByText('DP-071: docs-manager folder-native preview', { exact: true }).first();
-await dp071Label.scrollIntoViewIfNeeded();
-assert(await dp071Label.isVisible(), 'DP-071 folder node is not visible in sidebar');
-assert((await page.textContent('body'))?.includes('LOCKED / P2'), 'DP-071 folder badge text not found');
-const dp071Details = page.locator('details:has-text("DP-071: docs-manager folder-native preview")').first();
-if (await dp071Details.count() > 0) {
-  await dp071Details.evaluate((element) => {
+const activeDpLabel = page.getByText('DP-073: docs-manager runtime lifecycle ownership', { exact: true }).first();
+await activeDpLabel.scrollIntoViewIfNeeded();
+assert(await activeDpLabel.isVisible(), 'Active DP folder node is not visible in sidebar');
+assert((await page.textContent('body'))?.includes('LOCKED / P2'), 'Active DP folder badge text not found');
+const activeDpDetails = page.locator('details:has-text("DP-073: docs-manager runtime lifecycle ownership")').first();
+if (await activeDpDetails.count() > 0) {
+  await activeDpDetails.evaluate((element) => {
     element.open = true;
   });
 }
 for (const href of [
-  '/docs-manager/specs/design-plans/dp-071-docs-manager-folder-native-preview/plan/',
-  '/docs-manager/specs/design-plans/dp-071-docs-manager-folder-native-preview/refinement/',
-  '/docs-manager/specs/design-plans/dp-071-docs-manager-folder-native-preview/tasks/t1/',
+  '/docs-manager/specs/design-plans/dp-073-docs-manager-runtime-lifecycle/plan/',
+  '/docs-manager/specs/design-plans/dp-073-docs-manager-runtime-lifecycle/refinement/',
+  '/docs-manager/specs/design-plans/dp-073-docs-manager-runtime-lifecycle/tasks/t1/',
 ]) {
   const link = page.locator(`a[href="${href}"]`).first();
-  assert(await link.count() > 0, `DP-071 nested sidebar route not found: ${href}`);
+  assert(await link.count() > 0, `Active DP nested sidebar route not found: ${href}`);
 }
 await gotoOk(sampleRoute);
 assert((await page.textContent('body'))?.includes('direct specs content loader') || (await page.textContent('body'))?.includes('canonical specs'), 'Archived canonical DP-063 T2 route content not found');
-await gotoOk(dp071Route);
-assert((await page.textContent('body'))?.includes('folder-native preview'), 'DP-071 refinement route content not found');
+await gotoOk(activeDpRoute);
+assert((await page.textContent('body'))?.includes('runtime lifecycle'), 'Active DP refinement route content not found');
 await gotoOk(companyRefinementRoute);
 assert((await page.textContent('body'))?.includes('Refinement'), 'Company ticket refinement route content not found');
 const h1Texts = await page.locator('h1').allTextContents();
