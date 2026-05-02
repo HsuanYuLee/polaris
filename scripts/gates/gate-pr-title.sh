@@ -21,6 +21,7 @@ WORKSPACE_SCRIPTS="${SCRIPT_DIR}/.."
 RESOLVE_BY_BRANCH="${WORKSPACE_SCRIPTS}/resolve-task-md-by-branch.sh"
 PARSE_TASK="${WORKSPACE_SCRIPTS}/parse-task-md.sh"
 ENV_LIB="${WORKSPACE_SCRIPTS}/env/_lib.sh"
+GATE_PR_LANGUAGE="${SCRIPT_DIR}/gate-pr-language.sh"
 
 REPO_ROOT=""
 TASK_MD=""
@@ -145,6 +146,21 @@ render_title_template() {
 
 title_template="$(resolve_title_template "$REPO_ROOT")"
 expected_title="$(render_title_template "$title_template" "$ticket" "$summary")"
+
+if [[ -x "$GATE_PR_LANGUAGE" ]]; then
+  if ! "$GATE_PR_LANGUAGE" --repo "$REPO_ROOT" --title "$expected_title" >/dev/null 2>&1; then
+    cat >&2 <<EOF
+$PREFIX BLOCKED: task summary / PR title template is incompatible with workspace language policy.
+  Task.md:  $TASK_MD
+  Template: $title_template
+  Expected: $expected_title
+
+Fix:
+  Update the task summary/title so the rendered PR title satisfies the workspace language policy.
+EOF
+    exit 2
+  fi
+fi
 
 if [[ -z "$ACTUAL_TITLE" ]]; then
   command -v gh >/dev/null 2>&1 || exit 0

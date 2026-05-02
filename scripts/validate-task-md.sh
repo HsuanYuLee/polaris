@@ -76,6 +76,158 @@ extract_first_fenced_code_block() {
   '
 }
 
+verify_command_static_smoke() {
+  local file="$1"
+  local command="$2"
+
+  python3 - "$file" "$command" <<'PY'
+import os
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from urllib.parse import urlparse
+
+task_path = Path(sys.argv[1])
+command = sys.argv[2]
+repo_root = Path.cwd()
+errors = []
+
+def script_supported_flags(script: Path):
+    if not script.is_file():
+        return None
+    try:
+        proc = subprocess.run(
+            ["bash", str(script), "--help"],
+            cwd=repo_root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=5,
+        )
+    except Exception:
+        return None
+    if proc.returncode not in (0, 2):
+        return None
+    help_text = f"{proc.stdout}\n{proc.stderr}"
+    flags = set(re.findall(r"(?<!\w)--[A-Za-z][A-Za-z0-9_-]*", help_text))
+    return flags or None
+
+def smoke_script_flags(line: str, tokens: list[str]):
+    script_idx = None
+    for idx, token in enumerate(tokens):
+        if token.startswith("scripts/") and token.endswith(".sh"):
+            script_idx = idx
+            break
+    if script_idx is None:
+        return
+    script = repo_root / tokens[script_idx]
+    if not script.is_file():
+        errors.append(f"Verify Command references missing repo-local script: {tokens[script_idx]} (line: {line})")
+        return
+    supported = script_supported_flags(script)
+    if supported is None:
+        return
+    used = []
+    for token in tokens[script_idx + 1:]:
+        if token == "--":
+            break
+        if token.startswith("--"):
+            used.append(token.split("=", 1)[0])
+    for flag in used:
+        if flag not in supported:
+            errors.append(
+                f"Verify Command uses unsupported flag {flag} for {tokens[script_idx]} (line: {line})"
+            )
+
+def smoke_rg_pattern(line: str, tokens: list[str]):
+    if not tokens or tokens[0] != "rg":
+        return
+    pattern = None
+    skip_next = False
+    option_args = {
+        "-e", "--regexp", "-g", "--glob", "-t", "--type", "-T", "--type-not",
+        "-A", "--after-context", "-B", "--before-context", "-C", "--context",
+        "-m", "--max-count", "--max-depth", "--max-filesize",
+    }
+    for idx, token in enumerate(tokens[1:], start=1):
+        if skip_next:
+            skip_next = False
+            continue
+        if token == "--":
+            if idx + 1 < len(tokens):
+                pattern = tokens[idx + 1]
+            break
+        if token in option_args:
+            if token in {"-e", "--regexp"} and idx + 1 < len(tokens):
+                pattern = tokens[idx + 1]
+                break
+            skip_next = True
+            continue
+        if token.startswith("-"):
+            continue
+        pattern = token
+        break
+    if not pattern:
+        return
+    with tempfile.NamedTemporaryFile("w", delete=False) as handle:
+        tmp = handle.name
+    try:
+        proc = subprocess.run(
+            ["rg", "-q", "--regexp", pattern, tmp],
+            cwd=repo_root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=5,
+        )
+    except FileNotFoundError:
+        return
+    except Exception as exc:
+        errors.append(f"Verify Command rg smoke failed unexpectedly (line: {line}): {exc}")
+        return
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+    if proc.returncode == 2:
+        detail = proc.stderr.strip().splitlines()[0] if proc.stderr.strip() else "regex parse error"
+        errors.append(f"Verify Command rg pattern parse failed: {pattern!r} (line: {line}) — {detail}")
+
+def command_lines(script: str):
+    for raw in script.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith(("if ", "for ", "while ", "then", "fi", "do", "done", "else", "elif ")):
+            continue
+        yield line
+
+for line in command_lines(command):
+    try:
+        tokens = shlex.split(line, comments=False, posix=True)
+    except ValueError:
+        continue
+    if not tokens:
+        continue
+    if tokens[0] in {"env", "timeout", "command"} and len(tokens) > 1:
+        tokens = tokens[1:]
+    if tokens and tokens[0] == "bash" and len(tokens) > 1:
+        smoke_script_flags(line, tokens)
+    elif tokens and tokens[0].startswith("scripts/") and tokens[0].endswith(".sh"):
+        smoke_script_flags(line, tokens)
+    smoke_rg_pattern(line, tokens)
+
+for error in errors:
+    print(error)
+
+raise SystemExit(1 if errors else 0)
+PY
+}
+
 # ---------------------------------------------------------------------------
 # Helper: extract the value cell of an Operational Context table row.
 # task.md convention: `| {field} | {value} |`
@@ -601,6 +753,26 @@ print((urlparse(u).hostname or '').lower())
               elif [[ "$target_host" != "$verify_host" ]]; then
                 errors+=("Level=runtime: Verify Command URL host ($verify_host) must match Runtime verify target host ($target_host) — DP-023 Target-first rule")
               fi
+
+              if grep -qi 'docs-manager' "$FILE"; then
+                local target_path verify_path
+                target_path=$(python3 -c "
+from urllib.parse import urlparse
+import sys
+print(urlparse(sys.argv[1]).path or '/')
+" "$normalized_target" 2>/dev/null || true)
+                verify_path=$(python3 -c "
+from urllib.parse import urlparse
+import sys
+print(urlparse(sys.argv[1]).path or '/')
+" "$verify_url" 2>/dev/null || true)
+                if [[ "$target_path" != /docs-manager/* && "$target_path" != "/docs-manager/" ]]; then
+                  errors+=("docs-manager runtime target must include /docs-manager/ path (got: '$normalized_target')")
+                fi
+                if [[ "$verify_path" != /docs-manager/* && "$verify_path" != "/docs-manager/" ]]; then
+                  errors+=("docs-manager Verify Command URL must include /docs-manager/ path (got: '$verify_url')")
+                fi
+              fi
             fi
           fi
         fi
@@ -616,6 +788,23 @@ print((urlparse(u).hostname or '').lower())
         if [[ -n "$b_val" && "$b_val" != "N/A" && "$b_val" != "n/a" ]]; then
           errors+=("Level=$level expects Env bootstrap command = N/A (got: '$b_val') — avoid false declarations")
         fi
+      fi
+    fi
+  fi
+
+  if [[ "$mode" == "T" ]] && grep -qF "## Verify Command" "$FILE"; then
+    local smoke_section smoke_cmd smoke_output smoke_rc
+    smoke_section=$(extract_markdown_section "$FILE" "## Verify Command")
+    smoke_cmd=$(printf '%s\n' "$smoke_section" | extract_first_fenced_code_block)
+    if [[ -n "$smoke_cmd" ]]; then
+      set +e
+      smoke_output=$(verify_command_static_smoke "$FILE" "$smoke_cmd" 2>/dev/null)
+      smoke_rc=$?
+      set -e
+      if [[ "$smoke_rc" -ne 0 ]]; then
+        while IFS= read -r line; do
+          [[ -n "$line" ]] && errors+=("$line")
+        done <<< "$smoke_output"
       fi
     fi
   fi

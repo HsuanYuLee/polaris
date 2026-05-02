@@ -21,6 +21,7 @@
 #   - Glob `**`: `src/products/**` matches `src/products/index.ts`
 #   - Glob `*`: `src/*.ts` matches `src/foo.ts`
 #   - Backtick-wrapped entries are unwrapped: `\`src/foo.ts\`` → `src/foo.ts`
+#   - Root exact filenames are valid entries: `VERSION` matches root `VERSION`
 #   - Non-path entries (Chinese text, descriptions) are skipped
 #
 # Exit codes:
@@ -102,18 +103,31 @@ def _seg_match(text, pattern):
     import fnmatch
     return fnmatch.fnmatchcase(text, pattern)
 
+def is_path_pattern(value):
+    \"\"\"Return True for explicit path/glob tokens, including root filenames.\"\"\"
+    s = value.strip()
+    if not s:
+        return False
+    if any(ch.isspace() for ch in s):
+        return False
+    if re.search(r'[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]', s):
+        return False
+    if s.startswith('-'):
+        return False
+    return True
+
 with open(sys.argv[1]) as f:
     patterns = json.load(f)
 with open(sys.argv[2]) as f:
     files = [l.strip() for l in f if l.strip()]
 
-# Clean patterns: strip backticks, filter non-path entries
+# Clean patterns: strip backticks, filter non-path entries.
 clean_patterns = []
 for p in patterns:
     s = p.strip()
     if s.startswith('\`') and s.endswith('\`'):
         s = s[1:-1]
-    if '/' in s or '.' in s or '*' in s or '?' in s:
+    if is_path_pattern(s):
         clean_patterns.append(s)
 
 within = []
@@ -187,7 +201,7 @@ if [[ "${CHECK_SCOPE_SELFTEST:-}" == "1" ]]; then
   _assert "$r" "y" "backtick-wrapped pattern"
 
   # Test non-path entries are skipped (Python filters these)
-  # "上述檔案的 test 檔" has no /, ., *, ? → skipped by Python
+  # "上述檔案的 test 檔" has spaces and CJK → skipped by Python
   tmp_p=$(mktemp); tmp_f=$(mktemp)
   echo '["上述檔案的 test 檔"]' > "$tmp_p"
   echo "src/foo.ts" > "$tmp_f"
@@ -198,6 +212,12 @@ if [[ "${CHECK_SCOPE_SELFTEST:-}" == "1" ]]; then
 
   matches_pattern "file.md" "*.md" && r="y" || r="n"
   _assert "$r" "y" "glob pattern at root"
+
+  matches_pattern "VERSION" "VERSION" && r="y" || r="n"
+  _assert "$r" "y" "root exact filename"
+
+  matches_pattern "README" "VERSION" && r="y" || r="n"
+  _assert "$r" "n" "root exact filename no false positive"
 
   # Integration test with git repo
   TMPDIR_ST=$(mktemp -d)

@@ -352,6 +352,126 @@ kill "$HTTP_PID" 2>/dev/null || true
 sleep 0.3
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "=== validate-task-md DP-065 command-shape regressions ==="
+VALIDATE_TASK_MD="$SCRIPT_DIR/validate-task-md.sh"
+VT_DIR="$WORK_DIR/validator"
+mkdir -p "$VT_DIR/tasks"
+
+make_validator_task_md() {
+  local task_path="$1"
+  local level="$2"
+  local runtime_target="$3"
+  local bootstrap="$4"
+  local verify_command="$5"
+
+  cat > "$task_path" <<EOF
+---
+title: "Work Order - T1: docs-manager runtime 測試 (1 pt)"
+description: "此工單描述 docs-manager runtime 測試。"
+---
+
+# T1: docs-manager runtime 測試 (1 pt)
+
+> Source: DP-999 | Task: DP-999-T1 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-999 |
+| Task ID | DP-999-T1 |
+| JIRA key | N/A |
+| Test sub-tasks | N/A - framework work order |
+| AC 驗收單 | N/A - framework work order |
+| Base branch | main |
+| Branch chain | main -> task/DP-999-T1-test |
+| Task branch | task/DP-999-T1-test |
+| Depends on | N/A |
+| References to load | - \`scripts/validate-task-md.sh\` |
+
+## Verification Handoff
+
+此為 framework work order。
+
+## 目標
+
+測試 validator regression。
+
+## 改動範圍
+
+| 檔案 | 動作 | 說明 |
+|------|------|------|
+| \`scripts/validate-task-md.sh\` | modify | 測試 |
+
+## Allowed Files
+
+- \`scripts/validate-task-md.sh\`
+
+## 估點理由
+
+1 pt - 測試。
+
+## 測試計畫（code-level）
+
+- 測試 validator regression。
+
+## Test Command
+
+\`\`\`bash
+echo ok
+\`\`\`
+
+## Test Environment
+
+- **Level**: ${level}
+- **Dev env config**: N/A
+- **Fixtures**: N/A
+- **Runtime verify target**: ${runtime_target}
+- **Env bootstrap command**: ${bootstrap}
+
+## Verify Command
+
+\`\`\`bash
+${verify_command}
+\`\`\`
+EOF
+}
+
+TASK_VT_BARE="$VT_DIR/tasks/T_bare.md"
+make_validator_task_md "$TASK_VT_BARE" "runtime" "http://127.0.0.1:8080" \
+  "bash scripts/polaris-viewer.sh --detach --port 8080 --no-open" \
+  "curl -fsS http://127.0.0.1:8080/docs-manager/ >/dev/null"
+"$VALIDATE_TASK_MD" "$TASK_VT_BARE" >"$WORK_DIR/vt_bare.out" 2>"$WORK_DIR/vt_bare.err"
+RC_VT_BARE=$?
+assert_eq "$RC_VT_BARE" "1" "docs-manager bare runtime target fails validation"
+assert_contains "$(cat "$WORK_DIR/vt_bare.err")" "must include /docs-manager/ path" "docs-manager bare target error mentions base path"
+
+TASK_VT_OK="$VT_DIR/tasks/T_ok.md"
+make_validator_task_md "$TASK_VT_OK" "runtime" "http://127.0.0.1:8080/docs-manager/" \
+  "bash scripts/polaris-viewer.sh --detach --port 8080 --no-open" \
+  "curl -fsS http://127.0.0.1:8080/docs-manager/ >/dev/null"
+"$VALIDATE_TASK_MD" "$TASK_VT_OK" >/dev/null 2>"$WORK_DIR/vt_ok.err"
+RC_VT_OK=$?
+assert_eq "$RC_VT_OK" "0" "docs-manager /docs-manager/ runtime target passes validation"
+
+TASK_VT_FLAG="$VT_DIR/tasks/T_flag.md"
+make_validator_task_md "$TASK_VT_FLAG" "static" "N/A" "N/A" \
+  "bash scripts/verify-docs-manager-runtime.sh --style-check --ports 8080"
+"$VALIDATE_TASK_MD" "$TASK_VT_FLAG" >"$WORK_DIR/vt_flag.out" 2>"$WORK_DIR/vt_flag.err"
+RC_VT_FLAG=$?
+assert_eq "$RC_VT_FLAG" "1" "unsupported repo-local script flag fails validation"
+assert_contains "$(cat "$WORK_DIR/vt_flag.err")" "unsupported flag --style-check" "unsupported flag error mentions flag"
+
+TASK_VT_RG="$VT_DIR/tasks/T_rg.md"
+make_validator_task_md "$TASK_VT_RG" "static" "N/A" "N/A" \
+  "rg -n '\\\\{workspace_root\\\\}' README.md"
+"$VALIDATE_TASK_MD" "$TASK_VT_RG" >"$WORK_DIR/vt_rg.out" 2>"$WORK_DIR/vt_rg.err"
+RC_VT_RG=$?
+assert_eq "$RC_VT_RG" "1" "rg regex parse failure fails validation"
+assert_contains "$(cat "$WORK_DIR/vt_rg.err")" "rg pattern parse failed" "rg parse error is reported"
+
+# ────────────────────────────────────────────────────────────────────────────
 echo "=== idempotent re-run on same head_sha (overwrite) ==="
 # Re-run static and confirm evidence file still present and timestamp updated
 SLEEP_THRESHOLD="$(date -u +%s)"

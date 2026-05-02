@@ -4,6 +4,20 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.28] - 2026-05-02
+
+### Fixed — task gate contract hardening
+
+- `check-scope.sh` 支援 `VERSION` 這類 root exact filename，並保留自然語言
+  Allowed Files bullet skip 行為。
+- `validate-task-md.sh` 補上 docs-manager `/docs-manager/` runtime target
+  contract、repo-local script unsupported flag smoke，以及簡單 `rg` regex
+  parse smoke。
+- PR title gate 會在 expected title 與 `zh-TW` workspace language policy
+  不相容時 fail-stop，避免 title gate / language gate 互相拉扯。
+- 更新 task schema 與 breakdown guidance，讓後續 task generation 直接產生
+  gate-safe summary、runtime target、Verify Command。
+
 ## [3.74.27] - 2026-05-02
 
 ### Fixed — docs-manager runtime smoke stability

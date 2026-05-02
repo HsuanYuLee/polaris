@@ -5,6 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GATE="$SCRIPT_DIR/gate-pr-language.sh"
+TITLE_GATE="$SCRIPT_DIR/gate-pr-title.sh"
 TMPROOT="$(mktemp -d -t pr-language-selftest-XXXXXX)"
 PASS=0
 TOTAL=0
@@ -97,6 +98,47 @@ set +e
 rc=$?
 set -e
 assert_rc "gh pr comment command body blocks" "$rc" "2"
+
+task_md="$TMPROOT/T1.md"
+cat > "$task_md" <<'EOF'
+---
+title: "Work Order - T1: English title conflict (1 pt)"
+description: "此工單描述 title conflict。"
+---
+
+# T1: English title conflict (1 pt)
+
+> Source: DP-999 | Task: DP-999-T1 | JIRA: N/A | Repo: repo
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-999 |
+| Task ID | DP-999-T1 |
+| JIRA key | N/A |
+| Test sub-tasks | N/A - framework work order |
+| AC 驗收單 | N/A - framework work order |
+| Base branch | main |
+| Task branch | task/DP-999-T1-title-conflict |
+| Depends on | N/A |
+EOF
+
+set +e
+"$TITLE_GATE" --repo "$repo" --task-md "$task_md" --title "[DP-999-T1] English title conflict" >"$TMPROOT/title-conflict.out" 2>"$TMPROOT/title-conflict.err"
+rc=$?
+set -e
+assert_rc "title gate blocks expected title language conflict" "$rc" "2"
+
+if grep -q "incompatible with workspace language policy" "$TMPROOT/title-conflict.err"; then
+  PASS=$((PASS + 1))
+  TOTAL=$((TOTAL + 1))
+  printf 'ok title gate conflict message\n'
+else
+  TOTAL=$((TOTAL + 1))
+  printf 'not ok title gate conflict message missing\n' >&2
+fi
 
 printf '\n=== pr-language selftest: %d/%d PASS ===\n' "$PASS" "$TOTAL"
 [[ "$PASS" -eq "$TOTAL" ]]

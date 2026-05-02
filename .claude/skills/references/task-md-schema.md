@@ -2,7 +2,7 @@
 
 > **Status**: v1 (DP-033 Phase A + Phase B)。實作 schema (T{n}.md) + 驗收 schema (V{n}.md) 雙路徑齊備；對稱原則：驗收也是工程，所有共用基礎設施 (parser / closer / hook / D6 pr-release / D7 atomic write contract / jira_transition_log) 一份權威、T/V 共用。
 >
-> **Source DPs**: DP-023 (runtime contract) · DP-025 (artifact schema enforcement) · DP-028 (depends_on / Base branch binding) · DP-032 (deliverable / jira_transition_log lifecycle write-back) · DP-033 (本 reference — schema 整合 + lifecycle closure；Phase A 實作 schema、Phase B 驗收 schema)
+> **Source DPs**: DP-023 (runtime contract) · DP-025 (artifact schema enforcement) · DP-028 (depends_on / Base branch binding) · DP-032 (deliverable / jira_transition_log lifecycle write-back) · DP-033 (本 reference — schema 整合 + lifecycle closure；Phase A 實作 schema、Phase B 驗收 schema) · DP-065 (task / gate contract hardening)
 
 本 reference 是 task.md 的單一權威 schema 文件 — pipeline 的所有 producer / consumer / validator / hook 都從此派生。若本檔與個別 SKILL.md / DP plan / `pipeline-handoff.md` 描述衝突，**以本檔為準**。
 
@@ -357,7 +357,8 @@ Bullet list 格式：
 2. `Env bootstrap command` 必須非 `N/A`
 3. `## Verify Command` fenced block 內必須出現 http/https URL
 4. Verify Command URL 的 host **必須等於** Runtime verify target 的 host（DP-023 D2 Target-first）
-5. `Fixtures` 若非 `N/A`，path 必須存在（resolve 順序：epic_dir → company_base_dir → workspace_root）
+5. docs-manager runtime task 必須把 `Runtime verify target` 和 Verify Command URL 寫到 `/docs-manager/` app path；bare origin（例如 `http://127.0.0.1:8080`）會被視為 invalid。若未來其他 app 有不同 base path，必須放在可測 contract/registry，不可只寫 prose。
+6. `Fixtures` 若非 `N/A`，path 必須存在（resolve 順序：epic_dir → company_base_dir → workspace_root）
 
 **Static / build 規則**：`Runtime verify target` / `Env bootstrap command` 預期 = `N/A`；若非 N/A → fail（避免假性宣告）。
 
@@ -375,9 +376,13 @@ Bullet list 格式：
 
 由 `engineer-delivery-flow.md` Step 5.5 Scope Check 消費。Hard required（DP-033 D5 升級自 Soft）— 缺失會讓 Scope Check 失靈，risk scoring 機制走空。
 
+Allowed Files pattern 支援 repo-root relative path、glob，以及 root exact filename。`VERSION`、`README` 這類 root filename 是合法 exact pattern；不要為了通過 scope gate 改寫成 `VERSION*`。純自然語言 bullet（例如「上述檔案的 test 檔」）仍會被 scope matcher 跳過，不會變成萬用 pattern。
+
 ### 3.5 `## Test Command` / `## Verify Command`
 
 兩者皆必須包含 fenced code block（內容由 LLM 不可改寫 — `verify-command-immutable-execute` canary）。
+
+DP-065 Verify Command static smoke 會在 validation 階段檢查可靜態證明的 command-shape 問題：repo-local script command 若該 script 有 `--help`，使用不存在的 `--flag` 會 fail；簡單 `rg` command 的 regex pattern 會做 parse-only smoke，regex parse error 會 fail。validator 不執行完整 Verify Command，也不嘗試解釋複雜 shell control flow。
 
 `## Test Command` 的內容不是 schema 固定值，必須由 producer 依下列來源解析後填入：
 
