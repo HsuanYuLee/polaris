@@ -4,6 +4,20 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.25] - 2026-05-02
+
+### Changed — docs-manager folder-native refinement preview
+
+- Reworked docs-manager specs sidebar generation into a folder tree that keeps
+  DP, company ticket, task, and pr-release markdown routes visible.
+- Moved DP lifecycle / priority badges onto DP folder nodes while preserving
+  existing page routes.
+- Updated refinement preview workflow documentation so docs-manager Starlight
+  routes are the official review surface and `refinement-preview.py` is only a
+  legacy fallback helper.
+- Expanded docs-manager runtime verification to cover folder badges, nested
+  routes, company refinement pages, and preview search base-path behavior.
+
 ## [3.74.24] - 2026-05-02
 
 ### Changed — README brand logo placement

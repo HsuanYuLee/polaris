@@ -6,7 +6,23 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const docsRoot = path.join(rootDir, 'src/content/docs');
 const specsRoot = path.join(docsRoot, 'specs');
 
-const primaryDocNames = ['epic.md', 'refinement.md', 'breakdown.md', 'plan.md', 'README.md'];
+const folderMetadataDocNames = ['plan.md', 'epic.md', 'refinement.md', 'breakdown.md', 'README.md'];
+const fileOrder = new Map([
+  ['README.md', 0],
+  ['epic.md', 10],
+  ['plan.md', 20],
+  ['refinement.md', 30],
+  ['breakdown.md', 40],
+]);
+const directoryOrder = new Map([
+  ['artifacts', 80],
+  ['escalations', 90],
+  ['tasks', 100],
+  ['tests', 110],
+  ['verification', 120],
+  ['archive', 900],
+  ['pr-release', 910],
+]);
 
 export function specsSidebar() {
   return [
@@ -33,9 +49,8 @@ function designPlanItems(archived) {
     .readdirSync(base, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .filter((entry) => entry.name.startsWith('DP-'))
-    .map((entry) => path.join(base, entry.name, 'plan.md'))
-    .filter((file) => fs.existsSync(file))
-    .map((file) => linkItem(file))
+    .map((entry) => folderItem(path.join(base, entry.name), { metadataFile: 'plan.md' }))
+    .filter(Boolean)
     .sort(sortByOrderThenLabel);
 }
 
@@ -66,9 +81,8 @@ function ticketItems(companyDir, archived) {
     .readdirSync(base, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .filter((entry) => entry.name !== 'archive')
-    .map((entry) => findPrimaryDoc(path.join(base, entry.name)))
+    .map((entry) => folderItem(path.join(base, entry.name)))
     .filter(Boolean)
-    .map((file) => linkItem(file))
     .sort(sortByOrderThenLabel);
 }
 
@@ -80,31 +94,36 @@ function archiveGroup(label, items) {
   };
 }
 
-function findPrimaryDoc(containerDir) {
-  for (const name of primaryDocNames) {
-    const candidate = path.join(containerDir, name);
-    if (fs.existsSync(candidate)) return candidate;
-  }
-
-  const fallback = firstMarkdownFile(containerDir);
-  return fallback;
-}
-
-function firstMarkdownFile(dir) {
+function folderItem(dir, options = {}) {
   if (!fs.existsSync(dir)) return undefined;
 
-  const direct = fs
+  const metadata = readFolderMetadata(dir, options.metadataFile);
+  const items = fs
     .readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
-    .map((entry) => path.join(dir, entry.name))
-    .sort();
-  if (direct[0]) return direct[0];
+    .filter((entry) => entry.name !== '.DS_Store')
+    .filter((entry) => entry.isDirectory() || (entry.isFile() && entry.name.endsWith('.md')))
+    .map((entry) => {
+      const entryPath = path.join(dir, entry.name);
+      return entry.isDirectory() ? folderItem(entryPath) : linkItem(entryPath);
+    })
+    .filter(Boolean)
+    .sort(sortByFilesystemOrderThenLabel);
 
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isDirectory())) {
-    const nested = firstMarkdownFile(path.join(dir, entry.name));
-    if (nested) return nested;
+  if (items.length === 0) return undefined;
+
+  const item = {
+    label: metadata.label || path.basename(dir),
+    collapsed: true,
+    items,
+  };
+
+  if (metadata.badge) item.badge = metadata.badge;
+  if (Number.isFinite(metadata.order)) {
+    Object.defineProperty(item, '__order', { value: metadata.order, enumerable: false });
   }
-  return undefined;
+  Object.defineProperty(item, '__entryName', { value: path.basename(dir), enumerable: false });
+  Object.defineProperty(item, '__kind', { value: 'directory', enumerable: false });
+  return item;
 }
 
 function linkItem(file) {
@@ -121,7 +140,29 @@ function linkItem(file) {
   if (Number.isFinite(sidebar.order)) {
     Object.defineProperty(item, '__order', { value: sidebar.order, enumerable: false });
   }
+  Object.defineProperty(item, '__entryName', { value: path.basename(file), enumerable: false });
+  Object.defineProperty(item, '__kind', { value: 'file', enumerable: false });
   return item;
+}
+
+function readFolderMetadata(dir, preferredFile) {
+  const names = preferredFile
+    ? [preferredFile, ...folderMetadataDocNames.filter((name) => name !== preferredFile)]
+    : folderMetadataDocNames;
+
+  for (const name of names) {
+    const file = path.join(dir, name);
+    if (!fs.existsSync(file)) continue;
+    const frontmatter = readFrontmatter(file);
+    const sidebar = frontmatter.sidebar ?? {};
+    return {
+      label: sidebar.label || cleanLabel(frontmatter.title, file) || path.basename(dir),
+      badge: sidebar.badge || statusBadge(frontmatter.status),
+      order: Number.isFinite(sidebar.order) ? sidebar.order : undefined,
+    };
+  }
+
+  return {};
 }
 
 function routePath(file) {
@@ -132,7 +173,11 @@ function routePath(file) {
 
 function cleanLabel(title, file) {
   const container = path.basename(path.dirname(file));
-  if (!title) return container;
+  const fileName = path.basename(file);
+  if (!title) return fileName.endsWith('.md') ? fileName.replace(/\.md$/, '') : container;
+  if (['README.md', 'epic.md', 'plan.md', 'refinement.md', 'breakdown.md'].includes(fileName)) {
+    return fileName.replace(/\.md$/, '');
+  }
   return title
     .replace(/^Refinement\s+[—-]\s+/i, '')
     .replace(/^Breakdown\s+[—-]\s+/i, '')
@@ -163,6 +208,24 @@ function sortByOrderThenLabel(a, b) {
   const bOrder = Number.isFinite(b.__order) ? b.__order : Number.MAX_SAFE_INTEGER;
   if (aOrder !== bOrder) return aOrder - bOrder;
   return a.label.localeCompare(b.label);
+}
+
+function sortByFilesystemOrderThenLabel(a, b) {
+  const aOrder = a.__kind === 'directory' && Number.isFinite(a.__order) ? a.__order : defaultEntryOrder(a);
+  const bOrder = b.__kind === 'directory' && Number.isFinite(b.__order) ? b.__order : defaultEntryOrder(b);
+  if (aOrder !== bOrder) return aOrder - bOrder;
+  if (a.__kind !== b.__kind) return a.__kind === 'file' ? -1 : 1;
+  return a.label.localeCompare(b.label);
+}
+
+function defaultEntryOrder(item) {
+  const name = item.__entryName || item.label;
+  if (item.__kind === 'file') {
+    if (fileOrder.has(name)) return fileOrder.get(name);
+    if (/^[TV][0-9]+[a-z]*\.md$/i.test(name)) return 200;
+    return 500;
+  }
+  return directoryOrder.get(name) ?? 700;
 }
 
 function readFrontmatter(file) {

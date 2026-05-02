@@ -92,6 +92,20 @@ frontmatter；不可依賴 docs-manager 在 build 時補 metadata。
 讀取 canonical source。必須先跑 T1/T3 的 language gate；未通過 workspace
 language policy 的新產生 prose 不可進入 review 或 downstream handoff。
 
+正式 preview surface 是 docs-manager Starlight route。DP-backed source 的常用 route：
+
+```text
+/docs-manager/specs/design-plans/dp-nnn-topic/plan/
+/docs-manager/specs/design-plans/dp-nnn-topic/refinement/
+/docs-manager/specs/design-plans/dp-nnn-topic/tasks/t1/
+```
+
+JIRA-backed source 同樣使用 company specs route：
+
+```text
+/docs-manager/specs/companies/{company}/{ticket}/refinement/
+```
+
 Live review：
 
 ```bash
@@ -106,7 +120,7 @@ bash scripts/verify-docs-manager-runtime.sh --preview
 
 這適用於 `plan.md`、`refinement.md`，以及任何準備進 review 的 DP markdown artifact。
 
-## T3. Local Preview
+## T3. Refinement Markdown Output
 
 Ticketless source 仍採 local-first refinement。Discussion output 寫入：
 
@@ -114,11 +128,8 @@ Ticketless source 仍採 local-first refinement。Discussion output 寫入：
 {workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/refinement.md
 ```
 
-Preview：
-
-```bash
-python3 scripts/refinement-preview.py {workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/refinement.md
-```
+Preview 不再啟動獨立 markdown renderer；使用 T2 的 docs-manager route。`scripts/refinement-preview.py`
+若仍存在，只能作為 legacy fallback 或 local debug helper，不能作為 handoff contract。
 
 `refinement.md` 只應包含 downstream implementation information：
 
