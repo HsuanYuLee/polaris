@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.27] - 2026-05-02
+
+### Fixed — docs-manager runtime smoke stability
+
+- 將 docs-manager runtime verifier 的 active DP smoke 改成動態讀取 sidebar
+  內現存的 DP folder / route，避免 release closeout archive DP 後 health check
+  綁定已歸檔的 DP。
+
 ## [3.74.26] - 2026-05-02
 
 ### Fixed — docs-manager runtime lifecycle ownership
