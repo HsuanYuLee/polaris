@@ -579,7 +579,7 @@ This is a **reminder**, not an automatic bump. The user decides when and how to 
 
 - **主動推回，不照單全收**：像顧問一樣給 honest assessment、tradeoff 分析。不認同時直說「我不建議這樣做」+ 理由。認同時也說清楚「為什麼」認同，不要只說「好」
 - **回答結構**：分析 → 盲點 → 建議 → 讓使用者決定
-- **確認的設計決策直接實施**：使用者明確確認的流程決策（如格式規範）直接寫進 SKILL.md / rules，不走 feedback→3 次→畢業的被動路徑
+- **確認的設計決策直接記錄，語意改 code 走流程**：使用者明確確認的流程決策（如格式規範）要立刻寫進 active DP plan / decision record，不走 feedback→3 次→畢業的被動路徑；但只要後續需要改 code、rules、skills、scripts、hooks、validators、或任何會改變框架行為的文件，必須先有 DP-backed work order，再走 `engineering`，不可在主 session 直接 patch
 - **以目標態規劃，優先排除 legacy**：所有計劃都要先定義「直接做到好」的目標架構；可以拆 phase，但每個 phase 都必須朝目標態收斂。不要把 legacy compatibility、fallback、mirror、雙來源長期共存設計成最終方案。若只是為了相容舊流程而保留的東西，預設直接改成目標態；只有會立刻破壞外部使用者或正在運作的 deterministic gate 時，才允許短期過渡，且必須明確標示 owner、移除條件、驗證方式與收尾 task。
 
 ## 框架維護
@@ -877,6 +877,7 @@ Manual audit still applies when the agent ignores, bypasses, or misinterprets a 
 | `no-pre-process-skill-input` | Don't fetch Slack/JIRA/PR data before invoking skill | `gh api`, JIRA MCP, or Slack MCP call preceding Skill invocation | High |
 | `no-manual-skill-steps` | Never partially execute skill steps by hand | Git/JIRA/Slack commands matching a skill's steps without Skill invocation | High |
 | `refinement-contract-change-gate` | Framework workflow / role-boundary / handoff-contract changes requested through `refinement` must be handled as a design proposal first, with explicit user confirmation before editing `SKILL.md`, `rules/`, `skills/references/`, hooks, or validators. Skill file edits must also follow `skill-creator` | Session says it used refinement "as background" then directly edits cross-skill contract files; OR edits validator/handoff policy before presenting proposal and receiving confirmation; OR final omits that an explicit hotfix/direct-edit bypass was used | High |
+| `semantic-code-change-flow-gate` | User corrections, design decisions, or agent judgments that would change code, rules, skills, scripts, hooks, validators, delivery semantics, or behavior-changing docs must be captured as a decision first, then implemented through a DP-backed `task.md` and `engineering`. Mechanical-only typo / formatting / generated parity edits may stay lightweight; semantic judgment is the trigger, not file count | Main session directly patches behavior-changing files after a semantic judgment without an active DP-backed work order and engineering flow; OR uses "small change" / "obvious fix" as the reason to skip task scope, worktree, verification, PR, or release metadata | **Critical** |
 | `hotfix-auto-ticket` | Fix intent + Slack URL + no JIRA key → create ticket before routing to bug-triage | Changeset or PR title missing JIRA key after hotfix flow | Medium |
 
 ### Delegation (source: `CLAUDE.md`, `rules/sub-agent-delegation.md`)
@@ -1317,6 +1318,23 @@ Before invoking a skill, assess the task's complexity and route to the appropria
 3. **Otherwise** → Standard (let the skill handle it)
 
 The Fast tier is implicit in CLAUDE.md's delegation table ("Small edit ≤ 3 lines, 1 file → Do it directly"). This section makes the full spectrum explicit.
+
+## Semantic Code Change Flow Gate
+
+When a user correction, design decision, or agent judgment would change code,
+rules, skills, scripts, hooks, validators, delivery semantics, or any document
+that changes framework behavior, treat it as a **semantic code change**:
+
+1. **Capture the decision immediately** in the active DP plan / decision record.
+2. **Do not patch behavior directly from the main session.**
+3. Resolve or create a DP-backed `task.md`, then route implementation through
+   `engineering` so worktree isolation, task scope, verification, PR, and
+   release metadata all apply.
+
+Mechanical-only edits may stay lightweight: typo fixes, formatting-only changes,
+generated parity outputs, or deterministic script output inside an existing task
+scope do not require a new design decision. Size is not the deciding factor:
+if the edit needs semantic judgment, it must go through the flow.
 
 ## Deprecated Admin Entrypoint Guard
 

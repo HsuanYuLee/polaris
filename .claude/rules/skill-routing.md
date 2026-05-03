@@ -96,6 +96,23 @@ Before invoking a skill, assess the task's complexity and route to the appropria
 
 The Fast tier is implicit in CLAUDE.md's delegation table ("Small edit ≤ 3 lines, 1 file → Do it directly"). This section makes the full spectrum explicit.
 
+## Semantic Code Change Flow Gate
+
+When a user correction, design decision, or agent judgment would change code,
+rules, skills, scripts, hooks, validators, delivery semantics, or any document
+that changes framework behavior, treat it as a **semantic code change**:
+
+1. **Capture the decision immediately** in the active DP plan / decision record.
+2. **Do not patch behavior directly from the main session.**
+3. Resolve or create a DP-backed `task.md`, then route implementation through
+   `engineering` so worktree isolation, task scope, verification, PR, and
+   release metadata all apply.
+
+Mechanical-only edits may stay lightweight: typo fixes, formatting-only changes,
+generated parity outputs, or deterministic script output inside an existing task
+scope do not require a new design decision. Size is not the deciding factor:
+if the edit needs semantic judgment, it must go through the flow.
+
 ## Deprecated Admin Entrypoint Guard
 
 舊的無 task.md Admin PR entrypoint 已 sunset。當使用者要求 framework/docs repo 直接「開 PR」或「發 PR」時，先確認是否能 resolve 到 DP-backed `task.md`：

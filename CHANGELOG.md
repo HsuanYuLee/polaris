@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.36] - 2026-05-03
+
+### Changed — semantic code change flow gate
+
+- Added a framework decision that semantic code / rule / skill / script behavior
+  changes must be captured in a DP-backed work order and implemented through
+  `engineering`, rather than patched directly from the main session.
+- Clarified that confirmed decisions are still captured immediately, while
+  behavior-changing implementation moves through task scope, worktree isolation,
+  verification, PR, and release metadata.
+- Added a mechanism-registry canary for direct semantic patches that bypass the
+  delivery flow.
+
 ## [3.74.35] - 2026-05-03
 
 ### Changed — target-state legacy cleanup
