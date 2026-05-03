@@ -13,6 +13,7 @@ Framework work 會同時接觸兩種 filesystem surface：
 
 - DP-backed framework implementation 必須發生在 task worktree。
 - Main checkout overlay 可以讀取 runtime context 與 validation input，但不得變成 implementation surface。
+- Framework task lifecycle metadata（`deliverable` / `extension_deliverable` / status move）以 main checkout specs overlay 為權威；implementation worktree 裡的 copied specs 只能視為 legacy verification input，不可搶先成為 completion source。
 - Specs authoring source 是 `docs-manager/src/content/docs/specs`，不是 generated `docs-manager/dist`。
 - `run-verify-command.sh` 的 release-safe Layer B evidence mirror 是 `.polaris/evidence/verify/polaris-verified-{TICKET}-{HEAD_SHA}.json`；`/tmp` path 只作為快速 hook cache。
 - Worktree 缺少 ignored specs 時，verification reader 可以用 main checkout `docs-manager/src/content/docs/specs` 作為 read-only overlay；不得用手動 rsync 讓 worktree specs 變成 implementation source。

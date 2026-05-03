@@ -153,6 +153,7 @@ if [[ "$ACTUAL_STATUS" != "$STATUS" ]]; then
 fi
 
 echo "$PREFIX cleaning implementation worktree for ${TICKET} ..." >&2
+cd "$WORKSPACE_ROOT"
 if ! bash "${SCRIPT_DIR}/engineering-clean-worktree.sh" --task-md "$TASK_MD_PATH" --repo "$REPO_ROOT"; then
   echo "$PREFIX implementation worktree cleanup failed after task lifecycle finalized" >&2
   exit 2

@@ -192,20 +192,23 @@ resolve_task_for_completion_check() {
 
   local -a scan_roots
   scan_roots=()
-  append_unique_scan_root "$REPO_ROOT"
-  if workspace_root="$(find_workspace_root_for_path "$REPO_ROOT" 2>/dev/null)" && [[ -n "$workspace_root" ]]; then
-    append_unique_scan_root "$workspace_root"
-  fi
 
   if [[ -e "${REPO_ROOT}/.git" ]]; then
     # shellcheck source=lib/main-checkout.sh
     . "${SCRIPT_DIR}/lib/main-checkout.sh"
     if main_checkout="$(resolve_main_checkout "$REPO_ROOT" 2>/dev/null)" && [[ -n "$main_checkout" ]]; then
-      append_unique_scan_root "$main_checkout"
+      if [[ "$main_checkout" != "$REPO_ROOT" ]]; then
+        append_unique_scan_root "$main_checkout"
+      fi
       if workspace_root="$(find_workspace_root_for_path "$main_checkout" 2>/dev/null)" && [[ -n "$workspace_root" ]]; then
         append_unique_scan_root "$workspace_root"
       fi
     fi
+  fi
+
+  append_unique_scan_root "$REPO_ROOT"
+  if workspace_root="$(find_workspace_root_for_path "$REPO_ROOT" 2>/dev/null)" && [[ -n "$workspace_root" ]]; then
+    append_unique_scan_root "$workspace_root"
   fi
 
   if [[ -n "$TICKET" ]]; then

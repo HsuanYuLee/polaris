@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.38] - 2026-05-03
+
+### Fixed — framework task overlay closeout
+
+- Made Developer completion prefer the main checkout specs overlay when a
+  framework implementation worktree has a stale copied task.md, so lifecycle
+  metadata is read from the canonical source.
+- Changed `finalize-engineering-delivery.sh` to switch back to the workspace
+  root before removing the implementation worktree, avoiding deleted-cwd
+  closeout noise.
+
 ## [3.74.37] - 2026-05-03
 
 ### Fixed — release evidence and specs overlay

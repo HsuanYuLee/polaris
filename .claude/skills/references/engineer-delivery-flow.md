@@ -721,6 +721,8 @@ Step 7a 保證「不能開 PR」；Step 8.5 保證「不能嘴上結案」。兩
 
 PR 建立 / 既有 PR branch push 完成，或 local extension final verification 完成後，task deliverable / extension metadata 已回寫、Developer finalize helper PASS（或 Local Extension closeout helper PASS），才清掉本次 implementation worktree。Developer lane 的 cleanup 已內建在 `finalize-engineering-delivery.sh`：task move 到 `tasks/pr-release/` 且 status 變成 `IMPLEMENTED` 後，finalize helper 會用 `engineering-clean-worktree.sh` guard 後清理。不要手動猜路徑或直接 `rm -rf`。若 local policy 使用 `framework-release-closeout.sh`，該 helper 已負責呼叫 `engineering-clean-worktree.sh`，並在 parent DP terminal 後 archive canonical DP container；不要再手動重跑 cleanup/archive 除非前次 helper 明確失敗並要求人工恢復。
 
+`finalize-engineering-delivery.sh` 清除 worktree 前必須切回 workspace root；後續 parent closeout 不得依賴即將被刪除的 implementation worktree cwd。
+
 ```bash
 bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
   --task-md "<path/to/task.md>" \
