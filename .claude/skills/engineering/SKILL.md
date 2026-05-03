@@ -132,7 +132,7 @@ task_branch: <current branch>
 task_head_sha: <git rev-parse HEAD>
 evidence:
   ci_local: /tmp/polaris-ci-local-...
-  verify: /tmp/polaris-verified-...
+  verify: <main checkout>/.polaris/evidence/verify/polaris-verified-...
   vr: /tmp/polaris-vr-... (if triggered)
 delivery_intent:
   endpoint: local_extension
@@ -150,7 +150,7 @@ Local extension lane 的完成權限來自兩段 AND：
 1. engineering evidence gates：Layer A `ci-local` + Layer B `run-verify-command` + Layer C VR（if triggered）都對應 `task_head_sha`
 2. local extension final verification：由 local policy 定義，且必須產生可回溯 completion evidence
 
-Extension 成功後必須用 local policy 宣告的 deterministic closeout path 寫回 `extension_deliverable` metadata，記錄 `task_head_sha`、workspace commit、template commit、version tag、release URL（若有）與 Layer A/B/C evidence path。若 endpoint 是 post-PR framework release，必須由 `scripts/framework-release-closeout.sh` 統一執行 metadata write、`check-local-extension-completion.sh`、task implemented move、parent closeout、worktree cleanup，以及 terminal DP parent archive；不得只手動跑 `write-extension-deliverable.sh` / `check-local-extension-completion.sh` 後宣稱完成。若已有真實 workspace PR，`deliverable` 與 `extension_deliverable` 可並存；若沒有真實 PR，仍不得把 fake PR URL 寫進 `deliverable.pr_url`。task lifecycle 只有在 local-extension completion gate PASS 後才能標 `IMPLEMENTED`。
+Extension 成功後必須用 local policy 宣告的 deterministic closeout path 寫回 `extension_deliverable` metadata，記錄 `task_head_sha`、workspace commit、template commit、version tag、release URL（若有）與 Layer A/B/C evidence path。Layer B path 應優先使用 `.polaris/evidence/verify/` durable mirror，避免 release closeout 依賴 volatile `/tmp`。若 endpoint 是 post-PR framework release，必須由 `scripts/framework-release-closeout.sh` 統一執行 metadata write、`check-local-extension-completion.sh`、task implemented move、parent closeout、worktree cleanup，以及 terminal DP parent archive；不得只手動跑 `write-extension-deliverable.sh` / `check-local-extension-completion.sh` 後宣稱完成。若已有真實 workspace PR，`deliverable` 與 `extension_deliverable` 可並存；若沒有真實 PR，仍不得把 fake PR URL 寫進 `deliverable.pr_url`。task lifecycle 只有在 local-extension completion gate PASS 後才能標 `IMPLEMENTED`。
 
 ### 0d. Duplicate Work Guard
 

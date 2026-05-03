@@ -57,6 +57,11 @@ BOOTSTRAP_PIDS=()
 TMP_OUT=""
 TMP_ERR=""
 
+if [[ -f "$SCRIPT_DIR/lib/main-checkout.sh" ]]; then
+  # shellcheck source=lib/main-checkout.sh
+  . "$SCRIPT_DIR/lib/main-checkout.sh"
+fi
+
 usage() {
   cat <<EOF >&2
 Usage:
@@ -204,6 +209,26 @@ cleanup_all() {
 }
 trap cleanup_all EXIT
 
+resolve_durable_evidence_file() {
+  local repo_path="$1"
+  local ticket="$2"
+  local head_sha="$3"
+  local evidence_root="${POLARIS_EVIDENCE_ROOT:-}"
+  local main_checkout=""
+
+  if [[ -z "$evidence_root" ]]; then
+    if declare -F resolve_main_checkout >/dev/null 2>&1; then
+      main_checkout="$(resolve_main_checkout "$repo_path" 2>/dev/null || true)"
+    fi
+    if [[ -z "$main_checkout" ]]; then
+      main_checkout="$repo_path"
+    fi
+    evidence_root="${main_checkout}/.polaris/evidence"
+  fi
+
+  printf '%s/verify/polaris-verified-%s-%s.json\n' "$evidence_root" "$ticket" "$head_sha"
+}
+
 wait_for_runtime_target() {
   local target="$1"
   local timeout="${2:-120}"
@@ -308,6 +333,7 @@ VERIFY_EXIT=$?
 
 # --- Write evidence file ---------------------------------------------------
 EVIDENCE_FILE="/tmp/polaris-verified-${TICKET}-${HEAD_SHA}.json"
+DURABLE_EVIDENCE_FILE="$(resolve_durable_evidence_file "$REPO_PATH" "$TICKET" "$HEAD_SHA")"
 AT_TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 # Pass everything to python via env to avoid quoting hell.
@@ -448,6 +474,19 @@ if [[ "$VALID" != "valid" ]]; then
   exit 1
 fi
 
+if ! mkdir -p "$(dirname "$DURABLE_EVIDENCE_FILE")"; then
+  echo "run-verify-command: failed to create durable evidence directory: $(dirname "$DURABLE_EVIDENCE_FILE")" >&2
+  exit 1
+fi
+if ! cp "$EVIDENCE_FILE" "$DURABLE_EVIDENCE_FILE"; then
+  echo "run-verify-command: failed to mirror evidence to $DURABLE_EVIDENCE_FILE" >&2
+  exit 1
+fi
+if ! cmp -s "$EVIDENCE_FILE" "$DURABLE_EVIDENCE_FILE"; then
+  echo "run-verify-command: durable evidence mirror differs from /tmp evidence: $DURABLE_EVIDENCE_FILE" >&2
+  exit 1
+fi
+
 # --- Surface stdout/stderr from verify command (after evidence write) ------
 if [[ -s "$TMP_OUT" ]]; then
   cat "$TMP_OUT"
@@ -458,9 +497,10 @@ fi
 
 # --- Final disposition ------------------------------------------------------
 if [[ "$VERIFY_EXIT" -ne 0 ]]; then
-  echo "run-verify-command: verify command exited $VERIFY_EXIT (evidence at $EVIDENCE_FILE)" >&2
+  echo "run-verify-command: verify command exited $VERIFY_EXIT (evidence at $EVIDENCE_FILE; mirror at $DURABLE_EVIDENCE_FILE)" >&2
   exit 1
 fi
 
 echo "run-verify-command: PASS — evidence at $EVIDENCE_FILE"
+echo "run-verify-command: durable evidence mirror at $DURABLE_EVIDENCE_FILE"
 exit 0

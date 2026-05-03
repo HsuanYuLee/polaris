@@ -668,7 +668,7 @@ bash "${POLARIS_ROOT}/scripts/framework-release-closeout.sh" \
   --repo "$(git rev-parse --show-toplevel)" \
   --template-repo "<template repo path>" \
   --task-md "<path/to/task.md>" \
-  --verify-evidence "<Layer B evidence path>" \
+  --verify-evidence "<Layer B durable evidence path>" \
   --ci-local-evidence "<Layer A evidence path or N/A when no ci-local is declared>" \
   --vr-evidence "<Layer C evidence path or N/A>" \
   --workspace-commit "<workspace release commit>" \
@@ -697,7 +697,7 @@ bash "${POLARIS_ROOT}/scripts/check-local-extension-completion.sh" \
   --extension-id "<local extension id>"
 ```
 
-不得呼叫不符合 local policy 的 completion gate 後忽略其 deliverable failure。Post-PR release endpoint 必須保留真實 workspace PR deliverable；PR-bypass endpoint 不得偽造 PR deliverable。Local Extension completion gate 的 authority 是 `extension_deliverable` metadata、Layer B evidence 對應 `task_head_sha`、Layer A evidence（若 repo 宣告 ci-local）、以及 local policy release commit freshness。對 `framework-release`，這個 authority 必須透過 `framework-release-closeout.sh` 產生並驗證。
+不得呼叫不符合 local policy 的 completion gate 後忽略其 deliverable failure。Post-PR release endpoint 必須保留真實 workspace PR deliverable；PR-bypass endpoint 不得偽造 PR deliverable。Local Extension completion gate 的 authority 是 `extension_deliverable` metadata、Layer B evidence 對應 `task_head_sha`、Layer A evidence（若 repo 宣告 ci-local）、以及 local policy release commit freshness。Layer B evidence path 應使用 `run-verify-command.sh` 寫入的 `.polaris/evidence/verify/` durable mirror；`/tmp/polaris-verified-...json` 只作為 hook cache。對 `framework-release`，這個 authority 必須透過 `framework-release-closeout.sh` 產生並驗證。
 
 ### Script contract（Developer / Admin / Local Extension）
 

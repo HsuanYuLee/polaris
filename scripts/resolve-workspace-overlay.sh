@@ -8,6 +8,7 @@ usage: resolve-workspace-overlay.sh --kind KIND [name] [--workspace PATH]
 Kinds:
   specs-root              Canonical ignored specs authoring root
   codex-rules             Workspace .codex runtime context
+  evidence-root           Durable local evidence mirror root
   local-skill NAME        Maintainer-local skill directory
   generated-output        docs-manager generated output directory
 EOF
@@ -85,6 +86,11 @@ case "$KIND" in
   codex-rules)
     path="$WORKSPACE/.codex"
     require_exists "$path" ".codex overlay"
+    emit "$KIND" "$path" false false
+    ;;
+  evidence-root)
+    path="${POLARIS_EVIDENCE_ROOT:-$WORKSPACE/.polaris/evidence}"
+    mkdir -p "$path"
     emit "$KIND" "$path" false false
     ;;
   local-skill)

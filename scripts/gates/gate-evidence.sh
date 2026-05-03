@@ -16,6 +16,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT=""
 TICKET=""
 
+MAIN_CHECKOUT_LIB="$(cd "$SCRIPT_DIR/.." && pwd)/lib/main-checkout.sh"
+if [[ -f "$MAIN_CHECKOUT_LIB" ]]; then
+  # shellcheck source=../lib/main-checkout.sh
+  . "$MAIN_CHECKOUT_LIB"
+fi
+
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -75,14 +81,32 @@ fi
 EVIDENCE_FILE=""
 
 new_evidence="/tmp/polaris-verified-${TICKET}-${HEAD_SHA}.json"
+durable_evidence=""
+if [[ -n "$HEAD_SHA" ]]; then
+  evidence_root="${POLARIS_EVIDENCE_ROOT:-}"
+  if [[ -z "$evidence_root" ]]; then
+    main_checkout=""
+    if declare -F resolve_main_checkout >/dev/null 2>&1; then
+      main_checkout="$(resolve_main_checkout "$REPO_ROOT" 2>/dev/null || true)"
+    fi
+    if [[ -z "$main_checkout" ]]; then
+      main_checkout="$REPO_ROOT"
+    fi
+    evidence_root="${main_checkout}/.polaris/evidence"
+  fi
+  durable_evidence="${evidence_root}/verify/polaris-verified-${TICKET}-${HEAD_SHA}.json"
+fi
 
 if [[ -n "$HEAD_SHA" && -f "$new_evidence" ]]; then
   EVIDENCE_FILE="$new_evidence"
+elif [[ -n "$HEAD_SHA" && -f "$durable_evidence" ]]; then
+  EVIDENCE_FILE="$durable_evidence"
 else
   echo "$PREFIX BLOCKED: No verification evidence for ${TICKET}" >&2
   echo "" >&2
   echo "Expected:" >&2
   echo "  ${new_evidence}  (D15 — head_sha-bound, written by run-verify-command.sh)" >&2
+  echo "  ${durable_evidence}  (durable mirror, written by run-verify-command.sh)" >&2
   echo "" >&2
   echo "Run scripts/run-verify-command.sh --task-md <path> [--ticket ${TICKET}] to produce evidence." >&2
   echo "If this is a non-ticket PR, set POLARIS_SKIP_EVIDENCE=1" >&2

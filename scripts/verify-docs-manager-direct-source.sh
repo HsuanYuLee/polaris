@@ -32,6 +32,18 @@ SPECS_ROOT="$(resolve_specs_root "$ROOT")" || {
   echo "FAIL: unable to resolve canonical specs root" >&2
   exit 1
 }
+OVERLAY_MODE=false
+
+if [[ ! -f "${SPECS_ROOT}/design-plans/archive/DP-063-docs-manager-source-unification/plan.md" ]]; then
+  MAIN_WORKSPACE_ROOT="$(resolve_specs_workspace_root "$ROOT" 2>/dev/null || true)"
+  if [[ -n "$MAIN_WORKSPACE_ROOT" && "$MAIN_WORKSPACE_ROOT" != "$ROOT" ]]; then
+    OVERLAY_SPECS_ROOT="$(resolve_specs_root "$MAIN_WORKSPACE_ROOT" 2>/dev/null || true)"
+    if [[ -f "${OVERLAY_SPECS_ROOT}/design-plans/archive/DP-063-docs-manager-source-unification/plan.md" ]]; then
+      SPECS_ROOT="$OVERLAY_SPECS_ROOT"
+      OVERLAY_MODE=true
+    fi
+  fi
+fi
 
 if [[ ! -f "${SPECS_ROOT}/design-plans/archive/DP-063-docs-manager-source-unification/plan.md" ]]; then
   echo "FAIL: canonical archived DP-063 plan not found under ${SPECS_ROOT}" >&2
@@ -39,12 +51,27 @@ if [[ ! -f "${SPECS_ROOT}/design-plans/archive/DP-063-docs-manager-source-unific
 fi
 
 if [[ "${SPECS_ROOT}" != "${DOCS_MANAGER}/src/content/docs/specs" ]]; then
-  echo "FAIL: specs root is not Starlight native content root: ${SPECS_ROOT}" >&2
-  exit 1
+  if [[ "$OVERLAY_MODE" != true ]]; then
+    echo "FAIL: specs root is not Starlight native content root: ${SPECS_ROOT}" >&2
+    exit 1
+  fi
+  if [[ "$SPECS_ROOT" != "${MAIN_WORKSPACE_ROOT}/docs-manager/src/content/docs/specs" ]]; then
+    echo "FAIL: specs overlay root is not main checkout Starlight content root: ${SPECS_ROOT}" >&2
+    exit 1
+  fi
 fi
 
-node --input-type=module <<'NODE'
+if [[ "$OVERLAY_MODE" == true ]]; then
+  echo "INFO: using read-only specs overlay: ${SPECS_ROOT}" >&2
+fi
+
+POLARIS_SPECS_ROOT="${SPECS_ROOT}" node --input-type=module <<'NODE'
 import { specsSidebar } from './docs-manager/sidebar.mjs';
+
+if (!process.env.POLARIS_SPECS_ROOT) {
+  console.error('FAIL: POLARIS_SPECS_ROOT was not provided to sidebar contract check');
+  process.exit(1);
+}
 
 function assert(condition, message) {
   if (!condition) {

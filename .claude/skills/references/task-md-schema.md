@@ -71,7 +71,7 @@ extension_deliverable:      # Lifecycle-conditional（DP-048）；local_extensio
   completed_at: 2026-04-29T00:00:00Z
   evidence:
     ci_local: /tmp/polaris-ci-local-task-DP-048-T1-abc1234.json
-    verify: /tmp/polaris-verified-DP-048-T1-abc1234.json
+    verify: <main checkout>/.polaris/evidence/verify/polaris-verified-DP-048-T1-abc1234.json
     vr: N/A
 jira_transition_log:        # Lifecycle-conditional（DP-033 D7）；engineering / verify-AC append
   - time: 2026-04-26T10:30:00Z   # ISO 8601；建議但不強制
@@ -87,7 +87,7 @@ jira_transition_log:        # Lifecycle-conditional（DP-033 D7）；engineering
 | `status` | breakdown 寫初值（可省略）；engineering Step 8a 標 `IMPLEMENTED`；verify-AC 全 PASS 標 `IMPLEMENTED`（Epic level）| Optional（值若存在須為 enum） |
 | `depends_on` | breakdown Step 14 |  Optional；存在則須為 array、長度 ≤ 1、所有 entry 須對應同 `tasks/` 下既有 task.md（含 `pr-release/` fallback，見 § 5.2） |
 | `deliverable` | engineering Step 7c (`gh pr create` 成功後) | Lifecycle-conditional — breakdown 階段不存在；engineering 寫入後須結構正確（schema + writer contract 見下） |
-| `extension_deliverable` | local_extension completion helper（DP-048） | Lifecycle-conditional — local extension completion metadata；可補充真實 workspace PR deliverable 的 post-PR release tail；不得與 fake `deliverable.pr_url` 混用 |
+| `extension_deliverable` | local_extension completion helper（DP-048） | Lifecycle-conditional — local extension completion metadata；可補充真實 workspace PR deliverable 的 post-PR release tail；不得與 fake `deliverable.pr_url` 混用；Layer B evidence path 優先使用 `.polaris/evidence/verify/` durable mirror |
 | `jira_transition_log` | engineering / verify-AC 每次跑 JIRA transition 後 append（成功 / 失敗皆記） | Lifecycle-conditional — 同上 |
 
 > Filename 為唯一 type 訊號（DP-033 D2 修正版）— frontmatter **不再有 `type` 欄位**。所有 schema dispatch 都依 filename pattern（T*.md / V*.md），請勿在 frontmatter 加 `type` 欄位。

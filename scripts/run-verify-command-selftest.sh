@@ -181,7 +181,16 @@ assert_contains "$(cat "$OUT_S")" "HELLO_STATIC" "static stdout surfaced from ve
 
 HEAD_S="$(git -C "$REPO_S" rev-parse HEAD)"
 EV_S="/tmp/polaris-verified-RVC-1-${HEAD_S}.json"
+EV_S_MIRROR="${REPO_S}/.polaris/evidence/verify/polaris-verified-RVC-1-${HEAD_S}.json"
 assert_file_exists "$EV_S" "static evidence file"
+assert_file_exists "$EV_S_MIRROR" "static durable evidence mirror"
+if cmp -s "$EV_S" "$EV_S_MIRROR"; then
+  PASS=$((PASS + 1))
+  [[ "$DEBUG" == "1" ]] && printf "  [ok] static durable evidence mirrors /tmp evidence\n"
+else
+  FAIL=$((FAIL + 1))
+  printf "  [FAIL] static durable evidence differs from /tmp evidence\n"
+fi
 
 EV_TICKET="$(python3 -c "import json; print(json.load(open('$EV_S'))['ticket'])" 2>/dev/null)"
 assert_eq "$EV_TICKET" "RVC-1" "evidence: ticket field"
@@ -228,7 +237,9 @@ RC_F=$?
 assert_eq "$RC_F" "1" "verify exit 7 → script exit 1"
 
 EV_F="/tmp/polaris-verified-RVC-FAIL-${HEAD_S}.json"
+EV_F_MIRROR="${REPO_S}/.polaris/evidence/verify/polaris-verified-RVC-FAIL-${HEAD_S}.json"
 assert_file_exists "$EV_F" "evidence file written even on FAIL"
+assert_file_exists "$EV_F_MIRROR" "durable evidence mirror written even on FAIL"
 
 EV_F_EXIT="$(python3 -c "import json; print(json.load(open('$EV_F'))['exit_code'])" 2>/dev/null)"
 assert_eq "$EV_F_EXIT" "7" "evidence: exit_code reflects FAIL"

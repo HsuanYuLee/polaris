@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.37] - 2026-05-03
+
+### Fixed — release evidence and specs overlay
+
+- Mirrored `run-verify-command.sh` evidence into `.polaris/evidence/verify/`
+  so framework release closeout no longer depends on volatile `/tmp` files.
+- Let evidence gates read the durable mirror when `/tmp` evidence is absent,
+  while preserving the same head-sha-bound schema checks.
+- Let docs-manager sidebar and direct-source verification use a read-only main
+  checkout specs overlay when implementation worktrees do not contain ignored
+  specs.
+
 ## [3.74.36] - 2026-05-03
 
 ### Changed — semantic code change flow gate

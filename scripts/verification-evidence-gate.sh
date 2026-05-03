@@ -32,6 +32,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/ci-local-path.sh
 . "$SCRIPT_DIR/lib/ci-local-path.sh"
+if [[ -f "$SCRIPT_DIR/lib/main-checkout.sh" ]]; then
+  # shellcheck source=lib/main-checkout.sh
+  . "$SCRIPT_DIR/lib/main-checkout.sh"
+fi
 
 input=$(cat)
 
@@ -112,14 +116,32 @@ if [[ -n "$gate_repo" ]] && [[ -d "$gate_repo/.git" || -f "$gate_repo/.git" ]]; 
 fi
 
 new_evidence="/tmp/polaris-verified-${ticket}-${HEAD_SHA}.json"
+durable_evidence=""
+if [[ -n "$HEAD_SHA" ]]; then
+  evidence_root="${POLARIS_EVIDENCE_ROOT:-}"
+  if [[ -z "$evidence_root" ]]; then
+    main_checkout=""
+    if declare -F resolve_main_checkout >/dev/null 2>&1; then
+      main_checkout="$(resolve_main_checkout "$gate_repo" 2>/dev/null || true)"
+    fi
+    if [[ -z "$main_checkout" ]]; then
+      main_checkout="$gate_repo"
+    fi
+    evidence_root="${main_checkout}/.polaris/evidence"
+  fi
+  durable_evidence="${evidence_root}/verify/polaris-verified-${ticket}-${HEAD_SHA}.json"
+fi
 
 if [[ -n "$HEAD_SHA" && -f "$new_evidence" ]]; then
   EVIDENCE_FILE="$new_evidence"
+elif [[ -n "$HEAD_SHA" && -f "$durable_evidence" ]]; then
+  EVIDENCE_FILE="$durable_evidence"
 else
   echo "BLOCKED: No verification evidence for ${ticket}" >&2
   echo "" >&2
   echo "Expected:" >&2
   echo "  ${new_evidence}      (DP-032 Wave β D15 — head_sha-bound, written by run-verify-command.sh)" >&2
+  echo "  ${durable_evidence}      (durable mirror, written by run-verify-command.sh)" >&2
   echo "" >&2
   echo "Run scripts/run-verify-command.sh --task-md <path> [--ticket ${ticket}] to produce evidence." >&2
   echo "If this is a non-ticket PR, set POLARIS_SKIP_EVIDENCE=1" >&2

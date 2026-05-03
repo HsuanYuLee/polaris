@@ -117,6 +117,16 @@ echo "$INPUT" | "$GATE" >/dev/null 2>&1
 assert_eq "$?" "0" "new format + writer=run-verify-command.sh + exit 0 → allow"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "=== durable mirror fallback — happy path ==="
+EV_MIRROR="${REPO_NEW}/.polaris/evidence/verify/polaris-verified-VEG-1-${HEAD_NEW}.json"
+mkdir -p "$(dirname "$EV_MIRROR")"
+cp "$EV_NEW" "$EV_MIRROR"
+rm -f "$EV_NEW"
+echo "$INPUT" | "$GATE" >/dev/null 2>&1
+assert_eq "$?" "0" "durable mirror fallback allows when /tmp evidence is absent"
+cp "$EV_MIRROR" "$EV_NEW"
+
+# ────────────────────────────────────────────────────────────────────────────
 echo "=== new format with writer = polaris-write-evidence.sh → block ==="
 cat > "$EV_NEW" <<EOF
 {

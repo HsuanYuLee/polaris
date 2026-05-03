@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const docsRoot = path.join(rootDir, 'src/content/docs');
-const specsRoot = path.join(docsRoot, 'specs');
+const specsRoot = process.env.POLARIS_SPECS_ROOT
+  ? path.resolve(process.env.POLARIS_SPECS_ROOT)
+  : path.join(docsRoot, 'specs');
 
 const folderMetadataDocNames = ['plan.md', 'epic.md', 'refinement.md', 'breakdown.md', 'README.md'];
 const fileOrder = new Map([
@@ -154,9 +156,9 @@ function readFolderMetadata(dir) {
 }
 
 function routePath(file) {
-  const relative = path.relative(docsRoot, file).replaceAll(path.sep, '/');
+  const relative = path.relative(specsRoot, file).replaceAll(path.sep, '/');
   const withoutExtension = relative.replace(/\.md$/, '');
-  return `/${withoutExtension.toLowerCase()}/`;
+  return `/specs/${withoutExtension.toLowerCase()}/`;
 }
 
 function cleanLabel(title, file) {
