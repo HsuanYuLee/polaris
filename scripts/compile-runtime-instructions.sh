@@ -69,7 +69,7 @@ list_universal_rules() {
 write_manifest_snapshot() {
   local out="$1"
   {
-    echo "source_of_truth=$MANIFEST"
+    echo "source_of_truth=.claude/instructions/manifest.yaml"
     echo "generated_at=deterministic"
     echo
     echo "[sources]"

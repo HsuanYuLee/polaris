@@ -42,12 +42,15 @@ INSTALL_DEPS="$ENV_DIR/install-project-deps.sh"
 START_CMD="$ENV_DIR/start-command.sh"
 HEALTH_CHECK="$ENV_DIR/health-check.sh"
 FIXTURES_START="$ENV_DIR/fixtures-start.sh"
+HANDBOOK_READER="$SCRIPT_DIR/handbook-config-reader.sh"
+HANDBOOK_VALIDATOR="$SCRIPT_DIR/handbook-config-validator.sh"
 
 usage() {
   cat <<EOF >&2
 Usage:
   $(basename "$0") --task-md PATH  [--workspace-config PATH] [--repo PATH] [--with-fixtures] [--ready-timeout SECONDS]
   $(basename "$0") --project NAME [--workspace-config PATH] [--repo PATH] [--with-fixtures] [--fixtures-dir PATH] [--epic NAME] [--ready-timeout SECONDS]
+  $(basename "$0") --project NAME --workspace-config PATH --resolve-config-only
 
 Chains L2 primitives: ensure-dependencies → install-project-deps → start-command
 → health-check → [fixtures-start].
@@ -65,6 +68,7 @@ WITH_FIXTURES=false
 FIXTURES_DIR=""
 EPIC=""
 READY_TIMEOUT=120
+RESOLVE_CONFIG_ONLY=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -76,6 +80,7 @@ while [[ $# -gt 0 ]]; do
     --fixtures-dir) FIXTURES_DIR="${2:-}"; shift 2 ;;
     --epic) EPIC="${2:-}"; shift 2 ;;
     --ready-timeout) READY_TIMEOUT="${2:-}"; shift 2 ;;
+    --resolve-config-only) RESOLVE_CONFIG_ONLY=true; shift ;;
     -h|--help) usage; exit 0 ;;
     -*) env_lib_log_fail "unknown flag: $1"; usage; exit 2 ;;
     *) env_lib_log_fail "unexpected positional arg: $1"; usage; exit 2 ;;
@@ -149,6 +154,132 @@ if [[ -z "$WORKSPACE_CONFIG" || ! -f "$WORKSPACE_CONFIG" ]]; then
   env_lib_log_fail "workspace-config.yaml not found"; exit 1
 fi
 
+EFFECTIVE_WORKSPACE_CONFIG="$WORKSPACE_CONFIG"
+RUNTIME_CONFIG_SOURCE="workspace_config"
+EFFECTIVE_CONFIG_TMP=""
+
+cleanup_effective_config() {
+  if [[ -n "$EFFECTIVE_CONFIG_TMP" && -f "$EFFECTIVE_CONFIG_TMP" ]]; then
+    rm -f "$EFFECTIVE_CONFIG_TMP"
+  fi
+  return 0
+}
+trap cleanup_effective_config EXIT
+
+resolve_effective_workspace_config() {
+  local company_dir project handbook_config validator_out
+  company_dir="$(dirname "$WORKSPACE_CONFIG")"
+  project="$PROJECT"
+  handbook_config="$company_dir/polaris-config/$project/handbook/config.yaml"
+
+  if [[ ! -f "$handbook_config" ]]; then
+    env_lib_log_warn "handbook config missing for $project; falling back to workspace-config dev_environment"
+    RUNTIME_CONFIG_SOURCE="workspace_config_fallback"
+    EFFECTIVE_WORKSPACE_CONFIG="$WORKSPACE_CONFIG"
+    return 0
+  fi
+
+  if [[ ! -x "$HANDBOOK_READER" || ! -x "$HANDBOOK_VALIDATOR" ]]; then
+    env_lib_log_fail "handbook config scripts are not executable"
+    exit 1
+  fi
+
+  if ! validator_out="$("$HANDBOOK_VALIDATOR" \
+      --config "$handbook_config" \
+      --project "$project" \
+      --workspace-config "$WORKSPACE_CONFIG" \
+      --require-section runtime \
+      --check-conflicts 2>&1)"; then
+    env_lib_log_fail "handbook config validation failed for $project"
+    printf '%s\n' "$validator_out" >&2
+    exit 1
+  fi
+
+  EFFECTIVE_CONFIG_TMP="$(mktemp /tmp/polaris-start-test-env-effective.XXXXXX)"
+  python3 - "$WORKSPACE_CONFIG" "$handbook_config" "$project" "$EFFECTIVE_CONFIG_TMP" <<'PY'
+import sys
+
+try:
+    import yaml
+except Exception as exc:
+    print(f"PyYAML is required: {exc}", file=sys.stderr)
+    sys.exit(2)
+
+workspace_path, handbook_path, project, out_path = sys.argv[1:5]
+
+with open(workspace_path, encoding="utf-8") as handle:
+    workspace = yaml.safe_load(handle) or {}
+with open(handbook_path, encoding="utf-8") as handle:
+    handbook = yaml.safe_load(handle) or {}
+
+runtime = handbook.get("runtime") or {}
+test = handbook.get("test") or {}
+if not isinstance(runtime, dict):
+    print("runtime section must be a mapping", file=sys.stderr)
+    sys.exit(1)
+if not isinstance(test, dict):
+    test = {}
+
+projects = workspace.get("projects") or []
+target = None
+for item in projects:
+    if isinstance(item, dict) and item.get("name") == project:
+        target = item
+        break
+if target is None:
+    target = {"name": project}
+    projects.append(target)
+    workspace["projects"] = projects
+
+env = target.get("dev_environment")
+if not isinstance(env, dict):
+    env = {}
+    target["dev_environment"] = env
+
+mapping = {
+    "start_command": runtime.get("start_command"),
+    "base_url": runtime.get("base_url"),
+    "health_check": runtime.get("health_check"),
+    "ready_signal": runtime.get("healthy_signal"),
+    "requires": runtime.get("requires"),
+    "test_command": test.get("command"),
+}
+for key, value in mapping.items():
+    if value is not None:
+        env[key] = value
+
+with open(out_path, "w", encoding="utf-8") as handle:
+    yaml.safe_dump(workspace, handle, allow_unicode=True, sort_keys=False)
+PY
+  RUNTIME_CONFIG_SOURCE="handbook_config"
+  EFFECTIVE_WORKSPACE_CONFIG="$EFFECTIVE_CONFIG_TMP"
+  env_lib_log_info "using handbook config for $project: $handbook_config"
+}
+
+resolve_effective_workspace_config
+
+if $RESOLVE_CONFIG_ONLY; then
+  env_json="$(env_lib_get_project_env "$EFFECTIVE_WORKSPACE_CONFIG" "$PROJECT" 2>/dev/null || true)"
+  if [[ -z "$env_json" ]]; then
+    env_lib_log_fail "project '$PROJECT' has no effective dev_environment"
+    exit 1
+  fi
+  python3 - "$PROJECT" "$RUNTIME_CONFIG_SOURCE" "$EFFECTIVE_WORKSPACE_CONFIG" "$env_json" <<'PY'
+import json
+import sys
+project, source, config_path, env_json = sys.argv[1:5]
+print(json.dumps({
+    "primitive": "start-test-env",
+    "step": "resolve-config",
+    "project": project,
+    "source": source,
+    "workspace_config": config_path,
+    "dev_environment": json.loads(env_json),
+}, ensure_ascii=False, sort_keys=True))
+PY
+  exit 0
+fi
+
 # ── Infer launch cwd from router's companies[].base_dir + project name ──────
 # Best-effort. If the router config can't be located or the path doesn't
 # exist, leave PROJECT_CWD empty and let start-command default to $PWD.
@@ -190,7 +321,7 @@ env_lib_log_info "orchestrator config: project=$PROJECT, cwd=${PROJECT_CWD:-<PWD
 
 # ── Step 1: ensure-dependencies ─────────────────────────────────────────────
 env_lib_log_info "Step 1/4: ensure-dependencies"
-ed_args=("--project" "$PROJECT" "--workspace-config" "$WORKSPACE_CONFIG" "--ready-timeout" "$READY_TIMEOUT")
+ed_args=("--project" "$PROJECT" "--workspace-config" "$EFFECTIVE_WORKSPACE_CONFIG" "--ready-timeout" "$READY_TIMEOUT")
 if [[ -n "$PROJECT_CWD" ]]; then
   ed_args+=("--cwd-base" "${COMPANY_BASE_DIR:-$(dirname "$PROJECT_CWD")}")
 fi
@@ -202,7 +333,7 @@ echo "{\"primitive\":\"start-test-env\",\"step\":\"ensure-dependencies\",\"statu
 
 # ── Step 2: install-project-deps (target project) ───────────────────────────
 env_lib_log_info "Step 2/5: install-project-deps for $PROJECT"
-id_args=("--project" "$PROJECT" "--workspace-config" "$WORKSPACE_CONFIG")
+id_args=("--project" "$PROJECT" "--workspace-config" "$EFFECTIVE_WORKSPACE_CONFIG")
 [[ -n "$PROJECT_CWD" ]] && id_args+=("--cwd" "$PROJECT_CWD")
 id_out="$("$INSTALL_DEPS" "${id_args[@]}")" || {
   env_lib_log_fail "Step 2/5 install-project-deps FAILED"
@@ -212,7 +343,7 @@ echo "{\"primitive\":\"start-test-env\",\"step\":\"install-project-deps\",\"stat
 
 # ── Step 3: start-command (target project) ──────────────────────────────────
 env_lib_log_info "Step 3/5: start-command for $PROJECT"
-sc_args=("--project" "$PROJECT" "--workspace-config" "$WORKSPACE_CONFIG" "--ready-timeout" "$READY_TIMEOUT")
+sc_args=("--project" "$PROJECT" "--workspace-config" "$EFFECTIVE_WORKSPACE_CONFIG" "--ready-timeout" "$READY_TIMEOUT")
 [[ -n "$PROJECT_CWD" ]] && sc_args+=("--cwd" "$PROJECT_CWD")
 sc_out="$("$START_CMD" "${sc_args[@]}")" || {
   env_lib_log_fail "Step 3/5 start-command FAILED"
@@ -222,10 +353,10 @@ sc_out="$("$START_CMD" "${sc_args[@]}")" || {
 echo "{\"primitive\":\"start-test-env\",\"step\":\"start-command\",\"status\":\"PASS\",\"detail\":$sc_out}"
 
 # ── Step 4: health-check (target project) ───────────────────────────────────
-env_json="$(env_lib_get_project_env "$WORKSPACE_CONFIG" "$PROJECT" 2>/dev/null || true)"
+env_json="$(env_lib_get_project_env "$EFFECTIVE_WORKSPACE_CONFIG" "$PROJECT" 2>/dev/null || true)"
 target_url="$(printf '%s' "$env_json" | env_lib_get_field 'health_check' 2>/dev/null || true)"
 if [[ -z "$target_url" ]]; then
-  env_lib_fail_loud_missing_field "$PROJECT" "health_check" "$WORKSPACE_CONFIG" '"http://localhost:..."  # so the orchestrator can confirm liveness"'
+  env_lib_fail_loud_missing_field "$PROJECT" "health_check" "$EFFECTIVE_WORKSPACE_CONFIG" '"http://localhost:..."  # so the orchestrator can confirm liveness"'
   exit 1
 fi
 env_lib_log_info "Step 4/5: health-check $target_url"

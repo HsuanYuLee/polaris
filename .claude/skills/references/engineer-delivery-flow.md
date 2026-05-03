@@ -48,6 +48,7 @@
 
 1. **單一源** — execution 紀律在此定義，skill 不重寫。skill SKILL.md 只負責路由、輸入解析、角色標註，具體怎麼做全部讀這份。
 2. **框架無關** — 不寫死 Nuxt / Laravel / Rails 的命令。repo 的啟動方式由 **workspace-config + handbook config** 宣告（D11 composable primitives），script 消費宣告，不假設 stack。這也包含 **依賴安裝**：worktree / fresh checkout 在跑任何 test / build / dev-server 前，先透過 `scripts/env/install-project-deps.sh` 讀 task.md；`Level=static` 時 script 回傳 `noop_static` PASS，不讀 project config；其他 level 才讀 `projects[].dev_environment.install_command`，未宣告時由 script 根據 lockfile / manifest 決定（`pnpm-lock.yaml` → `pnpm install --frozen-lockfile`、`poetry.lock` → `poetry install --sync` 等），避免把「先裝套件」留給 LLM 自行猜測。
+   - **Handbook machine fields boundary（DP-035）**：script-consumable project runtime / test / URL mapping / key library 欄位的 target source 是 `{company}/polaris-config/{project}/handbook/config.yaml`；`handbook/*.md` 只提供 narrative / rationale，不可被 script 當資料庫解析。過渡期 `start-test-env.sh` 使用 handbook config first；若 config 缺失才 explicit fallback 到 `workspace-config.yaml`，且 duplicate field conflict 由 validator fail loud。
 3. **task.md authoritative（D1）** — task.md 是 engineering 內部的唯一 state container。Verification URLs, allowed files, verify command, deliverable 全在 task.md。Engineering 對 JIRA 是 write-only（side-effect display）。
 4. **Positive-evidence + fail-loud（D11/D12）** — script exit 0 必須代表「實際做了且通過」；config 缺失 → fail loud，不 fallback 推論。
 5. **Evidence 只由 script 產出（D15/D16）** — LLM 不直接寫 evidence file（hook 物理擋 Write/Edit on `/tmp/polaris-verified-*` / `/tmp/polaris-ci-local-*`）；evidence `writer` 欄位 + whitelist gate 提供 cross-LLM 保護。
@@ -274,7 +275,7 @@ bash "${POLARIS_ROOT}/scripts/run-verify-command.sh" "<path/to/task.md>"
 2. D17 level-based dispatch：
    - `Level=static` → 直接執行 verify command
    - `Level=build` → 先呼叫 `run-test-prep.sh` → 再執行
-   - `Level=runtime` → 先呼叫 `start-test-env.sh` orchestrator（D11 L3；透過 `--repo` 指向實際 checkout/worktree）→ 再執行
+   - `Level=runtime` → 先呼叫 `start-test-env.sh` orchestrator（D11 L3；透過 `--repo` 指向實際 checkout/worktree；runtime config source 由 DP-035 handbook config reader 決定，缺 handbook config 時才 explicit fallback）→ 再執行
 3. 在 `--repo` 解析出的 repo/worktree root 執行 fenced shell verify command；相對路徑不得依賴 agent 呼叫時的 shell cwd。Evidence 記錄 `execution_cwd`
 4. Captures stdout/stderr/exit + sha256 hash
 5. Best-effort `curl URL → HTTP status` extraction from output

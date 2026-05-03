@@ -100,7 +100,7 @@ check_no_runtime_polaris_sync_references() {
 
 check_polaris_config_git_policy() {
   local tracked
-  tracked="$(git -C "$ROOT_DIR" ls-files -- '*/polaris-config' '*/polaris-config/*' 2>/dev/null || true)"
+  tracked="$(git -C "$ROOT_DIR" ls-files -- '*/polaris-config' '*/polaris-config/*' 2>/dev/null | grep -v '^scripts/fixtures/' || true)"
   if [[ -n "$tracked" ]]; then
     fail "polaris-config must be local-only and not git tracked:"
     printf '%s\n' "$tracked" >&2
@@ -115,7 +115,7 @@ check_polaris_config_git_policy() {
     -not -path "$ROOT_DIR/.claude/worktrees/*" 2>/dev/null | sort)
 
   local dir rel
-  for dir in "${config_dirs[@]}"; do
+  for dir in ${config_dirs[@]+"${config_dirs[@]}"}; do
     rel="${dir#$ROOT_DIR/}"
     if ! git -C "$ROOT_DIR" check-ignore -q "$rel" 2>/dev/null; then
       fail "polaris-config directory is not ignored: $rel"

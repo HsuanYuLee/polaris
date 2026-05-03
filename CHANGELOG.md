@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.43] - 2026-05-04
+
+### Changed — handbook config machine source contract
+
+- Added deterministic handbook config reader / validator fixtures for project
+  runtime machine fields and migration conflict detection.
+- Wired `start-test-env.sh` to resolve runtime config from project handbook
+  config first, with explicit workspace-config fallback and conflict failure.
+- Documented the handbook machine-source boundary in delivery and mechanism
+  registries, and refreshed docs-health route assertions for archived DP tasks.
+- Aligned docs-health direct-source canaries with both DP-035 active repair
+  and post-closeout badge states used by the release flow.
+
 ## [3.74.42] - 2026-05-04
 
 ### Fixed — revision rebase stacked base drift
