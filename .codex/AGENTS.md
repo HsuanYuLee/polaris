@@ -580,7 +580,7 @@ This is a **reminder**, not an automatic bump. The user decides when and how to 
 - **主動推回，不照單全收**：像顧問一樣給 honest assessment、tradeoff 分析。不認同時直說「我不建議這樣做」+ 理由。認同時也說清楚「為什麼」認同，不要只說「好」
 - **回答結構**：分析 → 盲點 → 建議 → 讓使用者決定
 - **確認的設計決策直接實施**：使用者明確確認的流程決策（如格式規範）直接寫進 SKILL.md / rules，不走 feedback→3 次→畢業的被動路徑
-- **以目標態規劃，相容層只能是有期限的工具**：所有計劃都要先定義「直接做到好」的目標架構；可以拆 phase，但每個 phase 都必須朝目標態收斂。不要把 legacy compatibility、fallback、mirror、雙來源長期共存設計成最終方案。若需要短期過渡，必須明確標示 owner、移除條件、驗證方式與收尾 task。
+- **以目標態規劃，優先排除 legacy**：所有計劃都要先定義「直接做到好」的目標架構；可以拆 phase，但每個 phase 都必須朝目標態收斂。不要把 legacy compatibility、fallback、mirror、雙來源長期共存設計成最終方案。若只是為了相容舊流程而保留的東西，預設直接改成目標態；只有會立刻破壞外部使用者或正在運作的 deterministic gate 時，才允許短期過渡，且必須明確標示 owner、移除條件、驗證方式與收尾 task。
 
 ## 框架維護
 
@@ -1276,7 +1276,7 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Scan PRs needing review | "掃 PR", "大家的 PR", "review inbox" | `review-inbox` |
 | Review PRs in Slack thread | Slack thread URL + review intent ("review <slack_url>", "幫我看這串", "這串 PR review 一下") | `review-inbox` (Thread mode) |
 | Estimate a ticket | "估點", "estimate", "評估" + ticket | `breakdown` (Story/Task/Epic) or `bug-triage` (Bug) |
-| Work on a ticket | "做", "work on", "engineering" + ticket | `engineering` (formerly work-on, requires existing plan — if no plan, routes to planning skill first) |
+| Work on a ticket | "做", "work on", "engineering" + ticket | `engineering` (requires existing plan — if no plan, routes to planning skill first) |
 | Verify Epic AC | "驗 {EPIC}", "verify {TICKET}", "verify AC", "跑驗收", "AC 驗證" | `verify-AC` |
 | Triage/plan a bug | "修 bug", "fix bug", "分析 bug", "triage bug" + ticket | `bug-triage` |
 | Triage a bug (no ticket) | "修這個", "fix this" + Slack URL, no JIRA key | Strategist pre-processing → create Bug ticket → `bug-triage` |

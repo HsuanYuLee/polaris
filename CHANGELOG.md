@@ -4,6 +4,22 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.35] - 2026-05-03
+
+### Changed — target-state legacy cleanup
+
+- Removed legacy skill routing and docs references so framework work routes
+  through the current `engineering`, `breakdown`, `converge`, and `verify-AC`
+  contracts.
+- Removed the legacy `polaris-write-evidence.sh` writer and ticket-only
+  verification evidence fallback; gates now require head-sha-bound evidence
+  written by `run-verify-command.sh`.
+- Added a personal handbook rule to prefer direct target-state migration over
+  retaining compatibility scaffolding, with explicit removal criteria required
+  for any short-lived migration aid.
+- Updated zh-TW quick start MCP guidance and regenerated Copilot runtime
+  instructions from the rule source.
+
 ## [3.74.34] - 2026-05-02
 
 ### Changed — framework backlog convergence closeout

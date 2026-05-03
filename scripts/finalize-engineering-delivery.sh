@@ -3,14 +3,14 @@ set -euo pipefail
 
 # finalize-engineering-delivery.sh — Developer-lane completion closer.
 #
-# This helper binds the pre-report completion gate to the task lifecycle
-# write-back so agents do not report completion while forgetting the
-# move-first pr-release closeout.
+# This helper binds the pre-report completion gate to task lifecycle closeout
+# and implementation worktree cleanup so agents do not report completion while
+# forgetting the move-first pr-release closeout.
 #
 # Usage:
 #   bash scripts/finalize-engineering-delivery.sh --repo <repo> --ticket <KEY> [--workspace <path>] [--status IMPLEMENTED]
 #
-# Exit: 0 = completion gate passed and task lifecycle finalized
+# Exit: 0 = completion gate passed, task lifecycle finalized, cleanup attempted
 #       1 = invalid input / lifecycle verification failed
 #       2 = completion gate or mark-spec helper blocked
 
@@ -150,6 +150,12 @@ ACTUAL_STATUS="$(extract_frontmatter_scalar "$TASK_MD_PATH" "status")"
 if [[ "$ACTUAL_STATUS" != "$STATUS" ]]; then
   echo "$PREFIX finalized task status mismatch: expected ${STATUS}, got ${ACTUAL_STATUS:-<empty>} in ${TASK_MD_PATH}" >&2
   exit 1
+fi
+
+echo "$PREFIX cleaning implementation worktree for ${TICKET} ..." >&2
+if ! bash "${SCRIPT_DIR}/engineering-clean-worktree.sh" --task-md "$TASK_MD_PATH" --repo "$REPO_ROOT"; then
+  echo "$PREFIX implementation worktree cleanup failed after task lifecycle finalized" >&2
+  exit 2
 fi
 
 echo "$PREFIX attempting parent spec closeout for ${TICKET} ..." >&2

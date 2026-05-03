@@ -232,7 +232,7 @@ flowchart LR
 - Every skill has at least one inbound edge (invoked by another skill) or is a direct user entry point
 - `intake-triage` analyzes a batch of PM-created tickets, evaluates priority, and outputs JIRA labels + comments + a Slack summary — sits between `my-triage` (personal daily) and `sprint-planning` (team sprint)
 - `my-triage` triages all assigned work (Epics, Bugs, orphan Tasks); also acts as the zero-input router (「下一步」「繼續」等 no-topic-keyword 詞) via Step 0 Resume scan (branch-ticket + MEMORY.md Hot + recent checkpoints + wip/* branches); feeds priority ranking into `standup` TDT section
-- `converge` pushes all in-flight work toward review in one pass — closes gaps, batch-triggers PRs, and includes Epic progress tracking (formerly `epic-status`). Triggered by "收斂", "converge", "push to review", "epic 進度", "epic 狀態"
+- `converge` pushes all in-flight work toward review in one pass — closes gaps, batch-triggers PRs, and includes Epic progress tracking. Triggered by "收斂", "converge", "push to review", "epic 進度", "epic 狀態"
 - `standup` (v2.0) is the unified entry point for daily standup and end-of-day routines — includes auto-triage (Step 0); triggered directly by the user
 - `visual-regression` runs as `engineer-delivery-flow` Step 3.5 (after behavioral verify, before pre-PR review) when changed files hit a VR-configured domain. Optional but recommended for layout/styling changes
 - `unit-test`, `learning` are standalone skills — triggered directly by the user, not part of the main chain

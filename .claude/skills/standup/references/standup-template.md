@@ -101,7 +101,7 @@
 **不要這樣**：
 ```markdown
 * AI 工具 / Skills 改善（NO-JIRA）
-    * Claude Code skills 多項強化：verify-completion test plan workflow、parallel Explore subagent pattern... `🟢 additional`
+    * Claude Code skills 多項強化：engineering verification workflow、parallel Explore subagent pattern... `🟢 additional`
     * Workspace CLAUDE.md 更新：Explore-then-Implement / Plan-first / batch Worktree 規則 `🟢 additional`
 ```
 

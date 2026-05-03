@@ -9,8 +9,8 @@
 - **Pre-PR / pre-push CI gate (enforced by hook)**: `.claude/hooks/ci-local-gate.sh` intercepts `git commit` / `git push` / `gh pr create`. It reads `/tmp/polaris-ci-local-{branch}-{head_sha}.json` (cache hit fast-path) or sync-runs `ci-local.sh` on cache miss. Push only intercepts `task/*` / `fix/*` branches. Bypass `POLARIS_SKIP_CI_LOCAL=1` (emergency only)
 
 ## Review
-- **Self-review of your own PR is strictly forbidden**: under no circumstances (bug-triage, fix-pr-review, after opening a PR) may you submit a GitHub review comment on your own PR. Review is only for reviewing others' code
-- **Rebase before submitting a review or re-review**: at the start of fix-pr-review, rebase the base branch before making fixes; also rebase before sending a review request via review-pr / git-pr-workflow
+- **Self-review of your own PR is strictly forbidden**: under no circumstances (bug-triage, engineering revision mode, after opening a PR) may you submit a GitHub review comment on your own PR. Review is only for reviewing others' code
+- **Rebase before submitting a review or re-review**: at the start of engineering revision mode, rebase the base branch before making fixes; also rebase before sending a review request via review-pr / engineering delivery flow
 - **Report PR approval status after completing a review**: after review-pr finishes, report approval progress (current X/{required} approves); the required approvals count is read from `github.required_approvals` in the workspace config
 - **Pre-PR review loop is capped at 3 rounds**: if blocking issues remain after 3 rounds, list the outstanding issues and ask the user
 - **Every review comment must receive a response**: regardless of whether a fix was made, always reply (fixed / reason not fixed / needs discussion)

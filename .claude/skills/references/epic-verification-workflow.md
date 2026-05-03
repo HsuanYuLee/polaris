@@ -8,7 +8,7 @@ Reference doc for the three-layer verification structure. Not yet integrated int
 - [x] Epic #1 試跑完成，記錄調整項（PROJ-483, 2026-04-05）
 - [x] Reference doc 根據 Epic #1 修正（加入 Playwright browser-first、URL 規範、測資來源）
 - [ ] Epic #2 驗證完成，無結構性修改
-- [ ] 畢業 → 改進 breakdown, epic-status, engineering
+- [ ] 畢業 → 改進 breakdown, converge, engineering
 
 **Graduation signal:** 連續 2 個 Epic 走完流程且 doc 核心流程不需修改。
 
@@ -174,7 +174,7 @@ Feature PR merge 到 develop 後：
 
 ### Stale Fixture Hygiene
 
-Fixture folder 超過 30 天未更新 + Epic status 不是 In Development → 標記為 stale，提醒刪除。可在 `converge` 或 `epic-status` 中 check。
+Fixture folder 超過 30 天未更新 + Epic status 不是 In Development → 標記為 stale，提醒刪除。由 `converge` check。
 
 ### VR 判定模式：Figma Match vs Strict
 
@@ -270,7 +270,7 @@ Feature PR 前：
 - 標記依賴：depends on 所有實作單
 
 **When to run:**
-- `epic-status` 偵測所有實作單 PR merged 回 feature branch 後提醒
+- `converge` 偵測所有實作單 PR merged 回 feature branch 後提醒
 - 驗收前先 rebase develop（確保 feature branch 是最新的）
 
 **Environment tagging:**
@@ -317,7 +317,7 @@ Layer 3 的 determinism 依賴 Mockoon fixtures。Fixtures 跟著 Epic 生命週
 |----------|------|--------|
 | Polaris 幫 merge task → feat | 整合完立刻跑 | 最高（確定性） |
 | 手動 merge 後使用者說「繼續」/「next」 | my-triage Step 0 Resume scan 偵測 feat branch 有新 commit | 高 |
-| 跑 epic-status / converge | 推進前兜底 | 中（可能距離整合已有時間差） |
+| 跑 converge | 推進前兜底 | 中（可能距離整合已有時間差） |
 | 開 feature PR 到 develop | engineering quality gate | 兜底（最後防線） |
 
 四層觸發同一個動作：收集 feat branch 上所有已整合子單的驗證項，全部跑一輪。
@@ -511,7 +511,7 @@ VR Gate 在 Local CI Mirror 之後、commit 之前。這樣 VR fail 時還沒 co
 |-------|--------------|
 | `refinement` | Phase 1/2 確認 Epic 附有目標驗證頁清單 |
 | `breakdown` | 拆單時在 API 單之後、實作單之前插入穩定測資單；最後自動產生 per-AC 驗收單 + 整合測試單 |
-| `epic-status` | Phase 1 偵測「所有 task merged → 提醒開始驗收」。Phase 2 路由驗收 gap。Check stale fixture folders |
+| `converge` | 偵測「所有 task merged → 提醒開始驗收」。路由驗收 gap。Check stale fixture folders |
 | `engineering` | 建 task 時自動建測試計劃 sub-task。每張 task 必須通過 VR |
 | `breakdown` (estimation) | 估點時產生測試計劃 template |
 | `engineer-delivery-flow` § Step 3.5 | VR 條件觸發 |
@@ -527,5 +527,5 @@ VR Gate 在 Local CI Mirror 之後、commit 之前。這樣 VR fail 時還沒 co
 | AC 只能在 stage 驗 | 標記 `env:stage`，feature branch 階段跳過，stage deploy 後跑 |
 | 驗收跑出非預期差異 | 評估是否開 fix ticket 或接受差異，記錄在驗收 ticket comment |
 | Feature branch 跟 develop 衝突 | rebase + 解衝突後重跑整合測試 |
-| 某張 task PR 一直沒 merge | `epic-status` Phase 2 路由 → engineering revision mode 或催 review |
+| 某張 task PR 一直沒 merge | `converge` 路由 → engineering revision mode 或催 review |
 | QA/PM 沒提供 happy flow | RD 根據 Epic AC 自擬，標記「RD 推斷，待 PM 確認」 |

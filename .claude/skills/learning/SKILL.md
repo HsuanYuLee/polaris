@@ -173,7 +173,7 @@ Baseline Snapshot (framework target):
     - [pattern] sub-agent completion envelope prevents silent failures (confidence: 8)
     - [pitfall] worktree path translation missed in 2 sessions (confidence: 6)
   Delegation: self-regulation scoring, worktree isolation, model tiers
-  Quality gates: dev-quality-check, verify-completion iron rule, re-test-after-fix
+  Quality gates: engineer-delivery-flow, verify-AC iron rule, re-test-after-fix
   Feedback loop: post-task reflection, direct rule promotion, mechanism registry
   Known gaps: context monitor hook (blocked), wave-based parallel (backlog)
 ```
@@ -234,7 +234,7 @@ Extract using **target-specific categories**:
 | Rules & mechanisms | `rules/*.md`, `mechanism-registry.md` | Behavioral constraints, enforcement patterns, canary signals |
 | Skill patterns | `skills/` | Workflow design, step sequencing, error handling |
 | Delegation strategies | `sub-agent-delegation.md` | Task splitting, model selection, isolation patterns |
-| Quality enforcement | `verify-completion`, `dev-quality-check` | Verification gates, test requirements, anti-patterns |
+| Quality enforcement | `engineer-delivery-flow`, `verify-AC` | Verification gates, test requirements, anti-patterns |
 | Scripts & automation | `scripts/` | Deterministic logic, hook scripts, CLI tools |
 | Context management | `context-monitoring.md` | Window management, compression strategies, state preservation |
 | Knowledge compilation | `skills/references/knowledge-compilation-protocol.md` | Atom vs Derived boundary, backwrite policy, parallel naming lock |

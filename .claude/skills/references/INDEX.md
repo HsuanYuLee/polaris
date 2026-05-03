@@ -9,7 +9,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [jira-story-points.md](jira-story-points.md) | Story Points 欄位 ID 動態探測與讀寫驗證 | breakdown, jira-subtask-creation, editJiraIssue with SP |
 | [jira-subtask-creation.md](jira-subtask-creation.md) | 批次建 JIRA 子單流程：查既有→建單→估點→測試計畫→驗收 | breakdown, createJiraIssue, engineering |
 | [epic-verification-structure.md](epic-verification-structure.md) | 驗收架構：測試計畫/AC 驗證分離、測試 Sub-task、驗收單 lifecycle | breakdown, jira-subtask-creation, engineering |
-| [epic-verification-workflow.md](epic-verification-workflow.md) | Epic 驗證完整流程：fixture lifecycle、VR gate、feature branch flow | breakdown, engineering, visual-regression, converge, epic-status |
+| [epic-verification-workflow.md](epic-verification-workflow.md) | Epic 驗證完整流程：fixture lifecycle、VR gate、feature branch flow | breakdown, engineering, visual-regression, converge |
 | [pipeline-handoff.md](pipeline-handoff.md) | Pipeline 角色邊界與 handoff contract：breakdown/engineering/verify-AC/bug-triage + task.md schema + AC-FAIL disposition gate | breakdown, engineering, verify-AC, bug-triage, refinement |
 | [escalation-flavor-guide.md](escalation-flavor-guide.md) | Engineering scope-escalation sidecar 的 flavor 分類決策樹（plan-defect / scope-drift / env-drift）+ worked examples | engineering（寫 sidecar）, breakdown（intake path 重新分類） |
 | [refinement-return-inbox.md](refinement-return-inbox.md) | breakdown route refinement 時的 inbox record 契約；refinement 只讀 inbox、不讀 engineering raw sidecar | breakdown（route refinement）, refinement（return inbox intake）, engineering（lineage cap routing） |
@@ -44,9 +44,9 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [changeset-convention-default.md](changeset-convention-default.md) | Changeset L3 兜底規範（filename slug、frontmatter `{package}: patch` default、description = task title、`ticket_prefix_handling=strip` default、idempotent skip） | engineering, breakdown（task.md `deliverables.changeset` 宣告生產端） |
 | [branch-creation.md](branch-creation.md) | JIRA ticket / DP task → branch 建立流程（含 dependency branch 偵測） | engineering |
 | [cascade-rebase.md](cascade-rebase.md) | Feature branch PR stack 的 cascade rebase 邏輯 | engineering, check-pr-approvals |
-| [feature-branch-pr-gate.md](feature-branch-pr-gate.md) | Task PR 全 merge 後自動建 feature→develop PR 的偵測邏輯 | epic-status, check-pr-approvals, engineering |
+| [feature-branch-pr-gate.md](feature-branch-pr-gate.md) | Task PR 全 merge 後自動建 feature→develop PR 的偵測邏輯 | converge, check-pr-approvals, engineering |
 | [pr-input-resolver.md](pr-input-resolver.md) | PR URL/number/branch → owner+repo+number 解析 | review-pr, engineering, check-pr-approvals |
-| [stale-approval-detection.md](stale-approval-detection.md) | PR approval 失效偵測：approved before last push = 無效 | check-pr-approvals, review-inbox, epic-status |
+| [stale-approval-detection.md](stale-approval-detection.md) | PR approval 失效偵測：approved before last push = 無效 | check-pr-approvals, review-inbox, converge |
 
 ## Slack Integration
 

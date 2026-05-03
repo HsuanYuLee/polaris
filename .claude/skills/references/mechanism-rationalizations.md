@@ -106,7 +106,7 @@ These mechanisms are enforced by **scripts + hooks** (exit code driven), not beh
 }
 ```
 
-**Writer**: `scripts/polaris-write-evidence.sh --ticket TASK-123 --task-md <path/to/task.md> --result "PASS: ..."` — called by engineering (engineer-delivery-flow Step 3) or manually after verification.
+**Writer**: `scripts/run-verify-command.sh --ticket TASK-123 --task-md <path/to/task.md> --repo <repo> -- <verify command>` — called by engineering (engineer-delivery-flow Step 3). Manual verification must still go through this script so evidence is tied to the current `head_sha`.
 
 `runtime_contract` 是 PR gate 的硬門檻。`level=runtime` 時，gate 會檢查 live target 與 verify URL host 對齊，不合規直接 block `gh pr create`。
 

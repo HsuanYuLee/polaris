@@ -195,13 +195,13 @@ try:
     data = json.load(open(path, encoding="utf-8"))
     actual_ticket = data.get("ticket")
     actual_sha = str(data.get("head_sha") or "")
-    writer = data.get("writer", "polaris-write-evidence.sh")
+    writer = data.get("writer")
     exit_code = data.get("exit_code")
     if actual_ticket != task_id:
         raise AssertionError(f"ticket mismatch: evidence={actual_ticket!r} expected={task_id!r}")
     if not (actual_sha == expected_sha or actual_sha.startswith(expected_sha) or expected_sha.startswith(actual_sha)):
         raise AssertionError(f"head_sha mismatch: evidence={actual_sha} expected={expected_sha}")
-    if writer not in {"run-verify-command.sh", "polaris-write-evidence.sh"}:
+    if writer != "run-verify-command.sh":
         raise AssertionError(f"writer not allowed: {writer!r}")
     if int(exit_code) != 0:
         raise AssertionError(f"exit_code must be 0, got {exit_code!r}")

@@ -232,7 +232,7 @@ flowchart LR
 - 每個技能至少有一條入邊（被其他技能呼叫）或是使用者直接觸發的進入點
 - `intake-triage` 分析 PM 開出的一批 ticket，評估優先序，產出 JIRA label + comment + Slack 摘要 — 介於 `my-triage`（個人日常）和 `sprint-planning`（團隊 Sprint）之間
 - `my-triage` 盤點所有已指派工作（Epic、Bug、孤兒 Task）；同時擔任零輸入路由器（「下一步」「繼續」等不帶 topic keyword 的觸發詞）— 透過 Step 0 Resume scan（branch-ticket + MEMORY.md Hot + 最近 checkpoint + `wip/*` branches）處理跨 session 恢復；優先順序排名會傳入 `standup` 的 TDT 區段
-- `converge` 一次把所有進行中的工作推進到 review：批次觸發 PR、補全缺口，含 Epic 進度追蹤（原 `epic-status` 已併入）。觸發詞：「收斂」、「推進」、「converge」、「epic 進度」、「epic 狀態」
+- `converge` 一次把所有進行中的工作推進到 review：批次觸發 PR、補全缺口，含 Epic 進度追蹤。觸發詞：「收斂」、「推進」、「converge」、「epic 進度」、「epic 狀態」
 - `standup`（v2.0）是每日站會和下班收工的統一進入點 — 含自動 triage（Step 0）；由使用者直接觸發
 - `visual-regression` 作為 `engineer-delivery-flow` Step 3.5 執行（行為驗證之後、Pre-PR Review 之前），當改動的檔案命中 VR 設定的 domain 時觸發。選擇性但建議用於版面/樣式變更
 - `unit-test`、`learning` 是獨立技能 — 由使用者直接觸發，不在主鏈路中

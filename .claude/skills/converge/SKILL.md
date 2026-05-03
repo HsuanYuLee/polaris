@@ -263,7 +263,6 @@ Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/reference
 ## Epic 模式 vs 全域模式
 
 如果使用者指定了特定 Epic key（例：`converge PROJ-100`），只掃描該 Epic 及其子單，不掃全部。
-這等同於原本 `epic-status` 的行為。
 
 如果沒指定 ticket → 全域模式，掃描所有 assigned work。
 
@@ -291,8 +290,6 @@ Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/reference
 | Skill | 變化 |
 |-------|------|
 | `my-triage` | 不變，純儀表板 |
-| `epic-status` | 保留為 converge 的 Epic-only alias |
-| `engineering` | 不變，converge 的下游執行器 |
 | `engineering` | 不變，converge 的下游執行器 |
 | `check-pr-approvals` | 不變，converge 的下游執行器 |
 | `breakdown` | 不變，converge 的下游執行器 |
@@ -304,7 +301,7 @@ Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/reference
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 1.0.0 | 2026-04-03 | Initial release — absorbs epic-status gap analysis, adds batch orchestration |
+| 1.0.0 | 2026-04-03 | Initial release — adds Epic gap analysis and batch orchestration |
 
 
 ## Post-Task Reflection (required)

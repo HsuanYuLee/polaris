@@ -63,6 +63,7 @@ Before running `git commit`, execute these checks:
 | Version docs lint | `scripts/check-version-bump-reminder.sh` | If VERSION staged, run readme-lint |
 | Task.md schema | `scripts/validate-task-md.sh {path}` | Required sections present |
 | Refinement schema | `scripts/validate-refinement-json.sh {path}` | Required fields in refinement.json |
+| Refinement inbox schema | `scripts/validate-refinement-inbox-record.sh {path}` | breakdown-produced return inbox has no raw sidecar evidence |
 | Task.md deps | `scripts/validate-task-md-deps.sh {dir}` | Dependencies form valid DAG |
 
 ### Deterministic Gates (Pre-Push)
@@ -351,13 +352,13 @@ When a conversation decision defers work to a later phase ("等 X 再處理 Y", 
 
 - If the deferred phase is **in this session** → add to todo list
 - If the deferred phase is **in a future session** → write to memory
-- **If the decision is a design decision in an ongoing design discussion** → update the active `specs/design-plans/DP-NNN-{topic}/plan.md` file (see `skills/design-plan/SKILL.md`)
+- **If the decision is a design decision in an ongoing ticketless refinement / DP discussion** → update the active `specs/design-plans/DP-NNN-{topic}/plan.md` file (see `skills/refinement/SKILL.md` and `skills/references/spec-source-resolver.md`)
 
 An oral defer ("我們等精簡時再看") without a corresponding todo/memory/plan entry is **not landed**. The Strategist treats it as untracked and captures it before moving on.
 
 **Why:** jira-worklog consolidation session (2026-04-13) — "等精簡時決定 jira-worklog 位置" was agreed verbally but never added to the consolidation todo list. When consolidation executed, the item was invisible and dropped. The user discovered the gap post-task.
 
-**Design decision variant (2026-04-15, check-pr-approvals v2.16.0)** — in a multi-turn design discussion, an early decision ("轉狀態回 IN DEVELOPMENT → 乾淨") got overwritten by later phrasing ("engineering 零改動"). When implementation started, the early decision was silently dropped. Mitigation: design discussions trigger `design-plan` skill at the start; each confirmed decision updates the plan file in the **very next tool call**. See mechanism-registry `design-plan-creation` / `design-plan-reference-at-impl`.
+**Design decision variant (2026-04-15, check-pr-approvals v2.16.0)** — in a multi-turn design discussion, an early decision ("轉狀態回 IN DEVELOPMENT → 乾淨") got overwritten by later phrasing ("engineering 零改動"). When implementation started, the early decision was silently dropped. Mitigation: ticketless design discussions route to `refinement` DP mode; each confirmed decision updates the plan file in the **very next tool call**. See mechanism-registry `design-plan-creation` / `design-plan-reference-at-impl`.
 
 ### 5c. Checklist Review Before Declaring Done
 
@@ -406,14 +407,16 @@ This avoids copy drift between Claude-facing and Codex-facing paths. If the mirr
 - When updating a shared reference consumed by skills, edit `.claude/skills/references/*`
 - Company-specific skills remain under `.claude/skills/{company}/`
 - Maintainer-only skills remain under `.claude/skills/` with their existing scope controls
+- Runtime-specific adapter examples must point back to `.claude/skills/references/model-tier-policy.md`; do not duplicate concrete model policy in `.agents/skills`, generated prompts, or runtime notes
 
 ## Verification
 
 Before declaring cross-LLM parity healthy:
 
 1. Verify `.agents/skills` is a symlink to `../.claude/skills`
-2. Verify Codex rule transpile is in sync
-3. Verify parity checks pass
+2. Run `scripts/validate-model-tier-policy.sh`
+3. Verify Codex rule transpile is in sync
+4. Verify parity checks pass
 
 ## Why
 
@@ -606,6 +609,38 @@ How Polaris improves itself. Three cadences, each with its own mechanism.
 
 > Detailed procedures (Iteration Cadence Map, Post-Version-Bump Chain steps, Backlog Hygiene scan rules, Validated Pattern Promotion steps, Framework Experience frontmatter template) are in `skills/references/framework-iteration-procedures.md`.
 
+## Target-State First Framework Development
+
+Framework planning starts from the clean target state. Compatibility can be a delivery tool, but it must be temporary by contract.
+
+Rules:
+
+- Define the durable target architecture before splitting work. The target must describe the final source of truth, runtime ownership, and contract boundaries.
+- Phases are allowed only as delivery slices toward that target. A phase is not acceptable if it leaves a mirror, fallback, compatibility alias, or dual-source contract as the intended steady state.
+- Short-lived migration aids must have an owner, explicit removal criteria, verification method, and follow-up task in the same plan.
+- When AI-assisted development makes a direct migration cheaper than maintaining compatibility, prefer the direct migration and pay the verification cost instead of carrying transitional complexity.
+- If the direct migration would break external users, document the breakage and release path explicitly; do not hide it behind silent fallback behavior.
+
+This does not ban phased migration, safety checks, or graceful runtime handling. It bans using compatibility scaffolding as a substitute for completing the design.
+
+## Viewer Availability Convention
+
+Keep the docs-manager viewer available for the user whenever framework work
+touches specs, design plans, docs-manager, or release validation.
+
+Rules:
+
+- Treat `http://127.0.0.1:8080/docs-manager/` as the user's default browsing
+  surface. Do not leave it stopped after validation or release work.
+- If runtime verification needs preview/search mode, prefer a separate port
+  such as `3334` instead of taking over the user's long-lived dev viewer.
+- If a stale or incompatible viewer on `8080` must be stopped to unblock a
+  deterministic check, restart the dev viewer afterward with:
+  `bash scripts/polaris-viewer.sh --mode dev --port 8080 --no-open`
+- Before final response on docs-manager/specs work, confirm whether a viewer is
+  listening on `8080`; if not, either start it or explicitly report why it was
+  left down.
+
 ## Challenger Audit: Milestone Self-Check
 
 Challenger Audit (see `skills/references/challenger-audit.md`) launches 6 persona sub-agents to review the framework from external-user perspectives. It is **expensive** (6 parallel sonnet sub-agents) and produces **simulated** signals (AI reviewing AI).
@@ -701,9 +736,37 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 
 ## How to Use
 
-- **Post-task**: after completing a task, scan the High-drift mechanisms for violations in the current conversation
+- **Post-task**: after completing a task, scan the Priority Audit Order for semantic judgment drift in the current conversation
 - **Periodic**: run `/validate-mechanisms` (future skill) for a full smoke test
 - **On drift discovery**: if a mechanism was violated, record it as a feedback memory with the mechanism ID
+- **Rationalizations & graduated mechanisms**: see `skills/references/mechanism-rationalizations.md` (per-section rationalizations) and `skills/references/deterministic-hooks-registry.md` (mechanisms graduated to hooks — auto-enforced, low audit priority)
+
+## Disposition Legend
+
+Behavioral rows are retained only when the canary still provides useful human/LLM judgment. Deterministic rows are kept as pointers, not routine manual audit items.
+
+| Disposition | Meaning | Manual audit posture |
+|-------------|---------|----------------------|
+| `semantic_only` | Requires intent, context, or tradeoff judgment | Keep in Semantic Priority Audit when high impact |
+| `script_candidate` | Observable invariant without sufficient enforcement yet | Track as migration candidate; audit until scripted |
+| `already_deterministic_reduce_audit` | Covered by validator, gate, hook, or helper | Do not manually re-audit first; check gate evidence only |
+| `reference_only` | Useful rationale/background, not a live canary | Keep in references/rationalizations |
+| `obsolete` | Superseded by stronger mechanism | Remove after review |
+
+## Deterministic Contracts
+
+These mechanisms are contract-lane checks. Their source of truth is the script/gate registry; the behavioral registry keeps only a compact pointer so post-task audit stays focused on semantic mistakes.
+
+| Contract group | Covered invariants | Deterministic source | Disposition |
+|----------------|--------------------|----------------------|-------------|
+| Artifact schemas | refinement/task artifact shape, task dependency closure, fixture paths, design-plan checklist closure | `pipeline-artifact-gate.sh`, `validate-refinement-json.sh`, `validate-task-md.sh`, `validate-task-md-deps.sh`, `design-plan-checklist-gate.sh` | `already_deterministic_reduce_audit` |
+| Handoff and L2 gates | refinement handoff, carry-forward, version bump reminders, feedback reflection signals | `l2-embedding-registry.md`, `refinement-handoff-gate.sh`, `check-carry-forward.sh`, `check-version-bump-reminder.sh`, `check-feedback-signals.sh` | `already_deterministic_reduce_audit` |
+| Delivery wrappers | PR body template preservation, workspace language policy, verification evidence, ci-local evidence, base resolution | `deterministic-hooks-registry.md`, `polaris-pr-create.sh`, `gate-pr-body-template.sh`, `gate-pr-language.sh`, `gate-commit-language.sh`, `verification-evidence-gate.sh`, `ci-local-gate.sh`, `resolve-task-base.sh` | `already_deterministic_reduce_audit` |
+| Framework release closeout | DP-backed framework task `extension_deliverable`, local-extension completion gate, task move-first closeout, parent DP closeout, implementation worktree cleanup | `framework-release-closeout.sh`, `framework-release-closeout-selftest.sh`, `check-local-extension-completion.sh`, `engineering-clean-worktree.sh` | `already_deterministic_reduce_audit` |
+| Session and safety hooks | context pressure, cross-session warm scan, safety gate, no hooks in local settings | `deterministic-hooks-registry.md`, hook wrappers under `.claude/hooks/`, safety scripts under `scripts/` | `already_deterministic_reduce_audit` |
+| Model tier policy | raw provider model policy outside the central mapping, `.agents/skills` mirror drift | `validate-model-tier-policy.sh`, `check-skills-mirror-mode.sh`, `model-tier-policy.md` | `already_deterministic_reduce_audit` |
+
+Manual audit still applies when the agent ignores, bypasses, or misinterprets a deterministic failure. The ordinary question is not "did every gate run?" but "did the agent make a semantic judgment error around the gate result?"
 
 ## Registry
 
@@ -714,11 +777,8 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `skill-first-invoke` | Invoke Skill tool as the first tool call when trigger matches | Any Read/Grep/Bash/MCP call before Skill tool on a matched trigger | High |
 | `no-pre-process-skill-input` | Don't fetch Slack/JIRA/PR data before invoking skill | `gh api`, JIRA MCP, or Slack MCP call preceding Skill invocation | High |
 | `no-manual-skill-steps` | Never partially execute skill steps by hand | Git/JIRA/Slack commands matching a skill's steps without Skill invocation | High |
+| `refinement-contract-change-gate` | Framework workflow / role-boundary / handoff-contract changes requested through `refinement` must be handled as a design proposal first, with explicit user confirmation before editing `SKILL.md`, `rules/`, `skills/references/`, hooks, or validators. Skill file edits must also follow `skill-creator` | Session says it used refinement "as background" then directly edits cross-skill contract files; OR edits validator/handoff policy before presenting proposal and receiving confirmation; OR final omits that an explicit hotfix/direct-edit bypass was used | High |
 | `hotfix-auto-ticket` | Fix intent + Slack URL + no JIRA key → create ticket before routing to bug-triage | Changeset or PR title missing JIRA key after hotfix flow | Medium |
-
-#### Common Rationalizations — Skill Routing
-
-> See `skills/references/mechanism-rationalizations.md` § Common Rationalizations — Skill Routing.
 
 ### Delegation (source: `CLAUDE.md`, `rules/sub-agent-delegation.md`)
 
@@ -727,24 +787,20 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `delegate-exploration` | > 3 files → dispatch Explorer sub-agent | > 5 consecutive Read/Grep in main session without conclusion | High |
 | `delegate-implementation` | Multi-file edits → dispatch Implementer sub-agent | Edit/Write in main session across > 1 file (unless ≤ 3 lines) | High |
 | `plan-first-large-scope` | > 3 files or arch decision → plan before code | Sub-agent producing 4+ file changes without prior plan | High |
-| `model-tier-selection` | sonnet for explore/execute, haiku for JIRA batch ops (see `sub-agent-roles.md` § Model Tier) | JIRA batch sub-agent using sonnet; explore sub-agent with no model specified | Low |
-| `all-code-changes-require-worktree` | Any op that writes source files (Edit/Write/Bash) or mutates git state must run in a `git worktree add` copy. No "stay on current branch" exception — includes framework repo. See `rules/sub-agent-delegation.md` § All code changes = worktree | Edit/Write on source files in main checkout path (any repo, including framework); `git checkout`/`switch`/`pull` in main checkout; sub-agent dispatched without `isolation: "worktree"` when its flow will write code | **Critical** |
+| `model-tier-selection` | Sub-agent dispatch uses semantic classes from `skills/references/model-tier-policy.md`: `small_fast` for low-risk batch/template work, `standard_coding` for exploration with decisions and implementation, stronger classes for high-risk reasoning. Deterministic backup: `scripts/validate-model-tier-policy.sh` | Validator reports raw provider model policy outside approved locations; JIRA batch sub-agent does not use `small_fast`; implementation/review sub-agent uses `small_fast` or `realtime_fast` without passing policy risk gates; dispatch omits semantic model class when an override is needed | Low |
+| `all-code-changes-require-worktree` | Any op writing source files or mutating git state must run in a `git worktree add` copy. No exceptions, includes framework repo | Edit/Write on source files in main checkout path; `git checkout`/`switch`/`pull` in main checkout; sub-agent dispatched without `isolation: "worktree"` when its flow will write code | **Critical** |
 | `worktree-for-batch-impl` | Batch mode Phase 2 sub-agents use `isolation: "worktree"` (specific case of `branch-switch-requires-worktree`) | Parallel implementation sub-agents without worktree isolation | Medium |
-| `planning-skill-worktree-isolation` | Planning skills (refinement Tier 2+ / breakdown Planning Path / bug-triage AC-FAIL + 復現 / sasd-review 可行性驗證) 跑 `pnpm install` / build / dev server 前必須先建立 worktree，不得在主 checkout 執行。見 `skills/references/planning-worktree-isolation.md` | Planning skill 在主 checkout path 跑 `pnpm -C {base_dir}/{repo} install` / build / dev server 而未先 `git worktree add`；或主 checkout 出現 `node_modules` / `.output/` diff | High |
-| `breakdown-step14-no-checkout` | Breakdown Step 14 建立 feature / task branch 只用 `git branch <name> <start>`（不帶 `-b`）+ `git push`，禁止 `git checkout -b` / `git checkout develop` / `git pull origin develop`，**且 task branch 建立順序必須依 `depends_on` DAG 拓撲排序**（上游 task branch 先建、下游後建，從已存在的上游 branch 切出）（see DP-028 D4）。確保使用者 WIP 不受干擾 | Breakdown session 的 bash 歷史出現 `git checkout` / `git pull` 針對主 checkout path；或主 checkout 的 HEAD / branch / working tree 在 Step 14 執行後有變化；或 breakdown 建 branch 順序違反拓撲排序導致下游 task branch 從不存在的上游切出 | High |
-| `breakdown-infra-first-applied` | Planning Path breakdown 必須在 Step 5.5 跑 `skills/references/infra-first-decision.md` 決策樹，輸出含 `decision_trace[]`；不得繞回舊的 `visual_regression`-config fallback（除非 refinement.json 缺失或匹配 exceptions）。Refinement Step 5 的 § 子單結構 preview 也須同步顯示決策結果 | Breakdown session 跑 Planning Path 卻 breakdown summary / task.md 缺少 infra-first 決策記錄（「infra 子單 N 張，ordering {rule}」或 skipped reason）；或輸出的子單順序違反 decision tree（e.g., AC 全 unit_test 仍插入 infra 子單）；或 refinement preview § 子單結構 缺少 infra-first 摘要行 | Medium |
-| `subagent-completion-envelope` | All sub-agents must return Status/Artifacts/Detail/Summary envelope. Summary ≤ 3 sentences; long analysis goes to Detail file (see `sub-agent-roles.md` § Completion Envelope + Summary vs Detail Separation) | Sub-agent return without structured Status line; or Summary exceeds 3 sentences with full analysis inline instead of Detail file | High |
-| `runtime-claims-need-runtime-evidence` | Sub-agent conclusions about runtime behavior (HTML location, API format, framework defaults) must be verified with actual execution before the Strategist adopts them | Strategist states a runtime behavior as fact citing only sub-agent source code analysis, without curl/test/dev-server evidence | High |
+| `planning-skill-worktree-isolation` | Planning skills (Tier 2+) 跑 `pnpm install` / build / dev server 前必須先建立 worktree，不在主 checkout 執行 | Planning skill 在主 checkout path 跑 `pnpm -C {base_dir}/{repo} install` / build / dev server 而未先 `git worktree add`；或主 checkout 出現 `node_modules` / `.output/` diff | High |
+| `breakdown-step14-no-checkout` | Breakdown Step 14 建 branch 只用 `git branch <name> <start>` + `git push`（禁 `checkout`/`pull`），順序依 `depends_on` 拓撲排序，從上游 branch 切出 | Breakdown session bash 歷史出現 `git checkout` / `git pull` 對主 checkout；或主 checkout HEAD/branch 在 Step 14 後有變化；或 branch 順序違反拓撲排序 | High |
+| `breakdown-infra-first-applied` | Planning Path Step 5.5 必須跑 infra-first 決策樹，輸出 `decision_trace[]`；refinement Step 5 子單結構 preview 同步顯示 | Breakdown summary / task.md 缺 infra-first 決策記錄；或子單順序違反 decision tree；或 refinement preview § 子單結構 缺 infra-first 摘要行 | Medium |
+| `subagent-completion-envelope` | All sub-agents return Status/Artifacts/Detail/Summary envelope. Summary ≤ 3 sentences; long analysis to Detail file | Sub-agent return without structured Status line; or Summary > 3 sentences with full analysis inline | High |
+| `runtime-claims-need-runtime-evidence` | Sub-agent runtime claims (HTML location, API format, framework defaults) need actual execution evidence, not just source analysis | Strategist states runtime behavior as fact citing only sub-agent source-code analysis, no curl/test/dev-server evidence | High |
 
 ### Reference Discovery (source: `CLAUDE.md` § Reference Discovery)
 
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
 | `reference-index-scan` | Before skill execution, read `skills/references/INDEX.md` and pull in trigger-matched references | Skill executes JIRA operations (createJiraIssue, editJiraIssue, breakdown) without prior Read of INDEX.md or relevant reference files | **Critical** |
-
-#### Common Rationalizations — Reference Discovery and Delegation
-
-> See `skills/references/mechanism-rationalizations.md` § Common Rationalizations — Reference Discovery and § Common Rationalizations — Delegation.
 
 ### Knowledge Compilation (source: `skills/references/knowledge-compilation-protocol.md`)
 
@@ -761,18 +817,11 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `feedback-pre-write-dedup` | Before creating feedback memory, scan for semantic overlap and merge if found | New feedback file created when an existing entry covers the same topic | High |
 | `feedback-trigger-count-update` | After using a feedback memory, increment trigger_count (once per conversation) | Feedback memory trigger_count unchanged after conversation that referenced it | High |
 
-> `post-task-feedback-reflection` 和 `feedback-trigger-count-update` 已加掛 deterministic signal-capture（DP-030 Phase 2C）。Behavioral write 仍由 LLM 負責。見 `skills/references/deterministic-hooks-registry.md`。
 | `feedback-backlog-classification` | New feedback memory that describes a framework gap must also write a backlog entry | FRAMEWORK_GAP feedback created without corresponding `polaris-backlog.md` entry | Medium |
 | `project-backlog-classification` | Project memory with action items (待實施/下一步/需要解決) must also write FRAMEWORK_GAP items to backlog | Project memory containing "待實施" or "pending" without corresponding backlog entry | High |
 | `memory-company-hard-skip` | Skip memories with mismatched company field | Company-scoped memory applied to a different company's work | Medium |
 | `correction-driven-handbook-update` | User correction about repo-specific knowledge → pause work, update handbook (not feedback memory), resume with new understanding | Repo-specific correction (architecture, code convention, dev environment) saved as feedback memory instead of updating handbook | **Critical** |
 | `repo-knowledge-to-handbook-not-feedback` | Repo-specific knowledge (code patterns, API conventions, test strategies, env setup) belongs in handbook sub-files, not feedback memories | New feedback memory created for repo-specific knowledge that should be in `{repo}/.claude/rules/handbook/*.md` | High |
-
-> `cross-session-carry-forward` 目前由 checkpoint skill 的 L2 deterministic script enforced；legacy L1 fallback hook 已退休。見 `skills/references/deterministic-hooks-registry.md`。
-
-#### Common Rationalizations — Handbook vs Feedback
-
-> See `skills/references/mechanism-rationalizations.md` § Common Rationalizations — Handbook vs Feedback.
 
 ### Handbook Lifecycle (source: `skills/references/repo-handbook.md`, `skills/references/explore-pattern.md`)
 
@@ -783,7 +832,9 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 | `ingest-conflict-priority` | Handbook write priority: user correction > PR lesson > Explorer回寫 | Explorer-generated content overwrites a user-validated section | High |
 | `event-driven-stale-hint` | Session start git diff shows handbook-related file changes → add stale-hint to affected section | `package.json` or `nuxt.config` changed in diff but no stale-hint added to handbook | Low |
 | `batch-lint-sprint-planning` | Repo handbook batch lint runs during sprint-planning | Sprint planning completes without handbook lint report | Low |
-| `handbook-injection-in-subagent` | Implementation sub-agent dispatch prompts must include handbook reading instruction (`{repo}/.claude/rules/handbook/`) | Sub-agent writes code without prior Read of handbook index.md; implementation violates coding convention already documented in handbook | High |
+| `handbook-injection-in-subagent` | Implementation sub-agent dispatch prompts must include handbook reading instruction for both company and repo handbooks: `{base_dir}/.claude/rules/{company}/handbook/index.md` + linked child docs, then `{repo}/.claude/rules/handbook/index.md` + linked child docs | Sub-agent writes code without prior Read of company handbook index and linked child docs; OR reads only handbook index but not referenced child files; OR violates coding convention already documented in company/repo handbook | High |
+| `codecov-patch-fail-is-blocker` | Engineering revision mode treats failed `codecov/patch` / `codecov/patch/*` checks as CI blockers even when Codecov displays `author ... is not an activated member` or similar account visibility text | Revision reports Codecov patch failure as non-blocking due to author activation/member visibility text; OR PR completion proceeds with failed `codecov/patch/*` check unaddressed | **Critical** |
+| `product-ci-config-readonly` | Product-ticket engineering treats repo CI declarations as read-only policy owned by the repo, not as an implementation repair surface | Product PR changes Woodpecker / GitHub Actions / GitLab CI / Codecov / husky / pre-commit / package script CI settings to make local or remote gates pass, instead of stopping and recording framework / repo-owner decision needs | **Critical** |
 
 ### Test Environment (source: DP-005, `skills/references/pipeline-handoff.md`)
 
@@ -796,19 +847,18 @@ A registry of behavioral rules the Strategist must follow. Each entry has a **ca
 
 ### Pipeline Artifact Schema (source: DP-025, `skills/references/pipeline-handoff.md` § Artifact Schemas)
 
-Enforcement is **deterministic** via PreToolUse hook `.claude/hooks/pipeline-artifact-gate.sh` (runtime-agnostic entry at `scripts/pipeline-artifact-gate.sh`). Hook dispatches per file path pattern to the matching validator; any validator exit ≠ 0 blocks the Edit/Write tool call with exit 2.
+Enforcement: deterministic via `pipeline-artifact-gate.sh` PreToolUse hook (validators in `scripts/validate-*.sh`). Bypass: `POLARIS_SKIP_ARTIFACT_GATE=1`. Audit priority: low.
+
+Disposition: `already_deterministic_reduce_audit`. Keep these rows as contract documentation; routine post-task audit should inspect validator failures only when the agent ignored or bypassed them.
 
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
-| `refinement-schema-compliance` | `specs/*/refinement.json` must contain required fields (`epic`, `version`, `created_at`, `modules[]` with `path`+`action`, `acceptance_criteria[]` with `id`+`text`+`verification{method,detail}`, `dependencies[]`, `edge_cases[]`). Validator: `scripts/validate-refinement-json.sh`. Hard-fail on missing required field | Edit/Write on refinement.json rejected by hook; OR refinement.json committed with missing required field (hook bypass / pre-existing non-compliant artifact) | High |
-| `task-md-full-schema` | `specs/*/tasks/T*.md` must contain `## Operational Context` (with JIRA key), `## 改動範圍` (non-empty), `## 估點理由` (non-empty), `## Test Command`, `## Verify Command` in addition to DP-023 runtime fields. Validator: `scripts/validate-task-md.sh`. Hard-fail on any missing section or empty required body | Edit/Write on task.md rejected by hook; OR task.md in repo with `## 改動範圍` empty or missing `## Operational Context` JIRA key | High |
-| `task-md-deps-closure` | `depends_on` in task.md frontmatter must reference existing T{n}[suffix].md in same Epic's tasks/ dir and form a DAG (no cycles). Validator: `scripts/validate-task-md-deps.sh`. Hard-fail on broken ref or cycle | Edit/Write on task.md rejected by hook due to `depends_on` cycle or missing target; OR verify-AC deadlocks due to cyclic dep | High |
-| `fixture-path-existence` | `## Test Environment` `Fixtures:` path (when non-N/A) must exist on filesystem. Validator: `scripts/validate-task-md-deps.sh`. Hard-fail on missing path; resolved relative to Epic dir, company base dir, or workspace root | Edit/Write on task.md rejected by hook due to missing fixture path; OR engineering's runtime Verify Command fails with "fixtures not found" error at execution | High |
-| `depends-on-linear-chain` | task.md `depends_on`（frontmatter）必須是 linear chain —— 每個 task 最多只能 depend_on ≤ 1 其他 task。非線性（同時 depends on ≥ 2 獨立 task）→ `validate-task-md-deps.sh` exit 1，`pipeline-artifact-gate.sh` hook 擋 Edit/Write（see DP-028，source: `specs/design-plans/DP-028-depends-on-branch-binding/plan.md`） | Edit/Write on task.md 被 hook 拒絕因 `is-linear-dag` 規則；OR task.md committed with `depends_on: [A, B]` 其中 A、B 互不依賴 | Medium |
-
-**Enforcement**: Deterministic (PreToolUse hook + exit code). Audit priority: low — the hook enforces physically, the Strategist cannot bypass without `POLARIS_SKIP_ARTIFACT_GATE=1`.
-
-**Bypass (emergency only)**: `POLARIS_SKIP_ARTIFACT_GATE=1` disables the gate. Use only to land a legitimate structural change that temporarily violates schema during migration.
+| `refinement-schema-compliance` | `refinement.json` 必填欄位齊全（epic, version, modules[], acceptance_criteria[] with verification, dependencies[], edge_cases[]） | Edit/Write on refinement.json rejected by hook; OR committed file 缺必填欄位 | High |
+| `refinement-handoff-artifact` | refinement 在提示 `breakdown` 前必須已有同 container 的 valid `refinement.json` | refinement 只產出 `refinement.md` 就宣稱可進 breakdown；OR `scripts/refinement-handoff-gate.sh` 未執行 | High |
+| `task-md-full-schema` | task.md 必含 `## Operational Context`（JIRA key）、`## 改動範圍`、`## 估點理由`、`## Test Command`、`## Verify Command` + 非空 body | Edit/Write rejected by hook; OR task.md `## 改動範圍` 空或缺 `## Operational Context` | High |
+| `task-md-deps-closure` | task.md `depends_on` 須 reference 同 Epic 內存在的 T*.md 且形成 DAG（無 cycle） | Edit/Write rejected for cyclic或missing target；OR verify-AC deadlock | High |
+| `fixture-path-existence` | `## Test Environment` `Fixtures:` 路徑（非 N/A）須實際存在 | Edit/Write rejected for missing fixture path；OR runtime verify "fixtures not found" | High |
+| `depends-on-linear-chain` | task.md `depends_on` 必須是 linear chain — 每個 task 最多 depend_on ≤ 1 其他 task | Edit/Write rejected by `is-linear-dag`；OR `depends_on: [A, B]` 其中 A、B 互不依賴 | Medium |
 
 ### Context Management (source: `rules/context-monitoring.md`)
 
@@ -816,11 +866,9 @@ Enforcement is **deterministic** via PreToolUse hook `.claude/hooks/pipeline-art
 |----|------|---------------|-------|
 | `post-compression-company-context` | After compression, re-confirm active company | Work continues post-compression without company context check | High |
 | `proactive-context-check-at-20` | After 20+ tool calls without milestone, proactively save state and assess delegation | Long conversation without milestone summary or delegation assessment | Medium |
-| `checkpoint-mode-at-25` | 25+ tool calls with pending work → enter checkpoint mode (save state + diff previous checkpoint + notify new session). Also applies to proactive session splits: save memory before notifying, never after | Long session ends with next-session memory that drops items from previous checkpoint; OR Strategist says "建議開新 session" without having saved a project memory first | High |
+| `checkpoint-mode-at-25` | 25+ tool calls with pending work → checkpoint mode (save state + diff prev checkpoint + notify). Same applies to proactive session splits | Next-session memory drops items from prev checkpoint; OR "建議開新 session" without saving project memory first | High |
 | `skill-completion-split` | After completing a skill, if next action is a different skill/topic → run checkpoint sequence + `checkpoint-todo-diff.sh` before notifying (see `context-monitoring.md` § 5a-bis) | Strategist switches from one skill to a different skill without checkpoint; or checkpoint written but `checkpoint-todo-diff.sh` not run | Medium |
 | `checkpoint-todo-completeness` | When writing a checkpoint memory, run `scripts/checkpoint-todo-diff.sh` to verify all todo items have dispositions (done/carry-forward/dropped). Hard gate: notification blocked until diff passes | Checkpoint memory written with todo items missing from content; or session split notification sent before diff script confirms all items covered | High |
-
-> `max-five-consecutive-reads`、`no-file-reread`、`no-cd-in-bash`、`no-independent-cmd-chaining` 的 legacy Claude Code L1 wrappers 已退休；相關 scripts 僅保留作 manual/Copilot compatibility diagnostics。
 
 ### Company Isolation (source: `rules/multi-company-isolation.md`)
 
@@ -838,11 +886,7 @@ Enforcement is **deterministic** via PreToolUse hook `.claude/hooks/pipeline-art
 | `env-follows-requires` | Dev environment must be started per `workspace-config.projects[].dev_environment.requires` — no shortcuts | Nuxt dev server started standalone when `requires: ["project-web-docker"]` is configured; Docker containers not running | High |
 | `http-status-in-verification` | All endpoint verifications must check HTTP status code (200) + response body — status 200 is the minimum bar | Verification reports "data looks correct" without confirming HTTP 200 | Medium |
 | `no-speculation-as-fact` | Do not repeat a speculation after user corrects it — once corrected, internalize the correction | Same wrong claim repeated after user already corrected it (e.g., "SIT 環境" after user said "我在 local") | Medium |
-| `api-docs-before-replace` | When a module's behavior doesn't match expectations, query official API docs (function signatures, parameters) BEFORE reading compiled source or proposing replacement. Replacement is a T3 decision requiring user confirmation | Sub-agent reads only `node_modules/` compiled source → concludes "module doesn't support X" → proposes replacement, without checking official docs or npm README | **Critical** |
-
-#### Common Rationalizations — Debugging & Verification
-
-> See `skills/references/mechanism-rationalizations.md` § Common Rationalizations — Debugging & Verification.
+| `api-docs-before-replace` | When module behavior is unexpected, check official API docs before reading compiled source or proposing replacement. Replacement is T3 (needs user confirmation) | Sub-agent reads only `node_modules/` → concludes "module doesn't support X" → proposes replacement, no docs/npm README check | **Critical** |
 
 ### Library Changes (source: `skills/references/library-change-protocol.md`)
 
@@ -855,25 +899,20 @@ Enforcement is **deterministic** via PreToolUse hook `.claude/hooks/pipeline-art
 | `lib-key-libraries-binding` | Handbook Key Libraries section designates concern→library bindings; replacement requires full protocol | Sub-agent replaces a library listed in Key Libraries without running the protocol | High |
 | `lib-reviewer-upgrade-pause` | When PR reviewer suggests a library/module upgrade in revision mode, pause and ask user — do not unilaterally defer or dismiss | Revision-mode reply says "T3 deferred to next sprint" or "current version doesn't support this" without asking user whether to attempt the upgrade | High |
 
-#### Common Rationalizations — Library Changes
-
-> See `skills/references/library-change-protocol.md` § Common Rationalizations (canonical source).
-
 ### Strategist Behavior (source: `CLAUDE.md`)
 
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
 | `blind-spot-scan` | After producing a plan, protocol, or significant decision, pause and self-check (invert, edge cases, silent failure) before presenting or executing | Strategist presents a plan without any "what could go wrong" analysis; user discovers a blind spot the Strategist should have caught | Medium |
-| `design-plan-creation` | When user starts a non-ticket design discussion (triggers in `skill-routing.md` § design-plan row, or multi-turn architecture back-and-forth), create `specs/design-plans/DP-NNN-{topic}/plan.md` in the first turn | Design discussion proceeds 3+ turns without a plan file existing; decisions accumulate only in conversation | **Critical** |
-| `design-plan-decision-capture` | Each confirmed design decision (user says「可以」「同意」「乾淨」「好」「這樣做」) must update the plan file in the **very next tool call** — not batched, not deferred | Decision confirmed in conversation but plan file not updated before other tool calls | **Critical** |
+| `design-plan-creation` | When user starts a non-ticket design discussion, route to `refinement` ticketless mode and create/locate `specs/design-plans/DP-NNN-{topic}/plan.md` in the first turn | Design discussion proceeds 3+ turns without a DP plan file; decisions only in conversation | **Critical** |
+| `design-plan-decision-capture` | Each confirmed ticketless design decision (user says「可以」「同意」「乾淨」「好」「這樣做」) must update the DP plan file in the **very next tool call** — not batched, not deferred | Decision confirmed in conversation but plan file not updated before other tool calls | **Critical** |
 | `design-plan-reference-at-impl` | Before implementation begins on a topic with an active design plan, read the plan file completely; do not rely on conversation memory | Strategist writes code / SKILL.md on a topic with existing plan file but no Read call on that plan in the current session | **Critical** |
-| `design-plan-checklist-done` | Plan's Implementation Checklist must be fully checked before declaring done; each item ticked off in the file (not in memory) as it completes. **Deterministic:** `scripts/design-plan-checklist-gate.sh` PreToolUse hook blocks Edit/Write that sets `status: IMPLEMENTED` when `[ ]` items remain. Codex fallback: `scripts/codex-mark-design-plan-implemented.sh` | Edit/Write to plan.md with `status: IMPLEMENTED` blocked by hook when unchecked items exist | High |
-
-#### Common Rationalizations — Design Plan
-
-> See `skills/references/mechanism-rationalizations.md` § Common Rationalizations — Design Plan.
+| `design-plan-checklist-done` | Plan's Implementation Checklist must be fully checked before `status: IMPLEMENTED`. Deterministic backup: `design-plan-checklist-gate.sh` blocks the IMPLEMENTED edit when `[ ]` items remain | Edit/Write to plan.md with `status: IMPLEMENTED` blocked by hook when unchecked items exist | High |
+| `target-state-first-planning` | Framework plans must define the clean target state first; phased compatibility is allowed only as a temporary delivery tool with owner, removal criteria, verification method, and follow-up task | Plan proposes "phase 1 keep both paths and later decide" without removal criteria; or treats fallback/mirror/dual-source compatibility as the steady state | High |
 
 ### Quality Gates (source: `skills/references/engineer-delivery-flow.md`)
+
+Disposition: mixed. Semantic-only rows stay audit-relevant when they require judging whether evidence addresses the claim. Rows backed by wrapper/gate evidence are contract pointers and should not crowd the top priority audit.
 
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
@@ -881,7 +920,7 @@ Enforcement is **deterministic** via PreToolUse hook `.claude/hooks/pipeline-art
 | `fresh-verification-before-completion` | Every task completion must include fresh verification performed after the final code change | Task marked complete with rationalization phrases ("should work", "trivial change") and no verification output in conversation | High |
 | `local-verification-hard-gate` | engineering (engineer-delivery-flow Step 3): every Layer A+B verification item must have PASS/SKIP/FAIL disposition with evidence. Unit test alone cannot substitute for behavioral verification when the AC requires running the server | Strategist proceeds to PR with only unit test output when [VERIFICATION] lists behavioral items (e.g., "切換語系後 footer 正確") | **Critical** |
 | `verify-command-immutable-execute` | Step 3d: when task.md has `## Verify Command`, sub-agent must execute the exact command (no modifications) and include full output in evidence file. FAIL blocks PR | Sub-agent skips verify command, modifies the command, or claims PASS without showing actual command output in evidence | **Critical** |
-| `tdd-bypass-no-assertion-weakening` | When any quality gate fails (build / lint / typecheck / test / functional-verify / CI-equivalent), engineering must fix **root cause** — never weaken tests/types to pass. Forbidden patterns: changing prod code to match wrong test output, loosening assertions to `expect.any(X)` / `toBeDefined()`, mocking real deps without e2e follow-up, `.skip()` / deleting failing tests, `as any` / `@ts-ignore` to silence type errors. Source: DP-029 D8 revision (2026-04-24) | Gate fail → prod code edit → test pass sequence with assertion loosening / skip / type-suppression in diff; or PR diff contains new `.skip()` / `as any` / `@ts-ignore` on touched lines without justification comment | High |
+| `tdd-bypass-no-assertion-weakening` | On any quality-gate failure, fix root cause — never weaken assertions, mock real deps, `.skip()`/delete tests, or `as any`/`@ts-ignore` to silence | Gate fail → prod code edit → test pass with assertion loosening / skip / type-suppression in diff; or new `.skip()` / `as any` / `@ts-ignore` on touched lines without justification | High |
 | `engineering-no-ac-verify` | engineering does not run AC business-level verification — that's verify-AC's job. engineering only runs Phase 2.5 Sanity Gate (env up + HTTP 200) | engineering session executing verify-AC steps (逐項跑 AC 驗收 sub-task) instead of routing to verify-AC skill after PR | High |
 | `verify-ac-no-judgement` | verify-AC presents observed vs expected as facts — does not judge FAIL reason; disposition is human-driven | verify-AC output contains "this is a bug in X" or "AC is wrong" instead of pure PASS/FAIL + disposition gate | High |
 | `verify-ac-full-rerun` | verify-AC re-runs ALL AC (including previously PASS'd) to catch regression | verify-AC session skips PASS'd AC from last run | Medium |
@@ -890,31 +929,40 @@ Enforcement is **deterministic** via PreToolUse hook `.claude/hooks/pipeline-art
 | `ac-fail-bug-branch-from-feature` | engineering opens fix branch for AC-FAIL Bug from the Epic's feature branch (extracted from `[VERIFICATION_FAIL]` block), not from develop | engineering creates fix branch from develop for a Bug whose description contains `[VERIFICATION_FAIL]` — fix never lands on the failing feature branch | High |
 | `checklist-before-done` | Before declaring a task complete, review the session's original task list (checkpoint next steps, todo items) and confirm each item is done/carry-forward/dropped | Strategist says "done" or asks "要更新 checkpoint 嗎？" while unchecked items remain from the session's starting checklist | High |
 | `defer-immediate-capture` | When a decision defers work to a later phase, capture it in todo (same session) or memory (future session) immediately — oral defer is not landed | Conversation contains "等 X 再處理 Y" pattern but no corresponding todo/memory entry created within the next 2 tool calls | High |
+| `completion-gate-before-done-report` | Before any user-facing "done / complete / 可交付" report in engineering flow, run Step 8.5 `check-delivery-completion.sh`. Developer completion gate must read remote PR metadata/body and require PR readiness (`state=OPEN`, `isDraft=false`) plus body-template conformance. This is behavioral L3 with deterministic script backing. | Assistant reports completion for a delivery task without a preceding completion-gate invocation; task lifecycle is marked `IMPLEMENTED` while deliverable PR is draft/non-open; or remote PR body no longer preserves template headings | Medium |
 
 ### Delivery Flow Contract (source: `skills/references/engineer-delivery-flow.md` § Delivery Contract)
 
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
 | `delivery-flow-step-order` | engineer-delivery-flow steps must execute in order (1→2→3→3.5→4→5→5.5→6→7→8). No step may be skipped or reordered | Sub-agent jumps from Step 2 to Step 7 (skipping behavioral verify) or runs Step 7 before Step 4 | **Critical** |
-| `delivery-flow-single-backbone` | All PR creation goes through `engineering` / `engineer-delivery-flow`. Framework work must have a DP-backed task.md before implementation. No standalone PR creation outside the flow | `gh pr create` called outside engineer-delivery-flow context (no evidence file, no simplify/quality/verify steps in conversation) | High |
+| `delivery-flow-single-backbone` | All PR creation goes through engineer-delivery-flow via `engineering`. Framework/docs work must have a DP-backed task.md; local release tails use Local Extension after engineering evidence. No standalone PR creation outside the flow; Developer first-cut uses `polaris-pr-create.sh` and must not create draft PRs as delivery endpoints | `gh pr create` called outside engineer-delivery-flow context (no evidence file, no simplify/quality/verify steps in conversation); bare `gh pr create --draft` produces a deliverable PR | High |
 | `vr-conditional-trigger` | Step 3.5 VR triggers when changed files hit a VR-configured domain page. Not triggering when no VR domain is configured is correct; skipping when a domain IS configured is a violation | VR domain exists in workspace-config and changed files match VR pages, but Step 3.5 was skipped | Medium |
-| `pr-body-from-reference` | PR body must be built using `references/pr-body-builder.md` logic (template detection → section fill → AC Coverage). Manual PR body construction bypasses AC Coverage and Bug RCA detection | PR body written inline without reading pr-body-builder.md; AC Coverage section missing when JIRA AC exists | High |
-| `evidence-file-completeness` | Evidence file must contain both `layer_a` and `layer_b` (Developer) or `layer_a` only (Admin). VR result (`vr` field) must be present when Step 3.5 triggered | Evidence file written without `layer_b` for Developer role, or missing `vr` field when VR was triggered | Medium |
+| `pr-body-from-reference` | PR body must be built using `references/pr-body-builder.md` logic (template detection → section fill → AC Coverage) and sent via `--body-file`. Deterministic backup: `gate-pr-body-template.sh` in `polaris-pr-create.sh` blocks create-time bodies that do not preserve repo PR template `##` headings or contain shell-escaped Markdown backticks; `check-delivery-completion.sh` rechecks remote PR body at closeout. | PR body written inline without reading pr-body-builder.md; repo template headings missing/out of order; backslash-backtick escape sequences appear in rendered body; AC Coverage section missing when JIRA AC exists; remote PR body drifts after creation | High |
+| `workspace-language-policy-gate` | Downstream-facing natural language output must run the configured workspace language gate before external write; bilingual docs and quoted/source/template text must use the mode-specific exceptions in `skills/references/workspace-language-policy.md`. Deterministic backup: PR/commit wrappers and skill-level temp artifact gates call `validate-language-policy.sh` / `gate-pr-language.sh` / `gate-commit-language.sh` | PR/JIRA/Slack/Confluence/release prose sent in the wrong language; OR agent ignores a language gate failure; OR bilingual English source docs are checked with zh-TW-only artifact mode instead of bilingual mode | High |
+| `refinement-dp-language-gate` | DP-backed refinement 每次產生或更新 `plan.md` / `refinement.md` 後，都要先跑 `validate-language-policy.sh --blocking --mode artifact`，再做 docs-viewer sync、local preview、使用者 review 或 downstream handoff | 新增或更新的 `specs/design-plans/DP-*/plan.md` / `refinement.md` 含錯誤語言 prose；或 preview/sidebar sync 早於 artifact language gate；或忽略 gate failure | High |
+| `evidence-file-completeness` | Evidence file must contain both `layer_a` and `layer_b` for Developer / DP-backed Local Extension lanes. VR result (`vr` field) must be present when Step 3.5 triggered | Evidence file written without required Layer A/B fields, or missing `vr` field when VR was triggered | Medium |
 | `epic-folder-structure-compliance` | All Epic artifacts (mockoon fixtures, VR baselines, verification evidence, task.md, refinement) must be written to `specs/{EPIC}/` per `references/epic-folder-structure.md`. No Epic data in `ai-config/` or other locations | Skill writes mockoon fixtures to `ai-config/{company}/mockoon-environments/` or verification evidence to `/tmp` only (without local copy in `specs/{EPIC}/verification/`) | Medium |
 | `pre-work-rebase` | engineering must rebase before development (§ 4.5) / before revision (§ R0), not only at delivery flow Step 5. Rebase includes cascade when base is a feature branch. Conflict → stop, do not start coding | engineering starts coding (Edit/Write on source files) without prior `git rebase` in the same session; or rebase only appears after code changes (at delivery flow Step 5) with no pre-work rebase | High |
-| `revision-r5-mandatory` | Revision mode R5（重跑完整驗收）is mandatory for ALL revision paths — code drift fix, rebase-only, QA-reported. Push without behavioral verification is never allowed. Rebase-only（R2 empty signals）must still run R5 before push. **DP-031 deterministic backup**: `verification-evidence-gate.sh` 現在也攔截 `git push`（task/fix branch + product repo），revision mode push 缺 evidence 會被物理擋下 | `git push` in revision mode without prior behavioral verification (Layer B) output in conversation; or Strategist rationalizes "只是 rebase，沒改 code" to skip R5 | **Critical** |
-| `spec-status-mark-on-done` | Epic/Bug/Task 完成後須將 `specs/{TICKET}/refinement.md` 或 `plan.md` 或 `specs/{EPIC}/tasks/T*.md` 的 frontmatter `status` 標為 `IMPLEMENTED`，讓 docs-viewer sidebar 顯示綠底+✅（對齊 DP 行為）。Writer：(a) engineering Step 8a（Task，PR 建立後自動呼叫），(b) engineering setup-only 特例（無 code 的 infra/fixture 任務轉 Done 時手動呼叫），(c) verify-AC 全 AC PASS（Epic），(d) check-pr-approvals MERGED 偵測（Bug / ad-hoc task）。Helper：`scripts/mark-spec-implemented.sh {TICKET}`（idempotent，先 Epic-anchor 後 Task-anchor by `> JIRA: KEY` header）。使用者可手動編輯 frontmatter override | engineering 開完 PR 但 task.md `status` 未被標記；或 Epic verify-AC 全 PASS 後 refinement.md 仍非 `IMPLEMENTED`；或 setup-only 任務轉 Done 但 task.md 仍無 status；或 sidebar 顯示已完成 spec 無綠底樣式 | Medium |
-| `engineering-consume-depends-on` | engineering 開 PR / rebase / 修 PR base 必須透過 `scripts/resolve-task-base.sh {TICKET\|branch}` 取得 base branch（回傳 snapshot 的 `base_branch` 或沿著 `depends_on` 解析上游 task branch），不可直接讀 task.md `Base branch` frontmatter 字面值，**也不可讀 PR 既有 `baseRefName` 當事實**（pre-DP-028 PR 可能指向錯 base，讀它會複製錯誤）；`gh pr create --base X` 與 `gh pr edit --base X` 的 X 必須 == resolve-task-base.sh 輸出值，pre-work rebase target 同理；**revision mode R0 必須同步 PR base**（若 `gh pr view --json baseRefName` ≠ resolve 結果 → `gh pr edit --base $RESOLVED_BASE`）（see DP-028 D1/D2/D3，source: `specs/design-plans/DP-028-depends-on-branch-binding/plan.md`） | `gh pr create --base X` 或 `gh pr edit --base X` 中 X ≠ `resolve-task-base.sh` 輸出；或 pre-work rebase target 與 resolve 輸出不一致；或 engineering 直接把 task.md `Base branch` 字面值或 PR `baseRefName` 當成 `--base`，忽略 depends_on 鏈上解析；或 revision mode R0 rebase 後沒同步 PR base 欄位（branch rebased 但 PR `baseRefName` 仍指舊 base） | High |
+| `revision-r5-mandatory` | Revision mode R5（重跑完整驗收）mandatory for ALL revision paths（含 rebase-only）。Push without behavioral verification 永不允許。Deterministic backup: `verification-evidence-gate.sh` 攔截 `git push` | `git push` in revision mode without prior Layer B verification output; or Strategist rationalizes "只是 rebase，沒改 code" to skip R5 | **Critical** |
+| `spec-status-mark-on-done` | 完成後須將 spec frontmatter `status` 標為 `IMPLEMENTED`。Writers: engineering Step 8a (Task), verify-AC (Epic 全 PASS), check-pr-approvals (MERGED Bug/ad-hoc)。Helper: `scripts/mark-spec-implemented.sh` | engineering 開完 PR 但 task.md status 未標記；或 Epic 全 PASS 後 refinement.md 仍非 IMPLEMENTED；或 setup-only Done 但 task.md 無 status | Medium |
+| `engineering-consume-depends-on` | engineering 開 PR / rebase / 修 PR base 必須透過 `scripts/resolve-task-base.sh` 取得 base，不可讀 task.md frontmatter 字面值或 PR 既有 `baseRefName`。`gh pr create/edit --base X` 與 pre-work rebase target 必須 == 該腳本輸出。Revision R0 必須同步 PR base。Deterministic backup: `pr-base-gate.sh` 攔截不一致的 `--base` | `--base X` ≠ resolve-task-base.sh 輸出；或 pre-work rebase target 不一致；或讀 task.md `Base branch` 字面值/PR `baseRefName` 當 base；或 R0 rebase 後沒同步 PR base 欄位 | High |
 
-**Deterministic backup**: `pr-base-gate.sh` PreToolUse hook 物理攔截不一致的 `gh pr create --base` 與 `gh pr edit --base`；此 canary 只作為 rebase / 其他 git state 操作的行為層備援。
+### Scope Escalation (source: DP-044, `skills/engineering/SKILL.md` § 開發中 Scope Escalation, `skills/breakdown/SKILL.md` § Scope-Escalation Intake Path)
 
-### Deterministic Quality Hooks (source: GT-521 restraint mechanisms, 2026-04-10)
+| ID | Rule | Canary Signal | Drift |
+|----|------|---------------|-------|
+| `engineering-escalation-sidecar-only` | engineering halts on scope expansion (gate fail outside Allowed Files + planner-owned field change); writes sidecar at `specs/{EPIC}/escalations/T{n}-{count}.md` only; never edits task.md from inside engineering | engineering session contains Edit/Write on `task.md`; OR engineering modifies Allowed Files / Test Command / Verify Command / Test Environment / depends_on / estimate inline; OR escalation conditions met but no sidecar produced before session end | **Critical** |
+| `engineering-escalation-gate-closure` | Scope escalation sidecar must diagnose the whole failed gate: pass condition, baseline/actual, explained delta, proposed fixes, residual blockers, closure forecast, and required planner decisions. Necessary-but-insufficient fixes must be flagged before routing to breakdown | Sidecar only lists first out-of-scope file(s); OR closure forecast missing; OR later rerun exposes residual blockers already visible in the first gate output/math; OR breakdown receives a sidecar that cannot tell whether proposed scope change will make the gate pass | **Critical** |
+| `escalation-count-cap` | Escalation lineage capped at 2; third escalation routes to `refinement`, not `breakdown`. Validator (`scripts/validate-escalation-sidecar.sh`) blocks `escalation_count > 2` and duplicate slots | Sidecar written with `escalation_count > 2` (validator should have blocked); OR session attempts a third sidecar on the same lineage and dispatches `breakdown` instead of `refinement`; OR validator FAIL ignored and engineering proceeds | High |
+| `breakdown-escalation-intake` | breakdown reads sidecar (highest `count` for the lineage), may re-classify flavor, must log `accepted flavor: X` or `re-classified to Y: reason`; `validate-breakdown-escalation-intake.sh --disposition` checks the logged disposition against sidecar flavor before writes; reuses Planning Path user-confirmation gate before any task.md edit / JIRA write; handles all `Required Planner Decisions` needed for gate closure; marks sidecar `processed: true` post-confirm | breakdown session updates task.md from a sidecar without an explicit accepted/re-classified line; OR only handles the first proposed fix while `Closure Forecast` says gate still fails; OR new user-confirmation gate invented instead of reusing Planning Path Step 8/11; OR sidecar not marked `processed: true` after writes complete | Medium |
+| `breakdown-refinement-return-inbox` | If breakdown routes an escalation to refinement, it must first write and validate `refinement-inbox/*.md` (`skill: breakdown`, `target_skill: refinement`, no `## Raw Evidence`); refinement consumes only that inbox record and marks it `consumed: true` after updating refinement artifacts | refinement directly reads `escalations/T{n}-{count}.md`; OR breakdown tells the user to run `refinement {EPIC}` without producing a valid inbox record; OR inbox contains raw command logs / `## Raw Evidence`; OR source sidecar is marked `processed: true` before inbox validation passes | High |
 
-These mechanisms are enforced by **scripts + hooks** (exit code driven), not behavioral rules. They physically block the action — the Strategist cannot bypass them without env var override.
+### Deterministic Quality Hooks
 
-> Full hook table (ID, Rule, Enforcement, Script) is in `skills/references/deterministic-hooks-registry.md`. Audit priority: low — hooks enforce automatically (Priority Audit Order #12).
+Hook-enforced mechanisms (exit code driven, physically block). Full table + bypass flags + script paths in `skills/references/deterministic-hooks-registry.md` and `skills/references/mechanism-rationalizations.md` § Deterministic Quality Hooks — Detail. Audit priority: low.
 
-For evidence file spec, writer script, bypass flags, and hook script reference — see `skills/references/mechanism-rationalizations.md` § Deterministic Quality Hooks — Detail.
+Disposition: `already_deterministic_reduce_audit`.
 
 ### Skills Management (source: `CLAUDE.md`)
 
@@ -939,19 +987,13 @@ For evidence file spec, writer script, bypass flags, and hook script reference �
 | `docs-sync-on-version-bump` | After VERSION bump commit, run docs-sync before sync-to-polaris. **Deterministic backup:** `version-docs-lint-gate` hook blocks commit if VERSION staged + lint fails | VERSION bumped and pushed without docs-sync invocation | High |
 | `backlog-staleness-scan` | Post-version-bump chain Step 2 + monthly standup fallback: scan backlog for stale items | Version bump completes without backlog scan; first standup of month skips scan when no bump happened that month | Medium |
 
-> `version-bump-reminder` 已畢業至 deterministic（DP-030 Phase 2C）。見 `skills/references/deterministic-hooks-registry.md`。
-
-#### Common Rationalizations — Version Bump Reminder
-
-> See `skills/references/mechanism-rationalizations.md` § Common Rationalizations — Version Bump Reminder.
-
 ### Cross-Session Continuity (source: `CLAUDE.md`)
 
 | ID | Rule | Canary Signal | Drift |
 |----|------|---------------|-------|
 | `cross-session-read-memory-file` | When user says "繼續 X", search MEMORY.md index then READ the full memory file before responding | Strategist reports "memory lost" or "no details" when MEMORY.md index has a matching entry | High |
 | `cross-session-confirm-context` | After reading memory file, present reconstructed context to user for confirmation | New session starts work without summarizing what was decided/done/next from previous session | Medium |
-| `cross-session-warm-folder-scan` | "繼續 X" 觸發時 memory 搜尋必須涵蓋 Hot flat root + 所有 Warm topic folder + 遞迴 `find -iname` —— 不可只用 `ls memory/ \| grep`（非遞迴，漏 Warm 整層）。Deterministic backup：`cross-session-warm-scan.sh` UserPromptSubmit hook 在 prompt 送進 Strategist 前自動掃出匹配檔並注入提示 | Strategist 回應「繼續 X」時只跑 `ls memory/ \| grep`/讀 `MEMORY.md` index 即下結論；OR 結論「無相關 memory」但 Warm `{topic}/index.md` 含對應 entry；OR 收到 hook 注入的 `[繼續] Memory matches detected` 卻沒讀其中任何檔 | Medium |
+| `cross-session-warm-folder-scan` | "繼續 X" memory 搜尋必須涵蓋 Hot + Warm folders + 遞迴 `find -iname`，不可只用 `ls \| grep`。Deterministic backup: `cross-session-warm-scan.sh` UserPromptSubmit hook | 只跑 `ls memory/ \| grep` / 讀 `MEMORY.md` index 即下結論；OR 結論「無相關 memory」但 Warm `{topic}/index.md` 含對應 entry；OR 忽略 hook 注入的 `[繼續] Memory matches detected` | Medium |
 
 ### Deterministic Enforcement (source: `CLAUDE.md`)
 
@@ -974,20 +1016,17 @@ For evidence file spec, writer script, bypass flags, and hook script reference �
 
 ## Priority Audit Order
 
-Post-task audit should check these first (highest drift risk, most impactful):
+Post-task audit should check these semantic items first: they are high-impact judgment failures that cannot be fully reduced to an exit code.
 
-1. `no-workaround-accumulation` / `design-implementation-reconciliation`
-1a. `design-plan-creation` / `design-plan-decision-capture` / `design-plan-reference-at-impl` (Critical — check-pr-approvals v2.10→v2.16 掉棒事件)
-2. `skill-first-invoke` / `no-manual-skill-steps` / `reference-index-scan`
-3. `api-docs-before-replace` / `lib-exhaust-before-replace` / `fix-through-not-revert` / `query-original-impl` (Critical — GT-521 root cause + library change protocol)
-4. `delegate-exploration` / `delegate-implementation`
-5. `cross-session-read-memory-file` (`cross-session-carry-forward` 已畢業至 deterministic)
-6. `correction-driven-handbook-update` (repo-specific → handbook, framework → feedback). `post-task-feedback-reflection` 已有 deterministic signal-capture
-6a. `checkpoint-mode-at-25` (check during long sessions, not just post-task)
-7. `re-test-after-fix` / `fresh-verification-before-completion` / `checklist-before-done`
-8. `cross-repo-verification` / `env-follows-requires`
-9–11. Bash-chain / `feedback-trigger-count-update` / `version-bump-reminder` — 已畢業至 deterministic（見 `deterministic-hooks-registry.md`）
-12. 其餘 deterministic hooks — hook 自動 enforce，audit priority 低
+1. Design and workaround judgment (`semantic_only`): `no-workaround-accumulation` / `design-implementation-reconciliation` / `fix-through-not-revert`
+2. Design-plan lifecycle judgment (`semantic_only`): `design-plan-creation` / `design-plan-decision-capture` / `design-plan-reference-at-impl`
+3. Skill routing and reference discovery (`semantic_only`): `skill-first-invoke` / `no-manual-skill-steps` / `reference-index-scan`
+4. External-source exhaustion (`semantic_only`): `api-docs-before-replace` / `lib-exhaust-before-replace` / `query-original-impl`
+5. Delegation judgment (`semantic_only`): `delegate-exploration` / `delegate-implementation`
+6. Cross-session and correction judgment (`semantic_only`): `cross-session-read-memory-file` / `correction-driven-handbook-update`
+7. Runtime claim judgment (`semantic_only`): `runtime-claims-need-runtime-evidence` / `cross-repo-verification` / `env-follows-requires`
+8. Long-session control (`script_candidate` where not yet covered): `checkpoint-mode-at-25` / `checklist-before-done`
+9. Deterministic contract failures (`already_deterministic_reduce_audit`): only audit when the agent ignored, bypassed, or misinterpreted a failed gate. See `## Deterministic Contracts`, `deterministic-hooks-registry.md`, and `l2-embedding-registry.md`.
 
 
 ### `.claude/rules/multi-company-isolation.md`
@@ -1105,7 +1144,7 @@ If the input could match multiple skills (e.g., "幫我處理這個 PR" could be
 當主對話處於 **active skill session**（最近的 tool call 歷史包含一次 Skill tool invocation，且該 skill 尚未產出終局輸出）時，zero-input triggers（「下一步」「繼續」「然後呢」「接下來」「what's next」「next」）**不自動 route 到 `my-triage`**，而由當前 skill 的 context 主導解釋。
 
 例如：
-- 在 `design-plan` session 中使用者說「接下來呢」→ 指 design plan 的下一個議題，不跑 my-triage
+- 在 `refinement DP-NNN` ticketless session 中使用者說「接下來呢」→ 指該 DP 討論的下一個議題，不跑 my-triage
 - 在 `engineering` session 中使用者說「繼續」→ 指該 ticket 的下一步，不跑 my-triage
 - 在 `breakdown` session 中使用者說「下一步」→ 指 breakdown 流程下一步，不跑 my-triage
 
@@ -1138,7 +1177,7 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Scan PRs needing review | "掃 PR", "大家的 PR", "review inbox" | `review-inbox` |
 | Review PRs in Slack thread | Slack thread URL + review intent ("review <slack_url>", "幫我看這串", "這串 PR review 一下") | `review-inbox` (Thread mode) |
 | Estimate a ticket | "估點", "estimate", "評估" + ticket | `breakdown` (Story/Task/Epic) or `bug-triage` (Bug) |
-| Work on a ticket | "做", "work on", "engineering" + ticket | `engineering` (formerly work-on, requires existing plan — if no plan, routes to planning skill first) |
+| Work on a ticket | "做", "work on", "engineering" + ticket | `engineering` (requires existing plan — if no plan, routes to planning skill first) |
 | Verify Epic AC | "驗 {EPIC}", "verify {TICKET}", "verify AC", "跑驗收", "AC 驗證" | `verify-AC` |
 | Triage/plan a bug | "修 bug", "fix bug", "分析 bug", "triage bug" + ticket | `bug-triage` |
 | Triage a bug (no ticket) | "修這個", "fix this" + Slack URL, no JIRA key | Strategist pre-processing → create Bug ticket → `bug-triage` |
@@ -1146,13 +1185,12 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Break down an epic | "拆單", "拆解", "epic breakdown" | `breakdown` |
 | Batch converge all work | "收斂", "converge", "推進", "全部推到 review", "把我的單收一收" | `converge` |
 | Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `converge` (Epic-only mode) |
-| Create/open a PR | "開 PR", "create PR", "發 PR" | `engineering`（requires task.md; framework work starts with `refinement DP-NNN` → `breakdown DP-NNN`） |
+| Create/open a PR (framework/docs repo) | "開 PR", "create PR", "發 PR" | 若已有 DP-backed `task.md`，走 `engineering`；若沒有，fail-stop 並要求先跑 `refinement` / `breakdown` |
 | Triage my work / zero-input next | "我的 epic", "my epics", "盤點", "triage", "手上有什麼", "my work", "我的工作", "排優先"；以及 zero-input 詞：「下一步」、「next」、「繼續」、「continue」、「然後呢」、「what's next」、「接下來」、「推進手上的事情」（後面無 topic keyword；「繼續 DP-015」這類帶 topic 的走 CLAUDE.md § Cross-Session Continuity） | `my-triage` |
 | Batch intake from PM | "收單", "排工", "intake", "這批單幫我看", "PM 開了一堆單", "幫我排優先", "prioritize this batch" + 多張 ticket key | `intake-triage` |
 | Daily standup / end-of-day | "standup", "站會", "daily", "寫 standup", "下班", "收工", "準備明天的工作", "end of day", "EOD", "明天 standup", "今天結束了", "總結一下", "結束今天", "wrap up", "今天做了什麼" | `standup` |
 | Sprint planning | "sprint planning", "sprint 規劃" | `sprint-planning` |
-| Refinement | "refinement", "grooming", "討論需求" | `refinement` |
-| Non-ticket design discussion | "想討論", "怎麼設計", "重構", "重新設計", "要怎麼改", "要怎麼重做", "design plan", "ADR" | `design-plan` |
+| Refinement / ticketless design discussion | "refinement", "grooming", "討論需求", "想討論", "怎麼設計", "重構", "重新設計", "要怎麼改", "要怎麼重做", "design plan", "ADR", "design-plan DP-NNN", "/design-plan DP-NNN" | `refinement` |
 | Create a skill | "建 skill", "create skill", "skill-creator" | `skill-creator` |
 | Learn from external | "學習", "learning", "深入學", "deep dive", "像 gstack 那樣學", "全面研究", PR URL + 學到什麼 | `learning` |
 | Validate (mechanisms + isolation) | "validate mechanisms", "validate isolation", "檢查機制", "檢查隔離" | `validate` |
@@ -1181,15 +1219,15 @@ Before invoking a skill, assess the task's complexity and route to the appropria
 
 The Fast tier is implicit in CLAUDE.md's delegation table ("Small edit ≤ 3 lines, 1 file → Do it directly"). This section makes the full spectrum explicit.
 
-## Framework PR Routing
+## Deprecated Admin Entrypoint Guard
 
-`git-pr-workflow` is sunset. Framework/docs repo changes no longer use an admin PR skill. Route framework implementation through:
+舊的無 task.md Admin PR entrypoint 已 sunset。當使用者要求 framework/docs repo 直接「開 PR」或「發 PR」時，先確認是否能 resolve 到 DP-backed `task.md`：
 
-1. `refinement DP-NNN` for the design decision
-2. `breakdown DP-NNN` for DP-backed `tasks/T*.md`
-3. `engineering DP-NNN-Tn` for branch/worktree, gates, workspace PR, and local-extension handoff
+1. **有 DP-backed task.md**：route to `engineering`，由 `engineering-branch-setup.sh` 建 task worktree 並走完整 delivery flow。
+2. **沒有 task.md**：不要開 branch、不要 commit、不要建立 PR；回覆「framework/docs PR 需要先有 DP-backed work order，請先跑 `refinement DP-NNN` / `breakdown DP-NNN`」。
+3. **產品 repo**：仍走一般 `engineering`；若沒有 JIRA / task.md，回上游補規劃，不使用 framework shortcut。
 
-If the user asks to "open PR" without an existing task.md, route back to refinement/breakdown instead of creating an ad hoc admin PR.
+**判定依據**：當前 git repo root + `workspace-config.yaml` projects mapping + `scripts/resolve-task-md.sh` 結果。無法 resolve 單一 work order 時一律 fail-stop。
 
 ## Negative-Tone Trigger Recognition
 
@@ -1231,8 +1269,10 @@ User messages with negative tone about a previous action (「沒修好」「壞�
 
 - **Prefer local repo for reading files**: when `{base_dir}/<repo>` exists, sub-agents must use the Read tool or local git commands to read files — do not use `gh api repos/.../contents/` for remote reads. Remote mode is only a fallback when no local clone exists
 - **Verify permissions before batch operations**: before launching multiple parallel sub-agents (e.g., batch PR review, cross-repo PR creation), run one complete cycle with a single sub-agent to confirm bash permissions are correct, then launch the rest
-- **All code changes = worktree (universal default)**: any operation that writes to source files (Edit, Write, Bash with sed/patch/etc.) or changes git state (checkout, switch, pull rebase, stash+switch) must run inside a `git worktree add` copy. This applies to **all repos** including the framework repo — there is no "stay on current branch" exception. Assume the user's main checkout always has parallel WIP (editing, dev server, another session) that must not be disturbed. Applies to Strategist, all skills, and all sub-agents. Exceptions: read-only inspection (`git show <branch>:path`, `gh api`, Read, Grep, Glob), pure JIRA/Confluence/Slack operations, and memory/todo/plan file edits (these are session state, not source code). Worktree path convention: `{base_dir}/.worktrees/{repo}-{purpose}-{ticket_or_topic}`. Cleanup with `git worktree remove` + delete temp branch after done
+- **All code changes = worktree (universal default)**: any operation that writes to source files (Edit, Write, Bash with sed/patch/etc.) or changes git state (checkout, switch, pull rebase, stash+switch) must run inside a `git worktree add` copy. This applies to **all repos** including the framework repo — there is no "stay on current branch" exception. Assume the user's main checkout always has parallel WIP (editing, dev server, another session) that must not be disturbed. Applies to Strategist, all skills, and all sub-agents. Exceptions: read-only inspection (`git show <branch>:path`, `gh api`, Read, Grep, Glob), pure JIRA/Confluence/Slack operations, and memory/todo/plan file edits (these are session state, not source code). Worktree path convention: `{base_dir}/.worktrees/{repo}-{purpose}-{ticket_or_topic}`
+- **Implementation worktree cleanup lifecycle**: implementation worktrees are short-lived. After a PR is created or an existing PR branch is pushed, and required evidence / task deliverables have been recorded, remove the local worktree with `git worktree remove`. Delete only local temp branches that are no longer needed. If the PR later needs revision, recreate a fresh worktree from the current PR branch/head instead of keeping the old PR worktree parked
+- **Verification-only worktree cleanup lifecycle**: worktrees created only for verification, probing, reproduction, or read-only comparison must be removed immediately after results/logs/evidence are captured, regardless of pass/fail. If the worktree contains uncommitted changes, stop and classify them before removal; do not silently discard possible user/source work
 - **Worktree for operations requiring isolation**: specific applications of the universal rule — `engineering` batch mode Phase 2 sub-agents use `isolation: "worktree"`; `engineering` revision mode uses worktree; planning skills Tier 2+ (refinement, breakdown, sasd-review, bug-triage 復現) use worktree before running `pnpm install`/build/dev server. Note: project-level `settings.local.json` project-specific patterns are not available inside a worktree
 - **Worktree path translation**: when a sub-agent runs in a worktree, file paths from the parent context (e.g., `{base_dir}/repo/src/...`) point to the original workspace, not the worktree copy. The dispatch prompt must explicitly state: "你的工作目錄是 `{worktree_path}`，tracked source file 的讀寫一律在此目錄下，不要使用原始 workspace 路徑 `{original_path}` 讀寫 tracked 程式碼。" This prevents the sub-agent from accidentally reading/writing tracked files in the wrong workspace. Carve-out for gitignored framework artifacts is in the next bullet
-- **Gitignored framework artifacts use main-checkout absolute paths**: `specs/{EPIC}/`（task.md、refinement、verification evidence、mockoon fixtures、VR baselines）和 `.claude/skills/` 在產品 repo 是 gitignored — 新建的 worktree 裡沒有這些檔案。sub-agent 必須從**主 checkout** 以絕對路徑讀取與寫入（例：`{base_dir}/{repo}/specs/{EPIC}/tasks/T{n}.md`、`{base_dir}/{repo}/specs/{EPIC}/verification/...`）。worktree 只隔離 tracked source files；框架 artifacts 維持跨 worktree 共享，這樣 pipeline handoff（engineering 寫 evidence → verify-AC 讀 evidence）才能正常運作。dispatch prompt 須在呼叫 specs 或 skills 的地方明列主-checkout 絕對路徑，並以「只讀/可寫」標註意圖
+- **Gitignored framework artifacts use main-checkout absolute paths**: `specs/{EPIC}/`（task.md、refinement、verification evidence、mockoon fixtures、VR baselines）、`.claude/skills/` 和 `.claude/scripts/ci-local.sh` 在產品 repo 是 gitignored — 新建的 worktree 裡沒有這些檔案。sub-agent 必須從**主 checkout** 以絕對路徑讀取與寫入（例：`{base_dir}/{repo}/specs/{EPIC}/tasks/T{n}.md`、`{base_dir}/{repo}/specs/{EPIC}/verification/...`）。worktree 只隔離 tracked source files；框架 artifacts 維持跨 worktree 共享，這樣 pipeline handoff（engineering 寫 evidence → verify-AC 讀 evidence）才能正常運作。dispatch prompt 須在呼叫 specs 或 skills 的地方明列主-checkout 絕對路徑，並以「只讀/可寫」標註意圖
 - **General permissions go in user-level `~/.claude/settings.json`**: sub-agents running in sub-projects or worktrees fall back to user-level settings

@@ -53,7 +53,7 @@
       "id": 9,
       "query": "估點 PROJ-448",
       "should_trigger": false,
-      "notes": "明確要求估點 → jira-estimation"
+      "notes": "明確要求估點 → breakdown"
     },
     {
       "id": 10,
@@ -83,7 +83,7 @@
       "id": 14,
       "query": "拆解 PROJ-400 這個 Epic",
       "should_trigger": false,
-      "notes": "Epic breakdown → epic-breakdown"
+      "notes": "Epic breakdown → breakdown"
     },
     {
       "id": 15,

@@ -19,11 +19,7 @@
 - **Google Calendar MCP** — 在 standup 加入會議上下文
 - **Figma MCP** — JIRA 票卡引用 Figma 設計時使用
 
-> **MCP 設定**：MCP server 將 Claude Code 連接到外部服務。在 Claude Code 設定中新增，或透過 CLI：
-> ```
-> claude mcp add atlassian -- npx -y @anthropic-ai/claude-code-mcp-atlassian
-> claude mcp add slack -- npx -y @anthropic-ai/claude-code-mcp-slack
-> ```
+> **MCP 設定**：MCP server 將 Claude Code 連接到外部服務。請優先用 Claude Code 的 `/mcp` 介面新增官方 Atlassian / Slack connector；Codex 使用者請依照 [Codex quick start](codex-quick-start.zh-TW.md) 設定 connector。
 
 ## 開始設定
 

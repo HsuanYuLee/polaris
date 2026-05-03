@@ -279,7 +279,7 @@ bash "${POLARIS_ROOT}/scripts/finalize-engineering-delivery.sh" \
 Epic / DP 底下還有 active 或未 IMPLEMENTED 的 sibling task，helper 只會
 NOOP；若已是最後一張完成 task，才會關閉 parent `refinement.md` / `plan.md`
 並更新 canonical specs status；docs-manager 會直接讀取該狀態。engineering 不得自行用人肉掃 folder 來改寫
-parent lifecycle；一律透過 helper。
+parent lifecycle；一律透過 helper。Developer lane 的 implementation worktree cleanup 也在這支 helper 內完成：task 移到 `tasks/pr-release/` 且 status 驗證為 `IMPLEMENTED` 後，helper 會呼叫 `engineering-clean-worktree.sh`。
 
 Local Extension lane 不得用不符合 local policy 的 completion gate 假裝完成。若 local policy 要求 workspace PR，先完成 Developer PR creation/writeback；若 local policy 不建 PR，則不要呼叫 Developer completion gate 假裝有 PR deliverable。在 handoff 前先跑 Layer A / Layer B gate。extension 後若 local policy 宣告 closeout helper（例如 `framework-release`），必須呼叫 helper；generic local extension 才可直接使用低階 writer / completion gate：
 
@@ -319,7 +319,7 @@ bash "${POLARIS_ROOT}/scripts/check-local-extension-completion.sh" \
   --extension-id "<local extension id>"
 ```
 
-若本次施工使用 implementation worktree，Developer lane 在 Completion Gate PASS 後、Local Extension lane 在 extension final verification 後，必跑 cleanup helper；不得手動 `rm -rf`：
+若本次施工使用 implementation worktree，Developer lane 由 `finalize-engineering-delivery.sh` 自動清理；Local Extension lane 在 extension final verification 後必跑 cleanup helper；不得手動 `rm -rf`：
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
@@ -725,8 +725,8 @@ L1 fallback 由 Stop hook（`.claude/hooks/feedback-reflection-stop.sh`）在對
 - Do: 把 hook / wrapper 視為 enforcement backup，不是執行流程的替代品
 - Do: 若判斷有更短路徑，先向使用者提案並等待同意；未同意前仍照 skill 原流程執行
 - Do: 對 task ticket 維持 JIRA write-only 姿態；施工語意以 task.md 為準
-- Don't: 在 work-on 裡做規劃（估點、拆單、根因分析、AC 生成）— 那是 breakdown/bug-triage 的工作
-- Don't: 在 work-on 裡跑 AC 驗證 — 那是 verify-AC 的工作
+- Don't: 在 engineering 裡做規劃（估點、拆單、根因分析、AC 生成）— 那是 breakdown/bug-triage 的工作
+- Don't: 在 engineering 裡跑 Epic AC 驗證 — 那是 verify-AC 的工作
 - Don't: 跳過 Task Existence Gate（first-cut 和 revision mode 都適用）
 - Don't: 跳過 engineer-delivery-flow 直接 commit/push
 - Don't: 用「我已經用 targeted tests / patch checker 驗過」取代 skill 明定的 mandatory gate

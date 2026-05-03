@@ -427,7 +427,7 @@ Strategist 沒有 passive event 能力（不做 webhook / polling），因此 re
 | 類型 | 機制 | 實例 |
 |------|------|------|
 | **Explicit**（主要） | 使用者明確說 | 「驗 {EPIC}」、「verify {AC_TICKET}」 |
-| **Opportunistic**（次要） | 既有 state-check skill 跑時順便偵測並 surface | `converge`、`epic-status`、`next`、`my-triage`、`standup` |
+| **Opportunistic**（次要） | 既有 state-check skill 跑時順便偵測並 surface | `converge`、`my-triage`、`standup` |
 
 ### 偵測條件
 
@@ -439,20 +439,17 @@ Strategist 沒有 passive event 能力（不做 webhook / polling），因此 re
 
 ### 實作影響
 
-P4 實作 verify-AC skill 時，同步更新這幾個 skill 的 SKILL.md 加入偵測步驟：`converge`、`epic-status`、`next`、`my-triage`、`standup`。**不做 webhook、不做 polling。**
+verify-AC 相關偵測由 `converge`、`my-triage`、`standup` 這些仍存在的 state-check skills surface。**不做 webhook、不做 polling。**
 
 ## 過渡策略
 
 一刀切：新 pipeline 在 **P5 全部完成後**生效，之前的 Epic 跑完現況格式。切換標誌為 commit message `feat(pipeline): enable new verify-AC flow`。
 
-## 整併 verify-completion（P4 前置）
+## Verification Ownership
 
-現有 `verify-completion` skill 與 verify-AC 在「跑驗證 + 呈現事實 + 不擅自通過」的核心動作重疊。P4 啟動前必須：
-
-1. 讀 `verify-completion/SKILL.md`
-2. 判斷兩者是 task-level vs Epic-level 還是完全重疊
-3. 選一：**整併**（rename + 擴充支援 AC ticket input）或 **保留分工**
-4. 傾向整併，減少概念冗餘
+不保留獨立的 legacy verification skill。Task-level verification 由 `engineering`
+delivery flow 執行 task.md `Verify Command`；Epic-level / AC-level verification
+由 `verify-AC` 負責。任何新流程都應接到這兩個入口，不再新增相容 shim。
 
 ## Loop 終止條件
 

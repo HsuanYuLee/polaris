@@ -54,7 +54,7 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 | Scan PRs needing review | "掃 PR", "大家的 PR", "review inbox" | `review-inbox` |
 | Review PRs in Slack thread | Slack thread URL + review intent ("review <slack_url>", "幫我看這串", "這串 PR review 一下") | `review-inbox` (Thread mode) |
 | Estimate a ticket | "估點", "estimate", "評估" + ticket | `breakdown` (Story/Task/Epic) or `bug-triage` (Bug) |
-| Work on a ticket | "做", "work on", "engineering" + ticket | `engineering` (formerly work-on, requires existing plan — if no plan, routes to planning skill first) |
+| Work on a ticket | "做", "work on", "engineering" + ticket | `engineering` (requires existing plan — if no plan, routes to planning skill first) |
 | Verify Epic AC | "驗 {EPIC}", "verify {TICKET}", "verify AC", "跑驗收", "AC 驗證" | `verify-AC` |
 | Triage/plan a bug | "修 bug", "fix bug", "分析 bug", "triage bug" + ticket | `bug-triage` |
 | Triage a bug (no ticket) | "修這個", "fix this" + Slack URL, no JIRA key | Strategist pre-processing → create Bug ticket → `bug-triage` |

@@ -8,9 +8,7 @@
 #   - new format missing required field → block
 #   - new format with exit_code != 0 → block
 #   - new format passes WITHOUT 4h stale check (head_sha auto-stale)
-#   - legacy format fallback (no new file) → still allow when valid
-#   - legacy format 4h stale → block
-#   - legacy format writer != whitelist → block
+#   - old ticket-only evidence file is ignored → block
 #   - POLARIS_SKIP_EVIDENCE=1 → allow (existing bypass)
 #   - non-task branch (push mode) → allow without evidence
 #   - non-Bash tool → allow
@@ -114,11 +112,12 @@ cat > "$EV_NEW" <<EOF
 }
 EOF
 INPUT="$(make_git_push_input "$REPO_NEW")"
+ERR_OUT="$WORK_DIR/err.txt"
 echo "$INPUT" | "$GATE" >/dev/null 2>&1
 assert_eq "$?" "0" "new format + writer=run-verify-command.sh + exit 0 → allow"
 
 # ────────────────────────────────────────────────────────────────────────────
-echo "=== new format with writer = polaris-write-evidence.sh (whitelist) → allow ==="
+echo "=== new format with writer = polaris-write-evidence.sh → block ==="
 cat > "$EV_NEW" <<EOF
 {
   "ticket": "VEG-1",
@@ -131,8 +130,9 @@ cat > "$EV_NEW" <<EOF
   "level": "static"
 }
 EOF
-echo "$INPUT" | "$GATE" >/dev/null 2>&1
-assert_eq "$?" "0" "new format + writer=polaris-write-evidence.sh → allow"
+echo "$INPUT" | "$GATE" >/dev/null 2>"$ERR_OUT"
+RC=$?
+assert_eq "$RC" "2" "new format + writer=polaris-write-evidence.sh → block"
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== new format with writer not in whitelist → block ==="
@@ -148,7 +148,6 @@ cat > "$EV_NEW" <<EOF
   "level": "static"
 }
 EOF
-ERR_OUT="$WORK_DIR/err.txt"
 echo "$INPUT" | "$GATE" >/dev/null 2>"$ERR_OUT"
 RC=$?
 assert_eq "$RC" "2" "new format + bad writer → block exit 2"
@@ -235,13 +234,12 @@ assert_eq "$?" "0" "new format ignores 4h stale check (head_sha self-binds)"
 rm -f "$EV_NEW"
 
 # ────────────────────────────────────────────────────────────────────────────
-echo "=== legacy format fallback (no new file) → allow when valid ==="
+echo "=== old ticket-only evidence file is ignored → block ==="
 REPO_LEGACY="$WORK_DIR/repo-legacy"
 make_fake_repo "$REPO_LEGACY"
 HEAD_LEGACY="$(git -C "$REPO_LEGACY" rev-parse HEAD)"
 INPUT_LEGACY="$(make_git_push_input "$REPO_LEGACY")"
 
-# Valid legacy file (no head_sha pattern; ticket key from branch is VEG-1)
 EV_LEGACY="/tmp/polaris-verified-VEG-1.json"
 cat > "$EV_LEGACY" <<EOF
 {
@@ -253,63 +251,17 @@ cat > "$EV_LEGACY" <<EOF
   "runtime_contract": {"level": "static", "runtime_verify_target": "", "runtime_verify_target_host": "", "verify_command": "echo PASS", "verify_command_url": "", "verify_command_url_host": ""}
 }
 EOF
-# Make sure no new format file exists for this head
 rm -f "/tmp/polaris-verified-VEG-1-${HEAD_LEGACY}.json"
 echo "$INPUT_LEGACY" | "$GATE" >/dev/null 2>"$ERR_OUT"
 RC=$?
-assert_eq "$RC" "0" "legacy format fresh + valid → allow (fallback)"
-
-# ────────────────────────────────────────────────────────────────────────────
-echo "=== legacy format 4h stale → block ==="
-cat > "$EV_LEGACY" <<EOF
-{
-  "ticket": "VEG-1",
-  "timestamp": "2025-01-01T00:00:00Z",
-  "branch": "task/VEG-1-selftest",
-  "summary": {"total": 1, "pass": 1, "fail": 0, "skip": 0},
-  "results": [{"status": "PASS", "detail": "PASS: legacy stale"}],
-  "runtime_contract": {"level": "static"}
-}
-EOF
-echo "$INPUT_LEGACY" | "$GATE" >/dev/null 2>"$ERR_OUT"
-RC=$?
-assert_eq "$RC" "2" "legacy 4h stale → block"
-if grep -q "stale" "$ERR_OUT" 2>/dev/null; then
+assert_eq "$RC" "2" "old ticket-only evidence without head_sha filename → block"
+if grep -q "No verification evidence" "$ERR_OUT" 2>/dev/null; then
   PASS=$((PASS + 1))
-  [[ "$DEBUG" == "1" ]] && printf "  [ok] stale message present\n"
+  [[ "$DEBUG" == "1" ]] && printf "  [ok] old-evidence ignored message present\n"
 else
   FAIL=$((FAIL + 1))
-  printf "  [FAIL] stale message missing\n    err: %s\n" "$(cat "$ERR_OUT")"
+  printf "  [FAIL] old-evidence ignored message wrong\n    err: %s\n" "$(cat "$ERR_OUT")"
 fi
-
-# ────────────────────────────────────────────────────────────────────────────
-echo "=== legacy format with writer not in whitelist → block ==="
-cat > "$EV_LEGACY" <<EOF
-{
-  "ticket": "VEG-1",
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "writer": "evil.sh",
-  "results": [{"status": "PASS", "detail": "x"}],
-  "runtime_contract": {"level": "static"}
-}
-EOF
-echo "$INPUT_LEGACY" | "$GATE" >/dev/null 2>"$ERR_OUT"
-RC=$?
-assert_eq "$RC" "2" "legacy + bad writer → block"
-
-# ────────────────────────────────────────────────────────────────────────────
-echo "=== legacy format with missing writer field defaults to polaris-write-evidence.sh → allow ==="
-cat > "$EV_LEGACY" <<EOF
-{
-  "ticket": "VEG-1",
-  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "results": [{"status": "PASS", "detail": "PASS: ok"}],
-  "runtime_contract": {"level": "static"}
-}
-EOF
-echo "$INPUT_LEGACY" | "$GATE" >/dev/null 2>"$ERR_OUT"
-RC=$?
-assert_eq "$RC" "0" "legacy missing writer field defaults to whitelist → allow"
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== no evidence file at all → block ==="
@@ -327,7 +279,7 @@ else
 fi
 
 # ────────────────────────────────────────────────────────────────────────────
-echo "=== new format takes priority over legacy when both exist ==="
+echo "=== new format allows even when old ticket-only evidence also exists ==="
 HEAD_PR="$HEAD_NEW"
 EV_NEW2="/tmp/polaris-verified-VEG-1-${HEAD_PR}.json"
 EV_LEG2="/tmp/polaris-verified-VEG-1.json"
@@ -343,7 +295,6 @@ cat > "$EV_NEW2" <<EOF
   "level": "static"
 }
 EOF
-# Invalid legacy (would block if used)
 cat > "$EV_LEG2" <<EOF
 {
   "ticket": "VEG-1",
@@ -354,7 +305,7 @@ cat > "$EV_LEG2" <<EOF
 EOF
 INPUT_NEW="$(make_git_push_input "$REPO_NEW")"
 echo "$INPUT_NEW" | "$GATE" >/dev/null 2>&1
-assert_eq "$?" "0" "new format wins over invalid legacy when both present"
+assert_eq "$?" "0" "head_sha evidence is the only accepted format"
 
 # ────────────────────────────────────────────────────────────────────────────
 echo ""

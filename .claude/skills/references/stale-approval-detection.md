@@ -37,7 +37,7 @@ stale_approvals = count(reviews where state == "APPROVED" && submitted_at <= pus
 |-------|------|
 | `check-pr-approvals` | 篩選 valid approve 數 < threshold 的 PR，催 re-approve |
 | `review-inbox` | 分類為 `needs_re_approve` 狀態，決定是否需要 re-review |
-| `epic-status` | 識別 review 卡住的 blocker（0 valid approved 超過 2 天） |
+| `converge` | 識別 review 卡住的 blocker（0 valid approved 超過 2 天） |
 
 ## 不可忽略
 

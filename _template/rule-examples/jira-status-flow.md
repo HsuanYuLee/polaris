@@ -14,8 +14,8 @@ Open → IN DEVELOPMENT → CODE REVIEW → WAITING FOR QA → QA TESTING → WA
 
 | Trigger | Auto-transition | Skill |
 |---------|----------------|-------|
-| Developer says "start dev" | Open → **IN DEVELOPMENT** | start-dev |
-| PR created | IN DEVELOPMENT → **CODE REVIEW** | git-pr-workflow |
+| Developer starts implementation | Open → **IN DEVELOPMENT** | engineering |
+| PR created | IN DEVELOPMENT → **CODE REVIEW** | engineering delivery flow |
 
 All other status transitions (including transitioning to WAITING FOR QA) are performed manually by the developer or QA.
 

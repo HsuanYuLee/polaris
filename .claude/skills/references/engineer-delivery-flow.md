@@ -64,7 +64,7 @@
 └────────────────────────────────────────┘  └──────────────────────────────────────────────┘
 ```
 
-**Step 完整序列**：Step 1 Simplify → Step 1.3 Self-Review → Step 1.5 Scope Gate → Step 2 前置 Rebase → Step 2 Local CI Mirror → Step 3 Verify → Step 3.5 VR → Step 5 Base Freshness → Step 6 Commit+Changeset → Step 7 PR / Local Extension Handoff → Step 8 JIRA / Extension Verification → Step 8a Finalize Delivery（Completion Gate + IMPLEMENTED）
+**Step 完整序列**：Step 1 Simplify → Step 1.3 Self-Review → Step 1.5 Scope Gate → Step 2 前置 Rebase → Step 2 Local CI Mirror → Step 3 Verify → Step 3.5 VR → Step 5 Base Freshness → Step 6 Commit+Changeset → Step 7 PR / Local Extension Handoff → Step 8 JIRA / Extension Verification → Step 8a Finalize Delivery（Completion Gate + IMPLEMENTED + Worktree Cleanup）
 
 ## Role Matrix
 
@@ -618,7 +618,7 @@ PR 建立後，轉 JIRA ticket 狀態為 `CODE REVIEW`：
 
 ### 8a. Finalize Delivery（Developer only）
 
-PR 建立成功或 revision mode 既有 PR branch push 完成後，在任何 user-facing completion report 之前，呼叫 finalize helper。此 helper 會先跑 Completion Gate，PASS 後才將對應的 task.md frontmatter 標為 `status: IMPLEMENTED`；docs-manager 會直接讀取 canonical specs status：
+PR 建立成功或 revision mode 既有 PR branch push 完成後，在任何 user-facing completion report 之前，呼叫 finalize helper。此 helper 會先跑 Completion Gate，PASS 後才將對應的 task.md frontmatter 標為 `status: IMPLEMENTED`，並清理對應的 implementation worktree；docs-manager 會直接讀取 canonical specs status：
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/finalize-engineering-delivery.sh" \
@@ -632,6 +632,7 @@ Helper contract：
 - Developer deliverable PR 必須由 completion gate 讀 remote PR metadata/body，且通過 PR readiness：`state=OPEN`、`isDraft=false`、remote body 保留 repo template headings
 - Completion Gate PASS 後呼叫 `mark-spec-implemented.sh <ticket> --status IMPLEMENTED --workspace <workspace_root>`
 - 最後驗證 resolved task path 位於 `tasks/pr-release/`，且 frontmatter `status: IMPLEMENTED`
+- 呼叫 `engineering-clean-worktree.sh --task-md <resolved pr-release task.md> --repo <repo>`；若沒有對應 implementation worktree，helper 合法 no-op
 
 `mark-spec-implemented.sh` 會自動找 Task-level anchor（T{n}/V{n} key 或 `> JIRA: {TICKET}` header 比對）→ **move-first 順序**（DP-033 D6）：
   1. `mv tasks/{T}.md → tasks/pr-release/{T}.md`（先搬，永遠不會在 active `tasks/` 內寫 IMPLEMENTED）
@@ -640,7 +641,7 @@ Helper contract：
 - Idempotent — 已在 pr-release/ 且已標過相同 status 不做事
 - 同 key 衝突（active 與 pr-release/ 並存且內容不同）→ exit 2，須人工解決
 
-失敗 = **HALT**，不得回報「完成 / 可交付 / 已驗完」。這避免 PR 已推、Completion Gate 已過，但 task lifecycle 忘記 move 到 `pr-release/`。
+失敗 = **HALT**，不得回報「完成 / 可交付 / 已驗完」。這避免 PR 已推、Completion Gate 已過，但 task lifecycle 忘記 move 到 `pr-release/` 或 worktree closeout 被漏掉。
 
 **Admin 模式跳過本 step**（無 ticket / task.md）。
 
@@ -718,7 +719,7 @@ Step 7a 保證「不能開 PR」；Step 8.5 保證「不能嘴上結案」。兩
 
 ## Step 8.6 — Worktree Cleanup
 
-PR 建立 / 既有 PR branch push 完成，或 local extension final verification 完成後，task deliverable / extension metadata 已回寫、Developer finalize helper PASS（或 Local Extension closeout helper PASS），才清掉本次 implementation worktree。不要手動猜路徑或直接 `rm -rf`，一律用 helper 做 guard 後清理。若 local policy 使用 `framework-release-closeout.sh`，該 helper 已負責呼叫 `engineering-clean-worktree.sh`，並在 parent DP terminal 後 archive canonical DP container；不要再手動重跑 cleanup/archive 除非前次 helper 明確失敗並要求人工恢復。
+PR 建立 / 既有 PR branch push 完成，或 local extension final verification 完成後，task deliverable / extension metadata 已回寫、Developer finalize helper PASS（或 Local Extension closeout helper PASS），才清掉本次 implementation worktree。Developer lane 的 cleanup 已內建在 `finalize-engineering-delivery.sh`：task move 到 `tasks/pr-release/` 且 status 變成 `IMPLEMENTED` 後，finalize helper 會用 `engineering-clean-worktree.sh` guard 後清理。不要手動猜路徑或直接 `rm -rf`。若 local policy 使用 `framework-release-closeout.sh`，該 helper 已負責呼叫 `engineering-clean-worktree.sh`，並在 parent DP terminal 後 archive canonical DP container；不要再手動重跑 cleanup/archive 除非前次 helper 明確失敗並要求人工恢復。
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
@@ -834,4 +835,4 @@ Risk signal（若多次觸發，呼叫端應停下回報使用者而非繼續）
 
 ## 來源
 
-本 reference 從早期 Admin PR flow、原 `verify-completion` 行為驗證段、原 `dev-quality-check` Step 6 smoke test 整併而來。2026-04-14 engineering（原 work-on）重構 v2 抽出作為共用 backbone（見 memory `project_workon_redesign_v2.md`）。DP-032 Wave γ-δ 重構為 Two-Segment Architecture：LLM 實作段（Phase 3）+ 機械自驗段（Step 1.5+），引入 script-mediated evidence AND gate model、scope gate、前置 rebase、base freshness detection、VR skill sunset。DP-040 後，framework repo 也透過 DP-backed `engineering` 進入本流程。
+本 reference 是 `engineering` 的共用 delivery backbone。DP-032 Wave γ-δ 重構為 Two-Segment Architecture：LLM 實作段（Phase 3）+ 機械自驗段（Step 1.5+），引入 script-mediated evidence AND gate model、scope gate、前置 rebase、base freshness detection、VR skill sunset。DP-040 後，framework repo 也透過 DP-backed `engineering` 進入本流程。

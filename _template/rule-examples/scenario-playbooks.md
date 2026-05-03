@@ -61,7 +61,7 @@ When a JIRA ticket depends on another ticket that has not yet been merged:
 4. Implement (if situation differs from initial analysis, add a JIRA comment with the revised version; pause for confirmation if story points change > 30%)
 5. Quality check → Pre-PR review loop → open PR
 
-⚠️ **"help me fix" + JIRA URL/ticket key → bug-triage**; **"help me fix" + PR URL → fix-pr-review**
+⚠️ **"help me fix" + JIRA URL/ticket key → bug-triage**; **"help me fix" + PR URL → engineering revision mode**
 
 ## Refactor / Optimization
 

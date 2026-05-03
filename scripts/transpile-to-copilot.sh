@@ -233,6 +233,7 @@ while IFS= read -r f; do
   cat "$f" >> "$tmp_instructions"
   printf '\n\n' >> "$tmp_instructions"
 done < <(find "$CLAUDE_RULES_DIR" -maxdepth 1 -type f -name '*.md' | sort)
+perl -0pi -e 's/\n+\z/\n/' "$tmp_instructions"
 
 # ---------------------------------------------------------------------------
 # Check mode: compare against existing generated files
