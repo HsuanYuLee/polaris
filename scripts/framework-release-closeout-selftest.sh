@@ -282,6 +282,85 @@ run_stacked_task_case() {
   [[ ! -d "$wt1" && ! -d "$wt2" ]] || { echo "[selftest] stacked worktrees were not removed" >&2; return 1; }
 }
 
+run_preimplemented_stacked_pr_release_case() {
+  local tmp repos repo template dp_dir archived_dp_dir branch1 branch2 task1 task2 pr_task1 pr_task2 wt1 wt2 head1 head2 workspace_commit template_commit ev1 ev2
+  tmp="$(mktemp -d -t framework-closeout-preimplemented-stacked.XXXXXX)"
+  trap 'rm -rf "$tmp"' RETURN
+  repos="$(make_repos "$tmp")"
+  repo="$(printf '%s\n' "$repos" | sed -n '1p')"
+  template="$(printf '%s\n' "$repos" | sed -n '2p')"
+
+  dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/DP-999-release-closeout"
+  mkdir -p "${dp_dir}/tasks/pr-release"
+  write_plan "$dp_dir"
+  branch1="task/DP-999-T1-closeout"
+  branch2="task/DP-999-T2-closeout"
+  task1="${dp_dir}/tasks/T1.md"
+  task2="${dp_dir}/tasks/T2.md"
+  pr_task1="${dp_dir}/tasks/pr-release/T1.md"
+  pr_task2="${dp_dir}/tasks/pr-release/T2.md"
+  write_task "$task1" T1 "$branch1" ""
+  write_task "$task2" T2 "$branch2" "T1"
+  mv "$task1" "$pr_task1"
+  mv "$task2" "$pr_task2"
+  update_frontmatter_status() {
+    local file="$1"
+    python3 - "$file" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+if text.startswith("---\n"):
+    lines = text.splitlines()
+    end = lines.index("---", 1)
+    fm = lines[1:end]
+    if not any(line.startswith("status:") for line in fm):
+        fm.append("status: IMPLEMENTED")
+    else:
+        fm = ["status: IMPLEMENTED" if line.startswith("status:") else line for line in fm]
+    text = "---\n" + "\n".join(fm) + "\n---\n" + "\n".join(lines[end + 1:]) + "\n"
+else:
+    text = "---\nstatus: IMPLEMENTED\n---\n" + text
+path.write_text(text, encoding="utf-8")
+PY
+  }
+  update_frontmatter_status "$pr_task1"
+  update_frontmatter_status "$pr_task2"
+
+  wt1="$(add_task_branch_and_worktree "$repo" "$branch1" "t1")"
+  wt2="$(add_task_branch_and_worktree "$repo" "$branch2" "t2")"
+  head1="$(git -C "$wt1" rev-parse HEAD)"
+  head2="$(git -C "$wt2" rev-parse HEAD)"
+  merge_task_branch "$repo" "$branch1"
+  merge_task_branch "$repo" "$branch2"
+  workspace_commit="$(git -C "$repo" rev-parse HEAD)"
+  template_commit="$(git -C "$template" rev-parse HEAD)"
+  ev1="${tmp}/verify-t1.json"
+  ev2="${tmp}/verify-t2.json"
+  write_verify_evidence "$ev1" DP-999-T1 "$head1"
+  write_verify_evidence "$ev2" DP-999-T2 "$head2"
+
+  bash "$CLOSEOUT" \
+    --repo "$repo" \
+    --template-repo "$template" \
+    --task-md "$pr_task1" \
+    --verify-evidence "$ev1" \
+    --task-md "$pr_task2" \
+    --verify-evidence "$ev2" \
+    --workspace-commit "$workspace_commit" \
+    --template-commit "$template_commit" \
+    --version-tag v0.0.1 \
+    --release-url https://github.com/example/polaris/releases/tag/v0.0.1
+
+  archived_dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/archive/DP-999-release-closeout"
+  [[ ! -d "$dp_dir" && -d "$archived_dp_dir" ]] || { echo "[selftest] preimplemented stacked parent DP was not archived after terminal task" >&2; return 1; }
+  [[ -f "${archived_dp_dir}/tasks/pr-release/T1.md" && -f "${archived_dp_dir}/tasks/pr-release/T2.md" ]] || { echo "[selftest] preimplemented stacked tasks missing after archive" >&2; return 1; }
+  grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/plan.md" || { echo "[selftest] preimplemented stacked parent DP was not closed" >&2; return 1; }
+  grep -q 'extension_deliverable:' "${archived_dp_dir}/tasks/pr-release/T1.md" || { echo "[selftest] preimplemented T1 extension deliverable missing" >&2; return 1; }
+  grep -q 'extension_deliverable:' "${archived_dp_dir}/tasks/pr-release/T2.md" || { echo "[selftest] preimplemented T2 extension deliverable missing" >&2; return 1; }
+}
+
 run_archived_pr_release_case() {
   local tmp repos repo template archived_dp_dir branch task_md wt task_head workspace_commit template_commit evidence
   tmp="$(mktemp -d -t framework-closeout-archived.XXXXXX)"
@@ -482,6 +561,7 @@ run_dirty_worktree_case() {
 
 run_single_task_case
 run_stacked_task_case
+run_preimplemented_stacked_pr_release_case
 run_archived_pr_release_case
 run_delayed_terminal_archive_case
 run_stale_evidence_case

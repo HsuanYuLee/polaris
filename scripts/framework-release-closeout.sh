@@ -371,10 +371,14 @@ for i in "${!ABS_TASK_MDS[@]}"; do
 
   bash "${SCRIPT_DIR}/engineering-clean-worktree.sh" --task-md "$moved_task_md" --repo "$REPO_ROOT"
   delete_branch_if_safe "$task_branch" "$task_head_sha"
-  bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" \
-    --task-md "$moved_task_md" \
-    --workspace "$REPO_ROOT" \
-    --archive-terminal-parent
+  close_parent_args=(
+    --task-md "$moved_task_md"
+    --workspace "$REPO_ROOT"
+  )
+  if [[ "$i" -eq $((${#ABS_TASK_MDS[@]} - 1)) ]]; then
+    close_parent_args+=(--archive-terminal-parent)
+  fi
+  bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" "${close_parent_args[@]}"
 
   info "closed out ${task_id}"
 done

@@ -119,6 +119,15 @@ esac
 
 REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 WORKSPACE_ROOT="$(cd "$WORKSPACE_ROOT" && pwd)"
+WORKSPACE_SCRIPT_DIR="${WORKSPACE_ROOT}/scripts"
+PARENT_CLOSEOUT_SCRIPT="${WORKSPACE_SCRIPT_DIR}/close-parent-spec-if-complete.sh"
+if [[ ! -x "$PARENT_CLOSEOUT_SCRIPT" ]]; then
+  PARENT_CLOSEOUT_SCRIPT="${SCRIPT_DIR}/close-parent-spec-if-complete.sh"
+fi
+if [[ ! -x "$PARENT_CLOSEOUT_SCRIPT" ]]; then
+  echo "$PREFIX close-parent helper not found for workspace or script dir" >&2
+  exit 1
+fi
 
 echo "$PREFIX running completion gate for ${TICKET} ..." >&2
 if ! bash "${SCRIPT_DIR}/check-delivery-completion.sh" --repo "$REPO_ROOT" --ticket "$TICKET"; then
@@ -160,7 +169,7 @@ if ! bash "${SCRIPT_DIR}/engineering-clean-worktree.sh" --task-md "$TASK_MD_PATH
 fi
 
 echo "$PREFIX attempting parent spec closeout for ${TICKET} ..." >&2
-if ! bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" --task-md "$TASK_MD_PATH" --workspace "$WORKSPACE_ROOT"; then
+if ! bash "$PARENT_CLOSEOUT_SCRIPT" --task-md "$TASK_MD_PATH" --workspace "$WORKSPACE_ROOT"; then
   echo "$PREFIX parent spec closeout failed after task lifecycle finalized" >&2
   exit 2
 fi

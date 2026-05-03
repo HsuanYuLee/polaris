@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.44] - 2026-05-04
+
+### Fixed — release closeout archive timing
+
+- Made `finalize-engineering-delivery.sh` run parent closeout from the
+  workspace root after implementation worktree cleanup, avoiding missing-script
+  failures when the worktree has already been removed.
+- Made `framework-release-closeout.sh` defer terminal DP archive until the last
+  task in a stacked release, so earlier closeout steps cannot invalidate later
+  task paths.
+- Added release closeout selftest coverage for already-implemented stacked
+  `tasks/pr-release` inputs.
+
 ## [3.74.43] - 2026-05-04
 
 ### Changed — handbook config machine source contract
