@@ -143,7 +143,9 @@ engineering revision mode（`§ R0` pre-work rebase）每次進入都重跑 Reso
 
 ## task.md Schema
 
-Breakdown 產出的 task.md 是 engineering 的唯一施工輸入（除了 codebase、company handbook、repo handbook）。Engineering / sub-agent 須自行讀取 `{base_dir}/.claude/rules/{company}/handbook/index.md` + index 引用子文件，以及 `{repo}/.claude/rules/handbook/index.md` + index 引用子文件；handbook 不會自動載入。必須 self-contained。
+Breakdown 產出的 task.md 是 engineering 的唯一施工輸入（除了 codebase、company handbook、repo handbook）。Engineering / sub-agent 須自行讀取 workspace-owned handbook SoT：`{company}/polaris-config/handbook/index.md` + index 引用子文件，以及 `{company}/polaris-config/{project}/handbook/index.md` + index 引用子文件；handbook 不會自動載入。必須 self-contained。
+
+Repo root `CLAUDE.md` / `AGENTS.md` native files are not required for this contract. A repo-owned adapter can be added only by repo owner decision; native adapter deferred is the default. Polaris handoff never asks downstream skills to edit tracked repo AI config to make the framework harness work.
 
 ```markdown
 # T{n}: {Task summary} ({SP} pt)

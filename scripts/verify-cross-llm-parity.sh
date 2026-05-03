@@ -3,7 +3,7 @@ set -euo pipefail
 
 # verify-cross-llm-parity.sh
 #
-# Verify that generated Codex artifacts are in sync with Claude source-of-truth.
+# Verify that generated runtime artifacts are in sync with Polaris source-of-truth.
 #
 # Usage:
 #   bash scripts/verify-cross-llm-parity.sh
@@ -11,17 +11,14 @@ set -euo pipefail
 # This script checks:
 #   1) .agents/skills mirror mode
 #   2) .claude/skills -> .agents/skills parity
-#   3) .claude/rules -> .codex/AGENTS.md parity
+#   3) .claude/instructions -> runtime target parity
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-CODEX_AGENTS="$ROOT_DIR/.codex/AGENTS.md"
-CODEX_MANIFEST="$ROOT_DIR/.codex/.generated/rules-manifest.txt"
-
-refresh_codex_rules_target() {
-  echo "INFO: Refreshing ignored Codex generated rule target from .claude/rules/**/*.md"
-  bash "$SCRIPT_DIR/transpile-rules-to-codex.sh"
+refresh_runtime_targets() {
+  echo "INFO: Refreshing runtime instruction targets from .claude/instructions/manifest.yaml"
+  bash "$SCRIPT_DIR/compile-runtime-instructions.sh"
 }
 
 echo "[1/4] Verify skills mirror mode"
@@ -32,16 +29,11 @@ echo "[2/4] Verify Claude/Codex skills parity"
 bash "$SCRIPT_DIR/mechanism-parity.sh" --strict
 
 echo
-echo "[3/4] Verify Codex rules transpile parity"
-if [[ ! -f "$CODEX_AGENTS" || ! -f "$CODEX_MANIFEST" ]]; then
-  echo "INFO: Codex generated rule target is missing; materializing before parity check."
-  refresh_codex_rules_target
-fi
-
-if ! bash "$SCRIPT_DIR/transpile-rules-to-codex.sh" --check; then
-  echo "INFO: Codex generated rule target drift detected; regenerating once and rechecking."
-  refresh_codex_rules_target
-  bash "$SCRIPT_DIR/transpile-rules-to-codex.sh" --check
+echo "[3/4] Verify runtime instruction target parity"
+if ! bash "$SCRIPT_DIR/compile-runtime-instructions.sh" --check; then
+  echo "INFO: runtime instruction target drift detected; regenerating once and rechecking."
+  refresh_runtime_targets
+  bash "$SCRIPT_DIR/compile-runtime-instructions.sh" --check
 fi
 
 echo

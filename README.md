@@ -8,6 +8,8 @@ English | [中文](./README.zh-TW.md)
 
 A Claude Code / Codex workspace template that turns your AI assistant into a strategist — it learns your team's workflow, routes tasks to specialized skills, and evolves its own rules from daily usage.
 
+Polaris is an add-on harness. It owns workspace-level instructions, skills, hooks, and `{company}/polaris-config/`; it does not need to edit a product repo's tracked `CLAUDE.md`, `AGENTS.md`, Copilot instructions, or other repo-owned AI config to work.
+
 ## Who is this for?
 
 - **Developers** — automate the JIRA → branch → code → PR loop, enforce team conventions through AI
@@ -160,8 +162,9 @@ After `/init` completes, your workspace will look like this:
 │   └── skills/                   ← 24 workflow skills
 └── your-company/                 ← created by /init
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
+    ├── polaris-config/           ← workspace-owned project handbook and generated scripts
     └── your-project/             ← your existing repo (cloned or linked)
-        └── .claude/CLAUDE.md     ← project-level rules (L3)
+        └── ...                   ← repo-owned files stay under the repo owner's control
 ```
 
 Verify setup by trying: `"做 PROJ-123"` (replace with a real ticket key). If Polaris reads the ticket successfully, you're good to go.
@@ -231,9 +234,11 @@ My triage          →  "my work" / 「盤點」
 |-------|----------|-------------|------------------|
 | **L1 — Workspace** | `CLAUDE.md` + `.claude/rules/` | Every conversation | Strategist persona, delegation rules |
 | **L2 — Company** | `.claude/rules/{company}/` | Every conversation | Skill routing, PR conventions, JIRA workflow |
-| **L3 — Project** | `{company}/{project}/CLAUDE.md` | When working in project | Lint config, test patterns, component conventions |
+| **L3 — Project** | `{company}/polaris-config/{project}/` | Read by skills when working in project | Handbook, generated scripts, project conventions |
 
 Rules are always loaded. Skills load on-demand — they don't consume context until triggered.
+
+Product repos may still have their own repo-owned AI config. Polaris respects it, but framework correctness comes from the workspace-owned Polaris config source of truth and deterministic gates.
 
 ### Workflow orchestration
 
@@ -263,7 +268,8 @@ your-workspace/
 ├── scripts/                   # Sync utilities
 └── {company}/                 # Your company directory
     ├── workspace-config.yaml  # Company config (projects, JIRA, etc.)
-    ├── {project-a}/           # Project with its own CLAUDE.md (L3)
+    ├── polaris-config/        # Workspace-owned project handbook + generated scripts
+    ├── {project-a}/           # Product repo, repo-owned config untouched
     └── {project-b}/
 ```
 
@@ -312,7 +318,7 @@ The wizard detects existing companies and creates the new one alongside them. Af
 | Add a new company | Run `/init` | Interactive wizard creates everything |
 | Map JIRA projects to repos | `{company}/workspace-config.yaml` | Add entries to `projects:` |
 | Add company-specific rules | `.claude/rules/{company}/` | Create `.md` files — auto-loaded every conversation |
-| Add project-specific rules | `{company}/{project}/CLAUDE.md` | Loaded when sub-agent enters project |
+| Add project handbook / generated scripts | `{company}/polaris-config/{project}/` | Read by skills without changing repo-owned AI config |
 | Create a new skill | Run `/skill-creator` | Guided skill creation with eval |
 | Modify skill routing | `.claude/rules/{company}/skill-routing.md` | Maps trigger phrases → skills |
 
@@ -335,7 +341,7 @@ These are framework internals. Edit them only if you're modifying the Polaris fr
 |------|-------------------|
 | `.claude/rules/{company}/` | Your company's conventions, routing, JIRA workflow |
 | `{company}/workspace-config.yaml` | JIRA projects, Slack channels, repo mappings |
-| `{company}/{project}/CLAUDE.md` | Project-specific rules (L3) |
+| `{company}/polaris-config/{project}/` | Project handbook, generated scripts, and Polaris-owned config |
 
 ## Upgrading
 

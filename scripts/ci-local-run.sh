@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # ci-local-run.sh — Canonical entry point for running ci-local against current PWD.
 #
-# DP-043 follow-up. Resolves the canonical ci-local.sh from the main checkout
-# (works correctly from inside a worktree) and invokes it with --repo $PWD.
+# DP-079 follow-up. Resolves the canonical ci-local.sh from workspace-owned
+# polaris-config (works correctly from inside a worktree) and invokes it with
+# --repo $PWD.
 #
 # Usage:
 #   bash {polaris}/scripts/ci-local-run.sh                   # validates $PWD
@@ -11,9 +12,9 @@
 #
 # Behavior:
 #   - Resolves main checkout via `git rev-parse --git-common-dir`
-#   - If main checkout has no `.claude/scripts/ci-local.sh` → exit 0 (skip; consistent
-#     with hook/gate's "no ci-local declared" semantics)
-#   - Otherwise: bash <main>/.claude/scripts/ci-local.sh --repo <target>
+#   - If workspace-owned polaris-config has no generated ci-local.sh, legacy
+#     repo-local `.claude/scripts/ci-local.sh` may run only as `legacy-compat`.
+#   - Otherwise: bash <company>/polaris-config/<project>/generated-scripts/ci-local.sh --repo <target>
 #   - BLOCKED_ENV is retried once in the same context, then surfaced as a
 #     runtime-neutral RETRY_WITH_ESCALATION payload for Codex/Claude/human shell
 #     adapters to handle. The wrapper never performs elevated execution itself.
@@ -60,10 +61,16 @@ main_checkout="$(resolve_main_checkout "$TARGET_REPO")" || {
   exit 2
 }
 
-canonical_script="$main_checkout/$CI_LOCAL_RELATIVE_PATH"
+canonical_script="$(ci_local_path_for_repo "$TARGET_REPO")"
+legacy_script="$(ci_local_legacy_path_for_repo "$TARGET_REPO")"
 if [[ ! -f "$canonical_script" ]]; then
-  # Consistent with hook semantics: no ci-local declared → skip silently
-  exit 0
+  if [[ -f "$legacy_script" ]]; then
+    canonical_script="$legacy_script"
+    echo "[ci-local-run] using repo-local fallback reason=$CI_LOCAL_LEGACY_REASON path=$legacy_script" >&2
+  else
+    # Consistent with hook semantics: no ci-local declared → skip silently
+    exit 0
+  fi
 fi
 
 if [[ -z "$BASE_BRANCH" ]]; then

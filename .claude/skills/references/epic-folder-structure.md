@@ -54,7 +54,7 @@ Archive 是整個 container 的 move，不是 copy；active namespace 與 archiv
 - `{EPIC_KEY}`：從 JIRA ticket、git branch（`feat/{EPIC}-*`）、或 command-line `--epic` 推導
 - `{artifact_subpath}`：本 reference 定義
 
-**禁止** hardcode `ai-config/` 或其他非 `specs/` 的路徑作為 Epic artifact 存放位置。
+**禁止** hardcode framework config roots 或其他非 `specs/` 的路徑作為 Epic artifact 存放位置。
 
 ## Artifact Lifecycle
 

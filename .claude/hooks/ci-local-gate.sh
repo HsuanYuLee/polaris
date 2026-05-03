@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ci-local-gate.sh — PreToolUse hook (DP-032 D12-c + DP-043).
-# Enforces repo CI mirror (.claude/scripts/ci-local.sh) for git commit / gh pr create / git push.
+# Enforces repo CI mirror from workspace-owned polaris-config for git commit / gh pr create / git push.
 #
 # Behavior (per D12 Decision 4 — "skill main / hook fallback"):
-#   1. Repo without .claude/scripts/ci-local.sh → allow (engineering
+#   1. Repo without workspace-owned generated ci-local.sh → allow (engineering
 #      handles first-run gate at skill layer; hook stays defensive on cross-LLM
 #      portability)
 #   2. evidence /tmp/polaris-ci-local-{branch_slug}-{head_sha}-{context_hash}.json exists,

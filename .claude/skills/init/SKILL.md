@@ -750,14 +750,14 @@ visual_regression:
 After config is written (Step 10), generate initial test files:
 
 ```
-ai-config/{company}/visual-regression/{domain}/
+polaris-config/{company}/visual-regression/{domain}/
   ├── playwright.config.ts
   └── pages.spec.ts
 ```
 
-Use the templates from the existing `ai-config/acme/visual-regression/www.example.com/` as reference. Generate based on the configured pages and settings.
+Use the templates from the existing `polaris-config/acme/visual-regression/www.example.com/` as reference. Generate based on the configured pages and settings.
 
-If `package.json` doesn't exist at `ai-config/{company}/visual-regression/`, create it with `@playwright/test` dependency.
+If `package.json` doesn't exist at `polaris-config/{company}/visual-regression/`, create it with `@playwright/test` dependency.
 
 Audit: log domain mappings, page counts, whether SIT URL was provided, test files generated.
 

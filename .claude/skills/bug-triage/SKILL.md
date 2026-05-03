@@ -80,7 +80,7 @@ Prompt: AC 驗證失敗，定位 feature branch 上的 code 缺陷。
 - PRs: {#N1}, {#N2}（diff 是確切改動範圍）
 
 任務：
-1. 讀 {repo}/.claude/rules/handbook/ 了解架構
+1. 讀 {company}/polaris-config/{project}/handbook/ 了解架構
 2. 從 PR diff + feature branch code 找出 observed behavior 的產生點
 3. 對比 expected — 判斷是「缺實作」「實作錯了」「邊界條件漏了」還是「依賴整合出錯」
 4. 評估最小修正範圍（必須在 feature branch 上修，不可回 develop/main）
@@ -156,7 +156,7 @@ Ticket 資訊：
 專案目錄: {project_dir}
 
 任務：
-1. 先讀 {repo}/.claude/rules/handbook/ 了解專案架構
+1. 先讀 {company}/polaris-config/{project}/handbook/ 了解專案架構
 2. 找到相關程式碼（根據 ticket 描述的功能/頁面/元件）
 3. 判斷根因：哪個檔案、哪段邏輯、為什麼壞了
 4. 評估影響範圍：還有哪些地方用到同一段邏輯？修改會不會連動？
@@ -251,7 +251,7 @@ This comment becomes the input for `breakdown` — it reads `[ROOT_CAUSE]` to sk
 ### 5b — Process Handbook Observations
 
 If the Explorer sub-agent returned Handbook Observations (gaps or stale info), process them per `references/explore-pattern.md`:
-- Gaps → write to `{repo}/.claude/rules/handbook/` appropriate sub-file
+- Gaps → write to `{company}/polaris-config/{project}/handbook/` appropriate sub-file
 - Stale → mark or fix in handbook
 
 ### 5c — Handoff

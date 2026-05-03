@@ -104,7 +104,7 @@ When appending to an existing file, add new entries after the last existing entr
 
 ### Reverse Sync
 
-After writing, reverse-sync the handbook back to ai-config (source of truth):
+After writing, reverse-sync the handbook back to polaris-config (source of truth):
 
 ```bash
 {base_dir}/polaris-sync.sh --reverse {project-name}

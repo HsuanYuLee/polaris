@@ -73,7 +73,7 @@ VR 分為 **tooling（domain-level）** 和 **data（per-epic）** 兩層：
 
 ### Tooling（domain-level）
 ```
-ai-config/{company}/visual-regression/
+polaris-config/{company}/visual-regression/
   ├── package.json              # 共用 Playwright 依賴（跨 domain 共享）
   ├── node_modules/             # 共用安裝
   ├── record-fixtures.sh        # VR 錄製工具

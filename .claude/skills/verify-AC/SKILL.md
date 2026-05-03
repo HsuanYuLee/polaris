@@ -18,6 +18,8 @@ metadata:
 
 pipeline 的 **QA** 環節（見 [pipeline-handoff.md](../references/pipeline-handoff.md)）。本 skill stateless + comment-driven：每次都 full re-run，結果全部寫回 JIRA comment，不依賴本地狀態。
 
+**Handbook exemption（deterministic）**：verify-AC 驗收的是 AC ticket 的 observed vs expected，不做 code diagnosis，也不改 code；因此不強制讀 repo handbook SoT。若 FAIL 後需要定位原因，必須交給 bug-triage，由 bug-triage 讀 workspace-owned `{company}/polaris-config/{project}/handbook/`。
+
 ## 前置：讀取 workspace config
 
 讀 `references/workspace-config-reader.md`（需要 `jira.instance`、`github.org`、`base_dir`、`projects[].dev_environment`）。Fallback 用 `references/shared-defaults.md`。

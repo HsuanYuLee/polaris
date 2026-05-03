@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.40] - 2026-05-03
+
+### Changed — runtime instruction source unification
+
+- Added a shared runtime instruction compiler for Claude, Codex, and Copilot
+  targets, keeping generated instructions thin and parity-checked.
+- Renamed the Polaris-owned company config root to `polaris-config` and removed
+  steady-state legacy config-root references from runtime targets, skills, and
+  scans.
+- Moved generated script and handbook contracts toward workspace-owned
+  `polaris-config` paths while keeping product repo AI config repo-owned.
+
 ## [3.74.39] - 2026-05-03
 
 ### Fixed — Codex generated target lifecycle

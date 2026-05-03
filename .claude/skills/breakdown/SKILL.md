@@ -744,7 +744,7 @@ develop
 
 ### 14.5. 產出 task.md work orders
 
-為每張實作子單產出 self-contained 工單檔案，讓 engineering 只消費 codebase + task.md + repo handbook（sub-agent 須自行讀取 `{repo}/.claude/rules/handbook/`，不會自動載入）。
+為每張實作子單產出 self-contained 工單檔案，讓 engineering 只消費 codebase + task.md + repo handbook（sub-agent 須自行讀取 `{company}/polaris-config/{project}/handbook/`，不會自動載入）。
 
 **Worktree 提醒**：task.md Write 路徑須用主 checkout 絕對路徑 `{company_specs_dir}/{EPIC_KEY}/tasks/T{n}.md`（gitignored，跨 worktree 共享）。詳見 `skills/references/worktree-dispatch-paths.md`。
 
@@ -786,7 +786,7 @@ develop
 - Epic description 全文 / refinement artifact
 - 業務層 AC 驗證場景（由 AC 驗收單持有）
 - 技術方案選項分析（refinement 已定案）
-- handbook 內容（engineering sub-agent 須自行讀取 `{repo}/.claude/rules/handbook/`，不複製進 task.md）
+- handbook 內容（engineering sub-agent 須自行讀取 `{company}/polaris-config/{project}/handbook/`，不複製進 task.md）
 
 **References to load 挑選規則：**
 

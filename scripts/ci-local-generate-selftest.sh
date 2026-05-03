@@ -5,6 +5,12 @@
 # / NO_CHECKS) under a tmp dir, runs the generator against each, and asserts
 # the produced ci-local.sh contains the expected commands and skips the right ones.
 #
+# DP-079 relocation coverage:
+# - workspace cwd: generator default path resolves outside product repo when a
+#   company/workspace polaris-config root is available.
+# - main checkout: ci-local-run resolves the canonical script through the main checkout.
+# - worktree cwd: ci-local-run still invokes the same generated script with --repo <worktree>.
+#
 # Behavioral execution of the generated scripts is NOT covered here — that requires
 # real toolchains (pnpm, vitest, etc.). This harness validates GENERATION only.
 #

@@ -13,6 +13,8 @@ description: >
 
 Before/after screenshot comparison guard — no long-lived baselines. Each run captures two fresh sets of screenshots, compares them, then discards both. Config-driven from `workspace-config.yaml`.
 
+Project config is read from the workspace-owned Polaris tree (`{company}/polaris-config/...`). Visual regression does not require repo root `CLAUDE.md` / `AGENTS.md` native injection and does not write repo-owned adapter config.
+
 **Position in quality chain:**
 ```
 engineer-delivery-flow Step 2 (ci-local.sh) → visual-regression (Step 3.5) → engineer-delivery-flow Step 3 → commit/PR
@@ -157,7 +159,7 @@ Key effective config fields to resolve:
 - `fixtures.*` (entire block, if present)
 - `pages[]`, `global_masks`, `locales`, `locale_strategy`
 
-Test files location: `ai-config/{company}/visual-regression/{domain}/`
+Test files location: `polaris-config/{company}/visual-regression/{domain}/`
 
 ---
 
@@ -277,7 +279,7 @@ Run Playwright with `--update-snapshots` to establish temporary baselines.
 ```bash
 VR_BASE_URL={sit_url} npx playwright test \
   --update-snapshots \
-  -c ai-config/{company}/visual-regression/{domain}/playwright.config.ts
+  -c polaris-config/{company}/visual-regression/{domain}/playwright.config.ts
 ```
 
 **Local mode (git stash flow):**
@@ -298,7 +300,7 @@ VR_BASE_URL={sit_url} npx playwright test \
    ```bash
    VR_BASE_URL={server.base_url} npx playwright test \
      --update-snapshots \
-     -c ai-config/{company}/visual-regression/{domain}/playwright.config.ts
+     -c polaris-config/{company}/visual-regression/{domain}/playwright.config.ts
    ```
 
 4. Restore stash:
@@ -308,7 +310,7 @@ VR_BASE_URL={sit_url} npx playwright test \
 
 5. Wait for hot-reload again (same poll loop as step 2).
 
-**Output:** Snapshot files written to `ai-config/{company}/visual-regression/{domain}/snapshots/`
+**Output:** Snapshot files written to `polaris-config/{company}/visual-regression/{domain}/snapshots/`
 
 ---
 
@@ -318,14 +320,14 @@ Run Playwright normally — it auto-compares against the baselines from Step 3.
 
 ```bash
 VR_BASE_URL={server.base_url} npx playwright test \
-  -c ai-config/{company}/visual-regression/{domain}/playwright.config.ts
+  -c polaris-config/{company}/visual-regression/{domain}/playwright.config.ts
 ```
 
 Playwright outputs:
 - Exit code 0 → all screenshots match
 - Exit code 1 → one or more diffs found
-- Diff images: `ai-config/{company}/visual-regression/{domain}/test-results/`
-- HTML report: `ai-config/{company}/visual-regression/{domain}/playwright-report/`
+- Diff images: `polaris-config/{company}/visual-regression/{domain}/test-results/`
+- HTML report: `polaris-config/{company}/visual-regression/{domain}/playwright-report/`
 
 ---
 
@@ -400,7 +402,7 @@ Fixture server：{running | 未啟用}
   - checkout-page-zh-TW-1280: diff 67% — 差異過大，請手動確認
 
 Playwright HTML Report:
-  npx playwright show-report ai-config/{company}/visual-regression/{domain}/playwright-report
+  npx playwright show-report polaris-config/{company}/visual-regression/{domain}/playwright-report
 ```
 
 **All pass:**
@@ -418,9 +420,9 @@ If the VR run is part of a ticket verification flow (e.g., triggered by `enginee
 ARTIFACT_DIR="/tmp/polaris-vr-artifacts/{ticket}-{timestamp}"
 mkdir -p "$ARTIFACT_DIR"
 # Copy "after" snapshots (the final state)
-cp -r ai-config/{company}/visual-regression/{domain}/snapshots/ "$ARTIFACT_DIR/snapshots/"
+cp -r polaris-config/{company}/visual-regression/{domain}/snapshots/ "$ARTIFACT_DIR/snapshots/"
 # Copy diff images if any (Playwright generates these for failures)
-cp -r ai-config/{company}/visual-regression/{domain}/test-results/ "$ARTIFACT_DIR/diffs/" 2>/dev/null || true
+cp -r polaris-config/{company}/visual-regression/{domain}/test-results/ "$ARTIFACT_DIR/diffs/" 2>/dev/null || true
 ```
 
 **Step 5b-2: Upload all artifacts to JIRA**
@@ -554,12 +556,12 @@ Always run cleanup regardless of test outcome — including on error. Snapshots 
 
 4. **Delete snapshots** (temporary baselines):
    ```bash
-   rm -rf ai-config/{company}/visual-regression/{domain}/snapshots/
+   rm -rf polaris-config/{company}/visual-regression/{domain}/snapshots/
    ```
 
 5. **Delete test results** (diff images):
    ```bash
-   rm -rf ai-config/{company}/visual-regression/{domain}/test-results/
+   rm -rf polaris-config/{company}/visual-regression/{domain}/test-results/
    ```
 
 Note: `playwright-report/` is kept for the user to inspect. It is NOT committed.
@@ -612,7 +614,7 @@ Then capture baseline screenshots (these validate that proxy mode produces corre
 ```bash
 VR_BASE_URL={server.base_url} npx playwright test \
   --update-snapshots \
-  -c ai-config/{company}/visual-regression/{domain}/playwright.config.ts
+  -c polaris-config/{company}/visual-regression/{domain}/playwright.config.ts
 ```
 
 **⚠ Mockoon CLI proxy mode does NOT auto-record fixtures.** `--proxy enabled` only forwards unmatched requests to real backends — it does NOT save responses back to the environment JSON file. To add new fixtures:
@@ -644,7 +646,7 @@ Run Playwright normally (compares against Phase 1 baselines):
 
 ```bash
 VR_BASE_URL={server.base_url} npx playwright test \
-  -c ai-config/{company}/visual-regression/{domain}/playwright.config.ts
+  -c polaris-config/{company}/visual-regression/{domain}/playwright.config.ts
 ```
 
 **Expected result: zero-diff.** Proxy-recorded data replayed through the same code should produce identical screenshots. If diffs appear:
@@ -750,7 +752,7 @@ The workspace-config `fixtures.runner` specifies the runner script path. The Epi
 | Playwright not installed, consent = consented | Auto-install, then continue |
 | Playwright not installed, consent = declined | Skip with note, do not install |
 | No `pages[]` configured | Report config error, stop |
-| `test_dir` doesn't exist | Create it: `mkdir -p ai-config/{company}/visual-regression/{domain}/` |
+| `test_dir` doesn't exist | Create it: `mkdir -p polaris-config/{company}/visual-regression/{domain}/` |
 | Stash succeeds but stash pop fails after capture | Keep trying. If unrecoverable, report stash ref for manual restore |
 
 ## Troubleshooting

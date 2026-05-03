@@ -208,7 +208,7 @@ gh api repos/{owner}/{repo}/contents/.claude/rules/{filename}?ref={headRefName} 
 
 讀取所有規範檔案，作為 review 依據。常見規範類型包含：型別安全、專案架構、狀態管理、API 開發、格式化、命名、元件開發等。若 `.claude/rules/` 不存在（本地或遠端皆無），則僅依通用審查維度進行 review。
 
-**Repo Handbook 是 review 的 primary standard**：若 `{base_dir}/{repo}/.claude/rules/handbook/` 存在，讀取 `index.md` + 所有子檔案。Handbook 記錄了 repo 的架構、慣例、coding 準則 — review 時全文遵守。符合 handbook 的 pattern 不應被 flag，違反 handbook 的 pattern 應指出。若 handbook 不存在，跳過此步驟。
+**Repo Handbook 是 review 的 primary standard**：若 `{company}/polaris-config/{project}/handbook/` 存在，讀取 `index.md` + 所有子檔案。Handbook 記錄了 repo 的架構、慣例、coding 準則 — review 時全文遵守。符合 handbook 的 pattern 不應被 flag，違反 handbook 的 pattern 應指出。若 handbook 不存在，跳過此步驟。
 
 **重要**：如果是分批 review 模式，規範內容需要在 Step 2 的 Step B 中嵌入各 sub-agent 的 prompt，因此在此步驟就要完成讀取。
 
@@ -523,8 +523,8 @@ Review 中發現的 repo-specific pattern 應**直接寫入 handbook**。Handboo
 
 | 分類 | 目標 | 範例 |
 |------|------|------|
-| Repo-specific | `{repo}/.claude/rules/handbook/` 子文件 | Vue SFC 命名慣例、API error format |
-| Company-level | `rules/{company}/handbook/` 子文件 | 跨 repo 的 changeset 規則 |
+| Repo-specific | `{company}/polaris-config/{project}/handbook/` 子文件 | Vue SFC 命名慣例、API error format |
+| Company-level | `{company}/polaris-config/handbook/` 子文件 | 跨 repo 的 changeset 規則 |
 | Framework | feedback memory（確認後直接寫入 rule） | Polaris skill routing 行為 |
 
 **寫入前去重**：比對 handbook 既有內容 + `rules/` 檔案，語意相同則跳過。
@@ -551,7 +551,7 @@ User 確認後：
 
 ```
 Handbook 更新：
-- 寫入 {base_dir}/{repo}/.claude/rules/handbook/{file}.md：{pattern 摘要}
+- 寫入 {company}/polaris-config/{project}/handbook/{file}.md：{pattern 摘要}
 ```
 
 ### Reverse Sync（靜默）
