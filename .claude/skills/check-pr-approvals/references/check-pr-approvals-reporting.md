@@ -16,8 +16,8 @@
 🔧 需先修正（N 個）：
 | Repo | PR | Ticket | 問題 |
 |------|----|--------|------|
-| repo-a | [#1920](url) | TASK-123 | CI fail (codecov/patch) |
-| repo-c | [#45](url) | TASK-123 | rebase conflict |
+| repo-a | [#1920](url) | KB2CW-3788 | CI fail (codecov/patch) |
+| repo-c | [#45](url) | KB2CW-3801 | rebase conflict |
 | repo-d | [#67](url) | 無對應 ticket | 2 unresolved review comments |
 
 ✅ 已達標（N 個）：repo-a [#100](url), repo-b [#200](url)
@@ -133,5 +133,5 @@ scripts/mark-spec-implemented.sh {TICKET}
 - 已加 label 的 PR
 - Slack 發送 channel
 - JIRA 已從 `CODE REVIEW` 轉回 `IN DEVELOPMENT` 的 ticket
-- 仍需修正的 🔧 PR 與建議指令，例如 `做 TASK-123`
+- 仍需修正的 🔧 PR 與建議指令，例如 `做 KB2CW-3788`
 - label / JIRA / Slack 的 warning

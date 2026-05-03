@@ -102,12 +102,11 @@ When appending to an existing file, add new entries after the last existing entr
 
 > **Bootstrap note**: If the repo does not yet have a handbook directory, create it. The first lesson extraction for a repo bootstraps the handbook.
 
-### Reverse Sync
+### Write Location
 
-After writing, reverse-sync the handbook back to polaris-config (source of truth):
+Write lessons directly to the workspace-owned source of truth:
+`{company}/polaris-config/{project}/handbook/`. Do not write through
+repo-local `.claude/rules/handbook/` and copy it back later; repo-local
+overlays are legacy/native compatibility only.
 
-```bash
-{base_dir}/polaris-sync.sh --reverse {project-name}
-```
-
-Where `{project-name}` is derived from the repo directory name (e.g., `acme-web-app`).
+`{project-name}` is derived from the repo directory name (e.g., `acme-web-app`).

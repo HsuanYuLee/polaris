@@ -1,4 +1,4 @@
-source_of_truth=/Users/hsuanyu.lee/work/.worktrees/polaris-framework-engineering-DP-079-T6/.claude/instructions/manifest.yaml
+source_of_truth=/Users/hsuanyu.lee/work/.claude/instructions/manifest.yaml
 generated_at=deterministic
 
 [sources]
@@ -21,7 +21,7 @@ generated_at=deterministic
 
 [sha256]
 5815b58d913bdec13074150003bd09e22dcdbc568f9064e463e6d61c468406cd  .claude/instructions/core/bootstrap.md
-05b410e6d9c34d37afffc7105c93f485a40b868601408db4dd8e205e1cbbd483  .claude/instructions/manifest.yaml
+945a5720cf59ee35ef378769dfd0a40f85d7575c47c7393f111930068f9841f8  .claude/instructions/manifest.yaml
 a5ed3b521232c5ceb48443b3dd1153d00e2c417a537a61e2531bb7512ebd3ab6  .claude/instructions/runtime/claude.md
 2cce9249351d2f19116f02cc7b6a14e6e40bf6bb1b7efa55bbb1c2f90a3c092c  .claude/instructions/runtime/codex.md
 74e61b0d71c6167c35a86368aebb9a03a9e4a57275c6c41d38e0a909b4bf9622  .claude/instructions/runtime/copilot.md
@@ -32,7 +32,7 @@ e21c91aad06b55d52c66f80d23281d7a60c9e2eff2880348067d5912fe577f84  .claude/rules/
 95cf417c7b65207e8ebab9bfb7378284f9fb7c2637aac0e16563834c6c7c2b91  .claude/rules/framework-iteration.md
 4e4b28748a9c48c2b01d3c5e02beea41c51b8e7d73f27d80c288f49707005456  .claude/rules/jira-quality.md
 2b26e8fe7fe5c74135c96e97b439fe42cc3042556ed02f20682aee979e058fe9  .claude/rules/library-change-protocol.md
-2bd78051f94a056de6333e954931e8030cddd08ac18bedd5bd90e1bb9d12abae  .claude/rules/mechanism-registry.md
+6a651cad7f9943bbeb08b136dff86652362263df70575206f27bcc20e31a3681  .claude/rules/mechanism-registry.md
 aeb20180631f690b3e0a5932c5dbbe2c34760e8d28dcee5c68f63caad07cea10  .claude/rules/multi-company-isolation.md
 4a010d01c2d1968a136adc0f12e059929ffd1c3a850dcabc7d2d406972f094da  .claude/rules/pr-and-review.md
 db59216d7b78ef3fca299aca120b356e5b9f71f6b0dd3cc81c2519645b85551a  .claude/rules/skill-routing.md

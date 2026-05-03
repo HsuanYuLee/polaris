@@ -18,14 +18,14 @@ The framework is an add-on layer. Product repositories keep ownership of their t
 2. For code changes, find the authoritative `task.md`; framework work uses DP-backed tasks under `docs-manager/src/content/docs/specs/design-plans/DP-*/tasks/`.
 3. Load relevant references from `.claude/skills/references/INDEX.md`.
 4. Run deterministic gates instead of relying on memory.
-5. Keep company/project config under `{company}/polaris-config/`; this is the only steady-state runtime lookup path.
+5. Keep company/project config under ignored local `{company}/polaris-config/`; this is the only steady-state runtime lookup path.
 
 ## Ownership Boundaries
 
 | Layer | Ownership | Examples |
 |-------|-----------|----------|
 | Polaris workspace/template | Polaris-owned | generated runtime targets, `.claude/instructions/**`, `.claude/rules/**`, `.claude/skills/**`, scripts, hooks |
-| Company config in workspace | Polaris-owned local config | `{company}/polaris-config/**` |
+| Company config in workspace | Polaris-owned local ignored config | `{company}/polaris-config/**` |
 | Product repo tracked files | repo-owned | repo `CLAUDE.md`, `AGENTS.md`, `.github/**`, tracked `.claude/**` |
 | Product repo local overlay | Polaris local ignored fallback | ignored files with explicit reason code |
 

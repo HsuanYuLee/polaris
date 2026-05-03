@@ -13,7 +13,8 @@
 # Behavior:
 #   - Resolves main checkout via `git rev-parse --git-common-dir`
 #   - If workspace-owned polaris-config has no generated ci-local.sh, legacy
-#     repo-local `.claude/scripts/ci-local.sh` may run only as `legacy-compat`.
+#     repo-local `.claude/scripts/ci-local.sh` is a migration error unless
+#     POLARIS_ALLOW_CI_LOCAL_LEGACY=1 is set explicitly.
 #   - Otherwise: bash <company>/polaris-config/<project>/generated-scripts/ci-local.sh --repo <target>
 #   - BLOCKED_ENV is retried once in the same context, then surfaced as a
 #     runtime-neutral RETRY_WITH_ESCALATION payload for Codex/Claude/human shell
@@ -65,10 +66,18 @@ canonical_script="$(ci_local_path_for_repo "$TARGET_REPO")"
 legacy_script="$(ci_local_legacy_path_for_repo "$TARGET_REPO")"
 if [[ ! -f "$canonical_script" ]]; then
   if [[ -f "$legacy_script" ]]; then
-    canonical_script="$legacy_script"
-    echo "[ci-local-run] using repo-local fallback reason=$CI_LOCAL_LEGACY_REASON path=$legacy_script" >&2
+    if [[ "${POLARIS_ALLOW_CI_LOCAL_LEGACY:-0}" == "1" ]]; then
+      canonical_script="$legacy_script"
+      echo "[ci-local-run] using repo-local fallback reason=$CI_LOCAL_LEGACY_REASON path=$legacy_script" >&2
+    else
+      echo "[ci-local-run] ERROR: repo-local legacy ci-local exists but canonical workspace-owned script is missing." >&2
+      echo "[ci-local-run] canonical: $canonical_script" >&2
+      echo "[ci-local-run] legacy:    $legacy_script" >&2
+      echo "[ci-local-run] fix: migrate with ci-local-generate.sh --repo '$TARGET_REPO' --force, then remove repo-local legacy script." >&2
+      exit 2
+    fi
   else
-    # Consistent with hook semantics: no ci-local declared → skip silently
+    echo "[ci-local-run] NO_CI_LOCAL_CONFIGURED canonical=$canonical_script" >&2
     exit 0
   fi
 fi

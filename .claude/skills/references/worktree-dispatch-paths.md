@@ -4,8 +4,8 @@
 
 - `specs/{EPIC}/` (task.md, refinement, verification evidence, mockoon fixtures, VR baselines)
 - framework company handbook (`{base_dir}/.claude/rules/{company}/handbook/`)
-- repo `.claude/rules/handbook/` (repo handbook)
-- repo `.claude/scripts/ci-local.sh` (canonical Local CI mirror)
+- workspace-owned repo handbook (`{company}/polaris-config/{project}/handbook/`)
+- workspace-owned Local CI mirror (`{company}/polaris-config/{project}/generated-scripts/ci-local.sh`)
 - `.claude/skills/` (cross-skill references)
 
 Both are gitignored in product repos → they do not exist in a fresh worktree.
@@ -16,9 +16,9 @@ Both are gitignored in product repos → they do not exist in a fresh worktree.
 |------|-------|------------------------|
 | Tracked source code | Worktree-relative | 預設；`{worktree_path}/src/...` |
 | `specs/{EPIC}/` artifacts | 主 checkout（gitignored） | **絕對路徑**：`{company_specs_dir}/{EPIC}/...` |
-| Company handbook | workspace 主 checkout | **絕對路徑**：`{base_dir}/.claude/rules/{company}/handbook/index.md`，並展開 index 引用子文件 |
-| Repo handbook | repo 主 checkout（gitignored） | **先 resolve main checkout**，再讀 `{main_checkout}/.claude/rules/handbook/index.md` |
-| Local CI mirror | repo 主 checkout（gitignored） | 用 `bash {base_dir}/scripts/ci-local-run.sh --repo {worktree_path}`，不要直接查 worktree 的 `.claude/scripts/ci-local.sh` |
+| Company handbook | workspace-owned polaris-config | **絕對路徑**：`{company_dir}/polaris-config/handbook/index.md`，並展開 index 引用子文件 |
+| Repo handbook | workspace-owned polaris-config | **絕對路徑**：`{company_dir}/polaris-config/{project}/handbook/index.md`，並展開 index 引用子文件 |
+| Local CI mirror | workspace-owned polaris-config | 用 `bash {base_dir}/scripts/ci-local-run.sh --repo {worktree_path}`；不要直接查 repo-local `.claude/scripts/ci-local.sh` |
 | `.claude/skills/` references | workspace 主 checkout（gitignored） | **絕對路徑**：`{base_dir}/.claude/skills/...` |
 | Runtime model adapter policy | workspace 主 checkout | **絕對路徑**：`{base_dir}/.claude/skills/references/model-tier-policy.md`；dispatch prompt 使用 semantic model class，runtime adapter 再映射 concrete model / effort |
 
@@ -34,9 +34,9 @@ Embed verbatim near the "Work Order" / "讀取來源" section of every worktree-
 > - task.md / work order：`{company_specs_dir}/{EPIC}/tasks/T{n}.md`
 > - artifacts / handoff：`{company_specs_dir}/{EPIC}/artifacts/`
 > - verification evidence：`{company_specs_dir}/{EPIC}/verification/`
-> - company handbook：`{base_dir}/.claude/rules/{company}/handbook/index.md` + index 引用子文件
-> - repo handbook：先用 `{base_dir}/scripts/lib/main-checkout.sh` 的 `resolve_main_checkout "{worktree_path}"` 取得 repo 主 checkout，再讀 `{main_checkout}/.claude/rules/handbook/index.md` + index 引用子文件
-> - Local CI mirror：用 `bash {base_dir}/scripts/ci-local-run.sh --repo "{worktree_path}"`；script 會自動讀主 checkout 的 `.claude/scripts/ci-local.sh`
+> - company handbook：`{company_dir}/polaris-config/handbook/index.md` + index 引用子文件
+> - repo handbook：`{company_dir}/polaris-config/{project}/handbook/index.md` + index 引用子文件
+> - Local CI mirror：用 `bash {base_dir}/scripts/ci-local-run.sh --repo "{worktree_path}"`；script 會自動讀 workspace-owned canonical generated script
 > - skills reference（若需）：`{base_dir}/.claude/skills/references/...`
 > - model tier policy（若需指定 sub-agent model class）：`{base_dir}/.claude/skills/references/model-tier-policy.md`；prompt 中寫 semantic class，避免直接寫 provider model ID
 >

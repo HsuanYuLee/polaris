@@ -13,7 +13,7 @@
 | `[app-b]` | `your-org-app-b` | Secondary app |
 | `[mobile]` | `your-org-mobile` | Mobile app |
 | `[email]` | `your-org-email` | Email templates |
-| `[ds]` | `your-design-system` | Design System |
+| `[ds]` | `web-design-system` | Design System |
 
 ## 使用方式
 

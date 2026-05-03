@@ -3,9 +3,9 @@
 # Enforces repo CI mirror from workspace-owned polaris-config for git commit / gh pr create / git push.
 #
 # Behavior (per D12 Decision 4 — "skill main / hook fallback"):
-#   1. Repo without workspace-owned generated ci-local.sh → allow (engineering
-#      handles first-run gate at skill layer; hook stays defensive on cross-LLM
-#      portability)
+#   1. Repo without workspace-owned generated ci-local.sh → allow only when no
+#      legacy repo-local `.claude/scripts/ci-local.sh` exists. A legacy script
+#      without a canonical workspace-owned script is a migration error.
 #   2. evidence /tmp/polaris-ci-local-{branch_slug}-{head_sha}-{context_hash}.json exists,
 #      branch + head_sha + CI context match HEAD, status==PASS → allow (cache hit, zero cost)
 #   3. cache miss / FAIL → run `scripts/ci-local-run.sh` synchronously
@@ -75,6 +75,20 @@ fi
 
 branch=$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 head_sha=$(git -C "$repo_root" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+canonical_script="$(ci_local_path_for_repo "$repo_root" 2>/dev/null || true)"
+legacy_script="$(ci_local_legacy_path_for_repo "$repo_root" 2>/dev/null || true)"
+
+if [[ -z "$canonical_script" || ! -f "$canonical_script" ]]; then
+  if [[ -n "$legacy_script" && -f "$legacy_script" ]]; then
+    echo "[ci-local-gate] BLOCKED: repo-local legacy ci-local exists but workspace-owned canonical script is missing." >&2
+    echo "[ci-local-gate] canonical: ${canonical_script:-<unresolved>}" >&2
+    echo "[ci-local-gate] legacy:    $legacy_script" >&2
+    echo "[ci-local-gate] Run: bash ${HOOK_DIR}/../../scripts/ci-local-generate.sh --repo ${repo_root} --force, then remove the legacy repo-local script." >&2
+    exit 2
+  fi
+  echo "[ci-local-gate] NO_CI_LOCAL_CONFIGURED — skipped (canonical=${canonical_script:-<unresolved>})." >&2
+  exit 0
+fi
 
 # Run ci-local.sh synchronously. The generated script owns context-aware
 # evidence caching because the cache key includes base/event/source/ref.

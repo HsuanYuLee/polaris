@@ -20,6 +20,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GEN="$SCRIPT_DIR/ci-local-generate.sh"
+# shellcheck source=lib/ci-local-path.sh
+. "$SCRIPT_DIR/lib/ci-local-path.sh"
 TMPROOT="$(mktemp -d -t ci-local-selftest-XXXX)"
 trap 'rm -rf "$TMPROOT"' EXIT
 
@@ -122,7 +124,7 @@ SHELL
 chmod +x "$T1/.husky/pre-commit"
 init_git_repo "$T1"
 
-OUT1="$T1/.claude/scripts/ci-local.sh"
+OUT1="$(ci_local_path_for_repo "$T1")"
 "$GEN" --repo "$T1" --out "$OUT1" --force >/dev/null 2>&1
 T1_RC=$?
 assert "Test 1: generator exit 0" "$([ $T1_RC -eq 0 ] && echo 1 || echo 0)"
@@ -186,7 +188,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 YAML
 init_git_repo "$T2"
-OUT2="$T2/.claude/scripts/ci-local.sh"
+OUT2="$(ci_local_path_for_repo "$T2")"
 "$GEN" --repo "$T2" --out "$OUT2" --force >/dev/null 2>&1
 assert "Test 2: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT2" 2>/dev/null
@@ -224,7 +226,7 @@ deploy:
     - curl -X POST $DEPLOY_URL
 YAML
 init_git_repo "$T3"
-OUT3="$T3/.claude/scripts/ci-local.sh"
+OUT3="$(ci_local_path_for_repo "$T3")"
 "$GEN" --repo "$T3" --out "$OUT3" --force >/dev/null 2>&1
 assert "Test 3: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT3" 2>/dev/null
@@ -265,7 +267,7 @@ repos:
         stages: [pre-commit]
 YAML
 init_git_repo "$T4"
-OUT4="$T4/.claude/scripts/ci-local.sh"
+OUT4="$(ci_local_path_for_repo "$T4")"
 "$GEN" --repo "$T4" --out "$OUT4" --force >/dev/null 2>&1
 assert "Test 4: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT4" 2>/dev/null
@@ -288,7 +290,7 @@ echo "== Test 5: NO_CHECKS_CONFIGURED (empty repo) =="
 T5="$TMPROOT/empty-repo"
 mkdir -p "$T5"
 init_git_repo "$T5"
-OUT5="$T5/.claude/scripts/ci-local.sh"
+OUT5="$(ci_local_path_for_repo "$T5")"
 "$GEN" --repo "$T5" --out "$OUT5" --force >/dev/null 2>&1
 assert "Test 5: generator exit 0 even on empty repo" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT5" 2>/dev/null
@@ -328,7 +330,7 @@ echo "== Test 6: --force / no-force / --dry-run flags =="
 T6="$TMPROOT/flags-repo"
 mkdir -p "$T6"
 init_git_repo "$T6"
-OUT6="$T6/.claude/scripts/ci-local.sh"
+OUT6="$(ci_local_path_for_repo "$T6")"
 "$GEN" --repo "$T6" --out "$OUT6" >/dev/null 2>&1
 assert "Test 6: first run (no flag) creates file" "$([ -f "$OUT6" ] && echo 1 || echo 0)"
 "$GEN" --repo "$T6" --out "$OUT6" >/dev/null 2>&1
@@ -347,7 +349,7 @@ echo "== Test 7: --repo flag (cross-worktree invocation, DP-043 follow-up) =="
 T7="$TMPROOT/repo-flag-fixture"
 mkdir -p "$T7"
 init_git_repo "$T7"
-OUT7="$T7/.claude/scripts/ci-local.sh"
+OUT7="$(ci_local_path_for_repo "$T7")"
 "$GEN" --repo "$T7" --out "$OUT7" --force >/dev/null 2>&1
 assert "Test 7: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 # Generated script must accept --repo flag (NO_CHECKS path is fine — we just
@@ -397,7 +399,7 @@ pipeline:
         - rc
 YAML
 init_git_repo "$T8"
-OUT8="$T8/.claude/scripts/ci-local.sh"
+OUT8="$(ci_local_path_for_repo "$T8")"
 "$GEN" --repo "$T8" --out "$OUT8" --force >/dev/null 2>&1
 assert "Test 8: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT8" 2>/dev/null
@@ -482,7 +484,7 @@ DA:9,0
 DA:10,0
 end_of_record
 LCOV
-OUT9="$T9/.claude/scripts/ci-local.sh"
+OUT9="$(ci_local_path_for_repo "$T9")"
 "$GEN" --repo "$T9" --out "$OUT9" --force >/dev/null 2>&1
 assert "Test 9: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT9" 2>/dev/null
@@ -547,7 +549,7 @@ DA:1,1
 DA:2,1
 end_of_record
 LCOV
-OUT10="$T10/.claude/scripts/ci-local.sh"
+OUT10="$(ci_local_path_for_repo "$T10")"
 "$GEN" --repo "$T10" --out "$OUT10" --force >/dev/null 2>&1
 assert "Test 10: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT10" 2>/dev/null
@@ -609,7 +611,7 @@ DA:2,1
 DA:3,1
 end_of_record
 LCOV
-OUT11="$T11/.claude/scripts/ci-local.sh"
+OUT11="$(ci_local_path_for_repo "$T11")"
 "$GEN" --repo "$T11" --out "$OUT11" --force >/dev/null 2>&1
 assert "Test 11: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT11" 2>/dev/null
@@ -667,7 +669,7 @@ TN:
 SF:src/foo.ts
 end_of_record
 LCOV
-OUT11B="$T11B/.claude/scripts/ci-local.sh"
+OUT11B="$(ci_local_path_for_repo "$T11B")"
 "$GEN" --repo "$T11B" --out "$OUT11B" --force >/dev/null 2>&1
 assert "Test 11b: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT11B" 2>/dev/null
@@ -715,7 +717,7 @@ jobs:
       - run: pnpm test:first
 YAML
 init_git_repo "$T12"
-OUT12="$T12/.claude/scripts/ci-local.sh"
+OUT12="$(ci_local_path_for_repo "$T12")"
 "$GEN" --repo "$T12" --out "$OUT12" --force >/dev/null 2>&1
 assert "Test 12: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT12" 2>/dev/null
@@ -785,7 +787,7 @@ exit 1
 SH
 chmod +x "$T13/.bin/pnpm"
 init_git_repo "$T13"
-OUT13="$T13/.claude/scripts/ci-local.sh"
+OUT13="$(ci_local_path_for_repo "$T13")"
 "$GEN" --repo "$T13" --out "$OUT13" --force >/dev/null 2>&1
 assert "Test 13: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT13" 2>/dev/null
@@ -858,7 +860,7 @@ PY
 assert_not_contains "Test 14: discover no longer emits other category" /tmp/ci-local-test14-categories.out "other"
 assert_contains "Test 14: discover classifies changeset as policy" /tmp/ci-local-test14-categories.out "policy"
 
-OUT14="$T14/.claude/scripts/ci-local.sh"
+OUT14="$(ci_local_path_for_repo "$T14")"
 "$GEN" --repo "$T14" --out "$OUT14" --force >/dev/null 2>&1
 assert "Test 14: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT14" 2>/dev/null

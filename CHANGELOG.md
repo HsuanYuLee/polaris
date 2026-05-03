@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.41] - 2026-05-04
+
+### Fixed — polaris-config migration closure
+
+- Made company workspace directories local-only and removed previously tracked
+  `kkday/` framework workspace context from version control.
+- Removed steady-state runtime dependence on the transitional
+  `polaris-sync.sh` script; handbook and generated-script flows now operate
+  directly on workspace-owned `polaris-config`.
+- Added a DP-079 migration closure gate for active-runtime scans, ignored
+  company config policy, repo-local overlay cleanup, and legacy `ci-local`
+  fallback blockers.
+- Added post-implementation flow gap audit guidance so implementation closeout
+  checks for semantic bypasses before release.
+
 ## [3.74.40] - 2026-05-03
 
 ### Changed — runtime instruction source unification

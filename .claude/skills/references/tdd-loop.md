@@ -64,7 +64,7 @@ TESTS: 1 passed, 0 failed
 TDD 只保證開發節奏正確，不取代交付 gate。完成後仍要跑：
 
 1. task.md 宣告的 `test_command`
-2. repo 的 `.claude/scripts/ci-local.sh`（若存在）
+2. workspace-owned `polaris-config/{project}/generated-scripts/ci-local.sh`（若存在；透過 `scripts/ci-local-run.sh --repo <repo>` 執行）
 3. `scripts/run-verify-command.sh`
 
 也就是：TDD 不是交付完成，TDD 只是把你帶到比較不會在交付 gate 爆炸的位置。

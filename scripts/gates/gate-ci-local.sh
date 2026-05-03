@@ -60,6 +60,20 @@ if [[ "$PUSH_MODE" -eq 1 ]]; then
 fi
 
 head_sha=$(git -C "$REPO_ROOT" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)
+canonical_script="$(ci_local_path_for_repo "$REPO_ROOT" 2>/dev/null || true)"
+legacy_script="$(ci_local_legacy_path_for_repo "$REPO_ROOT" 2>/dev/null || true)"
+
+if [[ -z "$canonical_script" || ! -f "$canonical_script" ]]; then
+  if [[ -n "$legacy_script" && -f "$legacy_script" ]]; then
+    echo "$PREFIX BLOCKED: repo-local legacy ci-local exists but workspace-owned canonical script is missing." >&2
+    echo "$PREFIX canonical: ${canonical_script:-<unresolved>}" >&2
+    echo "$PREFIX legacy:    $legacy_script" >&2
+    echo "$PREFIX Run: bash ${SCRIPT_DIR}/../ci-local-generate.sh --repo ${REPO_ROOT} --force, then remove the legacy repo-local script." >&2
+    exit 2
+  fi
+  echo "$PREFIX NO_CI_LOCAL_CONFIGURED — skipped (canonical=${canonical_script:-<unresolved>})." >&2
+  exit 0
+fi
 
 # Run ci-local.sh synchronously. The generated script owns context-aware
 # evidence caching because the cache key includes base/event/source/ref.
@@ -68,7 +82,7 @@ ci_log="${REPO_ROOT}/.polaris-ci-local-gate.log"
 
 if bash "$SCRIPT_DIR/../ci-local-run.sh" --repo "$REPO_ROOT" >"$ci_log" 2>&1; then
   rm -f "$ci_log"
-  echo "$PREFIX ✅ ci-local.sh passed." >&2
+  echo "$PREFIX ci-local.sh passed." >&2
   exit 0
 fi
 

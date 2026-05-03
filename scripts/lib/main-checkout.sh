@@ -2,7 +2,8 @@
 # scripts/lib/main-checkout.sh — single source of truth for worktree → main checkout resolution.
 #
 # DP-043 follow-up. Several framework artifacts are gitignored and live only
-# in the main checkout (specs/, .claude/skills/, .claude/scripts/ci-local.sh).
+# in the main checkout (specs/, .claude/skills/) while generated scripts live
+# in workspace-owned polaris-config.
 # When a script runs inside a `git worktree add` copy, it must resolve the
 # main checkout to read/write these artifacts.
 #

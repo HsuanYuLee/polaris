@@ -13,7 +13,7 @@
 # Usage:
 #   cat /tmp/review-candidates.json \
 #     | ./build-review-prompt.sh \
-#         --my-user your-username \
+#         --my-user daniel-lee-kk \
 #         --review-pr-skill /path/to/review-pr/SKILL.md \
 #         --base-dir /path/to/repos
 #

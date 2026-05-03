@@ -158,10 +158,11 @@ cd ~/polaris-workspace
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
 │   └── skills/                   ← 24 workflow skills
-└── your-company/                 ← created by /init
+└── your-company/                 ← /init 建立的本機 ignored 公司 context
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
+    ├── polaris-config/           ← 本機 project handbook 與 generated scripts
     └── your-project/             ← your existing repo (cloned or linked)
-        └── .claude/CLAUDE.md     ← project-level rules (L3)
+        └── ...                   ← repo-owned files stay under the repo owner's control
 ```
 
 試著輸入 `「做 PROJ-123」`（替換為真實的票單 key）來驗證設定。如果 Polaris 成功讀取票單，就表示設定完成了。
@@ -232,9 +233,11 @@ Refinement         →  「refinement EPIC-100」
 |------|------|---------|------|
 | **L1 — 工作區** | `CLAUDE.md` + `.claude/rules/` | 每次對話 | 策略師人設、委派規則 |
 | **L2 — 公司** | `.claude/rules/{company}/` | 每次對話 | 技能路由、PR 慣例、JIRA 工作流程 |
-| **L3 — 專案** | `{company}/{project}/CLAUDE.md` | 在專案中工作時 | Lint 設定、測試模式、元件慣例 |
+| **L3 — 專案** | ignored `{company}/polaris-config/{project}/` | 在專案中工作時由 skill 讀取 | handbook、generated scripts、專案慣例 |
 
 規則始終載入。技能依需求載入——觸發前不會消耗 context。
+
+產品 repo 可以保有自己的 tracked AI config；Polaris 尊重 repo 設定。框架正確性來自本機 ignored company context、polaris-config source of truth 與 deterministic gates。
 
 ### 工作流程編排
 
@@ -313,7 +316,7 @@ your-workspace/
 | 新增公司 | 執行 `/init` | 互動式精靈建立一切 |
 | 對應 JIRA 專案到 repo | `{company}/workspace-config.yaml` | 在 `projects:` 新增項目 |
 | 新增公司專屬規則 | `.claude/rules/{company}/` | 建立 `.md` 檔案——每次對話自動載入 |
-| 新增專案專屬規則 | `{company}/{project}/CLAUDE.md` | sub-agent 進入專案時載入 |
+| 新增專案 handbook / generated scripts | `{company}/polaris-config/{project}/` | 本機 ignored；skill 明確讀取，不修改 repo-owned AI config |
 | 建立新技能 | 執行 `/skill-creator` | 引導式技能建立，含評估 |
 | 修改技能路由 | `.claude/rules/{company}/skill-routing.md` | 對應觸發詞 → 技能 |
 
@@ -336,7 +339,7 @@ your-workspace/
 |------|-------------|
 | `.claude/rules/{company}/` | 你公司的慣例、路由、JIRA 工作流程 |
 | `{company}/workspace-config.yaml` | JIRA 專案、Slack 頻道、repo 對應 |
-| `{company}/{project}/CLAUDE.md` | 專案專屬規則（L3） |
+| `{company}/polaris-config/{project}/` | 專案 handbook、generated scripts、本機 Polaris config |
 
 ## 升級
 

@@ -18,7 +18,7 @@ The script validates ticket format, sanitises description to kebab-case, handles
 
 ## Branch Naming Convention
 
-Format: `task/<TICKET>-<description>` (e.g. `task/TASK-123-remove-presale-ab-test-logic`)
+Format: `task/<TICKET>-<description>` (e.g. `task/KB2CW-3461-remove-presale-ab-test-logic`)
 
 ### Deriving DESCRIPTION from JIRA Summary
 
@@ -61,13 +61,11 @@ In order until match found:
 - User explicitly specifies → use that branch
 - Otherwise → `develop`
 
-## Post-Branch: Deploy AI Config
+## Post-Branch: Workspace Config Boundary
 
-After branch creation, deploy Polaris AI config:
-
-```bash
-{base_dir}/polaris-sync.sh {project-name}
-```
+After branch creation, do not deploy or mutate repo-owned AI config. Polaris
+reads workspace-owned handbook and generated scripts directly from
+`{company}/polaris-config/{project}/`.
 
 ## Consumer Side Note — engineering reads Base branch via resolve-task-base.sh
 
@@ -82,7 +80,7 @@ Helper 會在「上游 task branch 已 merged 到 Epic feature branch」時自�
 新 task.md 同時寫入 `Branch chain`，用來表達完整 cascade rebase 順序，例如：
 
 ```text
-develop -> feat/PROJ-123-cwv-js-bundle -> task/TASK-123-dayjs-infra -> task/TASK-123-products
+develop -> feat/GT-478-cwv-js-bundle -> task/KB2CW-3711-dayjs-infra -> task/KB2CW-3900-products
 ```
 
 engineering first-cut / revision 會以 `scripts/cascade-rebase-chain.sh` 先自上而下 rebase 這條鏈；但 `gh pr create --base` / `gh pr edit --base` 仍只使用 `resolve-task-base.sh` 的輸出。
@@ -90,10 +88,10 @@ engineering first-cut / revision 會以 `scripts/cascade-rebase-chain.sh` 先自
 外部 dependency branch 不是本 Epic 的 owned branch。若 task 需要 base on 別人的 unmerged branch / PR head，`Branch chain` 從該外部 branch 開始：
 
 ```text
-task/TASK-123-nuxt-3-16-unhead-v2-upgrade -> feat/PROJ-123-homepage-structured-data -> task/TASK-123-schema-locales-corporation
+task/KB2CW-3820-nuxt-3-16-unhead-v2-upgrade -> feat/GT-495-homepage-structured-data -> task/KB2CW-3662-schema-locales-corporation
 ```
 
-不要寫成 `develop -> task/TASK-123-... -> ...`，否則 engineering 會把外部 branch 當作可 cascade rebase 的 owned branch。
+不要寫成 `develop -> task/KB2CW-3820-... -> ...`，否則 engineering 會把外部 branch 當作可 cascade rebase 的 owned branch。
 
 若本文件的 branch 建立指令有消費者場景（如使用者手動建新 branch 時指定 base），同樣建議走 resolve helper：
 

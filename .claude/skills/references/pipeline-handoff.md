@@ -216,7 +216,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 - **Level**: {static | build | runtime}
 - **Dev env config**: `workspace-config.yaml` → `projects[{repo_name}].dev_environment`
 - **Fixtures**: {`specs/{EPIC}/tests/mockoon/` 或 `N/A`}
-- **Runtime verify target**: {`https://dev.yourapp.com/...` | `http://localhost:3001/...` | `N/A`}
+- **Runtime verify target**: {`https://dev.kkday.com/...` | `http://localhost:3001/...` | `N/A`}
 - **Env bootstrap command**: {`./scripts/polaris-env.sh start <company> --project <repo>` | `<company>/scripts/*.sh` | `N/A`}
 
 **Level 定義**：
@@ -225,7 +225,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 |-------|---------|------------------|
 | `static` | 只讀 source code（grep、檔案存在性、config 註冊） | 依賴安裝 primitive 回傳 `noop_static` PASS，接著直接跑 Verify Command |
 | `build` | 需要 `pnpm build` 產 `.output/` 才能跑 Verify Command | 在 worktree 跑 build，不需啟動 dev server |
-| `runtime` | 需要 live endpoint（curl / dev server / nginx）才能跑 Verify Command | 依 `dev_environment.requires` 啟動 dependencies（如 `your-dev-proxy`）+ `start_command` 起 dev server + `health_check` 驗證 ready，**若 Fixtures 非 N/A**，同時起 `mockoon-runner.sh start {fixture_path}` |
+| `runtime` | 需要 live endpoint（curl / dev server / nginx）才能跑 Verify Command | 依 `dev_environment.requires` 啟動 dependencies（如 `kkday-web-docker`）+ `start_command` 起 dev server + `health_check` 驗證 ready，**若 Fixtures 非 N/A**，同時起 `mockoon-runner.sh start {fixture_path}` |
 
 `Level=static` 是 `scripts/env/install-project-deps.sh --task-md <task.md>` 的 deterministic no-op contract：script 不解析 `projects[{repo}].dev_environment`、不要求 workspace project、也不跑 package manager detector。它必須輸出 `mode: noop_static`、`level: static` 的 PASS JSON，讓 engineering 不需要用 LLM 判斷「這張靜態 framework task 不需要安裝依賴」。
 
@@ -240,7 +240,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 
 **不放進 task.md 的細節**（engineering sub-agent 自己從 workspace-config 讀）：
 - `start_command`、`ready_signal`、`base_url`、`health_check`
-- `requires`（依賴的其他 service，如 `your-dev-proxy`）
+- `requires`（依賴的其他 service，如 `kkday-web-docker`）
 - `is_monorepo` / `monorepo_apps`
 
 ## Verify Command
@@ -490,4 +490,4 @@ Pipeline 收斂在以下任一條件：
 
 ## 來源
 
-設計決策：2026-04-13，PROJ-123 breakdown v2 試跑後討論 pipeline 權責拆分。
+設計決策：2026-04-13，GT-521 breakdown v2 試跑後討論 pipeline 權責拆分。

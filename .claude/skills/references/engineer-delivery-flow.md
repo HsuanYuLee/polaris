@@ -64,7 +64,7 @@
 └────────────────────────────────────────┘  └──────────────────────────────────────────────┘
 ```
 
-**Step 完整序列**：Step 1 Simplify → Step 1.3 Self-Review → Step 1.5 Scope Gate → Step 2 前置 Rebase → Step 2 Local CI Mirror → Step 3 Verify → Step 3.5 VR → Step 5 Base Freshness → Step 6 Commit+Changeset → Step 7 PR / Local Extension Handoff → Step 8 JIRA / Extension Verification → Step 8a Finalize Delivery（Completion Gate + IMPLEMENTED + Worktree Cleanup）
+**Step 完整序列**：Step 1 Simplify → Step 1.3 Self-Review → Step 1.5 Scope Gate → Step 2 前置 Rebase → Step 2 Local CI Mirror → Step 3 Verify → Step 3.2 Flow Gap Audit → Step 3.5 VR → Step 5 Base Freshness → Step 6 Commit+Changeset → Step 7 PR / Local Extension Handoff → Step 8 JIRA / Extension Verification → Step 8a Finalize Delivery（Completion Gate + IMPLEMENTED + Worktree Cleanup）
 
 ## Role Matrix
 
@@ -77,6 +77,7 @@
 | **Step 2 前置 Rebase（`engineering-rebase.sh`，D6/D19）** | ✅ | ✅ |
 | Step 2 Local CI Mirror（`ci-local.sh`，D12） | ✅ | ✅ |
 | Step 3 Behavioral Verify（`run-verify-command.sh`，D15） | ✅ | ✅ |
+| Step 3.2 Flow Gap Audit（bypass / fallback / false-pass / ignored artifacts） | ✅ | ✅ |
 | Step 3.5 Visual Regression（`run-visual-snapshot.sh`，conditional，D18） | ✅ 若 task.md VR 觸發 | ✅ 若 task.md VR 觸發 |
 | ~~Step 4~~（已搬至 Step 1.3 — Phase 3 exit gate，編號留空避免下游 reference 斷裂） | — | — |
 | Step 5 Base Freshness Detection（`check-base-fresh.sh`，D19） | ✅ | ✅ |
@@ -218,7 +219,7 @@ Rebase 改變 HEAD → 舊 evidence 的 `head_sha` 自動失效 → 所有下游
 
 **CI declaration read-only boundary**：Step 2 只消費 repo CI declarations，不修改它們。若 `ci-local` 與遠端 CI 的差異指向 Woodpecker / GitHub Actions / GitLab CI / Codecov / husky / pre-commit / package script 設定，Developer lane 必須停止並記錄 framework 或 repo-owner 決策需求；不得在產品 PR 內改 CI config 來讓 local/remote gate 通過。
 
-**Existence invariant**：**main checkout** 的 `.claude/scripts/ci-local.sh` 存在 → 此 repo 已宣告 Local CI Mirror，所有 worktree 共用此 canonical script（DP-043 follow-up）。該檔由 generator 產出且自動寫進 `.git/info/exclude`（不入 commit）。是否需要跑由檔案存在決定，不由 git status 類型決定。
+**Existence invariant**：`{company}/polaris-config/{project}/generated-scripts/ci-local.sh` 存在 → 此 repo 已宣告 Local CI Mirror，所有 worktree 共用此 workspace-owned canonical script。repo-local `.claude/scripts/ci-local.sh` 是 legacy migration error，不可作為完成依據。是否需要跑由 canonical 檔案存在決定，不由 git status 類型決定。
 
 **Re-test-after-fix 鐵律**：若本 step 發現問題並修改 code，必須**重跑一次** `ci-local.sh`。上一輪修改前的結果無效。
 
@@ -250,7 +251,7 @@ bash "${POLARIS_ROOT}/scripts/ci-local-run.sh"
 
 **Bypass**：`POLARIS_SKIP_CI_LOCAL=1` — emergency escape only，不應日常使用。**沒有** `wip:` commit-msg skip / **沒有** main-develop branch skip / **沒有** deprecation shim（D12-c 一次到位的 breaking change）。
 
-**歷史**：TASK-123 事件（useFetch key 改動沒補測試、本地 quality PASS 但 CI `codecov/patch/main-core` FAIL）促成 DP-029 Phase B 的 patch gate 精確模擬。早期版本掛了 framework-level `coverage-gate.sh`（D6 v1），D6 v2 (2026-04-24) 判定「repo 有配就由 Dimension B 接、沒配不追加」更乾淨，coverage-gate 下架。D12-c (v3.58.0) 進一步把 `ci-contract-run.sh` / `quality-gate.sh` / `pre-commit-quality.sh` 整批下架，改由 `ci-local-generate.sh` 為每個 repo 生成 self-contained `ci-local.sh`，框架本體只保留 `ci-local-gate.sh` PreToolUse hook 做 evidence 把關。
+**歷史**：KB2CW-3847 事件（useFetch key 改動沒補測試、本地 quality PASS 但 CI `codecov/patch/main-core` FAIL）促成 DP-029 Phase B 的 patch gate 精確模擬。早期版本掛了 framework-level `coverage-gate.sh`（D6 v1），D6 v2 (2026-04-24) 判定「repo 有配就由 Dimension B 接、沒配不追加」更乾淨，coverage-gate 下架。D12-c (v3.58.0) 進一步把 `ci-contract-run.sh` / `quality-gate.sh` / `pre-commit-quality.sh` 整批下架，改由 `ci-local-generate.sh` 為每個 repo 生成 self-contained `ci-local.sh`，框架本體只保留 `ci-local-gate.sh` PreToolUse hook 做 evidence 把關。
 
 ---
 
@@ -294,13 +295,34 @@ bash "${POLARIS_ROOT}/scripts/run-verify-command.sh" "<path/to/task.md>"
 
 無 task.md 不進入本 delivery flow；沒有 verify command 時不得建立 PR 或宣稱完成。
 
+---
+
+## Step 3.2 — Post-Implementation Flow Gap Audit
+
+在 Step 2 / Step 3 都完成後、Step 3.5 / commit / PR / local-extension handoff 前，必須做一次流程 gap 檢查。這不是額外 code review，而是確認「完成」沒有依賴 LLM 自行補判斷或 tool false pass。
+
+檢查四類：
+
+1. **Bypass**：本次是否使用任何 `POLARIS_SKIP_*`、`--skip-*`、manual direct push、或 local-extension PR lane exception；若有，必須有 task/workflow 明文允許與 evidence。
+2. **Fallback**：本次是否靠 legacy path、repo-local ignored overlay、missing generated target、或 old wrapper 才通過；若 fallback 是 migration blocker，先修機制，不進 closeout。
+3. **False pass**：任何 gate 是否把 `NO_*_CONFIGURED`、`config: (none)`、empty result、或 ignored-file-invisible 當 pass；若是 framework/config migration 變更，必須補 deterministic validator。
+4. **Ignored/runtime artifacts**：若改動涉及 local ignored artifacts、worktree、generated target、company config、repo overlay、或 release closeout，驗證必須包含 `--no-ignore` 或等價掃描，不能只看 tracked diff。
+
+對 Polaris config / instruction / release flow 變更，還必須跑：
+
+```bash
+bash scripts/validate-polaris-config-migration.sh
+```
+
+Flow gap audit 的結論要進 final / handoff；若發現 gap，先修機制或回 DP/refinement，不得只用「我判斷沒問題」結案。
+
 ### Evidence schema
 
 `/tmp/polaris-verified-{ticket}-{head_sha}.json`：
 
 ```json
 {
-  "ticket": "PROJ-123",
+  "ticket": "GT-521",
   "head_sha": "abc1234",
   "writer": "run-verify-command.sh",
   "exit_code": 0,
@@ -584,7 +606,7 @@ task.md 若含 `Branch chain`，engineering 在 first-cut branch setup / revisio
   --task-md "<path/to/task.md>"
 ```
 
-`Branch chain` 只表達 rebase 順序（例：`develop -> feat/PROJ-123-... -> task/TASK-123-... -> task/TASK-123-...`）。PR base 仍只取 `resolve-task-base.sh` 的輸出，避免 `Base branch` / `PR base` 雙欄位同步問題。
+`Branch chain` 只表達 rebase 順序（例：`develop -> feat/GT-478-... -> task/KB2CW-3711-... -> task/KB2CW-3900-...`）。PR base 仍只取 `resolve-task-base.sh` 的輸出，避免 `Base branch` / `PR base` 雙欄位同步問題。
 
 **應用位置**（engineering SKILL.md 四處必呼叫 resolve helper）：
 
@@ -702,8 +724,9 @@ bash "${POLARIS_ROOT}/scripts/check-local-extension-completion.sh" \
 ### Script contract（Developer / Admin / Local Extension）
 
 - Layer A：呼叫 `scripts/gates/gate-ci-local.sh --repo <path>`
-  - repo root 無 `.claude/scripts/ci-local.sh` → skip
-  - repo root 有 `.claude/scripts/ci-local.sh` → required，cache miss 會同步實跑 `ci-local.sh`
+  - workspace-owned canonical `polaris-config/{project}/generated-scripts/ci-local.sh` 不存在 → `NO_CI_LOCAL_CONFIGURED`
+  - canonical script 存在 → required，cache miss 會同步實跑 `ci-local.sh`
+  - repo-local `.claude/scripts/ci-local.sh` 存在但 canonical missing → migration blocker
 - Layer B（Developer only）：呼叫 `scripts/gates/gate-evidence.sh --repo <path> --ticket <TICKET_OR_DP_TASK_ID>`
   - missing / malformed / stale verify evidence → block
 - exit 0 = 可以回報完成
@@ -803,7 +826,7 @@ bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
 呼叫前：
 - 已通過 Task Existence Gate（task.md 存在）
 - 已 checkout 正確 branch（或現在建立）
-- 已執行 `polaris-sync.sh` 部署 AI 設定
+- 已完成 handbook gate，直接讀取 workspace-owned `{company}/polaris-config/`；不部署或修改 repo-owned AI 設定
 
 呼叫時 context：
 - Role: `developer`

@@ -13,7 +13,7 @@ JIRA-backed ticket：
 {company_specs_dir}/{EPIC_KEY}/refinement.json
 ```
 
-Spec folders 放在 docs-manager 的 company namespace（如 `~/work/docs-manager/src/content/docs/specs/companies/your-company/PROJ-123/`），不進 git。
+Spec folders 放在 docs-manager 的 company namespace（如 `~/work/docs-manager/src/content/docs/specs/companies/kkday/GT-521/`），不進 git。
 
 Ticketless / DP-backed work：
 
@@ -37,13 +37,13 @@ refinement 完成時同時產出兩份：
 ```jsonc
 {
   // --- Metadata ---
-  "epic": "PROJ-123",                    // JIRA key
+  "epic": "GT-530",                    // JIRA key
   "source": {
     "type": "jira",                    // "jira" | "dp" | "topic"
-    "id": "PROJ-123",                    // JIRA key or DP-NNN
-    "container": "{company_specs_dir}/PROJ-123",
+    "id": "GT-530",                    // JIRA key or DP-NNN
+    "container": "{company_specs_dir}/GT-530",
     "plan_path": null,                 // DP-backed only: docs-manager/src/content/docs/specs/design-plans/DP-NNN-*/plan.md
-    "jira_key": "PROJ-123"               // null for ticketless work
+    "jira_key": "GT-530"               // null for ticketless work
   },
   "version": "1.0",                    // artifact schema version
   "tier": 2,                           // detected complexity tier (1/2/3)

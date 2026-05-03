@@ -20,6 +20,8 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GATE="$SCRIPT_DIR/verification-evidence-gate.sh"
+# shellcheck source=lib/ci-local-path.sh
+. "$SCRIPT_DIR/lib/ci-local-path.sh"
 WORK_DIR="$(mktemp -d -t polaris-veg-selftest-XXXXXX)"
 : "${DEBUG:=0}"
 
@@ -52,10 +54,12 @@ make_fake_repo() {
   git -C "$repo_dir" -c user.email=t@t.t -c user.name=t commit --allow-empty -q -m init
   # Create a task branch so the push filter exercises
   git -C "$repo_dir" checkout -q -b "task/VEG-1-selftest"
-  # Create .claude/scripts/ci-local.sh sentinel for push mode (DP-043 path)
-  mkdir -p "$repo_dir/.claude/scripts"
-  echo '#!/bin/sh' > "$repo_dir/.claude/scripts/ci-local.sh"
-  chmod +x "$repo_dir/.claude/scripts/ci-local.sh"
+  # Create workspace-owned ci-local.sh sentinel for push mode.
+  local ci_local
+  ci_local="$(ci_local_path_for_repo "$repo_dir")"
+  mkdir -p "$(dirname "$ci_local")"
+  echo '#!/bin/sh' > "$ci_local"
+  chmod +x "$ci_local"
 }
 
 # Build PreToolUse JSON input for `gh pr create`

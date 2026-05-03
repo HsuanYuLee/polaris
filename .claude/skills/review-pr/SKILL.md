@@ -554,13 +554,12 @@ Handbook 更新：
 - 寫入 {company}/polaris-config/{project}/handbook/{file}.md：{pattern 摘要}
 ```
 
-### Reverse Sync（靜默）
+### Handbook Persistence
 
-寫入 handbook 後，執行 reverse-sync：
-
-```bash
-{base_dir}/polaris-sync.sh --reverse {project-name}
-```
+寫入 handbook 時直接寫入 workspace-owned source of truth：
+`{company}/polaris-config/{project}/handbook/`。不要透過 repo-local
+`.claude/rules/handbook/` 再回寫；repo-local overlay 只允許作為
+legacy/native compatibility。
 
 ## 7. Slack 通知（僅當輸入來源為 Slack 時）
 
