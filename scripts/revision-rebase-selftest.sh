@@ -8,14 +8,15 @@
 #   4.  task.md path + conflict → exit 1 + rebase_status: conflict + rebase-in-progress state
 #   5.  task.md path + PR base aligned → pr_base_synced: false + already_aligned: true
 #   6.  task.md path + PR base drift → gh pr edit invoked + pr_base_synced: true
-#   7.  No task.md → exit 1, no PR base fallback
-#   8.  --repo external path resolves correctly
-#   9.  --pr explicit override
-#   10. --task-md explicit override
-#   11. fetch failure (broken origin) → exit 1
-#   12. resolve-task-base.sh missing → exit 1
-#   13. JSON schema completeness (all keys present)
-#   14. After conflict + --abort, re-run clean → exit 0
+#   7.  PR base drift from downstream old base → rebase --onto strips old base commits
+#   8.  No task.md → exit 1, no PR base fallback
+#   9.  --repo external path resolves correctly
+#   10. --pr explicit override
+#   11. --task-md explicit override
+#   12. fetch failure (broken origin) → exit 1
+#   13. resolve-task-base.sh missing → exit 1
+#   14. JSON schema completeness (all keys present)
+#   15. After conflict + --abort, re-run clean → exit 0
 #
 # Exit 0 when all assertions PASS. Honors DEBUG=1 for verbose output.
 
@@ -145,8 +146,9 @@ EOF
 }
 
 # Build a fake gh CLI on PATH that:
-#   - "gh -R PATH pr view --json baseRefName,number" returns FAKE_GH_PR_VIEW
-#   - "gh -R PATH pr edit N --base X" appends to FAKE_GH_LOG
+#   - "gh pr view --json baseRefName,number" returns FAKE_GH_PR_VIEW
+#   - "gh pr edit N --base X" appends to FAKE_GH_LOG
+#   - "gh -R /local/path ..." fails, matching real gh behavior
 #   - any other invocation: exit 1
 mk_fake_gh() {
   local bindir="$1"
@@ -161,8 +163,15 @@ LOG="${FAKE_GH_LOG:-/tmp/fake-gh.log}"
   printf '\n'
 } >> "$LOG"
 
-# Strip leading "-R PATH" if present
+# Strip leading "-R OWNER/REPO" if present. Real gh rejects filesystem paths
+# here; keep that behavior in the fake so local-path regressions are caught.
 if [ "${1:-}" = "-R" ]; then
+  case "${2:-}" in
+    /*|.*/*)
+      printf 'expected the "[HOST/]OWNER/REPO" format, got "%s"\n' "$2" >&2
+      exit 1
+      ;;
+  esac
   shift 2 || true
 fi
 
@@ -397,123 +406,158 @@ else
 fi
 
 # ────────────────────────────────────────────────────────────────────────────
-# Case 7: no task.md → fail loud, no PR base fallback
+# Case 7: PR old base is downstream of resolved base → strip old base commits
 # ────────────────────────────────────────────────────────────────────────────
-printf '\n--- Case 7: no task.md fail-loud ---\n'
+printf '\n--- Case 7: downstream old base stripped ---\n'
 C7="$WORK_DIR/case7"
 mkdir -p "$C7"
-mk_repo "$C7/repo" "feat/demo" "task/DEMO-1"
-# Intentionally skip mk_task_md so resolve-task-md-by-branch finds nothing.
+mkdir -p "$C7/repo"
+git -C "$C7/repo" init -q -b develop
+git -C "$C7/repo" config user.email "selftest@example.com"
+git -C "$C7/repo" config user.name "selftest"
+printf 'init\n' > "$C7/repo/file.txt"
+git -C "$C7/repo" add file.txt
+git -C "$C7/repo" commit -q -m "init"
+git -C "$C7/repo" remote add origin "$C7/repo.origin.git"
+git init -q --bare "$C7/repo.origin.git"
+git -C "$C7/repo" push -q origin develop
+git -C "$C7/repo" checkout -q -b feat/old-base
+printf 'old base only\n' > "$C7/repo/old-base.txt"
+git -C "$C7/repo" add old-base.txt
+git -C "$C7/repo" commit -q -m "old base"
+git -C "$C7/repo" push -q origin feat/old-base
+git -C "$C7/repo" checkout -q -b task/DEMO-1
+printf 'task only\n' > "$C7/repo/task-only.txt"
+git -C "$C7/repo" add task-only.txt
+git -C "$C7/repo" commit -q -m "task"
+git -C "$C7/repo" push -q origin task/DEMO-1
+TASK_MD7=$(mk_task_md "$C7" "repo" "DEMO-1" "DEMO-1" "develop" "task/DEMO-1")
 
 mk_fake_gh "$C7/bin"
 FAKE_PR_VIEW="$C7/pr-view.json"
-write_fake_pr_view "$FAKE_PR_VIEW" 105 "feat/demo"
+write_fake_pr_view "$FAKE_PR_VIEW" 105 "feat/old-base"
 FAKE_GH_LOG="$C7/gh.log"
 : > "$FAKE_GH_LOG"
 
 out=$(PATH="$C7/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C7/repo" 2>/tmp/rr-c7-stderr)
+  bash "$RR" --repo "$C7/repo" --task-md "$TASK_MD7" 2>/tmp/rr-c7-stderr)
 rc=$?
 [ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat /tmp/rr-c7-stderr; }
-assert_eq "$rc" "1" "case7.exit"
-assert_json_eq "$out" "legacy_fallback" "false" "case7"
-assert_json_eq "$out" "task_md" "null" "case7"
-assert_json_eq "$out" "resolved_base" "null" "case7"
-assert_json_eq "$out" "pr_base_synced" "false" "case7"
-if grep -q "pr edit" "$FAKE_GH_LOG"; then
-  FAIL=$((FAIL + 1))
-  printf "  [FAIL] case7.no-pr-edit — missing task must not invoke pr edit\n"
-else
+assert_eq "$rc" "0" "case7.exit"
+assert_json_eq "$out" "resolved_base" "develop" "case7"
+assert_json_eq "$out" "pr_base_before" "feat/old-base" "case7"
+assert_json_eq "$out" "pr_base_after" "develop" "case7"
+assert_json_eq "$out" "pr_base_synced" "true" "case7"
+if [ -f "$C7/repo/task-only.txt" ] && [ ! -f "$C7/repo/old-base.txt" ]; then
   PASS=$((PASS + 1))
-  [ "$DEBUG" = "1" ] && printf "  [ok] case7.no-pr-edit\n"
+  [ "$DEBUG" = "1" ] && printf "  [ok] case7.old-base-stripped\n"
+else
+  FAIL=$((FAIL + 1))
+  printf "  [FAIL] case7.old-base-stripped — task-only/old-base files unexpected\n"
 fi
-stderr_c7=$(cat /tmp/rr-c7-stderr)
-assert_contains "$stderr_c7" "no task.md for current branch" "case7.advisory"
+if grep -q "pr edit.*--base.*develop" "$FAKE_GH_LOG"; then
+  PASS=$((PASS + 1))
+  [ "$DEBUG" = "1" ] && printf "  [ok] case7.gh-pr-edit-invoked\n"
+else
+  FAIL=$((FAIL + 1))
+  printf "  [FAIL] case7.gh-pr-edit-invoked — log: %s\n" "$(cat "$FAKE_GH_LOG")"
+fi
 
 # ────────────────────────────────────────────────────────────────────────────
-# Case 8: --repo external path resolution
+# Case 8: no task.md → fail loud, no PR base fallback
 # ────────────────────────────────────────────────────────────────────────────
-printf '\n--- Case 8: --repo external path ---\n'
-# Reuse case2 setup
+printf '\n--- Case 8: no task.md fail-loud ---\n'
 C8="$WORK_DIR/case8"
 mkdir -p "$C8"
 mk_repo "$C8/repo" "feat/demo" "task/DEMO-1"
-TASK_MD8=$(mk_task_md "$C8" "repo" "DEMO-1" "DEMO-1" "feat/demo" "task/DEMO-1")
+# Intentionally skip mk_task_md so resolve-task-md-by-branch finds nothing.
+
 mk_fake_gh "$C8/bin"
 FAKE_PR_VIEW="$C8/pr-view.json"
-write_fake_pr_view "$FAKE_PR_VIEW" 108 "feat/demo"
+write_fake_pr_view "$FAKE_PR_VIEW" 106 "feat/demo"
 FAKE_GH_LOG="$C8/gh.log"
 : > "$FAKE_GH_LOG"
 
-# Run from /tmp (not inside the repo) and supply --repo explicitly
 out=$(PATH="$C8/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash -c "cd /tmp && bash '$RR' --repo '$C8/repo' --task-md '$TASK_MD8'" 2>/tmp/rr-c8-stderr)
+  bash "$RR" --repo "$C8/repo" 2>/tmp/rr-c8-stderr)
 rc=$?
-assert_eq "$rc" "0" "case8.exit"
-# git rev-parse --show-toplevel resolves symlinks (macOS /var → /private/var); use the same
-# resolved form for comparison.
-expected_repo_c8=$(cd "$C8/repo" && git rev-parse --show-toplevel 2>/dev/null)
-assert_json_eq "$out" "repo" "$expected_repo_c8" "case8"
+assert_eq "$rc" "1" "case8.exit"
+assert_json_eq "$out" "legacy_fallback" "false" "case8"
+assert_json_eq "$out" "task_md" "null" "case8"
+assert_json_eq "$out" "resolved_base" "null" "case8"
+assert_json_eq "$out" "pr_base_synced" "false" "case8"
+if grep -q "pr edit" "$FAKE_GH_LOG"; then
+  FAIL=$((FAIL + 1))
+  printf "  [FAIL] case8.no-pr-edit — missing task must not invoke pr edit\n"
+else
+  PASS=$((PASS + 1))
+  [ "$DEBUG" = "1" ] && printf "  [ok] case8.no-pr-edit\n"
+fi
+stderr_c8=$(cat /tmp/rr-c8-stderr)
+assert_contains "$stderr_c8" "no task.md for current branch" "case8.advisory"
 
 # ────────────────────────────────────────────────────────────────────────────
-# Case 9: --pr explicit override
+# Case 9: --repo external path resolution
 # ────────────────────────────────────────────────────────────────────────────
-printf '\n--- Case 9: --pr explicit ---\n'
+printf '\n--- Case 9: --repo external path ---\n'
+# Reuse case2 setup
 C9="$WORK_DIR/case9"
 mkdir -p "$C9"
 mk_repo "$C9/repo" "feat/demo" "task/DEMO-1"
 TASK_MD9=$(mk_task_md "$C9" "repo" "DEMO-1" "DEMO-1" "feat/demo" "task/DEMO-1")
 mk_fake_gh "$C9/bin"
 FAKE_PR_VIEW="$C9/pr-view.json"
-# Note: --pr 999 is supplied; fake gh always returns this view regardless
-write_fake_pr_view "$FAKE_PR_VIEW" 999 "feat/demo"
+write_fake_pr_view "$FAKE_PR_VIEW" 109 "feat/demo"
 FAKE_GH_LOG="$C9/gh.log"
 : > "$FAKE_GH_LOG"
 
+# Run from /tmp (not inside the repo) and supply --repo explicitly
 out=$(PATH="$C9/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C9/repo" --task-md "$TASK_MD9" --pr 999 2>/tmp/rr-c9-stderr)
+  bash -c "cd /tmp && bash '$RR' --repo '$C9/repo' --task-md '$TASK_MD9'" 2>/tmp/rr-c9-stderr)
 rc=$?
 assert_eq "$rc" "0" "case9.exit"
-assert_json_eq "$out" "pr_number" "999" "case9"
+# git rev-parse --show-toplevel resolves symlinks (macOS /var → /private/var); use the same
+# resolved form for comparison.
+expected_repo_c9=$(cd "$C9/repo" && git rev-parse --show-toplevel 2>/dev/null)
+assert_json_eq "$out" "repo" "$expected_repo_c9" "case9"
 
 # ────────────────────────────────────────────────────────────────────────────
-# Case 10: --task-md explicit override
+# Case 10: --pr explicit override
 # ────────────────────────────────────────────────────────────────────────────
-printf '\n--- Case 10: --task-md explicit ---\n'
-# Reuse case2 — explicit --task-md path
+printf '\n--- Case 10: --pr explicit ---\n'
 C10="$WORK_DIR/case10"
 mkdir -p "$C10"
 mk_repo "$C10/repo" "feat/demo" "task/DEMO-1"
 TASK_MD10=$(mk_task_md "$C10" "repo" "DEMO-1" "DEMO-1" "feat/demo" "task/DEMO-1")
 mk_fake_gh "$C10/bin"
 FAKE_PR_VIEW="$C10/pr-view.json"
-write_fake_pr_view "$FAKE_PR_VIEW" 110 "feat/demo"
+# Note: --pr 999 is supplied; fake gh always returns this view regardless
+write_fake_pr_view "$FAKE_PR_VIEW" 999 "feat/demo"
 FAKE_GH_LOG="$C10/gh.log"
 : > "$FAKE_GH_LOG"
 
 out=$(PATH="$C10/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C10/repo" --task-md "$TASK_MD10" 2>/tmp/rr-c10-stderr)
+  bash "$RR" --repo "$C10/repo" --task-md "$TASK_MD10" --pr 999 2>/tmp/rr-c10-stderr)
 rc=$?
 assert_eq "$rc" "0" "case10.exit"
-assert_json_eq "$out" "task_md" "$TASK_MD10" "case10"
+assert_json_eq "$out" "pr_number" "999" "case10"
 
 # ────────────────────────────────────────────────────────────────────────────
-# Case 11: fetch failure → exit 1
+# Case 11: --task-md explicit override
 # ────────────────────────────────────────────────────────────────────────────
-printf '\n--- Case 11: fetch failure ---\n'
+printf '\n--- Case 11: --task-md explicit ---\n'
+# Reuse case2 — explicit --task-md path
 C11="$WORK_DIR/case11"
 mkdir -p "$C11"
 mk_repo "$C11/repo" "feat/demo" "task/DEMO-1"
 TASK_MD11=$(mk_task_md "$C11" "repo" "DEMO-1" "DEMO-1" "feat/demo" "task/DEMO-1")
-# Break origin remote
-git -C "$C11/repo" remote set-url origin /nonexistent/repo.git
 mk_fake_gh "$C11/bin"
 FAKE_PR_VIEW="$C11/pr-view.json"
-write_fake_pr_view "$FAKE_PR_VIEW" 111 "feat/demo"
+write_fake_pr_view "$FAKE_PR_VIEW" 110 "feat/demo"
 FAKE_GH_LOG="$C11/gh.log"
 : > "$FAKE_GH_LOG"
 
@@ -521,40 +565,63 @@ out=$(PATH="$C11/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
   bash "$RR" --repo "$C11/repo" --task-md "$TASK_MD11" 2>/tmp/rr-c11-stderr)
 rc=$?
-assert_eq "$rc" "1" "case11.exit"
-stderr_c11=$(cat /tmp/rr-c11-stderr)
-assert_contains "$stderr_c11" "fetch origin failed" "case11.advisory"
+assert_eq "$rc" "0" "case11.exit"
+assert_json_eq "$out" "task_md" "$TASK_MD11" "case11"
 
 # ────────────────────────────────────────────────────────────────────────────
-# Case 12: resolve-task-base.sh missing → exit 1
+# Case 12: fetch failure → exit 1
 # ────────────────────────────────────────────────────────────────────────────
-printf '\n--- Case 12: helper missing ---\n'
+printf '\n--- Case 12: fetch failure ---\n'
 C12="$WORK_DIR/case12"
-mkdir -p "$C12/scripts-shadow"
-# Copy revision-rebase.sh into a shadow dir without resolve-task-base.sh
-cp "$RR" "$C12/scripts-shadow/revision-rebase.sh"
-# Also copy resolve-task-md-by-branch.sh so the task.md lookup helper is present
-cp "$SCRIPT_DIR/resolve-task-md-by-branch.sh" "$C12/scripts-shadow/"
+mkdir -p "$C12"
 mk_repo "$C12/repo" "feat/demo" "task/DEMO-1"
 TASK_MD12=$(mk_task_md "$C12" "repo" "DEMO-1" "DEMO-1" "feat/demo" "task/DEMO-1")
+# Break origin remote
+git -C "$C12/repo" remote set-url origin /nonexistent/repo.git
 mk_fake_gh "$C12/bin"
 FAKE_PR_VIEW="$C12/pr-view.json"
-write_fake_pr_view "$FAKE_PR_VIEW" 112 "feat/demo"
+write_fake_pr_view "$FAKE_PR_VIEW" 111 "feat/demo"
 FAKE_GH_LOG="$C12/gh.log"
 : > "$FAKE_GH_LOG"
 
 out=$(PATH="$C12/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$C12/scripts-shadow/revision-rebase.sh" --repo "$C12/repo" --task-md "$TASK_MD12" 2>/tmp/rr-c12-stderr)
+  bash "$RR" --repo "$C12/repo" --task-md "$TASK_MD12" 2>/tmp/rr-c12-stderr)
 rc=$?
 assert_eq "$rc" "1" "case12.exit"
 stderr_c12=$(cat /tmp/rr-c12-stderr)
-assert_contains "$stderr_c12" "helper missing" "case12.advisory"
+assert_contains "$stderr_c12" "fetch origin failed" "case12.advisory"
 
 # ────────────────────────────────────────────────────────────────────────────
-# Case 13: JSON schema completeness
+# Case 13: resolve-task-base.sh missing → exit 1
 # ────────────────────────────────────────────────────────────────────────────
-printf '\n--- Case 13: JSON schema completeness ---\n'
+printf '\n--- Case 13: helper missing ---\n'
+C13="$WORK_DIR/case13"
+mkdir -p "$C13/scripts-shadow"
+# Copy revision-rebase.sh into a shadow dir without resolve-task-base.sh
+cp "$RR" "$C13/scripts-shadow/revision-rebase.sh"
+# Also copy resolve-task-md-by-branch.sh so the task.md lookup helper is present
+cp "$SCRIPT_DIR/resolve-task-md-by-branch.sh" "$C13/scripts-shadow/"
+mk_repo "$C13/repo" "feat/demo" "task/DEMO-1"
+TASK_MD13=$(mk_task_md "$C13" "repo" "DEMO-1" "DEMO-1" "feat/demo" "task/DEMO-1")
+mk_fake_gh "$C13/bin"
+FAKE_PR_VIEW="$C13/pr-view.json"
+write_fake_pr_view "$FAKE_PR_VIEW" 112 "feat/demo"
+FAKE_GH_LOG="$C13/gh.log"
+: > "$FAKE_GH_LOG"
+
+out=$(PATH="$C13/bin:$PATH" \
+  FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
+  bash "$C13/scripts-shadow/revision-rebase.sh" --repo "$C13/repo" --task-md "$TASK_MD13" 2>/tmp/rr-c13-stderr)
+rc=$?
+assert_eq "$rc" "1" "case13.exit"
+stderr_c13=$(cat /tmp/rr-c13-stderr)
+assert_contains "$stderr_c13" "helper missing" "case13.advisory"
+
+# ────────────────────────────────────────────────────────────────────────────
+# Case 14: JSON schema completeness
+# ────────────────────────────────────────────────────────────────────────────
+printf '\n--- Case 14: JSON schema completeness ---\n'
 # Use case2 result — confirm all keys present
 expected_keys="repo task_md resolved_base rebase_status pr_number pr_base_before pr_base_after pr_base_synced pr_base_already_aligned legacy_fallback writer at"
 out=$(PATH="$C2/bin:$PATH" \
@@ -563,17 +630,17 @@ out=$(PATH="$C2/bin:$PATH" \
 for k in $expected_keys; do
   if printf '%s' "$out" | python3 -c "import json,sys; d=json.loads(sys.stdin.read()); sys.exit(0 if '$k' in d else 1)" 2>/dev/null; then
     PASS=$((PASS + 1))
-    [ "$DEBUG" = "1" ] && printf "  [ok] case13.key=%s\n" "$k"
+    [ "$DEBUG" = "1" ] && printf "  [ok] case14.key=%s\n" "$k"
   else
     FAIL=$((FAIL + 1))
-    printf "  [FAIL] case13.key missing: %s\n" "$k"
+    printf "  [FAIL] case14.key missing: %s\n" "$k"
   fi
 done
 
 # ────────────────────────────────────────────────────────────────────────────
-# Case 14: post-conflict re-run (after manual resolution) → clean
+# Case 15: post-conflict re-run (after manual resolution) → clean
 # ────────────────────────────────────────────────────────────────────────────
-printf '\n--- Case 14: re-run after conflict resolution ---\n'
+printf '\n--- Case 15: re-run after conflict resolution ---\n'
 # After abort in case4, simulate the user manually resolving the conflict:
 #   1. abort prior rebase
 #   2. reset task branch to feat/demo's tip (taking upstream's resolution)
@@ -595,20 +662,20 @@ write_fake_pr_view "$FAKE_PR_VIEW" 102 "feat/demo"
 
 out=$(PATH="$C4/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$C4/gh.log" \
-  bash "$RR" --repo "$C4/repo" --task-md "$TASK_MD4" 2>/tmp/rr-c14-stderr)
+  bash "$RR" --repo "$C4/repo" --task-md "$TASK_MD4" 2>/tmp/rr-c15-stderr)
 rc=$?
-[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat /tmp/rr-c14-stderr; }
-assert_eq "$rc" "0" "case14.exit"
+[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat /tmp/rr-c15-stderr; }
+assert_eq "$rc" "0" "case15.exit"
 # After manual reset to origin/feat/demo + extra commit, target is ancestor of HEAD
 # → rebase is "not_needed". Either "clean" or "not_needed" is acceptable here, since
 # both indicate the script handled the recovery case correctly.
 got_status=$(printf '%s' "$out" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('rebase_status'))")
 if [ "$got_status" = "clean" ] || [ "$got_status" = "not_needed" ]; then
   PASS=$((PASS + 1))
-  [ "$DEBUG" = "1" ] && printf "  [ok] case14.rebase_status=%s\n" "$got_status"
+  [ "$DEBUG" = "1" ] && printf "  [ok] case15.rebase_status=%s\n" "$got_status"
 else
   FAIL=$((FAIL + 1))
-  printf "  [FAIL] case14.rebase_status — want=clean|not_needed got=%s\n" "$got_status"
+  printf "  [FAIL] case15.rebase_status — want=clean|not_needed got=%s\n" "$got_status"
 fi
 
 # ────────────────────────────────────────────────────────────────────────────

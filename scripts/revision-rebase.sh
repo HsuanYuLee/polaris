@@ -236,10 +236,10 @@ if [ -n "$PR_ARG" ]; then
 else
   # Query gh for current branch's PR.
   if command -v gh >/dev/null 2>&1; then
-    PR_VIEW=$(gh -R "$REPO" pr view --json number,baseRefName 2>/dev/null) && rc=0 || rc=$?
+    PR_VIEW=$(cd "$REPO" && gh pr view --json number,baseRefName 2>/dev/null) && rc=0 || rc=$?
     # Fall back to gh pr view (uses cwd → PR for HEAD branch).
     if [ "$rc" != "0" ] || [ -z "$PR_VIEW" ]; then
-      PR_VIEW=$(GIT_DIR="$REPO/.git" gh pr view --json number,baseRefName 2>/dev/null || true)
+      PR_VIEW=$(cd "$REPO" && gh pr view --json number,baseRefName 2>/dev/null || true)
     fi
     if [ -n "$PR_VIEW" ]; then
       PR_NUMBER=$(printf '%s' "$PR_VIEW" | python3 -c 'import json,sys
@@ -263,7 +263,7 @@ fi
 # Re-fetch PR_BASE_BEFORE if --pr was supplied explicitly (we still need it).
 if [ "$PR_NUMBER" != "__NULL__" ] && [ "$PR_BASE_BEFORE" = "__NULL__" ]; then
   if command -v gh >/dev/null 2>&1; then
-    PR_BASE_BEFORE=$(gh -R "$REPO" pr view "$PR_NUMBER" --json baseRefName --jq .baseRefName 2>/dev/null || true)
+    PR_BASE_BEFORE=$(cd "$REPO" && gh pr view "$PR_NUMBER" --json baseRefName --jq .baseRefName 2>/dev/null || true)
     [ -z "$PR_BASE_BEFORE" ] && PR_BASE_BEFORE="__NULL__"
   fi
 fi
@@ -337,15 +337,53 @@ if ! git -C "$REPO" rev-parse --verify --quiet "$REBASE_TARGET" >/dev/null 2>&1;
   fi
 fi
 
+ONTO_REBASE_DONE=false
+
+# When an existing PR was previously based on a downstream branch but task.md now
+# resolves to an upstream base, merely editing the PR base exposes the old base's
+# commits in the diff. Transplant only the PR branch's own commits onto the
+# resolved base before syncing the PR base field.
+if [ "$PR_NUMBER" != "__NULL__" ] && [ "$PR_BASE_BEFORE" != "__NULL__" ] && [ "$PR_BASE_BEFORE" != "$RESOLVED_BASE" ]; then
+  OLD_BASE_TARGET="origin/$PR_BASE_BEFORE"
+  if ! git -C "$REPO" rev-parse --verify --quiet "$OLD_BASE_TARGET" >/dev/null 2>&1; then
+    if git -C "$REPO" rev-parse --verify --quiet "$PR_BASE_BEFORE" >/dev/null 2>&1; then
+      OLD_BASE_TARGET="$PR_BASE_BEFORE"
+    else
+      OLD_BASE_TARGET=""
+    fi
+  fi
+
+  if [ -n "$OLD_BASE_TARGET" ] &&
+     git -C "$REPO" merge-base --is-ancestor "$REBASE_TARGET" "$OLD_BASE_TARGET" >/dev/null 2>&1 &&
+     git -C "$REPO" merge-base --is-ancestor "$OLD_BASE_TARGET" HEAD >/dev/null 2>&1; then
+    if git -C "$REPO" rebase --onto "$REBASE_TARGET" "$OLD_BASE_TARGET" >/dev/null 2>&1; then
+      REBASE_STATUS="clean"
+      ONTO_REBASE_DONE=true
+      log_info "rebase --onto $REBASE_TARGET $OLD_BASE_TARGET PASS"
+    else
+      REBASE_STATUS="conflict"
+      log_err "Conflict during rebase --onto $REBASE_TARGET $OLD_BASE_TARGET — manual resolution required"
+      log_err "(repo is in rebase-in-progress state; run 'git -C $REPO rebase --abort' to back out)"
+      emit_evidence "$REPO" "$TASK_MD" "$RESOLVED_BASE" "$REBASE_STATUS" \
+        "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" "false"
+      exit 1
+    fi
+  elif [ -n "$OLD_BASE_TARGET" ]; then
+    log_info "PR base drift does not require --onto transplant ($PR_BASE_BEFORE → $RESOLVED_BASE)"
+  fi
+fi
+
 # Check if rebase is needed: if HEAD already contains the target as ancestor's tip,
 # then `git rebase` is a no-op. We classify "not_needed" when the merge-base
 # already equals the target's commit (i.e., target is reachable from HEAD).
-REBASE_STATUS="clean"
+REBASE_STATUS="${REBASE_STATUS:-clean}"
 TARGET_SHA=$(git -C "$REPO" rev-parse "$REBASE_TARGET" 2>/dev/null || echo "")
 HEAD_SHA=$(git -C "$REPO" rev-parse HEAD 2>/dev/null || echo "")
 MERGE_BASE=$(git -C "$REPO" merge-base "$REBASE_TARGET" HEAD 2>/dev/null || echo "")
 
-if [ -n "$TARGET_SHA" ] && [ "$TARGET_SHA" = "$MERGE_BASE" ]; then
+if [ "$ONTO_REBASE_DONE" = "true" ]; then
+  log_info "standard rebase skipped after --onto transplant"
+elif [ -n "$TARGET_SHA" ] && [ "$TARGET_SHA" = "$MERGE_BASE" ]; then
   # target is ancestor of HEAD → branch is up-to-date relative to base.
   REBASE_STATUS="not_needed"
   log_info "rebase not needed: HEAD is already on top of $REBASE_TARGET"
@@ -382,7 +420,7 @@ else
     PR_BASE_SYNCED="false"
   else
     log_info "PR #$PR_NUMBER base drift: $PR_BASE_BEFORE → $RESOLVED_BASE (running gh pr edit --base)"
-    if gh -R "$REPO" pr edit "$PR_NUMBER" --base "$RESOLVED_BASE" >/dev/null 2>&1; then
+    if (cd "$REPO" && gh pr edit "$PR_NUMBER" --base "$RESOLVED_BASE") >/dev/null 2>&1; then
       PR_BASE_AFTER="$RESOLVED_BASE"
       PR_BASE_SYNCED="true"
       log_info "PR base sync PASS"

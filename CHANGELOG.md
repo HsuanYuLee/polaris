@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.42] - 2026-05-04
+
+### Fixed — revision rebase stacked base drift
+
+- Made `revision-rebase.sh` run GitHub PR operations from the target repo
+  working directory instead of passing a filesystem path to `gh -R`.
+- When an existing PR base moves from a downstream branch back to the resolved
+  task base, `revision-rebase.sh` now transplants only the PR branch's own
+  commits with `rebase --onto` before syncing the PR base field.
+- Made `check-scope.sh` read changed file paths with `core.quotePath=false` so
+  non-ASCII changeset filenames still match the delivery metadata exemption.
+
 ## [3.74.41] - 2026-05-04
 
 ### Fixed — polaris-config migration closure

@@ -85,7 +85,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [epic-folder-structure.md](epic-folder-structure.md) | Epic artifact 統一 folder schema：specs/{EPIC}/ 下 refinement、tasks、tests（lighthouse/mockoon/vr）、verification | breakdown, refinement, engineering, verify-AC, visual-regression, mockoon-runner |
+| [epic-folder-structure.md](epic-folder-structure.md) | Epic artifact 統一 folder schema：`docs-manager/src/content/docs/specs/companies/{company}/{EPIC}/` 下 refinement、tasks、tests（lighthouse/mockoon/vr）、verification | breakdown, refinement, engineering, verify-AC, visual-regression, mockoon-runner |
 
 ## Config & Infrastructure
 

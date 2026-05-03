@@ -258,6 +258,82 @@ resolve_by_jira() {
   return 1
 }
 
+resolve_by_epic_series_ordinal() {
+  local root="$1"
+  local epic_key="$2"
+  local series="$3"
+  local ordinal="${4:-}"
+  local include_archive="${5:-0}"
+  local specs_root=""
+  local -a candidates=()
+  local line=""
+  local selected=""
+  specs_root="$(resolve_specs_root "$root")" || return 1
+
+  while IFS= read -r -d '' line; do
+    candidates+=("$line")
+  done < <(
+    if [[ "$include_archive" == "1" ]]; then
+      find "$specs_root" \
+        \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
+        -o \
+        \( -type f \( -path "*/${epic_key}/tasks/${series}*.md" -o -path "*/${epic_key}/tasks/pr-release/${series}*.md" \) -print0 \)
+    else
+      find "$specs_root" \
+        \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
+        -o \
+        \( -type f \( -path "*/${epic_key}/tasks/${series}*.md" -o -path "*/${epic_key}/tasks/pr-release/${series}*.md" \) -print0 \)
+    fi
+  )
+
+  if [[ ${#candidates[@]} -eq 0 ]]; then
+    echo "error: no ${series} series task.md found for ${epic_key}" >&2
+    return 1
+  fi
+
+  selected="$(python3 - "$ordinal" "${candidates[@]}" <<'PY'
+import os
+import re
+import sys
+
+ordinal = sys.argv[1].strip().lower()
+paths = sys.argv[2:]
+
+def task_sort_key(path):
+    name = os.path.splitext(os.path.basename(path))[0]
+    m = re.fullmatch(r"T(\d+)([a-z]*)", name, re.I)
+    canonical = 0 if "/companies/" in path else 1
+    if not m:
+        return (canonical, 999999, "zzzz", path)
+    return (canonical, int(m.group(1)), m.group(2).lower(), path)
+
+paths = sorted(paths, key=task_sort_key)
+if ordinal in {"first", "1", "1st", "one", "第一", "第1", "首張", "第一張"}:
+    print(paths[0])
+elif ordinal in {"second", "2", "2nd", "two", "第二", "第2", "第二張"}:
+    if len(paths) < 2:
+        raise SystemExit(1)
+    print(paths[1])
+else:
+    print("AMBIGUOUS")
+    for path in paths:
+        print(path)
+PY
+)" || {
+    echo "error: ordinal ${ordinal:-<none>} is out of range for ${epic_key} ${series} series" >&2
+    printf '  %s\n' "${candidates[@]}" >&2
+    return 1
+  }
+
+  if [[ "$selected" == AMBIGUOUS$'\n'* || "$selected" == "AMBIGUOUS" ]]; then
+    echo "error: ${epic_key} ${series} series resolved to multiple work orders; provide an ordinal or exact task id:" >&2
+    printf '%s\n' "$selected" | tail -n +2 | sed 's/^/  /' >&2
+    return 1
+  fi
+
+  abs_path "$selected"
+}
+
 resolve_by_branch() {
   local root="$1"
   local branch="$2"
@@ -291,6 +367,33 @@ resolve_from_input() {
     resolve_direct_path "$raw"
     return 0
   fi
+
+  extracted="$(python3 - "$raw" <<'PY'
+import re
+import sys
+
+raw = sys.argv[1]
+if re.search(r"\bDP-\d{3}-T\d+[a-z]*\b", raw, re.I):
+    raise SystemExit(1)
+epic = re.search(r"\b([A-Z][A-Z0-9]+-\d+)\b", raw)
+series = re.search(r"\b(T\d+)\s*(?:系列|series)?\b", raw, re.I)
+if not (epic and series):
+    raise SystemExit(1)
+ordinal = ""
+lower = raw.lower()
+if re.search(r"(第一張|第一|第\s*1|首張|\bfirst\b|\b1st\b)", lower):
+    ordinal = "first"
+elif re.search(r"(第二張|第二|第\s*2|\bsecond\b|\b2nd\b)", lower):
+    ordinal = "second"
+print(f"epic_series\t{epic.group(1)}\t{series.group(1).upper()}\t{ordinal}")
+PY
+)" && {
+    IFS=$'\t' read -r kind value series ordinal <<<"$extracted"
+    if [[ "$kind" == "epic_series" ]]; then
+      resolve_by_epic_series_ordinal "$root" "$value" "$series" "$ordinal" "$include_archive"
+      return $?
+    fi
+  }
 
   extracted="$(python3 - "$raw" <<'PY'
 import re
@@ -360,6 +463,7 @@ run_selftest() {
   tmpdir="$(mktemp -d -t resolve-task-md-selftest.XXXXXX)"
   trap "rm -rf '$tmpdir'" EXIT
   mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks/pr-release" "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks" "$tmpdir/docs-manager/src/content/docs/specs/GT-999" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-478/tasks/pr-release" "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-478/tasks" \
            "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/GT-999/tasks"
 
   cat > "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks/T3b.md" <<'MD'
@@ -372,6 +476,26 @@ MD
   cat > "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks/pr-release/T3a.md" <<'MD'
 # T3a: Example (1 pt)
 > Epic: GT-478 | JIRA: GT-479 | Repo: kkday
+MD
+
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-478/tasks/pr-release/T3a.md" <<'MD'
+# T3a: Canonical series first (1 pt)
+> Source: GT-478 | Task: KB2CW-3711 | JIRA: KB2CW-3711 | Repo: kkday
+## Operational Context
+| Source type | jira |
+| Source ID | GT-478 |
+| Task ID | KB2CW-3711 |
+| JIRA key | KB2CW-3711 |
+MD
+
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-478/tasks/T3b.md" <<'MD'
+# T3b: Canonical series second (1 pt)
+> Source: GT-478 | Task: KB2CW-3902 | JIRA: KB2CW-3902 | Repo: kkday
+## Operational Context
+| Source type | jira |
+| Source ID | GT-478 |
+| Task ID | KB2CW-3902 |
+| JIRA key | KB2CW-3902 |
 MD
 
   cat > "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks/T4.md" <<'MD'
@@ -444,6 +568,14 @@ MD
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input 'engineering DP-047-T1')" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] || { echo "[selftest] from-input dp task FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 GT-478 T3 系列第一張')" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/companies/kkday/GT-478/tasks/pr-release/T3a.md" ]] || { echo "[selftest] from-input epic series first FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 GT-478 T3 series')" || rc=$?
+  [[ $rc -eq 1 ]] || { echo "[selftest] ambiguous epic series should fail"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" DP-050-T1)" || rc=$?

@@ -6,11 +6,11 @@
 # (Scope Gate, after Simplify, before Quality).
 #
 # Contract:
-#   check-scope.sh <task_md>
+#   check-scope.sh [--base-branch <branch>] <task_md>
 #
 # Steps:
 #   1. parse-task-md.sh → allowed_files array + resolved_base + task_jira_key
-#   2. git diff --name-only origin/{resolved_base}..HEAD → changed files
+#   2. git diff --name-only {effective_base}..HEAD → changed files
 #   3. Ignore delivery metadata that engineering itself must produce
 #      (.changeset/*.md), then check each remaining changed file against
 #      allowed patterns
@@ -37,9 +37,10 @@ PARSE_TASK_MD="$SCRIPT_DIR/parse-task-md.sh"
 usage() {
   cat <<EOF >&2
 Usage:
-  $(basename "$0") <task_md>
+  $(basename "$0") [--base-branch <branch>] <task_md>
 
 Compares git diff against task.md Allowed Files. Outputs JSON.
+--base-branch overrides task.md resolved_base for stacked PR / revision contexts.
 
 Exit:  0 = within scope, 1 = scope exceeded, 2 = error.
 EOF
@@ -293,6 +294,60 @@ TASK
   rc=$?
   _assert "$rc" "2" "T-int-3: no args should exit 2"
 
+  # T-int-4: stacked PR effective base avoids upstream false positives.
+  TMPDIR_STACK=$(mktemp -d)
+  REMOTE_STACK="$TMPDIR_STACK/remote.git"
+  LOCAL_STACK="$TMPDIR_STACK/local"
+  git init --bare "$REMOTE_STACK" >/dev/null 2>&1
+  git clone "$REMOTE_STACK" "$LOCAL_STACK" >/dev/null 2>&1
+  (
+    cd "$LOCAL_STACK"
+    git checkout -b main >/dev/null 2>&1
+    mkdir -p src
+    echo "base" > src/upstream.ts
+    echo "base" > src/task.ts
+    git add -A && git commit -m "base" >/dev/null 2>&1
+    git push -u origin main >/dev/null 2>&1
+    git checkout -b task/upstream >/dev/null 2>&1
+    echo "upstream change" >> src/upstream.ts
+    git add -A && git commit -m "upstream" >/dev/null 2>&1
+    git push -u origin task/upstream >/dev/null 2>&1
+    git checkout -b task/current >/dev/null 2>&1
+    echo "task change" >> src/task.ts
+    git add -A && git commit -m "task" >/dev/null 2>&1
+  )
+
+  TASK_STACK="$TMPDIR_STACK/task.md"
+  cat > "$TASK_STACK" <<'TASK'
+# T2 — Stacked Demo
+
+> Epic: TEST-2 | JIRA: TEST-2 | Repo: test
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Task JIRA key | TEST-2 |
+| Parent Epic | TEST-2 |
+| Base branch | main |
+| Task branch | task/current |
+| Depends on | TEST-1 |
+
+## Allowed Files
+
+- `src/task.ts`
+
+## Test Command
+
+echo ok
+TASK
+
+  out=$(cd "$LOCAL_STACK" && _run --base-branch task/upstream "$TASK_STACK" 2>/dev/null)
+  rc=$?
+  _assert "$rc" "0" "T-int-4: stacked effective base should pass"
+  echo "$out" | grep -q '"base_source": "explicit"' && t="found" || t="missing"
+  _assert "$t" "found" "T-int-4: output should include explicit base source"
+
   echo ""
   echo "check-scope.sh selftest: $PASS/$TOTAL passed, $FAIL failed"
   [[ "$FAIL" -eq 0 ]] && exit 0 || exit 1
@@ -301,12 +356,37 @@ fi
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-if [[ $# -lt 1 ]]; then
+BASE_BRANCH_OVERRIDE=""
+TASK_MD=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --base-branch)
+      [[ $# -ge 2 ]] || { usage; exit 2; }
+      BASE_BRANCH_OVERRIDE="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 2
+      ;;
+    --*)
+      echo "ERROR: unknown option: $1" >&2
+      usage
+      exit 2
+      ;;
+    *)
+      [[ -z "$TASK_MD" ]] || { echo "ERROR: unexpected extra argument: $1" >&2; usage; exit 2; }
+      TASK_MD="$1"
+      shift
+      ;;
+  esac
+done
+
+if [[ -z "$TASK_MD" ]]; then
   usage
   exit 2
 fi
-
-TASK_MD="$1"
 
 if [[ ! -f "$TASK_MD" ]]; then
   echo "ERROR: task_md not found: $TASK_MD" >&2
@@ -323,16 +403,31 @@ fi
 RESOLVED_BASE=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('resolved_base') or '')" 2>/dev/null)
 TASK_KEY=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); oc=d.get('operational_context',{}); m=d.get('metadata',{}); print(oc.get('task_jira_key') or m.get('jira') or '')" 2>/dev/null)
 ALLOWED_JSON=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get('allowed_files') or []))" 2>/dev/null)
+EFFECTIVE_BASE="${BASE_BRANCH_OVERRIDE:-$RESOLVED_BASE}"
+BASE_SOURCE="task_md"
+if [[ -n "$BASE_BRANCH_OVERRIDE" ]]; then
+  BASE_SOURCE="explicit"
+fi
 
-if [[ -z "$RESOLVED_BASE" || "$RESOLVED_BASE" == "null" ]]; then
+if [[ -z "$EFFECTIVE_BASE" || "$EFFECTIVE_BASE" == "null" ]]; then
   echo "ERROR: could not resolve base branch from $TASK_MD" >&2
   exit 2
 fi
 
+BASE_REF=""
+if git rev-parse --verify --quiet "origin/$EFFECTIVE_BASE" >/dev/null; then
+  BASE_REF="origin/$EFFECTIVE_BASE"
+elif git rev-parse --verify --quiet "$EFFECTIVE_BASE" >/dev/null; then
+  BASE_REF="$EFFECTIVE_BASE"
+else
+  echo "ERROR: base branch not found locally or on origin: $EFFECTIVE_BASE" >&2
+  exit 2
+fi
+
 # Step 2: Get changed files
-DIFF_FILES=$(git diff --name-only "origin/$RESOLVED_BASE"..HEAD 2>/dev/null)
+DIFF_FILES=$(git -c core.quotePath=false diff --name-only "$BASE_REF"..HEAD 2>/dev/null)
 if [[ $? -ne 0 ]]; then
-  echo "ERROR: git diff failed for origin/$RESOLVED_BASE..HEAD" >&2
+  echo "ERROR: git diff failed for $BASE_REF..HEAD" >&2
   exit 2
 fi
 
@@ -361,8 +456,12 @@ match = json.loads(sys.argv[1])
 match['task_key'] = sys.argv[2]
 match['allowed_count'] = int(sys.argv[3])
 match['diff_count'] = int(sys.argv[4])
+match['resolved_base'] = sys.argv[5]
+match['base_branch'] = sys.argv[6]
+match['base_ref'] = sys.argv[7]
+match['base_source'] = sys.argv[8]
 print(json.dumps(match, indent=2))
-" "$MATCH_RESULT" "${TASK_KEY:-unknown}" "${ALLOWED_COUNT:-0}" "$DIFF_COUNT"
+" "$MATCH_RESULT" "${TASK_KEY:-unknown}" "${ALLOWED_COUNT:-0}" "$DIFF_COUNT" "${RESOLVED_BASE:-}" "$EFFECTIVE_BASE" "$BASE_REF" "$BASE_SOURCE"
 
 # Step 6: Exit code
 if [[ "$SCOPE_ADDITIONS_COUNT" -gt 0 ]]; then

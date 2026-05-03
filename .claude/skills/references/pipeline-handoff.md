@@ -215,7 +215,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 
 - **Level**: {static | build | runtime}
 - **Dev env config**: `workspace-config.yaml` → `projects[{repo_name}].dev_environment`
-- **Fixtures**: {`specs/{EPIC}/tests/mockoon/` 或 `N/A`}
+- **Fixtures**: {`{source_container}/tests/mockoon/` 或 `N/A`}
 - **Runtime verify target**: {`https://dev.kkday.com/...` | `http://localhost:3001/...` | `N/A`}
 - **Env bootstrap command**: {`./scripts/polaris-env.sh start <company> --project <repo>` | `<company>/scripts/*.sh` | `N/A`}
 
@@ -272,7 +272,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 
 ### breakdown → engineering
 
-**Input to engineering**: `specs/{EPIC}/tasks/T{n}.md`（符合上述 schema）
+**Input to engineering**: canonical `task.md`（產品 work 為 `docs-manager/src/content/docs/specs/companies/{company}/{EPIC}/tasks/T{n}.md`；framework work 為 `docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/tasks/T{n}.md`，符合上述 schema）
 
 **Pre-conditions（breakdown 產出前須滿足）**：
 - JIRA task 已建立、Test sub-tasks 已建立、AC 驗收單已建立
@@ -290,7 +290,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 - PR 已開、unit test pass、CI 綠
 - task.md 在 PR description 中 link 到 AC 驗收單
 
-**Contract**：verify-AC 從驗收單 task.md（`specs/{EPIC}/tasks/{V-KEY}.md`）讀取 fixture 設定與環境指令，從 AC 驗收單 JIRA description 讀取驗證步驟。若無 task.md → fallback 到 `specs/{EPIC}/tests/mockoon/` 自動偵測。
+**Contract**：verify-AC 從驗收單 task.md（`{source_container}/tasks/{V-KEY}.md`）讀取 fixture 設定與環境指令，從 AC 驗收單 JIRA description 讀取驗證步驟。若無 task.md → fallback 到 `{source_container}/tests/mockoon/` 自動偵測。
 
 ### verify-AC PASS
 
@@ -466,7 +466,7 @@ Pipeline 收斂在以下任一條件：
 本文件定義 handoff contract 的**結論文件**（task.md、JIRA comment）。支撐這些結論的**原始 tool return**（grep 結果、error trace、endpoint response）由 evidence artifact 承載：
 
 - 規格：[handoff-artifact.md](handoff-artifact.md) — Summary/Raw Evidence 格式、20KB cap、secret scrub
-- 位置：`specs/{EPIC}/artifacts/{skill}-{scope}-{ticket}-{ts}.md`（與 Completion Envelope Detail 合流）
+- 位置：`{source_container}/artifacts/{skill}-{scope}-{ticket}-{ts}.md`（與 Completion Envelope Detail 合流）
 - 讀取：下游 sub-agent **on-demand**，預設信任結論文件
 - P4 pilot：bug-triage → engineering（DP-024 P4 2026-04-22）
 
