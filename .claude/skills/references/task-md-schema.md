@@ -269,6 +269,7 @@ PR-release 觸發（DP-033 D6，**move-first 順序鎖定**）：`status` 轉為
 | `## 測試計畫（code-level）` | **Soft** | DP-025 | `validate-task-md.sh`（章節存在；內容不檢） |
 | `## Test Command` | **Hard** | DP-005 / DP-025 | `validate-task-md.sh`（章節存在 + 含 fenced code block） |
 | `## Test Environment` | **Hard** | DP-023 | `validate-task-md.sh`（章節存在 + Level enum + Runtime contract — 見 § 3.3） |
+| `## Gate Closure Matrix` | **Breakdown readiness Hard** | DP-082 | `validate-breakdown-ready.sh`（章節存在 + scope/test/verify/ci-local + pass condition + owner/decision） |
 | `## Verify Command` | **Hard**（`Level≠static` 時） | DP-023 | `validate-task-md.sh`（章節存在 + 含 fenced code block + Level=runtime 時 host alignment） |
 
 ### 3.2 `## Operational Context` table cells
@@ -378,7 +379,32 @@ Bullet list 格式：
 
 Allowed Files pattern 支援 repo-root relative path、glob，以及 root exact filename。`VERSION`、`README` 這類 root filename 是合法 exact pattern；不要為了通過 scope gate 改寫成 `VERSION*`。純自然語言 bullet（例如「上述檔案的 test 檔」）仍會被 scope matcher 跳過，不會變成萬用 pattern。
 
-### 3.5 `## Test Command` / `## Verify Command`
+### 3.5 `## Gate Closure Matrix`
+
+`## Gate Closure Matrix` 是 breakdown producer contract，不是一般 task schema 欄位。它由 `scripts/validate-breakdown-ready.sh` 在 breakdown handoff 前強制驗證，目的是避免 engineering 收到「沒有 pass 條件」的 work order。
+
+最低格式：
+
+```markdown
+## Gate Closure Matrix
+
+| Gate | Applies | Pass condition | Owner / decision |
+|------|---------|----------------|------------------|
+| scope | yes | changed files all match Allowed Files | breakdown |
+| test | yes | Test Command passes | engineering |
+| verify | yes | Verify Command passes | engineering |
+| ci-local | no | N/A | no ci-local configured for this repo |
+```
+
+規則：
+
+- 必須列出 `scope` / `test` / `verify` / `ci-local` 四個 gate。
+- 每個 gate 都必須有 pass condition。
+- 每個 gate 都必須有 owner / decision；baseline/env 類問題不可留白。
+- `N/A` 合法，但必須有原因。
+- `Allowed Files` 若含自然語言描述，readiness gate fail；自然語言只能放 `## 改動範圍`。
+
+### 3.6 `## Test Command` / `## Verify Command`
 
 兩者皆必須包含 fenced code block（內容由 LLM 不可改寫 — `verify-command-immutable-execute` canary）。
 

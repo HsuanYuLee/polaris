@@ -54,9 +54,14 @@ read_language_from_config() {
 
 read_workspace_language_upward() {
   local start="${1:-$PWD}"
-  local dir="$start"
-  if [[ -f "$dir" ]]; then
-    dir="$(dirname "$dir")"
+  local dir=""
+  if [[ -d "$start" ]]; then
+    dir="$(cd "$start" && pwd)"
+  elif [[ -f "$start" ]]; then
+    dir="$(cd "$(dirname "$start")" && pwd)"
+  else
+    dir="$(cd "$(dirname "$start")" 2>/dev/null && pwd || true)"
+    dir="${dir:-$PWD}"
   fi
   while [[ "$dir" != "/" ]]; do
     if [[ -f "$dir/workspace-config.yaml" ]]; then
@@ -328,6 +333,7 @@ YAML
   assert_rc 0 env -u LANGUAGE_POLICY_SELFTEST bash "$script_dir/validate-language-policy.sh" --blocking --language zh-TW --mode bilingual-source "$tmpdir/en.md"
   assert_rc 0 env -u LANGUAGE_POLICY_SELFTEST bash "$script_dir/validate-language-policy.sh" --blocking --language en --mode artifact "$tmpdir/en.md"
   assert_rc 1 bash -c "cd '$tmpdir/root/company' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --blocking --mode artifact '$tmpdir/root/company/en.md'"
+  assert_rc 1 bash -c "cd '$tmpdir/root/company' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --blocking --workspace-root . --mode artifact '$tmpdir/root/company/en.md'"
   assert_rc 1 bash -c "cd '$tmpdir/no-language' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --blocking --mode artifact '$tmpdir/no-language/zh.md'"
   assert_rc 0 bash -c "cd '$tmpdir/no-language' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --advisory --mode artifact '$tmpdir/no-language/zh.md'"
 

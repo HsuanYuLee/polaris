@@ -27,7 +27,7 @@ These mechanisms are contract-lane checks. Their source of truth is the script/g
 
 | Contract group | Covered invariants | Deterministic source | Disposition |
 |----------------|--------------------|----------------------|-------------|
-| Artifact schemas | refinement/task artifact shape, task dependency closure, fixture paths, design-plan checklist closure | `pipeline-artifact-gate.sh`, `validate-refinement-json.sh`, `validate-task-md.sh`, `validate-task-md-deps.sh`, `design-plan-checklist-gate.sh` | `already_deterministic_reduce_audit` |
+| Artifact schemas | refinement/task artifact shape, task dependency closure, breakdown readiness, fixture paths, design-plan checklist closure | `pipeline-artifact-gate.sh`, `validate-refinement-json.sh`, `validate-task-md.sh`, `validate-task-md-deps.sh`, `validate-breakdown-ready.sh`, `design-plan-checklist-gate.sh` | `already_deterministic_reduce_audit` |
 | Handoff and L2 gates | refinement handoff, carry-forward, version bump reminders, feedback reflection signals | `l2-embedding-registry.md`, `refinement-handoff-gate.sh`, `check-carry-forward.sh`, `check-version-bump-reminder.sh`, `check-feedback-signals.sh` | `already_deterministic_reduce_audit` |
 | Delivery wrappers | PR body template preservation, workspace language policy, verification evidence, ci-local evidence, base resolution | `deterministic-hooks-registry.md`, `polaris-pr-create.sh`, `gate-pr-body-template.sh`, `gate-pr-language.sh`, `gate-commit-language.sh`, `verification-evidence-gate.sh`, `ci-local-gate.sh`, `resolve-task-base.sh` | `already_deterministic_reduce_audit` |
 | Handbook config runtime contract | project handbook machine fields schema, handbook-first runtime config resolution, workspace-config fallback / conflict detection | `handbook-config-reader.sh`, `handbook-config-validator.sh`, `handbook-config-selftest.sh`, `start-test-env.sh --resolve-config-only`, `deterministic-hooks-registry.md` | `already_deterministic_reduce_audit` |
@@ -132,6 +132,7 @@ Disposition: `already_deterministic_reduce_audit`. Keep these rows as contract d
 | `task-md-deps-closure` | task.md `depends_on` 須 reference 同 Epic 內存在的 T*.md 且形成 DAG（無 cycle） | Edit/Write rejected for cyclic或missing target；OR verify-AC deadlock | High |
 | `fixture-path-existence` | `## Test Environment` `Fixtures:` 路徑（非 N/A）須實際存在 | Edit/Write rejected for missing fixture path；OR runtime verify "fixtures not found" | High |
 | `depends-on-linear-chain` | task.md `depends_on` 必須是 linear chain — 每個 task 最多 depend_on ≤ 1 其他 task | Edit/Write rejected by `is-linear-dag`；OR `depends_on: [A, B]` 其中 A、B 互不依賴 | Medium |
+| `breakdown-readiness-gate` | breakdown handoff 前 T*.md 必須通過 readiness gate：Allowed Files 為 machine-matchable path/glob，Gate Closure Matrix 覆蓋 scope/test/verify/ci-local 並含 pass condition + owner/decision | `scripts/validate-breakdown-ready.sh` fail 被忽略；OR readiness fail 的 task 仍交給 engineering | High |
 
 ### Context Management (source: `rules/context-monitoring.md`)
 

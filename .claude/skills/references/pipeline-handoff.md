@@ -79,6 +79,7 @@ Validator：`scripts/validate-refinement-json.sh <path>` 或 `--scan <workspace_
 | `## 測試計畫` | 必須存在 |
 | `## Test Command` | 必須存在；內含 fenced code block |
 | `## Test Environment` | 必須存在；詳細規則見下方 "Test Environment Level" 段 + DP-023 runtime contract |
+| `## Gate Closure Matrix` | breakdown handoff 前必須存在；至少列 `scope` / `test` / `verify` / `ci-local`，且每列有 pass condition 與 owner / decision |
 | `## Verify Command` | 必須存在；內含 fenced code block |
 | Frontmatter `status` | 可選；若存在應為 `IN_PROGRESS` / `IMPLEMENTED` / `BLOCKED` 其中之一（目前不 enforce；留給 `scripts/mark-spec-implemented.sh`） |
 | Frontmatter `depends_on` | 可選；若存在須為 array of task id strings（如 `["T1", "T2"]`）；驗證拓撲見下方 |
@@ -86,6 +87,8 @@ Validator：`scripts/validate-refinement-json.sh <path>` 或 `--scan <workspace_
 Validator：`scripts/validate-task-md.sh <path>` 或 `--scan <workspace_root>`。
 
 **Runtime contract fields**（DP-023）：`Level` / `Runtime verify target` / `Env bootstrap command` 三欄位 + `Level=runtime` 時 Verify Command host alignment — 繼續由 `validate-task-md.sh` 的 runtime block enforce，不在此重述。
+
+**Breakdown readiness gate（DP-082）**：`scripts/validate-breakdown-ready.sh <task.md|tasks_dir>` 在 breakdown → engineering handoff 前執行。它不取代 schema validator，而是補上 packaging-level contract：Allowed Files 必須是 machine-matchable path / glob、Gate Closure Matrix 必須覆蓋 scope/test/verify/ci-local，且每個 gate 有 pass condition 與 owner / decision。readiness fail 的 task 不得交給 engineering。
 
 ### task.md Cross-File Schema（depends_on + fixture 存在性）
 
@@ -219,6 +222,15 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 - **Runtime verify target**: {`https://dev.kkday.com/...` | `http://localhost:3001/...` | `N/A`}
 - **Env bootstrap command**: {`./scripts/polaris-env.sh start <company> --project <repo>` | `<company>/scripts/*.sh` | `N/A`}
 
+## Gate Closure Matrix
+
+| Gate | Applies | Pass condition | Owner / decision |
+|------|---------|----------------|------------------|
+| scope | yes | every changed file matches `## Allowed Files` | breakdown |
+| test | yes | `## Test Command` exits 0 | engineering |
+| verify | yes | `## Verify Command` exits 0 | engineering |
+| ci-local | yes/no | ci-local evidence PASS, or N/A with reason | breakdown decision |
+
 **Level 定義**：
 
 | Level | 需要什麼 | Engineering 須執行 |
@@ -278,6 +290,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 - JIRA task 已建立、Test sub-tasks 已建立、AC 驗收單已建立
 - Feature branch 已存在
 - 所有 JIRA keys 已回填進 task.md
+- `scripts/validate-task-md.sh`、`scripts/validate-task-md-deps.sh`、`scripts/validate-breakdown-ready.sh` 皆通過
 
 **Contract**：engineering 讀 task.md 即可開工，不需回頭看 breakdown.md 或 refinement.md。
 

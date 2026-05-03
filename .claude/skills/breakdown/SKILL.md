@@ -3,7 +3,7 @@ name: breakdown
 description: "Universal planning skill: Bug reads ROOT_CAUSE then estimates; Story/Task/Epic explores codebase then splits into sub-tasks with estimates, and packs each sub-task into a self-contained task.md work order for engineering to consume. Also handles scope challenge (advisory mode). Trigger: 拆單, 'split tasks', 拆解, 'breakdown', 'break down', 子單, 'sub-tasks', 評估這張單, 'evaluate this ticket', 估點, 'estimate', 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑'."
 metadata:
   author: Polaris
-  version: 3.0.0
+  version: 3.1.0
 ---
 
 # Breakdown — Packer
@@ -501,6 +501,20 @@ FAIL 項目：
   → 最多 3 輪。超過仍有 FAIL → 連同未解決問題呈現給使用者
 ```
 
+### 7.6. Constructability Gate（可施工性預檢）
+
+Quality Challenge 通過後、Step 8 preview 前，breakdown 必須確認每張 task 有明確的 engineering pass condition。這個 gate 只檢查 task packaging，不重新做 refinement 技術探索。
+
+逐張子單補齊以下資訊：
+
+- **Allowed Files**：只放 machine-matchable path / glob token；自然語言說明放 `## 改動範圍`。禁止 `上述檔案的 test 檔`、`剩餘未處理檔案` 這類描述型 entry。root exact filename（如 `VERSION`）合法。
+- **Gate Closure Matrix**：每張 task.md 必須有 `## Gate Closure Matrix`，至少列 `scope`、`test`、`verify`、`ci-local` 四個 gate。
+- **Pass condition**：每個 gate 要明寫通過條件；不適用時寫 `N/A` 與原因。
+- **Owner / decision**：每個 gate 要明寫歸屬或 planner decision；baseline/env 類問題不可留給 engineering 猜。
+- **Readiness blocker**：若 repo-wide baseline/env drift 沒有 owner，先新增 prerequisite task、wait/baseline decision，或 route refinement；不得把下游必失敗 task 標為 READY。
+
+Step 8 preview 必須包含每張 task 的 readiness 摘要。若任一 task 無法寫出完整 Gate Closure Matrix，停下並呈現 blocker，不進 JIRA write / branch / task.md 產出。
+
 ### 8. 呈現拆單結果並確認
 
 以表格呈現通過 Quality Challenge 的拆單結果：
@@ -513,6 +527,15 @@ FAIL 項目：
 | 1 | [TICKET_KEY] 子任務描述 | 3 | 改動範圍摘要 |
 | 2 | [TICKET_KEY] 子任務描述 | 5 | 改動範圍摘要 |
 | **Total** | | **N** | 預估 X 天（每日 2-3 pt） |
+```
+
+同一個 preview 必須附上 Constructability 摘要：
+
+```
+| # | Allowed Files | Gate Closure Matrix | Baseline / env decision | Readiness |
+|---|---------------|---------------------|-------------------------|-----------|
+| 1 | path/glob only | scope/test/verify/ci-local complete | N/A | READY |
+| 2 | path/glob only | ci-local baseline owner = T0 prerequisite | waits on T0 | BLOCKED until T0 |
 ```
 
 此 confirmation preview 的自然語言必須遵守 root `workspace-config.yaml language`；ticket key、
@@ -780,7 +803,8 @@ develop
 7. **測試計畫（code-level）**：對應 test sub-tasks 的 unit/integration 測試項目
 8. **Test Command**：專案特定的測試指令（見下方「Test Command 填寫規則」）
 9. **Test Environment**：本 task Verify Command 需要的環境層級 + workspace-config pointer + fixtures（見下方「Test Environment 填寫規則」）
-10. **Verify Command**：一個可執行的 shell 指令，驗證本 task 的核心改動在 runtime 是否生效（見下方「Verify Command 撰寫指南」）
+10. **Gate Closure Matrix**：列出 `scope` / `test` / `verify` / `ci-local` 的 applies、pass condition、owner / decision。若 gate 不適用，必須填 `N/A` 與原因。
+11. **Verify Command**：一個可執行的 shell 指令，驗證本 task 的核心改動在 runtime 是否生效（見下方「Verify Command 撰寫指南」）
 
 **不放 task.md 的東西**（屬於 refinement 或 AC 層級）：
 - Epic description 全文 / refinement artifact
@@ -837,6 +861,29 @@ scripts/validate-starlight-authoring.sh check <task.md path>
 
 此 gate 只管 producer 產物，不要求 skill source 本身全中文；code block、URLs、paths、
 CLI flags、branch names、ticket keys、schema keys 由 validator 放行。
+
+**Breakdown readiness gate（deterministic hard gate）：**
+
+每張 T*.md 寫入並通過 schema / language / Starlight gate 後，立即跑 readiness gate：
+
+```bash
+scripts/validate-breakdown-ready.sh <task.md path>
+```
+
+所有 T*.md 寫完、`validate-task-md-deps.sh` 通過後，再對 tasks folder 跑一次：
+
+```bash
+scripts/validate-breakdown-ready.sh {company_specs_dir}/{EPIC_KEY}/tasks/
+```
+
+此 script 驗證：
+
+- `## Allowed Files` 全部是 machine-matchable path / glob token，禁止自然語言描述
+- `## Gate Closure Matrix` 存在且包含 `scope` / `test` / `verify` / `ci-local`
+- gate rows 有 pass condition 與 owner / decision
+- task schema 與 deps closure 仍然通過
+
+exit 1 時必須修 task.md 或重拆 prerequisite / wait decision；不可把 readiness fail 的 task 交給 engineering。
 
 **Batch cross-file gate（DP-033 A3）：所有 T*.md 寫完後，再跑一次跨檔案驗證：**
 

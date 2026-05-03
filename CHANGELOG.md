@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.45] - 2026-05-04
+
+### Added — breakdown readiness gate
+
+- Added `validate-breakdown-ready.sh` with selftest coverage for task handoff
+  readiness before engineering consumes breakdown output.
+- Required breakdown-generated tasks to include a Gate Closure Matrix covering
+  scope, test, verify, and ci-local pass conditions with owner decisions.
+- Documented machine-matchable Allowed Files and readiness validation in the
+  breakdown skill, task schema, pipeline handoff, and mechanism registry.
+- Fixed `validate-language-policy.sh --workspace-root .` so relative workspace
+  roots do not hang PR language gates.
+
 ## [3.74.44] - 2026-05-04
 
 ### Fixed — release closeout archive timing
