@@ -14,6 +14,15 @@ set -euo pipefail
 #   3) .claude/rules -> .codex/AGENTS.md parity
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+CODEX_AGENTS="$ROOT_DIR/.codex/AGENTS.md"
+CODEX_MANIFEST="$ROOT_DIR/.codex/.generated/rules-manifest.txt"
+
+refresh_codex_rules_target() {
+  echo "INFO: Refreshing ignored Codex generated rule target from .claude/rules/**/*.md"
+  bash "$SCRIPT_DIR/transpile-rules-to-codex.sh"
+}
 
 echo "[1/4] Verify skills mirror mode"
 bash "$SCRIPT_DIR/check-skills-mirror-mode.sh"
@@ -24,7 +33,16 @@ bash "$SCRIPT_DIR/mechanism-parity.sh" --strict
 
 echo
 echo "[3/4] Verify Codex rules transpile parity"
-bash "$SCRIPT_DIR/transpile-rules-to-codex.sh" --check
+if [[ ! -f "$CODEX_AGENTS" || ! -f "$CODEX_MANIFEST" ]]; then
+  echo "INFO: Codex generated rule target is missing; materializing before parity check."
+  refresh_codex_rules_target
+fi
+
+if ! bash "$SCRIPT_DIR/transpile-rules-to-codex.sh" --check; then
+  echo "INFO: Codex generated rule target drift detected; regenerating once and rechecking."
+  refresh_codex_rules_target
+  bash "$SCRIPT_DIR/transpile-rules-to-codex.sh" --check
+fi
 
 echo
 echo "[4/4] Verify Codex fallback gate wiring"

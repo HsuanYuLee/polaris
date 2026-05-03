@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.39] - 2026-05-03
+
+### Fixed — Codex generated target lifecycle
+
+- Made cross-LLM parity materialize the ignored `.codex` generated rule target
+  before checking drift, so fresh checkouts no longer require LLM judgment to
+  run `transpile-rules-to-codex.sh` manually.
+- Kept `transpile-rules-to-codex.sh --check` as a pure no-write drift check.
+
 ## [3.74.38] - 2026-05-03
 
 ### Fixed — framework task overlay closeout
