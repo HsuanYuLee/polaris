@@ -155,7 +155,7 @@ specs/{EPIC_KEY}/tests/mockoon/    # Per-epic fixtures (see references/epic-fold
 
 - 所有實作單基於 Epic fixture 開發
 - 每張 task PR（→ feat branch）必須通過 VR strict mode
-- `mockoon-runner.sh` 指向 `{EPIC_KEY}/` folder
+- `fixtures.mockoon` capability 指向 `{EPIC_KEY}/` folder
 
 ### 整合驗證
 
@@ -334,7 +334,7 @@ verification:
   - name: "商品頁 SSR 渲染正常"
     type: browser
     command: |
-      npx playwright test --grep "product-page-render"
+      bash scripts/polaris-toolchain.sh run browser.playwright.verify -- test --grep "product-page-render"
       # 或 inline script:
       # page.goto('{BASE_URL}/zh-tw/product/12345')
       # expect(page.locator('[data-testid="product-title"]')).toBeVisible()
@@ -517,7 +517,7 @@ VR Gate 在 Local CI Mirror 之後、commit 之前。這樣 VR fail 時還沒 co
 | `engineer-delivery-flow` § Step 3.5 | VR 條件觸發 |
 | `engineering` | Step 3b VR Gate；驗收前 auto-rebase develop |
 | `converge` | Check stale fixture folders（> 30 天 + Epic not in dev → 提醒刪除） |
-| `mockoon-runner.sh` | 支援 per-Epic folder 參數（需改動腳本） |
+| `fixtures.mockoon` capability | 支援 per-Epic folder 參數（底層 compatibility wrapper 可委派到 Mockoon runner） |
 
 ## Edge Cases
 

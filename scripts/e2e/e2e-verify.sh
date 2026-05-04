@@ -21,6 +21,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+TOOLCHAIN_DIR="$WORKSPACE_ROOT/tools/polaris-toolchain"
 BASE_URL="${E2E_BASE_URL:-https://dev.kkday.com}"
 
 # --- Pre-flight: check Mockoon (optional) ---
@@ -53,15 +55,15 @@ fi
 echo "Pre-flight: OK"
 
 # --- Ensure dependencies installed ---
-if [[ ! -d "$SCRIPT_DIR/node_modules" ]]; then
-  echo "Installing E2E dependencies..."
-  npm install --prefix "$SCRIPT_DIR" --silent 2>&1 || { echo "ERROR: npm install failed" >&2; exit 3; }
+if [[ ! -x "$TOOLCHAIN_DIR/node_modules/.bin/playwright" ]]; then
+  echo "Installing E2E dependencies via Polaris toolchain..."
+  pnpm --dir "$TOOLCHAIN_DIR" install --silent 2>&1 || { echo "ERROR: pnpm install failed" >&2; exit 3; }
 fi
 
 # --- Ensure Chromium browser installed ---
-if ! npx --prefix "$SCRIPT_DIR" playwright install chromium 2>/dev/null; then
+if ! pnpm --dir "$TOOLCHAIN_DIR" exec playwright install chromium 2>/dev/null; then
   echo "Installing Playwright Chromium..." >&2
-  npx --prefix "$SCRIPT_DIR" playwright install chromium 2>&1
+  pnpm --dir "$TOOLCHAIN_DIR" exec playwright install chromium 2>&1
 fi
 
 # --- Set URLs from args if provided ---
@@ -78,7 +80,7 @@ echo ""
 echo "Running E2E verification..."
 echo ""
 
-npx --prefix "$SCRIPT_DIR" playwright test --config "$SCRIPT_DIR/playwright.config.ts" 2>&1
+bash "$WORKSPACE_ROOT/scripts/polaris-toolchain.sh" run browser.playwright.verify -- test --config "$SCRIPT_DIR/playwright.config.ts" 2>&1
 exit_code=$?
 
 # --- Summary ---

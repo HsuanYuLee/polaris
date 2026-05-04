@@ -134,7 +134,7 @@ Read root `workspace-config.yaml` → `dependencies.playwright.status`:
 | `declined` | Skip silently. Append to output: `Visual regression 已跳過（playwright 未安裝）` |
 | `pending` or missing | Prompt per `references/dependency-consent.md` Phase 2 flow |
 
-If `fixtures` block exists in domain config, apply same check for `mockoon-cli` (or configured fixture tool).
+If `fixtures` block exists in domain config, verify the `fixtures.mockoon` capability through `scripts/polaris-toolchain.sh`.
 
 ### 0e. Load config with inheritance
 
@@ -198,16 +198,15 @@ or:
 ### 2a. Verify Playwright is installed
 
 ```bash
-npx playwright --version
+bash {workspace_root}/scripts/polaris-toolchain.sh run browser.playwright.doctor
 ```
 
 If not installed and consent is `consented`:
 ```bash
-pnpm add -D @playwright/test
-npx playwright install chromium
+bash {workspace_root}/scripts/polaris-toolchain.sh install --required
 ```
 
-Adapt package manager to the project (npm/yarn/pnpm).
+Do not install Playwright into the product repo. Polaris owns the browser runner through `tools/polaris-toolchain`.
 
 ### 2b. Start environment via polaris-env.sh
 
@@ -277,7 +276,7 @@ Run Playwright with `--update-snapshots` to establish temporary baselines.
 
 **SIT mode:**
 ```bash
-VR_BASE_URL={sit_url} npx playwright test \
+VR_BASE_URL={sit_url} bash {workspace_root}/scripts/polaris-toolchain.sh run browser.playwright.verify -- \
   --update-snapshots \
   -c polaris-config/{company}/visual-regression/{domain}/playwright.config.ts
 ```
@@ -298,7 +297,7 @@ VR_BASE_URL={sit_url} npx playwright test \
 
 3. Capture before screenshots:
    ```bash
-   VR_BASE_URL={server.base_url} npx playwright test \
+   VR_BASE_URL={server.base_url} bash {workspace_root}/scripts/polaris-toolchain.sh run browser.playwright.verify -- \
      --update-snapshots \
      -c polaris-config/{company}/visual-regression/{domain}/playwright.config.ts
    ```
@@ -319,7 +318,7 @@ VR_BASE_URL={sit_url} npx playwright test \
 Run Playwright normally — it auto-compares against the baselines from Step 3.
 
 ```bash
-VR_BASE_URL={server.base_url} npx playwright test \
+VR_BASE_URL={server.base_url} bash {workspace_root}/scripts/polaris-toolchain.sh run browser.playwright.verify -- \
   -c polaris-config/{company}/visual-regression/{domain}/playwright.config.ts
 ```
 
@@ -402,7 +401,7 @@ Fixture server：{running | 未啟用}
   - checkout-page-zh-TW-1280: diff 67% — 差異過大，請手動確認
 
 Playwright HTML Report:
-  npx playwright show-report polaris-config/{company}/visual-regression/{domain}/playwright-report
+  bash {workspace_root}/scripts/polaris-toolchain.sh run browser.playwright.verify -- show-report polaris-config/{company}/visual-regression/{domain}/playwright-report
 ```
 
 **All pass:**
@@ -508,7 +507,7 @@ Fall back to text-only format with the summary table:
 | Product | ⚠ diff 3.2% | ⚠ diff 2.9% |
 ```
 
-Add a note: "截圖未上傳 — 請開 Playwright HTML report 查看：`npx playwright show-report ...`"
+Add a note: "截圖未上傳 — 請透過 toolchain 開 Playwright HTML report：`bash scripts/polaris-toolchain.sh run browser.playwright.verify -- show-report ...`"
 
 **Posting method — REST API v2 with wiki markup (NOT MCP markdown)**:
 
@@ -612,7 +611,7 @@ bash {workspace_root}/scripts/polaris-env.sh start {company} --vr --record
 Then capture baseline screenshots (these validate that proxy mode produces correct pages):
 
 ```bash
-VR_BASE_URL={server.base_url} npx playwright test \
+VR_BASE_URL={server.base_url} bash {workspace_root}/scripts/polaris-toolchain.sh run browser.playwright.verify -- \
   --update-snapshots \
   -c polaris-config/{company}/visual-regression/{domain}/playwright.config.ts
 ```
@@ -645,7 +644,7 @@ bash {workspace_root}/scripts/polaris-env.sh start {company} --vr
 Run Playwright normally (compares against Phase 1 baselines):
 
 ```bash
-VR_BASE_URL={server.base_url} npx playwright test \
+VR_BASE_URL={server.base_url} bash {workspace_root}/scripts/polaris-toolchain.sh run browser.playwright.verify -- \
   -c polaris-config/{company}/visual-regression/{domain}/playwright.config.ts
 ```
 
@@ -723,16 +722,16 @@ When starting a new epic that needs VR:
 
 - **Determinism** — each epic is a complete snapshot; no merge layer, no inheritance bugs
 - **Independence** — epic A's fixture changes can't break epic B's tests
-- **Simplicity** — `mockoon-runner.sh start specs/{EPIC}/tests/mockoon/` loads exactly what's in that directory, nothing else
+- **Simplicity** — `scripts/polaris-toolchain.sh run fixtures.mockoon.start -- specs/{EPIC}/tests/mockoon/` loads exactly what's in that directory, nothing else
 - **Storage is cheap** — a full fixture set is ~1.5MB; recording time is the real cost, and bootstrap from previous epic eliminates most of it
 
 ### Runner integration
 
-`mockoon-runner.sh` accepts a directory containing `*.json` files:
+`fixtures.mockoon.start` accepts a directory containing `*.json` files:
 
 ```bash
 # Load directly from the epic mockoon directory
-mockoon-runner.sh start {company_specs_dir}/PROJ-100/tests/mockoon
+bash scripts/polaris-toolchain.sh run fixtures.mockoon.start -- {company_specs_dir}/PROJ-100/tests/mockoon
 ```
 
 The workspace-config `fixtures.runner` specifies the runner script path. The Epic-specific mockoon directory is resolved at runtime from the active Epic context — no hardcoded `--epic` flag or `environments_dir` needed.

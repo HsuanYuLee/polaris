@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { inferStatusDashboard } from '../src/status/index.mjs';
 
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'polaris-status-dashboard-'));
+const originalCwd = process.cwd();
 
 try {
   const specsRoot = path.join(tempDir, 'specs');
@@ -59,8 +61,17 @@ try {
   assert.deepEqual(itemsById.get('ACME-2')?.blockers, ['missing-primary-artifact']);
   assert.equal(itemsById.get('ACME-2')?.tasks.byStatus.unknown, 1);
 
+  const docsManagerRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  process.chdir(docsManagerRoot);
+  const defaultDashboard = inferStatusDashboard();
+  assert.equal(
+    defaultDashboard.specsRoot,
+    path.join(docsManagerRoot, 'src/content/docs/specs')
+  );
+
   console.log('PASS status dashboard inference');
 } finally {
+  process.chdir(originalCwd);
   fs.rmSync(tempDir, { recursive: true, force: true });
 }
 

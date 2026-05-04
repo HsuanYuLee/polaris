@@ -237,7 +237,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 |-------|---------|------------------|
 | `static` | 只讀 source code（grep、檔案存在性、config 註冊） | 依賴安裝 primitive 回傳 `noop_static` PASS，接著直接跑 Verify Command |
 | `build` | 需要 `pnpm build` 產 `.output/` 才能跑 Verify Command | 在 worktree 跑 build，不需啟動 dev server |
-| `runtime` | 需要 live endpoint（curl / dev server / nginx）才能跑 Verify Command | 依 `dev_environment.requires` 啟動 dependencies（如 `kkday-web-docker`）+ `start_command` 起 dev server + `health_check` 驗證 ready，**若 Fixtures 非 N/A**，同時起 `mockoon-runner.sh start {fixture_path}` |
+| `runtime` | 需要 live endpoint（curl / dev server / nginx）才能跑 Verify Command | 依 `dev_environment.requires` 啟動 dependencies（如 `kkday-web-docker`）+ `start_command` 起 dev server + `health_check` 驗證 ready，**若 Fixtures 非 N/A**，同時起 `scripts/polaris-toolchain.sh run fixtures.mockoon.start -- {fixture_path}` |
 
 `Level=static` 是 `scripts/env/install-project-deps.sh --task-md <task.md>` 的 deterministic no-op contract：script 不解析 `projects[{repo}].dev_environment`、不要求 workspace project、也不跑 package manager detector。它必須輸出 `mode: noop_static`、`level: static` 的 PASS JSON，讓 engineering 不需要用 LLM 判斷「這張靜態 framework task 不需要安裝依賴」。
 

@@ -4,6 +4,28 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.48] - 2026-05-05
+
+### Added — runtime toolchain ownership
+
+- Added a root `polaris-toolchain.yaml` manifest and runner for install,
+  doctor, and command dispatch across docs viewer, Mockoon, and Playwright
+  capabilities.
+- Added a dedicated `tools/polaris-toolchain` Node package to own Mockoon and
+  Playwright dependencies instead of leaving tool consumers to infer installs.
+- Added manifest, runner, consumer, Mockoon, Playwright, docs-manager status,
+  and nav sync validation coverage.
+
+### Changed — skill and docs-manager tool entrypoints
+
+- Updated `/init`, refinement, visual-regression, verify-AC, and shared
+  references to route tool-backed workflows through the manifest-defined
+  runner.
+- Surfaced toolchain health and navigation sync status in docs-manager Quick
+  Start and Status Dashboard runtime views.
+- Moved docs-manager and legacy Mockoon/E2E dependency ownership to pnpm-backed
+  runtime packages.
+
 ## [3.74.47] - 2026-05-04
 
 ### Added — docs-manager status dashboard

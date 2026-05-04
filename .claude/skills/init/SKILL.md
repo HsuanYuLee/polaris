@@ -881,22 +881,30 @@ Polaris 可以每天自動掃描技術文章，推薦到你的 Slack channel。
 
 Audit: log `action: "daily-learning"`, value: `{"enabled": true/false, "trigger_id": "..." or null}`.
 
-### Step 13.5: Install Framework Dependencies
+### Step 13.5: Install Framework Runtime Toolchain
 
-Install Polaris framework tools (Playwright for E2E, Mockoon CLI for mock fixtures):
+Install and verify required Polaris framework runtime tools through the root toolchain runner:
 
 ```bash
-{workspace_root}/scripts/install-deps.sh
+bash {workspace_root}/scripts/polaris-toolchain.sh install --required
+bash {workspace_root}/scripts/polaris-toolchain.sh doctor --required
 ```
 
 This installs:
-1. `scripts/e2e/node_modules/` — Playwright test runner
-2. `scripts/mockoon/node_modules/` — Mockoon CLI
-3. Playwright Chromium browser
+1. `docs.viewer` — docs-manager / Starlight observation surface
+2. `fixtures.mockoon` — Mockoon CLI for fixture lifecycle
+3. `browser.playwright` — Playwright runner and Chromium browser
 
-If install fails (network issue), log warning but don't block — skills degrade gracefully without these tools.
+If install or doctor fails, do not hide the partial state. Continue only after logging that company config may be created while Polaris runtime toolchain is unhealthy. The user-visible repair command is:
 
-Audit: log `action: "install-deps"`, value: `{"e2e": true/false, "mockoon": true/false, "chromium": true/false}`.
+```bash
+bash {workspace_root}/scripts/polaris-toolchain.sh install --required
+bash {workspace_root}/scripts/polaris-toolchain.sh doctor --required
+```
+
+Status Dashboard / Quick Start must surface required toolchain failures until repaired.
+
+Audit: log `action: "toolchain-install"`, value: `{"required": true, "install": "pass|fail", "doctor": "pass|fail", "repair_command": "bash scripts/polaris-toolchain.sh install --required && bash scripts/polaris-toolchain.sh doctor --required"}`.
 
 ### Step 13.6: Codex Bootstrap (skippable)
 

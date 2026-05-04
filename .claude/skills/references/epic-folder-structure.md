@@ -64,7 +64,7 @@ Archive 是整個 container 的 move，不是 copy；active namespace 與 archiv
 | `refinement.json` | refinement | breakdown, engineering | Epic 存續期 |
 | `tasks/T*.md` | breakdown | engineering | Epic 存續期 |
 | `tests/lighthouse/` | engineering, manual | refinement, breakdown | Epic 存續期 |
-| `tests/mockoon/` | record-fixtures.sh, manual | visual-regression, mockoon-runner.sh | Epic 存續期 |
+| `tests/mockoon/` | record-fixtures.sh, manual | visual-regression, `fixtures.mockoon` capability | Epic 存續期 |
 | `tests/vr/baseline/` | visual-regression (record) | visual-regression (compare) | Epic 存續期 |
 | `verification/` | verify-AC | verify-AC (re-run), human review | Epic 存續期 |
 
@@ -93,7 +93,7 @@ Sweep 規則：
 - `IMPLEMENTED` / `ABANDONED` 會搬到 archive
 - `SEEDED` / `DISCUSSION` / `LOCKED` / missing status 只會保留在 active namespace
 - destination 已存在時 fail loud，避免 active/archive duplicate
-- sweep 後 docs-manager 會直接讀 canonical specs；需要 review 時執行 `scripts/polaris-viewer.sh --mode dev`，需要 static/search 驗證時執行 `scripts/verify-docs-manager-runtime.sh --preview`
+- sweep 後 docs-manager 會直接讀 canonical specs；需要 review 時執行 `scripts/polaris-toolchain.sh run docs.viewer.dev`，需要 static/search 驗證時執行 `scripts/polaris-toolchain.sh run docs.viewer.doctor`
 
 ## Bootstrap（新 Epic）
 
@@ -115,10 +115,10 @@ Bootstrap 不是自動的 — skill 在 Step 0 檢查 `tests/mockoon/` 或 `test
 
 ```
 # 舊（deprecated）
-mockoon-runner.sh start {environments_dir} --epic {epic_key}
+scripts/polaris-toolchain.sh run fixtures.mockoon.start -- {environments_dir} --epic {epic_key}
 
 # 新
-mockoon-runner.sh start {company_specs_dir}/{EPIC_KEY}/tests/mockoon
+scripts/polaris-toolchain.sh run fixtures.mockoon.start -- {company_specs_dir}/{EPIC_KEY}/tests/mockoon
 ```
 
 `workspace-config.yaml` 的 `fixtures` block 只保留工具層設定（ports、ready_signal），不再包含路徑或 Epic key。

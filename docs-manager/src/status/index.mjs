@@ -12,3 +12,4 @@ export {
   statusLabel,
   taskSummary,
 } from './presenter.mjs';
+export { inferToolchainHealth } from './toolchain.mjs';

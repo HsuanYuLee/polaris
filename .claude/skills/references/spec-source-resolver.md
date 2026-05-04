@@ -150,8 +150,8 @@ Sweep 使用與 source resolution 相同的 namespace rules：
 Sweep apply 後，docs-manager 會直接讀 moved canonical specs。Live review 或 static/search verification：
 
 ```bash
-scripts/polaris-viewer.sh --mode dev
-scripts/verify-docs-manager-runtime.sh --preview
+scripts/polaris-toolchain.sh run docs.viewer.dev
+scripts/polaris-toolchain.sh run docs.viewer.doctor
 ```
 
 ## Section Ownership

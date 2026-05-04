@@ -126,11 +126,12 @@ wait_for_docs_manager() {
 }
 
 ensure_e2e_deps() {
-  if [[ ! -d "$WORKSPACE_ROOT/scripts/e2e/node_modules" ]]; then
-    npm install --prefix "$WORKSPACE_ROOT/scripts/e2e" --silent --no-package-lock
+  local toolchain_dir="$WORKSPACE_ROOT/tools/polaris-toolchain"
+  if [[ ! -x "$toolchain_dir/node_modules/.bin/playwright" ]]; then
+    pnpm --dir "$toolchain_dir" install --silent
   fi
-  if ! npx --prefix "$WORKSPACE_ROOT/scripts/e2e" playwright install chromium >/dev/null 2>&1; then
-    npx --prefix "$WORKSPACE_ROOT/scripts/e2e" playwright install chromium
+  if ! pnpm --dir "$toolchain_dir" exec playwright install chromium >/dev/null 2>&1; then
+    pnpm --dir "$toolchain_dir" exec playwright install chromium
   fi
 }
 
@@ -172,14 +173,15 @@ run_browser_assertions() {
 
   DOCS_MANAGER_ORIGIN="$origin" DOCS_MANAGER_PREVIEW_MODE="$preview_flag" \
     node --input-type=module <<'NODE'
-import playwright from './scripts/e2e/node_modules/playwright/index.js';
+import playwright from './tools/polaris-toolchain/node_modules/@playwright/test/index.js';
+
+const { chromium } = playwright;
 
 const origin = process.env.DOCS_MANAGER_ORIGIN;
 const previewMode = process.env.DOCS_MANAGER_PREVIEW_MODE === 'true';
   const home = `${origin}/docs-manager/`;
   const sampleRoute = `${origin}/docs-manager/specs/design-plans/archive/dp-063-docs-manager-source-unification/tasks/pr-release/t2/`;
   const companyRefinementRoute = `${origin}/docs-manager/specs/companies/kkday/gt-478/refinement/`;
-  const { chromium } = playwright;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);

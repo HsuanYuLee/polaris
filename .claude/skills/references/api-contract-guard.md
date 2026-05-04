@@ -154,6 +154,6 @@ When drift is detected and the user decides to update fixtures:
 ## Relationship to Existing Mechanisms
 
 - **`polaris-env.sh`**: provides the Docker + Mockoon infrastructure. Contract-check depends on Layer 1 (Docker) being up
-- **`mockoon-runner.sh`**: starts/stops Mockoon. Contract-check does NOT start Mockoon — it reads fixture files directly and hits live APIs
+- **`fixtures.mockoon` capability**: starts/stops Mockoon through `scripts/polaris-toolchain.sh`. Contract-check does NOT start Mockoon — it reads fixture files directly and hits live APIs
 - **`visual-regression` skill**: primary consumer. VR already requires `polaris-env.sh` — contract-check piggybacks on the same infra
 - **`feedback_mockoon_fixture_value.md`** memory: the original design decision for using fixtures. Contract-guard is the missing complement

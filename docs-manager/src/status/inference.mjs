@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { readMarkdownFrontmatter } from './frontmatter.mjs';
 
 export const STATUS_VALUES = [
@@ -21,6 +22,10 @@ const STATUS_ALIASES = new Map([
 ]);
 
 const PRIMARY_ARTIFACTS = ['plan.md', 'refinement.md'];
+const DEFAULT_SPECS_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../content/docs/specs'
+);
 
 /**
  * @typedef {'design-plan' | 'company-spec'} StatusSourceType
@@ -42,7 +47,7 @@ const PRIMARY_ARTIFACTS = ['plan.md', 'refinement.md'];
  */
 
 export function inferStatusDashboard(options = {}) {
-  const specsRoot = path.resolve(options.specsRoot ?? 'docs-manager/src/content/docs/specs');
+  const specsRoot = path.resolve(options.specsRoot ?? DEFAULT_SPECS_ROOT);
   return {
     specsRoot,
     items: collectStatusItems(specsRoot),

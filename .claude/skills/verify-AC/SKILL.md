@@ -133,7 +133,7 @@ bash {polaris_root}/scripts/start-test-env.sh --task-md {task_md_path} [--with-f
 - exit 0 → 繼續 Step 4（dev server + fixture server 都已 ready）
 - exit ≠ 0 → 本張驗證 block，addComment「環境啟動失敗：第 {step} 步」（`step` 從 stderr / 最後一行 JSON 讀），不標 PASS/FAIL（標 UNCERTAIN）
 
-> 不要再分別呼叫 `polaris-env.sh` + `mockoon-runner.sh`；orchestrator 已包住 D11 L2 primitives。Fallback 到舊路徑只在該 repo 還沒被 task.md schema 涵蓋時使用，需在 sub-agent return 中標註原因。
+> 不要再分別呼叫 `polaris-env.sh` + direct Mockoon runner；orchestrator 已包住 D11 L2 primitives。Fallback 到舊路徑只在該 repo 還沒被 task.md schema 涵蓋時使用，需在 sub-agent return 中標註原因；需要 Mockoon capability 時使用 `scripts/polaris-toolchain.sh run fixtures.mockoon.start -- <fixtures_dir>`。
 
 ### 4. 逐步驟執行 + 分類
 

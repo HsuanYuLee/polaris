@@ -109,13 +109,13 @@ JIRA-backed source 同樣使用 company specs route：
 Live review：
 
 ```bash
-bash scripts/polaris-viewer.sh --mode dev
+bash scripts/polaris-toolchain.sh run docs.viewer.dev
 ```
 
 Static/search verification：
 
 ```bash
-bash scripts/verify-docs-manager-runtime.sh --preview
+bash scripts/polaris-toolchain.sh run docs.viewer.doctor
 ```
 
 這適用於 `plan.md`、`refinement.md`，以及任何準備進 review 的 DP markdown artifact。

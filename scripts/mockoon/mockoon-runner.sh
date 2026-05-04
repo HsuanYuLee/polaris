@@ -24,13 +24,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+TOOLCHAIN_DIR="${POLARIS_TOOLCHAIN_DIR:-$WORKSPACE_ROOT/tools/polaris-toolchain}"
 PID_DIR="/tmp/polaris-mockoon"
 
 # --- Ensure Mockoon CLI is installed ---
 ensure_cli() {
-  if [[ ! -d "$SCRIPT_DIR/node_modules" ]]; then
-    echo "Installing Mockoon CLI..."
-    npm install --prefix "$SCRIPT_DIR" --silent 2>&1
+  if [[ ! -x "$TOOLCHAIN_DIR/node_modules/.bin/mockoon-cli" ]]; then
+    echo "Installing Mockoon CLI via Polaris toolchain..."
+    pnpm --dir "$TOOLCHAIN_DIR" install --silent 2>&1
   fi
 }
 
@@ -115,7 +117,7 @@ print(d.get('port', 0))
       cli_args+=("--proxy" "disabled")
     fi
 
-    "$SCRIPT_DIR/node_modules/.bin/mockoon-cli" start "${cli_args[@]}" \
+    "$TOOLCHAIN_DIR/node_modules/.bin/mockoon-cli" start "${cli_args[@]}" \
       > "$PID_DIR/$name.log" 2>&1 &
 
     echo $! > "$PID_DIR/$name.pid"
@@ -153,8 +155,8 @@ cmd_stop() {
   done
 
   # Also try mockoon-cli stop for any managed instances
-  if [[ -d "$SCRIPT_DIR/node_modules" ]]; then
-    npx --prefix "$SCRIPT_DIR" mockoon-cli stop all 2>/dev/null || true
+  if [[ -x "$TOOLCHAIN_DIR/node_modules/.bin/mockoon-cli" ]]; then
+    "$TOOLCHAIN_DIR/node_modules/.bin/mockoon-cli" stop all 2>/dev/null || true
   fi
 
   echo "Stopped $count instance(s)."
