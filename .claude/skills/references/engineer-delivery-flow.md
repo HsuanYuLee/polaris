@@ -120,7 +120,7 @@
 
 | 來源 | 用途 |
 |------|------|
-| `{repo}/.claude/rules/handbook/**/*.md` + `{repo}/CLAUDE.md` + `{repo}/.claude/rules/**/*.md` | **Primary compliance baseline**（judge against） |
+| `{company}/polaris-config/{project}/handbook/**/*.md` + `{repo}/CLAUDE.md` + `{repo}/.claude/rules/**/*.md` | **Primary compliance baseline**（judge against） |
 | task.md `## 改動範圍` / `## 估點理由` | **Context only**（理解 PR 意圖，**不**作 compliance spec） |
 | task.md `Allowed Files` / `verification.*` / `depends_on` | **不讀**（D20 Scope Gate / D15 verify evidence / D14 artifact gate 已處理） |
 
@@ -424,7 +424,7 @@ Step 2 前置 runs `engineering-rebase.sh` → rebase 改變 HEAD → 舊 eviden
 依 `references/commit-convention-default.md` 的 fallback chain 解析 commit message 規範：
 
 1. **L1 — Repo tooling**：`{repo}/.commitlintrc.*` / `commitlint.config.*` / `package.json#commitlint` / husky `commit-msg` hook（最權威；機器規則 + commit-msg hook 同源 SoT）
-2. **L2 — Repo handbook**：`{repo}/.claude/rules/handbook/**/*.md` 的 commit convention 段（補 L1 未宣告的敘述要求）
+2. **L2 — Repo handbook**：`{company}/polaris-config/{project}/handbook/**/*.md` 的 commit convention 段（補 L1 未宣告的敘述要求）
 3. **L3 — Polaris default**：`references/commit-convention-default.md`（本 framework 兜底；headline 格式、type enum、subject 規則、squash 策略、revision 規格皆由此檔提供）
 
 **規則衝突處理**：L1 命中即停（type enum / scope / subject limit 走 L1）；L2 / L3 只在 L1 未宣告的維度補充。

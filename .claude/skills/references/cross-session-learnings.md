@@ -129,7 +129,7 @@ Captures coding patterns and conventions learned from PR review comments during 
 | `repo` | string | yes | `owner/repo` format |
 | `file_path` | string | no | File path that triggered the comment (for grouping) |
 
-**Handbook flow target**: repo-level handbook at `{repo}/.claude/rules/handbook/` — the specific sub-file is determined by the `lesson` topic (e.g., error-handling → `error-handling.md`).
+**Handbook flow target**: repo-level handbook at `{company}/polaris-config/{project}/handbook/` — the specific sub-file is determined by the `lesson` topic (e.g., error-handling → `error-handling.md`).
 
 ### Relationship to `review-lesson-extraction.md`
 
@@ -161,7 +161,7 @@ Tagged learning entries (`plan-gap`, `review-lesson`) accumulate in the JSONL kn
 2. **Present to user**: "These N learnings point to the same blind spot. Proposed handbook/checklist entry: {draft}. Confirm?"
 3. **User confirms** → write to target:
    - `plan-gap` → append checklist item to the appropriate refinement/breakdown reference (create the reference file if it doesn't exist yet)
-   - `review-lesson` → append entry to repo handbook sub-file (following `review-lesson-extraction.md` write format)
+   - `review-lesson` → append entry to workspace-owned repo handbook sub-file (following `review-lesson-extraction.md` write format)
 4. **Mark promoted**: add `"promoted": true` and `"promoted_to": "{target_file_path}"` to each promoted entry. Promoted entries remain in the JSONL file (for audit trail) but are excluded from future promotion scans and `query` results.
 
 ### Promoted Entry Schema Extension
@@ -183,7 +183,7 @@ Tagged learning entries (`plan-gap`, `review-lesson`) accumulate in the JSONL kn
 | `plan-gap` | `subtag: "refinement"` | `skills/references/refinement-checklist.md` | Checklist items for refinement quality gates |
 | `plan-gap` | `subtag: "breakdown"` | `skills/references/breakdown-checklist.md` | Checklist items for breakdown quality gates |
 | `plan-gap` | `subtag: "epic"` | `skills/references/refinement-checklist.md` | Epic-level gaps typically originate in refinement |
-| `review-lesson` | `repo` + topic | `{repo}/.claude/rules/handbook/{topic}.md` | Repo-specific coding conventions |
+| `review-lesson` | `repo` + topic | `{company}/polaris-config/{project}/handbook/{topic}.md` | Repo-specific coding conventions |
 
 **Note**: `refinement-checklist.md` and `breakdown-checklist.md` do not need to exist yet. They will be created on first promotion.
 

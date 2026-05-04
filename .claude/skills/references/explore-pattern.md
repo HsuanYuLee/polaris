@@ -15,7 +15,7 @@ Explorer subagent 在做任何 codebase 掃描之前，必須先檢查 repo hand
 ### 流程
 
 ```
-1. 檢查 {project_path}/.claude/rules/handbook/ 是否存在
+1. 依 workspace config 解析 `{company_dir}` / `{project}`，檢查 `{company_dir}/polaris-config/{project}/handbook/` 是否存在
    ├─ 存在 → 讀 index.md + 與任務相關的子文件
    │         用 handbook 作為起始心智模型
    │         只探索 handbook 沒覆蓋的 gap
@@ -54,7 +54,7 @@ Handbook 是起點，不是真理。Explorer 應：
 
 ## Handbook-First
 
-探索前先檢查 {project_path}/.claude/rules/handbook/：
+探索前先檢查 `{company_dir}/polaris-config/{project}/handbook/`：
 - 存在 → 讀 index.md + 與任務相關的子文件，作為起始 context。只探索 handbook 沒覆蓋的 gap
 - 不存在 → 跳過，進入自適應探索
 

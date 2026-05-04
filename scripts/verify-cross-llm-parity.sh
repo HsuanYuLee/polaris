@@ -13,6 +13,7 @@ set -euo pipefail
 #   2) .claude/skills -> .agents/skills parity
 #   3) .claude/instructions -> runtime target parity
 #   4) polaris-config migration closure for active runtime paths
+#   5) repo handbook path contract for shared runtime/docs sources
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -22,15 +23,15 @@ refresh_runtime_targets() {
   bash "$SCRIPT_DIR/compile-runtime-instructions.sh"
 }
 
-echo "[1/5] Verify skills mirror mode"
+echo "[1/6] Verify skills mirror mode"
 bash "$SCRIPT_DIR/check-skills-mirror-mode.sh"
 
 echo
-echo "[2/5] Verify Claude/Codex skills parity"
+echo "[2/6] Verify Claude/Codex skills parity"
 bash "$SCRIPT_DIR/mechanism-parity.sh" --strict
 
 echo
-echo "[3/5] Verify runtime instruction target parity"
+echo "[3/6] Verify runtime instruction target parity"
 if ! bash "$SCRIPT_DIR/compile-runtime-instructions.sh" --check; then
   echo "INFO: runtime instruction target drift detected; regenerating once and rechecking."
   refresh_runtime_targets
@@ -39,11 +40,15 @@ fi
 
 echo
 echo
-echo "[4/5] Verify polaris-config migration closure"
+echo "[4/6] Verify polaris-config migration closure"
 bash "$SCRIPT_DIR/validate-polaris-config-migration.sh"
 
 echo
-echo "[5/5] Verify Codex fallback gate wiring"
+echo "[5/6] Verify repo handbook path contract"
+bash "$SCRIPT_DIR/validate-handbook-path-contract.sh"
+
+echo
+echo "[6/6] Verify Codex fallback gate wiring"
 test -x "$SCRIPT_DIR/codex-guarded-git-commit.sh"
 test -x "$SCRIPT_DIR/codex-guarded-gh-pr-create.sh"
 test -x "$SCRIPT_DIR/codex-guarded-git-push.sh"

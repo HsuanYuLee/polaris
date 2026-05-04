@@ -91,7 +91,7 @@ Time range 預設 3 個月；使用者可指定，最多 12 個月。
 
 ### Step B2. Layer 1 Dedup
 
-讀 `{base_dir}/<repo>/.claude/rules/handbook/*.md`，抽所有 `Source:` PR URL /
+讀 `{company}/polaris-config/{project}/handbook/*.md`，抽所有 `Source:` PR URL /
 number，建立 already-extracted set。這些 PR 直接跳過。
 
 ### Step B3. Find Candidate PRs

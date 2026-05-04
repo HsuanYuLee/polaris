@@ -108,7 +108,7 @@ Sub-agents don't auto-load `.claude/rules/` from sub-repos or the workspace root
 
 [Repo Handbook — 先讀再開始]
 讀以下檔案，作為你對這個 repo 的基礎理解：
-1. /absolute/path/to/exampleco-b2c-web/.claude/rules/handbook/index.md
+1. /absolute/path/to/exampleco/polaris-config/exampleco-b2c-web/handbook/index.md
 2. 讀完 index 後，讀 index 引用的所有子文件（handbook/*.md）
 讀完後再開始任務。
 
@@ -207,7 +207,7 @@ A structured code review that returns findings in a parseable format.
 
 | 來源 | 用途 |
 |------|------|
-| `{repo}/.claude/rules/handbook/**/*.md` + `{repo}/CLAUDE.md` + `{repo}/.claude/rules/**/*.md` | **Primary compliance baseline**（judge against；repo long-term convention 是 SoT） |
+| `{company}/polaris-config/{project}/handbook/**/*.md` + `{repo}/CLAUDE.md` + `{repo}/.claude/rules/**/*.md` | **Primary compliance baseline**（judge against；repo long-term convention 是 SoT） |
 | task.md `## 改動範圍` / `## 估點理由` | **Context only**（理解 PR 意圖，**不**作 compliance spec — 避免 task.md rubber stamp workaround） |
 | task.md `Allowed Files` / `verification.*` / `depends_on` | **不讀**（D20 Scope Gate / D15 verify evidence / D14 artifact gate 已處理） |
 
@@ -229,7 +229,7 @@ Reviewer 以「這 PR 對 repo 是不是好的」為基準，不是「這 PR 是
     {
       "file": "path/to/file.ts",
       "line": 42,
-      "rule": "{repo}/.claude/rules/handbook/code-conventions.md § Composables",
+      "rule": "{company}/polaris-config/{project}/handbook/code-conventions.md § Composables",
       "message": "..."
     }
   ],

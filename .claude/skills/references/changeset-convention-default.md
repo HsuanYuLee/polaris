@@ -1,6 +1,6 @@
 # Changeset Convention — Polaris L3 Default
 
-Polaris 提供的 changeset 兜底規範。當 repo **L1 config**（`.changeset/config.json`）未明訂語意設定，且 **L2 handbook**（`{repo}/.claude/rules/handbook/**`）無 changeset 慣例段時，`scripts/polaris-changeset.sh` 與 LLM 依此 spec 機械化產出 changeset 檔。
+Polaris 提供的 changeset 兜底規範。當 repo **L1 config**（`.changeset/config.json`）未明訂語意設定，且 **L2 handbook**（`{company}/polaris-config/{project}/handbook/**`）無 changeset 慣例段時，`scripts/polaris-changeset.sh` 與 LLM 依此 spec 機械化產出 changeset 檔。
 
 **消費者**：`scripts/polaris-changeset.sh new`（純機械產出）+ `engineer-delivery-flow.md § Step 6b 蒸發後的 deliverable 路徑`（changeset 由 task.md `deliverables.changeset` 宣告 → engineering Phase 3 自然產出）。
 
@@ -13,7 +13,7 @@ Polaris 提供的 changeset 兜底規範。當 repo **L1 config**（`.changeset/
 | 層級 | 來源 | 角色 |
 |------|------|------|
 | **L1 Repo config** | `.changeset/config.json`（packages glob、changelog plugin、access、baseBranch 等） | **package_scope SoT**（mono-repo packages 列表、commit policy 等機器可讀） |
-| **L2 Repo handbook** | `{repo}/.claude/rules/handbook/changeset-convention.md`（或等同位置） | **語意 spec**（`ticket_prefix_handling` / 語言一致性 / bump level default 慣例） |
+| **L2 Repo handbook** | `{company}/polaris-config/{project}/handbook/changeset-convention.md`（或等同位置） | **語意 spec**（`ticket_prefix_handling` / 語言一致性 / bump level default 慣例） |
 | **L3 Polaris default**（本檔） | `references/changeset-convention-default.md` | **兜底**（L2 未宣告時的最後基準） |
 
 **規則衝突處理**：L1 是機器設定（`.changeset/config.json` schema），L2 / L3 是語意慣例 — 兩者**不衝突**（互補）。L2 有定義就用 L2；L2 無 → 用 L3 default。

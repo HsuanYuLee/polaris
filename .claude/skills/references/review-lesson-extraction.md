@@ -63,7 +63,7 @@ Before writing any pattern, classify it into one of three layers:
 
 | Layer | Scope | Write target |
 |-------|-------|-------------|
-| **Repo-specific** | Applies only to this repo's stack, architecture, or conventions | `{repo}/.claude/rules/handbook/` |
+| **Repo-specific** | Applies only to this repo's stack, architecture, or conventions | `{company}/polaris-config/{project}/handbook/` |
 | **Company-level** | Applies across multiple repos in the same company | `rules/{company}/handbook/` |
 | **Framework-level** | Applies across all companies and repos | Mark `[framework]`, write as feedback memory instead |
 
@@ -73,8 +73,8 @@ Reference `repo-handbook.md` Step 3b for the full three-layer classification log
 
 Before writing any lessons, load existing knowledge to avoid duplicates:
 
-1. **Read all handbook sub-files** in `{base_dir}/<repo>/.claude/rules/handbook/*.md`
-2. **Read all main rule files** in `{base_dir}/<repo>/.claude/rules/*.md` (excluding `handbook/` subdirectory)
+1. **Read all handbook sub-files** in `{company}/polaris-config/{project}/handbook/*.md`
+2. **Read all main rule files** in `{base_dir}/<repo>/.claude/rules/*.md` (repo-owned rules, excluding any legacy `handbook/` overlay)
 3. Also check `{base_dir}/.claude/rules/*.md` (workspace-level rules)
 
 For each extracted pattern, compare against existing lessons and rules:
@@ -84,7 +84,7 @@ For each extracted pattern, compare against existing lessons and rules:
 
 ## Write Format
 
-Write extracted patterns directly to `{base_dir}/<repo>/.claude/rules/handbook/`:
+Write extracted patterns directly to `{company}/polaris-config/{project}/handbook/`:
 
 **File naming**: Topic-based, kebab-case `.md` files (e.g., `typescript-type-safety.md`, `error-handling.md`). Append to existing files of the same topic — do not create a new file if one with the matching topic already exists.
 

@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.53] - 2026-05-05
+
+### Fixed — repo handbook source-of-truth drift
+
+- 將 engineering / learning / review lesson references 裡的 repo handbook 路徑統一到
+  `{company}/polaris-config/{project}/handbook/`，避免 agent 誤讀已淘汰的
+  repo-local `.claude/rules/handbook/` overlay。
+- 新增 `validate-handbook-path-contract.sh`，並接到 cross-LLM parity preflight，讓
+  framework health check 能 deterministic 擋下 stale repo handbook path。
+- 更新 runtime instruction manifest scope policy，讓 generated runtime targets 跟
+  polaris-config handbook SoT 對齊。
+
 ## [3.74.52] - 2026-05-05
 
 ### Changed — learning progressive disclosure

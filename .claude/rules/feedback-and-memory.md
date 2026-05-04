@@ -4,7 +4,7 @@ After completing a full task (opening a PR, fixing review comments, estimation, 
 
 1. **User corrected a behavior** → classify the correction using the three-layer test (see `skills/references/repo-handbook.md` § Step 3b — Three-Layer Classification):
    - **Q1: 換一個 Polaris workspace 還適用？** Yes → feedback memory（framework-level）. No → Q2
-   - **Q2: 換同公司另一個 repo 還適用？** Yes → **company handbook**（`rules/{company}/handbook/`）. No → **repo handbook**（`{repo}/.claude/rules/handbook/`）
+   - **Q2: 換同公司另一個 repo 還適用？** Yes → **company handbook**（`rules/{company}/handbook/`）. No → **repo handbook**（`{company}/polaris-config/{project}/handbook/`）
    - Company-level knowledge: cross-repo dependencies, team structure, Slack routing, git/changeset conventions, tool locations
    - Repo-specific knowledge: architecture, code conventions, API patterns, dev environment, testing rules
    - **Do not create a feedback memory** for repo-specific or company-level knowledge. Handbook is the correct container.

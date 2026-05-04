@@ -84,6 +84,6 @@ Init 完成後，詢問是否產生 repo handbooks。若接受，configured repo
 1. 依 `repo-handbook.md` 偵測 repo type。
 2. Draft handbook。
 3. 請使用者 confirm 或 correct。
-4. 寫入 `{repo}/.claude/rules/handbook/index.md`。
+4. 寫入 `{company}/polaris-config/{project}/handbook/index.md`。
 
 已存在 handbook 的 repos 直接 skip。若使用者拒絕，engineering 第一次使用 repo 時可再產生。
