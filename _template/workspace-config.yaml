@@ -79,6 +79,16 @@ projects:
     repo: "your-org/my-app"
     tags: ["app"]
     keywords: ["frontend", "main app"]
+    # onboard repair checks this block for runtime projects. Static-only repos
+    # may omit dev_environment after the user confirms they do not run locally.
+    dev_environment:
+      install_command: "npm install"
+      start_command: "npm run dev"
+      ready_signal: "ready"
+      base_url: "http://localhost:3000"
+      health_check: "http://localhost:3000/health"
+      requires: []
+      env: {}
     delivery:
       pr_title:
         # Repo-specific Developer PR title template.

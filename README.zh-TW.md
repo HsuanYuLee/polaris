@@ -130,25 +130,26 @@ cd ~/polaris-workspace
 
 > **提示**：選一個專用的目錄名稱。避免用 `~/work`——很多開發者已經將這個路徑用於其他專案。
 
-> **PM 和非開發者：** 請參閱 [PM 設定清單](docs/pm-setup-checklist.zh-TW.md)——它會告訴你該問開發者什麼、以及設定完成後該做什麼。然後直接跳到步驟 4。
+> **PM 和非開發者：** 請參閱 [PM 設定清單](docs/pm-setup-checklist.zh-TW.md)——它會告訴你該問開發者什麼、以及設定完成後該做什麼。設定完成後，從下面的 PM 工作流程開始。
 
-### 2. 執行 `/init` 設定你的公司
+### 2. 請 Polaris onboard 你的工作區
 
-> **注意：** `/init` 等 `/指令` 是在 Claude Code 對話中輸入的，不是在終端機 shell 中。
+> **注意：** onboarding prompt 是在 Claude Code 或 Codex 對話中輸入的，不是在終端機 shell 中。
 
 在工作區內開啟 Claude Code——在終端機中從工作區目錄執行 `claude`（或在 VS Code 中開啟該資料夾並使用 Claude Code 擴充套件）。然後輸入：
 
 ```
-/init
+請幫我 onboard Polaris workspace，設定我的公司
 ```
 
-互動式精靈會：
+onboard 流程會：
 - 設定偏好回應語言（或從現有設定讀取）
 - 偵測你的 GitHub 組織和 repo
 - 建立公司目錄和 `workspace-config.yaml`
 - 設定專案對應（JIRA key → 本地 repo 路徑）
+- 最後輸出 readiness dashboard：`ready`、`partial` 或 `blocked`
 
-`/init` 完成後，你的工作區結構如下：
+onboard 完成後，你的工作區結構如下：
 
 ```
 ~/polaris-workspace/              ← your workspace root (this repo)
@@ -158,14 +159,14 @@ cd ~/polaris-workspace
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
 │   └── skills/                   ← 24 workflow skills
-└── your-company/                 ← /init 建立的本機 ignored 公司 context
+└── your-company/                 ← onboard 建立的本機 ignored 公司 context
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     ├── polaris-config/           ← 本機 project handbook 與 generated scripts
     └── your-project/             ← your existing repo (cloned or linked)
         └── ...                   ← repo-owned files stay under the repo owner's control
 ```
 
-試著輸入 `「做 PROJ-123」`（替換為真實的票單 key）來驗證設定。如果 Polaris 成功讀取票單，就表示設定完成了。
+如果 dashboard 是 `partial` 或 `blocked`，請對 Polaris 說 `onboard repair`，依照列出的項目修復。狀態為 `ready` 後，試著輸入 `「做 PROJ-123」`（替換為真實的票單 key）來驗證設定。
 
 ### 3. 開始使用技能
 
@@ -300,7 +301,7 @@ your-workspace/
 **新增第二家公司：**
 
 ```
-/init
+請幫我 onboard 另一家公司
 ```
 
 精靈會偵測現有的公司，並在旁邊建立新的公司。設定完成後，執行 `/validate` 確認沒有規則缺少範圍標頭。
@@ -313,7 +314,7 @@ your-workspace/
 
 | 做什麼 | 在哪裡 | 怎麼做 |
 |--------|-------|--------|
-| 新增公司 | 執行 `/init` | 互動式精靈建立一切 |
+| 新增公司 | 請 Polaris `onboard 另一家公司` | 互動式精靈建立一切 |
 | 對應 JIRA 專案到 repo | `{company}/workspace-config.yaml` | 在 `projects:` 新增項目 |
 | 新增公司專屬規則 | `.claude/rules/{company}/` | 建立 `.md` 檔案——每次對話自動載入 |
 | 新增專案 handbook / generated scripts | `{company}/polaris-config/{project}/` | 本機 ignored；skill 明確讀取，不修改 repo-owned AI config |
@@ -329,7 +330,7 @@ your-workspace/
 | `.claude/skills/*/SKILL.md` | 技能定義——使用 `/skill-creator` 修改 |
 | `.claude/skills/references/` | 技能使用的共用資料（估點量表、模板） |
 | `.claude/rules/*.md`（L1） | 通用規則——每次對話載入 |
-| `_template/` | `/init` 精靈的模板 |
+| `_template/` | onboard 精靈的模板 |
 | `scripts/` | 模板與實例之間的同步工具 |
 | `CLAUDE.md` | 策略師人設——框架的大腦 |
 
@@ -369,7 +370,7 @@ Polaris 從以下開源專案汲取靈感：
 | 專案 | 作者 | 我們學到的 |
 |------|------|-----------|
 | [superpowers](https://github.com/obra/superpowers) | Jesse Vincent | Agentic 技能框架、spec-first 開發、sub-agent 任務分工 |
-| [ab-dotfiles](https://github.com/AlvinBian/ab-dotfiles) | Alvin Bian | AI 驅動的開發環境管理、`/init` smartSelect 互動、audit trail |
+| [ab-dotfiles](https://github.com/AlvinBian/ab-dotfiles) | Alvin Bian | AI 驅動的開發環境管理、onboarding smartSelect 互動、audit trail |
 | [get-shit-done](https://github.com/gsd-build/get-shit-done) | TÂCHES | Context engineering 模式、goal-backward 驗證、sub-agent completion envelope、complexity tier 路由 |
 | [skill-sanitizer](https://github.com/cyberxuan-XBX/skill-sanitizer) | cyberxuan-XBX | 7 層 pre-LLM 安全掃描、code block context awareness、severity scoring 與 false-positive 降低策略 |
 

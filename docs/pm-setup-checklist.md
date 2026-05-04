@@ -18,12 +18,12 @@ Send this to a developer on your team:
 
 > **Hi, can you set up Polaris for me? Here's what's needed:**
 >
-> 1. Clone the Polaris workspace and run `/init` to configure our company
+> 1. Clone the Polaris workspace and ask Polaris to "onboard our company"
 > 2. Make sure these MCP connections are set up in Claude Code:
 >    - **Atlassian MCP** (connects to our JIRA + Confluence)
 >    - **Slack MCP** (for notifications and reports)
 >    - **Google Calendar MCP** (optional, for standup meeting context)
-> 3. Verify it works: type `"standup"` and confirm it reads our JIRA data
+> 3. Confirm the onboarding dashboard is `ready` or has only accepted `partial` follow-ups, then type `"standup"` and confirm it reads our JIRA data
 >
 > It should take about 10 minutes. Thanks!
 

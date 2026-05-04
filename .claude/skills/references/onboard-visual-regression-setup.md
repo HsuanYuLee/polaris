@@ -1,6 +1,6 @@
 ---
-title: "Init Visual Regression Setup"
-description: "/init Step 9b 的 visual regression domain、pages、SIT URL、locale 與 Playwright tooling 生成流程。"
+title: "Onboard Visual Regression Setup"
+description: "onboard Step 9b 的 visual regression domain、pages、SIT URL、locale 與 Playwright tooling 生成流程。"
 ---
 
 # Visual Regression Setup Contract

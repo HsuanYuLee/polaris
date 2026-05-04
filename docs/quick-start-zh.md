@@ -36,18 +36,19 @@ cd ~/polaris-workspace
 
 > **PM 和非開發者：** 請團隊的開發者幫你跑步驟 1-2，大約需要 10 分鐘。然後直接跳到步驟 3。
 
-### 2. 執行 `/init` 初始化公司
+### 2. 請 Polaris onboard 你的工作區
 
 在工作區內開啟 Claude Code — 在終端機中，從工作區目錄執行 `claude`（或在 VS Code 中開啟資料夾並使用 Claude Code 擴充套件）。然後輸入：
 
 ```
-/init
+請幫我 onboard Polaris workspace，設定我的公司
 ```
 
-互動式精靈會：
+onboard 流程會：
 - 偵測你的 GitHub 組織和 repos
 - 建立公司目錄和 `workspace-config.yaml`
 - 設定專案對應（JIRA 票號 → 本地 repo 路徑）
+- 最後輸出 readiness dashboard：`ready`、`partial` 或 `blocked`
 
 完成後你的工作區會長這樣：
 
@@ -59,7 +60,7 @@ cd ~/polaris-workspace
 │   ├── rules/                    ← 通用規則 (L1)
 │   │   └── your-company/         ← 公司專屬規則 (L2)
 │   └── skills/                   ← 24 個工作流技能
-└── your-company/                 ← 由 /init 建立
+└── your-company/                 ← 由 onboard 建立
     ├── workspace-config.yaml     ← 公司設定（JIRA、Slack、repos）
     └── your-project/             ← 你的專案 repo（clone 或連結）
         └── .claude/CLAUDE.md     ← 專案層級規則 (L3)
@@ -67,9 +68,9 @@ cd ~/polaris-workspace
 
 ### 3. 開始使用技能
 
-> **注意：** 像 `/init` 這樣的指令是在 Claude Code 對話中輸入，不是在終端機 shell 中。
+> **注意：** onboarding prompt 是在 Claude Code 或 Codex 對話中輸入，不是在終端機 shell 中。
 
-初始化完成後，用自然語言和 Claude Code 對話 — 中文英文都可以：
+onboard 完成後，用自然語言和 Claude Code 對話 — 中文英文都可以：
 
 ```
 「做 PROJ-123」           → 完整開發流程（讀 JIRA → 估點 → 開 branch → 寫 code → 發 PR）
@@ -211,7 +212,7 @@ Polaris 支援在同一個工作區管理多間公司。每間公司有獨立的
 - 公司規則都有 scope header，Strategist 只套用對應公司的規則
 - 共用技能在 `.claude/skills/`（git 追蹤），公司專屬技能在 `.claude/skills/{company}/`（gitignore）
 
-**加入第二間公司：** 再跑一次 `/init`，精靈會偵測已有的公司，在旁邊建立新的。
+**加入第二間公司：** 對 Polaris 說 `請幫我 onboard 另一家公司`，精靈會偵測已有的公司，在旁邊建立新的。
 
 **診斷工具：**
 - `/use-company PROJ-123` — 查看票號路由到哪間公司（診斷模式）
@@ -222,7 +223,7 @@ Polaris 支援在同一個工作區管理多間公司。每間公司有獨立的
 
 | 想做什麼 | 在哪裡 | 怎麼做 |
 |---------|--------|--------|
-| 加入新公司 | 執行 `/init` | 互動式精靈幫你建好一切 |
+| 加入新公司 | 請 Polaris `onboard 另一家公司` | 互動式精靈幫你建好一切 |
 | 對應 JIRA 專案到 repo | `{company}/workspace-config.yaml` | 在 `projects:` 下新增 |
 | 加公司專屬規則 | `.claude/rules/{company}/` | 建 `.md` 檔 — 每次對話自動載入 |
 | 加專案專屬規則 | `{company}/{project}/CLAUDE.md` | sub-agent 進入專案時載入 |

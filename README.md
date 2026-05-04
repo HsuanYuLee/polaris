@@ -132,25 +132,26 @@ cd ~/polaris-workspace
 
 > **Tip**: Choose a dedicated directory name. Avoid `~/work` — many developers already use that path for other projects.
 
-> **PMs and non-developers:** See the [PM Setup Checklist](docs/pm-setup-checklist.md) — it tells you exactly what to ask your developer and what to do after setup. Then jump straight to Step 4.
+> **PMs and non-developers:** See the [PM Setup Checklist](docs/pm-setup-checklist.md) — it tells you exactly what to ask your developer and what to do after setup. After setup, start with the PM workflow below.
 
-### 2. Run `/init` to set up your company
+### 2. Ask Polaris to onboard your workspace
 
-> **Note:** `/commands` like `/init` are typed inside Claude Code conversations, not in your terminal shell.
+> **Note:** onboarding prompts are typed inside Claude Code or Codex conversations, not in your terminal shell.
 
 Open Claude Code inside the workspace — in your terminal, run `claude` from the workspace directory (or open the folder in VS Code with the Claude Code extension). Then type:
 
 ```
-/init
+onboard Polaris workspace for my company
 ```
 
-The interactive wizard will:
+The onboard flow will:
 - Set preferred response language (or read from existing config)
 - Detect your GitHub org and repos
 - Create a company directory with `workspace-config.yaml`
 - Set up project mappings (JIRA keys → local repo paths)
+- Finish with a readiness dashboard: `ready`, `partial`, or `blocked`
 
-After `/init` completes, your workspace will look like this:
+After onboard completes, your workspace will look like this:
 
 ```
 ~/polaris-workspace/              ← your workspace root (this repo)
@@ -160,14 +161,14 @@ After `/init` completes, your workspace will look like this:
 │   ├── rules/                    ← universal rules (L1)
 │   │   └── your-company/         ← company-specific rules (L2)
 │   └── skills/                   ← 24 workflow skills
-└── your-company/                 ← local ignored company context created by /init
+└── your-company/                 ← local ignored company context created by onboard
     ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
     ├── polaris-config/           ← local project handbook and generated scripts
     └── your-project/             ← your existing repo (cloned or linked)
         └── ...                   ← repo-owned files stay under the repo owner's control
 ```
 
-Verify setup by trying: `"做 PROJ-123"` (replace with a real ticket key). If Polaris reads the ticket successfully, you're good to go.
+If the dashboard is `partial` or `blocked`, ask Polaris to `onboard repair` and follow the listed fixes. When it is `ready`, verify setup by trying: `"做 PROJ-123"` (replace with a real ticket key).
 
 ### 3. Start using skills
 
@@ -302,7 +303,7 @@ your-workspace/
 **Adding a second company:**
 
 ```
-/init
+onboard another company
 ```
 
 The wizard detects existing companies and creates the new one alongside them. After setup, run `/validate` to verify no rules are missing scope headers.
@@ -315,7 +316,7 @@ The wizard detects existing companies and creates the new one alongside them. Af
 
 | What | Where | How |
 |------|-------|-----|
-| Add a new company | Run `/init` | Interactive wizard creates everything |
+| Add a new company | Ask Polaris to `onboard another company` | Interactive wizard creates everything |
 | Map JIRA projects to repos | `{company}/workspace-config.yaml` | Add entries to `projects:` |
 | Add company-specific rules | `.claude/rules/{company}/` | Create `.md` files — auto-loaded every conversation |
 | Add project handbook / generated scripts | `{company}/polaris-config/{project}/` | Local ignored; read by skills without changing repo-owned AI config |
@@ -331,7 +332,7 @@ These are framework internals. Edit them only if you're modifying the Polaris fr
 | `.claude/skills/*/SKILL.md` | Skill definitions — use `/skill-creator` to modify |
 | `.claude/skills/references/` | Shared data (estimation scales, templates) used by skills |
 | `.claude/rules/*.md` (L1) | Universal rules — loaded every conversation |
-| `_template/` | Templates for `/init` wizard |
+| `_template/` | Templates for the onboard wizard |
 | `scripts/` | Sync utilities between template and instances |
 | `CLAUDE.md` | Strategist persona — the brain of the framework |
 
@@ -371,7 +372,7 @@ Polaris draws inspiration from these open-source projects:
 | Project | Author | What we learned |
 |---------|--------|----------------|
 | [superpowers](https://github.com/obra/superpowers) | Jesse Vincent | Agentic skills framework, spec-first development, sub-agent task division |
-| [ab-dotfiles](https://github.com/AlvinBian/ab-dotfiles) | Alvin Bian | AI-driven dev environment management, `/init` smartSelect interaction, audit trail |
+| [ab-dotfiles](https://github.com/AlvinBian/ab-dotfiles) | Alvin Bian | AI-driven dev environment management, onboarding smartSelect interaction, audit trail |
 | [get-shit-done](https://github.com/gsd-build/get-shit-done) | TÂCHES | Context engineering patterns, goal-backward verification, sub-agent completion envelope, complexity tier routing |
 | [skill-sanitizer](https://github.com/cyberxuan-XBX/skill-sanitizer) | cyberxuan-XBX | 7-layer pre-LLM security scanning, code block context awareness, severity scoring with false-positive reduction |
 

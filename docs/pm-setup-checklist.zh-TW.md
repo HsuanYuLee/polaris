@@ -18,12 +18,12 @@
 
 > **嗨，可以幫我設定 Polaris 嗎？需要以下幾個步驟：**
 >
-> 1. Clone Polaris workspace 並執行 `/init` 設定我們的公司
+> 1. Clone Polaris workspace，然後請 Polaris「onboard 我們的公司」
 > 2. 確認 Claude Code 中以下 MCP 連線已設定好：
 >    - **Atlassian MCP**（連接我們的 JIRA + Confluence）
 >    - **Slack MCP**（用於通知和報告）
 >    - **Google Calendar MCP**（選配，用於站會的會議資訊）
-> 3. 驗證是否正常運作：輸入 `"standup"` 確認能讀到我們的 JIRA 資料
+> 3. 確認 onboarding dashboard 是 `ready`，或只有已接受的 `partial` follow-up，然後輸入 `"standup"` 確認能讀到我們的 JIRA 資料
 >
 > 大概 10 分鐘就搞定了，謝謝！
 

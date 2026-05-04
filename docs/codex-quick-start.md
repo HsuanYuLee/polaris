@@ -13,7 +13,7 @@ Polaris supports Codex as a first-class runtime by sharing the same `.claude/**`
 
 | Claude Code behavior | Codex equivalent |
 |---|---|
-| Slash commands like `/init` | Ask Codex in plain language: "initialize Polaris workspace for {company}" |
+| Claude Code slash shortcuts | Ask Codex in plain language: "onboard Polaris workspace for {company}" |
 | Skill tool invocation (`Skill("engineering", ...)`) | Codex reads `.claude/skills/engineering/SKILL.md` and executes the steps |
 | MCP setup via Claude settings | Use MCP connectors available in your Codex runtime |
 
@@ -140,13 +140,14 @@ If you do not need an optional connector, remove it:
 codex mcp remove figma
 ```
 
-### 3. Initialize config (Codex prompt)
+### 3. Onboard workspace (Codex prompt)
 
 If `workspace-config.yaml` is missing, ask Codex:
 
 ```text
-Please create workspace-config.yaml from workspace-config.yaml.example
-and add my company mapping.
+Please onboard Polaris workspace for my company.
+Create workspace-config.yaml from workspace-config.yaml.example,
+add my company mapping, then run the readiness doctor.
 ```
 
 Then add your company-level config at `{company}/workspace-config.yaml`.

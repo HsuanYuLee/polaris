@@ -1,6 +1,6 @@
 ---
-title: "Init Runtime Setup Flow"
-description: "/init Step 9a 的 dev environment runtime contract 偵測、dependency resolution 與 validation 規則。"
+title: "Onboard Runtime Setup Flow"
+description: "onboard Step 9a 的 dev environment runtime contract 偵測、dependency resolution 與 validation 規則。"
 ---
 
 # Runtime Contract Setup
@@ -55,6 +55,29 @@ file，必須警告使用者。
 真正 static-only 的 project 可 skip runtime setup。Web frontends、API servers、HTTP entry
 point repos 不可 skip。
 
+## Template Alignment
+
+`_template/workspace-config.yaml` 的 `projects[].dev_environment` 範例必須維持與本
+reference 一致，至少包含：
+
+```yaml
+dev_environment:
+  install_command: "npm install"
+  start_command: "npm run dev"
+  ready_signal: "ready"
+  base_url: "http://localhost:3000"
+  health_check: "http://localhost:3000/health"
+  requires: []
+  env: {}
+```
+
+若新增或移除 required field，必須同步更新：
+
+- `_template/workspace-config.yaml`
+- `scripts/onboard-doctor.sh`
+- `scripts/onboard-doctor-selftest.sh`
+- 本 reference 的 Required Fields 表格
+
 ## Presentation
 
 每個 project 顯示 start command、ready signal、base URL、health check、prerequisites。
@@ -64,10 +87,10 @@ point repos 不可 skip。
 
 ## Validation
 
-`/init` 進入下一步前，確認 runtime entries 可被下列入口消費：
+`onboard` 進入下一步前，確認 runtime entries 可被下列入口消費：
 
 `scripts/polaris-env.sh start <company> --project <repo>`
 
 若 runtime project 缺 required fields、health check 不是 URL，或 dependencies 與偵測圖
-矛盾，該 init section 視為未完成。Detected values、dependency warnings、
+矛盾，該 onboard section 視為未完成。Detected values、dependency warnings、
 env-template warnings、final confirmed values 都要 audit。

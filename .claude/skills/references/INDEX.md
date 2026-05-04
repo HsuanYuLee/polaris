@@ -116,7 +116,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [verify-ac-reporting-flow.md](verify-ac-reporting-flow.md) | verify-AC overall verdict、JIRA wiki report、language gate、PASS transition、Epic implemented marking、PENDING handling | verify-AC report, JIRA 驗證結果 |
 | [verify-ac-disposition-flow.md](verify-ac-disposition-flow.md) | verify-AC FAIL disposition：implementation drift per-AC Bug、spec issue refinement route、handoff artifact、互斥分流 | verify-AC FAIL, VERIFICATION_FAIL, disposition |
 | [verify-ac-learning-lifecycle-flow.md](verify-ac-learning-lifecycle-flow.md) | verify-AC verify-ac-gap learning、post-task reflection、re-verify trigger、opportunistic state-check surfacing | verify-AC learning, re-verify |
-| [visual-regression-config.md](visual-regression-config.md) | VR config schema：domain、server、fixtures、pages、viewports | visual-regression, /init VR setup |
+| [visual-regression-config.md](visual-regression-config.md) | VR config schema：domain、server、fixtures、pages、viewports | visual-regression, onboard VR setup |
 | [visual-regression-principles.md](visual-regression-principles.md) | visual-regression domain-level testing、production proxy、CSR readiness、mobile UA、fixture strictness、first-run gate | visual-regression, screenshot test, VR principles |
 | [visual-regression-preflight-flow.md](visual-regression-preflight-flow.md) | visual-regression preflight：domain resolution、config inheritance、smart skip、dependency consent、comparison path、environment setup | visual-regression preflight, SIT mode, Local mode |
 | [visual-regression-capture-flow.md](visual-regression-capture-flow.md) | visual-regression before/after capture、Local stash flow、Playwright compare、temporary artifacts | visual-regression capture, Playwright screenshot |
@@ -128,7 +128,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [repo-handbook.md](repo-handbook.md) | Per-repo coding 準則：repo 類型辨識、handbook 結構生成、standard-first 校準、stale detection | init (optional), engineering (Phase 0.5), review-pr (Step 3), engineering (Step 5 + 7b) |
+| [repo-handbook.md](repo-handbook.md) | Per-repo coding 準則：repo 類型辨識、handbook 結構生成、standard-first 校準、stale detection | onboard (optional), engineering (Phase 0.5), review-pr (Step 3), engineering (Step 5 + 7b) |
 
 ## Epic Folder Structure
 
@@ -143,12 +143,12 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [workspace-config-reader.md](workspace-config-reader.md) | 兩層 config 解析流程（root + company）與完整欄位索引 | 所有需要讀 config 的 skill |
 | [shared-defaults.md](shared-defaults.md) | 跨 skill 共用預設值（Slack channels、JIRA、GitHub、infra） | 所有讀 workspace-config 的 skill |
 | [external-write-gate.md](external-write-gate.md) | 外部寫入前的共用 preflight helper：JIRA / Slack / Confluence / GitHub body file 的 language gate 與 optional Starlight gate | 所有會寫外部 surface 的 skill |
-| [dependency-consent.md](dependency-consent.md) | Optional dependency 的使用者同意管理（playwright、mockoon-cli） | /init, visual-regression, e2e |
-| [init-interaction-patterns.md](init-interaction-patterns.md) | /init smartSelect、AI repo detection、audit trail 與 sub-agent Completion Envelope 規則 | /init, setup workspace, company onboarding |
-| [init-core-workflow.md](init-core-workflow.md) | /init 核心公司設定流程：precheck、language、company basics、GitHub、JIRA、Confluence、Slack、Kibana、projects、scrum、infra、write | /init, re-init, setup company |
-| [init-runtime-setup-flow.md](init-runtime-setup-flow.md) | /init dev environment runtime contract：start command、ready signal、health check、requires、validation | /init Step 9a, dev environment, runtime contract |
-| [init-visual-regression-setup.md](init-visual-regression-setup.md) | /init visual regression setup：domain mapping、key pages、SIT URL、locale、Playwright tooling generation | /init Step 9b, visual regression setup |
-| [init-post-setup-flow.md](init-post-setup-flow.md) | /init post-setup：repo clone、genericize mapping、MCP health、daily learning、toolchain、Codex bootstrap、handbook generation | /init post setup, codex bootstrap, handbook |
+| [dependency-consent.md](dependency-consent.md) | Optional dependency 的使用者同意管理（playwright、mockoon-cli） | onboard, visual-regression, e2e |
+| [onboard-interaction-patterns.md](onboard-interaction-patterns.md) | onboard smartSelect、AI repo detection、audit trail 與 sub-agent Completion Envelope 規則 | onboard, setup workspace, company onboarding |
+| [onboard-core-workflow.md](onboard-core-workflow.md) | onboard 核心公司設定流程：precheck、language、company basics、GitHub、JIRA、Confluence、Slack、Kibana、projects、scrum、infra、write | onboard, rerun setup, setup company |
+| [onboard-runtime-setup-flow.md](onboard-runtime-setup-flow.md) | onboard dev environment runtime contract：start command、ready signal、health check、requires、validation | onboard Step 9a, dev environment, runtime contract |
+| [onboard-visual-regression-setup.md](onboard-visual-regression-setup.md) | onboard visual regression setup：domain mapping、key pages、SIT URL、locale、Playwright tooling generation | onboard Step 9b, visual regression setup |
+| [onboard-post-setup-flow.md](onboard-post-setup-flow.md) | onboard post-setup：repo clone、genericize mapping、MCP health、daily learning、toolchain、Codex bootstrap、handbook generation | onboard post setup, codex bootstrap, handbook |
 | [polaris-project-dir.md](polaris-project-dir.md) | ~/.polaris/projects/$SLUG/ 目錄結構與 slug 解析 | polaris-learnings.sh, polaris-timeline.sh |
 | [workspace-overlay.md](workspace-overlay.md) | Framework worktree 與 main-checkout overlay 邊界：ignored specs、`.codex/`、local maintainer skills、generated output 的 read-only resolver contract | engineering, framework-release, framework-docs-health, docs-manager |
 

@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.55] - 2026-05-05
+
+### Changed — onboarding-first Polaris setup
+
+- 將新人導入主入口從 `init` 轉為 `onboard`，保留 `init` 作為 deprecated alias。
+- 新增 `onboard repair` readiness model 與 `scripts/onboard-doctor.sh`，覆蓋 root config、
+  company config、runtime toolchain、Codex parity、MCP readiness 與 post-setup 機制檢查。
+- 更新 README、Quick Start、Codex Quick Start 與 PM setup checklist，讓 public onboarding
+  docs 只導向 `onboard` 路徑。
+- 補齊 root / company onboarding templates 與 completion dashboard contract，讓 first-run、
+  add company、repair existing workspace 使用同一套完成標準。
+
 ## [3.74.54] - 2026-05-05
 
 ### Fixed — revision rebase enforcement
