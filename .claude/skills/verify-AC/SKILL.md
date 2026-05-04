@@ -86,7 +86,7 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 - 無 `depends_on` → 可平行
 - 有 `depends_on` → 等被依賴者 PASS 後才執行
 
-對每張驗收單依序（或並行）跑 Step 2-6。
+對每張驗收單依序（或並行）跑 Step 2-6；若委派 sub-agent，需使用 Completion Envelope（見 `references/sub-agent-roles.md`）。
 
 ### 2. Loop-count 警戒
 
@@ -104,36 +104,12 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 
 從 AC 驗收單 description 讀取「驗證步驟」章節。若 description 缺驗證步驟 → 標記 **UNCERTAIN**，addComment 說明「無驗證步驟可執行，需補充 AC 描述」，結束本張。
 
-**環境啟動**（local + fixture server）：
+**環境啟動**（local + fixture server）細節延後載入：
 
-**Step 3a. 讀驗收單 task.md**
-
-**Worktree dispatch — 主 checkout 絕對路徑**
-Sub-agent 在 worktree 執行；`specs/` 與 `.claude/skills/` 是 gitignored（worktree 無此檔）。dispatch prompt 須以主 checkout 絕對路徑讀寫：
-- task.md: `{company_specs_dir}/{EPIC}/tasks/T{n}.md`
-- artifacts / verification: `{company_specs_dir}/{EPIC}/artifacts/`、`.../verification/`
-詳見 `skills/references/worktree-dispatch-paths.md`。
-
-查找驗收單對應的 task.md：`{company_specs_dir}/{EPIC_KEY}/tasks/{AC_TICKET_KEY}.md`。若存在 → 讀取 fixture 設定；若不存在 → fallback `tasks/pr-release/{AC_TICKET_KEY}.md`（DP-033 D8 reader fallback）；兩者皆無 → fallback 到 Step 3b。
-
-**Step 3b. Fixture 自動偵測（fallback）**
-
-若無 task.md，自動偵測 `specs/{EPIC_KEY}/tests/mockoon/` 是否有 `.json` 檔案。有 → 視為 `fixture_required: true`，使用 conventional path。無 → 視為不需 fixture，只起 dev server。
-
-**Step 3c. 啟動環境（含 Fixture）**
-
-跑 D11 L3 orchestrator，一支命令包住「dependencies → start-command → health-check → fixtures-start」全鏈：
-
-```bash
-bash {polaris_root}/scripts/start-test-env.sh --task-md {task_md_path} [--with-fixtures]
-```
-
-- 加 `--with-fixtures` 的條件：Step 3a 解出 `fixture_required: true`，**或** Step 3b fallback 偵測到 `specs/{EPIC_KEY}/tests/mockoon/` 有 `.json`。orchestrator 會自己讀 task.md 的 `## Test Environment` `Fixtures:` 欄抽路徑（N/A → 報錯 exit 1，由 sub-agent fall back 到 conventional path 並改用 `--fixtures-dir <path>` 重跑）
-- orchestrator 自抽 project name（從 `test_environment.dev_env_config`），讀 workspace-config 推 dependencies / start_command / health_check URL；每步輸出 JSON 證據（`primitive: start-test-env`），任一步 FAIL → exit 1
-- exit 0 → 繼續 Step 4（dev server + fixture server 都已 ready）
-- exit ≠ 0 → 本張驗證 block，addComment「環境啟動失敗：第 {step} 步」（`step` 從 stderr / 最後一行 JSON 讀），不標 PASS/FAIL（標 UNCERTAIN）
-
-> 不要再分別呼叫 `polaris-env.sh` + direct Mockoon runner；orchestrator 已包住 D11 L2 primitives。Fallback 到舊路徑只在該 repo 還沒被 task.md schema 涵蓋時使用，需在 sub-agent return 中標註原因；需要 Mockoon capability 時使用 `scripts/polaris-toolchain.sh run fixtures.mockoon.start -- <fixtures_dir>`。
+- 需要 local / fixture 環境時，先讀 `references/verify-ac-environment-prep.md`。
+- 若 AC 沒有對應 task.md，依該 reference fallback 到 conventional fixture detection。
+- `start-test-env.sh` 失敗時，本張驗證標 **UNCERTAIN**；不要自行改 code 或判斷 FAIL 原因。
+- 不要直接拆開呼叫 `polaris-env.sh` / Mockoon runner；以 reference 內的 orchestrator contract 為準。
 
 ### 4. 逐步驟執行 + 分類
 
@@ -159,7 +135,7 @@ bash {polaris_root}/scripts/start-test-env.sh --task-md {task_md_path} [--with-f
 
 **5a. 本地留底**（見 `references/epic-folder-structure.md`）：
 ```bash
-# Evidence 存放路徑：specs/{EPIC}/verification/{AC_KEY}/{timestamp}/
+# Evidence 存放路徑：{company_specs_dir}/{EPIC}/verification/{AC_KEY}/{timestamp}/
 mkdir -p {company_specs_dir}/{EPIC}/verification/{AC_KEY}/$(date +%Y%m%d-%H%M%S)
 # 複製所有 evidence 到該目錄
 ```

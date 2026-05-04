@@ -72,6 +72,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 |------|-------------|----------|
 | [tdd-smart-judgment.md](tdd-smart-judgment.md) | 逐檔判斷是否適用 TDD（testable vs config/style/type-def） | unit-test, engineering, bug-triage |
 | [api-contract-guard.md](api-contract-guard.md) | Mockoon fixture vs live API schema drift 偵測：分類、流程、skill 接入點 | visual-regression, engineering |
+| [verify-ac-environment-prep.md](verify-ac-environment-prep.md) | verify-AC Step 3 的 local / fixture environment preparation：task.md lookup、worktree dispatch、fixture fallback、start-test-env orchestrator | verify-AC, AC 驗證, fixture, start-test-env |
 | [visual-regression-config.md](visual-regression-config.md) | VR config schema：domain、server、fixtures、pages、viewports | visual-regression, /init VR setup |
 | [vr-jira-report-template.md](vr-jira-report-template.md) | VR 結果 JIRA comment 的 wiki markup 模板 | visual-regression, engineering |
 
@@ -130,3 +131,4 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [library-change-protocol.md](library-change-protocol.md) | 依賴變更完整協議：三層調查、替換/升級評估、Decision Tier、config 系統性排除、workaround 文件標準 | engineering (library evaluation), review-pr (reviewer suggests upgrade), bug-triage (dependency issue) |
 | [knowledge-compilation-protocol.md](knowledge-compilation-protocol.md) | Framework 知識編譯協議：Atom vs Derived 邊界、backwrite、parallel naming lock | learning (External mode framework target), docs-sync, framework docs/rules updates |
 | [starlight-authoring-contract.md](starlight-authoring-contract.md) | Specs Markdown 的 Starlight authoring contract：frontmatter、description、duplicate H1、producer boundary、validator explicit path、legacy migration | refinement, breakdown, engineering, verify-AC, docs-manager, specs markdown producer |
+| [skill-progressive-disclosure.md](skill-progressive-disclosure.md) | Skill slimming 的 progressive disclosure placement policy：SKILL.md / reference / script / DP-memory 邊界、粒度與驗證期待 | skill slimming, framework iteration, refinement, breakdown, engineering, verify-AC, learning |

@@ -4,6 +4,24 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.51] - 2026-05-05
+
+### Added — skill progressive disclosure audit
+
+- Added a deterministic advisory scanner for Polaris `SKILL.md` progressive
+  disclosure health, with selftest coverage for thresholds, stdout,
+  Markdown output, and read-only behavior.
+- Added the skill progressive disclosure placement policy reference so future
+  slimming work has a shared `SKILL.md` / reference / script boundary.
+
+### Changed — verify-AC progressive disclosure
+
+- Moved verify-AC environment preparation details into a dedicated reference
+  while keeping the skill entrypoint focused on routing, boundaries, and
+  fail-stop behavior.
+- Registered the new verify-AC environment preparation reference in the shared
+  references index.
+
 ## [3.74.50] - 2026-05-05
 
 ### Added — docs-manager status i18n
