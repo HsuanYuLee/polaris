@@ -19,7 +19,10 @@ export default defineConfig({
       sidebar: [
         {
           label: 'Home',
-          items: [{ label: 'Quick Start', link: '/' }],
+          items: [
+            { label: 'Quick Start', link: '/' },
+            { label: 'Status Dashboard', link: '/status/' },
+          ],
         },
         {
           label: 'specs',

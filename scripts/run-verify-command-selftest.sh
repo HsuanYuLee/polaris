@@ -156,6 +156,8 @@ setup_fake_repo() {
   local repo_dir="$parent/$repo_name"
   mkdir -p "$repo_dir"
   git -C "$repo_dir" init -q -b main
+  printf '.polaris/\n' > "$repo_dir/.gitignore"
+  git -C "$repo_dir" -c user.email=t@t.t -c user.name=t add .gitignore >/dev/null
   git -C "$repo_dir" -c user.email=t@t.t -c user.name=t commit --allow-empty -q -m init
   printf '%s\n' "$repo_dir"
 }
@@ -212,20 +214,49 @@ assert_eq "$EV_EXEC_CWD" "$REPO_S" "evidence: execution_cwd field"
 
 # --repo must also be the Verify Command cwd. This catches cases where HEAD is
 # read from --repo but the command still runs from the caller cwd.
-echo "repo-cwd-ok" > "$REPO_S/repo-only.txt"
-TASK_CWD="$PARENT_S/specs/SELFTEST-001/tasks/T_cwd.md"
-make_fake_task_md "$REPO_S" "myrepo" "$TASK_CWD" "static" 'test -f repo-only.txt && cat repo-only.txt' "RVC-CWD"
+PARENT_C="$WORK_DIR/repo-cwd"
+mkdir -p "$PARENT_C/specs/SELFTEST-001/tasks"
+REPO_C="$(setup_fake_repo "$PARENT_C" "myrepo")"
+echo "repo-cwd-ok" > "$REPO_C/repo-only.txt"
+git -C "$REPO_C" -c user.email=t@t.t -c user.name=t add repo-only.txt >/dev/null
+git -C "$REPO_C" -c user.email=t@t.t -c user.name=t commit -q -m "repo cwd fixture"
+HEAD_C="$(git -C "$REPO_C" rev-parse HEAD)"
+TASK_CWD="$PARENT_C/specs/SELFTEST-001/tasks/T_cwd.md"
+make_fake_task_md "$REPO_C" "myrepo" "$TASK_CWD" "static" 'test -f repo-only.txt && cat repo-only.txt' "RVC-CWD"
 (
   cd "$WORK_DIR" || exit 1
-  "$RVC" --task-md "$TASK_CWD" --repo "$REPO_S"
+  "$RVC" --task-md "$TASK_CWD" --repo "$REPO_C"
 ) >"$WORK_DIR/cwd.out" 2>"$WORK_DIR/cwd.err"
 RC_CWD=$?
 assert_eq "$RC_CWD" "0" "--repo executes Verify Command in repo cwd"
 assert_contains "$(cat "$WORK_DIR/cwd.out")" "repo-cwd-ok" "repo cwd verify sees repo-only file"
-EV_CWD="/tmp/polaris-verified-RVC-CWD-${HEAD_S}.json"
+EV_CWD="/tmp/polaris-verified-RVC-CWD-${HEAD_C}.json"
 assert_file_exists "$EV_CWD" "repo cwd evidence file"
 EV_CWD_FIELD="$(python3 -c "import json; print(json.load(open('$EV_CWD'))['execution_cwd'])" 2>/dev/null)"
-assert_eq "$EV_CWD_FIELD" "$REPO_S" "repo cwd evidence records execution_cwd"
+assert_eq "$EV_CWD_FIELD" "$REPO_C" "repo cwd evidence records execution_cwd"
+
+# ────────────────────────────────────────────────────────────────────────────
+echo "=== dirty worktree refusal ==="
+PARENT_D="$WORK_DIR/dirty"
+mkdir -p "$PARENT_D/specs/SELFTEST-001/tasks"
+REPO_D="$(setup_fake_repo "$PARENT_D" "myrepo")"
+TASK_D="$PARENT_D/specs/SELFTEST-001/tasks/T1.md"
+make_fake_task_md "$REPO_D" "myrepo" "$TASK_D" "static" 'echo SHOULD_NOT_RUN' "RVC-DIRTY"
+HEAD_D="$(git -C "$REPO_D" rev-parse HEAD)"
+echo "dirty" > "$REPO_D/untracked.txt"
+
+"$RVC" --task-md "$TASK_D" >"$WORK_DIR/dirty.out" 2>"$WORK_DIR/dirty.err"
+RC_D=$?
+assert_eq "$RC_D" "1" "dirty worktree refuses verify evidence"
+assert_contains "$(cat "$WORK_DIR/dirty.err")" "refusing to write HEAD-bound evidence" "dirty refusal message"
+EV_D="/tmp/polaris-verified-RVC-DIRTY-${HEAD_D}.json"
+if [[ ! -f "$EV_D" ]]; then
+  PASS=$((PASS + 1))
+  [[ "$DEBUG" == "1" ]] && printf "  [ok] dirty refusal did not write evidence\n"
+else
+  FAIL=$((FAIL + 1))
+  printf "  [FAIL] dirty refusal wrote evidence: %s\n" "$EV_D"
+fi
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== verify command FAIL → exit 1, evidence still written ==="

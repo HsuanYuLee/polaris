@@ -4,6 +4,26 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.47] - 2026-05-04
+
+### Added — docs-manager status dashboard
+
+- Added a read-only docs-manager Status Dashboard route at `/docs-manager/status/`.
+- Added build-time status inference for active design plans and company specs,
+  including archive pruning, task summaries, unknown status handling, and
+  blocker reporting.
+- Added Status Dashboard entry points in the docs-manager sidebar, Quick Start,
+  and README.
+
+### Fixed — engineering gate cleanliness
+
+- Made `check-scope.sh` include committed, staged, unstaged, and untracked files
+  when matching changed paths against task Allowed Files.
+- Made `run-verify-command.sh` refuse dirty worktrees before writing
+  HEAD-bound verification evidence.
+- Added regression coverage for untracked scope checks and dirty verify
+  refusal.
+
 ## [3.74.46] - 2026-05-04
 
 ### Added — skill mechanization gates

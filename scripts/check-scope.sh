@@ -10,7 +10,7 @@
 #
 # Steps:
 #   1. parse-task-md.sh → allowed_files array + resolved_base + task_jira_key
-#   2. git diff --name-only {effective_base}..HEAD → changed files
+#   2. collect committed diff plus staged, unstaged, and untracked files
 #   3. Ignore delivery metadata that engineering itself must produce
 #      (.changeset/*.md), then check each remaining changed file against
 #      allowed patterns
@@ -348,6 +348,74 @@ TASK
   echo "$out" | grep -q '"base_source": "explicit"' && t="found" || t="missing"
   _assert "$t" "found" "T-int-4: output should include explicit base source"
 
+  # T-int-5: untracked files matching Allowed Files are included and pass.
+  (
+    cd "$LOCAL"
+    mkdir -p src/products
+    echo "new allowed" > src/products/new.ts
+  )
+  out=$(cd "$LOCAL" && _run "$TASK_MD" 2>/dev/null)
+  rc=$?
+  _assert "$rc" "1" "T-int-5 setup still includes previous out-of-scope change"
+  echo "$out" | grep -q "src/products/new.ts" && t="found" || t="missing"
+  _assert "$t" "found" "T-int-5: untracked allowed file should appear in within_scope output"
+
+  # T-int-6: untracked files outside Allowed Files fail loud.
+  TMPDIR_UNTRACKED=$(mktemp -d)
+  REMOTE_UNTRACKED="$TMPDIR_UNTRACKED/remote.git"
+  LOCAL_UNTRACKED="$TMPDIR_UNTRACKED/local"
+  git init --bare "$REMOTE_UNTRACKED" >/dev/null 2>&1
+  git clone "$REMOTE_UNTRACKED" "$LOCAL_UNTRACKED" >/dev/null 2>&1
+  (
+    cd "$LOCAL_UNTRACKED"
+    git checkout -b main >/dev/null 2>&1
+    mkdir -p src/products
+    echo "init" > src/products/list.ts
+    git add -A && git commit -m "init" >/dev/null 2>&1
+    git push -u origin main >/dev/null 2>&1
+    git checkout -b task/untracked >/dev/null 2>&1
+    echo "untracked allowed" > src/products/new.ts
+  )
+  TASK_UNTRACKED="$TMPDIR_UNTRACKED/task.md"
+  cat > "$TASK_UNTRACKED" <<'TASK'
+# T3 — Untracked Demo
+
+> Epic: TEST-3 | JIRA: TEST-3 | Repo: test
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Task JIRA key | TEST-3 |
+| Parent Epic | TEST-3 |
+| Base branch | main |
+| Task branch | task/untracked |
+| Depends on | — |
+
+## Allowed Files
+
+- `src/products/**`
+
+## Test Command
+
+echo ok
+TASK
+  out=$(cd "$LOCAL_UNTRACKED" && _run "$TASK_UNTRACKED" 2>/dev/null)
+  rc=$?
+  _assert "$rc" "0" "T-int-6: untracked allowed file should pass"
+  echo "$out" | grep -q "src/products/new.ts" && t="found" || t="missing"
+  _assert "$t" "found" "T-int-6: untracked allowed file should be reported"
+
+  (
+    cd "$LOCAL_UNTRACKED"
+    echo "bad" > src/outside.ts
+  )
+  out=$(cd "$LOCAL_UNTRACKED" && _run "$TASK_UNTRACKED" 2>/dev/null)
+  rc=$?
+  _assert "$rc" "1" "T-int-6: untracked out-of-scope file should fail"
+  echo "$out" | grep -q "src/outside.ts" && t="found" || t="missing"
+  _assert "$t" "found" "T-int-6: scope_additions should list untracked out-of-scope file"
+
   echo ""
   echo "check-scope.sh selftest: $PASS/$TOTAL passed, $FAIL failed"
   [[ "$FAIL" -eq 0 ]] && exit 0 || exit 1
@@ -424,8 +492,16 @@ else
   exit 2
 fi
 
-# Step 2: Get changed files
-DIFF_FILES=$(git -c core.quotePath=false diff --name-only "$BASE_REF"..HEAD 2>/dev/null)
+# Step 2: Get changed files. Include uncommitted files so scope cannot pass
+# while new files are still untracked or unstaged.
+DIFF_FILES=$(
+  {
+    git -c core.quotePath=false diff --name-only "$BASE_REF"..HEAD
+    git -c core.quotePath=false diff --name-only
+    git -c core.quotePath=false diff --cached --name-only
+    git -c core.quotePath=false ls-files --others --exclude-standard
+  } 2>/dev/null | sed '/^$/d' | sort -u
+)
 if [[ $? -ne 0 ]]; then
   echo "ERROR: git diff failed for $BASE_REF..HEAD" >&2
   exit 2

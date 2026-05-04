@@ -1,0 +1,272 @@
+---
+import {
+  blockerSummary,
+  groupDashboardItems,
+  inferStatusDashboard,
+  nextCommand,
+  primaryLink,
+  stageLabel,
+  statusLabel,
+  taskSummary,
+} from '../status/index.mjs';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const dashboard = inferStatusDashboard();
+const groups = groupDashboardItems(dashboard.items);
+const generatedAt = new Date().toISOString();
+const sections = [
+  { title: 'Design Plans', items: groups.designPlans },
+  { title: 'Company Specs', items: groups.companySpecs },
+];
+---
+
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Status Dashboard | Polaris Specs</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f8fafc;
+        --surface: #ffffff;
+        --border: #d9e2ec;
+        --text: #152033;
+        --muted: #5f6f86;
+        --accent: #0f766e;
+        --accent-weak: #e6fffb;
+        --warn: #92400e;
+        --warn-weak: #fff7ed;
+        --unknown: #475569;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(1420px, calc(100vw - 48px));
+        margin: 0 auto;
+        padding: 32px 0 48px;
+      }
+
+      header {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 24px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 30px;
+        line-height: 1.2;
+        letter-spacing: 0;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      nav {
+        margin-top: 4px;
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration-thickness: 1px;
+        text-underline-offset: 3px;
+      }
+
+      section {
+        margin-top: 28px;
+      }
+
+      h2 {
+        margin: 0 0 12px;
+        font-size: 18px;
+        letter-spacing: 0;
+      }
+
+      .table-shell {
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        background: var(--surface);
+      }
+
+      table {
+        width: 100%;
+        min-width: 980px;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      th,
+      td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        vertical-align: top;
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      th {
+        background: #eef3f8;
+        color: #334155;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .source {
+        width: 150px;
+        font-weight: 700;
+      }
+
+      .title {
+        width: 260px;
+      }
+
+      .status,
+      .stage {
+        width: 120px;
+      }
+
+      .tasks {
+        width: 220px;
+      }
+
+      .blockers {
+        width: 210px;
+      }
+
+      .next {
+        width: 190px;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        color: #1f2937;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 2px 8px;
+        border: 1px solid var(--border);
+        background: #f8fafc;
+        color: #334155;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .pill.locked,
+      .pill.implemented {
+        border-color: #99f6e4;
+        background: var(--accent-weak);
+        color: #115e59;
+      }
+
+      .pill.unknown,
+      .pill.blocked {
+        border-color: #fed7aa;
+        background: var(--warn-weak);
+        color: var(--warn);
+      }
+
+      .empty {
+        border: 1px dashed var(--border);
+        background: var(--surface);
+        padding: 18px;
+        color: var(--unknown);
+        font-size: 14px;
+      }
+
+      @media (max-width: 720px) {
+        main {
+          width: min(100vw - 24px, 1420px);
+          padding-top: 20px;
+        }
+
+        h1 {
+          font-size: 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Status Dashboard</h1>
+        <div class="meta">
+          <span>{dashboard.items.length} active items</span>
+          <span>{dashboard.specsRoot}</span>
+          <span>{generatedAt}</span>
+        </div>
+        <nav><a href={`${base}/`}>Quick Start</a></nav>
+      </header>
+
+      {
+        sections.map((section) => (
+          <section>
+            <h2>{section.title}</h2>
+            {section.items.length === 0 ? (
+              <div class="empty">No active items</div>
+            ) : (
+              <div class="table-shell">
+                <table>
+                  <thead>
+                    <tr>
+                      <th class="source">Source</th>
+                      <th class="title">Title</th>
+                      <th class="status">Status</th>
+                      <th class="stage">Stage</th>
+                      <th class="tasks">Tasks</th>
+                      <th class="blockers">Blockers</th>
+                      <th class="next">Next Command</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {section.items.map((item) => {
+                      const link = primaryLink(item, base);
+                      return (
+                        <tr>
+                          <td class="source">
+                            {link ? <a href={link}>{item.id}</a> : item.id}
+                          </td>
+                          <td class="title">{item.title}</td>
+                          <td class="status">
+                            <span class={`pill ${item.status}`}>{statusLabel(item.status)}</span>
+                          </td>
+                          <td class="stage">{stageLabel(item)}</td>
+                          <td class="tasks">{taskSummary(item)}</td>
+                          <td class="blockers">{blockerSummary(item)}</td>
+                          <td class="next">{nextCommand(item)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        ))
+      }
+    </main>
+  </body>
+</html>

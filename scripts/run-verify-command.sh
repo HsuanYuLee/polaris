@@ -182,6 +182,13 @@ if [[ -z "$HEAD_SHA" ]]; then
   exit 1
 fi
 
+WORKTREE_STATUS="$(git -C "$REPO_PATH" -c core.quotePath=false status --porcelain --untracked-files=all -- . ':(exclude).polaris/evidence/verify' 2>/dev/null || true)"
+if [[ -n "$WORKTREE_STATUS" ]]; then
+  echo "run-verify-command: repo has uncommitted changes; refusing to write HEAD-bound evidence" >&2
+  echo "$WORKTREE_STATUS" >&2
+  exit 1
+fi
+
 is_na_value() {
   local value
   value="$(printf '%s' "${1:-}" | xargs 2>/dev/null || true)"

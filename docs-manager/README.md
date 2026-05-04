@@ -21,6 +21,8 @@ npm run preview -- --host 127.0.0.1 --port 8080
 
 docs-manager 服務路徑固定在 `/docs-manager/`。
 
+Status Dashboard 位於 `/docs-manager/status/`，用 build-time filesystem scan 呈現 active design plans 與 company specs 的狀態。這個頁面只讀 `docs-manager/src/content/docs/specs`，不呼叫 JIRA / GitHub / Slack，也不會改寫 lifecycle status；真正的狀態轉移仍由 Polaris skills 與 scripts 執行。
+
 日常從 workspace root 使用 wrapper：
 
 ```bash
