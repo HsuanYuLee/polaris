@@ -10,16 +10,20 @@ import {
   statusLabel,
   taskSummary,
   inferToolchainHealth,
+  createTranslator,
+  resolveDocsManagerLocale,
 } from '../status/index.mjs';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const locale = resolveDocsManagerLocale();
+const t = createTranslator(locale);
 const dashboard = inferStatusDashboard();
 const toolchain = inferToolchainHealth();
 const groups = groupDashboardItems(dashboard.items);
 const generatedAt = new Date().toISOString();
 const sections = [
-  { title: 'Design Plans', slug: 'design-plans', items: groups.designPlans },
-  { title: 'Company Specs', slug: 'company-specs', items: groups.companySpecs },
+  { title: t('section.designPlans'), slug: 'design-plans', items: groups.designPlans },
+  { title: t('section.companySpecs'), slug: 'company-specs', items: groups.companySpecs },
 ];
 const headings = sections.map((section) => ({
   depth: 2,
@@ -30,8 +34,9 @@ const headings = sections.map((section) => ({
 
 <StarlightPage
   frontmatter={{
-    title: 'Status Dashboard',
-    description: 'Active Polaris specs, design plans, blockers, and suggested next commands.',
+    title: t('page.title'),
+    description: t('page.description'),
+    lang: locale,
   }}
   headings={headings}
 >
@@ -39,62 +44,59 @@ const headings = sections.map((section) => ({
     {
       toolchain.status === 'fail' ? (
         <section class="toolchain-health" aria-labelledby="toolchain-health">
-          <h2 id="toolchain-health">Toolchain Health</h2>
-          <p>Required Polaris runtime tools are missing or incomplete.</p>
+          <h2 id="toolchain-health">{t('toolchain.title')}</h2>
+          <p>{t('toolchain.failMessage')}</p>
           <ul>
             {toolchain.failures.map((failure) => (
               <li>
-                <strong>{failure.label}</strong>: <code>{failure.repair}</code>
+                <strong>{t(`toolchain.check.${failure.id}`)}</strong>: <code>{failure.repair}</code>
               </li>
             ))}
           </ul>
           <p>
-            Repair: <code>{toolchain.repairCommand}</code>
+            {t('toolchain.repairLabel')}: <code>{toolchain.repairCommand}</code>
           </p>
         </section>
       ) : (
         <section class="toolchain-health ok" aria-labelledby="toolchain-health">
-          <h2 id="toolchain-health">Toolchain Health</h2>
-          <p>Required Polaris runtime tools are installed.</p>
+          <h2 id="toolchain-health">{t('toolchain.title')}</h2>
+          <p>{t('toolchain.okMessage')}</p>
         </section>
       )
     }
     <section class="toolchain-health" aria-labelledby="nav-sync">
-      <h2 id="nav-sync">Navigation Sync</h2>
+      <h2 id="nav-sync">{t('navSync.title')}</h2>
+      <p>{t('navSync.message')}</p>
       <p>
-        Status Dashboard reads specs at runtime. Sidebar navigation is built by Starlight; reload the
-        viewer after adding or moving specs.
-      </p>
-      <p>
-        Reload: <code>{toolchain.navRepairCommand}</code>
+        {t('navSync.reloadLabel')}: <code>{toolchain.navRepairCommand}</code>
       </p>
     </section>
 
     <p class="dashboard-meta">
-      <span>{dashboard.items.length} active items</span>
+      <span>{t('meta.activeItems', { count: dashboard.items.length })}</span>
       <span>{dashboard.specsRoot}</span>
       <span>{generatedAt}</span>
     </p>
-    <p><a href={`${base}/`}>Quick Start</a></p>
+    <p><a href={`${base}/`}>{t('nav.quickStart')}</a></p>
 
     {
       sections.map((section) => (
         <section class="dashboard-section" aria-labelledby={section.slug}>
           <h2 id={section.slug}>{section.title}</h2>
           {section.items.length === 0 ? (
-            <div class="empty">No active items</div>
+            <div class="empty">{t('empty.noActiveItems')}</div>
           ) : (
             <div class="table-shell">
               <table class="status-table">
                 <thead>
                   <tr>
-                    <th class="source">Source</th>
-                    <th class="title">Title</th>
-                    <th class="status">Status</th>
-                    <th class="stage">Stage</th>
-                    <th class="tasks">Tasks</th>
-                    <th class="blockers">Blockers</th>
-                    <th class="next">Next Command</th>
+                    <th class="source">{t('table.source')}</th>
+                    <th class="title">{t('table.title')}</th>
+                    <th class="status">{t('table.status')}</th>
+                    <th class="stage">{t('table.stage')}</th>
+                    <th class="tasks">{t('table.tasks')}</th>
+                    <th class="blockers">{t('table.blockers')}</th>
+                    <th class="next">{t('table.nextCommand')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -105,13 +107,13 @@ const headings = sections.map((section) => ({
                         <td class="source">{link ? <a href={link}>{item.id}</a> : item.id}</td>
                         <td class="title">{item.title}</td>
                         <td class="status">
-                          <span class={`pill ${item.status}`}>{statusLabel(item.status)}</span>
+                          <span class={`pill ${item.status}`}>{statusLabel(item.status, locale)}</span>
                         </td>
-                        <td class="stage">{stageLabel(item)}</td>
-                        <td class="tasks">{taskSummary(item)}</td>
+                        <td class="stage">{stageLabel(item, locale)}</td>
+                        <td class="tasks">{taskSummary(item, locale)}</td>
                         <td class="blockers">{blockerSummary(item)}</td>
                         <td class="next">
-                          <code>{nextCommand(item)}</code>
+                          <code>{nextCommand(item, locale)}</code>
                         </td>
                       </tr>
                     );
@@ -127,13 +129,10 @@ const headings = sections.map((section) => ({
 </StarlightPage>
 
 <style>
-  :global(html) {
-    --sl-content-width: 86rem;
-  }
-
   .status-dashboard {
     display: grid;
     gap: 1rem;
+    min-width: 0;
   }
 
   .dashboard-meta {
@@ -147,6 +146,7 @@ const headings = sections.map((section) => ({
 
   .dashboard-section {
     margin-top: 1.5rem;
+    min-width: 0;
   }
 
   .toolchain-health {
@@ -172,6 +172,8 @@ const headings = sections.map((section) => ({
 
   .table-shell {
     overflow-x: auto;
+    max-width: 100%;
+    min-width: 0;
     border: 1px solid var(--sl-color-hairline);
     border-radius: 0.375rem;
     background: var(--sl-color-bg);

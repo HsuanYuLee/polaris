@@ -1,14 +1,4 @@
-const STATUS_LABELS = {
-  seeded: 'Seeded',
-  discussion: 'Discussion',
-  locked: 'Locked',
-  in_progress: 'In Progress',
-  implementing: 'Implementing',
-  implemented: 'Implemented',
-  blocked: 'Blocked',
-  abandoned: 'Abandoned',
-  unknown: 'Unknown',
-};
+import { translate } from './i18n.mjs';
 
 export function groupDashboardItems(items) {
   return {
@@ -17,32 +7,33 @@ export function groupDashboardItems(items) {
   };
 }
 
-export function statusLabel(status) {
-  return STATUS_LABELS[status] ?? 'Unknown';
+export function statusLabel(status, locale = 'en') {
+  return translate(locale, `status.${status}`, {}, 'status.unknown');
 }
 
-export function stageLabel(item) {
-  if (item.blockers.length > 0) return 'Needs attention';
-  if (item.status === 'implemented') return 'Done';
-  if (item.status === 'locked') return 'Ready';
-  if (item.tasks.total > 0) return 'Execution';
-  if (item.status === 'discussion' || item.status === 'seeded') return 'Refinement';
-  return 'Unknown';
+export function stageLabel(item, locale = 'en') {
+  if (item.blockers.length > 0) return translate(locale, 'stage.needsAttention');
+  if (item.status === 'implemented') return translate(locale, 'stage.done');
+  if (item.status === 'locked') return translate(locale, 'stage.ready');
+  if (item.tasks.total > 0) return translate(locale, 'stage.execution');
+  if (item.status === 'discussion' || item.status === 'seeded') return translate(locale, 'stage.refinement');
+  return translate(locale, 'stage.unknown');
 }
 
-export function nextCommand(item) {
+export function nextCommand(item, locale = 'en') {
   if (item.sourceType === 'design-plan') {
     if (item.status === 'seeded' || item.status === 'discussion' || item.status === 'unknown') {
       return `refinement ${item.id}`;
     }
     if (item.status === 'locked' && item.tasks.total === 0) return `breakdown ${item.id}`;
-    if (item.status === 'locked') return `做 ${item.id}-T1`;
+    if (item.status === 'locked') return translate(locale, 'command.workOn', { id: `${item.id}-T1` });
     return `review ${item.id}`;
   }
 
   if (item.blockers.includes('missing-primary-artifact')) return `refinement ${item.id}`;
   if (item.tasks.total === 0) return `breakdown ${item.id}`;
-  return `做 ${item.id}`;
+  if (item.blockers.length > 0) return translate(locale, 'command.inspectBlocker', { id: item.id });
+  return translate(locale, 'command.workOn', { id: item.id });
 }
 
 export function primaryLink(item, base = '/docs-manager') {
@@ -51,15 +42,15 @@ export function primaryLink(item, base = '/docs-manager') {
   return `${trimBase(base)}/specs/${route}/`;
 }
 
-export function taskSummary(item) {
+export function taskSummary(item, locale = 'en') {
   const tasks = item.tasks;
   if (tasks.total === 0) return '0';
   return [
-    `${tasks.total} total`,
-    `${tasks.byStatus.implemented} done`,
-    `${tasks.byStatus.in_progress} active`,
-    `${tasks.byStatus.blocked} blocked`,
-    `${tasks.byStatus.unknown} unknown`,
+    translate(locale, 'tasks.total', { count: tasks.total }),
+    translate(locale, 'tasks.done', { count: tasks.byStatus.implemented }),
+    translate(locale, 'tasks.active', { count: tasks.byStatus.in_progress }),
+    translate(locale, 'tasks.blocked', { count: tasks.byStatus.blocked }),
+    translate(locale, 'tasks.unknown', { count: tasks.byStatus.unknown }),
   ].join(' / ');
 }
 

@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.50] - 2026-05-05
+
+### Added — docs-manager status i18n
+
+- Added docs-manager runtime i18n helpers that read `workspace-config.yaml`
+  language and support English plus `zh-TW` with English fallback.
+- Wired Status Dashboard labels, status/stage/task summaries, and Starlight
+  root locale to the configured workspace language.
+
+### Fixed — status dashboard layout
+
+- Restored the Status Dashboard to Starlight native content width and kept wide
+  status tables scrolling inside the table shell instead of overlapping the
+  right table of contents.
+
 ## [3.74.49] - 2026-05-05
 
 ### Added — template leak guard

@@ -1,8 +1,15 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import { specsSidebar } from './sidebar.mjs';
+import {
+  createTranslator,
+  resolveDocsManagerLocale,
+  starlightLocaleConfig,
+} from './src/status/i18n.mjs';
 
 const site = process.env.POLARIS_DOCS_MANAGER_SITE || 'http://127.0.0.1:8080';
+const locale = resolveDocsManagerLocale();
+const t = createTranslator(locale);
 
 export default defineConfig({
   site,
@@ -11,6 +18,9 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Polaris Specs',
+      locales: {
+        root: starlightLocaleConfig(locale),
+      },
       logo: {
         src: './src/assets/polaris-logo.png',
         alt: 'Polaris',
@@ -18,10 +28,10 @@ export default defineConfig({
       social: [],
       sidebar: [
         {
-          label: 'Home',
+          label: t('nav.home'),
           items: [
-            { label: 'Quick Start', link: '/' },
-            { label: 'Status Dashboard', link: '/status/' },
+            { label: t('nav.quickStart'), link: '/' },
+            { label: t('nav.statusDashboard'), link: '/status/' },
           ],
         },
         {

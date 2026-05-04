@@ -13,3 +13,10 @@ export {
   taskSummary,
 } from './presenter.mjs';
 export { inferToolchainHealth } from './toolchain.mjs';
+export {
+  createTranslator,
+  normalizeLocale,
+  resolveDocsManagerLocale,
+  starlightLocaleConfig,
+  translate,
+} from './i18n.mjs';
