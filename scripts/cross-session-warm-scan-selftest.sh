@@ -8,8 +8,8 @@
 #   - zero-input forms ("繼續", "繼續\n", "下一步") → silent (no output)
 #   - "繼續 polaris" → matches polaris-framework Warm folder + flat root files
 #   - "繼續 DP-015" → matches DP-015 file in flat root
-#   - "繼續 GT-478" → matches Warm topic folder file (cwv-epics/)
-#   - "繼續做 KB2CW-3711" → strips leading verb, matches KB2CW key
+#   - "繼續 EPIC-478" → matches Warm topic folder file (cwv-epics/)
+#   - "繼續做 TASK-3711" → strips leading verb, matches KB2CW key
 #   - "continue dp-015" (lowercase / English trigger) → still matches
 #   - prompt with no trigger ("hello world") → silent
 #   - JSON with no user_prompt field → silent
@@ -137,15 +137,15 @@ assert_not_contains "$out" "MEMORY.md" "[6d] polaris → top-level MEMORY.md exc
 out=$(run_hook "繼續 DP-015")
 assert_contains "$out" "project_dp015_polaris_context_efficiency.md" "[7a] DP-015 → flat file"
 
-# 8. 繼續 GT-478 → matches cwv-epics Warm folder
-out=$(run_hook "繼續 GT-478")
-assert_contains "$out" "cwv-epics/project_gt478_t3_rescope.md" "[8a] GT-478 → Warm folder file"
-assert_contains "$out" "cwv-epics/project_gt478_t1_done.md" "[8b] GT-478 → second match"
+# 8. 繼續 EPIC-478 → matches cwv-epics Warm folder
+out=$(run_hook "繼續 EPIC-478")
+assert_contains "$out" "cwv-epics/project_gt478_t3_rescope.md" "[8a] EPIC-478 → Warm folder file"
+assert_contains "$out" "cwv-epics/project_gt478_t1_done.md" "[8b] EPIC-478 → second match"
 
-# 9. 繼續做 KB2CW-3711 → strip 做, match KB2CW key (no file in fake tree, so silent OK)
+# 9. 繼續做 TASK-3711 → strip 做, match KB2CW key (no file in fake tree, so silent OK)
 # Add a file to verify the key works
 : > "$MEM/cwv-epics/project_kb2cw3711_done.md"
-out=$(run_hook "繼續做 KB2CW-3711")
+out=$(run_hook "繼續做 TASK-3711")
 assert_contains "$out" "kb2cw3711" "[9a] 繼續做 strips verb, matches KB2CW key"
 
 # 10. continue dp-015 (English trigger, lowercase keyword)
@@ -169,10 +169,10 @@ out=$(run_hook "繼續 dp015")
 assert_contains "$out" "archive/old_dp015_artifact.md" "[14] archive/ Cold matches surfaced"
 
 # 15. Multi-keyword prompt → captures multiple, capped at 3
-out=$(run_hook "繼續 polaris GT-478 DP-015 extra-token-four")
-# Should match polaris and GT-478 (first two of the three considered)
+out=$(run_hook "繼續 polaris EPIC-478 DP-015 extra-token-four")
+# Should match polaris and EPIC-478 (first two of the three considered)
 assert_contains "$out" "polaris-framework" "[15a] multi-keyword: polaris matches"
-assert_contains "$out" "cwv-epics" "[15b] multi-keyword: GT-478 matches"
+assert_contains "$out" "cwv-epics" "[15b] multi-keyword: EPIC-478 matches"
 
 # 16. prompt that mentions 繼續 but inline / mid-sentence
 out=$(run_hook "今天我想繼續 polaris 的工作")

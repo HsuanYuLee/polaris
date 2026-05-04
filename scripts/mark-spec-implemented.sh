@@ -6,9 +6,9 @@
 #   mark-spec-implemented.sh <ticket_key> [--status IMPLEMENTED|ABANDONED] [--workspace <path>]
 #
 # Examples:
-#   mark-spec-implemented.sh GT-521
-#   mark-spec-implemented.sh KB2CW-3847 --status IMPLEMENTED
-#   mark-spec-implemented.sh GT-483 --status ABANDONED
+#   mark-spec-implemented.sh EPIC-521
+#   mark-spec-implemented.sh TASK-3847 --status IMPLEMENTED
+#   mark-spec-implemented.sh EPIC-483 --status ABANDONED
 #
 # Behavior:
 #   Epic/Bug anchor (refinement.md / plan.md):
@@ -51,8 +51,8 @@ run_selftest() {
   trap "rm -rf '$tmpdir'" EXIT
 
   mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks" \
-           "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-001/tasks" \
-           "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/GT-OLD/tasks"
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-001/tasks" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/GT-OLD/tasks"
   cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/T1.md" <<'MD'
 # T1: Canonical DP task (1 pt)
 
@@ -77,23 +77,23 @@ MD
   [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" ]] || { echo "[selftest] pr-release task missing"; return 1; }
   grep -q '^status: IMPLEMENTED$' "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" || { echo "[selftest] status missing"; return 1; }
 
-  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-001/tasks/T2.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-001/tasks/T2.md" <<'MD'
 # T2: Active product task (1 pt)
-> Source: GT-001 | Task: GT-001 | JIRA: GT-001 | Repo: kkday
+> Source: EPIC-001 | Task: EPIC-001 | JIRA: EPIC-001 | Repo: exampleco
 ## Operational Context
 | 欄位 | 值 |
 |------|-----|
 | Source type | jira |
-| Source ID | GT-001 |
-| Task ID | GT-001 |
-| JIRA key | GT-001 |
+| Source ID | EPIC-001 |
+| Task ID | EPIC-001 |
+| JIRA key | EPIC-001 |
 | Base branch | main |
-| Task branch | task/GT-001-active |
+| Task branch | task/EPIC-001-active |
 MD
 
-  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/GT-OLD/tasks/T2.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/GT-OLD/tasks/T2.md" <<'MD'
 # T2: Archived product task (1 pt)
-> Source: GT-OLD | Task: GT-OLD | JIRA: GT-OLD | Repo: kkday
+> Source: GT-OLD | Task: GT-OLD | JIRA: GT-OLD | Repo: exampleco
 ## Operational Context
 | Task branch | task/GT-OLD-archived |
 MD
@@ -101,11 +101,11 @@ MD
   rc=0
   env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" T2 --workspace "$tmpdir" >/dev/null || rc=$?
   [[ "$rc" -eq 0 ]] || { echo "[selftest] active task key mark implemented failed"; return 1; }
-  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-001/tasks/pr-release/T2.md" ]] || { echo "[selftest] active T2 pr-release task missing"; return 1; }
-  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/GT-OLD/tasks/T2.md" ]] || { echo "[selftest] archived T2 was moved unexpectedly"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-001/tasks/pr-release/T2.md" ]] || { echo "[selftest] active T2 pr-release task missing"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/GT-OLD/tasks/T2.md" ]] || { echo "[selftest] archived T2 was moved unexpectedly"; return 1; }
 
-  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-PARENT"
-  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-PARENT/refinement.md" <<'MD'
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/GT-PARENT"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/GT-PARENT/refinement.md" <<'MD'
 ---
 title: "GT-PARENT"
 status: DISCUSSION
@@ -121,8 +121,8 @@ MD
   rc=0
   env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" GT-PARENT --workspace "$tmpdir" >/dev/null || rc=$?
   [[ "$rc" -eq 0 ]] || { echo "[selftest] parent mark implemented failed"; return 1; }
-  grep -q '^status: IMPLEMENTED$' "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-PARENT/refinement.md" || { echo "[selftest] parent status not updated"; return 1; }
-  grep -q 'text: "IMPLEMENTED"' "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-PARENT/refinement.md" || { echo "[selftest] parent sidebar badge not refreshed"; return 1; }
+  grep -q '^status: IMPLEMENTED$' "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/GT-PARENT/refinement.md" || { echo "[selftest] parent status not updated"; return 1; }
+  grep -q 'text: "IMPLEMENTED"' "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/GT-PARENT/refinement.md" || { echo "[selftest] parent sidebar badge not refreshed"; return 1; }
 
   echo "[selftest] PASS"
 }
@@ -163,7 +163,7 @@ SPECS_ROOT="$(resolve_specs_root "$WORKSPACE_ROOT")" || {
 }
 
 if [ -z "$TICKET" ]; then
-  echo "ERROR: ticket key required (e.g., GT-521 or KB2CW-3847)" >&2
+  echo "ERROR: ticket key required (e.g., EPIC-521 or TASK-3847)" >&2
   exit 1
 fi
 

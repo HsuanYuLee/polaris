@@ -93,7 +93,7 @@ if [[ "$MODE" == "push" ]]; then
 fi
 ticket=""
 
-# Match patterns: task/KB2CW-1234-desc, feat/GT-521-desc, fix/KB2CW-1234
+# Match patterns: task/TASK-1234-desc, feat/EPIC-521-desc, fix/TASK-1234
 # Project keys may contain digits (e.g., KB2CW), so [A-Z][A-Z0-9]+ not [A-Z]+
 if [[ "$branch" =~ ([A-Z][A-Z0-9]+-[0-9]+) ]]; then
   ticket="${BASH_REMATCH[1]}"

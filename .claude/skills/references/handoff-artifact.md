@@ -27,19 +27,19 @@ Both sit in the same folder and follow the same format. The difference is the **
 |------|--------|---------|
 | skill | skill name slug | `bug-triage`, `engineering`, `verify-ac` |
 | scope | optional scope qualifier, omit if not meaningful | `root-cause`, `ac-fail`, `verify-fail` |
-| ticket_key | primary JIRA key being worked on | `KB2CW-3847`, `GT-521` |
+| ticket_key | primary JIRA key being worked on | `TASK-3847`, `EPIC-521` |
 | timestamp | UTC, seconds-precision, `Z` suffix | `2026-04-22T153000Z` |
 
-Full example: `specs/GT-521/artifacts/bug-triage-root-cause-KB2CW-3847-2026-04-22T153000Z.md`
+Full example: `specs/EPIC-521/artifacts/bug-triage-root-cause-TASK-3847-2026-04-22T153000Z.md`
 
-When `scope` is not needed the segment is dropped: `engineering-KB2CW-3847-2026-04-22T154500Z.md`.
+When `scope` is not needed the segment is dropped: `engineering-TASK-3847-2026-04-22T154500Z.md`.
 
 ## Artifact Format
 
 ```markdown
 ---
 skill: bug-triage
-ticket: KB2CW-3847
+ticket: TASK-3847
 scope: root-cause
 timestamp: 2026-04-22T15:30:00Z
 truncated: false
@@ -122,8 +122,8 @@ Each producing skill decides its own write rules. Keep the rule concrete: what *
 | Batch mode (parallel sub-agents) | **Write per ticket** | — | Same as first-cut, one artifact per ticket |
 
 Filename examples:
-- `engineering-KB2CW-3847-2026-04-22T154500Z.md` (first-cut)
-- `engineering-revision-KB2CW-3847-2026-04-22T170000Z.md` (revision)
+- `engineering-TASK-3847-2026-04-22T154500Z.md` (first-cut)
+- `engineering-revision-TASK-3847-2026-04-22T170000Z.md` (revision)
 
 Why write unconditionally: engineering's work IS the delivered change. verify-AC needs the Layer B evidence trail to understand what was tested locally vs what it's about to re-verify. This is also the Completion Envelope Detail file for the dispatching Strategist — single file, dual consumer (see § Interaction with Existing Mechanisms below).
 
@@ -177,7 +177,7 @@ Place this block **after** the work-order reading instruction (so the sub-agent 
 - **Writer-side scrub + cap**: `scripts/snapshot-scrub.py` (stdin → stdout, or `--file path` in place)
 - **Typical invocation** (inside a sub-agent Bash step):
   ```bash
-  python3 scripts/snapshot-scrub.py --file specs/GT-521/artifacts/bug-triage-root-cause-KB2CW-3847-2026-04-22T153000Z.md
+  python3 scripts/snapshot-scrub.py --file specs/EPIC-521/artifacts/bug-triage-root-cause-TASK-3847-2026-04-22T153000Z.md
   ```
   The script reads the file, scrubs secrets in `## Raw Evidence`, applies the 20KB cap, updates frontmatter `scrubbed` / `truncated` booleans, and rewrites the file in place.
 

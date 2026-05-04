@@ -4,6 +4,23 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.49] - 2026-05-05
+
+### Added — template leak guard
+
+- Added `scan-template-leaks.sh` with selftest coverage for deterministic
+  workspace/template leak scans over the sync surface.
+- Added blocking leak-check integration to `sync-to-polaris.sh`, with
+  `--leak-warn-only` retained for explicit compatibility runs.
+
+### Changed — portable examples
+
+- Replaced company-specific tickets, orgs, domains, repo names, package scopes,
+  paths, and lesson metadata in shared framework docs, skills, hooks, scripts,
+  and fixtures with neutral examples.
+- Renamed shared handbook fixtures from company-specific names to ExampleCo
+  fixtures so template paths stay portable.
+
 ## [3.74.48] - 2026-05-05
 
 ### Added — runtime toolchain ownership
@@ -114,7 +131,7 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 ### Fixed — polaris-config migration closure
 
 - Made company workspace directories local-only and removed previously tracked
-  `kkday/` framework workspace context from version control.
+  `exampleco/` framework workspace context from version control.
 - Removed steady-state runtime dependence on the transitional
   `polaris-sync.sh` script; handbook and generated-script flows now operate
   directly on workspace-owned `polaris-config`.
@@ -1020,7 +1037,7 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 - Extended branch reverse lookup, task validation, completion freshness, and
   lifecycle move-first helpers to support `DP-NNN-Tn` pseudo task identities.
 - Documented the shared task.md schema for DP tasks and product tasks, and
-  added the framework repo PR template copied from `kkday-b2c-web`.
+  added the framework repo PR template copied from `exampleco-b2c-web`.
 
 ## [3.73.28] - 2026-04-28
 
@@ -1249,7 +1266,7 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 ### Added — branch chain cascade rebase
 
 - Added task.md `Branch chain` support so breakdown records the full rebase
-  path, such as `develop -> feat/GT-478-... -> task/KB2CW-...`.
+  path, such as `develop -> feat/EPIC-478-... -> task/KB2CW-...`.
 - Added `resolve-branch-chain.sh` and `cascade-rebase-chain.sh` so engineering
   can deterministically rebase the chain from upstream to downstream before
   first-cut branch setup or revision work.
@@ -1281,7 +1298,7 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 - Without this, any downstream task whose `depends_on` points to a completed
   upstream errored out with `cannot find upstream task.md for JIRA key …`,
   blocking `revision-rebase.sh` and `engineering` revision mode for stacked
-  Epics (e.g. GT-478 T3b/T3c/T3d once T3a was archived).
+  Epics (e.g. EPIC-478 T3b/T3c/T3d once T3a was archived).
 - Added selftest case 9 covering the upstream-in-complete/ path; full suite
   now 9/9 green.
 
@@ -1398,7 +1415,7 @@ Without this, scope blockers ended either as ad-hoc "edit task.md and continue"
   (flavor enum, count ∈ {1,2}), 20KB body cap, lineage cap; `--self-test` mode
   for local validation.
 - **Flavor decision tree** — `skills/references/escalation-flavor-guide.md`
-  with worked examples (incl. GT-478 T3a / KkStorage.ts as `env-drift` case).
+  with worked examples (incl. EPIC-478 T3a / KkStorage.ts as `env-drift` case).
 - **Mechanism registry** — 3 new entries (`engineering-escalation-sidecar-only`
   Critical, `escalation-count-cap` High, `breakdown-escalation-intake` Medium).
 
@@ -1529,7 +1546,7 @@ a migration window.
   longer matches the old path in tracked source.
 - **Selftests**: `ci-local-generate-selftest.sh` 54/54 PASS,
   `verification-evidence-gate-selftest.sh` 21/21 PASS. Dogfood against
-  `kkday-b2c-web` confirmed: new file landed under `.claude/scripts/`,
+  `exampleco-b2c-web` confirmed: new file landed under `.claude/scripts/`,
   `.git/info/exclude` entry written, `git status` clean, old file removed.
 
 Canonical record: `specs/design-plans/DP-043-ci-local-relocation/plan.md`.
@@ -1626,7 +1643,7 @@ delivery evidence invariants as git/PR actions.
   worktree or fresh checkout. "Install deps first" is no longer an LLM memory
   heuristic.
 - **Workspace config schema**: `projects[].dev_environment.install_command` is
-  now documented in the config reader and seeded in KKday workspace examples for
+  now documented in the config reader and seeded in ExampleCo workspace examples for
   pnpm repos.
 
 ## [3.70.1] - 2026-04-27
@@ -1673,7 +1690,7 @@ Backlog Roadmap item #3 closed. The four inline bash steps that opened
 fetch + rebase → PR base sync) are extracted into a single deterministic
 script that engineering revision-mode now calls as its first step. Removes
 the "AI must remember to do this" failure mode that surfaced in the
-KB2CW-2863 revision session.
+TASK-2863 revision session.
 
 - **`scripts/revision-rebase.sh`** — pure deterministic R0 automation.
   Defaults derive from cwd via `git rev-parse --show-toplevel` +
@@ -1722,10 +1739,10 @@ types `繼續 X` / `continue X`.
 - **`.claude/hooks/cross-session-warm-scan.sh`** (new) — UserPromptSubmit
   hook. Detects the trigger pattern, extracts up to 3 keywords (JIRA
   keys + alphanumeric tokens ≥ 3 chars, stop-word filtered), strips
-  leading verb particles (`繼續做 KB2CW-3711` → `KB2CW-3711`), and
+  leading verb particles (`繼續做 TASK-3711` → `TASK-3711`), and
   recursively `find -iname '*{kw}*.md'` against the memory directory.
   Dash-normalized matching handles JIRA keys vs filename convention
-  (`GT-478` matches `project_gt478_*.md`). Top-level `MEMORY.md` index
+  (`EPIC-478` matches `project_gt478_*.md`). Top-level `MEMORY.md` index
   is excluded from results (it's a pointer, not content). Caps at 3
   keywords × 8 files each to avoid noise on rich prompts. Memory dir
   path overridable via `POLARIS_MEMORY_DIR` for selftests. Memory dir
@@ -1759,7 +1776,7 @@ types `繼續 X` / `continue X`.
   `*` matcher pointing at the new hook script.
 
 **Trigger fix:** the `繼續\b` regex previously failed to match
-`繼續做 KB2CW-3711` because Python's ASCII word-boundary `\b` requires
+`繼續做 TASK-3711` because Python's ASCII word-boundary `\b` requires
 `\w` on one side and Chinese chars are non-word — replaced with
 `繼續\s*` plus a leading-verb stripper. Verified by selftest case [9].
 
@@ -1976,7 +1993,7 @@ Phase B adds **only** what the verification side genuinely needs:
   `T*.md` to `[TV]*.md`. Same DAG / linear / fixture / D6 same-key
   invariants now apply across T+V. New cross-type direction check:
   V→T pass / V→V pass / T→V fail (DP-033 D4 § 5.3). Synthetic dogfood
-  confirmed both sides fire correctly; existing kkday/specs scan: 3 pass /
+  confirmed both sides fire correctly; existing exampleco/specs scan: 3 pass /
   0 fail (no regression).
 - `.claude/hooks/pipeline-artifact-gate.sh`: V*.md branch now also runs
   `validate-task-md-deps.sh` (Phase A had a TODO comment; Phase B activates).
@@ -2054,7 +2071,7 @@ wiring of D11 / D8 / D22 / D25 into consumers.
 **Inventory corrections vs the original Wave γ checkpoint memory**
 
 - `start-dev/` skill does not exist in framework `.claude/skills/` (only in
-  kkday fork; out of scope).
+  exampleco fork; out of scope).
 - `bug-triage/SKILL.md` has no transition pattern — no rewiring needed.
 - `engineering/SKILL.md` shares the JIRA transition with delivery-flow §
   Step 8 (single source of truth, no separate engineering callsite).
@@ -2173,7 +2190,7 @@ plan stays at `status: DISCUSSION` until Phase B closes.
 
 **Dogfood (A10 + A11)**
 
-- A10 schema dogfood against GT-478: 0 false positives. All 7 findings
+- A10 schema dogfood against EPIC-478: 0 false positives. All 7 findings
   are true positives that A7 migration apply will resolve cleanly.
 - A11 synthetic end-to-end (10 steps in `/tmp` exercising A2 + A3 + A4
   + A5 + A6 + A8 + § 5.5 + same-key uniqueness): 10/10 PASS.
@@ -2361,14 +2378,14 @@ Land the foundational scripts and reference docs for the engineering-determinist
 - `scripts/parse-task-md.sh` (bash + python3 inline parser)
 - Two output modes: full JSON envelope or `--field <key>` flat alias
 - N/A sentinel normalized to null; resolves base via `resolve-task-base.sh` with soft-fail
-- Selftest passes; smoke-tested against GT-478 T1/T3b/T3d
+- Selftest passes; smoke-tested against EPIC-478 T1/T3b/T3d
 - Callsite rewiring deferred to Wave γ
 
 **D25 — JIRA transition unified entry**:
 - `scripts/polaris-jira-transition.sh` (cross-LLM REST API; bash 3.2 compatible)
 - Built-in default slug→name map (in_development / code_review / done / waiting_qa / qa_pass / blocked)
 - Aggressive soft-fail (per D25 reframe: JIRA transition is a nice-to-have display layer; task.md is authoritative)
-- Smoke-tested on KB2CW-3711
+- Smoke-tested on TASK-3711
 - Callsite rewiring (engineering / verify-AC / bug-triage / start-dev) deferred to Wave γ
 
 **D12-b — tool-agnostic CI mirror generator**:
@@ -2387,7 +2404,7 @@ Land the foundational scripts and reference docs for the engineering-determinist
 - shellcheck `--severity=error` gate (0 errors today; warning + info + style cleanup deferred — separate session via "cleanup polaris shellcheck warnings" trigger)
 - ruff check (5 files auto-fixed in this release; 0 issues today)
 
-### Fix — KB2CW-3900 interim (subsumed by D12-c)
+### Fix — TASK-3900 interim (subsumed by D12-c)
 
 `ci-contract-run.sh` Nuxt prepare auto-detect + empty-coverage safety net. Both additions document the bug to fix in D12-c (full `ci-contract-run.sh` deletion, ci-local.sh take over).
 
@@ -2410,7 +2427,7 @@ Revision mode 只做 `git push`（不經 `gh pr create`），完全繞過 DP-029
 - `verification-evidence-required`：補充 `git push` 攔截描述 + DP-031 條件
 - `revision-r5-mandatory`：補充 DP-031 deterministic backup 說明
 
-**Origin**: KB2CW-3900 session — PR #2206 revision 補測試，ci-contract-run.sh 未執行，git push 成功，evidence 完全不存在。
+**Origin**: TASK-3900 session — PR #2206 revision 補測試，ci-contract-run.sh 未執行，git push 成功，evidence 完全不存在。
 
 ## [3.55.1] - 2026-04-24
 
@@ -2731,7 +2748,7 @@ echo 'git -C /Users/hsuanyu.lee/work commit -m "test"' | \
 
 ### DP-029 Phase A + Phase B — CI-Equivalent Coverage: Hook Detection + Codecov Patch Gate Simulation
 
-Closes the gap where `ci-contract-run.sh` marks a local run PASS while Codecov's `patch` status fails on the same commit. Root cause on PR #2206 (`kkday-b2c-web`): discover only scanned the first `patch` status per flag and ignored `threshold`; runner treated `target: auto` as auto-pass; `choose_base_branch` hardcoded `develop/main/master` so task branches with upstream task bases computed diff against the wrong ref; and the monorepo lcov file paths (relative to package root) did not reconcile with git diff paths (relative to repo root).
+Closes the gap where `ci-contract-run.sh` marks a local run PASS while Codecov's `patch` status fails on the same commit. Root cause on PR #2206 (`exampleco-b2c-web`): discover only scanned the first `patch` status per flag and ignored `threshold`; runner treated `target: auto` as auto-pass; `choose_base_branch` hardcoded `develop/main/master` so task branches with upstream task bases computed diff against the wrong ref; and the monorepo lcov file paths (relative to package root) did not reconcile with git diff paths (relative to repo root).
 
 **Added (Phase A — hook-layer detection, rough)**
 
@@ -2760,7 +2777,7 @@ Closes the gap where `ci-contract-run.sh` marks a local run PASS while Codecov's
 - Synthetic PASS scenario (same repo, fully covered): coverage 100%, `flag_results[0].status: PASS`, overall PASS, exit 0. ✅
 - Synthetic `target: auto` scenario: `flag_results[0].status: SKIP`, `reason: patch_auto_target_not_supported_locally`, overall PASS, exit 0. ✅
 - `.pre-commit-config.yaml` synthetic dogfood: 2 hook entries (`trailing-whitespace`, `check-yaml`), `hook_type: pre-commit`. ✅
-- Real b2c-web dogfood (branch `task/KB2CW-3468-lodash-cdn-unify` against develop): 5 `dev_hooks` entries (husky pre-commit w/ `pnpm exec lint-staged` → `lint`, commit-msg commitlint, post-merge `pnpm install` → `install`, `.lintstagedrc.mjs` marker), schema v2 flag gates correct (`main-core` project auto+threshold 1% + patch 60%, `multiples` report-only), monorepo prefix strip resolved — `main-core` patch coverage 20.67% (43 / 208 changed lines), which in non-dry-run mode drives exit 1 via deterministic `if coverage < effective_target` branch.
+- Real b2c-web dogfood (branch `task/TASK-3468-lodash-cdn-unify` against develop): 5 `dev_hooks` entries (husky pre-commit w/ `pnpm exec lint-staged` → `lint`, commit-msg commitlint, post-merge `pnpm install` → `install`, `.lintstagedrc.mjs` marker), schema v2 flag gates correct (`main-core` project auto+threshold 1% + patch 60%, `multiples` report-only), monorepo prefix strip resolved — `main-core` patch coverage 20.67% (43 / 208 changed lines), which in non-dry-run mode drives exit 1 via deterministic `if coverage < effective_target` branch.
 
 **Scope boundaries (explicit)**
 
@@ -2800,7 +2817,7 @@ Closes the gap where multi-task Epics let engineering open PRs against stale or 
 
 **Dogfood**
 
-- GT-478 T3b/T3c/T3d PRs (#2206, #2205, #2207) had stale `feat/GT-478-cwv-js-bundle` base because T3a (KB2CW-3711) hadn't merged. Mechanism detected, engineering revision mode R0 applied `gh pr edit --base task/KB2CW-3711-dayjs-infra-util` to all three, hook validated each edit. Three PRs now stacked correctly against the predecessor task branch.
+- EPIC-478 T3b/T3c/T3d PRs (#2206, #2205, #2207) had stale `feat/EPIC-478-cwv-js-bundle` base because T3a (TASK-3711) hadn't merged. Mechanism detected, engineering revision mode R0 applied `gh pr edit --base task/TASK-3711-dayjs-infra-util` to all three, hook validated each edit. Three PRs now stacked correctly against the predecessor task branch.
 
 ## [3.47.0] - 2026-04-23
 
@@ -2809,7 +2826,7 @@ Closes the gap where multi-task Epics let engineering open PRs against stale or 
 **Added**
 
 - New reference `skills/references/worktree-dispatch-paths.md` — canonical path map for worktree sub-agents accessing gitignored framework artifacts (`specs/`, `.claude/skills/`). Includes a copy-paste dispatch block and rationale. Indexed under Sub-agent & Exploration in `references/INDEX.md`.
-- Backlog entries for related worktree friction surfaced during KB2CW-3711: Verify Command hardcoded main-checkout paths, and `pre-commit-quality.sh` full-repo vs scoped-to-changed scanning.
+- Backlog entries for related worktree friction surfaced during TASK-3711: Verify Command hardcoded main-checkout paths, and `pre-commit-quality.sh` full-repo vs scoped-to-changed scanning.
 
 **Changed**
 
@@ -2868,7 +2885,7 @@ Closes the gap where multi-task Epics let engineering open PRs against stale or 
 
 **Changed**
 
-- DP-010 (CWV/SEO Epic Full Classification) plan status → IMPLEMENTED. All 4 rounds complete; GT-542 "[SEO] Product Heading 整理" Epic created with Relates links from GT-488/489/490.
+- DP-010 (CWV/SEO Epic Full Classification) plan status → IMPLEMENTED. All 4 rounds complete; EPIC-542 "[SEO] Product Heading 整理" Epic created with Relates links from EPIC-488/489/490.
 
 ## [3.43.0] - 2026-04-22
 
@@ -2930,7 +2947,7 @@ Closes the gap where multi-task Epics let engineering open PRs against stale or 
 | task.md | 13 | 13 | 0 |
 | task.md deps | 3 Epics | 3 | 0 |
 
-All existing kkday artifacts 通過新 schema — 無需回補。未來 artifact 若違反 schema 會在 Edit/Write 當下被 hook 攔截。
+All existing exampleco artifacts 通過新 schema — 無需回補。未來 artifact 若違反 schema 會在 Edit/Write 當下被 hook 攔截。
 
 ## [3.40.0] - 2026-04-22
 
@@ -3026,7 +3043,7 @@ P4 pilot 範圍：bug-triage → engineering 單一 handoff。其餘 4 個 hando
 - Reindex 建 4 筆原有 learnings → 384 dim 向量落地
 - 語意搜尋 "verification agent should not modify files" → 正確命中 `verification-read-only-principle` (similarity 0.54)，其他 entry 遠低於此
 - Force reindex 對於 content 未變動但 schema 變動的 entry 全量重算
-- Company hard-skip：加一筆 `company: kkday` 測試，`POLARIS_COMPANY=kkday` 可見、`POLARIS_COMPANY=other` 隱藏 ✓
+- Company hard-skip：加一筆 `company: exampleco` 測試，`POLARIS_COMPANY=exampleco` 可見、`POLARIS_COMPANY=other` 隱藏 ✓
 - Model mismatch 警報：`POLARIS_EMBED_MODEL=BAAI/bge-small-en-v1.5` 走 query 直接 fail 並建議 reindex ✓
 
 **Known gaps（P3 follow-up）**
@@ -3137,9 +3154,9 @@ rules/skills 過去大量引用 `polaris-learnings.sh` 和 `polaris-timeline.sh`
 
 **Fixed**
 
-- GT-478 task title numbering drift:
-  - `kkday/specs/GT-478/tasks/T8b.md`: `T9` → `T8b`
-  - `kkday/specs/GT-478/tasks/T9.md`: `T10` → `T9`
+- EPIC-478 task title numbering drift:
+  - `exampleco/specs/EPIC-478/tasks/T8b.md`: `T9` → `T8b`
+  - `exampleco/specs/EPIC-478/tasks/T9.md`: `T10` → `T9`
 
 ## [3.35.0] - 2026-04-21
 
@@ -3168,7 +3185,7 @@ rules/skills 過去大量引用 `polaris-learnings.sh` 和 `polaris-timeline.sh`
 
 - Contract samples passed: runtime+live endpoint（PASS）、runtime+grep-only（FAIL）、static+grep-only（PASS）
 - PR gate samples passed: missing runtime_contract（BLOCK）、runtime host mismatch（BLOCK）、合法 runtime_contract（ALLOW）
-- Active runtime tasks scan: `kkday/specs/**/tasks/*.md` 中 `Level=runtime` 檔案皆通過新版 validator
+- Active runtime tasks scan: `exampleco/specs/**/tasks/*.md` 中 `Level=runtime` 檔案皆通過新版 validator
 
 ## [3.34.0] - 2026-04-21
 
@@ -3222,7 +3239,7 @@ rules/skills 過去大量引用 `polaris-learnings.sh` 和 `polaris-timeline.sh`
 
 ### task.md `## Test Environment` section — pointer mode for dev env handoff
 
-GT-478 實作期間發現 engineering sub-agent 讀 task.md 後不知道如何起測試環境（T3 需 `pnpm build` 產 `.output/`，T2 需 curl live dev.kkday.com）。breakdown 只把 workspace-config 的 `test_command` 抽到 task.md，沒寫 dev server / docker / mockoon 啟動指引，pipeline handoff 契約缺這一段。
+EPIC-478 實作期間發現 engineering sub-agent 讀 task.md 後不知道如何起測試環境（T3 需 `pnpm build` 產 `.output/`，T2 需 curl live dev.exampleco.com）。breakdown 只把 workspace-config 的 `test_command` 抽到 task.md，沒寫 dev server / docker / mockoon 啟動指引，pipeline handoff 契約缺這一段。
 
 **Added**
 
@@ -3239,7 +3256,7 @@ GT-478 實作期間發現 engineering sub-agent 讀 task.md 後不知道如何�
 
 **Changed**
 
-- GT-478 T1-T9 task.md 全數補上 `## Test Environment` 區塊（T1 runtime + fixtures, T2/T6/T7 runtime, T3/T4/T5 build, T8a/T8b/T9 static）
+- EPIC-478 T1-T9 task.md 全數補上 `## Test Environment` 區塊（T1 runtime + fixtures, T2/T6/T7 runtime, T3/T4/T5 build, T8a/T8b/T9 static）
 
 **Why pointer mode**：dev_environment 細節（`start_command`、`requires`、`health_check`、`is_monorepo`）已在 workspace-config，單一來源。複製進 task.md 會 stale — workspace-config 改了沒人同步。engineering sub-agent 依 Level 自行讀 workspace-config。
 
@@ -3380,7 +3397,7 @@ Complete the memory tiering system designed in `DP-015-polaris-context-efficienc
 
 ### Task-level done marking on PR creation (and setup-only exception)
 
-Extend v3.26.x Epic/Bug done marker down to individual tasks. Previously `mark-spec-implemented.sh` only resolved `specs/{TICKET}/refinement.md` / `plan.md`; now it also resolves `specs/{EPIC}/tasks/T*.md` by matching the `> JIRA: KEY` header. Engineering now auto-calls the helper after PR creation (new **Step 8a**), so task-level specs get marked done the moment their PR lands. Also documents the setup-only task path (no code to commit — e.g., KB2CW-3821 Mockoon fixture setup — transitions directly to Done).
+Extend v3.26.x Epic/Bug done marker down to individual tasks. Previously `mark-spec-implemented.sh` only resolved `specs/{TICKET}/refinement.md` / `plan.md`; now it also resolves `specs/{EPIC}/tasks/T*.md` by matching the `> JIRA: KEY` header. Engineering now auto-calls the helper after PR creation (new **Step 8a**), so task-level specs get marked done the moment their PR lands. Also documents the setup-only task path (no code to commit — e.g., TASK-3821 Mockoon fixture setup — transitions directly to Done).
 
 **Changed**
 
@@ -3392,7 +3409,7 @@ Extend v3.26.x Epic/Bug done marker down to individual tasks. Previously `mark-s
 
 **Rationale**
 
-Discovered during KB2CW-3821 (GT-478 T1 — Mockoon fixtures) execution. The task transitioned directly to JIRA Done (no PR because all deliverables were gitignored), but T1.md remained at full opacity in docs-viewer — sidebar showed incomplete state while the task was already done. Follow-up analysis also revealed that normal task flows (PR → merged) were not marking task.md either, because the v3.26.x helper only handled Epic-level anchors. v3.27.0 closes both gaps.
+Discovered during TASK-3821 (EPIC-478 T1 — Mockoon fixtures) execution. The task transitioned directly to JIRA Done (no PR because all deliverables were gitignored), but T1.md remained at full opacity in docs-viewer — sidebar showed incomplete state while the task was already done. Follow-up analysis also revealed that normal task flows (PR → merged) were not marking task.md either, because the v3.26.x helper only handled Epic-level anchors. v3.27.0 closes both gaps.
 
 ## [3.26.1] - 2026-04-20
 
@@ -3436,7 +3453,7 @@ DP-014 — mirror the DP pattern: completed Epic/Bug/task spec entries in the do
 
 ### Codecov Patch Gate — Deterministic Enforcement
 
-KB2CW-3847 retrospective — a framework-produced PR failed CI because new source lines had no test coverage. Lesson pushed into a deterministic layer (hook + skill gates) rather than behavioral memory.
+TASK-3847 retrospective — a framework-produced PR failed CI because new source lines had no test coverage. Lesson pushed into a deterministic layer (hook + skill gates) rather than behavioral memory.
 
 - **New hook** `.claude/hooks/coverage-gate.sh` (PreToolUse, `git push*`): detects repos with Codecov patch gate (`codecov.yml` `type: patch` or workflow referencing `codecov/patch`), blocks push unless `/tmp/polaris-coverage-{branch-slug}.json` exists with status=PASS, fresh (<4h), and branch match. Bypass via `POLARIS_SKIP_COVERAGE=1` or `wip:` commit prefix.
 - **New script** `scripts/write-coverage-evidence.sh`: writes the evidence JSON (`{branch, status, timestamp, note, patch_files[]}`) for skills to record PASS/FAIL
@@ -3616,7 +3633,7 @@ Replaced the `trigger_count >= 3` graduation pipeline with immediate direct rule
 
 **Script:** `polaris-learnings.sh` — `graduate` subcommand renamed to `promote` (backward compat alias kept)
 
-**Other:** CLAUDE.md, README.md (Pillar 2 rewrite), `_template/rule-examples/`, `kkday/docs/rd-workflow.md` (removed phantom `review-lessons-graduation` node)
+**Other:** CLAUDE.md, README.md (Pillar 2 rewrite), `_template/rule-examples/`, `exampleco/docs/rd-workflow.md` (removed phantom `review-lessons-graduation` node)
 
 ## [3.16.0] - 2026-04-17
 
@@ -3679,7 +3696,7 @@ Structural improvements to reduce per-session context consumption. D2 (rules sli
 
 ### DP-006: verify-AC Fixture/Environment Gap
 
-Closes the fixture gap that caused GT-521 AC verification to return all UNCERTAIN — verify-AC couldn't start fixture servers because breakdown didn't produce verification task.md files.
+Closes the fixture gap that caused EPIC-521 AC verification to return all UNCERTAIN — verify-AC couldn't start fixture servers because breakdown didn't produce verification task.md files.
 
 - **breakdown SKILL.md** Step 10D: verification tickets now generate `task.md` with `fixture_required`, `fixture_path`, `fixture_start_command`, `test_urls`, `env_start_command`
 - **verify-AC SKILL.md** Step 3: restructured into 3a–3d sub-steps — read task.md → fallback auto-detect `specs/{EPIC}/tests/mockoon/` → start dev server → start fixture server
@@ -3693,7 +3710,7 @@ Closes the fixture gap that caused GT-521 AC verification to return all UNCERTAI
 Fixes user-specific data leakage when sharing the framework with teammates. Colleague discovered hardcoded GitHub username (`daniel-lee-kk`) in company handbook leaking to all framework users.
 
 **User config isolation (DP-007)**
-- Removed hardcoded `developer account daniel-lee-kk` from `rules/kkday/handbook/index.md`
+- Removed hardcoded `developer account daniel-lee-kk` from `rules/exampleco/handbook/index.md`
 - Added `user:` section to `workspace-config.yaml` — config-first, fallback `gh api user`
 - Updated `workspace-config.yaml.example` with user section template
 - Updated `skills/references/shared-defaults.md` — GitHub username lookup now reads config first
@@ -3726,7 +3743,7 @@ Migrates baseline MCP servers (Atlassian, Slack) from legacy stdio (`npx @anthro
 
 ### DP-005: Engineering Test Command + Handbook Injection
 
-Closes two quality gaps discovered in GT-521/KB2CW-3788: (1) engineering sub-agents used generic `npx vitest run` instead of project-specific test commands, (2) sub-agent dispatch prompts omitted handbook injection, causing coding conventions to be ignored.
+Closes two quality gaps discovered in EPIC-521/TASK-3788: (1) engineering sub-agents used generic `npx vitest run` instead of project-specific test commands, (2) sub-agent dispatch prompts omitted handbook injection, causing coding conventions to be ignored.
 
 **Test Command pipeline (new)**
 - `pipeline-handoff.md` — task.md schema gains `## Test Command` section (between 測試計畫 and Verify Command)
@@ -3790,23 +3807,23 @@ All Epic artifacts now live under `specs/{EPIC}/` — mockoon fixtures, VR basel
 - `skills/verify-AC/SKILL.md` — Step 5 split into 5a (local evidence copy) + 5b (JIRA upload)
 - `skills/engineering/SKILL.md` — Phase 1.5 contract-check path updated
 - `skills/breakdown/SKILL.md` — references-to-load table gains `epic-folder-structure.md`
-- `kkday/workspace-config.yaml` — fixtures block: removed `environments_dir`, `active_epic`, hardcoded `start_command`; added `runner`, `shared_config_dir`
+- `exampleco/workspace-config.yaml` — fixtures block: removed `environments_dir`, `active_epic`, hardcoded `start_command`; added `runner`, `shared_config_dir`
 - `_template/workspace-config.yaml` — new `visual_regression` section with updated schema example
-- `kkday/ai-config/kkday/visual-regression/record-fixtures.sh` — MOCKOON_DIR parameterized (env var or argument), no longer hardcoded
+- `exampleco/ai-config/exampleco/visual-regression/record-fixtures.sh` — MOCKOON_DIR parameterized (env var or argument), no longer hardcoded
 - `rules/mechanism-registry.md` — new canary `epic-folder-structure-compliance` (Medium)
 - `polaris-backlog.md` — closed "Epic-centric specs folder" item
 
-**Data migration (kkday):**
-- `kkday/ai-config/kkday/mockoon-environments/GT-478/` → `kkday/specs/GT-478/tests/mockoon/`
-- `kkday/ai-config/kkday/mockoon-environments/GT-483/` → `kkday/specs/GT-483/tests/mockoon/`
-- `kkday/ai-config/kkday/mockoon-environments/proxy-config.yaml` → `kkday/mockoon-config/proxy-config.yaml`
-- `kkday/ai-config/kkday/mockoon-environments/demo.json` → `kkday/mockoon-config/demo.json`
+**Data migration (exampleco):**
+- `exampleco/ai-config/exampleco/mockoon-environments/EPIC-478/` → `exampleco/specs/EPIC-478/tests/mockoon/`
+- `exampleco/ai-config/exampleco/mockoon-environments/EPIC-483/` → `exampleco/specs/EPIC-483/tests/mockoon/`
+- `exampleco/ai-config/exampleco/mockoon-environments/proxy-config.yaml` → `exampleco/mockoon-config/proxy-config.yaml`
+- `exampleco/ai-config/exampleco/mockoon-environments/demo.json` → `exampleco/mockoon-config/demo.json`
 
 ## [3.7.0] - 2026-04-16
 
 ### Infra-first decision framework (AC-verification-driven)
 
-When breakdown decomposes an Epic, deciding whether to insert 1–2 "infra prerequisite" subtasks (Mockoon fixtures, VR baseline, stable data seed) before feature subtasks was previously done by Strategist improvisation — with two failure modes. (1) Over-engineering: simple Epics got infra prereq inserted because `visual_regression` config existed, even when AC were all `unit_test`. (2) Under-engineering: complex Epics shipped without fixtures and verify-AC hit backend API drift. Pattern had been applied intuitively across GT-483 / GT-478 / GT-521; this version lifts it into an explicit, shared reference.
+When breakdown decomposes an Epic, deciding whether to insert 1–2 "infra prerequisite" subtasks (Mockoon fixtures, VR baseline, stable data seed) before feature subtasks was previously done by Strategist improvisation — with two failure modes. (1) Over-engineering: simple Epics got infra prereq inserted because `visual_regression` config existed, even when AC were all `unit_test`. (2) Under-engineering: complex Epics shipped without fixtures and verify-AC hit backend API drift. Pattern had been applied intuitively across EPIC-483 / EPIC-478 / EPIC-521; this version lifts it into an explicit, shared reference.
 
 The decision tree is fully AC-driven. Q1: does any AC use `lighthouse` / `playwright` / `curl`? Q2: any `modules[].api_change`? + exception list (i18n / docs / static-config / research / Epic-is-infra / existing-infra-covers). Output is a structured `decision_trace[]` auditable by the new mechanism-registry canary.
 
@@ -3851,7 +3868,7 @@ The solution turned out to be simpler than the worktree approach proposed in the
 
 ### Breakdown Step 3a — AC drift detection vs refinement artifact
 
-When refinement v2+ reshapes AC structure (e.g., `AC#1/2/3-5` → `AC1-14`), any existing subtasks still referencing the old AC numbers silently go stale. Downstream consumers (engineering, verify-AC) then read the wrong AC IDs. GT-478 breakdown caught this only because the Strategist manually cross-referenced `refinement.json` with each subtask description. Automating this in Step 3 closes the gap.
+When refinement v2+ reshapes AC structure (e.g., `AC#1/2/3-5` → `AC1-14`), any existing subtasks still referencing the old AC numbers silently go stale. Downstream consumers (engineering, verify-AC) then read the wrong AC IDs. EPIC-478 breakdown caught this only because the Strategist manually cross-referenced `refinement.json` with each subtask description. Automating this in Step 3 closes the gap.
 
 - `skills/breakdown/SKILL.md` (v2.3.0 → v2.4.0):
   - Step 3: added detection item 4 — AC 引用對齊（當 `refinement.json` 存在且有既有子單時）
@@ -3899,7 +3916,7 @@ Refinement v4.1.0 introduced Worktree Isolation for Tier 2+ runtime verification
 
 ### Breakdown pipeline — split subtasks + SUPERSEDED pattern
 
-Addresses two gaps surfaced by GT-478 breakdown (11 implementation subtasks, 1 of which was split; 3 obsolete verification subtasks needing retirement).
+Addresses two gaps surfaced by EPIC-478 breakdown (11 implementation subtasks, 1 of which was split; 3 obsolete verification subtasks needing retirement).
 
 - `scripts/validate-task-md.sh`:
   - Header regex relaxed `^# T[0-9]+:` → `^# T[0-9]+[a-z]*:` to allow split subtask headers (T8a, T8b)
@@ -4283,7 +4300,7 @@ check-pr-approvals 從「偵測 + 自動修正 + 催 review」瘦身為「偵測
 
 ### Library Change Protocol — Investigation & Workaround Standards
 
-從 GT-521 KB2CW-3789（nuxt-schema-org tagPosition）的 debug session 萃取兩條準則，加入 `library-change-protocol.md`：
+從 EPIC-521 TASK-3789（nuxt-schema-org tagPosition）的 debug session 萃取兩條準則，加入 `library-change-protocol.md`：
 
 - **Config Not Working — Systematic Elimination**：config 不生效時，先列出所有注入點再依序排除；驗證結果矛盾以失敗為準
 - **Workaround Documentation Standard**：繞過官方 API 時，code comment 必須包含完整決策鏈（目標 → 試了什麼 → 為什麼選此方案 → 移除條件）
@@ -4320,7 +4337,7 @@ breakdown（Tech Lead）為每張 task.md 寫一個可執行的 smoke test 指�
 | Engineer | work-on | 執行 verify command（self-test） |
 | QA | verify-AC | 跑完整 AC 驗收（business-level） |
 
-**觸發背景**：GT-521 PR #2126 JSON-LD head position 實作未生效，sub-agent 未跑 runtime 驗證即開 PR。
+**觸發背景**：EPIC-521 PR #2126 JSON-LD head position 實作未生效，sub-agent 未跑 runtime 驗證即開 PR。
 
 ## [2.2.0] - 2026-04-14
 
@@ -4388,7 +4405,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 
 ## [1.109.0] - 2026-04-13
 
-- **jira-worklog moved to company layer** (`skills/kkday/jira-worklog/`)
+- **jira-worklog moved to company layer** (`skills/exampleco/jira-worklog/`)
   - Decision: worklog compliance is company-driven behavior, not universal developer need
   - Removed from framework `skill-routing.md` — no company-specific info in framework files
 - **jira-worklog-batch.py — deterministic script replaces AI orchestration**
@@ -4409,7 +4426,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 - **Skill catalog consolidation: 44 → 32 (-27%)**
   - Deleted: `end-of-day`, `example`, `start-dev`, `wt-parallel`
   - Merged: `which-company` → `use-company`, `validate-isolation` + `validate-mechanisms` → `validate`, `worklog-report` → `jira-worklog`, `epic-status` → `converge`, `unit-test-review` → `unit-test`, `systematic-debugging` → `bug-triage`
-  - Downgraded: `kkday/docs-sync`, `kkday/sasd-review` (removed as skills)
+  - Downgraded: `exampleco/docs-sync`, `exampleco/sasd-review` (removed as skills)
   - `docs-sync` marked `scope: maintainer-only`
 - **New mechanism: `defer-immediate-capture`**
   - When deferring work ("等 X 再處理 Y"), capture in todo/memory immediately
@@ -4520,10 +4537,10 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 ## [1.98.0] - 2026-04-12
 
 - **member-ci Handbook v0 + Company Handbook Enrichment**
-  - Generated `kkday-member-ci/.claude/rules/handbook/` — index.md (architecture overview) + 6 sub-files (api-design, php-conventions, security, vue-conventions, logging, testing)
+  - Generated `exampleco-member-ci/.claude/rules/handbook/` — index.md (architecture overview) + 6 sub-files (api-design, php-conventions, security, vue-conventions, logging, testing)
   - Graduated 4 existing rules files + 11 review-lessons files into handbook sub-files, deleted originals
   - Key corrections from user Q&A: CodeIgniter 2.1.4 (not 3), pure PHP → Vue 2 history, device routing via CloudFront + UA, internal API design principle (不對外揭露 service)
-  - `rules/kkday/handbook/cross-repo-dependencies.md` — enriched with web-api ↔ member-ci, member-ci ↔ mobile-member-ci (legacy), member-ci ↔ docker dependencies, internal API design principle
+  - `rules/exampleco/handbook/cross-repo-dependencies.md` — enriched with web-api ↔ member-ci, member-ci ↔ mobile-member-ci (legacy), member-ci ↔ docker dependencies, internal API design principle
 
 ## [1.97.0] - 2026-04-12
 
@@ -4552,7 +4569,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
   - `polaris-sync.sh` — deploy 後自動設定 `.git/info/exclude` + `skip-worktree`（檢查 .gitignore 避免重複、只對 tracked files 設 skip-worktree、冪等）
   - `polaris-sync.sh --scan` — 新 mode，一次掃描所有 workspace repos 並修復缺漏的 git-hide 設定
   - 修正 `get_projects()` parser：只取 `projects:` block，不會誤撈 `visual_regression` 等 nested names
-  - 首次 scan 修復 web-design-system（3 tracked files 缺 skip-worktree）和 kkday-web-docker（缺 exclude entry）
+  - 首次 scan 修復 web-design-system（3 tracked files 缺 skip-worktree）和 exampleco-web-docker（缺 exclude entry）
 
 ## [1.94.0] - 2026-04-11
 
@@ -4565,7 +4582,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 
 - **Company Handbook — Three-Layer Knowledge Architecture**
   - **New concept**: Handbook 分三層 — Framework（個人工作風格）→ Company（跨 repo 知識）→ Repo（單一 repo 架構）。受 Karpathy 知識庫系統啟發：探索效率來自「起點更高」（compiled knowledge），不是「步驟更聰明」
-  - **KKday company handbook** (`rules/kkday/handbook/`): index.md + 4 子文件（cross-repo-dependencies, development-workflow, tools-and-channels, testing-and-verification）
+  - **ExampleCo company handbook** (`rules/exampleco/handbook/`): index.md + 4 子文件（cross-repo-dependencies, development-workflow, tools-and-channels, testing-and-verification）
   - **Three-layer classification** (`repo-handbook.md` Step 3b): Q1「換 workspace 還適用？」→ Q2「換 repo 還適用？」— 三個問題，每個 3 秒可分類
   - **Company context injection** (`sub-agent-roles.md`): dispatch sub-agent 到子 repo 時，Strategist 注入 company handbook 的 Cross-Repo Dependencies 段落
   - **feedback-and-memory.md** item 1 改為三層分類邏輯
@@ -4595,8 +4612,8 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
   - **Step 1 補強** — handbook 生成第一步改為「先讀 README.md」，README 是 Overview 和 Cross-Repo 段落的 primary source
   - **feedback-and-memory.md** — item 1 加入 handbook vs feedback 分類邏輯：repo-specific → handbook，framework → feedback
   - **mechanism-registry.md** — 新增 `correction-driven-handbook-update` (Critical) + `repo-knowledge-to-handbook-not-feedback` (High) canary
-  - **首批 handbook 產出**：kkday-b2c-web（主文件 + 3 子文件：local-dev, testing, cwv-benchmark）、kkday-web-docker（主文件）
-  - **Feedback → Handbook 遷移**：7 筆 kkday repo-specific feedback memory 遷移至 handbook 子文件並刪除
+  - **首批 handbook 產出**：exampleco-b2c-web（主文件 + 3 子文件：local-dev, testing, cwv-benchmark）、exampleco-web-docker（主文件）
+  - **Feedback → Handbook 遷移**：7 筆 exampleco repo-specific feedback memory 遷移至 handbook 子文件並刪除
 
 ## [1.89.0] - 2026-04-11
 
@@ -4617,7 +4634,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 
 ## [1.87.0] - 2026-04-10
 
-- **GT-521 拘束機制 — 行為規則推到確定性層**
+- **EPIC-521 拘束機制 — 行為規則推到確定性層**
   - `scripts/verification-evidence-gate.sh` (PreToolUse) — ticket branch 上 `gh pr create` 必須有 `/tmp/polaris-verified-{TICKET}.json` evidence file（valid JSON、< 4h、ticket match、non-empty results）。無 evidence = exit 2 物理攔截。Bypass: `POLARIS_SKIP_EVIDENCE=1`（非 ticket PR）
   - `scripts/test-sequence-tracker.sh` (PostToolUse on Bash|Edit|Write) — 追蹤 test-fail → production-file-edit → test-pass 序列，偵測到時注入警告：「你改了 production code 讓測試過，確認這是正確修法？」
   - `scripts/polaris-write-evidence.sh` — evidence file writer，供 verify-completion / fix-bug 呼叫
@@ -4650,7 +4667,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 
 ## [1.82.0] - 2026-04-10
 
-- **fix-bug Step 4.5 Hard Gate** — AC Local Verification 升級為 Hard Gate：每個 Local 驗證項必須有 PASS/SKIP/FAIL disposition + 證據（test output、curl response、截圖），不允許「unit test 過了就跳過行為驗證」。來源：KB2CW-3783 hotfix 中跳過了起 dev server 的語系切換驗證，只靠 unit test 就發 PR
+- **fix-bug Step 4.5 Hard Gate** — AC Local Verification 升級為 Hard Gate：每個 Local 驗證項必須有 PASS/SKIP/FAIL disposition + 證據（test output、curl response、截圖），不允許「unit test 過了就跳過行為驗證」。來源：TASK-3783 hotfix 中跳過了起 dev server 的語系切換驗證，只靠 unit test 就發 PR
 - **`local-verification-hard-gate` mechanism (Critical)** — 新增 mechanism-registry canary：fix-bug Step 4.5 的 Local 驗證項如果包含行為驗證（需起 server），不可只用 unit test 替代
 
 ## [1.81.1] - 2026-04-10
@@ -4673,16 +4690,16 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 - **jira-worklog v2.0 — Daily quota allocation** — 8h per workday split among In Development tickets by story point weight. Smart filtering excludes non-logged ticket types. Batch curl for multi-day backfill. Standup auto-log integration
 - **Story Points dynamic discovery (cross-cutting)** — `jira-story-points.md` rewritten as authoritative reference with mandatory Step 0 field ID discovery. All 7 skills using Story Points (converge, epic-status, intake-triage, jira-worklog, my-triage, jira-subtask-creation, work-on) updated to use `<storyPointsFieldId>` placeholder — hardcoded `customfield_10016` strictly forbidden
 - **epic-verification-structure.md rewrite** — Verification tickets default 0pt (not 1pt), lifecycle flow with PASS/FAIL comment templates, Epic close criteria, implementation task description split into code-level test plan vs business-level AC sections, test sub-tasks as JIRA 子任務 issueType (not Task)
-- **PR review conventions (L1 rule)** — New universal `pr-and-review.md`: inline comments mandatory (no findings in review body), review language follows PR description language. kkday-scoped placeholder added
+- **PR review conventions (L1 rule)** — New universal `pr-and-review.md`: inline comments mandatory (no findings in review body), review language follows PR description language. exampleco-scoped placeholder added
 - **check-pr-approvals** — PR links must be clickable markdown format
 - **jira-subtask-creation** — Step 0 query existing sub-tasks before creating, assignee param fix
 - **version-bump-reminder canary (Critical)** — Added to mechanism-registry after discovering 6 consecutive sessions modified `skills/` without triggering version bump reminder. Common Rationalizations table added. Backlog item for deterministic PostToolUse hook
 
 ## [1.78.0] - 2026-04-08
 
-- **sasd-review v1.0.0 — Design-First Gate** — 從 kkday 專屬提升為框架級 skill。在寫任何程式碼前產出 SA/SD 設計文件：需求分析 → 歧義收集 → 2-3 方案比較 → 確認後產出（含 Dev Scope、System Flow、Task List with Estimates）。移除 kkday 專有術語（BFF、PC/M），保留通用工程紀律
-- **jira-quality.md — L1 通用 JIRA 規則** — 從 kkday jira-conventions 提升 7 條通用規則：缺資訊主動問不猜、PM 範例 ≠ 實作規格、外部連結需取回內容、建完 issue 附連結、拆單含驗證場景、批次建子單、attachment 先刪再傳。kkday jira-conventions 瘦身為僅保留專案 key 結構和 VR template 格式
-- **清理 kkday 重複 skills** — 刪除 ai-config 中 6 個重複的 skill 副本（kkday-dev-quality-check、kkday-git-pr-workflow、kkday-unit-test、kkday-dev-guide 及對應的 non-prefix stale copies），Polaris 已有更新版本
+- **sasd-review v1.0.0 — Design-First Gate** — 從 exampleco 專屬提升為框架級 skill。在寫任何程式碼前產出 SA/SD 設計文件：需求分析 → 歧義收集 → 2-3 方案比較 → 確認後產出（含 Dev Scope、System Flow、Task List with Estimates）。移除 exampleco 專有術語（BFF、PC/M），保留通用工程紀律
+- **jira-quality.md — L1 通用 JIRA 規則** — 從 exampleco jira-conventions 提升 7 條通用規則：缺資訊主動問不猜、PM 範例 ≠ 實作規格、外部連結需取回內容、建完 issue 附連結、拆單含驗證場景、批次建子單、attachment 先刪再傳。exampleco jira-conventions 瘦身為僅保留專案 key 結構和 VR template 格式
+- **清理 exampleco 重複 skills** — 刪除 ai-config 中 6 個重複的 skill 副本（exampleco-dev-quality-check、exampleco-git-pr-workflow、exampleco-unit-test、exampleco-dev-guide 及對應的 non-prefix stale copies），Polaris 已有更新版本
 - **skill-routing.md** — 新增 sasd-review 路由條目
 
 ## [1.77.0] - 2026-04-08
@@ -4704,22 +4721,22 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 
 ## [1.74.0] - 2026-04-07
 
-- **VR Principles P1-P7** — 將 6 個 session 累積的 hard-won rules 集中寫入 SKILL.md（走 nginx proxy、CSR waitForSelector、mobile UA、proxy/replay mode 差異、首次截圖 quality gate、workers:1、JIRA wiki markup）。P1/P3 泛化為框架層原則，kkday 細節以 blockquote 附註
+- **VR Principles P1-P7** — 將 6 個 session 累積的 hard-won rules 集中寫入 SKILL.md（走 nginx proxy、CSR waitForSelector、mobile UA、proxy/replay mode 差異、首次截圖 quality gate、workers:1、JIRA wiki markup）。P1/P3 泛化為框架層原則，exampleco 細節以 blockquote 附註
 - **VR Phase 2 mandatory checkpoint** — replay mode 切換後強制跑 VR pass + 人工截圖確認，才能進 Phase 3 commit fixtures。防止 proxy fallback 隱藏缺失 fixture
 - **VR JIRA report template** — 新增 `references/vr-jira-report-template.md`，定義 wiki markup 表格穿插截圖格式、all-pass / mixed results 模板、attachment 命名慣例。Step 5c 引用此 template
 - **checklist-before-done 機制** — 宣告任務完成前必須回查 session 起始清單，逐項確認 done/carry-forward/dropped。加入 context-monitoring §5b + mechanism-registry（High drift）
-- **JIRA 附件先刪再傳規則** — 加入 `rules/kkday/jira-conventions.md`，適用所有 JIRA attachment 操作
+- **JIRA 附件先刪再傳規則** — 加入 `rules/exampleco/jira-conventions.md`，適用所有 JIRA attachment 操作
 - **ai-config version control** — `.gitignore` whitelist VR test files（pages.spec.ts, playwright.config.ts）+ proxy-config.yaml。Fixture JSON 維持 local only。新公司只需加 `!{company}/`
 - **visual-regression-config.md** — 新增 Playwright config 必設項目（workers:1, mobile UA）
 
 ## [1.73.0] - 2026-04-06
 
-- **Per-Epic Fixture Isolation** — fixture 管理從 root-level 遷移到 per-epic 子目錄（`mockoon-environments/GT-483/`）。每個 Epic 獨立一套完整 fixture，新 Epic 從上一個 copy + 重錄有變動的 route。刪除 root-level 12 個 legacy JSON 檔案
-- **mockoon-runner.sh `--epic` 參數** — `mockoon-runner.sh start <dir> --epic GT-483` 從子目錄載入 fixture。Root-level loading 標記 deprecated
+- **Per-Epic Fixture Isolation** — fixture 管理從 root-level 遷移到 per-epic 子目錄（`mockoon-environments/EPIC-483/`）。每個 Epic 獨立一套完整 fixture，新 Epic 從上一個 copy + 重錄有變動的 route。刪除 root-level 12 個 legacy JSON 檔案
+- **mockoon-runner.sh `--epic` 參數** — `mockoon-runner.sh start <dir> --epic EPIC-483` 從子目錄載入 fixture。Root-level loading 標記 deprecated
 - **VR SKILL.md 三個 feedback 寫入** — (1) Mockoon CLI proxy 不自動錄 fixture，需手動 curl (2) 首次截圖品質閘門：zero-diff ≠ 正確，需人工確認 (3) JIRA attachment 同名覆蓋陷阱：wiki markup 綁 attachment ID 不是檔名
 - **VR SKILL.md Fixture Lifecycle section** — 文件化 per-epic 目錄結構、bootstrap 流程、runner 整合、設計決策（為何不做 base + overlay）
-- **GT-483 fixture 合併** — 從 root 補齊 11 條 route（mkt 1、svcb2c 2、hotel_product 4、product 4），GT-483 現為完整獨立集合（12 檔、47 routes）
-- **Gzip header 全清** — 最後一個殘留（GT-483/recommend `content-encoding: gzip`）已移除。來源：Mockoon proxy 錄製時抓了真實 server 的壓縮 header 但存了已解壓的 body
+- **EPIC-483 fixture 合併** — 從 root 補齊 11 條 route（mkt 1、svcb2c 2、hotel_product 4、product 4），EPIC-483 現為完整獨立集合（12 檔、47 routes）
+- **Gzip header 全清** — 最後一個殘留（EPIC-483/recommend `content-encoding: gzip`）已移除。來源：Mockoon proxy 錄製時抓了真實 server 的壓縮 header 但存了已解壓的 body
 
 ## [1.72.0] - 2026-04-06
 
@@ -4732,13 +4749,13 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 - **VR 確定性修復：fixture gzip header 根因** — Mockoon fixture 的 `Content-Encoding: gzip` header 搭配 plain JSON body 導致 Mockoon crash（嘗試解壓非壓縮資料）。這同時是 proxy mode 崩潰和 Product page SSR hang 的根因。移除 14 個 response 的 gzip header 後，8/8 zero-diff、Product page 首次正常渲染
 - **polaris-env.sh env override 恢復** — `--vr`/`--e2e` 自動從 `proxy-config.yaml` 讀 `env_override` 注入 dev server 啟動指令。v1.70.0 移除後發現仍需要（Mockoon fixture 需要 env override 才能攔截 API calls）
 - **VR SKILL.md：Record → Compare 兩階段流程** — 新增 Fixture Recording Workflow section，文件化 fixture 錄製（proxy mode）→ 驗證（replay mode）→ commit 的完整生命週期
-- **JIRA VR 報告補發** — GT-483 VR 通過 comment（8/8 zero-diff + 確定性措施 + 修復紀錄），修正上次 session 遺漏
-- **proxy-config.yaml 公司層** — 從 GT-483/ Epic 目錄 copy 到 `mockoon-environments/`，成為公司共用 config
+- **JIRA VR 報告補發** — EPIC-483 VR 通過 comment（8/8 zero-diff + 確定性措施 + 修復紀錄），修正上次 session 遺漏
+- **proxy-config.yaml 公司層** — 從 EPIC-483/ Epic 目錄 copy 到 `mockoon-environments/`，成為公司共用 config
 
 ## [1.70.0] - 2026-04-05
 
-- **VR 架構修正：走 Docker nginx，不走 localhost** — VR base_url 從 `localhost:3001` 改回 `dev.kkday.com`（Docker nginx）。之前因 Docker compose v2 壞掉繞過 nginx，導致整個架構歪掉（Product page "SSR hang"、Search page "不在 b2c-web" 都是偽問題）。現在回到正確路徑：Playwright → Docker nginx → b2c-web / member-ci / mobile-member-ci
-- **移除 Search page** — `kkday.com/zh-tw/search/?keyword=tokyo` production 回 404，頁面不存在。從 spec 和 workspace-config 移除
+- **VR 架構修正：走 Docker nginx，不走 localhost** — VR base_url 從 `localhost:3001` 改回 `dev.exampleco.com`（Docker nginx）。之前因 Docker compose v2 壞掉繞過 nginx，導致整個架構歪掉（Product page "SSR hang"、Search page "不在 b2c-web" 都是偽問題）。現在回到正確路徑：Playwright → Docker nginx → b2c-web / member-ci / mobile-member-ci
+- **移除 Search page** — `exampleco.com/zh-tw/search/?keyword=tokyo` production 回 404，頁面不存在。從 spec 和 workspace-config 移除
 - **Product page 解除 skip** — 走 Docker nginx 後 SSR 應能正常 render，之前的 "hang" 可能是 localhost 直打造成的
 - **移除 polaris-env.sh env override 自動注入** — 不再需要 Mockoon 取代 nginx，b2c-web 通過 Docker 網路呼叫 member-ci
 - **feedback memory** — 記錄 workaround 累積導致架構歪掉的完整路徑，`no-workaround-accumulation` 教科書案例
@@ -4766,7 +4783,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 ## [1.66.0] - 2026-04-05
 
 - **CSO audit: 17 skill descriptions rewritten to trigger-only** — Discovered via Superpowers learning that SKILL.md descriptions containing workflow summaries cause the agent to shortcut (follow description instead of reading full body). Audited all 42 skills: 9 HIGH, 8 MEDIUM flagged. All 17 descriptions rewritten to contain ONLY trigger conditions, never workflow steps. Average reduction from 6-14 lines to 1 line per description
-- **Rationalization tables for top 3 high-drift mechanisms** — Added "Common Rationalizations" sections to mechanism-registry.md for `skill-first-invoke` (7 entries), `delegate-exploration` (4 entries), and `fix-through-not-revert` + debugging/verification (7 entries). All entries sourced from real observed violations (GT-483 sessions, VR env failures), not hypothetical. Pattern inspired by Superpowers' prompt engineering approach
+- **Rationalization tables for top 3 high-drift mechanisms** — Added "Common Rationalizations" sections to mechanism-registry.md for `skill-first-invoke` (7 entries), `delegate-exploration` (4 entries), and `fix-through-not-revert` + debugging/verification (7 entries). All entries sourced from real observed violations (EPIC-483 sessions, VR env failures), not hypothetical. Pattern inspired by Superpowers' prompt engineering approach
 - **Superpowers learning → 2 backlog items** — Critic two-stage review split (spec-compliance + code-quality), skill-creator baseline failure recording (RED-GREEN-REFACTOR for skills)
 
 ## [1.65.0] - 2026-04-05
@@ -4786,7 +4803,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 
 ## [1.62.0] - 2026-04-05
 
-- **Mockoon fixture per-Epic lifecycle** — epic-verification-workflow.md gains Fixture Lifecycle section: record at Epic start, re-record after cross-repo API task, develop on stable fixtures, delete on release. kkday playwright-testing.md gains full Mockoon integration doc (architecture, recording workflow, parallel Epic isolation design). Backlog item updated from "pending" to "design complete"
+- **Mockoon fixture per-Epic lifecycle** — epic-verification-workflow.md gains Fixture Lifecycle section: record at Epic start, re-record after cross-repo API task, develop on stable fixtures, delete on release. exampleco playwright-testing.md gains full Mockoon integration doc (architecture, recording workflow, parallel Epic isolation design). Backlog item updated from "pending" to "design complete"
 - **epic-breakdown API-first ordering + fixture recording task** — when Epic involves cross-repo API changes, API task must be ordered first. Additionally, epic-breakdown now auto-generates a "穩定測資" (fixture recording) task (1pt) for Epics with `visual_regression` config. Ordering: API task → fixture recording → frontend tasks. This makes fixture recording a visible, trackable JIRA ticket instead of hidden skill logic
 
 ## [1.61.0] - 2026-04-05
@@ -4795,12 +4812,12 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 
 ## [1.60.0] - 2026-04-05
 
-- **Epic verification Playwright-first update** — epic-verification-workflow.md updated with `browser` (Playwright) as the preferred verification type over curl. Verification examples use `{BASE_URL}` variable (company-layer defines the actual URL). Added GT-483 Lessons Learned section: browser-first rationale, URL format conventions (locale lowercase, urlName not area code), SIT→localhost test data sourcing. Graduation checklist: Epic #1 complete, awaiting Epic #2 to graduate into skill integration
-- **kkday playwright-testing reference** (company-layer, gitignored) — defines dev.kkday.com as BASE_URL, Docker routing map (b2c-web / member-ci / mobile-member-ci), auth via test account + storageState, A/B mock via route intercept, URL conventions
+- **Epic verification Playwright-first update** — epic-verification-workflow.md updated with `browser` (Playwright) as the preferred verification type over curl. Verification examples use `{BASE_URL}` variable (company-layer defines the actual URL). Added EPIC-483 Lessons Learned section: browser-first rationale, URL format conventions (locale lowercase, urlName not area code), SIT→localhost test data sourcing. Graduation checklist: Epic #1 complete, awaiting Epic #2 to graduate into skill integration
+- **exampleco playwright-testing reference** (company-layer, gitignored) — defines dev.exampleco.com as BASE_URL, Docker routing map (b2c-web / member-ci / mobile-member-ci), auth via test account + storageState, A/B mock via route intercept, URL conventions
 
 ## [1.59.0] - 2026-04-04
 
-- **Deterministic post-task reflection checkpoint** — 33 write skills now have a mandatory `## Post-Task Reflection (required)` final step in their SKILL.md, pointing to shared reference `skills/references/post-task-reflection-checkpoint.md`. Covers behavioral feedback scan, technical learning check, mechanism audit (top 5 canaries), and graduation check. 12 read-only skills excluded. Root cause: two GT-483 sessions produced 12+ violations with zero feedback because the Strategist was always "still fixing" and the task-completion trigger never fired. This is 方案 C from the backlog — the lowest-cost deterministic enforcement that makes reflection impossible to skip
+- **Deterministic post-task reflection checkpoint** — 33 write skills now have a mandatory `## Post-Task Reflection (required)` final step in their SKILL.md, pointing to shared reference `skills/references/post-task-reflection-checkpoint.md`. Covers behavioral feedback scan, technical learning check, mechanism audit (top 5 canaries), and graduation check. 12 read-only skills excluded. Root cause: two EPIC-483 sessions produced 12+ violations with zero feedback because the Strategist was always "still fixing" and the task-completion trigger never fired. This is 方案 C from the backlog — the lowest-cost deterministic enforcement that makes reflection impossible to skip
 
 ## [1.57.0] - 2026-04-04
 
@@ -4829,7 +4846,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 ## [1.53.0] - 2026-04-04
 
 - **Epic three-layer verification reference doc** — `references/epic-verification-workflow.md`: Task test plans (PR gate records), per-AC verification tickets (Playwright E2E), Feature integration tests. Includes graduation criteria (2 Epic cycles), size threshold (>8pt → per-AC split), environment tagging (feature/stage/both), and skill integration map. Draft status — validate before graduating to skill changes
-- **KKday JIRA conventions rule** — `.claude/rules/kkday/jira-conventions.md`: sub-tasks in KB2CW project (Task + parent link), ticket creation guidelines, happy flow verification requirement. First L2 company rule for kkday
+- **ExampleCo JIRA conventions rule** — `.claude/rules/exampleco/jira-conventions.md`: sub-tasks in KB2CW project (Task + parent link), ticket creation guidelines, happy flow verification requirement. First L2 company rule for exampleco
 
 ## [1.52.0] - 2026-04-04
 
@@ -4857,7 +4874,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 
 ## [1.47.0] - 2026-04-03
 
-- **/init Step 9a+9b friction fixes** — validated via worktree simulation against real kkday repos. Seven fixes: (1) cross-repo dependency detection scans Docker volume mounts and .env cross-references to surface prerequisites (2) SIT URL always asks user — `.env` contains dev URLs not SIT, auto-detection was wrong (3) production domain requires explicit user input — code only has dev/template URLs (4) dynamic routes prompt user for example IDs/slugs (5) missing `.env.example` warning when start script references `.env.local` (6) monorepo multi-app selection instead of assuming which app is primary (7) locale codes read from i18n config for correct case
+- **/init Step 9a+9b friction fixes** — validated via worktree simulation against real exampleco repos. Seven fixes: (1) cross-repo dependency detection scans Docker volume mounts and .env cross-references to surface prerequisites (2) SIT URL always asks user — `.env` contains dev URLs not SIT, auto-detection was wrong (3) production domain requires explicit user input — code only has dev/template URLs (4) dynamic routes prompt user for example IDs/slugs (5) missing `.env.example` warning when start script references `.env.local` (6) monorepo multi-app selection instead of assuming which app is primary (7) locale codes read from i18n config for correct case
 
 ## [1.46.0] - 2026-04-03
 
@@ -4871,12 +4888,12 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 
 ## [1.45.0] - 2026-04-03
 
-- **intake-triage generalized** — promoted from kkday-specific (`skills/kkday/`) to shared skill (`skills/intake-triage/`). Domain lens now config-driven: reads `intake_triage.lenses` from workspace-config.yaml with built-in defaults as fallback. Author changed to Polaris. Skill count 39→40
+- **intake-triage generalized** — promoted from exampleco-specific (`skills/exampleco/`) to shared skill (`skills/intake-triage/`). Domain lens now config-driven: reads `intake_triage.lenses` from workspace-config.yaml with built-in defaults as fallback. Author changed to Polaris. Skill count 39→40
 - **docs-sync** — READMEs (EN+zh-TW) skill count updated, chinese-triggers.md entry added, workflow-guide mermaid diagrams updated with intake-triage node
 
 ## [1.44.0] - 2026-04-03
 
-- **intake-triage skill** — new kkday-specific skill for batch ticket prioritization from PM. Analyzes tickets across 5 dimensions (Readiness, Effort, Impact, Dependencies, Duplicate Risk) with theme-aware domain lenses (SEO/CWV/a11y/generic). Produces a prioritized verdict table (Do First/Do Soon/Do Later/Skip/Hard Block) with Do First capped at 3, writes JIRA labels + analysis comments, and sends PM-facing Slack summary in non-technical language. Epic + subtask auto-convergence: when both appear in a batch, Epic becomes a summary header while subtasks are individually scored. Tested on 44 real tickets. Execution Queue deferred to Phase B (backlog) with 4 explicit trigger conditions
+- **intake-triage skill** — new exampleco-specific skill for batch ticket prioritization from PM. Analyzes tickets across 5 dimensions (Readiness, Effort, Impact, Dependencies, Duplicate Risk) with theme-aware domain lenses (SEO/CWV/a11y/generic). Produces a prioritized verdict table (Do First/Do Soon/Do Later/Skip/Hard Block) with Do First capped at 3, writes JIRA labels + analysis comments, and sends PM-facing Slack summary in non-technical language. Epic + subtask auto-convergence: when both appear in a batch, Epic becomes a summary header while subtasks are individually scored. Tested on 44 real tickets. Execution Queue deferred to Phase B (backlog) with 4 explicit trigger conditions
 - **skill-routing update** — intake-triage added to routing table, "排優先" trigger disambiguated from my-triage (requires multiple ticket keys)
 
 ## [1.43.0] - 2026-04-03
@@ -4904,7 +4921,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 
 ## [1.38.0] - 2026-04-03
 
-- **E2E browser verification via Playwright** — new `scripts/e2e/` module (framework-level, not installed in product repos) with Playwright config, generic page health check spec, and wrapper shell script. Checks 6 dimensions: HTTP status, blank page, hydration errors, uncaught JS errors, critical elements, error page indicators. Supports page type inference from git diff (product/category/destination/home). `verify-completion` v1.6.0 adds Step 1.7 "E2E Browser Verification" — runs through `https://dev.kkday.com` (Docker nginx proxy), gracefully skips if dev server is not running, blocks on hydration/JS/render failures. Screenshots saved for reports
+- **E2E browser verification via Playwright** — new `scripts/e2e/` module (framework-level, not installed in product repos) with Playwright config, generic page health check spec, and wrapper shell script. Checks 6 dimensions: HTTP status, blank page, hydration errors, uncaught JS errors, critical elements, error page indicators. Supports page type inference from git diff (product/category/destination/home). `verify-completion` v1.6.0 adds Step 1.7 "E2E Browser Verification" — runs through `https://dev.exampleco.com` (Docker nginx proxy), gracefully skips if dev server is not running, blocks on hydration/JS/render failures. Screenshots saved for reports
 
 ## [1.37.0] - 2026-04-03
 
@@ -5019,7 +5036,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 - **Skill logic consolidation** — extracted 7 shared reference docs from duplicated logic across 12 skills: `slack-pr-input.md` (Slack URL → PR URL parsing), `pr-input-resolver.md` (PR URL/number + local path resolution), `jira-story-points.md` (Story Points field ID query + write-back verification), `jira-subtask-creation.md` (batch create + estimate loop), `stale-approval-detection.md` (stale approval rule), `tdd-smart-judgment.md` (TDD file-level decision), `confluence-page-update.md` (search → version check → append flow)
 - **Inline deduplication** — `feature-branch-pr-gate.md` inline copies in check-pr-approvals and git-pr-workflow replaced with reference pointers. sub-agent-roles Critic spec in git-pr-workflow annotated with cross-reference
 - **epic-status v1.1.0** — Phase 1 now scans feature PR review/CI status (Step 3b) and detects unresolved inline comments (Step 4a-2, catches Copilot review and COMMENTED-state reviews). Phase 2 auto-routes gaps without user confirmation
-- **Cleanup** — removed deprecated `kkday/ai-env.sh` (replaced by polaris-sync.sh)
+- **Cleanup** — removed deprecated `exampleco/ai-env.sh` (replaced by polaris-sync.sh)
 
 ## [1.21.0] - 2026-03-31
 
@@ -5104,7 +5121,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 - **Mechanism Registry** — new `rules/mechanism-registry.md` with 20 behavioral mechanisms, canary signals, and drift-risk ratings; post-task audit section added to `feedback-and-memory.md` for automatic compliance checks
 - **Drift Audit fixes (Critical)** — removed phantom `dev-guide` skill references (4 files), fixed CLAUDE.md routing path (`rules/{company}/` → `rules/`), fixed graduation table paths in feedback-and-memory.md, added missing `name:` to use-company frontmatter
 - **Skill genericization pass 2** — replaced `~/work/` hardcodes with `{base_dir}` across 16 skill files (65 occurrences); removed company-specific refs (b2c-web, member-ci, GT-XXX, KQT-14407) from 5 generic skills
-- **Memory hygiene** — added `company: kkday` tag to 19 company-scoped memories; deleted 3 redundant/graduated memories; fixed stale content in 4 memories (Commander→Strategist, wrong paths)
+- **Memory hygiene** — added `company: exampleco` tag to 19 company-scoped memories; deleted 3 redundant/graduated memories; fixed stale content in 4 memories (Commander→Strategist, wrong paths)
 - **CLAUDE.md Cross-Project Rules** — separated universal rules from company-specific rules set up via `/init`
 - **sub-agent-delegation.md** — removed hardcoded "(Opus)" model assumption
 
@@ -5112,7 +5129,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 
 - **Skill description trim** — top 6 bloated skills (learning, refinement, review-inbox, fix-pr-review, work-on, check-pr-approvals) reduced from avg ~1300 to ~400 chars, saving ~4k tokens per conversation
 - **fix-pr-review routing fix** — added colloquial Chinese triggers: "修 PR", "PR 有 review", "處理 review" so natural-language requests route correctly
-- **kkday workspace-config** — added `bug_value`/`maintain_value` aliases under `requirement_source` for generic skill compatibility
+- **exampleco workspace-config** — added `bug_value`/`maintain_value` aliases under `requirement_source` for generic skill compatibility
 
 ## [1.9.2] - 2026-03-30
 
@@ -5123,7 +5140,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 
 Challenger audit v1.9.0 quick-fixes (6-persona, 16 🔴 / 37 🟡 / 18 🟢):
 
-- **Removed leaked company name** from `.gitignore` — `kkday/` replaced with generic comment
+- **Removed leaked company name** from `.gitignore` — `exampleco/` replaced with generic comment
 - **Chinese guide link at README top** — visible in first 5 lines, not buried in Quick Start
 - **Multi-company in "Who is this for"** — freelancers/multi-client listed as a target audience
 - **`/commands` note moved to Step 3** — before `/init`, not after Step 4

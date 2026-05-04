@@ -779,7 +779,7 @@ YAML
 cat > "$T13/.bin/pnpm" <<'SH'
 #!/usr/bin/env bash
 if [[ "$1" == "install" ]]; then
-  echo "ERR_PNPM_META_FETCH_FAIL getaddrinfo ENOTFOUND nexus3.sit.kkday.com" >&2
+  echo "ERR_PNPM_META_FETCH_FAIL getaddrinfo ENOTFOUND nexus3.sit.exampleco.com" >&2
   exit 1
 fi
 echo "unexpected pnpm command: $*" >&2
@@ -812,7 +812,7 @@ PY
 assert_contains "Test 13: evidence status BLOCKED_ENV" /tmp/ci-local-test13-evidence.out "BLOCKED_ENV"
 assert_contains "Test 13: evidence has blocked count" /tmp/ci-local-test13-evidence.out "1"
 assert_contains "Test 13: evidence reason dns" /tmp/ci-local-test13-evidence.out "dns_resolution_failed"
-assert_contains "Test 13: evidence host recorded" /tmp/ci-local-test13-evidence.out "nexus3.sit.kkday.com"
+assert_contains "Test 13: evidence host recorded" /tmp/ci-local-test13-evidence.out "nexus3.sit.exampleco.com"
 rm -f "$T13_EVIDENCE" /tmp/ci-local-test13.out /tmp/ci-local-test13-evidence.out
 
 # ============================================================================
@@ -884,10 +884,10 @@ cat > "$T14/.changeset/kb2cw-1234-demo.md" <<'MD'
 '@demo/pkg': patch
 ---
 
-fix: [KB2CW-1234] add demo changeset
+fix: [TASK-1234] add demo changeset
 MD
 git -C "$T14" add .changeset/kb2cw-1234-demo.md
-git -C "$T14" -c user.email=t@t -c user.name=t commit -q -m "fix: [KB2CW-1234] add changeset"
+git -C "$T14" -c user.email=t@t -c user.name=t commit -q -m "fix: [TASK-1234] add changeset"
 (cd "$T14" && bash "$OUT14" --repo "$T14" --base-branch develop >/tmp/ci-local-test14-pass.out 2>&1)
 T14_PASS_RC=$?
 assert "Test 14: changeset with ticket passes" "$([ $T14_PASS_RC -eq 0 ] && echo 1 || echo 0)"

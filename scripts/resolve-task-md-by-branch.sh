@@ -128,7 +128,7 @@ if [[ "${RESOLVE_TASK_MD_SELFTEST:-0}" == "1" ]]; then
 
   mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/EPIC-1/tasks" "$tmpdir/docs-manager/src/content/docs/specs/EPIC-2/tasks" \
            "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-047-framework-work-order-bridge/tasks" \
-           "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/EPIC-9/tasks" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/EPIC-9/tasks" \
            "$tmpdir/.worktrees/shadow/specs/EPIC-1/tasks" \
            "$tmpdir/node_modules/x/specs/EPIC-3/tasks"
 
@@ -175,7 +175,7 @@ MD
 MD
 
   # Archived copy — must be ignored by default active lookup.
-  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/EPIC-9/tasks/T1.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/EPIC-9/tasks/T1.md" <<'MD'
 | Task branch | task/ARCHIVED-1-only |
 MD
 

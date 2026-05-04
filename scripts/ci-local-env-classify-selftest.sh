@@ -50,17 +50,17 @@ repo="$TMPROOT/repo"
 mkdir -p "$repo"
 cat > "$repo/.npmrc" <<'EOF'
 registry=https://registry.npmjs.org/
-@kkday:registry=https://user:secret@nexus3.sit.kkday.com/repository/npm-group/?token=abc123
-//nexus3.sit.kkday.com/repository/npm-group/:_authToken=npm_secret_token
+@exampleco:registry=https://user:secret@nexus3.sit.exampleco.com/repository/npm-group/?token=abc123
+//nexus3.sit.exampleco.com/repository/npm-group/:_authToken=npm_secret_token
 EOF
 cat > "$repo/.yarnrc.yml" <<'EOF'
-npmRegistryServer: "https://yarn-registry.sit.kkday.com/npm/"
+npmRegistryServer: "https://yarn-registry.sit.exampleco.com/npm/"
 EOF
 
-dns_json="$(python3 "$CLASSIFIER" --repo "$repo" --category install --command 'pnpm install --frozen-lockfile' --output ' ERR_PNPM_META_FETCH_FAIL getaddrinfo ENOTFOUND nexus3.sit.kkday.com')"
+dns_json="$(python3 "$CLASSIFIER" --repo "$repo" --category install --command 'pnpm install --frozen-lockfile' --output ' ERR_PNPM_META_FETCH_FAIL getaddrinfo ENOTFOUND nexus3.sit.exampleco.com')"
 assert_json_field "DNS failure -> BLOCKED_ENV" "$dns_json" status BLOCKED_ENV
 assert_json_field "DNS reason" "$dns_json" reason dns_resolution_failed
-assert_json_field "DNS host" "$dns_json" host nexus3.sit.kkday.com
+assert_json_field "DNS host" "$dns_json" host nexus3.sit.exampleco.com
 
 timeout_json="$(python3 "$CLASSIFIER" --category install --command 'npm ci' --output 'connect ETIMEDOUT registry.npmjs.org:443')"
 assert_json_field "timeout -> BLOCKED_ENV" "$timeout_json" status BLOCKED_ENV
@@ -82,7 +82,7 @@ fail_json="$(python3 "$CLASSIFIER" --category test --command 'pnpm test' --outpu
 assert_json_field "non-env test failure -> FAIL" "$fail_json" status FAIL
 assert_json_field "non-env classification null" "$fail_json" classification ""
 
-secret_json="$(python3 "$CLASSIFIER" --category install --command 'pnpm install' --output 'Bearer abc.def.ghi https://user:pass@nexus3.sit.kkday.com/npm/?token=abc&_authToken=secret')"
+secret_json="$(python3 "$CLASSIFIER" --category install --command 'pnpm install' --output 'Bearer abc.def.ghi https://user:pass@nexus3.sit.exampleco.com/npm/?token=abc&_authToken=secret')"
 assert_not_contains "scrubs bearer token" "$secret_json" "abc.def.ghi"
 assert_not_contains "scrubs basic auth password" "$secret_json" "user:pass"
 assert_not_contains "scrubs query token" "$secret_json" "token=abc"

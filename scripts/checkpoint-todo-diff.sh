@@ -93,7 +93,7 @@ for item in "${items[@]}"; do
     found=true
   fi
 
-  # Try matching ticket keys (e.g., GT-500, KB2CW-3821, DP-009)
+  # Try matching ticket keys (e.g., EPIC-500, TASK-3821, DP-009)
   ticket_keys=$(echo "$item" | grep -oE '[A-Z]+-[0-9]+' || true)
   if [[ -n "$ticket_keys" ]]; then
     for key in $ticket_keys; do

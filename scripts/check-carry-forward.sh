@@ -90,7 +90,7 @@ fi
 # project) to avoid unreadable sed/awk. The script below:
 #   1. Extracts topic identifier from new checkpoint frontmatter (`topic:`
 #      or `name:` field — prefer `topic`, fall back to a prefix match on
-#      `name` like "DP-030", "GT-478", etc.)
+#      `name` like "DP-030", "EPIC-478", etc.)
 #   2. Scans memory_dir (top level + one level deep for topic folders)
 #      for `type: project` files whose frontmatter `topic:` matches, or
 #      whose `name:` contains the same topic identifier. Picks the most
@@ -293,7 +293,7 @@ def item_covered(item, new_cp_text, new_cp_next_block):
     # Very short items — low signal, treat as covered to avoid noise
     if len(tokens) < 2:
         return True
-    # Strong tokens: tickets/identifiers like DP-030, GT-478, KB2CW-3900
+    # Strong tokens: tickets/identifiers like DP-030, EPIC-478, TASK-3900
     id_tokens = [t for t in tokens if re.match(r"^[a-z]+-\d+$", t) or re.match(r"^dp-\d+$", t)]
     # If item has identifiers, require at least one ID match
     if id_tokens:

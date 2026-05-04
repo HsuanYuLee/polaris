@@ -321,7 +321,7 @@ gh pr list --search "review-requested:@me" --state open --json number,title,auth
 {base_dir}/standups/{YYYY}/{MM}/{YYYYMMDD}.md
 ```
 
-例如：`kkday/standups/2026/04/20260415.md`
+例如：`exampleco/standups/2026/04/20260415.md`
 
 - 如果目錄不存在，自動建立（`mkdir -p`）
 - 檔案內容 = Step 9 確認後的完整 standup entry（包含 `## YYYYMMDD` 標題到 `---` 結尾）

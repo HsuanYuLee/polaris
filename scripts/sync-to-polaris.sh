@@ -5,7 +5,7 @@
 # from your working instance back to the Polaris template repo.
 #
 # Usage:
-#   ./scripts/sync-to-polaris.sh [--polaris ~/polaris] [--dry-run] [--commit] [--push] [--no-prune]
+#   ./scripts/sync-to-polaris.sh [--polaris ~/polaris] [--dry-run] [--commit] [--push] [--no-prune] [--leak-warn-only]
 #
 # What it syncs:
 #   - .claude/skills/ (only generic skills; company-specific excluded)
@@ -35,6 +35,7 @@
 # --commit: auto-commit in template with version from VERSION file
 # --push:   auto-push (includes gh auth switch for dual-account setups)
 # --no-prune: skip removing stale files in template (prune is ON by default)
+# --leak-warn-only: report template leaks without blocking commit/push
 
 set -euo pipefail
 
@@ -45,6 +46,7 @@ DRY_RUN=false
 AUTO_COMMIT=false
 AUTO_PUSH=false
 PRUNE=true
+LEAK_BLOCKING=true
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -54,6 +56,8 @@ while [[ $# -gt 0 ]]; do
     --push) AUTO_PUSH=true; AUTO_COMMIT=true; shift ;;
     --prune) PRUNE=true; shift ;;
     --no-prune) PRUNE=false; shift ;;
+    --leak-blocking) LEAK_BLOCKING=true; shift ;;
+    --leak-warn-only) LEAK_BLOCKING=false; shift ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -159,7 +163,7 @@ for p in d.get('jira', {}).get('projects', []):
         print(k)
 " 2>/dev/null || true)
 
-    # Domain names (e.g., kkday.com, sit.kkday.com)
+    # Domain names (e.g., exampleco.com, sit.exampleco.com)
     while IFS= read -r domain; do
       [[ -n "$domain" ]] && patterns+=("$domain")
     done < <(python3 -c "
@@ -179,7 +183,7 @@ if ji:
     print(ji)
 " 2>/dev/null || true)
 
-    # Slack channel IDs (e.g., C08NJ2GL204)
+    # Slack channel IDs (e.g., C0123456789)
     while IFS= read -r ch; do
       [[ -n "$ch" ]] && patterns+=("$ch")
     done < <(python3 -c "
@@ -192,7 +196,7 @@ for k, v in channels.items():
         print(v)
 " 2>/dev/null || true)
 
-    # GitHub org (e.g., kkday-it)
+    # GitHub org (e.g., example-org)
     while IFS= read -r org; do
       [[ -n "$org" ]] && patterns+=("$org")
     done < <(python3 -c "
@@ -238,6 +242,25 @@ if org:
   fi
 
   return 0
+}
+
+run_template_leak_check() {
+  [[ ${#COMPANY_DIRS[@]} -gt 0 ]] || return 0
+
+  local scanner="$INSTANCE_DIR/scripts/scan-template-leaks.sh"
+  if [[ ! -x "$scanner" ]]; then
+    echo "⚠  Template leak scanner missing; falling back to legacy warn-only check."
+    leak_check "$POLARIS_DIR" "${COMPANY_DIRS[@]}"
+    return 0
+  fi
+
+  echo ""
+  echo "Template leak check..."
+  if [[ "$LEAK_BLOCKING" == true ]]; then
+    "$scanner" --workspace "$INSTANCE_DIR" --template "$POLARIS_DIR" --source template --format summary --blocking
+  else
+    "$scanner" --workspace "$INSTANCE_DIR" --template "$POLARIS_DIR" --source template --format summary || true
+  fi
 }
 
 copy_dir() {
@@ -644,6 +667,12 @@ if [[ "$genericize_count" -gt 0 ]]; then
   echo "Auto-genericized $genericize_count file(s) in template."
 fi
 
+# ── Step 9b: Leak check before template commit ────────────────────
+
+if [[ "$AUTO_COMMIT" == true ]]; then
+  run_template_leak_check
+fi
+
 if [[ "$AUTO_COMMIT" == true ]]; then
   echo ""
   echo "Committing..."
@@ -659,14 +688,6 @@ if [[ "$AUTO_COMMIT" == true ]]; then
       git -C "$POLARIS_DIR" tag "v$VERSION"
       echo "Tagged v$VERSION"
     fi
-  fi
-fi
-
-# ── Step 9b: Leak check ──────────────────────────────────────────
-
-if [[ "$AUTO_COMMIT" == true ]]; then
-  if [[ ${#COMPANY_DIRS[@]} -gt 0 ]]; then
-    leak_check "$POLARIS_DIR" "${COMPANY_DIRS[@]}"
   fi
 fi
 

@@ -18,7 +18,7 @@ docs-manager/src/content/docs/specs/companies/{company}/{EPIC_KEY}/
 │   │   ├── baseline-YYYY-MM-DD/   # Lighthouse JSON reports
 │   │   └── direction-eval-YYYY-MM-DD/
 │   ├── mockoon/                   # Mockoon environment JSONs（從 fixtures recording 或 bootstrap）
-│   │   ├── dev.kkday.com.json
+│   │   ├── dev.exampleco.com.json
 │   │   ├── api-*.json
 │   │   └── ...
 │   └── vr/

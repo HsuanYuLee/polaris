@@ -29,7 +29,7 @@ Mockoon fixtures stabilize test data (no false positives from API fluctuation), 
 The contract check requires live API access:
 
 1. **Docker nginx running** — `polaris-env.sh start {company} --docker-only` or full `--vr`
-2. **Network access to SIT/dev domains** — routes hit `proxyHost` (e.g., `https://api-lang.sit.kkday.com`)
+2. **Network access to SIT/dev domains** — routes hit `proxyHost` (e.g., `https://api-lang.sit.exampleco.com`)
 
 If Docker is not running, the check should **warn and skip** (not block). The caller decides whether to proceed without the check.
 
@@ -37,13 +37,13 @@ If Docker is not running, the check should **warn and skip** (not block). The ca
 
 ```bash
 # Check all fixtures for an epic (path per references/epic-folder-structure.md)
-contract-check.sh --env-dir {company_specs_dir}/GT-500/tests/mockoon
+contract-check.sh --env-dir {company_specs_dir}/EPIC-500/tests/mockoon
 
 # Check specific environment file
 contract-check.sh --file <environment.json>
 
 # Output format
-contract-check.sh --env-dir {company_specs_dir}/GT-500/tests/mockoon --format json|text
+contract-check.sh --env-dir {company_specs_dir}/EPIC-500/tests/mockoon --format json|text
 ```
 
 ### Output Structure
@@ -51,11 +51,11 @@ contract-check.sh --env-dir {company_specs_dir}/GT-500/tests/mockoon --format js
 ```json
 {
   "checked_at": "2026-04-10T14:30:00Z",
-  "epic": "GT-500",
+  "epic": "EPIC-500",
   "files": [
     {
-      "file": "dev.kkday.com.json",
-      "proxy_host": "https://dev.kkday.com",
+      "file": "dev.exampleco.com.json",
+      "proxy_host": "https://dev.exampleco.com",
       "routes": [
         {
           "method": "GET",

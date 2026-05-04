@@ -73,7 +73,7 @@ Explore the repo and classify it into one of the following types. A repo may hav
 | `backend-api` | Express/Fastify/NestJS, `routes/` or `controllers/`, API endpoints | member-ci, api-gateway |
 | `backend-worker` | Queue consumers, cron jobs, no HTTP endpoints | notification-worker |
 | `bff` | Backend-for-frontend, aggregates multiple APIs, serves one frontend | mobile-bff |
-| `monorepo` | Turborepo/Nx/pnpm workspaces, `apps/` + `packages/` | kkday-web (Nuxt monorepo) |
+| `monorepo` | Turborepo/Nx/pnpm workspaces, `apps/` + `packages/` | exampleco-web (Nuxt monorepo) |
 | `library` | `src/index.ts` exports, `package.json` main/exports, no app entrypoint | shared-utils, design-system |
 | `data-schema` | Prisma/TypeORM schemas, migration files, no app logic | db-schema |
 | `infra` | Terraform/Pulumi/Docker Compose, CI/CD configs, no app code | infra-config |

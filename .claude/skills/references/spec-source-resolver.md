@@ -51,7 +51,7 @@ JIRA sync 只是 optional side effect
 
 | Type | Input examples | Canonical container | Primary owner |
 |------|----------------|---------------------|---------------|
-| `jira` | `GT-478`, `KB2CW-3711` | `{company_specs_dir}/{TICKET}/` 加上 JIRA issue | `refinement` / `breakdown` |
+| `jira` | `EPIC-478`, `TASK-3711` | `{company_specs_dir}/{TICKET}/` 加上 JIRA issue | `refinement` / `breakdown` |
 | `dp` | `DP-045`, `docs-manager/src/content/docs/specs/design-plans/DP-045-*/plan.md` | `{specs_root}/design-plans/DP-NNN-{slug}/` | `refinement` |
 | `topic` | `討論 CI local blocker`, `refinement "想重構 skill routing"` | 新分配的 DP folder | `refinement` |
 | `artifact_path` | direct `refinement.json`, `refinement.md`, `tasks/T1.md` path | 最近的 containing specs folder | stage-specific consumer |

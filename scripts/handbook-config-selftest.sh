@@ -33,8 +33,8 @@ valid_config="$FIXTURE_DIR/valid-company/polaris-config/web/handbook/config.yaml
 valid_workspace="$FIXTURE_DIR/valid-company/workspace.fixture.yaml"
 conflict_config="$FIXTURE_DIR/conflict-company/polaris-config/web/handbook/config.yaml"
 conflict_workspace="$FIXTURE_DIR/conflict-company/workspace.fixture.yaml"
-b2c_config="$FIXTURE_DIR/kkday-b2c-web/polaris-config/kkday-b2c-web/handbook/config.yaml"
-b2c_workspace="$FIXTURE_DIR/kkday-b2c-web/workspace.fixture.yaml"
+b2c_config="$FIXTURE_DIR/exampleco-b2c-web/polaris-config/exampleco-b2c-web/handbook/config.yaml"
+b2c_workspace="$FIXTURE_DIR/exampleco-b2c-web/workspace.fixture.yaml"
 start_env_workspace="$FIXTURE_DIR/start-test-env-company/workspace.fixture.yaml"
 missing_runtime="$FIXTURE_DIR/missing-runtime.yaml"
 bad_version="$FIXTURE_DIR/unsupported-version.yaml"
@@ -54,7 +54,7 @@ assert_fails "missing runtime section" "$VALIDATOR" --config "$missing_runtime" 
 assert_fails "unsupported schema version" "$VALIDATOR" --config "$bad_version"
 assert_fails "malformed yaml" "$VALIDATOR" --config "$malformed"
 assert_fails "workspace-config conflict" "$VALIDATOR" --config "$conflict_config" --project web --workspace-config "$conflict_workspace" --check-conflicts
-assert_fails "kkday-b2c-web health-check drift" "$VALIDATOR" --config "$b2c_config" --project kkday-b2c-web --workspace-config "$b2c_workspace" --check-conflicts
+assert_fails "exampleco-b2c-web health-check drift" "$VALIDATOR" --config "$b2c_config" --project exampleco-b2c-web --workspace-config "$b2c_workspace" --check-conflicts
 
 if ! "$VALIDATOR" --config "$conflict_config" --project web --workspace-config "$conflict_workspace" --check-conflicts >/tmp/handbook-config-selftest.conflict.out 2>&1; then
   if ! rg -q "workspace-config conflict" /tmp/handbook-config-selftest.conflict.out; then
@@ -65,16 +65,16 @@ if ! "$VALIDATOR" --config "$conflict_config" --project web --workspace-config "
 fi
 
 b2c_health_check="$("$READER" --config "$b2c_config" --field runtime.health_check | python3 -c 'import json,sys; print(json.load(sys.stdin))')"
-assert_eq "b2c reviewed config health check" "$b2c_health_check" "https://dev.kkday.com/zh-tw"
+assert_eq "b2c reviewed config health check" "$b2c_health_check" "https://dev.exampleco.com/zh-tw"
 
-"$VALIDATOR" --config "$b2c_config" --project kkday-b2c-web --require-section runtime --require-section test >/tmp/handbook-config-selftest.b2c.out
+"$VALIDATOR" --config "$b2c_config" --project exampleco-b2c-web --require-section runtime --require-section test >/tmp/handbook-config-selftest.b2c.out
 if ! rg -q "PASS: handbook config valid" /tmp/handbook-config-selftest.b2c.out; then
   echo "FAIL: b2c fixture did not print PASS" >&2
   cat /tmp/handbook-config-selftest.b2c.out >&2
   exit 1
 fi
 
-if ! "$VALIDATOR" --config "$b2c_config" --project kkday-b2c-web --workspace-config "$b2c_workspace" --check-conflicts >/tmp/handbook-config-selftest.b2c-conflict.out 2>&1; then
+if ! "$VALIDATOR" --config "$b2c_config" --project exampleco-b2c-web --workspace-config "$b2c_workspace" --check-conflicts >/tmp/handbook-config-selftest.b2c-conflict.out 2>&1; then
   if ! rg -q "runtime.health_check" /tmp/handbook-config-selftest.b2c-conflict.out; then
     echo "FAIL: b2c conflict output missing health_check marker" >&2
     cat /tmp/handbook-config-selftest.b2c-conflict.out >&2

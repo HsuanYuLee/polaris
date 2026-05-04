@@ -82,7 +82,7 @@ extract_task_key() {
 }
 
 # Parse "Repo: <name>" from task.md header (H1 nearby line like
-# "> Epic: GT-478 | JIRA: KB2CW-3711 | Repo: kkday-b2c-web").
+# "> Epic: EPIC-478 | JIRA: TASK-3711 | Repo: exampleco-b2c-web").
 parse_repo_name() {
     local file="$1"
     # Look in the first 20 lines.
@@ -137,7 +137,7 @@ derive_repo_path() {
 
 # Find sibling task.md in the same tasks/ dir whose canonical "Task ID" or
 # legacy "Task JIRA key" matches the given task identity.
-# Arg 1: task key (e.g. KB2CW-3711 or DP-049-T1)
+# Arg 1: task key (e.g. TASK-3711 or DP-049-T1)
 # Arg 2: tasks/ dir
 # Output: path to matching T*.md (first match) or empty.
 find_task_md_by_key() {

@@ -24,7 +24,7 @@
 #
 # Evidence schema (DP-032 D15, schema-loose new format):
 #   {
-#     "ticket": "KB2CW-3788",
+#     "ticket": "TASK-3788",
 #     "head_sha": "abc1234...",
 #     "command": "<verify_command full text>",
 #     "exit_code": 0,

@@ -123,13 +123,13 @@ MD
     return 1
   }
 
-  company_dir="$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-999"
+  company_dir="$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-999"
   mkdir -p "$company_dir/tasks/pr-release"
   cat >"$company_dir/refinement.md" <<'MD'
 ---
 status: LOCKED
 ---
-# GT-999 — Parent closeout smoke
+# EPIC-999 — Parent closeout smoke
 
 ## Implementation Checklist
 
@@ -141,7 +141,7 @@ status: IMPLEMENTED
 ---
 # T1
 
-> Source: GT-999 | Task: KB2CW-9999 | JIRA: KB2CW-9999 | Repo: kkday-b2c-web
+> Source: EPIC-999 | Task: TASK-9999 | JIRA: TASK-9999 | Repo: exampleco-b2c-web
 MD
 
   env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$company_dir/tasks/pr-release/T1.md" --workspace "$tmpdir" >/dev/null

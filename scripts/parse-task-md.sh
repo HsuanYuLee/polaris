@@ -570,12 +570,12 @@ if [[ "${PARSE_TASK_MD_SELFTEST:-0}" == "1" ]]; then
 ---
 status: IMPLEMENTED
 deliverable:
-  pr_url: https://github.com/kkday-it/example/pull/123
+  pr_url: https://github.com/example-org/example/pull/123
   pr_state: OPEN
   head_sha: abc1234
 deliverables:
   changeset:
-    package_scope: "@kkday/b2c-web-main"
+    package_scope: "@exampleco/b2c-web-main"
     bump_level_default: patch
     filename_slug: kb2cw-3900-products-dayjs
 extension_deliverable:
@@ -595,20 +595,20 @@ extension_deliverable:
 
 # T3b: products pages moment→dayjs 替換 (5 pt)
 
-> Epic: GT-478 | JIRA: KB2CW-3900 | Repo: kkday-b2c-web
+> Epic: EPIC-478 | JIRA: TASK-3900 | Repo: exampleco-b2c-web
 
 ## Operational Context
 
 | 欄位 | 值 |
 |------|-----|
-| Task JIRA key | KB2CW-3900 |
-| Parent Epic | GT-478 |
-| Test sub-tasks | KB2CW-3826 |
-| AC 驗收單 | KB2CW-3713 |
-| Base branch | task/KB2CW-3711-dayjs-infra-util |
-| Branch chain | develop -> feat/GT-478-cwv-js-bundle -> task/KB2CW-3711-dayjs-infra-util -> task/KB2CW-3900-moment-to-dayjs-products |
-| Task branch | task/KB2CW-3900-moment-to-dayjs-products |
-| Depends on | KB2CW-3711 (T3a — dayjs infra) |
+| Task JIRA key | TASK-3900 |
+| Parent Epic | EPIC-478 |
+| Test sub-tasks | TASK-3826 |
+| AC 驗收單 | TASK-3713 |
+| Base branch | task/TASK-3711-dayjs-infra-util |
+| Branch chain | develop -> feat/EPIC-478-cwv-js-bundle -> task/TASK-3711-dayjs-infra-util -> task/TASK-3900-moment-to-dayjs-products |
+| Task branch | task/TASK-3900-moment-to-dayjs-products |
+| Depends on | TASK-3711 (T3a — dayjs infra) |
 | References to load | - foo<br>- bar |
 
 ## Verification Handoff
@@ -637,7 +637,7 @@ AC 驗證**不在本 task 範圍**。
 
 ## 測試計畫（code-level）
 
-- unit test → KB2CW-3826
+- unit test → TASK-3826
 
 ## Test Command
 
@@ -648,7 +648,7 @@ pnpm --dir apps/main exec vitest run
 ## Test Environment
 
 - **Level**: static
-- **Dev env config**: `workspace-config.yaml → projects[kkday-b2c-web].dev_environment`
+- **Dev env config**: `workspace-config.yaml → projects[exampleco-b2c-web].dev_environment`
 - **Fixtures**: N/A
 - **Runtime verify target**: N/A
 - **Env bootstrap command**: N/A
@@ -667,24 +667,24 @@ MD
   cat > "$fixture2" <<'MD'
 # T1: Mockoon fixtures (2 pt)
 
-> Epic: GT-478 | JIRA: KB2CW-3821 | Repo: kkday-b2c-web
+> Epic: EPIC-478 | JIRA: TASK-3821 | Repo: exampleco-b2c-web
 
 ## Operational Context
 
 | 欄位 | 值 |
 |------|-----|
-| Task JIRA key | KB2CW-3821 |
-| Parent Epic | GT-478 |
-| Test sub-tasks | KB2CW-3823 |
-| AC 驗收單 | KB2CW-3713 |
-| Base branch | feat/GT-478-cwv-js-bundle |
-| Branch chain | develop -> feat/GT-478-cwv-js-bundle -> task/KB2CW-3821-mockoon-fixtures |
-| Task branch | task/KB2CW-3821-mockoon-fixtures |
+| Task JIRA key | TASK-3821 |
+| Parent Epic | EPIC-478 |
+| Test sub-tasks | TASK-3823 |
+| AC 驗收單 | TASK-3713 |
+| Base branch | feat/EPIC-478-cwv-js-bundle |
+| Branch chain | develop -> feat/EPIC-478-cwv-js-bundle -> task/TASK-3821-mockoon-fixtures |
+| Task branch | task/TASK-3821-mockoon-fixtures |
 | References to load | - api-contract-guard |
 
 ## Verification Handoff
 
-委派 KB2CW-3713。
+委派 TASK-3713。
 
 ## 目標
 
@@ -694,11 +694,11 @@ MD
 
 | 檔案 | 動作 |
 |------|------|
-| kkday/mockoon/fixtures/gt478/ | create |
+| exampleco/mockoon/fixtures/gt478/ | create |
 
 ## Allowed Files
 
-- kkday/mockoon/fixtures/gt478/
+- exampleco/mockoon/fixtures/gt478/
 
 ## 估點理由
 
@@ -706,7 +706,7 @@ MD
 
 ## 測試計畫（code-level）
 
-- build check → KB2CW-3823
+- build check → TASK-3823
 
 ## Test Command
 
@@ -717,10 +717,10 @@ pnpm --dir apps/main exec vitest run
 ## Test Environment
 
 - **Level**: runtime
-- **Dev env config**: `workspace-config.yaml → projects[kkday-b2c-web].dev_environment`
-- **Fixtures**: `specs/GT-478/tests/mockoon/`
+- **Dev env config**: `workspace-config.yaml → projects[exampleco-b2c-web].dev_environment`
+- **Fixtures**: `specs/EPIC-478/tests/mockoon/`
 - **Runtime verify target**: http://localhost:3100
-- **Env bootstrap command**: bash /path/to/polaris-env.sh start kkday
+- **Env bootstrap command**: bash /path/to/polaris-env.sh start exampleco
 
 ## Verify Command
 
@@ -750,10 +750,10 @@ MD
 
   # ---- Fixture 1 (T3b) basic field extraction ------------------------------
   expect_field "$fixture" status                 "IMPLEMENTED"           "F1.status"
-  expect_field "$fixture" deliverable_pr_url     "https://github.com/kkday-it/example/pull/123" "F1.deliverable_pr_url"
+  expect_field "$fixture" deliverable_pr_url     "https://github.com/example-org/example/pull/123" "F1.deliverable_pr_url"
   expect_field "$fixture" deliverable_pr_state   "OPEN"                  "F1.deliverable_pr_state"
   expect_field "$fixture" deliverable_head_sha   "abc1234"               "F1.deliverable_head_sha"
-  expect_field "$fixture" deliverables_changeset_package_scope "@kkday/b2c-web-main" "F1.changeset_package_scope"
+  expect_field "$fixture" deliverables_changeset_package_scope "@exampleco/b2c-web-main" "F1.changeset_package_scope"
   expect_field "$fixture" deliverables_changeset_bump_level_default "patch" "F1.changeset_bump"
   expect_field "$fixture" deliverables_changeset_filename_slug "kb2cw-3900-products-dayjs" "F1.changeset_slug"
   expect_field "$fixture" extension_deliverable_endpoint "local_extension" "F1.extension_endpoint"
@@ -770,19 +770,19 @@ MD
   expect_field "$fixture" task_id                "T3b"                   "F1.task_id"
   expect_field "$fixture" summary                "products pages moment→dayjs 替換" "F1.summary"
   expect_field "$fixture" story_points           "5"                     "F1.story_points"
-  expect_field "$fixture" epic                   "GT-478"                "F1.epic"
-  expect_field "$fixture" jira                   "KB2CW-3900"            "F1.jira"
-  expect_field "$fixture" repo                   "kkday-b2c-web"         "F1.repo"
+  expect_field "$fixture" epic                   "EPIC-478"                "F1.epic"
+  expect_field "$fixture" jira                   "TASK-3900"            "F1.jira"
+  expect_field "$fixture" repo                   "exampleco-b2c-web"         "F1.repo"
   expect_field "$fixture" source_type            "jira"                  "F1.source_type"
-  expect_field "$fixture" source_id              "GT-478"                "F1.source_id"
-  expect_field "$fixture" work_item_id           "KB2CW-3900"            "F1.work_item_id"
-  expect_field "$fixture" jira_key               "KB2CW-3900"            "F1.jira_key"
-  expect_field "$fixture" task_jira_key          "KB2CW-3900"            "F1.task_jira_key"
-  expect_field "$fixture" parent_epic            "GT-478"                "F1.parent_epic"
-  expect_field "$fixture" base_branch            "task/KB2CW-3711-dayjs-infra-util"          "F1.base_branch"
-  expect_field "$fixture" branch_chain           "develop -> feat/GT-478-cwv-js-bundle -> task/KB2CW-3711-dayjs-infra-util -> task/KB2CW-3900-moment-to-dayjs-products" "F1.branch_chain"
-  expect_field "$fixture" task_branch            "task/KB2CW-3900-moment-to-dayjs-products"  "F1.task_branch"
-  expect_field "$fixture" depends_on             "KB2CW-3711 (T3a — dayjs infra)"            "F1.depends_on"
+  expect_field "$fixture" source_id              "EPIC-478"                "F1.source_id"
+  expect_field "$fixture" work_item_id           "TASK-3900"            "F1.work_item_id"
+  expect_field "$fixture" jira_key               "TASK-3900"            "F1.jira_key"
+  expect_field "$fixture" task_jira_key          "TASK-3900"            "F1.task_jira_key"
+  expect_field "$fixture" parent_epic            "EPIC-478"                "F1.parent_epic"
+  expect_field "$fixture" base_branch            "task/TASK-3711-dayjs-infra-util"          "F1.base_branch"
+  expect_field "$fixture" branch_chain           "develop -> feat/EPIC-478-cwv-js-bundle -> task/TASK-3711-dayjs-infra-util -> task/TASK-3900-moment-to-dayjs-products" "F1.branch_chain"
+  expect_field "$fixture" task_branch            "task/TASK-3900-moment-to-dayjs-products"  "F1.task_branch"
+  expect_field "$fixture" depends_on             "TASK-3711 (T3a — dayjs infra)"            "F1.depends_on"
   expect_field "$fixture" level                  "static"                "F1.level"
   expect_field "$fixture" runtime_verify_target  ""                      "F1.runtime_target_NA"
   expect_field "$fixture" env_bootstrap_command  ""                      "F1.bootstrap_NA"
@@ -823,8 +823,8 @@ MD
   expect_field "$fixture2" depends_on            ""                              "F2.depends_on_absent"
   expect_field "$fixture2" level                 "runtime"                       "F2.level_runtime"
   expect_field "$fixture2" runtime_verify_target "http://localhost:3100"         "F2.runtime_target"
-  expect_field "$fixture2" fixtures              "specs/GT-478/tests/mockoon/"   "F2.fixtures"
-  if [[ "$(emit_json "$fixture2" "" | emit_field env_bootstrap_command)" != "bash /path/to/polaris-env.sh start kkday" ]]; then
+  expect_field "$fixture2" fixtures              "specs/EPIC-478/tests/mockoon/"   "F2.fixtures"
+  if [[ "$(emit_json "$fixture2" "" | emit_field env_bootstrap_command)" != "bash /path/to/polaris-env.sh start exampleco" ]]; then
     echo "[selftest] F2.env_bootstrap mismatch"; fail=1
   fi
 

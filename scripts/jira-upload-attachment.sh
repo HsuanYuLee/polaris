@@ -7,35 +7,40 @@ set -eo pipefail
 #
 # Usage:
 #   jira-upload-attachment.sh <issue-key> <file> [file2 ...]
-#   jira-upload-attachment.sh KB2CW-3653 /tmp/screenshot.png
-#   jira-upload-attachment.sh GT-483 ./diff-homepage-desktop.png ./diff-homepage-mobile.png
+#   jira-upload-attachment.sh TASK-3653 /tmp/screenshot.png
+#   jira-upload-attachment.sh EPIC-483 ./diff-homepage-desktop.png ./diff-homepage-mobile.png
 #
 # Output (JSON per file, one per line):
-#   {"filename":"screenshot.png","id":"12345","url":"https://kkday.atlassian.net/rest/api/3/attachment/content/12345"}
+#   {"filename":"screenshot.png","id":"12345","url":"https://example.atlassian.net/rest/api/3/attachment/content/12345"}
 #
 # Env:
 #   JIRA_EMAIL      — Atlassian account email (from {company}/.env.secrets)
 #   JIRA_API_TOKEN  — Atlassian API token (from {company}/.env.secrets)
-#   JIRA_SITE       — Atlassian site URL (default: https://kkday.atlassian.net)
+#   JIRA_SITE       — Atlassian site URL (default: https://example.atlassian.net)
 #
 # Secrets file auto-detection:
-#   Searches for .env.secrets in: $POLARIS_COMPANY_DIR, workspace dirs, ~/work/kkday/
+#   Searches for .env.secrets in $POLARIS_COMPANY_DIR and workspace company dirs.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+candidate_company_dirs() {
+  [[ -n "${POLARIS_COMPANY_DIR:-}" ]] && printf '%s\n' "$POLARIS_COMPANY_DIR"
+
+  local cfg
+  for cfg in "$WORKSPACE_ROOT"/*/workspace-config.yaml "$HOME"/work/*/workspace-config.yaml; do
+    [[ -f "$cfg" ]] || continue
+    dirname "$cfg"
+  done
+}
 
 # ── Load credentials ──
 load_credentials() {
   # Already set via env
   if [[ -n "$JIRA_EMAIL" && -n "$JIRA_API_TOKEN" ]]; then return 0; fi
 
-  # Search for .env.secrets
-  local search_dirs=(
-    "${POLARIS_COMPANY_DIR:-}"
-    "$SCRIPT_DIR/../kkday"
-    "$HOME/work/kkday"
-  )
-
-  for dir in "${search_dirs[@]}"; do
+  local dir
+  while IFS= read -r dir; do
     [[ -z "$dir" ]] && continue
     local secrets="$dir/.env.secrets"
     if [[ -f "$secrets" ]]; then
@@ -43,7 +48,7 @@ load_credentials() {
       source "$secrets"
       return 0
     fi
-  done
+  done < <(candidate_company_dirs | awk '!seen[$0]++')
 
   echo "ERROR: JIRA credentials not found. Set JIRA_EMAIL + JIRA_API_TOKEN or create .env.secrets" >&2
   return 1
@@ -52,7 +57,7 @@ load_credentials() {
 # ── Upload a single file ──
 upload_file() {
   local issue_key="$1" filepath="$2"
-  local site="${JIRA_SITE:-https://kkday.atlassian.net}"
+  local site="${JIRA_SITE:-https://example.atlassian.net}"
   local filename; filename="$(basename "$filepath")"
 
   if [[ ! -f "$filepath" ]]; then

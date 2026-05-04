@@ -58,7 +58,7 @@ gate still fails because Y > baseline Z. Required decisions: {fix A} + {decision
 
 ## Worked Examples
 
-### Example 1 — mixed `plan-defect` + `env-drift`（GT-478 T3a）
+### Example 1 — mixed `plan-defect` + `env-drift`（EPIC-478 T3a）
 
 **Scenario**: T3a 把 `dayjs` plugin 串好。`ci-local.sh --repo` 的 type baseline gate
 fails: baseline `3149`, actual `3163`.

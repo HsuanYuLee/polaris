@@ -68,7 +68,7 @@ tail = m.group(1).strip()
 if not tail:
     sys.exit(0)
 
-# Strip leading verb particles ("繼續做 KB2CW-3711" → "KB2CW-3711")
+# Strip leading verb particles ("繼續做 TASK-3711" → "TASK-3711")
 tail = re.sub(r'^[做修看辦弄寫改\s]+', '', tail).strip()
 if not tail:
     sys.exit(0)
@@ -79,7 +79,7 @@ if not re.match(r'^[A-Za-z0-9_一-鿿-]', tail):
     sys.exit(0)
 
 # Extract candidate keywords:
-#  - JIRA-style keys (e.g., GT-478, KB2CW-3711, DP-015)
+#  - JIRA-style keys (e.g., EPIC-478, TASK-3711, DP-015)
 #  - Alphanumeric tokens length ≥ 3
 jira_keys = re.findall(r'\b[A-Z][A-Z0-9]+-\d+\b', tail)
 words = re.findall(r'[A-Za-z][A-Za-z0-9_-]{2,}', tail)
@@ -108,7 +108,7 @@ keywords = keywords[:3]
 # Recursive case-insensitive name match across all tiers (flat root + Warm + archive).
 # Match against full relative path (so folder slug like `polaris-framework/` counts).
 # Normalize dashes — file names typically strip them ("project_gt478_*.md") while
-# user keywords keep them ("GT-478").
+# user keywords keep them ("EPIC-478").
 hits = {}
 for kw in keywords:
     needle = kw.lower()

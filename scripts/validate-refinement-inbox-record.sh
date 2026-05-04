@@ -160,7 +160,7 @@ run_self_test() {
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" EXIT
 
-  inbox="$tmp/specs/GT-478/refinement-inbox"
+  inbox="$tmp/specs/EPIC-478/refinement-inbox"
   mkdir -p "$inbox"
   good="$inbox/T3a-2-20260429T093000Z.md"
   cat >"$good" <<'EOF'
@@ -169,10 +169,10 @@ skill: breakdown
 target_skill: refinement
 source: scope-escalation
 route: refinement
-epic: GT-478
+epic: EPIC-478
 source_task: T3a
-source_ticket: KB2CW-3711
-source_sidecar: specs/companies/kkday/GT-478/escalations/T3a-2.md
+source_ticket: TASK-3711
+source_sidecar: specs/companies/exampleco/EPIC-478/escalations/T3a-2.md
 escalation_count: 2
 created_at: 2026-04-29T09:30:00Z
 consumed: false
@@ -205,10 +205,10 @@ skill: engineering
 target_skill: refinement
 source: scope-escalation
 route: refinement
-epic: GT-478
+epic: EPIC-478
 source_task: T3a
-source_ticket: KB2CW-3711
-source_sidecar: specs/companies/kkday/GT-478/escalations/T3a-2.md
+source_ticket: TASK-3711
+source_sidecar: specs/companies/exampleco/EPIC-478/escalations/T3a-2.md
 escalation_count: 2
 created_at: 2026-04-29T09:30:00Z
 consumed: false

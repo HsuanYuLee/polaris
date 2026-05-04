@@ -5,11 +5,11 @@
 #   cascade-rebase-chain.sh --repo <repo> --task-md <task.md> [--skip-missing-last]
 #
 # Reads task.md `Branch chain` through resolve-branch-chain.sh. For a chain like:
-#   develop -> feat/GT-478-demo -> task/KB2CW-3711-a -> task/KB2CW-3900-b
+#   develop -> feat/EPIC-478-demo -> task/TASK-3711-a -> task/TASK-3900-b
 # it rebases each downstream branch onto the latest upstream in order:
-#   feat/GT-478-demo onto origin/develop
-#   task/KB2CW-3711-a onto origin/feat/GT-478-demo
-#   task/KB2CW-3900-b onto origin/task/KB2CW-3711-a
+#   feat/EPIC-478-demo onto origin/develop
+#   task/TASK-3711-a onto origin/feat/EPIC-478-demo
+#   task/TASK-3900-b onto origin/task/TASK-3711-a
 #
 # Intermediate branches are pushed with --force-with-lease after a clean rebase,
 # because later PRs use those remote branches as their GitHub base.

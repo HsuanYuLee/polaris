@@ -8,7 +8,7 @@
 #   E2E_PAGES='[{"url":"/zh-tw","type":"home"}]' scripts/e2e/e2e-verify.sh
 #
 # Env vars:
-#   E2E_BASE_URL  — override base URL (default: https://dev.kkday.com)
+#   E2E_BASE_URL  — override base URL (default: https://dev.exampleco.com)
 #   E2E_URLS      — comma-separated paths
 #   E2E_PAGES     — JSON array of {url, type} targets
 #
@@ -23,7 +23,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TOOLCHAIN_DIR="$WORKSPACE_ROOT/tools/polaris-toolchain"
-BASE_URL="${E2E_BASE_URL:-https://dev.kkday.com}"
+BASE_URL="${E2E_BASE_URL:-https://dev.exampleco.com}"
 
 # --- Pre-flight: check Mockoon (optional) ---
 MOCKOON_STATUS="unknown"
@@ -47,9 +47,9 @@ if ! curl -sk --max-time 5 -o /dev/null -w "%{http_code}" "$BASE_URL/zh-tw" 2>/d
   echo "ERROR: $BASE_URL is not reachable." >&2
   echo "" >&2
   echo "Make sure:" >&2
-  echo "  1. Docker (kkday-web-docker) is running" >&2
+  echo "  1. Docker (exampleco-web-docker) is running" >&2
   echo "  2. Nuxt dev server is running (pnpm dev:main)" >&2
-  echo "  3. /etc/hosts has: 127.0.0.1 dev.kkday.com" >&2
+  echo "  3. /etc/hosts has: 127.0.0.1 dev.exampleco.com" >&2
   exit 2
 fi
 echo "Pre-flight: OK"

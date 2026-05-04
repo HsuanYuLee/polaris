@@ -161,4 +161,4 @@ Violating canary = drift per `mechanism-registry.md` § `breakdown-infra-first-a
 
 ## Source
 
-Designed 2026-04-16 after GT-478 refinement. The pattern had been applied intuitively across multiple Epics (GT-483 VR baseline, GT-478 Mockoon, GT-521 curl); lifting it into a reference removes the per-Epic improvisation cost and gives refinement / breakdown a shared, auditable decision source.
+Designed 2026-04-16 after EPIC-478 refinement. The pattern had been applied intuitively across multiple Epics (EPIC-483 VR baseline, EPIC-478 Mockoon, EPIC-521 curl); lifting it into a reference removes the per-Epic improvisation cost and gives refinement / breakdown a shared, auditable decision source.

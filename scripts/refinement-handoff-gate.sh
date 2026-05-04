@@ -16,9 +16,9 @@ usage() {
 usage: refinement-handoff-gate.sh <spec-container|refinement.md|refinement.json>
 
 Examples:
-  refinement-handoff-gate.sh specs/companies/kkday/GT-495
-  refinement-handoff-gate.sh specs/companies/kkday/GT-495/refinement.md
-  refinement-handoff-gate.sh specs/companies/kkday/GT-495/refinement.json
+  refinement-handoff-gate.sh specs/companies/exampleco/EPIC-495
+  refinement-handoff-gate.sh specs/companies/exampleco/EPIC-495/refinement.md
+  refinement-handoff-gate.sh specs/companies/exampleco/EPIC-495/refinement.json
 EOF
   exit 2
 }

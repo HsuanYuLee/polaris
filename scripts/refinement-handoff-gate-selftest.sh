@@ -43,7 +43,7 @@ assert_fail() {
   fi
 }
 
-spec="$tmp/specs/GT-999"
+spec="$tmp/specs/EPIC-999"
 mkdir -p "$spec"
 printf '# Refinement\n' > "$spec/refinement.md"
 
@@ -51,7 +51,7 @@ assert_fail "missing refinement.json blocks handoff" "$gate" "$spec"
 
 cat > "$spec/refinement.json" <<'JSON'
 {
-  "epic": "GT-999",
+  "epic": "EPIC-999",
   "version": "1.0",
   "created_at": "2026-04-29T00:00:00+08:00",
   "modules": [
@@ -120,7 +120,7 @@ assert_ok "DP-backed artifact with epic null passes" "$gate" "$dp_spec"
 
 cat > "$spec/refinement.json" <<'JSON'
 {
-  "epic": "GT-999",
+  "epic": "EPIC-999",
   "version": "1.0",
   "created_at": "2026-04-29T00:00:00+08:00",
   "modules": [],

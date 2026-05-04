@@ -95,7 +95,7 @@ When **tool call count exceeds 25** AND there are **pending todo items or unfini
 
 **Proactive session split = checkpoint mode.** When the Strategist decides to suggest switching to a new session (work nature change, long-running task completed, remaining work is independent), the same checkpoint sequence applies: save memory first, then notify. The notification is a statement, not a suggestion — "已存檔，開新 session 輸入「繼續 {topic}」接續", not "建議開新 session". The word "建議" implies optional, which lets the save step get skipped.
 
-**Session split 必須附接續詞（硬性規定）。** 每次建議切 session 時，通知訊息必須包含一句使用者可以直接複製貼上的接續詞（例：「繼續 DP-009 實作」「繼續 GT-521 engineering」）。不附接續詞 = 不完整的 handoff。接續詞必須足夠具體讓下個 session 的 Strategist 能 match 到正確的 memory 和 context。
+**Session split 必須附接續詞（硬性規定）。** 每次建議切 session 時，通知訊息必須包含一句使用者可以直接複製貼上的接續詞（例：「繼續 DP-009 實作」「繼續 EPIC-521 engineering」）。不附接續詞 = 不完整的 handoff。接續詞必須足夠具體讓下個 session 的 Strategist 能 match 到正確的 memory 和 context。
 
 ### 5a-bis. Skill Completion = Natural Session Split Point
 
@@ -104,9 +104,9 @@ After completing a skill invocation, evaluate whether the **next action** is a d
 | Next action | Split? | Example |
 |------------|--------|---------|
 | Same skill, same ticket | No | engineering → engineering revision (same PR) |
-| Same skill, different ticket | No | breakdown GT-500 → breakdown GT-501 (batch) |
-| Different skill, same ticket | **Yes** | breakdown GT-500 → engineering GT-500 (planning → execution) |
-| Different topic entirely | **Yes** | GT-500 engineering → DP-009 framework work |
+| Same skill, different ticket | No | breakdown EPIC-500 → breakdown EPIC-501 (batch) |
+| Different skill, same ticket | **Yes** | breakdown EPIC-500 → engineering EPIC-500 (planning → execution) |
+| Different topic entirely | **Yes** | EPIC-500 engineering → DP-009 framework work |
 | Quick follow-up (≤ 3 lines, 1 file) | No | Fix a typo noticed during the skill |
 
 **When splitting:**

@@ -280,7 +280,7 @@ def resolve_fixture(raw):
     Fixture paths in task.md are commonly written in one of three forms:
       1. Absolute path
       2. Relative to Epic folder (e.g., `tests/mockoon/`)
-      3. Relative to company base dir or workspace root (e.g., `specs/GT-478/tests/mockoon/`)
+      3. Relative to company base dir or workspace root (e.g., `specs/EPIC-478/tests/mockoon/`)
     """
     raw = raw.strip()
     if not raw or raw.lower() == 'n/a':
@@ -289,7 +289,7 @@ def resolve_fixture(raw):
         return [raw]
     # company_base_dir = parent of specs/{EPIC}/ = parent of epic_dir.parent
     epic_parent = os.path.dirname(epic_dir)           # .../specs
-    company_base_dir = os.path.dirname(epic_parent)   # .../kkday
+    company_base_dir = os.path.dirname(epic_parent)   # .../exampleco
     candidates = [
         os.path.join(epic_dir, raw),
         os.path.join(company_base_dir, raw),

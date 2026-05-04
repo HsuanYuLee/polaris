@@ -4,7 +4,7 @@
 # Mechanically removes inherited changeset files left over from a parent
 # task branch after rebase (e.g., when task/CURRENT-TICKET branched off
 # task/PARENT-TICKET, .changeset/parent-*.md files are inherited and must
-# be cleaned before opening the PR — see kkday handbook
+# be cleaned before opening the PR — see exampleco handbook
 # development-workflow.md § Changeset Convention).
 #
 # This script is purely git-state hygiene — it does NOT create new changesets.
@@ -114,7 +114,7 @@ while IFS= read -r f; do
   [[ ! -f "$REPO/$f" ]] && continue
 
   base_name="$(basename "$f" .md)"
-  # Extract ticket prefix: e.g., kb2cw-3788-foo → KB2CW-3788
+  # Extract ticket prefix: e.g., kb2cw-3788-foo → TASK-3788
   # Regex: ^([a-z]+[0-9a-z]*)-([0-9]+)-
   if [[ "$base_name" =~ ^([a-z]+[0-9a-z]*)-([0-9]+)(-|$) ]]; then
     proj="${BASH_REMATCH[1]}"

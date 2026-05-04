@@ -26,7 +26,7 @@ a5ed3b521232c5ceb48443b3dd1153d00e2c417a537a61e2531bb7512ebd3ab6  .claude/instru
 2cce9249351d2f19116f02cc7b6a14e6e40bf6bb1b7efa55bbb1c2f90a3c092c  .claude/instructions/runtime/codex.md
 74e61b0d71c6167c35a86368aebb9a03a9e4a57275c6c41d38e0a909b4bf9622  .claude/instructions/runtime/copilot.md
 94858452b4742e476ea7c277a274b52dcd5e08406b76d2c6c6f73481dbebdd8a  .claude/rules/bash-command-splitting.md
-e21c91aad06b55d52c66f80d23281d7a60c9e2eff2880348067d5912fe577f84  .claude/rules/context-monitoring.md
+e571d4293f702615dc040ad711502fc9513bebb0ac4a1f4319560a94e294e6bd  .claude/rules/context-monitoring.md
 43b414ac3d868c2ab6bfdf5caf6386a1187aabd36a6576ca3d29d97d4c80dd43  .claude/rules/cross-llm-skill-source-of-truth.md
 9071afa7173df0ca2d4f40ab0c2ab693a68a9299daf6a33fab6bd8025d7ed385  .claude/rules/feedback-and-memory.md
 95cf417c7b65207e8ebab9bfb7378284f9fb7c2637aac0e16563834c6c7c2b91  .claude/rules/framework-iteration.md

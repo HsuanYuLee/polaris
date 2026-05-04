@@ -9,8 +9,8 @@
 #   - one inherited (different ticket) → removed
 #   - one current ticket changeset → preserved
 #   - multiple inherited + one current → only inherited removed
-#   - ticket key extraction (kb2cw-3788-* → KB2CW-3788)
-#   - ticket key extraction (gt-521-* → GT-521)
+#   - ticket key extraction (task-3788-* → TASK-3788)
+#   - ticket key extraction (epic-521-* → EPIC-521)
 #   - file without parseable ticket → preserved (conservative)
 #   - --base override
 #
@@ -127,12 +127,12 @@ fi
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== one inherited changeset (different ticket) → removed ==="
 REPO_1="$WORK_DIR/one-inherited"
-make_fake_repo_with_inherited "$REPO_1" "kb2cw-1000-old-task.md"
+make_fake_repo_with_inherited "$REPO_1" "task-1000-old-task.md"
 
 OUT_1="$WORK_DIR/one.out"
-"$CCI" --repo "$REPO_1" --current-ticket KB2CW-2000 --base main >"$OUT_1" 2>&1
+"$CCI" --repo "$REPO_1" --current-ticket TASK-2000 --base main >"$OUT_1" 2>&1
 assert_eq "$?" "0" "one inherited → exit 0"
-assert_file_absent "$REPO_1/.changeset/kb2cw-1000-old-task.md" "inherited file removed"
+assert_file_absent "$REPO_1/.changeset/task-1000-old-task.md" "inherited file removed"
 if grep -q "Cleaned 1 inherited" "$OUT_1"; then
   PASS=$((PASS + 1))
   [[ "$DEBUG" == "1" ]] && printf "  [ok] cleaned summary present\n"
@@ -144,12 +144,12 @@ fi
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== one current ticket changeset → preserved ==="
 REPO_C="$WORK_DIR/current-only"
-make_fake_repo_with_inherited "$REPO_C" "kb2cw-3788-product-heading.md"
+make_fake_repo_with_inherited "$REPO_C" "task-3788-product-heading.md"
 
 OUT_C="$WORK_DIR/current.out"
-"$CCI" --repo "$REPO_C" --current-ticket KB2CW-3788 --base main >"$OUT_C" 2>&1
+"$CCI" --repo "$REPO_C" --current-ticket TASK-3788 --base main >"$OUT_C" 2>&1
 assert_eq "$?" "0" "current ticket only → exit 0"
-assert_file_exists "$REPO_C/.changeset/kb2cw-3788-product-heading.md" "current ticket file preserved"
+assert_file_exists "$REPO_C/.changeset/task-3788-product-heading.md" "current ticket file preserved"
 if grep -q "No inherited changesets found" "$OUT_C"; then
   PASS=$((PASS + 1))
   [[ "$DEBUG" == "1" ]] && printf "  [ok] no-inherited message when current matches\n"
@@ -162,18 +162,18 @@ fi
 echo "=== multiple inherited + one current → only inherited removed ==="
 REPO_MIX="$WORK_DIR/mix"
 make_fake_repo_with_inherited "$REPO_MIX" \
-  "kb2cw-1000-old-a.md" \
-  "kb2cw-2000-old-b.md" \
-  "gt-500-old-c.md" \
-  "kb2cw-3788-current.md"
+  "task-1000-old-a.md" \
+  "task-2000-old-b.md" \
+  "epic-500-old-c.md" \
+  "task-3788-current.md"
 
 OUT_MIX="$WORK_DIR/mix.out"
-"$CCI" --repo "$REPO_MIX" --current-ticket KB2CW-3788 --base main >"$OUT_MIX" 2>&1
+"$CCI" --repo "$REPO_MIX" --current-ticket TASK-3788 --base main >"$OUT_MIX" 2>&1
 assert_eq "$?" "0" "mixed → exit 0"
-assert_file_exists "$REPO_MIX/.changeset/kb2cw-3788-current.md" "current preserved"
-assert_file_absent "$REPO_MIX/.changeset/kb2cw-1000-old-a.md" "inherited a removed"
-assert_file_absent "$REPO_MIX/.changeset/kb2cw-2000-old-b.md" "inherited b removed"
-assert_file_absent "$REPO_MIX/.changeset/gt-500-old-c.md" "inherited gt-500-c removed"
+assert_file_exists "$REPO_MIX/.changeset/task-3788-current.md" "current preserved"
+assert_file_absent "$REPO_MIX/.changeset/task-1000-old-a.md" "inherited a removed"
+assert_file_absent "$REPO_MIX/.changeset/task-2000-old-b.md" "inherited b removed"
+assert_file_absent "$REPO_MIX/.changeset/epic-500-old-c.md" "inherited epic-500-c removed"
 if grep -q "Cleaned 3 inherited" "$OUT_MIX"; then
   PASS=$((PASS + 1))
   [[ "$DEBUG" == "1" ]] && printf "  [ok] cleaned 3 summary present\n"
@@ -185,14 +185,14 @@ fi
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== file without parseable ticket → preserved ==="
 REPO_NP="$WORK_DIR/non-parseable"
-make_fake_repo_with_inherited "$REPO_NP" "chore-bump-deps.md" "fix-typo.md" "kb2cw-1000-inherited.md"
+make_fake_repo_with_inherited "$REPO_NP" "chore-bump-deps.md" "fix-typo.md" "task-1000-inherited.md"
 
 OUT_NP="$WORK_DIR/np.out"
-"$CCI" --repo "$REPO_NP" --current-ticket KB2CW-3788 --base main >"$OUT_NP" 2>&1
+"$CCI" --repo "$REPO_NP" --current-ticket TASK-3788 --base main >"$OUT_NP" 2>&1
 assert_eq "$?" "0" "non-parseable mix → exit 0"
 assert_file_exists "$REPO_NP/.changeset/chore-bump-deps.md" "non-parseable chore preserved"
 assert_file_exists "$REPO_NP/.changeset/fix-typo.md" "non-parseable fix preserved"
-assert_file_absent "$REPO_NP/.changeset/kb2cw-1000-inherited.md" "parseable inherited removed"
+assert_file_absent "$REPO_NP/.changeset/task-1000-inherited.md" "parseable inherited removed"
 if grep -q "Cleaned 1 inherited" "$OUT_NP"; then
   PASS=$((PASS + 1))
   [[ "$DEBUG" == "1" ]] && printf "  [ok] cleaned 1 with non-parseable preserved\n"
@@ -202,32 +202,32 @@ else
 fi
 
 # ────────────────────────────────────────────────────────────────────────────
-echo "=== ticket key extraction: GT-521 ==="
+echo "=== ticket key extraction: EPIC-521 ==="
 REPO_GT="$WORK_DIR/gt"
-make_fake_repo_with_inherited "$REPO_GT" "gt-521-breadcrumblist-seo.md" "kb2cw-3788-current.md"
+make_fake_repo_with_inherited "$REPO_GT" "epic-521-breadcrumblist-seo.md" "task-3788-current.md"
 
-"$CCI" --repo "$REPO_GT" --current-ticket KB2CW-3788 --base main >/dev/null 2>&1
-assert_file_absent "$REPO_GT/.changeset/gt-521-breadcrumblist-seo.md" "GT-521 inherited removed"
-assert_file_exists "$REPO_GT/.changeset/kb2cw-3788-current.md" "KB2CW-3788 preserved"
+"$CCI" --repo "$REPO_GT" --current-ticket TASK-3788 --base main >/dev/null 2>&1
+assert_file_absent "$REPO_GT/.changeset/epic-521-breadcrumblist-seo.md" "EPIC-521 inherited removed"
+assert_file_exists "$REPO_GT/.changeset/task-3788-current.md" "TASK-3788 preserved"
 
-# Reverse: when current = GT-521, kb2cw-3788 should be removed
+# Reverse: when current = EPIC-521, task-3788 should be removed
 REPO_GT2="$WORK_DIR/gt2"
-make_fake_repo_with_inherited "$REPO_GT2" "gt-521-current.md" "kb2cw-3788-inherited.md"
+make_fake_repo_with_inherited "$REPO_GT2" "epic-521-current.md" "task-3788-inherited.md"
 
-"$CCI" --repo "$REPO_GT2" --current-ticket GT-521 --base main >/dev/null 2>&1
-assert_file_exists "$REPO_GT2/.changeset/gt-521-current.md" "GT-521 preserved"
-assert_file_absent "$REPO_GT2/.changeset/kb2cw-3788-inherited.md" "KB2CW-3788 inherited removed"
+"$CCI" --repo "$REPO_GT2" --current-ticket EPIC-521 --base main >/dev/null 2>&1
+assert_file_exists "$REPO_GT2/.changeset/epic-521-current.md" "EPIC-521 preserved"
+assert_file_absent "$REPO_GT2/.changeset/task-3788-inherited.md" "TASK-3788 inherited removed"
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== --base inferred from git config ==="
 REPO_DEF="$WORK_DIR/inferred-base"
-make_fake_repo_with_inherited "$REPO_DEF" "kb2cw-9000-old.md"
+make_fake_repo_with_inherited "$REPO_DEF" "task-9000-old.md"
 git -C "$REPO_DEF" config init.defaultBranch main
 
-"$CCI" --repo "$REPO_DEF" --current-ticket KB2CW-3788 >/dev/null 2>&1
+"$CCI" --repo "$REPO_DEF" --current-ticket TASK-3788 >/dev/null 2>&1
 RC_DEF=$?
 assert_eq "$RC_DEF" "0" "--base inferred → exit 0"
-assert_file_absent "$REPO_DEF/.changeset/kb2cw-9000-old.md" "inferred-base inherited removed"
+assert_file_absent "$REPO_DEF/.changeset/task-9000-old.md" "inferred-base inherited removed"
 
 # ────────────────────────────────────────────────────────────────────────────
 echo ""

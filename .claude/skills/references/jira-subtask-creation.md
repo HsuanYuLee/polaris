@@ -40,7 +40,7 @@ mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
 | 有既有子單，SP 未填 | 回報現有子單，進入補估點流程（Step B），不重複建立 |
 | 有部分子單 | 回報現有 + 識別缺少的，僅建立缺少的部分 |
 
-> **為什麼不能省略**：kkday 慣例子單建在 KB2CW 用 parent link，`getJiraIssue` 的 `subtasks` 會回傳空陣列，造成「以為沒有子單」的誤判。GT-480 就是此 bug 的實例。
+> **為什麼不能省略**：exampleco 慣例子單建在 KB2CW 用 parent link，`getJiraIssue` 的 `subtasks` 會回傳空陣列，造成「以為沒有子單」的誤判。EPIC-480 就是此 bug 的實例。
 
 ## 建立迴圈
 

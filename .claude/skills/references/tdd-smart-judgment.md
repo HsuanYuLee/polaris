@@ -11,7 +11,7 @@
 
 **若 repo 有 patch gate → 規則凌駕以下判斷表**：所有 source 改動（非「無法寫測試」類）一律走 TDD，**不以「改動小」、「加一行 option」、「只改字串」為由豁免**。
 
-理由：repo 的 patch gate 是 CI 硬門檻，即使 code 改動只有一兩行，CI 仍會檢查 patch line 是否被 test 覆蓋。engineering 本地判定「不需測試」→ push → CI fail 是已知失效模式（KB2CW-3847 事件）。
+理由：repo 的 patch gate 是 CI 硬門檻，即使 code 改動只有一兩行，CI 仍會檢查 patch line 是否被 test 覆蓋。engineering 本地判定「不需測試」→ push → CI fail 是已知失效模式（TASK-3847 事件）。
 
 若 repo **無** patch gate，才走下方判斷表。
 

@@ -11,14 +11,14 @@
 #   ./scripts/sync-to-skills.sh --skills-repo /path  # Custom skills repo path
 #
 # Prerequisites:
-#   - Team repo cloned locally (default: /tmp/kkday-web-skills)
+#   - Team repo cloned locally (default: /tmp/exampleco-web-skills)
 #   - gh CLI authenticated with access to team repo
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-SKILLS_REPO="${SKILLS_REPO:-/tmp/kkday-web-skills}"
+SKILLS_REPO="${SKILLS_REPO:-/tmp/exampleco-web-skills}"
 DRY_RUN=false
 OPEN_PR=true
 
@@ -35,7 +35,7 @@ done
 
 if [[ ! -d "$SKILLS_REPO/.git" ]]; then
   echo "Team skills repo not found at $SKILLS_REPO" >&2
-  echo "Clone it first: gh repo clone kkday-it/kkday-web-skills $SKILLS_REPO" >&2
+  echo "Clone it first: gh repo clone example-org/exampleco-web-skills $SKILLS_REPO" >&2
   exit 1
 fi
 
@@ -197,7 +197,7 @@ EOF
 )"
 
   # Use gh api to avoid pr-create-guard hook (designed for product repos)
-  gh api repos/kkday-it/kkday-web-skills/pulls --method POST \
+  gh api repos/example-org/exampleco-web-skills/pulls --method POST \
     -f title="chore: upgrade Polaris skills to v$VERSION" \
     -f head="$BRANCH" \
     -f base="master" \

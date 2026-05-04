@@ -99,7 +99,7 @@ Sub-agents don't auto-load `.claude/rules/` from sub-repos or the workspace root
 **Dispatch prompt pattern**:
 
 ```
-你要在 kkday-b2c-web 修改 breadcrumb schema。
+你要在 exampleco-b2c-web 修改 breadcrumb schema。
 
 [Company Context]
 - b2c-web 商品頁資料（breadcrumb, product detail, pricing）來自 member-ci internal API
@@ -108,7 +108,7 @@ Sub-agents don't auto-load `.claude/rules/` from sub-repos or the workspace root
 
 [Repo Handbook — 先讀再開始]
 讀以下檔案，作為你對這個 repo 的基礎理解：
-1. /absolute/path/to/kkday-b2c-web/.claude/rules/handbook/index.md
+1. /absolute/path/to/exampleco-b2c-web/.claude/rules/handbook/index.md
 2. 讀完 index 後，讀 index 引用的所有子文件（handbook/*.md）
 讀完後再開始任務。
 

@@ -23,9 +23,9 @@
 #   polaris-jira-transition.sh <ticket> <target_status_slug>
 #
 # Examples:
-#   polaris-jira-transition.sh KB2CW-3900 in_development
-#   polaris-jira-transition.sh GT-478 code_review
-#   polaris-jira-transition.sh KB2CW-3653 done
+#   polaris-jira-transition.sh TASK-3900 in_development
+#   polaris-jira-transition.sh EPIC-478 code_review
+#   polaris-jira-transition.sh TASK-3653 done
 #
 # Status slugs (built-in default mapping; override via workspace-config):
 #   in_development → "In Development"
@@ -47,22 +47,33 @@
 #   POLARIS_COMPANY_DIR Pin company config dir; bypasses walk-up search
 #
 # Secrets file auto-detection (mirrors jira-upload-attachment.sh):
-#   POLARIS_COMPANY_DIR/.env.secrets → ../kkday/.env.secrets → ~/work/kkday/.env.secrets
+#   POLARIS_COMPANY_DIR/.env.secrets → workspace company dirs with workspace-config.yaml
 
 # NOTE: deliberately no `set -e`. Every error path is handled with explicit
 # soft-fail so a missed exit-code propagation cannot break delivery flow.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 soft_info() { echo "polaris-jira-transition: $*" >&2; }
 soft_warn() { echo "polaris-jira-transition: WARN: $*" >&2; }
+
+candidate_company_dirs() {
+  [[ -n "${POLARIS_COMPANY_DIR:-}" ]] && printf '%s\n' "$POLARIS_COMPANY_DIR"
+
+  local cfg
+  for cfg in "$WORKSPACE_ROOT"/*/workspace-config.yaml "$HOME"/work/*/workspace-config.yaml; do
+    [[ -f "$cfg" ]] || continue
+    dirname "$cfg"
+  done
+}
 
 usage() {
   cat >&2 <<'EOF'
 Usage: polaris-jira-transition.sh <ticket> <target_status_slug>
 
-  ticket               JIRA issue key (e.g. KB2CW-3900, GT-478)
+  ticket               JIRA issue key (e.g. TASK-3900, EPIC-478)
   target_status_slug   in_development | code_review | done | waiting_qa |
                        qa_pass | blocked
                        (or any slug declared under jira.transitions in
@@ -213,14 +224,8 @@ PY
 load_credentials() {
   if [[ -n "${JIRA_EMAIL:-}" && -n "${JIRA_API_TOKEN:-}" ]]; then return 0; fi
 
-  local search_dirs=(
-    "${POLARIS_COMPANY_DIR:-}"
-    "$SCRIPT_DIR/../kkday"
-    "$HOME/work/kkday"
-  )
-
   local dir secrets
-  for dir in "${search_dirs[@]}"; do
+  while IFS= read -r dir; do
     [[ -z "$dir" ]] && continue
     secrets="$dir/.env.secrets"
     if [[ -f "$secrets" ]]; then
@@ -230,7 +235,7 @@ load_credentials() {
       set -u
       [[ -n "${JIRA_EMAIL:-}" && -n "${JIRA_API_TOKEN:-}" ]] && return 0
     fi
-  done
+  done < <(candidate_company_dirs | awk '!seen[$0]++')
 
   return 1
 }
@@ -374,7 +379,7 @@ main() {
   fi
 
   if ! load_credentials; then
-    soft_warn "JIRA credentials unavailable (set JIRA_EMAIL + JIRA_API_TOKEN, or provide .env.secrets in POLARIS_COMPANY_DIR / ~/work/kkday/) — skipping transition"
+    soft_warn "JIRA credentials unavailable (set JIRA_EMAIL + JIRA_API_TOKEN, or provide .env.secrets in POLARIS_COMPANY_DIR / workspace company dir) — skipping transition"
     exit 0
   fi
 

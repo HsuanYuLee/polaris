@@ -46,7 +46,7 @@ env_lib_expand_path() {
 # ── workspace-config.yaml discovery (walk up from START_DIR) ─────────────────
 # The Polaris workspace has two config layers:
 #   1. ROOT router (e.g. /Users/x/work/workspace-config.yaml) — has `companies[]`
-#   2. COMPANY config (e.g. /Users/x/work/kkday/workspace-config.yaml) — has
+#   2. COMPANY config (e.g. /Users/x/work/exampleco/workspace-config.yaml) — has
 #      `projects[]` with `dev_environment` (the data L2 primitives need).
 #
 # This function returns the COMPANY config absolute path. Walks up from
@@ -67,7 +67,7 @@ env_lib_find_workspace_config() {
     if [[ -f "$cur/workspace-config.yaml" ]]; then
       _env_lib_resolve_company_config "$cur/workspace-config.yaml" && return 0
     fi
-    # Check direct child (typical: /Users/x/work/kkday/workspace-config.yaml).
+    # Check direct child (typical: /Users/x/work/exampleco/workspace-config.yaml).
     # Skip _template/ — it's a scaffolding stub, not a real config.
     for child in "$cur"/*/workspace-config.yaml; do
       [[ -f "$child" ]] || continue

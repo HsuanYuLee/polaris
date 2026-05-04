@@ -462,60 +462,60 @@ run_selftest() {
 
   tmpdir="$(mktemp -d -t resolve-task-md-selftest.XXXXXX)"
   trap "rm -rf '$tmpdir'" EXIT
-  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks/pr-release" "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks" "$tmpdir/docs-manager/src/content/docs/specs/GT-999" \
-           "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-478/tasks/pr-release" "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-478/tasks" \
-           "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/GT-999/tasks"
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks/pr-release" "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks" "$tmpdir/docs-manager/src/content/docs/specs/EPIC-999" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks/pr-release" "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/EPIC-999/tasks"
 
-  cat > "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks/T3b.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks/T3b.md" <<'MD'
 # T3b: Example (1 pt)
-> Epic: GT-478 | JIRA: GT-480 | Repo: kkday
+> Epic: EPIC-478 | JIRA: EPIC-480 | Repo: exampleco
 ## Operational Context
-| Task branch | task/GT-480-example |
+| Task branch | task/EPIC-480-example |
 MD
 
-  cat > "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks/pr-release/T3a.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks/pr-release/T3a.md" <<'MD'
 # T3a: Example (1 pt)
-> Epic: GT-478 | JIRA: GT-479 | Repo: kkday
+> Epic: EPIC-478 | JIRA: EPIC-479 | Repo: exampleco
 MD
 
-  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-478/tasks/pr-release/T3a.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks/pr-release/T3a.md" <<'MD'
 # T3a: Canonical series first (1 pt)
-> Source: GT-478 | Task: KB2CW-3711 | JIRA: KB2CW-3711 | Repo: kkday
+> Source: EPIC-478 | Task: TASK-3711 | JIRA: TASK-3711 | Repo: exampleco
 ## Operational Context
 | Source type | jira |
-| Source ID | GT-478 |
-| Task ID | KB2CW-3711 |
-| JIRA key | KB2CW-3711 |
+| Source ID | EPIC-478 |
+| Task ID | TASK-3711 |
+| JIRA key | TASK-3711 |
 MD
 
-  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/GT-478/tasks/T3b.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks/T3b.md" <<'MD'
 # T3b: Canonical series second (1 pt)
-> Source: GT-478 | Task: KB2CW-3902 | JIRA: KB2CW-3902 | Repo: kkday
+> Source: EPIC-478 | Task: TASK-3902 | JIRA: TASK-3902 | Repo: exampleco
 ## Operational Context
 | Source type | jira |
-| Source ID | GT-478 |
-| Task ID | KB2CW-3902 |
-| JIRA key | KB2CW-3902 |
+| Source ID | EPIC-478 |
+| Task ID | TASK-3902 |
+| JIRA key | TASK-3902 |
 MD
 
-  cat > "$tmpdir/docs-manager/src/content/docs/specs/GT-478/tasks/T4.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks/T4.md" <<'MD'
 # T4: Canonical product task (1 pt)
-> Source: GT-478 | Task: GT-481 | JIRA: GT-481 | Repo: kkday
+> Source: EPIC-478 | Task: EPIC-481 | JIRA: EPIC-481 | Repo: exampleco
 ## Operational Context
 | Source type | jira |
-| Source ID | GT-478 |
-| Task ID | GT-481 |
-| JIRA key | GT-481 |
+| Source ID | EPIC-478 |
+| Task ID | EPIC-481 |
+| JIRA key | EPIC-481 |
 MD
 
-  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/kkday/archive/GT-999/tasks/T1.md" <<'MD'
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/EPIC-999/tasks/T1.md" <<'MD'
 # T1: Archived task (1 pt)
-> Source: GT-999 | Task: GT-999 | JIRA: GT-999 | Repo: kkday
+> Source: EPIC-999 | Task: EPIC-999 | JIRA: EPIC-999 | Repo: exampleco
 ## Operational Context
 | Source type | jira |
-| Source ID | GT-999 |
-| Task ID | GT-999 |
-| JIRA key | GT-999 |
+| Source ID | EPIC-999 |
+| Task ID | EPIC-999 |
+| JIRA key | EPIC-999 |
 MD
 
   mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-047-framework-work-order-bridge/tasks"
@@ -538,28 +538,28 @@ MD
 | JIRA key | N/A |
 MD
 
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-480)" || rc=$?
-  [[ $rc -eq 0 && "$out" == *"/specs/GT-478/tasks/T3b.md" ]] || { echo "[selftest] jira active FAIL"; return 1; }
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" EPIC-480)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T3b.md" ]] || { echo "[selftest] jira active FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-479)" || rc=$?
-  [[ $rc -eq 0 && "$out" == *"/specs/GT-478/tasks/pr-release/T3a.md" ]] || { echo "[selftest] jira complete FAIL"; return 1; }
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" EPIC-479)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/pr-release/T3a.md" ]] || { echo "[selftest] jira complete FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-481)" || rc=$?
-  [[ $rc -eq 0 && "$out" == *"/specs/GT-478/tasks/T4.md" ]] || { echo "[selftest] canonical jira lookup FAIL"; return 1; }
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" EPIC-481)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T4.md" ]] || { echo "[selftest] canonical jira lookup FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" GT-999)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" EPIC-999)" || rc=$?
   [[ $rc -eq 1 ]] || { echo "[selftest] default archive exclusion FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --include-archive --scan-root "$tmpdir" GT-999)" || rc=$?
-  [[ $rc -eq 0 && "$out" == *"/specs/companies/kkday/archive/GT-999/tasks/T1.md" ]] || { echo "[selftest] include-archive lookup FAIL"; return 1; }
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --include-archive --scan-root "$tmpdir" EPIC-999)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/archive/EPIC-999/tasks/T1.md" ]] || { echo "[selftest] include-archive lookup FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 GT-480')" || rc=$?
-  [[ $rc -eq 0 && "$out" == *"/specs/GT-478/tasks/T3b.md" ]] || { echo "[selftest] from-input jira FAIL"; return 1; }
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-480')" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T3b.md" ]] || { echo "[selftest] from-input jira FAIL"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" DP-047-T1)" || rc=$?
@@ -570,11 +570,11 @@ MD
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] || { echo "[selftest] from-input dp task FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 GT-478 T3 系列第一張')" || rc=$?
-  [[ $rc -eq 0 && "$out" == *"/specs/companies/kkday/GT-478/tasks/pr-release/T3a.md" ]] || { echo "[selftest] from-input epic series first FAIL"; return 1; }
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-478 T3 系列第一張')" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/EPIC-478/tasks/pr-release/T3a.md" ]] || { echo "[selftest] from-input epic series first FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 GT-478 T3 series')" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-478 T3 series')" || rc=$?
   [[ $rc -eq 1 ]] || { echo "[selftest] ambiguous epic series should fail"; return 1; }
 
   rc=0
@@ -582,9 +582,9 @@ MD
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" ]] || { echo "[selftest] canonical dp pr-release task FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --write-lock GT-480)" || rc=$?
-  [[ $rc -eq 0 && "$out" == *"/specs/GT-478/tasks/T3b.md" ]] || { echo "[selftest] write-lock FAIL"; return 1; }
-  [[ -f "$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --print-lock-path GT-480 2>/dev/null)" ]] || { echo "[selftest] lock file missing"; return 1; }
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --write-lock EPIC-480)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T3b.md" ]] || { echo "[selftest] write-lock FAIL"; return 1; }
+  [[ -f "$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --print-lock-path EPIC-480 2>/dev/null)" ]] || { echo "[selftest] lock file missing"; return 1; }
 
   echo "[selftest] PASS"
 }

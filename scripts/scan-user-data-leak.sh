@@ -57,10 +57,10 @@ EMAIL_MATCHES=$(grep -rnoE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' "$RU
   --include='*.md' 2>/dev/null \
   | grep -v '@example\.com' \
   | grep -v '@anthropic\.com' \
-  | grep -v '@kkday\.com' || true)
+  | grep -v '@exampleco\.com' || true)
 
-# Filter: @kkday.com in handbook is company-level (org domain), not user-specific.
-# But a specific person's email (john@kkday.com) IS user-specific.
+# Filter: @exampleco.com in handbook is company-level (org domain), not user-specific.
+# But a specific person's email (john@exampleco.com) IS user-specific.
 # For now, flag all non-generic emails for human review.
 
 if [ -n "$EMAIL_MATCHES" ]; then

@@ -23,9 +23,9 @@ It is not a pass and it is not a degraded success. Delivery remains blocked unti
   "blocked_env": {
     "reason": "dns_resolution_failed",
     "stage": "install",
-    "host": "nexus3.sit.kkday.com",
+    "host": "nexus3.sit.exampleco.com",
     "package_manager": "pnpm",
-    "registry_hosts": ["nexus3.sit.kkday.com"],
+    "registry_hosts": ["nexus3.sit.exampleco.com"],
     "output_tail": "sanitized stderr tail",
     "retry": {
       "action": "RETRY_WITH_ESCALATION",

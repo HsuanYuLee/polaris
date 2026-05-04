@@ -218,8 +218,8 @@ run_self_test() {
   cat >"$sidecar" <<'EOF'
 ---
 skill: engineering
-ticket: KB2CW-3711
-epic: GT-478
+ticket: TASK-3711
+epic: EPIC-478
 flavor: env-drift
 escalation_count: 1
 timestamp: 2026-04-27T07:34:56Z
