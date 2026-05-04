@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.46] - 2026-05-04
+
+### Added — skill mechanization gates
+
+- Added `polaris-external-write-gate.sh` with selftest coverage for external
+  write body preflight before JIRA, Slack, Confluence, or GitHub writes.
+- Added `validate-skill-contracts.sh` with selftest coverage for SKILL.md
+  contract drift reporting across Completion Envelope, language gate,
+  Starlight authoring, Post-Task Reflection, and legacy path patterns.
+- Documented the external write gate reference and wired the skill contract
+  linter into the validate skill as a report-first health check.
+
 ## [3.74.45] - 2026-05-04
 
 ### Added — breakdown readiness gate

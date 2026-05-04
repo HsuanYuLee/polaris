@@ -93,6 +93,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 |------|-------------|----------|
 | [workspace-config-reader.md](workspace-config-reader.md) | 兩層 config 解析流程（root + company）與完整欄位索引 | 所有需要讀 config 的 skill |
 | [shared-defaults.md](shared-defaults.md) | 跨 skill 共用預設值（Slack channels、JIRA、GitHub、infra） | 所有讀 workspace-config 的 skill |
+| [external-write-gate.md](external-write-gate.md) | 外部寫入前的共用 preflight helper：JIRA / Slack / Confluence / GitHub body file 的 language gate 與 optional Starlight gate | 所有會寫外部 surface 的 skill |
 | [dependency-consent.md](dependency-consent.md) | Optional dependency 的使用者同意管理（playwright、mockoon-cli） | /init, visual-regression, e2e |
 | [polaris-project-dir.md](polaris-project-dir.md) | ~/.polaris/projects/$SLUG/ 目錄結構與 slug 解析 | polaris-learnings.sh, polaris-timeline.sh |
 | [workspace-overlay.md](workspace-overlay.md) | Framework worktree 與 main-checkout overlay 邊界：ignored specs、`.codex/`、local maintainer skills、generated output 的 read-only resolver contract | engineering, framework-release, framework-docs-health, docs-manager |

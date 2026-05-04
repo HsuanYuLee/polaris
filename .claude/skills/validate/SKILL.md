@@ -69,6 +69,7 @@ Static smoke test of canaries from `rules/mechanism-registry.md`.
 11. **L2 embedding integrity** — run `scripts/validate-l2-embedding.sh` against `skills/references/l2-embedding-registry.md`. Validates every registered DP-030 canary's script exists, SKILL.md step anchor matches, L1 hook file + settings.json registration exist, and Layer declaration is consistent. Exit 1 → 🔴 FAIL (surface per-entry errors to user); exit 2 → 🔴 FAIL (registry meta error)
 12. **Cross-LLM skill mirror mode** — run `scripts/check-skills-mirror-mode.sh`. `.agents/skills` must be a symlink to `../.claude/skills`; copied mirror dirs are 🔴 FAIL because they reintroduce drift between Claude and Codex paths
 13. **Model tier policy drift** — run `scripts/validate-model-tier-policy.sh`. Raw provider model policy (`haiku`, `sonnet`, concrete `gpt-*` / `claude-*` IDs) must stay in the approved central mapping / config / release-note locations; skill workflow prose must use semantic classes from `skills/references/model-tier-policy.md`
+14. **Skill contract drift** — 執行 `scripts/validate-skill-contracts.sh`。此 static linter 會回報 SKILL.md contract gap，例如 sub-agent dispatch 缺 Completion Envelope、疑似 write skill 缺 Post-Task Reflection、外部寫入 surface 缺 language gate / helper reference、specs markdown producer 缺 Starlight authoring reference，以及 legacy path pattern。預設輸出 warning report 且不阻擋；若使用 `--strict` 回傳 exit 1，validate report 應標成 🔴 FAIL
 
 ### Report format
 
