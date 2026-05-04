@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.54] - 2026-05-05
+
+### Fixed — revision rebase enforcement
+
+- `revision-rebase.sh` 成功後會寫 current HEAD 綁定的 R0 evidence 到 `/tmp` 與
+  `.polaris/evidence/revision-rebase/`。
+- 新增 `gate-revision-rebase.sh`，existing PR branch 在 `git push` 前必須有對應的
+  revision rebase evidence；first-cut 尚未開 PR 的 branch 不受影響。
+- 將新 gate 接到 Codex/Claude fallback pre-push、generated git pre-push hook 與
+  cross-LLM parity selftest，避免 revision mode 漏跑 rebase/cascade 後仍能推送。
+
 ## [3.74.53] - 2026-05-05
 
 ### Fixed — repo handbook source-of-truth drift

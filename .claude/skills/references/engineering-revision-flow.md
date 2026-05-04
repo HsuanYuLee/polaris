@@ -16,6 +16,14 @@ scripts/revision-rebase.sh
 可用 `--task-md`、`--pr`、`--repo`。Script 負責 task.md 定位、Branch chain cascade
 rebase、resolve base、fetch、rebase、PR base sync。
 
+成功後 script 會寫 head-bound R0 evidence：
+
+- `/tmp/polaris-revision-rebase-{TICKET_OR_TASK}-{HEAD_SHA}.json`
+- `{main_checkout}/.polaris/evidence/revision-rebase/polaris-revision-rebase-{TICKET_OR_TASK}-{HEAD_SHA}.json`
+
+Existing PR push 由 `gate-revision-rebase.sh` 檢查此 evidence；缺 evidence 代表 R0 沒有對
+current HEAD 執行，不能 push revision。
+
 Exit：
 
 - `0`：進 R1。

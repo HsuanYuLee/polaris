@@ -812,6 +812,7 @@ bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
 |------|---------|--------|---------|
 | `gate-ci-local.sh` git pre-commit | `git commit` | Layer A evidence | 四通（Claude / Codex / Copilot / 人類） |
 | `gate-ci-local.sh` git pre-push | `git push` | Layer A evidence（push mode） | 四通 |
+| `gate-revision-rebase.sh` git pre-push | `git push` on an existing PR branch | Revision R0 evidence for current HEAD | 四通 |
 | `gate-evidence.sh` git pre-push | `git push` | Layer B evidence + Layer C if triggered | 四通 |
 | `gate-changeset.sh` git pre-push | `git push` | Developer ticket-bound changeset 缺漏檢查 | 四通 |
 | `gate-base-check.sh` in `polaris-pr-create.sh` | PR 建立 | base branch = resolve 結果 | 四通 |

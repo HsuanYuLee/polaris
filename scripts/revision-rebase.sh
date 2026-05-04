@@ -27,10 +27,14 @@
 #   1  conflict / fetch failure / rebase failure / PR base sync failure / helper missing
 #   2  usage error
 #
-# JSON evidence (stdout, single line):
+# JSON evidence (stdout, single line; successful runs also persist a head-bound
+# evidence file to `/tmp` and `.polaris/evidence/revision-rebase/`):
 #   {
 #     "repo": "<absolute>",
 #     "task_md": "<absolute or null>",
+#     "branch": "<branch>",
+#     "head_sha": "<full sha>",
+#     "evidence_ids": ["<ticket/task id>", ...],
 #     "resolved_base": "<branch>",
 #     "rebase_status": "clean | conflict | not_needed",
 #     "pr_number": <int|null>,
@@ -109,6 +113,11 @@ emit_evidence() {
     "$pr_number" "$pr_base_before" "$pr_base_after" \
     "$pr_base_synced" "$legacy_fallback" "$(iso_now_utc)" <<'PYEOF'
 import json, sys
+import os
+import re
+import subprocess
+from pathlib import Path
+
 (_, repo, task_md, resolved_base, rebase_status, pr_number,
  pr_base_before, pr_base_after, pr_base_synced, legacy_fallback, at) = sys.argv
 
@@ -126,9 +135,76 @@ def maybe_int_null(v):
 def maybe_bool(v):
     return v == "true"
 
+def git_value(*args):
+    try:
+        return subprocess.check_output(["git", "-C", repo, *args], text=True, stderr=subprocess.DEVNULL).strip()
+    except Exception:
+        return ""
+
+def first_match(pattern, text):
+    m = re.search(pattern, text, flags=re.MULTILINE)
+    return m.group(1).strip() if m else ""
+
+def task_field(text, label):
+    escaped = re.escape(label)
+    return first_match(rf"^\|\s*{escaped}\s*\|\s*([^|]+?)\s*\|", text)
+
+def add_id(ids, value):
+    value = (value or "").strip()
+    if not value or value in {"N/A", "none", "__NULL__"}:
+        return
+    if re.match(r"^(DP-\d{3}-T\d+[a-z]*|[A-Z][A-Z0-9]+-\d+|[A-Z][A-Z0-9]+-\d+-T\d+[a-z]*|T\d+[a-z]*)$", value):
+        if value not in ids:
+            ids.append(value)
+
+def evidence_id_candidates(branch, task_path):
+    ids = []
+    for pattern in (r"DP-\d{3}-T\d+[a-z]*", r"[A-Z][A-Z0-9]+-\d+"):
+        m = re.search(pattern, branch or "")
+        if m:
+            add_id(ids, m.group(0))
+    if task_path and task_path != "__NULL__":
+        try:
+            text = Path(task_path).read_text(encoding="utf-8")
+        except Exception:
+            text = ""
+        for label in ("Work item id", "Task JIRA key"):
+            add_id(ids, task_field(text, label))
+        add_id(ids, first_match(r"^\s*>\s*.*?\bTask:\s*([^|]+)", text))
+        add_id(ids, first_match(r"^\s*>\s*.*?\bJIRA:\s*([^|]+)", text))
+        add_id(ids, first_match(r"^#\s+(T\d+[a-z]*):", text))
+    return ids
+
+def main_checkout_for_repo():
+    evidence_root = os.environ.get("POLARIS_EVIDENCE_ROOT")
+    if evidence_root:
+        return Path(evidence_root)
+    try:
+        common = subprocess.check_output(
+            ["git", "-C", repo, "rev-parse", "--git-common-dir"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        common_path = Path(common)
+        if not common_path.is_absolute():
+            common_path = (Path(repo) / common_path).resolve()
+        return common_path.parent / ".polaris" / "evidence"
+    except Exception:
+        return Path(repo) / ".polaris" / "evidence"
+
+def slug(value):
+    return re.sub(r"[^A-Za-z0-9_.-]+", "-", value).strip("-") or "unknown"
+
+branch = git_value("rev-parse", "--abbrev-ref", "HEAD") or None
+head_sha = git_value("rev-parse", "HEAD") or None
+ids = evidence_id_candidates(branch or "", maybe_null(task_md))
+
 evidence = {
     "repo": repo,
     "task_md": maybe_null(task_md),
+    "branch": branch,
+    "head_sha": head_sha,
+    "evidence_ids": ids,
     "resolved_base": maybe_null(resolved_base),
     "rebase_status": rebase_status,
     "pr_number": maybe_int_null(pr_number),
@@ -140,6 +216,22 @@ evidence = {
     "writer": "revision-rebase.sh",
     "at": at,
 }
+paths = []
+if rebase_status != "conflict" and head_sha and ids:
+    evidence_root = main_checkout_for_repo()
+    for evidence_id in ids:
+        filename = f"polaris-revision-rebase-{slug(evidence_id)}-{head_sha}.json"
+        paths.append(str(Path("/tmp") / filename))
+        paths.append(str(evidence_root / "revision-rebase" / filename))
+    evidence["evidence_paths"] = paths
+    for path in paths:
+        try:
+            p = Path(path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps(evidence, separators=(",", ":")) + "\n", encoding="utf-8")
+        except Exception as exc:
+            sys.stderr.write(f"[revision-rebase] WARN: failed to write evidence {path}: {exc}\n")
+
 # pr_base_already_aligned is only meaningful when a PR exists and base sync can run.
 sys.stdout.write(json.dumps(evidence, separators=(",", ":")) + "\n")
 PYEOF

@@ -246,6 +246,20 @@ assert_eq "$rc" "0" "case2.exit"
 assert_json_eq "$out" "rebase_status" "not_needed" "case2"
 assert_json_eq "$out" "resolved_base" "feat/demo" "case2"
 assert_json_eq "$out" "legacy_fallback" "false" "case2"
+python3 - "$out" <<'PY' >/tmp/rr-c2-evidence.out
+import json
+import pathlib
+import sys
+
+d = json.loads(sys.argv[1])
+paths = d.get("evidence_paths") or []
+ok = bool(paths) and all(pathlib.Path(p).is_file() for p in paths)
+print("ok" if ok else "missing")
+for p in paths:
+    pathlib.Path(p).unlink(missing_ok=True)
+PY
+assert_contains "$(cat /tmp/rr-c2-evidence.out)" "ok" "case2.persisted evidence"
+rm -f /tmp/rr-c2-evidence.out
 
 # ────────────────────────────────────────────────────────────────────────────
 # Case 3: base ahead, no conflict → clean rebase

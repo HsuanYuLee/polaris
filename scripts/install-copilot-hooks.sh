@@ -87,6 +87,11 @@ if [[ -x "$GATES_DIR/gate-ci-local.sh" ]]; then
   bash "$GATES_DIR/gate-ci-local.sh" --repo "$REPO_ROOT" --push-mode
 fi
 
+# Gate: revision-rebase (existing PR pushes only)
+if [[ -x "$GATES_DIR/gate-revision-rebase.sh" ]]; then
+  bash "$GATES_DIR/gate-revision-rebase.sh" --repo "$REPO_ROOT"
+fi
+
 # Gate: evidence (verification evidence must exist)
 if [[ -x "$GATES_DIR/gate-evidence.sh" ]]; then
   bash "$GATES_DIR/gate-evidence.sh" --repo "$REPO_ROOT"
