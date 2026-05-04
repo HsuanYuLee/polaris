@@ -10,126 +10,52 @@ triggers:
   - "decay scan"
   - "tier memory"
   - "memory tier"
-version: 1.0.0
+version: 1.1.0
 ---
 
-# /memory-hygiene — Manual Memory Tiering
+# Memory Hygiene
 
-Runs the DP-015 Part B tiering script against the active workspace memory directory. Three modes: **scan** (default, advisory), **dry-run** (full classification report), **apply** (execute migrations after user approval).
+`memory-hygiene` 是 manual memory tiering：檢查 Hot / Warm / Cold，產生 demotion
+candidate，並在使用者確認後搬移 memory files 與更新 index。
 
-## When to Use
+## Contract
 
-| Signal | Mode |
-|--------|------|
-| Session-start hook injected demotion candidates | scan → apply |
-| `MEMORY.md` Hot section > 15 entries | dry-run → apply |
-| User says "整理 memory" / "memory decay" / 手動觸發 | scan |
-| Pre-version-bump checklist | dry-run |
+這是 memory maintenance skill，不是一般 task planning。Scan / dry-run 只讀；apply 會寫
+workspace memory，因此必須先有本 session 的 dry-run 結果與使用者明確確認。
 
-## Mode Detection
+## Mode Routing
 
-| User says | Mode |
-|-----------|------|
-| "/memory-hygiene", "memory-hygiene", default | scan |
-| "dry-run", "full report", "看看所有分類" | dry-run |
-| "apply", "搬檔", "執行", "migrate" | apply (requires prior dry-run in this session) |
+| User says | Mode | Reference |
+|---|---|---|
+| `/memory-hygiene`, `memory-hygiene`, default | scan | `memory-hygiene-scan-flow.md` |
+| `dry-run`, `full report`, `看看所有分類` | dry-run | `memory-hygiene-scan-flow.md` |
+| `apply`, `搬檔`, `執行`, `migrate` | apply | `memory-hygiene-apply-flow.md` |
 
----
+## Reference Loading
 
-## Mode: scan (advisory, default)
+| Situation | Load |
+|---|---|
+| Any run | `polaris-project-dir.md`, `feedback-memory-procedures.md` |
+| Scan / dry-run | `memory-hygiene-scan-flow.md` |
+| Apply | `memory-hygiene-apply-flow.md` |
 
-Lightweight — equivalent to the SessionStart hook but user-triggered.
+Classification rules live in `scripts/memory-hygiene-tiering.py` and
+`rules/feedback-and-memory.md` Memory Tiering.
 
-### Step 1 — Run decay-scan
+## Hard Rules
 
-```bash
-/Users/hsuanyu.lee/work/scripts/memory-hygiene-tiering.py \
-  decay-scan \
-  --memory-dir /Users/hsuanyu.lee/.claude/projects/-Users-hsuanyu-lee-work/memory
-```
+- Apply requires prior dry-run in the same session.
+- Do not hard-code user-specific memory paths; resolve active workspace memory dir.
+- Do not auto-move pinned memories.
+- 不刪除 Cold memories；archive 是 historical context。
+- Routine migrations 不建立 feedback memory。
+- If apply finds anomalies, record at most one framework-experience memory.
 
-### Step 2 — Report
+## Completion
 
-Present the output verbatim. No edits. Ask the user:
+Return mode, memory dir, Hot/Warm/Cold counts when available, candidate summary, apply status,
+files moved, migration log path, and any anomalies.
 
-> 要繼續跑 `dry-run` 看完整分類還是 `apply` 直接搬？或先這樣？
+## Post-Task Reflection (required)
 
----
-
-## Mode: dry-run (full classification)
-
-Shows every memory file's tier + destination without moving anything.
-
-### Step 1 — Run dry-run
-
-```bash
-/Users/hsuanyu.lee/work/scripts/memory-hygiene-tiering.py \
-  dry-run \
-  --memory-dir /Users/hsuanyu.lee/.claude/projects/-Users-hsuanyu-lee-work/memory
-```
-
-### Step 2 — Summarize
-
-Give the user:
-- Total counts per tier (Hot / Warm / Cold)
-- Top 5 Hot candidates for demotion (oldest `last_triggered` + lowest `trigger_count`)
-- New topic folders that would be created (if any)
-- Pinned entries (reminder — user may want to un-pin stale ones)
-
-### Step 3 — Offer apply
-
-> 要套用這份計劃嗎？`apply` 會實際搬檔 + 更新 `MEMORY.md` + 寫 `.migration-log.md`。
-
-If yes, proceed to Mode: apply. If no, end.
-
----
-
-## Mode: apply (execute)
-
-Runs the migration. Irreversible without `git restore` on the memory dir.
-
-### Step 1 — Safety checks
-
-Before running `apply`:
-1. `git -C /Users/hsuanyu.lee/work status --short` — warn if `~/.claude/projects/-Users-hsuanyu-lee-work/memory/` has uncommitted changes (migration log will be easier to understand on a clean slate). Memory dir is not in the work repo but the user's mental model is still "a dir I care about" — mention it
-2. Confirm the user has seen the dry-run output in this session (if not, run dry-run first)
-
-### Step 2 — Run apply
-
-The script supports two entry points. Prefer passing the dry-run plan via JSON stdin so the two runs see an identical file set:
-
-```bash
-/Users/hsuanyu.lee/work/scripts/memory-hygiene-tiering.py \
-  dry-run \
-  --memory-dir /Users/hsuanyu.lee/.claude/projects/-Users-hsuanyu-lee-work/memory \
-  --json \
-  | /Users/hsuanyu.lee/work/scripts/memory-hygiene-tiering.py \
-    apply \
-    --memory-dir /Users/hsuanyu.lee/.claude/projects/-Users-hsuanyu-lee-work/memory
-```
-
-If the script's `apply` mode is still a stub (DP-015 B10 was executed once; subsequent runs may need script extension), fall back to re-running the documented B10 migration command from the design plan (`specs/design-plans/DP-015-polaris-context-efficiency/plan.md § B10`).
-
-### Step 3 — Post-apply report
-
-Show the user:
-- Number of files moved (hot→warm, warm→cold)
-- New topic folders created
-- `MEMORY.md` line count before → after
-- Path to `.migration-log.md` for history
-
-### Step 4 — Verify
-
-Instruct the user: open a fresh session and run `/memory` — confirm `MEMORY.md` loads cleanly and the Hot count is ≤ 15.
-
----
-
-## Preamble
-
-No reference files needed beyond the script itself. The classification rules live in the script source (`scripts/memory-hygiene-tiering.py` top docstring) and `rules/feedback-and-memory.md § Memory Tiering`.
-
-## Post-Task Reflection
-
-If the apply run surfaced anomalies (orphan files, missing frontmatter, topic inference misses), write a framework-experience memory (`type: framework-experience`, topic `polaris-framework`) with the observation — these signals drive future script improvements.
-
-Do NOT create a feedback memory for routine migrations — only for non-obvious script behavior the user had to correct.
+Execute `post-task-reflection-checkpoint.md` before reporting completion.

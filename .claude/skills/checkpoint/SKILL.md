@@ -1,6 +1,6 @@
 ---
 name: checkpoint
-description: Save, resume, or list session checkpoints for long-running work. Captures current state (branch, ticket, todo, recent activity) so you can resume after interruptions or context compression.
+description: 保存、恢復、列出長 session checkpoint；記錄 branch、ticket、todo、recent activity，方便中斷或 context compression 後接續。
 triggers:
   - "checkpoint"
   - "存檔"
@@ -9,222 +9,58 @@ triggers:
   - "恢復"
   - "list checkpoints"
   - "列出存檔"
-version: 1.1.0
+version: 1.2.0
 ---
 
-# /checkpoint — Session State Save & Resume
+# Checkpoint
 
-Three modes: **save**, **resume**, **list**.
+`checkpoint` 保存、恢復、列出長 session 的工作狀態，讓 context compression 或換 session
+後能接回 branch、ticket、phase、next action。
 
-## Mode Detection
+## Contract
 
-| User says | Mode |
-|-----------|------|
-| "checkpoint", "存檔", "save checkpoint", "save state" | save |
-| "resume", "恢復", "resume checkpoint", "接回去" | resume |
-| "list checkpoints", "列出存檔", "show checkpoints" | list |
+Checkpoint 是 session continuity tool，不是 planning、triage、或 implementation skill。
+它只寫 workspace memory / timeline 類的 local state，不替下游 skill 決定 scope，也不自動切
+branch。
 
-If ambiguous, default to **save**.
+## Mode Routing
 
----
+| User says | Mode | Reference |
+|---|---|---|
+| `checkpoint`, `存檔`, `save checkpoint`, `save state` | save | `checkpoint-save-flow.md` |
+| `resume`, `恢復`, `resume checkpoint`, `接回去` | resume | `checkpoint-resume-list-flow.md` |
+| `list checkpoints`, `列出存檔`, `show checkpoints` | list | `checkpoint-resume-list-flow.md` |
 
-## Mode: save
+Ambiguous input defaults to save.
 
-Capture the current session state for later recovery.
+## Reference Loading
 
-### Step 1 — Gather State
+| Situation | Load |
+|---|---|
+| Any run | `polaris-project-dir.md`, `session-timeline.md`, `shared-defaults.md` |
+| Save | `checkpoint-save-flow.md`, `checkpoint-carry-forward-flow.md` |
+| Resume / list | `checkpoint-resume-list-flow.md` |
 
-Collect in parallel:
-1. **Git branch**: `git -C {workspace_root} branch --show-current`
-2. **Git status**: `git -C {workspace_root} status --short` (first 20 lines)
-3. **JIRA ticket**: extract from branch name or active todo context
-4. **Todo list**: current todo items and their statuses
-5. **Recent timeline**: `polaris-timeline.sh query --last 5` (if timeline exists)
+## Hard Rules
 
-### Step 2 — Build Checkpoint Note
+- Save must capture branch, git status summary, ticket, todo disposition, phase, next action,
+  and recent timeline context.
+- 回報 checkpoint saved 前，carry-forward validation 必須通過。
+- Resume verifies the checkpoint branch exists before suggesting a switch.
+- 未取得使用者明確指示前，不切 branch、不 stash、不 rewrite memory。
+- 不可默默丟掉 pending items；每項都要標記 done、carry-forward、或 dropped。
 
-Compose a single-line note summarizing the state:
+## Completion
 
-```
-branch:{branch} ticket:{ticket} phase:{current_phase} next:{next_action}
-```
+Save 回傳 branch、ticket、phase、next action、resume phrase。Resume 回傳 checkpoint
+timestamp、branch、ticket、可取得時的 current status、next action。List 回傳 recent checkpoint
+rows。
 
-Example: `branch:task/PROJ-200-auth ticket:PROJ-200 phase:implementation next:write-tests`
+## Step 2.5 — L2 Deterministic Check: cross-session-carry-forward
 
-### Step 2.5 — L2 Deterministic Check: cross-session-carry-forward
-
-Before writing any checkpoint artifact, run the carry-forward validator. It
-diffs the **new** project-memory checkpoint being produced against the most
-recent prior checkpoint on the same topic and fails when pending items are
-silently dropped without an explicit disposition.
-
-Preconditions:
-- The Strategist has already written the new project-memory file to disk
-  (typical path: `{memory_dir}/project_{topic}.md` or
-  `{memory_dir}/{topic}/project_*.md`). If only a draft exists in
-  conversation, write it to disk first — this script compares files on
-  disk.
-- `{memory_dir}` is the workspace memory root, e.g.
-  `~/.claude/projects/-Users-hsuanyu-lee-work/memory/`.
-
-Run:
-
-```bash
-bash "$CLAUDE_PROJECT_DIR/scripts/check-carry-forward.sh" \
-  --new-checkpoint "{new_checkpoint_path}" \
-  --memory-dir "{memory_dir}"
-```
-
-Exit code handling:
-
-- **exit 0** — PASS. Continue to Step 3.
-- **exit 1** — RECOVERABLE_FAIL (usage error, missing file, missing arg).
-  Read stderr, fix the invocation / path, and re-run. Retry budget **3
-  rounds**; a 4th failure → STOP and report the issue to the user.
-- **exit 2** — HARD_STOP. Do **not** retry. The prior checkpoint had
-  pending items that are missing from the new checkpoint's "next steps /
-  still pending" section without any `(a) done` / `(b) carry-forward` /
-  `(c) dropped` marker. The stderr message lists the missing items; show
-  those to the user verbatim and ask them for the disposition of each.
-  Update the new checkpoint file per the user's dispositions, then re-run
-  this step until it passes. Never edit the missing-items list away to
-  silence the gate — that defeats the point of the check.
-
-Rationale: this canary was previously behavioral (`cross-session-carry-
-forward` in `rules/mechanism-registry.md`). DP-030 moves it to deterministic
-L2 enforcement so cross-LLM sessions (Cursor / Codex / Copilot / Gemini)
-inherit the same discipline. See `skills/references/l2-script-conventions.md`
-for the shared exit-code semantics and
-`specs/design-plans/DP-030-llm-to-script-migration/plan.md` for the design.
-
-### Step 3 — Write to Timeline
-
-```bash
-POLARIS_WORKSPACE_ROOT={workspace_root} \
-  {base_dir}/scripts/polaris-timeline.sh append \
-  --event checkpoint \
-  --branch "{branch}" \
-  --ticket "{ticket}" \
-  --company "{company}" \
-  --note "{checkpoint_note}"
-```
-
-### Step 4 — Also Append `session_summary` (DP-024 D4)
-
-Immediately after the `checkpoint` event, append a matching `session_summary`
-event so the next-session resume scan (MEMORY.md + timeline query) can pick up
-a narrative line without having to parse the checkpoint note:
-
-```bash
-POLARIS_WORKSPACE_ROOT={workspace_root} \
-  {base_dir}/scripts/polaris-timeline.sh append \
-  --event session_summary \
-  --text "checkpoint: {one-line narrative derived from phase+next_action}" \
-  --session-id "{session_id}" \
-  --field 'branches=["{branch}"]' \
-  --field 'tickets=["{ticket}"]'
-```
-
-Rationale: `checkpoint` is a structured state capture for the `/checkpoint resume`
-path; `session_summary` is the narrative query target (`timeline query --event
-session_summary`) used by cross-session continuity and preamble injection.
-Writing both keeps the two query paths consistent. Dedup on `--session-id`
-means a later PreCompact/Stop summary replaces this one, so no duplicate noise.
-
-If the session_id is unknown (running outside a Claude Code session), skip
-the `--session-id` flag — the entry is still appended, just without dedup.
-
-### Step 5 — Confirm to User
-
-```
-Checkpoint saved.
-  Branch: {branch}
-  Ticket: {ticket}
-  Phase: {phase}
-  Next: {next_action}
-
-Resume with: /checkpoint resume
-```
-
----
-
-## Mode: resume
-
-Restore context from the most recent checkpoint (or a specific one).
-
-### Step 1 — Read Checkpoints
-
-```bash
-POLARIS_WORKSPACE_ROOT={workspace_root} \
-  {base_dir}/scripts/polaris-timeline.sh checkpoints --last 5
-```
-
-### Step 2 — Select Checkpoint
-
-- If user specified a timestamp or index, use that checkpoint
-- Otherwise, use the most recent one
-
-### Step 3 — Restore Context
-
-Parse the checkpoint note to extract:
-- `branch` → verify it still exists: `git -C {workspace_root} branch --list "{branch}"`
-- `ticket` → read JIRA ticket for current status
-- `phase` / `next` → reconstruct the todo list
-
-### Step 4 — Verify Branch State
-
-```bash
-git -C {workspace_root} branch --show-current
-```
-
-If current branch differs from checkpoint branch, ask user if they want to switch.
-
-### Step 5 — Report Restored State
-
-```
-Checkpoint restored (from {timestamp}).
-  Branch: {branch}
-  Ticket: {ticket}
-  Status: {jira_status}
-  Next action: {next_action}
-
-Ready to continue. Say "next" or describe what to do.
-```
-
----
-
-## Mode: list
-
-Show recent checkpoints for review.
-
-### Step 1 — Query Checkpoints
-
-```bash
-POLARIS_WORKSPACE_ROOT={workspace_root} \
-  {base_dir}/scripts/polaris-timeline.sh checkpoints --last 10
-```
-
-### Step 2 — Format Output
-
-Display as a table:
-
-```
-Recent Checkpoints:
-  #  Time                Branch              Ticket    Note
-  1  2026-04-02 14:30    task/PROJ-200-auth    PROJ-200    phase:implementation next:write-tests
-  2  2026-04-02 10:15    task/PROJ-199-api     PROJ-199    phase:pr next:fix-review
-  3  2026-04-01 17:00    task/PROJ-198-refactor PROJ-198   phase:done next:merge
-```
-
----
-
-## Preamble
-
-Read `skills/references/polaris-project-dir.md` for slug resolution. The workspace root is the git root of the current working directory.
-
+Save mode 的 carry-forward gate 由 `checkpoint-carry-forward-flow.md` 執行；必須呼叫
+`scripts/check-carry-forward.sh`，通過後才可回報 checkpoint saved。
 
 ## Post-Task Reflection (required)
 
-> **Non-optional.** Execute before reporting task completion.
-
-Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).
+Execute `post-task-reflection-checkpoint.md` before reporting completion.

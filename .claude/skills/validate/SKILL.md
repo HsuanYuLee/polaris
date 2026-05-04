@@ -9,102 +9,49 @@ description: >
   "validate mechanisms", "檢查機制", "/validate".
 metadata:
   author: Polaris
-  version: 1.0.0
+  version: 1.1.0
 user-invocable: true
 ---
 
-# Validate — Framework Health Check
+# Validate
 
-Two modes, run individually or together.
+`validate` 是 framework health check，整合 multi-company isolation 與 mechanism
+compliance 的 static smoke tests。
 
-## Mode Selection
+## Contract
 
-| Input | Mode |
-|-------|------|
-| "validate" / "檢查" | Run both |
-| "validate isolation" / "檢查隔離" | Isolation only |
-| "validate mechanisms" / "檢查機制" | Mechanisms only |
+`validate` 只檢查並報告 health findings；不自動修復 rules、skills、hooks、settings、或
+memory。任何 fail 的修正都要先回報具體 fix，再由使用者確認。
 
----
+## Mode Routing
 
-## Mode 1: Isolation
+| Input | Mode | Reference |
+|---|---|---|
+| `validate`, `檢查` | isolation + mechanisms | all validate references |
+| `validate isolation`, `檢查隔離` | isolation only | `validate-isolation-flow.md` |
+| `validate mechanisms`, `檢查機制` | mechanisms only | `validate-mechanisms-flow.md` |
 
-Scans for multi-company contamination issues.
+## Reference Loading
 
-### Checks
+| Situation | Load |
+|---|---|
+| Any run | `validate-reporting-flow.md`, `deterministic-hooks-registry.md` |
+| Isolation | `validate-isolation-flow.md`, `workspace-config-reader.md` |
+| Mechanisms | `validate-mechanisms-flow.md`, `mechanism-rationalizations.md` |
 
-1. **L2 scope headers** — every `.md` in `.claude/rules/{company}/` must have `> **Scope: {company}**`
-2. **Cross-company conflicts** — contradictory rules across companies, hardcoded cross-company references
-3. **Memory company tags** — company-specific memories must have `company:` frontmatter
-4. **MEMORY.md index format** — company-scoped entries need `[company]` prefix
-5. **User data leak** — run `scripts/scan-user-data-leak.sh` to detect hardcoded user-specific data (GitHub username, email) in shared rules. See DP-007
+## Hard Rules
 
-### Report format
+- Do not patch failures automatically.
+- 若 check 在兩個 modes 重疊，只跑一次並重用結果。
+- Treat validator exit 1 / strict failure as FAIL, not advisory.
+- Conversation-level mechanisms require post-task audit; static validate cannot prove them.
+- WARN 與 FAIL 分開回報；除非 validator 定義 WARN blocking，否則 WARN 不阻擋。
 
-```
-### Isolation
-✅ {company-a}: 5/5 scope headers OK
-🔴 {company-b}: 2/4 missing scope headers
-🟡 3 memories appear company-specific but lack company: field
-```
+## Completion
 
----
-
-## Mode 2: Mechanisms
-
-Static smoke test of canaries from `rules/mechanism-registry.md`.
-
-### Checks
-
-1. **Scope headers** (overlaps isolation mode — skip if already run)
-2. **Bash patterns** — check settings.json for `cd *` patterns that encourage `cd` usage
-3. **Skill routing completeness** — every routed skill exists, every skill has routing entry
-4. **Memory company isolation** — same as isolation mode (skip if already run)
-5. **Sub-agent role definitions** — `sub-agent-roles.md` has mandatory standards
-6. **Feedback memory frontmatter** — `trigger_count` + `last_triggered` present
-7. **Registry freshness** — mechanism source files still exist
-8. **Ghost references** — no references to deleted skills (e.g., `dev-guide`)
-9. **Hardcoded paths** — no `~/work/` literals in generic SKILL.md files
-10. **Hooks in settings.local.json** — scan each project's `.claude/settings.local.json` for a top-level `hooks` key → 🟡 WARN. All hooks must live in `settings.json`; `settings.local.json` with `hooks` causes shallow merge to silently override the entire `hooks` object, disabling all shared PostToolUse/PreToolUse hooks
-11. **L2 embedding integrity** — run `scripts/validate-l2-embedding.sh` against `skills/references/l2-embedding-registry.md`. Validates every registered DP-030 canary's script exists, SKILL.md step anchor matches, L1 hook file + settings.json registration exist, and Layer declaration is consistent. Exit 1 → 🔴 FAIL (surface per-entry errors to user); exit 2 → 🔴 FAIL (registry meta error)
-12. **Cross-LLM skill mirror mode** — run `scripts/check-skills-mirror-mode.sh`. `.agents/skills` must be a symlink to `../.claude/skills`; copied mirror dirs are 🔴 FAIL because they reintroduce drift between Claude and Codex paths
-13. **Model tier policy drift** — run `scripts/validate-model-tier-policy.sh`. Raw provider model policy (`haiku`, `sonnet`, concrete `gpt-*` / `claude-*` IDs) must stay in the approved central mapping / config / release-note locations; skill workflow prose must use semantic classes from `skills/references/model-tier-policy.md`
-14. **Skill contract drift** — 執行 `scripts/validate-skill-contracts.sh`。此 static linter 會回報 SKILL.md contract gap，例如 sub-agent dispatch 缺 Completion Envelope、疑似 write skill 缺 Post-Task Reflection、外部寫入 surface 缺 language gate / helper reference、specs markdown producer 缺 Starlight authoring reference，以及 legacy path pattern。預設輸出 warning report 且不阻擋；若使用 `--strict` 回傳 exit 1，validate report 應標成 🔴 FAIL
-
-### Report format
-
-```
-### Mechanisms
-| Check | Status | Details |
-|-------|--------|---------|
-| Scope headers | ✅ PASS | 5/5 OK |
-| Bash patterns | ✅ PASS | No cd patterns |
-| Routing table | 🟡 WARN | 2 skills not in routing |
-| ... | ... | ... |
-```
-
----
-
-## Combined Summary
-
-```
-## Validate Report — {date}
-
-{isolation results}
-{mechanism results}
-
-Summary: {total} checks | {pass} ✅ | {warn} 🟡 | {fail} 🔴
-```
-
-For each 🔴 FAIL: propose a specific fix, ask user before applying.
-For each 🟡 WARN: note in report, don't block.
-
-## What This Does NOT Check
-
-Conversation-level mechanisms (skill-first-invoke, delegate-exploration, etc.) require observing live behavior — covered by post-task audit, not this skill.
+Return mode, checks run, pass/warn/fail counts, failed check evidence, proposed fixes, and skipped
+checks with reason.
 
 ## Post-Task Reflection (required)
 
-> **Non-optional.** Execute before reporting task completion.
-
-Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).
+Execute `post-task-reflection-checkpoint.md` before reporting completion.

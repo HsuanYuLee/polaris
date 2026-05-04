@@ -4,6 +4,150 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.52] - 2026-05-05
+
+### Changed — learning progressive disclosure
+
+- 將 `learning/SKILL.md` 精簡為 orchestration contract，只保留 mode routing、
+  fail-stop boundary 與 reference loading rules。
+- 將 External、Queue、Setup、PR、Batch mode 程序搬到 dedicated learning
+  references，並登記到 shared references index。
+
+### Changed — breakdown progressive disclosure
+
+- 將 `breakdown/SKILL.md` 精簡為 source routing 與 gate contract，涵蓋 Bug、
+  JIRA planning、DP intake、escalation intake、scope challenge 路徑。
+- 將 breakdown mode procedures、task packaging、branch / validator rules 搬到
+  dedicated references，並登記到 shared references index。
+
+### Changed — engineering progressive disclosure
+
+- 將 `engineering/SKILL.md` 精簡為 authoritative task.md resolution、mode routing、
+  mandatory gate、scope ownership boundary 的施工 contract。
+- 將 first-cut、revision、local extension、scope escalation、entry resolution 程序搬到
+  dedicated engineering references，並沿用 `engineer-delivery-flow.md` 作為 delivery
+  backbone。
+
+### Changed — refinement progressive disclosure
+
+- 將 `refinement/SKILL.md` 精簡為 Architect boundary、source routing、complexity tier、
+  handoff gates 的 contract。
+- 將 batch readiness、Phase 0 discovery、Phase 1 elaboration、Phase 2 decision 程序搬到
+  dedicated refinement references，並沿用既有 DP source / artifact / return inbox
+  references。
+
+### Changed — init progressive disclosure
+
+- 將 `init/SKILL.md` 精簡為 workspace initialization contract，只保留 setup boundary、
+  reference loading、write rules、output rules 與 completion gate。
+- 將 smartSelect / audit、core setup、runtime contract、visual regression setup、post-setup
+  程序搬到 dedicated init references，並登記到 shared references index。
+
+### Changed — visual-regression progressive disclosure
+
+- 將 `visual-regression/SKILL.md` 精簡為 domain-level screenshot comparison contract，
+  保留 skip boundary、reference loading、hard rules、completion return contract。
+- 將 preflight、capture、analysis/JIRA reporting、fixture lifecycle、hard-won VR principles
+  搬到 dedicated visual-regression references，並登記到 shared references index。
+
+### Changed — review-inbox progressive disclosure
+
+- 將 `review-inbox/SKILL.md` 精簡為 multi-PR discovery 與 batch review orchestration
+  contract，保留 source routing、sub-agent boundary、Slack write gate、completion summary。
+- 將 Label / Slack / Thread discovery、batch review fan-out、Slack reporting 流程搬到
+  dedicated review-inbox references，並登記到 shared references index。
+
+### Changed — review-pr progressive disclosure
+
+- 將 `review-pr/SKILL.md` 精簡為單一 PR reviewer contract，保留 routing boundary、
+  standards loading、sub-agent analysis、external write gate、severity boundary。
+- 將 entry/fetch、analysis/dedup、submit/notification、re-review learning 流程搬到
+  dedicated review-pr references，並登記到 shared references index。
+
+### Changed — docs-sync progressive disclosure
+
+- 將 `docs-sync/SKILL.md` 精簡為 documentation sync contract，保留 source-of-truth、
+  reference loading、source mapping、write rules、completion report。
+- 將 scope detection、English / zh-TW update flow、verification flow 搬到 dedicated
+  docs-sync references，並登記到 shared references index。
+
+### Changed — standup progressive disclosure
+
+- 將 `standup/SKILL.md` 精簡為 daily standup / EOD reporting contract，保留 auto-triage、
+  data source、Confluence write gate、completion summary。
+- 將 data collection、planning/TDT/BOS、format/publish 流程搬到 dedicated standup
+  references，並補上 `standup-template.md` 作為固定輸出格式 source。
+
+### Changed — bug-triage progressive disclosure
+
+- 將 `bug-triage/SKILL.md` 精簡為 Bug diagnosis contract，保留 diagnosis-only boundary、
+  AC-FAIL routing、RD confirmation hard stop、JIRA language gate、handoff summary。
+- 將 entry routing、AC-FAIL scoped investigation、root cause analysis、confirmation/handoff
+  流程搬到 dedicated bug-triage references，並登記到 shared references index。
+
+### Changed — sasd-review progressive disclosure
+
+- 將 `sasd-review/SKILL.md` 精簡為 design-first SA/SD contract，保留 source routing、
+  exploration boundary、template requirements、external publish gate、completion summary。
+- 將 entry/exploration、SA/SD document template、publish/scope calibration 流程搬到
+  dedicated sasd-review references，並登記到 shared references index。
+
+### Changed — verify-AC progressive disclosure
+
+- 將 `verify-AC/SKILL.md` 精簡為 Epic AC QA contract，保留 stateless full re-run、
+  observed-vs-expected boundary、disposition gate、external write/Starlight gates。
+- 將 entry expansion、step execution、reporting/transition、FAIL disposition、learning lifecycle
+  流程搬到 dedicated verify-AC references，並登記到 shared references index。
+
+### Changed — intake-triage progressive disclosure
+
+- 將 `intake-triage/SKILL.md` 精簡為 batch intake prioritization contract，保留 source
+  routing、scoring boundary、external write gate、completion summary。
+- 將 input parsing/fetch、scoring/verdict、writeback/Slack summary 流程搬到 dedicated
+  intake-triage references，並登記到 shared references index。
+
+### Changed — converge progressive disclosure
+
+- 將 `converge/SKILL.md` 精簡為 batch convergence orchestration contract，保留 scan
+  scope、confirmation gate、downstream routing、external write / artifact gates。
+- 將 assigned work scan、gap classification、execution safety、before/after reporting 流程搬到
+  dedicated converge references，並登記到 shared references index。
+
+### Changed — checkpoint progressive disclosure
+
+- 將 `checkpoint/SKILL.md` 精簡為 save/resume/list mode router 與 session continuity
+  contract，保留 carry-forward mandatory gate 與 branch safety boundary。
+- 將 save timeline write、cross-session carry-forward validator、resume/list query 流程搬到
+  dedicated checkpoint references，並登記到 shared references index。
+
+### Changed — my-triage progressive disclosure
+
+- 將 `my-triage/SKILL.md` 精簡為個人 dashboard / zero-input router contract，保留
+  cross-session resume、read-only boundary、triage state write、sub-agent envelope。
+- 將 resume scan、JIRA/GitHub dashboard、`.daily-triage.json` standup handoff 流程搬到
+  dedicated my-triage references，並登記到 shared references index。
+
+### Changed — unit-test progressive disclosure
+
+- 將 `unit-test/SKILL.md` 精簡為 project-aware testing / TDD contract，保留 framework
+  detection、TDD discipline、anti-regression hard rules、completion evidence。
+- 將 framework detection/TDD cycle、Jest/Vitest/Vue patterns、coverage strategy 搬到
+  dedicated unit-test references，並登記到 shared references index。
+
+### Changed — memory-hygiene progressive disclosure
+
+- 將 `memory-hygiene/SKILL.md` 精簡為 scan/dry-run/apply mode router 與 memory tiering
+  contract，保留 apply confirmation gate、path resolution boundary、routine-memory rule。
+- 將 scan/dry-run report 與 apply migration safety 流程搬到 dedicated memory-hygiene
+  references，移除 user-specific absolute path，並登記到 shared references index。
+
+### Changed — validate progressive disclosure
+
+- 將 `validate/SKILL.md` 精簡為 framework health check mode router，保留 read-only
+  boundary、FAIL/WARN semantics、static-vs-conversation mechanism boundary。
+- 將 isolation checks、mechanism smoke tests、report formatting 搬到 dedicated validate
+  references，並登記到 shared references index。
+
 ## [3.74.51] - 2026-05-05
 
 ### Added — skill progressive disclosure audit

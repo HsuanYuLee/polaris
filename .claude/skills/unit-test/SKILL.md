@@ -13,292 +13,53 @@ description: >
   "red green refactor".
 metadata:
   author: Polaris
-  version: 1.0.0
+  version: 1.1.0
 ---
 
-# Unit Test Guide
+# Unit Test
 
-## 0. Project Detection
+`unit-test` 是 project-aware unit testing guide，用於寫測試、修測試、review test quality，
+或在 engineering 中執行 TDD。
 
-| 條件 | 測試框架 | 測試指令 | 設定檔 |
-|------|---------|---------|--------|
-| 存在 `vitest.config.ts` | Vitest | `npx vitest run` | vitest.config.ts |
-| 存在 `jest.config.js` | Jest | `npx jest` | jest.config.js |
+## Contract
 
-> 如果某專案有專屬的 `unit-test` skill（覆蓋此通用版本），應從該專案目錄使用。
+測試要驗證真實行為，不用 mock-only assertions 製造假綠燈。明確 TDD 時採 red / green /
+refactor；一般補測試時仍要先確認現有 framework、local patterns、test command。
 
-## 1. TDD 紀律：先寫測試，再寫實作
+## Reference Loading
 
-測試不是事後補的文件，是開發的一部分。
+| Situation | Load |
+|---|---|
+| Any run | `unit-test-detection-tdd-flow.md`, `tdd-smart-judgment.md` |
+| Jest / Vitest / Vue examples | `unit-test-framework-patterns.md` |
+| Coverage / test quality review | `unit-test-strategy-coverage.md` |
+| Delegated test work | `sub-agent-roles.md` Completion Envelope |
 
-### Red-Green-Refactor 循環
+## Flow
 
-| 階段 | 做什麼 | 驗證 |
-|------|--------|------|
-| **RED** | 寫一個會失敗的測試 | 跑測試，確認 assertion fail |
-| **GREEN** | 寫最少的程式碼讓測試通過 | 跑測試，確認通過 |
-| **REFACTOR** | 改善程式碼品質 | 跑測試，確認仍通過 |
+1. Detect test framework and repo-specific test command.
+2. Locate existing tests near the target module and copy local style.
+3. Decide whether strict TDD applies using `tdd-smart-judgment.md`.
+4. Plan test cases from simplest to most complex.
+5. In TDD mode, run one red/green/refactor cycle per case.
+6. In non-strict mode, write focused tests alongside implementation.
+7. 先跑 narrow test command，再跑 owning workflow 要求的 broader command。
+8. Report changed tests, command results, coverage gaps, and any intentional non-testable scope.
 
-### 好測試的特徵
+## Hard Rules
 
-- **一個測試只測一件事** — 名字裡有 "and" 就該拆
-- **名字描述行為** — `it('returns empty array when no packages match')` 而非 `it('test1')`
-- **測真實邏輯** — import 並執行 source function，不是只操作 mock 物件
+- 不可為了 pass 而弱化 assertions、加入 `.skip()`、刪 tests、或加 type suppressions。
+- Public behavior 可測時，不測 private implementation details。
+- 不 inline 大量 mock data；改用 fixtures 或 factories。
+- 除非 dependency boundary 需要，不用 mock 取代 real source logic。
+- 每個 test 驗證一個 behavior；需要用 "and" 命名時通常應拆開。
+- Delegated test work must return the Completion Envelope.
 
-## 1.5. TDD Mode — 嚴格紅綠燈流程
+## Completion
 
-當使用者明確要求 TDD（"TDD", "紅綠燈", "先寫測試", "test first"）或其他 skill 委派 TDD 實作時，啟用嚴格模式。
-
-### Setup
-
-1. Detect test framework（同 §0）
-2. Locate existing tests for the target module
-3. Plan test cases as a list before writing any code：
-
-```
-□ returns empty array when no results match
-□ maps API response to display format
-□ handles null price gracefully
-```
-
-Order: simplest → most complex. **Write one test at a time, not all upfront.**
-
-### Red-Green-Refactor Cycle
-
-Repeat for each planned test case:
-
-**RED** — Write exactly ONE failing test. Run it. Must fail.
-```
-🔴 RED: "returns empty array when no results match"
-   → Expected: [] / Got: function not found → ✓ Fails as expected
-```
-
-**GREEN** — Write the **least code** to make it pass. Run full suite.
-```
-🟢 GREEN: Added early return [] when input.length === 0 → ✓ Passes
-```
-
-**REFACTOR** — All tests green → improve code. Run tests after every change.
-```
-🔄 REFACTOR: extracted shared mapping logic → ✓ All still pass
-```
-
-### Cycle Log
-
-After each cycle, output a structured entry:
-```
-── Cycle 1 ──────────────────────────────
-🔴 RED:      it('returns empty array when no results match')
-🟢 GREEN:    Created filterResults() with early return (+8 lines)
-🔄 REFACTOR: (none needed)
-✅ ALL TESTS: 1 passed, 0 failed
-```
-
-### When TDD Adds Friction (Skip Strict Mode)
-
-| Use TDD | Skip TDD (write tests alongside) |
-|---------|----------------------------------|
-| Utility functions, composables | Pure template/style changes |
-| Store actions/mutations | Config files, type definitions |
-| API response transformers | Barrel exports, simple prop-forwarding |
-| Complex conditionals | — |
-
-### TDD Anti-Patterns
-
-- **Batch mode** — writing all tests first, then all code. One test at a time.
-- **Skipping RED** — writing code before the test fails. If it never failed, you don't know if it tests the right thing.
-- **Gold plating in GREEN** — adding "while I'm here" code. GREEN = minimum to pass.
-- **Mega cycles** — 30+ min per cycle = break the behavior into smaller pieces.
-
-## 2. Jest 測試模式（Vue 2.7 專案）
-
-### 2.1 基本測試結構
-
-```ts
-import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { targetFunction } from '../targetModule';
-
-describe('targetFunction', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('should return expected result for valid input', () => {
-    const result = targetFunction('valid-input');
-    expect(result).toBe('expected-output');
-  });
-
-  it('should handle edge case', () => {
-    const result = targetFunction('');
-    expect(result).toBeNull();
-  });
-});
-```
-
-### 2.2 Vue Component 測試
-
-```ts
-import { mount, shallowMount } from '@vue/test-utils';
-import MyComponent from '../MyComponent.vue';
-
-describe('MyComponent', () => {
-  it('renders correctly with props', () => {
-    const wrapper = mount(MyComponent, {
-      props: {
-        title: 'Test Title',
-        isVisible: true,
-      },
-    });
-
-    expect(wrapper.text()).toContain('Test Title');
-    expect(wrapper.find('.component').exists()).toBe(true);
-  });
-
-  it('emits event on button click', async () => {
-    const wrapper = mount(MyComponent);
-    await wrapper.find('button').trigger('click');
-    expect(wrapper.emitted('submit')).toBeTruthy();
-  });
-});
-```
-
-### 2.3 Vuex Store 測試
-
-```ts
-import { createStore } from 'vuex';
-import myModule from '../store/modules/myModule';
-
-describe('myModule store', () => {
-  let store;
-
-  beforeEach(() => {
-    store = createStore({
-      modules: {
-        myModule: { ...myModule, namespaced: true },
-      },
-    });
-  });
-
-  it('initial state is correct', () => {
-    expect(store.state.myModule.items).toEqual([]);
-    expect(store.state.myModule.loading).toBe(false);
-  });
-
-  it('mutation updates state', () => {
-    store.commit('myModule/SET_ITEMS', [{ id: 1 }]);
-    expect(store.state.myModule.items).toEqual([{ id: 1 }]);
-  });
-
-  it('action dispatches correctly', async () => {
-    await store.dispatch('myModule/fetchItems');
-    expect(store.state.myModule.items.length).toBeGreaterThan(0);
-  });
-});
-```
-
-### 2.4 Mock 技巧（Jest）
-
-```ts
-// Mock 整個模組
-jest.mock('../api/product', () => ({
-  getProduct: jest.fn().mockResolvedValue({ id: 1, name: 'Test' }),
-}));
-
-// Mock 特定函式
-import { getProduct } from '../api/product';
-const mockGetProduct = getProduct as jest.MockedFunction<typeof getProduct>;
-
-// 在不同測試中改變 mock 行為
-it('handles API error', async () => {
-  mockGetProduct.mockRejectedValueOnce(new Error('API Error'));
-  // ...
-});
-
-// Mock 外部套件
-jest.mock('lodash-es', () => ({
-  ...jest.requireActual('lodash-es'),
-  debounce: (fn) => fn, // 移除 debounce delay
-}));
-
-// Mock Vue Router
-jest.mock('vue-router', () => ({
-  useRoute: jest.fn(() => ({
-    params: { id: '123' },
-    query: {},
-  })),
-  useRouter: jest.fn(() => ({
-    push: jest.fn(),
-    replace: jest.fn(),
-  })),
-}));
-```
-
-### 2.5 Async 測試
-
-```ts
-it('fetches data on mount', async () => {
-  const wrapper = mount(MyComponent);
-
-  // 等待所有 pending promises
-  await wrapper.vm.$nextTick();
-  // 或
-  await flushPromises();
-
-  expect(wrapper.find('.data').text()).toBe('loaded data');
-});
-```
-
-## 3. 測試策略
-
-### 需要寫測試的
-
-| 類型 | 測試位置 | 說明 |
-|------|---------|------|
-| Utility function | 同目錄 `.test.ts` | 純函式，最容易測 |
-| Composable（pure logic） | 同目錄 `.test.ts` | Mock 外部依賴 |
-| Store（mutations/actions） | 同目錄 `.test.ts` | 驗證狀態變更 |
-| Component（互動邏輯） | 同目錄 `.test.ts` | 驗證 props/emits/render |
-
-### 不需要寫測試的
-
-- 純型別定義（`types.ts`, `*.d.ts`）
-- 常數檔（`constants.ts`）
-- Barrel exports（`index.ts`）
-- 純 template/style 變更
-- 設定檔（`*.config.ts`）
-
-## 4. Coverage
-
-### 必須覆蓋
-
-- 每個 public export 至少一個測試（happy path）
-- 主要分支路徑：null/undefined 處理、條件判斷
-- 邊界情況：空陣列、空字串、零值
-
-### 建議覆蓋
-
-- 錯誤處理：異常輸入、API 錯誤
-- 型別安全：回傳物件符合預期結構
-
-### 不需要覆蓋
-
-- 第三方套件的內部行為
-- 純 CSS/樣式變更
-- 環境設定檔
-
-## Do / Don't
-
-- Do: 先寫測試再寫實作（TDD）
-- Do: 測真實邏輯，import source function 並執行
-- Do: 每個測試獨立，不依賴其他測試的執行順序
-- Do: beforeEach 清除 mock 狀態
-- Don't: 產生只驗證 mock 回傳值的無效測試
-- Don't: 測試實作細節（private methods）
-- Don't: 在測試中硬編碼大量 mock data，應抽到 fixture/factory
-
+回傳 framework、commands run、TDD 時的 red/green evidence、files changed、remaining coverage
+risk，以及 skipped test rationale。
 
 ## Post-Task Reflection (required)
 
-> **Non-optional.** Execute before reporting task completion.
-
-Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).
+Execute `post-task-reflection-checkpoint.md` before reporting completion.

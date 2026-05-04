@@ -3,309 +3,58 @@ name: converge
 description: "Use when the user wants to push all in-flight work forward toward review in one pass — closing gaps across Epics, Bugs, and orphan Tasks. NOT for single-ticket work (use engineering) or read-only triage (use my-triage). Trigger: '收斂', 'converge', '推進', '全部推到 review', '把我的單收一收', 'epic 進度', '離 merge 還多遠', '補全'."
 metadata:
   author: Polaris
-  version: 1.0.0
+  version: 1.1.0
 ---
 
-# Converge — Batch Convergence Orchestrator
+# Converge
 
-Scans all assigned work, detects gaps between current state and "ready for review / merge",
-proposes a prioritized execution plan, then auto-executes after user confirmation.
+`converge` 是 batch convergence orchestrator：掃描使用者名下 active work，找出離
+review / merge 的 gap，提出排序後的推進計畫，經使用者確認後才逐項委派下游 skill。
 
-## 前置：讀取 workspace config
+## Contract
 
-讀取 workspace config（參考 `references/workspace-config-reader.md`）。
-本步驟需要的值：`jira.instance`、`jira.projects`、`github.org`、`teams`。
-若 config 不存在，使用 `references/shared-defaults.md` 的 fallback 值。
+`converge` 不是單張 ticket 施工（用 `engineering`），也不是 read-only dashboard（用
+`my-triage`）。它可以路由到 `breakdown`、`engineering`、`check-pr-approvals`、
+`feature-branch-pr-gate.md`，但不取代下游 skill 的 gate 或 ownership。
 
-## Phase 1 — 掃描 + Gap 分析（自動，不問使用者）
+若使用者指定 Epic key，只掃該 Epic 與子單；未指定 ticket 時掃 assigned active work。
 
-### Step 1: 撈取所有 assigned active 工作
+## Reference Loading
 
-複用 my-triage Step 1 JQL：
+| Situation | Load |
+|---|---|
+| Any run | `converge-scan-gap-flow.md`, `workspace-config-reader.md`, `shared-defaults.md`, `jira-story-points.md` |
+| PR / feature branch state | `stale-approval-detection.md`, `feature-branch-pr-gate.md`, `pr-input-resolver.md` |
+| Execution after confirmation | `converge-execution-flow.md`, `sub-agent-roles.md`, `workspace-language-policy.md` |
+| Report / artifacts | `converge-reporting-flow.md`, `starlight-authoring-contract.md` |
 
-```
-mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
-  cloudId: {config: jira.instance}
-  jql: assignee = currentUser() AND status not in (Done, Closed, Launched, 完成) AND (issuetype = Epic OR issuetype = Bug OR (issuetype in (Story, Task, 任務, 大型工作) AND "Epic Link" is EMPTY)) AND project in ({config: jira.projects[].key}) ORDER BY priority DESC, created DESC
-  # storyPointsFieldId：依 references/jira-story-points.md Step 0 探測
-  fields: ["summary", "status", "priority", "created", "duedate", "<storyPointsFieldId>", "fixVersions", "issuetype", "parent"]
-  maxResults: 50
-```
+Any sub-agent dispatch must include `sub-agent-roles.md` Completion Envelope.
 
-過濾規則同 my-triage：保留 Epic + Bug + 無 parent 的 Task/Story。
+## Flow
 
-### Step 2: 展開 Epic 子單
+1. Load workspace config and resolve global mode or Epic-only mode.
+2. Fetch active assigned tickets and Epic children.
+3. Scan GitHub PR / feature branch state using the bundled reference scripts where available.
+4. 分類所有 gap，依「自己可推進、離 review 最近」排序。
+5. 呈現 Converge Plan，等待使用者明確確認或調整。
+6. After confirmation, execute selected items through downstream skills.
+7. Rescan and produce before/after report, skipped items, blockers, and next actions.
 
-對每個 Epic，查詢其子單：
+## Hard Rules
 
-```
-mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql
-  cloudId: {config: jira.instance}
-  jql: "Epic Link" = {EPIC_KEY} AND assignee = currentUser() ORDER BY created ASC
-  # storyPointsFieldId：依 references/jira-story-points.md Step 0 探測
-  fields: ["summary", "status", "issuetype", "priority", "<storyPointsFieldId>"]
-  maxResults: 30
-```
+- Do not execute Phase 3 before user confirmation; batch changes need review.
+- Do not modify JIRA status directly; downstream skills own status movement.
+- Do not parallelize heavy `NOT_STARTED` implementation tickets.
+- Do not treat `WAITING_QA` / `WAITING_RELEASE` as gaps.
+- 不處理其他 assignee 的 tickets，除非使用者明確縮小或改寫範圍。
+- External Slack / JIRA / PR-facing text must pass `workspace-language-policy.md`.
+- Markdown artifacts under specs must pass `starlight-authoring-contract.md`.
 
-> 子單 > 10 張時，委派 sub-agent 並行查詢 JIRA + GitHub（見 § Sub-agent 批次掃描）。
+## Completion
 
-### Step 3: GitHub PR 狀態掃描
-
-對每張 status 為 In Development / Code Review 的 ticket，以及每個 Epic 的 feature branch：
-
-**單一 PR 狀態**（使用共用 script）：
-```bash
-/path/to/references/scripts/get-pr-status.sh {owner}/{repo} {pr_number}
-```
-
-回傳 JSON keys：`ci.status`、`reviews.approved`、`reviews.changes_requested`、`comments.unresolved`、`mergeable`
-
-**Feature PR 檢查**（使用共用 script）：
-```bash
-/path/to/references/scripts/check-feature-pr.sh {owner}/{repo} {feature_branch} --base develop
-```
-
-回傳 JSON keys：`task_prs.all_merged`、`feature_pr.exists`、`feature_pr.number`、`feature_pr.state`
-
-找不到 PR 的 ticket → `gh pr list --search "{TICKET_KEY}" --state all`
-
-### Step 4: Gap 分類
-
-對每張 ticket（含 Epic 子單），判定 gap type：
-
-| Gap Type | 條件 | 自動路由 |
-|----------|------|----------|
-| `NO_ESTIMATE` | `customfield_10016` (SP) 為 null 且不是 Bug | `breakdown` |
-| `NO_BREAKDOWN` | Epic 無子單 | `breakdown` |
-| `NOT_STARTED` | status = 待辦事項/開放，有估點 | `engineering` |
-| `CODE_NO_PR` | status = In Development，無 open PR | `engineering` |
-| `CI_RED` | PR 存在，CI 失敗 | `engineering` |
-| `CHANGES_REQUESTED` | PR 有 CHANGES_REQUESTED review | `engineering` |
-| `HAS_UNRESOLVED_COMMENTS` | PR 有未解決的 review comments（含 COMMENTED 狀態） | `engineering` |
-| `REVIEW_STUCK` | PR open > 2 天，0 approved | `check-pr-approvals` |
-| `STALE_APPROVAL` | PR approved 但 approval 已過期（新 commit 後未 re-approve） | `check-pr-approvals` |
-| `VERIFICATION_PENDING` | 開發完成但 [驗證] 子單未完成 | `engineering` |
-| `NO_FEATURE_PR` | 所有 task PR 已 merge，但無 feature → develop PR | feature-branch-pr-gate 自動建立 |
-| `MERGE_CONFLICT` | PR 有衝突 | 報告，不自動執行 |
-| `WAITING_QA` | status = Waiting for QA | ⏸ 跳過 |
-| `WAITING_RELEASE` | status = Waiting for Release / Ready for Stage | ⏸ 跳過 |
-| `READY` | 無 gap，等待 merge 或已完成 | ✅ 不需動作 |
-
-一張 ticket 可能有多個 gap（例如 CI_RED + HAS_UNRESOLVED_COMMENTS），全部列出。
-
-### Step 5: 排序
-
-四層排序：
-
-1. **Quick wins**（1 步到 review）— `CI_RED`、`CHANGES_REQUESTED`、`HAS_UNRESOLVED_COMMENTS`、`CODE_NO_PR`、`NO_FEATURE_PR`
-2. **需要實作**（2-3 步）— `NOT_STARTED`（已估點）、`VERIFICATION_PENDING`
-3. **需要規劃**（4+ 步）— `NO_ESTIMATE`、`NO_BREAKDOWN`
-4. **等別人**（跳過）— `REVIEW_STUCK`、`STALE_APPROVAL`、`WAITING_QA`、`WAITING_RELEASE`、`MERGE_CONFLICT`
-
-同層內：離 review 步數少 → 多，self-actionable first。
-
-## Phase 2 — 提案（等使用者確認）
-
-呈現執行計畫：
-
-```
-══════════════════════════════════════
-🔄 Converge Plan — YYYY-MM-DD
-══════════════════════════════════════
-
-Scanned: N tickets（Epic: A | Bug: B | Task: C）
-Gaps found: X | Ready: Y | Skipped: Z
-
-⚡ Quick Wins（1 步）
-  1. PROJ-101 [CWV] JS Bundle 瘦身 — CI_RED on PR #92 → engineering
-  2. TEAM-201 SKU 價格 Bug — CODE_NO_PR → engineering
-
-🔨 需要實作（2-3 步）
-  3. PROJ-106 AI 爬蟲調查 — NOT_STARTED (5 SP) → engineering
-  4. PROJ-105 首頁結構化資料 — NOT_STARTED → engineering
-
-📋 需要規劃
-  5. PROJ-104 HTML + CSS 優化 — NO_ESTIMATE → breakdown
-  6. PROJ-102 Category LCP+CLS — NO_ESTIMATE → breakdown
-
-⏸ 等別人（不執行）
-  - PROJ-100 TTFB 優化 — REVIEW_STUCK (PR #2066, 0 approved, 3 days)
-  - TEAM-203 — WAITING_QA
-
-✅ Ready（無 gap）
-  - PROJ-103 CWV 報表 — Ready for Stage
-══════════════════════════════════════
-
-執行？(y/n/調整順序/移除項目)
-```
-
-使用者可以：
-- `y` / `全部跑` — 依序執行全部
-- 指定只跑某些項目（`跑 1, 2, 5`）
-- 移除項目（`不要 3`）
-- 調整順序
-
-## Phase 3 — 執行（確認後自動推進）
-
-### 執行策略
-
-**Sequential by default**：依排序逐張執行，每完成一張報告狀態。
-
-**Parallel when safe**：兩張 ticket 滿足以下全部條件時可 parallel（各自開 worktree）：
-- 不在同一個 Epic 下
-- 不修改同一個 repo 的同一組檔案
-- 都是 Quick Win 層級
-
-**每張 ticket 的執行流程**：
-
-1. 根據 gap type 路由到對應 skill（見 Phase 1 Step 4 表格）
-2. Sub-agent 讀取目標 skill 的 SKILL.md 並 inline 執行
-3. **Handbook 前置**：若目標 skill 涉及 code 修改（engineering），sub-agent dispatch prompt 須包含：「開工前先讀 `{repo}/.claude/rules/handbook/index.md` 及其子文件，遵循 coding conventions」
-4. 執行完成後回報結果（使用 Completion Envelope，見 `skills/references/sub-agent-roles.md`），Detail 寫入 `specs/{EPIC}/artifacts/converge-{ticket_key}-{timestamp}.md`
-5. 主 agent 記錄結果，繼續下一張
-
-### Gap → Skill 路由
-
-| Gap Type | Skill | Dispatch Pattern | Model Class |
-|----------|-------|-----------------|-------------|
-| `NO_BREAKDOWN` | `breakdown` | Exploration → Analysis | `standard_coding` |
-| `NO_ESTIMATE` | `breakdown` | Exploration → Analysis (batch: `small_fast` for JIRA writes) | `standard_coding` / `small_fast` |
-| `NOT_STARTED` | `engineering` | Implementation | `standard_coding` |
-| `CODE_NO_PR` | `engineering` | Implementation | `standard_coding` |
-| `CI_RED` | `engineering` | Implementation | `standard_coding` |
-| `CHANGES_REQUESTED` | `engineering` | Implementation | `standard_coding` |
-| `HAS_UNRESOLVED_COMMENTS` | `engineering` | Implementation | `standard_coding` |
-| `REVIEW_STUCK` | `check-pr-approvals` | JIRA + Slack notification | `standard_coding` |
-| `STALE_APPROVAL` | `check-pr-approvals` | JIRA + Slack notification | `standard_coding` |
-| `VERIFICATION_PENDING` | `engineering` | Verification (engineer-delivery-flow Step 3) | `standard_coding` |
-| `NO_FEATURE_PR` | `feature-branch-pr-gate.md` reference | Implementation | `standard_coding` |
-
-### 安全機制
-
-- **Restore point**：Phase 3 開始前，若 working tree 有 uncommitted changes → `git stash push -m "polaris-restore-converge-{timestamp}"`
-- **Self-regulation scoring**：每個 sub-agent 獨立累計風險分數（見 `skills/references/sub-agent-reference.md`），> 35% 停止並回報
-- **Worktree isolation**：parallel 執行的 sub-agent 使用 `isolation: "worktree"` 避免衝突
-- **Abort**：任一 sub-agent 回報 BLOCKED 且影響後續 ticket → 暫停，回報使用者
-
-### NOT_STARTED 的特殊處理
-
-`NOT_STARTED` gap 的 ticket 需要完整的 `engineering` 流程（分析 → plan → implement → quality → PR）。這是最重資源的操作：
-
-- 單張 NOT_STARTED ticket → 直接路由 `engineering`
-- 多張 NOT_STARTED tickets → 逐張執行（不 parallel），因為每張都可能修改大量檔案
-- 使用者可以選擇只跑 Quick Wins，跳過 NOT_STARTED（`只跑 quick wins`）
-
-### 批次估點的特殊處理
-
-多張 `NO_ESTIMATE` tickets → 可以用 `small_fast` model class batch 建子單 + 估點，效率更高：
-
-1. 一次讀取所有待估 Epic 的 description
-2. 批次產出子單 + 估點建議
-3. 呈現給使用者確認
-4. 確認後 batch 建立 JIRA sub-tasks
-
-## Phase 4 — 收斂報告
-
-執行完畢後，重新跑 Phase 1 掃描（rescan），產出 before vs after 矩陣：
-
-```
-══════════════════════════════════════
-📊 Converge Report — YYYY-MM-DD
-══════════════════════════════════════
-
-| Ticket | Before | After | Action Taken |
-|--------|--------|-------|-------------|
-| PROJ-101 | CI_RED | READY | engineering → CI pass |
-| PROJ-106 | NOT_STARTED | CODE_REVIEW | engineering → PR #105 |
-| PROJ-104 | NO_ESTIMATE | NOT_STARTED | breakdown → 8 SP |
-| PROJ-100 | REVIEW_STUCK | REVIEW_STUCK | ⏸ skipped (等 review) |
-
-Summary:
-  ✅ Resolved: 3 gaps
-  ⏸ Skipped: 2 (等別人)
-  ❌ Failed: 0
-
-Next actions:
-  - PROJ-100: 催 review（要我發 Slack 嗎？）
-  - TEAM-203: 追 QA 進度
-══════════════════════════════════════
-```
-
-**Slack 催 review**：對 `REVIEW_STUCK` 的 ticket，問使用者是否要透過 `check-pr-approvals` 發 Slack 催 review。
-
-## Sub-agent 批次掃描
-
-當 Phase 1 的 ticket 總數 > 10，委派 sub-agent 並行掃描 GitHub 狀態：
-
-```markdown
-你是 GitHub 狀態掃描 agent。
-
-## 輸入
-以下 tickets 需要查詢 GitHub PR 狀態：
-{ticket_list}
-
-## 查詢方式
-對每張 ticket：
-1. `gh pr list --repo {owner}/{repo} --search "{TICKET_KEY}" --state all --json number,title,state,headRefName,statusCheckRollup,reviews,mergeable --limit 5`
-2. 解析 CI 狀態、review 狀態、mergeable
-
-## 回傳格式
-| Ticket | PR # | State | CI | Approved | Changes Req | Unresolved | Mergeable |
-|--------|------|-------|----|----------|-------------|------------|-----------|
-
-## 限制
-- 只做查詢，不修改任何東西
-- 找不到 PR 就標 "no PR"
-```
-
-Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`），Detail 寫入 `/tmp/polaris-agent-{timestamp}.md`（完整 PR 狀態表）。
-
-## Epic 模式 vs 全域模式
-
-如果使用者指定了特定 Epic key（例：`converge PROJ-100`），只掃描該 Epic 及其子單，不掃全部。
-
-如果沒指定 ticket → 全域模式，掃描所有 assigned work。
-
-## Do
-
-- 並行查詢 JIRA + GitHub，減少等待
-- Phase 2 必須等使用者確認才執行 Phase 3
-- 用共用 scripts（`get-pr-status.sh`、`check-feature-pr.sh`）而不是 inline gh api
-- Quick wins 優先，self-actionable first
-- 每完成一張 ticket 立即報告，不要等全部做完
-- Rescan after execution，讓使用者看到 before/after
-- 記錄 gap routing 和結果到 session timeline
-
-## Don't
-
-- 不自動修改 JIRA 狀態 — 讓下游 skill 處理
-- 不跳過 Phase 2 確認 — 這是批次操作，使用者需要審查計畫
-- 不 parallel 執行 NOT_STARTED tickets — 太重，逐張跑
-- 不處理其他人的 tickets — 只掃 assignee = currentUser()
-- 不把 `WAITING_QA` / `WAITING_RELEASE` 當成 gap — 這些是正常流程
-- 不跟 `/my-triage` 混淆 — triage 只看不動，converge 看了就動
-
-## 跟現有 skill 的關係
-
-| Skill | 變化 |
-|-------|------|
-| `my-triage` | 不變，純儀表板 |
-| `engineering` | 不變，converge 的下游執行器 |
-| `check-pr-approvals` | 不變，converge 的下游執行器 |
-| `breakdown` | 不變，converge 的下游執行器 |
-| `engineering` (behavioral verification) | 不變，converge 的下游執行器（含 engineer-delivery-flow Step 3） |
-
----
-
-## Changelog
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0.0 | 2026-04-03 | Initial release — adds Epic gap analysis and batch orchestration |
-
+Return scanned counts, gap counts, selected execution list, per-ticket result, before/after gap
+matrix, skipped waiting items, failed/blocker items, and follow-up routes.
 
 ## Post-Task Reflection (required)
 
-> **Non-optional.** Execute before reporting task completion.
-
-Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).
+Execute `post-task-reflection-checkpoint.md` before reporting completion.

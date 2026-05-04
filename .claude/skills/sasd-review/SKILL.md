@@ -10,203 +10,60 @@ description: >
   document — even if they don't explicitly say "SA/SD".
 metadata:
   author: Polaris
-  version: 1.0.0
+  version: 1.1.0
 ---
 
 # SA/SD Review — Design-First Gate
 
-Produce a structured System Analysis / System Design document for a JIRA ticket
-before any code is written. The goal is to **align on approach first** — catching
-misunderstandings, surfacing ambiguities, and choosing among alternatives is far
-cheaper at the design stage than after implementation.
+在寫 code 前，為 JIRA ticket 產出 System Analysis / System Design 文件，先對齊需求、
+異動範圍、技術方案、task estimates 與風險。
 
-## Why Design-First
+## Contract
 
-- "Simple" requirements are the most dangerous — unchecked assumptions waste work
-- Exploring the codebase before writing forces you to understand the real impact
-- A short design doc (even 5 lines for a 3-point bug fix) makes the PR review faster
-- The task list becomes the sub-task breakdown — no duplicate work
+`sasd-review` 是 design-first gate。它產出 implementation plan，不施工、不建 branch、
+不開 PR。若 ticket 已經有清楚方案，也仍需確認方向，不可直接假設。
 
-## SA/SD Template Structure
+Small change 可產 brief plan；medium scope 產 standard SA/SD；large or cross-service scope
+需包含 alternatives 與 risk mitigation。
 
-### Metadata Table
+## Reference Loading
 
-| Field | Description |
-|-------|-------------|
-| Create date | Document creation date |
-| Author | Responsible developer |
-| JIRA ticket | Link to the JIRA Epic / Story / Bug |
-| PRD | Product requirements document link (if available) |
-| Design | Design mockup links (Figma, Zeplin, etc.) |
-| API doc | API documentation link (if available) |
-| Discussion | Slack thread, meeting notes, etc. |
-| Reference | Any additional reference materials |
+| Situation | Load |
+|---|---|
+| Any run | `sasd-review-entry-exploration-flow.md`, `workspace-config-reader.md`, `project-mapping.md`, `shared-defaults.md` |
+| Codebase exploration | `explore-pattern.md`, `repo-handbook.md`, `worktree-dispatch-paths.md`, `planning-worktree-isolation.md` as needed |
+| Document writing | `sasd-review-document-template.md`, `estimation-scale.md`, `confidence-labeling.md` |
+| External publish | `sasd-review-publish-flow.md`, `sasd-confluence.md`, `confluence-page-update.md`, `workspace-language-policy.md`, `external-write-gate.md` |
 
-### Required Sections
+Explore sub-agent dispatch 必須注入 `sub-agent-roles.md` 的 Completion Envelope。Planning
+decision 留在主 session；sub-agent 只提供 codebase impact evidence。
 
-1. **Requirements** — What problem are we solving? Why is this needed?
-2. **Dev Scope** — Which files, modules, and services will be changed?
-3. **System Flow** — How does the change flow through the system? (sequence diagram, data flow, or prose)
-4. **Implementation Design** — What components/functions/modules are created or modified? What patterns are used?
-5. **Task List with Estimates** — Actionable work items with file paths and story points
-6. **Timeline** — Total estimated days based on task points
+## Flow
 
-### Optional Sections
+1. 讀 workspace config，解析 JIRA ticket key。
+2. Fetch JIRA ticket，讀 summary、description、AC、PRD/design/API/discussion links。
+3. 依 `project-mapping.md` 找 target project；找不到就問使用者。
+4. 讀 requirements，列 ambiguities；不清楚的先問，不猜。
+5. 依 `explore-pattern.md` 探索 codebase，取得 affected files、current architecture、risks。
+6. 中大型 scope 提出 2-3 個 approach 與 trade-offs，請使用者確認 recommendation。
+7. 依 template 產出 SA/SD：requirements、dev scope、system flow、implementation design、
+   task list with estimates、timeline。
+8. 呈現給使用者調整；確認後才可寫 JIRA comment 或 Confluence page。
+9. External write 前跑 language gate。
 
-7. **Alternatives Considered** — Other approaches evaluated and why they were rejected
-8. **Risk & Mitigation** — What could go wrong and how to handle it
-9. **Reference** — Additional materials
+## Design Rules
 
-## Design-First Gate Flow
+- Task estimates 必須使用 Fibonacci scale。
+- Task list 要能直接成為 breakdown input；每個 task 有 file scope 與 verification method。
+- Dev scope 使用具體 file/module/service，不寫泛稱。
+- 不確定的研究結論標 confidence。
+- Runtime feasibility probe 需要跑環境時，使用 dedicated worktree，不污染 main checkout。
 
-**Before writing any code, complete the design alignment.** This is not a formality —
-it is the primary quality gate for preventing wasted work.
+## Completion
 
-The design can be brief (a 3-point bug fix needs only a few sentences), but it must
-go through this flow:
-
-1. **Understand requirements** — Read the ticket fully. Confirm you understand the problem
-2. **Surface ambiguities** — List what is unclear or missing. Ask before assuming
-3. **Propose 2–3 approaches** (for medium/large scope) — Include trade-offs and a recommendation
-4. **Get developer confirmation** — Align on the approach before proceeding to output
-
-> If the ticket already contains a clear implementation plan (e.g., the developer
-> described the approach in the description), confirm it and proceed to SA/SD output.
-> But always confirm — never assume.
-
-## Workflow
-
-### Pre-step: Read workspace config
-
-Read workspace config (see `references/workspace-config-reader.md`).
-Required values: `jira.instance`, `confluence.space` (optional).
-If config is missing, use `references/shared-defaults.md` fallback values.
-
-### Step 1: Fetch JIRA ticket
-
-Get the ticket key from (in priority order):
-1. User-provided issue key
-2. Current git branch name
-3. Ask the user
-
-Read the ticket via MCP:
-
-```
-mcp__claude_ai_Atlassian__getJiraIssue
-  cloudId: {config: jira.instance}
-  issueIdOrKey: <TICKET>
-```
-
-### Step 2: Identify the target project
-
-Extract the `[...]` tag from the ticket Summary and match against
-`references/project-mapping.md` to find the local project path. Case-insensitive.
-
-If no tag is found or no match, ask the user to specify the project.
-
-All subsequent codebase analysis uses this project path as the root.
-
-### Step 3: Analyze ticket requirements
-
-Read Summary, Description, and Acceptance Criteria to understand:
-- What problem is being solved
-- Expected behavior changes
-- Related PRD / Design / API doc links
-
-### Step 4: Explore the codebase (adaptive)
-
-**Worktree dispatch — 主 checkout 絕對路徑**
-Sub-agent 在 worktree 執行；`specs/` 與 `.claude/skills/` 是 gitignored（worktree 無此檔）。dispatch prompt 須以主 checkout 絕對路徑讀寫：
-- task.md: `{company_specs_dir}/{EPIC}/tasks/T{n}.md`
-- artifacts / verification: `{company_specs_dir}/{EPIC}/artifacts/`、`.../verification/`
-詳見 `skills/references/worktree-dispatch-paths.md`。
-
-Use `references/explore-pattern.md` to scan the codebase.
-
-**Goal**: Find all files related to the requirements. Understand the current
-architecture and identify the impact of the change.
-
-Dispatch 1 Explore sub-agent with the ticket summary and project path.
-The sub-agent will auto-calibrate scope — small tickets get a quick scan,
-large tickets spawn multiple parallel sub-explores.
-
-Sub-agent dispatch 必須注入 Completion Envelope spec（見 `skills/references/sub-agent-roles.md`），Detail 寫入 `{company_specs_dir}/{TICKET}/artifacts/explore-{timestamp}.md`。
-
-**After receiving the exploration summary**, proceed directly to Step 5.
-Do not re-read source files. If a specific area needs more detail, dispatch
-a targeted single Explore sub-agent — do not restart a full scan.
-
-### Step 5: Produce the SA/SD document
-
-Based on the analysis, fill in the template sections:
-
-#### 5.1 Requirements
-Summarize the requirements, referencing the ticket description.
-
-#### 5.2 Dev Scope
-List every file/module that needs to change:
-- Existing files: what to modify and why
-- New files: purpose and location
-- Deleted files: reason for removal
-
-#### 5.3 System Flow
-Describe the implementation flow using a mermaid sequence diagram or prose.
-Include the full request path if multiple services are involved.
-
-#### 5.4 Implementation Design
-Explain the technical approach:
-- Which components/functions/modules are created or modified
-- Which patterns, hooks, utilities are used
-- Data flow between layers
-
-#### 5.5 Task List with Estimates
-
-Present as a table. Each task should be an independently deliverable unit
-(one task = one PR):
-
-| Task | Files changed | Verification | Points |
-|------|---------------|-------------|--------|
-| Description | Specific file paths | How to confirm completion (test command, expected result) | Estimate |
-
-**Task granularity principles:**
-- Points **must be Fibonacci** (1, 2, 3, 5, 8, 13). No decimals or off-scale integers
-- Target 2–5 points per task (one PR's worth of work)
-- List **specific file paths** (not "modify the API" — write `server/api/users/get-profile.ts`)
-- Each task needs a **verification method** so completion is objectively checkable
-
-> Estimation scale reference: `references/estimation-scale.md`
-
-If `breakdown` has already produced sub-tasks, reuse them — do not re-split.
-
-#### 5.6 Timeline
-Total days = total points / daily velocity (typically 2–3 points/day).
-
-### Step 6: Review and next steps
-
-Present the SA/SD to the user and ask:
-- Any sections to adjust?
-- Add to JIRA as a comment?
-- Create a Confluence page? (see `references/sasd-confluence.md` for location conventions)
-
-**Workspace language policy gate（blocking）**：完整規則見 `references/workspace-language-policy.md`。若使用者確認要寫入 JIRA 或 Confluence，先把最終 SA/SD 內容落成 temp markdown，執行：
-
-```bash
-bash scripts/validate-language-policy.sh --blocking --mode artifact <sasd-output.md>
-```
-
-exit ≠ 0 → 修正 SA/SD 主敘述語言後重跑；不可把未通過 gate 的 SA/SD comment 或 page 寫入外部系統。
-
-### Step 7: Scope calibration
-
-- **Small changes (≤ 3 points, single module)**: A full SA/SD is overkill. Produce a brief
-  implementation plan (requirements + dev scope + one task) instead
-- **Medium changes (5–13 points)**: Standard SA/SD with all required sections
-- **Large changes (> 13 points or cross-service)**: Full SA/SD with alternatives considered
-  and risk analysis
-
+輸出 SA/SD draft、unresolved questions、chosen approach、estimated points/days、publish status、
+以及建議下一步：更新 JIRA/Confluence、或進 `breakdown`。
 
 ## Post-Task Reflection (required)
 
-> **Non-optional.** Execute before reporting task completion.
-
-Run the checklist in [post-task-reflection-checkpoint.md](../references/post-task-reflection-checkpoint.md).
+Execute `post-task-reflection-checkpoint.md` before reporting completion.
