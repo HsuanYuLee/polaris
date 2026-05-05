@@ -106,7 +106,7 @@ bash "$SCRIPT_DIR/publish-delivery-evidence.sh" \
   --head-sha "$HEAD_SHA" \
   --manifest-file "$publication_manifest" >/dev/null
 
-python3 - "$publication_manifest" "$REPO_ROOT" "$TICKET" "$HEAD_SHA" "$TARGET" "$OUTPUT_DIR" <<'PY'
+python3 - "$publication_manifest" "$REPO_ROOT" "$TICKET" "$HEAD_SHA" "$TARGET" "$OUTPUT_DIR" "$SOURCE_CONTAINER" <<'PY'
 from __future__ import annotations
 
 import datetime as dt
@@ -122,6 +122,7 @@ ticket = sys.argv[3]
 head_sha = sys.argv[4]
 target = sys.argv[5]
 output_dir = Path(sys.argv[6])
+source_container = Path(sys.argv[7])
 
 publication = json.loads(publication_manifest_path.read_text(encoding="utf-8"))
 items: list[dict] = []
@@ -266,8 +267,15 @@ manifest = {
     "head_sha": head_sha,
     "target": target,
     "repo": str(repo_root),
+    "source_container": str(source_container),
+    "bundle_dir": str(output_dir),
     "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
     "publication_manifest_sha256": sha256_file(publication_manifest_path),
+    "report_generator_input": {
+        "type": "upload_bundle_manifest",
+        "path": "manifest.json",
+        "items_path": "items",
+    },
     "items": items,
     "warnings": publication.get("errors", []),
 }
@@ -276,7 +284,12 @@ manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\
 
 required = [item for item in items if item.get("requires_publication")]
 lines = [
-    f"# Evidence upload bundle - {ticket}",
+    "---",
+    f"title: {json.dumps(f'Evidence upload bundle - {ticket}', ensure_ascii=False)}",
+    f"description: {json.dumps(f'Local evidence files prepared for {target} upload.', ensure_ascii=False)}",
+    "---",
+    "",
+    f"# Upload package for {ticket}",
     "",
     f"- Ticket: `{ticket}`",
     f"- Head SHA: `{head_sha}`",

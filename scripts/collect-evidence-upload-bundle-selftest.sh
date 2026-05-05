@@ -67,6 +67,8 @@ PY
 
 [[ -f "$bundle_dir/README.md" ]] || { echo "missing README.md" >&2; exit 1; }
 [[ -f "$bundle_dir/manifest.json" ]] || { echo "missing manifest.json" >&2; exit 1; }
+grep -q '^---$' "$bundle_dir/README.md"
+grep -q 'title: "Evidence upload bundle - TASK-9999"' "$bundle_dir/README.md"
 grep -q "required publication files" "$bundle_dir/README.md"
 
 python3 - "$bundle_dir/manifest.json" <<'PY'
@@ -75,6 +77,13 @@ import sys
 from pathlib import Path
 
 manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert manifest["source_container"].endswith("specs/EPIC-999")
+assert manifest["bundle_dir"].endswith("artifacts/TASK-9999-pr-upload")
+assert manifest["report_generator_input"] == {
+    "type": "upload_bundle_manifest",
+    "path": "manifest.json",
+    "items_path": "items",
+}
 items = manifest["items"]
 bundle_paths = [item["bundle_path"] for item in items]
 assert len(bundle_paths) == len(set(bundle_paths)), "bundle filenames must be unique"

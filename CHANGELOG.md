@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.86] - 2026-05-06
+
+### Added — static evidence distributor
+
+- Added a deterministic static evidence distributor that classifies verification files into `assets/**`, writes `links.json`, and mirrors videos to a scoped public evidence path.
+- Added a verify report generator that consumes deterministic links and produces Starlight-valid `verify-report.md` pages with inline screenshots and linked videos.
+- Extended evidence upload bundle metadata and documentation so local board reports can consume upload bundles without LLM path or file-type decisions.
+
 ## [3.74.85] - 2026-05-06
 
 ### Added — folder-native dashboard discovery

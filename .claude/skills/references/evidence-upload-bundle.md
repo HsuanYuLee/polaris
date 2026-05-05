@@ -38,10 +38,19 @@ folder。Epic child task 使用 Epic container。
 ```text
 README.md
 manifest.json
-<copied evidence files>
+links.json
+publication-manifest.json
+verify-report.md
+assets/
+  screenshots/
+  videos/
+  raw/
+  files/
+<legacy copied evidence files>
 ```
 
-`README.md` 列出要上傳的檔案，並提醒使用者發布前先檢查截圖與影片內容。
+`README.md` 列出要上傳的檔案，並提醒使用者發布前先檢查截圖與影片內容。README
+必須有 Starlight frontmatter，讓 local board 可以直接顯示。
 
 `manifest.json` 記錄：
 
@@ -49,9 +58,29 @@ manifest.json
 - `head_sha`
 - `target`
 - source repo
+- source container
+- bundle dir
 - generated timestamp
+- report generator input contract
 - copied item list，包含 source path、bundle filename、size、SHA-256，以及是否需要
   remote publication
+
+`links.json` 由 `scripts/distribute-static-evidence.mjs` 產生。LLM 不判斷檔案歸屬；
+distributor 依副檔名機械式分類：
+
+| Extension | Destination | Report behavior |
+|-----------|-------------|-----------------|
+| `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.svg` | `assets/screenshots/` | Markdown image |
+| `.webm`, `.mp4`, `.mov`, `.m4v` | `assets/videos/` + scoped public mirror | Markdown link, no inline video |
+| `.json`, `.har`, `.log`, `.txt`, `.trace` | `assets/raw/` | Supporting evidence link |
+| other files | `assets/files/` | Supporting evidence link |
+
+`publication-manifest.json` 記錄 local board publication state。第一版只承諾 local board
+可消費；PR / Jira binary upload 是獨立 remote publication flow，不得把 local linkability
+視為 remote publication gate PASS。
+
+`verify-report.md` 由 `scripts/generate-verify-report.mjs` 消費 `links.json` 產生。圖片用
+relative Markdown image；影片只提供可點擊 link，避免 Starlight 內嵌影片造成瀏覽負擔。
 
 Helper 預設會重建目標 bundle folder，避免上一輪截圖或影片殘留。若需要保留既有檔案，可傳
 `--no-clean`。
@@ -81,6 +110,20 @@ Helper 會收集既有 evidence：
 
 若 baseline / compare 截圖等 artifact 有相同 basename，helper 會產生不衝突的 bundle
 filename，避免互相覆蓋。
+
+收集後可用 distributor / report generator 建 local board report：
+
+```bash
+node "${POLARIS_ROOT}/scripts/distribute-static-evidence.mjs" \
+  --source "<bundle_dir>" \
+  --output-dir "<bundle_dir>" \
+  --scope "<WORK_ITEM_ID>"
+
+node "${POLARIS_ROOT}/scripts/generate-verify-report.mjs" \
+  --links "<bundle_dir>/links.json" \
+  --output "<bundle_dir>/verify-report.md" \
+  --title "Verify Report - <WORK_ITEM_ID>"
+```
 
 ## Engineering Flow
 
