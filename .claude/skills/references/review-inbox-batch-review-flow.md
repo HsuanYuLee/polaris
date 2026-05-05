@@ -56,6 +56,17 @@ Sub-agent 不呼叫 Skill tool；它直接依 inline dispatch context、verified
 PR diff、existing comments 執行 review，然後 submit GitHub review。Batch prompt 不得要求
 sub-agent 重讀完整 review skill / reference stack。
 
+Token budget rules：
+
+- 先執行 `gh pr diff <PR_URL> --name-only` 取得完整 changed-file list。
+- 整體 diff 不超過 2000 行時可讀完整 diff；超過時每個檔案只讀 hunk headers、changed lines
+  與前後約 20 行 context。
+- 單檔 diff 小於 200 行可讀完整 per-file diff；大檔只 sample changed hunks。import/export、
+  routing、API contract、schema、test expectation、security/auth、payment/booking 等 cross-file
+  風險才升級讀相關檔案全文。
+- Existing inline comments 只抓 metadata 用於 dedup：`user`, `path`, `line`, `side`,
+  `head = body[:80]`。不得把完整 comment body 放進 sub-agent context。
+
 ## Result Envelope
 
 每個 sub-agent 回傳：

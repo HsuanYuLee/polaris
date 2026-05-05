@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.67] - 2026-05-05
+
+### Fixed — review-inbox Phase 2 token controls
+
+- Review-inbox dispatch prompts now require changed-file-first diff sampling and cap large diff reads to targeted hunks.
+- Existing inline comments are fetched as metadata-only dedup keys instead of full comment bodies.
+- Slack discovery docs now require concise MCP reads, and the Slack Web API fallback accepts ISO `--oldest` values.
+
 ## [3.74.66] - 2026-05-05
 
 ### Fixed — review-inbox dispatch token overhead

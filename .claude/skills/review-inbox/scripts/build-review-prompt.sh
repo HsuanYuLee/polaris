@@ -140,11 +140,19 @@ ${BUNDLE_TEXT}
 **Project Handbook**：
 ${HANDBOOK_BLOCK}
 
+**Token Budget Rules**：
+- Diff sampling: 先執行 \`gh pr diff ${URL} --name-only\` 取得完整 changed-file list。
+- 若整體 \`gh pr diff ${URL}\` 不超過 2000 行，可讀完整 diff；超過時只讀每個 changed file 的 hunk headers、changed lines 與前後約 20 行 context。
+- 單檔 diff 小於 200 行可讀完整 per-file diff；大檔只 sample changed hunks。遇到 import/export、routing、API contract、schema、test expectation、security/auth、payment/booking 等 cross-file 風險時，才讀相關檔案全文。
+- Existing comments metadata-only: inline comments 只抓 dedup metadata，不把完整 comment body 放進 context。使用：
+  \`gh api "repos/OWNER/REPO/pulls/${NUMBER}/comments" --paginate --jq '.[] | {user: .user.login, path, line: (.line // .original_line), side, head: ((.body // "")[:80])}'\`
+- Dedup 只比對 \`(user, path, line, head)\` 與語意相同的已指出問題；不要重複貼既有 comment 全文。
+
 **執行步驟**：
 1. 專案辨識 — repo = ${REPO}, local path = ${BASE_DIR}/${REPO}
-2. 用 ${BASE_DIR}/${REPO} 下可用的 fetch script 或 gh api 取得 PR metadata、files、diff、reviews
+2. 用 ${BASE_DIR}/${REPO} 下可用的 fetch script 或 gh api 取得 PR metadata、changed-file names、sampled diff、reviews
 3. 只讀 Project Handbook 區塊列出的 verified paths；若是 no project handbook，略過 handbook 讀取
-4. 讀既有 review comments 並去重
+4. 以 metadata-only 讀既有 review comments 並去重
 5. 審查 changed files，依 inline dispatch context 的 severity / submit rules 產生 review
 6. 提交 GitHub review
 7. 查詢 approve 狀態

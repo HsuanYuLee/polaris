@@ -66,6 +66,10 @@ required = [
     "Completion Envelope",
     "Verified project handbook paths:",
     "acme/polaris-config/acme-web/handbook/index.md",
+    "gh pr diff https://github.com/acme/acme-web/pull/101 --name-only",
+    "Existing comments metadata-only",
+    "(.body // \"\")[:80]",
+    "sampled diff",
 ]
 for item in required:
     if item not in prompt:

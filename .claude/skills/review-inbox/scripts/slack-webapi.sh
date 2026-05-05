@@ -7,6 +7,7 @@
 #
 # Usage:
 #   ./slack-webapi.sh read-channel --channel-id C123 --oldest 1712841600 --limit 100
+#   ./slack-webapi.sh read-channel --channel-id C123 --oldest 2026-05-01T00:00:00+08:00 --limit 100
 #   ./slack-webapi.sh read-thread --channel-id C123 --thread-ts 1776130982.981829
 #   ./slack-webapi.sh send-message --channel-id C123 --thread-ts 1776130982.981829 --message "hello"
 
@@ -47,12 +48,46 @@ assert_ok() {
   fi
 }
 
+normalize_oldest() {
+  local value="${1:-}"
+  if [[ -z "$value" ]]; then
+    printf '\n'
+    return 0
+  fi
+  if [[ "$value" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+    printf '%s\n' "$value"
+    return 0
+  fi
+
+  python3 - "$value" <<'PY'
+import sys
+from datetime import datetime, time
+
+raw = sys.argv[1].strip()
+try:
+    if len(raw) == 10 and raw[4] == "-" and raw[7] == "-":
+        dt = datetime.combine(datetime.fromisoformat(raw).date(), time.min)
+    else:
+        normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
+        dt = datetime.fromisoformat(normalized)
+    print(str(int(dt.timestamp())))
+except Exception as exc:
+    print(f"ERROR: --oldest must be a Slack timestamp or ISO datetime, got {raw!r}: {exc}", file=sys.stderr)
+    sys.exit(2)
+PY
+}
+
 cmd="${1:-}"
 if [[ -z "$cmd" ]]; then
   echo "Usage: $0 <read-channel|read-thread|send-message> [args]" >&2
   exit 1
 fi
 shift
+
+if [[ "$cmd" == "normalize-oldest" ]]; then
+  normalize_oldest "${1:-}"
+  exit 0
+fi
 
 require_token
 require_jq
@@ -76,6 +111,7 @@ case "$cmd" in
       echo "ERROR: --channel-id is required" >&2
       exit 1
     fi
+    oldest="$(normalize_oldest "$oldest")"
 
     payload="$(jq -n \
       --arg channel "$channel_id" \
