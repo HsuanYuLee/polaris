@@ -28,6 +28,7 @@ Implementation Schema 為準。必備內容：
 - Operational Context。
 - Verification Handoff。
 - Goal / scope / allowed files。
+- Scope Trace Matrix。
 - Acceptance / test plan。
 - Behavior contract。
 - Test Command。
@@ -45,6 +46,32 @@ Implementation Schema 為準。必備內容：
 References to load 要只列 engineering 真正需要讀的 references，例如
 `branch-creation.md`、`task-md-schema.md`、project handbook pointer、relevant refinement
 artifact pointer。
+
+## Scope Trace Matrix
+
+每張 implementation task 都要把可觀測目標 trace 到 owning files、使用者或系統邊界、
+以及測試。這不是敘述用章節；`validate-breakdown-ready.sh` 會在 handoff 前檢查。
+
+最低格式：
+
+```markdown
+## Scope Trace Matrix
+
+| Goal / AC | Owning files | Surface / boundary | Tests |
+|-----------|--------------|--------------------|-------|
+| status board 顯示 task 驗證結果 | `docs-manager/src/pages/status.astro`, `scripts/build-status-data.mjs` | `/status` dashboard render surface | `pnpm --dir docs-manager build` |
+```
+
+規則：
+
+- 每個 row 對應一個 goal / AC，不可把整張 task 混成單一 vague row。
+- `Owning files` 必須是 machine-matchable repo-root path / glob，且必須被
+  `## Allowed Files` 覆蓋。
+- UI / dashboard / API-visible work 必須列出 render/API boundary；只列 presenter、
+  helper、data generator 不夠。
+- data → presenter → render 的任務，必須列出實際會動到的層；若任一層不在 scope，
+  要在 `Surface / boundary` 說明 boundary。
+- target surface 無法判斷時不可填 unknown；回 refinement 補規格或拆成 discovery task。
 
 ## Behavior Contract
 

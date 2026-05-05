@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.84] - 2026-05-06
+
+### Fixed — breakdown scope trace readiness
+
+- Added Scope Trace Matrix readiness checks for breakdown-produced work orders.
+- Readiness gate now verifies owning files are covered by Allowed Files and catches UI/dashboard/API tasks without render/API surfaces.
+- Updated breakdown and task schema references for scope trace packaging and folder-native readiness scans.
+
 ## [3.74.83] - 2026-05-06
 
 ### Added — folder-native task resolver foundation

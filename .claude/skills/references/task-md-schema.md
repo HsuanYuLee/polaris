@@ -346,6 +346,7 @@ PR-release 觸發（DP-033 D6，**move-first 順序鎖定**）：`status` 轉為
 | `## 目標` | **Soft** | DP-025 | `validate-task-md.sh`（章節存在 + 非空） |
 | `## 改動範圍` | **Hard** | DP-025 | `validate-task-md.sh`（章節存在 + 非空 body） |
 | `## Allowed Files` | **Hard** | DP-033 D5 (升級自 Soft，2026-04-26 鎖定) | `validate-task-md.sh`（章節存在 + 非空 bullet list）— 直接 Hard，**不開 grace、不留 warn-only**；既有 active T 缺漏由 A7 migration script **強制 backfill** |
+| `## Scope Trace Matrix` | **Breakdown readiness Hard** | DP-112 | `validate-breakdown-ready.sh`（章節存在 + goal/AC → owning files → surface/boundary → tests；owning files 必須被 Allowed Files 覆蓋） |
 | `## 估點理由` | **Hard** | DP-025 | `validate-task-md.sh`（章節存在 + 非空 body） |
 | `## 測試計畫（code-level）` | **Soft** | DP-025 | `validate-task-md.sh`（章節存在；內容不檢） |
 | `## Test Command` | **Hard** | DP-005 / DP-025 | `validate-task-md.sh`（章節存在 + 含 fenced code block） |
@@ -453,14 +454,39 @@ Bullet list 格式：
 
 - `apps/main/plugins/dayjs.ts`
 - `apps/main/products/**`
-- 上述檔案的 test 檔
+- `apps/main/products/**/*.spec.ts`
 ```
 
 由 `engineer-delivery-flow.md` Step 5.5 Scope Check 消費。Hard required（DP-033 D5 升級自 Soft）— 缺失會讓 Scope Check 失靈，risk scoring 機制走空。
 
 Allowed Files pattern 支援 repo-root relative path、glob，以及 root exact filename。`VERSION`、`README` 這類 root filename 是合法 exact pattern；不要為了通過 scope gate 改寫成 `VERSION*`。純自然語言 bullet（例如「上述檔案的 test 檔」）仍會被 scope matcher 跳過，不會變成萬用 pattern。
 
-### 3.5 `## Gate Closure Matrix`
+### 3.5 `## Scope Trace Matrix`
+
+`## Scope Trace Matrix` 是 breakdown readiness 欄位，用來證明每個可觀測目標或 AC
+都有明確 owning files、render/API 或系統邊界，以及測試。它補足 `Allowed Files`
+只能描述可改檔案、但不能證明 scope 完整性的缺口。
+
+最低格式：
+
+```markdown
+## Scope Trace Matrix
+
+| Goal / AC | Owning files | Surface / boundary | Tests |
+|-----------|--------------|--------------------|-------|
+| dashboard 顯示 verification evidence | `docs-manager/src/pages/status.astro`, `scripts/build-status-data.mjs` | `/status` dashboard render surface | `pnpm --dir docs-manager build` |
+```
+
+規則：
+
+- 至少一個 trace row；欄位名稱需包含 Goal/AC、Owning files、Surface/boundary、Tests。
+- `Owning files` 必須是 path / glob token，且每個 token 必須被 `## Allowed Files` 覆蓋。
+- UI / dashboard / API-visible work 必須列出 render/API surface；只列 data helper、
+  presenter 或 generator 會被 readiness gate 擋下。
+- `Surface / boundary` 不可填 `N/A` 或 unknown。若 surface 無法決定，producer 必須
+  route refinement，不得交給 engineering 猜。
+
+### 3.6 `## Gate Closure Matrix`
 
 `## Gate Closure Matrix` 是 breakdown producer contract，不是一般 task schema 欄位。它由 `scripts/validate-breakdown-ready.sh` 在 breakdown handoff 前強制驗證，目的是避免 engineering 收到「沒有 pass 條件」的 work order。
 
@@ -485,7 +511,7 @@ Allowed Files pattern 支援 repo-root relative path、glob，以及 root exact 
 - `N/A` 合法，但必須有原因。
 - `Allowed Files` 若含自然語言描述，readiness gate fail；自然語言只能放 `## 改動範圍`。
 
-### 3.6 `## Test Command` / `## Verify Command`
+### 3.7 `## Test Command` / `## Verify Command`
 
 兩者皆必須包含 fenced code block（內容由 LLM 不可改寫 — `verify-command-immutable-execute` canary）。
 `## Verify Fallback Command` 是 optional section；只有 primary `## Verify Command`

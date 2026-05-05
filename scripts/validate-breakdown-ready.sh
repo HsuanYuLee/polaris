@@ -17,13 +17,17 @@ Validates task.md readiness before breakdown hands work to engineering:
 - task.md schema passes
 - task folder dependency gate passes
 - Allowed Files are machine-matchable path/glob tokens
+- Scope Trace Matrix maps goals/AC to owning files, surface/boundary, and tests
+- Scope Trace Matrix owning files are covered by Allowed Files
+- UI/dashboard/API visible work declares a render/API surface, not only helper files
+- folder-native task directories are scanned (T*/index.md)
 - Gate Closure Matrix is present and names scope/test/verify/ci-local gates
 - Gate rows expose pass conditions and ownership/decisions
 EOF
 }
 
 run_self_test() {
-  local tasks valid invalid invalid_matrix
+  local tasks valid invalid invalid_matrix missing_scope missing_allowed missing_surface folder_valid
   SELFTEST_TMP="$(mktemp -d -t validate-breakdown-ready.XXXXXX)"
   trap 'rm -rf "${SELFTEST_TMP:-}"' EXIT
   tasks="$SELFTEST_TMP/tasks"
@@ -31,6 +35,11 @@ run_self_test() {
   valid="$tasks/T1.md"
   invalid="$tasks/T2.md"
   invalid_matrix="$tasks/T3.md"
+  missing_scope="$tasks/T4.md"
+  missing_allowed="$tasks/T5.md"
+  missing_surface="$tasks/T6.md"
+  mkdir -p "$tasks/T7"
+  folder_valid="$tasks/T7/index.md"
 
   cat > "$valid" <<'MD'
 ---
@@ -75,6 +84,13 @@ AC 驗證不在本 task 範圍。
 - `scripts/validate-breakdown-ready-selftest.sh`
 - `VERSION`
 
+## Scope Trace Matrix
+
+| Goal / AC | Owning files | Surface / boundary | Tests |
+|-----------|--------------|--------------------|-------|
+| readiness gate validates valid and invalid task.md files | `scripts/validate-breakdown-ready.sh`, `scripts/validate-breakdown-ready-selftest.sh` | CLI validator output | `bash scripts/validate-breakdown-ready.sh --self-test` |
+| version bump is part of release metadata | `VERSION` | release metadata | `bash scripts/gates/gate-version-lint.sh --repo /tmp/repo` |
+
 ## Gate Closure Matrix
 
 | Gate | Applies | Pass condition | Owner / decision |
@@ -115,6 +131,10 @@ MD
 
   sed 's/`scripts\/validate-breakdown-ready.sh`/上述檔案的 test 檔/' "$valid" > "$invalid"
   sed 's/| verify | yes | smoke pass | breakdown |/| verify | yes |  |  |/' "$valid" > "$invalid_matrix"
+  awk 'BEGIN{skip=0} /^## Scope Trace Matrix/{skip=1; next} skip && /^## Gate Closure Matrix/{skip=0} !skip{print}' "$valid" > "$missing_scope"
+  sed '/^- `scripts\/validate-breakdown-ready-selftest.sh`$/d' "$valid" > "$missing_allowed"
+  sed 's/| readiness gate validates valid and invalid task.md files | `scripts\/validate-breakdown-ready.sh`, `scripts\/validate-breakdown-ready-selftest.sh` | CLI validator output | `bash scripts\/validate-breakdown-ready.sh --self-test` |/| dashboard status renders task readiness | `scripts\/validate-breakdown-ready.sh` | N\/A | `bash scripts\/validate-breakdown-ready.sh --self-test` |/' "$valid" > "$missing_surface"
+  cp "$valid" "$folder_valid"
 
   bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$valid" >/dev/null || {
     echo "self-test failed: valid task did not pass" >&2
@@ -128,6 +148,22 @@ MD
     echo "self-test failed: incomplete Gate Closure Matrix row passed" >&2
     return 1
   fi
+  if bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$missing_scope" >/dev/null 2>&1; then
+    echo "self-test failed: missing Scope Trace Matrix passed" >&2
+    return 1
+  fi
+  if bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$missing_allowed" >/dev/null 2>&1; then
+    echo "self-test failed: Scope Trace Matrix owning file outside Allowed Files passed" >&2
+    return 1
+  fi
+  if bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$missing_surface" >/dev/null 2>&1; then
+    echo "self-test failed: dashboard/UI row without render/API surface passed" >&2
+    return 1
+  fi
+  bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$tasks/T7" >/dev/null || {
+    echo "self-test failed: folder-native T*/index.md task did not pass" >&2
+    return 1
+  }
   echo "validate-breakdown-ready self-test PASS"
 }
 
@@ -149,7 +185,7 @@ fi
 python3 - "$SCRIPT_DIR" "$1" <<'PY'
 from __future__ import annotations
 
-import json
+import fnmatch
 import re
 import subprocess
 import sys
@@ -178,9 +214,7 @@ def section(text: str, heading: str) -> str:
 
 
 def path_token(raw: str) -> bool:
-    value = raw.strip()
-    if value.startswith("`") and value.endswith("`"):
-        value = value[1:-1].strip()
+    value = normalize_path_token(raw)
     if not value:
         return False
     if any(ch.isspace() for ch in value):
@@ -194,6 +228,13 @@ def path_token(raw: str) -> bool:
     if value.startswith(("http://", "https://")):
         return False
     return bool(re.match(r"^[^\s`'\"]+$", value))
+
+
+def normalize_path_token(raw: str) -> str:
+    value = raw.strip()
+    if value.startswith("`") and value.endswith("`"):
+        value = value[1:-1].strip()
+    return value
 
 
 def parse_allowed(file: Path) -> list[str]:
@@ -212,7 +253,12 @@ def task_files(path: Path) -> list[Path]:
     if path.is_file():
         return [path]
     if path.is_dir():
-        return sorted(path.glob("T*.md"))
+        files = sorted(path.glob("T*.md")) + sorted(path.glob("T*/index.md"))
+        return [
+            file
+            for file in files
+            if "/tasks/pr-release/" not in str(file) and "/archive/" not in str(file)
+        ]
     raise FileNotFoundError(path)
 
 
@@ -253,12 +299,156 @@ def has_meaningful_cell(row: list[str], idx: int) -> bool:
     return bool(value and value not in {"-", "--"})
 
 
+def task_id_for_file(file: Path) -> str | None:
+    if re.match(r"^T[0-9]+[a-z]*\.md$", file.name):
+        return file.stem
+    if file.name == "index.md" and re.match(r"^T[0-9]+[a-z]*$", file.parent.name):
+        return file.parent.name
+    return None
+
+
+def column_index(header: list[str], *needles: str) -> int | None:
+    lowered = [cell.strip().lower() for cell in header]
+    for needle in needles:
+        for idx, cell in enumerate(lowered):
+            if needle in cell:
+                return idx
+    return None
+
+
+def split_path_cells(value: str) -> list[str]:
+    parts = re.split(r"<br\s*/?>|,|，", value)
+    paths: list[str] = []
+    for part in parts:
+        token = normalize_path_token(part)
+        if token and token not in {"-", "--", "N/A", "n/a"}:
+            paths.append(token)
+    return paths
+
+
+def path_covered(path: str, allowed: list[str]) -> bool:
+    for entry in allowed:
+        pattern = normalize_path_token(entry)
+        if path == pattern or fnmatch.fnmatch(path, pattern):
+            return True
+    return False
+
+
+UI_SURFACE_KEYWORDS = (
+    "dashboard",
+    "ui",
+    "render",
+    "visible",
+    "page",
+    "screen",
+    "status",
+    "sidebar",
+    "畫面",
+    "頁面",
+    "儀表板",
+    "導覽",
+    "顯示",
+)
+
+RENDER_API_PATTERNS = (
+    ".astro",
+    ".tsx",
+    ".jsx",
+    ".vue",
+    ".svelte",
+    "/pages/",
+    "/components/",
+    "route",
+    "api",
+    "endpoint",
+    "render",
+    "page",
+)
+
+
+def needs_render_surface(*values: str) -> bool:
+    combined = " ".join(values).lower()
+    for keyword in UI_SURFACE_KEYWORDS:
+        if re.search(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]", keyword):
+            if keyword in combined:
+                return True
+        elif re.search(rf"\b{re.escape(keyword)}\b", combined):
+            return True
+    return False
+
+
+def has_render_api_surface(owning_files: list[str], surface: str) -> bool:
+    combined = " ".join([surface, *owning_files]).lower()
+    return any(pattern in combined for pattern in RENDER_API_PATTERNS)
+
+
+def validate_scope_trace(file: Path, text: str, allowed: list[str]) -> list[str]:
+    errors: list[str] = []
+    matrix = section(text, "## Scope Trace Matrix")
+    if not matrix.strip():
+        return [f"{file}: missing non-empty ## Scope Trace Matrix"]
+
+    rows = table_rows(matrix)
+    if len(rows) < 2:
+        return [f"{file}: Scope Trace Matrix must include at least one trace row"]
+
+    header = rows[0]
+    goal_idx = column_index(header, "goal", "ac", "目標")
+    owning_idx = column_index(header, "owning", "file", "檔案")
+    surface_idx = column_index(header, "surface", "boundary", "介面", "邊界")
+    tests_idx = column_index(header, "test", "驗證", "測試")
+    missing_columns = [
+        name
+        for name, idx in (
+            ("Goal / AC", goal_idx),
+            ("Owning files", owning_idx),
+            ("Surface / boundary", surface_idx),
+            ("Tests", tests_idx),
+        )
+        if idx is None
+    ]
+    if missing_columns:
+        errors.append(f"{file}: Scope Trace Matrix missing columns: {', '.join(missing_columns)}")
+        return errors
+
+    assert goal_idx is not None
+    assert owning_idx is not None
+    assert surface_idx is not None
+    assert tests_idx is not None
+    for row_number, row in enumerate(rows[1:], start=2):
+        goal = row[goal_idx].strip() if goal_idx < len(row) else ""
+        owning_raw = row[owning_idx].strip() if owning_idx < len(row) else ""
+        surface = row[surface_idx].strip() if surface_idx < len(row) else ""
+        tests = row[tests_idx].strip() if tests_idx < len(row) else ""
+        if not goal or goal in {"-", "--"}:
+            errors.append(f"{file}: Scope Trace Matrix row {row_number} must include Goal / AC")
+        owning_files = split_path_cells(owning_raw)
+        if not owning_files:
+            errors.append(f"{file}: Scope Trace Matrix row {row_number} must include owning files")
+        if not surface or surface in {"-", "--", "N/A", "n/a"}:
+            errors.append(f"{file}: Scope Trace Matrix row {row_number} must include surface/boundary")
+        if not tests or tests in {"-", "--", "N/A", "n/a"}:
+            errors.append(f"{file}: Scope Trace Matrix row {row_number} must include tests")
+        for owning_file in owning_files:
+            if not path_token(owning_file):
+                errors.append(f"{file}: Scope Trace Matrix row {row_number} owning file is not a path/glob token: {owning_file}")
+                continue
+            if not path_covered(owning_file, allowed):
+                errors.append(f"{file}: Scope Trace Matrix row {row_number} owning file is not covered by Allowed Files: {owning_file}")
+        if needs_render_surface(goal, surface) and not has_render_api_surface(owning_files, surface):
+            errors.append(
+                f"{file}: Scope Trace Matrix row {row_number} appears UI/dashboard/API-visible but lacks a render/API surface"
+            )
+
+    return errors
+
+
 def validate_one(file: Path) -> list[str]:
     errors: list[str] = []
     normalized = str(file)
     if "/tasks/pr-release/" in normalized or "/archive/" in normalized:
         return errors
-    if not re.match(r"^T[0-9]+[a-z]*\.md$", file.name):
+    if task_id_for_file(file) is None:
         return errors
 
     schema = subprocess.run(
@@ -277,6 +467,8 @@ def validate_one(file: Path) -> list[str]:
             errors.append(f"{file}: Allowed Files entry is not a machine-matchable path/glob token: {entry}")
 
     text = file.read_text(encoding="utf-8")
+    errors.extend(validate_scope_trace(file, text, allowed))
+
     matrix = section(text, "## Gate Closure Matrix")
     if not matrix.strip():
         errors.append(f"{file}: missing non-empty ## Gate Closure Matrix")
