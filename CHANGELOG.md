@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.61] - 2026-05-05
+
+### Fixed — awaiting re-review PR state routing
+
+- 新增 `pr-review-state-classifier.sh` 與 selftest，將 `CHANGES_REQUESTED`
+  但 CI green、無 active unresolved actionable review threads 的 PR 分類為
+  `AWAITING_RE_REVIEW`。
+- 更新 converge / check-pr-approvals routing，避免已修完的 PR 再被導回
+  `engineering` 修 code；此狀態改走 reviewer re-review handoff。
+- 在 mechanism registry 登記 PR review state routing contract，讓
+  `reviewDecision` 不再單獨決定 code-fix 路由。
+
 ## [3.74.60] - 2026-05-05
 
 ### Fixed — PR review thread disposition gate

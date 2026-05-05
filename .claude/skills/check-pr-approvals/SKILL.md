@@ -108,9 +108,13 @@ Valid approval = APPROVED 且非 stale。Stale approval 不算達標。
 
 | 分類 | 條件 | 下一步 |
 |------|------|--------|
-| 🟢 可催 review | CI pass + 無 actionable comments + rebase 成功/可接受 + valid approvals 不足 | 可讓使用者選擇通知 |
+| 🟢 可催 review | CI pass + 無 actionable comments + rebase 成功/可接受 + valid approvals 不足；包含 classifier 判定的 `AWAITING_RE_REVIEW` | 可讓使用者選擇通知 |
 | 🔧 需先修正 | CI fail / rebase conflict / actionable comments | 萃取 ticket key，提示走 `engineering` |
 | ✅ 已達標 | valid approvals >= threshold | 不加 label、不通知 |
+
+若 PR `reviewDecision=CHANGES_REQUESTED`，先用 `scripts/pr-review-state-classifier.sh`
+或等價 thread-aware evidence 判斷。`AWAITING_RE_REVIEW` 代表作者已處理且需要 reviewer
+重新 review；不得把它列為 🔧，也不得將 JIRA 轉回 `IN DEVELOPMENT`。
 
 🔧 PR 必須從 branch name 或 title 萃取 ticket key（pattern: `[A-Z]+-\d+`）；萃取不到就標「無對應 ticket」。有 ticket key 且 JIRA 在 `CODE REVIEW` 時，依 reporting reference 回轉 `IN DEVELOPMENT` 並留言。
 

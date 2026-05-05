@@ -98,6 +98,9 @@ Reviewer details：
 - 已在 `IN DEVELOPMENT` 或其他狀態：不轉狀態，只在報告中列出。
 - 轉狀態失敗：不阻塞報告，但必須列為 warning。
 
+`AWAITING_RE_REVIEW` 不屬於 remediation routing：不轉回 `IN DEVELOPMENT`，
+不貼「需修正」comment，只在 reviewer reminder / re-review handoff 中呈現。
+
 Comment 範例：
 
 ```text

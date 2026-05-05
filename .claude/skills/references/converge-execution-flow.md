@@ -30,10 +30,15 @@ Phase 2 必須呈現 plan 並等待使用者確認。允許的調整：
 | `CI_RED` | `engineering` |
 | `CHANGES_REQUESTED` | `engineering` |
 | `HAS_UNRESOLVED_COMMENTS` | `engineering` |
+| `AWAITING_RE_REVIEW` | `check-pr-approvals` |
 | `REVIEW_STUCK` | `check-pr-approvals` |
 | `STALE_APPROVAL` | `check-pr-approvals` |
 | `VERIFICATION_PENDING` | `engineering` |
 | `NO_FEATURE_PR` | `feature-branch-pr-gate.md` |
+
+`AWAITING_RE_REVIEW` is a reviewer handoff state, not a code-fix state. Do not
+dispatch engineering for it unless a later classifier run changes it back to
+`CI_RED`, `HAS_UNRESOLVED_COMMENTS`, or `CHANGES_REQUESTED`.
 
 下游 skill 必須讀自己的 `SKILL.md` / references，並自行負責 code、JIRA、PR、Slack、
 status side effects。
