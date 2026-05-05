@@ -33,7 +33,8 @@ review sub-agents 數量。
 
 ## Per-PR Review Dispatch
 
-每個 PR 使用獨立 sub-agent。Prompt 必須包含：
+每個 PR 使用獨立 sub-agent。Dispatch 前 candidates 必須已由
+`annotate-review-candidates.py` 補上 `model_tier` 與 cluster metadata。Prompt 必須包含：
 
 - PR URL。
 - `review_status`。
@@ -42,6 +43,8 @@ review sub-agents 數量。
 - `review-inbox/dispatch-context-bundle.md` 的 inline 內容。
 - deterministic handbook resolver 輸出的 verified project handbook paths；空清單時明確寫
   no project handbook，且不可掃 repo guideline folders。
+- `model_tier` semantic class hint。
+- `cluster_role`, `cluster_key`, `cluster_lead_url`，以及 sibling PR 可用的 lead summary。
 - Completion Envelope requirement。
 
 Review mode：
@@ -55,6 +58,16 @@ Review mode：
 Sub-agent 不呼叫 Skill tool；它直接依 inline dispatch context、verified handbook paths、
 PR diff、existing comments 執行 review，然後 submit GitHub review。Batch prompt 不得要求
 sub-agent 重讀完整 review skill / reference stack。
+
+Cluster scheduling：
+
+- `cluster_lead` 必須先於同 cluster siblings 完成，並在 Detail artifact 提供一句
+  lead review summary。
+- `cluster_sibling` 使用 sibling-diff mode：比較 sibling diff 與 lead PR diff，只 review
+  行為差異、平台差異，以及 lead findings 是否適用。
+- 若 `cluster_sibling` 發現行為不一致、風險升級、lead summary 缺失，或無法 confidence 判斷，
+  result 用 `COMMENT` 並在 summary 標記 `needs_standard_review`，主流程再用
+  `standard_coding` 重跑該 PR。
 
 Token budget rules：
 

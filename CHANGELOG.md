@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.68] - 2026-05-05
+
+### Fixed — review-inbox Phase 3 clustering
+
+- Added deterministic review candidate annotation for sister PR clusters and semantic model tier hints.
+- Dispatch prompts now include cluster lead/sibling roles and sibling-diff escalation instructions.
+- Review-inbox docs now require cluster leads to run before siblings and escalate uncertain sibling reviews to `standard_coding`.
+
 ## [3.74.67] - 2026-05-05
 
 ### Fixed — review-inbox Phase 2 token controls

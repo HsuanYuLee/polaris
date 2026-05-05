@@ -33,6 +33,7 @@ Current GitHub username 必須動態取得，並排除自己的 PR。
 | `fetch-prs-by-url.sh` | PR URLs -> PR metadata |
 | `check-my-review-status.sh` | attach `review_status` and filter irrelevant PRs |
 | `extract-pr-urls.py` | Slack JSON -> PR URLs and PR-thread mapping |
+| `annotate-review-candidates.py` | attach sister PR cluster metadata and model tier hints |
 | `slack-webapi.sh` | Slack MCP fallback for read and send |
 
 Script path 以 skill directory 為準。
@@ -60,7 +61,9 @@ Sub-agent pipeline：
 2. 用 `extract-pr-urls.py` 產出 PR URLs 與 mapping。
 3. 用 `fetch-prs-by-url.sh` 取得 metadata 並排除自己的 PR。
 4. 用 `check-my-review-status.sh` 判定 review status。
-5. Completion Envelope 回傳 candidates JSON、mapping JSON、PR count、raw URL count。
+5. 用 `annotate-review-candidates.py --mapping <mapping.json>` 補 `cluster_role`,
+   `cluster_key`, `cluster_lead_url`, `model_tier`。
+6. Completion Envelope 回傳 annotated candidates JSON、mapping JSON、PR count、raw URL count。
 
 主 session 不讀 raw Slack JSON，只讀 filtered artifacts。
 
@@ -68,6 +71,20 @@ Sub-agent pipeline：
 
 Thread mode 只讀單一討論串，訊息量通常小，可在主 session 直接執行同一條 pipeline。
 所有 URL 都映射到指定 `thread_ts`。
+
+## Sister PR Cluster And Model Tier Annotation
+
+Discovery 結束後，所有來源都必須執行 `annotate-review-candidates.py`。Annotation rules：
+
+- Cluster key = `(thread_ts, ticket_key)`；ticket key 從 PR title / URL / repo 中擷取
+  `KB2CW-NNN` 或通用 `PROJECT-NNN`。
+- 同一 cluster 內按 `(repo, PR number)` 排序，第一筆是 `cluster_lead`，其餘是
+  `cluster_sibling`。
+- `cluster_lead` 使用 `standard_coding`，完整 review 並留下 lead summary。
+- `cluster_sibling` 使用 `small_fast` model class hint 跑 sibling-diff mode；若行為差異或
+  confidence 不足，輸出 `needs_standard_review` 讓主流程升級。
+- 非 cluster PR 依 PR size/path 判斷 model tier：單檔且 additions+deletions <= 50，或全為
+  asset/config/changeset-only 檔案時用 `small_fast`；其他用 `standard_coding`。
 
 ## Review Status
 

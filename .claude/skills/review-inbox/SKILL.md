@@ -48,15 +48,18 @@ sub-agent prompt；不得要求 sub-agent 重讀完整 review skill / reference 
 4. 依 discovery reference 產生 candidates JSON；scan snapshot 超過 60 秒不可沿用。
    Slack channel scan 使用 MCP 時指定 concise output；fallback CLI 的 `--oldest` 可接受
    Slack timestamp 或 ISO date/datetime。
-5. 若 candidates 為空，回報目前沒有需要 review 的 PR 並停止。
-6. 顯示排序後清單；若 config 要求 confirm，等待使用者選擇。
-7. 依 batch size / concurrency 分波派 per-PR review sub-agents；prompt 必須使用
+5. 將 candidates JSON 經 `annotate-review-candidates.py` enrich，補上 sister PR cluster
+   metadata 與 `model_tier` semantic class。
+6. 若 candidates 為空，回報目前沒有需要 review 的 PR 並停止。
+7. 顯示排序後清單；若 config 要求 confirm，等待使用者選擇。
+8. 依 batch size / concurrency 分波派 per-PR review sub-agents；prompt 必須使用
    deterministic handbook resolver 列出已存在的 project handbook paths，空清單時明確標示
    no project handbook。Prompt 必須要求 sub-agent 先讀 changed-file names，再依 diff size
    sampling；existing inline comments 只能以 metadata-only dedup，不把完整 comment body 放進
-   context。
-8. 收斂結果，依來源模式發 Slack summary 或 thread replies。
-9. 在對話中回報每個 PR 的 review result 與 approve status。
+   context。Cluster lead 先跑完整 review；cluster sibling 使用 sibling-diff mode 與
+   `small_fast` model class hint，不確定時標記 `needs_standard_review`。
+9. 收斂結果，依來源模式發 Slack summary 或 thread replies。
+10. 在對話中回報每個 PR 的 review result 與 approve status。
 
 ## Write And Notification Rules
 

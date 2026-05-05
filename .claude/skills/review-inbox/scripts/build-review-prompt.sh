@@ -105,6 +105,13 @@ for i in $(seq 0 $((COUNT - 1))); do
   AUTHOR=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['author'])")
   STATUS=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['review_status'])")
   DETAIL=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('review_detail',''))")
+  MODEL_TIER=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('model_tier','standard_coding'))")
+  MODEL_TIER_REASON=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('model_tier_reason','default review risk'))")
+  CLUSTER_ROLE=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cluster_role','standalone'))")
+  CLUSTER_KEY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cluster_key',''))")
+  CLUSTER_SIZE=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cluster_size',1))")
+  CLUSTER_LEAD_URL=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cluster_lead_url',''))")
+  CLUSTER_LEAD_SUMMARY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cluster_lead_summary',''))")
 
   # Map review_status to review mode instruction
   case "$STATUS" in
@@ -130,6 +137,11 @@ Repo: ${REPO} (local path: ${BASE_DIR}/${REPO})
 PR #${NUMBER}: ${TITLE} by @${AUTHOR}
 Review status: ${STATUS} (${DETAIL})
 Review mode: ${MODE_INSTRUCTION}
+Model class hint: ${MODEL_TIER} (${MODEL_TIER_REASON})
+Cluster role: ${CLUSTER_ROLE}
+Cluster key: ${CLUSTER_KEY:-N/A}
+Cluster size: ${CLUSTER_SIZE}
+Cluster lead PR: ${CLUSTER_LEAD_URL:-N/A}
 
 你是一個 Code Reviewer sub-agent。請直接依照以下 inline dispatch context 執行 review。
 不要讀完整 review skill / reference stack；不要掃 repo guideline folders。
@@ -147,6 +159,14 @@ ${HANDBOOK_BLOCK}
 - Existing comments metadata-only: inline comments 只抓 dedup metadata，不把完整 comment body 放進 context。使用：
   \`gh api "repos/OWNER/REPO/pulls/${NUMBER}/comments" --paginate --jq '.[] | {user: .user.login, path, line: (.line // .original_line), side, head: ((.body // "")[:80])}'\`
 - Dedup 只比對 \`(user, path, line, head)\` 與語意相同的已指出問題；不要重複貼既有 comment 全文。
+
+**Cluster / Model Tier Rules**：
+- Model class hint 是 dispatch 給 runtime adapter 的語意類別；若 adapter 不支援指定類別，回退到 inherit 或 standard_coding。
+- \`cluster_lead\`：完整 review 本 PR，Detail artifact 必須留下可被 sibling PR 使用的一句 lead review summary。
+- \`cluster_sibling\`：Sibling-diff mode。Lead PR = ${CLUSTER_LEAD_URL:-N/A}。Lead summary = ${CLUSTER_LEAD_SUMMARY:-N/A}。
+  先比較 sibling changed-file list / sampled diff 與 lead PR 的差異，再判斷 lead findings 是否仍適用。
+  若行為、平台、API contract、測試範圍或風險不一致，或 lead summary 缺失且無法 confidence 判斷，將 result 設為 COMMENT 並在 summary 標記 needs_standard_review。
+- \`standalone\`：正常 review。
 
 **執行步驟**：
 1. 專案辨識 — repo = ${REPO}, local path = ${BASE_DIR}/${REPO}
@@ -180,7 +200,7 @@ PROMPT
 
   # Build manifest entry
   if [[ $i -gt 0 ]]; then MANIFEST+=","; fi
-  MANIFEST+="{\"file\":\"${PROMPT_FILE}\",\"pr_url\":\"${URL}\",\"number\":${NUMBER},\"repo\":\"${REPO}\"}"
+  MANIFEST+="{\"file\":\"${PROMPT_FILE}\",\"pr_url\":\"${URL}\",\"number\":${NUMBER},\"repo\":\"${REPO}\",\"model_tier\":\"${MODEL_TIER}\",\"cluster_role\":\"${CLUSTER_ROLE}\",\"cluster_key\":\"${CLUSTER_KEY}\",\"cluster_lead_url\":\"${CLUSTER_LEAD_URL}\"}"
 done
 
 MANIFEST+="]"
