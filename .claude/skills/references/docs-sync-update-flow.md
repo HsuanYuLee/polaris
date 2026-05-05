@@ -72,7 +72,7 @@ Translation rules：
 
 ## Editorial Constraints
 
-遵守 `docs-editorial-guideline.md`：
+遵守 `.claude/skills/docs-sync/references/docs-editorial-guideline.md`：
 
 - 結論先行。
 - Show, do not over-explain.

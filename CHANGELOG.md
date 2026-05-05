@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.58] - 2026-05-05
+
+### Changed — skill resource ownership audit
+
+- 將 skill progressive disclosure policy 補齊為 skill-private / shared reference
+  與 script ownership 分流規則，避免瘦身後形成 shared reference maze。
+- 新增 `skill-resource-ownership-audit.sh` 與 selftest，輸出 consumer、suggested
+  owner、`candidate_rehome` / `keep_shared` / `needs_manual_review` 分類。
+- 完成第一個 pilot rehome：將 docs-sync editorial guideline 搬到
+  `docs-sync/references/`，並更新 shared reference index 與 docs-sync flow 引用。
+
 ## [3.74.57] - 2026-05-05
 
 ### Fixed — public onboarding toolchain contract

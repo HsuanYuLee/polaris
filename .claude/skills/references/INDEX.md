@@ -1,3 +1,8 @@
+---
+title: "Shared Skill References Index"
+description: "Polaris shared skill references 的索引與觸發提示。"
+---
+
 # References Index
 
 Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性，拉入相關 reference 後再開始。
@@ -192,7 +197,6 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [challenger-audit.md](challenger-audit.md) | 多角色 UX 審查系統，pre-release 時使用 | challenger, version-release |
-| [docs-editorial-guideline.md](docs-editorial-guideline.md) | README/docs 文風規範：結論先行、show don't tell、structured vs editorial 分層 | docs-sync, version-bump README update |
 | [docs-sync-scope-detection.md](docs-sync-scope-detection.md) | docs-sync deterministic lint、git diff scoping、change classification、coverage score 與不需同步情境 | docs-sync, sync docs, docs out of date |
 | [docs-sync-update-flow.md](docs-sync-update-flow.md) | docs-sync English source docs 更新順序、zh-TW translation sync、pillar mapping 與 editorial constraints | docs-sync update, README sync, workflow guide sync |
 | [docs-sync-verification-flow.md](docs-sync-verification-flow.md) | docs-sync bilingual language validation、docs lint、internal links、Starlight check 與 completion report | docs-sync verify, bilingual docs |
@@ -203,7 +207,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [library-change-protocol.md](library-change-protocol.md) | 依賴變更完整協議：三層調查、替換/升級評估、Decision Tier、config 系統性排除、workaround 文件標準 | engineering (library evaluation), review-pr (reviewer suggests upgrade), bug-triage (dependency issue) |
 | [knowledge-compilation-protocol.md](knowledge-compilation-protocol.md) | Framework 知識編譯協議：Atom vs Derived 邊界、backwrite、parallel naming lock | learning (External mode framework target), docs-sync, framework docs/rules updates |
 | [starlight-authoring-contract.md](starlight-authoring-contract.md) | Specs Markdown 的 Starlight authoring contract：frontmatter、description、duplicate H1、producer boundary、validator explicit path、legacy migration | refinement, breakdown, engineering, verify-AC, docs-manager, specs markdown producer |
-| [skill-progressive-disclosure.md](skill-progressive-disclosure.md) | Skill slimming 的 progressive disclosure placement policy：SKILL.md / reference / script / DP-memory 邊界、粒度與驗證期待 | skill slimming, framework iteration, refinement, breakdown, engineering, verify-AC, learning |
+| [skill-progressive-disclosure.md](skill-progressive-disclosure.md) | Skill slimming 的 progressive disclosure placement policy：SKILL.md / skill-private reference/script / shared reference/script / DP-memory 邊界、粒度與驗證期待 | skill slimming, skill resource ownership, resource rehome, framework iteration, refinement, breakdown, engineering, verify-AC, learning |
 | [validate-isolation-flow.md](validate-isolation-flow.md) | validate isolation mode 的 multi-company scope headers、cross-company conflicts、memory company tags、MEMORY.md index、user data leak scan、report rows | validate isolation, 檢查隔離 |
 | [validate-mechanisms-flow.md](validate-mechanisms-flow.md) | validate mechanisms mode 的 static canary smoke tests、routing/skill contract drift、hook/settings checks、model tier drift、L2 embedding integrity、exit handling | validate mechanisms, 檢查機制 |
 | [validate-reporting-flow.md](validate-reporting-flow.md) | validate combined report format、PASS/WARN/FAIL summary、proposed fixes、skipped checks、user confirmation boundary | validate report, health check |

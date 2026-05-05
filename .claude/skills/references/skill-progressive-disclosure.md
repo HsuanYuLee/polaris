@@ -1,3 +1,8 @@
+---
+title: "Skill Progressive Disclosure Reference"
+description: "Skill slimming 的 progressive disclosure 與 resource ownership placement policy。"
+---
+
 # Skill Progressive Disclosure Policy
 
 此 reference 定義 Polaris skill slimming 的 placement rule。目標不是把 `SKILL.md`
@@ -23,13 +28,42 @@ Scanner signals 的意義：
 
 ## Placement Rules
 
+先判斷內容是否應離開 `SKILL.md`，再判斷下沉後的 owner。
+
 | 內容類型 | 放置位置 | 判斷方式 |
 |----------|----------|----------|
 | Routing、authority boundary、mandatory gate、fail-stop 條件 | `SKILL.md` | agent 一進 skill 就必須知道，不能延後讀取 |
-| Mode-specific procedure、範例、schema、decision table | `.claude/skills/references/*.md` | 只有特定分支需要，且可被多個 skill 重用 |
-| 可 deterministic 化的掃描、驗證、格式化、查詢 | `scripts/*` | 需要可重跑、可測試、可被 hook 或 gate 呼叫 |
+| Single-consumer procedure、範例、schema、decision table | `.claude/skills/<skill>/references/*` | 只有一個 skill 會讀，或內容是該 skill 的 mode-specific flow |
+| Multi-consumer framework contract、共用 schema、跨 skill decision table | `.claude/skills/references/*` | 兩個以上 skill 會讀，且語意不是單一 skill 私有流程 |
+| Single-consumer deterministic helper | `.claude/skills/<skill>/scripts/*` | 只服務單一 skill，且不需要被 hook / release gate / 其他 skill 呼叫 |
+| Multi-consumer deterministic helper、hook、validator、release helper | `scripts/*` | 需要可重跑、可測試，且會被多個 skill、hook 或 gate 呼叫 |
 | 歷史決策、一次性討論、取捨脈絡 | DP / memory | 不應每次 skill 執行都進入 prompt |
 | Company / project 專屬知識 | `{company}/polaris-config/**` | 不放進 shared skill；避免跨公司污染 |
+
+## Resource Ownership Rules
+
+用下列規則決定 private bundled resource 與 shared layer 的邊界：
+
+| Signal | Action |
+|--------|--------|
+| Reference/script 只有一個 active consumer | 預設 rehome 到 owning skill folder，使用 skill-private resource |
+| Reference/script 有兩個以上 active consumers | 預設留在 shared reference 或 shared script layer |
+| Textual consumer count 是 1，但內容是 framework-wide contract | 留 shared，並在 audit 中標 `needs_manual_review` |
+| Root `scripts/*` 被 hook、release gate、CI local、docs health 呼叫 | 即使只有一個 skill 也留 root script |
+| Skill folder 內 script 被其他 skill 呼叫 | 標 owner mismatch，優先改成 shared script 或切出公共 helper |
+
+Naming guidance：
+
+- skill-private references 放在 `.claude/skills/<skill>/references/*`，由該 skill 的
+  `SKILL.md` 直接說明何時讀取。
+- skill-private scripts 放在 `.claude/skills/<skill>/scripts/*`，由該 skill 或該 skill
+  的 private reference 呼叫。
+- shared reference 必須維持 `.claude/skills/references/INDEX.md` entry，方便跨 skill
+  discovery。
+- shared script 應維持 root `scripts/*`，並有自測或 validator coverage。
+
+不要為了「未來可能共用」提前抽象。先讓 single-consumer resource 跟 owner 放在一起；
+等第二個真實 consumer 出現，再提升到 shared layer。
 
 ## Slimming Granularity
 
