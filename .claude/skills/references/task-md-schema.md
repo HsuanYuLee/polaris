@@ -78,6 +78,10 @@ jira_transition_log:        # Lifecycle-conditional（DP-033 D7）；engineering
     # 其他欄位 freeform — 各公司 / 各 transition flow 自訂
   - time: 2026-04-26T11:15:00Z
     company_specific_field: ...
+verification:               # Optional；breakdown 可宣告 runtime visual evidence 需求
+  visual_regression:
+    expected: none_allowed   # none_allowed | baseline_required | update_baseline
+    pages: []                # [] = 使用 workspace config pages；非空 = page subset
 ---
 ```
 
@@ -89,6 +93,7 @@ jira_transition_log:        # Lifecycle-conditional（DP-033 D7）；engineering
 | `deliverable` | engineering Step 7c (`gh pr create` 成功後) | Lifecycle-conditional — breakdown 階段不存在；engineering 寫入後須結構正確（schema + writer contract 見下） |
 | `extension_deliverable` | local_extension completion helper（DP-048） | Lifecycle-conditional — local extension completion metadata；可補充真實 workspace PR deliverable 的 post-PR release tail；不得與 fake `deliverable.pr_url` 混用；Layer B evidence path 優先使用 `.polaris/evidence/verify/` durable mirror |
 | `jira_transition_log` | engineering / verify-AC 每次跑 JIRA transition 後 append（成功 / 失敗皆記） | Lifecycle-conditional — 同上 |
+| `verification.visual_regression` | breakdown / refinement 宣告 runtime visual evidence 需求 | Optional；存在時 `expected` 必須是 enum、`pages` 必須是 YAML list，且 `## Test Environment` Level 必須是 `runtime` |
 
 > Filename 為唯一 type 訊號（DP-033 D2 修正版）— frontmatter **不再有 `type` 欄位**。所有 schema dispatch 都依 filename pattern（T*.md / V*.md），請勿在 frontmatter 加 `type` 欄位。
 >
@@ -104,6 +109,24 @@ jira_transition_log:        # Lifecycle-conditional（DP-033 D7）；engineering
 - 其他欄位（如 `from` / `to` / `actor` / `error` / `transition_id` / 公司自訂欄位）freeform，validator 不 enforce
 
 Writer：engineering / verify-AC 在做 JIRA transition 時 append entry — 成功與失敗皆寫一筆，便於後續 retry / 人工排查。未來擴充：doc viewer 可對常見欄位（time / from / to / error）做特殊渲染，但 schema 層保持中性。
+
+#### `verification.visual_regression` schema（DP-104）
+
+當 task 需要 native visual regression evidence 時，在 frontmatter 宣告：
+
+```yaml
+verification:
+  visual_regression:
+    expected: none_allowed
+    pages: ["/zh-tw"]
+```
+
+規則：
+
+- `expected` required；enum：`none_allowed` / `baseline_required` / `update_baseline`
+- `pages` required；必須是 YAML list。`[]` 表示 runner 使用 workspace config 對應 domain 的全部 pages；非空 list 表示只跑 subset。
+- 宣告 `verification.visual_regression` 時，`## Test Environment` 的 `Level` 必須是 `runtime`。
+- Parser 必須輸出 `verification_visual_regression_expected` 與 `verification_visual_regression_pages` field，並在 full JSON 保留 `verification.visual_regression.pages` list 型別。
 
 #### `deliverable` schema + writer contract（DP-033 D7，atomic + fail-stop）
 

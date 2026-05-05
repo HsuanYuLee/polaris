@@ -4,13 +4,27 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.71] - 2026-05-05
+
+### Fixed — template leak-safe review-inbox examples
+
+- Replaced company-specific review-inbox selftest examples with neutral placeholders so framework template sync can pass the blocking leak scanner.
+
+## [3.74.70] - 2026-05-05
+
+### Fixed — native visual regression evidence lane
+
+- 新增 task.md `verification.visual_regression` parser / validator support，並要求 VR task 使用 runtime verification environment。
+- 新增 `run-visual-snapshot.sh` native runner，支援 record / baseline / compare、fixture-backed replay 與 Layer C evidence。
+- Engineering 與 verify-AC 現在共用 native VR runner contract；legacy `visual-regression` skill 已降為 standalone transitional guard。
+
 ## [3.74.69] - 2026-05-05
 
 ### Fixed — review-inbox sister PR clustering
 
 - Slack PR extraction now records a `root_ticket_key` from the root message before the first PR URL.
 - Review candidate annotation now clusters by `(thread_ts, root_ticket_key)` when available, so umbrella review requests group sister PRs whose individual ticket keys differ.
-- Added selftests covering the GT-493 / KB2CW-3853 multi-PR pattern observed in DP-094 dogfood.
+- Added selftests covering the DEMO-493 / APP-3853 multi-PR pattern observed in DP-094 dogfood.
 
 ## [3.74.68] - 2026-05-05
 

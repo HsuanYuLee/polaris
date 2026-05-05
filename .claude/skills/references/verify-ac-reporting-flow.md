@@ -29,10 +29,24 @@ Verification report 使用 JIRA REST API v2 wiki markup，不使用 MCP markdown
 - tools
 - timestamp
 - attachments when any
+- native VR evidence path when visual AC runs
 
 送出前把 final report 寫成 temp artifact，依 `workspace-language-policy.md` 或 external write
 gate 驗證。引用 AC 原文、HTTP response、error message、多語系畫面文字可以保留原文，但主敘述
 使用 workspace language。
+
+## Native VR report block
+
+visual AC 使用 `run-visual-snapshot.sh` 時，report 的 step table 必須列出：
+
+- runner status 與 verify-AC mapped status
+- Layer C evidence JSON path：`/tmp/polaris-vr-{ticket}-{head_sha}.json` 或 durable mirror
+- local verification folder：`verification/{run_id}/vr/`
+- baseline / compare screenshots
+- diff artifact path，例如 `verification/{run_id}/vr/diff/{page}.json`
+
+若 JIRA attachment upload 失敗，不可遺失 evidence；report 與 final summary 必須保留 deterministic
+local path，讓人工仍可檢視 screenshots / diff。
 
 ## PASS
 

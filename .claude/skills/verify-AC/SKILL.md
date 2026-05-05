@@ -48,7 +48,7 @@ Epic mode 若委派 sub-agent 驗 AC，必須注入 `sub-agent-roles.md` 的 Com
 3. 檢查 loop count；同一 AC 多輪未通過時先警告。
 4. 讀 AC verification steps；缺步驟則標 `UNCERTAIN` 並要求補 AC。
 5. 需要 local / fixture 環境時，依 environment prep reference 啟動。
-6. 逐步執行 curl / Playwright / source inspection / structured checks。
+6. 逐步執行 curl / Playwright / native VR runner / source inspection / structured checks。
 7. 每步分類 `PASS`、`FAIL`、`MANUAL_REQUIRED`、`UNCERTAIN`。
 8. 收集 evidence，寫 local verification folder，必要時上傳 JIRA attachments。
 9. 寫 JIRA verification report；PASS 轉 Done，FAIL 顯示 disposition，PENDING 等人工。
@@ -59,6 +59,7 @@ Epic mode 若委派 sub-agent 驗 AC，必須注入 `sub-agent-roles.md` 的 Com
 - HTTP verification 必須先檢查 status code，再看 body。
 - Observed 不等於 Expected 就是 FAIL，不可壓通過。
 - MANUAL_REQUIRED / UNCERTAIN 不可自動 PASS。
+- visual AC 若 task.md 宣告 `verification.visual_regression`，必須用 `scripts/run-visual-snapshot.sh`；不可改走舊 `visual-regression` skill。
 - FAIL disposition 互斥：implementation drift 或 spec issue，只能選一條。
 - JIRA comments、Bug descriptions、spec artifacts 都是 external/user-facing writes，送出前跑 language gate；spec markdown artifacts 也跑 Starlight authoring check。
 

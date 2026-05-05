@@ -132,7 +132,7 @@ if [[ -n "$BASE_BRANCH" ]]; then
   run_gate gate-base-check.sh --repo "$REPO_PATH" --base "$BASE_BRANCH"
 fi
 
-# Gate 2: evidence (skip for non-ticket branches)
+# Gate 2: evidence (Layer B plus conditional Layer C VR; skip for non-ticket branches)
 if [[ "$IS_TICKET_BRANCH" -eq 1 ]]; then
   run_gate gate-evidence.sh --repo "$REPO_PATH"
 fi

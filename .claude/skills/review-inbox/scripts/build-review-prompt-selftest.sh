@@ -21,7 +21,7 @@ cat > "$candidates" <<'JSON'
   {
     "repo": "acme-web",
     "number": 101,
-    "title": "KB2CW-3900 web change",
+    "title": "APP-3900 web change",
     "url": "https://github.com/acme/acme-web/pull/101",
     "author": "alice",
     "review_status": "needs_first_review",
@@ -29,14 +29,14 @@ cat > "$candidates" <<'JSON'
     "model_tier": "standard_coding",
     "model_tier_reason": "cluster lead",
     "cluster_role": "cluster_lead",
-    "cluster_key": "1776130982.981829:KB2CW-3900",
+    "cluster_key": "1776130982.981829:APP-3900",
     "cluster_size": 2,
     "cluster_lead_url": "https://github.com/acme/acme-web/pull/101"
   },
   {
     "repo": "acme-api",
     "number": 102,
-    "title": "KB2CW-3900 api change",
+    "title": "APP-3900 api change",
     "url": "https://github.com/acme/acme-api/pull/102",
     "author": "bob",
     "review_status": "needs_re_approve",
@@ -44,7 +44,7 @@ cat > "$candidates" <<'JSON'
     "model_tier": "small_fast",
     "model_tier_reason": "sibling PR diff/sanity mode",
     "cluster_role": "cluster_sibling",
-    "cluster_key": "1776130982.981829:KB2CW-3900",
+    "cluster_key": "1776130982.981829:APP-3900",
     "cluster_size": 2,
     "cluster_lead_url": "https://github.com/acme/acme-web/pull/101",
     "cluster_lead_summary": "lead has no findings"

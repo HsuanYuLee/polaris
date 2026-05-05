@@ -436,9 +436,10 @@ Allowed dispositions：
 
 ### 執行
 
-`scripts/run-visual-snapshot.sh`（D18，Wave δ scope — not yet landed）：
+`scripts/run-visual-snapshot.sh`（D18）：
 - `--mode baseline`：screenshot before state
 - `--mode compare`：screenshot after + image diff + PASS/FAIL judgment per task.md `expected` field
+- 若 task 使用 fixture-backed VR，先用 `--mode record` 建立 fixture，review 後 baseline / compare 才能通過 Layer C gate。
 
 ### PASS/FAIL table
 
@@ -456,9 +457,7 @@ Allowed dispositions：
 
 `/tmp/polaris-vr-{ticket}-{head_sha}.json`（Layer C, conditional — only required when trigger fires）。
 
-### 暫行
-
-`run-visual-snapshot.sh` is Wave δ scope（尚未實作）。Until landed, this step is a **NO-OP skip** with `vr: { triggered: false, reason: "script not yet available" }`。
+PR / completion gate 會要求 matching `head_sha` 且 `status=PASS`、`mode=compare`、`writer=run-visual-snapshot.sh`。缺少、stale、`BLOCK`、`BLOCKED_ENV`、`MANUAL_REQUIRED` 都不可視為可交付。
 
 ### visual-regression skill sunset（D18）
 
@@ -581,15 +580,15 @@ release_closeout:
   helper: scripts/framework-release-closeout.sh (when declared by local policy)
 ```
 
-The local extension owns all delivery side effects after handoff. Portable engineering only requires that local policy define:
+handoff 後的 delivery side effects 由 local extension 擁有。Portable engineering 只要求 local policy 明定：
 
-1. eligibility（which tasks / repos may use the extension）
-2. integration rules（how the validated task head is consumed; whether a workspace PR is required）
+1. eligibility（哪些 task / repo 可使用 extension）
+2. integration rules（如何消費已驗證的 task head；是否需要 workspace PR）
 3. final verification evidence
 4. failure / rollback reporting
-5. lifecycle metadata writer / closeout helper before task.md is marked implemented. Post-PR framework release endpoints must use `scripts/framework-release-closeout.sh` rather than manually stitching writer, completion gate, parent closeout, cleanup, and archive.
+5. task.md 標記 implemented 前要使用的 lifecycle metadata writer / closeout helper。Post-PR framework release endpoint 必須使用 `scripts/framework-release-closeout.sh`，不得手動拼接 writer、completion gate、parent closeout、cleanup 與 archive。
 
-Local Extension role must not write fake `deliverable.pr_url`. If a real workspace PR exists, keep the real `deliverable` metadata and add `extension_deliverable` for the release tail. If the local policy provides a closeout helper, that helper owns `extension_deliverable`, `check-local-extension-completion.sh`, task implemented move, parent closeout, and worktree cleanup. If no closeout helper exists, leave `deliverable` absent and let the extension write `extension_deliverable` metadata with `scripts/write-extension-deliverable.sh`, then pass `scripts/check-local-extension-completion.sh` before task lifecycle closeout.
+Local Extension role 不得寫入假的 `deliverable.pr_url`。若存在真實 workspace PR，保留真實 `deliverable` metadata，並以 `extension_deliverable` 記錄 release tail。若 local policy 提供 closeout helper，該 helper owns `extension_deliverable`、`check-local-extension-completion.sh`、task implemented move、parent closeout 與 worktree cleanup。若沒有 closeout helper，`deliverable` 維持 absent，由 extension 透過 `scripts/write-extension-deliverable.sh` 寫入 `extension_deliverable` metadata，並在 task lifecycle closeout 前通過 `scripts/check-local-extension-completion.sh`。
 
 ### 7a. Evidence AND Gate（pre-PR / pre-release verification）
 
@@ -788,7 +787,7 @@ bash "${POLARIS_ROOT}/scripts/framework-release-closeout.sh" \
   --release-url "<release URL or N/A>"
 ```
 
-Generic local-extension fallback（only when local policy does not declare a closeout helper）：
+Generic local-extension fallback（僅限 local policy 未宣告 closeout helper）：
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/write-extension-deliverable.sh" "<path/to/task.md>" \
@@ -885,11 +884,11 @@ bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
 
 ### Core Invariants
 
-1. Evidence files are **only written by their designated scripts** — LLM Write/Edit to evidence paths is blocked by `no-direct-evidence-write.sh` PreToolUse hook（D16）
-2. `head_sha` in evidence must match current `git rev-parse --short HEAD` — stale evidence auto-rejected
-3. `writer` field must be in the known-writer whitelist（`verification-evidence-gate.sh` checks，D16 cross-LLM）
-4. Layer A + B（+ C if triggered）must ALL be present and PASS before PR creation, local extension handoff, or post-PR release handoff — **AND gate, not OR**
-5. **NO bypass env var for evidence**（D16 NO bypass stance；`POLARIS_SKIP_CI_LOCAL=1` is the only emergency escape，covers Layer A only）
+1. Evidence file **只能由指定 scripts 寫入**；LLM 對 evidence paths 的 Write/Edit 會被 `no-direct-evidence-write.sh` PreToolUse hook 擋下（D16）
+2. evidence 內的 `head_sha` 必須匹配目前 `git rev-parse --short HEAD`；stale evidence 會自動被拒絕
+3. `writer` field 必須在 known-writer whitelist 內（`verification-evidence-gate.sh` 檢查，D16 cross-LLM）
+4. PR creation、local extension handoff、post-PR release handoff 前，Layer A + B（+ triggered Layer C）必須全部存在且 PASS；這是 **AND gate，不是 OR**
+5. **evidence 沒有 bypass env var**（D16 NO bypass stance；`POLARIS_SKIP_CI_LOCAL=1` 是唯一 emergency escape，且只涵蓋 Layer A）
 
 ### Hook Enforcement（DP-032 Wave δ — 跨 LLM）
 

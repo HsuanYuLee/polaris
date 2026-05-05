@@ -310,6 +310,131 @@ extract_frontmatter_block() {
 }
 
 # ---------------------------------------------------------------------------
+# Helper: extract frontmatter verification.visual_regression state as JSON.
+# This mirrors the YAML subset supported by parse-task-md.sh without adding a
+# PyYAML dependency to the validator.
+# ---------------------------------------------------------------------------
+extract_vr_frontmatter_state() {
+  local file="$1"
+  python3 - "$file" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+try:
+    lines = open(path, "r", encoding="utf-8").read().splitlines()
+except OSError:
+    print(json.dumps({"present": False}))
+    raise SystemExit(0)
+
+def parse_scalar(value):
+    value = value.strip()
+    if value == "":
+        return None
+    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+        return value[1:-1]
+    if value == "[]":
+        return []
+    if value.startswith("[") and value.endswith("]"):
+        body = value[1:-1].strip()
+        if not body:
+            return []
+        return [parse_scalar(part.strip()) for part in body.split(",")]
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    return value
+
+def parse_frontmatter_lines(fm_lines):
+    out = {}
+    i = 0
+    while i < len(fm_lines):
+        raw = fm_lines[i]
+        if not raw.strip() or raw.lstrip().startswith("#") or raw[0].isspace() or ":" not in raw:
+            i += 1
+            continue
+        key, _, value = raw.partition(":")
+        key = key.strip()
+        value = value.strip()
+        if value:
+            out[key] = parse_scalar(value)
+            i += 1
+            continue
+
+        mapping = {}
+        i += 1
+        while i < len(fm_lines):
+            child_raw = fm_lines[i]
+            if not child_raw.strip():
+                i += 1
+                continue
+            child_indent = len(child_raw) - len(child_raw.lstrip(" "))
+            if child_indent == 0:
+                break
+            child_stripped = child_raw.strip()
+            if child_indent != 2 or ":" not in child_stripped:
+                i += 1
+                continue
+            child_key, _, child_value = child_stripped.partition(":")
+            child_key = child_key.strip()
+            child_value = child_value.strip()
+            if child_value:
+                mapping[child_key] = parse_scalar(child_value)
+                i += 1
+                continue
+
+            nested = {}
+            i += 1
+            while i < len(fm_lines):
+                nested_raw = fm_lines[i]
+                if not nested_raw.strip():
+                    i += 1
+                    continue
+                nested_indent = len(nested_raw) - len(nested_raw.lstrip(" "))
+                if nested_indent <= 2:
+                    break
+                nested_stripped = nested_raw.strip()
+                if nested_indent == 4 and ":" in nested_stripped:
+                    nested_key, _, nested_value = nested_stripped.partition(":")
+                    nested[nested_key.strip()] = parse_scalar(nested_value.strip())
+                i += 1
+            mapping[child_key] = nested
+        out[key] = mapping
+    return out
+
+frontmatter = {}
+if lines and lines[0].strip() == "---":
+    end = None
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == "---":
+            end = idx
+            break
+    if end is not None:
+        frontmatter = parse_frontmatter_lines(lines[1:end])
+
+verification = frontmatter.get("verification")
+vr = verification.get("visual_regression") if isinstance(verification, dict) else None
+result = {
+    "present": vr is not None,
+    "is_map": isinstance(vr, dict),
+    "expected": None,
+    "expected_is_string": False,
+    "pages_present": False,
+    "pages_is_list": False,
+}
+if isinstance(vr, dict):
+    expected = vr.get("expected")
+    pages = vr.get("pages")
+    result["expected"] = expected
+    result["expected_is_string"] = isinstance(expected, str)
+    result["pages_present"] = "pages" in vr
+    result["pages_is_list"] = isinstance(pages, list)
+print(json.dumps(result, ensure_ascii=False))
+PY
+}
+
+# ---------------------------------------------------------------------------
 # Helper: task identity grammar.
 # Product tasks use JIRA keys (PROJ-123). Framework DP-backed tasks use
 # pseudo-task IDs (DP-047-T1) but otherwise follow the same task.md schema.
@@ -789,6 +914,41 @@ print(urlparse(sys.argv[1]).path or '/')
           errors+=("Level=$level expects Env bootstrap command = N/A (got: '$b_val') — avoid false declarations")
         fi
       fi
+    fi
+  fi
+
+  # ---------------------------------------------------------------------------
+  # Optional VR metadata: frontmatter verification.visual_regression.
+  # When declared, it must be schema-valid and tied to runtime verification.
+  # ---------------------------------------------------------------------------
+  local vr_state vr_present vr_is_map vr_expected vr_expected_is_string vr_pages_present vr_pages_is_list
+  vr_state="$(extract_vr_frontmatter_state "$FILE")"
+  vr_present="$(python3 -c 'import json,sys; print("1" if json.loads(sys.argv[1]).get("present") else "0")' "$vr_state")"
+  if [[ "$vr_present" == "1" ]]; then
+    vr_is_map="$(python3 -c 'import json,sys; print("1" if json.loads(sys.argv[1]).get("is_map") else "0")' "$vr_state")"
+    vr_expected="$(python3 -c 'import json,sys; v=json.loads(sys.argv[1]).get("expected"); print("" if v is None else v)' "$vr_state")"
+    vr_expected_is_string="$(python3 -c 'import json,sys; print("1" if json.loads(sys.argv[1]).get("expected_is_string") else "0")' "$vr_state")"
+    vr_pages_present="$(python3 -c 'import json,sys; print("1" if json.loads(sys.argv[1]).get("pages_present") else "0")' "$vr_state")"
+    vr_pages_is_list="$(python3 -c 'import json,sys; print("1" if json.loads(sys.argv[1]).get("pages_is_list") else "0")' "$vr_state")"
+
+    if [[ "$vr_is_map" != "1" ]]; then
+      errors+=("frontmatter verification.visual_regression must be a map with expected and pages")
+    fi
+    if [[ "$vr_expected_is_string" != "1" || -z "$vr_expected" ]]; then
+      errors+=("frontmatter verification.visual_regression.expected is required")
+    else
+      case "$vr_expected" in
+        none_allowed|baseline_required|update_baseline) ;;
+        *) errors+=("frontmatter verification.visual_regression.expected must be none_allowed, baseline_required, or update_baseline (got: '$vr_expected')") ;;
+      esac
+    fi
+    if [[ "$vr_pages_present" != "1" ]]; then
+      errors+=("frontmatter verification.visual_regression.pages is required; use [] to select workspace-config pages")
+    elif [[ "$vr_pages_is_list" != "1" ]]; then
+      errors+=("frontmatter verification.visual_regression.pages must be a YAML list")
+    fi
+    if [[ "$level" != "runtime" ]]; then
+      errors+=("frontmatter verification.visual_regression requires Test Environment Level=runtime (got: '${level:-<empty>}')")
     fi
   fi
 

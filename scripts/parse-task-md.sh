@@ -39,6 +39,7 @@
 #   task_jira_key, parent_epic, test_sub_tasks, ac_verification_ticket,
 #   base_branch, branch_chain, task_branch, depends_on, references_to_load,
 #   level, dev_env_config, fixtures, runtime_verify_target, env_bootstrap_command,
+#   verification_visual_regression_expected, verification_visual_regression_pages,
 #   test_command, verify_command, verify_fallback_command, allowed_files, resolved_base
 #
 # Exit codes:
@@ -90,8 +91,9 @@ Field keys: status, task_id, summary, story_points, epic, jira, repo,
             task_jira_key, parent_epic, test_sub_tasks, ac_verification_ticket,
             base_branch, branch_chain, task_branch, depends_on, references_to_load,
             level, dev_env_config, fixtures, runtime_verify_target,
-            env_bootstrap_command, test_command, verify_command, verify_fallback_command,
-            allowed_files, resolved_base
+            env_bootstrap_command, verification_visual_regression_expected,
+            verification_visual_regression_pages, test_command, verify_command,
+            verify_fallback_command, allowed_files, resolved_base
 USAGE
 }
 
@@ -411,6 +413,34 @@ for k in ("dev_env_config", "fixtures", "runtime_verify_target", "env_bootstrap_
         test_env[k] = None
 
 
+# ---- Verification metadata ------------------------------------------------
+verification_block = frontmatter.get("verification")
+if not isinstance(verification_block, dict):
+    verification_block = {}
+visual_regression_block = verification_block.get("visual_regression")
+if not isinstance(visual_regression_block, dict):
+    visual_regression_block = {}
+
+vr_expected = visual_regression_block.get("expected")
+if not isinstance(vr_expected, str) or vr_expected.strip() in NA_SENTINELS:
+    vr_expected = None
+else:
+    vr_expected = vr_expected.strip()
+
+vr_pages = visual_regression_block.get("pages")
+if isinstance(vr_pages, list):
+    vr_pages = [str(page) for page in vr_pages]
+else:
+    vr_pages = None
+
+verification = {
+    "visual_regression": {
+        "expected": vr_expected,
+        "pages": vr_pages,
+    }
+}
+
+
 # ---- first fenced code block helper --------------------------------------
 def first_code_block(lns):
     in_block = False
@@ -446,6 +476,7 @@ out = {
     "identity": identity,
     "operational_context": operational_context,
     "test_environment": test_env,
+    "verification": verification,
     "test_command": test_command,
     "verify_command": verify_command,
     "verify_fallback_command": verify_fallback_command,
@@ -519,6 +550,8 @@ aliases = {
     "fixtures":                ["test_environment", "fixtures"],
     "runtime_verify_target":   ["test_environment", "runtime_verify_target"],
     "env_bootstrap_command":   ["test_environment", "env_bootstrap_command"],
+    "verification_visual_regression_expected": ["verification", "visual_regression", "expected"],
+    "verification_visual_regression_pages":    ["verification", "visual_regression", "pages"],
     "test_command":            ["test_command"],
     "verify_command":          ["verify_command"],
     "verify_fallback_command": ["verify_fallback_command"],
@@ -581,6 +614,10 @@ deliverables:
     package_scope: "@exampleco/b2c-web-main"
     bump_level_default: patch
     filename_slug: kb2cw-3900-products-dayjs
+verification:
+  visual_regression:
+    expected: none_allowed
+    pages: ["/zh-tw"]
 extension_deliverable:
   endpoint: local_extension
   extension_id: example-extension
@@ -770,6 +807,8 @@ MD
   expect_field "$fixture" extension_deliverable_evidence_ci_local "/tmp/polaris-ci-local.json" "F1.extension_evidence_ci"
   expect_field "$fixture" extension_deliverable_evidence_verify "/tmp/polaris-verified.json" "F1.extension_evidence_verify"
   expect_field "$fixture" extension_deliverable_evidence_vr "N/A"        "F1.extension_evidence_vr"
+  expect_field "$fixture" verification_visual_regression_expected "none_allowed" "F1.vr_expected"
+  expect_field "$fixture" verification_visual_regression_pages "/zh-tw" "F1.vr_pages"
   expect_field "$fixture" task_id                "T3b"                   "F1.task_id"
   expect_field "$fixture" summary                "products pages moment→dayjs 替換" "F1.summary"
   expect_field "$fixture" story_points           "5"                     "F1.story_points"
@@ -869,12 +908,59 @@ MD
   expect_field "$fixture3" jira                   ""                      "F3.legacy_jira_empty"
   expect_field "$fixture3" task_jira_key          "DP-050-T1"             "F3.task_jira_key_alias"
 
+  # ---- Fixture 4 (VR empty pages) ----------------------------------------
+  fixture4="$tmpdir/T4-vr-empty-pages.md"
+  cat > "$fixture4" <<'MD'
+---
+verification:
+  visual_regression:
+    expected: baseline_required
+    pages: []
+---
+
+# T4: Empty VR pages (1 pt)
+
+> Source: DP-104 | Task: DP-104-T4 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-104 |
+| Task ID | DP-104-T4 |
+| JIRA key | N/A |
+| Test sub-tasks | N/A - framework work order |
+| AC 驗收單 | N/A - framework work order |
+| Base branch | main |
+| Branch chain | main -> task/DP-104-T4-vr-empty-pages |
+| Task branch | task/DP-104-T4-vr-empty-pages |
+| Depends on | N/A |
+| References to load | - task-md-schema |
+
+## Test Environment
+
+- **Level**: runtime
+- **Dev env config**: workspace-config.yaml
+- **Fixtures**: N/A
+- **Runtime verify target**: http://localhost:3100
+- **Env bootstrap command**: bash scripts/start-test-env.sh
+MD
+  expect_field "$fixture4" verification_visual_regression_expected "baseline_required" "F4.vr_expected"
+  vr_pages_empty="$(emit_json "$fixture4" "" | emit_field verification_visual_regression_pages)"
+  if [[ -n "$vr_pages_empty" ]]; then
+    echo "[selftest] F4.vr_pages_empty: expected empty output got '$vr_pages_empty'"; fail=1
+  fi
+
   # ---- Full JSON shape sanity (validates JSON parseability) ---------------
   if ! emit_json "$fixture" "" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
     echo "[selftest] F1.full_json: invalid JSON output"; fail=1
   fi
   if ! emit_json "$fixture2" "" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
     echo "[selftest] F2.full_json: invalid JSON output"; fail=1
+  fi
+  if ! emit_json "$fixture4" "" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["verification"]["visual_regression"]["pages"] == []' 2>/dev/null; then
+    echo "[selftest] F4.full_json: VR pages did not serialize as []"; fail=1
   fi
 
   # ---- File-not-found ------------------------------------------------------

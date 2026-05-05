@@ -14,9 +14,9 @@ out="$tmp/annotated.json"
 
 cat > "$mapping" <<'JSON'
 {
-  "https://github.com/acme/acme-api/pull/10": {"thread_ts": "1776130982.981829", "root_ticket_key": "GT-493"},
-  "https://github.com/acme/acme-web/pull/20": {"thread_ts": "1776130982.981829", "root_ticket_key": "GT-493"},
-  "https://github.com/acme/acme-ios/pull/30": {"thread_ts": "1776130982.981829", "root_ticket_key": "GT-493"}
+  "https://github.com/acme/acme-api/pull/10": {"thread_ts": "1776130982.981829", "root_ticket_key": "DEMO-493"},
+  "https://github.com/acme/acme-web/pull/20": {"thread_ts": "1776130982.981829", "root_ticket_key": "DEMO-493"},
+  "https://github.com/acme/acme-ios/pull/30": {"thread_ts": "1776130982.981829", "root_ticket_key": "DEMO-493"}
 }
 JSON
 
@@ -25,7 +25,7 @@ cat > "$candidates" <<'JSON'
   {
     "repo": "acme-web",
     "number": 20,
-    "title": "KB2CW-3854 web variant",
+    "title": "APP-3854 web variant",
     "url": "https://github.com/acme/acme-web/pull/20",
     "author": "alice",
     "changed_files": 2,
@@ -36,7 +36,7 @@ cat > "$candidates" <<'JSON'
   {
     "repo": "acme-api",
     "number": 10,
-    "title": "KB2CW-3857 api variant",
+    "title": "APP-3857 api variant",
     "url": "https://github.com/acme/acme-api/pull/10",
     "author": "bob",
     "changed_files": 2,
@@ -47,7 +47,7 @@ cat > "$candidates" <<'JSON'
   {
     "repo": "acme-ios",
     "number": 30,
-    "title": "KB2CW-3859 ios variant",
+    "title": "APP-3859 ios variant",
     "url": "https://github.com/acme/acme-ios/pull/30",
     "author": "cara",
     "changed_files": 2,
@@ -97,8 +97,8 @@ assert by_number[20]["model_tier"] == "small_fast", by_number[20]
 assert by_number[30]["cluster_role"] == "cluster_sibling", by_number[30]
 assert by_number[30]["cluster_size"] == 3, by_number[30]
 assert by_number[30]["cluster_lead_url"] == "https://github.com/acme/acme-api/pull/10", by_number[30]
-assert by_number[30]["cluster_key"] == "1776130982.981829:GT-493", by_number[30]
-assert by_number[30]["root_ticket_key"] == "GT-493", by_number[30]
+assert by_number[30]["cluster_key"] == "1776130982.981829:DEMO-493", by_number[30]
+assert by_number[30]["root_ticket_key"] == "DEMO-493", by_number[30]
 assert by_number[40]["cluster_role"] == "standalone", by_number[40]
 assert by_number[40]["model_tier"] == "small_fast", by_number[40]
 assert by_number[50]["model_tier"] == "standard_coding", by_number[50]

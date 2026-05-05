@@ -13,30 +13,30 @@ urls="$tmp/urls.txt"
 mapping="$tmp/mapping.json"
 
 cat > "$raw" <<'TEXT'
-Channel: #b2c-web-pr (C08NJ2GL204)
+Channel: #product-pr (C012EXAMPLE)
 
 === Message from Reviewer (U123456789) at 2026-05-04 18:16:14 CST ===
 Message TS: 1777889774.622759
-*[變價服務 Review 請求]* GT-493 / KB2CW-3853
+*[Pricing Service Review Request]* DEMO-493 / APP-3853
 
 本批 PR 橫跨 3 個 repo，共 3 個 PR。
 
-<https://github.com/kkday-it/kkday-b2c-web/pull/2223
->[KB2CW-3854] server utility
+<https://github.com/example-org/example-web/pull/2223
+>[APP-3854] server utility
 
-<https://github.com/kkday-it/kkday-member-ci/pull/12282
->[KB2CW-3857] core helper
+<https://github.com/example-org/example-core/pull/12282
+>[APP-3857] core helper
 
-<https://github.com/kkday-it/kkday-mobile-member-ci/pull/10473
->[KB2CW-3859] mobile helper
+<https://github.com/example-org/example-mobile/pull/10473
+>[APP-3859] mobile helper
 
 === Message from Reviewer (U123456789) at 2026-05-05 14:49:38 CST ===
 Message TS: 1777963778.044189
-fix: [KB2CW-4040] 修正註冊彈窗 checkbox 失效
-<https://github.com/kkday-it/kkday-b2c-web/pull/2256>
+fix: [APP-4040] fix signup modal checkbox
+<https://github.com/example-org/example-web/pull/2256>
 TEXT
 
-"$extractor" --org kkday-it --mapping "$mapping" < "$raw" > "$urls"
+"$extractor" --org example-org --mapping "$mapping" < "$raw" > "$urls"
 
 python3 - "$urls" "$mapping" <<'PY'
 import json
@@ -48,15 +48,15 @@ mapping = json.loads(Path(sys.argv[2]).read_text())
 
 assert len(urls) == 4, urls
 for url in [
-    "https://github.com/kkday-it/kkday-b2c-web/pull/2223",
-    "https://github.com/kkday-it/kkday-member-ci/pull/12282",
-    "https://github.com/kkday-it/kkday-mobile-member-ci/pull/10473",
+    "https://github.com/example-org/example-web/pull/2223",
+    "https://github.com/example-org/example-core/pull/12282",
+    "https://github.com/example-org/example-mobile/pull/10473",
 ]:
     assert mapping[url]["thread_ts"] == "1777889774.622759", mapping[url]
-    assert mapping[url]["root_ticket_key"] == "GT-493", mapping[url]
+    assert mapping[url]["root_ticket_key"] == "DEMO-493", mapping[url]
 
-hotfix = "https://github.com/kkday-it/kkday-b2c-web/pull/2256"
-assert mapping[hotfix]["root_ticket_key"] == "KB2CW-4040", mapping[hotfix]
+hotfix = "https://github.com/example-org/example-web/pull/2256"
+assert mapping[hotfix]["root_ticket_key"] == "APP-4040", mapping[hotfix]
 PY
 
 echo "extract-pr-urls selftest: PASS"

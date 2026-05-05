@@ -28,6 +28,42 @@ comment 要求補充 AC 描述，停止該張。
 3. 對比 expected。
 4. 分類。
 
+### Visual AC native runner
+
+若 task.md 有 `verification.visual_regression`，visual AC 必須使用 native runner：
+
+```bash
+bash {polaris_root}/scripts/run-visual-snapshot.sh \
+  --task-md {task_md_path} \
+  --ticket {AC_TICKET_KEY} \
+  --mode baseline \
+  --repo {repo_path} \
+  --source-container {company_specs_dir}/{EPIC_KEY} \
+  --output-dir {company_specs_dir}/{EPIC_KEY}/verification/{run_id}/vr
+
+bash {polaris_root}/scripts/run-visual-snapshot.sh \
+  --task-md {task_md_path} \
+  --ticket {AC_TICKET_KEY} \
+  --mode compare \
+  --repo {repo_path} \
+  --source-container {company_specs_dir}/{EPIC_KEY} \
+  --output-dir {company_specs_dir}/{EPIC_KEY}/verification/{run_id}/vr
+```
+
+Runner status mapping：
+
+| Runner status | verify-AC step status |
+|---|---|
+| `PASS` | `PASS` |
+| `BLOCK` | `FAIL` |
+| `BLOCKED_ENV` | `UNCERTAIN` |
+| `MANUAL_REQUIRED` | `MANUAL_REQUIRED` |
+| `SKIP` | `UNCERTAIN` |
+| `BASELINE_CAPTURED` without compare | `UNCERTAIN` |
+
+`BLOCK` 只能代表 observed visual output differs from expected visual contract；不要在 verify-AC
+內推論 root cause。`BLOCKED_ENV` 是環境或 deterministic fixture 問題，不可判成 implementation FAIL。
+
 ## Classification
 
 | Status | Condition |

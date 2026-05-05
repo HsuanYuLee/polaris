@@ -77,3 +77,19 @@ D11 L2 primitives。需要 Mockoon capability 時使用：
 ```bash
 scripts/polaris-toolchain.sh run fixtures.mockoon.start -- <fixtures_dir>
 ```
+
+## Step 3d. Native VR preparation
+
+若 AC step 是 visual AC，且 task.md 宣告 `verification.visual_regression`：
+
+1. 確認 `scripts/run-visual-snapshot.sh` 存在且可執行。
+2. 確認 `## Test Environment` `Level=runtime`，且 `Runtime verify target` 可連線。
+3. 若 task 使用 fixture-backed VR，先確認 fixture manifest 已 review；未 review 時本輪標 `MANUAL_REQUIRED`，不要繼續判 PASS。
+4. 建立 local verification folder：
+
+```text
+{company_specs_dir}/{EPIC_KEY}/verification/{run_id}/vr/
+```
+
+`run_id` 使用本輪 verify-AC timestamp 或 AC ticket key + timestamp。後續 `run-visual-snapshot.sh`
+的 `--output-dir` 指到此資料夾，讓 screenshots / diff artifact 和 report 使用同一份 local path。

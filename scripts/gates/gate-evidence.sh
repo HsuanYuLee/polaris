@@ -6,7 +6,7 @@ set -euo pipefail
 # Can be called from: git pre-commit/pre-push hooks, polaris-pr-create.sh, or directly.
 #
 # Usage:
-#   bash scripts/gates/gate-evidence.sh [--repo <path>] [--ticket <KEY>]
+#   bash scripts/gates/gate-evidence.sh [--repo <path>] [--ticket <KEY>] [--task-md <path>]
 #
 # Exit: 0 = pass/skip, 2 = block
 # Bypass: POLARIS_SKIP_EVIDENCE=1
@@ -15,6 +15,7 @@ PREFIX="[polaris gate-evidence]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT=""
 TICKET=""
+TASK_MD=""
 
 MAIN_CHECKOUT_LIB="$(cd "$SCRIPT_DIR/.." && pwd)/lib/main-checkout.sh"
 if [[ -f "$MAIN_CHECKOUT_LIB" ]]; then
@@ -27,10 +28,12 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO_ROOT="$2"; shift 2 ;;
     --ticket) TICKET="$2"; shift 2 ;;
+    --task-md) TASK_MD="$2"; shift 2 ;;
     -h|--help)
-      echo "Usage: bash scripts/gates/gate-evidence.sh [--repo <path>] [--ticket <KEY>]"
+      echo "Usage: bash scripts/gates/gate-evidence.sh [--repo <path>] [--ticket <KEY>] [--task-md <path>]"
       echo "  --repo <path>     Target repo (default: git rev-parse --show-toplevel)"
       echo "  --ticket <KEY>    JIRA ticket key (default: extract from branch name)"
+      echo "  --task-md <path>  Work order path for conditional Layer C VR evidence"
       exit 0
       ;;
     *) shift ;;
@@ -58,6 +61,25 @@ extract_task_key_from_branch() {
     return 0
   fi
   printf '%s' "$branch" | grep -oE '[A-Z][A-Z0-9]+-[0-9]+' | head -n 1 || true
+}
+
+resolve_task_md_for_branch() {
+  local repo_root="$1"
+  local script_root=""
+  local current_branch=""
+  local main_checkout=""
+
+  script_root="$(cd "$SCRIPT_DIR/.." && pwd)"
+  [[ -x "$script_root/resolve-task-md.sh" ]] || return 1
+  current_branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  [[ -n "$current_branch" ]] || return 1
+
+  if declare -F resolve_main_checkout >/dev/null 2>&1; then
+    main_checkout="$(resolve_main_checkout "$repo_root" 2>/dev/null || true)"
+  fi
+  [[ -n "$main_checkout" ]] || main_checkout="$repo_root"
+
+  bash "$script_root/resolve-task-md.sh" --scan-root "$main_checkout" --current 2>/dev/null | head -n 1
 }
 
 # Extract ticket/task identity from branch if not provided.
@@ -157,4 +179,98 @@ if [[ "$exit_code_pass" != "pass" ]]; then
 fi
 
 echo "$PREFIX ✅ D15 evidence valid for ${TICKET} @ ${HEAD_SHA}." >&2
+
+# Layer C: conditional native visual regression evidence. Only tasks that
+# declare verification.visual_regression require this gate.
+if [[ -z "$TASK_MD" ]]; then
+  TASK_MD="$(resolve_task_md_for_branch "$REPO_ROOT" || true)"
+fi
+
+if [[ -z "$TASK_MD" || ! -f "$TASK_MD" ]]; then
+  echo "$PREFIX Layer C VR skip: task.md not resolved." >&2
+  exit 0
+fi
+
+PARSE_TASK_MD="$(cd "$SCRIPT_DIR/.." && pwd)/parse-task-md.sh"
+VR_EXPECTED=""
+if [[ -x "$PARSE_TASK_MD" ]]; then
+  VR_EXPECTED="$(bash "$PARSE_TASK_MD" --field verification_visual_regression_expected --no-resolve "$TASK_MD" 2>/dev/null || true)"
+fi
+
+if [[ -z "$VR_EXPECTED" ]]; then
+  echo "$PREFIX Layer C VR skip: task.md has no verification.visual_regression." >&2
+  exit 0
+fi
+
+vr_tmp="/tmp/polaris-vr-${TICKET}-${HEAD_SHA}.json"
+vr_durable=""
+if [[ -n "$HEAD_SHA" ]]; then
+  vr_durable="${evidence_root}/vr/polaris-vr-${TICKET}-${HEAD_SHA}.json"
+fi
+
+VR_EVIDENCE_FILE=""
+if [[ -n "$HEAD_SHA" && -f "$vr_tmp" ]]; then
+  VR_EVIDENCE_FILE="$vr_tmp"
+elif [[ -n "$HEAD_SHA" && -f "$vr_durable" ]]; then
+  VR_EVIDENCE_FILE="$vr_durable"
+fi
+
+if [[ -z "$VR_EVIDENCE_FILE" ]]; then
+  stale_match="$(
+    {
+      find /tmp -maxdepth 1 -type f -name "polaris-vr-${TICKET}-*.json" 2>/dev/null
+      find /private/tmp -maxdepth 1 -type f -name "polaris-vr-${TICKET}-*.json" 2>/dev/null
+      if [[ -d "${evidence_root}/vr" ]]; then
+        find "${evidence_root}/vr" -maxdepth 1 -type f -name "polaris-vr-${TICKET}-*.json" 2>/dev/null
+      fi
+    } | while IFS= read -r path; do
+      if [[ "$path" != *-"$HEAD_SHA".json ]]; then
+        printf '%s\n' "$path"
+        break
+      fi
+    done || true
+  )"
+  if [[ -n "$stale_match" ]]; then
+    echo "$PREFIX BLOCKED: stale Layer C VR evidence for ${TICKET}; no evidence matches HEAD ${HEAD_SHA}" >&2
+  else
+    echo "$PREFIX BLOCKED: No Layer C VR evidence for ${TICKET}" >&2
+  fi
+  echo "" >&2
+  echo "Expected:" >&2
+  echo "  ${vr_tmp}  (Layer C — head_sha-bound, written by run-visual-snapshot.sh)" >&2
+  echo "  ${vr_durable}  (durable mirror, written by run-visual-snapshot.sh)" >&2
+  echo "" >&2
+  echo "Run scripts/run-visual-snapshot.sh --task-md <path> --mode baseline, then --mode compare." >&2
+  exit 2
+fi
+
+vr_valid=$(python3 - "$VR_EVIDENCE_FILE" "$TICKET" "$HEAD_SHA" <<'PY'
+import json
+import sys
+
+path, ticket, head_sha = sys.argv[1:4]
+try:
+    with open(path, encoding="utf-8") as handle:
+        data = json.load(handle)
+    assert data.get("writer") == "run-visual-snapshot.sh", "writer mismatch"
+    assert data.get("ticket") == ticket, "ticket mismatch"
+    assert data.get("head_sha") == head_sha, "head_sha mismatch"
+    assert data.get("mode") == "compare", "mode must be compare"
+    assert data.get("status") == "PASS", f"status must be PASS, got {data.get('status')!r}"
+    assert data.get("at"), "missing at"
+    print("valid")
+except Exception as exc:
+    print(f"invalid: {exc}")
+PY
+)
+
+if [[ "$vr_valid" != "valid" ]]; then
+  echo "$PREFIX BLOCKED: Layer C VR evidence is malformed or not passing for ${TICKET}" >&2
+  echo "  ${VR_EVIDENCE_FILE}: ${vr_valid}" >&2
+  echo "" >&2
+  echo "Evidence must contain: ticket, head_sha, writer=run-visual-snapshot.sh, mode=compare, status=PASS, at." >&2
+  exit 2
+fi
+
+echo "$PREFIX ✅ Layer C VR evidence valid for ${TICKET} @ ${HEAD_SHA}." >&2
 exit 0

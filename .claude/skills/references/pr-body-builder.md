@@ -162,10 +162,20 @@ PR body 必須包含 evidence AND gate 摘要（must-inject section）。若 tem
 |-------|--------|----------|
 | A — CI (`ci-local.sh`) | ✅ PASS | `head_sha` matches |
 | B — Verify (`run-verify-command.sh`) | ✅ PASS | `head_sha` matches |
-| C — VR (`run-visual-snapshot.sh`) | ⏭️ N/A | VR not triggered |
+| C — VR (`run-visual-snapshot.sh`) | ✅ PASS / ⏭️ N/A | `head_sha` matches / VR not triggered |
 ```
 
 **Admin 格式**：only Layer A（CI）row。
+
+若 Layer C evidence 的 `pages[].diff_artifact` 存在，PR body 另加 conditional section：
+
+```md
+## VR Diff
+
+| Page | Diff artifact |
+|------|---------------|
+| `/zh-tw` | `.polaris/evidence/vr/artifacts/<ticket>/diff/zh-tw.json` |
+```
 
 ---
 
