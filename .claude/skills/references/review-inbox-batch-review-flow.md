@@ -39,7 +39,9 @@ review sub-agents 數量。
 - `review_status`。
 - Current GitHub username。
 - Workspace config base directory。
-- 指示讀取 `review-pr/SKILL.md` 並 inline 執行其流程。
+- `review-inbox/dispatch-context-bundle.md` 的 inline 內容。
+- deterministic handbook resolver 輸出的 verified project handbook paths；空清單時明確寫
+  no project handbook，且不可掃 repo guideline folders。
 - Completion Envelope requirement。
 
 Review mode：
@@ -50,8 +52,9 @@ Review mode：
 | `needs_re_approve` | review commits since last valid approve；無實質變更時可直接 re-approve |
 | `needs_re_review` | check previous comments and author fixes |
 
-Sub-agent 不呼叫 Skill tool；它直接讀 `review-pr/SKILL.md`、rules、handbook、PR diff、
-existing comments，然後 submit GitHub review。
+Sub-agent 不呼叫 Skill tool；它直接依 inline dispatch context、verified handbook paths、
+PR diff、existing comments 執行 review，然後 submit GitHub review。Batch prompt 不得要求
+sub-agent 重讀完整 review skill / reference stack。
 
 ## Result Envelope
 

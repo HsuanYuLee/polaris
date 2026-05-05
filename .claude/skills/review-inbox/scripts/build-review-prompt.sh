@@ -3,8 +3,11 @@
 #
 # Input:  stdin = JSON array from check-my-review-status.sh
 # Args:   --my-user <github_username>
-#         --review-pr-skill <path to review-pr/SKILL.md>
 #         --base-dir <local repo base directory>
+#         --workspace <workspace root> (default: current directory)
+#         --company <company key> (optional)
+#         --project <project key> (optional)
+#         --bundle <dispatch context bundle path> (default: skill bundle)
 #         --out-dir <output directory for prompt files> (default: /tmp/review-prompts)
 #
 # Output: One file per PR in out-dir: review-prompt-{repo}-{number}.txt
@@ -14,30 +17,46 @@
 #   cat /tmp/review-candidates.json \
 #     | ./build-review-prompt.sh \
 #         --my-user daniel-lee-kk \
-#         --review-pr-skill /path/to/review-pr/SKILL.md \
-#         --base-dir /path/to/repos
+#         --base-dir /path/to/repos \
+#         --workspace /path/to/workspace \
+#         --company exampleco \
+#         --project exampleco-web
 #
 # The Strategist reads each prompt file and uses it as the Agent tool's prompt parameter.
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 MY_USER=""
-REVIEW_PR_SKILL=""
 BASE_DIR=""
+WORKSPACE="$PWD"
+COMPANY=""
+PROJECT=""
+BUNDLE_PATH="$SCRIPT_DIR/../dispatch-context-bundle.md"
 OUT_DIR="/tmp/review-prompts"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --my-user) MY_USER="$2"; shift 2 ;;
-    --review-pr-skill) REVIEW_PR_SKILL="$2"; shift 2 ;;
+    --review-pr-skill) shift 2 ;; # Backward-compatible no-op.
     --base-dir) BASE_DIR="$2"; shift 2 ;;
+    --workspace) WORKSPACE="$2"; shift 2 ;;
+    --company) COMPANY="$2"; shift 2 ;;
+    --project) PROJECT="$2"; shift 2 ;;
+    --bundle) BUNDLE_PATH="$2"; shift 2 ;;
     --out-dir) OUT_DIR="$2"; shift 2 ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
 
-if [[ -z "$MY_USER" || -z "$REVIEW_PR_SKILL" || -z "$BASE_DIR" ]]; then
-  echo "Usage: ... | build-review-prompt.sh --my-user USER --review-pr-skill PATH --base-dir PATH [--out-dir PATH]" >&2
+if [[ -z "$MY_USER" || -z "$BASE_DIR" ]]; then
+  echo "Usage: ... | build-review-prompt.sh --my-user USER --base-dir PATH [--workspace PATH] [--company KEY] [--project KEY] [--bundle PATH] [--out-dir PATH]" >&2
+  exit 1
+fi
+
+if [[ ! -f "$BUNDLE_PATH" ]]; then
+  echo "Dispatch context bundle not found: $BUNDLE_PATH" >&2
   exit 1
 fi
 
@@ -51,6 +70,29 @@ if [[ "$COUNT" -eq 0 ]]; then
   echo "[]" > /tmp/review-prompt-manifest.json
   exit 0
 fi
+
+BUNDLE_TEXT=$(cat "$BUNDLE_PATH")
+HANDBOOK_JSON="[]"
+if [[ -n "$COMPANY" && -n "$PROJECT" ]]; then
+  HANDBOOK_JSON=$("$SCRIPT_DIR/resolve-handbook-paths.sh" \
+    --workspace "$WORKSPACE" \
+    --company "$COMPANY" \
+    --project "$PROJECT")
+fi
+
+HANDBOOK_BLOCK=$(python3 - "$HANDBOOK_JSON" <<'PY'
+import json
+import sys
+
+paths = json.loads(sys.argv[1])
+if not paths:
+    print("No project handbook: verified resolver returned an empty list. Do not scan repo guideline folders.")
+else:
+    print("Verified project handbook paths:")
+    for idx, path in enumerate(paths, start=1):
+        print(f"{idx}. {path}")
+PY
+)
 
 MANIFEST="["
 
@@ -89,17 +131,23 @@ PR #${NUMBER}: ${TITLE} by @${AUTHOR}
 Review status: ${STATUS} (${DETAIL})
 Review mode: ${MODE_INSTRUCTION}
 
-你是一個 Code Reviewer sub-agent。請按照 review-pr SKILL.md 的流程執行 review。
+你是一個 Code Reviewer sub-agent。請直接依照以下 inline dispatch context 執行 review。
+不要讀完整 review skill / reference stack；不要掃 repo guideline folders。
+
+**Inline Dispatch Context**：
+${BUNDLE_TEXT}
+
+**Project Handbook**：
+${HANDBOOK_BLOCK}
 
 **執行步驟**：
-1. 讀取 ${REVIEW_PR_SKILL} 了解完整 review 流程
-2. Step 1: 專案辨識 — repo = ${REPO}, local path = ${BASE_DIR}/${REPO}
-3. Step 2: 用 ${BASE_DIR}/${REPO} 下的 fetch-pr-info.sh 或 gh api 取得 PR 資訊（若 skill 有 bundled script 則優先使用）
-4. Step 3: 讀 ${BASE_DIR}/${REPO}/.claude/rules/ + handbook
-5. Step 3.5: 讀既有 review comments（去重）
-6. Step 4: 審查每個變更檔案
-7. Step 5: 提交 GitHub review
-8. Step 6: 查詢 approve 狀態
+1. 專案辨識 — repo = ${REPO}, local path = ${BASE_DIR}/${REPO}
+2. 用 ${BASE_DIR}/${REPO} 下可用的 fetch script 或 gh api 取得 PR metadata、files、diff、reviews
+3. 只讀 Project Handbook 區塊列出的 verified paths；若是 no project handbook，略過 handbook 讀取
+4. 讀既有 review comments 並去重
+5. 審查 changed files，依 inline dispatch context 的 severity / submit rules 產生 review
+6. 提交 GitHub review
+7. 查詢 approve 狀態
 
 **參數**：
 - GitHub username (--my-user): ${MY_USER}

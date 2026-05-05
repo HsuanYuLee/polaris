@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.66] - 2026-05-05
+
+### Fixed — review-inbox dispatch token overhead
+
+- 新增 review-inbox inline dispatch context bundle，避免 batch review sub-agent 重複讀完整 review reference stack。
+- 新增 deterministic project handbook resolver，只把 Polaris project handbook 內實際存在的 markdown path 注入 prompt。
+- 新增 bundle / resolver / prompt dry-run selftest，防止 prompt 回退到 full reference read 或 repo guideline sweep。
+
 ## [3.74.65] - 2026-05-05
 
 ### Fixed — archive-aware Design Plan authoring
