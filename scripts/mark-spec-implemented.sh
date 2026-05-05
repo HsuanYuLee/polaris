@@ -104,6 +104,31 @@ MD
   [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-001/tasks/pr-release/T2.md" ]] || { echo "[selftest] active T2 pr-release task missing"; return 1; }
   [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/GT-OLD/tasks/T2.md" ]] || { echo "[selftest] archived T2 was moved unexpectedly"; return 1; }
 
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-051-folder-native-task-closeout/tasks/T3"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-051-folder-native-task-closeout/tasks/T3/index.md" <<'MD'
+# T3: Folder-native DP task (1 pt)
+
+> Source: DP-051 | Task: DP-051-T3 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-051 |
+| Task ID | DP-051-T3 |
+| JIRA key | N/A |
+| Base branch | main |
+| Task branch | task/DP-051-T3-folder-native |
+MD
+
+  rc=0
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" DP-051-T3 --workspace "$tmpdir" >/dev/null || rc=$?
+  [[ "$rc" -eq 0 ]] || { echo "[selftest] folder-native DP mark implemented failed"; return 1; }
+  [[ ! -d "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-051-folder-native-task-closeout/tasks/T3" ]] || { echo "[selftest] folder-native active task was not moved"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-051-folder-native-task-closeout/tasks/pr-release/T3/index.md" ]] || { echo "[selftest] folder-native pr-release task missing"; return 1; }
+  grep -q '^status: IMPLEMENTED$' "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-051-folder-native-task-closeout/tasks/pr-release/T3/index.md" || { echo "[selftest] folder-native status missing"; return 1; }
+
   mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/GT-PARENT"
   cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/GT-PARENT/refinement.md" <<'MD'
 ---
@@ -258,8 +283,33 @@ is_task_key() {
 # ---------------------------------------------------------------------------
 ANCHOR=""
 ANCHOR_TYPE=""  # "epic" | "task"
-TASK_FILENAME=""  # basename of task file (T1.md, T3b.md, V1.md, ...)
+TASK_FILENAME=""  # task entry name (T1.md for legacy file, T3b for folder-native)
 TASKS_DIR=""    # absolute path to the tasks/ directory containing the task
+
+set_task_anchor_from_file() {
+  local file="$1"
+  local bname dir parent
+  ANCHOR="$file"
+  bname="$(basename "$file")"
+  dir="$(dirname "$file")"
+  if [ "$bname" = "index.md" ] && echo "$(basename "$dir")" | grep -qE '^[TV][0-9]+[a-z]*$'; then
+    TASK_FILENAME="$(basename "$dir")"
+    parent="$(dirname "$dir")"
+    if [ "$(basename "$parent")" = "pr-release" ]; then
+      TASKS_DIR="$(dirname "$parent")"
+    else
+      TASKS_DIR="$parent"
+    fi
+  else
+    TASK_FILENAME="$bname"
+    if [ "$(basename "$dir")" = "pr-release" ]; then
+      TASKS_DIR="$(dirname "$dir")"
+    else
+      TASKS_DIR="$dir"
+    fi
+  fi
+  ANCHOR_TYPE="task"
+}
 
 # Path 1 — Epic-level
 for company_specs_dir in "$SPECS_ROOT"/companies/*/; do
@@ -286,25 +336,22 @@ if [ -z "$ANCHOR" ] && is_task_key "$TICKET"; then
   # We match: tasks/{TICKET}.md  or  tasks/pr-release/{TICKET}.md
   while IFS= read -r f; do
     bname="$(basename "$f")"
-    stem="${bname%.md}"
+    if [ "$bname" = "index.md" ]; then
+      stem="$(basename "$(dirname "$f")")"
+    else
+      stem="${bname%.md}"
+    fi
     if [ "$stem" = "$TICKET" ]; then
-      ANCHOR="$f"
-      TASK_FILENAME="$bname"
-      # Determine TASKS_DIR: strip /pr-release/ suffix if present
-      dir="$(dirname "$f")"
-      if [ "$(basename "$dir")" = "pr-release" ]; then
-        TASKS_DIR="$(dirname "$dir")"
-      else
-        TASKS_DIR="$dir"
-      fi
-      ANCHOR_TYPE="task"
+      set_task_anchor_from_file "$f"
       break
     fi
   done < <(find "$SPECS_ROOT" \
     \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
     -o \( -type f \( \
       -path "*/tasks/${TICKET}.md" \
+      -o -path "*/tasks/${TICKET}/index.md" \
       -o -path "*/tasks/pr-release/${TICKET}.md" \
+      -o -path "*/tasks/pr-release/${TICKET}/index.md" \
     \) -print \) 2>/dev/null)
 fi
 
@@ -314,18 +361,12 @@ if [ -z "$ANCHOR" ] && echo "$TICKET" | grep -qE '^DP-[0-9]{3}-T[0-9]+[a-z]*$'; 
   task_stem="$(printf '%s' "$TICKET" | sed -E 's/^DP-[0-9]{3}-(T[0-9]+[a-z]*)$/\1/')"
   for f in \
     "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/"$task_stem".md \
-    "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/pr-release/"$task_stem".md
+    "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/"$task_stem"/index.md \
+    "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/pr-release/"$task_stem".md \
+    "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/pr-release/"$task_stem"/index.md
   do
     [ -f "$f" ] || continue
-    ANCHOR="$f"
-    TASK_FILENAME="$(basename "$f")"
-    dir="$(dirname "$f")"
-    if [ "$(basename "$dir")" = "pr-release" ]; then
-      TASKS_DIR="$(dirname "$dir")"
-    else
-      TASKS_DIR="$dir"
-    fi
-    ANCHOR_TYPE="task"
+    set_task_anchor_from_file "$f"
     break
   done
 fi
@@ -340,15 +381,7 @@ if [ -z "$ANCHOR" ]; then
       parsed_jira="$(bash "$PARSE_TASK_MD" "$f" --no-resolve --field jira_key 2>/dev/null || true)"
     fi
     if [ "$parsed_jira" = "$TICKET" ] || grep -Eq "^> .*JIRA: ${TICKET}([[:space:]]|\$|\|)" "$f"; then
-      ANCHOR="$f"
-      TASK_FILENAME="$(basename "$f")"
-      dir="$(dirname "$f")"
-      if [ "$(basename "$dir")" = "pr-release" ]; then
-        TASKS_DIR="$(dirname "$dir")"
-      else
-        TASKS_DIR="$dir"
-      fi
-      ANCHOR_TYPE="task"
+      set_task_anchor_from_file "$f"
       break
     fi
   done < <(find "$SPECS_ROOT" \
@@ -356,8 +389,12 @@ if [ -z "$ANCHOR" ]; then
     -o \( -type f \( \
       -path "*/tasks/T*.md" \
       -o -path "*/tasks/V*.md" \
+      -o -path "*/tasks/T*/index.md" \
+      -o -path "*/tasks/V*/index.md" \
       -o -path "*/tasks/pr-release/T*.md" \
       -o -path "*/tasks/pr-release/V*.md" \
+      -o -path "*/tasks/pr-release/T*/index.md" \
+      -o -path "*/tasks/pr-release/V*/index.md" \
     \) -print \) 2>/dev/null)
 fi
 
@@ -399,37 +436,66 @@ ACTIVE_PATH="${TASKS_DIR}/${TASK_FILENAME}"
 PR_RELEASE_DIR="${TASKS_DIR}/pr-release"
 PR_RELEASE_PATH="${PR_RELEASE_DIR}/${TASK_FILENAME}"
 
+task_status_file() {
+  local path="$1"
+  if [ -d "$path" ]; then
+    printf '%s/index.md' "$path"
+  else
+    printf '%s' "$path"
+  fi
+}
+
+task_path_exists() {
+  [ -f "$1" ] || [ -d "$1" ]
+}
+
+task_paths_same_content() {
+  local left="$1"
+  local right="$2"
+  if [ -f "$left" ] && [ -f "$right" ]; then
+    cmp -s "$left" "$right"
+    return $?
+  fi
+  if [ -d "$left" ] && [ -d "$right" ]; then
+    diff -qr "$left" "$right" >/dev/null
+    return $?
+  fi
+  return 1
+}
+
 # Determine current state
 active_exists=0
 pr_release_exists=0
-[ -f "$ACTIVE_PATH" ]   && active_exists=1
-[ -f "$PR_RELEASE_PATH" ] && pr_release_exists=1
+task_path_exists "$ACTIVE_PATH" && active_exists=1
+task_path_exists "$PR_RELEASE_PATH" && pr_release_exists=1
 
 # Case: already in pr-release/, not in active → check status, update if needed
 if [ "$pr_release_exists" -eq 1 ] && [ "$active_exists" -eq 0 ]; then
-  existing_status="$(get_existing_status "$PR_RELEASE_PATH")"
+  PR_RELEASE_STATUS_FILE="$(task_status_file "$PR_RELEASE_PATH")"
+  existing_status="$(get_existing_status "$PR_RELEASE_STATUS_FILE")"
   if [ "$existing_status" = "$STATUS" ]; then
     echo "NOOP: $PR_RELEASE_PATH already has status: $STATUS (already moved)"
     exit 0
   fi
-  update_frontmatter_status "$PR_RELEASE_PATH" "$STATUS"
+  update_frontmatter_status "$PR_RELEASE_STATUS_FILE" "$STATUS"
   exit 0
 fi
 
 # Case: both exist — conflict detection
 if [ "$active_exists" -eq 1 ] && [ "$pr_release_exists" -eq 1 ]; then
-  if cmp -s "$ACTIVE_PATH" "$PR_RELEASE_PATH"; then
+  if task_paths_same_content "$ACTIVE_PATH" "$PR_RELEASE_PATH"; then
     # Same content — idempotent reconciliation: remove active copy, proceed
     echo "INFO: tasks/ and pr-release/ copies are identical — removing active copy (idempotent reconciliation)" >&2
-    rm "$ACTIVE_PATH"
+    rm -rf "$ACTIVE_PATH"
     active_exists=0
     # Now update frontmatter in pr-release/
-    existing_status="$(get_existing_status "$PR_RELEASE_PATH")"
+    PR_RELEASE_STATUS_FILE="$(task_status_file "$PR_RELEASE_PATH")"
+    existing_status="$(get_existing_status "$PR_RELEASE_STATUS_FILE")"
     if [ "$existing_status" = "$STATUS" ]; then
       echo "NOOP: $PR_RELEASE_PATH already has status: $STATUS"
       exit 0
     fi
-    update_frontmatter_status "$PR_RELEASE_PATH" "$STATUS"
+    update_frontmatter_status "$PR_RELEASE_STATUS_FILE" "$STATUS"
     exit 0
   else
     # Different content — same-key invariant violation, fail loudly
@@ -453,7 +519,7 @@ if [ "$active_exists" -eq 1 ] && [ "$pr_release_exists" -eq 0 ]; then
   echo "MOVED: $ACTIVE_PATH → $PR_RELEASE_PATH" >&2
 
   # Step 3: update frontmatter in pr-release/ location only
-  update_frontmatter_status "$PR_RELEASE_PATH" "$STATUS"
+  update_frontmatter_status "$(task_status_file "$PR_RELEASE_PATH")" "$STATUS"
   exit 0
 fi
 

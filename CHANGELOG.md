@@ -4,6 +4,12 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.92] - 2026-05-06
+
+### Fixed — folder-native release closeout
+
+- Updated spec closeout marking so folder-native task containers such as `tasks/T6/index.md` move to `tasks/pr-release/T6/index.md` with implemented status.
+
 ## [3.74.91] - 2026-05-06
 
 ### Fixed — folder-native sidebar groups
