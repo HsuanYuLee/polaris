@@ -101,6 +101,16 @@ def root_ticket_key(candidate: dict, mapping: dict) -> str | None:
     return None
 
 
+def root_topic_key(candidate: dict, mapping: dict) -> str | None:
+    url = str(candidate.get("url") or "")
+    mapped = mapping.get(url)
+    if isinstance(mapped, dict) and mapped.get("root_topic_key"):
+        return str(mapped["root_topic_key"])
+    if candidate.get("root_topic_key"):
+        return str(candidate["root_topic_key"])
+    return None
+
+
 def thread_ts(candidate: dict, mapping: dict) -> str | None:
     url = str(candidate.get("url") or "")
     mapped = mapping.get(url)
@@ -183,11 +193,13 @@ def annotate(candidates: list[dict], mapping: dict, offline: bool) -> list[dict]
 
         ticket = ticket_key(candidate)
         root_ticket = root_ticket_key(candidate, mapping)
+        root_topic = root_topic_key(candidate, mapping)
         ts = thread_ts(candidate, mapping)
-        cluster_ticket = root_ticket or ticket
+        cluster_ticket = root_ticket or root_topic or ticket
         cluster_key = f"{ts}:{cluster_ticket}" if ts and cluster_ticket else ""
         candidate["ticket_key"] = ticket
         candidate["root_ticket_key"] = root_ticket
+        candidate["root_topic_key"] = root_topic
         candidate["slack_thread_ts"] = ts
         candidate["cluster_key"] = cluster_key
         candidate["cluster_role"] = "standalone"

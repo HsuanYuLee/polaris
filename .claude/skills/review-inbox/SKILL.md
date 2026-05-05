@@ -52,7 +52,8 @@ dispatch 由 main session 讀取 `dispatch-context-bundle.md` 一次，再把濃
    Slack timestamp 或 ISO date/datetime。
 5. 將 candidates JSON 經 `annotate-review-candidates.py` enrich，補上 sister PR cluster
    metadata 與 `model_tier` semantic class。Slack mapping 若含 `root_ticket_key`，cluster
-   必須優先使用 root ticket，而不是每張 PR 自己的 ticket。
+   必須優先使用 root ticket；若沒有 umbrella ticket 但同一 Slack root message 有可辨識
+   topic，使用 `root_topic_key`；最後才 fallback 到每張 PR 自己的 ticket。
 6. 若 candidates 為空，回報目前沒有需要 review 的 PR 並停止。
 7. 顯示排序後清單；若 config 要求 confirm，等待使用者選擇。
 8. 先用 `build-review-prompt.sh` 產生 review packets + manifest，再用

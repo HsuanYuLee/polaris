@@ -16,7 +16,10 @@ cat > "$mapping" <<'JSON'
 {
   "https://github.com/acme/acme-api/pull/10": {"thread_ts": "1776130982.981829", "root_ticket_key": "DEMO-493"},
   "https://github.com/acme/acme-web/pull/20": {"thread_ts": "1776130982.981829", "root_ticket_key": "DEMO-493"},
-  "https://github.com/acme/acme-ios/pull/30": {"thread_ts": "1776130982.981829", "root_ticket_key": "DEMO-493"}
+  "https://github.com/acme/acme-ios/pull/30": {"thread_ts": "1776130982.981829", "root_ticket_key": "DEMO-493"},
+  "https://github.com/acme/acme-api/pull/60": {"thread_ts": "1777000000.000000", "root_topic_key": "topic:jsbridgeutils-platform-case-insensitive"},
+  "https://github.com/acme/acme-web/pull/70": {"thread_ts": "1777000000.000000", "root_topic_key": "topic:jsbridgeutils-platform-case-insensitive"},
+  "https://github.com/acme/acme-ios/pull/80": {"thread_ts": "1777000000.000000", "root_topic_key": "topic:jsbridgeutils-platform-case-insensitive"}
 }
 JSON
 
@@ -76,6 +79,39 @@ cat > "$candidates" <<'JSON'
     "additions": 500,
     "deletions": 200,
     "files": [{"filename": "src/checkout.ts", "additions": 500, "deletions": 200}]
+  },
+  {
+    "repo": "acme-web",
+    "number": 70,
+    "title": "APP-3983 JsBridgeUtils case insensitive web",
+    "url": "https://github.com/acme/acme-web/pull/70",
+    "author": "fran",
+    "changed_files": 2,
+    "additions": 40,
+    "deletions": 2,
+    "files": [{"filename": "src/js-bridge.ts", "additions": 40, "deletions": 2}]
+  },
+  {
+    "repo": "acme-api",
+    "number": 60,
+    "title": "APP-3984 JsBridgeUtils case insensitive api",
+    "url": "https://github.com/acme/acme-api/pull/60",
+    "author": "fran",
+    "changed_files": 2,
+    "additions": 45,
+    "deletions": 2,
+    "files": [{"filename": "src/js-bridge.ts", "additions": 45, "deletions": 2}]
+  },
+  {
+    "repo": "acme-ios",
+    "number": 80,
+    "title": "APP-3985 JsBridgeUtils case insensitive ios",
+    "url": "https://github.com/acme/acme-ios/pull/80",
+    "author": "fran",
+    "changed_files": 2,
+    "additions": 35,
+    "deletions": 2,
+    "files": [{"filename": "Sources/JsBridge.swift", "additions": 35, "deletions": 2}]
   }
 ]
 JSON
@@ -103,6 +139,13 @@ assert by_number[40]["cluster_role"] == "standalone", by_number[40]
 assert by_number[40]["model_tier"] == "small_fast", by_number[40]
 assert by_number[50]["model_tier"] == "standard_coding", by_number[50]
 assert by_number[50]["cluster_key"] == "", by_number[50]
+assert by_number[60]["cluster_role"] == "cluster_lead", by_number[60]
+assert by_number[60]["root_topic_key"] == "topic:jsbridgeutils-platform-case-insensitive", by_number[60]
+assert by_number[70]["cluster_role"] == "cluster_sibling", by_number[70]
+assert by_number[70]["cluster_key"] == "1777000000.000000:topic:jsbridgeutils-platform-case-insensitive", by_number[70]
+assert by_number[70]["model_tier"] == "small_fast", by_number[70]
+assert by_number[80]["cluster_role"] == "cluster_sibling", by_number[80]
+assert by_number[80]["cluster_size"] == 3, by_number[80]
 PY
 
 echo "annotate-review-candidates selftest: PASS"

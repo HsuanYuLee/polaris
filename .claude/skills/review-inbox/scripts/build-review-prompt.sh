@@ -118,6 +118,7 @@ for i in $(seq 0 $((COUNT - 1))); do
   CLUSTER_LEAD_SUMMARY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cluster_lead_summary',''))")
   TICKET_KEY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ticket_key') or '')")
   ROOT_TICKET_KEY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('root_ticket_key') or '')")
+  ROOT_TOPIC_KEY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('root_topic_key') or '')")
   SLACK_THREAD_TS=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('slack_thread_ts') or '')")
 
   # Map review_status to review mode instruction
@@ -151,6 +152,7 @@ Cluster size: ${CLUSTER_SIZE}
 Cluster lead PR: ${CLUSTER_LEAD_URL:-N/A}
 Ticket key: ${TICKET_KEY:-N/A}
 Root ticket key: ${ROOT_TICKET_KEY:-N/A}
+Root topic key: ${ROOT_TOPIC_KEY:-N/A}
 Slack thread_ts: ${SLACK_THREAD_TS:-N/A}
 Runtime adapter policy: Do not dispatch this packet through a general-purpose sub-agent. Use a constrained code-reviewer adapter or execute sequentially in the main session from the runtime plan.
 
@@ -211,7 +213,7 @@ PROMPT
 
   # Build manifest entry
   if [[ $i -gt 0 ]]; then MANIFEST+=","; fi
-  MANIFEST+="{\"file\":\"${PROMPT_FILE}\",\"pr_url\":\"${URL}\",\"number\":${NUMBER},\"repo\":\"${REPO}\",\"model_tier\":\"${MODEL_TIER}\",\"cluster_role\":\"${CLUSTER_ROLE}\",\"cluster_key\":\"${CLUSTER_KEY}\",\"cluster_lead_url\":\"${CLUSTER_LEAD_URL}\",\"ticket_key\":\"${TICKET_KEY}\",\"root_ticket_key\":\"${ROOT_TICKET_KEY}\",\"slack_thread_ts\":\"${SLACK_THREAD_TS}\"}"
+  MANIFEST+="{\"file\":\"${PROMPT_FILE}\",\"pr_url\":\"${URL}\",\"number\":${NUMBER},\"repo\":\"${REPO}\",\"model_tier\":\"${MODEL_TIER}\",\"cluster_role\":\"${CLUSTER_ROLE}\",\"cluster_key\":\"${CLUSTER_KEY}\",\"cluster_lead_url\":\"${CLUSTER_LEAD_URL}\",\"ticket_key\":\"${TICKET_KEY}\",\"root_ticket_key\":\"${ROOT_TICKET_KEY}\",\"root_topic_key\":\"${ROOT_TOPIC_KEY}\",\"slack_thread_ts\":\"${SLACK_THREAD_TS}\"}"
 done
 
 MANIFEST+="]"

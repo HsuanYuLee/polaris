@@ -92,6 +92,7 @@ def step_for(
         "cluster_size": candidate.get("cluster_size", 1),
         "ticket_key": candidate.get("ticket_key"),
         "root_ticket_key": candidate.get("root_ticket_key"),
+        "root_topic_key": candidate.get("root_topic_key"),
         "lead_pr_url": candidate.get("cluster_lead_url", ""),
         "lead_summary_path": lead_summary_path if candidate.get("cluster_key") else "",
         "requires_lead_summary": requires_lead_summary,

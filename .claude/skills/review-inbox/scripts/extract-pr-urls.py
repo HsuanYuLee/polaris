@@ -18,10 +18,51 @@ import json
 import re
 import sys
 import argparse
+import unicodedata
 from datetime import datetime, timezone, timedelta
 
 
 TICKET_RE = re.compile(r"\b(GT-\d+|KB2CW-\d+|[A-Z][A-Z0-9]+-\d+)\b")
+TOPIC_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)?")
+GENERIC_TOPIC_TOKENS = {
+    "a",
+    "an",
+    "and",
+    "approve",
+    "author",
+    "b2c",
+    "bridge",
+    "code",
+    "cross",
+    "for",
+    "help",
+    "hi",
+    "ios",
+    "js",
+    "lu",
+    "m",
+    "member",
+    "message",
+    "mobile",
+    "native",
+    "nuxt",
+    "patch",
+    "pc",
+    "please",
+    "pr",
+    "pray",
+    "pull",
+    "repo",
+    "review",
+    "skin",
+    "thanks",
+    "team",
+    "the",
+    "these",
+    "this",
+    "tone",
+    "web",
+}
 
 
 def parse_args():
@@ -52,6 +93,53 @@ def root_ticket_key_for_text(text):
     prefix = text[:first_url.start()] if first_url else text
     match = TICKET_RE.search(prefix)
     return match.group(1) if match else None
+
+
+def org_topic_tokens(org):
+    """Return generic org fragments that should not become topic keys."""
+    return {
+        token
+        for token in re.split(r"[^A-Za-z0-9]+", org.lower())
+        if len(token) >= 2
+    }
+
+
+def root_topic_key_for_text(text, org=""):
+    """Return a deterministic topic key for topic-only multi-PR Slack root messages."""
+    first_url = re.search(r'https://github\.com/[^/|>\s]+/[^/|>\s]+/pull/\d+', text)
+    prefix = text[:first_url.start()] if first_url else text
+    prefix = unicodedata.normalize("NFKC", prefix)
+    prefix = TICKET_RE.sub(" ", prefix)
+    prefix = re.sub(r"<@[^>]+>", " ", prefix)
+    prefix = re.sub(r":[A-Za-z0-9_+\-]+:", " ", prefix)
+    prefix = re.sub(r"[*_~`|>#\[\](){}]", " ", prefix)
+    tokens = []
+    has_strong_topic_signal = False
+    for match in TOPIC_TOKEN_RE.finditer(prefix):
+        raw = match.group(0)
+        if "." in raw or re.search(r"[a-z][A-Z]", raw):
+            has_strong_topic_signal = True
+        lowered = raw.lower().replace("_", "-")
+        if lowered in GENERIC_TOPIC_TOKENS or lowered in org_topic_tokens(org):
+            continue
+        if len(lowered) < 3 and "." not in lowered:
+            continue
+        tokens.append(lowered)
+    if not tokens or not has_strong_topic_signal:
+        return None
+
+    # Keep a compact, readable key. The Slack thread_ts still scopes uniqueness.
+    deduped = []
+    seen = set()
+    for token in tokens:
+        slug = re.sub(r"[^a-z0-9]+", "-", token).strip("-")
+        if not slug or slug in seen:
+            continue
+        seen.add(slug)
+        deduped.append(slug)
+        if len(deduped) >= 6:
+            break
+    return f"topic:{'-'.join(deduped)}" if deduped else None
 
 
 def extract_from_messages(messages_text, org):
@@ -100,6 +188,7 @@ def extract_from_messages(messages_text, org):
             # Strip display name suffixes (e.g. " (WFH)") — keep first word(s)
             author = re.sub(r'\s*\([^)]*\)\s*$', '', author_raw).strip()
             root_ticket_key = root_ticket_key_for_text(body)
+            root_topic_key = None if root_ticket_key else root_topic_key_for_text(body, org)
 
             urls_in_block = pr_url_pattern.findall(body)
             for url in urls_in_block:
@@ -113,6 +202,8 @@ def extract_from_messages(messages_text, org):
                     }
                     if root_ticket_key:
                         mapping[url]["root_ticket_key"] = root_ticket_key
+                    if root_topic_key:
+                        mapping[url]["root_topic_key"] = root_topic_key
             i += 3
     else:
         # Legacy format: split by [YYYY-MM-DD HH:MM:SS CST]
@@ -130,6 +221,7 @@ def extract_from_messages(messages_text, org):
 
             slack_ts = timestamp_to_slack_ts(ts_str) if ts_str else None
             root_ticket_key = root_ticket_key_for_text(content)
+            root_topic_key = None if root_ticket_key else root_topic_key_for_text(content, org)
 
             lines = content.split('\n')
             author = "unknown"
@@ -152,6 +244,8 @@ def extract_from_messages(messages_text, org):
                     }
                     if root_ticket_key:
                         mapping[url]["root_ticket_key"] = root_ticket_key
+                    if root_topic_key:
+                        mapping[url]["root_topic_key"] = root_topic_key
 
     return ordered_urls, mapping
 
@@ -170,6 +264,7 @@ def extract_urls_for_thread(text, org, thread_ts):
     ordered_urls = []
     mapping = {}
     root_ticket_key = root_ticket_key_for_text(text)
+    root_topic_key = None if root_ticket_key else root_topic_key_for_text(text, org)
 
     for match in pr_url_pattern.finditer(text):
         url = re.sub(r'#.*$', '', match.group())
@@ -179,6 +274,8 @@ def extract_urls_for_thread(text, org, thread_ts):
             mapping[url] = {"thread_ts": thread_ts}
             if root_ticket_key:
                 mapping[url]["root_ticket_key"] = root_ticket_key
+            if root_topic_key:
+                mapping[url]["root_topic_key"] = root_topic_key
 
     return ordered_urls, mapping
 
@@ -207,6 +304,7 @@ def extract_from_webapi_messages(messages, org):
         thread_ts = msg.get("thread_ts") or message_ts
         author = msg.get("user", "unknown")
         root_ticket_key = root_ticket_key_for_text(text)
+        root_topic_key = None if root_ticket_key else root_topic_key_for_text(text, org)
 
         for match in pr_url_pattern.finditer(text):
             url = re.sub(r'#.*$', '', match.group())
@@ -220,6 +318,8 @@ def extract_from_webapi_messages(messages, org):
             }
             if root_ticket_key:
                 mapping[url]["root_ticket_key"] = root_ticket_key
+            if root_topic_key:
+                mapping[url]["root_topic_key"] = root_topic_key
 
     return ordered_urls, mapping
 

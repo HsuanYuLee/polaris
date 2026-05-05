@@ -48,8 +48,8 @@ runtime measurement 顯示固定 Agent envelope 會壓過 prompt-side token savi
 - deterministic handbook resolver 輸出的 verified project handbook paths；空清單時明確寫
   no project handbook，且不可掃 repo guideline folders。
 - `model_tier` semantic class hint。
-- `cluster_role`, `cluster_key`, `root_ticket_key`, `cluster_lead_url`，以及 sibling PR
-  可用的 lead summary。
+- `cluster_role`, `cluster_key`, `root_ticket_key`, `root_topic_key`, `cluster_lead_url`，
+  以及 sibling PR 可用的 lead summary。
 - Runtime adapter policy：不得使用 general-purpose sub-agent；只能使用 constrained
   code-reviewer adapter，或由 main session 依 runtime plan sequential 執行。
 - Completion Envelope requirement。

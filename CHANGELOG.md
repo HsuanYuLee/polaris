@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.77] - 2026-05-05
+
+### Fixed — topic-only review-inbox clustering
+
+- Slack PR extraction now records a deterministic `root_topic_key` when a multi-PR root message has no umbrella ticket but does have a topic signal.
+- Review candidate annotation now clusters by `root_ticket_key`, then `root_topic_key`, then per-PR ticket key, fixing topic-only cross-repo false splits.
+- Review packets and runtime plans now carry `root_topic_key` metadata for cluster diagnostics.
+
 ## [3.74.76] - 2026-05-05
 
 ### Fixed — workspace language authoring default
