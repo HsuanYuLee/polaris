@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.88] - 2026-05-06
+
+### Added — spec container migration helper
+
+- Added a dry-run-first migration helper for moving legacy DP, company spec, and task files into folder-native `index.md` layouts.
+- Added collision, active/archive, relative link rewrite, and legacy evidence bundle cleanup guards.
+- Documented the folder-native migration lifecycle in the shared spec source resolver reference.
+
 ## [3.74.87] - 2026-05-06
 
 ### Added — folder-native producer defaults

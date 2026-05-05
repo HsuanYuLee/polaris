@@ -193,6 +193,32 @@ scripts/polaris-toolchain.sh run docs.viewer.dev
 scripts/polaris-toolchain.sh run docs.viewer.doctor
 ```
 
+## Folder-Native Migration
+
+Legacy specs 轉 folder-native layout 必須使用 deterministic migration helper，不可手動批次搬檔：
+
+```bash
+bash scripts/migrate-spec-container-layout.sh --dry-run
+bash scripts/migrate-spec-container-layout.sh --apply
+```
+
+預設只處理 active namespace；archive 需要明確 opt-in：
+
+```bash
+bash scripts/migrate-spec-container-layout.sh --apply --include-archive
+```
+
+Migration rules：
+
+- DP `plan.md` 轉為 `index.md`。
+- company spec `refinement.md` 轉為 `index.md`。
+- task work order `tasks/Tn.md` / `tasks/Vn.md` 轉為 `tasks/Tn/index.md` / `tasks/Vn/index.md`。
+- `tasks/pr-release/Tn.md` 同樣可轉為 folder-native completed task。
+- 任何 legacy 與 folder-native target collision 必須 blocked，不可覆寫。
+- task file 移入子資料夾時，relative Markdown links 需改寫到新的相對層級。
+- `--cleanup-legacy-bundles` 只有在 bundle 已有 `assets/`、`links.json`、`publication-manifest.json`
+  與 `verify-report.md` 時可移除 legacy copied files；缺任一條件必須 blocked。
+
 ## Section Ownership
 
 這個 section ownership rule 防止 `refinement` 與 `breakdown` 競爭同一份 DP content。
