@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.63] - 2026-05-05
+
+### Fixed — tracked specs leak guard
+
+- 新增 `gate-no-tracked-specs.sh` 與 selftest，禁止
+  `docs-manager/src/content/docs/specs/**` 被 `git add -f` 納入 workspace PR。
+- 將 gate 接進 PR create、guarded commit、pre-commit 與 pre-push hook。
+- 從 workspace git index 移除既有 tracked specs，維持 specs 為 local-only
+  canonical source。
+
 ## [3.74.62] - 2026-05-05
 
 ### Fixed — release closeout archive target

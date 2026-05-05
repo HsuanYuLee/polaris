@@ -37,6 +37,7 @@ PY
 )"
 
 "$ROOT_DIR/scripts/gates/gate-commit-language.sh" --repo "${GATE_PROJECT_DIR:-$(pwd)}" --command "$commit_cmd"
+"$ROOT_DIR/scripts/gates/gate-no-tracked-specs.sh" --repo "${GATE_PROJECT_DIR:-$(pwd)}"
 "$ADAPTER" "$ROOT_DIR/.claude/hooks/ci-local-gate.sh" "$commit_cmd"
 "$ADAPTER" "$ROOT_DIR/.claude/hooks/version-docs-lint-gate.sh" "$commit_cmd"
 

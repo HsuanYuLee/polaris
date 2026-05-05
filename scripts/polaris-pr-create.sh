@@ -140,19 +140,22 @@ fi
 # Gate 3: ci-local (always)
 run_gate gate-ci-local.sh --repo "$REPO_PATH"
 
-# Gate 4: Developer PR title (managed task branches only)
+# Gate 4: local-only docs-manager specs must not be tracked.
+run_gate gate-no-tracked-specs.sh --repo "$REPO_PATH"
+
+# Gate 5: Developer PR title (managed task branches only)
 if [[ "$IS_TICKET_BRANCH" -eq 1 && -n "$PR_TITLE" ]]; then
   run_gate gate-pr-title.sh --repo "$REPO_PATH" --title "$PR_TITLE"
 fi
 
-# Gate 5: PR body preserves repo pull request template headings.
+# Gate 6: PR body preserves repo pull request template headings.
 if [[ "$PR_BODY_SOURCE" == "file" ]]; then
   run_gate gate-pr-body-template.sh --repo "$REPO_PATH" --body-file "$PR_BODY_FILE"
 elif [[ "$PR_BODY_SOURCE" == "body" ]]; then
   run_gate gate-pr-body-template.sh --repo "$REPO_PATH" --body "$PR_BODY"
 fi
 
-# Gate 6: PR title/body language policy via gate-pr-language.sh
+# Gate 7: PR title/body language policy via gate-pr-language.sh
 # (central wrapper around validate-language-policy.sh).
 if [[ -n "$PR_TITLE" || "$PR_BODY_SOURCE" == "file" || "$PR_BODY_SOURCE" == "body" ]]; then
   if [[ "$PR_BODY_SOURCE" == "file" ]]; then
@@ -164,7 +167,7 @@ if [[ -n "$PR_TITLE" || "$PR_BODY_SOURCE" == "file" || "$PR_BODY_SOURCE" == "bod
   fi
 fi
 
-# Gate 7: task changeset (managed task branches in changeset repos)
+# Gate 8: task changeset (managed task branches in changeset repos)
 if [[ "$IS_TICKET_BRANCH" -eq 1 ]]; then
   run_gate gate-changeset.sh --repo "$REPO_PATH"
 fi

@@ -62,6 +62,11 @@ if [[ -x "$GATES_DIR/gate-version-lint.sh" ]]; then
   bash "$GATES_DIR/gate-version-lint.sh" --repo "$REPO_ROOT"
 fi
 
+# Gate: no tracked docs-manager specs
+if [[ -x "$GATES_DIR/gate-no-tracked-specs.sh" ]]; then
+  bash "$GATES_DIR/gate-no-tracked-specs.sh" --repo "$REPO_ROOT"
+fi
+
 # Gate: artifact-schema (task.md + refinement.json + refinement inbox)
 if [[ -x "$GATES_DIR/gate-artifact-schema.sh" ]]; then
   bash "$GATES_DIR/gate-artifact-schema.sh" --repo "$REPO_ROOT"
@@ -85,6 +90,11 @@ GATES_DIR="$REPO_ROOT/scripts/gates"
 # Gate: ci-local (push-mode: only task/fix branches)
 if [[ -x "$GATES_DIR/gate-ci-local.sh" ]]; then
   bash "$GATES_DIR/gate-ci-local.sh" --repo "$REPO_ROOT" --push-mode
+fi
+
+# Gate: no tracked docs-manager specs
+if [[ -x "$GATES_DIR/gate-no-tracked-specs.sh" ]]; then
+  bash "$GATES_DIR/gate-no-tracked-specs.sh" --repo "$REPO_ROOT"
 fi
 
 # Gate: revision-rebase (existing PR pushes only)
