@@ -52,6 +52,18 @@ First-cut 不再需要獨立 pre-development rebase；branch setup 已從 resolv
 
 Migration blocker 不可被當作 skip reason。
 
+## Behavior Baseline
+
+若 task.md 宣告 `verification.behavior_contract.applies: true`，先讀
+`behavior-contract.md`。`mode=parity` 或 `mode=hybrid` 時，implementation 前必須先跑：
+
+```bash
+bash "${POLARIS_ROOT}/scripts/run-behavior-contract.sh" --task-md "<path/to/task.md>" --mode baseline
+```
+
+已施工或 resume 場景若沒有 before evidence，runner 會依 `baseline_ref` 建 temp worktree
+補錄 baseline。缺 baseline 不可繼續完成 delivery。
+
 ## Delivery
 
 開發完成後讀 `engineer-delivery-flow.md`，Role = Developer；若命中 local extension，
@@ -63,6 +75,7 @@ Developer path：
 - Scope gate。
 - `ci-local.sh`。
 - `run-verify-command.sh`。
+- `run-behavior-contract.sh --mode compare` if behavior contract applies。
 - post-implementation flow gap audit。
 - VR if triggered。
 - base freshness。

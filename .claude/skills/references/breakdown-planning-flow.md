@@ -74,10 +74,21 @@ Step 8 preview 前，每張 task 必須有：
 - 每個 gate 的 pass condition。
 - owner / planner decision。
 - readiness blocker handling。
+- behavior contract：每張 task 必須能判斷 `applies=true/false`；若 `applies=true`，
+  必須決定 `parity` / `visual_target` / `pm_flow` / `hybrid`，不可留 unknown。
 - Test Environment 與 Verify Command。
 
 Repo-wide baseline/env drift 沒 owner 時，新增 prerequisite / wait / baseline decision
 或 route refinement；不得把必失敗 task 標 READY。
+
+Behavior contract 決策來源：
+
+- 改造、替換、migration、refactor 類需求，預設是前後行為不變，使用 `parity`。
+- 有 Figma 或明確設計目標時，使用 `visual_target`，並在 task.md 指向設計來源。
+- PM 給操作流程但未要求視覺 parity 時，使用 `pm_flow`。
+- 舊行為需維持但有刻意可見差異時，使用 `hybrid` 並列出允許差異。
+
+若需求資訊不足以決定上述模式，Constructability Gate fail，回 refinement 補決策。
 
 ## User Confirmation Preview
 

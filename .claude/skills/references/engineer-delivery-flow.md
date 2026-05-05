@@ -614,10 +614,13 @@ Before creating PR、local extension handoff、或 post-PR release handoff，驗
 | A (CI) | `/tmp/polaris-ci-local-{branch}-{head_sha}.json` | Always（if `ci-local.sh` exists） |
 | B (Verify) | `/tmp/polaris-verified-{ticket-or-task-id}-{head_sha}.json` | Developer / Local Extension with verify_command |
 | C (VR) | `/tmp/polaris-vr-{ticket}-{head_sha}.json` | Only if Step 3.5 triggered |
+| D (Behavior) | `/tmp/polaris-behavior-{ticket}-{head_sha}-{context_hash}.json` | Only if `verification.behavior_contract.applies=true` |
 
 Missing 或 stale evidence → **halt**。不繼續 PR creation、local extension handoff、或 post-PR release handoff。
+Behavior contract evidence 由 `scripts/run-behavior-contract.sh` 產生；`parity` / `hybrid`
+先跑 `--mode baseline`，delivery 前跑 `--mode compare`。
 
-**Portable gate fallback**：`gate-evidence.sh` + `gate-ci-local.sh` 在 git pre-push 及 `polaris-pr-create.sh` wrapper 中也強制檢查；`gate-pr-title.sh` + `gate-changeset.sh` 在 `polaris-pr-create.sh` 與 completion gate 中強制檢查；`gate-pr-body-template.sh` 在 `polaris-pr-create.sh` 中阻擋未保留 repo template headings 的 body。Completion gate 會重新讀 deliverable 的 remote PR metadata/body，確認 PR readiness（`state=OPEN`、`isDraft=false`）、remote PR body template conformance、remote PR body language policy，以及 local visual / Playwright behavior evidence 是否已發布成 PR-visible publication comment；裸 `gh pr create`、`gh pr create --draft`、PR 建立後 body drift、或 local-only 截圖/影片 evidence 都不能成為 completion endpoint。若需要人工上傳，先使用 `collect-evidence-upload-bundle.sh` 產生 `artifacts/{WORK_ITEM_ID}-pr-upload/`，再由使用者把檔案拖到 PR comment 並保留 publication marker。Skill-level check here is **L2 cross-LLM authoritative**（所有 LLM 都走 SKILL.md → 一定到這步）。
+**Portable gate fallback**：`gate-evidence.sh` + `gate-ci-local.sh` 在 git pre-push 及 `polaris-pr-create.sh` wrapper 中也強制檢查；`gate-pr-title.sh` + `gate-changeset.sh` 在 `polaris-pr-create.sh` 與 completion gate 中強制檢查；`gate-pr-body-template.sh` 在 `polaris-pr-create.sh` 中阻擋未保留 repo template headings 的 body。Completion gate 會重新讀 deliverable 的 remote PR metadata/body，確認 PR readiness（`state=OPEN`、`isDraft=false`）、remote PR body template conformance、remote PR body language policy，以及 local visual / Playwright / behavior contract evidence 是否已發布成 PR-visible publication comment；裸 `gh pr create`、`gh pr create --draft`、PR 建立後 body drift、或 local-only 截圖/影片 evidence 都不能成為 completion endpoint。若需要人工上傳，先使用 `collect-evidence-upload-bundle.sh` 產生 `artifacts/{WORK_ITEM_ID}-pr-upload/`，再由使用者把檔案拖到 PR comment 並保留 publication marker。Skill-level check here is **L2 cross-LLM authoritative**（所有 LLM 都走 SKILL.md → 一定到這步）。
 
 ### 7b. 讀 PR template
 

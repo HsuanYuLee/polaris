@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Selftest for task.md verification.visual_regression schema enforcement.
+# Selftest for task.md verification.visual_regression and behavior_contract schema enforcement.
 
 set -euo pipefail
 
@@ -164,4 +164,107 @@ no_vr_static="$tmpdir/T1-no-vr-static.md"
 write_task "$no_vr_static" "" "static" "N/A" "N/A"
 expect_pass "no-vr-static" "$no_vr_static"
 
-echo "PASS: task.md VR metadata validator selftest"
+behavior_false="$tmpdir/T1-behavior-false.md"
+write_task "$behavior_false" 'verification:
+  behavior_contract:
+    applies: false
+    reason: "static documentation task"' "static" "N/A" "N/A"
+expect_pass "behavior-false" "$behavior_false"
+
+behavior_parity="$tmpdir/T1-behavior-parity.md"
+write_task "$behavior_parity" 'verification:
+  behavior_contract:
+    applies: true
+    mode: parity
+    source_of_truth: existing_behavior
+    fixture_policy: mockoon_required
+    baseline_ref: develop
+    target_url: "/zh-tw/product/12156"
+    viewport: mobile
+    flow: "open media lightbox, swipe next, close"
+    assertions:
+      - "modal visible"
+      - "counter changes after swipe"
+    allowed_differences: []' "runtime" "http://127.0.0.1:3100" "bash scripts/start-test-env.sh"
+expect_pass "behavior-parity" "$behavior_parity"
+
+behavior_visual_target="$tmpdir/T1-behavior-visual-target.md"
+write_task "$behavior_visual_target" 'verification:
+  behavior_contract:
+    applies: true
+    mode: visual_target
+    source_of_truth: figma
+    fixture_policy: mockoon_required
+    flow: "open target screen and compare against design"
+    assertions: ["target screen visible"]' "runtime" "http://127.0.0.1:3100" "bash scripts/start-test-env.sh"
+expect_pass "behavior-visual-target" "$behavior_visual_target"
+
+behavior_pm_flow="$tmpdir/T1-behavior-pm-flow.md"
+write_task "$behavior_pm_flow" 'verification:
+  behavior_contract:
+    applies: true
+    mode: pm_flow
+    source_of_truth: pm_flow
+    fixture_policy: live_allowed
+    flow: "complete PM-provided checkout steps"
+    assertions:
+      - "checkout reaches confirmation"' "runtime" "http://127.0.0.1:3100" "bash scripts/start-test-env.sh"
+expect_pass "behavior-pm-flow" "$behavior_pm_flow"
+
+behavior_hybrid="$tmpdir/T1-behavior-hybrid.md"
+write_task "$behavior_hybrid" 'verification:
+  behavior_contract:
+    applies: true
+    mode: hybrid
+    source_of_truth: spec
+    fixture_policy: mockoon_required
+    flow: "open media lightbox, swipe next, close"
+    assertions:
+      - "modal visible"
+    allowed_differences:
+      - "thumbnail pagination position follows the new spec"' "runtime" "http://127.0.0.1:3100" "bash scripts/start-test-env.sh"
+expect_pass "behavior-hybrid" "$behavior_hybrid"
+
+behavior_unknown="$tmpdir/T1-behavior-unknown.md"
+write_task "$behavior_unknown" 'verification:
+  behavior_contract:
+    applies: true
+    mode: unknown
+    source_of_truth: existing_behavior
+    fixture_policy: mockoon_required
+    flow: "open media lightbox"
+    assertions:
+      - "modal visible"' "runtime" "http://127.0.0.1:3100" "bash scripts/start-test-env.sh"
+expect_fail_contains "behavior-unknown" "$behavior_unknown" "verification.behavior_contract.mode"
+
+behavior_missing_source="$tmpdir/T1-behavior-missing-source.md"
+write_task "$behavior_missing_source" 'verification:
+  behavior_contract:
+    applies: true
+    mode: parity
+    fixture_policy: mockoon_required
+    flow: "open media lightbox"
+    assertions:
+      - "modal visible"' "runtime" "http://127.0.0.1:3100" "bash scripts/start-test-env.sh"
+expect_fail_contains "behavior-missing-source" "$behavior_missing_source" "verification.behavior_contract.source_of_truth"
+
+behavior_hybrid_no_diff="$tmpdir/T1-behavior-hybrid-no-diff.md"
+write_task "$behavior_hybrid_no_diff" 'verification:
+  behavior_contract:
+    applies: true
+    mode: hybrid
+    source_of_truth: spec
+    fixture_policy: mockoon_required
+    flow: "open media lightbox"
+    assertions:
+      - "modal visible"
+    allowed_differences: []' "runtime" "http://127.0.0.1:3100" "bash scripts/start-test-env.sh"
+expect_fail_contains "behavior-hybrid-no-diff" "$behavior_hybrid_no_diff" "verification.behavior_contract.allowed_differences"
+
+behavior_false_missing_reason="$tmpdir/T1-behavior-false-missing-reason.md"
+write_task "$behavior_false_missing_reason" 'verification:
+  behavior_contract:
+    applies: false' "static" "N/A" "N/A"
+expect_fail_contains "behavior-false-missing-reason" "$behavior_false_missing_reason" "verification.behavior_contract.reason"
+
+echo "PASS: task.md VR and behavior contract metadata validator selftest"

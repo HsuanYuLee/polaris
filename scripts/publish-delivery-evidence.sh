@@ -183,6 +183,35 @@ if behavior_file.is_file():
         errors.append(f"Playwright behavior evidence requires video reference: {behavior_file}")
     add_item("playwright_behavior", behavior_file, required=True, metadata={"video_refs": video_refs})
 
+behavior_dir = evidence_root / "behavior" / safe_ticket
+if behavior_dir.is_dir():
+    for behavior_evidence in sorted(behavior_dir.glob(f"polaris-behavior-{safe_ticket}-{head_sha}-*.json")):
+        media_refs = []
+        video_refs = []
+        try:
+            data = json.loads(behavior_evidence.read_text(encoding="utf-8"))
+            if data.get("writer") != "run-behavior-contract.sh":
+                errors.append(f"Behavior evidence writer mismatch: {behavior_evidence}")
+            if data.get("ticket") != ticket:
+                errors.append(f"Behavior evidence ticket mismatch: {behavior_evidence}")
+            if data.get("head_sha") != head_sha:
+                errors.append(f"Behavior evidence head mismatch: {behavior_evidence}")
+            if data.get("mode") != "compare" or data.get("status") != "PASS":
+                errors.append(f"Behavior evidence must be compare PASS: {behavior_evidence}")
+            media_refs.extend(str(ref) for ref in data.get("screenshots", []) if str(ref).strip())
+            media_refs.extend(str(ref) for ref in data.get("videos", []) if str(ref).strip())
+            video_refs.extend(str(ref) for ref in data.get("videos", []) if str(ref).strip())
+        except Exception as exc:
+            errors.append(f"Behavior evidence is not valid JSON: {behavior_evidence}: {exc}")
+        if not video_refs:
+            errors.append(f"Behavior evidence requires video reference: {behavior_evidence}")
+        add_item(
+            "behavior",
+            behavior_evidence,
+            required=True,
+            metadata={"media_refs": media_refs, "video_refs": video_refs},
+        )
+
 requires_publication = any(item.get("requires_publication") for item in items)
 manifest = {
     "schema_version": 1,

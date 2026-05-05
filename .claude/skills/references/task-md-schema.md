@@ -78,10 +78,13 @@ jira_transition_log:        # Lifecycle-conditional（DP-033 D7）；engineering
     # 其他欄位 freeform — 各公司 / 各 transition flow 自訂
   - time: 2026-04-26T11:15:00Z
     company_specific_field: ...
-verification:               # Optional；breakdown 可宣告 runtime visual evidence 需求
+verification:               # Optional；breakdown 可宣告 runtime visual / behavior evidence 需求
   visual_regression:
     expected: none_allowed   # none_allowed | baseline_required | update_baseline
     pages: []                # [] = 使用 workspace config pages；非空 = page subset
+  behavior_contract:
+    applies: false
+    reason: "static documentation task"
 ---
 ```
 
@@ -94,6 +97,7 @@ verification:               # Optional；breakdown 可宣告 runtime visual evid
 | `extension_deliverable` | local_extension completion helper（DP-048） | Lifecycle-conditional — local extension completion metadata；可補充真實 workspace PR deliverable 的 post-PR release tail；不得與 fake `deliverable.pr_url` 混用；Layer B evidence path 優先使用 `.polaris/evidence/verify/` durable mirror |
 | `jira_transition_log` | engineering / verify-AC 每次跑 JIRA transition 後 append（成功 / 失敗皆記） | Lifecycle-conditional — 同上 |
 | `verification.visual_regression` | breakdown / refinement 宣告 runtime visual evidence 需求 | Optional；存在時 `expected` 必須是 enum、`pages` 必須是 YAML list，且 `## Test Environment` Level 必須是 `runtime` |
+| `verification.behavior_contract` | breakdown 宣告使用者可見行為驗證意圖 | Optional；存在時必須明確 `applies`。`applies=true` 時不得用 unknown/default，需填 mode、source_of_truth、fixture_policy、flow、assertions |
 
 > Filename 為唯一 type 訊號（DP-033 D2 修正版）— frontmatter **不再有 `type` 欄位**。所有 schema dispatch 都依 filename pattern（T*.md / V*.md），請勿在 frontmatter 加 `type` 欄位。
 >
@@ -127,6 +131,57 @@ verification:
 - `pages` required；必須是 YAML list。`[]` 表示 runner 使用 workspace config 對應 domain 的全部 pages；非空 list 表示只跑 subset。
 - 宣告 `verification.visual_regression` 時，`## Test Environment` 的 `Level` 必須是 `runtime`。
 - Parser 必須輸出 `verification_visual_regression_expected` 與 `verification_visual_regression_pages` field，並在 full JSON 保留 `verification.visual_regression.pages` list 型別。
+
+#### `verification.behavior_contract` schema（DP-109）
+
+當 task 涉及使用者可見 UI / runtime 行為時，breakdown 必須宣告驗證意圖，讓
+engineering 知道要維持既有行為、對齊設計稿，或依 PM 操作 flow 驗證。
+
+```yaml
+verification:
+  behavior_contract:
+    applies: true
+    mode: parity
+    source_of_truth: existing_behavior
+    fixture_policy: mockoon_required
+    baseline_ref: develop
+    target_url: "/zh-tw/product/12156"
+    viewport: mobile
+    flow: "open media lightbox, swipe next, close"
+    assertions:
+      - "modal visible"
+      - "counter changes after swipe"
+    allowed_differences: []
+```
+
+不適用使用者可見 runtime 行為時，仍要能明確宣告不適用：
+
+```yaml
+verification:
+  behavior_contract:
+    applies: false
+    reason: "static documentation task"
+```
+
+規則：
+
+- `applies` required；必須是 `true` 或 `false`。
+- `applies=false` 時，`reason` required。
+- `applies=true` 時，`mode` required；enum：`parity` / `visual_target` / `pm_flow` / `hybrid`。
+- `applies=true` 時，`source_of_truth` required；enum：`existing_behavior` / `figma` / `pm_flow` / `spec`。
+- `applies=true` 時，`fixture_policy` required；enum：`mockoon_required` / `live_allowed` / `static_only`。
+- `applies=true` 時，`flow` required 且不可空白；`assertions` required 且必須是非空 YAML list。
+- `viewport` optional；若存在，必須是 `mobile` / `desktop` / `responsive`。
+- `baseline_ref`、`target_url` optional；若存在，必須是非空字串。
+- `allowed_differences` optional；若存在，必須是 YAML list。`mode=hybrid` 時必須非空。
+- 不允許 `mode=unknown` 或省略 mode 讓 engineering 自行猜測。
+
+Mode 選擇：
+
+- 替換元件、migration、refactor、移除 legacy dependency：使用 `parity`；若有少量刻意可見差異，使用 `hybrid` 並列出 `allowed_differences`。
+- Figma 驅動的畫面變更：使用 `visual_target`，source_of_truth 通常是 `figma`。
+- PM 提供操作 flow，但沒有要求前後畫面 parity：使用 `pm_flow`，source_of_truth 通常是 `pm_flow`。
+- 若需求來源尚未決定應維持既有行為或接受畫面變更，回到 refinement；不得建立 READY task。
 
 #### `deliverable` schema + writer contract（DP-033 D7，atomic + fail-stop）
 
@@ -962,6 +1017,7 @@ echo "verify-AC dispatches AC-1 .. AC-4."
 | `## 改動範圍` / `## 估點理由` / `## 目標` 非空 + Operational Context 含 JIRA key | Implementation single-file (DP-025) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
 | `Depends on` (cell) 非空 ⇒ `Base branch` `task/...` | Implementation single-file (DP-028 cross-field, T mode only) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
 | `## Allowed Files` 章節存在 + 非空 | Implementation single-file (DP-033 D5 升 Hard，無 grace) | `scripts/validate-task-md.sh`（Phase A A2 升級） | 1 / 2 | — |
+| frontmatter `verification.behavior_contract` 欄位形狀（存在時） | Implementation single-file (DP-109 behavior intent) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
 | Lifecycle-conditional 結構（`deliverable` / `extension_deliverable` / `jira_transition_log`） | Implementation single-file (DP-032 D2/D3 + DP-033 D5/D7 + DP-048) | `scripts/validate-task-md.sh`（只在欄位存在時檢查；`deliverable` / `extension_deliverable` 必驗 schema、`jira_transition_log` 寬鬆 list-of-maps） | 1 / 2 | — |
 
 **V mode rules（filename `V*.md`，§ 4 Verification Schema）**：

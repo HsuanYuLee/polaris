@@ -100,6 +100,8 @@ comment 一次中斷。
 - task test command。
 - ci-local。
 - run-verify-command。
+- behavior contract compare；若 `parity` / `hybrid` 缺 baseline，先用
+  `scripts/run-behavior-contract.sh --mode baseline` 依 `baseline_ref` 補錄 before evidence。
 - VR if triggered。
 - base freshness / completion gates。
 

@@ -29,6 +29,7 @@ Implementation Schema 為準。必備內容：
 - Verification Handoff。
 - Goal / scope / allowed files。
 - Acceptance / test plan。
+- Behavior contract。
 - Test Command。
 - Test Environment。
 - Gate Closure Matrix。
@@ -44,6 +45,50 @@ Implementation Schema 為準。必備內容：
 References to load 要只列 engineering 真正需要讀的 references，例如
 `branch-creation.md`、`task-md-schema.md`、project handbook pointer、relevant refinement
 artifact pointer。
+
+## Behavior Contract
+
+每張 implementation task 都要讓 engineering 看得出「行為驗證意圖」。寫在
+frontmatter `verification.behavior_contract`：
+
+- 使用者可見 UI / runtime 行為不適用：填 `applies: false` 與 `reason`。
+- 替換元件、migration、refactor、移除 legacy dependency：預設 `mode: parity`；
+  若允許少量刻意差異，改 `mode: hybrid` 並列出 `allowed_differences`。
+- Figma 驅動的畫面變更：使用 `mode: visual_target`，source_of_truth 通常為 `figma`。
+- PM 提供操作 flow 且沒有要求前後畫面 parity：使用 `mode: pm_flow`，
+  source_of_truth 通常為 `pm_flow`。
+- 需要既有行為維持，但同時有設計或規格允許差異：使用 `mode: hybrid`，不可留空
+  `allowed_differences`。
+
+`applies: true` 時至少填：
+
+```yaml
+verification:
+  behavior_contract:
+    applies: true
+    mode: parity
+    source_of_truth: existing_behavior
+    fixture_policy: mockoon_required
+    baseline_ref: develop
+    target_url: "/zh-tw/product/12156"
+    viewport: mobile
+    flow: "open media lightbox, swipe next, close"
+    assertions:
+      - "modal visible"
+    allowed_differences: []
+```
+
+若 source ticket / refinement artifact 沒有足夠資訊判斷 mode，不建立 READY task；
+回到 refinement 補決策。不得填 `unknown`，也不得把判斷責任留給 engineering。
+
+Active work order backfill 產生的 decision queue 由 breakdown / refinement 消費。處理時只
+能做三種決策：
+
+- 補 `applies: false` 與具體 reason。
+- 補 `applies: true` 與完整 mode / source_of_truth / fixture_policy / flow / assertions。
+- route refinement，要求 PM / RD 補 source of truth。
+
+不得把 queue item 關成 `unknown`，也不得在沒有判斷依據時填假的 parity contract。
 
 ## Verification Task Output
 

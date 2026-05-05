@@ -435,6 +435,167 @@ PY
 }
 
 # ---------------------------------------------------------------------------
+# Helper: validate frontmatter verification.behavior_contract.
+# The validator intentionally uses a small YAML subset parser to avoid adding a
+# PyYAML dependency. Missing behavior_contract is allowed here; producer
+# readiness / migration gates decide when the field is mandatory.
+# ---------------------------------------------------------------------------
+validate_behavior_contract_frontmatter() {
+  local file="$1"
+  python3 - "$file" <<'PY'
+import csv
+import sys
+
+path = sys.argv[1]
+try:
+    lines = open(path, "r", encoding="utf-8").read().splitlines()
+except OSError:
+    raise SystemExit(0)
+
+def parse_scalar(value):
+    value = value.strip()
+    if value == "":
+        return None
+    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+        return value[1:-1]
+    if value == "[]":
+        return []
+    if value.startswith("[") and value.endswith("]"):
+        body = value[1:-1].strip()
+        if not body:
+            return []
+        return [parse_scalar(part.strip()) for part in next(csv.reader([body], skipinitialspace=True))]
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    return value
+
+def extract_frontmatter(all_lines):
+    if not all_lines or all_lines[0].strip() != "---":
+        return []
+    for idx in range(1, len(all_lines)):
+        if all_lines[idx].strip() == "---":
+            return all_lines[1:idx]
+    return []
+
+def extract_behavior_contract(fm_lines):
+    in_verification = False
+    in_behavior = False
+    behavior = None
+    current_list_key = None
+
+    for raw in fm_lines:
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        stripped = raw.strip()
+
+        if indent == 0:
+            in_behavior = False
+            current_list_key = None
+            if ":" not in stripped:
+                in_verification = False
+                continue
+            key, _, value = stripped.partition(":")
+            in_verification = key.strip() == "verification" and value.strip() == ""
+            continue
+
+        if not in_verification:
+            continue
+
+        if indent == 2 and ":" in stripped:
+            current_list_key = None
+            key, _, value = stripped.partition(":")
+            if key.strip() == "behavior_contract":
+                parsed = parse_scalar(value.strip())
+                behavior = {} if parsed is None else parsed
+                in_behavior = isinstance(behavior, dict)
+            else:
+                in_behavior = False
+            continue
+
+        if behavior is None or not isinstance(behavior, dict) or not in_behavior:
+            continue
+
+        if indent == 4 and ":" in stripped:
+            key, _, value = stripped.partition(":")
+            key = key.strip()
+            value = value.strip()
+            if value == "":
+                behavior[key] = []
+                current_list_key = key
+            else:
+                behavior[key] = parse_scalar(value)
+                current_list_key = None
+            continue
+
+        if current_list_key and indent >= 6 and stripped.startswith("- "):
+            behavior[current_list_key].append(parse_scalar(stripped[2:].strip()))
+
+    return behavior
+
+def is_nonempty_string(value):
+    return isinstance(value, str) and value.strip() != ""
+
+bc = extract_behavior_contract(extract_frontmatter(lines))
+if bc is None:
+    raise SystemExit(0)
+
+errors = []
+if not isinstance(bc, dict):
+    errors.append("frontmatter verification.behavior_contract must be a map")
+else:
+    applies = bc.get("applies")
+    if not isinstance(applies, bool):
+        errors.append("frontmatter verification.behavior_contract.applies is required and must be true or false")
+    elif not applies:
+        if not is_nonempty_string(bc.get("reason")):
+            errors.append("frontmatter verification.behavior_contract.reason is required when applies=false")
+    else:
+        mode = bc.get("mode")
+        if mode not in {"parity", "visual_target", "pm_flow", "hybrid"}:
+            errors.append("frontmatter verification.behavior_contract.mode must be parity, visual_target, pm_flow, or hybrid")
+
+        source = bc.get("source_of_truth")
+        if source not in {"existing_behavior", "figma", "pm_flow", "spec"}:
+            errors.append("frontmatter verification.behavior_contract.source_of_truth must be existing_behavior, figma, pm_flow, or spec")
+
+        fixture_policy = bc.get("fixture_policy")
+        if fixture_policy not in {"mockoon_required", "live_allowed", "static_only"}:
+            errors.append("frontmatter verification.behavior_contract.fixture_policy must be mockoon_required, live_allowed, or static_only")
+
+        if "baseline_ref" in bc and not is_nonempty_string(bc.get("baseline_ref")):
+            errors.append("frontmatter verification.behavior_contract.baseline_ref must be a non-empty string when present")
+
+        if "target_url" in bc and not is_nonempty_string(bc.get("target_url")):
+            errors.append("frontmatter verification.behavior_contract.target_url must be a non-empty string when present")
+
+        viewport = bc.get("viewport")
+        if viewport is not None and viewport not in {"mobile", "desktop", "responsive"}:
+            errors.append("frontmatter verification.behavior_contract.viewport must be mobile, desktop, or responsive when present")
+
+        if not is_nonempty_string(bc.get("flow")):
+            errors.append("frontmatter verification.behavior_contract.flow is required when applies=true")
+
+        assertions = bc.get("assertions")
+        if not isinstance(assertions, list) or not assertions:
+            errors.append("frontmatter verification.behavior_contract.assertions must be a non-empty YAML list when applies=true")
+        elif any(not is_nonempty_string(item) for item in assertions):
+            errors.append("frontmatter verification.behavior_contract.assertions entries must be non-empty strings")
+
+        allowed_differences = bc.get("allowed_differences")
+        if allowed_differences is not None and not isinstance(allowed_differences, list):
+            errors.append("frontmatter verification.behavior_contract.allowed_differences must be a YAML list when present")
+        elif mode == "hybrid" and not allowed_differences:
+            errors.append("frontmatter verification.behavior_contract.allowed_differences must be non-empty when mode=hybrid")
+
+for error in errors:
+    print(error)
+PY
+}
+
+# ---------------------------------------------------------------------------
 # Helper: task identity grammar.
 # Product tasks use JIRA keys (PROJ-123). Framework DP-backed tasks use
 # pseudo-task IDs (DP-047-T1) but otherwise follow the same task.md schema.
@@ -950,6 +1111,19 @@ print(urlparse(sys.argv[1]).path or '/')
     if [[ "$level" != "runtime" ]]; then
       errors+=("frontmatter verification.visual_regression requires Test Environment Level=runtime (got: '${level:-<empty>}')")
     fi
+  fi
+
+  # ---------------------------------------------------------------------------
+  # Optional behavior contract metadata: frontmatter verification.behavior_contract.
+  # When declared, it must explicitly say whether runtime/user-visible behavior
+  # verification applies; applies=true has no unknown/default mode.
+  # ---------------------------------------------------------------------------
+  local behavior_contract_errors behavior_contract_error
+  behavior_contract_errors="$(validate_behavior_contract_frontmatter "$FILE")"
+  if [[ -n "$behavior_contract_errors" ]]; then
+    while IFS= read -r behavior_contract_error; do
+      [[ -n "$behavior_contract_error" ]] && errors+=("$behavior_contract_error")
+    done <<< "$behavior_contract_errors"
   fi
 
   if [[ "$mode" == "T" ]] && grep -qF "## Verify Command" "$FILE"; then

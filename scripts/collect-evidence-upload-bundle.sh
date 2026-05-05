@@ -226,6 +226,24 @@ for item in publication.get("items", []):
                     )
                     break
 
+    if item.get("kind") == "behavior":
+        behavior_path = Path(absolute) if absolute else None
+        bases = [repo_root]
+        if behavior_path:
+            bases.insert(0, behavior_path.parent)
+        for ref in item.get("metadata", {}).get("media_refs", []) or []:
+            ref_path = Path(str(ref))
+            candidates = [ref_path] if ref_path.is_absolute() else [base / ref_path for base in bases]
+            for candidate in candidates:
+                if candidate.is_file():
+                    add_source(
+                        "behavior_media",
+                        candidate,
+                        required_publication=True,
+                        note="media reference from behavior contract evidence",
+                    )
+                    break
+
 short_head = head_sha[:12]
 ci_candidates = []
 for pattern in (f"/tmp/polaris-ci-local-*{head_sha}*.json", f"/tmp/polaris-ci-local-*{short_head}*.json"):

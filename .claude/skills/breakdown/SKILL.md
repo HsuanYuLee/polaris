@@ -3,7 +3,7 @@ name: breakdown
 description: "Universal planning skill: Bug reads ROOT_CAUSE then estimates; Story/Task/Epic explores codebase then splits into sub-tasks with estimates, and packs each sub-task into a self-contained task.md work order for engineering to consume. Also handles scope challenge (advisory mode). Trigger: 拆單, 'split tasks', 拆解, 'breakdown', 'break down', 子單, 'sub-tasks', 評估這張單, 'evaluate this ticket', 估點, 'estimate', 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑'."
 metadata:
   author: Polaris
-  version: 3.2.0
+  version: 3.2.1
 ---
 
 # Breakdown — Packer
@@ -25,7 +25,7 @@ to `refinement`。
 - 寫入 task.md 前必須有 explicit user confirmation；沒有確認不可寫 JIRA、branch、
   task.md、sidecar processed flag。
 - task.md 必須能被 `engineering` 單獨消費：Allowed Files、Gate Closure Matrix、
-  Test Environment、Verify Command 都要完整。
+  Behavior Contract、Test Environment、Verify Command 都要完整。
 - 任何 sub-agent dispatch 前讀 `sub-agent-roles.md` 並注入 Completion Envelope。
 - 完成任何 write 後最後跑 Post-Task Reflection。
 

@@ -16,6 +16,7 @@ mkdir -p \
   "$REPO/.polaris/evidence/vr/artifacts/$TICKET/baseline" \
   "$REPO/.polaris/evidence/vr/artifacts/$TICKET/compare" \
   "$REPO/.polaris/evidence/playwright/$TICKET" \
+  "$REPO/.polaris/evidence/behavior/$TICKET/compare-abc123" \
   "$SOURCE"
 
 printf '{"writer":"run-verify-command.sh","head_sha":"%s","status":"PASS"}\n' "$HEAD_SHA" \
@@ -25,11 +26,27 @@ printf '{"writer":"run-visual-snapshot.sh","head_sha":"%s","status":"PASS","mode
 printf 'baseline-image\n' >"$REPO/.polaris/evidence/vr/artifacts/$TICKET/baseline/zh-tw-product-12156.png"
 printf 'compare-image\n' >"$REPO/.polaris/evidence/vr/artifacts/$TICKET/compare/zh-tw-product-12156.png"
 printf 'webm-video\n' >"$REPO/.polaris/evidence/playwright/$TICKET/media-lightbox.webm"
+printf 'behavior-png\n' >"$REPO/.polaris/evidence/behavior/$TICKET/compare-abc123/behavior-screen.png"
+printf 'behavior-webm\n' >"$REPO/.polaris/evidence/behavior/$TICKET/compare-abc123/behavior-video.webm"
 cat >"$REPO/.polaris/evidence/playwright/$TICKET/playwright-behavior-video.json" <<JSON
 {
   "ticket": "$TICKET",
   "head_sha": "$HEAD_SHA",
   "video": "media-lightbox.webm"
+}
+JSON
+cat >"$REPO/.polaris/evidence/behavior/$TICKET/polaris-behavior-${TICKET}-${HEAD_SHA}-abc123.json" <<JSON
+{
+  "ticket": "$TICKET",
+  "head_sha": "$HEAD_SHA",
+  "writer": "run-behavior-contract.sh",
+  "mode": "compare",
+  "behavior_mode": "pm_flow",
+  "status": "PASS",
+  "at": "2026-05-05T00:00:00Z",
+  "context_hash": "abc123",
+  "screenshots": ["$REPO/.polaris/evidence/behavior/$TICKET/compare-abc123/behavior-screen.png"],
+  "videos": ["$REPO/.polaris/evidence/behavior/$TICKET/compare-abc123/behavior-video.webm"]
 }
 JSON
 printf '{"writer":"ci-local.sh","head_sha":"%s","status":"PASS"}\n' "$HEAD_SHA" >"$CI_EVIDENCE"
@@ -62,11 +79,13 @@ items = manifest["items"]
 bundle_paths = [item["bundle_path"] for item in items]
 assert len(bundle_paths) == len(set(bundle_paths)), "bundle filenames must be unique"
 assert any(item["kind"] == "playwright_video" and item["requires_publication"] for item in items)
+assert any(item["kind"] == "behavior" and item["requires_publication"] for item in items)
+assert any(item["kind"] == "behavior_media" and item["requires_publication"] for item in items)
 assert any(item["kind"] == "ci_local" and not item["requires_publication"] for item in items)
 vr_pngs = [item for item in items if item["kind"] == "vr_artifact" and item["bundle_path"].endswith("zh-tw-product-12156.png")]
 assert len(vr_pngs) == 2, f"expected two collision-prone VR pngs, got {len(vr_pngs)}"
 required = [item for item in items if item["requires_publication"]]
-assert len(required) >= 4, f"expected required publication evidence, got {len(required)}"
+assert len(required) >= 7, f"expected required publication evidence, got {len(required)}"
 PY
 
 echo "PASS: collect-evidence-upload-bundle selftest"

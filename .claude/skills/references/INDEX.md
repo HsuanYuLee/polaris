@@ -59,6 +59,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | File | Description | Triggers |
 |------|-------------|----------|
 | [engineer-delivery-flow.md](engineer-delivery-flow.md) | 工程師交付 backbone：Simplify → Local CI Mirror (`ci-local.sh`) → Behavioral Verify → Review → Rebase → Commit → PR。由 engineering 消費，含 Developer 與 Local Extension role | engineering |
+| [behavior-contract.md](behavior-contract.md) | task.md behavior contract runner、before/after evidence、gate、PR publication 與 backfill policy | engineering behavior gate, before after, parity, PM flow |
 | [ci-local-env-blocker.md](ci-local-env-blocker.md) | Local CI mirror 的 `BLOCKED_ENV` status、environment blocker reason enum、classifier adapter contract、secret scrub 與 gate semantics | engineering, ci-local, completion-gate |
 | [engineering-entry-resolution.md](engineering-entry-resolution.md) | engineering entry resolution：resolve authoritative task.md、derive first-cut/revision/local-extension mode、duplicate guard、batch dispatch | engineering, work on, 做, revision |
 | [engineering-first-cut-flow.md](engineering-first-cut-flow.md) | engineering first-cut mode：branch/worktree setup、TDD、ci-local、verify、Developer delivery closeout | engineering first-cut, 做 ticket |

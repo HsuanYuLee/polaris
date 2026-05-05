@@ -199,52 +199,51 @@ fi
 
 if [[ -z "$VR_EXPECTED" ]]; then
   echo "$PREFIX Layer C VR skip: task.md has no verification.visual_regression." >&2
-  exit 0
-fi
+else
 
-vr_tmp="/tmp/polaris-vr-${TICKET}-${HEAD_SHA}.json"
-vr_durable=""
-if [[ -n "$HEAD_SHA" ]]; then
-  vr_durable="${evidence_root}/vr/polaris-vr-${TICKET}-${HEAD_SHA}.json"
-fi
-
-VR_EVIDENCE_FILE=""
-if [[ -n "$HEAD_SHA" && -f "$vr_tmp" ]]; then
-  VR_EVIDENCE_FILE="$vr_tmp"
-elif [[ -n "$HEAD_SHA" && -f "$vr_durable" ]]; then
-  VR_EVIDENCE_FILE="$vr_durable"
-fi
-
-if [[ -z "$VR_EVIDENCE_FILE" ]]; then
-  stale_match="$(
-    {
-      find /tmp -maxdepth 1 -type f -name "polaris-vr-${TICKET}-*.json" 2>/dev/null
-      find /private/tmp -maxdepth 1 -type f -name "polaris-vr-${TICKET}-*.json" 2>/dev/null
-      if [[ -d "${evidence_root}/vr" ]]; then
-        find "${evidence_root}/vr" -maxdepth 1 -type f -name "polaris-vr-${TICKET}-*.json" 2>/dev/null
-      fi
-    } | while IFS= read -r path; do
-      if [[ "$path" != *-"$HEAD_SHA".json ]]; then
-        printf '%s\n' "$path"
-        break
-      fi
-    done || true
-  )"
-  if [[ -n "$stale_match" ]]; then
-    echo "$PREFIX BLOCKED: stale Layer C VR evidence for ${TICKET}; no evidence matches HEAD ${HEAD_SHA}" >&2
-  else
-    echo "$PREFIX BLOCKED: No Layer C VR evidence for ${TICKET}" >&2
+  vr_tmp="/tmp/polaris-vr-${TICKET}-${HEAD_SHA}.json"
+  vr_durable=""
+  if [[ -n "$HEAD_SHA" ]]; then
+    vr_durable="${evidence_root}/vr/polaris-vr-${TICKET}-${HEAD_SHA}.json"
   fi
-  echo "" >&2
-  echo "Expected:" >&2
-  echo "  ${vr_tmp}  (Layer C — head_sha-bound, written by run-visual-snapshot.sh)" >&2
-  echo "  ${vr_durable}  (durable mirror, written by run-visual-snapshot.sh)" >&2
-  echo "" >&2
-  echo "Run scripts/run-visual-snapshot.sh --task-md <path> --mode baseline, then --mode compare." >&2
-  exit 2
-fi
 
-vr_valid=$(python3 - "$VR_EVIDENCE_FILE" "$TICKET" "$HEAD_SHA" <<'PY'
+  VR_EVIDENCE_FILE=""
+  if [[ -n "$HEAD_SHA" && -f "$vr_tmp" ]]; then
+    VR_EVIDENCE_FILE="$vr_tmp"
+  elif [[ -n "$HEAD_SHA" && -f "$vr_durable" ]]; then
+    VR_EVIDENCE_FILE="$vr_durable"
+  fi
+
+  if [[ -z "$VR_EVIDENCE_FILE" ]]; then
+    stale_match="$(
+      {
+        find /tmp -maxdepth 1 -type f -name "polaris-vr-${TICKET}-*.json" 2>/dev/null
+        find /private/tmp -maxdepth 1 -type f -name "polaris-vr-${TICKET}-*.json" 2>/dev/null
+        if [[ -d "${evidence_root}/vr" ]]; then
+          find "${evidence_root}/vr" -maxdepth 1 -type f -name "polaris-vr-${TICKET}-*.json" 2>/dev/null
+        fi
+      } | while IFS= read -r path; do
+        if [[ "$path" != *-"$HEAD_SHA".json ]]; then
+          printf '%s\n' "$path"
+          break
+        fi
+      done || true
+    )"
+    if [[ -n "$stale_match" ]]; then
+      echo "$PREFIX BLOCKED: stale Layer C VR evidence for ${TICKET}; no evidence matches HEAD ${HEAD_SHA}" >&2
+    else
+      echo "$PREFIX BLOCKED: No Layer C VR evidence for ${TICKET}" >&2
+    fi
+    echo "" >&2
+    echo "Expected:" >&2
+    echo "  ${vr_tmp}  (Layer C — head_sha-bound, written by run-visual-snapshot.sh)" >&2
+    echo "  ${vr_durable}  (durable mirror, written by run-visual-snapshot.sh)" >&2
+    echo "" >&2
+    echo "Run scripts/run-visual-snapshot.sh --task-md <path> --mode baseline, then --mode compare." >&2
+    exit 2
+  fi
+
+  vr_valid=$(python3 - "$VR_EVIDENCE_FILE" "$TICKET" "$HEAD_SHA" <<'PY'
 import json
 import sys
 
@@ -264,13 +263,202 @@ except Exception as exc:
 PY
 )
 
-if [[ "$vr_valid" != "valid" ]]; then
-  echo "$PREFIX BLOCKED: Layer C VR evidence is malformed or not passing for ${TICKET}" >&2
-  echo "  ${VR_EVIDENCE_FILE}: ${vr_valid}" >&2
+  if [[ "$vr_valid" != "valid" ]]; then
+    echo "$PREFIX BLOCKED: Layer C VR evidence is malformed or not passing for ${TICKET}" >&2
+    echo "  ${VR_EVIDENCE_FILE}: ${vr_valid}" >&2
+    echo "" >&2
+    echo "Evidence must contain: ticket, head_sha, writer=run-visual-snapshot.sh, mode=compare, status=PASS, at." >&2
+    exit 2
+  fi
+
+  echo "$PREFIX ✅ Layer C VR evidence valid for ${TICKET} @ ${HEAD_SHA}." >&2
+fi
+
+# Layer D: conditional behavior contract evidence. Only tasks that declare
+# verification.behavior_contract.applies=true require this gate.
+behavior_state="$(python3 - "$TASK_MD" <<'PY'
+import csv
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+lines = path.read_text(encoding="utf-8").splitlines()
+
+def parse_scalar(value):
+    value = value.strip()
+    if value == "":
+        return None
+    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+        return value[1:-1]
+    if value == "[]":
+        return []
+    if value.startswith("[") and value.endswith("]"):
+        body = value[1:-1].strip()
+        if not body:
+            return []
+        return [parse_scalar(part.strip()) for part in next(csv.reader([body], skipinitialspace=True))]
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    return value
+
+def frontmatter(all_lines):
+    if not all_lines or all_lines[0].strip() != "---":
+        return []
+    for idx in range(1, len(all_lines)):
+        if all_lines[idx].strip() == "---":
+            return all_lines[1:idx]
+    return []
+
+def behavior_contract(fm_lines):
+    in_verification = False
+    in_behavior = False
+    current_list_key = None
+    data = None
+    for raw in fm_lines:
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+        indent = len(raw) - len(raw.lstrip(" "))
+        stripped = raw.strip()
+        if indent == 0:
+            in_behavior = False
+            current_list_key = None
+            if ":" not in stripped:
+                in_verification = False
+                continue
+            key, _, value = stripped.partition(":")
+            in_verification = key.strip() == "verification" and value.strip() == ""
+            continue
+        if not in_verification:
+            continue
+        if indent == 2 and ":" in stripped:
+            current_list_key = None
+            key, _, value = stripped.partition(":")
+            if key.strip() == "behavior_contract":
+                parsed = parse_scalar(value.strip())
+                data = {} if parsed is None else parsed
+                in_behavior = isinstance(data, dict)
+            else:
+                in_behavior = False
+            continue
+        if data is None or not isinstance(data, dict) or not in_behavior:
+            continue
+        if indent == 4 and ":" in stripped:
+            key, _, value = stripped.partition(":")
+            key = key.strip()
+            value = value.strip()
+            if value == "":
+                data[key] = []
+                current_list_key = key
+            else:
+                data[key] = parse_scalar(value)
+                current_list_key = None
+            continue
+        if current_list_key and indent >= 6 and stripped.startswith("- "):
+            data[current_list_key].append(parse_scalar(stripped[2:].strip()))
+    return data or {}
+
+bc = behavior_contract(frontmatter(lines))
+print(json.dumps({
+    "present": bool(bc),
+    "applies": bc.get("applies") is True,
+    "mode": bc.get("mode", ""),
+}, ensure_ascii=False))
+PY
+)"
+behavior_present="$(python3 -c 'import json,sys; print("1" if json.loads(sys.argv[1]).get("present") else "0")' "$behavior_state")"
+behavior_applies="$(python3 -c 'import json,sys; print("1" if json.loads(sys.argv[1]).get("applies") else "0")' "$behavior_state")"
+
+if [[ "$behavior_present" != "1" ]]; then
+  echo "$PREFIX Layer D behavior skip: task.md has no verification.behavior_contract." >&2
+  exit 0
+fi
+if [[ "$behavior_applies" != "1" ]]; then
+  echo "$PREFIX Layer D behavior skip: behavior_contract.applies=false." >&2
+  exit 0
+fi
+
+safe_ticket="$(printf '%s' "$TICKET" | tr -c 'A-Za-z0-9._-' '-')"
+behavior_candidates="$(
+  {
+    find /tmp -maxdepth 1 -type f -name "polaris-behavior-${safe_ticket}-${HEAD_SHA}-*.json" 2>/dev/null
+    find /private/tmp -maxdepth 1 -type f -name "polaris-behavior-${safe_ticket}-${HEAD_SHA}-*.json" 2>/dev/null
+    if [[ -d "${evidence_root}/behavior/${safe_ticket}" ]]; then
+      find "${evidence_root}/behavior/${safe_ticket}" -maxdepth 1 -type f -name "polaris-behavior-${safe_ticket}-${HEAD_SHA}-*.json" 2>/dev/null
+    fi
+  } | sort -u
+)"
+
+if [[ -z "$behavior_candidates" ]]; then
+  stale_behavior="$(
+    {
+      find /tmp -maxdepth 1 -type f -name "polaris-behavior-${safe_ticket}-*.json" 2>/dev/null
+      find /private/tmp -maxdepth 1 -type f -name "polaris-behavior-${safe_ticket}-*.json" 2>/dev/null
+      if [[ -d "${evidence_root}/behavior/${safe_ticket}" ]]; then
+        find "${evidence_root}/behavior/${safe_ticket}" -maxdepth 1 -type f -name "polaris-behavior-${safe_ticket}-*.json" 2>/dev/null
+      fi
+    } | while IFS= read -r path; do
+      if [[ "$path" != *-"$HEAD_SHA"-*.json ]]; then
+        printf '%s\n' "$path"
+        break
+      fi
+    done || true
+  )"
+  if [[ -n "$stale_behavior" ]]; then
+    echo "$PREFIX BLOCKED: stale behavior evidence for ${TICKET}; no evidence matches HEAD ${HEAD_SHA}" >&2
+  else
+    echo "$PREFIX BLOCKED: No behavior contract evidence for ${TICKET}" >&2
+  fi
   echo "" >&2
-  echo "Evidence must contain: ticket, head_sha, writer=run-visual-snapshot.sh, mode=compare, status=PASS, at." >&2
+  echo "Expected:" >&2
+  echo "  /tmp/polaris-behavior-${safe_ticket}-${HEAD_SHA}-{context_hash}.json" >&2
+  echo "  ${evidence_root}/behavior/${safe_ticket}/polaris-behavior-${safe_ticket}-${HEAD_SHA}-{context_hash}.json" >&2
+  echo "" >&2
+  echo "Run scripts/run-behavior-contract.sh --task-md <path> --mode baseline, then --mode compare." >&2
   exit 2
 fi
 
-echo "$PREFIX ✅ Layer C VR evidence valid for ${TICKET} @ ${HEAD_SHA}." >&2
+behavior_valid="$(python3 - "$TICKET" "$HEAD_SHA" $behavior_candidates <<'PY'
+import json
+import sys
+
+ticket = sys.argv[1]
+head_sha = sys.argv[2]
+paths = sys.argv[3:]
+errors = []
+for path in paths:
+    try:
+        data = json.load(open(path, encoding="utf-8"))
+        assert data.get("writer") == "run-behavior-contract.sh", "writer mismatch"
+        assert data.get("ticket") == ticket, "ticket mismatch"
+        assert data.get("head_sha") == head_sha, "head_sha mismatch"
+        assert data.get("mode") == "compare", "mode must be compare"
+        assert data.get("status") == "PASS", f"status must be PASS, got {data.get('status')!r}"
+        assert data.get("at"), "missing at"
+        assert data.get("context_hash"), "missing context_hash"
+        media = list(data.get("screenshots") or []) + list(data.get("videos") or [])
+        assert media, "missing screenshots/videos"
+        if data.get("behavior_mode") in {"parity", "hybrid"}:
+            assert data.get("baseline_evidence") not in {None, "", "N/A"}, "missing baseline_evidence"
+        print("valid")
+        raise SystemExit(0)
+    except SystemExit:
+        raise
+    except Exception as exc:
+        errors.append(f"{path}: {exc}")
+print("invalid: " + "; ".join(errors))
+PY
+)"
+
+if [[ "$behavior_valid" != "valid" ]]; then
+  echo "$PREFIX BLOCKED: behavior evidence is malformed or not passing for ${TICKET}" >&2
+  echo "  ${behavior_valid}" >&2
+  echo "" >&2
+  echo "Evidence must contain: ticket, head_sha, writer=run-behavior-contract.sh, mode=compare, status=PASS, at, media refs." >&2
+  exit 2
+fi
+
+echo "$PREFIX ✅ behavior evidence valid for ${TICKET} @ ${HEAD_SHA}." >&2
 exit 0

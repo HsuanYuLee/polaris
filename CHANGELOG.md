@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.81] - 2026-05-05
+
+### Added — behavior contract runner
+
+- Added a deterministic behavior contract runner for baseline / compare evidence from task.md `verification.behavior_contract`.
+- Added behavior evidence checks to the portable evidence gate, including current-head compare evidence and baseline evidence for parity / hybrid tasks.
+- Extended PR evidence publication and upload bundles to include behavior contract screenshots, videos, and JSON evidence.
+
 ## [3.74.80] - 2026-05-05
 
 ### Added — evidence upload bundle contract

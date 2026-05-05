@@ -13,7 +13,7 @@ description: >
 tier: product
 metadata:
   author: Polaris
-  version: 5.3.0
+  version: 5.3.1
 ---
 
 # Engineering
@@ -57,8 +57,8 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
 所有 implementation / revision 都必須讀 `engineer-delivery-flow.md`，並依 role 執行：
 
 - Developer：Scope Gate → ci-local → run-verify-command → flow gap audit → VR if
-  triggered → evidence upload bundle if local media evidence exists → base freshness → commit
-  → PR → JIRA → completion gate → worktree cleanup。
+  triggered → behavior contract compare if declared → evidence upload bundle if local media
+  evidence exists → base freshness → commit → PR → JIRA → completion gate → worktree cleanup。
 - Local Extension：同樣先完成 engineering evidence gates，再依 local policy 交給 extension；
   extension 不得降低 gate。
 
