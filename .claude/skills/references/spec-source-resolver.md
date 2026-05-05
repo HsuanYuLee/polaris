@@ -82,11 +82,11 @@ Canonical plan path：
 
 當 input 是 ticketless topic 而不是既有 `DP-NNN`：
 
-1. 掃描 `{specs_root}/design-plans/DP-*`
-2. 分配既有最大 N + 1
-3. 建立 `{specs_root}/design-plans/DP-NNN-{topic-slug}/plan.md`
-4. 設定 frontmatter `title` 與 `status: DISCUSSION`
-5. route 到 `refinement` ticketless mode
+1. 呼叫 `scripts/create-design-plan.sh "<topic>"`。
+2. command 掃描 active + archive parent `plan.md`，分配全域最大 N + 1。
+3. command 建立 `{specs_root}/design-plans/DP-NNN-{topic-slug}/plan.md`。
+4. command 寫入完整 metadata：`title`、`description`、`topic`、`created`、`status`、`priority`、`sidebar`。
+5. command 跑 `scripts/validate-dp-plan-authoring.sh`，通過後 route 到 `refinement` ticketless mode。
 
 topic slug 採 kebab-case，描述 durable subject，不描述當下 implementation step。
 
@@ -94,6 +94,9 @@ topic slug 採 kebab-case，描述 durable subject，不描述當下 implementat
 `{specs_root}`，所有 specs markdown 都必須有 `title` frontmatter。新 producer
 建立 `plan.md`、`refinement.md` 或 task work order 時，必須在 source file 寫入
 stable title；不可依賴額外 loader 或 generated mirror 補齊 metadata。
+
+DP number allocation 永遠包含 active + archive namespaces。任何 producer 不可只掃描
+active `design-plans/DP-*`，也不可在 validator 回報 duplicate 時建立同號 replacement DP。
 
 ## Artifact Paths
 

@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.65] - 2026-05-05
+
+### Fixed — archive-aware Design Plan authoring
+
+- 新增 DP authoring wrapper、active+archive DP number allocator、uniqueness gate、
+  create command 與 migration script，避免 refinement 新建 DP 時重用 archive 號碼。
+- 已將既有 DP-087、DP-088、DP-092、DP-095、DP-097 撞號 container 重新編號；
+  現在下一個新 DP 會配置為 DP-104。
+- 新增 docs-manager status live body-link check，啟動 viewer 後確認
+  `/docs-manager/status/` body 內 internal links 不回 404。
+
 ## [3.74.64] - 2026-05-05
 
 ### Fixed — unique Epic task resolver input

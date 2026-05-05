@@ -25,3 +25,4 @@ for (const item of dashboard.items) {
 }
 
 console.log('PASS nav/status sync selftest');
+console.log('Hint: run node docs-manager/scripts/status-live-link-check.mjs http://127.0.0.1:8080/docs-manager/status/ for live body-link checks.');

@@ -18,7 +18,7 @@
 |-------|--------|
 | `DP-NNN` | Locate exactly one `docs-manager/src/content/docs/specs/design-plans/DP-NNN-*/plan.md` |
 | direct DP plan/refinement path | 使用該 DP folder 作為 `source_container` |
-| topic phrase | 分配下一個 `DP-NNN-{slug}` folder，建立 `plan.md`，設定 `status: DISCUSSION` |
+| topic phrase | 呼叫 `scripts/create-design-plan.sh` 分配下一個 archive-aware `DP-NNN-{slug}` folder，建立完整 metadata `plan.md`，設定 `status: DISCUSSION` |
 | `SEEDED` DP | 若存在 `artifacts/research-report.md`，讀取並轉成 candidate Decisions |
 | `LOCKED` / `IMPLEMENTED` DP | 新 topic overwrite 必須 fail loud；只有使用者明確 resuming/reviewing 該 DP 時才繼續 |
 
@@ -31,21 +31,20 @@ DP locator hard rules：
 
 ## T1. Create Or Update DP Plan
 
-新 topic：
+新 topic 必須使用單一建單入口，不可手動 `mkdir` 或手寫 minimal template：
 
-1. 掃描 `{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-*`。
-2. 分配既有最大 number + 1。
-3. 建立 `{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{topic-slug}/plan.md`。
-4. 寫入 frontmatter：
-   ```yaml
-   ---
-   title: "DP-NNN: <durable topic>"
-   topic: <durable topic>
-   created: YYYY-MM-DD
-   status: DISCUSSION
-   ---
-   ```
-5. 加上初始 `## Goal`、`## Background`，若已知 open decisions 則先放 placeholders。
+```bash
+bash scripts/create-design-plan.sh "<durable topic>"
+```
+
+`create-design-plan.sh` 會：
+
+1. 掃描 active + archive parent `plan.md`，分配全域最大 DP number + 1。
+2. 建立 `{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{topic-slug}/plan.md`。
+3. 寫入完整 DP metadata：`title`、`description`、`topic`、`created`、`status`、`priority`、`sidebar`。
+4. 呼叫 `scripts/validate-dp-plan-authoring.sh`，讓語言、Starlight、DP metadata、sidebar、route-safe path 與 DP number collision gate 一次通過。
+
+若 command 失敗，必須修正 root cause 後重跑；不可改回手動建單。
 
 `refinement` owns these DP sections:
 
@@ -69,18 +68,14 @@ Framework contract DPs 在 handoff 前，plan 必須包含 target-state-first se
 
 每個使用者確認的 design decision 都必須先更新 `plan.md`，再繼續 unrelated work。不可只把 confirmed decisions 留在 conversation memory。
 
-每次建立或更新 `plan.md` 後，必須先跑 workspace language gate，通過後才能
-sidebar sync 或回報給使用者：
+每次建立或更新 `plan.md` 後，必須先跑 DP authoring wrapper，通過後才能回報給使用者：
 
 ```bash
-bash scripts/validate-language-policy.sh \
-  --blocking \
-  --mode artifact \
+bash scripts/validate-dp-plan-authoring.sh \
   {workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/plan.md
 ```
 
-若 gate 失敗，先修正自然語言內容並重跑。`plan.md` 違反 workspace language
-時，不可宣稱 DP 已可 review。
+若 gate 失敗，先修正自然語言、metadata、sidebar、route path 或 DP number collision 後重跑。`plan.md` 違反 wrapper 時，不可宣稱 DP 已可 review。
 
 Starlight `docsSchema()` 要求每個 docs markdown 都有 `title`。`refinement`
 建立任何新的 `plan.md` 或 `refinement.md` 時，必須寫入 stable `title`
@@ -192,7 +187,7 @@ Artifact 必須保留足夠的 scope、AC、dependencies、edge cases、downstre
    status: LOCKED
    locked_at: YYYY-MM-DD
    ```
-4. 跑相關 artifact validator / handoff gate。若失敗或缺 `refinement.json`，先停下來 produce/fix artifact。
+4. 跑 `scripts/validate-dp-plan-authoring.sh {source_container}/plan.md` 與相關 artifact validator / handoff gate。若失敗或缺 `refinement.json`，先停下來 produce/fix artifact。
 5. 若需要 route/search review，跑 docs-manager dev 或 preview verification。
 6. 告知使用者下一個 command：
    ```text
