@@ -177,6 +177,16 @@ mark_task_implemented() {
   bash "${SCRIPT_DIR}/mark-spec-implemented.sh" "$task_id" --workspace "$REPO_ROOT" >&2
   if [[ -f "$task_md" ]]; then
     printf '%s\n' "$task_md"
+  elif [[ "$(basename "$task_md")" == "index.md" ]]; then
+    local task_dir tasks_dir task_name
+    task_dir="$(dirname "$task_md")"
+    tasks_dir="$(dirname "$task_dir")"
+    task_name="$(basename "$task_dir")"
+    if [[ "$(basename "$tasks_dir")" == "pr-release" ]]; then
+      printf '%s\n' "$task_md"
+    else
+      printf '%s/pr-release/%s/index.md\n' "$tasks_dir" "$task_name"
+    fi
   else
     printf '%s/pr-release/%s\n' "$(dirname "$task_md")" "$(basename "$task_md")"
   fi

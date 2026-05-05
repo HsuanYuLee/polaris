@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.94] - 2026-05-06
+
+### Fixed — folder-native framework release closeout
+
+- Fixed framework release closeout so folder-native task paths such as `tasks/T7/index.md` resolve to `tasks/pr-release/T7/index.md` after implementation marking.
+- Added selftest coverage for folder-native task closeout.
+
 ## [3.74.93] - 2026-05-06
 
 ### Added — Jira evidence publisher safety gate
