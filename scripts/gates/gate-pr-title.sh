@@ -22,10 +22,16 @@ RESOLVE_BY_BRANCH="${WORKSPACE_SCRIPTS}/resolve-task-md-by-branch.sh"
 PARSE_TASK="${WORKSPACE_SCRIPTS}/parse-task-md.sh"
 ENV_LIB="${WORKSPACE_SCRIPTS}/env/_lib.sh"
 GATE_PR_LANGUAGE="${SCRIPT_DIR}/gate-pr-language.sh"
+GITHUB_REST_LIB="${WORKSPACE_SCRIPTS}/lib/github-rest.sh"
 
 REPO_ROOT=""
 TASK_MD=""
 ACTUAL_TITLE=""
+
+if [[ -f "$GITHUB_REST_LIB" ]]; then
+  # shellcheck source=../lib/github-rest.sh
+  . "$GITHUB_REST_LIB"
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -164,7 +170,12 @@ fi
 
 if [[ -z "$ACTUAL_TITLE" ]]; then
   command -v gh >/dev/null 2>&1 || exit 0
-  ACTUAL_TITLE="$(cd "$REPO_ROOT" && gh pr view --json title --jq .title 2>/dev/null || true)"
+  if declare -F polaris_current_branch_pr_rest >/dev/null 2>&1; then
+    ACTUAL_TITLE="$(polaris_current_branch_pr_rest "$REPO_ROOT" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("title") or "")' 2>/dev/null || true)"
+  fi
+  if [[ -z "$ACTUAL_TITLE" ]]; then
+    ACTUAL_TITLE="$(cd "$REPO_ROOT" && gh pr view --json title --jq .title 2>/dev/null || true)"
+  fi
 fi
 
 if [[ -z "$ACTUAL_TITLE" ]]; then

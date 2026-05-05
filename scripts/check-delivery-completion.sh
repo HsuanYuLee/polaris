@@ -12,9 +12,15 @@ set -euo pipefail
 
 PREFIX="[polaris completion-gate]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+GITHUB_REST_LIB="${SCRIPT_DIR}/lib/github-rest.sh"
 REPO_ROOT=""
 TICKET=""
 MODE="auto"
+
+if [[ -f "$GITHUB_REST_LIB" ]]; then
+  # shellcheck source=lib/github-rest.sh
+  . "$GITHUB_REST_LIB"
+fi
 
 parse_github_pr_url() {
   local pr_url="$1"
@@ -113,7 +119,10 @@ check_deliverable_pr_remote_truth() {
   pr_body_file="$(mktemp -t polaris-pr-body.XXXXXX.md)"
   trap 'rm -f "${pr_json:-}" "${pr_body_file:-}"' RETURN
 
-  if ! gh pr view "$pr_number" --repo "$gh_repo" --json body,isDraft,state,url,headRefName,headRefOid,baseRefName >"$pr_json"; then
+  if declare -F polaris_pr_view_rest >/dev/null 2>&1; then
+    polaris_pr_view_rest "$gh_repo" "$pr_number" >"$pr_json" 2>/dev/null || true
+  fi
+  if [[ ! -s "$pr_json" ]] && ! gh pr view "$pr_number" --repo "$gh_repo" --json body,isDraft,state,url,headRefName,headRefOid,baseRefName >"$pr_json"; then
     echo "$PREFIX PR readiness check failed: unable to read GitHub PR metadata for ${pr_url}" >&2
     exit 2
   fi

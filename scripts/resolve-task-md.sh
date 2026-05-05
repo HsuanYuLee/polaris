@@ -12,6 +12,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BY_BRANCH_SCRIPT="${SCRIPT_DIR}/resolve-task-md-by-branch.sh"
+GITHUB_REST_LIB="${SCRIPT_DIR}/lib/github-rest.sh"
+
+if [[ -f "$GITHUB_REST_LIB" ]]; then
+  # shellcheck source=lib/github-rest.sh
+  . "$GITHUB_REST_LIB"
+fi
 PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
 # shellcheck source=lib/specs-root.sh
 . "$SCRIPT_DIR/lib/specs-root.sh"
@@ -349,7 +355,45 @@ resolve_by_pr() {
   local branch=""
 
   command -v gh >/dev/null 2>&1 || { echo "error: gh is required to resolve PR input: $pr_ref" >&2; return 1; }
-  branch="$(gh pr view "$pr_ref" --json headRefName --jq .headRefName 2>/dev/null || true)"
+  if declare -F polaris_pr_view_rest >/dev/null 2>&1; then
+    local parsed_pr=""
+    local gh_repo=""
+    local pr_number=""
+    parsed_pr="$(python3 - "$pr_ref" "$root" <<'PY' 2>/dev/null || true
+import re
+import subprocess
+import sys
+
+pr_ref, root = sys.argv[1:3]
+match = re.match(r"^https://github\.com/([^/]+)/([^/]+)/pull/([0-9]+)(?:[/?#].*)?$", pr_ref)
+if match:
+    owner, repo, number = match.groups()
+    print(f"{owner}/{repo}\t{number}")
+    raise SystemExit(0)
+if re.fullmatch(r"[0-9]+", pr_ref):
+    remote = subprocess.check_output(
+        ["git", "-C", root, "config", "--get", "remote.origin.url"],
+        text=True,
+        stderr=subprocess.DEVNULL,
+    ).strip()
+    remote = re.sub(r"^git@github\.com:", "", remote)
+    remote = re.sub(r"^https://github\.com/", "", remote)
+    remote = re.sub(r"\.git$", "", remote).strip("/")
+    if re.fullmatch(r"[^/]+/[^/]+", remote):
+        print(f"{remote}\t{pr_ref}")
+        raise SystemExit(0)
+raise SystemExit(1)
+PY
+)"
+    if [[ -n "$parsed_pr" ]]; then
+      gh_repo="${parsed_pr%%$'\t'*}"
+      pr_number="${parsed_pr##*$'\t'}"
+      branch="$(polaris_pr_view_rest "$gh_repo" "$pr_number" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("headRefName") or "")' 2>/dev/null || true)"
+    fi
+  fi
+  if [[ -z "$branch" ]]; then
+    branch="$(gh pr view "$pr_ref" --json headRefName --jq .headRefName 2>/dev/null || true)"
+  fi
   [[ -n "$branch" && "$branch" != "null" ]] || { echo "error: failed to resolve PR head branch from: $pr_ref" >&2; return 1; }
   resolve_by_branch "$root" "$branch"
 }

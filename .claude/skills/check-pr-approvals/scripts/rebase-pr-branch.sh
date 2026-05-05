@@ -17,6 +17,23 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GITHUB_REST_LIB=""
+for candidate in \
+  "${SCRIPT_DIR}/../../../../scripts/lib/github-rest.sh" \
+  "${SCRIPT_DIR}/../../../scripts/lib/github-rest.sh" \
+  "${SCRIPT_DIR}/../../scripts/lib/github-rest.sh"
+do
+  if [[ -f "$candidate" ]]; then
+    GITHUB_REST_LIB="$candidate"
+    break
+  fi
+done
+if [[ -n "$GITHUB_REST_LIB" ]]; then
+  # shellcheck source=/dev/null
+  . "$GITHUB_REST_LIB"
+fi
+
 WORK_DIR="$HOME/work"
 DRY_RUN=false
 
@@ -82,8 +99,17 @@ if [ -n "$ORG" ]; then
     fi
 
     # 查詢 feature branch 的 upstream（從 open PR 取 baseRefName）
-    upstream=$(gh pr list --repo "$ORG/$repo" --head "$base" --state open \
-      --json baseRefName --jq '.[0].baseRefName' 2>/dev/null || echo "")
+    if declare -F polaris_gh_api >/dev/null 2>&1; then
+      upstream=$(polaris_gh_api "repos/$ORG/$repo/pulls" \
+        --method GET \
+        -f "head=${ORG}:${base}" \
+        -f "state=open" \
+        -f "per_page=1" \
+        --jq '.[0].base.ref // ""' 2>/dev/null || echo "")
+    else
+      upstream=$(gh pr list --repo "$ORG/$repo" --head "$base" --state open \
+        --json baseRefName --jq '.[0].baseRefName' 2>/dev/null || echo "")
+    fi
 
     if [ -z "$upstream" ] || [ "$upstream" = "null" ]; then
       echo "  ℹ️ $repo: $base 無 open PR，跳過 cascade rebase" >&2

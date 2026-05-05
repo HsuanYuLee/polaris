@@ -11,6 +11,23 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GITHUB_REST_LIB=""
+for candidate in \
+  "${SCRIPT_DIR}/../../../../scripts/lib/github-rest.sh" \
+  "${SCRIPT_DIR}/../../../scripts/lib/github-rest.sh" \
+  "${SCRIPT_DIR}/../../scripts/lib/github-rest.sh"
+do
+  if [[ -f "$candidate" ]]; then
+    GITHUB_REST_LIB="$candidate"
+    break
+  fi
+done
+if [[ -n "$GITHUB_REST_LIB" ]]; then
+  # shellcheck source=/dev/null
+  . "$GITHUB_REST_LIB"
+fi
+
 REPO="${1:?Usage: $0 <owner/repo> <pr_number> [--my-user <username>]}"
 PR_NUMBER="${2:?Usage: $0 <owner/repo> <pr_number> [--my-user <username>]}"
 shift 2
@@ -33,8 +50,12 @@ echo "📋 取得 $REPO #$PR_NUMBER 資訊..." >&2
 
 # Step 1: PR metadata
 echo "  取得 PR metadata..." >&2
-pr_meta=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
-  --json title,body,author,baseRefName,headRefName,url,state,isDraft 2>/dev/null || echo "{}")
+if declare -F polaris_pr_view_rest >/dev/null 2>&1; then
+  pr_meta=$(polaris_pr_view_rest "$REPO" "$PR_NUMBER" 2>/dev/null || echo "{}")
+else
+  pr_meta=$(gh pr view "$PR_NUMBER" --repo "$REPO" \
+    --json title,body,author,baseRefName,headRefName,url,state,isDraft 2>/dev/null || echo "{}")
+fi
 
 # 只允許 open 且非 draft 的 PR（draft 代表還在編輯中，不該被 review）
 pr_state=$(echo "$pr_meta" | jq -r '.state // ""')
@@ -55,8 +76,13 @@ head=$(echo "$pr_meta" | jq -r '.headRefName // ""')
 
 # Step 2: Files with changes
 echo "  取得變更檔案清單..." >&2
-files=$(gh api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate \
-  --jq '[.[] | {filename: .filename, status: .status, additions: .additions, deletions: .deletions, changes: .changes}]' 2>/dev/null || echo "[]")
+if declare -F polaris_gh_api >/dev/null 2>&1; then
+  files=$(polaris_gh_api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate \
+    --jq '[.[] | {filename: .filename, status: .status, additions: .additions, deletions: .deletions, changes: .changes}]' 2>/dev/null || echo "[]")
+else
+  files=$(gh api "repos/$REPO/pulls/$PR_NUMBER/files" --paginate \
+    --jq '[.[] | {filename: .filename, status: .status, additions: .additions, deletions: .deletions, changes: .changes}]' 2>/dev/null || echo "[]")
+fi
 
 # 計算總變更行數
 total_additions=$(echo "$files" | jq '[.[].additions] | add // 0')
@@ -81,8 +107,13 @@ my_last_review_state=""
 if [ -n "$MY_USER" ]; then
   echo "  檢查 re-review 狀態（user: ${MY_USER}）..." >&2
 
-  reviews=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
-    --jq "[.[] | select(.user.login == \"$MY_USER\") | {state: .state, submitted_at: .submitted_at}]" 2>/dev/null || echo "[]")
+  if declare -F polaris_gh_api >/dev/null 2>&1; then
+    reviews=$(polaris_gh_api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+      --jq "[.[] | select(.user.login == \"$MY_USER\") | {state: .state, submitted_at: .submitted_at}]" 2>/dev/null || echo "[]")
+  else
+    reviews=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+      --jq "[.[] | select(.user.login == \"$MY_USER\") | {state: .state, submitted_at: .submitted_at}]" 2>/dev/null || echo "[]")
+  fi
 
   my_review_count=$(echo "$reviews" | jq 'length')
 
@@ -97,10 +128,19 @@ fi
 
 # Step 4: Approval 狀態（附在結果中供 Step 6 使用）
 echo "  取得 approval 狀態..." >&2
-all_reviews=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
-  --jq '[.[] | {user: .user.login, state: .state, submitted_at: .submitted_at}]' 2>/dev/null || echo "[]")
+if declare -F polaris_gh_api >/dev/null 2>&1; then
+  all_reviews=$(polaris_gh_api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+    --jq '[.[] | {user: .user.login, state: .state, submitted_at: .submitted_at}]' 2>/dev/null || echo "[]")
+else
+  all_reviews=$(gh api "repos/$REPO/pulls/$PR_NUMBER/reviews" \
+    --jq '[.[] | {user: .user.login, state: .state, submitted_at: .submitted_at}]' 2>/dev/null || echo "[]")
+fi
 
-pushed_at=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '.head.repo.pushed_at' 2>/dev/null || echo "")
+if declare -F polaris_gh_api >/dev/null 2>&1; then
+  pushed_at=$(polaris_gh_api "repos/$REPO/pulls/$PR_NUMBER" --jq '.head.repo.pushed_at' 2>/dev/null || echo "")
+else
+  pushed_at=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq '.head.repo.pushed_at' 2>/dev/null || echo "")
+fi
 
 # 組裝最終 JSON
 result=$(jq -n \

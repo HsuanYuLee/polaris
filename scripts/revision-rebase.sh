@@ -60,6 +60,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVE_TASK_MD_BY_BRANCH="$SCRIPT_DIR/resolve-task-md-by-branch.sh"
 RESOLVE_TASK_BASE="$SCRIPT_DIR/resolve-task-base.sh"
 CASCADE_REBASE_CHAIN="$SCRIPT_DIR/cascade-rebase-chain.sh"
+GITHUB_REST_LIB="$SCRIPT_DIR/lib/github-rest.sh"
+
+if [ -f "$GITHUB_REST_LIB" ]; then
+  # shellcheck source=lib/github-rest.sh
+  . "$GITHUB_REST_LIB"
+fi
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -86,7 +92,7 @@ usage: revision-rebase.sh [--repo PATH] [--task-md PATH] [--pr PR_NUMBER] [--agg
 Defaults:
   --repo     → git rev-parse --show-toplevel (cwd)
   --task-md  → resolve-task-md-by-branch.sh --current (within repo)
-  --pr       → gh pr view --json number --jq .number (current branch)
+  --pr       → REST PR lookup for the current branch
   --aggregate-release → keep an explicit framework aggregate release PR based on main
 
 Exit:
@@ -336,10 +342,12 @@ if [ -n "$PR_ARG" ]; then
 else
   # Query gh for current branch's PR.
   if command -v gh >/dev/null 2>&1; then
-    PR_VIEW=$(cd "$REPO" && gh pr view --json number,baseRefName 2>/dev/null) && rc=0 || rc=$?
-    # Fall back to gh pr view (uses cwd → PR for HEAD branch).
-    if [ "$rc" != "0" ] || [ -z "$PR_VIEW" ]; then
-      PR_VIEW=$(cd "$REPO" && gh pr view --json number,baseRefName 2>/dev/null || true)
+    rc=1
+    if declare -F polaris_current_branch_pr_rest >/dev/null 2>&1; then
+      PR_VIEW=$(polaris_current_branch_pr_rest "$REPO" 2>/dev/null) && rc=0 || rc=$?
+    fi
+    if [ "$rc" != "0" ] || [ -z "${PR_VIEW:-}" ]; then
+      PR_VIEW=$(cd "$REPO" && gh pr view --json number,baseRefName 2>/dev/null) && rc=0 || rc=$?
     fi
     if [ -n "$PR_VIEW" ]; then
       PR_NUMBER=$(printf '%s' "$PR_VIEW" | python3 -c 'import json,sys
@@ -363,7 +371,15 @@ fi
 # Re-fetch PR_BASE_BEFORE if --pr was supplied explicitly (we still need it).
 if [ "$PR_NUMBER" != "__NULL__" ] && [ "$PR_BASE_BEFORE" = "__NULL__" ]; then
   if command -v gh >/dev/null 2>&1; then
-    PR_BASE_BEFORE=$(cd "$REPO" && gh pr view "$PR_NUMBER" --json baseRefName --jq .baseRefName 2>/dev/null || true)
+    if declare -F polaris_github_repo_slug >/dev/null 2>&1 && declare -F polaris_pr_view_rest >/dev/null 2>&1; then
+      GH_REPO="$(polaris_github_repo_slug "$REPO" 2>/dev/null || true)"
+      if [ -n "$GH_REPO" ]; then
+        PR_BASE_BEFORE=$(polaris_pr_view_rest "$GH_REPO" "$PR_NUMBER" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("baseRefName") or "")' 2>/dev/null || true)
+      fi
+    fi
+    if [ -z "$PR_BASE_BEFORE" ]; then
+      PR_BASE_BEFORE=$(cd "$REPO" && gh pr view "$PR_NUMBER" --json baseRefName --jq .baseRefName 2>/dev/null || true)
+    fi
     [ -z "$PR_BASE_BEFORE" ] && PR_BASE_BEFORE="__NULL__"
   fi
 fi

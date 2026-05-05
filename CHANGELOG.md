@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.79] - 2026-05-05
+
+### Fixed — GitHub REST rate limit hardening
+
+- Added a shared REST-backed GitHub helper with bounded rate-limit retry for PR metadata, current-branch PR lookup, and CI check status reads.
+- Updated framework gates, revision rebase, release lane, review, and check-pr helpers to prefer REST reads over GraphQL-heavy `gh pr ... --json` commands.
+- Updated workflow references so future PR status checks use the REST-backed helper path by default.
+
 ## [3.74.78] - 2026-05-05
 
 ### Fixed — template sync bytecode hygiene

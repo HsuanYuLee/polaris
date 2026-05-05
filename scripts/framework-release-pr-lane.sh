@@ -10,6 +10,7 @@ set -euo pipefail
 PREFIX="[framework-release-pr-lane]"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_PATH="$(cd "${SCRIPT_DIR}/.." && pwd)"
+GITHUB_REST_LIB="${SCRIPT_DIR}/lib/github-rest.sh"
 WORKSPACE_REPO=""
 MAIN_BRANCH="main"
 EXECUTE=0
@@ -17,6 +18,11 @@ REQUIRE_MAIN_CONTAINS_FINAL=0
 GH_BIN="${GH_BIN:-gh}"
 TERMINAL_TASK_MD=""
 TASK_MDS=()
+
+if [[ -f "$GITHUB_REST_LIB" ]]; then
+  # shellcheck source=lib/github-rest.sh
+  . "$GITHUB_REST_LIB"
+fi
 
 usage() {
   cat >&2 <<'EOF'
@@ -90,6 +96,36 @@ refresh_gh_repo_args() {
 
 pr_view_json() {
   local branch="$1"
+  local gh_repo="$WORKSPACE_REPO"
+  local owner=""
+  local rest_json=""
+
+  if [[ -z "$gh_repo" ]] && declare -F polaris_github_repo_slug >/dev/null 2>&1; then
+    gh_repo="$(polaris_github_repo_slug "$REPO_PATH" 2>/dev/null || true)"
+  fi
+
+  if [[ -n "$gh_repo" ]] && declare -F polaris_gh_api >/dev/null 2>&1; then
+    owner="${gh_repo%%/*}"
+    rest_json="$(polaris_gh_api "repos/${gh_repo}/pulls" \
+      --method GET \
+      -f "head=${owner}:${branch}" \
+      -f "state=all" \
+      -f "per_page=1" \
+      --jq '.[0] | {
+        number: .number,
+        state: (if .merged_at then "MERGED" else (.state | ascii_upcase) end),
+        baseRefName: .base.ref,
+        headRefName: .head.ref,
+        headRefOid: .head.sha,
+        mergeStateStatus: (.mergeable_state // "unknown"),
+        url: .html_url
+      }' 2>/dev/null || true)"
+    if [[ -n "$rest_json" && "$rest_json" != "null" ]]; then
+      printf '%s\n' "$rest_json"
+      return
+    fi
+  fi
+
   "$GH_BIN" pr view "$branch" ${gh_repo_args[@]+"${gh_repo_args[@]}"} \
     --json number,state,baseRefName,headRefName,headRefOid,mergeStateStatus,url
 }

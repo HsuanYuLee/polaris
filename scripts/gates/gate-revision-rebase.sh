@@ -10,6 +10,7 @@ set -euo pipefail
 
 PREFIX="[polaris gate-revision-rebase]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+GITHUB_REST_LIB="$(cd "$SCRIPT_DIR/.." && pwd)/lib/github-rest.sh"
 REPO_ROOT=""
 TICKET=""
 
@@ -17,6 +18,10 @@ MAIN_CHECKOUT_LIB="$(cd "$SCRIPT_DIR/.." && pwd)/lib/main-checkout.sh"
 if [[ -f "$MAIN_CHECKOUT_LIB" ]]; then
   # shellcheck source=../lib/main-checkout.sh
   . "$MAIN_CHECKOUT_LIB"
+fi
+if [[ -f "$GITHUB_REST_LIB" ]]; then
+  # shellcheck source=../lib/github-rest.sh
+  . "$GITHUB_REST_LIB"
 fi
 
 while [[ $# -gt 0 ]]; do
@@ -74,7 +79,12 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 0
 fi
 
-pr_json="$(cd "$REPO_ROOT" && gh pr view --json number,baseRefName 2>/dev/null || true)"
+if declare -F polaris_current_branch_pr_rest >/dev/null 2>&1; then
+  pr_json="$(polaris_current_branch_pr_rest "$REPO_ROOT" 2>/dev/null || true)"
+fi
+if [[ -z "$pr_json" ]]; then
+  pr_json="$(cd "$REPO_ROOT" && gh pr view --json number,baseRefName 2>/dev/null || true)"
+fi
 if [[ -z "$pr_json" ]]; then
   # First-cut branch before PR creation: no revision obligation yet.
   exit 0

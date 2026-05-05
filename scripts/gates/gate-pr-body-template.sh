@@ -12,12 +12,19 @@ set -euo pipefail
 # Bypass: POLARIS_SKIP_PR_BODY_TEMPLATE_GATE=1
 
 PREFIX="[polaris gate-pr-body-template]"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+GITHUB_REST_LIB="${SCRIPT_DIR}/../lib/github-rest.sh"
 
 REPO_ROOT=""
 BODY=""
 BODY_FILE=""
 PR_REF=""
 BODY_PROVIDED=0
+
+if [[ -f "$GITHUB_REST_LIB" ]]; then
+  # shellcheck source=../lib/github-rest.sh
+  . "$GITHUB_REST_LIB"
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -133,7 +140,10 @@ if [[ -n "$PR_REF" ]]; then
   fi
   gh_repo="${parsed_pr%%$'\t'*}"
   gh_pr_number="${parsed_pr##*$'\t'}"
-  if ! BODY="$(gh pr view "$gh_pr_number" --repo "$gh_repo" --json body --jq .body)"; then
+  if declare -F polaris_pr_view_rest >/dev/null 2>&1; then
+    BODY="$(polaris_pr_view_rest "$gh_repo" "$gh_pr_number" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("body") or "")' 2>/dev/null || true)"
+  fi
+  if [[ -z "$BODY" ]] && ! BODY="$(gh pr view "$gh_pr_number" --repo "$gh_repo" --json body --jq .body)"; then
     echo "$PREFIX BLOCKED: unable to read PR body for $PR_REF" >&2
     exit 2
   fi

@@ -15,14 +15,18 @@
 ### 1. 取得 PR 資訊
 
 - **URL 格式** → 直接從 URL 提取 `owner`、`repo`、`number`
-- **只有編號** → 用 `gh pr view` 取得完整資訊：
+- **只有編號** → 用 REST endpoint 取得完整資訊：
   ```bash
-  gh pr view <number> --json number,url -q '.number,.url'
+  gh api repos/{owner}/{repo}/pulls/<number> --jq '{number, url: .html_url}'
   ```
 - **無輸入** → 從當前 branch 偵測：
   ```bash
-  gh pr view --json number,url -q '.number,.url'
+  gh api repos/{owner}/{repo}/pulls --method GET -f head={owner}:{branch} -f state=open -f per_page=1 --jq '.[0] | {number, url: .html_url}'
   ```
+
+本 repo shell scripts 應優先 source `scripts/lib/github-rest.sh`，不要以
+`gh pr view/list --json` 作為預設 metadata path；那些 gh PR JSON path 可能走
+GraphQL。
 
 ### 2. 定位本地路徑
 

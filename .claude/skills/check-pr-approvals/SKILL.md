@@ -70,10 +70,10 @@ Script 是 deterministic source；不要在入口重寫其內部 API / stale / b
 
 ### 3. Check CI
 
-對 rebase 成功或 skipped 的 PR 查：
+對 rebase 成功或 skipped 的 PR 查。優先使用 bundled REST-backed status script，避免 `gh pr checks --json` 走 GraphQL：
 
 ```bash
-gh pr checks <number> --repo "{github_org}/<repo>"
+../references/scripts/get-pr-status.sh "{github_org}/<repo>" <number>
 ```
 
 Classification:
@@ -149,6 +149,7 @@ Valid approval = APPROVED 且非 stale。Stale approval 不算達標。
 
 - 不自動修正 CI failure、review comments、rebase conflict。
 - 不使用 `gh pr view --json reviews` 取代 bundled approval script。
+- 不使用 `gh pr checks --json` 取代 bundled REST-backed status script。
 - 不省略 🔧 PR ticket key；萃取不到要明寫。
 - 不通知已達標或需修正的 PR。
 - 不忽略 stale approval。
