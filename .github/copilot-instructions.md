@@ -43,6 +43,12 @@ Copilot-compatible instructions are generated for the Polaris workspace/template
 
 Copilot does not provide Claude Code's hook model. Before git or GitHub actions, run the deterministic scripts named by the active task and by the relevant skill reference.
 
+## Communication
+
+Use the workspace language from `workspace-config.yaml` as the default authoring language when present. Draft user-facing and downstream-facing prose directly in that language; do not rely on writing English first and translating immediately before sending.
+
+Keep user updates concise, factual, and tied to the current gate or blocker.
+
 ## Universal Rule Index
 
 Global targets reference universal rules without inlining their full bodies. Load the relevant files explicitly when the task context requires them.

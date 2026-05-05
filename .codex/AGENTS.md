@@ -41,6 +41,12 @@ The framework is an add-on layer. Product repositories keep ownership of their t
 
 Codex-compatible entrypoints use AGENTS conventions. This `.codex/AGENTS.md` file is a local compatibility target for the Polaris workspace; product repo root `AGENTS.md` files remain repo-owned.
 
+## Communication
+
+Use the workspace language from `workspace-config.yaml` as the default authoring language when present. Draft user-facing and downstream-facing prose directly in that language; do not rely on writing English first and translating immediately before sending.
+
+Keep user updates concise, factual, and tied to the current gate or blocker.
+
 ## Universal Rule Index
 
 Global targets reference universal rules without inlining their full bodies. Load the relevant files explicitly when the task context requires them.

@@ -47,4 +47,6 @@ When behavioral drift appears, prefer scripts, hooks, validators, or skill check
 
 ## Communication
 
-Use the workspace language from `workspace-config.yaml` when present. Keep user updates concise, factual, and tied to the current gate or blocker.
+Use the workspace language from `workspace-config.yaml` as the default authoring language when present. Draft user-facing and downstream-facing prose directly in that language; do not rely on writing English first and translating immediately before sending.
+
+Keep user updates concise, factual, and tied to the current gate or blocker.

@@ -156,6 +156,16 @@ emit_rule_index() {
   done < <(list_universal_rules)
 }
 
+emit_communication() {
+  cat <<'EOF'
+## Communication
+
+Use the workspace language from `workspace-config.yaml` as the default authoring language when present. Draft user-facing and downstream-facing prose directly in that language; do not rely on writing English first and translating immediately before sending.
+
+Keep user updates concise, factual, and tied to the current gate or blocker.
+EOF
+}
+
 emit_claude() {
   emit_header "Polaris Framework Bootstrap" "claude"
   emit_core
@@ -167,11 +177,9 @@ Claude Code sees this file as first context. Keep this bootstrap thin: framework
 ## Deterministic Enforcement
 
 When behavioral drift appears, prefer scripts, hooks, validators, or skill checkpoints over new prose reminders. If a mandatory gate fails, stop and fix the underlying contract.
-
-## Communication
-
-Use the workspace language from `workspace-config.yaml` when present. Keep user updates concise, factual, and tied to the current gate or blocker.
 EOF
+  echo
+  emit_communication
 }
 
 emit_agents() {
@@ -182,6 +190,8 @@ emit_agents() {
 
 This is a Polaris-owned bootstrap for coding agents. It does not imply installation into product repo roots. Host repo `AGENTS.md` files are repo-owned.
 EOF
+  echo
+  emit_communication
   echo
   emit_rule_index
 }
@@ -194,6 +204,8 @@ emit_codex() {
 
 Codex-compatible entrypoints use AGENTS conventions. This `.codex/AGENTS.md` file is a local compatibility target for the Polaris workspace; product repo root `AGENTS.md` files remain repo-owned.
 EOF
+  echo
+  emit_communication
   echo
   emit_rule_index
 }
@@ -208,6 +220,8 @@ Copilot-compatible instructions are generated for the Polaris workspace/template
 
 Copilot does not provide Claude Code's hook model. Before git or GitHub actions, run the deterministic scripts named by the active task and by the relevant skill reference.
 EOF
+  echo
+  emit_communication
   echo
   emit_rule_index
 }

@@ -8,6 +8,20 @@
 凡是會交給人讀、交給下游 skill 讀、或寫到外部系統的自然語言文字，都需要先經過
 language gate。
 
+## 1.1 Authoring default
+
+Workspace `language` 是預設 authoring language，不只是送出前的 validation language。
+Skill、runtime adapter、外部寫入 producer 在產生 user-facing / downstream-facing prose 時，
+必須直接用解析出的 workspace language 起稿；不可把英文第一稿當成正常流程，最後才在送出前
+翻譯成 workspace language。
+
+Language gate 是 fail-stop validation，不是翻譯器。若 gate 發現英文自然語言違反 zh-TW
+policy，正確處理是回到 producer/template/prompt 修正原始產出語言，再重跑 gate。
+
+例外仍依本檔 § 5：source code、identifier、CLI、log/error 原文、PR template heading、
+bilingual source docs 等可以保留原文；skill 自己新增的說明 prose 仍要依 workspace language
+撰寫。
+
 | Surface | 範例 | Gate |
 |---------|------|------|
 | Local artifacts | `refinement.md`、`plan.md`、`task.md`、`V*.md`、escalation sidecar、handoff package、verification report | `--blocking --mode artifact` |

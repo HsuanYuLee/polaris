@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.76] - 2026-05-05
+
+### Fixed — workspace language authoring default
+
+- Runtime bootstraps now tell Claude, Codex, generic agents, and Copilot to draft user-facing prose directly in the configured workspace language.
+- Workspace language policy now defines `language` as the default authoring language, not only a final validation gate.
+- Language gate failures now point producers back to prompt/template authoring instead of treating last-mile translation as the normal path.
+
 ## [3.74.75] - 2026-05-05
 
 ### Fixed — delivery evidence completion gate
