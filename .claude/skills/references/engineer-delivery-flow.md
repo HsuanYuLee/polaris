@@ -364,6 +364,47 @@ Manifest 至少包含：
 manifest，stack rewrite 不得進 push / closeout。若沒有任何 excluded commit，使用
 `--allow-empty-excluded` 並在 manifest 寫明 `Excluded Commits` 為 `N/A`。
 
+### PR Review Thread Disposition Gate
+
+Revision / rebase / stack rewrite 針對既有 open PR 時，approval 不等於所有 review
+thread 已處理。`reviewDecision=APPROVED` 仍可能存在 `reviewThreads.isResolved=false`
+且 `isOutdated=false` 的 inline comments。進入 push / closeout 前必須跑：
+
+```bash
+bash scripts/pr-review-thread-disposition-gate.sh \
+  --repo <owner/repo> \
+  --pr <number> \
+  --manifest <path/to/review-thread-disposition.json>
+```
+
+Manifest 必須對每個 active unresolved thread 記錄：
+
+```json
+{
+  "version": 1,
+  "pr": "https://github.com/owner/repo/pull/123",
+  "threads": [
+    {
+      "thread_id": "PRRT_...",
+      "disposition": "fixed",
+      "reason": "implemented offset-preserving parser and pushed commit"
+    }
+  ]
+}
+```
+
+Allowed dispositions：
+
+| Disposition | Meaning |
+|---|---|
+| `fixed` | 本 PR 已用 code/test 修正 |
+| `reply_only` | 需要在 GitHub 回覆說明，無 code change |
+| `not_actionable` | 非 action item 或已由後續 diff 失效但 GitHub 未標 outdated |
+| `deferred_with_reason` | 明確延後，reason 需指出 owner / follow-up |
+
+有 active unresolved thread 卻沒有 disposition manifest，或 manifest 少任何 thread，
+就不得 force push 或回報完成。Flat PR comments / `reviewDecision` / approval 數量都不能取代此 gate。
+
 ### Evidence schema
 
 `/tmp/polaris-verified-{ticket}-{head_sha}.json`：

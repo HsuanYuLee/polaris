@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.60] - 2026-05-05
+
+### Fixed — PR review thread disposition gate
+
+- 新增 `pr-review-thread-disposition-gate.sh` 與 selftest，revision / rebase /
+  stack rewrite 既有 open PR 前必須對 unresolved、not-outdated review threads
+  記錄 `fixed` / `reply_only` / `not_actionable` / `deferred_with_reason`。
+- 將 gate 接進 engineering delivery flow，明確規定 approval / `reviewDecision`
+  不能取代 thread-aware review disposition。
+- 在 mechanism registry 新增 `pr-review-thread-disposition-required` canary，
+  防止 inline review comments 在 stack rebuild 時被漏修或漏回覆。
+
 ## [3.74.59] - 2026-05-05
 
 ### Fixed — T3 stack replay and CI-local parity guards
