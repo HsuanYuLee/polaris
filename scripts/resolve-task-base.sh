@@ -144,11 +144,16 @@ find_task_md_by_key() {
     local key="$1"
     local tasks_dir="$2"
     local candidate value
-    # Glob T*.md in active tasks/ first, then tasks/pr-release/ (DP-033 D8 fallback —
-    # downstream tasks must still resolve when an upstream has been moved to pr-release/
-    # by mark-spec-implemented.sh's move-first sequence).
+    # Glob legacy T*.md and folder-native T*/index.md in active tasks/ first,
+    # then tasks/pr-release/ (DP-033 D8 fallback — downstream tasks must still
+    # resolve when an upstream has been moved to pr-release/ by
+    # mark-spec-implemented.sh's move-first sequence).
     shopt -s nullglob
-    for candidate in "$tasks_dir"/T*.md "$tasks_dir"/pr-release/T*.md; do
+    for candidate in \
+        "$tasks_dir"/T*.md \
+        "$tasks_dir"/T*/index.md \
+        "$tasks_dir"/pr-release/T*.md \
+        "$tasks_dir"/pr-release/T*/index.md; do
         value=$(parse_table_field "Task ID" "$candidate")
         if [ "$value" = "$key" ]; then
             printf '%s' "$candidate"
@@ -164,6 +169,19 @@ find_task_md_by_key() {
     done
     shopt -u nullglob
     return 1
+}
+
+task_collection_dir() {
+    local cur_task="$1"
+    local tasks_dir
+    tasks_dir=$(dirname "$cur_task")
+    if [[ "$(basename "$tasks_dir")" =~ ^T[0-9]+[a-z]*$ ]]; then
+        tasks_dir=$(dirname "$tasks_dir")
+    fi
+    if [ "$(basename "$tasks_dir")" = "pr-release" ]; then
+        tasks_dir=$(dirname "$tasks_dir")
+    fi
+    printf '%s' "$tasks_dir"
 }
 
 parse_frontmatter_scalar() {
@@ -232,7 +250,7 @@ find_upstream_task() {
     if [ -z "$depends_key" ]; then
         return 1
     fi
-    tasks_dir=$(dirname "$cur_task")
+    tasks_dir=$(task_collection_dir "$cur_task")
     upstream=$(find_task_md_by_key "$depends_key" "$tasks_dir")
     if [ -z "$upstream" ]; then
         return 1
@@ -276,7 +294,7 @@ resolve_final_feat_branch() {
                 log_err "cannot extract task key from Depends on='$depends_on' in $cur_task"
                 return 1
             fi
-            tasks_dir=$(dirname "$cur_task")
+            tasks_dir=$(task_collection_dir "$cur_task")
             upstream=$(find_task_md_by_key "$depends_key" "$tasks_dir")
             if [ -z "$upstream" ]; then
                 log_err "cannot find upstream task.md for task key $depends_key in $tasks_dir"

@@ -8,7 +8,7 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 specs="$tmpdir/specs"
 mkdir -p \
-  "$specs/design-plans/DP-001-legacy" \
+  "$specs/design-plans/DP-001-legacy/tasks/pr-release" \
   "$specs/design-plans/archive/DP-002-archived" \
   "$specs/companies/acme/ACME-1/tasks/pr-release" \
   "$specs/companies/acme/ACME-1/assets" \
@@ -23,6 +23,21 @@ description: "Legacy DP."
 ---
 
 ## Body
+MD
+cat >"$specs/design-plans/DP-001-legacy/tasks/T1.md" <<'MD'
+---
+title: "DP T1"
+description: "DP task."
+---
+
+[artifact](./artifacts/report.md)
+MD
+cat >"$specs/design-plans/DP-001-legacy/tasks/pr-release/T2.md" <<'MD'
+---
+title: "DP T2"
+description: "DP done task."
+status: IMPLEMENTED
+---
 MD
 cat >"$specs/design-plans/archive/DP-002-archived/plan.md" <<'MD'
 ---
@@ -101,6 +116,9 @@ touch "$specs/companies/acme/ACME-4/artifacts/TASK-4-pr-upload/verify-report.md"
 bash "$MIGRATE" --specs-root "$specs" --apply --cleanup-legacy-bundles >/tmp/migrate-layout-apply.json
 [[ -f "$specs/design-plans/DP-001-legacy/index.md" ]]
 [[ ! -f "$specs/design-plans/DP-001-legacy/plan.md" ]]
+[[ -f "$specs/design-plans/DP-001-legacy/tasks/T1/index.md" ]]
+grep -q '](../artifacts/report.md)' "$specs/design-plans/DP-001-legacy/tasks/T1/index.md"
+[[ -f "$specs/design-plans/DP-001-legacy/tasks/pr-release/T2/index.md" ]]
 [[ -f "$specs/design-plans/archive/DP-002-archived/plan.md" ]]
 [[ -f "$specs/companies/acme/ACME-1/index.md" ]]
 [[ -f "$specs/companies/acme/ACME-1/tasks/T1/index.md" ]]

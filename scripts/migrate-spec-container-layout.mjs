@@ -93,12 +93,12 @@ function planContainerMoves(root, output) {
   if (fs.existsSync(designPlans)) {
     for (const container of listDirectories(designPlans)) {
       if (container.endsWith(`${path.sep}archive`)) continue;
-      if (path.basename(container).startsWith('DP-')) planPrimaryMove(container, 'plan.md', 'index.md', output);
+      if (path.basename(container).startsWith('DP-')) planDesignPlanContainer(container, output);
     }
     const archive = path.join(designPlans, 'archive');
     if (includeArchive && fs.existsSync(archive)) {
       for (const container of listDirectories(archive)) {
-        if (path.basename(container).startsWith('DP-')) planPrimaryMove(container, 'plan.md', 'index.md', output);
+        if (path.basename(container).startsWith('DP-')) planDesignPlanContainer(container, output);
       }
     }
   }
@@ -116,6 +116,13 @@ function planContainerMoves(root, output) {
         planCompanyContainer(container, output);
       }
     }
+  }
+}
+
+function planDesignPlanContainer(container, output) {
+  planPrimaryMove(container, 'plan.md', 'index.md', output);
+  for (const tasksDir of [path.join(container, 'tasks'), path.join(container, 'tasks', 'pr-release')]) {
+    planTasks(tasksDir, output);
   }
 }
 

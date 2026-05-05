@@ -204,11 +204,13 @@ const companyRefinementHref = await page
   .getAttribute('href');
 assert(companyRefinementHref, 'No company refinement route found in sidebar');
 
-const activePlanLink = page.locator('a[href^="/docs-manager/specs/design-plans/dp-"][href$="/plan/"]').first();
-assert(await activePlanLink.count() > 0, 'No active DP plan link found in sidebar');
+const activePlanLink = page
+  .locator('a[href^="/docs-manager/specs/design-plans/dp-"]:not([href*="/archive/"])')
+  .first();
+assert(await activePlanLink.count() > 0, 'No active DP overview link found in sidebar');
 await activePlanLink.scrollIntoViewIfNeeded();
 const activePlanHref = await activePlanLink.getAttribute('href');
-assert(activePlanHref, 'Active DP plan link has no href');
+assert(activePlanHref, 'Active DP overview link has no href');
 const activeDpDetails = page.locator(`details:has(a[href="${activePlanHref}"])`).first();
 assert(await activeDpDetails.count() > 0, `Active DP folder details not found for ${activePlanHref}`);
 await activeDpDetails.evaluate((element) => {
@@ -216,8 +218,8 @@ await activeDpDetails.evaluate((element) => {
 });
 const activeDpText = (await activeDpDetails.textContent()) || '';
 assert(/DP-\d{3}:/.test(activeDpText), `Active DP folder label not found: ${activeDpText}`);
-assert(/(SEEDED|DISCUSSION|LOCKED|IMPLEMENTED)( \/ P[0-3])?/.test(activeDpText), `Active DP folder badge text not found: ${activeDpText}`);
-const activeDpBase = activePlanHref.replace(/plan\/$/, '');
+assert(/(SEEDED|DISCUSSION|LOCKED|IMPLEMENTED|IN_PROGRESS|IMPLEMENTING)( \/ P[0-3])?/.test(activeDpText), `Active DP folder badge text not found: ${activeDpText}`);
+const activeDpBase = activePlanHref.endsWith('/plan/') ? activePlanHref.replace(/plan\/$/, '') : activePlanHref;
 const nestedHrefs = await activeDpDetails.locator(`a[href^="${activeDpBase}"]`).evaluateAll((links) =>
   links.map((link) => link.getAttribute('href')).filter(Boolean)
 );

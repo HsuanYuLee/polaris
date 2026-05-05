@@ -105,22 +105,44 @@ function folderItem(dir) {
     .filter(Boolean)
     .sort(sortByFilesystemOrderThenLabel);
 
-  if (items.length === 0) return undefined;
+  if (items.length === 0) {
+    if (!metadata.link) return undefined;
+    return withSidebarPrivateFields(
+      {
+        label: metadata.label || path.basename(dir),
+        link: metadata.link,
+        ...(metadata.badge ? { badge: metadata.badge } : {}),
+      },
+      metadata,
+      path.basename(dir),
+      'file'
+    );
+  }
+
+  const childItems = metadata.link
+    ? [
+        withSidebarPrivateFields(
+          {
+            label: 'overview',
+            link: metadata.link,
+            ...(metadata.badge ? { badge: metadata.badge } : {}),
+          },
+          { order: -1 },
+          'index.md',
+          'file'
+        ),
+        ...items,
+      ]
+    : items;
 
   const item = {
     label: metadata.label || path.basename(dir),
     collapsed: true,
-    items,
+    items: childItems,
   };
 
-  if (metadata.link) item.link = metadata.link;
   if (metadata.badge) item.badge = metadata.badge;
-  if (Number.isFinite(metadata.order)) {
-    Object.defineProperty(item, '__order', { value: metadata.order, enumerable: false });
-  }
-  Object.defineProperty(item, '__entryName', { value: path.basename(dir), enumerable: false });
-  Object.defineProperty(item, '__kind', { value: 'directory', enumerable: false });
-  return item;
+  return withSidebarPrivateFields(item, metadata, path.basename(dir), 'directory');
 }
 
 function linkItem(file) {
@@ -134,11 +156,15 @@ function linkItem(file) {
 
   const badge = resolveBadge(frontmatter, sidebar);
   if (badge) item.badge = badge;
-  if (Number.isFinite(sidebar.order)) {
-    Object.defineProperty(item, '__order', { value: sidebar.order, enumerable: false });
+  return withSidebarPrivateFields(item, sidebar, path.basename(file), 'file');
+}
+
+function withSidebarPrivateFields(item, metadata, entryName, kind) {
+  if (Number.isFinite(metadata.order)) {
+    Object.defineProperty(item, '__order', { value: metadata.order, enumerable: false });
   }
-  Object.defineProperty(item, '__entryName', { value: path.basename(file), enumerable: false });
-  Object.defineProperty(item, '__kind', { value: 'file', enumerable: false });
+  Object.defineProperty(item, '__entryName', { value: entryName, enumerable: false });
+  Object.defineProperty(item, '__kind', { value: kind, enumerable: false });
   return item;
 }
 

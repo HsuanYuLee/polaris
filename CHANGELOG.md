@@ -4,6 +4,12 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.91] - 2026-05-06
+
+### Fixed — folder-native sidebar groups
+
+- Updated docs-manager sidebar generation so folder-native `index.md` routes appear as child overview links instead of invalid Starlight group links.
+
 ## [3.74.90] - 2026-05-06
 
 ### Fixed — template-safe evidence selftests
