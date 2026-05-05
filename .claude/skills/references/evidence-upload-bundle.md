@@ -75,9 +75,53 @@ distributor 依副檔名機械式分類：
 | `.json`, `.har`, `.log`, `.txt`, `.trace` | `assets/raw/` | Supporting evidence link |
 | other files | `assets/files/` | Supporting evidence link |
 
-`publication-manifest.json` 記錄 local board publication state。第一版只承諾 local board
-可消費；PR / Jira binary upload 是獨立 remote publication flow，不得把 local linkability
-視為 remote publication gate PASS。
+`publication-manifest.json` 記錄 local board publication state 與 remote publication
+write-back。Local board 與 remote publication 分開判定：
+
+- local board 可消費：Markdown image/link 在 Starlight 內可檢視。
+- Jira publication 可執行：artifact 同時具備 `requires_publication: true` 與
+  `publishable: true`，且通過 deterministic safety gate。
+
+需要遠端發布的 artifact 必須明確標記：
+
+```json
+{
+  "id": "image-abc123",
+  "kind": "image",
+  "filename": "checkout-mobile.png",
+  "local_link": "./assets/screenshots/checkout-mobile.png",
+  "requires_publication": true,
+  "publishable": true
+}
+```
+
+舊欄位 `publication_required` / `remote_publication_required` 仍可被 publisher 讀取，
+但新產物應使用 `requires_publication`。Required artifact 若沒有明確
+`publishable: true`，必須視為未分類並停止上傳。
+
+Jira attachment publisher 會在 manifest 回寫：
+
+```json
+{
+  "remote_publication": {
+    "target": "jira",
+    "jira_key": "PROJ-123",
+    "status": "uploaded",
+    "uploaded_count": 2,
+    "planned_count": 2
+  },
+  "artifacts": [
+    {
+      "id": "image-abc123",
+      "jira_attachment": {
+        "id": "10001",
+        "url": "https://example.atlassian.net/rest/api/3/attachment/content/10001",
+        "status": "uploaded"
+      }
+    }
+  ]
+}
+```
 
 `verify-report.md` 由 `scripts/generate-verify-report.mjs` 消費 `links.json` 產生。圖片用
 relative Markdown image；影片只提供可點擊 link，避免 Starlight 內嵌影片造成瀏覽負擔。
@@ -125,6 +169,28 @@ node "${POLARIS_ROOT}/scripts/generate-verify-report.mjs" \
   --title "Verify Report - <WORK_ITEM_ID>"
 ```
 
+若 Jira key 存在且需要上傳附件，先 dry-run，再 apply：
+
+```bash
+node "${POLARIS_ROOT}/scripts/publish-jira-evidence.mjs" \
+  --manifest "<bundle_dir>/publication-manifest.json" \
+  --links "<bundle_dir>/links.json" \
+  --jira-key "<JIRA_KEY>" \
+  --report "<bundle_dir>/verify-report.md" \
+  --dry-run
+
+node "${POLARIS_ROOT}/scripts/publish-jira-evidence.mjs" \
+  --manifest "<bundle_dir>/publication-manifest.json" \
+  --links "<bundle_dir>/links.json" \
+  --jira-key "<JIRA_KEY>" \
+  --report "<bundle_dir>/verify-report.md" \
+  --apply
+```
+
+`--dry-run` 不呼叫 Jira API，只回寫 planned publication state。`--apply` 會呼叫
+`scripts/jira-upload-attachment.sh`，並把 Jira attachment URL 回寫到
+`publication-manifest.json` 與 `verify-report.md` 的 generated Jira section。
+
 ## Engineering Flow
 
 當 local VR 或 Playwright behavior evidence 存在時，engineering 必須在 final
@@ -150,5 +216,21 @@ Jira upload 的 visual evidence 時，必須產生 `jira` bundle，並在 verifi
 
 ## Safety
 
-Helper 會原樣複製 binary 與 JSON evidence。發布前，人類必須檢查是否包含 secrets、
-private customer data 或無關個資；不安全的檔案不可上傳。
+Helper 會原樣複製 binary 與 JSON evidence。遠端發布前必須通過：
+
+```bash
+bash "${POLARIS_ROOT}/scripts/safety-gate.sh" evidence-publication \
+  --manifest "<bundle_dir>/publication-manifest.json" \
+  --links "<bundle_dir>/links.json"
+```
+
+Safety gate fail-stop 條件：
+
+- required artifact 找不到本地檔案。
+- required artifact 沒有明確 `publishable: true`。
+- 副檔名不屬於 Jira evidence allowlist：PNG/JPG/WebP/GIF/SVG、WebM/MP4/MOV/M4V、
+  JSON。
+- JSON/SVG 文字內容疑似包含 token、password、secret、private key 或常見平台 token。
+
+Safety gate 是 deterministic blocker，不取代人工檢查 private customer data 或無關個資；
+人工判斷後若不可上傳，應移除 `requires_publication` 或維持 `publishable: false`。

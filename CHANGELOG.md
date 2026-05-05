@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.93] - 2026-05-06
+
+### Added — Jira evidence publisher safety gate
+
+- Added a dry-run-first Jira evidence publisher that uploads required publishable artifacts and writes attachment URLs back to publication manifests and verify reports.
+- Added deterministic evidence publication safety classification for required artifacts, missing sources, unsupported file types, and secret-bearing JSON/SVG files.
+- Documented the remote publication contract for Jira evidence bundles.
+
 ## [3.74.92] - 2026-05-06
 
 ### Fixed — folder-native release closeout
