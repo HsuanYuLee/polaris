@@ -14,6 +14,7 @@
 
 **開發者還需要：**
 - **Git** 和 **GitHub CLI**（`gh`）— 已對組織認證
+- **Polaris 本機 toolchain** — Node >= 20、pnpm、Python 3，以及 Playwright / Mockoon / docs viewer 所需套件。Clone 後先跑 `bash scripts/polaris-toolchain.sh doctor --required`；缺工具時跑 `bash scripts/polaris-toolchain.sh install --required` 後再重跑 doctor。
 
 **選用：**
 - **Google Calendar MCP** — 在 standup 加入會議上下文
@@ -33,6 +34,19 @@ cd ~/polaris-workspace
 ```
 
 > **提示**：選一個專用的目錄名稱。避免使用 `~/work` — 很多開發者已經在用這個路徑。
+
+確認本機 toolchain：
+
+```bash
+bash scripts/polaris-toolchain.sh doctor --required
+```
+
+若 doctor 顯示缺工具：
+
+```bash
+bash scripts/polaris-toolchain.sh install --required
+bash scripts/polaris-toolchain.sh doctor --required
+```
 
 > **PM 和非開發者：** 請團隊的開發者幫你跑步驟 1-2，大約需要 10 分鐘。然後直接跳到步驟 3。
 
@@ -62,8 +76,9 @@ onboard 流程會：
 │   └── skills/                   ← 24 個工作流技能
 └── your-company/                 ← 由 onboard 建立
     ├── workspace-config.yaml     ← 公司設定（JIRA、Slack、repos）
+    ├── polaris-config/           ← 本機 project handbook 與 generated scripts
+    │   └── your-project/handbook/
     └── your-project/             ← 你的專案 repo（clone 或連結）
-        └── .claude/CLAUDE.md     ← 專案層級規則 (L3)
 ```
 
 ### 3. 開始使用技能
@@ -158,7 +173,7 @@ Sprint 規劃        →  「排 sprint」
 |------|------|---------|------|
 | **L1 — 工作區** | `CLAUDE.md` + `.claude/rules/` | 每次對話 | Strategist 人格、委派規則 |
 | **L2 — 公司** | `.claude/rules/{company}/` | 每次對話 | PR 慣例、JIRA 流程、技能路由 |
-| **L3 — 專案** | `{company}/{project}/CLAUDE.md` | 進入專案時 | Lint 設定、測試慣例、元件規範 |
+| **L3 — 專案** | `{company}/polaris-config/{project}/handbook/` | skill 在專案中工作時讀取 | Repo handbook、測試慣例、runtime hints、generated scripts |
 
 規則（rules）永遠載入。技能（skills）按需觸發 — 沒觸發時不佔 context。
 
@@ -176,7 +191,9 @@ Sprint 規劃        →  「排 sprint」
 ├── scripts/                   # 同步工具
 └── {company}/                 # 你的公司目錄
     ├── workspace-config.yaml  # 公司設定（JIRA、Slack、repos）
-    └── {project}/             # 專案 repo，含 CLAUDE.md (L3)
+    ├── polaris-config/
+    │   └── {project}/handbook/ # workspace-owned repo handbook
+    └── {project}/             # 產品 repo；repo-owned files 不由 Polaris 接管
 ```
 
 ### 工作流編排
@@ -226,7 +243,7 @@ Polaris 支援在同一個工作區管理多間公司。每間公司有獨立的
 | 加入新公司 | 請 Polaris `onboard 另一家公司` | 互動式精靈幫你建好一切 |
 | 對應 JIRA 專案到 repo | `{company}/workspace-config.yaml` | 在 `projects:` 下新增 |
 | 加公司專屬規則 | `.claude/rules/{company}/` | 建 `.md` 檔 — 每次對話自動載入 |
-| 加專案專屬規則 | `{company}/{project}/CLAUDE.md` | sub-agent 進入專案時載入 |
+| 加專案 handbook / generated scripts | `{company}/polaris-config/{project}/` | 本機 ignored；skill 明確讀取，不修改 repo-owned AI config |
 | 建立新技能 | 執行 `/skill-creator` | 引導式建立 + 自動測試 |
 | 調整技能路由 | `.claude/rules/{company}/skill-routing.md` | 觸發詞 → 技能對應表 |
 
@@ -238,7 +255,7 @@ Polaris 支援在同一個工作區管理多間公司。每間公司有獨立的
 |------|---------|
 | `.claude/rules/{company}/` | 你公司的慣例、PR 規範、JIRA 流程 |
 | `{company}/workspace-config.yaml` | JIRA 專案、Slack 頻道、repo 對應 |
-| `{company}/{project}/CLAUDE.md` | 專案層級規則 (L3) |
+| `{company}/polaris-config/{project}/` | 專案 handbook、generated scripts、本機 Polaris config |
 
 **框架內部 — 除非你在改 Polaris 本身，否則不要動：**
 

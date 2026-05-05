@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.57] - 2026-05-05
+
+### Fixed — public onboarding toolchain contract
+
+- 補齊 README、quick start、Codex quick start 與 PM setup checklist 的 Polaris
+  runtime toolchain 前置需求，明確列出 Node >= 20、pnpm、Python 3、Playwright、
+  Mockoon 與 docs viewer。
+- 新增 `scripts/validate-public-onboarding-contract.sh`，從 `polaris-toolchain.yaml`
+  檢查 public onboarding docs 是否包含 `polaris-toolchain.sh doctor --required`
+  與必要 runtime capability。
+- 將 public onboarding contract validator 接進 `readme-lint.py`，讓版本升級與
+  README lint gate 能 deterministic 擋下 toolchain prerequisite drift。
+
 ## [3.74.56] - 2026-05-05
 
 ### Changed — README hub structure

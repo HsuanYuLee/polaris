@@ -49,6 +49,7 @@ Skills 只在被觸發時載入。Rules 和 hooks 則提供常駐護欄：語言
 
 - Git
 - 已通過組織認證的 GitHub CLI (`gh`)
+- Polaris 本機 toolchain：Node >= 20、pnpm、Python 3、Playwright、Mockoon 與 docs viewer。Clone 後先跑 `bash scripts/polaris-toolchain.sh doctor --required`；若缺工具，跑 `bash scripts/polaris-toolchain.sh install --required` 後再重跑 doctor。
 
 選配整合：
 
@@ -88,6 +89,19 @@ cd ~/polaris-workspace
 ```
 
 建議使用專用目錄名稱。如果你已經把 `~/work` 用於產品 repo，請避免把 Polaris workspace 也放在同一路徑。
+
+Onboard 前先確認本機 runtime toolchain：
+
+```bash
+bash scripts/polaris-toolchain.sh doctor --required
+```
+
+若有必要工具缺失，先安裝後重跑 doctor：
+
+```bash
+bash scripts/polaris-toolchain.sh install --required
+bash scripts/polaris-toolchain.sh doctor --required
+```
 
 ### 2. Onboard 公司
 

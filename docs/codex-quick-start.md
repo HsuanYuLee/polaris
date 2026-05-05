@@ -28,6 +28,21 @@ cd ~/polaris-workspace
 
 ### 2. Run Codex doctor
 
+First verify the Polaris runtime toolchain. This checks the minimum local environment (Node >= 20, pnpm, Python 3) and required capabilities for the docs viewer, Mockoon fixtures, and Playwright:
+
+```bash
+bash scripts/polaris-toolchain.sh doctor --required
+```
+
+If required tools are missing:
+
+```bash
+bash scripts/polaris-toolchain.sh install --required
+bash scripts/polaris-toolchain.sh doctor --required
+```
+
+Then run the Codex compatibility doctor:
+
 ```bash
 bash scripts/polaris-codex-doctor.sh
 ```

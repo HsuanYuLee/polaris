@@ -28,6 +28,21 @@ cd ~/polaris-workspace
 
 ### 2. 執行 Codex 健檢
 
+先確認 Polaris runtime toolchain。這會檢查最低本機環境（Node >= 20、pnpm、Python 3），以及 docs viewer、Mockoon fixtures、Playwright 需要的能力：
+
+```bash
+bash scripts/polaris-toolchain.sh doctor --required
+```
+
+若缺必要工具：
+
+```bash
+bash scripts/polaris-toolchain.sh install --required
+bash scripts/polaris-toolchain.sh doctor --required
+```
+
+再跑 Codex compatibility doctor：
+
 ```bash
 bash scripts/polaris-codex-doctor.sh
 ```

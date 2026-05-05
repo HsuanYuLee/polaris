@@ -49,6 +49,7 @@ Developers also need:
 
 - Git
 - GitHub CLI (`gh`) authenticated with the organization
+- Local Polaris toolchain prerequisites: Node >= 20, pnpm, Python 3, Playwright, Mockoon, and the docs viewer. After cloning, run `bash scripts/polaris-toolchain.sh doctor --required`; if it reports missing tools, run `bash scripts/polaris-toolchain.sh install --required` and retry the doctor.
 
 Optional integrations:
 
@@ -88,6 +89,19 @@ cd ~/polaris-workspace
 ```
 
 Choose a dedicated directory name. Avoid `~/work` if you already use that path for product repositories.
+
+Before onboarding, verify the local runtime toolchain:
+
+```bash
+bash scripts/polaris-toolchain.sh doctor --required
+```
+
+If required tools are missing, install them and rerun the doctor:
+
+```bash
+bash scripts/polaris-toolchain.sh install --required
+bash scripts/polaris-toolchain.sh doctor --required
+```
 
 ### 2. Onboard your company
 
