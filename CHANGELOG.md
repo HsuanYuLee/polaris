@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.74] - 2026-05-05
+
+### Fixed — aggregate framework release lane
+
+- 新增 aggregate release PR base 顯式驗證，讓 framework stacked release 可以對 `main` 開 PR，不需要繞過 PR base gate。
+- 新增 revision rebase aggregate mode，讓 release PR 保持 base 為 `main`，同時保留 head-bound evidence。
+- 放寬 framework release cleanup：final workspace commit 已包含 task HEAD 且 worktree clean 時，可清掉舊 task worktree。
+
 ## [3.74.73] - 2026-05-05
 
 ### Added — bootstrap token budget health

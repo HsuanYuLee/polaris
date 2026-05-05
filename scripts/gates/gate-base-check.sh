@@ -6,7 +6,7 @@ set -euo pipefail
 # Can be called from: git pre-push hooks, polaris-pr-create.sh, or directly.
 #
 # Usage:
-#   bash scripts/gates/gate-base-check.sh [--repo <path>] [--base <branch>]
+#   bash scripts/gates/gate-base-check.sh [--repo <path>] [--base <branch>] [--aggregate-release]
 #
 # Exit: 0 = pass/skip, 2 = block
 # Bypass: POLARIS_SKIP_PR_BASE_GATE=1
@@ -15,16 +15,19 @@ PREFIX="[polaris gate-base-check]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT=""
 ACTUAL_BASE=""
+AGGREGATE_RELEASE=0
 
 # Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO_ROOT="$2"; shift 2 ;;
     --base) ACTUAL_BASE="$2"; shift 2 ;;
+    --aggregate-release) AGGREGATE_RELEASE=1; shift ;;
     -h|--help)
-      echo "Usage: bash scripts/gates/gate-base-check.sh [--repo <path>] [--base <branch>]"
+      echo "Usage: bash scripts/gates/gate-base-check.sh [--repo <path>] [--base <branch>] [--aggregate-release]"
       echo "  --repo <path>     Target repo (default: git rev-parse --show-toplevel)"
       echo "  --base <branch>   The intended PR base branch to validate"
+      echo "  --aggregate-release  Allow an explicit framework aggregate release PR to target main"
       exit 0
       ;;
     *) shift ;;
@@ -53,6 +56,7 @@ fi
 WORKSPACE_SCRIPTS="${SCRIPT_DIR}/.."
 resolve_by_branch=""
 resolve_base=""
+resolve_chain=""
 
 for search_dir in "$REPO_ROOT/scripts" "$WORKSPACE_SCRIPTS"; do
   if [[ -z "$resolve_by_branch" && -f "$search_dir/resolve-task-md-by-branch.sh" ]]; then
@@ -60,6 +64,9 @@ for search_dir in "$REPO_ROOT/scripts" "$WORKSPACE_SCRIPTS"; do
   fi
   if [[ -z "$resolve_base" && -f "$search_dir/resolve-task-base.sh" ]]; then
     resolve_base="$search_dir/resolve-task-base.sh"
+  fi
+  if [[ -z "$resolve_chain" && -f "$search_dir/resolve-branch-chain.sh" ]]; then
+    resolve_chain="$search_dir/resolve-branch-chain.sh"
   fi
 done
 
@@ -100,6 +107,49 @@ fi
 # Compare actual vs expected
 if [[ "$ACTUAL_BASE" == "$expected_base" ]]; then
   echo "$PREFIX ✅ PR base matches task.md: ${ACTUAL_BASE}" >&2
+  exit 0
+fi
+
+if [[ "$AGGREGATE_RELEASE" == "1" ]]; then
+  current_branch=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "<unknown>")
+  if [[ "$ACTUAL_BASE" != "main" ]]; then
+    cat >&2 <<EOF
+
+$PREFIX BLOCKED: aggregate release PR base must be main.
+  Current branch:  ${current_branch}
+  Task.md:         ${task_md_path}
+  Expected --base: ${expected_base}
+  Actual --base:   ${ACTUAL_BASE}
+EOF
+    exit 2
+  fi
+
+  if [[ "$expected_base" == "main" ]]; then
+    echo "$PREFIX WARN: --aggregate-release was unnecessary because task.md already resolves to main" >&2
+    exit 0
+  fi
+
+  if [[ -z "$resolve_chain" ]]; then
+    echo "$PREFIX BLOCKED: resolve-branch-chain.sh is required for aggregate release validation" >&2
+    exit 2
+  fi
+
+  branch_chain=$(bash "$resolve_chain" "$task_md_path" 2>/dev/null || true)
+  if [[ -z "$branch_chain" ]] ||
+     ! printf '%s\n' "$branch_chain" | grep -qxF "$current_branch" ||
+     ! printf '%s\n' "$branch_chain" | grep -qxF "$expected_base"; then
+    cat >&2 <<EOF
+
+$PREFIX BLOCKED: aggregate release branch is not backed by task.md Branch chain.
+  Current branch:  ${current_branch}
+  Task.md:         ${task_md_path}
+  Expected --base: ${expected_base}
+  Actual --base:   ${ACTUAL_BASE}
+EOF
+    exit 2
+  fi
+
+  echo "$PREFIX ✅ aggregate release PR base accepted: main (task upstream: ${expected_base})" >&2
   exit 0
 fi
 

@@ -17,6 +17,7 @@
 #   13. resolve-task-base.sh missing → exit 1
 #   14. JSON schema completeness (all keys present)
 #   15. After conflict + --abort, re-run clean → exit 0
+#   16. Aggregate release PR stays based on main and does not run gh pr edit
 #
 # Exit 0 when all assertions PASS. Honors DEBUG=1 for verbose output.
 
@@ -637,7 +638,7 @@ assert_contains "$stderr_c13" "helper missing" "case13.advisory"
 # ────────────────────────────────────────────────────────────────────────────
 printf '\n--- Case 14: JSON schema completeness ---\n'
 # Use case2 result — confirm all keys present
-expected_keys="repo task_md resolved_base rebase_status pr_number pr_base_before pr_base_after pr_base_synced pr_base_already_aligned legacy_fallback writer at"
+expected_keys="repo task_md resolved_base rebase_status pr_number pr_base_before pr_base_after pr_base_synced pr_base_already_aligned legacy_fallback aggregate_release writer at"
 out=$(PATH="$C2/bin:$PATH" \
   FAKE_GH_PR_VIEW="$C2/pr-view.json" FAKE_GH_LOG="$C2/gh.log" \
   bash "$RR" --repo "$C2/repo" --task-md "$TASK_MD2" 2>/dev/null)
@@ -690,6 +691,44 @@ if [ "$got_status" = "clean" ] || [ "$got_status" = "not_needed" ]; then
 else
   FAIL=$((FAIL + 1))
   printf "  [FAIL] case15.rebase_status — want=clean|not_needed got=%s\n" "$got_status"
+fi
+
+# ────────────────────────────────────────────────────────────────────────────
+# Case 16: aggregate release PR keeps base main
+# ────────────────────────────────────────────────────────────────────────────
+printf '\n--- Case 16: aggregate release keeps PR base main ---\n'
+C16="$WORK_DIR/case16"
+mkdir -p "$C16"
+mk_repo "$C16/repo" "feat/demo" "task/DEMO-AGG"
+git -C "$C16/repo" checkout -q develop
+git -C "$C16/repo" branch main
+git -C "$C16/repo" push -q origin main
+git -C "$C16/repo" checkout -q task/DEMO-AGG
+TASK_MD16=$(mk_task_md "$C16" "repo" "DEMO-AGG" "DEMO-AGG" "feat/demo" "task/DEMO-AGG")
+
+mk_fake_gh "$C16/bin"
+FAKE_PR_VIEW="$C16/pr-view.json"
+write_fake_pr_view "$FAKE_PR_VIEW" 116 "main"
+FAKE_GH_LOG="$C16/gh.log"
+: > "$FAKE_GH_LOG"
+
+out=$(PATH="$C16/bin:$PATH" \
+  FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
+  bash "$RR" --repo "$C16/repo" --task-md "$TASK_MD16" --aggregate-release 2>/tmp/rr-c16-stderr)
+rc=$?
+[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat /tmp/rr-c16-stderr; cat "$FAKE_GH_LOG"; }
+assert_eq "$rc" "0" "case16.exit"
+assert_json_eq "$out" "resolved_base" "feat/demo" "case16"
+assert_json_eq "$out" "pr_base_before" "main" "case16"
+assert_json_eq "$out" "pr_base_after" "main" "case16"
+assert_json_eq "$out" "pr_base_synced" "false" "case16"
+assert_json_eq "$out" "aggregate_release" "true" "case16"
+if grep -q "pr edit" "$FAKE_GH_LOG"; then
+  FAIL=$((FAIL + 1))
+  printf "  [FAIL] case16 should not invoke gh pr edit\n"
+else
+  PASS=$((PASS + 1))
+  [ "$DEBUG" = "1" ] && printf "  [ok] case16.no-pr-edit\n"
 fi
 
 # ────────────────────────────────────────────────────────────────────────────

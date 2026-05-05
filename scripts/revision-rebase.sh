@@ -15,7 +15,7 @@
 #     script 印 advisory 後 exit 1。
 #
 # Interface:
-#   revision-rebase.sh [--repo PATH] [--task-md PATH] [--pr PR_NUMBER] [-h|--help]
+#   revision-rebase.sh [--repo PATH] [--task-md PATH] [--pr PR_NUMBER] [--aggregate-release] [-h|--help]
 #
 # Defaults:
 #   --repo     → `git rev-parse --show-toplevel` (cwd)
@@ -42,6 +42,7 @@
 #     "pr_base_after": "<branch|null>",
 #     "pr_base_synced": true|false,
 #     "legacy_fallback": false,
+#     "aggregate_release": true|false,
 #     "writer": "revision-rebase.sh",
 #     "at": "<ISO 8601 UTC>"
 #   }
@@ -79,13 +80,14 @@ iso_now_utc() {
 
 usage() {
   cat >&2 <<'USAGE'
-usage: revision-rebase.sh [--repo PATH] [--task-md PATH] [--pr PR_NUMBER]
+usage: revision-rebase.sh [--repo PATH] [--task-md PATH] [--pr PR_NUMBER] [--aggregate-release]
        revision-rebase.sh -h | --help
 
 Defaults:
   --repo     → git rev-parse --show-toplevel (cwd)
   --task-md  → resolve-task-md-by-branch.sh --current (within repo)
   --pr       → gh pr view --json number --jq .number (current branch)
+  --aggregate-release → keep an explicit framework aggregate release PR based on main
 
 Exit:
   0 rebase clean + PR base synced
@@ -213,6 +215,7 @@ evidence = {
     "pr_base_synced": maybe_bool(pr_base_synced),
     "pr_base_already_aligned": (rebase_status != "conflict") and (pr_base_before == pr_base_after) and pr_base_before not in ("__NULL__", None),
     "legacy_fallback": maybe_bool(legacy_fallback),
+    "aggregate_release": os.environ.get("POLARIS_REVISION_REBASE_AGGREGATE_RELEASE") == "1",
     "writer": "revision-rebase.sh",
     "at": at,
 }
@@ -244,6 +247,7 @@ PYEOF
 REPO_ARG=""
 TASK_MD_ARG=""
 PR_ARG=""
+AGGREGATE_RELEASE=0
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -256,12 +260,16 @@ while [ "$#" -gt 0 ]; do
     --pr)
       [ "$#" -ge 2 ] || { log_err "--pr requires a value"; usage; exit 2; }
       PR_ARG="$2"; shift 2 ;;
+    --aggregate-release)
+      AGGREGATE_RELEASE=1; shift ;;
     -h|--help)
       usage; exit 2 ;;
     *)
       log_err "unknown arg: $1"; usage; exit 2 ;;
   esac
 done
+
+export POLARIS_REVISION_REBASE_AGGREGATE_RELEASE="$AGGREGATE_RELEASE"
 
 # ---------------------------------------------------------------------------
 # Step 1: Resolve repo path
@@ -376,7 +384,24 @@ if [ "$rc" != "0" ] || [ -z "$RESOLVED_BASE" ]; then
   exit 1
 fi
 
-log_info "repo=$REPO  task_md=$TASK_MD  resolved_base=$RESOLVED_BASE  pr=$PR_NUMBER"
+REBASE_BASE="$RESOLVED_BASE"
+if [ "$AGGREGATE_RELEASE" = "1" ]; then
+  if [ "$PR_NUMBER" = "__NULL__" ] || [ "$PR_BASE_BEFORE" = "__NULL__" ]; then
+    log_err "--aggregate-release requires an existing PR whose base is main"
+    emit_evidence "$REPO" "$TASK_MD" "$RESOLVED_BASE" "conflict" \
+      "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" "false"
+    exit 1
+  fi
+  if [ "$PR_BASE_BEFORE" != "main" ]; then
+    log_err "--aggregate-release only supports PR base main (actual=$PR_BASE_BEFORE)"
+    emit_evidence "$REPO" "$TASK_MD" "$RESOLVED_BASE" "conflict" \
+      "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" "false"
+    exit 1
+  fi
+  REBASE_BASE="$PR_BASE_BEFORE"
+fi
+
+log_info "repo=$REPO  task_md=$TASK_MD  resolved_base=$RESOLVED_BASE  rebase_base=$REBASE_BASE  pr=$PR_NUMBER"
 
 # ---------------------------------------------------------------------------
 # Step 5: git fetch origin
@@ -411,18 +436,18 @@ if [ -f "$CASCADE_REBASE_CHAIN" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 6: Rebase onto origin/<RESOLVED_BASE>
+# Step 6: Rebase onto origin/<REBASE_BASE>
 # ---------------------------------------------------------------------------
 
-# Determine rebase target ref. origin/<RESOLVED_BASE> is the convention; if the
-# remote branch doesn't exist, fall back to local <RESOLVED_BASE>.
-REBASE_TARGET="origin/$RESOLVED_BASE"
+# Determine rebase target ref. origin/<REBASE_BASE> is the convention; if the
+# remote branch doesn't exist, fall back to local <REBASE_BASE>.
+REBASE_TARGET="origin/$REBASE_BASE"
 if ! git -C "$REPO" rev-parse --verify --quiet "$REBASE_TARGET" >/dev/null 2>&1; then
-  if git -C "$REPO" rev-parse --verify --quiet "$RESOLVED_BASE" >/dev/null 2>&1; then
-    REBASE_TARGET="$RESOLVED_BASE"
-    log_info "origin/$RESOLVED_BASE not found; falling back to local $RESOLVED_BASE"
+  if git -C "$REPO" rev-parse --verify --quiet "$REBASE_BASE" >/dev/null 2>&1; then
+    REBASE_TARGET="$REBASE_BASE"
+    log_info "origin/$REBASE_BASE not found; falling back to local $REBASE_BASE"
   else
-    log_err "neither origin/$RESOLVED_BASE nor local $RESOLVED_BASE exists in $REPO"
+    log_err "neither origin/$REBASE_BASE nor local $REBASE_BASE exists in $REPO"
     emit_evidence "$REPO" "$TASK_MD" "$RESOLVED_BASE" "conflict" \
       "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" "false"
     exit 1
@@ -435,7 +460,7 @@ ONTO_REBASE_DONE=false
 # resolves to an upstream base, merely editing the PR base exposes the old base's
 # commits in the diff. Transplant only the PR branch's own commits onto the
 # resolved base before syncing the PR base field.
-if [ "$PR_NUMBER" != "__NULL__" ] && [ "$PR_BASE_BEFORE" != "__NULL__" ] && [ "$PR_BASE_BEFORE" != "$RESOLVED_BASE" ]; then
+if [ "$AGGREGATE_RELEASE" != "1" ] && [ "$PR_NUMBER" != "__NULL__" ] && [ "$PR_BASE_BEFORE" != "__NULL__" ] && [ "$PR_BASE_BEFORE" != "$RESOLVED_BASE" ]; then
   OLD_BASE_TARGET="origin/$PR_BASE_BEFORE"
   if ! git -C "$REPO" rev-parse --verify --quiet "$OLD_BASE_TARGET" >/dev/null 2>&1; then
     if git -C "$REPO" rev-parse --verify --quiet "$PR_BASE_BEFORE" >/dev/null 2>&1; then
@@ -506,7 +531,11 @@ if [ "$PR_NUMBER" = "__NULL__" ] || [ "$PR_BASE_BEFORE" = "__NULL__" ]; then
   log_info "no PR for current branch — skipping PR base sync"
   PR_BASE_AFTER="$PR_BASE_BEFORE"
 else
-  if [ "$PR_BASE_BEFORE" = "$RESOLVED_BASE" ]; then
+  if [ "$AGGREGATE_RELEASE" = "1" ]; then
+    log_info "aggregate release mode: keeping PR #$PR_NUMBER base on $PR_BASE_BEFORE"
+    PR_BASE_AFTER="$PR_BASE_BEFORE"
+    PR_BASE_SYNCED="false"
+  elif [ "$PR_BASE_BEFORE" = "$RESOLVED_BASE" ]; then
     log_info "PR #$PR_NUMBER base already aligned ($PR_BASE_BEFORE == $RESOLVED_BASE) — no edit needed"
     PR_BASE_AFTER="$PR_BASE_BEFORE"
     PR_BASE_SYNCED="false"

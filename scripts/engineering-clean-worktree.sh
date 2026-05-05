@@ -13,7 +13,8 @@
 #   - target must live under a `.worktrees/` directory
 #   - target must not be the main checkout
 #   - target git status must be clean
-#   - task.md deliverable.head_sha or extension_deliverable.task_head_sha must match target HEAD
+#   - task.md deliverable.head_sha must match target HEAD
+#   - or extension_deliverable.task_head_sha must match target HEAD or contain target HEAD as an ancestor
 #
 # Exit:
 #   0 = removed or no matching implementation worktree found
@@ -92,6 +93,19 @@ task_delivered_head_sha() {
   fi
 
   extract_frontmatter_nested_scalar "$file" "extension_deliverable" "task_head_sha"
+}
+
+delivered_head_source() {
+  local file="$1"
+
+  if [[ -n "$(extract_frontmatter_nested_scalar "$file" "deliverable" "head_sha")" ]]; then
+    printf '%s\n' "deliverable"
+    return 0
+  fi
+
+  if [[ -n "$(extract_frontmatter_nested_scalar "$file" "extension_deliverable" "task_head_sha")" ]]; then
+    printf '%s\n' "extension_deliverable"
+  fi
 }
 
 canonical_path() {
@@ -232,6 +246,49 @@ TASK
   [[ "$rc" == "0" ]] || { echo "self-test failed: local-extension remove rc=$rc output=$out" >&2; return 1; }
   [[ ! -d "$wt" ]] || { echo "self-test failed: local-extension worktree still exists" >&2; return 1; }
 
+  git -C "$main" branch task/TEST-EXT-DESC main
+  git -C "$main" worktree add "${main}/.worktrees/repo-engineering-TEST-EXT-DESC" task/TEST-EXT-DESC >/dev/null 2>&1
+  wt="${main}/.worktrees/repo-engineering-TEST-EXT-DESC"
+  head="$(git -C "$wt" rev-parse HEAD)"
+  echo descendant >>"${main}/file.txt"
+  git -C "$main" commit -am "workspace descendant" >/dev/null
+  descendant_head="$(git -C "$main" rev-parse HEAD)"
+  task_md="${tmp}/T-ext-desc.md"
+  cat >"$task_md" <<TASK
+---
+extension_deliverable:
+  endpoint: local_extension
+  extension_id: framework-release
+  task_head_sha: ${descendant_head}
+  workspace_commit: ${descendant_head}
+  template_commit: ${descendant_head}
+  version_tag: v1.2.4
+  release_url: https://example.test/releases/v1.2.4
+  evidence:
+    ci_local: N/A
+    verify: /tmp/example-verify.json
+    vr: N/A
+status: IMPLEMENTED
+---
+# T-ext-desc: Local extension descendant cleanup (1 pt)
+
+> Epic: TEST-EXT-DESC | JIRA: TEST-EXT-DESC | Repo: repo
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Task JIRA key | TEST-EXT-DESC |
+| Parent Epic | TEST-EXT-DESC |
+| Base branch | main |
+| Task branch | task/TEST-EXT-DESC |
+TASK
+
+  out="$("$0" --task-md "$task_md" --repo "$main" 2>&1)"
+  rc=$?
+  [[ "$rc" == "0" ]] || { echo "self-test failed: local-extension descendant remove rc=$rc output=$out" >&2; return 1; }
+  [[ ! -d "$wt" ]] || { echo "self-test failed: local-extension descendant worktree still exists" >&2; return 1; }
+
   git -C "$main" branch task/TEST-2-dirty main
   git -C "$main" worktree add "${main}/.worktrees/repo-engineering-TEST-2" task/TEST-2-dirty >/dev/null 2>&1
   wt="${main}/.worktrees/repo-engineering-TEST-2"
@@ -320,6 +377,7 @@ TASK_JSON="$(bash "$PARSE_TASK_MD" "$TASK_MD")"
 TASK_BRANCH="$(json_field "$TASK_JSON" "d.get('operational_context',{}).get('task_branch')")"
 TASK_KEY="$(json_field "$TASK_JSON" "d.get('operational_context',{}).get('task_jira_key') or d.get('metadata',{}).get('jira')")"
 DELIVERED_HEAD_SHA="$(task_delivered_head_sha "$TASK_MD")"
+DELIVERED_HEAD_SOURCE="$(delivered_head_source "$TASK_MD")"
 
 if [[ -z "$TASK_BRANCH" ]]; then
   echo "$PREFIX task branch missing in task.md" >&2
@@ -383,8 +441,13 @@ fi
 
 CURRENT_HEAD_SHA="$(git -C "$WORKTREE" rev-parse HEAD)"
 if [[ "$CURRENT_HEAD_SHA" != "$DELIVERED_HEAD_SHA" && "$CURRENT_HEAD_SHA" != "${DELIVERED_HEAD_SHA}"* ]]; then
-  echo "$PREFIX blocked: delivered head (${DELIVERED_HEAD_SHA}) != worktree HEAD (${CURRENT_HEAD_SHA})" >&2
-  exit 2
+  if [[ "$DELIVERED_HEAD_SOURCE" == "extension_deliverable" ]] &&
+     git -C "$WORKTREE" merge-base --is-ancestor "$CURRENT_HEAD_SHA" "$DELIVERED_HEAD_SHA" >/dev/null 2>&1; then
+    echo "$PREFIX extension deliverable head contains worktree HEAD (${CURRENT_HEAD_SHA} <= ${DELIVERED_HEAD_SHA})" >&2
+  else
+    echo "$PREFIX blocked: delivered head (${DELIVERED_HEAD_SHA}) != worktree HEAD (${CURRENT_HEAD_SHA})" >&2
+    exit 2
+  fi
 fi
 
 echo "$PREFIX removing ${WORKTREE} for ${TASK_KEY:-$TASK_BRANCH}" >&2

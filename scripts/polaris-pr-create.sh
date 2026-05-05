@@ -6,7 +6,7 @@ set -euo pipefail
 # Runs base-check + evidence + ci-local + PR metadata gates before PR creation.
 #
 # Usage:
-#   bash scripts/polaris-pr-create.sh [--repo <path>] [--skip-gates] -- <gh pr create args...>
+#   bash scripts/polaris-pr-create.sh [--repo <path>] [--skip-gates] [--aggregate-release] -- <gh pr create args...>
 #   bash scripts/polaris-pr-create.sh --base develop --title "feat: X" --body "..."
 #
 # All unrecognized flags are passed through to `gh pr create`.
@@ -20,17 +20,20 @@ GATES_DIR="$SCRIPT_DIR/gates"
 PREFIX="[polaris-pr-create]"
 REPO_PATH=""
 SKIP_GATES="${POLARIS_SKIP_PR_GATES:-0}"
+AGGREGATE_RELEASE=0
 GH_ARGS=()
 
 usage() {
   cat <<EOF
-Usage: polaris-pr-create.sh [--repo <path>] [--skip-gates] [--] <gh pr create args...>
+Usage: polaris-pr-create.sh [--repo <path>] [--skip-gates] [--aggregate-release] [--] <gh pr create args...>
 
 Wrapper for 'gh pr create' that runs pre-flight gates before PR creation.
 
 Options:
   --repo <path>     Repository path (default: cwd)
   --skip-gates      Skip all gates (emergency bypass)
+  --aggregate-release
+                     Treat this as an explicit framework aggregate release PR
   -h, --help        Show this help
 
 All other arguments are passed verbatim to 'gh pr create'.
@@ -45,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --repo)          REPO_PATH="$2"; shift 2 ;;
     --repo=*)        REPO_PATH="${1#--repo=}"; shift ;;
     --skip-gates)    SKIP_GATES=1; shift ;;
+    --aggregate-release) AGGREGATE_RELEASE=1; shift ;;
     --)              shift; GH_ARGS+=("$@"); break ;;
     *)               GH_ARGS+=("$1"); shift ;;
   esac
@@ -129,7 +133,11 @@ echo "$PREFIX Running pre-flight gates..."
 
 # Gate 1: base-check (only if --base provided)
 if [[ -n "$BASE_BRANCH" ]]; then
-  run_gate gate-base-check.sh --repo "$REPO_PATH" --base "$BASE_BRANCH"
+  BASE_GATE_ARGS=(--repo "$REPO_PATH" --base "$BASE_BRANCH")
+  if [[ "$AGGREGATE_RELEASE" == "1" ]]; then
+    BASE_GATE_ARGS+=(--aggregate-release)
+  fi
+  run_gate gate-base-check.sh "${BASE_GATE_ARGS[@]}"
 fi
 
 # Gate 2: evidence (Layer B plus conditional Layer C VR; skip for non-ticket branches)
