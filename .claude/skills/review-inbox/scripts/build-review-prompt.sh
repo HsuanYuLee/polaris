@@ -9,9 +9,10 @@
 #         --project <project key> (optional)
 #         --bundle <dispatch context bundle path> (default: skill bundle)
 #         --out-dir <output directory for prompt files> (default: /tmp/review-prompts)
+#         --manifest <manifest output path> (default: /tmp/review-prompt-manifest.json)
 #
 # Output: One file per PR in out-dir: review-prompt-{repo}-{number}.txt
-#         Also writes /tmp/review-prompt-manifest.json with [{file, pr_url, number, repo}]
+#         Also writes manifest with [{file, pr_url, number, repo}]
 #
 # Usage:
 #   cat /tmp/review-candidates.json \
@@ -35,6 +36,7 @@ COMPANY=""
 PROJECT=""
 BUNDLE_PATH="$SCRIPT_DIR/../dispatch-context-bundle.md"
 OUT_DIR="/tmp/review-prompts"
+MANIFEST_PATH="/tmp/review-prompt-manifest.json"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -46,6 +48,7 @@ while [[ $# -gt 0 ]]; do
     --project) PROJECT="$2"; shift 2 ;;
     --bundle) BUNDLE_PATH="$2"; shift 2 ;;
     --out-dir) OUT_DIR="$2"; shift 2 ;;
+    --manifest) MANIFEST_PATH="$2"; shift 2 ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -67,7 +70,8 @@ COUNT=$(echo "$INPUT" | python3 -c "import sys,json; print(len(json.load(sys.std
 
 if [[ "$COUNT" -eq 0 ]]; then
   echo "No PR candidates to generate prompts for." >&2
-  echo "[]" > /tmp/review-prompt-manifest.json
+  mkdir -p "$(dirname "$MANIFEST_PATH")"
+  echo "[]" > "$MANIFEST_PATH"
   exit 0
 fi
 
@@ -112,6 +116,9 @@ for i in $(seq 0 $((COUNT - 1))); do
   CLUSTER_SIZE=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cluster_size',1))")
   CLUSTER_LEAD_URL=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cluster_lead_url',''))")
   CLUSTER_LEAD_SUMMARY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cluster_lead_summary',''))")
+  TICKET_KEY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('ticket_key') or '')")
+  ROOT_TICKET_KEY=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('root_ticket_key') or '')")
+  SLACK_THREAD_TS=$(echo "$PR_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('slack_thread_ts') or '')")
 
   # Map review_status to review mode instruction
   case "$STATUS" in
@@ -142,8 +149,12 @@ Cluster role: ${CLUSTER_ROLE}
 Cluster key: ${CLUSTER_KEY:-N/A}
 Cluster size: ${CLUSTER_SIZE}
 Cluster lead PR: ${CLUSTER_LEAD_URL:-N/A}
+Ticket key: ${TICKET_KEY:-N/A}
+Root ticket key: ${ROOT_TICKET_KEY:-N/A}
+Slack thread_ts: ${SLACK_THREAD_TS:-N/A}
+Runtime adapter policy: Do not dispatch this packet through a general-purpose sub-agent. Use a constrained code-reviewer adapter or execute sequentially in the main session from the runtime plan.
 
-你是一個 Code Reviewer sub-agent。請直接依照以下 inline dispatch context 執行 review。
+你正在執行 Code Reviewer review packet。請直接依照以下 inline dispatch context 執行 review。
 不要讀完整 review skill / reference stack；不要掃 repo guideline folders。
 
 **Inline Dispatch Context**：
@@ -200,11 +211,12 @@ PROMPT
 
   # Build manifest entry
   if [[ $i -gt 0 ]]; then MANIFEST+=","; fi
-  MANIFEST+="{\"file\":\"${PROMPT_FILE}\",\"pr_url\":\"${URL}\",\"number\":${NUMBER},\"repo\":\"${REPO}\",\"model_tier\":\"${MODEL_TIER}\",\"cluster_role\":\"${CLUSTER_ROLE}\",\"cluster_key\":\"${CLUSTER_KEY}\",\"cluster_lead_url\":\"${CLUSTER_LEAD_URL}\"}"
+  MANIFEST+="{\"file\":\"${PROMPT_FILE}\",\"pr_url\":\"${URL}\",\"number\":${NUMBER},\"repo\":\"${REPO}\",\"model_tier\":\"${MODEL_TIER}\",\"cluster_role\":\"${CLUSTER_ROLE}\",\"cluster_key\":\"${CLUSTER_KEY}\",\"cluster_lead_url\":\"${CLUSTER_LEAD_URL}\",\"ticket_key\":\"${TICKET_KEY}\",\"root_ticket_key\":\"${ROOT_TICKET_KEY}\",\"slack_thread_ts\":\"${SLACK_THREAD_TS}\"}"
 done
 
 MANIFEST+="]"
-echo "$MANIFEST" > /tmp/review-prompt-manifest.json
+mkdir -p "$(dirname "$MANIFEST_PATH")"
+echo "$MANIFEST" > "$MANIFEST_PATH"
 
 echo "Generated ${COUNT} prompt files in ${OUT_DIR}/" >&2
-echo "Manifest: /tmp/review-prompt-manifest.json" >&2
+echo "Manifest: ${MANIFEST_PATH}" >&2

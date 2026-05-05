@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.72] - 2026-05-05
+
+### Fixed — review-inbox lean runtime dispatch plan
+
+- Added a deterministic review-inbox runtime plan that forbids general-purpose per-PR review sub-agents by default.
+- Review packets now carry ticket/root-ticket/thread metadata plus a runtime adapter policy.
+- Clustered review runs now have an explicit lead-before-siblings execution plan so sibling-diff mode can consume lead summaries.
+
 ## [3.74.71] - 2026-05-05
 
 ### Fixed — template leak-safe review-inbox examples

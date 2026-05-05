@@ -34,10 +34,12 @@ metadata:
 | Batch review execution | `review-inbox-batch-review-flow.md`, `review-inbox/dispatch-context-bundle.md` |
 | Slack notification | `review-inbox-slack-reporting.md`, `slack-message-format.md`, `github-slack-user-mapping.md`, `workspace-language-policy.md` |
 
-Slack channel scan 與 per-PR review 可以派 sub-agent。Batch review dispatch 由 main
-session 讀取 `dispatch-context-bundle.md` 一次，再把濃縮後的 review flow inline 注入每個
-sub-agent prompt；不得要求 sub-agent 重讀完整 review skill / reference stack。所有 dispatch
-必須注入 `sub-agent-roles.md` 的 Completion Envelope。
+Slack channel scan 可以派 read-only sub-agent。Per-PR review 不得使用 Claude Code
+general-purpose sub-agent；只有 runtime 提供 constrained code-reviewer adapter 時才可平行
+dispatch。否則依 `build-review-runtime-plan.py` 產生的 `main_session_sequential` plan，一次執行
+一個 review packet，完成後只把 Completion Envelope summary 留在主 context。Batch review
+dispatch 由 main session 讀取 `dispatch-context-bundle.md` 一次，再把濃縮後的 review flow inline
+注入每個 review packet；不得要求執行者重讀完整 review skill / reference stack。
 
 ## Flow
 
@@ -53,14 +55,17 @@ sub-agent prompt；不得要求 sub-agent 重讀完整 review skill / reference 
    必須優先使用 root ticket，而不是每張 PR 自己的 ticket。
 6. 若 candidates 為空，回報目前沒有需要 review 的 PR 並停止。
 7. 顯示排序後清單；若 config 要求 confirm，等待使用者選擇。
-8. 依 batch size / concurrency 分波派 per-PR review sub-agents；prompt 必須使用
+8. 先用 `build-review-prompt.sh` 產生 review packets + manifest，再用
+   `build-review-runtime-plan.py` 產生 runtime plan。Plan 必須禁止 general-purpose sub-agent；
+   若無 constrained code-reviewer adapter，主 session 依 sequential plan 執行。
+9. 依 batch size / runtime plan 執行 per-PR review packets；prompt 必須使用
    deterministic handbook resolver 列出已存在的 project handbook paths，空清單時明確標示
-   no project handbook。Prompt 必須要求 sub-agent 先讀 changed-file names，再依 diff size
+   no project handbook。Prompt 必須要求執行者先讀 changed-file names，再依 diff size
    sampling；existing inline comments 只能以 metadata-only dedup，不把完整 comment body 放進
    context。Cluster lead 先跑完整 review；cluster sibling 使用 sibling-diff mode 與
    `small_fast` model class hint，不確定時標記 `needs_standard_review`。
-9. 收斂結果，依來源模式發 Slack summary 或 thread replies。
-10. 在對話中回報每個 PR 的 review result 與 approve status。
+10. 收斂結果，依來源模式發 Slack summary 或 thread replies。
+11. 在對話中回報每個 PR 的 review result 與 approve status。
 
 ## Write And Notification Rules
 

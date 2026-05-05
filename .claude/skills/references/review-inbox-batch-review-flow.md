@@ -1,11 +1,11 @@
 ---
 title: "Review Inbox Batch Review Flow"
-description: "review-inbox 的 candidates list、batch size、concurrency、per-PR review sub-agent dispatch 與 result fan-in。"
+description: "review-inbox 的 candidates list、batch size、runtime plan、per-PR review packet execution 與 result fan-in。"
 ---
 
 # Batch Review Contract
 
-這份 reference 負責 candidates list 呈現、分批 review、結果收斂。
+這份 reference 負責 candidates list 呈現、runtime plan、分批 review、結果收斂。
 
 ## Candidate List
 
@@ -26,15 +26,19 @@ size 限制。若為 true，等待使用者輸入編號、`all`、或 `none`。
 
 ## Batch Size And Concurrency
 
-`batch_size` 控制本次最多 review 幾個 PR；`0` 代表不限。`concurrency` 控制同時平行的
-review sub-agents 數量。
+`batch_size` 控制本次最多 review 幾個 PR；`0` 代表不限。`concurrency` 只在 runtime
+提供 constrained code-reviewer adapter 時控制平行數量。
 
-當 selected PRs 超過 concurrency，分波執行：每波完成 fan-in 後再啟動下一波。
+Claude Code general-purpose Agent 不可作為 review-inbox per-PR reviewer，因為 DP-094 AC1
+runtime measurement 顯示固定 Agent envelope 會壓過 prompt-side token saving。若 runtime
+沒有 constrained code-reviewer adapter，主流程必須使用 `main_session_sequential` plan：一次只
+執行一個 review packet，把 detail 寫到 artifact，fan-in 後再讀摘要。
 
 ## Per-PR Review Dispatch
 
-每個 PR 使用獨立 sub-agent。Dispatch 前 candidates 必須已由
-`annotate-review-candidates.py` 補上 `model_tier` 與 cluster metadata。Prompt 必須包含：
+每個 PR 使用獨立 review packet。Dispatch 前 candidates 必須已由
+`annotate-review-candidates.py` 補上 `model_tier` 與 cluster metadata，並由
+`build-review-runtime-plan.py` 產出 runtime plan。Prompt 必須包含：
 
 - PR URL。
 - `review_status`。
@@ -46,6 +50,8 @@ review sub-agents 數量。
 - `model_tier` semantic class hint。
 - `cluster_role`, `cluster_key`, `root_ticket_key`, `cluster_lead_url`，以及 sibling PR
   可用的 lead summary。
+- Runtime adapter policy：不得使用 general-purpose sub-agent；只能使用 constrained
+  code-reviewer adapter，或由 main session 依 runtime plan sequential 執行。
 - Completion Envelope requirement。
 
 Review mode：
@@ -56,9 +62,20 @@ Review mode：
 | `needs_re_approve` | review commits since last valid approve；無實質變更時可直接 re-approve |
 | `needs_re_review` | check previous comments and author fixes |
 
-Sub-agent 不呼叫 Skill tool；它直接依 inline dispatch context、verified handbook paths、
-PR diff、existing comments 執行 review，然後 submit GitHub review。Batch prompt 不得要求
-sub-agent 重讀完整 review skill / reference stack。
+Review packet 不呼叫 Skill tool；執行者直接依 inline dispatch context、verified handbook
+paths、PR diff、existing comments 執行 review，然後 submit GitHub review。Batch prompt 不得
+要求執行者重讀完整 review skill / reference stack。
+
+Runtime plan contract：
+
+- `build-review-prompt.sh` 產出 prompts 與 manifest。
+- `build-review-runtime-plan.py` 讀 annotated candidates + manifest，輸出
+  `review-inbox-runtime-plan.v1`。
+- Plan 的 `adapter_policy.general_purpose_subagent_allowed` 必須是 `false`。
+- Plan step 的 `execution_mode` 預設為 `main_session_sequential`；只有 runtime 提供精簡
+  code-reviewer adapter 時才可改為 `constrained_code_reviewer`。
+- Main session sequential fallback 執行時，完成一個 PR 後只保留 Completion Envelope summary
+  在主 context，完整 findings 留在 Detail artifact。
 
 Cluster scheduling：
 

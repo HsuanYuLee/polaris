@@ -12,6 +12,7 @@ workspace="$tmp/workspace"
 base_dir="$tmp/repos"
 out_with_handbook="$tmp/prompts-with-handbook"
 out_without_handbook="$tmp/prompts-without-handbook"
+manifest_with_handbook="$tmp/review-prompt-manifest.json"
 mkdir -p "$workspace/acme/polaris-config/acme-web/handbook" "$base_dir/acme-web" "$base_dir/acme-api"
 printf '# Handbook\n' > "$workspace/acme/polaris-config/acme-web/handbook/index.md"
 
@@ -31,7 +32,10 @@ cat > "$candidates" <<'JSON'
     "cluster_role": "cluster_lead",
     "cluster_key": "1776130982.981829:APP-3900",
     "cluster_size": 2,
-    "cluster_lead_url": "https://github.com/acme/acme-web/pull/101"
+    "cluster_lead_url": "https://github.com/acme/acme-web/pull/101",
+    "ticket_key": "APP-3901",
+    "root_ticket_key": "APP-3900",
+    "slack_thread_ts": "1776130982.981829"
   },
   {
     "repo": "acme-api",
@@ -47,7 +51,10 @@ cat > "$candidates" <<'JSON'
     "cluster_key": "1776130982.981829:APP-3900",
     "cluster_size": 2,
     "cluster_lead_url": "https://github.com/acme/acme-web/pull/101",
-    "cluster_lead_summary": "lead has no findings"
+    "cluster_lead_summary": "lead has no findings",
+    "ticket_key": "APP-3902",
+    "root_ticket_key": "APP-3900",
+    "slack_thread_ts": "1776130982.981829"
   }
 ]
 JSON
@@ -59,21 +66,24 @@ JSON
   --company acme \
   --project acme-web \
   --out-dir "$out_with_handbook" \
+  --manifest "$manifest_with_handbook" \
   < "$candidates" >/tmp/build-review-prompt-selftest.out
 
-python3 - "$out_with_handbook" <<'PY'
+python3 - "$out_with_handbook" "$manifest_with_handbook" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 out_dir = Path(sys.argv[1])
-manifest = json.loads(Path("/tmp/review-prompt-manifest.json").read_text())
+manifest = json.loads(Path(sys.argv[2]).read_text())
 if len(manifest) != 2:
     raise SystemExit(f"unexpected manifest length: {len(manifest)}")
 if manifest[0]["model_tier"] != "standard_coding":
     raise SystemExit(f"missing standard model tier in manifest: {manifest[0]}")
 if manifest[1]["model_tier"] != "small_fast":
     raise SystemExit(f"missing small model tier in manifest: {manifest[1]}")
+if manifest[0]["root_ticket_key"] != "APP-3900":
+    raise SystemExit(f"missing root ticket in manifest: {manifest[0]}")
 prompt = (out_dir / "review-prompt-acme-web-101.txt").read_text()
 api_prompt = (out_dir / "review-prompt-acme-api-102.txt").read_text()
 required = [
@@ -91,6 +101,11 @@ required = [
     "Model class hint: standard_coding",
     "Cluster role: cluster_lead",
     "Cluster / Model Tier Rules",
+    "Ticket key: APP-3901",
+    "Root ticket key: APP-3900",
+    "Slack thread_ts: 1776130982.981829",
+    "Runtime adapter policy: Do not dispatch this packet through a general-purpose sub-agent.",
+    "Code Reviewer review packet",
 ]
 for item in required:
     if item not in prompt:
