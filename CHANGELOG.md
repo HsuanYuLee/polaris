@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.90] - 2026-05-06
+
+### Fixed — template-safe evidence selftests
+
+- Replaced company-specific evidence selftest fixture keys with generic placeholders so `.mjs` script companions can be released to the template.
+
+## [3.74.89] - 2026-05-06
+
+### Fixed — template sync script companions
+
+- Updated template sync to include recursive `scripts/**/*.mjs` companions alongside shell wrappers.
+- Added sync selftest coverage for `.mjs` companion copy and stale `.mjs` pruning.
+
 ## [3.74.88] - 2026-05-06
 
 ### Added — spec container migration helper

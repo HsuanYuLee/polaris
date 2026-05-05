@@ -30,6 +30,12 @@ echo original
 MARKER
   chmod +x "$source_dir/scripts/tracked-marker.sh"
 
+  cat > "$source_dir/scripts/tracked-companion.mjs" <<'COMPANION'
+#!/usr/bin/env node
+console.log('original')
+COMPANION
+  chmod +x "$source_dir/scripts/tracked-companion.mjs"
+
   cat > "$source_dir/.claude/skills/sample/SKILL.md" <<'SKILL'
 ---
 name: sample
@@ -53,6 +59,7 @@ REF
   mkdir -p "$polaris_dir/scripts"
   cp "$source_dir/scripts/sync-to-polaris.sh" "$polaris_dir/scripts/sync-to-polaris.sh"
   cp "$source_dir/scripts/tracked-marker.sh" "$polaris_dir/scripts/tracked-marker.sh"
+  cp "$source_dir/scripts/tracked-companion.mjs" "$polaris_dir/scripts/tracked-companion.mjs"
   mkdir -p "$polaris_dir/.agents"
   ln -s "../.claude/skills" "$polaris_dir/.agents/skills"
 
@@ -210,11 +217,37 @@ PKG
   [[ ! -e "$polaris_dir/docs-manager/src/content/docs/specs/design-plans/DP-002/plan.md" ]] || fail "local canonical specs content was synced"
 }
 
+script_mjs_companions_sync_and_prune() {
+  local fixture source_dir polaris_dir output status
+  fixture="$(new_fixture script-mjs)"
+  source_dir="$(printf '%s\n' "$fixture" | sed -n '1p')"
+  polaris_dir="$(printf '%s\n' "$fixture" | sed -n '2p')"
+
+  cat > "$source_dir/scripts/new-companion.mjs" <<'COMPANION'
+#!/usr/bin/env node
+console.log('new')
+COMPANION
+  chmod +x "$source_dir/scripts/new-companion.mjs"
+
+  echo "stale" > "$polaris_dir/scripts/stale-companion.mjs"
+
+  set +e
+  output="$("$source_dir/scripts/sync-to-polaris.sh" --polaris "$polaris_dir" 2>&1)"
+  status=$?
+  set -e
+
+  [[ "$status" -eq 0 ]] || fail "script mjs sync failed: $output"
+  [[ -f "$polaris_dir/scripts/new-companion.mjs" ]] || fail "new .mjs companion was not synced"
+  [[ -f "$polaris_dir/scripts/tracked-companion.mjs" ]] || fail "existing .mjs companion was removed"
+  [[ ! -e "$polaris_dir/scripts/stale-companion.mjs" ]] || fail "stale .mjs companion was not pruned"
+}
+
 dirty_push_fails_before_template_copy
 clean_push_reaches_existing_sync_path
 untracked_only_source_is_allowed
 dry_run_does_not_require_clean_source
 non_push_sync_is_not_blocked
 docs_manager_sync_filters_generated_outputs
+script_mjs_companions_sync_and_prune
 
 echo "PASS: sync-to-polaris clean-source selftest"
