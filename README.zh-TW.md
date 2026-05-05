@@ -6,386 +6,198 @@
 
 # Polaris
 
-一個支援 Claude Code / Codex 的工作區模板，將你的 AI 助手變成策略師——它學習你團隊的工作流程、將任務路由到專門的技能、並從日常使用中演化自己的規則。
+Polaris 是支援 Claude Code / Codex 的工作區 harness，適合使用 JIRA、GitHub、Slack、Confluence 跑研發流程的團隊。它讓 coding agent 擁有穩定的 workflow skills、本機團隊 context、deterministic gates，以及能把日常修正沉澱下來的 learning loop，讓 agent 依照你的工作方式執行，而不是每個 session 重新猜。
 
-## 適合誰？
+Polaris 是 add-on layer。它擁有 framework instructions、skills、hooks，以及 `{company}/` 底下 ignored 的本機公司 context；產品 repo 仍保有 tracked `CLAUDE.md`、`AGENTS.md`、`.github/**` 與 repo-owned AI config 的所有權。
 
-- **開發者** — 自動化 JIRA → branch → code → PR 的循環，透過 AI 執行團隊慣例
-- **技術主管** — 統一團隊的估點、Code Review 和 Sprint Planning 標準
-- **PM 和 Scrum Master** — 產出站會報告、追蹤工時、執行 Sprint Planning——不需要寫程式
-- **多公司接案者** — 在單一工作區管理多個客戶，規則、技能和設定完全隔離
+## 可以做什麼
 
-> 不確定適不適合？如果你的團隊使用 JIRA + GitHub，而且你希望 Claude Code 遵循你的工作流程而不是隨意發揮，Polaris 就是為你設計的。
+| 工作流程 | Prompt | 結果 |
+|---|---|---|
+| 從票單開發 | `work on PROJ-123` / `做 PROJ-123` | 讀 JIRA、檢查前置、估點、開 branch、實作、測試、開 PR |
+| 診斷 bug | `fix bug PROJ-456` / `修 bug PROJ-456` | 找根因、提出修正、驗證行為、交付 patch |
+| Review PR | `review PR` / `review 這個 PR` | 讀 diff，依專案規則留下 inline review comments |
+| Sprint planning | `sprint planning` / `排 sprint` | 拉 backlog、檢查容量、偵測 carry-over、草擬 release planning output |
+| 產出 standup | `standup` | 收集 JIRA、git、calendar 活動，整理成團隊更新 |
+| 外部學習 | `learn from <url>` / `學習這個 <url>` | 研讀外部資料或 merged PR，把有用模式沉澱成 workspace knowledge |
 
-## 三大支柱
+先選一個工作流程開始即可。完整技能清單請看 [開發者工作流程指南](docs/workflow-guide.zh-TW.md) 與 [中文觸發詞](docs/chinese-triggers.md)。
 
-Polaris 圍繞三大支柱組織你的 AI 輔助工作流程：
+## 運作方式
 
-| 輔助開發 | 自我學習 | 日常紀錄 |
-|:---:|:---:|:---:|
-| JIRA → branch → code → PR | Feedback → pattern → rule | Standup, sprint, worklog |
-| 自動化完整的票單生命週期 | 從日常使用中演化自己的規則 | 為整個團隊服務的 Sprint 生命週期 |
+Polaris 把 agent 行為分成三層：
 
-### 支柱一 — 輔助開發
+| 層級 | 來源 | 用途 |
+|---|---|---|
+| Workspace | `CLAUDE.md`, `.claude/rules/`, `.claude/skills/` | 共用 strategist 行為、skills、hooks、deterministic rules |
+| Company | ignored `.claude/rules/{company}/`, `{company}/workspace-config.yaml` | 公司專屬 JIRA、Slack、GitHub 與流程慣例 |
+| Project | ignored `{company}/polaris-config/{project}/handbook/` | Repo handbook、generated scripts、test commands、runtime hints、本機 context |
 
-你告訴 Claude Code 你想做什麼，Polaris 處理剩下的一切：
-
-```
-你：     「做 PROJ-123」
-Polaris: 讀取 JIRA 票單 → 檢查前置條件 → 估算 Story Points
-         → 拆分子任務 → 建立 JIRA 子票
-         → 開 feature branch → 實作程式碼 → 跑測試
-         → 開 PR 附上覆蓋率報告 → JIRA 狀態轉為 CODE REVIEW
-```
-
-**技能：** `engineering`, `bug-triage`, `breakdown`, `converge`, `sasd-review`, `refinement`, `review-pr`, `pr-pickup`, `check-pr-approvals`, `verify-AC`, `visual-regression`, `intake-triage`, `my-triage`, `unit-test`
-
-深入了解 → [開發者工作流程指南](docs/workflow-guide.zh-TW.md)
-
-### 支柱二 — 自我學習 ★
-
-這是 Polaris 與靜態模板的根本差異。它累積團隊知識，並從日常使用中演化自己的規則：
-
-1. **回饋擷取** — 當你糾正 Claude 的做法時，它會儲存這個教訓
-2. **直接規則升級** — 已確認的修正會立即升級為永久規則，不必等待重複觸發
-3. **外部學習** — 研讀文章、repo 或 PR，萃取可套用到你 codebase 的模式
-4. **跨 session 知識** — 技術洞見（模式、陷阱、架構決策）持久化在 `learnings.jsonl`，帶有信心值衰減機制，讓每次 session 都從累積的專案知識啟動，而非從零開始
-5. **Session 時間軸與存檔** — 重要事件（skill 呼叫、PR、commit）記錄在 `timeline.jsonl`，讓 standup 報告更精確；`/checkpoint` 可在長時間工作中儲存和恢復 session 狀態
-6. **記憶分層** — `memory/` 條目採 Hot/Warm/Cold 生命週期，`MEMORY.md` 保持精簡、每個新 session 只載入相關 context；`/memory-hygiene` 手動整理，SessionStart hook 自動提示降級候選
-7. **挑戰者審計** — 發版前，sub-agent 從新使用者的角度審視整個工作區
-
-> **範例：** 你在 PR review 中糾正 Claude 的 import 排序。這個修正被儲存、確認為真實模式，並立即升級成永久規則——之後所有 PR 都會自動遵循這個慣例。
-
-**技能：** `learning`, `checkpoint`, `memory-hygiene` — 另外 `review-pr`、`engineering`（revision mode）和 `check-pr-approvals` 內建教訓萃取功能
-
-### 支柱三 — 日常紀錄
-
-為 PM、Scrum Master 和開發者提供的 Sprint 生命週期自動化——不需要寫程式：
-
-```
-你：     「standup」
-Polaris: 收集 JIRA 活動 + git commits + 行事曆會議
-         → 依團隊分組 → 格式化為 昨天做/今天做/障礙 → 發到 Confluence
-
-你：     「排 sprint」
-Polaris: 拉取 JIRA backlog → 計算團隊容量 → 偵測 carry-over
-         → 建議優先順序 → 草擬 Release 頁面
-```
-
-**技能：** `standup`, `sprint-planning`, `my-triage`, `refinement`（PM 視角）, `breakdown`（PM 視角）
-
-## 什麼是 Claude Code？
-
-[Claude Code](https://docs.anthropic.com/en/docs/claude-code) 是 Anthropic 的程式碼代理——它在你的終端機、IDE（VS Code / JetBrains）或桌面應用程式中執行。你跟它對話，它就能讀取檔案、撰寫程式碼、執行指令、呼叫外部服務。Polaris 是建構在 Claude Code 之上的工作區模板，賦予它你團隊的技能和規則。
-
-> 如果你用過 claude.ai 上的 Claude，Claude Code 就是同樣的 AI 但擁有存取你 codebase 和工具的能力。Polaris 教會它你團隊的特定工作流程。
+Skills 只在被觸發時載入。Rules 和 hooks 則提供常駐護欄：語言政策、安全檢查、PR body 驗證、task artifact 驗證、context continuity 與 workflow gates。
 
 ## 前置需求
 
-**所有人都需要：**
-- **支援的 agent runtime** — [Claude Code](https://docs.anthropic.com/en/docs/claude-code)（CLI、桌面應用或 IDE 擴充套件），或依照 [Codex quick start](docs/codex-quick-start.zh-TW.md) 設定的 Codex
+所有人都需要：
 
-> **Claude Code 注意事項：** 大多數 Polaris 技能使用 sub-agent，需要 **Max 方案**（$100/月）或 API 存取。在 Pro/Team 方案下，僅單步驟技能可運作。
-- **Atlassian MCP** — 連接 Claude Code 到 JIRA 和 Confluence
-- **Slack MCP** — 用於通知和報告（`standup`, `review-inbox`, `check-pr-approvals`）
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)，或依照 [Polaris for Codex](docs/codex-quick-start.zh-TW.md) 設定的 Codex
+- Atlassian MCP，連接 JIRA 與 Confluence
+- Slack MCP，用於通知、standup、review workflows
 
-**開發者另外需要：**
-- **Git** 和 **GitHub CLI**（`gh`）— 已通過組織認證
+請從 workspace root 使用 coding-agent runtime，不是一般 browser chat。下方 prompt 是輸入到 Claude Code 或 Codex 對話中。
 
-**選配：**
-- **Google Calendar MCP** — 為 `standup` 增加會議脈絡
-- **Figma MCP** — 當 JIRA 票單引用 Figma 設計時使用
+開發者另外需要：
 
-> **MCP 設定**：MCP 伺服器將 Claude Code/Codex 連接到外部服務。
->
-> **Claude Code（建議）：**
-> - 用 `/mcp` 直接連 claude.ai connector
-> - Slack：`https://mcp.slack.com/mcp`
-> - Atlassian：`https://mcp.atlassian.com/v1/mcp`
->
-> **Codex（鏡像同一組 connector）：**
-> ```bash
-> codex mcp add claude_ai_Slack --url https://mcp.slack.com/mcp
-> codex mcp add claude_ai_Atlassian --url https://mcp.atlassian.com/v1/mcp
-> codex mcp login claude_ai_Slack
-> codex mcp login claude_ai_Atlassian
-> codex mcp list
-> ```
->
-> 註：本框架不再建議使用舊的 stdio `npx @anthropic-ai/claude-code-mcp-*` 設定。
-> 參閱 [MCP 伺服器文件](https://docs.anthropic.com/en/docs/claude-code/mcp-servers) 了解 Google Calendar 和 Figma 的設定方式。
+- Git
+- 已通過組織認證的 GitHub CLI (`gh`)
+
+選配整合：
+
+- Google Calendar MCP，讓 standup 帶入會議脈絡
+- Figma MCP，供引用設計稿的票單使用
+
+大多數多步驟 workflow 會使用 sub-agent。Claude Code 需要 Max plan 或 API access 才能完整使用。
+
+### MCP 設定
+
+Claude Code 可透過 `/mcp` 連接 MCP servers：
+
+- Slack: `https://mcp.slack.com/mcp`
+- Atlassian: `https://mcp.atlassian.com/v1/mcp`
+
+Codex 可以鏡像同一組 connectors：
+
+```bash
+codex mcp add claude_ai_Slack --url https://mcp.slack.com/mcp
+codex mcp add claude_ai_Atlassian --url https://mcp.atlassian.com/v1/mcp
+codex mcp login claude_ai_Slack
+codex mcp login claude_ai_Atlassian
+codex mcp list
+```
+
+本 framework 已不建議使用舊的 stdio `npx @anthropic-ai/claude-code-mcp-*` 設定。
 
 ## 快速上手
 
-如果你要用 Codex 而不是 Claude Code，請看：[Polaris 給 Codex 用](docs/codex-quick-start.zh-TW.md)。
+### 1. 建立 workspace
 
-### 1. 建立你的工作區
-
-到 GitHub 上的 [Polaris 模板 repo](https://github.com/HsuanYuLee/polaris)，點選 **「Use this template」→「Create a new repository」**，然後 clone 下來：
+在 GitHub 使用 [Polaris template repo](https://github.com/HsuanYuLee/polaris)，再 clone 你的新 workspace：
 
 ```bash
 git clone https://github.com/YOUR-ORG/your-polaris-workspace ~/polaris-workspace
 cd ~/polaris-workspace
 ```
 
-> **提示**：選一個專用的目錄名稱。避免用 `~/work`——很多開發者已經將這個路徑用於其他專案。
+建議使用專用目錄名稱。如果你已經把 `~/work` 用於產品 repo，請避免把 Polaris workspace 也放在同一路徑。
 
-> **PM 和非開發者：** 請參閱 [PM 設定清單](docs/pm-setup-checklist.zh-TW.md)——它會告訴你該問開發者什麼、以及設定完成後該做什麼。設定完成後，從下面的 PM 工作流程開始。
+### 2. Onboard 公司
 
-### 2. 請 Polaris onboard 你的工作區
+從 workspace root 開啟 Claude Code 或 Codex，然後在 agent 對話中輸入：
 
-> **注意：** onboarding prompt 是在 Claude Code 或 Codex 對話中輸入的，不是在終端機 shell 中。
-
-在工作區內開啟 Claude Code——在終端機中從工作區目錄執行 `claude`（或在 VS Code 中開啟該資料夾並使用 Claude Code 擴充套件）。然後輸入：
-
-```
+```text
 請幫我 onboard Polaris workspace，設定我的公司
 ```
 
-onboard 流程會：
-- 設定偏好回應語言（或從現有設定讀取）
-- 偵測你的 GitHub 組織和 repo
-- 建立公司目錄和 `workspace-config.yaml`
-- 設定專案對應（JIRA key → 本地 repo 路徑）
-- 最後輸出 readiness dashboard：`ready`、`partial` 或 `blocked`
+Onboard flow 會偵測 GitHub org 和 repos、建立 ignored company context、把 JIRA key 對應到本機 repo，最後輸出 readiness dashboard：`ready`、`partial` 或 `blocked`。
 
-onboard 完成後，你的工作區結構如下：
+如果 dashboard 不是 `ready`，執行：
 
-```
-~/polaris-workspace/              ← your workspace root (this repo)
-├── CLAUDE.md                     ← AI strategist instructions
-├── workspace-config.yaml         ← routes JIRA keys to companies
-├── .claude/
-│   ├── rules/                    ← universal rules (L1)
-│   │   └── your-company/         ← company-specific rules (L2)
-│   └── skills/                   ← 24 workflow skills
-└── your-company/                 ← onboard 建立的本機 ignored 公司 context
-    ├── workspace-config.yaml     ← company config (JIRA, Slack, repos)
-    ├── polaris-config/           ← 本機 project handbook 與 generated scripts
-    └── your-project/             ← your existing repo (cloned or linked)
-        └── ...                   ← repo-owned files stay under the repo owner's control
+```text
+onboard repair
 ```
 
-如果 dashboard 是 `partial` 或 `blocked`，請對 Polaris 說 `onboard repair`，依照列出的項目修復。狀態為 `ready` 後，試著輸入 `「做 PROJ-123」`（替換為真實的票單 key）來驗證設定。
+### 3. 試一個真實 workflow
 
-### 3. 開始使用技能
+使用你 JIRA 專案裡的真實 ticket key：
 
-初始化完成後，用自然語言跟 Claude Code 對話即可——中文或英文都可以：
-
-```
-「做 PROJ-123」       / "work on PROJ-123"     → 完整開發流程
-「修 bug PROJ-456」   / "fix bug PROJ-456"     → 根因分析 → 修復 → 發 PR
-「review 這個 PR」    / "review PR"             → Code Review 並留下行內評論
-「估點 PROJ-789」     / "estimate PROJ-789"     → Story Point 估算
-「standup」           / "standup"               → 產出每日站會報告
-「排 sprint」         / "sprint planning"       → 拉票、算容量
-「學習這個 <url>」    / "learn from <url>"      → 研讀外部資源，萃取模式
+```text
+做 PROJ-123
 ```
 
-完整的中文觸發詞參考 → [docs/chinese-triggers.md](docs/chinese-triggers.md)
+PM 和 Scrum Master 可以從這個開始：
 
-### 從這裡開始
-
-不要一次嘗試全部 24 個技能。根據你的角色挑一個開始：
-
-| 如果你是... | 先試這個 | 會發生什麼 |
-|------------|---------|-----------|
-| **開發者** | `「做 PROJ-123」` | 讀取 JIRA → 估點 → 建立 branch → 寫程式 → 開 PR |
-| **PM / Scrum Master** | `「standup」` | 收集昨天的 JIRA + git 活動 → 格式化報告 |
-| **技術主管** | `「排 sprint」` | 拉取 backlog → 計算容量 → 建議優先順序 |
-
-其他技能都建立在這些基礎上。熟悉之後再逐步探索更多技能。
-
-### PM 與 Scrum 工作流程
-
-Polaris 涵蓋完整的 Sprint 生命週期——不需要寫程式或了解 git。所有 PM 技能因為使用 sub-agent，需要 **Max 方案**（$100/月）或 API 存取。
-
-```
-Sprint Planning    →  「排 sprint」
-                      拉取 JIRA backlog → 計算團隊容量 → 偵測 carry-over
-                      → 建議優先順序 → 草擬 Release 頁面
-
-每日站會           →  「standup」
-                      收集 JIRA 狀態變更 + git commits + 行事曆會議
-                      → 依團隊分組 → 格式化為 昨天做/今天做/障礙
-
-Refinement         →  「refinement EPIC-100」
-                      讀取 Epic 內容 → 找出缺漏（Polaris 會為你閱讀 codebase）
-                      → 草擬 AC、範圍、邊界案例 → 寫回 JIRA
-
-拆單               →  「做 EPIC-100」
-                      Epic → 帶有 Story Point 估算的子任務 → 批次建立到 JIRA
-
-工作盤點           →  「盤點」
-                      掃描所有 assigned Epic + Bug + 孤兒 Task → 驗證狀態 + GitHub PR 進度
-                      → 產出優先序 Dashboard
+```text
+standup
 ```
 
-> **PM 和 Scrum Master：** 以下內容是給開發者和框架維護者的。你已經設定完成了！
-> 如果某個技能無法運作，請檢查 Claude Code 設定中的 Atlassian MCP 和 Slack MCP 連線是否正常——這能解決 90% 的 PM 設定問題。
->
-> 精簡版快速上手指南：[docs/quick-start-zh.md](docs/quick-start-zh.md)
+角色導向設定清單請看 [PM 設定清單](docs/pm-setup-checklist.zh-TW.md)。Codex runtime 設定請看 [Polaris for Codex](docs/codex-quick-start.zh-TW.md)。
 
-## 運作原理
+## Repo 結構
 
-### 三層架構
-
-| 層級 | 位置 | 載入時機 | 內容 |
-|------|------|---------|------|
-| **L1 — 工作區** | `CLAUDE.md` + `.claude/rules/` | 每次對話 | 策略師人設、委派規則 |
-| **L2 — 公司** | `.claude/rules/{company}/` | 每次對話 | 技能路由、PR 慣例、JIRA 工作流程 |
-| **L3 — 專案** | ignored `{company}/polaris-config/{project}/` | 在專案中工作時由 skill 讀取 | handbook、generated scripts、專案慣例 |
-
-規則始終載入。技能依需求載入——觸發前不會消耗 context。
-
-產品 repo 可以保有自己的 tracked AI config；Polaris 尊重 repo 設定。框架正確性來自本機 ignored company context、polaris-config source of truth 與 deterministic gates。
-
-### 工作流程編排
-
-技能互相串聯以自動化完整的票單生命週期。詳見 **[開發者工作流程指南](docs/workflow-guide.zh-TW.md)**，包含：
-- 票單生命週期（Feature / Bug / Hotfix 路徑）
-- AC 與交接閘門（5 個確定性檢查點）
-- 技能呼叫圖（技能如何互相調用）
-- Code Review 和學習管線
-
-> 你的公司可能有客製化版本在 `{company}/docs/rd-workflow.md`。
-
-### 排程代理
-
-**排程代理** — 定期任務（每日技術文章掃描、週期性檢查）透過 `/schedule` 以 cron 排程執行遠端觸發器。讓 Polaris 能在背景自動執行工作（例如掃描技術文章、執行健康檢查），無需開啟對話。
-
-### 目錄結構
-
-```
+```text
 your-workspace/
-├── CLAUDE.md                  # Strategist persona + delegation rules
-├── workspace-config.yaml      # Company routing (gitignored; copy from .example)
+├── CLAUDE.md                  # Strategist instructions
+├── AGENTS.md                  # Generated runtime bootstrap for coding agents
+├── workspace-config.yaml      # 本機 company routing，git ignored
 ├── .claude/
-│   ├── rules/                 # Universal rules (L1)
-│   │   └── {company}/         # Company rules (L2)
-│   └── skills/                # 24 workflow skills
-├── _template/                 # Template for new companies + rule examples
-├── scripts/                   # Sync utilities
-└── {company}/                 # Your company directory
-    ├── workspace-config.yaml  # Company config (projects, JIRA, etc.)
-    ├── {project-a}/           # Project with its own CLAUDE.md (L3)
-    └── {project-b}/
+│   ├── rules/                 # Universal 與 company-scoped rules
+│   └── skills/                # Workflow skills
+├── docs/                      # Public guides
+├── scripts/                   # Deterministic gates and workflow helpers
+└── {company}/                 # Ignored local company context
+    ├── workspace-config.yaml
+    ├── polaris-config/
+    │   └── {project}/handbook/
+    └── {project}/             # Product repo；repo-owned files 仍由產品 repo 擁有
 ```
 
-## 多公司設定
+## 文件入口
 
-Polaris 支援在單一工作區中管理多家公司。每家公司擁有獨立的設定、規則和技能：
+| 需求 | 文件 |
+|---|---|
+| 完整開發生命週期 | [開發者工作流程指南](docs/workflow-guide.zh-TW.md) |
+| 中文觸發詞 | [中文觸發詞](docs/chinese-triggers.md) |
+| PM / 非開發者設定 | [PM 設定清單](docs/pm-setup-checklist.zh-TW.md) |
+| Codex 設定 | [Polaris for Codex](docs/codex-quick-start.zh-TW.md) |
+| 中文快速上手 | [中文快速上手](docs/quick-start-zh.md) |
 
-```
-your-workspace/
-├── workspace-config.yaml          # Routes JIRA keys to companies
-├── .claude/rules/
-│   ├── *.md                       # Universal rules (all companies)
-│   ├── acme/                      # Acme-specific rules
-│   └── bigcorp/                   # BigCorp-specific rules
-├── .claude/skills/
-│   ├── *.md (or dirs)             # Shared skills (version-controlled)
-│   ├── acme/                      # Acme-only skills (gitignored)
-│   └── bigcorp/                   # BigCorp-only skills (gitignored)
-├── acme/                          # Acme projects + config
-└── bigcorp/                       # BigCorp projects + config
-```
+## 自訂
 
-**隔離機制：**
+可以安全自訂的位置：
 
-- **設定路由** — `workspace-config.yaml` 將 JIRA 專案前綴對應到公司。當你說「做 ACME-123」，Polaris 會讀取 Acme 的設定
-- **規則範圍** — 所有規則都會載入到每次對話（Claude Code 限制），但公司規則包含範圍標頭。策略師只會套用與當前活躍公司相符的規則
-- **技能隔離** — 共用技能在 `.claude/skills/`（由 git 追蹤）。公司專屬技能放在 `.claude/skills/{company}/`（已 gitignore）
-- **診斷工具** — 執行 `/use-company PROJ-123` 查看票單路由到哪家公司（診斷模式），`/use-company` 明確設定 context，或 `/validate` 掃描範圍標頭問題和 memory 標籤違規
+| 做什麼 | 在哪裡 |
+|---|---|
+| 公司 routing 與 integrations | `{company}/workspace-config.yaml` |
+| 公司工作流程慣例 | `.claude/rules/{company}/` |
+| 專案 handbook 與 generated scripts | `{company}/polaris-config/{project}/` |
+| 新 workflow skill | 使用 `skill-creator` |
 
-**新增第二家公司：**
-
-```
-請幫我 onboard 另一家公司
-```
-
-精靈會偵測現有的公司，並在旁邊建立新的公司。設定完成後，執行 `/validate` 確認沒有規則缺少範圍標頭。
-
-> **注意：** 如果兩家公司共用相同的 JIRA 專案前綴，請使用 `/use-company` 明確設定 context——自動路由無法區分它們。
->
-> 完整的範圍策略請參閱 `.claude/rules/multi-company-isolation.md`。
-
-## 自訂設定
-
-| 做什麼 | 在哪裡 | 怎麼做 |
-|--------|-------|--------|
-| 新增公司 | 請 Polaris `onboard 另一家公司` | 互動式精靈建立一切 |
-| 對應 JIRA 專案到 repo | `{company}/workspace-config.yaml` | 在 `projects:` 新增項目 |
-| 新增公司專屬規則 | `.claude/rules/{company}/` | 建立 `.md` 檔案——每次對話自動載入 |
-| 新增專案 handbook / generated scripts | `{company}/polaris-config/{project}/` | 本機 ignored；skill 明確讀取，不修改 repo-owned AI config |
-| 建立新技能 | 執行 `/skill-creator` | 引導式技能建立，含評估 |
-| 修改技能路由 | `.claude/rules/{company}/skill-routing.md` | 對應觸發詞 → 技能 |
-
-## 不要動的檔案
-
-這些是框架內部檔案。除非你在修改 Polaris 框架本身，否則不要編輯：
-
-| 路徑 | 原因 |
-|------|------|
-| `.claude/skills/*/SKILL.md` | 技能定義——使用 `/skill-creator` 修改 |
-| `.claude/skills/references/` | 技能使用的共用資料（估點量表、模板） |
-| `.claude/rules/*.md`（L1） | 通用規則——每次對話載入 |
-| `_template/` | onboard 精靈的模板 |
-| `scripts/` | 模板與實例之間的同步工具 |
-| `CLAUDE.md` | 策略師人設——框架的大腦 |
-
-**可以安全編輯：**
-
-| 路徑 | 可自訂的內容 |
-|------|-------------|
-| `.claude/rules/{company}/` | 你公司的慣例、路由、JIRA 工作流程 |
-| `{company}/workspace-config.yaml` | JIRA 專案、Slack 頻道、repo 對應 |
-| `{company}/polaris-config/{project}/` | 專案 handbook、generated scripts、本機 Polaris config |
+`.claude/skills/*/SKILL.md`、`.claude/skills/references/`、`.claude/rules/*.md`、hooks、scripts 等 framework internals，只有在修改 Polaris 本身時才應該變更。
 
 ## 升級
 
-如果你從 Polaris 模板 clone 下來，想要拉取框架更新：
+從 Polaris template checkout 拉 framework updates：
 
 ```bash
-# From the Polaris template repo:
-./scripts/sync-from-polaris.sh --polaris ~/path-to-polaris-template [--dry-run]
+./scripts/sync-from-polaris.sh --polaris ~/path-to-polaris-template --dry-run
+./scripts/sync-from-polaris.sh --polaris ~/path-to-polaris-template
 ```
 
-這會同步技能、規則和參考資料，同時保留你的公司設定、L2 規則和專案專屬檔案。使用 `--dry-run` 在套用前預覽變更。
+Sync 會保留 ignored company context、company rules 和 project-specific files。Apply mode 也會執行 Claude Code / Codex 的 cross-runtime parity checks。
 
-套用模式完成後，升版流程也會自動執行：
-- `scripts/transpile-rules-to-codex.sh`
-- `scripts/verify-cross-llm-parity.sh`
+## 安全性
 
-> 完整選項請參閱 `scripts/sync-from-polaris.sh --help`。
+Polaris 採 local-first 設計：
 
-## 關於名稱
+- 無 telemetry、analytics、usage reporting
+- Framework 不會 phone home
+- Memories、learnings、timelines、checkpoints 都儲存在本機
+- Shell-level safety hooks 會攔截危險指令
+- PR、JIRA、Slack、Confluence、commit、release 等 downstream prose 會先過 workspace language gates
+- Skills、rules、scripts 都是可在 git 中審計的 plaintext files
 
-> Polaris — 北極星。古代旅人靠它指引方向，抵達從未想像過的遠方。這個框架做的是同一件事：幫你穿越複雜，走得比你以為的更遠。
+網路活動來自你明確呼叫的工具，例如 git、`gh`、JIRA、Slack、Confluence 或 MCP connectors。
 
 ## 致謝
 
 Polaris 從以下開源專案汲取靈感：
 
 | 專案 | 作者 | 我們學到的 |
-|------|------|-----------|
-| [superpowers](https://github.com/obra/superpowers) | Jesse Vincent | Agentic 技能框架、spec-first 開發、sub-agent 任務分工 |
-| [ab-dotfiles](https://github.com/AlvinBian/ab-dotfiles) | Alvin Bian | AI 驅動的開發環境管理、onboarding smartSelect 互動、audit trail |
-| [get-shit-done](https://github.com/gsd-build/get-shit-done) | TÂCHES | Context engineering 模式、goal-backward 驗證、sub-agent completion envelope、complexity tier 路由 |
-| [skill-sanitizer](https://github.com/cyberxuan-XBX/skill-sanitizer) | cyberxuan-XBX | 7 層 pre-LLM 安全掃描、code block context awareness、severity scoring 與 false-positive 降低策略 |
-
-## 安全性
-
-Polaris 遵循嚴格的**零遙測、零雲端**政策：
-
-- **資料不離開你的機器** — 所有記憶、學習紀錄、時間軸和 session 狀態都儲存在本地 workspace 和 `~/.polaris/` 下
-- **無分析或追蹤** — 沒有 `telemetry-sync`、沒有 `eureka.jsonl`、沒有任何使用回報
-- **無外部網路連線** — Polaris 不會回傳任何資料；唯一的網路活動來自你明確呼叫的工具（git、gh、JIRA、Slack）
-- **PreToolUse 安全 hook** — `scripts/safety-gate.sh` 在 shell 層級阻擋危險操作（破壞性刪除、force-push 到 main、寫入允許目錄以外的位置），在執行前攔截
-- **Workspace language policy gate** — PR、JIRA、Slack、Confluence、commit、release 等 downstream-facing 文案會依 workspace 設定語言檢查；雙語文件使用明確的 source / translation mode，避免 English source docs 被誤擋
-- **所有程式碼可審計** — 技能、規則和腳本都是 repo 中的純文字檔。沒有混淆過的二進位檔、沒有 symlink 群、沒有隱藏的安裝腳本
-
-評估外部 Claude Code 技能或框架時，建議在整合前使用 [skill-sanitizer](https://github.com/cyberxuan-XBX/skill-sanitizer) 等工具進行掃描。
+|---|---|---|
+| [superpowers](https://github.com/obra/superpowers) | Jesse Vincent | Agentic skills framework、spec-first development、sub-agent task division |
+| [ab-dotfiles](https://github.com/AlvinBian/ab-dotfiles) | Alvin Bian | AI-driven dev environment management、onboarding smartSelect interaction、audit trail |
+| [get-shit-done](https://github.com/gsd-build/get-shit-done) | TÂCHES | Context engineering patterns、goal-backward verification、sub-agent completion envelope、complexity tier routing |
+| [skill-sanitizer](https://github.com/cyberxuan-XBX/skill-sanitizer) | cyberxuan-XBX | Pre-LLM security scanning、code block context awareness、severity scoring with false-positive reduction |
+| [Kubernetes](https://github.com/kubernetes/kubernetes)、[Vite](https://github.com/vitejs/vite)、[VS Code](https://github.com/microsoft/vscode)、[Home Assistant](https://github.com/home-assistant/core) | OSS communities | README 結構：清楚的 project identity、role-based entry points、短 setup path、詳細文件連結 |
 
 ## 授權
 

@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.56] - 2026-05-05
+
+### Changed — README hub structure
+
+- 重整 README / README.zh-TW 為 OSS-style hub：保留 product identity、
+  workflow entry points、quick start、repo layout、docs links、security 與致謝。
+- 移除頂層 README 內重複的長篇三支柱、PM workflow、架構與多公司細節，改導向
+  既有 workflow guide、PM setup、Codex quick start 與中文觸發詞文件。
+- 依 learning external mode 補上 Kubernetes、Vite、VS Code、Home Assistant
+  README pattern 參考，並把 hub-README pattern 寫入 cross-session learnings。
+
 ## [3.74.55] - 2026-05-05
 
 ### Changed — onboarding-first Polaris setup
