@@ -34,7 +34,7 @@ bug-triage 讀 handbook 定位原因。
 |---|---|
 | Any run | `verify-ac-entry-flow.md`, `pipeline-handoff.md`, `workspace-config-reader.md`, `shared-defaults.md` |
 | Environment | `verify-ac-environment-prep.md`, `epic-folder-structure.md` |
-| Step execution and evidence | `verify-ac-execution-flow.md`, `handoff-artifact.md` when cross-check needed |
+| Step execution and evidence | `verify-ac-execution-flow.md`, `evidence-upload-bundle.md` when visual/manual files need upload, `handoff-artifact.md` when cross-check needed |
 | JIRA report and transition | `verify-ac-reporting-flow.md`, `workspace-language-policy.md`, `external-write-gate.md`, `epic-verification-structure.md` |
 | FAIL disposition | `verify-ac-disposition-flow.md`, `starlight-authoring-contract.md`, `bug-triage-acfail-flow.md`, `refinement-return-inbox.md` |
 | Learning and lifecycle | `verify-ac-learning-lifecycle-flow.md`, `post-task-reflection-checkpoint.md` |
@@ -50,7 +50,7 @@ Epic mode 若委派 sub-agent 驗 AC，必須注入 `sub-agent-roles.md` 的 Com
 5. 需要 local / fixture 環境時，依 environment prep reference 啟動。
 6. 逐步執行 curl / Playwright / native VR runner / source inspection / structured checks。
 7. 每步分類 `PASS`、`FAIL`、`MANUAL_REQUIRED`、`UNCERTAIN`。
-8. 收集 evidence，寫 local verification folder，必要時上傳 JIRA attachments。
+8. 收集 evidence，寫 local verification folder；有視覺/影片/manual evidence 時先產 upload bundle，再視需要上傳 JIRA attachments。
 9. 寫 JIRA verification report；PASS 轉 Done，FAIL 顯示 disposition，PENDING 等人工。
 10. 記錄 verify-ac-gap learnings 與 post-task reflection。
 

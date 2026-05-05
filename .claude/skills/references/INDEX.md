@@ -19,6 +19,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [escalation-flavor-guide.md](escalation-flavor-guide.md) | Engineering scope-escalation sidecar 的 flavor 分類決策樹（plan-defect / scope-drift / env-drift）+ worked examples | engineering（寫 sidecar）, breakdown（intake path 重新分類） |
 | [refinement-return-inbox.md](refinement-return-inbox.md) | breakdown route refinement 時的 inbox record 契約；refinement 只讀 inbox、不讀 engineering raw sidecar | breakdown（route refinement）, refinement（return inbox intake）, engineering（lineage cap routing） |
 | [handoff-artifact.md](handoff-artifact.md) | Pipeline handoff evidence artifact 格式（Summary/Raw Evidence、20KB cap、secret scrub、on-demand read） | bug-triage, engineering, verify-AC（producer or consumer of handoff artifact） |
+| [evidence-upload-bundle.md](evidence-upload-bundle.md) | Engineering / verify-AC 圖片、影片、JSON 佐證的固定人工上傳包位置與 helper contract | engineering evidence upload, verify-AC visual evidence, PR/Jira attachments |
 | [decision-audit-trail.md](decision-audit-trail.md) | JIRA Decision Record comment 格式與寫入規則 | breakdown, sasd-review |
 | [bug-triage-entry-flow.md](bug-triage-entry-flow.md) | bug-triage ticket parsing、Issue Type guard、project mapping、existing ROOT_CAUSE detection、fast-path routing | bug-triage, root cause, bug diagnosis |
 | [bug-triage-acfail-flow.md](bug-triage-acfail-flow.md) | bug-triage 處理 verify-AC `[VERIFICATION_FAIL]` Bug 的 feature-branch scoped investigation 與 artifact handoff | bug-triage AC-FAIL, verification fail |

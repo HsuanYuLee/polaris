@@ -87,5 +87,20 @@ Evidence 先存 local verification folder，再視需要 upload JIRA attachments
 - response snippets
 - environment metadata
 
+若 evidence 含 screenshots、videos、VR diff、trace/report 等需人工檢視或上傳的檔案，必須依
+`references/evidence-upload-bundle.md` 產生 Jira upload bundle，並在驗證報告列出 bundle path：
+
+```bash
+bash {polaris_root}/scripts/collect-evidence-upload-bundle.sh \
+  --repo {repo_path} \
+  --ticket {AC_TICKET_KEY} \
+  --head-sha {head_sha_under_test} \
+  --source-container {company_specs_dir}/{EPIC_KEY} \
+  --target jira
+```
+
+Bundle 只是人工上傳來源；verify-AC 的 PASS/FAIL/MANUAL_REQUIRED/UNCERTAIN 分類仍以實際
+observed evidence 與 AC expected 比對為準。
+
 圖片嵌入 JIRA report 時使用 wiki markup attachment syntax。Standalone local paths 也要列入 final
 summary，供人工檢視。

@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.80] - 2026-05-05
+
+### Added — evidence upload bundle contract
+
+- Added a deterministic evidence upload bundle helper for collecting local VR, Playwright, verify, and ci-local artifacts into spec `artifacts/` folders.
+- Fixed engineering and verify-AC delivery references to produce PR/Jira upload bundles when local visual or behavior evidence needs manual publication.
+- Added upload bundle README/manifest output and selftest coverage for duplicate screenshot names, Playwright videos, and supporting evidence JSON.
+
 ## [3.74.79] - 2026-05-05
 
 ### Fixed — GitHub REST rate limit hardening
