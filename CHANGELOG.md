@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.62] - 2026-05-05
+
+### Fixed — release closeout archive target
+
+- `close-parent-spec-if-complete.sh` 在 terminal parent archive 時改用已解析的
+  parent `plan.md` path，而不是重新用 `DP-NNN` key 查找。
+- 補上同號 active DP selftest，避免 release closeout 因歷史 DP 編號重複而中斷。
+- 完成 DP-095 release closeout，將 active DP-095 spec 從 tracked surface 移除。
+
 ## [3.74.61] - 2026-05-05
 
 ### Fixed — awaiting re-review PR state routing

@@ -37,6 +37,7 @@ usage() {
 run_selftest() {
   local tmpdir dp_dir company_dir
   tmpdir="$(mktemp -d -t parent-closeout-selftest.XXXXXX)"
+  tmpdir="$(cd "$tmpdir" && pwd -P)"
   trap "rm -rf '$tmpdir'" EXIT
 
   dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-999-parent-closeout"
@@ -112,6 +113,17 @@ status: IMPLEMENTED
 
 > Source: DP-998 | Task: DP-998-T1 | JIRA: N/A | Repo: polaris-framework
 MD
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-998-unrelated-active-duplicate"
+  cat >"$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-998-unrelated-active-duplicate/plan.md" <<'MD'
+---
+topic: duplicate id smoke
+created: 2026-05-05
+status: LOCKED
+locked_at: 2026-05-05
+---
+
+# DP-998 duplicate id smoke
+MD
 
   env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T1.md" --workspace "$tmpdir" --archive-terminal-parent >/dev/null
   [[ ! -d "$dp_dir" ]] || {
@@ -120,6 +132,10 @@ MD
   }
   [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-998-parent-archive-closeout/plan.md" ]] || {
     echo "[selftest] explicit archive mode missing archived DP parent" >&2
+    return 1
+  }
+  [[ -d "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-998-unrelated-active-duplicate" ]] || {
+    echo "[selftest] explicit archive mode moved the wrong duplicate DP parent" >&2
     return 1
   }
 
@@ -407,7 +423,7 @@ if [[ "$ARCHIVE_TERMINAL_PARENT" -eq 1 ]]; then
       echo "$PREFIX archive skipped: parent already under archive (${parent_file})"
       ;;
     *)
-      bash "${SCRIPT_DIR}/archive-spec.sh" --workspace "$WORKSPACE_ROOT" "$parent_key"
+      bash "${SCRIPT_DIR}/archive-spec.sh" --workspace "$WORKSPACE_ROOT" "$parent_file"
       ;;
   esac
 fi
