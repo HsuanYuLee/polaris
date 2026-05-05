@@ -8,9 +8,10 @@ const specsRoot = process.env.POLARIS_SPECS_ROOT
   ? path.resolve(process.env.POLARIS_SPECS_ROOT)
   : path.join(docsRoot, 'specs');
 
-const folderMetadataDocNames = ['plan.md', 'epic.md', 'refinement.md', 'breakdown.md', 'README.md'];
+const folderMetadataDocNames = ['index.md', 'plan.md', 'epic.md', 'refinement.md', 'breakdown.md', 'README.md'];
 const fileOrder = new Map([
-  ['README.md', 0],
+  ['index.md', 0],
+  ['README.md', 5],
   ['epic.md', 10],
   ['plan.md', 20],
   ['refinement.md', 30],
@@ -95,6 +96,7 @@ function folderItem(dir) {
   const items = fs
     .readdirSync(dir, { withFileTypes: true })
     .filter((entry) => entry.name !== '.DS_Store')
+    .filter((entry) => entry.name !== 'index.md')
     .filter((entry) => entry.isDirectory() || (entry.isFile() && entry.name.endsWith('.md')))
     .map((entry) => {
       const entryPath = path.join(dir, entry.name);
@@ -111,6 +113,7 @@ function folderItem(dir) {
     items,
   };
 
+  if (metadata.link) item.link = metadata.link;
   if (metadata.badge) item.badge = metadata.badge;
   if (Number.isFinite(metadata.order)) {
     Object.defineProperty(item, '__order', { value: metadata.order, enumerable: false });
@@ -147,6 +150,7 @@ function readFolderMetadata(dir) {
     const sidebar = frontmatter.sidebar ?? {};
     return {
       label: sidebar.label || cleanFolderLabel(frontmatter.title, file) || path.basename(dir),
+      link: name === 'index.md' ? routePath(file) : undefined,
       badge: resolveBadge(frontmatter, sidebar),
       order: Number.isFinite(sidebar.order) ? sidebar.order : undefined,
     };
@@ -158,6 +162,9 @@ function readFolderMetadata(dir) {
 function routePath(file) {
   const relative = path.relative(specsRoot, file).replaceAll(path.sep, '/');
   const withoutExtension = relative.replace(/\.md$/, '');
+  if (withoutExtension.endsWith('/index')) {
+    return `/specs/${withoutExtension.slice(0, -'/index'.length).toLowerCase()}/`;
+  }
   return `/specs/${withoutExtension.toLowerCase()}/`;
 }
 
@@ -165,7 +172,7 @@ function cleanLabel(title, file) {
   const container = path.basename(path.dirname(file));
   const fileName = path.basename(file);
   if (!title) return fileName.endsWith('.md') ? fileName.replace(/\.md$/, '') : container;
-  if (['README.md', 'epic.md', 'plan.md', 'refinement.md', 'breakdown.md'].includes(fileName)) {
+  if (['index.md', 'README.md', 'epic.md', 'plan.md', 'refinement.md', 'breakdown.md'].includes(fileName)) {
     return fileName.replace(/\.md$/, '');
   }
   return title

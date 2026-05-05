@@ -6,9 +6,13 @@ import {
   inferStatusDashboard,
   nextCommand,
   primaryLink,
+  publicationSummary,
+  reportSummary,
   stageLabel,
   statusLabel,
   taskSummary,
+  verificationSummary,
+  verifyReportLink,
   inferToolchainHealth,
   createTranslator,
   resolveDocsManagerLocale,
@@ -95,6 +99,9 @@ const headings = sections.map((section) => ({
                     <th class="status">{t('table.status')}</th>
                     <th class="stage">{t('table.stage')}</th>
                     <th class="tasks">{t('table.tasks')}</th>
+                    <th class="verification">{t('table.verification')}</th>
+                    <th class="report">{t('table.report')}</th>
+                    <th class="publication">{t('table.publication')}</th>
                     <th class="blockers">{t('table.blockers')}</th>
                     <th class="next">{t('table.nextCommand')}</th>
                   </tr>
@@ -102,6 +109,7 @@ const headings = sections.map((section) => ({
                 <tbody>
                   {section.items.map((item) => {
                     const link = primaryLink(item, base);
+                    const reportLink = verifyReportLink(item, base);
                     return (
                       <tr>
                         <td class="source">{link ? <a href={link}>{item.id}</a> : item.id}</td>
@@ -111,6 +119,11 @@ const headings = sections.map((section) => ({
                         </td>
                         <td class="stage">{stageLabel(item, locale)}</td>
                         <td class="tasks">{taskSummary(item, locale)}</td>
+                        <td class="verification">{verificationSummary(item, locale)}</td>
+                        <td class="report">
+                          {reportLink ? <a href={reportLink}>{reportSummary(item, locale)}</a> : reportSummary(item, locale)}
+                        </td>
+                        <td class="publication">{publicationSummary(item, locale)}</td>
                         <td class="blockers">{blockerSummary(item)}</td>
                         <td class="next">
                           <code>{nextCommand(item, locale)}</code>
@@ -181,7 +194,7 @@ const headings = sections.map((section) => ({
 
   .status-table {
     width: 100%;
-    min-width: 62rem;
+    min-width: 88rem;
     border-collapse: collapse;
     table-layout: fixed;
     font-size: var(--sl-text-sm);
@@ -224,6 +237,18 @@ const headings = sections.map((section) => ({
 
   .tasks {
     width: 14rem;
+  }
+
+  .verification {
+    width: 18rem;
+  }
+
+  .report {
+    width: 9rem;
+  }
+
+  .publication {
+    width: 9rem;
   }
 
   .blockers {

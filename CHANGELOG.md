@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.85] - 2026-05-06
+
+### Added — folder-native dashboard discovery
+
+- Added docs-manager status dashboard support for folder-native `index.md` containers and `Tn/index.md` tasks.
+- Added dashboard columns for human-readable verification strategy, latest verify report, and publication state.
+- Updated sidebar route handling so folder-native `index.md` pages resolve to the container route.
+
 ## [3.74.84] - 2026-05-06
 
 ### Fixed — breakdown scope trace readiness

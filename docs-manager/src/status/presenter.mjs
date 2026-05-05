@@ -38,8 +38,13 @@ export function nextCommand(item, locale = 'en') {
 
 export function primaryLink(item, base = '/docs-manager') {
   if (!item.artifact) return null;
-  const route = item.artifact.path.replace(/\.md$/, '').toLowerCase();
+  const route = docRoute(item.artifact.path);
   return `${trimBase(base)}/specs/${route}/`;
+}
+
+export function verifyReportLink(item, base = '/docs-manager') {
+  if (!item.verifyReport) return null;
+  return `${trimBase(base)}/specs/${docRoute(item.verifyReport.path)}/`;
 }
 
 export function taskSummary(item, locale = 'en') {
@@ -56,6 +61,45 @@ export function taskSummary(item, locale = 'en') {
 
 export function blockerSummary(item) {
   return item.blockers.length > 0 ? item.blockers.join(', ') : '-';
+}
+
+export function verificationSummary(item, locale = 'en') {
+  const behavior = item.verification?.behaviorContract;
+  const visual = item.verification?.visualRegression;
+  const parts = [];
+
+  if (behavior) {
+    if (behavior.applies === false) {
+      parts.push(translate(locale, 'verification.behavior.false'));
+    } else if (behavior.applies === true) {
+      parts.push(
+        [
+          translate(locale, `verification.behavior.mode.${behavior.mode}`),
+          translate(locale, `verification.source.${behavior.source_of_truth}`),
+          translate(locale, `verification.fixture.${behavior.fixture_policy}`),
+        ].join(' / ')
+      );
+    }
+  }
+
+  if (visual) {
+    parts.push(translate(locale, `verification.visual.${visual.expected}`));
+  }
+
+  return parts.length > 0 ? parts.join(' / ') : translate(locale, 'verification.none');
+}
+
+export function reportSummary(item, locale = 'en') {
+  return item.verifyReport ? translate(locale, 'report.latest') : translate(locale, 'report.none');
+}
+
+export function publicationSummary(item, locale = 'en') {
+  return translate(locale, `publication.${item.publication?.status ?? 'not_available'}`);
+}
+
+function docRoute(markdownPath) {
+  const route = markdownPath.replace(/\.md$/, '').toLowerCase();
+  return route.endsWith('/index') ? route.slice(0, -'/index'.length) : route;
 }
 
 function trimBase(base) {
