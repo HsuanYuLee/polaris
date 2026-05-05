@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.82] - 2026-05-06
+
+### Fixed — DP-backed verification pseudo identity
+
+- Extended DP-backed task identity validation to accept verification work items such as `DP-110-V1`.
+- Updated task parsing and resolver selftests so direct and from-input lookup support `DP-NNN-Vn` identities.
+- Documented DP-backed `Tn` / `Vn` pseudo identities in the task.md schema reference.
+
 ## [3.74.81] - 2026-05-05
 
 ### Added — behavior contract runner

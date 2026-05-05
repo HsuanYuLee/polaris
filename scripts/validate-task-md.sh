@@ -597,12 +597,12 @@ PY
 
 # ---------------------------------------------------------------------------
 # Helper: task identity grammar.
-# Product tasks use JIRA keys (PROJ-123). Framework DP-backed tasks use
-# pseudo-task IDs (DP-047-T1) but otherwise follow the same task.md schema.
+# Product tasks use JIRA keys (PROJ-123). Framework DP-backed work orders use
+# pseudo IDs (DP-047-T1 / DP-047-V1) but otherwise follow the same task.md schema.
 # ---------------------------------------------------------------------------
 is_valid_task_identity() {
   local value="$1"
-  [[ "$value" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ || "$value" =~ ^DP-[0-9]{3}-T[0-9]+[a-z]*$ ]]
+  [[ "$value" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ || "$value" =~ ^DP-[0-9]{3}-[TV][0-9]+[a-z]*$ ]]
 }
 
 is_valid_jira_key() {
@@ -718,7 +718,7 @@ validate_file() {
   header_task_token="$(extract_header_token "$FILE" "Task")"
   if [[ -n "$header_task_token" ]]; then
     if ! is_valid_task_identity "$header_task_token"; then
-      errors+=("invalid Task identity in metadata line: got '$header_task_token' (expected JIRA key like PROJ-123 or DP pseudo-task like DP-047-T1)")
+      errors+=("invalid Task identity in metadata line: got '$header_task_token' (expected JIRA key like PROJ-123 or DP pseudo identity like DP-047-T1 / DP-047-V1)")
     fi
     if [[ -n "$header_jira_token" ]] && ! is_na_value "$header_jira_token" && ! is_valid_jira_key "$header_jira_token"; then
       errors+=("invalid JIRA key in metadata line: got '$header_jira_token' (expected real JIRA key like PROJ-123 or N/A for DP-backed task)")
@@ -727,7 +727,7 @@ validate_file() {
     if [[ -z "$header_jira_token" ]]; then
       errors+=("missing task identity in metadata line: expected legacy 'JIRA: {KEY}' or canonical 'Task: {ID}'")
     elif ! is_valid_task_identity "$header_jira_token"; then
-      errors+=("invalid task identity in metadata line: got '$header_jira_token' (expected JIRA key like PROJ-123 or legacy DP pseudo-task like DP-047-T1)")
+      errors+=("invalid task identity in metadata line: got '$header_jira_token' (expected JIRA key like PROJ-123 or legacy DP pseudo identity like DP-047-T1 / DP-047-V1)")
     fi
   fi
   if ! grep -qE '^> .*Repo: \S+' "$FILE"; then
@@ -866,7 +866,7 @@ validate_file() {
     if [[ -z "$task_identity" ]]; then
       errors+=("Operational Context section missing task identity value (expected canonical 'Task ID' or legacy 'Task JIRA key')")
     elif ! is_valid_task_identity "$task_identity"; then
-      errors+=("Operational Context task identity has invalid value '$task_identity' (expected JIRA key like PROJ-123 or DP pseudo-task like DP-047-T1)")
+      errors+=("Operational Context task identity has invalid value '$task_identity' (expected JIRA key like PROJ-123 or DP pseudo identity like DP-047-T1 / DP-047-V1)")
     fi
 
     local canonical_identity=0

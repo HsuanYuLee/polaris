@@ -167,7 +167,7 @@ resolve_direct_path() {
   local candidate="$1"
   [[ -f "$candidate" ]] || return 1
   case "$candidate" in
-    specs/*/tasks/T*.md|specs/*/tasks/pr-release/T*.md|*/specs/*/tasks/T*.md|*/specs/*/tasks/pr-release/T*.md) abs_path "$candidate" ;;
+    specs/*/tasks/[TV]*.md|specs/*/tasks/pr-release/[TV]*.md|*/specs/*/tasks/[TV]*.md|*/specs/*/tasks/pr-release/[TV]*.md) abs_path "$candidate" ;;
     *) return 1 ;;
   esac
 }
@@ -182,7 +182,7 @@ resolve_by_dp_task() {
   local -a matches=()
   local line=""
 
-  if [[ ! "$dp_task" =~ ^(DP-[0-9]{3})-(T[0-9]+[a-z]*)$ ]]; then
+  if [[ ! "$dp_task" =~ ^(DP-[0-9]{3})-([TV][0-9]+[a-z]*)$ ]]; then
     return 1
   fi
   dp_id="${BASH_REMATCH[1]}"
@@ -419,7 +419,7 @@ import re
 import sys
 
 raw = sys.argv[1]
-if re.search(r"\bDP-\d{3}-T\d+[a-z]*\b", raw, re.I):
+if re.search(r"\bDP-\d{3}-[TV]\d+[a-z]*\b", raw, re.I):
     raise SystemExit(1)
 epic = re.search(r"\b([A-Z][A-Z0-9]+-\d+)\b", raw)
 series = re.search(r"\b(T\d+)\s*(?:系列|series)?\b", raw, re.I)
@@ -447,7 +447,7 @@ import sys
 
 raw = sys.argv[1]
 patterns = [
-    ("dp_task", r"\b(DP-\d{3}-T\d+[a-z]*)\b"),
+    ("dp_task", r"\b(DP-\d{3}-[TV]\d+[a-z]*)\b"),
     ("path", r"((?:\.\.?/|~/|/)?[^\s'\"]+\.md)\b"),
     ("pr_url", r"(https?://github\.com/[^/\s]+/[^/\s]+/pull/\d+)"),
     ("jira", r"\b([A-Z][A-Z0-9]+-\d+)\b"),
@@ -573,6 +573,14 @@ MD
 | Task branch | task/DP-047-T1-framework-bridge |
 MD
 
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-047-framework-work-order-bridge/tasks/V1.md" <<'MD'
+# V1: DP verification task (1 pt)
+> Epic: DP-047 | JIRA: DP-047-V1 | Repo: workspace
+## Operational Context
+| Task JIRA key | DP-047-V1 |
+| Base branch | main |
+MD
+
   mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release"
   cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" <<'MD'
 # T1: Canonical DP task (1 pt)
@@ -614,6 +622,14 @@ MD
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input 'engineering DP-047-T1')" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] || { echo "[selftest] from-input dp task FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" DP-047-V1)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/V1.md" ]] || { echo "[selftest] dp verification task FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input 'verify DP-047-V1')" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/V1.md" ]] || { echo "[selftest] from-input dp verification task FAIL"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-478 T3 系列第一張')" || rc=$?
@@ -731,7 +747,7 @@ case "$mode" in
   direct)
     if resolve_direct_path "$input_value" >/dev/null 2>&1; then
       resolved_path="$(resolve_direct_path "$input_value")"
-    elif [[ "$input_value" =~ ^DP-[0-9]{3}-T[0-9]+[a-z]*$ ]]; then
+    elif [[ "$input_value" =~ ^DP-[0-9]{3}-[TV][0-9]+[a-z]*$ ]]; then
       resolved_path="$(resolve_by_dp_task "$root" "$input_value" "$include_archive_flag")"
     elif [[ "$input_value" =~ ^[A-Z][A-Z0-9]+-[0-9]+$ ]]; then
       resolved_path="$(resolve_by_jira "$root" "$input_value" "$include_archive_flag")"

@@ -335,7 +335,7 @@ def infer_source_type(source_id, work_item_id, jira_key):
     explicit = operational_context.get("source_type")
     if explicit:
         return explicit.lower()
-    if (source_id or "").startswith("DP-") or re.match(r"^DP-\d{3}-T\d+[a-z]*$", work_item_id or ""):
+    if (source_id or "").startswith("DP-") or re.match(r"^DP-\d{3}-[TV]\d+[a-z]*$", work_item_id or ""):
         return "dp"
     if jira_key:
         return "jira"
@@ -907,6 +907,40 @@ MD
   expect_field "$fixture3" jira_key               ""                      "F3.jira_key_empty"
   expect_field "$fixture3" jira                   ""                      "F3.legacy_jira_empty"
   expect_field "$fixture3" task_jira_key          "DP-050-T1"             "F3.task_jira_key_alias"
+
+  # ---- Fixture 3b (DP verification identity) ----------------------------
+  fixture3b="$tmpdir/V1-dp-canonical.md"
+  cat > "$fixture3b" <<'MD'
+# V1: DP-backed verification pseudo identity (1 pt)
+
+> Source: DP-050 | Task: DP-050-V1 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-050 |
+| Task ID | DP-050-V1 |
+| JIRA key | N/A |
+| Implementation tasks | T1 |
+| Base branch | main |
+| Depends on | T1 |
+| References to load | - task-md-schema |
+
+## Test Environment
+
+- **Level**: static
+- **Dev env config**: N/A
+- **Fixtures**: N/A
+- **Runtime verify target**: N/A
+- **Env bootstrap command**: N/A
+MD
+  expect_field "$fixture3b" source_type            "dp"                    "F3b.source_type"
+  expect_field "$fixture3b" source_id              "DP-050"                "F3b.source_id"
+  expect_field "$fixture3b" work_item_id           "DP-050-V1"             "F3b.work_item_id"
+  expect_field "$fixture3b" jira_key               ""                      "F3b.jira_key_empty"
+  expect_field "$fixture3b" task_jira_key          "DP-050-V1"             "F3b.task_jira_key_alias"
 
   # ---- Fixture 4 (VR empty pages) ----------------------------------------
   fixture4="$tmpdir/T4-vr-empty-pages.md"

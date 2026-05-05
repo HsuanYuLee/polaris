@@ -23,9 +23,10 @@ Framework DP-backed work orders（DP-047 / DP-050）使用同一份 Implementati
 
 ```text
 {specs_root}/design-plans/DP-NNN-{slug}/tasks/T{n}.md
+{specs_root}/design-plans/DP-NNN-{slug}/tasks/V{n}.md
 ```
 
-DP-backed task 使用 source-neutral identity：`source_type=dp`、`source_id=DP-NNN`、`work_item_id=DP-NNN-Tn`、`jira_key=null`。Migration 期仍接受舊 task.md 把 pseudo-task ID 放在 `Task JIRA key` / `JIRA:`，但新 DP-backed task 應使用 canonical metadata row，並保留 `JIRA: N/A` 讓舊 reader 不因欄位缺失失效。
+DP-backed task 使用 source-neutral identity：`source_type=dp`、`source_id=DP-NNN`、`work_item_id=DP-NNN-Tn` / `DP-NNN-Vn`、`jira_key=null`。Migration 期仍接受舊 task.md 把 pseudo-task ID 放在 `Task JIRA key` / `JIRA:`，但新 DP-backed task 應使用 canonical metadata row，並保留 `JIRA: N/A` 讓舊 reader 不因欄位缺失失效。
 
 > **Reader fallback callout（DP-033 D8）**：所有用 task key 找 file 的 reader（`parse-task-md.sh` / `validate-task-md-deps.sh` / `verify-AC` / `engineering` / 未來 Specs Viewer）在 active `tasks/` 找不到 key 時，必須 fallback `tasks/pr-release/`，避免歷史 reference 在 task 完結後斷鏈。完整 fallback 規則 + lookup 優先順序見 § 6 Validator Mapping。`tasks/pr-release/` fallback 不等於 archive lookup；`archive/` 是 completed/abandoned container 的歷史命名空間，active resolver 預設必須排除，只有 direct archived path 或明確 `--include-archive` 類模式才可讀取。
 
@@ -276,15 +277,15 @@ Canonical source-neutral metadata（DP-050 migration candidate）:
 ```
 
 - `Epic:` / `Source:` **Soft required**（DP-033 D5 + DP-050）— product task 通常用 `Epic:`，source-neutral task 用 `Source:`；Bug task 是真實無 Epic 場景，硬 require 只會逼填假 Epic
-- `Task:` **canonical task identity** — source-neutral `work_item_id`。Product task 可等於 JIRA key；DP-backed framework task 使用 pseudo-task ID `DP-NNN-Tn`
+- `Task:` **canonical task identity** — source-neutral `work_item_id`。Product task 可等於 JIRA key；DP-backed framework work item 使用 pseudo ID `DP-NNN-Tn` / `DP-NNN-Vn`
 - `JIRA:` **migration required segment** — 真實 JIRA key；若來源不是 JIRA（例如 DP task）填 `N/A`。Legacy task 可只用 `JIRA:` 承載 task identity
 - `Repo:` **必填** — 非空字串
 
 Validator accepts either legacy or canonical shape:
 
 ```regex
-legacy:    ^> .*JIRA: ([A-Z][A-Z0-9]*-[0-9]+|DP-[0-9]{3}-T[0-9]+[a-z]*)
-canonical: ^> .*Task: ([A-Z][A-Z0-9]*-[0-9]+|DP-[0-9]{3}-T[0-9]+[a-z]*).*JIRA: ([A-Z][A-Z0-9]*-[0-9]+|N/A)
+legacy:    ^> .*JIRA: ([A-Z][A-Z0-9]*-[0-9]+|DP-[0-9]{3}-[TV][0-9]+[a-z]*)
+canonical: ^> .*Task: ([A-Z][A-Z0-9]*-[0-9]+|DP-[0-9]{3}-[TV][0-9]+[a-z]*).*JIRA: ([A-Z][A-Z0-9]*-[0-9]+|N/A)
 ^> .*Repo: \S+
 ```
 
@@ -305,7 +306,7 @@ Migration aliases:
 
 | Field | Product task | DP-backed task |
 |-------|--------------|----------------|
-| `work_item_id` | Real task JIRA key | DP pseudo-task ID |
+| `work_item_id` | Real task JIRA key | DP pseudo ID (`DP-NNN-Tn` / `DP-NNN-Vn`) |
 | `jira_key` | Real task JIRA key | `null` / empty field output |
 | `task_jira_key` | Alias of `work_item_id` | Compatibility alias of `work_item_id`; deprecated for new consumers |
 | `jira` | Legacy metadata alias | Empty when metadata says `JIRA: N/A` |
@@ -358,7 +359,7 @@ PR-release 觸發（DP-033 D6，**move-first 順序鎖定**）：`status` 轉為
 |------|------|----------|
 | `Source type` | Canonical source type：`jira` / `dp` | **Hard in canonical identity** |
 | `Source ID` | Parent source/container：product Epic key（如 `EPIC-478`）或 DP id（如 `DP-050`） | **Hard in canonical identity** |
-| `Task ID` | Canonical `work_item_id`：product task JIRA key 或 DP pseudo-task ID（如 `DP-050-T1`） | **Hard in canonical identity** |
+| `Task ID` | Canonical `work_item_id`：product task JIRA key 或 DP pseudo ID（如 `DP-050-T1` / `DP-050-V1`） | **Hard in canonical identity** |
 | `JIRA key` | 真實 JIRA issue key；無 JIRA 時填 `N/A` | **Hard in canonical identity** |
 | `Task JIRA key` | Legacy identity cell；migration 期仍接受。新 DP-backed task 不應使用此 cell 承載 pseudo-task ID | **Hard in legacy identity** |
 | `Parent Epic` | Legacy parent cell；migration 期仍接受 | **Hard in legacy identity** |
