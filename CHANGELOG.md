@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.73] - 2026-05-05
+
+### Added — bootstrap token budget health
+
+- Added `measure-bootstrap-tokens.sh` for shared Polaris bootstrap budget measurement with source scope and confidence labels.
+- Reduced default bootstrap cost through memory Hot hygiene, mechanism registry disclosure, and a rules progressive-disclosure slice.
+- Added skill description reporting, routing canary coverage, adapter source inventory, and advisory bootstrap budget health validation.
+
 ## [3.74.72] - 2026-05-05
 
 ### Fixed — review-inbox lean runtime dispatch plan

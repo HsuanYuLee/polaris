@@ -170,6 +170,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 |------|-------------|----------|
 | [review-lesson-extraction.md](review-lesson-extraction.md) | PR review 萃取共用邏輯：sub-agent prompt、dedup、寫入 handbook | learning (PR/Batch mode), engineering Step 12.5 |
 | [cross-session-learnings.md](cross-session-learnings.md) | JSONL 知識庫 schema 與跨 session 技術洞察持久化規則。含 `plan-gap` / `review-lesson` 標籤規格與 promotion pipeline | post-task-reflection, session-start, engineering (revision mode R3a/R6), learning (--promote) |
+| [memory-tiering-contract.md](memory-tiering-contract.md) | Hot/Warm/Cold memory lifecycle：tier 定義、write discipline、decay migration、與 polaris-learnings.sh 邊界 | memory tiering, memory hygiene, MEMORY.md, post-task-reflection |
 | [session-timeline.md](session-timeline.md) | JSONL 事件日誌 schema 與 polaris-timeline.sh 介面 | standup, checkpoint, skill invocation logging |
 | [post-task-reflection-checkpoint.md](post-task-reflection-checkpoint.md) | 所有 write skill 的最終步驟 checklist：feedback、learning、mechanism audit | 每個 write skill 的最後一步 |
 | [checkpoint-save-flow.md](checkpoint-save-flow.md) | checkpoint save mode 的狀態收集、checkpoint note、timeline checkpoint/session_summary 寫入、使用者確認格式 | checkpoint save, 存檔 |
@@ -204,6 +205,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [feedback-memory-procedures.md](feedback-memory-procedures.md) | Feedback/memory 操作流程：direct rule write、hygiene checks、carry-forward、dedup、backlog format、frontmatter spec、injection scan | post-task-reflection, organize-memory, feedback write, rule promotion |
 | [mechanism-rationalizations.md](mechanism-rationalizations.md) | Mechanism Registry 的 Common Rationalizations 查表集 + Deterministic Quality Hooks 技術細節（evidence file spec、bypass flags） | post-task mechanism audit (when drift suspected), hook configuration, verification-evidence debugging |
 | [deterministic-hooks-registry.md](deterministic-hooks-registry.md) | Deterministic Quality Hooks 完整表（ID、Rule、Enforcement、Script）— 從 mechanism-registry.md 拆出以降低 rules 載入成本 | hook configuration, hook debugging, validate-mechanisms |
+| [mechanism-deterministic-contracts.md](mechanism-deterministic-contracts.md) | Mechanism Registry 拆出的 deterministic contract groups：artifact schemas、handoff gates、delivery wrappers、release closeout 等只在 gate 被忽略/誤讀時 audit | mechanism registry, post-task audit, validate-mechanisms, deterministic contract |
 | [library-change-protocol.md](library-change-protocol.md) | 依賴變更完整協議：三層調查、替換/升級評估、Decision Tier、config 系統性排除、workaround 文件標準 | engineering (library evaluation), review-pr (reviewer suggests upgrade), bug-triage (dependency issue) |
 | [knowledge-compilation-protocol.md](knowledge-compilation-protocol.md) | Framework 知識編譯協議：Atom vs Derived 邊界、backwrite、parallel naming lock | learning (External mode framework target), docs-sync, framework docs/rules updates |
 | [starlight-authoring-contract.md](starlight-authoring-contract.md) | Specs Markdown 的 Starlight authoring contract：frontmatter、description、duplicate H1、producer boundary、validator explicit path、legacy migration | refinement, breakdown, engineering, verify-AC, docs-manager, specs markdown producer |

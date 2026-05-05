@@ -1,12 +1,8 @@
 ---
 name: validate
 description: >
-  Framework health check combining isolation and mechanism compliance.
-  Two modes: (1) Isolation — scan for multi-company contamination (scope headers,
-  memory tags, cross-company conflicts). (2) Mechanisms — static smoke test of
-  behavioral canaries from mechanism-registry.md.
-  Trigger: "validate", "檢查", "health check", "validate isolation", "檢查隔離",
-  "validate mechanisms", "檢查機制", "/validate".
+  Framework health check：validate / 檢查 isolation 與 mechanisms；支援
+  "validate isolation", "validate mechanisms", "檢查隔離", "檢查機制", health check。
 metadata:
   author: Polaris
   version: 1.1.0
@@ -38,6 +34,7 @@ memory。任何 fail 的修正都要先回報具體 fix，再由使用者確認�
 | Any run | `validate-reporting-flow.md`, `deterministic-hooks-registry.md` |
 | Isolation | `validate-isolation-flow.md`, `workspace-config-reader.md` |
 | Mechanisms | `validate-mechanisms-flow.md`, `mechanism-rationalizations.md` |
+| Bootstrap budget health | `scripts/validate-bootstrap-budget.sh --advisory` |
 
 ## Hard Rules
 
@@ -46,6 +43,7 @@ memory。任何 fail 的修正都要先回報具體 fix，再由使用者確認�
 - Treat validator exit 1 / strict failure as FAIL, not advisory.
 - Conversation-level mechanisms require post-task audit; static validate cannot prove them.
 - WARN 與 FAIL 分開回報；除非 validator 定義 WARN blocking，否則 WARN 不阻擋。
+- Bootstrap budget check is advisory by default; use `--blocking` only in explicit release/health gates.
 
 ## Completion
 

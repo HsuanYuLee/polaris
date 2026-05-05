@@ -104,51 +104,14 @@ For the full scan procedure, risk pattern table, and scope — see `skills/refer
 
 ## Memory Tiering (Hot / Warm / Cold)
 
-Memory files follow a three-tier lifecycle to cap the per-conversation loading cost and keep `MEMORY.md` under the 200-line truncation risk. Graduated from `DP-015 Part B` (2026-04-20).
+Memory files follow Hot / Warm / Cold lifecycle rules to cap every-session context
+and keep `MEMORY.md` below truncation risk. The always-loaded rule is:
 
-### Tier Definitions
+- keep Hot small and deliberate;
+- write new memories into an existing topic folder when one already owns the topic;
+- do not create ad-hoc topic folders outside the hygiene migration script;
+- use `polaris-learnings.sh` for technical knowledge and `memory/` for session
+  state, preferences, and behavior corrections.
 
-| Tier | Location | Load behavior | Eligibility |
-|------|----------|--------------|-------------|
-| Hot | `memory/*.md` + pointer in `MEMORY.md` | Loaded into every session | `pinned: true` OR `last_triggered ≥ today-30d` OR `trigger_count ≥ 5` |
-| Warm | `memory/{topic}/*.md` + pointer in `memory/{topic}/index.md` | Loaded on-demand when Strategist pulls the topic folder | `last_triggered ≥ today-90d` (grouped by `topic`) |
-| Cold | `memory/archive/*.md` | Never loaded automatically; available for retrospective reads | Older than 90 days OR strikethrough in MEMORY.md |
-
-### Write Discipline
-
-When creating a new memory file:
-
-1. **Check topic folder**: if `memory/{topic}/` exists for the relevant topic, write the file inside that folder and add the pointer to `{topic}/index.md` — not `MEMORY.md`
-2. **Otherwise write flat** at `memory/` root with a pointer in `MEMORY.md § Hot`
-3. **Do not create new topic folders on the fly** — folder creation is reserved for the migration script (`scripts/memory-hygiene-tiering.py apply`). If a clear topic exists but no folder, write flat and set `topic: <slug>` in frontmatter so the next migration picks it up
-
-After writing, if `MEMORY.md § Hot` exceeds 15 entries, surface an advisory: "MEMORY.md Hot 已達 {N} 項，建議跑 `/memory-hygiene` 降級最舊的 N-15 項到 Warm." Do not auto-move — demotion is deliberate.
-
-### Frontmatter Fields
-
-| Field | Type | Purpose |
-|-------|------|---------|
-| `pinned` | bool | `true` = always Hot regardless of decay. Reserved for user-declared "不能忘" entries. Do not auto-set |
-| `topic` | string | Warm folder slug (e.g., `cwv-epics`, `polaris-framework`). Consumed by the tiering script for grouped demotion |
-
-Both fields are optional. The baseline frontmatter spec remains: `name`, `description`, `type`, optional `company`, optional `trigger_count` / `last_triggered`.
-
-### Decay & Migration
-
-- **Advisory scan**: runs at session start via `.claude/hooks/memory-decay-scan.sh` (calls `scripts/memory-hygiene-tiering.py decay-scan`). Lists candidate demotions; does not move files. Once per day (stamped under `/tmp`)
-- **Manual hygiene**: `/memory-hygiene` skill offers scan → dry-run → apply. Apply mode writes `.migration-log.md` recording every move
-- **Archive is forever**: Cold entries go to `memory/archive/` and are never deleted — historical context supports future framework self-evolution
-
-### Boundary with `polaris-learnings.sh`
-
-- `polaris-learnings.sh` = **technical knowledge** (patterns, pitfalls, confidence + key dedup + decay built-in)
-- `memory/` = **session state + preferences + behavior corrections**
-- Overlap cases (e.g., a PR lesson that's both a technical pattern and a behavior correction) → prefer learnings
-
-### References
-
-- User-level rules: `~/.claude/CLAUDE.md § Memory Tiering Rules`
-- Script: `scripts/memory-hygiene-tiering.py` (dry-run / apply / decay-scan)
-- Manual skill: `.claude/skills/memory-hygiene/SKILL.md`
-- Session hook: `.claude/hooks/memory-decay-scan.sh` (SessionStart)
-- Design plan: `specs/design-plans/DP-015-polaris-context-efficiency/plan.md`
+For tier definitions, frontmatter fields, decay behavior, write discipline, and
+script ownership, load `skills/references/memory-tiering-contract.md`.

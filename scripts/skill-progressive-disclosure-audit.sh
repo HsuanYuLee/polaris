@@ -56,6 +56,34 @@ def strip_frontmatter(text: str) -> str:
     return text[rest + 1 :] if rest != -1 else ""
 
 
+def frontmatter_text(text: str) -> str:
+    if not text.startswith("---\n"):
+        return ""
+    end = text.find("\n---", 4)
+    return text[4:end].strip("\n") if end != -1 else ""
+
+
+def frontmatter_description(text: str) -> str:
+    fm = frontmatter_text(text)
+    if not fm:
+        return ""
+    lines = fm.splitlines()
+    for index, line in enumerate(lines):
+        match = re.match(r"^description:\s*(.*)$", line)
+        if not match:
+            continue
+        value = match.group(1).strip()
+        if value in {">", "|", ">-", "|-"}:
+            collected = []
+            for next_line in lines[index + 1 :]:
+                if re.match(r"^[A-Za-z0-9_-]+:\s*", next_line):
+                    break
+                collected.append(next_line.strip())
+            return " ".join(part for part in collected if part)
+        return value.strip("\"'")
+    return ""
+
+
 def word_count(text: str) -> int:
     return len(re.findall(r"[A-Za-z0-9_][A-Za-z0-9_'-]*", text))
 
@@ -148,11 +176,15 @@ if skills_dir.exists():
         skill = skill_file.parent.name
         text = skill_file.read_text(encoding="utf-8", errors="replace")
         body = strip_frontmatter(text)
+        description = frontmatter_description(text)
+        description_bytes = len(description.encode("utf-8"))
         words = word_count(body)
         rows.append({
             "skill": skill,
             "severity": severity(words),
             "words": words,
+            "description_bytes": description_bytes,
+            "description_estimated_tokens": (description_bytes + 3) // 4,
             "flags": flags_for(body),
             "path": skill_file.relative_to(root).as_posix() if skill_file.is_relative_to(root) else str(skill_file),
         })
@@ -162,6 +194,8 @@ rows.sort(key=lambda row: (order[row["severity"]], -row["words"], row["skill"]))
 counts = {key: 0 for key in order}
 for row in rows:
     counts[row["severity"]] += 1
+description_bytes_total = sum(row["description_bytes"] for row in rows)
+description_tokens_total = sum(row["description_estimated_tokens"] for row in rows)
 
 if output_format == "markdown":
     print("---")
@@ -178,20 +212,22 @@ if output_format == "markdown":
     print(f"- P1: {counts['P1']}")
     print(f"- P2: {counts['P2']}")
     print(f"- INFO: {counts['INFO']}")
+    print(f"- Description bytes: {description_bytes_total}")
+    print(f"- Description estimated tokens: {description_tokens_total}")
     print()
     print("## Findings")
     print()
-    print("| Skill | Severity | Words | Signals | Path |")
-    print("|-------|----------|-------|---------|------|")
+    print("| Skill | Severity | Body words | Description bytes | Description estimated tokens | Signals | Path |")
+    print("|-------|----------|------------|-------------------|------------------------------|---------|------|")
     for row in rows:
         signals = ", ".join(row["flags"]) if row["flags"] else "-"
-        print(f"| {row['skill']} | {row['severity']} | {row['words']} | {signals} | `{row['path']}` |")
+        print(f"| {row['skill']} | {row['severity']} | {row['words']} | {row['description_bytes']} | {row['description_estimated_tokens']} | {signals} | `{row['path']}` |")
 else:
     print("Skill Progressive Disclosure Audit")
-    print(f"skills={len(rows)} P0={counts['P0']} P1={counts['P1']} P2={counts['P2']} INFO={counts['INFO']}")
+    print(f"skills={len(rows)} P0={counts['P0']} P1={counts['P1']} P2={counts['P2']} INFO={counts['INFO']} description_bytes={description_bytes_total} description_estimated_tokens={description_tokens_total}")
     print()
-    print("skill\tseverity\twords\tsignals\tpath")
+    print("skill\tseverity\twords\tdescription_bytes\tdescription_estimated_tokens\tsignals\tpath")
     for row in rows:
         signals = ",".join(row["flags"]) if row["flags"] else "-"
-        print(f"{row['skill']}\t{row['severity']}\t{row['words']}\t{signals}\t{row['path']}")
+        print(f"{row['skill']}\t{row['severity']}\t{row['words']}\t{row['description_bytes']}\t{row['description_estimated_tokens']}\t{signals}\t{row['path']}")
 PY
