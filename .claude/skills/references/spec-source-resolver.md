@@ -1,3 +1,8 @@
+---
+title: "Shared Spec Source Resolver"
+description: "JIRA、DP、topic 與 artifact path 的共用 source resolution 與 folder-native write contract。"
+---
+
 # Spec Source Resolver
 
 JIRA-backed 與 ticketless Polaris pipeline 共用的 source resolution contract。
@@ -52,7 +57,7 @@ JIRA sync 只是 optional side effect
 | Type | Input examples | Canonical container | Primary owner |
 |------|----------------|---------------------|---------------|
 | `jira` | `EPIC-478`, `TASK-3711` | `{company_specs_dir}/{TICKET}/` 加上 JIRA issue | `refinement` / `breakdown` |
-| `dp` | `DP-045`, `docs-manager/src/content/docs/specs/design-plans/DP-045-*/plan.md` | `{specs_root}/design-plans/DP-NNN-{slug}/` | `refinement` |
+| `dp` | `DP-045`, `docs-manager/src/content/docs/specs/design-plans/DP-045-*/index.md`, legacy `plan.md` | `{specs_root}/design-plans/DP-NNN-{slug}/` | `refinement` |
 | `topic` | `討論 CI local blocker`, `refinement "想重構 skill routing"` | 新分配的 DP folder | `refinement` |
 | `artifact_path` | direct `refinement.json`, `refinement.md`, `tasks/T1.md`, `tasks/T1/index.md` path | 最近的 containing specs folder | stage-specific consumer |
 
@@ -69,10 +74,16 @@ JIRA sync 只是 optional side effect
 - zero matches：fail loud，不可默默建立同號 replacement DP
 - multiple matches：fail loud，由使用者或 maintainer 解 duplicate
 - one match：該 folder 就是 canonical DP root
-- `refinement DP-NNN` 與 `breakdown DP-NNN` 必須有 `plan.md`
+- `refinement DP-NNN` 與 `breakdown DP-NNN` 必須有 primary DP document：`index.md` 優先，legacy `plan.md` fallback
 - `tasks/T{n}.md` / `tasks/T{n}/index.md` 在 `breakdown` 產出 work orders 前是 optional
 
-Canonical plan path：
+Canonical DP primary document path：
+
+```text
+{specs_root}/design-plans/DP-NNN-{slug}/index.md
+```
+
+Legacy DP containers may still use:
 
 ```text
 {specs_root}/design-plans/DP-NNN-{slug}/plan.md
@@ -83,10 +94,10 @@ Canonical plan path：
 當 input 是 ticketless topic 而不是既有 `DP-NNN`：
 
 1. 呼叫 `scripts/create-design-plan.sh "<topic>"`。
-2. command 掃描 active + archive parent `plan.md`，分配全域最大 N + 1。
-3. command 建立 `{specs_root}/design-plans/DP-NNN-{topic-slug}/plan.md`。
+2. command 掃描 active + archive parent `index.md` 與 legacy `plan.md`，分配全域最大 N + 1。
+3. command 建立 `{specs_root}/design-plans/DP-NNN-{topic-slug}/index.md`。
 4. command 寫入完整 metadata：`title`、`description`、`topic`、`created`、`status`、`priority`、`sidebar`。
-5. command 跑 `scripts/validate-dp-plan-authoring.sh`，通過後 route 到 `refinement` ticketless mode。
+5. command 跑 Starlight / language / route-safe authoring gates，通過後 route 到 `refinement` ticketless mode。
 
 topic slug 採 kebab-case，描述 durable subject，不描述當下 implementation step。
 
@@ -95,8 +106,9 @@ topic slug 採 kebab-case，描述 durable subject，不描述當下 implementat
 建立 `plan.md`、`refinement.md` 或 task work order 時，必須在 source file 寫入
 stable title；不可依賴額外 loader 或 generated mirror 補齊 metadata。
 
-DP number allocation 永遠包含 active + archive namespaces。任何 producer 不可只掃描
-active `design-plans/DP-*`，也不可在 validator 回報 duplicate 時建立同號 replacement DP。
+DP number allocation 永遠包含 active + archive namespaces，且同時看 `index.md` 與 legacy
+`plan.md`。任何 producer 不可只掃描 active `design-plans/DP-*`，也不可在 validator 回報
+duplicate 時建立同號 replacement DP。
 
 ## Artifact Paths
 
@@ -112,6 +124,7 @@ JIRA-backed work：
 DP-backed ticketless work：
 
 ```text
+{specs_root}/design-plans/DP-NNN-{slug}/index.md
 {specs_root}/design-plans/DP-NNN-{slug}/plan.md
 {specs_root}/design-plans/DP-NNN-{slug}/refinement.md
 {specs_root}/design-plans/DP-NNN-{slug}/refinement.json
@@ -119,7 +132,9 @@ DP-backed ticketless work：
 {specs_root}/design-plans/DP-NNN-{slug}/tasks/T{n}/index.md
 ```
 
-`refinement.json` 是 machine-readable artifact。`plan.md` 是 durable decision record。兩者可以共享資訊，但 consumer 需要 structured fields 時應優先讀 `refinement.json`。
+`refinement.json` 是 machine-readable artifact。`index.md` 是 folder-native durable decision record，
+legacy DP 可能仍使用 `plan.md`。兩者可以共享資訊，但 consumer 需要 structured fields 時應優先讀
+`refinement.json`。
 
 ## Folder-Native Task Lookup
 
@@ -184,7 +199,7 @@ scripts/polaris-toolchain.sh run docs.viewer.doctor
 
 | Section | Owner | Notes |
 |---------|-------|-------|
-| frontmatter `title`, `topic`, `created`, `status`, `locked_at` | `refinement` | `breakdown` 只讀，不負責 lock plan |
+| frontmatter `title`, `topic`, `created`, `status`, `locked_at` | `refinement` | `breakdown` 只讀，不負責 lock primary DP document |
 | `## Goal` | `refinement` | requirement intent |
 | `## Background` | `refinement` | context 與 current state |
 | `## Decisions` | `refinement` | selected direction 與 rationale |

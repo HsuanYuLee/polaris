@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.87] - 2026-05-06
+
+### Added — folder-native producer defaults
+
+- Updated new Design Plan creation to write folder-native `index.md` containers while keeping legacy `plan.md` readers documented.
+- Updated breakdown and refinement references so new DP-backed tasks use `tasks/Tn/index.md` / `tasks/Vn/index.md` by default.
+- Added selftest coverage for folder-native DP creation, sidebar metadata, and duplicate number avoidance across active and archive containers.
+
 ## [3.74.86] - 2026-05-06
 
 ### Added — static evidence distributor

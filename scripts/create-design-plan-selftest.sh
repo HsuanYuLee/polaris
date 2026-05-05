@@ -31,12 +31,14 @@ Fixture.
 MD
 
 plan="$("$CREATE" --specs-root "$specs" "測試 create command")"
-[[ "$plan" == *"DP-100-"*"plan.md" ]]
+[[ "$plan" == *"DP-100-"*"index.md" ]]
 grep -q '^priority: P2$' "$plan"
 grep -q '^sidebar:' "$plan"
+[[ ! -f "$(dirname "$plan")/plan.md" ]]
 
 plan_p1="$("$CREATE" --specs-root "$specs" --priority P1 "測試 priority")"
 grep -q '^priority: P1$' "$plan_p1"
+[[ "$plan_p1" == *"index.md" ]]
 
 if "$CREATE" --specs-root "$specs" --number DP-100 "撞號測試" >/tmp/create-dp-collision.out 2>&1; then
   echo "not ok collision should fail" >&2

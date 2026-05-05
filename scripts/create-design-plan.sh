@@ -13,10 +13,10 @@ usage() {
   cat >&2 <<'EOF'
 usage: create-design-plan.sh [--specs-root <path>] [--number DP-NNN] [--priority P0..P4] <topic>
 
-Creates docs-manager/src/content/docs/specs/design-plans/DP-NNN-slug/plan.md,
+Creates docs-manager/src/content/docs/specs/design-plans/DP-NNN-slug/index.md,
 where DP-NNN is allocated from active + archive parent plans unless --number is
-provided. The generated plan is immediately validated by
-validate-dp-plan-authoring.sh.
+provided. Legacy readers still support existing plan.md containers, but new
+Design Plan containers are folder-native.
 EOF
   exit 2
 }
@@ -64,8 +64,23 @@ if [[ ! "$status" =~ ^(SEEDED|DISCUSSION|LOCKED|IMPLEMENTING|IMPLEMENTED|ABANDON
   echo "error: invalid status: $status" >&2
   exit 2
 fi
+
+dp_number_exists() {
+  local base_dir="$1"
+  local candidate="$2"
+  compgen -G "$base_dir/$candidate-*/plan.md" >/dev/null \
+    || compgen -G "$base_dir/$candidate-*/index.md" >/dev/null \
+    || compgen -G "$base_dir/archive/$candidate-*/plan.md" >/dev/null \
+    || compgen -G "$base_dir/archive/$candidate-*/index.md" >/dev/null
+}
+
 if [[ -z "$number" ]]; then
   number="$(bash scripts/allocate-design-plan-number.sh --specs-root "$specs_root")"
+  base_for_allocation="$specs_root/design-plans"
+  while dp_number_exists "$base_for_allocation" "$number"; do
+    next_number="$((10#${number#DP-} + 1))"
+    number="$(printf 'DP-%03d' "$next_number")"
+  done
 fi
 if [[ ! "$number" =~ ^DP-[0-9]{3}$ ]]; then
   echo "error: invalid DP number: $number" >&2
@@ -83,15 +98,24 @@ PY
 
 base="$specs_root/design-plans"
 mkdir -p "$base"
-if compgen -G "$base/$number-*/plan.md" >/dev/null || compgen -G "$base/archive/$number-*/plan.md" >/dev/null; then
+if dp_number_exists "$base" "$number"; then
   echo "error: $number already exists in active or archive design-plans" >&2
   exit 1
 fi
 
 container="$base/$number-$slug"
-plan="$container/plan.md"
+plan="$container/index.md"
 mkdir -p "$container"
 created="$(date +%F)"
+order="${number#DP-}"
+order="$((10#$order))"
+case "$status" in
+  IMPLEMENTED) badge_variant="success" ;;
+  ABANDONED) badge_variant="danger" ;;
+  IMPLEMENTING) badge_variant="caution" ;;
+  LOCKED) badge_variant="tip" ;;
+  SEEDED|DISCUSSION) badge_variant="note" ;;
+esac
 
 cat >"$plan" <<MD
 ---
@@ -101,6 +125,12 @@ topic: "$topic"
 created: $created
 status: $status
 priority: $priority
+sidebar:
+  label: "$number: $topic"
+  order: $order
+  badge:
+    text: "$status / $priority"
+    variant: "$badge_variant"
 ---
 
 ## Context
@@ -108,5 +138,11 @@ priority: $priority
 這份 Design Plan 由 \`scripts/create-design-plan.sh\` 建立，後續由 refinement 補齊內容。
 MD
 
-bash scripts/validate-dp-plan-authoring.sh "$plan" >/dev/null
+bash scripts/validate-starlight-authoring.sh check "$plan" >/dev/null
+bash scripts/validate-language-policy.sh --blocking --mode artifact "$plan" >/dev/null
+bash scripts/validate-handbook-path-contract.sh >/dev/null
+bash scripts/validate-route-safe-spec-paths.sh "$container" >/dev/null
+if [[ -x scripts/validate-dp-number-uniqueness.sh ]]; then
+  bash scripts/validate-dp-number-uniqueness.sh --plan "$plan" >/dev/null
+fi
 printf '%s\n' "$plan"
