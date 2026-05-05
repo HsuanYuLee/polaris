@@ -49,7 +49,8 @@ sub-agent prompt；不得要求 sub-agent 重讀完整 review skill / reference 
    Slack channel scan 使用 MCP 時指定 concise output；fallback CLI 的 `--oldest` 可接受
    Slack timestamp 或 ISO date/datetime。
 5. 將 candidates JSON 經 `annotate-review-candidates.py` enrich，補上 sister PR cluster
-   metadata 與 `model_tier` semantic class。
+   metadata 與 `model_tier` semantic class。Slack mapping 若含 `root_ticket_key`，cluster
+   必須優先使用 root ticket，而不是每張 PR 自己的 ticket。
 6. 若 candidates 為空，回報目前沒有需要 review 的 PR 並停止。
 7. 顯示排序後清單；若 config 要求 confirm，等待使用者選擇。
 8. 依 batch size / concurrency 分波派 per-PR review sub-agents；prompt 必須使用

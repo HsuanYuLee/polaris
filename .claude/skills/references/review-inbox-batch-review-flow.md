@@ -44,7 +44,8 @@ review sub-agents 數量。
 - deterministic handbook resolver 輸出的 verified project handbook paths；空清單時明確寫
   no project handbook，且不可掃 repo guideline folders。
 - `model_tier` semantic class hint。
-- `cluster_role`, `cluster_key`, `cluster_lead_url`，以及 sibling PR 可用的 lead summary。
+- `cluster_role`, `cluster_key`, `root_ticket_key`, `cluster_lead_url`，以及 sibling PR
+  可用的 lead summary。
 - Completion Envelope requirement。
 
 Review mode：

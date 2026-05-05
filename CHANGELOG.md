@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.69] - 2026-05-05
+
+### Fixed — review-inbox sister PR clustering
+
+- Slack PR extraction now records a `root_ticket_key` from the root message before the first PR URL.
+- Review candidate annotation now clusters by `(thread_ts, root_ticket_key)` when available, so umbrella review requests group sister PRs whose individual ticket keys differ.
+- Added selftests covering the GT-493 / KB2CW-3853 multi-PR pattern observed in DP-094 dogfood.
+
 ## [3.74.68] - 2026-05-05
 
 ### Fixed — review-inbox Phase 3 clustering

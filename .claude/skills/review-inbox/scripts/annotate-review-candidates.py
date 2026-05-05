@@ -91,6 +91,16 @@ def ticket_key(candidate: dict) -> str | None:
     return match.group(1) if match else None
 
 
+def root_ticket_key(candidate: dict, mapping: dict) -> str | None:
+    url = str(candidate.get("url") or "")
+    mapped = mapping.get(url)
+    if isinstance(mapped, dict) and mapped.get("root_ticket_key"):
+        return str(mapped["root_ticket_key"])
+    if candidate.get("root_ticket_key"):
+        return str(candidate["root_ticket_key"])
+    return None
+
+
 def thread_ts(candidate: dict, mapping: dict) -> str | None:
     url = str(candidate.get("url") or "")
     mapped = mapping.get(url)
@@ -172,9 +182,12 @@ def annotate(candidates: list[dict], mapping: dict, offline: bool) -> list[dict]
         fetch_file_metadata(candidate, offline)
 
         ticket = ticket_key(candidate)
+        root_ticket = root_ticket_key(candidate, mapping)
         ts = thread_ts(candidate, mapping)
-        cluster_key = f"{ts}:{ticket}" if ts and ticket else ""
+        cluster_ticket = root_ticket or ticket
+        cluster_key = f"{ts}:{cluster_ticket}" if ts and cluster_ticket else ""
         candidate["ticket_key"] = ticket
+        candidate["root_ticket_key"] = root_ticket
         candidate["slack_thread_ts"] = ts
         candidate["cluster_key"] = cluster_key
         candidate["cluster_role"] = "standalone"

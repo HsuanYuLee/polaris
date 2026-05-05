@@ -21,6 +21,9 @@ import argparse
 from datetime import datetime, timezone, timedelta
 
 
+TICKET_RE = re.compile(r"\b(GT-\d+|KB2CW-\d+|[A-Z][A-Z0-9]+-\d+)\b")
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Extract PR URLs from Slack MCP output")
     parser.add_argument("--org", required=True, help="GitHub org to filter (e.g. your-org)")
@@ -41,6 +44,14 @@ def timestamp_to_slack_ts(ts_str):
         return f"{int(dt.timestamp())}.000000"
     except (ValueError, AttributeError):
         return None
+
+
+def root_ticket_key_for_text(text):
+    """Return the first ticket key before the first PR URL in a Slack root message."""
+    first_url = re.search(r'https://github\.com/[^/|>\s]+/[^/|>\s]+/pull/\d+', text)
+    prefix = text[:first_url.start()] if first_url else text
+    match = TICKET_RE.search(prefix)
+    return match.group(1) if match else None
 
 
 def extract_from_messages(messages_text, org):
@@ -88,6 +99,7 @@ def extract_from_messages(messages_text, org):
 
             # Strip display name suffixes (e.g. " (WFH)") — keep first word(s)
             author = re.sub(r'\s*\([^)]*\)\s*$', '', author_raw).strip()
+            root_ticket_key = root_ticket_key_for_text(body)
 
             urls_in_block = pr_url_pattern.findall(body)
             for url in urls_in_block:
@@ -99,6 +111,8 @@ def extract_from_messages(messages_text, org):
                         "thread_ts": slack_ts,
                         "author": author,
                     }
+                    if root_ticket_key:
+                        mapping[url]["root_ticket_key"] = root_ticket_key
             i += 3
     else:
         # Legacy format: split by [YYYY-MM-DD HH:MM:SS CST]
@@ -115,6 +129,7 @@ def extract_from_messages(messages_text, org):
                 continue
 
             slack_ts = timestamp_to_slack_ts(ts_str) if ts_str else None
+            root_ticket_key = root_ticket_key_for_text(content)
 
             lines = content.split('\n')
             author = "unknown"
@@ -135,6 +150,8 @@ def extract_from_messages(messages_text, org):
                         "thread_ts": slack_ts,
                         "author": author,
                     }
+                    if root_ticket_key:
+                        mapping[url]["root_ticket_key"] = root_ticket_key
 
     return ordered_urls, mapping
 
@@ -152,6 +169,7 @@ def extract_urls_for_thread(text, org, thread_ts):
     seen_urls = set()
     ordered_urls = []
     mapping = {}
+    root_ticket_key = root_ticket_key_for_text(text)
 
     for match in pr_url_pattern.finditer(text):
         url = re.sub(r'#.*$', '', match.group())
@@ -159,6 +177,8 @@ def extract_urls_for_thread(text, org, thread_ts):
             seen_urls.add(url)
             ordered_urls.append(url)
             mapping[url] = {"thread_ts": thread_ts}
+            if root_ticket_key:
+                mapping[url]["root_ticket_key"] = root_ticket_key
 
     return ordered_urls, mapping
 
@@ -186,6 +206,7 @@ def extract_from_webapi_messages(messages, org):
         message_ts = msg.get("ts")
         thread_ts = msg.get("thread_ts") or message_ts
         author = msg.get("user", "unknown")
+        root_ticket_key = root_ticket_key_for_text(text)
 
         for match in pr_url_pattern.finditer(text):
             url = re.sub(r'#.*$', '', match.group())
@@ -197,6 +218,8 @@ def extract_from_webapi_messages(messages, org):
                 "thread_ts": thread_ts,
                 "author": author,
             }
+            if root_ticket_key:
+                mapping[url]["root_ticket_key"] = root_ticket_key
 
     return ordered_urls, mapping
 
