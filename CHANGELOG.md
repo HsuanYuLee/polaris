@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.64] - 2026-05-05
+
+### Fixed — unique Epic task resolver input
+
+- `resolve-task-md.sh --from-input` now resolves exact Epic task inputs when
+  they produce a single candidate, such as `EPIC-478 T7`.
+- Bare Epic keys still fail loud because they do not identify one engineering
+  work order.
+- Added resolver selftest coverage for the unique-candidate path while keeping
+  ambiguous series inputs blocked.
+
 ## [3.74.63] - 2026-05-05
 
 ### Fixed — tracked specs leak guard

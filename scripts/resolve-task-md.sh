@@ -314,6 +314,8 @@ elif ordinal in {"second", "2", "2nd", "two", "第二", "第2", "第二張"}:
     if len(paths) < 2:
         raise SystemExit(1)
     print(paths[1])
+elif len(paths) == 1:
+    print(paths[0])
 else:
     print("AMBIGUOUS")
     for path in paths:
@@ -572,6 +574,10 @@ MD
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-478 T3 系列第一張')" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/EPIC-478/tasks/pr-release/T3a.md" ]] || { echo "[selftest] from-input epic series first FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-478 T4')" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T4.md" ]] || { echo "[selftest] from-input unique epic series FAIL"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-478 T3 series')" || rc=$?
