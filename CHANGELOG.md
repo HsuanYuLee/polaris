@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.75] - 2026-05-05
+
+### Fixed — delivery evidence completion gate
+
+- Completion gate now re-validates the remote GitHub PR body with the workspace language policy, so PR body edits after creation cannot bypass zh-TW enforcement.
+- Added `publish-delivery-evidence.sh` to publish PR-visible evidence manifests and require publication when local VR or Playwright behavior artifacts exist.
+- Playwright behavior evidence now requires a video reference before delivery completion can pass.
+
 ## [3.74.74] - 2026-05-05
 
 ### Fixed — aggregate framework release lane

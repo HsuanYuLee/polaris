@@ -139,7 +139,22 @@ check_deliverable_pr_remote_truth() {
   fi
 
   bash "${SCRIPT_DIR}/gates/gate-pr-body-template.sh" --repo "$REPO_ROOT" --body-file "$pr_body_file"
-  echo "$PREFIX ✅ PR readiness/body gate passed for ${pr_url}" >&2
+  bash "${SCRIPT_DIR}/gates/gate-pr-language.sh" --repo "$REPO_ROOT" --body-file "$pr_body_file"
+
+  local publication_ticket="$TICKET"
+  if [[ -z "$publication_ticket" ]]; then
+    publication_ticket="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field task_jira_key 2>/dev/null || true)"
+  fi
+  if [[ -n "$publication_ticket" ]]; then
+    bash "${SCRIPT_DIR}/publish-delivery-evidence.sh" \
+      --mode check \
+      --repo "$REPO_ROOT" \
+      --ticket "$publication_ticket" \
+      --head-sha "$deliverable_head_sha" \
+      --pr-url "$pr_url"
+  fi
+
+  echo "$PREFIX ✅ PR readiness/body/language/evidence publication gates passed for ${pr_url}" >&2
 }
 
 find_workspace_root_for_path() {

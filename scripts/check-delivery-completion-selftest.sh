@@ -188,8 +188,13 @@ install_mock_gh() {
   local state="$3"
   local is_draft="$4"
   local head_sha="$5"
+  local comments_file="${6:-}"
 
   mkdir -p "$mockbin"
+  if [[ -z "$comments_file" ]]; then
+    comments_file="$TMPROOT/empty-comments.json"
+    printf '[]\n' > "$comments_file"
+  fi
   local python_draft="False"
   if [[ "$is_draft" == "true" ]]; then
     python_draft="True"
@@ -216,10 +221,43 @@ print(json.dumps({
 PY
   exit 0
 fi
+if [[ "\$1" == "api" ]]; then
+  cat "$comments_file"
+  exit 0
+fi
+if [[ "\$1 \$2" == "pr comment" ]]; then
+  exit 0
+fi
 echo "unexpected gh call: \$*" >&2
 exit 1
 EOF
   chmod +x "$mockbin/gh"
+}
+
+write_behavior_evidence() {
+  local repo="$1"
+  local with_video="$2"
+
+  mkdir -p "$repo/.polaris/evidence/playwright/DP-999-T1"
+  if [[ "$with_video" == "true" ]]; then
+    cat > "$repo/.polaris/evidence/playwright/DP-999-T1/playwright-behavior-video.json" <<'EOF'
+{
+  "writer": "playwright-behavior-recorder",
+  "ticket": "DP-999-T1",
+  "flow": "lightbox carousel",
+  "video_path": ".polaris/evidence/playwright/DP-999-T1/lightbox-carousel.webm"
+}
+EOF
+    printf 'fake-video\n' > "$repo/.polaris/evidence/playwright/DP-999-T1/lightbox-carousel.webm"
+  else
+    cat > "$repo/.polaris/evidence/playwright/DP-999-T1/playwright-behavior-video.json" <<'EOF'
+{
+  "writer": "playwright-behavior-recorder",
+  "ticket": "DP-999-T1",
+  "flow": "lightbox carousel"
+}
+EOF
+  fi
 }
 
 run_case() {
@@ -243,7 +281,29 @@ run_case() {
     cat > "$body_file" <<'EOF'
 ## Description
 
-Selftest body.
+這是 completion gate selftest 內容。
+
+## Changed
+
+- 補齊 completion gate 檢查。
+
+## Screenshots (Test Plan)
+
+- 已執行 selftest。
+
+## Related documents
+
+- DP-999
+
+## QA notes
+
+- N/A
+EOF
+  elif [[ "$body_kind" == "english" ]]; then
+    cat > "$body_file" <<'EOF'
+## Description
+
+This is a full English pull request body that should fail the zh-TW language policy.
 
 ## Changed
 
@@ -287,7 +347,75 @@ EOF
 run_case "draft-blocks" "OPEN" "true" "valid" "2" "deliverable PR is draft"
 run_case "closed-blocks" "CLOSED" "false" "valid" "2" "deliverable PR must be OPEN"
 run_case "invalid-body-blocks" "OPEN" "false" "invalid" "2" "does not preserve repo template headings"
-run_case "ready-pr-passes" "OPEN" "false" "valid" "0" "PR readiness/body gate passed"
+run_case "english-body-blocks" "OPEN" "false" "english" "2" "PR text violates workspace language policy"
+run_case "ready-pr-passes" "OPEN" "false" "valid" "0" "PR readiness/body/language/evidence publication gates passed"
+
+run_publication_case() {
+  local label="$1"
+  local comments_kind="$2"
+  local with_video="$3"
+  local want_rc="$4"
+  local want_text="$5"
+
+  local repo="$TMPROOT/$label/repo"
+  local mockbin="$TMPROOT/$label/bin"
+  local body_file="$TMPROOT/$label/body.md"
+  local comments_file="$TMPROOT/$label/comments.json"
+  mkdir -p "$(dirname "$repo")"
+  setup_repo "$repo"
+  local head_sha
+  head_sha="$(git -C "$repo" rev-parse HEAD)"
+  write_task "$repo" "$head_sha"
+  write_behavior_evidence "$repo" "$with_video"
+
+  cat > "$body_file" <<'EOF'
+## Description
+
+這是 completion gate selftest 內容。
+
+## Changed
+
+- 補齊 completion gate 檢查。
+
+## Screenshots (Test Plan)
+
+- 已執行 selftest。
+
+## Related documents
+
+- DP-999
+
+## QA notes
+
+- N/A
+EOF
+
+  if [[ "$comments_kind" == "marker" ]]; then
+    cat > "$comments_file" <<EOF
+[
+  {
+    "body": "<!-- polaris-evidence-publication:v1 ticket=DP-999-T1 head=${head_sha} manifest_sha256=fixture -->\\n## Polaris evidence publication"
+  }
+]
+EOF
+  else
+    printf '[]\n' > "$comments_file"
+  fi
+
+  install_mock_gh "$mockbin" "$body_file" "OPEN" "false" "$head_sha" "$comments_file"
+
+  set +e
+  out="$(POLARIS_SKIP_CI_LOCAL=1 POLARIS_SKIP_EVIDENCE=1 POLARIS_SKIP_PR_TITLE_GATE=1 POLARIS_SKIP_CHANGESET_GATE=1 PATH="$mockbin:$PATH" "$CHECK" --repo "$repo" --ticket DP-999-T1 2>&1)"
+  rc=$?
+  set -e
+
+  assert_rc "$label rc" "$rc" "$want_rc"
+  assert_contains "$label message" "$out" "$want_text"
+}
+
+run_publication_case "publication-missing-marker-blocks" "none" "true" "2" "No PR-visible evidence publication marker"
+run_publication_case "publication-marker-passes" "marker" "true" "0" "evidence publication marker found"
+run_publication_case "behavior-without-video-blocks" "marker" "false" "2" "Playwright behavior evidence requires video reference"
 
 run_overlay_case() {
   local label="overlay-prefers-main-task"
@@ -310,15 +438,15 @@ run_overlay_case() {
   cat > "$body_file" <<'EOF'
 ## Description
 
-Selftest body.
+這是 completion gate selftest 內容。
 
 ## Changed
 
-- Script gate update.
+- 補齊 completion gate 檢查。
 
 ## Screenshots (Test Plan)
 
-- Selftest.
+- 已執行 selftest。
 
 ## Related documents
 
@@ -336,7 +464,7 @@ EOF
   set -e
 
   assert_rc "$label rc" "$rc" "0"
-  assert_contains "$label message" "$out" "PR readiness/body gate passed"
+  assert_contains "$label message" "$out" "PR readiness/body/language/evidence publication gates passed"
 }
 
 run_overlay_case
