@@ -167,7 +167,7 @@ resolve_direct_path() {
   local candidate="$1"
   [[ -f "$candidate" ]] || return 1
   case "$candidate" in
-    specs/*/tasks/[TV]*.md|specs/*/tasks/pr-release/[TV]*.md|*/specs/*/tasks/[TV]*.md|*/specs/*/tasks/pr-release/[TV]*.md) abs_path "$candidate" ;;
+    specs/*/tasks/[TV]*.md|specs/*/tasks/[TV]*/index.md|specs/*/tasks/pr-release/[TV]*.md|specs/*/tasks/pr-release/[TV]*/index.md|*/specs/*/tasks/[TV]*.md|*/specs/*/tasks/[TV]*/index.md|*/specs/*/tasks/pr-release/[TV]*.md|*/specs/*/tasks/pr-release/[TV]*/index.md) abs_path "$candidate" ;;
     *) return 1 ;;
   esac
 }
@@ -195,9 +195,13 @@ resolve_by_dp_task() {
     done < <(
       find "$specs_root/design-plans" \
         \( -path "$specs_root/design-plans/${dp_id}-*/tasks/${task_id}.md" -print0 \) \
+        -o \( -path "$specs_root/design-plans/${dp_id}-*/tasks/${task_id}/index.md" -print0 \) \
         -o \( -path "$specs_root/design-plans/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \) \
+        -o \( -path "$specs_root/design-plans/${dp_id}-*/tasks/pr-release/${task_id}/index.md" -print0 \) \
         -o \( -path "$specs_root/design-plans/archive/${dp_id}-*/tasks/${task_id}.md" -print0 \) \
+        -o \( -path "$specs_root/design-plans/archive/${dp_id}-*/tasks/${task_id}/index.md" -print0 \) \
         -o \( -path "$specs_root/design-plans/archive/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \) \
+        -o \( -path "$specs_root/design-plans/archive/${dp_id}-*/tasks/pr-release/${task_id}/index.md" -print0 \) \
         2>/dev/null
     )
   else
@@ -207,7 +211,9 @@ resolve_by_dp_task() {
       find "$specs_root/design-plans" \
         \( -type d -name archive -prune \) \
         -o \( -path "$specs_root/design-plans/${dp_id}-*/tasks/${task_id}.md" -print0 \) \
+        -o \( -path "$specs_root/design-plans/${dp_id}-*/tasks/${task_id}/index.md" -print0 \) \
         -o \( -path "$specs_root/design-plans/${dp_id}-*/tasks/pr-release/${task_id}.md" -print0 \) \
+        -o \( -path "$specs_root/design-plans/${dp_id}-*/tasks/pr-release/${task_id}/index.md" -print0 \) \
         2>/dev/null
     )
   fi
@@ -246,12 +252,12 @@ resolve_by_jira() {
       find "$specs_root" \
         \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
         -o \
-        \( -type f -name 'T*.md' \( -path '*/tasks/*.md' -o -path '*/tasks/pr-release/*.md' \) -print0 \)
+        \( -type f \( -path '*/tasks/T*.md' -o -path '*/tasks/T*/index.md' -o -path '*/tasks/pr-release/T*.md' -o -path '*/tasks/pr-release/T*/index.md' \) -print0 \)
     else
       find "$specs_root" \
         \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
         -o \
-        \( -type f -name 'T*.md' \( -path '*/tasks/*.md' -o -path '*/tasks/pr-release/*.md' \) -print0 \)
+        \( -type f \( -path '*/tasks/T*.md' -o -path '*/tasks/T*/index.md' -o -path '*/tasks/pr-release/T*.md' -o -path '*/tasks/pr-release/T*/index.md' \) -print0 \)
     fi
   )
 
@@ -283,12 +289,12 @@ resolve_by_epic_series_ordinal() {
       find "$specs_root" \
         \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
         -o \
-        \( -type f \( -path "*/${epic_key}/tasks/${series}*.md" -o -path "*/${epic_key}/tasks/pr-release/${series}*.md" \) -print0 \)
+        \( -type f \( -path "*/${epic_key}/tasks/${series}*.md" -o -path "*/${epic_key}/tasks/${series}*/index.md" -o -path "*/${epic_key}/tasks/pr-release/${series}*.md" -o -path "*/${epic_key}/tasks/pr-release/${series}*/index.md" \) -print0 \)
     else
       find "$specs_root" \
         \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
         -o \
-        \( -type f \( -path "*/${epic_key}/tasks/${series}*.md" -o -path "*/${epic_key}/tasks/pr-release/${series}*.md" \) -print0 \)
+        \( -type f \( -path "*/${epic_key}/tasks/${series}*.md" -o -path "*/${epic_key}/tasks/${series}*/index.md" -o -path "*/${epic_key}/tasks/pr-release/${series}*.md" -o -path "*/${epic_key}/tasks/pr-release/${series}*/index.md" \) -print0 \)
     fi
   )
 
@@ -306,7 +312,8 @@ ordinal = sys.argv[1].strip().lower()
 paths = sys.argv[2:]
 
 def task_sort_key(path):
-    name = os.path.splitext(os.path.basename(path))[0]
+    base = os.path.basename(path)
+    name = os.path.basename(os.path.dirname(path)) if base == "index.md" else os.path.splitext(base)[0]
     m = re.fullmatch(r"T(\d+)([a-z]*)", name, re.I)
     canonical = 0 if "/companies/" in path else 1
     if not m:
@@ -510,7 +517,11 @@ run_selftest() {
   trap "rm -rf '$tmpdir'" EXIT
   mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks/pr-release" "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks" "$tmpdir/docs-manager/src/content/docs/specs/EPIC-999" \
            "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks/pr-release" "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks" \
-           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/EPIC-999/tasks"
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/EPIC-999/tasks" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks/T5" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks/pr-release/T6" \
+           "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-048-folder-native-resolver/tasks/T2" \
+           "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-048-folder-native-resolver/tasks/pr-release/V1"
 
   cat > "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks/T3b.md" <<'MD'
 # T3b: Example (1 pt)
@@ -542,6 +553,26 @@ MD
 | Source ID | EPIC-478 |
 | Task ID | TASK-3902 |
 | JIRA key | TASK-3902 |
+MD
+
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks/T5/index.md" <<'MD'
+# T5: Folder-native product task (1 pt)
+> Source: EPIC-478 | Task: TASK-3905 | JIRA: TASK-3905 | Repo: exampleco
+## Operational Context
+| Source type | jira |
+| Source ID | EPIC-478 |
+| Task ID | TASK-3905 |
+| JIRA key | TASK-3905 |
+MD
+
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks/pr-release/T6/index.md" <<'MD'
+# T6: Folder-native released product task (1 pt)
+> Source: EPIC-478 | Task: TASK-3906 | JIRA: TASK-3906 | Repo: exampleco
+## Operational Context
+| Source type | jira |
+| Source ID | EPIC-478 |
+| Task ID | TASK-3906 |
+| JIRA key | TASK-3906 |
 MD
 
   cat > "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks/T4.md" <<'MD'
@@ -592,6 +623,26 @@ MD
 | JIRA key | N/A |
 MD
 
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-048-folder-native-resolver/tasks/T2/index.md" <<'MD'
+# T2: Folder-native DP task (1 pt)
+> Source: DP-048 | Task: DP-048-T2 | JIRA: N/A | Repo: workspace
+## Operational Context
+| Source type | dp |
+| Source ID | DP-048 |
+| Task ID | DP-048-T2 |
+| JIRA key | N/A |
+MD
+
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-048-folder-native-resolver/tasks/pr-release/V1/index.md" <<'MD'
+# V1: Folder-native DP verification task (1 pt)
+> Source: DP-048 | Task: DP-048-V1 | JIRA: N/A | Repo: workspace
+## Operational Context
+| Source type | dp |
+| Source ID | DP-048 |
+| Task ID | DP-048-V1 |
+| JIRA key | N/A |
+MD
+
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" EPIC-480)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T3b.md" ]] || { echo "[selftest] jira active FAIL"; return 1; }
 
@@ -602,6 +653,14 @@ MD
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" EPIC-481)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T4.md" ]] || { echo "[selftest] canonical jira lookup FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" TASK-3905)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/EPIC-478/tasks/T5/index.md" ]] || { echo "[selftest] folder-native jira active FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" TASK-3906)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/EPIC-478/tasks/pr-release/T6/index.md" ]] || { echo "[selftest] folder-native jira pr-release FAIL"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" EPIC-999)" || rc=$?
@@ -630,6 +689,14 @@ MD
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input 'verify DP-047-V1')" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/V1.md" ]] || { echo "[selftest] from-input dp verification task FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" DP-048-T2)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-048-folder-native-resolver/tasks/T2/index.md" ]] || { echo "[selftest] folder-native dp task FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input 'verify DP-048-V1')" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-048-folder-native-resolver/tasks/pr-release/V1/index.md" ]] || { echo "[selftest] folder-native dp verification pr-release FAIL"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-478 T3 系列第一張')" || rc=$?

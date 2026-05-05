@@ -54,7 +54,7 @@ JIRA sync 只是 optional side effect
 | `jira` | `EPIC-478`, `TASK-3711` | `{company_specs_dir}/{TICKET}/` 加上 JIRA issue | `refinement` / `breakdown` |
 | `dp` | `DP-045`, `docs-manager/src/content/docs/specs/design-plans/DP-045-*/plan.md` | `{specs_root}/design-plans/DP-NNN-{slug}/` | `refinement` |
 | `topic` | `討論 CI local blocker`, `refinement "想重構 skill routing"` | 新分配的 DP folder | `refinement` |
-| `artifact_path` | direct `refinement.json`, `refinement.md`, `tasks/T1.md` path | 最近的 containing specs folder | stage-specific consumer |
+| `artifact_path` | direct `refinement.json`, `refinement.md`, `tasks/T1.md`, `tasks/T1/index.md` path | 最近的 containing specs folder | stage-specific consumer |
 
 ## DP Locator
 
@@ -70,7 +70,7 @@ JIRA sync 只是 optional side effect
 - multiple matches：fail loud，由使用者或 maintainer 解 duplicate
 - one match：該 folder 就是 canonical DP root
 - `refinement DP-NNN` 與 `breakdown DP-NNN` 必須有 `plan.md`
-- `tasks/T{n}.md` 在 `breakdown` 產出 work orders 前是 optional
+- `tasks/T{n}.md` / `tasks/T{n}/index.md` 在 `breakdown` 產出 work orders 前是 optional
 
 Canonical plan path：
 
@@ -106,6 +106,7 @@ JIRA-backed work：
 {company_specs_dir}/{TICKET}/refinement.md
 {company_specs_dir}/{TICKET}/refinement.json
 {company_specs_dir}/{TICKET}/tasks/T{n}.md
+{company_specs_dir}/{TICKET}/tasks/T{n}/index.md
 ```
 
 DP-backed ticketless work：
@@ -115,9 +116,29 @@ DP-backed ticketless work：
 {specs_root}/design-plans/DP-NNN-{slug}/refinement.md
 {specs_root}/design-plans/DP-NNN-{slug}/refinement.json
 {specs_root}/design-plans/DP-NNN-{slug}/tasks/T{n}.md
+{specs_root}/design-plans/DP-NNN-{slug}/tasks/T{n}/index.md
 ```
 
 `refinement.json` 是 machine-readable artifact。`plan.md` 是 durable decision record。兩者可以共享資訊，但 consumer 需要 structured fields 時應優先讀 `refinement.json`。
+
+## Folder-Native Task Lookup
+
+過渡期 reader 必須 dual-read legacy 與 folder-native task source。給定 task key `T1` / `V1` 時，lookup order 是：
+
+```text
+tasks/{key}.md
+tasks/{key}/index.md
+tasks/pr-release/{key}.md
+tasks/pr-release/{key}/index.md
+```
+
+規則：
+
+- active lookup 預設 prune `archive/`，除非使用者明確 `--include-archive`
+- 同一 key 若同時存在 legacy 與 folder-native source，必須 fail loud
+- 同一 key 若同時存在 active 與 `pr-release/`，必須 fail loud
+- `pr-release/` 是 completed task fallback，不是 archive namespace；reader 可讀，validator 不重驗其 schema
+- `index.md` 的 task kind 由 parent folder basename 判斷，例如 `tasks/V1/index.md` 是 V mode
 
 ## Status Rules
 

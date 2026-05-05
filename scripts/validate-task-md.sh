@@ -663,6 +663,9 @@ validate_file() {
   # --- Mode detection (DP-033 Phase B): filename pattern → schema mode ---
   local _basename mode verify_section_name
   _basename=$(basename "$FILE")
+  if [[ "$_basename" == "index.md" ]]; then
+    _basename="$(basename "$(dirname "$FILE")").md"
+  fi
   case "$_basename" in
     T[0-9]*.md)  mode="T" ;;
     V[0-9]*.md)  mode="V" ;;
@@ -1592,8 +1595,8 @@ if [[ "$1" == "--scan" ]]; then
       */tasks/pr-release/*) continue ;;
     esac
     case "$f" in
-      */specs/*/tasks/T*.md) ;;
-      */specs/*/tasks/V*.md) ;;
+      */specs/*/tasks/T*.md|*/specs/*/tasks/T*/index.md) ;;
+      */specs/*/tasks/V*.md|*/specs/*/tasks/V*/index.md) ;;
       *) continue ;;
     esac
 
@@ -1616,7 +1619,7 @@ if [[ "$1" == "--scan" ]]; then
         fail=$((fail+1))
         ;;
     esac
-  done < <(find "$root" -type f \( -name 'T*.md' -o -name 'V*.md' \) 2>/dev/null | sort)
+  done < <(find "$root" -type f \( -name 'T*.md' -o -name 'V*.md' -o -name 'index.md' \) 2>/dev/null | sort)
 
   echo ""
   echo "task.md scan: $pass pass, $fail fail ($hard hard-fail) — total $((pass+fail))"

@@ -5,8 +5,10 @@
 #   - `*/specs/*/refinement.json`            → validate-refinement-json.sh
 #   - `*/specs/*/refinement-inbox/*.md`      → validate-refinement-inbox-record.sh
 #   - `*/specs/*/tasks/pr-release/*.md`         → skip (D6: completed tasks leave validator scope)
-#   - `*/specs/*/tasks/T*.md`                → validate-task-md.sh (T mode) + validate-task-md-deps.sh
-#   - `*/specs/*/tasks/V*.md`                → validate-task-md.sh (V mode) + validate-task-md-deps.sh
+#   - `*/specs/*/tasks/T*.md` or `*/specs/*/tasks/T*/index.md`
+#                                                → validate-task-md.sh (T mode) + validate-task-md-deps.sh
+#   - `*/specs/*/tasks/V*.md` or `*/specs/*/tasks/V*/index.md`
+#                                                → validate-task-md.sh (V mode) + validate-task-md-deps.sh
 #                                              (DP-033 Phase B：V mode dispatch by filename，cross-file
 #                                              validator 同支共用 — 自動掃 T+V 並檢 V→T pass / T→V fail)
 #
@@ -187,7 +189,7 @@ for i in "${!CANDIDATE_PATHS[@]}"; do
   # --- pr-release/ skip (D6: completed tasks move out of validator scope) ---
   # Must precede T*.md / V*.md so pr-release/T1.md is never re-validated.
   case "$path" in
-    */specs/*/tasks/pr-release/*.md)
+    */specs/*/tasks/pr-release/*.md|*/specs/*/tasks/pr-release/*/index.md)
       continue
       ;;
   esac
@@ -220,7 +222,7 @@ for i in "${!CANDIDATE_PATHS[@]}"; do
 
   # --- implementation task.md (specs/*/tasks/T*.md) ---
   case "$path" in
-    */specs/*/tasks/T*.md)
+    */specs/*/tasks/T*.md|*/specs/*/tasks/T*/index.md)
       if [[ -x "$VALIDATE_TASK_MD" ]] && [[ -f "$probe" ]]; then
         if ! "$VALIDATE_TASK_MD" "$probe" >&2; then
           block=1
@@ -231,6 +233,7 @@ for i in "${!CANDIDATE_PATHS[@]}"; do
       # validation only sees siblings — that's fine; the new file's deps
       # are validated by the per-file run above.
       tasks_dir=$(dirname "$path")
+      [[ "$(basename "$path")" == "index.md" ]] && tasks_dir="$(dirname "$tasks_dir")"
       if [[ -x "$VALIDATE_TASK_MD_DEPS" ]] && [[ -d "$tasks_dir" ]]; then
         if ! "$VALIDATE_TASK_MD_DEPS" "$tasks_dir" >&2; then
           block=1
@@ -242,13 +245,14 @@ for i in "${!CANDIDATE_PATHS[@]}"; do
 
   # --- verification task.md (specs/*/tasks/V*.md, DP-033 Phase B) ---
   case "$path" in
-    */specs/*/tasks/V*.md)
+    */specs/*/tasks/V*.md|*/specs/*/tasks/V*/index.md)
       if [[ -x "$VALIDATE_TASK_MD" ]] && [[ -f "$probe" ]]; then
         if ! "$VALIDATE_TASK_MD" "$probe" >&2; then
           block=1
         fi
       fi
       tasks_dir=$(dirname "$path")
+      [[ "$(basename "$path")" == "index.md" ]] && tasks_dir="$(dirname "$tasks_dir")"
       if [[ -x "$VALIDATE_TASK_MD_DEPS" ]] && [[ -d "$tasks_dir" ]]; then
         if ! "$VALIDATE_TASK_MD_DEPS" "$tasks_dir" >&2; then
           block=1

@@ -23,7 +23,9 @@ Framework DP-backed work orders（DP-047 / DP-050）使用同一份 Implementati
 
 ```text
 {specs_root}/design-plans/DP-NNN-{slug}/tasks/T{n}.md
+{specs_root}/design-plans/DP-NNN-{slug}/tasks/T{n}/index.md
 {specs_root}/design-plans/DP-NNN-{slug}/tasks/V{n}.md
+{specs_root}/design-plans/DP-NNN-{slug}/tasks/V{n}/index.md
 ```
 
 DP-backed task 使用 source-neutral identity：`source_type=dp`、`source_id=DP-NNN`、`work_item_id=DP-NNN-Tn` / `DP-NNN-Vn`、`jira_key=null`。Migration 期仍接受舊 task.md 把 pseudo-task ID 放在 `Task JIRA key` / `JIRA:`，但新 DP-backed task 應使用 canonical metadata row，並保留 `JIRA: N/A` 讓舊 reader 不因欄位缺失失效。
@@ -35,9 +37,9 @@ DP-backed task 使用 source-neutral identity：`source_type=dp`、`source_id=DP
 `pipeline-artifact-gate.sh` PreToolUse hook 用 filename pattern dispatch validator：
 
 ```
-specs/*/tasks/T*.md   → validate-task-md.sh (T mode) + validate-task-md-deps.sh
-specs/*/tasks/V*.md   → validate-task-md.sh (V mode) + validate-task-md-deps.sh（同 deps validator，自動掃 T+V）
-specs/*/tasks/pr-release/*.md → 完全 skip（D6 pr-release 機制；validator 不掃 pr-release/，但 reader fallback 會搜）
+specs/*/tasks/T*.md 或 specs/*/tasks/T*/index.md → validate-task-md.sh (T mode) + validate-task-md-deps.sh
+specs/*/tasks/V*.md 或 specs/*/tasks/V*/index.md → validate-task-md.sh (V mode) + validate-task-md-deps.sh（同 deps validator，自動掃 T+V）
+specs/*/tasks/pr-release/*.md 或 specs/*/tasks/pr-release/*/index.md → 完全 skip（D6 pr-release 機制；validator 不掃 pr-release/，但 reader fallback 會搜）
 specs/**/archive/**/tasks/*.md → 完全 skip（歷史 container，不屬 active task gate）
 其他 .md             → 不適用 task.md schema
 ```
@@ -945,7 +947,7 @@ echo "verify-AC dispatches AC-1 .. AC-4."
 | 規則 | Validator | 違反行為 |
 |------|-----------|----------|
 | frontmatter `depends_on` 須為 array of task id strings | `validate-task-md-deps.sh` | exit 1 |
-| 每個 entry 必對應同 `tasks/` dir 既有 task.md（`tasks/{ID}.md`；找不到時 fallback `tasks/pr-release/{ID}.md` — DP-033 D6 + D8）；**T/V 跨類型 reference 合法**（V→T / V→V，§ 5.3） | `validate-task-md-deps.sh`（filename pattern `[TV]*.md`） | exit 1，列出 broken ref |
+| 每個 entry 必對應同 `tasks/` dir 既有 task.md（`tasks/{ID}.md` 或 `tasks/{ID}/index.md`；找不到時 fallback `tasks/pr-release/{ID}.md` / `tasks/pr-release/{ID}/index.md` — DP-033 D6 + D8）；**T/V 跨類型 reference 合法**（V→T / V→V，§ 5.3） | `validate-task-md-deps.sh`（filename pattern `[TV]*.md` / `[TV]*/index.md`） | exit 1，列出 broken ref |
 | graph 須為 DAG（無 cycle） | `validate-task-md-deps.sh`（DFS coloring，跨 T/V 同圖） | exit 1，印出 cycle chain |
 | 陣列長度 ≤ 1（強制線性 chain — DP-028 D5；T/V 共用） | `validate-task-md-deps.sh`（is-linear-dag） | exit 1，建議線性化或拆 Epic |
 | **T→V 禁止**（DP-033 D4，§ 5.3）— T*.md 的 `depends_on` 不可指向 V*.md | `validate-task-md-deps.sh`（cross-type direction check） | exit 1，列出違規 + 建議拆 Epic |
@@ -995,8 +997,8 @@ echo "verify-AC dispatches AC-1 .. AC-4."
 
 #### Invariant: 同 key 唯一性
 
-- 同一 task key（`T{n}` / `V{n}`）不可同時存在 `tasks/` 與 `tasks/pr-release/`
-- 違反場景：`tasks/T1.md` 與 `tasks/pr-release/T1.md` 並存 → validator **HARD FAIL**（D6 move-first 失敗的 silent corruption signal）；`tasks/V1.md` 與 `tasks/pr-release/V1.md` 並存同樣 HARD FAIL
+- 同一 task key（`T{n}` / `V{n}`）不可同時存在 legacy 與 folder-native source，也不可同時存在 `tasks/` 與 `tasks/pr-release/`
+- 違反場景：`tasks/T1.md` 與 `tasks/T1/index.md` 並存，或 `tasks/T1.md` 與 `tasks/pr-release/T1/index.md` 並存 → validator **HARD FAIL**（同 key ambiguity / D6 move-first 失敗的 silent corruption signal）；`V1` 同樣 HARD FAIL
 - 由 `validate-task-md-deps.sh`（cross-file 階段，filename pattern `[TV]*.md`）enforce — T/V 共用同一條 invariant
 
 #### 邊界
@@ -1045,7 +1047,7 @@ echo "verify-AC dispatches AC-1 .. AC-4."
 
 ### Scan mode
 
-兩個 validator 都支援 `--scan <workspace_root>` 模式，遞迴掃所有 `specs/*/tasks/T*.md` / `tasks/` 並列 PASS / FAIL，永遠 exit 0（report mode），用於 migration 盤點。
+兩個 validator 都支援 `--scan <workspace_root>` 模式，遞迴掃所有 `specs/*/tasks/T*.md`、`specs/*/tasks/V*.md` 與 folder-native `tasks/[TV]*/index.md` 並列 PASS / FAIL，永遠 exit 0（report mode），用於 migration 盤點。
 
 ### Bypass 慣例
 
@@ -1058,7 +1060,7 @@ echo "verify-AC dispatches AC-1 .. AC-4."
 
 | Reader | 用途 | Fallback 行為 |
 |--------|------|---------------|
-| `parse-task-md.sh` | 給 task key 找 task.md path | 先 `tasks/{key}.md` → 找不到 fallback `tasks/pr-release/{key}.md` |
+| `parse-task-md.sh` / `resolve-task-md.sh` | 給 task key 找 task.md path | 先 `tasks/{key}.md` / `tasks/{key}/index.md` → 找不到 fallback `tasks/pr-release/{key}.md` / `tasks/pr-release/{key}/index.md` |
 | `validate-task-md-deps.sh` | 解 depends_on chain（最關鍵 — chain 跨完結 task 是常態） | 同上；保 T5 depends_on 已完結 T1 不假錯 |
 | `verify-AC` | 讀 V-key task.md 取 fixture / verify 設定 | 同上 |
 | `engineering` | 從 branch / ticket key 推 task.md path（first-cut + revision R0 / 修 PR base） | 同上 |
@@ -1068,11 +1070,13 @@ echo "verify-AC dispatches AC-1 .. AC-4."
 
 ```
 1. tasks/{key}.md              # active
-2. tasks/pr-release/{key}.md     # pr-release fallback
+2. tasks/{key}/index.md          # folder-native active fallback
+3. tasks/pr-release/{key}.md     # pr-release fallback
+4. tasks/pr-release/{key}/index.md
 3. fail (broken ref / not found)
 ```
 
-**Hard fail invariant（D8 + § 5.5）**：同一 key 在 active `tasks/` 與 `tasks/pr-release/` **同時存在** → validator hard fail（exit 2）。此狀態為 D6 move-first 失敗的 silent corruption signal，不應發生；validator 早期偵測比下游 reader 拿到錯版本好。
+**Hard fail invariant（D8 + § 5.5）**：同一 key 在 legacy / folder-native source **同時存在**，或在 active `tasks/` 與 `tasks/pr-release/` **同時存在** → validator hard fail（exit 2）。此狀態為 ambiguity 或 D6 move-first 失敗的 silent corruption signal，不應發生；validator 早期偵測比下游 reader 拿到錯版本好。
 
 ### Producer / Consumer 對應
 

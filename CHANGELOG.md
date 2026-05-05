@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.83] - 2026-05-06
+
+### Added — folder-native task resolver foundation
+
+- Added dual-read support for folder-native task containers such as `tasks/T1/index.md` and `tasks/V1/index.md`.
+- Updated task resolver, dependency validator, task validator, and artifact gate dispatch to handle legacy and folder-native task paths.
+- Added task resolver/parser/dependency selftest wrapper scripts for work orders that call selftests directly.
+
 ## [3.74.82] - 2026-05-06
 
 ### Fixed — DP-backed verification pseudo identity
