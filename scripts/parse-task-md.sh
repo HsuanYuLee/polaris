@@ -39,7 +39,7 @@
 #   task_jira_key, parent_epic, test_sub_tasks, ac_verification_ticket,
 #   base_branch, branch_chain, task_branch, depends_on, references_to_load,
 #   level, dev_env_config, fixtures, runtime_verify_target, env_bootstrap_command,
-#   test_command, verify_command, allowed_files, resolved_base
+#   test_command, verify_command, verify_fallback_command, allowed_files, resolved_base
 #
 # Exit codes:
 #   0 — success (JSON or single field on stdout)
@@ -90,7 +90,7 @@ Field keys: status, task_id, summary, story_points, epic, jira, repo,
             task_jira_key, parent_epic, test_sub_tasks, ac_verification_ticket,
             base_branch, branch_chain, task_branch, depends_on, references_to_load,
             level, dev_env_config, fixtures, runtime_verify_target,
-            env_bootstrap_command, test_command, verify_command,
+            env_bootstrap_command, test_command, verify_command, verify_fallback_command,
             allowed_files, resolved_base
 USAGE
 }
@@ -427,6 +427,7 @@ def first_code_block(lns):
 
 test_command = first_code_block(section_lines("## Test Command"))
 verify_command = first_code_block(section_lines("## Verify Command"))
+verify_fallback_command = first_code_block(section_lines("## Verify Fallback Command"))
 
 
 # ---- Allowed Files (bullet list) -----------------------------------------
@@ -447,6 +448,7 @@ out = {
     "test_environment": test_env,
     "test_command": test_command,
     "verify_command": verify_command,
+    "verify_fallback_command": verify_fallback_command,
     "allowed_files": allowed_files,
     "resolved_base": resolved_base,
 }
@@ -519,6 +521,7 @@ aliases = {
     "env_bootstrap_command":   ["test_environment", "env_bootstrap_command"],
     "test_command":            ["test_command"],
     "verify_command":          ["verify_command"],
+    "verify_fallback_command": ["verify_fallback_command"],
     "allowed_files":           ["allowed_files"],
     "resolved_base":           ["resolved_base"],
 }

@@ -89,11 +89,35 @@ generator_hash = sys.argv[6]
 env_classifier = sys.argv[7]
 
 contract = json.loads(Path(contract_file).read_text(encoding="utf-8"))
+
+
+def ci_local_override_path() -> Path:
+    if out_path.parent.name == "generated-scripts":
+        return out_path.parent.parent / "ci-local-overrides.json"
+    return out_path.parent / "ci-local-overrides.json"
+
+
+override_path = ci_local_override_path()
+override_raw = ""
+override_config = {}
+if override_path.exists():
+    override_raw = override_path.read_text(encoding="utf-8")
+    try:
+        override_config = json.loads(override_raw)
+    except json.JSONDecodeError as exc:
+        print(f"[ci-local-generate] ERROR: invalid JSON in {override_path}: {exc}", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(override_config, dict):
+        print(f"[ci-local-generate] ERROR: {override_path} must contain a JSON object", file=sys.stderr)
+        sys.exit(1)
+
 mirror_hash = hashlib.sha256(
     (
         generator_hash
         + "\n"
         + json.dumps(contract, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+        + "\n"
+        + override_raw
     ).encode("utf-8")
 ).hexdigest()[:16]
 
@@ -181,6 +205,81 @@ def filter_dev_hooks(dev_hooks):
         seen.add(cmd)
         keep.append(h)
     return keep
+
+
+def override_entries():
+    entries = override_config.get("checks", [])
+    if entries is None:
+        return []
+    if not isinstance(entries, list):
+        print(f"[ci-local-generate] ERROR: {override_path} field checks must be a list", file=sys.stderr)
+        sys.exit(1)
+    out = []
+    for idx, entry in enumerate(entries):
+        if not isinstance(entry, dict):
+            print(f"[ci-local-generate] ERROR: override checks[{idx}] must be an object", file=sys.stderr)
+            sys.exit(1)
+        action = entry.get("action")
+        if action != "skip":
+            print(f"[ci-local-generate] ERROR: override checks[{idx}].action must be 'skip'", file=sys.stderr)
+            sys.exit(1)
+        reason = str(entry.get("reason") or "").strip()
+        if not reason:
+            print(f"[ci-local-generate] ERROR: override checks[{idx}].reason is required", file=sys.stderr)
+            sys.exit(1)
+        match = entry.get("match") or {}
+        if not isinstance(match, dict) or not match:
+            print(f"[ci-local-generate] ERROR: override checks[{idx}].match is required", file=sys.stderr)
+            sys.exit(1)
+        out.append(
+            {
+                "id": str(entry.get("id") or f"override-{idx + 1}"),
+                "action": action,
+                "reason": reason,
+                "match": match,
+            }
+        )
+    return out
+
+
+OVERRIDES = override_entries()
+
+
+def check_matches_override(check, override) -> bool:
+    match = override["match"]
+    fields = {
+        "category": check.get("category", ""),
+        "job": check.get("job", ""),
+        "source_file": check.get("source_file", ""),
+        "command": check.get("command", ""),
+    }
+    for key in ("category", "job", "source_file", "command"):
+        if key in match and str(match[key]) != str(fields[key]):
+            return False
+    if "command_contains" in match and str(match["command_contains"]) not in str(fields["command"]):
+        return False
+    return True
+
+
+def apply_check_overrides(checks):
+    kept = []
+    skipped = []
+    for check in checks:
+        override = next((o for o in OVERRIDES if check_matches_override(check, o)), None)
+        if override is None:
+            kept.append(check)
+            continue
+        skipped.append(
+            {
+                "category": check.get("category", ""),
+                "job": check.get("job", ""),
+                "source_file": check.get("source_file", ""),
+                "command": check.get("command", ""),
+                "conditions": check.get("conditions") or {},
+                "reason": f"repo_override:{override['id']}:{override['reason']}",
+            }
+        )
+    return kept, skipped
 
 
 def changeset_policy_command() -> str:
@@ -305,6 +404,9 @@ def synthesize_policy_checks(checks):
 
 checks = filter_checks(contract.get("checks", []))
 policy_checks = synthesize_policy_checks(contract.get("checks", []))
+checks, forced_skip_checks = apply_check_overrides(checks)
+policy_checks, forced_skip_policy_checks = apply_check_overrides(policy_checks)
+forced_skip_checks.extend(forced_skip_policy_checks)
 dev_hooks = filter_dev_hooks(contract.get("dev_hooks", []))
 codecov_gates = contract.get("codecov_flag_gates", []) or []
 provider = contract.get("provider", "unknown")
@@ -316,7 +418,7 @@ for c in checks:
     if c.get("category") == "install":
         c["conditions"] = {}
 
-has_anything = bool(checks) or bool(policy_checks) or bool(dev_hooks) or bool(codecov_gates)
+has_anything = bool(checks) or bool(policy_checks) or bool(forced_skip_checks) or bool(dev_hooks) or bool(codecov_gates)
 
 # ---------- Source fingerprints (for staleness advisory) ----------
 def file_fingerprint(rel_path: str):
@@ -344,6 +446,18 @@ if husky_root.is_dir():
 for n in (".pre-commit-config.yaml", ".pre-commit-hooks.yaml"):
     if (repo / n).exists():
         sources.append(file_fingerprint(n))
+if override_path.exists():
+    try:
+        sources.append(file_fingerprint(str(override_path.relative_to(repo))))
+    except ValueError:
+        st = override_path.stat()
+        sources.append(
+            {
+                "path": str(override_path),
+                "size": st.st_size,
+                "mtime": int(st.st_mtime),
+            }
+        )
 
 generated_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -375,6 +489,8 @@ parts.append(f"# Generated by Polaris/scripts/ci-local-generate.sh on {generated
 parts.append(f"# Generator hash: {generator_hash}")
 parts.append(f"# Mirror hash: {mirror_hash}")
 parts.append(f"# CI provider: {provider}")
+if override_path.exists():
+    parts.append(f"# Repo overrides: {override_path}")
 parts.append("# Location: <company>/polaris-config/<project>/generated-scripts/ci-local.sh (workspace-owned).")
 parts.append("# Usage:")
 parts.append("#   bash <company>/polaris-config/<project>/generated-scripts/ci-local.sh                # validates main checkout")
@@ -702,7 +818,23 @@ else:
         parts.append(f"# Dev hook {idx}: [{cat}] {src}::{ht}")
         parts.append(f'cat > "$CMD_OUT_DIR/{idx}.cmd" {heredoc_block("CILOCAL_HOOK", cmd_body)}')
         all_runs.append((idx, cat, ht, src, "{}"))
+    forced_skips = []
+    for s in forced_skip_checks:
+        idx += 1
+        cat = s.get("category", "policy")
+        job = s.get("job", "")
+        src = s.get("source_file", "")
+        cmd_body = s.get("command", "").rstrip("\n")
+        conditions = json.dumps(s.get("conditions") or {}, ensure_ascii=False, separators=(",", ":"))
+        reason = s.get("reason", "repo_override")
+        parts.append(f"# Forced skip {idx}: [{cat}] {src}::{job}")
+        parts.append(f'cat > "$CMD_OUT_DIR/{idx}.cmd" {heredoc_block("CILOCAL_SKIP_CMD", cmd_body)}')
+        forced_skips.append((idx, cat, job, src, conditions, reason))
     parts.append("")
+    for idx_, cat, job, src, conditions, reason in forced_skips:
+        parts.append(
+            f'record_skip {idx_} {shell_quote(cat)} {shell_quote(job)} {shell_quote(src)} "$CMD_OUT_DIR/{idx_}.cmd" {shell_quote(reason)} {shell_quote(conditions)}'
+        )
     for idx_, cat, job, src, conditions in all_runs:
         parts.append('if [ "$INSTALL_ABORT" = "0" ]; then')
         parts.append(

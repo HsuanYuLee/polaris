@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.59] - 2026-05-05
+
+### Fixed — T3 stack replay and CI-local parity guards
+
+- 新增 repo-level `ci-local-overrides.json` support，讓已證實的遠端 CI false-positive
+  以 `repo_override:*` skip 寫進 generated `ci-local.sh` 與 evidence，而不是要求
+  feature branch 修 unrelated type baseline debt。
+- `run-verify-command.sh` 支援 task.md 明確宣告的 `## Verify Fallback Command`：
+  primary verify 仍必跑，fallback evidence 會記錄 primary/fallback exit 與 hash。
+- 新增 `stack-replay-manifest-check.sh`，要求手動重建 stacked PR 時留下
+  included/excluded commit ledger，避免 commit 取捨只靠 LLM 口頭推斷。
+
 ## [3.74.58] - 2026-05-05
 
 ### Changed — skill resource ownership audit

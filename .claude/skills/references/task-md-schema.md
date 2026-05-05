@@ -407,6 +407,10 @@ Allowed Files pattern 支援 repo-root relative path、glob，以及 root exact 
 ### 3.6 `## Test Command` / `## Verify Command`
 
 兩者皆必須包含 fenced code block（內容由 LLM 不可改寫 — `verify-command-immutable-execute` canary）。
+`## Verify Fallback Command` 是 optional section；只有 primary `## Verify Command`
+因已確認 repo baseline issue 無法產生 artifact 時才可提供。Engineering 不得臨時改跑
+其他 command；必須讓 `scripts/run-verify-command.sh` 先執行 primary，再於 primary
+exit 非 0 時執行 fallback 並產生 `verification_mode=fallback` evidence。
 
 DP-065 Verify Command static smoke 會在 validation 階段檢查可靜態證明的 command-shape 問題：repo-local script command 若該 script 有 `--help`，使用不存在的 `--flag` 會 fail；簡單 `rg` command 的 regex pattern 會做 parse-only smoke，regex parse error 會 fail。validator 不執行完整 Verify Command，也不嘗試解釋複雜 shell control flow。
 

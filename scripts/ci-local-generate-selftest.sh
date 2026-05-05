@@ -908,6 +908,63 @@ rm -f "$T14_EVIDENCE" /tmp/ci-local-test14-categories.out /tmp/ci-local-test14-f
 
 # ============================================================================
 echo
+echo "== Test 15: repo-level ci-local override records forced skip =="
+# ============================================================================
+T15="$TMPROOT/override-repo"
+mkdir -p "$T15/.woodpecker"
+cat > "$T15/.woodpecker/lint.yml" <<'YAML'
+pipeline:
+  lint-and-type-check:
+    image: node:22
+    commands:
+      - pnpm lint SHOULD_NOT_RUN
+    when:
+      event: pull_request
+      branch:
+        - develop
+YAML
+init_git_repo "$T15"
+OUT15="$(ci_local_path_for_repo "$T15")"
+mkdir -p "$(dirname "$OUT15")"
+cat > "$(dirname "$(dirname "$OUT15")")/ci-local-overrides.json" <<'JSON'
+{
+  "version": 1,
+  "checks": [
+    {
+      "id": "test-lint-typecheck-false-positive",
+      "action": "skip",
+      "match": {
+        "source_file": ".woodpecker/lint.yml",
+        "job": "lint-and-type-check",
+        "category": "lint",
+        "command_contains": "SHOULD_NOT_RUN"
+      },
+      "reason": "fixture remote CI false-positive; local mirror records repo-level skip instead of running unrelated debt"
+    }
+  ]
+}
+JSON
+"$GEN" --repo "$T15" --force >/tmp/ci-local-test15-generate.out 2>&1
+(cd "$T15" && bash "$OUT15" --repo "$T15" --base-branch develop >/tmp/ci-local-test15-run.out 2>&1)
+assert_contains "Test 15: generated script records override source" "$OUT15" "Repo overrides:"
+assert_contains "Test 15: output records repo override skip" /tmp/ci-local-test15-run.out "repo_override:test-lint-typecheck-false-positive"
+assert_not_contains "Test 15: overridden command not executed" /tmp/ci-local-test15-run.out "SHOULD_NOT_RUN"
+T15_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+python3 - "$T15_EVIDENCE" <<'PY' >/tmp/ci-local-test15-evidence.out
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+print(d["status"])
+print(d["summary"]["skipped_checks"])
+print(d["checks"][0]["status"])
+print(d["checks"][0]["reason"])
+PY
+assert_contains "Test 15: evidence status PASS" /tmp/ci-local-test15-evidence.out "PASS"
+assert_contains "Test 15: evidence has skipped check" /tmp/ci-local-test15-evidence.out "1"
+assert_contains "Test 15: evidence reason is repo override" /tmp/ci-local-test15-evidence.out "repo_override:test-lint-typecheck-false-positive"
+rm -f "$T15_EVIDENCE" /tmp/ci-local-test15-generate.out /tmp/ci-local-test15-run.out /tmp/ci-local-test15-evidence.out
+
+# ============================================================================
+echo
 echo "== Summary =="
 echo "  Assertions: $ASSERTIONS"
 echo "  Pass:       $PASS"

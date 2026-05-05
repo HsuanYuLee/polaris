@@ -19,8 +19,10 @@
 #        runtime → invoke scripts/start-test-env.sh --task-md (idempotent)
 #   5. Compute head_sha = git rev-parse HEAD (in repo derived from task.md)
 #   6. Execute verify command in repo/worktree cwd, capture stdout/stderr/exit_code
-#   7. Write /tmp/polaris-verified-{TICKET}-{HEAD_SHA}.json
-#   8. Exit 0 only when verify exit == 0 AND evidence write succeeds
+#   7. If the primary Verify Command fails and task.md explicitly declares
+#      `## Verify Fallback Command`, execute that fallback command in the same cwd
+#   8. Write /tmp/polaris-verified-{TICKET}-{HEAD_SHA}.json
+#   9. Exit 0 only when the effective verify exit == 0 AND evidence write succeeds
 #
 # Evidence schema (DP-032 D15, schema-loose new format):
 #   {
@@ -56,6 +58,8 @@ START_TEST_ENV="$SCRIPT_DIR/start-test-env.sh"
 BOOTSTRAP_PIDS=()
 TMP_OUT=""
 TMP_ERR=""
+TMP_FALLBACK_OUT=""
+TMP_FALLBACK_ERR=""
 
 if [[ -f "$SCRIPT_DIR/lib/main-checkout.sh" ]]; then
   # shellcheck source=lib/main-checkout.sh
@@ -110,6 +114,7 @@ parse_field() {
 }
 
 VERIFY_COMMAND="$(parse_field verify_command)"
+VERIFY_FALLBACK_COMMAND="$(parse_field verify_fallback_command)"
 LEVEL="$(parse_field level)"
 REPO_NAME="$(parse_field repo)"
 TASK_TICKET="$(parse_field task_jira_key)"
@@ -208,6 +213,8 @@ cleanup_bootstrap() {
 cleanup_tmp() {
   [[ -n "${TMP_OUT:-}" ]] && rm -f "$TMP_OUT" 2>/dev/null || true
   [[ -n "${TMP_ERR:-}" ]] && rm -f "$TMP_ERR" 2>/dev/null || true
+  [[ -n "${TMP_FALLBACK_OUT:-}" ]] && rm -f "$TMP_FALLBACK_OUT" 2>/dev/null || true
+  [[ -n "${TMP_FALLBACK_ERR:-}" ]] && rm -f "$TMP_FALLBACK_ERR" 2>/dev/null || true
 }
 
 cleanup_all() {
@@ -334,6 +341,29 @@ TMP_ERR="$(mktemp -t polaris-verify-stderr.XXXXXX)"
   bash -c "$VERIFY_COMMAND"
 ) >"$TMP_OUT" 2>"$TMP_ERR"
 VERIFY_EXIT=$?
+PRIMARY_EXIT=$VERIFY_EXIT
+EFFECTIVE_COMMAND="$VERIFY_COMMAND"
+EFFECTIVE_EXIT="$VERIFY_EXIT"
+EFFECTIVE_STDOUT_FILE="$TMP_OUT"
+EFFECTIVE_STDERR_FILE="$TMP_ERR"
+VERIFICATION_MODE="primary"
+
+if [[ "$VERIFY_EXIT" -ne 0 && -n "$VERIFY_FALLBACK_COMMAND" ]]; then
+  TMP_FALLBACK_OUT="$(mktemp -t polaris-verify-fallback-stdout.XXXXXX)"
+  TMP_FALLBACK_ERR="$(mktemp -t polaris-verify-fallback-stderr.XXXXXX)"
+  (
+    cd "$REPO_PATH" || exit 1
+    bash -c "$VERIFY_FALLBACK_COMMAND"
+  ) >"$TMP_FALLBACK_OUT" 2>"$TMP_FALLBACK_ERR"
+  FALLBACK_EXIT=$?
+  EFFECTIVE_COMMAND="$VERIFY_FALLBACK_COMMAND"
+  EFFECTIVE_EXIT="$FALLBACK_EXIT"
+  EFFECTIVE_STDOUT_FILE="$TMP_FALLBACK_OUT"
+  EFFECTIVE_STDERR_FILE="$TMP_FALLBACK_ERR"
+  VERIFICATION_MODE="fallback"
+else
+  FALLBACK_EXIT=""
+fi
 
 # --- Compute runtime contract (if level == runtime) ------------------------
 # Extract first URL from verify command for host comparison.
@@ -347,12 +377,22 @@ AT_TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 export RVC_TICKET="$TICKET"
 export RVC_HEAD_SHA="$HEAD_SHA"
 export RVC_COMMAND="$VERIFY_COMMAND"
-export RVC_EXIT_CODE="$VERIFY_EXIT"
+export RVC_EFFECTIVE_COMMAND="$EFFECTIVE_COMMAND"
+export RVC_EXIT_CODE="$EFFECTIVE_EXIT"
+export RVC_PRIMARY_EXIT_CODE="$PRIMARY_EXIT"
+export RVC_FALLBACK_COMMAND="$VERIFY_FALLBACK_COMMAND"
+export RVC_FALLBACK_EXIT_CODE="$FALLBACK_EXIT"
+export RVC_VERIFICATION_MODE="$VERIFICATION_MODE"
 export RVC_AT="$AT_TS"
 export RVC_LEVEL="$LEVEL"
 export RVC_RUNTIME_TARGET="$RUNTIME_VERIFY_TARGET"
 export RVC_OUTPUT_FILE="$EVIDENCE_FILE"
-export RVC_STDOUT_FILE="$TMP_OUT"
+export RVC_STDOUT_FILE="$EFFECTIVE_STDOUT_FILE"
+export RVC_STDERR_FILE="$EFFECTIVE_STDERR_FILE"
+export RVC_PRIMARY_STDOUT_FILE="$TMP_OUT"
+export RVC_PRIMARY_STDERR_FILE="$TMP_ERR"
+export RVC_FALLBACK_STDOUT_FILE="$TMP_FALLBACK_OUT"
+export RVC_FALLBACK_STDERR_FILE="$TMP_FALLBACK_ERR"
 export RVC_EXECUTION_CWD="$REPO_PATH"
 
 python3 - <<'PY'
@@ -362,17 +402,44 @@ from urllib.parse import urlparse
 ticket = os.environ["RVC_TICKET"]
 head_sha = os.environ["RVC_HEAD_SHA"]
 command = os.environ["RVC_COMMAND"]
+effective_command = os.environ["RVC_EFFECTIVE_COMMAND"]
 exit_code = int(os.environ["RVC_EXIT_CODE"])
+primary_exit_code = int(os.environ["RVC_PRIMARY_EXIT_CODE"])
+fallback_command = os.environ.get("RVC_FALLBACK_COMMAND", "") or ""
+fallback_exit_raw = os.environ.get("RVC_FALLBACK_EXIT_CODE", "") or ""
+fallback_exit_code = int(fallback_exit_raw) if fallback_exit_raw else None
+verification_mode = os.environ["RVC_VERIFICATION_MODE"]
 at = os.environ["RVC_AT"]
 level = os.environ["RVC_LEVEL"]
 runtime_target = os.environ.get("RVC_RUNTIME_TARGET", "") or ""
 output_file = os.environ["RVC_OUTPUT_FILE"]
 stdout_file = os.environ["RVC_STDOUT_FILE"]
+stderr_file = os.environ["RVC_STDERR_FILE"]
+primary_stdout_file = os.environ["RVC_PRIMARY_STDOUT_FILE"]
+primary_stderr_file = os.environ["RVC_PRIMARY_STDERR_FILE"]
+fallback_stdout_file = os.environ.get("RVC_FALLBACK_STDOUT_FILE", "") or ""
+fallback_stderr_file = os.environ.get("RVC_FALLBACK_STDERR_FILE", "") or ""
 execution_cwd = os.environ["RVC_EXECUTION_CWD"]
 
-with open(stdout_file, "rb") as f:
-    stdout_bytes = f.read()
+def read_bytes(path):
+    if not path:
+        return b""
+    with open(path, "rb") as f:
+        return f.read()
+
+stdout_bytes = read_bytes(stdout_file)
+stderr_bytes = read_bytes(stderr_file)
+primary_stdout_bytes = read_bytes(primary_stdout_file)
+primary_stderr_bytes = read_bytes(primary_stderr_file)
+fallback_stdout_bytes = read_bytes(fallback_stdout_file)
+fallback_stderr_bytes = read_bytes(fallback_stderr_file)
+
 stdout_hash = hashlib.sha256(stdout_bytes).hexdigest()
+stderr_hash = hashlib.sha256(stderr_bytes).hexdigest()
+primary_stdout_hash = hashlib.sha256(primary_stdout_bytes).hexdigest()
+primary_stderr_hash = hashlib.sha256(primary_stderr_bytes).hexdigest()
+fallback_stdout_hash = hashlib.sha256(fallback_stdout_bytes).hexdigest() if fallback_stdout_file else None
+fallback_stderr_hash = hashlib.sha256(fallback_stderr_bytes).hexdigest() if fallback_stderr_file else None
 stdout_text = stdout_bytes.decode("utf-8", errors="replace")
 
 # Best-effort URL extraction: scan command for `curl ... <url>` patterns,
@@ -382,7 +449,7 @@ url_re = re.compile(r"https?://[^\s\"'<>)]+")
 status_re = re.compile(r"\b(\d{3})\b")
 # Split command into logical lines (preserve original line for evidence).
 lines = []
-for raw in command.splitlines():
+for raw in effective_command.splitlines():
     s = raw.strip()
     if s:
         lines.append(s)
@@ -414,14 +481,32 @@ evidence = {
     "ticket": ticket,
     "head_sha": head_sha,
     "command": command,
+    "effective_command": effective_command,
     "exit_code": exit_code,
     "stdout_hash": stdout_hash,
+    "stderr_hash": stderr_hash,
     "writer": "run-verify-command.sh",
     "execution_cwd": execution_cwd,
     "at": at,
     "level": level,
+    "verification_mode": verification_mode,
+    "primary": {
+        "command": command,
+        "exit_code": primary_exit_code,
+        "stdout_hash": primary_stdout_hash,
+        "stderr_hash": primary_stderr_hash,
+    },
     "results": results,
 }
+
+if verification_mode == "fallback":
+    evidence["fallback"] = {
+        "command": fallback_command,
+        "exit_code": fallback_exit_code,
+        "stdout_hash": fallback_stdout_hash,
+        "stderr_hash": fallback_stderr_hash,
+        "reason": "primary_verify_command_failed",
+    }
 
 if level == "runtime":
     target = runtime_target.strip()
@@ -501,13 +586,22 @@ fi
 if [[ -s "$TMP_ERR" ]]; then
   cat "$TMP_ERR" >&2
 fi
+if [[ "$VERIFICATION_MODE" == "fallback" ]]; then
+  echo "run-verify-command: primary Verify Command failed ($PRIMARY_EXIT); executing explicit Verify Fallback Command" >&2
+  if [[ -s "$TMP_FALLBACK_OUT" ]]; then
+    cat "$TMP_FALLBACK_OUT"
+  fi
+  if [[ -s "$TMP_FALLBACK_ERR" ]]; then
+    cat "$TMP_FALLBACK_ERR" >&2
+  fi
+fi
 
 # --- Final disposition ------------------------------------------------------
-if [[ "$VERIFY_EXIT" -ne 0 ]]; then
-  echo "run-verify-command: verify command exited $VERIFY_EXIT (evidence at $EVIDENCE_FILE; mirror at $DURABLE_EVIDENCE_FILE)" >&2
+if [[ "$EFFECTIVE_EXIT" -ne 0 ]]; then
+  echo "run-verify-command: effective verify command exited $EFFECTIVE_EXIT (mode=$VERIFICATION_MODE; evidence at $EVIDENCE_FILE; mirror at $DURABLE_EVIDENCE_FILE)" >&2
   exit 1
 fi
 
-echo "run-verify-command: PASS — evidence at $EVIDENCE_FILE"
+echo "run-verify-command: PASS — mode=$VERIFICATION_MODE evidence at $EVIDENCE_FILE"
 echo "run-verify-command: durable evidence mirror at $DURABLE_EVIDENCE_FILE"
 exit 0

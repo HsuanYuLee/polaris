@@ -236,6 +236,39 @@ EV_CWD_FIELD="$(python3 -c "import json; print(json.load(open('$EV_CWD'))['execu
 assert_eq "$EV_CWD_FIELD" "$REPO_C" "repo cwd evidence records execution_cwd"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "=== explicit verify fallback ==="
+PARENT_F="$WORK_DIR/fallback"
+mkdir -p "$PARENT_F/specs/SELFTEST-001/tasks"
+REPO_F="$(setup_fake_repo "$PARENT_F" "myrepo")"
+TASK_F="$PARENT_F/specs/SELFTEST-001/tasks/T_fallback.md"
+make_fake_task_md "$REPO_F" "myrepo" "$TASK_F" "static" 'echo PRIMARY_FAIL; exit 1' "RVC-FALLBACK"
+cat >> "$TASK_F" <<'EOF'
+
+## Verify Fallback Command
+
+```bash
+echo FALLBACK_PASS
+```
+EOF
+HEAD_F="$(git -C "$REPO_F" rev-parse HEAD)"
+"$RVC" --task-md "$TASK_F" >"$WORK_DIR/fallback.out" 2>"$WORK_DIR/fallback.err"
+RC_F=$?
+assert_eq "$RC_F" "0" "explicit fallback exits 0 when fallback passes"
+assert_contains "$(cat "$WORK_DIR/fallback.out")" "PRIMARY_FAIL" "fallback surfaces primary stdout"
+assert_contains "$(cat "$WORK_DIR/fallback.out")" "FALLBACK_PASS" "fallback surfaces fallback stdout"
+assert_contains "$(cat "$WORK_DIR/fallback.err")" "primary Verify Command failed" "fallback reports primary failure"
+EV_F="/tmp/polaris-verified-RVC-FALLBACK-${HEAD_F}.json"
+assert_file_exists "$EV_F" "fallback evidence file"
+EV_F_MODE="$(python3 -c "import json; print(json.load(open('$EV_F'))['verification_mode'])" 2>/dev/null)"
+assert_eq "$EV_F_MODE" "fallback" "fallback evidence records verification_mode"
+EV_F_EXIT="$(python3 -c "import json; print(json.load(open('$EV_F'))['exit_code'])" 2>/dev/null)"
+assert_eq "$EV_F_EXIT" "0" "fallback evidence exit_code is effective pass"
+EV_F_PRIMARY="$(python3 -c "import json; print(json.load(open('$EV_F'))['primary']['exit_code'])" 2>/dev/null)"
+assert_eq "$EV_F_PRIMARY" "1" "fallback evidence records primary exit"
+EV_F_FALLBACK="$(python3 -c "import json; print(json.load(open('$EV_F'))['fallback']['exit_code'])" 2>/dev/null)"
+assert_eq "$EV_F_FALLBACK" "0" "fallback evidence records fallback exit"
+
+# ────────────────────────────────────────────────────────────────────────────
 echo "=== dirty worktree refusal ==="
 PARENT_D="$WORK_DIR/dirty"
 mkdir -p "$PARENT_D/specs/SELFTEST-001/tasks"

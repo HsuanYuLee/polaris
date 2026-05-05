@@ -223,6 +223,8 @@ Rebase 改變 HEAD → 舊 evidence 的 `head_sha` 自動失效 → 所有下游
 
 **CI declaration read-only boundary**：Step 2 只消費 repo CI declarations，不修改它們。若 `ci-local` 與遠端 CI 的差異指向 Woodpecker / GitHub Actions / GitLab CI / Codecov / husky / pre-commit / package script 設定，Developer lane 必須停止並記錄 framework 或 repo-owner 決策需求；不得在產品 PR 內改 CI config 來讓 local/remote gate 通過。
 
+**Repo-level CI false-positive override**：若遠端 CI 已證實有 repo-level false-positive / fail-open 行為（例如 CI typecheck OOM 但 repo script 誤判 PASS），不得要求一般 task 修 unrelated full-package baseline debt。把決策記在 workspace-owned `{company}/polaris-config/{project}/ci-local-overrides.json`，由 `ci-local-generate.sh` 讀取並在 generated `ci-local.sh` / evidence 中以 `SKIP` + `repo_override:<id>:<reason>` 顯示。這不是 task-level bypass；每筆 override 必須 match 具體 `source_file` / `job` / `category` / `command`，並保留 repo-owner 後續修 CI 的 reason。產品 repo CI 宣告仍為 read-only。
+
 **Existence invariant**：`{company}/polaris-config/{project}/generated-scripts/ci-local.sh` 存在 → 此 repo 已宣告 Local CI Mirror，所有 worktree 共用此 workspace-owned canonical script。repo-local `.claude/scripts/ci-local.sh` 是 legacy migration error，不可作為完成依據。是否需要跑由 canonical 檔案存在決定，不由 git status 類型決定。
 
 **Re-test-after-fix 鐵律**：若本 step 發現問題並修改 code，必須**重跑一次** `ci-local.sh`。上一輪修改前的結果無效。
@@ -289,11 +291,24 @@ bash "${POLARIS_ROOT}/scripts/run-verify-command.sh" "<path/to/task.md>"
 - 直接執行 `curl` 做 behavioral verification（use the script）
 - 透過 Write/Edit tool 寫 evidence file（D16 hook blocks；use the script）
 - 自行判斷 verify command output 是否 pass（script handles exit code）
+- 自行改寫 `## Verify Command` 或改用 ad hoc output path；若 primary verify 因已確認的 repo baseline issue 無法產生 artifact，必須由 task.md 明確提供 `## Verify Fallback Command`，再讓 `run-verify-command.sh` 執行 primary→fallback 並寫入 fallback evidence
 
 **LLM may**：
 - 讀 script stdout 理解 failure context
 - Debug root cause when script reports FAIL
 - 修完 code 後再次 invoke `run-verify-command.sh`
+
+### Explicit Verify Fallback
+
+`## Verify Fallback Command` 是唯一允許的 behavioral verify fallback。使用條件：
+
+1. task.md primary `## Verify Command` 保持不變，且 `run-verify-command.sh` 必須先執行 primary。
+2. fallback command 必須寫在 task.md 的 `## Verify Fallback Command` fenced block；不得由 LLM 口頭替換。
+3. fallback 只在 primary exit 非 0 時執行。
+4. evidence 會記錄 `verification_mode=fallback`、`primary.exit_code`、`fallback.exit_code`、primary/fallback stdout/stderr hash。
+5. final / handoff 必須明說 primary failure disposition 與 fallback reason；如果 fallback reason 是 repo baseline issue，應同步記錄到 repo handbook 或 task revision evidence。
+
+沒有 `## Verify Fallback Command` 時，primary verify fail 仍是 fail-stop。
 
 ### No-task request
 
@@ -319,6 +334,35 @@ bash scripts/validate-polaris-config-migration.sh
 ```
 
 Flow gap audit 的結論要進 final / handoff；若發現 gap，先修機制或回 DP/refinement，不得只用「我判斷沒問題」結案。
+
+### Manual Stack Replay Ledger
+
+若為了修 stacked PR / T 系列重建分支而採用 cherry-pick、drop commit、重新排序、
+force push 等 history rewrite，必須在 push 前產生 replay manifest，並用 deterministic
+script 驗證格式：
+
+```bash
+bash scripts/stack-replay-manifest-check.sh --manifest <path/to/stack-replay.md>
+```
+
+Manifest 至少包含：
+
+```markdown
+# Stack Replay Manifest
+
+## Included Commits
+
+- `<sha>` — reason
+
+## Excluded Commits
+
+- `<sha>` — reason
+```
+
+這份 manifest 是「commit 取捨」的 decision ledger；scope gate 只能證明最後 diff
+在 Allowed Files 內，不能證明 replay 過程沒有混入或漏掉 review fix。若沒有 replay
+manifest，stack rewrite 不得進 push / closeout。若沒有任何 excluded commit，使用
+`--allow-empty-excluded` 並在 manifest 寫明 `Excluded Commits` 為 `N/A`。
 
 ### Evidence schema
 
