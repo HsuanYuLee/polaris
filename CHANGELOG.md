@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.78] - 2026-05-05
+
+### Fixed — template sync bytecode hygiene
+
+- `sync-to-polaris.sh` now removes Python `__pycache__` directories and `.pyc` / `.pyo` files after directory copies.
+- Prevented local verification bytecode from leaking into the Polaris template release artifact.
+
 ## [3.74.77] - 2026-05-05
 
 ### Fixed — topic-only review-inbox clustering

@@ -269,6 +269,8 @@ copy_dir() {
   if [[ "$DRY_RUN" == false ]]; then
     rm -rf "$dst"
     cp -r "$src" "$dst"
+    find "$dst" -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
+    find "$dst" -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete 2>/dev/null || true
   fi
   echo "  + $label/"
 }
