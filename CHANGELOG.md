@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.0] - 2026-05-06
+
+### Fixed — behavior contract completion gate
+
+- Updated the delivery completion gate to pass the resolved task.md into the evidence gate so behavior contract requirements cannot be skipped for workspace-backed tasks.
+- Added completion-gate regression coverage for missing behavior contract evidence.
+- Hardened task.md validation so product migration, replacement, and removal tasks cannot set behavior contracts to non-applicable without an explicit planner override.
+
 ## [3.74.99] - 2026-05-06
 
 ### Fixed — template sync generated evidence exclusion

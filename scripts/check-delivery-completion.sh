@@ -393,6 +393,14 @@ fi
 
 echo "$PREFIX checking completion gates for ${REPO_ROOT}" >&2
 
+TASK_MD_PATH=""
+if [[ "$MODE" != "admin" ]]; then
+  if ! TASK_MD_PATH="$(resolve_task_for_completion_check)"; then
+    echo "$PREFIX unable to resolve task.md for completion freshness check (supply --ticket or call from task-bound context)" >&2
+    exit 2
+  fi
+fi
+
 # Layer A: repo-level Local CI Mirror. Existing script must be treated as
 # authoritative regardless of git tracking state (tracked/untracked/generated).
 # BLOCKED_ENV from Layer A is intentionally still blocking; gate-ci-local owns
@@ -401,19 +409,13 @@ bash "${SCRIPT_DIR}/gates/gate-ci-local.sh" --repo "$REPO_ROOT"
 
 # Layer B: ticket-bound verify evidence for Developer flows.
 if [[ "$MODE" != "admin" && -n "$TICKET" ]]; then
-  bash "${SCRIPT_DIR}/gates/gate-evidence.sh" --repo "$REPO_ROOT" --ticket "$TICKET"
+  bash "${SCRIPT_DIR}/gates/gate-evidence.sh" --repo "$REPO_ROOT" --ticket "$TICKET" --task-md "$TASK_MD_PATH"
 fi
 
 # Developer PR metadata/deliverable gates.
 if [[ "$MODE" != "admin" ]]; then
   bash "${SCRIPT_DIR}/gates/gate-pr-title.sh" --repo "$REPO_ROOT"
   bash "${SCRIPT_DIR}/gates/gate-changeset.sh" --repo "$REPO_ROOT"
-
-  TASK_MD_PATH=""
-  if ! TASK_MD_PATH="$(resolve_task_for_completion_check)"; then
-    echo "$PREFIX unable to resolve task.md for completion freshness check (supply --ticket or call from task-bound context)" >&2
-    exit 2
-  fi
 
   DELIVERABLE_HEAD_SHA="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$TASK_MD_PATH" --no-resolve --field deliverable_head_sha)"
   if [[ -z "$DELIVERABLE_HEAD_SHA" ]]; then

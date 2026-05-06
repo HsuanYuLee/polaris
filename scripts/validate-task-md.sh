@@ -444,6 +444,7 @@ validate_behavior_contract_frontmatter() {
   local file="$1"
   python3 - "$file" <<'PY'
 import csv
+import re
 import sys
 
 path = sys.argv[1]
@@ -538,6 +539,28 @@ def extract_behavior_contract(fm_lines):
 def is_nonempty_string(value):
     return isinstance(value, str) and value.strip() != ""
 
+full_text = "\n".join(lines)
+lower_text = full_text.lower()
+lower_path = path.lower()
+
+def is_framework_static_context():
+    if "/design-plans/" in lower_path:
+        return True
+    return (
+        "repo: polaris-framework" in lower_text
+        or "framework/static work order" in lower_text
+        or "polaris-framework" in lower_text
+    )
+
+def is_behavior_sensitive_migration():
+    return bool(
+        re.search(
+            r"\b(replacement|replace|migration|migrate|refactor|remove legacy|dependency removal)\b",
+            lower_text,
+        )
+        or re.search(r"(替換|重構|移除\s*legacy|移除.*依賴|遷移|相容性)", full_text)
+    )
+
 bc = extract_behavior_contract(extract_frontmatter(lines))
 if bc is None:
     raise SystemExit(0)
@@ -550,8 +573,17 @@ else:
     if not isinstance(applies, bool):
         errors.append("frontmatter verification.behavior_contract.applies is required and must be true or false")
     elif not applies:
-        if not is_nonempty_string(bc.get("reason")):
+        reason = bc.get("reason")
+        if not is_nonempty_string(reason):
             errors.append("frontmatter verification.behavior_contract.reason is required when applies=false")
+        elif (
+            is_behavior_sensitive_migration()
+            and not is_framework_static_context()
+            and "planner override" not in str(reason).lower()
+        ):
+            errors.append(
+                "frontmatter verification.behavior_contract.applies=false is not allowed for product migration/replacement/removal tasks without an explicit planner override in reason"
+            )
     else:
         mode = bc.get("mode")
         if mode not in {"parity", "visual_target", "pm_flow", "hybrid"}:

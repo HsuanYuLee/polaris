@@ -151,6 +151,34 @@ echo ok
 EOF
 }
 
+write_task_with_behavior_contract() {
+  local repo="$1"
+  local head_sha="$2"
+  write_task "$repo" "$head_sha"
+  python3 - "$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-completion-gate/tasks/T1.md" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+insert = """verification:
+  behavior_contract:
+    applies: true
+    mode: parity
+    source_of_truth: existing_behavior
+    fixture_policy: mockoon_required
+    baseline_ref: main
+    flow: "completion gate fixture"
+    assertions:
+      - "existing user-visible behavior remains stable"
+    allowed_differences: []
+"""
+if "verification:" not in text:
+    text = text.replace("---\n\n# T1:", f"{insert}---\n\n# T1:", 1)
+path.write_text(text, encoding="utf-8")
+PY
+}
+
 setup_repo() {
   local repo="$1"
 
@@ -284,6 +312,22 @@ EOF
 }
 EOF
   fi
+}
+
+write_verify_evidence() {
+  local repo="$1"
+  local head_sha="$2"
+  mkdir -p "$repo/.polaris/evidence/verify"
+  cat > "/tmp/polaris-verified-DP-999-T1-${head_sha}.json" <<EOF
+{
+  "ticket": "DP-999-T1",
+  "head_sha": "${head_sha}",
+  "writer": "run-verify-command.sh",
+  "exit_code": 0,
+  "at": "2026-05-06T00:00:00Z"
+}
+EOF
+  cp "/tmp/polaris-verified-DP-999-T1-${head_sha}.json" "$repo/.polaris/evidence/verify/polaris-verified-DP-999-T1-${head_sha}.json"
 }
 
 run_case() {
@@ -512,6 +556,53 @@ EOF
 }
 
 run_overlay_case
+
+run_behavior_contract_case() {
+  local label="behavior-contract-missing-evidence-blocks"
+  local repo="$TMPROOT/$label/repo"
+  local mockbin="$TMPROOT/$label/bin"
+  local body_file="$TMPROOT/$label/body.md"
+  mkdir -p "$TMPROOT/$label"
+
+  setup_repo "$repo"
+  local head_sha
+  head_sha="$(git -C "$repo" rev-parse HEAD)"
+  write_task_with_behavior_contract "$repo" "$head_sha"
+  write_verify_evidence "$repo" "$head_sha"
+
+  cat > "$body_file" <<'EOF'
+## Description
+
+這是 completion gate selftest 內容。
+
+## Changed
+
+- 補齊 completion gate 檢查。
+
+## Screenshots (Test Plan)
+
+- 已執行 selftest。
+
+## Related documents
+
+- DP-999
+
+## QA notes
+
+- N/A
+EOF
+  install_mock_gh "$mockbin" "$body_file" "OPEN" "false" "$head_sha"
+
+  set +e
+  out="$(POLARIS_SKIP_CI_LOCAL=1 POLARIS_SKIP_PR_TITLE_GATE=1 POLARIS_SKIP_CHANGESET_GATE=1 PATH="$mockbin:$PATH" "$CHECK" --repo "$repo" --ticket DP-999-T1 2>&1)"
+  rc=$?
+  set -e
+
+  assert_rc "$label rc" "$rc" "2"
+  assert_contains "$label message" "$out" "No behavior contract evidence"
+}
+
+run_behavior_contract_case
 
 printf '\n=== check-delivery-completion selftest: %d/%d PASS ===\n' "$PASS" "$TOTAL"
 [[ "$PASS" -eq "$TOTAL" ]]
