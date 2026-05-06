@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.1] - 2026-05-06
+
+### Fixed — review thread completion gate
+
+- Updated the delivery completion gate to require explicit disposition evidence for unresolved current PR review threads.
+- Added completion-gate regression coverage for missing and satisfied review-thread disposition manifests.
+- Documented that PR-visible verify-report markers are accepted evidence publication proof and that active review threads must be dispositioned before completion.
+
 ## [3.75.0] - 2026-05-06
 
 ### Fixed — behavior contract completion gate

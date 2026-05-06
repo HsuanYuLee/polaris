@@ -174,6 +174,47 @@ PY
   exit 2
 }
 
+review_thread_disposition_manifest_path() {
+  local disposition_ticket="$1"
+  local deliverable_head_sha="$2"
+  local candidate=""
+
+  candidate="${REPO_ROOT}/.polaris/evidence/review-thread-disposition/polaris-review-thread-disposition-${disposition_ticket}-${deliverable_head_sha}.json"
+  if [[ -f "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  # Backward-compatible alias for early local experiments.
+  candidate="${REPO_ROOT}/.polaris/evidence/review-threads/polaris-review-thread-disposition-${disposition_ticket}-${deliverable_head_sha}.json"
+  if [[ -f "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  printf '%s\n' "${REPO_ROOT}/.polaris/evidence/review-thread-disposition/polaris-review-thread-disposition-${disposition_ticket}-${deliverable_head_sha}.json"
+}
+
+check_pr_review_thread_dispositions() {
+  local disposition_ticket="$1"
+  local deliverable_head_sha="$2"
+  local gh_repo="$3"
+  local pr_number="$4"
+  local manifest_path=""
+
+  if [[ ! -x "${SCRIPT_DIR}/pr-review-thread-disposition-gate.sh" ]]; then
+    echo "$PREFIX review thread disposition check failed: pr-review-thread-disposition-gate.sh missing or not executable" >&2
+    exit 2
+  fi
+
+  manifest_path="$(review_thread_disposition_manifest_path "$disposition_ticket" "$deliverable_head_sha")"
+  if ! bash "${SCRIPT_DIR}/pr-review-thread-disposition-gate.sh" --repo "$gh_repo" --pr "$pr_number" --manifest "$manifest_path"; then
+    echo "$PREFIX BLOCKED: active PR review threads require explicit disposition evidence for ${disposition_ticket}@${deliverable_head_sha}" >&2
+    echo "$PREFIX Expected manifest: ${manifest_path}" >&2
+    exit 2
+  fi
+}
+
 check_deliverable_pr_remote_truth() {
   local task_md_path="$1"
   local deliverable_head_sha="$2"
@@ -246,10 +287,11 @@ check_deliverable_pr_remote_truth() {
   fi
   if [[ -n "$publication_ticket" ]]; then
     check_pr_visible_evidence_publication "$publication_ticket" "$deliverable_head_sha" "$pr_url" "$gh_repo" "$pr_number" "$pr_body_file"
+    check_pr_review_thread_dispositions "$publication_ticket" "$deliverable_head_sha" "$gh_repo" "$pr_number"
   fi
 
   rm -f "$pr_json" "$pr_body_file"
-  echo "$PREFIX ✅ PR readiness/body/language/evidence publication gates passed for ${pr_url}" >&2
+  echo "$PREFIX ✅ PR readiness/body/language/evidence publication/review-thread gates passed for ${pr_url}" >&2
 }
 
 find_workspace_root_for_path() {

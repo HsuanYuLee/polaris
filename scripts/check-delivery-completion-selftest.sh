@@ -218,11 +218,27 @@ install_mock_gh() {
   local is_draft="$4"
   local head_sha="$5"
   local comments_file="${6:-}"
+  local threads_file="${7:-}"
 
   mkdir -p "$mockbin"
   if [[ -z "$comments_file" ]]; then
     comments_file="$TMPROOT/empty-comments.json"
     printf '[]\n' > "$comments_file"
+  fi
+  if [[ -z "$threads_file" ]]; then
+    threads_file="$TMPROOT/no-active-review-threads.json"
+    cat > "$threads_file" <<'EOF'
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "url": "https://github.com/demo/example/pull/1",
+        "reviewThreads": {"nodes": []}
+      }
+    }
+  }
+}
+EOF
   fi
   local python_draft="False"
   if [[ "$is_draft" == "true" ]]; then
@@ -253,6 +269,10 @@ PY
   exit 0
 fi
 if [[ "\$1" == "api" ]]; then
+  if [[ "\$2" == "graphql" ]]; then
+    cat "$threads_file"
+    exit 0
+  fi
   if [[ "\$2" == "repos/demo/example/pulls/1" ]]; then
     python3 - <<'PY'
 import json
@@ -286,6 +306,25 @@ echo "unexpected gh call: \$*" >&2
 exit 1
 EOF
   chmod +x "$mockbin/gh"
+}
+
+write_review_thread_disposition() {
+  local repo="$1"
+  local head_sha="$2"
+  mkdir -p "$repo/.polaris/evidence/review-thread-disposition"
+  cat > "$repo/.polaris/evidence/review-thread-disposition/polaris-review-thread-disposition-DP-999-T1-${head_sha}.json" <<'EOF'
+{
+  "version": 1,
+  "pr": "https://github.com/demo/example/pull/1",
+  "threads": [
+    {
+      "thread_id": "PRRT_active_1",
+      "disposition": "fixed",
+      "reason": "implemented reviewer requested guard and pushed verification"
+    }
+  ]
+}
+EOF
 }
 
 write_behavior_evidence() {
@@ -418,7 +457,7 @@ run_case "draft-blocks" "OPEN" "true" "valid" "2" "deliverable PR is draft"
 run_case "closed-blocks" "CLOSED" "false" "valid" "2" "deliverable PR must be OPEN"
 run_case "invalid-body-blocks" "OPEN" "false" "invalid" "2" "does not preserve repo template headings"
 run_case "english-body-blocks" "OPEN" "false" "english" "2" "PR text violates workspace language policy"
-run_case "ready-pr-passes" "OPEN" "false" "valid" "0" "PR readiness/body/language/evidence publication gates passed"
+run_case "ready-pr-passes" "OPEN" "false" "valid" "0" "PR readiness/body/language/evidence publication/review-thread gates passed"
 
 run_publication_case() {
   local label="$1"
@@ -552,10 +591,91 @@ EOF
   set -e
 
   assert_rc "$label rc" "$rc" "0"
-  assert_contains "$label message" "$out" "PR readiness/body/language/evidence publication gates passed"
+  assert_contains "$label message" "$out" "PR readiness/body/language/evidence publication/review-thread gates passed"
 }
 
 run_overlay_case
+
+run_review_thread_case() {
+  local label="$1"
+  local with_manifest="$2"
+  local want_rc="$3"
+  local want_text="$4"
+
+  local repo="$TMPROOT/$label/repo"
+  local mockbin="$TMPROOT/$label/bin"
+  local body_file="$TMPROOT/$label/body.md"
+  local comments_file="$TMPROOT/$label/comments.json"
+  local threads_file="$TMPROOT/$label/threads.json"
+  mkdir -p "$TMPROOT/$label"
+
+  setup_repo "$repo"
+  local head_sha
+  head_sha="$(git -C "$repo" rev-parse HEAD)"
+  write_task "$repo" "$head_sha"
+  write_verify_evidence "$repo" "$head_sha"
+  if [[ "$with_manifest" == "true" ]]; then
+    write_review_thread_disposition "$repo" "$head_sha"
+  fi
+
+  cat > "$body_file" <<'EOF'
+## Description
+
+這是 completion gate selftest 內容。
+
+## Changed
+
+- 補齊 completion gate 檢查。
+
+## Screenshots (Test Plan)
+
+- 已執行 selftest。
+
+## Related documents
+
+- DP-999
+
+## QA notes
+
+- N/A
+EOF
+  printf '[]\n' > "$comments_file"
+  cat > "$threads_file" <<'EOF'
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "url": "https://github.com/demo/example/pull/1",
+        "reviewThreads": {
+          "nodes": [
+            {
+              "id": "PRRT_active_1",
+              "isResolved": false,
+              "isOutdated": false,
+              "path": "src/a.ts",
+              "line": 10,
+              "comments": {"nodes": [{"url": "https://github.com/demo/example/pull/1#discussion_r1"}]}
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+EOF
+  install_mock_gh "$mockbin" "$body_file" "OPEN" "false" "$head_sha" "$comments_file" "$threads_file"
+
+  set +e
+  out="$(POLARIS_SKIP_CI_LOCAL=1 POLARIS_SKIP_PR_TITLE_GATE=1 POLARIS_SKIP_CHANGESET_GATE=1 PATH="$mockbin:$PATH" "$CHECK" --repo "$repo" --ticket DP-999-T1 2>&1)"
+  rc=$?
+  set -e
+
+  assert_rc "$label rc" "$rc" "$want_rc"
+  assert_contains "$label message" "$out" "$want_text"
+}
+
+run_review_thread_case "review-thread-missing-disposition-blocks" "false" "2" "active PR review threads require explicit disposition evidence"
+run_review_thread_case "review-thread-disposition-passes" "true" "0" "review-thread gates passed"
 
 run_behavior_contract_case() {
   local label="behavior-contract-missing-evidence-blocks"
