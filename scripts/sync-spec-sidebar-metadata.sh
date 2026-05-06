@@ -61,8 +61,8 @@ from pathlib import Path
 mode = sys.argv[1]
 inputs = [Path(p) for p in sys.argv[2:]]
 
-PARENT_DOC_NAMES = ["plan.md", "epic.md", "refinement.md", "breakdown.md", "README.md"]
-COMPANY_ANCHOR_ORDER = ["refinement.md", "plan.md", "epic.md", "README.md"]
+PARENT_DOC_NAMES = ["index.md", "plan.md", "epic.md", "refinement.md", "breakdown.md", "README.md"]
+COMPANY_ANCHOR_ORDER = ["refinement.md", "plan.md", "index.md", "epic.md", "README.md"]
 VALID_PRIORITIES = {"P0", "P1", "P2", "P3", "P4"}
 STATUS_ALIASES = {
     "SEED": "SEEDED",
@@ -118,8 +118,11 @@ def is_company_ticket_dir(path: Path) -> bool:
 
 def anchor_for_container(path: Path):
     if is_dp_dir(path):
-        candidate = path / "plan.md"
-        return candidate if candidate.exists() else None
+        for name in ["plan.md", "index.md"]:
+            candidate = path / name
+            if candidate.exists():
+                return candidate
+        return None
     if is_company_ticket_dir(path):
         for name in COMPANY_ANCHOR_ORDER:
             candidate = path / name

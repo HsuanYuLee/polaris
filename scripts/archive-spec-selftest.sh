@@ -57,6 +57,13 @@ write_plan "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-996-dire
 bash "$ARCHIVE_SPEC" --workspace "$tmpdir" "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-996-direct-path/plan.md" >/dev/null
 [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-996-direct-path/plan.md" ]] || fail "direct path archive missing"
 
+# Folder-native DP by ID.
+write_plan "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-990-folder-native/index.md" "IMPLEMENTED" "DP-990"
+bash "$ARCHIVE_SPEC" --workspace "$tmpdir" DP-990 >/dev/null
+[[ ! -d "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-990-folder-native" ]] || fail "folder-native active DP remained after archive"
+[[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-990-folder-native/index.md" ]] || fail "folder-native archived DP missing"
+grep -q 'text: "IMPLEMENTED / P4"' "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-990-folder-native/index.md" || fail "folder-native archived DP sidebar badge was not refreshed"
+
 # Status guard.
 write_plan "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-998-locked/plan.md" "LOCKED" "DP-998"
 expect_fail "locked DP should not archive" bash "$ARCHIVE_SPEC" --workspace "$tmpdir" DP-998
@@ -85,6 +92,7 @@ sweepdir="$tmpdir/sweep"
 mkdir -p "$sweepdir/docs-manager/src/content/docs/specs/design-plans" "$sweepdir/docs-manager/src/content/docs/specs/companies/acme"
 write_plan "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-995-sweep-implemented/plan.md" "IMPLEMENTED" "DP-995"
 write_plan "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-994-sweep-abandoned/plan.md" "ABANDONED" "DP-994"
+write_plan "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-989-sweep-folder-native/index.md" "IMPLEMENTED" "DP-989"
 write_plan "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-993-sweep-locked/plan.md" "LOCKED" "DP-993"
 mkdir -p "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-992-sweep-missing"
 cat >"$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-992-sweep-missing/plan.md" <<'MD'
@@ -100,6 +108,7 @@ MD
 bash "$ARCHIVE_SPEC" --workspace "$sweepdir" --sweep --dry-run >"$sweepdir/dry-run.tsv"
 grep -q 'TYPE[[:space:]]STATUS[[:space:]]ACTION[[:space:]]SOURCE' "$sweepdir/dry-run.tsv" || fail "sweep dry-run header missing"
 grep -q 'DP-995-sweep-implemented' "$sweepdir/dry-run.tsv" || fail "sweep dry-run omitted implemented DP"
+grep -q 'DP-989-sweep-folder-native' "$sweepdir/dry-run.tsv" || fail "sweep dry-run omitted folder-native implemented DP"
 grep -q 'DONE-1' "$sweepdir/dry-run.tsv" || fail "sweep dry-run omitted implemented company spec"
 grep -q 'missing status' "$sweepdir/dry-run.tsv" || fail "sweep dry-run omitted missing-status skip"
 [[ -d "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-995-sweep-implemented" ]] || fail "dry-run moved implemented DP"
@@ -108,6 +117,7 @@ grep -q 'missing status' "$sweepdir/dry-run.tsv" || fail "sweep dry-run omitted 
 bash "$ARCHIVE_SPEC" --workspace "$sweepdir" --sweep --apply >"$sweepdir/apply.tsv"
 [[ -f "$sweepdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-995-sweep-implemented/plan.md" ]] || fail "sweep apply did not archive implemented DP"
 [[ -f "$sweepdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-994-sweep-abandoned/plan.md" ]] || fail "sweep apply did not archive abandoned DP"
+[[ -f "$sweepdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-989-sweep-folder-native/index.md" ]] || fail "sweep apply did not archive folder-native implemented DP"
 [[ -f "$sweepdir/docs-manager/src/content/docs/specs/companies/acme/archive/DONE-1/refinement.md" ]] || fail "sweep apply did not archive implemented company spec"
 [[ -d "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-993-sweep-locked" ]] || fail "sweep apply moved locked DP"
 [[ -d "$sweepdir/docs-manager/src/content/docs/specs/design-plans/DP-992-sweep-missing" ]] || fail "sweep apply moved missing-status DP"

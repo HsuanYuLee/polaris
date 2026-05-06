@@ -174,6 +174,9 @@ metadata_for_container() {
     "$SPECS_ROOT"/design-plans/DP-[0-9][0-9][0-9]-*)
       kind="dp"
       anchor="$container/plan.md"
+      if [[ ! -f "$anchor" ]]; then
+        anchor="$container/index.md"
+      fi
       destination="$SPECS_ROOT/design-plans/archive/$(basename "$container")"
       ;;
     "$SPECS_ROOT"/companies/*/*)
@@ -182,6 +185,9 @@ metadata_for_container() {
         anchor="$container/refinement.md"
       else
         anchor="$container/plan.md"
+      fi
+      if [[ ! -f "$anchor" ]]; then
+        anchor="$container/index.md"
       fi
       company="$(basename "$(dirname "$container")")"
       destination="$SPECS_ROOT/companies/$company/archive/$(basename "$container")"

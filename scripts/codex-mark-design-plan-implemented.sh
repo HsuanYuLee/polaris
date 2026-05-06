@@ -6,7 +6,7 @@
 #  - design-plan-checklist-gate
 #
 # Usage:
-#   codex-mark-design-plan-implemented.sh [--dry-run] <plan_file>
+#   codex-mark-design-plan-implemented.sh [--dry-run] <plan_file|index_file>
 #
 # Behavior:
 #   - Always runs design-plan-checklist-gate with a synthetic Write payload.
@@ -39,8 +39,8 @@ if [[ ! -f "$plan_file" ]]; then
   exit 1
 fi
 
-if [[ "$plan_file" != *"/design-plans/"*"/plan.md" ]]; then
-  echo "Unsupported path (must be specs/design-plans/*/plan.md): $plan_file" >&2
+if [[ "$plan_file" != *"/design-plans/"*"/plan.md" && "$plan_file" != *"/design-plans/"*"/index.md" ]]; then
+  echo "Unsupported path (must be specs/design-plans/*/{plan,index}.md): $plan_file" >&2
   exit 1
 fi
 

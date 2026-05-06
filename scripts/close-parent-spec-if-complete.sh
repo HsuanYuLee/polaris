@@ -11,11 +11,11 @@ set -euo pipefail
 #
 # Behavior:
 #   - Given a task under specs/**/tasks/ or specs/**/tasks/pr-release/, find the
-#     parent refinement.md / plan.md.
+#     parent refinement.md / plan.md / index.md.
 #   - If any active sibling task remains under tasks/, NOOP.
 #   - If any pr-release sibling task is not status: IMPLEMENTED, NOOP.
 #   - If all sibling tasks are implemented, check off task checklist items,
-#     rewrite moved task links to tasks/pr-release/*.md, and mark the parent
+#     rewrite moved task links to tasks/pr-release/*.md or tasks/pr-release/*/index.md, and mark the parent
 #     spec IMPLEMENTED.
 #   - Design plans use codex-mark-design-plan-implemented.sh so checklist
 #     governance still applies.
@@ -166,6 +166,123 @@ MD
     return 1
   }
 
+  dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-997-folder-native-parent-closeout"
+  mkdir -p "$dp_dir/tasks/pr-release/T1" "$dp_dir/tasks/pr-release/T2"
+  cat >"$dp_dir/index.md" <<'MD'
+---
+topic: folder-native parent closeout smoke
+created: 2026-05-06
+status: LOCKED
+locked_at: 2026-05-06
+---
+
+# DP-997
+
+## Implementation Checklist
+
+- [ ] T1: First task — `tasks/T1/index.md`
+- [ ] T2: Second task — `tasks/T2/index.md`
+
+## Work Orders
+
+| Task | Work order |
+|------|------------|
+| T1 | `tasks/T1/index.md` |
+| T2 | `tasks/T2/index.md` |
+MD
+  for task in T1 T2; do
+    cat >"$dp_dir/tasks/pr-release/${task}/index.md" <<MD
+---
+status: IMPLEMENTED
+---
+# ${task}
+
+> Source: DP-997 | Task: DP-997-${task} | JIRA: N/A | Repo: polaris-framework
+MD
+  done
+
+  env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T2/index.md" --workspace "$tmpdir" >/dev/null
+  grep -q '^status: IMPLEMENTED$' "$dp_dir/index.md" || {
+    echo "[selftest] folder-native DP parent was not marked IMPLEMENTED" >&2
+    return 1
+  }
+  grep -q 'tasks/pr-release/T1/index.md' "$dp_dir/index.md" || {
+    echo "[selftest] folder-native DP task links were not rewritten" >&2
+    return 1
+  }
+
+  dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-996-folder-native-active-sibling"
+  mkdir -p "$dp_dir/tasks/T2" "$dp_dir/tasks/pr-release/T1"
+  cat >"$dp_dir/index.md" <<'MD'
+---
+topic: folder-native active sibling smoke
+created: 2026-05-06
+status: LOCKED
+locked_at: 2026-05-06
+---
+
+# DP-996
+
+## Implementation Checklist
+
+- [ ] T1: First task — `tasks/T1/index.md`
+- [ ] T2: Active task — `tasks/T2/index.md`
+MD
+  cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
+---
+status: IMPLEMENTED
+---
+# T1
+
+> Source: DP-996 | Task: DP-996-T1 | JIRA: N/A | Repo: polaris-framework
+MD
+  cat >"$dp_dir/tasks/T2/index.md" <<'MD'
+# T2
+
+> Source: DP-996 | Task: DP-996-T2 | JIRA: N/A | Repo: polaris-framework
+MD
+
+  env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T1/index.md" --workspace "$tmpdir" >/dev/null
+  ! grep -q '^status: IMPLEMENTED$' "$dp_dir/index.md" || {
+    echo "[selftest] folder-native DP parent closed while active sibling remained" >&2
+    return 1
+  }
+
+  dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-995-folder-native-parent-archive"
+  mkdir -p "$dp_dir/tasks/pr-release/T1"
+  cat >"$dp_dir/index.md" <<'MD'
+---
+topic: folder-native parent archive smoke
+created: 2026-05-06
+status: LOCKED
+locked_at: 2026-05-06
+---
+
+# DP-995
+
+## Implementation Checklist
+
+- [ ] T1: First task — `tasks/T1/index.md`
+MD
+  cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
+---
+status: IMPLEMENTED
+---
+# T1
+
+> Source: DP-995 | Task: DP-995-T1 | JIRA: N/A | Repo: polaris-framework
+MD
+
+  env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T1/index.md" --workspace "$tmpdir" --archive-terminal-parent >/dev/null
+  [[ ! -d "$dp_dir" ]] || {
+    echo "[selftest] folder-native explicit archive mode did not move active DP parent" >&2
+    return 1
+  }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-995-folder-native-parent-archive/index.md" ]] || {
+    echo "[selftest] folder-native explicit archive mode missing archived DP index" >&2
+    return 1
+  }
+
   echo "[selftest] PASS"
 }
 
@@ -262,22 +379,30 @@ if not parent_dir.exists():
 is_design_plan = "/specs/design-plans/" in str(parent_dir)
 if is_design_plan:
     parent_file = parent_dir / "plan.md"
+    if not parent_file.exists():
+        parent_file = parent_dir / "index.md"
     match = re.match(r"(DP-\d{3})(?:-|$)", parent_dir.name)
     parent_key = match.group(1) if match else ""
 else:
     parent_file = parent_dir / "refinement.md"
     if not parent_file.exists():
         parent_file = parent_dir / "plan.md"
+    if not parent_file.exists():
+        parent_file = parent_dir / "index.md"
     parent_key = parent_dir.name
 
 if not parent_file.exists():
     emit(action="noop", reason="parent refinement.md/plan.md not found", parent_dir=str(parent_dir))
     sys.exit(0)
 
-active_tasks = sorted(
-    p for p in tasks_dir.iterdir()
-    if p.is_file() and re.fullmatch(r"[TV]\d+[a-z]*\.md", p.name)
-)
+active_tasks = []
+for p in sorted(tasks_dir.iterdir()):
+    if p.name == "pr-release":
+        continue
+    if p.is_file() and re.fullmatch(r"[TV]\d+[a-z]*\.md", p.name):
+        active_tasks.append(p)
+    elif p.is_dir() and re.fullmatch(r"[TV]\d+[a-z]*", p.name) and (p / "index.md").is_file():
+        active_tasks.append(p / "index.md")
 if active_tasks:
     emit(
         action="noop",
@@ -288,10 +413,13 @@ if active_tasks:
     sys.exit(0)
 
 pr_release = tasks_dir / "pr-release"
-completed_tasks = sorted(
-    p for p in pr_release.iterdir()
-    if p.is_file() and re.fullmatch(r"[TV]\d+[a-z]*\.md", p.name)
-) if pr_release.exists() else []
+completed_tasks = []
+if pr_release.exists():
+    for p in sorted(pr_release.iterdir()):
+        if p.is_file() and re.fullmatch(r"[TV]\d+[a-z]*\.md", p.name):
+            completed_tasks.append(p)
+        elif p.is_dir() and re.fullmatch(r"[TV]\d+[a-z]*", p.name) and (p / "index.md").is_file():
+            completed_tasks.append(p / "index.md")
 
 if not completed_tasks:
     emit(action="noop", reason="no pr-release sibling tasks found", parent=str(parent_file))
@@ -310,10 +438,16 @@ if unfinished:
     )
     sys.exit(0)
 
-completed_stems = {p.stem for p in completed_tasks}
+def task_stem(path: Path) -> str:
+    if path.name == "index.md" and path.parent.name != "pr-release":
+        return path.parent.name
+    return path.stem
+
+completed_stems = {task_stem(p) for p in completed_tasks}
 text = parent_file.read_text(encoding="utf-8")
 
 def rewrite_links(value: str) -> str:
+    value = re.sub(r"tasks/(?!pr-release/)([TV]\d+[a-z]*)/index\.md", r"tasks/pr-release/\1/index.md", value)
     return re.sub(r"tasks/(?!pr-release/)([TV]\d+[a-z]*\.md)", r"tasks/pr-release/\1", value)
 
 lines = text.splitlines()
@@ -329,6 +463,7 @@ for line in lines:
     new_line = rewrite_links(line)
     if in_checklist and re.search(r"- \[ \]", new_line):
         refs = set(re.findall(r"tasks/(?:pr-release/)?([TV]\d+[a-z]*)\.md", new_line))
+        refs.update(re.findall(r"tasks/(?:pr-release/)?([TV]\d+[a-z]*)/index\.md", new_line))
         prefix = re.match(r"\s*- \[ \]\s*([TV]\d+[a-z]*)(?=[:\s])", new_line)
         if prefix:
             refs.add(prefix.group(1))

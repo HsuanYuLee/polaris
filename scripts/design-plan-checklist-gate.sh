@@ -25,7 +25,7 @@ fi
 file_path=$(printf '%s' "$input" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || true)
 
 # Only care about design plan files
-if [[ "$file_path" != *"/design-plans/"*"/plan.md" ]]; then
+if [[ "$file_path" != *"/design-plans/"*"/plan.md" && "$file_path" != *"/design-plans/"*"/index.md" ]]; then
   exit 0
 fi
 

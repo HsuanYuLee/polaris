@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.95] - 2026-05-06
+
+### Fixed — folder-native parent closeout
+
+- Updated parent closeout to support folder-native `index.md` parents and `tasks/pr-release/Tn/index.md` siblings.
+- Added regression coverage so active folder-native siblings prevent parent closeout.
+- Updated design-plan status, sidebar sync, and archive helpers to accept folder-native design plan `index.md` anchors.
+
 ## [3.74.94] - 2026-05-06
 
 ### Fixed — folder-native framework release closeout
