@@ -64,6 +64,11 @@ Explorer Detail 寫入 handoff artifact，格式依 `handoff-artifact.md`：
 ## Handoff
 
 AC-FAIL diagnosis 完成後，仍進 RD confirmation hard stop。確認後寫 JIRA RCA。
+final RCA comment 先 materialize 成 local artifact，再跑 language / external write gate；
+未通過時停在 diagnosis，不 handoff。
 
 Handoff 要明確說明 engineering 後續 checkout feature branch，在上面開 fix branch；修完 merge
 回 feature branch 後，使用 `verify-AC` full re-run。
+
+Next step 預設仍是 `breakdown {TICKET}`；只有已存在 authoritative task work order 時，才可
+改提示 `做 {TICKET}`。

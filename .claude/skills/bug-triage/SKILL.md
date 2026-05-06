@@ -11,7 +11,7 @@ description: >
   This skill handles DIAGNOSIS only — estimation, test plan, QA challenge, and design doc are delegated to breakdown.
 metadata:
   author: Polaris
-  version: 2.3.0
+  version: 2.4.0
 ---
 
 # Bug Triage — 診斷層
@@ -26,6 +26,8 @@ JIRA，交給 `breakdown` 派工。
 
 若 ticket 不是 Bug，停止並路由：Story/Task 走 `breakdown` 或 `engineering`，Epic 走
 `refinement` 再 `breakdown`。若 JIRA 已有 `[ROOT_CAUSE]`，詢問要重新分析或直接派工。
+Bug 的 planning handoff 仍以 confirmed RCA 為前提，但 direct-to-`engineering` 只在已存在
+authoritative task work order 時合法；沒有 work order 時，下一步一律是 `breakdown`。
 
 ## Reference Loading
 
@@ -42,27 +44,36 @@ AC-FAIL path 的 raw evidence 寫入 handoff artifact，供 downstream engineeri
 ## Flow
 
 1. Parse ticket key，讀 JIRA ticket，確認 issue type。
-2. 依 `project-mapping.md` 找 project 與 handbook。
+2. 依 `project-mapping.md` 與 workspace config 找 project，先讀 company handbook index +
+   linked docs，再讀 repo handbook index + linked docs。
 3. 若 ticket 來自 verify-AC `[VERIFICATION_FAIL]`，走 AC-FAIL scoped path。
 4. 否則判斷 fast path；明顯單檔小修可 inline analysis，其他走 Explorer full path。
 5. 產出 Root Cause / Impact / Proposed Fix。
 6. 向 RD 呈現分析並 hard stop；使用者確認前不得寫 JIRA 或 handoff。
 7. 使用者修正時，最多 re-analyze 兩輪；仍不清楚則升級為人工 code confirmation。
-8. 確認後，將 `[ROOT_CAUSE]` / `[IMPACT]` / `[PROPOSED_FIX]` 寫成 JIRA comment。
+8. 確認後，先 materialize final RCA comment artifact，再跑 `workspace-language-policy.md`
+   / external write gate blocking validation；通過後才將 `[ROOT_CAUSE]` / `[IMPACT]` /
+   `[PROPOSED_FIX]` 寫成 JIRA comment。
 9. 處理 handbook observations。
-10. 回報 `breakdown {TICKET}` 或 `做 {TICKET}` 下一步。
+10. 回報下一步：預設 `breakdown {TICKET}`；只有已存在 authoritative task work order 時才可
+    提示 `做 {TICKET}`。
 
 ## Write Rules
 
 - JIRA diagnostic comment 是 external write，送出前必須通過 `workspace-language-policy.md`
-  或 external write gate。
+  或 external write gate，且先有 local final-comment artifact。
 - Handbook gap/stale updates 依 `explore-pattern.md`，只寫 workspace-owned handbook source。
 - Bug-triage 不使用 blame 或 author attribution 決定誰修；assignee 是運維層，不是診斷輸入。
 
 ## Completion
 
 輸出 ticket、root cause confirmed status、JIRA comment status、proposed fix scope、
-evidence artifact path（fast path 可為 none）、next command。
+evidence artifact path（fast path 可為 none）、next command。`next command` 預設是
+`breakdown {TICKET}`；只有已存在 authoritative task work order 時才是 `做 {TICKET}`。
+
+## Step 11 — L2 Deterministic Check: post-task-feedback-reflection
+
+完成 write flow 後必須呼叫 `scripts/check-feedback-signals.sh`，再執行 Post-Task Reflection。
 
 ## Post-Task Reflection (required)
 

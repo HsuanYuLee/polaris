@@ -49,17 +49,38 @@ VALID_PRIORITIES = {"P0", "P1", "P2", "P3", "P4"}
 VALID_VARIANTS = {"note", "tip", "caution", "danger", "success"}
 
 
-def plan_files(path: Path):
+def primary_doc_files(path: Path):
     if not path.exists():
         print(f"error: path not found: {path}", file=sys.stderr)
         sys.exit(2)
     if path.is_file():
-        if path.name == "plan.md":
+        if path.name in {"index.md", "plan.md"}:
             yield path
         return
-    for file in sorted(path.rglob("plan.md")):
-        if "/design-plans/" in file.as_posix() or file.as_posix().endswith("/design-plans/plan.md"):
-            yield file
+    if path.is_dir() and re.match(r"DP-\d+", path.name):
+        index_doc = path / "index.md"
+        plan_doc = path / "plan.md"
+        if index_doc.is_file():
+            yield index_doc
+            return
+        if plan_doc.is_file():
+            yield plan_doc
+            return
+    candidates = []
+    for container in sorted(path.rglob("DP-*")):
+        if not container.is_dir():
+            continue
+        parts = container.parts
+        if "design-plans" not in parts:
+            continue
+        index_doc = container / "index.md"
+        plan_doc = container / "plan.md"
+        if index_doc.is_file():
+            candidates.append(index_doc)
+        elif plan_doc.is_file():
+            candidates.append(plan_doc)
+    for file in candidates:
+        yield file
 
 
 def strip_quotes(value: str) -> str:
@@ -135,14 +156,14 @@ def add(rows, path, issue, detail):
 files = []
 seen = set()
 for input_path in inputs:
-    for file in plan_files(input_path):
+    for file in primary_doc_files(input_path):
         resolved = file.resolve()
         if resolved not in seen:
             seen.add(resolved)
             files.append(file)
 
 if not files:
-    print("error: no Design Plan plan.md files found", file=sys.stderr)
+    print("error: no Design Plan primary docs found", file=sys.stderr)
     sys.exit(2)
 
 rows = []

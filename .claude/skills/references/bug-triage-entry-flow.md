@@ -27,7 +27,9 @@ Issue Type 不是 Bug 時停止，並建議正確 skill：
 - Component / label。
 - Config `projects[].tags` / `keywords`。
 
-找到 project 後讀 repo handbook；handbook 不存在時，依 `explore-pattern.md` 小範圍探索。
+找到 project 後，先讀 company handbook index + linked docs，再讀 repo handbook index +
+linked docs。repo handbook 缺失時，依 `explore-pattern.md` 小範圍探索；不可因缺 handbook
+跳過 diagnosis contract。
 
 ## Existing Diagnosis
 
@@ -35,7 +37,7 @@ Issue Type 不是 Bug 時停止，並建議正確 skill：
 
 - 重新分析。
 - 直接進 `breakdown {TICKET}`。
-- 若已有 task.md，直接 `做 {TICKET}`。
+- 若已可 resolve 單一 authoritative task.md，直接 `做 {TICKET}`。
 
 不要重複寫 RCA。
 

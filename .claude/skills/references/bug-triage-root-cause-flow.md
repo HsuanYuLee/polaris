@@ -20,15 +20,15 @@ description: "bug-triage fast/full path root cause analysis、Explorer prompt bo
 
 Explorer 任務：
 
-1. 讀 handbook。
+1. 先讀 company handbook index + linked docs，再讀 repo handbook index + linked docs。
 2. 找 ticket 描述對應的功能、頁面、元件、API。
 3. 找出哪個檔案、哪段邏輯造成 bug。
 4. 評估同一段邏輯的其他使用者與連動風險。
 5. 提出修正方向，不寫 code。
 6. 回報 handbook gaps or stale observations。
 
-若需要啟動 dev server、重現 bug、或跑 runtime verification，依 `planning-worktree-isolation.md`
-使用 dedicated worktree，不污染 main checkout。
+若需要啟動 dev server、重現 bug、或跑 runtime verification，依
+`planning-worktree-isolation.md` 使用 dedicated worktree，不污染 main checkout。
 
 ## Output Schema
 
@@ -60,7 +60,8 @@ evidence。Raw evidence 可包含 grep results、suspect code lines、error trac
 handbook excerpt。寫入後必跑 scrub and cap。
 
 Fast path 沒有 Explorer artifact，但仍要保留同樣的 Root Cause / Impact / Proposed Fix
-structure。
+structure；若之後要寫 JIRA comment，仍需先 materialize final comment artifact，再交給
+language / external write gate。
 
 ## Fast Path
 
