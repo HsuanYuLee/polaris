@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.7] - 2026-05-06
+
+### Fixed — review-inbox review status invocation
+
+- Updated `check-my-review-status.sh` to support both positional and `--my-user` / `--org` invocation forms.
+- Added regression coverage for the DP-113 pilot failure where discovery treated `--my-user` as the literal reviewer name.
+- Documented that raw diff debug output must be redirected to artifacts instead of main-session stdout/stderr.
+
 ## [3.75.6] - 2026-05-06
 
 ### Fixed — docs-manager sidebar refresh

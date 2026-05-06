@@ -38,6 +38,16 @@ Current GitHub username 必須動態取得，並排除自己的 PR。
 
 Script path 以 skill directory 為準。
 
+`check-my-review-status.sh` 的 canonical invocation 是：
+
+```bash
+check-my-review-status.sh --my-user <github_username> --org <github_org>
+```
+
+Backward-compatible invocation `ORG=<github_org> check-my-review-status.sh <github_username>` 也可用。
+Discovery sub-agent 不得把 `--my-user` 當 positional argument，也不得省略 GitHub org；否則所有
+review state 會比對錯誤，已 reviewed at head 的 PR 會被誤列為 `needs_first_review`。
+
 ## Source Selection
 
 Thread mode 優先：使用者訊息含 Slack URL 且有 review intent。從 URL 解析 channel ID 與

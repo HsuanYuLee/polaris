@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # check-my-review-status.sh — 批次檢查每個 PR 對指定 user 的 review 狀態
 #
-# Usage: echo '<pr_json>' | ./check-my-review-status.sh <github_username>
+# Usage:
+#   echo '<pr_json>' | ./check-my-review-status.sh <github_username>
+#   echo '<pr_json>' | ./check-my-review-status.sh --my-user <github_username> --org <github_org>
 # Input (stdin): scan-need-review-prs.sh 的 JSON 輸出
 # Output (stdout): JSON array，每個 PR 附加 review_status 和 review_detail
 #
@@ -15,14 +17,43 @@
 #
 # Example:
 #   ./scan-need-review-prs.sh --exclude-author your-github-user \
-#     | ./check-my-review-status.sh your-github-user
+#     | ORG=my-github-org ./check-my-review-status.sh your-github-user
 
 set -euo pipefail
 
-MY_USER="${1:?Usage: $0 <github_username>}"
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  check-my-review-status.sh <github_username>
+  check-my-review-status.sh --my-user <github_username> [--org <github_org>]
+
+ORG may be supplied by --org or ORG environment variable.
+EOF
+  exit 2
+}
+
+MY_USER=""
 ORG="${ORG:-}"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --my-user) MY_USER="${2:-}"; shift 2 ;;
+    --org) ORG="${2:-}"; shift 2 ;;
+    -h|--help) usage ;;
+    --*) echo "Unknown option: $1" >&2; usage ;;
+    *)
+      if [[ -n "$MY_USER" ]]; then
+        echo "Unexpected positional argument: $1" >&2
+        usage
+      fi
+      MY_USER="$1"
+      shift
+      ;;
+  esac
+done
+
+[[ -z "$MY_USER" ]] && usage
 if [[ -z "$ORG" ]]; then
-  echo "ERROR: ORG environment variable required (e.g. export ORG=my-github-org)" >&2
+  echo "ERROR: GitHub org required via --org or ORG environment variable" >&2
   exit 1
 fi
 

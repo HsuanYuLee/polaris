@@ -113,6 +113,9 @@ Token budget rules：
   也不是整批共享額度。
 - 完整 diff 必須先存到 `/tmp/review-inbox-runs/{run_id}/pr-{number}.diff`。後續 line range
   inspection 用 `inspect-pr-section.sh` 輸出 bounded section，不用 Read 工具回讀完整 diff。
+- Debug 也受同一條 raw evidence policy 約束。不得在 main session 執行
+  `gh pr diff ... 2>&1` 或任何會把 full diff 直接印回 stdout/stderr 的命令；錯誤診斷必須把
+  full output redirect 到 artifact，再只輸出 bounded summary。
 - Sub-agent 或 constrained reviewer envelope 內仍可使用 DP-094 sampling：整體 diff 不超過
   2000 行時可讀完整 diff；超過時每個檔案只讀 hunk headers、changed lines 與前後約
   20 行 context。

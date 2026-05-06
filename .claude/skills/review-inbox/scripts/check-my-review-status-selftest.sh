@@ -59,6 +59,10 @@ case "$endpoint" in
   */pulls/5/commits) payload='[{"commit":{"committer":{"date":"2026-05-06T11:00:00Z"}}}]' ;;
   */pulls/5/comments) payload='[{"user":{"login":"erin"},"created_at":"2026-05-06T11:30:00Z"}]' ;;
   */issues/5/comments) payload='[]' ;;
+
+  */pulls/6/reviews) payload='[{"user":{"login":"reviewer"},"state":"COMMENTED","submitted_at":"2026-05-06T08:00:00Z"},{"user":{"login":"reviewer"},"state":"APPROVED","submitted_at":"2026-05-06T10:00:00Z"}]' ;;
+  */pulls/6/commits) payload='[{"commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
+  */pulls/6/comments|*/issues/6/comments) payload='[]' ;;
 esac
 
 if [[ -n "$jq_filter" ]]; then
@@ -76,14 +80,14 @@ cat > "$candidates" <<'JSON'
   {"repo":"demo","number":2,"title":"commented no push","url":"https://github.com/acme/demo/pull/2","author":"bob","created_at":"2026-05-06T08:00:00Z"},
   {"repo":"demo","number":3,"title":"changes no push","url":"https://github.com/acme/demo/pull/3","author":"carol","created_at":"2026-05-06T08:00:00Z"},
   {"repo":"demo","number":4,"title":"approved stale","url":"https://github.com/acme/demo/pull/4","author":"dan","created_at":"2026-05-06T08:00:00Z"},
-  {"repo":"demo","number":5,"title":"changes replied with push","url":"https://github.com/acme/demo/pull/5","author":"erin","created_at":"2026-05-06T08:00:00Z"}
+  {"repo":"demo","number":5,"title":"changes replied with push","url":"https://github.com/acme/demo/pull/5","author":"erin","created_at":"2026-05-06T08:00:00Z"},
+  {"repo":"demo","number":6,"title":"multiple reviews latest approved no push","url":"https://github.com/acme/demo/pull/6","author":"frank","created_at":"2026-05-06T08:00:00Z"}
 ]
 JSON
 
-out="$tmp/out.json"
-PATH="$mock_bin:$PATH" ORG=acme "$checker" reviewer < "$candidates" > "$out"
-
-python3 - "$out" <<'PY'
+assert_actionable() {
+  local out="$1"
+  python3 - "$out" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -99,5 +103,19 @@ if by_number[4]["review_status"] != "needs_re_approve":
 if by_number[5]["review_status"] != "needs_re_review":
     raise SystemExit("PR 5 should need re-review")
 PY
+}
+
+out_positional="$tmp/out-positional.json"
+PATH="$mock_bin:$PATH" ORG=acme "$checker" reviewer < "$candidates" > "$out_positional"
+assert_actionable "$out_positional"
+
+out_flags="$tmp/out-flags.json"
+PATH="$mock_bin:$PATH" "$checker" --my-user reviewer --org acme < "$candidates" > "$out_flags"
+assert_actionable "$out_flags"
+
+if PATH="$mock_bin:$PATH" "$checker" --my-user reviewer < "$candidates" >/dev/null 2>&1; then
+  echo "missing org should fail" >&2
+  exit 1
+fi
 
 echo "check-my-review-status selftest: PASS"
