@@ -3,6 +3,7 @@
 # Codex fallback command gate for gh pr create.
 #
 # Runs P0 PR gates:
+#  - work-source-required (No-Source No-PR)
 #  - ci-local-required (Dimension B; D12-c)
 #  - verification-evidence-required (Dimension A; runtime/build verify)
 #
@@ -30,7 +31,10 @@ print(" ".join(shlex.quote(part) for part in ["gh", "pr", "create", *sys.argv[1:
 PY
 )"
 
-"$ROOT_DIR/scripts/gates/gate-pr-language.sh" --repo "${GATE_PROJECT_DIR:-$(pwd)}" --command "$pr_cmd"
+REPO_PATH="${GATE_PROJECT_DIR:-$(pwd)}"
+
+"$ROOT_DIR/scripts/gates/gate-work-source.sh" --repo "$REPO_PATH"
+"$ROOT_DIR/scripts/gates/gate-pr-language.sh" --repo "$REPO_PATH" --command "$pr_cmd"
 "$ADAPTER" "$ROOT_DIR/.claude/hooks/ci-local-gate.sh" "$pr_cmd"
 "$ADAPTER" "$ROOT_DIR/scripts/verification-evidence-gate.sh" "$pr_cmd"
 

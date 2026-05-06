@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.2] - 2026-05-06
+
+### Fixed — no-source no-PR gate
+
+- 新增 Polaris PR creation source gate，要求 Polaris-governed repo 在建立 PR 前必須解析到合法 `task.md`。
+- 阻擋 source-less PR、`--draft` PR，以及用 `--skip-gates` 跳過 source gate 的嘗試。
+- 更新 engineering / PR body references，明確禁止 generic publisher 旁路 Polaris PR creation。
+
 ## [3.75.1] - 2026-05-06
 
 ### Fixed — review thread completion gate

@@ -651,11 +651,22 @@ PR_BODY_FILE="$(mktemp -t polaris-pr-body.XXXXXX.md)"
 bash "${CLAUDE_PROJECT_DIR}/scripts/polaris-pr-create.sh" --base "${RESOLVED_BASE}" --title "<title>" --body-file "$PR_BODY_FILE"
 ```
 
-Admin 模式（無 task.md）直接用當前 branch upstream 或 `origin/main`，跳過 resolve helper。
+Admin 模式不得建立 Polaris-governed repo 的 source-less PR。若 framework / product repo
+需要 hotfix，先補合法 source artifact（例如 DP/refinement -> breakdown task 或 Bug RCA ->
+task），再進 PR creation；不得把「小修」、「emergency」或 maintainer intent 當作 bypass。
 
-`polaris-pr-create.sh` wrapper（DP-032 Wave δ）在 `gh pr create` 前依序執行 gate-base-check + gate-evidence + gate-ci-local + gate-pr-title + gate-pr-body-template + gate-pr-language + gate-changeset — `--base` 值與 resolve 結果不符、Developer title 不符、PR body 未保留 repo template headings、PR prose 違反 workspace language、或 task changeset 缺失時 wrapper 直接 block。
+`polaris-pr-create.sh` wrapper（DP-032 Wave δ + DP-117）在 `gh pr create` 前先執行
+`gate-work-source.sh`，確認 current branch 能 resolve 到合法 `task.md`；此 gate 不受
+`--skip-gates` 影響且沒有 emergency bypass。通過後才依序執行 gate-base-check +
+gate-evidence + gate-ci-local + gate-pr-title + gate-pr-body-template + gate-pr-language +
+gate-changeset — 缺 source、`--base` 值與 resolve 結果不符、Developer title 不符、PR
+body 未保留 repo template headings、PR prose 違反 workspace language、或 task changeset
+缺失時 wrapper 直接 block。
 
-不可使用裸 `gh pr create` 或 `gh pr create --draft` 當作 Developer delivery 終點。即使 runtime 沒有 Claude hook，Step 8.5 仍會以 GitHub remote PR truth 重新檢查 deliverable；draft PR、非 open PR、或 invalid remote PR body 會阻擋 task lifecycle closeout。
+不可使用裸 `gh pr create`、generic publisher、或 `gh pr create --draft` 當作 Developer
+delivery 終點。即使 runtime 沒有 Claude hook，Step 8.5 仍會以 GitHub remote PR truth
+重新檢查 deliverable；source-less PR、draft PR、非 open PR、或 invalid remote PR body
+會阻擋 task lifecycle closeout。
 
 - Developer title：先讀 company `workspace-config.yaml` 中 matching repo 的 `projects[].delivery.pr_title.developer`；未設定才 fallback `[{TICKET}] {summary}`
 - Admin title：`<type>(<scope>): <summary>`（conventional commit 格式）

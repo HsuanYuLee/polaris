@@ -12,7 +12,8 @@ set -euo pipefail
 # All unrecognized flags are passed through to `gh pr create`.
 # Gates that fail with exit 2 abort PR creation.
 #
-# Bypass: --skip-gates (or POLARIS_SKIP_PR_GATES=1)
+# `--skip-gates` may skip non-source gates only. The work-source gate is
+# mandatory in Polaris-governed repos and has no emergency bypass.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GATES_DIR="$SCRIPT_DIR/gates"
@@ -31,7 +32,7 @@ Wrapper for 'gh pr create' that runs pre-flight gates before PR creation.
 
 Options:
   --repo <path>     Repository path (default: cwd)
-  --skip-gates      Skip all gates (emergency bypass)
+  --skip-gates      Skip non-source gates only; work-source gate still runs
   --aggregate-release
                      Treat this as an explicit framework aggregate release PR
   -h, --help        Show this help
@@ -93,7 +94,16 @@ for (( i=0; i<${#GH_ARGS[@]}; i++ )); do
   esac
 done
 
-# --- Detect non-ticket branch (skip evidence gate) ---
+# --- Detect forbidden PR modes ---
+for arg in "${GH_ARGS[@]}"; do
+  if [[ "$arg" == "--draft" ]]; then
+    echo "$PREFIX ✗ BLOCKED: draft PR creation is blocked in Polaris delivery flows."
+    echo "$PREFIX Create a normal PR backed by a legal work source; document blockers in the PR body if needed."
+    exit 2
+  fi
+done
+
+# --- Detect non-ticket branch (skip legacy evidence gate only after source gate) ---
 CURRENT_BRANCH="$(git -C "$REPO_PATH" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
 IS_TICKET_BRANCH=1
 [[ -z "$CURRENT_BRANCH" || "$CURRENT_BRANCH" =~ ^(main|master|develop|release/) ]] && IS_TICKET_BRANCH=0
@@ -122,9 +132,12 @@ run_gate() {
   fi
 }
 
-# --- Skip gates ---
+# --- Mandatory source gate ---
+run_gate gate-work-source.sh --repo "$REPO_PATH"
+
+# --- Skip non-source gates ---
 if [[ "$SKIP_GATES" == "1" ]]; then
-  echo "$PREFIX ⚠ --skip-gates: all gates bypassed"
+  echo "$PREFIX ⚠ --skip-gates: non-source gates bypassed; source gate already passed"
   exec gh pr create "${GH_ARGS[@]}"
 fi
 
