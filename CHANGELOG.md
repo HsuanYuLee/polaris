@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.4] - 2026-05-06
+
+### Fixed — task-bound verify report completion gate
+
+- Added a deterministic task verify report writer that collects local verification evidence into task-folder `verify-report.md` artifacts.
+- Updated the delivery completion gate to require a task-bound verify report matching the ticket and deliverable head SHA.
+- Hardened verify command handling so stdout `FAIL` markers cannot be reported as passing evidence when a command exits 0.
+
 ## [3.75.3] - 2026-05-06
 
 ### Fixed — refinement source handoff coverage

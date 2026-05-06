@@ -309,6 +309,22 @@ EV_F_EXIT="$(python3 -c "import json; print(json.load(open('$EV_F'))['exit_code'
 assert_eq "$EV_F_EXIT" "7" "evidence: exit_code reflects FAIL"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "=== stdout FAIL marker → exit 1, evidence still written ==="
+TASK_STDOUT_FAIL="$PARENT_S/specs/SELFTEST-001/tasks/T_stdout_fail.md"
+make_fake_task_md "$REPO_S" "myrepo" "$TASK_STDOUT_FAIL" "static" 'echo "FAIL: semantic verification failed"' "RVC-STDOUT-FAIL"
+
+"$RVC" --task-md "$TASK_STDOUT_FAIL" >"$WORK_DIR/stdout_fail.out" 2>"$WORK_DIR/stdout_fail.err"
+RC_STDOUT_FAIL=$?
+assert_eq "$RC_STDOUT_FAIL" "1" "stdout FAIL marker → script exit 1"
+assert_contains "$(cat "$WORK_DIR/stdout_fail.err")" "stdout contains FAIL marker" "stdout FAIL marker warning"
+
+EV_STDOUT_FAIL="/tmp/polaris-verified-RVC-STDOUT-FAIL-${HEAD_S}.json"
+assert_file_exists "$EV_STDOUT_FAIL" "stdout FAIL evidence file"
+
+EV_STDOUT_FAIL_EXIT="$(python3 -c "import json; print(json.load(open('$EV_STDOUT_FAIL'))['exit_code'])" 2>/dev/null)"
+assert_eq "$EV_STDOUT_FAIL_EXIT" "1" "stdout FAIL evidence exit_code reflects semantic failure"
+
+# ────────────────────────────────────────────────────────────────────────────
 echo "=== --ticket override ==="
 TASK_T="$PARENT_S/specs/SELFTEST-001/tasks/T_override.md"
 make_fake_task_md "$REPO_S" "myrepo" "$TASK_T" "static" 'echo override' "RVC-IGNORED"

@@ -193,6 +193,18 @@ node "${POLARIS_ROOT}/scripts/publish-jira-evidence.mjs" \
 
 ## Engineering Flow
 
+每個 Developer delivery 都必須有 task-bound `verify-report.md`。純測試或純靜態驗證沒有截圖/影片時，也要用：
+
+```bash
+bash "${POLARIS_ROOT}/scripts/write-task-verify-report.sh" \
+  --repo "<repo_root>" \
+  --ticket "<WORK_ITEM_ID>" \
+  --task-md "<task_md>" \
+  --head-sha "<HEAD_SHA>"
+```
+
+這份 report 放在 task container 旁，作為 local board 的可靠度佐證。
+
 當 local VR 或 Playwright behavior evidence 存在時，engineering 必須在 final
 PR-visible publication gate 前產生 `pr` bundle。Final response 或 handoff artifact
 必須列出 bundle path，讓使用者在 CLI/API 無法上傳 binary attachment 時可直接拖曳到

@@ -5,6 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CHECK="$SCRIPT_DIR/check-delivery-completion.sh"
+WRITE_REPORT="$SCRIPT_DIR/write-task-verify-report.sh"
 TMPROOT="$(mktemp -d -t completion-gate-selftest-XXXXXX)"
 PASS=0
 TOTAL=0
@@ -177,6 +178,19 @@ if "verification:" not in text:
     text = text.replace("---\n\n# T1:", f"{insert}---\n\n# T1:", 1)
 path.write_text(text, encoding="utf-8")
 PY
+}
+
+write_task_verify_report() {
+  local task_repo="$1"
+  local evidence_repo="$2"
+  local head_sha="$3"
+
+  bash "$WRITE_REPORT" \
+    --repo "$evidence_repo" \
+    --ticket DP-999-T1 \
+    --task-md "$task_repo/docs-manager/src/content/docs/specs/design-plans/DP-999-completion-gate/tasks/T1.md" \
+    --head-sha "$head_sha" \
+    --status PASS >/dev/null
 }
 
 setup_repo() {
@@ -385,6 +399,7 @@ run_case() {
   local head_sha
   head_sha="$(git -C "$repo" rev-parse HEAD)"
   write_task "$repo" "$head_sha"
+  write_task_verify_report "$repo" "$repo" "$head_sha"
 
   if [[ "$body_kind" == "valid" ]]; then
     cat > "$body_file" <<'EOF'
@@ -459,6 +474,51 @@ run_case "invalid-body-blocks" "OPEN" "false" "invalid" "2" "does not preserve r
 run_case "english-body-blocks" "OPEN" "false" "english" "2" "PR text violates workspace language policy"
 run_case "ready-pr-passes" "OPEN" "false" "valid" "0" "PR readiness/body/language/evidence publication/review-thread gates passed"
 
+run_missing_report_case() {
+  local label="missing-task-verify-report-blocks"
+  local repo="$TMPROOT/$label/repo"
+  local mockbin="$TMPROOT/$label/bin"
+  local body_file="$TMPROOT/$label/body.md"
+  mkdir -p "$(dirname "$repo")"
+  setup_repo "$repo"
+  local head_sha
+  head_sha="$(git -C "$repo" rev-parse HEAD)"
+  write_task "$repo" "$head_sha"
+
+  cat > "$body_file" <<'EOF'
+## Description
+
+這是 completion gate selftest 內容。
+
+## Changed
+
+- 補齊 completion gate 檢查。
+
+## Screenshots (Test Plan)
+
+- 已執行 selftest。
+
+## Related documents
+
+- DP-999
+
+## QA notes
+
+- N/A
+EOF
+  install_mock_gh "$mockbin" "$body_file" "OPEN" "false" "$head_sha"
+
+  set +e
+  out="$(POLARIS_SKIP_CI_LOCAL=1 POLARIS_SKIP_EVIDENCE=1 POLARIS_SKIP_PR_TITLE_GATE=1 POLARIS_SKIP_CHANGESET_GATE=1 PATH="$mockbin:$PATH" "$CHECK" --repo "$repo" --ticket DP-999-T1 2>&1)"
+  rc=$?
+  set -e
+
+  assert_rc "$label rc" "$rc" "2"
+  assert_contains "$label message" "$out" "missing task-bound verify report"
+}
+
+run_missing_report_case
+
 run_publication_case() {
   local label="$1"
   local comments_kind="$2"
@@ -476,6 +536,7 @@ run_publication_case() {
   head_sha="$(git -C "$repo" rev-parse HEAD)"
   write_task "$repo" "$head_sha"
   write_behavior_evidence "$repo" "$with_video"
+  write_task_verify_report "$repo" "$repo" "$head_sha"
 
   cat > "$body_file" <<'EOF'
 ## Description
@@ -560,6 +621,7 @@ run_overlay_case() {
   local head_sha
   head_sha="$(git -C "$worktree_repo" rev-parse HEAD)"
   write_task "$main_repo" "$head_sha"
+  write_task_verify_report "$main_repo" "$worktree_repo" "$head_sha"
   write_task_without_deliverable "$worktree_repo"
 
   cat > "$body_file" <<'EOF'
@@ -617,6 +679,7 @@ run_review_thread_case() {
   if [[ "$with_manifest" == "true" ]]; then
     write_review_thread_disposition "$repo" "$head_sha"
   fi
+  write_task_verify_report "$repo" "$repo" "$head_sha"
 
   cat > "$body_file" <<'EOF'
 ## Description
@@ -689,6 +752,7 @@ run_behavior_contract_case() {
   head_sha="$(git -C "$repo" rev-parse HEAD)"
   write_task_with_behavior_contract "$repo" "$head_sha"
   write_verify_evidence "$repo" "$head_sha"
+  write_task_verify_report "$repo" "$repo" "$head_sha"
 
   cat > "$body_file" <<'EOF'
 ## Description

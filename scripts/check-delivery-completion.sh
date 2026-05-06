@@ -195,6 +195,73 @@ review_thread_disposition_manifest_path() {
   printf '%s\n' "${REPO_ROOT}/.polaris/evidence/review-thread-disposition/polaris-review-thread-disposition-${disposition_ticket}-${deliverable_head_sha}.json"
 }
 
+task_verify_report_path() {
+  local task_md_path="$1"
+
+  python3 - "$task_md_path" <<'PY'
+from pathlib import Path
+import sys
+
+task = Path(sys.argv[1]).resolve()
+if task.name == "index.md":
+    print(task.parent / "verify-report.md")
+else:
+    print(task.with_suffix("") / "verify-report.md")
+PY
+}
+
+check_task_verify_report() {
+  local task_md_path="$1"
+  local report_ticket="$2"
+  local deliverable_head_sha="$3"
+  local report_path=""
+
+  if [[ -z "$report_ticket" ]]; then
+    report_ticket="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field task_jira_key 2>/dev/null || true)"
+  fi
+  if [[ -z "$report_ticket" ]]; then
+    echo "$PREFIX task verify report check failed: unable to resolve task ticket for ${task_md_path}" >&2
+    exit 2
+  fi
+
+  report_path="$(task_verify_report_path "$task_md_path")"
+  if [[ ! -f "$report_path" ]]; then
+    echo "$PREFIX BLOCKED: missing task-bound verify report for ${report_ticket}@${deliverable_head_sha}" >&2
+    echo "$PREFIX Expected report: ${report_path}" >&2
+    echo "$PREFIX Generate it with: bash scripts/write-task-verify-report.sh --repo ${REPO_ROOT} --ticket ${report_ticket} --task-md ${task_md_path} --head-sha ${deliverable_head_sha}" >&2
+    exit 2
+  fi
+
+  if ! python3 - "$report_path" "$report_ticket" "$deliverable_head_sha" <<'PY'
+from pathlib import Path
+import sys
+
+report = Path(sys.argv[1])
+ticket = sys.argv[2]
+head = sys.argv[3]
+text = report.read_text(encoding="utf-8")
+
+if not text.startswith("---\n"):
+    raise SystemExit(1)
+end = text.find("\n---\n", 4)
+if end == -1:
+    raise SystemExit(1)
+frontmatter = text[4:end]
+if "title:" not in frontmatter or "description:" not in frontmatter:
+    raise SystemExit(1)
+if ticket not in text or head not in text:
+    raise SystemExit(1)
+raise SystemExit(0)
+PY
+  then
+    echo "$PREFIX BLOCKED: task verify report is stale or invalid for ${report_ticket}@${deliverable_head_sha}" >&2
+    echo "$PREFIX Report must have Starlight frontmatter and contain both ticket and head SHA: ${report_path}" >&2
+    exit 2
+  fi
+
+  echo "$PREFIX task verify report found for ${report_ticket}@${deliverable_head_sha}: ${report_path}" >&2
+}
+
 check_pr_review_thread_dispositions() {
   local disposition_ticket="$1"
   local deliverable_head_sha="$2"
@@ -470,6 +537,12 @@ if [[ "$MODE" != "admin" ]]; then
     echo "$PREFIX completion freshness check failed: deliverable.head_sha (${DELIVERABLE_HEAD_SHA}) != HEAD (${CURRENT_HEAD_SHA}) in ${TASK_MD_PATH}" >&2
     exit 2
   fi
+
+  REPORT_TICKET="$TICKET"
+  if [[ -z "$REPORT_TICKET" ]]; then
+    REPORT_TICKET="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$TASK_MD_PATH" --no-resolve --field task_jira_key 2>/dev/null || true)"
+  fi
+  check_task_verify_report "$TASK_MD_PATH" "$REPORT_TICKET" "$DELIVERABLE_HEAD_SHA"
 
   check_deliverable_pr_remote_truth "$TASK_MD_PATH" "$DELIVERABLE_HEAD_SHA"
 fi

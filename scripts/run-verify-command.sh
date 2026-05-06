@@ -365,6 +365,11 @@ else
   FALLBACK_EXIT=""
 fi
 
+if [[ "$EFFECTIVE_EXIT" -eq 0 ]] && grep -Eq '(^|[[:space:]])FAIL(:|[[:space:]]|$)' "$EFFECTIVE_STDOUT_FILE"; then
+  echo "run-verify-command: stdout contains FAIL marker; treating Verify Command as failed despite exit 0" >&2
+  EFFECTIVE_EXIT=1
+fi
+
 # --- Compute runtime contract (if level == runtime) ------------------------
 # Extract first URL from verify command for host comparison.
 
