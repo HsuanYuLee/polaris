@@ -211,6 +211,51 @@ MD
     return 1
   }
 
+  dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-994-markdown-link-parent-closeout"
+  mkdir -p "$dp_dir/tasks/pr-release/T1" "$dp_dir/tasks/pr-release/T2"
+  cat >"$dp_dir/index.md" <<'MD'
+---
+topic: markdown link parent closeout smoke
+created: 2026-05-06
+status: LOCKED
+locked_at: 2026-05-06
+---
+
+# DP-994
+
+## Implementation Checklist
+
+- [ ] [T1](./tasks/T1/): First task
+- [ ] [T2](./tasks/T2/): Second task
+
+## Work Orders
+
+| Task | Work order |
+|------|------------|
+| T1 | [T1](./tasks/T1/) |
+| T2 | [T2](./tasks/T2/) |
+MD
+  for task in T1 T2; do
+    cat >"$dp_dir/tasks/pr-release/${task}/index.md" <<MD
+---
+status: IMPLEMENTED
+---
+# ${task}
+
+> Source: DP-994 | Task: DP-994-${task} | JIRA: N/A | Repo: polaris-framework
+MD
+  done
+
+  env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T2/index.md" --workspace "$tmpdir" >/dev/null
+  grep -q '^status: IMPLEMENTED$' "$dp_dir/index.md" || {
+    echo "[selftest] markdown-link DP parent was not marked IMPLEMENTED" >&2
+    return 1
+  }
+  grep -q '\[T1\](\./tasks/pr-release/T1/)' "$dp_dir/index.md" || {
+    echo "[selftest] markdown-link DP task links were not rewritten" >&2
+    return 1
+  }
+
   dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-996-folder-native-active-sibling"
   mkdir -p "$dp_dir/tasks/T2" "$dp_dir/tasks/pr-release/T1"
   cat >"$dp_dir/index.md" <<'MD'
@@ -446,9 +491,33 @@ def task_stem(path: Path) -> str:
 completed_stems = {task_stem(p) for p in completed_tasks}
 text = parent_file.read_text(encoding="utf-8")
 
+def rewrite_task_path(match: re.Match[str], suffix: str) -> str:
+    prefix = match.group(1) or ""
+    task_key = match.group(2)
+    return f"{prefix}tasks/pr-release/{task_key}{suffix}"
+
 def rewrite_links(value: str) -> str:
-    value = re.sub(r"tasks/(?!pr-release/)([TV]\d+[a-z]*)/index\.md", r"tasks/pr-release/\1/index.md", value)
-    return re.sub(r"tasks/(?!pr-release/)([TV]\d+[a-z]*\.md)", r"tasks/pr-release/\1", value)
+    value = re.sub(
+        r"(\./)?tasks/(?!pr-release/)([TV]\d+[a-z]*)/index\.md",
+        lambda match: rewrite_task_path(match, "/index.md"),
+        value,
+    )
+    value = re.sub(
+        r"(\./)?tasks/(?!pr-release/)([TV]\d+[a-z]*)/(?=[)`])",
+        lambda match: rewrite_task_path(match, "/"),
+        value,
+    )
+    return re.sub(
+        r"(\./)?tasks/(?!pr-release/)([TV]\d+[a-z]*\.md)",
+        lambda match: rewrite_task_path(match, ".md"),
+        value,
+    )
+
+def task_refs_from_line(value: str) -> set[str]:
+    refs = set(re.findall(r"(?:\./)?tasks/(?:pr-release/)?([TV]\d+[a-z]*)\.md", value))
+    refs.update(re.findall(r"(?:\./)?tasks/(?:pr-release/)?([TV]\d+[a-z]*)/index\.md", value))
+    refs.update(re.findall(r"(?:\./)?tasks/(?:pr-release/)?([TV]\d+[a-z]*)/(?=[)`])", value))
+    return refs
 
 lines = text.splitlines()
 out = []
@@ -462,8 +531,7 @@ for line in lines:
 
     new_line = rewrite_links(line)
     if in_checklist and re.search(r"- \[ \]", new_line):
-        refs = set(re.findall(r"tasks/(?:pr-release/)?([TV]\d+[a-z]*)\.md", new_line))
-        refs.update(re.findall(r"tasks/(?:pr-release/)?([TV]\d+[a-z]*)/index\.md", new_line))
+        refs = task_refs_from_line(new_line)
         prefix = re.match(r"\s*- \[ \]\s*([TV]\d+[a-z]*)(?=[:\s])", new_line)
         if prefix:
             refs.add(prefix.group(1))
