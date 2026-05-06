@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.5] - 2026-05-06
+
+### Added — review-inbox context budget contract
+
+- Added a shared Context Budget Contract reference with review-inbox as the first concrete instance.
+- Added review-inbox telemetry, main-session diff budget helpers, failure-only CI rollup guidance, and already-reviewed skip coverage.
+- Added evidence-gated `--auto-adapter` runtime planning so `constrained_code_reviewer` cannot enable without dual-run quality evidence.
+
 ## [3.75.4] - 2026-05-06
 
 ### Fixed — task-bound verify report completion gate

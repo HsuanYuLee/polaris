@@ -104,6 +104,11 @@ Candidates 只保留：
 `valid_approve` 與 `waiting_for_author` 必須被過濾。Stale approval 判定見
 `stale-approval-detection.md`。
 
+`prior_review_no_new_push` 屬於 `waiting_for_author` 的 detail 分類：只要 reviewer 最新一次
+review 是 `COMMENTED` / `CHANGES_REQUESTED` / `APPROVED` 任一狀態，且該 review 之後沒有新
+commit，就不進 actionable candidate list。例外情境只能用明確 rerun / include-skipped 方式處理，
+不得讓 discovery 預設重複 review 同一個 head SHA。
+
 ## Scan Freshness
 
 Scan 是 point-in-time snapshot。每次 show list 或開始 review 前，檢查 scan result mtime。

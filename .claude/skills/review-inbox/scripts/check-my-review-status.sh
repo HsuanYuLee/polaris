@@ -11,6 +11,7 @@
 #   - "needs_re_review"     — REQUEST_CHANGES 後作者有回覆 review comments（不論有無新 push）
 #   - "valid_approve"       — approve 仍有效，不需動作
 #   - "waiting_for_author"  — REQUEST_CHANGES 後作者未回覆 review comments（即使有新 push 也視為還在改）
+#                            或 prior_review_no_new_push：我已 review 且 review 後沒有新 commit
 #
 # Example:
 #   ./scan-need-review-prs.sh --exclude-author your-github-user \
@@ -93,7 +94,12 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
     last_commit_time=$(gh api "repos/$ORG/$repo/pulls/$number/commits" \
       --jq '.[-1].commit.committer.date' 2>/dev/null || echo "")
 
-    if [ "$my_state" = "APPROVED" ]; then
+    if [ -n "$last_commit_time" ] \
+      && { [[ "$last_commit_time" < "$my_time" ]] || [[ "$last_commit_time" == "$my_time" ]]; } \
+      && [[ "$my_state" =~ ^(COMMENTED|CHANGES_REQUESTED|APPROVED)$ ]]; then
+      status="waiting_for_author"
+      detail="⏳ prior_review_no_new_push（我已 review，head SHA 未變）"
+    elif [ "$my_state" = "APPROVED" ]; then
       if [ -n "$last_commit_time" ] && [[ "$last_commit_time" > "$my_time" ]]; then
         status="needs_re_approve"
         detail="⚠️ 需 re-approve（approve: ${my_time%T*}, 最新 commit: ${last_commit_time%T*}）"

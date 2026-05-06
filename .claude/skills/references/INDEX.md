@@ -86,6 +86,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [review-pr-analysis-flow.md](review-pr-analysis-flow.md) | review-pr rules/handbook loading、existing comments dedup、large PR sub-agent analysis、severity calibration | review-pr analysis, code review, severity |
 | [review-pr-submit-flow.md](review-pr-submit-flow.md) | review-pr language gate、GitHub review action、inline comments、approve status、Slack notification、handbook calibration | review-pr submit, GitHub review, inline comment |
 | [review-pr-rereview-learning-flow.md](review-pr-rereview-learning-flow.md) | review-pr re-review：確認修正、re-approve 判定、false positive / accepted pattern / severity learning | re-review, review learning, re-approve |
+| [context-budget-contract.md](context-budget-contract.md) | high-volume skill 的 main-session budget、raw evidence routing、runtime plan、telemetry、verify-report contract | review-inbox, review-pr, verify-AC, high-volume skill, context budget |
 | [review-inbox-discovery-flow.md](review-inbox-discovery-flow.md) | review-inbox Label / Slack / Thread discovery、bundled scripts、review_status、scan freshness | review-inbox, 批次 review, 掃 PR |
 | [review-inbox-batch-review-flow.md](review-inbox-batch-review-flow.md) | review-inbox candidates list、batch size、concurrency、per-PR review sub-agent dispatch、result fan-in | review-inbox batch review, re-approve, re-review |
 

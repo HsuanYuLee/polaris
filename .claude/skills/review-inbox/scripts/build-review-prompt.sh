@@ -10,6 +10,7 @@
 #         --bundle <dispatch context bundle path> (default: skill bundle)
 #         --out-dir <output directory for prompt files> (default: /tmp/review-prompts)
 #         --manifest <manifest output path> (default: /tmp/review-prompt-manifest.json)
+#         --show-all-checks (include PASS CI rollup in packet instructions; default failure/error only)
 #
 # Output: One file per PR in out-dir: review-prompt-{repo}-{number}.txt
 #         Also writes manifest with [{file, pr_url, number, repo}]
@@ -37,6 +38,7 @@ PROJECT=""
 BUNDLE_PATH="$SCRIPT_DIR/../dispatch-context-bundle.md"
 OUT_DIR="/tmp/review-prompts"
 MANIFEST_PATH="/tmp/review-prompt-manifest.json"
+SHOW_ALL_CHECKS=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -49,6 +51,7 @@ while [[ $# -gt 0 ]]; do
     --bundle) BUNDLE_PATH="$2"; shift 2 ;;
     --out-dir) OUT_DIR="$2"; shift 2 ;;
     --manifest) MANIFEST_PATH="$2"; shift 2 ;;
+    --show-all-checks) SHOW_ALL_CHECKS=true; shift ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
 done
@@ -76,6 +79,11 @@ if [[ "$COUNT" -eq 0 ]]; then
 fi
 
 BUNDLE_TEXT=$(cat "$BUNDLE_PATH")
+if [[ "$SHOW_ALL_CHECKS" == "true" ]]; then
+  CI_ROLLUP_RULE="CI rollup: explicit --show-all-checks override is enabled. You may inspect all checks when needed, but keep main-session summary concise."
+else
+  CI_ROLLUP_RULE="CI rollup: only FAILURE / ERROR checks may enter main context. PASS checks must be omitted. Use gh pr view --json statusCheckRollup with a jq filter that selects failure/error only."
+fi
 HANDBOOK_JSON="[]"
 if [[ -n "$COMPANY" && -n "$PROJECT" ]]; then
   HANDBOOK_JSON=$("$SCRIPT_DIR/resolve-handbook-paths.sh" \
@@ -167,8 +175,11 @@ ${HANDBOOK_BLOCK}
 
 **Token Budget Rules**：
 - Diff sampling: 先執行 \`gh pr diff ${URL} --name-only\` 取得完整 changed-file list。
-- 若整體 \`gh pr diff ${URL}\` 不超過 2000 行，可讀完整 diff；超過時只讀每個 changed file 的 hunk headers、changed lines 與前後約 20 行 context。
-- 單檔 diff 小於 200 行可讀完整 per-file diff；大檔只 sample changed hunks。遇到 import/export、routing、API contract、schema、test expectation、security/auth、payment/booking 等 cross-file 風險時，才讀相關檔案全文。
+- 主 session raw diff output 對單 PR 累積上限為 100 行。超過後本 PR 維持 hunk-only / sample-only 到 review 完成。
+- 完整 diff 優先存到 \`/tmp/review-inbox-runs/{run_id}/pr-${NUMBER}.diff\`，後續用 \`inspect-pr-section.sh\` 取 bounded section，不要用 Read 工具回讀完整 diff。
+- 在 constrained reviewer envelope 內，若整體 \`gh pr diff ${URL}\` 不超過 2000 行，可讀完整 diff；超過時只讀每個 changed file 的 hunk headers、changed lines 與前後約 20 行 context。
+- 單檔 diff 小於 200 行只適用於 constrained reviewer envelope；大檔只 sample changed hunks。遇到 import/export、routing、API contract、schema、test expectation、security/auth、payment/booking 等 cross-file 風險時，才讀相關檔案全文。
+- ${CI_ROLLUP_RULE}
 - Existing comments metadata-only: inline comments 只抓 dedup metadata，不把完整 comment body 放進 context。使用：
   \`gh api "repos/OWNER/REPO/pulls/${NUMBER}/comments" --paginate --jq '.[] | {user: .user.login, path, line: (.line // .original_line), side, head: ((.body // "")[:80])}'\`
 - Dedup 只比對 \`(user, path, line, head)\` 與語意相同的已指出問題；不要重複貼既有 comment 全文。

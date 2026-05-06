@@ -7,6 +7,10 @@ description: "review-inbox 的 candidates list、batch size、runtime plan、per
 
 這份 reference 負責 candidates list 呈現、runtime plan、分批 review、結果收斂。
 
+本 flow 受 `context-budget-contract.md` 的 review-inbox concrete instance 約束。Main session
+只保留決策、路由、fan-in 與 Completion Envelope summary；raw diff、raw comments、PASS CI
+rollup 與 raw Slack channel messages 預設不得進 main context。
+
 ## Candidate List
 
 Candidates 依 PR created time 升序排序，最早發出的 PR 優先。顯示欄位：
@@ -74,8 +78,22 @@ Runtime plan contract：
 - Plan 的 `adapter_policy.general_purpose_subagent_allowed` 必須是 `false`。
 - Plan step 的 `execution_mode` 預設為 `main_session_sequential`；只有 runtime 提供精簡
   code-reviewer adapter 時才可改為 `constrained_code_reviewer`。
+- `--auto-adapter` 只能在 T7 dual-run quality evidence PASS 後選擇
+  `constrained_code_reviewer`。Evidence 未通過、缺失，或 candidate count / cluster size /
+  raw diff lines 未達 threshold 時，必須 fallback `main_session_sequential` 並寫入
+  `adapter_policy.fallback_reason`。
 - Main session sequential fallback 執行時，完成一個 PR 後只保留 Completion Envelope summary
   在主 context，完整 findings 留在 Detail artifact。
+
+`constrained_code_reviewer` prompt envelope 必須包含：
+
+- `review-inbox/dispatch-context-bundle.md` inline bundle。
+- Verified project handbook paths。
+- Main-session 100 raw diff line hard cap 的提醒。
+- Completion Envelope schema。
+- 禁止重讀完整 review-inbox / review-pr skill stack。
+- 禁止 general-purpose sub-agent fallback；若 runtime adapter 不存在，回傳 fallback reason，
+  不自行改走一般 Agent。
 
 Cluster scheduling：
 
@@ -90,13 +108,34 @@ Cluster scheduling：
 Token budget rules：
 
 - 先執行 `gh pr diff <PR_URL> --name-only` 取得完整 changed-file list。
-- 整體 diff 不超過 2000 行時可讀完整 diff；超過時每個檔案只讀 hunk headers、changed lines
-  與前後約 20 行 context。
-- 單檔 diff 小於 200 行可讀完整 per-file diff；大檔只 sample changed hunks。import/export、
-  routing、API contract、schema、test expectation、security/auth、payment/booking 等 cross-file
-  風險才升級讀相關檔案全文。
+- 主 session raw diff output 以單 PR 累積 100 行為 hard cap。超過後該 PR 立即進入
+  hunk-only / sample-only，直到該 PR review 完成前不得 reset；這不是單次工具呼叫額度，
+  也不是整批共享額度。
+- 完整 diff 必須先存到 `/tmp/review-inbox-runs/{run_id}/pr-{number}.diff`。後續 line range
+  inspection 用 `inspect-pr-section.sh` 輸出 bounded section，不用 Read 工具回讀完整 diff。
+- Sub-agent 或 constrained reviewer envelope 內仍可使用 DP-094 sampling：整體 diff 不超過
+  2000 行時可讀完整 diff；超過時每個檔案只讀 hunk headers、changed lines 與前後約
+  20 行 context。
+- 單檔 diff 小於 200 行只適用於 sub-agent / constrained reviewer envelope。主 session 仍受
+  100 行 per-PR raw output cap 約束。import/export、routing、API contract、schema、
+  test expectation、security/auth、payment/booking 等 cross-file 風險才升級讀相關檔案全文。
 - Existing inline comments 只抓 metadata 用於 dedup：`user`, `path`, `line`, `side`,
   `head = body[:80]`。不得把完整 comment body 放進 sub-agent context。
+
+CI rollup rules：
+
+- 預設只輸出 `FAILURE` / `ERROR` checks。
+- PASS checks 不進 main context。
+- 只有使用者明確需要診斷完整 CI 狀態時，才使用 `--show-all-checks` override。
+
+Telemetry rules：
+
+- Completion 後執行 `measure-review-inbox-session.sh`。
+- Required metadata path：`metadata.review_inbox_run`。
+- Required query：`polaris-learnings.sh query --type telemetry --tag review-inbox`。
+- Required keys：`run_id`, `candidate_count`, `reviewed_count`,
+  `main_session_input_tokens`, `main_session_output_tokens`, `sub_agent_tokens`,
+  `runtime_plan_kind`, `duration_seconds`, `estimator_kind`。
 
 ## Result Envelope
 

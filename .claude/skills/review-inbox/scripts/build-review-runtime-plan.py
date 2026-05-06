@@ -27,6 +27,20 @@ def parse_args() -> argparse.Namespace:
         default="main_session_sequential",
         help="Runtime adapter contract for the plan.",
     )
+    parser.add_argument(
+        "--auto-adapter",
+        action="store_true",
+        help="Select adapter from candidate count, cluster size, raw diff lines, and quality evidence.",
+    )
+    parser.add_argument("--candidate-threshold", type=int, default=5, help="Auto adapter candidate-count threshold.")
+    parser.add_argument("--cluster-threshold", type=int, default=3, help="Auto adapter cluster-size threshold.")
+    parser.add_argument("--diff-lines-threshold", type=int, default=5000, help="Auto adapter total raw diff line threshold.")
+    parser.add_argument(
+        "--adapter-evidence",
+        choices=("missing", "failed", "passed"),
+        default="missing",
+        help="T7 dual-run quality evidence status for constrained_code_reviewer.",
+    )
     return parser.parse_args()
 
 
@@ -59,6 +73,95 @@ def candidate_key(candidate: dict[str, Any]) -> str:
 
 def manifest_by_url(manifest: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {str(item.get("pr_url") or ""): item for item in manifest if item.get("pr_url")}
+
+
+def safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def raw_diff_lines(candidate: dict[str, Any]) -> int:
+    for key in ("raw_diff_lines", "diff_lines", "changed_lines"):
+        value = safe_int(candidate.get(key), 0)
+        if value > 0:
+            return value
+    return safe_int(candidate.get("additions"), 0) + safe_int(candidate.get("deletions"), 0)
+
+
+def select_adapter(
+    candidates: list[dict[str, Any]],
+    requested_adapter: str,
+    auto_adapter: bool,
+    candidate_threshold: int,
+    cluster_threshold: int,
+    diff_lines_threshold: int,
+    adapter_evidence: str,
+) -> tuple[str, dict[str, Any]]:
+    candidate_count = len(candidates)
+    max_cluster_size = max([safe_int(item.get("cluster_size"), 1) for item in candidates] or [0])
+    total_raw_diff_lines = sum(raw_diff_lines(item) for item in candidates)
+    threshold_hit = (
+        candidate_count >= candidate_threshold
+        or max_cluster_size >= cluster_threshold
+        or total_raw_diff_lines > diff_lines_threshold
+    )
+
+    if not auto_adapter:
+        return requested_adapter, {
+            "auto_adapter": False,
+            "selected_adapter": requested_adapter,
+            "fallback_reason": "",
+            "candidate_threshold": candidate_threshold,
+            "cluster_threshold": cluster_threshold,
+            "diff_lines_threshold": diff_lines_threshold,
+            "adapter_evidence": adapter_evidence,
+            "max_cluster_size": max_cluster_size,
+            "total_raw_diff_lines": total_raw_diff_lines,
+            "threshold_hit": threshold_hit,
+        }
+
+    if adapter_evidence != "passed":
+        return "main_session_sequential", {
+            "auto_adapter": True,
+            "selected_adapter": "main_session_sequential",
+            "fallback_reason": "T7 dual-run quality evidence is not passed.",
+            "candidate_threshold": candidate_threshold,
+            "cluster_threshold": cluster_threshold,
+            "diff_lines_threshold": diff_lines_threshold,
+            "adapter_evidence": adapter_evidence,
+            "max_cluster_size": max_cluster_size,
+            "total_raw_diff_lines": total_raw_diff_lines,
+            "threshold_hit": threshold_hit,
+        }
+
+    if threshold_hit:
+        return "constrained_code_reviewer", {
+            "auto_adapter": True,
+            "selected_adapter": "constrained_code_reviewer",
+            "fallback_reason": "",
+            "candidate_threshold": candidate_threshold,
+            "cluster_threshold": cluster_threshold,
+            "diff_lines_threshold": diff_lines_threshold,
+            "adapter_evidence": adapter_evidence,
+            "max_cluster_size": max_cluster_size,
+            "total_raw_diff_lines": total_raw_diff_lines,
+            "threshold_hit": threshold_hit,
+        }
+
+    return "main_session_sequential", {
+        "auto_adapter": True,
+        "selected_adapter": "main_session_sequential",
+        "fallback_reason": "Candidate count, cluster size, and raw diff lines are below auto-adapter thresholds.",
+        "candidate_threshold": candidate_threshold,
+        "cluster_threshold": cluster_threshold,
+        "diff_lines_threshold": diff_lines_threshold,
+        "adapter_evidence": adapter_evidence,
+        "max_cluster_size": max_cluster_size,
+        "total_raw_diff_lines": total_raw_diff_lines,
+        "threshold_hit": threshold_hit,
+    }
 
 
 def cluster_order_key(group: list[dict[str, Any]]) -> tuple[int, str, int]:
@@ -100,7 +203,12 @@ def step_for(
     }
 
 
-def build_plan(candidates: list[dict[str, Any]], manifest: list[dict[str, Any]], adapter: str) -> dict[str, Any]:
+def build_plan(
+    candidates: list[dict[str, Any]],
+    manifest: list[dict[str, Any]],
+    adapter: str,
+    adapter_decision: dict[str, Any],
+) -> dict[str, Any]:
     manifest_map = manifest_by_url(manifest)
     indexed = []
     for idx, raw in enumerate(candidates):
@@ -148,11 +256,21 @@ def build_plan(candidates: list[dict[str, Any]], manifest: list[dict[str, Any]],
     return {
         "schema": "review-inbox-runtime-plan.v1",
         "adapter_policy": {
-            "requested_adapter": adapter,
+            "requested_adapter": "auto" if adapter_decision["auto_adapter"] else adapter,
+            "selected_adapter": adapter,
             "general_purpose_subagent_allowed": False,
             "allowed_adapters": ["main_session_sequential", "constrained_code_reviewer"],
             "fallback": "main_session_sequential",
+            "fallback_reason": adapter_decision["fallback_reason"],
             "reason": "DP-094 AC1 showed general-purpose Agent envelope dominates per-PR token cost.",
+            "auto_adapter": adapter_decision["auto_adapter"],
+            "adapter_evidence": adapter_decision["adapter_evidence"],
+            "candidate_threshold": adapter_decision["candidate_threshold"],
+            "cluster_threshold": adapter_decision["cluster_threshold"],
+            "diff_lines_threshold": adapter_decision["diff_lines_threshold"],
+            "max_cluster_size": adapter_decision["max_cluster_size"],
+            "total_raw_diff_lines": adapter_decision["total_raw_diff_lines"],
+            "threshold_hit": adapter_decision["threshold_hit"],
         },
         "summary": {
             "candidate_count": len(indexed),
@@ -177,7 +295,16 @@ def main() -> int:
         return 2
 
     manifest = load_json_array(args.manifest)
-    plan = build_plan(candidates, manifest, args.adapter)
+    adapter, adapter_decision = select_adapter(
+        candidates,
+        args.adapter,
+        args.auto_adapter,
+        args.candidate_threshold,
+        args.cluster_threshold,
+        args.diff_lines_threshold,
+        args.adapter_evidence,
+    )
+    plan = build_plan(candidates, manifest, adapter, adapter_decision)
     payload = json.dumps(plan, ensure_ascii=False, indent=2)
     if args.out:
         out = Path(args.out)

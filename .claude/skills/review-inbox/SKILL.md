@@ -30,7 +30,7 @@ metadata:
 
 | Situation | Load |
 |---|---|
-| Any run | `review-inbox-discovery-flow.md`, `shared-defaults.md`, `stale-approval-detection.md`, `workspace-config-reader.md` |
+| Any run | `context-budget-contract.md`, `review-inbox-discovery-flow.md`, `shared-defaults.md`, `stale-approval-detection.md`, `workspace-config-reader.md` |
 | Batch review execution | `review-inbox-batch-review-flow.md`, `review-inbox/dispatch-context-bundle.md` |
 | Slack notification | `review-inbox-slack-reporting.md`, `slack-message-format.md`, `github-slack-user-mapping.md`, `workspace-language-policy.md` |
 
@@ -66,7 +66,11 @@ dispatch 由 main session 讀取 `dispatch-context-bundle.md` 一次，再把濃
    context。Cluster lead 先跑完整 review；cluster sibling 使用 sibling-diff mode 與
    `small_fast` model class hint，不確定時標記 `needs_standard_review`。
 10. 收斂結果，依來源模式發 Slack summary 或 thread replies。
-11. 在對話中回報每個 PR 的 review result 與 approve status。
+11. 跑 `measure-review-inbox-session.sh` 產生 telemetry JSON，並用
+    `polaris-learnings.sh add --type telemetry --tag review-inbox` 寫入
+    `metadata.review_inbox_run`。若無法取得完整 transcript，仍需用 line-count proxy
+    記錄 candidate count、reviewed count、runtime plan kind 與 artifact volume。
+12. 在對話中回報每個 PR 的 review result、approve status 與 telemetry run_id。
 
 ## Write And Notification Rules
 
@@ -80,7 +84,13 @@ dispatch 由 main session 讀取 `dispatch-context-bundle.md` 一次，再把濃
 ## Completion
 
 輸出 reviewed count、APPROVE / REQUEST_CHANGES / COMMENT counts、Slack notification count、
-以及任何 blocked PR 的原因。
+任何 blocked PR 的原因，以及 telemetry run_id。Telemetry 可用：
+
+```bash
+POLARIS_WORKSPACE_ROOT={workspace_root} .claude/skills/references/scripts/polaris-learnings.sh query --type telemetry --tag review-inbox
+```
+
+查到 `metadata.review_inbox_run.main_session_input_tokens`。
 
 ## Post-Task Reflection (required)
 
