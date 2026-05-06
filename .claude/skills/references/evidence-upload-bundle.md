@@ -204,7 +204,18 @@ Completion gate 仍要求 PR-visible marker：
 polaris-evidence-publication:v1 ticket={ticket} head={head_sha}
 ```
 
-Local upload bundle 本身不可滿足 completion。
+Local upload bundle 本身不可滿足 completion。當佐證已轉成 verify report 或 Jira
+attachment 時，也可以用以下 PR-visible marker 滿足同一個 completion gate：
+
+```text
+polaris-verify-report:v1 ticket={ticket} head={head_sha} report={verify_report_url}
+polaris-jira-evidence:v1 ticket={ticket} head={head_sha} url={jira_attachment_or_comment_url}
+```
+
+Marker 必須同時包含 work item `ticket` 與目前 deliverable `head_sha`。`report`
+或 `url` 只代表人可點擊檢視的發布位置；machine source of truth 仍是 local
+evidence manifest、publication manifest 與 `run-verify-command.sh` 寫出的 verify
+evidence。
 
 ## verify-AC Flow
 

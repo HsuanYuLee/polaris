@@ -37,6 +37,7 @@ assert_contains() {
     printf 'ok %s\n' "$label"
   else
     printf 'not ok %s: missing %q\n' "$label" "$needle" >&2
+    printf '  output: %s\n' "$haystack" >&2
   fi
 }
 
@@ -199,6 +200,8 @@ install_mock_gh() {
   if [[ "$is_draft" == "true" ]]; then
     python_draft="True"
   fi
+  local rest_state
+  rest_state="$(printf '%s' "$state" | tr '[:upper:]' '[:lower:]')"
 
   cat > "$mockbin/gh" <<EOF
 #!/usr/bin/env bash
@@ -222,6 +225,29 @@ PY
   exit 0
 fi
 if [[ "\$1" == "api" ]]; then
+  if [[ "\$2" == "repos/demo/example/pulls/1" ]]; then
+    python3 - <<'PY'
+import json
+from pathlib import Path
+
+body = Path("$body_file").read_text(encoding="utf-8")
+print(json.dumps({
+    "number": 1,
+    "title": "Fixture PR",
+    "body": body,
+    "state": "$rest_state",
+    "draft": $python_draft,
+    "html_url": "https://github.com/demo/example/pull/1",
+    "head": {
+        "ref": "task/DP-999-T1-completion-gate-fixture",
+        "sha": "$head_sha"
+    },
+    "base": {"ref": "main"},
+    "user": {"login": "polaris-selftest"}
+}))
+PY
+    exit 0
+  fi
   cat "$comments_file"
   exit 0
 fi
@@ -398,6 +424,22 @@ EOF
   }
 ]
 EOF
+  elif [[ "$comments_kind" == "report" ]]; then
+    cat > "$comments_file" <<EOF
+[
+  {
+    "body": "polaris-verify-report:v1 ticket=DP-999-T1 head=${head_sha} report=https://example.test/specs/verify-report/"
+  }
+]
+EOF
+  elif [[ "$comments_kind" == "jira" ]]; then
+    cat > "$comments_file" <<EOF
+[
+  {
+    "body": "polaris-jira-evidence:v1 ticket=DP-999-T1 head=${head_sha} url=https://example.atlassian.net/rest/api/3/attachment/content/10001"
+  }
+]
+EOF
   else
     printf '[]\n' > "$comments_file"
   fi
@@ -413,8 +455,10 @@ EOF
   assert_contains "$label message" "$out" "$want_text"
 }
 
-run_publication_case "publication-missing-marker-blocks" "none" "true" "2" "No PR-visible evidence publication marker"
-run_publication_case "publication-marker-passes" "marker" "true" "0" "evidence publication marker found"
+run_publication_case "publication-missing-marker-blocks" "none" "true" "2" "No PR-visible evidence publication proof"
+run_publication_case "publication-marker-passes" "marker" "true" "0" "PR-visible evidence publication proof found"
+run_publication_case "publication-report-marker-passes" "report" "true" "0" "PR-visible evidence publication proof found"
+run_publication_case "publication-jira-marker-passes" "jira" "true" "0" "PR-visible evidence publication proof found"
 run_publication_case "behavior-without-video-blocks" "marker" "false" "2" "Playwright behavior evidence requires video reference"
 
 run_overlay_case() {

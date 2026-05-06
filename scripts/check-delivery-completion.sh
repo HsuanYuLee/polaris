@@ -83,6 +83,97 @@ with open(output_path, "w", encoding="utf-8") as f:
 PY
 }
 
+check_pr_visible_evidence_publication() {
+  local publication_ticket="$1"
+  local deliverable_head_sha="$2"
+  local pr_url="$3"
+  local gh_repo="$4"
+  local pr_number="$5"
+  local pr_body_file="$6"
+  local manifest_file=""
+  local comments_file=""
+  local manifest_errors=""
+  local requires_publication=""
+
+  manifest_file="$(mktemp -t polaris-delivery-publication.XXXXXX.json)"
+  comments_file="$(mktemp -t polaris-delivery-comments.XXXXXX.json)"
+
+  bash "${SCRIPT_DIR}/publish-delivery-evidence.sh" \
+    --mode collect \
+    --repo "$REPO_ROOT" \
+    --ticket "$publication_ticket" \
+    --head-sha "$deliverable_head_sha" \
+    --manifest-file "$manifest_file" >/dev/null
+
+  manifest_errors="$(python3 - "$manifest_file" <<'PY'
+import json
+import sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+for error in data.get("errors", []):
+    print(error)
+PY
+)"
+  if [[ -n "$manifest_errors" ]]; then
+    echo "$PREFIX evidence publication check failed: evidence manifest is not publishable" >&2
+    printf '%s\n' "$manifest_errors" >&2
+    exit 2
+  fi
+
+  requires_publication="$(python3 - "$manifest_file" <<'PY'
+import json
+import sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+print("true" if data.get("requires_publication") else "false")
+PY
+)"
+  if [[ "$requires_publication" != "true" ]]; then
+    echo "$PREFIX no visual or behavior evidence requires PR publication for ${publication_ticket}@${deliverable_head_sha}" >&2
+    rm -f "$manifest_file" "$comments_file"
+    return 0
+  fi
+
+  if ! gh api "repos/${gh_repo}/issues/${pr_number}/comments" --paginate >"$comments_file"; then
+    echo "$PREFIX PR evidence publication check failed: unable to read PR comments for ${pr_url}" >&2
+    exit 2
+  fi
+
+  if python3 - "$pr_body_file" "$comments_file" "$publication_ticket" "$deliverable_head_sha" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+body_path, comments_path, ticket, head = sys.argv[1:5]
+texts = [Path(body_path).read_text(encoding="utf-8")]
+try:
+    comments = json.load(open(comments_path, encoding="utf-8"))
+except Exception:
+    comments = []
+if isinstance(comments, dict):
+    comments = [comments]
+for item in comments:
+    texts.append(str(item.get("body", "")))
+
+legacy = f"polaris-evidence-publication:v1 ticket={ticket} head={head}"
+report = re.compile(rf"polaris-verify-report:v1\s+[^\n]*\bticket={re.escape(ticket)}\b[^\n]*\bhead={re.escape(head)}\b[^\n]*(?:verify-report|report=)", re.I)
+jira = re.compile(rf"polaris-jira-evidence:v1\s+[^\n]*\bticket={re.escape(ticket)}\b[^\n]*\bhead={re.escape(head)}\b[^\n]*(?:atlassian\.net|/attachment/content/|url=)", re.I)
+
+for text in texts:
+    if legacy in text or report.search(text) or jira.search(text):
+        raise SystemExit(0)
+raise SystemExit(1)
+PY
+  then
+    echo "$PREFIX PR-visible evidence publication proof found for ${publication_ticket}@${deliverable_head_sha}" >&2
+    rm -f "$manifest_file" "$comments_file"
+    return 0
+  fi
+
+  echo "$PREFIX BLOCKED: No PR-visible evidence publication proof for ${publication_ticket}@${deliverable_head_sha}" >&2
+  echo "$PREFIX Accepted proof: legacy polaris-evidence-publication marker, polaris-verify-report marker, or polaris-jira-evidence marker." >&2
+  exit 2
+}
+
 check_deliverable_pr_remote_truth() {
   local task_md_path="$1"
   local deliverable_head_sha="$2"
@@ -117,7 +208,6 @@ check_deliverable_pr_remote_truth() {
 
   pr_json="$(mktemp -t polaris-pr-metadata.XXXXXX.json)"
   pr_body_file="$(mktemp -t polaris-pr-body.XXXXXX.md)"
-  trap 'rm -f "${pr_json:-}" "${pr_body_file:-}"' RETURN
 
   if declare -F polaris_pr_view_rest >/dev/null 2>&1; then
     polaris_pr_view_rest "$gh_repo" "$pr_number" >"$pr_json" 2>/dev/null || true
@@ -155,14 +245,10 @@ check_deliverable_pr_remote_truth() {
     publication_ticket="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field task_jira_key 2>/dev/null || true)"
   fi
   if [[ -n "$publication_ticket" ]]; then
-    bash "${SCRIPT_DIR}/publish-delivery-evidence.sh" \
-      --mode check \
-      --repo "$REPO_ROOT" \
-      --ticket "$publication_ticket" \
-      --head-sha "$deliverable_head_sha" \
-      --pr-url "$pr_url"
+    check_pr_visible_evidence_publication "$publication_ticket" "$deliverable_head_sha" "$pr_url" "$gh_repo" "$pr_number" "$pr_body_file"
   fi
 
+  rm -f "$pr_json" "$pr_body_file"
   echo "$PREFIX ✅ PR readiness/body/language/evidence publication gates passed for ${pr_url}" >&2
 }
 

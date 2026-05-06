@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.96] - 2026-05-06
+
+### Added — completion gate publication markers
+
+- Updated the delivery completion gate to accept PR-visible verify report and Jira evidence markers in addition to the legacy evidence publication marker.
+- Added publication manifest validation to the verification evidence gate for static mirror freshness and Jira attachment write-back.
+- Added a rollout guard for new legacy `tasks/Tn.md` / `tasks/Vn.md` writes while preserving legacy readers during migration.
+
 ## [3.74.95] - 2026-05-06
 
 ### Fixed — folder-native parent closeout

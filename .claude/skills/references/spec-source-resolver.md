@@ -253,3 +253,31 @@ Migration rules：
 Legacy `design-plan` triggers，例如 `想討論`、`怎麼設計`、`ADR`、`design plan`、`/design-plan DP-NNN`，都是 `refinement` ticketless mode 的 aliases。`design-plan` skill 已移除，不再保留 separate shim pipeline。
 
 Legacy top-level `{workspace_root}/specs` 已由 DP-066 sunset。Runtime 與 lifecycle scripts 必須使用 `scripts/resolve-specs-root.sh` 或 `scripts/lib/specs-root.sh`，不可 hard-code 任一 root。
+
+## Legacy Task Layout Deprecation
+
+Reader 在 transition 期間仍支援 legacy direct task files：
+
+```text
+tasks/T{n}.md
+tasks/V{n}.md
+```
+
+但新的 producer 不可再寫入 direct task files，必須寫入 folder-native task
+containers：
+
+```text
+tasks/T{n}/index.md
+tasks/V{n}/index.md
+```
+
+`scripts/pipeline-artifact-gate.sh` 會對新建 legacy task path 發出 deprecation
+warning。Rollout 完成後可設定：
+
+```bash
+POLARIS_LEGACY_TASK_LAYOUT_GATE=block
+```
+
+此時新建 `tasks/Tn.md` / `tasks/Vn.md` 會被 hook 擋下。這只限制新寫入；
+resolver、parser、validator 與 closeout reader 仍需 dual-read legacy layout，直到
+archive/migration 完成並確認沒有 active consumer 依賴 legacy files。

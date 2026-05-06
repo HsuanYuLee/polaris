@@ -194,6 +194,24 @@ for i in "${!CANDIDATE_PATHS[@]}"; do
       ;;
   esac
 
+  # --- legacy task layout rollout guard ---
+  # Readers still support tasks/Tn.md, but new producers should write
+  # tasks/Tn/index.md. Default is warning; set POLARIS_LEGACY_TASK_LAYOUT_GATE=block
+  # to make new legacy writes fail once migration is complete.
+  case "$(basename "$path")" in
+    T*.md|V*.md)
+      if [[ "$(basename "$(dirname "$path")")" == "tasks" && ! -e "$path" ]]; then
+        message="legacy task layout is deprecated for new files; use tasks/$(basename "$path" .md)/index.md"
+        if [[ "${POLARIS_LEGACY_TASK_LAYOUT_GATE:-warn}" == "block" ]]; then
+          echo "BLOCKED: ${message}" >&2
+          block=1
+          continue
+        fi
+        echo "WARNING: ${message}" >&2
+      fi
+      ;;
+  esac
+
   probe=$(resolve_probe_path "$path" "$content_b64")
 
   # --- refinement.json ---

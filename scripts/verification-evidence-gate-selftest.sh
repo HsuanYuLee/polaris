@@ -322,6 +322,65 @@ echo "$INPUT_NEW" | "$GATE" >/dev/null 2>&1
 assert_eq "$?" "0" "head_sha evidence is the only accepted format"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "=== publication manifest local-only → allow ==="
+PUB_DIR="$REPO_NEW/.polaris/evidence/publication"
+mkdir -p "$PUB_DIR"
+PUB_FILE="$PUB_DIR/polaris-publication-VEG-1-${HEAD_PR}.json"
+cat > "$PUB_FILE" <<EOF
+{
+  "schema_version": 1,
+  "status": "local_only",
+  "artifacts": []
+}
+EOF
+echo "$INPUT_NEW" | "$GATE" >/dev/null 2>&1
+assert_eq "$?" "0" "publication manifest local_only → allow"
+
+echo "=== publication manifest uploaded with static mirror + Jira URL → allow ==="
+MIRROR="$WORK_DIR/mirror-video.webm"
+printf 'fake-video\n' > "$MIRROR"
+MIRROR_SHA="$(python3 - "$MIRROR" <<'PY'
+import hashlib, sys
+print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())
+PY
+)"
+cat > "$PUB_FILE" <<EOF
+{
+  "schema_version": 1,
+  "remote_publication": {"status": "uploaded"},
+  "artifacts": [
+    {
+      "id": "video-1",
+      "kind": "video",
+      "filename": "mirror-video.webm",
+      "requires_publication": true,
+      "public_path": "$MIRROR",
+      "sha256": "$MIRROR_SHA",
+      "jira_attachment": {
+        "status": "uploaded",
+        "url": "https://example.atlassian.net/rest/api/3/attachment/content/10001"
+      }
+    }
+  ]
+}
+EOF
+echo "$INPUT_NEW" | "$GATE" >/dev/null 2>&1
+assert_eq "$?" "0" "publication manifest uploaded + fresh mirror → allow"
+
+echo "=== publication manifest blocked → block ==="
+cat > "$PUB_FILE" <<EOF
+{
+  "schema_version": 1,
+  "remote_publication": {"status": "blocked"},
+  "artifacts": []
+}
+EOF
+echo "$INPUT_NEW" | "$GATE" >/dev/null 2>"$ERR_OUT"
+RC=$?
+assert_eq "$RC" "2" "publication manifest blocked → block"
+rm -f "$PUB_FILE"
+
+# ────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "=== Summary ==="
 TOTAL=$((PASS + FAIL))

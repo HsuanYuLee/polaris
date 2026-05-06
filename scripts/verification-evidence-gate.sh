@@ -191,6 +191,81 @@ if [[ "$exit_code_pass" != "pass" ]]; then
   exit 2
 fi
 
+publication_tmp="/tmp/polaris-publication-${ticket}-${HEAD_SHA}.json"
+publication_durable=""
+if [[ -n "$HEAD_SHA" ]]; then
+  publication_durable="${evidence_root}/publication/polaris-publication-${ticket}-${HEAD_SHA}.json"
+fi
+
+PUBLICATION_FILE=""
+if [[ -n "$HEAD_SHA" && -f "$publication_tmp" ]]; then
+  PUBLICATION_FILE="$publication_tmp"
+elif [[ -n "$HEAD_SHA" && -f "$publication_durable" ]]; then
+  PUBLICATION_FILE="$publication_durable"
+fi
+
+if [[ -n "$PUBLICATION_FILE" ]]; then
+  if ! publication_valid=$(python3 - "$PUBLICATION_FILE" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+except Exception as exc:
+    print(f"invalid JSON: {exc}")
+    raise SystemExit(1)
+
+remote = data.get("remote_publication") if isinstance(data.get("remote_publication"), dict) else {}
+status = str(remote.get("status") or data.get("status") or "local_only")
+if status in {"blocked", "failed"}:
+    print(f"blocked publication status: {status}")
+    raise SystemExit(1)
+
+def is_required(artifact):
+    return any(bool(artifact.get(key)) for key in ("requires_publication", "publication_required", "remote_publication_required"))
+
+def sha256_file(file):
+    digest = hashlib.sha256()
+    with open(file, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+artifacts = data.get("artifacts") if isinstance(data.get("artifacts"), list) else []
+errors = []
+for artifact in artifacts:
+    if not isinstance(artifact, dict):
+        continue
+    public_path = artifact.get("public_path")
+    if public_path:
+        candidate = Path(str(public_path))
+        if not candidate.is_file():
+            errors.append(f"missing static mirror: {public_path}")
+        elif artifact.get("sha256") and sha256_file(candidate) != artifact.get("sha256"):
+            errors.append(f"static mirror sha256 mismatch: {public_path}")
+    if status in {"uploaded", "jira_uploaded"} and is_required(artifact):
+        jira_attachment = artifact.get("jira_attachment") if isinstance(artifact.get("jira_attachment"), dict) else {}
+        if not jira_attachment.get("url") or jira_attachment.get("status") != "uploaded":
+            errors.append(f"missing Jira attachment URL for required artifact: {artifact.get('id') or artifact.get('filename')}")
+
+if errors:
+    print("; ".join(errors))
+    raise SystemExit(1)
+print("valid")
+PY
+  ); then
+    publication_valid="${publication_valid:-invalid publication manifest}"
+  fi
+  if [[ "$publication_valid" != "valid" ]]; then
+    echo "BLOCKED: publication manifest is not valid for ${ticket}" >&2
+    echo "  ${PUBLICATION_FILE}: ${publication_valid}" >&2
+    exit 2
+  fi
+fi
+
 # Dimension B (ci-local mirror evidence) is handled by ci-local-gate.sh — DP-032 D12-c
 
 exit 0
