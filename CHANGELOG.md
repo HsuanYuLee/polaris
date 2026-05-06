@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.8] - 2026-05-06
+
+### Fixed — markdown-link parent closeout release repair
+
+- Issued the versioned release for the `close-parent-spec-if-complete.sh` markdown-link checklist closeout hotfix that was previously merged without a version bump.
+- Covers `./tasks/Tn/` markdown-link task ref parsing and deterministic rewrite to `./tasks/pr-release/Tn/`.
+- Includes regression selftest coverage for the DP-119 failure shape where parent closeout treated markdown-link checklist items as unchecked non-task work.
+
 ## [3.75.7] - 2026-05-06
 
 ### Fixed — review-inbox review status invocation
