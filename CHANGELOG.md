@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.99] - 2026-05-06
+
+### Fixed — template sync generated evidence exclusion
+
+- Updated template sync to exclude docs-manager generated public evidence mirrors from Polaris template releases.
+- Ensures local board video mirrors remain runtime artifacts instead of tracked template assets.
+
 ## [3.74.98] - 2026-05-06
 
 ### Fixed — template-safe sidebar structure selftest

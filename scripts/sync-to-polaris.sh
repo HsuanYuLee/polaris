@@ -323,6 +323,7 @@ docs-manager/_sidebar.md
 docs-manager/.astro/
 docs-manager/dist/
 docs-manager/node_modules/
+docs-manager/public/evidence/
 docs-manager/src/content/docs/specs/
 
 # ── GitHub config (Copilot instructions + generated manifests) ──
@@ -472,6 +473,7 @@ if [[ -d "$INSTANCE_DIR/docs-manager" ]]; then
     "$INSTANCE_DIR/docs-manager/dist/*" \
     "$INSTANCE_DIR/docs-manager/node_modules/*" \
     "$INSTANCE_DIR/docs-manager/_sidebar.md" \
+    "$INSTANCE_DIR/docs-manager/public/evidence/*" \
     "$INSTANCE_DIR/docs-manager/src/content/docs/specs/*"
 fi
 
