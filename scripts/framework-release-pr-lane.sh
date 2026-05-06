@@ -11,6 +11,7 @@ PREFIX="[framework-release-pr-lane]"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_PATH="$(cd "${SCRIPT_DIR}/.." && pwd)"
 GITHUB_REST_LIB="${SCRIPT_DIR}/lib/github-rest.sh"
+VERSION_BUMP_CHECKER="${SCRIPT_DIR}/check-version-bump-reminder.sh"
 WORKSPACE_REPO=""
 MAIN_BRANCH="main"
 EXECUTE=0
@@ -130,6 +131,21 @@ pr_view_json() {
     --json number,state,baseRefName,headRefName,headRefOid,mergeStateStatus,url
 }
 
+run_version_bump_release_gate() {
+  local final_task_md final_task_branch
+  final_task_md="${TASK_MDS[$((${#TASK_MDS[@]} - 1))]}"
+  final_task_branch="$(table_field "Task branch" "$final_task_md")"
+  [[ -n "$final_task_branch" ]] || die "missing Task branch in terminal task.md: $final_task_md"
+  [[ -f "$VERSION_BUMP_CHECKER" ]] || die "missing checker: $VERSION_BUMP_CHECKER"
+
+  info "running version-bump release gate on ${final_task_branch} against origin/${MAIN_BRANCH}"
+  bash "$VERSION_BUMP_CHECKER" \
+    --mode release-preflight \
+    --base "origin/${MAIN_BRANCH}" \
+    --head-ref "$final_task_branch" \
+    --repo "$REPO_PATH" || die "release preflight blocked: missing required VERSION bump"
+}
+
 resolve_task_mds_from_terminal() {
   [[ -n "$TERMINAL_TASK_MD" ]] || die "provide --task-md or --terminal-task-md"
   [[ -f "$TERMINAL_TASK_MD" ]] || die "terminal task.md not found: $TERMINAL_TASK_MD"
@@ -246,5 +262,6 @@ if [[ ${#TASK_MDS[@]} -eq 0 ]]; then
   resolve_task_mds_from_terminal
 fi
 
+run_version_bump_release_gate
 validate_and_plan
 echo "$PREFIX PASS"

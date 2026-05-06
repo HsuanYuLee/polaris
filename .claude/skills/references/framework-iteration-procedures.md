@@ -40,6 +40,19 @@ After a VERSION bump is committed, execute these steps in order — no user conf
 
 This chain ensures documentation is always up-to-date and backlog stays clean at release boundaries.
 
+## Release Preflight Enforcement
+
+Before `framework-release` merges or syncs a workspace PR, run the deterministic
+release preflight. If the terminal release diff touches framework
+distribution/tooling files and does not include `VERSION`, preflight must block
+until one of these is true:
+
+1. `VERSION` + `CHANGELOG.md` are added to the release PR.
+2. A local maintainer explicitly sets the override accepted by
+   `scripts/check-version-bump-reminder.sh`.
+
+The release lane must not silently reinterpret this signal as advisory-only.
+
 ## Backlog Hygiene
 
 `polaris-backlog.md` items carry a date tag `(YYYY-MM-DD)` and optional exemption tags (`[platform]`, `[next-epic]`).

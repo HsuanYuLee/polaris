@@ -6,6 +6,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 ## [3.75.8] - 2026-05-06
 
+## [3.75.9] - 2026-05-06
+
+### Fixed — version-bump release gate escalation
+
+- Added a blocking `release-preflight` mode to `check-version-bump-reminder.sh` so framework release lanes fail-stop when framework files changed without a `VERSION` bump.
+- Wired `framework-release-pr-lane.sh` to run that gate against the terminal task branch before merge execution.
+- Added selftest coverage for blocked, bumped, and explicit-override release preflight cases, and documented that framework release can no longer silently treat this signal as advisory-only.
+
 ### Fixed — markdown-link parent closeout release repair
 
 - Issued the versioned release for the `close-parent-spec-if-complete.sh` markdown-link checklist closeout hotfix that was previously merged without a version bump.

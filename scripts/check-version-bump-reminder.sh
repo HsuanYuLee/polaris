@@ -2,7 +2,8 @@
 # scripts/check-version-bump-reminder.sh
 #
 # Purpose: Detect framework distribution/tooling changes that landed without a
-#          VERSION bump, and emit an advisory reminder.
+#          VERSION bump. Post-commit / post-PR modes emit an advisory reminder;
+#          release-preflight mode hard-blocks framework release lanes.
 #          Rule source: rules/framework-iteration.md § Version Bump Reminder.
 #
 # Canary: version-bump-reminder (DP-030 Phase 2C graduation to deterministic)
@@ -14,17 +15,20 @@
 #   --mode post-pr       Inspect `${base}..HEAD` when a base is provided. Used
 #                        by L2 embeds in engineering after PR
 #                        creation. Fallback to HEAD if --base is omitted.
-#
-# Mode: Advisory only. Exit 0 on every path (framework change with no bump
-#       still exit 0 — we only surface the reminder on stdout). This matches
-#       the "path B" advisory posture documented in DP-030 Phase 2C plan.
+#   --mode release-preflight
+#                        Inspect `${base}..${head_ref}` and fail-stop when
+#                        framework distribution/tooling files changed without a
+#                        VERSION bump. Used by framework release preflight.
 #
 # Exit codes:
-#   0 — always (stdout carries the advisory reminder when applicable)
+#   0 — pass/skip/advisory
+#   2 — release-preflight blocked due to missing VERSION bump
 #
 # Usage:
 #   check-version-bump-reminder.sh --mode post-commit [--repo /path/to/repo]
 #   check-version-bump-reminder.sh --mode post-pr --base develop [--repo PATH]
+#   check-version-bump-reminder.sh --mode release-preflight --base origin/main \
+#       --head-ref task/DP-123-T1-example [--repo PATH]
 #   check-version-bump-reminder.sh --self-test
 #
 # Invoked by:
@@ -38,8 +42,10 @@ set -u
 
 MODE=""
 BASE=""
+HEAD_REF="HEAD"
 REPO=""
 SELF_TEST=0
+ALLOW_MISSING_VERSION_BUMP="${POLARIS_ALLOW_MISSING_VERSION_BUMP:-0}"
 
 FRAMEWORK_FILE_REGEX='^(\.claude/rules/[^/]+\.md|rules/[^/]+\.md|\.claude/skills/.*|skills/.*|\.claude/hooks/[^/]+\.sh|\.claude/settings\.json|\.claude/settings\.local\.json\.example|\.claude/settings\.local\.json\.sub-repo-example|\.github/copilot-instructions\.md|\.github/\.generated/.*|\.codex/AGENTS\.md|\.codex/\.generated/.*|scripts/.*\.sh|_template/.*|docs/[^/]+\.md|docs-manager/.*|README\.md|README\.zh-TW\.md|CLAUDE\.md|CHANGELOG\.md|VERSION)$'
 
@@ -48,7 +54,7 @@ select_framework_files() {
 }
 
 run_self_test() {
-  local fixture actual expected
+  local fixture actual expected tmpdir repo rc output override_output
 
   fixture=$(cat <<'EOF'
 .claude/rules/framework-iteration.md
@@ -97,6 +103,60 @@ EOF
     return 1
   fi
 
+  tmpdir="$(mktemp -d -t version-bump-reminder.XXXXXX)"
+  repo="${tmpdir}/repo"
+  git init -q -b main "$repo"
+  (
+    cd "$repo"
+    git config user.name "Polaris Selftest"
+    git config user.email "polaris-selftest@example.com"
+    printf '3.75.8\n' > VERSION
+    printf '# Changelog\n' > CHANGELOG.md
+    mkdir -p .claude/skills
+    printf 'base\n' > .claude/skills/example.md
+    git add VERSION CHANGELOG.md .claude/skills/example.md
+    git commit -q -m "base"
+    git checkout -q -b task/no-bump
+    printf 'changed\n' > .claude/skills/example.md
+    git add .claude/skills/example.md
+    git commit -q -m "framework change without bump"
+    git checkout -q main
+    git checkout -q -b task/with-bump
+    printf 'changed\n' > .claude/skills/example.md
+    printf '3.75.9\n' > VERSION
+    git add .claude/skills/example.md VERSION
+    git commit -q -m "framework change with bump"
+  )
+
+  rc=0
+  output="$(bash "$0" --mode release-preflight --base main --head-ref task/no-bump --repo "$repo" 2>&1)" || rc=$?
+  if [[ "$rc" -ne 2 ]] || ! grep -q "BLOCKED: release-preflight" <<<"$output"; then
+    echo "[version-bump-reminder] self-test failed: release-preflight should block missing bump" >&2
+    printf '%s\n' "$output" >&2
+    rm -rf "$tmpdir"
+    return 1
+  fi
+
+  if ! bash "$0" --mode release-preflight --base main --head-ref task/with-bump --repo "$repo" >/dev/null 2>&1; then
+    echo "[version-bump-reminder] self-test failed: release-preflight should pass when VERSION bumped" >&2
+    rm -rf "$tmpdir"
+    return 1
+  fi
+
+  if ! override_output="$(POLARIS_ALLOW_MISSING_VERSION_BUMP=1 bash "$0" --mode release-preflight --base main --head-ref task/no-bump --repo "$repo" 2>&1)"; then
+    echo "[version-bump-reminder] self-test failed: explicit override should bypass block" >&2
+    printf '%s\n' "$override_output" >&2
+    rm -rf "$tmpdir"
+    return 1
+  fi
+  if ! grep -q "override accepted" <<<"$override_output"; then
+    echo "[version-bump-reminder] self-test failed: override message missing" >&2
+    printf '%s\n' "$override_output" >&2
+    rm -rf "$tmpdir"
+    return 1
+  fi
+
+  rm -rf "$tmpdir"
   echo "[version-bump-reminder] self-test passed"
 }
 
@@ -122,12 +182,24 @@ while [[ $# -gt 0 ]]; do
       BASE="${1#--base=}"
       shift
       ;;
+    --head-ref)
+      HEAD_REF="${2:-}"
+      shift 2
+      ;;
+    --head-ref=*)
+      HEAD_REF="${1#--head-ref=}"
+      shift
+      ;;
     --repo)
       REPO="${2:-}"
       shift 2
       ;;
     --repo=*)
       REPO="${1#--repo=}"
+      shift
+      ;;
+    --allow-missing-version-bump)
+      ALLOW_MISSING_VERSION_BUMP=1
       shift
       ;;
     -h|--help)
@@ -171,12 +243,19 @@ case "$MODE" in
     ;;
   post-pr)
     if [[ -n "$BASE" ]]; then
-      # Diff the current branch against the provided base.
-      changed_files=$(git -C "$REPO" diff --name-only "${BASE}"...HEAD 2>/dev/null || true)
+      # Diff the requested ref against the provided base.
+      changed_files=$(git -C "$REPO" diff --name-only "${BASE}"..."${HEAD_REF}" 2>/dev/null || true)
     else
       # Fallback: use HEAD (same as post-commit).
       changed_files=$(git -C "$REPO" log -1 --name-only --pretty=format: HEAD 2>/dev/null | sed '/^$/d' || true)
     fi
+    ;;
+  release-preflight)
+    [[ -n "$BASE" ]] || {
+      echo "[version-bump-reminder] ERROR: release-preflight requires --base" >&2
+      exit 2
+    }
+    changed_files=$(git -C "$REPO" diff --name-only "${BASE}"..."${HEAD_REF}" 2>/dev/null || true)
     ;;
   *)
     echo "[version-bump-reminder] WARN: unknown mode '$MODE' — skipping" >&2
@@ -204,6 +283,37 @@ fi
 
 file_count=$(printf '%s\n' "$framework_files" | wc -l | tr -d ' ')
 current_version=$(cat "$REPO/VERSION" 2>/dev/null | tr -d '[:space:]' || true)
+
+if [[ "$MODE" == "release-preflight" ]]; then
+  if [[ "$ALLOW_MISSING_VERSION_BUMP" == "1" ]]; then
+    cat <<EOF
+
+[version-bump-reminder] release-preflight override accepted: ${file_count} framework distribution/tooling file(s) changed without a VERSION bump:
+$(printf '%s\n' "$framework_files" | head -5 | sed 's/^/  - /')
+$([ "$file_count" -gt 5 ] && echo "  ... and $((file_count - 5)) more")
+
+Current version: ${current_version:-<unknown>}
+
+Local override is active via POLARIS_ALLOW_MISSING_VERSION_BUMP=1 or --allow-missing-version-bump.
+EOF
+    exit 0
+  fi
+
+  cat <<EOF
+
+[version-bump-reminder] BLOCKED: release-preflight found ${file_count} framework distribution/tooling file(s) without a VERSION bump:
+$(printf '%s\n' "$framework_files" | head -5 | sed 's/^/  - /')
+$([ "$file_count" -gt 5 ] && echo "  ... and $((file_count - 5)) more")
+
+Current version: ${current_version:-<unknown>}
+
+Framework release 不能忽略這個 signal。
+Remediation:
+  - 補 \`VERSION\` + \`CHANGELOG.md\` 到 release PR，然後重新跑 preflight
+  - 只有在明確接受 local override 時，才使用 \`POLARIS_ALLOW_MISSING_VERSION_BUMP=1\`
+EOF
+  exit 2
+fi
 
 # Advisory output on stdout (PostToolUse hook + L2 embed convention — surfaces
 # back to the LLM / user as a reminder).

@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HELPER="$SCRIPT_DIR/framework-release-pr-lane.sh"
 TMPDIR="$(mktemp -d -t framework-release-pr-lane.XXXXXX)"
 trap 'rm -rf "$TMPDIR"' EXIT
+REPO="$TMPDIR/repo"
 
 make_task() {
   local file="$1"
@@ -40,6 +41,46 @@ task/DP-999-T1-one	1	OPEN	main	1111111111111111111111111111111111111111	https://
 task/DP-999-T2-two	2	OPEN	task/DP-999-T1-one	2222222222222222222222222222222222222222	https://example.test/pull/2
 task/DP-999-T3-three	3	OPEN	task/DP-999-T2-two	3333333333333333333333333333333333333333	https://example.test/pull/3
 EOF
+}
+
+init_repo() {
+  git init -q -b main "$REPO"
+  (
+    cd "$REPO"
+    git config user.name "Polaris Selftest"
+    git config user.email "polaris-selftest@example.com"
+    mkdir -p scripts docs-manager/src/content/docs/specs/design-plans/DP-999-fixture/tasks
+    printf '3.75.8\n' > VERSION
+    printf '# Changelog\n' > CHANGELOG.md
+    printf 'base\n' > scripts/example-release.sh
+    git add VERSION CHANGELOG.md scripts/example-release.sh docs-manager
+    git commit -q -m "base"
+    git remote add origin "$REPO"
+    git fetch -q origin main:refs/remotes/origin/main
+
+    git checkout -q -b task/DP-999-T1-one
+    printf '3.75.9\n' > VERSION
+    printf 'release touch\n' > scripts/example-release.sh
+    git add VERSION scripts/example-release.sh
+    git commit -q -m "t1"
+
+    git checkout -q -b task/DP-999-T2-two
+    printf 't2\n' > t2.txt
+    git add t2.txt
+    git commit -q -m "t2"
+
+    git checkout -q -b task/DP-999-T3-three
+    printf 't3\n' > t3.txt
+    git add t3.txt
+    git commit -q -m "t3"
+
+    git checkout -q main
+    git checkout -q -b task/DP-999-TB-blocked
+    printf 'blocked\n' > scripts/example-release.sh
+    git add scripts/example-release.sh
+    git commit -q -m "blocked"
+    git checkout -q main
+  )
 }
 
 cat > "$TMPDIR/gh" <<'SH'
@@ -114,19 +155,22 @@ fi
 SH
 chmod +x "$TMPDIR/gh"
 
-TASK_DIR="$TMPDIR/docs-manager/src/content/docs/specs/design-plans/DP-999-fixture/tasks"
+init_repo
+
+TASK_DIR="$REPO/docs-manager/src/content/docs/specs/design-plans/DP-999-fixture/tasks"
 make_task "$TASK_DIR/T1.md" "DP-999-T1" "main" "main -> task/DP-999-T1-one" "task/DP-999-T1-one"
 make_task "$TASK_DIR/T2.md" "DP-999-T2" "task/DP-999-T1-one" "main -> task/DP-999-T1-one -> task/DP-999-T2-two" "task/DP-999-T2-two"
 make_task "$TASK_DIR/T3.md" "DP-999-T3" "task/DP-999-T2-two" "main -> task/DP-999-T1-one -> task/DP-999-T2-two -> task/DP-999-T3-three" "task/DP-999-T3-three"
+make_task "$TASK_DIR/TB.md" "DP-999-TB" "main" "main -> task/DP-999-TB-blocked" "task/DP-999-TB-blocked"
 
 export GH_BIN="$TMPDIR/gh"
 export FRAMEWORK_PR_LANE_STATE="$TMPDIR/pr-state.tsv"
 
 write_state
-bash "$HELPER" --repo "$TMPDIR" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" >/tmp/framework-pr-lane-dryrun.out
+bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" >/tmp/framework-pr-lane-dryrun.out
 
 write_state
-bash "$HELPER" --repo "$TMPDIR" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" --execute >/tmp/framework-pr-lane-execute.out
+bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" --execute >/tmp/framework-pr-lane-execute.out
 awk -F '\t' '$2 == "2" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
 awk -F '\t' '$2 == "3" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
 
@@ -143,10 +187,22 @@ for line in path.read_text().splitlines():
     rows.append("\t".join(parts))
 path.write_text("\n".join(rows) + "\n")
 PY
-if bash "$HELPER" --repo "$TMPDIR" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" >/tmp/framework-pr-lane-wrong-base.out 2>&1; then
+if bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" >/tmp/framework-pr-lane-wrong-base.out 2>&1; then
   echo "expected wrong base fixture to fail" >&2
   exit 1
 fi
 grep -q "expected 'task/DP-999-T1-one'" /tmp/framework-pr-lane-wrong-base.out
+
+cat > "$TMPDIR/pr-state.tsv" <<'EOF'
+task/DP-999-TB-blocked	9	OPEN	main	9999999999999999999999999999999999999999	https://example.test/pull/9
+EOF
+if bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/TB.md" >/tmp/framework-pr-lane-blocked.out 2>&1; then
+  echo "expected missing VERSION bump fixture to fail" >&2
+  exit 1
+fi
+grep -q "BLOCKED: release-preflight" /tmp/framework-pr-lane-blocked.out
+
+POLARIS_ALLOW_MISSING_VERSION_BUMP=1 bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/TB.md" >/tmp/framework-pr-lane-override.out 2>&1
+grep -q "override accepted" /tmp/framework-pr-lane-override.out
 
 echo "[framework-release-pr-lane-selftest] PASS"

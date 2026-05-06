@@ -78,7 +78,7 @@ During the existing post-task reflection pass (feedback-and-memory.md § item 6)
 - **Optional, not mandatory** — only write when the signal is clear and non-obvious. If in doubt, skip
 - **No rule promotion** — framework-experience memories are observations, not corrections. They do not trigger the direct-write-to-rule workflow
 
-## Version Bump Reminder
+## Version Bump Signal
 
 During post-task reflection, if the completed task modified files under `rules/` or `skills/`:
 
@@ -86,4 +86,9 @@ During post-task reflection, if the completed task modified files under `rules/`
 - If user confirms → bump `VERSION`, update `CHANGELOG.md`, commit, then execute the **Post-Version-Bump Chain** (see `skills/references/framework-iteration-procedures.md` § Post-Version-Bump Chain)
 - If user declines → no action. Multiple small changes can be batched into one version later
 
-This is a **reminder**, not an automatic bump. The user decides when and how to group changes into a release.
+Post-task reflection remains a **reminder**, not an automatic bump.
+
+Framework release preflight is stricter:
+
+- If the release diff hits the `version-bump-reminder` signal and the release PR does not include `VERSION`, the release lane must fail-stop.
+- Only an explicit local override may bypass that block; silent interpretation of the reminder as optional is not allowed.
