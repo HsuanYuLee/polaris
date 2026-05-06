@@ -1,0 +1,46 @@
+.sidebar-pane {
+  --sl-sidebar-width: 20rem;
+}
+
+.sidebar-content {
+  --sl-sidebar-item-padding-inline: 0.625rem;
+}
+
+.sidebar-content :where(a, summary) {
+  padding-block: 0.4rem;
+  line-height: 1.45;
+}
+
+.sidebar-content :where(a, .group-label) {
+  gap: 0.25rem 0.5rem;
+}
+
+.sidebar-content a {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+}
+
+.sidebar-content .group-label {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+}
+
+.sidebar-content .sl-badge {
+  flex: 0 0 auto;
+  margin-inline-start: 0.125rem;
+  white-space: nowrap;
+}
+
+.sidebar-content .caret {
+  margin-inline-start: 0.5rem;
+}
+
+@media (min-width: 50rem) {
+  .sidebar-content .top-level > li + li {
+    margin-top: 0.625rem;
+  }
+}

@@ -1,14 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createTranslator, resolveDocsManagerLocale } from './src/status/i18n.mjs';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const docsRoot = path.join(rootDir, 'src/content/docs');
 const specsRoot = process.env.POLARIS_SPECS_ROOT
   ? path.resolve(process.env.POLARIS_SPECS_ROOT)
   : path.join(docsRoot, 'specs');
+const t = createTranslator(resolveDocsManagerLocale());
 
 const folderMetadataDocNames = ['index.md', 'plan.md', 'epic.md', 'refinement.md', 'breakdown.md', 'README.md'];
+const hiddenDirectoryNames = new Set(['assets', 'artifacts', 'escalations', 'refinement-inbox', 'tests']);
 const fileOrder = new Map([
   ['index.md', 0],
   ['README.md', 5],
@@ -76,6 +79,7 @@ function folderChildren(baseDir) {
     .readdirSync(baseDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .filter((entry) => entry.name !== 'archive')
+    .filter((entry) => !hiddenDirectoryNames.has(entry.name))
     .map((entry) => folderItem(path.join(baseDir, entry.name)))
     .filter(Boolean)
     .sort(sortByOrderThenLabel);
@@ -93,37 +97,38 @@ function folderItem(dir) {
   if (!fs.existsSync(dir)) return undefined;
 
   const metadata = readFolderMetadata(dir);
-  const items = fs
-    .readdirSync(dir, { withFileTypes: true })
-    .filter((entry) => entry.name !== '.DS_Store')
-    .filter((entry) => entry.name !== 'index.md')
-    .filter((entry) => entry.isDirectory() || (entry.isFile() && entry.name.endsWith('.md')))
-    .map((entry) => {
-      const entryPath = path.join(dir, entry.name);
-      return entry.isDirectory() ? folderItem(entryPath) : linkItem(entryPath);
-    })
+  const items = sidebarEntriesForDir(dir)
+    .map((entryPath) => (fs.statSync(entryPath).isDirectory() ? folderItem(entryPath) : linkItem(entryPath)))
     .filter(Boolean)
     .sort(sortByFilesystemOrderThenLabel);
 
   if (items.length === 0) {
     if (!metadata.link) return undefined;
-    return withSidebarPrivateFields(
-      {
-        label: metadata.label || path.basename(dir),
-        link: metadata.link,
-        ...(metadata.badge ? { badge: metadata.badge } : {}),
-      },
-      metadata,
-      path.basename(dir),
-      'file'
-    );
+    const item = {
+      label: metadata.label || path.basename(dir),
+      collapsed: true,
+      items: [
+        withSidebarPrivateFields(
+          {
+            label: folderIndexLabel(dir),
+            link: metadata.link,
+            ...(metadata.badge ? { badge: metadata.badge } : {}),
+          },
+          { order: -1 },
+          'index.md',
+          'file'
+        ),
+      ],
+    };
+    if (metadata.badge) item.badge = metadata.badge;
+    return withSidebarPrivateFields(item, metadata, path.basename(dir), 'directory');
   }
 
   const childItems = metadata.link
     ? [
         withSidebarPrivateFields(
           {
-            label: 'overview',
+            label: folderIndexLabel(dir),
             link: metadata.link,
             ...(metadata.badge ? { badge: metadata.badge } : {}),
           },
@@ -143,6 +148,47 @@ function folderItem(dir) {
 
   if (metadata.badge) item.badge = metadata.badge;
   return withSidebarPrivateFields(item, metadata, path.basename(dir), 'directory');
+}
+
+function sidebarEntriesForDir(dir) {
+  const entries = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.name !== '.DS_Store')
+    .filter((entry) => !hiddenDirectoryNames.has(entry.name))
+    .filter((entry) => entry.name !== 'index.md')
+    .filter((entry) => entry.isDirectory() || (entry.isFile() && entry.name.endsWith('.md')));
+
+  if (path.basename(dir) !== 'tasks') {
+    return entries.map((entry) => path.join(dir, entry.name));
+  }
+
+  const flattened = [];
+  for (const entry of entries) {
+    const entryPath = path.join(dir, entry.name);
+    if (!entry.isDirectory() || entry.name !== 'pr-release') {
+      flattened.push(entryPath);
+      continue;
+    }
+
+    for (const releasedEntry of fs.readdirSync(entryPath, { withFileTypes: true })) {
+      if (releasedEntry.name === '.DS_Store') continue;
+      if (!releasedEntry.isDirectory() && !(releasedEntry.isFile() && releasedEntry.name.endsWith('.md'))) continue;
+      flattened.push(path.join(entryPath, releasedEntry.name));
+    }
+  }
+  return flattened;
+}
+
+function folderIndexLabel(dir) {
+  if (isWorkItemDir(dir)) return 'index';
+  return 'overview';
+}
+
+function isWorkItemDir(dir) {
+  const name = path.basename(dir);
+  const parent = path.basename(path.dirname(dir));
+  const grandparent = path.basename(path.dirname(path.dirname(dir)));
+  return /^[TV][0-9]+[a-z]*$/i.test(name) && (parent === 'tasks' || parent === 'pr-release' || grandparent === 'tasks');
 }
 
 function linkItem(file) {
@@ -220,14 +266,29 @@ function cleanFolderLabel(title, file) {
 
 function resolveBadge(frontmatter, sidebar = {}) {
   const status = frontmatter.status;
-  if (!status) return sidebar.badge;
+  if (!status) return localizeExplicitBadge(sidebar.badge);
   const priority = frontmatter.priority;
   const normalizedStatus = String(status).trim().toUpperCase();
   const normalizedPriority = priority ? String(priority).trim().toUpperCase() : '';
   return {
-    text: normalizedPriority ? `${normalizedStatus} / ${normalizedPriority}` : normalizedStatus,
+    text: normalizedPriority ? `${statusLabel(normalizedStatus)} / ${normalizedPriority}` : statusLabel(normalizedStatus),
     variant: badgeVariant(normalizedStatus, normalizedPriority),
   };
+}
+
+function localizeExplicitBadge(badge) {
+  if (!badge?.text) return badge;
+  return {
+    ...badge,
+    text: statusLabel(badge.text),
+  };
+}
+
+function statusLabel(status) {
+  const normalizedStatus = String(status).trim().toUpperCase();
+  const key = `status.${normalizedStatus.toLowerCase()}`;
+  const label = t(key);
+  return label === key ? normalizedStatus : label;
 }
 
 function badgeVariant(status, priority = '') {
@@ -257,7 +318,7 @@ function sortByFilesystemOrderThenLabel(a, b) {
   const bOrder = b.__kind === 'directory' && Number.isFinite(b.__order) ? b.__order : defaultEntryOrder(b);
   if (aOrder !== bOrder) return aOrder - bOrder;
   if (a.__kind !== b.__kind) return a.__kind === 'file' ? -1 : 1;
-  return a.label.localeCompare(b.label);
+  return a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' });
 }
 
 function defaultEntryOrder(item) {
@@ -267,6 +328,7 @@ function defaultEntryOrder(item) {
     if (/^[TV][0-9]+[a-z]*\.md$/i.test(name)) return 200;
     return 500;
   }
+  if (/^[TV][0-9]+[a-z]*$/i.test(name)) return 200;
   return directoryOrder.get(name) ?? 700;
 }
 

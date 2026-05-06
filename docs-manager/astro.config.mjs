@@ -25,6 +25,7 @@ export default defineConfig({
         src: './src/assets/polaris-logo.png',
         alt: 'Polaris',
       },
+      customCss: ['./src/styles/sidebar.css'],
       social: [],
       sidebar: [
         {

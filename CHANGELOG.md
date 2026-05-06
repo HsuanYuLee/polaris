@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.74.98] - 2026-05-06
+
+### Fixed — template-safe sidebar structure selftest
+
+- Reworked the docs-manager sidebar structure selftest to generate generic temporary specs instead of using company-specific fixture keys.
+- Keeps folder-native sidebar regression coverage releaseable to the Polaris template without leaking workspace sample identifiers.
+
+## [3.74.97] - 2026-05-06
+
+### Added — folder-native docs-manager sidebar polish
+
+- Updated docs-manager sidebar rendering so folder-native spec containers consistently expose overview/index children while lifecycle and legacy evidence folders stay hidden.
+- Added migration and sidebar selftest helpers for folder-native task docs and legacy spec folders.
+- Added localized sidebar status badges and sidebar spacing overrides for long work item labels.
+
 ## [3.74.96] - 2026-05-06
 
 ### Added — completion gate publication markers

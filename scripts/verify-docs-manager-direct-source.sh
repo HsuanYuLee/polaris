@@ -91,6 +91,21 @@ function findItem(items, predicate) {
 const sidebar = specsSidebar();
 const labels = [];
 const links = [];
+const statusLabels = {
+  implemented: ['Implemented', '已完成'],
+  implementing: ['Implementing', '實作中'],
+  discussion: ['Discussion', '討論中'],
+  locked: ['Locked', '已鎖定'],
+  inProgress: ['In Progress', '進行中'],
+};
+
+function localizedStatus(status) {
+  return statusLabels[status] ?? [];
+}
+
+function localizedStatusWithPriority(status, priority) {
+  return localizedStatus(status).map((label) => `${label} / ${priority}`);
+}
 
 function walk(items, visitor = undefined) {
   for (const item of items) {
@@ -129,33 +144,33 @@ assert(
 assert(links.includes('/specs/design-plans/archive/dp-062-refinement-research-container-flow/tasks/pr-release/t2/'), 'archived DP pr-release task route missing from sidebar');
 assert(links.includes('/specs/design-plans/archive/dp-063-docs-manager-source-unification/tasks/pr-release/t1/'), 'archived DP pr-release task route missing from sidebar');
 
-const companyImplementing = findItem(companyGroup.items, (item) => item.badge?.text === 'IMPLEMENTING');
-assert(companyImplementing?.badge?.text === 'IMPLEMENTING', 'company Epic IMPLEMENTING badge missing');
+const companyImplementing = findItem(companyGroup.items, (item) => localizedStatus('implementing').includes(item.badge?.text));
+assert(localizedStatus('implementing').includes(companyImplementing?.badge?.text), 'company Epic IMPLEMENTING badge missing');
 assert(companyImplementing?.badge?.variant === 'caution', 'company Epic IMPLEMENTING badge variant should be caution');
 
-const companyDiscussion = findItem(companyGroup.items, (item) => item.badge?.text === 'DISCUSSION');
-assert(companyDiscussion?.badge?.text === 'DISCUSSION', 'company Epic DISCUSSION badge missing');
+const companyDiscussion = findItem(companyGroup.items, (item) => localizedStatus('discussion').includes(item.badge?.text));
+assert(localizedStatus('discussion').includes(companyDiscussion?.badge?.text), 'company Epic DISCUSSION badge missing');
 assert(companyDiscussion?.badge?.variant === 'note', 'company Epic DISCUSSION badge variant should be note');
 
-const companyLocked = findItem(companyGroup.items, (item) => item.badge?.text === 'LOCKED');
-assert(companyLocked?.badge?.text === 'LOCKED', 'company Epic LOCKED badge missing');
+const companyLocked = findItem(companyGroup.items, (item) => localizedStatus('locked').includes(item.badge?.text));
+assert(localizedStatus('locked').includes(companyLocked?.badge?.text), 'company Epic LOCKED badge missing');
 assert(companyLocked?.badge?.variant === 'tip', 'company Epic LOCKED badge variant should be tip');
 
 const dpImplemented = findItem(designPlans.items, (item) => item.label?.includes('DP-035'));
 const dp035BadgeText = dpImplemented?.badge?.text;
 const dp035BadgeVariant = dpImplemented?.badge?.variant;
 assert(
-  (dp035BadgeText === 'IMPLEMENTING / P2' && dp035BadgeVariant === 'caution') ||
-    (dp035BadgeText === 'IMPLEMENTED / P2' && dp035BadgeVariant === 'success'),
+  (localizedStatusWithPriority('implementing', 'P2').includes(dp035BadgeText) && dp035BadgeVariant === 'caution') ||
+    (localizedStatusWithPriority('implemented', 'P2').includes(dp035BadgeText) && dp035BadgeVariant === 'success'),
   'DP-035 status/priority badge was not derived consistently',
 );
 
 const dpDiscussion = findItem(designPlans.items, (item) => item.label?.includes('DP-034'));
-assert(dpDiscussion?.badge?.text === 'DISCUSSION / P2', 'DP status/priority badge text was not derived consistently');
+assert(localizedStatusWithPriority('discussion', 'P2').includes(dpDiscussion?.badge?.text), 'DP status/priority badge text was not derived consistently');
 assert(dpDiscussion?.badge?.variant === 'note', 'DP non-P1 badge variant should be note');
 
-const archivedBug = findItem(companyGroup.items, (item) => item.badge?.text === 'IMPLEMENTED');
-assert(archivedBug?.badge?.text === 'IMPLEMENTED', 'company archived ticket status badge missing');
+const archivedBug = findItem(companyGroup.items, (item) => localizedStatus('implemented').includes(item.badge?.text));
+assert(localizedStatus('implemented').includes(archivedBug?.badge?.text), 'company archived ticket status badge missing');
 assert(archivedBug?.badge?.variant === 'success', 'company archived ticket badge variant should be success');
 
 const inProgressTask = findItem(
@@ -163,9 +178,9 @@ const inProgressTask = findItem(
   (item) =>
     item.link?.startsWith(`/specs/companies/${companySlug}/`) &&
     item.link.endsWith('/tasks/t1/') &&
-    item.badge?.text === 'IN_PROGRESS',
+    localizedStatus('inProgress').includes(item.badge?.text),
 );
-assert(inProgressTask?.badge?.text === 'IN_PROGRESS', 'company task status badge missing');
+assert(localizedStatus('inProgress').includes(inProgressTask?.badge?.text), 'company task status badge missing');
 assert(inProgressTask?.badge?.variant === 'caution', 'company task IN_PROGRESS badge variant should be caution');
 NODE
 
