@@ -95,3 +95,7 @@ bash scripts/polaris-toolchain.sh run docs.viewer.dev
 3. 跑 `refinement-handoff-gate.sh`。
 4. 跑 language / Starlight gates。
 5. 才提示 `breakdown {SOURCE}`。
+
+這個 finalize contract 適用於所有 refinement-owned JIRA sources，不只 Epic。若 Story /
+Task 被 refinement 充實後才進 breakdown，同樣必須先有 current `refinement.md` 與
+`refinement.json`。Bug 不走本 flow；Bug 先由 `bug-triage` 寫 confirmed RCA handoff。

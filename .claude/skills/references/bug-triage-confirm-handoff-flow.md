@@ -34,6 +34,15 @@ description: "bug-triage 的 RD confirmation hard stop、JIRA ROOT_CAUSE comment
 
 不可送出未通過 language gate 的 diagnostic comment。
 
+Bug 不要求 `refinement.md` / `refinement.json`，但仍不可跳過 handoff。Bug 的
+source-specific handoff 是：
+
+- confirmed JIRA comment containing `[ROOT_CAUSE]`, `[IMPACT]`, `[PROPOSED_FIX]`
+- local final-comment artifact path when available
+- evidence artifact path when investigation produced one
+
+缺 confirmed RCA comment 時，`breakdown` 必須 fail-stop 並 route back to `bug-triage`。
+
 ## Handbook Observations
 
 Explorer 若回報 handbook gaps 或 stale entries，依 `explore-pattern.md` 處理：

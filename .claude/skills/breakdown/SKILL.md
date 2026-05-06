@@ -46,6 +46,9 @@ to `refinement`。
 
 ## Shared Fail-Stops
 
+- 每種 source 在 work-order packaging 前都必須有對應的 planning handoff：
+  refinement-owned DP / Epic / Story / Task 需要 current `refinement.json`；Bug 需要
+  `bug-triage` confirmed `[ROOT_CAUSE]` handoff。
 - Bug ticket 沒有 `[ROOT_CAUSE]` comment：停止，請使用者先跑 `bug-triage {TICKET}`。
 - DP `status: DISCUSSION`：停止，請使用者先跑 `refinement DP-NNN`。
 - 新 DP 缺 `refinement.json`：停止並 route back to refinement；legacy DP 需明確標示

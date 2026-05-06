@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.3] - 2026-05-06
+
+### Fixed — refinement source handoff coverage
+
+- 明確規範 refinement-owned DP / Epic / Story / Task sources 在 breakdown 或 DP LOCK 前必須具備 current `refinement.md` 與 `refinement.json`。
+- 文件化 Bug 的 source-specific 例外：Bug 使用已確認的 `bug-triage` RCA handoff，不要求 refinement artifacts。
+- 在 breakdown shared fail-stop 補上 source-specific planning handoff 要求。
+
 ## [3.75.2] - 2026-05-06
 
 ### Fixed — no-source no-PR gate

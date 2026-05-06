@@ -182,6 +182,9 @@ Artifact 必須保留足夠的 scope、AC、dependencies、edge cases、downstre
 
 1. 檢查 Goal、Decisions、Blind Spots、Acceptance Criteria、Technical Approach 是否足夠交給 breakdown。
 2. 確認 `refinement.md` 與 `refinement.json` 是 current；`refinement.json` 必須通過 `scripts/refinement-handoff-gate.sh`。
+   這不是 DP-only 規則，而是所有 refinement-owned source 的 LOCK / breakdown handoff
+   規則。DP 只是其中一種 source；Epic / Story / Task / ticketless topic 同樣不得在缺
+   handoff artifact 時提示 breakdown。
 3. 將 DP frontmatter 改為：
    ```yaml
    status: LOCKED
