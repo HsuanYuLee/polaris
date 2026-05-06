@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.6] - 2026-05-06
+
+### Fixed — docs-manager sidebar refresh
+
+- Added a docs-manager dev watcher that restarts Astro when public specs markdown or folder structure changes so Starlight manual sidebar state is recalculated.
+- Kept hidden evidence and artifact folders out of sidebar refresh triggers to avoid noisy restarts during evidence publication.
+- Added regression coverage for sidebar refresh trigger classification.
+
 ## [3.75.5] - 2026-05-06
 
 ### Added — review-inbox context budget contract

@@ -5,7 +5,7 @@ import { createTranslator, resolveDocsManagerLocale } from './src/status/i18n.mj
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const docsRoot = path.join(rootDir, 'src/content/docs');
-const specsRoot = process.env.POLARIS_SPECS_ROOT
+export const specsRoot = process.env.POLARIS_SPECS_ROOT
   ? path.resolve(process.env.POLARIS_SPECS_ROOT)
   : path.join(docsRoot, 'specs');
 const t = createTranslator(resolveDocsManagerLocale());

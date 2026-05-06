@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
-import { specsSidebar } from './sidebar.mjs';
+import { specsSidebar, specsRoot } from './sidebar.mjs';
+import { specsSidebarDevRestartPlugin } from './sidebar-dev-restart.mjs';
 import {
   createTranslator,
   resolveDocsManagerLocale,
@@ -15,6 +16,9 @@ export default defineConfig({
   site,
   base: '/docs-manager',
   trailingSlash: 'always',
+  vite: {
+    plugins: [specsSidebarDevRestartPlugin(specsRoot)],
+  },
   integrations: [
     starlight({
       title: 'Polaris Specs',
