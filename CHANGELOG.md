@@ -4,8 +4,6 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
-## [3.75.8] - 2026-05-06
-
 ## [3.75.9] - 2026-05-06
 
 ### Fixed — version-bump release gate escalation
@@ -13,6 +11,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 - Added a blocking `release-preflight` mode to `check-version-bump-reminder.sh` so framework release lanes fail-stop when framework files changed without a `VERSION` bump.
 - Wired `framework-release-pr-lane.sh` to run that gate against the terminal task branch before merge execution.
 - Added selftest coverage for blocked, bumped, and explicit-override release preflight cases, and documented that framework release can no longer silently treat this signal as advisory-only.
+
+## [3.75.10] - 2026-05-06
+
+### Fixed — release gate parity manifest repair
+
+- Added the regenerated runtime instruction manifests required by the `framework-iteration.md` rule update so cross-LLM parity stays in sync with the `version-bump` release gate escalation.
+- Corrected the changelog ordering around the `3.75.9` release record.
+
+## [3.75.8] - 2026-05-06
 
 ### Fixed — markdown-link parent closeout release repair
 
