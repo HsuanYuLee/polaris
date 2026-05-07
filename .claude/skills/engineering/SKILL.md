@@ -61,6 +61,10 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
   evidence exists → base freshness → commit → PR → JIRA → completion gate → worktree cleanup。
 - Local Extension：同樣先完成 engineering evidence gates，再依 local policy 交給 extension；
   extension 不得降低 gate。
+- Mutable PR lane 先 consume shared PR state：`resolve-pr-work-source.sh` →
+  `pr-state-snapshot.sh` → `pr-action-classifier.sh`。對外 readiness 語彙只能使用
+  `review_required`、`awaiting_re_review`、`mergeable_ready`、`needs_code_changes`、
+  `blocked_conflict`、`unsupported_mutation`、`wait_ci`、`planning_gap`。
 
 ## Fail-Stops
 
@@ -70,6 +74,8 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
   metadata / closeout，不施工。
 - Duplicate branch / remote branch / stale worktree：停止，resume / revision / cleanup，
   不開第二條 implementation branch。
+- shared PR state 若是 `unsupported_mutation`、`blocked_conflict`、或
+  `stale_downstream`，停止把 revision lane 說成「已收斂」或「可 review」。
 - Review signal 分類出 plan gap / spec issue：停止，寫 handoff / learning，需要
   breakdown 或 refinement。
 - Scope escalation sidecar validator 未 pass：不得結束 session，也不得 push / PR。

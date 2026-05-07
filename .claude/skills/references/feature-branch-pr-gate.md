@@ -21,6 +21,14 @@
 
 ### Step 1: 判斷是否為 feature branch 模式
 
+這一層不能只看 PR `baseRefName`。feature / sibling lane 要先用 shared PR state 確認它是
+`feature` 或 `stacked_task`，並檢查是否已經 `stale_downstream`：
+
+```bash
+bash scripts/resolve-pr-work-source.sh --repo {repo_dir} --intent mutable
+bash scripts/pr-state-snapshot.sh --repo {repo_dir} --intent mutable
+```
+
 ```
 task PR 的 baseRefName 不是 develop/main
   → 是 feature branch 模式
@@ -51,7 +59,7 @@ references/scripts/check-feature-pr.sh {owner}/{repo} {feature_branch} --base de
 
 ## Sibling Cascade Rebase（任一 task merge 後）
 
-當 check-feature-pr.sh 回傳 `TASKS_IN_PROGRESS`（還有 open task PR），代表有 task 剛 merge 進 feature branch，其他 sibling task PR 的 base 已過時。此時自動 rebase 所有 open sibling task PRs。
+當 check-feature-pr.sh 回傳 `TASKS_IN_PROGRESS`（還有 open task PR），代表有 task 剛 merge 進 feature branch，其他 sibling task PR 的 base 已過時。shared snapshot 在這裡應該呈現 `base_freshness=stale_downstream`；此時自動 rebase 所有 open sibling task PRs。
 
 ### 觸發條件
 

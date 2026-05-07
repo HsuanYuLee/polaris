@@ -26,6 +26,8 @@ comments，並提交 GitHub review。
 
 Reviewer stance：prioritize bugs、behavior regressions、security、type safety、project
 rule violations、missing tests。不要用 personal style preference 擋 merge。
+reviewer-side 屬 read-only lane，但對 `changes_requested`、`active unresolved comments`、
+`awaiting_re_review`、`mergeable_ready` 的語義必須與 author-side mutable lane 一致；不得自行重寫。
 
 ## Reference Loading
 

@@ -59,6 +59,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVE_TASK_MD_BY_BRANCH="$SCRIPT_DIR/resolve-task-md-by-branch.sh"
 RESOLVE_TASK_BASE="$SCRIPT_DIR/resolve-task-base.sh"
+RESOLVE_PR_WORK_SOURCE="$SCRIPT_DIR/resolve-pr-work-source.sh"
 CASCADE_REBASE_CHAIN="$SCRIPT_DIR/cascade-rebase-chain.sh"
 GITHUB_REST_LIB="$SCRIPT_DIR/lib/github-rest.sh"
 
@@ -385,19 +386,47 @@ if [ "$PR_NUMBER" != "__NULL__" ] && [ "$PR_BASE_BEFORE" = "__NULL__" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 4: Compute RESOLVED_BASE
+# Step 4: Compute RESOLVED_BASE via shared work-source authority
 # ---------------------------------------------------------------------------
 
 RESOLVED_BASE=""
+PR_TYPE="unknown"
+MUTABLE_ALLOWED="true"
+UNSUPPORTED_REASON=""
 
-if [ ! -f "$RESOLVE_TASK_BASE" ]; then
-  log_err "helper missing: $RESOLVE_TASK_BASE"
+if [ -f "$RESOLVE_PR_WORK_SOURCE" ]; then
+  work_source_args=(--repo "$REPO" --task-md "$TASK_MD" --intent mutable)
+  if [ "$AGGREGATE_RELEASE" = "1" ]; then
+    work_source_args+=(--aggregate-release)
+  fi
+  WORK_SOURCE_JSON=$("$RESOLVE_PR_WORK_SOURCE" "${work_source_args[@]}" 2>/dev/null) && rc=0 || rc=$?
+  if [ "$rc" = "0" ] && [ -n "${WORK_SOURCE_JSON:-}" ]; then
+    PR_TYPE=$(printf '%s' "$WORK_SOURCE_JSON" | python3 -c 'import json,sys; print((json.load(sys.stdin).get("pr_type") or "unknown"))' 2>/dev/null || echo "unknown")
+    MUTABLE_ALLOWED=$(printf '%s' "$WORK_SOURCE_JSON" | python3 -c 'import json,sys; print("true" if json.load(sys.stdin).get("mutable_allowed", True) else "false")' 2>/dev/null || echo "true")
+    UNSUPPORTED_REASON=$(printf '%s' "$WORK_SOURCE_JSON" | python3 -c 'import json,sys; print((json.load(sys.stdin).get("unsupported_reason") or ""))' 2>/dev/null || true)
+    if [ "$AGGREGATE_RELEASE" != "1" ]; then
+      RESOLVED_BASE=$(printf '%s' "$WORK_SOURCE_JSON" | python3 -c 'import json,sys; print((json.load(sys.stdin).get("authoritative_base") or ""))' 2>/dev/null || true)
+    fi
+  fi
+fi
+
+if [ "$MUTABLE_ALLOWED" != "true" ]; then
+  log_err "shared PR state classified revision lane as unsupported_mutation (${UNSUPPORTED_REASON:-unknown})"
+  emit_evidence "$REPO" "${TASK_MD:-__NULL__}" "__NULL__" "conflict" \
+    "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" "false"
   exit 1
 fi
-RESOLVED_BASE=$("$RESOLVE_TASK_BASE" "$TASK_MD" 2>/dev/null) && rc=0 || rc=$?
-if [ "$rc" != "0" ] || [ -z "$RESOLVED_BASE" ]; then
-  log_err "resolve-task-base.sh failed for $TASK_MD (exit $rc)"
-  exit 1
+
+if [ -z "$RESOLVED_BASE" ]; then
+  if [ ! -f "$RESOLVE_TASK_BASE" ]; then
+    log_err "helper missing: $RESOLVE_TASK_BASE"
+    exit 1
+  fi
+  RESOLVED_BASE=$("$RESOLVE_TASK_BASE" "$TASK_MD" 2>/dev/null) && rc=0 || rc=$?
+  if [ "$rc" != "0" ] || [ -z "$RESOLVED_BASE" ]; then
+    log_err "resolve-task-base.sh failed for $TASK_MD (exit $rc)"
+    exit 1
+  fi
 fi
 
 REBASE_BASE="$RESOLVED_BASE"
@@ -417,7 +446,7 @@ if [ "$AGGREGATE_RELEASE" = "1" ]; then
   REBASE_BASE="$PR_BASE_BEFORE"
 fi
 
-log_info "repo=$REPO  task_md=$TASK_MD  resolved_base=$RESOLVED_BASE  rebase_base=$REBASE_BASE  pr=$PR_NUMBER"
+log_info "repo=$REPO  task_md=$TASK_MD  pr_type=$PR_TYPE  resolved_base=$RESOLVED_BASE  rebase_base=$REBASE_BASE  pr=$PR_NUMBER"
 
 # ---------------------------------------------------------------------------
 # Step 5: git fetch origin

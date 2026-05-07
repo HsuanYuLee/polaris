@@ -107,16 +107,18 @@ refinement 完成時同時產出兩份：
     {
       "id": "AC1",
       "text": "使用者選擇日期後，價格區塊即時更新",
+      "category": "functional",         // "functional" | "non_functional" | "negative"
       "quantifiable": true,
       "verification": {
         "method": "playwright",          // "playwright" | "lighthouse" | "curl" | "unit_test" | "manual"
         "detail": "切換日期 → assert 價格區塊文字變更"
       },
-      "negative": false                  // true = 負面 AC（什麼不應該壞）
+      "negative": false                  // legacy compatibility alias；new producer 仍應寫 category
     },
     {
       "id": "AC-NEG1",
       "text": "既有頁面的 LCP 不因此功能退化 > 10%",
+      "category": "negative",
       "quantifiable": true,
       "verification": {
         "method": "lighthouse",
@@ -195,6 +197,13 @@ refinement 完成時同時產出兩份：
 
 為了相容既有 JIRA artifacts，舊資料可以保留 top-level `epic`。新 producer 應寫入
 `source`；只有 JIRA Epic 存在時，才把 `epic` 當作 convenience alias 保留。
+
+AC hardening contract：
+
+- 所有 refinement-owned source 共用同一套 hardened AC：功能 AC、非功能 AC、負面 AC。
+- `acceptance_criteria[]` 每條必須保留 `verification`。
+- 新 producer 應寫 `category`，讓 JSON artifact 不丟失 markdown 中的分類。
+- `negative` 欄位只作 legacy compatibility；consumer 應優先讀 `category`。
 
 ## 下游 Skill 如何使用
 

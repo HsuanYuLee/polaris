@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.17] - 2026-05-07
+
+### Fixed — PR governance state contract and refinement AC parity
+
+- Added a shared PR governance contract with deterministic work-source resolution, state snapshots, and action classification so mutable, reviewer, and reporting lanes use the same readiness vocabulary.
+- Updated engineering revision, PR pickup, review, and approval flows to consume shared mergeability, base-freshness, and unsupported-mutation signals instead of lane-local heuristics.
+- Enforced framework-governed readiness metadata with a deterministic PR assignee gate and hardened release/validation behavior for refinement artifact scanning.
+- Unified Epic-backed and DP-backed refinement AC contracts so ticketless design plans start with the same hardened functional, non-functional, and negative AC structure plus explicit verification guidance.
+
 ## [3.75.16] - 2026-05-07
 
 ### Fixed — runtime readiness and visual snapshot bootstrap hardening

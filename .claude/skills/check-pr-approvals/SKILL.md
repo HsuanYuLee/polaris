@@ -8,7 +8,7 @@ metadata:
 
 # Check PR Approvals — PR Review 進度追蹤
 
-掃描 `{config: github.org}` org（fallback: `your-org`）下指定使用者的 open PR，偵測 rebase、CI、review comments、approval / stale approval，分成三類後等待使用者選擇下一步。
+掃描 `{config: github.org}` org（fallback: `your-org`）下指定使用者的 open PR，偵測 rebase、CI、review comments、approval / stale approval，並用 shared PR state vocabulary 做分類後等待使用者選擇下一步。
 
 核心邊界：本 skill 只偵測、分類、呈報與在使用者選擇後通知 reviewer；不自動修正 CI failure、review comments 或 rebase conflict。需修正的 PR 交給 `engineering`。
 
@@ -37,7 +37,9 @@ Script 路徑相對於本 skill 目錄。執行前確認有 `+x` 權限。
 | `scripts/fetch-pr-review-comments.sh` | 批次取得未回覆 actionable comments | 加上 `actionable_comments` |
 | `scripts/check-pr-approval-status.sh` | 批次檢查 approvals / stale | 加上 approval fields |
 
-Script 是 deterministic source；不要在入口重寫其內部 API / stale / bot filter 邏輯。
+Script 是 deterministic source；不要在入口重寫其內部 API / stale / bot filter 邏輯。PR
+type、mergeability、base_freshness、`awaiting_re_review` / `mergeable_ready` 語義以 shared
+PR state contract 為準。
 
 ## Lazy-load Map
 
@@ -76,7 +78,7 @@ Script 是 deterministic source；不要在入口重寫其內部 API / stale / b
 ../references/scripts/get-pr-status.sh "{github_org}/<repo>" <number>
 ```
 
-Classification:
+Classification（先看 shared PR state，再看傳統 bucket）：
 
 - all pass → 繼續 review comments / approvals 判定
 - any fail → 🔧 需先修正
@@ -108,13 +110,16 @@ Valid approval = APPROVED 且非 stale。Stale approval 不算達標。
 
 | 分類 | 條件 | 下一步 |
 |------|------|--------|
-| 🟢 可催 review | CI pass + 無 actionable comments + rebase 成功/可接受 + valid approvals 不足；包含 classifier 判定的 `AWAITING_RE_REVIEW` | 可讓使用者選擇通知 |
+| 🟢 可催 review | CI pass + 無 actionable comments + rebase 成功/可接受 + valid approvals 不足；包含 shared classifier 判定的 `AWAITING_RE_REVIEW` | 可讓使用者選擇通知 |
 | 🔧 需先修正 | CI fail / rebase conflict / actionable comments | 萃取 ticket key，提示走 `engineering` |
 | ✅ 已達標 | valid approvals >= threshold | 不加 label、不通知 |
 
 若 PR `reviewDecision=CHANGES_REQUESTED`，先用 `scripts/pr-review-state-classifier.sh`
 或等價 thread-aware evidence 判斷。`AWAITING_RE_REVIEW` 代表作者已處理且需要 reviewer
 重新 review；不得把它列為 🔧，也不得將 JIRA 轉回 `IN DEVELOPMENT`。
+
+shared PR state 若是 `unsupported_mutation`、`blocked_conflict`、或 `base_freshness=stale_downstream`，
+不能用「可催 review」包裝；要明確落在需修正 / 需 rebase 的 bucket。
 
 🔧 PR 必須從 branch name 或 title 萃取 ticket key（pattern: `[A-Z]+-\d+`）；萃取不到就標「無對應 ticket」。有 ticket key 且 JIRA 在 `CODE REVIEW` 時，依 reporting reference 回轉 `IN DEVELOPMENT` 並留言。
 

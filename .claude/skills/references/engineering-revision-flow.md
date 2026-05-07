@@ -30,7 +30,15 @@ Exit：
 - `1`：conflict / fetch / PR base edit failure，停止回報。
 - `2`：usage error。
 
-不要信任 PR `baseRefName` 作為 source of truth；task.md + resolver 才是 base authority。
+不要信任 PR `baseRefName` 作為 source of truth；task.md + shared resolver 才是 base authority。
+R0 成功後先確認 shared PR state 允許 mutable lane：
+
+```bash
+bash scripts/resolve-pr-work-source.sh --repo <repo> --task-md <task.md> --intent mutable
+```
+
+若結果是 `unsupported_mutation`、`external_base`、或 `stale_downstream`，停止；先處理 authority /
+lineage，再進 R1-R6。
 
 ## R1. Read Work Order And Handbook
 
@@ -49,6 +57,8 @@ gh api repos/{org}/{repo}/pulls/{pr_number}/reviews --paginate
 gh api repos/{org}/{repo}/pulls/{pr_number}/comments --paginate
 gh api graphql ... reviewThreads ...
 references/scripts/get-pr-status.sh {org}/{repo} {pr_number}
+bash scripts/pr-state-snapshot.sh --repo <repo> --task-md <task.md> --intent mutable
+bash scripts/pr-action-classifier.sh --repo <repo> --task-md <task.md> --intent mutable
 ```
 
 Thread-level status mandatory；flat comments 不能判斷 resolved/outdated。
@@ -68,13 +78,16 @@ Empty signal -> rebase-only path：跳過 R3/R4，直接 R5 完整驗收。
 
 ## R3. Classify
 
-每個 signal 對照 task.md：
+每個 signal 對照 task.md，並映射到 shared classifier：
 
 | Class | Meaning |
 |---|---|
 | code drift | implementation deviates from plan; fix in revision |
 | plan gap | plan omitted case; stop and route breakdown |
 | spec issue | requirement / AC issue; stop and route refinement / planner |
+
+對外 readiness 語彙只允許：`needs_code_changes`、`planning_gap`、`blocked_conflict`、
+`wait_ci`、`review_required`、`awaiting_re_review`、`mergeable_ready`。
 
 Interactive variant 只在使用者要求逐一確認時啟用；確認的是整體修正策略，不是一個
 comment 一次中斷。
@@ -115,4 +128,6 @@ resolved threads 不回覆，但保留 evidence summary。
 從 reviewer feedback 萃取可重用 lesson 時，依 `review-lesson-extraction.md` dedup and
 write。需要 PR body / comment / JIRA / Slack text 時，先跑 language gate。
 
-最後推 branch，更新 PR / task lifecycle，並跑 Post-Task Reflection。
+最後推 branch，更新 PR / task lifecycle，並跑 Post-Task Reflection。只有 shared classifier
+輸出 `awaiting_re_review` 才能說「請 reviewer re-review」；只有 `mergeable_ready` 才能升格成
+merge lane readiness。沒有 snapshot-backed evidence 時不得口頭宣稱「已修好」。

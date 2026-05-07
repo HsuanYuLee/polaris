@@ -28,6 +28,11 @@
 - VR PASS（if triggered）— evidence: `/tmp/polaris-vr-{ticket}-{head_sha}.json`（Layer C，via `run-visual-snapshot.sh`）
 - **Layer A+B(+C) evidence AND gate**：所有必要 evidence 檔案存在且 `head_sha` 匹配當前 HEAD 才放行 PR、local extension handoff、或 post-PR release handoff
 - **Completion gate before user-facing done**：回報完成前必須再檢查一次 Layer A（and Developer Layer B）是否仍對應當前 HEAD，避免在 git 動作前先口頭結案
+- **Shared PR state authority**：要對外說 `awaiting_re_review`、`mergeable_ready`、或
+  `needs_code_changes` 時，必須以 `resolve-pr-work-source.sh` →
+  `pr-state-snapshot.sh` → `pr-action-classifier.sh` 的 fresh state 為準，不能靠 skill 自己拼 API
+- **Framework-enforced final metadata**：PR body template / language、task-bound verify report、
+  assignee final state 都是 completion authority，不是 repo side-effect 成功後可忽略的附帶條件
 - **Remote repo CI is non-blocking when still queued / pending / running**：本流程以本地 LLM + mechanism evidence 為 completion authority；不等待遠端 CI 排隊或長時間執行完畢
 - Developer：PR 建立在正確 base branch，body 依 repo template 填充
 - Developer：JIRA 狀態轉為 CODE REVIEW（soft-fail）
@@ -620,7 +625,7 @@ Missing 或 stale evidence → **halt**。不繼續 PR creation、local extensio
 Behavior contract evidence 由 `scripts/run-behavior-contract.sh` 產生；`parity` / `hybrid`
 先跑 `--mode baseline`，delivery 前跑 `--mode compare`。
 
-**Portable gate fallback**：`gate-evidence.sh` + `gate-ci-local.sh` 在 git pre-push 及 `polaris-pr-create.sh` wrapper 中也強制檢查；`gate-pr-title.sh` + `gate-changeset.sh` 在 `polaris-pr-create.sh` 與 completion gate 中強制檢查；`gate-pr-body-template.sh` 在 `polaris-pr-create.sh` 中阻擋未保留 repo template headings 的 body。Completion gate 會重新讀 deliverable 的 remote PR metadata/body，確認 PR readiness（`state=OPEN`、`isDraft=false`）、remote PR body template conformance、remote PR body language policy，以及 local visual / Playwright / behavior contract evidence 是否已發布成 PR-visible publication comment；裸 `gh pr create`、`gh pr create --draft`、PR 建立後 body drift、或 local-only 截圖/影片 evidence 都不能成為 completion endpoint。若需要人工上傳，先使用 `collect-evidence-upload-bundle.sh` 產生 `artifacts/{WORK_ITEM_ID}-pr-upload/`，再由使用者把檔案拖到 PR comment 並保留 publication marker。Skill-level check here is **L2 cross-LLM authoritative**（所有 LLM 都走 SKILL.md → 一定到這步）。
+**Portable gate fallback**：`gate-evidence.sh` + `gate-ci-local.sh` 在 git pre-push 及 `polaris-pr-create.sh` wrapper 中也強制檢查；`gate-pr-title.sh` + `gate-changeset.sh` 在 `polaris-pr-create.sh` 與 completion gate 中強制檢查；`gate-pr-body-template.sh` 在 `polaris-pr-create.sh` 中阻擋未保留 repo template headings 的 body。Completion gate 會重新讀 deliverable 的 remote PR metadata/body，確認 PR readiness（`state=OPEN`、`isDraft=false`）、remote PR body template conformance、remote PR body language policy，以及 local visual / Playwright / behavior contract evidence 是否已發布成 PR-visible publication comment；裸 `gh pr create`、`gh pr create --draft`、PR 建立後 body drift、或 local-only 截圖/影片 evidence 都不能成為 completion endpoint。若需要人工上傳，先使用 `collect-evidence-upload-bundle.sh` 產生 `artifacts/{WORK_ITEM_ID}-pr-upload/`，再由使用者把檔案拖到 PR comment 並保留 publication marker。Skill-level check here is **L2 cross-LLM authoritative**（所有 LLM 都走 SKILL.md → 一定到這步）。Completion gate 是 hard gate，但 `awaiting_re_review`、`mergeable_ready`、`unsupported_mutation`、`stale_downstream` 等 readiness vocabulary 仍由 shared PR state authority 發號，不由單一 skill prose 決定。
 
 ### 7b. 讀 PR template
 

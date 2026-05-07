@@ -133,9 +133,56 @@ sidebar:
     variant: "$badge_variant"
 ---
 
-## Context
+## Goal
+
+說明這張 DP 要解決的核心問題與預期成果。
+
+## Background
 
 這份 Design Plan 由 \`scripts/create-design-plan.sh\` 建立，後續由 refinement 補齊內容。
+
+## Target State
+
+描述 migration 完成後的最終 source of truth、runtime ownership 與 steady-state 行為。
+
+## Decision Policy
+
+列出此題選擇 direct migration / phased delivery / compatibility bridge 的決策規則。
+
+## Migration Boundaries
+
+若存在 temporary compatibility、fallback、mirror、dual-write 等機制，需列 owner、移除條件、
+驗證方式與 follow-up task；沒有則寫 N/A。
+
+## Decisions
+
+- 待補。
+
+## Blind Spots
+
+- 待補。
+
+## Acceptance Criteria
+
+### 功能 AC
+
+- 待補。
+
+### 非功能 AC
+
+- 若不適用請寫 N/A 並附原因。
+
+### 負面 AC
+
+- 待補。
+
+### 驗證方式
+
+- 每條 AC 對應一種驗證方法：playwright / lighthouse / curl / unit_test / manual。
+
+## Technical Approach
+
+說明預計影響的模組、交付邊界與主要風險。
 MD
 
 bash scripts/validate-starlight-authoring.sh check "$plan" >/dev/null

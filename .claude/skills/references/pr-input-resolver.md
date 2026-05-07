@@ -1,6 +1,8 @@
 # PR Input Resolver
 
-從使用者輸入解析 PR 資訊並定位本地專案路徑的共用流程。
+從使用者輸入解析 PR 資訊並定位本地專案路徑的共用流程。解析出 PR 後，若 consumer 需要判斷
+direct / stacked / feature / aggregate release / external-base / no-task legacy，必須再走
+shared work-source resolution，而不是停在 URL / number 層級。
 
 ## 輸入格式
 
@@ -68,3 +70,16 @@ gh api repos/{owner}/{repo}/contents/.claude/rules --jq '.[].name'
 - `pr_number`：PR 編號
 - `local_path`：本地專案根目錄（或 `null`）
 - `remote_mode`：是否使用遠端讀取（`true`/`false`）
+
+若後續 consumer 需要 shared PR state，接著執行：
+
+```bash
+bash scripts/resolve-pr-work-source.sh --repo <local_path> --pr <pr_number> --intent <mutable|read-only>
+bash scripts/pr-state-snapshot.sh --repo <local_path> --pr <pr_number> --intent <mutable|read-only>
+```
+
+這兩步會補上：
+- `pr_type`
+- `mergeability`
+- `base_freshness`
+- `awaiting_re_review` / `mergeable_ready` / `unsupported_mutation` 等 governed vocabulary

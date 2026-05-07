@@ -294,6 +294,7 @@ check_deliverable_pr_remote_truth() {
   local pr_state=""
   local pr_is_draft=""
   local pr_head_oid=""
+  local pr_assignee_gate="${SCRIPT_DIR}/gates/gate-pr-assignee.sh"
 
   pr_url="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field deliverable_pr_url)"
   if [[ -z "$pr_url" ]]; then
@@ -347,6 +348,9 @@ check_deliverable_pr_remote_truth() {
 
   bash "${SCRIPT_DIR}/gates/gate-pr-body-template.sh" --repo "$REPO_ROOT" --body-file "$pr_body_file"
   bash "${SCRIPT_DIR}/gates/gate-pr-language.sh" --repo "$REPO_ROOT" --body-file "$pr_body_file"
+  if [[ -f "$pr_assignee_gate" ]]; then
+    bash "$pr_assignee_gate" --repo "$REPO_ROOT" --gh-repo "$gh_repo" --pr-number "$pr_number" --pr-json "$pr_json"
+  fi
 
   local publication_ticket="$TICKET"
   if [[ -z "$publication_ticket" ]]; then

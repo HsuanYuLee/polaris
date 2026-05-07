@@ -59,12 +59,18 @@ AI 不直接替 RD / PM 做最終結論；列選項與 trade-offs。
 
 ## Step 4. AC Hardening
 
-將模糊 AC 轉成可驗收：
+將模糊 AC 轉成可驗收；這個 hardened template 適用於所有 refinement-owned source，不因
+JIRA Epic、Story、Task 或 ticketless / DP-backed source 而改變：
 
 - 功能 AC。
 - 非功能 AC（performance / SEO / a11y only if relevant）。
 - 負面 AC。
 - 每條 AC 附驗證方式：playwright / lighthouse / curl / unit_test / manual。
+
+輸出 contract：
+
+- `refinement.md` 必須明確保留 `功能 AC`、`非功能 AC`、`負面 AC` 與 `驗證方式`。
+- `refinement.json` 的 `acceptance_criteria[]` 每條都必須能對應回上述其中一類，且保留驗證方式。
 
 ## Step 5. Gap Report And Preview
 

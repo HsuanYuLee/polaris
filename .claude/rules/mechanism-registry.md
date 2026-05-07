@@ -1,28 +1,25 @@
+title: "機制治理 Registry"
+description: "Polaris 行為機制的 post-task semantic canary registry。"
 ---
-title: "Mechanism Registry"
-description: "Post-task semantic canary registry for Polaris behavior mechanisms."
----
 
-# Mechanism Registry
+# 機制治理 Registry
 
-This is the compact audit index for behavior that still needs human or LLM
-judgment. Contract-lane checks enforced by scripts, hooks, or wrappers live in
-shared references so the hot rule payload stays small.
+這份文件是仍需要人類或 LLM 判斷的行為機制精簡 audit index。已由 script、hook、
+wrapper 強制的 contract-lane checks 則收斂到 shared references，避免 hot rule payload
+膨脹。
 
-## How to Use
+## 使用方式
 
-- After every task, scan the priority audit order below for judgment drift in the
-  current conversation.
-- When drift is found, write a feedback memory with the mechanism ID and the
-  observed canary signal.
-- For common escape patterns, read
+- 每個 task 結束後，依下方 priority audit order 檢查本輪對話是否有 judgment drift。
+- 一旦發現 drift，寫 feedback memory，帶上 mechanism ID 與觀察到的 canary signal。
+- 常見逃逸模式請讀
   `skills/references/mechanism-rationalizations.md`.
-- For hook-level enforcement, read
+- hook-level enforcement 請讀
   `skills/references/deterministic-hooks-registry.md`.
-- For contract-lane checks, read
+- contract-lane checks 請讀
   `skills/references/mechanism-deterministic-contracts.md`.
 
-## Disposition Legend
+## Disposition 圖例
 
 | Disposition | Meaning | Manual audit posture |
 |-------------|---------|----------------------|
@@ -58,11 +55,14 @@ shared references so the hot rule payload stays small.
 8. Planning blind spots and deferred work (`semantic_only`, High/Medium):
    `target-state-first-planning`, `blind-spot-scan`,
    `defer-immediate-capture`, `checklist-before-done`.
-9. Deterministic contract failures (`contract_pointer`): audit only when the
-   agent ignored, bypassed, or misinterpreted a failed gate. See
+9. Deterministic contract failures (`contract_pointer`): 只有在 agent 忽略、繞過、或誤讀 failed gate 時才 audit。See
    `skills/references/mechanism-deterministic-contracts.md`,
    `skills/references/deterministic-hooks-registry.md`, and
    `skills/references/l2-embedding-registry.md`.
+10. PR governance readiness claims (`contract_pointer`, Critical):
+    只有在 agent 忽略 shared PR state evidence、繞過 final assignee /
+    verify-report metadata closure、或在 deterministic contract 之外自行發明
+    `mergeable_ready` 語義時才 audit。
 
 ## Semantic Canary Sources
 

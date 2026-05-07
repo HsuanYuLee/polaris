@@ -27,6 +27,12 @@ if [[ $# -lt 1 ]]; then
   usage
 fi
 
+case "${1:-}" in
+  -h|--help)
+    usage
+    ;;
+esac
+
 # Core validator: print violations to stderr, return 0 (pass) / 1 (fail).
 validate_file() {
   local file="$1"
@@ -37,6 +43,8 @@ validate_file() {
 
   # Delegate structural validation to python3 — regex parsing of JSON is fragile.
   local result
+  local rc
+  set +e
   result=$(python3 - "$file" <<'PY'
 import json
 import re
@@ -146,6 +154,7 @@ elif len(ac) == 0:
     errors.append("'acceptance_criteria' array must contain ≥ 1 AC (received empty array)")
 else:
     valid_methods = {"playwright", "lighthouse", "curl", "unit_test", "manual"}
+    valid_categories = {"functional", "non_functional", "negative"}
     for idx, item in enumerate(ac):
         if not isinstance(item, dict):
             errors.append(f"acceptance_criteria[{idx}]: expected object, got {type(item).__name__}")
@@ -156,6 +165,24 @@ else:
         text = item.get("text")
         if not isinstance(text, str) or not text.strip():
             errors.append(f"acceptance_criteria[{idx}]: missing or empty 'text'")
+        category = item.get("category")
+        if category is not None:
+            if not isinstance(category, str) or not category.strip():
+                errors.append(f"acceptance_criteria[{idx}]: 'category' must be a non-empty string when present")
+            elif category not in valid_categories:
+                errors.append(
+                    f"acceptance_criteria[{idx}]: invalid category '{category}' "
+                    f"(must be one of {sorted(valid_categories)})"
+                )
+            negative = item.get("negative")
+            if category == "negative" and negative is False:
+                errors.append(
+                    f"acceptance_criteria[{idx}]: category=negative conflicts with negative=false"
+                )
+            if category != "negative" and negative is True:
+                errors.append(
+                    f"acceptance_criteria[{idx}]: negative=true conflicts with category='{category}'"
+                )
         ver = item.get("verification")
         if not isinstance(ver, dict):
             errors.append(f"acceptance_criteria[{idx}]: missing or non-object 'verification'")
@@ -303,7 +330,8 @@ if errors:
 sys.exit(0)
 PY
 )
-  local rc=$?
+  rc=$?
+  set -e
 
   if [[ $rc -eq 0 ]]; then
     return 0
@@ -331,22 +359,35 @@ if [[ "$1" == "--scan" ]]; then
 
   pass=0
   fail=0
-  # Match both company-scoped and root-scoped specs. Max depth limited to avoid .worktrees / node_modules.
+  specs_root="$root/docs-manager/src/content/docs/specs"
+  if [[ -d "$specs_root" ]]; then
+    search_root="$specs_root"
+  else
+    search_root="$root"
+  fi
+
+  # Prefer the canonical specs root when available; fallback keeps backward compatibility for
+  # ad-hoc paths while still pruning known non-source trees.
   while IFS= read -r f; do
-    # Skip files under .worktrees/ or node_modules/
-    case "$f" in
-      */.worktrees/*|*/node_modules/*|*/archive/*) continue ;;
-    esac
     if validate_file "$f" >/dev/null 2>&1; then
       printf "PASS  %s\n" "$f"
       pass=$((pass+1))
     else
       printf "FAIL  %s\n" "$f"
-      # Re-run to print errors
-      validate_file "$f" 2>&1 | sed 's/^/      /' >&2
+      # Re-run to print errors without aborting scan mode on the first failing artifact.
+      set +e
+      error_output="$(validate_file "$f" 2>&1)"
+      set -e
+      while IFS= read -r line; do
+        [[ -n "$line" ]] && printf '      %s\n' "$line" >&2
+      done <<< "$error_output"
       fail=$((fail+1))
     fi
-  done < <(find "$root" -type f -name 'refinement.json' 2>/dev/null | sort)
+  done < <(
+    find "$search_root" \
+      \( -path '*/.git/*' -o -path '*/.worktrees/*' -o -path '*/node_modules/*' -o -path '*/archive/*' \) -prune \
+      -o -type f -name 'refinement.json' -print 2>/dev/null | sort
+  )
 
   echo ""
   echo "refinement.json scan: $pass pass, $fail fail (total $((pass+fail)))"

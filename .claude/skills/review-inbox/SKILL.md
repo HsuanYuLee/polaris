@@ -25,6 +25,8 @@ metadata:
 | Label | 使用者明確提到 need review label |
 
 不得 review 自己的 PR。不得對 `waiting_for_author` PR 重複 review。
+Review inbox 屬 reviewer-side read-only lane；它可以 advisory，但對 `awaiting_re_review`、
+`mergeable_ready`、`unsupported_mutation`、`changes_requested` 的解釋必須沿用 shared PR state。
 
 ## Reference Loading
 

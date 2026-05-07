@@ -33,6 +33,17 @@ if [[ -n "$GITHUB_REST_LIB" ]]; then
   # shellcheck source=/dev/null
   . "$GITHUB_REST_LIB"
 fi
+RESOLVE_PR_WORK_SOURCE=""
+for candidate in \
+  "${SCRIPT_DIR}/../../../../scripts/resolve-pr-work-source.sh" \
+  "${SCRIPT_DIR}/../../../scripts/resolve-pr-work-source.sh" \
+  "${SCRIPT_DIR}/../../scripts/resolve-pr-work-source.sh"
+do
+  if [[ -f "$candidate" ]]; then
+    RESOLVE_PR_WORK_SOURCE="$candidate"
+    break
+  fi
+done
 
 WORK_DIR="$HOME/work"
 DRY_RUN=false
@@ -174,6 +185,8 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
   labels=$(_jq '.labels')
   base=$(_jq '.base')
   head=$(_jq '.head')
+  effective_base="$base"
+  pr_type="unknown"
 
   rebase_status="skipped"
   rebase_detail=""
@@ -186,6 +199,40 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
     echo "  ⏭ $repo #$number — $rebase_detail" >&2
   else
     cd "$repo_dir"
+
+    if [[ -n "$RESOLVE_PR_WORK_SOURCE" ]]; then
+      shared_pr_json="$(mktemp -t polaris-check-pr-rebase.XXXXXX.json)"
+      printf '{"number":%s,"state":"OPEN","headRefName":"%s","baseRefName":"%s","url":"%s"}\n' \
+        "$number" "$head" "$base" "$url" >"$shared_pr_json"
+      shared_state=$("$RESOLVE_PR_WORK_SOURCE" --repo "$repo_dir" --pr-json "$shared_pr_json" --intent mutable 2>/dev/null || true)
+      rm -f "$shared_pr_json"
+      if [[ -n "$shared_state" ]]; then
+        pr_type=$(printf '%s' "$shared_state" | jq -r '.pr_type // "unknown"' 2>/dev/null || echo "unknown")
+        mutable_allowed=$(printf '%s' "$shared_state" | jq -r '.mutable_allowed // true' 2>/dev/null || echo "true")
+        authoritative_base=$(printf '%s' "$shared_state" | jq -r '.authoritative_base // empty' 2>/dev/null || true)
+        unsupported_reason=$(printf '%s' "$shared_state" | jq -r '.unsupported_reason // empty' 2>/dev/null || true)
+        if [[ "$mutable_allowed" != "true" ]]; then
+          rebase_status="skipped"
+          rebase_detail="shared PR state: unsupported_mutation (${unsupported_reason:-unknown})"
+          skip_count=$((skip_count + 1))
+          echo "  ⏭ $repo #$number — $rebase_detail" >&2
+        elif [[ -n "$authoritative_base" ]]; then
+          effective_base="$authoritative_base"
+        fi
+      fi
+    fi
+
+    if [[ "$rebase_status" == "skipped" && -n "$rebase_detail" ]]; then
+      cd "$ORIGINAL_DIR"
+      pr_result=$(jq -n \
+        --arg repo "$repo" --argjson number "$number" --arg title "$title" \
+        --arg url "$url" --arg updated_at "$updated_at" --arg labels "$labels" \
+        --arg base "$base" --arg head "$head" --arg pr_type "$pr_type" \
+        --arg rebase_status "$rebase_status" --arg rebase_detail "$rebase_detail" \
+        '{repo: $repo, number: $number, title: $title, url: $url, updated_at: $updated_at, labels: $labels, base: $base, head: $head, pr_type: $pr_type, rebase_status: $rebase_status, rebase_detail: $rebase_detail}')
+      echo "$pr_result" >> "$tmpfile"
+      continue
+    fi
 
     # 記住當前 branch
     original_branch=$(git branch --show-current 2>/dev/null || echo "")
@@ -213,30 +260,30 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
     fi
 
     # Fetch + checkout + rebase
-    git fetch origin "$head" "$base" 2>/dev/null
+    git fetch origin "$head" "$effective_base" 2>/dev/null
 
     if git checkout "$head" 2>/dev/null; then
-      if git rebase "origin/$base" 2>/dev/null; then
+      if git rebase "origin/$effective_base" 2>/dev/null; then
         if [ "$DRY_RUN" = true ]; then
           rebase_status="success"
-          rebase_detail="rebase 成功（dry-run: skipped push）"
+          rebase_detail="rebase 成功（shared PR state base=$effective_base；dry-run: skipped push）"
           success_count=$((success_count + 1))
           echo "  ✅ $repo #$number — $rebase_detail" >&2
         elif git push --force-with-lease 2>/dev/null; then
           rebase_status="success"
-          rebase_detail="rebase + push 成功"
+          rebase_detail="rebase + push 成功（shared PR state base=$effective_base）"
           success_count=$((success_count + 1))
           echo "  ✅ $repo #$number — $rebase_detail" >&2
         else
           rebase_status="success"
-          rebase_detail="rebase 成功（already up to date）"
+          rebase_detail="rebase 成功（shared PR state base=$effective_base；already up to date）"
           success_count=$((success_count + 1))
           echo "  ✅ $repo #$number — $rebase_detail" >&2
         fi
       else
         git rebase --abort 2>/dev/null || true
         rebase_status="conflict"
-        rebase_detail="rebase origin/$base failed"
+        rebase_detail="rebase origin/$effective_base failed"
         conflict_count=$((conflict_count + 1))
         echo "  ⚠️ $repo #$number — conflict: $rebase_detail" >&2
       fi
@@ -263,9 +310,9 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
   pr_result=$(jq -n \
     --arg repo "$repo" --argjson number "$number" --arg title "$title" \
     --arg url "$url" --arg updated_at "$updated_at" --arg labels "$labels" \
-    --arg base "$base" --arg head "$head" \
+    --arg base "$base" --arg head "$head" --arg pr_type "$pr_type" \
     --arg rebase_status "$rebase_status" --arg rebase_detail "$rebase_detail" \
-    '{repo: $repo, number: $number, title: $title, url: $url, updated_at: $updated_at, labels: $labels, base: $base, head: $head, rebase_status: $rebase_status, rebase_detail: $rebase_detail}')
+    '{repo: $repo, number: $number, title: $title, url: $url, updated_at: $updated_at, labels: $labels, base: $base, head: $head, pr_type: $pr_type, rebase_status: $rebase_status, rebase_detail: $rebase_detail}')
 
   echo "$pr_result" >> "$tmpfile"
 done

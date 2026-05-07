@@ -1,13 +1,12 @@
----
-title: "Mechanism Deterministic Contracts"
-description: "Contract-lane mechanism groups that are enforced by Polaris validators, hooks, wrappers, or helper scripts instead of routine manual audit."
+title: "機制 Deterministic Contracts"
+description: "由 Polaris validator、hook、wrapper、helper script 強制的 contract-lane mechanism groups。"
 ---
 
-# Mechanism Deterministic Contracts
+# 機制 Deterministic Contracts
 
-This reference keeps deterministic mechanism groups out of the hot
-`rules/mechanism-registry.md` payload. Post-task audit should inspect these only
-when an agent ignored, bypassed, or misinterpreted deterministic evidence.
+這份 reference 把 deterministic mechanism groups 從 hot
+`rules/mechanism-registry.md` payload 拆出。post-task audit 只有在 agent 忽略、
+繞過、或誤讀 deterministic evidence 時才需要回頭檢查這裡。
 
 ## Contract Groups
 
@@ -17,6 +16,7 @@ when an agent ignored, bypassed, or misinterpreted deterministic evidence.
 | Handoff and L2 gates | refinement handoff, carry-forward, version bump reminders, feedback reflection signals | `l2-embedding-registry.md`, `refinement-handoff-gate.sh`, `check-carry-forward.sh`, `check-version-bump-reminder.sh`, `check-feedback-signals.sh` | `already_deterministic_reduce_audit` |
 | Delivery wrappers | PR body template preservation, workspace language policy, verification evidence, ci-local evidence, revision rebase evidence, base resolution | `deterministic-hooks-registry.md`, `polaris-pr-create.sh`, `gate-pr-body-template.sh`, `gate-pr-language.sh`, `gate-commit-language.sh`, `verification-evidence-gate.sh`, `ci-local-gate.sh`, `gate-revision-rebase.sh`, `resolve-task-base.sh` | `already_deterministic_reduce_audit` |
 | PR review state routing | `CHANGES_REQUESTED` is not automatically a code-fix state; CI-green PRs with no active actionable review threads route to reviewer re-review | `pr-review-state-classifier.sh`, `pr-review-state-classifier-selftest.sh` | `already_deterministic_reduce_audit` |
+| PR governance readiness | shared PR state producer/classifier, completion-time assignee closure, task-bound verify-report freshness, and governed `awaiting_re_review` / `mergeable_ready` claims | `resolve-pr-work-source.sh`, `pr-state-snapshot.sh`, `pr-action-classifier.sh`, `check-delivery-completion.sh`, `gate-pr-assignee.sh` | `already_deterministic_reduce_audit` |
 | Local specs tracking guard | `docs-manager/src/content/docs/specs/**` is local-only; tracked/staged specs are blocked before commit / push / PR create | `gate-no-tracked-specs.sh`, `gate-no-tracked-specs-selftest.sh`, `polaris-pr-create.sh`, `install-copilot-hooks.sh` | `already_deterministic_reduce_audit` |
 | Handbook config runtime contract | project handbook machine fields schema, handbook-first runtime config resolution, workspace-config fallback / conflict detection | `handbook-config-reader.sh`, `handbook-config-validator.sh`, `handbook-config-selftest.sh`, `start-test-env.sh --resolve-config-only`, `deterministic-hooks-registry.md` | `already_deterministic_reduce_audit` |
 | Framework release closeout | DP-backed framework task `extension_deliverable`, local-extension completion gate, task move-first closeout, parent DP closeout, implementation worktree cleanup | `framework-release-closeout.sh`, `framework-release-closeout-selftest.sh`, `check-local-extension-completion.sh`, `engineering-clean-worktree.sh` | `already_deterministic_reduce_audit` |
@@ -25,8 +25,8 @@ when an agent ignored, bypassed, or misinterpreted deterministic evidence.
 
 ## Script Candidates
 
-These rows are not fully deterministic yet. Keep them visible from the main
-registry priority order until a validator or hook owns the invariant.
+這些 row 還沒有完全 deterministic。在 validator 或 hook 正式接手 invariant 前，
+仍要留在 main registry 的 priority order。
 
 | Contract group | Covered invariants | Current source | Disposition |
 |----------------|--------------------|----------------|-------------|
@@ -34,6 +34,5 @@ registry priority order until a validator or hook owns the invariant.
 
 ## Audit Rule
 
-Do not manually re-audit every deterministic row by default. The semantic audit
-question is: did the agent respect and interpret deterministic evidence
-correctly?
+預設不要人工重 audit 每一列 deterministic row。真正的 semantic audit 問題是：
+agent 是否正確尊重並解讀 deterministic evidence？

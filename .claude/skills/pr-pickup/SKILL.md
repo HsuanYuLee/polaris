@@ -84,7 +84,7 @@ engineering 進入 revision mode（依 engineering SKILL.md Step 0 mode detectio
 
 | 結果 | 含義 |
 |------|------|
-| **成功完成** | code drift 已修正、已通過驗證、已回覆 reviewer、已 push |
+| **成功完成** | engineering 已回傳 shared PR state readiness，通常是 `awaiting_re_review`，少數會是 `mergeable_ready` |
 | **退回 breakdown** | plan gap — 施工圖有漏洞，需退回上游重新規劃（D3） |
 | **退回 refinement** | spec issue — AC 本身有問題，需退回需求釐清（D3） |
 | **硬擋（無 task.md）** | PR 沒有新版 task.md，需先跑 bug-triage 或 breakdown 補 work order |
@@ -105,7 +105,9 @@ engineering 進入 revision mode（依 engineering SKILL.md Step 0 mode detectio
 
 {engineering 回傳的修正摘要}
 
-已修正並 push，請 reviewer re-review。
+shared PR state: `{awaiting_re_review | mergeable_ready}`
+若是 `awaiting_re_review`：已修正並 push，請 reviewer re-review。
+若是 `mergeable_ready`：PR 已具備 reviewer / merge lane 所需條件。
 ```
 
 ### 退回 breakdown / refinement（plan gap / spec issue）
