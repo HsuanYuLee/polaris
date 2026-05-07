@@ -27,7 +27,8 @@
 #   2  usage error (stderr: usage string)
 #
 # Matching rule
-#   For each specs/**/tasks/T*.md found under <scan-root>:
+#   For each specs/**/tasks/T*.md or specs/**/tasks/T*/index.md found under
+#   <scan-root>:
 #     extract `Task branch` value from the Operational Context table
 #     (format: `| Task branch | <value> |`) and compare string-equal to
 #     the input branch.
@@ -97,7 +98,7 @@ resolve_task_md_scan() {
   done < <(find "$specs_root" \
     \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
     -o \
-    \( -type f -name 'T*.md' \( -path '*/tasks/*.md' -o -path '*/tasks/pr-release/*.md' \) -print0 \))
+    \( -type f \( -path '*/tasks/T*.md' -o -path '*/tasks/T*/index.md' -o -path '*/tasks/pr-release/T*.md' -o -path '*/tasks/pr-release/T*/index.md' \) -print0 \))
 
   if [[ ${#matches[@]} -eq 0 ]]; then
     echo "no task.md matched 'Task branch = $branch' (scanned $scanned file(s) under $specs_root)" >&2
@@ -126,8 +127,11 @@ if [[ "${RESOLVE_TASK_MD_SELFTEST:-0}" == "1" ]]; then
   tmpdir="$(mktemp -d -t resolve-task-md-selftest.XXXXXX)"
   trap 'rm -rf "$tmpdir"' EXIT
 
-  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/EPIC-1/tasks" "$tmpdir/docs-manager/src/content/docs/specs/EPIC-2/tasks" \
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/EPIC-1/tasks" \
+           "$tmpdir/docs-manager/src/content/docs/specs/EPIC-2/tasks/T3" \
            "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-047-framework-work-order-bridge/tasks" \
+           "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-048-folder-native-resolver/tasks/T1" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-7/tasks/pr-release/T1" \
            "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/EPIC-9/tasks" \
            "$tmpdir/.worktrees/shadow/specs/EPIC-1/tasks" \
            "$tmpdir/node_modules/x/specs/EPIC-3/tasks"
@@ -156,12 +160,36 @@ MD
 | Task branch | task/BAR-99-gamma |
 MD
 
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/EPIC-2/tasks/T3/index.md" <<'MD'
+# T3
+## Operational Context
+| 欄位 | 值 |
+|------|-----|
+| Task branch | task/FOLDER-3-delta |
+MD
+
   cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" <<'MD'
 # T1
 ## Operational Context
 | 欄位 | 值 |
 |------|-----|
 | Task branch | task/DP-047-T1-framework-bridge |
+MD
+
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-048-folder-native-resolver/tasks/T1/index.md" <<'MD'
+# T1
+## Operational Context
+| 欄位 | 值 |
+|------|-----|
+| Task branch | task/DP-048-T1-folder-native |
+MD
+
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-7/tasks/pr-release/T1/index.md" <<'MD'
+# T1
+## Operational Context
+| 欄位 | 值 |
+|------|-----|
+| Task branch | task/PR-1-epsilon |
 MD
 
   # Worktree shadow copy — must be ignored by prune.
@@ -179,8 +207,9 @@ MD
 | Task branch | task/ARCHIVED-1-only |
 MD
 
-  # Duplicate branch binding across Epics (multi-match case).
-  cat > "$tmpdir/docs-manager/src/content/docs/specs/EPIC-2/tasks/T-dup.md" <<'MD'
+  # Duplicate branch binding across legacy + folder-native task sources.
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/EPIC-2/tasks/T-dup"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/EPIC-2/tasks/T-dup/index.md" <<'MD'
 ## Operational Context
 | Task branch | task/FOO-1-alpha |
 MD
@@ -199,12 +228,13 @@ MD
     fi
   }
 
-  # Case 1: duplicate match across EPIC-1/T1 and EPIC-2/T-dup — expect exit 0,
+  # Case 1: duplicate match across legacy EPIC-1/T1 and folder-native
+  # EPIC-2/T-dup — expect exit 0,
   # both paths in stdout, no .worktrees / node_modules leakage, and a
   # 'multiple matches' stderr warning.
   run_case case1 task/FOO-1-alpha 0
   if ! grep -q 'EPIC-1/tasks/T1.md' "$out_file"; then echo "[selftest] case1 missing EPIC-1/T1"; fail=1; fi
-  if ! grep -q 'EPIC-2/tasks/T-dup.md' "$out_file"; then echo "[selftest] case1 missing EPIC-2/T-dup"; fail=1; fi
+  if ! grep -q 'EPIC-2/tasks/T-dup/index.md' "$out_file"; then echo "[selftest] case1 missing EPIC-2/T-dup"; fail=1; fi
   if grep -q '.worktrees' "$out_file"; then echo "[selftest] case1 leaked .worktrees path"; fail=1; fi
   if grep -q 'node_modules' "$out_file"; then echo "[selftest] case1 leaked node_modules path"; fail=1; fi
   if ! grep -q 'multiple matches' "$err_file"; then
@@ -227,24 +257,44 @@ MD
   if ! grep -q 'EPIC-1/tasks/T2.md' "$out_file"; then echo "[selftest] case3 wrong path"; fail=1; fi
   if grep -q 'node_modules' "$out_file"; then echo "[selftest] case3 leaked node_modules path"; fail=1; fi
 
-  # Case 4: framework DP task root.
-  run_case case4 task/DP-047-T1-framework-bridge 0
+  # Case 4: folder-native product task root.
+  run_case case4 task/FOLDER-3-delta 0
   local_count="$(wc -l < "$out_file" | tr -d ' ')"
   if [[ "$local_count" != "1" ]]; then
     echo "[selftest] case4 expected 1 line, got $local_count"; fail=1
   fi
-  if ! grep -q 'design-plans/DP-047-framework-work-order-bridge/tasks/T1.md' "$out_file"; then
-    echo "[selftest] case4 missing DP task path"; fail=1
+  if ! grep -q 'EPIC-2/tasks/T3/index.md' "$out_file"; then
+    echo "[selftest] case4 missing folder-native product task path"; fail=1
   fi
 
-  # Case 5: archive-only branch is intentionally invisible to active lookup.
-  run_case case5 task/ARCHIVED-1-only 1
-  if [[ -s "$out_file" ]]; then echo "[selftest] case5 stdout should be empty"; fail=1; fi
+  # Case 5: folder-native framework DP task root.
+  run_case case5 task/DP-048-T1-folder-native 0
+  local_count="$(wc -l < "$out_file" | tr -d ' ')"
+  if [[ "$local_count" != "1" ]]; then
+    echo "[selftest] case5 expected 1 line, got $local_count"; fail=1
+  fi
+  if ! grep -q 'design-plans/DP-048-folder-native-resolver/tasks/T1/index.md' "$out_file"; then
+    echo "[selftest] case5 missing folder-native DP task path"; fail=1
+  fi
+
+  # Case 6: folder-native pr-release task root.
+  run_case case6 task/PR-1-epsilon 0
+  local_count="$(wc -l < "$out_file" | tr -d ' ')"
+  if [[ "$local_count" != "1" ]]; then
+    echo "[selftest] case6 expected 1 line, got $local_count"; fail=1
+  fi
+  if ! grep -q 'companies/exampleco/EPIC-7/tasks/pr-release/T1/index.md' "$out_file"; then
+    echo "[selftest] case6 missing folder-native pr-release task path"; fail=1
+  fi
+
+  # Case 7: archive-only branch is intentionally invisible to active lookup.
+  run_case case7 task/ARCHIVED-1-only 1
+  if [[ -s "$out_file" ]]; then echo "[selftest] case7 stdout should be empty"; fail=1; fi
 
   rm -f "$out_file" "$err_file"
 
   if [[ $fail -eq 0 ]]; then
-    echo "[selftest] PASS (5 cases)"
+    echo "[selftest] PASS (7 cases)"
     exit 0
   else
     echo "[selftest] FAIL"

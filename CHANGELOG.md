@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.14] - 2026-05-07
+
+### Fixed — folder-native branch reverse-lookup parity
+
+- Updated `resolve-task-md-by-branch.sh` so branch reverse-lookup now scans folder-native `tasks/T*/index.md` and `tasks/pr-release/T*/index.md` sources alongside legacy `T*.md` task files.
+- Expanded helper selftest coverage for folder-native product tasks, folder-native DP tasks, folder-native `pr-release` tasks, and mixed legacy-plus-folder-native duplicate bindings while preserving archive and shadow-copy prune behavior.
+
 ## [3.75.13] - 2026-05-07
 
 ### Fixed — superseded terminal consumer integration
