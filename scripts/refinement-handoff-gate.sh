@@ -60,7 +60,8 @@ BLOCKED: refinement handoff requires a machine-readable artifact.
 Missing: $json_path
 
 Run refinement Step 7 first: produce refinement.json from the finalized refinement.md,
-then rerun this gate before telling the user to proceed to breakdown.
+including current predecessor_audit / writeback data, then rerun this gate before
+telling the user to proceed to breakdown.
 EOF
   exit 1
 fi
@@ -69,10 +70,9 @@ if ! "$validator" "$json_path"; then
   cat >&2 <<EOF
 
 BLOCKED: refinement.json exists but does not satisfy the pipeline handoff schema.
-Fix the artifact before proceeding to breakdown.
+Fix the artifact, including predecessor_audit / writeback fields, before proceeding to breakdown.
 EOF
   exit 1
 fi
 
 echo "PASS refinement handoff: $json_path"
-

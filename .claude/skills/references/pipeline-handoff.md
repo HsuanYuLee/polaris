@@ -57,6 +57,14 @@ reads that inbox record and never opens the raw sidecar. See
 | `acceptance_criteria[].verification` | object | **必填** | 必含 `method`（string, `playwright`/`lighthouse`/`curl`/`unit_test`/`manual`）+ `detail`（string, 非空） |
 | `dependencies` | array | **必填**（可為空陣列） | 若非空，每個 dep 必含 `type`（string）+ `target`（string）+ `blocking`（bool） |
 | `edge_cases` | array | **必填**（可為空陣列） | 若非空，每個 edge case 必含 `scenario`（string, 非空）+ `handling`（string, 非空） |
+| `predecessor_audit` | array | **必填**（可為空陣列） | successor refinement 的 predecessor audit；每個 entry 必含 `spec_id`（string, 非空）+ `disposition`（`KEEP` / `PARTIAL_ABSORB` / `FULLY_SUPERSEDED`）+ `rationale`（string, 非空）+ `writeback`（object） |
+| `predecessor_audit[].writeback` | object | **必填** | 必含 `required`（bool）+ `summary`（string, 非空）+ `expected_status`（`UNCHANGED` / `SUPERSEDED`）+ `checklist_attribution`（array，可為空） |
+
+一致性規則：
+
+- `KEEP` → `writeback.required=false`、`writeback.expected_status=UNCHANGED`、`checklist_attribution=[]`
+- `PARTIAL_ABSORB` → `writeback.required=true`、`writeback.expected_status=UNCHANGED`
+- `FULLY_SUPERSEDED` → `writeback.required=true`、`writeback.expected_status=SUPERSEDED`
 
 **可選欄位**（不驗但 refinement-artifact.md 定義）：`tier`、`tier_signals`、`refinement_round`、`completeness`、`rd_decisions`、`gaps`、`downstream`、`research`、`references`、`type`、`direction_assessment`。
 

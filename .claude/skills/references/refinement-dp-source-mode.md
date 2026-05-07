@@ -175,11 +175,28 @@ DP-backed `refinement.json` 必須包含：
     "container": "{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}",
     "plan_path": "{workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/index.md",
     "jira_key": null
-  }
+  },
+  "predecessor_audit": []
 }
 ```
 
 Artifact 必須保留足夠的 scope、AC、dependencies、edge cases、downstream hints，讓 `breakdown DP-NNN` 不需要重做 refinement 就能 create work orders。
+
+`predecessor_audit` 是 refinement handoff 的必讀欄位；沒有 predecessor 時也必須明確寫 `[]`，不可省略。若 successor 吸收任何 predecessor scope，entry 至少要包含：
+
+- `spec_id`
+- `disposition`: `KEEP` / `PARTIAL_ABSORB` / `FULLY_SUPERSEDED`
+- `rationale`
+- `writeback.required`
+- `writeback.summary`
+- `writeback.expected_status`
+- `writeback.checklist_attribution`
+
+一致性規則：
+
+- `KEEP`：保留 predecessor current lifecycle，不做 source writeback
+- `PARTIAL_ABSORB`：必須寫回 predecessor disposition note / checklist attribution，但 predecessor 仍保留 residual ownership
+- `FULLY_SUPERSEDED`：必須寫回 predecessor disposition，且預期 terminal status 為 `SUPERSEDED`
 
 ## T5. LOCKED Handoff Gate
 
@@ -190,6 +207,8 @@ Artifact 必須保留足夠的 scope、AC、dependencies、edge cases、downstre
    這不是 DP-only 規則，而是所有 refinement-owned source 的 LOCK / breakdown handoff
    規則。DP 只是其中一種 source；Epic / Story / Task / ticketless topic 同樣不得在缺
    handoff artifact 時提示 breakdown。
+   若本輪 decisions / dependencies / Background 已吸收 predecessor scope，`predecessor_audit`
+   不得為空，且每筆 entry 都必須把 disposition 與 writeback 寫清楚；不可只留在 prose。
 3. 將 DP frontmatter 改為：
    ```yaml
    status: LOCKED

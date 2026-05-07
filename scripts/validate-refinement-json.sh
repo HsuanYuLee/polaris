@@ -202,6 +202,99 @@ else:
         if not isinstance(edge.get("handling"), str) or not edge["handling"].strip():
             errors.append(f"edge_cases[{idx}]: missing or empty 'handling'")
 
+# --- predecessor_audit: array (may be empty); each item must describe disposition + writeback ---
+preds = data.get("predecessor_audit")
+if not isinstance(preds, list):
+    errors.append("missing required field 'predecessor_audit' (expected array; use [] if none)")
+else:
+    valid_dispositions = {"KEEP", "PARTIAL_ABSORB", "FULLY_SUPERSEDED"}
+    valid_expected_status = {"UNCHANGED", "SUPERSEDED"}
+    for idx, pred in enumerate(preds):
+        if not isinstance(pred, dict):
+            errors.append(f"predecessor_audit[{idx}]: expected object, got {type(pred).__name__}")
+            continue
+        spec_id = pred.get("spec_id")
+        if not isinstance(spec_id, str) or not spec_id.strip():
+            errors.append(f"predecessor_audit[{idx}]: missing or empty 'spec_id'")
+        disposition = pred.get("disposition")
+        if not isinstance(disposition, str) or not disposition.strip():
+            errors.append(f"predecessor_audit[{idx}]: missing or empty 'disposition'")
+        elif disposition not in valid_dispositions:
+            errors.append(
+                f"predecessor_audit[{idx}]: invalid disposition '{disposition}' "
+                f"(must be one of {sorted(valid_dispositions)})"
+            )
+        rationale = pred.get("rationale")
+        if not isinstance(rationale, str) or not rationale.strip():
+            errors.append(f"predecessor_audit[{idx}]: missing or empty 'rationale'")
+
+        writeback = pred.get("writeback")
+        if not isinstance(writeback, dict):
+            errors.append(f"predecessor_audit[{idx}]: missing or non-object 'writeback'")
+            continue
+
+        required = writeback.get("required")
+        if not isinstance(required, bool):
+            errors.append(f"predecessor_audit[{idx}].writeback: missing 'required' (must be boolean)")
+        summary = writeback.get("summary")
+        if not isinstance(summary, str) or not summary.strip():
+            errors.append(f"predecessor_audit[{idx}].writeback: missing or empty 'summary'")
+        expected_status = writeback.get("expected_status")
+        if not isinstance(expected_status, str) or not expected_status.strip():
+            errors.append(f"predecessor_audit[{idx}].writeback: missing 'expected_status'")
+        elif expected_status not in valid_expected_status:
+            errors.append(
+                f"predecessor_audit[{idx}].writeback: invalid expected_status '{expected_status}' "
+                f"(must be one of {sorted(valid_expected_status)})"
+            )
+        checklist = writeback.get("checklist_attribution")
+        if not isinstance(checklist, list):
+            errors.append(
+                f"predecessor_audit[{idx}].writeback: missing 'checklist_attribution' "
+                "(expected array; use [] if none)"
+            )
+        else:
+            for cidx, item in enumerate(checklist):
+                if not isinstance(item, str) or not item.strip():
+                    errors.append(
+                        f"predecessor_audit[{idx}].writeback.checklist_attribution[{cidx}]: "
+                        "must be a non-empty string"
+                    )
+
+        if disposition == "KEEP":
+            if required is not False:
+                errors.append(
+                    f"predecessor_audit[{idx}]: disposition KEEP requires writeback.required=false"
+                )
+            if expected_status != "UNCHANGED":
+                errors.append(
+                    f"predecessor_audit[{idx}]: disposition KEEP requires writeback.expected_status=UNCHANGED"
+                )
+            if isinstance(checklist, list) and checklist:
+                errors.append(
+                    f"predecessor_audit[{idx}]: disposition KEEP requires empty checklist_attribution"
+                )
+        elif disposition == "PARTIAL_ABSORB":
+            if required is not True:
+                errors.append(
+                    f"predecessor_audit[{idx}]: disposition PARTIAL_ABSORB requires writeback.required=true"
+                )
+            if expected_status != "UNCHANGED":
+                errors.append(
+                    f"predecessor_audit[{idx}]: disposition PARTIAL_ABSORB requires "
+                    "writeback.expected_status=UNCHANGED"
+                )
+        elif disposition == "FULLY_SUPERSEDED":
+            if required is not True:
+                errors.append(
+                    f"predecessor_audit[{idx}]: disposition FULLY_SUPERSEDED requires writeback.required=true"
+                )
+            if expected_status != "SUPERSEDED":
+                errors.append(
+                    f"predecessor_audit[{idx}]: disposition FULLY_SUPERSEDED requires "
+                    "writeback.expected_status=SUPERSEDED"
+                )
+
 if errors:
     for e in errors:
         print(e)

@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.12] - 2026-05-07
+
+### Fixed — refinement predecessor audit handoff contract
+
+- Added required `predecessor_audit` schema to `refinement.json`, including deterministic dispositions and writeback expectations for `KEEP`, `PARTIAL_ABSORB`, and `FULLY_SUPERSEDED`.
+- Updated the refinement DP source-mode reference so successor specs must carry predecessor audit/writeback data before lock or breakdown handoff.
+- Hardened the refinement handoff gate messaging so missing or invalid predecessor audit data blocks downstream planning.
+
 ## [3.75.11] - 2026-05-07
 
 ### Fixed — parent spec supersession metadata contract
