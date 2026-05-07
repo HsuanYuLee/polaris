@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.19] - 2026-05-07
+
+### Fixed — refinement convergence sample-task template leak
+
+- Updated `verify-refinement-convergence.sh` to discover a representative company sample task dynamically instead of hard-coding a company/ticket path into the template release surface.
+- Expanded the verifier selftest to cover automatic sample discovery so the convergence gate keeps working without workspace-specific defaults.
+
+## [3.75.18] - 2026-05-07
+
+### Fixed — legacy refinement artifact convergence wash
+
+- Added deterministic refinement migration tooling that inventories canonical non-archive `refinement.json` artifacts, separates safe empty-audit backfills from manual predecessor review, and selftests the backfill lane.
+- Added a convergence verifier that cross-checks the backfill classifier against the canonical scan summary while asserting representative sample task status metadata and docs-manager direct-source contract health.
+- Washed the active canonical refinement backlog to the current predecessor-audit contract, including explicit predecessor dispositions for reviewed overlap lanes and a fully green canonical workspace scan.
+
 ## [3.75.17] - 2026-05-07
 
 ### Fixed — PR governance state contract and refinement AC parity
