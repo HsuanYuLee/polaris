@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.13] - 2026-05-07
+
+### Fixed — superseded terminal consumer integration
+
+- Updated `archive-spec.sh` and the shared spec-source resolver contract so `SUPERSEDED` is treated as a completed-class terminal archive candidate instead of lingering in active-only semantics.
+- Updated docs-manager status inference so superseded parent specs are recognized as a known lifecycle state but filtered out of the active dashboard surface.
+
 ## [3.75.12] - 2026-05-07
 
 ### Fixed — refinement predecessor audit handoff contract

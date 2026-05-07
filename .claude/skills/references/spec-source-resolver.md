@@ -163,6 +163,7 @@ tasks/pr-release/{key}/index.md
 | `DISCUSSION` | requirements / decisions 仍在變動 | 只能進 `refinement` |
 | `LOCKED` | source 已穩定到可以 breakdown | `breakdown` |
 | `IMPLEMENTED` | work 已完成 | read-only / audit |
+| `SUPERSEDED` | residual ownership 已由其他 spec 完整吸收；closure 標準與 implemented 同級，但保留 supersession provenance | read-only / audit |
 | `ABANDONED` | 決策是不繼續 | read-only，除非使用者明確 revive |
 
 `breakdown DP-NNN` 必須要求 `LOCKED`，除非使用者明確要求 advisory review。若 source 仍是 `DISCUSSION`，route 回 `refinement DP-NNN`。
@@ -182,9 +183,10 @@ Sweep 使用與 source resolution 相同的 namespace rules：
 
 - DP container status 來自 `plan.md`
 - JIRA/company container status 來自 `refinement.md`，fallback 到 `plan.md`
-- 只有 `IMPLEMENTED` 與 `ABANDONED` 是 archive candidates
+- 只有 `IMPLEMENTED`、`SUPERSEDED` 與 `ABANDONED` 是 archive candidates
 - non-terminal 或 missing status containers 留在 active，並回報為 `skip`
 - destination conflict 必須在任何 apply move 前 fail
+- `SUPERSEDED` 與 `IMPLEMENTED` 同屬 completed-class terminal state；不得再被 active planning lookup 當 current source
 
 Sweep apply 後，docs-manager 會直接讀 moved canonical specs。Live review 或 static/search verification：
 

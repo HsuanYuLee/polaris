@@ -10,7 +10,7 @@
 #   docs-manager/src/content/docs/specs/design-plans/DP-NNN-*        -> docs-manager/src/content/docs/specs/design-plans/archive/DP-NNN-*
 #   docs-manager/src/content/docs/specs/companies/{company}/{TICKET} -> docs-manager/src/content/docs/specs/companies/{company}/archive/{TICKET}
 #
-# Only parent specs with status IMPLEMENTED or ABANDONED may be archived.
+# Only parent specs with status IMPLEMENTED, SUPERSEDED, or ABANDONED may be archived.
 
 set -euo pipefail
 
@@ -240,7 +240,7 @@ sweep_report() {
     destination_rel="$(specs_rel_path "$destination")"
 
     case "$status" in
-      IMPLEMENTED|ABANDONED)
+      IMPLEMENTED|SUPERSEDED|ABANDONED)
         action="archive"
         reason="terminal status"
         ;;

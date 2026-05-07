@@ -10,6 +10,7 @@ export const STATUS_VALUES = [
   'in_progress',
   'implementing',
   'implemented',
+  'superseded',
   'blocked',
   'abandoned',
   'unknown',
@@ -33,7 +34,7 @@ const VISUAL_EXPECTATIONS = new Set(['none_allowed', 'baseline_required', 'updat
 
 /**
  * @typedef {'design-plan' | 'company-spec'} StatusSourceType
- * @typedef {'seeded' | 'discussion' | 'locked' | 'in_progress' | 'implementing' | 'implemented' | 'blocked' | 'abandoned' | 'unknown'} DashboardStatus
+ * @typedef {'seeded' | 'discussion' | 'locked' | 'in_progress' | 'implementing' | 'implemented' | 'superseded' | 'blocked' | 'abandoned' | 'unknown'} DashboardStatus
  * @typedef {{total: number, byStatus: {implemented: number, in_progress: number, blocked: number, unknown: number}}} TaskSummary
  * @typedef {{name: string, path: string}} DashboardArtifact
  * @typedef {{name: string, path: string}} DashboardReport
@@ -111,6 +112,9 @@ function buildItem({ specsRoot, dir, sourceType, company }) {
   const status = normalizeStatus(frontmatter.status);
   if (artifact && status === 'unknown') {
     blockers.push(frontmatter.status ? 'unknown-status' : 'missing-status');
+  }
+  if (status === 'superseded') {
+    return null;
   }
 
   return {
