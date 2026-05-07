@@ -72,6 +72,7 @@ STATUS_ALIASES = {
     "IMPLEMENTING": "IMPLEMENTING",
     "IMPLEMENTED": "IMPLEMENTED",
     "ABANDONED": "ABANDONED",
+    "SUPERSEDED": "SUPERSEDED",
 }
 STATUS_PRIORITY = {
     "IMPLEMENTING": "P0",
@@ -80,6 +81,7 @@ STATUS_PRIORITY = {
     "SEEDED": "P3",
     "IMPLEMENTED": "P4",
     "ABANDONED": "P4",
+    "SUPERSEDED": "P4",
 }
 STATUS_VARIANT = {
     "IMPLEMENTING": "caution",
@@ -88,6 +90,7 @@ STATUS_VARIANT = {
     "SEEDED": "note",
     "IMPLEMENTED": "success",
     "ABANDONED": "danger",
+    "SUPERSEDED": "success",
 }
 
 

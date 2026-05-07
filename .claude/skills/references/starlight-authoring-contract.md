@@ -53,12 +53,38 @@ sidebar:
 
 規則：
 
-- `status` 允許值：`SEEDED`、`DISCUSSION`、`LOCKED`、`IMPLEMENTING`、`IMPLEMENTED`、`ABANDONED`。
+- `status` 允許值：`SEEDED`、`DISCUSSION`、`LOCKED`、`IMPLEMENTING`、`IMPLEMENTED`、`ABANDONED`、`SUPERSEDED`。
 - `SEED` 是舊值；新文件必須使用 `SEEDED`。
 - `priority` 允許值：`P0`、`P1`、`P2`、`P3`、`P4`。
 - `sidebar.order` 使用 DP number，例如 `DP-070` 寫 `70`。
 - `sidebar.badge.text` 固定為 `{status} / {priority}`。
 - Deterministic drift 先用 `scripts/sync-spec-sidebar-metadata.sh --apply <path>` 修正，再跑 `scripts/validate-dp-metadata.sh <path>` 驗證 DP metadata。
+
+若 parent spec 已進入 supersession lifecycle，可額外宣告 machine-readable summary：
+
+```yaml
+supersession:
+  state: partial
+  successor_ids: [DP-127]
+  last_event_at: 2026-05-07
+  residual_open: true
+```
+
+規則：
+
+- `supersession` 是 parent spec lifecycle summary，不是第二份真相；canonical historical log 應留在 body。
+- `supersession.state` 允許值：`none`、`partial`、`full`。
+- `supersession.successor_ids` 必須是穩定 spec ID list。
+- `supersession.last_event_at` 應對應最新一筆 supersession event。
+- `supersession.residual_open` 必須是 boolean。
+- `status: SUPERSEDED` 時，`supersession` 必填，且 `state` 應為 `full`、`residual_open` 應為 `false`。
+
+### Frontmatter / Body 分工
+
+- frontmatter：放 machine-readable summary，例如 `status`、`priority`、`locked_at`、`supersession`
+- body：放人讀的 append-only log、disposition note、與 checklist attribution
+
+不要把完整 supersession 歷史硬塞進 frontmatter，也不要在 body 再手動維護另一份 machine summary。
 
 ## Headings
 

@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.11] - 2026-05-07
+
+### Fixed — parent spec supersession metadata contract
+
+- Added `SUPERSEDED` to Design Plan lifecycle metadata and sidebar sync so parent specs can declare a completed-class terminal supersession state without overloading `IMPLEMENTED`.
+- Added `supersession` frontmatter validation covering `state`, `successor_ids`, `last_event_at`, and `residual_open`, including stricter requirements when status is `SUPERSEDED`.
+- Documented the frontmatter/body split for supersession summary versus human-readable historical log in the Starlight authoring contract.
+
 ## [3.75.9] - 2026-05-06
 
 ### Fixed — version-bump release gate escalation
