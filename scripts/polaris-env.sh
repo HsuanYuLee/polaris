@@ -79,7 +79,43 @@ kill_port() {
 }
 
 # Extract port from URL: http://localhost:3001/zh-TW/ → 3001
-url_port() { echo "$1" | sed -n 's|.*://[^:/]*:\([0-9]*\).*|\1|p'; }
+url_port() {
+  python3 - "$1" <<'PY'
+import sys
+from urllib.parse import urlparse
+u = urlparse(sys.argv[1])
+if u.port:
+    print(u.port)
+elif u.scheme == "https":
+    print(443)
+elif u.scheme == "http":
+    print(80)
+PY
+}
+
+docker_health_mode() {
+  python3 - "$1" <<'PY'
+import sys
+from urllib.parse import urlparse
+u = urlparse(sys.argv[1])
+if u.scheme not in ("http", "https"):
+    print("port")
+    raise SystemExit(0)
+path = u.path or "/"
+print("port" if path == "/" else "http")
+PY
+}
+
+docker_health_ready() {
+  local url="$1" timeout="${2:-60}"
+  if [[ "$(docker_health_mode "$url")" == "http" ]]; then
+    wait_for_url "$url" "$timeout"
+  else
+    local port
+    port="$(url_port "$url")"
+    [[ -n "$port" ]] && wait_for_ports "docker-health" "$port"
+  fi
+}
 
 ensure_deps_fresh() {
   local project_dir="$1"
@@ -117,18 +153,28 @@ for p in json.load(sys.stdin).get('projects',[]):
     if d and 'docker' in p.get('tags',[]) and not d.get('requires'):
         print(p['name']+'|'+d['start_command']+'|'+d.get('health_check',''))
 " | while IFS='|' read -r name cmd health; do
-    # Docker services: check port listening (nginx may return non-200 on /)
     local health_port; health_port=$(url_port "$health")
-    if [[ -n "$health_port" ]] && port_listening "$health_port"; then
-      ok "$name (already running on port $health_port)"; continue
+    if docker_health_ready "$health" 4; then
+      if [[ "$(docker_health_mode "$health")" == "http" ]]; then
+        ok "$name (already running: $health)"
+      else
+        ok "$name (already running on port $health_port)"
+      fi
+      continue
     fi
     local log; log="$(pid_dir "$company")/$name.log"; mkdir -p "$(pid_dir "$company")"
     local resolved_cmd="${cmd/\~/$HOME}"
-    eval "$resolved_cmd" > "$log" 2>&1 &
+    nohup bash -lc "$resolved_cmd" > "$log" 2>&1 < /dev/null &
     save_pid "$company" "$name" $!
-    if [[ -n "$health_port" ]]; then
-      wait_for_ports "$name" "$health_port" && ok "$name (port $health_port)" || fail "$name timed out — $log"
-    else ok "$name started"; fi
+    if docker_health_ready "$health" 60; then
+      if [[ "$(docker_health_mode "$health")" == "http" ]]; then
+        ok "$name ($health)"
+      else
+        ok "$name (port $health_port)"
+      fi
+    else
+      fail "$name timed out — $log"
+    fi
   done
 }
 
@@ -155,7 +201,7 @@ start_fixtures() {
   if $all; then ok "Mockoon fixtures (ports ${ports[*]}, already running)"; return 0; fi
 
   local log; log="$(pid_dir "$company")/mockoon-fixtures.log"; mkdir -p "$(pid_dir "$company")"
-  eval "${start_cmd/\~/$HOME}" > "$log" 2>&1 &
+  nohup bash -lc "${start_cmd/\~/$HOME}" > "$log" 2>&1 < /dev/null &
   save_pid "$company" "mockoon-fixtures" $!
 
   wait_for_ports "mockoon-fixtures" "${ports[@]}" \
@@ -202,8 +248,7 @@ for p in json.load(sys.stdin).get('projects',[]):
         local req_type="${req_info%%|*}" req_health="${req_info#*|}"
         if [[ -z "$req_health" ]]; then continue; fi
         if [[ "$req_type" == "docker" ]]; then
-          local req_port; req_port=$(url_port "$req_health")
-          if [[ -n "$req_port" ]] && ! port_listening "$req_port"; then ok_reqs=false; break; fi
+          if ! docker_health_ready "$req_health" 3; then ok_reqs=false; break; fi
         else
           if ! wait_for_url "$req_health" 3 2>/dev/null; then ok_reqs=false; break; fi
         fi
@@ -261,7 +306,7 @@ print(' '.join(overrides))
       fi
     fi
 
-    eval "$resolved_cmd" > "$log" 2>&1 &
+    nohup bash -lc "$resolved_cmd" > "$log" 2>&1 < /dev/null &
     save_pid "$company" "$name" $!
 
     if [[ -n "$sig" ]]; then
@@ -283,7 +328,8 @@ verify_all() {
 
   local failures=0
 
-  # Layer 1: Docker services — verify via port listening (nginx may not return 200 on /)
+  # Layer 1: Docker services — verify via configured route when one is declared;
+  # root/origin URLs fall back to port listening.
   echo "$cfg" | python3 -c "
 import json,sys
 for p in json.load(sys.stdin).get('projects',[]):
@@ -293,10 +339,22 @@ for p in json.load(sys.stdin).get('projects',[]):
 " | while IFS='|' read -r name url; do
     [[ -z "$name" ]] && continue
     local p; p=$(url_port "$url")
-    if [[ -n "$p" ]] && port_listening "$p"; then
-      ok "$(printf '%-28s' "$name")  port $p"
+    if docker_health_ready "$url" 10; then
+      if [[ "$(docker_health_mode "$url")" == "http" ]]; then
+        ok "$(printf '%-28s' "$name")  $url"
+      else
+        ok "$(printf '%-28s' "$name")  port $p"
+      fi
     else
-      fail "$(printf '%-28s' "$name")  port ${p:-?} (not listening)"
+      if [[ "$(docker_health_mode "$url")" == "http" ]]; then
+        local raw code
+        raw=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 "$url" 2>/dev/null || echo "000")
+        code=$(echo "$raw" | tr -cd '0-9' | sed -E 's/^([0-9]{3}).*/\1/')
+        [[ -z "$code" ]] && code="000"
+        fail "$(printf '%-28s' "$name")  $url  (HTTP $code)"
+      else
+        fail "$(printf '%-28s' "$name")  port ${p:-?} (not listening)"
+      fi
       echo "VERIFY_FAIL" >> /tmp/polaris-env-verify-$$
     fi
   done

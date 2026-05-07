@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.16] - 2026-05-07
+
+### Fixed — runtime readiness and visual snapshot bootstrap hardening
+
+- Updated env bootstrap scripts so long-running background services survive orchestrator exit and docker-tagged runtime health distinguishes root/origin port fallback from route-level HTTP readiness.
+- Expanded env selftest coverage for sticky-service durability and docker root URL readiness fallback to keep dependency bootstrap semantics deterministic.
+- Hardened visual snapshot capture with retryable body reads when page navigation resets the Playwright execution context.
+
 ## [3.75.15] - 2026-05-07
 
 ### Fixed — canonical specs overlay visibility in clean worktrees

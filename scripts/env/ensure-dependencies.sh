@@ -3,8 +3,9 @@
 #
 # Walks `dev_environment.requires[]` for the given project; for each dependency
 # already healthy (its health_check URL returns 2xx; docker-tagged dependency
-# projects use port-listening from the health_check URL), records PASS and
-# moves on. For deps that are not healthy, dispatches start-command.sh +
+# projects use port-listening from the health_check URL because they often
+# proxy into the target app that has not started yet), records PASS and moves
+# on. For deps that are not healthy, dispatches start-command.sh +
 # health-check.sh/port-listening on each one and reports per-dep status.
 #
 # Usage:

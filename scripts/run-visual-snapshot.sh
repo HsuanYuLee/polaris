@@ -433,6 +433,25 @@ function sha256Text(value) {
   return createHash('sha256').update(value).digest('hex')
 }
 
+async function readBodyText(page) {
+  let lastError
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {})
+      await page.waitForTimeout(500)
+      return await page.locator('body').innerText({ timeout: 5000 })
+    } catch (error) {
+      lastError = error
+      const message = String(error && error.message ? error.message : error)
+      if (!message.includes('Execution context was destroyed')) {
+        throw error
+      }
+      await page.waitForTimeout(1000)
+    }
+  }
+  throw lastError
+}
+
 const browser = await chromium.launch({ headless: true })
 const context = await browser.newContext({
   viewport: { width: 1280, height: 720 },
@@ -454,7 +473,7 @@ try {
     await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {})
     await page.waitForTimeout(1000)
     const httpStatus = response ? response.status() : null
-    const bodyText = await page.evaluate(() => document.body?.innerText?.trim() || '')
+    const bodyText = (await readBodyText(page)).trim()
     const pageBlocked = httpStatus === null || httpStatus >= 400 || bodyText.length === 0
 
     const baselinePath = path.join(baselineDir, `${slug}.png`)

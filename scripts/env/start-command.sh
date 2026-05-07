@@ -159,10 +159,9 @@ if [[ ! -d "$launch_cwd" ]]; then
   env_lib_log_fail "--cwd path does not exist: $launch_cwd"; exit 1
 fi
 env_lib_log_info "launching '$start_command' for $PROJECT in $launch_cwd (log: $LOG_FILE)"
-# Use `exec` inside bash -c so PID becomes the actual launched process (not
-# an intermediate shell). This makes a subsequent `kill $PID` actually stop
-# the worker rather than orphaning a child.
-bash -c "cd '$launch_cwd' && exec $start_command" >> "$LOG_FILE" 2>&1 &
+# Use `nohup` so long-running dev servers survive after this orchestrator exits.
+# Keep `exec` inside bash -lc so the tracked PID becomes the actual worker.
+nohup bash -lc "cd '$launch_cwd' && exec $start_command" >> "$LOG_FILE" 2>&1 < /dev/null &
 PID=$!
 echo "$PID" > "$PID_FILE"
 

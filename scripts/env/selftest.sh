@@ -65,12 +65,18 @@ projects:
       ready_signal: "Serving HTTP on 127.0.0.1"
       health_check: "http://127.0.0.1:$PORT_OVERRIDE/"
       requires: []
+  - name: sticky-service
+    dev_environment:
+      start_command: "sh -lc 'trap \"exit 9\" HUP; echo STARTED; while true; do sleep 1; done'"
+      ready_signal: "STARTED"
+      health_check: "http://127.0.0.1:$PORT_HTTP/"
+      requires: []
   - name: docker-dep
     tags: ["docker"]
     dev_environment:
       start_command: "python3 -u -m http.server $PORT_DOCKER --bind 127.0.0.1"
       ready_signal: "Serving HTTP on 127.0.0.1"
-      health_check: "http://127.0.0.1:$PORT_DOCKER/definitely-not-a-real-page"
+      health_check: "http://127.0.0.1:$PORT_DOCKER/"
       requires: []
   - name: app-with-docker-dep
     dev_environment:
@@ -121,6 +127,7 @@ cleanup() {
   for pid_file in \
     /tmp/polaris-env-d11/leaf-service.pid \
     /tmp/polaris-env-d11/app-service.pid \
+    /tmp/polaris-env-d11/sticky-service.pid \
     /tmp/polaris-env-d11/docker-dep.pid \
     /tmp/polaris-env-d11/repo-override-service.pid; do
     [[ -f "$pid_file" ]] || continue
@@ -181,6 +188,13 @@ assert_eq "$RC_LEAF" "0" "leaf-service launched (ready_signal observed)"
 # Verify the server actually responds
 run_silent "$HC" "http://127.0.0.1:$PORT_HTTP/" --timeout 5
 assert_eq "$?" "0" "leaf-service responds to health-check"
+sticky_out="$("$SC" --project sticky-service --ready-timeout 10 2>/dev/null)"
+RC_STICKY=$?
+assert_eq "$RC_STICKY" "0" "sticky-service launched (ready_signal observed)"
+sticky_pid=$(printf '%s' "$sticky_out" | python3 -c 'import json,sys; print(json.load(sys.stdin)["pid"])')
+sleep 1
+kill -0 "$sticky_pid" 2>/dev/null
+assert_eq "$?" "0" "sticky-service survives after start-command exits"
 
 echo ""
 echo "=== install-project-deps.sh ==="
@@ -257,15 +271,13 @@ ed_out="$("$ED" --project app-service --ready-timeout 10 2>/dev/null)"
 echo "$ed_out" | grep -q '"started"'
 assert_eq "$?" "0" "ensure-deps started leaf-service from cold"
 
-# Docker-tagged dependencies can expose a proxy port while the app route used
-# by health_check returns non-2xx. The dependency check should treat the
-# listening port as healthy; otherwise runtime verification can be blocked by
-# the target app route before the dependency layer is even classified ready.
+# Docker-tagged dependencies still support port-level health when the configured
+# URL is only the origin/root.
 run_silent "$SC" --project docker-dep --ready-timeout 10
 assert_eq "$?" "0" "docker-tag dep launched"
 ed_out="$("$ED" --project app-with-docker-dep --ready-timeout 10 2>/dev/null)"
 echo "$ed_out" | grep -q '"already-healthy"'
-assert_eq "$?" "0" "docker-tag dep uses port listening health"
+assert_eq "$?" "0" "docker-tag dep uses root URL port fallback"
 
 # Cleanup leaf
 PID=$(cat /tmp/polaris-env-d11/leaf-service.pid 2>/dev/null || true)
