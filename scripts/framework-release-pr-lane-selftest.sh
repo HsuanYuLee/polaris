@@ -205,4 +205,38 @@ grep -q "BLOCKED: release-preflight" /tmp/framework-pr-lane-blocked.out
 POLARIS_ALLOW_MISSING_VERSION_BUMP=1 bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/TB.md" >/tmp/framework-pr-lane-override.out 2>&1
 grep -q "override accepted" /tmp/framework-pr-lane-override.out
 
+OVERLAY_REPO="$TMPDIR/overlay-repo"
+git init -q -b main "$OVERLAY_REPO"
+(
+  cd "$OVERLAY_REPO"
+  git config user.name "Polaris Selftest"
+  git config user.email "polaris-selftest@example.com"
+  cat > workspace-config.yaml <<'YAML'
+language: zh-TW
+YAML
+  git add workspace-config.yaml
+  git commit -q -m "init"
+)
+
+OVERLAY_TASK_DIR="$OVERLAY_REPO/docs-manager/src/content/docs/specs/design-plans/DP-999-fixture/tasks"
+make_task "$OVERLAY_TASK_DIR/T1/index.md" "DP-999-T1" "main" "main -> task/DP-999-T1-one" "task/DP-999-T1-one"
+make_task "$OVERLAY_TASK_DIR/T2/index.md" "DP-999-T2" "task/DP-999-T1-one" "main -> task/DP-999-T1-one -> task/DP-999-T2-two" "task/DP-999-T2-two"
+make_task "$OVERLAY_TASK_DIR/T3/index.md" "DP-999-T3" "task/DP-999-T2-two" "main -> task/DP-999-T1-one -> task/DP-999-T2-two -> task/DP-999-T3-three" "task/DP-999-T3-three"
+
+OVERLAY_WORKTREE="$TMPDIR/overlay-worktree"
+git -C "$OVERLAY_REPO" worktree add -q "$OVERLAY_WORKTREE" HEAD
+rm -rf "$OVERLAY_WORKTREE/docs-manager/src/content/docs/specs"
+
+write_state
+bash "$HELPER" \
+  --repo "$OVERLAY_WORKTREE" \
+  --terminal-task-md "$OVERLAY_TASK_DIR/T3/index.md" \
+  >/tmp/framework-pr-lane-overlay.out 2>&1
+if grep -q "no task.md matched" /tmp/framework-pr-lane-overlay.out; then
+  echo "overlay release lane should resolve canonical task source without scan miss fallback" >&2
+  cat /tmp/framework-pr-lane-overlay.out >&2
+  exit 1
+fi
+grep -q "\[framework-release-pr-lane\] PASS" /tmp/framework-pr-lane-overlay.out
+
 echo "[framework-release-pr-lane-selftest] PASS"

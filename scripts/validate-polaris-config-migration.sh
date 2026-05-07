@@ -63,7 +63,8 @@ check_no_active_ai_config_references() {
     --glob '!**/.git/**' \
     --glob '!**/.worktrees/**' \
     --glob '!**/.claude/worktrees/**' \
-    --glob '!scripts/validate-polaris-config-migration.sh' 2>/dev/null || true)"
+    --glob '!scripts/validate-polaris-config-migration.sh' \
+    --glob '!**/scripts/validate-polaris-config-migration.sh' 2>/dev/null || true)"
   if [[ -n "$hits" ]]; then
     fail "active runtime files still reference ai-config:"
     printf '%s\n' "$hits" >&2
@@ -91,7 +92,8 @@ check_no_runtime_polaris_sync_references() {
     --glob '!**/.git/**' \
     --glob '!**/.worktrees/**' \
     --glob '!**/.claude/worktrees/**' \
-    --glob '!scripts/validate-polaris-config-migration.sh' 2>/dev/null || true)"
+    --glob '!scripts/validate-polaris-config-migration.sh' \
+    --glob '!**/scripts/validate-polaris-config-migration.sh' 2>/dev/null || true)"
   if [[ -n "$hits" ]]; then
     fail "active runtime files still reference transitional polaris-sync.sh:"
     printf '%s\n' "$hits" >&2

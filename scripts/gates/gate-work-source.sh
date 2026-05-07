@@ -13,6 +13,9 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_ROOT=""
 TASK_MD=""
 
+# shellcheck source=../lib/specs-root.sh
+. "$ROOT_DIR/scripts/lib/specs-root.sh"
+
 usage() {
   cat >&2 <<'EOF'
 usage: gate-work-source.sh [--repo <path>] [--task-md <path>]
@@ -61,7 +64,8 @@ table_field() {
 resolve_task_by_branch_fallback() {
   local repo="$1"
   local branch="$2"
-  local specs_root="$repo/docs-manager/src/content/docs/specs"
+  local specs_root=""
+  specs_root="$(resolve_specs_root "$repo" 2>/dev/null || true)"
   [[ -d "$specs_root" ]] || return 1
 
   while IFS= read -r -d '' file; do

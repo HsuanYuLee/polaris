@@ -33,9 +33,14 @@ SPECS_ROOT="$(resolve_specs_root "$ROOT")" || {
   exit 1
 }
 OVERLAY_MODE=false
+MAIN_WORKSPACE_ROOT="$(resolve_specs_workspace_root "$ROOT" 2>/dev/null || true)"
+
+if [[ -n "$MAIN_WORKSPACE_ROOT" && "$MAIN_WORKSPACE_ROOT" != "$ROOT" ]] && \
+   [[ "$SPECS_ROOT" == "$MAIN_WORKSPACE_ROOT/docs-manager/src/content/docs/specs" ]]; then
+  OVERLAY_MODE=true
+fi
 
 if [[ ! -f "${SPECS_ROOT}/design-plans/archive/DP-063-docs-manager-source-unification/plan.md" ]]; then
-  MAIN_WORKSPACE_ROOT="$(resolve_specs_workspace_root "$ROOT" 2>/dev/null || true)"
   if [[ -n "$MAIN_WORKSPACE_ROOT" && "$MAIN_WORKSPACE_ROOT" != "$ROOT" ]]; then
     OVERLAY_SPECS_ROOT="$(resolve_specs_root "$MAIN_WORKSPACE_ROOT" 2>/dev/null || true)"
     if [[ -f "${OVERLAY_SPECS_ROOT}/design-plans/archive/DP-063-docs-manager-source-unification/plan.md" ]]; then

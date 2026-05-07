@@ -58,6 +58,8 @@ resolve_specs_workspace_root() {
 
 resolve_specs_root() {
   local workspace_root="${1:-}"
+  local specs_root=""
+  local overlay_workspace_root=""
 
   if [[ -n "${POLARIS_SPECS_ROOT:-}" ]]; then
     _specs_root_abs_path "$POLARIS_SPECS_ROOT"
@@ -68,6 +70,21 @@ resolve_specs_root() {
     workspace_root="$(resolve_specs_workspace_root)" || return 1
   else
     workspace_root="$(_specs_root_abs_path "$workspace_root")"
+  fi
+
+  specs_root="$workspace_root/docs-manager/src/content/docs/specs"
+  if [[ -d "$specs_root" ]]; then
+    printf '%s\n' "$specs_root"
+    return 0
+  fi
+
+  if overlay_workspace_root="$(resolve_specs_workspace_root "$workspace_root" 2>/dev/null)" \
+    && [[ -n "$overlay_workspace_root" && "$overlay_workspace_root" != "$workspace_root" ]]; then
+    specs_root="$overlay_workspace_root/docs-manager/src/content/docs/specs"
+    if [[ -d "$specs_root" ]]; then
+      printf '%s\n' "$specs_root"
+      return 0
+    fi
   fi
 
   printf '%s\n' "$workspace_root/docs-manager/src/content/docs/specs"

@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.15] - 2026-05-07
+
+### Fixed — canonical specs overlay visibility in clean worktrees
+
+- Updated the shared specs-root resolver so explicit worktree or clean checkout paths fall back to the authoritative main-checkout specs overlay when the local checkout lacks ignored specs content.
+- Updated `gate-work-source.sh` to consume the shared specs-root contract instead of hard-coding a repo-local specs path, keeping work-source lookup aligned with clean-worktree overlay semantics.
+- Expanded source-gate and framework-release lane selftests to cover clean worktree task lookup against main-checkout-only folder-native task sources.
+
 ## [3.75.14] - 2026-05-07
 
 ### Fixed — folder-native branch reverse-lookup parity

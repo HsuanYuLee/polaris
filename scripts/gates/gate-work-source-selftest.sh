@@ -46,8 +46,10 @@ assert_pass() {
 
 write_minimal_task() {
   local repo="$1"
-  local branch="$2"
-  local task="$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-no-source-no-pr/tasks/T1/index.md"
+  local task_key="$2"
+  local task_id="$3"
+  local branch="$4"
+  local task="$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-no-source-no-pr/tasks/${task_key}/index.md"
   mkdir -p "$(dirname "$task")" "$repo/scripts/gates" "$repo/.claude/skills/references"
   cat > "$repo/scripts/gates/gate-work-source-selftest.sh" <<'SH'
 #!/usr/bin/env bash
@@ -62,7 +64,7 @@ MD
 MD
   cat > "$task" <<MD
 ---
-title: "Work Order - T1: fixture no source no PR gate (1 pt)"
+title: "Work Order - ${task_key}: fixture no source no PR gate (1 pt)"
 description: "Fixture task for source gate selftest."
 depends_on: []
 verification:
@@ -72,9 +74,9 @@ verification:
 status: READY
 ---
 
-# T1: fixture no source no PR gate (1 pt)
+# ${task_key}: fixture no source no PR gate (1 pt)
 
-> Source: DP-999 | Task: DP-999-T1 | JIRA: N/A | Repo: fixture
+> Source: DP-999 | Task: ${task_id} | JIRA: N/A | Repo: fixture
 
 ## Operational Context
 
@@ -82,7 +84,7 @@ status: READY
 |------|-----|
 | Source type | dp |
 | Source ID | DP-999 |
-| Task ID | DP-999-T1 |
+| Task ID | ${task_id} |
 | JIRA key | N/A |
 | Test sub-tasks | N/A - framework work order |
 | AC 驗收單 | N/A - framework work order |
@@ -180,9 +182,20 @@ assert_blocked "skip-gates source gate" env PATH="$TMPDIR:$PATH" POLARIS_SKIP_PR
 assert_blocked "codex fallback source gate" env PATH="$TMPDIR:$PATH" \
   GATE_PROJECT_DIR="$repo" bash "$CODEX_WRAPPER" --dry-run --title "測試 PR" --body "測試 body"
 
-write_minimal_task "$repo" "task/DP-999-T1-source-gate"
+write_minimal_task "$repo" "T1" "DP-999-T1" "task/DP-999-T1-source-gate"
 
 assert_pass "legal task branch" bash "$GATE" --repo "$repo"
+
+write_minimal_task "$repo" "T2" "DP-999-T2" "task/DP-999-T2-source-gate-overlay"
+overlay_worktree="$TMPDIR/repo-overlay"
+git -C "$repo" worktree add -q -b task/DP-999-T2-source-gate-overlay "$overlay_worktree" HEAD
+mkdir -p "$overlay_worktree/scripts/gates"
+cat > "$overlay_worktree/scripts/gates/gate-work-source-selftest.sh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+chmod +x "$overlay_worktree/scripts/gates/gate-work-source-selftest.sh"
+assert_pass "clean worktree overlay task branch" bash "$GATE" --repo "$overlay_worktree"
 
 assert_blocked "draft blocked" env PATH="$TMPDIR:$PATH" \
   bash "$WRAPPER" --repo "$repo" --skip-gates --draft --title "測試 PR" --body "測試 body"
