@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.22] - 2026-05-08
+
+### Fixed — canonical workspace-config visibility in clean worktrees
+
+- Added a shared `workspace-config` root resolver plus overlay kind so clean worktrees and detached checkouts can resolve the canonical root config without manual copy workarounds.
+- Updated language-policy, task-resolution, and env bootstrap consumers to use the shared root resolver, keeping worktree config visibility aligned across validation and runtime helpers.
+- Expanded resolver and language gate selftests with linked-worktree fixtures so clean-worktree regressions fail deterministically before release.
+
 ## [3.75.20] - 2026-05-08
 
 ## [3.75.21] - 2026-05-08

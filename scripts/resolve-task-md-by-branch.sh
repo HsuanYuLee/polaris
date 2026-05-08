@@ -52,6 +52,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/specs-root.sh
 . "$SCRIPT_DIR/lib/specs-root.sh"
+# shellcheck source=lib/workspace-config-root.sh
+. "$SCRIPT_DIR/lib/workspace-config-root.sh"
 
 usage() {
   cat >&2 <<'USAGE'
@@ -371,29 +373,8 @@ if [[ -n "$scan_root" ]]; then
   root="$(cd "$scan_root" && pwd)"
 else
   root=""
-  probe="$(pwd)"
-  while [[ "$probe" != "/" && -n "$probe" ]]; do
-    if [[ -f "$probe/workspace-config.yaml" ]]; then
-      root="$probe"  # keep walking: outermost workspace-config.yaml wins
-    fi
-    probe="$(dirname "$probe")"
-  done
-
-  if [[ -z "$root" ]] && command -v git >/dev/null 2>&1; then
-    # Worktree / product-repo case: locate main checkout via shared resolver,
-    # then walk up looking for workspace-config.yaml.
-    # shellcheck source=lib/main-checkout.sh
-    . "$(dirname "$0")/lib/main-checkout.sh"
-    if main_checkout="$(resolve_main_checkout 2>/dev/null)"; then
-      p2="$main_checkout"
-      while [[ "$p2" != "/" && -n "$p2" ]]; do
-        if [[ -f "$p2/workspace-config.yaml" ]]; then
-          root="$p2"
-          break
-        fi
-        p2="$(dirname "$p2")"
-      done
-    fi
+  if root="$(resolve_workspace_config_root "$(pwd)" 2>/dev/null || true)" && [[ -n "$root" ]]; then
+    :
   fi
 
   if [[ -z "$root" ]]; then

@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=lib/workspace-config-root.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/workspace-config-root.sh"
+
 usage() {
   cat >&2 <<'EOF'
 usage: resolve-workspace-overlay.sh --kind KIND [name] [--workspace PATH]
 
 Kinds:
   specs-root              Canonical ignored specs authoring root
+  workspace-config-root   Canonical root workspace-config.yaml path
   codex-rules             Workspace .codex runtime context
   evidence-root           Durable local evidence mirror root
   local-skill NAME        Maintainer-local skill directory
@@ -82,6 +86,11 @@ case "$KIND" in
     path="$WORKSPACE/docs-manager/src/content/docs/specs"
     require_exists "$path" "specs root"
     emit "$KIND" "$path" true false
+    ;;
+  workspace-config-root)
+    path="$(resolve_workspace_config_path "$WORKSPACE" 2>/dev/null || true)"
+    require_exists "$path" "workspace config root"
+    emit "$KIND" "$path" false false
     ;;
   codex-rules)
     path="$WORKSPACE/.codex"

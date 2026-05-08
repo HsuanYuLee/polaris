@@ -33,6 +33,8 @@ EOF
 }
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/workspace-config-root.sh
+. "$script_dir/lib/workspace-config-root.sh"
 
 read_language_from_config() {
   local config="$1"
@@ -52,28 +54,14 @@ read_language_from_config() {
   ' "$config"
 }
 
-read_workspace_language_upward() {
+read_workspace_language() {
   local start="${1:-$PWD}"
-  local dir=""
-  if [[ -d "$start" ]]; then
-    dir="$(cd "$start" && pwd)"
-  elif [[ -f "$start" ]]; then
-    dir="$(cd "$(dirname "$start")" && pwd)"
-  else
-    dir="$(cd "$(dirname "$start")" 2>/dev/null && pwd || true)"
-    dir="${dir:-$PWD}"
+  local config_path=""
+  config_path="$(resolve_workspace_config_path "$start" 2>/dev/null || true)"
+  if [[ -n "$config_path" && -f "$config_path" ]]; then
+    read_language_from_config "$config_path" || true
+    return 0
   fi
-  while [[ "$dir" != "/" ]]; do
-    if [[ -f "$dir/workspace-config.yaml" ]]; then
-      local language
-      language="$(read_language_from_config "$dir/workspace-config.yaml" || true)"
-      if [[ -n "$language" ]]; then
-        printf '%s\n' "$language"
-        return 0
-      fi
-    fi
-    dir="$(dirname "$dir")"
-  done
   return 0
 }
 
@@ -325,6 +313,19 @@ projects: []
 YAML
   cp "$tmpdir/zh.md" "$tmpdir/no-language/zh.md"
 
+  mkdir -p "$tmpdir/root/repo"
+  git -C "$tmpdir/root/repo" init -q
+  git -C "$tmpdir/root/repo" config user.name "Polaris Selftest"
+  git -C "$tmpdir/root/repo" config user.email "polaris-selftest@example.com"
+  cat > "$tmpdir/root/repo/README.md" <<'MD'
+# repo
+MD
+  git -C "$tmpdir/root/repo" add README.md
+  git -C "$tmpdir/root/repo" commit -qm "init"
+  mkdir -p "$tmpdir/linked-worktree"
+  git -C "$tmpdir/root/repo" worktree add --detach "$tmpdir/linked-worktree/repo-wt" >/dev/null
+  cp "$tmpdir/root/company/en.md" "$tmpdir/linked-worktree/repo-wt/en.md"
+
   assert_rc 0 env -u LANGUAGE_POLICY_SELFTEST bash "$script_dir/validate-language-policy.sh" --blocking --language zh-TW --mode artifact "$tmpdir/zh.md"
   assert_rc 1 env -u LANGUAGE_POLICY_SELFTEST bash "$script_dir/validate-language-policy.sh" --blocking --language zh-TW --mode artifact "$tmpdir/en.md"
   assert_rc 0 env -u LANGUAGE_POLICY_SELFTEST bash "$script_dir/validate-language-policy.sh" --advisory --language zh-TW --mode artifact "$tmpdir/en.md"
@@ -336,6 +337,7 @@ YAML
   assert_rc 1 bash -c "cd '$tmpdir/root/company' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --blocking --workspace-root . --mode artifact '$tmpdir/root/company/en.md'"
   assert_rc 1 bash -c "cd '$tmpdir/no-language' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --blocking --mode artifact '$tmpdir/no-language/zh.md'"
   assert_rc 0 bash -c "cd '$tmpdir/no-language' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --advisory --mode artifact '$tmpdir/no-language/zh.md'"
+  assert_rc 1 bash -c "cd '$tmpdir/linked-worktree/repo-wt' && env -u LANGUAGE_POLICY_SELFTEST bash '$script_dir/validate-language-policy.sh' --blocking --mode artifact '$tmpdir/linked-worktree/repo-wt/en.md'"
 
   echo "validate-language-policy.sh selftest: $pass/$total passed, $fail failed"
   rm -rf "$tmpdir"
@@ -402,9 +404,9 @@ fi
 
 if [[ -z "$language" ]]; then
   if [[ -n "$workspace_root" ]]; then
-    language="$(read_workspace_language_upward "$workspace_root" || true)"
+    language="$(read_workspace_language "$workspace_root" || true)"
   else
-    language="$(read_workspace_language_upward "$PWD" || true)"
+    language="$(read_workspace_language "$PWD" || true)"
   fi
 fi
 

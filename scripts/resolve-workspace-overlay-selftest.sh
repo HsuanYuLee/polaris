@@ -10,6 +10,9 @@ mkdir -p "$TMPDIR/workspace/docs-manager/src/content/docs/specs"
 mkdir -p "$TMPDIR/workspace/.codex"
 mkdir -p "$TMPDIR/workspace/docs-manager/dist"
 mkdir -p "$TMPDIR/local-skills/framework-release"
+cat > "$TMPDIR/workspace/workspace-config.yaml" <<'YAML'
+language: zh-TW
+YAML
 
 assert_contains() {
   local haystack="$1" needle="$2" label="$3"
@@ -23,6 +26,10 @@ out="$(POLARIS_LOCAL_SKILLS_ROOT="$TMPDIR/local-skills" "$RESOLVER" --workspace 
 assert_contains "$out" '"kind":"specs-root"' "specs kind"
 assert_contains "$out" '"authoring_allowed":true' "specs authoring"
 assert_contains "$out" '"generated":false' "specs generated flag"
+
+out="$(POLARIS_LOCAL_SKILLS_ROOT="$TMPDIR/local-skills" "$RESOLVER" --workspace "$TMPDIR/workspace" --kind workspace-config-root)"
+assert_contains "$out" '"kind":"workspace-config-root"' "workspace-config kind"
+assert_contains "$out" '"path":"'"$TMPDIR"'/workspace/workspace-config.yaml"' "workspace-config path"
 
 out="$(POLARIS_LOCAL_SKILLS_ROOT="$TMPDIR/local-skills" "$RESOLVER" --workspace "$TMPDIR/workspace" --kind codex-rules)"
 assert_contains "$out" '"kind":"codex-rules"' "codex kind"
@@ -41,5 +48,22 @@ if POLARIS_LOCAL_SKILLS_ROOT="$TMPDIR/local-skills" "$RESOLVER" --workspace "$TM
   echo "[resolve-workspace-overlay-selftest] FAIL missing local skill should fail" >&2
   exit 1
 fi
+
+mkdir -p "$TMPDIR/root/repo"
+cat > "$TMPDIR/root/workspace-config.yaml" <<'YAML'
+language: zh-TW
+YAML
+git -C "$TMPDIR/root/repo" init -q
+git -C "$TMPDIR/root/repo" config user.name "Polaris Selftest"
+git -C "$TMPDIR/root/repo" config user.email "polaris-selftest@example.com"
+cat > "$TMPDIR/root/repo/README.md" <<'MD'
+# repo
+MD
+git -C "$TMPDIR/root/repo" add README.md
+git -C "$TMPDIR/root/repo" commit -qm "init"
+mkdir -p "$TMPDIR/linked-worktree"
+git -C "$TMPDIR/root/repo" worktree add --detach "$TMPDIR/linked-worktree/outside" >/dev/null
+out="$(POLARIS_LOCAL_SKILLS_ROOT="$TMPDIR/local-skills" "$RESOLVER" --workspace "$TMPDIR/linked-worktree/outside" --kind workspace-config-root)"
+assert_contains "$out" '/root/workspace-config.yaml"' "linked worktree workspace-config path"
 
 echo "[resolve-workspace-overlay-selftest] PASS"

@@ -18,6 +18,9 @@
 
 set -u
 
+# shellcheck source=../lib/workspace-config-root.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/workspace-config-root.sh"
+
 # ── Logging ─────────────────────────────────────────────────────────────────
 if [[ -t 2 ]]; then
   _ENV_LIB_GREEN="\033[0;32m"
@@ -76,6 +79,13 @@ env_lib_find_workspace_config() {
     done
     cur="$(dirname "$cur")"
   done
+
+  local root_cfg=""
+  root_cfg="$(resolve_workspace_config_path "$start" 2>/dev/null || true)"
+  if [[ -n "$root_cfg" && -f "$root_cfg" ]]; then
+    _env_lib_resolve_company_config "$root_cfg" && return 0
+  fi
+
   return 1
 }
 

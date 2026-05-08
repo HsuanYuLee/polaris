@@ -284,11 +284,7 @@ fi
 # Best-effort. If the router config can't be located or the path doesn't
 # exist, leave PROJECT_CWD empty and let start-command default to $PWD.
 router_cfg=""
-search="$(dirname "$WORKSPACE_CONFIG")"
-search="$(dirname "$search")"
-if [[ -f "$search/workspace-config.yaml" ]]; then
-  router_cfg="$search/workspace-config.yaml"
-fi
+router_cfg="$(resolve_workspace_config_path "$WORKSPACE_CONFIG" 2>/dev/null || true)"
 if [[ -n "$router_cfg" ]]; then
   base_dir=$(python3 -c '
 import yaml, sys, os

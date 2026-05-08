@@ -21,6 +21,8 @@ fi
 PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
 # shellcheck source=lib/specs-root.sh
 . "$SCRIPT_DIR/lib/specs-root.sh"
+# shellcheck source=lib/workspace-config-root.sh
+. "$SCRIPT_DIR/lib/workspace-config-root.sh"
 
 usage() {
   cat >&2 <<'USAGE'
@@ -111,26 +113,9 @@ detect_workspace_root() {
   fi
 
   probe="$(pwd)"
-  while [[ "$probe" != "/" && -n "$probe" ]]; do
-    if [[ -f "$probe/workspace-config.yaml" ]]; then
-      root="$probe"
-    fi
-    probe="$(dirname "$probe")"
-  done
-
-  if [[ -z "$root" ]] && command -v git >/dev/null 2>&1; then
-    # shellcheck source=lib/main-checkout.sh
-    . "$(dirname "$0")/lib/main-checkout.sh"
-    if main_checkout="$(resolve_main_checkout 2>/dev/null)"; then
-      probe="$main_checkout"
-      while [[ "$probe" != "/" && -n "$probe" ]]; do
-        if [[ -f "$probe/workspace-config.yaml" ]]; then
-          root="$probe"
-          break
-        fi
-        probe="$(dirname "$probe")"
-      done
-    fi
+  if root="$(resolve_workspace_config_root "$probe" 2>/dev/null || true)" && [[ -n "$root" ]]; then
+    printf '%s\n' "$root"
+    return 0
   fi
 
   if [[ -z "$root" ]]; then
