@@ -35,6 +35,17 @@ Polaris organizes agent behavior into three layers:
 
 Skills load only when triggered. Rules and hooks provide the always-on guardrails: language policy, safety checks, PR body validation, task artifact validation, context continuity, and workflow gates.
 
+## Governance Philosophy
+
+Polaris treats governance as a framework concern, not a per-session preference.
+
+- Prefer strong constraints over advisory prose whenever a contract can be enforced mechanically.
+- When a workflow or artifact can share one canonical shape, use one canonical shape across runtimes and lanes.
+- Do not keep special writer paths for the same authoritative surface.
+- When required authority inputs are missing, fail closed instead of improvising.
+
+This is why Polaris keeps pushing quality-critical workflow rules into shared scripts, hooks, validators, and generated runtime targets instead of relying on LLM discipline alone.
+
 ## Requirements
 
 Everyone needs:

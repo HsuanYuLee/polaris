@@ -12,6 +12,17 @@
 
 > 圖例：🤖 = AI 自動執行 | 🤖👤 = AI 輔助，人工確認 | 👤 = 純人工
 
+## Framework 治理姿態
+
+本指南繼承 Polaris 的 shared governance posture：
+
+- 能做成強約束，就不要只留 advisory prose。
+- 同一個 contract 若跨多條 lane 或 runtime，能共用一套 canonical shape 就應該共用。
+- 同一個 authoritative surface 不應引入特殊 writer path。
+- 必要 authority input 缺失時，應 fail closed。
+
+因此本指南提到的 gate，預設都應朝 deterministic script、hook、validator 或 generated artifact 收斂，只要該處具備可強制化條件。
+
 Git Flow 與 PR 慣例請參考公司的 Git 工作流程文件。
 完整技能參考請見 `.claude/skills/` 與公司技能目錄。
 

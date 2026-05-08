@@ -54,6 +54,7 @@ Keep user updates concise, factual, and tied to the current gate or blocker.
 Global targets reference universal rules without inlining their full bodies. Load the relevant files explicitly when the task context requires them.
 
 - `.claude/rules/bash-command-splitting.md`
+- `.claude/rules/canonical-contract-governance.md`
 - `.claude/rules/context-monitoring.md`
 - `.claude/rules/cross-llm-skill-source-of-truth.md`
 - `.claude/rules/feedback-and-memory.md`

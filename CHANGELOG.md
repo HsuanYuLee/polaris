@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.20] - 2026-05-08
+
+### Added — cross-LLM constitutional governance contract
+
+- Elevated Polaris governance posture into shared bootstrap instructions so all runtime targets inherit strong-constraint, canonical-shape, no-special-path, and fail-closed principles.
+- Added a universal canonical contract governance rule that defines one canonical shape, one writer path, and deterministic enforcement as the framework default.
+- Synced public maintainer-facing docs in English and Traditional Chinese so the operating model exposes the same governance posture outside internal rules.
+
 ## [3.75.19] - 2026-05-07
 
 ### Fixed — refinement convergence sample-task template leak

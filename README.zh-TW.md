@@ -35,6 +35,17 @@ Polaris 把 agent 行為分成三層：
 
 Skills 只在被觸發時載入。Rules 和 hooks 則提供常駐護欄：語言政策、安全檢查、PR body 驗證、task artifact 驗證、context continuity 與 workflow gates。
 
+## 治理哲學
+
+Polaris 把治理視為 framework 層責任，不是每次 session 臨場決定的偏好。
+
+- 能做成強約束，就不要只留 advisory prose。
+- 同一類 workflow 或 artifact 若能共用一套 canonical shape，就應該共用。
+- 同一個 authoritative surface 不應保留特殊 writer path。
+- 必要 authority input 缺失時，應 fail closed，而不是靠即興推論補齊。
+
+因此 Polaris 會優先把品質關鍵的流程限制推進 shared scripts、hooks、validators 與 generated runtime targets，而不是只依賴 LLM 自律。
+
 ## 前置需求
 
 所有人都需要：

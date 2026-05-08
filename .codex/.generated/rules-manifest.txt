@@ -7,6 +7,7 @@ generated_at=deterministic
 .claude/instructions/runtime/codex.md
 .claude/instructions/runtime/copilot.md
 .claude/rules/bash-command-splitting.md
+.claude/rules/canonical-contract-governance.md
 .claude/rules/context-monitoring.md
 .claude/rules/cross-llm-skill-source-of-truth.md
 .claude/rules/feedback-and-memory.md
@@ -20,12 +21,13 @@ generated_at=deterministic
 .claude/rules/sub-agent-delegation.md
 
 [sha256]
-5815b58d913bdec13074150003bd09e22dcdbc568f9064e463e6d61c468406cd  .claude/instructions/core/bootstrap.md
+7ca1002308f0ca8b4574349b795e157637bab24bb80bf123ce417fbf872cf016  .claude/instructions/core/bootstrap.md
 ae33aeb1892ff2a25933e0016cb1cf8888c7577632ad6cedba7758b398e94319  .claude/instructions/manifest.yaml
 a5ed3b521232c5ceb48443b3dd1153d00e2c417a537a61e2531bb7512ebd3ab6  .claude/instructions/runtime/claude.md
 2cce9249351d2f19116f02cc7b6a14e6e40bf6bb1b7efa55bbb1c2f90a3c092c  .claude/instructions/runtime/codex.md
 74e61b0d71c6167c35a86368aebb9a03a9e4a57275c6c41d38e0a909b4bf9622  .claude/instructions/runtime/copilot.md
 94858452b4742e476ea7c277a274b52dcd5e08406b76d2c6c6f73481dbebdd8a  .claude/rules/bash-command-splitting.md
+5c31ca3af5f1e76c2a2863c8dc88223a25e3ea138aadb4703b58beabad3cd453  .claude/rules/canonical-contract-governance.md
 e571d4293f702615dc040ad711502fc9513bebb0ac4a1f4319560a94e294e6bd  .claude/rules/context-monitoring.md
 43b414ac3d868c2ab6bfdf5caf6386a1187aabd36a6576ca3d29d97d4c80dd43  .claude/rules/cross-llm-skill-source-of-truth.md
 1f0f76c45ccacdd0de956b90357db87cf39e9086e79be418f08087428f067a75  .claude/rules/feedback-and-memory.md

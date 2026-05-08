@@ -12,6 +12,17 @@ This guide covers the end-to-end developer workflow orchestrated by Polaris skil
 
 > Legend: 🤖 = AI executes automatically | 🤖👤 = AI-assisted, human confirms | 👤 = human only
 
+## Framework Governance Posture
+
+This workflow guide inherits Polaris's shared governance posture:
+
+- Prefer strong constraints over advisory prose.
+- Reuse one canonical shape when the same contract spans multiple lanes or runtimes.
+- Do not introduce special writer paths for the same authoritative surface.
+- Fail closed when required authority inputs are missing.
+
+When this guide describes a gate, assume the target state is a deterministic script, hook, validator, or generated artifact whenever enforcement is feasible.
+
 For Git Flow and PR conventions, refer to your company's Git workflow documentation.
 For full skill reference, see `.claude/skills/` and the company skills directory.
 
