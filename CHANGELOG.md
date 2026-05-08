@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.25] - 2026-05-08
+
+### Reverted — unintended DP-137 main checkout dirty diagnostics
+
+- Removed `scripts/main-checkout-dirty-report.sh` and `scripts/main-checkout-dirty-report-selftest.sh` from the tracked framework surface.
+- Restored `scripts/framework-release-closeout.sh` and `scripts/framework-release-closeout-selftest.sh` to the `v3.75.23` baseline, removing the unintended main-checkout classification integration while keeping the DP-136 stale-repo diagnostics.
+
 ## [3.75.24] - 2026-05-08
 
 ### Added — deterministic main checkout dirty classification

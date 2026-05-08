@@ -59,19 +59,6 @@ info() {
   echo "$PREFIX $1" >&2
 }
 
-emit_main_checkout_classification() {
-  local repo="$1"
-  local reporter="${SCRIPT_DIR}/main-checkout-dirty-report.sh"
-  local output=""
-
-  [[ -x "$reporter" ]] || return 0
-  output="$(bash "$reporter" --repo "$repo" 2>/dev/null || true)"
-  [[ -n "$output" ]] || return 0
-
-  echo "main checkout classification:" >&2
-  printf '%s\n' "$output" | sed 's/^/  /' >&2
-}
-
 repo_diagnostic_summary() {
   local repo="$1"
   local status branch main_status=""
@@ -91,7 +78,6 @@ repo_diagnostic_summary() {
   else
     echo "tracked status: clean" >&2
   fi
-  emit_main_checkout_classification "$repo"
   echo "hint: rerun closeout against the merged clean release repo/worktree, not a stale main checkout." >&2
 }
 
