@@ -48,6 +48,13 @@ References to load 要只列 engineering 真正需要讀的 references，例如
 `branch-creation.md`、`task-md-schema.md`、project handbook pointer、relevant refinement
 artifact pointer。
 
+DP-backed implementation task 的 packaging 仍沿用 Epic 正規鏈：
+
+- `breakdown` 只負責產生 engineering 可施工的 releaseable tracked work order。
+- `engineering` 依 task.md 施工、驗證、開 workspace PR。
+- 若 local policy 宣告 `framework-release`，它只能作為 engineering PR 之後的 release tail。
+- local sample/spec-only recut 不得包成 implementation task；那不是 `engineering` lane。
+
 ## Scope Trace Matrix
 
 每張 implementation task 都要把可觀測目標 trace 到 owning files、使用者或系統邊界、

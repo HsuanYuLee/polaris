@@ -6,6 +6,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 ## [3.75.20] - 2026-05-08
 
+## [3.75.21] - 2026-05-08
+
+### Fixed — DP regular delivery chain and sample-only breakdown fail-stop
+
+- Declared that DP-backed framework work follows the same `refinement -> breakdown -> engineering` delivery chain as Epic work, with `framework-release` limited to the post-PR maintainer tail.
+- Made `create-design-plan.sh` plus refinement references the explicit template authority for DP authoring so sibling-DP browsing is no longer a default template path.
+- Hardened DP breakdown packaging and `validate-breakdown-ready.sh` so sample/spec-only tasks under `docs-manager/src/content/docs/specs/**` are rejected from engineering handoff.
+
 ### Added — cross-LLM constitutional governance contract
 
 - Elevated Polaris governance posture into shared bootstrap instructions so all runtime targets inherit strong-constraint, canonical-shape, no-special-path, and fail-closed principles.

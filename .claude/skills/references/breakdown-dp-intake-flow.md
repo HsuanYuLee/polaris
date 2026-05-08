@@ -57,6 +57,17 @@ Task schema 依 `task-md-schema.md` implementation schema：
 - `Test sub-tasks` = `N/A - framework work order`。
 - `AC 驗收單` = `N/A - framework work order`。
 
+DP-backed split hard rules：
+
+- `engineering` 只接 releaseable tracked work。Allowed Files 至少要有一個 tracked
+  non-spec path，不能全部落在 `docs-manager/src/content/docs/specs/**` 這類 local sample /
+  ignored artifact surface。
+- local sample consumption、GT-478 之類的 recut proof、或 docs-manager canonical spec
+  調整，若目的只是驗證新 contract 被下游 consume，必須留在 DP / refinement / breakdown
+  artifact，或作為 release 後 follow-up；不可偽裝成 engineering implementation task。
+- 不得把 tracked framework release work 和 sample/local artifact recut 包進同一張 DP task。
+  需要兩者時，先切出 releaseable task；sample follow-up 在 release 後另行處理。
+
 ## Confirmation And Writes
 
 Preview 必須包含 summary / points / allowed files / depends_on chain / source DP path /
@@ -71,6 +82,9 @@ scripts/validate-task-md-deps.sh {dp_folder}/tasks/
 
 全部 pass 後，更新 primary DP document Implementation Checklist / Work Orders linkage。
 Validator fail 時修 artifact，不 handoff engineering。
+
+若 `validate-breakdown-ready.sh` 因「DP task 只觸及 local spec/sample artifacts」失敗，
+這不是 engineering 要接的 implementation lane；必須回到 breakdown 重新分流。
 
 Handoff 提示：
 

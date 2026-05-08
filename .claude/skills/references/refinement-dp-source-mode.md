@@ -46,6 +46,15 @@ bash scripts/create-design-plan.sh "<durable topic>"
 
 若 command 失敗，必須修正 root cause 後重跑；不可改回手動建單。
 
+DP template authority 規則：
+
+- 新 DP 一律以 `create-design-plan.sh` 產出的 container 為準；不可搜尋 sibling DP 來推導
+  frontmatter 或章節模板。
+- 既有 DP 重跑 / 重整時，直接更新同一個 `index.md` / `refinement.md` / `refinement.json`
+  container；不可刪掉後用別張 DP 內容複製回填。
+- 若 authoring shape 不清楚，回讀本 reference 與 validator 輸出；不要用「先找一張像的
+  DP」當預設流程。
+
 `refinement` owns these DP sections:
 
 - `## Goal`
@@ -240,5 +249,9 @@ DP / Epic 的 artifact contract 一致：
    ```text
    breakdown DP-NNN
    ```
+
+DP-backed source 在此之後仍走正規施工鏈：`breakdown -> engineering -> (verify-AC when
+verification artifact exists)`。`framework-release` 不是 planning/implementation 捷徑，
+只能消費 engineering 已建立的 workspace PR。
 
 Ticketless source 不寫 JIRA comments、labels、descriptions、sub-tasks。若需要正式 cross-team document，route 到 `sasd-review` 或明確建立 JIRA ticket。

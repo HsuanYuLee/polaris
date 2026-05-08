@@ -30,6 +30,12 @@ Framework DP-backed work orders（DP-047 / DP-050）使用同一份 Implementati
 
 DP-backed task 使用 source-neutral identity：`source_type=dp`、`source_id=DP-NNN`、`work_item_id=DP-NNN-Tn` / `DP-NNN-Vn`、`jira_key=null`。Migration 期仍接受舊 task.md 把 pseudo-task ID 放在 `Task JIRA key` / `JIRA:`，但新 DP-backed task 應使用 canonical metadata row，並保留 `JIRA: N/A` 讓舊 reader 不因欄位缺失失效。
 
+DP-backed implementation task 與 Epic implementation task 沒有不同的施工捷徑：同樣由
+`breakdown` 產出 authoritative work order，交給 `engineering` 施工；若 local policy
+需要 `framework-release`，那是 PR 之後的 local extension tail。只觸及
+`docs-manager/src/content/docs/specs/**` 這類 local sample/spec surface 的調整，不得被包成
+DP implementation task handoff engineering。
+
 > **Reader fallback callout（DP-033 D8）**：所有用 task key 找 file 的 reader（`parse-task-md.sh` / `validate-task-md-deps.sh` / `verify-AC` / `engineering` / 未來 Specs Viewer）在 active `tasks/` 找不到 key 時，必須 fallback `tasks/pr-release/`，避免歷史 reference 在 task 完結後斷鏈。完整 fallback 規則 + lookup 優先順序見 § 6 Validator Mapping。`tasks/pr-release/` fallback 不等於 archive lookup；`archive/` 是 completed/abandoned container 的歷史命名空間，active resolver 預設必須排除，只有 direct archived path 或明確 `--include-archive` 類模式才可讀取。
 
 ### Filename → Schema dispatch

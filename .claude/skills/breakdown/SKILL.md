@@ -28,6 +28,13 @@ to `refinement`。
   task.md、sidecar processed flag。
 - task.md 必須能被 `engineering` 單獨消費：Allowed Files、Gate Closure Matrix、
   Behavior Contract、Test Environment、Verify Command 都要完整。
+- DP-backed work 沒有特殊 execution shortcut。只要 task.md 要 handoff `engineering`，
+  就必須沿用與 Epic 相同的正規鏈；`framework-release` 只能作為 engineering PR 之後的
+  local extension tail，不得提前取代 `engineering`。
+- DP task 若只觸及 local sample / ignored specs artifacts（例如 Allowed Files 全在
+  `docs-manager/src/content/docs/specs/**`），不得包成 implementation task handoff
+  engineering；必須留在 refinement / breakdown artifact，或另拆真正的 tracked
+  releaseable task。
 - 任何 sub-agent dispatch 前讀 `sub-agent-roles.md` 並注入 Completion Envelope。
 - 完成任何 write 後最後跑 Post-Task Reflection。
 
@@ -57,6 +64,9 @@ to `refinement`。
 - Quality Challenge / Constructability Gate 失敗：不得建 JIRA sub-task、不得產 task.md。
 - `validate-task-md.sh` 或 `validate-task-md-deps.sh` 失敗：修 artifact，不得 handoff
   engineering。
+- DP-backed task 若混合「tracked releaseable framework work」與「local sample/spec recut」，
+  或 Allowed Files 全落在 ignored local artifact surface：停止，回 planning 重拆，不得
+  handoff engineering / framework-release。
 
 ## Shared Handoff
 

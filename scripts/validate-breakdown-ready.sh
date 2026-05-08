@@ -27,7 +27,7 @@ EOF
 }
 
 run_self_test() {
-  local tasks valid invalid invalid_matrix missing_scope missing_allowed missing_surface folder_valid
+  local tasks valid invalid invalid_matrix missing_scope missing_allowed missing_surface folder_valid local_specs_only
   SELFTEST_TMP="$(mktemp -d -t validate-breakdown-ready.XXXXXX)"
   trap 'rm -rf "${SELFTEST_TMP:-}"' EXIT
   tasks="$SELFTEST_TMP/tasks"
@@ -40,6 +40,7 @@ run_self_test() {
   missing_surface="$tasks/T6.md"
   mkdir -p "$tasks/T7"
   folder_valid="$tasks/T7/index.md"
+  local_specs_only="$tasks/T8.md"
 
   cat > "$valid" <<'MD'
 ---
@@ -135,6 +136,90 @@ MD
   sed '/^- `scripts\/validate-breakdown-ready-selftest.sh`$/d' "$valid" > "$missing_allowed"
   sed 's/| readiness gate validates valid and invalid task.md files | `scripts\/validate-breakdown-ready.sh`, `scripts\/validate-breakdown-ready-selftest.sh` | CLI validator output | `bash scripts\/validate-breakdown-ready.sh --self-test` |/| dashboard status renders task readiness | `scripts\/validate-breakdown-ready.sh` | N\/A | `bash scripts\/validate-breakdown-ready.sh --self-test` |/' "$valid" > "$missing_surface"
   cp "$valid" "$folder_valid"
+  cat > "$local_specs_only" <<'MD'
+---
+title: "T8: local sample recut only (2 pt)"
+---
+
+# T8: local sample recut only (2 pt)
+
+> Source: DP-082 | Task: DP-082-T8 | JIRA: N/A | Repo: work
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-082 |
+| Task ID | DP-082-T8 |
+| JIRA key | N/A |
+| Test sub-tasks | N/A - framework work order |
+| AC 驗收單 | N/A - framework work order |
+| Base branch | main |
+| Task branch | task/DP-082-T8-local-sample-only |
+| References to load | - `docs-manager/src/content/docs/specs/design-plans/DP-082-example/index.md` |
+
+## Verification Handoff
+
+AC 驗證不在本 task 範圍。
+
+## 目標
+
+只改 local sample spec。
+
+## 改動範圍
+
+| 檔案 | 動作 | 說明 |
+|------|------|------|
+| `docs-manager/src/content/docs/specs/design-plans/DP-082-example/index.md` | modify | local sample recut |
+
+## Allowed Files
+
+- `docs-manager/src/content/docs/specs/design-plans/DP-082-example/index.md`
+
+## Scope Trace Matrix
+
+| Goal / AC | Owning files | Surface / boundary | Tests |
+|-----------|--------------|--------------------|-------|
+| sample recut proof | `docs-manager/src/content/docs/specs/design-plans/DP-082-example/index.md` | local sample spec surface | `bash scripts/validate-breakdown-ready.sh docs-manager/src/content/docs/specs/design-plans/DP-082-example` |
+
+## Gate Closure Matrix
+
+| Gate | Applies | Pass condition | Owner / decision |
+|------|---------|----------------|------------------|
+| scope | yes | Allowed Files 全為 path/glob | breakdown |
+| test | yes | sample lint pass | breakdown |
+| verify | yes | sample grep pass | breakdown |
+| ci-local | no | N/A - no repo CI required | breakdown |
+
+## 估點理由
+
+2 pt，只有 local sample。
+
+## 測試計畫（code-level）
+
+- sample smoke
+
+## Test Command
+
+```bash
+echo test
+```
+
+## Test Environment
+
+- **Level**: static
+- **Dev env config**: N/A
+- **Fixtures**: N/A
+- **Runtime verify target**: N/A
+- **Env bootstrap command**: N/A
+
+## Verify Command
+
+```bash
+echo verify
+```
+MD
 
   bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$valid" >/dev/null || {
     echo "self-test failed: valid task did not pass" >&2
@@ -164,6 +249,10 @@ MD
     echo "self-test failed: folder-native T*/index.md task did not pass" >&2
     return 1
   }
+  if bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$local_specs_only" >/dev/null 2>&1; then
+    echo "self-test failed: DP task targeting only local spec/sample artifacts passed" >&2
+    return 1
+  fi
   echo "validate-breakdown-ready self-test PASS"
 }
 
@@ -459,6 +548,8 @@ def validate_one(file: Path) -> list[str]:
     if schema.returncode != 0:
         errors.append(f"{file}: validate-task-md.sh failed; fix schema before readiness handoff")
 
+    text = file.read_text(encoding="utf-8")
+
     allowed = parse_allowed(file)
     if not allowed:
         errors.append(f"{file}: Allowed Files has no entries")
@@ -466,7 +557,18 @@ def validate_one(file: Path) -> list[str]:
         if not path_token(entry):
             errors.append(f"{file}: Allowed Files entry is not a machine-matchable path/glob token: {entry}")
 
-    text = file.read_text(encoding="utf-8")
+    is_dp_task = "/design-plans/DP-" in normalized or "| source type | dp |" in text.lower()
+    if is_dp_task:
+        non_spec_allowed = [
+            entry
+            for entry in allowed
+            if not normalize_path_token(entry).startswith("docs-manager/src/content/docs/specs/")
+        ]
+        if allowed and not non_spec_allowed:
+            errors.append(
+                f"{file}: DP-backed engineering task cannot target only local spec/sample artifacts under docs-manager/src/content/docs/specs; split a tracked releaseable task"
+            )
+
     errors.extend(validate_scope_trace(file, text, allowed))
 
     matrix = section(text, "## Gate Closure Matrix")
