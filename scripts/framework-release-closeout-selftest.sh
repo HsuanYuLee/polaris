@@ -17,7 +17,7 @@ write_plan() {
     t2_checklist=""
     t2_work_order=""
   fi
-  cat >"${dp_dir}/plan.md" <<'MD'
+  cat >"${dp_dir}/index.md" <<'MD'
 ---
 topic: release closeout selftest
 created: 2026-04-30
@@ -32,9 +32,9 @@ locked_at: 2026-04-30
 - [ ] T1: First task — `tasks/T1.md`
 MD
   if [[ -n "$t2_checklist" ]]; then
-    printf '%s\n' "$t2_checklist" >>"${dp_dir}/plan.md"
+    printf '%s\n' "$t2_checklist" >>"${dp_dir}/index.md"
   fi
-  cat >>"${dp_dir}/plan.md" <<'MD'
+  cat >>"${dp_dir}/index.md" <<'MD'
 
 ## Work Orders
 
@@ -43,7 +43,7 @@ MD
 | T1 | `tasks/T1.md` |
 MD
   if [[ -n "$t2_work_order" ]]; then
-    printf '%s\n' "$t2_work_order" >>"${dp_dir}/plan.md"
+    printf '%s\n' "$t2_work_order" >>"${dp_dir}/index.md"
   fi
 }
 
@@ -153,6 +153,10 @@ make_repos() {
   local tmp="$1"
   local repo="${tmp}/repo"
   local template="${tmp}/template"
+
+  tmp="$(cd "$tmp" && pwd -P)"
+  repo="${tmp}/repo"
+  template="${tmp}/template"
 
   git init -b main "$repo" >/dev/null
   git -C "$repo" config user.email selftest@example.test
@@ -278,7 +282,7 @@ run_stacked_task_case() {
   archived_dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/archive/DP-999-release-closeout"
   [[ ! -d "$dp_dir" && -d "$archived_dp_dir" ]] || { echo "[selftest] stacked parent DP was not archived" >&2; return 1; }
   [[ -f "${archived_dp_dir}/tasks/pr-release/T1.md" && -f "${archived_dp_dir}/tasks/pr-release/T2.md" ]] || { echo "[selftest] stacked tasks were not moved" >&2; return 1; }
-  grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/plan.md" || { echo "[selftest] parent DP was not closed" >&2; return 1; }
+  grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/index.md" || { echo "[selftest] parent DP was not closed" >&2; return 1; }
   [[ ! -d "$wt1" && ! -d "$wt2" ]] || { echo "[selftest] stacked worktrees were not removed" >&2; return 1; }
 }
 
@@ -356,7 +360,7 @@ PY
   archived_dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/archive/DP-999-release-closeout"
   [[ ! -d "$dp_dir" && -d "$archived_dp_dir" ]] || { echo "[selftest] preimplemented stacked parent DP was not archived after terminal task" >&2; return 1; }
   [[ -f "${archived_dp_dir}/tasks/pr-release/T1.md" && -f "${archived_dp_dir}/tasks/pr-release/T2.md" ]] || { echo "[selftest] preimplemented stacked tasks missing after archive" >&2; return 1; }
-  grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/plan.md" || { echo "[selftest] preimplemented stacked parent DP was not closed" >&2; return 1; }
+  grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/index.md" || { echo "[selftest] preimplemented stacked parent DP was not closed" >&2; return 1; }
   grep -q 'extension_deliverable:' "${archived_dp_dir}/tasks/pr-release/T1.md" || { echo "[selftest] preimplemented T1 extension deliverable missing" >&2; return 1; }
   grep -q 'extension_deliverable:' "${archived_dp_dir}/tasks/pr-release/T2.md" || { echo "[selftest] preimplemented T2 extension deliverable missing" >&2; return 1; }
 }
@@ -396,7 +400,7 @@ run_archived_pr_release_case() {
   [[ -d "$archived_dp_dir" ]] || { echo "[selftest] archived DP directory disappeared" >&2; return 1; }
   [[ -f "$task_md" ]] || { echo "[selftest] archived pr-release task missing" >&2; return 1; }
   grep -q '^status: IMPLEMENTED$' "$task_md" || { echo "[selftest] archived task status missing" >&2; return 1; }
-  grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/plan.md" || { echo "[selftest] archived parent DP was not closed" >&2; return 1; }
+  grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/index.md" || { echo "[selftest] archived parent DP was not closed" >&2; return 1; }
   [[ ! -d "$wt" ]] || { echo "[selftest] archived task worktree was not removed" >&2; return 1; }
 }
 
@@ -410,7 +414,7 @@ run_delayed_terminal_archive_case() {
 
   dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/DP-999-release-closeout"
   mkdir -p "${dp_dir}/tasks"
-  cat >"${dp_dir}/plan.md" <<'MD'
+  cat >"${dp_dir}/index.md" <<'MD'
 ---
 topic: delayed archive closeout selftest
 created: 2026-05-02
@@ -456,9 +460,9 @@ MD
   moved_task_md="${dp_dir}/tasks/pr-release/T1.md"
   [[ -d "$dp_dir" && -f "$moved_task_md" ]] || { echo "[selftest] delayed archive fixture should remain active after non-task checklist blocks parent closeout" >&2; return 1; }
   [[ ! -d "$wt" ]] || { echo "[selftest] delayed archive worktree was not removed before parent archive" >&2; return 1; }
-  ! grep -q '^status: IMPLEMENTED$' "${dp_dir}/plan.md" || { echo "[selftest] delayed archive parent closed too early" >&2; return 1; }
+  ! grep -q '^status: IMPLEMENTED$' "${dp_dir}/index.md" || { echo "[selftest] delayed archive parent closed too early" >&2; return 1; }
 
-  python3 - "${dp_dir}/plan.md" <<'PY'
+  python3 - "${dp_dir}/index.md" <<'PY'
 from pathlib import Path
 import sys
 
@@ -476,7 +480,7 @@ PY
   archived_dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/archive/DP-999-release-closeout"
   [[ ! -d "$dp_dir" && -d "$archived_dp_dir" ]] || { echo "[selftest] delayed terminal parent DP was not archived" >&2; return 1; }
   [[ -f "${archived_dp_dir}/tasks/pr-release/T1.md" ]] || { echo "[selftest] delayed archive task missing under archived DP" >&2; return 1; }
-  grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/plan.md" || { echo "[selftest] delayed archive parent DP was not marked implemented" >&2; return 1; }
+  grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/index.md" || { echo "[selftest] delayed archive parent DP was not marked implemented" >&2; return 1; }
 }
 
 run_stale_evidence_case() {
@@ -559,6 +563,49 @@ run_dirty_worktree_case() {
   ! grep -q 'extension_deliverable:' "$task_md" || { echo "[selftest] dirty preflight wrote metadata unexpectedly" >&2; return 1; }
 }
 
+run_stale_repo_selection_case() {
+  local tmp repos repo template dp_dir branch task_md wt stale_repo task_head workspace_commit template_commit evidence rc output
+  tmp="$(mktemp -d -t framework-closeout-stale-repo.XXXXXX)"
+  trap 'rm -rf "$tmp"' RETURN
+  repos="$(make_repos "$tmp")"
+  repo="$(printf '%s\n' "$repos" | sed -n '1p')"
+  template="$(printf '%s\n' "$repos" | sed -n '2p')"
+
+  dp_dir="${repo}/docs-manager/src/content/docs/specs/design-plans/DP-999-release-closeout"
+  mkdir -p "${dp_dir}/tasks"
+  write_plan "$dp_dir" 1
+  branch="task/DP-999-T1-closeout"
+  task_md="${dp_dir}/tasks/T1.md"
+  write_task "$task_md" T1 "$branch" ""
+  wt="$(add_task_branch_and_worktree "$repo" "$branch" "t1")"
+  task_head="$(git -C "$wt" rev-parse HEAD)"
+  merge_task_branch "$repo" "$branch"
+  workspace_commit="$(git -C "$repo" rev-parse HEAD)"
+  template_commit="$(git -C "$template" rev-parse HEAD)"
+  evidence="${tmp}/verify-t1.json"
+  write_verify_evidence "$evidence" DP-999-T1 "$task_head"
+  stale_repo="${tmp}/stale-repo"
+  git -C "$repo" worktree add --detach "$stale_repo" "${workspace_commit}~1" >/dev/null 2>&1
+
+  rc=0
+  output="$(
+    bash "$CLOSEOUT" \
+      --repo "$stale_repo" \
+      --template-repo "$template" \
+      --task-md "$task_md" \
+      --verify-evidence "$evidence" \
+      --workspace-commit "$workspace_commit" \
+      --template-commit "$template_commit" \
+      --version-tag v0.0.1 \
+      --release-url https://github.com/example/polaris/releases/tag/v0.0.1 2>&1
+  )" || rc=$?
+
+  [[ "$rc" -ne 0 ]] || { echo "[selftest] stale repo selection unexpectedly passed" >&2; return 1; }
+  grep -q 'workspace commit is stale' <<<"$output" || { echo "[selftest] stale repo diagnostic missing stale marker" >&2; return 1; }
+  grep -q 'tracked status:' <<<"$output" || { echo "[selftest] stale repo diagnostic missing tracked status section" >&2; return 1; }
+  grep -q 'hint: rerun closeout against the merged clean release repo/worktree' <<<"$output" || { echo "[selftest] stale repo diagnostic missing recovery hint" >&2; return 1; }
+}
+
 run_single_task_case
 run_stacked_task_case
 run_preimplemented_stacked_pr_release_case
@@ -566,5 +613,6 @@ run_archived_pr_release_case
 run_delayed_terminal_archive_case
 run_stale_evidence_case
 run_dirty_worktree_case
+run_stale_repo_selection_case
 
 echo "[framework-release-closeout-selftest] PASS"

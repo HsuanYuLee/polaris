@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.23] - 2026-05-08
+
+### Fixed — framework delivery chain false negatives after DP-135
+
+- Serialized `create-design-plan.sh` number allocation so concurrent DP creation no longer races into duplicate DP ids.
+- Moved Codex fallback PR-create parity coverage onto a fixture-owned work source, removing detached caller branch dependence from cross-LLM parity and docs-health preflight.
+- Improved framework release closeout stale-repo diagnostics so maintainers can distinguish wrong repo selection from artifact failures.
+
 ## [3.75.22] - 2026-05-08
 
 ### Fixed — canonical workspace-config visibility in clean worktrees

@@ -20,6 +20,116 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+make_codex_fallback_fixture() {
+  local tmp_root="$1"
+  local fixture="$tmp_root/repo"
+  local dp_dir="$fixture/docs-manager/src/content/docs/specs/design-plans/DP-999-parity-source"
+
+  git init -q -b task/DP-999-T1-parity-fixture "$fixture"
+  git -C "$fixture" config user.name "Polaris Selftest"
+  git -C "$fixture" config user.email "polaris-selftest@example.com"
+  cat > "$fixture/workspace-config.yaml" <<'YAML'
+language: zh-TW
+YAML
+  mkdir -p "$dp_dir/tasks/T1"
+  cat > "$dp_dir/tasks/T1/index.md" <<'MD'
+---
+title: "DP-999 T1: parity fixture"
+description: "Parity fixture task."
+verification:
+  behavior_contract:
+    applies: false
+    reason: "fixture"
+depends_on: []
+---
+
+# T1: parity fixture (1 pt)
+
+> Source: DP-999 | Task: DP-999-T1 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-999 |
+| Task ID | DP-999-T1 |
+| JIRA key | N/A |
+| Test sub-tasks | N/A - framework work order |
+| AC 驗收單 | N/A - framework work order |
+| Base branch | main |
+| Branch chain | main -> task/DP-999-T1-parity-fixture |
+| Task branch | task/DP-999-T1-parity-fixture |
+| Depends on | N/A |
+| References to load | - scripts/verify-cross-llm-parity.sh |
+
+## 目標
+
+fixture
+
+## 改動範圍
+
+| 檔案 | 動作 | 說明 |
+|------|------|------|
+| `README.md` | modify | fixture |
+
+## Allowed Files
+
+- `README.md`
+
+## Scope Trace Matrix
+
+| Goal / AC | Owning files | Surface / boundary | Tests |
+|-----------|--------------|--------------------|-------|
+| fixture | `README.md` | fixture | `true` |
+
+## Gate Closure Matrix
+
+| Gate | Applies | Pass condition | Owner / decision |
+|------|---------|----------------|------------------|
+| scope | yes | fixture | engineering |
+| test | yes | fixture | engineering |
+| verify | yes | fixture | engineering |
+| ci-local | no | N/A | planner decision |
+
+## Out Of Scope
+
+- fixture
+
+## 估點理由
+
+1 pt - fixture
+
+## 測試計畫（code-level）
+
+- `true`
+
+## Test Command
+
+```bash
+true
+```
+
+## Test Environment
+
+- **Level**: static
+- **Dev env config**: N/A
+- **Fixtures**: N/A
+- **Runtime verify target**: N/A
+- **Env bootstrap command**: N/A
+
+## Verify Command
+
+```bash
+true
+```
+MD
+  echo "# parity fixture" > "$fixture/README.md"
+  git -C "$fixture" add workspace-config.yaml README.md "$dp_dir/tasks/T1/index.md"
+  git -C "$fixture" commit -qm "fixture"
+  printf '%s\n' "$fixture"
+}
+
 refresh_runtime_targets() {
   echo "INFO: Refreshing runtime instruction targets from .claude/instructions/manifest.yaml"
   bash "$SCRIPT_DIR/compile-runtime-instructions.sh"
@@ -64,12 +174,13 @@ test -x "$SCRIPT_DIR/codex-guarded-bash.sh"
 test -x "$SCRIPT_DIR/codex-mark-design-plan-implemented.sh"
 test -x "$SCRIPT_DIR/close-parent-spec-if-complete.sh"
 bash "$SCRIPT_DIR/codex-guarded-git-commit.sh" --dry-run >/dev/null
-POLARIS_SKIP_EVIDENCE=1 bash "$SCRIPT_DIR/codex-guarded-gh-pr-create.sh" --dry-run >/dev/null
 bash "$SCRIPT_DIR/codex-guarded-git-push.sh" --dry-run >/dev/null
 bash "$SCRIPT_DIR/codex-guarded-bash.sh" --dry-run -- "echo parity-smoke" >/dev/null
 CLOSE_PARENT_SPEC_SELFTEST=1 bash "$SCRIPT_DIR/close-parent-spec-if-complete.sh" >/dev/null
 
 tmp_root="$(mktemp -d)"
+fixture_repo="$(make_codex_fallback_fixture "$tmp_root")"
+POLARIS_SKIP_EVIDENCE=1 GATE_PROJECT_DIR="$fixture_repo" bash "$SCRIPT_DIR/codex-guarded-gh-pr-create.sh" --dry-run >/dev/null
 tmp_dir="$tmp_root/specs/design-plans/DP-999-parity-smoke"
 tmp_plan="$tmp_dir/plan.md"
 mkdir -p "$tmp_dir"

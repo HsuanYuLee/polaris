@@ -8,6 +8,28 @@ priority="P2"
 status="DISCUSSION"
 number=""
 topic=""
+lock_dir=""
+
+cleanup_lock() {
+  if [[ -n "$lock_dir" && -d "$lock_dir" ]]; then
+    rmdir "$lock_dir" 2>/dev/null || true
+  fi
+}
+
+acquire_lock() {
+  local target="$1"
+  local attempt=0
+  while ! mkdir "$target" 2>/dev/null; do
+    attempt=$((attempt + 1))
+    if [[ "$attempt" -ge 200 ]]; then
+      echo "error: timed out waiting for design-plan allocation lock: $target" >&2
+      exit 1
+    fi
+    sleep 0.05
+  done
+  lock_dir="$target"
+  trap cleanup_lock EXIT
+}
 
 usage() {
   cat >&2 <<'EOF'
@@ -74,10 +96,13 @@ dp_number_exists() {
     || compgen -G "$base_dir/archive/$candidate-*/index.md" >/dev/null
 }
 
+base="$specs_root/design-plans"
+mkdir -p "$base"
+acquire_lock "$base/.create-design-plan.lock"
+
 if [[ -z "$number" ]]; then
   number="$(bash scripts/allocate-design-plan-number.sh --specs-root "$specs_root")"
-  base_for_allocation="$specs_root/design-plans"
-  while dp_number_exists "$base_for_allocation" "$number"; do
+  while dp_number_exists "$base" "$number"; do
     next_number="$((10#${number#DP-} + 1))"
     number="$(printf 'DP-%03d' "$next_number")"
   done
@@ -96,8 +121,6 @@ print(topic or "design-plan")
 PY
 )"
 
-base="$specs_root/design-plans"
-mkdir -p "$base"
 if dp_number_exists "$base" "$number"; then
   echo "error: $number already exists in active or archive design-plans" >&2
   exit 1
@@ -106,6 +129,8 @@ fi
 container="$base/$number-$slug"
 plan="$container/index.md"
 mkdir -p "$container"
+cleanup_lock
+trap - EXIT
 created="$(date +%F)"
 order="${number#DP-}"
 order="$((10#$order))"

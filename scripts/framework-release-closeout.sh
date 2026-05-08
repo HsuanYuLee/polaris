@@ -59,6 +59,28 @@ info() {
   echo "$PREFIX $1" >&2
 }
 
+repo_diagnostic_summary() {
+  local repo="$1"
+  local status branch main_status=""
+
+  status="$(git -C "$repo" status --short --branch --untracked-files=no 2>/dev/null || true)"
+  branch="$(git -C "$repo" branch --show-current 2>/dev/null || true)"
+  if git -C "$repo" show-ref --verify --quiet refs/remotes/origin/main; then
+    main_status="$(git -C "$repo" rev-list --left-right --count HEAD...origin/main 2>/dev/null || true)"
+  fi
+
+  echo "selected repo: ${repo}" >&2
+  echo "current branch: ${branch:-DETACHED}" >&2
+  [[ -n "$main_status" ]] && echo "head vs origin/main: ${main_status} (left=ahead right=behind)" >&2
+  if [[ -n "$status" ]]; then
+    echo "tracked status:" >&2
+    printf '%s\n' "$status" | sed 's/^/  /' >&2
+  else
+    echo "tracked status: clean" >&2
+  fi
+  echo "hint: rerun closeout against the merged clean release repo/worktree, not a stale main checkout." >&2
+}
+
 is_sha() {
   [[ "$1" =~ ^[0-9a-fA-F]{7,40}$ ]]
 }
@@ -290,7 +312,11 @@ REPO_ROOT="$(abs_path "$REPO_ROOT")"
 [[ -d "$REPO_ROOT/.git" || -f "$REPO_ROOT/.git" ]] || die "repo is not a git checkout: ${REPO_ROOT}"
 git -C "$REPO_ROOT" cat-file -e "${WORKSPACE_COMMIT}^{commit}" 2>/dev/null || die "workspace commit not found: ${WORKSPACE_COMMIT}"
 current_workspace_head="$(git -C "$REPO_ROOT" rev-parse HEAD)"
-sha_matches "$WORKSPACE_COMMIT" "$current_workspace_head" || die "workspace commit is stale; current HEAD is ${current_workspace_head}"
+if ! sha_matches "$WORKSPACE_COMMIT" "$current_workspace_head"; then
+  echo "$PREFIX ERROR: workspace commit is stale; current HEAD is ${current_workspace_head}" >&2
+  repo_diagnostic_summary "$REPO_ROOT"
+  exit 2
+fi
 
 if [[ -n "$TEMPLATE_REPO" ]]; then
   TEMPLATE_REPO="$(abs_path "$TEMPLATE_REPO")"
