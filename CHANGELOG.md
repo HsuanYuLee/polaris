@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.24] - 2026-05-08
+
+### Added — deterministic main checkout dirty classification
+
+- Added `scripts/main-checkout-dirty-report.sh` plus selftests to classify main checkout divergence, local-only dirty files, and upstream-overlap dirty files without mutating the working tree.
+
+### Changed — release closeout points to main-checkout hygiene report
+
+- Extended `framework-release-closeout.sh` stale repo diagnostics to embed the maintainer main-checkout classification report.
+- Hardened `framework-release-closeout-selftest.sh` with origin-backed stale repo coverage for dirty classification guidance.
+
 ## [3.75.23] - 2026-05-08
 
 ### Fixed — framework delivery chain false negatives after DP-135

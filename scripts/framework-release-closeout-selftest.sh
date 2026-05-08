@@ -151,19 +151,24 @@ PY
 
 make_repos() {
   local tmp="$1"
+  local origin="${tmp}/origin.git"
   local repo="${tmp}/repo"
   local template="${tmp}/template"
 
   tmp="$(cd "$tmp" && pwd -P)"
+  origin="${tmp}/origin.git"
   repo="${tmp}/repo"
   template="${tmp}/template"
 
+  git init --bare "$origin" >/dev/null
   git init -b main "$repo" >/dev/null
   git -C "$repo" config user.email selftest@example.test
   git -C "$repo" config user.name "Self Test"
+  git -C "$repo" remote add origin "$origin"
   echo base >"${repo}/selftest.txt"
   git -C "$repo" add selftest.txt
   git_quiet -C "$repo" commit -m "base"
+  git -C "$repo" push -u origin main >/dev/null 2>&1
 
   git init -b main "$template" >/dev/null
   git -C "$template" config user.email selftest@example.test
@@ -196,6 +201,7 @@ merge_task_branch() {
   local branch="$2"
   git -C "$repo" checkout main >/dev/null 2>&1
   git_quiet -C "$repo" merge --no-ff "$branch" -m "merge ${branch}"
+  git -C "$repo" push origin main >/dev/null 2>&1
 }
 
 run_single_task_case() {
@@ -586,6 +592,7 @@ run_stale_repo_selection_case() {
   write_verify_evidence "$evidence" DP-999-T1 "$task_head"
   stale_repo="${tmp}/stale-repo"
   git -C "$repo" worktree add --detach "$stale_repo" "${workspace_commit}~1" >/dev/null 2>&1
+  echo dirty >>"${repo}/selftest.txt"
 
   rc=0
   output="$(
@@ -603,6 +610,8 @@ run_stale_repo_selection_case() {
   [[ "$rc" -ne 0 ]] || { echo "[selftest] stale repo selection unexpectedly passed" >&2; return 1; }
   grep -q 'workspace commit is stale' <<<"$output" || { echo "[selftest] stale repo diagnostic missing stale marker" >&2; return 1; }
   grep -q 'tracked status:' <<<"$output" || { echo "[selftest] stale repo diagnostic missing tracked status section" >&2; return 1; }
+  grep -q 'main checkout classification:' <<<"$output" || { echo "[selftest] stale repo diagnostic missing main checkout classification" >&2; return 1; }
+  grep -q 'local_only_dirty_count: 1' <<<"$output" || { echo "[selftest] stale repo diagnostic missing local-only dirty summary" >&2; return 1; }
   grep -q 'hint: rerun closeout against the merged clean release repo/worktree' <<<"$output" || { echo "[selftest] stale repo diagnostic missing recovery hint" >&2; return 1; }
 }
 
