@@ -4,6 +4,7 @@ set -euo pipefail
 PREFIX="[polaris verification-passed]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
+VALIDATE_TASK_MD="${SCRIPT_DIR}/validate-task-md.sh"
 # shellcheck source=lib/verification-evidence.sh
 . "${SCRIPT_DIR}/lib/verification-evidence.sh"
 
@@ -183,6 +184,12 @@ fi
 artifacts_checked=()
 
 if [[ "$MODE" == "V" ]]; then
+  if ! "$VALIDATE_TASK_MD" "$TASK_MD" >/dev/null 2>&1; then
+    artifacts_checked+=("$TASK_MD")
+    artifacts_checked_text=$(printf '%s\n' "${artifacts_checked[@]}")
+    emit_result "$SOURCE_ID" "$HEAD_SHA" "true" "FAIL" "invalid_ac_verification_schema" "$artifacts_checked_text"
+    exit 2
+  fi
   v_json="$(resolve_v_status)"
   v_status="$(python3 - "$v_json" <<'PY'
 import json, sys

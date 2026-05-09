@@ -89,7 +89,7 @@ echo PASS
 - **Dev env config**: N/A
 - **Fixtures**: N/A
 - **Runtime verify target**: http://127.0.0.1:3100
-- **Env bootstrap command**: N/A
+- **Env bootstrap command**: echo start
 
 ## Verify Command
 
@@ -147,10 +147,10 @@ ${ac_block}
 
 ## Test Environment
 
-- **Level**: runtime
+- **Level**: static
 - **Dev env config**: N/A
 - **Fixtures**: N/A
-- **Runtime verify target**: http://127.0.0.1:3100
+- **Runtime verify target**: N/A
 - **Env bootstrap command**: N/A
 
 ## 驗收步驟
@@ -304,6 +304,12 @@ write_v_task "$v_pass" 'ac_verification:
   ac_manual_required: 0
   ac_uncertain: 0'
 expect_pass "v-pass" --task-md "$v_pass" --repo "$repo"
+
+v_invalid="$tmpdir/V4/index.md"
+mkdir -p "$(dirname "$v_invalid")"
+write_v_task "$v_invalid" 'ac_verification:
+  status: PASS'
+expect_block_contains "v-invalid-schema" "invalid_ac_verification_schema" --task-md "$v_invalid" --repo "$repo"
 
 v_blocked="$tmpdir/V3/index.md"
 mkdir -p "$(dirname "$v_blocked")"

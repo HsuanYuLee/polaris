@@ -54,6 +54,28 @@ local path，讓人工仍可檢視 screenshots / diff。
 
 ## PASS
 
+## V*.md lifecycle write-back
+
+若驗收來源有 V*.md work order，JIRA report / transition 前必須先寫回本輪 machine-readable
+lifecycle metadata：
+
+```bash
+bash scripts/write-ac-verification.sh {v_task_md} \
+  --status {PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|BLOCKED_ENV|IN_PROGRESS} \
+  --last-run-at {iso8601} \
+  --ac-total {n} \
+  --ac-pass {n} \
+  --ac-fail {n} \
+  --ac-manual-required {n} \
+  --ac-uncertain {n} \
+  [--human-disposition {passed|rejected|deferred}] \
+  [--summary "{short summary}"]
+```
+
+Helper 會原子覆寫 `ac_verification`、append `ac_verification_log[]`，並重跑
+`validate-task-md.sh`。失敗表示 V*.md 與真實驗收狀態可能分裂，必須 hard stop；不得繼續
+JIRA transition、Slack 通知、或口頭宣告驗收完成。
+
 只有當 verification artifact / report current，且 shared verification contract resolve 為
 `PASS`，才可透過 shared JIRA transition script 將 AC ticket 轉 Done。Transition 找不到、已 Done、
 credential error、API error 時，不阻塞 verification report；surface 給使用者手動處理。

@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.27] - 2026-05-09
+
+### Fixed — verify-AC V-mode lifecycle gate closure
+
+- Added `write-ac-verification.sh` with selftests so verify-AC can update V*.md `ac_verification` metadata through a deterministic writer instead of hand-written frontmatter.
+- Hardened `check-verification-passed.sh` so V-mode PASS is accepted only after the V*.md schema validator passes.
+- Restored refinement handoff selftest coverage for required `predecessor_audit` data and made DP intake references include the breakdown readiness gate.
+
 ## [3.75.26] - 2026-05-09
 
 ### Fixed — gate-controlled workflow phase-1 deterministic governance hardening

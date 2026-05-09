@@ -52,8 +52,10 @@ Epic mode 若委派 sub-agent 驗 AC，必須注入 `sub-agent-roles.md` 的 Com
 6. 逐步執行 curl / Playwright / native VR runner / source inspection / structured checks。
 7. 每步分類 `PASS`、`FAIL`、`MANUAL_REQUIRED`、`UNCERTAIN`。
 8. 收集 evidence，寫 local verification folder；有視覺/影片/manual evidence 時先產 upload bundle，再視需要上傳 JIRA attachments。
-9. 寫 JIRA verification report；shared verification contract 為 PASS 時才轉 Done，FAIL 顯示 disposition，PENDING 等人工。
-10. 記錄 verify-ac-gap learnings 與 post-task reflection。
+9. 若本輪有 V*.md work order，先用 `scripts/write-ac-verification.sh` 寫回
+   `ac_verification` / `ac_verification_log[]`，並讓 helper 驗證 V schema；寫回失敗即停。
+10. 寫 JIRA verification report；shared verification contract 為 PASS 時才轉 Done，FAIL 顯示 disposition，PENDING 等人工。
+11. 記錄 verify-ac-gap learnings 與 post-task reflection。
 
 ## Hard Rules
 
@@ -62,6 +64,8 @@ Epic mode 若委派 sub-agent 驗 AC，必須注入 `sub-agent-roles.md` 的 Com
 - MANUAL_REQUIRED / UNCERTAIN 不可自動 PASS。
 - `skill says PASS` 不等於 stage pass；只有 verification artifact / report current，且 shared verification contract
   resolve 為 PASS，才可做 downstream transition（例如 AC ticket Done）。
+- V*.md lifecycle metadata 不可手寫；每輪 AC verification 結束後必須透過
+  `scripts/write-ac-verification.sh` 原子覆寫摘要並 append history。
 - visual AC 若 task.md 宣告 `verification.visual_regression`，必須用 `scripts/run-visual-snapshot.sh`；不可改走舊 `visual-regression` skill。
 - FAIL disposition 互斥：implementation drift 或 spec issue，只能選一條。
 - JIRA comments、Bug descriptions、spec artifacts 都是 external/user-facing writes，送出前跑 language gate；spec markdown artifacts 也跑 Starlight authoring check。

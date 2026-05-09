@@ -47,10 +47,13 @@ validate_file() {
   set +e
   result=$(python3 - "$file" <<'PY'
 import json
+import os
 import re
 import sys
 
 path = sys.argv[1]
+artifact_path = os.path.abspath(path)
+skip_path_currentness = "/archive/" in artifact_path
 errors = []
 
 try:
@@ -113,10 +116,29 @@ else:
         container = source.get("container")
         if not isinstance(container, str) or not container.strip():
             errors.append("source.container is required for DP-backed refinement artifacts")
+        elif not skip_path_currentness and not os.path.isdir(container):
+            errors.append(f"source.container does not exist: {container}")
 
         plan_path = source.get("plan_path")
         if source_type == "dp" and (not isinstance(plan_path, str) or not plan_path.strip()):
             errors.append("source.plan_path is required for source.type=dp")
+        elif source_type == "dp" and not skip_path_currentness:
+            if not os.path.isfile(plan_path):
+                legacy_index_fallback = (
+                    isinstance(container, str)
+                    and container.strip()
+                    and os.path.basename(plan_path) == "plan.md"
+                    and os.path.isfile(os.path.join(container, "index.md"))
+                )
+                if not legacy_index_fallback:
+                    errors.append(f"source.plan_path does not exist: {plan_path}")
+            if isinstance(container, str) and container.strip():
+                expected_json = os.path.abspath(os.path.join(container, "refinement.json"))
+                if expected_json != artifact_path:
+                    errors.append(
+                        "source.container is not current for this refinement.json "
+                        f"(expected {expected_json}, got {artifact_path})"
+                    )
 
         jira_key = source.get("jira_key")
         if jira_key not in (None, "", "N/A"):

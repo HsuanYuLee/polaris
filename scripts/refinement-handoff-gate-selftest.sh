@@ -71,7 +71,8 @@ cat > "$spec/refinement.json" <<'JSON'
     }
   ],
   "dependencies": [],
-  "edge_cases": []
+  "edge_cases": [],
+  "predecessor_audit": []
 }
 JSON
 
@@ -112,7 +113,8 @@ cat > "$dp_spec/refinement.json" <<JSON
     }
   ],
   "dependencies": [],
-  "edge_cases": []
+  "edge_cases": [],
+  "predecessor_audit": []
 }
 JSON
 
@@ -126,7 +128,8 @@ cat > "$spec/refinement.json" <<'JSON'
   "modules": [],
   "acceptance_criteria": [],
   "dependencies": [],
-  "edge_cases": []
+  "edge_cases": [],
+  "predecessor_audit": []
 }
 JSON
 

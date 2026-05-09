@@ -809,7 +809,10 @@ Validator (V mode):
 
 ### 4.7 `ac_verification` writer contract（atomic + verify + fail-stop，對稱 D7）
 
-verify-AC Phase B 啟動後（DP-039 consumer 重構落地），每跑完一輪 AC verification 必須遵下列 contract（與 § 2.1 `deliverable` writer contract **對稱** — 同一份 D7，T/V 共用）：
+DP-039 T1 起，verify-AC 每跑完一輪 AC verification 必須透過
+`scripts/write-ac-verification.sh` 寫回下列 contract（與 § 2.1 `deliverable` writer
+contract **對稱** — 同一份 D7，T/V 共用）。完整舊 `{JIRA-KEY}.md` migration 仍由 DP-039
+後續 task 承接，但凡是 V*.md lifecycle metadata 都不得手寫。
 
 #### Schema (when present)
 
@@ -833,9 +836,9 @@ verify-AC Phase B 啟動後（DP-039 consumer 重構落地），每跑完一輪 
 
 > 寬鬆原則與 `jira_transition_log[]` (§ 2.1) 完全一致 — 各公司 / 各驗收 flow / error pattern 不同，強 schema 會擋掉採用。
 
-#### Writer contract（verify-AC，DP-039 啟動後）
+#### Writer contract（verify-AC，DP-039 T1 起）
 
-1. 跑完一輪 AC verification 後 → **立刻**嘗試寫回 V*.md：
+1. 跑完一輪 AC verification 後 → **立刻**呼叫 `scripts/write-ac-verification.sh` 寫回 V*.md：
    - **覆寫** `ac_verification` block（最新一輪狀態）
    - **Append** `ac_verification_log[]` 一筆 entry（包含本輪詳情，由 verify-AC 自選欄位）
 2. 寫入失敗（exit ≠ 0 / 被 hook 擋）→ retry **最多 3 次**（exponential backoff）

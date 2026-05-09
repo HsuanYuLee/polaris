@@ -78,6 +78,7 @@ artifact gap / route-back issue。使用者確認前不可寫 task.md、不可�
 ```bash
 scripts/validate-task-md.sh {dp_folder}/tasks/T{n}/index.md
 scripts/validate-task-md-deps.sh {dp_folder}/tasks/
+scripts/validate-breakdown-ready.sh {dp_folder}/tasks/T{n}/index.md
 ```
 
 全部 pass 後，更新 primary DP document Implementation Checklist / Work Orders linkage。
