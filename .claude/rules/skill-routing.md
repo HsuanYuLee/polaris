@@ -2,15 +2,17 @@
 
 ## Core Rule: Skill Tool First
 
-When the user's message matches a skill's trigger pattern, **invoke the Skill tool immediately** — before any other tool call, research, or pre-processing.
+當使用者訊息符合某個 skill 的 trigger pattern 時，**必須立刻 invoke Skill tool**，
+不得先做其他 tool call、research、或前置處理。
 
-This is a hard constraint from the Claude Code platform: "When a skill matches the user's request, this is a BLOCKING REQUIREMENT: invoke the relevant Skill tool BEFORE generating any other response about the task."
+這是 Claude Code 平台層的硬限制：當 skill 符合使用者需求時，必須在產生任何其他任務相關回應前，
+先 invoke 對應的 Skill tool。
 
 ### What This Means in Practice
 
 - **Do not pre-process inputs**: if the user provides a Slack URL and says "review 這些 PR", invoke `Skill("review-pr", "<slack_url>")` immediately. The skill's own flow (e.g., Step 0) handles Slack URL parsing.
 - **Do not read files first**: if the user says "估這張 PROJ-500", invoke the estimation skill immediately. The skill reads the JIRA ticket itself.
-- **Do not ask clarifying questions** when a skill match is clear. Skills have their own disambiguation logic.
+- skill match 已明確時，**不要先問澄清問題**。技能本身有自己的 disambiguation logic。
 
 ### Exception: Ambiguous Input
 
@@ -29,19 +31,23 @@ Zero-input trigger 只有在「**無 active skill + 無明確 topic keyword**」
 
 ### Pre-Processing: Hotfix Without JIRA Ticket
 
-When the user's message has fix intent (「修這個」、「幫我修」、「fix this」) + a Slack URL but **no JIRA ticket key**, the Strategist must create a ticket before routing to `bug-triage`:
+當使用者訊息同時具備 fix intent（「修這個」、「幫我修」、「fix this」）與 Slack URL，但**沒有 JIRA ticket key** 時，Strategist 必須先建 ticket，再 route 到 `bug-triage`：
 
-1. **Read Slack thread** — extract problem description, affected version/component, reporter, source PR if mentioned
-2. **Resolve JIRA project key** — read `workspace-config.yaml` → `jira.projects`. If only one project → use it. If multiple → infer from context (e.g., repo name, component mentioned in Slack), or ask the user
-3. **Create JIRA Bug ticket** — via `createJiraIssue` MCP:
+1. **Read Slack thread**：擷取問題描述、受影響版本/元件、回報者、以及若有提到的 source PR
+2. **Resolve JIRA project key**：優先執行 `bash scripts/resolve-company-context.sh --format json`
+   建立 company context。若 routing 仍有歧義，就直接詢問使用者，不要手工再寫第二套 config matching
+3. **Create JIRA Bug ticket**：透過 `createJiraIssue` MCP：
    - `issueTypeName`: Bug
    - `summary`: from Slack thread problem description (concise, one line)
    - `description`: structured with Root Cause / Impact / Source (Slack link, source PR)
 4. **Route to `bug-triage`** with the new ticket key
 
-This is a **Strategist-level pre-processing rule**, not a skill. It fires before skill routing. The key signal is: fix intent + Slack URL + absence of a JIRA key pattern (`[A-Z]+-\d+`) in the user's message.
+這是 **Strategist 層級的 pre-processing rule**，不是 skill。它會在 skill routing 前先觸發。
+關鍵訊號是：fix intent + Slack URL + 使用者訊息內沒有 JIRA key pattern（`[A-Z]+-\d+`）。
 
-> **Why not inside `bug-triage`?** The `bug-triage` skill expects a ticket key as input. Creating the ticket at the Strategist layer keeps `bug-triage` focused on its core job (analyze → plan) and ensures the ticket exists before any skill step begins.
+> **為什麼不放進 `bug-triage`？**
+> `bug-triage` skill 預期輸入是 ticket key。把建票留在 Strategist 層，能讓 `bug-triage`
+> 專注在自己的核心工作（analyze → plan），並確保 skill 開始前 ticket 已經存在。
 
 ## Routing Quick Reference
 
@@ -80,7 +86,8 @@ This is a **Strategist-level pre-processing rule**, not a skill. It fires before
 
 ## Complexity Tier — Route by Task Size
 
-Before invoking a skill, assess the task's complexity and route to the appropriate execution depth. This prevents small tasks from incurring full-workflow overhead, and large tasks from skipping necessary planning.
+在 invoke skill 之前，先判斷任務複雜度，再 route 到對應的 execution depth。
+這能避免小任務承受完整 workflow 的 overhead，也避免大任務跳過必要規劃。
 
 | Tier | Signal | Execution Depth | Example |
 |------|--------|----------------|---------|
@@ -94,24 +101,24 @@ Before invoking a skill, assess the task's complexity and route to the appropria
 2. **Check decision weight**: if it requires choosing between approaches (new component vs extend existing, new API vs modify existing) → Full tier
 3. **Otherwise** → Standard (let the skill handle it)
 
-The Fast tier is implicit in CLAUDE.md's delegation table ("Small edit ≤ 3 lines, 1 file → Do it directly"). This section makes the full spectrum explicit.
+Fast tier 原本隱含在 `CLAUDE.md` 的 delegation table（「Small edit ≤ 3 lines, 1 file → Do it directly」）裡；
+這一節只是把完整光譜明文化。
 
 ## Semantic Code Change Flow Gate
 
-When a user correction, design decision, or agent judgment would change code,
-rules, skills, scripts, hooks, validators, delivery semantics, or any document
-that changes framework behavior, treat it as a **semantic code change**:
+當使用者修正、設計決策、或 agent judgment 會改到 code、rules、skills、scripts、hooks、
+validators、delivery semantics，或任何會改變 framework 行為的文件時，一律視為
+**semantic code change**：
 
-1. **Capture the decision immediately** in the active DP plan / decision record.
-2. **Do not patch behavior directly from the main session.**
-3. Resolve or create a DP-backed `task.md`, then route implementation through
-   `engineering` so worktree isolation, task scope, verification, PR, and
-   release metadata all apply.
+1. **立刻把決策寫回** active DP plan / decision record。
+2. **不要直接在 main session 補 patch 改行為。**
+3. 應 resolve 或建立 DP-backed `task.md`，再把 implementation route 給 `engineering`，
+   讓 worktree isolation、task scope、verification、PR、與 release metadata 全部生效。
 
-Mechanical-only edits may stay lightweight: typo fixes, formatting-only changes,
-generated parity outputs, or deterministic script output inside an existing task
-scope do not require a new design decision. Size is not the deciding factor:
-if the edit needs semantic judgment, it must go through the flow.
+純 mechanical 的修改可以維持 lightweight：例如 typo fix、純 formatting 變更、
+generated parity outputs、或既有 task scope 內的 deterministic script output，都不需要新的
+design decision。真正的判準不是大小，而是這個修改是否需要 semantic judgment；只要需要，
+就必須走正式流程。
 
 ## Deprecated Admin Entrypoint Guard
 
@@ -127,18 +134,19 @@ if the edit needs semantic judgment, it must go through the flow.
 
 User messages with negative tone about a previous action (「沒修好」「壞了」「不對」「又出問題」) + a PR URL or ticket key are **fix intents**, not analysis requests. Route to the appropriate fix skill immediately:
 
-- PR URL + negative tone → `engineering` (revision mode)
-- Ticket key + negative tone (Bug) → `bug-triage` (if no plan) or `engineering` (if plan exists)
-- Ticket key + negative tone (Story/Task) → `engineering`
-- No URL/key + negative tone → ask what to fix, then route
+- PR URL + negative tone → `engineering`（revision mode）
+- Ticket key + negative tone（Bug）→ `bug-triage`（若尚無 plan）或 `engineering`（若已有 plan）
+- Ticket key + negative tone（Story/Task）→ `engineering`
+- 沒有 URL/key + negative tone → 先問清楚要修什麼，再 route
 
-**Do not** interpret negative tone as "let me investigate what went wrong" and start reading diffs/comments manually. The skill's own flow handles investigation.
+**不要**把負面語氣解讀成「先讓我研究一下哪裡出錯」，然後手動去看 diff/comment。
+調查流程應由 skill 自己處理。
 
 ## Anti-Patterns
 
 1. **Reading Slack/JIRA before invoking skill** — the skill handles data fetching
 2. **Launching sub-agents before Skill invocation** — skill defines the delegation strategy
 3. **Partially executing skill steps manually** — always let the Skill tool load the full SKILL.md
-4. **Skipping skill because "I already know how"** — skills encode quality gates and side effects (lesson extraction, Slack notifications) that manual execution misses
-5. **Manually fixing PR review comments without `engineering` revision mode** — when PR review comments (from human reviewers or bots) need fixing, always use `engineering` (which enters revision mode automatically when a PR exists). Manual fix-and-push skips comment replies, quality checks, and lesson extraction, causing review patterns to never enter the learning pipeline
-6. **Investigating before routing** — when the user says "沒修好" + PR URL, do NOT run `gh pr view`, `gh api`, or `gh pr diff` to "understand the problem first". Invoke `engineering` immediately. The skill reads review comments and CI status itself. (Graduated from prior session analysis: 2 sessions, 4+ occurrences)
+4. **因為「我已經知道怎麼做」就跳過 skill**：skills 內含 quality gates 與 side effects（例如 lesson extraction、Slack notifications），手工執行很容易漏掉
+5. **不經 `engineering` revision mode 就手動修 PR review comments**：只要是 reviewer 或 bot 留下的 PR review comments，要修就一律走 `engineering`。手動 fix-and-push 會跳過 comment reply、quality checks、與 lesson extraction
+6. **先調查再 routing**：當使用者說「沒修好」+ PR URL 時，不要先跑 `gh pr view`、`gh api`、`gh pr diff` 想「先看懂問題」。應立刻 invoke `engineering`，由 skill 自己去讀 review comments 與 CI state

@@ -76,7 +76,8 @@ Phase 1 預設 Tier 2；只有明確符合 Tier 1 才降級。
 - `refinement.json`：機器讀，供 breakdown / engineering 消費。
 
 這是所有 refinement-owned source 的 handoff contract，不只適用 DP。Epic / Story /
-Task / ticketless topic / DP 都必須先完成 artifact，再對使用者提示 `breakdown ...`。
+Task / ticketless topic / DP 都必須先完成 artifact，且 handoff / language / authoring
+gates 全部通過後，再對使用者提示 `breakdown ...`。
 Bug 不屬於 refinement-owned source；Bug 的 planning handoff 由 `bug-triage` 的 confirmed
 `[ROOT_CAUSE]` comment 與 local evidence artifact 承擔。
 

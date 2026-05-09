@@ -63,6 +63,8 @@ Runner status mapping：
 
 `BLOCK` 只能代表 observed visual output differs from expected visual contract；不要在 verify-AC
 內推論 root cause。`BLOCKED_ENV` 是環境或 deterministic fixture 問題，不可判成 implementation FAIL。
+在 verify-AC report layer，它可映成 `UNCERTAIN` 供人類閱讀；但在 shared gate / portable schema
+layer，若 native artifact 直接提供 `BLOCKED_ENV`，應保留為獨立 blocking outcome，不要壓扁成 pass。
 
 ## Classification
 

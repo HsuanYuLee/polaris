@@ -55,6 +55,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+RESOLVE_COMPANY_CONTEXT="$SCRIPT_DIR/resolve-company-context.sh"
 
 soft_info() { echo "polaris-jira-transition: $*" >&2; }
 soft_warn() { echo "polaris-jira-transition: WARN: $*" >&2; }
@@ -87,14 +88,25 @@ EOF
 # ── Find workspace-config.yaml carrying jira.instance ──
 # Search order:
 #   1) $POLARIS_COMPANY_DIR/workspace-config.yaml (explicit pin)
-#   2) Walk up from PWD; if any workspace-config has jira.instance, use it.
-#   3) Worktree case: walk up from `git rev-parse --git-common-dir` parent.
-#   4) Outermost workspace-config (root) with `companies[]` → first
+#   2) Shared company resolver using ticket project prefix.
+#   3) Walk up from PWD; if any workspace-config has jira.instance, use it.
+#   4) Worktree case: walk up from `git rev-parse --git-common-dir` parent.
+#   5) Outermost workspace-config (root) with `companies[]` → first
 #      company whose own workspace-config defines jira.instance.
 find_company_config() {
+  local ticket="${1:-}"
   if [[ -n "${POLARIS_COMPANY_DIR:-}" ]] && [[ -f "$POLARIS_COMPANY_DIR/workspace-config.yaml" ]]; then
     echo "$POLARIS_COMPANY_DIR/workspace-config.yaml"
     return 0
+  fi
+
+  if [[ -n "$ticket" && -x "$RESOLVE_COMPANY_CONTEXT" ]]; then
+    local resolver_cfg
+    resolver_cfg="$("$RESOLVE_COMPANY_CONTEXT" --ticket "$ticket" --format field --field config_path 2>/dev/null || true)"
+    if [[ -n "$resolver_cfg" && -f "$resolver_cfg" ]]; then
+      echo "$resolver_cfg"
+      return 0
+    fi
   fi
 
   local seen=() probe p2
@@ -108,7 +120,7 @@ find_company_config() {
 
   if command -v git >/dev/null 2>&1; then
     # shellcheck source=lib/main-checkout.sh
-    . "$(dirname "$0")/lib/main-checkout.sh"
+    . "$SCRIPT_DIR/lib/main-checkout.sh"
     if p2="$(resolve_main_checkout 2>/dev/null)"; then
       while [[ "$p2" != "/" && -n "$p2" ]]; do
         if [[ -f "$p2/workspace-config.yaml" ]]; then
@@ -348,7 +360,7 @@ main() {
   fi
 
   local cfg
-  if ! cfg=$(find_company_config); then
+  if ! cfg=$(find_company_config "$ticket"); then
     soft_warn "no workspace-config.yaml with jira.instance found from $(pwd) — skipping transition"
     exit 0
   fi
@@ -425,4 +437,6 @@ main() {
   exit 0
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

@@ -27,6 +27,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_lib.sh
 source "$SCRIPT_DIR/_lib.sh"
 
+DEFAULT_MOCKOON_RUNNER="${POLARIS_MOCKOON_RUNNER_OVERRIDE:-$(cd "$SCRIPT_DIR/../mockoon" 2>/dev/null && pwd)/mockoon-runner.sh}"
+
 usage() {
   cat <<EOF >&2
 Usage: $(basename "$0") FIXTURE_DIR [--epic EPIC] [--proxy] [--type mockoon]
@@ -70,21 +72,38 @@ if [[ ! -d "$FIXTURE_DIR" ]]; then
   exit 2
 fi
 
+resolve_mockoon_runner() {
+  local runner=""
+  local cfg_path=""
+  local hint=""
+
+  cfg_path="$(env_lib_find_workspace_config "$PWD" 2>/dev/null || true)"
+  if [[ -n "$cfg_path" ]]; then
+    cfg_json="$(env_lib_parse_yaml "$cfg_path" 2>/dev/null || echo '{}')"
+    runner="$(printf '%s' "$cfg_json" | env_lib_get_field 'visual_regression.domains[0].fixtures.runner' 2>/dev/null || true)"
+  else
+    hint="$(env_lib_workspace_config_resolution_hint "$PWD" 2>/dev/null || true)"
+    if [[ -n "$hint" ]]; then
+      env_lib_log_info "mockoon runner override skipped: $hint"
+      env_lib_log_info "falling back to framework default mockoon runner"
+    fi
+  fi
+
+  if [[ -z "$runner" ]]; then
+    runner="$DEFAULT_MOCKOON_RUNNER"
+  fi
+
+  env_lib_expand_path "$runner"
+}
+
 # ── Tool dispatch ───────────────────────────────────────────────────────────
 case "$TYPE" in
   mockoon)
     # Resolve mockoon-runner from workspace-config (preferred) so a re-skinned
-    # workspace can override the path; fall back to the framework default.
-    runner=""
-    cfg_path="$(env_lib_find_workspace_config "$PWD" 2>/dev/null || true)"
-    if [[ -n "$cfg_path" ]]; then
-      cfg_json="$(env_lib_parse_yaml "$cfg_path" 2>/dev/null || echo '{}')"
-      runner="$(printf '%s' "$cfg_json" | env_lib_get_field 'visual_regression.domains[0].fixtures.runner' 2>/dev/null || true)"
-    fi
-    if [[ -z "$runner" ]]; then
-      runner="$(cd "$SCRIPT_DIR/../mockoon" 2>/dev/null && pwd)/mockoon-runner.sh"
-    fi
-    runner="$(env_lib_expand_path "$runner")"
+    # workspace can override the path. If company routing cannot be resolved,
+    # this consumer stays soft: it logs the skipped override and falls back to
+    # the framework default runner instead of blocking tracked workflow.
+    runner="$(resolve_mockoon_runner)"
     if [[ ! -x "$runner" ]]; then
       env_lib_log_fail "mockoon runner not found or not executable: $runner"
       exit 1

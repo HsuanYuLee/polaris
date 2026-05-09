@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.26] - 2026-05-09
+
+### Fixed — gate-controlled workflow phase-1 deterministic governance hardening
+
+- Added shared `verification_passed`, `release_eligible`, and `release_completed` stage gates plus release-surface resolution so engineering and framework-release consume the same deterministic delivery authority.
+- Demoted shared skills, coordination flows, and reporting surfaces so they only produce or repair artifacts and no longer self-authorize workflow transitions or release completion.
+- Added shared company routing, PR pickup intake, docs-sync completion, and memory-hygiene plan validators with matching selftests and consumer alignment across scripts, rules, and references.
+
 ## [3.75.25] - 2026-05-08
 
 ### Reverted — unintended DP-137 main checkout dirty diagnostics

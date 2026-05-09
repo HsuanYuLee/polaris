@@ -23,8 +23,10 @@ assert_contains "$ROOT_DIR/.claude/skills/references/verify-ac-execution-flow.md
 assert_contains "$ROOT_DIR/.claude/skills/references/verify-ac-execution-flow.md" '\| `BLOCK` \| `FAIL` \|'
 assert_contains "$ROOT_DIR/.claude/skills/references/verify-ac-execution-flow.md" '\| `BLOCKED_ENV` \| `UNCERTAIN` \|'
 assert_contains "$ROOT_DIR/.claude/skills/references/verify-ac-execution-flow.md" '\| `MANUAL_REQUIRED` \| `MANUAL_REQUIRED` \|'
+assert_contains "$ROOT_DIR/.claude/skills/references/verify-ac-execution-flow.md" 'shared gate / portable schema'
 assert_contains "$ROOT_DIR/.claude/skills/references/verify-ac-reporting-flow.md" 'polaris-vr-\{ticket\}-\{head_sha\}'
 assert_contains "$ROOT_DIR/.claude/skills/references/verify-ac-reporting-flow.md" 'verification/\{run_id\}/vr'
 assert_contains "$ROOT_DIR/.claude/skills/references/verify-ac-reporting-flow.md" 'diff artifact'
+assert_contains "$ROOT_DIR/.claude/skills/references/verify-ac-reporting-flow.md" 'aggregate reporting label'
 
 echo "PASS: verify-AC VR reporting selftest"

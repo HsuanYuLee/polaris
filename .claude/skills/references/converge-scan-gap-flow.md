@@ -18,6 +18,9 @@ description: "converge 的 workspace config loading、assigned work scan、Epic 
 
 缺 config 時使用 `shared-defaults.md` fallback。
 
+這裡的 config read 只決定 scan 範圍與 defaults；它不是 mutation authority。`converge`
+不得因為 config 中存在 project/team mapping，就自行把 ticket 推進到下一個 workflow stage。
+
 ## Assigned Work Scan
 
 Global mode 查詢 current user 的 active work：
@@ -94,6 +97,12 @@ vocabulary，先讀 `resolve-pr-work-source.sh` → `pr-state-snapshot.sh`；con
 | `READY` | no convergence gap | no action |
 
 A ticket may have multiple gaps; preserve all evidence.
+
+Gap classification 是 advisory routing evidence，不是 shared stage verdict。特別是：
+
+- `READY` 不等於 `mergeable_ready`、`release_eligible`、或 `release_completed`
+- `VERIFICATION_PENDING` 不等於可以由 `converge` 自行補寫 verification pass
+- `NO_FEATURE_PR` 不等於 `converge` 自己擁有 feature-branch closeout authority
 
 ## Sorting
 

@@ -121,6 +121,8 @@ REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 WORKSPACE_ROOT="$(cd "$WORKSPACE_ROOT" && pwd)"
 WORKSPACE_SCRIPT_DIR="${WORKSPACE_ROOT}/scripts"
 PARENT_CLOSEOUT_SCRIPT="${WORKSPACE_SCRIPT_DIR}/close-parent-spec-if-complete.sh"
+CHECK_RELEASE_ELIGIBLE="${WORKSPACE_SCRIPT_DIR}/check-release-eligible.sh"
+CHECK_RELEASE_COMPLETED="${WORKSPACE_SCRIPT_DIR}/check-release-completed.sh"
 if [[ ! -x "$PARENT_CLOSEOUT_SCRIPT" ]]; then
   PARENT_CLOSEOUT_SCRIPT="${SCRIPT_DIR}/close-parent-spec-if-complete.sh"
 fi
@@ -128,10 +130,70 @@ if [[ ! -x "$PARENT_CLOSEOUT_SCRIPT" ]]; then
   echo "$PREFIX close-parent helper not found for workspace or script dir" >&2
   exit 1
 fi
+if [[ ! -x "$CHECK_RELEASE_ELIGIBLE" ]]; then
+  CHECK_RELEASE_ELIGIBLE="${SCRIPT_DIR}/check-release-eligible.sh"
+fi
+if [[ ! -x "$CHECK_RELEASE_COMPLETED" ]]; then
+  CHECK_RELEASE_COMPLETED="${SCRIPT_DIR}/check-release-completed.sh"
+fi
+
+resolve_current_task_md_path() {
+  local path="$1"
+  if [[ -f "$path" ]]; then
+    printf '%s\n' "$path"
+    return 0
+  fi
+
+  python3 - "$path" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+parts = list(path.parts)
+try:
+    idx = parts.index("design-plans")
+except ValueError:
+    print(path)
+    raise SystemExit(0)
+
+if idx + 1 < len(parts) and parts[idx + 1] != "archive":
+    archived = Path(*parts[:idx + 1], "archive", *parts[idx + 1:])
+    print(archived)
+else:
+    print(path)
+PY
+}
+
+resolve_stable_repo_root() {
+  local repo="$1"
+  local current wt=""
+
+  current="$(cd "$repo" && pwd)"
+  while IFS= read -r wt; do
+    [[ -n "$wt" ]] || continue
+    wt="$(cd "$wt" 2>/dev/null && pwd || true)"
+    [[ -n "$wt" && "$wt" != "$current" && -d "$wt" ]] || continue
+    printf '%s\n' "$wt"
+    return 0
+  done < <(git -C "$repo" worktree list --porcelain 2>/dev/null | awk '/^worktree / { print substr($0, 10) }')
+
+  printf '%s\n' "$current"
+}
 
 echo "$PREFIX running completion gate for ${TICKET} ..." >&2
 if ! bash "${SCRIPT_DIR}/check-delivery-completion.sh" --repo "$REPO_ROOT" --ticket "$TICKET"; then
   echo "$PREFIX completion gate blocked; task lifecycle was not changed" >&2
+  exit 2
+fi
+
+TASK_MD_PATH="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" "$TICKET" 2>/dev/null || true)"
+if [[ -z "$TASK_MD_PATH" || ! -f "$TASK_MD_PATH" ]]; then
+  echo "$PREFIX unable to resolve task.md for shared release eligibility gate: ${TICKET}" >&2
+  exit 1
+fi
+
+if ! bash "$CHECK_RELEASE_ELIGIBLE" --repo "$REPO_ROOT" --task-md "$TASK_MD_PATH"; then
+  echo "$PREFIX shared release eligibility gate blocked; task lifecycle was not changed" >&2
   exit 2
 fi
 
@@ -161,6 +223,8 @@ if [[ "$ACTUAL_STATUS" != "$STATUS" ]]; then
   exit 1
 fi
 
+RELEASE_GATE_REPO_ROOT="$(resolve_stable_repo_root "$REPO_ROOT")"
+
 echo "$PREFIX cleaning implementation worktree for ${TICKET} ..." >&2
 cd "$WORKSPACE_ROOT"
 if ! bash "${SCRIPT_DIR}/engineering-clean-worktree.sh" --task-md "$TASK_MD_PATH" --repo "$REPO_ROOT"; then
@@ -171,6 +235,12 @@ fi
 echo "$PREFIX attempting parent spec closeout for ${TICKET} ..." >&2
 if ! bash "$PARENT_CLOSEOUT_SCRIPT" --task-md "$TASK_MD_PATH" --workspace "$WORKSPACE_ROOT"; then
   echo "$PREFIX parent spec closeout failed after task lifecycle finalized" >&2
+  exit 2
+fi
+
+CURRENT_TASK_MD_PATH="$(resolve_current_task_md_path "$TASK_MD_PATH")"
+if ! bash "$CHECK_RELEASE_COMPLETED" --repo "$RELEASE_GATE_REPO_ROOT" --task-md "$CURRENT_TASK_MD_PATH"; then
+  echo "$PREFIX shared release completed gate blocked after lifecycle closeout" >&2
   exit 2
 fi
 

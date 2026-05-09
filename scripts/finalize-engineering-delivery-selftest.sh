@@ -5,6 +5,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 FINALIZE="$SCRIPT_DIR/finalize-engineering-delivery.sh"
+WRITE_REPORT="$SCRIPT_DIR/write-task-verify-report.sh"
 TMPROOT="$(mktemp -d -t finalize-delivery-selftest-XXXXXX)"
 
 cleanup() {
@@ -127,10 +128,51 @@ print(json.dumps({
 PY
   exit 0
 fi
+if [[ "\$1" == "api" && "\$2" == "graphql" ]]; then
+  cat <<'JSON'
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "url": "https://github.com/demo/example/pull/1",
+        "reviewThreads": {"nodes": []}
+      }
+    }
+  }
+}
+JSON
+  exit 0
+fi
 echo "unexpected gh call: \$*" >&2
 exit 1
 EOF
   chmod +x "$mockbin/gh"
+}
+
+write_verify_evidence() {
+  local head_sha="$1"
+  cat > "/tmp/polaris-verified-DP-999-T1-${head_sha}.json" <<EOF
+{
+  "ticket": "DP-999-T1",
+  "head_sha": "${head_sha}",
+  "writer": "run-verify-command.sh",
+  "exit_code": 0,
+  "at": "2026-05-09T00:00:00Z"
+}
+EOF
+}
+
+write_task_verify_report() {
+  local workspace="$1"
+  local evidence_repo="$2"
+  local head_sha="$3"
+
+  bash "$WRITE_REPORT" \
+    --repo "$evidence_repo" \
+    --ticket DP-999-T1 \
+    --task-md "$workspace/docs-manager/src/content/docs/specs/design-plans/DP-999-finalize-cwd/tasks/T1.md" \
+    --head-sha "$head_sha" \
+    --status PASS >/dev/null
 }
 
 main_repo="$TMPROOT/workspace"
@@ -157,6 +199,8 @@ git -C "$main_repo" worktree add -q "$worktree_repo" task/DP-999-T1-finalize-cwd
 head_sha="$(git -C "$worktree_repo" rev-parse HEAD)"
 write_task "$main_repo" "$head_sha"
 install_mock_gh "$mockbin" "$head_sha"
+write_verify_evidence "$head_sha"
+write_task_verify_report "$main_repo" "$worktree_repo" "$head_sha"
 
 set +e
 out="$(

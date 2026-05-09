@@ -21,12 +21,15 @@ WORKSPACE_SCRIPTS="${SCRIPT_DIR}/.."
 RESOLVE_BY_BRANCH="${WORKSPACE_SCRIPTS}/resolve-task-md-by-branch.sh"
 PARSE_TASK="${WORKSPACE_SCRIPTS}/parse-task-md.sh"
 ENV_LIB="${WORKSPACE_SCRIPTS}/env/_lib.sh"
+RESOLVE_COMPANY_CONTEXT="${WORKSPACE_SCRIPTS}/resolve-company-context.sh"
 GATE_PR_LANGUAGE="${SCRIPT_DIR}/gate-pr-language.sh"
 GITHUB_REST_LIB="${WORKSPACE_SCRIPTS}/lib/github-rest.sh"
 
 REPO_ROOT=""
 TASK_MD=""
 ACTUAL_TITLE=""
+TITLE_TEMPLATE_RESOLUTION_ERROR=""
+RESOLVED_TITLE_TEMPLATE=""
 
 if [[ -f "$GITHUB_REST_LIB" ]]; then
   # shellcheck source=../lib/github-rest.sh
@@ -85,21 +88,38 @@ fi
 
 resolve_title_template() {
   local repo_root="$1"
+  local ticket="$2"
   local fallback="[{TICKET}] {summary}"
 
-  [[ -f "$ENV_LIB" ]] || { echo "$fallback"; return 0; }
+  TITLE_TEMPLATE_RESOLUTION_ERROR=""
+  RESOLVED_TITLE_TEMPLATE="$fallback"
+
+  [[ -f "$ENV_LIB" ]] || return 0
   # shellcheck source=/dev/null
   source "$ENV_LIB"
 
-  local cfg
-  cfg="$(env_lib_find_workspace_config "$repo_root" 2>/dev/null || true)"
-  [[ -n "$cfg" && -f "$cfg" ]] || { echo "$fallback"; return 0; }
+  local cfg=""
+  if [[ -n "$ticket" && "$ticket" =~ ^[A-Z][A-Z0-9_]+-[0-9]+$ && -x "$RESOLVE_COMPANY_CONTEXT" ]]; then
+    local resolver_status resolver_error
+    resolver_status="$("$RESOLVE_COMPANY_CONTEXT" --ticket "$ticket" --format field --field status 2>/dev/null || true)"
+    if [[ "$resolver_status" == "error" ]]; then
+      resolver_error="$("$RESOLVE_COMPANY_CONTEXT" --ticket "$ticket" --format field --field error_code 2>/dev/null || true)"
+      TITLE_TEMPLATE_RESOLUTION_ERROR="${resolver_error:-resolver_failed}"
+      return 0
+    fi
+    cfg="$("$RESOLVE_COMPANY_CONTEXT" --ticket "$ticket" --format field --field config_path 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$cfg" ]]; then
+    cfg="$(env_lib_find_workspace_config "$repo_root" 2>/dev/null || true)"
+  fi
+  [[ -n "$cfg" && -f "$cfg" ]] || return 0
 
   local remote repo_basename
   remote="$(git -C "$repo_root" config --get remote.origin.url 2>/dev/null || true)"
   repo_basename="$(basename "$repo_root")"
 
-  python3 - "$cfg" "$repo_basename" "$remote" "$fallback" <<'PY' 2>/dev/null || echo "$fallback"
+  RESOLVED_TITLE_TEMPLATE="$(python3 - "$cfg" "$repo_basename" "$remote" "$fallback" <<'PY' 2>/dev/null || echo "$fallback"
 import os, re, sys
 
 try:
@@ -137,6 +157,7 @@ for project in data.get("projects") or []:
 
 print(fallback)
 PY
+)"
 }
 
 render_title_template() {
@@ -150,7 +171,19 @@ render_title_template() {
   printf '%s\n' "$rendered"
 }
 
-title_template="$(resolve_title_template "$REPO_ROOT")"
+resolve_title_template "$REPO_ROOT" "$ticket"
+if [[ -n "$TITLE_TEMPLATE_RESOLUTION_ERROR" ]]; then
+  cat >&2 <<EOF
+$PREFIX BLOCKED: cannot resolve company-specific PR title template for $ticket.
+  Reason: $TITLE_TEMPLATE_RESOLUTION_ERROR
+  Task.md: $TASK_MD
+
+Fix:
+  Resolve company routing first (for example via /use-company), or fix workspace-config company routing so the shared resolver can map $ticket.
+EOF
+  exit 2
+fi
+title_template="$RESOLVED_TITLE_TEMPLATE"
 expected_title="$(render_title_template "$title_template" "$ticket" "$summary")"
 
 if [[ -x "$GATE_PR_LANGUAGE" ]]; then

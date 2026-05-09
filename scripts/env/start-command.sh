@@ -115,6 +115,8 @@ if [[ -z "$WORKSPACE_CONFIG" ]]; then
 fi
 if [[ -z "$WORKSPACE_CONFIG" || ! -f "$WORKSPACE_CONFIG" ]]; then
   env_lib_log_fail "workspace-config.yaml not found (use --workspace-config to specify)"
+  hint="$(env_lib_workspace_config_resolution_hint "${start_dir:-$PWD}" 2>/dev/null || true)"
+  [[ -n "$hint" ]] && echo "$hint" >&2
   exit 1
 fi
 

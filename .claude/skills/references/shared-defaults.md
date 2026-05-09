@@ -4,6 +4,9 @@
 
 > **Config 必須**：所有設定值從公司 config 讀取（參考 `references/workspace-config-reader.md`）。
 > Config 不存在時 skill 應提示使用者執行 `/init` 建立，不使用硬編碼 fallback。
+> 這份 shared defaults 只提供 read-layer defaults；它不能把 reporting/planning/reviewer-side
+> prose 升格成 `mergeable_ready`、`release_eligible`、`release_completed`、或其他
+> workflow/stage authority。
 
 ## 設定值對照表
 

@@ -39,7 +39,8 @@ Script 路徑相對於本 skill 目錄。執行前確認有 `+x` 權限。
 
 Script 是 deterministic source；不要在入口重寫其內部 API / stale / bot filter 邏輯。PR
 type、mergeability、base_freshness、`awaiting_re_review` / `mergeable_ready` 語義以 shared
-PR state contract 為準。
+PR state contract 為準。本 skill 只能偵測與轉述 shared state，不得把 bucket 名稱包裝成
+author-side completion / release authority。
 
 ## Lazy-load Map
 
@@ -112,7 +113,7 @@ Valid approval = APPROVED 且非 stale。Stale approval 不算達標。
 |------|------|--------|
 | 🟢 可催 review | CI pass + 無 actionable comments + rebase 成功/可接受 + valid approvals 不足；包含 shared classifier 判定的 `AWAITING_RE_REVIEW` | 可讓使用者選擇通知 |
 | 🔧 需先修正 | CI fail / rebase conflict / actionable comments | 萃取 ticket key，提示走 `engineering` |
-| ✅ 已達標 | valid approvals >= threshold | 不加 label、不通知 |
+| ✅ 已達標 | valid approvals >= threshold | 不加 label、不通知；這只代表 approval threshold 達標，不等於 release completed |
 
 若 PR `reviewDecision=CHANGES_REQUESTED`，先用 `scripts/pr-review-state-classifier.sh`
 或等價 thread-aware evidence 判斷。`AWAITING_RE_REVIEW` 代表作者已處理且需要 reviewer
@@ -157,6 +158,7 @@ shared PR state 若是 `unsupported_mutation`、`blocked_conflict`、或 `base_f
 - 不使用 `gh pr checks --json` 取代 bundled REST-backed status script。
 - 不省略 🔧 PR ticket key；萃取不到要明寫。
 - 不通知已達標或需修正的 PR。
+- 不把「已達標」寫成「可 release / 已完成」。
 - 不忽略 stale approval。
 - 不把未通過 language gate 的 Slack message 送出。
 - 不在 Slack wording 使用「催促」、「催」、「趕快」等字眼；用「麻煩大家幫忙」、「有空幫忙看一下」。

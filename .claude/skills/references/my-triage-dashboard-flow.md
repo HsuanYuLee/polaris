@@ -75,3 +75,7 @@ In Development progress order：
 - PR waiting review → `check-pr-approvals`
 - unestimated Highest Epic → `breakdown`
 - team-level scheduling → `sprint-planning`
+
+Suggested next action 是 route suggestion，不是 dispatch warrant。真正的 code / review /
+verification / release transition，仍必須由被路由到的下游 skill 與 shared deterministic gates
+重新判定。

@@ -20,6 +20,11 @@ metadata:
 
 `intake-triage` 是 batch intake prioritization，不是個人每日工作盤點（`my-triage`），
 也不是深入 refinement、sprint planning、或 engineering codebase probe。
+它屬於 `mixed reader / writeback orchestrator`：workspace config、ticket content、與 batch
+signals 只用來決定 prioritization verdict、rank、與 downstream suggestion。`intake-triage`
+可以產出 JIRA labels/comments 與 Slack summary，但這些 writeback 只代表 intake guidance，
+不等於 workflow transition、implementation readiness、verification result、或 release
+authority。
 
 它只依 ticket 內容與同批關係做快速排序；不做 codebase exploration、不自動改 status、
 不把 intake comment 當 implementation spec。

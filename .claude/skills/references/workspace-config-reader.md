@@ -2,6 +2,31 @@
 
 Skills 和 rules 透過此機制讀取設定值，避免 hardcode 公司/團隊特定的值。
 
+## Authority Boundary
+
+這份 reference 的責任是 **在 company 已 resolve 之後**，讀取 root/company config 取得欄位值。
+
+對多數 reporting / review / planning skill 而言，這份 reference 也只應扮演
+`soft_read_consumer` 的 config read layer：它可以提供 Slack channel、Confluence space、
+approval threshold、GitHub org、user identity 等 defaults，但不得反向宣告 workflow stage
+authority、release authority、或 company routing authority。
+
+它**不是**新的 company routing authority。凡是涉及：
+
+- 解析 active company
+- `default_company` fallback
+- JIRA ticket / project prefix routing
+- partial company name matching
+- routing ambiguity / invalid company config fail-stop
+
+都應優先交給：
+
+```bash
+bash scripts/resolve-company-context.sh
+```
+
+skill / rule / reference 不應再各自手寫第二套 company matching 流程。
+
 ## 兩層 Config 架構
 
 ```
@@ -36,21 +61,19 @@ jira:
 ## 解析流程
 
 ```
-1. Read ~/work/workspace-config.yaml → 取得 companies 列表
-2. 解析目標公司：
-   - 只有一間 → 直接用
-   - 多間 → 依以下優先順序比對：
-     a. 當前工作目錄是否在某 base_dir 下
-     b. JIRA ticket key 是否匹配某公司的 jira.projects[].key
-     c. 都 match 不到 → 問使用者
+1. 若尚未 resolve company → 先呼叫 `scripts/resolve-company-context.sh`
+2. 取得 resolver 回傳的 `company_name` / `base_dir` / `config_path`
 3. Read {base_dir}/workspace-config.yaml → 取得完整公司設定
 ```
 
 ### 範例
 
 ```
-# 只有一間公司 → 直接取得完整設定
-Read ~/work/workspace-config.yaml → companies[0].base_dir → "~/work/{company}"
+# 先 resolve company，再讀完整設定
+bash scripts/resolve-company-context.sh --ticket ACME-123 --format json
+→ company_name=acme
+→ base_dir=~/work/acme
+
 Read ~/work/{company}/workspace-config.yaml → jira.instance → "acme.atlassian.net"
 
 # Get GitHub org
@@ -79,8 +102,9 @@ company config → shared-defaults.md → inline hardcoded 值
 在 SKILL.md 的流程步驟開頭加入：
 
 ```markdown
-### 前置：讀取 workspace config
-讀取 workspace config（參考 `references/workspace-config-reader.md`）。
+### 前置：resolve company + 讀取 workspace config
+若 company context 尚未明確，先呼叫 `scripts/resolve-company-context.sh`。
+company resolve 後，再依 `references/workspace-config-reader.md` 讀取 config 欄位。
 取得本步驟需要的值：`jira.instance`、`github.org`、`slack.channels.pr_review` 等。
 ```
 

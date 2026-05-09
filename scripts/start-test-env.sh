@@ -151,7 +151,10 @@ if m: print(m.group(1))
 fi
 
 if [[ -z "$WORKSPACE_CONFIG" || ! -f "$WORKSPACE_CONFIG" ]]; then
-  env_lib_log_fail "workspace-config.yaml not found"; exit 1
+  env_lib_log_fail "workspace-config.yaml not found"
+  hint="$(env_lib_workspace_config_resolution_hint "$PWD" 2>/dev/null || true)"
+  [[ -n "$hint" ]] && echo "$hint" >&2
+  exit 1
 fi
 
 EFFECTIVE_WORKSPACE_CONFIG="$WORKSPACE_CONFIG"
@@ -280,29 +283,17 @@ PY
   exit 0
 fi
 
-# ── Infer launch cwd from router's companies[].base_dir + project name ──────
-# Best-effort. If the router config can't be located or the path doesn't
-# exist, leave PROJECT_CWD empty and let start-command default to $PWD.
-router_cfg=""
-router_cfg="$(resolve_workspace_config_path "$WORKSPACE_CONFIG" 2>/dev/null || true)"
-if [[ -n "$router_cfg" ]]; then
-  base_dir=$(python3 -c '
-import yaml, sys, os
-with open(sys.argv[1]) as f:
-    data = yaml.safe_load(f) or {}
-target = data.get("default_company") or ""
-out = ""
-for c in data.get("companies", []) or []:
-    if not target or c.get("name") == target:
-        out = c.get("base_dir", "")
-        break
-if not out and data.get("companies"):
-    out = data["companies"][0].get("base_dir", "")
-print(os.path.expanduser(out))
-' "$router_cfg")
-  COMPANY_BASE_DIR="$base_dir"
-  if [[ -n "$base_dir" && -d "$base_dir/$PROJECT" ]]; then
-    PROJECT_CWD="$base_dir/$PROJECT"
+# ── Infer launch cwd from the resolved company config dir + project name ────
+# This is intentionally derived from the *company config* already chosen for
+# this run, not from root router `default_company`. start-test-env may receive
+# an explicit company workspace-config path; in that case, re-reading the root
+# router would drift the launch cwd back to another company.
+company_dir=""
+company_dir="$(cd "$(dirname "$WORKSPACE_CONFIG")" 2>/dev/null && pwd || true)"
+if [[ -n "$company_dir" ]]; then
+  COMPANY_BASE_DIR="$company_dir"
+  if [[ -d "$company_dir/$PROJECT" ]]; then
+    PROJECT_CWD="$company_dir/$PROJECT"
   fi
 fi
 

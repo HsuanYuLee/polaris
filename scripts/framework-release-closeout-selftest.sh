@@ -134,6 +134,7 @@ write_verify_evidence() {
   python3 - "$path" "$task_id" "$head_sha" <<'PY'
 import json
 import sys
+from datetime import datetime, timezone
 
 path, task_id, head_sha = sys.argv[1:4]
 with open(path, "w", encoding="utf-8") as fh:
@@ -143,6 +144,7 @@ with open(path, "w", encoding="utf-8") as fh:
             "head_sha": head_sha,
             "writer": "run-verify-command.sh",
             "exit_code": 0,
+            "at": datetime.now(timezone.utc).isoformat(),
         },
         fh,
     )

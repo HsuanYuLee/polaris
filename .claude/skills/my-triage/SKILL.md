@@ -16,6 +16,10 @@ metadata:
 `my-triage` 只讀取並排序個人工作，不施工、不估點、不改 JIRA status。若使用者說「繼續
 DP-015」或「繼續 PROJ-123」這類帶明確 topic 的句子，不攔截；交給 active skill /
 cross-session continuity 解析。
+它屬於 `mixed reader / next-step orchestrator`：workspace config 與 resume signals 只用來
+決定 dashboard scope、排序、與 route suggestion。`my-triage` 可以推薦下一步，但推薦不等於
+workflow transition、verification result、release readiness、或 author-side completion
+authority。
 
 ## Reference Loading
 
@@ -46,6 +50,9 @@ cross-session continuity 解析。
 - Do not scan child Tasks/Stories already covered by an Epic.
 - Do not repeat Session Start Fast Check file lists; cite them briefly.
 - Do not auto-modify JIRA or GitHub.
+- `.daily-triage.json` 是 local planning state，不是 shared workflow state；不得把其中的
+  rank / progress 直接包裝成 `mergeable_ready`、`release_eligible`、`release_completed`、
+  或其他 deterministic gate 結果。
 - 大型 GitHub scans 可使用 sub-agents，但必須 read-only，並回傳 Completion Envelope。
 
 ## Completion

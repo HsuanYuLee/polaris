@@ -13,31 +13,35 @@ user-invocable: true
 
 ## Purpose
 
-Explicitly sets which company context to use for the current conversation, avoiding repeated auto-detection or ambiguity when working across multiple companies.
+明確設定目前對話要使用哪個 company context，避免在多公司 workspace 中反覆 auto-detect，
+或因 routing 歧義導致用錯設定。
 
 ## Workflow
+
+Shared authority: `bash scripts/resolve-company-context.sh`
 
 ### Step 1 — Resolve Target Company
 
 **If the user provides a company name:**
-1. Read `{workspace_root}/workspace-config.yaml` → get `companies[]` list
-2. Match the provided name against company entries (case-insensitive, partial match OK)
-3. If no match → list available companies and ask the user to choose
+1. Run `bash scripts/resolve-company-context.sh --company "<name>" --format json`
+2. If `status=ok` → proceed with resolved payload
+3. 若 `status=error` → 直接呈現 resolver 的 fail-stop diagnostics；skill 內不得自己重寫 YAML matching
 
 **If no company name provided:**
-1. Read `{workspace_root}/workspace-config.yaml` → get `companies[]` list and `default_company` field
-2. If `default_company` is set → use it as the target company (skip user prompt, proceed to Step 2)
-3. Otherwise → list all available companies with their key info (base_dir, GitHub org, JIRA projects) and ask the user to select one
+1. Run `bash scripts/resolve-company-context.sh --format json`
+2. If `status=ok` → proceed with resolved payload
+3. 若 `error_code=default_company_unset` → 列出已註冊公司，請使用者選擇
+4. 其他 resolver error 一律直接回報 fail-stop diagnostics；不得默默猜測
 
 ### Step 2 — Load and Validate Company Config
 
-1. Read `{base_dir}/workspace-config.yaml` for the selected company
-2. Validate the config exists and has required fields (github.org, jira.projects)
-3. If config is missing or invalid → warn the user and suggest running `/init`
+1. 把 resolver output 視為 `base_dir`、`config_path`、`github.org`、`jira.projects` 的單一 authority
+2. 若 resolver 回傳 `status=error`，就停止並直接回報該錯誤
+3. 對非 blocking 的 `warnings[]` 才能用 warning 呈現；不得把 resolver failure 降格成 advisory prose
 
 ### Step 3 — Confirm Context
 
-Display a brief summary:
+以簡短摘要回報：
 
 ```
 ✓ Active company: {company_name}
@@ -49,16 +53,19 @@ Display a brief summary:
 
 ### Step 4 — Inform Strategist
 
-State explicitly: "For the remainder of this conversation, route all work through **{company_name}** context. Apply L2 rules from `.claude/rules/{company_name}/` and resolve config from `{base_dir}/workspace-config.yaml`."
+要明確告知：「在這段對話剩餘流程中，所有工作都應透過 **{company_name}** context routing。
+套用 `.claude/rules/{company_name}/` 的 L2 rules，並從 `{base_dir}/workspace-config.yaml`
+ 解析 config。」
 
 ## Notes
 
-- This sets context for the CURRENT conversation only — it does not persist across conversations
-- If the user later references a ticket from a different company, warn them about the context mismatch
+- 這只會設定 **目前這段對話** 的 context，不會跨對話持久化
+- 若使用者之後提到另一間公司的 ticket，要明確警告 context mismatch
 
 ## Diagnostic Mode
 
-When the user provides a JIRA ticket key or project prefix and wants to know routing (not set context), display the routing resolution:
+當使用者提供 JIRA ticket key 或 project prefix，而且目的是查 routing、不是設定 context 時，
+就顯示 routing resolution：
 
 ```
 🔍 Routing Diagnostic
@@ -71,9 +78,16 @@ Config:    {base_dir}/workspace-config.yaml
 Resolved via: jira.projects[].key match ("PROJ")
 ```
 
-If no match found, list all registered companies and their JIRA project keys.
+若找不到 match，列出所有已註冊公司與其 JIRA project keys。
 
-Flag potential issues: missing config files, undefined `jira.projects`, multiple companies claiming the same project prefix.
+若存在潛在問題，也要明確標出：例如 config file 缺失、`jira.projects` 未定義、或多間公司宣告相同 project prefix。
+
+Diagnostic mode must also consume the shared resolver:
+
+- `bash scripts/resolve-company-context.sh --ticket PROJ-123 --format json`
+- `bash scripts/resolve-company-context.sh --project PROJ --format json`
+
+skill 可以為了可讀性重排 resolver 結果，但不得自創另一個 routing verdict。
 
 
 ## Post-Task Reflection (required)

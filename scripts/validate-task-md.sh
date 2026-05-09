@@ -1432,8 +1432,8 @@ print(urlparse(sys.argv[1]).path or '/')
       errors+=("ac_verification.status is missing or empty (required when ac_verification block is present)")
     else
       case "$av_status" in
-        PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|IN_PROGRESS) ;;
-        *) errors+=("ac_verification.status must be PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|IN_PROGRESS (got: '$av_status')") ;;
+        PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|BLOCKED_ENV|IN_PROGRESS) ;;
+        *) errors+=("ac_verification.status must be PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|BLOCKED_ENV|IN_PROGRESS (got: '$av_status')") ;;
       esac
     fi
 
@@ -1473,7 +1473,7 @@ print(urlparse(sys.argv[1]).path or '/')
     # human_disposition: required when status != PASS
     if [[ -n "$av_status" && "$av_status" != "PASS" && "$av_status" != "IN_PROGRESS" ]]; then
       if [[ -z "$av_disposition" ]]; then
-        errors+=("ac_verification.human_disposition is required when status='$av_status' (FAIL/MANUAL_REQUIRED/UNCERTAIN need human triage)")
+        errors+=("ac_verification.human_disposition is required when status='$av_status' (FAIL/MANUAL_REQUIRED/UNCERTAIN/BLOCKED_ENV need human triage)")
       else
         case "$av_disposition" in
           passed|rejected|deferred) ;;

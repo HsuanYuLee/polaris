@@ -27,6 +27,8 @@ metadata:
 不得 review 自己的 PR。不得對 `waiting_for_author` PR 重複 review。
 Review inbox 屬 reviewer-side read-only lane；它可以 advisory，但對 `awaiting_re_review`、
 `mergeable_ready`、`unsupported_mutation`、`changes_requested` 的解釋必須沿用 shared PR state。
+它不得把 batch review 結果升格成 author-side completion / release authority；所有
+「可 merge / 已修完 / 可 release」語句只能轉述 shared state，不可自行推論。
 
 ## Reference Loading
 

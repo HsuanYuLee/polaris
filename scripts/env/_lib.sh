@@ -7,6 +7,7 @@
 #
 # Public functions:
 #   env_lib_find_workspace_config [START_DIR]
+#   env_lib_workspace_config_resolution_hint [START_DIR]
 #   env_lib_parse_yaml YAML_PATH
 #   env_lib_get_project_env CONFIG_JSON PROJECT_NAME
 #   env_lib_get_field JSON DOTTED_PATH
@@ -53,8 +54,13 @@ env_lib_expand_path() {
 #      `projects[]` with `dev_environment` (the data L2 primitives need).
 #
 # This function returns the COMPANY config absolute path. Walks up from
-# START_DIR; if it finds a router first, follows `default_company` (or first
-# `companies[].base_dir`) to resolve the company config.
+# START_DIR; if it finds a router first, it may resolve through:
+#   - explicit `default_company`
+#   - the sole registered company (single-company root only)
+#
+# It must NOT silently pick the first company from a multi-company root when
+# `default_company` is absent. That would turn a shared primitive into an
+# implicit company router and violate fail-stop routing semantics.
 #
 # Honors POLARIS_WORKSPACE_CONFIG env var as override (must point to a
 # company-level config, not the router).
@@ -66,9 +72,12 @@ env_lib_find_workspace_config() {
   local start="${1:-$PWD}"
   start="$(cd "$start" 2>/dev/null && pwd)" || return 1
   local cur="$start"
+  local rc=0
   while [[ "$cur" != "/" && -n "$cur" ]]; do
     if [[ -f "$cur/workspace-config.yaml" ]]; then
       _env_lib_resolve_company_config "$cur/workspace-config.yaml" && return 0
+      rc=$?
+      [[ $rc -eq 2 ]] && return 1
     fi
     # Check direct child (typical: /Users/x/work/exampleco/workspace-config.yaml).
     # Skip _template/ — it's a scaffolding stub, not a real config.
@@ -76,6 +85,8 @@ env_lib_find_workspace_config() {
       [[ -f "$child" ]] || continue
       [[ "$child" == */_template/* ]] && continue
       _env_lib_resolve_company_config "$child" && return 0
+      rc=$?
+      [[ $rc -eq 2 ]] && return 1
     done
     cur="$(dirname "$cur")"
   done
@@ -84,14 +95,55 @@ env_lib_find_workspace_config() {
   root_cfg="$(resolve_workspace_config_path "$start" 2>/dev/null || true)"
   if [[ -n "$root_cfg" && -f "$root_cfg" ]]; then
     _env_lib_resolve_company_config "$root_cfg" && return 0
+    rc=$?
+    [[ $rc -eq 2 ]] && return 1
   fi
 
   return 1
 }
 
+env_lib_workspace_config_resolution_hint() {
+  local start="${1:-$PWD}"
+  local root_cfg=""
+  root_cfg="$(resolve_workspace_config_path "$start" 2>/dev/null || true)"
+  [[ -n "$root_cfg" && -f "$root_cfg" ]] || return 0
+
+  python3 - "$root_cfg" <<'PY'
+import sys
+
+try:
+    import yaml
+except Exception:
+    sys.exit(0)
+
+cfg = sys.argv[1]
+try:
+    with open(cfg, encoding="utf-8") as handle:
+        data = yaml.safe_load(handle) or {}
+except Exception:
+    sys.exit(0)
+
+companies = data.get("companies") or []
+default_company = str(data.get("default_company") or "").strip()
+
+if len(companies) > 1 and not default_company:
+    print(
+        f"root router {cfg} registers multiple companies but no default_company. "
+        "Set default_company, run /use-company, or pass --workspace-config explicitly."
+    )
+elif default_company:
+    names = {str((item or {}).get("name") or "").strip() for item in companies}
+    if default_company not in names:
+        print(
+            f"root router {cfg} declares default_company={default_company!r} but that company is not registered in companies[]. "
+            "Fix workspace-config.yaml or pass --workspace-config explicitly."
+        )
+PY
+}
+
 # Internal: given a workspace-config.yaml path, return it if it's a company
 # config (has `projects[]`), or resolve to the company config via the router's
-# `default_company` / first `companies[].base_dir` field.
+# `default_company` / sole registered company.
 _env_lib_resolve_company_config() {
   local path="$1"
   local kind
@@ -105,11 +157,19 @@ if data.get('projects'):
 elif data.get('companies'):
     target = data.get('default_company') or ''
     base_dir = ''
-    for c in data['companies']:
+    companies = data.get('companies') or []
+    for c in companies:
         if target and c.get('name') == target:
-            base_dir = c.get('base_dir', ''); break
-    if not base_dir and data['companies']:
-        base_dir = data['companies'][0].get('base_dir', '')
+            base_dir = c.get('base_dir', '')
+            break
+    if not base_dir and target:
+        print('router-invalid-default')
+        sys.exit(0)
+    if not base_dir and len(companies) == 1:
+        base_dir = companies[0].get('base_dir', '')
+    if not base_dir and len(companies) > 1:
+        print('router-ambiguous')
+        sys.exit(0)
     if base_dir.startswith('~'):
         base_dir = os.path.expanduser(base_dir)
     print(f"router:{base_dir}")
@@ -126,6 +186,7 @@ PY
         return 0
       fi
       return 1 ;;
+    router-invalid-default|router-ambiguous) return 2 ;;
     *) return 1 ;;
   esac
 }

@@ -13,14 +13,22 @@ set -euo pipefail
 
 PREFIX="[polaris gate-evidence]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_SCRIPT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT=""
 TICKET=""
 TASK_MD=""
+BEHAVIOR_ONLY="${POLARIS_GATE_EVIDENCE_BEHAVIOR_ONLY:-0}"
+CHECK_VERIFICATION_PASSED="${ROOT_SCRIPT_DIR}/check-verification-passed.sh"
 
-MAIN_CHECKOUT_LIB="$(cd "$SCRIPT_DIR/.." && pwd)/lib/main-checkout.sh"
+MAIN_CHECKOUT_LIB="${ROOT_SCRIPT_DIR}/lib/main-checkout.sh"
+VERIFICATION_EVIDENCE_LIB="${ROOT_SCRIPT_DIR}/lib/verification-evidence.sh"
 if [[ -f "$MAIN_CHECKOUT_LIB" ]]; then
   # shellcheck source=../lib/main-checkout.sh
   . "$MAIN_CHECKOUT_LIB"
+fi
+if [[ -f "$VERIFICATION_EVIDENCE_LIB" ]]; then
+  # shellcheck source=../lib/verification-evidence.sh
+  . "$VERIFICATION_EVIDENCE_LIB"
 fi
 
 # Parse args
@@ -65,12 +73,10 @@ extract_task_key_from_branch() {
 
 resolve_task_md_for_branch() {
   local repo_root="$1"
-  local script_root=""
   local current_branch=""
   local main_checkout=""
 
-  script_root="$(cd "$SCRIPT_DIR/.." && pwd)"
-  [[ -x "$script_root/resolve-task-md.sh" ]] || return 1
+  [[ -x "$ROOT_SCRIPT_DIR/resolve-task-md.sh" ]] || return 1
   current_branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
   [[ -n "$current_branch" ]] || return 1
 
@@ -79,7 +85,98 @@ resolve_task_md_for_branch() {
   fi
   [[ -n "$main_checkout" ]] || main_checkout="$repo_root"
 
-  bash "$script_root/resolve-task-md.sh" --scan-root "$main_checkout" --current 2>/dev/null | head -n 1
+  bash "$ROOT_SCRIPT_DIR/resolve-task-md.sh" --scan-root "$main_checkout" --current 2>/dev/null | head -n 1
+}
+
+json_field() {
+  local payload="$1"
+  local field="$2"
+  python3 - "$payload" "$field" <<'PY'
+import json
+import sys
+
+data = json.loads(sys.argv[1])
+value = data.get(sys.argv[2])
+if value is None:
+    print("")
+elif isinstance(value, list):
+    for item in value:
+        print(item)
+else:
+    print(value)
+PY
+}
+
+emit_shared_gate_block() {
+  local payload="$1"
+  local status reason
+  status="$(json_field "$payload" status)"
+  reason="$(json_field "$payload" blocking_reason)"
+
+  case "$reason" in
+    missing_layer_b)
+      local tmp_evidence durable_evidence
+      tmp_evidence="$(verification_evidence_tmp_path "$TICKET" "$HEAD_SHA")"
+      durable_evidence="$(verification_evidence_durable_path "$REPO_ROOT" "$TICKET" "$HEAD_SHA" 2>/dev/null || true)"
+      echo "$PREFIX BLOCKED: No verification evidence for ${TICKET}" >&2
+      echo "" >&2
+      echo "Expected:" >&2
+      echo "  ${tmp_evidence}  (D15 — head_sha-bound, written by run-verify-command.sh)" >&2
+      echo "  ${durable_evidence}  (durable mirror, written by run-verify-command.sh)" >&2
+      echo "" >&2
+      echo "Run scripts/run-verify-command.sh --task-md <path> [--ticket ${TICKET}] to produce evidence." >&2
+      echo "If this is a non-ticket PR, set POLARIS_SKIP_EVIDENCE=1" >&2
+      ;;
+    stale_layer_b)
+      echo "$PREFIX BLOCKED: stale verification evidence for ${TICKET}; no evidence matches HEAD ${HEAD_SHA}" >&2
+      echo "  Re-run scripts/run-verify-command.sh against the current HEAD." >&2
+      ;;
+    invalid_layer_b)
+      local layer_b_path
+      layer_b_path="$(json_field "$payload" artifacts_checked | head -n 1 || true)"
+      echo "$PREFIX BLOCKED: head_sha-bound evidence file is malformed for ${TICKET}" >&2
+      [[ -n "$layer_b_path" ]] && echo "  ${layer_b_path}: invalid_layer_b" >&2
+      echo "" >&2
+      echo "Evidence must contain: ticket, head_sha, writer=run-verify-command.sh, exit_code, at." >&2
+      echo "Re-run: scripts/run-verify-command.sh --task-md <path> --ticket ${TICKET}" >&2
+      ;;
+    fail_layer_b)
+      local layer_b_path
+      layer_b_path="$(json_field "$payload" artifacts_checked | head -n 1 || true)"
+      echo "$PREFIX BLOCKED: Verification evidence shows FAIL for ${TICKET}" >&2
+      [[ -n "$layer_b_path" ]] && echo "  ${layer_b_path}: exit_code != 0" >&2
+      echo "  Fix the underlying issue and re-run scripts/run-verify-command.sh." >&2
+      ;;
+    missing_layer_c)
+      local vr_tmp vr_durable
+      vr_tmp="$(vr_evidence_tmp_path "$TICKET" "$HEAD_SHA")"
+      vr_durable="$(vr_evidence_durable_path "$REPO_ROOT" "$TICKET" "$HEAD_SHA" 2>/dev/null || true)"
+      echo "$PREFIX BLOCKED: No Layer C VR evidence for ${TICKET}" >&2
+      echo "" >&2
+      echo "Expected:" >&2
+      echo "  ${vr_tmp}  (Layer C — head_sha-bound, written by run-visual-snapshot.sh)" >&2
+      echo "  ${vr_durable}  (durable mirror, written by run-visual-snapshot.sh)" >&2
+      echo "" >&2
+      echo "Run scripts/run-visual-snapshot.sh --task-md <path> --mode baseline, then --mode compare." >&2
+      ;;
+    stale_layer_c)
+      echo "$PREFIX BLOCKED: stale Layer C VR evidence for ${TICKET}; no evidence matches HEAD ${HEAD_SHA}" >&2
+      echo "" >&2
+      echo "Run scripts/run-visual-snapshot.sh --task-md <path> --mode baseline, then --mode compare." >&2
+      ;;
+    invalid_layer_c|fail_layer_c|manual_required_layer_c|uncertain_layer_c|blocked_env_layer_c|in_progress_layer_c)
+      local vr_path
+      vr_path="$(json_field "$payload" artifacts_checked | tail -n 1 || true)"
+      echo "$PREFIX BLOCKED: Layer C VR evidence is malformed or not passing for ${TICKET}" >&2
+      [[ -n "$vr_path" ]] && echo "  ${vr_path}: status must be PASS (normalized outcome ${status})" >&2
+      echo "" >&2
+      echo "Evidence must contain: ticket, head_sha, writer=run-visual-snapshot.sh, mode=compare, status=PASS, at." >&2
+      ;;
+    *)
+      echo "$PREFIX BLOCKED: shared verification gate failed for ${TICKET}" >&2
+      echo "  status=${status:-unknown} reason=${reason:-unknown}" >&2
+      ;;
+  esac
 }
 
 # Extract ticket/task identity from branch if not provided.
@@ -99,179 +196,77 @@ if [[ -d "$REPO_ROOT/.git" || -f "$REPO_ROOT/.git" ]]; then
   HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 fi
 
-# --- Resolve head_sha-bound evidence file ---
-EVIDENCE_FILE=""
+evidence_root="$(verification_evidence_root_for_repo "$REPO_ROOT" 2>/dev/null || true)"
+if [[ "$BEHAVIOR_ONLY" != "1" ]]; then
+  if [[ -z "$TASK_MD" ]]; then
+    TASK_MD="$(resolve_task_md_for_branch "$REPO_ROOT" || true)"
+  fi
 
-new_evidence="/tmp/polaris-verified-${TICKET}-${HEAD_SHA}.json"
-durable_evidence=""
-if [[ -n "$HEAD_SHA" ]]; then
-  evidence_root="${POLARIS_EVIDENCE_ROOT:-}"
-  if [[ -z "$evidence_root" ]]; then
-    main_checkout=""
-    if declare -F resolve_main_checkout >/dev/null 2>&1; then
-      main_checkout="$(resolve_main_checkout "$REPO_ROOT" 2>/dev/null || true)"
+  if [[ -n "$TASK_MD" && -f "$TASK_MD" && -x "$CHECK_VERIFICATION_PASSED" ]]; then
+    set +e
+    shared_gate_json="$(bash "$CHECK_VERIFICATION_PASSED" --task-md "$TASK_MD" --repo "$REPO_ROOT" --ticket "$TICKET" --head-sha "$HEAD_SHA" --format json 2>/dev/null)"
+    shared_gate_rc=$?
+    set -e
+    case "$shared_gate_rc" in
+      0)
+        echo "$PREFIX ✅ shared verification gate passed for ${TICKET} @ ${HEAD_SHA}." >&2
+        ;;
+      2)
+        emit_shared_gate_block "$shared_gate_json"
+        exit 2
+        ;;
+      *)
+        echo "$PREFIX BLOCKED: shared verification gate resolver error for ${TICKET}" >&2
+        echo "  task.md=${TASK_MD}" >&2
+        echo "  Re-run ${CHECK_VERIFICATION_PASSED} directly to inspect the contract failure." >&2
+        exit 2
+        ;;
+    esac
+  else
+    tmp_evidence="$(verification_evidence_tmp_path "$TICKET" "$HEAD_SHA")"
+    durable_evidence="$(verification_evidence_durable_path "$REPO_ROOT" "$TICKET" "$HEAD_SHA" 2>/dev/null || true)"
+    EVIDENCE_FILE="$(verification_evidence_resolve_existing_path "$REPO_ROOT" "$TICKET" "$HEAD_SHA" 2>/dev/null || true)"
+    if [[ -z "$EVIDENCE_FILE" ]]; then
+      echo "$PREFIX BLOCKED: No verification evidence for ${TICKET}" >&2
+      echo "" >&2
+      echo "Expected:" >&2
+      echo "  ${tmp_evidence}  (D15 — head_sha-bound, written by run-verify-command.sh)" >&2
+      echo "  ${durable_evidence}  (durable mirror, written by run-verify-command.sh)" >&2
+      echo "" >&2
+      echo "Run scripts/run-verify-command.sh --task-md <path> [--ticket ${TICKET}] to produce evidence." >&2
+      echo "If this is a non-ticket PR, set POLARIS_SKIP_EVIDENCE=1" >&2
+      exit 2
     fi
-    if [[ -z "$main_checkout" ]]; then
-      main_checkout="$REPO_ROOT"
+
+    if ! valid="$(verification_evidence_validate_file "$EVIDENCE_FILE" "$TICKET" "$HEAD_SHA" 2>/dev/null)"; then
+      valid="${valid:-invalid: parse error}"
     fi
-    evidence_root="${main_checkout}/.polaris/evidence"
-  fi
-  durable_evidence="${evidence_root}/verify/polaris-verified-${TICKET}-${HEAD_SHA}.json"
-fi
-
-if [[ -n "$HEAD_SHA" && -f "$new_evidence" ]]; then
-  EVIDENCE_FILE="$new_evidence"
-elif [[ -n "$HEAD_SHA" && -f "$durable_evidence" ]]; then
-  EVIDENCE_FILE="$durable_evidence"
-else
-  echo "$PREFIX BLOCKED: No verification evidence for ${TICKET}" >&2
-  echo "" >&2
-  echo "Expected:" >&2
-  echo "  ${new_evidence}  (D15 — head_sha-bound, written by run-verify-command.sh)" >&2
-  echo "  ${durable_evidence}  (durable mirror, written by run-verify-command.sh)" >&2
-  echo "" >&2
-  echo "Run scripts/run-verify-command.sh --task-md <path> [--ticket ${TICKET}] to produce evidence." >&2
-  echo "If this is a non-ticket PR, set POLARIS_SKIP_EVIDENCE=1" >&2
-  exit 2
-fi
-
-# D15 schema: ticket, head_sha, writer (whitelisted), exit_code, at
-valid=$(python3 -c "
-import json
-WHITELIST = {'run-verify-command.sh'}
-try:
-    with open('${EVIDENCE_FILE}') as f:
-        d = json.load(f)
-    assert d.get('ticket') == '${TICKET}', 'ticket mismatch'
-    assert d.get('head_sha') == '${HEAD_SHA}', 'head_sha mismatch'
-    writer = d.get('writer')
-    assert writer in WHITELIST, f'writer not in whitelist: {writer!r}'
-    assert 'exit_code' in d, 'missing exit_code'
-    assert isinstance(d['exit_code'], int), 'exit_code must be int'
-    assert d.get('at'), 'missing at'
-    print('valid')
-except Exception as e:
-    print(f'invalid: {e}')
-" 2>/dev/null || echo "invalid: parse error")
-
-if [[ "$valid" != "valid" ]]; then
-  echo "$PREFIX BLOCKED: head_sha-bound evidence file is malformed for ${TICKET}" >&2
-  echo "  ${EVIDENCE_FILE}: ${valid}" >&2
-  echo "" >&2
-  echo "Evidence must contain: ticket, head_sha, writer=run-verify-command.sh, exit_code, at." >&2
-  echo "Re-run: scripts/run-verify-command.sh --task-md <path> --ticket ${TICKET}" >&2
-  exit 2
-fi
-
-# exit_code must be 0
-exit_code_pass=$(python3 -c "
-import json
-with open('${EVIDENCE_FILE}') as f:
-    d = json.load(f)
-print('pass' if int(d.get('exit_code', -1)) == 0 else 'fail')
-" 2>/dev/null || echo "fail")
-
-if [[ "$exit_code_pass" != "pass" ]]; then
-  echo "$PREFIX BLOCKED: Verification evidence shows FAIL for ${TICKET}" >&2
-  echo "  ${EVIDENCE_FILE}: exit_code != 0" >&2
-  echo "  Fix the underlying issue and re-run scripts/run-verify-command.sh." >&2
-  exit 2
-fi
-
-echo "$PREFIX ✅ D15 evidence valid for ${TICKET} @ ${HEAD_SHA}." >&2
-
-# Layer C: conditional native visual regression evidence. Only tasks that
-# declare verification.visual_regression require this gate.
-if [[ -z "$TASK_MD" ]]; then
-  TASK_MD="$(resolve_task_md_for_branch "$REPO_ROOT" || true)"
-fi
-
-if [[ -z "$TASK_MD" || ! -f "$TASK_MD" ]]; then
-  echo "$PREFIX Layer C VR skip: task.md not resolved." >&2
-  exit 0
-fi
-
-PARSE_TASK_MD="$(cd "$SCRIPT_DIR/.." && pwd)/parse-task-md.sh"
-VR_EXPECTED=""
-if [[ -x "$PARSE_TASK_MD" ]]; then
-  VR_EXPECTED="$(bash "$PARSE_TASK_MD" --field verification_visual_regression_expected --no-resolve "$TASK_MD" 2>/dev/null || true)"
-fi
-
-if [[ -z "$VR_EXPECTED" ]]; then
-  echo "$PREFIX Layer C VR skip: task.md has no verification.visual_regression." >&2
-else
-
-  vr_tmp="/tmp/polaris-vr-${TICKET}-${HEAD_SHA}.json"
-  vr_durable=""
-  if [[ -n "$HEAD_SHA" ]]; then
-    vr_durable="${evidence_root}/vr/polaris-vr-${TICKET}-${HEAD_SHA}.json"
-  fi
-
-  VR_EVIDENCE_FILE=""
-  if [[ -n "$HEAD_SHA" && -f "$vr_tmp" ]]; then
-    VR_EVIDENCE_FILE="$vr_tmp"
-  elif [[ -n "$HEAD_SHA" && -f "$vr_durable" ]]; then
-    VR_EVIDENCE_FILE="$vr_durable"
-  fi
-
-  if [[ -z "$VR_EVIDENCE_FILE" ]]; then
-    stale_match="$(
-      {
-        find /tmp -maxdepth 1 -type f -name "polaris-vr-${TICKET}-*.json" 2>/dev/null
-        find /private/tmp -maxdepth 1 -type f -name "polaris-vr-${TICKET}-*.json" 2>/dev/null
-        if [[ -d "${evidence_root}/vr" ]]; then
-          find "${evidence_root}/vr" -maxdepth 1 -type f -name "polaris-vr-${TICKET}-*.json" 2>/dev/null
-        fi
-      } | while IFS= read -r path; do
-        if [[ "$path" != *-"$HEAD_SHA".json ]]; then
-          printf '%s\n' "$path"
-          break
-        fi
-      done || true
-    )"
-    if [[ -n "$stale_match" ]]; then
-      echo "$PREFIX BLOCKED: stale Layer C VR evidence for ${TICKET}; no evidence matches HEAD ${HEAD_SHA}" >&2
-    else
-      echo "$PREFIX BLOCKED: No Layer C VR evidence for ${TICKET}" >&2
+    if [[ "$valid" != "valid" ]]; then
+      echo "$PREFIX BLOCKED: head_sha-bound evidence file is malformed for ${TICKET}" >&2
+      echo "  ${EVIDENCE_FILE}: ${valid}" >&2
+      echo "" >&2
+      echo "Evidence must contain: ticket, head_sha, writer=run-verify-command.sh, exit_code, at." >&2
+      echo "Re-run: scripts/run-verify-command.sh --task-md <path> --ticket ${TICKET}" >&2
+      exit 2
     fi
-    echo "" >&2
-    echo "Expected:" >&2
-    echo "  ${vr_tmp}  (Layer C — head_sha-bound, written by run-visual-snapshot.sh)" >&2
-    echo "  ${vr_durable}  (durable mirror, written by run-visual-snapshot.sh)" >&2
-    echo "" >&2
-    echo "Run scripts/run-visual-snapshot.sh --task-md <path> --mode baseline, then --mode compare." >&2
-    exit 2
+
+    if ! exit_code_pass="$(verification_evidence_is_pass "$EVIDENCE_FILE" 2>/dev/null)"; then
+      exit_code_pass="${exit_code_pass:-exit_code != 0}"
+    fi
+    if [[ "$exit_code_pass" != "pass" ]]; then
+      echo "$PREFIX BLOCKED: Verification evidence shows FAIL for ${TICKET}" >&2
+      echo "  ${EVIDENCE_FILE}: ${exit_code_pass}" >&2
+      echo "  Fix the underlying issue and re-run scripts/run-verify-command.sh." >&2
+      exit 2
+    fi
+
+    echo "$PREFIX ✅ D15 evidence valid for ${TICKET} @ ${HEAD_SHA}." >&2
+    if [[ -z "$TASK_MD" || ! -f "$TASK_MD" ]]; then
+      echo "$PREFIX Layer C VR skip: task.md not resolved." >&2
+      exit 0
+    fi
+    echo "$PREFIX Layer C VR skip: shared verification gate unavailable; fallback only validated Layer B." >&2
   fi
-
-  vr_valid=$(python3 - "$VR_EVIDENCE_FILE" "$TICKET" "$HEAD_SHA" <<'PY'
-import json
-import sys
-
-path, ticket, head_sha = sys.argv[1:4]
-try:
-    with open(path, encoding="utf-8") as handle:
-        data = json.load(handle)
-    assert data.get("writer") == "run-visual-snapshot.sh", "writer mismatch"
-    assert data.get("ticket") == ticket, "ticket mismatch"
-    assert data.get("head_sha") == head_sha, "head_sha mismatch"
-    assert data.get("mode") == "compare", "mode must be compare"
-    assert data.get("status") == "PASS", f"status must be PASS, got {data.get('status')!r}"
-    assert data.get("at"), "missing at"
-    print("valid")
-except Exception as exc:
-    print(f"invalid: {exc}")
-PY
-)
-
-  if [[ "$vr_valid" != "valid" ]]; then
-    echo "$PREFIX BLOCKED: Layer C VR evidence is malformed or not passing for ${TICKET}" >&2
-    echo "  ${VR_EVIDENCE_FILE}: ${vr_valid}" >&2
-    echo "" >&2
-    echo "Evidence must contain: ticket, head_sha, writer=run-visual-snapshot.sh, mode=compare, status=PASS, at." >&2
-    exit 2
-  fi
-
-  echo "$PREFIX ✅ Layer C VR evidence valid for ${TICKET} @ ${HEAD_SHA}." >&2
 fi
 
 # Layer D: conditional behavior contract evidence. Only tasks that declare

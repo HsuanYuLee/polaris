@@ -30,6 +30,8 @@ set -euo pipefail
 PREFIX="[framework-release-closeout]"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+CHECK_RELEASE_ELIGIBLE="${SCRIPT_DIR}/check-release-eligible.sh"
+CHECK_RELEASE_COMPLETED="${SCRIPT_DIR}/check-release-completed.sh"
 # shellcheck source=lib/specs-root.sh
 . "$SCRIPT_DIR/lib/specs-root.sh"
 TEMPLATE_REPO=""
@@ -98,6 +100,33 @@ abs_path() {
   else
     (cd "$(dirname "$path")" && printf '%s/%s\n' "$(pwd)" "$(basename "$path")")
   fi
+}
+
+resolve_current_task_md_path() {
+  local path="$1"
+  if [[ -f "$path" ]]; then
+    printf '%s\n' "$path"
+    return 0
+  fi
+
+  python3 - "$path" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+parts = list(path.parts)
+try:
+    idx = parts.index("design-plans")
+except ValueError:
+    print(path)
+    raise SystemExit(0)
+
+if idx + 1 < len(parts) and parts[idx + 1] != "archive":
+    archived = Path(*parts[:idx + 1], "archive", *parts[idx + 1:])
+    print(archived)
+else:
+    print(path)
+PY
 }
 
 json_field() {
@@ -395,6 +424,11 @@ for i in "${!ABS_TASK_MDS[@]}"; do
     --verify-evidence "$verify_evidence" \
     --vr-evidence "$vr_evidence"
 
+  bash "${CHECK_RELEASE_ELIGIBLE}" \
+    --repo "$REPO_ROOT" \
+    --task-md "$task_md" \
+    ${TEMPLATE_REPO:+--template-repo "$TEMPLATE_REPO"}
+
   bash "${SCRIPT_DIR}/check-local-extension-completion.sh" \
     --repo "$REPO_ROOT" \
     --task-md "$task_md" \
@@ -415,6 +449,12 @@ for i in "${!ABS_TASK_MDS[@]}"; do
     close_parent_args+=(--archive-terminal-parent)
   fi
   bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" "${close_parent_args[@]}"
+
+  current_task_md="$(resolve_current_task_md_path "$moved_task_md")"
+  bash "${CHECK_RELEASE_COMPLETED}" \
+    --repo "$REPO_ROOT" \
+    --task-md "$current_task_md" \
+    ${TEMPLATE_REPO:+--template-repo "$TEMPLATE_REPO"}
 
   info "closed out ${task_id}"
 done

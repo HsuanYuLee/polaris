@@ -62,7 +62,7 @@ DP-backed split hard rules：
 - `engineering` 只接 releaseable tracked work。Allowed Files 至少要有一個 tracked
   non-spec path，不能全部落在 `docs-manager/src/content/docs/specs/**` 這類 local sample /
   ignored artifact surface。
-- local sample consumption、GT-478 之類的 recut proof、或 docs-manager canonical spec
+- local sample consumption、sample recut proof、或 docs-manager canonical spec
   調整，若目的只是驗證新 contract 被下游 consume，必須留在 DP / refinement / breakdown
   artifact，或作為 release 後 follow-up；不可偽裝成 engineering implementation task。
 - 不得把 tracked framework release work 和 sample/local artifact recut 包進同一張 DP task。

@@ -22,6 +22,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1091
 # shellcheck source=lib/ci-local-path.sh
 . "${SCRIPT_DIR}/lib/ci-local-path.sh"
+# shellcheck source=lib/verification-evidence.sh
+. "${SCRIPT_DIR}/lib/verification-evidence.sh"
 
 REPO_ROOT=""
 TASK_MD=""
@@ -186,29 +188,8 @@ check_verify_evidence() {
   local evidence="$1"
   [[ -n "$evidence" && "$evidence" != "N/A" ]] || block "verify evidence path missing"
   [[ -f "$evidence" ]] || block "verify evidence file not found: $evidence"
-  python3 - "$evidence" "$TASK_ID" "$task_head_sha" <<'PY'
-import json
-import sys
-
-path, task_id, expected_sha = sys.argv[1:4]
-try:
-    data = json.load(open(path, encoding="utf-8"))
-    actual_ticket = data.get("ticket")
-    actual_sha = str(data.get("head_sha") or "")
-    writer = data.get("writer")
-    exit_code = data.get("exit_code")
-    if actual_ticket != task_id:
-        raise AssertionError(f"ticket mismatch: evidence={actual_ticket!r} expected={task_id!r}")
-    if not (actual_sha == expected_sha or actual_sha.startswith(expected_sha) or expected_sha.startswith(actual_sha)):
-        raise AssertionError(f"head_sha mismatch: evidence={actual_sha} expected={expected_sha}")
-    if writer != "run-verify-command.sh":
-        raise AssertionError(f"writer not allowed: {writer!r}")
-    if int(exit_code) != 0:
-        raise AssertionError(f"exit_code must be 0, got {exit_code!r}")
-except Exception as exc:
-    print(exc, file=sys.stderr)
-    sys.exit(1)
-PY
+  verification_evidence_validate_file "$evidence" "$TASK_ID" "$task_head_sha" >/dev/null || return 1
+  verification_evidence_is_pass "$evidence" >/dev/null || return 1
 }
 
 if ci_local_required; then

@@ -147,7 +147,10 @@ if [[ -z "$WORKSPACE_CONFIG" ]]; then
   WORKSPACE_CONFIG="$(env_lib_find_workspace_config "$PWD" 2>/dev/null || true)"
 fi
 if [[ -z "$WORKSPACE_CONFIG" || ! -f "$WORKSPACE_CONFIG" ]]; then
-  env_lib_log_fail "workspace-config.yaml not found (use --workspace-config)"; exit 1
+  env_lib_log_fail "workspace-config.yaml not found (use --workspace-config)"
+  hint="$(env_lib_workspace_config_resolution_hint "$PWD" 2>/dev/null || true)"
+  [[ -n "$hint" ]] && echo "$hint" >&2
+  exit 1
 fi
 
 # ── Read project env block + requires[] ─────────────────────────────────────

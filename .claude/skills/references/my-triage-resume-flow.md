@@ -7,6 +7,10 @@ description: "my-triage 的 zero-input routing、branch-ticket context、Hot mem
 
 這份 reference 負責 my-triage 的 cross-session resume scan。
 
+resume candidate 是 routing hint，不是 ownership 或 stage authority。某個 ticket / branch
+被排在第一候選，只代表「很可能是使用者下一步要續做的東西」，不代表該 ticket 已合法進到
+engineering / review / release 下一階段。
+
 ## When To Run
 
 在完整 JIRA dashboard 前先跑。它處理「之前做的事」線索；Session Start Fast Check

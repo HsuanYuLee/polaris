@@ -17,6 +17,9 @@ description: "docs-sync 的 deterministic lint、git diff scoping、change class
 - chinese-triggers table mismatch。
 - Mermaid diagram node phantom。
 
+closeout 階段則由 `check-docs-sync-complete.sh` 機械驗證「docs-impacting skill 變更是否至少補到
+trigger docs + README pair」，避免只靠 gap report prose 收尾。
+
 若 lint clean 且 relevant git diff 沒有 user-facing change，回報 docs in sync，停止。
 
 ## Git Diff Scoping

@@ -140,5 +140,141 @@ else
   printf 'not ok title gate conflict message missing\n' >&2
 fi
 
+resolver_root="$TMPROOT/router"
+resolver_repo="$resolver_root/repo"
+mkdir -p "$resolver_repo" "$resolver_root/acme" "$resolver_root/beta"
+cat > "$resolver_root/workspace-config.yaml" <<EOF
+language: zh-TW
+companies:
+  - name: acme
+    base_dir: "$resolver_root/acme"
+  - name: beta
+    base_dir: "$resolver_root/beta"
+EOF
+cat > "$resolver_root/acme/workspace-config.yaml" <<'EOF'
+projects:
+  - name: repo
+    delivery:
+      pr_title:
+        developer: "ACME/{TICKET}: {summary}"
+    dev_environment:
+      start_command: "true"
+      ready_signal: "ready"
+      base_url: "http://localhost:3000"
+      health_check: "http://localhost:3000/health"
+      requires: []
+jira:
+  projects:
+    - key: ACME
+github:
+  org: acme-org
+EOF
+cat > "$resolver_root/beta/workspace-config.yaml" <<'EOF'
+projects:
+  - name: repo
+    delivery:
+      pr_title:
+        developer: "BETA/{TICKET}: {summary}"
+    dev_environment:
+      start_command: "true"
+      ready_signal: "ready"
+      base_url: "http://localhost:3000"
+      health_check: "http://localhost:3000/health"
+      requires: []
+jira:
+  projects:
+    - key: BETA
+github:
+  org: beta-org
+EOF
+
+resolver_task="$TMPROOT/T2.md"
+cat > "$resolver_task" <<'EOF'
+---
+title: "Work Order - T2: Resolver title route (1 pt)"
+description: "驗 shared resolver 能給 PR title gate 正確 company template。"
+---
+
+# T2: Resolver title route (1 pt)
+
+> Source: SRC-000 | Task: SRC-000-T2 | JIRA: ACME-123 | Repo: repo
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | task |
+| Source ID | SRC-000 |
+| Task JIRA key | ACME-123 |
+| Task ID | SRC-000-T2 |
+| JIRA key | ACME-123 |
+| Test sub-tasks | N/A |
+| AC 驗收單 | N/A |
+| Base branch | main |
+| Task branch | task/SRC-000-T2-resolver-title-route |
+| Depends on | N/A |
+EOF
+
+set +e
+POLARIS_WORKSPACE_CONFIG_ROOT="$resolver_root" \
+  "$TITLE_GATE" --repo "$resolver_repo" --task-md "$resolver_task" --title "[ACME-123] Resolver title route" \
+  >"$TMPROOT/title-resolver.out" 2>"$TMPROOT/title-resolver.err"
+rc=$?
+set -e
+assert_rc "title gate uses shared resolver for company template" "$rc" "2"
+
+if grep -q "ACME/ACME-123: Resolver title route" "$TMPROOT/title-resolver.err"; then
+  PASS=$((PASS + 1))
+  TOTAL=$((TOTAL + 1))
+  printf 'ok title gate resolver expected title\n'
+else
+  TOTAL=$((TOTAL + 1))
+  printf 'not ok title gate resolver expected title missing\n' >&2
+fi
+
+resolver_fail_task="$TMPROOT/T3.md"
+cat > "$resolver_fail_task" <<'EOF'
+---
+title: "Work Order - T3: Resolver fail-stop route (1 pt)"
+description: "驗證 shared resolver 失敗時 title gate 不得 fallback。"
+---
+
+# T3: Resolver fail-stop route (1 pt)
+
+> Source: SRC-000 | Task: SRC-000-T3 | JIRA: ZZZ-123 | Repo: repo
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | task |
+| Source ID | SRC-000 |
+| Task JIRA key | ZZZ-123 |
+| Task ID | SRC-000-T3 |
+| JIRA key | ZZZ-123 |
+| Test sub-tasks | N/A |
+| AC 驗收單 | N/A |
+| Base branch | main |
+| Task branch | task/SRC-000-T3-resolver-fail-stop |
+| Depends on | N/A |
+EOF
+
+set +e
+POLARIS_WORKSPACE_CONFIG_ROOT="$resolver_root" \
+  "$TITLE_GATE" --repo "$resolver_repo" --task-md "$resolver_fail_task" --title "[ZZZ-123] Resolver fail-stop route" \
+  >"$TMPROOT/title-resolver-fail.out" 2>"$TMPROOT/title-resolver-fail.err"
+rc=$?
+set -e
+assert_rc "title gate blocks when shared resolver cannot map ticket" "$rc" "2"
+
+if grep -q "cannot resolve company-specific PR title template for ZZZ-123" "$TMPROOT/title-resolver-fail.err"; then
+  PASS=$((PASS + 1))
+  TOTAL=$((TOTAL + 1))
+  printf 'ok title gate resolver fail-stop message\n'
+else
+  TOTAL=$((TOTAL + 1))
+  printf 'not ok title gate resolver fail-stop message missing\n' >&2
+fi
+
 printf '\n=== pr-language selftest: %d/%d PASS ===\n' "$PASS" "$TOTAL"
 [[ "$PASS" -eq "$TOTAL" ]]

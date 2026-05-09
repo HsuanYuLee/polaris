@@ -63,6 +63,9 @@ description: "intake-triage 的判決表呈現、RD confirmation、JIRA intake l
 - PM questions for Skip
 
 Comment 是 direction guidance，不是 implementation spec。不要寫 code-level file paths。
+同理，`intake-*` labels、comment、與 Slack summary 都只是 intake artifact；它們不能被下游
+視為 `refinement-ready`、`breakdown-ready`、`engineering-executable`、`release-eligible`，
+或任何 shared deterministic gate 結果。
 
 送出前每張 comment 都要 language gate。
 
@@ -94,3 +97,4 @@ Labels and comments feed downstream：
 - `intake-blocked` 留作不做或需 PM decision 的紀錄。
 
 `intake-` labels 與 `needs-refinement` / `refinement-ready` 正交。
+它們只能影響排序與提醒，不能單獨授權下游直接進 implementation / verification / release。

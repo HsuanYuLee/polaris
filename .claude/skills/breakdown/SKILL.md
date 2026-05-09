@@ -70,8 +70,8 @@ to `refinement`。
 
 ## Shared Handoff
 
-- JIRA planning 完成後提示 `做 {TASK_KEY}` 或 `做 {EPIC_KEY}` 的下一個 READY task。
-- DP planning 完成後提示 `做 DP-NNN-T1`。
+- 只有在 `validate-task-md.sh`、`validate-task-md-deps.sh`、`validate-breakdown-ready.sh`
+  全部通過後，才可提示 `做 {TASK_KEY}`、`做 {EPIC_KEY}` 或 `做 DP-NNN-T1`。
 - Scope escalation 處理後，若 task 已修正或新 task 已建立，回到 `engineering`；若
   lineage cap 或 planner decision 指向 refinement，只建立 refinement inbox record 後提示
   `refinement {EPIC}`。

@@ -817,11 +817,11 @@ verify-AC Phase B 啟動後（DP-039 consumer 重構落地），每跑完一輪 
 
 | 欄位 | Required | 規則 |
 |------|----------|------|
-| `status` | required | enum：`PASS` / `FAIL` / `MANUAL_REQUIRED` / `UNCERTAIN` / `IN_PROGRESS` |
+| `status` | required | enum：`PASS` / `FAIL` / `MANUAL_REQUIRED` / `UNCERTAIN` / `BLOCKED_ENV` / `IN_PROGRESS` |
 | `last_run_at` | required | ISO 8601 timestamp（建議 UTC 或帶 timezone） |
 | `ac_total` | required | int ≥ 0 |
 | `ac_pass` / `ac_fail` / `ac_manual_required` / `ac_uncertain` | required | int ≥ 0；總和 == `ac_total` |
-| `human_disposition` | conditional | enum：`passed` / `rejected` / `deferred`；當 `status` ≠ `PASS` 時必填（FAIL/MANUAL/UNCERTAIN 需人類裁決） |
+| `human_disposition` | conditional | enum：`passed` / `rejected` / `deferred`；當 `status` ≠ `PASS` 時必填（FAIL/MANUAL/UNCERTAIN/BLOCKED_ENV 需人類裁決） |
 | 額外欄位 | optional | freeform（如 `disposition_reason` / `last_run_by` / 公司自訂欄位） |
 
 `ac_verification_log[]` (frontmatter list-of-maps，寬鬆)：
@@ -851,6 +851,7 @@ verify-AC Phase B 啟動後（DP-039 consumer 重構落地），每跑完一輪 
 
 - Lifecycle-conditional：**不檢查存在性**（breakdown 階段不存在合法）
 - **存在時必須驗 schema**（status enum / last_run_at ISO8601 / 計數 int / human_disposition conditional）
+- `PENDING` 若出現在 verify report，只是 human-readable aggregate label；不可直接寫入 `ac_verification.status`
 - 不可有「validator 太嚴」擋住 verify-AC 自己的合法寫入（schema 寬度 ⊇ writer 輸出）
 
 #### Rationale

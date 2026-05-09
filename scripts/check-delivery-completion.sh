@@ -460,6 +460,29 @@ resolve_task_for_completion_check() {
   return 1
 }
 
+task_requires_behavior_contract() {
+  local task_md_path="$1"
+  local parser_json=""
+
+  parser_json="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve 2>/dev/null || true)"
+  [[ -n "$parser_json" ]] || return 1
+
+  python3 - "$parser_json" <<'PY'
+import json
+import sys
+
+try:
+    data = json.loads(sys.argv[1])
+except Exception:
+    raise SystemExit(1)
+
+frontmatter = data.get("frontmatter") or {}
+verification = frontmatter.get("verification") or {}
+behavior = verification.get("behavior_contract") or {}
+raise SystemExit(0 if behavior.get("applies") is True else 1)
+PY
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)
@@ -521,8 +544,16 @@ fi
 bash "${SCRIPT_DIR}/gates/gate-ci-local.sh" --repo "$REPO_ROOT"
 
 # Layer B: ticket-bound verify evidence for Developer flows.
-if [[ "$MODE" != "admin" && -n "$TICKET" ]]; then
-  bash "${SCRIPT_DIR}/gates/gate-evidence.sh" --repo "$REPO_ROOT" --ticket "$TICKET" --task-md "$TASK_MD_PATH"
+if [[ "$MODE" != "admin" && "${POLARIS_SKIP_EVIDENCE:-}" != "1" ]]; then
+  verification_gate_args=(--repo "$REPO_ROOT" --task-md "$TASK_MD_PATH")
+  if [[ -n "$TICKET" ]]; then
+    verification_gate_args+=(--ticket "$TICKET")
+  fi
+  bash "${SCRIPT_DIR}/check-verification-passed.sh" "${verification_gate_args[@]}"
+
+  if task_requires_behavior_contract "$TASK_MD_PATH"; then
+    POLARIS_GATE_EVIDENCE_BEHAVIOR_ONLY=1 bash "${SCRIPT_DIR}/gates/gate-evidence.sh" --repo "$REPO_ROOT" --ticket "$TICKET" --task-md "$TASK_MD_PATH"
+  fi
 fi
 
 # Developer PR metadata/deliverable gates.

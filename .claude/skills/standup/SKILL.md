@@ -15,6 +15,9 @@ metadata:
 
 `standup` 是 daily standup 與 EOD summary 的單一入口。它可以自動觸發當日 triage guard，
 但不取代 `my-triage` 的排序判斷，也不捏造資料來源沒有的活動。
+它可以轉述 PR / JIRA / planning / blocker 現況，但不得自行把這些訊號升格成 workflow
+authority；例如「PR 狀態良好」不等於 `mergeable_ready`，release page / standup 內容也不等於
+release eligibility 或 release completed。
 
 Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS heading，不寫「無」。
 
@@ -54,6 +57,8 @@ Confluence 寫入前必須等待使用者確認。沒有 blockers 時保留 BOS 
 - Confluence page update 依 `confluence-page-update.md` 做 search、version check、append。
 - Confluence body 是 external write；送出前必須通過 `workspace-language-policy.md`。
 - 更新完成後回報 Confluence page link 與 local file path。
+- standup 內對 PR / release / planning 的描述只能轉述來源系統或 shared state；不得在 standup prose
+  中自行宣告「已完成 / 可 release / 可 merge」。
 
 ## Completion
 

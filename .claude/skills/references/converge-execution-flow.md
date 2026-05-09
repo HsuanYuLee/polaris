@@ -36,12 +36,22 @@ Phase 2 必須呈現 plan 並等待使用者確認。允許的調整：
 | `VERIFICATION_PENDING` | `engineering` |
 | `NO_FEATURE_PR` | `feature-branch-pr-gate.md` |
 
-`AWAITING_RE_REVIEW` is a reviewer handoff state, not a code-fix state. Do not
-dispatch engineering for it unless a later classifier run changes it back to
-`CI_RED`, `HAS_UNRESOLVED_COMMENTS`, or `CHANGES_REQUESTED`.
+`AWAITING_RE_REVIEW` 是 reviewer handoff state，不是 code-fix state。除非後續 classifier
+重新把它判回 `CI_RED`、`HAS_UNRESOLVED_COMMENTS`、或 `CHANGES_REQUESTED`，否則不得為此 dispatch
+engineering。
 
 下游 skill 必須讀自己的 `SKILL.md` / references，並自行負責 code、JIRA、PR、Slack、
 status side effects。
+
+`converge` 的 routing result 只是一張 dispatch plan，不是 mutation warrant。任何：
+
+- JIRA status movement
+- verification pass / fail
+- PR mergeability / completion
+- release eligibility / completion
+
+都仍必須由下游 skill 與 shared deterministic gates 重新判定；不得因 converge plan 已選中某張票，
+就把該票視為可直接前進。
 
 ## Execution Strategy
 

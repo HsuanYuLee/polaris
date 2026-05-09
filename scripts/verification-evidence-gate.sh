@@ -32,6 +32,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/ci-local-path.sh
 . "$SCRIPT_DIR/lib/ci-local-path.sh"
+# shellcheck source=lib/verification-evidence.sh
+. "$SCRIPT_DIR/lib/verification-evidence.sh"
 if [[ -f "$SCRIPT_DIR/lib/main-checkout.sh" ]]; then
   # shellcheck source=lib/main-checkout.sh
   . "$SCRIPT_DIR/lib/main-checkout.sh"
@@ -104,9 +106,6 @@ if [[ -z "$ticket" ]]; then
   exit 0
 fi
 
-# --- Resolve head_sha-bound evidence file ----
-EVIDENCE_FILE=""
-
 # Resolve repo root for head_sha lookup. For push mode, $push_repo is already set;
 # otherwise use cwd. Best-effort — failure leaves head_sha empty and we fall back.
 HEAD_SHA=""
@@ -115,32 +114,14 @@ if [[ -n "$gate_repo" ]] && [[ -d "$gate_repo/.git" || -f "$gate_repo/.git" ]]; 
   HEAD_SHA="$(git -C "$gate_repo" rev-parse HEAD 2>/dev/null || true)"
 fi
 
-new_evidence="/tmp/polaris-verified-${ticket}-${HEAD_SHA}.json"
-durable_evidence=""
-if [[ -n "$HEAD_SHA" ]]; then
-  evidence_root="${POLARIS_EVIDENCE_ROOT:-}"
-  if [[ -z "$evidence_root" ]]; then
-    main_checkout=""
-    if declare -F resolve_main_checkout >/dev/null 2>&1; then
-      main_checkout="$(resolve_main_checkout "$gate_repo" 2>/dev/null || true)"
-    fi
-    if [[ -z "$main_checkout" ]]; then
-      main_checkout="$gate_repo"
-    fi
-    evidence_root="${main_checkout}/.polaris/evidence"
-  fi
-  durable_evidence="${evidence_root}/verify/polaris-verified-${ticket}-${HEAD_SHA}.json"
-fi
-
-if [[ -n "$HEAD_SHA" && -f "$new_evidence" ]]; then
-  EVIDENCE_FILE="$new_evidence"
-elif [[ -n "$HEAD_SHA" && -f "$durable_evidence" ]]; then
-  EVIDENCE_FILE="$durable_evidence"
-else
+tmp_evidence="$(verification_evidence_tmp_path "$ticket" "$HEAD_SHA")"
+durable_evidence="$(verification_evidence_durable_path "$gate_repo" "$ticket" "$HEAD_SHA" 2>/dev/null || true)"
+EVIDENCE_FILE="$(verification_evidence_resolve_existing_path "$gate_repo" "$ticket" "$HEAD_SHA" 2>/dev/null || true)"
+if [[ -z "$EVIDENCE_FILE" ]]; then
   echo "BLOCKED: No verification evidence for ${ticket}" >&2
   echo "" >&2
   echo "Expected:" >&2
-  echo "  ${new_evidence}      (DP-032 Wave β D15 — head_sha-bound, written by run-verify-command.sh)" >&2
+  echo "  ${tmp_evidence}      (DP-032 Wave β D15 — head_sha-bound, written by run-verify-command.sh)" >&2
   echo "  ${durable_evidence}      (durable mirror, written by run-verify-command.sh)" >&2
   echo "" >&2
   echo "Run scripts/run-verify-command.sh --task-md <path> [--ticket ${ticket}] to produce evidence." >&2
@@ -150,24 +131,9 @@ fi
 
 # D15 schema: ticket, head_sha, writer, exit_code, at
 # No 4h stale check — head_sha self-binds freshness (rebase invalidates filename)
-valid=$(python3 -c "
-import json
-WHITELIST = {'run-verify-command.sh'}
-try:
-    with open('${EVIDENCE_FILE}') as f:
-        d = json.load(f)
-    assert d.get('ticket') == '${ticket}', 'ticket mismatch'
-    assert d.get('head_sha') == '${HEAD_SHA}', 'head_sha mismatch'
-    writer = d.get('writer')
-    assert writer in WHITELIST, f'writer not in whitelist: {writer!r}'
-    assert 'exit_code' in d, 'missing exit_code'
-    assert isinstance(d['exit_code'], int), 'exit_code must be int'
-    assert d.get('at'), 'missing at'
-    print('valid')
-except Exception as e:
-    print(f'invalid: {e}')
-" 2>/dev/null || echo "invalid: parse error")
-
+if ! valid="$(verification_evidence_validate_file "$EVIDENCE_FILE" "$ticket" "$HEAD_SHA" 2>/dev/null)"; then
+  valid="${valid:-invalid: parse error}"
+fi
 if [[ "$valid" != "valid" ]]; then
   echo "BLOCKED: head_sha-bound evidence file is malformed for ${ticket}" >&2
   echo "  ${EVIDENCE_FILE}: ${valid}" >&2
@@ -178,19 +144,17 @@ if [[ "$valid" != "valid" ]]; then
 fi
 
 # exit_code must be 0 — verify command must have passed
-exit_code_pass=$(python3 -c "
-import json
-with open('${EVIDENCE_FILE}') as f:
-    d = json.load(f)
-print('pass' if int(d.get('exit_code', -1)) == 0 else 'fail')
-" 2>/dev/null || echo "fail")
-if [[ "$exit_code_pass" != "pass" ]]; then
+if ! pass_result="$(verification_evidence_is_pass "$EVIDENCE_FILE" 2>/dev/null)"; then
+  pass_result="${pass_result:-exit_code != 0}"
+fi
+if [[ "$pass_result" != "pass" ]]; then
   echo "BLOCKED: Verification evidence shows verify command FAIL for ${ticket}" >&2
-  echo "  ${EVIDENCE_FILE}: exit_code != 0" >&2
+  echo "  ${EVIDENCE_FILE}: ${pass_result}" >&2
   echo "  Fix the underlying issue and re-run scripts/run-verify-command.sh." >&2
   exit 2
 fi
 
+evidence_root="$(verification_evidence_root_for_repo "$gate_repo" 2>/dev/null || true)"
 publication_tmp="/tmp/polaris-publication-${ticket}-${HEAD_SHA}.json"
 publication_durable=""
 if [[ -n "$HEAD_SHA" ]]; then

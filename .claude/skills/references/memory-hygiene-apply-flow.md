@@ -24,10 +24,11 @@ Prefer dry-run JSON piped to apply，確保 apply 使用同一組 file set：
 
 ```bash
 scripts/memory-hygiene-tiering.py dry-run --memory-dir "{memory_dir}" --json \
+  | bash scripts/validate-memory-hygiene-plan.sh \
   | scripts/memory-hygiene-tiering.py apply --memory-dir "{memory_dir}"
 ```
 
-若 apply mode 不支援該輸入，停止並回報 script limitation；不要手動搬檔補洞。
+若 validator 或 apply mode 不支援該輸入，停止並回報 script limitation；不要手動搬檔補洞。
 
 ## Post-Apply Report
 

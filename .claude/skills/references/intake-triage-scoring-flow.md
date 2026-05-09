@@ -94,3 +94,9 @@ Do First 最多三張。超過時依 Impact、Effort、created time 降最低者
 
 同 verdict 內排序：Impact desc、Effort asc、created asc。若 A blocks B 且 A verdict 低於 B，
 提升 A 到與 B 同級。
+
+Verdict 與 rank 都只是 prioritization output，不是 dispatch warrant。特別是：
+
+- `Do First` 不等於可直接開工或可跳過 refinement / breakdown / engineering gate
+- `Do Soon` / `Do Later` 不等於 shared backlog state transition
+- `Skip` / `Hard Blocker` 也不等於永久 workflow terminal state；它們只是本輪 intake judgment

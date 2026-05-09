@@ -26,10 +26,18 @@ Use：
 完成更新後：
 
 1. Re-run README/docs lint。
-2. Verify skill counts and trigger table consistency。
-3. Check bilingual pair section alignment for modified pairs。
-4. Check internal links touched by this sync。
-5. 若本次產生或修改 Starlight docs/specs，對 explicit paths 執行 Starlight authoring check。
+2. Run `bash scripts/check-docs-sync-complete.sh` as closeout gate。
+3. Verify skill counts and trigger table consistency。
+4. Check bilingual pair section alignment for modified pairs。
+5. Check internal links touched by this sync。
+6. 若本次產生或修改 Starlight docs/specs，對 explicit paths 執行 Starlight authoring check。
+
+`check-docs-sync-complete.sh` 目前先鎖兩種 deterministic completeness：
+
+- docs-impacting public skill frontmatter 變更時，`docs/chinese-triggers.md` 與 `README` bilingual pair 必須同步更新
+- bilingual pairs touched by this sync 不得只改單邊
+
+它不是最終的 semantic drift judge，但已足夠阻止最常見的「skill 變了、docs 只補一半」的 closeout 漏洞。
 
 ## Translation Consistency
 

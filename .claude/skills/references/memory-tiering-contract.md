@@ -5,9 +5,8 @@ description: "Hot/Warm/Cold memory lifecycle rules, write discipline, decay flow
 
 # Memory Tiering Contract
 
-Memory files follow a three-tier lifecycle to cap per-conversation loading cost
-and keep `MEMORY.md` under the 200-line truncation risk. This contract graduated
-from `DP-015 Part B` on 2026-04-20.
+memory files 採三層 lifecycle，用來控制每次對話的載入成本，並避免 `MEMORY.md`
+超過 200 行後被截斷。這份 contract 於 `2026-04-20` 從 `DP-015 Part B` 正式收斂。
 
 ## Tier Definitions
 
@@ -21,14 +20,12 @@ from `DP-015 Part B` on 2026-04-20.
 
 When creating a new memory file:
 
-1. Check topic folder: if `memory/{topic}/` exists for the relevant topic, write
-   the file inside that folder and add the pointer to `{topic}/index.md`, not
-   `MEMORY.md`.
+1. 先檢查 topic folder：若對應主題已存在 `memory/{topic}/`，就把檔案寫進該資料夾，
+   並把 pointer 加到 `{topic}/index.md`，不要加到 `MEMORY.md`。
 2. Otherwise write flat at `memory/` root with a pointer in `MEMORY.md` Hot.
-3. Do not create new topic folders on the fly. Folder creation is reserved for
-   `scripts/memory-hygiene-tiering.py apply`. If a clear topic exists but no
-   folder, write flat and set `topic: <slug>` in frontmatter so the next
-   migration picks it up.
+3. 不得在日常寫入時臨時建立新的 topic folder。建立 folder 的權限保留給
+   `scripts/memory-hygiene-tiering.py apply`。如果主題很明確但 folder 尚不存在，先平寫在 root，
+   並在 frontmatter 設 `topic: <slug>`，讓下次 migration 再接手。
 
 After writing, if `MEMORY.md` Hot exceeds 15 entries, surface an advisory:
 `MEMORY.md Hot 已達 {N} 項，建議跑 /memory-hygiene 降級最舊的 N-15 項到 Warm.`
@@ -41,27 +38,24 @@ Do not auto-move; demotion is deliberate.
 | `pinned` | bool | `true` = always Hot regardless of decay. Reserved for user-declared entries. Do not auto-set |
 | `topic` | string | Warm folder slug, for example `cwv-epics` or `polaris-framework`. Consumed by the tiering script |
 
-Both fields are optional. The baseline frontmatter spec remains: `name`,
-`description`, `type`, optional `company`, optional `trigger_count`, and optional
-`last_triggered`.
+這兩個欄位都是 optional。baseline frontmatter spec 仍維持：
+`name`、`description`、`type`，以及 optional 的 `company`、`trigger_count`、`last_triggered`。
 
 ## Decay And Migration
 
-- Advisory scan: `.claude/hooks/memory-decay-scan.sh` calls
-  `scripts/memory-hygiene-tiering.py decay-scan` once per day. It lists candidate
-  demotions and does not move files.
+- Advisory scan：`.claude/hooks/memory-decay-scan.sh` 每天會呼叫一次
+  `scripts/memory-hygiene-tiering.py decay-scan`。它只列出 candidate demotions，不會真的移動檔案。
 - Manual hygiene: `/memory-hygiene` offers scan, dry-run, and apply. Apply writes
-  `.migration-log.md` recording every move.
-- Archive is forever: Cold entries go to `memory/archive/` and are never deleted.
-  Historical context supports future framework self-evolution.
+  `.migration-log.md` recording every move. Canonical apply chain is
+  `dry-run --json | validate-memory-hygiene-plan.sh | apply`.
+- Archive 是永久層：Cold entries 進 `memory/archive/` 後不會被刪除，保留歷史 context 供未來 framework 演化使用。
 
 ## Boundary With `polaris-learnings.sh`
 
 - `polaris-learnings.sh`: technical knowledge such as patterns, pitfalls,
   confidence, key dedup, and decay.
 - `memory/`: session state, preferences, and behavior corrections.
-- Overlap case: if a PR lesson is both a technical pattern and a behavior
-  correction, prefer learnings for the technical part.
+- 若一條 PR lesson 同時兼具 technical pattern 與 behavior correction，優先把 technical 部分放進 learnings。
 
 ## References
 
