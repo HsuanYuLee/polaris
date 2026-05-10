@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.34] - 2026-05-10
+
+### Changed — scripts root topology reduction
+
+- 移動第一批 non-hot-path root selftests 到 `scripts/selftests/`，降低 `scripts/` root entrypoint noise。
+- 移動 manual maintainer support tools 到 `scripts/support/`，保留可呼叫性但退出 root hot path。
+- 移除已通過 sunset posture 的 legacy scanners：`dedup-scan.py`、`dedup-scan-sections.py`、`refinement-preview.py`。
+- 更新 `scripts/manifest.json` 反映 relocation/removal decision。
+
 ## [3.75.33] - 2026-05-10
 
 ### Fixed — template sync coverage for script manifest

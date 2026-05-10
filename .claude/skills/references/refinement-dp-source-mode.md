@@ -136,8 +136,8 @@ Ticketless source 仍採 local-first refinement。Discussion output 寫入：
 {workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/refinement.md
 ```
 
-Preview 不再啟動獨立 markdown renderer；使用 T2 的 docs-manager route。`scripts/refinement-preview.py`
-若仍存在，只能作為 legacy fallback 或 local debug helper，不能作為 handoff contract。
+Preview 不再啟動獨立 markdown renderer；使用 docs-manager route。舊的 standalone preview helper
+已 sunset，不能作為 handoff contract。
 
 `refinement.md` 只應包含 downstream implementation information：
 
