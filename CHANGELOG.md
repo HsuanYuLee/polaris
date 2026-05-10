@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.35] - 2026-05-10
+
+### Fixed — development chain reference wiring
+
+- Wired `infra-first-decision.md` into refinement preview and breakdown split strategy so infra prerequisite decisions use AC verification methods.
+- Wired `pr-state-contract.md` and `ci-local-env-blocker.md` into engineering authority surfaces, and removed the engineering revision preference for legacy `get-pr-status` readiness inference.
+- Replaced stale task packaging examples that pointed at removed status dashboard files, trimmed stale L2 numbering in the core development-chain skills, and removed orphan shared references with no active consumers.
+
 ## [3.75.34] - 2026-05-10
 
 ### Changed — scripts root topology reduction

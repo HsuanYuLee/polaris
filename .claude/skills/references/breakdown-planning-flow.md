@@ -47,8 +47,9 @@ dispatch 必須注入 Completion Envelope，完整 detail 寫入
 - 單一功能無法獨立測試時合併。
 - 每張 task 建議 2-5 pt；超過 5 pt 要考慮再拆。
 - API / cross-repo change 排第一；BFF 可獨立；大量 tracking 可獨立；Spike 可獨立。
-- 有 visual regression config 時，加入 1pt stable fixture recording task，排在 API 後、
-  frontend 前。
+- 需要 infra prerequisite 時讀 `infra-first-decision.md`，以 refinement artifact 的
+  AC verification methods 產生 Mockoon fixtures、VR baseline 或 stable data seed task；
+  不得只因 visual regression config 存在就加入 fixture task。
 - 偵測到互不依賴的分段驗收結構時，advisory 建議拆 Epic；不由 validator enforce。
 
 ## Quality Challenge

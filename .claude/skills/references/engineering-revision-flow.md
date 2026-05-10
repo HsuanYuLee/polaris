@@ -56,14 +56,14 @@ linked docs。
 gh api repos/{org}/{repo}/pulls/{pr_number}/reviews --paginate
 gh api repos/{org}/{repo}/pulls/{pr_number}/comments --paginate
 gh api graphql ... reviewThreads ...
-references/scripts/get-pr-status.sh {org}/{repo} {pr_number}
 bash scripts/pr-state-snapshot.sh --repo <repo> --task-md <task.md> --intent mutable
 bash scripts/pr-action-classifier.sh --repo <repo> --task-md <task.md> --intent mutable
 ```
 
 Thread-level status mandatory；flat comments 不能判斷 resolved/outdated。
-CI status 優先走 REST-backed `get-pr-status.sh`；不要用 `gh pr checks --json`
-作為預設路徑，避免 GraphQL rate limit。
+PR readiness / CI / review vocabulary 必須以 `pr-state-contract.md` 與 shared PR state
+scripts 為 authority；不要另外用 ad-hoc `gh pr checks --json` 或 legacy status helper 推論
+`awaiting_re_review` / `mergeable_ready`。
 
 Active signals：
 

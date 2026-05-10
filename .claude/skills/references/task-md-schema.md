@@ -480,7 +480,7 @@ Allowed Files pattern 支援 repo-root relative path、glob，以及 root exact 
 
 | Goal / AC | Owning files | Surface / boundary | Tests |
 |-----------|--------------|--------------------|-------|
-| dashboard 顯示 verification evidence | `docs-manager/src/pages/status.astro`, `scripts/build-status-data.mjs` | `/status` dashboard render surface | `pnpm --dir docs-manager build` |
+| release closeout records verification evidence | `scripts/framework-release-closeout.sh`, `scripts/check-release-completed.sh` | framework release completion gate | `bash scripts/framework-release-closeout-selftest.sh` |
 ```
 
 規則：

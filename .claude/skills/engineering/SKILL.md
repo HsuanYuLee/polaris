@@ -28,7 +28,8 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
 - Hook / wrapper / completion gate 是 enforcement，不是前置步驟豁免。
 - 產品 repo CI declarations（Woodpecker、GitHub Actions、Codecov、husky、pre-commit、
   package scripts）不是 engineering 修補面；CI parity / config 問題要停下記錄 owner
-  decision。
+  decision；`BLOCKED_ENV` 語意與 retry/escalation contract 以 `ci-local-env-blocker.md`
+  為準。
 - planner-owned task.md 欄位（Allowed Files、estimate、Test Command、Verify Command、
   Test Environment、depends_on）不可由 engineering 手動改；需要改時走 scope escalation。
 - engineering 只能用 helper-only contract 寫 execution-owned lifecycle metadata，例如
@@ -61,7 +62,8 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
   evidence exists → base freshness → commit → PR → JIRA → completion gate → worktree cleanup。
 - Local Extension：同樣先完成 engineering evidence gates，再依 local policy 交給 extension；
   extension 不得降低 gate。
-- Mutable PR lane 先 consume shared PR state：`resolve-pr-work-source.sh` →
+- Mutable PR lane 先讀 `pr-state-contract.md`，再 consume shared PR state：
+  `resolve-pr-work-source.sh` →
   `pr-state-snapshot.sh` → `pr-action-classifier.sh`。對外 readiness 語彙只能使用
   `review_required`、`awaiting_re_review`、`mergeable_ready`、`needs_code_changes`、
   `blocked_conflict`、`unsupported_mutation`、`wait_ci`、`planning_gap`。
@@ -80,12 +82,12 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
   breakdown 或 refinement。
 - Scope escalation sidecar validator 未 pass：不得結束 session，也不得 push / PR。
 
-## Step 9 — L2 Deterministic Check: version-bump-reminder
+## L2 Deterministic Check: version-bump-reminder
 
 Delivery tail 依 `engineer-delivery-flow.md` 執行；framework 相關變更需呼叫
 `scripts/check-version-bump-reminder.sh`。
 
-## Step 10 — L2 Deterministic Check: post-task-feedback-reflection
+## L2 Deterministic Check: post-task-feedback-reflection
 
 完成 write flow 後必須呼叫 `scripts/check-feedback-signals.sh`，再執行 Post-Task Reflection。
 

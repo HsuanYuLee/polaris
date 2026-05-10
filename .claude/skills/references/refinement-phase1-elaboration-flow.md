@@ -83,6 +83,11 @@ JIRA Epic、Story、Task 或 ticketless / DP-backed source 而改變：
 - AC / edge cases / risks / pending decisions。
 - suggested task structure（不估點、不建子單）。
 
+Suggested task structure 必須先讀 `infra-first-decision.md`：用
+`acceptance_criteria[].verification.method` 判斷是否需要 Mockoon fixtures、VR baseline
+或 stable data seed 等 infra prerequisite。沒有 `refinement.json` 或 AC verification method
+不足時要明確標示 skipped / warning，不得只因 visual regression config 存在就預覽 fixture task。
+
 寫入 `{source_container}/refinement.md`，只放下游需要的 decision，不放完整討論過程。
 啟動或重用 docs-manager：
 

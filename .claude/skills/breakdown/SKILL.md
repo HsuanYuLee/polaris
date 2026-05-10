@@ -28,6 +28,9 @@ to `refinement`。
   task.md、sidecar processed flag。
 - task.md 必須能被 `engineering` 單獨消費：Allowed Files、Gate Closure Matrix、
   Behavior Contract、Test Environment、Verify Command 都要完整。
+- Story / Task / Epic 拆單前讀 `infra-first-decision.md`；infra prerequisite 只能由
+  refinement artifact 的 AC verification methods 推導，不得只因 visual regression config
+  存在就加入 fixture task。
 - DP-backed work 沒有特殊 execution shortcut。只要 task.md 要 handoff `engineering`，
   就必須沿用與 Epic 相同的正規鏈；`framework-release` 只能作為 engineering PR 之後的
   local extension tail，不得提前取代 `engineering`。
@@ -76,7 +79,7 @@ to `refinement`。
   lineage cap 或 planner decision 指向 refinement，只建立 refinement inbox record 後提示
   `refinement {EPIC}`。
 
-## 17. L2 Deterministic Check: post-task-feedback-reflection
+## L2 Deterministic Check: post-task-feedback-reflection
 
 完成 write flow 後必須呼叫 `scripts/check-feedback-signals.sh`，再執行 Post-Task Reflection。
 

@@ -75,7 +75,7 @@ Epic mode 若委派 sub-agent 驗 AC，必須注入 `sub-agent-roles.md` 的 Com
 輸出 AC/Epic、overall status、step counts、evidence paths、JIRA transition status、created Bug
 keys or refinement route、pending manual items。
 
-## 11. L2 Deterministic Check: post-task-feedback-reflection
+## L2 Deterministic Check: post-task-feedback-reflection
 
 完成 write flow 後必須呼叫 `scripts/check-feedback-signals.sh`，再執行 Post-Task Reflection。
 

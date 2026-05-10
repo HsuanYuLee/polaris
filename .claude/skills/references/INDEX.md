@@ -43,6 +43,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [breakdown-task-packaging.md](breakdown-task-packaging.md) | breakdown task packaging：branch DAG、task.md/V*.md schema、validators、engineering handoff | breakdown task.md, branch chain, validate-task-md |
 | [breakdown-scope-challenge-flow.md](breakdown-scope-challenge-flow.md) | breakdown advisory scope challenge：完整性檢查、scope challenge、替代方案與下一步路由 | scope challenge, 需求質疑, challenge scope |
 | [refinement-artifact.md](refinement-artifact.md) | Refinement 結構化 artifact JSON schema — 供 breakdown/estimation/engineering 消費 | refinement (Tier 2+), breakdown, engineering |
+| [infra-first-decision.md](infra-first-decision.md) | 由 AC verification method 決定 refinement preview / breakdown split 是否需要 Mockoon fixtures、VR baseline 或 stable data seed prerequisite | refinement suggested task structure, breakdown split strategy, infra prerequisite |
 | [spec-source-resolver.md](spec-source-resolver.md) | JIRA / DP-NNN / ticketless topic / artifact path 的共用 source resolution contract，含 DP locator、artifact path、section ownership | refinement, breakdown, engineering, verify-AC |
 | [refinement-dp-source-mode.md](refinement-dp-source-mode.md) | refinement ticketless / DP-backed source mode 操作細節：DP creation、docs-manager preview、artifact output、LOCKED handoff | refinement DP-NNN, ticketless topic, design plan, ADR, DP artifact_path |
 | [refinement-batch-readiness-flow.md](refinement-batch-readiness-flow.md) | refinement batch readiness scan：批次掃 Epic 完整度、readiness table、JIRA label/comment 與下一步路由 | refinement batch, sprint prep, readiness |
@@ -80,6 +81,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [branch-creation.md](branch-creation.md) | JIRA ticket / DP task → branch 建立流程（含 dependency branch 偵測） | engineering |
 | [cascade-rebase.md](cascade-rebase.md) | Feature branch PR stack 的 cascade rebase 邏輯 | engineering, check-pr-approvals |
 | [feature-branch-pr-gate.md](feature-branch-pr-gate.md) | Task PR 全 merge 後自動建 feature→develop PR 的偵測邏輯 | converge, check-pr-approvals, engineering |
+| [pr-state-contract.md](pr-state-contract.md) | Shared PR state producer、snapshot schema、action class 與 readiness vocabulary contract | engineering revision, mutable PR lane, PR readiness |
 | [pr-input-resolver.md](pr-input-resolver.md) | PR URL/number/branch → owner+repo+number 解析 | review-pr, engineering, check-pr-approvals |
 | [stale-approval-detection.md](stale-approval-detection.md) | PR approval 失效偵測：approved before last push = 無效 | check-pr-approvals, review-inbox, converge |
 | [review-pr-entry-fetch-flow.md](review-pr-entry-fetch-flow.md) | review-pr workspace config、Slack PR input、PR resolver、remote mode、fetch-pr-info、large PR strategy | review-pr entry, PR URL, remote review |
@@ -210,7 +212,6 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [library-change-protocol.md](library-change-protocol.md) | 依賴變更完整協議：三層調查、替換/升級評估、Decision Tier、config 系統性排除、workaround 文件標準 | engineering (library evaluation), review-pr (reviewer suggests upgrade), bug-triage (dependency issue) |
 | [knowledge-compilation-protocol.md](knowledge-compilation-protocol.md) | Framework 知識編譯協議：Atom vs Derived 邊界、backwrite、parallel naming lock | learning (External mode framework target), docs-sync, framework docs/rules updates |
 | [starlight-authoring-contract.md](starlight-authoring-contract.md) | Specs Markdown 的 Starlight authoring contract：frontmatter、description、duplicate H1、producer boundary、validator explicit path、legacy migration | refinement, breakdown, engineering, verify-AC, docs-manager, specs markdown producer |
-| [skill-progressive-disclosure.md](skill-progressive-disclosure.md) | Skill slimming 的 progressive disclosure placement policy：SKILL.md / skill-private reference/script / shared reference/script / DP-memory 邊界、粒度與驗證期待 | skill slimming, skill resource ownership, resource rehome, framework iteration, refinement, breakdown, engineering, verify-AC, learning |
 | [validate-isolation-flow.md](validate-isolation-flow.md) | validate isolation mode 的 multi-company scope headers、cross-company conflicts、memory company tags、MEMORY.md index、user data leak scan、report rows | validate isolation, 檢查隔離 |
 | [validate-mechanisms-flow.md](validate-mechanisms-flow.md) | validate mechanisms mode 的 static canary smoke tests、routing/skill contract drift、hook/settings checks、model tier drift、L2 embedding integrity、exit handling | validate mechanisms, 檢查機制 |
 | [validate-reporting-flow.md](validate-reporting-flow.md) | validate combined report format、PASS/WARN/FAIL summary、proposed fixes、skipped checks、user confirmation boundary | validate report, health check |
