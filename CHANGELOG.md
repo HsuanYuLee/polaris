@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.30] - 2026-05-10
+
+### Fixed — pr-release tasks in main-chain compliance
+
+- 修正 `check-main-chain-compliance.sh` 的 terminal-state 判斷，讓已移到 `tasks/pr-release/T*/index.md` 的 implementation tasks 仍被視為主鏈 T task。
+- 新增 selftest 覆蓋「T*.md 已 release、V*.md 仍 active」的 dogfood closeout 狀態，避免 terminal closeout 前誤報沒有 implementation tasks。
+
 ## [3.75.29] - 2026-05-10
 
 ### Fixed — active V closeout blocker sequencing

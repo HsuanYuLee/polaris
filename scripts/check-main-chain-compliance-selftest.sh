@@ -92,6 +92,7 @@ cat >"$source_dir/tasks/V1/index.md" <<'MD'
 | Implementation tasks | T1 |
 | Base branch | main |
 | Depends on | DP-999-T1 |
+| References to load | - scripts/check-main-chain-compliance.sh |
 
 ## 驗收項目
 
@@ -121,5 +122,17 @@ if bash "$SCRIPT" --repo "$ROOT_DIR" --source-container "$source_dir" >/dev/null
   echo "FAIL: active V fixture passed without allow flag" >&2
   exit 1
 fi
+
+terminal_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-998-terminal-fixture"
+mkdir -p "$terminal_dir/tasks/pr-release/T1" "$terminal_dir/tasks/V1"
+cat >"$terminal_dir/index.md" <<'MD'
+---
+status: LOCKED
+---
+# DP-998
+MD
+cp "$source_dir/tasks/T1/index.md" "$terminal_dir/tasks/pr-release/T1/index.md"
+cp "$source_dir/tasks/V1/index.md" "$terminal_dir/tasks/V1/index.md"
+bash "$SCRIPT" --repo "$ROOT_DIR" --source-container "$terminal_dir" --allow-active-verification >/dev/null
 
 echo "PASS: check-main-chain-compliance selftest"

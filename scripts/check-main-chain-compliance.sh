@@ -93,7 +93,7 @@ check_source_container() {
     [[ -n "$task" ]] || continue
     t_count=$((t_count + 1))
     check_task_md "$task"
-  done < <(find "$source/tasks" -path "$source/tasks/pr-release" -prune -o \( -name 'T*.md' -o -path '*/T*/index.md' \) -type f -print | sort)
+  done < <(find "$source/tasks" \( -name 'T*.md' -o -path '*/T*/index.md' \) -type f -print | sort)
 
   while IFS= read -r task; do
     [[ -n "$task" ]] || continue
