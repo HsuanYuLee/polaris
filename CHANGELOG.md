@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.36] - 2026-05-10
+
+### Changed — skill-local script ownership cleanup
+
+- Added a deterministic script ownership audit to classify root scripts by owner, active consumers, local leakage signals, and relocation recommendation.
+- Moved the `pr-pickup` intake resolver into the owning skill, updated its selftest and callsites, and removed the root script entry from the manifest.
+- Removed the stale shared `get-pr-status` helper path from PR approval/converge references, and made the memory decay hook use runtime-local memory configuration instead of a hardcoded workstation path.
+
 ## [3.75.35] - 2026-05-10
 
 ### Fixed — development chain reference wiring

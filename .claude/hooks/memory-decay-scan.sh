@@ -15,8 +15,15 @@
 
 set -uo pipefail
 
-SCRIPT="/Users/hsuanyu.lee/work/scripts/memory-hygiene-tiering.py"
-MEMORY_DIR="/Users/hsuanyu.lee/.claude/projects/-Users-hsuanyu-lee-work/memory"
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+SCRIPT="${POLARIS_MEMORY_TIERING_SCRIPT:-${PROJECT_DIR}/scripts/memory-hygiene-tiering.py}"
+MEMORY_DIR="${POLARIS_MEMORY_DIR:-}"
+
+if [ -z "$MEMORY_DIR" ]; then
+  # Runtime-local state lives outside the portable template. Keep the hook
+  # advisory-only when the host runtime does not provide a memory directory.
+  exit 0
+fi
 
 # --- Skip conditions ---
 # 1. Script missing → silent skip (e.g., fresh workstation without Polaris synced)

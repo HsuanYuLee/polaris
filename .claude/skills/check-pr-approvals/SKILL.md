@@ -73,11 +73,9 @@ author-side completion / release authority。
 
 ### 3. Check CI
 
-對 rebase 成功或 skipped 的 PR 查。優先使用 bundled REST-backed status script，避免 `gh pr checks --json` 走 GraphQL：
-
-```bash
-../references/scripts/get-pr-status.sh "{github_org}/<repo>" <number>
-```
+對 rebase 成功或 skipped 的 PR 查。CI / mergeability / base freshness vocabulary 以
+`../references/pr-state-contract.md` 與 shared PR state scripts 為準；本 skill 不再依賴
+舊的 shared reference PR status helper，也不自行重建 PR readiness schema。
 
 Classification（先看 shared PR state，再看傳統 bucket）：
 

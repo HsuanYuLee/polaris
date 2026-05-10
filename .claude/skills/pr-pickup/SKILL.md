@@ -20,7 +20,7 @@ metadata:
 
 **職責邊界**：pr-pickup 只做協作傳遞（intake → dispatch → broadcast）。不讀 review comments、不改 code、不回覆 GitHub review、不做 lesson 萃取——這些全部由 engineering revision mode 負責。
 它的 shared authority 應收斂在 intake artifact，而不是 prose 解析。Slack/PR 輸入的 canonical
-解析結果由 `bash scripts/resolve-pr-pickup-input.sh` 定義；skill 只消費該 artifact，不能再手工
+解析結果由 `$SKILL_DIR/scripts/resolve-pr-pickup-input.sh` 定義；skill 只消費該 artifact，不能再手工
 各寫一套 PR URL / thread context 判斷。
 
 ## 前置：讀取 workspace config
@@ -33,7 +33,7 @@ metadata:
 
 | Script | Role |
 |---|---|
-| `bash scripts/resolve-pr-pickup-input.sh` | canonical intake resolver：統一解析 direct PR URL、Slack URL、Slack thread context、以及 thread-derived PR URLs |
+| `$SKILL_DIR/scripts/resolve-pr-pickup-input.sh` | canonical intake resolver：統一解析 direct PR URL、Slack URL、Slack thread context、以及 thread-derived PR URLs |
 
 ## 流程總覽
 
@@ -52,7 +52,7 @@ Step 4: 回 Slack thread
 先跑 shared intake resolver，而不是手工解析：
 
 ```bash
-bash scripts/resolve-pr-pickup-input.sh \
+"$SKILL_DIR/scripts/resolve-pr-pickup-input.sh" \
   --input "$USER_INPUT" \
   --allow-empty-prs \
   --format json
@@ -62,7 +62,7 @@ bash scripts/resolve-pr-pickup-input.sh \
 Slack thread，然後用同一支 script 完成第二階段解析：
 
 ```bash
-bash scripts/resolve-pr-pickup-input.sh \
+"$SKILL_DIR/scripts/resolve-pr-pickup-input.sh" \
   --input "$USER_INPUT" \
   --org "$GITHUB_ORG" \
   --slack-thread-file "$SLACK_THREAD_EXPORT" \

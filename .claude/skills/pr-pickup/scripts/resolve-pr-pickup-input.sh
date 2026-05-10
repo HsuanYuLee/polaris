@@ -186,7 +186,7 @@ if [[ -n "$slack_thread_file" ]]; then
   fi
 
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  extractor="$script_dir/../.claude/skills/review-inbox/scripts/extract-pr-urls.py"
+  extractor="$script_dir/../../review-inbox/scripts/extract-pr-urls.py"
   if [[ ! -f "$extractor" ]]; then
     echo "error: extractor script missing: $extractor" >&2
     exit 1

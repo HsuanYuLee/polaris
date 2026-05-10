@@ -56,6 +56,37 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/script-ownership-audit-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-145 selftest for deterministic script ownership audit."
+    },
+    {
+      "path": "scripts/script-ownership-audit.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "scripts/selftests/script-ownership-audit-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "keep_reason": "Maintainer-facing root script ownership audit used before relocation decisions."
+    },
+    {
+      "path": "scripts/script-ownership-audit.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/script-ownership-audit-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "keep_reason": "Implementation backend for scripts/script-ownership-audit.sh."
+    },
+    {
       "path": "scripts/selftests/allocate-design-plan-number-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -1855,26 +1886,6 @@
       "runner": "bash",
       "owner_surface": "skill_or_reference",
       "selftest": "scripts/selftests/resolve-company-context-selftest.sh",
-      "lifecycle": "support_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/selftests/resolve-pr-pickup-input-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "move_direct",
-      "selftest_reason": "selftest script",
-      "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
-    },
-    {
-      "path": "scripts/resolve-pr-pickup-input.sh",
-      "kind": "resolver",
-      "runner": "bash",
-      "owner_surface": "skill_or_reference",
-      "selftest": "scripts/selftests/resolve-pr-pickup-input-selftest.sh",
       "lifecycle": "support_path",
       "relocation": "stay"
     },
