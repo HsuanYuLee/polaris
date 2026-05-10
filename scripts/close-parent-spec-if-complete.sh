@@ -293,6 +293,48 @@ MD
     return 1
   }
 
+  dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-992-active-implementation-before-verification"
+  mkdir -p "$dp_dir/tasks/T2" "$dp_dir/tasks/V1" "$dp_dir/tasks/pr-release/T1"
+  cat >"$dp_dir/index.md" <<'MD'
+---
+topic: active implementation before verification smoke
+created: 2026-05-10
+status: LOCKED
+locked_at: 2026-05-10
+---
+
+# DP-992
+
+## Implementation Checklist
+
+- [ ] T1: First task — `tasks/T1/index.md`
+- [ ] T2: Active task — `tasks/T2/index.md`
+- [ ] V1: Dogfood verification — `tasks/V1/index.md`
+MD
+  cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
+---
+status: IMPLEMENTED
+---
+# T1
+
+> Source: DP-992 | Task: DP-992-T1 | JIRA: N/A | Repo: polaris-framework
+MD
+  cat >"$dp_dir/tasks/T2/index.md" <<'MD'
+# T2
+
+> Source: DP-992 | Task: DP-992-T2 | JIRA: N/A | Repo: polaris-framework
+MD
+  cat >"$dp_dir/tasks/V1/index.md" <<'MD'
+# V1
+
+> Source: DP-992 | Task: DP-992-V1 | JIRA: N/A | Repo: polaris-framework
+MD
+  env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T1/index.md" --workspace "$tmpdir" >/dev/null
+  ! grep -q '^status: IMPLEMENTED$' "$dp_dir/index.md" || {
+    echo "[selftest] active implementation task with V blocker closed parent too early" >&2
+    return 1
+  }
+
   dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-993-active-verification-blocker"
   mkdir -p "$dp_dir/tasks/V1" "$dp_dir/tasks/pr-release/T1"
   cat >"$dp_dir/index.md" <<'MD'
@@ -498,6 +540,7 @@ if not parent_file.exists():
     sys.exit(0)
 
 active_tasks = []
+active_implementation_tasks = []
 active_verification_tasks = []
 for p in sorted(tasks_dir.iterdir()):
     if p.name == "pr-release":
@@ -506,10 +549,22 @@ for p in sorted(tasks_dir.iterdir()):
         active_tasks.append(p)
         if p.name.startswith("V"):
             active_verification_tasks.append(p)
+        else:
+            active_implementation_tasks.append(p)
     elif p.is_dir() and re.fullmatch(r"[TV]\d+[a-z]*", p.name) and (p / "index.md").is_file():
         active_tasks.append(p / "index.md")
         if p.name.startswith("V"):
             active_verification_tasks.append(p / "index.md")
+        else:
+            active_implementation_tasks.append(p / "index.md")
+if active_implementation_tasks:
+    emit(
+        action="noop",
+        reason="active sibling tasks remain",
+        parent=str(parent_file),
+        active=[str(p) for p in active_tasks],
+    )
+    sys.exit(0)
 if active_verification_tasks:
     emit(
         action="block",

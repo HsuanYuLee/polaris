@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.29] - 2026-05-10
+
+### Fixed — active V closeout blocker sequencing
+
+- 修正 parent closeout 的 V*.md blocker 時機：仍有 active T*.md implementation task 時只做 NOOP，不會提前 hard block。
+- 保留 terminal parent closeout 的嚴格語意：所有 T*.md 已 release 後，active 或 non-PASS V*.md 仍會阻擋 parent closeout/archive。
+
 ## [3.75.28] - 2026-05-10
 
 ### Added — strict main development chain mechanical enforcement
