@@ -57,6 +57,15 @@ Task schema 依 `task-md-schema.md` implementation schema：
 - `Test sub-tasks` = `N/A - framework work order`。
 - `AC 驗收單` = `N/A - framework work order`。
 
+DP / Epic source template 必須已收斂到 shared contract
+`refinement-source-template.md`。若 source 缺 framework canonical sections、
+`refinement.json acceptance_criteria[]`、或 `downstream.breakdown_hints[]`，breakdown 不得
+用 markdown prose 補洞，必須 route back to refinement。
+
+DP-backed work 若要驗證 framework 自身開發鏈，必須另外產出 V*.md dogfood verification
+work order。T*.md 實作 task 不可把「驗收 DP 自身」塞進 engineering 完成宣告；V*.md PASS
+前 parent closeout/archive 必須被 deterministic gate 擋住。
+
 DP-backed split hard rules：
 
 - `engineering` 只接 releaseable tracked work。Allowed Files 至少要有一個 tracked
@@ -83,6 +92,14 @@ scripts/validate-breakdown-ready.sh {dp_folder}/tasks/T{n}/index.md
 
 全部 pass 後，更新 primary DP document Implementation Checklist / Work Orders linkage。
 Validator fail 時修 artifact，不 handoff engineering。
+
+Handoff engineering 前執行 main-chain compliance：
+
+```bash
+bash scripts/check-main-chain-compliance.sh \
+  --source-container {dp_folder} \
+  --allow-active-verification
+```
 
 若 `validate-breakdown-ready.sh` 因「DP task 只觸及 local spec/sample artifacts」失敗，
 這不是 engineering 要接的 implementation lane；必須回到 breakdown 重新分流。

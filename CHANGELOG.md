@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.28] - 2026-05-10
+
+### Added — strict main development chain mechanical enforcement
+
+- 新增 DP/Epic 共用 refinement source template contract，並加入 company/project additive template resolver 與 drift gate。
+- 新增 `refinement -> breakdown -> engineering -> verify-AC` 主鏈的 deterministic flow-gap 與 main-chain compliance gates。
+- 強化 parent closeout 語意，active 或 non-PASS 的 V*.md dogfood verification 會阻擋 DP closeout/archive。
+
 ## [3.75.27] - 2026-05-09
 
 ### Fixed — verify-AC V-mode lifecycle gate closure

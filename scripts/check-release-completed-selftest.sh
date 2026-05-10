@@ -212,4 +212,51 @@ git -C "$repo" worktree remove "$repo/.worktrees/repo-engineering-DP-137-T1-rele
 
 assert_gate 0 COMPLETED "" env POLARIS_CHECK_LOCAL_EXTENSION_COMPLETION_BIN="$local_pass" bash "$SCRIPT" --task-md "$task_ext_pr" --repo "$repo"
 
+dp_invalid="$tmpdir/dp-invalid"
+mkdir -p "$dp_invalid/tasks/pr-release" "$dp_invalid/tasks/V1"
+cat >"$dp_invalid/index.md" <<'MD'
+---
+status: IMPLEMENTED
+---
+# DP invalid verification closeout
+MD
+task_ext_invalid="$dp_invalid/tasks/pr-release/T1.md"
+cat >"$task_ext_invalid" <<EOF
+---
+title: "Work Order - T1: invalid verification closeout (1 pt)"
+description: "Fixture task for release completed verification closeout guard."
+status: IMPLEMENTED
+extension_deliverable:
+  endpoint: local_extension
+  extension_id: framework-release
+  task_head_sha: def5678
+  workspace_commit: 1111111
+  template_commit: 2222222
+  version_tag: v1.2.3
+  release_url: https://github.com/example-org/template/releases/tag/v1.2.3
+  completed_at: 2026-05-08T12:00:00Z
+  evidence:
+    ci_local: N/A
+    verify: /tmp/polaris-verified.json
+    vr: N/A
+---
+
+# T1: invalid verification closeout (1 pt)
+
+> Source: DP-137 | Task: DP-137-T1 | JIRA: N/A | Repo: repo
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Task JIRA key | DP-137-T1 |
+| Parent Epic | DP-137 |
+| Base branch | main |
+| Task branch | task/DP-137-T1-release |
+EOF
+cat >"$dp_invalid/tasks/V1/index.md" <<'MD'
+# V1
+MD
+assert_gate 2 BLOCKED verification_closeout_incomplete env POLARIS_CHECK_LOCAL_EXTENSION_COMPLETION_BIN="$local_pass" bash "$SCRIPT" --task-md "$task_ext_invalid" --repo "$repo"
+
 echo "PASS: check-release-completed selftest"

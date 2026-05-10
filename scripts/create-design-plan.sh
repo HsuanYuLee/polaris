@@ -165,6 +165,16 @@ sidebar:
 ## Background
 
 這份 Design Plan 由 \`scripts/create-design-plan.sh\` 建立，後續由 refinement 補齊內容。
+Template contract：本文件與 JIRA Epic refinement 共用
+\`.claude/skills/references/refinement-source-template.md\` 的 canonical source sections。
+
+## Scope
+
+- 待補。
+
+## Out of Scope
+
+- 待補。
 
 ## Target State
 
@@ -208,6 +218,18 @@ sidebar:
 ## Technical Approach
 
 說明預計影響的模組、交付邊界與主要風險。
+
+## Dependencies
+
+- 待補。
+
+## Open Questions
+
+- 待補。
+
+## Downstream Breakdown Hints
+
+- 待補。
 MD
 
 bash scripts/validate-starlight-authoring.sh check "$plan" >/dev/null

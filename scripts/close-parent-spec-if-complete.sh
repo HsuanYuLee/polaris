@@ -293,6 +293,45 @@ MD
     return 1
   }
 
+  dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-993-active-verification-blocker"
+  mkdir -p "$dp_dir/tasks/V1" "$dp_dir/tasks/pr-release/T1"
+  cat >"$dp_dir/index.md" <<'MD'
+---
+topic: active verification blocker smoke
+created: 2026-05-10
+status: LOCKED
+locked_at: 2026-05-10
+---
+
+# DP-993
+
+## Implementation Checklist
+
+- [ ] T1: First task — `tasks/T1/index.md`
+- [ ] V1: Dogfood verification — `tasks/V1/index.md`
+MD
+  cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
+---
+status: IMPLEMENTED
+---
+# T1
+
+> Source: DP-993 | Task: DP-993-T1 | JIRA: N/A | Repo: polaris-framework
+MD
+  cat >"$dp_dir/tasks/V1/index.md" <<'MD'
+# V1
+
+> Source: DP-993 | Task: DP-993-V1 | JIRA: N/A | Repo: polaris-framework
+MD
+  if env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T1/index.md" --workspace "$tmpdir" >/dev/null 2>&1; then
+    echo "[selftest] active V task did not block parent closeout" >&2
+    return 1
+  fi
+  ! grep -q '^status: IMPLEMENTED$' "$dp_dir/index.md" || {
+    echo "[selftest] active V task allowed parent implemented status" >&2
+    return 1
+  }
+
   dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-995-folder-native-parent-archive"
   mkdir -p "$dp_dir/tasks/pr-release/T1"
   cat >"$dp_dir/index.md" <<'MD'
@@ -408,6 +447,24 @@ def frontmatter_status(path: Path) -> str:
             return line.split(":", 1)[1].strip()
     return ""
 
+def ac_verification_status(path: Path) -> str:
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return ""
+    in_block = False
+    for line in lines:
+        if line == "ac_verification:":
+            in_block = True
+            continue
+        if in_block and line and not line.startswith((" ", "-")) and ":" in line:
+            break
+        if in_block:
+            match = re.match(r"\s+status:\s*(\S+)", line)
+            if match:
+                return match.group(1)
+    return ""
+
 parts = task_md.parts
 if "tasks" not in parts:
     emit(action="noop", reason="task path is not under tasks/", task_md=str(task_md))
@@ -441,13 +498,26 @@ if not parent_file.exists():
     sys.exit(0)
 
 active_tasks = []
+active_verification_tasks = []
 for p in sorted(tasks_dir.iterdir()):
     if p.name == "pr-release":
         continue
     if p.is_file() and re.fullmatch(r"[TV]\d+[a-z]*\.md", p.name):
         active_tasks.append(p)
+        if p.name.startswith("V"):
+            active_verification_tasks.append(p)
     elif p.is_dir() and re.fullmatch(r"[TV]\d+[a-z]*", p.name) and (p / "index.md").is_file():
         active_tasks.append(p / "index.md")
+        if p.name.startswith("V"):
+            active_verification_tasks.append(p / "index.md")
+if active_verification_tasks:
+    emit(
+        action="block",
+        reason="active verification tasks remain",
+        parent=str(parent_file),
+        active=[str(p) for p in active_verification_tasks],
+    )
+    sys.exit(0)
 if active_tasks:
     emit(
         action="noop",
@@ -487,6 +557,19 @@ def task_stem(path: Path) -> str:
     if path.name == "index.md" and path.parent.name != "pr-release":
         return path.parent.name
     return path.stem
+
+bad_verifications = [
+    str(p) for p in completed_tasks
+    if task_stem(p).startswith("V") and ac_verification_status(p) != "PASS"
+]
+if bad_verifications:
+    emit(
+        action="block",
+        reason="verification tasks are not PASS",
+        parent=str(parent_file),
+        unfinished=bad_verifications,
+    )
+    sys.exit(0)
 
 completed_stems = {task_stem(p) for p in completed_tasks}
 text = parent_file.read_text(encoding="utf-8")
@@ -576,6 +659,19 @@ data = json.load(open(sys.argv[1], encoding="utf-8"))
 print(data.get("action", "noop"))
 PY
 )"
+
+if [[ "$action" == "block" ]]; then
+  python3 - "$info_file" <<'PY'
+import json
+import sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+reason = data.get("reason", "blocked")
+parent = data.get("parent", "")
+suffix = f" ({parent})" if parent else ""
+print(f"[polaris parent-closeout] BLOCKED: {reason}{suffix}")
+PY
+  exit 2
+fi
 
 if [[ "$action" != "close" ]]; then
   python3 - "$info_file" <<'PY'

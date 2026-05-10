@@ -20,6 +20,9 @@ description: "由 Polaris validator、hook、wrapper、helper script 強制的 c
 | Local specs tracking guard | `docs-manager/src/content/docs/specs/**` is local-only; tracked/staged specs are blocked before commit / push / PR create | `gate-no-tracked-specs.sh`, `gate-no-tracked-specs-selftest.sh`, `polaris-pr-create.sh`, `install-copilot-hooks.sh` | `already_deterministic_reduce_audit` |
 | Handbook config runtime contract | project handbook machine fields schema, handbook-first runtime config resolution, workspace-config fallback / conflict detection | `handbook-config-reader.sh`, `handbook-config-validator.sh`, `handbook-config-selftest.sh`, `start-test-env.sh --resolve-config-only`, `deterministic-hooks-registry.md` | `already_deterministic_reduce_audit` |
 | Framework release closeout | DP-backed framework task `extension_deliverable`, shared release eligibility/completed gates, local-extension completion gate, task move-first closeout, parent DP closeout, implementation worktree cleanup | `resolve-release-surface.sh`, `check-release-eligible.sh`, `check-release-completed.sh`, `framework-release-closeout.sh`, `framework-release-closeout-selftest.sh`, `check-local-extension-completion.sh`, `engineering-clean-worktree.sh` | `already_deterministic_reduce_audit` |
+| Source template convergence | DP / Epic shared refinement source contract, additive company/project template resolution, structured downstream handoff gap checks | `refinement-source-template.md`, `resolve-refinement-template.sh`, `check-source-template-drift.sh` | `deterministic` |
+| Flow gap audit | post-implementation bypass/fallback/false-pass/ignored-artifact audit before handoff | `check-flow-gap-audit.sh`, `engineer-delivery-flow.md` Step 3.2 | `deterministic` |
+| Main development chain compliance | refinement -> breakdown -> engineering -> verify-AC lineage, required callsites, active V*.md closeout blocking | `check-main-chain-compliance.sh`, `close-parent-spec-if-complete.sh`, `check-release-completed.sh`, `framework-release-closeout.sh` | `deterministic` |
 | Session and safety hooks | context pressure, cross-session warm scan, safety gate, no hooks in local settings | `deterministic-hooks-registry.md`, hook wrappers under `.claude/hooks/`, safety scripts under `scripts/` | `already_deterministic_reduce_audit` |
 | Model tier policy | raw provider model policy outside the central mapping, `.agents/skills` mirror drift | `validate-model-tier-policy.sh`, `check-skills-mirror-mode.sh`, `model-tier-policy.md` | `already_deterministic_reduce_audit` |
 
@@ -30,7 +33,6 @@ description: "由 Polaris validator、hook、wrapper、helper script 強制的 c
 
 | Contract group | Covered invariants | Current source | Disposition |
 |----------------|--------------------|----------------|-------------|
-| Post-implementation flow gap audit | bypass/fallback/false-pass/ignored-runtime-artifact review before handoff; Polaris config migration closure | `engineer-delivery-flow.md` Step 3.2, `validate-polaris-config-migration.sh` | `script_candidate` |
 
 ## Audit Rule
 

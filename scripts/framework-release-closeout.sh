@@ -32,6 +32,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CHECK_RELEASE_ELIGIBLE="${SCRIPT_DIR}/check-release-eligible.sh"
 CHECK_RELEASE_COMPLETED="${SCRIPT_DIR}/check-release-completed.sh"
+CHECK_MAIN_CHAIN_COMPLIANCE="${SCRIPT_DIR}/check-main-chain-compliance.sh"
 # shellcheck source=lib/specs-root.sh
 . "$SCRIPT_DIR/lib/specs-root.sh"
 TEMPLATE_REPO=""
@@ -126,6 +127,22 @@ if idx + 1 < len(parts) and parts[idx + 1] != "archive":
     print(archived)
 else:
     print(path)
+PY
+}
+
+resolve_source_container_for_task() {
+  local task_md="$1"
+  python3 - "$task_md" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1]).resolve()
+parts = path.parts
+if "tasks" not in parts:
+    print("")
+    raise SystemExit(0)
+idx = len(parts) - 1 - list(reversed(parts)).index("tasks")
+print(Path(*parts[:idx]).as_posix())
 PY
 }
 
@@ -441,6 +458,14 @@ for i in "${!ABS_TASK_MDS[@]}"; do
 
   bash "${SCRIPT_DIR}/engineering-clean-worktree.sh" --task-md "$moved_task_md" --repo "$REPO_ROOT"
   delete_branch_if_safe "$task_branch" "$task_head_sha"
+  source_container="$(resolve_source_container_for_task "$moved_task_md")"
+  if [[ -n "$source_container" && -x "$CHECK_MAIN_CHAIN_COMPLIANCE" ]] \
+    && find "$source_container/tasks" \( -name 'V*.md' -o -path '*/V*/index.md' \) -type f -print -quit 2>/dev/null | grep -q .; then
+    bash "$CHECK_MAIN_CHAIN_COMPLIANCE" \
+      --repo "$REPO_ROOT" \
+      --source-container "$source_container" \
+      --allow-active-verification
+  fi
   close_parent_args=(
     --task-md "$moved_task_md"
     --workspace "$REPO_ROOT"

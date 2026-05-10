@@ -157,6 +157,72 @@ resolve_terminal_task_path() {
   fi
 }
 
+parent_verification_closeout_invalid() {
+  local task_md="$1"
+  python3 - "$task_md" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+task = Path(sys.argv[1]).resolve()
+parts = task.parts
+if "tasks" not in parts:
+    raise SystemExit(0)
+idx = len(parts) - 1 - list(reversed(parts)).index("tasks")
+tasks_dir = Path(*parts[: idx + 1])
+parent_dir = tasks_dir.parent
+parent = parent_dir / "index.md"
+if not parent.exists():
+    parent = parent_dir / "plan.md"
+if not parent.exists():
+    parent = parent_dir / "refinement.md"
+if not parent.exists():
+    raise SystemExit(0)
+
+def fm_status(path: Path) -> str:
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+    if not text.startswith("---\n"):
+        return ""
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return ""
+    for line in text[4:end].splitlines():
+        if line.startswith("status:"):
+            return line.split(":", 1)[1].strip()
+    return ""
+
+def ac_status(path: Path) -> str:
+    in_block = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line == "ac_verification:":
+            in_block = True
+            continue
+        if in_block and line and not line.startswith((" ", "-")) and ":" in line:
+            break
+        if in_block:
+            m = re.match(r"\s+status:\s*(\S+)", line)
+            if m:
+                return m.group(1)
+    return ""
+
+if fm_status(parent) != "IMPLEMENTED":
+    raise SystemExit(0)
+
+bad = False
+for p in tasks_dir.rglob("*"):
+    if not p.is_file():
+        continue
+    if not (re.fullmatch(r"V\d+[a-z]*\.md", p.name) or (p.name == "index.md" and re.fullmatch(r"V\d+[a-z]*", p.parent.name))):
+        continue
+    if "/tasks/pr-release/" not in str(p):
+        bad = True
+    elif fm_status(p) != "IMPLEMENTED" or ac_status(p) != "PASS":
+        bad = True
+
+raise SystemExit(1 if bad else 0)
+PY
+}
+
 registered_worktree_for_branch() {
   local repo="$1"
   local branch="$2"
@@ -308,6 +374,13 @@ TERMINAL_TASK_MD="$(resolve_terminal_task_path "$TASK_MD")"
 TERMINAL_STATUS="$(bash "$PARSE_TASK_MD" "$TERMINAL_TASK_MD" --no-resolve --field status 2>/dev/null || true)"
 if [[ "$TERMINAL_STATUS" != "IMPLEMENTED" ]]; then
   emit_result "$SOURCE_ID" "$SURFACE_CLASS" "$RELEASE_REQUIRED" "BLOCKED" "task_not_implemented"
+  exit 2
+fi
+
+if parent_verification_closeout_invalid "$TERMINAL_TASK_MD"; then
+  :
+else
+  emit_result "$SOURCE_ID" "$SURFACE_CLASS" "$RELEASE_REQUIRED" "BLOCKED" "verification_closeout_incomplete"
   exit 2
 fi
 

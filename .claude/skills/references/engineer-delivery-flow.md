@@ -325,6 +325,14 @@ bash "${POLARIS_ROOT}/scripts/run-verify-command.sh" "<path/to/task.md>"
 
 在 Step 2 / Step 3 都完成後、Step 3.5 / commit / PR / local-extension handoff 前，必須做一次流程 gap 檢查。這不是額外 code review，而是確認「完成」沒有依賴 LLM 自行補判斷或 tool false pass。
 
+先執行 deterministic helper；helper exit non-zero 就停在本步修機制或回上游 artifact：
+
+```bash
+bash "${POLARIS_ROOT}/scripts/check-flow-gap-audit.sh" \
+  --task-md "<path/to/task.md>" \
+  --repo "$(git rev-parse --show-toplevel)"
+```
+
 檢查四類：
 
 1. **Bypass**：本次是否使用任何 `POLARIS_SKIP_*`、`--skip-*`、manual direct push、或 local-extension PR lane exception；若有，必須有 task/workflow 明文允許與 evidence。
@@ -339,6 +347,15 @@ bash scripts/validate-polaris-config-migration.sh
 ```
 
 Flow gap audit 的結論要進 final / handoff；若發現 gap，先修機制或回 DP/refinement，不得只用「我判斷沒問題」結案。
+
+DP-backed framework work 在 Step 8a closeout 前還必須跑主鏈 compliance，避免
+refinement / breakdown / engineering / verify-AC 任一段靠 prose 或 local artifact 漏接：
+
+```bash
+bash "${POLARIS_ROOT}/scripts/check-main-chain-compliance.sh" \
+  --source-container "<source_container>" \
+  --allow-active-verification
+```
 
 ### Manual Stack Replay Ledger
 

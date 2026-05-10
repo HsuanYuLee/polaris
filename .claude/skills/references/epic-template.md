@@ -3,6 +3,26 @@
 供 `refinement`（Phase 1 整合）和 `breakdown`（拆單整合）使用。
 也可分享給 PM 作為開單參考。
 
+## Canonical Source Contract
+
+Epic 與 DP-backed source 共用
+`.claude/skills/references/refinement-source-template.md`。本文件是 PM-facing render；
+machine handoff 必須映射到 canonical section ids：
+
+| Canonical ID | 本模板欄位 |
+|--------------|------------|
+| `goal_background` | 背景與目標 |
+| `scope` | Scope / 做什麼 |
+| `out_of_scope` | Scope / 不做什麼 |
+| `acceptance_criteria` | AC（Acceptance Criteria） |
+| `verification_methods` | 開發驗收（RD 自驗） |
+| `technical_approach` | 可行做法 |
+| `dependencies` | 依賴 |
+| `gaps_questions` | 待確認 |
+| `downstream_breakdown_hints` | 拆單總覽 / breakdown hints |
+
+Company/project 欄位只能 additive，不能覆寫或移除上述 framework 欄位。
+
 ## 模板結構
 
 ```markdown
