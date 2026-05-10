@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.33] - 2026-05-10
+
+### Fixed — template sync coverage for script manifest
+
+- 修正 `sync-to-polaris.sh` 的 scripts sync/prune scope，納入 Python scripts 與 `scripts/manifest.json`。
+- 確保 DP-142 script manifest governance 同步到 Polaris template repo 時不會缺少 manifest target。
+
+## [3.75.32] - 2026-05-10
+
+### Added — scripts topology manifest governance
+
+- 新增 `scripts/manifest.json`，記錄 Polaris scripts 的 kind、runner、owner surface、selftest disposition、lifecycle posture 與 relocation decision。
+- 新增 `check-script-manifest.sh` 與 selftest，阻擋 root script 未登錄、manifest target/selftest 遺失、enum drift 與 `sunset_ready` 缺少 removal authority。
+- 將 script manifest checker 接入 framework release PR lane preflight，並登錄為 deterministic mechanism contract。
+
 ## [3.75.31] - 2026-05-10
 
 ### Added — Polaris cleanup sunset inventory

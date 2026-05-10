@@ -1,0 +1,722 @@
+#!/usr/bin/env python3
+"""
+Memory hygiene — Hot/Warm/Cold tiering (DP-015 Part B).
+
+Three modes:
+  dry-run     Classify every memory file into Hot / Warm / Cold and print a report.
+              Does not move, edit, or delete anything.
+  apply       Move files according to a prior dry-run (reads plan from stdin JSON)
+              and update MEMORY.md links. Writes `.migration-log.md`.
+  decay-scan  Session-start mode: promote expired Hot → Warm, Warm → Cold/archive.
+              Advisory only — prints what would change, no moves.
+
+Classification rules (D7.1 / B7):
+  pinned == true                                 → Hot
+  last_triggered >= today - 30 days              → Hot
+  trigger_count >= 5                             → Hot
+  last_triggered >= today - 90 days              → Warm (grouped by `topic` if set)
+  else                                           → Cold  (archive/)
+
+Default inference:
+  last_triggered missing → file mtime
+  trigger_count missing  → 0
+  topic missing          → heuristic slug from name/description; Warm fallback = flat
+
+MEMORY.md hygiene:
+  Entries prefixed with `~~...~~` in MEMORY.md are treated as "already archived" —
+  their underlying files are candidates for Cold regardless of trigger state.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from dataclasses import dataclass, field
+from datetime import date, datetime
+from pathlib import Path
+from typing import Optional
+
+DEFAULT_MEMORY_DIR = Path.home() / ".claude" / "projects" / "-Users-hsuanyu-lee-work" / "memory"
+
+HOT_DAYS = 30
+WARM_DAYS = 90
+HOT_TRIGGER_THRESHOLD = 5
+FRESH_WRITE_GRACE_DAYS = 7  # files with no last_triggered but recently written count as Hot
+
+
+@dataclass
+class Frontmatter:
+    name: str = ""
+    description: str = ""
+    type: str = ""
+    company: Optional[str] = None
+    trigger_count: int = 0
+    last_triggered: Optional[date] = None
+    pinned: bool = False
+    topic: Optional[str] = None
+    raw: dict = field(default_factory=dict)
+
+
+@dataclass
+class Classification:
+    path: Path
+    tier: str                   # "hot" | "warm" | "cold"
+    topic: Optional[str]        # warm destination slug (None for hot/cold or flat-warm)
+    reason: str                 # human-readable why
+    frontmatter: Frontmatter = field(default_factory=Frontmatter)
+    mtime: Optional[date] = None
+    archived_in_index: bool = False
+
+    @property
+    def destination(self) -> str:
+        if self.tier == "hot":
+            return "MEMORY.md (Hot)"
+        if self.tier == "cold":
+            return "archive/"
+        if self.topic:
+            return f"{self.topic}/"
+        return "(flat — Warm, no topic)"
+
+
+FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
+
+
+def parse_frontmatter(text: str) -> Frontmatter:
+    """Minimal YAML-ish parser (memory files use a flat subset)."""
+    fm = Frontmatter()
+    m = FRONTMATTER_RE.match(text)
+    if not m:
+        return fm
+    body = m.group(1)
+    data: dict = {}
+    for line in body.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        key = key.strip()
+        value = value.strip()
+        # Strip surrounding quotes
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        data[key] = value
+    fm.raw = data
+    fm.name = data.get("name", "")
+    fm.description = data.get("description", "")
+    fm.type = data.get("type", "")
+    fm.company = data.get("company") or None
+    try:
+        fm.trigger_count = int(data.get("trigger_count", "0") or "0")
+    except ValueError:
+        fm.trigger_count = 0
+    lt = data.get("last_triggered")
+    if lt:
+        try:
+            fm.last_triggered = datetime.strptime(lt, "%Y-%m-%d").date()
+        except ValueError:
+            fm.last_triggered = None
+    pinned = data.get("pinned", "").lower()
+    fm.pinned = pinned in ("true", "yes", "1")
+    fm.topic = data.get("topic") or None
+    return fm
+
+
+# --- Topic inference ------------------------------------------------------
+
+# Patterns → canonical topic slug. First match wins.
+# Slugs use lowercase kebab-case. A missing match leaves topic=None (flat Warm).
+TOPIC_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (re.compile(r"\bGT-?(478|479|480|482|483|490|491|495|509)\b", re.I), "cwv-epics"),
+    (re.compile(r"\bGT-?521\b|breadcrumb", re.I), "gt-521-breadcrumb"),
+    (re.compile(r"\bKB2CW-?3847\b|duplicate[-_ ]fetch", re.I), "kb2cw-3847"),
+    (re.compile(r"\bKB2CW-?3657\b", re.I), "kb2cw-3657"),
+    (re.compile(r"\bKB2CW-?2863\b|multidate", re.I), "kb2cw-2863"),
+    (re.compile(r"\bDP-?005\b|engineering[-_ ]test", re.I), "dp-005"),
+    (re.compile(r"\bDP-?009\b|context[-_ ]optim", re.I), "dp-009"),
+    (re.compile(r"\bDP-?015\b|polaris[-_ ]context", re.I), "dp-015"),
+    (re.compile(r"refinement[-_ ]v", re.I), "refinement-v2"),
+    (re.compile(r"\bworkon\b|work[-_ ]on|engineer.*mindset", re.I), "workon-redesign"),
+    (re.compile(r"visual[-_ ]regression|\bvr\b|mockoon", re.I), "visual-regression"),
+    (re.compile(r"handbook|repo[-_ ]knowledge", re.I), "handbook-lifecycle"),
+    (re.compile(r"review[-_ ]inbox|check[-_ ]pr", re.I), "pr-review-flow"),
+    (re.compile(r"skill[-_ ](consolidation|architecture|script)", re.I), "skill-architecture"),
+    (re.compile(r"lighthouse|cwv|core[-_ ]web|ttfb", re.I), "cwv-benchmark"),
+    (re.compile(r"intake[-_ ]triage|epic[-_ ]status|execution[-_ ]queue", re.I), "intake-flow"),
+    (re.compile(r"library|module.*replace|no[-_ ]replace", re.I), "library-protocol"),
+    (re.compile(r"session[-_ ]split|checkpoint", re.I), "session-management"),
+    (re.compile(r"slack|confluence|jira.*convention|worklog", re.I), "tooling"),
+    (re.compile(r"polaris[-_ ](roadmap|evolution|sync|mindset|framework|next|docs)", re.I), "polaris-framework"),
+    (re.compile(r"init[-_ ]v|three[-_ ]layer|workspace[-_ ]", re.I), "polaris-framework"),
+    (re.compile(r"\bai[-_ ]changes|ai[-_ ]env|ai[-_ ]guidelines", re.I), "legacy-config-deploy"),
+    (re.compile(r"gt-?483", re.I), "gt-483-i18n"),
+    (re.compile(r"permission|hook[-_ ]vs|bash|python[-_ ]pipe", re.I), "permissions"),
+    (re.compile(r"\bpm\b|epic[-_ ]quality", re.I), "pm-collaboration"),
+]
+
+
+def infer_topic(fm: Frontmatter, filename: str) -> Optional[str]:
+    if fm.topic:
+        return fm.topic.strip().lower().replace(" ", "-")
+    haystack = " ".join([filename, fm.name, fm.description])
+    for pattern, slug in TOPIC_PATTERNS:
+        if pattern.search(haystack):
+            return slug
+    return None
+
+
+# --- Classification -------------------------------------------------------
+
+def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Classification:
+    """Classify a memory file.
+
+    Hot requires an explicit signal of active use:
+      - pinned: true
+      - trigger_count >= HOT_TRIGGER_THRESHOLD
+      - last_triggered within HOT_DAYS
+      - OR no last_triggered but file written within FRESH_WRITE_GRACE_DAYS
+        (freshly-written file, not yet referenced — presumed active)
+
+    mtime is NOT a general fallback for Hot. Stale files without trigger data
+    default to Warm (never-used → not actively needed).
+    """
+    fm = parse_frontmatter(text)
+    mtime = date.fromtimestamp(path.stat().st_mtime)
+    archived = path.name in archived_set
+
+    # Archived-in-index takes priority → Cold
+    if archived:
+        return Classification(
+            path=path, tier="cold", topic=None,
+            reason="strikethrough in MEMORY.md", frontmatter=fm,
+            mtime=mtime, archived_in_index=True,
+        )
+
+    if fm.pinned:
+        return Classification(
+            path=path, tier="hot", topic=None,
+            reason="pinned=true", frontmatter=fm, mtime=mtime,
+        )
+    if fm.trigger_count >= HOT_TRIGGER_THRESHOLD:
+        return Classification(
+            path=path, tier="hot", topic=None,
+            reason=f"trigger_count={fm.trigger_count}",
+            frontmatter=fm, mtime=mtime,
+        )
+    if fm.last_triggered is not None:
+        age = (today - fm.last_triggered).days
+        if age <= HOT_DAYS:
+            return Classification(
+                path=path, tier="hot", topic=None,
+                reason=f"last_triggered {age}d ago",
+                frontmatter=fm, mtime=mtime,
+            )
+        if age <= WARM_DAYS:
+            topic = infer_topic(fm, path.name)
+            return Classification(
+                path=path, tier="warm", topic=topic,
+                reason=f"warm ({age}d since last_triggered)"
+                       + (f", topic={topic}" if topic else ", no topic"),
+                frontmatter=fm, mtime=mtime,
+            )
+        return Classification(
+            path=path, tier="cold", topic=None,
+            reason=f"stale ({age}d since last_triggered)",
+            frontmatter=fm, mtime=mtime,
+        )
+    # No last_triggered, no trigger_count — use mtime only as fresh-write grace
+    age = (today - mtime).days
+    if age <= FRESH_WRITE_GRACE_DAYS:
+        return Classification(
+            path=path, tier="hot", topic=None,
+            reason=f"fresh-write ({age}d, no trigger data yet)",
+            frontmatter=fm, mtime=mtime,
+        )
+    topic = infer_topic(fm, path.name)
+    if age <= WARM_DAYS:
+        return Classification(
+            path=path, tier="warm", topic=topic,
+            reason=f"never-triggered, mtime {age}d"
+                   + (f", topic={topic}" if topic else ", no topic"),
+            frontmatter=fm, mtime=mtime,
+        )
+    return Classification(
+        path=path, tier="cold", topic=None,
+        reason=f"never-triggered, stale ({age}d)",
+        frontmatter=fm, mtime=mtime,
+    )
+
+
+# --- MEMORY.md parsing ----------------------------------------------------
+
+STRIKETHROUGH_RE = re.compile(r"~~([a-zA-Z0-9_\-\.]+\.md)~~")
+LINK_RE = re.compile(r"\[([^\]]+)\]\(([a-zA-Z0-9_\-\.]+\.md)\)")
+
+
+def parse_memory_index(index_path: Path) -> tuple[set[str], set[str]]:
+    """Return (archived_filenames, linked_filenames) from MEMORY.md."""
+    archived: set[str] = set()
+    linked: set[str] = set()
+    if not index_path.exists():
+        return archived, linked
+    text = index_path.read_text(encoding="utf-8")
+    for m in STRIKETHROUGH_RE.finditer(text):
+        archived.add(m.group(1))
+    for m in LINK_RE.finditer(text):
+        linked.add(m.group(2))
+    return archived, linked
+
+
+# --- Report rendering -----------------------------------------------------
+
+def render_report(classifications: list[Classification], today: date,
+                  orphan_files: list[Path], missing_files: list[str]) -> str:
+    hot = [c for c in classifications if c.tier == "hot"]
+    warm = [c for c in classifications if c.tier == "warm"]
+    cold = [c for c in classifications if c.tier == "cold"]
+
+    topics: dict[str, list[Classification]] = {}
+    warm_flat: list[Classification] = []
+    for c in warm:
+        if c.topic:
+            topics.setdefault(c.topic, []).append(c)
+        else:
+            warm_flat.append(c)
+
+    lines: list[str] = []
+    lines.append("# Memory Hygiene — Dry-Run Report")
+    lines.append("")
+    lines.append(f"- Date: {today.isoformat()}")
+    lines.append(f"- Total memory files scanned: {len(classifications)}")
+    lines.append(f"- Hot: {len(hot)}  |  Warm: {len(warm)} ({len(topics)} topics, {len(warm_flat)} flat)  |  Cold: {len(cold)}")
+    if orphan_files:
+        lines.append(f"- Orphan files (exist on disk but not linked in MEMORY.md): {len(orphan_files)}")
+    if missing_files:
+        lines.append(f"- Missing files (linked in MEMORY.md but missing on disk): {len(missing_files)}")
+    lines.append("")
+    lines.append("## Classification rules")
+    lines.append(f"- Hot: pinned OR last_triggered/mtime within {HOT_DAYS}d OR trigger_count ≥ {HOT_TRIGGER_THRESHOLD}")
+    lines.append(f"- Warm: last_triggered/mtime within {WARM_DAYS}d (grouped by topic)")
+    lines.append("- Cold: older OR strikethrough in MEMORY.md → archive/")
+    lines.append("")
+
+    lines.append(f"## Hot ({len(hot)}) — stays in MEMORY.md")
+    lines.append("")
+    for c in sorted(hot, key=lambda x: (x.frontmatter.last_triggered or x.mtime or today), reverse=True):
+        lt = c.frontmatter.last_triggered or c.mtime
+        lines.append(f"- `{c.path.name}` — {c.reason}  (lt={lt}, tc={c.frontmatter.trigger_count})")
+    lines.append("")
+
+    lines.append(f"## Warm ({len(warm)}) — move to `memory/{{topic}}/`")
+    lines.append("")
+    for topic in sorted(topics.keys()):
+        group = topics[topic]
+        lines.append(f"### `{topic}/` ({len(group)})")
+        for c in sorted(group, key=lambda x: x.path.name):
+            lt = c.frontmatter.last_triggered or c.mtime
+            lines.append(f"- `{c.path.name}` — lt={lt}, tc={c.frontmatter.trigger_count}")
+        lines.append("")
+    if warm_flat:
+        lines.append(f"### Flat ({len(warm_flat)}) — no topic matched, stays flat until decay")
+        for c in sorted(warm_flat, key=lambda x: x.path.name):
+            lt = c.frontmatter.last_triggered or c.mtime
+            lines.append(f"- `{c.path.name}` — lt={lt}, tc={c.frontmatter.trigger_count}")
+        lines.append("")
+
+    lines.append(f"## Cold ({len(cold)}) — move to `memory/archive/`")
+    lines.append("")
+    for c in sorted(cold, key=lambda x: (x.frontmatter.last_triggered or x.mtime or today)):
+        lt = c.frontmatter.last_triggered or c.mtime
+        tag = " [archived-in-index]" if c.archived_in_index else ""
+        lines.append(f"- `{c.path.name}` — {c.reason}{tag}  (lt={lt})")
+    lines.append("")
+
+    if orphan_files:
+        lines.append(f"## Orphan files ({len(orphan_files)}) — on disk but not in MEMORY.md")
+        lines.append("")
+        for p in sorted(orphan_files):
+            lines.append(f"- `{p.name}`")
+        lines.append("")
+    if missing_files:
+        lines.append(f"## Missing files ({len(missing_files)}) — linked in MEMORY.md but not on disk")
+        lines.append("")
+        for name in sorted(missing_files):
+            lines.append(f"- `{name}`")
+        lines.append("")
+
+    lines.append("## Next steps")
+    lines.append("")
+    lines.append("1. Review this report. Correct any misclassifications by adjusting frontmatter:")
+    lines.append("   - Want Hot? add `pinned: true` or bump `last_triggered` to today.")
+    lines.append("   - Want a specific Warm topic? set `topic: <slug>`.")
+    lines.append("2. When satisfied, pipe this report's JSON plan to `--apply`:")
+    lines.append("   `memory-hygiene-tiering.py dry-run --json > plan.json && memory-hygiene-tiering.py apply < plan.json`")
+    lines.append("3. Orphan files will be archived by default in `apply`. Missing files will be pruned from MEMORY.md.")
+    return "\n".join(lines)
+
+
+def render_json(classifications: list[Classification], today: date) -> str:
+    payload = {
+        "date": today.isoformat(),
+        "hot_days": HOT_DAYS,
+        "warm_days": WARM_DAYS,
+        "trigger_threshold": HOT_TRIGGER_THRESHOLD,
+        "classifications": [
+            {
+                "file": c.path.name,
+                "tier": c.tier,
+                "topic": c.topic,
+                "reason": c.reason,
+                "last_triggered": (
+                    c.frontmatter.last_triggered.isoformat() if c.frontmatter.last_triggered else None
+                ),
+                "mtime": c.mtime.isoformat() if c.mtime else None,
+                "trigger_count": c.frontmatter.trigger_count,
+                "pinned": c.frontmatter.pinned,
+                "archived_in_index": c.archived_in_index,
+            }
+            for c in classifications
+        ],
+    }
+    return json.dumps(payload, indent=2, ensure_ascii=False)
+
+
+# --- Modes ----------------------------------------------------------------
+
+def collect(memory_dir: Path, today: date) -> tuple[list[Classification], list[Path], list[str]]:
+    """Scan memory_dir, return (classifications, orphan_paths, missing_filenames)."""
+    index_path = memory_dir / "MEMORY.md"
+    archived, linked = parse_memory_index(index_path)
+
+    on_disk: list[Path] = []
+    for p in memory_dir.iterdir():
+        if not p.is_file():
+            continue
+        if p.suffix != ".md":
+            continue
+        if p.name == "MEMORY.md":
+            continue
+        on_disk.append(p)
+
+    classifications: list[Classification] = []
+    for p in on_disk:
+        try:
+            text = p.read_text(encoding="utf-8")
+        except Exception as e:
+            print(f"Warning: could not read {p.name}: {e}", file=sys.stderr)
+            continue
+        classifications.append(classify(p, text, today, archived))
+
+    # Orphan = on disk, not archived, not linked
+    on_disk_names = {p.name for p in on_disk}
+    orphans = [p for p in on_disk if p.name not in linked and p.name not in archived]
+    missing = [name for name in linked if name not in on_disk_names]
+    return classifications, orphans, missing
+
+
+def run_dry_run(memory_dir: Path, today: date, emit_json: bool) -> int:
+    classifications, orphans, missing = collect(memory_dir, today)
+    if emit_json:
+        sys.stdout.write(render_json(classifications, today))
+    else:
+        sys.stdout.write(render_report(classifications, today, orphans, missing))
+    sys.stdout.write("\n")
+    return 0
+
+
+def run_decay_scan(memory_dir: Path, today: date) -> int:
+    """Session-start advisory: list files whose tier would demote today.
+    Does NOT move anything. Non-zero exit code if there are items to review.
+    """
+    classifications, _orphans, _missing = collect(memory_dir, today)
+    to_demote = [c for c in classifications if c.tier != "hot" and c.path.parent == memory_dir]
+    if not to_demote:
+        print(f"[memory-decay] No files need demotion (scanned {len(classifications)} files).")
+        return 0
+    print(f"[memory-decay] {len(to_demote)} flat file(s) could be demoted to Warm/Cold:")
+    for c in to_demote[:20]:
+        print(f"  - {c.path.name} → {c.tier}  ({c.reason})")
+    if len(to_demote) > 20:
+        print(f"  ... and {len(to_demote) - 20} more")
+    print("Run: memory-hygiene-tiering.py dry-run   (for full report)")
+    print("Or:  /memory-hygiene                     (to migrate)")
+    return 0  # advisory — never blocks session
+
+
+INDEX_ENTRY_RE = re.compile(r"^- \[([^\]]+)\]\(([^)]+\.md)\)(?:\s+—\s+(.*))?$")
+STRIKETHROUGH_ENTRY_RE = re.compile(r"^- ~~([^~]+\.md)~~(.*)$")
+MIGRATION_HEADER_RE = re.compile(r"^## Migrated to Company Handbook", re.M)
+
+
+def parse_memory_index_entries(index_path: Path) -> tuple[dict[str, dict], str]:
+    """Parse MEMORY.md, returning (entries_by_filename, footer_to_preserve).
+
+    Entries dict: filename.md -> {'title': str, 'description': str, 'strikethrough': bool}
+    Footer: the "## Migrated to Company Handbook" section and everything after (preserved verbatim).
+    """
+    entries: dict[str, dict] = {}
+    footer = ""
+    if not index_path.exists():
+        return entries, footer
+    text = index_path.read_text(encoding="utf-8")
+    m = MIGRATION_HEADER_RE.search(text)
+    body = text[:m.start()] if m else text
+    footer = text[m.start():] if m else ""
+    for line in body.splitlines():
+        m1 = INDEX_ENTRY_RE.match(line)
+        if m1:
+            title, filename, desc = m1.group(1), m1.group(2), m1.group(3) or ""
+            entries[filename] = {"title": title, "description": desc, "strikethrough": False}
+            continue
+        m2 = STRIKETHROUGH_ENTRY_RE.match(line)
+        if m2:
+            filename = m2.group(1)
+            # Only track if it points to a real .md file (not a description note)
+            entries[filename] = {"title": filename, "description": m2.group(2).lstrip(" —"), "strikethrough": True}
+    return entries, footer
+
+
+def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
+    """Read a classification plan JSON from stdin and execute it.
+
+    Actions per tier:
+      - Hot: no move; appears in MEMORY.md Hot section.
+      - Warm with topic: move to memory/{topic}/filename; record in {topic}/index.md.
+      - Warm without topic: no move; stays flat; listed in MEMORY.md Warm-flat section.
+      - Cold: move to memory/archive/filename; removed from MEMORY.md.
+
+    Also: rewrites MEMORY.md, creates topic index files, writes .migration-log.md.
+    """
+    try:
+        plan = json.load(plan_stream)
+    except json.JSONDecodeError as e:
+        print(f"Error: plan stdin is not valid JSON: {e}", file=sys.stderr)
+        return 2
+
+    classifications = plan.get("classifications", [])
+    if not classifications:
+        print("Error: plan has no classifications — nothing to do", file=sys.stderr)
+        return 2
+
+    index_path = memory_dir / "MEMORY.md"
+    existing_entries, footer = parse_memory_index_entries(index_path)
+
+    # Fill in frontmatter fallback for orphans (files on disk but not in MEMORY.md)
+    for c in classifications:
+        fn = c["file"]
+        if fn in existing_entries and existing_entries[fn].get("description"):
+            continue
+        src = memory_dir / fn
+        if src.exists():
+            try:
+                fm = parse_frontmatter(src.read_text(encoding="utf-8"))
+                existing_entries[fn] = {
+                    "title": fm.name or fn,
+                    "description": fm.description or "",
+                    "strikethrough": False,
+                }
+            except Exception:
+                pass
+
+    # Group classifications
+    hot: list[dict] = []
+    warm_flat: list[dict] = []
+    warm_topics: dict[str, list[dict]] = {}
+    cold: list[dict] = []
+    for c in classifications:
+        if c["tier"] == "hot":
+            hot.append(c)
+        elif c["tier"] == "warm":
+            if c["topic"]:
+                warm_topics.setdefault(c["topic"], []).append(c)
+            else:
+                warm_flat.append(c)
+        elif c["tier"] == "cold":
+            cold.append(c)
+
+    # Plan moves
+    moves: list[tuple[Path, Path, str]] = []  # (src, dst, reason)
+    archive_dir = memory_dir / "archive"
+    for c in cold:
+        src = memory_dir / c["file"]
+        dst = archive_dir / c["file"]
+        moves.append((src, dst, c["reason"]))
+    for topic, items in warm_topics.items():
+        topic_dir = memory_dir / topic
+        for c in items:
+            src = memory_dir / c["file"]
+            dst = topic_dir / c["file"]
+            moves.append((src, dst, c["reason"]))
+
+    # Safety: check sources exist and destinations don't clash
+    errors: list[str] = []
+    for src, dst, _ in moves:
+        if not src.exists():
+            errors.append(f"source missing: {src.name}")
+            continue
+        if dst.exists():
+            errors.append(f"destination already exists: {dst}")
+    if errors:
+        print("Error: cannot apply — safety checks failed:", file=sys.stderr)
+        for e in errors:
+            print(f"  - {e}", file=sys.stderr)
+        return 3
+
+    # Create target folders
+    for topic in warm_topics:
+        (memory_dir / topic).mkdir(exist_ok=True)
+    if cold:
+        archive_dir.mkdir(exist_ok=True)
+
+    # Execute moves
+    log_entries: list[str] = []
+    log_entries.append("# Memory Migration Log")
+    log_entries.append("")
+    log_entries.append(f"- Timestamp: {datetime.now().isoformat(timespec='seconds')}")
+    log_entries.append(f"- Plan date: {plan.get('date', 'unknown')}")
+    log_entries.append(f"- Moved: {len(moves)} file(s)")
+    log_entries.append(f"- Hot (no move): {len(hot)}")
+    log_entries.append(f"- Warm flat (no move): {len(warm_flat)}")
+    log_entries.append("")
+    log_entries.append("## Moves")
+    log_entries.append("")
+
+    for src, dst, reason in moves:
+        src.rename(dst)
+        rel = dst.relative_to(memory_dir)
+        log_entries.append(f"- `{src.name}` → `{rel}`  _(reason: {reason})_")
+        print(f"  moved: {src.name} → {rel}")
+
+    # Write topic index files
+    for topic, items in sorted(warm_topics.items()):
+        topic_index = memory_dir / topic / "index.md"
+        lines = [f"# {topic} — Warm Memory", "",
+                 "Topic folder for memory files moved out of Hot index.",
+                 f"These files are loaded on-demand when {topic}-related work is active.",
+                 "", "## Files", ""]
+        for c in sorted(items, key=lambda x: x["file"]):
+            fn = c["file"]
+            existing = existing_entries.get(fn, {})
+            title = existing.get("title") or fn
+            desc = existing.get("description") or ""
+            if desc:
+                lines.append(f"- [{title}]({fn}) — {desc}")
+            else:
+                lines.append(f"- [{title}]({fn})")
+        lines.append("")
+        topic_index.write_text("\n".join(lines), encoding="utf-8")
+        print(f"  wrote index: {topic}/index.md ({len(items)} entries)")
+
+    # Rewrite MEMORY.md
+    def format_entry(c: dict, path_prefix: str = "") -> str:
+        fn = c["file"]
+        existing = existing_entries.get(fn, {})
+        title = existing.get("title") or fn
+        desc = existing.get("description") or ""
+        link_target = f"{path_prefix}{fn}" if path_prefix else fn
+        if desc:
+            return f"- [{title}]({link_target}) — {desc}"
+        return f"- [{title}]({link_target})"
+
+    new_lines: list[str] = ["# Memory Index", ""]
+    new_lines.append(f"_Last tiered: {today.isoformat()} ({len(hot)} Hot, "
+                     f"{sum(len(v) for v in warm_topics.values()) + len(warm_flat)} Warm, "
+                     f"{len(cold)} Cold → archive)_")
+    new_lines.append("")
+
+    new_lines.append(f"## Hot ({len(hot)}) — active, ≤{HOT_DAYS}d or pinned or trigger_count ≥ {HOT_TRIGGER_THRESHOLD}")
+    new_lines.append("")
+    # Sort Hot by last_triggered desc, mtime desc as tiebreak
+    def hot_sort_key(c):
+        lt = c.get("last_triggered") or c.get("mtime") or "1970-01-01"
+        return lt
+    for c in sorted(hot, key=hot_sort_key, reverse=True):
+        new_lines.append(format_entry(c))
+    new_lines.append("")
+
+    if warm_topics:
+        new_lines.append(f"## Warm — per-topic folders ({len(warm_topics)} topics, "
+                         f"{sum(len(v) for v in warm_topics.values())} files)")
+        new_lines.append("")
+        new_lines.append("Topic folders contain memory loaded on-demand. "
+                         "Main session only pulls when relevant. "
+                         "Click through to each folder's index.")
+        new_lines.append("")
+        for topic in sorted(warm_topics.keys()):
+            count = len(warm_topics[topic])
+            new_lines.append(f"- [{topic}/]({topic}/index.md) — {count} entries")
+        new_lines.append("")
+
+    if warm_flat:
+        new_lines.append(f"## Warm — flat ({len(warm_flat)}) — no topic match yet")
+        new_lines.append("")
+        for c in sorted(warm_flat, key=lambda x: x["file"]):
+            new_lines.append(format_entry(c))
+        new_lines.append("")
+
+    if cold:
+        new_lines.append(f"## Archived ({len(cold)}) — moved to `archive/`")
+        new_lines.append("")
+        new_lines.append("Deprecated entries removed from active index. "
+                         "See `archive/` for files and `.migration-log.md` for history.")
+        new_lines.append("")
+
+    # Preserve footer (Migrated to Company Handbook section)
+    if footer:
+        if new_lines and new_lines[-1] != "":
+            new_lines.append("")
+        new_lines.append(footer.rstrip())
+        new_lines.append("")
+
+    index_path.write_text("\n".join(new_lines), encoding="utf-8")
+    print(f"  rewrote: MEMORY.md ({len(new_lines)} lines)")
+
+    # Write migration log
+    log_path = memory_dir / ".migration-log.md"
+    existing_log = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
+    log_body = "\n".join(log_entries) + "\n"
+    log_path.write_text(existing_log + log_body + "\n", encoding="utf-8")
+    print("  appended: .migration-log.md")
+
+    print()
+    print(f"Migration complete: {len(moves)} moves, {len(hot)} Hot kept, "
+          f"{len(warm_topics)} topic folders created.")
+    print(f"Review: {index_path}")
+    print(f"       {log_path}")
+    return 0
+
+
+# --- Entry point ----------------------------------------------------------
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(
+        description="Memory Hot/Warm/Cold tiering helper (DP-015 Part B).")
+    parser.add_argument("mode", choices=["dry-run", "apply", "decay-scan"])
+    parser.add_argument("--memory-dir", type=Path, default=DEFAULT_MEMORY_DIR,
+                        help=f"Memory directory (default: {DEFAULT_MEMORY_DIR})")
+    parser.add_argument("--json", action="store_true",
+                        help="(dry-run) emit machine-readable JSON instead of markdown report")
+    parser.add_argument("--today", type=str, default=None,
+                        help="Override today's date (YYYY-MM-DD) for testing")
+    args = parser.parse_args(argv)
+
+    if not args.memory_dir.exists():
+        print(f"Error: memory dir {args.memory_dir} does not exist", file=sys.stderr)
+        return 2
+
+    today = (datetime.strptime(args.today, "%Y-%m-%d").date()
+             if args.today else date.today())
+
+    if args.mode == "dry-run":
+        return run_dry_run(args.memory_dir, today, args.json)
+    if args.mode == "decay-scan":
+        return run_decay_scan(args.memory_dir, today)
+    if args.mode == "apply":
+        return run_apply(args.memory_dir, today, sys.stdin)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

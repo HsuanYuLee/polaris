@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CHECKER="${ROOT_DIR}/scripts/check-script-manifest.sh"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+write_script() {
+  local path="$1"
+  mkdir -p "$(dirname "${path}")"
+  printf '#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n' >"${path}"
+  chmod +x "${path}"
+}
+
+write_manifest() {
+  local repo="$1"
+  local body="$2"
+  mkdir -p "${repo}/scripts"
+  printf '%s\n' "${body}" >"${repo}/scripts/manifest.json"
+}
+
+expect_pass() {
+  local name="$1"
+  local repo="$2"
+  if ! bash "${CHECKER}" --root "${repo}" --quiet; then
+    echo "FAIL: expected pass for ${name}" >&2
+    exit 1
+  fi
+}
+
+expect_fail() {
+  local name="$1"
+  local repo="$2"
+  if bash "${CHECKER}" --root "${repo}" --quiet >/tmp/check-script-manifest-selftest.out 2>&1; then
+    echo "FAIL: expected failure for ${name}" >&2
+    cat /tmp/check-script-manifest-selftest.out >&2
+    exit 1
+  fi
+}
+
+positive="${TMP_DIR}/positive"
+write_script "${positive}/scripts/good.sh"
+write_script "${positive}/scripts/good-selftest.sh"
+write_manifest "${positive}" '{
+  "version": 1,
+  "coverage": {"entrypoint_patterns": ["scripts/gates/*"]},
+  "scripts": [
+    {
+      "path": "scripts/good.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "selftest_fixture",
+      "selftest": "scripts/good-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/good-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_fixture",
+      "selftest": "N/A",
+      "selftest_reason": "selftest script",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    }
+  ]
+}'
+expect_pass "positive fixture" "${positive}"
+
+missing_target="${TMP_DIR}/missing-target"
+write_script "${missing_target}/scripts/good-selftest.sh"
+write_manifest "${missing_target}" '{
+  "version": 1,
+  "scripts": [
+    {
+      "path": "scripts/missing.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "selftest_fixture",
+      "selftest": "scripts/good-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/good-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_fixture",
+      "selftest": "N/A",
+      "selftest_reason": "selftest script",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    }
+  ]
+}'
+expect_fail "missing target" "${missing_target}"
+
+missing_row="${TMP_DIR}/missing-row"
+write_script "${missing_row}/scripts/good.sh"
+write_script "${missing_row}/scripts/unregistered.sh"
+write_manifest "${missing_row}" '{
+  "version": 1,
+  "scripts": [
+    {
+      "path": "scripts/good.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "selftest_fixture",
+      "selftest": "N/A",
+      "selftest_reason": "covered by positive fixture command",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    }
+  ]
+}'
+expect_fail "missing root manifest row" "${missing_row}"
+
+missing_selftest="${TMP_DIR}/missing-selftest"
+write_script "${missing_selftest}/scripts/good.sh"
+write_manifest "${missing_selftest}" '{
+  "version": 1,
+  "scripts": [
+    {
+      "path": "scripts/good.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "selftest_fixture",
+      "selftest": "scripts/nope-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    }
+  ]
+}'
+expect_fail "missing selftest target" "${missing_selftest}"
+
+invalid_enum="${TMP_DIR}/invalid-enum"
+write_script "${invalid_enum}/scripts/good.sh"
+write_manifest "${invalid_enum}" '{
+  "version": 1,
+  "scripts": [
+    {
+      "path": "scripts/good.sh",
+      "kind": "invalid",
+      "runner": "bash",
+      "owner_surface": "selftest_fixture",
+      "selftest": "N/A",
+      "selftest_reason": "covered by enum fixture",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    }
+  ]
+}'
+expect_fail "invalid enum" "${invalid_enum}"
+
+echo "check-script-manifest self-test PASS"

@@ -53,7 +53,24 @@ init_repo() {
     printf '3.75.8\n' > VERSION
     printf '# Changelog\n' > CHANGELOG.md
     printf 'base\n' > scripts/example-release.sh
-    git add VERSION CHANGELOG.md scripts/example-release.sh docs-manager
+    cat > scripts/manifest.json <<'JSON'
+{
+  "version": 1,
+  "scripts": [
+    {
+      "path": "scripts/example-release.sh",
+      "kind": "release",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "selftest_reason": "framework-release-pr-lane selftest fixture",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    }
+  ]
+}
+JSON
+    git add VERSION CHANGELOG.md scripts/example-release.sh scripts/manifest.json docs-manager
     git commit -q -m "base"
     git remote add origin "$REPO"
     git fetch -q origin main:refs/remotes/origin/main
@@ -214,7 +231,14 @@ git init -q -b main "$OVERLAY_REPO"
   cat > workspace-config.yaml <<'YAML'
 language: zh-TW
 YAML
-  git add workspace-config.yaml
+  mkdir -p scripts
+  cat > scripts/manifest.json <<'JSON'
+{
+  "version": 1,
+  "scripts": []
+}
+JSON
+  git add workspace-config.yaml scripts/manifest.json
   git commit -q -m "init"
 )
 

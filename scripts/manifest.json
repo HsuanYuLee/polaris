@@ -1,0 +1,2862 @@
+{
+  "$schema": "https://polaris.local/schemas/scripts-manifest.v1.json",
+  "version": 1,
+  "generated_at": "2026-05-10T00:00:00+08:00",
+  "description": "Polaris script ownership, runner, selftest, lifecycle, and relocation inventory. Excludes dependency/vendor folders such as node_modules.",
+  "coverage": {
+    "root_patterns": [
+      "scripts/*.{sh,py,mjs}"
+    ],
+    "entrypoint_patterns": [
+      "scripts/gates/*",
+      "scripts/env/*",
+      "scripts/e2e/*",
+      "scripts/mockoon/*"
+    ]
+  },
+  "enums": {
+    "kind": [
+      "gate",
+      "writer",
+      "resolver",
+      "release",
+      "selftest",
+      "support",
+      "legacy",
+      "debug"
+    ],
+    "runner": [
+      "bash",
+      "python3",
+      "node"
+    ],
+    "lifecycle": [
+      "hot_path",
+      "support_path",
+      "legacy_keep",
+      "sunset_candidate",
+      "sunset_ready"
+    ],
+    "relocation": [
+      "stay",
+      "move_with_wrapper",
+      "move_direct",
+      "delete_after_gate"
+    ]
+  },
+  "scripts": [
+    {
+      "path": "scripts/aggregate-release-lane-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/allocate-design-plan-number-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/allocate-design-plan-number.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/allocate-design-plan-number-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/archive-spec-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/archive-spec.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/archive-spec-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/backfill-refinement-predecessor-audit-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/backfill-refinement-predecessor-audit.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/backfill-refinement-predecessor-audit-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/cascade-rebase-chain.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/changeset-clean-inherited-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/changeset-clean-inherited.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/changeset-clean-inherited-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-base-fresh.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/check-carry-forward.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/check-consecutive-reads.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/check-delivery-completion-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/check-delivery-completion.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/check-delivery-completion-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-docs-sync-complete-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/check-docs-sync-complete.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/check-docs-sync-complete-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-feedback-signals.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/check-feedback-trigger-count.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/check-flow-gap-audit-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/check-flow-gap-audit.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/check-flow-gap-audit-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-local-extension-completion.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/check-main-chain-compliance-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/check-main-chain-compliance.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/check-main-chain-compliance-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-no-cd-in-bash.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/check-no-file-reread.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/check-no-independent-cmd-chaining.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/check-release-completed-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/check-release-completed.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "scripts/check-release-completed-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-release-eligible-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/check-release-eligible.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "scripts/check-release-eligible-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-scope-headers.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/check-scope.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/check-script-manifest-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/check-script-manifest.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/check-script-manifest-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-skills-mirror-mode.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/check-source-template-drift-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/check-source-template-drift.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/check-source-template-drift-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-sunset-broken-refs-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/check-sunset-broken-refs.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/check-sunset-broken-refs-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-sunset-candidates-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/check-sunset-candidates.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/check-sunset-candidates-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-verification-passed-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/check-verification-passed.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/check-verification-passed-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-version-bump-reminder.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/checkpoint-todo-diff.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/ci-contract-discover.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/ci-local-env-classify-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/ci-local-env-classify.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/ci-local-env-classify-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "posture_decision": "legacy review candidate disposition: keep for now; active support script used by scripts/ci-local-generate.sh and covered by ci-local-env-classify-selftest.sh."
+    },
+    {
+      "path": "scripts/ci-local-generate-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "github_workflow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/ci-local-generate.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "scripts/ci-local-generate-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/ci-local-run.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/close-parent-spec-if-complete.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/codex-guarded-bash.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/codex-guarded-gh-pr-create.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/codex-guarded-git-commit.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/codex-guarded-git-push.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/codex-mark-design-plan-implemented.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/collect-evidence-upload-bundle-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/collect-evidence-upload-bundle.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/collect-evidence-upload-bundle-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/compile-runtime-instructions.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/context-pressure-monitor.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/contract-check.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/create-branch.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/create-design-plan-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/create-design-plan.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/create-design-plan-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/cross-session-warm-scan-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/dedup-scan-sections.py",
+      "kind": "legacy",
+      "runner": "python3",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "sunset_candidate",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage",
+      "no_active_consumer_evidence": "Only historical/backlog/deprecation references found in seed scan; keep as sunset_candidate until a maintainer confirms removal authority.",
+      "posture_decision": "sunset_candidate; do not delete in DP-142-T1."
+    },
+    {
+      "path": "scripts/dedup-scan.py",
+      "kind": "legacy",
+      "runner": "python3",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "sunset_candidate",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage",
+      "no_active_consumer_evidence": "Only historical/backlog/deprecation references found in seed scan; keep as sunset_candidate until a maintainer confirms removal authority.",
+      "posture_decision": "sunset_candidate; do not delete in DP-142-T1."
+    },
+    {
+      "path": "scripts/design-plan-checklist-gate.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/detect-project-and-changes.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/dev-server-guard.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/distribute-static-evidence-selftest.mjs",
+      "kind": "selftest",
+      "runner": "node",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/distribute-static-evidence.mjs",
+      "kind": "support",
+      "runner": "node",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/distribute-static-evidence-selftest.mjs",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/e2e/e2e-verify.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/engineering-branch-setup.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/engineering-clean-worktree.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/engineering-rebase.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/env/_lib.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/env/ensure-dependencies.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/env/fixtures-start-soft-override-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/env/fixtures-start.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/env/health-check.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/env/install-project-deps.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/env/selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "github_workflow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/env/start-command.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/env/workspace-config-routing-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/finalize-engineering-delivery-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/finalize-engineering-delivery.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/finalize-engineering-delivery-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/framework-release-closeout-folder-native-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/framework-release-closeout-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/framework-release-closeout.sh",
+      "kind": "release",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "scripts/framework-release-closeout-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/framework-release-pr-lane-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/framework-release-pr-lane.sh",
+      "kind": "release",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "scripts/framework-release-pr-lane-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/gate-hook-adapter.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/gate-pr-body-template-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/gates/gate-artifact-schema.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/gates/gate-base-check.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/gates/gate-changeset.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/gates/gate-ci-local.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/gates/gate-commit-language-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/gates/gate-commit-language.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/gates/gate-commit-language-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/gates/gate-evidence.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/gates/gate-no-tracked-specs-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/gates/gate-no-tracked-specs.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/gates/gate-no-tracked-specs-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/gates/gate-pr-assignee.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/gates/gate-pr-body-template.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/gates/gate-pr-language-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/gates/gate-pr-language.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/gates/gate-pr-language-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/gates/gate-pr-title.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/gates/gate-revision-rebase-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/gates/gate-revision-rebase.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "scripts/gates/gate-revision-rebase-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/gates/gate-version-lint.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/gates/gate-work-source-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/gates/gate-work-source.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/gates/gate-work-source-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/generate-verify-report-selftest.mjs",
+      "kind": "selftest",
+      "runner": "node",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/generate-verify-report.mjs",
+      "kind": "support",
+      "runner": "node",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/generate-verify-report-selftest.mjs",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/github-rest-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/handbook-config-reader.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/handbook-config-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/handbook-config-validator.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/install-copilot-hooks-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/install-copilot-hooks.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/install-copilot-hooks-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/install-deps.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/jira-upload-attachment.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/lib/ci-local-path.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/lib/github-rest.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/lib/main-checkout.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/lib/polaris_toolchain_manifest.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/lib/specs-root.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/lib/verification-evidence.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/lib/workspace-config-root.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/local-extension-completion-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/mark-spec-implemented.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/measure-bootstrap-tokens-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/measure-bootstrap-tokens.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/measure-bootstrap-tokens-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/mechanism-parity.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/memory-hygiene-tiering.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "hook",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/migrate-spec-container-layout-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/migrate-spec-container-layout.mjs",
+      "kind": "support",
+      "runner": "node",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/migrate-spec-container-layout-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/migrate-spec-container-layout.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/migrate-spec-container-layout-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/mockoon/mockoon-runner.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/mockoon/visual-fixture-review.mjs",
+      "kind": "support",
+      "runner": "node",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/onboard-doctor-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/onboard-doctor.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/onboard-doctor-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/parse-task-md-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/parse-task-md.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/parse-task-md-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/pipeline-artifact-gate-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/pipeline-artifact-gate.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "scripts/pipeline-artifact-gate-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/polaris-changeset-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/polaris-changeset.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/polaris-changeset-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/polaris-codex-doctor.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/polaris-embed-setup.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/polaris-embed.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage",
+      "posture_decision": "legacy review candidate disposition: keep for now; active support script used by scripts/polaris-learnings.sh; setup helper owns dependency bootstrap."
+    },
+    {
+      "path": "scripts/polaris-env.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/polaris-external-write-gate-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/polaris-external-write-gate.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/polaris-external-write-gate-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/polaris-jira-transition-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/polaris-jira-transition.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/polaris-jira-transition-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/polaris-learnings.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/polaris-pr-create.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/polaris-timeline.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/polaris-toolchain-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/polaris-toolchain.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/polaris-toolchain-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/polaris-viewer.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "rule_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/post-skill-reflection.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/pr-action-classifier-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/pr-action-classifier.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/pr-action-classifier-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/pr-create-guard.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/pr-review-state-classifier-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/pr-review-state-classifier.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/pr-review-state-classifier-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/pr-review-thread-disposition-gate-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/pr-review-thread-disposition-gate.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/pr-review-thread-disposition-gate-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/pr-state-snapshot-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/pr-state-snapshot.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/pr-state-snapshot-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/publish-delivery-evidence.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/publish-jira-evidence-selftest.mjs",
+      "kind": "selftest",
+      "runner": "node",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/publish-jira-evidence.mjs",
+      "kind": "support",
+      "runner": "node",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/publish-jira-evidence-selftest.mjs",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/readme-lint.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "github_workflow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/refinement-handoff-gate-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/refinement-handoff-gate.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/refinement-handoff-gate-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/refinement-preview.py",
+      "kind": "legacy",
+      "runner": "python3",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "sunset_candidate",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage",
+      "no_active_consumer_evidence": "Only historical/backlog/deprecation references found in seed scan; keep as sunset_candidate until a maintainer confirms removal authority.",
+      "posture_decision": "sunset_candidate; do not delete in DP-142-T1."
+    },
+    {
+      "path": "scripts/resolve-branch-chain.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/resolve-company-context-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/resolve-company-context.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/resolve-company-context-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/resolve-pr-pickup-input-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/resolve-pr-pickup-input.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/resolve-pr-pickup-input-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/resolve-pr-work-source.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/resolve-refinement-template-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/resolve-refinement-template.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/resolve-refinement-template-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/resolve-release-surface-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/resolve-release-surface.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "scripts/resolve-release-surface-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/resolve-specs-root.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/resolve-task-base.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/resolve-task-branch.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/resolve-task-md-by-branch.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/resolve-task-md-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/resolve-task-md.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "scripts/resolve-task-md-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/resolve-workspace-overlay-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/resolve-workspace-overlay.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/resolve-workspace-overlay-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/revision-rebase-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/revision-rebase.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "scripts/revision-rebase-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/run-behavior-contract-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/run-behavior-contract.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/run-behavior-contract-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/run-verify-ac-vr-reporting-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/run-verify-command-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/run-verify-command.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "scripts/run-verify-command-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/run-visual-snapshot-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/run-visual-snapshot.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "scripts/run-visual-snapshot-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/run-vr-gate-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/safety-gate-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/safety-gate.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/safety-gate-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/scan-template-leaks-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/scan-template-leaks.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/scan-template-leaks-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/scan-user-data-leak.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/skill-progressive-disclosure-audit-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/skill-progressive-disclosure-audit.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/skill-progressive-disclosure-audit-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/skill-resource-ownership-audit-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/skill-resource-ownership-audit.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/skill-resource-ownership-audit-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/skill-routing-canary-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/skill-routing-canary.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/skill-routing-canary-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/skill-sanitizer.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/snapshot-scrub.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/stack-replay-manifest-check-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/stack-replay-manifest-check.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/stack-replay-manifest-check-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/start-test-env-company-routing-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/start-test-env.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/sync-codex-mcp.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/sync-from-polaris.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/sync-from-upstream.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/sync-skills-cross-runtime.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/sync-spec-sidebar-metadata-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/sync-spec-sidebar-metadata.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/sync-spec-sidebar-metadata-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/sync-to-polaris-clean-source-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/sync-to-polaris.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/sync-to-skills.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/test-sequence-tracker.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/transpile-rules-to-codex.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/transpile-to-copilot.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-bootstrap-budget-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-bootstrap-budget.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/validate-bootstrap-budget-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-breakdown-escalation-intake.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-breakdown-ready-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-breakdown-ready.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/validate-breakdown-ready-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-dispatch-bundle-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-dispatch-bundle.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/validate-dispatch-bundle-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-dp-metadata.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-dp-number-uniqueness.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-dp-plan-authoring-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-dp-plan-authoring.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/validate-dp-plan-authoring-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-escalation-sidecar.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-handbook-path-contract.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-l2-embedding.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-language-policy.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-memory-hygiene-plan-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-memory-hygiene-plan.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/validate-memory-hygiene-plan-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-model-tier-policy-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-model-tier-policy.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/validate-model-tier-policy-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-polaris-config-migration.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-polaris-toolchain-consumers.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-polaris-toolchain-manifest.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-public-onboarding-contract.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-refinement-inbox-record.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-refinement-json.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-route-safe-spec-paths.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-skill-contracts-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-skill-contracts.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/validate-skill-contracts-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-starlight-authoring-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-starlight-authoring.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/validate-starlight-authoring-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-task-md-deps-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-task-md-deps.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/validate-task-md-deps-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-task-md-vmode-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-task-md-vr-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-task-md.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/verification-evidence-gate-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/verification-evidence-gate.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/verification-evidence-gate-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/verify-cross-llm-parity.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/verify-docs-manager-direct-source.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/verify-docs-manager-runtime.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/verify-docs-viewer-runtime.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/verify-http.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/verify-refinement-convergence-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/verify-refinement-convergence.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/verify-refinement-convergence-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/write-ac-verification-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/write-ac-verification.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/write-ac-verification-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/write-deliverable.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/write-extension-deliverable.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/write-task-verify-report.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    }
+  ]
+}

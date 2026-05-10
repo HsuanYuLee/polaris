@@ -18,7 +18,7 @@
 #   - .claude/settings.local.json.example
 #   - .claude/settings.local.json.sub-repo-example
 #   - .github/copilot-instructions.md + .github/.generated/
-#   - scripts/**/*.sh and scripts/**/*.mjs (recursive, includes scripts/env/ subfolder)
+#   - scripts/**/*.sh, scripts/**/*.py, scripts/**/*.mjs, and scripts/manifest.json
 #   - _template/
 #   - docs-manager/ (framework docs browser app, excluding generated outputs)
 #   - CHANGELOG.md, VERSION, README.md, README.zh-TW.md, CLAUDE.md
@@ -437,7 +437,7 @@ while IFS= read -r script_file; do
   target_dir=$(dirname "$target_path")
   mkdir -p "$target_dir"
   copy_file "$script_file" "$target_path" "$rel_path"
-done < <(find "$INSTANCE_DIR/scripts" \( -name "*.sh" -o -name "*.mjs" \) -type f -not -path "*/node_modules/*" -not -path "*/e2e-results/*")
+done < <(find "$INSTANCE_DIR/scripts" \( -name "*.sh" -o -name "*.py" -o -name "*.mjs" -o -name "manifest.json" \) -type f -not -path "*/node_modules/*" -not -path "*/e2e-results/*")
 
 # ── Step 6: Sync _template/ ───────────────────────────────────────
 
@@ -570,7 +570,7 @@ if [[ "$PRUNE" == true ]]; then
       echo "  ✂ $rel_path"
       prune_count=$((prune_count + 1))
     fi
-  done < <(find "$POLARIS_DIR/scripts" \( -name "*.sh" -o -name "*.mjs" \) -type f -not -path "*/node_modules/*" 2>/dev/null)
+  done < <(find "$POLARIS_DIR/scripts" \( -name "*.sh" -o -name "*.py" -o -name "*.mjs" -o -name "manifest.json" \) -type f -not -path "*/node_modules/*" 2>/dev/null)
 
   # 8c-5b: Codex generated files — remove stale files in polaris/.codex/.generated
   if [[ -d "$POLARIS_DIR/.codex/.generated" ]]; then

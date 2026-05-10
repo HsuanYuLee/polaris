@@ -12,6 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_PATH="$(cd "${SCRIPT_DIR}/.." && pwd)"
 GITHUB_REST_LIB="${SCRIPT_DIR}/lib/github-rest.sh"
 VERSION_BUMP_CHECKER="${SCRIPT_DIR}/check-version-bump-reminder.sh"
+SCRIPT_MANIFEST_CHECKER="${SCRIPT_DIR}/check-script-manifest.sh"
 WORKSPACE_REPO=""
 MAIN_BRANCH="main"
 EXECUTE=0
@@ -146,6 +147,15 @@ run_version_bump_release_gate() {
     --repo "$REPO_PATH" || die "release preflight blocked: missing required VERSION bump"
 }
 
+run_script_manifest_release_gate() {
+  [[ -f "$SCRIPT_MANIFEST_CHECKER" ]] || die "missing checker: $SCRIPT_MANIFEST_CHECKER"
+  [[ -f "$REPO_PATH/scripts/manifest.json" ]] || die "release preflight blocked: missing scripts/manifest.json"
+
+  info "running script manifest release gate"
+  bash "$SCRIPT_MANIFEST_CHECKER" --root "$REPO_PATH" --quiet \
+    || die "release preflight blocked: script manifest drift"
+}
+
 resolve_task_mds_from_terminal() {
   [[ -n "$TERMINAL_TASK_MD" ]] || die "provide --task-md or --terminal-task-md"
   [[ -f "$TERMINAL_TASK_MD" ]] || die "terminal task.md not found: $TERMINAL_TASK_MD"
@@ -263,5 +273,6 @@ if [[ ${#TASK_MDS[@]} -eq 0 ]]; then
 fi
 
 run_version_bump_release_gate
+run_script_manifest_release_gate
 validate_and_plan
 echo "$PREFIX PASS"
