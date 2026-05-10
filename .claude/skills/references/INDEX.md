@@ -193,8 +193,6 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [learning-queue-flow.md](learning-queue-flow.md) | learning Queue mode 流程：Slack daily queue 讀取、condensed summary、detailed recommendation、archive 去重 | learning queue, daily learning, 讀文章 |
 | [learning-pr-batch-flow.md](learning-pr-batch-flow.md) | learning PR / Batch mode 流程：merged PR review lesson extraction、Layer 1 dedup、batch scan、handbook write | learning PR, batch learn, 掃 review, review lessons |
 | [learning-setup-flow.md](learning-setup-flow.md) | learning Setup mode 的每日學習 scanner 設定流程：workspace config 偵測、RemoteTrigger 建立、Slack connector 授權提示、test run | learning setup, daily learning scanner, RemoteTrigger |
-| [learning-queue.md](learning-queue.md) | 待閱讀技術文章清單（data file） | learning, daily-learning-scan |
-| [learning-archive.md](learning-archive.md) | 已處理 URL 去重 archive（data file） | daily-learning-scan, learning setup |
 
 ## Framework Meta
 

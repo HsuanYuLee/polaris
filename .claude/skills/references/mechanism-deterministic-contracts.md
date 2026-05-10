@@ -23,16 +23,10 @@ description: "由 Polaris validator、hook、wrapper、helper script 強制的 c
 | Source template convergence | DP / Epic shared refinement source contract, additive company/project template resolution, structured downstream handoff gap checks | `refinement-source-template.md`, `resolve-refinement-template.sh`, `check-source-template-drift.sh` | `deterministic` |
 | Flow gap audit | post-implementation bypass/fallback/false-pass/ignored-artifact audit before handoff | `check-flow-gap-audit.sh`, `engineer-delivery-flow.md` Step 3.2 | `deterministic` |
 | Main development chain compliance | refinement -> breakdown -> engineering -> verify-AC lineage, required callsites, active V*.md closeout blocking | `check-main-chain-compliance.sh`, `close-parent-spec-if-complete.sh`, `check-release-completed.sh`, `framework-release-closeout.sh` | `deterministic` |
+| Cleanup sunset inventory | reference / script / skill sunset posture classification, replacement authority evidence, active consumer scan | `check-sunset-candidates.sh`, `check-sunset-candidates-selftest.sh` | `deterministic` |
+| Cleanup broken-reference guard | post-removal active callsite scan, reference index link validation, runtime instruction graph check | `check-sunset-broken-refs.sh`, `check-sunset-broken-refs-selftest.sh`, `compile-runtime-instructions.sh --target agents --check` | `deterministic` |
 | Session and safety hooks | context pressure, cross-session warm scan, safety gate, no hooks in local settings | `deterministic-hooks-registry.md`, hook wrappers under `.claude/hooks/`, safety scripts under `scripts/` | `already_deterministic_reduce_audit` |
 | Model tier policy | raw provider model policy outside the central mapping, `.agents/skills` mirror drift | `validate-model-tier-policy.sh`, `check-skills-mirror-mode.sh`, `model-tier-policy.md` | `already_deterministic_reduce_audit` |
-
-## Script Candidates
-
-這些 row 還沒有完全 deterministic。在 validator 或 hook 正式接手 invariant 前，
-仍要留在 main registry 的 priority order。
-
-| Contract group | Covered invariants | Current source | Disposition |
-|----------------|--------------------|----------------|-------------|
 
 ## Audit Rule
 

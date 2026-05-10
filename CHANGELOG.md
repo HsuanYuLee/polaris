@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.31] - 2026-05-10
+
+### Added — Polaris cleanup sunset inventory
+
+- 新增 `check-sunset-candidates.sh` 與 selftest，為 reference / script / skill cleanup 產出 deterministic sunset ledger。
+- 將 cleanup sunset inventory 納入 deterministic mechanism registry，要求移除前先有 replacement authority 與 active consumer evidence。
+- 新增 `check-sunset-broken-refs.sh` 與 selftest，讓 cleanup removal 後可檢查 active callsite、reference index 與 runtime instruction graph 是否破壞。
+
+### Removed — one-off cleanup and migration helpers
+
+- 移除無 active consumer 的 one-off helpers：`backfill-behavior-contracts.sh`、`cleanup-duplicate-starlight-title.sh`、`dp033-migrate-tasks.sh`、`infer-starlight-descriptions.sh`、`migrate-design-plan-number.sh` 與對應 selftests。
+- 移除 deterministic registry 的空 `Script Candidates` placeholder，避免已升級完成的候選區塊持續留在 hot path。
+
 ## [3.75.30] - 2026-05-10
 
 ### Fixed — pr-release tasks in main-chain compliance
