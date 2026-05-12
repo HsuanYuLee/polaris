@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.42] - 2026-05-12
+
+### Fixed — PR review label governance
+
+- Added project-level `delivery.pr_review_label` config for required PR review labels.
+- Made PR creation apply the configured review label after auto-assignment.
+- Made delivery completion block required-label PRs when the configured review label is missing.
+- Documented the config contract and covered create/completion regressions in selftests.
+
 ## [3.75.41] - 2026-05-12
 
 ### Fixed — completion PR readiness gate

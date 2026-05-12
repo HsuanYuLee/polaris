@@ -1111,6 +1111,15 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/gates/gate-pr-review-label.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/check-delivery-completion-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/gates/gate-pr-body-template.sh",
       "kind": "gate",
       "runner": "bash",
@@ -1318,6 +1327,15 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/lib/pr-review-label.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/polaris-pr-create-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/lib/main-checkout.sh",

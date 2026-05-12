@@ -43,10 +43,19 @@ run_auto_assign_case() {
   local rc=0
 
   mkdir -p "$repo" "$mockbin"
-  cat > "$parent/workspace-config.yaml" <<'EOF'
+cat > "$parent/workspace-config.yaml" <<'EOF'
 language: zh-TW
 user:
   github_username: "cfg-user"
+projects:
+  - name: repo
+    repo: demo/example
+    delivery:
+      pr_review_label:
+        policy: required
+        labels:
+          - "👀 need review"
+          - ":eyes: need review"
 EOF
 
   git init -q -b main "$repo"
@@ -65,7 +74,7 @@ if [[ "\$1" == "pr" && "\$2" == "create" ]]; then
   exit 0
 fi
 if [[ "\$1" == "pr" && "\$2" == "edit" ]]; then
-  printf '%s\n' "\$*" > "$edit_args_file"
+  printf '%s\n' "\$*" >> "$edit_args_file"
   exit 0
 fi
 if [[ "\$1" == "api" && "\${2:-}" == "user" ]]; then
@@ -89,7 +98,9 @@ EOF
     printf '%s\n' "$out" >&2
   fi
   assert_contains "$label output" "$out" "PR assigned to cfg-user"
+  assert_contains "$label output label" "$out" "PR labeled '👀 need review'"
   assert_contains "$label edit-args" "$(cat "$edit_args_file")" "https://github.com/demo/example/pull/123 --add-assignee cfg-user"
+  assert_contains "$label edit-label" "$(cat "$edit_args_file")" "https://github.com/demo/example/pull/123 --add-label 👀 need review"
 }
 
 run_auto_assign_case

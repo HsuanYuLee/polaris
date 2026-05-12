@@ -202,6 +202,12 @@ language: zh-TW
 projects:
   - name: example
     repo: demo/example
+    delivery:
+      pr_review_label:
+        policy: required
+        labels:
+          - "👀 need review"
+          - ":eyes: need review"
 EOF
   cat > "$repo/.github/pull_request_template.md" <<'EOF'
 ## Description
@@ -235,6 +241,7 @@ install_mock_gh() {
   local threads_file="${7:-}"
   local assignee="${8:-polaris-selftest}"
   local merge_state="${9:-CLEAN}"
+  local review_label="${10:-👀 need review}"
 
   mkdir -p "$mockbin"
   if [[ -z "$comments_file" ]]; then
@@ -266,6 +273,10 @@ EOF
   if [[ "$assignee" != "none" ]]; then
     assignees_json="[{\"login\":\"$assignee\"}]"
   fi
+  local labels_json='[]'
+  if [[ "$review_label" != "none" ]]; then
+    labels_json="[{\"name\":\"$review_label\"}]"
+  fi
 
   cat > "$mockbin/gh" <<EOF
 #!/usr/bin/env bash
@@ -280,6 +291,7 @@ print(json.dumps({
     "assignees": $assignees_json,
     "body": body,
     "isDraft": $python_draft,
+    "labels": $labels_json,
     "mergeStateStatus": "$merge_state",
     "number": 1,
     "reviewDecision": "REVIEW_REQUIRED",
@@ -300,7 +312,7 @@ if [[ "\$1" == "api" ]]; then
   if [[ "\$2" == "repos/demo/example/issues/1" ]]; then
     python3 - <<'PY'
 import json
-print(json.dumps({"assignees": $assignees_json}))
+print(json.dumps({"assignees": $assignees_json, "labels": $labels_json}))
 PY
     exit 0
   fi
@@ -312,6 +324,7 @@ from pathlib import Path
 body = Path("$body_file").read_text(encoding="utf-8")
 print(json.dumps({
     "assignees": $assignees_json,
+    "labels": $labels_json,
     "number": 1,
     "title": "Fixture PR",
     "body": body,
@@ -538,6 +551,52 @@ EOF
 }
 
 run_assignee_case
+
+run_review_label_case() {
+  local label="missing-review-label-blocks"
+  local repo="$TMPROOT/$label/repo"
+  local mockbin="$TMPROOT/$label/bin"
+  local body_file="$TMPROOT/$label/body.md"
+  mkdir -p "$(dirname "$repo")"
+  setup_repo "$repo"
+  local head_sha
+  head_sha="$(git -C "$repo" rev-parse HEAD)"
+  write_task "$repo" "$head_sha"
+  write_task_verify_report "$repo" "$repo" "$head_sha"
+
+  cat > "$body_file" <<'EOF'
+## Description
+
+這是 completion gate selftest 內容。
+
+## Changed
+
+- 補齊 completion gate 檢查。
+
+## Screenshots (Test Plan)
+
+- 已執行 selftest。
+
+## Related documents
+
+- DP-999
+
+## QA notes
+
+- N/A
+EOF
+  install_mock_gh "$mockbin" "$body_file" "OPEN" "false" "$head_sha" "" "" "polaris-selftest" "CLEAN" "none"
+
+  set +e
+  out="$(POLARIS_SKIP_CI_LOCAL=1 POLARIS_SKIP_EVIDENCE=1 POLARIS_SKIP_PR_TITLE_GATE=1 POLARIS_SKIP_CHANGESET_GATE=1 PATH="$mockbin:$PATH" "$CHECK" --repo "$repo" --ticket DP-999-T1 2>&1)"
+  rc=$?
+  set -e
+
+  assert_rc "$label rc" "$rc" "2"
+  assert_contains "$label message" "$out" "configured review label is missing"
+}
+
+run_review_label_case
 
 run_behind_case() {
   local label="behind-merge-state-blocks"

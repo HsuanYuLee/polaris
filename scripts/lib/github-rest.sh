@@ -96,6 +96,14 @@ assignees = [
     for item in (data.get("assignees") or [])
     if isinstance(item, dict)
 ]
+raw_labels = data.get("labels")
+labels = None
+if isinstance(raw_labels, list):
+    labels = [
+        {"name": str(item.get("name") or "")}
+        for item in raw_labels
+        if isinstance(item, dict)
+    ]
 
 print(json.dumps({
     "number": data.get("number"),
@@ -103,6 +111,7 @@ print(json.dumps({
     "body": data.get("body") or "",
     "author": {"login": user.get("login") or ""},
     "assignees": assignees,
+    "labels": labels,
     "state": state,
     "url": data.get("html_url") or "",
     "isDraft": bool(data.get("draft")),

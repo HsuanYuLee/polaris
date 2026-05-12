@@ -17,6 +17,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GATES_DIR="$SCRIPT_DIR/gates"
+REVIEW_LABEL_LIB="$SCRIPT_DIR/lib/pr-review-label.sh"
 
 PREFIX="[polaris-pr-create]"
 REPO_PATH=""
@@ -24,6 +25,11 @@ SKIP_GATES="${POLARIS_SKIP_PR_GATES:-0}"
 AGGREGATE_RELEASE=0
 DRY_RUN=0
 GH_ARGS=()
+
+if [[ -f "$REVIEW_LABEL_LIB" ]]; then
+  # shellcheck source=lib/pr-review-label.sh
+  . "$REVIEW_LABEL_LIB"
+fi
 
 usage() {
   cat <<EOF
@@ -219,6 +225,9 @@ create_pr_and_assign() {
   pr_ref="$(grep -Eo 'https://github\.com/[^[:space:]]+/pull/[0-9]+' "$output_file" | head -n 1 || true)"
   rm -f "$output_file"
   auto_assign_pr "$pr_ref" "$policy" "$assignee"
+  if declare -F polaris_pr_review_label_add >/dev/null 2>&1; then
+    polaris_pr_review_label_add "$REPO_PATH" "$pr_ref" "$PREFIX"
+  fi
 }
 
 # --- Detect forbidden PR modes ---

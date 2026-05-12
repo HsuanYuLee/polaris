@@ -361,6 +361,7 @@ check_deliverable_pr_remote_truth() {
   local pr_is_draft=""
   local pr_head_oid=""
   local pr_assignee_gate="${SCRIPT_DIR}/gates/gate-pr-assignee.sh"
+  local pr_review_label_gate="${SCRIPT_DIR}/gates/gate-pr-review-label.sh"
 
   pr_url="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field deliverable_pr_url)"
   if [[ -z "$pr_url" ]]; then
@@ -387,7 +388,7 @@ check_deliverable_pr_remote_truth() {
   if declare -F polaris_pr_view_rest >/dev/null 2>&1; then
     polaris_pr_view_rest "$gh_repo" "$pr_number" >"$pr_json" 2>/dev/null || true
   fi
-  if [[ ! -s "$pr_json" ]] && ! gh pr view "$pr_number" --repo "$gh_repo" --json assignees,body,isDraft,mergeStateStatus,number,reviewDecision,state,url,headRefName,headRefOid,baseRefName >"$pr_json"; then
+  if [[ ! -s "$pr_json" ]] && ! gh pr view "$pr_number" --repo "$gh_repo" --json assignees,body,isDraft,labels,mergeStateStatus,number,reviewDecision,state,url,headRefName,headRefOid,baseRefName >"$pr_json"; then
     echo "$PREFIX PR readiness check failed: unable to read GitHub PR metadata for ${pr_url}" >&2
     exit 2
   fi
@@ -417,6 +418,9 @@ check_deliverable_pr_remote_truth() {
   check_pr_shared_lineage_readiness "$task_md_path" "$pr_json" "$pr_url"
   if [[ -f "$pr_assignee_gate" ]]; then
     bash "$pr_assignee_gate" --repo "$REPO_ROOT" --gh-repo "$gh_repo" --pr-number "$pr_number" --pr-json "$pr_json"
+  fi
+  if [[ -f "$pr_review_label_gate" ]]; then
+    bash "$pr_review_label_gate" --repo "$REPO_ROOT" --gh-repo "$gh_repo" --pr-number "$pr_number" --pr-json "$pr_json"
   fi
 
   local publication_ticket="$TICKET"
