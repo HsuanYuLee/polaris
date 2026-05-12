@@ -157,6 +157,7 @@ verification:
     target_url: "/zh-tw/product/12156"
     viewport: mobile
     flow: "open media lightbox, swipe next, close"
+    flow_script: "scripts/behavior-flows/media-lightbox-carousel.sh"
     assertions:
       - "modal visible"
       - "counter changes after swipe"
@@ -180,6 +181,11 @@ verification:
 - `applies=true` 時，`source_of_truth` required；enum：`existing_behavior` / `figma` / `pm_flow` / `spec`。
 - `applies=true` 時，`fixture_policy` required；enum：`mockoon_required` / `live_allowed` / `static_only`。
 - `applies=true` 時，`flow` required 且不可空白；`assertions` required 且必須是非空 YAML list。
+- `fixture_policy=mockoon_required` 時，`flow_script`（或相容欄位 `script_path` /
+  `playwright_script`）required；mockoon-required task 不可只描述 flow 而沒有可執行入口。
+- `fixture_policy=mockoon_required` 時，`Runtime verify target` 與 `target_url` 若使用
+  http/https URL，必須是 localhost / loopback / docker-service 等 fixture-backed target；
+  不可指向 `dev.*` / public remote live page。
 - `viewport` optional；若存在，必須是 `mobile` / `desktop` / `responsive`。
 - `baseline_ref`、`target_url` optional；若存在，必須是非空字串。
 - `allowed_differences` optional；若存在，必須是 YAML list。`mode=hybrid` 時必須非空。
@@ -534,6 +540,12 @@ DP-065 Verify Command static smoke 會在 validation 階段檢查可靜態證明
 3. Fallback：`npx vitest run`
 
 Monorepo 指令必須能從該 repo / worktree root 執行，並包含正確子目錄；例如 `pnpm --dir {app_dir} exec vitest run` 只適用於 repo root 下確實存在 `{app_dir}` 的專案，不能作為所有 task.md 的固定範例。
+
+Producer 不得把 clean base 已知會失敗的 repo-wide / app-wide command 寫成 READY
+task 的唯一 hard `Test Command`。若解析到的 workspace/project default test command 在
+resolved base 已因 unrelated baseline issue 失敗，breakdown 必須改用 task-owned targeted
+test command，或把 baseline/env decision 明確記錄為 blocker / fallback；不可把 clean-base
+紅燈交給 engineering 到 delivery 階段才發現。
 
 ```markdown
 ## Test Command

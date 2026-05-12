@@ -163,6 +163,11 @@ viewport="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("view
 flow="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("flow",""))' "$contract_json")"
 flow_script="$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("flow_script") or d.get("script_path") or d.get("playwright_script") or "")' "$contract_json")"
 
+if [[ "$fixture_policy" == "mockoon_required" && -z "$flow_script" ]]; then
+  echo "$PREFIX behavior_contract.flow_script is required when fixture_policy=mockoon_required" >&2
+  exit 1
+fi
+
 if [[ -z "$flow_script" && "$flow" == */* ]]; then
   flow_script="$flow"
 fi

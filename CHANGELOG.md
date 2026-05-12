@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.37] - 2026-05-12
+
+### Fixed — mockoon-required behavior contract gate
+
+- Hardened `verification.behavior_contract.fixture_policy: mockoon_required` so task validation rejects missing `flow_script` and remote live runtime targets before engineering delivery.
+- Made the behavior runner fail early when a mockoon-required task has no executable flow script contract.
+- Exposed behavior contract fields through `parse-task-md.sh` and covered the validator / runner regressions in selftests.
+- Documented that breakdown must not package a READY task with a clean-base-red repo-wide Test Command as the only hard test gate.
+
 ## [3.75.36] - 2026-05-10
 
 ### Changed — skill-local script ownership cleanup

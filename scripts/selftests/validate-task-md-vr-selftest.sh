@@ -182,11 +182,17 @@ write_task "$behavior_parity" 'verification:
     target_url: "/zh-tw/product/12156"
     viewport: mobile
     flow: "open media lightbox, swipe next, close"
+    flow_script: "scripts/behavior-flows/media-lightbox-carousel.sh"
     assertions:
       - "modal visible"
       - "counter changes after swipe"
     allowed_differences: []' "runtime" "http://127.0.0.1:3100" "bash scripts/start-test-env.sh"
 expect_pass "behavior-parity" "$behavior_parity"
+behavior_flow_script="$(bash "$PARSER" "$behavior_parity" --no-resolve --field verification_behavior_contract_flow_script)"
+if [[ "$behavior_flow_script" != "scripts/behavior-flows/media-lightbox-carousel.sh" ]]; then
+  echo "FAIL: parser behavior flow_script field mismatch: $behavior_flow_script"
+  exit 1
+fi
 
 behavior_visual_target="$tmpdir/T1-behavior-visual-target.md"
 write_task "$behavior_visual_target" 'verification:
@@ -196,6 +202,7 @@ write_task "$behavior_visual_target" 'verification:
     source_of_truth: figma
     fixture_policy: mockoon_required
     flow: "open target screen and compare against design"
+    flow_script: "scripts/behavior-flows/target-screen.sh"
     assertions: ["target screen visible"]' "runtime" "http://127.0.0.1:3100" "bash scripts/start-test-env.sh"
 expect_pass "behavior-visual-target" "$behavior_visual_target"
 
@@ -219,6 +226,7 @@ write_task "$behavior_hybrid" 'verification:
     source_of_truth: spec
     fixture_policy: mockoon_required
     flow: "open media lightbox, swipe next, close"
+    flow_script: "scripts/behavior-flows/media-lightbox-carousel.sh"
     assertions:
       - "modal visible"
     allowed_differences:
@@ -233,6 +241,7 @@ write_task "$behavior_unknown" 'verification:
     source_of_truth: existing_behavior
     fixture_policy: mockoon_required
     flow: "open media lightbox"
+    flow_script: "scripts/behavior-flows/media-lightbox-carousel.sh"
     assertions:
       - "modal visible"' "runtime" "http://127.0.0.1:3100" "bash scripts/start-test-env.sh"
 expect_fail_contains "behavior-unknown" "$behavior_unknown" "verification.behavior_contract.mode"
@@ -244,6 +253,7 @@ write_task "$behavior_missing_source" 'verification:
     mode: parity
     fixture_policy: mockoon_required
     flow: "open media lightbox"
+    flow_script: "scripts/behavior-flows/media-lightbox-carousel.sh"
     assertions:
       - "modal visible"' "runtime" "http://127.0.0.1:3100" "bash scripts/start-test-env.sh"
 expect_fail_contains "behavior-missing-source" "$behavior_missing_source" "verification.behavior_contract.source_of_truth"
@@ -256,10 +266,37 @@ write_task "$behavior_hybrid_no_diff" 'verification:
     source_of_truth: spec
     fixture_policy: mockoon_required
     flow: "open media lightbox"
+    flow_script: "scripts/behavior-flows/media-lightbox-carousel.sh"
     assertions:
       - "modal visible"
     allowed_differences: []' "runtime" "http://127.0.0.1:3100" "bash scripts/start-test-env.sh"
 expect_fail_contains "behavior-hybrid-no-diff" "$behavior_hybrid_no_diff" "verification.behavior_contract.allowed_differences"
+
+behavior_mockoon_missing_flow_script="$tmpdir/T1-behavior-mockoon-missing-flow-script.md"
+write_task "$behavior_mockoon_missing_flow_script" 'verification:
+  behavior_contract:
+    applies: true
+    mode: parity
+    source_of_truth: existing_behavior
+    fixture_policy: mockoon_required
+    flow: "open media lightbox"
+    assertions:
+      - "modal visible"' "runtime" "http://127.0.0.1:3100" "bash scripts/start-test-env.sh"
+expect_fail_contains "behavior-mockoon-missing-flow-script" "$behavior_mockoon_missing_flow_script" "verification.behavior_contract.flow_script"
+
+behavior_mockoon_remote_runtime="$tmpdir/T1-behavior-mockoon-remote-runtime.md"
+write_task "$behavior_mockoon_remote_runtime" 'verification:
+  behavior_contract:
+    applies: true
+    mode: parity
+    source_of_truth: existing_behavior
+    fixture_policy: mockoon_required
+    target_url: "https://dev.kkday.com/zh-tw/product/12156"
+    flow: "open media lightbox"
+    flow_script: "scripts/behavior-flows/media-lightbox-carousel.sh"
+    assertions:
+      - "modal visible"' "runtime" "https://dev.kkday.com/zh-tw/product/12156" "bash scripts/start-test-env.sh"
+expect_fail_contains "behavior-mockoon-remote-runtime" "$behavior_mockoon_remote_runtime" "mockoon_required cannot use a remote live"
 
 behavior_false_missing_reason="$tmpdir/T1-behavior-false-missing-reason.md"
 write_task "$behavior_false_missing_reason" 'verification:

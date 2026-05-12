@@ -420,6 +420,9 @@ if not isinstance(verification_block, dict):
 visual_regression_block = verification_block.get("visual_regression")
 if not isinstance(visual_regression_block, dict):
     visual_regression_block = {}
+behavior_contract_block = verification_block.get("behavior_contract")
+if not isinstance(behavior_contract_block, dict):
+    behavior_contract_block = {}
 
 vr_expected = visual_regression_block.get("expected")
 if not isinstance(vr_expected, str) or vr_expected.strip() in NA_SENTINELS:
@@ -437,7 +440,8 @@ verification = {
     "visual_regression": {
         "expected": vr_expected,
         "pages": vr_pages,
-    }
+    },
+    "behavior_contract": behavior_contract_block,
 }
 
 
@@ -552,6 +556,10 @@ aliases = {
     "env_bootstrap_command":   ["test_environment", "env_bootstrap_command"],
     "verification_visual_regression_expected": ["verification", "visual_regression", "expected"],
     "verification_visual_regression_pages":    ["verification", "visual_regression", "pages"],
+    "verification_behavior_contract_applies":  ["verification", "behavior_contract", "applies"],
+    "verification_behavior_contract_mode":     ["verification", "behavior_contract", "mode"],
+    "verification_behavior_contract_fixture_policy": ["verification", "behavior_contract", "fixture_policy"],
+    "verification_behavior_contract_flow_script": ["verification", "behavior_contract", "flow_script"],
     "test_command":            ["test_command"],
     "verify_command":          ["verify_command"],
     "verify_fallback_command": ["verify_fallback_command"],

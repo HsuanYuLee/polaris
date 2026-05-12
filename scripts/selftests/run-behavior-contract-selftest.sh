@@ -178,4 +178,10 @@ printf '{"ticket":"DP-109-T4","head_sha":"%s","writer":"run-verify-command.sh","
   >"/tmp/polaris-verified-DP-109-T4-${head_hybrid}.json"
 expect_fail "gate-missing-behavior" bash "$ROOT/scripts/gates/gate-evidence.sh" --repo "$repo_drift" --ticket DP-109-T4 --task-md "$task_gate_block"
 
+task_missing_flow_script="$WORKDIR/T1-missing-flow-script.md"
+write_task "$task_missing_flow_script" "$(basename "$repo_drift")" "DP-109-T5" "parity" "HEAD~1" "[]"
+sed -i.bak '/flow_script:/d' "$task_missing_flow_script"
+rm -f "$task_missing_flow_script.bak"
+expect_fail "mockoon-missing-flow-script" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_missing_flow_script" --mode baseline --repo "$repo_drift" --ticket DP-109-T5
+
 echo "PASS: behavior contract runner selftest"

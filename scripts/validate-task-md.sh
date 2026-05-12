@@ -446,6 +446,7 @@ validate_behavior_contract_frontmatter() {
 import csv
 import re
 import sys
+from urllib.parse import urlparse
 
 path = sys.argv[1]
 try:
@@ -539,9 +540,40 @@ def extract_behavior_contract(fm_lines):
 def is_nonempty_string(value):
     return isinstance(value, str) and value.strip() != ""
 
+def first_runtime_verify_target(all_lines):
+    for raw in all_lines:
+        stripped = raw.strip()
+        match = re.match(r"^(?:-\s*)?\*\*Runtime verify target\*\*:\s*(.+?)\s*$", stripped)
+        if match:
+            value = match.group(1).strip().strip("`").strip()
+            return value
+    return ""
+
+def is_remote_live_url(value):
+    if not is_nonempty_string(value):
+        return False
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return False
+    if host in {"localhost", "0.0.0.0", "::1"}:
+        return False
+    if host.startswith("127."):
+        return False
+    if host.endswith(".localhost"):
+        return False
+    # Single-label hosts are commonly docker-compose service names for local
+    # replay targets (for example "mockoon"). Dotted public hosts are remote.
+    if "." not in host:
+        return False
+    return True
+
 full_text = "\n".join(lines)
 lower_text = full_text.lower()
 lower_path = path.lower()
+runtime_verify_target = first_runtime_verify_target(lines)
 
 def is_framework_static_context():
     if "/design-plans/" in lower_path:
@@ -596,12 +628,20 @@ else:
         fixture_policy = bc.get("fixture_policy")
         if fixture_policy not in {"mockoon_required", "live_allowed", "static_only"}:
             errors.append("frontmatter verification.behavior_contract.fixture_policy must be mockoon_required, live_allowed, or static_only")
+        elif fixture_policy == "mockoon_required":
+            flow_script = bc.get("flow_script") or bc.get("script_path") or bc.get("playwright_script")
+            if not is_nonempty_string(flow_script):
+                errors.append("frontmatter verification.behavior_contract.flow_script is required when fixture_policy=mockoon_required")
+            if is_remote_live_url(runtime_verify_target):
+                errors.append("frontmatter verification.behavior_contract.fixture_policy=mockoon_required cannot use a remote live Runtime verify target")
 
         if "baseline_ref" in bc and not is_nonempty_string(bc.get("baseline_ref")):
             errors.append("frontmatter verification.behavior_contract.baseline_ref must be a non-empty string when present")
 
         if "target_url" in bc and not is_nonempty_string(bc.get("target_url")):
             errors.append("frontmatter verification.behavior_contract.target_url must be a non-empty string when present")
+        elif fixture_policy == "mockoon_required" and is_remote_live_url(bc.get("target_url")):
+            errors.append("frontmatter verification.behavior_contract.fixture_policy=mockoon_required cannot use a remote live target_url")
 
         viewport = bc.get("viewport")
         if viewport is not None and viewport not in {"mobile", "desktop", "responsive"}:
