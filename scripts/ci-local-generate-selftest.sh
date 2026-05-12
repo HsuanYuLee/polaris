@@ -637,6 +637,85 @@ assert_contains "Test 11: records coverage path" /tmp/ci-local-test11-evidence.o
 rm -f "$T11_EVIDENCE" /tmp/ci-local-test11.out /tmp/ci-local-test11-evidence.out
 
 # ============================================================================
+echo "== Test 11c: Codecov prefers flag coverage-final branch data over lcov =="
+# ============================================================================
+T11C="$TMPROOT/codecov-v8-branch-partial"
+mkdir -p "$T11C/src" "$T11C/coverage/unit"
+cat > "$T11C/codecov.yml" <<'YAML'
+flag_management:
+  individual_flags:
+    - name: unit
+      paths: [src/]
+      statuses:
+        - type: patch
+          target: 60%
+YAML
+init_git_repo "$T11C"
+git -C "$T11C" branch -M develop
+cat > "$T11C/src/foo.ts" <<'TS'
+export const base = 1;
+TS
+git -C "$T11C" add .
+git -C "$T11C" -c user.email=t@t -c user.name=t commit -q -m "develop base"
+git -C "$T11C" update-ref refs/remotes/origin/develop HEAD
+git -C "$T11C" checkout -q -b task/v8-branch-partial
+cat >> "$T11C/src/foo.ts" <<'TS'
+export const branchy = flag ? 1 : 2;
+export const covered = 3;
+TS
+git -C "$T11C" add .
+git -C "$T11C" -c user.email=t@t -c user.name=t commit -q -m "task change"
+cat > "$T11C/coverage/unit/lcov.info" <<'LCOV'
+TN:
+SF:src/foo.ts
+DA:1,1
+DA:2,1
+DA:3,1
+end_of_record
+LCOV
+cat > "$T11C/coverage/unit/coverage-final.json" <<'JSON'
+{
+  "src/foo.ts": {
+    "statementMap": {
+      "0": { "start": { "line": 2 }, "end": { "line": 2 } },
+      "1": { "start": { "line": 3 }, "end": { "line": 3 } }
+    },
+    "s": { "0": 1, "1": 1 },
+    "branchMap": {
+      "0": { "loc": { "start": { "line": 2 } } }
+    },
+    "b": { "0": [1, 0] }
+  }
+}
+JSON
+OUT11C="$(ci_local_path_for_repo "$T11C")"
+"$GEN" --repo "$T11C" --out "$OUT11C" --force >/dev/null 2>&1
+assert "Test 11c: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+bash -n "$OUT11C" 2>/dev/null
+assert "Test 11c: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+
+set +e
+(cd "$T11C" && bash "$OUT11C" --repo "$T11C" --base-branch develop >/tmp/ci-local-test11c.out 2>&1)
+T11C_RC=$?
+set -e
+assert "Test 11c: run exits non-zero when V8 branch data fails patch" "$([ $T11C_RC -ne 0 ] && echo 1 || echo 0)"
+T11C_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+python3 - "$T11C_EVIDENCE" <<'PY' >/tmp/ci-local-test11c-evidence.out
+import json, sys
+d=json.load(open(sys.argv[1]))
+g=[x for x in d["codecov_results"] if x.get("status_type")=="patch"][0]
+print(d["status"])
+print(g["status"])
+print(g.get("coverage_source"))
+print(g.get("coverage_percent"))
+PY
+assert_contains "Test 11c: evidence status FAIL" /tmp/ci-local-test11c-evidence.out "FAIL"
+assert_contains "Test 11c: codecov status FAIL" /tmp/ci-local-test11c-evidence.out "FAIL"
+assert_contains "Test 11c: uses v8 source" /tmp/ci-local-test11c-evidence.out "v8"
+assert_contains "Test 11c: branch partial coverage is 50" /tmp/ci-local-test11c-evidence.out "50.0"
+rm -f "$T11C_EVIDENCE" /tmp/ci-local-test11c.out /tmp/ci-local-test11c-evidence.out
+
+# ============================================================================
 echo "== Test 11b: Codecov path mismatch without coverage data still fails =="
 # ============================================================================
 T11B="$TMPROOT/codecov-path-mismatch-empty"

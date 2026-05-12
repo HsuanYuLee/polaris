@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.40] - 2026-05-12
+
+### Fixed — ci-local Codecov branch coverage parity
+
+- Made generated `ci-local.sh` prefer each flag's `coverage-final.json` over lcov when available, so local patch coverage accounts for partial branch coverage like Codecov.
+- Recorded the coverage source in ci-local evidence and added a regression selftest for flag-specific V8 coverage reports.
+
 ## [3.75.39] - 2026-05-12
 
 ### Fixed — template leak cleanup
