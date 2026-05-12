@@ -4,6 +4,23 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.39] - 2026-05-12
+
+### Fixed — template leak cleanup
+
+- Removed company-specific ticket wording from the v3.75.38 changelog entry so framework release sync can pass template leak checks.
+- Replaced a company-specific remote URL in the task metadata validator selftest fixture with a generic `example.invalid` URL.
+
+## [3.75.38] - 2026-05-12
+
+### Fixed — PR gate parity hardening
+
+- Made `codex-guarded-gh-pr-create.sh` delegate to `polaris-pr-create.sh`, so Codex PR fallback uses the complete PR gate set instead of a partial preflight followed by bare `gh pr create`.
+- Added `--dry-run` support to `polaris-pr-create.sh` for full-gate parity selftests without creating a PR.
+- Extended cross-LLM parity checks to fail if the Codex PR fallback directly executes bare `gh pr create`, and kept the fixture specs local-only.
+- Corrected the deterministic hooks registry to describe the active portable gate / wrapper contract instead of removed Claude PreToolUse shims.
+- Hardened breakdown readiness checks for moment/dayjs migration packaging gaps.
+
 ## [3.75.37] - 2026-05-12
 
 ### Fixed — mockoon-required behavior contract gate

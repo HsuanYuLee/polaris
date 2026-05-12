@@ -291,11 +291,11 @@ write_task "$behavior_mockoon_remote_runtime" 'verification:
     mode: parity
     source_of_truth: existing_behavior
     fixture_policy: mockoon_required
-    target_url: "https://dev.kkday.com/zh-tw/product/12156"
+    target_url: "https://example.invalid/product/12156"
     flow: "open media lightbox"
     flow_script: "scripts/behavior-flows/media-lightbox-carousel.sh"
     assertions:
-      - "modal visible"' "runtime" "https://dev.kkday.com/zh-tw/product/12156" "bash scripts/start-test-env.sh"
+      - "modal visible"' "runtime" "https://example.invalid/product/12156" "bash scripts/start-test-env.sh"
 expect_fail_contains "behavior-mockoon-remote-runtime" "$behavior_mockoon_remote_runtime" "mockoon_required cannot use a remote live"
 
 behavior_false_missing_reason="$tmpdir/T1-behavior-false-missing-reason.md"

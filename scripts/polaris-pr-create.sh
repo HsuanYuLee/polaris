@@ -6,7 +6,7 @@ set -euo pipefail
 # Runs base-check + evidence + ci-local + PR metadata gates before PR creation.
 #
 # Usage:
-#   bash scripts/polaris-pr-create.sh [--repo <path>] [--skip-gates] [--aggregate-release] -- <gh pr create args...>
+#   bash scripts/polaris-pr-create.sh [--repo <path>] [--skip-gates] [--dry-run] [--aggregate-release] -- <gh pr create args...>
 #   bash scripts/polaris-pr-create.sh --base develop --title "feat: X" --body "..."
 #
 # All unrecognized flags are passed through to `gh pr create`.
@@ -22,17 +22,19 @@ PREFIX="[polaris-pr-create]"
 REPO_PATH=""
 SKIP_GATES="${POLARIS_SKIP_PR_GATES:-0}"
 AGGREGATE_RELEASE=0
+DRY_RUN=0
 GH_ARGS=()
 
 usage() {
   cat <<EOF
-Usage: polaris-pr-create.sh [--repo <path>] [--skip-gates] [--aggregate-release] [--] <gh pr create args...>
+Usage: polaris-pr-create.sh [--repo <path>] [--skip-gates] [--dry-run] [--aggregate-release] [--] <gh pr create args...>
 
 Wrapper for 'gh pr create' that runs pre-flight gates before PR creation.
 
 Options:
   --repo <path>     Repository path (default: cwd)
   --skip-gates      Skip non-source gates only; work-source gate still runs
+  --dry-run         Run gates but do not create the PR
   --aggregate-release
                      Treat this as an explicit framework aggregate release PR
   -h, --help        Show this help
@@ -49,6 +51,7 @@ while [[ $# -gt 0 ]]; do
     --repo)          REPO_PATH="$2"; shift 2 ;;
     --repo=*)        REPO_PATH="${1#--repo=}"; shift ;;
     --skip-gates)    SKIP_GATES=1; shift ;;
+    --dry-run)       DRY_RUN=1; shift ;;
     --aggregate-release) AGGREGATE_RELEASE=1; shift ;;
     --)              shift; GH_ARGS+=("$@"); break ;;
     *)               GH_ARGS+=("$1"); shift ;;
@@ -95,13 +98,15 @@ for (( i=0; i<${#GH_ARGS[@]}; i++ )); do
 done
 
 # --- Detect forbidden PR modes ---
-for arg in "${GH_ARGS[@]}"; do
-  if [[ "$arg" == "--draft" ]]; then
-    echo "$PREFIX ✗ BLOCKED: draft PR creation is blocked in Polaris delivery flows."
-    echo "$PREFIX Create a normal PR backed by a legal work source; document blockers in the PR body if needed."
-    exit 2
-  fi
-done
+if (( ${#GH_ARGS[@]} > 0 )); then
+  for arg in "${GH_ARGS[@]}"; do
+    if [[ "$arg" == "--draft" ]]; then
+      echo "$PREFIX ✗ BLOCKED: draft PR creation is blocked in Polaris delivery flows."
+      echo "$PREFIX Create a normal PR backed by a legal work source; document blockers in the PR body if needed."
+      exit 2
+    fi
+  done
+fi
 
 # --- Detect non-ticket branch (skip legacy evidence gate only after source gate) ---
 CURRENT_BRANCH="$(git -C "$REPO_PATH" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
@@ -138,6 +143,10 @@ run_gate gate-work-source.sh --repo "$REPO_PATH"
 # --- Skip non-source gates ---
 if [[ "$SKIP_GATES" == "1" ]]; then
   echo "$PREFIX ⚠ --skip-gates: non-source gates bypassed; source gate already passed"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    echo "$PREFIX DRY_RUN: PR creation skipped"
+    exit 0
+  fi
   exec gh pr create "${GH_ARGS[@]}"
 fi
 
@@ -194,4 +203,8 @@ if [[ "$IS_TICKET_BRANCH" -eq 1 ]]; then
 fi
 
 echo "$PREFIX All gates passed — creating PR..."
+if [[ "$DRY_RUN" == "1" ]]; then
+  echo "$PREFIX DRY_RUN: PR creation skipped"
+  exit 0
+fi
 exec gh pr create "${GH_ARGS[@]}"

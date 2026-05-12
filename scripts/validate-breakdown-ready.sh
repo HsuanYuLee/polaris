@@ -23,11 +23,15 @@ Validates task.md readiness before breakdown hands work to engineering:
 - folder-native task directories are scanned (T*/index.md)
 - Gate Closure Matrix is present and names scope/test/verify/ci-local gates
 - Gate rows expose pass conditions and ownership/decisions
+- package graph changes include lockfile scope, or explicitly avoid package graph
+- executable test runners are not declared as static/N/A bootstrap gates
+- source migration Verify Command does not use broad substring grep that catches
+  cross-scope API names/comments instead of direct library usage
 EOF
 }
 
 run_self_test() {
-  local tasks valid invalid invalid_matrix missing_scope missing_allowed missing_surface folder_valid local_specs_only
+  local tasks valid invalid invalid_matrix missing_scope missing_allowed missing_surface folder_valid local_specs_only static_runner package_graph_no_lock broad_migration_grep
   SELFTEST_TMP="$(mktemp -d -t validate-breakdown-ready.XXXXXX)"
   trap 'rm -rf "${SELFTEST_TMP:-}"' EXIT
   tasks="$SELFTEST_TMP/tasks"
@@ -41,6 +45,9 @@ run_self_test() {
   mkdir -p "$tasks/T7"
   folder_valid="$tasks/T7/index.md"
   local_specs_only="$tasks/T8.md"
+  static_runner="$tasks/T9.md"
+  package_graph_no_lock="$tasks/T10.md"
+  broad_migration_grep="$tasks/T11.md"
 
   cat > "$valid" <<'MD'
 ---
@@ -221,6 +228,34 @@ echo verify
 ```
 MD
 
+  sed \
+    -e 's/echo test/pnpm --dir apps\/main exec vitest run helpers\/date.test.ts/' \
+    -e 's/| test | yes | selftest pass | breakdown |/| test | yes | vitest exits 0 | breakdown |/' \
+    -e 's/`bash scripts\/validate-breakdown-ready.sh --self-test`/`pnpm --dir apps\/main exec vitest run helpers\/date.test.ts`/' \
+    "$valid" > "$static_runner"
+
+  sed \
+    -e '/^- `VERSION`$/d' \
+    -e '/^- `scripts\/validate-breakdown-ready-selftest.sh`$/a\
+- `apps/main/package.json`\
+- `pnpm-workspace.yaml`' \
+    -e 's/version bump is part of release metadata/dayjs dependency graph is declared for apps\/main/' \
+    -e 's/`VERSION`/`apps\/main\/package.json`, `pnpm-workspace.yaml`/' \
+    -e 's/release metadata/repo package graph/' \
+    -e 's/`bash scripts\/gates\/gate-version-lint.sh --repo \/tmp\/repo`/source grep + package graph check/' \
+    "$valid" > "$package_graph_no_lock"
+
+  sed \
+    -e '/## Verify Command/,$d' \
+    "$valid" > "$broad_migration_grep"
+  cat >> "$broad_migration_grep" <<'MD'
+## Verify Command
+
+```bash
+! rg -n 'moment-timezone|moment' apps/main/pages/product
+```
+MD
+
   bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$valid" >/dev/null || {
     echo "self-test failed: valid task did not pass" >&2
     return 1
@@ -251,6 +286,18 @@ MD
   }
   if bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$local_specs_only" >/dev/null 2>&1; then
     echo "self-test failed: DP task targeting only local spec/sample artifacts passed" >&2
+    return 1
+  fi
+  if bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$static_runner" >/dev/null 2>&1; then
+    echo "self-test failed: executable test runner with Level=static/bootstrap=N/A passed" >&2
+    return 1
+  fi
+  if bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$package_graph_no_lock" >/dev/null 2>&1; then
+    echo "self-test failed: package graph change without lockfile scope passed" >&2
+    return 1
+  fi
+  if bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$broad_migration_grep" >/dev/null 2>&1; then
+    echo "self-test failed: broad source migration moment grep passed" >&2
     return 1
   fi
   echo "validate-breakdown-ready self-test PASS"
@@ -454,6 +501,27 @@ RENDER_API_PATTERNS = (
     "page",
 )
 
+PACKAGE_GRAPH_HINTS = (
+    "dependency",
+    "dependencies",
+    "devdependency",
+    "devdependencies",
+    "package graph",
+    "catalog",
+    "lockfile",
+    "套件",
+    "依賴",
+)
+
+TEST_RUNNER_RE = re.compile(
+    r"("
+    r"\b(?:pnpm|npm|yarn|bun)\b[^\n]*(?:\b(?:test|vitest|jest|build|nuxt|playwright|cypress)\b)"
+    r"|"
+    r"\b(?:vitest|jest|nuxt|playwright|cypress)\b"
+    r")",
+    re.IGNORECASE,
+)
+
 
 def needs_render_surface(*values: str) -> bool:
     combined = " ".join(values).lower()
@@ -469,6 +537,88 @@ def needs_render_surface(*values: str) -> bool:
 def has_render_api_surface(owning_files: list[str], surface: str) -> bool:
     combined = " ".join([surface, *owning_files]).lower()
     return any(pattern in combined for pattern in RENDER_API_PATTERNS)
+
+
+def first_fenced_code(markdown: str) -> str:
+    match = re.search(r"```[^\n]*\n(.*?)\n```", markdown, re.DOTALL)
+    return match.group(1).strip() if match else ""
+
+
+def test_environment_field(text: str, label: str) -> str:
+    env = section(text, "## Test Environment")
+    pattern = re.compile(
+        rf"^\s*(?:-\s*)?\*\*{re.escape(label)}\*\*:\s*(.*?)\s*$",
+        re.IGNORECASE | re.MULTILINE,
+    )
+    match = pattern.search(env)
+    return match.group(1).strip() if match else ""
+
+
+def is_na(value: str) -> bool:
+    return value.strip().lower() in {"", "n/a", "na", "-", "--", "none"}
+
+
+def allowed_contains(allowed: list[str], token: str) -> bool:
+    return any(normalize_path_token(entry) == token for entry in allowed)
+
+
+def validate_package_graph_scope(file: Path, text: str, allowed: list[str]) -> list[str]:
+    errors: list[str] = []
+    normalized_allowed = [normalize_path_token(entry) for entry in allowed]
+    touches_pnpm_catalog = "pnpm-workspace.yaml" in normalized_allowed
+    touches_package_json = any(entry.endswith("package.json") for entry in normalized_allowed)
+    mentions_package_graph = any(hint in text.lower() for hint in PACKAGE_GRAPH_HINTS)
+
+    if (touches_pnpm_catalog or (touches_package_json and mentions_package_graph)) and not allowed_contains(allowed, "pnpm-lock.yaml"):
+        errors.append(
+            f"{file}: package graph/dependency scope changes require `pnpm-lock.yaml` in Allowed Files, or a documented non-pnpm/no-lockfile decision before READY"
+        )
+
+    return errors
+
+
+def validate_test_environment_consistency(file: Path, text: str) -> list[str]:
+    errors: list[str] = []
+    test_command = first_fenced_code(section(text, "## Test Command"))
+    if not test_command or not TEST_RUNNER_RE.search(test_command):
+        return errors
+
+    level = test_environment_field(text, "Level").lower()
+    bootstrap = test_environment_field(text, "Env bootstrap command")
+    if level == "static":
+        errors.append(
+            f"{file}: Test Command runs a test/build runner but Test Environment Level=static; declare build/runtime or route baseline/env decision before READY"
+        )
+    if is_na(bootstrap):
+        errors.append(
+            f"{file}: Test Command runs a test/build runner but Env bootstrap command is N/A; declare install/bootstrap or route baseline/env decision before READY"
+        )
+
+    return errors
+
+
+def validate_verify_command_specificity(file: Path, text: str) -> list[str]:
+    errors: list[str] = []
+    verify_command = first_fenced_code(section(text, "## Verify Command"))
+    if not verify_command:
+        return errors
+
+    has_broad_moment_grep = bool(
+        re.search(
+            r"rg\b[^\n]*(['\"])(?:moment-timezone\|moment|moment\|moment-timezone)\1",
+            verify_command,
+        )
+    )
+    scans_source = bool(re.search(r"\bapps/main/(?!package\.json)", verify_command))
+    scans_dependency_or_bundle = bool(
+        re.search(r"\b(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.output/|node_modules/moment|/moment@|moment/min|moment/locale)\b", verify_command)
+    )
+    if has_broad_moment_grep and scans_source and not scans_dependency_or_bundle:
+        errors.append(
+            f"{file}: Verify Command uses broad `moment-timezone|moment` source grep; use a direct library usage/import pattern so cross-scope prop names/comments do not force out-of-scope edits"
+        )
+
+    return errors
 
 
 def validate_scope_trace(file: Path, text: str, allowed: list[str]) -> list[str]:
@@ -570,6 +720,9 @@ def validate_one(file: Path) -> list[str]:
             )
 
     errors.extend(validate_scope_trace(file, text, allowed))
+    errors.extend(validate_package_graph_scope(file, text, allowed))
+    errors.extend(validate_test_environment_consistency(file, text))
+    errors.extend(validate_verify_command_specificity(file, text))
 
     matrix = section(text, "## Gate Closure Matrix")
     if not matrix.strip():

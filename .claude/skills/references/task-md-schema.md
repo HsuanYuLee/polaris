@@ -444,7 +444,7 @@ Bullet list 格式：
 | `Dev env config` | **Soft** | optional | optional | required（指向 workspace-config 的 dev_environment block） |
 | `Fixtures` | **Hard** | `N/A` | `N/A` | path（須存在於檔案系統 — DP-025 `validate-task-md-deps.sh` enforce）或 `N/A` |
 | `Runtime verify target` | **Hard** | `N/A` | `N/A` | live URL（http/https，必填） |
-| `Env bootstrap command` | **Hard** | `N/A` | `N/A` | shell command（必填） |
+| `Env bootstrap command` | **Hard** | `N/A` | `N/A` or shell command | shell command（必填） |
 
 **Runtime cross-field rules**（`Level=runtime` 時）：
 
@@ -455,7 +455,11 @@ Bullet list 格式：
 5. docs-manager runtime task 必須把 `Runtime verify target` 和 Verify Command URL 寫到 `/docs-manager/` app path；bare origin（例如 `http://127.0.0.1:8080`）會被視為 invalid。若未來其他 app 有不同 base path，必須放在可測 contract/registry，不可只寫 prose。
 6. `Fixtures` 若非 `N/A`，path 必須存在（resolve 順序：epic_dir → company_base_dir → workspace_root）
 
-**Static / build 規則**：`Runtime verify target` / `Env bootstrap command` 預期 = `N/A`；若非 N/A → fail（避免假性宣告）。
+**Static 規則**：`Runtime verify target` / `Env bootstrap command` 預期 = `N/A`；若非 N/A → fail（避免假性宣告）。
+
+**Build 規則**：`Runtime verify target` 預期 = `N/A`；`Env bootstrap command` 可為 `N/A` 或
+install/build setup command。若 `Test Command` 執行 test/build runner，breakdown readiness
+gate 會要求非 `N/A` bootstrap，避免把 repo dependency setup 留給 engineering 猜測。
 
 ### 3.4 `## Allowed Files`
 
@@ -745,7 +749,8 @@ V mode **完全共用** T mode 的 Test Environment 規則（§ 3.3 整節適用
 
 - Level enum (`static` / `build` / `runtime`)
 - Runtime cross-field rules（`Runtime verify target` http/https URL + `Env bootstrap command` 必填 + `Verify Command` URL host alignment — 對 V 來說是 `## 驗收步驟` 內 fenced block 的 URL）
-- Static / build 規則（`Runtime verify target` / `Env bootstrap command` 必須 `N/A`）
+- Static 規則（`Runtime verify target` / `Env bootstrap command` 必須 `N/A`）
+- Build 規則（`Runtime verify target` 必須 `N/A`；runner 類 Test Command 需由 breakdown readiness 要求 bootstrap）
 - `Fixtures:` 路徑存在性（DP-025，由 `validate-task-md-deps.sh` enforce）
 
 verify-AC 與 engineering 共用 Epic 內的 fixtures / dev environment / runtime verify target — 不重複定義。

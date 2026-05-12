@@ -1138,8 +1138,8 @@ print(urlparse(sys.argv[1]).path or '/')
           fi
         fi
 
-      elif [[ "$level" == "static" || "$level" == "build" ]]; then
-        # --- Level=static|build: Runtime verify target + Env bootstrap must be N/A ---
+      elif [[ "$level" == "static" ]]; then
+        # --- Level=static: Runtime verify target + Env bootstrap must be N/A ---
         local t_val b_val
         t_val=$(printf '%s' "${target:-}" | sed -E 's/^`|`$//g' | xargs 2>/dev/null || true)
         b_val=$(printf '%s' "${bootstrap:-}" | xargs 2>/dev/null || true)
@@ -1148,6 +1148,13 @@ print(urlparse(sys.argv[1]).path or '/')
         fi
         if [[ -n "$b_val" && "$b_val" != "N/A" && "$b_val" != "n/a" ]]; then
           errors+=("Level=$level expects Env bootstrap command = N/A (got: '$b_val') — avoid false declarations")
+        fi
+      elif [[ "$level" == "build" ]]; then
+        # --- Level=build: Runtime verify target must be N/A; Env bootstrap may be N/A or an install/build setup command. ---
+        local t_val
+        t_val=$(printf '%s' "${target:-}" | sed -E 's/^`|`$//g' | xargs 2>/dev/null || true)
+        if [[ -n "$t_val" && "$t_val" != "N/A" && "$t_val" != "n/a" ]]; then
+          errors+=("Level=$level expects Runtime verify target = N/A (got: '$t_val') — build gates should not declare live endpoints")
         fi
       fi
     fi

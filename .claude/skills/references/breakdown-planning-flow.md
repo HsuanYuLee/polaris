@@ -82,6 +82,22 @@ Step 8 preview 前，每張 task 必須有：
 Repo-wide baseline/env drift 沒 owner 時，新增 prerequisite / wait / baseline decision
 或 route refinement；不得把必失敗 task 標 READY。
 
+Breakdown READY 前必須由 `validate-breakdown-ready.sh` 機械化擋下兩類常見
+constructability leak：
+
+- package graph / dependency / catalog 改動必須把對應 lockfile 納入 Allowed Files，或在
+  planning decision 明確說明此 repo 無 lockfile / 非 pnpm graph。
+- `Test Command` 若執行 test/build runner（例如 pnpm test、Vitest、Jest、Nuxt、
+  Playwright、Cypress），`Test Environment` 不可宣告為 `Level: static` 且
+  `Env bootstrap command: N/A`；若 baseline 無法證明可啟動，必須先 route wait /
+  baseline approval / refinement，不得 handoff engineering。
+- library migration 類 task 的 source-scope Verify Command 不可使用 broad substring
+  grep（例如直接 `rg 'moment-timezone|moment' apps/main/...`）。必須掃「直接 library
+  usage / import / require / namespace call」的 pattern，避免 cross-scope API prop name、
+  文件註解或待後續 task 負責的相容介面迫使 engineering 超出 Allowed Files。package /
+  lockfile / final bundle cleanup task 可使用 dependency/bundle substring grep，但 scope
+  必須明確指向 package graph 或 build output。
+
 Behavior contract 決策來源：
 
 - 改造、替換、migration、refactor 類需求，預設是前後行為不變，使用 `parity`。

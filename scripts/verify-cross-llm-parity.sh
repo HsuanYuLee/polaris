@@ -125,7 +125,9 @@ true
 ```
 MD
   echo "# parity fixture" > "$fixture/README.md"
-  git -C "$fixture" add workspace-config.yaml README.md "$dp_dir/tasks/T1/index.md"
+  # task.md is intentionally left untracked: docs-manager specs are local
+  # planning/execution artifacts, and PR creation must reject tracked specs.
+  git -C "$fixture" add workspace-config.yaml README.md
   git -C "$fixture" commit -qm "fixture"
   printf '%s\n' "$fixture"
 }
@@ -173,6 +175,11 @@ test -x "$SCRIPT_DIR/codex-guarded-git-push.sh"
 test -x "$SCRIPT_DIR/codex-guarded-bash.sh"
 test -x "$SCRIPT_DIR/codex-mark-design-plan-implemented.sh"
 test -x "$SCRIPT_DIR/close-parent-spec-if-complete.sh"
+grep -q 'polaris-pr-create.sh' "$SCRIPT_DIR/codex-guarded-gh-pr-create.sh"
+if grep -qE 'exec[[:space:]]+gh[[:space:]]+pr[[:space:]]+create' "$SCRIPT_DIR/codex-guarded-gh-pr-create.sh"; then
+  echo "FAIL: Codex PR fallback must delegate to polaris-pr-create.sh, not exec bare gh pr create" >&2
+  exit 1
+fi
 bash "$SCRIPT_DIR/codex-guarded-git-commit.sh" --dry-run >/dev/null
 bash "$SCRIPT_DIR/codex-guarded-git-push.sh" --dry-run >/dev/null
 bash "$SCRIPT_DIR/codex-guarded-bash.sh" --dry-run -- "echo parity-smoke" >/dev/null
