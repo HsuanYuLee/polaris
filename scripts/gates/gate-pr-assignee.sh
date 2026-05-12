@@ -119,14 +119,14 @@ else:
         )
         payload = json.loads(raw)
     except Exception:
-        print("WARN metadata unavailable", file=sys.stderr)
-        raise SystemExit(0)
+        print("BLOCKED: assignee metadata unavailable", file=sys.stderr)
+        raise SystemExit(3)
     names = names_from_payload(payload)
     source = "issues-api"
 
 if names is None:
-    print("WARN assignee metadata unreadable", file=sys.stderr)
-    raise SystemExit(0)
+    print("BLOCKED: assignee metadata unreadable", file=sys.stderr)
+    raise SystemExit(3)
 
 names = [name for name in names if name]
 if not names:
@@ -146,8 +146,9 @@ if [[ "$status" -eq 2 ]]; then
 fi
 
 if [[ "$status" -ne 0 ]]; then
-  echo "$PREFIX WARN: unable to confirm assignee metadata for ${GH_REPO}#${PR_NUMBER}; continuing without blocking." >&2
-  exit 0
+  echo "$PREFIX BLOCKED: unable to confirm final PR assignee metadata for ${GH_REPO}#${PR_NUMBER}" >&2
+  echo "$PREFIX Policy is framework-enforced (required). Re-run after GitHub metadata is readable." >&2
+  exit 2
 fi
 
 echo "$PREFIX ✅ assignee metadata present for ${GH_REPO}#${PR_NUMBER}" >&2

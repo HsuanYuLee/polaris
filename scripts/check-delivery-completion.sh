@@ -282,6 +282,72 @@ check_pr_review_thread_dispositions() {
   fi
 }
 
+check_pr_shared_lineage_readiness() {
+  local task_md_path="$1"
+  local pr_json="$2"
+  local pr_url="$3"
+  local snapshot_file=""
+  local base_ref_name=""
+  local head_ref_name=""
+  local base_freshness=""
+  local mergeability=""
+  local pr_type=""
+
+  base_ref_name="$(json_field "$pr_json" baseRefName || true)"
+  head_ref_name="$(json_field "$pr_json" headRefName || true)"
+  if [[ -n "$base_ref_name" ]]; then
+    git -C "$REPO_ROOT" fetch origin "$base_ref_name" --quiet >/dev/null 2>&1 || true
+  fi
+  if [[ -n "$head_ref_name" ]]; then
+    git -C "$REPO_ROOT" fetch origin "$head_ref_name" --quiet >/dev/null 2>&1 || true
+  fi
+
+  snapshot_file="$(mktemp -t polaris-pr-readiness.XXXXXX.json)"
+  if ! bash "${SCRIPT_DIR}/pr-state-snapshot.sh" \
+    --repo "$REPO_ROOT" \
+    --task-md "$task_md_path" \
+    --pr-json "$pr_json" \
+    --intent mutable \
+    >"$snapshot_file"; then
+    echo "$PREFIX PR shared readiness check failed: unable to build PR state snapshot for ${pr_url}" >&2
+    rm -f "$snapshot_file"
+    exit 2
+  fi
+
+  base_freshness="$(json_field "$snapshot_file" base_freshness || true)"
+  mergeability="$(json_field "$snapshot_file" mergeability || true)"
+  pr_type="$(python3 - "$snapshot_file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as f:
+    data = json.load(f)
+print((data.get("resolver") or {}).get("pr_type") or "")
+PY
+)"
+
+  if [[ "$base_freshness" == "stale_downstream" ]]; then
+    echo "$PREFIX PR shared readiness check failed: ${pr_url} is stale relative to its authoritative base." >&2
+    echo "$PREFIX pr_type=${pr_type:-unknown} base_freshness=${base_freshness}; rebase before claiming completion." >&2
+    rm -f "$snapshot_file"
+    exit 2
+  fi
+
+  case "$mergeability" in
+    clean)
+      ;;
+    conflict|blocked|unknown|"")
+      echo "$PREFIX PR shared readiness check failed: ${pr_url} mergeability is ${mergeability:-unknown}." >&2
+      echo "$PREFIX Rebase or wait for GitHub mergeability to become clean before claiming completion." >&2
+      rm -f "$snapshot_file"
+      exit 2
+      ;;
+  esac
+
+  rm -f "$snapshot_file"
+  echo "$PREFIX PR shared readiness passed for ${pr_url} (base_freshness=${base_freshness}, mergeability=${mergeability})." >&2
+}
+
 check_deliverable_pr_remote_truth() {
   local task_md_path="$1"
   local deliverable_head_sha="$2"
@@ -321,7 +387,7 @@ check_deliverable_pr_remote_truth() {
   if declare -F polaris_pr_view_rest >/dev/null 2>&1; then
     polaris_pr_view_rest "$gh_repo" "$pr_number" >"$pr_json" 2>/dev/null || true
   fi
-  if [[ ! -s "$pr_json" ]] && ! gh pr view "$pr_number" --repo "$gh_repo" --json body,isDraft,state,url,headRefName,headRefOid,baseRefName >"$pr_json"; then
+  if [[ ! -s "$pr_json" ]] && ! gh pr view "$pr_number" --repo "$gh_repo" --json assignees,body,isDraft,mergeStateStatus,number,reviewDecision,state,url,headRefName,headRefOid,baseRefName >"$pr_json"; then
     echo "$PREFIX PR readiness check failed: unable to read GitHub PR metadata for ${pr_url}" >&2
     exit 2
   fi
@@ -348,6 +414,7 @@ check_deliverable_pr_remote_truth() {
 
   bash "${SCRIPT_DIR}/gates/gate-pr-body-template.sh" --repo "$REPO_ROOT" --body-file "$pr_body_file"
   bash "${SCRIPT_DIR}/gates/gate-pr-language.sh" --repo "$REPO_ROOT" --body-file "$pr_body_file"
+  check_pr_shared_lineage_readiness "$task_md_path" "$pr_json" "$pr_url"
   if [[ -f "$pr_assignee_gate" ]]; then
     bash "$pr_assignee_gate" --repo "$REPO_ROOT" --gh-repo "$gh_repo" --pr-number "$pr_number" --pr-json "$pr_json"
   fi

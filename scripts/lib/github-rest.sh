@@ -91,18 +91,26 @@ if state == "CLOSED" and data.get("merged_at"):
 head = data.get("head") or {}
 base = data.get("base") or {}
 user = data.get("user") or {}
+assignees = [
+    {"login": str(item.get("login") or "")}
+    for item in (data.get("assignees") or [])
+    if isinstance(item, dict)
+]
 
 print(json.dumps({
     "number": data.get("number"),
     "title": data.get("title") or "",
     "body": data.get("body") or "",
     "author": {"login": user.get("login") or ""},
+    "assignees": assignees,
     "state": state,
     "url": data.get("html_url") or "",
     "isDraft": bool(data.get("draft")),
     "headRefName": head.get("ref") or "",
     "headRefOid": head.get("sha") or "",
     "baseRefName": base.get("ref") or "",
+    "mergeStateStatus": data.get("mergeStateStatus") or data.get("mergeable_state") or data.get("mergeable") or "",
+    "reviewDecision": data.get("reviewDecision") or data.get("review_decision") or "",
 }, separators=(",", ":")))
 '
 }

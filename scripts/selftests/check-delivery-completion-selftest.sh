@@ -233,6 +233,8 @@ install_mock_gh() {
   local head_sha="$5"
   local comments_file="${6:-}"
   local threads_file="${7:-}"
+  local assignee="${8:-polaris-selftest}"
+  local merge_state="${9:-CLEAN}"
 
   mkdir -p "$mockbin"
   if [[ -z "$comments_file" ]]; then
@@ -260,6 +262,10 @@ EOF
   fi
   local rest_state
   rest_state="$(printf '%s' "$state" | tr '[:upper:]' '[:lower:]')"
+  local assignees_json='[]'
+  if [[ "$assignee" != "none" ]]; then
+    assignees_json="[{\"login\":\"$assignee\"}]"
+  fi
 
   cat > "$mockbin/gh" <<EOF
 #!/usr/bin/env bash
@@ -271,8 +277,12 @@ from pathlib import Path
 
 body = Path("$body_file").read_text(encoding="utf-8")
 print(json.dumps({
+    "assignees": $assignees_json,
     "body": body,
     "isDraft": $python_draft,
+    "mergeStateStatus": "$merge_state",
+    "number": 1,
+    "reviewDecision": "REVIEW_REQUIRED",
     "state": "$state",
     "url": "https://github.com/demo/example/pull/1",
     "headRefName": "task/DP-999-T1-completion-gate-fixture",
@@ -287,6 +297,13 @@ if [[ "\$1" == "api" ]]; then
     cat "$threads_file"
     exit 0
   fi
+  if [[ "\$2" == "repos/demo/example/issues/1" ]]; then
+    python3 - <<'PY'
+import json
+print(json.dumps({"assignees": $assignees_json}))
+PY
+    exit 0
+  fi
   if [[ "\$2" == "repos/demo/example/pulls/1" ]]; then
     python3 - <<'PY'
 import json
@@ -294,6 +311,7 @@ from pathlib import Path
 
 body = Path("$body_file").read_text(encoding="utf-8")
 print(json.dumps({
+    "assignees": $assignees_json,
     "number": 1,
     "title": "Fixture PR",
     "body": body,
@@ -305,6 +323,7 @@ print(json.dumps({
         "sha": "$head_sha"
     },
     "base": {"ref": "main"},
+    "mergeable_state": "$merge_state",
     "user": {"login": "polaris-selftest"}
 }))
 PY
@@ -473,6 +492,98 @@ run_case "closed-blocks" "CLOSED" "false" "valid" "2" "deliverable PR must be OP
 run_case "invalid-body-blocks" "OPEN" "false" "invalid" "2" "does not preserve repo template headings"
 run_case "english-body-blocks" "OPEN" "false" "english" "2" "PR text violates workspace language policy"
 run_case "ready-pr-passes" "OPEN" "false" "valid" "0" "PR readiness/body/language/evidence publication/review-thread gates passed"
+
+run_assignee_case() {
+  local label="missing-assignee-blocks"
+  local repo="$TMPROOT/$label/repo"
+  local mockbin="$TMPROOT/$label/bin"
+  local body_file="$TMPROOT/$label/body.md"
+  mkdir -p "$(dirname "$repo")"
+  setup_repo "$repo"
+  local head_sha
+  head_sha="$(git -C "$repo" rev-parse HEAD)"
+  write_task "$repo" "$head_sha"
+  write_task_verify_report "$repo" "$repo" "$head_sha"
+
+  cat > "$body_file" <<'EOF'
+## Description
+
+這是 completion gate selftest 內容。
+
+## Changed
+
+- 補齊 completion gate 檢查。
+
+## Screenshots (Test Plan)
+
+- 已執行 selftest。
+
+## Related documents
+
+- DP-999
+
+## QA notes
+
+- N/A
+EOF
+  install_mock_gh "$mockbin" "$body_file" "OPEN" "false" "$head_sha" "" "" "none"
+
+  set +e
+  out="$(POLARIS_SKIP_CI_LOCAL=1 POLARIS_SKIP_EVIDENCE=1 POLARIS_SKIP_PR_TITLE_GATE=1 POLARIS_SKIP_CHANGESET_GATE=1 PATH="$mockbin:$PATH" "$CHECK" --repo "$repo" --ticket DP-999-T1 2>&1)"
+  rc=$?
+  set -e
+
+  assert_rc "$label rc" "$rc" "2"
+  assert_contains "$label message" "$out" "final PR assignee metadata is empty"
+}
+
+run_assignee_case
+
+run_behind_case() {
+  local label="behind-merge-state-blocks"
+  local repo="$TMPROOT/$label/repo"
+  local mockbin="$TMPROOT/$label/bin"
+  local body_file="$TMPROOT/$label/body.md"
+  mkdir -p "$(dirname "$repo")"
+  setup_repo "$repo"
+  local head_sha
+  head_sha="$(git -C "$repo" rev-parse HEAD)"
+  write_task "$repo" "$head_sha"
+  write_task_verify_report "$repo" "$repo" "$head_sha"
+
+  cat > "$body_file" <<'EOF'
+## Description
+
+這是 completion gate selftest 內容。
+
+## Changed
+
+- 補齊 completion gate 檢查。
+
+## Screenshots (Test Plan)
+
+- 已執行 selftest。
+
+## Related documents
+
+- DP-999
+
+## QA notes
+
+- N/A
+EOF
+  install_mock_gh "$mockbin" "$body_file" "OPEN" "false" "$head_sha" "" "" "polaris-selftest" "BEHIND"
+
+  set +e
+  out="$(POLARIS_SKIP_CI_LOCAL=1 POLARIS_SKIP_EVIDENCE=1 POLARIS_SKIP_PR_TITLE_GATE=1 POLARIS_SKIP_CHANGESET_GATE=1 PATH="$mockbin:$PATH" "$CHECK" --repo "$repo" --ticket DP-999-T1 2>&1)"
+  rc=$?
+  set -e
+
+  assert_rc "$label rc" "$rc" "2"
+  assert_contains "$label message" "$out" "PR shared readiness check failed"
+}
+
+run_behind_case
 
 run_missing_report_case() {
   local label="missing-task-verify-report-blocks"

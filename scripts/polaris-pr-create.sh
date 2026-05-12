@@ -97,6 +97,130 @@ for (( i=0; i<${#GH_ARGS[@]}; i++ )); do
   esac
 done
 
+read_pr_assignee_policy() {
+  local repo_root="$1"
+  python3 - "$repo_root" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+start = Path(sys.argv[1]).resolve()
+for root in [start, *start.parents]:
+    cfg = root / "workspace-config.yaml"
+    if not cfg.exists():
+        continue
+    text = cfg.read_text(encoding="utf-8")
+    for line in text.splitlines():
+        m = re.match(r"\s*pr_assignee_policy\s*:\s*([^#]+)", line)
+        if m:
+            print(m.group(1).strip().strip('"').strip("'"))
+            raise SystemExit(0)
+print("required")
+PY
+}
+
+resolve_pr_assignee() {
+  local repo_root="$1"
+  local config_user=""
+
+  config_user="$(python3 - "$repo_root" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+start = Path(sys.argv[1]).resolve()
+for root in [start, *start.parents]:
+    cfg = root / "workspace-config.yaml"
+    if not cfg.exists():
+        continue
+    in_user = False
+    for line in cfg.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if re.match(r"^[A-Za-z0-9_-]+:", line):
+            in_user = stripped.startswith("user:")
+            continue
+        if in_user:
+            m = re.match(r"\s*github_username\s*:\s*([^#]+)", line)
+            if m:
+                print(m.group(1).strip().strip('"').strip("'"))
+                raise SystemExit(0)
+PY
+)"
+
+  if [[ -n "$config_user" ]]; then
+    printf '%s\n' "$config_user"
+    return 0
+  fi
+
+  gh api user --jq '.login' 2>/dev/null || true
+}
+
+auto_assign_pr() {
+  local pr_ref="$1"
+  local policy="$2"
+  local assignee="$3"
+
+  case "$policy" in
+    off)
+      echo "$PREFIX PR assignee policy=off — skipping auto-assign."
+      return 0
+      ;;
+    optional|required|"")
+      ;;
+    *)
+      echo "$PREFIX invalid pr_assignee_policy '$policy'; treating as required."
+      policy="required"
+      ;;
+  esac
+
+  if [[ -z "$assignee" ]]; then
+    if [[ "$policy" == "optional" ]]; then
+      echo "$PREFIX WARN: cannot resolve PR assignee; continuing because policy=optional."
+      return 0
+    fi
+    echo "$PREFIX ✗ BLOCKED: cannot resolve PR assignee from workspace-config.yaml user.github_username or gh auth."
+    return 2
+  fi
+
+  if [[ -n "$pr_ref" ]]; then
+    gh pr edit "$pr_ref" --add-assignee "$assignee" >/dev/null
+  else
+    gh pr edit --add-assignee "$assignee" >/dev/null
+  fi
+  echo "$PREFIX ✓ PR assigned to $assignee"
+}
+
+create_pr_and_assign() {
+  local output_file=""
+  local pr_ref=""
+  local policy=""
+  local assignee=""
+  local rc=0
+
+  policy="$(read_pr_assignee_policy "$REPO_PATH")"
+  assignee="$(resolve_pr_assignee "$REPO_PATH")"
+  if [[ "$policy" != "off" && "$policy" != "optional" && -z "$assignee" ]]; then
+    echo "$PREFIX ✗ BLOCKED: cannot resolve required PR assignee before creation."
+    exit 2
+  fi
+
+  output_file="$(mktemp -t polaris-pr-create.XXXXXX)"
+  set +e
+  gh pr create "${GH_ARGS[@]}" | tee "$output_file"
+  rc=${PIPESTATUS[0]}
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    rm -f "$output_file"
+    exit "$rc"
+  fi
+
+  pr_ref="$(grep -Eo 'https://github\.com/[^[:space:]]+/pull/[0-9]+' "$output_file" | head -n 1 || true)"
+  rm -f "$output_file"
+  auto_assign_pr "$pr_ref" "$policy" "$assignee"
+}
+
 # --- Detect forbidden PR modes ---
 if (( ${#GH_ARGS[@]} > 0 )); then
   for arg in "${GH_ARGS[@]}"; do
@@ -147,7 +271,8 @@ if [[ "$SKIP_GATES" == "1" ]]; then
     echo "$PREFIX DRY_RUN: PR creation skipped"
     exit 0
   fi
-  exec gh pr create "${GH_ARGS[@]}"
+  create_pr_and_assign
+  exit 0
 fi
 
 # --- Run gates ---
@@ -207,4 +332,4 @@ if [[ "$DRY_RUN" == "1" ]]; then
   echo "$PREFIX DRY_RUN: PR creation skipped"
   exit 0
 fi
-exec gh pr create "${GH_ARGS[@]}"
+create_pr_and_assign

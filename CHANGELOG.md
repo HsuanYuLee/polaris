@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.41] - 2026-05-12
+
+### Fixed — completion PR readiness gate
+
+- Made the Developer completion gate fail-closed when required PR assignee metadata is missing or unreadable.
+- Made the Polaris PR create wrapper assign the created PR to `workspace-config.yaml` `user.github_username` when assignee policy is enabled.
+- Added completion-time shared PR lineage checks so stale or non-clean PR mergeability cannot be reported as ready.
+- Covered missing-assignee, PR auto-assign, and behind-branch regressions in selftests.
+
 ## [3.75.40] - 2026-05-12
 
 ### Fixed — ci-local Codecov branch coverage parity
