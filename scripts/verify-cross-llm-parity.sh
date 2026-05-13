@@ -34,8 +34,8 @@ YAML
   mkdir -p "$dp_dir/tasks/T1"
   cat > "$dp_dir/tasks/T1/index.md" <<'MD'
 ---
-title: "DP-999 T1: parity fixture"
-description: "Parity fixture task."
+title: "DP-999 T1: 驗證 parity fixture"
+description: "驗證 parity fixture task。"
 verification:
   behavior_contract:
     applies: false
@@ -43,7 +43,7 @@ verification:
 depends_on: []
 ---
 
-# T1: parity fixture (1 pt)
+# T1: 驗證 parity fixture (1 pt)
 
 > Source: DP-999 | Task: DP-999-T1 | JIRA: N/A | Repo: polaris-framework
 

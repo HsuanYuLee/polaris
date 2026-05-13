@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.54] - 2026-05-14
+
+### Fixed — behavior evidence and delivery closeout hardening
+
+- Made behavior contract evidence fail when structured runtime health reports empty body, missing Nuxt root, or failed HTTP status, and defaulted product evidence namespaces to `Task JIRA key`.
+- Added behavior contract selftests for canonical ticket identity, explicit ticket override, DP fallback, and unhealthy baseline/compare evidence.
+- Made DP number allocation and uniqueness checks include folder-native `index.md` design plans.
+- Made DP verification task closeout support `DP-NNN-Vn` folder-native tasks and added zh-TW task summary validation before PR title generation.
+- Updated cross-LLM parity fixtures so release preflight remains compatible with the stricter task summary language gate.
+
 ## [3.75.53] - 2026-05-14
 
 ### Changed — PR body template preflight

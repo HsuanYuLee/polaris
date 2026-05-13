@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Validate Design Plan number uniqueness across active and archive namespaces.
+# Both folder-native index.md and legacy plan.md containers are counted.
 
 set -euo pipefail
 
@@ -59,13 +60,22 @@ if plan_scope and not plan_scope.exists():
 
 entries = defaultdict(list)
 if base.exists():
-    for plan in sorted(base.glob("DP-*/plan.md")) + sorted((base / "archive").glob("DP-*/plan.md")):
-        match = re.match(r"DP-(\d+)", plan.parent.name)
+    parents = []
+    for root in (base, base / "archive"):
+        if root.exists():
+            parents.extend(path for path in root.glob("DP-*") if path.is_dir())
+    for parent in sorted(parents):
+        marker = parent / "index.md"
+        if not marker.is_file():
+            marker = parent / "plan.md"
+        if not marker.is_file():
+            continue
+        match = re.match(r"DP-(\d+)", parent.name)
         if not match:
             continue
-        namespace = "archive" if plan.parent.parent.name == "archive" else "active"
-        rel = plan.parent.relative_to(base).as_posix()
-        entries[f"DP-{int(match.group(1)):03d}"].append((namespace, rel, plan))
+        namespace = "archive" if parent.parent.name == "archive" else "active"
+        rel = parent.relative_to(base).as_posix()
+        entries[f"DP-{int(match.group(1)):03d}"].append((namespace, rel, marker))
 
 duplicates = {number: rows for number, rows in entries.items() if len(rows) > 1}
 

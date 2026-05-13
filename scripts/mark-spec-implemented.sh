@@ -129,6 +129,31 @@ MD
   [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-051-folder-native-task-closeout/tasks/pr-release/T3/index.md" ]] || { echo "[selftest] folder-native pr-release task missing"; return 1; }
   grep -q '^status: IMPLEMENTED$' "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-051-folder-native-task-closeout/tasks/pr-release/T3/index.md" || { echo "[selftest] folder-native status missing"; return 1; }
 
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-052-folder-native-verification-closeout/tasks/V1"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-052-folder-native-verification-closeout/tasks/V1/index.md" <<'MD'
+# V1: Folder-native DP verification task (1 pt)
+
+> Source: DP-052 | Task: DP-052-V1 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-052 |
+| Task ID | DP-052-V1 |
+| JIRA key | N/A |
+| Base branch | main |
+| Task branch | task/DP-052-V1-folder-native |
+MD
+
+  rc=0
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" DP-052-V1 --workspace "$tmpdir" >/dev/null || rc=$?
+  [[ "$rc" -eq 0 ]] || { echo "[selftest] folder-native DP verification mark implemented failed"; return 1; }
+  [[ ! -d "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-052-folder-native-verification-closeout/tasks/V1" ]] || { echo "[selftest] folder-native active verification task was not moved"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-052-folder-native-verification-closeout/tasks/pr-release/V1/index.md" ]] || { echo "[selftest] folder-native pr-release verification task missing"; return 1; }
+  grep -q '^status: IMPLEMENTED$' "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-052-folder-native-verification-closeout/tasks/pr-release/V1/index.md" || { echo "[selftest] folder-native verification status missing"; return 1; }
+
   mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/GT-PARENT"
   cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/GT-PARENT/refinement.md" <<'MD'
 ---
@@ -278,7 +303,7 @@ is_task_key() {
 # Resolve anchor file — three resolution paths:
 #   1) Epic-level: {workspace}/docs-manager/src/content/docs/specs/companies/<company>/<ticket>/refinement.md or plan.md
 #   2) Task-level (task key T{n}/V{n}): scan specs/*/tasks/ by filename
-#   3) DP task-level (DP-NNN-Tn): scan docs-manager/src/content/docs/specs/design-plans/DP-NNN-*/tasks/Tn.md
+#   3) DP task-level (DP-NNN-Tn / DP-NNN-Vn): scan docs-manager/src/content/docs/specs/design-plans/DP-NNN-*/tasks/{T,V}n.md
 #   4) Task-level (JIRA key): parser jira_key match first, legacy "> JIRA: <ticket>" fallback
 # ---------------------------------------------------------------------------
 ANCHOR=""
@@ -355,10 +380,10 @@ if [ -z "$ANCHOR" ] && is_task_key "$TICKET"; then
     \) -print \) 2>/dev/null)
 fi
 
-# Path 3 — DP task key (DP-NNN-Tn) — look up by DP folder + task filename
-if [ -z "$ANCHOR" ] && echo "$TICKET" | grep -qE '^DP-[0-9]{3}-T[0-9]+[a-z]*$'; then
-  dp_id="$(printf '%s' "$TICKET" | sed -E 's/^(DP-[0-9]{3})-T[0-9]+[a-z]*$/\1/')"
-  task_stem="$(printf '%s' "$TICKET" | sed -E 's/^DP-[0-9]{3}-(T[0-9]+[a-z]*)$/\1/')"
+# Path 3 — DP task key (DP-NNN-Tn / DP-NNN-Vn) — look up by DP folder + task filename
+if [ -z "$ANCHOR" ] && echo "$TICKET" | grep -qE '^DP-[0-9]{3}-[TV][0-9]+[a-z]*$'; then
+  dp_id="$(printf '%s' "$TICKET" | sed -E 's/^(DP-[0-9]{3})-[TV][0-9]+[a-z]*$/\1/')"
+  task_stem="$(printf '%s' "$TICKET" | sed -E 's/^DP-[0-9]{3}-([TV][0-9]+[a-z]*)$/\1/')"
   for f in \
     "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/"$task_stem".md \
     "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/"$task_stem"/index.md \

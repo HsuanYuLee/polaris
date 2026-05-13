@@ -96,6 +96,99 @@ echo PASS
 EOF
 }
 
+write_product_task() {
+  local file="$1"
+  local repo="$2"
+  local task_id="$3"
+  local jira_key="$4"
+  local mode="$5"
+  local baseline_ref="$6"
+  local allowed="$7"
+
+  cat >"$file" <<EOF
+---
+title: "Work Order - ${task_id}: behavior fixture (1 pt)"
+description: "Behavior contract product fixture."
+depends_on: []
+verification:
+  behavior_contract:
+    applies: true
+    mode: ${mode}
+    source_of_truth: existing_behavior
+    fixture_policy: mockoon_required
+    baseline_ref: ${baseline_ref}
+    flow: "scripts/behavior-flow.sh"
+    flow_script: "scripts/behavior-flow.sh"
+    assertions:
+      - "state matches"
+    allowed_differences: ${allowed}
+---
+
+# ${task_id}: behavior fixture (1 pt)
+
+> Epic: DEMO-478 | JIRA: ${jira_key} | Repo: ${repo}
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | jira |
+| Task ID | ${task_id} |
+| Task JIRA key | ${jira_key} |
+| Parent Epic | DEMO-478 |
+| JIRA key | ${jira_key} |
+| Test sub-tasks | N/A |
+| AC 驗收單 | N/A |
+| Base branch | main |
+| Branch chain | main -> task/${jira_key}-${task_id} |
+| Task branch | task/${jira_key}-${task_id} |
+| Depends on | N/A |
+| References to load | - behavior-contract |
+
+## 目標
+
+Behavior contract product fixture。
+
+## 改動範圍
+
+| 檔案 | 動作 | 說明 |
+|------|------|------|
+| scripts/behavior-flow.sh | test | fixture only |
+
+## Allowed Files
+
+- scripts/behavior-flow.sh
+
+## 估點理由
+
+1 pt - fixture。
+
+## 測試計畫（code-level）
+
+- fixture。
+
+## Test Command
+
+\`\`\`bash
+echo PASS
+\`\`\`
+
+## Test Environment
+
+- **Level**: static
+- **Dev env config**: N/A
+- **Fixtures**: N/A
+- **Runtime verify target**: N/A
+- **Env bootstrap command**: N/A
+
+## Verify Command
+
+\`\`\`bash
+echo PASS
+\`\`\`
+EOF
+}
+
 make_repo() {
   local repo="$1"
   mkdir -p "$repo/scripts"
@@ -112,6 +205,53 @@ printf 'webm:%s\n' "$value" >"$POLARIS_BEHAVIOR_OUTPUT_DIR/video.webm"
 EOF
   chmod +x "$repo/scripts/behavior-flow.sh"
   printf 'before\n' >"$repo/behavior-source.txt"
+  git -C "$repo" add .
+  git -C "$repo" commit -qm "baseline"
+}
+
+make_health_repo() {
+  local repo="$1"
+  local body_has_text="$2"
+  local has_nuxt_root="$3"
+  local status_code="${4:-200}"
+  mkdir -p "$repo/scripts"
+  git -C "$repo" init -q
+  git -C "$repo" config user.email selftest@example.com
+  git -C "$repo" config user.name "Polaris Selftest"
+  cat >"$repo/scripts/behavior-flow.sh" <<EOF
+set -euo pipefail
+mkdir -p "\$POLARIS_BEHAVIOR_OUTPUT_DIR"
+cat >"\$POLARIS_BEHAVIOR_OUTPUT_DIR/behavior-state.json" <<'JSON'
+{
+  "comparableState": {
+    "actions": ["page-load"],
+    "flow": "health-fixture",
+    "interactionResult": {"optionalClickAttempted": false},
+    "relevantConsoleErrors": [],
+    "stateScope": "runtime_health",
+    "targets": [
+      {
+        "health": {
+          "bodyHasText": ${body_has_text},
+          "bodyTextBucket": "empty",
+          "hasNuxtRoot": ${has_nuxt_root}
+        },
+        "selectorPresence": {},
+        "status": ${status_code},
+        "targetPath": "/fixture"
+      }
+    ],
+    "viewport": "desktop"
+  },
+  "diagnostics": {},
+  "mode": "baseline",
+  "stateScope": "runtime_health"
+}
+JSON
+printf 'health fixture\n' >"\$POLARIS_BEHAVIOR_OUTPUT_DIR/screen.png"
+EOF
+  chmod +x "$repo/scripts/behavior-flow.sh"
+  printf 'fixture\n' >"$repo/behavior-source.txt"
   git -C "$repo" add .
   git -C "$repo" commit -qm "baseline"
 }
@@ -138,6 +278,21 @@ expect_pass() {
   fi
 }
 
+find_behavior_evidence() {
+  local repo="$1"
+  local ticket="$2"
+  local head_sha="$3"
+  local evidence=""
+
+  evidence="$(find /tmp -maxdepth 1 -name "polaris-behavior-${ticket}-${head_sha}-*.json" -print -quit 2>/dev/null || true)"
+  if [[ -n "$evidence" ]]; then
+    printf '%s\n' "$evidence"
+    return
+  fi
+
+  find "$repo/.polaris/evidence/behavior/$ticket" -maxdepth 1 -name "polaris-behavior-${ticket}-${head_sha}-*.json" -print -quit 2>/dev/null || true
+}
+
 repo_pass="$WORKDIR/pass-repo"
 make_repo "$repo_pass"
 task_pass="$WORKDIR/T1-pass.md"
@@ -149,6 +304,61 @@ head_pass="$(git -C "$repo_pass" rev-parse HEAD)"
 printf '{"ticket":"DP-109-T1","head_sha":"%s","writer":"run-verify-command.sh","exit_code":0,"at":"2026-05-05T00:00:00Z"}\n' "$head_pass" \
   >"/tmp/polaris-verified-DP-109-T1-${head_pass}.json"
 expect_pass "gate-pass" bash "$ROOT/scripts/gates/gate-evidence.sh" --repo "$repo_pass" --ticket DP-109-T1 --task-md "$task_pass"
+
+repo_identity="$WORKDIR/identity-repo"
+make_repo "$repo_identity"
+task_identity="$WORKDIR/T8e-identity.md"
+write_product_task "$task_identity" "$(basename "$repo_identity")" "T8e" "DEMO-4114" "parity" "HEAD" "[]"
+expect_pass "jira-key-default-baseline" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_identity" --mode baseline --repo "$repo_identity"
+head_identity="$(git -C "$repo_identity" rev-parse HEAD)"
+jira_key_evidence="$(find_behavior_evidence "$repo_identity" "DEMO-4114" "$head_identity")"
+if [[ -z "$jira_key_evidence" ]]; then
+  echo "FAIL: expected Task JIRA key behavior evidence namespace" >&2
+  exit 1
+fi
+
+expect_pass "task-id-fallback-baseline" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_pass" --mode baseline --repo "$repo_pass"
+task_id_evidence="$(find_behavior_evidence "$repo_pass" "DP-109-T1" "$head_pass")"
+if [[ -z "$task_id_evidence" ]]; then
+  echo "FAIL: expected task id behavior evidence namespace fallback" >&2
+  exit 1
+fi
+
+expect_pass "ticket-override-baseline" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_pass" --mode baseline --repo "$repo_pass" --ticket OVERRIDE-TICKET
+override_evidence="$(find_behavior_evidence "$repo_pass" "OVERRIDE-TICKET" "$head_pass")"
+if [[ -z "$override_evidence" ]]; then
+  echo "FAIL: expected explicit --ticket behavior evidence namespace" >&2
+  exit 1
+fi
+
+repo_unhealthy="$WORKDIR/unhealthy-repo"
+make_health_repo "$repo_unhealthy" "false" "false"
+task_unhealthy="$WORKDIR/T1-unhealthy.md"
+write_task "$task_unhealthy" "$(basename "$repo_unhealthy")" "DP-109-T6" "parity" "HEAD" "[]"
+expect_fail "baseline-unhealthy-runtime" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_unhealthy" --mode baseline --repo "$repo_unhealthy" --ticket DP-109-T6
+head_unhealthy="$(git -C "$repo_unhealthy" rev-parse HEAD)"
+unhealthy_evidence="$(find_behavior_evidence "$repo_unhealthy" "DP-109-T6" "$head_unhealthy")"
+python3 - "$unhealthy_evidence" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+assert data["status"] == "FAIL"
+assert data["comparison"]["kind"] == "runtime_health"
+assert "target[0].health.bodyHasText=false" in data["health_failures"]
+assert "target[0].health.hasNuxtRoot=false" in data["health_failures"]
+PY
+
+task_unhealthy_compare="$WORKDIR/T1-unhealthy-compare.md"
+write_task "$task_unhealthy_compare" "$(basename "$repo_unhealthy")" "DP-109-T7" "pm_flow" "none" "[]"
+expect_fail "compare-unhealthy-runtime" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_unhealthy_compare" --mode compare --repo "$repo_unhealthy" --ticket DP-109-T7
+unhealthy_compare_evidence="$(find_behavior_evidence "$repo_unhealthy" "DP-109-T7" "$head_unhealthy")"
+python3 - "$unhealthy_compare_evidence" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+assert data["status"] == "FAIL"
+assert data["comparison"]["kind"] == "runtime_health"
+assert "target[0].health.bodyHasText=false" in data["health_failures"]
+assert "target[0].health.hasNuxtRoot=false" in data["health_failures"]
+PY
 
 repo_drift="$WORKDIR/drift-repo"
 make_repo "$repo_drift"

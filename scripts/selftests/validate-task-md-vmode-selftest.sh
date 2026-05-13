@@ -119,4 +119,18 @@ invalid_status="$tmpdir/V1-invalid-status.md"
 write_v_task "$invalid_status" "PENDING" "deferred"
 expect_fail_contains "invalid-status" "$invalid_status" "ac_verification.status must be PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|BLOCKED_ENV|IN_PROGRESS"
 
+zh_workspace="$tmpdir/zh-workspace"
+mkdir -p "$zh_workspace/specs/tasks/V1"
+cat >"$zh_workspace/workspace-config.yaml" <<'YAML'
+language: zh-TW
+YAML
+english_summary="$zh_workspace/specs/tasks/V1/index.md"
+write_v_task "$english_summary" "PASS" "passed"
+expect_fail_contains "zh-summary-english" "$english_summary" "task summary appears to be English prose"
+
+zh_summary="$zh_workspace/specs/tasks/V1-zh.md"
+write_v_task "$zh_summary" "PASS" "passed"
+perl -0pi -e 's/verification schema fixture/驗證流程/g' "$zh_summary"
+expect_pass "zh-summary-pass" "$zh_summary"
+
 echo "PASS: validate-task-md V-mode lifecycle selftest"

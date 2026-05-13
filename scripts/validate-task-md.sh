@@ -712,6 +712,56 @@ extract_header_token() {
   ' "$file"
 }
 
+validate_task_summary_language() {
+  local file="$1"
+  python3 - "$file" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1]).resolve()
+
+def read_language_from_config(config: Path) -> str:
+    if not config.is_file():
+        return ""
+    for line in config.read_text(encoding="utf-8", errors="replace").splitlines():
+        match = re.match(r"\s*language\s*:\s*([^#]+)", line)
+        if match:
+            return match.group(1).strip().strip("\"'")
+    return ""
+
+language = ""
+for parent in [path.parent, *path.parents]:
+    language = read_language_from_config(parent / "workspace-config.yaml")
+    if language:
+        break
+
+if language not in {"zh-TW", "zh-Hant", "zh"}:
+    raise SystemExit(0)
+
+summary = ""
+for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+    match = re.match(r"^#\s+[TV][0-9]+[a-z]*:\s+(.+?)\s+\([0-9.]+\s*pt\)\s*$", line)
+    if match:
+        summary = match.group(1).strip()
+        break
+
+if not summary or re.search(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]", summary):
+    raise SystemExit(0)
+
+cleaned = re.sub(r"`[^`]*`", " ", summary)
+cleaned = re.sub(r"\b[A-Z][A-Z0-9]+-\d+(?:-[TV]\d+[a-z]*)?\b", " ", cleaned)
+cleaned = re.sub(r"\b[A-Za-z0-9_.-]+\.(?:sh|py|js|ts|tsx|vue|json|ya?ml|md|txt)\b", " ", cleaned)
+cleaned = re.sub(r"(?<!\w)--?[A-Za-z][A-Za-z0-9_-]*(?:[= ][A-Za-z0-9._/:@-]+)?", " ", cleaned)
+words = re.findall(r"[A-Za-z]+(?:'[A-Za-z]+)?", cleaned)
+alpha = sum(ch.isalpha() and ch.isascii() for ch in cleaned)
+
+if alpha >= 12 and len(words) >= 2:
+    print("task summary appears to be English prose under zh-TW policy; use zh-TW summary so downstream PR title gates fail early", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
 # ---------------------------------------------------------------------------
 # Main single-file validator.
 # Returns 0 (pass) / 1 (violations) / 2 (hard fail — completion invariant).
@@ -782,6 +832,8 @@ validate_file() {
   # ---------------------------------------------------------------------------
   if ! grep -qE '^# (T|V)[0-9]+[a-z]*: .+\([0-9.]+ ?pt\)' "$FILE"; then
     errors+=("missing or malformed title: expected '# T{n}[suffix]: {summary} ({SP} pt)' — regex: ^# (T|V)[0-9]+[a-z]*: .+\\([0-9.]+ ?pt\\)")
+  elif ! summary_language_error="$(validate_task_summary_language "$FILE" 2>&1)"; then
+    errors+=("$summary_language_error")
   fi
 
   # ---------------------------------------------------------------------------

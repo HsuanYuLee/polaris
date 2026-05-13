@@ -173,9 +173,9 @@ if [[ -z "$flow_script" && "$flow" == */* ]]; then
 fi
 
 repo_name="$(parse_field repo)"
-task_ticket="$(parse_field task_id)"
-if [[ -z "$task_ticket" ]]; then
-  task_ticket="$(parse_field task_jira_key)"
+task_ticket="$(parse_field task_jira_key)"
+if [[ -z "$task_ticket" || "$task_ticket" == "N/A" || "$task_ticket" == "null" ]]; then
+  task_ticket="$(parse_field task_id)"
 fi
 TICKET="${TICKET_OVERRIDE:-$task_ticket}"
 if [[ -z "$TICKET" ]]; then
@@ -355,6 +355,7 @@ for candidate in (artifact_root / "behavior-state.json", artifact_root / "state.
         state_path = candidate
         break
 state_hash = sha256_bytes(stdout_text.encode("utf-8"))
+health_failures = []
 if state_path:
     state_hash = sha256_file(state_path)
     try:
@@ -363,11 +364,29 @@ if state_path:
         state_data = None
     if isinstance(state_data, dict) and isinstance(state_data.get("hash"), str) and state_data["hash"]:
         state_hash = state_data["hash"]
+    if isinstance(state_data, dict):
+        comparable_state = state_data.get("comparableState")
+        targets = comparable_state.get("targets") if isinstance(comparable_state, dict) else None
+        if isinstance(targets, list):
+            for idx, target in enumerate(targets):
+                if not isinstance(target, dict):
+                    continue
+                status_code = target.get("status")
+                if isinstance(status_code, int) and (status_code == 0 or status_code >= 400):
+                    health_failures.append(f"target[{idx}].status={status_code}")
+                health = target.get("health")
+                if isinstance(health, dict):
+                    if health.get("bodyHasText") is False:
+                        health_failures.append(f"target[{idx}].health.bodyHasText=false")
+                    if health.get("hasNuxtRoot") is False:
+                        health_failures.append(f"target[{idx}].health.hasNuxtRoot=false")
 
-command_pass = int(command_rc) == 0
+command_pass = int(command_rc) == 0 and not health_failures
 status = "PASS" if command_pass else "FAIL"
 comparison = {"kind": "none", "status": status}
-if command_pass and mode == "compare" and behavior_mode in {"parity", "hybrid"}:
+if health_failures:
+    comparison = {"kind": "runtime_health", "status": "FAIL", "failures": health_failures}
+elif command_pass and mode == "compare" and behavior_mode in {"parity", "hybrid"}:
     drift = state_hash != baseline_state_hash
     if not drift:
         comparison = {"kind": "state_hash", "status": "PASS", "drift": False}
@@ -409,6 +428,7 @@ data = {
     "stdout_hash": sha256_bytes(stdout_text.encode("utf-8")),
     "stderr_hash": sha256_bytes(stderr_text.encode("utf-8")),
     "exit_code": int(command_rc),
+    "health_failures": health_failures,
     "baseline_evidence": baseline_file or "N/A",
     "baseline_state_hash": baseline_state_hash or "N/A",
     "comparison": comparison,
