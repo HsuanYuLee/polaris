@@ -137,6 +137,20 @@ if [[ ! -x "$CHECK_RELEASE_COMPLETED" ]]; then
   CHECK_RELEASE_COMPLETED="${SCRIPT_DIR}/check-release-completed.sh"
 fi
 
+task_verify_report_path() {
+  local task_md_path="$1"
+  python3 - "$task_md_path" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+if path.name == "index.md":
+    print(path.parent / "verify-report.md")
+else:
+    print(path.with_suffix("") / "verify-report.md")
+PY
+}
+
 resolve_current_task_md_path() {
   local path="$1"
   if [[ -f "$path" ]]; then
@@ -179,6 +193,37 @@ resolve_stable_repo_root() {
 
   printf '%s\n' "$current"
 }
+
+ensure_task_verify_report() {
+  local task_md_path=""
+  local deliverable_head_sha=""
+  local report_path=""
+
+  task_md_path="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" "$TICKET" 2>/dev/null || true)"
+  if [[ -z "$task_md_path" || ! -f "$task_md_path" ]]; then
+    return 0
+  fi
+
+  deliverable_head_sha="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field deliverable_head_sha 2>/dev/null || true)"
+  if [[ -z "$deliverable_head_sha" ]]; then
+    return 0
+  fi
+
+  report_path="$(task_verify_report_path "$task_md_path")"
+  if [[ -f "$report_path" ]]; then
+    return 0
+  fi
+
+  echo "$PREFIX generating missing task verify report for ${TICKET}@${deliverable_head_sha}" >&2
+  bash "${SCRIPT_DIR}/write-task-verify-report.sh" \
+    --repo "$REPO_ROOT" \
+    --ticket "$TICKET" \
+    --task-md "$task_md_path" \
+    --head-sha "$deliverable_head_sha" \
+    --status PASS >/dev/null
+}
+
+ensure_task_verify_report
 
 echo "$PREFIX running completion gate for ${TICKET} ..." >&2
 if ! bash "${SCRIPT_DIR}/check-delivery-completion.sh" --repo "$REPO_ROOT" --ticket "$TICKET"; then

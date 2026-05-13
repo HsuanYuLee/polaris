@@ -124,6 +124,9 @@ print(json.dumps({
     "headRefName": "task/DP-999-T1-finalize-cwd",
     "headRefOid": "$head_sha",
     "baseRefName": "main",
+    "mergeStateStatus": "CLEAN",
+    "assignees": [{"login": "polaris-selftest"}],
+    "labels": [],
 }))
 PY
   exit 0
@@ -200,8 +203,6 @@ head_sha="$(git -C "$worktree_repo" rev-parse HEAD)"
 write_task "$main_repo" "$head_sha"
 install_mock_gh "$mockbin" "$head_sha"
 write_verify_evidence "$head_sha"
-write_task_verify_report "$main_repo" "$worktree_repo" "$head_sha"
-
 set +e
 out="$(
   cd "$worktree_repo" &&
@@ -235,6 +236,12 @@ fi
 task_path="$main_repo/docs-manager/src/content/docs/specs/design-plans/DP-999-finalize-cwd/tasks/pr-release/T1.md"
 if [[ ! -f "$task_path" ]] || ! grep -q '^status: IMPLEMENTED$' "$task_path"; then
   echo "not ok finalized task missing or status not implemented" >&2
+  exit 1
+fi
+
+report_path="$main_repo/docs-manager/src/content/docs/specs/design-plans/DP-999-finalize-cwd/tasks/T1/verify-report.md"
+if [[ ! -f "$report_path" ]] || ! grep -q "$head_sha" "$report_path"; then
+  echo "not ok auto-generated verify report missing or stale" >&2
   exit 1
 fi
 

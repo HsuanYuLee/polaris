@@ -33,6 +33,113 @@ assert_contains() {
   fi
 }
 
+write_task() {
+  local workspace="$1"
+  local task_md="$workspace/docs-manager/src/content/docs/specs/design-plans/DP-154-pr-create-selftest/tasks/T1/index.md"
+  mkdir -p "$(dirname "$task_md")"
+  cat > "$task_md" <<'EOF'
+---
+title: "DP-154 T1: PR 交付 selftest"
+description: "驗證 PR create wrapper 自動寫入 deliverable metadata 與 verify report。"
+status: PLANNED
+verification:
+  behavior_contract:
+    applies: false
+    reason: "selftest static task"
+depends_on: []
+---
+
+# T1: PR 交付 selftest (1 pt)
+
+> Source: DP-154 | Task: DP-154-T1 | JIRA: N/A | Repo: repo
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-154 |
+| Task ID | DP-154-T1 |
+| JIRA key | N/A |
+| Test sub-tasks | N/A - framework work order |
+| AC 驗收單 | N/A - framework work order |
+| Base branch | main |
+| Branch chain | main -> task/DP-154-T1-pr-create-selftest |
+| Task branch | task/DP-154-T1-pr-create-selftest |
+| Depends on | N/A |
+
+## Verification Handoff
+
+Selftest fixture。
+
+## 目標
+
+驗證 PR create wrapper 會自動寫入 task deliverable metadata 與 verify report。
+
+## 改動範圍
+
+| 檔案 | 動作 | 說明 |
+|------|------|------|
+| `scripts/polaris-pr-create.sh` | 修改 | selftest fixture |
+
+## Allowed Files
+
+- `scripts/polaris-pr-create.sh`
+
+## Scope Trace Matrix
+
+| Goal / AC | Owning files | Surface / boundary | Tests |
+|-----------|--------------|--------------------|-------|
+| AC1：自動寫 deliverable | `scripts/polaris-pr-create.sh` | PR wrapper | selftest |
+
+## Gate Closure Matrix
+
+| Gate | Applies | Pass condition | Owner / decision |
+|------|---------|----------------|------------------|
+| scope | yes | changed files in Allowed Files | engineering |
+| test | yes | selftest PASS | engineering |
+| verify | yes | deliverable and report written | engineering |
+| ci-local | no | N/A fixture | planner decision |
+
+## Test Command
+
+```bash
+echo ok
+```
+
+## Test Environment
+
+- **Level**: static
+- **Dev env config**: N/A
+- **Fixtures**: N/A
+- **Runtime verify target**: N/A
+- **Env bootstrap command**: N/A
+
+## Verify Command
+
+```bash
+echo ok
+```
+EOF
+  printf '%s\n' "$task_md"
+}
+
+write_verify_evidence() {
+  local ticket="$1"
+  local head_sha="$2"
+  cat > "/tmp/polaris-verified-${ticket}-${head_sha}.json" <<EOF
+{
+  "ticket": "${ticket}",
+  "head_sha": "${head_sha}",
+  "writer": "run-verify-command.sh",
+  "exit_code": 0,
+  "effective_command": "echo ok",
+  "verification_mode": "primary",
+  "at": "2026-05-14T00:00:00Z"
+}
+EOF
+}
+
 run_auto_assign_case() {
   local label="auto-assign-config-user"
   local parent="$TMPROOT/$label"
@@ -103,7 +210,91 @@ EOF
   assert_contains "$label edit-label" "$(cat "$edit_args_file")" "https://github.com/demo/example/pull/123 --add-label 👀 need review"
 }
 
+run_task_writeback_case() {
+  local label="task-deliverable-writeback"
+  local parent="$TMPROOT/$label"
+  local workspace="$parent/workspace"
+  local repo="$workspace/repo"
+  local mockbin="$parent/bin"
+  local edit_args_file="$parent/edit-args.txt"
+  local task_md=""
+  local head_sha=""
+  local out=""
+  local rc=0
+
+  mkdir -p "$repo" "$mockbin"
+  cat > "$workspace/workspace-config.yaml" <<'EOF'
+language: zh-TW
+user:
+  github_username: "cfg-user"
+projects:
+  - name: repo
+    repo: demo/example
+EOF
+
+  git init -q -b main "$repo"
+  git -C "$repo" config user.name "Polaris Selftest"
+  git -C "$repo" config user.email "polaris-selftest@example.com"
+  printf 'fixture\n' > "$repo/README.md"
+  git -C "$repo" add README.md
+  git -C "$repo" commit -q -m "base"
+  git -C "$repo" checkout -q -b task/DP-154-T1-pr-create-selftest
+  head_sha="$(git -C "$repo" rev-parse HEAD)"
+  task_md="$(write_task "$workspace")"
+  write_verify_evidence "DP-154-T1" "$head_sha"
+
+  cat > "$mockbin/gh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\$1" == "pr" && "\$2" == "create" ]]; then
+  printf 'https://github.com/demo/example/pull/154\n'
+  exit 0
+fi
+if [[ "\$1" == "pr" && "\$2" == "edit" ]]; then
+  printf '%s\n' "\$*" >> "$edit_args_file"
+  exit 0
+fi
+if [[ "\$1" == "api" && "\${2:-}" == "user" ]]; then
+  printf 'fallback-user\n'
+  exit 0
+fi
+printf 'unexpected gh call: %s\n' "\$*" >&2
+exit 1
+EOF
+  chmod +x "$mockbin/gh"
+
+  set +e
+  out="$(PATH="$mockbin:$PATH" bash "$WRAPPER" --repo "$repo" --skip-gates --base main --title "fixture" --body "fixture" 2>&1)"
+  rc=$?
+  set -e
+
+  if [[ "$rc" -eq 0 ]]; then
+    ok "$label rc"
+  else
+    fail "$label rc"
+    printf '%s\n' "$out" >&2
+  fi
+  assert_contains "$label output" "$out" "delivery metadata and verify report written for DP-154-T1@$head_sha"
+  assert_contains "$label deliverable url" "$(cat "$task_md")" "pr_url: https://github.com/demo/example/pull/154"
+  assert_contains "$label deliverable head" "$(cat "$task_md")" "head_sha: $head_sha"
+  if [[ "$(grep -c '^deliverable:' "$task_md")" == "1" ]]; then
+    ok "$label deliverable idempotent count"
+  else
+    fail "$label deliverable idempotent count"
+  fi
+  local report_path
+  report_path="$(dirname "$task_md")/verify-report.md"
+  if [[ -f "$report_path" ]]; then
+    ok "$label report exists"
+    assert_contains "$label report ticket" "$(cat "$report_path")" "DP-154-T1"
+    assert_contains "$label report head" "$(cat "$report_path")" "$head_sha"
+  else
+    fail "$label report exists"
+  fi
+}
+
 run_auto_assign_case
+run_task_writeback_case
 
 if [[ "$fail_count" -ne 0 ]]; then
   printf '\n=== polaris-pr-create selftest: %s PASS / %s FAIL ===\n' "$pass_count" "$fail_count" >&2

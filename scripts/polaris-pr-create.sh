@@ -18,6 +18,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GATES_DIR="$SCRIPT_DIR/gates"
 REVIEW_LABEL_LIB="$SCRIPT_DIR/lib/pr-review-label.sh"
+SPECS_ROOT_LIB="$SCRIPT_DIR/lib/specs-root.sh"
 
 PREFIX="[polaris-pr-create]"
 REPO_PATH=""
@@ -26,10 +27,15 @@ SKIP_GATES="${POLARIS_SKIP_PR_GATES:-0}"
 AGGREGATE_RELEASE=0
 DRY_RUN=0
 GH_ARGS=()
+CREATED_PR_URL=""
 
 if [[ -f "$REVIEW_LABEL_LIB" ]]; then
   # shellcheck source=lib/pr-review-label.sh
   . "$REVIEW_LABEL_LIB"
+fi
+if [[ -f "$SPECS_ROOT_LIB" ]]; then
+  # shellcheck source=lib/specs-root.sh
+  . "$SPECS_ROOT_LIB"
 fi
 
 usage() {
@@ -228,10 +234,100 @@ create_pr_and_assign() {
 
   pr_ref="$(grep -Eo 'https://github\.com/[^[:space:]]+/pull/[0-9]+' "$output_file" | head -n 1 || true)"
   rm -f "$output_file"
+  CREATED_PR_URL="$pr_ref"
   auto_assign_pr "$pr_ref" "$policy" "$assignee"
   if declare -F polaris_pr_review_label_add >/dev/null 2>&1; then
     polaris_pr_review_label_add "$REPO_PATH" "$pr_ref" "$PREFIX"
   fi
+}
+
+resolve_task_md_for_writeback() {
+  local resolver="$SCRIPT_DIR/resolve-task-md.sh"
+  local workspace_root=""
+  local resolved=""
+  local probe=""
+
+  if [[ -n "$TASK_MD_PATH" && -f "$TASK_MD_PATH" ]]; then
+    printf '%s\n' "$TASK_MD_PATH"
+    return 0
+  fi
+
+  if [[ -x "$resolver" ]]; then
+    resolved="$(cd "$REPO_PATH" && bash "$resolver" --scan-root "$REPO_PATH" --current 2>/dev/null | head -n 1 || true)"
+    if [[ -n "$resolved" ]]; then
+      printf '%s\n' "$resolved"
+      return 0
+    fi
+    if declare -F resolve_specs_workspace_root >/dev/null 2>&1; then
+      workspace_root="$(resolve_specs_workspace_root "$REPO_PATH" 2>/dev/null || true)"
+      if [[ -n "$workspace_root" && "$workspace_root" != "$REPO_PATH" ]]; then
+        resolved="$(cd "$REPO_PATH" && bash "$resolver" --scan-root "$workspace_root" --current 2>/dev/null | head -n 1 || true)"
+        if [[ -n "$resolved" ]]; then
+          printf '%s\n' "$resolved"
+          return 0
+        fi
+      fi
+    fi
+    probe="$(cd "$REPO_PATH" && pwd)"
+    while [[ "$probe" != "/" && -n "$probe" ]]; do
+      if [[ -d "$probe/docs-manager/src/content/docs/specs" ]]; then
+        resolved="$(cd "$REPO_PATH" && bash "$resolver" --scan-root "$probe" --current 2>/dev/null | head -n 1 || true)"
+        if [[ -n "$resolved" ]]; then
+          printf '%s\n' "$resolved"
+          return 0
+        fi
+      fi
+      probe="$(dirname "$probe")"
+    done
+  fi
+}
+
+task_delivery_ticket() {
+  local task_md="$1"
+  local parser="$SCRIPT_DIR/parse-task-md.sh"
+  local ticket=""
+
+  [[ -x "$parser" ]] || return 1
+  ticket="$(bash "$parser" "$task_md" --no-resolve --field task_jira_key 2>/dev/null || true)"
+  case "$ticket" in
+    ""|N/A|null)
+      ticket="$(bash "$parser" "$task_md" --no-resolve --field task_id 2>/dev/null || true)"
+      ;;
+  esac
+  [[ -n "$ticket" && "$ticket" != "N/A" && "$ticket" != "null" ]] || return 1
+  printf '%s\n' "$ticket"
+}
+
+write_delivery_artifacts() {
+  local task_md=""
+  local head_sha=""
+  local ticket=""
+  local writer="$SCRIPT_DIR/write-deliverable.sh"
+  local report_writer="$SCRIPT_DIR/write-task-verify-report.sh"
+
+  task_md="$(resolve_task_md_for_writeback)"
+  if [[ -z "$task_md" || ! -f "$task_md" ]]; then
+    return 0
+  fi
+
+  if [[ -z "$CREATED_PR_URL" ]]; then
+    echo "$PREFIX ✗ BLOCKED: PR was created but its URL could not be parsed; cannot write deliverable metadata." >&2
+    exit 2
+  fi
+  if [[ ! -x "$writer" || ! -x "$report_writer" ]]; then
+    echo "$PREFIX ✗ BLOCKED: delivery artifact writers are not executable." >&2
+    exit 2
+  fi
+
+  head_sha="$(git -C "$REPO_PATH" rev-parse HEAD)"
+  ticket="$(task_delivery_ticket "$task_md")" || {
+    echo "$PREFIX ✗ BLOCKED: cannot resolve task identity for delivery artifact writeback: $task_md" >&2
+    exit 2
+  }
+
+  bash "$writer" "$task_md" "$CREATED_PR_URL" OPEN "$head_sha"
+  bash "$report_writer" --repo "$REPO_PATH" --ticket "$ticket" --task-md "$task_md" --head-sha "$head_sha" --status PASS >/dev/null
+  echo "$PREFIX ✓ delivery metadata and verify report written for $ticket@$head_sha"
 }
 
 # --- Detect forbidden PR modes ---
@@ -289,6 +385,7 @@ if [[ "$SKIP_GATES" == "1" ]]; then
     exit 0
   fi
   create_pr_and_assign
+  write_delivery_artifacts
   exit 0
 fi
 
@@ -354,3 +451,4 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 create_pr_and_assign
+write_delivery_artifacts

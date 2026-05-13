@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.55] - 2026-05-14
+
+### Fixed — PR delivery metadata automation
+
+- Made `polaris-pr-create.sh` automatically write task `deliverable` metadata and generate the current-head task verify report after PR creation.
+- Made `finalize-engineering-delivery.sh` generate a missing task-bound verify report before running the completion gate.
+- Added PR creation and finalize selftests covering implicit task resolution, deliverable idempotency, and automatic verify report generation.
+
 ## [3.75.54] - 2026-05-14
 
 ### Fixed — behavior evidence and delivery closeout hardening
