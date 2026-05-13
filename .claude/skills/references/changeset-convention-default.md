@@ -31,7 +31,7 @@ deliverables:
   changeset:
     package_scope: "@exampleco/web"          # L1 .changeset/config.json packages 推導
     bump_level_default: patch             # L2 handbook 宣告，無則 L3 default = patch
-    filename_slug: kb2cw-3788-product-heading-mobile-layout
+    filename_slug: task-3788-product-heading-mobile-layout
 ```
 
 **Allowed Files** 自動把 `.changeset/{filename_slug}.md` 加入。
@@ -50,7 +50,7 @@ deliverables:
 
 | 元件 | 規則 |
 |------|------|
-| `ticket-kebab` | task.md ticket 小寫 + 連字符（`TASK-3788` → `kb2cw-3788`） |
+| `ticket-kebab` | task.md ticket 小寫 + 連字符（`TASK-3788` → `task-3788`） |
 | `short-desc-kebab` | task.md title 去 ticket prefix 後 kebab-case；移除標點與 emoji；長度上限 60 char（截斷時保留完整單字） |
 | 副檔名 | `.md` |
 
@@ -58,7 +58,7 @@ deliverables:
 
 | Task title | filename_slug |
 |------------|--------------|
-| `[TASK-3788] 產品頁 BreadcrumbList 加首頁 entry` | `kb2cw-3788-product-heading-mobile-layout`*（短描述由 breakdown 決定，title 過長時可裁剪）* |
+| `[TASK-3788] 產品頁 BreadcrumbList 加首頁 entry` | `task-3788-product-heading-mobile-layout`*（短描述由 breakdown 決定，title 過長時可裁剪）* |
 | `[EPIC-521] BreadcrumbList SEO 優化` | `gt-521-breadcrumblist-seo` |
 | `chore: bump pnpm`（Admin、無 ticket） | `chore-bump-pnpm` |
 
@@ -101,7 +101,7 @@ deliverables:
 
 ### 3.4 完整 L3 範例
 
-**檔名**：`.changeset/kb2cw-3788-product-heading-mobile-layout.md`
+**檔名**：`.changeset/task-3788-product-heading-mobile-layout.md`
 
 ```
 ---

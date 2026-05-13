@@ -291,6 +291,8 @@ check_pr_shared_lineage_readiness() {
   local head_ref_name=""
   local base_freshness=""
   local mergeability=""
+  local ci_state=""
+  local readiness_reason=""
   local pr_type=""
 
   base_ref_name="$(json_field "$pr_json" baseRefName || true)"
@@ -316,6 +318,8 @@ check_pr_shared_lineage_readiness() {
 
   base_freshness="$(json_field "$snapshot_file" base_freshness || true)"
   mergeability="$(json_field "$snapshot_file" mergeability || true)"
+  ci_state="$(json_field "$snapshot_file" ci_state || true)"
+  readiness_reason="$(json_field "$snapshot_file" readiness_reason || true)"
   pr_type="$(python3 - "$snapshot_file" <<'PY'
 import json
 import sys
@@ -338,6 +342,7 @@ PY
       ;;
     conflict|blocked|unknown|"")
       echo "$PREFIX PR shared readiness check failed: ${pr_url} mergeability is ${mergeability:-unknown}." >&2
+      echo "$PREFIX pr_type=${pr_type:-unknown} base_freshness=${base_freshness:-unknown} ci_state=${ci_state:-unknown} readiness_reason=${readiness_reason:-unknown}." >&2
       echo "$PREFIX Rebase or wait for GitHub mergeability to become clean before claiming completion." >&2
       rm -f "$snapshot_file"
       exit 2
@@ -345,7 +350,7 @@ PY
   esac
 
   rm -f "$snapshot_file"
-  echo "$PREFIX PR shared readiness passed for ${pr_url} (base_freshness=${base_freshness}, mergeability=${mergeability})." >&2
+  echo "$PREFIX PR shared readiness passed for ${pr_url} (base_freshness=${base_freshness}, mergeability=${mergeability}, ci_state=${ci_state:-unknown}, readiness_reason=${readiness_reason:-unknown})." >&2
 }
 
 check_deliverable_pr_remote_truth() {

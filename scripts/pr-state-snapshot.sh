@@ -212,9 +212,11 @@ def normalize_ci(checks):
     return "PENDING" if pending else "GREEN"
 
 
-def normalize_mergeability(value):
+def normalize_mergeability(value, ci_state):
     raw = str(value or "").upper()
     if raw in {"CLEAN", "HAS_HOOKS", "MERGEABLE", "TRUE"}:
+        return "clean"
+    if raw == "UNSTABLE" and ci_state == "PENDING":
         return "clean"
     if raw in {"DIRTY", "CONFLICTING", "CONFLICT", "FALSE"}:
         return "conflict"
@@ -223,6 +225,23 @@ def normalize_mergeability(value):
     if raw in {"BEHIND"}:
         return "conflict"
     return "unknown"
+
+
+def readiness_reason(mergeability, ci_state, raw_mergeability):
+    raw = str(raw_mergeability or "").upper()
+    if mergeability == "conflict":
+        return "merge_conflict"
+    if mergeability == "blocked":
+        return "blocked_review"
+    if raw == "UNSTABLE" and ci_state == "PENDING":
+        return "pending_ci"
+    if mergeability == "unknown":
+        return "mergeability_unknown"
+    if ci_state == "FAIL":
+        return "failing_ci"
+    if ci_state == "PENDING":
+        return "pending_ci"
+    return "ready"
 
 
 def load_dispositions(data):
@@ -311,7 +330,9 @@ threads = load_json(threads_json_path)
 dispositions = load_dispositions(load_json(disposition_json_path))
 
 ci_state = normalize_ci(checks)
-mergeability = normalize_mergeability(pr.get("mergeStateStatus") or resolver.get("merge_state_status"))
+raw_mergeability = pr.get("mergeStateStatus") or resolver.get("merge_state_status")
+mergeability = normalize_mergeability(raw_mergeability, ci_state)
+readiness = readiness_reason(mergeability, ci_state, raw_mergeability)
 review_decision = str(pr.get("reviewDecision") or "").upper() or "UNKNOWN"
 stats = review_stats(threads, dispositions)
 
@@ -341,6 +362,8 @@ result = {
     "pr_state": resolver.get("pr_state") or pr.get("state") or "UNKNOWN",
     "base_freshness": base_freshness(repo, resolver.get("authoritative_base"), resolver.get("head_branch"), resolver.get("pr_type")),
     "mergeability": mergeability,
+    "raw_mergeability": raw_mergeability,
+    "readiness_reason": readiness,
     "ci_state": ci_state,
     "review_decision": review_decision,
     "review_threads_loaded": stats["loaded"],

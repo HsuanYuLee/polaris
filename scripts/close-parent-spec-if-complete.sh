@@ -272,6 +272,13 @@ locked_at: 2026-05-06
 
 - [ ] T1: First task — `tasks/T1/index.md`
 - [ ] T2: Active task — `tasks/T2/index.md`
+
+## Work Orders
+
+| Task | Title | Status |
+|------|-------|--------|
+| T1 | First task | PLANNED |
+| T2 | Active task | PLANNED |
 MD
   cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
 ---
@@ -290,6 +297,14 @@ MD
   env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T1/index.md" --workspace "$tmpdir" >/dev/null
   ! grep -q '^status: IMPLEMENTED$' "$dp_dir/index.md" || {
     echo "[selftest] folder-native DP parent closed while active sibling remained" >&2
+    return 1
+  }
+  grep -q '| T1 | First task | IMPLEMENTED |' "$dp_dir/index.md" || {
+    echo "[selftest] active sibling closeout did not sync completed Work Orders status" >&2
+    return 1
+  }
+  grep -q '| T2 | Active task | PLANNED |' "$dp_dir/index.md" || {
+    echo "[selftest] active sibling closeout rewrote active Work Orders status" >&2
     return 1
   }
 
@@ -557,12 +572,102 @@ for p in sorted(tasks_dir.iterdir()):
             active_verification_tasks.append(p / "index.md")
         else:
             active_implementation_tasks.append(p / "index.md")
+
+pr_release = tasks_dir / "pr-release"
+completed_tasks = []
+if pr_release.exists():
+    for p in sorted(pr_release.iterdir()):
+        if p.is_file() and re.fullmatch(r"[TV]\d+[a-z]*\.md", p.name):
+            completed_tasks.append(p)
+        elif p.is_dir() and re.fullmatch(r"[TV]\d+[a-z]*", p.name) and (p / "index.md").is_file():
+            completed_tasks.append(p / "index.md")
+
+def task_stem(path: Path) -> str:
+    if path.name == "index.md" and path.parent.name != "pr-release":
+        return path.parent.name
+    return path.stem
+
+implemented_stems = {
+    task_stem(p) for p in completed_tasks
+    if frontmatter_status(p) == "IMPLEMENTED"
+}
+
+def sync_work_orders_status(text: str, stems: set[str]) -> str:
+    if not stems:
+        return text
+
+    lines = text.splitlines()
+    out = []
+    in_work_orders = False
+    table_started = False
+    status_idx = None
+    task_idx = None
+
+    for line in lines:
+        stripped = line.strip()
+        if line.startswith("## "):
+            in_work_orders = stripped == "## Work Orders"
+            table_started = False
+            status_idx = None
+            task_idx = None
+            out.append(line)
+            continue
+
+        if not in_work_orders:
+            out.append(line)
+            continue
+
+        if not stripped.startswith("|") or "|" not in stripped[1:]:
+            if table_started:
+                in_work_orders = False
+                table_started = False
+                status_idx = None
+                task_idx = None
+            out.append(line)
+            continue
+
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if status_idx is None:
+            lowered = [cell.lower() for cell in cells]
+            status_idx = next((idx for idx, cell in enumerate(lowered) if "status" in cell or "狀態" in cell), -1)
+            task_idx = next((idx for idx, cell in enumerate(lowered) if "task" in cell or "work order" in cell or "單" in cell), 0)
+            table_started = True
+            out.append(line)
+            continue
+
+        if all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
+            out.append(line)
+            continue
+
+        if status_idx >= 0 and status_idx < len(cells):
+            row_text = " ".join(cells)
+            task_cell = cells[task_idx] if task_idx is not None and task_idx < len(cells) else row_text
+            for stem in stems:
+                if re.search(rf"(?<![A-Z0-9]){re.escape(stem)}(?![a-zA-Z0-9])", task_cell) or re.search(rf"tasks/(?:pr-release/)?{re.escape(stem)}(?:\.md|/)", row_text):
+                    cells[status_idx] = "IMPLEMENTED"
+                    line = "| " + " | ".join(cells) + " |"
+                    break
+        out.append(line)
+
+    new_text = "\n".join(out)
+    if text.endswith("\n"):
+        new_text += "\n"
+    return new_text
+
+text = parent_file.read_text(encoding="utf-8")
+status_synced_text = sync_work_orders_status(text, implemented_stems)
+status_synced = status_synced_text != text
+if status_synced and not dry_run:
+    parent_file.write_text(status_synced_text, encoding="utf-8")
+text = status_synced_text
+
 if active_implementation_tasks:
     emit(
         action="noop",
         reason="active sibling tasks remain",
         parent=str(parent_file),
         active=[str(p) for p in active_tasks],
+        work_orders_status_synced=status_synced,
     )
     sys.exit(0)
 if active_verification_tasks:
@@ -582,15 +687,6 @@ if active_tasks:
     )
     sys.exit(0)
 
-pr_release = tasks_dir / "pr-release"
-completed_tasks = []
-if pr_release.exists():
-    for p in sorted(pr_release.iterdir()):
-        if p.is_file() and re.fullmatch(r"[TV]\d+[a-z]*\.md", p.name):
-            completed_tasks.append(p)
-        elif p.is_dir() and re.fullmatch(r"[TV]\d+[a-z]*", p.name) and (p / "index.md").is_file():
-            completed_tasks.append(p / "index.md")
-
 if not completed_tasks:
     emit(action="noop", reason="no pr-release sibling tasks found", parent=str(parent_file))
     sys.exit(0)
@@ -608,11 +704,6 @@ if unfinished:
     )
     sys.exit(0)
 
-def task_stem(path: Path) -> str:
-    if path.name == "index.md" and path.parent.name != "pr-release":
-        return path.parent.name
-    return path.stem
-
 bad_verifications = [
     str(p) for p in completed_tasks
     if task_stem(p).startswith("V") and ac_verification_status(p) != "PASS"
@@ -627,7 +718,6 @@ if bad_verifications:
     sys.exit(0)
 
 completed_stems = {task_stem(p) for p in completed_tasks}
-text = parent_file.read_text(encoding="utf-8")
 
 def rewrite_task_path(match: re.Match[str], suffix: str) -> str:
     prefix = match.group(1) or ""

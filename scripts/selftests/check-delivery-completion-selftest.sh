@@ -644,6 +644,42 @@ EOF
 
 run_behind_case
 
+run_pending_ci_snapshot_case() {
+  local label="pending-ci-unstable-snapshot"
+  local repo="$TMPROOT/$label/repo"
+  local pr_json="$TMPROOT/$label/pr.json"
+  local checks_json="$TMPROOT/$label/checks.json"
+  local snapshot=""
+  mkdir -p "$TMPROOT/$label"
+  setup_repo "$repo"
+  local head_sha
+  head_sha="$(git -C "$repo" rev-parse HEAD)"
+
+  cat > "$pr_json" <<EOF
+{
+  "number": 1,
+  "url": "https://github.com/demo/example/pull/1",
+  "state": "OPEN",
+  "headRefName": "task/DP-999-T1-completion-gate-fixture",
+  "headRefOid": "$head_sha",
+  "baseRefName": "main",
+  "mergeStateStatus": "UNSTABLE",
+  "reviewDecision": "REVIEW_REQUIRED"
+}
+EOF
+  cat > "$checks_json" <<'EOF'
+[
+  {"name": "ci", "state": "PENDING", "conclusion": null}
+]
+EOF
+
+  snapshot="$(bash "$SCRIPT_DIR/pr-state-snapshot.sh" --repo "$repo" --pr-json "$pr_json" --checks-json "$checks_json" --intent read-only)"
+  assert_contains "$label mergeability" "$snapshot" '"mergeability":"clean"'
+  assert_contains "$label reason" "$snapshot" '"readiness_reason":"pending_ci"'
+}
+
+run_pending_ci_snapshot_case
+
 run_missing_report_case() {
   local label="missing-task-verify-report-blocks"
   local repo="$TMPROOT/$label/repo"

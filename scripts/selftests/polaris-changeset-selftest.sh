@@ -13,7 +13,7 @@
 #   - title with emoji / unicode → preserve / kebab safely
 #   - title overflow → truncate at word boundary
 #   - same slug exists → idempotent skip
-#   - ticket-prefix kebab (TASK-3788 → kb2cw-3788)
+#   - ticket-prefix kebab (TASK-3788 → task-3788)
 #
 # Run: bash scripts/polaris-changeset-selftest.sh   (DEBUG=1 verbose)
 
@@ -304,13 +304,13 @@ else
 fi
 
 # ────────────────────────────────────────────────────────────────────────────
-echo "=== ticket prefix kebab — TASK-3788 → kb2cw-3788 ==="
+echo "=== ticket prefix kebab — TASK-3788 → task-3788 ==="
 TASK_KB="$PARENT_S/specs/SELFTEST-001/tasks/T_kb.md"
 make_task_md "$REPO_S" "myrepo" "$TASK_KB" "TASK-3788" "[TASK-3788] product heading"
 "$PCS" new --task-md "$TASK_KB" >/dev/null 2>&1
-assert_eq "$?" "0" "KB2CW ticket → exit 0"
-EXPECTED_KB="$REPO_S/.changeset/kb2cw-3788-product-heading.md"
-assert_file_exists "$EXPECTED_KB" "kb2cw-3788-* slug created"
+assert_eq "$?" "0" "TASK ticket → exit 0"
+EXPECTED_KB="$REPO_S/.changeset/task-3788-product-heading.md"
+assert_file_exists "$EXPECTED_KB" "task-3788-* slug created"
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== multi-package without declaration → fail-loud ==="

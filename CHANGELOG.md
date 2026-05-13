@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.57] - 2026-05-14
+
+### Changed — scope and PR readiness diagnostics
+
+- Made breakdown readiness fail when a declared changeset deliverable is outside `Allowed Files`.
+- Made parent closeout sync completed child status into the Work Orders table before terminal parent closeout.
+- Added spec-boundary selftest coverage and separated pending CI from unknown mergeability in PR readiness snapshots.
+
 ## [3.75.56] - 2026-05-14
 
 ### Changed — behavior assertion coverage contract
