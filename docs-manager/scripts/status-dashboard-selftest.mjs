@@ -32,6 +32,55 @@ try {
     title: 'T2 done',
     status: 'IMPLEMENTED',
   });
+  for (const key of ['T3a', 'T3b', 'T3c', 'T3d']) {
+    writeMarkdown(path.join(specsRoot, `design-plans/DP-001-active/tasks/pr-release/${key}/index.md`), {
+      title: `${key} pr-release done`,
+      status: 'IMPLEMENTED',
+    });
+  }
+  for (const [index, key] of ['T8a', 'T8b', 'T8c', 'T8d'].entries()) {
+    writeMarkdown(path.join(specsRoot, `design-plans/DP-001-active/tasks/${key}/index.md`), {
+      title: `${key} active PR task`,
+      deliverable: {
+        pr_url: `https://github.com/example/repo/pull/${800 + index}`,
+        pr_state: 'OPEN',
+        head_sha: 'abc1234',
+      },
+    });
+  }
+  writeMarkdown(path.join(specsRoot, 'design-plans/DP-001-active/tasks/T9/index.md'), {
+    title: 'T9 unknown legacy task',
+  });
+  writeRawMarkdown(
+    path.join(specsRoot, 'design-plans/DP-001-active/tasks/T10/index.md'),
+    `---
+title: "T10 malformed deliverable"
+deliverable: "not-a-map"
+---
+
+Body
+`
+  );
+  writeMarkdown(path.join(specsRoot, 'design-plans/DP-001-active/tasks/T11/index.md'), {
+    title: 'T11 stale deliverable task',
+    deliverable: {
+      pr_url: 'https://github.com/example/repo/pull/811',
+      pr_state: 'OPEN',
+      head_sha: 'abc1234',
+    },
+  });
+  writeJson(path.join(specsRoot, 'design-plans/DP-001-active/tasks/T11/publication-manifest.json'), {
+    status: 'local_only',
+    head_sha: 'def5678',
+  });
+  writeJson(path.join(specsRoot, 'design-plans/DP-001-active/tasks/T11/pr-state-snapshot.json'), {
+    pr_state: 'CLOSED',
+    head_sha: 'abc1234',
+  });
+  writeMarkdown(path.join(specsRoot, 'design-plans/DP-001-active/tasks/pr-release/T12/index.md'), {
+    title: 'T12 pr-release blocked',
+    status: 'BLOCKED',
+  });
   writeMarkdown(path.join(specsRoot, 'design-plans/DP-002-folder-native/index.md'), {
     title: 'Folder Native DP',
     status: 'LOCKED',
@@ -112,13 +161,20 @@ Body
 
   assert.equal(itemsById.get('DP-001-active')?.status, 'locked');
   assert.deepEqual(itemsById.get('DP-001-active')?.tasks, {
-    total: 2,
+    total: 14,
     byStatus: {
-      implemented: 1,
+      implemented: 5,
       in_progress: 1,
-      blocked: 0,
-      unknown: 0,
+      in_review: 5,
+      blocked: 1,
+      unknown: 2,
+      stale: 2,
     },
+    staleSignals: [
+      'task-deliverable-invalid',
+      'task-deliverable-pr-snapshot-state-mismatch',
+      'task-deliverable-publication-head-mismatch',
+    ],
   });
 
   assert.equal(itemsById.get('ACME-1')?.status, 'unknown');
@@ -149,6 +205,8 @@ Body
   assert.equal(itemsById.get('ACME-2')?.status, 'unknown');
   assert.deepEqual(itemsById.get('ACME-2')?.blockers, ['missing-primary-artifact']);
   assert.equal(itemsById.get('ACME-2')?.tasks.byStatus.unknown, 1);
+  assert.equal(itemsById.get('ACME-2')?.tasks.byStatus.in_review, 0);
+  assert.equal(itemsById.get('ACME-2')?.tasks.byStatus.stale, 0);
 
   const folderNative = itemsById.get('DP-002-folder-native');
   assert.equal(folderNative?.artifact?.name, 'index.md');
@@ -162,9 +220,12 @@ Body
     byStatus: {
       implemented: 0,
       in_progress: 1,
+      in_review: 0,
       blocked: 1,
       unknown: 0,
+      stale: 0,
     },
+    staleSignals: [],
   });
   assert.equal(reportSummary(folderNative, 'en'), 'Latest report');
   assert.equal(publicationSummary(folderNative, 'en'), 'Published');
@@ -260,6 +321,35 @@ Body
     () => inferStatusDashboard({ specsRoot }),
     /unknown behavior_contract\.mode/
   );
+  fs.rmSync(path.join(specsRoot, 'design-plans/DP-006-unknown-enum'), { recursive: true, force: true });
+
+  writeMarkdown(path.join(specsRoot, 'design-plans/DP-007-malformed-pr-snapshot/index.md'), {
+    title: 'Malformed PR Snapshot DP',
+    status: 'LOCKED',
+  });
+  writeMarkdown(path.join(specsRoot, 'design-plans/DP-007-malformed-pr-snapshot/tasks/T1/index.md'), {
+    title: 'Malformed PR Snapshot Task',
+    deliverable: {
+      pr_url: 'https://github.com/example/repo/pull/7',
+      pr_state: 'OPEN',
+      head_sha: 'abc1234',
+    },
+  });
+  fs.mkdirSync(path.join(specsRoot, 'design-plans/DP-007-malformed-pr-snapshot/tasks/T1'), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(specsRoot, 'design-plans/DP-007-malformed-pr-snapshot/tasks/T1/pr-state-snapshot.json'),
+    '{not-json}\n'
+  );
+  assert.throws(
+    () => inferStatusDashboard({ specsRoot }),
+    /invalid PR state snapshot JSON/
+  );
+  fs.rmSync(path.join(specsRoot, 'design-plans/DP-007-malformed-pr-snapshot'), {
+    recursive: true,
+    force: true,
+  });
 
   const docsManagerRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   process.chdir(docsManagerRoot);

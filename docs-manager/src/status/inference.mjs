@@ -45,7 +45,7 @@ const EXTERNAL_REF_TYPES = new Set(['jira_comment', 'pr', 'slack', 'report', 'ot
 /**
  * @typedef {'design-plan' | 'company-spec'} StatusSourceType
  * @typedef {'seeded' | 'discussion' | 'locked' | 'in_progress' | 'implementing' | 'implemented' | 'superseded' | 'blocked' | 'abandoned' | 'unknown'} DashboardStatus
- * @typedef {{total: number, byStatus: {implemented: number, in_progress: number, blocked: number, unknown: number}}} TaskSummary
+ * @typedef {{total: number, byStatus: {implemented: number, in_progress: number, in_review: number, blocked: number, unknown: number, stale: number}, staleSignals: string[]}} TaskSummary
  * @typedef {{name: string, path: string}} DashboardArtifact
  * @typedef {{name: string, path: string}} DashboardReport
  * @typedef {{status: string, path?: string}} PublicationSummary
@@ -118,6 +118,8 @@ function buildItem({ specsRoot, dir, sourceType, company, today }) {
   const id = path.basename(dir);
   const frontmatter = artifact ? readMarkdownFrontmatter(artifact.file) : {};
   const statusUpdate = findLatestStatusUpdate(dir, specsRoot, today);
+  const tasks = summarizeTasks(path.join(dir, 'tasks'));
+  const staleSignals = [...new Set([...(statusUpdate?.staleSignals ?? []), ...tasks.staleSignals])];
 
   if (!artifact) {
     blockers.push('missing-primary-artifact');
@@ -154,7 +156,7 @@ function buildItem({ specsRoot, dir, sourceType, company, today }) {
       : null,
     publication: summarizePublication(dir),
     verification: inferVerification(dir, artifact?.file),
-    tasks: summarizeTasks(path.join(dir, 'tasks')),
+    tasks,
     blockers,
     derivedPhase: statusUpdate?.phase ?? null,
     statusSummary: statusUpdate?.summary ?? null,
@@ -164,7 +166,7 @@ function buildItem({ specsRoot, dir, sourceType, company, today }) {
     latestStatusUpdate: statusUpdate?.latestStatusUpdate ?? null,
     evidenceLinks: statusUpdate?.evidenceLinks ?? [],
     externalRefs: statusUpdate?.externalRefs ?? [],
-    staleSignals: statusUpdate?.staleSignals ?? [],
+    staleSignals,
   };
 }
 
@@ -420,34 +422,33 @@ function summarizeTasks(tasksDir) {
     byStatus: {
       implemented: 0,
       in_progress: 0,
+      in_review: 0,
       blocked: 0,
       unknown: 0,
+      stale: 0,
     },
+    staleSignals: [],
   };
 
   if (!fs.existsSync(tasksDir)) return summary;
 
   for (const file of taskFiles(tasksDir)) {
     summary.total += 1;
-    const frontmatter = readMarkdownFrontmatter(file);
-    const status = normalizeStatus(frontmatter.status);
-    if (status === 'implemented') {
-      summary.byStatus.implemented += 1;
-    } else if (status === 'in_progress' || status === 'implementing') {
-      summary.byStatus.in_progress += 1;
-    } else if (status === 'blocked') {
-      summary.byStatus.blocked += 1;
-    } else {
-      summary.byStatus.unknown += 1;
+    const projection = projectTaskState(file);
+    summary.byStatus[projection.bucket] += 1;
+    if (projection.staleSignals.length > 0) {
+      summary.byStatus.stale += 1;
+      summary.staleSignals.push(...projection.staleSignals);
     }
   }
 
+  summary.staleSignals = [...new Set(summary.staleSignals)].sort();
   return summary;
 }
 
 function taskFiles(tasksDir) {
   if (!fs.existsSync(tasksDir)) return [];
-  return fs
+  const activeTasks = fs
     .readdirSync(tasksDir, { withFileTypes: true })
     .flatMap((entry) => {
       if (entry.isFile() && /^[TV]\d+[a-z]*\.md$/i.test(entry.name)) {
@@ -458,8 +459,138 @@ function taskFiles(tasksDir) {
         return fs.existsSync(indexFile) ? [indexFile] : [];
       }
       return [];
-    })
+    });
+  const prReleaseDir = path.join(tasksDir, 'pr-release');
+  const releasedTasks = fs.existsSync(prReleaseDir)
+    ? fs
+        .readdirSync(prReleaseDir, { withFileTypes: true })
+        .flatMap((entry) => {
+          if (entry.isFile() && /^[TV]\d+[a-z]*\.md$/i.test(entry.name)) {
+            return [path.join(prReleaseDir, entry.name)];
+          }
+          if (entry.isDirectory() && /^[TV]\d+[a-z]*$/i.test(entry.name)) {
+            const indexFile = path.join(prReleaseDir, entry.name, 'index.md');
+            return fs.existsSync(indexFile) ? [indexFile] : [];
+          }
+          return [];
+        })
+    : [];
+  return [...activeTasks, ...releasedTasks]
     .sort();
+}
+
+function projectTaskState(file) {
+  const frontmatter = readMarkdownFrontmatter(file);
+  const status = normalizeStatus(frontmatter.status);
+  const deliverable = normalizeDeliverable(frontmatter.deliverable);
+  const publication = readTaskPublicationManifest(file);
+  const snapshot = readTaskPrSnapshot(file);
+  const staleSignals = [...deliverable.staleSignals];
+
+  if (publication.invalid) staleSignals.push('task-publication-manifest-invalid');
+  if (
+    deliverable.valid &&
+    publication.headSha &&
+    deliverable.headSha &&
+    publication.headSha !== deliverable.headSha
+  ) {
+    staleSignals.push('task-deliverable-publication-head-mismatch');
+  }
+  if (
+    deliverable.valid &&
+    snapshot &&
+    snapshot.headSha &&
+    deliverable.headSha &&
+    snapshot.headSha !== deliverable.headSha
+  ) {
+    staleSignals.push('task-deliverable-pr-snapshot-head-mismatch');
+  }
+  if (
+    deliverable.valid &&
+    snapshot &&
+    snapshot.prState &&
+    snapshot.prState !== 'UNKNOWN' &&
+    deliverable.prState &&
+    snapshot.prState !== deliverable.prState
+  ) {
+    staleSignals.push('task-deliverable-pr-snapshot-state-mismatch');
+  }
+
+  if (status === 'implemented') return { bucket: 'implemented', staleSignals };
+  if (status === 'in_progress' || status === 'implementing') {
+    return { bucket: 'in_progress', staleSignals };
+  }
+  if (status === 'blocked') return { bucket: 'blocked', staleSignals };
+  if (deliverable.valid) return { bucket: 'in_review', staleSignals };
+  return { bucket: 'unknown', staleSignals };
+}
+
+function normalizeDeliverable(deliverable) {
+  const staleSignals = [];
+  if (deliverable === undefined) return { valid: false, staleSignals };
+  if (!deliverable || typeof deliverable !== 'object' || Array.isArray(deliverable)) {
+    return { valid: false, staleSignals: ['task-deliverable-invalid'] };
+  }
+  const prUrl = String(deliverable.pr_url ?? '').trim();
+  const prState = String(deliverable.pr_state ?? '').trim().toUpperCase();
+  const headSha = String(deliverable.head_sha ?? '').trim();
+  if (!/^https:\/\/github\.com\/.+\/pull\/\d+$/.test(prUrl)) {
+    staleSignals.push('task-deliverable-invalid');
+  }
+  if (!['OPEN', 'MERGED', 'CLOSED'].includes(prState)) {
+    staleSignals.push('task-deliverable-invalid');
+  }
+  if (!/^[0-9a-f]{7,}$/i.test(headSha)) {
+    staleSignals.push('task-deliverable-invalid');
+  }
+  const valid = staleSignals.length === 0;
+  if (!valid) {
+    return { valid: false, staleSignals: [...new Set(staleSignals)] };
+  }
+  return { valid: true, prUrl, prState, headSha, staleSignals };
+}
+
+function readTaskPublicationManifest(taskFile) {
+  const taskDir = taskArtifactDir(taskFile);
+  const manifest = path.join(taskDir, 'publication-manifest.json');
+  if (!fs.existsSync(manifest)) return {};
+  try {
+    const data = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+    const headSha = String(data.head_sha ?? '').trim();
+    return {
+      headSha: /^[0-9a-f]{7,}$/i.test(headSha) ? headSha : null,
+    };
+  } catch {
+    return { invalid: true };
+  }
+}
+
+function readTaskPrSnapshot(taskFile) {
+  const snapshotFile = path.join(taskArtifactDir(taskFile), 'pr-state-snapshot.json');
+  if (!fs.existsSync(snapshotFile)) return null;
+  let data;
+  try {
+    data = JSON.parse(fs.readFileSync(snapshotFile, 'utf8'));
+  } catch {
+    throw new Error(`${snapshotFile}: invalid PR state snapshot JSON`);
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error(`${snapshotFile}: invalid PR state snapshot shape`);
+  }
+  const prState = String(data.pr_state ?? 'UNKNOWN').trim().toUpperCase();
+  if (!['OPEN', 'MERGED', 'CLOSED', 'UNKNOWN'].includes(prState)) {
+    throw new Error(`${snapshotFile}: invalid pr_state: ${data.pr_state}`);
+  }
+  const rawHeadSha = data.head_sha === null || data.head_sha === undefined ? null : String(data.head_sha).trim();
+  if (rawHeadSha && !/^[0-9a-f]{7,}$/i.test(rawHeadSha)) {
+    throw new Error(`${snapshotFile}: invalid head_sha: ${data.head_sha}`);
+  }
+  return { prState, headSha: rawHeadSha };
+}
+
+function taskArtifactDir(taskFile) {
+  if (path.basename(taskFile) === 'index.md') return path.dirname(taskFile);
+  return path.join(path.dirname(taskFile), path.basename(taskFile, '.md'));
 }
 
 function walkFiles(dir, visit) {

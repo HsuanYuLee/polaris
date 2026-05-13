@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.48] - 2026-05-13
+
+### Fixed — status board task deliverable rollup
+
+- Made docs-manager status board task summaries include terminal `tasks/pr-release/*` work orders so implemented closeout tasks count as done.
+- Added deliverable-aware task projection so active tasks with PR metadata show in the review lane instead of staying unknown.
+- Added stale metadata signals for malformed deliverables and local evidence drift, with GT-478-like selftest coverage.
+
 ## [3.75.47] - 2026-05-13
 
 ### Fixed — template-safe Nuxt/Vitest DEBUG hygiene

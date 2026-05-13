@@ -76,8 +76,10 @@ export function taskSummary(item, locale = 'en') {
     translate(locale, 'tasks.total', { count: tasks.total }),
     translate(locale, 'tasks.done', { count: tasks.byStatus.implemented }),
     translate(locale, 'tasks.active', { count: tasks.byStatus.in_progress }),
+    translate(locale, 'tasks.inReview', { count: tasks.byStatus.in_review ?? 0 }),
     translate(locale, 'tasks.blocked', { count: tasks.byStatus.blocked }),
     translate(locale, 'tasks.unknown', { count: tasks.byStatus.unknown }),
+    translate(locale, 'tasks.stale', { count: tasks.byStatus.stale ?? 0 }),
   ].join(' / ');
 }
 
