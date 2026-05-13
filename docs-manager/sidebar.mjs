@@ -11,7 +11,7 @@ export const specsRoot = process.env.POLARIS_SPECS_ROOT
 const t = createTranslator(resolveDocsManagerLocale());
 
 const folderMetadataDocNames = ['index.md', 'plan.md', 'epic.md', 'refinement.md', 'breakdown.md', 'README.md'];
-const hiddenDirectoryNames = new Set(['assets', 'artifacts', 'escalations', 'refinement-inbox', 'tests']);
+const hiddenDirectoryNames = new Set(['assets', 'artifacts', 'escalations', 'jira-comments', 'refinement-inbox', 'tests']);
 const fileOrder = new Map([
   ['index.md', 0],
   ['README.md', 5],
@@ -33,14 +33,14 @@ const directoryOrder = new Map([
 export function specsSidebar() {
   return [
     {
-      label: 'design-plans',
-      collapsed: false,
-      items: namespaceItems(path.join(specsRoot, 'design-plans')),
-    },
-    {
       label: 'companies',
       collapsed: false,
       items: companyItems(),
+    },
+    {
+      label: 'design-plans',
+      collapsed: false,
+      items: namespaceItems(path.join(specsRoot, 'design-plans')),
     },
   ].filter((item) => !('items' in item) || item.items.length > 0);
 }
@@ -62,7 +62,8 @@ function companyItems() {
     .filter((entry) => entry.isDirectory())
     .map((entry) => {
       const companyDir = path.join(companiesRoot, entry.name);
-      const items = namespaceItems(companyDir);
+      const overview = namespaceOverviewItem(companyDir);
+      const items = [overview, ...companyNamespaceItems(companyDir)].filter(Boolean);
       return {
         label: entry.name,
         collapsed: false,
@@ -72,7 +73,32 @@ function companyItems() {
     .filter((item) => item.items.length > 0);
 }
 
-function folderChildren(baseDir) {
+function companyNamespaceItems(companyDir) {
+  const bugItems = folderChildren(companyDir, { onlyBugSpecs: true });
+  const activeItems = folderChildren(companyDir, { excludeBugSpecs: true });
+  const archivedItems = folderChildren(path.join(companyDir, 'archive'));
+  return [
+    sidebarGroup('bugs', bugItems, { collapsed: false, order: 0 }),
+    ...activeItems,
+    archiveGroup('archive', archivedItems),
+  ].filter((item) => !('items' in item) || item.items.length > 0);
+}
+
+function namespaceOverviewItem(baseDir) {
+  const indexFile = path.join(baseDir, 'index.md');
+  if (!fs.existsSync(indexFile)) return undefined;
+  const frontmatter = readFrontmatter(indexFile);
+  const sidebar = frontmatter.sidebar ?? {};
+  const item = {
+    label: sidebar.label || 'overview',
+    link: routePath(indexFile),
+  };
+  const badge = resolveBadge(frontmatter, sidebar);
+  if (badge) item.badge = badge;
+  return withSidebarPrivateFields(item, { order: -1, ...sidebar }, 'index.md', 'file');
+}
+
+function folderChildren(baseDir, options = {}) {
   if (!fs.existsSync(baseDir)) return [];
 
   return fs
@@ -80,17 +106,51 @@ function folderChildren(baseDir) {
     .filter((entry) => entry.isDirectory())
     .filter((entry) => entry.name !== 'archive')
     .filter((entry) => !hiddenDirectoryNames.has(entry.name))
+    .filter((entry) => {
+      if (!options.onlyBugSpecs && !options.excludeBugSpecs) return true;
+      const entryPath = path.join(baseDir, entry.name);
+      const isBug = isBugSpecDir(entryPath);
+      if (options.onlyBugSpecs) return isBug;
+      if (options.excludeBugSpecs) return !isBug;
+      return true;
+    })
     .map((entry) => folderItem(path.join(baseDir, entry.name)))
     .filter(Boolean)
     .sort(sortByOrderThenLabel);
 }
 
 function archiveGroup(label, items) {
-  return {
+  return sidebarGroup(label, items, { collapsed: true });
+}
+
+function sidebarGroup(label, items, metadata = {}) {
+  return withSidebarPrivateFields(
+    {
+      label,
+      collapsed: metadata.collapsed ?? true,
+      items,
+    },
+    metadata,
     label,
-    collapsed: true,
-    items,
-  };
+    'directory'
+  );
+}
+
+function isBugSpecDir(dir) {
+  for (const name of folderMetadataDocNames) {
+    const file = path.join(dir, name);
+    if (!fs.existsSync(file)) continue;
+    const frontmatter = readFrontmatter(file);
+    return isBugFrontmatter(frontmatter);
+  }
+  return false;
+}
+
+function isBugFrontmatter(frontmatter) {
+  const issueType = String(frontmatter.jira_issue_type ?? frontmatter.issue_type ?? '').trim().toLowerCase();
+  const role = String(frontmatter.local_role ?? '').trim().toLowerCase();
+  const title = String(frontmatter.title ?? '').trim().toLowerCase();
+  return issueType === 'bug' || role.includes('bug') || title.startsWith('bug ');
 }
 
 function folderItem(dir) {

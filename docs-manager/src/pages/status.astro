@@ -26,8 +26,9 @@ const toolchain = inferToolchainHealth();
 const groups = groupDashboardItems(dashboard.items);
 const generatedAt = new Date().toISOString();
 const sections = [
-  { title: t('section.designPlans'), slug: 'design-plans', items: groups.designPlans },
+  { title: t('section.companyBugs'), slug: 'company-bugs', items: groups.companyBugs },
   { title: t('section.companySpecs'), slug: 'company-specs', items: groups.companySpecs },
+  { title: t('section.designPlans'), slug: 'design-plans', items: groups.designPlans },
 ];
 const headings = sections.map((section) => ({
   depth: 2,

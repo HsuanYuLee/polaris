@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.43] - 2026-05-13
+
+### Fixed — docs-manager company bug navigation
+
+- Made docs-manager show company specs before design plans in the sidebar so active company work is discoverable without scrolling through the framework backlog.
+- Added a company-level `bugs` sidebar group derived from Bug issue metadata.
+- Split the status dashboard into company Bugs, company specs, and design plans.
+- Aligned the Starlight content loader with sidebar-hidden internal folders so local escalation and refinement inbox artifacts do not block docs builds.
+- Extended the docs-manager runtime verifier wait window so preview builds with large local specs can complete before the health check times out.
+- Updated docs-manager verifier contracts for the Starlight-native glob loader and company-first sidebar order.
+- Made `polaris-viewer.sh` pass the resolved specs overlay to Astro so linked scratch worktrees can preview ignored local specs.
+- Covered company overview, bug grouping, and status dashboard grouping in docs-manager selftests.
+
 ## [3.75.42] - 2026-05-12
 
 ### Fixed — PR review label governance

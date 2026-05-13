@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  groupDashboardItems,
   inferStatusDashboard,
   primaryLink,
   publicationSummary,
@@ -66,15 +67,21 @@ try {
     title: 'Unknown Status Spec',
     status: 'NEEDS_MAGIC',
   });
+  writeMarkdown(path.join(specsRoot, 'companies/acme/BUG-1/index.md'), {
+    title: 'Bug — Checkout error',
+    status: 'DISCUSSION',
+    jira_issue_type: 'Bug',
+  });
   fs.mkdirSync(path.join(specsRoot, 'companies/acme/ACME-2/tasks'), { recursive: true });
   writeMarkdown(path.join(specsRoot, 'companies/acme/ACME-2/tasks/T1.md'), {
     title: 'Missing artifact task',
   });
 
   const dashboard = inferStatusDashboard({ specsRoot });
+  const groups = groupDashboardItems(dashboard.items);
   const itemsById = new Map(dashboard.items.map((item) => [item.id, item]));
 
-  assert.equal(dashboard.items.length, 4);
+  assert.equal(dashboard.items.length, 5);
   assert.equal(itemsById.has('DP-999-archived'), false);
 
   assert.equal(itemsById.get('DP-001-active')?.status, 'locked');
@@ -90,6 +97,9 @@ try {
 
   assert.equal(itemsById.get('ACME-1')?.status, 'unknown');
   assert.deepEqual(itemsById.get('ACME-1')?.blockers, ['unknown-status']);
+  assert.equal(itemsById.get('BUG-1')?.issueType, 'Bug');
+  assert.deepEqual(groups.companyBugs.map((item) => item.id), ['BUG-1']);
+  assert(!groups.companySpecs.some((item) => item.id === 'BUG-1'));
 
   assert.equal(itemsById.get('ACME-2')?.status, 'unknown');
   assert.deepEqual(itemsById.get('ACME-2')?.blockers, ['missing-primary-artifact']);

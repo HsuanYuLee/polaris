@@ -45,6 +45,7 @@ const VISUAL_EXPECTATIONS = new Set(['none_allowed', 'baseline_required', 'updat
  *   title: string,
  *   sourceType: StatusSourceType,
  *   company?: string,
+ *   issueType: string | null,
  *   status: DashboardStatus,
  *   priority: string | number | null,
  *   relativePath: string,
@@ -122,6 +123,7 @@ function buildItem({ specsRoot, dir, sourceType, company }) {
     title: frontmatter.title || id,
     sourceType,
     company,
+    issueType: normalizeIssueType(frontmatter.jira_issue_type ?? frontmatter.issue_type),
     status,
     priority: frontmatter.priority ?? null,
     relativePath: path.relative(specsRoot, dir).replaceAll(path.sep, '/'),
@@ -142,6 +144,11 @@ function buildItem({ specsRoot, dir, sourceType, company }) {
     tasks: summarizeTasks(path.join(dir, 'tasks')),
     blockers,
   };
+}
+
+function normalizeIssueType(value) {
+  const normalized = String(value ?? '').trim();
+  return normalized || null;
 }
 
 function readChildDirectories(dir) {

@@ -199,6 +199,7 @@ esac
 SPECS_ROOT="$(resolve_specs_root "$WORKSPACE_ROOT" 2>/dev/null || true)"
 if [[ -n "$SPECS_ROOT" && -d "$SPECS_ROOT" ]]; then
   export POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT"
+  export POLARIS_SPECS_ROOT="$SPECS_ROOT"
 else
   # gitignored specs 只存在 main checkout；linked worktree 會由 loader 回主 checkout 解析。
   echo "WARN: 找不到 $WORKSPACE_ROOT/docs-manager/src/content/docs/specs；docs-manager 會在可行時從 main checkout 解析 canonical specs。" >&2

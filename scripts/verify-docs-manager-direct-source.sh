@@ -8,8 +8,13 @@ CONTENT_CONFIG="${DOCS_MANAGER}/src/content.config.ts"
 # shellcheck source=lib/specs-root.sh
 . "${ROOT}/scripts/lib/specs-root.sh"
 
-if ! rg -n 'docsLoader\(' "$CONTENT_CONFIG" >/dev/null; then
-  echo "FAIL: docs-manager does not use Starlight docsLoader" >&2
+if ! rg -n 'docsSchema\(' "$CONTENT_CONFIG" >/dev/null; then
+  echo "FAIL: docs-manager does not use Starlight docs schema" >&2
+  exit 1
+fi
+
+if ! rg -n 'docsLoader\(|base:\s*(docsContentRoot|'\''\./src/content/docs'\'')' "$CONTENT_CONFIG" >/dev/null; then
+  echo "FAIL: docs-manager does not use a Starlight-native docs content root" >&2
   exit 1
 fi
 

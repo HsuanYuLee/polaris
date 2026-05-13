@@ -1,10 +1,19 @@
 import { translate } from './i18n.mjs';
 
 export function groupDashboardItems(items) {
+  const companyItems = items.filter((item) => item.sourceType === 'company-spec');
   return {
+    companyBugs: companyItems.filter(isBugItem),
+    companySpecs: companyItems.filter((item) => !isBugItem(item)),
     designPlans: items.filter((item) => item.sourceType === 'design-plan'),
-    companySpecs: items.filter((item) => item.sourceType === 'company-spec'),
   };
+}
+
+export function isBugItem(item) {
+  return (
+    String(item.issueType ?? '').trim().toLowerCase() === 'bug' ||
+    String(item.title ?? '').trim().toLowerCase().startsWith('bug ')
+  );
 }
 
 export function statusLabel(status, locale = 'en') {

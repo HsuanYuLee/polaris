@@ -38,9 +38,20 @@ function labels(items = []) {
   return new Set(items.map((item) => item.label));
 }
 
+function assertLocalized(actual, expectedLabels, message) {
+  assert(expectedLabels.includes(actual), `${message}: ${actual}`);
+}
+
 writeDoc('companies/exampleco/epic-alpha/index.md', {
   title: 'Epic Alpha',
   status: 'IMPLEMENTING',
+});
+writeDoc('companies/exampleco/index.md', {
+  title: 'ExampleCo Specs Overview',
+  description: 'Company-level source index.',
+  sidebar: {
+    label: 'overview',
+  },
 });
 writeDoc('companies/exampleco/epic-alpha/tasks/pr-release/T1/index.md', {
   title: 'T1: Completed setup task (2 pt)',
@@ -60,11 +71,17 @@ writeDoc('companies/exampleco/epic-alpha/tasks/T8b/verify-report.md', {
 writeDoc('companies/exampleco/epic-alpha/assets/legacy/artifacts/old-note.md.txt', {}, 'legacy artifact');
 writeDoc('companies/exampleco/epic-alpha/artifacts/hidden.md', {}, 'hidden artifact');
 writeDoc('companies/exampleco/epic-alpha/escalations/hidden.md', {}, 'hidden escalation');
+writeDoc('companies/exampleco/epic-alpha/jira-comments/hidden.md', {}, 'hidden JIRA comment');
 writeDoc('companies/exampleco/epic-alpha/refinement-inbox/hidden.md', {}, 'hidden inbox');
 writeDoc('companies/exampleco/epic-alpha/tests/hidden.md', {}, 'hidden test');
 writeDoc('companies/exampleco/epic-beta/index.md', {
   title: 'Epic Beta',
   status: 'DISCUSSION',
+});
+writeDoc('companies/exampleco/BUG-1/index.md', {
+  title: 'Bug — ExampleCo checkout error',
+  status: 'DISCUSSION',
+  jira_issue_type: 'Bug',
 });
 writeDoc('design-plans/archive/plan-alpha/index.md', {
   title: 'PLAN Alpha',
@@ -77,7 +94,10 @@ writeDoc('design-plans/archive/plan-alpha/tasks/pr-release/V1/index.md', {
 
 const { specsSidebar } = await import('../sidebar.mjs');
 const sidebar = specsSidebar();
-const hiddenPublicLabels = new Set(['assets', 'artifacts', 'escalations', 'refinement-inbox', 'tests']);
+assert.equal(sidebar[0]?.label, 'companies', 'Companies should be the first sidebar namespace');
+assert.equal(sidebar[1]?.label, 'design-plans', 'Design plans should follow companies in sidebar');
+
+const hiddenPublicLabels = new Set(['assets', 'artifacts', 'escalations', 'jira-comments', 'refinement-inbox', 'tests']);
 
 walk(sidebar, (item, ancestors) => {
   assert(
@@ -88,12 +108,28 @@ walk(sidebar, (item, ancestors) => {
 
 const epicAlpha = findItem(sidebar, (item) => item.label === 'Epic Alpha')?.item;
 assert(epicAlpha, 'Epic Alpha sidebar item missing');
+const exampleco = findItem(sidebar, (item) => item.label === 'exampleco')?.item;
+assert(exampleco, 'ExampleCo company sidebar item missing');
+assert(
+  exampleco.items?.some((item) => item.label === 'overview' && item.link === '/specs/companies/exampleco/'),
+  'ExampleCo company overview link missing'
+);
+const examplecoBugs = exampleco.items?.find((item) => item.label === 'bugs');
+assert(examplecoBugs, 'ExampleCo bugs sidebar group missing');
+assert(
+  findItem(examplecoBugs.items ?? [], (item) => item.link === '/specs/companies/exampleco/bug-1/'),
+  'ExampleCo bug link missing from bugs sidebar group'
+);
+assert(
+  !exampleco.items?.some((item) => item.label === 'Bug — ExampleCo checkout error'),
+  'ExampleCo standalone bug should live under bugs group, not top-level company list'
+);
 const epicAlphaChildLabels = labels(epicAlpha.items);
 for (const hiddenLabel of hiddenPublicLabels) {
   assert(!epicAlphaChildLabels.has(hiddenLabel), `Epic Alpha sidebar leaked non-public folder: ${hiddenLabel}`);
 }
 assert(epicAlphaChildLabels.has('overview'), 'Epic Alpha sidebar missing overview entry');
-assert.equal(epicAlpha.badge?.text, '實作中', 'Epic Alpha badge should use localized status label');
+assertLocalized(epicAlpha.badge?.text, ['實作中', 'Implementing'], 'Epic Alpha badge should use localized status label');
 
 const epicAlphaTasks = epicAlpha.items?.find((item) => item.label === 'tasks');
 assert(epicAlphaTasks, 'Epic Alpha tasks group missing');
@@ -136,7 +172,7 @@ assert(
 const epicBeta = findItem(sidebar, (item) => item.label === 'Epic Beta')?.item;
 assert(epicBeta, 'Epic Beta sidebar item missing');
 assert(epicBeta.items, 'Discussion-only spec should render as a folder, not a leaf link');
-assert.equal(epicBeta.badge?.text, '討論中', 'Epic Beta badge should use localized status label');
+assertLocalized(epicBeta.badge?.text, ['討論中', 'Discussion'], 'Epic Beta badge should use localized status label');
 assert(
   epicBeta.items.some((item) => item.label === 'overview' && item.link === '/specs/companies/exampleco/epic-beta/'),
   'Discussion-only spec folder missing overview child'
