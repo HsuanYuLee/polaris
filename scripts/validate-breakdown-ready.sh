@@ -25,13 +25,14 @@ Validates task.md readiness before breakdown hands work to engineering:
 - Gate rows expose pass conditions and ownership/decisions
 - package graph changes include lockfile scope, or explicitly avoid package graph
 - executable test runners are not declared as static/N/A bootstrap gates
+- Nuxt/Vitest app Test Commands clear inherited DEBUG
 - source migration Verify Command does not use broad substring grep that catches
   cross-scope API names/comments instead of direct library usage
 EOF
 }
 
 run_self_test() {
-  local tasks valid invalid invalid_matrix missing_scope missing_allowed missing_surface folder_valid local_specs_only static_runner package_graph_no_lock broad_migration_grep
+  local tasks valid invalid invalid_matrix missing_scope missing_allowed missing_surface folder_valid local_specs_only static_runner package_graph_no_lock app_unclean_debug app_clean_debug broad_migration_grep
   SELFTEST_TMP="$(mktemp -d -t validate-breakdown-ready.XXXXXX)"
   trap 'rm -rf "${SELFTEST_TMP:-}"' EXIT
   tasks="$SELFTEST_TMP/tasks"
@@ -47,7 +48,9 @@ run_self_test() {
   local_specs_only="$tasks/T8.md"
   static_runner="$tasks/T9.md"
   package_graph_no_lock="$tasks/T10.md"
-  broad_migration_grep="$tasks/T11.md"
+  app_unclean_debug="$tasks/T11.md"
+  app_clean_debug="$tasks/T12.md"
+  broad_migration_grep="$tasks/T13.md"
 
   cat > "$valid" <<'MD'
 ---
@@ -246,6 +249,16 @@ MD
     "$valid" > "$package_graph_no_lock"
 
   sed \
+    -e 's/echo test/pnpm --dir apps\/main exec vitest run helpers\/date.test.ts/' \
+    -e 's/| test | yes | selftest pass | breakdown |/| test | yes | vitest exits 0 | breakdown |/' \
+    -e 's/`bash scripts\/validate-breakdown-ready.sh --self-test`/`pnpm --dir apps\/main exec vitest run helpers\/date.test.ts`/' \
+    -e 's#- \*\*Level\*\*: static#- **Level**: build#' \
+    -e 's#- \*\*Env bootstrap command\*\*: N/A#- **Env bootstrap command**: pnpm install --frozen-lockfile#' \
+    "$valid" > "$app_unclean_debug"
+
+  sed 's/pnpm --dir apps\/main exec vitest run/env -u DEBUG pnpm --dir apps\/main exec vitest run/g' "$app_unclean_debug" > "$app_clean_debug"
+
+  sed \
     -e '/## Verify Command/,$d' \
     "$valid" > "$broad_migration_grep"
   cat >> "$broad_migration_grep" <<'MD'
@@ -296,6 +309,14 @@ MD
     echo "self-test failed: package graph change without lockfile scope passed" >&2
     return 1
   fi
+  if bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$app_unclean_debug" >/dev/null 2>&1; then
+    echo "self-test failed: Nuxt/Vitest app command without DEBUG hygiene passed" >&2
+    return 1
+  fi
+  bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$app_clean_debug" >/dev/null || {
+    echo "self-test failed: clean DEBUG Nuxt/Vitest app command did not pass" >&2
+    return 1
+  }
   if bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$broad_migration_grep" >/dev/null 2>&1; then
     echo "self-test failed: broad source migration moment grep passed" >&2
     return 1
@@ -597,6 +618,27 @@ def validate_test_environment_consistency(file: Path, text: str) -> list[str]:
     return errors
 
 
+def validate_test_command_debug_hygiene(file: Path, text: str) -> list[str]:
+    errors: list[str] = []
+    test_command = first_fenced_code(section(text, "## Test Command"))
+    if not test_command:
+        return errors
+
+    command_space = " ".join(test_command.split())
+    text_lower = text.lower()
+    is_nuxt_vitest_app_command = bool(
+        re.search(r"\bnuxt\b", command_space)
+        or (re.search(r"\bvitest\b", command_space) and ("apps/main" in command_space or "nuxt" in text_lower))
+    )
+    clears_debug = bool(re.search(r"\benv\s+-u\s+DEBUG\b", command_space))
+    if is_nuxt_vitest_app_command and not clears_debug:
+        errors.append(
+            f"{file}: Nuxt/Vitest app Test Command must clear inherited DEBUG via `env -u DEBUG ...`; inherited DEBUG can change Nuxt test startup behavior"
+        )
+
+    return errors
+
+
 def validate_verify_command_specificity(file: Path, text: str) -> list[str]:
     errors: list[str] = []
     verify_command = first_fenced_code(section(text, "## Verify Command"))
@@ -722,6 +764,7 @@ def validate_one(file: Path) -> list[str]:
     errors.extend(validate_scope_trace(file, text, allowed))
     errors.extend(validate_package_graph_scope(file, text, allowed))
     errors.extend(validate_test_environment_consistency(file, text))
+    errors.extend(validate_test_command_debug_hygiene(file, text))
     errors.extend(validate_verify_command_specificity(file, text))
 
     matrix = section(text, "## Gate Closure Matrix")

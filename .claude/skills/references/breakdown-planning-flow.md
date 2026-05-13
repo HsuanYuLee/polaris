@@ -91,6 +91,9 @@ constructability leak：
   Playwright、Cypress），`Test Environment` 不可宣告為 `Level: static` 且
   `Env bootstrap command: N/A`；若 baseline 無法證明可啟動，必須先 route wait /
   baseline approval / refinement，不得 handoff engineering。
+- 對已知 Nuxt/Vitest 會受 caller shell debug env 影響的專案，`Test Command` 必須清掉
+  inherited debug env（例如 `env -u DEBUG ...`）；不得讓 downstream engineering 以
+  產品 runtime/config workaround 修 framework/env 問題。
 - library migration 類 task 的 source-scope Verify Command 不可使用 broad substring
   grep（例如直接 `rg 'moment-timezone|moment' apps/main/...`）。必須掃「直接 library
   usage / import / require / namespace call」的 pattern，避免 cross-scope API prop name、

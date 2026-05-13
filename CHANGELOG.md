@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.47] - 2026-05-13
+
+### Fixed — template-safe Nuxt/Vitest DEBUG hygiene
+
+- Generalized the Nuxt/Vitest Test Command DEBUG hygiene guard so it can ship through the framework template without company-specific strings.
+- Kept the clean-env handoff rule while making the validator fixture and release notes template-safe.
+
+## [3.75.46] - 2026-05-13
+
+### Fixed — Nuxt/Vitest test command DEBUG hygiene
+
+- Made the app-level Vitest command source clear inherited `DEBUG` before task packaging consumes it.
+- Added a breakdown readiness guard so Nuxt/Vitest app Test Commands cannot be handed to engineering without `env -u DEBUG`.
+- Documented the Test Command clean-env requirement so future tasks do not push product runtimeConfig workarounds for framework/env issues.
+
 ## [3.75.45] - 2026-05-13
 
 ### Added — status board projection rollup

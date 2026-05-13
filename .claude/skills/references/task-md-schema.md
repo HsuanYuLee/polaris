@@ -545,6 +545,10 @@ DP-065 Verify Command static smoke 會在 validation 階段檢查可靜態證明
 
 Monorepo 指令必須能從該 repo / worktree root 執行，並包含正確子目錄；例如 `pnpm --dir {app_dir} exec vitest run` 只適用於 repo root 下確實存在 `{app_dir}` 的專案，不能作為所有 task.md 的固定範例。
 
+若 project 的 Nuxt/Vitest runner 已知會受 caller shell debug env 影響，`Test Command`
+必須在 command 入口清掉 inherited debug env（例如 `env -u DEBUG ...`），不要把
+app-level runtime/config workaround 包進產品 task。
+
 Producer 不得把 clean base 已知會失敗的 repo-wide / app-wide command 寫成 READY
 task 的唯一 hard `Test Command`。若解析到的 workspace/project default test command 在
 resolved base 已因 unrelated baseline issue 失敗，breakdown 必須改用 task-owned targeted

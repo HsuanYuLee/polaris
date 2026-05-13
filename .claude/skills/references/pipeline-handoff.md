@@ -215,6 +215,7 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 > breakdown 產出。engineering 跑測試時**必須使用此指令**，不可自行推導。
 > 來源優先順序：workspace-config `projects[].dev_environment.test_command` → 專案 CLAUDE.md → fallback `npx vitest run`。
 > Monorepo 須包含正確的工作目錄（如 `pnpm --dir apps/main exec vitest run`）。
+> 若專案 Nuxt/Vitest runner 會受 inherited debug env 影響，Test Command 必須使用 clean env（如 `env -u DEBUG ...`）。
 
 \`\`\`bash
 {專案特定的測試指令，含正確工作目錄}
