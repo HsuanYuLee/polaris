@@ -2479,6 +2479,16 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/validate-spec-boundary.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "script exposes --selftest and is covered by delivery-contract-gap-convergence-selftest"
+    },
+    {
       "path": "scripts/selftests/validate-dispatch-bundle-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
