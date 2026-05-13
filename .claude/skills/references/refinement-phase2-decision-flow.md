@@ -42,6 +42,16 @@ delivery 流程、framework contract。
 ### Follow-up / Validation
 ```
 
+若 Phase 2 產生 external write body、JIRA comment draft、manual validation output 或
+方案比較 raw notes，保留時必須寫回同一個 source container：
+
+- final JIRA-facing draft：`{source_container}/jira-comments/YYYYMMDD-{slug}.md`
+- raw external write body / alternate draft：`{source_container}/artifacts/external-writes/YYYYMMDD-{slug}.md`
+- research / validation snapshot：`{source_container}/artifacts/research/YYYY-MM-DD-{slug}.md`
+
+Temporary body files 可用 `/tmp`，但 gate pass 後必須刪除；不得把 `.codex/external-writes/`
+當作 Phase 2 durable artifact。
+
 Framework contract change 必須 target-state-first：
 
 - final source of truth。

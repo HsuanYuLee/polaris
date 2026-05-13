@@ -109,6 +109,27 @@ Body 建議包含：
 
 Full detail 留在 `artifacts/research/*.md`。
 
+## External Write And Validation Artifacts
+
+`refinement` 可能在 Phase 1 / Phase 2 中產生 JIRA comment draft、external write body、
+manual validation output 或 data investigation notes。這些不是 `refinement.json` 的替代品；
+若需要保留，必須 close out 到同一個 source container：
+
+```text
+{source_container}/jira-comments/YYYYMMDD-{slug}.md
+{source_container}/artifacts/external-writes/YYYYMMDD-{slug}.md
+{source_container}/artifacts/research/YYYY-MM-DD-{slug}.md
+```
+
+使用規則：
+
+- 可直接作為 JIRA comment 的最終文字放在 `jira-comments/`。
+- raw transport draft、送出前不同版本、或外部系統 body file 放在 `artifacts/external-writes/`。
+- 已消化為 refinement decision 的查證資料放在 `artifacts/research/`，並由
+  `refinement.json.research[]` 引用。
+- `.codex/external-writes/` 只能作為 temporary transport cache；finalize / closeout 前必須
+  移入 source container 或刪除。
+
 ## Required Gate Defer
 
 若 Research Sufficiency Gate 是 `required`，但使用者要求低信心繼續，refinement artifact 必須明寫 defer reason：

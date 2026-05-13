@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.51] - 2026-05-13
+
+### Fixed — template leak cleanup
+
+- Removed company-specific ticket wording from the local artifact placement changelog history.
+- Replaced a company-specific Mockoon fixture filename in the visual snapshot selftest with a template-safe example domain.
+
+## [3.75.50] - 2026-05-13
+
+### Changed — local artifact placement policy
+
+- Documented `user/tools/` as an ignored user-local workspace surface for personal utilities.
+- Clarified company-local helper placement under `{company}/polaris-config/tools/` instead of framework `scripts/`.
+- Added external write closeout rules so durable drafts return to the owning source container and `.codex/external-writes/` remains transport-only.
+
 ## [3.75.49] - 2026-05-13
 
 ### Fixed — work-source and evidence runner hardening
@@ -18,7 +33,7 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 - Made docs-manager status board task summaries include terminal `tasks/pr-release/*` work orders so implemented closeout tasks count as done.
 - Added deliverable-aware task projection so active tasks with PR metadata show in the review lane instead of staying unknown.
-- Added stale metadata signals for malformed deliverables and local evidence drift, with GT-478-like selftest coverage.
+- Added stale metadata signals for malformed deliverables and local evidence drift, with representative selftest coverage.
 
 ## [3.75.47] - 2026-05-13
 

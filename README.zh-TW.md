@@ -32,6 +32,7 @@ Polaris 把 agent 行為分成三層：
 | Workspace | `CLAUDE.md`, `.claude/rules/`, `.claude/skills/` | 共用 strategist 行為、skills、hooks、deterministic rules |
 | Company | ignored `.claude/rules/{company}/`, `{company}/workspace-config.yaml` | 公司專屬 JIRA、Slack、GitHub 與流程慣例 |
 | Project | ignored `{company}/polaris-config/{project}/handbook/` | Repo handbook、generated scripts、test commands、runtime hints、本機 context |
+| 使用者本機 | ignored `user/tools/` | 個人工作站工具；不是 company，也不做 runtime discovery |
 
 Skills 只在被觸發時載入。Rules 和 hooks 則提供常駐護欄：語言政策、安全檢查、PR body 驗證、task artifact 驗證、context continuity 與 workflow gates。
 
@@ -158,6 +159,8 @@ your-workspace/
 │   └── skills/                # Workflow skills
 ├── docs/                      # Public guides
 ├── scripts/                   # Deterministic gates and workflow helpers
+├── user/                      # Ignored 的使用者本機工具、筆記與暫存檔
+│   └── tools/
 └── {company}/                 # Ignored local company context
     ├── workspace-config.yaml
     ├── polaris-config/
@@ -184,9 +187,12 @@ your-workspace/
 | 公司 routing 與 integrations | `{company}/workspace-config.yaml` |
 | 公司工作流程慣例 | `.claude/rules/{company}/` |
 | 專案 handbook 與 generated scripts | `{company}/polaris-config/{project}/` |
+| 公司本機輔助 scripts | `{company}/polaris-config/tools/` |
+| 個人工作站工具 | `user/tools/` |
 | 新 workflow skill | 使用 `skill-creator` |
 
 `.claude/skills/*/SKILL.md`、`.claude/skills/references/`、`.claude/rules/*.md`、hooks、scripts 等 framework internals，只有在修改 Polaris 本身時才應該變更。
+Root `scripts/` 只放可 release、且由 script manifest governance 管理的 framework-supported utilities；company-only helpers 與個人工具應放在上述 ignored local surfaces。
 
 ## 升級
 

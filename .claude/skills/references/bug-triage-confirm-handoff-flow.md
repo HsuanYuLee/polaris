@@ -33,13 +33,28 @@ description: "bug-triage 的 RD confirmation hard stop、JIRA ROOT_CAUSE comment
 依 `workspace-language-policy.md` 或 external write gate blocking validation；validation
 未通過時停在 diagnosis，不得先寫 JIRA 再補 gate。
 
+Durable final-comment artifact 的 canonical path 是：
+
+```text
+{source_container}/jira-comments/YYYYMMDD-root-cause.md
+```
+
+若同一輪有 raw external write body、alternate draft 或 investigation notes 需要保留，寫入：
+
+```text
+{source_container}/artifacts/external-writes/YYYYMMDD-{slug}.md
+```
+
+Temporary body file 可用 `/tmp`；gate pass 後必須刪除或移入 source container，不得留下
+`.codex/external-writes/` residue。
+
 不可送出未通過 language gate 的 diagnostic comment。
 
 Bug 不要求 `refinement.md` / `refinement.json`，但仍不可跳過 handoff。Bug 的
 source-specific handoff 是：
 
 - confirmed JIRA comment containing `[ROOT_CAUSE]`, `[IMPACT]`, `[PROPOSED_FIX]`
-- local final-comment artifact path when available
+- local final-comment artifact path under `{source_container}/jira-comments/`
 - evidence artifact path when investigation produced one
 
 缺 confirmed RCA comment 時，`breakdown` 必須 fail-stop 並 route back to `bug-triage`。

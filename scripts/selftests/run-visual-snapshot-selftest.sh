@@ -190,7 +190,7 @@ assert_evidence_status "/tmp/polaris-vr-DP-104-T2-BLOCKED-$head_sha.json" "BLOCK
 
 mockoon_fixture_dir="$tmpdir/mockoon-api-fixtures"
 mkdir -p "$mockoon_fixture_dir"
-printf '{"type":"environment","item":[]}\n' >"$mockoon_fixture_dir/dev.kkday.com.json"
+printf '{"type":"environment","item":[]}\n' >"$mockoon_fixture_dir/dev.example.invalid.json"
 mockoon_fixture_task="$tmpdir/T2-mockoon-api-fixtures.md"
 write_task "$mockoon_fixture_task" 'verification:
   visual_regression:

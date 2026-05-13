@@ -61,7 +61,9 @@ AC-FAIL path 的 raw evidence 寫入 handoff artifact，供 downstream engineeri
 ## Write Rules
 
 - JIRA diagnostic comment 是 external write，送出前必須通過 `workspace-language-policy.md`
-  或 external write gate，且先有 local final-comment artifact。
+  或 external write gate，且先有 local final-comment artifact。Durable final-comment
+  artifact 應寫入 `{source_container}/jira-comments/YYYYMMDD-root-cause.md`；只有真正
+  temporary body file 可放在 `/tmp`，且 closeout 前必須刪除。
 - Handbook gap/stale updates 依 `explore-pattern.md`，只寫 workspace-owned handbook source。
 - Bug-triage 不使用 blame 或 author attribution 決定誰修；assignee 是運維層，不是診斷輸入。
 

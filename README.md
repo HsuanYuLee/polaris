@@ -32,6 +32,7 @@ Polaris organizes agent behavior into three layers:
 | Workspace | `CLAUDE.md`, `.claude/rules/`, `.claude/skills/` | Shared strategist behavior, skills, hooks, and deterministic rules |
 | Company | ignored `.claude/rules/{company}/`, `{company}/workspace-config.yaml` | Company-specific JIRA, Slack, GitHub, and workflow conventions |
 | Project | ignored `{company}/polaris-config/{project}/handbook/` | Repo handbook, generated scripts, test commands, runtime hints, and local context |
+| User local | ignored `user/tools/` | Personal workstation utilities; not a company and not runtime-discovered |
 
 Skills load only when triggered. Rules and hooks provide the always-on guardrails: language policy, safety checks, PR body validation, task artifact validation, context continuity, and workflow gates.
 
@@ -158,6 +159,8 @@ your-workspace/
 │   └── skills/                # Workflow skills
 ├── docs/                      # Public guides
 ├── scripts/                   # Deterministic gates and workflow helpers
+├── user/                      # Ignored user-local tools, notes, and scratch files
+│   └── tools/
 └── {company}/                 # Ignored local company context
     ├── workspace-config.yaml
     ├── polaris-config/
@@ -184,9 +187,12 @@ Safe places to customize:
 | Company routing and integrations | `{company}/workspace-config.yaml` |
 | Company workflow conventions | `.claude/rules/{company}/` |
 | Project handbook and generated scripts | `{company}/polaris-config/{project}/` |
+| Company-local helper scripts | `{company}/polaris-config/tools/` |
+| Personal workstation utilities | `user/tools/` |
 | New workflow skills | Use `skill-creator` |
 
 Framework internals such as `.claude/skills/*/SKILL.md`, `.claude/skills/references/`, `.claude/rules/*.md`, hooks, and scripts should only be changed when you are modifying Polaris itself.
+Root `scripts/` is only for framework-supported utilities that are releaseable and governed by the script manifest; company-only helpers and personal utilities belong in the ignored local surfaces above.
 
 ## Upgrading
 

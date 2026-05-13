@@ -89,6 +89,10 @@ Suggested task structure 必須先讀 `infra-first-decision.md`：用
 不足時要明確標示 skipped / warning，不得只因 visual regression config 存在就預覽 fixture task。
 
 寫入 `{source_container}/refinement.md`，只放下游需要的 decision，不放完整討論過程。
+若本輪產生 JIRA comment draft、external write body、manual validation output 或 data
+investigation notes，依 `refinement-research-container.md` close out 到 source container 的
+`jira-comments/`、`artifacts/external-writes/` 或 `artifacts/research/`；不得把
+`.codex/external-writes/` 當作 durable storage。
 啟動或重用 docs-manager：
 
 ```bash
@@ -103,9 +107,10 @@ bash scripts/polaris-toolchain.sh run docs.viewer.dev
 
 1. JIRA-backed source：以 final `refinement.md` 寫 JIRA comment / label / description。
 2. 依 `refinement-artifact.md` 產 `{source_container}/refinement.json`。
-3. 跑 `refinement-handoff-gate.sh`。
-4. 跑 language / Starlight gates。
-5. 才提示 `breakdown {SOURCE}`。
+3. 確認 external write drafts / validation outputs 已歸檔到 source container 或刪除 temporary body file。
+4. 跑 `refinement-handoff-gate.sh`。
+5. 跑 language / Starlight gates。
+6. 才提示 `breakdown {SOURCE}`。
 
 這個 finalize contract 適用於所有 refinement-owned JIRA sources，不只 Epic。若 Story /
 Task 被 refinement 充實後才進 breakdown，同樣必須先有 current `refinement.md` 與
