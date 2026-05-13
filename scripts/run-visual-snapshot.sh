@@ -126,6 +126,9 @@ resolve_fixture_dir() {
   if is_na_value "$raw"; then
     return 1
   fi
+  if [[ "$raw" =~ \`([^\`]+)\` ]]; then
+    raw="${BASH_REMATCH[1]}"
+  fi
   if [[ "$raw" = /* ]]; then
     printf '%s\n' "$raw"
     return 0
@@ -138,6 +141,10 @@ resolve_fixture_dir() {
   fi
   if [[ -d "$task_dir/$raw" ]]; then
     (cd "$task_dir/$raw" && pwd)
+    return 0
+  fi
+  if [[ -d "$task_dir/../../${raw}" ]]; then
+    (cd "$task_dir/../../${raw}" && pwd)
     return 0
   fi
   if [[ -d "$repo_path/$raw" ]]; then
@@ -263,6 +270,9 @@ if [[ -n "$FIXTURE_DIR" ]]; then
   FIXTURE_MANIFEST="$FIXTURE_DIR/visual-fixtures.json"
   if [[ "$MODE" == "record" ]]; then
     FIXTURE_MODE="record"
+  elif [[ ! -f "$FIXTURE_MANIFEST" && -d "$FIXTURE_DIR" ]] && find "$FIXTURE_DIR" -maxdepth 1 -type f -name '*.json' | grep -q .; then
+    FIXTURE_MODE="off"
+    FIXTURE_MANIFEST=""
   else
     FIXTURE_MODE="replay"
   fi

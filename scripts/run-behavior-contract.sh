@@ -354,7 +354,15 @@ for candidate in (artifact_root / "behavior-state.json", artifact_root / "state.
     if candidate.is_file():
         state_path = candidate
         break
-state_hash = sha256_file(state_path) if state_path else sha256_bytes(stdout_text.encode("utf-8"))
+state_hash = sha256_bytes(stdout_text.encode("utf-8"))
+if state_path:
+    state_hash = sha256_file(state_path)
+    try:
+        state_data = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        state_data = None
+    if isinstance(state_data, dict) and isinstance(state_data.get("hash"), str) and state_data["hash"]:
+        state_hash = state_data["hash"]
 
 command_pass = int(command_rc) == 0
 status = "PASS" if command_pass else "FAIL"

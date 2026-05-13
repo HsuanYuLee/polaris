@@ -13,7 +13,7 @@
 #  - changeset
 #
 # Usage:
-#   codex-guarded-gh-pr-create.sh [--dry-run] [gh pr create args...]
+#   codex-guarded-gh-pr-create.sh [--dry-run] [--task-md <path>] [--skip-gates] [gh pr create args...]
 
 set -euo pipefail
 
@@ -21,15 +21,46 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 dry_run=false
-if [[ "${1:-}" == "--dry-run" ]]; then
-  dry_run=true
-  shift
-fi
+skip_gates=false
+TASK_MD_PATH=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    --skip-gates)
+      skip_gates=true
+      shift
+      ;;
+    --task-md)
+      TASK_MD_PATH="${2:-}"
+      shift 2
+      ;;
+    --task-md=*)
+      TASK_MD_PATH="${1#--task-md=}"
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
 
 REPO_PATH="${GATE_PROJECT_DIR:-$(pwd)}"
 POLARIS_ARGS=(--repo "$REPO_PATH")
 if [[ "$dry_run" == true ]]; then
   POLARIS_ARGS+=(--dry-run)
+fi
+if [[ "$skip_gates" == true ]]; then
+  POLARIS_ARGS+=(--skip-gates)
+fi
+if [[ -n "$TASK_MD_PATH" ]]; then
+  POLARIS_ARGS+=(--task-md "$TASK_MD_PATH")
 fi
 
 exec "$ROOT_DIR/scripts/polaris-pr-create.sh" "${POLARIS_ARGS[@]}" -- "$@"

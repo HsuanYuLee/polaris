@@ -188,6 +188,19 @@ if [[ "$blocked_rc" -eq 0 ]]; then
 fi
 assert_evidence_status "/tmp/polaris-vr-DP-104-T2-BLOCKED-$head_sha.json" "BLOCKED_ENV"
 
+mockoon_fixture_dir="$tmpdir/mockoon-api-fixtures"
+mkdir -p "$mockoon_fixture_dir"
+printf '{"type":"environment","item":[]}\n' >"$mockoon_fixture_dir/dev.kkday.com.json"
+mockoon_fixture_task="$tmpdir/T2-mockoon-api-fixtures.md"
+write_task "$mockoon_fixture_task" 'verification:
+  visual_regression:
+    expected: none_allowed
+    pages: ["/page.html"]' "runtime" "http://127.0.0.1:$port/page.html" "\`$mockoon_fixture_dir\`（Mockoon required by behavior contract）"
+mockoon_fixture_out="$tmpdir/out-mockoon-api-fixtures"
+bash "$RUNNER" --task-md "$mockoon_fixture_task" --mode baseline --ticket DP-104-T2-MOCKOON-FIXTURES --repo "$ROOT_DIR" --output-dir "$mockoon_fixture_out" >/dev/null
+bash "$RUNNER" --task-md "$mockoon_fixture_task" --mode compare --ticket DP-104-T2-MOCKOON-FIXTURES --repo "$ROOT_DIR" --output-dir "$mockoon_fixture_out" >/dev/null
+assert_evidence_status "/tmp/polaris-vr-DP-104-T2-MOCKOON-FIXTURES-$head_sha.json" "PASS"
+
 if [[ "$INCLUDE_MOCKOON" == "true" ]]; then
   fixture_task="$tmpdir/T4-fixture.md"
   fixture_dir="$tmpdir/mockoon-fixtures"

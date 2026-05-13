@@ -186,6 +186,16 @@ write_minimal_task "$repo" "T1" "DP-999-T1" "task/DP-999-T1-source-gate"
 
 assert_pass "legal task branch" bash "$GATE" --repo "$repo"
 
+external_task="$TMPDIR/external-specs/tasks/T1/index.md"
+mkdir -p "$(dirname "$external_task")"
+cp "$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-no-source-no-pr/tasks/T1/index.md" "$external_task"
+
+assert_pass "wrapper explicit external task-md" env PATH="$TMPDIR:$PATH" \
+  bash "$WRAPPER" --repo "$repo" --task-md "$external_task" --skip-gates --dry-run --title "測試 PR" --body "測試 body"
+
+assert_pass "codex wrapper explicit external task-md" env PATH="$TMPDIR:$PATH" \
+  GATE_PROJECT_DIR="$repo" bash "$CODEX_WRAPPER" --dry-run --skip-gates --task-md "$external_task" --title "測試 PR" --body "測試 body"
+
 write_minimal_task "$repo" "T2" "DP-999-T2" "task/DP-999-T2-source-gate-overlay"
 overlay_worktree="$TMPDIR/repo-overlay"
 git -C "$repo" worktree add -q -b task/DP-999-T2-source-gate-overlay "$overlay_worktree" HEAD

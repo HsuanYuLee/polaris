@@ -6,7 +6,7 @@ set -euo pipefail
 # Runs base-check + evidence + ci-local + PR metadata gates before PR creation.
 #
 # Usage:
-#   bash scripts/polaris-pr-create.sh [--repo <path>] [--skip-gates] [--dry-run] [--aggregate-release] -- <gh pr create args...>
+#   bash scripts/polaris-pr-create.sh [--repo <path>] [--task-md <path>] [--skip-gates] [--dry-run] [--aggregate-release] -- <gh pr create args...>
 #   bash scripts/polaris-pr-create.sh --base develop --title "feat: X" --body "..."
 #
 # All unrecognized flags are passed through to `gh pr create`.
@@ -21,6 +21,7 @@ REVIEW_LABEL_LIB="$SCRIPT_DIR/lib/pr-review-label.sh"
 
 PREFIX="[polaris-pr-create]"
 REPO_PATH=""
+TASK_MD_PATH=""
 SKIP_GATES="${POLARIS_SKIP_PR_GATES:-0}"
 AGGREGATE_RELEASE=0
 DRY_RUN=0
@@ -33,12 +34,13 @@ fi
 
 usage() {
   cat <<EOF
-Usage: polaris-pr-create.sh [--repo <path>] [--skip-gates] [--dry-run] [--aggregate-release] [--] <gh pr create args...>
+Usage: polaris-pr-create.sh [--repo <path>] [--task-md <path>] [--skip-gates] [--dry-run] [--aggregate-release] [--] <gh pr create args...>
 
 Wrapper for 'gh pr create' that runs pre-flight gates before PR creation.
 
 Options:
   --repo <path>     Repository path (default: cwd)
+  --task-md <path>  Explicit Polaris task.md work source for gates
   --skip-gates      Skip non-source gates only; work-source gate still runs
   --dry-run         Run gates but do not create the PR
   --aggregate-release
@@ -56,6 +58,8 @@ while [[ $# -gt 0 ]]; do
     -h|--help)       usage ;;
     --repo)          REPO_PATH="$2"; shift 2 ;;
     --repo=*)        REPO_PATH="${1#--repo=}"; shift ;;
+    --task-md)       TASK_MD_PATH="$2"; shift 2 ;;
+    --task-md=*)     TASK_MD_PATH="${1#--task-md=}"; shift ;;
     --skip-gates)    SKIP_GATES=1; shift ;;
     --dry-run)       DRY_RUN=1; shift ;;
     --aggregate-release) AGGREGATE_RELEASE=1; shift ;;
@@ -271,7 +275,11 @@ run_gate() {
 }
 
 # --- Mandatory source gate ---
-run_gate gate-work-source.sh --repo "$REPO_PATH"
+SOURCE_GATE_ARGS=(--repo "$REPO_PATH")
+if [[ -n "$TASK_MD_PATH" ]]; then
+  SOURCE_GATE_ARGS+=(--task-md "$TASK_MD_PATH")
+fi
+run_gate gate-work-source.sh "${SOURCE_GATE_ARGS[@]}"
 
 # --- Skip non-source gates ---
 if [[ "$SKIP_GATES" == "1" ]]; then
@@ -298,7 +306,11 @@ fi
 
 # Gate 2: evidence (Layer B plus conditional Layer C VR; skip for non-ticket branches)
 if [[ "$IS_TICKET_BRANCH" -eq 1 ]]; then
-  run_gate gate-evidence.sh --repo "$REPO_PATH"
+  EVIDENCE_GATE_ARGS=(--repo "$REPO_PATH")
+  if [[ -n "$TASK_MD_PATH" ]]; then
+    EVIDENCE_GATE_ARGS+=(--task-md "$TASK_MD_PATH")
+  fi
+  run_gate gate-evidence.sh "${EVIDENCE_GATE_ARGS[@]}"
 fi
 
 # Gate 3: ci-local (always)

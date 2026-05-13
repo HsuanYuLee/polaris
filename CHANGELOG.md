@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.49] - 2026-05-13
+
+### Fixed — work-source and evidence runner hardening
+
+- Added explicit `--task-md` forwarding to PR creation wrappers so source and evidence gates can validate overlay or external task artifacts.
+- Made behavior contract evidence use a flow-provided canonical `behavior-state.json` hash when available.
+- Hardened visual snapshot fixture path parsing for Markdown-quoted paths and Mockoon API fixture directories.
+
 ## [3.75.48] - 2026-05-13
 
 ### Fixed — status board task deliverable rollup
