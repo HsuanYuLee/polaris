@@ -74,6 +74,9 @@ JIRA Epic、Story、Task 或 ticketless / DP-backed source 而改變：
 
 ## Step 5. Gap Report And Preview
 
+產生 preview / `refinement.md` 前先讀 `authoring-preflight.md`，並使用
+`workspace-language-policy.md` 解析出的 root `language` 直接起稿；language gate 不是最後翻譯器。
+
 輸出：
 
 - PM questions，最多 3-5 個。

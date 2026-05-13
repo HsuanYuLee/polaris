@@ -136,6 +136,9 @@ Ticketless source 仍採 local-first refinement。Discussion output 寫入：
 {workspace_root}/docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/refinement.md
 ```
 
+寫入前先讀 `authoring-preflight.md`。所有 skill 自己新增的 prose 直接使用 root
+`workspace-config.yaml` 的 `language` 起稿；不可先產英文 draft 再把 language gate 當翻譯器。
+
 Preview 不再啟動獨立 markdown renderer；使用 docs-manager route。舊的 standalone preview helper
 已 sunset，不能作為 handoff contract。
 

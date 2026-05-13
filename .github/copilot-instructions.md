@@ -45,7 +45,7 @@ Copilot does not provide Claude Code's hook model. Before git or GitHub actions,
 
 ## Communication
 
-Use the workspace language from `workspace-config.yaml` as the default authoring language when present. Draft user-facing and downstream-facing prose directly in that language; do not rely on writing English first and translating immediately before sending.
+Use the workspace language from `workspace-config.yaml` as the default authoring language when present. Draft user-facing and downstream-facing prose directly in that language; do not rely on writing English first and translating immediately before sending. If a skill will produce an artifact, preview, handoff, or external write body, load `.claude/skills/references/authoring-preflight.md` and `.claude/skills/references/workspace-language-policy.md` before drafting.
 
 Keep user updates concise, factual, and tied to the current gate or blocker.
 

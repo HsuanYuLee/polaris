@@ -21,6 +21,9 @@ DAG 或循環依賴要 fail-stop，回到 planning 調整。
 
 ## Task.md Output
 
+產生 task skeleton 前先讀 `authoring-preflight.md`。task.md / V*.md 是 downstream-facing
+artifact，所有 planner-authored prose 必須直接使用 workspace policy language 起稿。
+
 每張新 implementation task 預設產 `tasks/T{n}/index.md`，schema 以
 `task-md-schema.md` Implementation Schema 為準。Legacy `tasks/T{n}.md` 只作為既有
 work order 讀取 fallback，不再作為新產物預設。必備內容：

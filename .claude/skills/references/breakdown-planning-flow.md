@@ -112,6 +112,9 @@ Behavior contract 決策來源：
 
 ## User Confirmation Preview
 
+產生 preview 前先讀 `authoring-preflight.md`。Preview 是 user-facing prose，必須直接用
+`workspace-language-policy.md` 解析出的 root `language` 起稿。
+
 Preview 使用 workspace policy language，包含：
 
 - task summary / points / dependencies / allowed files。

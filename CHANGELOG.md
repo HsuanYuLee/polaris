@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.52] - 2026-05-14
+
+### Changed — authoring preflight language policy
+
+- 新增共用 authoring preflight reference，讓 skill 在產生 preview、handoff、external write body、specs markdown、refinement artifact 或 task.md 前先讀 workspace language、Starlight 與 task readiness 規則。
+- 強化 `refinement` 與 `breakdown` 的 mandatory contract，要求直接使用 root `workspace-config.yaml` 的 `language` 起稿，不可把 language gate 當送出前翻譯器。
+- 更新 runtime instruction 產生器並重產 Claude、Codex、Agent 與 Copilot bootstrap，讓所有 runtime 入口都會在產文前載入 authoring preflight 與 workspace language policy。
+
 ## [3.75.51] - 2026-05-13
 
 ### Fixed — template leak cleanup

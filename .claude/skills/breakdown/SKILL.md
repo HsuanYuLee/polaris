@@ -15,9 +15,9 @@ to `refinement`。
 
 ## Mandatory Contracts
 
-- 開始前讀 `workspace-config-reader.md`、`workspace-language-policy.md` 與 root
-  `language`；preview、JIRA comment、task.md / V*.md artifact 預設使用 policy
-  language。
+- 開始前讀 `workspace-config-reader.md`、`workspace-language-policy.md`、
+  `authoring-preflight.md` 與 root `language`；preview、JIRA comment、task.md / V*.md
+  artifact 必須直接用 policy language 起稿，不可把 language gate 當送出前翻譯器。
 - 寫入 specs Markdown 時遵守 `starlight-authoring-contract.md`；新 task work order
   預設寫入 folder-native `tasks/Tn/index.md` 或 `tasks/Vn/index.md`，legacy
   `tasks/Tn.md` / `tasks/Vn.md` 只作為既有 artifact fallback；task schema 以

@@ -152,6 +152,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 |------|-------------|----------|
 | [workspace-config-reader.md](workspace-config-reader.md) | 兩層 config 解析流程（root + company）與完整欄位索引 | 所有需要讀 config 的 skill |
 | [shared-defaults.md](shared-defaults.md) | 跨 skill 共用預設值（Slack channels、JIRA、GitHub、infra） | 所有讀 workspace-config 的 skill |
+| [authoring-preflight.md](authoring-preflight.md) | 所有 skill 產生 user-facing / downstream-facing prose、specs markdown、refinement artifact 或 task.md 前的共用 authoring preflight：workspace language、Starlight、refinement artifact、task.md readiness | 所有會產文或寫 artifact 的 skill, refinement, breakdown, external write, specs markdown producer |
 | [external-write-gate.md](external-write-gate.md) | 外部寫入前的共用 preflight helper：JIRA / Slack / Confluence / GitHub body file 的 language gate 與 optional Starlight gate | 所有會寫外部 surface 的 skill |
 | [dependency-consent.md](dependency-consent.md) | Optional dependency 的使用者同意管理（playwright、mockoon-cli） | onboard, visual-regression, e2e |
 | [onboard-interaction-patterns.md](onboard-interaction-patterns.md) | onboard smartSelect、AI repo detection、audit trail 與 sub-agent Completion Envelope 規則 | onboard, setup workspace, company onboarding |
