@@ -212,6 +212,16 @@ assert_eq "$EV_LEVEL" "static" "evidence: level field"
 EV_EXEC_CWD="$(python3 -c "import json; print(json.load(open('$EV_S'))['execution_cwd'])" 2>/dev/null)"
 assert_eq "$EV_EXEC_CWD" "$REPO_S" "evidence: execution_cwd field"
 
+# Inherited shell DEBUG can alter tool behavior (for example Nuxt test-utils
+# startup). The runner must clear it by default while still allowing the verify
+# command itself to opt in explicitly.
+TASK_DEBUG="$PARENT_S/specs/SELFTEST-001/tasks/T_debug_env.md"
+make_fake_task_md "$REPO_S" "myrepo" "$TASK_DEBUG" "static" 'printf "DEBUG=%s\n" "${DEBUG:-unset}"' "RVC-DEBUG"
+DEBUG=release "$RVC" --task-md "$TASK_DEBUG" >"$WORK_DIR/debug_env.out" 2>"$WORK_DIR/debug_env.err"
+RC_DEBUG=$?
+assert_eq "$RC_DEBUG" "0" "inherited DEBUG env is sanitized"
+assert_contains "$(cat "$WORK_DIR/debug_env.out")" "DEBUG=unset" "verify command does not inherit DEBUG"
+
 # --repo must also be the Verify Command cwd. This catches cases where HEAD is
 # read from --repo but the command still runs from the caller cwd.
 PARENT_C="$WORK_DIR/repo-cwd"

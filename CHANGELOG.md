@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.44] - 2026-05-13
+
+### Fixed — local runner DEBUG env sanitization
+
+- Made generated `ci-local.sh` clear inherited `DEBUG` by default so caller shell debug settings do not change product test startup behavior.
+- Added explicit `CI_LOCAL_DEBUG` and `POLARIS_VERIFY_DEBUG` opt-ins for commands that intentionally need debug logging.
+- Made `run-verify-command.sh` clear inherited `DEBUG` by default and covered the regression in selftests.
+
 ## [3.75.43] - 2026-05-13
 
 ### Fixed — docs-manager company bug navigation

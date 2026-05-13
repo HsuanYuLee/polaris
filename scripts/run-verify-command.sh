@@ -60,6 +60,7 @@ TMP_OUT=""
 TMP_ERR=""
 TMP_FALLBACK_OUT=""
 TMP_FALLBACK_ERR=""
+VERIFY_DEBUG="${POLARIS_VERIFY_DEBUG:-}"
 
 if [[ -f "$SCRIPT_DIR/lib/main-checkout.sh" ]]; then
   # shellcheck source=lib/main-checkout.sh
@@ -76,6 +77,15 @@ head_sha-bound evidence to /tmp/polaris-verified-{TICKET}-{HEAD_SHA}.json.
 
 Exit:  0 = PASS (verify + evidence both succeed), 1 = FAIL, 2 = usage error.
 EOF
+}
+
+run_verify_shell() {
+  local verify_command="$1"
+  if [[ -n "${POLARIS_VERIFY_DEBUG+x}" ]]; then
+    DEBUG="$VERIFY_DEBUG" bash -c "$verify_command"
+  else
+    env -u DEBUG bash -c "$verify_command"
+  fi
 }
 
 # --- Args -------------------------------------------------------------------
@@ -338,7 +348,7 @@ TMP_ERR="$(mktemp -t polaris-verify-stderr.XXXXXX)"
 
 (
   cd "$REPO_PATH" || exit 1
-  bash -c "$VERIFY_COMMAND"
+  run_verify_shell "$VERIFY_COMMAND"
 ) >"$TMP_OUT" 2>"$TMP_ERR"
 VERIFY_EXIT=$?
 PRIMARY_EXIT=$VERIFY_EXIT
@@ -353,7 +363,7 @@ if [[ "$VERIFY_EXIT" -ne 0 && -n "$VERIFY_FALLBACK_COMMAND" ]]; then
   TMP_FALLBACK_ERR="$(mktemp -t polaris-verify-fallback-stderr.XXXXXX)"
   (
     cd "$REPO_PATH" || exit 1
-    bash -c "$VERIFY_FALLBACK_COMMAND"
+    run_verify_shell "$VERIFY_FALLBACK_COMMAND"
   ) >"$TMP_FALLBACK_OUT" 2>"$TMP_FALLBACK_ERR"
   FALLBACK_EXIT=$?
   EFFECTIVE_COMMAND="$VERIFY_FALLBACK_COMMAND"
