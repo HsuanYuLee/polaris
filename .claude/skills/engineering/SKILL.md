@@ -39,6 +39,9 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
 - 任何 sub-agent dispatch 前，先讀 `sub-agent-roles.md` 並注入 Completion Envelope。
 - downstream-facing PR body、commit message、handoff、sidecar、JIRA / Slack text 必須遵守
   `workspace-language-policy.md`；specs Markdown 另遵守 `starlight-authoring-contract.md`。
+- 開始撰寫 PR title/body 前必須先讀 `pr-body-builder.md`，並依該 reference 的 L1→L2→L3
+  template detection 讀 repo PR template；PR body draft 必須從 template skeleton 起稿，不可先
+  用 generic summary 再等 `gate-pr-body-template.sh` 擋下重寫。
 
 ## Mode Routing
 

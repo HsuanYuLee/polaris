@@ -37,7 +37,34 @@ bash scripts/polaris-external-write-gate.sh \
   --body-file <final-body.md>
 ```
 
-## 2. Specs Markdown Shape
+## 2. PR Body Template Shape
+
+`engineering` 或任何 producer 要撰寫 PR title/body 前，先讀 `pr-body-builder.md` 並解析 repo PR
+template。PR body template conformance 是 authoring input，不是 `polaris-pr-create.sh` 或
+completion gate 的事後修正。
+
+規則：
+
+- 先執行 `pr-body-builder.md` 的 L1→L2→L3 template detection；L1 repo template 命中時不可
+  用 L2/L3 generic skeleton 取代。
+- body draft 從 template headings 與 HTML comments 的 intent 開始填，不先產 generic
+  `Summary / Verification` 版本。
+- template headings 保留 repo 原文；producer 自己新增的 prose 依 workspace language 起稿。
+- must-inject sections（例如 `AC Coverage`、`Evidence Summary`）依 `pr-body-builder.md`
+  規則就地填充或插入；不要留下空 placeholder。
+- PR create/edit 前仍要 materialize body file，先跑 template gate 與 language gate，再呼叫
+  wrapper / `gh pr edit`。
+
+Preflight command：
+
+```bash
+bash scripts/gates/gate-pr-body-template.sh \
+  --repo <repo-root> \
+  --body-file <pr-body.md>
+bash scripts/validate-language-policy.sh --blocking --mode artifact <pr-body.md>
+```
+
+## 3. Specs Markdown Shape
 
 任何寫入 `docs-manager/src/content/docs/specs/**/*.md` 的 producer，在產文前先套用
 `starlight-authoring-contract.md`：
@@ -60,7 +87,7 @@ DP primary document 另跑：
 bash scripts/validate-dp-plan-authoring.sh <source_container>/index.md
 ```
 
-## 3. Refinement Artifact Shape
+## 4. Refinement Artifact Shape
 
 `refinement` 產生 `refinement.md` / `refinement.json` 前，先確認：
 
@@ -82,7 +109,7 @@ bash scripts/validate-language-policy.sh --blocking --mode artifact <source_cont
 bash scripts/validate-starlight-authoring.sh check <source_container>/refinement.md
 ```
 
-## 4. Task.md Readiness Shape
+## 5. Task.md Readiness Shape
 
 `breakdown` 產生 `tasks/Tn/index.md` 或 `tasks/Vn/index.md` 前，先確認 task skeleton 已符合
 `task-md-schema.md` 與 `breakdown-task-packaging.md`：
@@ -114,7 +141,7 @@ bash scripts/validate-language-policy.sh --blocking --mode artifact <task_path>
 bash scripts/validate-starlight-authoring.sh check <task_path>
 ```
 
-## 5. Fail-Stop Rule
+## 6. Fail-Stop Rule
 
 Preflight 發現無法判斷的 authoring input 時，不要用 placeholder 繼續產 READY artifact。
 

@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.53] - 2026-05-14
+
+### Changed — PR body template preflight
+
+- 強化 `engineering` mandatory contract，要求撰寫 PR title/body 前先讀 `pr-body-builder.md` 並解析 repo PR template。
+- 新增 PR body producer preflight，讓第一版 PR body draft 就從 L1 repo template skeleton 起稿，不再等 `gate-pr-body-template.sh` 或 completion gate 擋下才重寫。
+- 將 PR body template shape 納入共用 `authoring-preflight.md`，並補強 first-cut 與 revision delivery flow 的 PR body overlay 規則。
+
 ## [3.75.52] - 2026-05-14
 
 ### Changed — authoring preflight language policy

@@ -647,7 +647,11 @@ Behavior contract evidence 由 `scripts/run-behavior-contract.sh` 產生；`pari
 
 ### 7b. 讀 PR template
 
-依 `references/pr-body-builder.md` 的 template detection 邏輯讀取 repo 的 `.github/pull_request_template.md`。無則 fallback 到預設格式。
+在撰寫 PR body draft 前先讀 `references/pr-body-builder.md` § 0 Producer Preflight 與 § 1
+template detection。依 L1→L2→L3 chain 讀 repo template；L1 repo template 命中時，body
+skeleton 必須從該 template 的 headings / comments intent 起稿，不可先產 generic
+`Summary / Verification` body 再等 `gate-pr-body-template.sh` 或 completion gate 擋下重寫。
+無 repo/company template 時才 fallback 到 Polaris 預設格式。
 
 ### 7c. 組 PR body
 
@@ -719,7 +723,10 @@ HEAD_SHA=$(git rev-parse HEAD)
 2. **Revision push 前要求 changeset gate**：至少執行 `polaris-changeset.sh new --task-md "<path/to/task.md>" --repo "<repo_root>"`；若暫時不能執行則至少執行 `gate-changeset.sh --repo "<repo_root>"`（revision mode 的 git pre-push 已包裝）以避免可追溯性缺口。
 3. `git push` 到既有 PR 的 remote branch（branch 已 checkout）
 4. 跳過 `gh pr create`（hook 不觸發）
-5. 若 PR body 需更新（如新增修正摘要），先 materialize body file 並跑 `gate-pr-body-template.sh --body-file` + `validate-language-policy.sh --blocking --mode artifact`，兩者通過後才用 `gh pr edit --body-file` 更新；不得用 inline `--body`
+5. 若 PR body 需更新（如新增修正摘要），先讀 `pr-body-builder.md` § 0 與 § 3d，用既有 remote body
+   的 template sections 做 overlay，再 materialize body file 並跑 `gate-pr-body-template.sh --body-file`
+   + `validate-language-policy.sh --blocking --mode artifact`；兩者通過後才用 `gh pr edit --body-file`
+   更新；不得用 inline `--body`
 6. **更新 head_sha**（revision mode）：push 成功後更新 task.md 的 `deliverable.head_sha`（同 write-deliverable.sh；`pr_state` 不變，維持 `OPEN`）
 
 `POLARIS_PR_WORKFLOW=1` 是 legacy `pr-create-guard.sh` hook escape hatch；新流程使用 `polaris-pr-create.sh` wrapper，不應新增依賴。

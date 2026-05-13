@@ -8,6 +8,34 @@ PR template 偵測、body 組裝、AC Coverage 產生的共用流程。
 
 ---
 
+## 0. Producer Preflight
+
+在撰寫 PR title/body 第一個 draft 前先執行本節。PR template conformance 是 authoring
+input，不是 PR gate 擋下後才修的 output cleanup。
+
+1. 解析 repo root，讀取 root `workspace-config.yaml` 的 `language`。
+2. 依 § 1 的 L1→L2→L3 fallback chain 讀 PR template；L1 repo template 命中時，不得先用
+   generic Polaris skeleton 起稿。
+3. 建立 body skeleton 時保留 template heading 原文與順序；HTML comments 只當 hint，不原封不動留在
+   final body。
+4. 依 § 1.5 將 sections 分成 must-inject、conditional、follow-template，再填內容。
+5. final body materialize 成 body file 後，先跑 template gate 與 language gate，再呼叫
+   `polaris-pr-create.sh` 或 `gh pr edit --body-file`。
+
+Preflight commands：
+
+```bash
+bash scripts/gates/gate-pr-body-template.sh \
+  --repo <repo-root> \
+  --body-file <pr-body.md>
+bash scripts/validate-language-policy.sh --blocking --mode artifact <pr-body.md>
+```
+
+Fail-stop：若 template path 存在但無法讀取、或 body gate fail，回到 body producer 修正；不可開
+generic PR 後再靠 completion gate 重寫。
+
+---
+
 ## 1. Detect PR Template（L1→L2→L3 fallback chain，D23）
 
 **L1 — Repo template**（最權威）：依序檢查以下路徑（命中即停）：
