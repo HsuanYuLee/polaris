@@ -153,6 +153,7 @@ used_names: set[str] = set()
 items: list[dict] = []
 verify_records: list[dict] = []
 review_records: list[dict] = []
+behavior_records: list[dict] = []
 
 
 def unique_name(kind: str, source: Path) -> str:
@@ -217,6 +218,23 @@ for kind, source in candidate_paths:
                 "threads": len(data.get("threads", [])) if isinstance(data.get("threads"), list) else 0,
                 "file": destination.name,
             })
+        except Exception:
+            pass
+    if kind == "behavior":
+        try:
+            data = json.loads(destination.read_text(encoding="utf-8"))
+            if data.get("mode") != "compare":
+                continue
+            for result in data.get("assertion_results", []):
+                if not isinstance(result, dict):
+                    continue
+                behavior_records.append({
+                    "assertion": str(result.get("assertion") or result.get("name") or result.get("id") or "N/A"),
+                    "status": str(result.get("status") or "N/A"),
+                    "source": str(result.get("source") or "N/A"),
+                    "note": str(result.get("note") or ""),
+                    "file": destination.name,
+                })
         except Exception:
             pass
 
@@ -289,6 +307,23 @@ if review_records:
     lines.append("")
 else:
     lines.extend(["No review-thread disposition manifest was collected for this head.", ""])
+
+lines.extend(["## Behavior Assertion Coverage", ""])
+if behavior_records:
+    lines.extend(["| Assertion | Status | Source | Note | Evidence |", "|-----------|--------|--------|------|----------|"])
+    for record in behavior_records:
+        assertion = record.get("assertion", "N/A").replace("\n", "<br>")
+        status_text = record.get("status", "N/A")
+        source = record.get("source", "N/A").replace("\n", "<br>")
+        note = record.get("note", "").replace("\n", "<br>") or "N/A"
+        file = record.get("file") or ""
+        lines.append(f"| {assertion} | `{status_text}` | `{source}` | {note} | [{file}](./assets/raw/{file}) |")
+    lines.append("")
+else:
+    lines.extend([
+        "No behavior assertion coverage manifest was collected for this head.",
+        "",
+    ])
 
 lines.extend(["## Supporting Evidence", ""])
 if items:

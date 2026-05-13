@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.56] - 2026-05-14
+
+### Changed — behavior assertion coverage contract
+
+- Made behavior contract evidence emit structured `assertion_results` for declared task assertions, including `NOT_COVERED` and `MANUAL_REQUIRED` states.
+- Made the evidence gate validate assertion result coverage for behavior tasks instead of relying on flow prose.
+- Made task verify reports show behavior assertion coverage so uncovered or manual assertions are not presented as automated PASS.
+
 ## [3.75.55] - 2026-05-14
 
 ### Fixed — PR delivery metadata automation

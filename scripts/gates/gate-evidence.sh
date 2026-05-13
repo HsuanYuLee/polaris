@@ -360,6 +360,7 @@ print(json.dumps({
     "present": bool(bc),
     "applies": bc.get("applies") is True,
     "mode": bc.get("mode", ""),
+    "assertions": bc.get("assertions") or [],
 }, ensure_ascii=False))
 PY
 )"
@@ -415,14 +416,21 @@ if [[ -z "$behavior_candidates" ]]; then
   exit 2
 fi
 
-behavior_valid="$(python3 - "$TICKET" "$HEAD_SHA" $behavior_candidates <<'PY'
+behavior_valid="$(python3 - "$TICKET" "$HEAD_SHA" "$behavior_state" $behavior_candidates <<'PY'
 import json
 import sys
 
 ticket = sys.argv[1]
 head_sha = sys.argv[2]
-paths = sys.argv[3:]
+task_contract = json.loads(sys.argv[3])
+paths = sys.argv[4:]
 errors = []
+valid_assertion_statuses = {"PASS", "FAIL", "MANUAL_REQUIRED", "NOT_COVERED"}
+task_assertions = [str(item).strip() for item in task_contract.get("assertions", []) if str(item).strip()]
+
+def assertion_key(value):
+    return str(value or "").strip().casefold()
+
 for path in paths:
     try:
         data = json.load(open(path, encoding="utf-8"))
@@ -437,6 +445,19 @@ for path in paths:
         assert media, "missing screenshots/videos"
         if data.get("behavior_mode") in {"parity", "hybrid"}:
             assert data.get("baseline_evidence") not in {None, "", "N/A"}, "missing baseline_evidence"
+        if task_assertions:
+            assertion_results = data.get("assertion_results")
+            assert isinstance(assertion_results, list), "missing assertion_results"
+            by_assertion = {}
+            for item in assertion_results:
+                assert isinstance(item, dict), "assertion_results item must be object"
+                status = str(item.get("status", "")).strip().upper()
+                assert status in valid_assertion_statuses, f"invalid assertion status {status!r}"
+                assertion = item.get("assertion") or item.get("name") or item.get("id")
+                if assertion:
+                    by_assertion.setdefault(assertion_key(assertion), status)
+            missing = [item for item in task_assertions if assertion_key(item) not in by_assertion]
+            assert not missing, "missing assertion_results for task assertions: " + ", ".join(missing)
         print("valid")
         raise SystemExit(0)
     except SystemExit:
@@ -451,7 +472,7 @@ if [[ "$behavior_valid" != "valid" ]]; then
   echo "$PREFIX BLOCKED: behavior evidence is malformed or not passing for ${TICKET}" >&2
   echo "  ${behavior_valid}" >&2
   echo "" >&2
-  echo "Evidence must contain: ticket, head_sha, writer=run-behavior-contract.sh, mode=compare, status=PASS, at, media refs." >&2
+  echo "Evidence must contain: ticket, head_sha, writer=run-behavior-contract.sh, mode=compare, status=PASS, at, media refs, and assertion_results for task assertions." >&2
   exit 2
 fi
 

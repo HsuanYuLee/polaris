@@ -350,6 +350,7 @@ def sha256_file(path: Path) -> str:
 screenshots = sorted(str(path) for ext in ("*.png", "*.jpg", "*.jpeg") for path in artifact_root.rglob(ext))
 videos = sorted(str(path) for ext in ("*.webm", "*.mp4") for path in artifact_root.rglob(ext))
 state_path = None
+state_data = None
 for candidate in (artifact_root / "behavior-state.json", artifact_root / "state.json"):
     if candidate.is_file():
         state_path = candidate
@@ -381,11 +382,98 @@ if state_path:
                     if health.get("hasNuxtRoot") is False:
                         health_failures.append(f"target[{idx}].health.hasNuxtRoot=false")
 
-command_pass = int(command_rc) == 0 and not health_failures
+VALID_ASSERTION_STATUSES = {"PASS", "FAIL", "MANUAL_REQUIRED", "NOT_COVERED"}
+
+def assertion_key(value) -> str:
+    return str(value or "").strip().casefold()
+
+def as_list(value):
+    return value if isinstance(value, list) else []
+
+def raw_assertion_results(payload):
+    if not isinstance(payload, dict):
+        return []
+    candidates = []
+    for key in ("assertion_results", "assertionResults"):
+        candidates.extend(as_list(payload.get(key)))
+    behavior = payload.get("behavior_contract")
+    if isinstance(behavior, dict):
+        for key in ("assertion_results", "assertionResults"):
+            candidates.extend(as_list(behavior.get(key)))
+    comparable = payload.get("comparableState")
+    if isinstance(comparable, dict):
+        for key in ("assertion_results", "assertionResults"):
+            candidates.extend(as_list(comparable.get(key)))
+    return candidates
+
+def normalize_assertion_results() -> tuple[list[dict], dict]:
+    contract_assertions = [str(item) for item in as_list(contract.get("assertions")) if str(item).strip()]
+    raw_results = []
+    for item in raw_assertion_results(state_data):
+        if isinstance(item, dict):
+            raw_results.append(item)
+
+    keyed: dict[str, dict] = {}
+    extras: list[dict] = []
+    for item in raw_results:
+        assertion = item.get("assertion") or item.get("name") or item.get("id")
+        key = assertion_key(assertion)
+        if key:
+            keyed.setdefault(key, item)
+        else:
+            extras.append(item)
+
+    results: list[dict] = []
+    for assertion in contract_assertions:
+        raw = keyed.get(assertion_key(assertion))
+        if raw is None:
+            results.append({
+                "assertion": assertion,
+                "status": "NOT_COVERED",
+                "source": "runner_default",
+                "note": "No structured assertion result was emitted by the flow script.",
+            })
+            continue
+        status = str(raw.get("status", "")).strip().upper()
+        if status not in VALID_ASSERTION_STATUSES:
+            status = "FAIL"
+            note = f"Invalid assertion status: {raw.get('status')!r}"
+        else:
+            note = str(raw.get("note") or raw.get("message") or "").strip()
+        results.append({
+            "assertion": assertion,
+            "status": status,
+            "source": str(raw.get("source") or raw.get("evidence") or "flow_script"),
+            "note": note,
+        })
+
+    for raw in extras:
+        status = str(raw.get("status", "")).strip().upper()
+        if status not in VALID_ASSERTION_STATUSES:
+            status = "FAIL"
+        results.append({
+            "assertion": str(raw.get("assertion") or raw.get("name") or raw.get("id") or "unmapped assertion result"),
+            "status": status,
+            "source": str(raw.get("source") or raw.get("evidence") or "flow_script"),
+            "note": str(raw.get("note") or raw.get("message") or "Result is not mapped to a task assertion.").strip(),
+        })
+
+    summary = {status: 0 for status in sorted(VALID_ASSERTION_STATUSES)}
+    for result in results:
+        summary[result["status"]] = summary.get(result["status"], 0) + 1
+    summary["total"] = len(results)
+    return results, summary
+
+assertion_results, assertion_summary = normalize_assertion_results()
+assertion_failure = any(result.get("status") == "FAIL" for result in assertion_results)
+
+command_pass = int(command_rc) == 0 and not health_failures and not assertion_failure
 status = "PASS" if command_pass else "FAIL"
 comparison = {"kind": "none", "status": status}
 if health_failures:
     comparison = {"kind": "runtime_health", "status": "FAIL", "failures": health_failures}
+elif assertion_failure:
+    comparison = {"kind": "assertion_coverage", "status": "FAIL", "assertion_summary": assertion_summary}
 elif command_pass and mode == "compare" and behavior_mode in {"parity", "hybrid"}:
     drift = state_hash != baseline_state_hash
     if not drift:
@@ -404,6 +492,9 @@ elif command_pass and mode == "compare" and behavior_mode in {"parity", "hybrid"
         status = "FAIL"
 elif command_pass and mode == "compare":
     comparison = {"kind": "flow_assertions", "status": "PASS"}
+
+if assertion_results:
+    comparison["assertion_summary"] = assertion_summary
 
 data = {
     "schema_version": 1,
@@ -429,6 +520,8 @@ data = {
     "stderr_hash": sha256_bytes(stderr_text.encode("utf-8")),
     "exit_code": int(command_rc),
     "health_failures": health_failures,
+    "assertion_results": assertion_results,
+    "assertion_summary": assertion_summary,
     "baseline_evidence": baseline_file or "N/A",
     "baseline_state_hash": baseline_state_hash or "N/A",
     "comparison": comparison,

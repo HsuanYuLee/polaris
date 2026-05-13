@@ -29,6 +29,7 @@ verification:
     flow_script: "scripts/behavior-flow.sh"
     assertions:
       - "state matches"
+      - "optional carousel click covered"
     allowed_differences: ${allowed}
 ---
 
@@ -121,6 +122,7 @@ verification:
     flow_script: "scripts/behavior-flow.sh"
     assertions:
       - "state matches"
+      - "optional carousel click covered"
     allowed_differences: ${allowed}
 ---
 
@@ -199,7 +201,7 @@ make_repo() {
 set -euo pipefail
 mkdir -p "$POLARIS_BEHAVIOR_OUTPUT_DIR"
 value="$(cat behavior-source.txt)"
-printf '{"value":"%s"}\n' "$value" >"$POLARIS_BEHAVIOR_OUTPUT_DIR/behavior-state.json"
+printf '{"value":"%s","assertion_results":[{"assertion":"state matches","status":"PASS","source":"behavior-state.json"}]}\n' "$value" >"$POLARIS_BEHAVIOR_OUTPUT_DIR/behavior-state.json"
 printf 'png:%s\n' "$value" >"$POLARIS_BEHAVIOR_OUTPUT_DIR/screen.png"
 printf 'webm:%s\n' "$value" >"$POLARIS_BEHAVIOR_OUTPUT_DIR/video.webm"
 EOF
@@ -301,9 +303,89 @@ expect_pass "baseline-pass" bash "$ROOT/scripts/run-behavior-contract.sh" --task
 expect_pass "compare-pass" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_pass" --mode compare --repo "$repo_pass" --ticket DP-109-T1
 
 head_pass="$(git -C "$repo_pass" rev-parse HEAD)"
+pass_behavior_evidence="$(find_behavior_evidence "$repo_pass" "DP-109-T1" "$head_pass")"
+python3 - "$pass_behavior_evidence" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+results = {item["assertion"]: item["status"] for item in data["assertion_results"]}
+assert results["state matches"] == "PASS"
+assert results["optional carousel click covered"] == "NOT_COVERED"
+assert data["assertion_summary"]["PASS"] == 1
+assert data["assertion_summary"]["NOT_COVERED"] == 1
+PY
 printf '{"ticket":"DP-109-T1","head_sha":"%s","writer":"run-verify-command.sh","exit_code":0,"at":"2026-05-05T00:00:00Z"}\n' "$head_pass" \
   >"/tmp/polaris-verified-DP-109-T1-${head_pass}.json"
 expect_pass "gate-pass" bash "$ROOT/scripts/gates/gate-evidence.sh" --repo "$repo_pass" --ticket DP-109-T1 --task-md "$task_pass"
+
+report_dir="$WORKDIR/report"
+mkdir -p "$report_dir"
+expect_pass "write-report-assertion-coverage" bash "$ROOT/scripts/write-task-verify-report.sh" \
+  --repo "$repo_pass" \
+  --ticket DP-109-T1 \
+  --task-md "$task_pass" \
+  --head-sha "$head_pass" \
+  --status PASS \
+  --output "$report_dir/verify-report.md"
+grep -q "optional carousel click covered" "$report_dir/verify-report.md"
+grep -q "NOT_COVERED" "$report_dir/verify-report.md"
+
+repo_manual="$WORKDIR/manual-repo"
+make_repo "$repo_manual"
+cat >"$repo_manual/scripts/behavior-flow.sh" <<'EOF'
+set -euo pipefail
+mkdir -p "$POLARIS_BEHAVIOR_OUTPUT_DIR"
+cat >"$POLARIS_BEHAVIOR_OUTPUT_DIR/behavior-state.json" <<'JSON'
+{
+  "value": "manual",
+  "assertion_results": [
+    {"assertion": "state matches", "status": "PASS", "source": "behavior-state.json"},
+    {"assertion": "optional carousel click covered", "status": "MANUAL_REQUIRED", "source": "manual qa handoff", "note": "Carousel click requires human device verification."}
+  ]
+}
+JSON
+printf 'manual png\n' >"$POLARIS_BEHAVIOR_OUTPUT_DIR/screen.png"
+EOF
+git -C "$repo_manual" add scripts/behavior-flow.sh
+git -C "$repo_manual" commit -qm "manual assertion"
+task_manual="$WORKDIR/T1-manual.md"
+write_task "$task_manual" "$(basename "$repo_manual")" "DP-109-T8" "pm_flow" "none" "[]"
+expect_pass "manual-required-compare" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_manual" --mode compare --repo "$repo_manual" --ticket DP-109-T8
+head_manual="$(git -C "$repo_manual" rev-parse HEAD)"
+printf '{"ticket":"DP-109-T8","head_sha":"%s","writer":"run-verify-command.sh","exit_code":0,"at":"2026-05-05T00:00:00Z"}\n' "$head_manual" \
+  >"/tmp/polaris-verified-DP-109-T8-${head_manual}.json"
+expect_pass "manual-required-gate-pass" bash "$ROOT/scripts/gates/gate-evidence.sh" --repo "$repo_manual" --ticket DP-109-T8 --task-md "$task_manual"
+manual_report_dir="$WORKDIR/manual-report"
+mkdir -p "$manual_report_dir"
+expect_pass "manual-required-report" bash "$ROOT/scripts/write-task-verify-report.sh" \
+  --repo "$repo_manual" \
+  --ticket DP-109-T8 \
+  --task-md "$task_manual" \
+  --head-sha "$head_manual" \
+  --status PASS \
+  --output "$manual_report_dir/verify-report.md"
+grep -q "MANUAL_REQUIRED" "$manual_report_dir/verify-report.md"
+
+repo_invalid="$WORKDIR/invalid-assertion-repo"
+make_repo "$repo_invalid"
+cat >"$repo_invalid/scripts/behavior-flow.sh" <<'EOF'
+set -euo pipefail
+mkdir -p "$POLARIS_BEHAVIOR_OUTPUT_DIR"
+cat >"$POLARIS_BEHAVIOR_OUTPUT_DIR/behavior-state.json" <<'JSON'
+{
+  "value": "invalid",
+  "assertion_results": [
+    {"assertion": "state matches", "status": "MAYBE", "source": "behavior-state.json"},
+    {"assertion": "optional carousel click covered", "status": "PASS", "source": "behavior-state.json"}
+  ]
+}
+JSON
+printf 'invalid png\n' >"$POLARIS_BEHAVIOR_OUTPUT_DIR/screen.png"
+EOF
+git -C "$repo_invalid" add scripts/behavior-flow.sh
+git -C "$repo_invalid" commit -qm "invalid assertion"
+task_invalid="$WORKDIR/T1-invalid-assertion.md"
+write_task "$task_invalid" "$(basename "$repo_invalid")" "DP-109-T9" "pm_flow" "none" "[]"
+expect_fail "invalid-assertion-status" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_invalid" --mode compare --repo "$repo_invalid" --ticket DP-109-T9
 
 repo_identity="$WORKDIR/identity-repo"
 make_repo "$repo_identity"
