@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.45] - 2026-05-13
+
+### Added — status board projection rollup
+
+- Added docs-manager status update projection fields so the status board can show derived phase, next owner, next action, validation waits, latest update links, evidence links, and stale signals without writing lifecycle status.
+- Extended status dashboard task summaries to include both T-task and V-task files in flat and folder-native shapes.
+- Covered status update schema validation, invalid phase handling, missing evidence, waiting-window stale signals, and projection links in docs-manager selftests.
+
 ## [3.75.44] - 2026-05-13
 
 ### Fixed — local runner DEBUG env sanitization

@@ -12,7 +12,11 @@ function createServer(mode) {
       response.writeHead(200, { 'content-type': 'text/html' });
       const bodyLink = mode === 'fail'
         ? '<a href="/docs-manager/missing/">missing</a>'
-        : '<a href="/docs-manager/specs/example/">ok</a>';
+        : [
+            '<a href="/docs-manager/specs/example/">ok</a>',
+            '<a href="/docs-manager/specs/example/status-updates/20260513-1100-validation/">status update</a>',
+            '<a href="/docs-manager/specs/example/evidence/20260514-newer-evidence/">evidence</a>',
+          ].join('');
       response.end(`
         <html>
           <head>
@@ -25,6 +29,14 @@ function createServer(mode) {
       return;
     }
     if (request.url === '/docs-manager/specs/example/') {
+      response.writeHead(200, { 'content-type': 'text/html' });
+      response.end('ok');
+      return;
+    }
+    if (
+      request.url === '/docs-manager/specs/example/status-updates/20260513-1100-validation/' ||
+      request.url === '/docs-manager/specs/example/evidence/20260514-newer-evidence/'
+    ) {
       response.writeHead(200, { 'content-type': 'text/html' });
       response.end('ok');
       return;

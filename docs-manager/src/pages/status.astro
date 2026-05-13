@@ -2,14 +2,20 @@
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import {
   blockerSummary,
+  evidenceLinks,
   groupDashboardItems,
   inferStatusDashboard,
+  latestStatusUpdateLink,
   nextCommand,
+  nextActionSummary,
+  nextOwnerSummary,
   primaryLink,
   publicationSummary,
   reportSummary,
   stageLabel,
   statusLabel,
+  statusProjectionSummary,
+  staleSignalLabels,
   taskSummary,
   verificationSummary,
   verifyReportLink,
@@ -99,6 +105,10 @@ const headings = sections.map((section) => ({
                     <th class="title">{t('table.title')}</th>
                     <th class="status">{t('table.status')}</th>
                     <th class="stage">{t('table.stage')}</th>
+                    <th class="summary">{t('table.summary')}</th>
+                    <th class="owner">{t('table.nextOwner')}</th>
+                    <th class="action">{t('table.nextAction')}</th>
+                    <th class="latest">{t('table.latestUpdate')}</th>
                     <th class="tasks">{t('table.tasks')}</th>
                     <th class="verification">{t('table.verification')}</th>
                     <th class="report">{t('table.report')}</th>
@@ -111,6 +121,9 @@ const headings = sections.map((section) => ({
                   {section.items.map((item) => {
                     const link = primaryLink(item, base);
                     const reportLink = verifyReportLink(item, base);
+                    const updateLink = latestStatusUpdateLink(item, base);
+                    const itemEvidenceLinks = evidenceLinks(item, base);
+                    const staleLabels = staleSignalLabels(item, locale);
                     return (
                       <tr>
                         <td class="source">{link ? <a href={link}>{item.id}</a> : item.id}</td>
@@ -119,13 +132,35 @@ const headings = sections.map((section) => ({
                           <span class={`pill ${item.status}`}>{statusLabel(item.status, locale)}</span>
                         </td>
                         <td class="stage">{stageLabel(item, locale)}</td>
+                        <td class="summary">
+                          <span>{statusProjectionSummary(item, locale)}</span>
+                          {staleLabels.length > 0 ? (
+                            <span class="stale-badges">
+                              {staleLabels.map((label) => (
+                                <span class="pill stale">{label}</span>
+                              ))}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td class="owner">{nextOwnerSummary(item)}</td>
+                        <td class="action">{nextActionSummary(item)}</td>
+                        <td class="latest">
+                          {updateLink ? <a href={updateLink}>{item.latestStatusUpdate.name}</a> : '-'}
+                          {itemEvidenceLinks.length > 0 ? (
+                            <span class="evidence-links">
+                              {itemEvidenceLinks.map((evidence) => (
+                                <a href={evidence.href}>{evidence.label}</a>
+                              ))}
+                            </span>
+                          ) : null}
+                        </td>
                         <td class="tasks">{taskSummary(item, locale)}</td>
                         <td class="verification">{verificationSummary(item, locale)}</td>
                         <td class="report">
                           {reportLink ? <a href={reportLink}>{reportSummary(item, locale)}</a> : reportSummary(item, locale)}
                         </td>
                         <td class="publication">{publicationSummary(item, locale)}</td>
-                        <td class="blockers">{blockerSummary(item)}</td>
+                        <td class="blockers">{blockerSummary(item, locale)}</td>
                         <td class="next">
                           <code>{nextCommand(item, locale)}</code>
                         </td>
@@ -195,7 +230,7 @@ const headings = sections.map((section) => ({
 
   .status-table {
     width: 100%;
-    min-width: 88rem;
+    min-width: 126rem;
     border-collapse: collapse;
     table-layout: fixed;
     font-size: var(--sl-text-sm);
@@ -228,12 +263,28 @@ const headings = sections.map((section) => ({
   }
 
   .title {
-    width: 18rem;
+    width: 16rem;
   }
 
   .status,
   .stage {
     width: 8rem;
+  }
+
+  .summary {
+    width: 22rem;
+  }
+
+  .owner {
+    width: 10rem;
+  }
+
+  .action {
+    width: 18rem;
+  }
+
+  .latest {
+    width: 13rem;
   }
 
   .tasks {
@@ -265,6 +316,25 @@ const headings = sections.map((section) => ({
     overflow-wrap: anywhere;
   }
 
+  .summary,
+  .owner,
+  .action,
+  .latest {
+    overflow-wrap: anywhere;
+  }
+
+  .stale-badges,
+  .evidence-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.35rem;
+  }
+
+  .evidence-links a {
+    font-size: var(--sl-text-xs);
+  }
+
   .pill {
     display: inline-flex;
     align-items: center;
@@ -276,6 +346,12 @@ const headings = sections.map((section) => ({
     color: var(--sl-color-gray-2);
     font-size: var(--sl-text-xs);
     font-weight: 700;
+  }
+
+  .pill.stale {
+    border-color: var(--sl-color-orange);
+    background: var(--sl-color-orange-low);
+    color: var(--sl-color-orange-high);
   }
 
   .pill.locked,

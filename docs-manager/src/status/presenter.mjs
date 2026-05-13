@@ -21,6 +21,7 @@ export function statusLabel(status, locale = 'en') {
 }
 
 export function stageLabel(item, locale = 'en') {
+  if (item.derivedPhase) return translate(locale, `phase.${item.derivedPhase}`);
   if (item.blockers.length > 0) return translate(locale, 'stage.needsAttention');
   if (item.status === 'implemented') return translate(locale, 'stage.done');
   if (item.status === 'locked') return translate(locale, 'stage.ready');
@@ -56,6 +57,18 @@ export function verifyReportLink(item, base = '/docs-manager') {
   return `${trimBase(base)}/specs/${docRoute(item.verifyReport.path)}/`;
 }
 
+export function latestStatusUpdateLink(item, base = '/docs-manager') {
+  if (!item.latestStatusUpdate) return null;
+  return `${trimBase(base)}/specs/${docRoute(item.latestStatusUpdate.path)}/`;
+}
+
+export function evidenceLinks(item, base = '/docs-manager') {
+  return (item.evidenceLinks ?? []).map((evidence) => ({
+    label: evidence.name,
+    href: `${trimBase(base)}/specs/${docRoute(evidence.path)}/`,
+  }));
+}
+
 export function taskSummary(item, locale = 'en') {
   const tasks = item.tasks;
   if (tasks.total === 0) return '0';
@@ -68,8 +81,37 @@ export function taskSummary(item, locale = 'en') {
   ].join(' / ');
 }
 
-export function blockerSummary(item) {
-  return item.blockers.length > 0 ? item.blockers.join(', ') : '-';
+export function blockerSummary(item, locale = 'en') {
+  const staleSignals = item.staleSignals ?? [];
+  const parts = [
+    ...item.blockers,
+    ...staleSignals.map((signal) => translate(locale, `stale.${signal}`)),
+  ];
+  return parts.length > 0 ? parts.join(', ') : '-';
+}
+
+export function statusProjectionSummary(item, locale = 'en') {
+  const parts = [];
+  if (item.statusSummary) parts.push(item.statusSummary);
+  if (item.waitingUntil) {
+    parts.push(translate(locale, 'projection.waitingUntil', { date: item.waitingUntil }));
+  }
+  if (item.latestStatusUpdate) {
+    parts.push(translate(locale, 'projection.latestUpdate', { date: item.latestStatusUpdate.date }));
+  }
+  return parts.length > 0 ? parts.join(' / ') : '-';
+}
+
+export function nextOwnerSummary(item) {
+  return item.nextOwner || '-';
+}
+
+export function nextActionSummary(item) {
+  return item.nextAction || '-';
+}
+
+export function staleSignalLabels(item, locale = 'en') {
+  return (item.staleSignals ?? []).map((signal) => translate(locale, `stale.${signal}`));
 }
 
 export function verificationSummary(item, locale = 'en') {
