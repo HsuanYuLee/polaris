@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.65] - 2026-05-15
+
+### Fixed — polaris-env Docker dependency readiness
+
+- 修正 `polaris-env.sh` 的 Docker proxy dependency startup readiness，改以 port-level readiness 啟動下游 app，避免 Docker route health 依賴尚未啟動的 app 時形成 deadlock。
+- 保留 final `verify/status` 的 route health 嚴格檢查，app-backed Docker route 不健康時仍會 fail loud。
+- 讓 `polaris-env.sh` 從 matching repo worktree 執行時使用目前 worktree 作為 app dev server project dir，避免 task runtime verify 跑到 canonical checkout。
+- 新增 `polaris-env-selftest.sh`，覆蓋 app 啟動前 Docker route 502、app launch、worktree project dir resolution、與 final route health PASS。
+
 ## [3.75.64] - 2026-05-15
 
 ### Changed — workflow ownership cleanup

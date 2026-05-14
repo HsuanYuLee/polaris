@@ -1632,10 +1632,19 @@
       "kind": "support",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
-      "selftest": "N/A",
+      "selftest": "scripts/polaris-env-selftest.sh",
       "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/polaris-env-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
       "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/polaris-external-write-gate-selftest.sh",

@@ -16,6 +16,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+CALLER_CWD="$(pwd)"
 PID_BASE="/tmp/polaris-env"
 
 GREEN="\033[0;32m"; RED="\033[0;31m"; YELLOW="\033[0;33m"; RESET="\033[0m"
@@ -26,6 +27,26 @@ warn() { echo -e "  ${YELLOW}[~]${RESET} $*"; }
 pid_dir() { echo "$PID_BASE/$1"; }
 save_pid() { mkdir -p "$(pid_dir "$1")"; echo "$3" > "$(pid_dir "$1")/$2.pid"; }
 is_pid_running() { [[ -n "$1" ]] && kill -0 "$1" 2>/dev/null; }
+
+resolve_project_dir() {
+  local company="$1" name="$2" repo="${3:-}" default_dir current_top remote
+  default_dir="$WORKSPACE_ROOT/$company/$name"
+
+  if [[ -n "${POLARIS_ENV_PROJECT_DIR:-}" && -d "${POLARIS_ENV_PROJECT_DIR:-}" ]]; then
+    echo "$POLARIS_ENV_PROJECT_DIR"
+    return 0
+  fi
+
+  if [[ -n "$repo" ]] && current_top="$(git -C "$CALLER_CWD" rev-parse --show-toplevel 2>/dev/null)"; then
+    remote="$(git -C "$current_top" config --get remote.origin.url 2>/dev/null || true)"
+    if [[ "$remote" == *"$repo"* || "$remote" == *"${repo}.git"* ]]; then
+      echo "$current_top"
+      return 0
+    fi
+  fi
+
+  echo "$default_dir"
+}
 
 parse_config() {
   python3 -c "
@@ -117,6 +138,17 @@ docker_health_ready() {
   fi
 }
 
+docker_dependency_port() {
+  local url="$1"
+  url_port "$url"
+}
+
+docker_dependency_ready() {
+  local url="$1" timeout="${2:-60}" port
+  port="$(docker_dependency_port "$url")"
+  [[ -n "$port" ]] && wait_for_ports "docker-dependency" "$port"
+}
+
 ensure_deps_fresh() {
   local project_dir="$1"
   local lockfile="$project_dir/pnpm-lock.yaml"
@@ -154,24 +186,16 @@ for p in json.load(sys.stdin).get('projects',[]):
         print(p['name']+'|'+d['start_command']+'|'+d.get('health_check',''))
 " | while IFS='|' read -r name cmd health; do
     local health_port; health_port=$(url_port "$health")
-    if docker_health_ready "$health" 4; then
-      if [[ "$(docker_health_mode "$health")" == "http" ]]; then
-        ok "$name (already running: $health)"
-      else
-        ok "$name (already running on port $health_port)"
-      fi
+    if docker_dependency_ready "$health" 4; then
+      ok "$name (already running on dependency port $health_port)"
       continue
     fi
     local log; log="$(pid_dir "$company")/$name.log"; mkdir -p "$(pid_dir "$company")"
     local resolved_cmd="${cmd/\~/$HOME}"
     nohup bash -lc "$resolved_cmd" > "$log" 2>&1 < /dev/null &
     save_pid "$company" "$name" $!
-    if docker_health_ready "$health" 60; then
-      if [[ "$(docker_health_mode "$health")" == "http" ]]; then
-        ok "$name ($health)"
-      else
-        ok "$name (port $health_port)"
-      fi
+    if docker_dependency_ready "$health" 60; then
+      ok "$name (dependency port $health_port)"
     else
       fail "$name timed out — $log"
     fi
@@ -222,6 +246,7 @@ for p in json.load(sys.stdin).get('projects',[]):
     d=p.get('dev_environment',{})
     if not d or 'docker' in p.get('tags',[]): continue
     rows.append({'name':p['name'],'tags':p.get('tags',[]),
+        'repo':p.get('repo',''),
         'cmd':d['start_command'],'sig':d.get('ready_signal',''),
         'health':d.get('health_check',''),'req':d.get('requires',[])})
 if filter_p:
@@ -230,8 +255,8 @@ elif profile=='--vr':
     web=[r for r in rows if 'b2c' in r['tags']]
     rows=web[:1] if web else rows[:1]
 for r in rows:
-    print(r['name']+'|'+r['cmd']+'|'+r['sig']+'|'+r['health']+'|'+','.join(r['req']))
-" | while IFS='|' read -r name cmd sig health requires_csv; do
+    print(r['name']+'|'+r['repo']+'|'+r['cmd']+'|'+r['sig']+'|'+r['health']+'|'+','.join(r['req']))
+" | while IFS='|' read -r name repo cmd sig health requires_csv; do
 
     # Check requires — Docker deps use port check, others use HTTP
     if [[ -n "$requires_csv" ]]; then
@@ -248,7 +273,7 @@ for p in json.load(sys.stdin).get('projects',[]):
         local req_type="${req_info%%|*}" req_health="${req_info#*|}"
         if [[ -z "$req_health" ]]; then continue; fi
         if [[ "$req_type" == "docker" ]]; then
-          if ! docker_health_ready "$req_health" 3; then ok_reqs=false; break; fi
+          if ! docker_dependency_ready "$req_health" 3; then ok_reqs=false; break; fi
         else
           if ! wait_for_url "$req_health" 3 2>/dev/null; then ok_reqs=false; break; fi
         fi
@@ -269,13 +294,12 @@ for p in json.load(sys.stdin).get('projects',[]):
     fi
 
     # Ensure node_modules is up to date (catches branch-switch staleness)
-    local project_dir="$WORKSPACE_ROOT/$company/$name"
+    local project_dir; project_dir="$(resolve_project_dir "$company" "$name" "$repo")"
     [[ -d "$project_dir" ]] && ensure_deps_fresh "$project_dir"
 
     local log; log="$(pid_dir "$company")/$name.log"; mkdir -p "$(pid_dir "$company")"
     local resolved_cmd="${cmd/\~/$HOME}"
     # If cmd starts with 'pnpm' and doesn't have -C, prepend -C {project_dir}
-    local project_dir="$WORKSPACE_ROOT/$company/$name"
     if [[ "$resolved_cmd" == pnpm\ * ]] && [[ "$resolved_cmd" != *" -C "* ]]; then
       resolved_cmd="pnpm -C $project_dir ${resolved_cmd#pnpm }"
     elif [[ "$resolved_cmd" == npm\ * ]] && [[ ! -d "$project_dir/node_modules" ]]; then
