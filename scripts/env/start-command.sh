@@ -161,18 +161,41 @@ if [[ ! -d "$launch_cwd" ]]; then
   env_lib_log_fail "--cwd path does not exist: $launch_cwd"; exit 1
 fi
 env_lib_log_info "launching '$start_command' for $PROJECT in $launch_cwd (log: $LOG_FILE)"
-# Use `nohup` so long-running dev servers survive after this orchestrator exits.
-# Keep `exec` inside bash -lc so the tracked PID becomes the actual worker.
-nohup bash -lc "cd '$launch_cwd' && exec $start_command" >> "$LOG_FILE" 2>&1 < /dev/null &
-PID=$!
+# Launch in a new session so long-running dev servers do not depend on the
+# caller shell or command-substitution process group. Python stdlib gives us a
+# portable start_new_session primitive where macOS may not provide `setsid`.
+launch_result="$(python3 - "$launch_cwd" "$LOG_FILE" "$start_command" <<'PY'
+import subprocess
+import sys
+import time
+
+cwd, log_file, command = sys.argv[1:4]
+with open(log_file, "ab", buffering=0) as log:
+    process = subprocess.Popen(
+        ["bash", "-lc", f"cd {cwd!r} && exec {command}"],
+        stdin=subprocess.DEVNULL,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+        close_fds=True,
+    )
+    time.sleep(1)
+    rc = process.poll()
+    if rc is None:
+        print(f"{process.pid}\trunning\t")
+    else:
+        print(f"{process.pid}\texited\t{rc}")
+PY
+)"
+PID="${launch_result%%$'\t'*}"
+launch_rest="${launch_result#*$'\t'}"
+launch_state="${launch_rest%%$'\t'*}"
+launch_rc="${launch_rest#*$'\t'}"
 echo "$PID" > "$PID_FILE"
 
 # Quick sanity: does the process die immediately?
-sleep 1
-if ! kill -0 "$PID" 2>/dev/null; then
-  rc=0
-  wait "$PID" || rc=$?
-  if [[ "$rc" -eq 0 ]]; then
+if [[ "$launch_state" == "exited" ]]; then
+  if [[ "${launch_rc:-1}" -eq 0 ]]; then
     status="completed"
     env_lib_log_pass "$PROJECT start_command completed (pid=$PID, status=$status)"
     python3 -c '
@@ -188,6 +211,12 @@ print(json.dumps({
 ' "$PROJECT" "$PID" "$LOG_FILE" "$status"
     exit 0
   fi
+  env_lib_log_fail "start_command died immediately for $PROJECT (log tail below)"
+  tail -20 "$LOG_FILE" >&2 || true
+  rm -f "$PID_FILE"
+  exit 1
+fi
+if ! kill -0 "$PID" 2>/dev/null; then
   env_lib_log_fail "start_command died immediately for $PROJECT (log tail below)"
   tail -20 "$LOG_FILE" >&2 || true
   rm -f "$PID_FILE"

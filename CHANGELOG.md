@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.71] - 2026-05-15
+
+### Fixed — start-command durable runtime launcher
+
+- 讓 `start-command.sh` 以 detached process group 啟動 long-running runtime，避免呼叫端 shell 或 command substitution 結束時帶走 dev server。
+- 保留 `ready_signal`、PID/log JSON 與 one-shot `completed` 語意，讓既有 D11 env primitive contract 不變。
+- 補上 process group regression selftest，確保 runtime launcher 不再只依賴短窗 health-check。
+
 ## [3.75.70] - 2026-05-15
 
 ### Fixed — start-test-env runtime liveness

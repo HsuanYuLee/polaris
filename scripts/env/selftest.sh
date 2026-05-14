@@ -211,6 +211,14 @@ sticky_pid=$(printf '%s' "$sticky_out" | python3 -c 'import json,sys; print(json
 sleep 1
 kill -0 "$sticky_pid" 2>/dev/null
 assert_eq "$?" "0" "sticky-service survives after start-command exits"
+sticky_pgid=$(ps -p "$sticky_pid" -o pgid= 2>/dev/null | tr -d '[:space:]' || true)
+self_pgid=$(ps -p "$$" -o pgid= 2>/dev/null | tr -d '[:space:]' || true)
+if [[ -n "$sticky_pgid" && -n "$self_pgid" && "$sticky_pgid" != "$self_pgid" ]]; then
+  RC_STICKY_SESSION=0
+else
+  RC_STICKY_SESSION=1
+fi
+assert_eq "$RC_STICKY_SESSION" "0" "sticky-service runs in detached process group"
 
 echo ""
 echo "=== install-project-deps.sh ==="
