@@ -7,6 +7,7 @@ set -euo pipefail
 #   collect  Build a JSON manifest for local visual / behavior evidence.
 #   check    Require a PR-visible publication marker when publishable evidence exists.
 #   comment  Publish the manifest as a GitHub PR comment.
+#   jira-comment  Upload publishable artifacts to Jira, then publish a GitHub PR marker comment.
 
 PREFIX="[polaris evidence-publication]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -17,18 +18,22 @@ TICKET=""
 HEAD_SHA=""
 PR_URL=""
 MANIFEST_FILE=""
+JIRA_KEY=""
+UPLOADER=""
 
 usage() {
   cat >&2 <<'USAGE'
 Usage:
-  publish-delivery-evidence.sh --mode collect|check|comment --repo <path> --ticket <KEY> --head-sha <sha> [--pr-url <url>] [--manifest-file <path>]
+  publish-delivery-evidence.sh --mode collect|check|comment|jira-comment --repo <path> --ticket <KEY> --head-sha <sha> [--pr-url <url>] [--manifest-file <path>] [--jira-key <KEY>] [--uploader <path>]
 
 Options:
-  --mode <mode>        collect, check, or comment. Default: check.
+  --mode <mode>        collect, check, comment, or jira-comment. Default: check.
   --repo <path>        Target repo root.
   --ticket <KEY>       Task ticket key or DP pseudo-task id.
   --head-sha <sha>     Delivery head sha.
   --pr-url <url>       GitHub PR URL. Required for check/comment.
+  --jira-key <KEY>     Jira issue key for jira-comment mode.
+  --uploader <path>    Jira uploader override for jira-comment mode.
   --manifest-file      Optional output path for collect/comment manifest JSON.
 USAGE
 }
@@ -60,13 +65,15 @@ while [[ $# -gt 0 ]]; do
     --head-sha) HEAD_SHA="${2:-}"; shift 2 ;;
     --pr-url) PR_URL="${2:-}"; shift 2 ;;
     --manifest-file) MANIFEST_FILE="${2:-}"; shift 2 ;;
+    --jira-key) JIRA_KEY="${2:-}"; shift 2 ;;
+    --uploader) UPLOADER="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "$PREFIX unknown argument: $1" >&2; usage; exit 64 ;;
   esac
 done
 
 case "$MODE" in
-  collect|check|comment) ;;
+  collect|check|comment|jira-comment) ;;
   *) echo "$PREFIX invalid --mode: $MODE" >&2; exit 64 ;;
 esac
 
@@ -83,15 +90,24 @@ if [[ "$MODE" != "collect" && -z "$PR_URL" ]]; then
   echo "$PREFIX --pr-url is required for mode=$MODE" >&2
   exit 64
 fi
+if [[ "$MODE" == "jira-comment" && ( -z "$JIRA_KEY" || "$JIRA_KEY" == "N/A" ) ]]; then
+  echo "$PREFIX --jira-key is required for mode=jira-comment" >&2
+  exit 64
+fi
 
 REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 SAFE_TICKET="$(safe_ticket "$TICKET")"
+FRAMEWORK_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 manifest_tmp="$(mktemp -t polaris-evidence-manifest.XXXXXX.json)"
 comment_tmp=""
 comments_tmp=""
+jira_tmp_dir=""
 cleanup() {
   rm -f "$manifest_tmp" "${comment_tmp:-}" "${comments_tmp:-}"
+  if [[ -n "${jira_tmp_dir:-}" ]]; then
+    rm -rf "$jira_tmp_dir"
+  fi
 }
 trap cleanup EXIT
 
@@ -310,6 +326,188 @@ PY
   echo "$PREFIX BLOCKED: No PR-visible evidence publication marker for ${TICKET}@${HEAD_SHA}" >&2
   echo "$PREFIX Run: bash scripts/publish-delivery-evidence.sh --mode comment --repo '$REPO_ROOT' --ticket '$TICKET' --head-sha '$HEAD_SHA' --pr-url '$PR_URL'" >&2
   exit 2
+fi
+
+if [[ "$MODE" == "jira-comment" ]]; then
+  command -v node >/dev/null 2>&1 || {
+    echo "$PREFIX BLOCKED: node is required to publish Jira evidence" >&2
+    exit 2
+  }
+  command -v gh >/dev/null 2>&1 || {
+    echo "$PREFIX BLOCKED: gh CLI is required to publish Jira evidence marker comments" >&2
+    exit 2
+  }
+
+  jira_tmp_dir="$(mktemp -d -t polaris-jira-evidence.XXXXXX)"
+  jira_manifest="$jira_tmp_dir/publication-manifest.json"
+  jira_links="$jira_tmp_dir/links.json"
+
+  python3 - "$manifest_tmp" "$REPO_ROOT" "$jira_manifest" "$jira_links" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+manifest_path, repo_root_raw, output_manifest_raw, output_links_raw = sys.argv[1:5]
+delivery = json.load(open(manifest_path, encoding="utf-8"))
+repo_root = Path(repo_root_raw).resolve()
+output_manifest = Path(output_manifest_raw)
+output_links = Path(output_links_raw)
+
+artifacts = []
+links = []
+seen = set()
+
+def resolve_ref(ref, bases):
+    value = str(ref).strip()
+    if not value:
+        return None
+    path = Path(value)
+    candidates = [path] if path.is_absolute() else [base / path for base in bases]
+    for candidate in candidates:
+        try:
+            candidate = candidate.resolve()
+        except OSError:
+            continue
+        if candidate.is_file():
+            return candidate
+    return None
+
+def add_file(kind, source, *, note=""):
+    try:
+        source = Path(source).resolve()
+    except OSError:
+        return
+    if not source.is_file():
+        return
+    key = str(source)
+    if key in seen:
+        return
+    seen.add(key)
+    artifact_id = f"{kind}-{len(artifacts) + 1}"
+    artifacts.append({
+        "id": artifact_id,
+        "kind": kind,
+        "filename": source.name,
+        "source_path": str(source),
+        "asset_path": str(source),
+        "requires_publication": True,
+        "publishable": True,
+        "note": note,
+    })
+    links.append({
+        "id": artifact_id,
+        "kind": kind,
+        "asset_path": str(source),
+        "source_path": str(source),
+        "remote_publication_required": True,
+        "publishable": True,
+    })
+
+for item in delivery.get("items", []):
+    if not item.get("requires_publication"):
+        continue
+    absolute = item.get("absolute_path")
+    item_path = Path(absolute).resolve() if absolute else None
+    if item_path and item_path.is_file():
+        add_file(str(item.get("kind") or "evidence"), item_path)
+    bases = [repo_root]
+    if item_path:
+        bases.insert(0, item_path.parent)
+    metadata = item.get("metadata") or {}
+    for ref in list(metadata.get("media_refs") or []) + list(metadata.get("video_refs") or []):
+        resolved = resolve_ref(ref, bases)
+        if resolved:
+            add_file("evidence_media", resolved, note=f"media reference from {item.get('kind')}")
+
+publication = {
+    "schema_version": 1,
+    "kind": "polaris-evidence-publication-manifest",
+    "ticket": delivery.get("ticket"),
+    "head_sha": delivery.get("head_sha"),
+    "status": "local_only",
+    "artifacts": artifacts,
+}
+links_payload = {
+    "schema_version": 1,
+    "kind": "polaris-delivery-evidence-links",
+    "ticket": delivery.get("ticket"),
+    "head_sha": delivery.get("head_sha"),
+    "items": links,
+}
+output_manifest.write_text(json.dumps(publication, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+output_links.write_text(json.dumps(links_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+
+  publisher_args=(
+    "$SCRIPT_DIR/publish-jira-evidence.mjs"
+    --repo "$FRAMEWORK_ROOT"
+    --manifest "$jira_manifest"
+    --links "$jira_links"
+    --jira-key "$JIRA_KEY"
+    --apply
+  )
+  if [[ -n "$UPLOADER" ]]; then
+    publisher_args+=(--uploader "$UPLOADER")
+  fi
+
+  if ! node "${publisher_args[@]}" >/dev/null; then
+    echo "$PREFIX BLOCKED: Jira evidence publication failed for ${JIRA_KEY}@${HEAD_SHA}" >&2
+    exit 2
+  fi
+
+  if [[ -n "$MANIFEST_FILE" ]]; then
+    mkdir -p "$(dirname "$MANIFEST_FILE")"
+    cp "$jira_manifest" "$MANIFEST_FILE"
+  fi
+
+  comment_tmp="$(mktemp -t polaris-jira-evidence-comment.XXXXXX.md)"
+  python3 - "$jira_manifest" "$comment_tmp" "$TICKET" "$JIRA_KEY" "$HEAD_SHA" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+manifest_path, comment_path, ticket, jira_key, head = sys.argv[1:6]
+manifest = json.load(open(manifest_path, encoding="utf-8"))
+attachments = [
+    {
+        "filename": item.get("filename"),
+        "url": (item.get("jira_attachment") or {}).get("url"),
+    }
+    for item in manifest.get("artifacts", [])
+    if (item.get("jira_attachment") or {}).get("url")
+]
+urls = [item.get("url") for item in attachments if item.get("url")]
+if not urls:
+    raise SystemExit("Jira publication manifest has no attachment URLs")
+marker = f"polaris-jira-evidence:v1 ticket={ticket} head={head} url={urls[0]}"
+lines = [
+    f"<!-- {marker} -->",
+    "## Polaris Jira evidence publication",
+    "",
+    f"- Jira key: `{jira_key}`",
+    f"- Ticket: `{ticket}`",
+    f"- Head SHA: `{head}`",
+    "",
+    "## Jira attachments",
+    "",
+    "| 檔案 | Jira URL |",
+    "|------|----------|",
+]
+for item in attachments:
+    url = item.get("url") or ""
+    filename = item.get("filename") or "attachment"
+    lines.append(f"| `{filename}` | [{filename}]({url}) |")
+Path(comment_path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+PY
+
+  if ! bash "$SCRIPT_DIR/validate-language-policy.sh" --blocking --mode artifact --workspace-root "$FRAMEWORK_ROOT" "$comment_tmp"; then
+    echo "$PREFIX BLOCKED: generated Jira evidence comment violates language policy" >&2
+    exit 2
+  fi
+
+  gh pr comment "$PR_NUMBER" --repo "$GH_REPO" --body-file "$comment_tmp"
+  echo "$PREFIX published Jira evidence marker for ${TICKET}@${HEAD_SHA} on ${PR_URL}" >&2
+  exit 0
 fi
 
 comment_tmp="$(mktemp -t polaris-evidence-comment.XXXXXX.md)"

@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.67] - 2026-05-15
+
+### Added — Jira-first delivery evidence publication
+
+- 新增 `publish-delivery-evidence.sh --mode jira-comment`，讓有 Jira key 的 delivery evidence 可以先上傳 Jira attachment，再於 PR 留 `polaris-jira-evidence:v1` marker。
+- 將 delivery evidence manifest 轉成 Jira publisher 可驗證的 publication manifest / links manifest，沿用 existing safety gate 與 Jira uploader。
+- 新增 publisher selftest，覆蓋 Jira marker、mock uploader、missing Jira key、uploader failure 與既有 GitHub comment mode。
+
 ## [3.75.66] - 2026-05-15
 
 ### Fixed — delivery evidence/report producer hardening

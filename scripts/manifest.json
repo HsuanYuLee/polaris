@@ -1851,10 +1851,19 @@
       "kind": "support",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/publish-delivery-evidence-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftests/publish-delivery-evidence-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
       "selftest": "N/A",
       "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/publish-jira-evidence-selftest.mjs",
