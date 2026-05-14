@@ -130,6 +130,28 @@ design decision。真正的判準不是大小，而是這個修改是否需要 s
 
 **判定依據**：當前 git repo root + `workspace-config.yaml` projects mapping + `scripts/resolve-task-md.sh` 結果。無法 resolve 單一 work order 時一律 fail-stop。
 
+## Framework Release Generic Publisher Hard-Stop
+
+Polaris framework 的「走流程升版」、「framework release」、「修上一版升版 PR」、「開 framework
+workspace PR」、「sync to Polaris」、「發版」等語意不是 generic GitHub publish intent。
+
+遇到這類 intent 時：
+
+1. 若尚未有 locked DP 與 DP-backed `task.md`，先 route 到
+   `refinement -> breakdown`，不得使用 `github:yeet`、generic publisher、或 bare
+   `gh pr create`。
+2. 若已有 DP-backed `task.md`，route 到 `engineering`，由 task worktree、scope gate、
+   verification gate 與 `polaris-pr-create.sh` 建立 workspace PR。
+3. `framework-release` 只能在 engineering workspace PR ready / merged 並完成 verification 後作為
+   local extension tail；它不負責 implementation、不補開 PR、不追認 source-less PR。
+4. 已由 generic publisher 建出的 PR 不得靠補 PR body、改 title、補 VERSION / CHANGELOG
+   追認為 canonical output；必須 close / supersede，或把需要的 diff 回到新的 DP-backed
+   task 重新施工。
+
+這條 guard 專門防止 `github:yeet` 或其他 GitHub plugin publisher 搶走 framework release
+主鏈。GitHub 工具仍可用於 read-only 查 PR 狀態、CI、review comments；不得作為 Polaris
+framework release PR 的 publish entrypoint。
+
 ## Negative-Tone Trigger Recognition
 
 User messages with negative tone about a previous action (「沒修好」「壞了」「不對」「又出問題」) + a PR URL or ticket key are **fix intents**, not analysis requests. Route to the appropriate fix skill immediately:

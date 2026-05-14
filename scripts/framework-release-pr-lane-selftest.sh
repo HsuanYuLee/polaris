@@ -97,6 +97,12 @@ JSON
     git add scripts/example-release.sh
     git commit -q -m "blocked"
     git checkout -q main
+    git checkout -q -b codex/generic-publish
+    printf '3.75.10\n' > VERSION
+    printf 'generic\n' > scripts/example-release.sh
+    git add VERSION scripts/example-release.sh
+    git commit -q -m "generic"
+    git checkout -q main
   )
 }
 
@@ -179,6 +185,7 @@ make_task "$TASK_DIR/T1.md" "DP-999-T1" "main" "main -> task/DP-999-T1-one" "tas
 make_task "$TASK_DIR/T2.md" "DP-999-T2" "task/DP-999-T1-one" "main -> task/DP-999-T1-one -> task/DP-999-T2-two" "task/DP-999-T2-two"
 make_task "$TASK_DIR/T3.md" "DP-999-T3" "task/DP-999-T2-two" "main -> task/DP-999-T1-one -> task/DP-999-T2-two -> task/DP-999-T3-three" "task/DP-999-T3-three"
 make_task "$TASK_DIR/TB.md" "DP-999-TB" "main" "main -> task/DP-999-TB-blocked" "task/DP-999-TB-blocked"
+make_task "$TASK_DIR/TG.md" "DP-999-TG" "main" "main -> codex/generic-publish" "codex/generic-publish"
 
 export GH_BIN="$TMPDIR/gh"
 export FRAMEWORK_PR_LANE_STATE="$TMPDIR/pr-state.tsv"
@@ -221,6 +228,15 @@ grep -q "BLOCKED: release-preflight" /tmp/framework-pr-lane-blocked.out
 
 POLARIS_ALLOW_MISSING_VERSION_BUMP=1 bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/TB.md" >/tmp/framework-pr-lane-override.out 2>&1
 grep -q "override accepted" /tmp/framework-pr-lane-override.out
+
+cat > "$TMPDIR/pr-state.tsv" <<'EOF'
+codex/generic-publish	10	OPEN	main	1010101010101010101010101010101010101010	https://example.test/pull/10
+EOF
+if bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/TG.md" >/tmp/framework-pr-lane-generic.out 2>&1; then
+  echo "expected generic publish branch fixture to fail" >&2
+  exit 1
+fi
+grep -q "generic GitHub publish branches are not valid release inputs" /tmp/framework-pr-lane-generic.out
 
 OVERLAY_REPO="$TMPDIR/overlay-repo"
 git init -q -b main "$OVERLAY_REPO"

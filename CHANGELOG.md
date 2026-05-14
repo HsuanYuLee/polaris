@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.59] - 2026-05-14
+
+### Fixed — framework release route guard
+
+- Blocked Polaris framework release and PR intents from falling through to generic GitHub publish routes.
+- Added release lane task lineage validation so source-less or generic branch PRs cannot enter framework release.
+- Covered legal task-backed PRs and generic publish branch rejection in the release lane selftest.
+
 ## [3.75.58] - 2026-05-14
 
 ### Added — delivery contract convergence dogfood

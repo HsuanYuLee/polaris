@@ -88,6 +88,16 @@ json_field() {
   python3 -c "import json,sys; d=json.load(sys.stdin); print(${expr} or '')" <<<"$json"
 }
 
+line_in_list() {
+  local needle="$1"
+  shift
+  local item
+  for item in "$@"; do
+    [[ "$item" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
 gh_repo_args=()
 refresh_gh_repo_args() {
   gh_repo_args=()
@@ -156,6 +166,45 @@ run_script_manifest_release_gate() {
     || die "release preflight blocked: script manifest drift"
 }
 
+verify_pr_task_lineage() {
+  local task_md="$1"
+  local task_id="$2"
+  local task_branch="$3"
+  local pr_number="$4"
+  local pr_head_branch="$5"
+  local resolver_err=""
+  local resolver_out=""
+  local resolver_status=0
+  local resolved=()
+
+  [[ "$task_branch" == task/* ]] || die "release preflight blocked: $task_id PR #$pr_number uses '$task_branch', not a DP task branch. Polaris framework release PRs must come from refinement -> breakdown -> engineering task.md lineage; generic GitHub publish branches are not valid release inputs."
+  [[ -n "$pr_head_branch" ]] || die "PR #$pr_number for $task_id has empty headRefName"
+  [[ "$pr_head_branch" == "$task_branch" ]] || die "PR #$pr_number head is '$pr_head_branch'; expected task.md Task branch '$task_branch'"
+
+  resolver_err="$(mktemp -t framework-release-pr-lane-resolve-err.XXXXXX)"
+  resolver_out="$(mktemp -t framework-release-pr-lane-resolve-out.XXXXXX)"
+  set +e
+  bash "$SCRIPT_DIR/resolve-task-md-by-branch.sh" --scan-root "$REPO_PATH" "$pr_head_branch" >"$resolver_out" 2>"$resolver_err"
+  resolver_status=$?
+  set -e
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && resolved+=("$line")
+  done < "$resolver_out"
+
+  if [[ $resolver_status -ne 0 || ${#resolved[@]} -eq 0 ]]; then
+    local detail
+    detail="$(tr '\n' ' ' < "$resolver_err" | sed 's/[[:space:]]\+/ /g')"
+    rm -f "$resolver_err" "$resolver_out"
+    die "release preflight blocked: PR #$pr_number for $task_id lacks task.md lineage for head '$pr_head_branch'. Run the canonical chain first: refinement -> breakdown -> engineering; do not use github:yeet or generic publisher. ${detail}"
+  fi
+  rm -f "$resolver_err" "$resolver_out"
+
+  task_md="$(abs_path "$task_md")"
+  if ! line_in_list "$task_md" "${resolved[@]}"; then
+    die "release preflight blocked: PR #$pr_number head '$pr_head_branch' resolves to a different task.md than supplied for $task_id. Expected $task_md; resolved ${resolved[*]}"
+  fi
+}
+
 resolve_task_mds_from_terminal() {
   [[ -n "$TERMINAL_TASK_MD" ]] || die "provide --task-md or --terminal-task-md"
   [[ -f "$TERMINAL_TASK_MD" ]] || die "terminal task.md not found: $TERMINAL_TASK_MD"
@@ -179,7 +228,7 @@ validate_and_plan() {
   local previous_state=""
   local idx=0
   local final_head=""
-  local task_md task_id task_branch expected_initial_base json number state base head url action
+  local task_md task_id task_branch expected_initial_base json number state base head head_branch url action
 
   echo "$PREFIX release lane plan:"
   for task_md in "${TASK_MDS[@]}"; do
@@ -194,11 +243,13 @@ validate_and_plan() {
     state="$(json_field "$json" "d.get('state')")"
     base="$(json_field "$json" "d.get('baseRefName')")"
     head="$(json_field "$json" "d.get('headRefOid')")"
+    head_branch="$(json_field "$json" "d.get('headRefName')")"
     url="$(json_field "$json" "d.get('url')")"
     final_head="$head"
 
     [[ "$state" != "CLOSED" ]] || die "PR #$number for $task_id is CLOSED: $url"
     [[ -n "$head" ]] || die "PR #$number for $task_id has empty headRefOid"
+    verify_pr_task_lineage "$task_md" "$task_id" "$task_branch" "$number" "$head_branch"
 
     if [[ $idx -eq 0 ]]; then
       expected_initial_base="$MAIN_BRANCH"
