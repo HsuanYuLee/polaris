@@ -40,6 +40,44 @@ print("required")
 PY
 }
 
+resolve_expected_assignee() {
+  local repo_root="$1"
+  local config_user=""
+
+  config_user="$(python3 - "$repo_root" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+start = Path(sys.argv[1]).resolve()
+for root in [start, *start.parents]:
+    cfg = root / "workspace-config.yaml"
+    if not cfg.exists():
+        continue
+    in_user = False
+    for line in cfg.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if re.match(r"^[A-Za-z0-9_-]+:", line):
+            in_user = stripped.startswith("user:")
+            continue
+        if in_user:
+            m = re.match(r"\s*github_username\s*:\s*([^#]+)", line)
+            if m:
+                print(m.group(1).strip().strip('"').strip("'"))
+                raise SystemExit(0)
+PY
+)"
+
+  if [[ -n "$config_user" ]]; then
+    printf '%s\n' "$config_user"
+    return 0
+  fi
+
+  gh api user --jq '.login' 2>/dev/null || true
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO_ROOT="${2:-}"; shift 2 ;;
@@ -141,12 +179,21 @@ set -e
 
 if [[ "$status" -eq 2 ]]; then
   echo "$PREFIX BLOCKED: final PR assignee metadata is empty for ${GH_REPO}#${PR_NUMBER}" >&2
+  expected_assignee="$(resolve_expected_assignee "$REPO_ROOT")"
+  echo "$PREFIX Current assignees: []" >&2
+  if [[ -n "$expected_assignee" ]]; then
+    echo "$PREFIX Remediation: gh pr edit ${PR_NUMBER} --repo ${GH_REPO} --add-assignee ${expected_assignee}" >&2
+  else
+    echo "$PREFIX Remediation: gh pr edit ${PR_NUMBER} --repo ${GH_REPO} --add-assignee <github-login>" >&2
+  fi
   echo "$PREFIX Policy is framework-enforced (required). Add an assignee before claiming readiness." >&2
   exit 2
 fi
 
 if [[ "$status" -ne 0 ]]; then
   echo "$PREFIX BLOCKED: unable to confirm final PR assignee metadata for ${GH_REPO}#${PR_NUMBER}" >&2
+  echo "$PREFIX Current assignees: unreadable" >&2
+  echo "$PREFIX Remediation: re-run after GitHub issue metadata is readable, or inspect with: gh api repos/${GH_REPO}/issues/${PR_NUMBER}" >&2
   echo "$PREFIX Policy is framework-enforced (required). Re-run after GitHub metadata is readable." >&2
   exit 2
 fi

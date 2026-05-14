@@ -87,6 +87,10 @@ elif snapshot.get("evidence_head_sha_match") is False:
     action_class = "code_fix"
     readiness_state = "needs_code_changes"
     reason = "head-bound delivery evidence is stale or does not match the PR head"
+elif snapshot.get("required_assignee_missing") is True:
+    action_class = "code_fix"
+    readiness_state = "needs_code_changes"
+    reason = "required PR assignee metadata is missing"
 elif snapshot.get("ci_state") in {"PENDING", "UNKNOWN"} or snapshot.get("mergeability") in {"unknown", "blocked"}:
     action_class = "wait_ci"
     readiness_state = "wait_ci"

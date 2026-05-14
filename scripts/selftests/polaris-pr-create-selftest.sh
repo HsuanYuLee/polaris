@@ -188,6 +188,10 @@ if [[ "\$1" == "api" && "\${2:-}" == "user" ]]; then
   printf 'fallback-user\n'
   exit 0
 fi
+if [[ "\$1" == "api" && "\${2:-}" == "repos/demo/example/issues/123" ]]; then
+  printf '{"assignees":[{"login":"cfg-user"}]}\n'
+  exit 0
+fi
 printf 'unexpected gh call: %s\n' "\$*" >&2
 exit 1
 EOF
@@ -258,6 +262,10 @@ if [[ "\$1" == "api" && "\${2:-}" == "user" ]]; then
   printf 'fallback-user\n'
   exit 0
 fi
+if [[ "\$1" == "api" && "\${2:-}" == "repos/demo/example/issues/154" ]]; then
+  printf '{"assignees":[{"login":"cfg-user"}]}\n'
+  exit 0
+fi
 printf 'unexpected gh call: %s\n' "\$*" >&2
 exit 1
 EOF
@@ -293,8 +301,76 @@ EOF
   fi
 }
 
+run_remote_assignee_empty_case() {
+  local label="remote-assignee-empty-blocks"
+  local parent="$TMPROOT/$label"
+  local repo="$parent/repo"
+  local mockbin="$parent/bin"
+  local edit_args_file="$parent/edit-args.txt"
+  local out=""
+  local rc=0
+
+  mkdir -p "$repo" "$mockbin"
+  cat > "$parent/workspace-config.yaml" <<'EOF'
+language: zh-TW
+user:
+  github_username: "cfg-user"
+projects:
+  - name: repo
+    repo: demo/example
+EOF
+
+  git init -q -b main "$repo"
+  git -C "$repo" config user.name "Polaris Selftest"
+  git -C "$repo" config user.email "polaris-selftest@example.com"
+  printf 'fixture\n' > "$repo/README.md"
+  git -C "$repo" add README.md
+  git -C "$repo" commit -q -m "base"
+  git -C "$repo" checkout -q -b task/selftest
+
+  cat > "$mockbin/gh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\$1" == "pr" && "\$2" == "create" ]]; then
+  printf 'https://github.com/demo/example/pull/160\n'
+  exit 0
+fi
+if [[ "\$1" == "pr" && "\$2" == "edit" ]]; then
+  printf '%s\n' "\$*" >> "$edit_args_file"
+  exit 0
+fi
+if [[ "\$1" == "api" && "\${2:-}" == "repos/demo/example/issues/160" ]]; then
+  printf '{"assignees":[]}\n'
+  exit 0
+fi
+if [[ "\$1" == "api" && "\${2:-}" == "user" ]]; then
+  printf 'fallback-user\n'
+  exit 0
+fi
+printf 'unexpected gh call: %s\n' "\$*" >&2
+exit 1
+EOF
+  chmod +x "$mockbin/gh"
+
+  set +e
+  out="$(PATH="$mockbin:$PATH" bash "$WRAPPER" --repo "$repo" --skip-gates --base main --title "fixture" --body "fixture" 2>&1)"
+  rc=$?
+  set -e
+
+  assert_contains "$label edit-attempted" "$(cat "$edit_args_file")" "https://github.com/demo/example/pull/160 --add-assignee cfg-user"
+  if [[ "$rc" -eq 2 ]]; then
+    ok "$label rc"
+  else
+    fail "$label rc"
+    printf '%s\n' "$out" >&2
+  fi
+  assert_contains "$label output" "$out" "final PR assignee metadata is empty"
+  assert_contains "$label remediation" "$out" "gh pr edit 160 --repo demo/example --add-assignee cfg-user"
+}
+
 run_auto_assign_case
 run_task_writeback_case
+run_remote_assignee_empty_case
 
 if [[ "$fail_count" -ne 0 ]]; then
   printf '\n=== polaris-pr-create selftest: %s PASS / %s FAIL ===\n' "$pass_count" "$fail_count" >&2

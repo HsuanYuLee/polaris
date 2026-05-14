@@ -52,6 +52,16 @@ emit_snapshot "$SN4" '{"resolver":{"intent":"mutable","mutable_allowed":true},"m
 assert_eq "ready action" "$(field_of "$SN4" action_class)" "ready_to_merge"
 assert_eq "ready readiness" "$(field_of "$SN4" readiness_state)" "mergeable_ready"
 
+SN5="$TMPROOT/missing-assignee.json"
+emit_snapshot "$SN5" '{"resolver":{"intent":"mutable","mutable_allowed":true},"mergeability":"clean","base_freshness":"fresh","ci_state":"GREEN","review_decision":"APPROVED","actionable_unresolved_threads":0,"deferred_threads":0,"evidence_head_sha_match":true,"required_assignee_missing":true}'
+assert_eq "missing assignee action" "$(field_of "$SN5" action_class)" "code_fix"
+assert_eq "missing assignee readiness" "$(field_of "$SN5" readiness_state)" "needs_code_changes"
+
+SN6="$TMPROOT/missing-assignee-pending-ci.json"
+emit_snapshot "$SN6" '{"resolver":{"intent":"mutable","mutable_allowed":true},"mergeability":"clean","base_freshness":"fresh","ci_state":"PENDING","review_decision":"UNKNOWN","actionable_unresolved_threads":0,"deferred_threads":0,"evidence_head_sha_match":true,"required_assignee_missing":true}'
+assert_eq "missing assignee before wait-ci action" "$(field_of "$SN6" action_class)" "code_fix"
+assert_eq "missing assignee before wait-ci readiness" "$(field_of "$SN6" readiness_state)" "needs_code_changes"
+
 printf 'pr-action-classifier selftest: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 if [[ "$FAIL" -ne 0 ]]; then
   exit 1

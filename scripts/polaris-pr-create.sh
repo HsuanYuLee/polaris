@@ -173,6 +173,52 @@ PY
   gh api user --jq '.login' 2>/dev/null || true
 }
 
+parse_github_pr_url() {
+  local pr_url="$1"
+
+  python3 - "$pr_url" <<'PY'
+import re
+import sys
+
+value = sys.argv[1].strip()
+match = re.match(r"^https://github\.com/([^/]+)/([^/]+)/pull/([0-9]+)(?:[/?#].*)?$", value)
+if not match:
+    raise SystemExit(1)
+
+owner, repo, number = match.groups()
+print(f"{owner}/{repo}\t{number}")
+PY
+}
+
+verify_final_pr_assignee() {
+  local pr_ref="$1"
+  local policy="$2"
+  local parsed=""
+  local gh_repo=""
+  local pr_number=""
+  local gate="$GATES_DIR/gate-pr-assignee.sh"
+
+  if [[ "$policy" == "off" || "$policy" == "optional" ]]; then
+    return 0
+  fi
+  if [[ -z "$pr_ref" ]]; then
+    echo "$PREFIX ✗ BLOCKED: PR was created but its URL could not be parsed; cannot verify required assignee metadata." >&2
+    exit 2
+  fi
+  if ! parsed="$(parse_github_pr_url "$pr_ref")"; then
+    echo "$PREFIX ✗ BLOCKED: PR URL is not a GitHub PR URL; cannot verify required assignee metadata: $pr_ref" >&2
+    exit 2
+  fi
+  if [[ ! -x "$gate" ]]; then
+    echo "$PREFIX ✗ BLOCKED: assignee verification gate is missing or not executable: $gate" >&2
+    exit 2
+  fi
+
+  gh_repo="${parsed%%$'\t'*}"
+  pr_number="${parsed##*$'\t'}"
+  bash "$gate" --repo "$REPO_PATH" --gh-repo "$gh_repo" --pr-number "$pr_number"
+}
+
 auto_assign_pr() {
   local pr_ref="$1"
   local policy="$2"
@@ -236,6 +282,7 @@ create_pr_and_assign() {
   rm -f "$output_file"
   CREATED_PR_URL="$pr_ref"
   auto_assign_pr "$pr_ref" "$policy" "$assignee"
+  verify_final_pr_assignee "$pr_ref" "$policy"
   if declare -F polaris_pr_review_label_add >/dev/null 2>&1; then
     polaris_pr_review_label_add "$REPO_PATH" "$pr_ref" "$PREFIX"
   fi

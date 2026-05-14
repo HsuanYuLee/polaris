@@ -10,6 +10,7 @@
 #  - ci-local
 #  - no tracked local specs
 #  - PR title/body/template/language
+#  - final remote assignee metadata
 #  - changeset
 #
 # Usage:

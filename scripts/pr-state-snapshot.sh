@@ -195,6 +195,39 @@ def normalize_pr(data):
     }
 
 
+def normalize_assignees(data):
+    if not isinstance(data, dict):
+        return None
+    if "pullRequest" in data and isinstance(data["pullRequest"], dict):
+        data = data["pullRequest"]
+    assignees = data.get("assignees")
+    if isinstance(assignees, dict):
+        assignees = assignees.get("nodes")
+    if not isinstance(assignees, list):
+        return None
+    names = []
+    for item in assignees:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("login") or item.get("name") or "").strip()
+        if name:
+            names.append(name)
+    return names
+
+
+def read_pr_assignee_policy(repo):
+    start = Path(repo).resolve()
+    for root in [start, *start.parents]:
+        cfg = root / "workspace-config.yaml"
+        if not cfg.exists():
+            continue
+        for line in cfg.read_text(encoding="utf-8").splitlines():
+            match = __import__("re").match(r"\s*pr_assignee_policy\s*:\s*([^#]+)", line)
+            if match:
+                return match.group(1).strip().strip('"').strip("'") or "required"
+    return "required"
+
+
 def normalize_ci(checks):
     if not checks:
         return "UNKNOWN"
@@ -328,7 +361,10 @@ def base_freshness(repo, base_branch, head_branch, pr_type):
 
 repo, parse_task_md, resolver_path, pr_json_path, checks_json_path, threads_json_path, disposition_json_path, fmt, field = sys.argv[1:10]
 resolver = load_json(resolver_path) or {}
-pr = normalize_pr(load_json(pr_json_path))
+raw_pr = load_json(pr_json_path)
+pr = normalize_pr(raw_pr)
+assignee_names = normalize_assignees(raw_pr)
+assignee_policy = read_pr_assignee_policy(repo)
 checks = load_json(checks_json_path) or []
 threads = load_json(threads_json_path)
 dispositions = load_dispositions(load_json(disposition_json_path))
@@ -381,6 +417,9 @@ result = {
     "head_branch": resolver.get("head_branch"),
     "head_sha": pr_head,
     "authoritative_base": resolver.get("authoritative_base"),
+    "pr_assignee_policy": assignee_policy,
+    "pr_assignee_count": None if assignee_names is None else len(assignee_names),
+    "required_assignee_missing": assignee_policy in {"", "required"} and assignee_names is not None and len(assignee_names) == 0,
 }
 
 if fmt == "field":

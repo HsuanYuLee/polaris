@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.62] - 2026-05-14
+
+### Fixed — Codex PR assignee gate
+
+- Made `polaris-pr-create.sh` verify remote GitHub issue assignee metadata after auto-assign, so successful `gh pr edit` alone is not treated as delivery-ready.
+- Made shared PR readiness classify missing required assignees as `needs_code_changes` instead of `wait_ci`, `review_required`, or `mergeable_ready`.
+- Added selftest coverage for empty remote assignees and documented the Codex / non-Claude PR gate boundary.
+
 ## [3.75.61] - 2026-05-14
 
 ### Fixed — status dashboard behavior contract tolerance

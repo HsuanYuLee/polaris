@@ -694,7 +694,10 @@ body 未保留 repo template headings、PR prose 違反 workspace language、或
 不可使用裸 `gh pr create`、generic publisher、或 `gh pr create --draft` 當作 Developer
 delivery 終點。即使 runtime 沒有 Claude hook，Step 8.5 仍會以 GitHub remote PR truth
 重新檢查 deliverable；source-less PR、draft PR、非 open PR、或 invalid remote PR body
-會阻擋 task lifecycle closeout。
+會阻擋 task lifecycle closeout。Codex / non-Claude runtime 不會自動套用 Claude Code
+PreToolUse hook，因此 `polaris-pr-create.sh` 與 completion gate 是 portable authority；
+required assignee metadata 必須以 GitHub issue assignees 為準，不能以 repo CI
+`auto_assign_user` status 取代。
 
 - Developer title：先讀 company `workspace-config.yaml` 中 matching repo 的 `projects[].delivery.pr_title.developer`；未設定才 fallback `[{TICKET}] {summary}`
 - Admin title：`<type>(<scope>): <summary>`（conventional commit 格式）

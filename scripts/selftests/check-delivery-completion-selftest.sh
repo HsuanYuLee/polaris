@@ -943,7 +943,7 @@ EOF
   assert_contains "$label message" "$out" "$want_text"
 }
 
-run_review_thread_case "review-thread-missing-disposition-blocks" "false" "2" "active PR review threads require explicit disposition evidence"
+run_review_thread_case "review-thread-missing-disposition-blocks" "false" "2" "unresolved PR review threads require explicit disposition evidence"
 run_review_thread_case "review-thread-disposition-passes" "true" "0" "review-thread gates passed"
 
 run_behavior_contract_case() {
