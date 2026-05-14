@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.70] - 2026-05-15
+
+### Fixed — start-test-env runtime liveness
+
+- 讓 `start-test-env.sh` 在 health check 通過後增加 runtime liveness finalizer，確認 tracked PID 與 health endpoint 在短穩定窗後仍有效。
+- 保留 one-shot `start_command` 的 `completed` 語意，避免對 setup-only command 強制要求 PID 存活。
+- 補上短命 runtime regression selftest，避免 dev server 已死亡時仍輸出 runtime PASS 前提。
+
 ## [3.75.69] - 2026-05-15
 
 ### Fixed — behavior contract artifact isolation

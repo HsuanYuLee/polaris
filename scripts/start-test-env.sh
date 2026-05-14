@@ -353,6 +353,44 @@ if ! "$HEALTH_CHECK" "$target_url" --timeout "$READY_TIMEOUT" --interval 2 > /de
 fi
 echo "{\"primitive\":\"start-test-env\",\"step\":\"health-check\",\"status\":\"PASS\",\"url\":\"$target_url\"}"
 
+# ── Step 4b: runtime liveness finalizer ─────────────────────────────────────
+# ready_signal + one HTTP 200 can be a false positive when the tracked runtime
+# process exits immediately after the health check. Before handing the runtime
+# to downstream behavior/VR gates, prove the launched process is still alive and
+# the health endpoint remains reachable after a short stability window.
+liveness_status="$(printf '%s' "$sc_out" | python3 -c 'import json, sys; print((json.load(sys.stdin).get("status") or ""))')"
+liveness_pid="$(printf '%s' "$sc_out" | python3 -c 'import json, sys; print((json.load(sys.stdin).get("pid") or ""))')"
+liveness_log="$(printf '%s' "$sc_out" | python3 -c 'import json, sys; print((json.load(sys.stdin).get("log") or ""))')"
+liveness_delay="${POLARIS_RUNTIME_LIVENESS_DELAY_SECONDS:-1}"
+liveness_timeout="${POLARIS_RUNTIME_LIVENESS_TIMEOUT_SECONDS:-5}"
+if ! [[ "$liveness_delay" =~ ^[0-9]+$ ]]; then
+  env_lib_log_fail "runtime liveness finalizer FAILED for $PROJECT: POLARIS_RUNTIME_LIVENESS_DELAY_SECONDS must be an integer"
+  exit 1
+fi
+if ! [[ "$liveness_timeout" =~ ^[0-9]+$ ]]; then
+  env_lib_log_fail "runtime liveness finalizer FAILED for $PROJECT: POLARIS_RUNTIME_LIVENESS_TIMEOUT_SECONDS must be an integer"
+  exit 1
+fi
+
+if [[ "$liveness_status" == "completed" ]]; then
+  env_lib_log_info "Step 4b/5: runtime liveness finalizer SKIPPED for completed start-command"
+  echo "{\"primitive\":\"start-test-env\",\"step\":\"runtime-liveness\",\"status\":\"SKIP\",\"reason\":\"start-command-completed\"}"
+else
+  env_lib_log_info "Step 4b/5: runtime liveness finalizer for $PROJECT pid=$liveness_pid"
+  sleep "$liveness_delay"
+  if [[ -z "$liveness_pid" ]] || ! kill -0 "$liveness_pid" 2>/dev/null; then
+    env_lib_log_fail "runtime liveness finalizer FAILED for $PROJECT: tracked pid ${liveness_pid:-N/A} is not alive after health-check (log: ${liveness_log:-N/A})"
+    [[ -n "$liveness_log" && -f "$liveness_log" ]] && tail -20 "$liveness_log" >&2 || true
+    exit 1
+  fi
+  if ! "$HEALTH_CHECK" "$target_url" --timeout "$liveness_timeout" --interval 1 > /dev/null; then
+    env_lib_log_fail "runtime liveness finalizer FAILED for $PROJECT: health endpoint is not stable after health-check (pid=$liveness_pid, log: ${liveness_log:-N/A})"
+    [[ -n "$liveness_log" && -f "$liveness_log" ]] && tail -20 "$liveness_log" >&2 || true
+    exit 1
+  fi
+  echo "{\"primitive\":\"start-test-env\",\"step\":\"runtime-liveness\",\"status\":\"PASS\",\"pid\":$liveness_pid,\"url\":\"$target_url\"}"
+fi
+
 # ── Step 5 (optional): fixtures-start ───────────────────────────────────────
 if $WITH_FIXTURES; then
   if [[ -z "$FIXTURES_DIR" ]]; then

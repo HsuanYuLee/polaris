@@ -34,6 +34,7 @@ PORT_HTTP2=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print
 PORT_HC_PROBE=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
 PORT_DOCKER=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
 PORT_OVERRIDE=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
+PORT_SHORT_LIVED=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
 
 TEST_CONFIG="$WORK_DIR/workspace-config.yaml"
 cat > "$TEST_CONFIG" <<EOF
@@ -64,6 +65,12 @@ projects:
       start_command: "python3 -u -m http.server $PORT_OVERRIDE --bind 127.0.0.1"
       ready_signal: "Serving HTTP on 127.0.0.1"
       health_check: "http://127.0.0.1:$PORT_OVERRIDE/"
+      requires: []
+  - name: short-lived-service
+    dev_environment:
+      start_command: "sh -lc 'python3 -u -m http.server $PORT_SHORT_LIVED --bind 127.0.0.1 >/dev/null 2>&1 & echo \$! > \"$WORK_DIR/short-lived-child.pid\"; echo READY; sleep 2'"
+      ready_signal: "READY"
+      health_check: "http://127.0.0.1:$PORT_SHORT_LIVED/"
       requires: []
   - name: sticky-service
     dev_environment:
@@ -129,7 +136,8 @@ cleanup() {
     /tmp/polaris-env-d11/app-service.pid \
     /tmp/polaris-env-d11/sticky-service.pid \
     /tmp/polaris-env-d11/docker-dep.pid \
-    /tmp/polaris-env-d11/repo-override-service.pid; do
+    /tmp/polaris-env-d11/repo-override-service.pid \
+    /tmp/polaris-env-d11/short-lived-service.pid; do
     [[ -f "$pid_file" ]] || continue
     pid=$(cat "$pid_file" 2>/dev/null || true)
     if [[ -n "$pid" ]]; then
@@ -139,6 +147,14 @@ cleanup() {
     fi
     rm -f "$pid_file"
   done
+  if [[ -f "$WORK_DIR/short-lived-child.pid" ]]; then
+    child_pid=$(cat "$WORK_DIR/short-lived-child.pid" 2>/dev/null || true)
+    if [[ -n "$child_pid" ]]; then
+      kill "$child_pid" 2>/dev/null || true
+      sleep 0.3
+      kill -9 "$child_pid" 2>/dev/null || true
+    fi
+  fi
   rm -rf "$WORK_DIR" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -315,8 +331,18 @@ assert_eq "$?" "0" "step 5 SKIP without --with-fixtures"
 echo "$se_out" | grep -q '"summary":true.*"status":"PASS"'
 assert_eq "$?" "0" "final summary PASS"
 
+short_err="$WORK_DIR/short-lived.err"
+short_out="$("$SE" --project short-lived-service --ready-timeout 10 2>"$short_err")"
+RC_SHORT=$?
+if [[ "$RC_SHORT" == "0" ]]; then
+  echo "    short-lived stdout:"; printf '      %s\n' "$short_out"
+fi
+assert_eq "$RC_SHORT" "1" "short-lived runtime fails liveness finalizer"
+grep -q "runtime liveness finalizer FAILED" "$short_err"
+assert_eq "$?" "0" "short-lived runtime failure mentions liveness finalizer"
+
 # Cleanup app/leaf services
-for s in leaf-service app-service; do
+for s in leaf-service app-service short-lived-service; do
   PID=$(cat "/tmp/polaris-env-d11/${s}.pid" 2>/dev/null || true)
   if [[ -n "$PID" ]]; then
     kill "$PID" 2>/dev/null || true
