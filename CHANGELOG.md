@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.73] - 2026-05-15
+
+### Fixed — start-command untracked runtime cleanup
+
+- 讓 `start-command.sh` 在啟動前清掉同 cwd tree、佔用 local `health_check` / `base_url` port、但未被本 project PID file 追蹤的 stale runtime。
+- 加入 loopback、cwd、其他 project PID ownership guard，避免誤殺 Docker、VPN、SSH tunnel 或仍被 dependency project 追蹤的 listener。
+- 補上 same-cwd stale listener 與 foreign-cwd negative selftest，確保 T8f 類型的 stale Nuxt dev lock 能被 framework cleanup，而不是 product workaround。
+
 ## [3.75.72] - 2026-05-15
 
 ### Fixed — start-command process group cleanup

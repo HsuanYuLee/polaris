@@ -36,6 +36,8 @@ PORT_DOCKER=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); prin
 PORT_OVERRIDE=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
 PORT_SHORT_LIVED=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
 PORT_GROUP_CHILD=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
+PORT_UNTRACKED=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
+PORT_FOREIGN=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
 
 TEST_CONFIG="$WORK_DIR/workspace-config.yaml"
 cat > "$TEST_CONFIG" <<EOF
@@ -84,6 +86,18 @@ projects:
       start_command: "sh -lc 'python3 -u -m http.server $PORT_GROUP_CHILD --bind 127.0.0.1 >/dev/null 2>&1 & echo \$! > \"$WORK_DIR/group-child.pid\"; echo STARTED; sleep 1000'"
       ready_signal: "STARTED"
       health_check: "http://127.0.0.1:$PORT_GROUP_CHILD/"
+      requires: []
+  - name: untracked-port-service
+    dev_environment:
+      start_command: "python3 -u -m http.server $PORT_UNTRACKED --bind 127.0.0.1"
+      ready_signal: "Serving HTTP on 127.0.0.1"
+      health_check: "http://127.0.0.1:$PORT_UNTRACKED/"
+      requires: []
+  - name: foreign-port-service
+    dev_environment:
+      start_command: "python3 -u -m http.server $PORT_FOREIGN --bind 127.0.0.1"
+      ready_signal: "Serving HTTP on 127.0.0.1"
+      health_check: "http://127.0.0.1:$PORT_FOREIGN/"
       requires: []
   - name: docker-dep
     tags: ["docker"]
@@ -145,7 +159,9 @@ cleanup() {
     /tmp/polaris-env-d11/group-child-service.pid \
     /tmp/polaris-env-d11/docker-dep.pid \
     /tmp/polaris-env-d11/repo-override-service.pid \
-    /tmp/polaris-env-d11/short-lived-service.pid; do
+    /tmp/polaris-env-d11/short-lived-service.pid \
+    /tmp/polaris-env-d11/untracked-port-service.pid \
+    /tmp/polaris-env-d11/foreign-port-service.pid; do
     [[ -f "$pid_file" ]] || continue
     pid=$(cat "$pid_file" 2>/dev/null || true)
     if [[ -n "$pid" ]]; then
@@ -169,6 +185,22 @@ cleanup() {
       kill "$group_child_pid" 2>/dev/null || true
       sleep 0.3
       kill -9 "$group_child_pid" 2>/dev/null || true
+    fi
+  fi
+  if [[ -f "$WORK_DIR/untracked.pid" ]]; then
+    untracked_pid=$(cat "$WORK_DIR/untracked.pid" 2>/dev/null || true)
+    if [[ -n "$untracked_pid" ]]; then
+      kill "$untracked_pid" 2>/dev/null || true
+      sleep 0.3
+      kill -9 "$untracked_pid" 2>/dev/null || true
+    fi
+  fi
+  if [[ -f "$WORK_DIR/foreign.pid" ]]; then
+    foreign_pid=$(cat "$WORK_DIR/foreign.pid" 2>/dev/null || true)
+    if [[ -n "$foreign_pid" ]]; then
+      kill "$foreign_pid" 2>/dev/null || true
+      sleep 0.3
+      kill -9 "$foreign_pid" 2>/dev/null || true
     fi
   fi
   rm -rf "$WORK_DIR" 2>/dev/null || true
@@ -254,6 +286,37 @@ fi
 assert_eq "$RC_GROUP_CLEANUP" "0" "group-child-service restart cleans old child process"
 run_silent "$HC" "http://127.0.0.1:$PORT_GROUP_CHILD/" --timeout 5
 assert_eq "$?" "0" "group-child-service responds after restart"
+mkdir -p "$WORK_DIR/untracked-cwd" "$WORK_DIR/foreign-cwd"
+(cd "$WORK_DIR/untracked-cwd" && python3 -u -m http.server "$PORT_UNTRACKED" --bind 127.0.0.1 >/dev/null 2>&1 & echo $! > "$WORK_DIR/untracked.pid")
+sleep 1
+untracked_pid="$(cat "$WORK_DIR/untracked.pid" 2>/dev/null || true)"
+kill -0 "$untracked_pid" 2>/dev/null
+assert_eq "$?" "0" "untracked-port-service stale listener started"
+rm -f /tmp/polaris-env-d11/untracked-port-service.pid
+run_silent "$SC" --project untracked-port-service --cwd "$WORK_DIR/untracked-cwd" --ready-timeout 10
+RC_UNTRACKED_RESTART=$?
+assert_eq "$RC_UNTRACKED_RESTART" "0" "untracked-port-service cleans same-cwd stale listener"
+kill -0 "$untracked_pid" 2>/dev/null
+RC_UNTRACKED_OLD_ALIVE=$?
+if [[ "$RC_UNTRACKED_OLD_ALIVE" -eq 0 ]]; then
+  RC_UNTRACKED_CLEANUP=1
+else
+  RC_UNTRACKED_CLEANUP=0
+fi
+assert_eq "$RC_UNTRACKED_CLEANUP" "0" "untracked-port-service old listener stopped"
+run_silent "$HC" "http://127.0.0.1:$PORT_UNTRACKED/" --timeout 5
+assert_eq "$?" "0" "untracked-port-service responds after cleanup restart"
+(cd "$WORK_DIR/foreign-cwd" && python3 -u -m http.server "$PORT_FOREIGN" --bind 127.0.0.1 >/dev/null 2>&1 & echo $! > "$WORK_DIR/foreign.pid")
+sleep 1
+foreign_pid="$(cat "$WORK_DIR/foreign.pid" 2>/dev/null || true)"
+kill -0 "$foreign_pid" 2>/dev/null
+assert_eq "$?" "0" "foreign-port-service stale listener started"
+rm -f /tmp/polaris-env-d11/foreign-port-service.pid
+run_silent "$SC" --project foreign-port-service --cwd "$WORK_DIR/untracked-cwd" --ready-timeout 4
+RC_FOREIGN_RESTART=$?
+assert_eq "$RC_FOREIGN_RESTART" "1" "foreign-port-service does not clean foreign-cwd listener"
+kill -0 "$foreign_pid" 2>/dev/null
+assert_eq "$?" "0" "foreign-port-service listener remains alive"
 
 echo ""
 echo "=== install-project-deps.sh ==="

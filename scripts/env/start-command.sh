@@ -52,6 +52,138 @@ Exit:  0 = launched (and ready), 1 = launch fail / config missing, 2 = usage.
 EOF
 }
 
+start_command_extract_loopback_port() {
+  local url="$1"
+  python3 - "$url" <<'PY'
+import sys
+from urllib.parse import urlparse
+
+raw = sys.argv[1].strip()
+if not raw:
+    sys.exit(0)
+parsed = urlparse(raw)
+host = (parsed.hostname or "").lower()
+if host not in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}:
+    sys.exit(0)
+if parsed.port:
+    print(parsed.port)
+elif parsed.scheme == "http":
+    print(80)
+elif parsed.scheme == "https":
+    print(443)
+PY
+}
+
+start_command_pid_cwd() {
+  local pid="$1"
+  lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | awk '/^n/ { sub(/^n/, ""); print; exit }'
+}
+
+start_command_path_within() {
+  local child="$1"
+  local parent="$2"
+  python3 - "$child" "$parent" <<'PY'
+import os
+import sys
+
+child = os.path.realpath(sys.argv[1])
+parent = os.path.realpath(sys.argv[2])
+try:
+    common = os.path.commonpath([child, parent])
+except ValueError:
+    sys.exit(1)
+sys.exit(0 if common == parent else 1)
+PY
+}
+
+start_command_pid_tracked_by_other_project() {
+  local pid="$1"
+  local pid_file=""
+  local tracked_pid=""
+
+  for pid_file in "$STATE_DIR"/*.pid; do
+    [[ -f "$pid_file" ]] || continue
+    [[ "$pid_file" == "$PID_FILE" ]] && continue
+    tracked_pid="$(cat "$pid_file" 2>/dev/null || true)"
+    if [[ "$tracked_pid" == "$pid" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+start_command_kill_pid_or_group() {
+  local pid="$1"
+  local reason="$2"
+  local pgid=""
+  local self_pgid=""
+
+  pgid="$(ps -p "$pid" -o pgid= 2>/dev/null | tr -d '[:space:]' || true)"
+  self_pgid="$(ps -p "$$" -o pgid= 2>/dev/null | tr -d '[:space:]' || true)"
+  env_lib_log_warn "killing $reason pid $pid for $PROJECT"
+  if [[ -n "$pgid" && "$pgid" != "$self_pgid" ]]; then
+    kill "-$pgid" 2>/dev/null || true
+  else
+    kill "$pid" 2>/dev/null || true
+  fi
+  sleep 1
+  if [[ -n "$pgid" && "$pgid" != "$self_pgid" ]]; then
+    kill -0 "$pid" 2>/dev/null && kill -9 "-$pgid" 2>/dev/null || true
+  else
+    kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
+  fi
+}
+
+start_command_cleanup_tracked_pid() {
+  [[ -f "$PID_FILE" ]] || return 0
+
+  local old_pid=""
+  old_pid="$(cat "$PID_FILE" 2>/dev/null || true)"
+  if [[ -n "$old_pid" ]] && kill -0 "$old_pid" 2>/dev/null; then
+    start_command_kill_pid_or_group "$old_pid" "previous start-command"
+  fi
+}
+
+start_command_cleanup_untracked_listener() {
+  local cleanup_url=""
+  local cleanup_port=""
+  local listener_pid=""
+  local listener_cwd=""
+
+  cleanup_url="$(printf '%s' "$env_json" | env_lib_get_field 'health_check' 2>/dev/null || true)"
+  if [[ -z "$cleanup_url" ]]; then
+    cleanup_url="$(printf '%s' "$env_json" | env_lib_get_field 'base_url' 2>/dev/null || true)"
+  fi
+  cleanup_port="$(start_command_extract_loopback_port "$cleanup_url" 2>/dev/null || true)"
+  [[ -n "$cleanup_port" ]] || return 0
+
+  if ! command -v lsof >/dev/null 2>&1; then
+    env_lib_log_warn "lsof not found; skipping untracked listener cleanup for $PROJECT port $cleanup_port"
+    return 0
+  fi
+
+  while IFS= read -r listener_pid; do
+    [[ -n "$listener_pid" ]] || continue
+    [[ "$listener_pid" == "$$" ]] && continue
+
+    listener_cwd="$(start_command_pid_cwd "$listener_pid" || true)"
+    if [[ -z "$listener_cwd" ]]; then
+      env_lib_log_warn "skipping listener pid $listener_pid for $PROJECT port $cleanup_port; cwd unavailable"
+      continue
+    fi
+    if start_command_pid_tracked_by_other_project "$listener_pid"; then
+      env_lib_log_warn "skipping listener pid $listener_pid for $PROJECT port $cleanup_port; owned by another start-command pid file"
+      continue
+    fi
+    if ! start_command_path_within "$listener_cwd" "$launch_cwd"; then
+      env_lib_log_warn "skipping listener pid $listener_pid for $PROJECT port $cleanup_port; cwd outside launch cwd"
+      continue
+    fi
+
+    start_command_kill_pid_or_group "$listener_pid" "untracked start-command listener on port $cleanup_port"
+  done < <(lsof -nP -iTCP:"$cleanup_port" -sTCP:LISTEN -t 2>/dev/null | sort -u || true)
+}
+
 # ── Args ────────────────────────────────────────────────────────────────────
 PROJECT=""
 TASK_MD=""
@@ -140,36 +272,19 @@ ready_signal="$(printf '%s' "$env_json" | env_lib_get_field 'ready_signal' 2>/de
 mkdir -p "$STATE_DIR"
 LOG_FILE="$STATE_DIR/${PROJECT}.log"
 PID_FILE="$STATE_DIR/${PROJECT}.pid"
-
-# Stop a previous run for the same project if its PID is still alive — keeps
-# repeated invocations idempotent (matches polaris-env.sh's kill-stale pattern
-# but only for this project's tracked PID).
-if [[ -f "$PID_FILE" ]]; then
-  old_pid="$(cat "$PID_FILE" 2>/dev/null || true)"
-  if [[ -n "$old_pid" ]] && kill -0 "$old_pid" 2>/dev/null; then
-    env_lib_log_warn "killing previous start-command pid $old_pid for $PROJECT"
-    old_pgid="$(ps -p "$old_pid" -o pgid= 2>/dev/null | tr -d '[:space:]' || true)"
-    self_pgid="$(ps -p "$$" -o pgid= 2>/dev/null | tr -d '[:space:]' || true)"
-    if [[ -n "$old_pgid" && "$old_pgid" != "$self_pgid" ]]; then
-      kill "-$old_pgid" 2>/dev/null || true
-    else
-      kill "$old_pid" 2>/dev/null || true
-    fi
-    sleep 1
-    if [[ -n "$old_pgid" && "$old_pgid" != "$self_pgid" ]]; then
-      kill -0 "$old_pid" 2>/dev/null && kill -9 "-$old_pgid" 2>/dev/null || true
-    else
-      kill -0 "$old_pid" 2>/dev/null && kill -9 "$old_pid" 2>/dev/null || true
-    fi
-  fi
-fi
-
-: > "$LOG_FILE"
 launch_cwd="${CWD:-$PWD}"
 launch_cwd="$(env_lib_expand_path "$launch_cwd")"
 if [[ ! -d "$launch_cwd" ]]; then
   env_lib_log_fail "--cwd path does not exist: $launch_cwd"; exit 1
 fi
+
+# Stop a previous run for the same project if its PID is still alive — keeps
+# repeated invocations idempotent (matches polaris-env.sh's kill-stale pattern
+# but only for this project's tracked PID).
+start_command_cleanup_tracked_pid
+start_command_cleanup_untracked_listener
+
+: > "$LOG_FILE"
 env_lib_log_info "launching '$start_command' for $PROJECT in $launch_cwd (log: $LOG_FILE)"
 # Launch in a new session so long-running dev servers do not depend on the
 # caller shell or command-substitution process group. Python stdlib gives us a
