@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.66] - 2026-05-15
+
+### Fixed — delivery evidence/report producer hardening
+
+- 放寬 generic `run-behavior-contract.sh` evidence publication 判定，PASS behavior evidence 有 screenshot 或 video 任一媒體即可進入 PR-visible publication flow。
+- 保留 legacy Playwright behavior recorder 的 video requirement，避免 video-specific recorder contract 被隱性改寬。
+- 讓 `write-task-verify-report.sh` 直接產生 zh-TW report prose，並以 behavior contract selftest 覆蓋 language gate。
+
 ## [3.75.65] - 2026-05-15
 
 ### Fixed — polaris-env Docker dependency readiness

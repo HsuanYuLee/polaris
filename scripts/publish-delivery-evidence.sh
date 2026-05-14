@@ -203,8 +203,8 @@ if behavior_dir.is_dir():
             video_refs.extend(str(ref) for ref in data.get("videos", []) if str(ref).strip())
         except Exception as exc:
             errors.append(f"Behavior evidence is not valid JSON: {behavior_evidence}: {exc}")
-        if not video_refs:
-            errors.append(f"Behavior evidence requires video reference: {behavior_evidence}")
+        if not media_refs:
+            errors.append(f"Behavior evidence requires screenshot or video reference: {behavior_evidence}")
         add_item(
             "behavior",
             behavior_evidence,

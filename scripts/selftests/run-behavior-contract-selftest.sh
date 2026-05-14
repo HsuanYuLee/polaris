@@ -328,6 +328,7 @@ expect_pass "write-report-assertion-coverage" bash "$ROOT/scripts/write-task-ver
   --output "$report_dir/verify-report.md"
 grep -q "optional carousel click covered" "$report_dir/verify-report.md"
 grep -q "NOT_COVERED" "$report_dir/verify-report.md"
+expect_pass "write-report-language-gate" bash "$ROOT/scripts/validate-language-policy.sh" --blocking --mode artifact --workspace-root "$ROOT" "$report_dir/verify-report.md"
 
 repo_manual="$WORKDIR/manual-repo"
 make_repo "$repo_manual"
@@ -364,6 +365,7 @@ expect_pass "manual-required-report" bash "$ROOT/scripts/write-task-verify-repor
   --status PASS \
   --output "$manual_report_dir/verify-report.md"
 grep -q "MANUAL_REQUIRED" "$manual_report_dir/verify-report.md"
+expect_pass "manual-required-report-language-gate" bash "$ROOT/scripts/validate-language-policy.sh" --blocking --mode artifact --workspace-root "$ROOT" "$manual_report_dir/verify-report.md"
 
 repo_invalid="$WORKDIR/invalid-assertion-repo"
 make_repo "$repo_invalid"

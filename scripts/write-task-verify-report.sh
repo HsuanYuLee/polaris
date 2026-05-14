@@ -263,22 +263,22 @@ links = {
 
 lines = [
     "---",
-    f"title: {json.dumps(f'Verify Report - {ticket}', ensure_ascii=False)}",
-    f"description: {json.dumps(f'Task-bound verification report for {ticket} at {head_sha}.', ensure_ascii=False)}",
+    f"title: {json.dumps(f'驗證報告 - {ticket}', ensure_ascii=False)}",
+    f"description: {json.dumps(f'{ticket} 在 {head_sha} 的 task-bound 驗證報告。', ensure_ascii=False)}",
     "---",
     "",
-    "## Summary",
+    "## 摘要",
     "",
-    f"- Ticket: `{ticket}`",
+    f"- 工單：`{ticket}`",
     f"- Head SHA: `{head_sha}`",
-    f"- Status: `{status}`",
-    f"- Generated at: `{generated_at}`",
-    f"- Task: [{task_md.name}]({relative_link(task_md)})",
+    f"- 狀態：`{status}`",
+    f"- 產生時間：`{generated_at}`",
+    f"- Task 檔案：[{task_md.name}]({relative_link(task_md)})",
     f"- Repo: `{repo_root}`",
     f"- Links manifest: [links.json](./links.json)",
     f"- Publication manifest: [publication-manifest.json](./publication-manifest.json)",
     "",
-    "## Verification Commands",
+    "## 驗證命令",
     "",
 ]
 
@@ -294,7 +294,7 @@ if verify_records:
     lines.append("")
 else:
     lines.extend([
-        "No `run-verify-command.sh` evidence was collected for this head. See Supporting Evidence for other local proof.",
+        "此 head 未收集到 `run-verify-command.sh` evidence；其他本地佐證請見「Supporting Evidence」。",
         "",
     ])
 
@@ -306,7 +306,7 @@ if review_records:
         lines.append(f"| `{record.get('threads', 0)}` | [{file}](./assets/raw/{file}) |")
     lines.append("")
 else:
-    lines.extend(["No review-thread disposition manifest was collected for this head.", ""])
+    lines.extend(["此 head 未收集到 review-thread disposition manifest。", ""])
 
 lines.extend(["## Behavior Assertion Coverage", ""])
 if behavior_records:
@@ -321,7 +321,7 @@ if behavior_records:
     lines.append("")
 else:
     lines.extend([
-        "No behavior assertion coverage manifest was collected for this head.",
+        "此 head 未收集到 behavior assertion coverage manifest。",
         "",
     ])
 
@@ -333,7 +333,7 @@ if items:
         lines.append(f"| [{path.name}]({item['relative_link']}) | `{item['kind']}` | `{item['sha256']}` |")
     lines.append("")
 else:
-    lines.extend(["No local supporting evidence files were collected.", ""])
+    lines.extend(["未收集到本地 supporting evidence 檔案。", ""])
 
 report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 print(json.dumps({"report": str(report_path), "items": len(items)}, ensure_ascii=False))

@@ -399,6 +399,36 @@ EOF
   fi
 }
 
+write_generic_behavior_evidence() {
+  local repo="$1"
+  local head_sha="$2"
+
+  mkdir -p "$repo/.polaris/evidence/behavior/DP-999-T1/compare-abc123"
+  printf 'fake-screenshot\n' > "$repo/.polaris/evidence/behavior/DP-999-T1/compare-abc123/lightbox-carousel.png"
+  cat > "$repo/.polaris/evidence/behavior/DP-999-T1/polaris-behavior-DP-999-T1-${head_sha}-abc123.json" <<EOF
+{
+  "schema_version": 1,
+  "ticket": "DP-999-T1",
+  "head_sha": "${head_sha}",
+  "writer": "run-behavior-contract.sh",
+  "mode": "compare",
+  "behavior_mode": "parity",
+  "status": "PASS",
+  "at": "2026-05-05T00:00:00Z",
+  "context_hash": "abc123",
+  "screenshots": ["$repo/.polaris/evidence/behavior/DP-999-T1/compare-abc123/lightbox-carousel.png"],
+  "videos": [],
+  "assertion_results": [
+    {
+      "assertion": "lightbox opens",
+      "status": "PASS",
+      "source": "selftest screenshot evidence"
+    }
+  ]
+}
+EOF
+}
+
 write_verify_evidence() {
   local repo="$1"
   local head_sha="$2"
@@ -810,6 +840,63 @@ run_publication_case "publication-marker-passes" "marker" "true" "0" "PR-visible
 run_publication_case "publication-report-marker-passes" "report" "true" "0" "PR-visible evidence publication proof found"
 run_publication_case "publication-jira-marker-passes" "jira" "true" "0" "PR-visible evidence publication proof found"
 run_publication_case "behavior-without-video-blocks" "marker" "false" "2" "Playwright behavior evidence requires video reference"
+
+run_generic_behavior_screenshot_case() {
+  local label="generic-behavior-screenshot-marker-passes"
+  local repo="$TMPROOT/$label/repo"
+  local mockbin="$TMPROOT/$label/bin"
+  local body_file="$TMPROOT/$label/body.md"
+  local comments_file="$TMPROOT/$label/comments.json"
+  mkdir -p "$(dirname "$repo")"
+  setup_repo "$repo"
+  local head_sha
+  head_sha="$(git -C "$repo" rev-parse HEAD)"
+  write_task "$repo" "$head_sha"
+  write_generic_behavior_evidence "$repo" "$head_sha"
+  write_task_verify_report "$repo" "$repo" "$head_sha"
+
+  cat > "$body_file" <<'EOF'
+## Description
+
+這是 completion gate selftest 內容。
+
+## Changed
+
+- 補齊 completion gate 檢查。
+
+## Screenshots (Test Plan)
+
+- 已執行 selftest。
+
+## Related documents
+
+- DP-999
+
+## QA notes
+
+- N/A
+EOF
+
+  cat > "$comments_file" <<EOF
+[
+  {
+    "body": "<!-- polaris-evidence-publication:v1 ticket=DP-999-T1 head=${head_sha} manifest_sha256=fixture -->\\n## Polaris evidence publication"
+  }
+]
+EOF
+
+  install_mock_gh "$mockbin" "$body_file" "OPEN" "false" "$head_sha" "$comments_file"
+
+  set +e
+  out="$(POLARIS_SKIP_CI_LOCAL=1 POLARIS_SKIP_EVIDENCE=1 POLARIS_SKIP_PR_TITLE_GATE=1 POLARIS_SKIP_CHANGESET_GATE=1 PATH="$mockbin:$PATH" "$CHECK" --repo "$repo" --ticket DP-999-T1 2>&1)"
+  rc=$?
+  set -e
+
+  assert_rc "$label rc" "$rc" "0"
+  assert_contains "$label message" "$out" "PR-visible evidence publication proof found"
+}
+
+run_generic_behavior_screenshot_case
 
 run_overlay_case() {
   local label="overlay-prefers-main-task"
