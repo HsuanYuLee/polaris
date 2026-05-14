@@ -231,6 +231,7 @@ PY
 evidence_root="$REPO_PATH/.polaris/evidence"
 behavior_dir="$evidence_root/behavior/$SAFE_TICKET"
 artifact_dir="$behavior_dir/${MODE}-${context_hash}-${HEAD_SHA:0:12}"
+rm -rf "$artifact_dir"
 mkdir -p "$artifact_dir"
 
 script_abs=""
@@ -267,6 +268,8 @@ else
   echo "$PREFIX behavior flow script not found: ${flow_script:-<empty>}" >"$TMP_STDERR"
   command_rc=1
 fi
+cp "$TMP_STDOUT" "$artifact_dir/stdout.txt"
+cp "$TMP_STDERR" "$artifact_dir/stderr.txt"
 
 baseline_file=""
 baseline_state_hash=""
@@ -336,6 +339,12 @@ contract = json.loads(contract_json)
 artifact_root = Path(artifact_dir)
 stdout_text = Path(stdout_path).read_text(encoding="utf-8", errors="replace")
 stderr_text = Path(stderr_path).read_text(encoding="utf-8", errors="replace")
+stdout_artifact = artifact_root / "stdout.txt"
+stderr_artifact = artifact_root / "stderr.txt"
+if stdout_artifact.is_file():
+    stdout_text = stdout_artifact.read_text(encoding="utf-8", errors="replace")
+if stderr_artifact.is_file():
+    stderr_text = stderr_artifact.read_text(encoding="utf-8", errors="replace")
 
 def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
@@ -518,6 +527,8 @@ data = {
     "state_hash": state_hash,
     "stdout_hash": sha256_bytes(stdout_text.encode("utf-8")),
     "stderr_hash": sha256_bytes(stderr_text.encode("utf-8")),
+    "stdout_file": str(stdout_artifact) if stdout_artifact.is_file() else "N/A",
+    "stderr_file": str(stderr_artifact) if stderr_artifact.is_file() else "N/A",
     "exit_code": int(command_rc),
     "health_failures": health_failures,
     "assertion_results": assertion_results,

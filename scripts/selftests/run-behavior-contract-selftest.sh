@@ -305,13 +305,18 @@ expect_pass "compare-pass" bash "$ROOT/scripts/run-behavior-contract.sh" --task-
 head_pass="$(git -C "$repo_pass" rev-parse HEAD)"
 pass_behavior_evidence="$(find_behavior_evidence "$repo_pass" "DP-109-T1" "$head_pass")"
 python3 - "$pass_behavior_evidence" <<'PY'
-import json, sys
+import hashlib, json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 results = {item["assertion"]: item["status"] for item in data["assertion_results"]}
 assert results["state matches"] == "PASS"
 assert results["optional carousel click covered"] == "NOT_COVERED"
 assert data["assertion_summary"]["PASS"] == 1
 assert data["assertion_summary"]["NOT_COVERED"] == 1
+for key, hash_key in (("stdout_file", "stdout_hash"), ("stderr_file", "stderr_hash")):
+    path = data[key]
+    assert path and path != "N/A", f"{key} missing"
+    with open(path, "rb") as handle:
+        assert hashlib.sha256(handle.read()).hexdigest() == data[hash_key], f"{hash_key} mismatch"
 PY
 printf '{"ticket":"DP-109-T1","head_sha":"%s","writer":"run-verify-command.sh","exit_code":0,"at":"2026-05-05T00:00:00Z"}\n' "$head_pass" \
   >"/tmp/polaris-verified-DP-109-T1-${head_pass}.json"
@@ -388,6 +393,43 @@ git -C "$repo_invalid" commit -qm "invalid assertion"
 task_invalid="$WORKDIR/T1-invalid-assertion.md"
 write_task "$task_invalid" "$(basename "$repo_invalid")" "DP-109-T9" "pm_flow" "none" "[]"
 expect_fail "invalid-assertion-status" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_invalid" --mode compare --repo "$repo_invalid" --ticket DP-109-T9
+
+repo_stale="$WORKDIR/stale-artifact-repo"
+make_repo "$repo_stale"
+task_stale="$WORKDIR/T1-stale-artifact.md"
+write_task "$task_stale" "$(basename "$repo_stale")" "DP-109-T10" "pm_flow" "none" "[]"
+expect_pass "stale-artifact-seed" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_stale" --mode compare --repo "$repo_stale" --ticket DP-109-T10
+cat >"$repo_stale/scripts/behavior-flow.sh" <<'EOF'
+set -euo pipefail
+echo "new stdout before failure"
+echo "new stderr failure" >&2
+exit 1
+EOF
+expect_fail "stale-artifact-not-reused" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_stale" --mode compare --repo "$repo_stale" --ticket DP-109-T10
+head_stale="$(git -C "$repo_stale" rev-parse HEAD)"
+stale_evidence="$(find_behavior_evidence "$repo_stale" "DP-109-T10" "$head_stale")"
+python3 - "$stale_evidence" <<'PY'
+import hashlib, json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+assert data["status"] == "FAIL"
+assert data["exit_code"] == 1
+assert data["state_file"] == "N/A", data["state_file"]
+results = {item["assertion"]: item["status"] for item in data["assertion_results"]}
+assert results["state matches"] == "NOT_COVERED"
+assert results["optional carousel click covered"] == "NOT_COVERED"
+assert data["assertion_summary"]["PASS"] == 0
+assert data["assertion_summary"]["NOT_COVERED"] == 2
+for key, hash_key, expected in (
+    ("stdout_file", "stdout_hash", "new stdout before failure"),
+    ("stderr_file", "stderr_hash", "new stderr failure"),
+):
+    path = data[key]
+    assert path and path != "N/A", f"{key} missing"
+    with open(path, "rb") as handle:
+        payload = handle.read()
+    assert expected.encode() in payload, payload
+    assert hashlib.sha256(payload).hexdigest() == data[hash_key], f"{hash_key} mismatch"
+PY
 
 repo_identity="$WORKDIR/identity-repo"
 make_repo "$repo_identity"

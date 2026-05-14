@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.69] - 2026-05-15
+
+### Fixed — behavior contract artifact isolation
+
+- 讓 `run-behavior-contract.sh` 每次執行前重建 deterministic artifact directory，避免失敗 run 誤讀舊的 `behavior-state.json` 或 screenshot。
+- 在 PASS / FAIL behavior evidence artifact 中保留 `stdout.txt` / `stderr.txt`，並於 evidence JSON 記錄 durable file path 與 hash。
+- 補上 stale artifact regression selftest，確保新失敗 run 不會繼承舊 PASS assertion coverage。
+
 ## [3.75.68] - 2026-05-15
 
 ### Fixed — polaris-env exact repo resolution
