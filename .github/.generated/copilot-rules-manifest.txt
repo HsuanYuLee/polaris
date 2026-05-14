@@ -37,5 +37,5 @@ e571d4293f702615dc040ad711502fc9513bebb0ac4a1f4319560a94e294e6bd  .claude/rules/
 2748e11c00415a5a9b651968f1f9f2eae32284e38e708961c6042c78b21b158f  .claude/rules/mechanism-registry.md
 56883c7e9cea1b1199069b1ed03469db89b32b7725a38f401dd81eea8b816c8c  .claude/rules/multi-company-isolation.md
 4a010d01c2d1968a136adc0f12e059929ffd1c3a850dcabc7d2d406972f094da  .claude/rules/pr-and-review.md
-7c62595d75a589b2fd62835be2fb466c2fb01c9f8016bd98504732ca133b13e9  .claude/rules/skill-routing.md
+be94fd909fb78fc30b62be8b12e7bea890c6fc3f26b9ab93caf3139e3049729e  .claude/rules/skill-routing.md
 d713221759e8d1c3ce88a782113c6a336bff560c6e29ffbfd0a27d76804fa427  .claude/rules/sub-agent-delegation.md

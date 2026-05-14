@@ -32,6 +32,9 @@ from pathlib import Path
 root = Path(sys.argv[1]).expanduser().resolve()
 skills_arg = sys.argv[2]
 skills_dir = Path(skills_arg).expanduser().resolve() if skills_arg else root / ".claude" / "skills"
+skill_routing = root / ".claude" / "rules" / "skill-routing.md"
+revision_flow = root / ".claude" / "skills" / "references" / "engineering-revision-flow.md"
+agents_target = root / "AGENTS.md"
 
 cases = [
     ("review 這個 PR", "review-pr", [r"review", r"PR"]),
@@ -58,6 +61,49 @@ for prompt, skill, patterns in cases:
     searchable = frontmatter(path.read_text(encoding="utf-8", errors="replace"))
     if not any(re.search(pattern, searchable, re.IGNORECASE) for pattern in patterns):
         failures.append((prompt, skill, "missing trigger pattern in frontmatter"))
+
+def require_file_patterns(path: Path, label: str, patterns: list[str]) -> None:
+    if not path.exists():
+        failures.append((label, str(path), "missing file"))
+        return
+    text = path.read_text(encoding="utf-8", errors="replace")
+    for pattern in patterns:
+        if not re.search(pattern, text, re.IGNORECASE | re.MULTILINE):
+            failures.append((label, str(path), f"missing required pattern: {pattern}"))
+
+require_file_patterns(
+    skill_routing,
+    "plugin workflow quarantine routing",
+    [
+        r"Plugin Workflow Quarantine",
+        r"OpenAI-curated / marketplace plugin skills are adapter surfaces",
+        r"Product repo PR revision[\s\S]*engineering[\s\S]*authority",
+        r"github:gh-address-comments.*engineering.*R2",
+        r"cannot.*Write Safety.*engineering.*R6",
+    ],
+)
+
+require_file_patterns(
+    revision_flow,
+    "engineering revision plugin boundary",
+    [
+        r"GitHub plugin helper boundary",
+        r"github:gh-address-comments",
+        r"不是 revision flow authority",
+        r"external-write obligation",
+        r"generic Write Safety",
+    ],
+)
+
+require_file_patterns(
+    agents_target,
+    "AGENTS plugin workflow quarantine target",
+    [
+        r"Plugin Workflow Quarantine",
+        r"plugin-contributed skill",
+        r"engineering.*R6",
+    ],
+)
 
 if failures:
     print("skill-routing-canary: FAIL")

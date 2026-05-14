@@ -50,3 +50,11 @@ When behavioral drift appears, prefer scripts, hooks, validators, or skill check
 Use the workspace language from `workspace-config.yaml` as the default authoring language when present. Draft user-facing and downstream-facing prose directly in that language; do not rely on writing English first and translating immediately before sending. If a skill will produce an artifact, preview, handoff, or external write body, load `.claude/skills/references/authoring-preflight.md` and `.claude/skills/references/workspace-language-policy.md` before drafting.
 
 Keep user updates concise, factual, and tied to the current gate or blocker.
+
+## Plugin Workflow Quarantine
+
+OpenAI-curated and marketplace plugin-contributed skills are adapter surfaces, not Polaris workflow authority. When a user intent is covered by a workspace-owned Polaris skill and a plugin skill, the Polaris skill wins.
+
+For product repo PR revision, review-comment fixes, stack convergence, and merge readiness, `engineering` is the authority. GitHub plugin helpers may support metadata or review-thread reads, but they must not override `engineering` revision R6 reply / resolve obligations, shared PR state, completion gates, or readiness vocabulary.
+
+Load `.claude/rules/skill-routing.md` and `.claude/skills/references/engineering-revision-flow.md` for the full contract whenever plugin workflows and Polaris-managed delivery could both match.

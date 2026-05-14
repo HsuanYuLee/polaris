@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.63] - 2026-05-14
+
+### Fixed — plugin workflow authority quarantine
+
+- Made workspace skill routing declare OpenAI-curated and marketplace plugin skills as adapter surfaces rather than Polaris workflow authority.
+- Clarified that GitHub plugin helpers may assist `engineering` review-thread reads but cannot override R6 review-thread reply and resolve obligations.
+- Added canary coverage so source rules, engineering revision references, and AGENTS generated targets must keep the plugin workflow quarantine contract in sync.
+
 ## [3.75.62] - 2026-05-14
 
 ### Fixed — Codex PR assignee gate

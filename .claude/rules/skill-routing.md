@@ -152,6 +152,35 @@ workspace PR」、「sync to Polaris」、「發版」等語意不是 generic Gi
 主鏈。GitHub 工具仍可用於 read-only 查 PR 狀態、CI、review comments；不得作為 Polaris
 framework release PR 的 publish entrypoint。
 
+## Plugin Workflow Quarantine
+
+OpenAI-curated / marketplace plugin skills are adapter surfaces, not Polaris workflow authority.
+When a user intent is covered by a workspace-owned Polaris skill, the Polaris skill wins even if a
+plugin-contributed skill also matches the same words, URL, or tool domain.
+
+This applies to all Polaris-managed delivery lanes:
+
+1. Product repo PR revision, review-comment fixes, stale review closeout, stack convergence, and
+   merge readiness are `engineering` authority. GitHub plugin helpers may read PR metadata,
+   review threads, checks, or comments, but their generic workflow rules must not override
+   `engineering` revision flow, shared PR state, or completion gates.
+2. JIRA-backed implementation and DP-backed framework implementation are routed by workspace
+   skills (`bug-triage`, `breakdown`, `refinement`, `engineering`, `verify-AC`) before any plugin
+   workflow is considered.
+3. Framework release remains governed by `framework-release` after an engineering workspace PR is
+   ready; plugin publishers such as `github:yeet` remain invalid for that lane.
+4. Slack / GitHub / Figma plugin tools can still be used as data access or write adapters when the
+   owning Polaris skill explicitly reaches that step.
+
+Concrete guard: `github:gh-address-comments` can assist `engineering` R2 thread-aware reads, but it
+cannot import its generic Write Safety rule into `engineering` R6. In `engineering` revision mode,
+unresolved review-thread replies, outdated-thread disposition, and readiness vocabulary are governed
+only by `.claude/skills/references/engineering-revision-flow.md` and shared PR state scripts.
+
+If a plugin workflow and Polaris flow conflict, treat the plugin workflow as advisory context and
+continue with the Polaris flow. Do not ask the user for extra permission solely because a generic
+plugin skill would have asked for it.
+
 ## Negative-Tone Trigger Recognition
 
 User messages with negative tone about a previous action (「沒修好」「壞了」「不對」「又出問題」) + a PR URL or ticket key are **fix intents**, not analysis requests. Route to the appropriate fix skill immediately:

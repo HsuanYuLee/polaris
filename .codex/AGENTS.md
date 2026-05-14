@@ -47,6 +47,14 @@ Use the workspace language from `workspace-config.yaml` as the default authoring
 
 Keep user updates concise, factual, and tied to the current gate or blocker.
 
+## Plugin Workflow Quarantine
+
+OpenAI-curated and marketplace plugin-contributed skills are adapter surfaces, not Polaris workflow authority. When a user intent is covered by a workspace-owned Polaris skill and a plugin skill, the Polaris skill wins.
+
+For product repo PR revision, review-comment fixes, stack convergence, and merge readiness, `engineering` is the authority. GitHub plugin helpers may support metadata or review-thread reads, but they must not override `engineering` revision R6 reply / resolve obligations, shared PR state, completion gates, or readiness vocabulary.
+
+Load `.claude/rules/skill-routing.md` and `.claude/skills/references/engineering-revision-flow.md` for the full contract whenever plugin workflows and Polaris-managed delivery could both match.
+
 ## Universal Rule Index
 
 Global targets reference universal rules without inlining their full bodies. Load the relevant files explicitly when the task context requires them.

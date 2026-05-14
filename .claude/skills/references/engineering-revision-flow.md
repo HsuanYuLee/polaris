@@ -65,6 +65,11 @@ PR readiness / CI / review vocabulary 必須以 `pr-state-contract.md` 與 share
 scripts 為 authority；不要另外用 ad-hoc `gh pr checks --json` 或 legacy status helper 推論
 `awaiting_re_review` / `mergeable_ready`。
 
+GitHub plugin helper boundary：`github:gh-address-comments` 或其他 GitHub plugin workflow 可作為
+R2 的讀取輔助，用來取得 thread-aware review data；但它不是 revision flow authority。其 generic
+Write Safety、互動式確認、或完成語彙不得覆蓋本檔 R3-R6、shared PR state scripts、或
+`engineering` completion gate。
+
 Active signals：
 
 - unresolved, non-outdated root inline comments。
@@ -127,6 +132,11 @@ non-outdated active thread 與 GitHub 已標 `isOutdated=true` 但仍 unresolved
 Outdated thread 的回覆要明說 disposition，例如「這段 diff 已移除 / 被後續 commit 取代 /
 已用另一個檔案修正」，然後 resolve conversation。只有已 resolved 的 thread 不回覆，但
 保留 evidence summary。
+
+這是 `engineering` revision mode 的 external-write obligation；不需要因為 GitHub plugin helper 的
+generic Write Safety 另行詢問使用者是否允許回覆。若 review feedback 已分類為 code drift 並完成
+R5 re-verify，就依本節回覆 / resolve；若 feedback 是 plan gap 或 spec issue，依 R3a fail-stop，
+不要用 plugin workflow 繞過。
 
 Closeout 報告不得只列 `active_unresolved_threads`；必須同時列出 total unresolved 與
 outdated unresolved 的 disposition，避免 GitHub UI 仍顯示 unresolved conversation 時被誤判成
