@@ -28,8 +28,18 @@ pid_dir() { echo "$PID_BASE/$1"; }
 save_pid() { mkdir -p "$(pid_dir "$1")"; echo "$3" > "$(pid_dir "$1")/$2.pid"; }
 is_pid_running() { [[ -n "$1" ]] && kill -0 "$1" 2>/dev/null; }
 
+canonical_repo_slug() {
+  local value="$1"
+  value="${value%.git}"
+  value="${value#git@github.com:}"
+  value="${value#https://github.com/}"
+  value="${value#http://github.com/}"
+  value="${value#ssh://git@github.com/}"
+  echo "$value"
+}
+
 resolve_project_dir() {
-  local company="$1" name="$2" repo="${3:-}" default_dir current_top remote
+  local company="$1" name="$2" repo="${3:-}" default_dir current_top remote expected_slug current_slug
   default_dir="$WORKSPACE_ROOT/$company/$name"
 
   if [[ -n "${POLARIS_ENV_PROJECT_DIR:-}" && -d "${POLARIS_ENV_PROJECT_DIR:-}" ]]; then
@@ -39,7 +49,9 @@ resolve_project_dir() {
 
   if [[ -n "$repo" ]] && current_top="$(git -C "$CALLER_CWD" rev-parse --show-toplevel 2>/dev/null)"; then
     remote="$(git -C "$current_top" config --get remote.origin.url 2>/dev/null || true)"
-    if [[ "$remote" == *"$repo"* || "$remote" == *"${repo}.git"* ]]; then
+    expected_slug="$(canonical_repo_slug "$repo")"
+    current_slug="$(canonical_repo_slug "$remote")"
+    if [[ -n "$expected_slug" && "$current_slug" == "$expected_slug" ]]; then
       echo "$current_top"
       return 0
     fi

@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.68] - 2026-05-15
+
+### Fixed — polaris-env exact repo resolution
+
+- 修正 `polaris-env.sh` 的 project dir resolver，改以 canonical `owner/repo` slug exact match 判斷 caller worktree，避免 workspace repo remote 前綴誤判為 product repo。
+- 保留 DP-165 的 Docker dependency readiness 與 matching product worktree 行為，並補上 workspace-shadow repo regression selftest。
+- 避免 `polaris-env.sh start <company> --project <app>` 在 workspace root 執行裸 dev command，讓 runtime behavior gate 能用文件指定入口啟動。
+
 ## [3.75.67] - 2026-05-15
 
 ### Added — Jira-first delivery evidence publication
