@@ -18,6 +18,9 @@ DAG 或循環依賴要 fail-stop，回到 planning 調整。
 - 有 depends_on 的 task 從 upstream task branch 切。
 - `Branch chain` 從真正 start point 開始；外部 dependency branch 不假裝是本 Epic chain。
 - 不新增 `PR base` 欄位；engineering Resolve 層會動態判斷 PR base。
+- 若 `stacked-delivery-sibling-epic-policy.md` 判定某 lane 已拆 sibling Epic，該 lane 的第一張
+  task 必須在 Operational Context 標示 `Feat branch owner | yes`，後續 task 標示
+  `Feat branch owner | no - merges into <TXa>`。
 
 ## Task.md Output
 
@@ -30,6 +33,7 @@ work order 讀取 fallback，不再作為新產物預設。必備內容：
 
 - frontmatter title / description / status / depends_on。
 - Operational Context。
+- stacked delivery lane 的 aggregation / feat branch ownership decision。
 - Verification Handoff。
 - Goal / scope / allowed files。
 - Scope Trace Matrix。

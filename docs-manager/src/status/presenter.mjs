@@ -24,8 +24,8 @@ export function stageLabel(item, locale = 'en') {
   if (item.derivedPhase) return translate(locale, `phase.${item.derivedPhase}`);
   if (item.blockers.length > 0) return translate(locale, 'stage.needsAttention');
   if (item.status === 'implemented') return translate(locale, 'stage.done');
-  if (item.status === 'locked') return translate(locale, 'stage.ready');
   if (item.tasks.total > 0) return translate(locale, 'stage.execution');
+  if (item.status === 'locked') return translate(locale, 'stage.ready');
   if (item.status === 'discussion' || item.status === 'seeded') return translate(locale, 'stage.refinement');
   return translate(locale, 'stage.unknown');
 }
@@ -74,6 +74,7 @@ export function taskSummary(item, locale = 'en') {
   if (tasks.total === 0) return '0';
   return [
     translate(locale, 'tasks.total', { count: tasks.total }),
+    translate(locale, 'tasks.planned', { count: tasks.byStatus.planned ?? 0 }),
     translate(locale, 'tasks.done', { count: tasks.byStatus.implemented }),
     translate(locale, 'tasks.active', { count: tasks.byStatus.in_progress }),
     translate(locale, 'tasks.inReview', { count: tasks.byStatus.in_review ?? 0 }),

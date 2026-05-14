@@ -6,7 +6,7 @@ SCRIPT="$ROOT_DIR/scripts/check-main-chain-compliance.sh"
 
 bash "$SCRIPT" --repo "$ROOT_DIR" --check-callsites
 bash "$SCRIPT" --repo "$ROOT_DIR" \
-  --source-container "$ROOT_DIR/docs-manager/src/content/docs/specs/design-plans/DP-140-secondary-llm-main-development-chain-mechanical-enforcement" \
+  --source-container "$ROOT_DIR/docs-manager/src/content/docs/specs/design-plans/archive/DP-140-secondary-llm-main-development-chain-mechanical-enforcement" \
   --allow-active-verification
 
 tmpdir="$(mktemp -d -t main-chain-compliance.XXXXXX)"
@@ -134,5 +134,18 @@ MD
 cp "$source_dir/tasks/T1/index.md" "$terminal_dir/tasks/pr-release/T1/index.md"
 cp "$source_dir/tasks/V1/index.md" "$terminal_dir/tasks/V1/index.md"
 bash "$SCRIPT" --repo "$ROOT_DIR" --source-container "$terminal_dir" --allow-active-verification >/dev/null
+if bash "$SCRIPT" --repo "$ROOT_DIR" --source-container "$terminal_dir" --allow-active-verification --require-release-metadata >/dev/null 2>&1; then
+  echo "FAIL: released implementation fixture passed without deliverable metadata" >&2
+  exit 1
+fi
+
+cat >>"$terminal_dir/tasks/pr-release/T1/index.md" <<'MD'
+
+deliverable:
+  pr_url: "https://github.com/example/polaris/pull/1"
+  head_sha: "0123456789abcdef0123456789abcdef01234567"
+  evidence: "docs-manager/src/content/docs/specs/design-plans/DP-998-terminal-fixture/tasks/pr-release/T1/verify-report.md"
+MD
+bash "$SCRIPT" --repo "$ROOT_DIR" --source-container "$terminal_dir" --allow-active-verification --require-release-metadata >/dev/null
 
 echo "PASS: check-main-chain-compliance selftest"

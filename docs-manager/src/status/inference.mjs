@@ -21,6 +21,18 @@ const STATUS_ALIASES = new Map([
   ['IN_PROGRESS', 'in_progress'],
   ['IMPLEMENTING', 'implementing'],
 ]);
+const TASK_STATUS_VALUES = new Set([
+  'planned',
+  'in_progress',
+  'implementing',
+  'implemented',
+  'blocked',
+  'abandoned',
+]);
+const TASK_STATUS_ALIASES = new Map([
+  ...STATUS_ALIASES,
+  ['PLANNED', 'planned'],
+]);
 
 const PRIMARY_ARTIFACTS = ['index.md', 'plan.md', 'refinement.md'];
 const DEFAULT_SPECS_ROOT = path.resolve(
@@ -45,7 +57,7 @@ const EXTERNAL_REF_TYPES = new Set(['jira_comment', 'pr', 'slack', 'report', 'ot
 /**
  * @typedef {'design-plan' | 'company-spec'} StatusSourceType
  * @typedef {'seeded' | 'discussion' | 'locked' | 'in_progress' | 'implementing' | 'implemented' | 'superseded' | 'blocked' | 'abandoned' | 'unknown'} DashboardStatus
- * @typedef {{total: number, byStatus: {implemented: number, in_progress: number, in_review: number, blocked: number, unknown: number, stale: number}, staleSignals: string[]}} TaskSummary
+ * @typedef {{total: number, byStatus: {planned: number, implemented: number, in_progress: number, in_review: number, blocked: number, unknown: number, stale: number}, staleSignals: string[]}} TaskSummary
  * @typedef {{name: string, path: string}} DashboardArtifact
  * @typedef {{name: string, path: string}} DashboardReport
  * @typedef {{status: string, path?: string}} PublicationSummary
@@ -432,6 +444,7 @@ function summarizeTasks(tasksDir) {
   const summary = {
     total: 0,
     byStatus: {
+      planned: 0,
       implemented: 0,
       in_progress: 0,
       in_review: 0,
@@ -493,7 +506,7 @@ function taskFiles(tasksDir) {
 
 function projectTaskState(file) {
   const frontmatter = readMarkdownFrontmatter(file);
-  const status = normalizeStatus(frontmatter.status);
+  const status = normalizeTaskStatus(frontmatter.status);
   const deliverable = normalizeDeliverable(frontmatter.deliverable);
   const publication = readTaskPublicationManifest(file);
   const snapshot = readTaskPrSnapshot(file);
@@ -528,6 +541,7 @@ function projectTaskState(file) {
     staleSignals.push('task-deliverable-pr-snapshot-state-mismatch');
   }
 
+  if (status === 'planned') return { bucket: 'planned', staleSignals };
   if (status === 'implemented') return { bucket: 'implemented', staleSignals };
   if (status === 'in_progress' || status === 'implementing') {
     return { bucket: 'in_progress', staleSignals };
@@ -623,6 +637,13 @@ function normalizeStatus(value) {
   const raw = String(value).trim();
   const aliased = STATUS_ALIASES.get(raw.toUpperCase()) ?? raw.toLowerCase();
   return ACTIVE_STATUS_VALUES.has(aliased) ? aliased : 'unknown';
+}
+
+function normalizeTaskStatus(value) {
+  if (!value) return 'unknown';
+  const raw = String(value).trim();
+  const aliased = TASK_STATUS_ALIASES.get(raw.toUpperCase()) ?? raw.toLowerCase();
+  return TASK_STATUS_VALUES.has(aliased) ? aliased : 'unknown';
 }
 
 function normalizeDateString(value) {

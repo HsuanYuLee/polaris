@@ -763,6 +763,26 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1; invoke via scripts/support/."
     },
     {
+      "path": "scripts/selftests/detect-stacked-delivery-lane-selftest.mjs",
+      "kind": "selftest",
+      "runner": "node",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-163 selftest for stacked delivery sibling Epic detection."
+    },
+    {
+      "path": "scripts/detect-stacked-delivery-lane.mjs",
+      "kind": "gate",
+      "runner": "node",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/detect-stacked-delivery-lane-selftest.mjs",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/support/dev-server-guard.sh",
       "kind": "support",
       "runner": "bash",
@@ -1856,6 +1876,26 @@
       "lifecycle": "hot_path",
       "relocation": "stay",
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/selftests/reconcile-spec-lifecycle-selftest.mjs",
+      "kind": "selftest",
+      "runner": "node",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-131 selftest for read-only spec lifecycle reconciliation."
+    },
+    {
+      "path": "scripts/reconcile-spec-lifecycle.mjs",
+      "kind": "gate",
+      "runner": "node",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/reconcile-spec-lifecycle-selftest.mjs",
+      "lifecycle": "support_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/selftests/refinement-handoff-gate-selftest.sh",

@@ -1,3 +1,8 @@
+---
+title: "Polaris developer workflow"
+description: "End-to-end Polaris developer workflow from ticket intake to release."
+---
+
 # Developer Workflow Guide
 
 English | [中文](./workflow-guide.zh-TW.md)
@@ -147,6 +152,22 @@ Acceptance Criteria and downstream-facing handoff text pass through 5 determinis
 
 ---
 
+## Large Stack Sibling Epics
+
+During `refinement` and `breakdown`, Polaris runs a stacked delivery lens before suggested task structure or task write. If a lane already looks like `TXa -> TXb -> TXc` and the first task is the natural aggregation or feature branch, planning must handle sibling Epic strategy before creating task.md or JIRA child issues.
+
+When the lane can be reviewed, merged, released, or reverted independently, the normal shape is:
+
+- Keep the original Epic as the umbrella for roadmap, cross-lane context, and aggregate verification.
+- Create a sibling Epic for the delivery lane.
+- Treat `TXa` as that sibling Epic's feature branch owner.
+- Merge `TXb~TXn` into `TXa` through GitHub PR merge events.
+- Merge the sibling Epic feature PR back to the product base branch after review and CI are ready.
+
+Polaris does not create sibling Epics automatically from this signal. External writes still require explicit user confirmation and the normal write gates. Small one-task or two-task dependencies do not trigger this fail-stop.
+
+---
+
 ## Skill Orchestration
 
 How skills invoke and delegate to each other. Solid arrows = invoke (skill calls skill internally); dashed arrows = optional delegation.
@@ -264,7 +285,7 @@ Sync with PM, Design, and QA to confirm the PRD and scope before proceeding.
 
 **Entry 1 — Developer-initiated discovery (Phase 0):**
 
-```
+```text
 I want to refactor <component>
 ```
 
@@ -272,7 +293,7 @@ AI analyzes the codebase and produces: problem analysis, impact assessment (non-
 
 **Entry 2 — Incomplete Epic from PM (Phase 1):**
 
-```
+```text
 refinement PROJ-3000
 ```
 
@@ -280,7 +301,7 @@ AI reads the Epic and codebase, runs 8 completeness checks (background, AC, scop
 
 **Entry 3 — Requirement is clear, discuss approach (Phase 2):**
 
-```
+```text
 What's the best approach for this ticket?
 ```
 
@@ -294,7 +315,7 @@ AI produces 2–3 implementation options + a comparison matrix + Decision Record
 
 Before breakdown and estimation, AI can challenge the scope assumptions:
 
-```
+```text
 scope challenge PROJ-3000
 ```
 
@@ -308,7 +329,7 @@ AI executes `breakdown` in Scope Challenge mode: reads the ticket, proposes 2–
 
 AI launches an **Estimation Agent** to decompose the Epic into executable sub-tasks, each with story point estimates.
 
-```
+```text
 estimate PROJ-3000
 ```
 
@@ -343,7 +364,7 @@ AI executes automatically:
 
 After sub-tasks are created, AI asks whether to produce SA/SD documentation. Recommended for high-complexity work (typically 8+ points or cross-module changes).
 
-```
+```text
 PROJ-1234 SASD
 ```
 
@@ -372,7 +393,7 @@ After SA/SD (or if skipped), AI launches an **Implementation Agent** to verify f
 
 **Flow:**
 
-```
+```text
 Implementation Agent
   │
   ├─ No blockers → Proceed to Step 5 (start development)
@@ -405,7 +426,7 @@ After Step 4 feasibility check passes, development begins automatically without 
 
 Branch from the main development branch for the parent Epic, with each sub-task getting its own branch that PRs back into the parent:
 
-```
+```text
 develop (or main)
   └─ feat/{EPIC-KEY}-some-feature  (parent branch)
        ├─ feat/{PROJ-3001}-sub-feature-a → PR → merge into parent
@@ -421,7 +442,7 @@ After all sub-task PRs are reviewed and merged, the parent branch → develop PR
 
 The Implementation Agent in Step 4 produces a **dependency graph** for sub-tasks. Development is scheduled accordingly:
 
-```
+```text
 Example:
 Sub-task A (new composable) ──→ Sub-task C (page uses A's composable)
 Sub-task B (standalone API route)   Sub-task D (standalone style change)
@@ -443,7 +464,7 @@ Schedule: A + B + D develop in parallel → start C after A is merged
 
 When multiple tickets are provided, `engineering` enters batch mode automatically:
 
-```
+```text
 work on PROJ-100 PROJ-101 PROJ-102
 ```
 
@@ -470,13 +491,13 @@ After development is complete, each sub-task reports its changes to the develope
 
 For logic-intensive changes (utility functions, composables, store, API transformers), use TDD mode to ensure every step has test coverage.
 
-```
+```text
 TDD
 ```
 
 or:
 
-```
+```text
 write tests first
 ```
 
@@ -489,7 +510,7 @@ AI executes `unit-test` skill in TDD mode, enforcing **Red-Green-Refactor** cycl
 
 **Structured cycle output:**
 
-```
+```text
 ── Cycle 1 ──────────────────────────────
 🔴 RED:      it('returns empty array when no results match')
 🟢 GREEN:    Created filterResults() with early return
@@ -512,7 +533,7 @@ AI executes `unit-test` skill in TDD mode, enforcing **Red-Green-Refactor** cycl
 
 Before opening a PR, run a quality check to ensure changes have sufficient test coverage.
 
-```
+```text
 quality check
 ```
 
@@ -543,13 +564,13 @@ AI runs quality checks via `engineer-delivery-flow` Step 2 (Local CI Mirror — 
 
 After quality check (lint + test + coverage) passes, confirm the change works correctly at **runtime**. This step catches "tests pass but it doesn't actually work" issues — SSR hydration mismatches, missing runtime dependencies, layout shifts, etc.
 
-```
+```text
 verify
 ```
 
 or:
 
-```
+```text
 confirm it's fixed
 ```
 
@@ -565,7 +586,7 @@ AI runs `engineer-delivery-flow` Step 3 (Behavioral Verify):
 2. Verifies each item: wiring checks (grep), SSR output (curl + grep), perf targets (A/B worktree)
 3. Records PASS / FAIL / SKIP per item
 
-```
+```text
 ── Verification Result ──────────────────
 ✅ Layer A: env up, 2/2 URLs return 200
 ✅ Layer B: 3/3 behavioral items PASS
@@ -580,13 +601,13 @@ AI runs `engineer-delivery-flow` Step 3 (Behavioral Verify):
 
 After behavior verification passes, run a before/after screenshot comparison to confirm the change does not break existing page layouts.
 
-```
+```text
 visual regression
 ```
 
 or:
 
-```
+```text
 check if pages look right
 ```
 
@@ -607,7 +628,7 @@ After quality check passes and before committing, AI launches an independent Rev
 
 **Flow:**
 
-```
+```text
 Dev Agent                          Reviewer Sub-Agent (isolated context)
   │                                        │
   ├─ 1. Generate local diff ─────────────>│
@@ -649,13 +670,13 @@ Dev Agent                          Reviewer Sub-Agent (isolated context)
 
 ### Step 9. 🤖 Development Complete — Open PR
 
-```
+```text
 open PR
 ```
 
 For product ticket work, `engineering` runs the shared delivery flow automatically. Framework repository work must first have a DP-backed task.md (`refinement DP-NNN` → `breakdown DP-NNN`), then `engineering DP-NNN-Tn` runs the same quality, review, rebase, PR, and completion gates:
 
-```
+```text
 Branch → Simplify Loop → Quality Check → Pre-PR Review Loop → Commit → Changeset → Rebase → Open PR → JIRA transition → Update PR desc → Post-PR Review Comment
 ```
 
@@ -694,7 +715,7 @@ Request review from teammates. After obtaining **2 or more approvals**, mark the
 
 After receiving review comments from human reviewers or automated tools, AI can automatically fix issues and reply to each comment.
 
-```
+```text
 fix review #1920
 ```
 
@@ -716,7 +737,7 @@ AI enters `engineering` revision mode:
 
 ### Step 11. 🤖👤 Log Work Time
 
-```
+```text
 log worktime
 ```
 
@@ -749,7 +770,7 @@ Receive the bug ticket, confirm the problem description and reproduction steps.
 
 ### Step 2. 🤖👤 Bug Diagnosis (bug-triage)
 
-```
+```text
 修 bug PROJ-432
 ```
 
@@ -781,7 +802,7 @@ After receiving review comments, use the fix review command to auto-fix and repl
 
 ### Step 4. 🤖👤 Log Work Time
 
-```
+```text
 log worktime
 ```
 
@@ -841,7 +862,7 @@ When a teammate asks you to review their PR:
 
 When multiple PRs are waiting for your review:
 
-```
+```text
 review all PRs
 ```
 
@@ -858,7 +879,7 @@ AI automatically:
 
 After opening a PR and wanting to track review progress:
 
-```
+```text
 check PR status
 ```
 
@@ -887,7 +908,7 @@ AI automatically:
 
 A scheduled agent automatically scans for technical articles each day, filters for high-quality content relevant to your tech stack, and queues them for developers to process at their own pace.
 
-```
+```text
 Scheduled Agent (daily, configurable time)     Developer (manual trigger)
   │                                                    │
   ├─ WebSearch scans configured topic areas           │
@@ -923,13 +944,13 @@ Scheduled Agent (daily, configurable time)     Developer (manual trigger)
 
 **Morning workflow:**
 
-```
+```text
 daily learning
 ```
 
 or:
 
-```
+```text
 what can I learn today
 ```
 

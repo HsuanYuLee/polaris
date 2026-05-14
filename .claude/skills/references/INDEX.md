@@ -42,6 +42,7 @@ Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性
 | [breakdown-planning-flow.md](breakdown-planning-flow.md) | breakdown JIRA Story/Task/Epic planning：探索、拆單、Quality Challenge、Constructability Gate、JIRA write | breakdown story, split tasks, sub-tasks |
 | [breakdown-task-packaging.md](breakdown-task-packaging.md) | breakdown task packaging：branch DAG、task.md/V*.md schema、validators、engineering handoff | breakdown task.md, branch chain, validate-task-md |
 | [breakdown-scope-challenge-flow.md](breakdown-scope-challenge-flow.md) | breakdown advisory scope challenge：完整性檢查、scope challenge、替代方案與下一步路由 | scope challenge, 需求質疑, challenge scope |
+| [stacked-delivery-sibling-epic-policy.md](stacked-delivery-sibling-epic-policy.md) | 長線性 stacked delivery lane 的 sibling Epic 偵測、fail-stop 與 override policy | refinement suggested task structure, breakdown task preview, TXa TXb TXc, sibling Epic |
 | [refinement-artifact.md](refinement-artifact.md) | Refinement 結構化 artifact JSON schema — 供 breakdown/estimation/engineering 消費 | refinement (Tier 2+), breakdown, engineering |
 | [infra-first-decision.md](infra-first-decision.md) | 由 AC verification method 決定 refinement preview / breakdown split 是否需要 Mockoon fixtures、VR baseline 或 stable data seed prerequisite | refinement suggested task structure, breakdown split strategy, infra prerequisite |
 | [spec-source-resolver.md](spec-source-resolver.md) | JIRA / DP-NNN / ticketless topic / artifact path 的共用 source resolution contract，含 DP locator、artifact path、section ownership | refinement, breakdown, engineering, verify-AC |

@@ -50,6 +50,9 @@ dispatch 必須注入 Completion Envelope，完整 detail 寫入
 - 需要 infra prerequisite 時讀 `infra-first-decision.md`，以 refinement artifact 的
   AC verification methods 產生 Mockoon fixtures、VR baseline 或 stable data seed task；
   不得只因 visual regression config 存在就加入 fixture task。
+- 需要三張以上線性 task、且第一張會成為 aggregation / feat branch 時，讀
+  `stacked-delivery-sibling-epic-policy.md` 並執行 stacked delivery lens；若同 lane 可獨立
+  review / merge / release / revert，必須先拆 sibling Epic 或取得 explicit override。
 - 偵測到互不依賴的分段驗收結構時，advisory 建議拆 Epic；不由 validator enforce。
 
 ## Quality Challenge
@@ -115,6 +118,17 @@ Behavior contract 決策來源：
 產生 preview 前先讀 `authoring-preflight.md`。Preview 是 user-facing prose，必須直接用
 `workspace-language-policy.md` 解析出的 root `language` 起稿。
 
+在 preview 寫出前，將 draft task set 交給 stacked delivery lens：
+
+```bash
+node scripts/detect-stacked-delivery-lane.mjs --input <task-draft.json>
+```
+
+若 lens 輸出 `required`，這是 write 前 fail-stop。使用者確認 sibling Epic strategy 或提供
+explicit override 前，不得進入 JIRA Writes，也不得進 `breakdown-task-packaging.md` 寫 task.md。
+Preview 需改為 sibling Epic strategy summary，至少包含 sibling Epic 候選、child task mapping、
+feat branch owner、umbrella residual ownership 與 override decision record 欄位。
+
 Preview 使用 workspace policy language，包含：
 
 - task summary / points / dependencies / allowed files。
@@ -122,6 +136,8 @@ Preview 使用 workspace policy language，包含：
 - JIRA sub-task list。
 - branch chain high-level summary。
 - any blockers / route-back decisions。
+- sibling Epic lens result；若命中，列出 feat branch owner，例如 `T3e` 是 T3 dayjs migration
+  的 feat branch。
 
 使用者確認前不可寫 JIRA、branch、task.md。
 

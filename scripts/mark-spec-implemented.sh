@@ -301,7 +301,7 @@ is_task_key() {
 
 # ---------------------------------------------------------------------------
 # Resolve anchor file — three resolution paths:
-#   1) Epic-level: {workspace}/docs-manager/src/content/docs/specs/companies/<company>/<ticket>/refinement.md or plan.md
+#   1) Epic-level: {workspace}/docs-manager/src/content/docs/specs/companies/<company>/<ticket>/refinement.md, plan.md, or index.md
 #   2) Task-level (task key T{n}/V{n}): scan specs/*/tasks/ by filename
 #   3) DP task-level (DP-NNN-Tn / DP-NNN-Vn): scan docs-manager/src/content/docs/specs/design-plans/DP-NNN-*/tasks/{T,V}n.md
 #   4) Task-level (JIRA key): parser jira_key match first, legacy "> JIRA: <ticket>" fallback
@@ -348,6 +348,11 @@ for company_specs_dir in "$SPECS_ROOT"/companies/*/; do
     fi
     if [ -f "$candidate/plan.md" ]; then
       ANCHOR="$candidate/plan.md"
+      ANCHOR_TYPE="epic"
+      break
+    fi
+    if [ -f "$candidate/index.md" ]; then
+      ANCHOR="$candidate/index.md"
       ANCHOR_TYPE="epic"
       break
     fi
@@ -426,7 +431,7 @@ fi
 if [ -z "$ANCHOR" ]; then
   echo "ERROR: no spec found for $TICKET" >&2
   echo "  Searched:" >&2
-  echo "    - $SPECS_ROOT/companies/*/$TICKET/{refinement.md,plan.md}" >&2
+  echo "    - $SPECS_ROOT/companies/*/$TICKET/{refinement.md,plan.md,index.md}" >&2
   echo "    - $SPECS_ROOT/**/tasks/{T,V}*.md (by filename key '$TICKET')" >&2
   echo "    - $SPECS_ROOT/design-plans/DP-NNN-*/tasks/{T,V}*.md (by DP task key / header)" >&2
   echo "    - $SPECS_ROOT/**/tasks/{T,V}*.md (by '> JIRA: $TICKET' header)" >&2

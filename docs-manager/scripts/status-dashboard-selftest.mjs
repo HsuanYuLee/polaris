@@ -9,6 +9,7 @@ import {
   primaryLink,
   publicationSummary,
   reportSummary,
+  stageLabel,
   verificationSummary,
   verifyReportLink,
 } from '../src/status/index.mjs';
@@ -108,6 +109,10 @@ Body
       },
     },
   });
+  writeMarkdown(path.join(specsRoot, 'design-plans/DP-002-folder-native/tasks/T2/index.md'), {
+    title: 'Folder Native Planned Task',
+    status: 'PLANNED',
+  });
   writeMarkdown(path.join(specsRoot, 'design-plans/DP-002-folder-native/tasks/V1/index.md'), {
     title: 'Folder Native Verification',
     status: 'BLOCKED',
@@ -163,6 +168,7 @@ Body
   assert.deepEqual(itemsById.get('DP-001-active')?.tasks, {
     total: 14,
     byStatus: {
+      planned: 0,
       implemented: 5,
       in_progress: 1,
       in_review: 5,
@@ -204,6 +210,7 @@ Body
 
   assert.equal(itemsById.get('ACME-2')?.status, 'unknown');
   assert.deepEqual(itemsById.get('ACME-2')?.blockers, ['missing-primary-artifact']);
+  assert.equal(itemsById.get('ACME-2')?.tasks.byStatus.planned, 0);
   assert.equal(itemsById.get('ACME-2')?.tasks.byStatus.unknown, 1);
   assert.equal(itemsById.get('ACME-2')?.tasks.byStatus.in_review, 0);
   assert.equal(itemsById.get('ACME-2')?.tasks.byStatus.stale, 0);
@@ -216,8 +223,9 @@ Body
     '/docs-manager/specs/design-plans/dp-002-folder-native/verify-report/'
   );
   assert.deepEqual(folderNative?.tasks, {
-    total: 2,
+    total: 3,
     byStatus: {
+      planned: 1,
       implemented: 0,
       in_progress: 1,
       in_review: 0,
@@ -227,6 +235,7 @@ Body
     },
     staleSignals: [],
   });
+  assert.equal(stageLabel(folderNative, 'en'), 'Execution');
   assert.equal(reportSummary(folderNative, 'en'), 'Latest report');
   assert.equal(publicationSummary(folderNative, 'en'), 'Published');
   assert.match(verificationSummary(folderNative, 'en'), /Hybrid behavior check/);

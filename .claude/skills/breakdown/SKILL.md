@@ -3,7 +3,7 @@ name: breakdown
 description: "Universal planning skill: Bug reads ROOT_CAUSE then estimates; Story/Task/Epic explores codebase then splits into sub-tasks with estimates, and packs each sub-task into a self-contained task.md work order for engineering to consume. Also handles scope challenge (advisory mode). Trigger: 拆單, 'split tasks', 拆解, 'breakdown', 'break down', 子單, 'sub-tasks', 評估這張單, 'evaluate this ticket', 估點, 'estimate', 'scope challenge', '挑戰需求', 'challenge scope', '需求質疑'."
 metadata:
   author: Polaris
-  version: 3.2.1
+  version: 3.3.0
 ---
 
 # Breakdown — Packer
@@ -31,6 +31,11 @@ to `refinement`。
 - Story / Task / Epic 拆單前讀 `infra-first-decision.md`；infra prerequisite 只能由
   refinement artifact 的 AC verification methods 推導，不得只因 visual regression config
   存在就加入 fixture task。
+- Story / Task / Epic 拆單與 DP-backed task preview 前讀
+  `stacked-delivery-sibling-epic-policy.md`；建立 task.md / JIRA child 前必須用
+  `scripts/detect-stacked-delivery-lane.mjs` 檢查 draft task set。若結果是 `required`，
+  使用者確認 sibling Epic strategy 或 explicit override 前不得寫 task.md、不得寫 JIRA、
+  不得建 branch。
 - DP-backed work 沒有特殊 execution shortcut。只要 task.md 要 handoff `engineering`，
   就必須沿用與 Epic 相同的正規鏈；`framework-release` 只能作為 engineering PR 之後的
   local extension tail，不得提前取代 `engineering`。

@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.64] - 2026-05-15
+
+### Changed — workflow ownership cleanup
+
+- 新增 stacked delivery sibling Epic lens，讓 refinement / breakdown 在 `TXa -> TXb -> TXc` 類長鏈交付進入 task write 前，先要求拆 sibling Epic 或留下明確 override。
+- 補齊 lifecycle reconciler foundation 與 status dashboard projection selftests，讓 PLANNED task、execution stage 與既有 closeout/archive helper 行為可被同一組 gate 驗證。
+- 收斂 dirty worktree ownership：把臨時草稿移回 source container，補上 DP-164 承接未歸屬 helper 變更，並強化 local CI Codecov test-only patch reason 與 main-chain compliance selftest。
+
 ## [3.75.63] - 2026-05-14
 
 ### Fixed — plugin workflow authority quarantine

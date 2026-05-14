@@ -91,6 +91,27 @@ Suggested task structure 必須先讀 `infra-first-decision.md`：用
 或 stable data seed 等 infra prerequisite。沒有 `refinement.json` 或 AC verification method
 不足時要明確標示 skipped / warning，不得只因 visual regression config 存在就預覽 fixture task。
 
+Suggested task structure 也必須先讀 `stacked-delivery-sibling-epic-policy.md`，並把 draft task
+structure 交給 lens：
+
+```bash
+node scripts/detect-stacked-delivery-lane.mjs --input <task-draft.json>
+```
+
+若 task draft 只有 markdown preview，先用 text mode 取得 advisory signal：
+
+```bash
+node scripts/detect-stacked-delivery-lane.mjs --text <preview.md>
+```
+
+判定方式：
+
+- `ok`：照原 flow 產 suggested task structure。
+- `advisory`：preview 必須列出 sibling Epic 候選、feat task owner、umbrella residual ownership。
+- `required`：preview 不得把 `TXa~TXn` 直接當原 Epic child task 定版；先請使用者確認拆
+  sibling Epic 或留下 explicit override decision。
+- `overridden`：preview 必須保留 override reason。
+
 寫入 `{source_container}/refinement.md`，只放下游需要的 decision，不放完整討論過程。
 若本輪產生 JIRA comment draft、external write body、manual validation output 或 data
 investigation notes，依 `refinement-research-container.md` close out 到 source container 的

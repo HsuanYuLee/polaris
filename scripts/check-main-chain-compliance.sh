@@ -77,6 +77,24 @@ check_task_md() {
   fi
 }
 
+find_implementation_tasks() {
+  local source="$1"
+  find "$source/tasks" \( \
+    -name 'T*.md' \
+    -o -path "$source/tasks/T*/index.md" \
+    -o -path "$source/tasks/pr-release/T*/index.md" \
+  \) -type f -print | sort
+}
+
+find_verification_tasks() {
+  local source="$1"
+  find "$source/tasks" \( \
+    -name 'V*.md' \
+    -o -path "$source/tasks/V*/index.md" \
+    -o -path "$source/tasks/pr-release/V*/index.md" \
+  \) -type f -print | sort
+}
+
 check_source_container() {
   local source="$1"
   [[ -d "$source" ]] || { fail "source container not found: $source"; return; }
@@ -93,7 +111,7 @@ check_source_container() {
     [[ -n "$task" ]] || continue
     t_count=$((t_count + 1))
     check_task_md "$task"
-  done < <(find "$source/tasks" \( -name 'T*.md' -o -path '*/T*/index.md' \) -type f -print | sort)
+  done < <(find_implementation_tasks "$source")
 
   while IFS= read -r task; do
     [[ -n "$task" ]] || continue
@@ -106,7 +124,7 @@ check_source_container() {
     if [[ "$(status_of "$task")" != "IMPLEMENTED" || "$(ac_status_of "$task")" != "PASS" ]]; then
       bad_v=$((bad_v + 1))
     fi
-  done < <(find "$source/tasks" \( -name 'V*.md' -o -path '*/V*/index.md' \) -type f -print | sort)
+  done < <(find_verification_tasks "$source")
 
   [[ "$t_count" -gt 0 ]] || fail "source container has no T*.md implementation tasks"
   [[ "$v_count" -gt 0 ]] || fail "source container has no V*.md dogfood/AC verification task"
@@ -117,8 +135,8 @@ check_source_container() {
       if [[ "$task" != */tasks/pr-release/* ]]; then
         fail "implementation task not moved to pr-release: $task"
       fi
-      rg -q "extension_deliverable:" "$task" || fail "implementation task missing extension_deliverable: $task"
-    done < <(find "$source/tasks" \( -name 'T*.md' -o -path '*/T*/index.md' \) -type f -print | sort)
+      rg -q "^(extension_)?deliverable:" "$task" || fail "implementation task missing deliverable metadata: $task"
+    done < <(find_implementation_tasks "$source")
   fi
 }
 
