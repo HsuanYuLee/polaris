@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Require explicit disposition for unresolved, current GitHub PR review threads.
+# Require explicit disposition for unresolved GitHub PR review threads.
 #
 # Usage:
 #   pr-review-thread-disposition-gate.sh --repo OWNER/REPO --pr NUMBER --manifest PATH
@@ -31,8 +31,9 @@ Usage:
   pr-review-thread-disposition-gate.sh --repo OWNER/REPO --pr NUMBER --manifest PATH
   pr-review-thread-disposition-gate.sh --threads-json PATH --manifest PATH
 
-Fails when an open PR has unresolved, not-outdated review threads without an
-explicit disposition manifest entry.
+Fails when an open PR has unresolved review threads without an explicit
+disposition manifest entry. This includes outdated-but-unresolved threads
+because GitHub still shows them as unresolved conversations.
 EOF
 }
 
@@ -114,24 +115,25 @@ if not isinstance(pr, dict):
     sys.exit(1)
 
 nodes = (((pr.get("reviewThreads") or {}).get("nodes")) or [])
-active = [
+unresolved = [
     thread for thread in nodes
-    if not thread.get("isResolved") and not thread.get("isOutdated")
+    if not thread.get("isResolved")
 ]
 
-if not active:
-    print("PASS: no unresolved current review threads")
+if not unresolved:
+    print("PASS: no unresolved review threads")
     sys.exit(0)
 
 if not manifest_path.exists():
     print(
-        f"FAIL: {len(active)} unresolved current review thread(s), but manifest is missing: {manifest_path}",
+        f"FAIL: {len(unresolved)} unresolved review thread(s), but manifest is missing: {manifest_path}",
         file=sys.stderr,
     )
-    for thread in active:
+    for thread in unresolved:
         first = ((thread.get("comments") or {}).get("nodes") or [{}])[0]
+        outdated = " outdated" if thread.get("isOutdated") else ""
         print(
-            f"- {thread.get('id')} {thread.get('path')}:{thread.get('line') or thread.get('originalLine')} {first.get('url', '')}",
+            f"- {thread.get('id')}{outdated} {thread.get('path')}:{thread.get('line') or thread.get('originalLine')} {first.get('url', '')}",
             file=sys.stderr,
         )
     sys.exit(1)
@@ -171,15 +173,16 @@ for idx, entry in enumerate(entries):
     by_id[thread_id] = entry
 
 missing = []
-for thread in active:
+for thread in unresolved:
     if thread.get("id") not in by_id:
         first = ((thread.get("comments") or {}).get("nodes") or [{}])[0]
+        outdated = " outdated" if thread.get("isOutdated") else ""
         missing.append(
-            f"{thread.get('id')} {thread.get('path')}:{thread.get('line') or thread.get('originalLine')} {first.get('url', '')}"
+            f"{thread.get('id')}{outdated} {thread.get('path')}:{thread.get('line') or thread.get('originalLine')} {first.get('url', '')}"
         )
 
 if missing:
-    errors.append("missing disposition for active thread(s):")
+    errors.append("missing disposition for unresolved thread(s):")
     errors.extend(f"  {item}" for item in missing)
 
 if errors:
@@ -188,5 +191,5 @@ if errors:
         print(f"- {error}", file=sys.stderr)
     sys.exit(1)
 
-print(f"PASS: {len(active)} unresolved current review thread(s) have explicit disposition")
+print(f"PASS: {len(unresolved)} unresolved review thread(s) have explicit disposition")
 PY

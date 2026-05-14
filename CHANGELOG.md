@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.60] - 2026-05-14
+
+### Fixed — outdated review thread closeout
+
+- Made `engineering` revision closeout reply to and resolve outdated-but-unresolved review threads instead of treating active non-outdated threads as the whole review surface.
+- Made the review-thread disposition gate require explicit disposition for every unresolved thread, including GitHub-outdated conversations that still show unresolved in the PR UI.
+- Added PR state snapshot fields for total and outdated unresolved thread counts so closeout reports cannot hide stale unresolved conversations behind `active_unresolved_threads=0`.
+
 ## [3.75.59] - 2026-05-14
 
 ### Fixed — framework release route guard

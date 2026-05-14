@@ -136,6 +136,16 @@ bash "$SNAPSHOT" --repo "$REPO" --task-md "$STACKED_TASK" --pr-json "$STACKED_PR
 assert_eq "stacked pr_type" "$(json_field "$OUT" "resolver.pr_type")" "stacked_task"
 assert_eq "stacked freshness" "$(json_field "$OUT" "base_freshness")" "stale_downstream"
 assert_eq "stacked mergeability" "$(json_field "$OUT" "mergeability")" "conflict"
+assert_eq "stacked total unresolved" "$(json_field "$OUT" "total_unresolved_threads")" "1"
+assert_eq "stacked active unresolved" "$(json_field "$OUT" "active_unresolved_threads")" "1"
+
+OUTDATED_THREADS="$TMPROOT/outdated-threads.json"
+write_threads_json "$OUTDATED_THREADS" false true
+OUT="$TMPROOT/outdated-snapshot.json"
+bash "$SNAPSHOT" --repo "$REPO" --task-md "$STACKED_TASK" --pr-json "$STACKED_PR" --threads-json "$OUTDATED_THREADS" --checks-json "$STACKED_CHECKS" >"$OUT"
+assert_eq "outdated total unresolved" "$(json_field "$OUT" "total_unresolved_threads")" "1"
+assert_eq "outdated active unresolved" "$(json_field "$OUT" "active_unresolved_threads")" "0"
+assert_eq "outdated unresolved count" "$(json_field "$OUT" "outdated_unresolved_threads")" "1"
 
 DIRECT_TASK="$REPO/docs-manager/src/content/docs/specs/design-plans/DP-130-fixture/tasks/T2/index.md"
 write_task "$DIRECT_TASK" "main" "main -> task/direct" "task/direct"

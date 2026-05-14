@@ -263,7 +263,9 @@ def review_stats(threads_data, dispositions):
     if isinstance(threads_data, dict):
         pr = (((threads_data.get("data") or {}).get("repository") or {}).get("pullRequest")) or threads_data.get("pullRequest") or {}
     nodes = (((pr.get("reviewThreads") or {}).get("nodes")) or []) if isinstance(pr, dict) else []
-    active = [thread for thread in nodes if not thread.get("isResolved") and not thread.get("isOutdated")]
+    unresolved = [thread for thread in nodes if not thread.get("isResolved")]
+    active = [thread for thread in unresolved if not thread.get("isOutdated")]
+    outdated_unresolved = [thread for thread in unresolved if thread.get("isOutdated")]
     actionable = []
     disposed = []
     deferred = []
@@ -277,7 +279,9 @@ def review_stats(threads_data, dispositions):
             actionable.append(thread)
     return {
         "loaded": bool(threads_data),
+        "total_unresolved": len(unresolved),
         "active": len(active),
+        "outdated_unresolved": len(outdated_unresolved),
         "actionable": len(actionable),
         "disposed": len(disposed),
         "deferred": len(deferred),
@@ -367,7 +371,9 @@ result = {
     "ci_state": ci_state,
     "review_decision": review_decision,
     "review_threads_loaded": stats["loaded"],
+    "total_unresolved_threads": stats["total_unresolved"],
     "active_unresolved_threads": stats["active"],
+    "outdated_unresolved_threads": stats["outdated_unresolved"],
     "actionable_unresolved_threads": stats["actionable"],
     "disposed_unresolved_threads": stats["disposed"],
     "deferred_threads": stats["deferred"],

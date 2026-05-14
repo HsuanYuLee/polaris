@@ -122,8 +122,15 @@ comment 一次中斷。
 
 ## R6. Reply And Learn
 
-對每個 active root inline comment 的 exact `databaseId` 回覆修正說明。Outdated /
-resolved threads 不回覆，但保留 evidence summary。
+對每個 unresolved root inline comment 的 exact `databaseId` 回覆修正說明；包含
+non-outdated active thread 與 GitHub 已標 `isOutdated=true` 但仍 unresolved 的 thread。
+Outdated thread 的回覆要明說 disposition，例如「這段 diff 已移除 / 被後續 commit 取代 /
+已用另一個檔案修正」，然後 resolve conversation。只有已 resolved 的 thread 不回覆，但
+保留 evidence summary。
+
+Closeout 報告不得只列 `active_unresolved_threads`；必須同時列出 total unresolved 與
+outdated unresolved 的 disposition，避免 GitHub UI 仍顯示 unresolved conversation 時被誤判成
+「沒修」。
 
 從 reviewer feedback 萃取可重用 lesson 時，依 `review-lesson-extraction.md` dedup and
 write。需要 PR body / comment / JIRA / Slack text 時，先跑 language gate。

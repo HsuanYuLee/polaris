@@ -276,7 +276,7 @@ check_pr_review_thread_dispositions() {
 
   manifest_path="$(review_thread_disposition_manifest_path "$disposition_ticket" "$deliverable_head_sha")"
   if ! bash "${SCRIPT_DIR}/pr-review-thread-disposition-gate.sh" --repo "$gh_repo" --pr "$pr_number" --manifest "$manifest_path"; then
-    echo "$PREFIX BLOCKED: active PR review threads require explicit disposition evidence for ${disposition_ticket}@${deliverable_head_sha}" >&2
+    echo "$PREFIX BLOCKED: unresolved PR review threads require explicit disposition evidence for ${disposition_ticket}@${deliverable_head_sha}" >&2
     echo "$PREFIX Expected manifest: ${manifest_path}" >&2
     exit 2
   fi

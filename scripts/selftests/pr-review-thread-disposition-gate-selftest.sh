@@ -60,7 +60,7 @@ cat > "$THREADS" <<'JSON'
 JSON
 
 "$CHECK" --threads-json "$THREADS" --manifest "$TMPDIR/missing.json" >/tmp/pr-thread-missing.out 2>/tmp/pr-thread-missing.err
-assert_rc "$?" "1" "missing manifest fails when active thread exists"
+assert_rc "$?" "1" "missing manifest fails when unresolved threads exist"
 
 BAD="$TMPDIR/bad.json"
 cat > "$BAD" <<'JSON'
@@ -79,6 +79,11 @@ cat > "$GOOD" <<'JSON'
       "thread_id": "PRRT_active_1",
       "disposition": "fixed",
       "reason": "implemented offset-preserving parser and pushed commit"
+    },
+    {
+      "thread_id": "PRRT_outdated",
+      "disposition": "not_actionable",
+      "reason": "outdated diff hunk was replaced by the current implementation"
     }
   ]
 }
@@ -86,12 +91,12 @@ JSON
 "$CHECK" --threads-json "$THREADS" --manifest "$GOOD" >/tmp/pr-thread-good.out 2>/tmp/pr-thread-good.err
 assert_rc "$?" "0" "valid disposition manifest passes"
 
-NO_ACTIVE="$TMPDIR/no-active.json"
-cat > "$NO_ACTIVE" <<'JSON'
+ONLY_OUTDATED="$TMPDIR/only-outdated.json"
+cat > "$ONLY_OUTDATED" <<'JSON'
 {"pullRequest":{"reviewThreads":{"nodes":[{"id":"PRRT_old","isResolved":false,"isOutdated":true}]}}}
 JSON
-"$CHECK" --threads-json "$NO_ACTIVE" --manifest "$TMPDIR/nope.json" >/tmp/pr-thread-none.out 2>/tmp/pr-thread-none.err
-assert_rc "$?" "0" "no active unresolved threads passes without manifest"
+"$CHECK" --threads-json "$ONLY_OUTDATED" --manifest "$TMPDIR/nope.json" >/tmp/pr-thread-none.out 2>/tmp/pr-thread-none.err
+assert_rc "$?" "1" "outdated unresolved thread still requires disposition"
 
 rm -f /tmp/pr-thread-missing.out /tmp/pr-thread-missing.err \
   /tmp/pr-thread-bad.out /tmp/pr-thread-bad.err \

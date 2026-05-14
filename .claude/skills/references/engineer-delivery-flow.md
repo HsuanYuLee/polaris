@@ -391,7 +391,8 @@ manifest，stack rewrite 不得進 push / closeout。若沒有任何 excluded co
 
 Revision / rebase / stack rewrite 針對既有 open PR 時，approval 不等於所有 review
 thread 已處理。`reviewDecision=APPROVED` 仍可能存在 `reviewThreads.isResolved=false`
-且 `isOutdated=false` 的 inline comments。進入 push / closeout 前必須跑：
+的 inline comments；即使 GitHub 已標 `isOutdated=true`，UI 仍會顯示 unresolved
+conversation，reviewer 也會解讀成作者沒有收尾。進入 push / closeout 前必須跑：
 
 ```bash
 bash scripts/pr-review-thread-disposition-gate.sh \
@@ -400,7 +401,7 @@ bash scripts/pr-review-thread-disposition-gate.sh \
   --manifest <path/to/review-thread-disposition.json>
 ```
 
-Manifest 必須對每個 active unresolved thread 記錄：
+Manifest 必須對每個 unresolved thread 記錄，包含 outdated-but-unresolved thread：
 
 ```json
 {
@@ -422,10 +423,10 @@ Allowed dispositions：
 |---|---|
 | `fixed` | 本 PR 已用 code/test 修正 |
 | `reply_only` | 需要在 GitHub 回覆說明，無 code change |
-| `not_actionable` | 非 action item 或已由後續 diff 失效但 GitHub 未標 outdated |
+| `not_actionable` | 非 action item，或已由後續 diff 失效 / GitHub 已標 outdated，但仍需回覆與 resolve |
 | `deferred_with_reason` | 明確延後，reason 需指出 owner / follow-up |
 
-有 active unresolved thread 卻沒有 disposition manifest，或 manifest 少任何 thread，
+有 unresolved thread 卻沒有 disposition manifest，或 manifest 少任何 thread，
 就不得 force push 或回報完成。Flat PR comments / `reviewDecision` / approval 數量都不能取代此 gate。
 
 ### Evidence schema

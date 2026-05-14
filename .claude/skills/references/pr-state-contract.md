@@ -65,7 +65,9 @@ review semantics 與 readiness vocabulary。
 | `ci_state` | `GREEN` / `PENDING` / `FAIL` / `UNKNOWN` | checks + statuses normalized |
 | `review_decision` | GitHub upper-case enum or `UNKNOWN` | reviewer summary signal |
 | `review_threads_loaded` | boolean | threads 是否真的被讀到 |
+| `total_unresolved_threads` | integer | 所有 unresolved thread count，包含 outdated |
 | `active_unresolved_threads` | integer | unresolved + non-outdated thread count |
+| `outdated_unresolved_threads` | integer | unresolved + outdated thread count；closeout 不得忽略 |
 | `actionable_unresolved_threads` | integer | 未被 disposition consume 的 active threads |
 | `disposed_unresolved_threads` | integer | `fixed` / `reply_only` / `not_actionable` |
 | `deferred_threads` | integer | `deferred_with_reason` |
