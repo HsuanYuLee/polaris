@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.72] - 2026-05-15
+
+### Fixed — start-command process group cleanup
+
+- 讓 `start-command.sh` 重啟同 project runtime 前先清掉舊 process group，避免 durable launcher 下的 child dev server、port listener 或 Nuxt dev lock 殘留。
+- 保留無法取得 process group 時的 single PID cleanup fallback，並避免誤殺目前 runner process group。
+- 補上 child server restart regression selftest，確保第二次 official gate 不會被上一輪 runtime 殘留阻擋。
+
 ## [3.75.71] - 2026-05-15
 
 ### Fixed — start-command durable runtime launcher

@@ -35,6 +35,7 @@ PORT_HC_PROBE=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); pr
 PORT_DOCKER=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
 PORT_OVERRIDE=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
 PORT_SHORT_LIVED=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
+PORT_GROUP_CHILD=$(python3 -c 'import socket; s=socket.socket(); s.bind(("",0)); print(s.getsockname()[1]); s.close()')
 
 TEST_CONFIG="$WORK_DIR/workspace-config.yaml"
 cat > "$TEST_CONFIG" <<EOF
@@ -77,6 +78,12 @@ projects:
       start_command: "sh -lc 'trap \"exit 9\" HUP; echo STARTED; while true; do sleep 1; done'"
       ready_signal: "STARTED"
       health_check: "http://127.0.0.1:$PORT_HTTP/"
+      requires: []
+  - name: group-child-service
+    dev_environment:
+      start_command: "sh -lc 'python3 -u -m http.server $PORT_GROUP_CHILD --bind 127.0.0.1 >/dev/null 2>&1 & echo \$! > \"$WORK_DIR/group-child.pid\"; echo STARTED; sleep 1000'"
+      ready_signal: "STARTED"
+      health_check: "http://127.0.0.1:$PORT_GROUP_CHILD/"
       requires: []
   - name: docker-dep
     tags: ["docker"]
@@ -135,6 +142,7 @@ cleanup() {
     /tmp/polaris-env-d11/leaf-service.pid \
     /tmp/polaris-env-d11/app-service.pid \
     /tmp/polaris-env-d11/sticky-service.pid \
+    /tmp/polaris-env-d11/group-child-service.pid \
     /tmp/polaris-env-d11/docker-dep.pid \
     /tmp/polaris-env-d11/repo-override-service.pid \
     /tmp/polaris-env-d11/short-lived-service.pid; do
@@ -153,6 +161,14 @@ cleanup() {
       kill "$child_pid" 2>/dev/null || true
       sleep 0.3
       kill -9 "$child_pid" 2>/dev/null || true
+    fi
+  fi
+  if [[ -f "$WORK_DIR/group-child.pid" ]]; then
+    group_child_pid=$(cat "$WORK_DIR/group-child.pid" 2>/dev/null || true)
+    if [[ -n "$group_child_pid" ]]; then
+      kill "$group_child_pid" 2>/dev/null || true
+      sleep 0.3
+      kill -9 "$group_child_pid" 2>/dev/null || true
     fi
   fi
   rm -rf "$WORK_DIR" 2>/dev/null || true
@@ -219,6 +235,25 @@ else
   RC_STICKY_SESSION=1
 fi
 assert_eq "$RC_STICKY_SESSION" "0" "sticky-service runs in detached process group"
+group_out="$("$SC" --project group-child-service --ready-timeout 10 2>/dev/null)"
+RC_GROUP_FIRST=$?
+assert_eq "$RC_GROUP_FIRST" "0" "group-child-service first launch"
+group_child_pid="$(cat "$WORK_DIR/group-child.pid" 2>/dev/null || true)"
+kill -0 "$group_child_pid" 2>/dev/null
+assert_eq "$?" "0" "group-child-service child started"
+group_out="$("$SC" --project group-child-service --ready-timeout 10 2>/dev/null)"
+RC_GROUP_SECOND=$?
+assert_eq "$RC_GROUP_SECOND" "0" "group-child-service restart"
+kill -0 "$group_child_pid" 2>/dev/null
+RC_GROUP_OLD_CHILD_ALIVE=$?
+if [[ "$RC_GROUP_OLD_CHILD_ALIVE" -eq 0 ]]; then
+  RC_GROUP_CLEANUP=1
+else
+  RC_GROUP_CLEANUP=0
+fi
+assert_eq "$RC_GROUP_CLEANUP" "0" "group-child-service restart cleans old child process"
+run_silent "$HC" "http://127.0.0.1:$PORT_GROUP_CHILD/" --timeout 5
+assert_eq "$?" "0" "group-child-service responds after restart"
 
 echo ""
 echo "=== install-project-deps.sh ==="

@@ -148,9 +148,19 @@ if [[ -f "$PID_FILE" ]]; then
   old_pid="$(cat "$PID_FILE" 2>/dev/null || true)"
   if [[ -n "$old_pid" ]] && kill -0 "$old_pid" 2>/dev/null; then
     env_lib_log_warn "killing previous start-command pid $old_pid for $PROJECT"
-    kill "$old_pid" 2>/dev/null || true
+    old_pgid="$(ps -p "$old_pid" -o pgid= 2>/dev/null | tr -d '[:space:]' || true)"
+    self_pgid="$(ps -p "$$" -o pgid= 2>/dev/null | tr -d '[:space:]' || true)"
+    if [[ -n "$old_pgid" && "$old_pgid" != "$self_pgid" ]]; then
+      kill "-$old_pgid" 2>/dev/null || true
+    else
+      kill "$old_pid" 2>/dev/null || true
+    fi
     sleep 1
-    kill -0 "$old_pid" 2>/dev/null && kill -9 "$old_pid" 2>/dev/null || true
+    if [[ -n "$old_pgid" && "$old_pgid" != "$self_pgid" ]]; then
+      kill -0 "$old_pid" 2>/dev/null && kill -9 "-$old_pgid" 2>/dev/null || true
+    else
+      kill -0 "$old_pid" 2>/dev/null && kill -9 "$old_pid" 2>/dev/null || true
+    fi
   fi
 fi
 
