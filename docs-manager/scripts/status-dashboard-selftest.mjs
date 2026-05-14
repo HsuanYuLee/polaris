@@ -312,15 +312,21 @@ Body
       behavior_contract: {
         applies: true,
         mode: 'unknown',
-        source_of_truth: 'spec',
-        fixture_policy: 'live_allowed',
+        source_of_truth: 'round 2 SA/SD',
+        fixture_policy: 'api_fixture_or_sit',
       },
     },
   });
-  assert.throws(
-    () => inferStatusDashboard({ specsRoot }),
-    /unknown behavior_contract\.mode/
-  );
+  const unknownEnumDashboard = inferStatusDashboard({ specsRoot });
+  const unknownEnumItem = unknownEnumDashboard.items.find((item) => item.id === 'DP-006-unknown-enum');
+  assert.deepEqual(unknownEnumItem?.blockers, [
+    'unknown-behavior-contract-mode',
+    'unknown-behavior-contract-source',
+    'unknown-behavior-contract-fixture',
+  ]);
+  assert.match(verificationSummary(unknownEnumItem, 'en'), /unknown/);
+  assert.match(verificationSummary(unknownEnumItem, 'en'), /round 2 SA\/SD/);
+  assert.match(verificationSummary(unknownEnumItem, 'en'), /api_fixture_or_sit/);
   fs.rmSync(path.join(specsRoot, 'design-plans/DP-006-unknown-enum'), { recursive: true, force: true });
 
   writeMarkdown(path.join(specsRoot, 'design-plans/DP-007-malformed-pr-snapshot/index.md'), {

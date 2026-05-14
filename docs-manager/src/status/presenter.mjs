@@ -127,19 +127,26 @@ export function verificationSummary(item, locale = 'en') {
     } else if (behavior.applies === true) {
       parts.push(
         [
-          translate(locale, `verification.behavior.mode.${behavior.mode}`),
-          translate(locale, `verification.source.${behavior.source_of_truth}`),
-          translate(locale, `verification.fixture.${behavior.fixture_policy}`),
+          verificationLabel(locale, 'verification.behavior.mode', behavior.mode),
+          verificationLabel(locale, 'verification.source', behavior.source_of_truth),
+          verificationLabel(locale, 'verification.fixture', behavior.fixture_policy),
         ].join(' / ')
       );
     }
   }
 
   if (visual) {
-    parts.push(translate(locale, `verification.visual.${visual.expected}`));
+    parts.push(verificationLabel(locale, 'verification.visual', visual.expected));
   }
 
   return parts.length > 0 ? parts.join(' / ') : translate(locale, 'verification.none');
+}
+
+function verificationLabel(locale, prefix, value) {
+  const raw = String(value ?? 'unknown');
+  const key = `${prefix}.${raw}`;
+  const label = translate(locale, key);
+  return label === key ? raw : label;
 }
 
 export function reportSummary(item, locale = 'en') {

@@ -71,6 +71,7 @@ const EXTERNAL_REF_TYPES = new Set(['jira_comment', 'pr', 'slack', 'report', 'ot
 export function inferStatusDashboard(options = {}) {
   const specsRoot = path.resolve(options.specsRoot ?? DEFAULT_SPECS_ROOT);
   const today = normalizeDateString(options.today) ?? new Date().toISOString().slice(0, 10);
+
   return {
     specsRoot,
     items: collectStatusItems(specsRoot, { today }),
@@ -132,6 +133,8 @@ function buildItem({ specsRoot, dir, sourceType, company, today }) {
   if (status === 'superseded') {
     return null;
   }
+  const verification = inferVerification(dir, artifact?.file);
+  blockers.push(...verification.blockers);
 
   return {
     id,
@@ -155,7 +158,10 @@ function buildItem({ specsRoot, dir, sourceType, company, today }) {
         }
       : null,
     publication: summarizePublication(dir),
-    verification: inferVerification(dir, artifact?.file),
+    verification: {
+      behaviorContract: verification.behaviorContract,
+      visualRegression: verification.visualRegression,
+    },
     tasks,
     blockers,
     derivedPhase: statusUpdate?.phase ?? null,
@@ -378,17 +384,19 @@ function inferVerification(dir, primaryFile) {
     ...taskFiles(path.join(dir, 'tasks')),
   ].filter(Boolean);
 
-  const summary = {};
+  const summary = {
+    blockers: [],
+  };
   for (const file of candidates) {
     const frontmatter = readMarkdownFrontmatter(file);
     const behaviorContract = frontmatter.verification?.behavior_contract;
     const visualRegression = frontmatter.verification?.visual_regression;
     if (!summary.behaviorContract && behaviorContract) {
-      validateBehaviorContract(file, behaviorContract);
+      summary.blockers.push(...validateBehaviorContract(behaviorContract));
       summary.behaviorContract = behaviorContract;
     }
     if (!summary.visualRegression && visualRegression) {
-      validateVisualRegression(file, visualRegression);
+      summary.blockers.push(...validateVisualRegression(visualRegression));
       summary.visualRegression = visualRegression;
     }
     if (summary.behaviorContract && summary.visualRegression) break;
@@ -396,24 +404,28 @@ function inferVerification(dir, primaryFile) {
   return summary;
 }
 
-function validateBehaviorContract(file, contract) {
-  if (contract.applies === false) return;
-  if (contract.applies !== true) return;
+function validateBehaviorContract(contract) {
+  const blockers = [];
+  if (contract.applies === false) return blockers;
+  if (contract.applies !== true) return blockers;
   if (!BEHAVIOR_MODES.has(contract.mode)) {
-    throw new Error(`${file}: unknown behavior_contract.mode: ${contract.mode}`);
+    blockers.push('unknown-behavior-contract-mode');
   }
   if (!BEHAVIOR_SOURCES.has(contract.source_of_truth)) {
-    throw new Error(`${file}: unknown behavior_contract.source_of_truth: ${contract.source_of_truth}`);
+    blockers.push('unknown-behavior-contract-source');
   }
   if (!FIXTURE_POLICIES.has(contract.fixture_policy)) {
-    throw new Error(`${file}: unknown behavior_contract.fixture_policy: ${contract.fixture_policy}`);
+    blockers.push('unknown-behavior-contract-fixture');
   }
+  return blockers;
 }
 
-function validateVisualRegression(file, visualRegression) {
+function validateVisualRegression(visualRegression) {
+  const blockers = [];
   if (!VISUAL_EXPECTATIONS.has(visualRegression.expected)) {
-    throw new Error(`${file}: unknown visual_regression.expected: ${visualRegression.expected}`);
+    blockers.push('unknown-visual-regression-expected');
   }
+  return blockers;
 }
 
 function summarizeTasks(tasksDir) {

@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.61] - 2026-05-14
+
+### Fixed — status dashboard behavior contract tolerance
+
+- Made the status dashboard tolerate unknown behavior contract and visual regression enum values as item blockers instead of throwing a full-page 500.
+- Added raw-value fallback labels for unknown verification summary values.
+- Covered unknown behavior contract metadata in the status dashboard selftest.
+
 ## [3.75.60] - 2026-05-14
 
 ### Fixed — outdated review thread closeout
