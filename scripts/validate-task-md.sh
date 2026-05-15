@@ -818,6 +818,18 @@ validate_file() {
   # ---------------------------------------------------------------------------
   local fm_status
   fm_status=$(extract_frontmatter_scalar "$FILE" "status" 2>/dev/null || true)
+  fm_status="${fm_status%\"}"
+  fm_status="${fm_status#\"}"
+  fm_status="${fm_status%\'}"
+  fm_status="${fm_status#\'}"
+  if [[ -z "$fm_status" ]]; then
+    errors+=("frontmatter status is required; use PLANNED, IN_PROGRESS, BLOCKED, IMPLEMENTED, or ABANDONED")
+  else
+    case "$fm_status" in
+      PLANNED|IN_PROGRESS|BLOCKED|IMPLEMENTED|ABANDONED) ;;
+      *) errors+=("frontmatter status must be PLANNED|IN_PROGRESS|BLOCKED|IMPLEMENTED|ABANDONED (got: '$fm_status')") ;;
+    esac
+  fi
   if [[ "$fm_status" == "IMPLEMENTED" ]]; then
     echo "✗✗ HARD FAIL (exit 2) — task.md completion invariant violated in $FILE:" >&2
     echo "   frontmatter 'status: IMPLEMENTED' but file is NOT in tasks/pr-release/." >&2

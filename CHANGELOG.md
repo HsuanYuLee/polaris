@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.74] - 2026-05-15
+
+### Changed — spec lifecycle reconciler authority
+
+- 讓 `reconcile-spec-lifecycle.mjs` 支援 `--apply`、path source、terminal archive apply 與 parent status/sidebar 寫回。
+- 讓 parent closeout 改走 canonical parent file reconciler，避免 parent/task key collision，並把 DP/company parent resolver 收斂為 `index.md` 優先。
+- 對 active task frontmatter status 加上 mandatory enum guard，並補 direct `IMPLEMENTED` edit hard-fail selftest。
+
 ## [3.75.73] - 2026-05-15
 
 ### Fixed — start-command untracked runtime cleanup

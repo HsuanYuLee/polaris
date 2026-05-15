@@ -173,21 +173,20 @@ metadata_for_container() {
   case "$container" in
     "$SPECS_ROOT"/design-plans/DP-[0-9][0-9][0-9]-*)
       kind="dp"
-      anchor="$container/plan.md"
+      anchor="$container/index.md"
       if [[ ! -f "$anchor" ]]; then
-        anchor="$container/index.md"
+        anchor="$container/plan.md"
       fi
       destination="$SPECS_ROOT/design-plans/archive/$(basename "$container")"
       ;;
     "$SPECS_ROOT"/companies/*/*)
       kind="company"
-      if [[ -f "$container/refinement.md" ]]; then
+      anchor="$container/index.md"
+      if [[ ! -f "$anchor" ]]; then
         anchor="$container/refinement.md"
-      else
-        anchor="$container/plan.md"
       fi
       if [[ ! -f "$anchor" ]]; then
-        anchor="$container/index.md"
+        anchor="$container/plan.md"
       fi
       company="$(basename "$(dirname "$container")")"
       destination="$SPECS_ROOT/companies/$company/archive/$(basename "$container")"
@@ -367,12 +366,12 @@ IFS='|' read -r kind anchor status destination < <(metadata_for_container "$cont
 
 [[ -f "$anchor" ]] || fail "parent anchor not found for ${kind} spec: $anchor"
 case "$status" in
-  IMPLEMENTED|ABANDONED) ;;
+  IMPLEMENTED|SUPERSEDED|ABANDONED) ;;
   "")
     fail "cannot archive $(basename "$container"): missing status in $anchor"
     ;;
   *)
-    fail "cannot archive $(basename "$container"): status must be IMPLEMENTED or ABANDONED (got $status)"
+    fail "cannot archive $(basename "$container"): status must be IMPLEMENTED, SUPERSEDED, or ABANDONED (got $status)"
     ;;
 esac
 

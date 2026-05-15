@@ -36,6 +36,7 @@ YAML
 ---
 title: "DP-999 T1: 驗證 parity fixture"
 description: "驗證 parity fixture task。"
+status: IN_PROGRESS
 verification:
   behavior_contract:
     applies: false

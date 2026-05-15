@@ -11,15 +11,14 @@ set -euo pipefail
 #
 # Behavior:
 #   - Given a task under specs/**/tasks/ or specs/**/tasks/pr-release/, find the
-#     parent refinement.md / plan.md / index.md.
+#     canonical parent index.md / refinement.md / plan.md.
 #   - If any active sibling task remains under tasks/, NOOP.
 #   - If any pr-release sibling task is not status: IMPLEMENTED, NOOP.
 #   - If all sibling tasks are implemented, check off task checklist items,
 #     rewrite moved task links to tasks/pr-release/*.md or tasks/pr-release/*/index.md, and mark the parent
 #     spec IMPLEMENTED.
-#   - Design plans use codex-mark-design-plan-implemented.sh so checklist
-#     governance still applies.
-#   - Product/company specs use mark-spec-implemented.sh against the parent key.
+#   - Parent status closeout is delegated to reconcile-spec-lifecycle.mjs using
+#     the resolved parent file path, avoiding key-based parent/task collisions.
 #   - With --archive-terminal-parent, a design-plan parent closed by this helper
 #     is immediately archived through archive-spec.sh after the status write.
 
@@ -537,17 +536,17 @@ if not parent_dir.exists():
 
 is_design_plan = "/specs/design-plans/" in str(parent_dir)
 if is_design_plan:
-    parent_file = parent_dir / "plan.md"
+    parent_file = parent_dir / "index.md"
     if not parent_file.exists():
-        parent_file = parent_dir / "index.md"
+        parent_file = parent_dir / "plan.md"
     match = re.match(r"(DP-\d{3})(?:-|$)", parent_dir.name)
     parent_key = match.group(1) if match else ""
 else:
-    parent_file = parent_dir / "refinement.md"
+    parent_file = parent_dir / "index.md"
+    if not parent_file.exists():
+        parent_file = parent_dir / "refinement.md"
     if not parent_file.exists():
         parent_file = parent_dir / "plan.md"
-    if not parent_file.exists():
-        parent_file = parent_dir / "index.md"
     parent_key = parent_dir.name
 
 if not parent_file.exists():
@@ -855,10 +854,11 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-if [[ "$parent_type" == "design-plan" ]]; then
-  bash "${SCRIPT_DIR}/codex-mark-design-plan-implemented.sh" "$parent_file"
-else
-  bash "${SCRIPT_DIR}/mark-spec-implemented.sh" "$parent_key" --workspace "$WORKSPACE_ROOT"
+reconcile_out="$(node "${SCRIPT_DIR}/reconcile-spec-lifecycle.mjs" --specs-root "${WORKSPACE_ROOT}/docs-manager/src/content/docs/specs" --apply --no-archive "$parent_file")"
+if ! grep -q '^status: IMPLEMENTED$' "$parent_file"; then
+  echo "$PREFIX failed to close parent through lifecycle reconciler: ${parent_file}" >&2
+  printf '%s\n' "$reconcile_out" >&2
+  exit 1
 fi
 
 if [[ "$ARCHIVE_TERMINAL_PARENT" -eq 1 ]]; then
