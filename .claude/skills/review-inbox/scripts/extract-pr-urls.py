@@ -12,6 +12,9 @@ Usage:
 
   # Thread mode: all URLs map to the given thread_ts (for slack_read_thread output)
   cat /tmp/slack-thread.json | python3 extract-pr-urls.py --org your-org --thread-ts 1776130982.981829
+
+thread_ts 來源只有兩種：Slack Web API 真實 ts，或 MCP text dump 的 `Message TS:` 行。
+不存在從人類時間字串反推 ts 的 code path（DP-181）。
 """
 
 import json
@@ -19,7 +22,6 @@ import re
 import sys
 import argparse
 import unicodedata
-from datetime import datetime, timezone, timedelta
 
 
 TICKET_RE = re.compile(r"\b(GT-\d+|KB2CW-\d+|[A-Z][A-Z0-9]+-\d+)\b")
@@ -73,18 +75,6 @@ def parse_args():
     parser.add_argument("--thread-ts", default=None,
                         help="Thread mode: skip per-message parsing, map all URLs to this thread_ts")
     return parser.parse_args()
-
-
-def timestamp_to_slack_ts(ts_str):
-    """Convert 'YYYY-MM-DD HH:MM:SS CST' to approximate Slack ts (Unix epoch)."""
-    try:
-        # CST = UTC+8
-        cst = timezone(timedelta(hours=8))
-        dt = datetime.strptime(ts_str.strip(), "%Y-%m-%d %H:%M:%S")
-        dt = dt.replace(tzinfo=cst)
-        return f"{int(dt.timestamp())}.000000"
-    except (ValueError, AttributeError):
-        return None
 
 
 def root_ticket_key_for_text(text):
@@ -145,10 +135,12 @@ def root_topic_key_for_text(text, org=""):
 def extract_from_messages(messages_text, org):
     """Parse the formatted Slack MCP output text.
 
-    Supports two MCP output formats:
-    1. Legacy: split by [YYYY-MM-DD HH:MM:SS CST] timestamp markers
-    2. Current: split by '=== Message from ... at TIMESTAMP CST ===' headers
-       with 'Message TS: XXXX' on the following line
+    Expects the current MCP format with headers
+    `=== Message from {Name} ({UID}) at YYYY-MM-DD HH:MM:SS CST ===`
+    and bodies containing `Message TS: <real_ts>`.
+
+    thread_ts 一律從 body 的 `Message TS:` 取得；缺少該行的訊息整則 skip 並 stderr WARN
+    （DP-181：不再從人類時間字串反推 ts，避免 Slack 把 fake ts 當成 channel 頂層訊息）。
 
     Returns:
         urls: list of unique PR URLs (deduplicated, preserving order)
@@ -158,94 +150,56 @@ def extract_from_messages(messages_text, org):
         rf'https://github\.com/{re.escape(org)}/[^/|>\s]+/pull/\d+'
     )
 
-    # Detect format: current MCP uses '=== Message from ... at ... CST ==='
     current_fmt_header = re.compile(
         r'=== Message from (.+?) \(U[A-Z0-9]+\) at (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) CST ==='
     )
     current_fmt_ts = re.compile(r'Message TS: (\d+\.\d+)')
 
+    if not current_fmt_header.search(messages_text):
+        print("WARN: 找不到 '=== Message from' headers，跳過所有 URL", file=sys.stderr)
+        return [], {}
+
+    blocks = current_fmt_header.split(messages_text)
+    # blocks: [pre_header, author1, ts_str1, body1, author2, ts_str2, body2, ...]
+
     seen_urls = set()
     ordered_urls = []
     mapping = {}
 
-    if current_fmt_header.search(messages_text):
-        # Current MCP format: split on '=== Message from ...' headers
-        # Each block: header line, Message TS line, then body content
-        blocks = current_fmt_header.split(messages_text)
-        # blocks: [pre_header, author1, ts1, body1, author2, ts2, body2, ...]
-        # split() with 2 groups gives triples: (author, timestamp, body) per message
+    i = 1
+    while i + 2 < len(blocks):
+        author_raw = blocks[i].replace('​', '').strip()
+        body = blocks[i + 2]
 
-        i = 1  # skip pre-header content
-        while i + 2 < len(blocks):
-            author_raw = blocks[i].replace('\u200b', '').strip()
-            ts_str = blocks[i + 1]  # YYYY-MM-DD HH:MM:SS
-            body = blocks[i + 2]
-
-            # Extract the real Slack ts from 'Message TS: XXXX' line
-            ts_match = current_fmt_ts.search(body)
-            slack_ts = ts_match.group(1) if ts_match else timestamp_to_slack_ts(ts_str)
-
-            # Strip display name suffixes (e.g. " (WFH)") — keep first word(s)
-            author = re.sub(r'\s*\([^)]*\)\s*$', '', author_raw).strip()
-            root_ticket_key = root_ticket_key_for_text(body)
-            root_topic_key = None if root_ticket_key else root_topic_key_for_text(body, org)
-
-            urls_in_block = pr_url_pattern.findall(body)
-            for url in urls_in_block:
-                url = re.sub(r'#.*$', '', url)
-                if url not in seen_urls:
-                    seen_urls.add(url)
-                    ordered_urls.append(url)
-                    mapping[url] = {
-                        "thread_ts": slack_ts,
-                        "author": author,
-                    }
-                    if root_ticket_key:
-                        mapping[url]["root_ticket_key"] = root_ticket_key
-                    if root_topic_key:
-                        mapping[url]["root_topic_key"] = root_topic_key
+        ts_match = current_fmt_ts.search(body)
+        if not ts_match:
+            print(
+                f"WARN: 跳過缺少 Message TS 的訊息 (author={author_raw})",
+                file=sys.stderr,
+            )
             i += 3
-    else:
-        # Legacy format: split by [YYYY-MM-DD HH:MM:SS CST]
-        timestamp_pattern = re.compile(r'\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) CST\]')
-        segments = timestamp_pattern.split(messages_text)
-        # segments alternates: [content0, ts0, content1, ts1, ...]
+            continue
+        slack_ts = ts_match.group(1)
 
-        for i in range(0, len(segments) - 1, 2):
-            content = segments[i].strip()
-            ts_str = segments[i + 1] if i + 1 < len(segments) else None
+        author = re.sub(r'\s*\([^)]*\)\s*$', '', author_raw).strip()
+        root_ticket_key = root_ticket_key_for_text(body)
+        root_topic_key = None if root_ticket_key else root_topic_key_for_text(body, org)
 
-            urls_in_segment = pr_url_pattern.findall(content)
-            if not urls_in_segment:
-                continue
-
-            slack_ts = timestamp_to_slack_ts(ts_str) if ts_str else None
-            root_ticket_key = root_ticket_key_for_text(content)
-            root_topic_key = None if root_ticket_key else root_topic_key_for_text(content, org)
-
-            lines = content.split('\n')
-            author = "unknown"
-            for line in lines:
-                line = line.strip()
-                if line and ':' in line and not line.startswith('Channel:'):
-                    author_match = re.match(r'^([^:<]+):', line)
-                    if author_match:
-                        author = author_match.group(1).replace('\u200b', '').strip()
-                        break
-
-            for url in urls_in_segment:
-                url = re.sub(r'#.*$', '', url)
-                if url not in seen_urls:
-                    seen_urls.add(url)
-                    ordered_urls.append(url)
-                    mapping[url] = {
-                        "thread_ts": slack_ts,
-                        "author": author,
-                    }
-                    if root_ticket_key:
-                        mapping[url]["root_ticket_key"] = root_ticket_key
-                    if root_topic_key:
-                        mapping[url]["root_topic_key"] = root_topic_key
+        urls_in_block = pr_url_pattern.findall(body)
+        for url in urls_in_block:
+            url = re.sub(r'#.*$', '', url)
+            if url not in seen_urls:
+                seen_urls.add(url)
+                ordered_urls.append(url)
+                mapping[url] = {
+                    "thread_ts": slack_ts,
+                    "author": author,
+                }
+                if root_ticket_key:
+                    mapping[url]["root_ticket_key"] = root_ticket_key
+                if root_topic_key:
+                    mapping[url]["root_topic_key"] = root_topic_key
+        i += 3
 
     return ordered_urls, mapping
 
