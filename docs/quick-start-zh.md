@@ -14,7 +14,7 @@
 
 **開發者還需要：**
 - **Git** 和 **GitHub CLI**（`gh`）— 已對組織認證
-- **Polaris 本機 toolchain** — Node >= 20、pnpm、Python 3，以及 Playwright / Mockoon / docs viewer 所需套件。Clone 後先跑 `bash scripts/polaris-toolchain.sh doctor --required`；缺工具時跑 `bash scripts/polaris-toolchain.sh install --required` 後再重跑 doctor。
+- **Polaris 本機 toolchain** — Node >= 22.12.0、pnpm 10.10.0、Python 3，以及 Playwright / Mockoon / docs viewer 所需套件。Clone 後先跑 `bash scripts/polaris-toolchain.sh doctor --required`；缺工具時跑 `bash scripts/polaris-toolchain.sh install --required` 後再重跑 doctor。
 
 **選用：**
 - **Google Calendar MCP** — 在 standup 加入會議上下文

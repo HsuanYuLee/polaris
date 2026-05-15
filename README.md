@@ -61,7 +61,7 @@ Developers also need:
 
 - Git
 - GitHub CLI (`gh`) authenticated with the organization
-- Local Polaris toolchain prerequisites: Node >= 20, pnpm, Python 3, Playwright, Mockoon, and the docs viewer. After cloning, run `bash scripts/polaris-toolchain.sh doctor --required`; if it reports missing tools, run `bash scripts/polaris-toolchain.sh install --required` and retry the doctor.
+- Local Polaris toolchain prerequisites: Node >= 22.12.0, pnpm 10.10.0, Python 3, Playwright, Mockoon, and the docs viewer. After cloning, run `bash scripts/polaris-toolchain.sh doctor --required`; if it reports missing tools, run `bash scripts/polaris-toolchain.sh install --required` and retry the doctor.
 
 Optional integrations:
 
@@ -113,6 +113,15 @@ If required tools are missing, install them and rerun the doctor:
 ```bash
 bash scripts/polaris-toolchain.sh install --required
 bash scripts/polaris-toolchain.sh doctor --required
+```
+
+Root `pnpm` scripts are thin aliases for common framework commands. They do not replace `scripts/*.sh`; the script manifest and command catalog remain the governance source:
+
+```bash
+pnpm viewer:status
+pnpm toolchain:doctor
+pnpm scripts:check
+pnpm commands:check
 ```
 
 ### 2. Onboard your company

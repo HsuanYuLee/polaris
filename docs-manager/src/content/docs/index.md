@@ -23,6 +23,15 @@ bash scripts/polaris-toolchain.sh install --required
 bash scripts/polaris-toolchain.sh doctor --required
 ```
 
+常用入口也可走 root `pnpm` alias；alias 只代理到 framework scripts，不承擔機制實作：
+
+```bash
+pnpm toolchain:doctor
+pnpm viewer:status
+pnpm scripts:check
+pnpm commands:check
+```
+
 Status Dashboard 會顯示 required toolchain 缺失與 repair command。新增或移動 specs 後，
 framework 只更新 canonical files 與 route metadata；docs viewer 的啟動、停止與重啟由
 使用者決定。

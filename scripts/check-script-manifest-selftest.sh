@@ -154,4 +154,43 @@ write_manifest "${invalid_enum}" '{
 }'
 expect_fail "invalid enum" "${invalid_enum}"
 
+sunset_missing_evidence="${TMP_DIR}/sunset-missing-evidence"
+write_script "${sunset_missing_evidence}/scripts/old.sh"
+write_manifest "${sunset_missing_evidence}" '{
+  "version": 1,
+  "scripts": [
+    {
+      "path": "scripts/old.sh",
+      "kind": "legacy",
+      "runner": "bash",
+      "owner_surface": "selftest_fixture",
+      "selftest": "N/A",
+      "selftest_reason": "covered by sunset fixture",
+      "lifecycle": "sunset_ready",
+      "relocation": "delete_after_gate"
+    }
+  ]
+}'
+expect_fail "sunset_ready missing evidence" "${sunset_missing_evidence}"
+
+sunset_with_evidence="${TMP_DIR}/sunset-with-evidence"
+write_script "${sunset_with_evidence}/scripts/old.sh"
+write_manifest "${sunset_with_evidence}" '{
+  "version": 1,
+  "scripts": [
+    {
+      "path": "scripts/old.sh",
+      "kind": "legacy",
+      "runner": "bash",
+      "owner_surface": "selftest_fixture",
+      "selftest": "N/A",
+      "selftest_reason": "covered by sunset fixture",
+      "lifecycle": "sunset_ready",
+      "relocation": "delete_after_gate",
+      "no_active_consumer_evidence": "selftest fixture proves required evidence gate"
+    }
+  ]
+}'
+expect_pass "sunset_ready with evidence" "${sunset_with_evidence}"
+
 echo "check-script-manifest self-test PASS"

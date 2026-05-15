@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.82] - 2026-05-15
+
+### Added — root script command governance
+
+- 新增 root `package.json` / `pnpm-workspace.yaml` / `pnpm-lock.yaml`，以 pnpm 10.10.0 提供常用 framework command alias，且不在 root 宣告第三方依賴。
+- 新增 `scripts/command-catalog.json` 與人讀 command catalog，將 viewer、toolchain、script check 與 maintainer-only 指令分層管理。
+- 補上 command catalog 與 root package governance validators/selftests，並讓 script manifest gate 串接 catalog validation 與 `sunset_ready` 證據 guard。
+
 ## [3.75.81] - 2026-05-15
 
 ### Fixed — Codex child-agent model dispatch

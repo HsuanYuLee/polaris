@@ -424,6 +424,24 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/validate-polaris-command-catalog.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-polaris-command-catalog-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-root-package-governance.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-root-package-governance-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/check-skills-mirror-mode.sh",
       "kind": "gate",
       "runner": "bash",
@@ -2716,6 +2734,17 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/selftests/validate-polaris-command-catalog-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-179 command catalog validator fixture coverage."
+    },
+    {
       "path": "scripts/validate-polaris-toolchain-consumers.sh",
       "kind": "gate",
       "runner": "bash",
@@ -2734,6 +2763,17 @@
       "lifecycle": "hot_path",
       "relocation": "stay",
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/selftests/validate-root-package-governance-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-179 root package / workspace governance fixture coverage."
     },
     {
       "path": "scripts/validate-public-onboarding-contract.sh",

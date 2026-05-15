@@ -75,7 +75,7 @@ technical_docs = [
 
 if minimum.get("node"):
     for rel in technical_docs:
-        require(rel, "Node >= 20 prerequisite", r"Node(?:\.js)?[^\n|,;。]*20")
+        require(rel, "Node >= 22.12.0 prerequisite", r"Node(?:\.js)?[^\n|,;。]*22\.12\.0")
 
 if minimum.get("package_manager"):
     for rel in technical_docs:

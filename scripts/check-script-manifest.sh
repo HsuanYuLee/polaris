@@ -206,3 +206,7 @@ if errors:
 if not quiet:
     print(f"check-script-manifest PASS ({len(entries)} manifest rows, {len(root_scripts)} root scripts covered)")
 PY
+
+if [[ -f "${ROOT_DIR}/scripts/command-catalog.json" && -x "${ROOT_DIR}/scripts/validate-polaris-command-catalog.sh" ]]; then
+  bash "${ROOT_DIR}/scripts/validate-polaris-command-catalog.sh" --root "${ROOT_DIR}" >/dev/null
+fi

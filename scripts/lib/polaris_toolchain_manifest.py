@@ -81,6 +81,10 @@ def validate(data: dict) -> list[str]:
         for key in ("shell", "node", "package_manager", "python"):
             if not isinstance(minimum.get(key), str) or not minimum[key].strip():
                 errors.append(f"minimum_environment.{key} must be a non-empty string")
+        if isinstance(minimum.get("node"), str) and minimum["node"].strip() != ">= 22.12.0":
+            errors.append("minimum_environment.node must be >= 22.12.0")
+        if isinstance(minimum.get("package_manager"), str) and "pnpm" not in minimum["package_manager"]:
+            errors.append("minimum_environment.package_manager must declare pnpm")
 
     capabilities = data.get("capabilities")
     if not isinstance(capabilities, dict) or not capabilities:

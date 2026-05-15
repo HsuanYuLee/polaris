@@ -67,11 +67,21 @@ capability_command() {
 check_minimum_environment() {
   local json="${1:-false}"
   local failures=0
-  local node_major
-  node_major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+  local node_version node_ok
+  node_version="$(node -p 'process.versions.node' 2>/dev/null || echo 0.0.0)"
+  node_ok="$(node - <<'NODE' 2>/dev/null || echo false
+const [major, minor, patch] = process.versions.node.split('.').map(Number);
+const ok = major > 22 || (major === 22 && (minor > 12 || (minor === 12 && patch >= 0)));
+console.log(ok ? 'true' : 'false');
+NODE
+)"
 
   local pnpm_path=""
   pnpm_path="$(command -v pnpm 2>/dev/null || true)"
+  local pnpm_version=""
+  if [[ -n "$pnpm_path" ]]; then
+    pnpm_version="$(pnpm --version 2>/dev/null || true)"
+  fi
   local python_version=""
   python_version="$(python3 - <<'PY' 2>/dev/null || true
 import sys
@@ -80,7 +90,7 @@ PY
 )"
 
   [[ "${BASH_VERSINFO[0]}" -ge 3 ]] || failures=$((failures + 1))
-  [[ "$node_major" =~ ^[0-9]+$ && "$node_major" -ge 20 ]] || failures=$((failures + 1))
+  [[ "$node_ok" == "true" ]] || failures=$((failures + 1))
   [[ -n "$pnpm_path" ]] || failures=$((failures + 1))
   [[ -n "$python_version" ]] || failures=$((failures + 1))
 
@@ -90,8 +100,8 @@ import json
 print(json.dumps({
   "minimum_environment": {
     "bash": {"ok": ${BASH_VERSINFO[0]} >= 3, "version": "${BASH_VERSION}"},
-    "node": {"ok": str("${node_major}").isdigit() and int("${node_major}") >= 20, "version": "$(node --version 2>/dev/null || true)"},
-    "pnpm": {"ok": bool("${pnpm_path}"), "path": "${pnpm_path}"},
+    "node": {"ok": "${node_ok}" == "true", "version": "${node_version}", "required": ">=22.12.0"},
+    "pnpm": {"ok": bool("${pnpm_path}"), "path": "${pnpm_path}", "version": "${pnpm_version}", "required": "10.10.0"},
     "python": {"ok": bool("${python_version}"), "version": "${python_version}"}
   }
 }, ensure_ascii=False, indent=2))
@@ -99,8 +109,8 @@ PY
   else
     echo "Minimum environment:"
     echo "  bash: ${BASH_VERSION}"
-    echo "  node: $(node --version 2>/dev/null || echo missing)"
-    echo "  pnpm: ${pnpm_path:-missing}"
+    echo "  node: $(node --version 2>/dev/null || echo missing) (required >=22.12.0)"
+    echo "  pnpm: ${pnpm_path:-missing}${pnpm_version:+ (${pnpm_version})}"
     echo "  python3: ${python_version:-missing}"
   fi
 
