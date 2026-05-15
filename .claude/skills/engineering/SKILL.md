@@ -36,7 +36,11 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
   deliverable / extension_deliverable / status move-first closeout。
 - 開始前讀 workspace config、company handbook index + linked docs、repo handbook index +
   linked docs；缺 company handbook 要明記，不可跳過 repo handbook。
-- 任何 sub-agent dispatch 前，先讀 `sub-agent-roles.md` 並注入 Completion Envelope。
+- 任何 sub-agent dispatch 前，先讀 `sub-agent-roles.md` 並注入 Completion Envelope；同時依
+  `model-tier-policy.md` 選 semantic model class。Codex runtime 必須使用 matching
+  `polaris-*` child-agent adapter；若 adapter / model 不可用，fallback 只能是 `inherit`，
+  並在 Completion Envelope 回報 `Model Fallback: inherit - <reason>`。Implementation、
+  CI/debug、PR review 與 correctness review 不得降到 `small_fast` / `realtime_fast`。
 - downstream-facing PR body、commit message、handoff、sidecar、JIRA / Slack text 必須遵守
   `workspace-language-policy.md`；specs Markdown 另遵守 `starlight-authoring-contract.md`。
 - 開始撰寫 PR title/body 前必須先讀 `pr-body-builder.md`，並依該 reference 的 L1→L2→L3

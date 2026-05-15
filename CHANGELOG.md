@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.81] - 2026-05-15
+
+### Fixed — Codex child-agent model dispatch
+
+- 新增 Codex project-scoped `polaris-*` child-agent profiles，讓 Polaris semantic model class 可映射到 Codex 子代理。
+- 將 `breakdown`、`engineering`、`verify-AC` 的 sub-agent dispatch contract 收斂到 semantic model class + Completion Envelope。
+- 補強 model-tier validator 與 selftest，確保 Codex adapter profiles、fallback `inherit` 與跨 LLM policy 維持一致。
+
 ## [3.75.80] - 2026-05-15
 
 ### Fixed — script manifest release preflight

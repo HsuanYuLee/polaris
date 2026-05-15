@@ -43,7 +43,10 @@ to `refinement`。
   `docs-manager/src/content/docs/specs/**`），不得包成 implementation task handoff
   engineering；必須留在 refinement / breakdown artifact，或另拆真正的 tracked
   releaseable task。
-- 任何 sub-agent dispatch 前讀 `sub-agent-roles.md` 並注入 Completion Envelope。
+- 任何 sub-agent dispatch 前讀 `sub-agent-roles.md` 並注入 Completion Envelope；同時依
+  `model-tier-policy.md` 選 semantic model class。Codex runtime 必須使用 matching
+  `polaris-*` child-agent adapter；若 adapter / model 不可用，fallback 只能是 `inherit`，
+  並在 Completion Envelope 回報 `Model Fallback: inherit - <reason>`。
 - 完成任何 write 後最後跑 Post-Task Reflection。
 
 ## Source Routing

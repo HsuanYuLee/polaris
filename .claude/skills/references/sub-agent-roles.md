@@ -12,6 +12,10 @@ All sub-agents must return results with this header so the orchestrator can dete
 ## Status: {DONE | BLOCKED | PARTIAL}
 **Artifacts**: {files, URLs, ticket keys — or "none"}
 **Detail**: {/path/to/detail-file.md | "inline" if short enough}
+**Model Class**: {small_fast | realtime_fast | standard_coding | frontier_reasoning | inherit}
+**Runtime Agent**: {runtime agent/profile used, or "unknown"}
+**Selected Model**: {model id | inherit | unknown}
+**Model Fallback**: {none | inherit - reason}
 **Summary**: {≤ 3 sentences — decision-relevant conclusions only}
 ```
 
@@ -79,6 +83,22 @@ Choose a provider-neutral model class based on task type. The authoritative clas
 | **No override needed** | `inherit` | Parent session already selected the appropriate model |
 
 Do not encode raw provider model names here. If a runtime needs a concrete value, resolve it through `model-tier-policy.md`.
+
+#### Runtime Adapter Contract
+
+When dispatching from Codex, use the project-scoped custom agent that matches the semantic class when available:
+
+| Model Class | Codex custom agent |
+|-------------|--------------------|
+| `small_fast` | `polaris-small-fast` |
+| `realtime_fast` | `polaris-realtime-fast` |
+| `standard_coding` | `polaris-standard-coding` |
+| `frontier_reasoning` | `polaris-frontier-reasoning` |
+| `inherit` | omit model override or use the default/inherited agent |
+
+Codex custom agents affect only spawned child agents. They must not change the main session model or user-global `~/.codex/config.toml`.
+
+If the requested Codex custom agent or model is unavailable, fallback directly to `inherit` only when the task remains safe with the parent model. The Completion Envelope must make that visible with `Model Fallback: inherit - <reason>`. Do not silently fallback.
 
 ### Context Isolation
 

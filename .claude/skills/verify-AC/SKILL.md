@@ -40,7 +40,10 @@ bug-triage 讀 handbook 定位原因。
 | FAIL disposition | `verify-ac-disposition-flow.md`, `starlight-authoring-contract.md`, `bug-triage-acfail-flow.md`, `refinement-return-inbox.md` |
 | Learning and lifecycle | `verify-ac-learning-lifecycle-flow.md`, `post-task-reflection-checkpoint.md` |
 
-Epic mode 若委派 sub-agent 驗 AC，必須注入 `sub-agent-roles.md` 的 Completion Envelope。
+Epic mode 若委派 sub-agent 驗 AC，必須注入 `sub-agent-roles.md` 的 Completion Envelope，
+並依 `model-tier-policy.md` 選 semantic model class。Codex runtime 必須使用 matching
+`polaris-*` child-agent adapter；若 adapter / model 不可用，fallback 只能是 `inherit`，
+並在 Completion Envelope 回報 `Model Fallback: inherit - <reason>`。
 
 ## Flow
 

@@ -39,14 +39,24 @@ Disallowed locations:
 
 Mappings are defaults, not immutable facts. Provider availability changes by account, plan, API mode, enterprise policy, and runtime surface.
 
+### Runtime Behavior Baseline
+
+Claude Code and Codex expose similar child-agent model override primitives, but their delegation behavior differs:
+
+- Claude Code can proactively delegate to subagents based on the subagent description. A subagent may define a `model` frontmatter value, and the runtime resolves the model from environment override, per-invocation value, subagent frontmatter, then the main conversation model.
+- Codex supports subagent workflows and project/user custom agents under `.codex/agents/*.toml` or `~/.codex/agents/*.toml`. Custom agents may define `model` and `model_reasoning_effort`; omitted values inherit from the parent session.
+- Codex does not currently provide Claude-style description-based automatic delegation. Polaris skills must explicitly dispatch the intended Codex custom agent or model override when they need child-agent model selection.
+
+Hotfix safety boundary: runtime model-class dispatch applies only to child agents. It must not mutate the Codex main session model or user-global `~/.codex/config.toml`.
+
 ### Codex
 
 | Class | Default Mapping | Notes |
 |-------|-----------------|-------|
-| `small_fast` | runtime-configured light coding model; current baseline: `gpt-5.4-mini` | Use for low-risk read-heavy subagents and batch extraction. Keep this mapping config-driven when possible. |
-| `realtime_fast` | `gpt-5.3-codex-spark` | Research preview / account-gated. Use only as explicit low-latency override. Fall back to `small_fast` or `inherit` when unavailable. |
-| `standard_coding` | `inherit` or current recommended coding model | Prefer inherited session model unless a local runtime config intentionally pins a standard coding model. |
-| `frontier_reasoning` | strongest available Codex model, such as `gpt-5.5` when available | Use for architecture, final arbitration, high-risk review, and difficult planning. |
+| `small_fast` | project custom agent `polaris-small-fast`; current baseline: `gpt-5.4-mini` | Use for low-risk read-heavy subagents and batch extraction. Keep this mapping config-driven when possible. |
+| `realtime_fast` | project custom agent `polaris-realtime-fast`; current baseline: `gpt-5.3-codex-spark` | Research preview / account-gated. Use only as explicit low-latency override. Fall back to `inherit` when unavailable. |
+| `standard_coding` | project custom agent `polaris-standard-coding`, intentionally inheriting parent model | Prefer inherited session model unless a local runtime config intentionally pins a standard coding model. |
+| `frontier_reasoning` | project custom agent `polaris-frontier-reasoning`; strongest available Codex model, such as `gpt-5.5` when available | Use for architecture, final arbitration, high-risk review, and difficult planning. |
 | `inherit` | omit model override | Safe default when the parent session already selected the right model. |
 
 Approved Codex small-model candidates:
@@ -55,6 +65,8 @@ Approved Codex small-model candidates:
 - Future OpenAI light coding models may be added here after official docs or internal runtime policy confirms the mapping.
 
 `gpt-5.3-codex-spark` is not the universal `small_fast` default. It belongs to `realtime_fast` or a clearly named explicit low-latency override.
+
+Codex project adapter profiles live in `.codex/agents/polaris-*.toml`. They are runtime configuration, not a second policy source. Keep them mechanically aligned with this table.
 
 ### Claude Code
 
@@ -103,16 +115,16 @@ model_reasoning_effort = "medium"
 model_class = "realtime_fast"
 model = "gpt-5.3-codex-spark"
 model_reasoning_effort = "low"
-fallback_model_class = "small_fast"
+fallback_model_class = "inherit"
 ```
 
 ```toml
-# Example only: omit model when inheriting the parent session.
+# Example only: omit model and model_reasoning_effort when inheriting
+# the parent session.
 model_class = "inherit"
-model_reasoning_effort = "inherit"
 ```
 
-Codex adapters must treat `realtime_fast` as opt-in. If the account or runtime does not expose `gpt-5.3-codex-spark`, fall back to `small_fast` for low-risk work or `inherit` when preserving the parent model is safer.
+Codex adapters must treat `realtime_fast` as opt-in. If the account or runtime does not expose `gpt-5.3-codex-spark`, fall back directly to `inherit` and report the fallback in the Completion Envelope.
 
 ### Claude Code Frontmatter Example
 
@@ -153,10 +165,21 @@ export ANTHROPIC_DEFAULT_HAIKU_MODEL="claude-3-5-haiku-latest"
 
 ### Adapter Fallback Rules
 
-- `small_fast` unavailable → use `inherit` for safety unless the task is purely batch/template work and another approved small model is configured.
-- `realtime_fast` unavailable → use `small_fast` for low-risk interactive work; use `inherit` when the task touches implementation, review, CI, or final synthesis.
-- `frontier_reasoning` unavailable → use the strongest configured runtime model and record the fallback in the dispatch summary.
+- `small_fast` unavailable → use `inherit` for safety and report the fallback.
+- `realtime_fast` unavailable → use `inherit` and report the fallback. Do not silently substitute Spark with another concrete model.
+- `frontier_reasoning` unavailable → use `inherit` and report the fallback unless the task cannot be safely delegated without a stronger child model.
 - Effort fallback must be handled independently from model fallback. Do not lower effort just because the model class is `small_fast`.
+
+Fallback visibility is mandatory. A sub-agent Completion Envelope must include:
+
+```markdown
+**Model Class**: {small_fast | realtime_fast | standard_coding | frontier_reasoning | inherit}
+**Runtime Agent**: {polaris-small-fast | polaris-realtime-fast | polaris-standard-coding | polaris-frontier-reasoning | default | unknown}
+**Selected Model**: {model id | inherit | unknown}
+**Model Fallback**: {none | inherit - reason}
+```
+
+If Codex cannot load a requested custom agent, the Strategist should rerun or continue with an inherited-model child agent only when the task is safe under `inherit`, and must surface `Model Fallback: inherit - <reason>`.
 
 ## Dispatch Rules
 
@@ -164,8 +187,8 @@ When a skill dispatches a sub-agent:
 
 1. Classify the work risk and decision authority.
 2. Choose a semantic class from this file.
-3. Let the runtime adapter map the class to a provider value.
-4. If the runtime cannot honor the mapping, fall back to `inherit` unless the work requires a stronger class.
+3. For Codex, dispatch the matching `polaris-*` custom agent when available; for Claude Code, use subagent frontmatter or per-invocation model.
+4. If the runtime cannot honor the mapping, fall back to `inherit` and report the fallback. If the task is unsafe under `inherit`, do not delegate it as a child-agent task.
 5. Never allow `small_fast` or `realtime_fast` to produce final architecture decisions, implementation approval, PR approval, or final user-visible synthesis.
 
 ## Risk Gates

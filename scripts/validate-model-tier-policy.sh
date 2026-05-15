@@ -50,6 +50,55 @@ check_mirror_mode() {
   echo "OK: .agents/skills -> $expected_target"
 }
 
+check_codex_agent_profiles() {
+  local agents_dir="$ROOT_DIR/.codex/agents"
+  local file
+
+  if [[ ! -d "$agents_dir" ]]; then
+    echo "FAIL: .codex/agents is missing; Codex model-class adapter profiles are required." >&2
+    fail=1
+    return
+  fi
+
+  file="$agents_dir/polaris-small-fast.toml"
+  if [[ ! -f "$file" ]] \
+    || ! rg -q '^name = "polaris-small-fast"$' "$file" \
+    || ! rg -q '^model = "gpt-5\.4-mini"$' "$file" \
+    || ! rg -q 'Model Class: small_fast' "$file"; then
+    echo "FAIL: invalid Codex small_fast adapter profile: .codex/agents/polaris-small-fast.toml" >&2
+    fail=1
+  fi
+
+  file="$agents_dir/polaris-realtime-fast.toml"
+  if [[ ! -f "$file" ]] \
+    || ! rg -q '^name = "polaris-realtime-fast"$' "$file" \
+    || ! rg -q '^model = "gpt-5\.3-codex-spark"$' "$file" \
+    || ! rg -q 'Model Class: realtime_fast' "$file"; then
+    echo "FAIL: invalid Codex realtime_fast adapter profile: .codex/agents/polaris-realtime-fast.toml" >&2
+    fail=1
+  fi
+
+  file="$agents_dir/polaris-standard-coding.toml"
+  if [[ ! -f "$file" ]] \
+    || ! rg -q '^name = "polaris-standard-coding"$' "$file" \
+    || ! rg -q 'Model Class: standard_coding' "$file"; then
+    echo "FAIL: invalid Codex standard_coding adapter profile: .codex/agents/polaris-standard-coding.toml" >&2
+    fail=1
+  elif rg -q '^model[[:space:]]*=' "$file"; then
+    echo "FAIL: polaris-standard-coding must inherit the parent model and omit model." >&2
+    fail=1
+  fi
+
+  file="$agents_dir/polaris-frontier-reasoning.toml"
+  if [[ ! -f "$file" ]] \
+    || ! rg -q '^name = "polaris-frontier-reasoning"$' "$file" \
+    || ! rg -q '^model = "gpt-5\.5"$' "$file" \
+    || ! rg -q 'Model Class: frontier_reasoning' "$file"; then
+    echo "FAIL: invalid Codex frontier_reasoning adapter profile: .codex/agents/polaris-frontier-reasoning.toml" >&2
+    fail=1
+  fi
+}
+
 scan_raw_model_policy() {
   local -a roots=()
   local path rel matches
@@ -86,6 +135,7 @@ scan_raw_model_policy() {
 }
 
 check_mirror_mode
+check_codex_agent_profiles
 scan_raw_model_policy
 
 if [[ "$fail" -ne 0 ]]; then

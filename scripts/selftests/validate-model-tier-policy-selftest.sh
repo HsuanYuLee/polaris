@@ -24,7 +24,7 @@ assert_rc() {
 
 make_root() {
   local root="$1"
-  mkdir -p "$root/.claude/skills/references" "$root/.claude/rules" "$root/.agents"
+  mkdir -p "$root/.claude/skills/references" "$root/.claude/rules" "$root/.agents" "$root/.codex/agents"
   ln -s ../.claude/skills "$root/.agents/skills"
   cat > "$root/.claude/skills/references/model-tier-policy.md" <<'EOF'
 # Model Tier Policy
@@ -35,6 +35,25 @@ make_root() {
 | `standard_coding` | `sonnet` alias |
 
 Migration: `model: "haiku"` becomes `model class: small_fast`.
+EOF
+  cat > "$root/.codex/agents/polaris-small-fast.toml" <<'EOF'
+name = "polaris-small-fast"
+model = "gpt-5.4-mini"
+developer_instructions = "Model Class: small_fast"
+EOF
+  cat > "$root/.codex/agents/polaris-realtime-fast.toml" <<'EOF'
+name = "polaris-realtime-fast"
+model = "gpt-5.3-codex-spark"
+developer_instructions = "Model Class: realtime_fast"
+EOF
+  cat > "$root/.codex/agents/polaris-standard-coding.toml" <<'EOF'
+name = "polaris-standard-coding"
+developer_instructions = "Model Class: standard_coding"
+EOF
+  cat > "$root/.codex/agents/polaris-frontier-reasoning.toml" <<'EOF'
+name = "polaris-frontier-reasoning"
+model = "gpt-5.5"
+developer_instructions = "Model Class: frontier_reasoning"
 EOF
 }
 
@@ -104,6 +123,22 @@ run_validator "$ROOT4"
 rc=$?
 set -e
 assert_rc "$rc" "1" "bad mirror mode"
+
+# T5: missing Codex adapter profile fails.
+ROOT5="$TMPDIR_ST/missing-codex-agent"
+make_root "$ROOT5"
+rm "$ROOT5/.codex/agents/polaris-small-fast.toml"
+mkdir -p "$ROOT5/.claude/skills/demo"
+cat > "$ROOT5/.claude/skills/demo/SKILL.md" <<'EOF'
+# Demo
+
+Dispatch with `model class: small_fast`.
+EOF
+set +e
+run_validator "$ROOT5"
+rc=$?
+set -e
+assert_rc "$rc" "1" "missing Codex adapter profile"
 
 echo "validate-model-tier-policy selftest: $PASS/$TOTAL passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]]
