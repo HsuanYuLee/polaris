@@ -26,8 +26,9 @@ USAGE
 
 cleanup() {
   rm -f "${TMP_STDOUT:-}" "${TMP_STDERR:-}" 2>/dev/null || true
-  if [[ -n "${WORKTREE_DIR:-}" && -d "$WORKTREE_DIR" ]]; then
-    git -C "$REPO_PATH" worktree remove --force "$WORKTREE_DIR" >/dev/null 2>&1 || rm -rf "$WORKTREE_DIR"
+  if [[ -n "${WORKTREE_DIR:-}" && -d "$WORKTREE_DIR" && -n "${REPO_PATH:-}" ]]; then
+    bash "$SCRIPT_DIR/engineering-worktree-cleanup.sh" --repo "$REPO_PATH" --worktree "$WORKTREE_DIR" --identity "${SAFE_TICKET:-behavior}" --include-temp --apply >/dev/null 2>&1 ||
+      git -C "$REPO_PATH" worktree remove --force "$WORKTREE_DIR" >/dev/null 2>&1
   fi
 }
 trap cleanup EXIT
@@ -210,7 +211,7 @@ fi
 RUN_REPO="$REPO_PATH"
 if [[ "$MODE" == "baseline" && -n "$baseline_ref" && "$baseline_ref" != "none" && "$baseline_ref" != "N/A" ]]; then
   if git -C "$REPO_PATH" rev-parse --verify "${baseline_ref}^{commit}" >/dev/null 2>&1; then
-    WORKTREE_DIR="$(mktemp -d -t polaris-behavior-base.XXXXXX)"
+    WORKTREE_DIR="$(mktemp -d "/private/tmp/polaris-behavior-${SAFE_TICKET}.XXXXXX")"
     rm -rf "$WORKTREE_DIR"
     git -C "$REPO_PATH" worktree add --detach "$WORKTREE_DIR" "$baseline_ref" >/dev/null
     RUN_REPO="$WORKTREE_DIR"

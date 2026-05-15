@@ -5,9 +5,20 @@ description: "engineering revision mode：pre-revision rebase、review/CI signal
 
 # Revision Flow
 
-## R0. Rebase And PR Base Sync
+## R0. Fresh Worktree, Rebase, And PR Base Sync
 
-revision mode 進入後先跑：
+revision mode 進入後必須先建立 fresh revision worktree。不得在舊 PR worktree、
+main checkout、或先前 review pass 的 worktree 繼續修：
+
+```bash
+scripts/engineering-revision-worktree-setup.sh --repo <repo> --task-md <task.md> --pr <pr_number>
+```
+
+此 helper 從 PR branch/head 建立一次性 detached worktree；同 identity clean stale
+worktree 會先清掉，dirty / unsafe stale worktree 會 fail-stop。後續 R0-R6 的 `--repo`
+都指向這個 fresh worktree。
+
+fresh worktree 建好後跑：
 
 ```bash
 scripts/revision-rebase.sh

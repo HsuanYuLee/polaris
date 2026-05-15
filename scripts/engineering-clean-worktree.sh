@@ -25,6 +25,7 @@ set -euo pipefail
 PREFIX="[engineering-clean-worktree]"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
+WORKTREE_CLEANUP="${SCRIPT_DIR}/engineering-worktree-cleanup.sh"
 SELFTEST_TMP=""
 
 usage() {
@@ -452,5 +453,9 @@ fi
 
 echo "$PREFIX removing ${WORKTREE} for ${TASK_KEY:-$TASK_BRANCH}" >&2
 cd "$MAIN_CHECKOUT"
-git -C "$MAIN_CHECKOUT" worktree remove "$WORKTREE"
+if [[ -x "$WORKTREE_CLEANUP" || -f "$WORKTREE_CLEANUP" ]]; then
+  bash "$WORKTREE_CLEANUP" --repo "$MAIN_CHECKOUT" --worktree "$WORKTREE" --identity "${TASK_KEY:-$TASK_BRANCH}" --apply >/dev/null
+else
+  git -C "$MAIN_CHECKOUT" worktree remove "$WORKTREE"
+fi
 echo "$PREFIX removed ${WORKTREE}" >&2

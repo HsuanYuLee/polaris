@@ -844,6 +844,25 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/engineering-revision-worktree-setup.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "covered by DP-177 fresh worktree verification fixtures and revision-rebase selftests"
+    },
+    {
+      "path": "scripts/engineering-worktree-cleanup.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/engineering-worktree-cleanup-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/engineering-rebase.sh",
       "kind": "support",
       "runner": "bash",

@@ -16,6 +16,13 @@ contract check。這是前置驗證，不改變 mode。
 
 ## Branch And Worktree Setup
 
+First-cut worktree 是一次性環境：
+
+- 每次開發都必須建立 fresh worktree。
+- 不可以回傳或沿用既有 worktree path。
+- 同 identity 若有 clean stale worktree，setup helper 會先清掉再建立新的 worktree。
+- dirty / unsafe stale worktree 會 fail-stop；先處理內容，再重跑 setup。
+
 1. JIRA transition in development 用 `scripts/polaris-jira-transition.sh`，soft-fail。
 2. 建 branch / worktree 只能用：
 
@@ -24,7 +31,7 @@ contract check。這是前置驗證，不改變 mode。
    ```
 
 3. 若 task.md 有 Branch chain，script 會先 cascade rebase 上游鏈再切本 task branch。
-4. duplicate branch / remote / stale worktree 時停止，不手動改名再開新 branch。
+4. duplicate branch / remote 時停止，不手動改名再開新 branch；stale worktree 只能由 setup helper 清理，不可人工拿舊 path 繼續做。
 
 First-cut 不再需要獨立 pre-development rebase；branch setup 已從 resolved base tip 切出。
 

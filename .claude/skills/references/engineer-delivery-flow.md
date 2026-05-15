@@ -913,6 +913,7 @@ bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
 ```
 
 - PR 後不保留常駐 worktree；若後續 review / CI 需要 revision，從當下 PR branch/head 重新建立 fresh worktree
+- worktree 不可因「剛剛用過」、「還很乾淨」、「下一輪可能還要修」等理由復用；任務結束後相關 worktree 必須清空
 - helper 只會移除 `.worktrees/` 底下、Git 已登記、狀態乾淨、且 `deliverable.head_sha` 等於 worktree `HEAD` 的 implementation worktree
 - 若目前是在 main checkout 直接修 revision，helper 會找不到 implementation worktree 並輸出 `nothing to clean`；這是合法 no-op
 - 可刪除已不需要的 local temp branch；不要刪 remote PR branch

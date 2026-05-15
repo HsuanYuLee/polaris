@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 FINALIZE="$SCRIPT_DIR/finalize-engineering-delivery.sh"
 WRITE_REPORT="$SCRIPT_DIR/write-task-verify-report.sh"
 TMPROOT="$(mktemp -d -t finalize-delivery-selftest-XXXXXX)"
+TMPROOT="$(cd "$TMPROOT" && pwd -P)"
 
 cleanup() {
   rm -rf "$TMPROOT"
@@ -34,7 +35,7 @@ write_task() {
   local head_sha="$2"
   local task_dir="$workspace/docs-manager/src/content/docs/specs/design-plans/DP-999-finalize-cwd/tasks"
   mkdir -p "$task_dir"
-  cat > "$workspace/docs-manager/src/content/docs/specs/design-plans/DP-999-finalize-cwd/plan.md" <<'EOF'
+  cat > "$workspace/docs-manager/src/content/docs/specs/design-plans/DP-999-finalize-cwd/index.md" <<'EOF'
 ---
 title: "DP-999: Finalize cwd selftest"
 status: LOCKED

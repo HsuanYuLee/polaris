@@ -31,6 +31,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARSE_TASK_MD="$SCRIPT_DIR/parse-task-md.sh"
 CASCADE_REBASE_CHAIN="$SCRIPT_DIR/cascade-rebase-chain.sh"
 RESOLVE_TASK_BRANCH="$SCRIPT_DIR/resolve-task-branch.sh"
+WORKTREE_CLEANUP="$SCRIPT_DIR/engineering-worktree-cleanup.sh"
 
 usage() {
   cat <<EOF >&2
@@ -99,7 +100,24 @@ emit_duplicate_branch_error() {
       echo "    - ${ref}" >&2
     fi
   done <<<"$existing_refs"
-  echo "  → Resume the existing branch/worktree, switch to revision mode if it has a PR, or clean the stale branch before retrying." >&2
+  echo "  → Existing branches are not reused for first-cut. Switch to revision mode if it has a PR, or clean the stale branch before retrying." >&2
+}
+
+cleanup_existing_worktree() {
+  local repo="$1"
+  local task_key="$2"
+  local worktree_path="$3"
+
+  if [[ ! -f "$WORKTREE_CLEANUP" ]]; then
+    echo "ERROR: cleanup helper missing: $WORKTREE_CLEANUP" >&2
+    return 2
+  fi
+
+  echo "ℹ Cleaning existing worktree before creating a fresh one: $worktree_path" >&2
+  bash "$WORKTREE_CLEANUP" --repo "$repo" --worktree "$worktree_path" --identity "$task_key" --apply >/dev/null || {
+    echo "ERROR: existing worktree is unsafe or could not be cleaned: $worktree_path" >&2
+    return 1
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -173,10 +191,23 @@ TASK
   (cd "$LOCAL" && git show-ref --verify --quiet refs/heads/task/PROJ-101-contract-branch-name) && t="found" || t="missing"
   _assert "$t" "found" "T1: task.md Task branch should exist"
 
-  # T2: idempotent — running again should exit 1 (branch exists)
+  # T2: no reuse — running again should clean the old worktree and create a fresh one.
+  old_inode=$(python3 - "$wt_path" <<'PY'
+import os, sys
+print(os.stat(sys.argv[1]).st_ino)
+PY
+)
   out=$(cd "$LOCAL" && _run "$TASK_MD" --repo-base "$TMPDIR_ST" 2>/dev/null)
   rc=$?
-  _assert "$rc" "1" "T2: re-run should exit 1 (branch exists)"
+  _assert "$rc" "0" "T2: re-run should create a fresh worktree"
+  wt_path=$(echo "$out" | tail -1)
+  new_inode=$(python3 - "$wt_path" <<'PY'
+import os, sys
+print(os.stat(sys.argv[1]).st_ino)
+PY
+)
+  [[ "$old_inode" != "$new_inode" ]] && t="fresh" || t="reused"
+  _assert "$t" "fresh" "T2: re-run must not reuse the previous worktree directory"
 
   # T3: guard — same ticket with a different existing branch should block
   git -C "$LOCAL" branch task/PROJ-101-other-attempt main >/dev/null 2>&1
@@ -361,17 +392,13 @@ if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME" 2>/dev/null; then
   echo "ℹ Branch $BRANCH_NAME already exists." >&2
   EXISTING_WT="$(worktree_for_branch "$BRANCH_NAME")"
   if [[ -n "$EXISTING_WT" ]]; then
-    echo "ℹ Worktree already at: $EXISTING_WT" >&2
-    echo "$EXISTING_WT"
-    exit 1
+    cleanup_existing_worktree "$(git rev-parse --show-toplevel)" "$TASK_KEY" "$EXISTING_WT" || exit 1
   fi
-  echo "ℹ Branch exists but no worktree — creating worktree." >&2
+  echo "ℹ Branch exists; creating a fresh worktree." >&2
 fi
 
 if [[ -d "$WT_PATH" ]]; then
-  echo "ERROR: worktree path already exists before branch setup: $WT_PATH" >&2
-  echo "  → Resume or clean this worktree before retrying; refusing to create a branch that cannot get its worktree." >&2
-  exit 1
+  cleanup_existing_worktree "$(git rev-parse --show-toplevel)" "$TASK_KEY" "$WT_PATH" || exit 1
 fi
 
 # Check if branch already exists

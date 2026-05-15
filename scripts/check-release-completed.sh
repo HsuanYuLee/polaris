@@ -108,6 +108,16 @@ PY
   fi
 }
 
+emit_worktree_cleanup_remediation() {
+  local repo_path="$1"
+  local identity="$2"
+  local helper="${SCRIPT_DIR}/engineering-worktree-cleanup.sh"
+
+  echo "$PREFIX residual worktree cleanup remediation:" >&2
+  echo "$PREFIX   bash ${helper} --repo ${repo_path} --identity ${identity} --dry-run" >&2
+  echo "$PREFIX   bash ${helper} --repo ${repo_path} --identity ${identity} --apply" >&2
+}
+
 resolve_repo_path() {
   local repo_name="$1"
   if [[ -n "$REPO_OVERRIDE" ]]; then
@@ -300,6 +310,7 @@ if [[ "$SURFACE_CLASS" != "local_extension" ]]; then
 
     REGISTERED_WT="$(registered_worktree_for_branch "$REPO_PATH" "$TASK_BRANCH" || true)"
     if [[ -n "$REGISTERED_WT" && -d "$REGISTERED_WT" ]]; then
+      emit_worktree_cleanup_remediation "$REPO_PATH" "$SOURCE_ID"
       emit_result "$SOURCE_ID" "$SURFACE_CLASS" "$RELEASE_REQUIRED" "BLOCKED" "worktree_not_cleaned"
       exit 2
     fi
@@ -330,6 +341,7 @@ if [[ "$SURFACE_CLASS" != "local_extension" ]]; then
 
     REGISTERED_WT="$(registered_worktree_for_branch "$REPO_PATH" "$TASK_BRANCH" || true)"
     if [[ -n "$REGISTERED_WT" && -d "$REGISTERED_WT" ]]; then
+      emit_worktree_cleanup_remediation "$REPO_PATH" "$SOURCE_ID"
       emit_result "$SOURCE_ID" "$SURFACE_CLASS" "$RELEASE_REQUIRED" "BLOCKED" "worktree_not_cleaned"
       exit 2
     fi

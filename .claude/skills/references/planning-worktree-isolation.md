@@ -51,14 +51,19 @@ Replace `{skill}` with the actual skill name (`refinement` / `breakdown` / `bug-
 git -C {repo} fetch origin {base_ref}
 ```
 
-### 3. Create worktree
+### 3. Create fresh one-shot worktree
 
 ```bash
-git -C {repo} worktree add -B {skill}/{TICKET_KEY} \
+git -C {repo} worktree add -B {skill}/{TICKET_KEY}-{unique_run_id} \
   {base_dir}/.worktrees/{repo}-{skill}-{TICKET_KEY} origin/{base_ref}
 ```
 
 The main checkout's state is completely unchanged after this command.
+
+The worktree must be fresh for this run. Do not reuse an existing worktree for
+any reason. If the target path or branch already has a worktree, classify it
+first: clean stale worktree may be removed and recreated; dirty, unregistered,
+main checkout, source-unknown, or live-process worktree blocks the workflow.
 
 ### 4. All subsequent bash uses the worktree path
 
@@ -76,7 +81,9 @@ git -C {repo} worktree remove {base_dir}/.worktrees/{repo}-{skill}-{TICKET_KEY}
 git -C {repo} branch -D {skill}/{TICKET_KEY}
 ```
 
-If the worktree has uncommitted exploratory changes (intended), commit them to the scratch branch first, or use `worktree remove --force`. Do not carry them back to the main checkout.
+If the worktree has uncommitted exploratory changes, stop and classify them.
+Do not silently discard dirty worktree contents. The task is not complete until
+the related worktree has been removed.
 
 ## Canary Signal (self-check)
 

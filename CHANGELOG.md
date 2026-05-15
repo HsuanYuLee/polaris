@@ -4,6 +4,28 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.80] - 2026-05-15
+
+### Fixed — script manifest release preflight
+
+- 補上 DP-177 新增 root scripts 的 manifest rows，讓 release preflight 可驗證 root script coverage。
+
+## [3.75.79] - 2026-05-15
+
+### Changed — fresh engineering worktree enforcement
+
+- 讓 first-cut branch setup 遇到 clean stale worktree 時先清理再建立 fresh worktree，不再回傳既有 path。
+- 新增 revision fresh worktree setup helper，從 PR branch/head 建立一次性 detached worktree，dirty/unsafe 舊 worktree 會阻擋。
+- 讓 behavior baseline temp worktree 改走 managed temp path 與 cleanup helper，驗證完成即清。
+
+## [3.75.78] - 2026-05-15
+
+### Added — engineering worktree cleanup hardening
+
+- 新增 `engineering-worktree-cleanup.sh` dry-run/apply helper，分類並清理 clean registered worktree。
+- 阻擋 dirty、main checkout、unregistered、source unknown、live-process 等 unsafe worktree，避免任務完成時誤宣稱已清空。
+- 讓 `engineering-clean-worktree.sh` 與 release-completed blocker 對齊 cleanup helper remediation。
+
 ## [3.75.77] - 2026-05-15
 
 ### Changed — docs viewer lifecycle ownership
