@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.87] - 2026-05-15
+
+### Added — governed script test contract
+
+- 將 governed script test metadata 納入 `scripts/manifest.json`，以 profile mapping + changed-file mapping 選跑已登錄 selftests。
+- 新增 deterministic script selftest helper、DP-183 bootstrap / doctor / dependency governance 首批 governed tests，以及 no-VSCode PATH missing `rg` regression fixture。
+- 讓 framework release preflight 執行 selected governed script suite，避免 release 時才發現未納管 script dependency 或 PATH 偶然性。
+- 更新 breakdown / engineering guidance，要求高風險 deterministic script 行為變更描述 test contract，並保留 text-only / trivial change 例外。
+
 ## [3.75.86] - 2026-05-15
 
 ### Fixed — runtime instruction source sync

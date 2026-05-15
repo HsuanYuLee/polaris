@@ -530,6 +530,9 @@ Allowed Files pattern 支援 repo-root relative path、glob，以及 root exact 
 ### 3.7 `## Test Command` / `## Verify Command`
 
 兩者皆必須包含 fenced code block（內容由 LLM 不可改寫 — `verify-command-immutable-execute` canary）。
+
+Deterministic script task 必須在 `## Test Command`、`## Verify Command` 或 Scope Trace Matrix 寫出 script test contract。高風險 script behavior / dependency / selected suite / bootstrap / doctor / release preflight / lifecycle gate 變更，要標明哪個 failing selftest 先失敗、implementation 後通過。text-only、comment-only、typo、help output 等 trivial change 可以註明不新增 failing selftest 的理由。
+
 `## Verify Fallback Command` 是 optional section；只有 primary `## Verify Command`
 因已確認 repo baseline issue 無法產生 artifact 時才可提供。Engineering 不得臨時改跑
 其他 command；必須讓 `scripts/run-verify-command.sh` 先執行 primary，再於 primary

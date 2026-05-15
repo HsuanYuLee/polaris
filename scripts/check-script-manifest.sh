@@ -57,6 +57,17 @@ allowed_kind = {"gate", "writer", "resolver", "release", "selftest", "support", 
 allowed_runner = {"bash", "python3", "node"}
 allowed_lifecycle = {"hot_path", "support_path", "legacy_keep", "sunset_candidate", "sunset_ready"}
 allowed_relocation = {"stay", "move_with_wrapper", "move_direct", "delete_after_gate"}
+allowed_test_profiles = {"core", "runtime", "delivery", "full", "release"}
+required_baseline_fields = {"owner", "reason", "remediation_task", "expiry", "scope"}
+required_governed_test_fields = {
+    "id",
+    "command",
+    "profiles",
+    "changed_paths",
+    "fixtures",
+    "enrolled",
+    "owner",
+}
 required = {
     "path",
     "kind",
@@ -93,6 +104,71 @@ entries = manifest.get("scripts")
 if not isinstance(entries, list):
     print("script manifest must contain scripts[]", file=sys.stderr)
     sys.exit(1)
+
+test_governance = manifest.get("test_governance")
+if test_governance is not None:
+    if not isinstance(test_governance, dict):
+        fail("test_governance must be an object")
+    else:
+        baseline_schema = test_governance.get("baseline_schema")
+        if not isinstance(baseline_schema, list) or set(baseline_schema) != required_baseline_fields:
+            fail("test_governance.baseline_schema must equal owner/reason/remediation_task/expiry/scope")
+        baseline = test_governance.get("baseline", [])
+        if not isinstance(baseline, list):
+            fail("test_governance.baseline must be a list")
+        else:
+            for index, row in enumerate(baseline):
+                label = f"test_governance.baseline[{index}]"
+                if not isinstance(row, dict):
+                    fail(f"{label}: row must be an object")
+                    continue
+                missing = sorted(required_baseline_fields - set(row.keys()))
+                if missing:
+                    fail(f"{label}: missing required field(s): {', '.join(missing)}")
+                for key in required_baseline_fields:
+                    if not isinstance(row.get(key), str) or not row.get(key, "").strip():
+                        fail(f"{label}: {key} must be a non-empty string")
+
+governed_tests = manifest.get("governed_tests", [])
+if not isinstance(governed_tests, list):
+    fail("governed_tests must be a list when present")
+else:
+    seen_test_ids = {}
+    for index, row in enumerate(governed_tests):
+        label = row.get("id", f"<governed test {index}>") if isinstance(row, dict) else f"<governed test {index}>"
+        if not isinstance(row, dict):
+            fail(f"{label}: governed test row must be an object")
+            continue
+        missing = sorted(required_governed_test_fields - set(row.keys()))
+        if missing:
+            fail(f"{label}: missing required field(s): {', '.join(missing)}")
+        test_id = row.get("id")
+        if not isinstance(test_id, str) or not test_id.strip():
+            fail(f"{label}: id must be a non-empty string")
+        elif test_id in seen_test_ids:
+            fail(f"{test_id}: duplicate governed test id also seen at row {seen_test_ids[test_id]}")
+        else:
+            seen_test_ids[test_id] = index
+        command = row.get("command")
+        if not isinstance(command, str) or not command.strip():
+            fail(f"{label}: command must be a non-empty string")
+        profiles = row.get("profiles")
+        if not isinstance(profiles, list) or not profiles:
+            fail(f"{label}: profiles must be a non-empty list")
+        else:
+            for profile in profiles:
+                if profile not in allowed_test_profiles:
+                    fail(f"{label}: invalid profile {profile!r}")
+        for list_key in ("changed_paths", "fixtures"):
+            value = row.get(list_key)
+            if not isinstance(value, list):
+                fail(f"{label}: {list_key} must be a list")
+            elif any(not isinstance(item, str) or item.startswith("/") or ".." in item.split("/") for item in value):
+                fail(f"{label}: {list_key} entries must be repo-root relative strings")
+        if not isinstance(row.get("enrolled"), bool):
+            fail(f"{label}: enrolled must be boolean")
+        if not isinstance(row.get("owner"), str) or not row.get("owner", "").strip():
+            fail(f"{label}: owner must be a non-empty string")
 
 seen = {}
 for index, row in enumerate(entries):

@@ -428,20 +428,18 @@
       "kind": "support",
       "runner": "bash",
       "owner_surface": "root_toolchain_bootstrap",
-      "selftest": "N/A",
+      "selftest": "scripts/selftests/polaris-bootstrap-selftest.sh",
       "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered by DP-183 T2 dry-run and verify evidence"
+      "relocation": "stay"
     },
     {
       "path": "scripts/polaris-doctor.sh",
       "kind": "gate",
       "runner": "bash",
       "owner_surface": "root_toolchain_doctor",
-      "selftest": "N/A",
+      "selftest": "scripts/selftests/polaris-doctor-no-vscode-path-selftest.sh",
       "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered by DP-183 T3 profile dry-runs and no-VSCode PATH regression"
+      "relocation": "stay"
     },
     {
       "path": "scripts/selftests/validate-script-dependencies-selftest.sh",
@@ -3086,6 +3084,186 @@
       "selftest": "scripts/selftests/run-behavior-contract-selftest.sh",
       "lifecycle": "support_path",
       "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftests/lib/script-test-helpers.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "scripts/check-script-manifest-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "keep_reason": "Shared deterministic script selftest helper for DP-184 governed tests."
+    },
+    {
+      "path": "scripts/selftests/polaris-bootstrap-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/polaris-doctor-no-vscode-path-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/run-governed-script-tests.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "scripts/selftests/run-governed-script-tests-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftests/run-governed-script-tests-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    }
+  ],
+  "test_governance": {
+    "version": 1,
+    "decision": "DP-184 extends scripts/manifest.json as the single governed script test source of truth.",
+    "hot_path_definition": [
+      "bootstrap",
+      "doctor",
+      "release_preflight",
+      "framework_lifecycle",
+      "DP-179 governance",
+      "command_catalog",
+      "DP-183 toolchain validators"
+    ],
+    "baseline_schema": [
+      "owner",
+      "reason",
+      "remediation_task",
+      "expiry",
+      "scope"
+    ],
+    "baseline": [
+      {
+        "owner": "polaris-framework",
+        "reason": "Legacy hot-path scripts predate governed script test enrollment; DP-184 starts with advisory baseline before diff-gated blocking.",
+        "remediation_task": "DP-184-T4",
+        "expiry": "2026-06-30",
+        "scope": "scripts entries with lifecycle=hot_path and no governed_tests entry"
+      }
+    ],
+    "profiles": [
+      "core",
+      "runtime",
+      "delivery",
+      "full",
+      "release"
+    ]
+  },
+  "governed_tests": [
+    {
+      "id": "script-manifest-schema",
+      "command": "bash scripts/check-script-manifest.sh",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/manifest.json",
+        "scripts/check-script-manifest.sh",
+        "scripts/check-script-manifest-selftest.sh"
+      ],
+      "fixtures": [],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "polaris-bootstrap-dry-run",
+      "command": "bash scripts/selftests/polaris-bootstrap-selftest.sh",
+      "profiles": [
+        "runtime",
+        "full",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/polaris-bootstrap.sh",
+        "mise.toml",
+        "polaris-toolchain.yaml"
+      ],
+      "fixtures": [
+        "dry-run"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "polaris-doctor-no-vscode-path",
+      "command": "bash scripts/selftests/polaris-doctor-no-vscode-path-selftest.sh",
+      "profiles": [
+        "core",
+        "runtime",
+        "full",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/polaris-doctor.sh",
+        "mise.toml",
+        "polaris-toolchain.yaml"
+      ],
+      "fixtures": [
+        "no-VSCode PATH",
+        "missing rg"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "script-dependency-governance",
+      "command": "bash scripts/selftests/validate-script-dependencies-selftest.sh",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/validate-script-dependencies.sh",
+        "scripts/selftests/validate-script-dependencies-selftest.sh"
+      ],
+      "fixtures": [
+        "shell",
+        "python",
+        "node"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "governed-script-test-runner",
+      "command": "bash scripts/selftests/run-governed-script-tests-selftest.sh",
+      "profiles": [
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/run-governed-script-tests.sh",
+        "scripts/selftests/run-governed-script-tests-selftest.sh"
+      ],
+      "fixtures": [
+        "profile mapping",
+        "changed-file mapping",
+        "union semantics"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
     }
   ]
 }

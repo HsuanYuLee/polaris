@@ -130,6 +130,9 @@ bash scripts/validate-starlight-authoring.sh check <source_container>/refinement
 - Nuxt / Vitest 類 command 需清掉 known inherited debug env，例如 `env -u DEBUG ...`。
 - library migration 的 Verify Command 不可用 broad substring grep 誤掃跨 scope API name、
   文件註解或後續 task 的相容介面。
+- deterministic script 變更若影響 behavior、release gate、bootstrap/doctor、dependency
+  governance 或 selected suite，authoring 時要先描述 script test contract；text-only /
+  trivial 變更可明確列為不新增 failing selftest 的例外。
 
 Readiness gate：
 

@@ -13,6 +13,7 @@ REPO_PATH="$(cd "${SCRIPT_DIR}/.." && pwd)"
 GITHUB_REST_LIB="${SCRIPT_DIR}/lib/github-rest.sh"
 VERSION_BUMP_CHECKER="${SCRIPT_DIR}/check-version-bump-reminder.sh"
 SCRIPT_MANIFEST_CHECKER="${SCRIPT_DIR}/check-script-manifest.sh"
+GOVERNED_SCRIPT_TEST_RUNNER="${SCRIPT_DIR}/run-governed-script-tests.sh"
 WORKSPACE_REPO=""
 MAIN_BRANCH="main"
 EXECUTE=0
@@ -164,6 +165,22 @@ run_script_manifest_release_gate() {
   info "running script manifest release gate"
   bash "$SCRIPT_MANIFEST_CHECKER" --root "$REPO_PATH" --quiet \
     || die "release preflight blocked: script manifest drift"
+}
+
+run_governed_script_tests_release_gate() {
+  local final_task_md final_task_branch
+  final_task_md="${TASK_MDS[$((${#TASK_MDS[@]} - 1))]}"
+  final_task_branch="$(table_field "Task branch" "$final_task_md")"
+  [[ -n "$final_task_branch" ]] || die "missing Task branch in terminal task.md: $final_task_md"
+  [[ -f "$GOVERNED_SCRIPT_TEST_RUNNER" ]] || die "missing runner: $GOVERNED_SCRIPT_TEST_RUNNER"
+
+  info "running governed script test suite for ${final_task_branch}"
+  bash "$GOVERNED_SCRIPT_TEST_RUNNER" \
+    --root "$REPO_PATH" \
+    --profile release \
+    --base "origin/${MAIN_BRANCH}" \
+    --head-ref "$final_task_branch" \
+    || die "release preflight blocked: governed script tests failed"
 }
 
 verify_pr_task_lineage() {
@@ -325,5 +342,6 @@ fi
 
 run_version_bump_release_gate
 run_script_manifest_release_gate
+run_governed_script_tests_release_gate
 validate_and_plan
 echo "$PREFIX PASS"

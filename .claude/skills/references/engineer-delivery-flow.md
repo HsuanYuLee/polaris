@@ -241,6 +241,8 @@ Rebase 改變 HEAD → 舊 evidence 的 `head_sha` 自動失效 → 所有下游
 >
 > Commit / push / `gh pr create` 前必須確認 Dimension B 全綠。Dimension A 的 TDD discipline 由 `tdd-bypass-no-assertion-weakening` canary 把關（見 `mechanism-registry.md`）。
 >
+> **Deterministic script TDD trigger**：Polaris-owned deterministic script (`scripts/*.sh`, `scripts/*.py`, `scripts/*.mjs` or enrolled selftest) 若會改變 behavior、dependency usage、selected suite、bootstrap、doctor、release preflight 或 lifecycle gate，必須先在 task.md 定義 script test contract，並優先補 failing selftest 再 implementation。text-only、comment-only、typo、help output 或 changelog-only 這類 trivial change 不強迫新增 failing selftest，除非該文字是 machine-read contract 或被其他 script parse。
+>
 > **Remote CI wait policy**：`ci-local.sh` 是 repo CI-equivalent 的本地 authority。push / PR 後，GitHub / Woodpecker / GitLab 等遠端 CI 若仍是 queued / pending / running，不阻擋 Step 8.5 或 user-facing complete。遠端 check 若已完成且明確 FAIL，才進 revision mode 作為 CI failure signal；不因等待遠端 CI 太久而延後 complete。
 
 `ci-local-run.sh` 會先嘗試用目前 branch 對應的 `task.md` 解析 resolved base，再把 `--base-branch` 傳給 generated `ci-local.sh`。這讓 stacked PR 的本地 Codecov patch diff 對齊實際 PR base，而不是誤用 branch upstream 或 `develop`。

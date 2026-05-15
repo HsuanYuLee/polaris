@@ -28,6 +28,10 @@ to `refinement`。
   task.md、sidecar processed flag。
 - task.md 必須能被 `engineering` 單獨消費：Allowed Files、Gate Closure Matrix、
   Behavior Contract、Test Environment、Verify Command 都要完整。
+- 若 task 修改 Polaris deterministic script behavior、release gate、bootstrap/doctor、
+  dependency governance 或 selected suite，task.md 必須寫出 script test contract；
+  高風險行為變更優先包進 failing selftest → implementation → passing selftest。
+  text-only / trivial 文件或 help 文案變更可註明不需新增 failing selftest。
 - Story / Task / Epic 拆單前讀 `infra-first-decision.md`；infra prerequisite 只能由
   refinement artifact 的 AC verification methods 推導，不得只因 visual regression config
   存在就加入 fixture task。

@@ -3,7 +3,11 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHECKER="${ROOT_DIR}/scripts/check-script-manifest.sh"
-TMP_DIR="$(mktemp -d)"
+HELPERS="${ROOT_DIR}/scripts/selftests/lib/script-test-helpers.sh"
+# shellcheck source=scripts/selftests/lib/script-test-helpers.sh
+. "${HELPERS}"
+
+TMP_DIR="$(script_test_temp_dir)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 write_script() {
@@ -23,20 +27,14 @@ write_manifest() {
 expect_pass() {
   local name="$1"
   local repo="$2"
-  if ! bash "${CHECKER}" --root "${repo}" --quiet; then
-    echo "FAIL: expected pass for ${name}" >&2
-    exit 1
-  fi
+  script_test_expect_pass "${name}" bash "${CHECKER}" --root "${repo}" --quiet || exit 1
 }
 
 expect_fail() {
   local name="$1"
   local repo="$2"
-  if bash "${CHECKER}" --root "${repo}" --quiet >/tmp/check-script-manifest-selftest.out 2>&1; then
-    echo "FAIL: expected failure for ${name}" >&2
-    cat /tmp/check-script-manifest-selftest.out >&2
-    exit 1
-  fi
+  SCRIPT_TEST_LAST_OUTPUT=/tmp/check-script-manifest-selftest.out \
+    script_test_expect_fail "${name}" bash "${CHECKER}" --root "${repo}" --quiet || exit 1
 }
 
 positive="${TMP_DIR}/positive"
@@ -192,5 +190,107 @@ write_manifest "${sunset_with_evidence}" '{
   ]
 }'
 expect_pass "sunset_ready with evidence" "${sunset_with_evidence}"
+
+governed_tests_positive="${TMP_DIR}/governed-tests-positive"
+write_script "${governed_tests_positive}/scripts/good.sh"
+write_manifest "${governed_tests_positive}" '{
+  "version": 1,
+  "scripts": [
+    {
+      "path": "scripts/good.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "selftest_fixture",
+      "selftest": "N/A",
+      "selftest_reason": "covered by governed test fixture",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    }
+  ],
+  "test_governance": {
+    "baseline_schema": ["owner", "reason", "remediation_task", "expiry", "scope"],
+    "baseline": [
+      {
+        "owner": "polaris-framework",
+        "reason": "fixture",
+        "remediation_task": "DP-184-T2",
+        "expiry": "2026-06-30",
+        "scope": "fixture"
+      }
+    ]
+  },
+  "governed_tests": [
+    {
+      "id": "good",
+      "command": "bash scripts/good.sh",
+      "profiles": ["core", "release"],
+      "changed_paths": ["scripts/good.sh"],
+      "fixtures": [],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    }
+  ]
+}'
+expect_pass "governed tests positive" "${governed_tests_positive}"
+
+governed_tests_missing_baseline="${TMP_DIR}/governed-tests-missing-baseline"
+write_script "${governed_tests_missing_baseline}/scripts/good.sh"
+write_manifest "${governed_tests_missing_baseline}" '{
+  "version": 1,
+  "scripts": [
+    {
+      "path": "scripts/good.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "selftest_fixture",
+      "selftest": "N/A",
+      "selftest_reason": "covered by governed test fixture",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    }
+  ],
+  "test_governance": {
+    "baseline_schema": ["owner", "reason", "remediation_task", "expiry", "scope"],
+    "baseline": [
+      {
+        "owner": "polaris-framework",
+        "reason": "fixture",
+        "expiry": "2026-06-30",
+        "scope": "fixture"
+      }
+    ]
+  }
+}'
+expect_fail "governed tests missing baseline field" "${governed_tests_missing_baseline}"
+
+governed_tests_invalid_profile="${TMP_DIR}/governed-tests-invalid-profile"
+write_script "${governed_tests_invalid_profile}/scripts/good.sh"
+write_manifest "${governed_tests_invalid_profile}" '{
+  "version": 1,
+  "scripts": [
+    {
+      "path": "scripts/good.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "selftest_fixture",
+      "selftest": "N/A",
+      "selftest_reason": "covered by governed test fixture",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    }
+  ],
+  "governed_tests": [
+    {
+      "id": "bad-profile",
+      "command": "bash scripts/good.sh",
+      "profiles": ["unknown"],
+      "changed_paths": ["scripts/good.sh"],
+      "fixtures": [],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    }
+  ]
+}'
+expect_fail "governed tests invalid profile" "${governed_tests_invalid_profile}"
 
 echo "check-script-manifest self-test PASS"
