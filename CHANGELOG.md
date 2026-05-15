@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.89] - 2026-05-16
+
+### Added — runtime cache direct migration gate
+
+- 將 external write transport cache 直接收斂到 `.polaris/runtime/external-writes/`，不保留 `.codex/external-writes/` 舊路徑。
+- 新增 runtime cache residue checker 與 selftest，阻擋 `.polaris/runtime/external-writes/`、`.codex/external-writes/`、`.codex/tmp/` 在 refinement handoff 前殘留。
+- 更新 refinement / external-write / authoring references，要求 durable drafts 回到 owning source container。
+
 ## [3.75.88] - 2026-05-16
 
 ### Fixed — validator no-rg fallback and direct-source scan boundary

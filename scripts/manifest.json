@@ -317,6 +317,26 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/selftests/check-runtime-cache-residue-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-182 selftest for runtime cache direct migration gate."
+    },
+    {
+      "path": "scripts/check-runtime-cache-residue.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/check-runtime-cache-residue-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/check-no-cd-in-bash.sh",
       "kind": "gate",
       "runner": "bash",

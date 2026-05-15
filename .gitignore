@@ -98,10 +98,13 @@ user/
 # Polaris repo-local runtime tools and asset cache.
 .polaris/toolchain/
 .polaris/toolchain/**
+.polaris/runtime/external-writes/
+.polaris/runtime/external-writes/**
 
-# External write transport cache only. Durable drafts belong in the owning
-# ticket or DP source container before closeout.
+# Old runtime cache paths. Direct migration only: durable drafts belong in the
+# owning ticket or DP source container before closeout.
 .codex/external-writes/
+.codex/tmp/
 
 # Spec folders — root specs contains design plans and company-scoped ticket specs.
 /specs/

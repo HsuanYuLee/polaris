@@ -52,8 +52,11 @@ bash scripts/polaris-external-write-gate.sh \
   - `{source_container}/jira-comments/YYYYMMDD-{slug}.md`
   - `{source_container}/artifacts/external-writes/YYYYMMDD-{slug}.md`
   - `{source_container}/artifacts/research/YYYY-MM-DD-{slug}.md`
-- Temporary body file 可放在 `/tmp` 或 runtime cache，但 gate pass / write 完成後必須刪除；
-  不得把 `.codex/external-writes/` 當作 steady-state storage。
+- Temporary body file 可放在 `/tmp/polaris-*` 或 shared runtime cache
+  `.polaris/runtime/external-writes/`，但 gate pass / write 完成後必須刪除或移入 owning
+  source container。
+- `.codex/external-writes/` 與 `.codex/tmp/` 是 forbidden old / scratch residue；producer 不得
+  寫入、讀取或把它們當作 fallback。
 - Caller 負責在 gate pass 後執行 MCP / CLI 外部寫入。
 - Caller 必須在 final summary 或 handoff 中能指出 body file 與 gate command。
 - 任何 emergency bypass 必須由 producing skill 明文說明，不可 silent skip。

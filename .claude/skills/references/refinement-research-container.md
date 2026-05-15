@@ -127,8 +127,10 @@ manual validation output 或 data investigation notes。這些不是 `refinement
 - raw transport draft、送出前不同版本、或外部系統 body file 放在 `artifacts/external-writes/`。
 - 已消化為 refinement decision 的查證資料放在 `artifacts/research/`，並由
   `refinement.json.research[]` 引用。
-- `.codex/external-writes/` 只能作為 temporary transport cache；finalize / closeout 前必須
-  移入 source container 或刪除。
+- Temporary transport cache 的唯一 repo-local runtime path 是
+  `.polaris/runtime/external-writes/`；finalize / closeout 前必須移入 source container 或刪除。
+- `.codex/external-writes/` 與 `.codex/tmp/` 是 forbidden old / scratch residue；refinement
+  producer 不得寫入、讀取或把它們當作 fallback。
 
 ## Required Gate Defer
 

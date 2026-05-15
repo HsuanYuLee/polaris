@@ -30,6 +30,7 @@ fi
 input="$1"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 validator="$script_dir/validate-refinement-json.sh"
+residue_checker="$script_dir/check-runtime-cache-residue.sh"
 
 if [[ ! -x "$validator" ]]; then
   echo "BLOCKED: validator not executable: $validator" >&2
@@ -73,6 +74,13 @@ BLOCKED: refinement.json exists but does not satisfy the pipeline handoff schema
 Fix the artifact, including predecessor_audit / writeback fields, before proceeding to breakdown.
 EOF
   exit 1
+fi
+
+source_container="$(cd "$(dirname "$json_path")" && pwd)"
+repo_root="$(cd "$script_dir/.." && pwd)"
+
+if [[ -x "$residue_checker" ]]; then
+  "$residue_checker" --repo "$repo_root" --source-container "$source_container"
 fi
 
 echo "PASS refinement handoff: $json_path"

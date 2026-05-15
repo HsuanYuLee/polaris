@@ -100,6 +100,8 @@ bash scripts/validate-dp-plan-authoring.sh <source_container>/index.md
 - DP-backed source 的 `predecessor_audit` 即使沒有 predecessor 也要寫 `[]`。
 - external write drafts、research snapshots、manual validation output 要歸檔到 source
   container 或刪除 temporary body file。
+- Shared runtime transport cache 只能使用 `.polaris/runtime/external-writes/`；`.codex/external-writes/`
+  與 `.codex/tmp/` 是 forbidden old / scratch residue，不得作為 producer 寫入或讀取來源。
 
 Handoff gate：
 
