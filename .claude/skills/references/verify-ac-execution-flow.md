@@ -101,7 +101,27 @@ bash {polaris_root}/scripts/collect-evidence-upload-bundle.sh \
   --target jira
 ```
 
-Bundle 只是人工上傳來源；verify-AC 的 PASS/FAIL/MANUAL_REQUIRED/UNCERTAIN 分類仍以實際
+接著先 dry-run，再依 verify-AC reporting gate 使用 apply 上傳 Jira attachment：
+
+```bash
+node {polaris_root}/scripts/publish-jira-evidence.mjs \
+  --repo {polaris_root} \
+  --manifest {bundle_dir}/publication-manifest.json \
+  --links {bundle_dir}/links.json \
+  --jira-key {AC_TICKET_KEY} \
+  --report {verification_report_md} \
+  --dry-run
+
+node {polaris_root}/scripts/publish-jira-evidence.mjs \
+  --repo {polaris_root} \
+  --manifest {bundle_dir}/publication-manifest.json \
+  --links {bundle_dir}/links.json \
+  --jira-key {AC_TICKET_KEY} \
+  --report {verification_report_md} \
+  --apply
+```
+
+Bundle / Jira attachment 只是 evidence publication；verify-AC 的 PASS/FAIL/MANUAL_REQUIRED/UNCERTAIN 分類仍以實際
 observed evidence 與 AC expected 比對為準。
 
 圖片嵌入 JIRA report 時使用 wiki markup attachment syntax。Standalone local paths 也要列入 final

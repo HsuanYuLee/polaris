@@ -27,6 +27,8 @@ create_skill check-pr-approvals "我的 PR, PR 狀態"
 create_skill bug-triage "修 bug, bug triage"
 create_skill engineering "做 ticket, engineering"
 create_skill refinement "討論需求, refinement"
+create_skill breakdown "拆單, breakdown"
+create_skill verify-AC "verify AC, 跑驗收"
 create_skill learning "learning, 學習"
 create_skill validate "validate, 檢查機制"
 

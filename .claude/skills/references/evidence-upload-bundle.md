@@ -65,8 +65,10 @@ assets/
 - copied item list，包含 source path、bundle filename、size、SHA-256，以及是否需要
   remote publication
 
-`links.json` 由 `scripts/distribute-static-evidence.mjs` 產生。LLM 不判斷檔案歸屬；
-distributor 依副檔名機械式分類：
+`links.json` 可由 `scripts/distribute-static-evidence.mjs` 或
+`scripts/collect-evidence-upload-bundle.sh` 產生。對 upload bundle，collector 會以已複製的
+required media files 直接產生 Jira publisher links；LLM 不判斷檔案歸屬。
+distributor / collector 依副檔名機械式分類：
 
 | Extension | Destination | Report behavior |
 |-----------|-------------|-----------------|
@@ -155,7 +157,8 @@ Helper 會收集既有 evidence：
 若 baseline / compare 截圖等 artifact 有相同 basename，helper 會產生不衝突的 bundle
 filename，避免互相覆蓋。
 
-收集後可用 distributor / report generator 建 local board report：
+收集後 bundle 已包含 `links.json` 與 `publication-manifest.json`。若需要另外建立
+`assets/` layout 或 local board report，可再用 distributor / report generator：
 
 ```bash
 node "${POLARIS_ROOT}/scripts/distribute-static-evidence.mjs" \
@@ -232,8 +235,9 @@ evidence。
 ## verify-AC Flow
 
 當 verify-AC 收集 screenshots、videos、VR diffs、traces 或其他需要人工檢視 /
-Jira upload 的 visual evidence 時，必須產生 `jira` bundle，並在 verification report
-列出 bundle path。
+Jira upload 的 visual evidence 時，必須產生 `jira` bundle，並用 bundle 內的
+`publication-manifest.json` / `links.json` 呼叫 `publish-jira-evidence.mjs`。Verification report
+必須列出 bundle path 與 Jira publication status。
 
 若 PASS-only run 沒有 visual/manual evidence，可以跳過 bundle creation。
 

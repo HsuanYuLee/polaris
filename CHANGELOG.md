@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.75] - 2026-05-15
+
+### Fixed — verify-AC evidence publication and full workflow routing
+
+- 讓 evidence upload bundle 直接產出 Jira publisher 可消費的 `links.json` 與 `publication-manifest.json`，圖片與影片證據可進入 attachment publication dry-run / apply 流程。
+- 強化 verify-AC evidence reference，要求有 media evidence 時以 bundle manifest 呼叫 Jira publisher，並將 publication status 寫回 report。
+- 補強 skill routing 對「完整流程 / 建 DP / DP -> PR -> 升版 / framework-release」的 hard rule，明確固定 `refinement -> breakdown -> engineering -> verify-AC`，`framework-release` 僅作 terminal tail。
+
 ## [3.75.74] - 2026-05-15
 
 ### Changed — spec lifecycle reconciler authority

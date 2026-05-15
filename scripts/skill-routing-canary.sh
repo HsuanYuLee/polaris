@@ -84,6 +84,20 @@ require_file_patterns(
 )
 
 require_file_patterns(
+    skill_routing,
+    "full workflow framework release routing",
+    [
+        r"Full Development Workflow Orchestration",
+        r"完整流程.*完整 workflow.*走完整開發流程",
+        r"建 DP.*建一個 DP",
+        r"DP -> PR -> 升版",
+        r"refinement -> breakdown -> engineering -> verify-AC",
+        r"framework-release.*terminal-only",
+        r"同一句.*建 DP / 開發 / 發 PR",
+    ],
+)
+
+require_file_patterns(
     revision_flow,
     "engineering revision plugin boundary",
     [

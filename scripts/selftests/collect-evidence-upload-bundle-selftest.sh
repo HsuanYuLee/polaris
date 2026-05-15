@@ -66,22 +66,30 @@ PY
 
 [[ -f "$bundle_dir/README.md" ]] || { echo "missing README.md" >&2; exit 1; }
 [[ -f "$bundle_dir/manifest.json" ]] || { echo "missing manifest.json" >&2; exit 1; }
+[[ -f "$bundle_dir/links.json" ]] || { echo "missing links.json" >&2; exit 1; }
+[[ -f "$bundle_dir/publication-manifest.json" ]] || { echo "missing publication-manifest.json" >&2; exit 1; }
 grep -q '^---$' "$bundle_dir/README.md"
 grep -q 'title: "Evidence upload bundle - TASK-9999"' "$bundle_dir/README.md"
 grep -q "required publication files" "$bundle_dir/README.md"
+grep -q "publication-manifest.json" "$bundle_dir/README.md"
 
-python3 - "$bundle_dir/manifest.json" <<'PY'
+python3 - "$bundle_dir/manifest.json" "$bundle_dir/links.json" "$bundle_dir/publication-manifest.json" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 manifest = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+links = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+publication = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
 assert manifest["source_container"].endswith("specs/EPIC-999")
 assert manifest["bundle_dir"].endswith("artifacts/TASK-9999-pr-upload")
+assert manifest["links_path"] == "links.json"
+assert manifest["publication_manifest_path"] == "publication-manifest.json"
 assert manifest["report_generator_input"] == {
-    "type": "upload_bundle_manifest",
-    "path": "manifest.json",
-    "items_path": "items",
+    "type": "evidence_publication_manifest",
+    "path": "publication-manifest.json",
+    "links_path": "links.json",
+    "artifacts_path": "artifacts",
 }
 items = manifest["items"]
 bundle_paths = [item["bundle_path"] for item in items]
@@ -96,6 +104,33 @@ vr_pngs = [item for item in items if item["kind"] == "vr_artifact" and item["bun
 assert len(vr_pngs) == 2, f"expected two collision-prone VR pngs, got {len(vr_pngs)}"
 required = [item for item in items if item["requires_publication"]]
 assert len(required) >= 7, f"expected required publication evidence, got {len(required)}"
+assert links["kind"] == "polaris-static-evidence-links"
+assert publication["kind"] == "polaris-evidence-publication-manifest"
+publication_filenames = [item["filename"] for item in publication["artifacts"]]
+assert any(name.endswith(".png") for name in publication_filenames), publication_filenames
+assert any(name.endswith(".webm") for name in publication_filenames), publication_filenames
+assert not any(name.endswith(".json") for name in publication_filenames), publication_filenames
+assert len(publication["artifacts"]) == len(links["items"])
+PY
+
+publisher_output="$(node "$ROOT/scripts/publish-jira-evidence.mjs" \
+  --repo "$ROOT" \
+  --manifest "$bundle_dir/publication-manifest.json" \
+  --links "$bundle_dir/links.json" \
+  --jira-key "PROJ-123" \
+  --dry-run)"
+
+python3 - "$publisher_output" "$bundle_dir/publication-manifest.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+output = json.loads(sys.argv[1])
+manifest = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+assert output["status"] == "dry_run"
+assert output["planned_uploads"] >= 4, output
+assert manifest["remote_publication"]["status"] == "dry_run"
+assert manifest["remote_publication"]["planned_count"] == output["planned_uploads"]
 PY
 
 echo "PASS: collect-evidence-upload-bundle selftest"

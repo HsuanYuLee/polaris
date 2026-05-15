@@ -260,6 +260,79 @@ for candidate in sorted(set(ci_candidates)):
     if matches_head:
         add_source("ci_local", candidate, required_publication=False)
 
+REMOTE_PUBLICATION_EXTENSIONS = {
+    ".png": "image",
+    ".jpg": "image",
+    ".jpeg": "image",
+    ".webp": "image",
+    ".gif": "image",
+    ".svg": "image",
+    ".webm": "video",
+    ".mp4": "video",
+    ".mov": "video",
+    ".m4v": "video",
+}
+
+
+def remote_publication_records() -> tuple[dict, dict]:
+    link_items = []
+    artifacts = []
+    for item in items:
+        if not item.get("requires_publication"):
+            continue
+        bundle_path = str(item.get("bundle_path", ""))
+        extension = Path(bundle_path).suffix.lower()
+        remote_kind = REMOTE_PUBLICATION_EXTENSIONS.get(extension)
+        if not remote_kind:
+            continue
+        copied = output_dir / bundle_path
+        if not copied.is_file():
+            continue
+        artifact_id = f"{remote_kind}-{item.get('sha256', sha256_file(copied))[:12]}"
+        relative_link = f"./{bundle_path}"
+        link_items.append({
+            "id": artifact_id,
+            "kind": remote_kind,
+            "asset_path": str(copied),
+            "relative_link": relative_link,
+            "remote_publication_required": True,
+            "publishable": True,
+        })
+        artifacts.append({
+            "id": artifact_id,
+            "kind": remote_kind,
+            "filename": bundle_path,
+            "local_link": relative_link,
+            "source_path": item.get("source_path"),
+            "requires_publication": True,
+            "publishable": True,
+            "sha256": item.get("sha256"),
+            "size": item.get("size"),
+        })
+    return (
+        {
+            "schema_version": 1,
+            "kind": "polaris-static-evidence-links",
+            "scope": ticket,
+            "items": link_items,
+        },
+        {
+            "schema_version": 1,
+            "kind": "polaris-evidence-publication-manifest",
+            "scope": ticket,
+            "status": "local_only",
+            "artifacts": artifacts,
+        },
+    )
+
+
+links, remote_publication = remote_publication_records()
+(output_dir / "links.json").write_text(json.dumps(links, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+(output_dir / "publication-manifest.json").write_text(
+    json.dumps(remote_publication, ensure_ascii=False, indent=2) + "\n",
+    encoding="utf-8",
+)
+
 manifest = {
     "schema_version": 1,
     "kind": "polaris-evidence-upload-bundle",
@@ -270,8 +343,16 @@ manifest = {
     "source_container": str(source_container),
     "bundle_dir": str(output_dir),
     "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
-    "publication_manifest_sha256": sha256_file(publication_manifest_path),
+    "delivery_publication_manifest_sha256": sha256_file(publication_manifest_path),
+    "links_path": "links.json",
+    "publication_manifest_path": "publication-manifest.json",
     "report_generator_input": {
+        "type": "evidence_publication_manifest",
+        "path": "publication-manifest.json",
+        "links_path": "links.json",
+        "artifacts_path": "artifacts",
+    },
+    "legacy_report_generator_input": {
         "type": "upload_bundle_manifest",
         "path": "manifest.json",
         "items_path": "items",
@@ -312,6 +393,7 @@ if required:
         lines.append(
             f"| `{item['bundle_path']}` | `{item['kind']}` | `{item['display_path']}` | `{item['sha256']}` |"
         )
+    lines.extend(["", "Jira publisher input:", "", "- `links.json`", "- `publication-manifest.json`"])
 else:
     lines.append("目前沒有 screenshot、video 或 VR artifact 需要人工發布。")
 
@@ -336,6 +418,7 @@ lines.extend(
         "上傳前請先檢查 screenshots 與 videos。若檔案暴露 secrets、private customer data 或無關個資，不可發布。",
         "",
         "`manifest.json` 記錄所有 copied files、source paths、sizes 與 SHA-256 hashes。",
+        "`publication-manifest.json` 只列出可供 Jira attachment publisher 上傳的圖片與影片。",
     ]
 )
 (output_dir / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
