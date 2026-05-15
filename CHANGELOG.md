@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.76] - 2026-05-15
+
+### Fixed — runtime verification config hardening
+
+- 讓 `ci-local-generate.sh` 在 test-only patch 沒有 instrumented coverage lines 時維持 SKIP/PASS，不再被 empty-coverage safety net 誤判為 missing source coverage。
+- 讓 `start-test-env.sh` 從 effective project config 讀取 `liveness_delay_seconds` / `liveness_timeout_seconds`，支援 Nuxt dev SSR 首次編譯較慢的 runtime verification。
+- 讓 `handbook-config-validator.sh` 驗證 runtime liveness window 欄位型別，並以 selftest 覆蓋 coverage gate 與 env primitive 行為。
+
 ## [3.75.75] - 2026-05-15
 
 ### Fixed — verify-AC evidence publication and full workflow routing

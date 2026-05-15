@@ -244,6 +244,8 @@ mapping = {
     "base_url": runtime.get("base_url"),
     "health_check": runtime.get("health_check"),
     "ready_signal": runtime.get("healthy_signal"),
+    "liveness_delay_seconds": runtime.get("liveness_delay_seconds"),
+    "liveness_timeout_seconds": runtime.get("liveness_timeout_seconds"),
     "requires": runtime.get("requires"),
     "test_command": test.get("command"),
 }
@@ -361,8 +363,10 @@ echo "{\"primitive\":\"start-test-env\",\"step\":\"health-check\",\"status\":\"P
 liveness_status="$(printf '%s' "$sc_out" | python3 -c 'import json, sys; print((json.load(sys.stdin).get("status") or ""))')"
 liveness_pid="$(printf '%s' "$sc_out" | python3 -c 'import json, sys; print((json.load(sys.stdin).get("pid") or ""))')"
 liveness_log="$(printf '%s' "$sc_out" | python3 -c 'import json, sys; print((json.load(sys.stdin).get("log") or ""))')"
-liveness_delay="${POLARIS_RUNTIME_LIVENESS_DELAY_SECONDS:-1}"
-liveness_timeout="${POLARIS_RUNTIME_LIVENESS_TIMEOUT_SECONDS:-5}"
+config_liveness_delay="$(printf '%s' "$env_json" | env_lib_get_field 'liveness_delay_seconds' 2>/dev/null || true)"
+config_liveness_timeout="$(printf '%s' "$env_json" | env_lib_get_field 'liveness_timeout_seconds' 2>/dev/null || true)"
+liveness_delay="${POLARIS_RUNTIME_LIVENESS_DELAY_SECONDS:-${config_liveness_delay:-1}}"
+liveness_timeout="${POLARIS_RUNTIME_LIVENESS_TIMEOUT_SECONDS:-${config_liveness_timeout:-5}}"
 if ! [[ "$liveness_delay" =~ ^[0-9]+$ ]]; then
   env_lib_log_fail "runtime liveness finalizer FAILED for $PROJECT: POLARIS_RUNTIME_LIVENESS_DELAY_SECONDS must be an integer"
   exit 1

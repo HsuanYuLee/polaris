@@ -60,6 +60,17 @@ init_git_repo() {
   )
 }
 
+latest_ci_local_evidence() {
+  python3 - <<'PY'
+import glob
+import os
+
+paths = glob.glob("/tmp/polaris-ci-local-*")
+if paths:
+    print(max(paths, key=os.path.getmtime))
+PY
+}
+
 # ============================================================================
 echo "== Test 1: Woodpecker (folder mode) + husky + codecov =="
 # ============================================================================
@@ -311,7 +322,7 @@ EVIDENCE_AFTER="$(ls /tmp/polaris-ci-local-* 2>/dev/null | wc -l)"
 [ "$EVIDENCE_AFTER" -gt "$EVIDENCE_BEFORE" ]
 assert "Test 5: evidence file written" "$([ "$EVIDENCE_AFTER" -gt "$EVIDENCE_BEFORE" ] && echo 1 || echo 0)"
 # Find the evidence and verify schema
-LATEST_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+LATEST_EVIDENCE="$(latest_ci_local_evidence)"
 if [ -f "$LATEST_EVIDENCE" ]; then
   STATUS="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('status',''))" "$LATEST_EVIDENCE")"
   WRITER="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('writer',''))" "$LATEST_EVIDENCE")"
@@ -368,7 +379,7 @@ T7_RUN_RC=$?
 assert "Test 7: --repo invocation exit 0" "$([ $T7_RUN_RC -eq 0 ] && echo 1 || echo 0)"
 # Locate the most-recent evidence and check its head_sha matches T7's HEAD
 T7_HEAD="$(git -C "$T7" rev-parse --short=12 HEAD 2>/dev/null)"
-LATEST_EV="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+LATEST_EV="$(latest_ci_local_evidence)"
 if [ -f "$LATEST_EV" ]; then
   EV_SHA="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('head_sha',''))" "$LATEST_EV")"
   if [ "$EV_SHA" = "$T7_HEAD" ]; then
@@ -412,7 +423,7 @@ assert_contains "Test 8: generated script includes branch condition" "$OUT8" '"b
 T8_SKIP_RC=$?
 assert "Test 8: feature-base run exits 0" "$([ $T8_SKIP_RC -eq 0 ] && echo 1 || echo 0)"
 assert_contains "Test 8: feature-base output records SKIP" /tmp/ci-local-test8-skip.out "SKIP (branch_not_matched)"
-T8_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+T8_EVIDENCE="$(latest_ci_local_evidence)"
 python3 - "$T8_EVIDENCE" <<'PY' >/tmp/ci-local-test8-skip-evidence.out
 import json, sys
 d=json.load(open(sys.argv[1]))
@@ -499,7 +510,7 @@ assert "Test 9: develop-base run passes" "$([ $T9_DEVELOP_RC -eq 0 ] && echo 1 |
 (cd "$T9" && bash "$OUT9" --repo "$T9" --base-branch feature/base >/tmp/ci-local-test9-feature.out 2>&1)
 T9_FEATURE_RC=$?
 assert "Test 9: feature-base run fails patch coverage" "$([ $T9_FEATURE_RC -ne 0 ] && echo 1 || echo 0)"
-T9_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+T9_EVIDENCE="$(latest_ci_local_evidence)"
 python3 - "$T9_EVIDENCE" <<'PY' >/tmp/ci-local-test9-evidence.out
 import json, sys
 d=json.load(open(sys.argv[1]))
@@ -560,7 +571,7 @@ assert "Test 10: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 (cd "$T10" && bash "$OUT10" --repo "$T10" --base-branch develop >/tmp/ci-local-test10.out 2>&1)
 T10_RC=$?
 assert "Test 10: run exits 0 when matched file has lcov data" "$([ $T10_RC -eq 0 ] && echo 1 || echo 0)"
-T10_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+T10_EVIDENCE="$(latest_ci_local_evidence)"
 python3 - "$T10_EVIDENCE" <<'PY' >/tmp/ci-local-test10-evidence.out
 import json, sys
 d=json.load(open(sys.argv[1]))
@@ -623,7 +634,7 @@ assert "Test 10b: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 (cd "$T10B" && bash "$OUT10B" --repo "$T10B" --base-branch develop >/tmp/ci-local-test10b.out 2>&1)
 T10B_RC=$?
 assert "Test 10b: run exits 0 for test-only no instrumented lines" "$([ $T10B_RC -eq 0 ] && echo 1 || echo 0)"
-T10B_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+T10B_EVIDENCE="$(latest_ci_local_evidence)"
 python3 - "$T10B_EVIDENCE" <<'PY' >/tmp/ci-local-test10b-evidence.out
 import json, sys
 d=json.load(open(sys.argv[1]))
@@ -640,7 +651,7 @@ assert_contains "Test 10b: records matched test file" /tmp/ci-local-test10b-evid
 rm -f "$T10B_EVIDENCE" /tmp/ci-local-test10b.out /tmp/ci-local-test10b-evidence.out
 
 # ============================================================================
-echo "== Test 10c: Codecov test-only patch still fails when coverage data is absent =="
+echo "== Test 10c: Codecov test-only patch skips when coverage data is absent =="
 # ============================================================================
 T10C="$TMPROOT/codecov-test-only-no-coverage-data"
 mkdir -p "$T10C/src" "$T10C/coverage"
@@ -683,8 +694,8 @@ assert "Test 10c: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 
 (cd "$T10C" && bash "$OUT10C" --repo "$T10C" --base-branch develop >/tmp/ci-local-test10c.out 2>&1)
 T10C_RC=$?
-assert "Test 10c: run exits non-zero when coverage data is absent" "$([ $T10C_RC -ne 0 ] && echo 1 || echo 0)"
-T10C_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+assert "Test 10c: run exits 0 for test-only missing coverage data" "$([ $T10C_RC -eq 0 ] && echo 1 || echo 0)"
+T10C_EVIDENCE="$(latest_ci_local_evidence)"
 python3 - "$T10C_EVIDENCE" <<'PY' >/tmp/ci-local-test10c-evidence.out
 import json, sys
 d=json.load(open(sys.argv[1]))
@@ -695,9 +706,9 @@ print(g.get("reason"))
 print(",".join(g.get("matched_files", [])))
 print(",".join(g.get("files_with_coverage_data", [])))
 PY
-assert_contains "Test 10c: evidence status FAIL" /tmp/ci-local-test10c-evidence.out "FAIL"
-assert_contains "Test 10c: codecov status FAIL" /tmp/ci-local-test10c-evidence.out "FAIL"
-assert_contains "Test 10c: empty coverage net remains active" /tmp/ci-local-test10c-evidence.out "no_coverage_data_with_changed_files"
+assert_contains "Test 10c: evidence status PASS" /tmp/ci-local-test10c-evidence.out "PASS"
+assert_contains "Test 10c: codecov status SKIP" /tmp/ci-local-test10c-evidence.out "SKIP"
+assert_contains "Test 10c: reason is test-only no instrumented lines" /tmp/ci-local-test10c-evidence.out "test_only_patch_no_instrumented_lines"
 assert_contains "Test 10c: records matched test file" /tmp/ci-local-test10c-evidence.out "src/foo.test.ts"
 rm -f "$T10C_EVIDENCE" /tmp/ci-local-test10c.out /tmp/ci-local-test10c-evidence.out
 
@@ -747,7 +758,7 @@ assert "Test 11: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 (cd "$T11" && bash "$OUT11" --repo "$T11" --base-branch develop >/tmp/ci-local-test11.out 2>&1)
 T11_RC=$?
 assert "Test 11: run exits zero when coverage data exists" "$([ $T11_RC -eq 0 ] && echo 1 || echo 0)"
-T11_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+T11_EVIDENCE="$(latest_ci_local_evidence)"
 python3 - "$T11_EVIDENCE" <<'PY' >/tmp/ci-local-test11-evidence.out
 import json, sys
 d=json.load(open(sys.argv[1]))
@@ -826,7 +837,7 @@ set +e
 T11C_RC=$?
 set -e
 assert "Test 11c: run exits non-zero when V8 branch data fails patch" "$([ $T11C_RC -ne 0 ] && echo 1 || echo 0)"
-T11C_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+T11C_EVIDENCE="$(latest_ci_local_evidence)"
 python3 - "$T11C_EVIDENCE" <<'PY' >/tmp/ci-local-test11c-evidence.out
 import json, sys
 d=json.load(open(sys.argv[1]))
@@ -886,7 +897,7 @@ set +e
 T11B_RC=$?
 set -e
 assert "Test 11b: run exits non-zero without coverage data" "$([ $T11B_RC -ne 0 ] && echo 1 || echo 0)"
-T11B_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+T11B_EVIDENCE="$(latest_ci_local_evidence)"
 python3 - "$T11B_EVIDENCE" <<'PY' >/tmp/ci-local-test11b-evidence.out
 import json, sys
 d=json.load(open(sys.argv[1]))
@@ -931,7 +942,7 @@ assert "Test 12: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 
 (cd "$T12" && PATH="$T12/.bin:$PATH" bash "$OUT12" --repo "$T12" >/tmp/ci-local-test12-first.out 2>&1)
 assert "Test 12: first run exits 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-T12_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+T12_EVIDENCE="$(latest_ci_local_evidence)"
 python3 - "$T12_EVIDENCE" <<'PY' >/tmp/ci-local-test12-evidence.out
 import json, sys
 d=json.load(open(sys.argv[1]))
@@ -1006,7 +1017,7 @@ set -e
 assert "Test 13: run exits non-zero" "$([ $T13_RC -ne 0 ] && echo 1 || echo 0)"
 assert_contains "Test 13: output includes BLOCKED_ENV" /tmp/ci-local-test13.out "BLOCKED_ENV"
 assert_not_contains "Test 13: downstream command not run" /tmp/ci-local-test13.out "SHOULD_NOT_RUN"
-T13_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+T13_EVIDENCE="$(latest_ci_local_evidence)"
 python3 - "$T13_EVIDENCE" <<'PY' >/tmp/ci-local-test13-evidence.out
 import json, sys
 d=json.load(open(sys.argv[1]))
@@ -1097,7 +1108,7 @@ git -C "$T14" -c user.email=t@t -c user.name=t commit -q -m "fix: [TASK-1234] ad
 (cd "$T14" && bash "$OUT14" --repo "$T14" --base-branch develop >/tmp/ci-local-test14-pass.out 2>&1)
 T14_PASS_RC=$?
 assert "Test 14: changeset with ticket passes" "$([ $T14_PASS_RC -eq 0 ] && echo 1 || echo 0)"
-T14_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+T14_EVIDENCE="$(latest_ci_local_evidence)"
 python3 - "$T14_EVIDENCE" <<'PY' >/tmp/ci-local-test14-evidence.out
 import json, sys
 d=json.load(open(sys.argv[1]))
@@ -1155,7 +1166,7 @@ JSON
 assert_contains "Test 15: generated script records override source" "$OUT15" "Repo overrides:"
 assert_contains "Test 15: output records repo override skip" /tmp/ci-local-test15-run.out "repo_override:test-lint-typecheck-false-positive"
 assert_not_contains "Test 15: overridden command not executed" /tmp/ci-local-test15-run.out "SHOULD_NOT_RUN"
-T15_EVIDENCE="$(ls -t /tmp/polaris-ci-local-* 2>/dev/null | head -1)"
+T15_EVIDENCE="$(latest_ci_local_evidence)"
 python3 - "$T15_EVIDENCE" <<'PY' >/tmp/ci-local-test15-evidence.out
 import json, sys
 d = json.load(open(sys.argv[1], encoding="utf-8"))

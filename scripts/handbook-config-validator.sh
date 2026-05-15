@@ -117,6 +117,9 @@ if data is not None:
                 for key in ("start_command", "health_check"):
                     if key in runtime and not isinstance(runtime[key], str):
                         errors.append(f"runtime.{key} must be a string")
+                for key in ("liveness_delay_seconds", "liveness_timeout_seconds"):
+                    if key in runtime and not isinstance(runtime[key], int):
+                        errors.append(f"runtime.{key} must be an integer")
                 if "requires" in runtime and not isinstance(runtime["requires"], list):
                     errors.append("runtime.requires must be a list")
 
