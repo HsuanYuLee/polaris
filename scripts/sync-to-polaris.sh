@@ -21,7 +21,7 @@
 #   - scripts/**/*.sh, scripts/**/*.py, scripts/**/*.mjs, and scripts/manifest.json
 #   - _template/
 #   - docs-manager/ (framework docs browser app, excluding generated outputs)
-#   - CHANGELOG.md, VERSION, README.md, README.zh-TW.md, CLAUDE.md
+#   - .gitignore, CHANGELOG.md, VERSION, README.md, README.zh-TW.md, CLAUDE.md
 #   - root package metadata: package.json, pnpm-workspace.yaml, pnpm-lock.yaml
 #
 # What it does NOT sync:
@@ -482,6 +482,7 @@ fi
 
 echo "Top-level files..."
 ensure_template_gitignore_allowlist
+copy_file "$INSTANCE_DIR/.gitignore" "$POLARIS_DIR/.gitignore" ".gitignore"
 copy_file "$INSTANCE_DIR/CHANGELOG.md" "$POLARIS_DIR/CHANGELOG.md" "CHANGELOG.md"
 copy_file "$INSTANCE_DIR/VERSION"      "$POLARIS_DIR/VERSION"      "VERSION"
 copy_file "$INSTANCE_DIR/README.md"       "$POLARIS_DIR/README.md"       "README.md"

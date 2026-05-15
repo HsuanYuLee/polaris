@@ -15,32 +15,74 @@
 !LICENSE
 !VERSION
 !CHANGELOG.md
+!package.json
+!pnpm-workspace.yaml
+!pnpm-lock.yaml
+!AGENTS.md
 !workspace-config.yaml.example
+!polaris-toolchain.yaml
 
 # ── docs/ documentation ──
 !docs/
 !docs/**
 
+# ── docs-manager/ specs browser (Starlight app) ──
+!docs-manager/
+!docs-manager/**
+# Generated/runtime docs-manager artifacts
+docs-manager/_sidebar.md
+docs-manager/.astro/
+docs-manager/dist/
+docs-manager/public/evidence/
+docs-manager/src/content/docs/specs/
+
 # ── scripts/ framework utilities ──
 !scripts/
 !scripts/**
+
+# ── tools/ framework runtime packages ──
+!tools/
+!tools/**
 
 # ── _template/ scaffold directory ──
 !_template/
 !_template/**
 
+# Company directories are local workspace context only.
+# They contain company repos, company handbooks, generated scripts, local secrets,
+# and Polaris-managed company config. They are read by framework tooling with
+# --no-ignore where needed, but must not enter workspace/template tracking.
+
 # ── .claude/ directory (rules, hooks, settings) ──
 !.claude/
+!.claude/instructions/
+!.claude/instructions/**
 !.claude/hooks/
 !.claude/hooks/**
 !.claude/rules/
 !.claude/rules/**
 !.claude/skills/
 !.claude/skills/**
+!.claude/handbook/
+!.claude/handbook/**
 !.claude/settings.json
 !.claude/settings.local.json.example
 !.claude/settings.local.json.sub-repo-example
 !.claude/polaris-backlog.md
+
+# ── CI baseline (DP-032 D12-c) ──
+!.github/
+!.github/**
+!.pre-commit-config.yaml
+
+# ── .agents/ directory (Codex skills compatibility) ──
+!.agents/
+!.agents/skills
+!.agents/skills/**
+
+# ── .codex/ directory (Codex runtime compatibility target) ──
+!.codex/
+!.codex/**
 
 # ============================================
 # Never track (even if manually staged)
@@ -49,7 +91,18 @@
 # Personal settings
 .claude/settings.local.json
 
-# User-specific learning data (populated by daily learning scanner)
+# Local-only user workspace surface. This is intentionally peer-level with
+# company folders, but it is not a company and is never runtime-discovered.
+user/
+
+# External write transport cache only. Durable drafts belong in the owning
+# ticket or DP source container before closeout.
+.codex/external-writes/
+
+# Spec folders — root specs contains design plans and company-scoped ticket specs.
+/specs/
+
+# User-specific learning data (scanner delivers via Slack; archive is local dedup only)
 .claude/skills/references/learning-queue.md
 .claude/skills/references/learning-archive.md
 
@@ -64,29 +117,25 @@ workspace-config.yaml
 # After /init, add your company here: .claude/skills/{company}/
 # .claude/skills/acme/
 
+# ── Company polaris-config: workspace-owned local config ──
+# Polaris controls these files in the local workspace, but they are
+# company/project-specific runtime config and must not enter workspace PRs or
+# the Polaris template. Validators read them from disk with --no-ignore.
+*/polaris-config/
+
+# Framework tool runtime (node_modules + outputs)
+scripts/e2e/node_modules/
+scripts/e2e/e2e-results/
+scripts/e2e/e2e-results.json
+scripts/e2e/test-results/
+scripts/mockoon/node_modules/
+tools/polaris-toolchain/node_modules/
+
 # System / IDE
 .DS_Store
 node_modules/
 .vite/
 
-# ── docs-manager/ specs browser (Starlight app) ──
-!docs-manager/
-!docs-manager/**
-docs-manager/_sidebar.md
-docs-manager/.astro/
-docs-manager/dist/
-docs-manager/node_modules/
-docs-manager/src/content/docs/specs/
-
-# ── GitHub config (Copilot instructions + generated manifests) ──
-!.github/
-!.github/**
-
-# ── Codex compatibility files ──
-!.agents/
-!.agents/skills
-!.agents/skills/**
-!.codex/
-!.codex/AGENTS.md
-!.codex/.generated/
-!.codex/.generated/**
+# Python bytecode
+__pycache__/
+*.pyc

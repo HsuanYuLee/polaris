@@ -1,0 +1,20 @@
+{
+  "name": "polaris-framework-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.10.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "viewer:dev": "bash scripts/polaris-viewer.sh --detach --mode dev --port ${PORT:-8080} --no-open",
+    "viewer:preview": "bash scripts/polaris-viewer.sh --detach --preview --port ${PORT:-3334} --no-open",
+    "viewer:status": "bash scripts/polaris-viewer.sh --status --port ${PORT:-8080}",
+    "viewer:stop": "bash scripts/polaris-viewer.sh --stop --port ${PORT:-8080}",
+    "viewer:verify": "bash scripts/polaris-toolchain.sh run docs.viewer.verify -- --ports ${PORT:-3334} --preview",
+    "toolchain:install": "bash scripts/polaris-toolchain.sh install --required",
+    "toolchain:doctor": "bash scripts/polaris-toolchain.sh doctor --required",
+    "toolchain:manifest": "bash scripts/polaris-toolchain.sh manifest --required",
+    "scripts:check": "bash scripts/check-script-manifest.sh",
+    "commands:check": "bash scripts/validate-polaris-command-catalog.sh"
+  }
+}
