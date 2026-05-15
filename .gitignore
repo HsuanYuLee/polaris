@@ -95,6 +95,10 @@ docs-manager/src/content/docs/specs/
 # company folders, but it is not a company and is never runtime-discovered.
 user/
 
+# Polaris repo-local runtime tools and asset cache.
+.polaris/toolchain/
+.polaris/toolchain/**
+
 # External write transport cache only. Durable drafts belong in the owning
 # ticket or DP source container before closeout.
 .codex/external-writes/

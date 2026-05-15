@@ -14,7 +14,7 @@
 
 **開發者還需要：**
 - **Git** 和 **GitHub CLI**（`gh`）— 已對組織認證
-- **Polaris 本機 toolchain** — Node >= 22.12.0、pnpm 10.10.0、Python 3，以及 Playwright / Mockoon / docs viewer 所需套件。Clone 後先跑 `bash scripts/polaris-toolchain.sh doctor --required`；缺工具時跑 `bash scripts/polaris-toolchain.sh install --required` 後再重跑 doctor。
+- **Polaris 本機 toolchain** — 先跑 `bash scripts/polaris-bootstrap.sh`，再跑 `bash scripts/polaris-doctor.sh --profile runtime`。Managed runtime 會涵蓋 Node >= 22.12.0、pnpm 10.10.0、Python 3.12、rg、jq，以及 Playwright / Mockoon / docs viewer 所需套件。Legacy compatibility 文件可能仍提到 `bash scripts/polaris-toolchain.sh doctor --required`；新 workspace 以 bootstrap 和 doctor 為準。
 
 **選用：**
 - **Google Calendar MCP** — 在 standup 加入會議上下文
@@ -35,17 +35,17 @@ cd ~/polaris-workspace
 
 > **提示**：選一個專用的目錄名稱。避免使用 `~/work` — 很多開發者已經在用這個路徑。
 
-確認本機 toolchain：
+Bootstrap 並確認本機 toolchain：
 
 ```bash
-bash scripts/polaris-toolchain.sh doctor --required
+bash scripts/polaris-bootstrap.sh
+bash scripts/polaris-doctor.sh --profile runtime
 ```
 
-若 doctor 顯示缺工具：
+若 doctor 顯示缺工具，依輸出的 repair command 修復後重跑：
 
 ```bash
-bash scripts/polaris-toolchain.sh install --required
-bash scripts/polaris-toolchain.sh doctor --required
+bash scripts/polaris-doctor.sh --profile runtime
 ```
 
 > **PM 和非開發者：** 請團隊的開發者幫你跑步驟 1-2，大約需要 10 分鐘。然後直接跳到步驟 3。

@@ -63,6 +63,7 @@ WORKSPACE="$(cd "$WORKSPACE" && pwd)"
 python3 - "$WORKSPACE" "$COMPANY" "$JSON" "$STRICT_MCP" <<'PY'
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -213,10 +214,28 @@ for item in selected:
 
 toolchain_manifest = workspace / "polaris-toolchain.yaml"
 toolchain_script = workspace / "scripts" / "polaris-toolchain.sh"
-if toolchain_manifest.exists() and toolchain_script.exists():
-    add("toolchain", "ready", "polaris-toolchain manifest and runner exist", "info", "global CLI")
+toolchain_doctor = workspace / "scripts" / "polaris-doctor.sh"
+toolchain_repair = "bash scripts/polaris-bootstrap.sh && bash scripts/polaris-doctor.sh --profile runtime"
+if toolchain_manifest.exists() and toolchain_script.exists() and toolchain_doctor.exists():
+    try:
+        result = subprocess.run(
+            ["bash", str(toolchain_doctor), "--profile", "core", "--simulate-no-vscode-path"],
+            cwd=workspace,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=30,
+        )
+    except Exception as exc:
+        add("root toolchain", "partial", f"root toolchain doctor could not run: {exc}", "partial", "global CLI", toolchain_repair)
+    else:
+        if result.returncode == 0:
+            add("root toolchain", "ready", "core profile doctor passed", "info", "global CLI")
+        else:
+            summary = "core profile doctor reported missing runtime tools"
+            add("root toolchain", "partial", summary, "partial", "global CLI", toolchain_repair)
 else:
-    add("toolchain", "partial", "polaris-toolchain manifest or runner missing", "partial", "global CLI", "run scripts/polaris-toolchain.sh doctor --required")
+    add("root toolchain", "partial", "root toolchain manifest, runner, or doctor missing", "partial", "global CLI", toolchain_repair)
 
 agents_skills = workspace / ".agents" / "skills"
 codex_agents = workspace / ".codex" / "AGENTS.md"

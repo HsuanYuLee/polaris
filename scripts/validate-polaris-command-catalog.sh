@@ -60,9 +60,19 @@ required_ids = {
     "maintainer.framework-release",
     "maintainer.framework-docs-health",
 }
+allowed_direct_human_prefixes = (
+    "bash scripts/polaris-bootstrap.sh",
+    "bash scripts/polaris-doctor.sh",
+    "bash scripts/polaris-toolchain.sh",
+)
 
 def fail(message):
     errors.append(message)
+
+def is_allowed_direct_human_surface(value):
+    if not isinstance(value, str):
+        return False
+    return value.startswith(allowed_direct_human_prefixes)
 
 try:
     with open(catalog_path, encoding="utf-8") as fh:
@@ -134,15 +144,21 @@ for idx, row in enumerate(commands):
             fail(f"{cid}: {key} must be a non-empty string")
 
     if surface == "human":
-        if not isinstance(canonical, str) or not canonical.startswith("pnpm "):
-            fail(f"{cid}: human commands must use pnpm canonical surface")
-        else:
+        if isinstance(canonical, str) and canonical.startswith("pnpm "):
             script_name = canonical.split()[1]
             package_script = scripts.get(script_name)
             if package_script is None:
                 fail(f"{cid}: package.json is missing script {script_name!r}")
             elif package_script != implementation:
                 fail(f"{cid}: package script {script_name!r} does not match implementation")
+        elif is_allowed_direct_human_surface(canonical):
+            if canonical != implementation:
+                fail(f"{cid}: direct human command canonical must match implementation")
+        else:
+            fail(
+                f"{cid}: human canonical surface must be a pnpm thin alias or "
+                "a Polaris bootstrap/doctor/toolchain wrapper"
+            )
         if isinstance(owner, str) and owner.startswith("scripts/"):
             owner_path = os.path.join(root, owner)
             if not os.path.isfile(owner_path):

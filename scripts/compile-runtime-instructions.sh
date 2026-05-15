@@ -178,6 +178,19 @@ Load `.claude/rules/skill-routing.md` and `.claude/skills/references/engineering
 EOF
 }
 
+emit_root_toolchain_runtime_note() {
+  cat <<'EOF'
+For a fresh Polaris workspace, initialize root runtime dependencies before company onboarding:
+
+```bash
+bash scripts/polaris-bootstrap.sh
+bash scripts/polaris-doctor.sh --profile runtime
+```
+
+Then run the agent-facing `onboard` workflow. Root `pnpm` commands are thin aliases only; they are not the Polaris root runtime manager.
+EOF
+}
+
 emit_claude() {
   emit_header "Polaris Framework Bootstrap" "claude"
   emit_core
@@ -205,6 +218,8 @@ emit_agents() {
 This is a Polaris-owned bootstrap for coding agents. It does not imply installation into product repo roots. Host repo `AGENTS.md` files are repo-owned.
 EOF
   echo
+  emit_root_toolchain_runtime_note
+  echo
   emit_communication
   echo
   emit_plugin_workflow_quarantine
@@ -220,6 +235,8 @@ emit_codex() {
 
 Codex-compatible entrypoints use AGENTS conventions. This `.codex/AGENTS.md` file is a local compatibility target for the Polaris workspace; product repo root `AGENTS.md` files remain repo-owned.
 EOF
+  echo
+  emit_root_toolchain_runtime_note
   echo
   emit_communication
   echo

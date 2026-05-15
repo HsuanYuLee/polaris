@@ -424,6 +424,45 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/polaris-bootstrap.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "root_toolchain_bootstrap",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered by DP-183 T2 dry-run and verify evidence"
+    },
+    {
+      "path": "scripts/polaris-doctor.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "root_toolchain_doctor",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered by DP-183 T3 profile dry-runs and no-VSCode PATH regression"
+    },
+    {
+      "path": "scripts/selftests/validate-script-dependencies-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-script-dependencies.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_dependency_governance",
+      "selftest": "scripts/selftests/validate-script-dependencies-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-polaris-command-catalog.sh",
       "kind": "gate",
       "runner": "bash",

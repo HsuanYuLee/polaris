@@ -111,7 +111,15 @@ echo
 echo "[1/5] required commands"
 check_cmd git
 check_cmd gh
-check_cmd rg
+if [[ -x scripts/polaris-doctor.sh ]]; then
+  if bash scripts/polaris-doctor.sh --profile core --simulate-no-vscode-path; then
+    pass "Polaris core runtime doctor passed"
+  else
+    warn "Polaris core runtime doctor reported missing managed tools"
+  fi
+else
+  warn "scripts/polaris-doctor.sh missing"
+fi
 echo
 
 echo "[2/5] core Polaris assets"
@@ -139,10 +147,10 @@ echo
 echo "[5/5] Codex MCP hints"
 if [[ -f "$HOME/.codex/config.toml" ]]; then
   pass "~/.codex/config.toml exists"
-  if rg -q '^\[mcp_servers\.claude_ai_Slack\]' "$HOME/.codex/config.toml"; then
+  if grep -Eq '^\[mcp_servers\.claude_ai_Slack\]' "$HOME/.codex/config.toml"; then
     info "claude_ai_Slack is configured globally; if Codex says 'not logged in', run 'codex mcp login claude_ai_Slack'"
   fi
-  if rg -q '^\[mcp_servers\.figma\]' "$HOME/.codex/config.toml"; then
+  if grep -Eq '^\[mcp_servers\.figma\]' "$HOME/.codex/config.toml"; then
     info "figma is optional; if you do not use it, run 'codex mcp remove figma' to stop startup warnings"
   fi
 else

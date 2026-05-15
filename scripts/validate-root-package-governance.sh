@@ -8,6 +8,10 @@ usage() {
 Usage: bash scripts/validate-root-package-governance.sh [--root <repo>]
 
 Validates root package.json / pnpm-workspace.yaml governance for Polaris.
+
+Root package.json is allowed to expose thin aliases for compatibility and
+package-local Node workflows. It must not become the root runtime manager and
+must not declare third-party dependencies.
 USAGE
 }
 

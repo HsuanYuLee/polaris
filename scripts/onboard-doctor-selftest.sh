@@ -27,6 +27,11 @@ make_base() {
   mkdir -p "$dir/scripts" "$dir/.agents" "$dir/.claude/skills" "$dir/.codex/.generated"
   ln -s ../.claude/skills "$dir/.agents/skills"
   touch "$dir/.codex/AGENTS.md" "$dir/polaris-toolchain.yaml" "$dir/scripts/polaris-toolchain.sh"
+  cat > "$dir/scripts/polaris-doctor.sh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+  chmod +x "$dir/scripts/polaris-doctor.sh"
 }
 
 ready="$TMPDIR/ready"

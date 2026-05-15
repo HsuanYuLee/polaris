@@ -55,9 +55,11 @@ Repo analysis 或 dev environment detection 派 sub-agent 時，必須注入
 5. 寫入前顯示完整 YAML；`default_company` 只能在 root config，不可進 company config。
 6. 寫入 company config、更新 root company routing、append audit entries。
 7. 執行 optional post-setup：clone missing repos、genericize maps、MCP health check、
-   daily learning scanner、required toolchain install、Codex bootstrap、handbook generation。
+   daily learning scanner、root toolchain readiness check、Codex bootstrap、handbook generation。
 8. 執行 `scripts/onboard-doctor.sh`，回報 `ready` / `partial` / `blocked`、deferred empty
-   fields、Codex bootstrap status 與建議的第一個指令。
+   fields、root toolchain status、Codex bootstrap status 與建議的第一個指令。Root toolchain
+   repair 採 print-only，只顯示 `bash scripts/polaris-bootstrap.sh` /
+   `bash scripts/polaris-doctor.sh --profile <profile>`，不可由 `onboard repair` 隱性代跑。
 
 ## Write Rules
 

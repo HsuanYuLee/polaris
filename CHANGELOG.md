@@ -4,6 +4,22 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.86] - 2026-05-15
+
+### Fixed — runtime instruction source sync
+
+- 將 DP-183 root bootstrap / doctor onboarding note 移入 runtime instruction compiler，避免 generated `AGENTS.md` 被重新產生時遺失新使用者初始化路徑。
+- 同步 root `AGENTS.md` 與 Codex compatibility target，讓 agent-facing runtime notes 都指向 `polaris-bootstrap` / `polaris-doctor`。
+
+## [3.75.85] - 2026-05-15
+
+### Added — root runtime toolchain management
+
+- 新增 Polaris root `mise.toml` 與 toolchain manifest profiles，將 `rg`、`jq`、Node、pnpm、Python、Playwright browser cache 與 Mockoon runtime 納入明確治理。
+- 新增 `polaris-bootstrap` / `polaris-doctor` 流程，支援 workspace-shared runtime cache、no-VSCode PATH doctor 檢查，以及 fail-loud repair hints。
+- 更新 onboarding 與 quick-start 文件，讓新使用者先走 bootstrap / doctor，再進 agent-facing onboard；root `pnpm` 保留為 thin alias 而非 runtime manager。
+- 新增 script dependency governance，阻擋未納管的 shell / Python / Node 第三方工具與 package 依賴。
+
 ## [3.75.84] - 2026-05-15
 
 ### Fixed — template package allowlist sync

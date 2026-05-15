@@ -41,6 +41,15 @@ The framework is an add-on layer. Product repositories keep ownership of their t
 
 Codex-compatible entrypoints use AGENTS conventions. This `.codex/AGENTS.md` file is a local compatibility target for the Polaris workspace; product repo root `AGENTS.md` files remain repo-owned.
 
+For a fresh Polaris workspace, initialize root runtime dependencies before company onboarding:
+
+```bash
+bash scripts/polaris-bootstrap.sh
+bash scripts/polaris-doctor.sh --profile runtime
+```
+
+Then run the agent-facing `onboard` workflow. Root `pnpm` commands are thin aliases only; they are not the Polaris root runtime manager.
+
 ## Communication
 
 Use the workspace language from `workspace-config.yaml` as the default authoring language when present. Draft user-facing and downstream-facing prose directly in that language; do not rely on writing English first and translating immediately before sending. If a skill will produce an artifact, preview, handoff, or external write body, load `.claude/skills/references/authoring-preflight.md` and `.claude/skills/references/workspace-language-policy.md` before drafting.

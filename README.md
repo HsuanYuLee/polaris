@@ -61,7 +61,7 @@ Developers also need:
 
 - Git
 - GitHub CLI (`gh`) authenticated with the organization
-- Local Polaris toolchain prerequisites: Node >= 22.12.0, pnpm 10.10.0, Python 3, Playwright, Mockoon, and the docs viewer. After cloning, run `bash scripts/polaris-toolchain.sh doctor --required`; if it reports missing tools, run `bash scripts/polaris-toolchain.sh install --required` and retry the doctor.
+- Local Polaris toolchain readiness through `bash scripts/polaris-bootstrap.sh` and `bash scripts/polaris-doctor.sh --profile runtime`. The managed runtime covers Node >= 22.12.0, pnpm 10.10.0, Python 3.12, rg, jq, Playwright, Mockoon, and the docs viewer. Legacy compatibility docs may still mention `bash scripts/polaris-toolchain.sh doctor --required`; new workspaces should start with bootstrap and doctor.
 
 Optional integrations:
 
@@ -102,24 +102,23 @@ cd ~/polaris-workspace
 
 Choose a dedicated directory name. Avoid `~/work` if you already use that path for product repositories.
 
-Before onboarding, verify the local runtime toolchain:
+Before onboarding, bootstrap and verify the local runtime toolchain:
 
 ```bash
-bash scripts/polaris-toolchain.sh doctor --required
+bash scripts/polaris-bootstrap.sh
+bash scripts/polaris-doctor.sh --profile runtime
 ```
 
-If required tools are missing, install them and rerun the doctor:
+If the doctor reports missing tools, follow its repair command and rerun the doctor:
 
 ```bash
-bash scripts/polaris-toolchain.sh install --required
-bash scripts/polaris-toolchain.sh doctor --required
+bash scripts/polaris-doctor.sh --profile runtime
 ```
 
 Root `pnpm` scripts are thin aliases for common framework commands. They do not replace `scripts/*.sh`; the script manifest and command catalog remain the governance source:
 
 ```bash
 pnpm viewer:status
-pnpm toolchain:doctor
 pnpm scripts:check
 pnpm commands:check
 ```
