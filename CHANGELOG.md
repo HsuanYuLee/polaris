@@ -4,6 +4,13 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.83] - 2026-05-15
+
+### Fixed — template root package sync
+
+- 讓 `sync-to-polaris.sh` 同步 root `package.json`、`pnpm-workspace.yaml`、`pnpm-lock.yaml`，避免 workspace root command governance 未進入 template release。
+- 更新 workspace/template `.gitignore` allowlist，讓 root package metadata 不再需要 force-add 才能追蹤。
+
 ## [3.75.82] - 2026-05-15
 
 ### Added — root script command governance

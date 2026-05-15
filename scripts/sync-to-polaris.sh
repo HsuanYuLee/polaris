@@ -22,6 +22,7 @@
 #   - _template/
 #   - docs-manager/ (framework docs browser app, excluding generated outputs)
 #   - CHANGELOG.md, VERSION, README.md, README.zh-TW.md, CLAUDE.md
+#   - root package metadata: package.json, pnpm-workspace.yaml, pnpm-lock.yaml
 #
 # What it does NOT sync:
 #   - {company}/ directories (config, mapping, docs, CLAUDE.md)
@@ -486,6 +487,9 @@ copy_file "$INSTANCE_DIR/VERSION"      "$POLARIS_DIR/VERSION"      "VERSION"
 copy_file "$INSTANCE_DIR/README.md"       "$POLARIS_DIR/README.md"       "README.md"
 copy_file "$INSTANCE_DIR/README.zh-TW.md" "$POLARIS_DIR/README.zh-TW.md" "README.zh-TW.md"
 copy_file "$INSTANCE_DIR/CLAUDE.md"    "$POLARIS_DIR/CLAUDE.md"    "CLAUDE.md"
+copy_file "$INSTANCE_DIR/package.json" "$POLARIS_DIR/package.json" "package.json"
+copy_file "$INSTANCE_DIR/pnpm-workspace.yaml" "$POLARIS_DIR/pnpm-workspace.yaml" "pnpm-workspace.yaml"
+copy_file "$INSTANCE_DIR/pnpm-lock.yaml" "$POLARIS_DIR/pnpm-lock.yaml" "pnpm-lock.yaml"
 
 # ── Step 8b: Sync .github/ (Copilot instructions + workflows) ────
 
