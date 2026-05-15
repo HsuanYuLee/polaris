@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.88] - 2026-05-16
+
+### Fixed — validator no-rg fallback and direct-source scan boundary
+
+- 讓 model-tier policy validator 在 PATH 不含 `rg` 時仍能執行 profile 與 raw model policy checks。
+- 讓 docs-manager direct-source validator 不再依賴 `rg`，並把 custom loader 掃描限縮在 active source-like files，避免 archive specs prose 誤判。
+- 補 no-`rg` regression selftest 與 patch release metadata，明確以 DP-185 記錄本次修正。
+
 ## [3.75.87] - 2026-05-15
 
 ### Added — governed script test contract

@@ -83,7 +83,7 @@ SHELL_ALLOWED = {
     ".", ":", "[", "alias", "awk", "basename", "bash", "break", "cat", "cd",
     "chmod", "command", "continue", "cp", "curl", "cut", "date", "dirname",
     "done", "echo", "env", "eval", "exec", "exit", "export", "false", "fi", "find", "for",
-    "gh", "git", "grep", "head", "if", "jq", "kill", "local", "lsof", "mkdir",
+    "gh", "git", "grep", "head", "if", "jq", "kill", "ln", "local", "lsof", "mkdir",
     "mise", "mv", "node", "nohup", "open", "pnpm", "printf", "pwd", "python",
     "python3", "read", "readonly", "return", "rg", "rm", "screen", "sed", "set",
     "shift", "shopt", "sleep", "sort", "source", "tail", "tee", "test", "tr",

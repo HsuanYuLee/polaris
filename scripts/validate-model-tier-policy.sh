@@ -6,27 +6,15 @@ ROOT_DIR="${1:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 fail=0
 
-relpath() {
-  local path="$1"
-  python3 - "$ROOT_DIR" "$path" <<'PY'
-import os
-import sys
+file_matches() {
+  local pattern="$1"
+  local file="$2"
 
-root, path = sys.argv[1:3]
-print(os.path.relpath(path, root))
-PY
-}
-
-is_allowed_raw_model_location() {
-  local rel="$1"
-  case "$rel" in
-    .claude/skills/references/model-tier-policy.md) return 0 ;;
-    CHANGELOG.md|*/CHANGELOG.md) return 0 ;;
-    *release-notes*.md|*ReleaseNotes*.md|*release-notes*) return 0 ;;
-    *runtime*example*.md|*runtime*adapter*.md|*model*adapter*.md) return 0 ;;
-    specs/*/artifacts/research-report-*.md|specs/design-plans/*/artifacts/research-report-*.md) return 0 ;;
-    *) return 1 ;;
-  esac
+  if command -v rg >/dev/null 2>&1; then
+    rg -q "$pattern" "$file"
+  else
+    grep -Eq "$pattern" "$file"
+  fi
 }
 
 check_mirror_mode() {
@@ -61,77 +49,149 @@ check_codex_agent_profiles() {
   fi
 
   file="$agents_dir/polaris-small-fast.toml"
-  if [[ ! -f "$file" ]] \
-    || ! rg -q '^name = "polaris-small-fast"$' "$file" \
-    || ! rg -q '^model = "gpt-5\.4-mini"$' "$file" \
-    || ! rg -q 'Model Class: small_fast' "$file"; then
+  if [[ ! -f "$file" ]]; then
+    echo "FAIL: invalid Codex small_fast adapter profile: .codex/agents/polaris-small-fast.toml" >&2
+    fail=1
+  elif ! file_matches '^name = "polaris-small-fast"$' "$file"; then
+    echo "FAIL: invalid Codex small_fast adapter profile: .codex/agents/polaris-small-fast.toml" >&2
+    fail=1
+  elif ! file_matches '^model = "gpt-5\.4-mini"$' "$file"; then
+    echo "FAIL: invalid Codex small_fast adapter profile: .codex/agents/polaris-small-fast.toml" >&2
+    fail=1
+  elif ! file_matches 'Model Class: small_fast' "$file"; then
     echo "FAIL: invalid Codex small_fast adapter profile: .codex/agents/polaris-small-fast.toml" >&2
     fail=1
   fi
 
   file="$agents_dir/polaris-realtime-fast.toml"
-  if [[ ! -f "$file" ]] \
-    || ! rg -q '^name = "polaris-realtime-fast"$' "$file" \
-    || ! rg -q '^model = "gpt-5\.3-codex-spark"$' "$file" \
-    || ! rg -q 'Model Class: realtime_fast' "$file"; then
+  if [[ ! -f "$file" ]]; then
+    echo "FAIL: invalid Codex realtime_fast adapter profile: .codex/agents/polaris-realtime-fast.toml" >&2
+    fail=1
+  elif ! file_matches '^name = "polaris-realtime-fast"$' "$file"; then
+    echo "FAIL: invalid Codex realtime_fast adapter profile: .codex/agents/polaris-realtime-fast.toml" >&2
+    fail=1
+  elif ! file_matches '^model = "gpt-5\.3-codex-spark"$' "$file"; then
+    echo "FAIL: invalid Codex realtime_fast adapter profile: .codex/agents/polaris-realtime-fast.toml" >&2
+    fail=1
+  elif ! file_matches 'Model Class: realtime_fast' "$file"; then
     echo "FAIL: invalid Codex realtime_fast adapter profile: .codex/agents/polaris-realtime-fast.toml" >&2
     fail=1
   fi
 
   file="$agents_dir/polaris-standard-coding.toml"
-  if [[ ! -f "$file" ]] \
-    || ! rg -q '^name = "polaris-standard-coding"$' "$file" \
-    || ! rg -q 'Model Class: standard_coding' "$file"; then
+  if [[ ! -f "$file" ]]; then
     echo "FAIL: invalid Codex standard_coding adapter profile: .codex/agents/polaris-standard-coding.toml" >&2
     fail=1
-  elif rg -q '^model[[:space:]]*=' "$file"; then
+  elif ! file_matches '^name = "polaris-standard-coding"$' "$file"; then
+    echo "FAIL: invalid Codex standard_coding adapter profile: .codex/agents/polaris-standard-coding.toml" >&2
+    fail=1
+  elif ! file_matches 'Model Class: standard_coding' "$file"; then
+    echo "FAIL: invalid Codex standard_coding adapter profile: .codex/agents/polaris-standard-coding.toml" >&2
+    fail=1
+  elif file_matches '^model[[:space:]]*=' "$file"; then
     echo "FAIL: polaris-standard-coding must inherit the parent model and omit model." >&2
     fail=1
   fi
 
   file="$agents_dir/polaris-frontier-reasoning.toml"
-  if [[ ! -f "$file" ]] \
-    || ! rg -q '^name = "polaris-frontier-reasoning"$' "$file" \
-    || ! rg -q '^model = "gpt-5\.5"$' "$file" \
-    || ! rg -q 'Model Class: frontier_reasoning' "$file"; then
+  if [[ ! -f "$file" ]]; then
+    echo "FAIL: invalid Codex frontier_reasoning adapter profile: .codex/agents/polaris-frontier-reasoning.toml" >&2
+    fail=1
+  elif ! file_matches '^name = "polaris-frontier-reasoning"$' "$file"; then
+    echo "FAIL: invalid Codex frontier_reasoning adapter profile: .codex/agents/polaris-frontier-reasoning.toml" >&2
+    fail=1
+  elif ! file_matches '^model = "gpt-5\.5"$' "$file"; then
+    echo "FAIL: invalid Codex frontier_reasoning adapter profile: .codex/agents/polaris-frontier-reasoning.toml" >&2
+    fail=1
+  elif ! file_matches 'Model Class: frontier_reasoning' "$file"; then
     echo "FAIL: invalid Codex frontier_reasoning adapter profile: .codex/agents/polaris-frontier-reasoning.toml" >&2
     fail=1
   fi
 }
 
 scan_raw_model_policy() {
-  local -a roots=()
-  local path rel matches
+  if ! python3 - "$ROOT_DIR" <<'PY'
+from __future__ import annotations
 
-  [[ -d "$ROOT_DIR/.claude/skills" ]] && roots+=("$ROOT_DIR/.claude/skills")
-  [[ -d "$ROOT_DIR/.claude/rules" ]] && roots+=("$ROOT_DIR/.claude/rules")
-  [[ -f "$ROOT_DIR/CLAUDE.md" ]] && roots+=("$ROOT_DIR/CLAUDE.md")
-  [[ -f "$ROOT_DIR/AGENTS.md" ]] && roots+=("$ROOT_DIR/AGENTS.md")
+import os
+import re
+import sys
+from pathlib import Path
 
-  [[ "${#roots[@]}" -gt 0 ]] || return 0
+root = Path(sys.argv[1]).resolve()
+pattern = re.compile(
+    r'model:[ \t]*"?((haiku)|(sonnet)|(opus)|(claude-[A-Za-z0-9._-]+)|(gpt-[A-Za-z0-9._-]+))"?'
+    r'|claude-sonnet-[A-Za-z0-9._-]+'
+    r'|gpt-[0-9][A-Za-z0-9._-]*'
+    r'|\b(haiku|sonnet|opus)[ \t]+(model|sub-agent|subagent)\b'
+    r'|\b(haiku|sonnet|opus)\b[ \t]+for[ \t]+.*(batch|jira|explore|execute|review|implementation|coding)'
+)
 
-  while IFS= read -r -d '' path; do
-    rel="$(relpath "$path")"
-    if is_allowed_raw_model_location "$rel"; then
-      continue
-    fi
+def rel(path: Path) -> str:
+    return os.path.relpath(path, root)
 
-    matches="$(
-      rg -n --no-heading --color never \
-        'model:[[:space:]]*"?((haiku)|(sonnet)|(opus)|(claude-[A-Za-z0-9._-]+)|(gpt-[A-Za-z0-9._-]+))"?|claude-sonnet-[A-Za-z0-9._-]+|gpt-[0-9][A-Za-z0-9._-]*|\b(haiku|sonnet|opus)[[:space:]]+(model|sub-agent|subagent)\b|\b(haiku|sonnet|opus)\b[[:space:]]+for[[:space:]].*(batch|jira|explore|execute|review|implementation|coding)' \
-        "$path" 2>/dev/null || true
-    )"
+def is_allowed(path: str) -> bool:
+    if path == ".claude/skills/references/model-tier-policy.md":
+        return True
+    if path == "CHANGELOG.md" or path.endswith("/CHANGELOG.md"):
+        return True
+    if "release-notes" in path or "ReleaseNotes" in path:
+        return True
+    if "runtime" in path and "example" in path:
+        return True
+    if "runtime" in path and "adapter" in path:
+        return True
+    if "model" in path and "adapter" in path:
+        return True
+    if re.fullmatch(r"specs/[^/]+/artifacts/research-report-.*\.md", path):
+        return True
+    if re.fullmatch(r"specs/design-plans/[^/]+/artifacts/research-report-.*\.md", path):
+        return True
+    return False
 
-    if [[ -n "$matches" ]]; then
-      echo "FAIL: raw provider model policy outside approved mapping location: $rel" >&2
-      echo "$matches" >&2
-      fail=1
-    fi
-  done < <(
-    find "${roots[@]}" \
-      \( -type d \( -name .git -o -name node_modules \) -prune \) -o \
-      \( -type f \( -name '*.md' -o -name 'SKILL.md' -o -name '*.json' -o -name '*.yaml' -o -name '*.yml' \) -print0 \)
-  )
+def candidate_files():
+    roots: list[Path] = []
+    for path in [root / ".claude/skills", root / ".claude/rules"]:
+        if path.is_dir():
+            roots.append(path)
+    for path in [root / "CLAUDE.md", root / "AGENTS.md"]:
+        if path.is_file():
+            roots.append(path)
+
+    for scan_root in roots:
+        if scan_root.is_file():
+            yield scan_root
+            continue
+        for dirpath, dirnames, filenames in os.walk(scan_root):
+            dirnames[:] = [name for name in dirnames if name not in {".git", "node_modules"}]
+            for name in filenames:
+                path = Path(dirpath) / name
+                if name == "SKILL.md" or path.suffix in {".md", ".json", ".yaml", ".yml"}:
+                    yield path
+
+failed = False
+for path in candidate_files():
+    relative = rel(path)
+    if is_allowed(relative):
+        continue
+    matches: list[str] = []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except UnicodeDecodeError:
+        continue
+    for line_no, line in enumerate(lines, start=1):
+        if pattern.search(line):
+            matches.append(f"{line_no}:{line}")
+    if matches:
+        failed = True
+        print(f"FAIL: raw provider model policy outside approved mapping location: {relative}", file=sys.stderr)
+        print("\n".join(matches), file=sys.stderr)
+
+sys.exit(1 if failed else 0)
+PY
+  then
+    fail=1
+  fi
 }
 
 check_mirror_mode

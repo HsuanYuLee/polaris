@@ -140,5 +140,17 @@ rc=$?
 set -e
 assert_rc "$rc" "1" "missing Codex adapter profile"
 
+# T6: restricted PATH without ripgrep still passes via grep/Python fallback.
+ROOT6="$TMPDIR_ST/restricted-path-no-rg"
+make_root "$ROOT6"
+mkdir -p "$ROOT6/.claude/skills/demo"
+cat > "$ROOT6/.claude/skills/demo/SKILL.md" <<'EOF'
+# Demo
+
+Dispatch with `model class: standard_coding`.
+EOF
+PATH="/usr/bin:/bin:/usr/sbin:/sbin" run_validator "$ROOT6"
+assert_rc "$?" "0" "restricted PATH without ripgrep"
+
 echo "validate-model-tier-policy selftest: $PASS/$TOTAL passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]]

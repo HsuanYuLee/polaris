@@ -8,17 +8,37 @@ CONTENT_CONFIG="${DOCS_MANAGER}/src/content.config.ts"
 # shellcheck source=lib/specs-root.sh
 . "${ROOT}/scripts/lib/specs-root.sh"
 
-if ! rg -n 'docsSchema\(' "$CONTENT_CONFIG" >/dev/null; then
+file_matches() {
+  local pattern="$1"
+  local file="$2"
+
+  grep -Eq "$pattern" "$file"
+}
+
+source_loader_matches() {
+  local pattern="$1"
+  local matches
+
+  matches="$(find "${DOCS_MANAGER}/src" ! -path "${DOCS_MANAGER}/src/content/docs/specs/*" -type f \( -name '*.ts' -o -name '*.mjs' -o -name '*.js' -o -name '*.astro' \) -exec grep -nE "$pattern" {} + 2>/dev/null || true)"
+
+  if [[ -n "$matches" ]]; then
+    printf '%s\n' "$matches"
+    return 0
+  fi
+  return 1
+}
+
+if ! file_matches 'docsSchema\(' "$CONTENT_CONFIG"; then
   echo "FAIL: docs-manager does not use Starlight docs schema" >&2
   exit 1
 fi
 
-if ! rg -n 'docsLoader\(|base:\s*(docsContentRoot|'\''\./src/content/docs'\'')' "$CONTENT_CONFIG" >/dev/null; then
+if ! file_matches "docsLoader\\(|base:[[:space:]]*(docsContentRoot|'\\./src/content/docs')" "$CONTENT_CONFIG"; then
   echo "FAIL: docs-manager does not use a Starlight-native docs content root" >&2
   exit 1
 fi
 
-if rg -n 'canonicalSpecsLoader|specs-loader' "$CONTENT_CONFIG" "${DOCS_MANAGER}/src" >/dev/null; then
+if source_loader_matches 'canonicalSpecsLoader|specs-loader' >/dev/null; then
   echo "FAIL: docs-manager still references the custom specs loader" >&2
   exit 1
 fi
