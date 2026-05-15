@@ -157,4 +157,4 @@ if [[ -x "$SYNC_SPEC_SIDEBAR" ]]; then
 fi
 
 echo "PASS: marked IMPLEMENTED for $plan_file"
-echo "Docs-manager reads canonical specs directly; run scripts/verify-docs-manager-runtime.sh --preview for static/search verification."
+echo "Docs-manager reads canonical specs directly; start a preview viewer, then run scripts/polaris-toolchain.sh run docs.viewer.verify -- --ports <preview-port> --preview for static/search verification."

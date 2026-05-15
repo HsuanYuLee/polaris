@@ -188,11 +188,13 @@ Sweep 使用與 source resolution 相同的 namespace rules：
 - destination conflict 必須在任何 apply move 前 fail
 - `SUPERSEDED` 與 `IMPLEMENTED` 同屬 completed-class terminal state；不得再被 active planning lookup 當 current source
 
-Sweep apply 後，docs-manager 會直接讀 moved canonical specs。Live review 或 static/search verification：
+Sweep apply 後，docs-manager 會直接讀 moved canonical specs；framework 只負責
+更新 specs 與 route metadata，不自動啟動或重啟 viewer。需要 live review 時，由使用者
+自行啟動 docs viewer；需要 static/search verification 時，先由使用者啟動 preview
+viewer，再對該 port 執行 verification：
 
 ```bash
-scripts/polaris-toolchain.sh run docs.viewer.dev
-scripts/polaris-toolchain.sh run docs.viewer.doctor
+scripts/polaris-toolchain.sh run docs.viewer.verify -- --ports <preview-port> --preview
 ```
 
 ## Folder-Native Migration

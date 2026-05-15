@@ -117,11 +117,7 @@ node scripts/detect-stacked-delivery-lane.mjs --text <preview.md>
 investigation notes，依 `refinement-research-container.md` close out 到 source container 的
 `jira-comments/`、`artifacts/external-writes/` 或 `artifacts/research/`；不得把
 `.codex/external-writes/` 當作 durable storage。
-啟動或重用 docs-manager：
-
-```bash
-bash scripts/polaris-toolchain.sh run docs.viewer.dev
-```
+寫入後回報 docs-manager route；framework 不替使用者啟動、重用或重啟 docs viewer。
 
 多輪迭代只更新 local markdown，不寫 JIRA / artifact。
 

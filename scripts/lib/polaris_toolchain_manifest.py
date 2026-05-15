@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 REQUIRED_COMMANDS = {
-    "docs.viewer": {"install", "dev", "build", "doctor"},
+    "docs.viewer": {"install", "dev", "build", "doctor", "verify"},
     "fixtures.mockoon": {"install", "start", "stop", "status", "doctor"},
     "browser.playwright": {"install", "install-browser", "verify", "doctor"},
 }

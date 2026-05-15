@@ -18,23 +18,20 @@ Rules:
 
 This does not ban phased migration, safety checks, or graceful runtime handling. It bans using compatibility scaffolding as a substitute for completing the design.
 
-## Viewer Availability Convention
+## User-Owned Docs Viewer Lifecycle（使用者擁有）
 
-Keep the docs-manager viewer available for the user whenever framework work
-touches specs, design plans, docs-manager, or release validation.
+Framework work 只更新 canonical docs/spec files 與 route metadata。docs-manager
+viewer 何時啟動、停止或重啟，決策權屬於使用者。
 
 Rules:
 
-- Treat `http://127.0.0.1:8080/docs-manager/` as the user's default browsing
-  surface. Do not leave it stopped after validation or release work.
-- If runtime verification needs preview/search mode, prefer a separate port
-  such as `3334` instead of taking over the user's long-lived dev viewer.
-- If a stale or incompatible viewer on `8080` must be stopped to unblock a
-  deterministic check, restart the dev viewer afterward with:
-  `bash scripts/polaris-viewer.sh --mode dev --port 8080 --no-open`
-- Before final response on docs-manager/specs work, confirm whether a viewer is
-  listening on `8080`; if not, either start it or explicitly report why it was
-  left down.
+- 不得自動 stop、restart、reload，或接管使用者在 `8080` 的 long-lived viewer。
+- 若 framework work 變更 specs、design plans、docs-manager content 或 release
+  validation artifacts，只更新 canonical files 與 route metadata。
+- 回報變更後的 route，通常位於 `http://127.0.0.1:8080/docs-manager/`；不要暗示
+  framework 已經替使用者啟動 server。
+- 若 runtime verification 需要 preview/search mode，使用本輪明確指定的 verification
+  target，不改動使用者預設 viewer lifecycle。
 
 ## Challenger Audit: Milestone Self-Check
 

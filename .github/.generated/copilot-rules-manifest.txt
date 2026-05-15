@@ -31,7 +31,7 @@ a5ed3b521232c5ceb48443b3dd1153d00e2c417a537a61e2531bb7512ebd3ab6  .claude/instru
 e571d4293f702615dc040ad711502fc9513bebb0ac4a1f4319560a94e294e6bd  .claude/rules/context-monitoring.md
 43b414ac3d868c2ab6bfdf5caf6386a1187aabd36a6576ca3d29d97d4c80dd43  .claude/rules/cross-llm-skill-source-of-truth.md
 1f0f76c45ccacdd0de956b90357db87cf39e9086e79be418f08087428f067a75  .claude/rules/feedback-and-memory.md
-10c64f6879f0ee2bc3802e5b5e7bdf28c0e3ac58e7e7e05144b960b5955fe38b  .claude/rules/framework-iteration.md
+a72bb54bb23566f1f8e27967b42a61b2e4df28fcad71d4c95871f27fc92a3f93  .claude/rules/framework-iteration.md
 4e4b28748a9c48c2b01d3c5e02beea41c51b8e7d73f27d80c288f49707005456  .claude/rules/jira-quality.md
 2b26e8fe7fe5c74135c96e97b439fe42cc3042556ed02f20682aee979e058fe9  .claude/rules/library-change-protocol.md
 2748e11c00415a5a9b651968f1f9f2eae32284e38e708961c6042c78b21b158f  .claude/rules/mechanism-registry.md

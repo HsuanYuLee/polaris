@@ -23,10 +23,12 @@ bash scripts/polaris-toolchain.sh install --required
 bash scripts/polaris-toolchain.sh doctor --required
 ```
 
-Status Dashboard 會顯示 required toolchain 缺失與 repair command。新增或移動 specs 後，如果 sidebar navigation 尚未反映最新項目，重新載入 viewer：
+Status Dashboard 會顯示 required toolchain 缺失與 repair command。新增或移動 specs 後，
+framework 只更新 canonical files 與 route metadata；docs viewer 的啟動、停止與重啟由
+使用者決定。
 
 ```bash
-bash scripts/polaris-viewer.sh --reload --port 8080 --host 127.0.0.1 --mode dev
+bash scripts/polaris-toolchain.sh run docs.viewer.dev
 ```
 
 撰寫與檢查內容時使用 dev mode；驗證 production search 行為時使用 preview mode。

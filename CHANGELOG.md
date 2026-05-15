@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.77] - 2026-05-15
+
+### Changed — docs viewer lifecycle ownership
+
+- 移除 docs-manager viewer 的 framework auto-reload / auto-restart 入口，保留使用者明確啟動、停止與 status 查詢。
+- 將 docs runtime verification 改成只驗證已由使用者啟動的 viewer，並新增 `docs.viewer.verify` capability 讓 runtime command 維持 toolchain boundary。
+- 更新 refinement / spec source / framework iteration references 與 docs-manager quick start，明確定義 framework 只更新文件與 route metadata。
+
 ## [3.75.76] - 2026-05-15
 
 ### Fixed — runtime verification config hardening

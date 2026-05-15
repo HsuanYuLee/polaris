@@ -113,16 +113,13 @@ JIRA-backed source 同樣使用 company specs route：
 /docs-manager/specs/companies/{company}/{ticket}/refinement/
 ```
 
-Live review：
+Live review route 由 docs-manager canonical specs 直接提供；framework 只產出
+markdown 與 route，不替使用者啟動或重啟 docs viewer。
+
+Static/search verification（先由使用者啟動 preview viewer，再驗證該 port）：
 
 ```bash
-bash scripts/polaris-toolchain.sh run docs.viewer.dev
-```
-
-Static/search verification：
-
-```bash
-bash scripts/polaris-toolchain.sh run docs.viewer.doctor
+bash scripts/polaris-toolchain.sh run docs.viewer.verify -- --ports <preview-port> --preview
 ```
 
 這適用於 `index.md` / legacy `plan.md`、`refinement.md`，以及任何準備進 review 的 DP

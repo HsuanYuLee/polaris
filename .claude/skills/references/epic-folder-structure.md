@@ -93,7 +93,7 @@ Sweep 規則：
 - `IMPLEMENTED` / `ABANDONED` 會搬到 archive
 - `SEEDED` / `DISCUSSION` / `LOCKED` / missing status 只會保留在 active namespace
 - destination 已存在時 fail loud，避免 active/archive duplicate
-- sweep 後 docs-manager 會直接讀 canonical specs；需要 review 時執行 `scripts/polaris-toolchain.sh run docs.viewer.dev`，需要 static/search 驗證時執行 `scripts/polaris-toolchain.sh run docs.viewer.doctor`
+- sweep 後 docs-manager 會直接讀 canonical specs；framework 只更新文件與 route metadata，不自動啟動或重啟 viewer。需要 static/search 驗證時，先由使用者啟動 preview viewer，再執行 `scripts/polaris-toolchain.sh run docs.viewer.verify -- --ports <preview-port> --preview`
 
 ## Bootstrap（新 Epic）
 

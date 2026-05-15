@@ -1,26 +1,27 @@
 #!/usr/bin/env bash
 # Verify docs-manager local runtime contract across one or more ports.
 # Usage:
-#   scripts/verify-docs-manager-runtime.sh --ports 8080,3334 [--preview] [--keep-server]
+#   scripts/verify-docs-manager-runtime.sh --ports 8080,3334 [--preview]
 
 set -euo pipefail
 
 WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PORTS="8080"
 PREVIEW_MODE=false
-KEEP_SERVER=false
-PIDS=()
-STARTED_PORTS=()
 
 usage() {
   cat <<EOF
 Usage:
-  scripts/verify-docs-manager-runtime.sh --ports 8080,3334 [--preview] [--keep-server]
+  scripts/verify-docs-manager-runtime.sh --ports 8080,3334 [--preview]
 
 Options:
   --ports        要驗證的 comma-separated port list。
   --preview      使用 docs-manager preview mode，包含 production search 檢查。
-  --keep-server  保留 verifier 自己啟動的 server；預設只 cleanup verifier 自己啟動的 server。
+
+Notes:
+  docs-manager viewer lifecycle is user-owned. This verifier only checks an
+  already-running docs-manager listener; it does not start, stop, reload, or
+  restart the viewer.
 EOF
 }
 
@@ -28,31 +29,12 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --ports) PORTS="${2:-}"; shift 2 ;;
     --preview) PREVIEW_MODE=true; shift ;;
-    --keep-server) KEEP_SERVER=true; shift ;;
     --help|-h) usage; exit 0 ;;
     *) echo "未知選項：$1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
 cd "$WORKSPACE_ROOT"
-
-cleanup() {
-  if [[ "$KEEP_SERVER" == "true" ]]; then
-    return 0
-  fi
-
-  for pid in "${PIDS[@]:-}"; do
-    if kill -0 "$pid" 2>/dev/null; then
-      kill "$pid" 2>/dev/null || true
-      wait "$pid" 2>/dev/null || true
-    fi
-  done
-
-  for port in "${STARTED_PORTS[@]:-}"; do
-    bash "$WORKSPACE_ROOT/scripts/polaris-viewer.sh" --stop --port "$port" >/dev/null 2>&1 || true
-  done
-}
-trap cleanup EXIT
 
 is_docs_manager_available() {
   local origin="$1"
@@ -110,21 +92,6 @@ ensure_docs_manager_owner() {
   fi
 }
 
-wait_for_docs_manager() {
-  local origin="$1"
-  local port="$2"
-  local deadline=$((SECONDS + 180))
-  while (( SECONDS < deadline )); do
-    if is_docs_manager_available "$origin"; then
-      ensure_docs_manager_owner "$port" "$origin"
-      return 0
-    fi
-    sleep 1
-  done
-  echo "等待 $origin/docs-manager/ 逾時" >&2
-  return 1
-}
-
 ensure_e2e_deps() {
   local toolchain_dir="$WORKSPACE_ROOT/tools/polaris-toolchain"
   if [[ ! -x "$toolchain_dir/node_modules/.bin/playwright" ]]; then
@@ -135,7 +102,7 @@ ensure_e2e_deps() {
   fi
 }
 
-start_or_reuse_docs_manager() {
+require_docs_manager() {
   local port="$1"
   local origin="http://127.0.0.1:$port"
 
@@ -143,27 +110,20 @@ start_or_reuse_docs_manager() {
     if is_docs_manager_available "$origin"; then
       if [[ "$PREVIEW_MODE" == "true" ]] && ! is_preview_search_available "$origin"; then
         echo "Port $port 是 docs-manager dev server，但 --preview 需要 production preview/search assets。" >&2
-        echo "請改用其他 port，或先用 polaris-viewer.sh --stop 停掉該 port 後再跑 preview verification。" >&2
+        echo "請由使用者在 preview mode 啟動 docs-manager 後，再對該 port 重跑 preview verification。" >&2
         return 1
       fi
       ensure_docs_manager_owner "$port" "$origin"
-      echo "重用 docs-manager：$origin/docs-manager/"
+      echo "驗證 docs-manager：$origin/docs-manager/"
       return 0
     fi
     echo "Port $port 已被非 docs-manager 服務占用。" >&2
     return 1
   fi
 
-  local mode_args=()
-  if [[ "$PREVIEW_MODE" == "true" ]]; then
-    mode_args+=(--preview)
-  fi
-
-  echo "啟動 docs-manager：$origin/docs-manager/"
-  bash "$WORKSPACE_ROOT/scripts/polaris-viewer.sh" --port "$port" --no-open "${mode_args[@]+"${mode_args[@]}"}" >"/tmp/polaris-docs-manager-$port.log" 2>&1 &
-  PIDS+=("$!")
-  STARTED_PORTS+=("$port")
-  wait_for_docs_manager "$origin" "$port"
+  echo "Port $port 沒有 docs-manager listener；viewer lifecycle is user-owned。" >&2
+  echo "請先由使用者啟動 docs-manager，再重跑此 verifier。" >&2
+  return 1
 }
 
 run_browser_assertions() {
@@ -288,7 +248,7 @@ IFS=',' read -r -a port_list <<< "$PORTS"
 for port in "${port_list[@]}"; do
   port="$(echo "$port" | xargs)"
   [[ -n "$port" ]] || continue
-  start_or_reuse_docs_manager "$port"
+  require_docs_manager "$port"
   run_browser_assertions "$port" "$PREVIEW_MODE"
 done
 
