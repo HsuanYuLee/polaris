@@ -19,6 +19,18 @@ engineering 不自行猜測「要前後一致」或「照設計稿」；只依 t
 
 `applies: false` 只需 `reason`，不要求 behavior evidence。
 
+## `behavior_contract.applies` Decision Matrix
+
+breakdown producer 先用下表決定 `applies`，不可留 `unknown`：
+
+| Trigger | `applies` | Required shape |
+|---------|-----------|----------------|
+| 純 static framework docs、schema prose、release metadata、validator help text | `false` | 填具體 `reason`，說明不影響使用者可見 runtime 行為。 |
+| UI parity、元件替換、使用者可見 refactor、移除 legacy dependency | `true` | 預設 `mode: parity`；有刻意差異時用 `hybrid` 並列 `allowed_differences`。 |
+| Figma / design target 驅動畫面 | `true` | `mode: visual_target`，`source_of_truth` 指向 Figma / design artifact。 |
+| PM flow / AC 操作步驟定義行為 | `true` | `mode: pm_flow`，列 `flow` 與 assertions。 |
+| Migration 只改內部 script / artifact schema，無 runtime 使用者表面 | `false` | 填 migration/static reason；若 migration 會改使用者可見輸出，改用 `true`。 |
+
 ## Runner
 
 ```bash

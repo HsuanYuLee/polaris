@@ -59,6 +59,16 @@ Raw evidence 先用 `scripts/snapshot-scrub.py` scrub。Sidecar path：
 {company_specs_dir}/{EPIC}/escalations/T{n}-{count}.md
 ```
 
+### JSON / Markdown Producer Responsibility
+
+`engineering` owns the raw escalation sidecar Markdown. It must include gate closure
+sections and enough scrubbed evidence for `breakdown` to classify the issue, but it does
+not write refinement-facing inbox records directly.
+
+`breakdown` owns conversion from this Markdown sidecar to
+`refinement-inbox/{id}.md` when planner decision routes back to refinement. The reader /
+inbox schema is `refinement-return-inbox.md`.
+
 Frontmatter required：
 
 - `skill: engineering`

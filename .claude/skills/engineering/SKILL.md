@@ -42,6 +42,8 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
   `small_fast` / `realtime_fast`。
 - downstream-facing PR body、commit message、handoff、sidecar、JIRA / Slack text 必須遵守
   `workspace-language-policy.md`；specs Markdown 另遵守 `starlight-authoring-contract.md`。
+- 寫 artifact 前必讀 `pipeline-handoff.md` § Artifact Schemas，再讀
+  `refinement-artifact.md` / `task-md-schema.md` 等對應 artifact-specific schema。
 - 開始撰寫 PR title/body 前必須先讀 `pr-body-builder.md`，並依該 reference 的 L1→L2→L3
   template detection 讀 repo PR template；PR body draft 必須從 template skeleton 起稿，不可先
   用 generic summary 再等 `gate-pr-body-template.sh` 擋下重寫。

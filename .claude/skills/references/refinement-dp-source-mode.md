@@ -184,7 +184,8 @@ docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/refinement.md
 docs-manager/src/content/docs/specs/design-plans/DP-NNN-{slug}/refinement.json
 ```
 
-DP-backed `refinement.json` 必須包含：
+DP-backed `refinement.json` 的 validator gateway 見 `pipeline-handoff.md` § Artifact
+Schemas；完整 producer schema 見 `refinement-artifact.md`。本節只保留最小定位框架：
 
 ```json
 {

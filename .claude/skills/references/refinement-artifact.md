@@ -5,6 +5,9 @@ Refinement 產出的結構化 artifact，供下游 skill（breakdown, engineerin
 此 artifact 支援 JIRA-backed 與 ticketless / DP-backed source。Source resolution 規則以
 [`spec-source-resolver.md`](spec-source-resolver.md) 為準。
 
+寫入前先讀 `pipeline-handoff.md` § Artifact Schemas 作為 validator gateway；本檔是
+`refinement.json` 的完整 producer schema authority。
+
 ## 存放位置
 
 JIRA-backed ticket：

@@ -18,6 +18,8 @@ to `refinement`。
 - 開始前讀 `workspace-config-reader.md`、`workspace-language-policy.md`、
   `authoring-preflight.md` 與 root `language`；preview、JIRA comment、task.md / V*.md
   artifact 必須直接用 policy language 起稿，不可把 language gate 當送出前翻譯器。
+- 寫 artifact 前必讀 `pipeline-handoff.md` § Artifact Schemas，再讀
+  `refinement-artifact.md` / `task-md-schema.md` 等對應 artifact-specific schema。
 - 寫入 specs Markdown 時遵守 `starlight-authoring-contract.md`；task work order
   寫入 folder-native `tasks/Tn/index.md` 或 `tasks/Vn/index.md`；task schema 以
   `task-md-schema.md` 為準。

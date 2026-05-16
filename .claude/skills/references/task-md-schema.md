@@ -52,6 +52,10 @@ specs/**/archive/**/tasks/*.md → 完全 skip（歷史 container，不屬 activ
 
 **Filename 為唯一 type 訊號**（DP-033 D2，2026-04-26 修正）：T*.md = 實作、V*.md = 驗收，dispatch 完全由 filename 決定。**不在 frontmatter 重複 `type` 欄位** — 任何「雙保險」`type` field 都是 illusory（rename 時 stale，ground truth 仍是 filename）。
 
+此禁令只針對 root-level task dispatch `type:`。Nested domain fields 不是 dispatch 訊號，
+例如 `deliverable.type`、`source.type` 或其他明確屬於子物件的 schema 欄位可保留；
+inventory / migration 不得用 broad grep 刪除 nested semantic fields。
+
 ---
 
 ## 2. Common Schema

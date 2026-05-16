@@ -481,6 +481,25 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/selftests/validate-completion-envelope-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-completion-envelope.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "sub_agent_completion_contract",
+      "selftest": "scripts/selftests/validate-completion-envelope-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-polaris-command-catalog.sh",
       "kind": "gate",
       "runner": "bash",

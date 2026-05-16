@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.91] - 2026-05-16
+
+### Added — main-chain authoring contract completeness
+
+- 補齊 refinement / breakdown / engineering / verify-AC 的 artifact authoring preflight pointer，明確先讀 `pipeline-handoff.md` gateway 再讀 artifact-specific schema。
+- 強化 refinement JSON、V*.md、behavior contract、return inbox 與 escalation sidecar 的 producer guidance。
+- 明確 root-level task dispatch `type:` 與 nested domain `type` fields 的邊界。
+- 新增 Completion Envelope advisory validator 與 selftest，並在 sub-agent role reference 標明 blocking 使用邊界。
+
 ## [3.75.90] - 2026-05-16
 
 ### Changed — main-chain skill prose consolidation

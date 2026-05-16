@@ -23,6 +23,11 @@ All sub-agents must return results with this header so the orchestrator can dete
 - `BLOCKED` — cannot proceed. Must include `**Blocker**:` line.
 - `PARTIAL` — some done, some not. Must include `**Remaining**:` line.
 
+Completion Envelope output can be checked with
+`scripts/validate-completion-envelope.sh`. Default mode is advisory: violations warn
+and exit 0. Use `--blocking` only at explicit enforcement callsites that already have
+a migration plan for legacy agent output.
+
 #### Summary vs Detail Separation
 
 The **Summary** goes into the main session's context window. The **Detail** stays on disk. This is the primary mechanism for controlling context consumption.

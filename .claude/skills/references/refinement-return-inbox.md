@@ -19,6 +19,10 @@ This keeps ownership clear:
 | `breakdown` | `refinement-inbox/{id}.md` decision record | `refinement` only |
 | `refinement` | `refinement.md` + `refinement.json` | `breakdown` |
 
+Writer-side sidecar schema and JSON / Markdown responsibility live in
+`engineering-scope-escalation.md`; this file is the refinement-facing inbox reader /
+decision record contract.
+
 ## Location
 
 JIRA-backed specs:
