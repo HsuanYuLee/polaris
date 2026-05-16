@@ -98,7 +98,17 @@ When dispatching from Codex, use the project-scoped custom agent that matches th
 
 Codex custom agents affect only spawned child agents. They must not change the main session model or user-global `~/.codex/config.toml`.
 
-If the requested Codex custom agent or model is unavailable, fallback directly to `inherit` only when the task remains safe with the parent model. The Completion Envelope must make that visible with `Model Fallback: inherit - <reason>`. Do not silently fallback.
+#### Fallback Behavior
+
+所有 sub-agent dispatch 必須依 `model-tier-policy.md` 選 semantic model class。Codex runtime 必須使用 matching `polaris-*` child-agent adapter；若 adapter / model 不可用，fallback 只能是 `inherit`，並在 Completion Envelope 回報 `Model Fallback: inherit - <reason>`。
+
+不可降級的 surface（由各 skill 自行宣告）：
+
+- engineering：Implementation、CI/debug、PR review、correctness review 不得降到
+  `small_fast` / `realtime_fast`。
+
+這條 contract 是 hard rule；adapter 不可用時，明確 fallback to inherit 或 fail-stop
+都比 silent downgrade 到錯誤 tier 更安全。
 
 ### Context Isolation
 

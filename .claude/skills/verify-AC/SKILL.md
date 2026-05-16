@@ -40,10 +40,9 @@ bug-triage 讀 handbook 定位原因。
 | FAIL disposition | `verify-ac-disposition-flow.md`, `starlight-authoring-contract.md`, `bug-triage-acfail-flow.md`, `refinement-return-inbox.md` |
 | Learning and lifecycle | `verify-ac-learning-lifecycle-flow.md`, `post-task-reflection-checkpoint.md` |
 
-Epic mode 若委派 sub-agent 驗 AC，必須注入 `sub-agent-roles.md` 的 Completion Envelope，
-並依 `model-tier-policy.md` 選 semantic model class。Codex runtime 必須使用 matching
-`polaris-*` child-agent adapter；若 adapter / model 不可用，fallback 只能是 `inherit`，
-並在 Completion Envelope 回報 `Model Fallback: inherit - <reason>`。
+Epic mode 若委派 sub-agent 驗 AC，必須讀 `sub-agent-roles.md` 並注入 Completion
+Envelope；Codex runtime / model fallback contract 見該 reference § Runtime Adapter
+Contract / Fallback Behavior。
 
 ## Flow
 
@@ -80,8 +79,8 @@ keys or refinement route、pending manual items。
 
 ## L2 Deterministic Check: post-task-feedback-reflection
 
-完成 write flow 後必須呼叫 `scripts/check-feedback-signals.sh`，再執行 Post-Task Reflection。
+完成 write flow 後必須呼叫 `scripts/check-feedback-signals.sh`。
 
 ## Post-Task Reflection (required)
 
-Execute `post-task-reflection-checkpoint.md` before reporting completion.
+見 `post-task-reflection-checkpoint.md`；write 後必跑、不可跳過。

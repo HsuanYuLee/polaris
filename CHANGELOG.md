@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.90] - 2026-05-16
+
+### Changed — main-chain skill prose consolidation
+
+- 收斂 refinement / breakdown / engineering / verify-AC 的 Codex child-agent fallback 與 Post-Task Reflection 重複 prose。
+- 將 Codex runtime adapter fallback 規則集中到 `sub-agent-roles.md` 的 Runtime Adapter Contract / Fallback Behavior。
+- 合併 breakdown DP intake 的 `DISCUSSION` / missing `refinement.json` fail-stop wording，並移除新 task producer path 中的 legacy direct task fallback prose。
+
 ## [3.75.89] - 2026-05-16
 
 ### Added — runtime cache direct migration gate

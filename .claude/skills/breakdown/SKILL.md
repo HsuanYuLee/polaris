@@ -18,9 +18,8 @@ to `refinement`。
 - 開始前讀 `workspace-config-reader.md`、`workspace-language-policy.md`、
   `authoring-preflight.md` 與 root `language`；preview、JIRA comment、task.md / V*.md
   artifact 必須直接用 policy language 起稿，不可把 language gate 當送出前翻譯器。
-- 寫入 specs Markdown 時遵守 `starlight-authoring-contract.md`；新 task work order
-  預設寫入 folder-native `tasks/Tn/index.md` 或 `tasks/Vn/index.md`，legacy
-  `tasks/Tn.md` / `tasks/Vn.md` 只作為既有 artifact fallback；task schema 以
+- 寫入 specs Markdown 時遵守 `starlight-authoring-contract.md`；task work order
+  寫入 folder-native `tasks/Tn/index.md` 或 `tasks/Vn/index.md`；task schema 以
   `task-md-schema.md` 為準。
 - 所有 estimate 使用 `estimation-scale.md`；JIRA sub-task / story point 操作使用
   `jira-subtask-creation.md` 與 `jira-story-points.md`。
@@ -47,10 +46,9 @@ to `refinement`。
   `docs-manager/src/content/docs/specs/**`），不得包成 implementation task handoff
   engineering；必須留在 refinement / breakdown artifact，或另拆真正的 tracked
   releaseable task。
-- 任何 sub-agent dispatch 前讀 `sub-agent-roles.md` 並注入 Completion Envelope；同時依
-  `model-tier-policy.md` 選 semantic model class。Codex runtime 必須使用 matching
-  `polaris-*` child-agent adapter；若 adapter / model 不可用，fallback 只能是 `inherit`，
-  並在 Completion Envelope 回報 `Model Fallback: inherit - <reason>`。
+- 任何 sub-agent dispatch 前讀 `sub-agent-roles.md` 並注入 Completion Envelope；Codex
+  runtime / model fallback contract 見該 reference § Runtime Adapter Contract /
+  Fallback Behavior。
 - 完成任何 write 後最後跑 Post-Task Reflection。
 
 ## Source Routing
@@ -72,9 +70,8 @@ to `refinement`。
   refinement-owned DP / Epic / Story / Task 需要 current `refinement.json`；Bug 需要
   `bug-triage` confirmed `[ROOT_CAUSE]` handoff。
 - Bug ticket 沒有 `[ROOT_CAUSE]` comment：停止，請使用者先跑 `bug-triage {TICKET}`。
-- DP `status: DISCUSSION`：停止，請使用者先跑 `refinement DP-NNN`。
-- 新 DP 缺 `refinement.json`：停止並 route back to refinement；legacy DP 需明確標示
-  artifact 缺失並請使用者確認。
+- DP `status: DISCUSSION` 或缺 `refinement.json`：停止並 route back to
+  `refinement DP-NNN`。
 - Escalation sidecar 缺 gate-closure sections：停止，要求 engineering 重建 sidecar。
 - Quality Challenge / Constructability Gate 失敗：不得建 JIRA sub-task、不得產 task.md。
 - `validate-task-md.sh` 或 `validate-task-md-deps.sh` 失敗：修 artifact，不得 handoff
@@ -93,10 +90,8 @@ to `refinement`。
 
 ## L2 Deterministic Check: post-task-feedback-reflection
 
-完成 write flow 後必須呼叫 `scripts/check-feedback-signals.sh`，再執行 Post-Task Reflection。
+完成 write flow 後必須呼叫 `scripts/check-feedback-signals.sh`。
 
 ## Post-Task Reflection (required)
 
-> Non-optional. Execute before reporting task completion after any write.
-
-Run the checklist in `post-task-reflection-checkpoint.md`.
+見 `post-task-reflection-checkpoint.md`；write 後必跑、不可跳過。
