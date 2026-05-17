@@ -23,6 +23,8 @@ Two consecutive PROJ-483 sessions produced 12+ mechanism violations with zero fe
 | User confirmed a non-obvious approach | Save positive feedback / framework-experience memory |
 | Hook blocked or permission denied | Record command + suggest pattern fix |
 
+`framework-experience` 判斷依 `.claude/rules/feedback-and-memory.md` 的 trigger criteria。若本次 skill 透過 workaround / bypass 才能完成既有 gate，且使用者要求追蹤流程摩擦點，需把該摩擦點列入後續 DP 或 backlog，不可只在 final summary 口頭提到。
+
 ### 2. Technical Learning Check
 
 If a non-obvious technical insight was discovered → `polaris-learnings.sh add` (max 2 per task). See `cross-session-learnings.md` for types.

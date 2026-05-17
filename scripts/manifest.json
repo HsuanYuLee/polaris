@@ -3172,6 +3172,102 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/check-framework-pr-gate.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/check-framework-pr-gate-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-framework-pr-gate-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-mechanism-runtime-annotations.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/check-framework-pr-gate-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/audit-mechanism-graduation.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/check-framework-pr-gate-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-quarantine-duplication.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/check-framework-pr-gate-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lint-reference-line-count.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_reference_lint",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered by DP-188 Verify Command"
+    },
+    {
+      "path": "scripts/validate-learning-seed-contract.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "learning_seed_contract",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "inline --self-test mode covered by DP-188 Verify Command"
+    },
+    {
+      "path": "scripts/verify-agents-mirror-portable.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "inline --self-test mode covered by DP-188 Verify Command"
+    },
+    {
+      "path": "scripts/rule-retention-scan.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "memory_hygiene",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "dry-run scanner validated by DP-188 Verify Command"
+    },
+    {
+      "path": "scripts/memory-retention-scan.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "memory_hygiene",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "dry-run scanner validated by DP-188 Verify Command"
     }
   ],
   "test_governance": {

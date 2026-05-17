@@ -29,6 +29,55 @@ wrapper 強制的 contract-lane checks 則收斂到 shared references，避免 h
 | `reference_only` | Rationale/background, not a live canary | Keep in references |
 | `obsolete` | Superseded by stronger mechanism | Remove after review |
 
+## Runtime Annotation Registry
+
+DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-time
+`scripts/validate-mechanism-runtime-annotations.sh` 以此作為 cross-LLM portability gate。
+
+| mechanism | path | kind | runtime | fallback_script | governance_role |
+|-----------|------|------|---------|-----------------|-----------------|
+| ci-local-gate | .claude/hooks/ci-local-gate.sh | hook | portable | N/A | governance |
+| cross-session-warm-scan | .claude/hooks/cross-session-warm-scan.sh | hook | portable | N/A | governance |
+| feedback-read-logger | .claude/hooks/feedback-read-logger.sh | hook | portable | N/A | observability |
+| feedback-reflection-stop | .claude/hooks/feedback-reflection-stop.sh | hook | portable | N/A | governance |
+| feedback-trigger-advisory | .claude/hooks/feedback-trigger-advisory.sh | hook | portable | N/A | observability |
+| memory-decay-scan | .claude/hooks/memory-decay-scan.sh | hook | portable | N/A | observability |
+| no-direct-evidence-write | .claude/hooks/no-direct-evidence-write.sh | hook | portable | N/A | governance |
+| no-manual-work-order-search | .claude/hooks/no-manual-work-order-search.sh | hook | portable | N/A | governance |
+| pipeline-artifact-gate | .claude/hooks/pipeline-artifact-gate.sh | hook | portable | N/A | governance |
+| post-compact-context-restore | .claude/hooks/post-compact-context-restore.sh | hook | portable | N/A | governance |
+| pr-base-gate | .claude/hooks/pr-base-gate.sh | hook | portable | N/A | governance |
+| pre-push-quality-gate | .claude/hooks/pre-push-quality-gate.sh | hook | portable | N/A | governance |
+| session-summary-precompact | .claude/hooks/session-summary-precompact.sh | hook | portable | N/A | observability |
+| session-summary-stop | .claude/hooks/session-summary-stop.sh | hook | portable | N/A | observability |
+| specs-sidebar-sync | .claude/hooks/specs-sidebar-sync.sh | hook | portable | N/A | governance |
+| stop-todo-check | .claude/hooks/stop-todo-check.sh | hook | portable | N/A | governance |
+| version-bump-reminder | .claude/hooks/version-bump-reminder.sh | hook | portable | N/A | governance |
+| version-docs-lint-gate | .claude/hooks/version-docs-lint-gate.sh | hook | portable | N/A | governance |
+| framework-pr-gate | scripts/check-framework-pr-gate.sh | script | portable | N/A | governance |
+| mechanism-runtime-annotations | scripts/validate-mechanism-runtime-annotations.sh | script | portable | N/A | governance |
+| mechanism-graduation-audit | scripts/audit-mechanism-graduation.sh | script | portable | N/A | governance |
+| reference-line-count-lint | scripts/lint-reference-line-count.sh | script | portable | N/A | governance |
+| quarantine-duplication-check | scripts/check-quarantine-duplication.sh | script | portable | N/A | governance |
+| learning-seed-contract | scripts/validate-learning-seed-contract.sh | script | portable | N/A | governance |
+| agents-mirror-portable-smoke | scripts/verify-agents-mirror-portable.sh | script | portable | N/A | governance |
+
+## Script Candidate Graduation Schedule
+
+`script_candidate` 不可只停在 prose audit；每筆都要有 milestone 與 owner。`M-future`
+可存在，但比例必須 ≤ 40%，避免把所有 graduation 都推給未來。
+
+| mechanism | disposition | graduation_milestone | owner | deterministic target |
+|-----------|-------------|----------------------|-------|----------------------|
+| cross-llm-runtime-annotation | script_candidate | M1 | Polaris | scripts/validate-mechanism-runtime-annotations.sh |
+| script-candidate-schedule | script_candidate | M1 | Polaris | scripts/audit-mechanism-graduation.sh |
+| quarantine-single-source | script_candidate | M2 | Polaris | scripts/check-quarantine-duplication.sh |
+| reference-size-policy | script_candidate | M2 | Polaris | scripts/lint-reference-line-count.sh |
+| rule-retention-metric | script_candidate | M3 | Polaris | scripts/rule-retention-scan.sh |
+| memory-retention-metric | script_candidate | M3 | Polaris | scripts/memory-retention-scan.sh |
+| codex-portable-smoke | script_candidate | M3 | Polaris | scripts/verify-agents-mirror-portable.sh |
+| follow-up-reference-bracket | script_candidate | M-future | Polaris | future DP for 500-1000 line references |
+
 ## Priority Audit Order
 
 1. DP-backed change flow (`semantic_only`, Critical): `design-plan-creation`,

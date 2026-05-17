@@ -98,8 +98,14 @@ type: feedback
 company: acme              # Company scope (omit for workspace-wide memories)
 trigger_count: 1          # Number of times referenced/applied (= 1 when first created)
 last_triggered: 2026-03-29  # Date last referenced
+expires_at: 2026-06-30      # Optional; workaround/review-by date
+absorbed_into: .claude/rules/example.md  # Optional; set when promoted to rule/reference
 ---
 ```
+
+`expires_at` 用於 workaround / temporary policy；到期後 `scripts/memory-retention-scan.sh`
+會建議 `review_for_removal`。`absorbed_into` 用於已升格成 rule / reference 的 feedback；
+scanner 會建議 `prune`，但不會自動刪檔。
 
 ## Feedback → Rule Graduation (Auto-Evolution)
 

@@ -16,6 +16,16 @@ After completing a full task (opening a PR, fixing review comments, estimation, 
 
 7. **A non-obvious technical insight was discovered** (unexpected behavior, codebase-specific pattern, tool trick) → write a cross-session learning via `polaris-learnings.sh add`. This captures **technical knowledge** (not behavioral corrections — those are feedback memories). See `skills/references/cross-session-learnings.md` for types and constraints (max 2 per task)
 
+### Framework-Experience Trigger Criteria
+
+寫 `type: framework-experience` memory 的條件是使用者明確確認 Polaris framework 的流程選擇或操作體驗有效，且該訊號可跨 workspace 套用。常見 trigger：
+
+- 使用者要求「照這個 workflow 繼續」、「這樣的 gate 順序是對的」或明確確認某個 skill orchestration 改善。
+- framework deterministic gate 抓到原本會靠 LLM 自律的缺口，且使用者接受這個 gate 成為未來預設。
+- 使用者指出某個流程摩擦點，並要求把它排成後續 DP；若當下已用 workaround 繼續，memory 需標記 workaround 與後續 DP。
+
+不寫 framework-experience 的情境：單次 repo bug、公司流程偏好、或未被使用者確認的 agent 自評。
+
 Execute silently. Only notify the user and wait for confirmation before writing when a feedback worth recording is found. Items 3 and 4 may be recorded without user confirmation.
 
 > For detailed procedures — Pre-Write Dedup Check, Cross-Session Carry-Forward Check, backlog entry formats, batch scan, frontmatter spec, direct rule write, memory hygiene checklist, MEMORY.md index format, and prompt injection scan — see `skills/references/feedback-memory-procedures.md`.

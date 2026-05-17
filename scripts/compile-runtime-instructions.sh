@@ -68,31 +68,27 @@ list_universal_rules() {
 
 write_manifest_snapshot() {
   local out="$1"
-  {
-    echo "source_of_truth=.claude/instructions/manifest.yaml"
-    echo "generated_at=deterministic"
-    echo
-    echo "[sources]"
-    printf '%s\n' ".claude/instructions/core/bootstrap.md"
-    printf '%s\n' ".claude/instructions/runtime/claude.md"
-    printf '%s\n' ".claude/instructions/runtime/codex.md"
-    printf '%s\n' ".claude/instructions/runtime/copilot.md"
-    list_universal_rules
-    echo
-    echo "[sha256]"
-    while IFS= read -r rel; do
-      [[ -f "$ROOT_DIR/$rel" ]] || continue
-      sha="$(shasum -a 256 "$ROOT_DIR/$rel" | awk '{print $1}')"
-      printf '%s  %s\n' "$sha" "$rel"
-    done < <({
-      printf '%s\n' ".claude/instructions/manifest.yaml"
-      printf '%s\n' ".claude/instructions/core/bootstrap.md"
-      printf '%s\n' ".claude/instructions/runtime/claude.md"
-      printf '%s\n' ".claude/instructions/runtime/codex.md"
-      printf '%s\n' ".claude/instructions/runtime/copilot.md"
-      list_universal_rules
-    } | sort -u)
-  } > "$out"
+  local sources_file="$tmpdir/sources.list"
+  : > "$sources_file"
+  printf '%s\n' ".claude/instructions/manifest.yaml" >> "$sources_file"
+  printf '%s\n' ".claude/instructions/core/bootstrap.md" >> "$sources_file"
+  printf '%s\n' ".claude/instructions/runtime/claude.md" >> "$sources_file"
+  printf '%s\n' ".claude/instructions/runtime/codex.md" >> "$sources_file"
+  printf '%s\n' ".claude/instructions/runtime/copilot.md" >> "$sources_file"
+  list_universal_rules >> "$sources_file"
+
+  echo "source_of_truth=.claude/instructions/manifest.yaml" > "$out"
+  echo "generated_at=deterministic" >> "$out"
+  echo >> "$out"
+  echo "[sources]" >> "$out"
+  grep -v '^.claude/instructions/manifest.yaml$' "$sources_file" | sort -u >> "$out"
+  echo >> "$out"
+  echo "[sha256]" >> "$out"
+  sort -u "$sources_file" | while read -r rel; do
+    [[ -f "$ROOT_DIR/$rel" ]] || continue
+    sha="$(shasum -a 256 "$ROOT_DIR/$rel" | awk '{print $1}')"
+    printf '%s  %s\n' "$sha" "$rel" >> "$out"
+  done
 }
 
 emit_header() {
@@ -151,7 +147,7 @@ emit_rule_index() {
   echo
   echo "Global targets reference universal rules without inlining their full bodies. Load the relevant files explicitly when the task context requires them."
   echo
-  while IFS= read -r rel; do
+  while read -r rel; do
     printf -- '- `%s`\n' "$rel"
   done < <(list_universal_rules)
 }
@@ -170,11 +166,8 @@ emit_plugin_workflow_quarantine() {
   cat <<'EOF'
 ## Plugin Workflow Quarantine
 
-OpenAI-curated and marketplace plugin-contributed skills are adapter surfaces, not Polaris workflow authority. When a user intent is covered by a workspace-owned Polaris skill and a plugin skill, the Polaris skill wins.
-
-For product repo PR revision, review-comment fixes, stack convergence, and merge readiness, `engineering` is the authority. GitHub plugin helpers may support metadata or review-thread reads, but they must not override `engineering` revision R6 reply / resolve obligations, shared PR state, completion gates, or readiness vocabulary.
-
-Load `.claude/rules/skill-routing.md` and `.claude/skills/references/engineering-revision-flow.md` for the full contract whenever plugin workflows and Polaris-managed delivery could both match.
+Plugin workflow authority lives in `.claude/skills/references/plugin-workflow-quarantine.md`;
+load it with `.claude/rules/skill-routing.md` whenever plugin workflows and Polaris-managed delivery could both match.
 EOF
 }
 
@@ -273,9 +266,9 @@ write_target() {
 
   if [[ "$CHECK_ONLY" == true ]]; then
     [[ -f "$path" ]] || { echo "DRIFT: missing $path" >&2; return 1; }
-    if ! diff -q "$tmp" "$path" >/dev/null 2>&1; then
+    if ! command diff -q "$tmp" "$path" >/dev/null 2>&1; then
       echo "DRIFT: $path is out of date." >&2
-      diff -u "$path" "$tmp" | head -80 >&2
+      command diff -u "$path" "$tmp" | head -80 >&2
       return 1
     fi
     return 0
@@ -297,7 +290,7 @@ write_generated_manifest_targets() {
   for path in "${targets[@]}"; do
     if [[ "$CHECK_ONLY" == true ]]; then
       [[ -f "$path" ]] || { echo "DRIFT: missing $path" >&2; return 1; }
-      diff -q "$manifest_tmp" "$path" >/dev/null 2>&1 || { echo "DRIFT: $path is out of date." >&2; return 1; }
+      command diff -q "$manifest_tmp" "$path" >/dev/null 2>&1 || { echo "DRIFT: $path is out of date." >&2; return 1; }
     else
       mkdir -p "$(dirname "$path")"
       cp "$manifest_tmp" "$path"

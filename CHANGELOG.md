@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.92] - 2026-05-17
+
+### Added — cross-LLM deterministic governance hardening
+
+- 新增 framework PR-time gate、mechanism runtime annotation validator、script-candidate graduation audit、learning seed contract gate 與 Codex portable smoke gate。
+- 拆分 task schema / engineering delivery flow 大型 references，並加入 reference line-count lint。
+- 將 Plugin Workflow Quarantine 收斂到單一 reference，補 rule / memory retention scanners 與 framework-experience trigger criteria。
+
 ## [3.75.91] - 2026-05-16
 
 ### Added — main-chain authoring contract completeness

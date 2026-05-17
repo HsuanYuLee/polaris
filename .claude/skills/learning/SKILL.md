@@ -59,6 +59,12 @@ External mode 的 execute 階段只有在使用者確認後進行，落點三選
 - Route C：只寫 `polaris-learnings`。
 
 Quick path 不可走 Route A；需 Standard / Deep 才能 seed DP。
+Route A learning producer 不得直接寫 `design-plans/DP-*/index.md`、`plan.md`、
+`refinement.md` 或 `refinement.json`；只能寫 `artifacts/research-report.md` 或
+`artifacts/research/*.md`。寫入前後必須呼叫
+`scripts/validate-learning-seed-contract.sh --producer learning --diff-range <base..head>`；
+refinement LOCK 前的 structural audit 則由 refinement 以
+`--producer refinement --source-container <DP-folder>` 顯式呼叫。
 
 ## Queue Mode Contract
 

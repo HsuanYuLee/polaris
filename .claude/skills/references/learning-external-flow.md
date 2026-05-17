@@ -176,9 +176,23 @@ Route A DP seeding：
 2. Existing SEEDED / DISCUSSION：詢問 append 或新開。
 3. Existing LOCKED / IMPLEMENTED：新開，Background 加 see also。
 4. Existing ABANDONED：詢問 revive 或新開。
-5. 新 DP 建 `artifacts/research-report.md` static snapshot 與 stub `plan.md`。
+5. 新 DP 只建 `artifacts/research-report.md` 或 `artifacts/research/*.md` static snapshot；不得由 learning producer 建 `index.md`、`plan.md`、`refinement.md` 或 `refinement.json`。
 6. 不自動 invoke refinement；只提示 `refinement DP-NNN`。
 7. Route A 不寫 backlog，但仍寫 `polaris-learnings`。
+
+Deterministic gate：
+
+```bash
+bash scripts/validate-learning-seed-contract.sh \
+  --producer learning \
+  --diff-range <base..head>
+```
+
+`--producer learning` 必須提供 diff range；若 diff 觸及
+`design-plans/DP-*/index.md`、`plan.md`、`refinement.md` 或 `refinement.json`，必須
+fail-stop。Refinement 的 structural-only audit 由 refinement 階段用
+`--producer refinement --source-container <DP-folder>` 執行；partial container 是合法
+in-progress state。
 
 Refinement import 只在使用者明確給 `--for DP-NNN` 或 `--container {path}` 時啟用。
 Snapshot 寫到：
