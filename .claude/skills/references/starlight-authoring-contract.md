@@ -15,6 +15,29 @@
 - `docs-manager/dist`：這是 Starlight build output，不是可手改 source。
 - JSON、Mockoon、Lighthouse raw output 等 machine artifacts。若 artifact 需要在 Starlight 顯示，應新增 Markdown summary 或 index 連到 raw artifact。
 
+## Collection Path Classes
+
+`docs-manager/src/content/docs/specs/**` 下的 markdown 依 path 分成三類：
+
+1. **Docs page**：會被 Starlight docs collection 載入的 markdown，例如 DP `index.md`、
+   `plan.md`、`refinement.md`、`tasks/Tn/index.md`、`tasks/Vn/index.md`。必須符合本檔
+   frontmatter / heading / body contract。
+2. **D2 transport artifact**：`artifacts/external-writes/**/*.md` 與
+   `artifacts/research/**/*.md`。這些路徑從 docs collection 排除，但 producer 必須寫
+   `artifact_type`、`source`、`created` 三欄 metadata；不要求 `title` / `description`。
+3. **Existing sidecar / workflow artifact**：`jira-comments/`、`escalations/`、
+   `refinement-inbox/`、`tests/`。這些同樣從 docs collection 排除，但保留各自既有 schema；
+   不套 D2 transport metadata。
+
+Producer-side gate：
+
+```bash
+bash scripts/validate-specs-collection-shape.sh --all
+```
+
+Hook / archive / PR lanes 可傳 explicit file 或 container path，但不得用 staged-only selector
+當 pre-push 的唯一來源。
+
 ## Frontmatter
 
 每個 specs Markdown source 都必須有 YAML frontmatter。最低要求：

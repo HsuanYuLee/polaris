@@ -81,6 +81,26 @@ Preflight / post-write command：
 bash scripts/validate-starlight-authoring.sh check <specs-md-or-container>
 ```
 
+D2 transport artifact 例外：
+
+- `artifacts/external-writes/**/*.md` 與 `artifacts/research/**/*.md` 從 docs collection 排除。
+- 這兩類 markdown 不要求 `title` / `description`，但必須有：
+  ```yaml
+  ---
+  artifact_type: external-write | research-snapshot
+  source: DP-NNN | {COMPANY}-{NNN}
+  created: YYYY-MM-DD
+  ---
+  ```
+- `jira-comments/`、`escalations/`、`refinement-inbox/` 是既有 sidecar / workflow artifact，
+  不套 D2 三欄 metadata；沿用各自專屬 validator / language gate。
+
+Collection shape gate：
+
+```bash
+bash scripts/validate-specs-collection-shape.sh --all
+```
+
 DP primary document 另跑：
 
 ```bash

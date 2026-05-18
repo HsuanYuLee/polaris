@@ -17,6 +17,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SYNC_SPEC_SIDEBAR="${SCRIPT_DIR}/sync-spec-sidebar-metadata.sh"
+COLLECTION_SHAPE_VALIDATOR="${SCRIPT_DIR}/validate-specs-collection-shape.sh"
 SPECS_ROOT=""
 DRY_RUN=0
 APPLY=0
@@ -62,6 +63,12 @@ sync_sidebar_metadata() {
   local anchor="$1"
   [[ -f "$anchor" && -x "$SYNC_SPEC_SIDEBAR" ]] || return 0
   bash "$SYNC_SPEC_SIDEBAR" --apply "$anchor" >/dev/null
+}
+
+validate_collection_shape() {
+  local container="$1"
+  [[ -x "$COLLECTION_SHAPE_VALIDATOR" ]] || return 0
+  bash "$COLLECTION_SHAPE_VALIDATOR" --workspace "$WORKSPACE_ROOT" "$container"
 }
 
 rel_path() {
@@ -271,6 +278,7 @@ run_sweep() {
     [[ -d "$source_abs" ]] || fail "sweep source disappeared before apply: $source_abs"
     [[ ! -e "$destination_abs" ]] || fail "archive destination already exists: $destination_abs"
     IFS='|' read -r kind _anchor _status _destination < <(metadata_for_container "$source_abs")
+    validate_collection_shape "$source_abs"
     sync_sidebar_metadata "$_anchor"
     mkdir -p "$(dirname "$destination_abs")"
     mv "$source_abs" "$destination_abs"
@@ -362,6 +370,7 @@ case "$status" in
 esac
 
 [[ ! -e "$destination" ]] || fail "archive destination already exists: $destination"
+validate_collection_shape "$container"
 
 archive_parent="$(dirname "$destination")"
 if [[ "$DRY_RUN" -eq 1 ]]; then

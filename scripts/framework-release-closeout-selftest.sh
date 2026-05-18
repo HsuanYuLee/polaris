@@ -78,6 +78,8 @@ write_plan() {
   fi
   cat >"${dp_dir}/index.md" <<'MD'
 ---
+title: "DP-999 release closeout selftest"
+description: "Selftest fixture for framework release closeout."
 topic: release closeout selftest
 created: 2026-04-30
 status: LOCKED
@@ -115,6 +117,8 @@ write_task() {
   if [[ -n "$depends" ]]; then
     cat >"$path" <<MD
 ---
+title: "DP-999 ${task_no} closeout selftest"
+description: "Selftest task fixture for framework release closeout."
 depends_on: [${depends}]
 ---
 
@@ -122,6 +126,11 @@ depends_on: [${depends}]
 MD
   else
     cat >"$path" <<MD
+---
+title: "DP-999 ${task_no} closeout selftest"
+description: "Selftest task fixture for framework release closeout."
+---
+
 # ${task_no}: Closeout selftest ${task_no} (1 pt)
 MD
   fi
@@ -504,6 +513,8 @@ run_delayed_terminal_archive_case() {
   mkdir -p "${dp_dir}/tasks"
   cat >"${dp_dir}/index.md" <<'MD'
 ---
+title: "DP-999 delayed archive closeout selftest"
+description: "Selftest fixture for delayed archive release closeout."
 topic: delayed archive closeout selftest
 created: 2026-05-02
 status: LOCKED

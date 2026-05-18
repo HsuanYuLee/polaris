@@ -1705,6 +1705,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/migrate-specs-artifact-frontmatter.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/migrate-specs-artifact-frontmatter-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/mockoon/mockoon-runner.sh",
       "kind": "support",
       "runner": "bash",
@@ -2786,6 +2795,15 @@
       "selftest_reason": "script exposes --selftest and is covered by delivery-contract-gap-convergence-selftest"
     },
     {
+      "path": "scripts/validate-specs-collection-shape.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-specs-collection-shape-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/selftests/validate-dispatch-bundle-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3327,6 +3345,16 @@
       "lifecycle": "hot_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/check-dp196-diff-scope.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "DP-specific diff-scope verification driver exercised by DP-196 Verify Command"
     },
     {
       "path": "scripts/validate-mechanism-runtime-annotations.sh",

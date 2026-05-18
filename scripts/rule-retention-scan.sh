@@ -53,10 +53,31 @@ for path in rules:
         "recommended_action": action,
     })
 
-payload = {"schema_version": 1, "scanner": "rule-retention", "items": items}
+try:
+    report_raw = subprocess.check_output(
+        ["bash", "scripts/lint-reference-line-count.sh", "--report"],
+        text=True,
+        stderr=subprocess.DEVNULL,
+    )
+    phased_oversized_references = json.loads(report_raw)
+except (subprocess.CalledProcessError, json.JSONDecodeError):
+    phased_oversized_references = []
+
+payload = {
+    "schema_version": 1,
+    "scanner": "rule-retention",
+    "items": items,
+    "phased_oversized_references": phased_oversized_references,
+}
 if fmt == "json":
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 else:
     for item in items:
         print(f"{item['recommended_action']}\t{item['trigger_count']}\t{item['rule']}")
+    print("phased-oversized")
+    for item in phased_oversized_references:
+        print(
+            f"{item['path']}\t{item['current_lines']}\t"
+            f"target={item['target_limit']}\texceed_by={item['exceed_by']}"
+        )
 PY
