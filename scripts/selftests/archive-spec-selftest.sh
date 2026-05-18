@@ -14,12 +14,28 @@ fail() {
 write_plan() {
   local file="$1" status="$2" title="$3"
   mkdir -p "$(dirname "$file")"
-  cat >"$file" <<MD
+cat >"$file" <<MD
 ---
+title: "${title}"
+description: "Archive-spec selftest fixture."
 status: ${status}
 ---
 
 # ${title}
+MD
+}
+
+write_valid_transport_artifact() {
+  local file="$1" source="$2"
+  mkdir -p "$(dirname "$file")"
+  cat >"$file" <<MD
+---
+artifact_type: external-write
+source: ${source}
+created: 2026-05-18
+---
+
+## Body
 MD
 }
 
@@ -68,6 +84,25 @@ grep -q 'text: "IMPLEMENTED / P4"' "$tmpdir/docs-manager/src/content/docs/specs/
 write_plan "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-998-locked/plan.md" "LOCKED" "DP-998"
 expect_fail "locked DP should not archive" bash "$ARCHIVE_SPEC" --workspace "$tmpdir" DP-998
 [[ -d "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-998-locked" ]] || fail "locked DP moved despite guard"
+
+# Collection-shape guard for D2 transport artifacts.
+write_plan "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-988-invalid-transport/index.md" "IMPLEMENTED" "DP-988"
+mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-988-invalid-transport/artifacts/external-writes"
+cat >"$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-988-invalid-transport/artifacts/external-writes/20260518-body.md" <<'MD'
+---
+artifact_type: external-write
+source: DP-988
+---
+
+## Body
+MD
+expect_fail "invalid D2 transport artifact should not archive" bash "$ARCHIVE_SPEC" --workspace "$tmpdir" DP-988
+[[ -d "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-988-invalid-transport" ]] || fail "invalid transport source moved despite guard"
+
+write_plan "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-987-valid-transport/index.md" "IMPLEMENTED" "DP-987"
+write_valid_transport_artifact "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-987-valid-transport/artifacts/external-writes/20260518-body.md" "DP-987"
+bash "$ARCHIVE_SPEC" --workspace "$tmpdir" DP-987 >/dev/null
+[[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-987-valid-transport/artifacts/external-writes/20260518-body.md" ]] || fail "valid transport source was not archived"
 
 # Missing status guard.
 mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/companies/acme/NO-1"

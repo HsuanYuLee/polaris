@@ -15,6 +15,8 @@ export const collections = {
       pattern: [
         `**/[^_]*.{${docsExtensions.join(',')}}`,
         '!**/{escalations,jira-comments,refinement-inbox,tests}/**',
+        '!**/artifacts/external-writes/**',
+        '!**/artifacts/research/**',
       ],
     }),
     schema: docsSchema(),

@@ -10,6 +10,7 @@ set -euo pipefail
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$HOOK_DIR/../.." && pwd)"
 GATES_DIR="$ROOT_DIR/scripts/gates"
+SPECS_COLLECTION_VALIDATOR="$ROOT_DIR/scripts/validate-specs-collection-shape.sh"
 
 input="$(cat || true)"
 if [[ -z "$input" && -n "${CLAUDE_TOOL_INPUT:-}" ]]; then
@@ -57,4 +58,65 @@ fi
 
 if [[ -x "$GATES_DIR/gate-changeset.sh" ]]; then
   bash "$GATES_DIR/gate-changeset.sh" --repo "$repo_root"
+fi
+
+specs_collection_changed_files() {
+  local data="$1"
+  local repo="$2"
+  local line="" local_ref="" local_sha="" remote_ref="" remote_sha=""
+  local branch_name=""
+
+  if [[ -n "$data" && ! "$data" =~ ^[[:space:]]*\{ ]]; then
+    while read -r local_ref local_sha remote_ref remote_sha _rest; do
+      [[ -n "${local_sha:-}" ]] || continue
+      if [[ -n "${remote_sha:-}" && ! "$remote_sha" =~ ^0+$ ]]; then
+        git -C "$repo" diff --name-only "$remote_sha" "$local_sha" 2>/dev/null || true
+      else
+        branch_name="${local_ref#refs/heads/}"
+        if [[ "$branch_name" != "$local_ref" ]] && git -C "$repo" rev-parse --verify "origin/$branch_name" >/dev/null 2>&1; then
+          git -C "$repo" diff --name-only "origin/$branch_name...$local_sha" 2>/dev/null || true
+        else
+          git -C "$repo" diff --name-only "$local_sha^" "$local_sha" 2>/dev/null || true
+        fi
+      fi
+    done <<<"$data"
+    return 0
+  fi
+
+  branch_name="$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  if [[ -n "$branch_name" && "$branch_name" != "HEAD" ]] && git -C "$repo" rev-parse --verify "origin/$branch_name" >/dev/null 2>&1; then
+    git -C "$repo" diff --name-only "origin/$branch_name...HEAD" 2>/dev/null || true
+    return 0
+  fi
+  git -C "$repo" diff --name-only HEAD~1..HEAD 2>/dev/null || true
+}
+
+should_run_specs_collection_shape() {
+  local file=""
+  while IFS= read -r file; do
+    case "$file" in
+      docs-manager/src/content.config.ts|\
+      scripts/validate-specs-collection-shape.sh|\
+      scripts/selftests/validate-specs-collection-shape-selftest.sh|\
+      scripts/migrate-specs-artifact-frontmatter.sh|\
+      scripts/selftests/migrate-specs-artifact-frontmatter-selftest.sh|\
+      scripts/archive-spec.sh|\
+      scripts/selftests/archive-spec-selftest.sh|\
+      .claude/hooks/pre-push-quality-gate.sh|\
+      .claude/skills/references/refinement-dp-source-mode.md|\
+      .claude/skills/references/authoring-preflight.md|\
+      .claude/skills/references/starlight-authoring-contract.md|\
+      docs-manager/src/content/docs/specs/*)
+        return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+if [[ -x "$SPECS_COLLECTION_VALIDATOR" ]]; then
+  changed_files="$(specs_collection_changed_files "$input" "$repo_root" | sort -u)"
+  if should_run_specs_collection_shape <<<"$changed_files"; then
+    bash "$SPECS_COLLECTION_VALIDATOR" --workspace "$repo_root" --all
+  fi
 fi

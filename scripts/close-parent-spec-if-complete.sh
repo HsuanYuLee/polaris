@@ -45,6 +45,8 @@ run_selftest() {
   mkdir -p "$dp_dir/tasks/pr-release"
   cat >"$dp_dir/plan.md" <<'MD'
 ---
+title: "DP-999 parent closeout"
+description: "DP-999 parent closeout smoke fixture."
 topic: parent closeout smoke
 created: 2026-04-30
 status: LOCKED
@@ -68,6 +70,8 @@ MD
   for task in T1 T2; do
     cat >"$dp_dir/tasks/pr-release/${task}.md" <<MD
 ---
+title: "DP-999 ${task}"
+description: "DP-999 ${task} parent closeout smoke fixture."
 status: IMPLEMENTED
 ---
 # ${task}
@@ -94,6 +98,8 @@ MD
   mkdir -p "$dp_dir/tasks/pr-release"
   cat >"$dp_dir/plan.md" <<'MD'
 ---
+title: "DP-998 parent archive closeout"
+description: "DP-998 parent archive closeout smoke fixture."
 topic: parent archive closeout smoke
 created: 2026-05-02
 status: LOCKED
@@ -108,6 +114,8 @@ locked_at: 2026-05-02
 MD
   cat >"$dp_dir/tasks/pr-release/T1.md" <<'MD'
 ---
+title: "DP-998 T1"
+description: "DP-998 T1 archive closeout smoke fixture."
 status: IMPLEMENTED
 ---
 # T1
@@ -117,6 +125,8 @@ MD
   mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-998-unrelated-active-duplicate"
   cat >"$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-998-unrelated-active-duplicate/plan.md" <<'MD'
 ---
+title: "DP-998 duplicate id smoke"
+description: "DP-998 duplicate id smoke fixture."
 topic: duplicate id smoke
 created: 2026-05-05
 status: LOCKED
@@ -144,6 +154,8 @@ MD
   mkdir -p "$company_dir/tasks/pr-release"
   cat >"$company_dir/refinement.md" <<'MD'
 ---
+title: "EPIC-999 parent closeout"
+description: "EPIC-999 parent closeout smoke fixture."
 status: LOCKED
 ---
 # EPIC-999 — Parent closeout smoke
@@ -154,6 +166,8 @@ status: LOCKED
 MD
   cat >"$company_dir/tasks/pr-release/T1.md" <<'MD'
 ---
+title: "EPIC-999 T1"
+description: "EPIC-999 T1 parent closeout smoke fixture."
 status: IMPLEMENTED
 ---
 # T1
@@ -171,6 +185,8 @@ MD
   mkdir -p "$dp_dir/tasks/pr-release/T1" "$dp_dir/tasks/pr-release/T2"
   cat >"$dp_dir/index.md" <<'MD'
 ---
+title: "DP-997 folder-native parent closeout"
+description: "DP-997 folder-native parent closeout smoke fixture."
 topic: folder-native parent closeout smoke
 created: 2026-05-06
 status: LOCKED
@@ -194,6 +210,8 @@ MD
   for task in T1 T2; do
     cat >"$dp_dir/tasks/pr-release/${task}/index.md" <<MD
 ---
+title: "DP-997 ${task}"
+description: "DP-997 ${task} folder-native parent closeout smoke fixture."
 status: IMPLEMENTED
 ---
 # ${task}
@@ -216,6 +234,8 @@ MD
   mkdir -p "$dp_dir/tasks/pr-release/T1" "$dp_dir/tasks/pr-release/T2"
   cat >"$dp_dir/index.md" <<'MD'
 ---
+title: "DP-994 markdown link parent closeout"
+description: "DP-994 markdown link parent closeout smoke fixture."
 topic: markdown link parent closeout smoke
 created: 2026-05-06
 status: LOCKED
@@ -239,6 +259,8 @@ MD
   for task in T1 T2; do
     cat >"$dp_dir/tasks/pr-release/${task}/index.md" <<MD
 ---
+title: "DP-994 ${task}"
+description: "DP-994 ${task} markdown link parent closeout smoke fixture."
 status: IMPLEMENTED
 ---
 # ${task}
@@ -261,6 +283,8 @@ MD
   mkdir -p "$dp_dir/tasks/T2" "$dp_dir/tasks/pr-release/T1"
   cat >"$dp_dir/index.md" <<'MD'
 ---
+title: "DP-996 folder-native active sibling"
+description: "DP-996 folder-native active sibling smoke fixture."
 topic: folder-native active sibling smoke
 created: 2026-05-06
 status: LOCKED
@@ -283,6 +307,8 @@ locked_at: 2026-05-06
 MD
   cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
 ---
+title: "DP-996 T1"
+description: "DP-996 T1 folder-native active sibling smoke fixture."
 status: IMPLEMENTED
 ---
 # T1
@@ -290,6 +316,10 @@ status: IMPLEMENTED
 > Source: DP-996 | Task: DP-996-T1 | JIRA: N/A | Repo: polaris-framework
 MD
   cat >"$dp_dir/tasks/T2/index.md" <<'MD'
+---
+title: "DP-996 T2"
+description: "DP-996 T2 active sibling smoke fixture."
+---
 # T2
 
 > Source: DP-996 | Task: DP-996-T2 | JIRA: N/A | Repo: polaris-framework
@@ -313,6 +343,8 @@ MD
   mkdir -p "$dp_dir/tasks/T2" "$dp_dir/tasks/V1" "$dp_dir/tasks/pr-release/T1"
   cat >"$dp_dir/index.md" <<'MD'
 ---
+title: "DP-992 active implementation before verification"
+description: "DP-992 active implementation before verification smoke fixture."
 topic: active implementation before verification smoke
 created: 2026-05-10
 status: LOCKED
@@ -329,6 +361,8 @@ locked_at: 2026-05-10
 MD
   cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
 ---
+title: "DP-992 T1"
+description: "DP-992 T1 active implementation before verification smoke fixture."
 status: IMPLEMENTED
 ---
 # T1
@@ -336,11 +370,19 @@ status: IMPLEMENTED
 > Source: DP-992 | Task: DP-992-T1 | JIRA: N/A | Repo: polaris-framework
 MD
   cat >"$dp_dir/tasks/T2/index.md" <<'MD'
+---
+title: "DP-992 T2"
+description: "DP-992 T2 active implementation before verification smoke fixture."
+---
 # T2
 
 > Source: DP-992 | Task: DP-992-T2 | JIRA: N/A | Repo: polaris-framework
 MD
   cat >"$dp_dir/tasks/V1/index.md" <<'MD'
+---
+title: "DP-992 V1"
+description: "DP-992 V1 active verification smoke fixture."
+---
 # V1
 
 > Source: DP-992 | Task: DP-992-V1 | JIRA: N/A | Repo: polaris-framework
@@ -355,6 +397,8 @@ MD
   mkdir -p "$dp_dir/tasks/V1" "$dp_dir/tasks/pr-release/T1"
   cat >"$dp_dir/index.md" <<'MD'
 ---
+title: "DP-993 active verification blocker"
+description: "DP-993 active verification blocker smoke fixture."
 topic: active verification blocker smoke
 created: 2026-05-10
 status: LOCKED
@@ -370,6 +414,8 @@ locked_at: 2026-05-10
 MD
   cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
 ---
+title: "DP-993 T1"
+description: "DP-993 T1 active verification blocker smoke fixture."
 status: IMPLEMENTED
 ---
 # T1
@@ -377,6 +423,10 @@ status: IMPLEMENTED
 > Source: DP-993 | Task: DP-993-T1 | JIRA: N/A | Repo: polaris-framework
 MD
   cat >"$dp_dir/tasks/V1/index.md" <<'MD'
+---
+title: "DP-993 V1"
+description: "DP-993 V1 active verification blocker smoke fixture."
+---
 # V1
 
 > Source: DP-993 | Task: DP-993-V1 | JIRA: N/A | Repo: polaris-framework
@@ -394,6 +444,8 @@ MD
   mkdir -p "$dp_dir/tasks/pr-release/T1"
   cat >"$dp_dir/index.md" <<'MD'
 ---
+title: "DP-995 folder-native parent archive"
+description: "DP-995 folder-native parent archive smoke fixture."
 topic: folder-native parent archive smoke
 created: 2026-05-06
 status: LOCKED
@@ -408,6 +460,8 @@ locked_at: 2026-05-06
 MD
   cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
 ---
+title: "DP-995 T1"
+description: "DP-995 T1 folder-native parent archive smoke fixture."
 status: IMPLEMENTED
 ---
 # T1

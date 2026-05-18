@@ -162,6 +162,22 @@ Epic-backed refinement 相同的 hardened AC 結構：
 完整 decision history 保留在 primary DP doc（新 container 為 `index.md`，legacy fallback
 為 `plan.md`）。
 
+DP source container 的 markdown path classification：
+
+- Docs page：`index.md` / legacy `plan.md`、`refinement.md`、`tasks/Tn/index.md`、
+  `tasks/Vn/index.md`。需符合 Starlight authoring contract，含 `title` + `description`。
+- D2 transport artifact：`artifacts/external-writes/**/*.md` 與
+  `artifacts/research/**/*.md`。這些會從 docs collection 排除，但 producer 必須寫
+  `artifact_type`、`source`、`created`；不要求 `title` / `description`。
+- Existing sidecar：`jira-comments/`、`escalations/`、`refinement-inbox/`。這些也會從 docs
+  collection 排除，但不套 D2 metadata，保留各自既有 schema。
+
+D2 transport artifact 寫入後需跑：
+
+```bash
+bash scripts/validate-specs-collection-shape.sh <source_container>
+```
+
 每次建立或更新 `refinement.md` 後，必須先跑 workspace language gate，通過後才能
 preview、sidebar sync 或 downstream handoff：
 

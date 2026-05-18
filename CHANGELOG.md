@@ -4,6 +4,22 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.96] - 2026-05-18
+
+### Added — framework PR gate aggregator coverage and phased reference policy
+
+- 將 framework PR gate aggregator 補上 reference line-count policy，並以 selftest 覆蓋 W1-W4 pass/fail dispatch。
+- 新增 `lint-reference-line-count.sh --report` JSON contract 與 phased oversized reference allowlist，讓大型 reference 以顯式政策追蹤而非調高 DP-188 硬限制。
+- 將 rule retention scan 納入 phased oversized reference report，並新增 DP-196 diff-scope guard，確認 DP-188 archive、hook/rule 與 runtime dependency 邊界未被擴張。
+
+## [3.75.95] - 2026-05-18
+
+### Fixed — specs collection producer contract
+
+- 將 specs D2 transport artifacts 從 docs collection 排除，避免 external writes / research markdown 因缺 Starlight metadata 破壞 docs-manager。
+- 新增 specs collection shape validator、migration tool、archive gate 與 pre-push selector，明確區分 docs page、D2 transport artifact 與既有 sidecar schema。
+- 更新 refinement / authoring references，讓 producer contract、migration fallback 與 release gate 共用同一套路徑分類。
+
 ## [3.75.94] - 2026-05-18
 
 ### Added — deterministic tool attribution and runtime handoff
