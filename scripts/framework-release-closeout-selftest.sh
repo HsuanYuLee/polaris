@@ -3,6 +3,65 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLOSEOUT="${SCRIPT_DIR}/framework-release-closeout.sh"
+RUNTIME_TMP="$(mktemp -d -t framework-closeout-runtime.XXXXXX)"
+trap 'rm -rf "$RUNTIME_TMP"' EXIT
+
+mkdir -p "${RUNTIME_TMP}/bin"
+cat >"${RUNTIME_TMP}/bin/mise" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "\${1:-}" == "exec" ]]; then
+  shift
+  [[ "\${1:-}" == "--" ]] && shift
+  if [[ "\${1:-}" == "bash" && "\${2:-}" == "-lc" ]]; then
+    case "\${3:-}" in
+      *"command -v node"*) echo "${RUNTIME_TMP}/bin/node"; exit 0 ;;
+      *) exit 0 ;;
+    esac
+  fi
+  exec "\$@"
+fi
+if [[ "\${1:-}" == "--version" ]]; then
+  echo "mise 2099.1.1"
+  exit 0
+fi
+exit 0
+EOF
+cat >"${RUNTIME_TMP}/bin/node" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+script="${1:-}"
+if [[ "$script" == *"reconcile-spec-lifecycle.mjs" ]]; then
+  parent="${@: -1}"
+  python3 - "$parent" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+if text.startswith("---\n"):
+    end = text.find("\n---\n", 4)
+    if end != -1:
+        fm = text[:end]
+        body = text[end:]
+        if re.search(r"^status:", fm, re.M):
+            fm = re.sub(r"^status:.*$", "status: IMPLEMENTED", fm, flags=re.M)
+        else:
+            fm += "\nstatus: IMPLEMENTED"
+        path.write_text(fm + body, encoding="utf-8")
+        print("status: IMPLEMENTED")
+        raise SystemExit(0)
+path.write_text("---\nstatus: IMPLEMENTED\n---\n" + text, encoding="utf-8")
+print("status: IMPLEMENTED")
+PY
+  exit 0
+fi
+echo "fake node"
+EOF
+chmod +x "${RUNTIME_TMP}/bin/mise" "${RUNTIME_TMP}/bin/node"
+PATH="${RUNTIME_TMP}/bin:${PATH}"
+export PATH
 
 git_quiet() {
   git "$@" >/dev/null 2>&1

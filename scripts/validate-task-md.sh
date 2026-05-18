@@ -354,6 +354,116 @@ raise SystemExit(1 if errors else 0)
 PY
 }
 
+validate_required_tools_section() {
+  local file="$1"
+  python3 - "$file" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+
+def section(text, heading):
+    marker = f"## {heading}"
+    start = text.find(marker)
+    if start == -1:
+        return ""
+    start = text.find("\n", start)
+    if start == -1:
+        return ""
+    end = text.find("\n## ", start + 1)
+    return text[start + 1:] if end == -1 else text[start + 1:end]
+
+def split_row(line):
+    raw = line.strip()
+    if not raw.startswith("|") or not raw.endswith("|"):
+        return []
+    return [cell.strip().strip("`") for cell in raw.strip("|").split("|")]
+
+def norm(value):
+    return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
+
+body = section(text, "Required Tools")
+if not body:
+    raise SystemExit(0)
+
+rows = [split_row(line) for line in body.splitlines() if split_row(line)]
+data_rows = []
+headers = []
+for row in rows:
+    if not headers:
+        headers = [norm(cell) for cell in row]
+        continue
+    if all(re.fullmatch(r":?-{3,}:?", cell.strip()) for cell in row):
+        continue
+    data_rows.append(row)
+
+errors = []
+required = [
+    "name",
+    "owner",
+    "install_authority",
+    "check_command",
+    "runtime_profile",
+    "goes_to_mise",
+    "handoff_hint",
+]
+optional = ["install_command"]
+valid_columns = set(required + optional)
+aliases = {
+    "tool": "name",
+    "tool_name": "name",
+    "profile": "runtime_profile",
+}
+headers = [aliases.get(header, header) for header in headers]
+missing_headers = [field for field in required if field not in headers]
+if missing_headers:
+    errors.append(
+        "Required Tools table missing columns: " + ", ".join(missing_headers)
+    )
+
+if not data_rows:
+    errors.append("Required Tools section must contain at least one tool row")
+
+valid_owners = {"framework", "delivery", "project", "ticket", "user"}
+valid_authorities = {
+    "root_mise",
+    "system",
+    "project_package_manager",
+    "workspace_dependency_consent",
+    "manual_user_action",
+}
+valid_profiles = {"core", "runtime", "delivery", "ticket"}
+
+for ridx, row in enumerate(data_rows, start=1):
+    values = {headers[idx]: row[idx].strip() if idx < len(row) else "" for idx in range(len(headers))}
+    if not set(values).intersection(valid_columns):
+        continue
+    for field in required:
+        if not values.get(field):
+            errors.append(f"Required Tools row {ridx}: missing '{field}'")
+    owner = values.get("owner")
+    authority = values.get("install_authority")
+    profile = values.get("runtime_profile")
+    goes_to_mise = values.get("goes_to_mise", "").lower()
+    if owner and owner not in valid_owners:
+        errors.append(f"Required Tools row {ridx}: invalid owner '{owner}'")
+    if authority and authority not in valid_authorities:
+        errors.append(f"Required Tools row {ridx}: invalid install_authority '{authority}'")
+    if profile and profile not in valid_profiles:
+        errors.append(f"Required Tools row {ridx}: invalid runtime_profile '{profile}'")
+    if goes_to_mise and goes_to_mise not in {"true", "false"}:
+        errors.append(f"Required Tools row {ridx}: goes_to_mise must be true or false")
+    if goes_to_mise == "true" and (owner == "ticket" or profile == "ticket"):
+        errors.append("Required Tools row %d: ticket-scoped tools must set goes_to_mise=false" % ridx)
+
+for error in errors:
+    print(error)
+raise SystemExit(0)
+PY
+}
+
 # ---------------------------------------------------------------------------
 # Helper: extract the value cell of an Operational Context table row.
 # task.md convention: `| {field} | {value} |`
@@ -1112,6 +1222,21 @@ validate_file() {
     ')
     if [[ "$bullet_lines" -eq 0 ]]; then
       errors+=("section '## Allowed Files' has no bullet list entries (Hard required — must have at least one '- ' bullet; A7 migration script can backfill)")
+    fi
+  fi
+
+  # ---------------------------------------------------------------------------
+  # OPTIONAL (T mode): ## Required Tools — ticket-scoped tool handoff contract.
+  # When present, validate the table shape and ensure ticket-scoped tools do
+  # not get promoted into root mise.
+  # ---------------------------------------------------------------------------
+  if [[ "$mode" == "T" ]] && grep -qF "## Required Tools" "$FILE"; then
+    local required_tools_errors required_tools_error
+    required_tools_errors="$(validate_required_tools_section "$FILE")"
+    if [[ -n "$required_tools_errors" ]]; then
+      while IFS= read -r required_tools_error; do
+        [[ -n "$required_tools_error" ]] && errors+=("$required_tools_error")
+      done <<< "$required_tools_errors"
     fi
   fi
 

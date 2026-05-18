@@ -88,11 +88,31 @@ SHELL_ALLOWED = {
     "python3", "read", "readonly", "return", "rg", "rm", "screen", "sed", "set",
     "shift", "shopt", "sleep", "sort", "source", "tail", "tee", "test", "tr",
     "trap", "true", "umask", "uniq", "wc", "while", "xargs",
+    "polaris_require_delivery_tool", "polaris_require_mise_tool",
+    "polaris_require_python", "polaris_with_runtime_tools",
 }
 NODE_BUILTINS = {
     "assert", "buffer", "child_process", "crypto", "events", "fs", "http",
     "https", "module", "os", "path", "process", "stream", "url", "util",
 }
+DIRECT_TOOL_POLICY = {
+    "node": ("framework", "root_mise", "core", "true"),
+    "pnpm": ("framework", "root_mise", "core", "true"),
+    "jq": ("framework", "root_mise", "core", "true"),
+    "rg": ("framework", "root_mise", "core", "true"),
+    "gh": ("delivery", "system", "delivery", "false"),
+}
+TICKET_SCOPED_TOOLS = {
+    "playwright", "vitest", "jest", "tsx", "ts-node",
+}
+VALID_DISPOSITIONS = {
+    "accepted_current_debt",
+    "false_positive",
+    "migrated_to_resolver",
+    "follow_up_required",
+}
+INVENTORY_PATH = root / "scripts/tool-direct-call-inventory.txt"
+DISPOSITION_PATH = root / "scripts/tool-direct-call-inventory-disposition.txt"
 
 
 def rel(path: Path) -> str:
@@ -105,6 +125,73 @@ def rel(path: Path) -> str:
 def record(path: Path, message: str) -> None:
     target = warnings if mode == "audit" else errors
     target.append(f"{rel(path)}: {message}")
+
+
+def load_tsv(path: Path) -> list[dict[str, str]]:
+    if not path.is_file():
+        return []
+    rows: list[dict[str, str]] = []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines:
+        return rows
+    header = lines[0].split("\t")
+    for lineno, line in enumerate(lines[1:], start=2):
+        if not line.strip():
+            continue
+        values = line.split("\t")
+        if len(values) != len(header):
+            errors.append(f"{rel(path)}: line {lineno}: invalid TSV column count")
+            continue
+        rows.append(dict(zip(header, values)))
+    return rows
+
+
+def disposition_key(row: dict[str, str]) -> tuple[str, str, str]:
+    return (row.get("path", ""), row.get("line", ""), row.get("tool", ""))
+
+
+inventory_rows = load_tsv(INVENTORY_PATH)
+disposition_rows = load_tsv(DISPOSITION_PATH)
+disposition_by_key = {disposition_key(row): row for row in disposition_rows}
+
+
+def validate_inventory_disposition() -> None:
+    if not inventory_rows:
+        return
+    required = {"path", "line", "tool", "disposition", "owner_decision", "remediation_task", "expiry", "scope"}
+    if not DISPOSITION_PATH.is_file():
+        errors.append(
+            f"{rel(DISPOSITION_PATH)}: missing disposition file for scripts/tool-direct-call-inventory.txt"
+        )
+        return
+    for row in disposition_rows:
+        missing = sorted(required - set(row))
+        if missing:
+            errors.append(f"{rel(DISPOSITION_PATH)}: missing columns: {', '.join(missing)}")
+            return
+        disposition = row.get("disposition", "")
+        if disposition not in VALID_DISPOSITIONS:
+            errors.append(
+                f"{rel(DISPOSITION_PATH)}: {row.get('path')}:{row.get('line')}:{row.get('tool')} "
+                f"has invalid disposition {disposition!r}"
+            )
+        if not row.get("owner_decision") or not row.get("remediation_task") or not row.get("expiry"):
+            errors.append(
+                f"{rel(DISPOSITION_PATH)}: {row.get('path')}:{row.get('line')}:{row.get('tool')} "
+                "must include owner_decision, remediation_task, and expiry"
+            )
+    inventory_keys = {disposition_key(row) for row in inventory_rows}
+    disposition_keys = set(disposition_by_key)
+    for key in sorted(inventory_keys - disposition_keys):
+        errors.append(
+            f"{rel(DISPOSITION_PATH)}: missing disposition for baseline direct call "
+            f"{key[0]}:{key[1]} tool={key[2]}"
+        )
+    for key in sorted(disposition_keys - inventory_keys):
+        errors.append(
+            f"{rel(DISPOSITION_PATH)}: disposition has no matching T1 baseline row "
+            f"{key[0]}:{key[1]} tool={key[2]}"
+        )
 
 
 def git_changed_files() -> list[Path]:
@@ -178,6 +265,16 @@ def scan_shell(path: Path) -> None:
         line = raw.split("#", 1)[0].strip()
         if not line or line.endswith("() {") or line in {"}", "do", "then", "else"}:
             continue
+        hardcoded = re.search(r"(/Applications/Visual Studio Code\.app/\S*|/(?:usr/local|opt/homebrew)/bin)/(node|pnpm|jq|rg|gh)\b", line)
+        if hardcoded:
+            tool = hardcoded.group(2)
+            owner, authority, profile, goes_to_mise = DIRECT_TOOL_POLICY[tool]
+            record(
+                path,
+                f"line {lineno}: POLARIS_TOOL_HARDCODED_PATH tool={tool} owner={owner} "
+                f"install_authority={authority} runtime_profile={profile} goes_to_mise={goes_to_mise} "
+                "hint=resolve through scripts/lib/tool-resolution.sh",
+            )
         if "=" in line and re.match(r"^[A-Za-z_][A-Za-z0-9_]*(\+)?=", line):
             continue
         line = re.sub(r"^(if|then|elif|while|until|do|else)\s+", "", line)
@@ -185,6 +282,27 @@ def scan_shell(path: Path) -> None:
         token = re.split(r"\s+", line, maxsplit=1)[0]
         token = token.split("=", 1)[0]
         token = token.strip("\"'")
+        if token in DIRECT_TOOL_POLICY:
+            key = (rel(path), str(lineno), token)
+            disposition = disposition_by_key.get(key, {}).get("disposition", "")
+            if disposition in VALID_DISPOSITIONS:
+                continue
+            owner, authority, profile, goes_to_mise = DIRECT_TOOL_POLICY[token]
+            record(
+                path,
+                f"line {lineno}: POLARIS_TOOL_DIRECT_CALL tool={token} owner={owner} "
+                f"install_authority={authority} runtime_profile={profile} goes_to_mise={goes_to_mise} "
+                "hint=call through scripts/lib/tool-resolution.sh or add an explicit inventory disposition",
+            )
+            continue
+        if token in TICKET_SCOPED_TOOLS:
+            record(
+                path,
+                f"line {lineno}: POLARIS_TICKET_SCOPED_TOOL_DIRECT_CALL tool={token} owner=ticket "
+                "install_authority=task_required_tools runtime_profile=ticket-scoped goes_to_mise=false "
+                "hint=declare this in task.md Required Tools; do not add it to root mise",
+            )
+            continue
         if not token or token in functions or token in SHELL_ALLOWED:
             continue
         if token in {"case", "esac", ";;"} or token.endswith(")") or token.endswith(";;"):
@@ -251,6 +369,8 @@ def scan_node(path: Path) -> None:
         if pkg not in deps:
             record(path, f"Node package import {pkg!r} is not declared in owning package.json")
 
+
+validate_inventory_disposition()
 
 for script in target_files():
     try:

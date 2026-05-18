@@ -11,6 +11,7 @@
 | `## 目標` | **Soft** | DP-025 | `validate-task-md.sh`（章節存在 + 非空） |
 | `## 改動範圍` | **Hard** | DP-025 | `validate-task-md.sh`（章節存在 + 非空 body） |
 | `## Allowed Files` | **Hard** | DP-033 D5 (升級自 Soft，2026-04-26 鎖定) | `validate-task-md.sh`（章節存在 + 非空 bullet list）— 直接 Hard，**不開 grace、不留 warn-only**；既有 active T 缺漏由 A7 migration script **強制 backfill** |
+| `## Required Tools` | Optional | DP-194 | `validate-task-md.sh`（若存在，驗證 table 欄位與 ticket-scoped `goes_to_mise=false`） |
 | `## Scope Trace Matrix` | **Breakdown readiness Hard** | DP-112 | `validate-breakdown-ready.sh`（章節存在 + goal/AC → owning files → surface/boundary → tests；owning files 必須被 Allowed Files 覆蓋） |
 | `## 估點理由` | **Hard** | DP-025 | `validate-task-md.sh`（章節存在 + 非空 body） |
 | `## 測試計畫（code-level）` | **Soft** | DP-025 | `validate-task-md.sh`（章節存在；內容不檢） |
@@ -129,6 +130,37 @@ gate 會要求非 `N/A` bootstrap，避免把 repo dependency setup 留給 engin
 由 `engineer-delivery-flow.md` Step 5.5 Scope Check 消費。Hard required（DP-033 D5 升級自 Soft）— 缺失會讓 Scope Check 失靈，risk scoring 機制走空。
 
 Allowed Files pattern 支援 repo-root relative path、glob，以及 root exact filename。`VERSION`、`README` 這類 root filename 是合法 exact pattern；不要為了通過 scope gate 改寫成 `VERSION*`。純自然語言 bullet（例如「上述檔案的 test 檔」）仍會被 scope matcher 跳過，不會變成萬用 pattern。
+
+### 3.4a `## Required Tools`（optional，DP-194）
+
+當 task 需要 framework root toolchain 之外的 CLI / package / local binary 才能執行
+Test Command 或 Verify Command 時，breakdown 可寫 `## Required Tools`。這是
+planning-to-engineering handoff，不是 root `mise.toml` 變更授權。
+
+格式為 markdown table：
+
+```markdown
+## Required Tools
+
+| name | owner | install_authority | check_command | install_command | runtime_profile | goes_to_mise | handoff_hint |
+|------|-------|-------------------|---------------|-----------------|-----------------|--------------|--------------|
+| mockoon-cli | ticket | workspace_dependency_consent | mockoon-cli --version | N/A | ticket | false | Run dependency consent/install before Verify Command. |
+```
+
+欄位 contract：
+
+| Field | Required | Allowed values / rule |
+|-------|----------|-----------------------|
+| `name` | yes | tool / package / binary 名稱 |
+| `owner` | yes | `framework` / `delivery` / `project` / `ticket` / `user` |
+| `install_authority` | yes | `root_mise` / `system` / `project_package_manager` / `workspace_dependency_consent` / `manual_user_action` |
+| `check_command` | yes | engineering setup 可執行的檢查命令 |
+| `install_command` | optional | 明確 install command；沒有時可填 `N/A` |
+| `runtime_profile` | yes | `core` / `runtime` / `delivery` / `ticket` |
+| `goes_to_mise` | yes | `true` / `false`；`owner=ticket` 或 `runtime_profile=ticket` 時必須為 `false` |
+| `handoff_hint` | yes | 缺工具時的 install / `BLOCKED_ENV` guidance |
+
+Validator 只在 section 存在時驗證表格。沒有工單級工具需求時，section 可省略。
 
 ### 3.5 `## Scope Trace Matrix`
 
@@ -307,4 +339,3 @@ curl -sf http://localhost:3100/api/activities ...
 具體 instance 見 `specs/companies/exampleco/EPIC-478/tasks/T1.md`、`T9.md`（或完結後的 `specs/companies/exampleco/EPIC-478/tasks/pr-release/T1.md`）。
 
 ---
-

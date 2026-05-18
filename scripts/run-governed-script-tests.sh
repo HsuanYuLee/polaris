@@ -50,12 +50,12 @@ if [[ -n "$BASE_REF" || -n "$HEAD_REF" ]]; then
   done < <(git -C "$ROOT_DIR" diff --name-only "${BASE_REF}...${HEAD_REF}")
 fi
 
-changed_args=()
+python_args=("$MANIFEST_PATH" "$PROFILE")
 if [[ ${#CHANGED_FILES[@]} -gt 0 ]]; then
-  changed_args=("${CHANGED_FILES[@]}")
+  python_args+=("${CHANGED_FILES[@]}")
 fi
 
-selection_json="$(python3 - "$MANIFEST_PATH" "$PROFILE" "${changed_args[@]}" <<'PY'
+selection_json="$(python3 - "${python_args[@]}" <<'PY'
 import json
 import sys
 from pathlib import Path

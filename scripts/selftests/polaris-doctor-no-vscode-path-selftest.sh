@@ -60,7 +60,8 @@ if grep -q "command not found" "${output}"; then
   exit 1
 fi
 
-bash "${ROOT_DIR}/scripts/doctor-mise-check.sh" --tool mise >"${TMP_DIR}/mise-present.json"
+PATH="${TMP_DIR}/bin:$(script_test_restricted_path)" \
+  bash "${ROOT_DIR}/scripts/doctor-mise-check.sh" --tool mise >"${TMP_DIR}/mise-present.json"
 script_test_expect_output_contains "mise present json" '"status": "present"' "${TMP_DIR}/mise-present.json"
 
 PATH="$(script_test_restricted_path)" \

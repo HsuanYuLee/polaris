@@ -95,6 +95,22 @@ refinement 完成時同時產出兩份：
     }
   ],
 
+  // --- Tool Requirements (optional, DP-194) ---
+  "tool_requirements": [
+    {
+      "name": "mockoon-cli",
+      "owner": "ticket",                // "framework" | "delivery" | "project" | "ticket" | "user"
+      "install_authority": "workspace_dependency_consent",
+      // "root_mise" | "system" | "project_package_manager" |
+      // "workspace_dependency_consent" | "manual_user_action"
+      "check_command": "mockoon-cli --version",
+      "install_command": null,          // optional；需要時寫明確 command / consent path
+      "runtime_profile": "ticket",      // "core" | "runtime" | "delivery" | "ticket"
+      "goes_to_mise": false,            // ticket-scoped tools must stay false
+      "handoff_hint": "engineering setup must check or install before Verify Command"
+    }
+  ],
+
   // --- Edge Cases ---
   "edge_cases": [
     {
@@ -215,6 +231,26 @@ AC hardening contract：
 | **breakdown** | `modules`, `dependencies`, `downstream.breakdown_hints`, `modules[].complexity/risk`, `edge_cases`, `acceptance_criteria` | 每個 module action = 一張子單；blocking dependency = 排序依據；complexity + risk + edge case 數量 → 點數加權 |
 | **engineering** | `acceptance_criteria[].verification`, `modules[].path` | 知道要改哪些檔案、怎麼驗證 |
 | **breakdown** (scope-challenge) | `gaps.rd_risks`, `research[].confidence`, `research_gate` | 低信心研究 + 高風險 = challenge 候選 |
+
+### `tool_requirements` handoff（DP-194）
+
+`tool_requirements[]` 用來保留工單級或專案級工具需求，避免單一工單需要的 CLI / package
+被誤升級為 root `mise.toml` framework runtime dependency。新 producer 應優先寫
+top-level `tool_requirements[]`；legacy-compatible producer 也可以用
+`dependencies[]` 的 `type: "tool"` entry 承載相同欄位。
+
+每個 entry 至少包含：
+
+| Field | Required | 說明 |
+|-------|----------|------|
+| `name` | yes | tool / package / binary 名稱 |
+| `owner` | yes | `framework` / `delivery` / `project` / `ticket` / `user` |
+| `install_authority` | yes | `root_mise` / `system` / `project_package_manager` / `workspace_dependency_consent` / `manual_user_action` |
+| `check_command` | yes | engineering setup 可執行的檢查命令 |
+| `install_command` | optional | 需要安裝時的明確命令；若走 consent / manual path 可為 `null` |
+| `runtime_profile` | yes | `core` / `runtime` / `delivery` / `ticket` |
+| `goes_to_mise` | yes | boolean；`owner=ticket` 或 `runtime_profile=ticket` 時必須是 `false` |
+| `handoff_hint` | yes | 給 breakdown / engineering 的 install 或 `BLOCKED_ENV` guidance |
 
 ## Research Snapshot Relationship
 

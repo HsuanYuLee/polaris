@@ -113,6 +113,9 @@ STATE="${FRAMEWORK_PR_LANE_STATE:?}"
 
 cmd="${1:-}"; shift || true
 sub="${1:-}"; shift || true
+if [[ "$cmd $sub" == "auth status" ]]; then
+  exit 0
+fi
 [[ "$cmd $sub" == "pr view" || "$cmd $sub" == "pr edit" || "$cmd $sub" == "pr merge" ]] || {
   echo "unexpected gh command: $cmd $sub $*" >&2
   exit 2
@@ -187,6 +190,27 @@ make_task "$TASK_DIR/T3.md" "DP-999-T3" "task/DP-999-T2-two" "main -> task/DP-99
 make_task "$TASK_DIR/TB.md" "DP-999-TB" "main" "main -> task/DP-999-TB-blocked" "task/DP-999-TB-blocked"
 make_task "$TASK_DIR/TG.md" "DP-999-TG" "main" "main -> codex/generic-publish" "codex/generic-publish"
 
+if GH_BIN="$TMPDIR/missing-gh" bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" >/tmp/framework-pr-lane-missing-gh.out 2>&1; then
+  echo "expected missing gh fixture to fail" >&2
+  exit 1
+fi
+grep -q "POLARIS_TOOL_MISSING tool=gh" /tmp/framework-pr-lane-missing-gh.out
+
+cat > "$TMPDIR/gh-unauth" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-} ${2:-}" == "auth status" ]]; then
+  exit 1
+fi
+exit 0
+SH
+chmod +x "$TMPDIR/gh-unauth"
+if GH_BIN="$TMPDIR/gh-unauth" bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" >/tmp/framework-pr-lane-unauth-gh.out 2>&1; then
+  echo "expected unauth gh fixture to fail" >&2
+  exit 1
+fi
+grep -q "POLARIS_TOOL_AUTH_FAILED tool=gh" /tmp/framework-pr-lane-unauth-gh.out
+
 export GH_BIN="$TMPDIR/gh"
 export FRAMEWORK_PR_LANE_STATE="$TMPDIR/pr-state.tsv"
 
@@ -256,6 +280,21 @@ YAML
 JSON
   git add workspace-config.yaml scripts/manifest.json
   git commit -q -m "init"
+  git remote add origin "$OVERLAY_REPO"
+  git fetch -q origin main:refs/remotes/origin/main
+  git checkout -q -b task/DP-999-T1-one main
+  printf 't1\n' > t1.txt
+  git add t1.txt
+  git commit -q -m "t1"
+  git checkout -q -b task/DP-999-T2-two main
+  printf 't2\n' > t2.txt
+  git add t2.txt
+  git commit -q -m "t2"
+  git checkout -q -b task/DP-999-T3-three main
+  printf 't3\n' > t3.txt
+  git add t3.txt
+  git commit -q -m "t3"
+  git checkout -q main
 )
 
 OVERLAY_TASK_DIR="$OVERLAY_REPO/docs-manager/src/content/docs/specs/design-plans/DP-999-fixture/tasks"

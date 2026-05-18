@@ -60,6 +60,13 @@ cat >"${TMP_DIR}/scripts/manifest.json" <<'JSON'
 }
 JSON
 
+bash "${ROOT_DIR}/scripts/run-governed-script-tests.sh" --root "${TMP_DIR}" --profile release
+
+grep -q '^profile$' "${TMP_DIR}/governed.log"
+[[ "$(wc -l < "${TMP_DIR}/governed.log" | tr -d ' ')" == "1" ]]
+
+rm "${TMP_DIR}/governed.log"
+
 bash "${ROOT_DIR}/scripts/run-governed-script-tests.sh" --root "${TMP_DIR}" --profile release --changed-file scripts/changed.sh --changed-file scripts/lib/shared.sh
 
 grep -q '^profile$' "${TMP_DIR}/governed.log"

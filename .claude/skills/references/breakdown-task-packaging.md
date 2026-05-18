@@ -39,6 +39,7 @@ work order 讀取 fallback，不再作為新產物預設。必備內容：
 - Scope Trace Matrix。
 - Acceptance / test plan。
 - Behavior contract。
+- Required Tools（只有 refinement / ticket 明確宣告工單級工具需求時才寫；沒有就省略）。
 - Test Command。
 - Test Environment。
 - Gate Closure Matrix。
@@ -61,6 +62,18 @@ DP-backed implementation task 的 packaging 仍沿用 Epic 正規鏈：
 - `engineering` 依 task.md 施工、驗證、開 workspace PR。
 - 若 local policy 宣告 `framework-release`，它只能作為 engineering PR 之後的 release tail。
 - local sample/spec-only recut 不得包成 implementation task；那不是 `engineering` lane。
+
+## Required Tools
+
+若 refinement artifact 有 `tool_requirements[]`，每個會影響 Test Command / Verify Command /
+runtime bootstrap 的 entry 都要映射到 task.md `## Required Tools` table。table 是給
+engineering setup 的可執行 handoff：`check_command` 用來確認工具是否已存在；
+`install_command` 只在有明確且被授權的安裝方式時填入，否則填 `N/A` 並在
+`handoff_hint` 說明需要使用者安裝或授權。
+
+`owner=ticket` 或 `runtime_profile=ticket` 的工具一律 `goes_to_mise=false`。這類需求是
+單張工單的執行前置條件，不是 framework root runtime contract；除非另有 framework-level
+DP 決策，不得把它包進 root `mise.toml`。
 
 ## Scope Trace Matrix
 

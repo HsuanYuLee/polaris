@@ -26,6 +26,8 @@ if [[ -f "$GITHUB_REST_LIB" ]]; then
   # shellcheck source=lib/github-rest.sh
   . "$GITHUB_REST_LIB"
 fi
+# shellcheck source=lib/tool-resolution.sh
+. "${SCRIPT_DIR}/lib/tool-resolution.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -105,6 +107,15 @@ refresh_gh_repo_args() {
   if [[ -n "$WORKSPACE_REPO" ]]; then
     gh_repo_args=(--repo "$WORKSPACE_REPO")
   fi
+}
+
+resolve_gh_bin() {
+  if [[ -n "${GH_BIN:-}" && "$GH_BIN" != "gh" ]]; then
+    [[ -x "$GH_BIN" ]] || die "POLARIS_TOOL_MISSING tool=gh owner=delivery install_authority=system hint=GH_BIN is not executable: $GH_BIN"
+    "$GH_BIN" auth status >/dev/null 2>&1 || die "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery install_authority=system hint=GitHub CLI is installed but not authenticated"
+    return 0
+  fi
+  GH_BIN="$(polaris_require_delivery_tool gh)" || die "GitHub CLI delivery preflight failed"
 }
 
 pr_view_json() {
@@ -335,6 +346,7 @@ done
 
 REPO_PATH="$(abs_path "$REPO_PATH")"
 refresh_gh_repo_args
+resolve_gh_bin
 
 if [[ ${#TASK_MDS[@]} -eq 0 ]]; then
   resolve_task_mds_from_terminal

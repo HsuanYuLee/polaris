@@ -37,6 +37,8 @@ EOF
 WORKSPACE_ROOT="$(find_root)"
 MANIFEST="$WORKSPACE_ROOT/polaris-toolchain.yaml"
 PARSER="$WORKSPACE_ROOT/scripts/lib/polaris_toolchain_manifest.py"
+# shellcheck source=lib/tool-resolution.sh
+source "$WORKSPACE_ROOT/scripts/lib/tool-resolution.sh"
 
 validate_manifest() {
   python3 "$PARSER" "$MANIFEST" >/dev/null
@@ -57,7 +59,7 @@ run_command_string() {
   for arg in "$@"; do
     command+=" $(printf '%q' "$arg")"
   done
-  (cd "$WORKSPACE_ROOT" && bash -lc "$command")
+  POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT" polaris_with_runtime_tools bash -lc "$command"
 }
 
 capability_command() {
@@ -67,32 +69,36 @@ capability_command() {
 check_minimum_environment() {
   local json="${1:-false}"
   local failures=0
-  local node_version node_ok
-  node_version="$(node -p 'process.versions.node' 2>/dev/null || echo 0.0.0)"
-  node_ok="$(node - <<'NODE' 2>/dev/null || echo false
+  local node_path pnpm_path python_path
+  local node_version node_ok pnpm_version python_version
+  node_path="$(POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT" polaris_require_mise_tool node 2>/dev/null || true)"
+  pnpm_path="$(POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT" polaris_require_mise_tool pnpm 2>/dev/null || true)"
+  python_path="$(polaris_require_python 2>/dev/null || true)"
+  node_version="$(POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT" polaris_with_runtime_tools node -p 'process.versions.node' 2>/dev/null || echo 0.0.0)"
+  node_ok="$(POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT" polaris_with_runtime_tools node - <<'NODE' 2>/dev/null || echo false
 const [major, minor, patch] = process.versions.node.split('.').map(Number);
 const ok = major > 22 || (major === 22 && (minor > 12 || (minor === 12 && patch >= 0)));
 console.log(ok ? 'true' : 'false');
 NODE
 )"
 
-  local pnpm_path=""
-  pnpm_path="$(command -v pnpm 2>/dev/null || true)"
-  local pnpm_version=""
   if [[ -n "$pnpm_path" ]]; then
-    pnpm_version="$(pnpm --version 2>/dev/null || true)"
+    pnpm_version="$(POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT" polaris_with_runtime_tools pnpm --version 2>/dev/null || true)"
   fi
-  local python_version=""
-  python_version="$(python3 - <<'PY' 2>/dev/null || true
+  if [[ -n "$python_path" ]]; then
+    python_version="$("$python_path" - <<'PY' 2>/dev/null || true
 import sys
 print(f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
 PY
 )"
+  else
+    python_version=""
+  fi
 
   [[ "${BASH_VERSINFO[0]}" -ge 3 ]] || failures=$((failures + 1))
   [[ "$node_ok" == "true" ]] || failures=$((failures + 1))
   [[ -n "$pnpm_path" ]] || failures=$((failures + 1))
-  [[ -n "$python_version" ]] || failures=$((failures + 1))
+  [[ -n "$python_path" && -n "$python_version" ]] || failures=$((failures + 1))
 
   if [[ "$json" == "true" ]]; then
     python3 - <<PY
@@ -100,16 +106,16 @@ import json
 print(json.dumps({
   "minimum_environment": {
     "bash": {"ok": ${BASH_VERSINFO[0]} >= 3, "version": "${BASH_VERSION}"},
-    "node": {"ok": "${node_ok}" == "true", "version": "${node_version}", "required": ">=22.12.0"},
+    "node": {"ok": "${node_ok}" == "true", "path": "${node_path}", "version": "${node_version}", "required": ">=22.12.0"},
     "pnpm": {"ok": bool("${pnpm_path}"), "path": "${pnpm_path}", "version": "${pnpm_version}", "required": "10.10.0"},
-    "python": {"ok": bool("${python_version}"), "version": "${python_version}"}
+    "python": {"ok": bool("${python_path}") and bool("${python_version}"), "path": "${python_path}", "version": "${python_version}"}
   }
 }, ensure_ascii=False, indent=2))
 PY
   else
     echo "Minimum environment:"
     echo "  bash: ${BASH_VERSION}"
-    echo "  node: $(node --version 2>/dev/null || echo missing) (required >=22.12.0)"
+    echo "  node: ${node_path:-missing} (${node_version:-missing}; required >=22.12.0)"
     echo "  pnpm: ${pnpm_path:-missing}${pnpm_version:+ (${pnpm_version})}"
     echo "  python3: ${python_version:-missing}"
   fi

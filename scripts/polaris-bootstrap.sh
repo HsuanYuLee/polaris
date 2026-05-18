@@ -7,6 +7,8 @@ WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT_DIR="$WORKSPACE_ROOT/scripts"
 DRY_RUN=false
 PROFILE="runtime"
+# shellcheck source=lib/tool-resolution.sh
+source "$SCRIPT_DIR/lib/tool-resolution.sh"
 
 usage() {
   cat <<'EOF'
@@ -82,7 +84,7 @@ EOF
 }
 
 require_mise() {
-  if command -v mise >/dev/null 2>&1; then
+  if polaris_find_mise >/dev/null 2>&1; then
     return 0
   fi
   if [[ "$DRY_RUN" == "true" ]]; then
@@ -102,7 +104,7 @@ require_managed_tool() {
     log "would verify mise-managed $label: $command_name"
     return 0
   fi
-  if (cd "$WORKSPACE_ROOT" && mise exec -- bash -lc "command -v $(printf '%q' "$command_name")" >/dev/null 2>&1); then
+  if POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT" polaris_require_mise_tool "$command_name" >/dev/null; then
     return 0
   fi
   blocked_env "mise-managed:${command_name}" "mise-managed $label missing after mise install."
@@ -114,11 +116,11 @@ require_gh_delivery() {
     log "would verify gh binary and auth"
     return 0
   fi
-  if ! command -v gh >/dev/null 2>&1; then
+  if ! polaris_require_delivery_tool gh >/dev/null; then
+    if ! command -v gh >/dev/null 2>&1; then
     blocked_env "gh-missing" "GitHub CLI is required for delivery/full bootstrap profiles."
     return 1
-  fi
-  if ! gh auth status >/dev/null 2>&1; then
+    fi
     blocked_env "gh-unauth" "GitHub CLI is installed but not authenticated."
     return 1
   fi
@@ -132,11 +134,13 @@ validate_profile() {
 }
 
 run_mise() {
+  local mise_bin
   if [[ "$DRY_RUN" == "true" ]]; then
     log "+ mise $*"
     return 0
   fi
-  (cd "$WORKSPACE_ROOT" && mise "$@")
+  mise_bin="$(polaris_find_mise)" || return 1
+  (cd "$WORKSPACE_ROOT" && "$mise_bin" "$@")
 }
 
 run_managed() {
@@ -146,7 +150,7 @@ run_managed() {
     log "+ mise exec -- $command $*"
     return 0
   fi
-  (cd "$WORKSPACE_ROOT" && mise exec -- "$command" "$@")
+  POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT" polaris_with_runtime_tools "$command" "$@"
 }
 
 bootstrap_core() {

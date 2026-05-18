@@ -2,7 +2,7 @@
 
 > **Status**: v1 (DP-033 Phase A + Phase B)。實作 schema (T{n}.md) + 驗收 schema (V{n}.md) 雙路徑齊備；對稱原則：驗收也是工程，所有共用基礎設施 (parser / closer / hook / D6 pr-release / D7 atomic write contract / jira_transition_log) 一份權威、T/V 共用。
 >
-> **Source DPs**: DP-023 (runtime contract) · DP-025 (artifact schema enforcement) · DP-028 (depends_on / Base branch binding) · DP-032 (deliverable / jira_transition_log lifecycle write-back) · DP-033 (本 reference — schema 整合 + lifecycle closure；Phase A 實作 schema、Phase B 驗收 schema) · DP-065 (task / gate contract hardening)
+> **Source DPs**: DP-023 (runtime contract) · DP-025 (artifact schema enforcement) · DP-028 (depends_on / Base branch binding) · DP-032 (deliverable / jira_transition_log lifecycle write-back) · DP-033 (本 reference — schema 整合 + lifecycle closure；Phase A 實作 schema、Phase B 驗收 schema) · DP-065 (task / gate contract hardening) · DP-194 (Required Tools / tool requirement handoff)
 
 本 reference 是 task.md 的單一權威 schema 文件 — pipeline 的所有 producer / consumer / validator / hook 都從此派生。若本檔與個別 SKILL.md / DP plan / `pipeline-handoff.md` 描述衝突，**以本檔為準**。
 
@@ -35,6 +35,10 @@ DP-backed implementation task 與 Epic implementation task 沒有不同的施工
 需要 `framework-release`，那是 PR 之後的 local extension tail。只觸及
 `docs-manager/src/content/docs/specs/**` 這類 local sample/spec surface 的調整，不得被包成
 DP implementation task handoff engineering。
+
+Implementation task 若需要工單級工具，使用 `task-md-schema-task.md` § `Required Tools`
+table 承接 refinement `tool_requirements[]`；這是 engineering setup handoff，不是
+root `mise.toml` 變更授權。
 
 > **Reader fallback callout（DP-033 D8）**：所有用 task key 找 file 的 reader（`parse-task-md.sh` / `validate-task-md-deps.sh` / `verify-AC` / `engineering` / 未來 Specs Viewer）在 active `tasks/` 找不到 key 時，必須 fallback `tasks/pr-release/`，避免歷史 reference 在 task 完結後斷鏈。完整 fallback 規則 + lookup 優先順序見 § 6 Validator Mapping。`tasks/pr-release/` fallback 不等於 archive lookup；`archive/` 是 completed/abandoned container 的歷史命名空間，active resolver 預設必須排除，只有 direct archived path 或明確 `--include-archive` 類模式才可讀取。
 
@@ -348,4 +352,3 @@ PR-release 觸發（DP-033 D6，**move-first 順序鎖定**）：`status` 轉為
 **Hard invariant**：完結（frontmatter `status: IMPLEMENTED`）但仍位於頂層 `tasks/` 而非 `tasks/pr-release/` → validator **HARD FAIL**（exit 2）。詳見 § 5.5。
 
 ---
-

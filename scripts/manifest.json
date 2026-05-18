@@ -473,6 +473,17 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/polaris-doctor-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-194-T2 resolver-backed doctor profile coverage."
+    },
+    {
       "path": "scripts/doctor-mise-check.sh",
       "kind": "gate",
       "runner": "bash",
@@ -710,10 +721,20 @@
       "kind": "support",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
+      "selftest": "scripts/close-parent-spec-if-complete-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "posture_decision": "DP-194-T3 resolver-backed parent closeout coverage."
+    },
+    {
+      "path": "scripts/close-parent-spec-if-complete-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
       "selftest": "N/A",
       "lifecycle": "support_path",
       "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/codex-guarded-bash.sh",
@@ -1932,6 +1953,17 @@
       "selftest": "scripts/selftests/polaris-toolchain-selftest.sh",
       "lifecycle": "support_path",
       "relocation": "stay"
+    },
+    {
+      "path": "scripts/polaris-toolchain-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-194-T2 root compatibility selftest for resolver-backed toolchain execution."
     },
     {
       "path": "scripts/polaris-viewer.sh",
@@ -3372,6 +3404,58 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "dry-run scanner validated by DP-188 Verify Command"
+    },
+    {
+      "path": "scripts/tool-attribution-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-194-T1 coverage for shared tool attribution policy."
+    },
+    {
+      "path": "scripts/check-t4-api-leak.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "covered by DP-194-T4 Verify Command"
+    },
+    {
+      "path": "scripts/tool-resolution-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-194-T1 coverage for PATH-stripped tool resolution."
+    },
+    {
+      "path": "scripts/tool-direct-call-inventory.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/tool-attribution-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "keep_reason": "DP-194 Tier A direct-call inventory baseline for migration planning."
+    },
+    {
+      "path": "scripts/tool-direct-call-inventory-disposition.txt",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/selftests/validate-script-dependencies-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "posture_decision": "DP-194-T5 owner disposition for T1 direct-call inventory baseline."
     }
   ],
   "test_governance": {
@@ -3428,6 +3512,47 @@
       "owner": "polaris-framework"
     },
     {
+      "id": "tool-attribution",
+      "command": "bash scripts/tool-attribution-selftest.sh",
+      "profiles": [
+        "core",
+        "runtime",
+        "delivery",
+        "full",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/lib/tool-attribution.sh",
+        "scripts/tool-attribution-selftest.sh",
+        "scripts/tool-direct-call-inventory.sh"
+      ],
+      "fixtures": [
+        "fake tool matrix"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "tool-resolution",
+      "command": "bash scripts/tool-resolution-selftest.sh",
+      "profiles": [
+        "core",
+        "runtime",
+        "delivery",
+        "full",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/lib/tool-resolution.sh",
+        "scripts/tool-resolution-selftest.sh"
+      ],
+      "fixtures": [
+        "PATH-stripped fake mise and gh"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
       "id": "polaris-bootstrap-dry-run",
       "command": "bash scripts/selftests/polaris-bootstrap-selftest.sh",
       "profiles": [
@@ -3456,14 +3581,90 @@
         "release"
       ],
       "changed_paths": [
-        "scripts/polaris-doctor.sh",
         "scripts/doctor-mise-check.sh",
-        "mise.toml",
-        "polaris-toolchain.yaml"
+        "scripts/selftests/polaris-doctor-no-vscode-path-selftest.sh"
       ],
       "fixtures": [
         "no-VSCode PATH",
         "missing rg"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "polaris-doctor-resolver",
+      "command": "bash scripts/polaris-doctor-selftest.sh",
+      "profiles": [
+        "core",
+        "runtime",
+        "delivery",
+        "full",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/polaris-doctor.sh",
+        "scripts/polaris-doctor-selftest.sh",
+        "scripts/lib/tool-resolution.sh",
+        "polaris-toolchain.yaml",
+        "mise.toml"
+      ],
+      "fixtures": [
+        "fake mise",
+        "fake gh"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "polaris-toolchain-resolver",
+      "command": "bash scripts/polaris-toolchain-selftest.sh",
+      "profiles": [
+        "runtime",
+        "full",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/polaris-toolchain.sh",
+        "scripts/polaris-toolchain-selftest.sh",
+        "polaris-toolchain.yaml"
+      ],
+      "fixtures": [
+        "fake mise-managed node and pnpm"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "framework-release-pr-lane",
+      "command": "bash scripts/framework-release-pr-lane-selftest.sh",
+      "profiles": [
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/framework-release-pr-lane.sh",
+        "scripts/framework-release-pr-lane-selftest.sh",
+        "scripts/lib/github-rest.sh"
+      ],
+      "fixtures": [
+        "fake gh"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "close-parent-spec-if-complete",
+      "command": "bash scripts/close-parent-spec-if-complete-selftest.sh",
+      "profiles": [
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/close-parent-spec-if-complete.sh",
+        "scripts/close-parent-spec-if-complete-selftest.sh"
+      ],
+      "fixtures": [
+        "fake mise-managed node"
       ],
       "enrolled": true,
       "owner": "polaris-framework"
@@ -3477,12 +3678,14 @@
       ],
       "changed_paths": [
         "scripts/validate-script-dependencies.sh",
-        "scripts/selftests/validate-script-dependencies-selftest.sh"
+        "scripts/selftests/validate-script-dependencies-selftest.sh",
+        "scripts/tool-direct-call-inventory-disposition.txt"
       ],
       "fixtures": [
         "shell",
         "python",
-        "node"
+        "node",
+        "direct-call inventory disposition"
       ],
       "enrolled": true,
       "owner": "polaris-framework"

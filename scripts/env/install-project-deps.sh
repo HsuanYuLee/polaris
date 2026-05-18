@@ -3,8 +3,9 @@
 # fresh checkout / worktree before tests or dev-server launch.
 #
 # Resolution order:
-#   1. workspace-config.yaml → projects[].dev_environment.install_command
-#   2. deterministic detector from manifest / lockfile in --cwd
+#   1. task.md Required Tools table (when --task-md is used)
+#   2. workspace-config.yaml → projects[].dev_environment.install_command
+#   3. deterministic detector from manifest / lockfile in --cwd
 #
 # Usage:
 #   install-project-deps.sh --project NAME [--workspace-config PATH] [--cwd DIR]
@@ -68,6 +69,121 @@ if [[ ! -d "$target_cwd" ]]; then
   exit 1
 fi
 
+run_required_tools() {
+  local task_md="$1"
+  local cwd="$2"
+  local tools_json
+
+  tools_json="$(python3 - "$task_md" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+
+def section(text, heading):
+    marker = f"## {heading}"
+    start = text.find(marker)
+    if start == -1:
+        return ""
+    start = text.find("\n", start)
+    if start == -1:
+        return ""
+    end = text.find("\n## ", start + 1)
+    return text[start + 1:] if end == -1 else text[start + 1:end]
+
+def split_row(line):
+    raw = line.strip()
+    if not raw.startswith("|") or not raw.endswith("|"):
+        return []
+    return [cell.strip().strip(chr(96)) for cell in raw.strip("|").split("|")]
+
+def norm(value):
+    return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
+
+body = section(text, "Required Tools")
+if not body:
+    print("[]")
+    raise SystemExit(0)
+
+rows = [split_row(line) for line in body.splitlines() if split_row(line)]
+headers = []
+data_rows = []
+aliases = {"tool": "name", "tool_name": "name", "profile": "runtime_profile"}
+for row in rows:
+    if not headers:
+        headers = [aliases.get(norm(cell), norm(cell)) for cell in row]
+        continue
+    if all(re.fullmatch(r":?-{3,}:?", cell.strip()) for cell in row):
+        continue
+    data_rows.append(row)
+
+tools = []
+for row in data_rows:
+    values = {headers[idx]: row[idx].strip() if idx < len(row) else "" for idx in range(len(headers))}
+    name = values.get("name", "").strip()
+    check = values.get("check_command", "").strip()
+    if not name or not check:
+        continue
+    install = values.get("install_command", "").strip()
+    tools.append({
+        "name": name,
+        "owner": values.get("owner", "").strip(),
+        "install_authority": values.get("install_authority", "").strip(),
+        "check_command": check,
+        "install_command": "" if install.upper() == "N/A" else install,
+        "runtime_profile": values.get("runtime_profile", "").strip(),
+        "goes_to_mise": values.get("goes_to_mise", "").strip().lower(),
+        "handoff_hint": values.get("handoff_hint", "").strip(),
+    })
+
+print(json.dumps(tools, ensure_ascii=False))
+PY
+)"
+
+  local tool_count
+  tool_count="$(printf '%s' "$tools_json" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
+  if [[ "$tool_count" == "0" ]]; then
+    return 0
+  fi
+
+  env_lib_log_info "checking $tool_count task-required tool(s) from $task_md"
+  while IFS= read -r tool_json; do
+    local name owner authority profile check_command install_command handoff_hint
+    name="$(printf '%s' "$tool_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("name",""))')"
+    owner="$(printf '%s' "$tool_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("owner",""))')"
+    authority="$(printf '%s' "$tool_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("install_authority",""))')"
+    profile="$(printf '%s' "$tool_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("runtime_profile",""))')"
+    check_command="$(printf '%s' "$tool_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("check_command",""))')"
+    install_command="$(printf '%s' "$tool_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("install_command",""))')"
+    handoff_hint="$(printf '%s' "$tool_json" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("handoff_hint",""))')"
+
+    if bash -c "cd '$cwd' && $check_command" >/dev/null 2>&1; then
+      env_lib_log_pass "required tool ready: $name"
+      continue
+    fi
+
+    if [[ -z "$install_command" ]]; then
+      env_lib_log_fail "BLOCKED_ENV required tool '$name' is missing; owner=$owner install_authority=$authority runtime_profile=$profile; $handoff_hint"
+      return 1
+    fi
+
+    env_lib_log_info "installing required tool '$name' via install_authority=$authority"
+    if ! bash -c "cd '$cwd' && $install_command"; then
+      env_lib_log_fail "BLOCKED_ENV install_command failed for required tool '$name'; $handoff_hint"
+      return 1
+    fi
+
+    if ! bash -c "cd '$cwd' && $check_command" >/dev/null 2>&1; then
+      env_lib_log_fail "BLOCKED_ENV required tool '$name' still unavailable after install_command; $handoff_hint"
+      return 1
+    fi
+    env_lib_log_pass "required tool installed: $name"
+  done < <(printf '%s' "$tools_json" | python3 -c 'import json,sys; [print(json.dumps(item, ensure_ascii=False)) for item in json.load(sys.stdin)]')
+}
+
 if [[ -n "$TASK_MD" ]]; then
   if [[ ! -f "$TASK_MD" ]]; then
     env_lib_log_fail "--task-md path not found: $TASK_MD"; exit 2
@@ -78,6 +194,9 @@ if [[ -n "$TASK_MD" ]]; then
   fi
 
   TASK_LEVEL="$("$parser" "$TASK_MD" --field level 2>/dev/null | xargs 2>/dev/null || true)"
+  TASK_DEV_ENV_CONFIG="$("$parser" "$TASK_MD" --field dev_env_config 2>/dev/null | xargs 2>/dev/null || true)"
+  run_required_tools "$TASK_MD" "$target_cwd"
+
   if [[ "$TASK_LEVEL" == "static" ]]; then
     env_lib_log_pass "static task does not require dependency installation"
     python3 -c '
@@ -105,6 +224,23 @@ m = re.search(r"projects\[([^\]]+)\]\.dev_environment", cfg)
 if m: print(m.group(1))
 ')
   if [[ -z "$PROJECT" ]]; then
+    if [[ "$TASK_LEVEL" == "build" && ( -z "$TASK_DEV_ENV_CONFIG" || "$TASK_DEV_ENV_CONFIG" == "N/A" ) ]]; then
+      env_lib_log_pass "build task has no project dev_environment; task-required tools are ready"
+      python3 -c '
+import json, sys
+print(json.dumps({
+  "primitive": "install-project-deps",
+  "project": None,
+  "status": "PASS",
+  "mode": "noop_no_project_config",
+  "level": "build",
+  "reason": "task has no project dev_environment and Required Tools checks passed",
+  "cwd": sys.argv[1],
+  "task_md": sys.argv[2],
+}))
+' "$target_cwd" "$TASK_MD"
+      exit 0
+    fi
     env_lib_log_fail "could not extract project name from $TASK_MD test_environment.dev_env_config"
     exit 1
   fi

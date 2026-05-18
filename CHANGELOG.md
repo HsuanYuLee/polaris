@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.94] - 2026-05-18
+
+### Added — deterministic tool attribution and runtime handoff
+
+- 新增 Required Tools schema / parser validation，讓 ticket-scoped tools 由 task.md handoff，而不是升進 root `mise.toml`。
+- 新增 tool attribution / resolution libraries，統一 root mise、system、delivery 與 ticket-scoped tool 的 ownership、install authority、runtime profile 與 `POLARIS_TOOL_*` error tokens。
+- 將 bootstrap、doctor、toolchain、framework release lane、close-parent lifecycle 與 script dependency governance 接上 resolver / direct-call inventory gates。
+- 補 release closeout 檢查的 generated runtime manifest 與 governed test runner 空 changed-file 路徑，讓 post-merge preflight 可重入。
+
 ## [3.75.93] - 2026-05-18
 
 ### Added — canonical framework workflow release hardening

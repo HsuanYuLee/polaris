@@ -41,6 +41,10 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
   deliverable / extension_deliverable / status move-first closeout。
 - 開始前讀 workspace config、company handbook index + linked docs、repo handbook index +
   linked docs；缺 company handbook 要明記，不可跳過 repo handbook。
+- fresh worktree / checkout 跑 Test Command 或 Verify Command 前，先用
+  `scripts/env/install-project-deps.sh --task-md <task.md> --cwd <repo>` 消費
+  `## Required Tools` 與 project dependency contract。缺 ticket-scoped 工具且 task.md 沒有可執行
+  install command 時，視為 `BLOCKED_ENV`，依 handoff_hint 提醒使用者安裝或授權。
 - 任何 sub-agent dispatch 前，先讀 `sub-agent-roles.md` 並注入 Completion Envelope；
   Codex runtime / model fallback contract 見該 reference § Runtime Adapter Contract /
   Fallback Behavior。Implementation、CI/debug、PR review 與 correctness review 不得降到

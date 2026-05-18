@@ -29,6 +29,9 @@ to `refinement`。
   task.md、sidecar processed flag。
 - task.md 必須能被 `engineering` 單獨消費：Allowed Files、Gate Closure Matrix、
   Behavior Contract、Test Environment、Verify Command 都要完整。
+- refinement / ticket handoff 若宣告 `tool_requirements[]`，必須包成 task.md
+  `## Required Tools` table。ticket-scoped 工具只能透過 task.md 提醒 engineering 檢查或安裝；
+  不得把單一工單工具需求升級成 root `mise.toml` 需求。
 - 若 task 修改 Polaris deterministic script behavior、release gate、bootstrap/doctor、
   dependency governance 或 selected suite，task.md 必須寫出 script test contract；
   高風險行為變更優先包進 failing selftest → implementation → passing selftest。

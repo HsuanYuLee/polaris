@@ -25,6 +25,8 @@ set -euo pipefail
 PREFIX="[polaris parent-closeout]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=lib/tool-resolution.sh
+. "${SCRIPT_DIR}/lib/tool-resolution.sh"
 TASK_MD=""
 DRY_RUN=0
 ARCHIVE_TERMINAL_PARENT=0
@@ -854,7 +856,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-reconcile_out="$(node "${SCRIPT_DIR}/reconcile-spec-lifecycle.mjs" --specs-root "${WORKSPACE_ROOT}/docs-manager/src/content/docs/specs" --apply --no-archive "$parent_file")"
+reconcile_out="$(POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT" polaris_with_runtime_tools node "${SCRIPT_DIR}/reconcile-spec-lifecycle.mjs" --specs-root "${WORKSPACE_ROOT}/docs-manager/src/content/docs/specs" --apply --no-archive "$parent_file")"
 if ! grep -q '^status: IMPLEMENTED$' "$parent_file"; then
   echo "$PREFIX failed to close parent through lifecycle reconciler: ${parent_file}" >&2
   printf '%s\n' "$reconcile_out" >&2

@@ -24,7 +24,7 @@ polaris_gh_api() {
       *e*) had_errexit=1; set +e ;;
       *) had_errexit=0 ;;
     esac
-    gh api "$@" >"$out_file" 2>"$err_file"
+    "${GH_BIN:-gh}" api "$@" >"$out_file" 2>"$err_file"
     rc=$?
     [[ "$had_errexit" -eq 1 ]] && set -e
     if [[ "$rc" -eq 0 ]]; then

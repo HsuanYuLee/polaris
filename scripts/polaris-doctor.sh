@@ -12,6 +12,8 @@ SIMULATE_NO_VSCODE_PATH=false
 PASS_COUNT=0
 WARN_COUNT=0
 FAIL_COUNT=0
+# shellcheck source=lib/tool-resolution.sh
+source "$SCRIPT_DIR/lib/tool-resolution.sh"
 
 usage() {
   cat <<'EOF'
@@ -107,7 +109,19 @@ check_command() {
     info "would check command: $cmd ($label)"
     return 0
   fi
-  if command -v "$cmd" >/dev/null 2>&1; then
+  if [[ "$cmd" == "python3" ]]; then
+    if command_path="$(polaris_require_python 2>/dev/null)"; then
+      pass "$label command found: $command_path"
+    else
+      blocked_env "$blocker_class" "$label command missing: $cmd"
+    fi
+  elif [[ "$cmd" == "mise" ]]; then
+    if command_path="$(polaris_find_mise 2>/dev/null)"; then
+      pass "$label command found: $command_path"
+    else
+      blocked_env "$blocker_class" "$label command missing: $cmd"
+    fi
+  elif command -v "$cmd" >/dev/null 2>&1; then
     pass "$label command found: $(command -v "$cmd")"
   else
     blocked_env "$blocker_class" "$label command missing: $cmd"
@@ -129,23 +143,14 @@ check_mise_tool() {
     fail "mise check helper missing: $MISE_CHECK"
     return 0
   fi
-  if output="$(bash "$MISE_CHECK" --tool "$command_name" 2>/dev/null)"; then
-    tool_path="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("path") or "")' "$output")"
+  if tool_path="$(POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT" polaris_require_mise_tool "$command_name" 2>/dev/null)"; then
     pass "mise-managed $label available: $command_name${tool_path:+ at $tool_path}"
   else
-    status="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("status") or "")' "$output" 2>/dev/null || true)"
-    blocker_class="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("blocker_class") or "")' "$output" 2>/dev/null || true)"
-    case "$blocker_class" in
-      mise-missing)
-        blocked_env "mise-missing" "mise missing; cannot verify managed $label ($command_name)"
-        ;;
-      mise-managed:*)
-        blocked_env "$blocker_class" "mise-managed $label missing: $command_name"
-        ;;
-      *)
-        fail "mise-managed $label check failed: ${status:-unknown}"
-        ;;
-    esac
+    if ! polaris_find_mise >/dev/null 2>&1; then
+      blocked_env "mise-missing" "mise missing; cannot verify managed $label ($command_name)"
+    else
+      blocked_env "mise-managed:${command_name}" "mise-managed $label missing: $command_name"
+    fi
   fi
 }
 
@@ -197,12 +202,20 @@ check_runtime() {
 
 check_delivery() {
   echo "[delivery]"
-  check_command gh "GitHub CLI" "gh-missing"
   if [[ "$DRY_RUN" == "true" ]]; then
+    check_command gh "GitHub CLI" "gh-missing"
     info "would check gh auth status"
-  elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    return 0
+  fi
+  if ! command -v gh >/dev/null 2>&1; then
+    blocked_env "gh-missing" "GitHub CLI command missing: gh"
+    return 0
+  fi
+  if polaris_require_delivery_tool gh >/dev/null 2>&1; then
+    pass "GitHub CLI command found: $(command -v gh)"
     pass "gh auth status passed"
   else
+    pass "GitHub CLI command found: $(command -v gh)"
     blocked_env "gh-unauth" "gh auth status failed or gh is not logged in"
   fi
 }

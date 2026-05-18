@@ -53,7 +53,7 @@
 ## 設計原則
 
 1. **單一源** — execution 紀律在此定義，skill 不重寫。skill SKILL.md 只負責路由、輸入解析、角色標註，具體怎麼做全部讀這份。
-2. **框架無關** — 不寫死 Nuxt / Laravel / Rails 的命令。repo 的啟動方式由 **workspace-config + handbook config** 宣告（D11 composable primitives），script 消費宣告，不假設 stack。這也包含 **依賴安裝**：worktree / fresh checkout 在跑任何 test / build / dev-server 前，先透過 `scripts/env/install-project-deps.sh` 讀 task.md；`Level=static` 時 script 回傳 `noop_static` PASS，不讀 project config；其他 level 才讀 `projects[].dev_environment.install_command`，未宣告時由 script 根據 lockfile / manifest 決定（`pnpm-lock.yaml` → `pnpm install --frozen-lockfile`、`poetry.lock` → `poetry install --sync` 等），避免把「先裝套件」留給 LLM 自行猜測。
+2. **框架無關** — 不寫死 Nuxt / Laravel / Rails 的命令。repo 的啟動方式由 **workspace-config + handbook config** 宣告（D11 composable primitives），script 消費宣告，不假設 stack。這也包含 **依賴安裝與工單級工具**：worktree / fresh checkout 在跑任何 test / build / dev-server 前，先透過 `scripts/env/install-project-deps.sh --task-md <task.md>` 讀 task.md。script 先消費 `## Required Tools` table：已安裝則通過；有明確 `install_command` 才執行；缺工具且需要人工安裝 / 授權時以 `BLOCKED_ENV` fail loud，不能自行把 ticket-scoped 工具加入 root `mise.toml`。`Level=static` 時 task-required tools 檢查完成後回傳 `noop_static` PASS，不讀 project config；其他 level 才讀 `projects[].dev_environment.install_command`，未宣告時由 script 根據 lockfile / manifest 決定（`pnpm-lock.yaml` → `pnpm install --frozen-lockfile`、`poetry.lock` → `poetry install --sync` 等），避免把「先裝套件」留給 LLM 自行猜測。`Level=build` 且 task.md 明確宣告 `Dev env config: N/A` 時，Required Tools 全部就緒後可回傳 `noop_no_project_config` PASS，適用於 framework / script-only work order。
    - **Handbook machine fields boundary（DP-035）**：script-consumable project runtime / test / URL mapping / key library 欄位的 target source 是 `{company}/polaris-config/{project}/handbook/config.yaml`；`handbook/*.md` 只提供 narrative / rationale，不可被 script 當資料庫解析。過渡期 `start-test-env.sh` 使用 handbook config first；若 config 缺失才 explicit fallback 到 `workspace-config.yaml`，且 duplicate field conflict 由 validator fail loud。
 3. **task.md authoritative（D1）** — task.md 是 engineering 內部的唯一 state container。Verification URLs, allowed files, verify command, deliverable 全在 task.md。Engineering 對 JIRA 是 write-only（side-effect display）。
 4. **Positive-evidence + fail-loud（D11/D12）** — script exit 0 必須代表「實際做了且通過」；config 缺失 → fail loud，不 fallback 推論。
@@ -98,4 +98,3 @@
 **Role 由呼叫端傳入**，reference 不做角色偵測。呼叫端在 dispatch prompt 或 context 說明「你是 Developer / Local Extension」。Local Extension 的具體 endpoint、repo、release/push 權限、final verification 全部由 workspace-local policy 定義，不進 portable reference。
 
 ---
-

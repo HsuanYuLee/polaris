@@ -237,6 +237,87 @@ else:
         if "blocking" not in dep or not isinstance(dep["blocking"], bool):
             errors.append(f"dependencies[{idx}]: missing 'blocking' (must be boolean)")
 
+# --- tool_requirements: optional structured handoff for ticket-scoped / project-owned tools ---
+VALID_TOOL_OWNERS = {"framework", "delivery", "project", "ticket", "user"}
+VALID_INSTALL_AUTHORITIES = {
+    "root_mise",
+    "system",
+    "project_package_manager",
+    "workspace_dependency_consent",
+    "manual_user_action",
+}
+VALID_RUNTIME_PROFILES = {"core", "runtime", "delivery", "ticket"}
+
+def validate_tool_requirement(item, label):
+    if not isinstance(item, dict):
+        errors.append(f"{label}: expected object, got {type(item).__name__}")
+        return
+    for field in ("name", "owner", "install_authority", "check_command", "runtime_profile", "goes_to_mise", "handoff_hint"):
+        if field not in item:
+            errors.append(f"{label}: missing required field '{field}'")
+    name = item.get("name")
+    if not isinstance(name, str) or not name.strip():
+        errors.append(f"{label}.name must be a non-empty string")
+    owner = item.get("owner")
+    if owner not in VALID_TOOL_OWNERS:
+        errors.append(f"{label}.owner must be one of {sorted(VALID_TOOL_OWNERS)} (got: {owner!r})")
+    authority = item.get("install_authority")
+    if authority not in VALID_INSTALL_AUTHORITIES:
+        errors.append(
+            f"{label}.install_authority must be one of {sorted(VALID_INSTALL_AUTHORITIES)} "
+            f"(got: {authority!r})"
+        )
+    check_command = item.get("check_command")
+    if not isinstance(check_command, str) or not check_command.strip():
+        errors.append(f"{label}.check_command must be a non-empty string")
+    install_command = item.get("install_command")
+    if install_command is not None and not isinstance(install_command, str):
+        errors.append(f"{label}.install_command must be a string or null when present")
+    runtime_profile = item.get("runtime_profile")
+    if runtime_profile not in VALID_RUNTIME_PROFILES:
+        errors.append(
+            f"{label}.runtime_profile must be one of {sorted(VALID_RUNTIME_PROFILES)} "
+            f"(got: {runtime_profile!r})"
+        )
+    goes_to_mise = item.get("goes_to_mise")
+    if not isinstance(goes_to_mise, bool):
+        errors.append(f"{label}.goes_to_mise must be boolean")
+    elif owner == "ticket" and goes_to_mise:
+        errors.append(f"{label}: ticket-scoped tools must set goes_to_mise=false")
+    elif runtime_profile == "ticket" and goes_to_mise:
+        errors.append(f"{label}: runtime_profile=ticket must set goes_to_mise=false")
+    handoff_hint = item.get("handoff_hint")
+    if not isinstance(handoff_hint, str) or not handoff_hint.strip():
+        errors.append(f"{label}.handoff_hint must be a non-empty string")
+
+tool_requirements = data.get("tool_requirements")
+if tool_requirements is not None:
+    if not isinstance(tool_requirements, list):
+        errors.append("tool_requirements must be an array when present")
+    else:
+        for idx, item in enumerate(tool_requirements):
+            validate_tool_requirement(item, f"tool_requirements[{idx}]")
+
+for idx, dep in enumerate(deps if isinstance(deps, list) else []):
+    if not isinstance(dep, dict) or dep.get("type") != "tool":
+        continue
+    # Legacy-compatible mapping: dependencies[type=tool] may either point to a
+    # named tool only, or carry the same structured fields as tool_requirements.
+    structured_keys = {
+        "name",
+        "owner",
+        "install_authority",
+        "check_command",
+        "install_command",
+        "runtime_profile",
+        "goes_to_mise",
+        "handoff_hint",
+    }
+    if structured_keys.intersection(dep):
+        mapped = dict(dep)
+        mapped.setdefault("name", dep.get("target"))
+        validate_tool_requirement(mapped, f"dependencies[{idx}]")
+
 # --- edge_cases: array (may be empty); if non-empty, each must have scenario + handling ---
 edges = data.get("edge_cases")
 if not isinstance(edges, list):
