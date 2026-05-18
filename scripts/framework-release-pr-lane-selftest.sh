@@ -244,7 +244,7 @@ grep -q "expected 'task/DP-999-T1-one'" /tmp/framework-pr-lane-wrong-base.out
 cat > "$TMPDIR/pr-state.tsv" <<'EOF'
 task/DP-999-TB-blocked	9	OPEN	main	9999999999999999999999999999999999999999	https://example.test/pull/9
 EOF
-if bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/TB.md" >/tmp/framework-pr-lane-blocked.out 2>&1; then
+if env -u POLARIS_ALLOW_MISSING_VERSION_BUMP bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/TB.md" >/tmp/framework-pr-lane-blocked.out 2>&1; then
   echo "expected missing VERSION bump fixture to fail" >&2
   exit 1
 fi

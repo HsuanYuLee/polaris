@@ -446,6 +446,46 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/check-tool-direct-call.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/check-tool-direct-call.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "posture_decision": "DP-202-T4 root tool direct-call audit gate."
+    },
+    {
+      "path": "scripts/check-js-import-package-graph.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/check-js-import-package-graph.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "posture_decision": "DP-202-T4 JS import package graph audit gate."
+    },
+    {
+      "path": "scripts/check-python-third-party.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/check-python-third-party.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "posture_decision": "DP-202-T4 Python third-party uv contract gate."
+    },
+    {
+      "path": "scripts/check-runtime-asset.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/check-runtime-asset.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "posture_decision": "DP-202-T4 runtime asset readiness gate."
+    },
+    {
       "path": "scripts/check-script-manifest.sh",
       "kind": "gate",
       "runner": "bash",
@@ -3944,6 +3984,75 @@
         "explicit specs source",
         "workspace overlay",
         "symlink primary rejection"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "tool-direct-call-gate",
+      "command": "bash scripts/check-tool-direct-call.sh --self-test",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/check-tool-direct-call.sh",
+        "scripts/tool-direct-call-inventory.txt"
+      ],
+      "fixtures": [
+        "temporary shell scripts with resolver and bare tool calls"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "js-import-package-graph-gate",
+      "command": "bash scripts/check-js-import-package-graph.sh --self-test",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/check-js-import-package-graph.sh",
+        "package.json"
+      ],
+      "fixtures": [
+        "temporary package.json and JS imports"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "python-third-party-gate",
+      "command": "bash scripts/check-python-third-party.sh --self-test",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/check-python-third-party.sh",
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "fixtures": [
+        "temporary pyproject.toml and Python imports"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "runtime-asset-gate",
+      "command": "bash scripts/check-runtime-asset.sh --self-test",
+      "profiles": [
+        "runtime",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/check-runtime-asset.sh",
+        "polaris-toolchain.yaml"
+      ],
+      "fixtures": [
+        "temporary runtime asset directory"
       ],
       "enrolled": true,
       "owner": "polaris-framework"

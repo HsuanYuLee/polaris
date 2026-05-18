@@ -41,35 +41,81 @@ PY
 }
 
 emit_inventory() {
-  local files=(
-    "scripts/polaris-bootstrap.sh"
-    "scripts/polaris-doctor.sh"
-    "scripts/doctor-mise-check.sh"
-    "scripts/polaris-pr-create.sh"
-    "scripts/run-governed-script-tests.sh"
-  )
-  local tools=(mise gh node pnpm jq rg python3)
-  local file line_no line tool attr owner authority profile goes
+  "$PYTHON_BIN" - "$ROOT_DIR" <<'PY'
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
 
-  printf 'path\tline\ttool\towner\tinstall_authority\truntime_profile\tgoes_to_mise\n'
-  for file in "${files[@]}"; do
-    [[ -f "$ROOT_DIR/$file" ]] || continue
-    line_no=0
-    while IFS= read -r line; do
-      line_no=$((line_no + 1))
-      [[ "$line" =~ ^[[:space:]]*# ]] && continue
-      for tool in "${tools[@]}"; do
-        if [[ "$line" =~ (^|[^A-Za-z0-9_-])${tool}([^A-Za-z0-9_-]|$) ]]; then
-          attr="$(polaris_classify_tool "$tool")"
-          owner="$(field "$attr" owner)"
-          authority="$(field "$attr" install_authority)"
-          profile="$(field "$attr" runtime_profile)"
-          goes="$(field "$attr" goes_to_mise)"
-          printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$file" "$line_no" "$tool" "$owner" "$authority" "$profile" "$goes"
-        fi
-      done
-    done < "$ROOT_DIR/$file"
-  done
+root = Path(sys.argv[1])
+files = [
+    "scripts/polaris-bootstrap.sh",
+    "scripts/polaris-doctor.sh",
+    "scripts/doctor-mise-check.sh",
+    "scripts/polaris-pr-create.sh",
+    "scripts/run-governed-script-tests.sh",
+]
+tools = {"mise", "gh", "node", "pnpm", "jq", "rg", "python3"}
+allowed_commands = {
+    ".", ":", "[", "bash", "break", "case", "cd", "command", "continue", "do",
+    "done", "echo", "elif", "else", "esac", "exit", "export", "false", "fi",
+    "for", "function", "if", "local", "printf", "pwd", "read", "return", "set",
+    "shift", "source", "then", "true", "while",
+    "polaris_require_delivery_tool", "polaris_require_mise_tool",
+    "polaris_with_runtime_tools",
+}
+
+def classify(tool: str) -> dict:
+    raw = subprocess.check_output(
+        ["bash", "-lc", f"source {root}/scripts/lib/tool-attribution.sh; polaris_classify_tool {tool}"],
+        text=True,
+    )
+    return json.loads(raw)
+
+def shell_functions(text: str) -> set[str]:
+    names = set()
+    for line in text.splitlines():
+        match = re.match(r"\s*([A-Za-z_][A-Za-z0-9_-]*)\s*\(\)\s*\{", line)
+        if match:
+            names.add(match.group(1))
+    return names
+
+print("path\tline\ttool\towner\tinstall_authority\truntime_profile\tgoes_to_mise")
+for rel_path in files:
+    path = root / rel_path
+    if not path.is_file():
+        continue
+    text = path.read_text(encoding="utf-8")
+    functions = shell_functions(text)
+    heredoc_until = None
+    for lineno, raw in enumerate(text.splitlines(), start=1):
+        if heredoc_until:
+            if raw.strip() == heredoc_until:
+                heredoc_until = None
+            continue
+        heredoc = re.search(r"<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?", raw)
+        if heredoc:
+            heredoc_until = heredoc.group(1)
+            continue
+        line = raw.split("#", 1)[0].strip()
+        if not line or line.endswith("() {") or line in {"}", "do", "then", "else"}:
+            continue
+        if "=" in line and re.match(r"^[A-Za-z_][A-Za-z0-9_]*(\+)?=", line):
+            continue
+        token = re.sub(r"^(if|then|elif|while|until|do|else)\s+", "", line).lstrip("! (")
+        token = re.split(r"\s+", token, maxsplit=1)[0].split("=", 1)[0].strip("\"'")
+        if not token or token in allowed_commands or token in functions:
+            continue
+        if token not in tools:
+            continue
+        attr = classify(token)
+        print(
+            f"{rel_path}\t{lineno}\t{token}\t{attr.get('owner', '')}\t"
+            f"{attr.get('install_authority', '')}\t{attr.get('runtime_profile', '')}\t"
+            f"{str(attr.get('goes_to_mise', '')).lower()}"
+        )
+PY
 }
 
 if [[ -n "$OUTPUT" ]]; then

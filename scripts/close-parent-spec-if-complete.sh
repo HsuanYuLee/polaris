@@ -40,6 +40,15 @@ run_selftest() {
   tmpdir="$(mktemp -d -t parent-closeout-selftest.XXXXXX)"
   tmpdir="$(cd "$tmpdir" && pwd -P)"
   trap "rm -rf '$tmpdir'" EXIT
+  cat >"$tmpdir/mise.toml" <<'TOML'
+[tools]
+node = "22.12.0"
+TOML
+  if [[ -n "${MISE_TRUSTED_CONFIG_PATHS:-}" ]]; then
+    export MISE_TRUSTED_CONFIG_PATHS="$tmpdir/mise.toml:$MISE_TRUSTED_CONFIG_PATHS"
+  else
+    export MISE_TRUSTED_CONFIG_PATHS="$tmpdir/mise.toml"
+  fi
 
   dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-999-parent-closeout"
   mkdir -p "$dp_dir/tasks/pr-release"

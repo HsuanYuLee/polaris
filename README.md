@@ -61,7 +61,7 @@ Developers also need:
 
 - Git
 - GitHub CLI (`gh`) authenticated with the organization
-- Local Polaris toolchain readiness through `bash scripts/polaris-bootstrap.sh` and `bash scripts/polaris-doctor.sh --profile runtime`. The managed runtime covers Node >= 22.12.0, pnpm 10.10.0, Python 3.12, rg, jq, Playwright, Mockoon, and the docs viewer. Legacy compatibility docs may still mention `bash scripts/polaris-toolchain.sh doctor --required`; new workspaces should start with bootstrap and doctor.
+- Local Polaris toolchain readiness through the root public tasks `mise run bootstrap` and `mise run doctor -- --profile runtime`. The managed runtime covers Node >= 22.12.0, pnpm 10.10.0, Python 3.12, rg, jq, Playwright, Mockoon, and the docs viewer. Legacy compatibility docs may still mention `bash scripts/polaris-toolchain.sh doctor --required`; new workspaces should start with public task commands.
 
 Optional integrations:
 
@@ -102,20 +102,22 @@ cd ~/polaris-workspace
 
 Choose a dedicated directory name. Avoid `~/work` if you already use that path for product repositories.
 
-Before onboarding, bootstrap and verify the local runtime toolchain:
+Before onboarding, bootstrap and verify the local runtime toolchain through public tasks:
 
 ```bash
-bash scripts/polaris-bootstrap.sh
-bash scripts/polaris-doctor.sh --profile runtime
+mise run bootstrap
+mise run doctor -- --profile runtime
 ```
 
 If the doctor reports missing tools, follow its repair command and rerun the doctor:
 
 ```bash
-bash scripts/polaris-doctor.sh --profile runtime
+mise run doctor -- --profile runtime
 ```
 
-Root `pnpm` scripts are thin aliases for common framework commands. They do not replace `scripts/*.sh`; the script manifest and command catalog remain the governance source:
+The public task surface is `bootstrap`, `doctor`, `doctor-mise`, `onboard-doctor`, `release-preflight`, `pr-create`, `spec-close-parent`, `script-audit`, `docs-health`, `verify`, and `cross-runtime-sync`.
+
+Root `pnpm` scripts are thin aliases for common framework commands. They do not replace the public task surface; the script manifest and command catalog remain the governance source:
 
 ```bash
 pnpm viewer:status

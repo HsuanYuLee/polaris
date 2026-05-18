@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.98] - 2026-05-19
+
+### Added — DP-202 root toolchain and public task convergence
+
+- 新增 Polaris root public task inventory，將 bootstrap、doctor、release preflight、PR creation、spec closeout、script audit、docs health、verify 與 cross-runtime sync 收斂到 `mise` task surface。
+- 新增 root dependency governance gates，覆蓋 tool direct-call、JS package graph、Python third-party dependency 與 runtime asset readiness。
+- 更新 README、AGENTS、onboard skill 與 cross-runtime parity checks，統一 Claude / Codex 使用的 public task command surface。
+- 收斂 direct-call inventory baseline，建立 AC10 release-day observation clock。
+
 ## [3.75.97] - 2026-05-18
 
 ### Fixed — template-safe specs validator fixtures

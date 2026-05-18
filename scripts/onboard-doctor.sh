@@ -59,6 +59,17 @@ if [[ -z "$WORKSPACE" || ! -d "$WORKSPACE" ]]; then
   exit 1
 fi
 WORKSPACE="$(cd "$WORKSPACE" && pwd)"
+if [[ ! -f "$WORKSPACE/workspace-config.yaml" ]]; then
+  SCRIPT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+  if [[ -f "$SCRIPT_ROOT/scripts/lib/main-checkout.sh" ]]; then
+    # shellcheck source=lib/main-checkout.sh
+    . "$SCRIPT_ROOT/scripts/lib/main-checkout.sh"
+    MAIN_CHECKOUT="$(resolve_main_checkout "$WORKSPACE" 2>/dev/null || true)"
+    if [[ -n "$MAIN_CHECKOUT" && -f "$MAIN_CHECKOUT/workspace-config.yaml" ]]; then
+      WORKSPACE="$MAIN_CHECKOUT"
+    fi
+  fi
+fi
 
 python3 - "$WORKSPACE" "$COMPANY" "$JSON" "$STRICT_MCP" <<'PY'
 import json

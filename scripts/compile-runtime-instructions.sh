@@ -176,11 +176,11 @@ emit_root_toolchain_runtime_note() {
 For a fresh Polaris workspace, initialize root runtime dependencies before company onboarding:
 
 ```bash
-bash scripts/polaris-bootstrap.sh
-bash scripts/polaris-doctor.sh --profile runtime
+mise run bootstrap
+mise run doctor -- --profile runtime
 ```
 
-Then run the agent-facing `onboard` workflow. Root `pnpm` commands are thin aliases only; they are not the Polaris root runtime manager.
+Then run the agent-facing `onboard` workflow. Public tasks are `bootstrap`, `doctor`, `doctor-mise`, `onboard-doctor`, `release-preflight`, `pr-create`, `spec-close-parent`, `script-audit`, `docs-health`, `verify`, and `cross-runtime-sync`. Root `pnpm` commands are thin aliases only; they are not the Polaris root runtime manager.
 EOF
 }
 

@@ -21,10 +21,11 @@ assert_contains() {
 
 NO_TOOL_PATH="$TMP_DIR/no-tools"
 FAKE_PATH="$TMP_DIR/fake-bin"
-mkdir -p "$NO_TOOL_PATH" "$FAKE_PATH"
+NO_MISE_HOME="$TMP_DIR/no-mise-home"
+mkdir -p "$NO_TOOL_PATH" "$FAKE_PATH" "$NO_MISE_HOME"
 BASE_PATH="$NO_TOOL_PATH:/usr/bin:/bin"
 
-if PATH="$BASE_PATH" POLARIS_WORKSPACE_ROOT="$ROOT_DIR" polaris_require_mise_tool node >"$TMP_DIR/missing-mise.out" 2>"$TMP_DIR/missing-mise.err"; then
+if HOME="$NO_MISE_HOME" PATH="$BASE_PATH" POLARIS_WORKSPACE_ROOT="$ROOT_DIR" polaris_require_mise_tool node >"$TMP_DIR/missing-mise.out" 2>"$TMP_DIR/missing-mise.err"; then
   echo "FAIL expected missing mise to fail" >&2
   exit 1
 fi

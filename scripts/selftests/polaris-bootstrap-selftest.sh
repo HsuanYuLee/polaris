@@ -12,6 +12,8 @@ script_test_expect_pass \
 
 TMP_DIR="$(script_test_temp_dir)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
+NO_MISE_HOME="${TMP_DIR}/no-mise-home"
+mkdir -p "$NO_MISE_HOME"
 
 run_expect_fail_contains() {
   local name="$1"
@@ -29,7 +31,7 @@ run_expect_fail_contains() {
 run_expect_fail_contains \
   "mise missing" \
   "BLOCKED_ENV blocker_class=mise-missing" \
-  env PATH="$(script_test_restricted_path)" bash "${ROOT_DIR}/scripts/polaris-bootstrap.sh" --profile core
+  env HOME="$NO_MISE_HOME" PATH="$(script_test_restricted_path)" bash "${ROOT_DIR}/scripts/polaris-bootstrap.sh" --profile core
 
 mkdir -p "${TMP_DIR}/fake-mise/bin"
 cat >"${TMP_DIR}/fake-mise/bin/mise" <<'SH'
@@ -91,6 +93,6 @@ chmod +x "${TMP_DIR}/ide-bundle/bin/node" "${TMP_DIR}/ide-bundle/bin/pnpm"
 run_expect_fail_contains \
   "ide bundled fallback rejected" \
   "BLOCKED_ENV blocker_class=mise-missing" \
-  env PATH="${TMP_DIR}/ide-bundle/bin:$(script_test_restricted_path)" bash "${ROOT_DIR}/scripts/polaris-bootstrap.sh" --profile runtime
+  env HOME="$NO_MISE_HOME" PATH="${TMP_DIR}/ide-bundle/bin:$(script_test_restricted_path)" bash "${ROOT_DIR}/scripts/polaris-bootstrap.sh" --profile runtime
 
 echo "polaris-bootstrap self-test PASS"

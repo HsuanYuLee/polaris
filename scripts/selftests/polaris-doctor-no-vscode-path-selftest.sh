@@ -8,6 +8,8 @@ HELPERS="${ROOT_DIR}/scripts/selftests/lib/script-test-helpers.sh"
 
 TMP_DIR="$(script_test_temp_dir)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
+NO_MISE_HOME="${TMP_DIR}/no-mise-home"
+mkdir -p "$NO_MISE_HOME"
 
 run_expect_fail_contains() {
   local name="$1"
@@ -64,7 +66,7 @@ PATH="${TMP_DIR}/bin:$(script_test_restricted_path)" \
   bash "${ROOT_DIR}/scripts/doctor-mise-check.sh" --tool mise >"${TMP_DIR}/mise-present.json"
 script_test_expect_output_contains "mise present json" '"status": "present"' "${TMP_DIR}/mise-present.json"
 
-PATH="$(script_test_restricted_path)" \
+HOME="$NO_MISE_HOME" PATH="$(script_test_restricted_path)" \
   bash "${ROOT_DIR}/scripts/doctor-mise-check.sh" --tool node >"${TMP_DIR}/mise-missing.json" 2>/dev/null && {
     echo "FAIL: expected doctor-mise-check missing mise to fail" >&2
     exit 1
@@ -108,7 +110,7 @@ chmod +x "${TMP_DIR}/no-mise/bin/node"
 run_expect_fail_contains \
   "ide bundled node rejected" \
   "BLOCKED_ENV blocker_class=mise-missing" \
-  env PATH="${TMP_DIR}/no-mise/bin:$(script_test_restricted_path)" bash "${ROOT_DIR}/scripts/polaris-doctor.sh" --profile runtime
+  env HOME="$NO_MISE_HOME" PATH="${TMP_DIR}/no-mise/bin:$(script_test_restricted_path)" bash "${ROOT_DIR}/scripts/polaris-doctor.sh" --profile runtime
 
 run_expect_fail_contains \
   "gh missing" \

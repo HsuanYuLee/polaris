@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TMP_DIR="$(mktemp -d -t close-parent-resolver-selftest-XXXXXX)"
 trap 'rm -rf "$TMP_DIR"' EXIT
+NO_MISE_HOME="$TMP_DIR/no-mise-home"
+mkdir -p "$NO_MISE_HOME"
 
 mkdir -p "$TMP_DIR/bin"
 cat >"$TMP_DIR/bin/mise" <<EOF
@@ -59,11 +61,11 @@ chmod +x "$TMP_DIR/bin/mise" "$TMP_DIR/bin/node"
 PATH="$TMP_DIR/bin:/usr/bin:/bin:/usr/sbin:/sbin" \
   CLOSE_PARENT_SPEC_SELFTEST=1 bash "$SCRIPT_DIR/close-parent-spec-if-complete.sh"
 
-if PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+if HOME="$NO_MISE_HOME" PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
   CLOSE_PARENT_SPEC_SELFTEST=1 bash "$SCRIPT_DIR/close-parent-spec-if-complete.sh" >/tmp/close-parent-missing-node.out 2>&1; then
   echo "expected close-parent missing runtime resolver fixture to fail" >&2
   exit 1
 fi
-grep -q "POLARIS_TOOL_MISSING tool=mise" /tmp/close-parent-missing-node.out
+grep -q "POLARIS_TOOL_MISSING.*tool=mise" /tmp/close-parent-missing-node.out
 
 echo "close-parent-spec-if-complete-selftest PASS"

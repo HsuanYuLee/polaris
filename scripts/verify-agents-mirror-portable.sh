@@ -5,6 +5,18 @@ if [[ "${1:-}" == "--self-test" ]]; then
   tmp="$(mktemp -d -t verify-agents-mirror.XXXXXX)"
   trap 'rm -rf "$tmp"' EXIT
   mkdir -p "$tmp/.claude/rules" "$tmp/scripts"
+  cat > "$tmp/mise.toml" <<'TOML'
+[tasks.bootstrap]
+run = "bash scripts/bootstrap.sh"
+[tasks.doctor]
+run = "bash scripts/doctor.sh"
+[tasks.onboard-doctor]
+run = "bash scripts/onboard-doctor.sh"
+[tasks.verify]
+run = "bash scripts/verify.sh"
+[tasks.cross-runtime-sync]
+run = "bash scripts/cross-runtime-sync.sh"
+TOML
   cat > "$tmp/scripts/fallback.sh" <<'SH'
 #!/usr/bin/env bash
 exit 0
@@ -85,5 +97,17 @@ if errors:
     for error in errors:
         print(f"ERROR: {error}", file=sys.stderr)
     sys.exit(1)
-print(f"PASS: portable mirror smoke targets valid ({checked} targets)")
+
+mise = root / "mise.toml"
+public_tasks = {"bootstrap", "doctor", "onboard-doctor", "verify", "cross-runtime-sync"}
+if not mise.is_file():
+    print("ERROR: missing mise.toml for public task smoke", file=sys.stderr)
+    sys.exit(1)
+text = mise.read_text()
+missing = sorted(task for task in public_tasks if f"[tasks.{task}]" not in text)
+if missing:
+    print(f"ERROR: public task smoke missing: {', '.join(missing)}", file=sys.stderr)
+    sys.exit(1)
+
+print(f"PASS: portable mirror smoke targets valid ({checked} targets, {len(public_tasks)} public tasks)")
 PY

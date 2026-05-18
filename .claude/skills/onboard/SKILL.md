@@ -56,10 +56,11 @@ Repo analysis 或 dev environment detection 派 sub-agent 時，必須注入
 6. 寫入 company config、更新 root company routing、append audit entries。
 7. 執行 optional post-setup：clone missing repos、genericize maps、MCP health check、
    daily learning scanner、root toolchain readiness check、Codex bootstrap、handbook generation。
-8. 執行 `scripts/onboard-doctor.sh`，回報 `ready` / `partial` / `blocked`、deferred empty
+8. 執行 `mise run onboard-doctor`，回報 `ready` / `partial` / `blocked`、deferred empty
    fields、root toolchain status、Codex bootstrap status 與建議的第一個指令。Root toolchain
-   repair 採 print-only，只顯示 `bash scripts/polaris-bootstrap.sh` /
-   `bash scripts/polaris-doctor.sh --profile <profile>`，不可由 `onboard repair` 隱性代跑。
+   repair 採 print-only，只顯示 `mise run bootstrap` /
+   `mise run doctor -- --profile <profile>`，不可由 `onboard repair` 隱性代跑。若使用者明確選擇
+   `--execute`，才可執行可自動修復且 non-interactive / CI-safe 的 repair command。
 
 ## Write Rules
 
@@ -67,7 +68,8 @@ Repo analysis 或 dev environment detection 派 sub-agent 時，必須注入
 - Root config 只 append 或 update 目標 company。
 - 不可因新增 company 移除或重寫既有 companies。
 - Rerun 只 merge 新收集 sections，不破壞既有 user-provided fields。
-- Repair mode 必須先顯示 doctor summary，再依 action class 決定是否可自動修復。
+- Repair mode 必須先顯示 doctor summary，再依 action class 決定是否可自動修復；預設
+  print-only，只有明確 `--execute` opt-in 才能執行 non-interactive / CI-safe command。
 - Config 不可存 secrets，即使 company config 是 gitignored。
 - Setup extensions 若觸及 Slack、JIRA、Confluence、GitHub external write surface，
   發送 user-visible text 前必須通過 `workspace-language-policy.md` language gate。

@@ -31,6 +31,10 @@ make_codex_fallback_fixture() {
   cat > "$fixture/workspace-config.yaml" <<'YAML'
 language: zh-TW
 YAML
+  cat > "$fixture/mise.toml" <<'TOML'
+[tools]
+node = "22.12.0"
+TOML
   mkdir -p "$dp_dir/tasks/T1"
   cat > "$dp_dir/tasks/T1/index.md" <<'MD'
 ---
@@ -128,7 +132,7 @@ MD
   echo "# parity fixture" > "$fixture/README.md"
   # task.md is intentionally left untracked: docs-manager specs are local
   # planning/execution artifacts, and PR creation must reject tracked specs.
-  git -C "$fixture" add workspace-config.yaml README.md
+  git -C "$fixture" add workspace-config.yaml mise.toml README.md
   git -C "$fixture" commit -qm "fixture"
   printf '%s\n' "$fixture"
 }
@@ -188,7 +192,10 @@ CLOSE_PARENT_SPEC_SELFTEST=1 bash "$SCRIPT_DIR/close-parent-spec-if-complete.sh"
 
 tmp_root="$(mktemp -d)"
 fixture_repo="$(make_codex_fallback_fixture "$tmp_root")"
-POLARIS_SKIP_EVIDENCE=1 GATE_PROJECT_DIR="$fixture_repo" bash "$SCRIPT_DIR/codex-guarded-gh-pr-create.sh" --dry-run >/dev/null
+POLARIS_SKIP_EVIDENCE=1 \
+  GATE_PROJECT_DIR="$fixture_repo" \
+  MISE_TRUSTED_CONFIG_PATHS="$fixture_repo/mise.toml" \
+  bash "$SCRIPT_DIR/codex-guarded-gh-pr-create.sh" --dry-run >/dev/null
 tmp_dir="$tmp_root/specs/design-plans/DP-999-parity-smoke"
 tmp_plan="$tmp_dir/plan.md"
 mkdir -p "$tmp_dir"

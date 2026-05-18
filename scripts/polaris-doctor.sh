@@ -143,7 +143,7 @@ check_mise_tool() {
     fail "mise check helper missing: $MISE_CHECK"
     return 0
   fi
-  if tool_path="$(POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT" polaris_require_mise_tool "$command_name" 2>/dev/null)"; then
+  if tool_path="$(POLARIS_WORKSPACE_ROOT="$TOOLCHAIN_ROOT" polaris_require_mise_tool "$command_name" 2>/dev/null)"; then
     pass "mise-managed $label available: $command_name${tool_path:+ at $tool_path}"
   else
     if ! polaris_find_mise >/dev/null 2>&1; then
@@ -174,7 +174,7 @@ run_toolchain_doctor() {
     info "would run toolchain doctor: $capability"
     return 0
   fi
-  if bash "$WORKSPACE_ROOT/scripts/polaris-toolchain.sh" run "$capability"; then
+  if (cd "$TOOLCHAIN_ROOT" && bash "$TOOLCHAIN_ROOT/scripts/polaris-toolchain.sh" run "$capability"); then
     pass "$capability passed"
   else
     fail "$capability failed"

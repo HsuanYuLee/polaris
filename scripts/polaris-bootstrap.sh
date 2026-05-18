@@ -46,7 +46,7 @@ run_cmd() {
   if [[ "$DRY_RUN" == "true" ]]; then
     return 0
   fi
-  (cd "$WORKSPACE_ROOT" && "$@")
+  (cd "$TOOLCHAIN_ROOT" && "$@")
 }
 
 resolve_toolchain_root() {
@@ -140,7 +140,7 @@ run_mise() {
     return 0
   fi
   mise_bin="$(polaris_find_mise)" || return 1
-  (cd "$WORKSPACE_ROOT" && "$mise_bin" "$@")
+  (cd "$TOOLCHAIN_ROOT" && "$mise_bin" "$@")
 }
 
 run_managed() {
@@ -150,11 +150,11 @@ run_managed() {
     log "+ mise exec -- $command $*"
     return 0
   fi
-  POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT" polaris_with_runtime_tools "$command" "$@"
+  POLARIS_WORKSPACE_ROOT="$TOOLCHAIN_ROOT" polaris_with_runtime_tools "$command" "$@"
 }
 
 bootstrap_core() {
-  run_mise trust "$WORKSPACE_ROOT/mise.toml"
+  run_mise trust "$TOOLCHAIN_ROOT/mise.toml"
   run_mise install
 }
 

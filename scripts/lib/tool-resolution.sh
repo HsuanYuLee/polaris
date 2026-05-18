@@ -21,6 +21,18 @@ polaris_find_mise() {
     return 0
   fi
   command -v mise 2>/dev/null && return 0
+  local candidate
+  for candidate in \
+    "$HOME/.local/bin/mise" \
+    "$HOME/.local/share/mise/bin/mise" \
+    /opt/homebrew/bin/mise \
+    /usr/local/bin/mise
+  do
+    if [[ -x "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
   return 1
 }
 
@@ -37,21 +49,21 @@ PY
 polaris_tool_missing() {
   local tool="$1"
   local attr_json="$2"
-  local owner authority hint
-  owner="$(polaris_tool_attr_field "$attr_json" owner)"
-  authority="$(polaris_tool_attr_field "$attr_json" install_authority)"
+  local profile hint
+  profile="$(polaris_tool_attr_field "$attr_json" runtime_profile)"
   hint="$(polaris_tool_attr_field "$attr_json" handoff_hint)"
-  echo "POLARIS_TOOL_MISSING tool=$tool owner=$owner install_authority=$authority hint=$hint" >&2
+  [[ -n "$profile" ]] || profile="runtime"
+  [[ -n "$hint" ]] || hint="bash scripts/polaris-doctor.sh --profile $profile"
+  echo "[POLARIS_TOOL_MISSING] tool=$tool profile=$profile remediation=\"$hint\"" >&2
 }
 
 polaris_tool_auth_failed() {
   local tool="$1"
   local attr_json="$2"
-  local owner authority hint
-  owner="$(polaris_tool_attr_field "$attr_json" owner)"
-  authority="$(polaris_tool_attr_field "$attr_json" install_authority)"
+  local hint
   hint="$(polaris_tool_attr_field "$attr_json" handoff_hint)"
-  echo "POLARIS_TOOL_AUTH_FAILED tool=$tool owner=$owner install_authority=$authority hint=$hint" >&2
+  [[ -n "$hint" ]] || hint="gh auth login"
+  echo "[POLARIS_TOOL_AUTH_FAILED] tool=$tool profile=delivery hint=\"$hint\"" >&2
 }
 
 polaris_require_mise_tool() {
