@@ -5,6 +5,7 @@ set -euo pipefail
 
 WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT_DIR="$WORKSPACE_ROOT/scripts"
+MISE_CHECK="$SCRIPT_DIR/doctor-mise-check.sh"
 PROFILE="core"
 DRY_RUN=false
 SIMULATE_NO_VSCODE_PATH=false
@@ -39,6 +40,13 @@ warn() {
 fail() {
   FAIL_COUNT=$((FAIL_COUNT + 1))
   printf 'FAIL: %s\n' "$*" >&2
+}
+
+blocked_env() {
+  local blocker_class="$1"
+  local message="$2"
+  FAIL_COUNT=$((FAIL_COUNT + 1))
+  printf 'FAIL: BLOCKED_ENV blocker_class=%s %s\n' "$blocker_class" "$message" >&2
 }
 
 info() {
@@ -94,6 +102,7 @@ resolve_toolchain_root() {
 check_command() {
   local cmd="$1"
   local label="${2:-$1}"
+  local blocker_class="${3:-${cmd}-missing}"
   if [[ "$DRY_RUN" == "true" ]]; then
     info "would check command: $cmd ($label)"
     return 0
@@ -101,25 +110,42 @@ check_command() {
   if command -v "$cmd" >/dev/null 2>&1; then
     pass "$label command found: $(command -v "$cmd")"
   else
-    fail "$label command missing: $cmd"
+    blocked_env "$blocker_class" "$label command missing: $cmd"
   fi
 }
 
 check_mise_tool() {
   local command_name="$1"
   local label="$2"
+  local output=""
+  local status=""
+  local blocker_class=""
+  local tool_path=""
   if [[ "$DRY_RUN" == "true" ]]; then
     info "would check mise-managed $label: $command_name"
     return 0
   fi
-  if ! command -v mise >/dev/null 2>&1; then
-    fail "mise missing; cannot verify managed $label ($command_name)"
+  if [[ ! -x "$MISE_CHECK" ]]; then
+    fail "mise check helper missing: $MISE_CHECK"
     return 0
   fi
-  if (cd "$WORKSPACE_ROOT" && mise exec -- bash -lc "command -v $(printf '%q' "$command_name")" >/dev/null 2>&1); then
-    pass "mise-managed $label available: $command_name"
+  if output="$(bash "$MISE_CHECK" --tool "$command_name" 2>/dev/null)"; then
+    tool_path="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("path") or "")' "$output")"
+    pass "mise-managed $label available: $command_name${tool_path:+ at $tool_path}"
   else
-    fail "mise-managed $label missing: $command_name"
+    status="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("status") or "")' "$output" 2>/dev/null || true)"
+    blocker_class="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("blocker_class") or "")' "$output" 2>/dev/null || true)"
+    case "$blocker_class" in
+      mise-missing)
+        blocked_env "mise-missing" "mise missing; cannot verify managed $label ($command_name)"
+        ;;
+      mise-managed:*)
+        blocked_env "$blocker_class" "mise-managed $label missing: $command_name"
+        ;;
+      *)
+        fail "mise-managed $label check failed: ${status:-unknown}"
+        ;;
+    esac
   fi
 }
 
@@ -155,7 +181,7 @@ check_core() {
   check_command bash "bash"
   check_command git "git"
   check_command python3 "Python stdlib"
-  check_command mise "mise runtime manager"
+  check_command mise "mise runtime manager" "mise-missing"
   check_mise_tool rg "ripgrep"
   check_mise_tool jq "jq"
 }
@@ -171,13 +197,13 @@ check_runtime() {
 
 check_delivery() {
   echo "[delivery]"
-  check_command gh "GitHub CLI"
+  check_command gh "GitHub CLI" "gh-missing"
   if [[ "$DRY_RUN" == "true" ]]; then
     info "would check gh auth status"
   elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
     pass "gh auth status passed"
   else
-    fail "gh auth status failed or gh is not logged in"
+    blocked_env "gh-unauth" "gh auth status failed or gh is not logged in"
   fi
 }
 

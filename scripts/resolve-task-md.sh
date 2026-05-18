@@ -28,6 +28,7 @@ usage() {
   cat >&2 <<'USAGE'
 usage: resolve-task-md.sh <path|jira-key|pr-url|pr-number>
        resolve-task-md.sh --current
+       resolve-task-md.sh --specs-source <path> <path|jira-key|pr-url|pr-number>
        resolve-task-md.sh --include-archive <path|jira-key|pr-url|pr-number>
        resolve-task-md.sh --clear-lock
        resolve-task-md.sh --write-lock <path|jira-key|pr-url|pr-number>
@@ -628,8 +629,29 @@ MD
 | JIRA key | N/A |
 MD
 
+  mkdir -p "$tmpdir/implementation-worktree" "$tmpdir/symlink-worktree/docs-manager/src/content/docs"
+  ln -s "$tmpdir/docs-manager/src/content/docs/specs" "$tmpdir/symlink-worktree/docs-manager/src/content/docs/specs"
+
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" EPIC-480)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T3b.md" ]] || { echo "[selftest] jira active FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir/implementation-worktree" --specs-source "$tmpdir/docs-manager/src/content/docs/specs" DP-047-T1)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] || { echo "[selftest] explicit specs-source FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir/implementation-worktree" DP-047-T1)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] || { echo "[selftest] overlay specs-source FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir/symlink-worktree" DP-047-T1 2>&1)" || rc=$?
+  [[ $rc -eq 1 && "$out" == *"symlink primary path is not allowed"* ]] || { echo "[selftest] symlink specs primary should fail"; return 1; }
+
+  missing_root="$(mktemp -d -t resolve-task-md-missing.XXXXXX)"
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$missing_root" DP-047-T1 2>&1)" || rc=$?
+  rm -rf "$missing_root"
+  [[ $rc -eq 1 && "$out" == *"pass --specs-source or run from the main checkout"* ]] || { echo "[selftest] missing specs-source should fail"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" EPIC-479)" || rc=$?
@@ -713,6 +735,7 @@ if [[ "${RESOLVE_TASK_MD_SELFTEST:-0}" == "1" ]]; then
 fi
 
 scan_root=""
+specs_source=""
 mode=""
 input_value=""
 write_lock_flag=0
@@ -724,6 +747,11 @@ while [[ $# -gt 0 ]]; do
     --scan-root)
       [[ $# -ge 2 ]] || { usage; exit 2; }
       scan_root="$2"
+      shift 2
+      ;;
+    --specs-source)
+      [[ $# -ge 2 ]] || { usage; exit 2; }
+      specs_source="$2"
       shift 2
       ;;
     --include-archive)
@@ -773,6 +801,19 @@ done
 [[ -n "$mode" ]] || { usage; exit 2; }
 
 root="$(detect_workspace_root "$scan_root")" || exit $?
+
+if [[ -n "$specs_source" ]]; then
+  specs_source="$(_specs_root_abs_path "$specs_source")"
+  if [[ -L "$specs_source" ]]; then
+    echo "error: --specs-source must be the canonical specs directory, not a symlink overlay: $specs_source" >&2
+    exit 1
+  fi
+  if [[ ! -d "$specs_source" ]]; then
+    echo "error: --specs-source does not exist: $specs_source" >&2
+    exit 1
+  fi
+  export POLARIS_SPECS_ROOT="$specs_source"
+fi
 
 if [[ "$mode" == "clear-lock" ]]; then
   clear_lock "$root"

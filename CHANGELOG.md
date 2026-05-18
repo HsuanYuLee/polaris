@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.93] - 2026-05-18
+
+### Added — canonical framework workflow release hardening
+
+- 新增 framework-release preflight、PR provenance evidence、verify-AC release disposition、gate failure ledger 與 closeout 證據檢查，避免 generic publisher 或手動 release tail 事後追認。
+- 強化 engineering readiness / completion gates，讓 planner-owned baseline snapshot、verify evidence、PR body/template/language 與 release eligibility 在 task lifecycle 前被檢查。
+- 補 runtime dependency guard 與 ignored-specs resolver，讓 mise / managed tools / gh 缺件與 worktree canonical specs overlay 都以 deterministic fail-stop 處理。
+
 ## [3.75.92] - 2026-05-17
 
 ### Added — cross-LLM deterministic governance hardening

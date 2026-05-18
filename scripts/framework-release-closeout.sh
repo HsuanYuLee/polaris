@@ -10,6 +10,7 @@ set -euo pipefail
 #   scripts/framework-release-closeout.sh \
 #     --task-md <path> [--task-head-sha <sha>] \
 #     --verify-evidence <path> [--ci-local-evidence <path|N/A>] [--vr-evidence <path|N/A>] \
+#     [--preflight-evidence <path|N/A>] \
 #     [--task-md <path> ...] \
 #     --workspace-commit <sha> \
 #     --template-commit <sha> \
@@ -48,6 +49,7 @@ TASK_HEAD_SHAS=()
 VERIFY_EVIDENCES=()
 CI_LOCAL_EVIDENCES=()
 VR_EVIDENCES=()
+PREFLIGHT_EVIDENCES=()
 
 usage() {
   sed -n '3,34p' "$0" >&2
@@ -143,6 +145,28 @@ if "tasks" not in parts:
     raise SystemExit(0)
 idx = len(parts) - 1 - list(reversed(parts)).index("tasks")
 print(Path(*parts[:idx]).as_posix())
+PY
+}
+
+parent_file_for_task() {
+  local task_md="$1"
+  python3 - "$task_md" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1]).resolve()
+parts = path.parts
+if "tasks" not in parts:
+    print("")
+    raise SystemExit(0)
+idx = len(parts) - 1 - list(reversed(parts)).index("tasks")
+parent = Path(*parts[:idx])
+for name in ("index.md", "refinement.md", "plan.md"):
+    candidate = parent / name
+    if candidate.exists():
+        print(candidate)
+        raise SystemExit(0)
+print("")
 PY
 }
 
@@ -332,6 +356,7 @@ while [[ $# -gt 0 ]]; do
     --verify-evidence) VERIFY_EVIDENCES+=("${2:-}"); shift 2 ;;
     --ci-local-evidence) CI_LOCAL_EVIDENCES+=("${2:-}"); shift 2 ;;
     --vr-evidence) VR_EVIDENCES+=("${2:-}"); shift 2 ;;
+    --preflight-evidence) PREFLIGHT_EVIDENCES+=("${2:-}"); shift 2 ;;
     --workspace-commit) WORKSPACE_COMMIT="${2:-}"; shift 2 ;;
     --template-commit) TEMPLATE_COMMIT="${2:-}"; shift 2 ;;
     --version-tag) VERSION_TAG="${2:-}"; shift 2 ;;
@@ -347,6 +372,7 @@ done
 [[ "${#TASK_HEAD_SHAS[@]}" -eq 0 || "${#TASK_HEAD_SHAS[@]}" -eq "${#TASK_MDS[@]}" ]] || die "--task-head-sha count must be zero or match --task-md count"
 [[ "${#CI_LOCAL_EVIDENCES[@]}" -eq 0 || "${#CI_LOCAL_EVIDENCES[@]}" -eq 1 || "${#CI_LOCAL_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || die "--ci-local-evidence count must be zero, one, or match --task-md count"
 [[ "${#VR_EVIDENCES[@]}" -eq 0 || "${#VR_EVIDENCES[@]}" -eq 1 || "${#VR_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || die "--vr-evidence count must be zero, one, or match --task-md count"
+[[ "${#PREFLIGHT_EVIDENCES[@]}" -eq 0 || "${#PREFLIGHT_EVIDENCES[@]}" -eq 1 || "${#PREFLIGHT_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || die "--preflight-evidence count must be zero, one, or match --task-md count"
 [[ -n "$WORKSPACE_COMMIT" ]] || die "--workspace-commit is required"
 [[ -n "$TEMPLATE_COMMIT" ]] || die "--template-commit is required"
 [[ -n "$VERSION_TAG" ]] || die "--version-tag is required"
@@ -429,6 +455,17 @@ for i in "${!ABS_TASK_MDS[@]}"; do
     vr_evidence="${VR_EVIDENCES[$i]}"
   fi
 
+  if [[ "${#PREFLIGHT_EVIDENCES[@]}" -eq 0 ]]; then
+    preflight_evidence="N/A"
+  elif [[ "${#PREFLIGHT_EVIDENCES[@]}" -eq 1 ]]; then
+    preflight_evidence="${PREFLIGHT_EVIDENCES[0]}"
+  else
+    preflight_evidence="${PREFLIGHT_EVIDENCES[$i]}"
+  fi
+  if [[ -n "$preflight_evidence" && "$preflight_evidence" != "N/A" ]]; then
+    [[ -f "$preflight_evidence" ]] || die "preflight evidence file not found: $preflight_evidence"
+  fi
+
   info "writing extension deliverable for ${task_id}"
   bash "${SCRIPT_DIR}/write-extension-deliverable.sh" "$task_md" \
     --extension-id "$EXTENSION_ID" \
@@ -440,6 +477,27 @@ for i in "${!ABS_TASK_MDS[@]}"; do
     --ci-local-evidence "$ci_local_evidence" \
     --verify-evidence "$verify_evidence" \
     --vr-evidence "$vr_evidence"
+
+  if [[ -n "$preflight_evidence" && "$preflight_evidence" != "N/A" ]]; then
+    python3 - "$task_md" "$preflight_evidence" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+task_path, preflight_evidence = sys.argv[1:3]
+path = Path(task_path)
+content = path.read_text(encoding="utf-8")
+block = "release_preflight:\n" f"  evidence: {preflight_evidence}\n"
+match = re.match(r"^---\n(.*?)^---\n", content, flags=re.DOTALL | re.MULTILINE)
+if not match:
+    path.write_text("---\n" + block + "---\n" + content, encoding="utf-8")
+else:
+    fm = re.sub(r"^release_preflight:(?:\n(?:[ \t]+[^\n]*))*\n?", "", match.group(1), flags=re.MULTILINE)
+    if fm and not fm.endswith("\n"):
+        fm += "\n"
+    path.write_text("---\n" + fm + block + "---\n" + content[match.end():], encoding="utf-8")
+PY
+  fi
 
   bash "${CHECK_RELEASE_ELIGIBLE}" \
     --repo "$REPO_ROOT" \
@@ -466,14 +524,24 @@ for i in "${!ABS_TASK_MDS[@]}"; do
       --source-container "$source_container" \
       --allow-active-verification
   fi
-  close_parent_args=(
-    --task-md "$moved_task_md"
-    --workspace "$REPO_ROOT"
-  )
-  if [[ "$i" -eq $((${#ABS_TASK_MDS[@]} - 1)) ]]; then
-    close_parent_args+=(--archive-terminal-parent)
-  fi
-  bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" "${close_parent_args[@]}"
+  case "$moved_task_md" in
+    */specs/design-plans/archive/*|*/specs/companies/*/archive/*)
+      archived_parent_file="$(parent_file_for_task "$moved_task_md")"
+      [[ -n "$archived_parent_file" && -f "$archived_parent_file" ]] || die "archived parent file not found for ${moved_task_md}"
+      update_frontmatter_status "$archived_parent_file" IMPLEMENTED
+      info "marked archived parent implemented: ${archived_parent_file}"
+      ;;
+    *)
+      close_parent_args=(
+        --task-md "$moved_task_md"
+        --workspace "$REPO_ROOT"
+      )
+      if [[ "$i" -eq $((${#ABS_TASK_MDS[@]} - 1)) ]]; then
+        close_parent_args+=(--archive-terminal-parent)
+      fi
+      bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" "${close_parent_args[@]}"
+      ;;
+  esac
 
   current_task_md="$(resolve_current_task_md_path "$moved_task_md")"
   bash "${CHECK_RELEASE_COMPLETED}" \

@@ -207,6 +207,17 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/check-delivery-completion-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "Root-level compatibility selftest for planner-owned baseline snapshot consumption."
+    },
+    {
       "path": "scripts/selftests/check-delivery-completion-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -454,6 +465,15 @@
     },
     {
       "path": "scripts/polaris-doctor.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "root_toolchain_doctor",
+      "selftest": "scripts/selftests/polaris-doctor-no-vscode-path-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/doctor-mise-check.sh",
       "kind": "gate",
       "runner": "bash",
       "owner_surface": "root_toolchain_doctor",
@@ -922,10 +942,20 @@
       "kind": "support",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
+      "selftest": "scripts/engineering-branch-setup-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/engineering-branch-setup-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
       "selftest": "N/A",
       "lifecycle": "support_path",
       "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "selftest_reason": "selftest script",
+      "posture_decision": "Root-level compatibility wrapper for the existing ENGINEERING_BRANCH_SETUP_SELFTEST entrypoint."
     },
     {
       "path": "scripts/engineering-clean-worktree.sh",
@@ -1057,6 +1087,17 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/finalize-engineering-delivery-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "Root-level compatibility selftest for planner-owned baseline snapshot consumption."
+    },
+    {
       "path": "scripts/selftests/finalize-engineering-delivery-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -1106,6 +1147,27 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/framework-release-preflight-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-189-T1 validates framework-release head-bound PR provenance, verify-AC disposition, and clean worktree gates."
+    },
+    {
+      "path": "scripts/framework-release-preflight.sh",
+      "kind": "release",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "scripts/framework-release-preflight-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "posture_decision": "DP-189-T1 framework-release deterministic preflight gate."
+    },
+    {
       "path": "scripts/framework-release-pr-lane-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -1129,10 +1191,21 @@
       "kind": "gate",
       "runner": "bash",
       "owner_surface": "script_internal",
-      "selftest": "N/A",
+      "selftest": "scripts/gate-hook-adapter-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "posture_decision": "DP-189-T4 central ledger writer for child gate exit 2 evidence."
+    },
+    {
+      "path": "scripts/gate-hook-adapter-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-189-T4 validates gate-failure ledger write, fail-stop, schema, and reflection consumer contract."
     },
     {
       "path": "scripts/selftests/gate-pr-body-template-selftest.sh",
@@ -1814,10 +1887,21 @@
       "kind": "support",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
+      "selftest": "scripts/polaris-pr-create-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "posture_decision": "DP-189-T1 writes head-bound PR create evidence for framework-release preflight."
+    },
+    {
+      "path": "scripts/polaris-pr-create-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
       "selftest": "N/A",
       "lifecycle": "support_path",
       "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "selftest_reason": "selftest script",
+      "posture_decision": "Root compatibility selftest for PR create evidence fail-stop plus legacy PR create wrapper cases."
     },
     {
       "path": "scripts/polaris-timeline.sh",
@@ -2132,10 +2216,20 @@
       "kind": "resolver",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/resolve-specs-root-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftests/resolve-specs-root-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
       "selftest": "N/A",
       "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-189-T3b covers canonical specs root overlay fallback and symlink primary rejection."
     },
     {
       "path": "scripts/resolve-task-base.sh",
@@ -2978,10 +3072,20 @@
       "kind": "gate",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
-      "selftest": "N/A",
+      "selftest": "scripts/validate-task-md-selftest.sh",
       "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-task-md-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
       "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "selftest_reason": "selftest script",
+      "posture_decision": "Root-level compatibility wrapper for planner-owned snapshot validation."
     },
     {
       "path": "scripts/selftests/verification-evidence-gate-selftest.sh",
@@ -3353,6 +3457,7 @@
       ],
       "changed_paths": [
         "scripts/polaris-doctor.sh",
+        "scripts/doctor-mise-check.sh",
         "mise.toml",
         "polaris-toolchain.yaml"
       ],
@@ -3396,6 +3501,218 @@
         "profile mapping",
         "changed-file mapping",
         "union semantics"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "engineering-branch-setup",
+      "command": "bash scripts/engineering-branch-setup-selftest.sh",
+      "profiles": [
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/engineering-branch-setup.sh",
+        "scripts/engineering-branch-setup-selftest.sh"
+      ],
+      "fixtures": [
+        "readiness pack",
+        "baseline snapshot"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "finalize-engineering-delivery",
+      "command": "bash scripts/finalize-engineering-delivery-selftest.sh",
+      "profiles": [
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/finalize-engineering-delivery.sh",
+        "scripts/finalize-engineering-delivery-selftest.sh"
+      ],
+      "fixtures": [
+        "baseline snapshot",
+        "completion closeout"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "check-delivery-completion",
+      "command": "bash scripts/check-delivery-completion-selftest.sh",
+      "profiles": [
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/check-delivery-completion.sh",
+        "scripts/check-delivery-completion-selftest.sh"
+      ],
+      "fixtures": [
+        "baseline snapshot",
+        "PR readiness"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "validate-task-md-snapshot",
+      "command": "bash scripts/validate-task-md-selftest.sh",
+      "profiles": [
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/validate-task-md.sh",
+        "scripts/validate-task-md-selftest.sh"
+      ],
+      "fixtures": [
+        "planner-owned baseline mismatch"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "gate-hook-adapter-ledger",
+      "command": "bash scripts/gate-hook-adapter-selftest.sh",
+      "profiles": [
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/gate-hook-adapter.sh",
+        "scripts/gate-hook-adapter-selftest.sh",
+        ".claude/skills/references/post-task-reflection-checkpoint.md",
+        ".claude/rules/feedback-and-memory.md",
+        ".claude/rules/mechanism-registry.md",
+        ".claude/skills/references/deterministic-hooks-registry.md"
+      ],
+      "fixtures": [
+        "child gate exit 2",
+        "ledger write fail-stop",
+        "reflection disposition round-trip"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "polaris-pr-create-evidence",
+      "command": "bash scripts/polaris-pr-create-selftest.sh",
+      "profiles": [
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/polaris-pr-create.sh",
+        "scripts/polaris-pr-create-selftest.sh"
+      ],
+      "fixtures": [
+        "head-bound PR create evidence",
+        "evidence write fail-stop"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "framework-release-preflight",
+      "command": "bash scripts/framework-release-preflight-selftest.sh",
+      "profiles": [
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/framework-release-preflight.sh",
+        "scripts/framework-release-preflight-selftest.sh",
+        "scripts/polaris-pr-create.sh"
+      ],
+      "fixtures": [
+        "generic publisher without evidence",
+        "verify-AC disposition gate",
+        "dirty release worktree"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "framework-release-closeout-preflight",
+      "command": "bash scripts/framework-release-closeout-selftest.sh",
+      "profiles": [
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/framework-release-closeout.sh",
+        "scripts/framework-release-closeout-selftest.sh"
+      ],
+      "fixtures": [
+        "preflight evidence reference",
+        "release closeout"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "resolve-task-md",
+      "command": "bash scripts/selftests/resolve-task-md-selftest.sh",
+      "profiles": [
+        "core",
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/resolve-task-md.sh",
+        "scripts/selftests/resolve-task-md-selftest.sh",
+        "scripts/lib/specs-root.sh"
+      ],
+      "fixtures": [
+        "explicit specs source",
+        "workspace overlay",
+        "symlink primary rejection"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "resolve-workspace-overlay",
+      "command": "bash scripts/selftests/resolve-workspace-overlay-selftest.sh",
+      "profiles": [
+        "core",
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/resolve-workspace-overlay.sh",
+        "scripts/selftests/resolve-workspace-overlay-selftest.sh"
+      ],
+      "fixtures": [
+        "read-only specs overlay",
+        "overlay missing",
+        "symlink primary rejection"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "resolve-specs-root",
+      "command": "bash scripts/selftests/resolve-specs-root-selftest.sh",
+      "profiles": [
+        "core",
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/resolve-specs-root.sh",
+        "scripts/selftests/resolve-specs-root-selftest.sh",
+        "scripts/lib/specs-root.sh"
+      ],
+      "fixtures": [
+        "explicit specs source",
+        "workspace overlay",
+        "symlink primary rejection"
       ],
       "enrolled": true,
       "owner": "polaris-framework"

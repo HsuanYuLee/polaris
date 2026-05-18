@@ -17,6 +17,27 @@ _specs_root_abs_path() {
   fi
 }
 
+_specs_root_reject_symlink_primary() {
+  local path="$1"
+  local label="${2:-specs root}"
+  if [[ -L "$path" ]]; then
+    printf 'resolve-specs-root: symlink primary path is not allowed for %s: %s\n' "$label" "$path" >&2
+    return 1
+  fi
+  return 0
+}
+
+_specs_root_require_dir() {
+  local path="$1"
+  local label="${2:-specs root}"
+  _specs_root_reject_symlink_primary "$path" "$label" || return 1
+  if [[ ! -d "$path" ]]; then
+    printf 'resolve-specs-root: missing %s: %s; pass --specs-source or run from the main checkout with canonical specs available\n' "$label" "$path" >&2
+    return 1
+  fi
+  return 0
+}
+
 resolve_specs_workspace_root() {
   local start="${1:-$(pwd)}"
   local script_dir=""
@@ -62,7 +83,9 @@ resolve_specs_root() {
   local overlay_workspace_root=""
 
   if [[ -n "${POLARIS_SPECS_ROOT:-}" ]]; then
-    _specs_root_abs_path "$POLARIS_SPECS_ROOT"
+    specs_root="$(_specs_root_abs_path "$POLARIS_SPECS_ROOT")"
+    _specs_root_require_dir "$specs_root" "explicit specs source" || return 1
+    printf '%s\n' "$specs_root"
     return 0
   fi
 
@@ -73,6 +96,7 @@ resolve_specs_root() {
   fi
 
   specs_root="$workspace_root/docs-manager/src/content/docs/specs"
+  _specs_root_reject_symlink_primary "$specs_root" "workspace specs root" || return 1
   if [[ -d "$specs_root" ]]; then
     printf '%s\n' "$specs_root"
     return 0
@@ -81,13 +105,14 @@ resolve_specs_root() {
   if overlay_workspace_root="$(resolve_specs_workspace_root "$workspace_root" 2>/dev/null)" \
     && [[ -n "$overlay_workspace_root" && "$overlay_workspace_root" != "$workspace_root" ]]; then
     specs_root="$overlay_workspace_root/docs-manager/src/content/docs/specs"
+    _specs_root_reject_symlink_primary "$specs_root" "workspace overlay specs root" || return 1
     if [[ -d "$specs_root" ]]; then
       printf '%s\n' "$specs_root"
       return 0
     fi
   fi
 
-  printf '%s\n' "$workspace_root/docs-manager/src/content/docs/specs"
+  _specs_root_require_dir "$workspace_root/docs-manager/src/content/docs/specs" "workspace specs root"
 }
 
 resolve_legacy_specs_root() {

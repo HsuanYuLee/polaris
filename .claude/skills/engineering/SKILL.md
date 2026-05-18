@@ -32,6 +32,11 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
   為準。
 - planner-owned task.md 欄位（Allowed Files、estimate、Test Command、Verify Command、
   Test Environment、depends_on）不可由 engineering 手動改；需要改時走 scope escalation。
+- First-cut branch setup 必須先執行 readiness pack（`validate-task-md.sh`、
+  `validate-task-md-deps.sh`、`validate-breakdown-ready.sh`、`resolve-task-base.sh`、
+  `resolve-task-branch.sh`），並在 fresh worktree 建立後寫入 planner-owned 欄位 baseline
+  snapshot。finalize / completion / revision gate 若偵測 snapshot 缺失或 mismatch，必須
+  停止並走 scope escalation；不得就地修改 task.md 讓 gate 通過。
 - engineering 只能用 helper-only contract 寫 execution-owned lifecycle metadata，例如
   deliverable / extension_deliverable / status move-first closeout。
 - 開始前讀 workspace config、company handbook index + linked docs、repo handbook index +

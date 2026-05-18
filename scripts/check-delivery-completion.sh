@@ -559,6 +559,73 @@ raise SystemExit(0 if behavior.get("applies") is True else 1)
 PY
 }
 
+planner_baseline_snapshot_path() {
+  local task_md_path="$1"
+  local task_id="$2"
+  local main_checkout=""
+
+  if [[ -z "$task_id" ]]; then
+    task_id="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field task_jira_key 2>/dev/null || true)"
+  fi
+  [[ -n "$task_id" ]] || return 1
+
+  python3 - "$task_id" "$REPO_ROOT" <<'PY'
+import sys
+from pathlib import Path
+
+task_id, repo_root = sys.argv[1:3]
+roots = [Path(repo_root)]
+git_file = Path(repo_root) / ".git"
+if git_file.is_file():
+    text = git_file.read_text(encoding="utf-8", errors="ignore").strip()
+    if text.startswith("gitdir:"):
+        git_dir = (git_file.parent / text.split(":", 1)[1].strip()).resolve()
+        common = git_dir.parent.parent
+        if common.name == ".git":
+            roots.append(common.parent)
+
+candidates = []
+seen = set()
+for root in roots:
+    snap_dir = root / ".polaris" / "evidence" / "baseline-snapshot"
+    for path in snap_dir.glob(f"{task_id}-*.json"):
+        resolved = str(path.resolve())
+        if resolved not in seen:
+            candidates.append(path)
+            seen.add(resolved)
+
+if not candidates:
+    raise SystemExit(1)
+candidates.sort(key=lambda p: (p.stat().st_mtime, str(p)))
+print(candidates[-1])
+PY
+}
+
+check_planner_baseline_snapshot() {
+  local task_md_path="$1"
+  local snapshot=""
+  local task_id="$TICKET"
+
+  if [[ -z "$task_id" ]]; then
+    task_id="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field task_jira_key 2>/dev/null || true)"
+  fi
+
+  if ! snapshot="$(planner_baseline_snapshot_path "$task_md_path" "$task_id" 2>/dev/null)" || [[ -z "$snapshot" ]]; then
+    echo "$PREFIX BLOCKED: missing planner-owned baseline snapshot for ${task_id:-<unknown>}" >&2
+    echo "$PREFIX Expected under: ${REPO_ROOT}/.polaris/evidence/baseline-snapshot/${task_id:-TASK}-<branch-setup-head>.json" >&2
+    echo "$PREFIX Re-run engineering branch setup; do not create a post-hoc snapshot for an active task." >&2
+    exit 2
+  fi
+
+  if ! bash "${SCRIPT_DIR}/validate-task-md.sh" --snapshot "$snapshot" "$task_md_path" >/dev/null; then
+    echo "$PREFIX BLOCKED: planner-owned task.md fields changed after branch setup for ${task_id:-<unknown>}" >&2
+    echo "$PREFIX Snapshot: $snapshot" >&2
+    echo "$PREFIX Route through engineering scope escalation -> breakdown; do not edit task.md in place." >&2
+    exit 2
+  fi
+  echo "$PREFIX planner-owned baseline snapshot passed: $snapshot" >&2
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)
@@ -611,6 +678,7 @@ if [[ "$MODE" != "admin" ]]; then
     echo "$PREFIX unable to resolve task.md for completion freshness check (supply --ticket or call from task-bound context)" >&2
     exit 2
   fi
+  check_planner_baseline_snapshot "$TASK_MD_PATH"
 fi
 
 # Layer A: repo-level Local CI Mirror. Existing script must be treated as

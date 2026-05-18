@@ -76,16 +76,54 @@ emit() {
 require_exists() {
   local path="$1" label="$2"
   if [[ ! -e "$path" ]]; then
-    echo "resolve-workspace-overlay: missing $label: $path" >&2
+    echo "resolve-workspace-overlay: overlay missing $label: $path" >&2
     exit 2
   fi
 }
 
+reject_symlink_primary() {
+  local path="$1" label="$2"
+  if [[ -L "$path" ]]; then
+    echo "resolve-workspace-overlay: symlink primary path is not allowed for $label: $path" >&2
+    exit 2
+  fi
+}
+
+resolve_specs_overlay_path() {
+  local requested="$WORKSPACE/docs-manager/src/content/docs/specs"
+  local overlay_root=""
+  local overlay_path=""
+
+  if [[ -n "${POLARIS_SPECS_ROOT:-}" ]]; then
+    printf '%s\n' "$POLARIS_SPECS_ROOT"
+    return 0
+  fi
+
+  reject_symlink_primary "$requested" "specs root"
+  if [[ -d "$requested" ]]; then
+    printf '%s\n' "$requested"
+    return 0
+  fi
+
+  overlay_root="$(resolve_workspace_config_root "$WORKSPACE" 2>/dev/null || true)"
+  if [[ -n "$overlay_root" && "$overlay_root" != "$WORKSPACE" ]]; then
+    overlay_path="$overlay_root/docs-manager/src/content/docs/specs"
+    reject_symlink_primary "$overlay_path" "specs root"
+    if [[ -d "$overlay_path" ]]; then
+      printf '%s\n' "$overlay_path"
+      return 0
+    fi
+  fi
+
+  printf '%s\n' "$requested"
+}
+
 case "$KIND" in
   specs-root)
-    path="$WORKSPACE/docs-manager/src/content/docs/specs"
+    path="$(resolve_specs_overlay_path)"
+    reject_symlink_primary "$path" "specs root"
     require_exists "$path" "specs root"
-    emit "$KIND" "$path" true false
+    emit "$KIND" "$path" false false
     ;;
   workspace-config-root)
     path="$(resolve_workspace_config_path "$WORKSPACE" 2>/dev/null || true)"

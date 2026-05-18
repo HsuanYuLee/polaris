@@ -28,6 +28,12 @@ log() {
   printf '[polaris-bootstrap] %s\n' "$*"
 }
 
+blocked_env() {
+  local blocker_class="$1"
+  local message="$2"
+  printf '[polaris-bootstrap] BLOCKED_ENV blocker_class=%s %s\n' "$blocker_class" "$message" >&2
+}
+
 die() {
   printf '[polaris-bootstrap] ERROR: %s\n' "$*" >&2
   exit 1
@@ -84,8 +90,38 @@ require_mise() {
     print_mise_repair_hints
     return 0
   fi
+  blocked_env "mise-missing" "mise is required before bootstrap."
   print_mise_repair_hints
   return 1
+}
+
+require_managed_tool() {
+  local command_name="$1"
+  local label="$2"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "would verify mise-managed $label: $command_name"
+    return 0
+  fi
+  if (cd "$WORKSPACE_ROOT" && mise exec -- bash -lc "command -v $(printf '%q' "$command_name")" >/dev/null 2>&1); then
+    return 0
+  fi
+  blocked_env "mise-managed:${command_name}" "mise-managed $label missing after mise install."
+  return 1
+}
+
+require_gh_delivery() {
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log "would verify gh binary and auth"
+    return 0
+  fi
+  if ! command -v gh >/dev/null 2>&1; then
+    blocked_env "gh-missing" "GitHub CLI is required for delivery/full bootstrap profiles."
+    return 1
+  fi
+  if ! gh auth status >/dev/null 2>&1; then
+    blocked_env "gh-unauth" "GitHub CLI is installed but not authenticated."
+    return 1
+  fi
 }
 
 validate_profile() {
@@ -119,6 +155,8 @@ bootstrap_core() {
 }
 
 bootstrap_runtime() {
+  require_managed_tool node "Node" || return 1
+  require_managed_tool pnpm "pnpm" || return 1
   run_managed bash scripts/polaris-toolchain.sh run docs.viewer.install
   run_managed bash scripts/polaris-toolchain.sh run fixtures.mockoon.install
   run_managed bash scripts/polaris-toolchain.sh run browser.playwright.install-browser
@@ -170,12 +208,14 @@ case "$PROFILE" in
     ;;
   delivery)
     bootstrap_core
-    log "delivery profile requires gh auth; use polaris-doctor delivery checks after bootstrap."
+    require_gh_delivery || exit 1
+    log "delivery profile gh checks passed."
     ;;
   full)
     bootstrap_core
     bootstrap_runtime
-    log "full profile includes delivery checks; use polaris-doctor delivery checks for gh auth."
+    require_gh_delivery || exit 1
+    log "full profile delivery checks passed."
     ;;
 esac
 

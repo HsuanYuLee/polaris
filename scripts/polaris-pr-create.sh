@@ -281,11 +281,123 @@ create_pr_and_assign() {
   pr_ref="$(grep -Eo 'https://github\.com/[^[:space:]]+/pull/[0-9]+' "$output_file" | head -n 1 || true)"
   rm -f "$output_file"
   CREATED_PR_URL="$pr_ref"
+  write_pr_create_evidence
   auto_assign_pr "$pr_ref" "$policy" "$assignee"
   verify_final_pr_assignee "$pr_ref" "$policy"
   if declare -F polaris_pr_review_label_add >/dev/null 2>&1; then
     polaris_pr_review_label_add "$REPO_PATH" "$pr_ref" "$PREFIX"
   fi
+}
+
+resolve_pr_create_evidence_repo() {
+  local repo="$1"
+  local common_git_dir=""
+  if common_git_dir="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
+    if [[ "$(basename "$common_git_dir")" == ".git" ]]; then
+      dirname "$common_git_dir"
+      return
+    fi
+  fi
+  printf '%s\n' "$repo"
+}
+
+write_pr_create_evidence() {
+  local task_md=""
+  local ticket=""
+  local head_sha=""
+  local evidence_repo=""
+  local evidence_dir=""
+  local evidence_path=""
+  local parsed=""
+  local gh_repo=""
+  local pr_number=""
+  local attempt=1
+
+  task_md="$(resolve_task_md_for_writeback)"
+  if [[ -z "$task_md" || ! -f "$task_md" ]]; then
+    return 0
+  fi
+  if [[ -z "$CREATED_PR_URL" ]]; then
+    echo "$PREFIX ✗ BLOCKED: PR was created but its URL could not be parsed; cannot write PR create evidence." >&2
+    exit 2
+  fi
+  if ! parsed="$(parse_github_pr_url "$CREATED_PR_URL")"; then
+    echo "$PREFIX ✗ BLOCKED: PR URL is not a GitHub PR URL; cannot write PR create evidence: $CREATED_PR_URL" >&2
+    exit 2
+  fi
+
+  ticket="$(task_delivery_ticket "$task_md")" || {
+    echo "$PREFIX ✗ BLOCKED: cannot resolve task identity for PR create evidence: $task_md" >&2
+    exit 2
+  }
+  head_sha="$(git -C "$REPO_PATH" rev-parse HEAD)"
+  evidence_repo="$(resolve_pr_create_evidence_repo "$REPO_PATH")"
+  evidence_dir="${POLARIS_PR_CREATE_EVIDENCE_DIR:-$evidence_repo/.polaris/evidence/pr-create}"
+  evidence_path="$evidence_dir/${ticket}-${head_sha}.json"
+  gh_repo="${parsed%%$'\t'*}"
+  pr_number="${parsed##*$'\t'}"
+
+  while [[ "$attempt" -le 3 ]]; do
+    if python3 - "$evidence_path" "$task_md" "$ticket" "$head_sha" "$CREATED_PR_URL" "$gh_repo" "$pr_number" "$BASE_BRANCH" "$PR_TITLE" <<'PY'
+import hashlib
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+(
+    evidence_path,
+    task_md,
+    task_id,
+    head_sha,
+    pr_url,
+    gh_repo,
+    pr_number,
+    base_branch,
+    pr_title,
+) = sys.argv[1:10]
+
+task_path = Path(task_md)
+task_text = task_path.read_bytes()
+payload = {
+    "schema_version": 1,
+    "writer": "polaris-pr-create.sh",
+    "written_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    "task_id": task_id,
+    "task_md": str(task_path),
+    "task_artifact_sha256": hashlib.sha256(task_text).hexdigest(),
+    "head_sha": head_sha,
+    "pr_url": pr_url,
+    "github_repo": gh_repo,
+    "pr_number": int(pr_number),
+    "base_branch": base_branch,
+    "title": pr_title,
+    "gate_summary": {
+        "work_source": "passed",
+        "base_check": "passed" if base_branch else "not_applicable",
+        "evidence": "passed",
+        "ci_local": "passed_or_skipped",
+        "body_template": "passed_or_not_applicable",
+        "language": "passed_or_not_applicable",
+    },
+}
+
+path = Path(evidence_path)
+path.parent.mkdir(parents=True, exist_ok=True)
+tmp = path.with_name(path.name + ".tmp")
+tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+tmp.replace(path)
+PY
+    then
+      echo "$PREFIX ✓ PR create evidence written: $evidence_path"
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    sleep 0.1
+  done
+
+  echo "$PREFIX ✗ BLOCKED: failed to write PR create evidence after 3 attempts: $evidence_path" >&2
+  exit 2
 }
 
 resolve_task_md_for_writeback() {

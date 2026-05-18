@@ -62,6 +62,12 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | learning-seed-contract | scripts/validate-learning-seed-contract.sh | script | portable | N/A | governance |
 | agents-mirror-portable-smoke | scripts/verify-agents-mirror-portable.sh | script | portable | N/A | governance |
 
+## Mechanism Canary Entries
+
+| mechanism | disposition | canary signal | expected deterministic evidence |
+|-----------|-------------|---------------|---------------------------------|
+| gate-fail-self-correct-disposition | contract_pointer | gate exit 2 後 agent 只用口頭說明「已修正」，沒有逐筆處理 gate failure ledger | `scripts/gate-hook-adapter.sh` 寫入 `.polaris/evidence/gate-failures/{task_id}.jsonl`；post-task reflection 產出 `self_correct_disposition[]`，每筆標 `fixed` / `accepted-workaround` / `escalated` |
+
 ## Script Candidate Graduation Schedule
 
 `script_candidate` 不可只停在 prose audit；每筆都要有 milestone 與 owner。`M-future`

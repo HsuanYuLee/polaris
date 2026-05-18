@@ -24,7 +24,7 @@ assert_contains() {
 
 out="$(POLARIS_LOCAL_SKILLS_ROOT="$TMPDIR/local-skills" "$RESOLVER" --workspace "$TMPDIR/workspace" --kind specs-root)"
 assert_contains "$out" '"kind":"specs-root"' "specs kind"
-assert_contains "$out" '"authoring_allowed":true' "specs authoring"
+assert_contains "$out" '"authoring_allowed":false' "specs read-only overlay"
 assert_contains "$out" '"generated":false' "specs generated flag"
 
 out="$(POLARIS_LOCAL_SKILLS_ROOT="$TMPDIR/local-skills" "$RESOLVER" --workspace "$TMPDIR/workspace" --kind workspace-config-root)"
@@ -49,10 +49,26 @@ if POLARIS_LOCAL_SKILLS_ROOT="$TMPDIR/local-skills" "$RESOLVER" --workspace "$TM
   exit 1
 fi
 
+mkdir -p "$TMPDIR/no-specs"
+if POLARIS_LOCAL_SKILLS_ROOT="$TMPDIR/local-skills" "$RESOLVER" --workspace "$TMPDIR/no-specs" --kind specs-root >"$TMPDIR/no-specs.out" 2>"$TMPDIR/no-specs.err"; then
+  echo "[resolve-workspace-overlay-selftest] FAIL missing specs overlay should fail" >&2
+  exit 1
+fi
+assert_contains "$(cat "$TMPDIR/no-specs.err")" "overlay missing specs root" "missing specs root"
+
+mkdir -p "$TMPDIR/symlink-workspace/docs-manager/src/content/docs"
+ln -s "$TMPDIR/workspace/docs-manager/src/content/docs/specs" "$TMPDIR/symlink-workspace/docs-manager/src/content/docs/specs"
+if POLARIS_LOCAL_SKILLS_ROOT="$TMPDIR/local-skills" "$RESOLVER" --workspace "$TMPDIR/symlink-workspace" --kind specs-root >"$TMPDIR/symlink.out" 2>"$TMPDIR/symlink.err"; then
+  echo "[resolve-workspace-overlay-selftest] FAIL symlink specs primary should fail" >&2
+  exit 1
+fi
+assert_contains "$(cat "$TMPDIR/symlink.err")" "symlink primary path is not allowed" "symlink specs root"
+
 mkdir -p "$TMPDIR/root/repo"
 cat > "$TMPDIR/root/workspace-config.yaml" <<'YAML'
 language: zh-TW
 YAML
+mkdir -p "$TMPDIR/root/docs-manager/src/content/docs/specs"
 git -C "$TMPDIR/root/repo" init -q
 git -C "$TMPDIR/root/repo" config user.name "Polaris Selftest"
 git -C "$TMPDIR/root/repo" config user.email "polaris-selftest@example.com"
@@ -65,5 +81,8 @@ mkdir -p "$TMPDIR/linked-worktree"
 git -C "$TMPDIR/root/repo" worktree add --detach "$TMPDIR/linked-worktree/outside" >/dev/null
 out="$(POLARIS_LOCAL_SKILLS_ROOT="$TMPDIR/local-skills" "$RESOLVER" --workspace "$TMPDIR/linked-worktree/outside" --kind workspace-config-root)"
 assert_contains "$out" '/root/workspace-config.yaml"' "linked worktree workspace-config path"
+out="$(POLARIS_LOCAL_SKILLS_ROOT="$TMPDIR/local-skills" "$RESOLVER" --workspace "$TMPDIR/linked-worktree/outside" --kind specs-root)"
+assert_contains "$out" '/root/docs-manager/src/content/docs/specs"' "linked worktree specs overlay path"
+assert_contains "$out" '"authoring_allowed":false' "linked specs read-only"
 
 echo "[resolve-workspace-overlay-selftest] PASS"

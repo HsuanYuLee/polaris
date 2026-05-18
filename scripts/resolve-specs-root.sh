@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat >&2 <<'USAGE'
-usage: resolve-specs-root.sh [--workspace <path>] [--legacy]
+usage: resolve-specs-root.sh [--workspace <path>] [--specs-source <path>] [--legacy]
 
 stdout: absolute specs root path
 exit: 0 = resolved
@@ -19,6 +19,7 @@ USAGE
 }
 
 workspace_root=""
+specs_source=""
 legacy=0
 
 while [[ $# -gt 0 ]]; do
@@ -26,6 +27,11 @@ while [[ $# -gt 0 ]]; do
     --workspace)
       workspace_root="${2:-}"
       [[ -n "$workspace_root" ]] || { usage; exit 2; }
+      shift 2
+      ;;
+    --specs-source)
+      specs_source="${2:-}"
+      [[ -n "$specs_source" ]] || { usage; exit 2; }
       shift 2
       ;;
     --legacy)
@@ -42,6 +48,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -n "$specs_source" ]]; then
+  export POLARIS_SPECS_ROOT="$specs_source"
+fi
 
 if [[ "$legacy" -eq 1 ]]; then
   resolve_legacy_specs_root "$workspace_root"

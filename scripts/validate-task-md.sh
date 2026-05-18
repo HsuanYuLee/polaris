@@ -40,6 +40,7 @@ set -euo pipefail
 usage() {
   cat >&2 <<EOF
 usage: $0 <path/to/task.md>
+       $0 --snapshot <baseline-snapshot.json> <path/to/task.md>
        $0 --scan <workspace_root>
 EOF
   exit 2
@@ -47,6 +48,131 @@ EOF
 
 if [[ $# -lt 1 ]]; then
   usage
+fi
+
+compare_planner_snapshot() {
+  local snapshot="$1"
+  local file="$2"
+
+  if [[ ! -f "$snapshot" ]]; then
+    echo "planner-owned baseline snapshot not found: $snapshot" >&2
+    return 1
+  fi
+  if [[ ! -f "$file" ]]; then
+    echo "task.md not found: $file" >&2
+    return 2
+  fi
+
+  python3 - "$snapshot" "$file" <<'PY'
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path
+
+snapshot_path = Path(sys.argv[1])
+task_path = Path(sys.argv[2])
+
+def digest(value):
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+def section(text, heading):
+    marker = f"## {heading}"
+    start = text.find(marker)
+    if start == -1:
+        return ""
+    start = text.find("\n", start)
+    if start == -1:
+        return ""
+    end = text.find("\n## ", start + 1)
+    return text[start + 1:] if end == -1 else text[start + 1:end]
+
+def first_fence(block):
+    match = re.search(r"```[^\n]*\n(.*?)\n```", block, re.S)
+    return match.group(1).strip() if match else ""
+
+def table_value(text, field):
+    for raw in text.splitlines():
+        if not raw.lstrip().startswith("|"):
+            continue
+        cells = [c.strip() for c in raw.split("|")]
+        if len(cells) >= 4 and cells[1] == field:
+            return cells[2]
+    return ""
+
+def frontmatter_depends_on(text):
+    if not text.startswith("---\n"):
+        return []
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return []
+    fm = text[4:end]
+    for raw in fm.splitlines():
+        if raw.startswith("depends_on:"):
+            value = raw.split(":", 1)[1].strip()
+            if value in ("", "[]"):
+                return []
+            if value.startswith("[") and value.endswith("]"):
+                return [item.strip().strip("'\"") for item in value[1:-1].split(",") if item.strip()]
+            return [value.strip("'\"")]
+    return []
+
+def allowed_files(text):
+    values = []
+    for raw in section(text, "Allowed Files").splitlines():
+        stripped = raw.strip()
+        if stripped.startswith("- "):
+            values.append(stripped[2:].strip())
+    return values
+
+try:
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+except Exception as exc:
+    print(f"invalid baseline snapshot JSON: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+text = task_path.read_text(encoding="utf-8")
+current = {
+    "verify_command": first_fence(section(text, "Verify Command")),
+    "depends_on": frontmatter_depends_on(text),
+    "base_branch": table_value(text, "Base branch"),
+    "allowed_files": allowed_files(text),
+}
+current_hashes = {
+    "verify_command_sha256": digest(current["verify_command"]),
+    "depends_on_sha256": digest(current["depends_on"]),
+    "base_branch_sha256": digest(current["base_branch"]),
+    "allowed_files_sha256": digest(current["allowed_files"]),
+}
+expected = snapshot.get("hashes") or {}
+labels = {
+    "verify_command_sha256": "Verify Command",
+    "depends_on_sha256": "depends_on",
+    "base_branch_sha256": "Base branch",
+    "allowed_files_sha256": "Allowed Files",
+}
+errors = []
+for key, label in labels.items():
+    if expected.get(key) != current_hashes.get(key):
+        errors.append(f"{label} changed from planner-owned baseline")
+
+if errors:
+    print("planner-owned baseline mismatch:", file=sys.stderr)
+    for error in errors:
+        print(f"- {error}", file=sys.stderr)
+    print(f"snapshot: {snapshot_path}", file=sys.stderr)
+    print(f"task.md: {task_path}", file=sys.stderr)
+    raise SystemExit(1)
+
+print(f"validate-task-md snapshot PASS: {task_path}")
+PY
+}
+
+if [[ "${1:-}" == "--snapshot" ]]; then
+  [[ $# -eq 3 ]] || usage
+  compare_planner_snapshot "$2" "$3"
+  exit $?
 fi
 
 # ---------------------------------------------------------------------------

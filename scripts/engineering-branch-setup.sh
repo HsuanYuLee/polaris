@@ -31,6 +31,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARSE_TASK_MD="$SCRIPT_DIR/parse-task-md.sh"
 CASCADE_REBASE_CHAIN="$SCRIPT_DIR/cascade-rebase-chain.sh"
 RESOLVE_TASK_BRANCH="$SCRIPT_DIR/resolve-task-branch.sh"
+VALIDATE_TASK_MD="$SCRIPT_DIR/validate-task-md.sh"
+VALIDATE_TASK_MD_DEPS="$SCRIPT_DIR/validate-task-md-deps.sh"
+VALIDATE_BREAKDOWN_READY="$SCRIPT_DIR/validate-breakdown-ready.sh"
+RESOLVE_TASK_BASE="$SCRIPT_DIR/resolve-task-base.sh"
 WORKTREE_CLEANUP="$SCRIPT_DIR/engineering-worktree-cleanup.sh"
 
 usage() {
@@ -72,6 +76,141 @@ worktree_for_branch() {
       }
     }
   '
+}
+
+task_collection_dir() {
+  local task_md="$1"
+  local dir
+  dir="$(dirname "$task_md")"
+  if [[ "$(basename "$dir")" =~ ^[TV][0-9]+[a-z]*$ ]]; then
+    dir="$(dirname "$dir")"
+  fi
+  if [[ "$(basename "$dir")" == "pr-release" ]]; then
+    dir="$(dirname "$dir")"
+  fi
+  printf '%s\n' "$dir"
+}
+
+is_canonical_pipeline_task() {
+  local task_md="$1"
+  [[ "$task_md" == *"/docs-manager/src/content/docs/specs/"* ]] || return 1
+  grep -q '^> Source: .* | Task: .* | JIRA: .* | Repo: ' "$task_md"
+}
+
+run_readiness_pack() {
+  local task_md="$1"
+  local tasks_dir=""
+
+  if ! is_canonical_pipeline_task "$task_md"; then
+    echo "ℹ Readiness pack skipped for non-canonical selftest/legacy task: $task_md" >&2
+    return 0
+  fi
+
+  tasks_dir="$(task_collection_dir "$task_md")"
+  echo "ℹ Running engineering readiness pack before branch setup..." >&2
+
+  bash "$VALIDATE_TASK_MD" "$task_md" >/dev/null || {
+    echo "ERROR: readiness pack failed: validate-task-md.sh" >&2
+    return 1
+  }
+  bash "$VALIDATE_TASK_MD_DEPS" "$tasks_dir" >/dev/null || {
+    echo "ERROR: readiness pack failed: validate-task-md-deps.sh" >&2
+    return 1
+  }
+  bash "$VALIDATE_BREAKDOWN_READY" "$task_md" >/dev/null || {
+    echo "ERROR: readiness pack failed: validate-breakdown-ready.sh" >&2
+    return 1
+  }
+  bash "$RESOLVE_TASK_BASE" "$task_md" >/dev/null || {
+    echo "ERROR: readiness pack failed: resolve-task-base.sh" >&2
+    return 1
+  }
+  bash "$RESOLVE_TASK_BRANCH" "$task_md" >/dev/null || {
+    echo "ERROR: readiness pack failed: resolve-task-branch.sh" >&2
+    return 1
+  }
+}
+
+write_baseline_snapshot() {
+  local repo="$1"
+  local task_md="$2"
+  local head_sha="$3"
+  local evidence_repo="$repo"
+  local git_file=""
+  local git_dir=""
+  local common_dir=""
+  local out_dir=""
+  local tmp=""
+
+  git_file="$repo/.git"
+  if [[ -f "$git_file" ]]; then
+    git_dir="$(sed -n 's/^gitdir: //p' "$git_file" | head -n 1)"
+    if [[ -n "$git_dir" ]]; then
+      git_dir="$(cd "$repo" && cd "$(dirname "$git_dir")" && pwd)/$(basename "$git_dir")"
+      common_dir="$(cd "$(dirname "$git_dir")/.." 2>/dev/null && pwd || true)"
+      if [[ -n "$common_dir" && "$(basename "$common_dir")" == ".git" ]]; then
+        evidence_repo="$(dirname "$common_dir")"
+      fi
+    fi
+  fi
+
+  out_dir="$evidence_repo/.polaris/evidence/baseline-snapshot"
+  mkdir -p "$out_dir"
+  tmp="$(mktemp -t polaris-baseline-snapshot.XXXXXX.json)"
+  python3 - "$PARSE_TASK_MD" "$task_md" "$head_sha" "$tmp" "$out_dir" <<'PY'
+import hashlib
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+parser, task_md, head_sha, tmp_path, out_dir = sys.argv[1:6]
+proc = subprocess.run(
+    ["bash", parser, task_md, "--no-resolve"],
+    text=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    check=True,
+)
+data = json.loads(proc.stdout)
+identity = data.get("identity") or {}
+op = data.get("operational_context") or {}
+task_id = identity.get("work_item_id") or op.get("task_id") or op.get("task_jira_key")
+if not task_id:
+    raise SystemExit("missing task identity for baseline snapshot")
+
+def digest(value):
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+planner_owned = {
+    "verify_command": data.get("verify_command") or "",
+    "depends_on": (data.get("frontmatter") or {}).get("depends_on") or [],
+    "base_branch": op.get("base_branch") or "",
+    "allowed_files": data.get("allowed_files") or [],
+}
+snapshot = {
+    "schema_version": 1,
+    "writer": "engineering-branch-setup.sh",
+    "task_id": task_id,
+    "task_md": str(Path(task_md).resolve()),
+    "head_sha": head_sha,
+    "planner_owned": planner_owned,
+    "hashes": {
+        "verify_command_sha256": digest(planner_owned["verify_command"]),
+        "depends_on_sha256": digest(planner_owned["depends_on"]),
+        "base_branch_sha256": digest(planner_owned["base_branch"]),
+        "allowed_files_sha256": digest(planner_owned["allowed_files"]),
+    },
+    "task_artifact_sha256": hashlib.sha256(Path(task_md).read_bytes()).hexdigest(),
+}
+tmp = Path(tmp_path)
+tmp.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+target = Path(out_dir) / f"{task_id}-{head_sha}.json"
+tmp.replace(target)
+print(target)
+PY
+  rm -f "$tmp"
 }
 
 task_branch_refs() {
@@ -177,7 +316,7 @@ echo ok
 TASK
 
   # Unset selftest env to avoid infinite recursion when calling self
-  _run() { env -u ENGINEERING_BRANCH_SETUP_SELFTEST bash "$SCRIPT_DIR/engineering-branch-setup.sh" "$@"; }
+  _run() { env -u ENGINEERING_BRANCH_SETUP_SELFTEST POLARIS_SKIP_BASELINE_SNAPSHOT=1 bash "$SCRIPT_DIR/engineering-branch-setup.sh" "$@"; }
 
   # T1: successful branch + worktree creation
   out=$(cd "$LOCAL" && _run "$TASK_MD" --repo-base "$TMPDIR_ST" 2>/dev/null)
@@ -310,6 +449,8 @@ if [[ -z "$RESOLVED_BASE" || "$RESOLVED_BASE" == "null" ]]; then
   exit 2
 fi
 
+run_readiness_pack "$TASK_MD" || exit 2
+
 # Step 1.5: If breakdown supplied an explicit branch chain, align upstream
 # branches before cutting the task branch. The task branch does not exist yet,
 # so cascade-rebase-chain skips the missing last link.
@@ -422,6 +563,15 @@ git worktree add "$WT_PATH" "$BRANCH_NAME" 2>/dev/null || {
 }
 
 echo "✓ Worktree created: $WT_PATH" >&2
+
+if [[ "${POLARIS_SKIP_BASELINE_SNAPSHOT:-}" != "1" ]]; then
+  BASELINE_HEAD_SHA="$(git -C "$WT_PATH" rev-parse HEAD)"
+  BASELINE_SNAPSHOT="$(write_baseline_snapshot "$WT_PATH" "$TASK_MD" "$BASELINE_HEAD_SHA")" || {
+    echo "ERROR: failed to write planner-owned baseline snapshot" >&2
+    exit 2
+  }
+  echo "✓ Baseline snapshot written: $BASELINE_SNAPSHOT" >&2
+fi
 
 # Step 8: Output worktree path (last line = machine-readable)
 echo "$WT_PATH"

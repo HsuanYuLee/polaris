@@ -151,6 +151,28 @@ with open(path, "w", encoding="utf-8") as fh:
 PY
 }
 
+write_preflight_evidence() {
+  local path="$1"
+  local task_id="$2"
+  local head_sha="$3"
+  python3 - "$path" "$task_id" "$head_sha" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path, task_id, head_sha = sys.argv[1:4]
+payload = {
+    "writer": "framework-release-preflight.sh",
+    "task_id": task_id,
+    "head_sha": head_sha,
+    "pr_create_evidence": f"/tmp/{task_id}-{head_sha}.json",
+    "verify_ac": "release_eligible",
+    "clean_worktree": True,
+}
+Path(path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
 make_repos() {
   local tmp="$1"
   local repo="${tmp}/repo"
@@ -201,7 +223,7 @@ merge_task_branch() {
 }
 
 run_single_task_case() {
-  local tmp repos repo template dp_dir archived_dp_dir task_md branch wt task_head workspace_commit template_commit evidence
+  local tmp repos repo template dp_dir archived_dp_dir task_md branch wt task_head workspace_commit template_commit evidence preflight
   tmp="$(mktemp -d -t framework-closeout-single.XXXXXX)"
   trap 'rm -rf "$tmp"' RETURN
   repos="$(make_repos "$tmp")"
@@ -220,13 +242,16 @@ run_single_task_case() {
   workspace_commit="$(git -C "$repo" rev-parse HEAD)"
   template_commit="$(git -C "$template" rev-parse HEAD)"
   evidence="${tmp}/verify-t1.json"
+  preflight="${tmp}/preflight-t1.json"
   write_verify_evidence "$evidence" DP-999-T1 "$task_head"
+  write_preflight_evidence "$preflight" DP-999-T1 "$task_head"
 
   bash "$CLOSEOUT" \
     --repo "$repo" \
     --template-repo "$template" \
     --task-md "$task_md" \
     --verify-evidence "$evidence" \
+    --preflight-evidence "$preflight" \
     --workspace-commit "$workspace_commit" \
     --template-commit "$template_commit" \
     --version-tag v0.0.1 \
@@ -236,6 +261,8 @@ run_single_task_case() {
   [[ ! -d "$dp_dir" && -d "$archived_dp_dir" ]] || { echo "[selftest] single parent DP was not archived" >&2; return 1; }
   [[ -f "${archived_dp_dir}/tasks/pr-release/T1.md" ]] || { echo "[selftest] single task was not moved" >&2; return 1; }
   grep -q '^status: IMPLEMENTED$' "${archived_dp_dir}/tasks/pr-release/T1.md" || { echo "[selftest] single task status missing" >&2; return 1; }
+  grep -q 'release_preflight:' "${archived_dp_dir}/tasks/pr-release/T1.md" || { echo "[selftest] preflight evidence reference missing" >&2; return 1; }
+  grep -q "$preflight" "${archived_dp_dir}/tasks/pr-release/T1.md" || { echo "[selftest] preflight evidence path missing" >&2; return 1; }
   [[ ! -d "$wt" ]] || { echo "[selftest] single task worktree was not removed" >&2; return 1; }
 }
 
