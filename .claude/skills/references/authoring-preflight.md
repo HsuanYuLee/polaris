@@ -126,7 +126,7 @@ bash scripts/validate-dp-plan-authoring.sh <source_container>/index.md
 Handoff gate：
 
 ```bash
-bash scripts/refinement-handoff-gate.sh <source_container>/refinement.md
+mise run docs-health -- <source_container>/refinement.md
 bash scripts/validate-language-policy.sh --blocking --mode artifact <source_container>/refinement.md
 bash scripts/validate-starlight-authoring.sh check <source_container>/refinement.md
 ```

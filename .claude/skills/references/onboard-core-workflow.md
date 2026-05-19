@@ -27,7 +27,7 @@ Rerun 時讀取選定 company config，只執行缺漏 sections：
 `onboard repair` 先執行：
 
 ```bash
-bash scripts/onboard-doctor.sh --workspace <workspace-root>
+mise run onboard-doctor -- --workspace <workspace-root>
 ```
 
 Doctor 結果為 `blocked` 時，只處理 required local config 修復，例如 root config、

@@ -75,6 +75,19 @@ token。
 - 新增 token 或欄位前，必須在同一個 DP-backed task 更新本 reference、producer script selftest 與
   consumer parser。
 
+### Delivery readiness probe carve-out
+
+`command -v gh` 可作為 delivery readiness probe 的穩態 carve-out，但只限下列情境：
+
+- probe 用來判斷 `gh` 是否存在、是否可 fail-open skip、或是否要 fail-closed；不得把
+  `command -v` 的結果當成 invocation source of truth。
+- 後續 invocation 必須走 `scripts/lib/github-rest.sh` helper、`GH_BIN` indirection、或既有
+  delivery wrapper；不得散落 hardcoded binary path。
+- fail-closed surface 必須在 stderr 輸出 `POLARIS_TOOL_MISSING` 或
+  `POLARIS_TOOL_AUTH_FAILED`。
+- 保留裸 `command -v gh` 的站點必須有 inline `D7 readiness-probe carve-out` 註記，讓 direct-call
+  audit 能分辨 readiness probe 與 unmanaged invocation。
+
 ## Consumer Rules
 
 - engineering / verify / release lane 可以把這兩個 token 分類為 environment readiness failure。

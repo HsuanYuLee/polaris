@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.101] - 2026-05-19
+
+### Fixed — DP-203 canonical command surface and gate fidelity convergence
+
+- 收斂 framework public task canonical command surface，讓 active rules / skills / command catalog 統一使用 `mise run <task>`。
+- 修正 dependency governance gates 的 Bash 3.2 no-arg strict-mode safety，並補齊 command catalog、script dependency 與 PR create selftests。
+- 結清 DP-202 follow-up inventory disposition 債務，明文化 D7 readiness-probe tool token policy，並移除 onboard doctor 對第三方 `yaml` package 的依賴。
+
 ## [3.75.100] - 2026-05-19
 
 ### Added — DP-191 memory hygiene stale snapshot and lifecycle contract

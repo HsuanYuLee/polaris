@@ -130,7 +130,9 @@ if [[ -n "$PR_REF" ]]; then
   parsed_pr=""
   gh_repo=""
   gh_pr_number=""
+  # D7 readiness-probe carve-out: fail-closed --pr source requires gh readiness.
   command -v gh >/dev/null 2>&1 || {
+    echo '[POLARIS_TOOL_MISSING] tool=gh profile=delivery remediation="mise run doctor -- --profile delivery"' >&2
     echo "$PREFIX BLOCKED: gh CLI is required for --pr source." >&2
     exit 2
   }

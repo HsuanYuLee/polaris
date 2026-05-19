@@ -19,6 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 GATES_DIR="$SCRIPT_DIR/gates"
 REVIEW_LABEL_LIB="$SCRIPT_DIR/lib/pr-review-label.sh"
 SPECS_ROOT_LIB="$SCRIPT_DIR/lib/specs-root.sh"
+GITHUB_REST_LIB="$SCRIPT_DIR/lib/github-rest.sh"
 
 PREFIX="[polaris-pr-create]"
 REPO_PATH=""
@@ -36,6 +37,10 @@ fi
 if [[ -f "$SPECS_ROOT_LIB" ]]; then
   # shellcheck source=lib/specs-root.sh
   . "$SPECS_ROOT_LIB"
+fi
+if [[ -f "$GITHUB_REST_LIB" ]]; then
+  # shellcheck source=lib/github-rest.sh
+  . "$GITHUB_REST_LIB"
 fi
 
 usage() {
@@ -170,7 +175,9 @@ PY
     return 0
   fi
 
-  gh api user --jq '.login' 2>/dev/null || true
+  if declare -F polaris_github_current_login >/dev/null 2>&1; then
+    polaris_github_current_login
+  fi
 }
 
 parse_github_pr_url() {
@@ -247,9 +254,26 @@ auto_assign_pr() {
   fi
 
   if [[ -n "$pr_ref" ]]; then
-    gh pr edit "$pr_ref" --add-assignee "$assignee" >/dev/null
+    local parsed=""
+    local gh_repo=""
+    local pr_number=""
+    if declare -F polaris_github_pr_add_assignee_rest >/dev/null 2>&1 && parsed="$(parse_github_pr_url "$pr_ref")"; then
+      gh_repo="${parsed%%$'\t'*}"
+      pr_number="${parsed##*$'\t'}"
+      polaris_github_pr_add_assignee_rest "$gh_repo" "$pr_number" "$assignee"
+    elif declare -F polaris_github_pr_add_assignee_cli_fallback >/dev/null 2>&1; then
+      polaris_github_pr_add_assignee_cli_fallback "$pr_ref" "$assignee"
+    else
+      echo "$PREFIX ✗ BLOCKED: GitHub assignee helper is unavailable." >&2
+      return 2
+    fi
   else
-    gh pr edit --add-assignee "$assignee" >/dev/null
+    if declare -F polaris_github_pr_add_assignee_cli_fallback >/dev/null 2>&1; then
+      polaris_github_pr_add_assignee_cli_fallback "" "$assignee"
+    else
+      echo "$PREFIX ✗ BLOCKED: GitHub assignee helper is unavailable." >&2
+      return 2
+    fi
   fi
   echo "$PREFIX ✓ PR assigned to $assignee"
 }
@@ -270,8 +294,13 @@ create_pr_and_assign() {
 
   output_file="$(mktemp -t polaris-pr-create.XXXXXX)"
   set +e
-  gh pr create "${GH_ARGS[@]}" | tee "$output_file"
-  rc=${PIPESTATUS[0]}
+  if declare -F polaris_github_pr_create_cli >/dev/null 2>&1; then
+    polaris_github_pr_create_cli "$output_file" "${GH_ARGS[@]}"
+    rc=$?
+  else
+    echo "$PREFIX ✗ BLOCKED: GitHub PR create helper is unavailable." >&2
+    rc=2
+  fi
   set -e
   if [[ "$rc" -ne 0 ]]; then
     rm -f "$output_file"

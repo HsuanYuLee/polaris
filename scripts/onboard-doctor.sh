@@ -74,15 +74,10 @@ fi
 python3 - "$WORKSPACE" "$COMPANY" "$JSON" "$STRICT_MCP" <<'PY'
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
-
-try:
-    import yaml
-except Exception as exc:
-    print(f"onboard-doctor: PyYAML is required: {exc}", file=sys.stderr)
-    raise SystemExit(1)
 
 workspace = Path(sys.argv[1])
 company_filter = sys.argv[2].strip()
@@ -101,10 +96,108 @@ def add(name, state, message, severity="info", action_class="none", repair=""):
         "repair": repair,
     })
 
+def strip_comment(line):
+    quote = None
+    escaped = False
+    for idx, char in enumerate(line):
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = True
+            continue
+        if quote:
+            if char == quote:
+                quote = None
+            continue
+        if char in {"'", '"'}:
+            quote = char
+            continue
+        if char == "#":
+            return line[:idx]
+    return line
+
+def parse_scalar(value):
+    value = value.strip()
+    if value == "":
+        return ""
+    if value in {"[]", "{}"}:
+        return [] if value == "[]" else {}
+    if value in {"true", "True"}:
+        return True
+    if value in {"false", "False"}:
+        return False
+    if value in {"null", "Null", "~"}:
+        return None
+    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+        return value[1:-1]
+    return value
+
+def parse_key_value(content):
+    if ":" not in content:
+        return content.strip(), ""
+    key, value = content.split(":", 1)
+    return key.strip(), value.strip()
+
+def parse_yaml_subset(text):
+    tokens = []
+    for raw in text.splitlines():
+        line = strip_comment(raw).rstrip()
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        tokens.append((indent, line.strip()))
+
+    def parse_block(index, indent):
+        if index >= len(tokens):
+            return {}, index
+        current_indent, current = tokens[index]
+        if current_indent < indent:
+            return {}, index
+        if current.startswith("- "):
+            result = []
+            while index < len(tokens):
+                item_indent, item = tokens[index]
+                if item_indent != indent or not item.startswith("- "):
+                    break
+                rest = item[2:].strip()
+                index += 1
+                if rest == "":
+                    child, index = parse_block(index, indent + 2)
+                    result.append(child)
+                    continue
+                if ":" in rest:
+                    key, value = parse_key_value(rest)
+                    item_map = {key: parse_scalar(value)} if value else {key: {}}
+                    if index < len(tokens) and tokens[index][0] > indent:
+                        child, index = parse_block(index, indent + 2)
+                        if isinstance(child, dict):
+                            item_map.update(child)
+                    result.append(item_map)
+                else:
+                    result.append(parse_scalar(rest))
+            return result, index
+
+        result = {}
+        while index < len(tokens):
+            item_indent, item = tokens[index]
+            if item_indent != indent or item.startswith("- "):
+                break
+            key, value = parse_key_value(item)
+            index += 1
+            if value:
+                result[key] = parse_scalar(value)
+            else:
+                child, index = parse_block(index, indent + 2)
+                result[key] = child
+        return result, index
+
+    parsed, _ = parse_block(0, tokens[0][0] if tokens else 0)
+    return parsed or {}
+
 def load_yaml(path):
     try:
-        with path.open(encoding="utf-8") as handle:
-            return yaml.safe_load(handle) or {}
+        return parse_yaml_subset(path.read_text(encoding="utf-8"))
     except Exception as exc:
         add(str(path), "blocked", f"failed to read YAML: {exc}", "blocked", "local config")
         return None

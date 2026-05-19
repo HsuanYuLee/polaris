@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CATALOG_PATH="${ROOT_DIR}/scripts/command-catalog.json"
 PACKAGE_PATH="${ROOT_DIR}/package.json"
+MISE_PATH="${ROOT_DIR}/mise.toml"
 
 usage() {
   cat <<'USAGE'
@@ -19,6 +20,7 @@ while [[ $# -gt 0 ]]; do
       ROOT_DIR="${2:-}"
       CATALOG_PATH="${ROOT_DIR}/scripts/command-catalog.json"
       PACKAGE_PATH="${ROOT_DIR}/package.json"
+      MISE_PATH="${ROOT_DIR}/mise.toml"
       shift 2
       ;;
     --catalog)
@@ -37,15 +39,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-python3 - "$ROOT_DIR" "$CATALOG_PATH" "$PACKAGE_PATH" <<'PY'
+python3 - "$ROOT_DIR" "$CATALOG_PATH" "$PACKAGE_PATH" "$MISE_PATH" <<'PY'
 import json
 import os
 import re
 import sys
 
-root, catalog_path, package_path = sys.argv[1:4]
+root, catalog_path, package_path, mise_path = sys.argv[1:5]
 errors = []
-required_categories = {"viewer", "toolchain", "scripts", "maintainer"}
+required_categories = {"viewer", "toolchain", "runtime", "scripts", "maintainer"}
 required_ids = {
     "viewer.dev",
     "viewer.preview",
@@ -57,12 +59,21 @@ required_ids = {
     "toolchain.manifest",
     "scripts.check",
     "commands.check",
+    "runtime.bootstrap",
+    "runtime.doctor",
+    "runtime.doctor-mise",
+    "runtime.onboard-doctor",
+    "runtime.release-preflight",
+    "runtime.pr-create",
+    "runtime.spec-close-parent",
+    "runtime.script-audit",
+    "runtime.docs-health",
+    "runtime.verify",
+    "runtime.cross-runtime-sync",
     "maintainer.framework-release",
     "maintainer.framework-docs-health",
 }
 allowed_direct_human_prefixes = (
-    "bash scripts/polaris-bootstrap.sh",
-    "bash scripts/polaris-doctor.sh",
     "bash scripts/polaris-toolchain.sh",
 )
 
@@ -88,6 +99,12 @@ except Exception as exc:
     print(f"package.json is not valid JSON: {exc}", file=sys.stderr)
     sys.exit(1)
 
+try:
+    mise_text = open(mise_path, encoding="utf-8").read()
+except Exception as exc:
+    print(f"mise.toml is not readable: {exc}", file=sys.stderr)
+    sys.exit(1)
+
 if catalog.get("version") != 1:
     fail("version must be 1")
 
@@ -108,6 +125,18 @@ scripts = package.get("scripts") if isinstance(package, dict) else {}
 if not isinstance(scripts, dict):
     fail("package.json scripts must be an object")
     scripts = {}
+
+mise_tasks = {}
+current_task = None
+for raw in mise_text.splitlines():
+    task_match = re.match(r"\[tasks\.([A-Za-z0-9_-]+)\]\s*$", raw.strip())
+    if task_match:
+        current_task = task_match.group(1)
+        mise_tasks.setdefault(current_task, {})
+        continue
+    run_match = re.match(r'run\s*=\s*"([^"]+)"\s*$', raw.strip())
+    if current_task and run_match:
+        mise_tasks[current_task]["run"] = run_match.group(1)
 
 seen = set()
 valid_id = re.compile(r"^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$")
@@ -151,13 +180,24 @@ for idx, row in enumerate(commands):
                 fail(f"{cid}: package.json is missing script {script_name!r}")
             elif package_script != implementation:
                 fail(f"{cid}: package script {script_name!r} does not match implementation")
+        elif isinstance(canonical, str) and canonical.startswith("mise run "):
+            parts = canonical.split()
+            if len(parts) < 3:
+                fail(f"{cid}: invalid mise canonical surface")
+            else:
+                task_name = parts[2]
+                task = mise_tasks.get(task_name)
+                if task is None:
+                    fail(f"{cid}: mise.toml is missing task {task_name!r}")
+                elif task.get("run") != implementation:
+                    fail(f"{cid}: mise task {task_name!r} does not match implementation")
         elif is_allowed_direct_human_surface(canonical):
             if canonical != implementation:
                 fail(f"{cid}: direct human command canonical must match implementation")
         else:
             fail(
-                f"{cid}: human canonical surface must be a pnpm thin alias or "
-                "a Polaris bootstrap/doctor/toolchain wrapper"
+                f"{cid}: human canonical surface must be a pnpm thin alias, "
+                "a mise public task, or an allowed Polaris toolchain wrapper"
             )
         if isinstance(owner, str) and owner.startswith("scripts/"):
             owner_path = os.path.join(root, owner)

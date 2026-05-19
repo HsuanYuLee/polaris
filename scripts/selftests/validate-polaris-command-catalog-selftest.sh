@@ -11,9 +11,15 @@ write_repo() {
   mkdir -p "$repo/scripts"
   cp "$ROOT_DIR/scripts/command-catalog.json" "$repo/scripts/command-catalog.json"
   cp "$ROOT_DIR/package.json" "$repo/package.json"
+  cp "$ROOT_DIR/mise.toml" "$repo/mise.toml"
   mkdir -p "$repo/scripts"
   touch "$repo/scripts/polaris-viewer.sh" "$repo/scripts/polaris-toolchain.sh" \
-    "$repo/scripts/check-script-manifest.sh" "$repo/scripts/validate-polaris-command-catalog.sh"
+    "$repo/scripts/check-script-manifest.sh" "$repo/scripts/validate-polaris-command-catalog.sh" \
+    "$repo/scripts/polaris-bootstrap.sh" "$repo/scripts/polaris-doctor.sh" \
+    "$repo/scripts/doctor-mise-check.sh" "$repo/scripts/onboard-doctor.sh" \
+    "$repo/scripts/framework-release-pr-lane.sh" "$repo/scripts/polaris-pr-create.sh" \
+    "$repo/scripts/close-parent-spec-if-complete.sh" "$repo/scripts/refinement-handoff-gate.sh" \
+    "$repo/scripts/run-verify-command.sh" "$repo/scripts/sync-skills-cross-runtime.sh"
 }
 
 positive="$TMP_DIR/positive"
@@ -49,6 +55,23 @@ p.write_text(json.dumps(d, indent=2), encoding="utf-8")
 PY
 if bash "$VALIDATOR" --root "$maintainer_leak" >/tmp/polaris-command-catalog-selftest.out 2>&1; then
   echo "FAIL: expected maintainer leak fixture to fail" >&2
+  exit 1
+fi
+
+legacy_direct="$TMP_DIR/legacy-direct"
+write_repo "$legacy_direct"
+python3 - "$legacy_direct/scripts/command-catalog.json" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+d = json.loads(p.read_text())
+for row in d["commands"]:
+    if row["id"] == "runtime.bootstrap":
+        row["canonical"] = "bash scripts/polaris-bootstrap.sh"
+p.write_text(json.dumps(d, indent=2), encoding="utf-8")
+PY
+if bash "$VALIDATOR" --root "$legacy_direct" >/tmp/polaris-command-catalog-selftest.out 2>&1; then
+  echo "FAIL: expected legacy direct public task canonical fixture to fail" >&2
   exit 1
 fi
 

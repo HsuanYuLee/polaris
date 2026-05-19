@@ -75,6 +75,9 @@ if [[ -z "$TICKET" ]]; then
 fi
 
 if ! command -v gh >/dev/null 2>&1; then
+  # D7 readiness-probe carve-out: fail-open because missing gh only prevents
+  # best-effort existing-PR detection in this pre-push guard.
+  echo '[POLARIS_TOOL_MISSING] tool=gh profile=delivery remediation="mise run doctor -- --profile delivery"' >&2
   echo "$PREFIX WARN: gh not available; cannot determine whether branch has an existing PR — allowing." >&2
   exit 0
 fi

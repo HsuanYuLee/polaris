@@ -202,6 +202,7 @@ EOF
 fi
 
 if [[ -z "$ACTUAL_TITLE" ]]; then
+  # D7 readiness-probe carve-out: fail-open because title can be supplied explicitly.
   command -v gh >/dev/null 2>&1 || exit 0
   if declare -F polaris_current_branch_pr_rest >/dev/null 2>&1; then
     ACTUAL_TITLE="$(polaris_current_branch_pr_rest "$REPO_ROOT" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("title") or "")' 2>/dev/null || true)"

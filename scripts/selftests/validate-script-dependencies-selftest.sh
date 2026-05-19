@@ -19,7 +19,7 @@ scripts/baseline.sh	3	node	framework	root_mise	core	true
 EOF
 cat >"$TMPDIR_SELFTEST/scripts/tool-direct-call-inventory-disposition.txt" <<'EOF'
 path	line	tool	disposition	owner_decision	remediation_task	expiry	scope
-scripts/baseline.sh	3	node	accepted_current_debt	selftest baseline debt	SELFTEST-1	M-future	core
+scripts/baseline.sh	3	node	follow_up_required	selftest baseline debt	SELFTEST-1	2026-06-30	core
 EOF
 
 cat >"$TMPDIR_SELFTEST/scripts/ok.sh" <<'SH'
@@ -111,5 +111,19 @@ if ! (cd "$TMPDIR_SELFTEST" && bash scripts/validate-script-dependencies.sh --mo
   echo "expected audit mode to report advisory without failing" >&2
   exit 1
 fi
+
+cp "$TMPDIR_SELFTEST/scripts/tool-direct-call-inventory-disposition.txt" "$TMPDIR_SELFTEST/scripts/tool-direct-call-inventory-disposition.ok"
+cat >"$TMPDIR_SELFTEST/scripts/tool-direct-call-inventory-disposition.txt" <<'EOF'
+path	line	tool	disposition	owner_decision	remediation_task	expiry	scope
+scripts/baseline.sh	3	node	accepted_current_debt	selftest invalid debt	DP-202-follow-up	M-future	core
+EOF
+if (cd "$TMPDIR_SELFTEST" && bash scripts/validate-script-dependencies.sh --path scripts/baseline.sh >/tmp/validate-script-disposition.out 2>&1); then
+  echo "expected invalid direct-call disposition to fail" >&2
+  exit 1
+fi
+grep -q "must not use accepted_current_debt" /tmp/validate-script-disposition.out
+grep -q "must not use expiry=M-future" /tmp/validate-script-disposition.out
+grep -q "must not use remediation_task=DP-202-follow-up" /tmp/validate-script-disposition.out
+mv "$TMPDIR_SELFTEST/scripts/tool-direct-call-inventory-disposition.ok" "$TMPDIR_SELFTEST/scripts/tool-direct-call-inventory-disposition.txt"
 
 echo "PASS: validate-script-dependencies selftest"

@@ -31,6 +31,7 @@ PY
   cat >"$tmp/bad.py" <<'PY'
 import requests
 PY
+  bash "$tmp/scripts/check-python-third-party.sh" --root "$tmp" >/dev/null
   bash "$tmp/scripts/check-python-third-party.sh" --root "$tmp" --path ok.py >/dev/null
   if bash "$tmp/scripts/check-python-third-party.sh" --root "$tmp" --path bad.py >/tmp/check-python-third-party.out 2>&1; then
     echo "expected undeclared Python import to fail" >&2
@@ -51,7 +52,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-python3 - "$ROOT_DIR" "$BASE_REF" "${PATHS[@]}" <<'PY'
+PY_ARGS=("$ROOT_DIR" "$BASE_REF")
+if [[ "${#PATHS[@]}" -gt 0 ]]; then
+  PY_ARGS+=("${PATHS[@]}")
+fi
+
+python3 - "${PY_ARGS[@]}" <<'PY'
 from __future__ import annotations
 
 import ast

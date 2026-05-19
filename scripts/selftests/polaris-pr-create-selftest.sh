@@ -188,6 +188,11 @@ if [[ "\$1" == "api" && "\${2:-}" == "user" ]]; then
   printf 'fallback-user\n'
   exit 0
 fi
+if [[ "\$1" == "api" && "\${2:-}" == "repos/demo/example/issues/123/assignees" ]]; then
+  printf '%s\n' "https://github.com/demo/example/pull/123 --add-assignee cfg-user" >> "$edit_args_file"
+  printf '{"assignees":[{"login":"cfg-user"}]}\n'
+  exit 0
+fi
 if [[ "\$1" == "api" && "\${2:-}" == "repos/demo/example/issues/123" ]]; then
   printf '{"assignees":[{"login":"cfg-user"}]}\n'
   exit 0
@@ -260,6 +265,11 @@ if [[ "\$1" == "pr" && "\$2" == "edit" ]]; then
 fi
 if [[ "\$1" == "api" && "\${2:-}" == "user" ]]; then
   printf 'fallback-user\n'
+  exit 0
+fi
+if [[ "\$1" == "api" && "\${2:-}" == "repos/demo/example/issues/154/assignees" ]]; then
+  printf '%s\n' "https://github.com/demo/example/pull/154 --add-assignee cfg-user" >> "$edit_args_file"
+  printf '{"assignees":[{"login":"cfg-user"}]}\n'
   exit 0
 fi
 if [[ "\$1" == "api" && "\${2:-}" == "repos/demo/example/issues/154" ]]; then
@@ -341,6 +351,11 @@ if [[ "\$1" == "pr" && "\$2" == "edit" ]]; then
 fi
 if [[ "\$1" == "api" && "\${2:-}" == "repos/demo/example/issues/160" ]]; then
   printf '{"assignees":[]}\n'
+  exit 0
+fi
+if [[ "\$1" == "api" && "\${2:-}" == "repos/demo/example/issues/160/assignees" ]]; then
+  printf '%s\n' "https://github.com/demo/example/pull/160 --add-assignee cfg-user" >> "$edit_args_file"
+  printf '{"assignees":[{"login":"cfg-user"}]}\n'
   exit 0
 fi
 if [[ "\$1" == "api" && "\${2:-}" == "user" ]]; then

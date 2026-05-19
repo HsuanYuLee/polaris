@@ -341,7 +341,8 @@ PR_BASE_BEFORE="__NULL__"
 if [ -n "$PR_ARG" ]; then
   PR_NUMBER="$PR_ARG"
 else
-  # Query gh for current branch's PR.
+  # D7 readiness-probe carve-out: this only decides whether PR lookup can run;
+  # invocation is delegated to REST helper first, then legacy gh fallback.
   if command -v gh >/dev/null 2>&1; then
     rc=1
     if declare -F polaris_current_branch_pr_rest >/dev/null 2>&1; then
@@ -371,6 +372,7 @@ fi
 
 # Re-fetch PR_BASE_BEFORE if --pr was supplied explicitly (we still need it).
 if [ "$PR_NUMBER" != "__NULL__" ] && [ "$PR_BASE_BEFORE" = "__NULL__" ]; then
+  # D7 readiness-probe carve-out: this only guards PR base lookup availability.
   if command -v gh >/dev/null 2>&1; then
     if declare -F polaris_github_repo_slug >/dev/null 2>&1 && declare -F polaris_pr_view_rest >/dev/null 2>&1; then
       GH_REPO="$(polaris_github_repo_slug "$REPO" 2>/dev/null || true)"

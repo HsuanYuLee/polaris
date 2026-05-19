@@ -19,6 +19,7 @@ run_self_test() {
   trap 'rm -rf "$tmp"' RETURN
   mkdir -p "$tmp/scripts" "$tmp/assets"
   cp "$0" "$tmp/scripts/check-runtime-asset.sh"
+  bash "$tmp/scripts/check-runtime-asset.sh" --root "$tmp" >/dev/null
   bash "$tmp/scripts/check-runtime-asset.sh" --root "$tmp" --asset "playwright:runtime:assets:bootstrap" >/dev/null
   if bash "$tmp/scripts/check-runtime-asset.sh" --root "$tmp" --asset "playwright:runtime:missing:bootstrap" >/tmp/check-runtime-asset.out 2>&1; then
     echo "expected missing runtime asset to fail" >&2
@@ -39,18 +40,20 @@ while [[ $# -gt 0 ]]; do
 done
 
 failures=0
-for asset in "${ASSETS[@]}"; do
-  IFS=: read -r tool profile path remediation <<<"$asset"
-  if [[ -z "${tool:-}" || -z "${profile:-}" || -z "${path:-}" || -z "${remediation:-}" ]]; then
-    echo "check-runtime-asset: invalid asset spec: $asset" >&2
-    exit 2
-  fi
-  if [[ ! -e "$ROOT_DIR/$path" ]]; then
-    echo "[POLARIS_TOOL_MISSING] tool=$tool profile=$profile remediation=\"$remediation\"" >&2
-    echo "missing runtime asset: $path" >&2
-    failures=$((failures + 1))
-  fi
-done
+if [[ "${#ASSETS[@]}" -gt 0 ]]; then
+  for asset in "${ASSETS[@]}"; do
+    IFS=: read -r tool profile path remediation <<<"$asset"
+    if [[ -z "${tool:-}" || -z "${profile:-}" || -z "${path:-}" || -z "${remediation:-}" ]]; then
+      echo "check-runtime-asset: invalid asset spec: $asset" >&2
+      exit 2
+    fi
+    if [[ ! -e "$ROOT_DIR/$path" ]]; then
+      echo "[POLARIS_TOOL_MISSING] tool=$tool profile=$profile remediation=\"$remediation\"" >&2
+      echo "missing runtime asset: $path" >&2
+      failures=$((failures + 1))
+    fi
+  done
+fi
 
 if [[ "$failures" -gt 0 ]]; then
   echo "FAIL: runtime asset gate ($failures issue(s))" >&2

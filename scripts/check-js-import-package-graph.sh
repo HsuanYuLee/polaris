@@ -32,6 +32,7 @@ JS
 import chalk from 'chalk';
 console.log(chalk.green('x'));
 JS
+  bash "$tmp/scripts/check-js-import-package-graph.sh" --root "$tmp" >/dev/null
   bash "$tmp/scripts/check-js-import-package-graph.sh" --root "$tmp" --path ok.mjs >/dev/null
   if bash "$tmp/scripts/check-js-import-package-graph.sh" --root "$tmp" --path bad.mjs >/tmp/check-js-import-package-graph.out 2>&1; then
     echo "expected undeclared JS package import to fail" >&2
@@ -52,7 +53,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-python3 - "$ROOT_DIR" "$BASE_REF" "${PATHS[@]}" <<'PY'
+PY_ARGS=("$ROOT_DIR" "$BASE_REF")
+if [[ "${#PATHS[@]}" -gt 0 ]]; then
+  PY_ARGS+=("${PATHS[@]}")
+fi
+
+python3 - "${PY_ARGS[@]}" <<'PY'
 from __future__ import annotations
 
 import json

@@ -87,7 +87,8 @@ SHELL_ALLOWED = {
     "mise", "mv", "node", "nohup", "open", "pnpm", "printf", "pwd", "python",
     "python3", "read", "readonly", "return", "rg", "rm", "screen", "sed", "set",
     "shift", "shopt", "sleep", "sort", "source", "tail", "tee", "test", "tr",
-    "trap", "true", "umask", "uniq", "wc", "while", "xargs",
+    "trap", "true", "touch", "umask", "uniq", "wc", "while", "xargs",
+    "declare",
     "polaris_require_delivery_tool", "polaris_require_mise_tool",
     "polaris_require_python", "polaris_with_runtime_tools",
 }
@@ -180,6 +181,21 @@ def validate_inventory_disposition() -> None:
                 f"{rel(DISPOSITION_PATH)}: {row.get('path')}:{row.get('line')}:{row.get('tool')} "
                 "must include owner_decision, remediation_task, and expiry"
             )
+        if disposition == "accepted_current_debt":
+            errors.append(
+                f"{rel(DISPOSITION_PATH)}: {row.get('path')}:{row.get('line')}:{row.get('tool')} "
+                "must not use accepted_current_debt; use migrated_to_resolver, false_positive, or follow_up_required"
+            )
+        if row.get("expiry") == "M-future":
+            errors.append(
+                f"{rel(DISPOSITION_PATH)}: {row.get('path')}:{row.get('line')}:{row.get('tool')} "
+                "must not use expiry=M-future"
+            )
+        if row.get("remediation_task") == "DP-202-follow-up":
+            errors.append(
+                f"{rel(DISPOSITION_PATH)}: {row.get('path')}:{row.get('line')}:{row.get('tool')} "
+                "must not use remediation_task=DP-202-follow-up"
+            )
     inventory_keys = {disposition_key(row) for row in inventory_rows}
     disposition_keys = set(disposition_by_key)
     for key in sorted(inventory_keys - disposition_keys):
@@ -254,16 +270,39 @@ def scan_shell(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     functions = shell_functions(text)
     heredoc_until: str | None = None
+    single_quote_python = False
+    continuation = False
     for lineno, raw in enumerate(text.splitlines(), start=1):
+        if continuation:
+            heredoc = re.search(r"<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?", raw)
+            if heredoc:
+                heredoc_until = heredoc.group(1)
+                continuation = False
+                continue
+            continuation = raw.rstrip().endswith("\\")
+            continue
+        if single_quote_python:
+            if raw.strip() == "'":
+                single_quote_python = False
+            continue
         if heredoc_until:
             if raw.strip() == heredoc_until:
                 heredoc_until = None
             continue
+        if re.search(r"\bpython3\s+-c\s+'", raw):
+            single_quote_python = True
+            continue
         heredoc = re.search(r"<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?", raw)
         if heredoc:
             heredoc_until = heredoc.group(1)
+            continue
         line = raw.split("#", 1)[0].strip()
-        if not line or line.endswith("() {") or line in {"}", "do", "then", "else"}:
+        if raw.rstrip().endswith("\\"):
+            continuation = True
+            continue
+        if not line or line.endswith("() {") or line in {"{", "}", "do", "then", "else"} or line.startswith("}"):
+            continue
+        if line.startswith("-"):
             continue
         hardcoded = re.search(r"(/Applications/Visual Studio Code\.app/\S*|/(?:usr/local|opt/homebrew)/bin)/(node|pnpm|jq|rg|gh)\b", line)
         if hardcoded:
@@ -279,9 +318,11 @@ def scan_shell(path: Path) -> None:
             continue
         line = re.sub(r"^(if|then|elif|while|until|do|else)\s+", "", line)
         line = line.lstrip("! (")
+        if "=" in line and re.match(r"^[A-Za-z_][A-Za-z0-9_]*(\+)?=", line):
+            continue
         token = re.split(r"\s+", line, maxsplit=1)[0]
         token = token.split("=", 1)[0]
-        token = token.strip("\"'")
+        token = token.strip("\"';")
         if token in DIRECT_TOOL_POLICY:
             key = (rel(path), str(lineno), token)
             disposition = disposition_by_key.get(key, {}).get("disposition", "")
@@ -304,6 +345,8 @@ def scan_shell(path: Path) -> None:
             )
             continue
         if not token or token in functions or token in SHELL_ALLOWED:
+            continue
+        if token.startswith("polaris_"):
             continue
         if token in {"case", "esac", ";;"} or token.endswith(")") or token.endswith(";;"):
             continue

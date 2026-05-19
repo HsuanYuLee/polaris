@@ -50,6 +50,47 @@ polaris_gh_api() {
   return 1
 }
 
+polaris_github_current_login() {
+  polaris_gh_api user --jq '.login' 2>/dev/null || true
+}
+
+polaris_github_pr_create_cli() {
+  local output_file="$1"
+  local had_errexit=0
+  local rc=0
+  shift
+
+  case "$-" in
+    *e*) had_errexit=1; set +e ;;
+    *) had_errexit=0 ;;
+  esac
+  "${GH_BIN:-gh}" pr create "$@" | tee "$output_file"
+  rc=${PIPESTATUS[0]}
+  [[ "$had_errexit" -eq 1 ]] && set -e
+  return "$rc"
+}
+
+polaris_github_pr_add_assignee_rest() {
+  local gh_repo="$1"
+  local pr_number="$2"
+  local assignee="$3"
+
+  polaris_gh_api "repos/${gh_repo}/issues/${pr_number}/assignees" \
+    --method POST \
+    -f "assignees[]=${assignee}" >/dev/null
+}
+
+polaris_github_pr_add_assignee_cli_fallback() {
+  local pr_ref="$1"
+  local assignee="$2"
+
+  if [[ -n "$pr_ref" ]]; then
+    "${GH_BIN:-gh}" pr edit "$pr_ref" --add-assignee "$assignee" >/dev/null
+  else
+    "${GH_BIN:-gh}" pr edit --add-assignee "$assignee" >/dev/null
+  fi
+}
+
 polaris_github_repo_slug() {
   local repo_root="$1"
   local remote=""

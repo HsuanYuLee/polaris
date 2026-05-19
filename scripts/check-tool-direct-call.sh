@@ -32,6 +32,7 @@ set -euo pipefail
 node tool.mjs
 gh pr view 1
 SH
+  bash "$tmp/scripts/check-tool-direct-call.sh" --root "$tmp" >/dev/null
   bash "$tmp/scripts/check-tool-direct-call.sh" --root "$tmp" --path scripts/ok.sh >/dev/null
   if bash "$tmp/scripts/check-tool-direct-call.sh" --root "$tmp" --path scripts/bad.sh >/tmp/check-tool-direct-call.out 2>&1; then
     echo "expected bare root tool calls to fail" >&2
@@ -53,7 +54,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-python3 - "$ROOT_DIR" "$BASE_REF" "${PATHS[@]}" <<'PY'
+PY_ARGS=("$ROOT_DIR" "$BASE_REF")
+if [[ "${#PATHS[@]}" -gt 0 ]]; then
+  PY_ARGS+=("${PATHS[@]}")
+fi
+
+python3 - "${PY_ARGS[@]}" <<'PY'
 from __future__ import annotations
 
 import re
