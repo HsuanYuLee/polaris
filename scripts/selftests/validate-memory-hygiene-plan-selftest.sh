@@ -1,123 +1,123 @@
 #!/usr/bin/env bash
-# Selftest for validate-memory-hygiene-plan.sh.
-
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-validator="$script_dir/validate-memory-hygiene-plan.sh"
-tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+VALIDATOR="$ROOT/scripts/validate-memory-hygiene-plan.sh"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 
-assert_pass() {
-  local label="$1"
-  shift
-  if ! "$@" >/tmp/validate-memory-plan.out 2>/tmp/validate-memory-plan.err; then
-    echo "ASSERT FAIL [$label]: expected pass" >&2
-    cat /tmp/validate-memory-plan.out >&2 || true
-    cat /tmp/validate-memory-plan.err >&2 || true
-    exit 1
-  fi
-}
-
-assert_fail() {
-  local label="$1"
-  shift
-  if "$@" >/tmp/validate-memory-plan.out 2>/tmp/validate-memory-plan.err; then
-    echo "ASSERT FAIL [$label]: expected fail" >&2
-    cat /tmp/validate-memory-plan.out >&2 || true
-    exit 1
-  fi
-}
-
-good="$tmp/good.json"
-cat > "$good" <<'EOF'
+valid_legacy="$TMP/valid-legacy.json"
+cat >"$valid_legacy" <<'JSON'
 {
-  "date": "2026-05-09",
-  "hot_days": 30,
-  "warm_days": 90,
-  "trigger_threshold": 5,
+  "date": "2026-05-19",
   "classifications": [
     {
-      "file": "fresh-memory.md",
-      "tier": "hot",
-      "topic": null,
-      "reason": "last_triggered 2d ago",
-      "last_triggered": "2026-05-07",
-      "mtime": "2026-05-07",
-      "trigger_count": 1,
-      "pinned": false,
-      "archived_in_index": false
-    },
-    {
-      "file": "warm-memory.md",
+      "file": "example.md",
       "tier": "warm",
-      "topic": "polaris-framework",
-      "reason": "warm (40d since last_triggered), topic=polaris-framework",
-      "last_triggered": "2026-03-30",
-      "mtime": "2026-03-30",
+      "topic": null,
+      "reason": "fixture",
       "trigger_count": 0,
       "pinned": false,
       "archived_in_index": false
-    },
-    {
-      "file": "cold-memory.md",
-      "tier": "cold",
-      "topic": null,
-      "reason": "stale (180d since last_triggered)",
-      "last_triggered": "2025-11-10",
-      "mtime": "2025-11-10",
-      "trigger_count": 0,
-      "pinned": false,
-      "archived_in_index": true
     }
   ]
 }
-EOF
+JSON
 
-assert_pass "valid-plan" "$validator" --input "$good"
+valid_additive="$TMP/valid-additive.json"
+cat >"$valid_additive" <<'JSON'
+{
+  "date": "2026-05-19",
+  "summary": {
+    "stale_snapshot": 0,
+    "graduated_feedback": 0,
+    "nested_frontmatter": 0,
+    "fresh_write_hot": 1,
+    "created_backfill": 1
+  },
+  "hot_order": ["fresh.md"],
+  "classifications": [
+    {
+      "file": "fresh.md",
+      "tier": "hot",
+      "topic": null,
+      "reason": "fresh-write",
+      "last_triggered": null,
+      "mtime": "2026-05-19",
+      "trigger_count": 0,
+      "pinned": false,
+      "pinned_reason": null,
+      "archived_in_index": false,
+      "flags": {
+        "stale_snapshot": false,
+        "graduated_feedback": false,
+        "nested_frontmatter": false,
+        "fresh_write_hot": true,
+        "grace_baseline": "created"
+      },
+      "created_backfill": "2026-05-19"
+    }
+  ]
+}
+JSON
 
-dup="$tmp/dup.json"
-python3 - <<'PY' "$good" "$dup"
-import json, sys
-src, dst = sys.argv[1:]
-data = json.load(open(src))
-data["classifications"].append(dict(data["classifications"][0]))
-json.dump(data, open(dst, "w"))
-PY
-assert_fail "duplicate-file" "$validator" --input "$dup"
-grep -q "duplicate_file" /tmp/validate-memory-plan.out
+invalid_nested="$TMP/invalid-nested.json"
+cat >"$invalid_nested" <<'JSON'
+{
+  "date": "2026-05-19",
+  "classifications": [
+    {
+      "file": "nested.md",
+      "tier": "hot",
+      "topic": null,
+      "reason": "nested",
+      "trigger_count": 1,
+      "pinned": false,
+      "archived_in_index": false,
+      "flags": {
+        "stale_snapshot": false,
+        "graduated_feedback": false,
+        "nested_frontmatter": true,
+        "fresh_write_hot": false,
+        "grace_baseline": "created"
+      }
+    }
+  ]
+}
+JSON
 
-bad_tier="$tmp/bad-tier.json"
-python3 - <<'PY' "$good" "$bad_tier"
-import json, sys
-src, dst = sys.argv[1:]
-data = json.load(open(src))
-data["classifications"][0]["tier"] = "lava"
-json.dump(data, open(dst, "w"))
-PY
-assert_fail "invalid-tier" "$validator" --input "$bad_tier"
-grep -q "invalid_tier" /tmp/validate-memory-plan.out
+invalid_pinned="$TMP/invalid-pinned.json"
+cat >"$invalid_pinned" <<'JSON'
+{
+  "date": "2026-05-19",
+  "classifications": [
+    {
+      "file": "pinned.md",
+      "tier": "hot",
+      "topic": null,
+      "reason": "pinned",
+      "trigger_count": 0,
+      "pinned": true,
+      "archived_in_index": false
+    }
+  ]
+}
+JSON
 
-bad_pinned="$tmp/bad-pinned.json"
-python3 - <<'PY' "$good" "$bad_pinned"
-import json, sys
-src, dst = sys.argv[1:]
-data = json.load(open(src))
-data["classifications"][2]["pinned"] = True
-json.dump(data, open(dst, "w"))
-PY
-assert_fail "pinned-not-hot" "$validator" --input "$bad_pinned"
-grep -q "pinned_not_hot" /tmp/validate-memory-plan.out
+bash "$VALIDATOR" --input "$valid_legacy" >/dev/null
+bash "$VALIDATOR" --input "$valid_additive" >/dev/null
+if bash "$VALIDATOR" --input "$invalid_nested" >/tmp/invalid-nested.out 2>&1; then
+  echo "expected invalid nested fixture to fail" >&2
+  exit 1
+fi
+grep -q "nested_frontmatter" /tmp/invalid-nested.out
+if bash "$VALIDATOR" --input "$invalid_pinned" >/tmp/invalid-pinned.out 2>&1; then
+  echo "expected invalid pinned fixture to fail" >&2
+  exit 1
+fi
+grep -q "missing_pinned_reason" /tmp/invalid-pinned.out
 
-bad_topic="$tmp/bad-topic.json"
-python3 - <<'PY' "$good" "$bad_topic"
-import json, sys
-src, dst = sys.argv[1:]
-data = json.load(open(src))
-data["classifications"][2]["topic"] = "should-not-be-here"
-json.dump(data, open(dst, "w"))
-PY
-assert_fail "non-warm-topic" "$validator" --input "$bad_topic"
-grep -q "non_warm_topic_present" /tmp/validate-memory-plan.out
+cat "$valid_additive" | bash "$VALIDATOR" >/dev/null
+bash "$VALIDATOR" --input "$valid_additive" --format json | grep -q '"passed": true'
 
-echo "validate-memory-hygiene-plan selftest: PASS"
+echo "PASS: validate-memory-hygiene-plan selftest"

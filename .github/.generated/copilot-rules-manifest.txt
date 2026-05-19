@@ -30,7 +30,7 @@ a5ed3b521232c5ceb48443b3dd1153d00e2c417a537a61e2531bb7512ebd3ab6  .claude/instru
 5c31ca3af5f1e76c2a2863c8dc88223a25e3ea138aadb4703b58beabad3cd453  .claude/rules/canonical-contract-governance.md
 c7be87783a1d96dc8cfa3549c41f84bb50df79dc24b7a678df3a6c602ecc6968  .claude/rules/context-monitoring.md
 43b414ac3d868c2ab6bfdf5caf6386a1187aabd36a6576ca3d29d97d4c80dd43  .claude/rules/cross-llm-skill-source-of-truth.md
-bb992d3e782bbbe58c22e47a299ecbe7b37cb77bdf6aaedcbe4829bb838f4e3e  .claude/rules/feedback-and-memory.md
+28802d9fb39ccfefa61cf860b01c9238cd770200e6e973dafbc527cf2724b67e  .claude/rules/feedback-and-memory.md
 a72bb54bb23566f1f8e27967b42a61b2e4df28fcad71d4c95871f27fc92a3f93  .claude/rules/framework-iteration.md
 4e4b28748a9c48c2b01d3c5e02beea41c51b8e7d73f27d80c288f49707005456  .claude/rules/jira-quality.md
 2b26e8fe7fe5c74135c96e97b439fe42cc3042556ed02f20682aee979e058fe9  .claude/rules/library-change-protocol.md

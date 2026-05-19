@@ -42,126 +42,40 @@ if [[ "$format" != "text" && "$format" != "json" ]]; then
   exit 2
 fi
 
-if [[ -n "$input_path" ]]; then
-  if [[ ! -f "$input_path" ]]; then
-    echo "error: input file not found: $input_path" >&2
-    exit 1
-  fi
-  python3 - "$input_path" "$format" <<'PY'
+tmp_input=""
+if [[ -z "$input_path" ]]; then
+  tmp_input="$(mktemp -t memory-hygiene-plan.XXXXXX.json)"
+  cat >"$tmp_input"
+  input_path="$tmp_input"
+fi
+trap '[[ -n "${tmp_input:-}" ]] && rm -f "$tmp_input"' EXIT
+
+if [[ -n "$input_path" && ! -f "$input_path" ]]; then
+  echo "error: input file not found: $input_path" >&2
+  exit 1
+fi
+
+python3 - "$format" "$input_path" <<'PY'
 import json
 import re
 import sys
 from pathlib import Path
 
-plan_path = Path(sys.argv[1])
-fmt = sys.argv[2]
-payload_text = plan_path.read_text(encoding="utf-8")
-
-DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-TOPIC_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-FILE_RE = re.compile(r"^[A-Za-z0-9._-]+\.md$")
-VALID_TIERS = {"hot", "warm", "cold"}
-
-issues = []
-
-try:
-    data = json.loads(payload_text)
-except json.JSONDecodeError as exc:
-    issues.append({"code": "invalid_json", "detail": str(exc)})
-    data = {}
-
-if not issues:
-    if not isinstance(data, dict):
-        issues.append({"code": "root_not_object", "detail": "plan root must be a JSON object"})
-
-if not issues:
-    date_value = data.get("date")
-    if not isinstance(date_value, str) or not DATE_RE.match(date_value):
-        issues.append({"code": "invalid_date", "detail": "date must be YYYY-MM-DD"})
-
-    classifications = data.get("classifications")
-    if not isinstance(classifications, list) or not classifications:
-        issues.append({"code": "missing_classifications", "detail": "classifications must be a non-empty array"})
-    else:
-        seen = set()
-        for idx, item in enumerate(classifications):
-            prefix = f"classifications[{idx}]"
-            if not isinstance(item, dict):
-                issues.append({"code": "classification_not_object", "detail": prefix})
-                continue
-            file_name = item.get("file")
-            tier = item.get("tier")
-            topic = item.get("topic")
-            reason = item.get("reason")
-            pinned = item.get("pinned")
-            archived = item.get("archived_in_index")
-            trigger_count = item.get("trigger_count")
-
-            if not isinstance(file_name, str) or not FILE_RE.match(file_name) or file_name == "MEMORY.md":
-                issues.append({"code": "invalid_file", "detail": f"{prefix}.file"})
-            elif file_name in seen:
-                issues.append({"code": "duplicate_file", "detail": file_name})
-            else:
-                seen.add(file_name)
-
-            if tier not in VALID_TIERS:
-                issues.append({"code": "invalid_tier", "detail": f"{prefix}.tier={tier}"})
-
-            if not isinstance(reason, str) or not reason.strip():
-                issues.append({"code": "missing_reason", "detail": f"{prefix}.reason"})
-
-            if not isinstance(trigger_count, int) or trigger_count < 0:
-                issues.append({"code": "invalid_trigger_count", "detail": f"{prefix}.trigger_count"})
-
-            if not isinstance(pinned, bool):
-                issues.append({"code": "invalid_pinned", "detail": f"{prefix}.pinned"})
-
-            if not isinstance(archived, bool):
-                issues.append({"code": "invalid_archived_flag", "detail": f"{prefix}.archived_in_index"})
-
-            if tier == "warm":
-                if topic is not None and (not isinstance(topic, str) or not TOPIC_RE.match(topic)):
-                    issues.append({"code": "invalid_warm_topic", "detail": f"{prefix}.topic"})
-            else:
-                if topic is not None:
-                    issues.append({"code": "non_warm_topic_present", "detail": f"{prefix}.topic"})
-
-            if pinned is True and tier != "hot":
-                issues.append({"code": "pinned_not_hot", "detail": file_name})
-
-            if archived is True and tier != "cold":
-                issues.append({"code": "archived_not_cold", "detail": file_name})
-
-result = {
-    "passed": not issues,
-    "issues": issues,
-}
-
-if fmt == "json":
-    print(json.dumps(result, ensure_ascii=False))
-else:
-    if result["passed"]:
-        print("PASS: memory hygiene plan valid")
-    else:
-        print("FAIL: memory hygiene plan invalid")
-        for issue in issues:
-            print(f"  - {issue['code']}: {issue['detail']}")
-
-sys.exit(0 if result["passed"] else 1)
-PY
-else
-  python3 - "$format" <<'PY'
-import json
-import re
-import sys
-
 fmt = sys.argv[1]
-payload_text = sys.stdin.read()
+input_path = sys.argv[2]
+payload_text = Path(input_path).read_text(encoding="utf-8") if input_path else sys.stdin.read()
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TOPIC_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 FILE_RE = re.compile(r"^[A-Za-z0-9._-]+\.md$")
 VALID_TIERS = {"hot", "warm", "cold"}
+FLAG_KEYS = {
+    "stale_snapshot",
+    "graduated_feedback",
+    "nested_frontmatter",
+    "fresh_write_hot",
+}
+SUMMARY_KEYS = FLAG_KEYS | {"created_backfill"}
 
 issues = []
 
@@ -171,14 +85,28 @@ except json.JSONDecodeError as exc:
     issues.append({"code": "invalid_json", "detail": str(exc)})
     data = {}
 
-if not issues:
-    if not isinstance(data, dict):
-        issues.append({"code": "root_not_object", "detail": "plan root must be a JSON object"})
+if not issues and not isinstance(data, dict):
+    issues.append({"code": "root_not_object", "detail": "plan root must be a JSON object"})
 
 if not issues:
     date_value = data.get("date")
     if not isinstance(date_value, str) or not DATE_RE.match(date_value):
         issues.append({"code": "invalid_date", "detail": "date must be YYYY-MM-DD"})
+
+    summary = data.get("summary")
+    if summary is not None:
+        if not isinstance(summary, dict):
+            issues.append({"code": "invalid_summary", "detail": "summary must be an object when present"})
+        else:
+            for key in SUMMARY_KEYS:
+                value = summary.get(key)
+                if not isinstance(value, int) or value < 0:
+                    issues.append({"code": "invalid_summary_count", "detail": f"summary.{key}"})
+
+    hot_order = data.get("hot_order")
+    if hot_order is not None:
+        if not isinstance(hot_order, list) or not all(isinstance(item, str) and FILE_RE.match(item) for item in hot_order):
+            issues.append({"code": "invalid_hot_order", "detail": "hot_order must be an array of memory filenames"})
 
     classifications = data.get("classifications")
     if not isinstance(classifications, list) or not classifications:
@@ -195,8 +123,11 @@ if not issues:
             topic = item.get("topic")
             reason = item.get("reason")
             pinned = item.get("pinned")
+            pinned_reason = item.get("pinned_reason")
             archived = item.get("archived_in_index")
             trigger_count = item.get("trigger_count")
+            flags = item.get("flags")
+            created_backfill = item.get("created_backfill")
 
             if not isinstance(file_name, str) or not FILE_RE.match(file_name) or file_name == "MEMORY.md":
                 issues.append({"code": "invalid_file", "detail": f"{prefix}.file"})
@@ -216,6 +147,8 @@ if not issues:
 
             if not isinstance(pinned, bool):
                 issues.append({"code": "invalid_pinned", "detail": f"{prefix}.pinned"})
+            elif pinned is True and (not isinstance(pinned_reason, str) or not pinned_reason.strip()):
+                issues.append({"code": "missing_pinned_reason", "detail": file_name or f"{prefix}.pinned_reason"})
 
             if not isinstance(archived, bool):
                 issues.append({"code": "invalid_archived_flag", "detail": f"{prefix}.archived_in_index"})
@@ -232,6 +165,24 @@ if not issues:
 
             if archived is True and tier != "cold":
                 issues.append({"code": "archived_not_cold", "detail": file_name})
+
+            if flags is not None:
+                if not isinstance(flags, dict):
+                    issues.append({"code": "invalid_flags", "detail": f"{prefix}.flags"})
+                else:
+                    for key in FLAG_KEYS:
+                        if not isinstance(flags.get(key), bool):
+                            issues.append({"code": "invalid_flag_value", "detail": f"{prefix}.flags.{key}"})
+                    grace = flags.get("grace_baseline")
+                    if grace is not None and grace not in {"created", "mtime_fallback"}:
+                        issues.append({"code": "invalid_grace_baseline", "detail": f"{prefix}.flags.grace_baseline"})
+                    if flags.get("nested_frontmatter") is True:
+                        issues.append({"code": "nested_frontmatter", "detail": file_name})
+
+            if created_backfill is not None and (
+                not isinstance(created_backfill, str) or not DATE_RE.match(created_backfill)
+            ):
+                issues.append({"code": "invalid_created_backfill", "detail": f"{prefix}.created_backfill"})
 
 result = {
     "passed": not issues,
@@ -250,4 +201,3 @@ else:
 
 sys.exit(0 if result["passed"] else 1)
 PY
-fi

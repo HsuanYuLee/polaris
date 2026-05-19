@@ -98,6 +98,34 @@ batch scan 見 `skills/references/feedback-memory-procedures.md` § Automatic Po
 2. 同一個 feedback 在同一輪對話被引用多次，只計一次。
 3. 純 hygiene checks（掃 frontmatter）不算 reference。
 
+## Memory Writer Fields
+
+新增 memory file 時，writer 必須在 flat frontmatter 寫入 `created: YYYY-MM-DD`。這個日期是
+fresh-write grace 的 baseline；hygiene apply 對既有缺欄位的檔案只能回填 original mtime date，
+不得用 apply 當天重設 grace。
+
+`pinned: true` 只可用於使用者明確要求長期保留的記憶，且必須同時寫 `pinned_reason:`。
+缺 `pinned_reason` 的 pinned file 會被 memory hygiene validator 擋下。
+
+Project snapshot 類記憶若描述某個 DP / ticket 當下狀態，應寫：
+
+```yaml
+snapshot_of: DP-191
+snapshot_taken: 2026-05-19
+```
+
+只有 `IMPLEMENTED`、`SUPERSEDED`、`ABANDONED` 會被視為 terminal stale；`LOCKED` 仍是 active
+delivery，不可當成 terminal stale。
+
+已被 promotion 到 rule / reference 的 feedback memory 應顯式標記：
+
+```yaml
+graduated_to: .claude/rules/feedback-and-memory.md
+```
+
+不要靠語意推測 graduated feedback。`originSessionId` 可保留作 optional debug-only 欄位；
+tiering 不消費它。
+
 ## Real-Time Collection of Rejected Commands
 
 執行期間遇到 permission denial 時，立刻記錄 command 與建議 pattern。task 結束前，
@@ -151,3 +179,7 @@ Memory files 遵守 Hot / Warm / Cold lifecycle rules，以限制每輪 session 
 
 tier definitions、frontmatter fields、decay behavior、write discipline 與 script
 ownership 請載入 `skills/references/memory-tiering-contract.md`。
+
+Tracked framework PR 只更新 `.claude/skills/references/memory-tiering-contract.md` 與本 rule。
+`~/.claude/CLAUDE.md` 和 live memory directory 是 local mirror / verification surface，不屬於
+engineering Allowed Files。

@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.100] - 2026-05-19
+
+### Added — DP-191 memory hygiene stale snapshot and lifecycle contract
+
+- 強化 `memory-hygiene-tiering.py` 的 Hot/Warm/Cold 分類，補上 fresh-write grace、stale snapshot、graduated feedback、nested frontmatter 與 missing `created` backfill 的 dry-run / apply / decay-scan 行為。
+- 重寫 memory hygiene plan validator，讓 legacy plan 與新增欄位共用同一個 JSON contract，並阻擋 nested frontmatter 等不可套用狀態。
+- 補齊 memory tiering contract 與 feedback memory rule，明確 live memory 與 local mirror 的治理邊界。
+
 ## [3.75.99] - 2026-05-19
 
 ### Documentation — DP-204 jira-worklog dual-stream invocation contract

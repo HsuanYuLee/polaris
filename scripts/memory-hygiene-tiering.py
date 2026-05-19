@@ -31,7 +31,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -54,8 +56,15 @@ class Frontmatter:
     company: Optional[str] = None
     trigger_count: int = 0
     last_triggered: Optional[date] = None
+    created: Optional[date] = None
     pinned: bool = False
+    pinned_reason: Optional[str] = None
     topic: Optional[str] = None
+    snapshot_of: Optional[str] = None
+    snapshot_taken: Optional[date] = None
+    graduated_to: Optional[str] = None
+    origin_session_id: Optional[str] = None
+    nested_metadata: bool = False
     raw: dict = field(default_factory=dict)
 
 
@@ -68,6 +77,8 @@ class Classification:
     frontmatter: Frontmatter = field(default_factory=Frontmatter)
     mtime: Optional[date] = None
     archived_in_index: bool = False
+    flags: dict = field(default_factory=dict)
+    created_backfill: Optional[str] = None
 
     @property
     def destination(self) -> str:
@@ -91,6 +102,7 @@ def parse_frontmatter(text: str) -> Frontmatter:
         return fm
     body = m.group(1)
     data: dict = {}
+    nested_metadata = False
     for line in body.splitlines():
         if not line.strip() or line.lstrip().startswith("#"):
             continue
@@ -99,11 +111,17 @@ def parse_frontmatter(text: str) -> Frontmatter:
         key, _, value = line.partition(":")
         key = key.strip()
         value = value.strip()
+        if key == "metadata" and not value:
+            nested_metadata = True
+            continue
+        if line[:1].isspace() and nested_metadata:
+            key = key.strip()
         # Strip surrounding quotes
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
             value = value[1:-1]
-        data[key] = value
+        data.setdefault(key, value)
     fm.raw = data
+    fm.nested_metadata = nested_metadata
     fm.name = data.get("name", "")
     fm.description = data.get("description", "")
     fm.type = data.get("type", "")
@@ -114,14 +132,94 @@ def parse_frontmatter(text: str) -> Frontmatter:
         fm.trigger_count = 0
     lt = data.get("last_triggered")
     if lt:
-        try:
-            fm.last_triggered = datetime.strptime(lt, "%Y-%m-%d").date()
-        except ValueError:
-            fm.last_triggered = None
+        fm.last_triggered = parse_date(lt)
+    created = data.get("created")
+    if created:
+        fm.created = parse_date(created)
     pinned = data.get("pinned", "").lower()
     fm.pinned = pinned in ("true", "yes", "1")
+    fm.pinned_reason = data.get("pinned_reason") or None
     fm.topic = data.get("topic") or None
+    fm.snapshot_of = data.get("snapshot_of") or None
+    snapshot_taken = data.get("snapshot_taken")
+    if snapshot_taken:
+        fm.snapshot_taken = parse_date(snapshot_taken)
+    fm.graduated_to = data.get("graduated_to") or None
+    fm.origin_session_id = data.get("originSessionId") or data.get("origin_session_id") or None
     return fm
+
+
+def parse_date(value: str) -> Optional[date]:
+    try:
+        return datetime.strptime(value.strip(), "%Y-%m-%d").date()
+    except (ValueError, AttributeError):
+        return None
+
+
+def repo_root() -> Optional[Path]:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+    except Exception:
+        return None
+    return Path(proc.stdout.strip())
+
+
+def frontmatter_status(path: Path) -> Optional[str]:
+    try:
+        fm = parse_frontmatter(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    status = fm.raw.get("status")
+    return status.upper() if isinstance(status, str) and status else None
+
+
+def source_status(source_id: str) -> Optional[str]:
+    specs_env = os.environ.get("POLARIS_SPECS_ROOT")
+    if specs_env:
+        specs = Path(specs_env)
+    else:
+        root = repo_root()
+        if root is None:
+            return None
+        specs = root / "docs-manager" / "src" / "content" / "docs" / "specs"
+    if re.match(r"^DP-[0-9]{3}$", source_id):
+        for parent in [specs / "design-plans", specs / "design-plans" / "archive"]:
+            for container in parent.glob(f"{source_id}-*"):
+                for name in ("index.md", "plan.md", "refinement.md"):
+                    status = frontmatter_status(container / name)
+                    if status:
+                        return status
+        return None
+    for candidate in specs.glob(f"companies/**/{source_id}/**/*.md"):
+        status = frontmatter_status(candidate)
+        if status:
+            return status
+    return None
+
+
+def snapshot_is_stale(fm: Frontmatter, today: date) -> tuple[bool, str]:
+    if not fm.snapshot_of:
+        return False, ""
+    status = source_status(fm.snapshot_of)
+    if status in {"IMPLEMENTED", "SUPERSEDED", "ABANDONED"}:
+        return True, f"snapshot_of={fm.snapshot_of} status={status}"
+    if fm.snapshot_taken:
+        age = (today - fm.snapshot_taken).days
+        if age > 14:
+            return True, f"snapshot_taken {age}d ago"
+    return False, f"snapshot_of={fm.snapshot_of} status={status or 'unknown'}"
+
+
+def grace_baseline(fm: Frontmatter, mtime: date) -> tuple[date, str, Optional[str]]:
+    if fm.created:
+        return fm.created, "created", None
+    return mtime, "mtime_fallback", mtime.isoformat()
 
 
 # --- Topic inference ------------------------------------------------------
@@ -185,25 +283,54 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
     fm = parse_frontmatter(text)
     mtime = date.fromtimestamp(path.stat().st_mtime)
     archived = path.name in archived_set
+    baseline, baseline_source, created_backfill = grace_baseline(fm, mtime)
+    stale_snapshot, stale_reason = snapshot_is_stale(fm, today)
+    flags = {
+        "stale_snapshot": stale_snapshot,
+        "graduated_feedback": bool(fm.graduated_to),
+        "nested_frontmatter": fm.nested_metadata,
+        "fresh_write_hot": False,
+        "grace_baseline": baseline_source,
+    }
 
     # Archived-in-index takes priority → Cold
     if archived:
         return Classification(
             path=path, tier="cold", topic=None,
             reason="strikethrough in MEMORY.md", frontmatter=fm,
-            mtime=mtime, archived_in_index=True,
+            mtime=mtime, archived_in_index=True, flags=flags,
+            created_backfill=created_backfill,
+        )
+
+    if fm.graduated_to:
+        return Classification(
+            path=path, tier="cold", topic=None,
+            reason=f"graduated_to={fm.graduated_to}", frontmatter=fm,
+            mtime=mtime, flags=flags, created_backfill=created_backfill,
+        )
+
+    if stale_snapshot:
+        topic = infer_topic(fm, path.name)
+        return Classification(
+            path=path, tier="warm", topic=topic,
+            reason=f"stale snapshot ({stale_reason})"
+                   + (f", topic={topic}" if topic else ", no topic"),
+            frontmatter=fm, mtime=mtime, flags=flags,
+            created_backfill=created_backfill,
         )
 
     if fm.pinned:
         return Classification(
             path=path, tier="hot", topic=None,
             reason="pinned=true", frontmatter=fm, mtime=mtime,
+            flags=flags, created_backfill=created_backfill,
         )
     if fm.trigger_count >= HOT_TRIGGER_THRESHOLD:
         return Classification(
             path=path, tier="hot", topic=None,
             reason=f"trigger_count={fm.trigger_count}",
-            frontmatter=fm, mtime=mtime,
+            frontmatter=fm, mtime=mtime, flags=flags,
+            created_backfill=created_backfill,
         )
     if fm.last_triggered is not None:
         age = (today - fm.last_triggered).days
@@ -211,7 +338,8 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
             return Classification(
                 path=path, tier="hot", topic=None,
                 reason=f"last_triggered {age}d ago",
-                frontmatter=fm, mtime=mtime,
+                frontmatter=fm, mtime=mtime, flags=flags,
+                created_backfill=created_backfill,
             )
         if age <= WARM_DAYS:
             topic = infer_topic(fm, path.name)
@@ -219,20 +347,24 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
                 path=path, tier="warm", topic=topic,
                 reason=f"warm ({age}d since last_triggered)"
                        + (f", topic={topic}" if topic else ", no topic"),
-                frontmatter=fm, mtime=mtime,
+                frontmatter=fm, mtime=mtime, flags=flags,
+                created_backfill=created_backfill,
             )
         return Classification(
             path=path, tier="cold", topic=None,
             reason=f"stale ({age}d since last_triggered)",
-            frontmatter=fm, mtime=mtime,
+            frontmatter=fm, mtime=mtime, flags=flags,
+            created_backfill=created_backfill,
         )
     # No last_triggered, no trigger_count — use mtime only as fresh-write grace
-    age = (today - mtime).days
+    age = (today - baseline).days
     if age <= FRESH_WRITE_GRACE_DAYS:
+        flags["fresh_write_hot"] = True
         return Classification(
             path=path, tier="hot", topic=None,
-            reason=f"fresh-write ({age}d, no trigger data yet)",
-            frontmatter=fm, mtime=mtime,
+            reason=f"fresh-write ({age}d, no trigger data yet, baseline={baseline_source})",
+            frontmatter=fm, mtime=mtime, flags=flags,
+            created_backfill=created_backfill,
         )
     topic = infer_topic(fm, path.name)
     if age <= WARM_DAYS:
@@ -240,12 +372,14 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
             path=path, tier="warm", topic=topic,
             reason=f"never-triggered, mtime {age}d"
                    + (f", topic={topic}" if topic else ", no topic"),
-            frontmatter=fm, mtime=mtime,
+            frontmatter=fm, mtime=mtime, flags=flags,
+            created_backfill=created_backfill,
         )
     return Classification(
         path=path, tier="cold", topic=None,
         reason=f"never-triggered, stale ({age}d)",
-        frontmatter=fm, mtime=mtime,
+        frontmatter=fm, mtime=mtime, flags=flags,
+        created_backfill=created_backfill,
     )
 
 
@@ -276,6 +410,7 @@ def render_report(classifications: list[Classification], today: date,
     hot = [c for c in classifications if c.tier == "hot"]
     warm = [c for c in classifications if c.tier == "warm"]
     cold = [c for c in classifications if c.tier == "cold"]
+    summary = summarize_classifications(classifications)
 
     topics: dict[str, list[Classification]] = {}
     warm_flat: list[Classification] = []
@@ -291,20 +426,27 @@ def render_report(classifications: list[Classification], today: date,
     lines.append(f"- Date: {today.isoformat()}")
     lines.append(f"- Total memory files scanned: {len(classifications)}")
     lines.append(f"- Hot: {len(hot)}  |  Warm: {len(warm)} ({len(topics)} topics, {len(warm_flat)} flat)  |  Cold: {len(cold)}")
+    lines.append(
+        f"- Flags: stale_snapshot={summary['stale_snapshot']}, "
+        f"graduated_feedback={summary['graduated_feedback']}, "
+        f"nested_frontmatter={summary['nested_frontmatter']}, "
+        f"fresh_write_hot={summary['fresh_write_hot']}, "
+        f"created_backfill={summary['created_backfill']}"
+    )
     if orphan_files:
         lines.append(f"- Orphan files (exist on disk but not linked in MEMORY.md): {len(orphan_files)}")
     if missing_files:
         lines.append(f"- Missing files (linked in MEMORY.md but missing on disk): {len(missing_files)}")
     lines.append("")
     lines.append("## Classification rules")
-    lines.append(f"- Hot: pinned OR last_triggered/mtime within {HOT_DAYS}d OR trigger_count ≥ {HOT_TRIGGER_THRESHOLD}")
-    lines.append(f"- Warm: last_triggered/mtime within {WARM_DAYS}d (grouped by topic)")
+    lines.append(f"- Hot: pinned OR last_triggered within {HOT_DAYS}d OR trigger_count ≥ {HOT_TRIGGER_THRESHOLD} OR fresh-write grace ≤ {FRESH_WRITE_GRACE_DAYS}d")
+    lines.append(f"- Warm: last_triggered/created/mtime within {WARM_DAYS}d (grouped by topic)")
     lines.append("- Cold: older OR strikethrough in MEMORY.md → archive/")
     lines.append("")
 
     lines.append(f"## Hot ({len(hot)}) — stays in MEMORY.md")
     lines.append("")
-    for c in sorted(hot, key=lambda x: (x.frontmatter.last_triggered or x.mtime or today), reverse=True):
+    for c in sorted(hot, key=hot_sort_key_classification, reverse=True):
         lt = c.frontmatter.last_triggered or c.mtime
         lines.append(f"- `{c.path.name}` — {c.reason}  (lt={lt}, tc={c.frontmatter.trigger_count})")
     lines.append("")
@@ -357,12 +499,32 @@ def render_report(classifications: list[Classification], today: date,
     return "\n".join(lines)
 
 
+def summarize_classifications(classifications: list[Classification]) -> dict[str, int]:
+    return {
+        "stale_snapshot": sum(1 for c in classifications if c.flags.get("stale_snapshot")),
+        "graduated_feedback": sum(1 for c in classifications if c.flags.get("graduated_feedback")),
+        "nested_frontmatter": sum(1 for c in classifications if c.flags.get("nested_frontmatter")),
+        "fresh_write_hot": sum(1 for c in classifications if c.flags.get("fresh_write_hot")),
+        "created_backfill": sum(1 for c in classifications if c.created_backfill),
+    }
+
+
+def hot_sort_key_classification(c: Classification) -> tuple[int, str]:
+    if c.frontmatter.last_triggered:
+        return (1, c.frontmatter.last_triggered.isoformat())
+    return (0, c.mtime.isoformat() if c.mtime else "1970-01-01")
+
+
 def render_json(classifications: list[Classification], today: date) -> str:
+    hot = [c for c in classifications if c.tier == "hot"]
     payload = {
         "date": today.isoformat(),
         "hot_days": HOT_DAYS,
         "warm_days": WARM_DAYS,
         "trigger_threshold": HOT_TRIGGER_THRESHOLD,
+        "fresh_write_grace_days": FRESH_WRITE_GRACE_DAYS,
+        "summary": summarize_classifications(classifications),
+        "hot_order": [c.path.name for c in sorted(hot, key=hot_sort_key_classification, reverse=True)],
         "classifications": [
             {
                 "file": c.path.name,
@@ -375,7 +537,10 @@ def render_json(classifications: list[Classification], today: date) -> str:
                 "mtime": c.mtime.isoformat() if c.mtime else None,
                 "trigger_count": c.frontmatter.trigger_count,
                 "pinned": c.frontmatter.pinned,
+                "pinned_reason": c.frontmatter.pinned_reason,
                 "archived_in_index": c.archived_in_index,
+                "flags": c.flags,
+                "created_backfill": c.created_backfill,
             }
             for c in classifications
         ],
@@ -432,6 +597,8 @@ def run_decay_scan(memory_dir: Path, today: date) -> int:
     """
     classifications, _orphans, _missing = collect(memory_dir, today)
     to_demote = [c for c in classifications if c.tier != "hot" and c.path.parent == memory_dir]
+    stale = [c for c in classifications if c.flags.get("stale_snapshot")]
+    graduated = [c for c in classifications if c.flags.get("graduated_feedback")]
     if not to_demote:
         print(f"[memory-decay] No files need demotion (scanned {len(classifications)} files).")
         return 0
@@ -440,6 +607,14 @@ def run_decay_scan(memory_dir: Path, today: date) -> int:
         print(f"  - {c.path.name} → {c.tier}  ({c.reason})")
     if len(to_demote) > 20:
         print(f"  ... and {len(to_demote) - 20} more")
+    if stale:
+        print("[memory-decay] stale snapshot candidates:")
+        for c in stale[:20]:
+            print(f"  - {c.path.name} → {c.tier}  ({c.reason})")
+    if graduated:
+        print("[memory-decay] graduated feedback candidates:")
+        for c in graduated[:20]:
+            print(f"  - {c.path.name} → {c.tier}  ({c.reason})")
     print("Run: memory-hygiene-tiering.py dry-run   (for full report)")
     print("Or:  /memory-hygiene                     (to migrate)")
     return 0  # advisory — never blocks session
@@ -478,6 +653,58 @@ def parse_memory_index_entries(index_path: Path) -> tuple[dict[str, dict], str]:
     return entries, footer
 
 
+def normalize_memory_file(path: Path) -> bool:
+    """Normalize flat frontmatter enough for hygiene apply.
+
+    - flatten one-level `metadata:` blocks into top-level fields
+    - add `created: <original_mtime_date>` when missing
+    """
+    text = path.read_text(encoding="utf-8")
+    match = FRONTMATTER_RE.match(text)
+    if not match:
+        return False
+    fm = parse_frontmatter(text)
+    body = match.group(1)
+    lines = body.splitlines()
+    existing_keys: set[str] = set()
+    for line in lines:
+        if ":" not in line or line[:1].isspace():
+            continue
+        key, _, _ = line.partition(":")
+        existing_keys.add(key.strip())
+
+    new_lines: list[str] = []
+    changed = False
+    in_metadata = False
+    flattened: list[str] = []
+    for line in lines:
+        if line.strip() == "metadata:":
+            in_metadata = True
+            changed = True
+            continue
+        if in_metadata and line[:1].isspace() and ":" in line:
+            key, _, value = line.strip().partition(":")
+            if key not in existing_keys:
+                flattened.append(f"{key}: {value.strip()}")
+                existing_keys.add(key)
+            changed = True
+            continue
+        if in_metadata and line.strip() and not line[:1].isspace():
+            in_metadata = False
+        new_lines.append(line)
+
+    if "created" not in existing_keys:
+        created = date.fromtimestamp(path.stat().st_mtime).isoformat()
+        new_lines.append(f"created: {created}")
+        changed = True
+    new_lines.extend(flattened)
+    if not changed:
+        return False
+    rest = text[match.end():]
+    path.write_text("---\n" + "\n".join(new_lines) + "\n---\n" + rest, encoding="utf-8")
+    return True
+
+
 def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
     """Read a classification plan JSON from stdin and execute it.
 
@@ -502,6 +729,12 @@ def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
 
     index_path = memory_dir / "MEMORY.md"
     existing_entries, footer = parse_memory_index_entries(index_path)
+
+    normalized_files: list[str] = []
+    for c in classifications:
+        src = memory_dir / c.get("file", "")
+        if src.exists() and normalize_memory_file(src):
+            normalized_files.append(src.name)
 
     # Fill in frontmatter fallback for orphans (files on disk but not in MEMORY.md)
     for c in classifications:
@@ -579,6 +812,7 @@ def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
     log_entries.append(f"- Moved: {len(moves)} file(s)")
     log_entries.append(f"- Hot (no move): {len(hot)}")
     log_entries.append(f"- Warm flat (no move): {len(warm_flat)}")
+    log_entries.append(f"- Normalized frontmatter: {len(normalized_files)}")
     log_entries.append("")
     log_entries.append("## Moves")
     log_entries.append("")
@@ -588,6 +822,13 @@ def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
         rel = dst.relative_to(memory_dir)
         log_entries.append(f"- `{src.name}` → `{rel}`  _(reason: {reason})_")
         print(f"  moved: {src.name} → {rel}")
+
+    if normalized_files:
+        log_entries.append("")
+        log_entries.append("## Frontmatter normalization")
+        log_entries.append("")
+        for name in sorted(normalized_files):
+            log_entries.append(f"- `{name}`")
 
     # Write topic index files
     for topic, items in sorted(warm_topics.items()):
@@ -630,8 +871,10 @@ def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
     new_lines.append("")
     # Sort Hot by last_triggered desc, mtime desc as tiebreak
     def hot_sort_key(c):
-        lt = c.get("last_triggered") or c.get("mtime") or "1970-01-01"
-        return lt
+        lt = c.get("last_triggered")
+        if lt:
+            return (1, lt)
+        return (0, c.get("mtime") or "1970-01-01")
     for c in sorted(hot, key=hot_sort_key, reverse=True):
         new_lines.append(format_entry(c))
     new_lines.append("")
