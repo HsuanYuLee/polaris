@@ -38,6 +38,14 @@ cat > "$workspace/scripts/example.sh" <<'SH'
 # neutral script
 SH
 
+cat > "$workspace/scripts/leaky-dp-path.sh" <<'SH'
+bash scripts/check-main-chain-compliance.sh --source-container docs-manager/src/content/docs/specs/design-plans/DP-201-real-work-item
+SH
+
+cat > "$workspace/scripts/fixture-dp-path.sh" <<'SH'
+fixture="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-201-fixture"
+SH
+
 cat > "$template/.claude/skills/references/example.md" <<'MD'
 Template still references acme-inc.
 MD
@@ -54,12 +62,21 @@ if ! grep -q "ACME-123" /tmp/scan-template-leaks-selftest.out; then
   echo "selftest failed: expected shared hit in output" >&2
   exit 1
 fi
+if ! grep -q "framework-dp-active-path:DP-201-real-work-item" /tmp/scan-template-leaks-selftest.out; then
+  echo "selftest failed: expected framework DP active path leak in output" >&2
+  exit 1
+fi
 if grep -q "ACME-999" /tmp/scan-template-leaks-selftest.out; then
   echo "selftest failed: company-specific skill should be excluded" >&2
   exit 1
 fi
+if grep -q "DP-201-fixture" /tmp/scan-template-leaks-selftest.out; then
+  echo "selftest failed: temp fixture DP path should be excluded" >&2
+  exit 1
+fi
 
 perl -0pi -e 's/ACME-123/PROJ-123/g' "$workspace/.claude/skills/references/example.md"
+rm -f "$workspace/scripts/leaky-dp-path.sh"
 "$SCANNER" --workspace "$workspace" --source workspace --blocking >/tmp/scan-template-leaks-selftest-clean.out
 
 set +e

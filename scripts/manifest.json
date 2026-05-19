@@ -3198,6 +3198,33 @@
       "posture_decision": "DP-201 selftest for auto-pass proof-of-work marker contract and writer governance."
     },
     {
+      "path": "scripts/auto-pass-probe.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/auto-pass-probe-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-auto-pass-ledger.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/validate-auto-pass-ledger-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-auto-pass-report.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/auto-pass-report-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-auto-pass-proof.sh",
       "kind": "gate",
       "runner": "bash",

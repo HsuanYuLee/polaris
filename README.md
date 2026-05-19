@@ -47,6 +47,8 @@ Polaris treats governance as a framework concern, not a per-session preference.
 
 Proof-of-work markers follow the same rule. Completion-sensitive evidence under `.polaris/evidence/` must be written by the owning producer declared in `scripts/lib/evidence-producers.json`; hooks and gates block direct JSON patching, stale `/tmp`-only pass markers, and auto-pass writing its own proof.
 
+For locked/current DP-backed framework work, `auto-pass DP-NNN` is the canonical main-chain entry. It dispatches `breakdown -> engineering -> verify-AC`, stops at workspace PR ready plus current verification disposition, produces a durable report, and leaves merge, sync-to-Polaris, tagging, GitHub release, and closeout to framework-release.
+
 This is why Polaris keeps pushing quality-critical workflow rules into shared scripts, hooks, validators, and generated runtime targets instead of relying on LLM discipline alone.
 
 ## Requirements

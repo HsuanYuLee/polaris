@@ -68,7 +68,7 @@ Zero-input trigger 只有在「**無 active skill + 無明確 topic keyword**」
 | Break down an epic | "拆單", "拆解", "epic breakdown" | `breakdown` |
 | Batch converge all work | "收斂", "converge", "推進", "全部推到 review", "把我的單收一收" | `converge` |
 | Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `converge` (Epic-only mode) |
-| 完整 framework 開發流程 | "完整流程", "完整 workflow", "走完整開發流程", "建 DP", "建一個 DP", "DP -> PR -> 升版", "發 PR 然後升版", "framework-release" + "建 DP" | 固定主鏈：`refinement -> breakdown -> engineering -> verify-AC`；`framework-release` 只作驗證後 terminal-only tail |
+| 完整 framework 開發流程 | "完整流程", "完整 workflow", "走完整開發流程", "建 DP", "建一個 DP", "DP -> PR -> 升版", "發 PR 然後升版", "快速通關 DP-NNN", "framework-release" + "建 DP" | 依 source-state matrix route：無 DP / 未 LOCK / artifact stale → `refinement`；LOCKED + current DP-backed source → `auto-pass`；`framework-release` 只作驗證後 terminal-only tail |
 | Create/open a PR (framework/docs repo) | "開 PR", "create PR", "發 PR" | 若已有 DP-backed `task.md`，走 `engineering`；若沒有，fail-stop 並要求先跑 `refinement` / `breakdown` |
 | Triage my work / zero-input next | "我的 epic", "my epics", "盤點", "triage", "手上有什麼", "my work", "我的工作", "排優先"；以及 zero-input 詞：「下一步」、「next」、「繼續」、「continue」、「然後呢」、「what's next」、「接下來」、「推進手上的事情」（後面無 topic keyword；「繼續 DP-015」這類帶 topic 的走 CLAUDE.md § Cross-Session Continuity） | `my-triage` |
 | Batch intake from PM | "收單", "排工", "intake", "這批單幫我看", "PM 開了一堆單", "幫我排優先", "prioritize this batch" + 多張 ticket key | `intake-triage` |
@@ -131,21 +131,28 @@ design decision。真正的判準不是大小，而是這個修改是否需要 s
 
 **判定依據**：當前 git repo root + `workspace-config.yaml` projects mapping + `scripts/resolve-task-md.sh` 結果。無法 resolve 單一 work order 時一律 fail-stop。
 
-## Full Development Workflow Orchestration
+## Full Development Workflow Route Policy
 
 當使用者要求「完整流程」、「完整 workflow」、「走完整開發流程」、「建 DP」、「建一個 DP」、
-「DP -> PR -> 升版」、「發 PR 然後升版」，或同一句同時包含 `framework-release` 與「建 DP / 開發 /
-發 PR」時，這不是單一 release intent，而是 full main-chain orchestration。
+「DP -> PR -> 升版」、「發 PR 然後升版」、「快速通關 DP-NNN」，或同一句同時包含
+`framework-release` 與「建 DP / 開發 / 發 PR」時，這不是單一 release intent，而是
+full main-chain intent。routing rule 只負責把 intent 導入 canonical owning skill；不得以
+prose-only rule 自行逐 stage dispatch 或成為第二條 writer path。
 
-路由順序固定為：
+### Trigger × Source-State Matrix
 
-1. `refinement`：建立或更新 DP，產生 current `refinement.md` / `refinement.json`。
-2. `breakdown`：把 locked DP 打包成 DP-backed `task.md` / 必要的 `V*.md`。
-3. `engineering`：依 authoritative task.md 施工、跑 gates、開 workspace PR。
-4. `verify-AC`：依 AC / V task 驗收，回寫 verification artifact。
-5. `framework-release`：只有在 workspace PR ready / merged 且 verification artifact current 後，
-   才能作為 local extension tail。
+| Trigger | Source state | Route |
+|---------|--------------|-------|
+| `建 DP` / `建一個 DP` | no DP source | `refinement` |
+| `完整流程 DP-NNN` / `快速通關 DP-NNN` | `DISCUSSION` / missing artifact / stale artifact | `refinement DP-NNN` |
+| `完整流程 DP-NNN` / `快速通關 DP-NNN` | `LOCKED` + current DP-backed source | `auto-pass DP-NNN` |
+| `DP -> PR -> 升版 DP-NNN` | `LOCKED` + current DP-backed source | `auto-pass DP-NNN`；report tail 提示 `framework-release` |
+| `framework-release DP-NNN` | workspace PR opened + verification current | `framework-release` |
+| `framework-release DP-NNN` | workspace PR opened + verification stale | `auto-pass DP-NNN` refresh verify-AC，不重跑 breakdown |
+| `framework-release` without PR / task | missing terminal precondition | fail-stop 回 `refinement` / `breakdown` / `engineering` |
 
+`auto-pass` 是 locked/current DP-backed source 的 canonical main-chain orchestrator；它只
+dispatch `breakdown -> engineering -> verify-AC`，每段 mutation 仍由 owning skill 產生。
 `framework-release` 在這類語句中是 terminal-only tail，不得搶主流程入口，也不得補開 PR、
 補 task.md、或追認 source-less branch。
 
@@ -174,8 +181,8 @@ framework release PR 的 publish entrypoint。
 
 ## Plugin Workflow Quarantine
 
-Canonical contract: `.claude/skills/references/plugin-workflow-quarantine.md`.
-This rule only owns routing pointers; quarantine semantics live in that reference.
+Canonical contract 在 `.claude/skills/references/plugin-workflow-quarantine.md`。
+本 rule 只擁有 routing pointer；quarantine 語意以該 reference 為準。
 
 ## Negative-Tone Trigger Recognition
 

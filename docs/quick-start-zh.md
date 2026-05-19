@@ -73,7 +73,7 @@ onboard 流程會：
 ├── .claude/
 │   ├── rules/                    ← 通用規則 (L1)
 │   │   └── your-company/         ← 公司專屬規則 (L2)
-│   └── skills/                   ← 24 個工作流技能
+│   └── skills/                   ← 25 個工作流技能
 └── your-company/                 ← 由 onboard 建立
     ├── workspace-config.yaml     ← 公司設定（JIRA、Slack、repos）
     ├── polaris-config/           ← 本機 project handbook 與 generated scripts
@@ -99,7 +99,7 @@ onboard 完成後，用自然語言和 Claude Code 對話 — 中文英文都可
 
 ### 從這裡開始
 
-不需要一次學會全部 24 個技能。從符合你角色的開始：
+不需要一次學會全部 25 個技能。從符合你角色的開始：
 
 | 你的角色 | 先試這個 | 會發生什麼 |
 |----------|---------|-----------|
@@ -186,7 +186,7 @@ Sprint 規劃        →  「排 sprint」
 ├── .claude/
 │   ├── rules/                 # 通用規則 (L1)
 │   │   └── {company}/         # 公司專屬規則 (L2)
-│   └── skills/                # 24 個工作流技能
+│   └── skills/                # 25 個工作流技能
 ├── _template/                 # 新公司範本 + 規則範例
 ├── scripts/                   # 同步工具
 └── {company}/                 # 你的公司目錄

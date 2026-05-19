@@ -33,6 +33,14 @@ For full skill reference, see `.claude/skills/` and the company skills directory
 
 ---
 
+## Framework DP Auto-pass Lane
+
+For locked/current DP-backed framework work, `auto-pass DP-NNN` is the canonical main-chain orchestrator. It routes incomplete or inconsistent planning back to `breakdown`, dispatches implementation tasks to `engineering`, dispatches verification tasks to `verify-AC`, and stops only when the required workspace PRs are open and ready, verification disposition is current, and a durable report records the ledger and evidence paths.
+
+`auto-pass` is not a release skill. Framework workspace merge, sync-to-Polaris, tag, GitHub release, and release closeout remain the responsibility of framework-release.
+
+---
+
 ## Ticket Lifecycle
 
 `engineering` is the primary orchestrator. `bug-triage` handles Bug diagnosis before handing off to `engineering` for execution. Feature, Bug, and Refactor paths share the Quality → PR → Release tail.

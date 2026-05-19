@@ -27,6 +27,12 @@ to `refinement`。
   `jira-subtask-creation.md` 與 `jira-story-points.md`。
 - 寫入 task.md 前必須有 explicit user confirmation；沒有確認不可寫 JIRA、branch、
   task.md、sidecar processed flag。
+- DP-backed source 若由 `auto-pass` dispatch，explicit confirmation 可由
+  `AUTO_PASS_LEDGER_PATH=<absolute ledger path>` envelope token 提供，但 breakdown 必須先用
+  `scripts/validate-auto-pass-ledger.sh` 驗證 schema、source match、三個 consent boolean、
+  canonical `consent_excludes` enum 與 task write timestamp ordering。缺 token、relative path、
+  source mismatch、invalid schema 或 task write 早於 ledger start/resume 都等同缺 confirmation，
+  不得寫 task.md。
 - task.md 必須能被 `engineering` 單獨消費：Allowed Files、Gate Closure Matrix、
   Behavior Contract、Test Environment、Verify Command 都要完整。
 - refinement / ticket handoff 若宣告 `tool_requirements[]`，必須包成 task.md

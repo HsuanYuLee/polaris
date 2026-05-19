@@ -8,6 +8,23 @@ DIRECT_WRITE_HOOK="$ROOT/.claude/hooks/no-direct-evidence-write.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+resolve_dp201_source_container() {
+  local candidate=""
+  local dp201_slug="DP-201-strict-pipeline-proof-of-work-artifact-contract"
+  for candidate in \
+    "docs-manager/src/content/docs/specs/design-plans/${dp201_slug}" \
+    "docs-manager/src/content/docs/specs/design-plans/archive/${dp201_slug}"; do
+    if [[ -d "$ROOT/$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  # Worktrees do not carry ignored specs. check-main-chain-compliance.sh can
+  # resolve this relative path back to the main checkout.
+  printf '%s\n' "docs-manager/src/content/docs/specs/design-plans/archive/${dp201_slug}"
+}
+
 mkdir -p \
   "$TMP/.polaris/evidence/task-snapshot" \
   "$TMP/.polaris/evidence/validation-fail" \
@@ -42,7 +59,7 @@ payload = {
     "status": status,
     "freshness": {
         "head_sha": "abc1234",
-        "source_artifact": "docs-manager/src/content/docs/specs/design-plans/DP-201/tasks/T1/index.md"
+        "source_artifact": "docs-manager/src/content/docs/specs/design-plans/DP-999-proof-fixture/tasks/T1/index.md"
     }
 }
 if kind == "audit_closure":
@@ -182,7 +199,7 @@ fi
 
 bash "$ROOT/scripts/check-main-chain-compliance.sh" \
   --repo "$ROOT" \
-  --source-container docs-manager/src/content/docs/specs/design-plans/DP-201-strict-pipeline-proof-of-work-artifact-contract \
+  --source-container "$(resolve_dp201_source_container)" \
   --allow-active-verification >/tmp/dp201-main-chain.out
 
 echo "PASS: validate-auto-pass-proof selftest"

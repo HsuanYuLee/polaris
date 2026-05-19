@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.103] - 2026-05-19
+
+### Added — DP-198 auto-pass orchestrator skill
+
+- 新增 `auto-pass` locked/current DP-backed main-chain orchestrator，串接 breakdown、engineering 與 verify-AC，終點收斂為 workspace PR ready、verification current 與 durable report。
+- 補齊 auto-pass ledger、execution loop、proof-of-work probe 與 terminal report contract，並以自測覆蓋 source resolver、ledger validator、probe matrix、pause taxonomy 與 report schema。
+- 同步 skill catalog、公開 workflow 文件、中文觸發詞與 release metadata，並明確將 framework merge / sync / tag / GitHub release / closeout 保留給 framework-release。
+
 ## [3.75.102] - 2026-05-19
 
 ### Added — DP-201 auto-pass proof-of-work artifact contract

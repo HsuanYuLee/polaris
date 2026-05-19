@@ -82,6 +82,37 @@ DP-backed split hard rules：
 Preview 必須包含 summary / points / allowed files / depends_on chain / source DP path /
 artifact gap / route-back issue。使用者確認前不可寫 task.md、不可更新 DP plan。
 
+### Auto-pass Ledger Consent
+
+當 DP intake 是由 `auto-pass` dispatch 時，breakdown 可以用 ledger artifact 作為本 source
+內重新評估、重新拆分與 task repair 的 confirmation。dispatch envelope 必須包含：
+
+```text
+AUTO_PASS_LEDGER_PATH=/absolute/path/to/ledger.json
+```
+
+breakdown 寫入任何 task.md 前必須執行 ledger validator；`--task-write-at` 使用實際即將寫入的
+timestamp，必須晚於 ledger `started_at` 或最近一次 `resumed_at`：
+
+```bash
+bash scripts/validate-auto-pass-ledger.sh "$AUTO_PASS_LEDGER_PATH" \
+  --source-container "{dp_folder_absolute_path}" \
+  --source-id "DP-NNN" \
+  --task-write-at "{task_write_iso8601}"
+```
+
+fail-stop 條件：
+
+- `AUTO_PASS_LEDGER_PATH` 缺失或不是絕對路徑。
+- ledger schema invalid。
+- ledger `source.id` / `source.container` 與本 DP source 不一致。
+- `consent_policy.auto_reestimate`、`auto_resplit`、`auto_task_repair` 任一不是 `true`。
+- `consent_excludes` 不是 canonical enum 全集。
+- task write timestamp 早於 ledger `started_at` / `resumed_at`。
+
+以上任一失敗都視為缺 confirmation；breakdown 不得寫 task.md、不得更新 DP plan，也不得把
+conversation memory 當成 consent。
+
 確認後：
 
 ```bash

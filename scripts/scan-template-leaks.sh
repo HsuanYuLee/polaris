@@ -152,6 +152,7 @@ def collect_patterns(root: Path):
 
 patterns, companies = collect_patterns(workspace)
 compiled = [(item, re.compile(item["regex"])) for item in patterns]
+ACTIVE_DP_PATH_RE = re.compile(r"docs-manager/src/content/docs/specs/design-plans/(?!archive/)(DP-[0-9]{3,}[^\\s'\"`)]*)")
 
 TEXT_SUFFIXES = {
     ".md", ".mdx", ".sh", ".py", ".js", ".mjs", ".cjs", ".ts", ".tsx",
@@ -182,6 +183,8 @@ def skip_path(root: Path, path: Path, source_name: str):
     rel = path.relative_to(root).as_posix()
     parts = rel.split("/")
     if any(part in {".git", "node_modules", "dist", ".astro", "e2e-results", "test-results"} for part in parts):
+        return True
+    if rel == "scripts/selftests/scan-template-leaks-selftest.sh":
         return True
     if rel in {".claude/settings.local.json", ".claude/polaris-backlog.md"} or rel.startswith(".claude/checkpoints/"):
         return True
@@ -233,6 +236,8 @@ def scan_roots(root: Path, source_name: str):
 
 
 def classify(rel: str, line: str, labels):
+    if any(label.startswith("framework-dp-active-path:") for label in labels):
+        return "framework-context-leak", "use-synthetic-fixture-or-active-archive-resolver"
     if "cross-session-learnings" in rel or "review-lesson" in line or '"company"' in line:
         return "real-company-lesson", "anonymize-or-move-to-company-surface"
     if "genericize" in rel:
@@ -240,6 +245,21 @@ def classify(rel: str, line: str, labels):
     if "regex" in line.lower() or "pattern" in line.lower() or "grep" in line.lower():
         return "false-positive-candidate", "prefer-abstract-regex-or-allowlist"
     return "example-placeholder", "replace-with-neutral-placeholder"
+
+
+def framework_context_labels(rel: str, line: str):
+    if not rel.startswith("scripts/"):
+        return []
+    labels = []
+    for match in ACTIVE_DP_PATH_RE.finditer(line):
+        prefix = line[max(0, match.start() - 48):match.start()]
+        if "$" in prefix or "tmp" in prefix.lower() or "fixture" in prefix.lower():
+            continue
+        slug = match.group(1).split("/")[0]
+        if re.search(r"(fixture|example|demo|selftest|proof|sample|parity|completion|finalize|closeout|follow-up)", slug, re.I):
+            continue
+        labels.append(f"framework-dp-active-path:{slug}")
+    return labels
 
 
 def scan_source(root: Path, source_name: str):
@@ -264,6 +284,7 @@ def scan_source(root: Path, source_name: str):
             continue
         for line_no, line in enumerate(text.splitlines(), 1):
             labels = [item["label"] for item, regex in compiled if regex.search(line)]
+            labels.extend(framework_context_labels(rel, line))
             if not labels:
                 continue
             classification, action = classify(rel, line, labels)
