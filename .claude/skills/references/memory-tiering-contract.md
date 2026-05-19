@@ -33,9 +33,11 @@ Fresh-write grace 只是一個短期緩衝：缺 `last_triggered` / `trigger_cou
 在 `created` 起 7 天內可留在 Hot；超過 7 天仍未被引用時，依 topic / age 降到 Warm 或 Cold。
 它不代表 routing value 已被驗證，dry-run JSON 會以 `fresh_write_hot` 分開計數。
 
-After writing, if `MEMORY.md` Hot exceeds 15 entries, surface an advisory:
-`MEMORY.md Hot 已達 {N} 項，建議跑 /memory-hygiene 降級最舊的 N-15 項到 Warm.`
-Do not auto-move; demotion is deliberate.
+Hot soft-limit 從 round 3 起改由 PreToolUse hook `.claude/hooks/pre-memory-write.sh`
+強制：寫入後若 Hot 條目會 > 15，hook 透過 `scripts/validate-memory-write.sh`
+fail-stop（exit 2），stderr 含 current N、soft limit、最舊 3 筆候選降級條目，以及
+推薦執行的 `/memory-hygiene` 命令。完整契約見下方 § Hot Soft-Limit Hard Gate。
+Demotion 仍是 deliberate action，由 `/memory-hygiene` 持有；hook 不會自動搬檔。
 
 ## Frontmatter Fields
 
@@ -71,6 +73,59 @@ Do not auto-move; demotion is deliberate.
 - Apply 會依 `last_triggered desc` 重寫 `MEMORY.md` Hot entries；沒有 `last_triggered`
   的 Hot entries 放在有 triggered entries 之後。Daily write 不重排 index。
 - Archive 是永久層：Cold entries 進 `memory/archive/` 後不會被刪除，保留歷史 context 供未來 framework 演化使用。
+
+## Hot Soft-Limit Hard Gate
+
+Round 3 起，Hot 條目超量從 advisory log 升級為 **hard gate**：
+
+- 任何 `memory/*.md` 或 `MEMORY.md` 的 Write / Edit / MultiEdit 若會把 Hot 推到 > 15，
+  PreToolUse hook `.claude/hooks/pre-memory-write.sh` 透過
+  `scripts/validate-memory-write.sh` fail-stop（exit 2），不再只是 advisory log。
+- stderr 必須含結構化欄位：current N、soft limit、最舊 3 筆候選降級條目、推薦執行命令
+  （通常是 `/memory-hygiene`）。
+- 緊急 bypass 使用 env var `POLARIS_MEMORY_HYGIENE_APPLY=1`，僅供 hygiene apply chain
+  內部使用；日常 session 不應設定。
+- 同一 file path 在同一 session 內被 hook 擋下 3 次後，hook 會 escalate surface 給使用者，
+  避免 silent retry loop。
+
+`/memory-hygiene` 與 `scripts/memory-hygiene-tiering.py apply` 是降級的 canonical writer
+path；不要用手動 Edit 規避 hard gate。
+
+## Generated MEMORY.md Index
+
+`MEMORY.md` 從 round 3 起是由 `scripts/memory-hygiene-tiering.py --emit-index` 產生的
+**generated artifact**：
+
+- 不可直接 Write / Edit / MultiEdit `MEMORY.md`。任何手動寫入會被 PreToolUse hook 擋下
+  （exit 2），除非 producer chain 已設 `POLARIS_MEMORY_HYGIENE_APPLY=1`。
+- 內容由 `memory/*.md` frontmatter 推導：Hot / Warm 區的條目、count 與 sort order 完全
+  deterministic。
+- 檔案開頭寫入 generated marker，由 emit-index 維護；annotation 區（`_Last tiered:` 行、
+  使用者註記）emit-index 必須 byte-equal preserve，不得改寫。
+- Daily writer path：合法 memory file 寫入後，PostToolUse hook
+  `.claude/hooks/post-memory-index-regenerate.sh` 以 producer env 呼叫
+  `memory-hygiene-tiering.py --emit-index` 同步重生 `MEMORY.md`，避免 generated index stale。
+- Apply writer path：`/memory-hygiene apply` 與 `memory-hygiene-tiering.py apply` 自身已設
+  producer env，直接 regenerate；hook bypass 透過 `POLARIS_MEMORY_HYGIENE_APPLY=1`。
+
+不論哪條 producer path，emit-index 對既有 hand-maintained `MEMORY.md` 必須產出等價結構
+（Hot bullet 內容等價、annotation 區 byte-equal）。
+
+## Hook Ownership
+
+Round 3 memory write enforcement 由兩條 hook 與一個 validator 持有：
+
+| 角色 | Path | 觸發 | 行為 |
+|------|------|------|------|
+| Validator | `scripts/validate-memory-write.sh` | hook 或 manual | memory file frontmatter / Hot soft-limit / `MEMORY.md` 直寫 contract check；支援 `--hook-json` 從 Write / Edit / MultiEdit payload 重建候選內容；exit 2 + 結構化 stderr |
+| PreToolUse hook | `.claude/hooks/pre-memory-write.sh` | `Write` / `Edit` / `MultiEdit` on memory paths | 讀 Claude Code hook JSON，重建候選內容後呼叫 validator；同一 file path session 內連 3 次 fail 自動 escalate surface |
+| PostToolUse hook | `.claude/hooks/post-memory-index-regenerate.sh` | 合法 memory file write 成功 | 以 producer env 呼叫 `memory-hygiene-tiering.py --emit-index` 同步 `MEMORY.md`；regenerate 失敗時 surface 修復指令 |
+
+兩條 hook 註冊在 tracked `.claude/settings.json` 的 `Write` / `Edit` / `MultiEdit` matcher；
+target path 過濾由 hook 內部執行，不靠 path glob matcher。`POLARIS_MEMORY_DIR` 可覆寫
+production memory dir，selftest 與 hygiene apply 都依賴此 override。
+`POLARIS_MEMORY_INDEX_GRACE_UNTIL` 於既有 hand-maintained `MEMORY.md` 第一次 normalize
+前提供 grace window；過期後 hook 直接 fail-stop。
 
 ## Local Mirror Boundary
 

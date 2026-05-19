@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.104] - 2026-05-20
+
+### Added — DP-191 round 3 memory write enforcement hard gate
+
+- 新增 `scripts/validate-memory-write.sh` CLI：對單一 memory file 做 frontmatter contract check（required fields、`pinned_reason`、topic folder 存在性、`created` ISO date、Hot soft-limit > 15、`MEMORY.md` 直寫），exit 2 + 結構化 stderr（current N、soft limit、最舊 3 候選 + 推薦命令）。
+- 新增 `.claude/hooks/pre-memory-write.sh`（PreToolUse Write/Edit/MultiEdit）攔截 memory write candidate，從 hook JSON 重建內容後呼叫 validator；`POLARIS_MEMORY_DIR` 覆寫、`POLARIS_MEMORY_HYGIENE_APPLY=1` apply chain bypass、同檔案連 3 次 fail 後 surface escalation banner。
+- 新增 `.claude/hooks/post-memory-index-regenerate.sh`（PostToolUse）合法寫入後以 producer env 呼叫 `memory-hygiene-tiering.py --emit-index` 重生 `MEMORY.md` generated block；regenerate 失敗時 surface 修復指令但不阻擋寫入。
+- 擴充 `scripts/memory-hygiene-tiering.py --emit-index [--dry-run]`：generated block 由 HTML comment 包夾，annotation byte-equal preserve；legacy footer 視為 suffix annotation；Hot 依 `last_triggered` desc + 無欄位墊底；registered as `memory_index` producer in `scripts/lib/evidence-producers.json`。
+- `.claude/rules/feedback-and-memory.md` Memory Write Hard Gate (Round 3) 段落與 `.claude/skills/references/memory-tiering-contract.md` Hot Soft-Limit Hard Gate / Generated MEMORY.md Index / Hook Ownership 三段同步登錄契約。
+- `.claude/rules/mechanism-registry.md` Runtime Annotation Registry 新增 `pre-memory-write` / `post-memory-index-regenerate` 兩列 portable hook。
+- 三套 selftest：`validate-memory-write-selftest.sh` / `pre-memory-write-hook-selftest.sh` / `post-memory-index-regenerate-hook-selftest.sh` 覆蓋必要欄位、`pinned_reason`、topic folder、Hot soft-limit、`MEMORY.md` 直寫、bypass、Write/Edit/MultiEdit JSON 重建、`POLARIS_MEMORY_DIR` override、escalation banner、regenerate marker、失敗 surface。
+
 ## [3.75.103] - 2026-05-19
 
 ### Added — DP-198 auto-pass orchestrator skill

@@ -46,6 +46,8 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | no-manual-work-order-search | .claude/hooks/no-manual-work-order-search.sh | hook | portable | N/A | governance |
 | pipeline-artifact-gate | .claude/hooks/pipeline-artifact-gate.sh | hook | portable | N/A | governance |
 | post-compact-context-restore | .claude/hooks/post-compact-context-restore.sh | hook | portable | N/A | governance |
+| post-memory-index-regenerate | .claude/hooks/post-memory-index-regenerate.sh | hook | portable | N/A | governance |
+| pre-memory-write | .claude/hooks/pre-memory-write.sh | hook | portable | N/A | governance |
 | pr-base-gate | .claude/hooks/pr-base-gate.sh | hook | portable | N/A | governance |
 | pre-push-quality-gate | .claude/hooks/pre-push-quality-gate.sh | hook | portable | N/A | governance |
 | session-summary-precompact | .claude/hooks/session-summary-precompact.sh | hook | portable | N/A | observability |

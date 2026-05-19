@@ -183,3 +183,22 @@ ownership 請載入 `skills/references/memory-tiering-contract.md`。
 Tracked framework PR 只更新 `.claude/skills/references/memory-tiering-contract.md` 與本 rule。
 `~/.claude/CLAUDE.md` 和 live memory directory 是 local mirror / verification surface，不屬於
 engineering Allowed Files。
+
+## Memory Write Hard Gate (Round 3)
+
+Round 3 起 memory write 受 hook 強制：
+
+- `memory/*.md` 與 `MEMORY.md` 的 Write / Edit / MultiEdit 由 PreToolUse hook
+  `.claude/hooks/pre-memory-write.sh` 攔截，呼叫 `scripts/validate-memory-write.sh`
+  做 contract check（required fields、`pinned_reason`、topic folder 存在性、`created`
+  ISO date、Hot soft-limit > 15、`MEMORY.md` 直寫）；違反時 exit 2 + 結構化 stderr
+  （current N、soft limit、最舊 3 筆候選、推薦命令）。
+- `MEMORY.md` 是由 `scripts/memory-hygiene-tiering.py --emit-index` 產生的 generated
+  artifact，不可直接手寫。合法 memory file 寫入成功後，PostToolUse hook
+  `.claude/hooks/post-memory-index-regenerate.sh` 以 producer env 呼叫 emit-index
+  regenerate `MEMORY.md`，避免 generated index stale。
+- 緊急 bypass：`POLARIS_MEMORY_HYGIENE_APPLY=1` 只供 hygiene apply chain 自身使用；
+  日常 session 不應設這個 env var。
+- 完整 hook ownership、producer paths 與 emit-index 契約見
+  `.claude/skills/references/memory-tiering-contract.md` § Hot Soft-Limit Hard Gate /
+  Generated MEMORY.md Index / Hook Ownership。
