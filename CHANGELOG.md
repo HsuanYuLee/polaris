@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.102] - 2026-05-19
+
+### Added — DP-201 auto-pass proof-of-work artifact contract
+
+- 新增 proof-of-work marker producer whitelist gate，讓 `.polaris/evidence/` marker 必須符合 `scripts/lib/evidence-producers.json` 的 owning skill / writer / path contract。
+- 將 direct-write hook、pre-push gate 與 generated git hooks 接上 producer whitelist，阻擋 generic writer 或 auto-pass 自行補證據。
+- 將 DP-032 verify evidence writer whitelist 收斂到 producer SoT，並補 proof marker、direct-write、main-chain compliance regression selftest。
+
 ## [3.75.101] - 2026-05-19
 
 ### Fixed — DP-203 canonical command surface and gate fidelity convergence

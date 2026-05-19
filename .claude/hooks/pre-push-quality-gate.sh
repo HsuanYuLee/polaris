@@ -48,6 +48,10 @@ if [[ -x "$GATES_DIR/gate-ci-local.sh" ]]; then
   bash "$GATES_DIR/gate-ci-local.sh" --repo "$repo_root" --push-mode
 fi
 
+if [[ -x "$GATES_DIR/gate-evidence-producer-whitelist.sh" ]]; then
+  bash "$GATES_DIR/gate-evidence-producer-whitelist.sh" --repo "$repo_root"
+fi
+
 if [[ -x "$GATES_DIR/gate-revision-rebase.sh" ]]; then
   bash "$GATES_DIR/gate-revision-rebase.sh" --repo "$repo_root"
 fi

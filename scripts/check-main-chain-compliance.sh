@@ -8,6 +8,10 @@ TASK_MD=""
 CHECK_CALLSITES=0
 ALLOW_ACTIVE_VERIFICATION=0
 REQUIRE_RELEASE_METADATA=0
+if [[ -f "$SCRIPT_DIR/lib/main-checkout.sh" ]]; then
+  # shellcheck source=lib/main-checkout.sh
+  . "$SCRIPT_DIR/lib/main-checkout.sh"
+fi
 
 usage() {
   cat >&2 <<'USAGE'
@@ -140,6 +144,54 @@ check_source_container() {
   fi
 }
 
+check_dp201_contract() {
+  local source="$1"
+  [[ "$source" == *"DP-201-strict-pipeline-proof-of-work-artifact-contract"* ]] || return 0
+
+  local t1="" t2="" v1="" stale=""
+  for candidate in \
+    "$source/tasks/T1/index.md" \
+    "$source/tasks/pr-release/T1/index.md"; do
+    [[ -f "$candidate" ]] && t1="$candidate"
+  done
+  for candidate in \
+    "$source/tasks/T2/index.md" \
+    "$source/tasks/pr-release/T2/index.md"; do
+    [[ -f "$candidate" ]] && t2="$candidate"
+  done
+  for candidate in \
+    "$source/tasks/V1/index.md" \
+    "$source/tasks/pr-release/V1/index.md"; do
+    [[ -f "$candidate" ]] && v1="$candidate"
+  done
+
+  [[ -n "$t1" ]] || fail "DP-201 missing canonical T1 task"
+  [[ -n "$t2" ]] || fail "DP-201 missing canonical T2 task"
+  [[ -n "$v1" ]] || fail "DP-201 missing canonical V1 task"
+
+  for stale in "$source/tasks/T3" "$source/tasks/T4" "$source/tasks/T5" "$source/tasks/pr-release/T3" "$source/tasks/pr-release/T4" "$source/tasks/pr-release/T5"; do
+    [[ ! -e "$stale" ]] || fail "DP-201 stale task artifact remains: $stale"
+  done
+
+  [[ -f "$REPO_ROOT/scripts/lib/evidence-producers.json" ]] || fail "DP-201 missing producer map: scripts/lib/evidence-producers.json"
+  if [[ -f "$REPO_ROOT/scripts/validate-auto-pass-proof.sh" ]]; then
+    bash "$REPO_ROOT/scripts/validate-auto-pass-proof.sh" --producer-map >/dev/null || fail "DP-201 producer map validation failed"
+  fi
+
+  if [[ -n "$v1" && "$(status_of "$v1")" == "IMPLEMENTED" && "$(ac_status_of "$v1")" == "PASS" ]]; then
+    local evidence_repo evidence_root audit_count handoff_count
+    evidence_repo="$REPO_ROOT"
+    if declare -F resolve_main_checkout >/dev/null 2>&1; then
+      evidence_repo="$(resolve_main_checkout "$REPO_ROOT" 2>/dev/null || printf '%s\n' "$REPO_ROOT")"
+    fi
+    evidence_root="$evidence_repo/.polaris/evidence"
+    audit_count="$(find "$evidence_root/auto-pass/audit" -maxdepth 1 -type f -name 'audit-closure-DP-201-*.json' 2>/dev/null | wc -l | tr -d ' ')"
+    handoff_count="$(find "$evidence_root/ac-verification" -maxdepth 1 -type f -name 'DP-201-V1-*.json' 2>/dev/null | wc -l | tr -d ' ')"
+    [[ "$audit_count" -gt 0 ]] || fail "DP-201 V1 PASS missing audit closure marker"
+    [[ "$handoff_count" -gt 0 ]] || fail "DP-201 V1 PASS missing DP-198 handoff / AC verification marker"
+  fi
+}
+
 if [[ "$CHECK_CALLSITES" -eq 1 ]]; then
   check_callsites
 fi
@@ -147,8 +199,16 @@ if [[ -n "$TASK_MD" ]]; then
   check_task_md "$TASK_MD"
 fi
 if [[ -n "$SOURCE_CONTAINER" ]]; then
+  original_source_container="$SOURCE_CONTAINER"
   [[ "$SOURCE_CONTAINER" = /* ]] || SOURCE_CONTAINER="$REPO_ROOT/$SOURCE_CONTAINER"
+  if [[ ! -d "$SOURCE_CONTAINER" && "$original_source_container" != /* ]] && declare -F resolve_main_checkout >/dev/null 2>&1; then
+    main_checkout="$(resolve_main_checkout "$REPO_ROOT" 2>/dev/null || true)"
+    if [[ -n "$main_checkout" && -d "$main_checkout/$original_source_container" ]]; then
+      SOURCE_CONTAINER="$main_checkout/$original_source_container"
+    fi
+  fi
   check_source_container "$SOURCE_CONTAINER"
+  check_dp201_contract "$SOURCE_CONTAINER"
 fi
 
 if [[ "$failures" -gt 0 ]]; then

@@ -56,3 +56,17 @@ comment，包含 source AC、observed、expected、spec problem、refinement sug
 
 保留 FAIL comment 與 evidence，不建立 Bug、不加 spec issue label。Final summary 明確列為
 manual pending。
+
+## DP-201 Proof Markers
+
+verify-AC 擁有 AC outcome 的 durable proof markers：
+
+- `ac_verification`：V task / AC verification result 的 current report marker。
+- `spec_issue`：spec issue route-back 的 filesystem marker；JIRA label/comment 只能作 mirror。
+- `drift_retry`：implementation drift re-verification attempts 的 per retry marker。
+- `drift_counter`：retry cap decision 使用的 durable retry counter。
+- `audit_closure`：DP-201 V1 對 DP-198 audit marker dispositions 的 roll-up。
+- `dp198_handoff`：解除 DP-198 T3 blocking dependency 的 DP-201 V1 PASS marker。
+
+所有 marker JSON 都必須通過 `scripts/validate-auto-pass-proof.sh`，並符合
+`scripts/lib/evidence-producers.json` 的 producer mapping。

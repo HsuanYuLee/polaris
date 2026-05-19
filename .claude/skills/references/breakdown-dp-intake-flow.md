@@ -104,6 +104,18 @@ bash scripts/check-main-chain-compliance.sh \
 若 `validate-breakdown-ready.sh` 因「DP task 只觸及 local spec/sample artifacts」失敗，
 這不是 engineering 要接的 implementation lane；必須回到 breakdown 重新分流。
 
+## DP-201 Proof Markers
+
+breakdown 擁有下列 proof-of-work 輸出：
+
+- `task_snapshot`：從 locked DP / refinement artifact 打包出的 task set durable summary。
+- `validation_fail`：已有具體 work item 後，packaging validation 失敗時寫入 `.polaris/evidence/validation-fail/{work_item_id}.json`。
+- `missing_v_task`：DP-backed source 需要驗收但無法產出 V task 時的 durable marker。
+- `route_back_refinement_inbox`：以 `refinement-inbox/` folder presence 作為 canonical signal；除非未來 validator 證明 folder presence 不足，否則不要新增 duplicate route-back marker。
+
+所有 JSON marker 必須遵守 `auto-pass-proof-of-work.md` 與
+`scripts/lib/evidence-producers.json`。`auto-pass` 只能讀取，不是 writer。
+
 Handoff 提示：
 
 ```text

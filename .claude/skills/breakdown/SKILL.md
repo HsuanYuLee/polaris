@@ -84,6 +84,11 @@ to `refinement`。
 - DP-backed task 若混合「tracked releaseable framework work」與「local sample/spec recut」，
   或 Allowed Files 全落在 ignored local artifact surface：停止，回 planning 重拆，不得
   handoff engineering / framework-release。
+- DP-201 proof-of-work marker contract 生效後，breakdown 是 `task_snapshot`、
+  `validation_fail`、`missing_v_task` 與 `route_back_refinement_inbox` canonical signal 的
+  owning writer。Marker schema、producer mapping 與 freshness rule 以
+  `auto-pass-proof-of-work.md` / `scripts/lib/evidence-producers.json` 為準；auto-pass 只能讀取，
+  不可代寫 breakdown marker。
 
 ## Shared Handoff
 

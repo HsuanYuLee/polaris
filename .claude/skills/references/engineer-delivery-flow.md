@@ -29,3 +29,16 @@ scope -> rebase -> ci-local -> verify -> flow-gap -> VR if triggered -> base fre
 ```
 
 Developer completion gate 也會消費 `engineering-branch-setup.sh` 在 fresh worktree 建立時寫入的 planner-owned baseline snapshot。若 snapshot 缺失，或 `Verify Command`、`depends_on`、`Base branch`、`Allowed Files` 任一欄位與 snapshot 不一致，屬於 scope-escalation blocker；engineering 不得就地修改 task.md，或建立 post-hoc snapshot evidence 來通過 closeout。
+
+## DP-201 Proof Markers
+
+engineering 擁有 auto-pass 需要讀取的 delivery state durable proof markers：
+
+- `pr_freshness`：`deliverable.head_sha` 必須對齊 `gh pr view --json headRefOid`。
+- `blocked_conflict`：shared PR state 或 rebase classification 為 `blocked_conflict` 時的 durable marker。
+- `unsupported_mutation`：requested PR mutation 超出 supported lane 時的 durable marker。
+- `ci_local`：auto-pass 需要 filesystem proof 時，落在 `.polaris/evidence/ci-local/` 的 durable ci-local mirror。
+- `completion_gate`：落在 `.polaris/evidence/completion-gate/` 的 completion-gate roll-up。
+
+Marker JSON schema 與 producer mapping 以 `auto-pass-proof-of-work.md` 與
+`scripts/lib/evidence-producers.json` 為準。`/tmp` evidence 只能當 cache。

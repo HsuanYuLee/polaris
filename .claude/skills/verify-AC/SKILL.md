@@ -75,6 +75,11 @@ Contract / Fallback Behavior。
 - visual AC 若 task.md 宣告 `verification.visual_regression`，必須用 `scripts/run-visual-snapshot.sh`；不可改走舊 `visual-regression` skill。
 - FAIL disposition 互斥：implementation drift 或 spec issue，只能選一條。
 - JIRA comments、Bug descriptions、spec artifacts 都是 external/user-facing writes，送出前跑 language gate；spec markdown artifacts 也跑 Starlight authoring check。
+- DP-201 proof-of-work marker contract 生效後，verify-AC 是 `ac_verification`、
+  `spec_issue`、`drift_retry`、`drift_counter`、`audit_closure` 與 `dp198_handoff` marker 的
+  owning writer。Marker schema、producer mapping 與 freshness rule 以
+  `auto-pass-proof-of-work.md` / `scripts/lib/evidence-producers.json` 為準；JIRA label/comment
+  只能作 mirror，不可作為唯一 deterministic marker。
 
 ## Completion
 

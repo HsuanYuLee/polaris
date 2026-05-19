@@ -14,8 +14,8 @@
 #     - head_sha-bound (auto-stale on rebase; no 4h age check needed)
 #     - schema: { ticket, head_sha, writer, exit_code, at, level, ... }
 #
-# Writer whitelist: evidence `writer` field must be in
-#   { run-verify-command.sh }
+# Writer whitelist: evidence `writer` field is resolved from
+# scripts/lib/evidence-producers.json for marker_kind=verify.
 #
 # Dimension B (ci-local mirror evidence) is enforced separately by ci-local-gate.sh
 # (DP-032 D12-c). The two hooks both register on `gh pr create` + `git push` and
@@ -138,7 +138,7 @@ if [[ "$valid" != "valid" ]]; then
   echo "BLOCKED: head_sha-bound evidence file is malformed for ${ticket}" >&2
   echo "  ${EVIDENCE_FILE}: ${valid}" >&2
   echo "" >&2
-  echo "Evidence must contain: ticket, head_sha, writer=run-verify-command.sh, exit_code, at." >&2
+  echo "Evidence must contain: ticket, head_sha, writer from scripts/lib/evidence-producers.json marker_kind=verify, exit_code, at." >&2
   echo "Re-run: scripts/run-verify-command.sh --task-md <path> --ticket ${ticket}" >&2
   exit 2
 fi

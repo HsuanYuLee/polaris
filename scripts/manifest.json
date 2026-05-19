@@ -328,6 +328,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/gates/gate-evidence-producer-whitelist.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/validate-auto-pass-proof-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/selftests/check-runtime-cache-residue-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3178,6 +3187,26 @@
       "posture_decision": "Root-level compatibility wrapper for planner-owned snapshot validation."
     },
     {
+      "path": "scripts/selftests/validate-auto-pass-proof-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-201 selftest for auto-pass proof-of-work marker contract and writer governance."
+    },
+    {
+      "path": "scripts/validate-auto-pass-proof.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/validate-auto-pass-proof-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/selftests/verification-evidence-gate-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -4001,6 +4030,31 @@
       ],
       "fixtures": [
         "temporary shell scripts with resolver and bare tool calls"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "auto-pass-proof-of-work",
+      "command": "bash scripts/selftests/validate-auto-pass-proof-selftest.sh",
+      "profiles": [
+        "core",
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        ".claude/hooks/no-direct-evidence-write.sh",
+        ".claude/hooks/pre-push-quality-gate.sh",
+        "scripts/gates/gate-evidence-producer-whitelist.sh",
+        "scripts/lib/evidence-producers.json",
+        "scripts/lib/verification-evidence.sh",
+        "scripts/validate-auto-pass-proof.sh",
+        "scripts/selftests/validate-auto-pass-proof-selftest.sh"
+      ],
+      "fixtures": [
+        "valid and invalid proof markers",
+        "direct-write hook payloads",
+        "DP-032 verify writer regression"
       ],
       "enrolled": true,
       "owner": "polaris-framework"

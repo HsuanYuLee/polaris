@@ -98,6 +98,12 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
 - Review signal 分類出 plan gap / spec issue：停止，寫 handoff / learning，需要
   breakdown 或 refinement。
 - Scope escalation sidecar validator 未 pass：不得結束 session，也不得 push / PR。
+- DP-201 proof-of-work marker contract 生效後，engineering 是 `pr_freshness`、
+  `completion_gate`、`blocked_conflict`、`unsupported_mutation`、`ci_local` marker 的 owning
+  writer；Layer B `verify` marker 的 writer 維持 `run-verify-command.sh`。Marker schema、
+  producer mapping 與 freshness rule 以 `auto-pass-proof-of-work.md` /
+  `scripts/lib/evidence-producers.json` 為準；不得以 final answer、JIRA-only state 或 `/tmp`
+  only artifact 代替 durable marker。
 
 ## L2 Deterministic Check: version-bump-reminder
 

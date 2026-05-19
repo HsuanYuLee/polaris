@@ -54,6 +54,13 @@ bash "${POLARIS_ROOT}/scripts/check-local-extension-completion.sh" \
 
 不得呼叫不符合 local policy 的 completion gate 後忽略其 deliverable failure。Post-PR release endpoint 必須保留真實 workspace PR deliverable；PR-bypass endpoint 不得偽造 PR deliverable。Local Extension completion gate 的 authority 是 `extension_deliverable` metadata、Layer B evidence 對應 `task_head_sha`、Layer A evidence（若 repo 宣告 ci-local）、以及 local policy release commit freshness。Layer B evidence path 應使用 `run-verify-command.sh` 寫入的 `.polaris/evidence/verify/` durable mirror；`/tmp/polaris-verified-...json` 只作為 hook cache。對 `framework-release`，這些 signal 必須由 `framework-release-closeout.sh` 產生，並由 `check-release-eligible.sh` / `check-release-completed.sh` 驗證。
 
+DP-201 為 completion evidence 新增 proof marker canonicalization：
+
+- `completion_gate` 是 engineering-owned 的 completion gate outcome durable roll-up。
+- `ci_local` 是 auto-pass 需要 filesystem proof 時，由 engineering-owned 的 Layer A durable mirror。
+- `verify` 維持由 `run-verify-command.sh` 擁有；engineering 不新增第二個 `.polaris/evidence/verify/` writer。
+- Producer mapping 以 `scripts/lib/evidence-producers.json` 為準；reference prose 不可變成第二份 whitelist。
+
 ### Script contract（Developer / Admin / Local Extension）
 
 - Layer A：呼叫 `scripts/gates/gate-ci-local.sh --repo <path>`

@@ -72,6 +72,11 @@ if [[ -x "$GATES_DIR/gate-artifact-schema.sh" ]]; then
   bash "$GATES_DIR/gate-artifact-schema.sh" --repo "$REPO_ROOT"
 fi
 
+# Gate: evidence producer whitelist (staged marker writers)
+if [[ -x "$GATES_DIR/gate-evidence-producer-whitelist.sh" ]]; then
+  bash "$GATES_DIR/gate-evidence-producer-whitelist.sh" --repo "$REPO_ROOT" --staged
+fi
+
 # Gate: ci-local (run on commit too — cache makes reruns free)
 if [[ -x "$GATES_DIR/gate-ci-local.sh" ]]; then
   bash "$GATES_DIR/gate-ci-local.sh" --repo "$REPO_ROOT"
@@ -95,6 +100,11 @@ fi
 # Gate: no tracked docs-manager specs
 if [[ -x "$GATES_DIR/gate-no-tracked-specs.sh" ]]; then
   bash "$GATES_DIR/gate-no-tracked-specs.sh" --repo "$REPO_ROOT"
+fi
+
+# Gate: evidence producer whitelist (changed marker writers)
+if [[ -x "$GATES_DIR/gate-evidence-producer-whitelist.sh" ]]; then
+  bash "$GATES_DIR/gate-evidence-producer-whitelist.sh" --repo "$REPO_ROOT"
 fi
 
 # Gate: revision-rebase (existing PR pushes only)

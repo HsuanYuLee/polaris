@@ -9,6 +9,36 @@ VERIFICATION_EVIDENCE_ALLOWED_WRITERS_DEFAULT="run-verify-command.sh"
 VR_EVIDENCE_ALLOWED_WRITERS_DEFAULT="run-visual-snapshot.sh"
 
 _verification_evidence_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_verification_evidence_producer_map="${_verification_evidence_lib_dir}/evidence-producers.json"
+
+verification_evidence_allowed_writers_for_kind() {
+  local marker_kind="$1"
+  local fallback="$2"
+
+  if [[ ! -f "$_verification_evidence_producer_map" ]]; then
+    printf '%s\n' "$fallback"
+    return 0
+  fi
+
+  python3 - "$_verification_evidence_producer_map" "$marker_kind" "$fallback" <<'PY'
+import json
+import sys
+
+path, marker_kind, fallback = sys.argv[1:4]
+try:
+    with open(path, encoding="utf-8") as handle:
+        data = json.load(handle)
+    writers = []
+    for producer in data.get("producers", []):
+        if marker_kind in producer.get("marker_kinds", []):
+            writer = producer.get("writer")
+            if writer and writer not in writers:
+                writers.append(writer)
+    print(",".join(writers) if writers else fallback)
+except Exception:
+    print(fallback)
+PY
+}
 
 verification_evidence_root_for_repo() {
   local repo_root="$1"
@@ -109,6 +139,10 @@ verification_evidence_validate_file() {
   local ticket="$2"
   local head_sha="$3"
   local allowed_writers="${4:-$VERIFICATION_EVIDENCE_ALLOWED_WRITERS_DEFAULT}"
+
+  if [[ -z "$allowed_writers" || "$allowed_writers" == "$VERIFICATION_EVIDENCE_ALLOWED_WRITERS_DEFAULT" ]]; then
+    allowed_writers="$(verification_evidence_allowed_writers_for_kind "verify" "$VERIFICATION_EVIDENCE_ALLOWED_WRITERS_DEFAULT")"
+  fi
 
   python3 - "$evidence_file" "$ticket" "$head_sha" "$allowed_writers" <<'PY'
 import json

@@ -16,9 +16,19 @@ esac
 file_path=$(printf '%s' "$input" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || true)
 
 case "$file_path" in
-  /tmp/polaris-verified-*.json|/tmp/polaris-ci-local-*.json|/tmp/polaris-vr-*.json)
+  /tmp/polaris-verified-*.json|/tmp/polaris-ci-local-*.json|/tmp/polaris-vr-*.json|\
+  .polaris/evidence/task-snapshot/*.json|*/.polaris/evidence/task-snapshot/*.json|\
+  .polaris/evidence/validation-fail/*.json|*/.polaris/evidence/validation-fail/*.json|\
+  .polaris/evidence/missing-v-task/*.json|*/.polaris/evidence/missing-v-task/*.json|\
+  .polaris/evidence/completion-gate/*.json|*/.polaris/evidence/completion-gate/*.json|\
+  .polaris/evidence/blocked-conflict/*.json|*/.polaris/evidence/blocked-conflict/*.json|\
+  .polaris/evidence/unsupported-mutation/*.json|*/.polaris/evidence/unsupported-mutation/*.json|\
+  .polaris/evidence/ci-local/*.json|*/.polaris/evidence/ci-local/*.json|\
+  .polaris/evidence/verify/*.json|*/.polaris/evidence/verify/*.json|\
+  .polaris/evidence/ac-verification/*.json|*/.polaris/evidence/ac-verification/*.json|\
+  .polaris/evidence/auto-pass/audit/*.json|*/.polaris/evidence/auto-pass/audit/*.json)
     echo "BLOCKED: evidence files may only be written by designated scripts." >&2
-    echo "Allowed producers: run-verify-command.sh / ci-local.sh / run-visual-snapshot.sh" >&2
+    echo "Allowed producers are declared in scripts/lib/evidence-producers.json." >&2
     echo "Debug the producing script; do not patch evidence JSON directly." >&2
     exit 2
     ;;
