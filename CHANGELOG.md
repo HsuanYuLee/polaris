@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.99] - 2026-05-19
+
+### Documentation — DP-204 jira-worklog dual-stream invocation contract
+
+- 補上 `jira-worklog` SKILL.md Step 3「Execute (after user confirms)」code block 的雙流呼叫範例（`2>/tmp/worklog-stderr-{YYYYMM}.txt` + `1>/tmp/worklog-stdout-{YYYYMM}.json`）。
+- 加入禁用 `2>&1 | tail -N` 或單一管線的警告段落，避免 summary 被截斷後使用者被迫重跑 worklog batch script。
+- Step 4 補 cross-reference 指向 Step 3 範例的 stderr / stdout 檔案路徑。
+
 ## [3.75.98] - 2026-05-19
 
 ### Added — DP-202 root toolchain and public task convergence
