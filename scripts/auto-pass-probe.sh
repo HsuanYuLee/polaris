@@ -4,6 +4,8 @@ set -euo pipefail
 usage() {
   cat >&2 <<'USAGE'
 usage:
+  scripts/auto-pass-probe.sh DP-NNN
+  scripts/auto-pass-probe.sh --stage source --source-id DP-NNN [--repo PATH] [--ledger /absolute/path/to/ledger.json]
   scripts/auto-pass-probe.sh --stage breakdown|engineering|verify-AC
     --source-id DP-NNN --work-item-id DP-NNN-T1 [--repo PATH]
     [--head-sha SHA] [--ledger /absolute/path/to/ledger.json]
@@ -27,23 +29,40 @@ while [[ $# -gt 0 ]]; do
     --head-sha) HEAD_SHA="${2:-}"; shift 2 ;;
     --ledger) LEDGER="${2:-}"; shift 2 ;;
     --help|-h) usage ;;
-    *) echo "auto-pass-probe: unknown arg: $1" >&2; usage ;;
+    *)
+      if [[ -z "$STAGE" && -z "$SOURCE_ID" && "$1" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]]; then
+        STAGE="source"
+        SOURCE_ID="$1"
+        WORK_ITEM_ID="$1"
+        shift
+      else
+        echo "auto-pass-probe: unknown arg: $1" >&2
+        usage
+      fi
+      ;;
   esac
 done
 
-if [[ -z "$STAGE" || -z "$SOURCE_ID" || -z "$WORK_ITEM_ID" ]]; then
+if [[ -z "$STAGE" || -z "$SOURCE_ID" ]]; then
   usage
 fi
 case "$STAGE" in
-  breakdown|engineering|verify-AC) ;;
+  source|breakdown|engineering|verify-AC) ;;
   *) echo "auto-pass-probe: unsupported stage: $STAGE" >&2; exit 2 ;;
 esac
+if [[ "$STAGE" != "source" && -z "$WORK_ITEM_ID" ]]; then
+  usage
+fi
+if [[ "$STAGE" == "source" && -z "$WORK_ITEM_ID" ]]; then
+  WORK_ITEM_ID="$SOURCE_ID"
+fi
 if [[ ! -d "$REPO" ]]; then
   echo "auto-pass-probe: repo not found: $REPO" >&2
   exit 2
 fi
 
 python3 - "$REPO" "$STAGE" "$SOURCE_ID" "$WORK_ITEM_ID" "$HEAD_SHA" "$LEDGER" <<'PY'
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -84,6 +103,41 @@ def status_of(path):
     return data.get("status") or "UNKNOWN"
 
 
+def frontmatter_status(path: Path):
+    if not path.is_file():
+        return None
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        return None
+    end = text.find("\n---", 4)
+    if end == -1:
+        return None
+    for raw in text[4:end].splitlines():
+        if ":" not in raw:
+            continue
+        key, value = raw.split(":", 1)
+        if key.strip() == "status":
+            return value.strip().strip('"').strip("'")
+    return None
+
+
+def refinement_hash(container: Path):
+    digest = hashlib.sha256()
+    for name in ("refinement.md", "refinement.json"):
+        path = container / name
+        digest.update(name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return "sha256:" + digest.hexdigest()
+
+
+def find_dp_container():
+    design_plans = repo / "docs-manager/src/content/docs/specs/design-plans"
+    matches = sorted(path for path in design_plans.glob(f"{source_id}-*") if path.is_dir())
+    return matches
+
+
 def ledger_terminal():
     if not ledger_arg:
         return None
@@ -101,6 +155,48 @@ def ledger_terminal():
     if int(drift.get(work_item_id, 0)) >= 3:
         return ("BLOCKED", "blocked_by_gate_failure", "blocked", ledger_path, "drift retry cap reached")
     return None
+
+
+if stage == "source":
+    if not source_id.startswith("DP-"):
+        emit("UNKNOWN", "blocked_by_gate_failure", "blocked", None, "source resolver for non-DP key is not available in this runtime")
+    matches = find_dp_container()
+    if len(matches) != 1:
+        emit(
+            "BLOCKED",
+            "blocked_by_gate_failure",
+            "blocked",
+            matches[0] if matches else None,
+            f"expected exactly one DP container, got {len(matches)}",
+        )
+    container = matches[0]
+    missing = [name for name in ("index.md", "refinement.md", "refinement.json") if not (container / name).is_file()]
+    if missing:
+        emit("BLOCKED", "blocked_by_gate_failure", "blocked", container, "missing source artifacts: " + ", ".join(missing))
+    status = frontmatter_status(container / "index.md")
+    if status != "LOCKED":
+        emit("BLOCKED", "blocked_by_gate_failure", "blocked", container / "index.md", f"source status must be LOCKED, got {status or 'missing'}")
+    try:
+        refinement = json.loads((container / "refinement.json").read_text(encoding="utf-8"))
+    except Exception as exc:
+        emit("BLOCKED", "blocked_by_gate_failure", "blocked", container / "refinement.json", f"refinement.json invalid JSON: {exc}")
+    ref_source = refinement.get("source") or {}
+    if ref_source.get("id") and ref_source.get("id") != source_id:
+        emit("BLOCKED", "blocked_by_gate_failure", "blocked", container / "refinement.json", "refinement.json source.id mismatch")
+    if ledger_arg:
+        ledger_path = Path(ledger_arg)
+        if not ledger_path.is_absolute() or not ledger_path.is_file():
+            emit("UNKNOWN", "blocked_by_gate_failure", "blocked", None, "ledger missing or not absolute")
+        try:
+            ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            emit("UNKNOWN", "blocked_by_gate_failure", "blocked", ledger_path, f"ledger invalid JSON: {exc}")
+        ledger_source = ledger.get("source") or {}
+        if ledger_source.get("id") != source_id:
+            emit("BLOCKED", "blocked_by_gate_failure", "blocked", ledger_path, "ledger source.id mismatch")
+        if ledger_source.get("refinement_hash") != refinement_hash(container):
+            emit("BLOCKED", "blocked_by_gate_failure", "blocked", ledger_path, "ledger refinement hash stale")
+    emit("PASS", None, "breakdown", container)
 
 
 ledger_result = ledger_terminal()

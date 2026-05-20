@@ -27,7 +27,7 @@ JIRA，交給 `breakdown` 派工。
 若 ticket 不是 Bug，停止並路由：Story/Task 走 `breakdown` 或 `engineering`，Epic 走
 `refinement` 再 `breakdown`。若 JIRA 已有 `[ROOT_CAUSE]`，詢問要重新分析或直接派工。
 Bug 的 planning handoff 仍以 confirmed RCA 為前提，但 direct-to-`engineering` 只在已存在
-authoritative task work order 時合法；沒有 work order 時，下一步一律是 `breakdown`。
+authoritative task work order 時合法；沒有 work order 時，下一步一律是 `/auto-pass {BUG_KEY}`。
 
 ## Reference Loading
 
@@ -55,7 +55,7 @@ AC-FAIL path 的 raw evidence 寫入 handoff artifact，供 downstream engineeri
    / external write gate blocking validation；通過後才將 `[ROOT_CAUSE]` / `[IMPACT]` /
    `[PROPOSED_FIX]` 寫成 JIRA comment。
 9. 處理 handbook observations。
-10. 回報下一步：預設 `breakdown {TICKET}`；只有已存在 authoritative task work order 時才可
+10. 回報下一步：預設 `/auto-pass {BUG_KEY}`；只有已存在 authoritative task work order 時才可
     提示 `做 {TICKET}`。
 
 ## Write Rules
@@ -64,6 +64,10 @@ AC-FAIL path 的 raw evidence 寫入 handoff artifact，供 downstream engineeri
   或 external write gate，且先有 local final-comment artifact。Durable final-comment
   artifact 應寫入 `{source_container}/jira-comments/YYYYMMDD-root-cause.md`；只有真正
   temporary body file 可放在 `/tmp`，且 closeout 前必須刪除。
+- 若 final RCA comment artifact 落在 `docs-manager/src/content/docs/specs/**/*.md`，
+  必須走 specs-bound emit contract：frontmatter 至少包含 `title`、`description`、
+  `draft: true`、`sidebar.hidden: true`，且 producer 對應
+  `scripts/lib/evidence-producers.json` 的 bug-triage RCA entry。
 - Handbook gap/stale updates 依 `explore-pattern.md`，只寫 workspace-owned handbook source。
 - Bug-triage 不使用 blame 或 author attribution 決定誰修；assignee 是運維層，不是診斷輸入。
 
@@ -71,7 +75,7 @@ AC-FAIL path 的 raw evidence 寫入 handoff artifact，供 downstream engineeri
 
 輸出 ticket、root cause confirmed status、JIRA comment status、proposed fix scope、
 evidence artifact path（fast path 可為 none）、next command。`next command` 預設是
-`breakdown {TICKET}`；只有已存在 authoritative task work order 時才是 `做 {TICKET}`。
+`/auto-pass {BUG_KEY}`；只有已存在 authoritative task work order 時才是 `做 {TICKET}`。
 
 ## Step 11 — L2 Deterministic Check: post-task-feedback-reflection
 

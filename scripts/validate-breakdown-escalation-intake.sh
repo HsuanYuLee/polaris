@@ -14,6 +14,7 @@
 #     --disposition "accepted flavor: env-drift" \
 #     --decision "storage helper typing folded into T3a" \
 #     --decision "residual baseline/env handled by waiting for sibling baseline correction"
+#     [--task-md path/to/task.md --repo path/to/repo --head-sha sha]
 #
 #   validate-breakdown-escalation-intake.sh --self-test
 #
@@ -34,7 +35,7 @@ ALLOWED_FLAVORS_REGEX='^(plan-defect|scope-drift|env-drift)$'
 
 usage() {
   cat >&2 <<EOF
-usage: $0 --sidecar <path> --route <route> --closes-gate <true|false> --flavor <flavor> --disposition <text> --decision <text> [--decision <text>...]
+usage: $0 --sidecar <path> --route <route> --closes-gate <true|false> --flavor <flavor> --disposition <text> --decision <text> [--decision <text>...] [--task-md <path> --repo <path> --head-sha <sha>]
        $0 --self-test
 
 routes: engineering | refinement | wait | baseline_approval | task_update
@@ -285,6 +286,9 @@ closes_gate=""
 flavor=""
 disposition=""
 decisions=()
+task_md=""
+repo=""
+head_sha=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -318,6 +322,21 @@ while [[ $# -gt 0 ]]; do
       decisions+=("$2")
       shift 2
       ;;
+    --task-md)
+      [[ $# -ge 2 ]] || usage
+      task_md="$2"
+      shift 2
+      ;;
+    --repo)
+      [[ $# -ge 2 ]] || usage
+      repo="$2"
+      shift 2
+      ;;
+    --head-sha)
+      [[ $# -ge 2 ]] || usage
+      head_sha="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       ;;
@@ -333,3 +352,9 @@ if [[ -z "$sidecar" || -z "$route" || -z "$closes_gate" || -z "$flavor" || -z "$
 fi
 
 validate "$sidecar" "$route" "$closes_gate" "$flavor" "$disposition" "${decisions[@]}"
+if [[ "$route" == "task_update" && -n "$task_md" ]]; then
+  [[ -n "$repo" ]] || repo="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  refresh_args=(--repo "$repo" --task-md "$task_md" --evidence "$sidecar")
+  [[ -z "$head_sha" ]] || refresh_args+=(--head-sha "$head_sha")
+  bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/refresh-baseline-snapshot.sh" "${refresh_args[@]}"
+fi

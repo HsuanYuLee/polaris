@@ -63,6 +63,9 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | quarantine-duplication-check | scripts/check-quarantine-duplication.sh | script | portable | N/A | governance |
 | learning-seed-contract | scripts/validate-learning-seed-contract.sh | script | portable | N/A | governance |
 | agents-mirror-portable-smoke | scripts/verify-agents-mirror-portable.sh | script | portable | N/A | governance |
+| specs-collection-shape-write-gate | .claude/hooks/no-direct-evidence-write.sh | hook | claude-code | scripts/validate-specs-bound-write-contract.sh | governance |
+| closeout-chain-auto-archive | scripts/mark-spec-implemented.sh | script | portable | scripts/selftests/closeout-chain-archive-selftest.sh | governance |
+| baseline-snapshot-refresh-after-intake | scripts/refresh-baseline-snapshot.sh | script | portable | scripts/selftests/refresh-baseline-snapshot-selftest.sh | governance |
 
 ## Mechanism Canary Entries
 
@@ -70,6 +73,9 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 |-----------|-------------|---------------|---------------------------------|
 | gate-fail-self-correct-disposition | contract_pointer | gate exit 2 後 agent 只用口頭說明「已修正」，沒有逐筆處理 gate failure ledger | `scripts/gate-hook-adapter.sh` 寫入 `.polaris/evidence/gate-failures/{task_id}.jsonl`；post-task reflection 產出 `self_correct_disposition[]`，每筆標 `fixed` / `accepted-workaround` / `escalated` |
 | tier-a-direct-call-governance | contract_pointer | 新增 script 直接呼叫 `node` / `pnpm` / `jq` / `rg` / `gh`，或把 ticket-scoped tool 誤加進 root mise，而未經 resolver / disposition | `scripts/validate-script-dependencies.sh` 讀取 `scripts/tool-direct-call-inventory-disposition.txt`，新增違規輸出 `POLARIS_TOOL_DIRECT_CALL` / `POLARIS_TICKET_SCOPED_TOOL_DIRECT_CALL` |
+| auto-pass-orchestrator-premature-stop | contract_pointer | inner skill HALT 或 session pressure 建議後，auto-pass 直接停下交回 user，而 deterministic sidecar 已可繼續 | `pause.kind=session_handoff` + `scripts/validate-auto-pass-resume.sh`；若 sidecar PASS 則不得 pause |
+| closeout-chain-archive-not-deterministic | contract_pointer | terminal complete 後 parent spec 留在 active 區，還需要使用者另跑 archive | `scripts/selftests/closeout-chain-archive-selftest.sh` 覆蓋 mark-spec / auto-pass docs / framework-release closeout callsite |
+| baseline-snapshot-stale-after-intake | contract_pointer | breakdown route=task_update 合法改動 planner-owned task.md 後，engineering/finalize 仍讀到舊 baseline snapshot | `scripts/refresh-baseline-snapshot.sh` 重新產生 current head snapshot，舊 snapshot rename `*.superseded` |
 
 ## Script Candidate Graduation Schedule
 

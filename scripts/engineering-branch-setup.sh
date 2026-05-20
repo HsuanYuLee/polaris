@@ -40,12 +40,13 @@ WORKTREE_CLEANUP="$SCRIPT_DIR/engineering-worktree-cleanup.sh"
 usage() {
   cat <<EOF >&2
 Usage:
-  $(basename "$0") <task_md> [--repo-base DIR]
+  $(basename "$0") <task_md> [--repo-base DIR] [--auto-stash]
 
 Creates a task branch + worktree atomically from origin/{resolved_base} HEAD.
 
 Options:
   --repo-base DIR   Base directory for .worktrees/ (default: git toplevel)
+  --auto-stash      Stash unrelated dirty files before dispatch; overlap with Allowed Files still blocks.
 
 Exit:  0 = success, 1 = branch exists, 2 = fatal error.
 EOF
@@ -76,6 +77,70 @@ worktree_for_branch() {
       }
     }
   '
+}
+
+maybe_auto_stash_dirty_main() {
+  local repo="$1"
+  local task_json="$2"
+  local dirty=""
+  local overlap=""
+  local stash_ref=""
+
+  [[ "$AUTO_STASH" -eq 1 ]] || return 0
+  dirty="$(git -C "$repo" -c core.quotePath=false status --porcelain --untracked-files=all | awk '{print $2}' | sed '/^$/d' || true)"
+  [[ -n "$dirty" ]] || return 0
+
+  overlap="$(printf '%s\n' "$dirty" | python3 -c '
+import fnmatch
+import json
+import sys
+
+task = json.loads(sys.argv[1])
+allowed = [str(item).strip("`") for item in (task.get("allowed_files") or [])]
+for raw in sys.stdin:
+    path = raw.strip()
+    if path and any(fnmatch.fnmatch(path, pattern) for pattern in allowed):
+        print(path)
+' "$task_json")"
+  if [[ -n "$overlap" ]]; then
+    echo "ERROR: dirty files overlap task Allowed Files; refusing auto-stash" >&2
+    printf '%s\n' "$overlap" >&2
+    exit 2
+  fi
+
+  git -C "$repo" stash push -u -m "polaris-auto-stash ${TASK_KEY}" -- $(printf '%s\n' "$dirty") >/dev/null || {
+    echo "ERROR: auto-stash failed" >&2
+    exit 2
+  }
+  stash_ref="$(git -C "$repo" stash list | sed -n '1s/:.*//p')"
+  echo "✓ Auto-stashed unrelated dirty files: ${stash_ref:-stash@{0}}" >&2
+
+  if [[ -n "${AUTO_PASS_LEDGER_PATH:-}" && -f "$AUTO_PASS_LEDGER_PATH" ]]; then
+    python3 - "$AUTO_PASS_LEDGER_PATH" "${stash_ref:-stash@{0}}" "$TASK_KEY" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["pre_dispatch_stash"] = {
+    "stash_ref": sys.argv[2],
+    "work_item_id": sys.argv[3],
+    "created_at": datetime.now(timezone.utc).isoformat(),
+}
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+  fi
+}
+
+trust_mise_in_worktree() {
+  local worktree="$1"
+  command -v mise >/dev/null 2>&1 || return 0
+  [[ -f "$worktree/mise.toml" || -f "$worktree/.mise.toml" ]] || return 0
+  (cd "$worktree" && mise trust --quiet >/dev/null 2>&1) || {
+    echo "WARN: mise trust --quiet failed in $worktree; continuing without trust" >&2
+  }
 }
 
 task_collection_dir() {
@@ -395,10 +460,12 @@ fi
 # ---------------------------------------------------------------------------
 TASK_MD=""
 REPO_BASE=""
+AUTO_STASH=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo-base) REPO_BASE="$2"; shift 2 ;;
+    --auto-stash) AUTO_STASH=1; shift ;;
     --help|-h) usage; exit 0 ;;
     -*) echo "ERROR: unknown option: $1" >&2; usage; exit 2 ;;
     *)
@@ -450,6 +517,7 @@ if [[ -z "$RESOLVED_BASE" || "$RESOLVED_BASE" == "null" ]]; then
 fi
 
 run_readiness_pack "$TASK_MD" || exit 2
+maybe_auto_stash_dirty_main "$(git rev-parse --show-toplevel)" "$TASK_JSON"
 
 # Step 1.5: If breakdown supplied an explicit branch chain, align upstream
 # branches before cutting the task branch. The task branch does not exist yet,
@@ -563,6 +631,7 @@ git worktree add "$WT_PATH" "$BRANCH_NAME" 2>/dev/null || {
 }
 
 echo "✓ Worktree created: $WT_PATH" >&2
+trust_mise_in_worktree "$WT_PATH"
 
 if [[ "${POLARIS_SKIP_BASELINE_SNAPSHOT:-}" != "1" ]]; then
   BASELINE_HEAD_SHA="$(git -C "$WT_PATH" rev-parse HEAD)"

@@ -30,6 +30,8 @@ fi
 input="$1"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 validator="$script_dir/validate-refinement-json.sh"
+ac_coverage_validator="$script_dir/validate-refinement-ac-coverage.sh"
+parity_validator="$script_dir/validate-refinement-artifact-parity.sh"
 residue_checker="$script_dir/check-runtime-cache-residue.sh"
 
 if [[ ! -x "$validator" ]]; then
@@ -76,8 +78,17 @@ EOF
   exit 1
 fi
 
-source_container="$(cd "$(dirname "$json_path")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
+handbook="$repo_root/polaris-config/polaris/handbook/ac-required-by-surface.yaml"
+if [[ -x "$ac_coverage_validator" ]]; then
+  "$ac_coverage_validator" "$json_path" --handbook "$handbook"
+fi
+
+if [[ -x "$parity_validator" ]]; then
+  "$parity_validator" "$(dirname "$json_path")"
+fi
+
+source_container="$(cd "$(dirname "$json_path")" && pwd)"
 
 if [[ -x "$residue_checker" ]]; then
   "$residue_checker" --repo "$repo_root" --source-container "$source_container"

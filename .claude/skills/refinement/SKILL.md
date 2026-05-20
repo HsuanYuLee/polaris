@@ -103,13 +103,13 @@ Phase 1 預設 Tier 2；只有明確符合 Tier 1 才降級。
 
 這是所有 refinement-owned source 的 handoff contract，不只適用 DP。Epic / Story /
 Task / ticketless topic / DP 都必須先完成 artifact，且 handoff / language / authoring
-gates 全部通過後，再對使用者提示 `breakdown ...`。
+gates 全部通過後，再對使用者提示 `/auto-pass {KEY}`。
 Bug 不屬於 refinement-owned source；Bug 的 planning handoff 由 `bug-triage` 的 confirmed
 `[ROOT_CAUSE]` comment 與 local evidence artifact 承擔。
 
 ## Step 7 — 定版寫入（一次性）
 
-在提示 `breakdown {SOURCE}` 或把 DP status 改為 `LOCKED` 前先跑：
+在提示 `/auto-pass {KEY}` 或把 DP status 改為 `LOCKED` 前先跑：
 
 ```bash
 mise run docs-health -- {source_container}/refinement.md
@@ -131,6 +131,11 @@ bash scripts/validate-dp-plan-authoring.sh {source_container}/plan.md
 - research / validation snapshots：`{source_container}/artifacts/research/YYYY-MM-DD-{slug}.md`
 - temporary body files：gate pass 後刪除，不得留下 `.polaris/runtime/external-writes/`、
   `.codex/external-writes/` 或 `.codex/tmp/` residue。
+
+任何 refinement dogfood-evidence 或 specs-bound Markdown 產出，都必須走 specs-bound emit
+contract：frontmatter 至少包含 `title`、`description`、`draft: true`、
+`sidebar.hidden: true`，producer 對應 `scripts/lib/evidence-producers.json` 的
+refinement entry；不得裸寫沒有 Starlight frontmatter 的 `.md` artifact。
 
 Step 7 同時執行 runtime cache residue gate：
 

@@ -2964,6 +2964,26 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/validate-memory-write-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-191 memory write hard gate selftest."
+    },
+    {
+      "path": "scripts/validate-memory-write.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "scripts/selftests/validate-memory-write-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-memory-hygiene-plan.sh",
       "kind": "gate",
       "runner": "bash",
@@ -3580,6 +3600,137 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "posture_decision": "DP-194-T5 owner disposition for T1 direct-call inventory baseline."
+    },
+    {
+      "path": "scripts/audit-dogfood-evidence.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "auto_pass",
+      "selftest": "scripts/selftests/audit-dogfood-evidence-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/backfill-locked-dp-changed-files.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "refinement",
+      "selftest": "scripts/selftests/backfill-locked-dp-changed-files-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/breakdown-emit-task-snapshot.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "breakdown",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered by DP-207 auto-pass V1/V2 verification"
+    },
+    {
+      "path": "scripts/refresh-baseline-snapshot.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/refresh-baseline-snapshot-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-auto-pass-resume.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "auto_pass",
+      "selftest": "scripts/selftests/validate-auto-pass-resume-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-refinement-ac-coverage.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "refinement",
+      "selftest": "scripts/selftests/validate-refinement-ac-coverage-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-refinement-artifact-parity.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "refinement",
+      "selftest": "scripts/selftests/validate-refinement-artifact-parity-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-specs-bound-write-contract.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "cross_runtime",
+      "selftest": "scripts/selftests/validate-specs-bound-write-contract-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-verify-evidence-layout.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "verify_ac",
+      "selftest": "scripts/selftests/validate-verify-evidence-layout-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/verify-ac-docs-health.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "verify_ac",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "content verifier wrapper covered by DP-207-T5 Verify Command"
+    },
+    {
+      "path": "scripts/verify-ac-feedback-signals.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "verify_ac",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "content verifier wrapper covered by DP-207-T5 Verify Command"
+    },
+    {
+      "path": "scripts/verify-ac-newbie-challenger.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "verify_ac",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "content verifier wrapper covered by DP-207-T5 Verify Command"
+    },
+    {
+      "path": "scripts/write-completion-gate-marker.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered by DP-207 auto-pass proof-of-work validation"
+    },
+    {
+      "path": "scripts/gates/gate-changed-files-scope.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/gate-changed-files-scope-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     }
   ],
   "test_governance": {

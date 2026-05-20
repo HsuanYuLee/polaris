@@ -65,6 +65,14 @@ terminal `blocked_by_gate_failure`。
 
 ## Pause Rules
 
+## Non-Stop Rule
+
+Inner skill `HALT`、final answer 沒有 PASS 字樣、或 session handoff 建議，都不是
+auto-pass 的正確停止理由。若 deterministic sidecar 已 PASS（task validators、proof marker、
+completion marker、verification marker），orchestrator 必須繼續 dispatch 下一個 owning
+skill。只有真正的 context pressure / runtime pressure 可寫 `pause.kind=session_handoff`，
+並同時 emit resume artifact 供 `/auto-pass {KEY} resume` 驗證後續跑。
+
 `paused_for_refinement`：
 
 - breakdown 判斷需要 refinement。
@@ -86,3 +94,13 @@ paused_for_user_external_write > paused_for_refinement > complete
 
 `complete` 只能在 required PR set ready、verification disposition current，且沒有 unresolved
 blocker / pause / retry cap 時成立。
+
+## Terminal Complete Sequence
+
+terminal complete 後 closeout chain 不需要使用者另戳 archive：
+
+1. 寫 durable auto-pass report。
+2. 對 terminal parent 呼叫 `scripts/mark-spec-implemented.sh --auto-archive`。
+3. `mark-spec-implemented.sh` 標記 parent `IMPLEMENTED` 後呼叫 `archive-spec.sh`。
+4. 若 terminal path 來自 framework release closeout，`framework-release-closeout.sh` 透過
+   `close-parent-spec-if-complete.sh --archive-terminal-parent` 進入同一 archive chain。

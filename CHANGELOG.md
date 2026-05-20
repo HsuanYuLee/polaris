@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.105] - 2026-05-20
+
+### Added — DP-207 auto-pass canonical DP orchestration gates
+
+- 新增 locked DP source gate、auto-pass ledger / resume / report contract、proof-of-work marker validation 與 terminal closeout discipline，讓 auto-pass 以 deterministic artifacts 串接 breakdown、engineering、verify-AC。
+- 補齊 refinement AC coverage、changed_files scope、baseline snapshot refresh、Codex specs-bound parity、refinement artifact parity 與 dogfood evidence audit gates。
+- 新增 `scripts/audit-dogfood-evidence.sh` 與 selftest，讓 DP-207 self-dogfood deterministic-gap evidence 必須 schema 合法且可要求 consumed mapping。
+- 強化 framework release lane，支援 DP-backed explicit DAG task PR merge，並加入 release metadata defer mode，讓 framework-release 可先合併 implementation PR set，再以 release metadata lane 補 `VERSION` / `CHANGELOG.md`。
+- 補上 `scripts/validate-memory-write.sh` manifest row，修復 release preflight script manifest drift。
+
 ## [3.75.104] - 2026-05-20
 
 ### Added — DP-191 round 3 memory write enforcement hard gate

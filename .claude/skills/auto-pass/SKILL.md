@@ -75,7 +75,16 @@ execution loop 以最後一次 breakdown PASS snapshot 作為本輪 required PR 
 4. Dispatch `verify-AC`；verification disposition 必須 current，缺 V task / AC artifact 時回
    breakdown owning scope。
 5. 所有 required PR opened / ready 且 verification disposition current 時 terminal `complete`，
-   並交給 final report flow。
+   寫 final report，然後執行 terminal complete closeout chain：
+   `scripts/mark-spec-implemented.sh {SOURCE_ID} --auto-archive`。
+
+`auto-pass {KEY} resume` 必須先跑 `scripts/validate-auto-pass-resume.sh`，確認 ledger
+`pause.kind=session_handoff`、resume artifact 與 source match，並沿用原 ledger 的 counters /
+snapshot / drift retry。不得用新 ledger 重置 loop state。
+
+Inner skill HALT 不等於 user decision。若 deterministic marker / validator sidecar 已 PASS，
+auto-pass 必須繼續 dispatch；只有 context pressure / runtime pressure 才可寫
+`pause.kind=session_handoff` 與 resume artifact。
 
 probe result 只能來自 DP-201 proof-of-work marker、task frontmatter 或 validated ledger。若
 `scripts/auto-pass-probe.sh` 無法判讀 outcome，terminal 必須是 `blocked_by_gate_failure`；
@@ -110,6 +119,7 @@ Full development workflow intent 依 source-state matrix route：
 | `DP -> PR -> 升版 DP-NNN` | `LOCKED` + current DP-backed source | `auto-pass DP-NNN`；report tail 提示 `framework-release` |
 | `framework-release DP-NNN` | workspace PR opened + verification current | `framework-release` |
 | `framework-release DP-NNN` | workspace PR opened + verification stale | `auto-pass DP-NNN` refresh verify-AC，不重跑 breakdown |
+| `auto-pass DP-NNN resume` | ledger `pause.kind=session_handoff` + valid resume artifact | resume same ledger |
 
 `auto-pass` 只接 locked/current DP-backed source；未 LOCK、artifact stale 或 missing source 的 case
 都回 upstream owning skill，不在本 skill 內補 refinement / breakdown artifact。
@@ -119,6 +129,13 @@ Full development workflow intent 依 source-state matrix route：
 T3 起 `auto-pass` 使用 deterministic probe helper：
 
 ```bash
+bash scripts/auto-pass-probe.sh DP-NNN
+
+bash scripts/auto-pass-probe.sh \
+  --repo /absolute/path/to/main-checkout \
+  --stage source \
+  --source-id DP-NNN
+
 bash scripts/auto-pass-probe.sh \
   --repo /absolute/path/to/main-checkout \
   --stage breakdown \

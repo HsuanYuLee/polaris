@@ -18,6 +18,8 @@ WORKSPACE_REPO=""
 MAIN_BRANCH="main"
 EXECUTE=0
 REQUIRE_MAIN_CONTAINS_FINAL=0
+DAG_MODE=0
+DEFER_VERSION_BUMP_TO_METADATA=0
 GH_BIN="${GH_BIN:-gh}"
 TERMINAL_TASK_MD=""
 TASK_MDS=()
@@ -41,6 +43,11 @@ Options:
   --task-md <path>           Explicit ordered task.md. May repeat; bypasses chain lookup
   --main <branch>            Main branch name (default: main)
   --execute                  Merge open PRs in order, retargeting downstream PRs to main
+  --allow-dag                Validate explicit --task-md list as a topological DAG,
+                             not as one linear branch chain
+  --defer-version-bump-to-release-metadata
+                             Skip the pre-merge VERSION gate because framework-release
+                             will add VERSION/CHANGELOG in a release metadata lane
   --require-main-contains-final
                              After execution/preflight, require origin/main contains final head
   -h, --help                 Show help
@@ -156,6 +163,10 @@ pr_view_json() {
 
 run_version_bump_release_gate() {
   local final_task_md final_task_branch
+  if [[ "$DEFER_VERSION_BUMP_TO_METADATA" == "1" ]]; then
+    info "VERSION gate deferred to framework-release metadata lane; implementation PR merge still requires a later VERSION/CHANGELOG release metadata proof."
+    return 0
+  fi
   final_task_md="${TASK_MDS[$((${#TASK_MDS[@]} - 1))]}"
   final_task_branch="$(table_field "Task branch" "$final_task_md")"
   [[ -n "$final_task_branch" ]] || die "missing Task branch in terminal task.md: $final_task_md"
@@ -257,6 +268,9 @@ validate_and_plan() {
   local idx=0
   local final_head=""
   local task_md task_id task_branch expected_initial_base json number state base head head_branch url action
+  local expected_base upstream_state
+  local seen_branches=()
+  local seen_states=()
 
   echo "$PREFIX release lane plan:"
   for task_md in "${TASK_MDS[@]}"; do
@@ -279,7 +293,33 @@ validate_and_plan() {
     [[ -n "$head" ]] || die "PR #$number for $task_id has empty headRefOid"
     verify_pr_task_lineage "$task_md" "$task_id" "$task_branch" "$number" "$head_branch"
 
-    if [[ $idx -eq 0 ]]; then
+    if [[ "$DAG_MODE" == "1" ]]; then
+      expected_base="$(table_field "Base branch" "$task_md")"
+      [[ -n "$expected_base" ]] || die "missing Base branch in $task_md"
+      action="merge into $MAIN_BRANCH"
+      if [[ "$base" == "$expected_base" ]]; then
+        if [[ "$base" != "$MAIN_BRANCH" ]]; then
+          upstream_state=""
+          for (( i=0; i<${#seen_branches[@]}; i++ )); do
+            if [[ "${seen_branches[$i]}" == "$base" ]]; then
+              upstream_state="${seen_states[$i]}"
+              break
+            fi
+          done
+          [[ -n "$upstream_state" ]] || die "$task_id PR #$number base is '$base', but upstream base branch was not seen earlier in --task-md DAG order"
+          if [[ "$EXECUTE" == "1" ]]; then
+            [[ "$upstream_state" == "MERGED" ]] || die "$task_id PR #$number cannot be retargeted because upstream base '$base' is not merged yet"
+            action="retarget to $MAIN_BRANCH, then merge"
+          else
+            action="retarget to $MAIN_BRANCH after upstream merge"
+          fi
+        fi
+      elif [[ "$base" == "$MAIN_BRANCH" ]]; then
+        action="merge into $MAIN_BRANCH"
+      else
+        die "$task_id PR #$number base is '$base'; expected task.md Base branch '$expected_base' or '$MAIN_BRANCH' after upstream merge"
+      fi
+    elif [[ $idx -eq 0 ]]; then
       expected_initial_base="$MAIN_BRANCH"
       [[ "$base" == "$MAIN_BRANCH" ]] || die "$task_id PR #$number base is '$base'; expected '$MAIN_BRANCH'"
       action="merge into $MAIN_BRANCH"
@@ -299,7 +339,13 @@ validate_and_plan() {
       "${task_id:-$task_branch}" "$number" "$base" "$state" "$head" "$action"
 
     if [[ "$EXECUTE" == "1" && "$state" != "MERGED" ]]; then
-      if [[ $idx -gt 0 && "$base" == "$previous_branch" ]]; then
+      if [[ "$DAG_MODE" == "1" && "$base" != "$MAIN_BRANCH" ]]; then
+        info "retargeting PR #$number ($task_id) from $base to $MAIN_BRANCH"
+        "$GH_BIN" pr edit "$number" ${gh_repo_args[@]+"${gh_repo_args[@]}"} --base "$MAIN_BRANCH"
+        json="$(pr_view_json "$task_branch")"
+        base="$(json_field "$json" "d.get('baseRefName')")"
+        [[ "$base" == "$MAIN_BRANCH" ]] || die "PR #$number retarget verification failed; base is '$base'"
+      elif [[ $idx -gt 0 && "$base" == "$previous_branch" ]]; then
         info "retargeting PR #$number ($task_id) to $MAIN_BRANCH"
         "$GH_BIN" pr edit "$number" ${gh_repo_args[@]+"${gh_repo_args[@]}"} --base "$MAIN_BRANCH"
         json="$(pr_view_json "$task_branch")"
@@ -313,6 +359,8 @@ validate_and_plan() {
 
     previous_branch="$task_branch"
     previous_state="$state"
+    seen_branches+=("$task_branch")
+    seen_states+=("$state")
     idx=$((idx + 1))
   done
 
@@ -338,6 +386,8 @@ while [[ $# -gt 0 ]]; do
     --main) MAIN_BRANCH="$2"; shift 2 ;;
     --main=*) MAIN_BRANCH="${1#--main=}"; shift ;;
     --execute) EXECUTE=1; shift ;;
+    --allow-dag) DAG_MODE=1; shift ;;
+    --defer-version-bump-to-release-metadata) DEFER_VERSION_BUMP_TO_METADATA=1; shift ;;
     --require-main-contains-final) REQUIRE_MAIN_CONTAINS_FINAL=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1" ;;

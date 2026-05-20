@@ -3,7 +3,7 @@
 # the frontmatter status field in refinement.md / plan.md / task.md.
 #
 # Usage:
-#   mark-spec-implemented.sh <ticket_key> [--status IMPLEMENTED|ABANDONED] [--workspace <path>]
+#   mark-spec-implemented.sh <ticket_key> [--status IMPLEMENTED|ABANDONED] [--workspace <path>] [--auto-archive|--no-auto-archive]
 #
 # Examples:
 #   mark-spec-implemented.sh EPIC-521
@@ -40,15 +40,26 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
 SYNC_SPEC_SIDEBAR="${SCRIPT_DIR}/sync-spec-sidebar-metadata.sh"
+ARCHIVE_SPEC="${MARK_SPEC_ARCHIVE_SPEC_BIN:-${SCRIPT_DIR}/archive-spec.sh}"
 # shellcheck source=lib/specs-root.sh
 . "$SCRIPT_DIR/lib/specs-root.sh"
 
 run_selftest() {
   local tmpdir=""
+  local archive_stub=""
+  local archive_log=""
   local rc=0
 
   tmpdir="$(mktemp -d -t mark-spec-implemented-selftest.XXXXXX)"
   trap "rm -rf '$tmpdir'" EXIT
+  archive_log="$tmpdir/archive.log"
+  archive_stub="$tmpdir/archive-spec-stub.sh"
+  cat > "$archive_stub" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"${MARK_SPEC_ARCHIVE_LOG:?}"
+SH
+  chmod +x "$archive_stub"
 
   mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks" \
            "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-001/tasks" \
@@ -71,7 +82,7 @@ run_selftest() {
 MD
 
   rc=0
-  env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" DP-050-T1 --workspace "$tmpdir" >/dev/null || rc=$?
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" DP-050-T1 --workspace "$tmpdir" >/dev/null || rc=$?
   [[ "$rc" -eq 0 ]] || { echo "[selftest] canonical DP mark implemented failed"; return 1; }
   [[ ! -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/T1.md" ]] || { echo "[selftest] active task was not moved"; return 1; }
   [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" ]] || { echo "[selftest] pr-release task missing"; return 1; }
@@ -99,7 +110,7 @@ MD
 MD
 
   rc=0
-  env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" T2 --workspace "$tmpdir" >/dev/null || rc=$?
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" T2 --workspace "$tmpdir" >/dev/null || rc=$?
   [[ "$rc" -eq 0 ]] || { echo "[selftest] active task key mark implemented failed"; return 1; }
   [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-001/tasks/pr-release/T2.md" ]] || { echo "[selftest] active T2 pr-release task missing"; return 1; }
   [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/GT-OLD/tasks/T2.md" ]] || { echo "[selftest] archived T2 was moved unexpectedly"; return 1; }
@@ -123,7 +134,7 @@ MD
 MD
 
   rc=0
-  env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" DP-051-T3 --workspace "$tmpdir" >/dev/null || rc=$?
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" DP-051-T3 --workspace "$tmpdir" >/dev/null || rc=$?
   [[ "$rc" -eq 0 ]] || { echo "[selftest] folder-native DP mark implemented failed"; return 1; }
   [[ ! -d "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-051-folder-native-task-closeout/tasks/T3" ]] || { echo "[selftest] folder-native active task was not moved"; return 1; }
   [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-051-folder-native-task-closeout/tasks/pr-release/T3/index.md" ]] || { echo "[selftest] folder-native pr-release task missing"; return 1; }
@@ -148,7 +159,7 @@ MD
 MD
 
   rc=0
-  env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" DP-052-V1 --workspace "$tmpdir" >/dev/null || rc=$?
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" DP-052-V1 --workspace "$tmpdir" >/dev/null || rc=$?
   [[ "$rc" -eq 0 ]] || { echo "[selftest] folder-native DP verification mark implemented failed"; return 1; }
   [[ ! -d "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-052-folder-native-verification-closeout/tasks/V1" ]] || { echo "[selftest] folder-native active verification task was not moved"; return 1; }
   [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-052-folder-native-verification-closeout/tasks/pr-release/V1/index.md" ]] || { echo "[selftest] folder-native pr-release verification task missing"; return 1; }
@@ -169,10 +180,15 @@ sidebar:
 MD
 
   rc=0
-  env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" GT-PARENT --workspace "$tmpdir" >/dev/null || rc=$?
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" GT-PARENT --workspace "$tmpdir" >/dev/null || rc=$?
   [[ "$rc" -eq 0 ]] || { echo "[selftest] parent mark implemented failed"; return 1; }
   grep -q '^status: IMPLEMENTED$' "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/GT-PARENT/refinement.md" || { echo "[selftest] parent status not updated"; return 1; }
   grep -q 'text: "IMPLEMENTED"' "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/GT-PARENT/refinement.md" || { echo "[selftest] parent sidebar badge not refreshed"; return 1; }
+  grep -q -- "--workspace $tmpdir .*GT-PARENT/refinement.md" "$archive_log" || { echo "[selftest] parent auto-archive was not invoked"; return 1; }
+
+  rc=0
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" GT-PARENT --workspace "$tmpdir" --no-auto-archive >/dev/null || rc=$?
+  [[ "$rc" -eq 0 ]] || { echo "[selftest] parent no-auto-archive failed"; return 1; }
 
   echo "[selftest] PASS"
 }
@@ -186,11 +202,14 @@ TICKET=""
 STATUS="IMPLEMENTED"
 WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SPECS_ROOT=""
+AUTO_ARCHIVE=1
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --status)     STATUS="$2"; shift 2 ;;
     --workspace)  WORKSPACE_ROOT="$2"; shift 2 ;;
+    --auto-archive) AUTO_ARCHIVE=1; shift ;;
+    --no-auto-archive) AUTO_ARCHIVE=0; shift ;;
     -h|--help)
       sed -n '2,33p' "$0"
       exit 0
@@ -275,6 +294,20 @@ sync_parent_sidebar_metadata() {
   local file="$1"
   [[ -x "$SYNC_SPEC_SIDEBAR" ]] || return 0
   bash "$SYNC_SPEC_SIDEBAR" --apply "$file" >/dev/null
+}
+
+auto_archive_parent_if_terminal() {
+  local file="$1"
+  [[ "$AUTO_ARCHIVE" -eq 1 ]] || return 0
+  case "$STATUS" in
+    IMPLEMENTED|ABANDONED) ;;
+    *) return 0 ;;
+  esac
+  case "$file" in
+    */specs/design-plans/archive/*|*/specs/companies/*/archive/*) return 0 ;;
+  esac
+  [[ -x "$ARCHIVE_SPEC" ]] || return 0
+  bash "$ARCHIVE_SPEC" --workspace "$WORKSPACE_ROOT" "$file"
 }
 
 # ---------------------------------------------------------------------------
@@ -446,11 +479,13 @@ if [ "$ANCHOR_TYPE" = "epic" ]; then
   existing_status="$(get_existing_status "$ANCHOR")"
   if [ "$existing_status" = "$STATUS" ]; then
     sync_parent_sidebar_metadata "$ANCHOR"
+    auto_archive_parent_if_terminal "$ANCHOR"
     echo "NOOP: $ANCHOR already has status: $STATUS"
     exit 0
   fi
   update_frontmatter_status "$ANCHOR" "$STATUS"
   sync_parent_sidebar_metadata "$ANCHOR"
+  auto_archive_parent_if_terminal "$ANCHOR"
   exit 0
 fi
 

@@ -30,6 +30,20 @@ scope -> rebase -> ci-local -> verify -> flow-gap -> VR if triggered -> base fre
 
 Developer completion gate 也會消費 `engineering-branch-setup.sh` 在 fresh worktree 建立時寫入的 planner-owned baseline snapshot。若 snapshot 缺失，或 `Verify Command`、`depends_on`、`Base branch`、`Allowed Files` 任一欄位與 snapshot 不一致，屬於 scope-escalation blocker；engineering 不得就地修改 task.md，或建立 post-hoc snapshot evidence 來通過 closeout。
 
+DP-backed framework work 在 completion gate 前必須比對實際 diff 與
+`refinement.json.changed_files`：
+
+```bash
+bash scripts/gates/gate-changed-files-scope.sh \
+  --repo <task-worktree> \
+  --refinement <main-checkout-source-container>/refinement.json \
+  --base <pr-base-or-task-base> \
+  --head <task-head>
+```
+
+若 gate fail，engineering 不得自行擴大 scope；應 route back to refinement 更新
+`changed_files` 或縮小 implementation diff。
+
 ## DP-201 Proof Markers
 
 engineering 擁有 auto-pass 需要讀取的 delivery state durable proof markers：

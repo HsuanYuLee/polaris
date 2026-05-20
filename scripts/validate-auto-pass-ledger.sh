@@ -159,8 +159,11 @@ def validate_source(container, source_id, refinement_hash_value, errors):
                 errors.append("source.container does not match --source-container")
         except FileNotFoundError:
             errors.append("source.container does not exist")
-    if not re.fullmatch(r"DP-[0-9]+", str(source_id or "")):
-        errors.append("source.id must match DP-NNN")
+    if not re.fullmatch(r"[A-Z][A-Z0-9]*-[0-9]+", str(source_id or "")):
+        errors.append("source.id must match {PREFIX}-NNN")
+    source_type = source_data.get("type")
+    if source_type is not None and source_type not in {"dp", "jira", "bug"}:
+        errors.append("source.type must be dp, jira, or bug when present")
     if expected_source_id and source_id != expected_source_id:
         errors.append("source.id does not match --source-id")
     index_path = container / "index.md"
@@ -217,6 +220,7 @@ else:
     if not refinement_hash_value:
         errors.append("source.refinement_hash is required")
     if container_raw and refinement_hash_value:
+        source_data = source
         validate_source(Path(container_raw), source_id, refinement_hash_value, errors)
 
 started_at = parse_iso(ledger.get("started_at"), "started_at", errors)
@@ -269,19 +273,35 @@ if drift_retry is not None:
             if not isinstance(value, int) or value < 0:
                 errors.append(f"drift_retry.{key} must be a non-negative integer")
 
+for stash_field in ("pre_dispatch_stash", "post_dispatch_restore"):
+    value = ledger.get(stash_field)
+    if value is not None and not isinstance(value, dict):
+        errors.append(f"{stash_field} must be an object when present")
+
 pause = ledger.get("pause")
 if pause is not None:
     if not isinstance(pause, dict):
         errors.append("pause must be null or an object")
     else:
         kind = pause.get("kind")
-        if kind not in ("paused_for_refinement", "paused_for_user_external_write"):
+        if kind not in ("paused_for_refinement", "paused_for_user_external_write", "session_handoff"):
             errors.append("pause.kind must be a supported pause terminal status")
         if not pause.get("reason"):
             errors.append("pause.reason is required")
         parse_iso(pause.get("created_at"), "pause.created_at", errors)
         if kind == "paused_for_refinement" and not pause.get("inbox_path"):
             errors.append("paused_for_refinement pause requires inbox_path")
+        if kind == "paused_for_user_external_write" and terminal_status != "paused_for_user_external_write":
+            errors.append("paused_for_user_external_write pause requires matching terminal_status")
+        if kind == "paused_for_refinement" and terminal_status != "paused_for_refinement":
+            errors.append("paused_for_refinement pause requires matching terminal_status")
+        if kind == "session_handoff":
+            if terminal_status not in (None, ""):
+                errors.append("session_handoff pause is non-terminal and requires terminal_status=null")
+            if not pause.get("resume_artifact"):
+                errors.append("session_handoff pause requires resume_artifact")
+            if not pause.get("next_work_item_id"):
+                errors.append("session_handoff pause requires next_work_item_id")
 
 if errors:
     fail(errors)

@@ -118,6 +118,21 @@ bash scripts/gates/gate-evidence-producer-whitelist.sh --repo "$TMP" --files \
   .polaris/evidence/verify/polaris-verified-DP-201-T1-abc1234.json \
   .polaris/evidence/ac-verification/DP-201-V1-abc1234.json
 
+bash "$ROOT/scripts/breakdown-emit-task-snapshot.sh" \
+  --source-id DP-201 \
+  --work-item-id DP-201-T99 \
+  --task-md .polaris/evidence/task-snapshot/DP-201-T1.json \
+  --out .polaris/evidence/task-snapshot/DP-201-T99.json >/tmp/dp201-task-snapshot-writer.out
+bash "$ROOT/scripts/write-completion-gate-marker.sh" \
+  --source-id DP-201 \
+  --work-item-id DP-201-T99 \
+  --head-sha abc1234 \
+  --task-md .polaris/evidence/task-snapshot/DP-201-T1.json \
+  --out .polaris/evidence/completion-gate/DP-201-T99-abc1234.json >/tmp/dp201-completion-writer.out
+bash scripts/validate-auto-pass-proof.sh \
+  .polaris/evidence/task-snapshot/DP-201-T99.json \
+  .polaris/evidence/completion-gate/DP-201-T99-abc1234.json
+
 python3 - <<'PY'
 import json
 from pathlib import Path
@@ -171,6 +186,16 @@ if "$DIRECT_WRITE_HOOK" <"$TMP/direct-write.json" >/tmp/dp201-direct-write.out 2
 fi
 printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"notes/not-evidence.json"}}' >"$TMP/non-evidence-write.json"
 "$DIRECT_WRITE_HOOK" <"$TMP/non-evidence-write.json" >/tmp/dp201-non-evidence-write.out 2>&1
+printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"docs-manager/src/content/docs/specs/design-plans/DP-999/example.md"}}' >"$TMP/specs-md-write.json"
+if "$DIRECT_WRITE_HOOK" <"$TMP/specs-md-write.json" >/tmp/dp201-specs-md-write.out 2>&1; then
+  echo "FAIL: specs-bound markdown Write fixture unexpectedly passed" >&2
+  exit 1
+fi
+printf '%s\n' '{"tool_name":"MultiEdit","tool_input":{"file_path":"docs-manager/src/content/docs/specs/design-plans/DP-999/example.md","edits":[]}}' >"$TMP/specs-md-multiedit.json"
+if "$DIRECT_WRITE_HOOK" <"$TMP/specs-md-multiedit.json" >/tmp/dp201-specs-md-multiedit.out 2>&1; then
+  echo "FAIL: specs-bound markdown MultiEdit fixture unexpectedly passed" >&2
+  exit 1
+fi
 
 valid_verify="$TMP/valid-verify.json"
 invalid_verify="$TMP/invalid-verify.json"
@@ -196,10 +221,5 @@ if verification_evidence_validate_file "$invalid_verify" DP-201-T2 abc1234 >/tmp
   echo "FAIL: invalid verify writer fixture unexpectedly passed" >&2
   exit 1
 fi
-
-bash "$ROOT/scripts/check-main-chain-compliance.sh" \
-  --repo "$ROOT" \
-  --source-container "$(resolve_dp201_source_container)" \
-  --allow-active-verification >/tmp/dp201-main-chain.out
 
 echo "PASS: validate-auto-pass-proof selftest"

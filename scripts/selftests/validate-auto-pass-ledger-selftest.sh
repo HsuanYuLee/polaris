@@ -94,6 +94,7 @@ path, source_id, container, ref_hash, terminal = sys.argv[1:6]
 payload = {
     "schema_version": "1",
     "source": {
+        "type": "dp",
         "id": source_id,
         "container": container,
         "refinement_hash": ref_hash,

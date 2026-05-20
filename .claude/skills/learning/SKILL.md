@@ -65,6 +65,10 @@ Route A learning producer 不得直接寫 `design-plans/DP-*/index.md`、`plan.m
 `scripts/validate-learning-seed-contract.sh --producer learning --diff-range <base..head>`；
 refinement LOCK 前的 structural audit 則由 refinement 以
 `--producer refinement --source-container <DP-folder>` 顯式呼叫。
+若 research D2 transport artifact 位於 `docs-manager/src/content/docs/specs/**/*.md`，
+必須走 specs-bound emit contract：frontmatter 包含 `title`、`description`、
+`draft: true`、`sidebar.hidden: true`、`artifact_type`、`source`、`created`，並符合
+`scripts/lib/evidence-producers.json` 的 learning research producer entry。
 
 ## Queue Mode Contract
 

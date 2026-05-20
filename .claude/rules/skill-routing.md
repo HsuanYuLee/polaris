@@ -145,8 +145,8 @@ prose-only rule 自行逐 stage dispatch 或成為第二條 writer path。
 |---------|--------------|-------|
 | `建 DP` / `建一個 DP` | no DP source | `refinement` |
 | `完整流程 DP-NNN` / `快速通關 DP-NNN` | `DISCUSSION` / missing artifact / stale artifact | `refinement DP-NNN` |
-| `完整流程 DP-NNN` / `快速通關 DP-NNN` | `LOCKED` + current DP-backed source | `auto-pass DP-NNN` |
-| `DP -> PR -> 升版 DP-NNN` | `LOCKED` + current DP-backed source | `auto-pass DP-NNN`；report tail 提示 `framework-release` |
+| `完整流程 {KEY}` / `快速通關 {KEY}` / `/auto-pass {KEY}` | `LOCKED` + current source | `/auto-pass {KEY}` |
+| `{KEY} -> PR -> 升版` | `LOCKED` + current source | `/auto-pass {KEY}`；report tail 提示 `framework-release` |
 | `framework-release DP-NNN` | workspace PR opened + verification current | `framework-release` |
 | `framework-release DP-NNN` | workspace PR opened + verification stale | `auto-pass DP-NNN` refresh verify-AC，不重跑 breakdown |
 | `framework-release` without PR / task | missing terminal precondition | fail-stop 回 `refinement` / `breakdown` / `engineering` |

@@ -511,6 +511,9 @@ PY
     --extension-id "$EXTENSION_ID" \
     ${TEMPLATE_REPO:+--template-repo "$TEMPLATE_REPO"}
 
+  # Terminal closeout chain: task closeout can close the parent, and the final
+  # task in this closeout invokes close-parent-spec-if-complete.sh with
+  # --archive-terminal-parent so archive-spec.sh is deterministic.
   moved_task_md="$(mark_task_implemented "$task_md" "$task_id")"
   [[ -f "$moved_task_md" ]] || die "implemented task file not found after mark-spec-implemented: ${task_id}"
 

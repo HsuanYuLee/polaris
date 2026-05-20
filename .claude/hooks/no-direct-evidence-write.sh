@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# no-direct-evidence-write.sh — PreToolUse hook for Write / Edit
-# Blocks direct writes to evidence JSON files. These files must be produced
-# by their designated scripts, not fabricated through editor tools.
+# no-direct-evidence-write.sh — PreToolUse hook for Write / Edit / MultiEdit
+# Blocks direct writes to evidence JSON files and specs-bound Markdown. These
+# files must be produced through designated producer scripts/flows.
 
 set -euo pipefail
 
@@ -9,7 +9,7 @@ input=$(cat)
 
 tool_name=$(printf '%s' "$input" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null || true)
 case "$tool_name" in
-  Write|Edit) ;;
+  Write|Edit|MultiEdit) ;;
   *) exit 0 ;;
 esac
 
@@ -26,10 +26,11 @@ case "$file_path" in
   .polaris/evidence/ci-local/*.json|*/.polaris/evidence/ci-local/*.json|\
   .polaris/evidence/verify/*.json|*/.polaris/evidence/verify/*.json|\
   .polaris/evidence/ac-verification/*.json|*/.polaris/evidence/ac-verification/*.json|\
-  .polaris/evidence/auto-pass/audit/*.json|*/.polaris/evidence/auto-pass/audit/*.json)
-    echo "BLOCKED: evidence files may only be written by designated scripts." >&2
+  .polaris/evidence/auto-pass/audit/*.json|*/.polaris/evidence/auto-pass/audit/*.json|\
+  docs-manager/src/content/docs/specs/**/*.md|*/docs-manager/src/content/docs/specs/**/*.md)
+    echo "BLOCKED: evidence/specs-bound files may only be written by designated producer flows." >&2
     echo "Allowed producers are declared in scripts/lib/evidence-producers.json." >&2
-    echo "Debug the producing script; do not patch evidence JSON directly." >&2
+    echo "Debug the producing script or emit contract; do not patch protected artifacts directly." >&2
     exit 2
     ;;
   *)

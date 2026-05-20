@@ -20,6 +20,7 @@ ledger 必須放在主 checkout 的 DP source container 底下，使用絕對路
 {
   "schema_version": "1",
   "source": {
+    "type": "dp",
     "id": "DP-NNN",
     "container": "/abs/path/docs-manager/src/content/docs/specs/design-plans/DP-NNN-topic",
     "refinement_hash": "sha256:..."
@@ -60,10 +61,14 @@ ledger 必須放在主 checkout 的 DP source container 底下，使用絕對路
     "breakdown_to_refinement_inbox": 0
   },
   "drift_retry": {},
+  "pre_dispatch_stash": null,
+  "post_dispatch_restore": null,
   "pause": null
 }
 ```
 
+`source.id` 使用 canonical `{PREFIX}-NNN` work item key。DP-backed source 的
+`source.type` 是 `dp`；JIRA-backed Epic / Bug source 後續統一用 `jira` / `bug`。
 `source.refinement_hash` 是 `refinement.md` 與 `refinement.json` bytes 的 sha256 digest，
 格式固定為 `sha256:<hex>`。當任一 refinement artifact 改變，既有 ledger 會被判定 stale，
 必須先回 owning skill 重新確認 source state。
@@ -126,8 +131,29 @@ paused_for_user_external_write > paused_for_refinement > complete
 - `created_at`
 - resume 時追加 `external_write_acknowledged_at`
 
+`session_handoff` 是 non-terminal pause，只能在 context pressure / runtime pressure 使本
+session 無法繼續但沒有 user decision blocker 時使用。ledger 必須保持
+`terminal_status: null`，且 `pause` object 至少需要：
+
+- `kind: "session_handoff"`
+- `reason`
+- `created_at`
+- `resume_artifact`
+- `next_work_item_id`
+
+resume artifact 由 `scripts/validate-auto-pass-resume.sh` 驗證，必須包含 matching
+`source_id`、`ledger_path`、`pause_kind: "session_handoff"`、`next_work_item_id`、
+`resume_command`、`summary` 與 `created_at`。
+
 resume 必須沿用原 ledger 的 `loop_counters`、`task_snapshot` 與 `drift_retry`，不得建立新
 ledger 來重置 counter。
+
+## Dispatch Stash Fields
+
+`engineering-branch-setup.sh --auto-stash` 若在 dispatch 前暫存 main checkout unrelated dirty
+files，必須寫入 `pre_dispatch_stash` object，至少包含 `stash_ref`、`work_item_id`、
+`created_at`。後續 restore 成功後寫入 `post_dispatch_restore` object。Allowed Files 內的
+overlap dirty file 不得 auto-stash，必須 fail-stop。
 
 ## Stage Events And Snapshots
 
@@ -178,3 +204,12 @@ scripts/validate-auto-pass-ledger.sh "$AUTO_PASS_LEDGER_PATH" \
 ```
 
 validator fail 時，下游 skill 不得寫 task.md 或宣稱 consent 已取得。
+
+session handoff resume gate：
+
+```bash
+scripts/validate-auto-pass-resume.sh \
+  --ledger /absolute/path/to/ledger.json \
+  --resume-artifact /absolute/path/to/session-handoff.json \
+  --source-id DP-NNN
+```

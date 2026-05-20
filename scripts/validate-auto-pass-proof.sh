@@ -59,10 +59,19 @@ def load_map():
                 errors.append(f"producer[{idx}] missing {field}")
         marker_kinds = producer.get("marker_kinds")
         path_globs = producer.get("path_globs")
+        writer_scripts = producer.get("writer_scripts", [])
+        required_frontmatter = producer.get("required_frontmatter", [])
         if not isinstance(marker_kinds, list) or not marker_kinds:
             errors.append(f"producer[{idx}].marker_kinds must be a non-empty array")
         if not isinstance(path_globs, list) or not path_globs:
             errors.append(f"producer[{idx}].path_globs must be a non-empty array")
+        if "writer_scripts" in producer and (not isinstance(writer_scripts, list) or not writer_scripts):
+            errors.append(f"producer[{idx}].writer_scripts must be a non-empty array when present")
+        for script in writer_scripts:
+            if not isinstance(script, str) or not script:
+                errors.append(f"producer[{idx}].writer_scripts entries must be non-empty strings")
+        if "required_frontmatter" in producer and not isinstance(required_frontmatter, list):
+            errors.append(f"producer[{idx}].required_frontmatter must be an array when present")
         for kind in marker_kinds or []:
             if kind in seen:
                 errors.append(f"duplicate marker_kind in producer map: {kind}")
@@ -124,6 +133,9 @@ def validate_marker(data, path, producer_map_data):
             errors.append("dp198_handoff requires audit_closure_summary object")
     if marker_kind and writer and owning_skill and producer_for(producer_map_data, marker_kind, writer, owning_skill, path) is None:
         errors.append(f"no producer mapping for marker_kind={marker_kind} writer={writer} owning_skill={owning_skill} path={rel_path(path)}")
+    producer = producer_for(producer_map_data, marker_kind, writer, owning_skill, path) if marker_kind and writer and owning_skill else None
+    if producer is not None and not producer.get("writer_scripts"):
+        errors.append(f"producer mapping for marker_kind={marker_kind} must declare writer_scripts")
     return errors
 
 try:

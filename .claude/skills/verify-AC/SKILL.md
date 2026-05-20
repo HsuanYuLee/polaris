@@ -55,7 +55,10 @@ Contract / Fallback Behavior。
 3. 檢查 loop count；同一 AC 多輪未通過時先警告。
 4. 讀 AC verification steps；缺步驟則標 `UNCERTAIN` 並要求補 AC。
 5. 需要 local / fixture 環境時，依 environment prep reference 啟動。
-6. 逐步執行 curl / Playwright / native VR runner / source inspection / structured checks。
+6. 逐步執行 curl / Playwright / native VR runner / source inspection / structured checks；若
+   refinement AC 使用 `verification.method: challenger`、`docs-health` 或
+   `feedback-signals`，分別 dispatch `scripts/verify-ac-newbie-challenger.sh`、
+   `scripts/verify-ac-docs-health.sh`、`scripts/verify-ac-feedback-signals.sh`。
 7. 每步分類 `PASS`、`FAIL`、`MANUAL_REQUIRED`、`UNCERTAIN`。
 8. 收集 evidence，寫 local verification folder；有視覺/影片/manual evidence 時先產 upload bundle，再視需要上傳 JIRA attachments。
 9. 若本輪有 V*.md work order，先用 `scripts/write-ac-verification.sh` 寫回
@@ -80,6 +83,10 @@ Contract / Fallback Behavior。
   owning writer。Marker schema、producer mapping 與 freshness rule 以
   `auto-pass-proof-of-work.md` / `scripts/lib/evidence-producers.json` 為準；JIRA label/comment
   只能作 mirror，不可作為唯一 deterministic marker。
+- verification evidence 若寫入 specs-bound `verification/V*/**` 或 `tasks/V*/**`，必須使用
+  DP-110 layout：`verify-report.md`、`assets/{raw,images,screenshots,videos,files}/`、
+  `links.json`、`publication-manifest.json`。完成後呼叫
+  `scripts/validate-verify-evidence-layout.sh {evidence_dir}`；FAIL 時不可宣告 PASS。
 
 ## Completion
 

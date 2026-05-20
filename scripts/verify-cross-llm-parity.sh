@@ -16,6 +16,7 @@ set -euo pipefail
 #   5) repo handbook path contract for shared runtime/docs sources
 #   6) revision rebase gate wiring and behavior
 #   7) Codex fallback gate wiring
+#   8) Runtime-neutral specs-bound write contract gate
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -173,7 +174,7 @@ grep -q 'gate-revision-rebase.sh' "$ROOT_DIR/.claude/hooks/pre-push-quality-gate
 grep -q 'revision-rebase-required' "$ROOT_DIR/.claude/skills/references/deterministic-hooks-registry.md"
 
 echo
-echo "[7/7] Verify Codex fallback gate wiring"
+echo "[7/8] Verify Codex fallback gate wiring"
 test -x "$SCRIPT_DIR/codex-guarded-git-commit.sh"
 test -x "$SCRIPT_DIR/codex-guarded-gh-pr-create.sh"
 test -x "$SCRIPT_DIR/codex-guarded-git-push.sh"
@@ -218,6 +219,28 @@ if bash "$SCRIPT_DIR/codex-mark-design-plan-implemented.sh" --dry-run "$tmp_plan
   exit 1
 fi
 rm -rf "$tmp_root"
+
+echo
+echo "[8/8] Verify runtime-neutral specs-bound write contract gate"
+bash "$SCRIPT_DIR/selftests/validate-specs-bound-write-contract-selftest.sh"
+tmp_root="$(mktemp -d)"
+invalid="$tmp_root/repo/docs-manager/src/content/docs/specs/design-plans/DP-999-topic/dogfood-evidence/DP-999/codex-bypass.md"
+mkdir -p "$(dirname "$invalid")" "$tmp_root/repo/scripts/lib"
+cp "$ROOT_DIR/scripts/lib/evidence-producers.json" "$tmp_root/repo/scripts/lib/evidence-producers.json"
+cat >"$invalid" <<'MD'
+## Observed
+
+Codex apply_patch or shell bypass fixture without Starlight frontmatter.
+MD
+if bash "$SCRIPT_DIR/validate-specs-bound-write-contract.sh" --repo "$tmp_root/repo" --files "$invalid" >/tmp/codex-specs-bound-bypass.out 2>&1; then
+  echo "FAIL: Codex bypass fixture should fail specs-bound write contract" >&2
+  rm -rf "$tmp_root"
+  exit 1
+fi
+grep -q 'missing required frontmatter' /tmp/codex-specs-bound-bypass.out
+rm -rf "$tmp_root"
+
+bash "$SCRIPT_DIR/validate-model-tier-policy.sh"
 
 echo
 echo "Result: CROSS-LLM PARITY OK"

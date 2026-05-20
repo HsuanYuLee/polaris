@@ -16,6 +16,35 @@ mkdir -p \
   "$TMP/.polaris/evidence/ac-verification" \
   "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement-inbox"
 
+cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/index.md" <<'MD'
+---
+title: "DP-900 fixture"
+description: "auto-pass probe source fixture"
+status: LOCKED
+---
+
+## Fixture
+MD
+
+cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement.md" <<'MD'
+---
+title: "DP-900 refinement"
+description: "auto-pass probe source fixture"
+---
+
+## Scope
+
+fixture
+MD
+
+cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement.json" <<'JSON'
+{
+  "source": {"type": "dp", "id": "DP-900"},
+  "modules": [{"path": "scripts/auto-pass-probe.sh", "action": "modify"}],
+  "acceptance_criteria": []
+}
+JSON
+
 write_marker() {
   local path="$1"
   local kind="$2"
@@ -60,6 +89,7 @@ assert_field() {
 
 write_marker "$TMP/.polaris/evidence/task-snapshot/DP-900-T1.json" task_snapshot PASS
 assert_field "breakdown-pass" "engineering" next_action --stage breakdown --source-id DP-900 --work-item-id DP-900-T1
+assert_field "source-shorthand-pass" "breakdown" next_action DP-900
 
 rm -f "$TMP/.polaris/evidence/task-snapshot/DP-900-T1.json"
 write_marker "$TMP/.polaris/evidence/validation-fail/DP-900-T1.json" validation_fail FAIL
@@ -71,6 +101,17 @@ assert_field "breakdown-refinement-inbox" "paused_for_refinement" terminal_statu
 rm -f "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement-inbox/needs-refinement.md"
 
 assert_field "breakdown-unknown" "blocked_by_gate_failure" terminal_status --stage breakdown --source-id DP-900 --work-item-id DP-900-T1
+
+cp "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/index.md" "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/index.locked.md"
+python3 - "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/index.md" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+path.write_text(path.read_text(encoding="utf-8").replace("status: LOCKED", "status: DISCUSSION"), encoding="utf-8")
+PY
+assert_field "source-discussion-blocked" "blocked_by_gate_failure" terminal_status DP-900
+mv "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/index.locked.md" "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/index.md"
 
 write_marker "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json" completion_gate PASS
 assert_field "engineering-pass" "verify-AC" next_action --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234

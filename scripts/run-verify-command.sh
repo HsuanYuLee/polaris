@@ -81,6 +81,15 @@ EOF
 
 run_verify_shell() {
   local verify_command="$1"
+  if command -v mise >/dev/null 2>&1 && [[ -n "${REPO_PATH:-}" ]] && [[ -f "$REPO_PATH/mise.toml" || -f "$REPO_PATH/.mise.toml" ]]; then
+    (cd "$REPO_PATH" && mise trust --quiet >/dev/null 2>&1) || true
+    if [[ -n "${POLARIS_VERIFY_DEBUG+x}" ]]; then
+      mise exec -- bash -c "$verify_command"
+    else
+      mise exec -- env -u DEBUG bash -c "$verify_command"
+    fi
+    return $?
+  fi
   if [[ -n "${POLARIS_VERIFY_DEBUG+x}" ]]; then
     DEBUG="$VERIFY_DEBUG" bash -c "$verify_command"
   else
