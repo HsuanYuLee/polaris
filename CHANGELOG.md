@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.106] - 2026-05-21
+
+### Changed — DP-207 round 8 amendment (T2a + T6 + V1/V2)
+
+- 完成 DP-207 round 8 self-dogfood：T2a (PR #389) 將 `ac-required-by-surface.yaml` 重新搬到 tracked reference，T6 (PR #390) 把 `framework-release` SKILL.md 搬入 workspace 並加 maintainer-only scope。
+- 將 `scripts/command-catalog.json` 中 `maintainer.framework-release` 的 `implementation` 由 user-level 路徑改為 workspace 內 `.claude/skills/framework-release/SKILL.md`，配合 T6 workspace move。
+- 修補 V1 / V2 verify steps：所有 deterministic check 統一以 `mise exec -C` 包裝，並把 V2 multi-source aggregation 拆成 dp207 / dp191 兩個單 source 呼叫，配合 round 8 refinement amendment。
+- 紀錄 auto-pass v1 contract limitation：`paused_for_refinement` terminal 後須由使用者重新觸發 `/auto-pass`；DP-212 將追蹤 refinement-inbox auto-resume 與 LOCKED scope guard 的 deterministic 化。
+
 ## [3.75.105] - 2026-05-20
 
 ### Added — DP-207 auto-pass canonical DP orchestration gates

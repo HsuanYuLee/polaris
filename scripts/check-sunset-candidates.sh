@@ -182,9 +182,31 @@ def reference_posture(path: Path, consumers: list[str]) -> str:
     return "sunset_candidate"
 
 
+def skill_has_maintainer_only_scope(path: Path) -> bool:
+    """Detect ``scope: maintainer-only`` in the skill SKILL.md frontmatter.
+
+    The frontmatter sits within the first 20 lines. We honor this scope as a
+    deterministic signal that the skill is workspace-only and must not be
+    sunset by routing heuristics (DP-207-T6).
+    """
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            head = [next(fh, "") for _ in range(20)]
+    except OSError:
+        return False
+    for line in head:
+        if re.match(r"^scope:\s*maintainer-only\s*$", line.rstrip()):
+            return True
+    return False
+
+
 def skill_posture(path: Path, consumers: list[str]) -> str:
     skill = path.parent.name
     if skill in CORE_SKILLS:
+        return "core_chain"
+    if skill_has_maintainer_only_scope(path):
+        # maintainer-only skills are workspace-only by frontmatter contract;
+        # they are never sunset candidates regardless of cross-repo consumers.
         return "core_chain"
     if consumers:
         return "noncore_owned"

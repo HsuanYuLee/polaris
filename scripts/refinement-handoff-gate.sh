@@ -79,9 +79,13 @@ EOF
 fi
 
 repo_root="$(cd "$script_dir/.." && pwd)"
-handbook="$repo_root/polaris-config/polaris/handbook/ac-required-by-surface.yaml"
+handbook="$repo_root/.claude/skills/references/ac-required-by-surface-defaults.yaml"
+ac_coverage_args=("$json_path" --handbook "$handbook")
+if [[ -n "${POLARIS_AC_COMPANY_OVERRIDE:-}" ]]; then
+  ac_coverage_args+=(--company-override "$POLARIS_AC_COMPANY_OVERRIDE")
+fi
 if [[ -x "$ac_coverage_validator" ]]; then
-  "$ac_coverage_validator" "$json_path" --handbook "$handbook"
+  "$ac_coverage_validator" "${ac_coverage_args[@]}"
 fi
 
 if [[ -x "$parity_validator" ]]; then
