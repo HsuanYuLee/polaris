@@ -67,6 +67,22 @@ gate failure 與下一個 deterministic action。
 若發現非顯而易見的技術洞察，執行 `polaris-learnings.sh add`（每個 task 最多
 2 筆）。類型規範見 `cross-session-learnings.md`。
 
+### 3a. Auto-pass Friction Log Consumption (DP-214)
+
+若本輪任務由 `/auto-pass` 觸發，且 ledger 有 `friction_log[]` 條目（繞道、手動補位、
+deterministic gap），reflection 必須消費這些訊號，不可只在報告口頭交代：
+
+1. 讀取 ledger 的 `friction_log[]`（schema 見 `auto-pass-ledger.md`）。
+2. 對應 report 的 `friction_log_summary`（由 `validate-auto-pass-report.sh` 驗算）。
+3. `friction_log` 非空時，必須在 report 內提出 `follow_up_dp_seed` 或既有
+   `follow_ups[]` 條目，並指向待開的 DP / backlog item；不可只標 `terminal_status=complete`
+   就結束。已存在的 follow-up DP 可重用，但 reflection summary 必須點名 friction
+   kind 與下一步 owner。
+4. `friction_kind=language_drift_repair` 或 `validator_contract_conflict` 屬於高優先
+   訊號，下一輪 refinement / sprint planning 必須優先排入。
+
+不要把 friction_log 當成可選的吐槽欄位；它是 deterministic signal source。
+
 ### 4. Mechanism Audit (top 5)
 
 依 `rules/mechanism-registry.md` 的前 5 個 priority canaries 掃描本輪對話：

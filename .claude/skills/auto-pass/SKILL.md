@@ -147,6 +147,34 @@ bash scripts/auto-pass-probe.sh \
 helper 輸出 JSON，至少包含 `stage`、`status`、`terminal_status`、`next_action` 與
 `evidence_path`。`status=UNKNOWN` 一律視為 blocked，不可推測 PASS。
 
+## Friction Log Capture (DP-214)
+
+orchestration 過程中遇到下列訊號時，必須立刻呼叫 helper 把摩擦點寫入 ledger
+`friction_log[]`，作為下次 refinement / sprint planning 的 signal source。**不可**只在
+口頭報告交代：
+
+- inner skill HALT 後又繼續 dispatch（deterministic marker 已 PASS）。
+- 手動補 artifact 欄位才能通過 validator。
+- 缺 deterministic gate / helper script，本輪靠人類操作補位。
+- 必須 set 環境變數才能跑通某個流程。
+- validator 與 contract / hook 出現邏輯衝突。
+- 產出語言違反 workspace language policy，需手動回拉。
+
+寫入方式：
+
+```bash
+scripts/append-auto-pass-friction.sh "$AUTO_PASS_LEDGER_PATH" \
+  --stage <source|breakdown|engineering|verify-AC|framework-release|post-task> \
+  --kind  <friction_kind_enum_value> \
+  --summary "<zh-TW 短語句，建議 280 chars 內>"
+```
+
+helper 保證 atomic write、enum 驗證與 soft-limit warning。enum 與 schema 以
+`.claude/skills/references/auto-pass-ledger.md` § Friction Log 為準。
+
+terminal report 透過 `validate-auto-pass-report.sh` 重新聚合 ledger 條目並驗
+`friction_log_summary` 一致；報告不得手寫 summary 數字。
+
 ## Terminal Boundary
 
 `auto-pass` 的成功終點是：

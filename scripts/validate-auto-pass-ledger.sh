@@ -303,8 +303,61 @@ if pause is not None:
             if not pause.get("next_work_item_id"):
                 errors.append("session_handoff pause requires next_work_item_id")
 
+# DP-214: friction_log[] is optional but, when present, must follow the schema.
+FRICTION_KIND_ENUM = {
+    "inner_skill_halt_bypass",
+    "manual_artifact_patch",
+    "deterministic_gap",
+    "env_bypass",
+    "validator_contract_conflict",
+    "missing_helper_script",
+    "language_drift_repair",
+    "other",
+}
+FRICTION_STAGE_ENUM = {"source", "breakdown", "engineering", "verify-AC", "framework-release", "post-task"}
+FRICTION_SUMMARY_SOFT_LIMIT = 280
+friction_log = ledger.get("friction_log")
+if friction_log is not None:
+    if not isinstance(friction_log, list):
+        errors.append("friction_log must be an array when present")
+    else:
+        for idx, entry in enumerate(friction_log):
+            prefix = f"friction_log[{idx}]"
+            if not isinstance(entry, dict):
+                errors.append(f"{prefix} must be an object")
+                continue
+            ts = entry.get("ts")
+            if not ts:
+                errors.append(f"{prefix}.ts is required")
+            else:
+                parse_iso(ts, f"{prefix}.ts", errors)
+            stage = entry.get("stage")
+            if not stage:
+                errors.append(f"{prefix}.stage is required")
+            elif stage not in FRICTION_STAGE_ENUM:
+                errors.append(f"{prefix}.stage must be one of {sorted(FRICTION_STAGE_ENUM)}")
+            kind = entry.get("friction_kind")
+            if not kind:
+                errors.append(f"{prefix}.friction_kind is required")
+            elif kind not in FRICTION_KIND_ENUM:
+                errors.append(f"{prefix}.friction_kind must be one of {sorted(FRICTION_KIND_ENUM)}")
+            summary = entry.get("summary")
+            if not summary or not isinstance(summary, str):
+                errors.append(f"{prefix}.summary is required and must be a string")
+
 if errors:
     fail(errors)
+
+# DP-214: surface advisory warnings (does not change exit code).
+if friction_log:
+    for idx, entry in enumerate(friction_log):
+        summary = entry.get("summary", "")
+        if isinstance(summary, str) and len(summary) > FRICTION_SUMMARY_SOFT_LIMIT:
+            print(
+                f"WARNING: friction_log[{idx}].summary exceeds {FRICTION_SUMMARY_SOFT_LIMIT} chars "
+                f"({len(summary)}); helper does not truncate by contract",
+                file=sys.stderr,
+            )
 
 print(f"PASS: auto-pass ledger validation ({ledger_path})")
 PY

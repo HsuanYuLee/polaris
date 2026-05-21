@@ -148,6 +148,51 @@ resume artifact 由 `scripts/validate-auto-pass-resume.sh` 驗證，必須包含
 resume 必須沿用原 ledger 的 `loop_counters`、`task_snapshot` 與 `drift_retry`，不得建立新
 ledger 來重置 counter。
 
+## Friction Log (DP-214)
+
+`friction_log[]` 是 optional append-only array，紀錄本輪 `/auto-pass` 流程的繞道、
+手動補位、deterministic gap。它是 post-task reflection 與 follow-up DP refinement 的
+權威 signal source；只能透過 `scripts/append-auto-pass-friction.sh` 寫入，不得手改。
+
+每筆 entry 至少包含：
+
+```json
+{
+  "ts": "2026-05-21T11:00:00+08:00",
+  "stage": "engineering",
+  "friction_kind": "manual_artifact_patch",
+  "summary": "engineering 階段 V-task 缺 implementation_tasks 欄位，手動補欄位後 validator 才 PASS"
+}
+```
+
+- `ts`：ISO8601。
+- `stage`：`source` / `breakdown` / `engineering` / `verify-AC` / `framework-release` /
+  `post-task` 之一。
+- `friction_kind`：enum
+  - `inner_skill_halt_bypass`：inner skill HALT 但 deterministic marker 已 PASS，
+    orchestrator 必須繼續 dispatch。
+  - `manual_artifact_patch`：手動修補 artifact 才能 PASS gate。
+  - `deterministic_gap`：缺 deterministic gate / validator / helper，目前靠人類判斷。
+  - `env_bypass`：必須 set 環境變數才能跑通流程。
+  - `validator_contract_conflict`：validator 與 contract / hook 出現邏輯衝突。
+  - `missing_helper_script`：缺 helper script 必須手寫指令補位。
+  - `language_drift_repair`：產出語言違反 workspace language policy，需手動回拉。
+  - `other`：上述以外的繞道；summary 必須具體說明。
+- `summary`：zh-TW（或 workspace language）短語句，soft limit 280 chars；
+  validator 不會截斷，只會印 stderr WARNING。
+
+寫入請呼叫：
+
+```bash
+scripts/append-auto-pass-friction.sh /absolute/path/to/ledger.json \
+  --stage engineering \
+  --kind manual_artifact_patch \
+  --summary "..."
+```
+
+helper 保證 atomic write、enum 驗證與 soft-limit warning；validator 在
+ledger validation 中會 surface 過長 summary 的 WARNING，但不變更 exit code。
+
 ## Dispatch Stash Fields
 
 `engineering-branch-setup.sh --auto-stash` 若在 dispatch 前暫存 main checkout unrelated dirty

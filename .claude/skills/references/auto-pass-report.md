@@ -95,6 +95,30 @@ complete 且沒有 issue threshold 時，`follow_up_dp_seed` 必須是 `null`。
 `follow-up-sunset` 只可建立 follow-up DP seed；同一 PR 不得刪除 skill、刪除 routing row 或做
 行為性 deprecation。
 
+## Friction Log Summary (DP-214)
+
+`friction_log_summary` 是從 ledger `friction_log[]` 聚合而來的計算欄位。報告 writer 可
+選擇是否寫入 snapshot；若寫入，validator 必須與 ledger 聚合結果完全一致，否則 fail。
+
+```json
+{
+  "friction_log_summary": {
+    "total": 3,
+    "by_stage": {"breakdown": 1, "engineering": 2},
+    "by_kind": {"manual_artifact_patch": 2, "deterministic_gap": 1}
+  }
+}
+```
+
+聚合規則：
+
+- `total`：ledger.friction_log[] 的條目數。
+- `by_stage`：以 `stage` 欄位聚合。
+- `by_kind`：以 `friction_kind` 欄位聚合。
+
+`friction_log_summary` 不為空時，report 必須在 `follow_ups[]` 或 `follow_up_dp_seed`
+標出對應的後續 DP / backlog item；不可只回 `complete` 就結束。
+
 ## Framework-release Tail
 
 `auto-pass` report 可以輸出 framework release 下一步 trigger：

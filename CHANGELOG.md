@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.109] - 2026-05-21
+
+### Added — DP-214 auto-pass friction-log artifact 契約
+
+- `scripts/validate-auto-pass-ledger.sh`：新增 optional `friction_log[]` schema check，包含 `friction_kind` 8 值 enum (`inner_skill_halt_bypass`、`manual_artifact_patch`、`deterministic_gap`、`env_bypass`、`validator_contract_conflict`、`missing_helper_script`、`language_drift_repair`、`other`) 與 `stage` 6 值 enum (`source`、`breakdown`、`engineering`、`verify-AC`、`framework-release`、`post-task`)；summary > 280 chars 印 stderr WARNING 但不變更 exit code（AC-NEG3）。
+- `scripts/validate-auto-pass-report.sh`：從 `ledger_path` 重新聚合 ledger `friction_log[]` 為 `friction_log_summary`（`total` / `by_stage` / `by_kind`）；report 若帶 snapshot 必須與 ledger 聚合完全一致，否則 fail；validator-owned 不可手寫。
+- `scripts/append-auto-pass-friction.sh`（新）：atomic append helper，含 enum 驗證、>280 chars WARNING、不截斷契約 (AC-NEG3)。
+- `scripts/selftests/auto-pass-friction-log-selftest.sh`（新）：覆蓋 helper round-trip、enum rejection、soft-limit warning、ledger validator schema check、report validator 聚合一致性、mismatched summary fail。
+- `.claude/skills/references/auto-pass-ledger.md`、`auto-pass-report.md`、`auto-pass/SKILL.md`、`post-task-reflection-checkpoint.md` 同步補 friction_log[] schema、寫入時機、消費契約與 follow_up_dp_seed 提示。
+- 提供下一輪 refinement / sprint planning 的權威 signal source：deterministic gap、繞道、手動補位都不再只能口頭交代。
+
 ## [3.75.108] - 2026-05-21
 
 ### Changed — DP-216 scan-template-leaks selftest-slug recognition

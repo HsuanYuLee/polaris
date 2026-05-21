@@ -92,6 +92,67 @@ if tail is not None:
     elif "framework-release" not in str(tail.get("trigger", "")):
         errors.append("framework_release_tail.trigger must reference framework-release")
 
+# DP-214: friction_log_summary is computed from the ledger referenced by ledger_path.
+# It is validator-owned: the report writer MAY include a snapshot, but if present it
+# must match the ledger aggregation exactly. Validator will not silently rewrite it.
+FRICTION_KIND_ENUM = {
+    "inner_skill_halt_bypass",
+    "manual_artifact_patch",
+    "deterministic_gap",
+    "env_bypass",
+    "validator_contract_conflict",
+    "missing_helper_script",
+    "language_drift_repair",
+    "other",
+}
+FRICTION_STAGE_ENUM = {"source", "breakdown", "engineering", "verify-AC", "framework-release", "post-task"}
+
+
+def aggregate_friction(entries):
+    summary = {"total": 0, "by_stage": {}, "by_kind": {}}
+    for entry in entries or []:
+        if not isinstance(entry, dict):
+            continue
+        summary["total"] += 1
+        stage = entry.get("stage")
+        if stage in FRICTION_STAGE_ENUM:
+            summary["by_stage"][stage] = summary["by_stage"].get(stage, 0) + 1
+        kind = entry.get("friction_kind")
+        if kind in FRICTION_KIND_ENUM:
+            summary["by_kind"][kind] = summary["by_kind"].get(kind, 0) + 1
+    return summary
+
+
+ledger_friction = None
+ledger_path_value = data.get("ledger_path")
+if isinstance(ledger_path_value, str) and ledger_path_value:
+    ledger_p = Path(ledger_path_value)
+    if ledger_p.is_file():
+        try:
+            ledger_payload = json.loads(ledger_p.read_text(encoding="utf-8"))
+        except Exception as exc:
+            errors.append(f"ledger_path JSON invalid: {exc}")
+            ledger_payload = None
+        if isinstance(ledger_payload, dict):
+            ledger_friction = ledger_payload.get("friction_log") or []
+            if not isinstance(ledger_friction, list):
+                errors.append("ledger friction_log must be an array when present")
+                ledger_friction = []
+
+computed_summary = aggregate_friction(ledger_friction) if ledger_friction is not None else None
+declared_summary = data.get("friction_log_summary")
+if declared_summary is not None:
+    if not isinstance(declared_summary, dict):
+        errors.append("friction_log_summary must be an object when present")
+    elif computed_summary is None:
+        errors.append("friction_log_summary present but ledger could not be read")
+    elif declared_summary != computed_summary:
+        errors.append(
+            "friction_log_summary does not match ledger aggregation; "
+            f"expected {json.dumps(computed_summary, sort_keys=True)}, "
+            f"got {json.dumps(declared_summary, sort_keys=True)}"
+        )
+
 if errors:
     fail(errors)
 print(f"PASS: auto-pass report validation ({path})")
