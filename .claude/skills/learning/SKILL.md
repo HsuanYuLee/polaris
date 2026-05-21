@@ -65,6 +65,23 @@ Route A learning producer 不得直接寫 `design-plans/DP-*/index.md`、`plan.m
 `scripts/validate-learning-seed-contract.sh --producer learning --diff-range <base..head>`；
 refinement LOCK 前的 structural audit 則由 refinement 以
 `--producer refinement --source-container <DP-folder>` 顯式呼叫。
+
+### External Seed Contract — DP Container Authority
+
+`/learning` External Route A seed 時，**DP container 不存在**的處理：
+
+- 不要手動 Write `index.md` / `plan.md` / `refinement.md` / `refinement.json`，也不要填
+  canonical authoring field（`status`、`sidebar`、`locked_at` 等）。
+- 提示使用者下一步跑 `/refinement "topic"`，由 `refinement` 透過
+  `scripts/create-design-plan.sh` 建立 container（這是 `refinement-dp-source-mode.md` T1
+  指定的唯一 template authority）。
+- DP container 已存在時，才在 `{source_container}/artifacts/research-report.md` 寫 evidence；
+  `/refinement` 讀到 research-report 後，依 T0 規則轉成 candidate Decisions。
+
+Why：違反契約會把 canonical field 填成非 schema 值（實例：DP-188 seed 階段用
+`status: DRAFT`，validator 在 refinement 開頭擋下，需手動修為 `DISCUSSION`）。
+Deterministic enforcement 由 `scripts/validate-learning-seed-contract.sh` 把關，但 LLM
+producer 不應該依賴 gate exit 2 才停手。
 若 research D2 transport artifact 位於 `docs-manager/src/content/docs/specs/**/*.md`，
 必須走 specs-bound emit contract：frontmatter 包含 `title`、`description`、
 `draft: true`、`sidebar.hidden: true`、`artifact_type`、`source`、`created`，並符合

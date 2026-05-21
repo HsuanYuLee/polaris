@@ -121,6 +121,36 @@ generated parity outputs、或既有 task scope 內的 deterministic script outp
 design decision。真正的判準不是大小，而是這個修改是否需要 semantic judgment；只要需要，
 就必須走正式流程。
 
+## Checkpoint vs Work Order
+
+Checkpoint 只用來恢復 session context（branch、ticket、phase、pending items），**不是**
+canonical work order，也不是 implementation 授權。即使 checkpoint 內含詳細實作描述，
+也不可以拿來代替 `task.md`。
+
+- 收到「resume / 繼續 / 做這張單」這類請求時，先跑 `scripts/resolve-task-md.sh`（或 owning
+  skill 的對應 resolver）找出單一 canonical `task.md`。
+- 若 resolver 回報 no `task.md` 或 multiple matches，**fail-stop**：不開 branch、不 patch
+  code，回 owning planning skill（`bug-triage` / `breakdown`）建立或修復 work order。
+- Checkpoint 只能影響 context restore，不能繞過 work order gate、Allowed Files、Verify
+  Command 或 completion gate。
+- Why：Polaris 只有一條 delivery flow。把 checkpoint 當作授權會 silently 跳過 task scope、
+  evidence binding 與 closeout，導致 plan ↔ delivery 永久脫鉤。
+
+## Framework Gap Immediate Routing
+
+Mid-task 發現 framework gap（gap 修正會改到 `.claude/rules/**`、`.claude/skills/**`、
+scripts、hooks、validators，或任何需要 VERSION bump + Polaris sync 的檔案）時：
+
+- **不要** propose 一條 backlog entry 當 deferral path — backlog 等於遺忘入口。
+- **不要** 在 main session 直接 patch — 違反上方 Semantic Code Change Flow Gate。
+- 立刻 route 到 `refinement`（或 attach 到既有 DP），再走 `breakdown -> engineering ->
+  framework-release` 主鏈。
+
+Carve-out（仍允許不開 DP）：pure typo fix（零行為意涵）、generated artifacts（compiled
+target，source 在他處）、或已在 active engineering task worktree scope 內的修改。
+判定 test：這次修改需要寫進 CHANGELOG 嗎？需要 → DP；不需要 → mechanical，main session
+直接 edit OK。
+
 ## Deprecated Admin Entrypoint Guard
 
 舊的無 task.md Admin PR entrypoint 已 sunset。當使用者要求 framework/docs repo 直接「開 PR」或「發 PR」時，先確認是否能 resolve 到 DP-backed `task.md`：

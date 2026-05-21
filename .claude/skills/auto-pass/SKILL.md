@@ -91,6 +91,25 @@ Inner skill HALT 不等於 user decision。若 deterministic marker / validator 
 auto-pass 必須繼續 dispatch；只有 context pressure / runtime pressure 才可寫
 `pause.kind=session_handoff` 與 resume artifact。
 
+**Recoverable HALT 必須繼續 dispatch（不可停下等使用者確認）**：
+
+`engineering -> breakdown` 與 `breakdown -> refinement-inbox` 都是 SKILL.md 明文允許的
+backward transition，且各自有 loop counter cap。當 inner skill 因 recoverable signal HALT
+（plan-defect、verify command typo、scope escalation 等 1-token spec fix）時，auto-pass
+**必須**：
+
+1. 更新 ledger `stage_events`，evidence_path 指向 sidecar 絕對路徑。
+2. 增對應 `loop_counters` 計數（例如 `engineering_to_breakdown`）。
+3. cap check：counter >= 3 才 terminal `loop_cap_reached`；否則直接 dispatch 下一個 owning
+   skill，不可停下回報「next step: breakdown」就交還 user。
+4. 把 inner skill 的 user-facing "next step" Report 當成 evidence source，**不是** auto-pass
+   orchestrator 的 terminal signal。
+
+auto-pass 的合法 terminal 只有：`complete`、`loop_cap_reached`、`blocked_by_gate_failure`
+（probe UNKNOWN 或 unrecoverable env issue）、`paused_for_session_handoff`（context /
+runtime pressure 且 resume artifact 已寫）。Inner skill 的「Report」邊界不是 orchestrator
+邊界；recoverable HALT 自動 loop 才符合使用者啟動 auto-pass 的 consent。
+
 probe result 只能來自 DP-201 proof-of-work marker、task frontmatter 或 validated ledger。若
 `scripts/auto-pass-probe.sh` 無法判讀 outcome，terminal 必須是 `blocked_by_gate_failure`；
 不可用 inner skill final answer 或 raw prose 補判斷。

@@ -4,6 +4,35 @@ How Polaris improves itself. Three cadences, each with its own mechanism.
 
 > Detailed procedures (Iteration Cadence Map, Post-Version-Bump Chain steps, Backlog Hygiene scan rules, Validated Pattern Promotion steps, Framework Experience frontmatter template) are in `skills/references/framework-iteration-procedures.md`.
 
+## Self-Iteration Release Boundary
+
+`framework-release` 是 Polaris framework self-iteration tail：本人即 reviewer + maintainer，
+skill 自己負責 merge workspace PR、驗證 VERSION/CHANGELOG/task_head_sha、`sync-to-polaris.sh
+--push`、tag、GitHub release、closeout。
+
+- 不要在 framework workspace PR 上等 codeowner approval、external reviewer signoff、
+  third-party CI green light；framework workspace 沒有外部 reviewer，self-iteration 設計
+  就是 maintainer 自己 merge。
+- `auto-pass` terminal complete + `framework_release_tail.allowed=true` 即 release
+  green-light；不要把它解讀成「等別人 review/merge」。
+- 區分：產品 repo PR 仍需 reviewer approval；framework workspace PR 在 self-iteration
+  intent 下由 `framework-release` skill 自己收尾。
+
+## Template-Facing Examples Must Be Generic
+
+被 sync 到 Polaris template repo（`/Users/hsuanyu.lee/polaris`）的 framework 檔案——
+包含 skills、references、scripts、docs、`SKILL.md` 範例、help text、usage comments、
+test fixtures——**禁止**使用 live company slug、repo name、ticket prefix、Slack ID 或
+URL。一律以 `exampleco` / `exampleco-web` 等 generic placeholder 取代。
+
+- Comments、help text、tests 都是 template surface，不是「無害的本地 prose」。
+- Release 前若改動 skills/references/scripts/docs/examples，跑
+  `scripts/scan-template-leaks.sh --workspace <workspace-root> --source workspace
+  --blocking`；歷史 release 曾因某 script 的 usage comment 含 live company slug 字串而被
+  scan 擋下——runtime code 是對的，但 comment 仍被歸類為 template material。
+- Leak scan fail 時，先在 workspace source 修正，merge workspace PR，再從 corrected
+  workspace `main` 重跑 `sync-to-polaris.sh`；不要在 template repo 手動 patch。
+
 ## Target-State First Framework Development
 
 Framework planning starts from the clean target state. Compatibility can be a delivery tool, but it must be temporary by contract.

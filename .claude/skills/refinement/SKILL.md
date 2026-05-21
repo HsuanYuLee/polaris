@@ -153,6 +153,47 @@ Step 7 同時執行 runtime cache residue gate：
 bash scripts/check-runtime-cache-residue.sh --repo . --source-container {source_container}
 ```
 
+## Framework Contract Change Guard
+
+`refinement` 用於討論 framework contract change（skills、rules、references、validators、
+handoff contracts、workflow boundary）時，**proposal 必須落到 DP artifact**，不可只停在
+chat：
+
+1. 把 topic resolve 成 ticketless DP source；DP container 不存在時，由
+   `scripts/create-design-plan.sh` 建立。
+2. 在 `{source_container}/refinement.md` + `refinement.json` 寫入 Goal、Background、
+   Decisions、Blind Spots、AC、Implementation Scope（不是只在 chat 列重點）。
+3. 跑 `scripts/validate-language-policy.sh --blocking --mode artifact <refinement.md>`。
+4. 跑 docs-viewer sidebar sync（`scripts/docs-viewer-sync-hook.sh` 或 specs-sidebar-sync
+   hook）讓使用者能在 docs-manager preview 讀到。
+5. **完成上述後**才向使用者回報 DP path，等指示是否進入 breakdown / engineering。
+
+Why：chat-only proposal 跨 session 容易丟失，且違反「framework contract change 預設走
+DP」的 mandatory contract。下游 `breakdown` / engineering 需要 durable plan artifact 才能
+建立 task.md、Allowed Files、Verify Command。實例：DP-060（check-pr-approvals token slimming）
+原本只在 chat 提案，使用者問「有 dp 嗎」後才補建 container。
+
+## Unsolicited LOCK Prompt Forbidden
+
+Refinement gates 全 PASS、artifact 完成後，**不可**主動：
+
+- 在 chat 提示「DP-NNN 可以 LOCK 並 route 到 breakdown 嗎？」
+- 在 AskUserQuestion 提供「LOCK and 進入 breakdown」之類的選項
+- 暗示下一步應該做什麼（除非使用者明確問下一步）
+
+正確收尾輸出：陳述狀態（DP container 已建立、artifacts 完成、status 仍 `DISCUSSION`、
+gates 全 PASS）+ 已產出 artifact 路徑 → **停下**等使用者下一個明確指示（例如「LOCK」、
+「定版」、「開始做」、「breakdown DP-NNN」）。
+
+Why：使用者授權「建立計劃」≠ 授權「跑完 refinement → LOCK → breakdown」。`refinement-
+dp-source-mode.md` Step 7 規定的是「使用者說 LOCK 時要跑哪些 gate」，**不是**「gates 跑完
+要主動問要不要 LOCK」。AskUserQuestion 只用在「需要使用者拍板 design content 才能繼續寫
+artifact」的情境，不用在「artifact 完成後要不要狀態轉換」的情境。
+
+本 rule 適用所有 refinement-owned source（DP / JIRA Epic / Story / Task / ticketless
+topic），不只 DP。例外只有 auto-pass amendment mode：amendment 已透過 ledger 取得 consent，
+不需要再向使用者發問。
+
 ## L2 Deterministic Check: post-task-feedback-reflection
 
 完成 write flow 後必須呼叫 `scripts/check-feedback-signals.sh`。

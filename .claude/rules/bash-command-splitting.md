@@ -53,6 +53,76 @@ Bash: /path/to/fetch.sh --author user | /path/to/check.sh --threshold 2
 | Multiple independent commands | Split into parallel Bash tool calls ✅ |
 | Sequential dependent operations | Split into sequential Bash tool calls ✅ |
 
+## Aggregate File Lists Need xargs
+
+對多個 changed Markdown 跑 aggregate validator 時，不要把 newline-separated file list 塞進
+shell 變數再當單一參數傳：
+
+```bash
+# ❌ Wrong — newline handling 在不同 shell/tool 之間不一致，validator 會把整串當一個路徑
+changed=$(git diff --name-only ...)
+bash scripts/validate-language-policy.sh ... $changed
+```
+
+```bash
+# ✅ Correct — 透過 xargs 把每個路徑變成獨立 argument
+git diff --name-only -- .claude/skills \
+  | rg '\.md$' \
+  | xargs bash scripts/validate-language-policy.sh --blocking --mode artifact
+```
+
+Starlight authoring check 額外要排除共用 index：
+
+```bash
+git diff --name-only -- .claude/skills/references \
+  | rg '\.md$' \
+  | rg -v '^\.claude/skills/references/INDEX\.md$' \
+  | xargs bash scripts/validate-starlight-authoring.sh check
+```
+
+Why：`references/INDEX.md` 故意不寫 Starlight frontmatter，當 Starlight page 檢查會誤報；
+path argument handling bug 也會讓 aggregate gate 看起來像 content failure，實際上是命令
+構造錯誤。
+
+## Helper Script Invocation — Workspace Root
+
+Polaris helper scripts 不保證在 fresh shell 的 `PATH` 上。**禁止**直接呼叫 script 名稱、
+依賴環境變數 PATH：
+
+```bash
+# ❌ Wrong
+polaris-learnings.sh query --top 5 --min-confidence 3
+```
+
+```bash
+# ✅ Correct — 用 workspace-relative path 並設定 POLARIS_WORKSPACE_ROOT
+POLARIS_WORKSPACE_ROOT=/Users/hsuanyu.lee/work \
+  bash scripts/polaris-learnings.sh query --top 5 --min-confidence 3
+```
+
+Why：`scripts/polaris-learnings.sh` 與多支 Polaris helper 在 `POLARIS_WORKSPACE_ROOT` 缺失時
+fail-stop。By-path 呼叫讓 cwd 無關，避免假性 `command not found` 與「我以為這支 script 不
+存在」的誤判。
+
+## Gate Preflight Fail-Stop
+
+任何「gate → external side effect」command sequence（PR/JIRA/Slack write）都要把 gate 與
+writer 放在 fail-stop boundary：
+
+```bash
+set -euo pipefail
+tmp="$(mktemp)"
+printf '%s\n' "$body" > "$tmp"
+bash scripts/validate-language-policy.sh --blocking --mode artifact "$tmp"
+gh pr create --body-file "$tmp"
+```
+
+- 用 `set -euo pipefail`，或把 gate 與 writer 拆兩個 command，writer 只在 gate exit 0 後執行。
+- Validator 需要 file path 時，materialize 一個真實的 `mktemp` 檔案，不要依賴 process
+  substitution（不同 shell 行為不一致）。
+- Why：PR/JIRA/Slack 寫入屬於 external side effect，gate 失敗後 writer 仍跑會造成 policy
+  drift，事後需手動清理（撤 PR、刪 comment、發 retraction 訊息）。
+
 ## Why
 
 `settings.json` `permissions.allow` uses glob patterns to match commands.

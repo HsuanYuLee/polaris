@@ -44,6 +44,47 @@ bash scripts/gates/gate-changed-files-scope.sh \
 若 gate fail，engineering 不得自行擴大 scope；應 route back to refinement 更新
 `changed_files` 或縮小 implementation diff。
 
+## Revision Mode — Explicit --pr
+
+Revision mode（fix review comments、push CI fix、補 verify evidence）操作既有 PR 時，
+**必須**對下列共用 PR state script 顯式傳 `--pr <number>`：
+
+- `scripts/resolve-pr-work-source.sh --pr <number>`
+- `scripts/pr-state-snapshot.sh --pr <number>`
+- `scripts/pr-action-classifier.sh --pr <number>`
+
+不傳 `--pr` 時這三支會走 branch-fallback：以 current git branch 推 PR。主 checkout 可能
+已切到另一張 task branch，resolver 會挑到錯 PR（例：PR #1234 對應 PROJ-AAAA，但主
+checkout 在 `task/PROJ-BBBB-...` 上，resolver 回 PR 1235 或 `pr_number: null`），導致
+completion gate evidence、JIRA write-back 與 closeout 全部 bind 錯 PR。
+
+`engineering-revision-worktree-setup.sh` 已要求 `--pr`；同樣 discipline 套用到上述三支
+resolver/snapshot/classifier triad。
+
+## Gate Invocation — Portable Paths
+
+Portable gate helper 不是全部在同一個目錄，且 argument shape 不一致：
+
+```bash
+# ✅ Correct
+bash scripts/gates/gate-ci-local.sh --repo /path/to/repo
+bash scripts/gates/gate-evidence.sh --repo /path/to/repo --ticket PROJ-NNNN --task-md /path/to/task.md
+(
+  cd /path/to/repo
+  bash /path/to/workspace/scripts/check-base-fresh.sh /path/to/task.md
+)
+```
+
+```bash
+# ❌ Wrong — root-level guesses / passing repo-style args to base-fresh
+bash scripts/gate-ci-local.sh --repo ... --task-id ... --head ...
+bash scripts/gate-evidence.sh --repo ... --task-id ... --head ...
+bash scripts/check-base-fresh.sh --repo ... --task-md ... --pr ...
+```
+
+Why：`gate-ci-local.sh` 與 `gate-evidence.sh` 是 `scripts/gates/` 底下的 portable wrapper，
+自行 resolve HEAD；`check-base-fresh.sh` 只接 `<task_md>`，依當前 git repo cwd 比對 HEAD/base。
+
 ## DP-201 Proof Markers
 
 engineering 擁有 auto-pass 需要讀取的 delivery state durable proof markers：

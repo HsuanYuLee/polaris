@@ -7,6 +7,19 @@ description: "Polaris shared skill references 的索引與觸發提示。"
 
 Skill 執行前掃描本 index，根據 description 和 triggers 判斷相關性，拉入相關 reference 後再開始。
 
+## Path Resolution — Skill-Relative
+
+SKILL.md 內 `../references/<file>.md` 這類相對路徑必須以 **skill 檔案所在目錄** 為基準
+resolve，不是以 workspace `.claude/` root 為基準。
+
+- 例：`/Users/hsuanyu.lee/work/.claude/skills/breakdown/SKILL.md` 內的
+  `../references/post-task-reflection-checkpoint.md` 解析為
+  `/Users/hsuanyu.lee/work/.claude/skills/references/post-task-reflection-checkpoint.md`，
+  **不是** `/Users/hsuanyu.lee/work/.claude/references/...`。
+- Resolve 步驟：把 relative path 與 `dirname(SKILL.md)` 接起來，再 fall back 到 search。
+- Why：Skill docs 大量使用 directory-relative path；猜測從 workspace root 算起會在 required
+  post-task checks 觸發無謂 command failure。
+
 ## JIRA Operations
 
 | File | Description | Triggers |

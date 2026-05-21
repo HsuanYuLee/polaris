@@ -4317,6 +4317,34 @@
       "owner": "polaris-framework"
     },
     {
+      "id": "dp218-graduation-anchors",
+      "command": "bash scripts/selftests/dp218-graduation-anchors-selftest.sh",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        ".claude/rules/skill-routing.md",
+        ".claude/rules/framework-iteration.md",
+        ".claude/rules/bash-command-splitting.md",
+        ".claude/rules/sub-agent-delegation.md",
+        ".claude/rules/handbook/working-habits.md",
+        ".claude/rules/kkday/jira-conventions.md",
+        ".claude/skills/auto-pass/SKILL.md",
+        ".claude/skills/refinement/SKILL.md",
+        ".claude/skills/breakdown/SKILL.md",
+        ".claude/skills/learning/SKILL.md",
+        ".claude/skills/references/INDEX.md",
+        ".claude/skills/references/engineer-delivery-flow.md",
+        "scripts/selftests/dp218-graduation-anchors-selftest.sh"
+      ],
+      "fixtures": [
+        "18 graduated memory anchors present in target framework files"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
       "id": "auto-pass-proof-of-work",
       "command": "bash scripts/selftests/validate-auto-pass-proof-selftest.sh",
       "profiles": [

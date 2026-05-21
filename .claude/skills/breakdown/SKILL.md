@@ -62,6 +62,33 @@ to `refinement`。
   Fallback Behavior。
 - 完成任何 write 後最後跑 Post-Task Reflection。
 
+## Task Splitting Heuristic — Reviewable PR Boundary
+
+Phase 2 / DP refinement 寫 Work Orders 前，對每張 candidate task 問三題：
+
+1. 這張 task 有獨立的 producer 程式碼或 helper script 嗎？
+2. 如果沒有，Allowed Files 是否 ≥ ~5 個且 ≥ ~100 行？
+3. 切出來後，是否有獨立 review value（reviewer 看完能單獨判斷 PASS）？
+
+三題全部 No 表示這張 task 是 **contract registration micro-task**（純 reference doc 加段
+落 + SKILL.md 加 3 行 + 補 selftest fixture，沒有獨立 producer code），必須合併進它最自然
+的父 task（通常是同層 schema/validator task）。
+
+多個 owning skill 各自登錄同一 contract 時，**不需要每個 skill 切一張 task**；合併進
+contract 主 task，Allowed Files 一次涵蓋多個 SKILL.md / reference doc。
+
+例外：某 owning skill 的 producer 確實有獨立 helper script（如 `run-verify-command.sh`
+等級的 writer），該 skill 可獨立切 task。
+
+Rule of thumb：
+
+- 3pt 以下 + 純文件登錄 → bundle
+- 3pt 以上 + 含 helper script / hook / validator → 可獨立
+
+Why：缺乏 producer code 等於沒有獨立 PR boundary。engineering 會把多張 micro-task 合併進
+一顆 PR（DP-201 原 plan 切 T2/T3/T4 共 13pt 結果全併入 PR #343 commit a4763f6），導致
+plan ↔ delivery 永久脫鉤，必須 reopen refinement 壓縮 task 結構。
+
 ## Source Routing
 
 先讀 `spec-source-resolver.md` 判斷 source type，再只讀對應 reference：

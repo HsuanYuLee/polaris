@@ -10,6 +10,7 @@
 - **Explore-then-Implement**: when scanning the codebase, use the adaptive exploration mode from `skills/references/explore-pattern.md`. Goal: keep the implementation phase's context window clean
 - **Sub-agent Talent Pool**: all sub-agent dispatching should reference the role definitions in `skills/references/sub-agent-roles.md`
 - **Runtime claims require runtime evidence**: when a sub-agent's analysis concludes something about runtime behavior (HTML output location, API response format, rendering result, framework default behavior), the Strategist must verify with actual execution (curl, dev server, test run) before adopting the conclusion. Source code analysis is a hypothesis, not evidence — frameworks have plugins, configs, and runtime overrides that change behavior. This applies even when the sub-agent's reasoning sounds plausible
+- **DP completion audit must verify merged PR diff**: 任何「DP 是否實作完整」audit 必須先抓 merged PR 與 release tag evidence，再對照 spec AC，**不可**只看 `docs-manager/.../DP-*/tasks/` 本地目錄結構就推斷哪些 task 未完成。Task 目錄是 planning artifact，不是 delivery evidence；單顆 PR 可常 bundle 多個 task（DP-191 V1 PR 就 bundle 了 T1/T2/T3，`tasks/pr-release/` 是合法的 release-bundle pattern）。Sub-agent prompt 必須要求「先輸出 merged PR 列表（`gh pr list --search "DP-NNN" --state all --json number,state,mergedAt,mergeCommit,title,files`）+ release tag（`gh release view vX.Y.Z`）evidence，再開始 AC 比對」，把 evidence 排序強制先於 inference。這條同時是 "Runtime claims require runtime evidence" 在 DP audit 場景的具體應用
 
 ## Operational Rules
 

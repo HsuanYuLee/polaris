@@ -4,6 +4,39 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.112] - 2026-05-21
+
+### Changed — DP-218 memory → framework graduation（18 條 prose feedback 一次 absorb）
+
+把累積在 auto-memory Hot section 的 18 條 prose feedback memory 一次 graduate 進 framework canonical surface（rules / skills / references），同步刪除 absorbed memory 檔案、regenerate `MEMORY.md`，使規則 source of truth 從 memory 收斂到可被 deterministic gate 引用、cross-LLM 共用的 framework artifact。Hot section 從 30 條降到 2 條（只剩 DP-219 預定處理的 `feedback_run_verify_command_worktree_blind` 與 active project snapshot）。
+
+Mapping（memory file → target framework anchor）：
+
+| Memory file | Target | Anchor |
+|---|---|---|
+| `feedback_no_checkpoint_as_work_order` | `.claude/rules/skill-routing.md` | § Checkpoint vs Work Order |
+| `feedback_framework_release_is_self_iteration` | `.claude/rules/framework-iteration.md` | § Self-Iteration Release Boundary |
+| `feedback_auto_pass_must_not_stop_on_recoverable_halt` | `.claude/skills/auto-pass/SKILL.md` | Execution Loop § Recoverable HALT |
+| `feedback_refinement_no_unsolicited_lock_prompt` | `.claude/skills/refinement/SKILL.md` | § Unsolicited LOCK Prompt Forbidden |
+| `feedback_pr_resolver_branch_fallback` | `.claude/skills/references/engineer-delivery-flow.md` | § Revision Mode — Explicit --pr |
+| `feedback_portable_gate_paths` | `.claude/skills/references/engineer-delivery-flow.md` | § Gate Invocation — Portable Paths |
+| `feedback_aggregate_gate_file_lists` | `.claude/rules/bash-command-splitting.md` | § Aggregate File Lists Need xargs |
+| `feedback_polaris_scripts_require_workspace_root` | `.claude/rules/bash-command-splitting.md` | § Helper Script Invocation — Workspace Root |
+| `feedback_template_examples_must_be_generic` | `.claude/rules/framework-iteration.md` | § Template-Facing Examples Must Be Generic |
+| `feedback_refinement_contract_requires_dp_artifact` | `.claude/skills/refinement/SKILL.md` | § Framework Contract Change Guard |
+| `feedback_gate_preflight_fail_stop` | `.claude/rules/bash-command-splitting.md` | § Gate Preflight Fail-Stop |
+| `feedback_skill_reference_relative_paths` | `.claude/skills/references/INDEX.md` | § Path Resolution — Skill-Relative |
+| `feedback_dp_completion_audit_must_verify_merged_pr` | `.claude/rules/sub-agent-delegation.md` | Delegation Patterns § DP completion audit |
+| `feedback_learning_seed_contract_gap` | `.claude/skills/learning/SKILL.md` | External Mode § External Seed Contract — DP Container Authority |
+| `feedback_refinement_no_overspilt_contract_tasks` | `.claude/skills/breakdown/SKILL.md` | § Task Splitting Heuristic — Reviewable PR Boundary |
+| `feedback_apply_standards_not_ask_user` | `.claude/rules/handbook/working-habits.md` | § Strategist 互動風格 § Apply 標準 |
+| `feedback_kb2cw_close_via_pending` | `.claude/rules/kkday/jira-conventions.md` | § KB2CW 子單「不做了就關掉」|
+| `feedback_small_framework_gap_fix_now` | `.claude/rules/skill-routing.md` | § Framework Gap Immediate Routing |
+
+- `scripts/selftests/dp218-graduation-anchors-selftest.sh`（新）：18 條 anchor grep check，AC1 / AC-NEG1 evidence；任一 anchor 缺失 exit 1。
+- `scripts/manifest.json`：登記 `dp218-graduation-anchors` selftest（governed test profile `core` / `release`）。
+- 18 個 memory 檔案 graduation PR 內刪除；`~/.claude/projects/-Users-hsuanyu-lee-work/memory/MEMORY.md` 透過 `scripts/memory-hygiene-tiering.py --emit-index` regenerate。
+
 ## [3.75.111] - 2026-05-21
 
 ### Changed — DP-217 writer-side deterministic guards 一次落地
