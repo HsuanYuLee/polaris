@@ -3236,6 +3236,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/append-auto-pass-friction.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/auto-pass-friction-log-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-auto-pass-report.sh",
       "kind": "gate",
       "runner": "bash",
