@@ -101,28 +101,37 @@ auto-pass v1 consent 內：
 `terminal_status` 可在進行中 ledger 為 `null`。一旦填入，值只能是：
 
 - `complete`
-- `paused_for_refinement`
 - `paused_for_user_external_write`
 - `loop_cap_reached`
 - `blocked_by_gate_failure`
 - `user_aborted`
 
+> **DP-212 migration**：`paused_for_refinement` 已從 terminal enum 移除，改為
+> non-terminal `pause.kind`。Legacy ledger 若仍帶 `terminal_status=paused_for_refinement`，
+> validator 會 fail 並指向 `PAUSED_FOR_REFINEMENT_LEGACY_TERMINAL`，請依現況改為非 terminal
+> pause 或以 current terminal status 收尾，不嘗試 silent upgrade。
+
 多個 terminal condition 同時存在時，priority 固定為：
 
 ```text
 user_aborted > blocked_by_gate_failure > loop_cap_reached >
-paused_for_user_external_write > paused_for_refinement > complete
+paused_for_user_external_write > complete
 ```
 
 ## Resume Fields
 
-`paused_for_refinement` 的 `pause` object 至少需要：
+`paused_for_refinement` 是 **non-terminal** pause (DP-212)：refinement-inbox 出現後，
+auto-pass 在主鏈內自動 dispatch `refinement` 進入 amendment mode，消費 inbox 後 loop
+回 breakdown。`terminal_status` 必須保持 `null`，由 `loop_counters.breakdown_to_refinement_inbox`
++ counter cap=3 決定是否升為 terminal `loop_cap_reached`。
+
+`pause` object 至少需要：
 
 - `kind: "paused_for_refinement"`
 - `reason`
 - `created_at`
 - `inbox_path`
-- resume 時追加 `inbox_consumed_at`
+- amendment 完成後追加 `inbox_consumed_at`、`amendment_commit_sha`、`amendment_round`
 
 `paused_for_user_external_write` 的 `pause` object 至少需要：
 
@@ -221,11 +230,11 @@ auto-pass ledger 內的 snapshot 是 cached view；breakdown marker 仍是 ownin
 |-------|-----------------|------------------|
 | breakdown | `task_snapshot` PASS | `PASS`，dispatch engineering |
 | breakdown | `validation_fail` / `missing_v_task` | `BLOCKED` / `blocked_by_gate_failure` |
-| breakdown | `refinement-inbox/` presence | `ROUTE_BACK` / `paused_for_refinement` |
+| breakdown | `refinement-inbox/` presence | `ROUTE_BACK_AMEND` / non-terminal `pause.kind=paused_for_refinement` (DP-212 amendment loop) |
 | engineering | `completion_gate` PASS + PR freshness | `PASS`，dispatch verify-AC |
 | engineering | `blocked_conflict` / `unsupported_mutation` | `BLOCKED` / `blocked_by_gate_failure` |
 | verify-AC | `ac_verification` PASS | `PASS` / `complete` when PR set ready |
-| verify-AC | `spec_issue` | `ROUTE_BACK` / `paused_for_refinement` |
+| verify-AC | `spec_issue` | `ROUTE_BACK_AMEND` / non-terminal `pause.kind=paused_for_refinement` (DP-212 amendment loop) |
 | verify-AC | `MANUAL_REQUIRED` / `BLOCKED_ENV` | `paused_for_user_external_write` |
 | verify-AC | `UNCERTAIN` / missing marker / unknown marker | `blocked_by_gate_failure` |
 

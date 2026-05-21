@@ -272,3 +272,37 @@ verification artifact exists)`。`framework-release` 不是 planning/implementat
 只能消費 engineering 已建立的 workspace PR。
 
 Ticketless source 不寫 JIRA comments、labels、descriptions、sub-tasks。若需要正式 cross-team document，route 到 `sasd-review` 或明確建立 JIRA ticket。
+
+## LOCKED Scope Guard (DP-212)
+
+DP `index.md` 進入 `status: LOCKED` 後，**任何** refinement amendment 都受 LOCKED scope guard
+管制：
+
+| Section | LOCKED 後可改？ | 原因 |
+|---------|------------------|------|
+| `## Goal` | ❌ 不可 | LOCK 承諾的核心目標 |
+| `## Background` | ❌ 不可 | 鎖定當下的事件脈絡 |
+| `## Decisions` | ❌ 不可 | 鎖定的設計決策 |
+| `## Scope` / `## Out of Scope` | ❌ 不可 | 鎖定的範圍邊界 |
+| `## Acceptance Criteria` | ❌ 不可 | 鎖定的 AC 承諾 |
+| `## Technical Approach` | ✅ 可 | implementation detail，可隨 amendment 調 |
+| `## Dependencies` | ✅ 可 | dependency 變動需 amendment 反映 |
+| `## Open Questions` | ✅ 可 | 隨 dogfood 收斂 |
+| `## Downstream Breakdown Hints` | ✅ 可 | 子單拆分細節可調 |
+| `tasks/**/*.md` | ✅ 可 | task.md 細節 / Verify Command / Allowed Files 可 amendment |
+
+實際 enforce 由 `scripts/validate-refinement-locked-scope.sh` 負責：amendment commit 的
+`refinement.md` / `refinement.json` diff 對照白名單 section，若觸及 LOCKED section
+（heading 或 JSON `acceptance_criteria` / `goal` / `scope` field）則 exit 2 並輸出
+`POLARIS_LOCKED_SCOPE_VIOLATION` stderr。auto-pass 收到 exit 2 後必須升 terminal
+`blocked_by_gate_failure`，由人類決定是否走完整 unlock + refinement 流程。
+
+### 人工 Unlock 流程
+
+LOCKED scope 真的需要改時，**不可** 透過 amendment 繞道，必須：
+
+1. 把 `index.md` `status` 從 `LOCKED` 改回 `DISCUSSION`、刪 `locked_at`、把 sidebar badge 改回
+   `DISCUSSION / Pn`。
+2. 跑完整 `/refinement DP-NNN` 走 Phase 0/1/2 discovery 並更新 `refinement.md` / `refinement.json`。
+3. 重跑 Step 7 所有 gate，確認 LOCK 條件後再重新 LOCK。
+4. auto-pass 必須以新 ledger 重新啟動，舊 ledger 視為 stale。

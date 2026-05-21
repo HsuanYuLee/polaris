@@ -4,6 +4,23 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.110] - 2026-05-21
+
+### Changed — DP-212 auto-pass refinement-inbox auto-resume + LOCKED scope guard
+
+- `scripts/validate-auto-pass-ledger.sh`：`paused_for_refinement` 從 terminal enum 移除（DP-212 D1），改為 non-terminal `pause.kind`；legacy ledger 若仍帶 `terminal_status=paused_for_refinement`，validator 顯示 `PAUSED_FOR_REFINEMENT_LEGACY_TERMINAL` 並指向 migration note。`loop_counters.breakdown_to_refinement_inbox > 3` 必須 promote 到 `terminal_status=loop_cap_reached`，validator 主動把關。
+- `scripts/auto-pass-probe.sh`：`refinement-inbox/` 出現與 verify-AC `spec_issue` 不再回 terminal `paused_for_refinement`，改為 `ROUTE_BACK_AMEND` + action=`refinement_amendment`，由 orchestrator 自動 loop 而非中斷。
+- `.claude/skills/auto-pass/SKILL.md`：Dispatch Boundary 加 `refinement`（amendment mode）；execution loop 文件補 amendment counter 行為；scope guard 違規時改 `blocked_by_gate_failure` + follow-up DP seed。
+- `.claude/skills/refinement/SKILL.md`：Mode Routing 新增 *auto-pass driven amendment* 列；amendment 不發問、不重做 Phase 0/1/2 discovery，只消費 `refinement-inbox/` 並在 LOCKED scope guard 限制內更新 refinement artifact。
+- `.claude/skills/references/refinement-return-inbox.md`：補 `consumed_by_amendment` schema (`amender` / `amendment_commit_sha` / `amendment_round` / `rejected_by_scope_guard` / `scope_violation_detail`)。
+- `.claude/skills/references/refinement-dp-source-mode.md`：新增 § LOCKED Scope Guard，逐 section 標註 LOCKED 後可否變動 + 人工 unlock 流程。
+- `.claude/skills/references/auto-pass-ledger.md`：terminal enum 更新；non-terminal pause kind 補 amendment loop fields；probe mapping 表標 `ROUTE_BACK_AMEND`。
+- `.claude/rules/skill-routing.md`：補 amendment loop policy；說明使用者不需主動 `/refinement DP-NNN` 消化 inbox，由 auto-pass 控制；只有 LOCKED scope guard 觸發時才需要人工決定 unlock。
+- `scripts/validate-refinement-locked-scope.sh`（新）：amendment commit diff 對照 LOCKED section 白名單；違反 Goal / Background / Decisions / Scope / Out of Scope / Acceptance Criteria 或 JSON `goal` / `background` / `decisions` / `scope` / `acceptance_criteria` 時 exit 2 + `POLARIS_LOCKED_SCOPE_VIOLATION` stderr。
+- 新增 `scripts/selftests/auto-pass-amendment-loop-selftest.sh`（6 cases：non-terminal pause、legacy terminal、counter > cap、cap promotion、mismatch、cap edge）。
+- 新增 `scripts/selftests/refinement-locked-scope-selftest.sh`（4 cases：legitimate amendment / Goal body 違規 / JSON AC 違規 / Decisions heading rename 違規）。
+- `scripts/manifest.json` 註冊新 validator + 兩個新 selftest；governed test profile `core` / `release` 收錄。
+
 ## [3.75.109] - 2026-05-21
 
 ### Added — DP-214 auto-pass friction-log artifact 契約

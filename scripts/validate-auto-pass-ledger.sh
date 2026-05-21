@@ -90,14 +90,18 @@ CONSENT_EXCLUDES = [
     "jira_worklog_write",
     "task_scope_outside_mutation",
 ]
+# DP-212: paused_for_refinement is no longer a terminal status. It survives
+# as a non-terminal pause.kind (sibling of session_handoff). Legacy ledgers
+# that still set terminal_status=paused_for_refinement are explicitly flagged
+# with PAUSED_FOR_REFINEMENT_LEGACY_TERMINAL so they cannot silently coast.
 TERMINAL_STATUSES = {
     "complete",
-    "paused_for_refinement",
     "paused_for_user_external_write",
     "loop_cap_reached",
     "blocked_by_gate_failure",
     "user_aborted",
 }
+LEGACY_TERMINAL_PAUSED_FOR_REFINEMENT = "paused_for_refinement"
 CONSENT_FIELDS = ("auto_reestimate", "auto_resplit", "auto_task_repair")
 
 
@@ -237,7 +241,14 @@ if task_write_at:
 
 terminal_status = ledger.get("terminal_status")
 if terminal_status not in (None, "") and terminal_status not in TERMINAL_STATUSES:
-    errors.append(f"unknown terminal_status: {terminal_status}")
+    if terminal_status == LEGACY_TERMINAL_PAUSED_FOR_REFINEMENT:
+        errors.append(
+            "PAUSED_FOR_REFINEMENT_LEGACY_TERMINAL: terminal_status=paused_for_refinement "
+            "is no longer accepted (DP-212). Migrate to non-terminal pause.kind=paused_for_refinement "
+            "or close the ledger with a current terminal status."
+        )
+    else:
+        errors.append(f"unknown terminal_status: {terminal_status}")
 
 consent = ledger.get("consent_policy")
 if not isinstance(consent, dict):
@@ -255,6 +266,11 @@ for list_field in ("task_snapshot", "stage_events"):
         errors.append(f"{list_field} must be an array")
 
 loop_counters = ledger.get("loop_counters")
+# DP-212: counter cap=3 is enforced here. breakdown_to_refinement_inbox > 3
+# must be promoted to terminal_status=loop_cap_reached by the orchestrator;
+# the validator surfaces the cap violation as an error so it cannot keep
+# looping silently.
+COUNTER_CAP = 3
 if loop_counters is not None:
     if not isinstance(loop_counters, dict):
         errors.append("loop_counters must be an object")
@@ -263,6 +279,12 @@ if loop_counters is not None:
             value = loop_counters.get(key)
             if not isinstance(value, int) or value < 0:
                 errors.append(f"loop_counters.{key} must be a non-negative integer")
+                continue
+            if value > COUNTER_CAP and terminal_status != "loop_cap_reached":
+                errors.append(
+                    f"loop_counters.{key}={value} exceeds cap={COUNTER_CAP}; "
+                    f"terminal_status must be loop_cap_reached"
+                )
 
 drift_retry = ledger.get("drift_retry")
 if drift_retry is not None:
@@ -289,12 +311,19 @@ if pause is not None:
         if not pause.get("reason"):
             errors.append("pause.reason is required")
         parse_iso(pause.get("created_at"), "pause.created_at", errors)
-        if kind == "paused_for_refinement" and not pause.get("inbox_path"):
-            errors.append("paused_for_refinement pause requires inbox_path")
+        if kind == "paused_for_refinement":
+            # DP-212: paused_for_refinement is now non-terminal — the auto-pass amendment
+            # loop owns the inbox consumption. terminal_status must stay null while the
+            # ledger is in this pause kind.
+            if not pause.get("inbox_path"):
+                errors.append("paused_for_refinement pause requires inbox_path")
+            if terminal_status not in (None, ""):
+                errors.append(
+                    "paused_for_refinement pause is non-terminal (DP-212); "
+                    "terminal_status must be null while inbox is being consumed"
+                )
         if kind == "paused_for_user_external_write" and terminal_status != "paused_for_user_external_write":
             errors.append("paused_for_user_external_write pause requires matching terminal_status")
-        if kind == "paused_for_refinement" and terminal_status != "paused_for_refinement":
-            errors.append("paused_for_refinement pause requires matching terminal_status")
         if kind == "session_handoff":
             if terminal_status not in (None, ""):
                 errors.append("session_handoff pause is non-terminal and requires terminal_status=null")

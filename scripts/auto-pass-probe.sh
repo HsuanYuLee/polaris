@@ -216,7 +216,11 @@ if stage == "breakdown":
     inbox = repo / "docs-manager" / "src" / "content" / "docs" / "specs" / "design-plans"
     inbox_matches = list(inbox.glob(f"{source_id}-*/refinement-inbox/*.md"))
     if inbox_matches:
-        emit("ROUTE_BACK", "paused_for_refinement", "refinement", inbox_matches[0], "refinement inbox present")
+        # DP-212: refinement-inbox presence is now a non-terminal signal —
+        # auto-pass dispatches `refinement` in amendment mode, then loops
+        # back to breakdown. terminal_status stays null so the orchestrator
+        # does not stop unless counter cap or scope guard fires.
+        emit("ROUTE_BACK_AMEND", None, "refinement_amendment", inbox_matches[0], "refinement inbox present (amendment loop)")
     path = evidence / "task-snapshot" / f"{work_item_id}.json"
     if status_of(path) == "PASS":
         emit("PASS", None, "engineering", path)
@@ -242,7 +246,10 @@ if stage == "verify-AC":
         emit("UNKNOWN", "blocked_by_gate_failure", "blocked", None, "verify-AC probe requires --head-sha")
     spec_issue = evidence / "ac-verification" / f"spec-issue-{work_item_id}-{head_sha}.json"
     if spec_issue.is_file():
-        emit(status_of(spec_issue) or "ROUTE_BACK", "paused_for_refinement", "refinement", spec_issue, "spec issue")
+        # DP-212: spec_issue → non-terminal amendment loop (same as breakdown
+        # inbox presence). terminal_status stays null; orchestrator continues
+        # to dispatch refinement amendment mode until cap or scope guard fires.
+        emit(status_of(spec_issue) or "ROUTE_BACK_AMEND", None, "refinement_amendment", spec_issue, "verify-AC spec issue (amendment loop)")
     path = evidence / "ac-verification" / f"{work_item_id}-{head_sha}.json"
     status = status_of(path)
     if status == "PASS":

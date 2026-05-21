@@ -3245,6 +3245,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/validate-refinement-locked-scope.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/refinement-locked-scope-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-auto-pass-report.sh",
       "kind": "gate",
       "runner": "bash",
@@ -4217,6 +4226,46 @@
       ],
       "fixtures": [
         "temporary shell scripts with resolver and bare tool calls"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "auto-pass-amendment-loop",
+      "command": "bash scripts/selftests/auto-pass-amendment-loop-selftest.sh",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/validate-auto-pass-ledger.sh",
+        "scripts/auto-pass-probe.sh",
+        ".claude/skills/auto-pass/SKILL.md",
+        ".claude/skills/references/auto-pass-ledger.md",
+        "scripts/selftests/auto-pass-amendment-loop-selftest.sh"
+      ],
+      "fixtures": [
+        "non-terminal pause + counter loops"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "refinement-locked-scope",
+      "command": "bash scripts/selftests/refinement-locked-scope-selftest.sh",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/validate-refinement-locked-scope.sh",
+        ".claude/skills/references/refinement-dp-source-mode.md",
+        ".claude/skills/references/refinement-return-inbox.md",
+        "scripts/selftests/refinement-locked-scope-selftest.sh"
+      ],
+      "fixtures": [
+        "LOCKED Goal / AC / Decisions diffs",
+        "legitimate Technical Approach / Dependencies amendments"
       ],
       "enrolled": true,
       "owner": "polaris-framework"

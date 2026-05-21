@@ -59,6 +59,11 @@ ledger schema、consent enum、terminal enum 與 resume 欄位以
 1. `breakdown` 產生或修正 DP-backed work orders。
 2. `engineering` 依 authoritative task.md 施工、驗證並建立 non-draft workspace PR。
 3. `verify-AC` 驗收 V work order 並產生 current verification disposition。
+4. `refinement`（**amendment mode only**, DP-212）：當 `{source}/refinement-inbox/*.md` 出現
+   或 verify-AC 回 `spec_issue` 時，dispatch refinement 消費 inbox、把 implementation detail
+   微調寫回 `refinement.md` / `refinement.json`，counter +=1 後 loop 回 breakdown。Amendment
+   不向使用者發問、不重做 Phase 0/1/2 discovery、不能改 LOCKED scope（由
+   `validate-refinement-locked-scope.sh` 把關）。
 
 inner skill 的 mandatory gates 保持原樣。任何 planner-owned gap、scope escalation、AC spec
 issue、consent 外 external write、blocked conflict 或 unknown probe 都必須回到 owning skill 或
@@ -94,6 +99,13 @@ Planning backward transition counter 採 source-level cap：`engineering -> brea
 `breakdown -> refinement-inbox` 任一 counter 達 3 時 terminal `loop_cap_reached`。
 `verify-AC -> engineering` 的 implementation drift retry 另計；同一 V item 連續 3 次仍 FAIL 時
 terminal `blocked_by_gate_failure`。
+
+**Amendment loop (DP-212)**：`breakdown_to_refinement_inbox` 在 amendment mode 自動 loop，
+不是 hard-stop——每次 inbox 出現 → dispatch refinement amendment → 寫回 refinement artifact
+→ counter +=1 → 繼續 dispatch breakdown。只有 counter > 3 才 terminal `loop_cap_reached`。
+amendment 若命中 LOCKED scope guard（改到 Goal / Background / Decisions / Scope / AC），
+`validate-refinement-locked-scope.sh` exit 2 + 標 inbox `rejected_by_scope_guard=true`，
+auto-pass 必須 terminal `blocked_by_gate_failure` 並輸出 follow-up DP seed。
 
 ## Breakdown Consent Handoff
 

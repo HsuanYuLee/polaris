@@ -152,9 +152,18 @@ prose-only rule 自行逐 stage dispatch 或成為第二條 writer path。
 | `framework-release` without PR / task | missing terminal precondition | fail-stop 回 `refinement` / `breakdown` / `engineering` |
 
 `auto-pass` 是 locked/current DP-backed source 的 canonical main-chain orchestrator；它只
-dispatch `breakdown -> engineering -> verify-AC`，每段 mutation 仍由 owning skill 產生。
-`framework-release` 在這類語句中是 terminal-only tail，不得搶主流程入口，也不得補開 PR、
-補 task.md、或追認 source-less branch。
+dispatch `breakdown -> engineering -> verify-AC -> refinement(amendment)`（DP-212 後加 amendment
+mode），每段 mutation 仍由 owning skill 產生。`framework-release` 在這類語句中是 terminal-only
+tail，不得搶主流程入口，也不得補開 PR、補 task.md、或追認 source-less branch。
+
+**Amendment loop policy (DP-212)**：`/auto-pass` 收到 `refinement-inbox/` 或 verify-AC `spec_issue`
+時，不再 terminal `paused_for_refinement`；改為自動 dispatch `refinement` 進入 amendment mode，
+寫回 implementation detail 後 loop 回 breakdown。**使用者不需要也不應該** 主動下指令
+`refinement DP-NNN` 來消化 inbox；amendment 由 orchestrator 控制。若 amendment 觸發 LOCKED
+scope guard（要改 Goal / Background / Decisions / Scope / AC），`validate-refinement-locked-scope.sh`
+exit 2，auto-pass 升 terminal `blocked_by_gate_failure` 並回報「需要人工 unlock」，這時
+使用者才需要決定是否走完整 unlock + refinement 流程（步驟見 `refinement-dp-source-mode.md`
+§ LOCKED Scope Guard）。
 
 ## Framework Release Generic Publisher Hard-Stop
 
