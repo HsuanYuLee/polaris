@@ -172,7 +172,10 @@ prompt injection patterns，進而改變 Strategist 行為。
 Memory files 遵守 Hot / Warm / Cold lifecycle rules，以限制每輪 session context，
 並讓 `MEMORY.md` 維持在不易被 truncation 的大小。always-loaded rule 是：
 
-- Hot 要小且刻意維護。
+- Hot 是硬上限 15（DP-213）：`scripts/memory-hygiene-tiering.py apply` 跑完後 Hot section
+  必 ≤ 15。超量者依排序 `pinned > trigger_count desc > recency > mtime desc > filename asc`
+  自動降到 Warm（reason `overflowed-hot-capacity`，列在 `.migration-log.md`）。pinned +
+  graduated_to 永遠不被擠出。Capacity 預設 15，可由 `MEMORY_HOT_CAPACITY` env 覆寫。
 - 若已有 topic folder 負責該主題，新 memories 要寫進既有資料夾。
 - 不要在 hygiene migration script 之外建立 ad-hoc topic folders。
 - technical knowledge 用 `polaris-learnings.sh`；session state、preferences、behavior corrections 用 `memory/`。

@@ -4,6 +4,22 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.108] - 2026-05-21
+
+### Changed — DP-216 scan-template-leaks selftest-slug recognition
+
+- `scripts/scan-template-leaks.sh`：`framework_context_labels()` 加兩道 skip——(1) path-based: `scripts/selftests/**/*-selftest.sh` 一律不參與 framework-dp-active-path 偵測；(2) placeholder DP slug enum (`DP-999`/`DP-NNN`/`DP-XXX`/`DP-000`) 在任何 scripts/ path 都 skip。避免 sync-to-polaris 因 selftest fixture 內的 fake `docs-manager/.../DP-999/` 路徑而 false-positive blocking（DP-213 release 第一次跑就踩到）。
+- DP-213 release tail 由本 fix 直接解鎖；後續 framework selftest 引用 placeholder 不再需要 ad-hoc workaround。
+
+## [3.75.107] - 2026-05-21
+
+### Changed — DP-213 memory tiering algorithm hardening
+
+- `scripts/memory-hygiene-tiering.py` 加 `apply_hot_capacity_ceiling()` 後處理：當 Hot candidate 數量 > `MEMORY_HOT_CAPACITY` (default 15) 時，依 `pinned > trigger_count desc > recency > mtime desc > filename asc` ranking 自動把尾段 entries 降到 Warm，reason 標 `overflowed-hot-capacity`；pinned + graduated_to 永遠不被擠出。
+- `scripts/validate-memory-hygiene-plan.sh` 將 `nested_frontmatter` 從 `issues` 移到 `warnings`：apply 內部 `normalize_memory_file()` 是唯一 enforcement path，canonical chain `dry-run --json | validate | apply` 在 nested_frontmatter 存在時無需 `POLARIS_MEMORY_HYGIENE_APPLY=1` bypass。
+- 新增兩個 selftest：`scripts/selftests/memory-hygiene-capacity-ceiling-selftest.sh`（fixture 28 entries 驗 Hot=15、pinned 全留、graduated_to 全 Cold、migration log 含 overflowed-hot-capacity）與 `scripts/selftests/memory-hygiene-validator-nested-frontmatter-selftest.sh`（fixture plan json + memory dir 驗 chain 不需 env bypass）。
+- 文件契約同步：`.claude/skills/memory-hygiene/SKILL.md`、`.claude/skills/references/memory-tiering-contract.md`、`.claude/rules/feedback-and-memory.md` 補 Hot 硬上限 15 與 nested_frontmatter normalize 是 apply 唯一 enforcement path 的描述。
+
 ## [3.75.106] - 2026-05-21
 
 ### Changed — DP-207 round 8 amendment (T2a + T6 + V1/V2)

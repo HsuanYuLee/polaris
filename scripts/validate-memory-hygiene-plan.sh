@@ -78,6 +78,7 @@ FLAG_KEYS = {
 SUMMARY_KEYS = FLAG_KEYS | {"created_backfill"}
 
 issues = []
+warnings = []
 
 try:
     data = json.loads(payload_text)
@@ -177,7 +178,9 @@ if not issues:
                     if grace is not None and grace not in {"created", "mtime_fallback"}:
                         issues.append({"code": "invalid_grace_baseline", "detail": f"{prefix}.flags.grace_baseline"})
                     if flags.get("nested_frontmatter") is True:
-                        issues.append({"code": "nested_frontmatter", "detail": file_name})
+                        # DP-213: nested_frontmatter is normalized by apply itself,
+                        # so validator only surfaces it as a warning (not a failure).
+                        warnings.append({"code": "nested_frontmatter", "detail": file_name})
 
             if created_backfill is not None and (
                 not isinstance(created_backfill, str) or not DATE_RE.match(created_backfill)
@@ -187,6 +190,7 @@ if not issues:
 result = {
     "passed": not issues,
     "issues": issues,
+    "warnings": warnings,
 }
 
 if fmt == "json":
@@ -198,6 +202,10 @@ else:
         print("FAIL: memory hygiene plan invalid")
         for issue in issues:
             print(f"  - {issue['code']}: {issue['detail']}")
+    if warnings:
+        print("WARNINGS:")
+        for w in warnings:
+            print(f"  - {w['code']}: {w['detail']}")
 
 sys.exit(0 if result["passed"] else 1)
 PY

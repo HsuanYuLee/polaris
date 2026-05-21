@@ -250,6 +250,12 @@ def classify(rel: str, line: str, labels):
 def framework_context_labels(rel: str, line: str):
     if not rel.startswith("scripts/"):
         return []
+    # DP-216: selftest fixtures legitimately reference placeholder DP slugs
+    # (e.g. DP-999, DP-NNN) for synthetic test inputs. Path-based skip avoids
+    # false-positive blocking sync-to-polaris when a selftest builds fake
+    # docs-manager paths. Real DP slugs in non-selftest scripts are still flagged.
+    if "/selftests/" in rel or rel.endswith("-selftest.sh"):
+        return []
     labels = []
     for match in ACTIVE_DP_PATH_RE.finditer(line):
         prefix = line[max(0, match.start() - 48):match.start()]
@@ -257,6 +263,9 @@ def framework_context_labels(rel: str, line: str):
             continue
         slug = match.group(1).split("/")[0]
         if re.search(r"(fixture|example|demo|selftest|proof|sample|parity|completion|finalize|closeout|follow-up)", slug, re.I):
+            continue
+        # DP-216: placeholder DP slug enum used in non-selftest spec docs
+        if slug.upper() in {"DP-999", "DP-NNN", "DP-XXX", "DP-000"}:
             continue
         labels.append(f"framework-dp-active-path:{slug}")
     return labels

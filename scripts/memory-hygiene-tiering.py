@@ -52,6 +52,8 @@ HOT_DAYS = 30
 WARM_DAYS = 90
 HOT_TRIGGER_THRESHOLD = 5
 FRESH_WRITE_GRACE_DAYS = 7  # files with no last_triggered but recently written count as Hot
+MEMORY_HOT_CAPACITY = int(os.environ.get("MEMORY_HOT_CAPACITY", "15"))
+OVERFLOW_REASON_PREFIX = "overflowed-hot-capacity"
 
 
 @dataclass
@@ -556,6 +558,72 @@ def render_json(classifications: list[Classification], today: date) -> str:
 
 # --- Modes ----------------------------------------------------------------
 
+def apply_hot_capacity_ceiling(
+    classifications: list[Classification],
+    today: date,
+    capacity: int = MEMORY_HOT_CAPACITY,
+) -> list[Classification]:
+    """Demote overflowing Hot entries to Warm using a deterministic ranking.
+
+    Contract (DP-213):
+      - pinned=True entries always stay Hot (never demoted by ceiling).
+      - graduated_to entries are already Cold by classify(); not considered here.
+      - Among non-pinned Hot candidates, rank by:
+          1. trigger_count desc
+          2. last_triggered recency (None pushed to oldest)
+          3. mtime desc (tie-breaker)
+          4. filename asc (final deterministic tie-breaker)
+      - Keep top (capacity - pinned_count) in Hot; demote the rest to Warm.
+      - Demoted entries get tier="warm" and reason prefixed with
+        OVERFLOW_REASON_PREFIX so apply path can log them even when they
+        stay flat (no topic move).
+    """
+    if capacity <= 0:
+        return classifications
+    hot_idx = [i for i, c in enumerate(classifications) if c.tier == "hot"]
+    if len(hot_idx) <= capacity:
+        return classifications
+    pinned_idx = [i for i in hot_idx if classifications[i].frontmatter.pinned]
+    non_pinned_idx = [i for i in hot_idx if not classifications[i].frontmatter.pinned]
+    keep_slots = max(capacity - len(pinned_idx), 0)
+
+    def rank_key(i: int):
+        c = classifications[i]
+        lt = c.frontmatter.last_triggered
+        recency_days = (today - lt).days if lt else 10**6
+        return (
+            -c.frontmatter.trigger_count,
+            recency_days,
+            -int(c.mtime.toordinal()) if c.mtime else 0,
+            c.path.name,
+        )
+
+    ranked = sorted(non_pinned_idx, key=rank_key)
+    keep = set(ranked[:keep_slots]) | set(pinned_idx)
+
+    updated = list(classifications)
+    for i in non_pinned_idx:
+        if i in keep:
+            continue
+        c = classifications[i]
+        topic = infer_topic(c.frontmatter, c.path.name)
+        new_flags = dict(c.flags)
+        new_flags["overflowed_hot_capacity"] = True
+        topic_part = f", topic={topic}" if topic else ", no topic"
+        updated[i] = Classification(
+            path=c.path,
+            tier="warm",
+            topic=topic,
+            reason=f"{OVERFLOW_REASON_PREFIX} (was Hot: {c.reason}){topic_part}",
+            frontmatter=c.frontmatter,
+            mtime=c.mtime,
+            archived_in_index=c.archived_in_index,
+            flags=new_flags,
+            created_backfill=c.created_backfill,
+        )
+    return updated
+
+
 def collect(memory_dir: Path, today: date) -> tuple[list[Classification], list[Path], list[str]]:
     """Scan memory_dir, return (classifications, orphan_paths, missing_filenames)."""
     index_path = memory_dir / "MEMORY.md"
@@ -579,6 +647,8 @@ def collect(memory_dir: Path, today: date) -> tuple[list[Classification], list[P
             print(f"Warning: could not read {p.name}: {e}", file=sys.stderr)
             continue
         classifications.append(classify(p, text, today, archived))
+
+    classifications = apply_hot_capacity_ceiling(classifications, today)
 
     # Orphan = on disk, not archived, not linked
     on_disk_names = {p.name for p in on_disk}
@@ -828,6 +898,23 @@ def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
         rel = dst.relative_to(memory_dir)
         log_entries.append(f"- `{src.name}` → `{rel}`  _(reason: {reason})_")
         print(f"  moved: {src.name} → {rel}")
+
+    overflow_entries = [
+        c for c in classifications
+        if (c.get("reason", "") or "").startswith(OVERFLOW_REASON_PREFIX)
+    ]
+    if overflow_entries:
+        log_entries.append("")
+        log_entries.append("## Overflowed Hot capacity")
+        log_entries.append("")
+        log_entries.append(
+            f"- Capacity: {MEMORY_HOT_CAPACITY} (env: MEMORY_HOT_CAPACITY)"
+        )
+        for c in sorted(overflow_entries, key=lambda x: x["file"]):
+            topic = c.get("topic") or "(no topic)"
+            log_entries.append(
+                f"- `{c['file']}` → warm/{topic} — {OVERFLOW_REASON_PREFIX}"
+            )
 
     if normalized_files:
         log_entries.append("")
