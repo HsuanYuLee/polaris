@@ -218,7 +218,8 @@ EOF
 fi
 
 template_idx=0
-for body_heading in "${body_headings[@]}"; do
+# DP-217: avoid `unbound variable` under `set -u` when body_headings is empty.
+for body_heading in "${body_headings[@]+"${body_headings[@]}"}"; do
   if [[ "$template_idx" -ge "${#template_headings[@]}" ]]; then
     break
   fi
@@ -254,7 +255,7 @@ done
   if [[ "${#body_headings[@]}" -eq 0 ]]; then
     echo "  (none)"
   else
-    for heading in "${body_headings[@]}"; do
+    for heading in "${body_headings[@]+"${body_headings[@]}"}"; do
       echo "  - $heading"
     done
   fi

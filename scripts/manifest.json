@@ -1400,10 +1400,9 @@
       "kind": "gate",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
-      "selftest": "N/A",
+      "selftest": "scripts/selftests/gate-pr-body-template-selftest.sh",
       "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "relocation": "stay"
     },
     {
       "path": "scripts/gates/gate-pr-language-selftest.sh",
@@ -3793,6 +3792,9 @@
       "command": "bash scripts/check-script-manifest.sh",
       "profiles": [
         "core",
+        "runtime",
+        "delivery",
+        "full",
         "release"
       ],
       "changed_paths": [
@@ -4266,6 +4268,50 @@
       "fixtures": [
         "LOCKED Goal / AC / Decisions diffs",
         "legitimate Technical Approach / Dependencies amendments"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "pre-write-language-policy",
+      "command": "bash scripts/selftests/pre-write-language-policy-selftest.sh",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        ".claude/hooks/pre-write-language-policy.sh",
+        "scripts/validate-language-policy.sh",
+        "scripts/selftests/pre-write-language-policy-selftest.sh"
+      ],
+      "fixtures": [
+        "scope path English-only block",
+        "scope path zh-TW pass",
+        "out-of-scope path no-op",
+        "POLARIS_LANGUAGE_POLICY_BYPASS bypass",
+        "POLARIS_PRODUCER bypass",
+        "wall-clock budget < 500ms"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "gate-work-source-chore-followup",
+      "command": "bash scripts/selftests/gate-work-source-chore-followup-selftest.sh",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/gates/gate-work-source.sh",
+        "scripts/selftests/gate-work-source-chore-followup-selftest.sh"
+      ],
+      "fixtures": [
+        "chore/DP-NNN-<slug> + active container + IMPLEMENTED pr-release task",
+        "chore/DP-NNN-<slug> + archived container + IMPLEMENTED pr-release task",
+        "chore/DP-NNN-<slug> + container but no IMPLEMENTED task (BLOCKED)",
+        "chore/DP-NNN-<slug> + missing container (BLOCKED)",
+        "chore/<non-DP>-<slug> falls through (BLOCKED)"
       ],
       "enrolled": true,
       "owner": "polaris-framework"

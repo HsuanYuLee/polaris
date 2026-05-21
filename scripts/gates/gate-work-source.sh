@@ -114,6 +114,49 @@ if [[ "$current_branch" =~ ^(main|master|develop)$ || "$current_branch" =~ ^rele
   exit 2
 fi
 
+# DP-217 chore-followup lane: release-tail manifest / housekeeping fixes that
+# don't deserve a new task.md. The lane only triggers when:
+#   - branch matches chore/DP-NNN-<slug>
+#   - the corresponding DP container exists under docs-manager/.../design-plans/
+#   - at least one tasks/pr-release/T*.md or T*/index.md is status: IMPLEMENTED
+# Other chore/* branches still fail the gate; this is not a generic escape.
+if [[ "$current_branch" =~ ^chore/(DP-[0-9]+)- ]]; then
+  chore_dp="${BASH_REMATCH[1]}"
+  chore_container=""
+  for candidate in "$REPO_ROOT/docs-manager/src/content/docs/specs/design-plans/${chore_dp}-"*; do
+    [[ -d "$candidate" ]] || continue
+    chore_container="$candidate"
+    break
+  done
+  if [[ -z "$chore_container" ]]; then
+    # Maybe DP was archived between release and follow-up.
+    for candidate in "$REPO_ROOT/docs-manager/src/content/docs/specs/design-plans/archive/${chore_dp}-"*; do
+      [[ -d "$candidate" ]] || continue
+      chore_container="$candidate"
+      break
+    done
+  fi
+  if [[ -n "$chore_container" ]]; then
+    chore_parent_implemented=0
+    while IFS= read -r task_file; do
+      [[ -f "$task_file" ]] || continue
+      if grep -qE "^status: IMPLEMENTED" "$task_file"; then
+        chore_parent_implemented=1
+        break
+      fi
+    done < <(find "$chore_container/tasks/pr-release" -maxdepth 3 -type f \
+              \( -name "T*.md" -o -name "index.md" \) 2>/dev/null)
+    if [[ "$chore_parent_implemented" -eq 1 ]]; then
+      echo "$PREFIX ✅ chore-followup lane: branch=$current_branch parent_dp=$chore_dp IMPLEMENTED" >&2
+      exit 0
+    fi
+    echo "$PREFIX BLOCKED: chore-followup lane requires parent DP $chore_dp to have an IMPLEMENTED pr-release task." >&2
+    exit 2
+  fi
+  echo "$PREFIX BLOCKED: chore-followup lane could not resolve DP container for $chore_dp." >&2
+  exit 2
+fi
+
 if [[ -z "$TASK_MD" ]]; then
   resolver="$ROOT_DIR/scripts/resolve-task-md.sh"
   if [[ ! -x "$resolver" ]]; then

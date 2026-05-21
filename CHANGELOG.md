@@ -4,6 +4,23 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.111] - 2026-05-21
+
+### Changed — DP-217 writer-side deterministic guards 一次落地
+
+- `.claude/hooks/pre-write-language-policy.sh`：新 PreToolUse hook，當 Write / Edit / MultiEdit 目標路徑落在 `.claude/skills/**`、`.claude/rules/**` 或 `docs-manager/src/content/docs/specs/**` 時呼叫 `scripts/validate-language-policy.sh --blocking --mode artifact`；違反 zh-TW policy 時 exit 2 阻擋寫入。`POLARIS_PRODUCER` 與 `POLARIS_LANGUAGE_POLICY_BYPASS=1` 是 escape hatch 且皆寫入 stderr 給 post-task reflection 稽核。
+- `.claude/settings.json`：在 PreToolUse `Write` / `Edit` / `MultiEdit` matchers 註冊新 hook，與 `no-direct-evidence-write.sh`、`pre-memory-write.sh` 並列。
+- `scripts/lib/evidence-producers.json`：新增 `refinement-md-writer`、`dp-index-status-writer`、`dp-task-status-writer` 3 條 producer entry，把 refinement.md / refinement.json、DP container index.md status flip、task.md status flip 的 canonical writer surface 寫進 producer registry。
+- `scripts/manifest.json`：`script-manifest-schema` governed test profiles 從 `[core, release]` 擴到 `[core, runtime, delivery, full, release]`；登記 `pre-write-language-policy` 與 `gate-work-source-chore-followup` 兩個新 governed selftest；`scripts/gates/gate-pr-body-template.sh` selftest 欄位指向擴充後的 selftest。
+- `scripts/gates/gate-pr-body-template.sh`：修 `set -u` 下 `body_headings[@]` 在 body 沒有任何 `## ` heading 時觸發 unbound variable 的 regression（DP-217 friction signal）；改用 `${body_headings[@]+"${body_headings[@]}"}` 安全展開。
+- `scripts/gates/gate-work-source.sh`：加入 chore-followup lane —— `chore/DP-NNN-<slug>` branch 在 parent DP 有 IMPLEMENTED `tasks/pr-release/T*.md` 時放行 release-tail manifest / housekeeping fixes，不需要另寫 task.md；non-DP `chore/*` 與缺 IMPLEMENTED parent 的 case 仍 fail-stop。
+- `.claude/skills/references/v-task-md-schema.md`：新增 V task quick-lookup reference，含 V vs T 對照表、V task skeleton、producer 常踩錯誤、validator 引用，解決 DP-212 V1 寫錯 V schema 的 friction signal。
+- `.claude/skills/references/task-md-schema.md`：補 V vs T Boundary 段落，把 producer 導到 `v-task-md-schema.md`；同步把舊段英文敘述改寫為 zh-TW，符合 workspace language policy。
+- `.claude/rules/mechanism-registry.md`：Runtime Annotation Registry 新增 `pre-write-language-policy` 列；修正 `specs-collection-shape-write-gate` 既有的 `claude-code` → `claude-code-only` runtime enum，並指明對應 fallback validator。
+- `scripts/selftests/pre-write-language-policy-selftest.sh`：新 selftest，覆蓋 scope 內英文 block / zh-TW pass / out-of-scope no-op / 非 Write 工具 no-op / `POLARIS_LANGUAGE_POLICY_BYPASS` bypass / `POLARIS_PRODUCER` bypass / wall-clock 500ms budget 7 個案例。
+- `scripts/selftests/gate-pr-body-template-selftest.sh`：擴充 11 個案例，覆蓋 DP-217 regression（body 無任何 `## ` heading 時 gate 不得 emit `unbound variable` 訊息）。
+- `scripts/selftests/gate-work-source-chore-followup-selftest.sh`：新 selftest，覆蓋 chore-followup PASS（active + archived container）、no-IMPLEMENTED task、missing container、非 DP chore/* 五個案例。
+
 ## [3.75.110] - 2026-05-21
 
 ### Changed — DP-212 auto-pass refinement-inbox auto-resume + LOCKED scope guard

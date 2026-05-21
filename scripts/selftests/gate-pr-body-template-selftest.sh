@@ -169,5 +169,28 @@ set -e
 assert_rc "remote pr body source passes" "$rc" "0"
 assert_contains "remote pr source message" "$out" "preserves repo template headings"
 
+# DP-217 regression: body with zero h2 headings must BLOCK without emitting a
+# bash "unbound variable" diagnostic under set -u. The empty body_headings
+# array previously triggered a "${body_headings[@]}: unbound variable" error.
+no_heading_body="$TMPROOT/no-headings.md"
+cat > "$no_heading_body" <<'EOF'
+This PR body forgot to include any level-2 headings at all.
+It is just a paragraph of text describing what changed.
+EOF
+
+set +e
+out="$("$GATE" --repo "$repo" --body-file "$no_heading_body" 2>&1)"
+rc=$?
+set -e
+assert_rc "empty body_headings blocks" "$rc" "2"
+TOTAL=$((TOTAL + 1))
+if [[ "$out" == *"unbound variable"* ]]; then
+  printf 'not ok DP-217: gate emitted unbound-variable diagnostic\n%s\n' "$out" >&2
+else
+  PASS=$((PASS + 1))
+  printf 'ok DP-217: no unbound-variable diagnostic\n'
+fi
+assert_contains "no-heading body lists missing headings" "$out" "(none)"
+
 printf '\n=== pr-body-template selftest: %d/%d PASS ===\n' "$PASS" "$TOTAL"
 [[ "$PASS" -eq "$TOTAL" ]]
