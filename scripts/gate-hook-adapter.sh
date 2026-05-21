@@ -163,6 +163,17 @@ fi
 
 if [[ "$gate_rc" -eq 2 ]]; then
   append_gate_failure_ledger "$evidence_repo" "$task_id" "$gate_id" "$repo_root" "$head_sha" "$gate_rc" "$gate_output" || exit 2
+  # DP-220: deterministic friction trigger — emit kind=deterministic_gap when
+  # the auto-pass orchestrator ledger is in scope (AUTO_PASS_LEDGER_PATH set).
+  # No-op outside /auto-pass runs.
+  if [[ -n "${AUTO_PASS_LEDGER_PATH:-}" ]]; then
+    "$(dirname "${BASH_SOURCE[0]}")/append-auto-pass-friction.sh" \
+      "$AUTO_PASS_LEDGER_PATH" \
+      --stage engineering \
+      --kind deterministic_gap \
+      --summary "gate exit 2: gate_id=$gate_id task=$task_id (auto-trigger from gate-hook-adapter, DP-220)" \
+      >/dev/null 2>&1 || true
+  fi
 fi
 
 exit "$gate_rc"

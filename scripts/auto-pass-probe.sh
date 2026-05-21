@@ -64,6 +64,8 @@ fi
 python3 - "$REPO" "$STAGE" "$SOURCE_ID" "$WORK_ITEM_ID" "$HEAD_SHA" "$LEDGER" <<'PY'
 import hashlib
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -92,6 +94,36 @@ def emit(status, terminal_status, next_action, evidence_path=None, reason=None):
         "evidence_path": str(evidence_path) if evidence_path else None,
         "reason": reason,
     }
+    # DP-220: deterministic friction trigger — UNKNOWN means probe could not
+    # determine outcome from durable evidence; flag as deterministic_gap so the
+    # /auto-pass ledger has an audit trail. NOOP when AUTO_PASS_LEDGER_PATH is
+    # unset or ledger missing (helper handles both).
+    if status == "UNKNOWN":
+        ledger_env = os.environ.get("AUTO_PASS_LEDGER_PATH", "")
+        if ledger_env:
+            helper = repo / "scripts" / "append-auto-pass-friction.sh"
+            if helper.is_file():
+                try:
+                    summary = f"probe UNKNOWN: stage={stage} source={source_id} work_item={work_item_id} reason={reason or 'n/a'} (auto-trigger from auto-pass-probe, DP-220)"
+                    subprocess.run(
+                        [
+                            "bash",
+                            str(helper),
+                            ledger_env,
+                            "--stage",
+                            stage if stage in {"source", "breakdown", "engineering", "verify-AC", "framework-release", "post-task"} else "post-task",
+                            "--kind",
+                            "deterministic_gap",
+                            "--summary",
+                            summary[:280],
+                        ],
+                        check=False,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=2.0,
+                    )
+                except Exception:
+                    pass
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     raise SystemExit(0)
 

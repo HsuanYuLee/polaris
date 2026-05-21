@@ -51,9 +51,17 @@ if [[ -z "$LEDGER" || -z "$STAGE" || -z "$KIND" || -z "$SUMMARY" ]]; then
   usage
 fi
 
+# DP-220 NOOP boundary: when called from a deterministic trigger (gate adapter,
+# pre-write hook, probe, counter helper) that opportunistically passes
+# AUTO_PASS_LEDGER_PATH, the ledger may be absent for non-/auto-pass runs. In
+# that case the friction is not orchestrator-tracked; exit 0 silently so the
+# trigger script does not fail the user's main flow. Only emit warning to
+# stderr (debugging aid) when POLARIS_FRICTION_DEBUG=1.
 if [[ ! -f "$LEDGER" ]]; then
-  echo "ERROR: ledger not found: $LEDGER" >&2
-  exit 2
+  if [[ "${POLARIS_FRICTION_DEBUG:-0}" == "1" ]]; then
+    echo "append-auto-pass-friction: NOOP (ledger not found: $LEDGER)" >&2
+  fi
+  exit 0
 fi
 
 if [[ -z "$TS" ]]; then

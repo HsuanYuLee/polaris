@@ -3244,6 +3244,25 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/auto-pass-increment-counter.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/auto-pass-auto-friction-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftests/auto-pass-auto-friction-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/validate-refinement-locked-scope.sh",
       "kind": "gate",
       "runner": "bash",
@@ -4365,6 +4384,39 @@
       ],
       "fixtures": [
         "18 graduated memory anchors present in target framework files"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "auto-pass-auto-friction",
+      "command": "bash scripts/selftests/auto-pass-auto-friction-selftest.sh",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/append-auto-pass-friction.sh",
+        "scripts/auto-pass-increment-counter.sh",
+        "scripts/auto-pass-probe.sh",
+        "scripts/gate-hook-adapter.sh",
+        ".claude/hooks/pre-write-language-policy.sh",
+        ".claude/skills/auto-pass/SKILL.md",
+        "scripts/selftests/auto-pass-auto-friction-selftest.sh"
+      ],
+      "fixtures": [
+        "gate-hook-adapter exit 2 -> deterministic_gap friction appended",
+        "pre-write-language-policy BYPASS=1 -> env_bypass friction appended",
+        "pre-write-language-policy POLARIS_PRODUCER set -> NO friction (producer carve-out)",
+        "auto-pass-probe UNKNOWN -> deterministic_gap friction appended",
+        "auto-pass-probe PASS -> NO friction (only UNKNOWN triggers)",
+        "auto-pass-increment-counter 1->2 -> inner_skill_halt_bypass friction appended",
+        "auto-pass-increment-counter 0->1 -> counter updated, NO friction",
+        "auto-pass-increment-counter 2->3 -> counter updated, NO additional friction",
+        "AUTO_PASS_LEDGER_PATH unset -> all triggers NOOP silently",
+        "AUTO_PASS_LEDGER_PATH set but ledger missing -> all triggers NOOP silently",
+        "helper validates ledger is JSON object (corrupt ledger -> exit 1)",
+        "wall-clock < 10s"
       ],
       "enrolled": true,
       "owner": "polaris-framework"

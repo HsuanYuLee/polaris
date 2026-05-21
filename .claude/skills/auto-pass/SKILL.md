@@ -206,6 +206,50 @@ helper 保證 atomic write、enum 驗證與 soft-limit warning。enum 與 schema
 terminal report 透過 `validate-auto-pass-report.sh` 重新聚合 ledger 條目並驗
 `friction_log_summary` 一致；報告不得手寫 summary 數字。
 
+## Auto-Friction Triggers (DP-220)
+
+DP-220 起，下列 5 個 friction signal 由 deterministic trigger 自動寫入
+`friction_log[]`，不再依賴 orchestrator 口頭判斷。每個 trigger 都在 helper / hook /
+probe / counter 內就近呼叫 `append-auto-pass-friction.sh`，且 helper 內建 NOOP
+boundary（`AUTO_PASS_LEDGER_PATH` 未設或 ledger 不存在時 silent exit 0），所以同樣
+的 scripts 也能在非 /auto-pass 流程中安全執行。
+
+| Signal | Trigger site | Kind | Notes |
+|--------|--------------|------|-------|
+| `gate_failure` | `scripts/gate-hook-adapter.sh` | `deterministic_gap` | gate exit 2 後在 gate-failure ledger 寫入之後立刻呼叫 |
+| `workaround_taken` | `.claude/hooks/pre-write-language-policy.sh` | `env_bypass` | `POLARIS_LANGUAGE_POLICY_BYPASS=1` explicit bypass；`POLARIS_PRODUCER` 不觸發 |
+| `stage_retry` | `scripts/auto-pass-increment-counter.sh` | `inner_skill_halt_bypass` | 同 transition counter 1→2 時 emit；後續 increments 由 counter 自身管理，cap 由 probe ledger_terminal() enforce |
+| `probe_unknown` | `scripts/auto-pass-probe.sh` | `deterministic_gap` | `emit(status="UNKNOWN", ...)` 時呼叫；包含 missing marker、invalid JSON、ledger stale 等 |
+| `context_pressure` | orchestrator (LLM) | `other` | 寫 `pause.kind=session_handoff` 之前手動呼叫 helper，summary 帶 resume artifact path |
+
+deterministic triggers（前 4 條）已內建在 scripts / hooks，**不需要 orchestrator 主動呼叫**。
+context_pressure 是唯一仍由 LLM 主導的 trigger：寫 pause artifact 前必須先呼叫
+`append-auto-pass-friction.sh --kind other --summary "context_pressure: ..."`，再寫
+`pause` block，否則 terminal report 會缺這次 handoff 的 friction 證據。
+
+Counter 寫入專用 helper：
+
+```bash
+scripts/auto-pass-increment-counter.sh "$AUTO_PASS_LEDGER_PATH" \
+  --transition <engineering_to_breakdown|breakdown_to_refinement_inbox|verify_ac_to_engineering> \
+  --stage <stage>
+```
+
+counter 1→2 transition 會自動 append `inner_skill_halt_bypass` friction；orchestrator
+仍是 transition 寫入的唯一 caller，但不再需要分別呼叫 counter writer 與 friction
+helper。
+
+Trigger 與 enum 對應（refinement 原文 → helper enum）：
+
+- `gate_failure` → `deterministic_gap`
+- `workaround_taken` → `env_bypass`
+- `stage_retry` → `inner_skill_halt_bypass`
+- `probe_unknown` → `deterministic_gap`
+- `context_pressure` → `other`
+
+新增 deterministic friction trigger 時，必須在 mechanism-registry 對應 row 加上
+`runtime` annotation，並更新本表 + 對應 selftest。
+
 ## Terminal Boundary
 
 `auto-pass` 的成功終點是：

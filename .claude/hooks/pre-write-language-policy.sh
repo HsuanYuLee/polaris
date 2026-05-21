@@ -54,6 +54,20 @@ fi
 
 if [[ -n "${POLARIS_LANGUAGE_POLICY_BYPASS:-}" ]]; then
   echo "[pre-write-language-policy] BYPASS explicit POLARIS_LANGUAGE_POLICY_BYPASS=1 path=$file_path" >&2
+  # DP-220: deterministic friction trigger — explicit user bypass is a
+  # workaround signal. Only fire when AUTO_PASS_LEDGER_PATH is set (i.e.
+  # inside an /auto-pass run); the helper is NOOP otherwise.
+  # POLARIS_PRODUCER bypass (above) is NOT a friction — it is normal
+  # producer attribution and exits earlier without reaching this branch.
+  if [[ -n "${AUTO_PASS_LEDGER_PATH:-}" ]]; then
+    workspace_root_friction="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    "$workspace_root_friction/scripts/append-auto-pass-friction.sh" \
+      "$AUTO_PASS_LEDGER_PATH" \
+      --stage engineering \
+      --kind env_bypass \
+      --summary "POLARIS_LANGUAGE_POLICY_BYPASS=1 explicit bypass for $file_path (auto-trigger from pre-write-language-policy, DP-220)" \
+      >/dev/null 2>&1 || true
+  fi
   exit 0
 fi
 

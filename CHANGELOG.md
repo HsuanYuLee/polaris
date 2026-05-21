@@ -4,6 +4,51 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.114] - 2026-05-21
+
+### Added — DP-220 auto-pass automatic friction collection（5 個 deterministic trigger）
+
+把 `/auto-pass` 過程中 5 個典型 friction signal 從「靠 orchestrator 口頭記得寫 helper」改成 deterministic 自動觸發。所有 trigger 都在 helper / hook / probe / counter 內就近呼叫 `append-auto-pass-friction.sh`，並透過 helper 內建 NOOP boundary（`AUTO_PASS_LEDGER_PATH` 未設或 ledger 不存在 → silent exit 0）保證同樣 scripts 也能在非 /auto-pass 流程安全執行。
+
+5 個 trigger × kind 對應（refinement 原文 → helper enum）：
+
+- `gate_failure` → `deterministic_gap`（`scripts/gate-hook-adapter.sh` 在 gate exit 2 後）
+- `workaround_taken` → `env_bypass`（`.claude/hooks/pre-write-language-policy.sh` 在 `POLARIS_LANGUAGE_POLICY_BYPASS=1` 分支；`POLARIS_PRODUCER` 不觸發）
+- `stage_retry` → `inner_skill_halt_bypass`（`scripts/auto-pass-increment-counter.sh` 在同 transition counter 1→2 時）
+- `probe_unknown` → `deterministic_gap`（`scripts/auto-pass-probe.sh` 在 `status=UNKNOWN` 時）
+- `context_pressure` → `other`（orchestrator 寫 `pause.kind=session_handoff` 前手動呼叫；唯一仍由 LLM 主導的 trigger）
+
+DP-220 scope decision：沿用既有 helper enum 來 map refinement 原文的 5 個 kind，不擴充 enum。
+
+#### Helper / Hook / Probe / Counter wiring
+
+- `scripts/append-auto-pass-friction.sh`：新增 NOOP boundary — `ledger missing` 時 silent exit 0（`POLARIS_FRICTION_DEBUG=1` 才印 stderr），讓 deterministic triggers 在非 /auto-pass 流程不會 fail 主 workflow。
+- `scripts/gate-hook-adapter.sh`：在 gate exit 2 + gate-failure ledger 寫入後，emit `kind=deterministic_gap` friction（`AUTO_PASS_LEDGER_PATH` set 時）。
+- `.claude/hooks/pre-write-language-policy.sh`：在 `POLARIS_LANGUAGE_POLICY_BYPASS=1` 分支 emit `kind=env_bypass`。`POLARIS_PRODUCER` carve-out 維持原行為，不觸發 friction（producer 是正常 attribution，不是 workaround）。
+- `scripts/auto-pass-probe.sh`：在 `emit(status="UNKNOWN", ...)` 時 emit `kind=deterministic_gap`，subprocess 呼叫 helper 並 timeout=2s 保護 probe 速度。
+- `scripts/auto-pass-increment-counter.sh`（新）：deterministic counter writer，支援 `engineering_to_breakdown` / `breakdown_to_refinement_inbox` / `verify_ac_to_engineering` 三條 transition。counter 1→2 transition 時 emit `kind=inner_skill_halt_bypass`；後續 increments 由 counter 自身管理，cap enforce 仍由 `auto-pass-probe.sh ledger_terminal()` 負責。
+
+#### Documentation
+
+- `.claude/skills/auto-pass/SKILL.md`：新增 § Auto-Friction Triggers (DP-220)，列出 5 個 trigger 對應表 + counter writer 使用範例 + `context_pressure` 唯一 LLM-driven trigger 的呼叫順序（先 helper 再寫 pause）。
+- `.claude/rules/mechanism-registry.md`：新增 4 個 runtime annotation rows（`auto-pass-friction-helper` / `auto-pass-friction-counter` / `auto-pass-friction-probe` / `auto-pass-friction-gate-adapter`），語言政策 hook 沿用既有 `pre-write-language-policy` row（已 claude-code-only + fallback `validate-language-policy.sh`）。
+
+#### Selftest
+
+- `scripts/selftests/auto-pass-auto-friction-selftest.sh`（新）：12 個 case 覆蓋 AC1-6 + AC-NF1-3 + AC-NEG1-3。實測 wall-clock 1s。
+- `scripts/manifest.json`：登記 `auto-pass-auto-friction` selftest 進 governed test profiles `core` / `release`；新增 counter writer 與 selftest entry。
+
+#### Behavioral impact
+
+`/auto-pass` 跑下次 DP source 時，下列場景會自動寫入 `friction_log[]`，不再需要 orchestrator 記得呼叫 helper：
+
+1. 任何 gate（`gate-hook-adapter.sh` 包裝過的）退出 code 2 — 自動寫 `deterministic_gap`。
+2. 任何 Write/Edit/MultiEdit 觸發 `pre-write-language-policy.sh` 並設 `POLARIS_LANGUAGE_POLICY_BYPASS=1` — 自動寫 `env_bypass`。
+3. 任何 `auto-pass-probe.sh` UNKNOWN（marker missing / invalid JSON / ledger stale）— 自動寫 `deterministic_gap`。
+4. orchestrator 對同 transition 第二次呼叫 counter writer — 自動寫 `inner_skill_halt_bypass`（confirm 是 stage retry pattern）。
+
+只有 `context_pressure`（pause session handoff 前的 friction 紀錄）仍須由 orchestrator 主動呼叫 helper；其他 4 條改成 deterministic 後，terminal report 的 `friction_log_summary` 不再因「orchestrator 忘記寫」而失真。
+
 ## [3.75.113] - 2026-05-21
 
 ### Fixed — DP-219 run-verify-command worktree blind fix
