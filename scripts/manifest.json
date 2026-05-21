@@ -4317,6 +4317,31 @@
       "owner": "polaris-framework"
     },
     {
+      "id": "run-verify-command-worktree",
+      "command": "bash scripts/selftests/run-verify-command-worktree-selftest.sh",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/run-verify-command.sh",
+        "scripts/selftests/run-verify-command-worktree-selftest.sh"
+      ],
+      "fixtures": [
+        "PWD inside worktree -> head_sha = worktree HEAD",
+        "PWD inside main checkout -> head_sha = main HEAD",
+        "--repo override outranks PWD detection",
+        "--worktree override binds to specified worktree",
+        "wall-clock < 5s",
+        "non-git fixture -> exit 1 with clear error",
+        "PWD not in git -> fallback to ancestor walk",
+        "--worktree non-git path -> exit 1 (no silent pass)",
+        "evidence file naming format unchanged"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
       "id": "dp218-graduation-anchors",
       "command": "bash scripts/selftests/dp218-graduation-anchors-selftest.sh",
       "profiles": [

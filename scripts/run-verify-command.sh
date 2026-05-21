@@ -70,7 +70,7 @@ fi
 usage() {
   cat <<EOF >&2
 Usage:
-  $(basename "$0") --task-md PATH [--ticket KEY] [--repo PATH]
+  $(basename "$0") --task-md PATH [--ticket KEY] [--repo PATH] [--worktree PATH]
 
 Atomically prepares env, executes task.md \`## Verify Command\`, and writes
 head_sha-bound evidence to /tmp/polaris-verified-{TICKET}-{HEAD_SHA}.json.
@@ -101,13 +101,15 @@ run_verify_shell() {
 TASK_MD=""
 TICKET=""
 REPO_OVERRIDE=""
+WORKTREE_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --task-md) TASK_MD="${2:-}"; shift 2 ;;
-    --ticket)  TICKET="${2:-}";  shift 2 ;;
-    --repo)    REPO_OVERRIDE="${2:-}"; shift 2 ;;
-    -h|--help) usage; exit 0 ;;
+    --task-md)   TASK_MD="${2:-}"; shift 2 ;;
+    --ticket)    TICKET="${2:-}";  shift 2 ;;
+    --repo)      REPO_OVERRIDE="${2:-}"; shift 2 ;;
+    --worktree)  WORKTREE_OVERRIDE="${2:-}"; shift 2 ;;
+    -h|--help)   usage; exit 0 ;;
     *) echo "run-verify-command: unknown arg: $1" >&2; usage; exit 2 ;;
   esac
 done
@@ -167,9 +169,16 @@ if [[ -z "$REPO_NAME" ]]; then
 fi
 
 # --- Resolve repo path ------------------------------------------------------
-# Heuristic: walk up from task.md until we find a directory containing the repo
-# (i.e., {ancestor}/{REPO_NAME} exists and is a git working tree).
-resolve_repo_path() {
+# Preference order (DP-219):
+#   1. --repo override         (explicit caller intent, highest priority)
+#   2. --worktree override     (explicit caller intent for worktree binding)
+#   3. PWD-based worktree detection (current cwd is inside a git working tree)
+#   4. task.md ancestor walk   (legacy fallback)
+#
+# PWD-based detection uses `git rev-parse --show-toplevel`; the repo basename
+# of that toplevel must match REPO_NAME (parsed from task.md) before it is
+# accepted, so an unrelated git cwd does not silently override.
+resolve_repo_path_ancestor_walk() {
   local repo_name="$1"
   local td
   td="$(cd "$(dirname "$TASK_MD")" && pwd)"
@@ -185,14 +194,68 @@ resolve_repo_path() {
   return 1
 }
 
+resolve_repo_path_pwd_worktree() {
+  local repo_name="$1"
+  local toplevel
+  toplevel="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  if [[ -z "$toplevel" ]]; then
+    return 1
+  fi
+  local base
+  base="$(basename "$toplevel")"
+  # Fast path: basename matches REPO_NAME literally.
+  if [[ "$base" == "$repo_name" ]]; then
+    printf '%s\n' "$toplevel"
+    return 0
+  fi
+  # Worktree-of pattern: registered main checkout basename matches REPO_NAME.
+  local main_checkout
+  main_checkout="$(git -C "$toplevel" worktree list --porcelain 2>/dev/null \
+    | awk '/^worktree /{print $2; exit}')"
+  if [[ -n "$main_checkout" ]] && [[ "$(basename "$main_checkout")" == "$repo_name" ]]; then
+    printf '%s\n' "$toplevel"
+    return 0
+  fi
+  # Logical-name alias: REPO_NAME is a label (e.g. "polaris-framework") that
+  # does not match any filesystem basename. When the script itself lives under
+  # the same git common dir as the PWD working tree, we treat the PWD toplevel
+  # as the intended repo — this covers the worktree-of-self case where caller
+  # cd'd into a worktree of the framework repo.
+  local script_dir script_common pwd_common
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  script_common="$(git -C "$script_dir" rev-parse --git-common-dir 2>/dev/null \
+    | { read -r p; [[ -z "$p" ]] || (cd "$script_dir" && cd "$p" && pwd -P); } || true)"
+  pwd_common="$(git -C "$toplevel" rev-parse --git-common-dir 2>/dev/null \
+    | { read -r p; [[ -z "$p" ]] || (cd "$toplevel" && cd "$p" && pwd -P); } || true)"
+  if [[ -n "$script_common" ]] && [[ "$script_common" == "$pwd_common" ]]; then
+    printf '%s\n' "$toplevel"
+    return 0
+  fi
+  return 1
+}
+
 if [[ -n "$REPO_OVERRIDE" ]]; then
   if [[ ! -d "$REPO_OVERRIDE" ]]; then
     echo "run-verify-command: --repo path not found: $REPO_OVERRIDE" >&2
     exit 1
   fi
   REPO_PATH="$(cd "$REPO_OVERRIDE" && pwd)"
+elif [[ -n "$WORKTREE_OVERRIDE" ]]; then
+  if [[ ! -d "$WORKTREE_OVERRIDE" ]]; then
+    echo "run-verify-command: --worktree path not found: $WORKTREE_OVERRIDE" >&2
+    exit 1
+  fi
+  if ! git -C "$WORKTREE_OVERRIDE" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "run-verify-command: --worktree path is not a git working tree: $WORKTREE_OVERRIDE" >&2
+    exit 1
+  fi
+  REPO_PATH="$(cd "$WORKTREE_OVERRIDE" && pwd)"
 else
-  REPO_PATH="$(resolve_repo_path "$REPO_NAME" || true)"
+  # Try PWD-based worktree detection first; fall through to ancestor walk.
+  REPO_PATH="$(resolve_repo_path_pwd_worktree "$REPO_NAME" 2>/dev/null || true)"
+  if [[ -z "$REPO_PATH" ]]; then
+    REPO_PATH="$(resolve_repo_path_ancestor_walk "$REPO_NAME" || true)"
+  fi
 fi
 if [[ -z "$REPO_PATH" ]]; then
   echo "run-verify-command: could not locate repo '$REPO_NAME' as ancestor of $TASK_MD" >&2

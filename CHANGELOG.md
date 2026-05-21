@@ -4,6 +4,19 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.113] - 2026-05-21
+
+### Fixed — DP-219 run-verify-command worktree blind fix
+
+`scripts/run-verify-command.sh` 走 ancestor 找 repo 時永遠 land on main checkout 的 bug 修復。完成後 worktree 內跑 verify 不需手動傳 `--repo`，evidence head_sha 自動 bind worktree HEAD，後續 PR-create / completion gate 的 head_sha 比對不再 drift。
+
+- `scripts/run-verify-command.sh`：新增 `--worktree <path>` 參數；`resolve_repo_path` 改成 preference chain：`--repo > --worktree > PWD-based worktree detection (git rev-parse --show-toplevel + worktree list) > legacy ancestor walk`。PWD-based detection 只在 toplevel basename 對得上 `REPO_NAME` 或當前 worktree 對應主 checkout basename 對得上 `REPO_NAME` 時才接受，避免 silent override 不相關 cwd。
+- `scripts/selftests/run-verify-command-worktree-selftest.sh`（新）：9 個 case 覆蓋 AC1（worktree binding）、AC2（main-only 行為不變）、AC3（`--repo` 仍最高優先）、AC4（`--worktree` override 生效）、AC-NF1（wall-clock < 5s, 實測 3.6s）、AC-NF2（非 git fixture exit 1 + clear error）、AC-NEG1（PWD 不在 git 時 fallback ancestor walk）、AC-NEG2（`--worktree` 非 git path exit 1）、AC-NEG3（evidence file naming pattern 不變）。
+- `.claude/skills/references/engineer-delivery-flow.md`：新增 § Verify Evidence Worktree Resolution 段落，記錄 preference order 與「不需手動 `--repo`」的效果。
+- `scripts/manifest.json`：登記 `run-verify-command-worktree` selftest 進 governed test profiles `core` / `release`。
+
+DP-218 release 時手動傳 `--repo <worktree-path>` 是這條 bug 的 workaround；本 DP 起 worktree 內 verify 不再需要手動 rebind。
+
 ## [3.75.112] - 2026-05-21
 
 ### Changed — DP-218 memory → framework graduation（18 條 prose feedback 一次 absorb）

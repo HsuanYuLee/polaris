@@ -85,6 +85,25 @@ bash scripts/check-base-fresh.sh --repo ... --task-md ... --pr ...
 Why：`gate-ci-local.sh` 與 `gate-evidence.sh` 是 `scripts/gates/` 底下的 portable wrapper，
 自行 resolve HEAD；`check-base-fresh.sh` 只接 `<task_md>`，依當前 git repo cwd 比對 HEAD/base。
 
+## Verify Evidence Worktree Resolution
+
+`scripts/run-verify-command.sh` 解析 `REPO_PATH` 走以下優先順序（DP-219）：
+
+1. `--repo <path>` override：caller 明示，最高優先。
+2. `--worktree <path>` override：caller 明示 worktree，比 PWD-based 偵測穩定。
+3. PWD-based 偵測：`git rev-parse --show-toplevel` 從當前 cwd 取得 working tree
+   root；只有當 basename 對得上 task.md 解析出的 `REPO_NAME`，或當前 worktree 對應的
+   主 checkout basename 對得上 `REPO_NAME` 時才接受。
+4. Legacy fallback：從 task.md 所在目錄往上 walk，找 `{ancestor}/{REPO_NAME}/.git`。
+
+效果：在 worktree 內呼叫 `bash scripts/run-verify-command.sh --task-md <path> --ticket <key>`
+**不需**手動傳 `--repo`；evidence file 的 `head_sha` 自動 bind 到 worktree HEAD，後續
+`pr-create` / completion gate 的 head_sha 比對不再 drift。
+
+註：若需要在另一個 cwd 觸發 worktree-bound verify（例如 sub-agent 用絕對路徑 dispatch），
+明示 `--worktree <path>` 比依賴 PWD 偵測更可預期；非 git fixture 或 stale worktree path 會
+exit 1 + clear error，不會 silent 蓋掉。
+
 ## DP-201 Proof Markers
 
 engineering 擁有 auto-pass 需要讀取的 delivery state durable proof markers：
