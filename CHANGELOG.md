@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.115] - 2026-05-22
+
+### Changed — DP-192 engineering first-cut worktree overlay contract hardening
+
+強化 engineering first-cut 的 worktree overlay 契約，避免實作流程因主 checkout dirty state、worktree 路徑漂移，或規格 / skill overlay 複製 workaround 而產生不可重現行為。
+
+- `.claude/skills/references/engineering-first-cut-flow.md`：明確要求從 `engineering-branch-setup.sh` stdout 捕捉 `WORKTREE_PATH`，並用該 path 執行 implementation / tests / verify / delivery。
+- `.claude/skills/references/workspace-overlay.md`：補上 main checkout dirty state 不應阻斷 worktree dispatch 的語意，並記錄 specs / skills / polaris-config 必須維持 main-checkout absolute-path overlay。
+- `.claude/skills/references/worktree-dispatch-paths.md`：新增 first-cut dispatch path 契約，禁止把 docs specs 或 local overlay 複製進 task worktree。
+- `scripts/check-engineering-first-cut-worktree-contract.sh`：新增 deterministic contract guard，檢查必備 handoff pattern 與 forbidden stash / copy workaround。
+- `scripts/manifest.json`：登記新的 contract guard。
+
 ## [3.75.114] - 2026-05-21
 
 ### Added — DP-220 auto-pass automatic friction collection（5 個 deterministic trigger）

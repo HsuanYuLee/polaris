@@ -68,7 +68,6 @@ docs-manager/src/content/docs/specs/
 !.claude/settings.json
 !.claude/settings.local.json.example
 !.claude/settings.local.json.sub-repo-example
-!.claude/polaris-backlog.md
 
 # ── CI baseline (DP-032 D12-c) ──
 !.github/

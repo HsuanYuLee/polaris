@@ -455,6 +455,16 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/check-engineering-first-cut-worktree-contract.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/check-engineering-first-cut-worktree-contract.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "posture_decision": "DP-192 deterministic guard for engineering first-cut worktree handoff and workspace overlay forbidden workaround."
+    },
+    {
       "path": "scripts/check-tool-direct-call.sh",
       "kind": "gate",
       "runner": "bash",

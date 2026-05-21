@@ -24,14 +24,24 @@ First-cut worktree 是一次性環境：
 - dirty / unsafe stale worktree 會 fail-stop；先處理內容，再重跑 setup。
 
 1. JIRA transition in development 用 `scripts/polaris-jira-transition.sh`，soft-fail。
-2. 建 branch / worktree 只能用：
+2. 建 branch / worktree 只能用 setup helper，並立刻 capture stdout 最後一行為
+   `WORKTREE_PATH`：
 
    ```bash
-   bash "${POLARIS_ROOT}/scripts/engineering-branch-setup.sh" "<path/to/task.md>"
+   SETUP_OUTPUT="$(bash "${POLARIS_ROOT}/scripts/engineering-branch-setup.sh" "<path/to/task.md>")"
+   printf '%s\n' "$SETUP_OUTPUT"
+   WORKTREE_PATH="$(printf '%s\n' "$SETUP_OUTPUT" | tail -n 1)"
+   test -d "$WORKTREE_PATH"
+   test "$(git -C "$WORKTREE_PATH" rev-parse --show-toplevel)" = "$WORKTREE_PATH"
    ```
 
 3. 若 task.md 有 Branch chain，script 會先 cascade rebase 上游鏈再切本 task branch。
 4. duplicate branch / remote 時停止，不手動改名再開新 branch；stale worktree 只能由 setup helper 清理，不可人工拿舊 path 繼續做。
+5. `WORKTREE_PATH` 是 first-cut 後續唯一 implementation repo。source write、test、
+   verify、commit、PR create、finalize 都必須用 `WORKTREE_PATH` 作為 repo / cwd。
+6. main checkout dirty state 是允許狀態，不得為了建立 task worktree 對 main checkout
+   執行 `git stash`、`git reset`、`git restore`、`git checkout` 或等價 destructive
+   workaround。
 
 First-cut 不再需要獨立 pre-development rebase；branch setup 已從 resolved base tip 切出。
 
@@ -45,7 +55,9 @@ First-cut 不再需要獨立 pre-development rebase；branch setup 已從 resolv
 4. 安裝依賴：
 
    ```bash
-   bash {polaris_root}/scripts/env/install-project-deps.sh --task-md {task_md_path} --cwd "$(git rev-parse --show-toplevel)"
+   bash {polaris_root}/scripts/env/install-project-deps.sh \
+     --task-md {task_md_path} \
+     --cwd "$WORKTREE_PATH"
    ```
 
 5. 用 `scripts/parse-task-md.sh` 取得 `test_command`、`verify_command`、Test
@@ -54,10 +66,15 @@ First-cut 不再需要獨立 pre-development rebase；branch setup 已從 resolv
 7. canonical `polaris-config/{project}/generated-scripts/ci-local.sh` 存在時必跑：
 
    ```bash
-   bash "${POLARIS_ROOT}/scripts/ci-local-run.sh" --repo "$(git rev-parse --show-toplevel)"
+   bash "${POLARIS_ROOT}/scripts/ci-local-run.sh" --repo "$WORKTREE_PATH"
    ```
 
 Migration blocker 不可被當作 skip reason。
+
+DP-backed framework work 若需要讀 task.md、refinement、skills reference、handbook 或
+polaris-config，這些 workspace-owned artifacts 必須用主 checkout canonical absolute path
+讀取；不得把 `docs-manager/src/content/docs/specs/**`、`.claude/skills/**` 或
+`polaris-config/**` copy / rsync / mirror 到 task worktree。
 
 ## Behavior Baseline
 
@@ -96,7 +113,7 @@ Developer path：
 
 ```bash
 bash "${POLARIS_ROOT}/scripts/finalize-engineering-delivery.sh" \
-  --repo "$(git rev-parse --show-toplevel)" \
+  --repo "$WORKTREE_PATH" \
   --ticket "{ticket_key}" \
   --workspace "{workspace_root}"
 ```
