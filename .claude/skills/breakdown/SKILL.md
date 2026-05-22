@@ -102,6 +102,33 @@ plan ↔ delivery 永久脫鉤，必須 reopen refinement 壓縮 task 結構。
 | `scope challenge` / `挑戰需求` | advisory challenge only, no writes unless user later confirms planning | `breakdown-scope-challenge-flow.md` |
 | branch/task packaging details needed | branch DAG, task.md / V*.md validation | `breakdown-task-packaging.md` |
 
+## Initial-Create Task.md Writer (DP-226)
+
+新建 `tasks/T*/index.md` 或 `tasks/V*/index.md` 時，breakdown 必須走 deterministic
+producer writer，不再依賴 Claude `Write` / `Edit` / `MultiEdit` tool 的 per-call
+env 或 Bash heredoc workaround：
+
+```bash
+bash scripts/write-producer-owned-artifact.sh \
+  --producer-token breakdown:initial-create \
+  --path /absolute/path/to/tasks/T{n}/index.md \
+  --body-file /absolute/path/to/staged-task-body.md
+```
+
+語意：
+
+- `breakdown:initial-create` token 只覆蓋 **首次建立** 的 task.md；既有 task.md 的後續
+  編修（status flip、jira_transition_log 補寫等）沿用原來的 `dp-task-status-writer`
+  flow，不注入此 token。
+- writer 內部做 token-first lookup（即使 overlapping path globs 包含 `tasks/**/index.md`，
+  token 也會解析到 initial-create entry），並以 `validate-task-md.sh` 驗證寫入內容；
+  validator fail 時 rollback 任何既有內容，不留下 invalid artifact。
+- staged body 由 breakdown 在 mktemp 路徑下準備好（含 frontmatter、required sections、
+  Allowed Files、改動範圍、Verify Command 等），writer 不產生 body，只負責 token+glob
+  enforcement 與 atomic write。
+- `POLARIS_PRODUCER` env 仍只由 deterministic 觸發路徑（producer script 內部）使用，
+  不得透過 Claude tool per-call env 模擬 producer。
+
 ## Shared Fail-Stops
 
 - 每種 source 在 work-order packaging 前都必須有對應的 planning handoff：

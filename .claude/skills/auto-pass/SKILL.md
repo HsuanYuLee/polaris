@@ -52,6 +52,50 @@ ledger schema、consent enum、terminal enum 與 resume 欄位以
 啟動 `auto-pass` 代表使用者同意本 DP source 內的重新評估、重新拆分與 task repair。這份同意
 只能透過 ledger artifact 傳給下游，不可用 conversation memory 代替。
 
+## Producer-Owned Writer (DP-226)
+
+ledger 與 resume artifact 的 durable write 必須走 deterministic producer writer，
+不再依賴 Claude `Write` / `Edit` / `MultiEdit` tool 的 per-call env 注入，也不
+保留 DP-225 dogfood 期間的 Bash heredoc workaround。
+
+呼叫方式：
+
+```bash
+bash scripts/write-producer-owned-artifact.sh \
+  --producer-token auto-pass:source \
+  --path {source_container}/artifacts/auto-pass/YYYYMMDD-HHMMSS-ledger.json \
+  --body-file /absolute/path/to/staged-body.json \
+  --source-container {source_container} \
+  --source-id DP-NNN
+```
+
+stage 對應的 producer token：
+
+| Stage | Token |
+|-------|-------|
+| ledger 建立（source） | `auto-pass:source` |
+| ledger 更新（breakdown phase） | `auto-pass:breakdown` |
+| ledger 更新（engineering phase） | `auto-pass:engineering` |
+| ledger 更新（verify-AC phase） | `auto-pass:verify` |
+| resume artifact write（session_handoff） | `auto-pass:verify`（同 entry） |
+
+resume artifact write 必須額外帶 `--ledger-path /abs/ledger.json` 與
+`--source-id DP-NNN`；writer 將以這些 context 呼叫 `validate-auto-pass-resume.sh`，
+缺 context 一律 fail-closed，不留下 invalid artifact。
+
+writer 行為摘要：
+
+- 讀 `scripts/lib/evidence-producers.json`，token-first lookup + path glob enforce；
+  token 不在 `producer_tokens[]` 或 path 不在 `path_globs[]` 時 exit 2 不寫檔。
+- temp file + atomic rename；final-path 需驗證的 artifact（ledger / resume）
+  在 validator fail 時 rollback 既有內容。
+- 成功時 stderr log `[write-producer-owned-artifact] producer=... path=...`，
+  作為 post-task reflection attribution 來源。
+
+`POLARIS_PRODUCER` env 仍由 hook（`pre-write-language-policy.sh` /
+`no-direct-evidence-write.sh`）辨識，但只在 deterministic 觸發路徑（如 producer
+script 內部）使用，不得透過 Claude tool per-call env 模擬 producer。
+
 ## Dispatch Boundary
 
 `auto-pass` 只 dispatch owning skills：

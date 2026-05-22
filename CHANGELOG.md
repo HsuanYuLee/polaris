@@ -4,6 +4,20 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.116] - 2026-05-22
+
+### Changed — DP-226 auto-pass producer trust + validator lifecycle awareness
+
+讓 `/auto-pass` orchestrator 與 `breakdown` initial-create lane 用 deterministic producer writer 寫 ledger / resume JSON / 初始 task.md，不再依賴臨場 Bash heredoc workaround；並讓 `validate-task-md.sh` Verify Command static smoke 對齊 task `create` lifecycle，使 self-hosting create-script 引用通過驗證。對應 DP-225 friction_log[] 前 3 條結構性 gap。
+
+- `.claude/hooks/no-direct-evidence-write.sh`：補上 auto-pass ledger / resume JSON protected globs，並新增 `POLARIS_PRODUCER` token 解析、token-first producer lookup、path glob enforce 與 stderr attribution log；缺 token / token 不命中 / path 不在 globs 時保留原 BLOCKED 行為。
+- `.claude/hooks/pre-write-language-policy.sh`：把既有 producer bypass 收緊為 token enum + path glob 兩者都命中才允許跳過；不再容許 free-form token 對任意 specs path 形成 silent bypass。
+- `scripts/lib/evidence-producers.json`：新增 `auto-pass`（ledger / resume JSON）與 `breakdown:initial-create`（`tasks/T*/index.md`、`tasks/V*/index.md`）producer entry 及對應 `producer_tokens[]`。
+- `scripts/write-producer-owned-artifact.sh`：新增 deterministic writer，驗 token + path glob、支援 validator context args（`--source-container` / `--source-id` / `--ledger-path` / `--task-write-at`），temp file + atomic rename，validator fail 或缺 context 時 rollback 並 exit 2。
+- `scripts/validate-task-md.sh § verify_command_static_smoke`：解析 `## 改動範圍` action=`create` paths 與 `## Allowed Files` 交集得到 create set；命中時 skip missing-script error，但仍解析 flag。
+- `.claude/skills/auto-pass/SKILL.md`、`.claude/skills/breakdown/SKILL.md`：ledger / resume / initial-create task.md 寫入步驟改呼叫 `write-producer-owned-artifact.sh`，移除 DP-225 期間的 Bash heredoc workaround 描述。
+- `scripts/selftests/no-direct-evidence-write-producer-token-selftest.sh`、`scripts/selftests/write-producer-owned-artifact-selftest.sh`、`scripts/selftests/validate-task-md-allowed-files-create-smoke-selftest.sh`：新增三條 selftest 覆蓋 AC1 / AC2 / AC3 / AC5 / AC-NEG1 / AC-NEG2 / AC-NEG3 / AC-NEG4 / AC-NEG5。
+
 ## [3.75.115] - 2026-05-22
 
 ### Changed — DP-192 engineering first-cut worktree overlay contract hardening

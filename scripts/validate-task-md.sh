@@ -221,6 +221,93 @@ command = sys.argv[2]
 repo_root = Path.cwd()
 errors = []
 
+# DP-226 T3: build create_set = intersection of (## 改動範圍 action=create paths,
+# ## Allowed Files bullet paths). Scripts referenced in the create_set are
+# allowed to be missing at validation time (forward reference, since the
+# script will be created by the same task that references it). Outside the
+# create_set, missing-script remains a fail-loud error.
+def _read_task_text() -> str:
+    try:
+        return task_path.read_text(encoding="utf-8")
+    except Exception:
+        return ""
+
+def _section_text(text: str, heading: str) -> str:
+    marker = f"## {heading}"
+    start = text.find(marker)
+    if start == -1:
+        return ""
+    start = text.find("\n", start)
+    if start == -1:
+        return ""
+    end = text.find("\n## ", start + 1)
+    return text[start + 1:] if end == -1 else text[start + 1:end]
+
+def _parse_change_scope_create_paths(text: str) -> set[str]:
+    """Parse `## 改動範圍` markdown table rows whose action column equals
+    'create'. Returns the path tokens (col 1) for those rows. Heuristic:
+    the action column is identified by header name (`動作` or `action`,
+    case/whitespace tolerant); fall back to column index 2 (zero-based 1)
+    when the header parse fails."""
+    body = _section_text(text, "改動範圍")
+    if not body:
+        return set()
+    lines = [ln for ln in body.splitlines() if ln.strip().startswith("|")]
+    if not lines:
+        return set()
+    # First row is header; second row is `|---|---|...` separator.
+    header_cells = [c.strip() for c in lines[0].strip().strip("|").split("|")]
+    action_idx = None
+    for idx, name in enumerate(header_cells):
+        n = name.lower()
+        if n in {"action", "動作"}:
+            action_idx = idx
+            break
+    if action_idx is None:
+        # Conventional schema (refinement-artifact.md): | 檔案 | 動作 | 說明 |
+        if len(header_cells) >= 2:
+            action_idx = 1
+    create_paths: set[str] = set()
+    for row in lines[2:]:  # skip header + separator
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        if len(cells) <= action_idx:
+            continue
+        action = cells[action_idx].strip().lower()
+        if action != "create":
+            continue
+        path_cell = cells[0]
+        # Path cell often wraps the path in backticks; strip them.
+        m = re.search(r"`([^`]+)`", path_cell)
+        if m:
+            create_paths.add(m.group(1).strip())
+        else:
+            create_paths.add(path_cell.strip())
+    return create_paths
+
+def _parse_allowed_files(text: str) -> set[str]:
+    body = _section_text(text, "Allowed Files")
+    if not body:
+        return set()
+    paths: set[str] = set()
+    for raw in body.splitlines():
+        stripped = raw.strip()
+        if not stripped.startswith("- "):
+            continue
+        item = stripped[2:].strip()
+        # Strip wrapping backticks if present.
+        m = re.match(r"^`([^`]+)`", item)
+        if m:
+            paths.add(m.group(1).strip())
+        else:
+            # Drop trailing inline annotations after a space.
+            paths.add(item.split()[0].strip())
+    return paths
+
+_task_text = _read_task_text()
+_create_paths = _parse_change_scope_create_paths(_task_text)
+_allowed_paths = _parse_allowed_files(_task_text)
+CREATE_SET: set[str] = _create_paths & _allowed_paths
+
 def script_supported_flags(script: Path):
     if not script.is_file():
         return None
@@ -251,6 +338,11 @@ def smoke_script_flags(line: str, tokens: list[str]):
         return
     script = repo_root / tokens[script_idx]
     if not script.is_file():
+        # DP-226 T3: skip missing-script error when the referenced script is
+        # listed in the create_set (intersection of ## 改動範圍 action=create
+        # AND ## Allowed Files). Outside create_set, fail loud.
+        if tokens[script_idx] in CREATE_SET:
+            return
         errors.append(f"Verify Command references missing repo-local script: {tokens[script_idx]} (line: {line})")
         return
     supported = script_supported_flags(script)

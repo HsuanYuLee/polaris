@@ -7,7 +7,10 @@
 #   3. Out-of-scope path (e.g., random temp file) → exit 0 (no-op).
 #   4. Non Write/Edit/MultiEdit tool name → exit 0 (no-op).
 #   5. POLARIS_LANGUAGE_POLICY_BYPASS=1 → exit 0 with bypass log.
-#   6. POLARIS_PRODUCER=<name> → exit 0 with producer bypass log.
+#   6. POLARIS_PRODUCER=<valid token> + matching path glob → exit 0 with
+#      DP-226 token+glob bypass log; legacy free-form bypass is no longer
+#      granted (token must appear in some producer's producer_tokens[]
+#      AND file_path must match that producer's path_globs[]).
 #   7. wall-clock < 500ms per invocation on a small artifact (AC-NF2 budget 200ms;
 #      selftest uses 500ms to absorb cold-start + python boot variance on CI).
 
@@ -118,17 +121,61 @@ if [[ "$rc" -ne 0 ]]; then
 fi
 grep -q 'BYPASS explicit POLARIS_LANGUAGE_POLICY_BYPASS' "$WORKDIR/case-explicit-bypass.out"
 
-# Case 6: POLARIS_PRODUCER=<name> → bypass (exit 0) with producer log.
+# Case 6: POLARIS_PRODUCER=<valid token> + matching path glob → bypass (exit 0)
+# with DP-226 token+glob attribution log. The payload targets an auto-pass
+# ledger path under docs-manager/.../artifacts/auto-pass/, which matches the
+# `auto-pass` producer entry's path_globs[] in
+# scripts/lib/evidence-producers.json (token: auto-pass:source).
+ledger_path="$ROOT_DIR/docs-manager/src/content/docs/specs/design-plans/__dp226_fixture__/artifacts/auto-pass/20260522-fixture-ledger.json"
+payload_token_glob=$(python3 -c "
+import json
+print(json.dumps({
+  'tool_name': 'Write',
+  'tool_input': {
+    'file_path': '$ledger_path',
+    'content': '{\"schema_version\":1}\n'
+  }
+}))
+")
+payload_token_glob_file="$WORKDIR/payload-token-glob.json"
+printf '%s' "$payload_token_glob" >"$payload_token_glob_file"
 set +e
-POLARIS_PRODUCER=mark-spec-implemented.sh "$HOOK" <"$payload_bypass_file" >"$WORKDIR/case-producer-bypass.out" 2>&1
+POLARIS_PRODUCER=auto-pass:source "$HOOK" <"$payload_token_glob_file" >"$WORKDIR/case-producer-bypass.out" 2>&1
 rc=$?
 set -e
 if [[ "$rc" -ne 0 ]]; then
-  echo "FAIL (case-producer-bypass): expected exit 0, got $rc" >&2
+  echo "FAIL (case-producer-bypass): expected exit 0 with token+glob bypass, got $rc" >&2
   cat "$WORKDIR/case-producer-bypass.out" >&2
   exit 1
 fi
-grep -q 'BYPASS producer=mark-spec-implemented.sh' "$WORKDIR/case-producer-bypass.out"
+grep -q 'BYPASS producer=auto-pass:source' "$WORKDIR/case-producer-bypass.out"
+grep -q 'DP-226 token+glob' "$WORKDIR/case-producer-bypass.out"
+
+# Case 6b (DP-226 strict): unknown producer token → no bypass (fall through to
+# language validator, which blocks English-only content with exit 2).
+set +e
+POLARIS_PRODUCER=mark-spec-implemented.sh "$HOOK" <"$payload_bypass_file" >"$WORKDIR/case-producer-strict.out" 2>&1
+rc=$?
+set -e
+if [[ "$rc" -ne 2 ]]; then
+  echo "FAIL (case-producer-strict): expected exit 2 (unknown token falls through to language gate), got $rc" >&2
+  cat "$WORKDIR/case-producer-strict.out" >&2
+  exit 1
+fi
+grep -q 'DENIED token not in producer_tokens' "$WORKDIR/case-producer-strict.out"
+
+# Case 6c (DP-226 strict): valid token but path outside the producer's
+# path_globs[] → no bypass (fall through to language gate).
+set +e
+POLARIS_PRODUCER=auto-pass:source "$HOOK" <"$payload_bypass_file" >"$WORKDIR/case-token-path-oos.out" 2>&1
+rc=$?
+set -e
+if [[ "$rc" -ne 2 ]]; then
+  echo "FAIL (case-token-path-oos): expected exit 2 (token but path out of globs, falls through to language gate), got $rc" >&2
+  cat "$WORKDIR/case-token-path-oos.out" >&2
+  exit 1
+fi
+grep -q 'DENIED token+path mismatch' "$WORKDIR/case-token-path-oos.out"
 
 # Case 7: timing budget. Use the zh-TW pass payload so the validator runs the full
 # path (read config + scan markdown). Allow 500ms wall-clock per invocation as a

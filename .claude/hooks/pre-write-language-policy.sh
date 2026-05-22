@@ -43,13 +43,96 @@ if [[ "$in_scope" -ne 1 ]]; then
   exit 0
 fi
 
-# DP-217 carve-out: never block Polaris-managed status flips / artifact
-# producers that themselves invoke this same path. Producer scripts set
+# DP-217 / DP-226 producer carve-out: never block Polaris-managed status flips /
+# artifact producers that invoke this same path. Producer scripts set
 # POLARIS_PRODUCER to declare ownership; hook honors that signal but logs
 # it so post-task reflection can audit producer usage.
+#
+# DP-226 tightening: bypass requires BOTH (a) token listed in some producer
+# entry's producer_tokens[] AND (b) file_path matching that same entry's
+# path_globs[]. Token-first lookup (find the unique entry whose
+# producer_tokens[] contains the token, then verify path). When neither
+# condition holds, fall through to the language validator instead of granting
+# a free-form bypass. Entries without producer_tokens[] do not participate
+# in token bypass — those producers continue to operate via their own
+# scripted writers (see scripts/lib/evidence-producers.json).
 if [[ -n "${POLARIS_PRODUCER:-}" ]]; then
-  echo "[pre-write-language-policy] BYPASS producer=$POLARIS_PRODUCER path=$file_path" >&2
-  exit 0
+  script_dir_pp="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  workspace_root_pp="$(cd "$script_dir_pp/../.." && pwd)"
+  producers_json_pp="$workspace_root_pp/scripts/lib/evidence-producers.json"
+  decision_pp="NO_TABLE"
+  if [[ -f "$producers_json_pp" ]]; then
+    decision_pp=$(POLARIS_PRODUCER_VAL="$POLARIS_PRODUCER" FILE_PATH_VAL="$file_path" \
+      PRODUCERS_JSON_VAL="$producers_json_pp" python3 - <<'PY' 2>/dev/null || true
+import fnmatch
+import json
+import os
+import sys
+
+token = os.environ.get("POLARIS_PRODUCER_VAL", "")
+file_path = os.environ.get("FILE_PATH_VAL", "")
+producers_json = os.environ.get("PRODUCERS_JSON_VAL", "")
+
+try:
+    with open(producers_json, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception:
+    print("NO_TABLE")
+    sys.exit(0)
+
+producers = data.get("producers", []) or []
+
+# Token-first lookup: locate the unique entry whose producer_tokens[] contains token.
+matching = [p for p in producers if token in (p.get("producer_tokens") or [])]
+if len(matching) > 1:
+    print("TOKEN_NOT_UNIQUE")
+    sys.exit(0)
+if len(matching) == 0:
+    print("TOKEN_UNKNOWN")
+    sys.exit(0)
+
+entry = matching[0]
+globs = entry.get("path_globs", []) or []
+
+def match_any(path, globs):
+    for g in globs:
+        if fnmatch.fnmatch(path, g):
+            return True
+        parts = path.split("/")
+        for i in range(len(parts)):
+            tail = "/".join(parts[i:])
+            if fnmatch.fnmatch(tail, g):
+                return True
+        g_alt = g.replace("**/", "*/").replace("/**", "/*")
+        if fnmatch.fnmatch(path, g_alt):
+            return True
+    return False
+
+if match_any(file_path, globs):
+    print("BYPASS_TOKEN")
+else:
+    print("PATH_OUT_OF_GLOBS")
+PY
+)
+  fi
+  case "$decision_pp" in
+    BYPASS_TOKEN)
+      echo "[pre-write-language-policy] BYPASS producer=$POLARIS_PRODUCER path=$file_path (DP-226 token+glob)" >&2
+      exit 0
+      ;;
+    PATH_OUT_OF_GLOBS)
+      echo "[pre-write-language-policy] DENIED token+path mismatch producer=$POLARIS_PRODUCER path=$file_path (DP-226 strict)" >&2
+      # Fall through to the language validator below.
+      ;;
+    TOKEN_NOT_UNIQUE)
+      echo "[pre-write-language-policy] DENIED token uniqueness violated producer=$POLARIS_PRODUCER (DP-226)" >&2
+      # Fall through.
+      ;;
+    TOKEN_UNKNOWN|NO_TABLE|"")
+      echo "[pre-write-language-policy] DENIED token not in producer_tokens[] producer=$POLARIS_PRODUCER path=$file_path (DP-226 strict)" >&2
+      # Fall through to the language validator below.
+      ;;
+  esac
 fi
 
 if [[ -n "${POLARIS_LANGUAGE_POLICY_BYPASS:-}" ]]; then

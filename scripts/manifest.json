@@ -3770,6 +3770,15 @@
       "selftest_reason": "covered by DP-207 auto-pass proof-of-work validation"
     },
     {
+      "path": "scripts/write-producer-owned-artifact.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "auto-pass",
+      "selftest": "scripts/selftests/write-producer-owned-artifact-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/gates/gate-changed-files-scope.sh",
       "kind": "gate",
       "runner": "bash",
