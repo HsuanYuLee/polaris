@@ -20,24 +20,32 @@ make_stub w1-pass 0
 make_stub w2-pass 0
 make_stub w3-pass 0
 make_stub w4-pass 0
+make_stub w5-pass 0
+make_stub w6-pass 0
 env \
   POLARIS_VALIDATE_RUNTIME_BIN="$TMP/w1-pass" \
   POLARIS_AUDIT_GRADUATION_BIN="$TMP/w2-pass" \
   POLARIS_LINT_REFERENCE_LINE_COUNT_BIN="$TMP/w3-pass" \
   POLARIS_CHECK_QUARANTINE_BIN="$TMP/w4-pass" \
+  POLARIS_VALIDATE_SPEC_SOURCE_PARITY_BIN="$TMP/w5-pass" \
+  POLARIS_GATE_TEMPLATE_LEAKS_BIN="$TMP/w6-pass" \
   bash scripts/check-framework-pr-gate.sh >/dev/null
 
-for fail in w1 w2 w3 w4; do
+for fail in w1 w2 w3 w4 w5 w6; do
   make_stub w1 0
   make_stub w2 0
   make_stub w3 0
   make_stub w4 0
+  make_stub w5 0
+  make_stub w6 0
   make_stub "$fail" 1
   if env \
     POLARIS_VALIDATE_RUNTIME_BIN="$TMP/w1" \
     POLARIS_AUDIT_GRADUATION_BIN="$TMP/w2" \
     POLARIS_LINT_REFERENCE_LINE_COUNT_BIN="$TMP/w3" \
     POLARIS_CHECK_QUARANTINE_BIN="$TMP/w4" \
+    POLARIS_VALIDATE_SPEC_SOURCE_PARITY_BIN="$TMP/w5" \
+    POLARIS_GATE_TEMPLATE_LEAKS_BIN="$TMP/w6" \
     bash scripts/check-framework-pr-gate.sh >"$TMP/out" 2>"$TMP/err"; then
     echo "self-test failed: $fail failure did not fail aggregator" >&2
     exit 1
@@ -50,6 +58,8 @@ env \
   POLARIS_AUDIT_GRADUATION_BIN="$TMP/w2-pass" \
   POLARIS_LINT_REFERENCE_LINE_COUNT_BIN="$TMP/w3-pass" \
   POLARIS_CHECK_QUARANTINE_BIN="$TMP/w4-pass" \
+  POLARIS_VALIDATE_SPEC_SOURCE_PARITY_BIN="$TMP/w5-pass" \
+  POLARIS_GATE_TEMPLATE_LEAKS_BIN="$TMP/w6-pass" \
   POLARIS_SURFACE_CLASS="developer_pr" \
   bash scripts/check-framework-pr-gate.sh >/dev/null
 

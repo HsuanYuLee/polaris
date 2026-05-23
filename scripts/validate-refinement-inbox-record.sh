@@ -66,18 +66,21 @@ body_byte_size() {
 validate_file() {
   local file="$1"
   local errors=()
+  local warnings=()
 
   if [[ ! -f "$file" ]]; then
     echo "error: inbox record not found: $file" >&2
     return 2
   fi
 
-  local skill target source route epic source_task source_ticket source_sidecar count created consumed
+  local skill target source route epic source_type source_id source_task source_ticket source_sidecar count created consumed
   skill=$(extract_frontmatter_scalar "$file" "skill" || true)
   target=$(extract_frontmatter_scalar "$file" "target_skill" || true)
   source=$(extract_frontmatter_scalar "$file" "source" || true)
   route=$(extract_frontmatter_scalar "$file" "route" || true)
   epic=$(extract_frontmatter_scalar "$file" "epic" || true)
+  source_type=$(extract_frontmatter_scalar "$file" "source_type" || true)
+  source_id=$(extract_frontmatter_scalar "$file" "source_id" || true)
   source_task=$(extract_frontmatter_scalar "$file" "source_task" || true)
   source_ticket=$(extract_frontmatter_scalar "$file" "source_ticket" || true)
   source_sidecar=$(extract_frontmatter_scalar "$file" "source_sidecar" || true)
@@ -97,9 +100,38 @@ validate_file() {
   if [[ "$route" != "refinement" ]]; then
     errors+=("frontmatter 'route' must be 'refinement' (got '$route')")
   fi
-  if [[ -z "$epic" ]]; then
-    errors+=("frontmatter 'epic' is required (JIRA Epic key or DP-NNN source id)")
+
+  # DP-228 AC-NF5 / AC13: source-neutral schema. Accept `source_type` +
+  # `source_id`; keep legacy `epic` as read-only compatibility (warn during
+  # migration). Records that provide neither shape fail hard.
+  if [[ -n "$source_type" || -n "$source_id" ]]; then
+    if [[ -z "$source_type" ]]; then
+      errors+=("frontmatter 'source_type' is required when 'source_id' is set (must be 'dp' or 'jira')")
+    elif [[ "$source_type" != "dp" && "$source_type" != "jira" ]]; then
+      errors+=("frontmatter 'source_type' must be 'dp' or 'jira' (got '$source_type')")
+    fi
+    if [[ -z "$source_id" ]]; then
+      errors+=("frontmatter 'source_id' is required when 'source_type' is set")
+    else
+      case "$source_type" in
+        dp)
+          if ! [[ "$source_id" =~ ^DP-[0-9]+$ ]]; then
+            errors+=("frontmatter 'source_id' must match 'DP-<n>' when source_type=dp (got '$source_id')")
+          fi
+          ;;
+        jira)
+          if ! [[ "$source_id" =~ ^[A-Z][A-Z0-9]+-[0-9]+$ ]]; then
+            errors+=("frontmatter 'source_id' must match '<PROJECT>-<n>' when source_type=jira (got '$source_id')")
+          fi
+          ;;
+      esac
+    fi
+  elif [[ -n "$epic" ]]; then
+    warnings+=("legacy 'epic' field detected without 'source_type'/'source_id'; please migrate to DP-228 source-neutral schema (deprecated read-only compatibility)")
+  else
+    errors+=("frontmatter must provide 'source_type' + 'source_id' (DP-228 schema) or legacy 'epic' (deprecated)")
   fi
+
   if [[ -z "$source_task" ]]; then
     errors+=("frontmatter 'source_task' is required")
   fi
@@ -149,6 +181,13 @@ validate_file() {
       echo "  - $e" >&2
     done
     return 1
+  fi
+
+  if [[ "${#warnings[@]}" -gt 0 ]]; then
+    local w
+    for w in "${warnings[@]}"; do
+      echo "⚠ validate-refinement-inbox-record.sh WARN — $w" >&2
+    done
   fi
 
   echo "✓ validate-refinement-inbox-record.sh PASS — $file"

@@ -14,8 +14,12 @@ mkdir -p \
   "$TMP/.polaris/evidence/blocked-conflict" \
   "$TMP/.polaris/evidence/unsupported-mutation" \
   "$TMP/.polaris/evidence/ac-verification" \
-  "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement-inbox"
+  "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement-inbox" \
+  "$TMP/docs-manager/src/content/docs/specs/design-plans/archive" \
+  "$TMP/docs-manager/src/content/docs/specs/companies/exampleco/EXAMPLE-556/refinement-inbox" \
+  "$TMP/docs-manager/src/content/docs/specs/companies/exampleco/EXAMPLE-557"
 
+# ─── DP-900 active fixture (DP source path coverage; pre-existing) ─────────────
 cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/index.md" <<'MD'
 ---
 title: "DP-900 fixture"
@@ -41,6 +45,97 @@ cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refin
 {
   "source": {"type": "dp", "id": "DP-900"},
   "modules": [{"path": "scripts/auto-pass-probe.sh", "action": "modify"}],
+  "acceptance_criteria": []
+}
+JSON
+
+# ─── EXAMPLE-556 active fixture (JIRA Epic source for AC12 / AC13) ─────────────────
+cat >"$TMP/docs-manager/src/content/docs/specs/companies/exampleco/EXAMPLE-556/index.md" <<'MD'
+---
+title: "EXAMPLE-556 fixture"
+description: "auto-pass probe JIRA Epic source fixture"
+status: LOCKED
+---
+
+## Fixture
+MD
+
+cat >"$TMP/docs-manager/src/content/docs/specs/companies/exampleco/EXAMPLE-556/refinement.md" <<'MD'
+---
+title: "EXAMPLE-556 refinement"
+description: "auto-pass probe JIRA Epic refinement"
+---
+
+## Scope
+
+fixture
+MD
+
+cat >"$TMP/docs-manager/src/content/docs/specs/companies/exampleco/EXAMPLE-556/refinement.json" <<'JSON'
+{
+  "source": {"type": "jira", "id": "EXAMPLE-556"},
+  "modules": [{"path": "scripts/auto-pass-probe.sh", "action": "modify"}],
+  "acceptance_criteria": []
+}
+JSON
+
+# ─── EXAMPLE-557 active fixture (DISCUSSION status — should BLOCK) ─────────────────
+cat >"$TMP/docs-manager/src/content/docs/specs/companies/exampleco/EXAMPLE-557/index.md" <<'MD'
+---
+title: "EXAMPLE-557 fixture"
+description: "auto-pass probe JIRA Epic DISCUSSION fixture"
+status: DISCUSSION
+---
+
+## Fixture
+MD
+
+cat >"$TMP/docs-manager/src/content/docs/specs/companies/exampleco/EXAMPLE-557/refinement.md" <<'MD'
+---
+title: "EXAMPLE-557 refinement"
+description: "auto-pass probe JIRA Epic refinement"
+---
+
+## Scope
+
+fixture
+MD
+
+cat >"$TMP/docs-manager/src/content/docs/specs/companies/exampleco/EXAMPLE-557/refinement.json" <<'JSON'
+{
+  "source": {"type": "jira", "id": "EXAMPLE-557"},
+  "modules": [],
+  "acceptance_criteria": []
+}
+JSON
+
+# ─── DP-901 archived fixture (AC-NEG7: archived must BLOCK) ───────────────────
+mkdir -p "$TMP/docs-manager/src/content/docs/specs/design-plans/archive/DP-901-archived"
+cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/archive/DP-901-archived/index.md" <<'MD'
+---
+title: "DP-901 archived"
+description: "archived source fixture"
+status: LOCKED
+---
+
+## Fixture
+MD
+
+cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/archive/DP-901-archived/refinement.md" <<'MD'
+---
+title: "DP-901 refinement"
+description: "archived refinement"
+---
+
+## Scope
+
+archived
+MD
+
+cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/archive/DP-901-archived/refinement.json" <<'JSON'
+{
+  "source": {"type": "dp", "id": "DP-901"},
+  "modules": [],
   "acceptance_criteria": []
 }
 JSON
@@ -87,6 +182,7 @@ assert_field() {
   fi
 }
 
+# ─── breakdown stage (DP path, pre-existing) ──────────────────────────────────
 write_marker "$TMP/.polaris/evidence/task-snapshot/DP-900-T1.json" task_snapshot PASS
 assert_field "breakdown-pass" "engineering" next_action --stage breakdown --source-id DP-900 --work-item-id DP-900-T1
 assert_field "source-shorthand-pass" "breakdown" next_action DP-900
@@ -96,12 +192,34 @@ write_marker "$TMP/.polaris/evidence/validation-fail/DP-900-T1.json" validation_
 assert_field "breakdown-validation-fail" "blocked_by_gate_failure" terminal_status --stage breakdown --source-id DP-900 --work-item-id DP-900-T1
 rm -f "$TMP/.polaris/evidence/validation-fail/DP-900-T1.json"
 
+# DP-212 amendment loop: refinement-inbox presence under DP container → ROUTE_BACK_AMEND
+# (terminal_status null; next_action refinement_amendment)
 touch "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement-inbox/needs-refinement.md"
-assert_field "breakdown-refinement-inbox" "paused_for_refinement" terminal_status --stage breakdown --source-id DP-900 --work-item-id DP-900-T1
+assert_field "breakdown-refinement-inbox-terminal" "None" terminal_status --stage breakdown --source-id DP-900 --work-item-id DP-900-T1
+assert_field "breakdown-refinement-inbox-next" "refinement_amendment" next_action --stage breakdown --source-id DP-900 --work-item-id DP-900-T1
 rm -f "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement-inbox/needs-refinement.md"
+
+# AC13: amendment-inbox scan is source-neutral — JIRA Epic refinement-inbox/*.md
+# also triggers ROUTE_BACK_AMEND, not UNKNOWN.
+touch "$TMP/docs-manager/src/content/docs/specs/companies/exampleco/EXAMPLE-556/refinement-inbox/needs-refinement.md"
+write_marker "$TMP/.polaris/evidence/task-snapshot/EXAMPLE-556-T1.json" task_snapshot PASS
+# Override source/work_item ids in the snapshot to match EXAMPLE-556-T1.
+python3 - "$TMP/.polaris/evidence/task-snapshot/EXAMPLE-556-T1.json" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+d = json.loads(p.read_text())
+d["source_id"] = "EXAMPLE-556"
+d["work_item_id"] = "EXAMPLE-556-T1"
+p.write_text(json.dumps(d, indent=2) + "\n", encoding="utf-8")
+PY
+assert_field "breakdown-amendment-jira" "refinement_amendment" next_action --stage breakdown --source-id EXAMPLE-556 --work-item-id EXAMPLE-556-T1
+rm -f "$TMP/docs-manager/src/content/docs/specs/companies/exampleco/EXAMPLE-556/refinement-inbox/needs-refinement.md"
+rm -f "$TMP/.polaris/evidence/task-snapshot/EXAMPLE-556-T1.json"
 
 assert_field "breakdown-unknown" "blocked_by_gate_failure" terminal_status --stage breakdown --source-id DP-900 --work-item-id DP-900-T1
 
+# ─── source stage (DP path, pre-existing) ─────────────────────────────────────
 cp "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/index.md" "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/index.locked.md"
 python3 - "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/index.md" <<'PY'
 from pathlib import Path
@@ -113,6 +231,21 @@ PY
 assert_field "source-discussion-blocked" "blocked_by_gate_failure" terminal_status DP-900
 mv "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/index.locked.md" "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/index.md"
 
+# ─── source stage (AC12: JIRA Epic resolved via resolver — not UNKNOWN) ───────
+# LOCKED Epic should PASS the source stage.
+assert_field "source-jira-locked-status" "PASS" status --stage source --source-id EXAMPLE-556 --work-item-id EXAMPLE-556
+assert_field "source-jira-locked-next" "breakdown" next_action --stage source --source-id EXAMPLE-556 --work-item-id EXAMPLE-556
+
+# DISCUSSION Epic should BLOCK (not UNKNOWN).
+assert_field "source-jira-discussion" "blocked_by_gate_failure" terminal_status --stage source --source-id EXAMPLE-557 --work-item-id EXAMPLE-557
+
+# Missing JIRA key → resolver POLARIS_SOURCE_MISSING → BLOCKED (not UNKNOWN).
+assert_field "source-jira-missing" "BLOCKED" status --stage source --source-id EXAMPLE-999 --work-item-id EXAMPLE-999
+
+# ─── source stage (AC-NEG7: archived must BLOCK) ─────────────────────────────
+assert_field "source-archived-blocked" "BLOCKED" status --stage source --source-id DP-901 --work-item-id DP-901
+
+# ─── engineering stage (pre-existing) ─────────────────────────────────────────
 write_marker "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json" completion_gate PASS
 assert_field "engineering-pass" "verify-AC" next_action --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
 rm -f "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json"
@@ -121,12 +254,15 @@ write_marker "$TMP/.polaris/evidence/blocked-conflict/DP-900-T1-abc1234.json" bl
 assert_field "engineering-blocked-conflict" "blocked_by_gate_failure" terminal_status --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
 rm -f "$TMP/.polaris/evidence/blocked-conflict/DP-900-T1-abc1234.json"
 
+# ─── verify-AC stage ─────────────────────────────────────────────────────────
 write_marker "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json" ac_verification PASS
 assert_field "verify-pass" "complete" terminal_status --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
 rm -f "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json"
 
+# DP-212 amendment loop: spec-issue marker → ROUTE_BACK_AMEND, terminal null.
 write_marker "$TMP/.polaris/evidence/ac-verification/spec-issue-DP-900-V1-abc1234.json" spec_issue ROUTE_BACK
-assert_field "verify-spec-issue" "paused_for_refinement" terminal_status --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
+assert_field "verify-spec-issue-terminal" "None" terminal_status --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
+assert_field "verify-spec-issue-next" "refinement_amendment" next_action --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
 rm -f "$TMP/.polaris/evidence/ac-verification/spec-issue-DP-900-V1-abc1234.json"
 
 write_marker "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json" ac_verification MANUAL_REQUIRED

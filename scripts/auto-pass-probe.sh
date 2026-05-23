@@ -61,7 +61,10 @@ if [[ ! -d "$REPO" ]]; then
   exit 2
 fi
 
-python3 - "$REPO" "$STAGE" "$SOURCE_ID" "$WORK_ITEM_ID" "$HEAD_SHA" "$LEDGER" <<'PY'
+SCRIPT_DIR_RESOLVED="$(cd "$(dirname "$0")" && pwd)"
+RESOLVER="$SCRIPT_DIR_RESOLVED/spec-source-resolver.sh"
+
+python3 - "$REPO" "$STAGE" "$SOURCE_ID" "$WORK_ITEM_ID" "$HEAD_SHA" "$LEDGER" "$RESOLVER" <<'PY'
 import hashlib
 import json
 import os
@@ -70,7 +73,7 @@ import sys
 from pathlib import Path
 
 repo = Path(sys.argv[1]).resolve()
-stage, source_id, work_item_id, head_sha, ledger_arg = sys.argv[2:7]
+stage, source_id, work_item_id, head_sha, ledger_arg, resolver_path = sys.argv[2:8]
 
 
 def marker(path):
@@ -164,10 +167,41 @@ def refinement_hash(container: Path):
     return "sha256:" + digest.hexdigest()
 
 
-def find_dp_container():
-    design_plans = repo / "docs-manager/src/content/docs/specs/design-plans"
-    matches = sorted(path for path in design_plans.glob(f"{source_id}-*") if path.is_dir())
-    return matches
+def resolve_source(sid):
+    """Call spec-source-resolver.sh to find the source container.
+
+    Returns (resolver_json_dict, error_tuple_or_None).
+    error_tuple shape: (status, terminal_status, next_action, evidence_path, reason)
+    so callers can directly forward to emit().
+    """
+    specs_root_default = repo / "docs-manager" / "src" / "content" / "docs" / "specs"
+    cmd = ["bash", resolver_path, "--source-id", sid]
+    if specs_root_default.is_dir():
+        cmd.extend(["--specs-root", str(specs_root_default)])
+    try:
+        proc = subprocess.run(
+            cmd,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=5.0,
+        )
+    except FileNotFoundError:
+        return None, ("UNKNOWN", "blocked_by_gate_failure", "blocked", None,
+                      f"spec-source-resolver.sh not found at {resolver_path}")
+    except Exception as exc:
+        return None, ("UNKNOWN", "blocked_by_gate_failure", "blocked", None,
+                      f"spec-source-resolver.sh invocation failed: {exc}")
+    if proc.returncode != 0:
+        stderr_text = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
+        # POLARIS_SOURCE_MISSING / DUPLICATE / INVALID → BLOCKED (not UNKNOWN)
+        return None, ("BLOCKED", "blocked_by_gate_failure", "blocked", None,
+                      stderr_text or f"resolver exit {proc.returncode}")
+    try:
+        return json.loads(proc.stdout.decode("utf-8")), None
+    except Exception as exc:
+        return None, ("UNKNOWN", "blocked_by_gate_failure", "blocked", None,
+                      f"resolver output not JSON: {exc}")
 
 
 def ledger_terminal():
@@ -189,45 +223,62 @@ def ledger_terminal():
     return None
 
 
+def _resolve_or_emit(sid):
+    """Resolve source via resolver; if resolver errored, emit() and never return."""
+    resolved, err = resolve_source(sid)
+    if err is not None:
+        emit(*err)
+    return resolved
+
+
 if stage == "source":
-    if not source_id.startswith("DP-"):
-        emit("UNKNOWN", "blocked_by_gate_failure", "blocked", None, "source resolver for non-DP key is not available in this runtime")
-    matches = find_dp_container()
-    if len(matches) != 1:
-        emit(
-            "BLOCKED",
-            "blocked_by_gate_failure",
-            "blocked",
-            matches[0] if matches else None,
-            f"expected exactly one DP container, got {len(matches)}",
-        )
-    container = matches[0]
-    missing = [name for name in ("index.md", "refinement.md", "refinement.json") if not (container / name).is_file()]
+    # AC12: source resolution delegated to spec-source-resolver.sh; non-DP keys
+    # (JIRA / Epic) resolve via companies/{company}/{KEY} containers and must
+    # not fall back to UNKNOWN solely because the id is not DP-shaped.
+    resolved = _resolve_or_emit(source_id)
+    container = Path(resolved["container"])
+    # AC-NEG7: archived source is read-only; auto-pass must not treat it as
+    # an active LOCKED delivery surface.
+    if resolved.get("archived"):
+        emit("BLOCKED", "blocked_by_gate_failure", "blocked", container,
+             "source is archived (read-only); auto-pass requires active source")
+    missing = [name for name in ("refinement.md", "refinement.json") if not (container / name).is_file()]
+    if not resolved.get("primary_doc"):
+        missing.insert(0, "primary doc (index.md|plan.md|refinement.md)")
     if missing:
-        emit("BLOCKED", "blocked_by_gate_failure", "blocked", container, "missing source artifacts: " + ", ".join(missing))
-    status = frontmatter_status(container / "index.md")
+        emit("BLOCKED", "blocked_by_gate_failure", "blocked", container,
+             "missing source artifacts: " + ", ".join(missing))
+    primary_doc = Path(resolved["primary_doc"])
+    status = resolved.get("status") or frontmatter_status(primary_doc)
     if status != "LOCKED":
-        emit("BLOCKED", "blocked_by_gate_failure", "blocked", container / "index.md", f"source status must be LOCKED, got {status or 'missing'}")
+        emit("BLOCKED", "blocked_by_gate_failure", "blocked", primary_doc,
+             f"source status must be LOCKED, got {status or 'missing'}")
     try:
         refinement = json.loads((container / "refinement.json").read_text(encoding="utf-8"))
     except Exception as exc:
-        emit("BLOCKED", "blocked_by_gate_failure", "blocked", container / "refinement.json", f"refinement.json invalid JSON: {exc}")
+        emit("BLOCKED", "blocked_by_gate_failure", "blocked", container / "refinement.json",
+             f"refinement.json invalid JSON: {exc}")
     ref_source = refinement.get("source") or {}
     if ref_source.get("id") and ref_source.get("id") != source_id:
-        emit("BLOCKED", "blocked_by_gate_failure", "blocked", container / "refinement.json", "refinement.json source.id mismatch")
+        emit("BLOCKED", "blocked_by_gate_failure", "blocked", container / "refinement.json",
+             "refinement.json source.id mismatch")
     if ledger_arg:
         ledger_path = Path(ledger_arg)
         if not ledger_path.is_absolute() or not ledger_path.is_file():
-            emit("UNKNOWN", "blocked_by_gate_failure", "blocked", None, "ledger missing or not absolute")
+            emit("UNKNOWN", "blocked_by_gate_failure", "blocked", None,
+                 "ledger missing or not absolute")
         try:
             ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
         except Exception as exc:
-            emit("UNKNOWN", "blocked_by_gate_failure", "blocked", ledger_path, f"ledger invalid JSON: {exc}")
+            emit("UNKNOWN", "blocked_by_gate_failure", "blocked", ledger_path,
+                 f"ledger invalid JSON: {exc}")
         ledger_source = ledger.get("source") or {}
         if ledger_source.get("id") != source_id:
-            emit("BLOCKED", "blocked_by_gate_failure", "blocked", ledger_path, "ledger source.id mismatch")
+            emit("BLOCKED", "blocked_by_gate_failure", "blocked", ledger_path,
+                 "ledger source.id mismatch")
         if ledger_source.get("refinement_hash") != refinement_hash(container):
-            emit("BLOCKED", "blocked_by_gate_failure", "blocked", ledger_path, "ledger refinement hash stale")
+            emit("BLOCKED", "blocked_by_gate_failure", "blocked", ledger_path,
+                 "ledger refinement hash stale")
     emit("PASS", None, "breakdown", container)
 
 
@@ -245,8 +296,14 @@ if stage == "breakdown":
         path = evidence / subdir / f"{work_item_id}.json"
         if path.is_file():
             emit(status_of(path) or "BLOCKED", terminal, action, path, reason)
-    inbox = repo / "docs-manager" / "src" / "content" / "docs" / "specs" / "design-plans"
-    inbox_matches = list(inbox.glob(f"{source_id}-*/refinement-inbox/*.md"))
+    # AC13: amendment inbox scan is source-neutral. Use spec-source-resolver
+    # to find the source container (DP under design-plans/ or JIRA Epic under
+    # companies/{company}/{KEY}/), then look at {container}/refinement-inbox/.
+    inbox_resolved, inbox_err = resolve_source(source_id)
+    inbox_matches = []
+    if inbox_err is None and inbox_resolved:
+        container_path = Path(inbox_resolved["container"])
+        inbox_matches = sorted((container_path / "refinement-inbox").glob("*.md"))
     if inbox_matches:
         # DP-212: refinement-inbox presence is now a non-terminal signal —
         # auto-pass dispatches `refinement` in amendment mode, then loops

@@ -10,27 +10,28 @@ write_report() {
   local path="$1"
   local terminal="$2"
   local mode="$3"
-  python3 - "$path" "$terminal" "$mode" <<'PY'
+  local source_id="${4:-DP-198}"
+  python3 - "$path" "$terminal" "$mode" "$source_id" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-path, terminal, mode = sys.argv[1:4]
+path, terminal, mode, source_id = sys.argv[1:5]
 payload = {
     "schema_version": 1,
-    "source_id": "DP-198",
+    "source_id": source_id,
     "terminal_status": terminal,
     "created_at": "2026-05-19T10:30:00+08:00",
     "ledger_path": "/tmp/ledger.json",
-    "required_prs": [{"task_id": "DP-198-T1", "pr_url": "https://github.com/org/repo/pull/1", "head_sha": "abc"}],
-    "verification": {"status": "PASS", "work_item_id": "DP-198-V1"},
+    "required_prs": [{"task_id": f"{source_id}-T1", "pr_url": "https://github.com/org/repo/pull/1", "head_sha": "abc"}],
+    "verification": {"status": "PASS", "work_item_id": f"{source_id}-V1"},
     "issues": [],
     "blockers": [],
     "manual_items": [],
     "follow_ups": [],
     "overlap_disposition": [{"candidate": "converge", "disposition": "keep", "reason": "active-work convergence"}],
     "follow_up_dp_seed": None,
-    "framework_release_tail": {"trigger": "framework-release DP-198", "allowed": True, "reason": "workspace PR ready"},
+    "framework_release_tail": {"trigger": f"framework-release {source_id}", "allowed": True, "reason": "workspace PR ready"},
 }
 if mode == "blocked":
     payload["blockers"].append({"kind": "probe_unknown", "reason": "missing marker"})
@@ -84,5 +85,20 @@ expect_fail "bad-terminal" "$VALIDATOR" "$BAD_TERMINAL"
 BAD_OVERLAP="$TMP/bad-overlap.json"
 write_report "$BAD_OVERLAP" complete bad_overlap
 expect_fail "bad-overlap" "$VALIDATOR" "$BAD_OVERLAP"
+
+# DP-228 AC4: JIRA source report fixture — happy path with non-DP source_id.
+JIRA_COMPLETE="$TMP/jira-complete.json"
+write_report "$JIRA_COMPLETE" complete complete EXAMPLE-999
+"$VALIDATOR" "$JIRA_COMPLETE"
+
+JIRA_BLOCKED="$TMP/jira-blocked.json"
+write_report "$JIRA_BLOCKED" blocked_by_gate_failure blocked EXB2C-3461
+"$VALIDATOR" "$JIRA_BLOCKED"
+
+# DP-228 AC4 neg case: malformed source_id (lowercase) must fail.
+BAD_PATTERN="$TMP/bad-pattern.json"
+write_report "$BAD_PATTERN" complete complete gt-999
+expect_fail "bad-pattern" "$VALIDATOR" "$BAD_PATTERN"
+grep -n '{PREFIX}-NNN' "$TMP/bad-pattern.out" >/dev/null
 
 echo "PASS: auto-pass report selftest"

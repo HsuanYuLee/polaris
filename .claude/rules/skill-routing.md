@@ -68,8 +68,8 @@ Zero-input trigger 只有在「**無 active skill + 無明確 topic keyword**」
 | Break down an epic | "拆單", "拆解", "epic breakdown" | `breakdown` |
 | Batch converge all work | "收斂", "converge", "推進", "全部推到 review", "把我的單收一收" | `converge` |
 | Epic progress / gap analysis | "epic 進度", "epic 狀態", "離 merge 還多遠", "還差什麼", "補全" | `converge` (Epic-only mode) |
-| 完整 framework 開發流程 | "完整流程", "完整 workflow", "走完整開發流程", "建 DP", "建一個 DP", "DP -> PR -> 升版", "發 PR 然後升版", "快速通關 DP-NNN", "framework-release" + "建 DP" | 依 source-state matrix route：無 DP / 未 LOCK / artifact stale → `refinement`；LOCKED + current DP-backed source → `auto-pass`；`framework-release` 只作驗證後 terminal-only tail |
-| Create/open a PR (framework/docs repo) | "開 PR", "create PR", "發 PR" | 若已有 DP-backed `task.md`，走 `engineering`；若沒有，fail-stop 並要求先跑 `refinement` / `breakdown` |
+| 完整 framework 開發流程 | "完整流程", "完整 workflow", "走完整開發流程", "建 DP", "建一個 DP", "建 Epic", "{KEY} -> PR -> 升版", "發 PR 然後升版", "快速通關 {KEY}", "framework-release" + "建 DP" | 依 source-state matrix route：無 source / 未 LOCK / artifact stale → `refinement`；LOCKED + current refinement-owned source → `auto-pass`；`framework-release` 只作驗證後 framework workspace 專屬 terminal tail |
+| Create/open a PR (framework/docs repo) | "開 PR", "create PR", "發 PR" | 若已有 refinement-owned `task.md`（DP-backed 或 JIRA Epic-backed），走 `engineering`；若沒有，fail-stop 並要求先跑 `refinement` / `breakdown` |
 | Triage my work / zero-input next | "我的 epic", "my epics", "盤點", "triage", "手上有什麼", "my work", "我的工作", "排優先"；以及 zero-input 詞：「下一步」、「next」、「繼續」、「continue」、「然後呢」、「what's next」、「接下來」、「推進手上的事情」（後面無 topic keyword；「繼續 DP-015」這類帶 topic 的走 CLAUDE.md § Cross-Session Continuity） | `my-triage` |
 | Batch intake from PM | "收單", "排工", "intake", "這批單幫我看", "PM 開了一堆單", "幫我排優先", "prioritize this batch" + 多張 ticket key | `intake-triage` |
 | Daily standup / end-of-day | "standup", "站會", "daily", "寫 standup", "下班", "收工", "準備明天的工作", "end of day", "EOD", "明天 standup", "今天結束了", "總結一下", "結束今天", "wrap up", "今天做了什麼" | `standup` |
@@ -164,26 +164,37 @@ target，source 在他處）、或已在 active engineering task worktree scope 
 ## Full Development Workflow Route Policy
 
 當使用者要求「完整流程」、「完整 workflow」、「走完整開發流程」、「建 DP」、「建一個 DP」、
-「DP -> PR -> 升版」、「發 PR 然後升版」、「快速通關 DP-NNN」，或同一句同時包含
-`framework-release` 與「建 DP / 開發 / 發 PR」時，這不是單一 release intent，而是
-full main-chain intent。routing rule 只負責把 intent 導入 canonical owning skill；不得以
-prose-only rule 自行逐 stage dispatch 或成為第二條 writer path。
+「建 Epic」、「{KEY} -> PR -> 升版」、「發 PR 然後升版」、「快速通關 {KEY}」，或同一句同時
+包含 `framework-release` 與「建 DP / 開發 / 發 PR」時，這不是單一 release intent，而是
+full main-chain intent。`{KEY}` 可為 `DP-NNN`（framework workspace、DP-backed source）或
+JIRA Epic key（產品 repo，例：`GT-NNN`、`KB2CW-NNN`，JIRA Epic-backed source），由
+`spec-source-resolver.md` 解析。routing rule 只負責把 intent 導入 canonical owning skill；
+不得以 prose-only rule 自行逐 stage dispatch 或成為第二條 writer path。
 
 ### Trigger × Source-State Matrix
 
 | Trigger | Source state | Route |
 |---------|--------------|-------|
-| `建 DP` / `建一個 DP` | no DP source | `refinement` |
-| `完整流程 DP-NNN` / `快速通關 DP-NNN` | `DISCUSSION` / missing artifact / stale artifact | `refinement DP-NNN` |
-| `完整流程 {KEY}` / `快速通關 {KEY}` / `/auto-pass {KEY}` | `LOCKED` + current source | `/auto-pass {KEY}` |
-| `{KEY} -> PR -> 升版` | `LOCKED` + current source | `/auto-pass {KEY}`；report tail 提示 `framework-release` |
-| `framework-release DP-NNN` | workspace PR opened + verification current | `framework-release` |
-| `framework-release DP-NNN` | workspace PR opened + verification stale | `auto-pass DP-NNN` refresh verify-AC，不重跑 breakdown |
+| `建 DP` / `建一個 DP` / `建 Epic` | no refinement-owned source | `refinement`（建立新 source container） |
+| `完整流程 {KEY}` / `快速通關 {KEY}` | `DISCUSSION` / missing artifact / stale artifact | `refinement {KEY}` |
+| `完整流程 {KEY}` / `快速通關 {KEY}` / `/auto-pass {KEY}` | `LOCKED` + current refinement artifact | `/auto-pass {KEY}` |
+| `{KEY} -> PR -> 升版` | `LOCKED` + current refinement artifact | `/auto-pass {KEY}`；report tail 提示 `framework-release`（僅 framework workspace） |
+| `framework-release {KEY}` | workspace PR opened + verification current | `framework-release`（framework workspace 專屬 terminal tail） |
+| `framework-release {KEY}` | workspace PR opened + verification stale | `auto-pass {KEY}` refresh verify-AC，不重跑 breakdown |
 | `framework-release` without PR / task | missing terminal precondition | fail-stop 回 `refinement` / `breakdown` / `engineering` |
 
-`auto-pass` 是 locked/current DP-backed source 的 canonical main-chain orchestrator；它只
-dispatch `breakdown -> engineering -> verify-AC -> refinement(amendment)`（DP-212 後加 amendment
-mode），每段 mutation 仍由 owning skill 產生。`framework-release` 在這類語句中是 terminal-only
+`auto-pass` 是 locked/current refinement-owned source（DP-backed 或 JIRA Epic-backed）的
+canonical main-chain orchestrator；它只 dispatch `breakdown -> engineering -> verify-AC ->
+refinement(amendment)`（DP-212 後加 amendment mode），每段 mutation 仍由 owning skill 產生。
+DP-backed 與 JIRA Epic-backed source 共用同一條 routing matrix；source container 由
+`spec-source-resolver.md` 決定（DP 落在 `design-plans/DP-NNN-*/`，Epic 落在
+`companies/{company}/{EPIC}/`）。
+
+`framework-release` 是 **framework workspace 專屬的 terminal tail**——只在 Polaris framework
+self-iteration（DP-backed source 在 framework workspace）情境下生效，由 `framework-release`
+skill 自己 merge workspace PR、跑 `sync-to-polaris.sh --push`、tag、GitHub release、closeout。
+產品 repo 的 JIRA Epic-backed source 不會走 `framework-release` tail；它的 PR 流程由產品 repo
+本身的 reviewer / release process 接手。`framework-release` 在 main-chain 語句中是 terminal-only
 tail，不得搶主流程入口，也不得補開 PR、補 task.md、或追認 source-less branch。
 
 **Amendment loop policy (DP-212)**：`/auto-pass` 收到 `refinement-inbox/` 或 verify-AC `spec_issue`
@@ -192,7 +203,7 @@ tail，不得搶主流程入口，也不得補開 PR、補 task.md、或追認 s
 `refinement DP-NNN` 來消化 inbox；amendment 由 orchestrator 控制。若 amendment 觸發 LOCKED
 scope guard（要改 Goal / Background / Decisions / Scope / AC），`validate-refinement-locked-scope.sh`
 exit 2，auto-pass 升 terminal `blocked_by_gate_failure` 並回報「需要人工 unlock」，這時
-使用者才需要決定是否走完整 unlock + refinement 流程（步驟見 `refinement-dp-source-mode.md`
+使用者才需要決定是否走完整 unlock + refinement 流程（步驟見 `refinement-source-mode.md`
 § LOCKED Scope Guard）。
 
 ## Framework Release Generic Publisher Hard-Stop

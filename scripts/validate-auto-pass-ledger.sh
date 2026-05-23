@@ -90,6 +90,16 @@ CONSENT_EXCLUDES = [
     "jira_worklog_write",
     "task_scope_outside_mutation",
 ]
+# DP-228 AC14: JIRA source 才要求 jira_status_transition consent。consent_excludes 必須
+# 始終是上面的全集；JIRA status transition consent 只放行 transitionJiraIssue 對 source
+# Epic / Bug 自身的 status 變更，不得放行 child write / comment / worklog / merge / release / deploy。
+JIRA_SOURCE_TYPES = {"jira", "bug"}
+JIRA_CONSENT_RECORD_REQUIRED_FIELDS = (
+    "session_id",
+    "source_id",
+    "granted_at",
+    "ttl_seconds",
+)
 # DP-212: paused_for_refinement is no longer a terminal status. It survives
 # as a non-terminal pause.kind (sibling of session_handoff). Legacy ledgers
 # that still set terminal_status=paused_for_refinement are explicitly flagged
@@ -251,12 +261,71 @@ if terminal_status not in (None, "") and terminal_status not in TERMINAL_STATUSE
         errors.append(f"unknown terminal_status: {terminal_status}")
 
 consent = ledger.get("consent_policy")
+# DP-228 AC14: validate JIRA-only consent fields based on source.type.
+# Source type lookup falls back to None if `source` is malformed (errors already collected above).
+ledger_source_type = None
+if isinstance(source, dict):
+    ledger_source_type = source.get("type")
+is_jira_source = ledger_source_type in JIRA_SOURCE_TYPES
+
 if not isinstance(consent, dict):
     errors.append("consent_policy must be an object")
 else:
     for field in CONSENT_FIELDS:
         if consent.get(field) is not True:
             errors.append(f"consent_policy.{field} must be true")
+    # jira_status_transition flag: required (true) for JIRA source; forbidden for DP source.
+    has_jira_status_transition = "jira_status_transition" in consent
+    if is_jira_source:
+        if not has_jira_status_transition:
+            errors.append(
+                "consent_policy.jira_status_transition is required for JIRA source (DP-228 AC14)"
+            )
+        elif consent.get("jira_status_transition") is not True:
+            errors.append(
+                "consent_policy.jira_status_transition must be true for JIRA source (DP-228 AC14)"
+            )
+    else:
+        if has_jira_status_transition:
+            errors.append(
+                "consent_policy.jira_status_transition is JIRA-only; DP source must not declare it "
+                "(DP-228 AC14)"
+            )
+
+# jira_status_consent_record: required for JIRA source; forbidden for DP source.
+status_record = ledger.get("jira_status_consent_record")
+if is_jira_source:
+    if status_record is None:
+        errors.append(
+            "jira_status_consent_record is required for JIRA source (DP-228 AC14)"
+        )
+    elif not isinstance(status_record, dict):
+        errors.append("jira_status_consent_record must be an object when present")
+    else:
+        for field in JIRA_CONSENT_RECORD_REQUIRED_FIELDS:
+            value = status_record.get(field)
+            if value in (None, ""):
+                errors.append(f"jira_status_consent_record.{field} is required")
+        # source_id consistency check
+        record_source_id = status_record.get("source_id")
+        if record_source_id and isinstance(source, dict) and source.get("id") and record_source_id != source.get("id"):
+            errors.append(
+                "jira_status_consent_record.source_id must match ledger source.id"
+            )
+        # ttl_seconds positive integer
+        ttl = status_record.get("ttl_seconds")
+        if ttl is not None and (not isinstance(ttl, int) or isinstance(ttl, bool) or ttl <= 0):
+            errors.append(
+                "jira_status_consent_record.ttl_seconds must be a positive integer"
+            )
+        # granted_at must be ISO8601 when present
+        if status_record.get("granted_at"):
+            parse_iso(status_record.get("granted_at"), "jira_status_consent_record.granted_at", errors)
+else:
+    if status_record is not None:
+        errors.append(
+            "jira_status_consent_record is JIRA-only; DP source must not declare it (DP-228 AC14)"
+        )
 
 if ledger.get("consent_excludes") != CONSENT_EXCLUDES:
     errors.append("consent_excludes must exactly match the canonical enum")

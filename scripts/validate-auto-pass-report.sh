@@ -11,6 +11,7 @@ fi
 
 python3 - "$1" <<'PY'
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -24,6 +25,9 @@ TERMINAL = {
     "user_aborted",
 }
 OVERLAP = {"keep", "narrow", "deprecate-note", "follow-up-sunset"}
+# DP-228 AC4: source-neutral schema. source_id must match resolver-compatible
+# {PREFIX}-NNN — no hard-coded DP regex.
+SOURCE_ID_PATTERN = re.compile(r"[A-Z][A-Z0-9]*-[0-9]+")
 
 
 def fail(errors):
@@ -43,8 +47,11 @@ except Exception as exc:
 errors = []
 if data.get("schema_version") != 1:
     errors.append("schema_version must be 1")
-if not data.get("source_id"):
+report_source_id = data.get("source_id")
+if not report_source_id:
     errors.append("source_id is required")
+elif not SOURCE_ID_PATTERN.fullmatch(str(report_source_id)):
+    errors.append("source_id must match {PREFIX}-NNN (resolver-compatible)")
 terminal = data.get("terminal_status")
 if terminal not in TERMINAL:
     errors.append(f"invalid terminal_status: {terminal}")

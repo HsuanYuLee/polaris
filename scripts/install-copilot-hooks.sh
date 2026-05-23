@@ -102,6 +102,14 @@ if [[ -x "$GATES_DIR/gate-no-tracked-specs.sh" ]]; then
   bash "$GATES_DIR/gate-no-tracked-specs.sh" --repo "$REPO_ROOT"
 fi
 
+# Gate: template leaks (recurrence prevention for DP-228 — scan workspace
+# tracked files for live company slug / JIRA prefix / Slack ID / internal URL
+# before push, per rules/framework-iteration.md § Template-Facing Examples
+# Must Be Generic).
+if [[ -x "$GATES_DIR/gate-template-leaks.sh" ]]; then
+  bash "$GATES_DIR/gate-template-leaks.sh" --repo "$REPO_ROOT"
+fi
+
 # Gate: evidence producer whitelist (changed marker writers)
 if [[ -x "$GATES_DIR/gate-evidence-producer-whitelist.sh" ]]; then
   bash "$GATES_DIR/gate-evidence-producer-whitelist.sh" --repo "$REPO_ROOT"

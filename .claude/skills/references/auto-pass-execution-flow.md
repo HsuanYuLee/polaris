@@ -10,8 +10,10 @@ validated ledger。它不讀 inner skill final answer 來判斷 PASS。
 
 ## Stage Order
 
-1. source resolver gate：唯一 locked/current DP-backed source。
+1. source resolver gate：唯一 locked/current refinement-owned source（DP-backed 或
+   JIRA Epic-backed，由 `spec-source-resolver.md` 解析）。
 2. ledger gate：valid source-scoped ledger；pending pause 時 validate resume prerequisite。
+   JIRA Epic-backed source 額外檢查 `consent_policy.jira_status_sync` 與 session-scoped marker。
 3. breakdown stage：dispatch breakdown，PASS 後鎖定最後一次 task snapshot。
 4. engineering stage：依 task DAG dispatch engineering，要求 non-draft workspace PR opened / ready。
 5. verify-AC stage：要求 V work order verification disposition current。
@@ -25,14 +27,15 @@ validated ledger。它不讀 inner skill final answer 來判斷 PASS。
 | engineering | `.polaris/evidence/completion-gate/{work_item_id}-{head_sha}.json` status PASS | `blocked_conflict`、`unsupported_mutation` | PASS dispatch verify-AC；blocked gate failure |
 | verify-AC | `.polaris/evidence/ac-verification/{work_item_id}-{head_sha}.json` status PASS | `spec_issue`、`MANUAL_REQUIRED`、`BLOCKED_ENV`、`UNCERTAIN`、missing marker | PASS complete；spec issue pause refinement；manual/env pause；unknown blocked |
 
-Probe helper:
+Probe helper（`{SOURCE_ID}` 可為 `DP-NNN` 或 JIRA Epic key；helper 自動依 resolver 結果
+走 DP container 或 `companies/{company}/{EPIC}/` container）：
 
 ```bash
 bash scripts/auto-pass-probe.sh \
   --repo /absolute/path/to/main-checkout \
   --stage verify-AC \
-  --source-id DP-NNN \
-  --work-item-id DP-NNN-V1 \
+  --source-id {SOURCE_ID} \
+  --work-item-id {SOURCE_ID}-V1 \
   --head-sha <head_sha> \
   --ledger /absolute/path/to/ledger.json
 ```

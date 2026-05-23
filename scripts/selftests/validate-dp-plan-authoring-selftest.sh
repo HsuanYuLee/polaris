@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Selftest for validate-dp-plan-authoring.sh and route-safe path validation.
+# Selftest for validate-dp-plan-authoring.sh — thin alias for
+# scripts/validate-spec-primary-doc-authoring.sh. Verifies alias parity for DP
+# index.md / legacy plan.md, the missing-description fail-loud case, and the
+# route-safe path failure surface.
 
 set -euo pipefail
 
@@ -11,6 +14,13 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 cd "$ROOT_DIR"
 
+# Alias guard: invoking with no args should print usage and exit 2.
+if bash "$WRAPPER" >/tmp/dp-authoring-noargs.out 2>&1; then
+  echo "not ok alias should exit non-zero when called without args" >&2
+  exit 1
+fi
+
+# Alias parity: DP index.md PASS path delegated to the source-agnostic wrapper.
 mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-001-valid"
 cat >"$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-001-valid/index.md" <<'MD'
 ---
@@ -29,7 +39,9 @@ MD
 
 bash "$WRAPPER" "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-001-valid/index.md" >/tmp/dp-authoring-valid.out
 grep -q 'sidebar:' "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-001-valid/index.md"
+grep -q 'PASS: spec primary doc authoring wrapper' /tmp/dp-authoring-valid.out
 
+# Alias parity: legacy plan.md container should still pass.
 mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-002-legacy"
 cat >"$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-002-legacy/plan.md" <<'MD'
 ---
@@ -49,6 +61,7 @@ MD
 bash "$WRAPPER" "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-002-legacy/plan.md" >/tmp/dp-authoring-legacy.out
 grep -q 'sidebar:' "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-002-legacy/plan.md"
 
+# Alias parity: missing description should fail.
 mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-003-invalid"
 cat >"$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-003-invalid/index.md" <<'MD'
 ---
@@ -67,6 +80,7 @@ if bash "$WRAPPER" "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-
   exit 1
 fi
 
+# Route-safe path failure surface stays unchanged.
 mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-004-route"
 cat >"$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-004-route/release-v3.74.34.md" <<'MD'
 ---

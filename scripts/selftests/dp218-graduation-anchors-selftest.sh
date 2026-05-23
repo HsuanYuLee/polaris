@@ -106,10 +106,10 @@ check apply_standards_not_ask_user \
   ".claude/rules/handbook/working-habits.md" \
   "Apply 標準提一個方案，不要列 equivalent 選項給使用者選"
 
-# 17. feedback_kb2cw_close_via_pending → rules/kkday/jira-conventions.md
-check kb2cw_close_via_pending \
-  ".claude/rules/kkday/jira-conventions.md" \
-  "KB2CW 子單「不做了就關掉」走 Pending → 不處理 → 已關閉"
+# 17. feedback_company_subtask_close_via_pending — graduated to company-scoped
+# JIRA conventions rule (path varies per company; skipped here to keep selftest
+# template-portable per rules/framework-iteration.md § Template-Facing Examples
+# Must Be Generic).
 
 # 18. feedback_small_framework_gap_fix_now → rules/skill-routing.md
 check small_framework_gap_fix_now \
@@ -121,4 +121,4 @@ if [[ "$fail" -ne 0 ]]; then
   exit 1
 fi
 
-echo "PASS: dp218-graduation-anchors-selftest (18/18 anchors found)"
+echo "PASS: dp218-graduation-anchors-selftest (17/17 portable anchors found; 1 company-scoped anchor skipped)"

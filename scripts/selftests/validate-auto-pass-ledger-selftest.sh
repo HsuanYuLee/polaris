@@ -206,4 +206,240 @@ path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding=
 PY
 expect_fail "subset-consent-excludes" "$VALIDATOR" "$SUBSET_CONSENT" --source-container "$SOURCE" --source-id DP-999
 
+# DP-228 AC14: DP source must not carry jira_status_transition consent or jira_status_consent_record.
+DP_JIRA_POLLUTION="$TMP/dp-jira-consent-pollution.json"
+cp "$VALID" "$DP_JIRA_POLLUTION"
+python3 - "$DP_JIRA_POLLUTION" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["consent_policy"]["jira_status_transition"] = True
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+expect_fail "dp-jira-consent-pollution" "$VALIDATOR" "$DP_JIRA_POLLUTION" --source-container "$SOURCE" --source-id DP-999
+
+DP_JIRA_RECORD_POLLUTION="$TMP/dp-jira-record-pollution.json"
+cp "$VALID" "$DP_JIRA_RECORD_POLLUTION"
+python3 - "$DP_JIRA_RECORD_POLLUTION" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["jira_status_consent_record"] = {
+    "session_id": "ssn-DP-pollution",
+    "source_id": "DP-999",
+    "granted_at": "2026-05-19T10:00:00+08:00",
+    "ttl_seconds": 3600,
+}
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+expect_fail "dp-jira-record-pollution" "$VALIDATOR" "$DP_JIRA_RECORD_POLLUTION" --source-container "$SOURCE" --source-id DP-999
+
+# DP-228 AC14 / AC-NEG6: JIRA source ledger fixture.
+JIRA_SOURCE="$TMP/docs-manager/src/content/docs/specs/epics/EXAMPLE-999-jira-fixture"
+mkdir -p "$JIRA_SOURCE"
+
+cat >"$JIRA_SOURCE/index.md" <<'MD'
+---
+title: "EXAMPLE-999: JIRA source fixture"
+description: "auto-pass ledger selftest JIRA fixture"
+status: LOCKED
+locked_at: 2026-05-22
+---
+
+# EXAMPLE-999 fixture
+MD
+
+cat >"$JIRA_SOURCE/refinement.md" <<'MD'
+---
+title: "EXAMPLE-999 Refinement"
+description: "JIRA-backed auto-pass ledger fixture refinement"
+---
+
+## Scope
+
+此 fixture 用於驗證 auto-pass ledger 對 JIRA source 的 schema。
+MD
+
+python3 - "$JIRA_SOURCE/refinement.json" "$JIRA_SOURCE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+source = Path(sys.argv[2])
+payload = {
+    "version": "1",
+    "created_at": "2026-05-22T10:00:00+08:00",
+    "source": {
+        "type": "jira",
+        "id": "EXAMPLE-999",
+        "container": str(source),
+        "plan_path": str(source / "index.md"),
+        "jira_key": "EXAMPLE-999",
+    },
+    "modules": [{"path": ".claude/skills/auto-pass/SKILL.md", "action": "create"}],
+    "acceptance_criteria": [
+        {"id": "AC1", "text": "fixture", "category": "functional", "negative": False, "verification": {"method": "unit_test", "detail": "fixture"}}
+    ],
+    "dependencies": [],
+    "edge_cases": [],
+    "predecessor_audit": [],
+}
+path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+
+JIRA_HASH="$(python3 - "$JIRA_SOURCE" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+digest = hashlib.sha256()
+for name in ("refinement.md", "refinement.json"):
+    path = source / name
+    digest.update(name.encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(path.read_bytes())
+    digest.update(b"\0")
+print("sha256:" + digest.hexdigest())
+PY
+)"
+
+write_jira_ledger() {
+  local path="$1"
+  local source_id="${2:-EXAMPLE-999}"
+  local container="${3:-$JIRA_SOURCE}"
+  local hash="${4:-$JIRA_HASH}"
+  local include_jira_transition="${5:-true}"
+  local include_status_record="${6:-true}"
+  local consent_excludes_full="${7:-true}"
+  python3 - "$path" "$source_id" "$container" "$hash" "$include_jira_transition" "$include_status_record" "$consent_excludes_full" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+(
+    path,
+    source_id,
+    container,
+    ref_hash,
+    include_jira_transition,
+    include_status_record,
+    consent_excludes_full,
+) = sys.argv[1:8]
+
+consent_policy = {
+    "auto_reestimate": True,
+    "auto_resplit": True,
+    "auto_task_repair": True,
+}
+if include_jira_transition == "true":
+    consent_policy["jira_status_transition"] = True
+
+consent_excludes = [
+    "base_branch_force_push",
+    "force_push_without_lease",
+    "history_rewrite",
+    "merge",
+    "release",
+    "deploy",
+    "production_write",
+    "jira_child_write",
+    "jira_comment_write",
+    "jira_worklog_write",
+    "task_scope_outside_mutation",
+]
+if consent_excludes_full != "true":
+    # drop jira_child_write to simulate over-broad consent (AC-NEG6 fail case).
+    consent_excludes = [v for v in consent_excludes if v != "jira_child_write"]
+
+payload = {
+    "schema_version": "1",
+    "source": {
+        "type": "jira",
+        "id": source_id,
+        "container": container,
+        "refinement_hash": ref_hash,
+    },
+    "started_at": "2026-05-22T10:00:00+08:00",
+    "resumed_at": None,
+    "terminal_status": None,
+    "consent_policy": consent_policy,
+    "consent_excludes": consent_excludes,
+    "task_snapshot": [],
+    "stage_events": [],
+    "loop_counters": {
+        "engineering_to_breakdown": 0,
+        "breakdown_to_refinement_inbox": 0,
+    },
+    "drift_retry": {},
+    "pause": None,
+}
+if include_status_record == "true":
+    payload["jira_status_consent_record"] = {
+        "session_id": "ssn-jira-fixture",
+        "source_id": source_id,
+        "granted_at": "2026-05-22T09:55:00+08:00",
+        "ttl_seconds": 3600,
+    }
+Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
+# AC14 happy path: JIRA source with jira_status_transition + jira_status_consent_record → PASS.
+JIRA_VALID="$TMP/jira-valid-ledger.json"
+write_jira_ledger "$JIRA_VALID"
+"$VALIDATOR" "$JIRA_VALID" --source-container "$JIRA_SOURCE" --source-id EXAMPLE-999
+
+# AC14 fail: JIRA source missing consent_policy.jira_status_transition.
+JIRA_MISSING_FLAG="$TMP/jira-missing-flag.json"
+write_jira_ledger "$JIRA_MISSING_FLAG" EXAMPLE-999 "$JIRA_SOURCE" "$JIRA_HASH" "false" "true" "true"
+expect_fail "jira-missing-transition-flag" "$VALIDATOR" "$JIRA_MISSING_FLAG" --source-container "$JIRA_SOURCE" --source-id EXAMPLE-999
+
+# AC14 fail: JIRA source missing jira_status_consent_record.
+JIRA_MISSING_RECORD="$TMP/jira-missing-record.json"
+write_jira_ledger "$JIRA_MISSING_RECORD" EXAMPLE-999 "$JIRA_SOURCE" "$JIRA_HASH" "true" "false" "true"
+expect_fail "jira-missing-consent-record" "$VALIDATOR" "$JIRA_MISSING_RECORD" --source-container "$JIRA_SOURCE" --source-id EXAMPLE-999
+
+# AC14 fail: jira_status_consent_record missing required field (session_id).
+JIRA_INCOMPLETE_RECORD="$TMP/jira-incomplete-record.json"
+write_jira_ledger "$JIRA_INCOMPLETE_RECORD"
+python3 - "$JIRA_INCOMPLETE_RECORD" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+del data["jira_status_consent_record"]["session_id"]
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+expect_fail "jira-record-missing-session" "$VALIDATOR" "$JIRA_INCOMPLETE_RECORD" --source-container "$JIRA_SOURCE" --source-id EXAMPLE-999
+
+# AC14 fail: jira_status_consent_record.source_id does not match ledger source.id.
+JIRA_MISMATCH_RECORD="$TMP/jira-mismatch-record.json"
+write_jira_ledger "$JIRA_MISMATCH_RECORD"
+python3 - "$JIRA_MISMATCH_RECORD" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["jira_status_consent_record"]["source_id"] = "EXAMPLE-998"
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+expect_fail "jira-record-source-mismatch" "$VALIDATOR" "$JIRA_MISMATCH_RECORD" --source-container "$JIRA_SOURCE" --source-id EXAMPLE-999
+
+# AC-NEG6: JIRA source ledger must keep consent_excludes complete; dropping jira_child_write fails.
+JIRA_OVERBROAD="$TMP/jira-overbroad-consent.json"
+write_jira_ledger "$JIRA_OVERBROAD" EXAMPLE-999 "$JIRA_SOURCE" "$JIRA_HASH" "true" "true" "false"
+expect_fail "jira-overbroad-consent-excludes" "$VALIDATOR" "$JIRA_OVERBROAD" --source-container "$JIRA_SOURCE" --source-id EXAMPLE-999
+
 echo "PASS: validate-auto-pass-ledger selftest"

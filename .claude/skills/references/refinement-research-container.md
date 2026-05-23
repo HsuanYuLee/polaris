@@ -13,7 +13,7 @@
 | Topic | 新建 `{specs_root}/design-plans/DP-NNN-{slug}/` |
 | Direct artifact path | nearest specs container |
 
-Source resolution 以 `spec-source-resolver.md` 與 `refinement-dp-source-mode.md` 為準。`DP-NNN` 找不到或多筆 match 必須 fail loud，不可偷偷建立替代 DP。
+Source resolution 以 `spec-source-resolver.md` 與 `refinement-source-mode.md` 為準。`DP-NNN` 找不到或多筆 match 必須 fail loud，不可偷偷建立替代 DP。
 
 ## Research Sufficiency Gate
 

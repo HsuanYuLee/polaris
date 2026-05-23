@@ -4,6 +4,99 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.117] - 2026-05-23
+
+### Changed — DP-228 refinement flow parity + specs-bound write contract（aggregate release：T1–T17）
+
+讓 Polaris 主鏈（`/auto-pass` + `refinement` + `breakdown` + `engineering` + `verify-AC`）的 refinement-owned source 抽象同時涵蓋 framework workspace 的 DP-backed source（`design-plans/DP-NNN-*/`）與產品 repo 的 JIRA Epic-backed source（`companies/{company}/{EPIC}/`），共用同一條 producer / probe / ledger / amendment / migration / validator / hook 路徑。新增 spec-source resolver、source parity gate 與 allowlist；補齊 producer-env consent、auto-pass probe / ledger / resume validator；交付 Epic 三支 migration script；rules / skills / references 全面 source-neutral；以及 release tail（manifest、VERSION、CHANGELOG）。
+
+#### T1 — spec source resolver
+
+- `scripts/spec-source-resolver.sh` + `scripts/selftests/spec-source-resolver-selftest.sh`：新增 deterministic resolver，從 `{KEY}` 或 `--source-container` 解析 DP-backed 或 JIRA Epic-backed source；輸出 `source_id`、`source_type`、`source_container`、`refinement_artifact` 等欄位，供其他 helper 共用。
+
+#### T2 — hook producer-env consent
+
+- `.claude/hooks/no-direct-evidence-write.sh`：補上 source-neutral evidence write contract，對 DP-backed 與 JIRA Epic-backed source path 同步 enforce token + glob + consent envelope。
+- `scripts/selftests/validate-specs-bound-write-contract-selftest.sh`：補上 JIRA Epic source consent / negative case 覆蓋。
+
+#### T3 — producer registry parity
+
+- `scripts/lib/evidence-producers.json`：補齊 `companies/*/*/` source parity entries 與 D2 transport metadata 分流，使 ledger / resume / refinement-inbox writer 對 JIRA Epic-backed 與 DP-backed source 對稱。
+
+#### T4 — spec primary doc authoring
+
+- `scripts/validate-spec-primary-doc-authoring.sh` + `scripts/selftests/validate-spec-primary-doc-authoring-selftest.sh`：把 `validate-dp-plan-authoring.sh` 拆出 source-neutral primary doc authoring gate；原 DP-only validator 改為 thin wrapper 並指向新 gate。
+- `scripts/validate-dp-plan-authoring.sh` + selftest：精簡為 DP-flavor adapter，呼叫新的 source-neutral gate。
+
+#### T5 — spec source parity gate（framework PR）
+
+- `scripts/validate-spec-source-parity.sh` + `scripts/selftests/validate-spec-source-parity-selftest.sh`：新增 framework PR gate，掃 producer registry 與 source-neutral surface（rules / skills / references），對 `design-plans/DP-*/` 與 `companies/*/*/` glob 強制對稱；exception 必須登記在 `scripts/lib/spec-source-parity-allowlist.txt`（`[registry]` / `[auto-pass-prose]`）。
+- `scripts/check-framework-pr-gate.sh`：framework PR gate 流程整合 source parity 檢查。
+
+#### T6 — auto-pass probe（source-neutral）
+
+- `scripts/auto-pass-probe.sh` + `scripts/selftests/auto-pass-probe-selftest.sh`：probe 對 DP-backed 與 JIRA Epic-backed source 對稱判定 `source_state`、`refinement_artifact_present`、`task_md_present`，並輸出 source-neutral 欄位給 routing matrix。
+
+#### T7 — auto-pass ledger validator（source-neutral）
+
+- `scripts/validate-auto-pass-ledger.sh` + `scripts/selftests/validate-auto-pass-ledger-selftest.sh`：ledger contract 改為 source-neutral，validator 不再對 source type 做特殊豁免；JIRA Epic-backed source 的 `jira_status_transition` consent 以 additional 契約形式存在。
+
+#### T8 — auto-pass resume report parity
+
+- `scripts/validate-auto-pass-resume.sh` + `scripts/validate-auto-pass-report.sh` 與對應 selftest：resume / report contract 同步 source-neutral，對兩種 source type 套用同一條 `pause.kind` / `stage_events` 規約。
+
+#### T9 — auto-pass + refinement SKILL.md source-neutral
+
+- `.claude/skills/auto-pass/SKILL.md`、`.claude/skills/refinement/SKILL.md`、`.claude/skills/references/auto-pass-execution-flow.md`、`.claude/skills/references/auto-pass-ledger.md`：orchestrator + amendment + ledger 路徑改為 source-neutral，不再以 `DP-NNN` 為 source ID 唯一格式；route 同時接受 DP 與 JIRA Epic key。
+
+#### T10 — producer skill SKILL.md source-neutral
+
+- `.claude/skills/breakdown/SKILL.md`、`.claude/skills/bug-triage/SKILL.md`、`.claude/skills/learning/SKILL.md`、`.claude/skills/verify-AC/SKILL.md`：producer 走 source-neutral writer path；`learning` skill 補上 JIRA Epic-backed source 的 inbox / handoff 路徑。
+
+#### T11 — Epic frontmatter migration
+
+- `scripts/migrate-epic-frontmatter.sh` + `scripts/selftests/migrate-epic-frontmatter-selftest.sh`：把 legacy JIRA Epic 的 `docs-manager` page frontmatter 一次性遷移到 source-neutral 規約（`source_type` / `source_id` / `source_container` 對齊 DP-backed source）。
+
+#### T12 — Epic refinement handoff migration
+
+- `scripts/migrate-epic-refinement-handoff.sh` + selftest：遷移既有 Epic 的 refinement handoff artifact（`refinement.md` / `refinement.json` / `refinement-inbox/`）到 source-neutral container layout。
+
+#### T13 — PM Epic mapping migration
+
+- `scripts/migrate-pm-epic-mapping.sh` + selftest：遷移 PM ↔ Epic 對應表，補齊 Epic-backed source 在 producer registry / routing matrix 的對應條目。
+
+#### T14 — refinement inbox record validator
+
+- `scripts/validate-refinement-inbox-record.sh` + `scripts/selftests/validate-refinement-inbox-record-selftest.sh`：對 refinement-inbox record 套用 source-neutral schema check（`source_type` / `source_id` / `consumed_by_amendment` 欄位），對兩種 source type 對稱 enforce。
+
+#### T15 — refinement source-mode reference rename
+
+- `.claude/skills/references/refinement-dp-source-mode.md` → `.claude/skills/references/refinement-source-mode.md`：reference 改名為 source-neutral；同步更新 `.claude/skills/refinement/SKILL.md`、`.claude/skills/learning/SKILL.md`、`.claude/skills/references/INDEX.md`、`.claude/skills/references/refinement-research-container.md`、`.claude/hooks/pre-push-quality-gate.sh` 的引用。
+
+#### T16 — rules / skill-routing source-neutral
+
+- `.claude/rules/skill-routing.md`：full development workflow + source-state matrix 改為 source-neutral，trigger / route 同時涵蓋 `DP-NNN` 與 JIRA Epic key（如 `GT-NNN` / `KB2CW-NNN`）；`framework-release` 重述為 framework workspace 專屬 terminal tail。
+- `.claude/rules/canonical-contract-governance.md`：新增 § Source Parity 段，宣告 DP-backed 與 JIRA Epic-backed source 共用同一抽象與 producer / ledger / validator / hooks / reference 對稱契約；保留 `framework-release` 為 framework workspace 專屬 terminal carve-out。
+- `scripts/selftests/auto-pass-routing-selftest.sh`：補上 JIRA Epic-backed source 進入 main-chain 的路徑與 DP-only routing prose 退場 case。
+
+#### T17 — release tail（bundle assembly + template-leak recurrence prevention）
+
+- `scripts/manifest.json`：登記所有 DP-228 新 script / selftest（spec-source-resolver、validate-spec-primary-doc-authoring、validate-spec-source-parity、migrate-epic-frontmatter、migrate-epic-refinement-handoff、migrate-pm-epic-mapping、validate-refinement-inbox-record-selftest，與對應 selftest entries）。
+- `scripts/lib/spec-source-parity-allowlist.txt`：新增 source parity gate 的 allowlist 來源檔。
+- `VERSION` / `CHANGELOG.md`：release tail（本條目）。
+
+##### Template-leak recurrence prevention（hotfix on T17）
+
+- `scripts/gates/gate-template-leaks.sh`（新）：把 `scripts/scan-template-leaks.sh --source workspace --blocking` 包成 PR-time / push-time gate，讓 live company slug / JIRA prefix / Slack ID / internal URL 在 workspace PR 開出前就被攔下，不再只在 `sync-to-polaris.sh` post-merge 才檢查。
+- `scripts/install-copilot-hooks.sh`：`.git/hooks/pre-push` 新增 `gate-template-leaks.sh` 呼叫（推遠端前 fail-stop）。
+- `scripts/check-framework-pr-gate.sh`：framework PR gate aggregator 新增 W6 `template leaks (workspace)`，與既有 W1-W5 同列；selftest 同步補 W5 / W6 stub。
+- `scripts/selftests/gate-template-leaks-selftest.sh`（新）：clean workspace exit 0、planted leak exit non-zero with BLOCKED marker；登記 `core` / `release` 兩個 governed test profile。
+- `scripts/selftests/migrate-pm-epic-mapping-selftest.sh`、`auto-pass-probe-selftest.sh`、`spec-source-resolver-selftest.sh`、`validate-auto-pass-ledger-selftest.sh`、`validate-auto-pass-resume-selftest.sh`、`validate-refinement-inbox-record-selftest.sh`、`auto-pass-report-selftest.sh`、`auto-pass-routing-selftest.sh`、`spec-source-resolver.sh`：fixture 內的 live JIRA prefixes 與 live company slug 全部改為 generic placeholder（`EXAMPLE-NNN` / `EXB2C-NNN` / `exampleco`），符合 `rules/framework-iteration.md` § Template-Facing Examples Must Be Generic。
+- `scripts/selftests/dp218-graduation-anchors-selftest.sh`：移除指向 company-scoped rule path 的 anchor check（17/17 portable anchors found；1 company-scoped 跳過）。
+- Root cause：`scan-template-leaks.sh` 只在 `sync-to-polaris.sh` 內部被呼叫（post-merge），workspace PR / push 階段沒有 deterministic gate；前一版 release（v3.75.116 → v3.75.117）因此在 sync 時被 145 hit 擋下，需要 hard-reset main 並重發 PR。本 hotfix 把 leak scan 加到 push-time 與 PR-time，閉合 recurrence path。
+
+覆蓋 AC1（spec source parity gate）、AC3（producer registry 對稱）、AC5（framework PR gate 整合）、AC7（spec primary doc authoring source-neutral）、AC9（auto-pass routing / ledger / resume / report source-neutral）、AC11–13（Epic migration scripts）、AC14（refinement inbox source-neutral）、AC15（refinement source-mode rename）、AC16（rules / routing source-neutral）、AC-NEG1-3（DP-only producer / prose / route fail-stop）、AC-NF1-2（allowlist + transitional carve-out 機制）。
+
 ## [3.75.116] - 2026-05-22
 
 ### Changed — DP-226 auto-pass producer trust + validator lifecycle awareness
@@ -114,7 +207,7 @@ Mapping（memory file → target framework anchor）：
 | `feedback_learning_seed_contract_gap` | `.claude/skills/learning/SKILL.md` | External Mode § External Seed Contract — DP Container Authority |
 | `feedback_refinement_no_overspilt_contract_tasks` | `.claude/skills/breakdown/SKILL.md` | § Task Splitting Heuristic — Reviewable PR Boundary |
 | `feedback_apply_standards_not_ask_user` | `.claude/rules/handbook/working-habits.md` | § Strategist 互動風格 § Apply 標準 |
-| `feedback_kb2cw_close_via_pending` | `.claude/rules/kkday/jira-conventions.md` | § KB2CW 子單「不做了就關掉」|
+| `feedback_company_subtask_close_via_pending` | company-scoped JIRA conventions rule | (company-scoped, path varies per workspace) |
 | `feedback_small_framework_gap_fix_now` | `.claude/rules/skill-routing.md` | § Framework Gap Immediate Routing |
 
 - `scripts/selftests/dp218-graduation-anchors-selftest.sh`（新）：18 條 anchor grep check，AC1 / AC-NEG1 evidence；任一 anchor 缺失 exit 1。

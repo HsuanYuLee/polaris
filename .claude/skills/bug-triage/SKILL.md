@@ -71,6 +71,27 @@ AC-FAIL path 的 raw evidence 寫入 handoff artifact，供 downstream engineeri
 - Handbook gap/stale updates 依 `explore-pattern.md`，只寫 workspace-owned handbook source。
 - Bug-triage 不使用 blame 或 author attribution 決定誰修；assignee 是運維層，不是診斷輸入。
 
+## Producer-Env Writer Rules (DP-228 T10)
+
+`SKILL.md` 是 **documentation pointer**，不是 executable writer。寫入 specs-bound
+artifact（例如 `{source_container}/jira-comments/*root-cause*.md`）的 writer authority
+來自 producer-env + `scripts/lib/evidence-producers.json` registry。
+
+寫 RCA comment artifact 前必須 `export POLARIS_SKILL_WRITER=bug-triage`，再呼叫 Claude
+`Write` / `Edit` / `MultiEdit`：
+
+```bash
+export POLARIS_SKILL_WRITER=bug-triage
+# 然後使用 Write tool 寫入 docs-manager/src/content/docs/specs/**/jira-comments/*root-cause*.md
+```
+
+- `POLARIS_SKILL_WRITER` 只允許設成 `bug-triage`；`no-direct-evidence-write` hook 會交叉
+  比對寫入路徑是否屬於 bug-triage owning_skill entry，不符即 deny。
+- 禁止用 Bash heredoc（`cat > specs/...root-cause.md <<'EOF'`）寫 RCA artifact；Bash
+  heredoc 不走 hook，繞過 producer-env 認證與 specs-bound emit contract。
+- temporary `/tmp` body 不受此規則約束（不屬於 specs-bound surface），但 durable
+  artifact 落到 `docs-manager/src/content/docs/specs/**` 一律走 producer-env 路徑。
+
 ## Completion
 
 輸出 ticket、root cause confirmed status、JIRA comment status、proposed fix scope、

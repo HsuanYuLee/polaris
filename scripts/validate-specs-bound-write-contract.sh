@@ -79,7 +79,7 @@ def frontmatter(path: Path) -> dict:
 data = json.loads(producer_map.read_text(encoding="utf-8"))
 producers = [
     p for p in data.get("producers", [])
-    if p.get("artifact_kind") in {"specs_markdown", "verify_evidence_layout"}
+    if p.get("artifact_kind") in {"specs_markdown", "verify_evidence_layout", "docs_page", "sidecar", "d2_transport"}
 ]
 errors = []
 checked = 0

@@ -107,7 +107,7 @@ should_run_specs_collection_shape() {
       scripts/archive-spec.sh|\
       scripts/selftests/archive-spec-selftest.sh|\
       .claude/hooks/pre-push-quality-gate.sh|\
-      .claude/skills/references/refinement-dp-source-mode.md|\
+      .claude/skills/references/refinement-source-mode.md|\
       .claude/skills/references/authoring-preflight.md|\
       .claude/skills/references/starlight-authoring-contract.md|\
       docs-manager/src/content/docs/specs/*)

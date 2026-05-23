@@ -8,13 +8,18 @@ description: "auto-pass source-scoped ledger schema、consent model、terminal e
 ledger 是 `auto-pass` 的 source-scoped durable state。它記錄本輪 source、consent、stage
 events、task snapshot、loop counters、drift retry counters、pause state 與 terminal state。
 
-ledger 必須放在主 checkout 的 DP source container 底下，使用絕對路徑傳給下游：
+ledger 必須放在主 checkout 的 source container 底下（DP-backed 或 JIRA Epic-backed），
+使用絕對路徑傳給下游：
 
 ```text
 {source_container}/artifacts/auto-pass/YYYYMMDD-HHMMSS-ledger.json
 ```
 
-## Minimal Shape
+DP-backed source 的 container 為 `design-plans/DP-NNN-*/`；JIRA Epic-backed source 為
+`companies/{company}/{EPIC}/`。兩種 container 共用同一條 ledger writer path，受
+`scripts/lib/evidence-producers.json` parity 保護。
+
+## Minimal Shape (DP-backed)
 
 ```json
 {
@@ -67,8 +72,54 @@ ledger 必須放在主 checkout 的 DP source container 底下，使用絕對路
 }
 ```
 
+## Minimal Shape (JIRA Epic-backed)
+
+```json
+{
+  "schema_version": "1",
+  "source": {
+    "type": "jira",
+    "id": "GT-NNN",
+    "container": "/abs/path/docs-manager/src/content/docs/specs/companies/exampleco/GT-NNN",
+    "refinement_hash": "sha256:..."
+  },
+  "started_at": "2026-05-22T10:00:00+08:00",
+  "resumed_at": null,
+  "terminal_status": null,
+  "consent_policy": {
+    "auto_reestimate": true,
+    "auto_resplit": true,
+    "auto_task_repair": true,
+    "jira_status_sync": true
+  },
+  "consent_excludes": [
+    "base_branch_force_push",
+    "force_push_without_lease",
+    "history_rewrite",
+    "merge",
+    "release",
+    "deploy",
+    "production_write",
+    "jira_child_write",
+    "jira_comment_write",
+    "jira_worklog_write",
+    "task_scope_outside_mutation"
+  ],
+  "task_snapshot": [],
+  "stage_events": [],
+  "loop_counters": {
+    "engineering_to_breakdown": 0,
+    "breakdown_to_refinement_inbox": 0
+  },
+  "drift_retry": {},
+  "pre_dispatch_stash": null,
+  "post_dispatch_restore": null,
+  "pause": null
+}
+```
+
 `source.id` 使用 canonical `{PREFIX}-NNN` work item key。DP-backed source 的
-`source.type` 是 `dp`；JIRA-backed Epic / Bug source 後續統一用 `jira` / `bug`。
+`source.type` 是 `dp`；JIRA Epic-backed source 用 `jira`（Bug source 後續用 `bug`）。
 `source.refinement_hash` 是 `refinement.md` 與 `refinement.json` bytes 的 sha256 digest，
 格式固定為 `sha256:<hex>`。當任一 refinement artifact 改變，既有 ledger 會被判定 stale，
 必須先回 owning skill 重新確認 source state。
@@ -95,6 +146,44 @@ auto-pass v1 consent 內：
 - `jira_comment_write`
 - `jira_worklog_write`
 - `task_scope_outside_mutation`
+
+## JIRA Status Consent
+
+JIRA Epic-backed source 額外帶 `consent_policy.jira_status_sync` boolean，代表使用者同意
+`auto-pass` 在 stage transition 時同步 JIRA Epic 與子單 status（例：`In Development` /
+`子任務開發完畢` / `完成`）。schema：
+
+- `consent_policy.jira_status_sync` (boolean, required for `source.type=jira`)：`true` 才能寫
+  JIRA transition。DP-backed source 此欄位省略或設為 `false`，validator 不會強制要求。
+- session-scoped marker（同 session 不重複 prompt）：
+
+  ```text
+  .polaris/runtime/auto-pass-jira-consent-{session_id}-{JIRA_KEY}
+  ```
+
+  marker payload：
+
+  ```json
+  {
+    "schema_version": "1",
+    "source_id": "GT-NNN",
+    "session_id": "<runtime session id>",
+    "granted_at": "2026-05-22T10:00:00+08:00"
+  }
+  ```
+
+- session_id 缺失時用 short-TTL fallback（30 分鐘 mtime check），marker 命名為
+  `.polaris/runtime/auto-pass-jira-consent-fallback-{JIRA_KEY}`。
+
+行為：
+
+- 第一次 dispatch 時若 marker 不存在 → orchestrator prompt 使用者；同意後寫 marker +
+  `consent_policy.jira_status_sync=true`，否決則 terminal `user_aborted`。
+- 同 session 第 N 次 dispatch（marker 存在且未過期）→ 不重 prompt，直接沿用 ledger 內
+  consent。
+- ledger validator 在 `source.type=jira` 時要求 `consent_policy.jira_status_sync` 是 boolean；
+  缺欄位視為 schema violation。
+- DP-backed source 不寫此欄位、不建立 marker，因為 DP container 沒有外部 JIRA status surface。
 
 ## Terminal Status Enum
 
@@ -244,17 +333,20 @@ auto-pass ledger 內的 snapshot 是 cached view；breakdown marker 仍是 ownin
 
 ```bash
 scripts/validate-auto-pass-ledger.sh /absolute/path/to/ledger.json \
-  --source-container /absolute/path/to/DP-NNN-topic \
-  --source-id DP-NNN
+  --source-container /absolute/path/to/{source_container} \
+  --source-id {SOURCE_ID}
 ```
+
+`{SOURCE_ID}` 可為 `DP-NNN` 或 JIRA Epic key；`{source_container}` 對應 DP-backed
+`design-plans/DP-NNN-*/` 或 JIRA Epic-backed `companies/{company}/{EPIC}/`。
 
 breakdown 在寫 task 前若消費 auto-pass ledger consent，必須加上 write timestamp：
 
 ```bash
 scripts/validate-auto-pass-ledger.sh "$AUTO_PASS_LEDGER_PATH" \
-  --source-container /absolute/path/to/DP-NNN-topic \
-  --source-id DP-NNN \
-  --task-write-at 2026-05-19T10:05:00+08:00
+  --source-container /absolute/path/to/{source_container} \
+  --source-id {SOURCE_ID} \
+  --task-write-at 2026-05-22T10:05:00+08:00
 ```
 
 validator fail 時，下游 skill 不得寫 task.md 或宣稱 consent 已取得。
@@ -265,5 +357,5 @@ session handoff resume gate：
 scripts/validate-auto-pass-resume.sh \
   --ledger /absolute/path/to/ledger.json \
   --resume-artifact /absolute/path/to/session-handoff.json \
-  --source-id DP-NNN
+  --source-id {SOURCE_ID}
 ```

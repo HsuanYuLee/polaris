@@ -102,11 +102,16 @@ plan ↔ delivery 永久脫鉤，必須 reopen refinement 壓縮 task 結構。
 | `scope challenge` / `挑戰需求` | advisory challenge only, no writes unless user later confirms planning | `breakdown-scope-challenge-flow.md` |
 | branch/task packaging details needed | branch DAG, task.md / V*.md validation | `breakdown-task-packaging.md` |
 
-## Initial-Create Task.md Writer (DP-226)
+## Producer-Env Writer Rules (DP-226 / DP-228)
+
+`SKILL.md` 本身只是 **documentation pointer**：寫 specs-bound artifact 的實際 writer
+authority 來自 producer-env（`POLARIS_SKILL_WRITER` / `POLARIS_PRODUCER`）+ producer
+registry（`scripts/lib/evidence-producers.json`），不是 SKILL.md prose 本身。
+
+### Initial-Create Task.md Writer (DP-226)
 
 新建 `tasks/T*/index.md` 或 `tasks/V*/index.md` 時，breakdown 必須走 deterministic
-producer writer，不再依賴 Claude `Write` / `Edit` / `MultiEdit` tool 的 per-call
-env 或 Bash heredoc workaround：
+producer writer：
 
 ```bash
 bash scripts/write-producer-owned-artifact.sh \
@@ -128,6 +133,26 @@ bash scripts/write-producer-owned-artifact.sh \
   enforcement 與 atomic write。
 - `POLARIS_PRODUCER` env 仍只由 deterministic 觸發路徑（producer script 內部）使用，
   不得透過 Claude tool per-call env 模擬 producer。
+
+### Other breakdown-Owned Writes (DP-228 T10)
+
+breakdown 寫 `refinement-inbox/`、planner-owned `task.md` 後續編修，或其他 breakdown
+`owning_skill` entry 對應路徑（見 `scripts/lib/evidence-producers.json`）時，若必須以
+Claude `Write` / `Edit` / `MultiEdit` 直接寫入（沒有 deterministic writer script），
+**先 `export POLARIS_SKILL_WRITER=breakdown`** 再呼叫 Write tool，讓
+`no-direct-evidence-write` hook 通過 owning-skill consent 檢查：
+
+```bash
+export POLARIS_SKILL_WRITER=breakdown
+# 然後使用 Write tool 寫入路徑屬於 breakdown owning_skill 的檔案
+```
+
+- `POLARIS_SKILL_WRITER` 只允許設成本 skill 名（`breakdown`）；hook 會交叉比對寫入路徑是否落在
+  registry 的 breakdown owning_skill entry 內，不符即 deny。
+- 禁止用 Bash heredoc（`cat > foo.md <<'EOF'`、`tee specs/...`）寫入 specs-bound artifact；
+  Bash heredoc 不走 hook 並繞過 producer-env 認證，違反 spec-source single-writer 原則。
+- 若同一段流程同時涉及 deterministic writer + Write tool，prefer deterministic writer
+  （`write-producer-owned-artifact.sh` + `--producer-token`）。
 
 ## Shared Fail-Stops
 

@@ -73,7 +73,7 @@ refinement LOCK 前的 structural audit 則由 refinement 以
 - 不要手動 Write `index.md` / `plan.md` / `refinement.md` / `refinement.json`，也不要填
   canonical authoring field（`status`、`sidebar`、`locked_at` 等）。
 - 提示使用者下一步跑 `/refinement "topic"`，由 `refinement` 透過
-  `scripts/create-design-plan.sh` 建立 container（這是 `refinement-dp-source-mode.md` T1
+  `scripts/create-design-plan.sh` 建立 container（這是 `refinement-source-mode.md` T1
   指定的唯一 template authority）。
 - DP container 已存在時，才在 `{source_container}/artifacts/research-report.md` 寫 evidence；
   `/refinement` 讀到 research-report 後，依 T0 規則轉成 candidate Decisions。
@@ -86,6 +86,27 @@ producer 不應該依賴 gate exit 2 才停手。
 必須走 specs-bound emit contract：frontmatter 包含 `title`、`description`、
 `draft: true`、`sidebar.hidden: true`、`artifact_type`、`source`、`created`，並符合
 `scripts/lib/evidence-producers.json` 的 learning research producer entry。
+
+### Producer-Env Writer Rules (DP-228 T10)
+
+`SKILL.md` 是 **documentation pointer**，不是 executable writer。寫入 learning research
+artifact（例如 `docs-manager/src/content/docs/specs/**/artifacts/research/*.md`）的
+writer authority 來自 producer-env + `scripts/lib/evidence-producers.json` registry。
+
+寫 research artifact 前必須 `export POLARIS_SKILL_WRITER=learning`，再呼叫 Claude
+`Write` / `Edit` / `MultiEdit`：
+
+```bash
+export POLARIS_SKILL_WRITER=learning
+# 然後使用 Write tool 寫入 docs-manager/src/content/docs/specs/**/artifacts/research/*.md
+```
+
+- `POLARIS_SKILL_WRITER` 只允許設成 `learning`；`no-direct-evidence-write` hook 會交叉
+  比對寫入路徑是否屬於 learning owning_skill entry，不符即 deny。
+- 禁止用 Bash heredoc（`cat > specs/.../artifacts/research/foo.md <<'EOF'`）寫 research
+  artifact；Bash heredoc 不走 hook，繞過 producer-env 認證與 learning seed contract。
+- 寫入後必跑 `scripts/validate-learning-seed-contract.sh --producer learning
+  --diff-range <base..head>`；validator fail 等同 writer fail，artifact 需修正後重寫。
 
 ## Queue Mode Contract
 

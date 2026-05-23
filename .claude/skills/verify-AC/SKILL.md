@@ -88,6 +88,32 @@ Contract / Fallback Behavior。
   `links.json`、`publication-manifest.json`。完成後呼叫
   `scripts/validate-verify-evidence-layout.sh {evidence_dir}`；FAIL 時不可宣告 PASS。
 
+## Producer-Env Writer Rules (DP-228 T10)
+
+`SKILL.md` 是 **documentation pointer**，不是 executable writer。verify-AC 寫入
+specs-bound `verification/V*/**`、`tasks/V*/**` 或 `.polaris/evidence/ac-verification/`
+等 verify-AC owning_skill paths 的 writer authority 來自 producer-env +
+`scripts/lib/evidence-producers.json` registry。
+
+- V*.md lifecycle metadata 與 `ac_verification` marker 由 deterministic writer
+  `scripts/write-ac-verification.sh` 產生（內部已設定 producer token），不應直接以 Claude
+  tool 改寫；該流程不需要 agent 手動 export 環境變數。
+- 若驗收過程必須直接以 Claude `Write` / `Edit` / `MultiEdit` 寫 verify report 或
+  evidence layout 內非 lifecycle metadata 的補充檔（例如 `verify-report.md`、
+  `links.json`、`publication-manifest.json` 之外的補充說明），先 `export
+  POLARIS_SKILL_WRITER=verify-AC` 再呼叫 Write tool：
+
+```bash
+export POLARIS_SKILL_WRITER=verify-AC
+# 然後使用 Write tool 寫入 docs-manager/src/content/docs/specs/**/verification/V*/** 或 tasks/V*/**
+```
+
+- `POLARIS_SKILL_WRITER` 只允許設成 `verify-AC`；`no-direct-evidence-write` hook 會交叉
+  比對寫入路徑是否屬於 verify-AC owning_skill entry，不符即 deny。
+- 禁止用 Bash heredoc（`cat > specs/.../verification/V1/verify-report.md <<'EOF'`）寫
+  verification evidence；Bash heredoc 不走 hook，繞過 producer-env 認證、DP-110 layout
+  validator 與 verification artifact freshness contract。
+
 ## Completion
 
 輸出 AC/Epic、overall status、step counts、evidence paths、JIRA transition status、created Bug
