@@ -4,6 +4,25 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.118] - 2026-05-24
+
+### Changed — DP-229 refinement contract hardening
+
+將 refinement handoff 升級為 strong-bound machine contract：新增 `refinement.json`
+schema_version / tasks / adversarial_pass enforcement、derived `refinement.md` renderer 與
+hand-edit detector、source resolver `source_kind` 通用化，並 sunset active `/bug-rca`
+skill routing surface。
+
+### Fixed — auto-pass-auto-friction selftest case 4 baseline regression
+
+D27 source resolver `source_kind` 通用化（延伸自 v3.75.117 DP-228-T17 release tail v2）
+後，非 DP key（例：`ZZ-9999`）由 resolver 回 `BLOCKED` 而非 `UNKNOWN`，
+`scripts/selftests/auto-pass-auto-friction-selftest.sh` case 4
+（auto-pass-probe UNKNOWN → deterministic_gap friction）在 v3.75.117 變成
+11 passed / 1 failed 的 silent baseline regression（release tail v2 自己升版時跳過了
+governed test gate）。本版改用 `engineering` stage 缺 `--head-sha` 的 deterministic
+UNKNOWN 觸發路徑作 fixture，selftest 回到 12 passed / 0 failed。
+
 ## [3.75.117] - 2026-05-23
 
 ### Changed — DP-228 refinement flow parity + specs-bound write contract（aggregate release：T1–T17）

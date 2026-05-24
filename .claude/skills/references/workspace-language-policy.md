@@ -114,7 +114,7 @@ Commit message 不是完全排除，也不是一律跟 workspace language。
 
 T5 第一版已接入下列 producer-level gate：
 
-- JIRA comment：`bug-rca`、`bug-triage`、`intake-triage`、`jira-worklog`。
+- JIRA comment：`bug-triage`、`intake-triage`、`jira-worklog`。
 - Slack message：`standup` 的 Confluence 前本地 artifact、`check-pr-approvals`、`review-inbox`、`intake-triage`、`learning`。
 - Confluence page：`standup`、`sasd-review`、`sprint-planning`。
 

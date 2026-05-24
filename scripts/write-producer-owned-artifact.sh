@@ -16,6 +16,9 @@
 #      runs the validator, and rolls back on validator failure.
 #   4. Resume artifact writes require --ledger-path AND --source-id; missing
 #      context fails closed without writing.
+#   5. Auto-pass report writes dispatch validate-auto-pass-report.sh after the
+#      file reaches its final path, so ledger aggregation checks see the real
+#      report location.
 #
 # Usage:
 #   scripts/write-producer-owned-artifact.sh \
@@ -36,7 +39,7 @@
 #   - auto-pass:source         → ledger create (initial start)
 #   - auto-pass:breakdown      → ledger update at breakdown stage
 #   - auto-pass:engineering    → ledger update at engineering stage
-#   - auto-pass:verify         → ledger update at verify-AC stage; resume JSON
+#   - auto-pass:verify         → ledger update at verify-AC stage; resume/report JSON
 #   - breakdown:initial-create → tasks/T*/index.md or tasks/V*/index.md create
 
 set -euo pipefail
@@ -184,9 +187,11 @@ esac
 # Determine artifact kind from marker_kinds to drive validator dispatch.
 artifact_kind=""
 case "$MARKER_KINDS" in
-  *auto_pass_ledger*|*auto_pass_resume*)
+  *auto_pass_ledger*|*auto_pass_resume*|*auto_pass_report*)
     if [[ "$TARGET_PATH" == *-resume.json ]]; then
       artifact_kind="auto_pass_resume"
+    elif [[ "$TARGET_PATH" == *-report.json ]]; then
+      artifact_kind="auto_pass_report"
     else
       artifact_kind="auto_pass_ledger"
     fi
@@ -219,7 +224,7 @@ mkdir -p "$target_dir"
 backup_file=""
 needs_final_path_validation=0
 case "$artifact_kind" in
-  task_md_initial_create|auto_pass_resume|auto_pass_ledger)
+  task_md_initial_create|auto_pass_resume|auto_pass_ledger|auto_pass_report)
     needs_final_path_validation=1
     ;;
 esac
@@ -269,6 +274,12 @@ case "$artifact_kind" in
                    --ledger "$LEDGER_PATH"
                    --resume-artifact "$TARGET_PATH"
                    --source-id "$SOURCE_ID")
+    if [[ -x "${validator_cmd[0]}" ]]; then
+      "${validator_cmd[@]}" >&2 || validator_exit=$?
+    fi
+    ;;
+  auto_pass_report)
+    validator_cmd=("$WORKSPACE_ROOT/scripts/validate-auto-pass-report.sh" "$TARGET_PATH")
     if [[ -x "${validator_cmd[0]}" ]]; then
       "${validator_cmd[@]}" >&2 || validator_exit=$?
     fi

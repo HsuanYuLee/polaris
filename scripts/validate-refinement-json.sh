@@ -93,8 +93,11 @@ if source is not None:
         else:
             source_type = raw_source_type
 
-if source_type not in {"jira", "dp", "topic"}:
-    errors.append(f"source.type '{source_type}' is invalid (must be one of ['jira', 'dp', 'topic'])")
+if source_type not in {"jira", "dp", "topic", "free-text", "article", "paragraph", "bug"}:
+    errors.append(
+        f"source.type '{source_type}' is invalid "
+        "(must be one of ['jira', 'dp', 'topic', 'free-text', 'article', 'paragraph', 'bug'])"
+    )
 
 if source_type == "jira":
     epic = require_nonempty_string("epic")
@@ -424,6 +427,80 @@ else:
                     f"predecessor_audit[{idx}]: disposition FULLY_SUPERSEDED requires "
                     "writeback.expected_status=SUPERSEDED"
                 )
+
+def strong_error(field):
+    errors.append(f"strong-bound schema: {field}")
+
+
+schema_version = data.get("schema_version")
+if schema_version in (None, ""):
+    strong_error("schema_version")
+
+ac_ids = {str(item.get("id")) for item in (ac or []) if isinstance(item, dict)}
+tasks = data.get("tasks")
+if not isinstance(tasks, list) or not tasks:
+    strong_error("tasks")
+else:
+    task_required = {
+        "id",
+        "kind",
+        "title",
+        "scope",
+        "allowed_files",
+        "modules",
+        "ac_ids",
+        "dependencies",
+        "estimate_points",
+        "verification",
+    }
+    for idx, task in enumerate(tasks):
+        if not isinstance(task, dict):
+            strong_error(f"tasks[{idx}]")
+            continue
+        for field in sorted(task_required):
+            if field not in task:
+                strong_error(f"tasks[{idx}].{field}")
+        if not isinstance(task.get("allowed_files"), list) or not task.get("allowed_files"):
+            strong_error(f"tasks[{idx}].allowed_files")
+        if not isinstance(task.get("modules"), list):
+            strong_error(f"tasks[{idx}].modules")
+        if not isinstance(task.get("dependencies"), list):
+            strong_error(f"tasks[{idx}].dependencies")
+        if not isinstance(task.get("estimate_points"), (int, float)):
+            strong_error(f"tasks[{idx}].estimate_points")
+        if not isinstance(task.get("verification"), dict):
+            strong_error(f"tasks[{idx}].verification")
+        task_ac_ids = task.get("ac_ids")
+        if not isinstance(task_ac_ids, list) or not task_ac_ids:
+            strong_error(f"tasks[{idx}].ac_ids")
+        else:
+            for aid in task_ac_ids:
+                if str(aid) not in ac_ids:
+                    strong_error(f"tasks[{idx}].ac_ids[{aid}]")
+
+adversarial_pass = data.get("adversarial_pass")
+if not isinstance(adversarial_pass, list) or not adversarial_pass:
+    strong_error("adversarial_pass")
+else:
+    for idx, item in enumerate(adversarial_pass):
+        if not isinstance(item, dict):
+            strong_error(f"adversarial_pass[{idx}]")
+            continue
+        for field in ("ac_id", "attack", "enforce"):
+            if not isinstance(item.get(field), str) or not item.get(field).strip():
+                strong_error(f"adversarial_pass[{idx}].{field}")
+        if str(item.get("ac_id")) not in ac_ids:
+            strong_error(f"adversarial_pass[{idx}].ac_id")
+
+bug_fields = {"reproduction", "root_cause", "source_pr", "severity", "impact_scope", "regression"}
+present_bug_fields = bug_fields & set(data.keys())
+if source_type == "bug":
+    for field in sorted(bug_fields):
+        if field not in data:
+            strong_error(field)
+else:
+    for field in sorted(present_bug_fields):
+        strong_error(field)
 
 if errors:
     for e in errors:

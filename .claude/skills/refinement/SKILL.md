@@ -133,6 +133,11 @@ Phase 1 預設 Tier 2；只有明確符合 Tier 1 才降級。
 - `refinement.json`：機器讀，供 breakdown 產生 task.md；engineering 只消費
   breakdown 產出的 authoritative task.md。若本 source 有工單級工具需求，
   `tool_requirements[]` 是 breakdown 產生 `## Required Tools` 的唯一 handoff 來源。
+- Handoff 前必須完成 Predecessor Scan、AC Coverage、Adversarial Pass、
+  Production↔Selftest parity、Framework Release Surface、Cross-Doc Referrer Cascade
+  等 author-time self-check。`refinement.md` 是 derived view；strict
+  `refinement.json` 通過後一律用 `scripts/render-refinement-md.sh` 重渲，hand-edit 由
+  handoff gate fail-stop。
 
 這是所有 refinement-owned source 的 handoff contract，不只適用 DP。Epic / Story /
 Task / ticketless topic / DP 都必須先完成 artifact，且 handoff / language / authoring
@@ -141,6 +146,10 @@ Bug 不屬於 refinement-owned source；Bug 的 planning handoff 由 `bug-triage
 `[ROOT_CAUSE]` comment 與 local evidence artifact 承擔。
 
 ## Step 7 — 定版寫入（一次性）
+
+先完成 `draft_json` → strict `refinement.json` 收斂；draft 不可 LOCK、不可 handoff、
+不可 render canonical Markdown。strict JSON 通過後先執行
+`scripts/render-refinement-md.sh {source_container}/refinement.json`，再跑下列 gates。
 
 在提示 `/auto-pass {KEY}` 或把 DP status 改為 `LOCKED` 前先跑：
 

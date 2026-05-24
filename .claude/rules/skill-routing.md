@@ -83,7 +83,6 @@ Zero-input trigger 只有在「**無 active skill + 無明確 topic keyword**」
 | Log work time | "worklog", "記工時", "log time", "log hours" | `jira-worklog` |
 | Backfill worklogs | "補工時", "backfill worklog", "工時回填" + date range | `jira-worklog` (batch mode) |
 | Auto worklog (daily) | (auto-triggered by `/standup` post-step) | `jira-worklog` via `standup` |
-| 補寫 Bug RCA | "補 RCA", "bug RCA", "補根因", "backfill RCA", "補 root cause", "幫我補 root cause" | `bug-rca` |
 
 ## Complexity Tier — Route by Task Size
 

@@ -59,6 +59,9 @@ JIRA sync 只是 optional side effect
 | `jira` | `EPIC-478`, `TASK-3711` | `{company_specs_dir}/{TICKET}/` 加上 JIRA issue | `refinement` / `breakdown` |
 | `dp` | `DP-045`, `docs-manager/src/content/docs/specs/design-plans/DP-045-*/index.md`, legacy `plan.md` | `{specs_root}/design-plans/DP-NNN-{slug}/` | `refinement` |
 | `topic` | `討論 CI local blocker`, `refinement "想重構 skill routing"` | 新分配的 DP folder | `refinement` |
+| `free-text` | arbitrary text blob | `sources/free-text-{slug}-{hash}` proposal | `refinement` |
+| `article` | `{url, archive_snapshot?}` | `sources/article-{slug}-{hash}` proposal | `refinement` |
+| `paragraph` | `{url, selector?, paragraph_index?, text}` | `sources/paragraph-{slug}-{hash}` proposal | `refinement` |
 | `artifact_path` | direct `refinement.json`, `refinement.md`, `tasks/T1.md`, `tasks/T1/index.md` path | 最近的 containing specs folder | stage-specific consumer |
 
 ## DP Locator

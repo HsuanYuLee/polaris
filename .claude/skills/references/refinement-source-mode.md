@@ -1,6 +1,7 @@
 # Refinement Source Mode
 
-`refinement` 各種 source（JIRA Epic / Task / Story、ticketless DP-NNN、topic、artifact path）
+`refinement` 各種 source（JIRA Epic / Task / Story、ticketless DP-NNN、topic、
+free-text、article、paragraph、artifact path）
 的 progressive-disclosure reference。
 
 當 `refinement` 將 source 解析為以下類型時使用：
@@ -8,6 +9,9 @@
 - `jira`：既有 JIRA Epic / Task / Story（含 Epic-backed source）
 - `dp`：既有 `DP-NNN` design-plan container（ticketless source）
 - `topic`：必須成為 DP container 的新 ticketless topic
+- `free-text` / `article` / `paragraph`：由 resolver 產生 slug+hash 的 workspace-local
+  source container proposal，metadata 保存 text_hash / url / archive_snapshot / selector /
+  paragraph_index
 - `artifact_path`：`docs-manager/src/content/docs/specs/**` 底下的 path
 
 核心邊界：`refinement` owns design record 與 artifact output。`refinement` 不主動 dispatch

@@ -114,6 +114,47 @@ if [[ "$rc" -ne 2 ]]; then
   exit 1
 fi
 
+# Report artifact happy path: auto-pass reports are producer-owned and must
+# dispatch validate-auto-pass-report.sh after final-path write.
+report_body="$WORKDIR/report.json"
+report_path="$ROOT_DIR/docs-manager/src/content/docs/specs/design-plans/__dp226_fixture_report__/artifacts/auto-pass/x-report.json"
+cat >"$report_body" <<'JSON'
+{
+  "schema_version": 1,
+  "source_id": "DP-226",
+  "terminal_status": "complete",
+  "created_at": "2026-05-24T00:00:00+08:00",
+  "ledger_path": "/tmp/nonexistent-dp226-writer-selftest-ledger.json",
+  "required_prs": [],
+  "verification": {"status": "PASS", "work_item_id": "DP-226-V1"},
+  "issues": [],
+  "blockers": [],
+  "manual_items": [],
+  "follow_ups": [],
+  "overlap_disposition": [],
+  "follow_up_dp_seed": null,
+  "framework_release_tail": {
+    "trigger": "framework-release DP-226",
+    "allowed": true,
+    "reason": "fixture"
+  }
+}
+JSON
+set +e
+"$WRITER" \
+  --producer-token auto-pass:verify \
+  --path "$report_path" \
+  --body-file "$report_body" >"$WORKDIR/report.out" 2>&1
+rc=$?
+set -e
+if [[ "$rc" -ne 0 ]]; then
+  echo "FAIL (report-happy): expected exit 0, got $rc" >&2
+  cat "$WORKDIR/report.out" >&2
+  exit 1
+fi
+grep -q 'artifact_kind=auto_pass_report' "$WORKDIR/report.out"
+rm -rf "$ROOT_DIR/docs-manager/src/content/docs/specs/design-plans/__dp226_fixture_report__"
+
 # Token uniqueness invariant — verified by inspecting current
 # scripts/lib/evidence-producers.json. (Writer's TOKEN_NOT_UNIQUE branch
 # fires when the table itself contains duplicates; the table is gated at

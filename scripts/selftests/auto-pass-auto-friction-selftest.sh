@@ -134,11 +134,14 @@ fi
 # ------------------------------------------------------------------
 LEDGER4="$WORKDIR/case4-ledger.json"
 new_ledger "$LEDGER4"
-# Probe a non-DP source key to force the UNKNOWN branch (source resolver
-# rejects non-DP keys with status=UNKNOWN).
+# DP-229 D27: spec-source-resolver source_kind enum 通用化後，非 DP key 回 BLOCKED
+# 而非 UNKNOWN（BLOCKED 不觸發 friction，由 case 5 涵蓋）。改用 engineering 階段
+# 缺 --head-sha 的 deterministic UNKNOWN 路徑作 fixture：probe 一律輸出
+# status=UNKNOWN reason="engineering probe requires --head-sha"，進而觸發
+# deterministic_gap friction。
 AUTO_PASS_LEDGER_PATH="$LEDGER4" \
-  bash "$PROBE" --repo "$ROOT_DIR" --stage source --source-id "ZZ-9999" \
-  --ledger "$LEDGER4" >/dev/null 2>&1 || true
+  bash "$PROBE" --repo "$ROOT_DIR" --stage engineering --source-id "ANY" \
+  --work-item-id "TASK-1" --ledger "$LEDGER4" >/dev/null 2>&1 || true
 C4_KIND=$(last_kind "$LEDGER4")
 C4_COUNT=$(count_friction "$LEDGER4")
 if [[ "$C4_KIND" == "deterministic_gap" && "$C4_COUNT" == "1" ]]; then

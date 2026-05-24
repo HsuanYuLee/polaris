@@ -7,6 +7,7 @@
 #
 # 輸入：
 #   --source-id <DP-NNN|JIRA-KEY>
+#   --source-kind <kind> --source-ref <json-or-string>
 #   --artifact-path <abs path>
 #   --specs-root <path>   override（selftest 用；fall back 到 resolve-specs-root.sh）
 #   --include-archive     archive 命名空間也納入 lookup
@@ -42,6 +43,7 @@ usage() {
   cat >&2 <<'USAGE'
 usage:
   spec-source-resolver.sh --source-id <DP-NNN|JIRA-KEY> [options]
+  spec-source-resolver.sh --source-kind <kind> --source-ref <ref> [options]
   spec-source-resolver.sh --artifact-path <abs path>     [options]
 
 options:
@@ -70,6 +72,8 @@ fail_dup()     { err_code "POLARIS_SOURCE_DUPLICATE" "$1"; exit 2; }
 #####################################
 SOURCE_ID=""
 ARTIFACT_PATH=""
+SOURCE_KIND=""
+SOURCE_REF=""
 SPECS_ROOT_OVERRIDE=""
 INCLUDE_ARCHIVE=0
 
@@ -83,6 +87,16 @@ while [[ $# -gt 0 ]]; do
     --artifact-path)
       ARTIFACT_PATH="${2:-}"
       [[ -n "$ARTIFACT_PATH" ]] || { usage; exit 2; }
+      shift 2
+      ;;
+    --source-kind)
+      SOURCE_KIND="${2:-}"
+      [[ -n "$SOURCE_KIND" ]] || { usage; exit 2; }
+      shift 2
+      ;;
+    --source-ref)
+      SOURCE_REF="${2:-}"
+      [[ -n "$SOURCE_REF" ]] || { usage; exit 2; }
       shift 2
       ;;
     --specs-root)
@@ -112,8 +126,13 @@ if [[ -n "$SOURCE_ID" && -n "$ARTIFACT_PATH" ]]; then
   fail_invalid "use either --source-id or --artifact-path, not both"
 fi
 
-if [[ -z "$SOURCE_ID" && -z "$ARTIFACT_PATH" ]]; then
-  fail_invalid "missing input: --source-id or --artifact-path required"
+if [[ -n "$SOURCE_KIND" || -n "$SOURCE_REF" ]]; then
+  [[ -n "$SOURCE_KIND" && -n "$SOURCE_REF" ]] || fail_invalid "--source-kind requires --source-ref"
+  [[ -z "$SOURCE_ID" && -z "$ARTIFACT_PATH" ]] || fail_invalid "source-kind mode cannot combine with --source-id or --artifact-path"
+fi
+
+if [[ -z "$SOURCE_ID" && -z "$ARTIFACT_PATH" && -z "$SOURCE_KIND" ]]; then
+  fail_invalid "missing input: --source-id, --artifact-path, or --source-kind/--source-ref required"
 fi
 
 #####################################
@@ -124,6 +143,85 @@ if [[ -n "$SPECS_ROOT_OVERRIDE" ]]; then
     || fail_invalid "specs root not a directory: $SPECS_ROOT_OVERRIDE"
 else
   SPECS_ROOT="$(resolve_specs_root)" || { printf 'unable to resolve specs root\n' >&2; exit 1; }
+fi
+
+#####################################
+# Source kind / source ref mode
+#####################################
+if [[ -n "$SOURCE_KIND" ]]; then
+  case "$SOURCE_KIND" in
+    dp|jira-epic|jira-story|jira-task|bug)
+      if [[ "$INCLUDE_ARCHIVE" -eq 1 ]]; then
+        exec "$0" --source-id "$SOURCE_REF" --specs-root "$SPECS_ROOT" --include-archive --json
+      fi
+      exec "$0" --source-id "$SOURCE_REF" --specs-root "$SPECS_ROOT" --json
+      ;;
+    topic)
+      # Topic is the DP creation lane. If caller already passes DP-NNN, resolve it;
+      # otherwise return a deterministic not-yet-created topic container proposal.
+      if [[ "$SOURCE_REF" =~ ^DP-[0-9]+$ ]]; then
+        if [[ "$INCLUDE_ARCHIVE" -eq 1 ]]; then
+          exec "$0" --source-id "$SOURCE_REF" --specs-root "$SPECS_ROOT" --include-archive --json
+        fi
+        exec "$0" --source-id "$SOURCE_REF" --specs-root "$SPECS_ROOT" --json
+      fi
+      ;;
+    free-text|article|paragraph)
+      ;;
+    *)
+      fail_invalid "unsupported source_kind: $SOURCE_KIND"
+      ;;
+  esac
+
+  python3 - "$SPECS_ROOT" "$SOURCE_KIND" "$SOURCE_REF" <<'PY'
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path
+
+specs_root = Path(sys.argv[1])
+kind = sys.argv[2]
+raw = sys.argv[3]
+try:
+    ref = json.loads(raw)
+except Exception:
+    ref = {"text": raw}
+
+if kind == "article":
+    basis = str(ref.get("url") or ref.get("text") or raw)
+elif kind == "paragraph":
+    basis = str(ref.get("url") or "") + "#" + str(ref.get("paragraph_index") or ref.get("selector") or "") + ":" + str(ref.get("text") or raw)
+else:
+    basis = str(ref.get("text") or raw)
+
+slug_source = re.sub(r"https?://", "", basis.lower())
+slug = re.sub(r"[^a-z0-9]+", "-", slug_source).strip("-")[:48] or kind
+digest = hashlib.sha256(basis.encode("utf-8")).hexdigest()[:12]
+container = specs_root / "sources" / f"{kind}-{slug}-{digest}"
+metadata = {
+    "text_hash": "sha256:" + hashlib.sha256(basis.encode("utf-8")).hexdigest(),
+    "url": ref.get("url"),
+    "archive_snapshot": ref.get("archive_snapshot"),
+    "selector": ref.get("selector"),
+    "paragraph_index": ref.get("paragraph_index"),
+}
+print(json.dumps({
+    "source_type": kind,
+    "source_kind": kind,
+    "source_ref": ref,
+    "source_id": f"{kind}:{digest}",
+    "container": str(container.resolve()),
+    "primary_doc": str((container / "index.md").resolve()),
+    "refinement_md": str((container / "refinement.md").resolve()),
+    "refinement_json": str((container / "refinement.json").resolve()),
+    "status": "",
+    "archived": False,
+    "readiness": ["container-proposed"],
+    "metadata": metadata,
+}, ensure_ascii=False, indent=2))
+PY
+  exit 0
 fi
 
 abs_path() {

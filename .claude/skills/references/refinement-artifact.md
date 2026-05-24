@@ -268,6 +268,21 @@ Producer rule：
 - Gate status 為 `required` 時，若沒有 usable snapshot，必須在 `research_gate.defer_reason` 記錄 explicit low-confidence defer reason。
 - Legacy artifacts 可以沒有 `research_gate`；新 producer 應寫入。
 
+## Strong-Bound Machine Contract
+
+新 artifact 必須具備：
+
+- `schema_version`：必填。
+- `tasks[]`：每筆必填 `id` / `kind` / `title` / `scope` / `allowed_files` /
+  `modules` / `ac_ids` / `dependencies` / `estimate_points` / `verification`。
+- `adversarial_pass[]`：每筆必填 `ac_id` / `attack` / `enforce`。
+- Bug-specific fields（`reproduction` / `root_cause` / `source_pr` / `severity` /
+  `impact_scope` / `regression`）只允許 `source.type=bug`，其他 source type 不得出現。
+
+`refinement.md` 是 derived view；先收斂 strict `refinement.json`，再用
+`scripts/render-refinement-md.sh` 產生 Markdown。`draft_json` 只可用於 authoring state，
+不可 LOCK、不可 handoff、不可 render canonical `refinement.md`。
+
 `source.type = dp` 時，`breakdown` 產出 DP-backed tasks：
 
 ```

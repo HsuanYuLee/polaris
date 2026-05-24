@@ -1509,6 +1509,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/migrate-refinement-json.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "refinement",
+      "selftest": "scripts/selftests/migrate-refinement-json-strong-bound-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/migrate-spec-container-layout.mjs",
       "kind": "support",
       "runner": "node",
@@ -1877,6 +1886,15 @@
       "runner": "bash",
       "owner_surface": "engineering",
       "selftest": "scripts/selftests/refresh-baseline-snapshot-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/render-refinement-md.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "refinement",
+      "selftest": "scripts/selftests/refinement-md-generator-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },

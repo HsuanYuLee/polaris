@@ -69,7 +69,19 @@ EOF
   exit 1
 fi
 
-if ! "$validator" "$json_path"; then
+validator_output=""
+validator_status=0
+set +e
+validator_output="$("$validator" "$json_path" 2>&1)"
+validator_status=$?
+set -e
+if [[ "$validator_status" -ne 0 ]]; then
+  printf '%s\n' "$validator_output" >&2
+  if printf '%s\n' "$validator_output" | grep -q 'strong-bound schema'; then
+    first_field="$(printf '%s\n' "$validator_output" | sed -n 's/^.*strong-bound schema: //p' | head -n 1)"
+    echo "POLARIS_REFINEMENT_JSON_SCHEMA_VIOLATION: ${first_field:-unknown}" >&2
+    exit 2
+  fi
   cat >&2 <<EOF
 
 BLOCKED: refinement.json exists but does not satisfy the pipeline handoff schema.
@@ -77,6 +89,7 @@ Fix the artifact, including predecessor_audit / writeback fields, before proceed
 EOF
   exit 1
 fi
+printf '%s\n' "$validator_output"
 
 repo_root="$(cd "$script_dir/.." && pwd)"
 handbook="$repo_root/.claude/skills/references/ac-required-by-surface-defaults.yaml"
@@ -90,6 +103,21 @@ fi
 
 if [[ -x "$parity_validator" ]]; then
   "$parity_validator" "$(dirname "$json_path")"
+fi
+
+lib_dir="$script_dir/lib"
+python3 "$lib_dir/refinement-section-presence-advisory.py" --mode predecessor "$json_path"
+python3 "$lib_dir/refinement-section-presence-advisory.py" --mode adversarial "$json_path"
+python3 "$lib_dir/refinement-decision-ac-coverage.py" "$json_path"
+python3 "$lib_dir/refinement-module-ac-coverage.py" "$json_path"
+python3 "$lib_dir/refinement-script-help-advisory.py" "$json_path"
+python3 "$lib_dir/refinement-selftest-parity.py" "$json_path"
+python3 "$lib_dir/refinement-release-surface-advisory.py" "$json_path"
+python3 "$lib_dir/refinement-referrer-cascade.py" "$json_path"
+python3 "$lib_dir/refinement-intra-dp-consistency.py" "$json_path"
+python3 "$lib_dir/refinement-ac-id-shape.py" "$json_path"
+if [[ -x "$script_dir/render-refinement-md.sh" && -f "$lib_dir/refinement-md-hand-edit-detector.py" ]]; then
+  python3 "$lib_dir/refinement-md-hand-edit-detector.py" "$json_path"
 fi
 
 source_container="$(cd "$(dirname "$json_path")" && pwd)"
