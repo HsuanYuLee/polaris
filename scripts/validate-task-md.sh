@@ -1871,7 +1871,7 @@ print(urlparse(sys.argv[1]).path or '/')
       '
     }
 
-    local av_status av_last_run av_total av_pass av_fail av_manual av_uncertain av_disposition
+    local av_status av_last_run av_total av_pass av_fail av_manual av_uncertain av_disposition av_pending_disp
     av_status=$(extract_av_field "status")
     av_last_run=$(extract_av_field "last_run_at")
     av_total=$(extract_av_field "ac_total")
@@ -1880,66 +1880,87 @@ print(urlparse(sys.argv[1]).path or '/')
     av_manual=$(extract_av_field "ac_manual_required")
     av_uncertain=$(extract_av_field "ac_uncertain")
     av_disposition=$(extract_av_field "human_disposition")
+    # DP-230 T2: pending-stage `disposition:` field — schema doc fixture form,
+    # written by breakdown before verify-AC has run. Distinct from post-run
+    # `status:` field. Either `status:` (post-run form) or `disposition:`
+    # (pending form) must be present.
+    av_pending_disp=$(extract_av_field "disposition")
 
-    # status enum
-    if [[ -z "$av_status" ]]; then
-      errors+=("ac_verification.status is missing or empty (required when ac_verification block is present)")
+    if [[ -z "$av_status" && -n "$av_pending_disp" ]]; then
+      # ---------------------------------------------------------------------
+      # Pending form (pre verify-AC run, schema doc fixture).
+      # disposition enum only; runtime counters not required yet.
+      # ---------------------------------------------------------------------
+      case "$av_pending_disp" in
+        pending|pass|fail|drift_retry) ;;
+        *) errors+=("ac_verification.disposition must be pending|pass|fail|drift_retry (got: '$av_pending_disp')") ;;
+      esac
+    elif [[ -z "$av_status" ]]; then
+      errors+=("ac_verification.status is missing or empty (required when ac_verification block is present; pending form must declare disposition: pending|pass|fail|drift_retry)")
     else
+      # ---------------------------------------------------------------------
+      # Post-run form (verify-AC already executed). Existing strict schema.
+      # ---------------------------------------------------------------------
       case "$av_status" in
         PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|BLOCKED_ENV|IN_PROGRESS) ;;
         *) errors+=("ac_verification.status must be PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|BLOCKED_ENV|IN_PROGRESS (got: '$av_status')") ;;
       esac
     fi
 
-    # last_run_at ISO 8601 (loose: must look like YYYY-MM-DDThh:mm:ss with optional Z/±offset)
-    if [[ -z "$av_last_run" ]]; then
-      errors+=("ac_verification.last_run_at is missing or empty (required when ac_verification block is present)")
-    elif ! printf '%s' "$av_last_run" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})?$'; then
-      errors+=("ac_verification.last_run_at must be ISO 8601 timestamp (got: '$av_last_run')")
-    fi
+    # Post-run schema checks only apply when the runtime `status:` field is set.
+    # DP-230 T2: pending form (`disposition:` only) skips the counter / last_run_at
+    # / human_disposition requirements — verify-AC populates those on first run.
+    if [[ -n "$av_status" ]]; then
+      # last_run_at ISO 8601 (loose: must look like YYYY-MM-DDThh:mm:ss with optional Z/±offset)
+      if [[ -z "$av_last_run" ]]; then
+        errors+=("ac_verification.last_run_at is missing or empty (required when ac_verification block is present)")
+      elif ! printf '%s' "$av_last_run" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})?$'; then
+        errors+=("ac_verification.last_run_at must be ISO 8601 timestamp (got: '$av_last_run')")
+      fi
 
-    # ac_total / ac_pass / ac_fail / ac_manual_required / ac_uncertain — int ≥ 0; sum == total
-    local _is_int='^-?[0-9]+$'
-    local sum=0 has_count_error=0
-    local field val
-    for field in ac_total ac_pass ac_fail ac_manual_required ac_uncertain; do
-      val=$(extract_av_field "$field")
-      if [[ -z "$val" ]]; then
-        errors+=("ac_verification.$field is missing or empty (required when ac_verification block is present)")
-        has_count_error=1
-        continue
+      # ac_total / ac_pass / ac_fail / ac_manual_required / ac_uncertain — int ≥ 0; sum == total
+      local _is_int='^-?[0-9]+$'
+      local sum=0 has_count_error=0
+      local field val
+      for field in ac_total ac_pass ac_fail ac_manual_required ac_uncertain; do
+        val=$(extract_av_field "$field")
+        if [[ -z "$val" ]]; then
+          errors+=("ac_verification.$field is missing or empty (required when ac_verification block is present)")
+          has_count_error=1
+          continue
+        fi
+        if ! [[ "$val" =~ ^[0-9]+$ ]]; then
+          errors+=("ac_verification.$field must be a non-negative integer (got: '$val')")
+          has_count_error=1
+          continue
+        fi
+        if [[ "$field" != "ac_total" ]]; then
+          sum=$((sum + val))
+        fi
+      done
+      if [[ "$has_count_error" -eq 0 && -n "$av_total" ]]; then
+        if [[ "$sum" -ne "$av_total" ]]; then
+          errors+=("ac_verification: ac_pass + ac_fail + ac_manual_required + ac_uncertain ($sum) must equal ac_total ($av_total)")
+        fi
       fi
-      if ! [[ "$val" =~ ^[0-9]+$ ]]; then
-        errors+=("ac_verification.$field must be a non-negative integer (got: '$val')")
-        has_count_error=1
-        continue
-      fi
-      if [[ "$field" != "ac_total" ]]; then
-        sum=$((sum + val))
-      fi
-    done
-    if [[ "$has_count_error" -eq 0 && -n "$av_total" ]]; then
-      if [[ "$sum" -ne "$av_total" ]]; then
-        errors+=("ac_verification: ac_pass + ac_fail + ac_manual_required + ac_uncertain ($sum) must equal ac_total ($av_total)")
-      fi
-    fi
 
-    # human_disposition: required when status != PASS
-    if [[ -n "$av_status" && "$av_status" != "PASS" && "$av_status" != "IN_PROGRESS" ]]; then
-      if [[ -z "$av_disposition" ]]; then
-        errors+=("ac_verification.human_disposition is required when status='$av_status' (FAIL/MANUAL_REQUIRED/UNCERTAIN/BLOCKED_ENV need human triage)")
-      else
+      # human_disposition: required when status != PASS
+      if [[ "$av_status" != "PASS" && "$av_status" != "IN_PROGRESS" ]]; then
+        if [[ -z "$av_disposition" ]]; then
+          errors+=("ac_verification.human_disposition is required when status='$av_status' (FAIL/MANUAL_REQUIRED/UNCERTAIN/BLOCKED_ENV need human triage)")
+        else
+          case "$av_disposition" in
+            passed|rejected|deferred) ;;
+            *) errors+=("ac_verification.human_disposition must be passed|rejected|deferred (got: '$av_disposition')") ;;
+          esac
+        fi
+      elif [[ -n "$av_disposition" ]]; then
+        # status=PASS or IN_PROGRESS but human_disposition is set — must still be valid enum
         case "$av_disposition" in
           passed|rejected|deferred) ;;
           *) errors+=("ac_verification.human_disposition must be passed|rejected|deferred (got: '$av_disposition')") ;;
         esac
       fi
-    elif [[ -n "$av_disposition" ]]; then
-      # status=PASS or IN_PROGRESS but human_disposition is set — must still be valid enum
-      case "$av_disposition" in
-        passed|rejected|deferred) ;;
-        *) errors+=("ac_verification.human_disposition must be passed|rejected|deferred (got: '$av_disposition')") ;;
-      esac
     fi
   fi
 

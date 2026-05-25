@@ -64,6 +64,19 @@ if [[ -x "$GATES_DIR/gate-changeset.sh" ]]; then
   bash "$GATES_DIR/gate-changeset.sh" --repo "$repo_root"
 fi
 
+# DP-230 D20: manifest parity must hold before any framework push reaches a
+# workspace PR. Runs only when the validator script exists so older trees
+# without the gate stay unaffected.
+if [[ -x "$repo_root/scripts/validate-manifest-parity.sh" ]]; then
+  bash "$repo_root/scripts/validate-manifest-parity.sh" --root "$repo_root" --quiet
+fi
+
+# DP-230 D21: template leak gate at push time prevents workspace PRs from
+# landing live company slugs that sync-to-polaris would catch only post-merge.
+if [[ -x "$GATES_DIR/gate-template-leaks.sh" ]]; then
+  bash "$GATES_DIR/gate-template-leaks.sh" --repo "$repo_root"
+fi
+
 specs_collection_changed_files() {
   local data="$1"
   local repo="$2"

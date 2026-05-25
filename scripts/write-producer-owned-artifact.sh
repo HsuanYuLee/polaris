@@ -187,6 +187,11 @@ esac
 # Determine artifact kind from marker_kinds to drive validator dispatch.
 artifact_kind=""
 case "$MARKER_KINDS" in
+  *verify_evidence_layout*|*verify_ac_dp110_evidence*)
+    # DP-230 T12 / D31: verify-AC evidence layout writes (verify-report.md,
+    # links.json, publication-manifest.json under verification/V*/).
+    artifact_kind="verify_evidence_layout"
+    ;;
   *auto_pass_ledger*|*auto_pass_resume*|*auto_pass_report*)
     if [[ "$TARGET_PATH" == *-resume.json ]]; then
       artifact_kind="auto_pass_resume"
@@ -224,7 +229,7 @@ mkdir -p "$target_dir"
 backup_file=""
 needs_final_path_validation=0
 case "$artifact_kind" in
-  task_md_initial_create|auto_pass_resume|auto_pass_ledger|auto_pass_report)
+  task_md_initial_create|auto_pass_resume|auto_pass_ledger|auto_pass_report|verify_evidence_layout)
     needs_final_path_validation=1
     ;;
 esac
@@ -287,6 +292,20 @@ case "$artifact_kind" in
   task_md_initial_create)
     validator_cmd=("$WORKSPACE_ROOT/scripts/validate-task-md.sh" "$TARGET_PATH")
     if [[ -x "${validator_cmd[0]}" ]]; then
+      "${validator_cmd[@]}" >&2 || validator_exit=$?
+    fi
+    ;;
+  verify_evidence_layout)
+    # DP-230 T12 / D31: only validate when all three layout artifacts are
+    # present in the parent V*/ dir. Single-file writes during incremental
+    # assembly should not fail the layout validator; the validator runs
+    # once the bundle is complete.
+    layout_dir="$(dirname "$TARGET_PATH")"
+    validator_cmd=("$WORKSPACE_ROOT/scripts/validate-verify-evidence-layout.sh" "$layout_dir")
+    if [[ -x "${validator_cmd[0]}" \
+       && -f "$layout_dir/verify-report.md" \
+       && -f "$layout_dir/links.json" \
+       && -f "$layout_dir/publication-manifest.json" ]]; then
       "${validator_cmd[@]}" >&2 || validator_exit=$?
     fi
     ;;

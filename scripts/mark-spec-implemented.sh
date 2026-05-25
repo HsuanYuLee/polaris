@@ -392,6 +392,38 @@ for company_specs_dir in "$SPECS_ROOT"/companies/*/; do
   fi
 done
 
+# Path 1b — Bare DP container key (DP-NNN)
+# Resolves to design-plans/DP-NNN-*/{index.md,plan.md,refinement.md}
+# Marks all active T*/V* tasks IMPLEMENTED first (skipping ABANDONED siblings),
+# then updates parent status and auto-archives if --auto-archive is enabled.
+if [ -z "$ANCHOR" ] && echo "$TICKET" | grep -qE '^DP-[0-9]{3}$'; then
+  dp_container=""
+  for dp_dir in "$SPECS_ROOT"/design-plans/"$TICKET"-*; do
+    [ -d "$dp_dir" ] || continue
+    if [ -n "$dp_container" ]; then
+      echo "ERROR: bare DP key $TICKET resolved to multiple containers" >&2
+      echo "  $dp_container" >&2
+      echo "  $dp_dir" >&2
+      exit 1
+    fi
+    dp_container="$dp_dir"
+  done
+  if [ -n "$dp_container" ]; then
+    # Locate parent anchor (index.md preferred, plan.md fallback, refinement.md fallback)
+    if [ -f "$dp_container/index.md" ]; then
+      ANCHOR="$dp_container/index.md"
+    elif [ -f "$dp_container/plan.md" ]; then
+      ANCHOR="$dp_container/plan.md"
+    elif [ -f "$dp_container/refinement.md" ]; then
+      ANCHOR="$dp_container/refinement.md"
+    fi
+    if [ -n "$ANCHOR" ]; then
+      ANCHOR_TYPE="bare_dp"
+      BARE_DP_CONTAINER="$dp_container"
+    fi
+  fi
+fi
+
 # Path 2 — Task key (T{n}/V{n}) — look up by filename in active tasks/ or pr-release/
 if [ -z "$ANCHOR" ] && is_task_key "$TICKET"; then
   # Search for T{n}[suffix].md or V{n}[suffix].md in tasks/ directories
@@ -484,6 +516,76 @@ if [ "$ANCHOR_TYPE" = "epic" ]; then
     exit 0
   fi
   update_frontmatter_status "$ANCHOR" "$STATUS"
+  sync_parent_sidebar_metadata "$ANCHOR"
+  auto_archive_parent_if_terminal "$ANCHOR"
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Bare DP container anchor — mark all active T*/V* tasks IMPLEMENTED first,
+# then update parent status and auto-archive.
+# ABANDONED tasks are carved out: not marked IMPLEMENTED, but do not block.
+# ---------------------------------------------------------------------------
+if [ "$ANCHOR_TYPE" = "bare_dp" ]; then
+  case "$STATUS" in
+    IMPLEMENTED) ;;
+    *)
+      echo "ERROR: bare DP container key only supports --status IMPLEMENTED (got $STATUS)" >&2
+      exit 1
+      ;;
+  esac
+
+  tasks_dir="${BARE_DP_CONTAINER}/tasks"
+  if [ -d "$tasks_dir" ]; then
+    # Iterate active T*/V* tasks (legacy T1.md and folder-native T1/index.md)
+    while IFS= read -r task_entry; do
+      [ -n "$task_entry" ] || continue
+      # task_entry is the path: file (.md) or directory (T1/) under tasks/
+      bname="$(basename "$task_entry")"
+      if [ -d "$task_entry" ]; then
+        # folder-native
+        status_file="$task_entry/index.md"
+      else
+        status_file="$task_entry"
+      fi
+      [ -f "$status_file" ] || continue
+      task_status="$(get_existing_status "$status_file")"
+      case "$task_status" in
+        ABANDONED)
+          # AC-NEG13: ABANDONED siblings carved out — left in place, do not mark IMPLEMENTED
+          echo "INFO: skip ABANDONED sibling: $status_file"
+          continue
+          ;;
+      esac
+
+      # Derive the task stem (T1, V1, T3b, ...) for recursive invocation
+      if [ -d "$task_entry" ]; then
+        stem="$bname"
+      else
+        stem="${bname%.md}"
+      fi
+
+      # Recursively invoke this script in per-task mode so move-first + frontmatter
+      # update logic stays in one place. We disable auto-archive here because the
+      # bare-DP flow archives the parent container after all tasks finish.
+      env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" "$stem" \
+        --workspace "$WORKSPACE_ROOT" --no-auto-archive >/dev/null || {
+          echo "ERROR: failed to mark task ${stem} IMPLEMENTED under ${BARE_DP_CONTAINER}" >&2
+          exit 1
+        }
+    done < <(find "$tasks_dir" -mindepth 1 -maxdepth 1 \
+      \( -type f -name 'T*.md' -o -type f -name 'V*.md' \
+         -o -type d -name 'T*' -o -type d -name 'V*' \) \
+      \! -name 'pr-release' 2>/dev/null | sort)
+  fi
+
+  # Update parent anchor status
+  existing_status="$(get_existing_status "$ANCHOR")"
+  if [ "$existing_status" != "$STATUS" ]; then
+    update_frontmatter_status "$ANCHOR" "$STATUS"
+  else
+    echo "NOOP: $ANCHOR already has status: $STATUS"
+  fi
   sync_parent_sidebar_metadata "$ANCHOR"
   auto_archive_parent_if_terminal "$ANCHOR"
   exit 0

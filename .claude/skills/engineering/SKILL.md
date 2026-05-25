@@ -105,6 +105,32 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
   `scripts/lib/evidence-producers.json` 為準；不得以 final answer、JIRA-only state 或 `/tmp`
   only artifact 代替 durable marker。
 
+## Skill Workflow Boundary Gate (DP-230 D40)
+
+`engineering` session 開始 implementation 之前（branch / worktree 建好後）必須
+呼叫 skill-workflow-boundary baseline writer，並把 task.md 路徑傳進來，scope
+會由 task.md `## Allowed Files` 推導：
+
+```bash
+bash scripts/skill-workflow-boundary-gate.sh --skill engineering --start \
+  --source-container "$SOURCE_CONTAINER" --task-md "$TASK_MD"
+```
+
+commit / PR / completion gate 之前（也就是 `engineer-delivery-flow.md` 的 Scope
+Gate 步驟內）必須再跑 `--check`：
+
+```bash
+bash scripts/skill-workflow-boundary-gate.sh --skill engineering --check \
+  --source-container "$SOURCE_CONTAINER" --task-md "$TASK_MD"
+```
+
+任何 Allowed Files 之外的新增/修改都會 exit 1 + 輸出
+`POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:engineering`；engineering 不得就地改
+Allowed Files 來通過 gate，必須走 `engineering-scope-escalation.md`。
+
+`POLARIS_LANGUAGE_POLICY_BYPASS` / `POLARIS_SKILL_BOUNDARY_BYPASS` 等 env 不能
+silence 這個 gate（AC-NEG16）。
+
 ## L2 Deterministic Check: version-bump-reminder
 
 Delivery tail 依 `engineer-delivery-flow.md` 執行；framework 相關變更需呼叫

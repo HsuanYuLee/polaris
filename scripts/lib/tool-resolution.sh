@@ -1,5 +1,24 @@
 #!/usr/bin/env bash
 # Shared deterministic tool resolution helpers for Polaris scripts.
+#
+# ## Python invocation pattern
+#
+# Python helpers must not call ``subprocess.run(["rg", ...])`` directly. Import
+# the Python mirror of this resolver and resolve once per process:
+#
+#     from tool_resolution import ToolResolutionError, resolve_tool
+#     try:
+#         rg = resolve_tool("rg")
+#     except ToolResolutionError as exc:
+#         print(f"POLARIS_TOOL_MISSING {exc}", file=sys.stderr)
+#         sys.exit(2)
+#     subprocess.run([rg, "-n", "pattern", "path"], check=False)
+#
+# Resolution layers mirror the bash helpers: POSIX baseline PATH lookup (for
+# bash / python3 / cp / mv / ... — AC-NEG15), ``mise where``, mise shims, then
+# a last-resort PATH lookup that emits a ``POLARIS_TOOL_RESOLUTION_ADVISORY``
+# stderr line. ``scripts/validate-script-dependencies.sh`` enforces the rule by
+# scanning Python sources for direct subprocess calls on managed tools (D38).
 
 set -u
 

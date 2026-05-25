@@ -66,6 +66,32 @@ Contract / Fallback Behavior。
 10. 寫 JIRA verification report；shared verification contract 為 PASS 時才轉 Done，FAIL 顯示 disposition，PENDING 等人工。
 11. 記錄 verify-ac-gap learnings 與 post-task reflection。
 
+## Deterministic Consumption (DP-230 D30)
+
+verify-AC 與 framework-release closeout 的 verification method/detail authoritative source
+是 `refinement.json`，**不是** task.md `acceptance_criteria` 文字段。對齊規則：
+
+- `refinement.json` `acceptance_criteria[].verification.method` ∈
+  `{unit_test, manual, playwright, lighthouse, curl, challenger, docs-health,
+  feedback-signals}`，runner 依 method 各自 dispatch 對應 runner（unit_test 跑
+  `verification.detail` 命令、manual 走人工 checklist、playwright 走 playwright
+  runner、其餘 method 走既有 reference 對應 dispatcher）。
+- verify-AC **不得** 從 task.md `acceptance_criteria` 文字 derive verification
+  method；task.md acceptance text 僅作 advisory display，不影響 runner 行為。
+- 當 fixture task.md `acceptance_criteria` 與 `refinement.json` drift 時，runner
+  以 `refinement.json` 為準，advisory log task.md drift；下一輪 `/breakdown`
+  會 deterministic 重產 task.md 覆蓋 drift（DP-230 D28）。
+- `/framework-release-closeout` parent-closeout 直接讀 `refinement.json`
+  acceptance / verification 結構，**不讀** task.md `acceptance_criteria` 文字段；
+  parent lifecycle 由 `mark-spec-implemented.sh` 透過 frontmatter status 推進，
+  不消費 task.md acceptance text。
+- 這條 contract 由 `scripts/selftests/verify-AC-deterministic-consumption-selftest.sh`
+  enforce：selftest grep SKILL.md 與 `scripts/framework-release-closeout.sh` 標記，
+  並以 fixture drift case 驗 runner method resolution 使用 refinement.json。
+
+POLARIS_VERIFY_AC_DETERMINISTIC_CONSUMPTION_MARKER: verify-AC 與 framework-release
+closeout 消費 refinement.json verification.method/detail，不讀 task.md acceptance text。
+
 ## Hard Rules
 
 - HTTP verification 必須先檢查 status code，再看 body。
@@ -87,6 +113,27 @@ Contract / Fallback Behavior。
   DP-110 layout：`verify-report.md`、`assets/{raw,images,screenshots,videos,files}/`、
   `links.json`、`publication-manifest.json`。完成後呼叫
   `scripts/validate-verify-evidence-layout.sh {evidence_dir}`；FAIL 時不可宣告 PASS。
+
+## Dispatch Envelope Worktree Resolution (D33)
+
+當 verify-AC 從 `auto-pass` orchestrator dispatch 而來時，envelope 必須帶上
+`worktree_resolution`，路徑由 `scripts/resolve-task-worktree.sh` 解析（schema 與行為以
+`.claude/skills/auto-pass/SKILL.md` § Dispatch Envelope Worktree Resolution 為 single source
+of truth）。
+
+receiver-side 合約：
+
+- `worktree_resolution.status=FOUND`：verify-AC 必須在 `worktree_resolution.path` 內
+  執行 verify command 與讀取 evidence layout，不得 fall back 到 main checkout。
+- `worktree_resolution.status=NONE`：不得自動建 worktree；回 orchestrator 由
+  `blocked_by_missing_worktree` 處理，advisory 提示使用者重建。
+- envelope 缺 `worktree_resolution` 欄位：fail-stop，stderr
+  `POLARIS_DISPATCH_WORKTREE_RESOLUTION_MISSING`。
+- envelope `worktree_resolution.path` 與 resolver 輸出（同 source-id / work-item-id）
+  drift 時 fail-stop，stderr `POLARIS_DISPATCH_WORKTREE_AMBIGUOUS`。
+
+verify-AC stateless 入口（人工觸發 `verify {TICKET}`、未經 auto-pass）不強制 envelope；
+此時 verify-AC 仍可呼叫 resolver 取得當前 worktree path 以對齊 evidence layout writer。
 
 ## Producer-Env Writer Rules (DP-228 T10)
 
@@ -118,6 +165,31 @@ export POLARIS_SKILL_WRITER=verify-AC
 
 輸出 AC/Epic、overall status、step counts、evidence paths、JIRA transition status、created Bug
 keys or refinement route、pending manual items。
+
+## Skill Workflow Boundary Gate (DP-230 D40)
+
+`verify-AC` session 開始時必須呼叫 skill-workflow-boundary baseline writer：
+
+```bash
+bash scripts/skill-workflow-boundary-gate.sh --skill verify-AC --start \
+  --source-container "$SOURCE_CONTAINER"
+```
+
+verify-AC 寫完 verification report / V*.md / refinement-inbox 並準備收尾（或在
+/auto-pass cross-skill transition 之前）必須跑：
+
+```bash
+bash scripts/skill-workflow-boundary-gate.sh --skill verify-AC --check \
+  --source-container "$SOURCE_CONTAINER"
+```
+
+verify-AC owning scope 僅限本 source container 的 `verification/V*/**` /
+`tasks/V*/**` / `refinement-inbox/**`。任何 owning scope 之外的新增/修改（code、
+generated target、refinement.md / refinement.json）會讓 gate exit 1 並輸出
+`POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:verify-AC`。
+
+`POLARIS_LANGUAGE_POLICY_BYPASS` / `POLARIS_SKILL_BOUNDARY_BYPASS` 等 env 不能
+silence 這個 gate（AC-NEG16）。
 
 ## L2 Deterministic Check: post-task-feedback-reflection
 

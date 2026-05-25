@@ -224,6 +224,42 @@ AUTO_PASS_LEDGER_PATH=/absolute/path/to/ledger.json
 canonical `consent_excludes` enum 與 timestamp ordering。缺 token、relative path、source
 mismatch、invalid schema 或 task write 早於 ledger start/resume 都必須 fail-stop。
 
+## Dispatch Envelope Worktree Resolution (D33)
+
+dispatch `engineering` / `verify-AC` 進入 task-scoped 階段時，envelope 必須帶上
+`worktree_resolution`，由 `scripts/resolve-task-worktree.sh` 解析：
+
+```bash
+bash scripts/resolve-task-worktree.sh \
+  --source-id   {SOURCE_ID} \
+  --work-item-id {WORK_ITEM_ID} \
+  --format json
+```
+
+envelope schema：
+
+```json
+{
+  "worktree_resolution": {
+    "status": "FOUND" | "NONE",
+    "path": "/absolute/path/to/.worktrees/<repo>-engineering-<KEY>" | null,
+    "task_key": "DP-230-T13",
+    "resolver_version": 1
+  }
+}
+```
+
+行為合約：
+
+- `FOUND`：path 必須與 resolver 輸出 byte-identical；下游 skill 在該 worktree 內施工 /
+  驗收。verify-AC envelope 的 `worktree_resolution.path` 與 resolver 輸出對齊。
+- `NONE`：orchestrator 升 terminal `blocked_by_missing_worktree`，advisory 提示 user 重建
+  worktree（EC8）；不得自己猜測 path 或 fallback 到 main checkout。
+- `POLARIS_DISPATCH_WORKTREE_AMBIGUOUS`（resolver exit 2）：orchestrator 必須 fail-stop
+  terminal `blocked_by_gate_failure`，不得自選其中一個 path。
+- envelope 缺 `worktree_resolution` 欄位 → schema validator fail-stop + stderr
+  `POLARIS_DISPATCH_WORKTREE_RESOLUTION_MISSING`。
+
 ## Routing Policy
 
 Full development workflow intent 依 source-state matrix route。`{KEY}` 可為 `DP-NNN`
@@ -289,8 +325,10 @@ scripts/append-auto-pass-friction.sh "$AUTO_PASS_LEDGER_PATH" \
   --summary "<zh-TW 短語句，建議 280 chars 內>"
 ```
 
-helper 保證 atomic write、enum 驗證與 soft-limit warning。enum 與 schema 以
-`.claude/skills/references/auto-pass-ledger.md` § Friction Log 為準。
+helper 保證 atomic write、enum 驗證與 soft-limit warning。enum、writer path 與
+deterministic trigger map 由 `.claude/skills/references/friction-capture-contract.md`
+作為 canonical contract；schema 仍以 `.claude/skills/references/auto-pass-ledger.md`
+§ Friction Log 為準。
 
 terminal report 透過 `validate-auto-pass-report.sh` 重新聚合 ledger 條目並驗
 `friction_log_summary` 一致；報告不得手寫 summary 數字。
@@ -338,6 +376,29 @@ Trigger 與 enum 對應（refinement 原文 → helper enum）：
 
 新增 deterministic friction trigger 時，必須在 mechanism-registry 對應 row 加上
 `runtime` annotation，並更新本表 + 對應 selftest。
+
+## Skill Workflow Boundary Gate (DP-230 D40)
+
+每段 cross-skill transition（`refinement -> breakdown -> engineering -> verify-AC`，
+或回到 `refinement (amendment)`）必須以 deterministic boundary gate 收尾，避免
+inner skill session 把 mutation 寫到自己 owning scope 之外：
+
+1. dispatch inner skill 之前先呼叫
+   `scripts/skill-workflow-boundary-gate.sh --skill {next_skill} --start --source-container ...`
+   建立該 skill 的 session baseline（engineering 額外需 `--task-md`）。
+2. inner skill HALT / 完成後，先呼叫
+   `scripts/skill-workflow-boundary-gate.sh --skill {prev_skill} --check --source-container ...`
+   驗證上一段 skill 只動到自己 owning scope；exit 1 +
+   `POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:{skill}` 視為 deterministic gate failure，
+   ledger 寫 `gate_failure` friction、terminal `blocked_by_gate_failure`，不 silently
+   進入下一段。
+3. 同一 source container 內 refinement / breakdown / engineering / verify-AC 各自
+   擁有獨立 baseline（baseline path 以 `{skill}|{container}` hash 區分），
+   `/auto-pass` 不得共用同一份 baseline。
+
+bypass env（`POLARIS_LANGUAGE_POLICY_BYPASS`、`POLARIS_SKILL_BOUNDARY_BYPASS`）在
+boundary gate 中無效（AC-NEG16）；amendment loop 與 LOCKED scope guard 共用此
+gate 作為 cross-skill mutation 保護層。
 
 ## Terminal Boundary
 

@@ -126,4 +126,27 @@ if [[ -x "$residue_checker" ]]; then
   "$residue_checker" --repo "$repo_root" --source-container "$source_container"
 fi
 
+# DP-230 D40 skill-workflow boundary check (refinement handoff time).
+# If a refinement session baseline exists at runtime, verify the session
+# only touched refinement-owned scope. Missing baseline is treated as
+# advisory (no enforcement) so legacy invocations without the baseline
+# step keep working; the gate becomes hard once refinement SKILL.md
+# Step 0 calls --start at session entry.
+boundary_gate="$script_dir/skill-workflow-boundary-gate.sh"
+if [[ -x "$boundary_gate" ]]; then
+  # Resolve the repo that actually owns this source container; this may
+  # differ from $repo_root when refinement runs inside a worktree / fixture.
+  boundary_repo="$(git -C "$source_container" rev-parse --show-toplevel 2>/dev/null || echo "$repo_root")"
+  boundary_real_container="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$source_container")"
+  runtime_dir="${POLARIS_RUNTIME_DIR:-$boundary_repo/.polaris/runtime}"
+  baseline_dir="$runtime_dir/skill-workflow-boundary"
+  refn_baseline_id="$(printf '%s|%s' refinement "$boundary_real_container" \
+    | python3 -c "import hashlib,sys; print(hashlib.sha1(sys.stdin.read().encode()).hexdigest()[:16])")"
+  refn_baseline_path="$baseline_dir/refinement-${refn_baseline_id}.json"
+  if [[ -f "$refn_baseline_path" ]]; then
+    "$boundary_gate" --skill refinement --check \
+      --source-container "$source_container" --repo "$boundary_repo"
+  fi
+fi
+
 echo "PASS refinement handoff: $json_path"

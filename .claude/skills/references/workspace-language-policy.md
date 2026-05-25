@@ -119,3 +119,24 @@ T5 第一版已接入下列 producer-level gate：
 - Confluence page：`standup`、`sasd-review`、`sprint-planning`。
 
 剩餘風險：MCP runtime 本身仍沒有全域 preflight interception；在 MCP hook 存在前，責任落在 skill producer 必須先產生 temp artifact 並執行本檔定義的 gate。
+
+## 9. External Write Preflight
+
+DP-230 D17 後，external surface 寫入多了一層 writer identity registry。Producer 在
+呼叫 `scripts/polaris-external-write-gate.sh` 之前，必須先在 environment 設定
+`POLARIS_EXTERNAL_WRITE_WRITER=<token>`，token 必須登錄於
+`.claude/skills/references/external-write-writer-registry.md`。`.claude/hooks/pre-write-language-policy.sh`
+對未登錄的 writer fail-stop（stderr `POLARIS_EXTERNAL_WRITE_WRITER_UNREGISTERED`），且
+`POLARIS_LANGUAGE_POLICY_BYPASS=1` 對 unregistered writer 無效。
+
+| 步驟 | 動作 |
+|------|------|
+| 1 | Producer 把最終文字寫進 temp / durable body file（同 § 2）。 |
+| 2 | Producer export `POLARIS_EXTERNAL_WRITE_WRITER=<token>`，token 例如 `bug-triage:jira-comment`。 |
+| 3 | Producer 呼叫 `scripts/polaris-external-write-gate.sh --surface <surface> --body-file <path>`。 |
+| 4 | Gate PASS 後執行 MCP / CLI 真正寫入；寫入完成後可 unset env var 或結束 sub-shell。 |
+
+新增 producer / surface 時，順序必須是先 PR registry entry（reference 文件 + hook 內
+`POLARIS_EXTERNAL_WRITERS` array），再 PR producer 程式。Registry 是上游 gate，反過來會
+讓 producer 暫時跑 production write 而被 hook 擋下。詳細 contract、migration、selftest
+覆蓋面見 `external-write-writer-registry.md`。

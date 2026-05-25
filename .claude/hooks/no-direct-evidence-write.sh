@@ -34,7 +34,8 @@ esac
 file_path=$(printf '%s' "$input" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || true)
 
 # Determine if file_path is in any protected scope (existing BLOCKED globs plus
-# DP-226 auto-pass ledger/resume globs).
+# DP-226 auto-pass ledger/resume globs and DP-230 T12 verify-AC layout JSON +
+# auto-pass report JSON globs).
 in_protected_scope=0
 case "$file_path" in
   /tmp/polaris-verified-*.json|/tmp/polaris-ci-local-*.json|/tmp/polaris-vr-*.json|\
@@ -49,9 +50,23 @@ case "$file_path" in
   .polaris/evidence/ac-verification/*.json|*/.polaris/evidence/ac-verification/*.json|\
   .polaris/evidence/auto-pass/audit/*.json|*/.polaris/evidence/auto-pass/audit/*.json|\
   docs-manager/src/content/docs/specs/**/*.md|*/docs-manager/src/content/docs/specs/**/*.md|\
+  docs-manager/src/content/docs/specs/**/verification/V*/*.json|*/docs-manager/src/content/docs/specs/**/verification/V*/*.json|\
   docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-ledger.json|*/docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-ledger.json|\
-  docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-resume.json|*/docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-resume.json)
+  docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-resume.json|*/docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-resume.json|\
+  docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-report.json|*/docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-report.json)
     in_protected_scope=1
+    ;;
+esac
+
+# DP-230 T12: classify which paths require an explicit producer token (verify-AC
+# evidence layout + auto-pass report) so the hook can emit the
+# POLARIS_EVIDENCE_PRODUCER_TOKEN_REQUIRED stderr marker before the generic
+# BLOCKED line. Surfaces D31/D32 producer token contract to callers.
+token_required_path=0
+case "$file_path" in
+  docs-manager/src/content/docs/specs/**/verification/V*/*|*/docs-manager/src/content/docs/specs/**/verification/V*/*|\
+  docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-report.json|*/docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-report.json)
+    token_required_path=1
     ;;
 esac
 
@@ -234,6 +249,12 @@ PY
 fi
 
 # Fall through to BLOCKED — protected scope, no valid producer bypass.
+if [[ "$token_required_path" -eq 1 ]]; then
+  # DP-230 T12 / D31 / D32: surface explicit token-required marker so callers
+  # (and selftests) can distinguish "missing producer token" from generic
+  # BLOCKED denials caused by token+glob mismatch.
+  echo "POLARIS_EVIDENCE_PRODUCER_TOKEN_REQUIRED:$file_path" >&2
+fi
 echo "BLOCKED: evidence/specs-bound files may only be written by designated producer flows." >&2
 echo "Allowed producers are declared in scripts/lib/evidence-producers.json." >&2
 echo "Debug the producing script or emit contract; do not patch protected artifacts directly." >&2

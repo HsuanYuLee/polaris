@@ -119,6 +119,7 @@ write_task() {
 ---
 title: "DP-999 ${task_no} closeout selftest"
 description: "Selftest task fixture for framework release closeout."
+task_kind: T
 depends_on: [${depends}]
 ---
 
@@ -129,6 +130,7 @@ MD
 ---
 title: "DP-999 ${task_no} closeout selftest"
 description: "Selftest task fixture for framework release closeout."
+task_kind: T
 ---
 
 # ${task_no}: Closeout selftest ${task_no} (1 pt)

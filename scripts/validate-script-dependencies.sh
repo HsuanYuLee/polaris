@@ -81,7 +81,8 @@ warnings: list[str] = []
 
 SHELL_ALLOWED = {
     ".", ":", "[", "alias", "awk", "basename", "bash", "break", "cat", "cd",
-    "chmod", "command", "continue", "cp", "curl", "cut", "date", "dirname",
+    "chmod", "cmp", "command", "continue", "cp", "curl", "cut", "date", "diff",
+    "dirname",
     "done", "echo", "env", "eval", "exec", "exit", "export", "false", "fi", "find", "for",
     "gh", "git", "grep", "head", "if", "jq", "kill", "ln", "local", "lsof", "mkdir",
     "mise", "mv", "node", "nohup", "open", "pnpm", "printf", "pwd", "python",
@@ -269,6 +270,8 @@ def shell_functions(text: str) -> set[str]:
 def scan_shell(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     functions = shell_functions(text)
+    rel_path = rel(path)
+    is_selftest = rel_path.startswith("scripts/selftests/")
     heredoc_until: str | None = None
     single_quote_python = False
     continuation = False
@@ -296,6 +299,20 @@ def scan_shell(path: Path) -> None:
         if heredoc:
             heredoc_until = heredoc.group(1)
             continue
+        # DP-230 T6: selftest portability convention. Selftests must derive
+        # ROOT_DIR via scripts/lib/selftest-bootstrap.sh init_ROOT_DIR(), not
+        # via `git rev-parse --show-toplevel`, which fails in fresh git clone
+        # / detached HEAD / submodule scenarios.
+        if is_selftest:
+            stripped_for_check = raw.split("#", 1)[0]
+            if re.search(r"\bgit\s+rev-parse\s+--show-toplevel\b", stripped_for_check):
+                record(
+                    path,
+                    f"line {lineno}: POLARIS_SELFTEST_GIT_REV_PARSE_FORBIDDEN "
+                    "hint=replace `git rev-parse --show-toplevel` with "
+                    "`source \"$(dirname \"${BASH_SOURCE[0]}\")/../lib/selftest-bootstrap.sh\"; "
+                    "init_ROOT_DIR \"${BASH_SOURCE[0]}\"` (DP-230 T6 AC15)",
+                )
         line = raw.split("#", 1)[0].strip()
         if raw.rstrip().endswith("\\"):
             continuation = True
@@ -304,6 +321,27 @@ def scan_shell(path: Path) -> None:
             continue
         if line.startswith("-"):
             continue
+        # AC34 attack: alias wrappers around managed tools must be flagged.
+        # Match: alias name='<managed_tool> ...' or alias name="<managed_tool> ..."
+        alias_match = re.match(
+            r"\s*alias\s+[A-Za-z_][A-Za-z0-9_]*=(?P<q>['\"])(?P<body>[^'\"]+)(?P=q)",
+            raw,
+        )
+        if alias_match:
+            body = alias_match.group("body").strip()
+            alias_token = re.split(r"\s+", body, maxsplit=1)[0]
+            if alias_token in DIRECT_TOOL_POLICY:
+                key = (rel(path), str(lineno), alias_token)
+                disposition = disposition_by_key.get(key, {}).get("disposition", "")
+                if disposition not in VALID_DISPOSITIONS:
+                    owner, authority, profile, goes_to_mise = DIRECT_TOOL_POLICY[alias_token]
+                    record(
+                        path,
+                        f"line {lineno}: POLARIS_TOOL_DIRECT_CALL tool={alias_token} owner={owner} "
+                        f"install_authority={authority} runtime_profile={profile} goes_to_mise={goes_to_mise} "
+                        "hint=alias wrapping managed tool must go through scripts/lib/tool-resolution.sh",
+                    )
+                    continue
         hardcoded = re.search(r"(/Applications/Visual Studio Code\.app/\S*|/(?:usr/local|opt/homebrew)/bin)/(node|pnpm|jq|rg|gh)\b", line)
         if hardcoded:
             tool = hardcoded.group(2)
@@ -355,8 +393,66 @@ def scan_shell(path: Path) -> None:
         record(path, f"line {lineno}: unmanaged shell command {token!r}")
 
 
+SUBPROCESS_CALLABLES = {"run", "call", "check_call", "check_output", "Popen"}
+# Framework-internal Python helpers are referenced by relative module path /
+# script path; recognising them prevents false positives when one framework
+# Python script shells out to another (AC-NEG14). Anything that does NOT match
+# a managed tool name (DIRECT_TOOL_POLICY) is already ignored by the scanner,
+# but interpreter-style invocations (python3 / sys.executable) deserve an
+# explicit allow so that the scanner cannot be tightened later without
+# revisiting this list.
+FRAMEWORK_PY_INTERPRETERS = {"python", "python3"}
+
+
+def _subprocess_first_token(expr: ast.AST) -> tuple[str | None, str | None]:
+    """Return (first_token, kind) where kind is 'list', 'str', 'fstring', or None.
+
+    ``first_token`` is the literal string sitting in the executable slot of the
+    subprocess call (e.g. ``"rg"`` for ``subprocess.run(["rg", ...])`` or
+    ``subprocess.run("rg -n …", shell=True)``). Returns ``(None, None)`` when
+    the executable slot is dynamic and cannot be statically resolved.
+    """
+
+    if isinstance(expr, (ast.List, ast.Tuple)):
+        if not expr.elts:
+            return None, None
+        head = expr.elts[0]
+        if isinstance(head, ast.Constant) and isinstance(head.value, str):
+            return head.value, "list"
+        return None, "list"
+    if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
+        token = expr.value.strip().split()
+        return (token[0] if token else None), "str"
+    if isinstance(expr, ast.JoinedStr):
+        if not expr.values:
+            return None, None
+        first = expr.values[0]
+        if isinstance(first, ast.Constant) and isinstance(first.value, str):
+            token = first.value.strip().split()
+            if token:
+                return token[0], "fstring"
+        return None, "fstring"
+    return None, None
+
+
+def _subprocess_call_target(call: ast.Call) -> str | None:
+    """Return ``"subprocess.<name>"`` when this looks like a subprocess call."""
+
+    func = call.func
+    if isinstance(func, ast.Attribute):
+        owner = func.value
+        if isinstance(owner, ast.Name) and owner.id == "subprocess" and func.attr in SUBPROCESS_CALLABLES:
+            return f"subprocess.{func.attr}"
+    if isinstance(func, ast.Name) and func.id in SUBPROCESS_CALLABLES:
+        # ``from subprocess import run`` style is allowed but rare; treat the
+        # bare name as subprocess.<name> for diagnostic purposes only.
+        return f"subprocess.{func.id}"
+    return None
+
+
 def scan_python(path: Path) -> None:
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    text = path.read_text(encoding="utf-8")
+    tree = ast.parse(text, filename=str(path))
     stdlib = getattr(sys, "stdlib_module_names", set())
     for node in ast.walk(tree):
         names: list[str] = []
@@ -367,6 +463,33 @@ def scan_python(path: Path) -> None:
         for name in names:
             if name not in stdlib:
                 record(path, f"third-party Python import {name!r} is not declared")
+
+        if isinstance(node, ast.Call):
+            target = _subprocess_call_target(node)
+            if not target or not node.args:
+                continue
+            first_token, kind = _subprocess_first_token(node.args[0])
+            if not first_token:
+                continue
+            if first_token in FRAMEWORK_PY_INTERPRETERS:
+                # Framework Python -> Python invocation (AC-NEG14 whitelist).
+                continue
+            if first_token not in DIRECT_TOOL_POLICY:
+                continue
+            key = (rel(path), str(node.lineno), first_token)
+            disposition = disposition_by_key.get(key, {}).get("disposition", "")
+            if disposition in VALID_DISPOSITIONS:
+                continue
+            owner, authority, profile, goes_to_mise = DIRECT_TOOL_POLICY[first_token]
+            invocation = f"{target}({kind})"
+            record(
+                path,
+                f"line {node.lineno}: POLARIS_PYTHON_SUBPROCESS_TOOL_DIRECT_CALL "
+                f"tool={first_token} owner={owner} install_authority={authority} "
+                f"runtime_profile={profile} goes_to_mise={goes_to_mise} "
+                f"invocation={invocation} "
+                "hint=import scripts/lib/tool_resolution.resolve_tool() and pass the absolute path",
+            )
 
 
 def nearest_package_json(path: Path) -> Path | None:

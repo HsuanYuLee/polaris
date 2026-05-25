@@ -51,6 +51,18 @@ Use the workspace language from `workspace-config.yaml` as the default authoring
 
 Keep user updates concise, factual, and tied to the current gate or blocker.
 
+## Final Response Language Guard
+
+The agent's final/chat response delivered back to the user — including reports, summaries, status updates, and any natural-language reply that is not an internal tool call — is **user-facing prose** under the same `workspace-config.yaml` `language` contract that governs artifacts, PR bodies, JIRA comments, and Slack messages.
+
+- File-write hooks (`pre-write-language-policy.sh`) and external-write preflights only catch writes to files or external surfaces; they do **not** intercept the final/chat response stream.
+- The agent must self-check the workspace language **before** emitting any final response. If `workspace-config.yaml` declares `language: zh-TW`, the final response prose must be Traditional Chinese; identifiers (function names, file paths, ticket keys, command strings) remain in their original form.
+- The language guard is not an opt-in; missing `language` falls back to English advisory drafts, but a declared workspace language is mandatory for all final responses.
+
+### Claude Code Runtime Caveat
+
+Claude Code's PreToolUse / PostToolUse hooks fire on tool calls, not on the assistant's final message. `pre-write-language-policy.sh` does not run when the model emits a chat response without invoking a Write/Edit tool. The agent must self-check `workspace-config.yaml` `language` before sending any final response, including engineering reports, verify-AC summaries, refinement updates, and skill output. Do not draft the reply in another language and translate at the end; author in the workspace language from the first sentence.
+
 ## Plugin Workflow Quarantine
 
 Plugin workflow authority lives in `.claude/skills/references/plugin-workflow-quarantine.md`;

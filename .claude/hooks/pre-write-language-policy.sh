@@ -13,11 +13,45 @@
 # explicitly sets it for a known migration. The bypass is logged to stderr
 # so post-task reflection can pick it up; it is not a silent escape.
 #
+# DP-230 D17: external-write writer registry — when caller sets
+# POLARIS_EXTERNAL_WRITE_WRITER=<token>, the hook checks the embedded registry
+# (POLARIS_EXTERNAL_WRITERS, see below). Unregistered tokens fail-stop with
+# stderr POLARIS_EXTERNAL_WRITE_WRITER_UNREGISTERED, regardless of
+# POLARIS_LANGUAGE_POLICY_BYPASS. Registered tokens fall through to the
+# language gate; the registry only attests writer identity, body content
+# still has to pass language policy.
+#
 # Exit codes:
 #   0  no-op (tool name not Write/Edit/MultiEdit, path outside scope, or PASS)
-#   2  language policy violation — write is blocked
+#   2  language policy violation OR unregistered external-write writer
 
 set -euo pipefail
+
+# DP-230 D17 external-write writer registry. Tokens follow the convention
+# `{owning_skill}:{surface}`. Keep this list in sync with the canonical
+# contract in `.claude/skills/references/external-write-writer-registry.md`;
+# the reference also serves as the documented baseline for AC13. Producers
+# attempting to write external surfaces (JIRA / Slack / Confluence / GitHub
+# PR body) must export POLARIS_EXTERNAL_WRITE_WRITER=<token> from this list
+# before invoking the body-file write.
+POLARIS_EXTERNAL_WRITERS=(
+  "bug-triage:jira-comment"
+  "intake-triage:jira-comment"
+  "jira-worklog:jira-comment"
+  "verify-AC:jira-comment"
+  "engineering:jira-comment"
+  "standup:slack"
+  "check-pr-approvals:slack"
+  "review-inbox:slack"
+  "intake-triage:slack"
+  "learning:slack"
+  "standup:confluence"
+  "sasd-review:confluence"
+  "sprint-planning:confluence"
+  "engineering:pr-body"
+  "review-pr:github-review"
+  "framework-release:pr-body"
+)
 
 input=$(cat)
 
@@ -30,6 +64,29 @@ esac
 file_path=$(printf '%s' "$input" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || true)
 if [[ -z "$file_path" ]]; then
   exit 0
+fi
+
+# DP-230 D17: external-write writer registry check. Runs BEFORE the in-scope
+# path filter and BEFORE POLARIS_LANGUAGE_POLICY_BYPASS handling. When the
+# caller declares external-write context via POLARIS_EXTERNAL_WRITE_WRITER,
+# the hook must verify the token against the embedded registry. Unregistered
+# tokens are fail-stop and cannot be bypassed by POLARIS_LANGUAGE_POLICY_BYPASS.
+if [[ -n "${POLARIS_EXTERNAL_WRITE_WRITER:-}" ]]; then
+  external_writer_registered=0
+  for registered in "${POLARIS_EXTERNAL_WRITERS[@]}"; do
+    if [[ "$registered" == "$POLARIS_EXTERNAL_WRITE_WRITER" ]]; then
+      external_writer_registered=1
+      break
+    fi
+  done
+  if [[ "$external_writer_registered" -ne 1 ]]; then
+    echo "POLARIS_EXTERNAL_WRITE_WRITER_UNREGISTERED: writer=$POLARIS_EXTERNAL_WRITE_WRITER path=$file_path" >&2
+    echo "[pre-write-language-policy] DENIED unregistered external-write writer; see .claude/skills/references/external-write-writer-registry.md" >&2
+    exit 2
+  fi
+  echo "[pre-write-language-policy] BYPASS external-write-writer registered=$POLARIS_EXTERNAL_WRITE_WRITER path=$file_path (DP-230 D17)" >&2
+  # Registered writer: fall through to the language gate so body content is
+  # still policy-checked. The registry only attests writer identity.
 fi
 
 # Match scoped writer-side artifact paths.

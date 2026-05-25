@@ -43,6 +43,13 @@ tasks_dir, epic_dir, workspace_root = sys.argv[1], sys.argv[2], sys.argv[3]
 pr_release_dir = os.path.join(tasks_dir, "pr-release")
 
 TASK_ID_RE = re.compile(r"^[TV][0-9]+[a-z]*$")
+# DP-230 T2: cross-DP / cross-Epic full-form task IDs in depends_on are allowed.
+#   - DP-backed:    DP-228-T1, DP-228-V2, DP-228-T3a
+#   - JIRA Epic:    EXAMPLE-3461-T1 etc. (rare — share frontmatter shape with DP form)
+# A full-form dep is treated as an external reference: the validator checks
+# that it parses as a recognized task identity, but does not require the
+# referenced file to exist inside the current tasks/ tree.
+FULL_FORM_TASK_ID_RE = re.compile(r"^[A-Z][A-Z0-9]*-[0-9]+-[TV][0-9]+[a-z]*$")
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 DEPENDS_ON_ARRAY_RE = re.compile(r"^depends_on\s*:\s*\[(.*?)\]\s*$", re.MULTILINE)
 DEPENDS_ON_YAML_LIST_RE = re.compile(r"^depends_on\s*:\s*\n((?:\s*-\s*\S+.*\n)+)", re.MULTILINE)
@@ -147,6 +154,18 @@ def parse_fixtures(body: str):
 deps_graph = {}
 fixture_paths = {}
 
+def classify_dep(dep: str):
+    """Return ("local", task_id) for same-Epic short-form deps,
+    ("external", dep) for cross-DP / cross-Epic full-form deps,
+    or ("invalid", dep) when neither shape matches.
+    """
+    if TASK_ID_RE.fullmatch(dep):
+        return ("local", dep)
+    if FULL_FORM_TASK_ID_RE.fullmatch(dep):
+        return ("external", dep)
+    return ("invalid", dep)
+
+
 for task_id, paths in sorted(active.items()):
     path = paths[0]
     with open(path, encoding="utf-8") as f:
@@ -158,7 +177,13 @@ for task_id, paths in sorted(active.items()):
     fixture_paths[task_id] = parse_fixtures(content)
 
     for dep in deps:
-        if dep not in all_known_ids:
+        kind, value = classify_dep(dep)
+        if kind == "invalid":
+            errors.append(
+                f"{os.path.relpath(path, tasks_dir)}: depends_on entry '{dep}' is not a valid "
+                f"short-form task id (T1 / V2 / T3a) nor a full-form cross-DP id (DP-228-T1)."
+            )
+        elif kind == "local" and value not in all_known_ids:
             errors.append(
                 f"{os.path.relpath(path, tasks_dir)}: depends_on references '{dep}' but no such task.md "
                 f"or folder-native index.md in {tasks_dir}/ or {pr_release_dir}/ "
@@ -166,17 +191,21 @@ for task_id, paths in sorted(active.items()):
             )
 
 for task_id, deps in sorted(deps_graph.items()):
+    # DP-230 T2: only same-Epic short-form deps participate in T→V + linearity
+    # checks. Cross-DP full-form deps express ordering across source containers
+    # and are out of scope for in-Epic DAG analysis.
+    local_deps = [dep for dep in deps if TASK_ID_RE.fullmatch(dep)]
     if task_id.startswith("T"):
-        for dep in deps:
+        for dep in local_deps:
             if dep.startswith("V"):
                 errors.append(
                     f"{task_id}: T→V depends_on is forbidden — '{task_id}' depends on '{dep}'. "
                     "DP-033 D4 § 5.3：實作不應卡在驗收（避免循環依賴 + Epic 內 phase 化）。"
                 )
-    if len(deps) > 1:
+    if len(local_deps) > 1:
         errors.append(
-            f"{task_id}: non-linear depends_on DAG — {task_id} depends on {deps}. "
-            "DP-028 requires linear chain."
+            f"{task_id}: non-linear depends_on DAG — {task_id} depends on {local_deps}. "
+            "DP-028 requires linear chain (cross-DP full-form deps are excluded)."
         )
 
 color = {task_id: 0 for task_id in deps_graph}

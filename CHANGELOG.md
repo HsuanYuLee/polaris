@@ -4,6 +4,23 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.120] - 2026-05-25
+
+### Fixed — DP-230 template leak fixture cleanup
+
+將 DP-230 leak-scan selftest 與註解中的公司實名範例改成 synthetic fixture，
+讓 template sync 的 material leak gate 可以通過；本版延續 v3.75.119 的 DP-230
+deterministic chain hardening aggregate release。
+
+## [3.75.119] - 2026-05-25
+
+### Changed — DP-230 deterministic chain hardening aggregate release
+
+補齊 refinement → breakdown → engineering → verify-AC 主鏈的 deterministic guard：
+新增 DP-230 umbrella regression entrypoint、強化 artifact writer / PR identity /
+verify-AC evidence / runtime response language / skill workflow boundary 等 selftest
+覆蓋，並修正 aggregate release PR identity 與 engineering branch setup 的相容路徑。
+
 ## [3.75.118] - 2026-05-24
 
 ### Changed — DP-229 refinement contract hardening

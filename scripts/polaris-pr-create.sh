@@ -26,6 +26,9 @@ REPO_PATH=""
 TASK_MD_PATH=""
 SKIP_GATES="${POLARIS_SKIP_PR_GATES:-0}"
 AGGREGATE_RELEASE=0
+AGG_SOURCE=""
+AGG_VERSION=""
+AGG_BUNDLED_TASKS=""
 DRY_RUN=0
 GH_ARGS=()
 CREATED_PR_URL=""
@@ -45,7 +48,9 @@ fi
 
 usage() {
   cat <<EOF
-Usage: polaris-pr-create.sh [--repo <path>] [--task-md <path>] [--skip-gates] [--dry-run] [--aggregate-release] [--] <gh pr create args...>
+Usage: polaris-pr-create.sh [--repo <path>] [--task-md <path>] [--skip-gates] [--dry-run]
+                            [--aggregate-release --source DP-NNN --version vX.Y.Z --bundled-tasks T1,T2,...]
+                            [--] <gh pr create args...>
 
 Wrapper for 'gh pr create' that runs pre-flight gates before PR creation.
 
@@ -55,7 +60,13 @@ Options:
   --skip-gates      Skip non-source gates only; work-source gate still runs
   --dry-run         Run gates but do not create the PR
   --aggregate-release
-                     Treat this as an explicit framework aggregate release PR
+                     Treat this as an explicit framework aggregate release PR.
+                     Inserts a "Bundle Identity" block (bundle_branch_alias /
+                     bundled_tasks / source / version) into the PR body so the
+                     downstream scope gate can union merged-task Allowed Files.
+  --source <DP-NNN>      DP source ID (required with --aggregate-release).
+  --version <vX.Y.Z>     Release version (required with --aggregate-release).
+  --bundled-tasks T1,T2  Comma-separated bundled task IDs (required with --aggregate-release).
   -h, --help        Show this help
 
 All other arguments are passed verbatim to 'gh pr create'.
@@ -74,10 +85,34 @@ while [[ $# -gt 0 ]]; do
     --skip-gates)    SKIP_GATES=1; shift ;;
     --dry-run)       DRY_RUN=1; shift ;;
     --aggregate-release) AGGREGATE_RELEASE=1; shift ;;
+    --source)        AGG_SOURCE="$2"; shift 2 ;;
+    --source=*)      AGG_SOURCE="${1#--source=}"; shift ;;
+    --version)       AGG_VERSION="$2"; shift 2 ;;
+    --version=*)     AGG_VERSION="${1#--version=}"; shift ;;
+    --bundled-tasks) AGG_BUNDLED_TASKS="$2"; shift 2 ;;
+    --bundled-tasks=*) AGG_BUNDLED_TASKS="${1#--bundled-tasks=}"; shift ;;
     --)              shift; GH_ARGS+=("$@"); break ;;
     *)               GH_ARGS+=("$1"); shift ;;
   esac
 done
+
+# DP-230 D37: aggregate-release identity validation. The bundle identity block
+# is the deterministic carrier for `bundle_branch_alias` + `bundled_tasks` that
+# the downstream scope gate (check-pr-scope.sh) consumes; require complete inputs.
+if [[ "$AGGREGATE_RELEASE" -eq 1 ]]; then
+  if [[ -z "$AGG_SOURCE" || -z "$AGG_VERSION" || -z "$AGG_BUNDLED_TASKS" ]]; then
+    echo "$PREFIX ✗ BLOCKED: --aggregate-release requires --source, --version, and --bundled-tasks." >&2
+    exit 2
+  fi
+  if [[ ! "$AGG_SOURCE" =~ ^DP-[0-9]+$ ]]; then
+    echo "$PREFIX ✗ BLOCKED: --source must look like DP-NNN (got: $AGG_SOURCE)" >&2
+    exit 2
+  fi
+  if [[ ! "$AGG_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+    echo "$PREFIX ✗ BLOCKED: --version must look like vX.Y.Z (got: $AGG_VERSION)" >&2
+    exit 2
+  fi
+fi
 
 REPO_PATH="${REPO_PATH:-$(pwd)}"
 
@@ -117,6 +152,115 @@ for (( i=0; i<${#GH_ARGS[@]}; i++ )); do
       ;;
   esac
 done
+
+# DP-230 D37: inject aggregate-release bundle identity block into the PR body.
+# The block is deterministic key-value lines (parsed by scripts/check-pr-scope.sh)
+# wrapped in a "Bundle Identity" markdown section. We materialize the augmented
+# body in a tmpfile and rewrite GH_ARGS so `gh pr create` consumes --body-file.
+inject_bundle_identity_block() {
+  local body_text=""
+  if [[ "$PR_BODY_SOURCE" == "file" && -n "$PR_BODY_FILE" && -f "$PR_BODY_FILE" ]]; then
+    body_text="$(cat "$PR_BODY_FILE")"
+  elif [[ "$PR_BODY_SOURCE" == "body" ]]; then
+    body_text="$PR_BODY"
+  else
+    body_text=""
+  fi
+
+  # Detect existing branch name (alias for bundle_branch_alias).
+  local branch_alias=""
+  branch_alias="$(git -C "$REPO_PATH" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  [[ -n "$branch_alias" && "$branch_alias" != "HEAD" ]] \
+    || branch_alias="bundle-${AGG_SOURCE}-${AGG_VERSION}"
+
+  # Build identity block. Render bundled_tasks as JSON-like list for
+  # downstream parsers; keep the literal section heading "Bundle Identity"
+  # because gate-pr-body-template depends on stable markdown anchors.
+  local bundled_tasks_list=""
+  bundled_tasks_list="$(printf '%s' "$AGG_BUNDLED_TASKS" \
+    | python3 -c '
+import sys
+raw = sys.stdin.read().strip()
+items = [t.strip() for t in raw.split(",") if t.strip()]
+print("[" + ", ".join(items) + "]")
+')"
+
+  local block
+  block="$(cat <<EOF
+
+## Bundle Identity
+
+bundle_branch_alias: ${branch_alias}
+bundled_tasks: ${bundled_tasks_list}
+source: ${AGG_SOURCE}
+version: ${AGG_VERSION}
+EOF
+)"
+
+  # Replace an empty "(reserved for bundle metadata)" placeholder if present,
+  # otherwise append. Either way the body now carries the deterministic
+  # key-value lines `bundle_branch_alias:` / `bundled_tasks:`.
+  local merged_body=""
+  if printf '%s' "$body_text" | grep -q "^## Bundle Identity"; then
+    local body_tmp
+    body_tmp="$(mktemp -t polaris-pr-create-body.XXXXXX)"
+    printf '%s' "$body_text" > "$body_tmp"
+    merged_body="$(python3 -c '
+import re
+import sys
+
+body_path, source, version, tasks_list, branch_alias = sys.argv[1:6]
+with open(body_path, "r", encoding="utf-8") as fh:
+    body = fh.read()
+block = (
+    "## Bundle Identity\n\n"
+    f"bundle_branch_alias: {branch_alias}\n"
+    f"bundled_tasks: {tasks_list}\n"
+    f"source: {source}\n"
+    f"version: {version}\n"
+)
+pattern = re.compile(r"## Bundle Identity\n(.*?)(?=\n## |\Z)", re.DOTALL)
+new_body = pattern.sub(block, body, count=1)
+sys.stdout.write(new_body)
+' "$body_tmp" "$AGG_SOURCE" "$AGG_VERSION" "$bundled_tasks_list" "$branch_alias")"
+    rm -f "$body_tmp"
+  else
+    merged_body="${body_text}${block}"$'\n'
+  fi
+
+  local injected_file
+  injected_file="$(mktemp -t polaris-pr-create-bundle.XXXXXX)"
+  printf '%s' "$merged_body" > "$injected_file"
+
+  # Rewrite GH_ARGS: drop any --body / --body-file (with or without `=`), then
+  # append --body-file <injected_file>. This is the only deterministic carrier
+  # that survives gh's own arg validation.
+  local new_args=()
+  local i=0
+  while [[ $i -lt ${#GH_ARGS[@]} ]]; do
+    case "${GH_ARGS[$i]}" in
+      --body|--body-file)
+        i=$((i + 2))
+        ;;
+      --body=*|--body-file=*)
+        i=$((i + 1))
+        ;;
+      *)
+        new_args+=("${GH_ARGS[$i]}")
+        i=$((i + 1))
+        ;;
+    esac
+  done
+  new_args+=("--body-file" "$injected_file")
+  GH_ARGS=("${new_args[@]}")
+  PR_BODY=""
+  PR_BODY_FILE="$injected_file"
+  PR_BODY_SOURCE="file"
+}
+
+if [[ "$AGGREGATE_RELEASE" -eq 1 ]]; then
+  inject_bundle_identity_block
+fi
 
 read_pr_assignee_policy() {
   local repo_root="$1"

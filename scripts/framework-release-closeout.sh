@@ -27,6 +27,14 @@ set -euo pipefail
 # After the parent DP reaches IMPLEMENTED, the canonical DP container is archived
 # automatically. docs-manager reads canonical specs directly, so no viewer sync is
 # needed after this move.
+#
+# Deterministic Consumption (DP-230 D30):
+#   parent-closeout 直接讀 refinement.json (acceptance_criteria / verification.method)；
+#   絕不讀 task.md acceptance_criteria 文字段。task lifecycle 由 frontmatter status
+#   經 mark-spec-implemented.sh / update_frontmatter_status 推進，不消費 task.md
+#   acceptance text。drift 時以 refinement.json 為準，task.md drift 僅 advisory。
+#   POLARIS_FRAMEWORK_RELEASE_CLOSEOUT_DETERMINISTIC_CONSUMPTION_MARKER: parent-closeout
+#   consumes refinement.json, not task.md acceptance text.
 
 PREFIX="[framework-release-closeout]"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,6 +44,8 @@ CHECK_RELEASE_COMPLETED="${SCRIPT_DIR}/check-release-completed.sh"
 CHECK_MAIN_CHAIN_COMPLIANCE="${SCRIPT_DIR}/check-main-chain-compliance.sh"
 # shellcheck source=lib/specs-root.sh
 . "$SCRIPT_DIR/lib/specs-root.sh"
+# shellcheck source=lib/worktree-classifier.sh
+. "$SCRIPT_DIR/lib/worktree-classifier.sh"
 TEMPLATE_REPO=""
 EXTENSION_ID="framework-release"
 WORKSPACE_COMMIT=""
@@ -50,6 +60,40 @@ VERIFY_EVIDENCES=()
 CI_LOCAL_EVIDENCES=()
 VR_EVIDENCES=()
 PREFLIGHT_EVIDENCES=()
+# DP-230 D16: per-task head SHA map (task_id => sha) populated when
+# --task-head-sha receives the map syntax "DP-NNN-T1=<sha1>,DP-NNN-T2=<sha2>".
+# Legacy positional --task-head-sha <sha> (one per --task-md) continues to fill
+# TASK_HEAD_SHAS in declaration order. macOS ships bash 3.2 which lacks
+# associative arrays, so we keep two parallel arrays and a linear lookup.
+TASK_HEAD_SHA_MAP_KEYS=()
+TASK_HEAD_SHA_MAP_VALUES=()
+TASK_HEAD_SHA_MAP_USED=0
+
+task_head_sha_map_set() {
+  local key="$1"
+  local value="$2"
+  local i
+  for (( i = 0; i < ${#TASK_HEAD_SHA_MAP_KEYS[@]}; i++ )); do
+    if [[ "${TASK_HEAD_SHA_MAP_KEYS[$i]}" == "$key" ]]; then
+      TASK_HEAD_SHA_MAP_VALUES[$i]="$value"
+      return 0
+    fi
+  done
+  TASK_HEAD_SHA_MAP_KEYS+=("$key")
+  TASK_HEAD_SHA_MAP_VALUES+=("$value")
+}
+
+task_head_sha_map_get() {
+  local key="$1"
+  local i
+  for (( i = 0; i < ${#TASK_HEAD_SHA_MAP_KEYS[@]}; i++ )); do
+    if [[ "${TASK_HEAD_SHA_MAP_KEYS[$i]}" == "$key" ]]; then
+      printf '%s\n' "${TASK_HEAD_SHA_MAP_VALUES[$i]}"
+      return 0
+    fi
+  done
+  return 1
+}
 
 usage() {
   sed -n '3,34p' "$0" >&2
@@ -307,18 +351,44 @@ resolve_branch_sha() {
   printf '%s\n' "$sha"
 }
 
-ensure_clean_worktree_if_present() {
+# classify_worktree_for_branch <task_branch>
+#   Echo one of:
+#     none        — no registered worktree for the branch (cleanup NOOP)
+#     engineering — engineering implementation worktree (must be clean)
+#     sub-agent   — sub-agent scratch worktree (closeout must skip)
+#   Side effects: dies if an engineering worktree is dirty, or if the worktree
+#   path is neither engineering nor sub-agent.
+classify_worktree_for_branch() {
   local task_branch="$1"
   local worktree
   worktree="$(registered_worktree_for_branch "$task_branch")"
   if [[ -z "$worktree" ]]; then
     info "no registered worktree for ${task_branch}; cleanup will be NOOP"
+    echo "none"
     return 0
   fi
-  [[ "$worktree" == *"/.worktrees/"* ]] || die "refusing non-implementation worktree: ${worktree}"
-  if [[ -n "$(git -C "$worktree" status --porcelain)" ]]; then
-    die "dirty implementation worktree blocks closeout: ${worktree}"
-  fi
+  local kind
+  kind="$(classify_worktree "$worktree")"
+  case "$kind" in
+    sub-agent)
+      # Sub-agent worktrees are owned by the dispatcher, not by closeout.
+      # Per DP-230-T9 (D23), closeout must skip per-task cleanup on them so
+      # the closeout log does not surface sub-agent worktree paths.
+      info "skip per-task closeout for sub-agent worktree: ${task_branch}"
+      echo "sub-agent"
+      return 0
+      ;;
+    engineering)
+      if [[ -n "$(git -C "$worktree" status --porcelain)" ]]; then
+        die "dirty implementation worktree blocks closeout: ${worktree}"
+      fi
+      echo "engineering"
+      return 0
+      ;;
+    *)
+      die "refusing non-implementation worktree: ${worktree}"
+      ;;
+  esac
 }
 
 delete_branch_if_safe() {
@@ -352,7 +422,38 @@ while [[ $# -gt 0 ]]; do
     --template-repo) TEMPLATE_REPO="${2:-}"; shift 2 ;;
     --extension-id) EXTENSION_ID="${2:-}"; shift 2 ;;
     --task-md) TASK_MDS+=("${2:-}"); shift 2 ;;
-    --task-head-sha) TASK_HEAD_SHAS+=("${2:-}"); shift 2 ;;
+    --task-head-sha)
+      _ths_value="${2:-}"
+      # DP-230 D16: detect map syntax "task_id=<sha>[,task_id=<sha>...]".
+      # Any token containing '=' switches this flag into map mode; once map
+      # mode is engaged, the value must parse cleanly or we fail-stop.
+      if [[ "$_ths_value" == *"="* ]]; then
+        if [[ "${#TASK_HEAD_SHAS[@]}" -gt 0 ]]; then
+          die "--task-head-sha map syntax cannot mix with positional --task-head-sha entries"
+        fi
+        TASK_HEAD_SHA_MAP_USED=1
+        IFS=',' read -r -a _ths_entries <<< "$_ths_value"
+        for _ths_entry in "${_ths_entries[@]}"; do
+          _ths_entry="${_ths_entry#"${_ths_entry%%[![:space:]]*}"}"
+          _ths_entry="${_ths_entry%"${_ths_entry##*[![:space:]]}"}"
+          [[ -n "$_ths_entry" ]] || continue
+          if [[ "$_ths_entry" != *"="* ]]; then
+            die "--task-head-sha map entry missing '=': '$_ths_entry' (expected task_id=<sha>)"
+          fi
+          _ths_key="${_ths_entry%%=*}"
+          _ths_sha="${_ths_entry#*=}"
+          [[ -n "$_ths_key" ]] || die "--task-head-sha map entry has empty task id: '$_ths_entry'"
+          [[ -n "$_ths_sha" ]] || die "--task-head-sha map entry has empty SHA for ${_ths_key}"
+          task_head_sha_map_set "$_ths_key" "$_ths_sha"
+        done
+      else
+        if [[ "$TASK_HEAD_SHA_MAP_USED" -eq 1 ]]; then
+          die "--task-head-sha map syntax cannot mix with positional --task-head-sha entries"
+        fi
+        TASK_HEAD_SHAS+=("$_ths_value")
+      fi
+      shift 2
+      ;;
     --verify-evidence) VERIFY_EVIDENCES+=("${2:-}"); shift 2 ;;
     --ci-local-evidence) CI_LOCAL_EVIDENCES+=("${2:-}"); shift 2 ;;
     --vr-evidence) VR_EVIDENCES+=("${2:-}"); shift 2 ;;
@@ -370,6 +471,8 @@ done
 [[ "${#TASK_MDS[@]}" -gt 0 ]] || die "at least one --task-md is required"
 [[ "${#VERIFY_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || die "provide exactly one --verify-evidence for each --task-md"
 [[ "${#TASK_HEAD_SHAS[@]}" -eq 0 || "${#TASK_HEAD_SHAS[@]}" -eq "${#TASK_MDS[@]}" ]] || die "--task-head-sha count must be zero or match --task-md count"
+# DP-230 D16: map mode covers per-task SHA lookup by task_id during the
+# iteration loop below; count parity is enforced at lookup time, not here.
 [[ "${#CI_LOCAL_EVIDENCES[@]}" -eq 0 || "${#CI_LOCAL_EVIDENCES[@]}" -eq 1 || "${#CI_LOCAL_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || die "--ci-local-evidence count must be zero, one, or match --task-md count"
 [[ "${#VR_EVIDENCES[@]}" -eq 0 || "${#VR_EVIDENCES[@]}" -eq 1 || "${#VR_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || die "--vr-evidence count must be zero, one, or match --task-md count"
 [[ "${#PREFLIGHT_EVIDENCES[@]}" -eq 0 || "${#PREFLIGHT_EVIDENCES[@]}" -eq 1 || "${#PREFLIGHT_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || die "--preflight-evidence count must be zero, one, or match --task-md count"
@@ -401,7 +504,7 @@ if [[ -n "$TEMPLATE_REPO" ]]; then
   fi
 fi
 
-declare -a ABS_TASK_MDS TASK_IDS TASK_BRANCHES RESOLVED_TASK_HEADS
+declare -a ABS_TASK_MDS TASK_IDS TASK_BRANCHES RESOLVED_TASK_HEADS TASK_WORKTREE_KINDS
 
 for i in "${!TASK_MDS[@]}"; do
   task_md="$(abs_path "${TASK_MDS[$i]}")"
@@ -414,22 +517,29 @@ for i in "${!TASK_MDS[@]}"; do
   [[ -n "$task_branch" ]] || die "Task branch missing in ${task_md}"
 
   task_head_sha=""
-  if [[ "${#TASK_HEAD_SHAS[@]}" -gt 0 ]]; then
+  if [[ "$TASK_HEAD_SHA_MAP_USED" -eq 1 ]]; then
+    if task_head_sha="$(task_head_sha_map_get "$task_id")"; then
+      :
+    else
+      die "--task-head-sha map missing entry for ${task_id}; bundle PR identity requires per-task SHA"
+    fi
+  elif [[ "${#TASK_HEAD_SHAS[@]}" -gt 0 ]]; then
     task_head_sha="${TASK_HEAD_SHAS[$i]}"
   fi
   if [[ -z "$task_head_sha" ]]; then
     task_head_sha="$(resolve_branch_sha "$task_branch")"
   fi
-  is_sha "$task_head_sha" || die "task head SHA malformed for ${task_id}: ${task_head_sha}"
+  is_sha "$task_head_sha" || die "--task-head-sha value malformed for ${task_id}: ${task_head_sha} (expected 7-40 char hex SHA; map syntax is task_id=<sha>)"
   git -C "$REPO_ROOT" cat-file -e "${task_head_sha}^{commit}" 2>/dev/null || die "task head does not exist for ${task_id}: ${task_head_sha}"
   git -C "$REPO_ROOT" merge-base --is-ancestor "$task_head_sha" "$WORKSPACE_COMMIT" || die "workspace commit does not contain task head for ${task_id}"
 
-  ensure_clean_worktree_if_present "$task_branch"
+  worktree_kind="$(classify_worktree_for_branch "$task_branch")"
 
   ABS_TASK_MDS+=("$task_md")
   TASK_IDS+=("$task_id")
   TASK_BRANCHES+=("$task_branch")
   RESOLVED_TASK_HEADS+=("$task_head_sha")
+  TASK_WORKTREE_KINDS+=("$worktree_kind")
 done
 
 for i in "${!ABS_TASK_MDS[@]}"; do
@@ -437,7 +547,16 @@ for i in "${!ABS_TASK_MDS[@]}"; do
   task_id="${TASK_IDS[$i]}"
   task_branch="${TASK_BRANCHES[$i]}"
   task_head_sha="${RESOLVED_TASK_HEADS[$i]}"
+  worktree_kind="${TASK_WORKTREE_KINDS[$i]}"
   verify_evidence="${VERIFY_EVIDENCES[$i]}"
+
+  if [[ "$worktree_kind" == "sub-agent" ]]; then
+    # Per DP-230-T9 (D23): sub-agent worktrees are dispatcher-owned scratch
+    # space. framework-release closeout must skip per-task closeout entirely so
+    # the closeout log carries no sub-agent worktree path.
+    info "skip per-task closeout for ${task_id}: sub-agent worktree"
+    continue
+  fi
 
   if [[ "${#CI_LOCAL_EVIDENCES[@]}" -eq 0 ]]; then
     ci_local_evidence="N/A"
@@ -514,6 +633,12 @@ PY
   # Terminal closeout chain: task closeout can close the parent, and the final
   # task in this closeout invokes close-parent-spec-if-complete.sh with
   # --archive-terminal-parent so archive-spec.sh is deterministic.
+  #
+  # DP-230 D30 deterministic consumption: this block delegates lifecycle to
+  # frontmatter status (mark_task_implemented -> mark-spec-implemented.sh) and
+  # never reads task.md acceptance_criteria text. parent-closeout consumes
+  # refinement.json via close-parent-spec-if-complete.sh /
+  # update_frontmatter_status. See SKILL.md verify-AC § Deterministic Consumption.
   moved_task_md="$(mark_task_implemented "$task_md" "$task_id")"
   [[ -f "$moved_task_md" ]] || die "implemented task file not found after mark-spec-implemented: ${task_id}"
 

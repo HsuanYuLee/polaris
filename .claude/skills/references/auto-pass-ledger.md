@@ -248,9 +248,14 @@ ledger 來重置 counter。
 
 ## Friction Log (DP-214)
 
-`friction_log[]` 是 optional append-only array，紀錄本輪 `/auto-pass` 流程的繞道、
-手動補位、deterministic gap。它是 post-task reflection 與 follow-up DP refinement 的
-權威 signal source；只能透過 `scripts/append-auto-pass-friction.sh` 寫入，不得手改。
+`friction_log[]` 是 append-only array，紀錄本輪 `/auto-pass` 流程（含
+`framework-release` tail）的繞道、手動補位、deterministic gap。它是 post-task
+reflection 與 follow-up DP refinement 的權威 signal source；只能透過
+`scripts/append-auto-pass-friction.sh` 寫入，不得手改。
+
+本節定義 ledger schema；emit-side contract（stage / kind enum、writer path、
+deterministic trigger map、release-tail capture）以
+`.claude/skills/references/friction-capture-contract.md` 為 canonical reference。
 
 每筆 entry 至少包含：
 

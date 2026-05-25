@@ -1,12 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# DP-230 T5 / D18 — framework artifact writers must anchor at the main
+# checkout. When this script runs inside a `git worktree add` copy the
+# caller's CWD is the worktree, but completion_gate / pr_freshness /
+# blocked_conflict / unsupported_mutation / ci_local markers belong to the
+# durable .polaris/evidence/ tree under the main checkout. We source the
+# shared resolver helper instead of recomputing the rule per writer.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/lib/main-checkout.sh" ]]; then
+  # shellcheck source=lib/main-checkout.sh
+  . "$SCRIPT_DIR/lib/main-checkout.sh"
+fi
+
 usage() {
   cat >&2 <<'USAGE'
 usage:
   scripts/write-completion-gate-marker.sh --source-id DP-NNN --work-item-id DP-NNN-Tn --head-sha SHA [--status STATUS] [--task-md PATH] [--out PATH]
 
-Emits an engineering-owned completion_gate marker under .polaris/evidence/completion-gate/.
+Emits an engineering-owned completion_gate marker under
+<main-checkout>/.polaris/evidence/completion-gate/.  When invoked inside a
+`git worktree add` copy, the marker still lands under the main checkout
+(see .claude/skills/references/framework-artifact-writer-convention.md).
 USAGE
   exit 2
 }
@@ -34,7 +49,20 @@ done
 [[ -n "$SOURCE_ID" && -n "$WORK_ITEM_ID" && -n "$HEAD_SHA" ]] || usage
 
 if [[ -z "$OUT" ]]; then
-  OUT=".polaris/evidence/completion-gate/${WORK_ITEM_ID}-${HEAD_SHA}.json"
+  # Default OUT: anchor at the main checkout (not caller CWD) so worktree
+  # runs do not silently leak markers into <worktree>/.polaris/.
+  main_checkout=""
+  if declare -F resolve_main_checkout >/dev/null 2>&1; then
+    main_checkout="$(resolve_main_checkout "$(pwd)" 2>/dev/null || true)"
+  fi
+  if [[ -n "$main_checkout" ]]; then
+    OUT="${main_checkout}/.polaris/evidence/completion-gate/${WORK_ITEM_ID}-${HEAD_SHA}.json"
+  else
+    # No git context (resolver failed) — fall back to legacy CWD-relative
+    # path so callers outside a repo (legacy tests, ad hoc shells) still get
+    # a useful marker.
+    OUT=".polaris/evidence/completion-gate/${WORK_ITEM_ID}-${HEAD_SHA}.json"
+  fi
 fi
 
 mkdir -p "$(dirname "$OUT")"

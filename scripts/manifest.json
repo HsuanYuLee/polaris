@@ -352,6 +352,16 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/check-pr-scope.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "scripts/selftests/polaris-pr-create-aggregate-release-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "posture_decision": "DP-230-T16 D37 aggregate-release PR scope gate; consumes Bundle Identity block and unions merged-task Allowed Files."
+    },
+    {
       "path": "scripts/check-python-third-party.sh",
       "kind": "gate",
       "runner": "bash",
@@ -758,6 +768,15 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/derive-task-md-from-refinement-json.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "breakdown",
+      "selftest": "scripts/selftests/derive-task-md-from-refinement-json-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/design-plan-checklist-gate.sh",
@@ -1374,6 +1393,16 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/lib/migrate-refinement-json-to-strong-bound.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
       "path": "scripts/lib/polaris_toolchain_manifest.py",
       "kind": "support",
       "runner": "python3",
@@ -1393,6 +1422,126 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/lib/refinement_common.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/refinement-ac-id-shape.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/refinement-decision-ac-coverage.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/refinement-intra-dp-consistency.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/refinement-md-generator.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/refinement-md-hand-edit-detector.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/refinement-module-ac-coverage.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/refinement-referrer-cascade.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/refinement-release-surface-advisory.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/refinement-script-help-advisory.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/refinement-section-presence-advisory.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/refinement-selftest-parity.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
       "path": "scripts/lib/specs-root.sh",
       "kind": "support",
       "runner": "bash",
@@ -1401,6 +1550,16 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/lib/tool_resolution.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_library",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "covered by downstream selftests"
     },
     {
       "path": "scripts/lib/verification-evidence.sh",
@@ -2004,6 +2163,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/resolve-task-worktree.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/resolve-task-worktree-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/resolve-workspace-overlay.sh",
       "kind": "resolver",
       "runner": "bash",
@@ -2158,7 +2326,87 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/audit-dogfood-evidence-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/auto-pass-amendment-loop-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/auto-pass-auto-friction-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/auto-pass-friction-log-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/auto-pass-probe-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/auto-pass-report-producer-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/auto-pass-report-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/auto-pass-routing-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/backfill-locked-dp-changed-files-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
@@ -2177,6 +2425,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/bug-rca-skill-absence-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/changeset-clean-inherited-selftest.sh",
@@ -2223,6 +2481,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/check-local-extension-completion-dispatch-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/check-main-chain-compliance-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2243,6 +2511,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "DP-182 selftest for runtime cache direct migration gate."
+    },
+    {
+      "path": "scripts/selftests/check-skills-mirror-mode-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/check-source-template-drift-selftest.sh",
@@ -2278,6 +2556,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/closeout-chain-archive-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/collect-evidence-upload-bundle-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2289,6 +2577,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/compile-runtime-instructions-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/create-design-plan-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2298,6 +2596,26 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/delivery-contract-gap-convergence-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/derive-task-md-from-refinement-json-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/detect-stacked-delivery-lane-selftest.mjs",
@@ -2322,6 +2640,56 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/dp218-graduation-anchors-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/dp230-umbrella-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "umbrella selftest script"
+    },
+    {
+      "path": "scripts/selftests/engineering-bundle-pr-identity-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/engineering-worktree-cleanup-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/external-write-language-preflight-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/finalize-engineering-delivery-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2331,6 +2699,36 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/framework-artifact-writer-cwd-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/friction-capture-contract-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/gate-changed-files-scope-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/gate-pr-body-template-selftest.sh",
@@ -2353,6 +2751,16 @@
       "relocation": "stay",
       "selftest_reason": "selftest script",
       "posture_decision": "DP-228 recurrence prevention — selftest for scripts/gates/gate-template-leaks.sh wrapper."
+    },
+    {
+      "path": "scripts/selftests/gate-work-source-chore-followup-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/generate-verify-report-selftest.mjs",
@@ -2398,6 +2806,16 @@
       "keep_reason": "Shared deterministic script selftest helper for DP-184 governed tests."
     },
     {
+      "path": "scripts/selftests/lifecycle-status-validator-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/local-extension-completion-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2409,6 +2827,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/mark-spec-implemented-bare-key-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/measure-bootstrap-tokens-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2418,6 +2846,46 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/memory-hygiene-capacity-ceiling-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/memory-hygiene-emit-index-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/memory-hygiene-tiering-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/memory-hygiene-validator-nested-frontmatter-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/migrate-epic-frontmatter-selftest.sh",
@@ -2450,6 +2918,16 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/migrate-refinement-json-strong-bound-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/migrate-spec-container-layout-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2459,6 +2937,26 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/migrate-specs-artifact-frontmatter-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/no-direct-evidence-write-producer-token-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/parse-task-md-selftest.sh",
@@ -2536,6 +3034,26 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/polaris-pr-create-aggregate-release-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/polaris-pr-create-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/polaris-toolchain-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2545,6 +3063,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/post-memory-index-regenerate-hook-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/pr-action-classifier-selftest.sh",
@@ -2580,6 +3108,26 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/pre-memory-write-hook-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/pre-write-language-policy-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/publish-delivery-evidence-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2601,6 +3149,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/python-subprocess-tool-call-scanner-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/reconcile-spec-lifecycle-selftest.mjs",
       "kind": "selftest",
       "runner": "node",
@@ -2612,6 +3170,56 @@
       "posture_decision": "DP-131 selftest for read-only spec lifecycle reconciliation."
     },
     {
+      "path": "scripts/selftests/refinement-ac-id-shape-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refinement-adversarial-pass-reference-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refinement-decision-ac-coverage-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refinement-dp229-fixture-lib.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refinement-handoff-gate-enforce-ability-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/refinement-handoff-gate-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2621,6 +3229,116 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/refinement-intra-dp-consistency-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refinement-locked-scope-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refinement-md-generator-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refinement-md-hand-edit-detector-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refinement-module-ac-coverage-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refinement-referrer-cascade-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refinement-release-surface-advisory-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refinement-script-help-advisory-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refinement-section-presence-advisory-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refinement-selftest-parity-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/refresh-baseline-snapshot-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/resolve-company-context-selftest.sh",
@@ -2667,6 +3385,17 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/resolve-task-worktree-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script",
+      "posture_decision": "Added by DP-230-T13 to enforce D33 dispatch worktree resolver contract (AC33)."
+    },
+    {
       "path": "scripts/selftests/resolve-workspace-overlay-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2710,6 +3439,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/run-verify-command-worktree-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/run-visual-snapshot-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2730,6 +3469,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/runtime-final-response-language-guard-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/safety-gate-selftest.sh",
@@ -2754,6 +3503,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/scan-template-leaks-workspace-exception-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/script-ownership-audit-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2763,6 +3522,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "DP-145 selftest for deterministic script ownership audit."
+    },
+    {
+      "path": "scripts/selftests/selftest-portability-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/skill-progressive-disclosure-audit-selftest.sh",
@@ -2798,12 +3567,72 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/skill-workflow-boundary-gate-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/spec-source-resolver-article-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/spec-source-resolver-free-text-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/spec-source-resolver-kind-compat-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/spec-source-resolver-paragraph-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/spec-source-resolver-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
       "selftest": "N/A",
       "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/spec-source-resolver-topic-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
     },
@@ -2841,6 +3670,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/validate-auto-pass-ledger-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/validate-auto-pass-proof-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2850,6 +3689,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "DP-201 selftest for auto-pass proof-of-work marker contract and writer governance."
+    },
+    {
+      "path": "scripts/selftests/validate-auto-pass-resume-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/validate-bootstrap-budget-selftest.sh",
@@ -2893,6 +3742,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/validate-manifest-parity-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/validate-memory-hygiene-plan-selftest.sh",
@@ -2939,12 +3798,42 @@
       "posture_decision": "DP-179 command catalog validator fixture coverage."
     },
     {
+      "path": "scripts/selftests/validate-refinement-ac-coverage-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/validate-refinement-artifact-parity-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/validate-refinement-inbox-record-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
       "selftest": "N/A",
       "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/validate-refinement-json-strong-bound-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
     },
@@ -3001,6 +3890,26 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/validate-specs-bound-write-contract-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/validate-specs-collection-shape-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/validate-starlight-authoring-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3012,6 +3921,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/validate-task-md-allowed-files-create-smoke-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/validate-task-md-deps-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3021,6 +3940,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/validate-task-md-shape-parity-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/validate-task-md-vmode-selftest.sh",
@@ -3045,6 +3974,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/validate-verify-evidence-layout-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/verification-evidence-gate-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3054,6 +3993,26 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/verify-AC-deterministic-consumption-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/verify-AC-evidence-layout-producer-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/verify-refinement-convergence-selftest.sh",
@@ -3067,6 +4026,26 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/workspace-config-fixture-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/worktree-classifier-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/write-ac-verification-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3076,6 +4055,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/write-producer-owned-artifact-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/skill-progressive-disclosure-audit.sh",
@@ -3113,6 +4102,15 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/skill-workflow-boundary-gate.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/skill-workflow-boundary-gate-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/snapshot-scrub.py",
@@ -3541,6 +4539,15 @@
       "lifecycle": "hot_path",
       "relocation": "stay",
       "selftest_reason": "inline --self-test mode covered by DP-188 Verify Command"
+    },
+    {
+      "path": "scripts/validate-manifest-parity.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/selftests/validate-manifest-parity-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/validate-mechanism-runtime-annotations.sh",
@@ -4369,6 +5376,27 @@
         "explicit specs source",
         "workspace overlay",
         "symlink primary rejection"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "resolve-task-worktree",
+      "command": "bash scripts/selftests/resolve-task-worktree-selftest.sh",
+      "profiles": [
+        "core",
+        "delivery"
+      ],
+      "changed_paths": [
+        "scripts/resolve-task-worktree.sh",
+        "scripts/selftests/resolve-task-worktree-selftest.sh"
+      ],
+      "fixtures": [
+        "no active worktree returns NONE",
+        "single match returns absolute path",
+        "fully-qualified work_item_id",
+        "T1 prefix does not collide with T17",
+        "dual worktree fail-stop with POLARIS_DISPATCH_WORKTREE_AMBIGUOUS"
       ],
       "enrolled": true,
       "owner": "polaris-framework"

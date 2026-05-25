@@ -226,6 +226,27 @@ artifact」的情境，不用在「artifact 完成後要不要狀態轉換」的
 topic），不只 DP。例外只有 auto-pass amendment mode：amendment 已透過 ledger 取得 consent，
 不需要再向使用者發問。
 
+## Skill Workflow Boundary Gate (DP-230 D40)
+
+`refinement` session 開始時必須呼叫 skill-workflow-boundary baseline writer，
+讓 refinement-handoff-gate.sh 與 /auto-pass cross-skill transition 能在 handoff 時
+deterministic 檢查本 session 是否只動到 refinement-owned scope：
+
+```bash
+bash scripts/skill-workflow-boundary-gate.sh --skill refinement --start \
+  --source-container "$SOURCE_CONTAINER"
+```
+
+`--start` 紀錄 HEAD sha 與 pre-existing dirty files；後續所有 refinement-owned
+寫入（`refinement.md`、`refinement.json`、`index.md`、`plan.md`、
+`artifacts/**`、`jira-comments/**`、`refinement-inbox/**`）都會在 handoff 時被
+`--check` 比對。任何 owning scope 之外的新增/修改（包含 generated targets）會讓
+gate exit 1 並輸出 `POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement`。
+
+`POLARIS_LANGUAGE_POLICY_BYPASS` / `POLARIS_SKILL_BOUNDARY_BYPASS` 等 env 不能
+silence 這個 gate（AC-NEG16）；違反 boundary 必須改回去或走 scope escalation，
+不得用 env 跳過。
+
 ## L2 Deterministic Check: post-task-feedback-reflection
 
 完成 write flow 後必須呼叫 `scripts/check-feedback-signals.sh`。

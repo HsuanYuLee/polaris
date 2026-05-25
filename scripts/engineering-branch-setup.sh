@@ -41,12 +41,25 @@ usage() {
   cat <<EOF >&2
 Usage:
   $(basename "$0") <task_md> [--repo-base DIR] [--auto-stash]
+  $(basename "$0") --aggregate-release --source DP-NNN --version vX.Y.Z \\
+      --task-md <path> [--task-md <path> ...] [--repo-base DIR]
 
-Creates a task branch + worktree atomically from origin/{resolved_base} HEAD.
+Default mode creates a task branch + worktree atomically from
+origin/{resolved_base} HEAD.
+
+Aggregate-release mode (DP-230 D16) creates a bundle branch named
+"bundle-DP-NNN-vX.Y.Z" from origin/main and writes bundle_branch_alias into
+each --task-md frontmatter so framework-release-closeout can resolve per-task
+head SHAs against the bundle PR identity (no per-task summary slug).
 
 Options:
-  --repo-base DIR   Base directory for .worktrees/ (default: git toplevel)
-  --auto-stash      Stash unrelated dirty files before dispatch; overlap with Allowed Files still blocks.
+  --repo-base DIR        Base directory for .worktrees/ (default: git toplevel)
+  --auto-stash           Stash unrelated dirty files before dispatch; overlap
+                         with Allowed Files still blocks.
+  --aggregate-release    Switch to bundle PR identity mode.
+  --source DP-NNN        Source DP id; required with --aggregate-release.
+  --version vX.Y.Z       Release version tag; required with --aggregate-release.
+  --task-md PATH         Task work order (repeatable in aggregate-release mode).
 
 Exit:  0 = success, 1 = branch exists, 2 = fatal error.
 EOF
@@ -456,16 +469,183 @@ PY
 fi
 
 # ---------------------------------------------------------------------------
+# Aggregate-release helpers (DP-230 D16)
+# ---------------------------------------------------------------------------
+
+# Write `bundle_branch_alias: <value>` into a task.md YAML frontmatter block.
+# - If the file has no frontmatter, prepend a fresh frontmatter block.
+# - If bundle_branch_alias already exists, replace its value.
+# - Otherwise append the key inside the existing block.
+write_bundle_branch_alias() {
+  local task_md="$1"
+  local alias="$2"
+  python3 - "$task_md" "$alias" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+alias = sys.argv[2]
+content = path.read_text(encoding="utf-8")
+lines = content.split("\n")
+
+if not lines or lines[0] != "---":
+    new = ["---", f"bundle_branch_alias: {alias}", "---", ""] + lines
+    path.write_text("\n".join(new), encoding="utf-8")
+    raise SystemExit(0)
+
+try:
+    close = lines.index("---", 1)
+except ValueError:
+    print(f"ERROR: unclosed frontmatter in {path}", file=sys.stderr)
+    sys.exit(2)
+
+fm = lines[1:close]
+replaced = False
+for i, line in enumerate(fm):
+    if re.match(r"^bundle_branch_alias\s*:", line):
+        fm[i] = f"bundle_branch_alias: {alias}"
+        replaced = True
+        break
+if not replaced:
+    fm.append(f"bundle_branch_alias: {alias}")
+
+new = ["---", *fm, "---", *lines[close + 1:]]
+path.write_text("\n".join(new), encoding="utf-8")
+PY
+}
+
+run_aggregate_release() {
+  local source_id="$1"
+  local version_tag="$2"
+  local repo_base="$3"
+  shift 3
+  local task_mds=()
+  if [[ "$#" -gt 0 ]]; then
+    task_mds=("$@")
+  fi
+
+  # Contract validation: source id pattern + version pattern.
+  if [[ ! "$source_id" =~ ^DP-[0-9]+$ ]]; then
+    echo "ERROR: --source must match DP-NNN (got: $source_id)" >&2
+    return 2
+  fi
+  if [[ ! "$version_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "ERROR: --version must match vX.Y.Z (got: $version_tag)" >&2
+    return 2
+  fi
+  local abs_task_mds=()
+  local task_md
+  if [[ "${#task_mds[@]}" -gt 0 ]]; then
+    for task_md in "${task_mds[@]}"; do
+      if [[ ! -f "$task_md" ]]; then
+        echo "ERROR: --task-md not found: $task_md" >&2
+        return 2
+      fi
+      abs_task_mds+=("$(cd "$(dirname "$task_md")" && pwd)/$(basename "$task_md")")
+    done
+  fi
+
+  local repo_toplevel
+  repo_toplevel="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  if [[ -z "$repo_base" ]]; then
+    repo_base="$repo_toplevel"
+  fi
+
+  # Resolve bundle branch identity from --source + --version only. The bundle
+  # branch is intentionally NOT derived from any task summary slug; that legacy
+  # path was the DP-226 P11 regression (per-task summary leaks into bundle PR
+  # identity). Single canonical name: bundle-DP-NNN-vX.Y.Z.
+  local branch_name="bundle-${source_id}-${version_tag}"
+
+  # Verify main exists on origin.
+  echo "ℹ Fetching origin/main for aggregate-release base..." >&2
+  if ! git ls-remote --exit-code origin "refs/heads/main" >/dev/null 2>&1; then
+    echo "ERROR: aggregate-release requires origin/main to exist" >&2
+    return 2
+  fi
+  git fetch origin main >/dev/null 2>&1 || {
+    echo "ERROR: git fetch origin main failed" >&2
+    return 2
+  }
+
+  # Duplicate guard: refuse if branch or remote already exists.
+  if git show-ref --verify --quiet "refs/heads/${branch_name}" 2>/dev/null; then
+    echo "ERROR: bundle branch already exists locally: ${branch_name}" >&2
+    echo "  → Switch to revision mode or clean the stale bundle branch before retrying." >&2
+    return 1
+  fi
+  if git show-ref --verify --quiet "refs/remotes/origin/${branch_name}" 2>/dev/null; then
+    echo "ERROR: bundle branch already exists on origin: ${branch_name}" >&2
+    return 1
+  fi
+
+  # Worktree path derived from bundle identity, not per-task slug.
+  local wt_dir="${repo_base}/.worktrees"
+  local wt_path="${wt_dir}/polaris-framework-aggregate-release-${source_id}-${version_tag}"
+  if [[ -d "$wt_path" ]]; then
+    if [[ ! -f "$WORKTREE_CLEANUP" ]]; then
+      echo "ERROR: cleanup helper missing: $WORKTREE_CLEANUP" >&2
+      return 2
+    fi
+    bash "$WORKTREE_CLEANUP" --repo "$repo_toplevel" --worktree "$wt_path" --identity "$branch_name" --apply >/dev/null || {
+      echo "ERROR: existing aggregate-release worktree could not be cleaned: $wt_path" >&2
+      return 1
+    }
+  fi
+
+  # Create branch + worktree from origin/main HEAD.
+  git branch "$branch_name" "origin/main" 2>/dev/null || {
+    echo "ERROR: git branch $branch_name origin/main failed" >&2
+    return 2
+  }
+  echo "✓ Created bundle branch: $branch_name" >&2
+
+  mkdir -p "$wt_dir"
+  git worktree add "$wt_path" "$branch_name" 2>/dev/null || {
+    echo "ERROR: git worktree add failed for $wt_path $branch_name" >&2
+    git branch -d "$branch_name" 2>/dev/null || true
+    return 2
+  }
+  echo "✓ Bundle worktree created: $wt_path" >&2
+  trust_mise_in_worktree "$wt_path"
+
+  # Write bundle_branch_alias into each task.md frontmatter.
+  local t
+  if [[ "${#abs_task_mds[@]}" -gt 0 ]]; then
+    for t in "${abs_task_mds[@]}"; do
+      write_bundle_branch_alias "$t" "$branch_name" || {
+        echo "ERROR: failed to write bundle_branch_alias into $t" >&2
+        return 2
+      }
+      echo "✓ Wrote bundle_branch_alias=$branch_name into $t" >&2
+    done
+  fi
+
+  # Machine-readable last line: bundle worktree path.
+  echo "$wt_path"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Args
 # ---------------------------------------------------------------------------
 TASK_MD=""
 REPO_BASE=""
 AUTO_STASH=0
+AGGREGATE_RELEASE=0
+AGG_SOURCE_ID=""
+AGG_VERSION_TAG=""
+AGG_TASK_MDS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo-base) REPO_BASE="$2"; shift 2 ;;
     --auto-stash) AUTO_STASH=1; shift ;;
+    --aggregate-release) AGGREGATE_RELEASE=1; shift ;;
+    --source) AGG_SOURCE_ID="${2:-}"; shift 2 ;;
+    --version) AGG_VERSION_TAG="${2:-}"; shift 2 ;;
+    --task-md) AGG_TASK_MDS+=("${2:-}"); shift 2 ;;
     --help|-h) usage; exit 0 ;;
     -*) echo "ERROR: unknown option: $1" >&2; usage; exit 2 ;;
     *)
@@ -478,6 +658,29 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$AGGREGATE_RELEASE" -eq 1 ]]; then
+  if [[ -n "$TASK_MD" ]]; then
+    echo "ERROR: --aggregate-release uses --task-md exclusively; do not pass a positional task.md" >&2
+    exit 2
+  fi
+  if [[ -z "$AGG_SOURCE_ID" || -z "$AGG_VERSION_TAG" ]]; then
+    echo "ERROR: --aggregate-release requires --source DP-NNN and --version vX.Y.Z" >&2
+    usage
+    exit 2
+  fi
+  if [[ "${#AGG_TASK_MDS[@]}" -gt 0 ]]; then
+    run_aggregate_release "$AGG_SOURCE_ID" "$AGG_VERSION_TAG" "$REPO_BASE" "${AGG_TASK_MDS[@]}"
+  else
+    run_aggregate_release "$AGG_SOURCE_ID" "$AGG_VERSION_TAG" "$REPO_BASE"
+  fi
+  exit $?
+fi
+
+if [[ "${#AGG_TASK_MDS[@]}" -gt 0 || -n "$AGG_SOURCE_ID" || -n "$AGG_VERSION_TAG" ]]; then
+  echo "ERROR: --source / --version / --task-md require --aggregate-release" >&2
+  exit 2
+fi
 
 if [[ -z "$TASK_MD" ]]; then
   usage

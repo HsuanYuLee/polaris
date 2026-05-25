@@ -171,6 +171,42 @@ load it with `.claude/rules/skill-routing.md` whenever plugin workflows and Pola
 EOF
 }
 
+emit_final_response_language_guard_core() {
+  cat <<'EOF'
+## Final Response Language Guard
+
+The agent's final/chat response delivered back to the user — including reports, summaries, status updates, and any natural-language reply that is not an internal tool call — is **user-facing prose** under the same `workspace-config.yaml` `language` contract that governs artifacts, PR bodies, JIRA comments, and Slack messages.
+
+- File-write hooks (`pre-write-language-policy.sh`) and external-write preflights only catch writes to files or external surfaces; they do **not** intercept the final/chat response stream.
+- The agent must self-check the workspace language **before** emitting any final response. If `workspace-config.yaml` declares `language: zh-TW`, the final response prose must be Traditional Chinese; identifiers (function names, file paths, ticket keys, command strings) remain in their original form.
+- The language guard is not an opt-in; missing `language` falls back to English advisory drafts, but a declared workspace language is mandatory for all final responses.
+EOF
+}
+
+emit_final_response_language_guard_claude() {
+  cat <<'EOF'
+### Claude Code Runtime Caveat
+
+Claude Code's PreToolUse / PostToolUse hooks fire on tool calls, not on the assistant's final message. `pre-write-language-policy.sh` does not run when the model emits a chat response without invoking a Write/Edit tool. The agent must self-check `workspace-config.yaml` `language` before sending any final response, including engineering reports, verify-AC summaries, refinement updates, and skill output. Do not draft the reply in another language and translate at the end; author in the workspace language from the first sentence.
+EOF
+}
+
+emit_final_response_language_guard_codex() {
+  cat <<'EOF'
+### Codex Runtime Caveat
+
+Codex runtimes have no Claude Code hook model. Neither `pre-write-language-policy.sh` nor any PreToolUse interception fires on Codex final/chat responses. The agent must self-check `workspace-config.yaml` `language` before emitting any final response. Authoring discipline is the only enforcement layer for the final reply; do not assume a downstream validator will catch a wrong-language summary.
+EOF
+}
+
+emit_final_response_language_guard_copilot() {
+  cat <<'EOF'
+### Copilot Runtime Caveat
+
+Copilot has no PreToolUse hook and no Polaris-side interception of the final/chat response. The agent must self-check `workspace-config.yaml` `language` before sending any final reply. The compile-time language gate only covers files and external writes; the natural-language response stream is governed solely by the agent's own authoring discipline.
+EOF
+}
+
 emit_root_toolchain_runtime_note() {
   cat <<'EOF'
 For a fresh Polaris workspace, initialize root runtime dependencies before company onboarding:
@@ -199,6 +235,10 @@ EOF
   echo
   emit_communication
   echo
+  emit_final_response_language_guard_core
+  echo
+  emit_final_response_language_guard_claude
+  echo
   emit_plugin_workflow_quarantine
 }
 
@@ -214,6 +254,10 @@ EOF
   emit_root_toolchain_runtime_note
   echo
   emit_communication
+  echo
+  emit_final_response_language_guard_core
+  echo
+  emit_final_response_language_guard_codex
   echo
   emit_plugin_workflow_quarantine
   echo
@@ -233,6 +277,10 @@ EOF
   echo
   emit_communication
   echo
+  emit_final_response_language_guard_core
+  echo
+  emit_final_response_language_guard_codex
+  echo
   emit_plugin_workflow_quarantine
   echo
   emit_rule_index
@@ -250,6 +298,10 @@ Copilot does not provide Claude Code's hook model. Before git or GitHub actions,
 EOF
   echo
   emit_communication
+  echo
+  emit_final_response_language_guard_core
+  echo
+  emit_final_response_language_guard_copilot
   echo
   emit_rule_index
 }

@@ -63,10 +63,22 @@ if [[ -n "$TEMPLATE_REPO" ]]; then
 fi
 
 declare endpoint="" ext_id="" task_head_sha="" workspace_commit="" template_commit="" version_tag="" release_url="" completed_at=""
-declare ci_local_evidence="" verify_evidence="" vr_evidence=""
+declare ci_local_evidence="" verify_evidence="" ac_verification_evidence="" vr_evidence=""
+declare task_kind=""
 
 block() {
   echo "$PREFIX BLOCKED: $1" >&2
+  exit 2
+}
+
+# DP-230 D22 / AC18 / AC-NEG11:
+# Fail-stop emitted by the completion-gate schema dispatcher when task_kind is
+# missing (legacy hand-edited task.md) or not one of the recognised values
+# (currently T and V). Must not silently fall back to either schema.
+block_unknown_task_kind() {
+  local detail="$1"
+  echo "$PREFIX POLARIS_COMPLETION_GATE_UNKNOWN_TASK_KIND: $detail" >&2
+  echo "$PREFIX hand-edit task.md frontmatter to add 'task_kind: T' (engineering) or 'task_kind: V' (verify-AC) and re-run the gate." >&2
   exit 2
 }
 
@@ -83,8 +95,10 @@ while IFS='=' read -r key value; do
     version_tag) version_tag="$value" ;;
     release_url) release_url="$value" ;;
     completed_at) completed_at="$value" ;;
+    task_kind) task_kind="$value" ;;
     evidence.ci_local) ci_local_evidence="$value" ;;
     evidence.verify) verify_evidence="$value" ;;
+    evidence.ac_verification) ac_verification_evidence="$value" ;;
     evidence.vr) vr_evidence="$value" ;;
   esac
 done < <(printf '%s\n' "$parser_json" | python3 -c '
@@ -105,8 +119,10 @@ fields = [
     ("version_tag", extension.get("version_tag")),
     ("release_url", extension.get("release_url")),
     ("completed_at", extension.get("completed_at")),
+    ("task_kind", frontmatter.get("task_kind")),
     ("evidence.ci_local", evidence.get("ci_local")),
     ("evidence.verify", evidence.get("verify")),
+    ("evidence.ac_verification", evidence.get("ac_verification")),
     ("evidence.vr", evidence.get("vr")),
 ]
 for key, value in fields:
@@ -192,6 +208,48 @@ check_verify_evidence() {
   verification_evidence_is_pass "$evidence" >/dev/null || return 1
 }
 
+# DP-230 D22 / AC18: V task ac_verification marker schema.
+# Validates that the writer-produced ac_verification JSON exists, points at the
+# same task / head, was written by the expected verify-AC writer, and has
+# status PASS. This is the V counterpart to check_verify_evidence (which
+# validates Layer B verify markers for T tasks).
+check_ac_verification_evidence() {
+  local evidence="$1"
+  [[ -n "$evidence" && "$evidence" != "N/A" ]] || block "ac_verification evidence path missing (V task)"
+  [[ -f "$evidence" ]] || block "ac_verification evidence file not found: $evidence"
+  python3 - "$evidence" "$TASK_ID" "$task_head_sha" <<'PY' || return 1
+import json
+import sys
+
+path, expected_ticket, expected_head = sys.argv[1:4]
+ALLOWED_WRITERS = {"write-ac-verification.sh", "verify-AC"}
+try:
+    with open(path, encoding="utf-8") as handle:
+        data = json.load(handle)
+except Exception as exc:
+    print(f"invalid ac_verification evidence JSON: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+ticket = str(data.get("ticket") or "")
+head = str(data.get("head_sha") or "")
+writer = str(data.get("writer") or "")
+status = str(data.get("status") or "")
+
+if ticket != expected_ticket:
+    print(f"ticket mismatch: evidence={ticket!r} expected={expected_ticket!r}", file=sys.stderr)
+    sys.exit(1)
+if not (head == expected_head or head.startswith(expected_head) or expected_head.startswith(head)):
+    print(f"head_sha mismatch: evidence={head!r} expected={expected_head!r}", file=sys.stderr)
+    sys.exit(1)
+if writer not in ALLOWED_WRITERS:
+    print(f"writer not in whitelist: {writer!r}", file=sys.stderr)
+    sys.exit(1)
+if status != "PASS":
+    print(f"ac_verification status must be PASS, got {status!r}", file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
 if ci_local_required; then
   if ! check_ci_evidence "$ci_local_evidence"; then
     block "ci_local evidence is malformed or stale: $ci_local_evidence"
@@ -201,9 +259,30 @@ elif [[ -n "$ci_local_evidence" && "$ci_local_evidence" != "N/A" ]]; then
     block "ci_local evidence is malformed or stale: $ci_local_evidence"
   fi
 fi
-if ! check_verify_evidence "$verify_evidence"; then
-  block "verify evidence is malformed or stale: $verify_evidence"
-fi
+
+# DP-230 D22 / AC18 / AC-NEG11: schema dispatcher.
+# task_kind is the authoritative dispatch input; T → verify-evidence Layer B
+# marker; V → ac_verification marker; anything else (missing or unrecognised)
+# fail-stops with POLARIS_COMPLETION_GATE_UNKNOWN_TASK_KIND. The dispatcher
+# must never silently fall back to a sibling schema.
+case "$task_kind" in
+  T)
+    if ! check_verify_evidence "$verify_evidence"; then
+      block "verify evidence is malformed or stale: $verify_evidence"
+    fi
+    ;;
+  V)
+    if ! check_ac_verification_evidence "$ac_verification_evidence"; then
+      block "ac_verification evidence is malformed or stale: $ac_verification_evidence"
+    fi
+    ;;
+  "")
+    block_unknown_task_kind "task.md frontmatter missing 'task_kind' (legacy hand-edited task.md)"
+    ;;
+  *)
+    block_unknown_task_kind "unrecognised task_kind: '${task_kind}'"
+    ;;
+esac
 
 if [[ -n "$vr_evidence" && "$vr_evidence" != "N/A" ]]; then
   [[ -f "$vr_evidence" ]] || block "vr evidence file not found: $vr_evidence"

@@ -186,6 +186,13 @@ def skip_path(root: Path, path: Path, source_name: str):
         return True
     if rel == "scripts/selftests/scan-template-leaks-selftest.sh":
         return True
+    # DP-230 D21: workspace-owned selftest fixtures legitimately stage live
+    # company-shaped slugs (JIRA prefixes, repo names) to exercise downstream
+    # validators. Carve out the fixture subtree so authored test inputs do not
+    # block sync-to-polaris while still flagging the same prefix anywhere
+    # outside the fixture path.
+    if rel.startswith("scripts/selftests/fixtures/"):
+        return True
     if rel in {".claude/settings.local.json", ".claude/polaris-backlog.md"} or rel.startswith(".claude/checkpoints/"):
         return True
     if ".claude/worktrees/" in rel or rel.startswith(".claude/worktrees/"):
@@ -373,6 +380,9 @@ else:
     emit_summary()
 
 if blocking and hits:
+    # DP-230 D21: stable structured token so PR-time / push-time gates can
+    # surface this signal in CI logs without parsing the prose summary.
+    print(f"POLARIS_TEMPLATE_LEAK: {len(hits)} hit(s)", file=sys.stderr)
     print(f"scan-template-leaks: BLOCKED: {len(hits)} material leak hit(s)", file=sys.stderr)
     sys.exit(1)
 PY

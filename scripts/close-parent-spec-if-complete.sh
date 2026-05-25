@@ -621,21 +621,29 @@ if not parent_file.exists():
 active_tasks = []
 active_implementation_tasks = []
 active_verification_tasks = []
+abandoned_tasks = []
+# AC-NEG13 carve-out: ABANDONED active siblings are tracked separately and do
+# not block parent closeout. They remain in place (not moved to pr-release/)
+# and their status is preserved (not silently migrated to IMPLEMENTED).
 for p in sorted(tasks_dir.iterdir()):
     if p.name == "pr-release":
         continue
     if p.is_file() and re.fullmatch(r"[TV]\d+[a-z]*\.md", p.name):
-        active_tasks.append(p)
-        if p.name.startswith("V"):
-            active_verification_tasks.append(p)
-        else:
-            active_implementation_tasks.append(p)
+        status_path = p
+        item = p
     elif p.is_dir() and re.fullmatch(r"[TV]\d+[a-z]*", p.name) and (p / "index.md").is_file():
-        active_tasks.append(p / "index.md")
-        if p.name.startswith("V"):
-            active_verification_tasks.append(p / "index.md")
-        else:
-            active_implementation_tasks.append(p / "index.md")
+        status_path = p / "index.md"
+        item = p / "index.md"
+    else:
+        continue
+    if frontmatter_status(status_path) == "ABANDONED":
+        abandoned_tasks.append(item)
+        continue
+    active_tasks.append(item)
+    if item.name.startswith("V") or (item.name == "index.md" and item.parent.name.startswith("V")):
+        active_verification_tasks.append(item)
+    else:
+        active_implementation_tasks.append(item)
 
 pr_release = tasks_dir / "pr-release"
 completed_tasks = []
@@ -655,9 +663,16 @@ implemented_stems = {
     task_stem(p) for p in completed_tasks
     if frontmatter_status(p) == "IMPLEMENTED"
 }
+# AC-NEG13: ABANDONED siblings should reflect ABANDONED status in the Work Orders
+# table, not be silently migrated to IMPLEMENTED.
+abandoned_stems_for_work_orders = {
+    (p.parent.name if p.name == "index.md" else p.stem)
+    for p in abandoned_tasks
+}
 
-def sync_work_orders_status(text: str, stems: set[str]) -> str:
-    if not stems:
+def sync_work_orders_status(text, stems, abandoned=None):
+    abandoned = abandoned or set()
+    if not stems and not abandoned:
         return text
 
     lines = text.splitlines()
@@ -706,11 +721,19 @@ def sync_work_orders_status(text: str, stems: set[str]) -> str:
         if status_idx >= 0 and status_idx < len(cells):
             row_text = " ".join(cells)
             task_cell = cells[task_idx] if task_idx is not None and task_idx < len(cells) else row_text
+            matched_status = None
             for stem in stems:
                 if re.search(rf"(?<![A-Z0-9]){re.escape(stem)}(?![a-zA-Z0-9])", task_cell) or re.search(rf"tasks/(?:pr-release/)?{re.escape(stem)}(?:\.md|/)", row_text):
-                    cells[status_idx] = "IMPLEMENTED"
-                    line = "| " + " | ".join(cells) + " |"
+                    matched_status = "IMPLEMENTED"
                     break
+            if matched_status is None:
+                for stem in abandoned:
+                    if re.search(rf"(?<![A-Z0-9]){re.escape(stem)}(?![a-zA-Z0-9])", task_cell) or re.search(rf"tasks/(?:pr-release/)?{re.escape(stem)}(?:\.md|/)", row_text):
+                        matched_status = "ABANDONED"
+                        break
+            if matched_status is not None:
+                cells[status_idx] = matched_status
+                line = "| " + " | ".join(cells) + " |"
         out.append(line)
 
     new_text = "\n".join(out)
@@ -719,7 +742,7 @@ def sync_work_orders_status(text: str, stems: set[str]) -> str:
     return new_text
 
 text = parent_file.read_text(encoding="utf-8")
-status_synced_text = sync_work_orders_status(text, implemented_stems)
+status_synced_text = sync_work_orders_status(text, implemented_stems, abandoned_stems_for_work_orders)
 status_synced = status_synced_text != text
 if status_synced and not dry_run:
     parent_file.write_text(status_synced_text, encoding="utf-8")
@@ -782,6 +805,13 @@ if bad_verifications:
     sys.exit(0)
 
 completed_stems = {task_stem(p) for p in completed_tasks}
+# AC-NEG13: ABANDONED active siblings are treated as terminal-done for the
+# purposes of checklist completion (do not block parent closeout) but their
+# paths remain under tasks/ — they should NOT be rewritten to pr-release/.
+def abandoned_stem(path: Path) -> str:
+    return path.parent.name if path.name == "index.md" else path.stem
+abandoned_stems = {abandoned_stem(p) for p in abandoned_tasks}
+terminal_stems = completed_stems | abandoned_stems
 
 def rewrite_task_path(match: re.Match[str], suffix: str) -> str:
     prefix = match.group(1) or ""
@@ -789,19 +819,28 @@ def rewrite_task_path(match: re.Match[str], suffix: str) -> str:
     return f"{prefix}tasks/pr-release/{task_key}{suffix}"
 
 def rewrite_links(value: str) -> str:
+    def maybe_rewrite(match: re.Match[str], suffix: str, group_idx: int) -> str:
+        # AC-NEG13: do not rewrite ABANDONED siblings' tasks/ paths to pr-release/
+        # because ABANDONED tasks stay under tasks/.
+        captured = match.group(group_idx)
+        stem = captured[: -len(".md")] if captured.endswith(".md") else captured
+        if stem in abandoned_stems:
+            return match.group(0)
+        return rewrite_task_path(match, suffix)
+
     value = re.sub(
         r"(\./)?tasks/(?!pr-release/)([TV]\d+[a-z]*)/index\.md",
-        lambda match: rewrite_task_path(match, "/index.md"),
+        lambda match: maybe_rewrite(match, "/index.md", 2),
         value,
     )
     value = re.sub(
         r"(\./)?tasks/(?!pr-release/)([TV]\d+[a-z]*)/(?=[)`])",
-        lambda match: rewrite_task_path(match, "/"),
+        lambda match: maybe_rewrite(match, "/", 2),
         value,
     )
     return re.sub(
         r"(\./)?tasks/(?!pr-release/)([TV]\d+[a-z]*\.md)",
-        lambda match: rewrite_task_path(match, ".md"),
+        lambda match: maybe_rewrite(match, ".md", 2),
         value,
     )
 
@@ -827,7 +866,7 @@ for line in lines:
         prefix = re.match(r"\s*- \[ \]\s*([TV]\d+[a-z]*)(?=[:\s])", new_line)
         if prefix:
             refs.add(prefix.group(1))
-        if refs and refs.issubset(completed_stems):
+        if refs and refs.issubset(terminal_stems):
             new_line = new_line.replace("- [ ]", "- [x]", 1)
         else:
             remaining_unchecked += 1
