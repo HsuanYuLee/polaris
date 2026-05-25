@@ -426,7 +426,10 @@ def parse_threshold_percent(raw):
 def discover_husky_hooks():
     """Scan .husky/ directory for hook shell scripts.
 
-    Produces one entry per non-boilerplate command line per hook file.
+    Produces one entry per hook file. Keeping a hook body intact is required
+    for multiline shell blocks such as `if ... fi`; splitting those blocks into
+    individual command rows makes the generated local mirror syntactically
+    invalid.
     File name = hook_type (pre-commit, commit-msg, post-merge, etc.).
     """
     entries = []
@@ -449,6 +452,7 @@ def discover_husky_hooks():
         except Exception:
             continue
 
+        body_lines = []
         for raw_line in content.splitlines():
             line = raw_line.strip()
             if not line:
@@ -462,22 +466,21 @@ def discover_husky_hooks():
             if line.startswith(".") or line.startswith("source"):
                 if ".husky/_/" in line or "husky.sh" in line:
                     continue
-            # Skip echo / exit lines
-            lowered = line.lower()
-            if lowered.startswith("echo ") or lowered == "echo":
-                continue
-            if re.match(r"^exit\s+\d+\s*$", lowered) or lowered == "exit":
-                continue
+            body_lines.append(raw_line)
 
-            entries.append(
-                {
-                    "source_file": str(path.relative_to(repo)),
-                    "hook_type": hook_type,
-                    "command": line,
-                    "category": categorize_command(line),
-                    "local_executable": is_local_executable(line),
-                }
-            )
+        command = "\n".join(body_lines).strip()
+        if not command:
+            continue
+
+        entries.append(
+            {
+                "source_file": str(path.relative_to(repo)),
+                "hook_type": hook_type,
+                "command": command,
+                "category": categorize_command(command),
+                "local_executable": is_local_executable(command),
+            }
+        )
 
     return entries
 

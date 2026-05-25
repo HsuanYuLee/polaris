@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.121] - 2026-05-25
+
+### Fixed — DP-233 ci-local 多行 husky hook mirror
+
+修正 `ci-contract-discover.sh` 對 `.husky/pre-commit` 多行 shell block 的解析，
+讓 ci-local mirror 以完整 hook body 執行並通過 `bash -n`；新增 discovery selftest，
+並把 release metadata 納入 framework release gate。
+
 ## [3.75.120] - 2026-05-25
 
 ### Fixed — DP-230 template leak fixture cleanup

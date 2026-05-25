@@ -129,6 +129,12 @@ cat > "$T1/.husky/pre-commit" <<'SHELL'
 #!/bin/sh
 . "$(dirname -- "$0")/_/husky.sh"
 
+TESTS_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.tests\.ts$' || true)
+if [ -n "$TESTS_FILES" ]; then
+  echo "ERROR: .tests.ts is no longer allowed"
+  exit 1
+fi
+
 pnpm exec lint-staged
 echo "pre-commit done"
 SHELL
@@ -147,6 +153,8 @@ assert_contains "Test 1: includes pnpm install --frozen-lockfile" "$OUT1" "pnpm 
 assert_contains "Test 1: includes prettier --check" "$OUT1" 'pnpm prettier --check "**/*.ts"'
 assert_contains "Test 1: includes vitest --coverage" "$OUT1" "pnpm vitest run --coverage"
 assert_contains "Test 1: includes lint-staged dev hook" "$OUT1" "pnpm exec lint-staged"
+assert_contains "Test 1: preserves multiline husky if block" "$OUT1" 'if [ -n "$TESTS_FILES" ]; then'
+assert_not_contains "Test 1: does not emit bare husky fi command" "$OUT1" "[policy] .husky/pre-commit::pre-commit"$'\n'"  > fi"
 assert_not_contains "Test 1: skips codecov upload" "$OUT1" "uploader.codecov.io"
 assert_not_contains "Test 1: skips ./codecov -t" "$OUT1" "./codecov -t"
 assert_not_contains "Test 1: skips apk add" "$OUT1" "apk add --no-cache git"
@@ -520,7 +528,7 @@ print(d["context"]["base_branch"])
 print(g["diff_base_ref"])
 print(g["coverage_percent"])
 PY
-assert_contains "Test 9: evidence status FAIL" /tmp/ci-local-test9-evidence.out "FAIL"
+assert_contains "Test 9: evidence records non-pass status" /tmp/ci-local-test9-evidence.out "FAIL"
 assert_contains "Test 9: evidence context records feature base" /tmp/ci-local-test9-evidence.out "feature/base"
 assert_contains "Test 9: codecov used origin feature base" /tmp/ci-local-test9-evidence.out "origin/feature/base"
 assert_contains "Test 9: feature-base coverage reflects task-only diff" /tmp/ci-local-test9-evidence.out "25.0"
@@ -847,8 +855,8 @@ print(g["status"])
 print(g.get("coverage_source"))
 print(g.get("coverage_percent"))
 PY
-assert_contains "Test 11c: evidence status FAIL" /tmp/ci-local-test11c-evidence.out "FAIL"
-assert_contains "Test 11c: codecov status FAIL" /tmp/ci-local-test11c-evidence.out "FAIL"
+assert_contains "Test 11c: evidence records non-pass status" /tmp/ci-local-test11c-evidence.out "FAIL"
+assert_contains "Test 11c: codecov records non-pass status" /tmp/ci-local-test11c-evidence.out "FAIL"
 assert_contains "Test 11c: uses v8 source" /tmp/ci-local-test11c-evidence.out "v8"
 assert_contains "Test 11c: branch partial coverage is 50" /tmp/ci-local-test11c-evidence.out "50.0"
 rm -f "$T11C_EVIDENCE" /tmp/ci-local-test11c.out /tmp/ci-local-test11c-evidence.out
@@ -907,7 +915,7 @@ print(g["status"])
 print(g.get("reason"))
 print(g.get("path_mismatch_files", []))
 PY
-assert_contains "Test 11b: evidence status FAIL" /tmp/ci-local-test11b-evidence.out "FAIL"
+assert_contains "Test 11b: evidence records non-pass status" /tmp/ci-local-test11b-evidence.out "FAIL"
 assert_contains "Test 11b: codecov reason path mismatch" /tmp/ci-local-test11b-evidence.out "coverage_path_mismatch"
 assert_contains "Test 11b: records changed path" /tmp/ci-local-test11b-evidence.out "app/src/foo.ts"
 assert_contains "Test 11b: records coverage path" /tmp/ci-local-test11b-evidence.out "src/foo.ts"
@@ -1185,5 +1193,5 @@ echo
 echo "== Summary =="
 echo "  Assertions: $ASSERTIONS"
 echo "  Pass:       $PASS"
-echo "  Fail:       $FAIL"
+echo "  Failed:     $FAIL"
 [ $FAIL -eq 0 ]

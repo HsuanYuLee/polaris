@@ -587,10 +587,9 @@
       "kind": "support",
       "runner": "bash",
       "owner_surface": "script_internal",
-      "selftest": "N/A",
+      "selftest": "scripts/selftests/ci-contract-discover-selftest.sh",
       "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "relocation": "stay"
     },
     {
       "path": "scripts/ci-local-env-classify.py",
@@ -2543,6 +2542,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/ci-contract-discover-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/ci-local-env-classify-selftest.sh",
