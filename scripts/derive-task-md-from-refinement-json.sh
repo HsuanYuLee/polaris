@@ -243,6 +243,7 @@ draft: true
 sidebar:
   hidden: true
 status: IN_PROGRESS
+task_kind: {mode}
 verification:
   behavior_contract:
     applies: false
@@ -307,6 +308,7 @@ draft: true
 sidebar:
   hidden: true
 status: IN_PROGRESS
+task_kind: {mode}
 verification:
   behavior_contract:
     applies: false

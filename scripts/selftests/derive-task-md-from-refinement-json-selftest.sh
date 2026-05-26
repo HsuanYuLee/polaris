@@ -67,6 +67,7 @@ bash "$SCRIPT" --refinement-json "$positive_json" --task-id "DP-999-T1" > "$posi
 # fields, not from any LLM reasoning step.
 required_anchors=(
   "# T1: 範例 deterministic derivation (2 pt)"
+  "task_kind: T"
   "> Source: DP-999 | Task: DP-999-T1 | JIRA: N/A | Repo: polaris-framework"
   "| Source type | dp |"
   "| Source ID | DP-999 |"
@@ -242,6 +243,7 @@ v_out="$tmpdir/V1/index.md"
 bash "$SCRIPT" --refinement-json "$v_json" --task-id "DP-999-V1" > "$v_out"
 v_anchors=(
   "# V1: 範例 umbrella 驗收 (1 pt)"
+  "task_kind: V"
   "| Implementation tasks | T1 |"
   "## 驗收項目"
   "| AC1 | 驗收 deterministic V task schema。 | T1 | unit_test |"

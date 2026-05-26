@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.124] - 2026-05-27
+
+### Fixed — DP-231 task_kind handoff fixed point
+
+讓 `derive-task-md-from-refinement-json.sh` 對 T / V task.md frontmatter
+deterministically 產出 `task_kind`，避免 framework-release closeout 的
+local-extension completion gate 在缺 schema dispatcher key 時 fail-stop。
+
 ## [3.75.123] - 2026-05-27
 
 ### Fixed — DP-231 template-safe dependency examples
