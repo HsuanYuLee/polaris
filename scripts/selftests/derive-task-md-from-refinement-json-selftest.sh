@@ -39,8 +39,8 @@ cat >"$positive_json" <<'JSON'
     {
       "id": "DP-999-T1",
       "kind": "implementation",
-      "title": "Sample deterministic derivation",
-      "scope": "Verify that the derive script emits a canonical task.md body from refinement.json structured fields.",
+      "title": "範例 deterministic derivation",
+      "scope": "驗證 derive script 會從 refinement.json structured fields 產出 canonical task.md body。",
       "allowed_files": [
         "scripts/sample.sh",
         "scripts/selftests/sample-selftest.sh"
@@ -66,13 +66,13 @@ bash "$SCRIPT" --refinement-json "$positive_json" --task-id "DP-999-T1" > "$posi
 # Required deterministic anchors — these come straight from refinement.json
 # fields, not from any LLM reasoning step.
 required_anchors=(
-  "# T1: Sample deterministic derivation (2 pt)"
+  "# T1: 範例 deterministic derivation (2 pt)"
   "> Source: DP-999 | Task: DP-999-T1 | JIRA: N/A | Repo: polaris-framework"
   "| Source type | dp |"
   "| Source ID | DP-999 |"
   "| Task ID | DP-999-T1 |"
   "| Base branch | main |"
-  "| Task branch | task/DP-999-T1-sample-deterministic-derivation |"
+  "| Task branch | task/DP-999-T1-範例-deterministic-derivation |"
   "## Allowed Files"
   "- \`scripts/sample.sh\`"
   "- \`scripts/selftests/sample-selftest.sh\`"
@@ -174,5 +174,90 @@ if bash "$SCRIPT" --refinement-json "$tmpdir/does-not-exist.json" --task-id "DP-
   echo "FAIL [case 5 / AC-NEG9]: script accepted missing refinement.json" >&2
   exit 1
 fi
+
+# ---------------------------------------------------------------------------
+# Case 6 (DP-231 D45): V tasks derive a V-mode schema body with
+# Implementation tasks and 驗收項目, not the T-mode sections.
+# ---------------------------------------------------------------------------
+v_json="$tmpdir/refinement-v.json"
+cat >"$v_json" <<'JSON'
+{
+  "source": {
+    "type": "dp",
+    "id": "DP-999",
+    "container": "/tmp/dp-999",
+    "plan_path": "/tmp/dp-999/index.md",
+    "jira_key": null
+  },
+  "schema_version": 1,
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "text": "驗收 deterministic V task schema。",
+      "category": "functional",
+      "quantifiable": true,
+      "verification": {
+        "method": "unit_test",
+        "detail": "bash scripts/selftests/sample-selftest.sh"
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "DP-999-T1",
+      "kind": "implementation",
+      "title": "範例 implementation",
+      "scope": "驗證 T task。",
+      "allowed_files": ["scripts/sample.sh"],
+      "modules": ["scripts/sample.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "bash scripts/selftests/sample-selftest.sh"
+      }
+    },
+    {
+      "id": "DP-999-V1",
+      "kind": "verification",
+      "title": "範例 umbrella 驗收",
+      "scope": "驗收 T task 的 AC。",
+      "allowed_files": ["scripts/selftests/sample-selftest.sh"],
+      "modules": ["scripts/selftests/sample-selftest.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": ["DP-999-T1"],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "bash scripts/selftests/sample-selftest.sh"
+      }
+    }
+  ]
+}
+JSON
+
+mkdir -p "$tmpdir/V1"
+v_out="$tmpdir/V1/index.md"
+bash "$SCRIPT" --refinement-json "$v_json" --task-id "DP-999-V1" > "$v_out"
+v_anchors=(
+  "# V1: 範例 umbrella 驗收 (1 pt)"
+  "| Implementation tasks | T1 |"
+  "## 驗收項目"
+  "| AC1 | 驗收 deterministic V task schema。 | T1 | unit_test |"
+  "## 驗收計畫（AC level）"
+)
+for anchor in "${v_anchors[@]}"; do
+  if ! grep -qF -- "$anchor" "$v_out"; then
+    echo "FAIL [case 6 / D45]: V anchor not found: $anchor" >&2
+    cat "$v_out" >&2
+    exit 1
+  fi
+done
+bash "$VALIDATE_TASK_MD" "$v_out" >/dev/null 2>&1 || {
+  echo "FAIL [case 6 / D45]: derived V task.md does not pass validate-task-md.sh" >&2
+  bash "$VALIDATE_TASK_MD" "$v_out" >&2 || true
+  exit 1
+}
 
 echo "PASS: derive-task-md-from-refinement-json selftest"

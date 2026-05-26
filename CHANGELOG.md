@@ -4,6 +4,23 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.123] - 2026-05-27
+
+### Fixed — DP-231 template-safe dependency examples
+
+將 refinement artifact dependency contract 中的公司 ticket 範例改為 synthetic key，
+避免 template leak gate 在 framework release tail 擋下 DP-231 handoff 修正。
+
+## [3.75.122] - 2026-05-27
+
+### Fixed — DP-231 auto-pass 主鏈 handoff 固定點
+
+修正 refinement → breakdown → engineering handoff 的 deterministic gap：
+`derive-task-md-from-refinement-json.sh` 會產出合法 V task schema 與 implementation
+task list，`validate-refinement-json.sh` 會阻擋裸 DP/JIRA predecessor 混入
+`tasks[].dependencies`，並補上 auto-pass / engineering worktree ownership contract
+與 regression selftests。
+
 ## [3.75.121] - 2026-05-25
 
 ### Fixed — DP-233 ci-local 多行 husky hook mirror

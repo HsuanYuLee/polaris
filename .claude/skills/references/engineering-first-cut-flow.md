@@ -39,9 +39,14 @@ First-cut worktree 是一次性環境：
 4. duplicate branch / remote 時停止，不手動改名再開新 branch；stale worktree 只能由 setup helper 清理，不可人工拿舊 path 繼續做。
 5. `WORKTREE_PATH` 是 first-cut 後續唯一 implementation repo。source write、test、
    verify、commit、PR create、finalize 都必須用 `WORKTREE_PATH` 作為 repo / cwd。
-6. main checkout dirty state 是允許狀態，不得為了建立 task worktree 對 main checkout
-   執行 `git stash`、`git reset`、`git restore`、`git checkout` 或等價 destructive
-   workaround。
+6. framework-owned source path（如 `scripts/**`、`.claude/skills/**`、
+   `.claude/rules/**`、`.claude/instructions/**`、`CLAUDE.md`、`AGENTS.md`、
+   `.codex/**`、`.agents/**`）不得在 main checkout 施工。main checkout 若有
+   framework-owned dirty source，engineering 必須 fail-stop 或要求清理 / stash；dirty
+   內容只能作為參考，實作 diff 必須在 `WORKTREE_PATH` 產生。
+7. product repo 或 ignored runtime artifact 的 main checkout dirty state 可存在，但不得為了
+   建立 task worktree 對 main checkout 執行 `git stash`、`git reset`、`git restore`、
+   `git checkout` 或等價 destructive workaround。
 
 First-cut 不再需要獨立 pre-development rebase；branch setup 已從 resolved base tip 切出。
 

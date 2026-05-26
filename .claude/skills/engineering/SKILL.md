@@ -93,6 +93,10 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
   metadata / closeout，不施工。
 - Duplicate branch / remote branch / stale worktree：停止，resume / revision / cleanup，
   不開第二條 implementation branch。
+- Framework source mutation 只能在 engineering task worktree 內發生。main checkout 上的
+  framework-owned dirty source（`scripts/**`、`.claude/skills/**`、`.claude/rules/**`、
+  `.claude/instructions/**`、`CLAUDE.md`、`AGENTS.md`、`.codex/**`、`.agents/**` 等）
+  是 fail-stop；不得把 main dirty 當成可直接續做的施工面。
 - shared PR state 若是 `unsupported_mutation`、`blocked_conflict`、或
   `stale_downstream`，停止把 revision lane 說成「已收斂」或「可 review」。
 - Review signal 分類出 plan gap / spec issue：停止，寫 handoff / learning，需要

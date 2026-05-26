@@ -253,8 +253,13 @@ envelope schema：
 
 - `FOUND`：path 必須與 resolver 輸出 byte-identical；下游 skill 在該 worktree 內施工 /
   驗收。verify-AC envelope 的 `worktree_resolution.path` 與 resolver 輸出對齊。
-- `NONE`：orchestrator 升 terminal `blocked_by_missing_worktree`，advisory 提示 user 重建
-  worktree（EC8）；不得自己猜測 path 或 fallback 到 main checkout。
+- `NONE`（engineering first-cut pre-setup）：若 task 還沒有 engineering branch/worktree
+  setup receipt，這是正常初始狀態，不是 user-facing terminal。orchestrator 必須 dispatch
+  `engineering`，由 `engineering-branch-setup.sh` 依 authoritative task.md 建立 fresh
+  branch/worktree；setup 完成後重新執行 resolver，必須得到 `FOUND` 才能進 implementation /
+  verify。
+- `NONE`（post-setup / resume / verify-AC）：orchestrator 升 terminal
+  `blocked_by_missing_worktree`；不得自己猜測 path 或 fallback 到 main checkout。
 - `POLARIS_DISPATCH_WORKTREE_AMBIGUOUS`（resolver exit 2）：orchestrator 必須 fail-stop
   terminal `blocked_by_gate_failure`，不得自選其中一個 path。
 - envelope 缺 `worktree_resolution` 欄位 → schema validator fail-stop + stderr

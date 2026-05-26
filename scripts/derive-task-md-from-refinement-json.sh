@@ -7,7 +7,7 @@
 # reasoning step in the pipeline.
 #
 # Inputs come exclusively from structured fields on the refinement.json task:
-#   id, title, scope, allowed_files, ac_ids, estimate_points,
+#   id, title, scope, allowed_files, ac_ids, dependencies, estimate_points,
 #   verification.detail
 #
 # fail-loud cases (no fallback):
@@ -107,13 +107,14 @@ scope = str(match["scope"]).strip()
 points = int(match["estimate_points"])
 allowed_files = list(match["allowed_files"])
 ac_ids = list(match.get("ac_ids") or [])
-dependencies = list(match.get("dependencies") or [])
+raw_dependencies = [str(dep).strip() for dep in list(match.get("dependencies") or []) if str(dep).strip()]
 
 # Tn suffix: parse "T{n}" off the tail of the canonical id (e.g. DP-230-T10 -> T10).
 m = re.match(r"^(?P<src>[A-Z]+-\d+)-(?P<short>[TV]\d+)$", task_id)
 if not m:
     fail(f"task id does not match canonical pattern (e.g. DP-230-T10): {task_id}")
 short_id = m.group("short")
+mode = short_id[0]
 
 # Branch slug: deterministic, lowercase, hyphen-separated. Drop punctuation, keep
 # CJK characters (refinement.json titles routinely include zh-TW). Match the
@@ -134,6 +135,51 @@ def slugify(text: str) -> str:
 
 slug = slugify(title)
 task_branch = f"task/{task_id}-{slug}"
+
+task_by_id = {str(entry.get("id")): entry for entry in tasks if isinstance(entry, dict)}
+
+def short_work_item_id(value: str) -> str:
+    m_short = re.fullmatch(r"[TV]\d+[a-z]?", value)
+    if m_short:
+        return value
+    m_full = re.fullmatch(r"(?P<src>[A-Z][A-Z0-9]*-\d+)-(?P<short>[TV]\d+[a-z]?)", value)
+    if m_full and m_full.group("src") == source_id:
+        return m_full.group("short")
+    return ""
+
+
+def full_work_item_id(value: str) -> str:
+    short = short_work_item_id(value)
+    return f"{source_id}-{short}" if short else value
+
+
+local_dependencies = []
+external_dependencies = []
+for dep in raw_dependencies:
+    short_dep = short_work_item_id(dep)
+    if short_dep:
+        local_dependencies.append(short_dep)
+    else:
+        # Cross-source full-form work items are allowed as source references, but
+        # this DP-backed task writer cannot derive a local task branch from them.
+        # Bare source ids such as DP-229 are invalid under the refinement schema
+        # and should be caught before derive; keep this defensive split loud in
+        # task DAG output by excluding them from task.md Depends on.
+        external_dependencies.append(dep)
+
+if mode == "T" and len(local_dependencies) > 1:
+    fail(f"task {task_id} has non-linear local dependencies: {', '.join(local_dependencies)}")
+
+depends_on_frontmatter = ", ".join(local_dependencies)
+depends_cell = ", ".join(local_dependencies) if local_dependencies else "N/A"
+if local_dependencies:
+    dep_full_id = f"{source_id}-{local_dependencies[-1]}"
+    dep_title = str((task_by_id.get(dep_full_id) or {}).get("title") or dep_full_id)
+    base_branch = f"task/{dep_full_id}-{slugify(dep_title)}"
+    branch_chain = f"{base_branch} -> {task_branch}"
+else:
+    base_branch = "main"
+    branch_chain = f"main -> {task_branch}"
 
 # --- Build artifacts ---
 allowed_files_block = "\n".join(f"- `{p}`" for p in allowed_files)
@@ -159,7 +205,100 @@ for ac in ac_list:
     trace_rows.append(f"| {ac} | {owning_anchor} | framework deterministic gate / selftest contract | `{verify_detail}` |")
 trace_block = "\n".join(trace_rows)
 
-depends_cell = ", ".join(dependencies) if dependencies else "N/A"
+if mode == "V":
+    ac_by_id = {
+        str(item.get("id")): item
+        for item in (data.get("acceptance_criteria") or [])
+        if isinstance(item, dict) and item.get("id")
+    }
+    implementation_tasks = []
+    for dep in raw_dependencies:
+        short_dep = short_work_item_id(dep)
+        if short_dep and short_dep.startswith("T"):
+            implementation_tasks.append(short_dep)
+    if not implementation_tasks:
+        implementation_tasks = [
+            short_work_item_id(str(entry.get("id")))
+            for entry in tasks
+            if isinstance(entry, dict)
+            and short_work_item_id(str(entry.get("id"))).startswith("T")
+        ]
+    implementation_tasks = [item for item in implementation_tasks if item]
+    implementation_cell = ", ".join(implementation_tasks) if implementation_tasks else "N/A"
+    ac_rows = []
+    for ac in ac_list:
+        ac_item = ac_by_id.get(ac) or {}
+        ac_text = str(ac_item.get("text") or ac)
+        ac_summary = (ac_text[:80] + "...") if len(ac_text) > 80 else ac_text
+        method = str((ac_item.get("verification") or {}).get("method") or verification.get("method") or "unit_test")
+        ac_rows.append(f"| {ac} | {ac_summary} | {implementation_cell} | {method} |")
+    if not ac_rows:
+        ac_rows.append(f"| AC-N/A | {scope} | {implementation_cell} | {verification.get('method') or 'unit_test'} |")
+    ac_block = "\n".join(ac_rows)
+
+    doc = f"""---
+title: "{source_id} {short_id}: {title} ({points} pt)"
+description: "{scope}"
+draft: true
+sidebar:
+  hidden: true
+status: IN_PROGRESS
+verification:
+  behavior_contract:
+    applies: false
+    reason: "framework static AC verification；無 runtime / UI 行為變更"
+depends_on: []
+---
+
+# {short_id}: {title} ({points} pt)
+
+> Source: {source_id} | Task: {task_id} | JIRA: N/A | Repo: {repo_name}
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | {source_type} |
+| Source ID | {source_id} |
+| Task ID | {task_id} |
+| JIRA key | N/A |
+| Implementation tasks | {implementation_cell} |
+| Base branch | main |
+| Depends on | {depends_cell} |
+| References to load | - `docs-manager/src/content/docs/specs/design-plans/{source_id}-*/refinement.md`<br>- `docs-manager/src/content/docs/specs/design-plans/{source_id}-*/refinement.json`<br>- `.claude/skills/verify-AC/SKILL.md` |
+
+## 目標
+
+{scope}
+
+## 驗收項目
+
+| AC | 摘要 | 對應實作 task | 驗證類型 |
+|----|------|--------------|---------|
+{ac_block}
+
+## 估點理由
+
+{points} pt — {scope}
+
+## 驗收計畫（AC level）
+
+1. 逐項讀取 `refinement.json` AC 與本 V task 的驗收項目。
+2. 確認 implementation tasks 已完成且 evidence current。
+3. 執行 `{verify_detail}`，逐 AC 記錄 PASS / FAIL / MANUAL_REQUIRED / UNCERTAIN。
+4. 驗收結果寫回 V task lifecycle metadata。
+
+## Test Environment
+
+- **Level**: static
+- **Dev env config**: N/A
+- **Fixtures**: N/A
+- **Runtime verify target**: N/A
+- **Env bootstrap command**: N/A
+"""
+
+    sys.stdout.write(doc)
+    sys.exit(0)
 
 doc = f"""---
 title: "{source_id} {short_id}: {title} ({points} pt)"
@@ -172,7 +311,7 @@ verification:
   behavior_contract:
     applies: false
     reason: "framework deterministic gate / selftest / helper；無 runtime / UI 行為變更"
-depends_on: []
+depends_on: [{depends_on_frontmatter}]
 ---
 
 # {short_id}: {title} ({points} pt)
@@ -189,8 +328,8 @@ depends_on: []
 | JIRA key | N/A |
 | Test sub-tasks | N/A - framework work order |
 | AC 驗收單 | N/A - framework work order |
-| Base branch | main |
-| Branch chain | main -> {task_branch} |
+| Base branch | {base_branch} |
+| Branch chain | {branch_chain} |
 | Task branch | {task_branch} |
 | Depends on | {depends_cell} |
 | References to load | - `docs-manager/src/content/docs/specs/design-plans/{source_id}-*/refinement.md`<br>- `docs-manager/src/content/docs/specs/design-plans/{source_id}-*/refinement.json` |

@@ -83,6 +83,7 @@ def require_nonempty_string(field):
 
 source = data.get("source")
 source_type = "jira"
+source_id = None
 if source is not None:
     if not isinstance(source, dict):
         errors.append("'source' must be an object when present")
@@ -464,8 +465,44 @@ else:
             strong_error(f"tasks[{idx}].allowed_files")
         if not isinstance(task.get("modules"), list):
             strong_error(f"tasks[{idx}].modules")
-        if not isinstance(task.get("dependencies"), list):
+        task_deps = task.get("dependencies")
+        if not isinstance(task_deps, list):
             strong_error(f"tasks[{idx}].dependencies")
+        else:
+            local_deps = []
+            task_id = str(task.get("id") or "")
+            source_prefix = str(source_id or data.get("epic") or "").strip()
+            for dep_idx, dep in enumerate(task_deps):
+                dep_value = str(dep).strip()
+                if not dep_value:
+                    strong_error(f"tasks[{idx}].dependencies[{dep_idx}]")
+                    continue
+                is_short_work_item = re.fullmatch(r"[TV][0-9]+[a-z]?", dep_value) is not None
+                full_match = re.fullmatch(r"([A-Z][A-Z0-9]*-[0-9]+)-([TV][0-9]+[a-z]?)", dep_value)
+                is_full_work_item = full_match is not None
+                is_bare_source = re.fullmatch(r"[A-Z][A-Z0-9]*-[0-9]+", dep_value) is not None
+                if is_bare_source and not is_full_work_item:
+                    errors.append(
+                        "POLARIS_REFINEMENT_TASK_DEPENDENCY_INVALID: "
+                        f"tasks[{idx}].dependencies[{dep_idx}]='{dep_value}' is a bare source id; "
+                        "put predecessor sources in top-level dependencies[], not task dependencies"
+                    )
+                    continue
+                if not is_short_work_item and not is_full_work_item:
+                    errors.append(
+                        "POLARIS_REFINEMENT_TASK_DEPENDENCY_INVALID: "
+                        f"tasks[{idx}].dependencies[{dep_idx}]='{dep_value}' must be a short work item "
+                        "(T1/V1) or full work item (DP-231-T1)"
+                    )
+                    continue
+                if is_short_work_item or (full_match and full_match.group(1) == source_prefix):
+                    local_deps.append(dep_value)
+            if re.fullmatch(r"[A-Z][A-Z0-9]*-[0-9]+-T[0-9]+[a-z]?", task_id) and len(local_deps) > 1:
+                errors.append(
+                    "POLARIS_REFINEMENT_TASK_DEPENDENCY_INVALID: "
+                    f"task {task_id} has non-linear local dependencies {local_deps}; "
+                    "breakdown task.md dependency binding is linear"
+                )
         if not isinstance(task.get("estimate_points"), (int, float)):
             strong_error(f"tasks[{idx}].estimate_points")
         if not isinstance(task.get("verification"), dict):

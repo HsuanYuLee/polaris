@@ -275,6 +275,12 @@ Producer rule：
 - `schema_version`：必填。
 - `tasks[]`：每筆必填 `id` / `kind` / `title` / `scope` / `allowed_files` /
   `modules` / `ac_ids` / `dependencies` / `estimate_points` / `verification`。
+- `tasks[].dependencies` 只代表 task.md 可消費的 work-item dependency：同 source
+  短式 `T1` / `V1`，或完整 work-item id（例如 `DP-231-T1`）。裸 source
+  predecessor（例如 `DP-229`、`DP-230`、`EXAMPLE-4190`）必須留在 top-level
+  `dependencies[]` 或文字 references；不得混入 task DAG。validator 會以
+  `POLARIS_REFINEMENT_TASK_DEPENDENCY_INVALID` fail-loud，避免 breakdown derive 產出
+  `Depends on=DP-229` + `Base branch=main` 的非法 task.md。
 - `adversarial_pass[]`：每筆必填 `ac_id` / `attack` / `enforce`。
 - Bug-specific fields（`reproduction` / `root_cause` / `source_pr` / `severity` /
   `impact_scope` / `regression`）只允許 `source.type=bug`，其他 source type 不得出現。
