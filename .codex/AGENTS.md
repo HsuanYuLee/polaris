@@ -37,6 +37,12 @@ The framework is an add-on layer. Product repositories keep ownership of their t
 - Runtime instruction graph: `.claude/instructions/manifest.yaml`
 - Company/project handbook SoT: `{company}/polaris-config/{project}/handbook/`
 
+## Full Source Completion Invariant
+
+When the user asks to complete a DP, source, Epic, or full workflow, completion is source-level, not task-local. A single task, blocker hotfix, PR, version tag, framework-release closeout, or local-extension deliverable is not completion while sibling tasks, V tasks, verification disposition, source status, or parent lifecycle closeout remain incomplete.
+
+Agents must report the partial state and continue or reroute the owning workflow. They must not declare the source complete, stop at a task-local release, or replace the requested full workflow with a narrower blocker fix unless the user explicitly changes scope.
+
 ## Codex Runtime Notes
 
 Codex-compatible entrypoints use AGENTS conventions. This `.codex/AGENTS.md` file is a local compatibility target for the Polaris workspace; product repo root `AGENTS.md` files remain repo-owned.

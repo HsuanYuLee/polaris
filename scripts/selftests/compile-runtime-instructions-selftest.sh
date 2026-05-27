@@ -32,6 +32,10 @@ for target in CLAUDE.md AGENTS.md .codex/AGENTS.md .github/copilot-instructions.
     echo "FAIL: missing generator banner in $target" >&2
     exit 1
   fi
+  if ! grep -Fq "Full Source Completion Invariant" "$ROOT/$target"; then
+    echo "FAIL: missing full-source completion invariant in $target" >&2
+    exit 1
+  fi
 done
 
 # Sanity: manifest files exist and list source files.
@@ -67,6 +71,12 @@ find "$ROOT/.claude/rules" -maxdepth 1 -type f -name '*.md' -exec cp {} "$TMP_DI
 
 # First regenerate everything in the tmp ROOT.
 bash "$TMP_DIR/scripts/compile-runtime-instructions.sh" >/tmp/dp230-t18-compile-runtime-generate.out 2>&1
+for target in CLAUDE.md AGENTS.md .codex/AGENTS.md .github/copilot-instructions.md; do
+  if ! grep -Fq "Full Source Completion Invariant" "$TMP_DIR/$target"; then
+    echo "FAIL: tmp generated target missing full-source completion invariant: $target" >&2
+    exit 1
+  fi
+done
 # A fresh --check on tmp should pass.
 bash "$TMP_DIR/scripts/compile-runtime-instructions.sh" --check >/tmp/dp230-t18-compile-runtime-check-fresh.out 2>&1
 

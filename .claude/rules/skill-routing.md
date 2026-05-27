@@ -196,6 +196,23 @@ skill 自己 merge workspace PR、跑 `sync-to-polaris.sh --push`、tag、GitHub
 本身的 reviewer / release process 接手。`framework-release` 在 main-chain 語句中是 terminal-only
 tail，不得搶主流程入口，也不得補開 PR、補 task.md、或追認 source-less branch。
 
+### Full Source Completion Invariant
+
+Full workflow intent resolves at source level. When the user asks to complete a DP, source, Epic,
+or full workflow, a single task, blocker hotfix, PR, version tag, framework-release closeout, or
+local-extension deliverable is not completion while sibling tasks, V tasks, verification disposition,
+source status, or parent lifecycle closeout remain incomplete.
+
+Routing must preserve that invariant:
+
+- `engineering` may complete one authoritative `task.md`, but it cannot close the source unless
+  the source has no remaining required siblings and verification has completed.
+- `framework-release` may release a workspace PR for a framework task, but release tail completion
+  is not proof that the requested DP/source workflow is complete.
+- If a blocker task was necessary to unblock the flow, return to `auto-pass` / owning source
+  orchestration after the blocker release; do not stop as though the original full workflow request
+  was satisfied.
+
 **Amendment loop policy (DP-212)**：`/auto-pass` 收到 `refinement-inbox/` 或 verify-AC `spec_issue`
 時，不再 terminal `paused_for_refinement`；改為自動 dispatch `refinement` 進入 amendment mode，
 寫回 implementation detail 後 loop 回 breakdown。**使用者不需要也不應該** 主動下指令

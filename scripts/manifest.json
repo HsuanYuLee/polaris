@@ -2355,6 +2355,16 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/auto-pass-full-source-completion-invariant-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/auto-pass-friction-log-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -5651,6 +5661,36 @@
         "AUTO_PASS_LEDGER_PATH set but ledger missing -> all triggers NOOP silently",
         "helper validates ledger is JSON object (corrupt ledger -> exit 1)",
         "wall-clock < 10s"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "auto-pass-full-source-completion-invariant",
+      "command": "bash scripts/selftests/auto-pass-full-source-completion-invariant-selftest.sh",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        ".claude/instructions/core/bootstrap.md",
+        ".claude/instructions/runtime/claude.md",
+        ".claude/instructions/runtime/codex.md",
+        ".claude/instructions/runtime/copilot.md",
+        ".claude/rules/skill-routing.md",
+        ".claude/skills/auto-pass/SKILL.md",
+        "scripts/compile-runtime-instructions.sh",
+        "scripts/selftests/compile-runtime-instructions-selftest.sh",
+        "scripts/selftests/auto-pass-full-source-completion-invariant-selftest.sh",
+        "CLAUDE.md",
+        "AGENTS.md",
+        ".codex/AGENTS.md",
+        ".github/copilot-instructions.md"
+      ],
+      "fixtures": [
+        "runtime targets contain source-level completion invariant",
+        "auto-pass rejects task-local closeout as source completion",
+        "framework-release closeout remains terminal tail evidence only"
       ],
       "enrolled": true,
       "owner": "polaris-framework"

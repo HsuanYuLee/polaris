@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.125] - 2026-05-27
+
+### Fixed — DP-235 full-source completion invariant
+
+新增 runtime constitution、auto-pass 與 routing guard，明確禁止把單一 task、
+blocker hotfix、PR、version tag 或 framework-release closeout 誤判為 DP / source
+完整完成；並將 invariant 納入 generated runtime targets 與 selftest / manifest。
+
 ## [3.75.124] - 2026-05-27
 
 ### Fixed — DP-231 task_kind handoff fixed point

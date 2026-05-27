@@ -212,6 +212,29 @@ amendment 若命中 LOCKED scope guard（改到 Goal / Background / Decisions / 
 `validate-refinement-locked-scope.sh` exit 2 + 標 inbox `rejected_by_scope_guard=true`，
 auto-pass 必須 terminal `blocked_by_gate_failure` 並輸出 follow-up DP seed。
 
+## Full Source Completion Invariant
+
+`auto-pass` 的 complete terminal 是 source-level，不是 task-local。當使用者要求完成
+DP、source、Epic 或 full workflow 時，單一 task、blocker hotfix、PR、version tag、
+framework-release closeout 或 local-extension deliverable 只能算該 stage 的 evidence，
+不得在 sibling tasks、V tasks、verification disposition、source status 或 parent lifecycle
+closeout 尚未完成時宣告整個 source complete。
+
+terminal `complete` 的最低條件：
+
+1. latest breakdown snapshot 是 current，且列出的 required T tasks 與 V tasks 都已達 terminal
+   / completed 狀態。
+2. engineering completion proof 覆蓋所有 required implementation tasks；單一 blocker task
+   release 不得代表整個 source。
+3. verify-AC disposition current，且 source-level verification 沒有 unresolved FAIL /
+   MANUAL_REQUIRED / spec_issue。
+4. source closeout chain 已跑完；framework-release tail 只是 framework workspace 的
+   local-extension release evidence，不會取代 source-level closeout。
+
+若 blocker task 已 release 但 source 仍有 active sibling task 或 V task，`auto-pass` 必須
+繼續 dispatch 下一個 owning skill，或以 partial state / blocker terminal 回報；不得把
+task-local closeout 誤判為使用者要求的完整 source 完成。
+
 ## Breakdown Consent Handoff
 
 dispatch `breakdown` 時，envelope 必須包含主 checkout ledger 絕對路徑：
