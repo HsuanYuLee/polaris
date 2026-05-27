@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.126] - 2026-05-27
+
+### Fixed — DP-241 Slack URL boundary clarification
+
+把 `.claude/rules/handbook/quality-standards.md` 第 8 點「Slack URL 後必須換行」精確化為
+「Slack URL 邊界必須明確」：明寫單行 `\n` 不夠用、列出 blank line 與 `<URL>` 角括號兩種
+有效做法，並附 percent-encode 範例（`2427%E4%BE%9D%E5%AE%98%E6%96%B9`）作為記憶錨點，避免
+Slack auto-link parser 把後續中文吞進 URL。
+
 ## [3.75.125] - 2026-05-27
 
 ### Fixed — DP-235 full-source completion invariant
