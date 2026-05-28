@@ -488,15 +488,25 @@ lines = [
     f"- Ticket: `{ticket}`",
     f"- Head SHA: `{head}`",
     "",
-    "## Jira attachments",
+    "## Evidence publication",
     "",
-    "| 檔案 | Jira URL |",
-    "|------|----------|",
+    "| 情境 | 嵌入預覽 | 驗證結果 | 影片或原始檔 |",
+    "|------|----------|----------|--------------|",
 ]
 for item in attachments:
     url = item.get("url") or ""
     filename = item.get("filename") or "attachment"
-    lines.append(f"| `{filename}` | [{filename}]({url}) |")
+    suffix = Path(filename).suffix.lower()
+    if suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
+        preview = f"!{filename}|thumbnail!"
+        raw = f"[{filename}]({url})"
+    elif suffix in {".webm", ".mp4", ".mov", ".m4v"}:
+        preview = "Jira video link"
+        raw = f"[{filename}]({url})"
+    else:
+        preview = "N/A"
+        raw = f"[{filename}]({url})"
+    lines.append(f"| `{filename}` | {preview} | `uploaded` | {raw} |")
 Path(comment_path).write_text("\n".join(lines) + "\n", encoding="utf-8")
 PY
 
@@ -526,17 +536,31 @@ lines = [
     f"- Head SHA: `{data['head_sha']}`",
     f"- Manifest SHA-256: `{data.get('manifest_sha256', '')}`",
     "",
-    "## Evidence manifest",
+    "## Evidence preview",
     "",
-    "| 類型 | 路徑 | 大小 | SHA-256 |",
-    "|------|------|------|---------|",
+    "| 情境 | 嵌入預覽 | 驗證結果 | 影片或原始檔 |",
+    "|------|----------|----------|--------------|",
 ]
 for item in data.get("items", []):
     if not item.get("requires_publication"):
         continue
-    lines.append(
-        f"| `{item['kind']}` | `{item['path']}` | {item['size']} | `{item['sha256']}` |"
-    )
+    media_refs = item.get("metadata", {}).get("media_refs", []) or []
+    row_refs = media_refs or [item["path"]]
+    for path in row_refs:
+        filename = Path(path).name
+        suffix = Path(filename).suffix.lower()
+        if suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
+            preview = f"![{filename}]({path})"
+            raw = f"`{item['sha256']}`"
+        elif suffix in {".webm", ".mp4", ".mov", ".m4v"}:
+            preview = "Video link"
+            raw = f"[{filename}]({path})"
+        else:
+            preview = "N/A"
+            raw = f"`{item['sha256']}`"
+        lines.append(
+            f"| `{item['kind']}` | {preview} | `PASS` | {raw} |"
+        )
 video_refs = []
 for item in data.get("items", []):
     video_refs.extend(item.get("metadata", {}).get("video_refs", []) or [])

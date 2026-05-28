@@ -101,6 +101,12 @@ verification = match["verification"] or {}
 verify_detail = verification.get("detail") or ""
 if not verify_detail.strip():
     fail(f"task {task_id} missing verification.detail")
+# verify_command is the executable shell command form (preferred when set);
+# verification.detail remains zh-TW prose used for Scope Trace / Test Plan / Gate
+# rendering. The ## Verify Command fence prefers verify_command and falls back
+# to detail only when verify_command is null (legacy refinement.json shape).
+verify_command = (verification.get("verify_command") or "").strip()
+verify_command_or_detail = verify_command or verify_detail
 
 title = str(match["title"]).strip()
 scope = str(match["scope"]).strip()
@@ -170,8 +176,9 @@ for dep in raw_dependencies:
 if mode == "T" and len(local_dependencies) > 1:
     fail(f"task {task_id} has non-linear local dependencies: {', '.join(local_dependencies)}")
 
-depends_on_frontmatter = ", ".join(local_dependencies)
-depends_cell = ", ".join(local_dependencies) if local_dependencies else "N/A"
+full_form_dependencies = [f"{source_id}-{dep}" for dep in local_dependencies]
+depends_on_frontmatter = ", ".join(full_form_dependencies)
+depends_cell = ", ".join(full_form_dependencies) if full_form_dependencies else "N/A"
 if local_dependencies:
     dep_full_id = f"{source_id}-{local_dependencies[-1]}"
     dep_title = str((task_by_id.get(dep_full_id) or {}).get("title") or dep_full_id)
@@ -398,7 +405,7 @@ framework work order；驗收委派給 {source_id}-V1（umbrella regression）�
 
 ```bash
 set -euo pipefail
-{verify_detail}
+{verify_command_or_detail}
 bash scripts/check-script-manifest.sh --root . --quiet
 echo "PASS: {task_id}"
 ```

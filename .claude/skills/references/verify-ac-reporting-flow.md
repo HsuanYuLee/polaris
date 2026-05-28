@@ -39,6 +39,17 @@ Verification report 使用 JIRA REST API v2 wiki markup，不使用 MCP markdown
 gate 驗證。引用 AC 原文、HTTP response、error message、多語系畫面文字可以保留原文，但主敘述
 使用 workspace language。
 
+當 report 包含 screenshots、VR diffs、影片、trace 或其他需人工檢視的佐證時，verify-AC
+必須消費 `evidence-upload-bundle.md` 的 evidence publication presentation contract：
+
+- JIRA comment 使用對照表，欄位至少包含情境、嵌入預覽、驗證結果、影片或原始檔連結。
+- 圖片 attachment preview 使用 JIRA filename wiki markup，例如 `!checkout.png|thumbnail!`；
+  不得使用 GitHub Markdown image syntax `![alt](url)`。
+- 影片只在影片或原始檔欄位作 link；嵌入預覽欄使用 screenshot、thumbnail、GIF，或明確標示
+  `MANUAL_REQUIRED` / 無預覽。不得把 raw video content URL 宣稱成 inline playable preview。
+- 若 JIRA embedded preview 無法產生，底層 verification outcome 必須維持
+  `MANUAL_REQUIRED`、`UNCERTAIN` 或 `BLOCKED_ENV`，不可只因附件已上傳就判 PASS。
+
 ## Native VR report block
 
 visual AC 使用 `run-visual-snapshot.sh` 時，report 的 step table 必須列出：

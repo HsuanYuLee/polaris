@@ -4,6 +4,14 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.130] - 2026-05-28
+
+### Changed — DP-253 auto-pass evidence preview publication contract
+
+- 明確化 PR / JIRA 佐證發布對照表 contract，欄位固定包含情境、嵌入預覽、驗證結果、影片或原始檔連結。
+- JIRA 圖片預覽要求使用 attachment filename wiki markup，例如 `!filename.png|thumbnail!`；影片維持 link + screenshot / thumbnail / GIF fallback，不宣稱 raw video inline 播放。
+- 補齊 engineering、verify-AC、auto-pass 邊界文字：`auto-pass` complete 必須能看到 non-draft PR 與遠端可見 evidence marker / URL，但不成為 PR / JIRA evidence writer。
+
 ## [3.75.129] - 2026-05-28
 
 ### Fixed — DP-254 engineering completion gate review readiness

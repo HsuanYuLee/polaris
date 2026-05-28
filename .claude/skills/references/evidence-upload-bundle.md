@@ -232,12 +232,54 @@ Marker 必須同時包含 work item `ticket` 與目前 deliverable `head_sha`。
 evidence manifest、publication manifest 與 `run-verify-command.sh` 寫出的 verify
 evidence。
 
+## Evidence Publication Presentation Contract
+
+PR 與 JIRA 的佐證發布必須使用 surface-specific body，不共用會在另一個 surface 壞掉的
+markup。兩個 surface 的人讀呈現都以對照表為 canonical shape，欄位至少包含：
+
+| 欄位 | 說明 |
+|------|------|
+| 情境 | 驗證情境、AC、頁面或 workflow 名稱。 |
+| 嵌入預覽 | 圖片 / screenshot / thumbnail / GIF；沒有可預覽媒體時明確寫 `N/A` 或 `MANUAL_REQUIRED`。 |
+| 驗證結果 | `PASS` / `FAIL` / `MANUAL_REQUIRED` / `UNCERTAIN` / `BLOCKED_ENV` 與短原因。 |
+| 影片或原始檔 | 影片、trace、HAR、JSON、log 或 raw artifact 的連結。 |
+
+Surface-specific rules：
+
+- **JIRA minimum**：圖片 attachment 上傳後，JIRA body 必須使用 attachment filename wiki
+  markup，例如 `!checkout-mobile.png|thumbnail!`。JIRA body 不得使用 GitHub Markdown
+  image syntax `![alt](url)` 當作圖片預覽。
+- **PR best-effort**：PR body 可以使用 GitHub Markdown image syntax 呈現可公開讀取的圖片；
+  若 private JIRA attachment 或 GitHub renderer 無法 inline preview，PR 表格仍必須保留
+  evidence marker、原始檔連結，並指向 JIRA embedded preview comment / attachment link。
+- **Video fallback**：`.webm` / `.mp4` / `.mov` / `.m4v` 不宣稱 inline playable preview。
+  影片欄位使用 link；預覽欄使用 screenshot、thumbnail、GIF，或明確標示無預覽 /
+  `MANUAL_REQUIRED`。不得把 raw video content URL 放進 JIRA thumbnail 欄當作 inline preview。
+- **Local-only forbidden**：只有 local ignored bundle path、沒有 PR-visible marker 或
+  JIRA-visible marker 時，不可滿足 completion gate。Bundle 是人工拖檔來源，不是遠端發布證明。
+
+Completion gate 可接受的遠端可見 marker：
+
+```text
+polaris-evidence-publication:v1 ticket={ticket} head={head_sha}
+polaris-verify-report:v1 ticket={ticket} head={head_sha} report={verify_report_url}
+polaris-jira-evidence:v1 ticket={ticket} head={head_sha} url={jira_attachment_or_comment_url}
+```
+
+`polaris-jira-evidence:v1` 代表 reviewer 至少能從 JIRA comment / attachment URL 看到 embedded
+preview；GitHub PR inline preview 仍是 best-effort，不是 blocking minimum。
+
 ## verify-AC Flow
 
 當 verify-AC 收集 screenshots、videos、VR diffs、traces 或其他需要人工檢視 /
 Jira upload 的 visual evidence 時，必須產生 `jira` bundle，並用 bundle 內的
 `publication-manifest.json` / `links.json` 呼叫 `publish-jira-evidence.mjs`。Verification report
 必須列出 bundle path 與 Jira publication status。
+
+verify-AC 的 JIRA comment body 同樣遵守上方 presentation contract：圖片用
+`!filename.png|thumbnail!`，影片用 link + screenshot / thumbnail fallback；若缺少可預覽素材，
+結果必須保留 `MANUAL_REQUIRED` 或其他底層 blocking outcome，不可把附件上傳成功誤判為 AC
+自動 PASS。
 
 若 PASS-only run 沒有 visual/manual evidence，可以跳過 bundle creation。
 

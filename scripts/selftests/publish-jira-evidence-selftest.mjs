@@ -66,6 +66,9 @@ done
   const report = fs.readFileSync(bundle.report, 'utf8');
   assert(report.includes('## Jira Attachments'), 'report should include Jira section');
   assert(report.includes('https://jira.example/attachments/PROJ-123/screenshot.png'), 'report should include attachment URL');
+  assert(report.includes('!screenshot.png|thumbnail!'), 'report should include Jira thumbnail wiki markup for images');
+  assert(report.includes('[behavior.webm|https://jira.example/attachments/PROJ-123/behavior.webm]'), 'report should link video attachments');
+  assert(!report.includes('![screenshot.png]'), 'Jira report must not use GitHub Markdown image syntax');
 }
 
 function testBlockedArtifact() {

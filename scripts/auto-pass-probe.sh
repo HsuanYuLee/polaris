@@ -204,6 +204,20 @@ def resolve_source(sid):
                       f"resolver output not JSON: {exc}")
 
 
+def _counter_count(value):
+    # DP-246 T2 dual-shape: legacy int N or {"count": N, "evidence_ids": [...]}.
+    # Mirrors validate-auto-pass-ledger.sh._counter_count() to keep probe parity.
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return value if value >= 0 else 0
+    if isinstance(value, dict):
+        count = value.get("count")
+        if isinstance(count, int) and not isinstance(count, bool) and count >= 0:
+            return count
+    return 0
+
+
 def ledger_terminal():
     if not ledger_arg:
         return None
@@ -215,10 +229,12 @@ def ledger_terminal():
     except Exception as exc:
         return ("UNKNOWN", "blocked_by_gate_failure", "blocked", ledger_path, f"ledger invalid JSON: {exc}")
     loops = data.get("loop_counters") or {}
-    if max(int(loops.get("engineering_to_breakdown", 0)), int(loops.get("breakdown_to_refinement_inbox", 0))) >= 3:
+    eng_count = _counter_count(loops.get("engineering_to_breakdown", 0))
+    brk_count = _counter_count(loops.get("breakdown_to_refinement_inbox", 0))
+    if max(eng_count, brk_count) >= 3:
         return ("BLOCKED", "loop_cap_reached", "blocked", ledger_path, "planning loop cap reached")
     drift = data.get("drift_retry") or {}
-    if int(drift.get(work_item_id, 0)) >= 3:
+    if _counter_count(drift.get(work_item_id, 0)) >= 3:
         return ("BLOCKED", "blocked_by_gate_failure", "blocked", ledger_path, "drift retry cap reached")
     return None
 
@@ -303,7 +319,29 @@ if stage == "breakdown":
     inbox_matches = []
     if inbox_err is None and inbox_resolved:
         container_path = Path(inbox_resolved["container"])
-        inbox_matches = sorted((container_path / "refinement-inbox").glob("*.md"))
+        # DP-212 amendment loop: only unconsumed inbox records trigger amendment.
+        # Files with `consumed: true` in YAML frontmatter have already been
+        # processed by a prior refinement amendment round and must not re-route.
+        for p in sorted((container_path / "refinement-inbox").glob("*.md")):
+            try:
+                head = p.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            if head.startswith("---"):
+                end = head.find("\n---", 3)
+                fm = head[3:end] if end > 0 else head[3:]
+            else:
+                fm = head
+            consumed = False
+            for line in fm.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("consumed:"):
+                    val = stripped.split(":", 1)[1].strip().lower()
+                    if val in ("true", "yes"):
+                        consumed = True
+                    break
+            if not consumed:
+                inbox_matches.append(p)
     if inbox_matches:
         # DP-212: refinement-inbox presence is now a non-terminal signal —
         # auto-pass dispatches `refinement` in amendment mode, then loops

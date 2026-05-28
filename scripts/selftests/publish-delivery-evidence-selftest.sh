@@ -15,6 +15,7 @@ make_repo() {
   mkdir -p "$repo/.polaris/evidence/behavior/$TICKET/compare-ctx"
   printf 'language: zh-TW\n' >"$repo/workspace-config.yaml"
   printf 'fake-screenshot\n' >"$repo/.polaris/evidence/behavior/$TICKET/compare-ctx/screen.png"
+  printf 'fake-video\n' >"$repo/.polaris/evidence/behavior/$TICKET/compare-ctx/behavior.webm"
   cat >"$repo/.polaris/evidence/behavior/$TICKET/polaris-behavior-${TICKET}-${HEAD_SHA}-ctx.json" <<JSON
 {
   "schema_version": 1,
@@ -26,7 +27,7 @@ make_repo() {
   "status": "PASS",
   "context_hash": "ctx",
   "screenshots": ["$repo/.polaris/evidence/behavior/$TICKET/compare-ctx/screen.png"],
-  "videos": []
+  "videos": ["$repo/.polaris/evidence/behavior/$TICKET/compare-ctx/behavior.webm"]
 }
 JSON
 }
@@ -76,7 +77,7 @@ SH
 assert_contains() {
   local file="$1"
   local text="$2"
-  grep -q "$text" "$file" || {
+  grep -qF "$text" "$file" || {
     echo "missing expected text: $text" >&2
     echo "--- $file ---" >&2
     cat "$file" >&2
@@ -105,6 +106,14 @@ PATH="$mockbin:$PATH" "$PUBLISH" \
 
 assert_contains "$comment_body" "polaris-jira-evidence:v1 ticket=$TICKET head=$HEAD_SHA"
 assert_contains "$comment_body" "example.atlassian.net/rest/api/3/attachment/content"
+assert_contains "$comment_body" "| 情境 | 嵌入預覽 | 驗證結果 | 影片或原始檔 |"
+assert_contains "$comment_body" "!screen.png|thumbnail!"
+assert_contains "$comment_body" "behavior.webm"
+if grep -qF '![' "$comment_body"; then
+  echo "Jira evidence body must not use GitHub Markdown image syntax" >&2
+  cat "$comment_body" >&2
+  exit 1
+fi
 
 python3 - "$manifest" <<'PY'
 import json
@@ -119,7 +128,7 @@ attachments = [
     for item in manifest.get("artifacts", [])
     if (item.get("jira_attachment") or {}).get("url")
 ]
-assert len(attachments) == 2, attachments
+assert len(attachments) >= 3, attachments
 assert all(item.get("url") for item in attachments), attachments
 PY
 
@@ -177,5 +186,8 @@ PATH="$mockbin:$PATH" "$PUBLISH" \
   --head-sha "$HEAD_SHA" \
   --pr-url "$PR_URL" >/dev/null
 assert_contains "$legacy_body" "polaris-evidence-publication:v1 ticket=$TICKET head=$HEAD_SHA"
+assert_contains "$legacy_body" "| 情境 | 嵌入預覽 | 驗證結果 | 影片或原始檔 |"
+assert_contains "$legacy_body" "![screen.png]"
+assert_contains "$legacy_body" "behavior.webm"
 
 echo "PASS: publish-delivery-evidence selftest"

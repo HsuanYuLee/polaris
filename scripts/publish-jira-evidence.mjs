@@ -305,10 +305,10 @@ function writeReportSection(file, attachments, status, reason) {
   if (attachments.length === 0) {
     body.push('No Jira attachments were published.', '');
   } else {
-    body.push('| File | Status | Jira URL |', '|------|--------|----------|');
+    body.push('| File | Status | Jira URL | Jira preview |', '|------|--------|----------|--------------|');
     for (const attachment of attachments) {
       const href = attachment.url ? `[${attachment.filename}](${attachment.url})` : attachment.filename;
-      body.push(`| ${attachment.filename} | \`${attachment.status}\` | ${href} |`);
+      body.push(`| ${attachment.filename} | \`${attachment.status}\` | ${href} | ${jiraPreviewForAttachment(attachment)} |`);
     }
     body.push('');
   }
@@ -329,6 +329,19 @@ function escapeRegExp(value) {
 
 function timestamp() {
   return new Date().toISOString().replace(/\.\d{3}Z$/u, 'Z');
+}
+
+function jiraPreviewForAttachment(attachment) {
+  const filename = attachment.filename || 'attachment';
+  const mimeType = String(attachment.mimeType || '').toLowerCase();
+  const extension = path.extname(filename).toLowerCase();
+  if (mimeType.startsWith('image/') || ['.png', '.jpg', '.jpeg', '.gif', '.webp'].includes(extension)) {
+    return `!${filename}|thumbnail!`;
+  }
+  if (mimeType.startsWith('video/') || ['.webm', '.mp4', '.mov', '.m4v'].includes(extension)) {
+    return attachment.url ? `[${filename}|${attachment.url}]` : filename;
+  }
+  return attachment.url ? `[${filename}|${attachment.url}]` : filename;
 }
 
 function fail(message, code = 1) {

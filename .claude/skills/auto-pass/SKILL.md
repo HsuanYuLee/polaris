@@ -112,6 +112,14 @@ evidence；sibling tasks、V tasks、verification disposition、source status、
 closeout 仍未完成時不得宣告 source complete。terminal `complete` 最低條件以
 `.claude/skills/references/auto-pass-execution-flow.md` § Terminal Complete Sequence 為準。
 
+terminal `complete` 也必須保留 delivery 可檢視性：required implementation work items
+必須有 non-draft workspace PR，且 completion gate / report 能列出 PR URL 與遠端可見的
+evidence publication URL 或 marker。合法 marker 由 evidence-producing skill 寫入：
+`polaris-evidence-publication:v1`、`polaris-verify-report:v1` 或
+`polaris-jira-evidence:v1`。`auto-pass` 只能透過 runner / probe 檢查 current marker 與
+report state；不得直接呼叫 GitHub / JIRA API、`publish-delivery-evidence.sh` 或
+`publish-jira-evidence.mjs` 來發表佐證。
+
 ## Friction Log Capture (pointer)
 
 orchestration 過程中的繞道、deterministic gap、手動補位、env bypass、validator/contract
