@@ -7,32 +7,40 @@
 # durable audit evidence that the orchestrator re-dispatched the same stage
 # after an inner skill HALT signal rather than terminal-stopping.
 #
+# DP-246 T2: --evidence-id is now REQUIRED. Callers must pass a stable
+# transition-key such as "<source>:<from>-><to>:<seq>" to guarantee idempotency.
+# Duplicate evidence_id for the same transition -> silent exit 0 (no increment).
+#
 # Usage:
 #   scripts/auto-pass-increment-counter.sh <ledger.json> \
 #     --transition <engineering_to_breakdown|breakdown_to_refinement_inbox|verify_ac_to_engineering> \
+#     --evidence-id <stable-transition-key> \
 #     [--stage <stage>] \
 #     [--summary "<override summary>"]
 #
 # Exit:
 #   0 success (counter incremented; friction appended only when threshold crossed)
-#   1 invalid input
+#   0 duplicate evidence-id (idempotent no-op; counter and friction unchanged)
+#   1 invalid input / missing --evidence-id
 #   2 ledger missing or unreadable
 
 set -euo pipefail
 
 LEDGER=""
 TRANSITION=""
+EVIDENCE_ID=""
 STAGE="engineering"
 SUMMARY_OVERRIDE=""
 
 usage() {
-  sed -n '3,18p' "$0" >&2
+  sed -n '3,27p' "$0" >&2
   exit 1
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --transition) TRANSITION="${2:-}"; shift 2 ;;
+    --evidence-id) EVIDENCE_ID="${2:-}"; shift 2 ;;
     --stage) STAGE="${2:-}"; shift 2 ;;
     --summary) SUMMARY_OVERRIDE="${2:-}"; shift 2 ;;
     --help|-h) usage ;;
@@ -53,6 +61,12 @@ if [[ -z "$LEDGER" || -z "$TRANSITION" ]]; then
   usage
 fi
 
+# DP-246 AC-NEG2: --evidence-id is required; no ENV bypass allowed.
+if [[ -z "$EVIDENCE_ID" ]]; then
+  echo "POLARIS_COUNTER_EVIDENCE_ID_REQUIRED: --evidence-id is required (DP-246 AC-NEG2)" >&2
+  exit 1
+fi
+
 case "$TRANSITION" in
   engineering_to_breakdown|breakdown_to_refinement_inbox|verify_ac_to_engineering) ;;
   *) echo "ERROR: --transition must be one of engineering_to_breakdown|breakdown_to_refinement_inbox|verify_ac_to_engineering" >&2; exit 1 ;;
@@ -68,13 +82,14 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRICTION_HELPER="$SCRIPT_DIR/append-auto-pass-friction.sh"
 
-CROSSED="$(python3 - "$LEDGER" "$TRANSITION" <<'PY'
+CROSSED="$(python3 - "$LEDGER" "$TRANSITION" "$EVIDENCE_ID" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 ledger_path = Path(sys.argv[1])
 transition = sys.argv[2]
+evidence_id = sys.argv[3]
 
 try:
     ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
@@ -91,9 +106,33 @@ if counters is None:
 elif not isinstance(counters, dict):
     sys.exit("ERROR: ledger.loop_counters must be an object")
 
-previous = int(counters.get(transition, 0))
+# Migrate legacy integer shape to new {count, evidence_ids[]} shape.
+# Backwards compat: if the value is a plain int, treat it as count=N, evidence_ids=[].
+existing = counters.get(transition)
+if existing is None:
+    entry = {"count": 0, "evidence_ids": []}
+elif isinstance(existing, int):
+    # Legacy integer format — migrate to new shape, preserving count.
+    entry = {"count": existing, "evidence_ids": []}
+elif isinstance(existing, dict):
+    entry = existing
+    if "count" not in entry:
+        entry["count"] = 0
+    if "evidence_ids" not in entry:
+        entry["evidence_ids"] = []
+else:
+    sys.exit(f"ERROR: loop_counters.{transition} has unexpected type: {type(existing)}")
+
+# DP-246 AC2: duplicate evidence_id -> silent exit 0 (idempotent no-op).
+if evidence_id in entry["evidence_ids"]:
+    print("DUPLICATE")
+    sys.exit(0)
+
+previous = entry["count"]
 current = previous + 1
-counters[transition] = current
+entry["count"] = current
+entry["evidence_ids"].append(evidence_id)
+counters[transition] = entry
 
 tmp = ledger_path.with_suffix(ledger_path.suffix + ".tmp")
 tmp.write_text(json.dumps(ledger, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -106,6 +145,13 @@ tmp.replace(ledger_path)
 print("1" if previous == 1 else "0")
 PY
 )"
+
+if [[ "$CROSSED" == "DUPLICATE" ]]; then
+  if [[ "${POLARIS_FRICTION_DEBUG:-0}" == "1" ]]; then
+    echo "auto-pass-increment-counter: NOOP (duplicate evidence-id: $EVIDENCE_ID)" >&2
+  fi
+  exit 0
+fi
 
 if [[ "$CROSSED" == "1" ]]; then
   if [[ -n "$SUMMARY_OVERRIDE" ]]; then

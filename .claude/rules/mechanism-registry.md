@@ -71,6 +71,8 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | auto-pass-friction-counter | scripts/auto-pass-increment-counter.sh | script | portable | scripts/selftests/auto-pass-auto-friction-selftest.sh | governance |
 | auto-pass-friction-probe | scripts/auto-pass-probe.sh | script | portable | scripts/selftests/auto-pass-auto-friction-selftest.sh | governance |
 | auto-pass-friction-gate-adapter | scripts/gate-hook-adapter.sh | script | portable | scripts/selftests/auto-pass-auto-friction-selftest.sh | governance |
+| counter-idempotency | scripts/auto-pass-increment-counter.sh | script | portable | scripts/selftests/auto-pass-increment-counter-idempotency-selftest.sh | governance |
+| counter-race-recovery | scripts/auto-pass-counter-race-recovery.sh | script | portable | scripts/selftests/auto-pass-counter-race-recovery-selftest.sh | governance |
 
 ## Mechanism Canary Entries
 

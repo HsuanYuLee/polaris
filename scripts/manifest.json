@@ -101,11 +101,21 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/auto-pass-counter-race-recovery.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "description": "DP-246 T3 canonical surgical recovery for loop_cap_reached ledgers with over-incremented counters due to race conditions; terminal-only helper with 24h rate-limit.",
+      "selftest": "scripts/selftests/auto-pass-counter-race-recovery-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/auto-pass-increment-counter.sh",
       "kind": "writer",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
-      "selftest": "scripts/selftests/auto-pass-auto-friction-selftest.sh",
+      "selftest": "scripts/selftests/auto-pass-increment-counter-idempotency-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },
@@ -2345,6 +2355,17 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/auto-pass-counter-race-recovery-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-246 T3: race-recovery selftest for auto-pass-counter-race-recovery.sh (AC3, AC-NEG3, AC-NEG4)."
+    },
+    {
       "path": "scripts/selftests/auto-pass-auto-friction-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2363,6 +2384,17 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/auto-pass-increment-counter-idempotency-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-246 T2: idempotency selftest for auto-pass-increment-counter.sh --evidence-id contract."
     },
     {
       "path": "scripts/selftests/auto-pass-friction-log-selftest.sh",
@@ -2697,6 +2729,17 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/escalations-producer-registration-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-246-T1: validates evidence-producers.json escalations/ glob registration for engineering skill, covering both DP-backed and JIRA Epic-backed source types."
     },
     {
       "path": "scripts/selftests/external-write-language-preflight-selftest.sh",
@@ -3071,6 +3114,17 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/polaris-pr-create-bash3-gh-args-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-246-T4 bash 3.2 safe-expansion selftest for GH_ARGS in polaris-pr-create.sh."
     },
     {
       "path": "scripts/selftests/polaris-toolchain-selftest.sh",

@@ -339,19 +339,52 @@ loop_counters = ledger.get("loop_counters")
 # must be promoted to terminal_status=loop_cap_reached by the orchestrator;
 # the validator surfaces the cap violation as an error so it cannot keep
 # looping silently.
+#
+# DP-246 T2: loop_counters values may be either:
+#   - legacy integer shape: N  (backward compat; still accepted)
+#   - new object shape: {"count": N, "evidence_ids": [...]}
+# Both shapes are valid. The validator extracts the count from either form.
 COUNTER_CAP = 3
+
+
+def _counter_count(value):
+    """Extract integer count from legacy int or new {count, evidence_ids} shape.
+    Returns (count_int_or_None, error_str_or_None)."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        if value < 0:
+            return None, "must be a non-negative integer"
+        return value, None
+    if isinstance(value, dict):
+        count = value.get("count")
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            return None, "object must have 'count' as a non-negative integer"
+        evidence_ids = value.get("evidence_ids")
+        if evidence_ids is not None and not isinstance(evidence_ids, list):
+            return None, "object 'evidence_ids' must be an array when present"
+        if isinstance(evidence_ids, list):
+            for idx, eid in enumerate(evidence_ids):
+                if not isinstance(eid, str):
+                    return None, f"evidence_ids[{idx}] must be a string"
+        return count, None
+    return None, "must be a non-negative integer or {count, evidence_ids[]} object"
+
+
 if loop_counters is not None:
     if not isinstance(loop_counters, dict):
         errors.append("loop_counters must be an object")
     else:
         for key in ("engineering_to_breakdown", "breakdown_to_refinement_inbox"):
             value = loop_counters.get(key)
-            if not isinstance(value, int) or value < 0:
-                errors.append(f"loop_counters.{key} must be a non-negative integer")
+            if value is None:
+                # Key absent is fine — treated as 0.
                 continue
-            if value > COUNTER_CAP and terminal_status != "loop_cap_reached":
+            count, err = _counter_count(value)
+            if err is not None:
+                errors.append(f"loop_counters.{key}: {err}")
+                continue
+            if count > COUNTER_CAP and terminal_status != "loop_cap_reached":
                 errors.append(
-                    f"loop_counters.{key}={value} exceeds cap={COUNTER_CAP}; "
+                    f"loop_counters.{key}={count} exceeds cap={COUNTER_CAP}; "
                     f"terminal_status must be loop_cap_reached"
                 )
 

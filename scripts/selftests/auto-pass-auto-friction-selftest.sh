@@ -51,18 +51,36 @@ JSON
 
 count_friction() {
   local ledger="$1"
-  python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(len(d.get('friction_log',[])))" "$ledger"
+  python3 - "$ledger" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+print(len(d.get('friction_log', [])))
+PY
 }
 
 last_kind() {
   local ledger="$1"
-  python3 -c "import json,sys; d=json.load(open(sys.argv[1])); fl=d.get('friction_log',[]); print(fl[-1]['friction_kind'] if fl else 'NONE')" "$ledger"
+  python3 - "$ledger" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+fl = d.get('friction_log', [])
+print(fl[-1]['friction_kind'] if fl else 'NONE')
+PY
 }
 
 get_counter() {
   local ledger="$1"
   local key="$2"
-  python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(d.get('loop_counters',{}).get(sys.argv[2],0))" "$ledger" "$key"
+  python3 - "$ledger" "$key" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+val = d.get('loop_counters', {}).get(sys.argv[2], 0)
+# New schema stores {count, evidence_ids[]}; legacy stores plain int.
+if isinstance(val, dict):
+    print(val.get('count', 0))
+else:
+    print(val)
+PY
 }
 
 # ------------------------------------------------------------------
@@ -173,8 +191,8 @@ fi
 # ------------------------------------------------------------------
 LEDGER6="$WORKDIR/case6-ledger.json"
 new_ledger "$LEDGER6"
-bash "$COUNTER_HELPER" "$LEDGER6" --transition engineering_to_breakdown --stage engineering >/dev/null
-bash "$COUNTER_HELPER" "$LEDGER6" --transition engineering_to_breakdown --stage engineering >/dev/null
+bash "$COUNTER_HELPER" "$LEDGER6" --transition engineering_to_breakdown --evidence-id "DP-999:engineering->breakdown:1" --stage engineering >/dev/null
+bash "$COUNTER_HELPER" "$LEDGER6" --transition engineering_to_breakdown --evidence-id "DP-999:engineering->breakdown:2" --stage engineering >/dev/null
 C6_KIND=$(last_kind "$LEDGER6")
 C6_COUNT=$(count_friction "$LEDGER6")
 C6_CTR=$(get_counter "$LEDGER6" engineering_to_breakdown)
@@ -189,7 +207,7 @@ fi
 # ------------------------------------------------------------------
 LEDGER7="$WORKDIR/case7-ledger.json"
 new_ledger "$LEDGER7"
-bash "$COUNTER_HELPER" "$LEDGER7" --transition breakdown_to_refinement_inbox --stage breakdown >/dev/null
+bash "$COUNTER_HELPER" "$LEDGER7" --transition breakdown_to_refinement_inbox --evidence-id "DP-999:breakdown->refinement_inbox:1" --stage breakdown >/dev/null
 C7_COUNT=$(count_friction "$LEDGER7")
 C7_CTR=$(get_counter "$LEDGER7" breakdown_to_refinement_inbox)
 if [[ "$C7_COUNT" == "0" && "$C7_CTR" == "1" ]]; then
@@ -203,9 +221,9 @@ fi
 # ------------------------------------------------------------------
 LEDGER8="$WORKDIR/case8-ledger.json"
 new_ledger "$LEDGER8"
-bash "$COUNTER_HELPER" "$LEDGER8" --transition engineering_to_breakdown --stage engineering >/dev/null  # 0->1
-bash "$COUNTER_HELPER" "$LEDGER8" --transition engineering_to_breakdown --stage engineering >/dev/null  # 1->2 (emits)
-bash "$COUNTER_HELPER" "$LEDGER8" --transition engineering_to_breakdown --stage engineering >/dev/null  # 2->3 (no emit)
+bash "$COUNTER_HELPER" "$LEDGER8" --transition engineering_to_breakdown --evidence-id "DP-999:engineering->breakdown:1" --stage engineering >/dev/null  # 0->1
+bash "$COUNTER_HELPER" "$LEDGER8" --transition engineering_to_breakdown --evidence-id "DP-999:engineering->breakdown:2" --stage engineering >/dev/null  # 1->2 (emits)
+bash "$COUNTER_HELPER" "$LEDGER8" --transition engineering_to_breakdown --evidence-id "DP-999:engineering->breakdown:3" --stage engineering >/dev/null  # 2->3 (no emit)
 C8_COUNT=$(count_friction "$LEDGER8")
 C8_CTR=$(get_counter "$LEDGER8" engineering_to_breakdown)
 if [[ "$C8_COUNT" == "1" && "$C8_CTR" == "3" ]]; then

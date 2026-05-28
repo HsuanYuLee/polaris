@@ -62,8 +62,8 @@ DP-backed source 的 container 為 `design-plans/DP-NNN-*/`；JIRA Epic-backed s
     }
   ],
   "loop_counters": {
-    "engineering_to_breakdown": 0,
-    "breakdown_to_refinement_inbox": 0
+    "engineering_to_breakdown": {"count": 0, "evidence_ids": []},
+    "breakdown_to_refinement_inbox": {"count": 0, "evidence_ids": []}
   },
   "drift_retry": {},
   "pre_dispatch_stash": null,
@@ -108,8 +108,8 @@ DP-backed source 的 container 為 `design-plans/DP-NNN-*/`；JIRA Epic-backed s
   "task_snapshot": [],
   "stage_events": [],
   "loop_counters": {
-    "engineering_to_breakdown": 0,
-    "breakdown_to_refinement_inbox": 0
+    "engineering_to_breakdown": {"count": 0, "evidence_ids": []},
+    "breakdown_to_refinement_inbox": {"count": 0, "evidence_ids": []}
   },
   "drift_retry": {},
   "pre_dispatch_stash": null,
@@ -295,6 +295,59 @@ scripts/append-auto-pass-friction.sh /absolute/path/to/ledger.json \
 
 helper 保證 atomic write、enum 驗證與 soft-limit warning；validator 在
 ledger validation 中會 surface 過長 summary 的 WARNING，但不變更 exit code。
+
+## Loop Counters Schema (DP-246)
+
+`loop_counters` 追蹤各 transition 的重試次數，用來觸發 friction log 與 cap enforcement。
+
+### 新 object shape（DP-246 T2）
+
+DP-246 後 `loop_counters` 每個 transition key 使用 object shape，取代舊 integer：
+
+```json
+"loop_counters": {
+  "engineering_to_breakdown": {
+    "count": 2,
+    "evidence_ids": ["DP-NNN:engineering->breakdown:1", "DP-NNN:engineering->breakdown:2"]
+  },
+  "breakdown_to_refinement_inbox": {"count": 0, "evidence_ids": []}
+}
+```
+
+- `count`：非負整數，代表已發生的 transition 次數。
+- `evidence_ids[]`：字串陣列，每個元素是呼叫 `auto-pass-increment-counter.sh` 時傳入的 `--evidence-id`；重複 id 代表同一次邏輯 transition，helper 靜默 exit 0（idempotent no-op）。
+
+### --evidence-id 命名規範
+
+Caller 必須以 **stable transition-key** 構造 `--evidence-id`，避免同一邏輯 transition 因不同 caller
+context 產生不同 id。建議格式：
+
+```
+<source_id>:<from_stage>-><to_stage>:<seq>
+```
+
+範例：`DP-246:engineering->breakdown:1`、`EPIC-500:breakdown->refinement_inbox:1`。
+
+### 舊 integer shape（backward compat）
+
+legacy ledger 的 `loop_counters` 仍可使用純整數值（如 `"engineering_to_breakdown": 1`）；
+validator 與 helper 均向後兼容，integer 值被視為 `count=N, evidence_ids=[]`。
+新 ledger 應使用 object shape。
+
+### Counter 寫入
+
+只能透過 `scripts/auto-pass-increment-counter.sh` 寫入，且 `--evidence-id` 為必填：
+
+```bash
+scripts/auto-pass-increment-counter.sh "$AUTO_PASS_LEDGER_PATH" \
+  --transition engineering_to_breakdown \
+  --evidence-id "DP-NNN:engineering->breakdown:1" \
+  [--stage engineering] \
+  [--summary "override summary"]
+```
+
+缺 `--evidence-id` 時 helper 以 exit 1 + stderr `POLARIS_COUNTER_EVIDENCE_ID_REQUIRED` fail-stop；
+不讀取任何 bypass 環境變數。
 
 ## Dispatch Stash Fields
 

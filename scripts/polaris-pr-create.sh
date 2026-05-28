@@ -439,7 +439,7 @@ create_pr_and_assign() {
   output_file="$(mktemp -t polaris-pr-create.XXXXXX)"
   set +e
   if declare -F polaris_github_pr_create_cli >/dev/null 2>&1; then
-    polaris_github_pr_create_cli "$output_file" "${GH_ARGS[@]}"
+    polaris_github_pr_create_cli "$output_file" "${GH_ARGS[@]+"${GH_ARGS[@]}"}"
     rc=$?
   else
     echo "$PREFIX ✗ BLOCKED: GitHub PR create helper is unavailable." >&2

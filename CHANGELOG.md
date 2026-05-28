@@ -4,6 +4,26 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.127] - 2026-05-28
+
+### Fixed — DP-246 auto-pass finalize-tail framework hotfix bundle
+
+四項 hotfix，打包為一個 aggregate bundle PR：
+
+- **T1 — escalations producer registration**：補全 `scripts/lib/evidence-producers.json` 中
+  缺漏的 escalations producer entry，並新增 `selftests/escalations-producer-registration-selftest.sh`
+  確保 registry 完整性。同步更新 `mechanism-registry.md` 新增 `counter-idempotency` 與
+  `counter-race-recovery` 兩條 runtime annotation。
+- **T2 — auto-pass increment counter idempotency**：`scripts/auto-pass-increment-counter.sh`
+  加入 idempotency guard，防止同一 `{dp_id}/{run_id}` 組合被多次計數；
+  新增 `selftests/auto-pass-increment-counter-idempotency-selftest.sh`（224 行）覆蓋邊界情境。
+- **T3 — counter race-recovery helper**：新增 `scripts/auto-pass-counter-race-recovery.sh`
+  提供 orphan counter 偵測與清理機制；新增 `selftests/auto-pass-counter-race-recovery-selftest.sh`
+  （348 行）全面覆蓋競態恢復情境。
+- **T4 — polaris-pr-create.sh Bash 3.2 compatibility**：修正 macOS Bash 3.2 下 `readarray`
+  不可用的問題，改用 `while read` 替代；新增 `selftests/polaris-pr-create-bash3-gh-args-selftest.sh`
+  驗證 gh args 在 Bash 3.2 環境正確組合。
+
 ## [3.75.126] - 2026-05-27
 
 ### Fixed — DP-241 Slack URL boundary clarification

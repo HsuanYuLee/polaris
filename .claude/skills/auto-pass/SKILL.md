@@ -387,8 +387,13 @@ Counter 寫入專用 helper：
 ```bash
 scripts/auto-pass-increment-counter.sh "$AUTO_PASS_LEDGER_PATH" \
   --transition <engineering_to_breakdown|breakdown_to_refinement_inbox|verify_ac_to_engineering> \
+  --evidence-id "<source_id>:<from_stage>-><to_stage>:<seq>" \
   --stage <stage>
 ```
+
+`--evidence-id` 是必填參數（DP-246 AC-NEG2）；建議使用穩定的轉換鍵，例如
+`"DP-246:engineering->breakdown:1"`。重複 evidence_id 會 silent exit 0（冪等
+no-op），確保同一 retry 不會重複計數。
 
 counter 1→2 transition 會自動 append `inner_skill_halt_bypass` friction；orchestrator
 仍是 transition 寫入的唯一 caller，但不再需要分別呼叫 counter writer 與 friction
@@ -427,6 +432,40 @@ inner skill session 把 mutation 寫到自己 owning scope 之外：
 bypass env（`POLARIS_LANGUAGE_POLICY_BYPASS`、`POLARIS_SKILL_BOUNDARY_BYPASS`）在
 boundary gate 中無效（AC-NEG16）；amendment loop 與 LOCKED scope guard 共用此
 gate 作為 cross-skill mutation 保護層。
+
+## Counter Race-Recovery (DP-246)
+
+當 `auto-pass` 以 `terminal_status=loop_cap_reached` 收尾，但有證據顯示計數器因競爭條件（重複
+orchestration session 在沒有 idempotency guard 的情況下寫入同一 transition）被過度累加時，
+可使用 canonical 外科手術恢復路徑：
+
+```bash
+bash scripts/auto-pass-counter-race-recovery.sh \
+  --source-id {SOURCE_ID} \
+  --prior-ledger /absolute/path/to/prior-ledger.json \
+  [--repo /absolute/path/to/repo-root]
+```
+
+**此 helper 是 terminal-only**。**禁止在主動 orchestration loop 中呼叫**；否則會繞過 cap
+enforcement，導致 runaway retry。
+
+Helper 驗證三條 precondition，任一失敗即 exit 1 + stderr `POLARIS_COUNTER_RECOVERY_PRECONDITION_FAILED`：
+
+| Precondition | 說明 |
+|-------------|------|
+| (a) | 前 ledger `terminal_status == loop_cap_reached` |
+| (b) | `friction_log[]` 含至少一筆 `inner_skill_halt_bypass` / `stage_retry` 條目 |
+| (c) | `stage_events` 計算的 actual back-edge 次數 < cap（3） |
+
+成功時：
+- 建立新 ledger，`loop_counters` 從 actual back-edge 數重算；舊 `evidence_ids[]` 搬過來作為
+  已認帳（不重複計）。
+- `terminal_status` 清為 `null`（讓 orchestrator 可重新 dispatch）。
+- `stage_events` 寫入 `COUNTER_RACE_RECOVERY` audit 條目，包含 prior ledger path 與新舊計數。
+- 同 source 24h 內只能執行一次（stamp 儲存在 `{source_container}/.polaris/counter-race-recovery-last.json`）。
+
+Recovery 完成後，以新 ledger 路徑繼續 `auto-pass {SOURCE_ID} resume`；orchestrator 會沿用
+原 ledger 的 snapshot 與 drift_retry，不會重置 loop state。
 
 ## Terminal Boundary
 

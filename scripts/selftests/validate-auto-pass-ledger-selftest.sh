@@ -442,4 +442,74 @@ JIRA_OVERBROAD="$TMP/jira-overbroad-consent.json"
 write_jira_ledger "$JIRA_OVERBROAD" EXAMPLE-999 "$JIRA_SOURCE" "$JIRA_HASH" "true" "true" "false"
 expect_fail "jira-overbroad-consent-excludes" "$VALIDATOR" "$JIRA_OVERBROAD" --source-container "$JIRA_SOURCE" --source-id EXAMPLE-999
 
+# DP-246 T2: loop_counters new object shape {count, evidence_ids[]} is accepted.
+OBJECT_COUNTERS="$TMP/object-counters.json"
+cp "$VALID" "$OBJECT_COUNTERS"
+python3 - "$OBJECT_COUNTERS" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["loop_counters"] = {
+    "engineering_to_breakdown": {"count": 1, "evidence_ids": ["DP-999:engineering->breakdown:1"]},
+    "breakdown_to_refinement_inbox": {"count": 0, "evidence_ids": []},
+}
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+"$VALIDATOR" "$OBJECT_COUNTERS" --source-container "$SOURCE" --source-id DP-999
+
+# DP-246 T2: legacy integer shape is still accepted (backward compat).
+LEGACY_INT_COUNTERS="$TMP/legacy-int-counters.json"
+cp "$VALID" "$LEGACY_INT_COUNTERS"
+python3 - "$LEGACY_INT_COUNTERS" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["loop_counters"] = {
+    "engineering_to_breakdown": 1,
+    "breakdown_to_refinement_inbox": 0,
+}
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+"$VALIDATOR" "$LEGACY_INT_COUNTERS" --source-container "$SOURCE" --source-id DP-999
+
+# DP-246 T2: object shape with invalid count type should fail.
+INVALID_OBJECT_COUNT="$TMP/invalid-object-count.json"
+cp "$VALID" "$INVALID_OBJECT_COUNT"
+python3 - "$INVALID_OBJECT_COUNT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["loop_counters"] = {
+    "engineering_to_breakdown": {"count": "not-an-int", "evidence_ids": []},
+}
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+expect_fail "object-counters-invalid-count-type" "$VALIDATOR" "$INVALID_OBJECT_COUNT" --source-container "$SOURCE" --source-id DP-999
+
+# DP-246 T2: object shape with non-string evidence_id entry should fail.
+INVALID_EVIDENCE_TYPE="$TMP/invalid-evidence-type.json"
+cp "$VALID" "$INVALID_EVIDENCE_TYPE"
+python3 - "$INVALID_EVIDENCE_TYPE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["loop_counters"] = {
+    "engineering_to_breakdown": {"count": 1, "evidence_ids": [123]},
+}
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+expect_fail "object-counters-invalid-evidence-type" "$VALIDATOR" "$INVALID_EVIDENCE_TYPE" --source-container "$SOURCE" --source-id DP-999
+
 echo "PASS: validate-auto-pass-ledger selftest"
