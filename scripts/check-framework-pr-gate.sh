@@ -7,6 +7,7 @@ LINT_REFERENCE_LINE_COUNT="${POLARIS_LINT_REFERENCE_LINE_COUNT_BIN:-scripts/lint
 CHECK_QUARANTINE="${POLARIS_CHECK_QUARANTINE_BIN:-scripts/check-quarantine-duplication.sh}"
 VALIDATE_SPEC_SOURCE_PARITY="${POLARIS_VALIDATE_SPEC_SOURCE_PARITY_BIN:-scripts/validate-spec-source-parity.sh}"
 GATE_TEMPLATE_LEAKS="${POLARIS_GATE_TEMPLATE_LEAKS_BIN:-scripts/gates/gate-template-leaks.sh}"
+LINT_BASH_VAR_UTF8_BOUNDARY="${POLARIS_LINT_BASH_VAR_UTF8_BOUNDARY_BIN:-scripts/lint-bash-variable-utf8-boundary.sh}"
 
 run_gate() {
   local label="$1"
@@ -28,5 +29,11 @@ run_gate "W5 spec source parity" "$VALIDATE_SPEC_SOURCE_PARITY"
 # files BEFORE the workspace PR is opened, instead of only at sync-to-polaris
 # post-merge.
 run_gate "W6 template leaks (workspace)" "$GATE_TEMPLATE_LEAKS"
+# W7: bash $VAR<non-ASCII byte> boundary lint (DP-255).
+# Catches `$foo<CJK fullwidth punct>` patterns where bash variable expansion
+# under `set -u` parses the multi-byte UTF-8 continuation byte as identifier
+# continuation, triggering unbound-variable crashes. Forces brace-delimited
+# form `${VAR}<punct>`.
+run_gate "W7 bash \$VAR UTF-8 boundary" "$LINT_BASH_VAR_UTF8_BOUNDARY"
 
 echo "PASS: framework PR gate"

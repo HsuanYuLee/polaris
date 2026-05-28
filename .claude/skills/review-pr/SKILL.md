@@ -3,11 +3,14 @@ name: review-pr
 description: >
   Review someone else's PR as a code reviewer: read the PR diff, check against
   .claude/rules, leave inline comments on issues found, and submit a review with
-  APPROVE or REQUEST_CHANGES. Use when: (1) user says "review PR", "review 這個 PR",
-  "幫我 review", "review for me", "code review", (2) user shares a PR URL and asks
-  to review it, (3) user says "看一下這個 PR", "take a look at this PR", "檢查 PR",
-  "check this PR", "review pull request". This skill is
-  for REVIEWING someone else's code — not for fixing review comments on your own PR
+  APPROVE or REQUEST_CHANGES. Use when the user asks the assistant to review a
+  PR (subject omitted or = self), e.g.: "review PR", "review 這個 PR",
+  "review 此 PR", "review 該 PR", "幫我 review 這個 PR" (without team subject),
+  "review for me", "code review", or shares a PR URL with self-directed review
+  intent. NOT for "請<同仁/大家/人名>幫我 review" (subject = others) — that is
+  催 review, route to check-pr-approvals. NOT for "review 大家的 PR" / "掃 PR"
+  (object = others' PRs) — route to review-inbox. NOT for fixing review comments
+  on your own PR — route to engineering revision mode.
   (use engineering revision mode for that).
 metadata:
   author: Polaris

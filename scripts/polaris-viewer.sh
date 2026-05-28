@@ -43,7 +43,7 @@ while [[ $# -gt 0 ]]; do
     --mode)
       MODE="${2:-}"
       if [[ "$MODE" != "dev" && "$MODE" != "preview" ]]; then
-        echo "無效的 --mode 值：$MODE（預期 dev 或 preview）" >&2
+        echo "無效的 --mode 值：${MODE}（預期 dev 或 preview）" >&2
         exit 1
       fi
       shift 2

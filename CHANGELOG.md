@@ -4,6 +4,32 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.131] - 2026-05-28
+
+### Fixed — DP-255 skill routing precision + framework script UTF-8 safety
+
+- `.claude/rules/skill-routing.md`：`review-pr` trigger 改為主語 anchoring
+  （主語省略或主語=self），`check-pr-approvals` trigger 補入常見催 review phrasing
+  （請同仁/大家 review、找人 review、請\[人名\]幫我 review、催 PR）。Anti-Patterns
+  新增「中文『請\[主語\]幫我 X』」主語盲點規則。
+- `.claude/skills/review-pr/SKILL.md` 與 `.claude/skills/check-pr-approvals/SKILL.md`
+  frontmatter description 同步反映上述 boundary。
+- `.claude/skills/check-pr-approvals/scripts/rebase-pr-branch.sh` 與
+  `scripts/polaris-viewer.sh` 修正 `$VAR<中文全形標點>` 寫法，改為
+  `${VAR}<標點>`，消除 bash `set -u` 在 UTF-8 多 byte 邊界觸發 `unbound variable`
+  crash 的根源。
+
+### Added — DP-255 deterministic gate
+
+- 新增 `scripts/lint-bash-variable-utf8-boundary.sh` + selftest，掃 `.claude/**/*.sh`
+  與 `scripts/**/*.sh` 內 `$VAR<非 ASCII byte>` pattern，違反輸出
+  `POLARIS_BASH_VAR_UTF8_BOUNDARY` token、exit 2。
+- 新增 `scripts/selftests/skill-routing-subject-aware-selftest.sh` + utterance
+  fixture（18 條 case 涵蓋 AC1 / AC2 / AC-NEG3）。
+- `scripts/check-framework-pr-gate.sh` 加入 W7 lint gate；
+  `.claude/rules/mechanism-registry.md` Runtime Annotation Registry 新增
+  `bash-var-utf8-boundary-lint` 與 `skill-routing-subject-aware` 兩 row。
+
 ## [3.75.130] - 2026-05-28
 
 ### Changed — DP-253 auto-pass evidence preview publication contract

@@ -1600,6 +1600,15 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/lint-bash-variable-utf8-boundary.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_bash_utf8_safety",
+      "selftest": "scripts/selftests/lint-bash-variable-utf8-boundary-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/lint-reference-line-count.sh",
       "kind": "gate",
       "runner": "bash",

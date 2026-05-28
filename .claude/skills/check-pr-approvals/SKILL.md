@@ -1,6 +1,6 @@
 ---
 name: check-pr-approvals
-description: "掃描使用者的 open PR，偵測 CI 狀態、未回覆 review comments、approval 數量，分類為三種狀態（可催/需修/已達標）後由使用者選擇催 review 或手動修正。Trigger: '我的 PR', 'check PR approvals', 'PR 狀態', '催 review', 'PR 被 approve 了嗎', '幫我掃我的 PR'."
+description: "掃描使用者的 open PR，偵測 CI 狀態、未回覆 review comments、approval 數量，分類為三種狀態（可催/需修/已達標）後由使用者選擇催 review 或手動修正。Trigger: '我的 PR', 'check PR approvals', 'PR 狀態', '催 review', '催 PR', 'PR 被 approve 了嗎', '幫我掃我的 PR', '請同仁 review', '請同仁幫我 review', '請大家 review', '請大家幫我 review', '請大家幫忙看一下', '找人 review', '找誰 review', '請[人名/角色]幫我 review', '請[人名/角色]幫忙看 PR'. 主語為同仁/大家/人名/角色的「請X幫我 review」屬於催 review 範疇，不要 route 到 review-pr。"
 metadata:
   author: ""
   version: 2.1.0

@@ -145,7 +145,7 @@ if [ -n "$ORG" ]; then
     if git checkout "$base" 2>/dev/null; then
       if git rebase "origin/$upstream" 2>/dev/null; then
         if [ "$DRY_RUN" = true ]; then
-          echo "  ✅ Cascade: $repo $base rebased onto $upstream（dry-run: skipped push）" >&2
+          echo "  ✅ Cascade: ${repo} ${base} rebased onto ${upstream}（dry-run: skipped push）" >&2
         elif git push --force-with-lease 2>/dev/null; then
           echo "  ✅ Cascade: $repo $base rebased + pushed onto $upstream" >&2
         else
@@ -266,17 +266,17 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
       if git rebase "origin/$effective_base" 2>/dev/null; then
         if [ "$DRY_RUN" = true ]; then
           rebase_status="success"
-          rebase_detail="rebase 成功（shared PR state base=$effective_base；dry-run: skipped push）"
+          rebase_detail="rebase 成功（shared PR state base=${effective_base}；dry-run: skipped push）"
           success_count=$((success_count + 1))
           echo "  ✅ $repo #$number — $rebase_detail" >&2
         elif git push --force-with-lease 2>/dev/null; then
           rebase_status="success"
-          rebase_detail="rebase + push 成功（shared PR state base=$effective_base）"
+          rebase_detail="rebase + push 成功（shared PR state base=${effective_base}）"
           success_count=$((success_count + 1))
           echo "  ✅ $repo #$number — $rebase_detail" >&2
         else
           rebase_status="success"
-          rebase_detail="rebase 成功（shared PR state base=$effective_base；already up to date）"
+          rebase_detail="rebase 成功（shared PR state base=${effective_base}；already up to date）"
           success_count=$((success_count + 1))
           echo "  ✅ $repo #$number — $rebase_detail" >&2
         fi
