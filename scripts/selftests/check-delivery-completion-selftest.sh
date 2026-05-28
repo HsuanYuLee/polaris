@@ -42,11 +42,109 @@ assert_contains() {
   fi
 }
 
+write_baseline_snapshot() {
+  local repo="$1"
+  local task_md="$2"
+  local task_id="$3"
+  local head_sha="$4"
+
+  mkdir -p "$repo/.polaris/evidence/baseline-snapshot"
+  python3 - "$task_md" "$repo/.polaris/evidence/baseline-snapshot/${task_id}-${head_sha}.json" "$task_id" "$head_sha" <<'PY'
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path
+
+task_path = Path(sys.argv[1])
+snapshot_path = Path(sys.argv[2])
+task_id = sys.argv[3]
+head_sha = sys.argv[4]
+
+def digest(value):
+    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+def section(text, heading):
+    marker = f"## {heading}"
+    start = text.find(marker)
+    if start == -1:
+        return ""
+    start = text.find("\n", start)
+    if start == -1:
+        return ""
+    end = text.find("\n## ", start + 1)
+    return text[start + 1:] if end == -1 else text[start + 1:end]
+
+def first_fence(block):
+    match = re.search(r"```[^\n]*\n(.*?)\n```", block, re.S)
+    return match.group(1).strip() if match else ""
+
+def table_value(text, field):
+    for raw in text.splitlines():
+        if not raw.lstrip().startswith("|"):
+            continue
+        cells = [c.strip() for c in raw.split("|")]
+        if len(cells) >= 4 and cells[1] == field:
+            return cells[2]
+    return ""
+
+def frontmatter_depends_on(text):
+    if not text.startswith("---\n"):
+        return []
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return []
+    fm = text[4:end]
+    for raw in fm.splitlines():
+        if raw.startswith("depends_on:"):
+            value = raw.split(":", 1)[1].strip()
+            if value in ("", "[]"):
+                return []
+            if value.startswith("[") and value.endswith("]"):
+                return [item.strip().strip("'\"") for item in value[1:-1].split(",") if item.strip()]
+            return [value.strip("'\"")]
+    return []
+
+def allowed_files(text):
+    values = []
+    for raw in section(text, "Allowed Files").splitlines():
+        stripped = raw.strip()
+        if stripped.startswith("- "):
+            values.append(stripped[2:].strip())
+    return values
+
+text = task_path.read_text(encoding="utf-8")
+planner_owned = {
+    "verify_command": first_fence(section(text, "Verify Command")),
+    "depends_on": frontmatter_depends_on(text),
+    "base_branch": table_value(text, "Base branch"),
+    "allowed_files": allowed_files(text),
+}
+snapshot = {
+    "schema_version": 1,
+    "writer": "check-delivery-completion-selftest",
+    "task_id": task_id,
+    "task_md": str(task_path),
+    "head_sha": head_sha,
+    "planner_owned": planner_owned,
+    "hashes": {
+        "verify_command_sha256": digest(planner_owned["verify_command"]),
+        "depends_on_sha256": digest(planner_owned["depends_on"]),
+        "base_branch_sha256": digest(planner_owned["base_branch"]),
+        "allowed_files_sha256": digest(planner_owned["allowed_files"]),
+    },
+}
+snapshot_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
 write_task() {
   local repo="$1"
   local head_sha="$2"
+  local task_md="$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-completion-gate/tasks/T1.md"
   mkdir -p "$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-completion-gate/tasks"
-  cat > "$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-completion-gate/tasks/T1.md" <<EOF
+  cat > "$task_md" <<EOF
 ---
 deliverable:
   pr_url: https://github.com/demo/example/pull/1
@@ -99,6 +197,7 @@ echo ok
 echo ok
 \`\`\`
 EOF
+  write_baseline_snapshot "$repo" "$task_md" "DP-999-T1" "$head_sha"
 }
 
 write_task_without_deliverable() {
@@ -535,6 +634,52 @@ run_case "closed-blocks" "CLOSED" "false" "valid" "2" "deliverable PR must be OP
 run_case "invalid-body-blocks" "OPEN" "false" "invalid" "2" "does not preserve repo template headings"
 run_case "english-body-blocks" "OPEN" "false" "english" "2" "PR text violates workspace language policy"
 run_case "ready-pr-passes" "OPEN" "false" "valid" "0" "PR readiness/body/language/evidence publication/review-thread gates passed"
+
+run_blocked_review_case() {
+  local label="blocked-review-does-not-block-delivery"
+  local repo="$TMPROOT/$label/repo"
+  local mockbin="$TMPROOT/$label/bin"
+  local body_file="$TMPROOT/$label/body.md"
+  mkdir -p "$(dirname "$repo")"
+  setup_repo "$repo"
+  local head_sha
+  head_sha="$(git -C "$repo" rev-parse HEAD)"
+  write_task "$repo" "$head_sha"
+  write_task_verify_report "$repo" "$repo" "$head_sha"
+
+  cat > "$body_file" <<'EOF'
+## Description
+
+這是 completion gate selftest 內容。
+
+## Changed
+
+- 補齊 completion gate 檢查。
+
+## Screenshots (Test Plan)
+
+- 已執行 selftest。
+
+## Related documents
+
+- DP-999
+
+## QA notes
+
+- N/A
+EOF
+  install_mock_gh "$mockbin" "$body_file" "OPEN" "false" "$head_sha" "" "" "polaris-selftest" "BLOCKED"
+
+  set +e
+  out="$(POLARIS_SKIP_CI_LOCAL=1 POLARIS_SKIP_EVIDENCE=1 POLARIS_SKIP_PR_TITLE_GATE=1 POLARIS_SKIP_CHANGESET_GATE=1 PATH="$mockbin:$PATH" "$CHECK" --repo "$repo" --ticket DP-999-T1 2>&1)"
+  rc=$?
+  set -e
+
+  assert_rc "$label rc" "$rc" "0"
+  assert_contains "$label message" "$out" "treating this as delivered to Code Review"
+}
+
+run_blocked_review_case
 
 run_assignee_case() {
   local label="missing-assignee-blocks"

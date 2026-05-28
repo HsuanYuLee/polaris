@@ -56,7 +56,7 @@ Missing 或 stale evidence → **halt**。不繼續 PR creation、local extensio
 Behavior contract evidence 由 `scripts/run-behavior-contract.sh` 產生；`parity` / `hybrid`
 先跑 `--mode baseline`，delivery 前跑 `--mode compare`。
 
-**Portable gate fallback**：`gate-evidence.sh` + `gate-ci-local.sh` 在 git pre-push 及 `polaris-pr-create.sh` wrapper 中也強制檢查；`gate-pr-title.sh` + `gate-changeset.sh` 在 `polaris-pr-create.sh` 與 completion gate 中強制檢查；`gate-pr-body-template.sh` 在 `polaris-pr-create.sh` 中阻擋未保留 repo template headings 的 body。Completion gate 會重新讀 deliverable 的 remote PR metadata/body，確認 PR readiness（`state=OPEN`、`isDraft=false`）、remote PR body template conformance、remote PR body language policy，以及 local visual / Playwright / behavior contract evidence 是否已發布成 PR-visible publication comment；裸 `gh pr create`、`gh pr create --draft`、PR 建立後 body drift、或 local-only 截圖/影片 evidence 都不能成為 completion endpoint。若需要人工上傳，先使用 `collect-evidence-upload-bundle.sh` 產生 `artifacts/{WORK_ITEM_ID}-pr-upload/`，再由使用者把檔案拖到 PR comment 並保留 publication marker。Skill-level check here is **L2 cross-LLM authoritative**（所有 LLM 都走 SKILL.md → 一定到這步）。Completion gate 是 hard gate，但 `awaiting_re_review`、`mergeable_ready`、`unsupported_mutation`、`stale_downstream` 等 readiness vocabulary 仍由 shared PR state authority 發號，不由單一 skill prose 決定。
+**Portable gate fallback**：`gate-evidence.sh` + `gate-ci-local.sh` 在 git pre-push 及 `polaris-pr-create.sh` wrapper 中也強制檢查；`gate-pr-title.sh` + `gate-changeset.sh` 在 `polaris-pr-create.sh` 與 completion gate 中強制檢查；`gate-pr-body-template.sh` 在 `polaris-pr-create.sh` 中阻擋未保留 repo template headings 的 body。Completion gate 會重新讀 deliverable 的 remote PR metadata/body，確認 PR readiness（`state=OPEN`、`isDraft=false`）、remote PR body template conformance、remote PR body language policy，以及 local visual / Playwright / behavior contract evidence 是否已發布成 PR-visible publication comment；裸 `gh pr create`、`gh pr create --draft`、PR 建立後 body drift、或 local-only 截圖/影片 evidence 都不能成為 completion endpoint。Review approval / GitHub mergeability 的 `blocked_review` 是 post-delivery review readiness，不阻擋 engineering closeout；merge conflict、stale base、failing CI、draft PR、缺 evidence / assignee 仍是 hard blocker。若需要人工上傳，先使用 `collect-evidence-upload-bundle.sh` 產生 `artifacts/{WORK_ITEM_ID}-pr-upload/`，再由使用者把檔案拖到 PR comment 並保留 publication marker。Skill-level check here is **L2 cross-LLM authoritative**（所有 LLM 都走 SKILL.md → 一定到這步）。Completion gate 是 hard gate，但 `awaiting_re_review`、`mergeable_ready`、`unsupported_mutation`、`stale_downstream` 等 readiness vocabulary 仍由 shared PR state authority 發號，不由單一 skill prose 決定。
 
 ### 7b. 讀 PR template
 
@@ -236,4 +236,3 @@ Helper contract：
 **Admin 模式跳過本 step**（無 ticket / task.md）。
 
 ---
-

@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.129] - 2026-05-28
+
+### Fixed — DP-254 engineering completion gate review readiness
+
+- `check-delivery-completion.sh` 現在把 GitHub shared PR state 的 `blocked_review`
+  視為 post-delivery review readiness，不再阻擋 engineering closeout 到 Code Review。
+- 保留 draft PR、head SHA mismatch、缺 evidence、缺 assignee、failing CI、stale base、
+  merge conflict 與 unresolved review thread disposition 等 hard blockers。
+- 更新 engineering delivery flow 與 deterministic hooks registry，讓跨 runtime 對
+  engineering completion 與 review approval 的邊界一致。
+
 ## [3.75.128] - 2026-05-28
 
 ### Changed — DP-237 auto-pass prompt-surface slimming + runtime runner extraction

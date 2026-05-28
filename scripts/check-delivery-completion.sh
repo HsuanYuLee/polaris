@@ -337,13 +337,30 @@ PY
     exit 2
   fi
 
+  if [[ "$ci_state" == "FAIL" ]]; then
+    echo "$PREFIX PR shared readiness check failed: ${pr_url} has failing remote CI." >&2
+    echo "$PREFIX pr_type=${pr_type:-unknown} base_freshness=${base_freshness:-unknown} ci_state=${ci_state:-unknown} readiness_reason=${readiness_reason:-unknown}." >&2
+    rm -f "$snapshot_file"
+    exit 2
+  fi
+
   case "$mergeability" in
     clean)
       ;;
-    conflict|blocked|unknown|"")
+    blocked)
+      if [[ "$readiness_reason" == "blocked_review" ]]; then
+        echo "$PREFIX PR mergeability is blocked by review state; treating this as delivered to Code Review, not an engineering completion blocker." >&2
+      else
+        echo "$PREFIX PR shared readiness check failed: ${pr_url} mergeability is ${mergeability:-unknown}." >&2
+        echo "$PREFIX pr_type=${pr_type:-unknown} base_freshness=${base_freshness:-unknown} ci_state=${ci_state:-unknown} readiness_reason=${readiness_reason:-unknown}." >&2
+        rm -f "$snapshot_file"
+        exit 2
+      fi
+      ;;
+    conflict|unknown|"")
       echo "$PREFIX PR shared readiness check failed: ${pr_url} mergeability is ${mergeability:-unknown}." >&2
       echo "$PREFIX pr_type=${pr_type:-unknown} base_freshness=${base_freshness:-unknown} ci_state=${ci_state:-unknown} readiness_reason=${readiness_reason:-unknown}." >&2
-      echo "$PREFIX Rebase or wait for GitHub mergeability to become clean before claiming completion." >&2
+      echo "$PREFIX Rebase or wait for GitHub mergeability to become known/clean before claiming completion." >&2
       rm -f "$snapshot_file"
       exit 2
       ;;

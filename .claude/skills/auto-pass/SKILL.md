@@ -100,8 +100,8 @@ next-action authority，不再重跑 probe / ledger parse / filesystem walk。st
 internal probe wrapping、recoverable HALT continue、loop cap、pause / terminal fixed-point、
 closeout chain 以 `.claude/skills/references/auto-pass-execution-flow.md` 為 canonical
 source。簡述：`next_action=dispatch` → 下一階段；`terminal` → 寫 report 進 closeout；
-`refinement_amendment` → amendment loop；`blocked` → terminal blocked。recoverable HALT
-必須自動 loop dispatch；只有 session pressure 才能寫 `pause.kind=session_handoff`，且
+`refinement_amendment` → amendment loop；`blocked` → terminal blocked。Recoverable HALT 必須繼續 dispatch，
+並自動 loop dispatch；只有 session pressure 才能寫 `pause.kind=session_handoff`，且
 `resume` 必須先跑 `scripts/validate-auto-pass-resume.sh`。
 
 ## Full Source Completion Invariant

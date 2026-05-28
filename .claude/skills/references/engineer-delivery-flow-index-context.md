@@ -35,6 +35,10 @@
 - **Framework-enforced final metadata**：PR body template / language、task-bound verify report、
   assignee final state 都是 completion authority，不是 repo side-effect 成功後可忽略的附帶條件
 - **Remote repo CI is non-blocking when still queued / pending / running**：本流程以本地 LLM + mechanism evidence 為 completion authority；不等待遠端 CI 排隊或長時間執行完畢
+- **Review approval is post-delivery readiness**：Developer delivery completion endpoint 是 PR 已開、
+  ready for review、delivery evidence 可見；GitHub mergeability 若只因 review requirement 顯示 blocked，
+  不阻擋 engineering closeout。merge conflict、stale base、failing CI、draft PR、缺 evidence / assignee
+  仍是 blocker。
 - Developer：PR 建立在正確 base branch，body 依 repo template 填充
 - Developer：JIRA 狀態轉為 CODE REVIEW（soft-fail）
 - Developer：task.md `deliverable.pr_url` + `head_sha` 寫回
