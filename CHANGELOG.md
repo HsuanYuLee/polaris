@@ -4,6 +4,18 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.132] - 2026-05-28
+
+### Fixed — DP-258 auto-pass migration completion retrofit
+
+- DP-258 retroactively ratifies bypassed-flow commits `8f33e23` and `92a0412` as
+  auto-pass migration completion: probe loop counter dual-shape handling,
+  refinement-inbox `consumed: true` filtering, derive `verify_command` priority,
+  and full-form `depends_on` emission.
+- Added focused selftests for those four behaviors so the already-landed script
+  fixes are now covered by deterministic regression evidence instead of relying
+  on the original dirty script path.
+
 ## [3.75.131] - 2026-05-28
 
 ### Fixed — DP-255 skill routing precision + framework script UTF-8 safety
