@@ -148,6 +148,28 @@ Agents must report the partial state and continue or reroute the owning workflow
 EOF
 }
 
+emit_decision_priority_principle() {
+  cat <<'EOF'
+## Decision Priority Principle
+
+所有 agent 行為（包含 strategist orchestration 與 sub-agent 內部判斷）依下列三原則決策，重要性遞減：
+
+1. **功能完整**：交付物必須真正解決所述問題，不得以裁掉必要功能換取其他屬性。
+2. **易讀**：產出（程式碼、文件、報告）必須讓接手者能直接理解，不得以晦澀換取其他屬性。
+3. **效能/簡潔**：相同前提下偏好更短、更快、更少抽象的方案。
+
+Trade-off 規則：
+
+- 三項衝突時從尾項開始放棄（先放效能/簡潔，再放易讀），第 1 項絕不放棄。
+- 不得反向：絕不為了效能或簡潔犧牲功能完整或易讀。
+
+選項判斷規則：
+
+- 當出現候選方案時，優先依本原則直接決定並交付一個方案，附 reasoning 與 tradeoff。
+- 不得把當前 skill 契約已排除的選項（forbidden_actions、consent_excludes、dispatch_boundary 之外的動作）列給使用者選，也不得寫進 self-authored report 的 `manual_items[]`、handoff prompt 或下一 session 的選項清單。違反契約的選項在 writer 端就要過濾，不應留待 reader 端再檢查。
+EOF
+}
+
 emit_rule_index() {
   echo "## Universal Rule Index"
   echo
@@ -229,6 +251,8 @@ EOF
 emit_claude() {
   emit_header "Polaris Framework Bootstrap" "claude"
   emit_core
+  emit_decision_priority_principle
+  echo
   cat <<'EOF'
 ## Claude Runtime Notes
 
@@ -251,6 +275,8 @@ EOF
 emit_agents() {
   emit_header "AGENTS" "agents"
   emit_core
+  emit_decision_priority_principle
+  echo
   cat <<'EOF'
 ## Agent Runtime Notes
 
@@ -273,6 +299,8 @@ EOF
 emit_codex() {
   emit_header "AGENTS" "codex"
   emit_core
+  emit_decision_priority_principle
+  echo
   cat <<'EOF'
 ## Codex Runtime Notes
 
@@ -295,6 +323,8 @@ EOF
 emit_copilot() {
   emit_header "Copilot Instructions - Polaris Workspace" "copilot"
   emit_core
+  emit_decision_priority_principle
+  echo
   cat <<'EOF'
 ## Copilot Runtime Notes
 

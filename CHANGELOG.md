@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.133] - 2026-05-29
+
+### Added — DP-259 decision priority constitution + local verification / self-authored prose handbook
+
+- `.claude/instructions/core/bootstrap.md` 新增 `## Decision Priority Principle` H2 section（憲法層）：三原則排序（功能完整 > 易讀 > 效能/簡潔，逐項遞減）、trade-off 從尾項放棄且第 1 項絕不放棄、選項出現時優先依本原則直接決定且不得列契約已排除的選項。
+- `scripts/compile-runtime-instructions.sh` 新增 `emit_decision_priority_principle()` heredoc 並 wire 進 `emit_claude` / `emit_agents` / `emit_codex` / `emit_copilot`，CLAUDE.md / AGENTS.md / .codex/AGENTS.md / .github/copilot-instructions.md 4 個 generated target 同步含同條文；`.codex/.generated/rules-manifest.txt` 與 `.github/.generated/copilot-rules-manifest.txt` sha 更新。
+- 新增 `.claude/rules/handbook/local-verification-first.md`（universal handbook）：所有程式碼 push remote 前須盡可能 local 驗證完整；列出期望 local 驗證項目、Why、carve-out。
+- 新增 `.claude/rules/handbook/self-authored-prose-is-not-contract.md`（universal handbook）：orchestrator self-authored prose 是 draft assertion 不是契約延伸；Writer 端寫入前過 `forbidden_actions` / `consent_excludes` / `dispatch_boundary` gate，Reader 端 resume session 對每個 enumerated option re-validate；針對 DP-240 5/29 resume incident 直接收斂。
+
 ## [3.75.132] - 2026-05-28
 
 ### Fixed — DP-258 auto-pass migration completion retrofit

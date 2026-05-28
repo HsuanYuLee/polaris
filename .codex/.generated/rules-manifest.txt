@@ -21,7 +21,7 @@ generated_at=deterministic
 .claude/rules/sub-agent-delegation.md
 
 [sha256]
-9b3d8c3bb6b29c95496ab211e24aa13107fa6dd66fbdc042784255d3c895a8de  .claude/instructions/core/bootstrap.md
+de0b163b54dce84cbde2ac78185efabb7fdaa850420c647b46bf52f1499ca2dd  .claude/instructions/core/bootstrap.md
 ae33aeb1892ff2a25933e0016cb1cf8888c7577632ad6cedba7758b398e94319  .claude/instructions/manifest.yaml
 423834d4a623e12820986b7676b7e98c3809f3f187349eb38aaaf9458fa6a598  .claude/instructions/runtime/claude.md
 5e3519bc56110e0b00c170e19d371fe2d3a30779f38c56235d7fb95803983df8  .claude/instructions/runtime/codex.md
