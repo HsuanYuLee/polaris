@@ -129,6 +129,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/auto-pass-runner.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/auto-pass-runner-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/backfill-locked-dp-changed-files.sh",
       "kind": "writer",
       "runner": "bash",
@@ -1601,6 +1610,15 @@
       "selftest_reason": "covered by DP-188 Verify Command"
     },
     {
+      "path": "scripts/lint-skill-size.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_skill_lint",
+      "selftest": "scripts/selftests/lint-skill-size-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/mark-spec-implemented.sh",
       "kind": "support",
       "runner": "bash",
@@ -2438,6 +2456,36 @@
     },
     {
       "path": "scripts/selftests/auto-pass-routing-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/auto-pass-runner-probe-parity-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/auto-pass-runner-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/auto-pass-thin-skill-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
@@ -3762,6 +3810,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "DP-201 selftest for auto-pass proof-of-work marker contract and writer governance."
+    },
+    {
+      "path": "scripts/selftests/validate-auto-pass-report-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/validate-auto-pass-resume-selftest.sh",

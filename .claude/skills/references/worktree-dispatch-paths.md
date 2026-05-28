@@ -71,4 +71,9 @@ Codex profile 無法使用時 fallback to `inherit`，並在 Completion Envelope
 - `specs/` 跨 worktree 共享是 by design — pipeline handoff（engineering 寫 evidence → verify-AC 讀 evidence）依賴同一份主 checkout 路徑
 - 主 checkout 的 `specs/` 是單一真實來源，沒有 stale-copy 問題
 
-See also: `rules/sub-agent-delegation.md` § Worktree path translation / Gitignored framework artifacts
+See also:
+
+- `rules/sub-agent-delegation.md` § Worktree path translation / Gitignored framework artifacts
+- `.claude/skills/references/auto-pass-execution-flow.md` § Dispatch Envelope Worktree
+  Resolution — runner-first execution loop 中 `worktree_resolution` envelope 的 `FOUND` /
+  `NONE` / `AMBIGUOUS` 行為以及對應 terminal state（含 `blocked_by_missing_worktree`）。

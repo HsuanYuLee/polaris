@@ -1,12 +1,19 @@
 ---
 title: "Auto-pass Execution Flow"
-description: "auto-pass execution loop、DP-201 proof marker probe matrix、pause / retry cap 與 terminal fixed-point。"
+description: "auto-pass runner-first execution loop、dispatch envelope、pause / retry cap 與 terminal fixed-point。"
 ---
 
 # Auto-pass Execution Flow
 
-`auto-pass` 的 execution loop 只讀 deterministic filesystem proof、task frontmatter 與
-validated ledger。它不讀 inner skill final answer 來判斷 PASS。
+`auto-pass` 的 execution loop 是 **runner-first**：orchestrator 只讀
+`scripts/auto-pass-runner.sh` 輸出的 JSON next-action contract 來決定下一步。runner JSON
+是主鏈唯一狀態來源——orchestrator 不再各階段重跑 `auto-pass-probe.sh` 或自行解析 ledger /
+filesystem evidence。runner 內部仍 wrap probe + ledger validator + spec source resolver，
+但這層 implementation detail 不外露給 orchestrator；orchestrator 只認 runner JSON。
+
+> Runner JSON 也不讀 inner skill final answer 來判斷 PASS：missing / UNKNOWN marker 永遠
+> escalate 為 `blocked_by_gate_failure`，即使 spec / refinement / inner skill output prose 含
+> 字面 "PASS"。
 
 ## Stage Order
 
@@ -19,40 +26,78 @@ validated ledger。它不讀 inner skill final answer 來判斷 PASS。
 5. verify-AC stage：要求 V work order verification disposition current。
 6. terminal fixed-point：required PR set ready + verification current + no higher-priority terminal state。
 
-## Probe Matrix
+## Runner JSON Contract
 
-| Stage | PASS probe | Blocked / route-back probe | Terminal / next action |
-|-------|------------|----------------------------|------------------------|
-| breakdown | `.polaris/evidence/task-snapshot/{work_item_id}.json` status PASS | `validation_fail`、`missing_v_task`、`refinement-inbox/` | PASS dispatch engineering；route-back pause refinement；blocked gate failure |
-| engineering | `.polaris/evidence/completion-gate/{work_item_id}-{head_sha}.json` status PASS | `blocked_conflict`、`unsupported_mutation` | PASS dispatch verify-AC；blocked gate failure |
-| verify-AC | `.polaris/evidence/ac-verification/{work_item_id}-{head_sha}.json` status PASS | `spec_issue`、`MANUAL_REQUIRED`、`BLOCKED_ENV`、`UNCERTAIN`、missing marker | PASS complete；spec issue pause refinement；manual/env pause；unknown blocked |
-
-Probe helper（`{SOURCE_ID}` 可為 `DP-NNN` 或 JIRA Epic key；helper 自動依 resolver 結果
-走 DP container 或 `companies/{company}/{EPIC}/` container）：
+orchestrator 每個 stage transition 只呼叫一次 runner，並把整份 JSON 當作 next-action
+authority。runner 不需要 orchestrator 再額外 probe / ledger / filesystem read。
 
 ```bash
-bash scripts/auto-pass-probe.sh \
+bash scripts/auto-pass-runner.sh \
   --repo /absolute/path/to/main-checkout \
-  --stage verify-AC \
   --source-id {SOURCE_ID} \
-  --work-item-id {SOURCE_ID}-V1 \
-  --head-sha <head_sha> \
-  --ledger /absolute/path/to/ledger.json
+  --stage source|breakdown|engineering|verify-AC \
+  [--work-item-id {SOURCE_ID}-T1] \
+  [--head-sha <head_sha>] \
+  [--ledger /absolute/path/to/ledger.json]
 ```
 
-JSON output fields:
+JSON 輸出（`schema_version=1`，欄位穩定）：
 
 - `schema_version`
-- `stage`
 - `source_id`
-- `work_item_id`
-- `status`
-- `terminal_status`
-- `next_action`
-- `evidence_path`
-- `reason`
+- `stage`
+- `status`：`PASS` | `BLOCKED` | `UNKNOWN` | `ROUTE_BACK_AMEND` | `MANUAL_REQUIRED` | …
+- `terminal_status`：`complete` | `loop_cap_reached` | `blocked_by_gate_failure` |
+  `paused_for_user_external_write` | `paused_for_session_handoff` | `null`
+- `next_action`：`dispatch` | `terminal` | `blocked` | `resume` | `refinement_amendment`
+- `next_skill`：`breakdown` | `engineering` | `verify-AC` | `refinement` | `null`
+- `next_work_item_id`：sibling task / V item id 或 source_id；non-applicable 時 `null`
+- `evidence_path`：對應 marker 或 resume artifact 的絕對路徑
+- `reason`：短字串，供 log / friction 寫入
 
-`status=UNKNOWN` 或 missing marker 不得 PASS，terminal 固定為 `blocked_by_gate_failure`。
+`status=UNKNOWN` 或 missing marker 永遠 escalate 為 `terminal_status=blocked_by_gate_failure`，
+不論 inner skill / spec prose 是否含 "PASS"。
+
+### Internal Probe Wrapping（implementation detail）
+
+runner 內部仍 wrap `auto-pass-probe.sh` 與 `validate-auto-pass-ledger.sh`，分階段對下列
+canonical proof markers 做 deterministic lookup。**orchestrator 不直接呼叫**這層；只透過
+runner JSON 看結果。
+
+| Stage | PASS marker | Blocked / route-back signal | Terminal / next action |
+|-------|------------|----------------------------|------------------------|
+| breakdown | `.polaris/evidence/task-snapshot/{work_item_id}.json` status PASS | `validation_fail`、`missing_v_task`、`refinement-inbox/` | PASS dispatch engineering；route-back amendment loop；blocked gate failure |
+| engineering | `.polaris/evidence/completion-gate/{work_item_id}-{head_sha}.json` status PASS | `blocked_conflict`、`unsupported_mutation` | PASS dispatch verify-AC；blocked gate failure |
+| verify-AC | `.polaris/evidence/ac-verification/{work_item_id}-{head_sha}.json` status PASS | `spec_issue`、`MANUAL_REQUIRED`、`BLOCKED_ENV`、`UNCERTAIN`、missing marker | PASS complete；spec issue amendment loop；manual/env pause；unknown blocked |
+
+需要直接 debug 內部 marker 狀態時可以單獨跑 `auto-pass-probe.sh`，但 orchestrator code path
+不得以 probe 結果取代 runner JSON。runner ↔ probe 的 stage state parity 由
+`scripts/selftests/auto-pass-runner-probe-parity-selftest.sh` enforce。
+
+## Dispatch Envelope Worktree Resolution
+
+dispatch envelope 描述 orchestrator 把 runner JSON 翻譯成下一段 sub-agent invocation 時必
+帶的最小欄位：
+
+- `AUTO_PASS_LEDGER_PATH=/abs/path/to/ledger.json`（breakdown / engineering / verify-AC
+  皆必帶；resume 也帶同一個 ledger）。
+- `worktree_resolution`：engineering / verify-AC stage 透過
+  `scripts/resolve-task-worktree.sh --source-id ... --work-item-id ... --format json`
+  解析得到，JSON 形如 `{"status": "FOUND|NONE", "path": "<abs|null>", "task_key": "<key>"}`。
+  - `FOUND` → 帶 worktree path，sub-agent 直接以該路徑作為 implementation repo / cwd。
+  - `NONE` 且 stage 為 engineering first-cut（runner JSON 為 `next_action=dispatch`，
+    `next_skill=engineering`，且 `evidence_path` 尚無 completion-gate marker）→ 正常初始
+    狀態，orchestrator 仍 dispatch `engineering`，由 `engineering-branch-setup.sh` 建 fresh
+    branch / worktree。
+  - `NONE` 但 stage 為 verify-AC 或 engineering resume（runner JSON 不是 first-cut path）→
+    terminal `blocked_by_missing_worktree`；orchestrator 不得在 verify-AC 階段隱式建立新的
+    implementation worktree。
+  - `AMBIGUOUS` → resolver 自身 fail-stop（stderr），orchestrator 升 terminal
+    `blocked_by_gate_failure` 並把 resolver stderr 寫入 ledger friction。
+
+dispatch envelope 也必須帶 worktree path map 給 sub-agent（gitignored framework artifact
+讀寫一律使用主 checkout 絕對路徑），canonical contract 在
+`.claude/skills/references/worktree-dispatch-paths.md`。
 
 ## Loop Caps
 
@@ -65,6 +110,56 @@ Planning loop counters live in ledger:
 
 Implementation drift retry 另存在 `drift_retry`，以 V item 為 key。單一 V item 達 3 次仍 FAIL，
 terminal `blocked_by_gate_failure`。
+
+### Counter Increment Contract (DP-246)
+
+`scripts/auto-pass-increment-counter.sh` 是 transition writer 專用 helper：
+
+```bash
+scripts/auto-pass-increment-counter.sh "$AUTO_PASS_LEDGER_PATH" \
+  --transition <engineering_to_breakdown|breakdown_to_refinement_inbox|verify_ac_to_engineering> \
+  --evidence-id "<source_id>:<from_stage>-><to_stage>:<seq>" \
+  --stage <stage>
+```
+
+`--evidence-id` 是必填參數（DP-246 AC-NEG2）；建議使用穩定的轉換鍵，例如
+`"DP-246:engineering->breakdown:1"`。重複 evidence_id 會 silent exit 0（冪等 no-op），確保同一
+retry 不會重複計數。Counter 1→2 transition 會自動 append `inner_skill_halt_bypass` friction；
+orchestrator 仍是 transition 寫入的唯一 caller，但不再需要分別呼叫 counter writer 與 friction helper。
+
+### Counter Race-Recovery (DP-246)
+
+當 `auto-pass` 以 `terminal_status=loop_cap_reached` 收尾，但有證據顯示計數器因競爭條件（重複
+orchestration session 在沒有 idempotency guard 的情況下寫入同一 transition）被過度累加時，可使用
+canonical 外科手術恢復路徑：
+
+```bash
+bash scripts/auto-pass-counter-race-recovery.sh \
+  --source-id {SOURCE_ID} \
+  --prior-ledger /absolute/path/to/prior-ledger.json \
+  [--repo /absolute/path/to/repo-root]
+```
+
+**此 helper 是 terminal-only**。**禁止在主動 orchestration loop 中呼叫**；否則會繞過 cap
+enforcement，導致 runaway retry。
+
+Helper 驗證三條 precondition，任一失敗即 exit 1 + stderr `POLARIS_COUNTER_RECOVERY_PRECONDITION_FAILED`：
+
+| Precondition | 說明 |
+|-------------|------|
+| (a) | 前 ledger `terminal_status == loop_cap_reached` |
+| (b) | `friction_log[]` 含至少一筆 `inner_skill_halt_bypass` / `stage_retry` 條目 |
+| (c) | `stage_events` 計算的 actual back-edge 次數 < cap（3） |
+
+成功時：
+
+- 建立新 ledger，`loop_counters` 從 actual back-edge 數重算；舊 `evidence_ids[]` 搬過來作為已認帳（不重複計）。
+- `terminal_status` 清為 `null`（讓 orchestrator 可重新 dispatch）。
+- `stage_events` 寫入 `COUNTER_RACE_RECOVERY` audit 條目，包含 prior ledger path 與新舊計數。
+- 同 source 24h 內只能執行一次（stamp 儲存在 `{source_container}/.polaris/counter-race-recovery-last.json`）。
+
+Recovery 完成後，以新 ledger 路徑繼續 `auto-pass {SOURCE_ID} resume`；orchestrator 會沿用原 ledger
+的 snapshot 與 drift_retry，不會重置 loop state。
 
 ## Pause Rules
 

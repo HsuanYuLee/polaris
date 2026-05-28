@@ -8,496 +8,178 @@ description: >
   is LOCKED and artifacts are current. `{KEY}` 可以是 `DP-NNN` 或 JIRA Epic key。
 metadata:
   author: Polaris
-  version: 0.2.0
+  version: 0.3.0
 ---
 
 # Auto-pass
 
-`auto-pass` 是 locked/current refinement-owned source 的主鏈 orchestrator。它的工作是解析
-source、建立或 resume source-scoped ledger、依序 dispatch `breakdown -> engineering ->
-verify-AC`，並在流程抵達 terminal state 時產出 durable report。
+`auto-pass` 是 locked/current refinement-owned source 的主鏈 orchestrator。runner-first
+contract：本 SKILL 只負責 dispatch boundary 與 terminal contract；所有 schema、execution
+loop、friction、report 細節都 pointer 到 canonical references；runtime 行為由
+`scripts/auto-pass-runner.sh` 與其呼叫的 deterministic validators 決定。
 
-它不是施工 skill，也不是 release skill。`auto-pass` 不直接改 code、不直接寫 task.md、
-不建立 generic GitHub PR、不判定 AC PASS/FAIL，也不執行 merge、release、deploy 或
-production write。
+`auto-pass` 不改 code、不寫 task.md、不建 generic GitHub PR、不判 AC PASS/FAIL，也不執行
+merge / release / deploy / production write。
 
 ## Source Gate
 
-`auto-pass` 接受 `spec-source-resolver.md` 解析出的任一 refinement-owned source。當前覆蓋：
-
-- **DP-backed source**：`DP-NNN`，或指向
-  `docs-manager/src/content/docs/specs/design-plans/DP-NNN-*` container 內的 path。
-- **JIRA Epic-backed source**：JIRA Epic key（例：`GT-NNN`、`KB2CW-NNN`），或指向
-  `docs-manager/src/content/docs/specs/companies/{company}/{EPIC}/` container 內的 path。
-
-進入 execution 前必須確認（與 source type 無關）：
-
-- 只能解析到唯一 source container。
-- container `index.md` frontmatter `status` 是 `LOCKED`。
-- `refinement.md` 與 `refinement.json` 存在且 current。
-- ledger `source.refinement_hash` 對齊 current refinement artifact。
-
-未 LOCK、缺 artifact、artifact stale、duplicate source、無法被 resolver 解析出唯一 container
-的 source 都不得進入 execution；必須 route 回 owning skill 或 terminal `blocked_by_gate_failure`。
-所有 source-type 共用同一條 gate，沒有特殊豁免路徑。
-
-## Ledger Contract
-
-每次 orchestration 必須使用主 checkout 絕對路徑底下的 ledger：
-
-```text
-{source_container}/artifacts/auto-pass/YYYYMMDD-HHMMSS-ledger.json
-```
-
-`{source_container}` 由 `spec-source-resolver.md` 決定，DP-backed source 落在
-`design-plans/DP-NNN-*/`，JIRA Epic-backed source 落在 `companies/{company}/{EPIC}/`；
-ledger writer path glob 受 `scripts/lib/evidence-producers.json` parity 保護。
-
-ledger schema、consent enum、terminal enum、resume 欄位與 JIRA status consent schema 以
-`.claude/skills/references/auto-pass-ledger.md` 為準，並由
-`scripts/validate-auto-pass-ledger.sh` 驗證。
-
-啟動 `auto-pass` 代表使用者同意本 source 內的重新評估、重新拆分與 task repair。這份同意
-只能透過 ledger artifact 傳給下游，不可用 conversation memory 代替。
-
-## JIRA Status Sync Consent (D12)
-
-當 source 為 JIRA Epic-backed（`source.type=jira`）時，第一次在同一 session 內 dispatch
-`auto-pass {JIRA_KEY}` 必須先 prompt 使用者確認 JIRA status transition consent：
-
-> auto-pass 將在 breakdown / engineering / verify-AC 各階段同步 JIRA Epic 與子單 status
-> （例如 `In Development` / `子任務開發完畢` / `完成`），是否同意？(y/n)
-
-行為合約：
-
-- 使用者同意（`y`）→ 寫入 ledger `consent_policy.jira_status_sync=true`，並建立 session-scoped
-  marker：
-
-  ```text
-  .polaris/runtime/auto-pass-jira-consent-{session_id}-{JIRA_KEY}
-  ```
-
-  marker 內容為 JSON `{ "source_id": "...", "granted_at": "ISO8601", "session_id": "..." }`。
-  同 session 後續 `auto-pass {JIRA_KEY}` call 偵測 marker 存在即不再 prompt。
-
-- 使用者否決（`n`）→ 立刻 abort，terminal `user_aborted`，不寫 JIRA transition、不建立 marker。
-
-- 缺 `session_id` 時改用短 TTL fallback（30 分鐘 mtime check），marker 命名為
-  `.polaris/runtime/auto-pass-jira-consent-fallback-{JIRA_KEY}`；TTL 過期視同未同意，
-  下一次 call 重新 prompt。
-
-DP-backed source（`source.type=dp`）不需要此 prompt，因為 DP container 沒有 external JIRA
-status surface 需要同步。consent schema、marker 格式與 validator 期望以
+`auto-pass` 接受 `spec-source-resolver.md` 解析出的唯一 refinement-owned source（DP-backed
+落在 `design-plans/DP-NNN-*/`，JIRA Epic-backed 落在 `companies/{company}/{EPIC}/`）。
+runner / probe 共同確認：唯一 container、`index.md` `status=LOCKED`、`refinement.md` /
+`refinement.json` current、ledger `source.refinement_hash` 對齊。任何一項不符回 upstream
+owning skill；兩種 source type 共用同一條 gate，無特殊豁免。JIRA Epic-backed source 首次
+dispatch 必須先取得 JIRA status sync consent；prompt、marker、TTL fallback 以
 `.claude/skills/references/auto-pass-ledger.md` § JIRA Status Consent 為準。
 
-## Producer-Owned Writer (DP-226)
+## Ledger Contract (pointer)
 
-ledger 與 resume artifact 的 durable write 必須走 deterministic producer writer，
-不再依賴 Claude `Write` / `Edit` / `MultiEdit` tool 的 per-call env 注入，也不
-保留 DP-225 dogfood 期間的 Bash heredoc workaround。
+ledger 路徑：`{source_container}/artifacts/auto-pass/YYYYMMDD-HHMMSS-ledger.json`。schema、
+consent enum、`consent_excludes`、terminal enum、resume 欄位、JIRA status consent schema、
+friction log schema 皆以 `.claude/skills/references/auto-pass-ledger.md` 為 canonical
+source，由 `scripts/validate-auto-pass-ledger.sh` enforce。durable write 一律走
+`scripts/write-producer-owned-artifact.sh`（token / path / atomic-rename / validator
+rollback 細節以 writer 與 `scripts/lib/evidence-producers.json` 為準）。啟動 `auto-pass`
+代表使用者同意本 source 內的重新評估、重新拆分與 task repair；該同意只能透過 ledger
+artifact 傳給下游，不可用 conversation memory 代替。
 
-呼叫方式：
+## Runner Command
+
+`scripts/auto-pass-runner.sh` 是主鏈 deterministic next-action authority。orchestrator
+**只**依 runner JSON（`schema_version=1`，含 `stage`、`status`、`terminal_status`、
+`next_action`、`next_skill`、`next_work_item_id`、`evidence_path`）決定下一步，不讀 inner
+skill 自然語言 final answer 補判斷。
 
 ```bash
-bash scripts/write-producer-owned-artifact.sh \
-  --producer-token auto-pass:source \
-  --path {source_container}/artifacts/auto-pass/YYYYMMDD-HHMMSS-ledger.json \
-  --body-file /absolute/path/to/staged-body.json \
-  --source-container {source_container} \
-  --source-id {SOURCE_ID}
+# Source gate
+bash scripts/auto-pass-runner.sh --source-id {SOURCE_ID} --stage source
+
+# Stage probe
+bash scripts/auto-pass-runner.sh \
+  --source-id {SOURCE_ID} \
+  --stage breakdown|engineering|verify-AC \
+  --work-item-id {SOURCE_ID}-T1 \
+  [--head-sha {sha}] [--ledger /abs/path/to/ledger.json]
 ```
 
-`{SOURCE_ID}` 是 resolver 回傳的 canonical key（DP-NNN 或 JIRA Epic key），
-`{source_container}` 對應 DP-backed `design-plans/DP-NNN-*/` 或 JIRA Epic-backed
-`companies/{company}/{EPIC}/` container。
-
-stage 對應的 producer token：
-
-| Stage | Token |
-|-------|-------|
-| ledger 建立（source） | `auto-pass:source` |
-| ledger 更新（breakdown phase） | `auto-pass:breakdown` |
-| ledger 更新（engineering phase） | `auto-pass:engineering` |
-| ledger 更新（verify-AC phase） | `auto-pass:verify` |
-| resume artifact write（session_handoff） | `auto-pass:verify`（同 entry） |
-
-resume artifact write 必須額外帶 `--ledger-path /abs/ledger.json` 與
-`--source-id {SOURCE_ID}`；writer 將以這些 context 呼叫 `validate-auto-pass-resume.sh`，
-缺 context 一律 fail-closed，不留下 invalid artifact。
-
-writer 行為摘要：
-
-- 讀 `scripts/lib/evidence-producers.json`，token-first lookup + path glob enforce；
-  token 不在 `producer_tokens[]` 或 path 不在 `path_globs[]` 時 exit 2 不寫檔。
-- temp file + atomic rename；final-path 需驗證的 artifact（ledger / resume）
-  在 validator fail 時 rollback 既有內容。
-- 成功時 stderr log `[write-producer-owned-artifact] producer=... path=...`，
-  作為 post-task reflection attribution 來源。
-
-`POLARIS_PRODUCER` env 仍由 hook（`pre-write-language-policy.sh` /
-`no-direct-evidence-write.sh`）辨識，但只在 deterministic 觸發路徑（如 producer
-script 內部）使用，不得透過 Claude tool per-call env 模擬 producer。
+`status=UNKNOWN` 或 missing marker 一律 terminal `blocked_by_gate_failure`。runner 與
+`scripts/auto-pass-probe.sh` 的 parity 由
+`scripts/selftests/auto-pass-runner-probe-parity-selftest.sh` 守住。
 
 ## Dispatch Boundary
 
-`auto-pass` 只 dispatch owning skills：
+`auto-pass` 只 dispatch 以下 owning skills：
 
-1. `breakdown` 產生或修正本 source（DP-backed 或 JIRA Epic-backed）的 work orders。
-2. `engineering` 依 authoritative task.md 施工、驗證並建立 non-draft workspace PR。
-3. `verify-AC` 驗收 V work order 並產生 current verification disposition。
-4. `refinement`（**amendment mode only**, DP-212）：當 `{source_container}/refinement-inbox/*.md`
-   出現或 verify-AC 回 `spec_issue` 時，dispatch refinement 消費 inbox、把 implementation detail
-   微調寫回 `refinement.md` / `refinement.json`，counter +=1 後 loop 回 breakdown。Amendment
-   不向使用者發問、不重做 Phase 0/1/2 discovery、不能改 LOCKED scope（由
-   `validate-refinement-locked-scope.sh` 把關）。
+1. `breakdown` — 產生或修正本 source 的 work orders。
+2. `engineering` — 依 authoritative task.md 施工、驗證並建立 non-draft workspace PR。
+3. `verify-AC` — 驗收 V work order 並產生 current verification disposition。
+4. `refinement`（amendment mode only）— `{source_container}/refinement-inbox/*.md` 出現或
+   verify-AC 回 `spec_issue` 時，consume inbox、把 implementation detail 微調寫回
+   refinement artifact，counter +=1 後 loop 回 breakdown。Amendment 不重做 Phase 0/1/2
+   discovery、不改 LOCKED scope（由 `validate-refinement-locked-scope.sh` 把關）。
 
-inner skill 的 mandatory gates 保持原樣。任何 planner-owned gap、scope escalation、AC spec
-issue、consent 外 external write、blocked conflict 或 unknown probe 都必須回到 owning skill 或
-明確 pause / blocked；`auto-pass` 不得手動補欄位來通過 gate。
+inner skill mandatory gates 保持原樣。Planner-owned gap、scope escalation、AC spec issue、
+consent 外 external write、blocked conflict、unknown probe 都必須回 owning skill 或明確
+pause / blocked。
 
-## Execution Loop
+dispatch envelope 必帶：
 
-execution loop 以最後一次 breakdown PASS snapshot 作為本輪 required PR set：
+- `AUTO_PASS_LEDGER_PATH=/abs/path/to/ledger.json`（breakdown / engineering / verify-AC）。
+- `worktree_resolution`（engineering / verify-AC 任務階段），由
+  `scripts/resolve-task-worktree.sh --source-id ... --work-item-id ... --format json`
+  解析。envelope schema、`FOUND` / `NONE` / `AMBIGUOUS` 行為與下列邊界以
+  `.claude/skills/references/auto-pass-execution-flow.md` § Dispatch Envelope Worktree
+  Resolution 為準：
+  - engineering first-cut pre-setup 時 `NONE` 是正常初始狀態，orchestrator dispatch
+    `engineering`，由 `engineering-branch-setup.sh` 建 fresh branch/worktree。
+  - post-setup / resume / verify-AC 階段若仍 `NONE`，terminal `blocked_by_missing_worktree`。
 
-1. Validate source 與 ledger consent。
-2. Dispatch `breakdown`；PASS 後讀 `task_snapshot` marker 並更新 ledger snapshot。
-3. 依 task DAG dispatch `engineering`；PR opened / ready 必須由 PR freshness 與 completion
-   proof marker 判讀。
-4. Dispatch `verify-AC`；verification disposition 必須 current，缺 V task / AC artifact 時回
-   breakdown owning scope。
-5. 所有 required PR opened / ready 且 verification disposition current 時 terminal `complete`，
-   寫 final report，然後執行 terminal complete closeout chain：
-   `scripts/mark-spec-implemented.sh {SOURCE_ID} --auto-archive`。
+## Execution Loop (pointer)
 
-`auto-pass {KEY} resume` 必須先跑 `scripts/validate-auto-pass-resume.sh`，確認 ledger
-`pause.kind=session_handoff`、resume artifact 與 source match，並沿用原 ledger 的 counters /
-snapshot / drift retry。不得用新 ledger 重置 loop state。
-
-Inner skill HALT 不等於 user decision。若 deterministic marker / validator sidecar 已 PASS，
-auto-pass 必須繼續 dispatch；只有 context pressure / runtime pressure 才可寫
-`pause.kind=session_handoff` 與 resume artifact。
-
-**Recoverable HALT 必須繼續 dispatch（不可停下等使用者確認）**：
-
-`engineering -> breakdown` 與 `breakdown -> refinement-inbox` 都是 SKILL.md 明文允許的
-backward transition，且各自有 loop counter cap。當 inner skill 因 recoverable signal HALT
-（plan-defect、verify command typo、scope escalation 等 1-token spec fix）時，auto-pass
-**必須**：
-
-1. 更新 ledger `stage_events`，evidence_path 指向 sidecar 絕對路徑。
-2. 增對應 `loop_counters` 計數（例如 `engineering_to_breakdown`）。
-3. cap check：counter >= 3 才 terminal `loop_cap_reached`；否則直接 dispatch 下一個 owning
-   skill，不可停下回報「next step: breakdown」就交還 user。
-4. 把 inner skill 的 user-facing "next step" Report 當成 evidence source，**不是** auto-pass
-   orchestrator 的 terminal signal。
-
-auto-pass 的合法 terminal 只有：`complete`、`loop_cap_reached`、`blocked_by_gate_failure`
-（probe UNKNOWN 或 unrecoverable env issue）、`paused_for_session_handoff`（context /
-runtime pressure 且 resume artifact 已寫）。Inner skill 的「Report」邊界不是 orchestrator
-邊界；recoverable HALT 自動 loop 才符合使用者啟動 auto-pass 的 consent。
-
-probe result 只能來自 DP-201 proof-of-work marker、task frontmatter 或 validated ledger。若
-`scripts/auto-pass-probe.sh` 無法判讀 outcome，terminal 必須是 `blocked_by_gate_failure`；
-不可用 inner skill final answer 或 raw prose 補判斷。
-
-Planning backward transition counter 採 source-level cap：`engineering -> breakdown` 與
-`breakdown -> refinement-inbox` 任一 counter 達 3 時 terminal `loop_cap_reached`。
-`verify-AC -> engineering` 的 implementation drift retry 另計；同一 V item 連續 3 次仍 FAIL 時
-terminal `blocked_by_gate_failure`。
-
-**Amendment loop (DP-212)**：`breakdown_to_refinement_inbox` 在 amendment mode 自動 loop，
-不是 hard-stop——每次 inbox 出現 → dispatch refinement amendment → 寫回 refinement artifact
-→ counter +=1 → 繼續 dispatch breakdown。只有 counter > 3 才 terminal `loop_cap_reached`。
-amendment 若命中 LOCKED scope guard（改到 Goal / Background / Decisions / Scope / AC），
-`validate-refinement-locked-scope.sh` exit 2 + 標 inbox `rejected_by_scope_guard=true`，
-auto-pass 必須 terminal `blocked_by_gate_failure` 並輸出 follow-up DP seed。
+orchestrator 採 **runner-first** 模型：每個 stage transition 只讀 runner JSON 作為
+next-action authority，不再重跑 probe / ledger parse / filesystem walk。stage 順序、
+internal probe wrapping、recoverable HALT continue、loop cap、pause / terminal fixed-point、
+closeout chain 以 `.claude/skills/references/auto-pass-execution-flow.md` 為 canonical
+source。簡述：`next_action=dispatch` → 下一階段；`terminal` → 寫 report 進 closeout；
+`refinement_amendment` → amendment loop；`blocked` → terminal blocked。recoverable HALT
+必須自動 loop dispatch；只有 session pressure 才能寫 `pause.kind=session_handoff`，且
+`resume` 必須先跑 `scripts/validate-auto-pass-resume.sh`。
 
 ## Full Source Completion Invariant
 
-`auto-pass` 的 complete terminal 是 source-level，不是 task-local。當使用者要求完成
-DP、source、Epic 或 full workflow 時，單一 task、blocker hotfix、PR、version tag、
-framework-release closeout 或 local-extension deliverable 只能算該 stage 的 evidence，
-不得在 sibling tasks、V tasks、verification disposition、source status 或 parent lifecycle
-closeout 尚未完成時宣告整個 source complete。
+`complete` 是 source-level，不是 task-local。task-local closeout（單一 task、blocker hotfix、
+PR、version tag、framework-release closeout 或 local-extension deliverable）只是 stage
+evidence；sibling tasks、V tasks、verification disposition、source status、parent lifecycle
+closeout 仍未完成時不得宣告 source complete。terminal `complete` 最低條件以
+`.claude/skills/references/auto-pass-execution-flow.md` § Terminal Complete Sequence 為準。
 
-terminal `complete` 的最低條件：
+## Friction Log Capture (pointer)
 
-1. latest breakdown snapshot 是 current，且列出的 required T tasks 與 V tasks 都已達 terminal
-   / completed 狀態。
-2. engineering completion proof 覆蓋所有 required implementation tasks；單一 blocker task
-   release 不得代表整個 source。
-3. verify-AC disposition current，且 source-level verification 沒有 unresolved FAIL /
-   MANUAL_REQUIRED / spec_issue。
-4. source closeout chain 已跑完；framework-release tail 只是 framework workspace 的
-   local-extension release evidence，不會取代 source-level closeout。
+orchestration 過程中的繞道、deterministic gap、手動補位、env bypass、validator/contract
+衝突等訊號必須寫入 ledger `friction_log[]`，不可只在口頭報告交代。canonical contract 在
+`.claude/skills/references/friction-capture-contract.md`：emit stage / kind enum、唯一
+writer path（`scripts/append-auto-pass-friction.sh`）、deterministic trigger 的內建 call
+site 與 NOOP boundary 都以該 reference 為準。
 
-若 blocker task 已 release 但 source 仍有 active sibling task 或 V task，`auto-pass` 必須
-繼續 dispatch 下一個 owning skill，或以 partial state / blocker terminal 回報；不得把
-task-local closeout 誤判為使用者要求的完整 source 完成。
+orchestrator 只主動呼叫 `context_pressure` 這個 LLM-judgment trigger（寫 pause artifact
+前）；其他 trigger 由 helper / hook / probe / counter 自動 emit。terminal report 的
+`friction_log_summary` 由 `scripts/validate-auto-pass-report.sh` 從 ledger 重算，不可手寫。
 
-## Breakdown Consent Handoff
+## Skill Workflow Boundary Gate (pointer)
 
-dispatch `breakdown` 時，envelope 必須包含主 checkout ledger 絕對路徑：
+每段 cross-skill transition（`refinement -> breakdown -> engineering -> verify-AC` 或回到
+`refinement (amendment)`）必須以 deterministic boundary gate 收尾。dispatch 前
+`scripts/skill-workflow-boundary-gate.sh --skill {next_skill} --start ...` 建 baseline；
+inner skill 結束後 `--check` 驗證上一段只動到自己 owning scope。exit 1 +
+`POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:{skill}` 視為 deterministic gate failure，
+ledger 寫 `gate_failure` friction、terminal `blocked_by_gate_failure`。
+`POLARIS_LANGUAGE_POLICY_BYPASS` / `POLARIS_SKILL_BOUNDARY_BYPASS` 在此 gate 無效。
 
-```text
-AUTO_PASS_LEDGER_PATH=/absolute/path/to/ledger.json
-```
+## Routing Policy (pointer)
 
-`breakdown` 必須用 ledger validator 確認 schema、source match、三個 consent boolean、
-canonical `consent_excludes` enum 與 timestamp ordering。缺 token、relative path、source
-mismatch、invalid schema 或 task write 早於 ledger start/resume 都必須 fail-stop。
+Full development workflow intent 的 source-state matrix（`refinement` / `auto-pass` /
+`framework-release` 邊界、resume 規則、DP-backed 與 JIRA Epic-backed 共用 routing）由
+`.claude/rules/skill-routing.md` § Full Development Workflow Route Policy 與
+`.claude/skills/references/auto-pass-execution-flow.md` 共同維護。`auto-pass` 只接
+locked/current refinement-owned source；其他 case 回 upstream owning skill。當 framework
+workspace PR opened + verification stale 時，`auto-pass {KEY}` refresh verify-AC，不重跑 breakdown。
 
-## Dispatch Envelope Worktree Resolution (D33)
+## Legal Terminal
 
-dispatch `engineering` / `verify-AC` 進入 task-scoped 階段時，envelope 必須帶上
-`worktree_resolution`，由 `scripts/resolve-task-worktree.sh` 解析：
+`auto-pass` 合法 terminal：
 
-```bash
-bash scripts/resolve-task-worktree.sh \
-  --source-id   {SOURCE_ID} \
-  --work-item-id {WORK_ITEM_ID} \
-  --format json
-```
+- `complete`
+- `loop_cap_reached`
+- `blocked_by_gate_failure`
+- `paused_for_session_handoff`
+- `paused_for_user_external_write`
+- `user_aborted`
 
-envelope schema：
+terminal priority 與觸發條件以
+`.claude/skills/references/auto-pass-execution-flow.md` § Terminal Priority 為準。
 
-```json
-{
-  "worktree_resolution": {
-    "status": "FOUND" | "NONE",
-    "path": "/absolute/path/to/.worktrees/<repo>-engineering-<KEY>" | null,
-    "task_key": "DP-230-T13",
-    "resolver_version": 1
-  }
-}
-```
+## Forbidden Actions
 
-行為合約：
+`auto-pass` **不得**：
 
-- `FOUND`：path 必須與 resolver 輸出 byte-identical；下游 skill 在該 worktree 內施工 /
-  驗收。verify-AC envelope 的 `worktree_resolution.path` 與 resolver 輸出對齊。
-- `NONE`（engineering first-cut pre-setup）：若 task 還沒有 engineering branch/worktree
-  setup receipt，這是正常初始狀態，不是 user-facing terminal。orchestrator 必須 dispatch
-  `engineering`，由 `engineering-branch-setup.sh` 依 authoritative task.md 建立 fresh
-  branch/worktree；setup 完成後重新執行 resolver，必須得到 `FOUND` 才能進 implementation /
-  verify。
-- `NONE`（post-setup / resume / verify-AC）：orchestrator 升 terminal
-  `blocked_by_missing_worktree`；不得自己猜測 path 或 fallback 到 main checkout。
-- `POLARIS_DISPATCH_WORKTREE_AMBIGUOUS`（resolver exit 2）：orchestrator 必須 fail-stop
-  terminal `blocked_by_gate_failure`，不得自選其中一個 path。
-- envelope 缺 `worktree_resolution` 欄位 → schema validator fail-stop + stderr
-  `POLARIS_DISPATCH_WORKTREE_RESOLUTION_MISSING`。
+- 直接改 code、寫 task.md / refinement.md / refinement.json。
+- 建 generic GitHub PR、執行 merge、tag、deploy、production write。
+- 讀 inner skill 自然語言 final answer 補足 missing marker；missing/UNKNOWN 永遠 blocked。
+- recoverable HALT 時停下交還 user（必須繼續 dispatch 至 deterministic terminal）。
+- 把 framework workspace merge / sync-to-polaris / tag / GitHub release 寫成 auto-pass
+  已執行（`framework-release` 才是 framework workspace self-iteration 的 local-extension tail）。
+- 在 amendment mode 改 LOCKED scope（Goal / Background / Decisions / Scope / AC）。
 
-## Routing Policy
+## Final Report (pointer)
 
-Full development workflow intent 依 source-state matrix route。`{KEY}` 可為 `DP-NNN`
-或 JIRA Epic key（例：`GT-NNN`），由 `spec-source-resolver.md` 解析：
-
-| Trigger | Source state | Route |
-|---------|--------------|-------|
-| `建 DP` / `建一個 DP` | no source container | `refinement`（建立新 DP container） |
-| `完整流程 {KEY}` / `快速通關 {KEY}` | `DISCUSSION` / missing artifact / stale artifact | `refinement {KEY}` |
-| `完整流程 {KEY}` / `快速通關 {KEY}` | `LOCKED` + current refinement artifact | `auto-pass {KEY}` |
-| `{KEY} -> PR -> 升版` | `LOCKED` + current refinement artifact | `auto-pass {KEY}`；report tail 提示 `framework-release` |
-| `framework-release {KEY}` | workspace PR opened + verification current | `framework-release` |
-| `framework-release {KEY}` | workspace PR opened + verification stale | `auto-pass {KEY}` refresh verify-AC，不重跑 breakdown |
-| `auto-pass {KEY} resume` | ledger `pause.kind=session_handoff` + valid resume artifact | resume same ledger |
-
-`auto-pass` 只接 locked/current refinement-owned source；未 LOCK、artifact stale 或 missing
-source 的 case 都回 upstream owning skill，不在本 skill 內補 refinement / breakdown artifact。
-DP-backed 與 JIRA Epic-backed source 共用同一條 routing matrix。
-
-## Probe Command
-
-T3 起 `auto-pass` 使用 deterministic probe helper。`{SOURCE_ID}` 可為 `DP-NNN`
-或 JIRA Epic key；helper 自行依 resolver 結果走對應 container：
-
-```bash
-bash scripts/auto-pass-probe.sh {SOURCE_ID}
-
-bash scripts/auto-pass-probe.sh \
-  --repo /absolute/path/to/main-checkout \
-  --stage source \
-  --source-id {SOURCE_ID}
-
-bash scripts/auto-pass-probe.sh \
-  --repo /absolute/path/to/main-checkout \
-  --stage breakdown \
-  --source-id {SOURCE_ID} \
-  --work-item-id {SOURCE_ID}-T1 \
-  --ledger /absolute/path/to/ledger.json
-```
-
-helper 輸出 JSON，至少包含 `stage`、`status`、`terminal_status`、`next_action` 與
-`evidence_path`。`status=UNKNOWN` 一律視為 blocked，不可推測 PASS。
-
-## Friction Log Capture (DP-214)
-
-orchestration 過程中遇到下列訊號時，必須立刻呼叫 helper 把摩擦點寫入 ledger
-`friction_log[]`，作為下次 refinement / sprint planning 的 signal source。**不可**只在
-口頭報告交代：
-
-- inner skill HALT 後又繼續 dispatch（deterministic marker 已 PASS）。
-- 手動補 artifact 欄位才能通過 validator。
-- 缺 deterministic gate / helper script，本輪靠人類操作補位。
-- 必須 set 環境變數才能跑通某個流程。
-- validator 與 contract / hook 出現邏輯衝突。
-- 產出語言違反 workspace language policy，需手動回拉。
-
-寫入方式：
-
-```bash
-scripts/append-auto-pass-friction.sh "$AUTO_PASS_LEDGER_PATH" \
-  --stage <source|breakdown|engineering|verify-AC|framework-release|post-task> \
-  --kind  <friction_kind_enum_value> \
-  --summary "<zh-TW 短語句，建議 280 chars 內>"
-```
-
-helper 保證 atomic write、enum 驗證與 soft-limit warning。enum、writer path 與
-deterministic trigger map 由 `.claude/skills/references/friction-capture-contract.md`
-作為 canonical contract；schema 仍以 `.claude/skills/references/auto-pass-ledger.md`
-§ Friction Log 為準。
-
-terminal report 透過 `validate-auto-pass-report.sh` 重新聚合 ledger 條目並驗
-`friction_log_summary` 一致；報告不得手寫 summary 數字。
-
-## Auto-Friction Triggers (DP-220)
-
-DP-220 起，下列 5 個 friction signal 由 deterministic trigger 自動寫入
-`friction_log[]`，不再依賴 orchestrator 口頭判斷。每個 trigger 都在 helper / hook /
-probe / counter 內就近呼叫 `append-auto-pass-friction.sh`，且 helper 內建 NOOP
-boundary（`AUTO_PASS_LEDGER_PATH` 未設或 ledger 不存在時 silent exit 0），所以同樣
-的 scripts 也能在非 /auto-pass 流程中安全執行。
-
-| Signal | Trigger site | Kind | Notes |
-|--------|--------------|------|-------|
-| `gate_failure` | `scripts/gate-hook-adapter.sh` | `deterministic_gap` | gate exit 2 後在 gate-failure ledger 寫入之後立刻呼叫 |
-| `workaround_taken` | `.claude/hooks/pre-write-language-policy.sh` | `env_bypass` | `POLARIS_LANGUAGE_POLICY_BYPASS=1` explicit bypass；`POLARIS_PRODUCER` 不觸發 |
-| `stage_retry` | `scripts/auto-pass-increment-counter.sh` | `inner_skill_halt_bypass` | 同 transition counter 1→2 時 emit；後續 increments 由 counter 自身管理，cap 由 probe ledger_terminal() enforce |
-| `probe_unknown` | `scripts/auto-pass-probe.sh` | `deterministic_gap` | `emit(status="UNKNOWN", ...)` 時呼叫；包含 missing marker、invalid JSON、ledger stale 等 |
-| `context_pressure` | orchestrator (LLM) | `other` | 寫 `pause.kind=session_handoff` 之前手動呼叫 helper，summary 帶 resume artifact path |
-
-deterministic triggers（前 4 條）已內建在 scripts / hooks，**不需要 orchestrator 主動呼叫**。
-context_pressure 是唯一仍由 LLM 主導的 trigger：寫 pause artifact 前必須先呼叫
-`append-auto-pass-friction.sh --kind other --summary "context_pressure: ..."`，再寫
-`pause` block，否則 terminal report 會缺這次 handoff 的 friction 證據。
-
-Counter 寫入專用 helper：
-
-```bash
-scripts/auto-pass-increment-counter.sh "$AUTO_PASS_LEDGER_PATH" \
-  --transition <engineering_to_breakdown|breakdown_to_refinement_inbox|verify_ac_to_engineering> \
-  --evidence-id "<source_id>:<from_stage>-><to_stage>:<seq>" \
-  --stage <stage>
-```
-
-`--evidence-id` 是必填參數（DP-246 AC-NEG2）；建議使用穩定的轉換鍵，例如
-`"DP-246:engineering->breakdown:1"`。重複 evidence_id 會 silent exit 0（冪等
-no-op），確保同一 retry 不會重複計數。
-
-counter 1→2 transition 會自動 append `inner_skill_halt_bypass` friction；orchestrator
-仍是 transition 寫入的唯一 caller，但不再需要分別呼叫 counter writer 與 friction
-helper。
-
-Trigger 與 enum 對應（refinement 原文 → helper enum）：
-
-- `gate_failure` → `deterministic_gap`
-- `workaround_taken` → `env_bypass`
-- `stage_retry` → `inner_skill_halt_bypass`
-- `probe_unknown` → `deterministic_gap`
-- `context_pressure` → `other`
-
-新增 deterministic friction trigger 時，必須在 mechanism-registry 對應 row 加上
-`runtime` annotation，並更新本表 + 對應 selftest。
-
-## Skill Workflow Boundary Gate (DP-230 D40)
-
-每段 cross-skill transition（`refinement -> breakdown -> engineering -> verify-AC`，
-或回到 `refinement (amendment)`）必須以 deterministic boundary gate 收尾，避免
-inner skill session 把 mutation 寫到自己 owning scope 之外：
-
-1. dispatch inner skill 之前先呼叫
-   `scripts/skill-workflow-boundary-gate.sh --skill {next_skill} --start --source-container ...`
-   建立該 skill 的 session baseline（engineering 額外需 `--task-md`）。
-2. inner skill HALT / 完成後，先呼叫
-   `scripts/skill-workflow-boundary-gate.sh --skill {prev_skill} --check --source-container ...`
-   驗證上一段 skill 只動到自己 owning scope；exit 1 +
-   `POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:{skill}` 視為 deterministic gate failure，
-   ledger 寫 `gate_failure` friction、terminal `blocked_by_gate_failure`，不 silently
-   進入下一段。
-3. 同一 source container 內 refinement / breakdown / engineering / verify-AC 各自
-   擁有獨立 baseline（baseline path 以 `{skill}|{container}` hash 區分），
-   `/auto-pass` 不得共用同一份 baseline。
-
-bypass env（`POLARIS_LANGUAGE_POLICY_BYPASS`、`POLARIS_SKILL_BOUNDARY_BYPASS`）在
-boundary gate 中無效（AC-NEG16）；amendment loop 與 LOCKED scope guard 共用此
-gate 作為 cross-skill mutation 保護層。
-
-## Counter Race-Recovery (DP-246)
-
-當 `auto-pass` 以 `terminal_status=loop_cap_reached` 收尾，但有證據顯示計數器因競爭條件（重複
-orchestration session 在沒有 idempotency guard 的情況下寫入同一 transition）被過度累加時，
-可使用 canonical 外科手術恢復路徑：
-
-```bash
-bash scripts/auto-pass-counter-race-recovery.sh \
-  --source-id {SOURCE_ID} \
-  --prior-ledger /absolute/path/to/prior-ledger.json \
-  [--repo /absolute/path/to/repo-root]
-```
-
-**此 helper 是 terminal-only**。**禁止在主動 orchestration loop 中呼叫**；否則會繞過 cap
-enforcement，導致 runaway retry。
-
-Helper 驗證三條 precondition，任一失敗即 exit 1 + stderr `POLARIS_COUNTER_RECOVERY_PRECONDITION_FAILED`：
-
-| Precondition | 說明 |
-|-------------|------|
-| (a) | 前 ledger `terminal_status == loop_cap_reached` |
-| (b) | `friction_log[]` 含至少一筆 `inner_skill_halt_bypass` / `stage_retry` 條目 |
-| (c) | `stage_events` 計算的 actual back-edge 次數 < cap（3） |
-
-成功時：
-- 建立新 ledger，`loop_counters` 從 actual back-edge 數重算；舊 `evidence_ids[]` 搬過來作為
-  已認帳（不重複計）。
-- `terminal_status` 清為 `null`（讓 orchestrator 可重新 dispatch）。
-- `stage_events` 寫入 `COUNTER_RACE_RECOVERY` audit 條目，包含 prior ledger path 與新舊計數。
-- 同 source 24h 內只能執行一次（stamp 儲存在 `{source_container}/.polaris/counter-race-recovery-last.json`）。
-
-Recovery 完成後，以新 ledger 路徑繼續 `auto-pass {SOURCE_ID} resume`；orchestrator 會沿用
-原 ledger 的 snapshot 與 drift_retry，不會重置 loop state。
-
-## Terminal Boundary
-
-`auto-pass` 的成功終點是：
-
-- 最後一次 breakdown PASS snapshot 內所有必要 workspace PR 已 opened / ready。
-- verification disposition current。
-- durable report produced。
-
-framework workspace 的 merge、sync-to-polaris、tag、GitHub release 與 closeout 只能由
-`framework-release` 負責。`auto-pass` report 只能輸出下一步 trigger，不得執行 release tail。
-
-## Final Report
-
-每次 terminal 都必須產生 durable report：
+terminal 必須產生 durable report：
 
 ```text
 {source_container}/artifacts/auto-pass/YYYYMMDD-HHMMSS-report.json
 ```
 
-report schema 以 `.claude/skills/references/auto-pass-report.md` 為準，並由
-`scripts/validate-auto-pass-report.sh` 驗證。`complete` report 若沒有 issue / blocker /
-manual item / follow-up / sunset candidate，不需要 DP seed；其他 terminal 或含 sunset candidate
-時必須有 follow-up DP seed reference。
-
-Overlap cleanup disposition 只能使用：
-
-- `keep`
-- `narrow`
-- `deprecate-note`
-- `follow-up-sunset`
-
-`follow-up-sunset` 只建立 follow-up DP seed，不得在同一 PR 刪除 skill、routing row 或行為性
-deprecation。framework workspace 下一步若是 release，report 只輸出 `framework-release` tail
-trigger，不執行 release。
+report schema、follow-up DP seed threshold、`overlap_disposition` 允許值、
+`friction_log_summary` 聚合規則、`framework_release_tail` 結構皆以
+`.claude/skills/references/auto-pass-report.md` 為 canonical source，由
+`scripts/validate-auto-pass-report.sh` 驗證。`complete` 且無 issue / blocker / manual /
+follow-up / sunset 時不需 DP seed；其他 terminal 或含 sunset candidate 必須附 follow-up
+DP seed reference。

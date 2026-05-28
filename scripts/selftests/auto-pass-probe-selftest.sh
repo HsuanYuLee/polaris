@@ -300,4 +300,63 @@ path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
 PY
 assert_field "drift-cap" "blocked_by_gate_failure" terminal_status --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234 --ledger "$LEDGER"
 
+# ─── DP-237 T1: probe machine-field stability ─────────────────────────────────
+# The auto-pass runner depends on probe emitting a stable shape: every probe
+# invocation must produce JSON with these load-bearing fields, regardless of
+# stage or outcome. AC-NEG3: when inputs are missing the probe must emit
+# UNKNOWN (machine field) — it must not read prose to PASS.
+mkdir -p \
+  "$TMP/.polaris/evidence/dp237-stability-task-snapshot" \
+  "$TMP/.polaris/evidence/dp237-stability-completion-gate"
+
+stability_check() {
+  local label="$1"; shift
+  local out
+  out="$("$PROBE" --repo "$TMP" "$@" 2>/dev/null)"
+  python3 - "$label" "$out" <<'PY'
+import json, sys
+label, raw = sys.argv[1:3]
+try:
+    d = json.loads(raw)
+except Exception as exc:
+    print(f"FAIL: {label} probe output not JSON: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+required = ("schema_version", "stage", "source_id", "work_item_id", "status",
+            "terminal_status", "next_action", "evidence_path", "reason")
+missing = [k for k in required if k not in d]
+if missing:
+    print(f"FAIL: {label} probe output missing fields {missing}", file=sys.stderr)
+    print(raw, file=sys.stderr)
+    raise SystemExit(1)
+if d.get("schema_version") != 1:
+    print(f"FAIL: {label} probe schema_version != 1", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
+# (1) PASS shape: stable fields present.
+write_marker "$TMP/.polaris/evidence/task-snapshot/DP-900-T1.json" task_snapshot PASS
+stability_check "stability-breakdown-pass" --stage breakdown --source-id DP-900 --work-item-id DP-900-T1
+rm -f "$TMP/.polaris/evidence/task-snapshot/DP-900-T1.json"
+
+# (2) AC-NEG3: missing marker — probe must emit UNKNOWN, not PASS, even
+# though the source fixture's index.md / refinement.md contain the literal
+# word "PASS" in prose. We verify this with the existing DP-900 fixture
+# (its prose does not contain PASS, so add a temporary file that does to
+# prove probe does not crawl it).
+echo "PASS PASS PASS — this prose should never influence probe outcome" \
+  > "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/prose-decoy.md"
+ac_neg3_out="$("$PROBE" --repo "$TMP" --stage breakdown --source-id DP-900 --work-item-id DP-900-T1 2>/dev/null)"
+echo "$ac_neg3_out" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('status')=='UNKNOWN' and d.get('terminal_status')=='blocked_by_gate_failure' else 1)" || {
+  echo "FAIL: AC-NEG3 probe returned PASS despite missing marker (prose decoy attack)" >&2
+  echo "$ac_neg3_out" >&2
+  exit 1
+}
+rm -f "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/prose-decoy.md"
+
+# (3) Engineering PASS marker stability.
+write_marker "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json" completion_gate PASS
+stability_check "stability-engineering-pass" --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
+rm -f "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json"
+
 echo "PASS: auto-pass probe selftest"

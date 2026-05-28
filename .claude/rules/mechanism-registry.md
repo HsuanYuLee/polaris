@@ -73,6 +73,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | auto-pass-friction-gate-adapter | scripts/gate-hook-adapter.sh | script | portable | scripts/selftests/auto-pass-auto-friction-selftest.sh | governance |
 | counter-idempotency | scripts/auto-pass-increment-counter.sh | script | portable | scripts/selftests/auto-pass-increment-counter-idempotency-selftest.sh | governance |
 | counter-race-recovery | scripts/auto-pass-counter-race-recovery.sh | script | portable | scripts/selftests/auto-pass-counter-race-recovery-selftest.sh | governance |
+| skill-size-policy | scripts/lint-skill-size.sh | script | portable | scripts/selftests/lint-skill-size-selftest.sh | governance |
 
 ## Mechanism Canary Entries
 
@@ -99,6 +100,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | memory-retention-metric | script_candidate | M3 | Polaris | scripts/memory-retention-scan.sh |
 | codex-portable-smoke | script_candidate | M3 | Polaris | scripts/verify-agents-mirror-portable.sh |
 | follow-up-reference-bracket | script_candidate | M-future | Polaris | future DP for 500-1000 line references |
+| skill-size-policy | script_candidate | M2 | Polaris | scripts/lint-skill-size.sh |
 
 ## Priority Audit Order
 

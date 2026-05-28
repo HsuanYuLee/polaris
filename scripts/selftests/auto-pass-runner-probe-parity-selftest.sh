@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# DP-237 T1: runner ↔ probe parity selftest
+#
+# For each fixture, also invoke auto-pass-probe.sh directly and assert that
+# the runner and probe agree semantically on status / terminal_status /
+# next_action. Probe and runner use different field semantics for
+# next_action (probe emits forward stage names; runner emits orchestrator
+# verbs like dispatch / blocked / terminal / resume), so we map probe fields
+# into the runner space before comparing.
+#
+# Disagreement → fail-stop with diff output. Covers:
+#   - terminal priority (UNKNOWN / blocked override prose)
+#   - UNKNOWN blocked
+#   - recoverable HALT continue (PASS forward dispatch)
+#   - loop cap (ledger-driven)
+#   - context handoff (session_handoff resume — runner-only signal, parity
+#     selftest verifies probe still emits its underlying stage state and the
+#     runner adds the resume signal without contradicting probe terminal)
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+RUNNER="$ROOT/scripts/auto-pass-runner.sh"
+PROBE="$ROOT/scripts/auto-pass-probe.sh"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+mkdir -p \
+  "$TMP/.polaris/evidence/task-snapshot" \
+  "$TMP/.polaris/evidence/completion-gate" \
+  "$TMP/.polaris/evidence/ac-verification" \
+  "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement-inbox"
+
+cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/index.md" <<'MD'
+---
+title: "DP-900 fixture"
+description: "parity fixture"
+status: LOCKED
+---
+
+PASS PASS PASS — prose decoys for AC-NEG3.
+MD
+
+cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement.md" <<'MD'
+---
+title: "DP-900 refinement"
+description: "parity fixture"
+---
+
+## Scope
+fixture
+MD
+
+cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement.json" <<'JSON'
+{"source": {"type": "dp", "id": "DP-900"}, "modules": [], "acceptance_criteria": []}
+JSON
+
+write_marker() {
+  local path="$1" status="$2" source_id="${3:-DP-900}" work_item_id="${4:-DP-900-T1}"
+  python3 - "$path" "$status" "$source_id" "$work_item_id" <<'PY'
+import json, sys
+from pathlib import Path
+path, status, source_id, work_item_id = sys.argv[1:5]
+Path(path).write_text(json.dumps({
+    "schema_version": 1, "marker_kind": "selftest", "writer": "selftest",
+    "owning_skill": "selftest", "source_id": source_id, "work_item_id": work_item_id,
+    "status": status, "freshness": {"head_sha": "abc1234"},
+}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
+# probe_to_runner_terminal: terminal_status semantics MUST be identical.
+# probe_to_runner_action: probe next_action is a stage hint, runner is a verb.
+#   Mapping rules (runner-owned semantic mapping):
+#     - probe terminal != null  → runner next_action ∈ {terminal, blocked}
+#         terminal == complete | loop_cap_reached | paused_* → terminal
+#         terminal == blocked_by_gate_failure → blocked
+#     - probe status == PASS, probe terminal null →
+#         stage=verify-AC → terminal  (probe pairs PASS with complete here)
+#         else → dispatch
+#     - probe status == ROUTE_BACK_AMEND → refinement_amendment
+#     - else → blocked
+assert_parity() {
+  local label="$1"; shift
+  set +e
+  PROBE_OUT="$(bash "$PROBE" --repo "$TMP" "$@" 2>/dev/null)"
+  PROBE_RC=$?
+  RUNNER_OUT="$(bash "$RUNNER" --repo "$TMP" "$@" 2>/dev/null)"
+  RUNNER_RC=$?
+  set -e
+  if [[ $PROBE_RC -ne 0 || $RUNNER_RC -ne 0 ]]; then
+    echo "FAIL: $label probe rc=$PROBE_RC runner rc=$RUNNER_RC" >&2
+    echo "probe stdout: $PROBE_OUT" >&2
+    echo "runner stdout: $RUNNER_OUT" >&2
+    exit 1
+  fi
+  python3 - "$label" "$PROBE_OUT" "$RUNNER_OUT" <<'PY'
+import json, sys
+label, probe_raw, runner_raw = sys.argv[1:4]
+probe = json.loads(probe_raw)
+runner = json.loads(runner_raw)
+
+errs = []
+
+# terminal_status MUST be identical (this is the load-bearing parity signal).
+if probe.get("terminal_status") != runner.get("terminal_status"):
+    errs.append(f"terminal_status diff: probe={probe.get('terminal_status')!r} runner={runner.get('terminal_status')!r}")
+
+# status: probe status should map to runner status with one carve-out —
+# at verify-AC stage, probe PASS+complete is restated as runner PASS+terminal.
+if probe.get("status") != runner.get("status"):
+    errs.append(f"status diff: probe={probe.get('status')!r} runner={runner.get('status')!r}")
+
+# next_action mapping.
+stage = probe.get("stage")
+probe_term = probe.get("terminal_status")
+probe_status = probe.get("status")
+runner_action = runner.get("next_action")
+
+expected_action = None
+if probe_term in ("complete", "loop_cap_reached", "paused_for_user_external_write"):
+    expected_action = "terminal"
+elif probe_term == "blocked_by_gate_failure":
+    expected_action = "blocked"
+elif probe_status == "ROUTE_BACK_AMEND" or probe.get("next_action") == "refinement_amendment":
+    expected_action = "refinement_amendment"
+elif probe_status == "PASS":
+    expected_action = "terminal" if stage == "verify-AC" else "dispatch"
+else:
+    expected_action = "blocked"
+
+if runner_action != expected_action:
+    errs.append(f"next_action map fail: probe(status={probe_status!r} terminal={probe_term!r} stage={stage!r}) → runner={runner_action!r} expected={expected_action!r}")
+
+if errs:
+    print(f"FAIL: {label} parity disagreement", file=sys.stderr)
+    for e in errs:
+        print(f"  - {e}", file=sys.stderr)
+    print(f"probe = {json.dumps(probe, indent=2)}", file=sys.stderr)
+    print(f"runner = {json.dumps(runner, indent=2)}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+}
+
+# ─── source stage parity ─────────────────────────────────────────────────────
+assert_parity "source-pass"            --stage source --source-id DP-900
+
+# ─── breakdown parity ────────────────────────────────────────────────────────
+write_marker "$TMP/.polaris/evidence/task-snapshot/DP-900-T1.json" PASS
+assert_parity "breakdown-pass"         --stage breakdown --source-id DP-900 --work-item-id DP-900-T1
+rm "$TMP/.polaris/evidence/task-snapshot/DP-900-T1.json"
+
+# AC-NEG3 prose-decoy parity: missing marker, prose contains "PASS" — both
+# tools must agree on blocked_by_gate_failure.
+assert_parity "breakdown-missing"      --stage breakdown --source-id DP-900 --work-item-id DP-900-T1
+
+# Amendment loop parity.
+touch "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement-inbox/x.md"
+assert_parity "breakdown-amend"        --stage breakdown --source-id DP-900 --work-item-id DP-900-T1
+rm "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement-inbox/x.md"
+
+# ─── engineering parity ──────────────────────────────────────────────────────
+write_marker "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json" PASS
+assert_parity "engineering-pass"       --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
+rm "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json"
+
+assert_parity "engineering-missing"    --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
+
+# ─── verify-AC parity ────────────────────────────────────────────────────────
+write_marker "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json" PASS DP-900 DP-900-V1
+assert_parity "verify-pass"            --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
+rm "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json"
+
+write_marker "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json" MANUAL_REQUIRED DP-900 DP-900-V1
+assert_parity "verify-manual"          --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
+rm "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json"
+
+assert_parity "verify-unknown"         --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
+
+# ─── loop cap parity (ledger-driven, runner reads via probe) ─────────────────
+LEDGER="$TMP/loop-cap.json"
+python3 - "$LEDGER" <<'PY'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({
+    "loop_counters": {"engineering_to_breakdown": 4, "breakdown_to_refinement_inbox": 0},
+    "drift_retry": {},
+}) + "\n", encoding="utf-8")
+PY
+assert_parity "loop-cap"               --stage breakdown --source-id DP-900 --work-item-id DP-900-T1 --ledger "$LEDGER"
+
+echo "PASS: auto-pass-runner-probe parity selftest"

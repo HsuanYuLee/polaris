@@ -13,7 +13,9 @@ JIRA-only state 或 `/tmp` only artifact。
 
 - Durable marker root 是 `.polaris/evidence/`；`/tmp` 只能作 runtime cache。
 - Owning skill 寫自己的 marker：`breakdown`、`engineering`、`verify-AC` 各自負責。
-- `auto-pass` 只讀 marker，不是 marker writer。
+- `auto-pass` 只讀 marker，不是 marker writer。讀取唯一入口為
+  `scripts/auto-pass-runner.sh`（runner-first execution loop）；orchestrator 透過 runner JSON
+  獲得 marker 狀態，不直接 filesystem walk `.polaris/evidence/**`。
 - 每個 JSON marker 必須有 `schema_version`、`marker_kind`、`writer`、`owning_skill`、
   `source_id`、`work_item_id`、`status`、`freshness`。
 - `freshness` 不能只有 timestamp；PR 類 marker 必須能對齊 `head_sha`，verification 類 marker

@@ -188,13 +188,30 @@ EOF
 fi
 
 task_branch="$(table_field "Task branch" "$TASK_MD")"
-if [[ "$task_branch" != "$current_branch" ]]; then
+
+# DP-237 follow-up: aggregate-release lane. engineering-branch-setup.sh
+# --aggregate-release writes `bundle_branch_alias: bundle-DP-NNN-vX.Y.Z` into
+# each bundled task.md frontmatter. When the current branch matches that alias,
+# the gate treats this as a legal aggregate-release source even though the
+# table-form `Task branch` field still points at the per-task branch.
+bundle_branch_alias=""
+bundle_branch_alias="$(awk '
+  /^---$/ { fm++; next }
+  fm == 1 && /^bundle_branch_alias:/ {
+    sub(/^bundle_branch_alias:[[:space:]]*/, "")
+    print
+    exit
+  }
+' "$TASK_MD" 2>/dev/null || true)"
+
+if [[ "$task_branch" != "$current_branch" && "$bundle_branch_alias" != "$current_branch" ]]; then
   cat >&2 <<EOF
 $PREFIX BLOCKED: task.md branch binding mismatch.
 
-Current branch: $current_branch
-Task branch:    ${task_branch:-<missing>}
-Task source:    $TASK_MD
+Current branch:         $current_branch
+Task branch:            ${task_branch:-<missing>}
+Bundle branch alias:    ${bundle_branch_alias:-<missing>}
+Task source:            $TASK_MD
 EOF
   exit 2
 fi

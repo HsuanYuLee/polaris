@@ -4,6 +4,44 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.128] - 2026-05-28
+
+### Changed — DP-237 auto-pass prompt-surface slimming + runtime runner extraction
+
+五項 task，打包為一個 aggregate bundle PR：
+
+- **T1 — Runner 契約 + shadow fixture 對齊**：新增 `scripts/auto-pass-runner.sh`
+  (352 行) 作為 deterministic aggregator，覆蓋 source / breakdown / engineering /
+  verify-AC / blocked / resume / loop-cap / JIRA consent stage 的 next_action 推導；
+  新增 `selftests/auto-pass-runner-selftest.sh` (382 行)、`auto-pass-runner-probe-parity-selftest.sh`
+  (191 行)、`validate-auto-pass-report-selftest.sh` (242 行)；擴充 `auto-pass-probe-selftest.sh`
+  覆蓋 machine-field 穩定性與 prose-decoy AC-NEG3 negative case。
+- **T2 — 精簡 SKILL + reference 去重**：`.claude/skills/auto-pass/SKILL.md` 從 464 行
+  trim 到 185 行 (-60%)，移除 ledger schema、report schema、consent enum、
+  friction trigger table 等 implementation detail，改為 thin runner-first contract
+  指向 `.claude/skills/references/auto-pass-*.md` canonical sources；新增
+  `selftests/auto-pass-thin-skill-selftest.sh` 鎖定行數預算與 reference pointer 完整性。
+- **T3 — Runner-first 執行流程切換**：更新 `auto-pass-execution-flow.md`、
+  `auto-pass-proof-of-work.md`、`worktree-dispatch-paths.md` 與 SKILL.md 末段，
+  把實際呼叫路徑改為 `scripts/auto-pass-runner.sh` 為 single entry point；
+  runner-selftest 新增 172 行覆蓋執行流程 fixture。
+- **T4 — Parity / negative selftest + docs health 收尾**：`auto-pass-thin-skill-selftest.sh`
+  擴充至 185 行，新增 negative case 阻擋 runner script 內出現 mutation helper
+  (sync-to-polaris / mark-spec-implemented / polaris-pr-create)，保持 runner 為
+  pure aggregator；`references/INDEX.md` 加上 `scripts/auto-pass-runner.sh` 指引列
+  (AC5) 讓 downstream agent 從 INDEX 即可定位 runner script。
+- **T5 — Skill-size lint + mechanism-registry 登錄**：新增 `scripts/lint-skill-size.sh`
+  (104 行) 作為 skill SKILL.md 行數預算 deterministic gate；新增 `selftests/lint-skill-size-selftest.sh`
+  (195 行) 覆蓋 budget / fail / skip 邊界；`mechanism-registry.md` 登錄 `skill-size-policy`
+  runtime annotation 與 graduation_milestone=M2，把預算強制納入 framework health check。
+
+額外 bundle 修補：
+
+- **DP-246 race-recovery carry-forward**：T2 trim 範圍涵蓋 DP-237 設計後才併入 SKILL.md
+  的 DP-246 Counter Race-Recovery / Counter Increment Contract 段落。為避免 thin SKILL
+  丟失這兩段 operational guidance，bundle commit `bdfd71a` 把它們補回到
+  `references/auto-pass-execution-flow.md § Loop Caps` 之後作為 canonical doc 來源。
+
 ## [3.75.127] - 2026-05-28
 
 ### Fixed — DP-246 auto-pass finalize-tail framework hotfix bundle
