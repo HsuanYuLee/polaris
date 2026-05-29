@@ -4,6 +4,22 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.136] - 2026-05-29
+
+### Added — DP-261 `check-runtime-cache-residue.sh` 改為 source-scoped filename matching
+
+- **`scripts/check-runtime-cache-residue.sh`**（DP-261-T1）：從 workspace-wide residue 掃描改為 source-scoped filename matching，只 flag 屬於當前 source container 的 transient draft；不再讓並行 source container 的 residue 互擋 closeout chain。
+- **`scripts/selftests/check-runtime-cache-residue-selftest.sh`**（DP-261-T1）：擴充 3 個 case，涵蓋 source-scoped filter 行為（自身 source residue 仍 flag、他 source residue 不再誤 flag、空 cache 維持 PASS）。
+- **`scripts/lib/script-categorization-exception.txt`**（DP-261-T1 revision）：新增 `scripts/check-runtime-cache-residue.sh` 為 `refinement` owner 的 dynamic-invoke exception。原因：該 script 被 `scripts/refinement-handoff-gate.sh`（root-contract caller）靜態呼叫，但 `script-ownership-audit.sh` 的 consumer scan 只計 `.claude/skills/**/SKILL.md` reference，不偵測 cross-script callers，因此被誤分類為 `skill_local`。使用 DP-240 D26 設計的 designed bypass 機制，避免將真實的 root-contract dependency 誤遷移到 skill-local 目錄。
+
+### Why
+
+並行 source container（多張同時走 main-chain 的 DP / Epic）會在 runtime cache 留下 transient draft；舊版 residue 掃描為 workspace-wide，會把他 source 的合法 draft 視為當前 source 的 residue，導致 closeout chain 被無關 source 的 cache 擋住。DP-261 把 residue 判定改為 source-scoped filename matching，從根本解掉「並行 source 互擋 closeout」的 false positive，不需要每次 closeout 都手動清 cache。
+
+### Verified
+
+V1 verify-AC 9/9 AC PASS（含 source-scoped filter + selftest 3 case 擴充）；workspace PR #480。
+
 ## [3.75.135] - 2026-05-29
 
 ### Added — DP-260 refinement.json `tasks[].id` canonical-form contract + derive accepts short and full form
