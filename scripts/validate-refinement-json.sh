@@ -461,6 +461,32 @@ else:
         for field in sorted(task_required):
             if field not in task:
                 strong_error(f"tasks[{idx}].{field}")
+        # DP-260 T1: tasks[].id must be short form (T1/V1, optionally a-suffix)
+        # OR full form (EPIC-NNN-Tn) whose source prefix equals source.id.
+        # Foreign prefixes and malformed strings are fail-stop with marker.
+        raw_task_id = task.get("id")
+        if isinstance(raw_task_id, str) and raw_task_id != "":
+            short_re = re.fullmatch(r"[TV][0-9]+[a-z]?", raw_task_id)
+            full_re = re.fullmatch(r"([A-Z][A-Z0-9]*-[0-9]+)-([TV][0-9]+[a-z]?)", raw_task_id)
+            if short_re is None and full_re is None:
+                errors.append(
+                    "POLARIS_REFINEMENT_TASK_ID_INVALID: "
+                    f"tasks[{idx}].id='{raw_task_id}' must be short form (T1/V1) or "
+                    "full form (EPIC-NNN-Tn) matching source.id"
+                )
+            elif full_re is not None:
+                source_prefix = str(source_id or "").strip()
+                if source_prefix and full_re.group(1) != source_prefix:
+                    errors.append(
+                        "POLARIS_REFINEMENT_TASK_ID_INVALID: "
+                        f"tasks[{idx}].id='{raw_task_id}' source prefix "
+                        f"'{full_re.group(1)}' does not match source.id '{source_prefix}'"
+                    )
+        elif "id" in task:
+            errors.append(
+                "POLARIS_REFINEMENT_TASK_ID_INVALID: "
+                f"tasks[{idx}].id must be a non-empty string"
+            )
         if not isinstance(task.get("allowed_files"), list) or not task.get("allowed_files"):
             strong_error(f"tasks[{idx}].allowed_files")
         if not isinstance(task.get("modules"), list):

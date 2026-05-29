@@ -262,4 +262,19 @@ bash "$VALIDATE_TASK_MD" "$v_out" >/dev/null 2>&1 || {
   exit 1
 }
 
+# ---------------------------------------------------------------------------
+# Case 7 (DP-260 AC-NEG1): --task-id CLI argument must be canonical full form
+# (EPIC-NNN-Tn). Passing a short form (e.g. "T1") must fail-loud; the dual-form
+# support is for refinement.json `tasks[].id` only, never for the CLI handoff.
+# ---------------------------------------------------------------------------
+if bash "$SCRIPT" --refinement-json "$positive_json" --task-id "T1" >/dev/null 2>"$tmpdir/cli-short.stderr"; then
+  echo "FAIL [case 7 / DP-260 AC-NEG1]: derive accepted short-form CLI --task-id" >&2
+  exit 1
+fi
+if ! grep -q "canonical pattern" "$tmpdir/cli-short.stderr"; then
+  echo "FAIL [case 7 / DP-260 AC-NEG1]: stderr missing canonical-pattern hint" >&2
+  cat "$tmpdir/cli-short.stderr" >&2
+  exit 1
+fi
+
 echo "PASS: derive-task-md-from-refinement-json selftest"

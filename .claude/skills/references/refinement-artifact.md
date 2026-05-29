@@ -275,6 +275,14 @@ Producer rule：
 - `schema_version`：必填。
 - `tasks[]`：每筆必填 `id` / `kind` / `title` / `scope` / `allowed_files` /
   `modules` / `ac_ids` / `dependencies` / `estimate_points` / `verification`。
+- `tasks[].id` 接受兩種形式（DP-260）：短式 `T1` / `V1`（可選 `a`-suffix，如 `T1a`），
+  或完整 work-item id（例如 `DP-231-T1`、`EPIC-4190-V2`）。完整形式的 source prefix
+  必須等於 `source.id`；外族 prefix（例如 `OTHERDP-999-T1`）由
+  `validate-refinement-json.sh` 以 `POLARIS_REFINEMENT_TASK_ID_INVALID` fail-stop。
+  `derive-task-md-from-refinement-json.sh` 同樣支援兩種形式：CLI `--task-id` 一律
+  傳 canonical 完整 id（`DP-NNN-Tn`），derive 先比完整 id，未命中時若 CLI source
+  prefix == `source.id` 再 fall back 比對短式 id；輸出 task.md frontmatter 一律
+  emit canonical 完整 id。
 - `tasks[].dependencies` 只代表 task.md 可消費的 work-item dependency：同 source
   短式 `T1` / `V1`，或完整 work-item id（例如 `DP-231-T1`）。裸 source
   predecessor（例如 `DP-229`、`DP-230`、`EXAMPLE-4190`）必須留在 top-level

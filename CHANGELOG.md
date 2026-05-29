@@ -4,6 +4,24 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.135] - 2026-05-29
+
+### Added — DP-260 refinement.json `tasks[].id` canonical-form contract + derive accepts short and full form
+
+- **`scripts/derive-task-md-from-refinement-json.sh`**（DP-260-T1，AC1 / AC2 / AC3 / AC4 / AC-NEG1）：entry-match 改為先嘗試 full form（例：`DP-260-T1`），若無命中且 CLI 傳入的 source prefix 與 `source.id` 相同，再 fallback 比對 short tail（例：`T1`）。短/全形產出 byte-identical task.md；不合 canonical pattern 的 `--task-id` fail-stop 並提示 `DP-NNN-Tn`。
+- **`scripts/validate-refinement-json.sh`**（DP-260-T1，AC5 / AC-NEG2 / AC-NEG3）：在 `tasks[]` schema 檢查補一條 id format gate；只接受 short form `T?[0-9]+[a-z]?` 或 full form `<SOURCE-PREFIX>-T?[0-9]+[a-z]?`，且 full form 的 source prefix 必須等於 `source.id`。違反時 exit 2 + `POLARIS_REFINEMENT_TASK_ID_INVALID:{reason}`。
+- **新 selftest**：`scripts/selftests/derive-task-md-short-id-selftest.sh`（兩 fixture 比對 short vs full form 產出位元一致；V-mode 也涵蓋）、`scripts/selftests/validate-refinement-json-task-id-format-selftest.sh`（6 case：valid short / valid full / invalid foreign prefix / invalid free-form / invalid empty / invalid extra suffix）。
+- **擴充 selftest**：`scripts/selftests/derive-task-md-from-refinement-json-selftest.sh` 新增 AC-NEG1 case，驗證短 form `--task-id T1` 必須 fail-stop 並含 `canonical pattern` hint。
+- **`.claude/skills/references/refinement-artifact.md`** § Strong-Bound Machine Contract：說明 dual-form `tasks[].id` 契約、`POLARIS_REFINEMENT_TASK_ID_INVALID` marker 與 derive CLI 行為。
+
+### Why
+
+DP-242 與後續 refinement-owned source 在 LOCK 後跑 `/auto-pass {KEY}` 時，derive script 只接受 full form `<source>-Tn` 但 historic refinement.json 仍用 short form `Tn`，造成 main-chain 在 breakdown stage fail-stop。改 derive script 與 validator 對齊既有 `tasks[].dependencies[]` 同型支援 short / full form，DP-260 之後 short/full form refinement.json 都能直接被 main chain 消費，不需要逐張 DP 手動 retro-fit。
+
+### Verified
+
+Verify-AC 9/9 AC PASS（含 AC4 用真實 DP-252 refinement.json 跑 derive、AC-NEG2 對 7 張 sibling DP 跑 regression 確認 byte-diff=0）；report 路徑：`docs-manager/src/content/docs/specs/design-plans/DP-260-refinement-json-task-id-canonical-form-contract-derive-accepts-short-and-full-form/verification/V1/verify-report.md`。
+
 ## [3.75.134] - 2026-05-29
 
 ### Added — DP-240 framework workspace self-development handbook + constitutional skill-first amendment

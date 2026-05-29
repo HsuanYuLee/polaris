@@ -84,11 +84,30 @@ if not source_id:
     fail("refinement.json missing source.id")
 
 tasks = data.get("tasks") or []
+# DP-260 T1: tasks[].id accepts both short form (T1/V1, optionally with a-suffix)
+# and full form (DP-NNN-Tn / EPIC-NNN-Vn) — derive must accept either when the
+# CLI canonical id is full form. Match full id first; fall back to short id
+# when the canonical id's source prefix equals source.id. Reject foreign
+# prefix at the validator layer, not here.
+m_cli = re.match(r"^(?P<src>[A-Z][A-Z0-9]*-\d+)-(?P<short>[TV]\d+[a-z]?)$", task_id)
+if not m_cli:
+    fail(f"task id does not match canonical pattern (e.g. DP-230-T10): {task_id}")
+cli_short_id = m_cli.group("short")
+cli_source_id = m_cli.group("src")
+
 match = None
+# Pass 1: full-form match (entry.id == task_id).
 for entry in tasks:
     if entry.get("id") == task_id:
         match = entry
         break
+# Pass 2: short-form fallback (entry.id == short tail) only when the CLI source
+# prefix equals refinement.json source.id.
+if match is None and cli_source_id == source_id:
+    for entry in tasks:
+        if entry.get("id") == cli_short_id:
+            match = entry
+            break
 if match is None:
     fail(f"task-id not found in refinement.json tasks[]: {task_id}")
 
@@ -115,11 +134,8 @@ allowed_files = list(match["allowed_files"])
 ac_ids = list(match.get("ac_ids") or [])
 raw_dependencies = [str(dep).strip() for dep in list(match.get("dependencies") or []) if str(dep).strip()]
 
-# Tn suffix: parse "T{n}" off the tail of the canonical id (e.g. DP-230-T10 -> T10).
-m = re.match(r"^(?P<src>[A-Z]+-\d+)-(?P<short>[TV]\d+)$", task_id)
-if not m:
-    fail(f"task id does not match canonical pattern (e.g. DP-230-T10): {task_id}")
-short_id = m.group("short")
+# Tn suffix: reuse the canonical CLI parse above (m_cli) for short id / mode.
+short_id = cli_short_id
 mode = short_id[0]
 
 # Branch slug: deterministic, lowercase, hyphen-separated. Drop punctuation, keep
