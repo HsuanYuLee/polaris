@@ -76,6 +76,9 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | skill-size-policy | scripts/lint-skill-size.sh | script | portable | scripts/selftests/lint-skill-size-selftest.sh | governance |
 | bash-var-utf8-boundary-lint | scripts/lint-bash-variable-utf8-boundary.sh | script | portable | scripts/selftests/lint-bash-variable-utf8-boundary-selftest.sh | governance |
 | skill-routing-subject-aware | scripts/selftests/skill-routing-subject-aware-selftest.sh | script | portable | scripts/selftests/skill-routing-subject-aware-selftest.sh | governance |
+| mise-dependency-change | scripts/validate-mise-dependency-change.sh | script | portable | scripts/selftests/validate-mise-dependency-change-selftest.sh | governance |
+| script-header-comment | scripts/validate-script-header-comment.sh | script | portable | scripts/selftests/validate-script-header-comment-selftest.sh | governance |
+| script-categorization | scripts/validate-script-categorization.sh | script | portable | scripts/selftests/validate-script-categorization-selftest.sh | governance |
 
 ## Mechanism Canary Entries
 

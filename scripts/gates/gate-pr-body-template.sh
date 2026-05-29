@@ -5,8 +5,22 @@ set -euo pipefail
 # Blocks PR creation when a repo has a pull request template but the supplied
 # PR body does not preserve the template's level-2 section headings.
 #
+# Additionally (DP-240-T6 / AC9): when --added-files lists any newly-added
+# root-level Polaris helper script (matching scripts/*.sh / scripts/*.py /
+# scripts/*.mjs — top-level only, no nested directories), the PR body must
+# contain a level-2 "Script reuse justification" section. Modifying an
+# existing script does not trigger this requirement; subdir paths
+# (e.g. scripts/gates/foo.sh, scripts/selftests/foo.sh) are also excluded.
+#
 # Usage:
-#   bash scripts/gates/gate-pr-body-template.sh [--repo <path>] (--body <body> | --body-file <path> | --pr <number-or-url>)
+#   bash scripts/gates/gate-pr-body-template.sh [--repo <path>] \
+#       (--body <body> | --body-file <path> | --pr <number-or-url>) \
+#       [--added-files <path>]
+#
+# --added-files: newline-separated list of files newly added in the PR
+# (typically captured via `git diff --diff-filter=A --name-only`). Lines
+# that do not match the root-helper-script pattern are silently ignored.
+# Omitting --added-files keeps the legacy template-heading-only behavior.
 #
 # Exit: 0 = pass/skip, 2 = block
 # Bypass: POLARIS_SKIP_PR_BODY_TEMPLATE_GATE=1
@@ -20,6 +34,7 @@ BODY=""
 BODY_FILE=""
 PR_REF=""
 BODY_PROVIDED=0
+ADDED_FILES_PATH=""
 
 if [[ -f "$GITHUB_REST_LIB" ]]; then
   # shellcheck source=../lib/github-rest.sh
@@ -32,8 +47,13 @@ while [[ $# -gt 0 ]]; do
     --body) BODY="${2:-}"; BODY_PROVIDED=1; shift 2 ;;
     --body-file) BODY_FILE="${2:-}"; BODY_PROVIDED=1; shift 2 ;;
     --pr) PR_REF="${2:-}"; BODY_PROVIDED=1; shift 2 ;;
+    --added-files) ADDED_FILES_PATH="${2:-}"; shift 2 ;;
     -h|--help)
-      echo "Usage: bash scripts/gates/gate-pr-body-template.sh [--repo <path>] (--body <body> | --body-file <path> | --pr <number-or-url>)"
+      cat <<'HELPEOF'
+Usage: bash scripts/gates/gate-pr-body-template.sh [--repo <path>] \
+            (--body <body> | --body-file <path> | --pr <number-or-url>) \
+            [--added-files <path>]
+HELPEOF
       exit 0
       ;;
     *) shift ;;
@@ -161,6 +181,52 @@ Fix:
   Build the PR body from the repo template and pass it with --body-file.
 EOF
   exit 2
+fi
+
+# DP-240-T6 / AC9 — Script reuse justification check.
+#
+# When --added-files lists any newly-added root-level Polaris helper script
+# (scripts/<name>.{sh,py,mjs}, top-level only), the PR body must contain a
+# level-2 "Script reuse justification" section. Modifying an existing script
+# does not trigger this gate.
+if [[ -n "$ADDED_FILES_PATH" ]]; then
+  if [[ ! -f "$ADDED_FILES_PATH" ]]; then
+    echo "$PREFIX BLOCKED: --added-files does not exist: $ADDED_FILES_PATH" >&2
+    exit 2
+  fi
+
+  triggering_paths=()
+  while IFS= read -r added_path || [[ -n "$added_path" ]]; do
+    [[ -z "$added_path" ]] && continue
+    # Strip surrounding whitespace.
+    added_path="${added_path#"${added_path%%[![:space:]]*}"}"
+    added_path="${added_path%"${added_path##*[![:space:]]}"}"
+    [[ -z "$added_path" ]] && continue
+    # Match scripts/<basename>.{sh,py,mjs} — top-level only, reject subdirs.
+    if [[ "$added_path" =~ ^scripts/[^/]+\.(sh|py|mjs)$ ]]; then
+      triggering_paths+=("$added_path")
+    fi
+  done < "$ADDED_FILES_PATH"
+
+  if [[ "${#triggering_paths[@]}" -gt 0 ]]; then
+    # Look for a level-2 "Script reuse justification" heading
+    # (case-insensitive, allow trailing closing #s and whitespace).
+    if ! printf '%s\n' "$BODY" | grep -Eiq '^##[[:space:]]+script[[:space:]]+reuse[[:space:]]+justification([[:space:]]+#+)?[[:space:]]*$'; then
+      {
+        echo "$PREFIX BLOCKED: PR adds new root-level helper script(s) but PR body is missing the 'Script reuse justification' section."
+        echo "  Repo:     $REPO_ROOT"
+        echo "  Triggering added files:"
+        for p in "${triggering_paths[@]}"; do
+          echo "    - $p"
+        done
+        echo
+        echo "Fix:"
+        echo "  Add a '## Script reuse justification' section to the PR body explaining why a new script is required"
+        echo "  instead of extending an existing helper. See DP-240-T6 / AC9."
+      } >&2
+      exit 2
+    fi
+  fi
 fi
 
 extract_headings_from_file() {

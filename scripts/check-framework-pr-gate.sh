@@ -8,6 +8,9 @@ CHECK_QUARANTINE="${POLARIS_CHECK_QUARANTINE_BIN:-scripts/check-quarantine-dupli
 VALIDATE_SPEC_SOURCE_PARITY="${POLARIS_VALIDATE_SPEC_SOURCE_PARITY_BIN:-scripts/validate-spec-source-parity.sh}"
 GATE_TEMPLATE_LEAKS="${POLARIS_GATE_TEMPLATE_LEAKS_BIN:-scripts/gates/gate-template-leaks.sh}"
 LINT_BASH_VAR_UTF8_BOUNDARY="${POLARIS_LINT_BASH_VAR_UTF8_BOUNDARY_BIN:-scripts/lint-bash-variable-utf8-boundary.sh}"
+VALIDATE_MISE_DEPENDENCY="${POLARIS_VALIDATE_MISE_DEPENDENCY_BIN:-scripts/validate-mise-dependency-change.sh}"
+VALIDATE_SCRIPT_HEADER="${POLARIS_VALIDATE_SCRIPT_HEADER_BIN:-scripts/validate-script-header-comment.sh}"
+VALIDATE_SCRIPT_CATEGORIZATION="${POLARIS_VALIDATE_SCRIPT_CATEGORIZATION_BIN:-scripts/validate-script-categorization.sh}"
 
 run_gate() {
   local label="$1"
@@ -35,5 +38,28 @@ run_gate "W6 template leaks (workspace)" "$GATE_TEMPLATE_LEAKS"
 # continuation, triggering unbound-variable crashes. Forces brace-delimited
 # form `${VAR}<punct>`.
 run_gate "W7 bash \$VAR UTF-8 boundary" "$LINT_BASH_VAR_UTF8_BOUNDARY"
+# W8: mise.toml dependency change gate (DP-240 T9 / AC11).
+# Skips silently when mise.toml is unchanged; fails closed when changed
+# without an owning DP-NNN reference in the PR body. PR-time invocation
+# (where PR body is known) lives in framework-release-pr-lane.sh; locally
+# we only assert the validator exists and is syntactically valid.
+if [[ -n "${POLARIS_FRAMEWORK_PR_BODY:-}" ]]; then
+  run_gate "W8 mise dependency change" "$VALIDATE_MISE_DEPENDENCY" \
+    --diff "${POLARIS_FRAMEWORK_PR_BASE:-HEAD}" \
+    --pr-body "$POLARIS_FRAMEWORK_PR_BODY"
+else
+  bash -n "$VALIDATE_MISE_DEPENDENCY" || {
+    echo "framework-pr-gate failed: W8 mise dependency change validator syntax" >&2
+    exit 1
+  }
+fi
+# W9/W10: DP-240 T5 / AC8: same script-audit aggregate as `mise run script-audit`
+# and `framework-release-pr-lane.sh`. diff mode against HEAD.
+if [[ -f "$VALIDATE_SCRIPT_HEADER" ]]; then
+  run_gate "W9 script header comment" "$VALIDATE_SCRIPT_HEADER" --mode diff --base HEAD
+fi
+if [[ -f "$VALIDATE_SCRIPT_CATEGORIZATION" ]]; then
+  run_gate "W10 script categorization" "$VALIDATE_SCRIPT_CATEGORIZATION" --mode diff --base HEAD
+fi
 
 echo "PASS: framework PR gate"

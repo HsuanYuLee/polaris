@@ -192,5 +192,143 @@ else
 fi
 assert_contains "no-heading body lists missing headings" "$out" "(none)"
 
+# DP-240-T6 / AC9 — Script reuse justification fixtures.
+#
+# Body that satisfies template headings AND includes the reuse-justification
+# section (used when --added-files lists a new root-level script).
+reuse_ok_body="$TMPROOT/reuse-ok.md"
+cat > "$reuse_ok_body" <<'EOF'
+## Description
+
+Add a new helper script.
+
+## Changed
+
+- Added scripts/new-helper.sh.
+
+## Script reuse justification
+
+Existing helpers were evaluated and do not cover the new contract; see DP-240 notes.
+
+## Screenshots (Test Plan)
+
+- Selftest passes.
+
+## Related documents
+
+- JIRA: DEMO-1
+
+## QA notes
+
+- N/A
+EOF
+
+# Same body without the reuse-justification section (still passes template
+# heading check) — must BLOCK when added-files lists a new root script.
+reuse_missing_body="$TMPROOT/reuse-missing.md"
+cat > "$reuse_missing_body" <<'EOF'
+## Description
+
+Add a new helper script.
+
+## Changed
+
+- Added scripts/new-helper.sh.
+
+## Screenshots (Test Plan)
+
+- Selftest passes.
+
+## Related documents
+
+- JIRA: DEMO-1
+
+## QA notes
+
+- N/A
+EOF
+
+added_new_root_script="$TMPROOT/added-new-root-script.txt"
+printf 'scripts/new-helper.sh\n' > "$added_new_root_script"
+
+added_modified_only="$TMPROOT/added-modified-only.txt"
+# Empty file (no newly-added paths) — modifying an existing script should not
+# trigger the reuse-justification gate.
+: > "$added_modified_only"
+
+added_subdir_only="$TMPROOT/added-subdir-only.txt"
+# New scripts under a subdirectory (gates/, selftests/, lib/) are not the
+# "root-level helper" surface; they should NOT trigger the gate.
+cat > "$added_subdir_only" <<'EOF'
+scripts/gates/gate-new.sh
+scripts/selftests/foo-selftest.sh
+scripts/lib/helper.sh
+EOF
+
+added_python_root="$TMPROOT/added-python-root.txt"
+printf 'scripts/new-helper.py\n' > "$added_python_root"
+
+added_mjs_root="$TMPROOT/added-mjs-root.txt"
+printf 'scripts/new-helper.mjs\n' > "$added_mjs_root"
+
+# Case 1: new root .sh + body with reuse section → PASS
+set +e
+out="$("$GATE" --repo "$repo" --body-file "$reuse_ok_body" --added-files "$added_new_root_script" 2>&1)"
+rc=$?
+set -e
+assert_rc "T6: new root .sh with reuse section passes" "$rc" "0"
+
+# Case 2: new root .sh + body without reuse section → BLOCK
+set +e
+out="$("$GATE" --repo "$repo" --body-file "$reuse_missing_body" --added-files "$added_new_root_script" 2>&1)"
+rc=$?
+set -e
+assert_rc "T6: new root .sh without reuse section blocks" "$rc" "2"
+assert_contains "T6: reuse block mentions justification" "$out" "Script reuse justification"
+assert_contains "T6: reuse block lists triggering file" "$out" "scripts/new-helper.sh"
+
+# Case 3: modifying existing script (no added files) → PASS
+set +e
+out="$("$GATE" --repo "$repo" --body-file "$reuse_missing_body" --added-files "$added_modified_only" 2>&1)"
+rc=$?
+set -e
+assert_rc "T6: modify-existing skips reuse gate" "$rc" "0"
+
+# Case 4: new scripts in subdirs only (no root .sh) → PASS even without reuse section
+set +e
+out="$("$GATE" --repo "$repo" --body-file "$reuse_missing_body" --added-files "$added_subdir_only" 2>&1)"
+rc=$?
+set -e
+assert_rc "T6: subdir-only adds skip reuse gate" "$rc" "0"
+
+# Case 5: new root .py without reuse section → BLOCK
+set +e
+out="$("$GATE" --repo "$repo" --body-file "$reuse_missing_body" --added-files "$added_python_root" 2>&1)"
+rc=$?
+set -e
+assert_rc "T6: new root .py without reuse section blocks" "$rc" "2"
+
+# Case 6: new root .mjs without reuse section → BLOCK
+set +e
+out="$("$GATE" --repo "$repo" --body-file "$reuse_missing_body" --added-files "$added_mjs_root" 2>&1)"
+rc=$?
+set -e
+assert_rc "T6: new root .mjs without reuse section blocks" "$rc" "2"
+
+# Case 7: --added-files pointing to a missing file → BLOCK with clear error
+set +e
+out="$("$GATE" --repo "$repo" --body-file "$reuse_ok_body" --added-files "$TMPROOT/does-not-exist.txt" 2>&1)"
+rc=$?
+set -e
+assert_rc "T6: missing --added-files blocks" "$rc" "2"
+assert_contains "T6: missing --added-files error" "$out" "does not exist"
+
+# Case 8: no --added-files supplied → legacy behavior (template heading only)
+set +e
+out="$("$GATE" --repo "$repo" --body-file "$valid_body" 2>&1)"
+rc=$?
+set -e
+assert_rc "T6: omitting --added-files preserves legacy pass" "$rc" "0"
+
 printf '\n=== pr-body-template selftest: %d/%d PASS ===\n' "$PASS" "$TOTAL"
 [[ "$PASS" -eq "$TOTAL" ]]

@@ -92,6 +92,17 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/audit-legacy-script-governance.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "DP-240 T7 non-blocking debt aggregator; backfill DP seed only.",
+      "keep_reason": "Maintainer-facing legacy script governance debt snapshot used as seed for backfill / sunset / relocation DPs."
+    },
+    {
       "path": "scripts/audit-mechanism-graduation.sh",
       "kind": "gate",
       "runner": "bash",
@@ -3884,6 +3895,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/validate-framework-handbook-routing-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/validate-manifest-parity-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3989,7 +4010,37 @@
       "posture_decision": "DP-179 root package / workspace governance fixture coverage."
     },
     {
+      "path": "scripts/selftests/validate-mise-dependency-change-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/validate-script-categorization-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/validate-script-dependencies-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/validate-script-header-comment-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
@@ -4641,6 +4692,15 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/validate-framework-handbook-routing.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/validate-framework-handbook-routing-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-handbook-path-contract.sh",
       "kind": "gate",
       "runner": "bash",
@@ -4840,11 +4900,38 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/validate-mise-dependency-change.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/selftests/validate-mise-dependency-change-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-script-categorization.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/selftests/validate-script-categorization-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-script-dependencies.sh",
       "kind": "gate",
       "runner": "bash",
       "owner_surface": "script_dependency_governance",
       "selftest": "scripts/selftests/validate-script-dependencies-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-script-header-comment.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/selftests/validate-script-header-comment-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },

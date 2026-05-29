@@ -4,6 +4,41 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.134] - 2026-05-29
+
+### Added — DP-240 framework workspace self-development handbook + constitutional skill-first amendment
+
+- **憲法層**（`.claude/instructions/core/bootstrap.md`）新增 3 個 H2 section：`## Skill-First Routing`、`## Markdown Authoring Contract`、`## Tool Missing Discipline`。4 個 generated runtime target（`CLAUDE.md` / `AGENTS.md` / `.codex/AGENTS.md` / `.github/copilot-instructions.md`）同步含相同條文（DP-240-T1，AC1 / AC15 / AC16）。
+- **bootstrap source alignment**（`scripts/compile-runtime-instructions.sh`）：`emit_core` 改為從 `.claude/instructions/core/bootstrap.md` 讀取作為 single source（取代原本 hardcoded heredoc），讓 bootstrap.md 成為憲法層真實 SoT（DP-240-T1）。
+- **新增 framework self-development handbook**（`.claude/rules/handbook/framework/`，DP-240-T2）：index.md routing pointer + 6 個 topic 子檔（cross-llm-parity / script-governance / development-standards / dependency-management / configuration-surface / contract-design），由 `.claude/rules/workspace-self-development.md` route 進入（AC2 / AC12 / AC13 / AC17 / AC18）。
+- **Universal handbook 補強**：`working-habits.md` 新增 Principal Agreement = GO Signal 條文（DP-240-T10，AC14）；新增 `.claude/rules/handbook/implementation-language-choice.md` 規範 sh / py / mjs 語言取捨 + 過度工程禁令（DP-240-T12，AC19，R7 amendment 對齊 sibling H1-first 慣例）。
+
+### Added — multi-language script governance + validator gates（DP-240-T3 / T4 / T5 / T9）
+
+- **`scripts/validate-script-header-comment.sh`**（T3，AC3 / AC7）：`.sh` / `.py` / `.mjs` / `.ts` 新增或修改時必須在前 20 行含 Purpose 註解；支援 `--mode diff` blocking + `--mode audit` legacy debt report。
+- **`scripts/validate-script-categorization.sh`**（T4，AC4 / AC7）：依 callsite 分布判定 skill-only / framework-wide / hook / owning-DP 位置；支援 `--mode diff` blocking + `--mode audit`。
+- **Aggregate wiring**（T5，AC8）：`mise run script-audit` + `scripts/command-catalog.json` runtime.script-audit.implementation + `scripts/framework-release-pr-lane.sh` + `scripts/check-framework-pr-gate.sh` 都消費同一 aggregate；`mechanism-registry.md` 補登 4 個 entry。
+- **`scripts/validate-mise-dependency-change.sh`**（T9，AC11）：`mise.toml` diff 需要 PR body 引用 `DP-NNN`，模糊文字（`DP TBD` / `see Polaris DP`）不接受。
+- **`scripts/audit-legacy-script-governance.sh`**（T7）：legacy script governance debt audit report producer，產出 artifact 列既有 100+ script 的 header / categorization / reuse / fail-stop missing 狀態。
+
+### Added — gate authority for root scripts + handbook routing（DP-240-T6 / T8）
+
+- **`scripts/gates/gate-pr-body-template.sh`**（T6，AC9）：新增 root `scripts/*.sh|*.py|*.mjs|*.ts` 的 PR body 必須含 `Script reuse justification` 段落；空白或模糊文字（「see existing X」「reuse later」）會被擋下。
+- **`scripts/validate-framework-handbook-routing.sh`**（T8，AC10）：framework-owned path / product repo path / 混合命中三類由 deterministic gate 標示，避免 framework handbook 被 product repo path 誤用。
+
+### Added — framework configuration surface governance（DP-240-T11）
+
+- **`.claude/rules/handbook/framework/configuration-surface.md`**（D25，AC17）：`workspace-config.yaml` / `.claude/instructions/manifest.yaml` 與 `mise.toml` 同層治理；新增 / 修改視為 framework contract change，PR body 必須引用 owning DP。carve-out 明列 `<company>/polaris-config/**` / `_template/**`。
+
+### Fixed — compile script duplicate emission
+
+- **`scripts/compile-runtime-instructions.sh`**：移除 `emit_decision_priority_principle()` inline function 與 4 個 callsites。DP-259-T1 引入 inline function 時 emit_core 為 hardcoded heredoc，無 duplicate；DP-240-T1 把 emit_core 改成讀 bootstrap.md SoT（bootstrap.md 此時已含 DP-259 加入的 Decision Priority Principle section），inline function 變 redundant 產生 duplicate。本 release 將 inline function 移除，由 bootstrap.md 作 single source。
+
+### Verification
+
+- **V1 verify-AC PASS 21/21**（含 AC-NEG1 / AC-NEG2，HEAD `4c38913`）：4-target byte-equivalent diff、validator selftest、benchmark wall-clock < 1.2s、bootstrap source canary、aggregate wiring、framework handbook 結構斷言、handbook H1-first convention assert（AC19 經 R7 amendment 對齊 sibling 慣例），全部 PASS。verify-report.md 在 `verification/V1/`。
+- **Bundle integration**：12 個 task PR（#455 #457 #461 #463 #464 #465 #466 #467 #470 #471 #472 #473）在 bundle branch 依 stack order merge（T1/T2/T9/T10/T12 root → T3/T5/T8/T11 layer 1 → T4/T6 layer 2 → T7 layer 3）。
+
 ## [3.75.133] - 2026-05-29
 
 ### Added — DP-259 decision priority constitution + local verification / self-authored prose handbook

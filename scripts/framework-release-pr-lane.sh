@@ -13,6 +13,8 @@ REPO_PATH="$(cd "${SCRIPT_DIR}/.." && pwd)"
 GITHUB_REST_LIB="${SCRIPT_DIR}/lib/github-rest.sh"
 VERSION_BUMP_CHECKER="${SCRIPT_DIR}/check-version-bump-reminder.sh"
 SCRIPT_MANIFEST_CHECKER="${SCRIPT_DIR}/check-script-manifest.sh"
+SCRIPT_HEADER_VALIDATOR="${SCRIPT_DIR}/validate-script-header-comment.sh"
+SCRIPT_CATEGORIZATION_VALIDATOR="${SCRIPT_DIR}/validate-script-categorization.sh"
 GOVERNED_SCRIPT_TEST_RUNNER="${SCRIPT_DIR}/run-governed-script-tests.sh"
 WORKSPACE_REPO=""
 MAIN_BRANCH="main"
@@ -187,6 +189,20 @@ run_script_manifest_release_gate() {
   info "running script manifest release gate"
   bash "$SCRIPT_MANIFEST_CHECKER" --root "$REPO_PATH" --quiet \
     || die "release preflight blocked: script manifest drift"
+
+  # DP-240 T5 / AC8: same script-audit aggregate as `mise run script-audit`
+  # and `check-framework-pr-gate.sh`. Header + categorization run in diff mode
+  # against HEAD (no diff in a clean release branch → exit 0).
+  if [[ -f "$SCRIPT_HEADER_VALIDATOR" ]]; then
+    info "running script header release gate (DP-240 T5)"
+    bash "$SCRIPT_HEADER_VALIDATOR" --mode diff --base HEAD \
+      || die "release preflight blocked: script header gate"
+  fi
+  if [[ -f "$SCRIPT_CATEGORIZATION_VALIDATOR" ]]; then
+    info "running script categorization release gate (DP-240 T5)"
+    bash "$SCRIPT_CATEGORIZATION_VALIDATOR" --mode diff --base HEAD \
+      || die "release preflight blocked: script categorization gate"
+  fi
 }
 
 run_governed_script_tests_release_gate() {

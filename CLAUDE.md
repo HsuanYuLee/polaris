@@ -61,6 +61,57 @@ Trade-off 規則：
 - 當出現候選方案時，優先依本原則直接決定並交付一個方案，附 reasoning 與 tradeoff。
 - 不得把當前 skill 契約已排除的選項（forbidden_actions、consent_excludes、dispatch_boundary 之外的動作）列給使用者選，也不得寫進 self-authored report 的 `manual_items[]`、handoff prompt 或下一 session 的選項清單。違反契約的選項在 writer 端就要過濾，不應留待 reader 端再檢查。
 
+## Skill-First Routing
+
+When the user's message matches a skill trigger, the agent must invoke the matching Skill tool **before** performing any other tool call, research, or pre-processing. This is a hard contract, not advisory prose.
+
+- Do not pre-process inputs (read Slack, fetch JIRA, run `gh pr view`, scan files) before invoking the skill — the skill owns its own data fetching and disambiguation flow.
+- Do not launch sub-agents before the Skill tool fires — the skill defines the delegation strategy.
+- Do not partially execute skill steps manually — always let the Skill tool load the full `SKILL.md`.
+- "I already know how to do this" is not a valid reason to skip a skill. Skills carry quality gates and side effects (lesson extraction, evidence writes, Slack notifications) that manual execution silently drops.
+
+The single allowed exception is genuinely ambiguous input that could match multiple skills (for example, "處理這個 PR" could be `engineering` revision or `review-pr`). Resolve the ambiguity by asking the user **before** any tool call — not after reading the PR.
+
+Routing tables, zero-input trigger behavior, deprecated entrypoint guards, and negative-tone fix-intent recognition live in `.claude/rules/skill-routing.md`. Load that rule whenever a routing question appears.
+
+## Markdown Authoring Contract
+
+Any `.md` write to a `docs-manager/` tracked path must comply with the Starlight authoring contract **and** the producer-specific frontmatter contract before the write completes. This is a constitutional-layer rule — it applies to every agent run, every skill, every sub-agent, every runtime adapter, in both Polaris workspaces and product repos.
+
+Four deterministic gates already enforce this contract; they are not optional and must not be bypassed:
+
+- `scripts/validate-starlight-authoring.sh` — Starlight page frontmatter / heading / sidebar contract.
+- `scripts/validate-language-policy.sh` — workspace `language` contract on artifact and external-write bodies.
+- `scripts/validate-spec-primary-doc-authoring.sh` — primary spec doc (`index.md`) shape.
+- `scripts/validate-dp-plan-authoring.sh` — DP-backed plan / refinement / task authoring shape.
+
+The single source of truth for `path → producer` mapping is `scripts/lib/evidence-producers.json`. Agents must resolve the producer for a target path through that file (or a helper that reads it) before drafting frontmatter; do not hand-author producer-specific fields from memory, and do not invent a second mapping table.
+
+When a gate exits non-zero with a `POLARIS_*` marker on stderr, the agent must stop, read the marker, and fix the underlying authoring contract violation. Suppressing the gate, deleting frontmatter to silence it, or bypassing with environment overrides is forbidden outside of the explicit carve-outs documented in the rule layer.
+
+## Tool Missing Discipline
+
+When an agent detects a missing tool (binary not on `PATH`, command not found, `which` returns nothing, language runtime absent, install command unavailable), the agent must **fail-stop and emit a correct repair hint**. Silent background installation is forbidden — there is no acceptable "fix it on the fly" path, and the agent must never install tools behind the user's back.
+
+**Forbidden install moves** (always, no exceptions):
+
+- `brew install …` / `brew upgrade …`
+- `npm install -g …` / `pnpm add -g …` / `yarn global add …`
+- `pip install …` / `pip3 install …` / `pipx install …`
+- `curl … | sh`, `curl … | bash`, `wget … | sh`, and equivalent piped-installer patterns
+- Direct binary download to `~/.local/bin`, `/usr/local/bin`, `$HOME/bin`, or any path on `PATH`
+- Any equivalent move that mutates the host toolchain outside of `mise` or the declared product-team setup
+
+**Repair hint routing** depends on which tool is missing:
+
+- **Polaris-runtime tool** (anything the Polaris workspace itself depends on: `mise`, declared mise plugins, deterministic gate runtimes, `pnpm`, `python3` versions pinned by Polaris, `node`, `jq`, `rg`, `gh`, and similar) → the repair hint must point to `mise install` (or the canonical `mise run bootstrap` / `mise run doctor -- --profile runtime` chain). If the tool is missing from the Polaris dependency contract, the agent must additionally open a follow-up DP under the D16 mise-only policy so the dependency is declared in `mise.toml`, not patched ad hoc on a single host.
+- **Product business stack tool** (anything owned by the product repo's own setup: app-specific CLIs, repo-local dev servers, project-specific Docker stacks, vendor SDKs, language runtimes pinned by the product team) → the repair hint must point the user at the product team's setup documentation (repo handbook, onboarding doc, internal wiki page, README). The agent does not install product business stack tools on behalf of the user; that decision belongs to the product team.
+
+**Multi-language scope (D26)**: this discipline applies to every hot path executable in the Polaris workspace, regardless of implementation language — `.sh`, `.py`, `.mjs`, `.ts`. A missing Python interpreter, a missing Node runtime, a missing TypeScript loader, or a missing shell utility all trigger the same fail-stop + repair-hint contract. The rule is not limited to shell tooling; the same routing (Polaris-runtime → `mise install` + D16, product business stack → product team setup docs) applies to `.py`, `.mjs`, and `.ts` runtime dependencies.
+
+**Exception (narrow)**: `git`, POSIX shell built-ins, and standard coreutils (`awk`, `sed`, `grep`, `sort`, `head`, `tail`, `cat`, `cut`, and similar) are assumed present and may be invoked without an install probe. If one of these is genuinely missing, the host environment is broken and the agent should report that to the user, not attempt repair.
+
+
 ## Claude Runtime Notes
 
 Claude Code sees this file as first context. Keep this bootstrap thin: framework identity, routing posture, deterministic enforcement, and source locations only.
