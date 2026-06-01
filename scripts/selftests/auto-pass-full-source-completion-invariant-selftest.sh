@@ -18,7 +18,6 @@ required_sources=(
   ".claude/instructions/runtime/copilot.md"
   ".claude/rules/skill-routing.md"
   ".claude/skills/auto-pass/SKILL.md"
-  "scripts/compile-runtime-instructions.sh"
 )
 
 generated_targets=(

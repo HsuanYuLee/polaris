@@ -79,6 +79,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | mise-dependency-change | scripts/validate-mise-dependency-change.sh | script | portable | scripts/selftests/validate-mise-dependency-change-selftest.sh | governance |
 | script-header-comment | scripts/validate-script-header-comment.sh | script | portable | scripts/selftests/validate-script-header-comment-selftest.sh | governance |
 | script-categorization | scripts/validate-script-categorization.sh | script | portable | scripts/selftests/validate-script-categorization-selftest.sh | governance |
+| python-union-annotation-py39-portability | scripts/selftests/python-union-annotation-py39-portability-selftest.sh | script | portable | scripts/selftests/python-union-annotation-py39-portability-selftest.sh | governance |
 
 ## Mechanism Canary Entries
 

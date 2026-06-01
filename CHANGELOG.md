@@ -4,6 +4,26 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.137] - 2026-06-01
+
+### Added — DP-265 framework embedded-python union annotation Python 3.9 portability fix
+
+- **`scripts/validate-memory-write.sh` / `scripts/validate-script-categorization.sh`**（DP-265-T1）：為兩支內嵌 Python validator 加上 `from __future__ import annotations`，讓 `X | None` union annotation 在 host Python 3.9 下不再 `TypeError: unsupported operand type(s) for |`（governed harness 以 `bash -lc` 選到 host python <3.10 時不再 crash）。
+- **`scripts/selftests/python-union-annotation-py39-portability-selftest.sh`**（DP-265-T1）：新增 portability selftest，斷言內嵌 Python 使用 PEP 604 union 時必須帶 `from __future__ import annotations`。
+- **`.claude/rules/mechanism-registry.md`**（DP-265-T1）：新增 `python-union-annotation-py39-portability` Runtime Annotation Registry row。
+
+### Fixed — DP-267 governed-script-tests release gate stale full-source-completion-invariant selftest assertion
+
+- **`scripts/selftests/auto-pass-full-source-completion-invariant-selftest.sh`**（DP-267-T1）：從 `required_sources` 陣列移除 stale 的 `scripts/compile-runtime-instructions.sh` 斷言。其餘 source 斷言、4 個 generated target 斷言、negative anchor、skill-routing、manifest 自我登錄、末尾 `--check` render-sync 全部保留不動；governed-script-tests release gate 達成 36/36 全綠。
+
+### Why
+
+DP-265 與 DP-267 為一組 stacked cross-DP fix：DP-267 的 governed-script-tests 36/36 需要 DP-265 的 py3.9 portability fix 先進 base（否則 host python <3.10 先 crash 遮蔽後段中止），而 DP-265 的 release gate 又需要 DP-267 的 stale 斷言移除。透過 stacked delivery（DP-267 base 疊在 DP-265 上）打破對稱死結，於同一個 merge train 一次釋出版本。
+
+### Verified
+
+DP-265 V1 verify-AC PASS、DP-267 V1 dogfood verify-AC 5/5 AC PASS（AC1/AC2/AC-NEG1/AC-NEG2/AC-NEG3），governed-script-tests 36/36 全綠不依賴 bypass env；workspace PR #488（DP-265）+ #489（DP-267），bundle release。
+
 ## [3.75.136] - 2026-05-29
 
 ### Added — DP-261 `check-runtime-cache-residue.sh` 改為 source-scoped filename matching

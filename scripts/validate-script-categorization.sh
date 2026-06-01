@@ -151,6 +151,8 @@ fi
 export POLARIS_SCRIPT_CATEGORIZATION_EXPLICIT_FILES="$EXPLICIT_BLOB"
 
 python3 - "$MODE" "$BASE_REF" "$ROOT_DIR" "$EXCEPTION_FILE" <<'PY'
+from __future__ import annotations
+
 import json
 import os
 import re

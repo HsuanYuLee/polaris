@@ -87,6 +87,8 @@ export POLARIS_VALIDATE_MEMORY_WRITE__HOT_SOFT_LIMIT="$HOT_SOFT_LIMIT"
 export POLARIS_VALIDATE_MEMORY_WRITE__CONTENT="$CANDIDATE_CONTENT"
 
 python3 - <<'PY'
+from __future__ import annotations
+
 import os
 import re
 import sys
