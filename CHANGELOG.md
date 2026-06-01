@@ -4,6 +4,22 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.138] - 2026-06-01
+
+### Fixed — DP-264 derive-task-md stacked task base-branch 推導 form-agnostic
+
+- **`scripts/derive-task-md-from-refinement-json.sh`**（DP-264-T1，AC1 / AC2 / AC-NEG1）：stacked task 的 dependency base-branch 推導改為 form-agnostic。`task_by_id` lookup 改用 `full_work_item_id(entry.id)` 正規化 key，使 `refinement.json` `tasks[].id` 不論 short form（`T1`）或 full form（`DP-NNN-T1`）都能用 full dependency id 命中真實 entry，取得真實 title slug 推導出 `| Base branch | task/DP-NNN-T1-{title-slug} |`，不再退回 `task/DP-NNN-T1-dp-nnn-t1` slug-of-full-id fallback。複用既有 `short_work_item_id` / `full_work_item_id` helper，與 primary task lookup 的 dual-form 處理同源。
+- **`scripts/selftests/derive-task-md-stacked-base-branch-selftest.sh`**（DP-264-T1，AC1 / AC2 / AC-NEG1）：新增 stacked base-branch derivation selftest，short-form-id fixture 斷言 base branch 解析到真實 T1 title slug（非 slug fallback）、full-form regression、foreign-prefix external dep 維持排除三類 case。
+- **`.claude/rules/mechanism-registry.md`**（DP-264-T1，AC3）：Runtime Annotation Registry 新增 `derive-task-md-stacked-base-branch` selftest row（kind=script、runtime=portable、governance_role=governance）。
+
+### Why
+
+stacked task（task B depends on task A）需推導 task A 的 branch 作為 task B 的 base branch（render 進 task.md，由 `engineering-branch-setup` cascade-rebase 消費）。`refinement.json` 的 `tasks[].id` 由 `create-design-plan.sh` / refinement 產生時是 short form（`T1`），但 dependency lookup 用 full id（`DP-NNN-T1`）查以 short id 為 key 的 dict → miss → base-branch 退回 `dp-nnn-t1` fallback，永不等於真實 dependency branch，導致 stacked task 全部卡在 cascade-rebase 到不存在的 branch。此 bug 在 DP-262 首個含 stacked task 的 DP 才浮現（既有 DP 的 task 皆 base=main 未觸發）；既有 fullform selftest 因 fixture 用 full-form id 剛好命中、且未斷言 base_branch 輸出，缺口存活。
+
+### Verified
+
+V1 verify-AC 6/6 AC PASS（AC1-4 + NEG1-2）；新 selftest + 兩支 derive regression selftest + `validate-mechanism-runtime-annotations.sh` 全 PASS；fix diff 僅 3 檔，不含任何 `refinement.json`（DP-262 / DP-242 refinement_hash 不受影響）。workspace PR #487。
+
 ## [3.75.137] - 2026-06-01
 
 ### Added — DP-265 framework embedded-python union annotation Python 3.9 portability fix

@@ -158,8 +158,6 @@ def slugify(text: str) -> str:
 slug = slugify(title)
 task_branch = f"task/{task_id}-{slug}"
 
-task_by_id = {str(entry.get("id")): entry for entry in tasks if isinstance(entry, dict)}
-
 def short_work_item_id(value: str) -> str:
     m_short = re.fullmatch(r"[TV]\d+[a-z]?", value)
     if m_short:
@@ -174,6 +172,16 @@ def full_work_item_id(value: str) -> str:
     short = short_work_item_id(value)
     return f"{source_id}-{short}" if short else value
 
+
+# Index tasks by normalized full id so dependency title lookup hits regardless of
+# whether tasks[].id is short form (T1) or full form (DP-NNN-Tn). Keying by the raw
+# entry.id would miss short-form entries when looked up by full id below, and the
+# missing-entry path silently falls back to the full-id literal as the slug source.
+task_by_id = {
+    full_work_item_id(str(entry.get("id"))): entry
+    for entry in tasks
+    if isinstance(entry, dict)
+}
 
 local_dependencies = []
 external_dependencies = []
