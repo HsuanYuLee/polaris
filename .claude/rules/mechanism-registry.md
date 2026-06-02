@@ -81,6 +81,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | script-categorization | scripts/validate-script-categorization.sh | script | portable | scripts/selftests/validate-script-categorization-selftest.sh | governance |
 | python-union-annotation-py39-portability | scripts/selftests/python-union-annotation-py39-portability-selftest.sh | script | portable | scripts/selftests/python-union-annotation-py39-portability-selftest.sh | governance |
 | derive-task-md-stacked-base-branch | scripts/selftests/derive-task-md-stacked-base-branch-selftest.sh | script | portable | N/A | governance |
+| derive-task-shape-propagation | scripts/derive-task-md-from-refinement-json.sh | script | portable | scripts/selftests/derive-task-md-from-refinement-json-selftest.sh | governance |
 | audit-confirmation-task-kind-carve-out | scripts/validate-breakdown-ready.sh | script | portable | scripts/selftests/validate-breakdown-ready-task-shape-selftest.sh | governance |
 
 ## Mechanism Canary Entries

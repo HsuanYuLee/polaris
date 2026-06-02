@@ -4,6 +4,22 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.141] - 2026-06-02
+
+### Fixed — DP-272 derive task_shape propagation（補完 DP-262 T5 宣告但未實作的 gap）
+
+- **`scripts/derive-task-md-from-refinement-json.sh`**（DP-272-T1，AC1 / AC2 / AC3 / AC-NEG1 / AC8）：derive 在 T-task frontmatter（`task_kind` 後）注入 `task_shape`。取值來源唯一 canonical 為 `refinement.json` `planned_tasks[].task_shape`，依 normalize 後的 short task_id join 取得；不新增 `tasks[].task_shape` 第二來源。只注入 T-task；V-task 永不注入（AC2）。Passthrough only：derive 不驗 enum，單一 classifier 仍是 `validate-task-md.sh`（DP-262 AC7）；缺 entry / 缺值時省略該行，reader default = `implementation`。
+- **`scripts/selftests/derive-task-md-from-refinement-json-selftest.sh`**（DP-272-T1）：新增 case 8-12 涵蓋 AC1 / AC2 / AC3 / AC-NEG1 / AC8（propagation、V-task 不注入、缺值省略、zero-shim byte-identical）。
+- **`.claude/rules/mechanism-registry.md`**（DP-272-T1）：Runtime Annotation Registry 新增 `derive-task-shape-propagation` row（kind=script、runtime=portable、fallback=derive selftest、governance_role=governance）。
+
+### Why
+
+DP-262-T5 在 `breakdown` SKILL.md 與 T-task schema 文件化了 `task_shape` 會由 breakdown 在 task packaging 階段傳遞，但 `derive-task-md-from-refinement-json.sh`（DP-backed task 的 task.md 生成器）從未實作該 propagation——documented contract ≠ implemented contract。結果 DP-backed source 走 derive 產生的 task.md 永遠缺 `task_shape` frontmatter，audit / confirmation task 仍被下游 gate（breakdown-ready、delivery-completion）當 implementation 處理。DP-272 補上 derive 端的 `planned_tasks[]` join，使 task_shape carve-out 在 DP-backed source 真正生效。
+
+### Verified
+
+V1 verify-AC 5/5 AC PASS（AC1 / AC2 / AC3 / AC-NEG1 / AC8）；derive selftest 全綠（含新增 propagation cases）+ `check-script-manifest.sh` PASS；fix diff 僅 3 檔。workspace PR #498。
+
 ## [3.75.140] - 2026-06-02
 
 ### Added — DP-270 framework-release lane single-DP bundle support
