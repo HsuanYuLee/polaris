@@ -4,6 +4,23 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.143] - 2026-06-02
+
+### Added — DP-242 DP-240 legacy backfill audit（scripts / markdown / cross-LLM hooks 分類盤點）
+
+- **`docs-manager/src/content/docs/audits/dp-242/audit-scripts.md`**（DP-242-T1，AC1 / AC7）：擴展 `script-ownership-audit.{sh,py}` 掃描範圍至 `.py` / `.mjs` / `.ts`（per DP-240 D26 multi-language scope），對 `scripts/**`、`.claude/skills/**/scripts/**`、`.claude/hooks/**` 三組 root 分類盤點；每筆 entry 採 D2 8 欄 schema（path / role / owner / callers / usage_status / compliance / target_disposition / follow-up_DP），結尾含 per-extension 小計（.sh 533 / .py 25 / .mjs 12 / .ts 2 / Total 572）與 `## Open Questions for follow-up DP`（7 條，導向 DP-243）。
+- **`docs-manager/src/content/docs/audits/dp-242/audit-markdown.md`**（DP-242-T2，AC2 / AC7）：framework markdown 合規性 audit，8 欄 schema（compliance 細分 frontmatter / Starlight / language-policy / producer-specific），含 ARCHIVED carve-out（`archive-legacy_grandfathered` → DP-244）、`_template/**` 與 generated-target exclusion、known-exception 清單，及 4 條 Open Questions（導向 DP-244）。
+- **`docs-manager/src/content/docs/audits/dp-242/audit-hooks.md`**（DP-242-T3，AC3 / AC7）：cross-LLM hook parity audit，逐 hook 採 8 欄 schema + Claude / Codex / Copilot runtime 細分、18-row parity matrix、行為等價（behavior parity）語義宣告、每筆 intentional-gap rationale，及 4 條 Open Questions（導向 DP-245）。
+- **DP-242 `index.md` `## Multi-DP Plan` + `## Audit Findings`**（DP-242-T4，confirmation no-PR）：確認 DP-243 / DP-244 / DP-245 / DP-246 四張 follow-up DP 規劃表（6 欄）與兩條 framework-gap finding（refinement-lock-preflight-gap / audit-only-dp-shape-gap）齊備；以 `task_shape: confirmation` completion-gate marker 無-PR 完成（DP-262 carve-out + DP-272 derive propagation 落地）。
+
+### Why
+
+DP-240 D26 把 multi-language hot path executable（`.sh` / `.py` / `.mjs` / `.ts`）納入 framework script governance scope，但既有 legacy script / markdown / cross-LLM hook 從未做過一次完整分類盤點。DP-242 以 audit-only DP 先盤點現況（classify），把實際 refactor 拆進 DP-243 / DP-244 / DP-245 / DP-246 follow-up（then refactor），避免一次大改 legacy 造成不可控 diff。
+
+### Verified
+
+V1 verify-AC 端對端 10/10 PASS（AC1–AC7 + AC-NEG1 / AC-NEG2 / AC-NEG3）：三份 audit schema / coverage / carve-out / Open Questions 完整、`index.md` 兩 section 齊備、4 份 tracked markdown frontmatter + language-policy + Starlight gate replay PASS、累計 < 200KB；implementation 未觸碰 production surface、未提前 seed follow-up container、未改 `.gitignore`。aggregate-release bundle PR（T1–T3 content + V1 verify-report）。
+
 ## [3.75.142] - 2026-06-02
 
 ### Added — DP-269 JIRA-Epic-backed source 與 auto-pass initial-create lane 對稱（T1–T5 bundle）
