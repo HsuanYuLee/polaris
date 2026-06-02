@@ -176,6 +176,31 @@ bash scripts/write-producer-owned-artifact.sh \
   `scripts/selftests/derive-task-md-from-refinement-json-selftest.sh` enforce（AC28
   positive, AC-NEG9 fail-loud）。
 
+#### Source-Type Dispatch：dp mode vs jira mode (DP-269)
+
+`derive-task-md-from-refinement-json.sh` 依 `refinement.json` 的 `source.type` 分兩 mode；
+這是同一條 initial-create lane 的 **additional contract**，不是 DP-only fast path（JIRA
+Epic-backed 與 DP-backed source 對稱，呼應 `canonical-contract-governance.md` § Source
+Parity，由 `scripts/validate-spec-source-parity.sh` 在 framework PR gate 保護）：
+
+- **dp mode（`source.type=dp`）**：行為不變。task identity = canonical `DP-NNN-Tn`，
+  `Repo` = `polaris-framework`（CLI `--repo` default），`Base branch` = `main`，
+  `JIRA key` cell = `N/A`。
+- **jira mode（`source.type=jira`）**：derive 從 `refinement.json` 注入產品事實 ——
+  task identity = 真實 `tasks[].jira_key`（命中 `validate-task-md.sh`
+  `is_valid_task_identity` 的 plain JIRA key 分支），`Repo` = `source.repo`，
+  `Base branch` = `source.base_branch`（產品 base branch，如 `develop`），
+  `JIRA key` cell = 真實 key（非 N/A）。
+
+`source.repo` / `source.base_branch` / `tasks[].jira_key` 是 jira-only 欄位，由
+`refinement` Phase 1/2 populate（base_branch 來源見 `refinement` SKILL.md §
+JIRA-Epic-Backed Source Field Population；`base_branch` 從
+`{company}/polaris-config/{project}/handbook/config.yaml` 讀取，無對應 entry 時 fail-stop
+不硬猜）。`tasks[].jira_key=null` 的 jira task 進 derive 時 fail-closed（要求先 populate
+真實 key，無 N/A fallback）；DP-backed source 帶任一 jira-only 欄位由
+`validate-refinement-json.sh` fail-closed（`POLARIS_REFINEMENT_JIRA_ONLY_FIELD`，不外洩到
+dp 分支）。
+
 ### Other breakdown-Owned Writes (DP-228 T10)
 
 breakdown 寫 `refinement-inbox/`、planner-owned `task.md` 後續編修，或其他 breakdown

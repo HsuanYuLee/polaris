@@ -177,6 +177,15 @@
       "selftest_reason": "covered by DP-207 auto-pass V1/V2 verification"
     },
     {
+      "path": "scripts/breakdown-emit-blocker-marker.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "breakdown",
+      "selftest": "scripts/selftests/breakdown-emit-blocker-marker-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/cascade-rebase-chain.sh",
       "kind": "support",
       "runner": "bash",

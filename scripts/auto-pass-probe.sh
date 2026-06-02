@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Purpose: auto-pass durable-evidence probe — read .polaris/evidence/** markers for
+#          a given stage (source/breakdown/engineering/verify-AC) and emit the
+#          machine terminal status (PASS / blocked_by_gate_failure / etc.) as JSON.
+# Inputs:  --stage, --source-id, --work-item-id, [--head-sha], [--ledger], [--repo].
+# Outputs: probe JSON on stdout; exit 0 on emit, 2 on usage error.
 set -euo pipefail
 
 usage() {
@@ -305,12 +310,20 @@ if ledger_result:
 evidence = repo / ".polaris" / "evidence"
 
 if stage == "breakdown":
-    for subdir, terminal, action, reason in (
+    for subdir, terminal, action, default_reason in (
         ("validation-fail", "blocked_by_gate_failure", "blocked", "breakdown validation failed"),
         ("missing-v-task", "blocked_by_gate_failure", "breakdown", "missing V task"),
     ):
         path = evidence / subdir / f"{work_item_id}.json"
         if path.is_file():
+            # DP-269 AC3: surface the marker's own `reason` (specific cause
+            # written by breakdown-emit-blocker-marker.sh) so the orchestrator
+            # reports a readable blocked_by_gate_failure cause instead of the
+            # generic "breakdown PASS marker missing". Fall back to the subdir's
+            # default reason only when the marker omits one.
+            marker_data = marker(path) or {}
+            marker_reason = marker_data.get("reason")
+            reason = marker_reason if isinstance(marker_reason, str) and marker_reason.strip() else default_reason
             emit(status_of(path) or "BLOCKED", terminal, action, path, reason)
     # AC13: amendment inbox scan is source-neutral. Use spec-source-resolver
     # to find the source container (DP under design-plans/ or JIRA Epic under

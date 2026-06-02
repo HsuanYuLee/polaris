@@ -46,7 +46,10 @@ refinement 完成時同時產出兩份：
     "id": "EPIC-530",                    // JIRA key or DP-NNN
     "container": "{company_specs_dir}/EPIC-530",
     "plan_path": null,                 // DP-backed only: docs-manager/src/content/docs/specs/design-plans/DP-NNN-*/plan.md
-    "jira_key": "EPIC-530"               // null for ticketless work
+    "jira_key": "EPIC-530",              // null for ticketless work
+    // --- jira-only fields (DP-269) — required when source.type=jira, forbidden when source.type=dp ---
+    "repo": "exampleco-web",             // product repo slug (= polaris-config/{project}/ dir name); derive jira mode -> task.md Repo
+    "base_branch": "develop"             // product base branch (from polaris-config/{project}/handbook/config.yaml); derive jira mode -> task.md Base branch
   },
   "version": "1.0",                    // artifact schema version
   "tier": 2,                           // detected complexity tier (1/2/3)
@@ -327,6 +330,20 @@ Producer rule：
 - `adversarial_pass[]`：每筆必填 `ac_id` / `attack` / `enforce`。
 - Bug-specific fields（`reproduction` / `root_cause` / `source_pr` / `severity` /
   `impact_scope` / `regression`）只允許 `source.type=bug`，其他 source type 不得出現。
+- **jira-only schema 欄位（DP-269）**：下列欄位只允許 `source.type=jira`，是 derive
+  jira mode 注入 task.md `Repo` / `Base branch` / 真實 JIRA identity 的來源；
+  `source.type=dp` 出現任一欄位時 `validate-refinement-json.sh` 以
+  `POLARIS_REFINEMENT_JIRA_ONLY_FIELD` fail-closed（比照 DP-228 jira-only consent
+  欄位禁令，避免鬆綁外洩到 dp 分支）：
+  - `source.repo`：產品 repo slug（= `polaris-config/{project}/` 目錄名）。
+    `source.type=jira` 時 **required**（derive jira mode → task.md `Repo`）。
+  - `source.base_branch`：產品 base branch（如 `develop`，來源
+    `polaris-config/{project}/handbook/config.yaml`）。`source.type=jira` 時
+    **required**（derive jira mode → task.md `Base branch`）。
+  - `tasks[].jira_key`：每筆 task 的真實子單 key（JIRA key string）或 `null`
+    （尚未建子單）。`source.type=jira` 時為 string | null；`derive` 在 jira mode 對
+    `null` fail-closed（要求先 populate，無 N/A fallback）。`source.type=dp` 時此欄位
+    必須完全缺席。
 
 `refinement.md` 是 derived view；先收斂 strict `refinement.json`，再用
 `scripts/render-refinement-md.sh` 產生 Markdown。`draft_json` 只可用於 authoring state，

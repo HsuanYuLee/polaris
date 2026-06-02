@@ -4,6 +4,24 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.142] - 2026-06-02
+
+### Added — DP-269 JIRA-Epic-backed source 與 auto-pass initial-create lane 對稱（T1–T5 bundle）
+
+- **`scripts/derive-task-md-from-refinement-json.sh`**（DP-269-T1，AC1 / AC2 / AC5）：derive 依 `source.type` 分 dp / jira 兩 mode。jira mode 從 `refinement.json` 注入真實 `tasks[].jira_key` 作 task identity、`source.repo` 作 `Repo`、`source.base_branch` 作 `Base branch`、`JIRA key` cell 為真實 key；`jira_key=null` 或缺 `source.repo` / `source.base_branch` 時 fail-closed（無 N/A fallback）。dp mode 行為完全不變（N/A / polaris-framework / main / identity=DP-NNN-Tn），維持純 stdlib python3。
+- **`scripts/validate-refinement-json.sh` + `.claude/skills/references/refinement-artifact.md` + `scripts/render-refinement-md.sh`**（DP-269-T2，AC4 / AC-NEG1 / AC-NEG2）：新增 jira-only schema 規則——`source.type=jira` required `source.repo` + `source.base_branch`、`tasks[].jira_key` 可 string|null；`source.type=dp` 出現任一 jira-only 欄位以 `POLARIS_REFINEMENT_JIRA_ONLY_FIELD` fail-closed（比照 DP-228 jira-only 禁令，鬆綁不外洩到 dp 分支）。
+- **`scripts/breakdown-emit-blocker-marker.sh`（new）+ `scripts/lib/evidence-producers.json` + `scripts/auto-pass-runner.sh` + `scripts/auto-pass-probe.sh`**（DP-269-T3，AC3）：新增 emitter 落 `validation_fail` / `missing_v_task` durable marker 到 `.polaris/evidence/`（比照 task-snapshot emitter 繞過 `no-direct-evidence-write`）；runner / probe 把該 marker 映射成可讀的 `blocked_by_gate_failure`（非「marker missing」）。
+- **`.claude/skills/refinement/SKILL.md`**（DP-269-T4）：Phase 1/2 populate `source.repo`（company context 目錄名）與 `source.base_branch`（`{company}/polaris-config/{project}/handbook/config.yaml`，無對應 entry 時 fail-stop）。
+- **`.claude/skills/breakdown/SKILL.md`**（DP-269-T5）：initial-create 段落記載 jira mode；確認 source-parity gate 對 dp / jira 對稱。
+
+### Why
+
+某次對 JIRA-Epic-backed source 跑 `/auto-pass`（2026-06-01）在 breakdown 階段 fail-closed：derive script 對所有 source 硬寫 `JIRA key | N/A` / `Repo: polaris-framework` / `Base branch: main`，而 `validate-task-md.sh` 對 `source_type=jira` 拒絕 N/A key，導致 JIRA-Epic-backed source 連可對應真實 key 的 task 都無法 materialize（DP-only fast path）。DP-269 補上 derive jira mode + schema 欄位 + blocker-marker emitter，讓 JIRA-Epic-backed 與 DP-backed source 共用同一條 auto-pass initial-create lane（呼應 `canonical-contract-governance.md` § Source Parity）。
+
+### Verified
+
+V1 verify-AC PASS（AC1 / AC2 / AC3 / AC4 / AC5 / AC-NEG1 / AC-NEG2）；derive selftest（jira / dp parity）、`validate-refinement-json` selftest、`breakdown-emit-blocker-marker` selftest 全綠。bundle PR #495（T1–T5 共用 `bundle_branch_alias: task/DP-269-bundle`），經 DP-270 修好的 framework-release lane 發版。
+
 ## [3.75.141] - 2026-06-02
 
 ### Fixed — DP-272 derive task_shape propagation（補完 DP-262 T5 宣告但未實作的 gap）

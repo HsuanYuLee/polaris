@@ -231,6 +231,10 @@ def map_next_action(probe_status, probe_terminal, probe_next, probe_evidence, pr
     if probe_terminal == "blocked_by_gate_failure":
         # AC-NEG3: missing / UNKNOWN markers must remain blocked even if
         # inner-skill prose contains "PASS"; we trust ONLY the machine field.
+        # DP-269 AC3: probe_reason carries the specific cause from a breakdown
+        # validation_fail / missing_v_task durable marker (emitted by
+        # breakdown-emit-blocker-marker.sh). Forward it verbatim so the
+        # orchestrator reports a readable blocker, not "marker missing".
         return {
             "status": probe_status or "UNKNOWN",
             "terminal_status": "blocked_by_gate_failure",

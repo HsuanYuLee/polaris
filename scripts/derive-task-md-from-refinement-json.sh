@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DP-230-T10: deterministic task.md body derivation from refinement.json
+# Purpose: deterministic task.md body derivation from refinement.json (DP-230-T10).
 #
 # Replaces the previous breakdown LLM-judgment task derivation. Given a
 # refinement.json `tasks[]` entry, emit a canonical task.md body that passes
@@ -9,6 +9,15 @@
 # Inputs come exclusively from structured fields on the refinement.json task:
 #   id, title, scope, allowed_files, ac_ids, dependencies, estimate_points,
 #   verification.detail
+#
+# DP-269: derive dispatches on source.type.
+#   - dp   mode (default): legacy behavior unchanged — JIRA key N/A,
+#            Repo polaris-framework (or --repo), Base branch main,
+#            task identity = canonical DP-NNN-Tn.
+#   - jira mode: task identity = real per-task `tasks[].jira_key`, Repo =
+#            `source.repo`, Base branch = `source.base_branch`, JIRA key cell =
+#            the real key. Fail-closes when `tasks[].jira_key` is null (no N/A
+#            fallback) and when source.repo / source.base_branch are missing.
 #
 # fail-loud cases (no fallback):
 #   - refinement.json file missing or invalid JSON
@@ -83,6 +92,22 @@ source_type = source.get("type") or "dp"
 if not source_id:
     fail("refinement.json missing source.id")
 
+# DP-269: derive dispatches on source.type. dp mode keeps the legacy defaults
+# (JIRA key N/A / Repo polaris-framework / Base branch main / identity DP-NNN-Tn).
+# jira mode injects the real per-task jira_key as the task identity and reads
+# source.repo / source.base_branch for the product repo + base branch. The CLI
+# --repo flag stays authoritative only for dp mode (polaris-framework default);
+# jira mode always takes Repo from source.repo and ignores --repo.
+if source_type == "jira":
+    jira_repo = source.get("repo")
+    jira_base_branch = source.get("base_branch")
+    if not jira_repo:
+        fail("source_type=jira requires source.repo (product repo slug)")
+    if not jira_base_branch:
+        fail("source_type=jira requires source.base_branch (product base branch)")
+    repo_name = jira_repo
+# dp mode keeps repo_name as the CLI --repo default (polaris-framework).
+
 tasks = data.get("tasks") or []
 # DP-260 T1: tasks[].id accepts both short form (T1/V1, optionally with a-suffix)
 # and full form (DP-NNN-Tn / EPIC-NNN-Vn) — derive must accept either when the
@@ -137,6 +162,32 @@ raw_dependencies = [str(dep).strip() for dep in list(match.get("dependencies") o
 # Tn suffix: reuse the canonical CLI parse above (m_cli) for short id / mode.
 short_id = cli_short_id
 mode = short_id[0]
+
+# DP-269: task identity + JIRA key cell dispatch on source.type.
+#   dp   : identity = canonical task_id (DP-NNN-Tn); JIRA key cell = N/A.
+#   jira : identity = real per-task jira_key; JIRA key cell = the same real key.
+# jira mode fail-closes on a null jira_key — derive must NOT fall back to N/A
+# (that would fail validate-task-md.sh, which requires a real key for jira
+# sources). The task must already be populated with a real jira_key before
+# derive (D3a). The plain JIRA key (^[A-Z][A-Z0-9]*-[0-9]+$) satisfies
+# is_valid_task_identity, so the derived task.md identity validates.
+if source_type == "jira":
+    task_jira_key = match.get("jira_key")
+    if not (isinstance(task_jira_key, str) and task_jira_key.strip()):
+        fail(
+            f"task {task_id} has source_type=jira but missing tasks[].jira_key; "
+            "populate the real JIRA key before derive (no N/A fallback)"
+        )
+    task_jira_key = task_jira_key.strip()
+    if not re.fullmatch(r"[A-Z][A-Z0-9]*-[0-9]+", task_jira_key):
+        fail(
+            f"task {task_id} jira_key is not a valid JIRA key (got: '{task_jira_key}')"
+        )
+    task_identity = task_jira_key
+    jira_key_cell = task_jira_key
+else:
+    task_identity = task_id
+    jira_key_cell = "N/A"
 
 # Branch slug: deterministic, lowercase, hyphen-separated. Drop punctuation, keep
 # CJK characters (refinement.json titles routinely include zh-TW). Match the
@@ -209,8 +260,11 @@ if local_dependencies:
     base_branch = f"task/{dep_full_id}-{slugify(dep_title)}"
     branch_chain = f"{base_branch} -> {task_branch}"
 else:
-    base_branch = "main"
-    branch_chain = f"main -> {task_branch}"
+    # DP-269: root base branch dispatches on source.type. dp mode roots at main;
+    # jira mode roots at the product repo's source.base_branch (e.g. develop).
+    root_base_branch = jira_base_branch if source_type == "jira" else "main"
+    base_branch = root_base_branch
+    branch_chain = f"{root_base_branch} -> {task_branch}"
 
 # --- Build artifacts ---
 allowed_files_block = "\n".join(f"- `{p}`" for p in allowed_files)
@@ -237,6 +291,10 @@ for ac in ac_list:
 trace_block = "\n".join(trace_rows)
 
 if mode == "V":
+    # DP-269: V-task base branch dispatches on source.type. dp V-tasks keep the
+    # legacy hardcoded `main` (umbrella verification branches off main); jira
+    # V-tasks root at the product repo's source.base_branch for parity.
+    v_base_branch = jira_base_branch if source_type == "jira" else "main"
     ac_by_id = {
         str(item.get("id")): item
         for item in (data.get("acceptance_criteria") or [])
@@ -284,7 +342,7 @@ depends_on: []
 
 # {short_id}: {title} ({points} pt)
 
-> Source: {source_id} | Task: {task_id} | JIRA: N/A | Repo: {repo_name}
+> Source: {source_id} | Task: {task_identity} | JIRA: {jira_key_cell} | Repo: {repo_name}
 
 ## Operational Context
 
@@ -292,10 +350,10 @@ depends_on: []
 |------|-----|
 | Source type | {source_type} |
 | Source ID | {source_id} |
-| Task ID | {task_id} |
-| JIRA key | N/A |
+| Task ID | {task_identity} |
+| JIRA key | {jira_key_cell} |
 | Implementation tasks | {implementation_cell} |
-| Base branch | main |
+| Base branch | {v_base_branch} |
 | Depends on | {depends_cell} |
 | References to load | - `docs-manager/src/content/docs/specs/design-plans/{source_id}-*/refinement.md`<br>- `docs-manager/src/content/docs/specs/design-plans/{source_id}-*/refinement.json`<br>- `.claude/skills/verify-AC/SKILL.md` |
 
@@ -370,7 +428,7 @@ depends_on: [{depends_on_frontmatter}]
 
 # {short_id}: {title} ({points} pt)
 
-> Source: {source_id} | Task: {task_id} | JIRA: N/A | Repo: {repo_name}
+> Source: {source_id} | Task: {task_identity} | JIRA: {jira_key_cell} | Repo: {repo_name}
 
 ## Operational Context
 
@@ -378,8 +436,8 @@ depends_on: [{depends_on_frontmatter}]
 |------|-----|
 | Source type | {source_type} |
 | Source ID | {source_id} |
-| Task ID | {task_id} |
-| JIRA key | N/A |
+| Task ID | {task_identity} |
+| JIRA key | {jira_key_cell} |
 | Test sub-tasks | N/A - framework work order |
 | AC 驗收單 | N/A - framework work order |
 | Base branch | {base_branch} |

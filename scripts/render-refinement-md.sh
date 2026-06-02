@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+# Purpose: render refinement.json into the human-facing refinement.md derived view.
+# Inputs:  <refinement.json> [--check]
+# Outputs: writes <dir>/refinement.md (or --check compares without writing).
+#
+# DP-269: the jira-only schema fields (source.repo / source.base_branch /
+# tasks[].jira_key) are machine-consumed by derive-task-md-from-refinement-json.sh
+# and intentionally NOT surfaced in the rendered refinement.md. The generator
+# (lib/refinement-md-generator.py) ignores unknown source/task fields, so the
+# additive schema does not break the existing render output.
 set -euo pipefail
 
 usage() {

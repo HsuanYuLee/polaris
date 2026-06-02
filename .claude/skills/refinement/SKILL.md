@@ -145,6 +145,47 @@ gates 全部通過後，再對使用者提示 `/auto-pass {KEY}`。
 Bug 不屬於 refinement-owned source；Bug 的 planning handoff 由 `bug-triage` 的 confirmed
 `[ROOT_CAUSE]` comment 與 local evidence artifact 承擔。
 
+## JIRA-Epic-Backed Source Field Population (DP-269)
+
+當 refinement-owned source 是 **JIRA-Epic-backed**（`source.type=jira`，container 在
+`docs-manager/src/content/docs/specs/companies/{company}/{EPIC}/`）時，Phase 1 / Phase 2
+收斂 `refinement.json` 必須額外 populate 下列 jira-only 欄位，讓 breakdown initial-create
+的 `derive-task-md-from-refinement-json.sh` jira mode 能注入真實 task identity / Repo /
+Base branch（schema 定義見 `references/refinement-artifact.md` § Strong-Bound Machine
+Contract）：
+
+- **`source.repo`**：產品 repo slug。由 company context 解析 ——
+  `{company}/polaris-config/{project}/` 的 `{project}` 目錄名即產品 repo slug。
+- **`source.base_branch`**：產品 base branch（如 `develop`）。**由
+  `{company}/polaris-config/{project}/handbook/config.yaml` 新增的 `base_branch` 欄位
+  讀取**（與既有 `runtime` / `test` block 同層；屬 product-repo-local-owned config
+  carve-out，不需 framework configuration-surface DP 治理）。
+- **`tasks[].jira_key`**：每筆 task 的真實子單 key（string）或 `null`（尚未建子單）。
+  derive jira mode 對 `null` fail-closed（要求先 populate，無 N/A fallback）。
+
+### Base Branch Resolution（不得硬猜 — EC3）
+
+解析 `source.base_branch` 時：
+
+1. 讀 `{company}/polaris-config/{project}/handbook/config.yaml` 的 `base_branch` 欄位。
+2. **有對應 entry** → 寫入 `source.base_branch`。
+3. **無對應 entry / config 缺 `base_branch` 欄位** → **fail-stop**，提示使用者在
+   `{company}/polaris-config/{project}/handbook/config.yaml` 補 `base_branch`。**不得**
+   硬猜 `develop` / `main`（base branch 是 per-repo 的產品事實，猜測會 silently 注入錯誤
+   base branch 到 task.md）。
+
+### V 驗收單與 jira_key（D3a）
+
+JIRA-Epic-backed source 的 V 驗收單 = 在對應子單專案（如 `EXAMPLE` 的子單專案
+`EXAMPLESUB`）開一張真實「驗收子單」當 V key，對齊既有 JIRA 可見追蹤慣例。建 JIRA child
+屬 external write，由
+refinement / breakdown 階段向使用者取得明確 consent 後建立，再 populate `tasks[].jira_key`；
+auto-pass 啟動時 task set 已有真實 key，auto-pass 自身不做 `jira_child_write`。
+
+> DP-backed source（`source.type=dp`）**禁止**帶 `source.repo` / `source.base_branch` /
+> `tasks[].jira_key`；`validate-refinement-json.sh` 對 dp source 出現任一 jira-only 欄位
+> 以 `POLARIS_REFINEMENT_JIRA_ONLY_FIELD` fail-closed（jira-only 鬆綁不外洩到 dp 分支）。
+
 ## Step 7 — 定版寫入（一次性）
 
 先完成 `draft_json` → strict `refinement.json` 收斂；draft 不可 LOCK、不可 handoff、

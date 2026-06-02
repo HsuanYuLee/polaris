@@ -104,6 +104,17 @@ if source_type == "jira":
     epic = require_nonempty_string("epic")
     if epic is not None and not JIRA_KEY.match(epic):
         errors.append(f"'epic' value '{epic}' does not match JIRA key format [A-Z][A-Z0-9]+-[0-9]+")
+    # DP-269 D1: JIRA-Epic-backed source must declare the product repo slug and
+    # base branch so the derive jira mode can inject Repo / Base branch. These
+    # are jira-only fields (mirrors the DP-228 jira-only consent field pattern);
+    # the dp branch below fail-closes when they are present.
+    if isinstance(source, dict):
+        jira_repo = source.get("repo")
+        if not isinstance(jira_repo, str) or not jira_repo.strip():
+            errors.append("source.repo is required for source.type=jira (product repo slug)")
+        jira_base_branch = source.get("base_branch")
+        if not isinstance(jira_base_branch, str) or not jira_base_branch.strip():
+            errors.append("source.base_branch is required for source.type=jira (product base branch)")
 else:
     epic = data.get("epic")
     if epic is not None:
@@ -147,6 +158,21 @@ else:
         jira_key = source.get("jira_key")
         if jira_key not in (None, "", "N/A"):
             errors.append(f"source.jira_key must be null/N/A for source.type={source_type}")
+
+        # DP-269 AC-NEG1: source.repo / source.base_branch are jira-only fields.
+        # They must NOT appear on a non-jira (dp) source (fail-closed, mirroring
+        # the DP-228 jira-only field prohibition). This prevents the jira-only
+        # schema relaxation from leaking into the dp branch.
+        if source.get("repo") is not None:
+            errors.append(
+                f"POLARIS_REFINEMENT_JIRA_ONLY_FIELD: source.repo is jira-only and "
+                f"must be absent for source.type={source_type}"
+            )
+        if source.get("base_branch") is not None:
+            errors.append(
+                f"POLARIS_REFINEMENT_JIRA_ONLY_FIELD: source.base_branch is jira-only and "
+                f"must be absent for source.type={source_type}"
+            )
 
 require_nonempty_string("version")
 require_nonempty_string("created_at")
@@ -487,6 +513,25 @@ else:
                 "POLARIS_REFINEMENT_TASK_ID_INVALID: "
                 f"tasks[{idx}].id must be a non-empty string"
             )
+        # DP-269 D1 / AC-NEG1: tasks[].jira_key is a jira-only field. For
+        # source.type=jira it may be a non-empty JIRA key string or null (not
+        # yet populated). For non-jira (dp) sources it must be absent entirely
+        # (fail-closed, mirroring the source-level jira-only prohibition above).
+        if "jira_key" in task:
+            task_jira_key = task.get("jira_key")
+            if source_type == "jira":
+                if task_jira_key is not None and (
+                    not isinstance(task_jira_key, str) or not JIRA_KEY.match(task_jira_key.strip())
+                ):
+                    errors.append(
+                        f"tasks[{idx}].jira_key must be a valid JIRA key string or null "
+                        f"(got: {task_jira_key!r})"
+                    )
+            else:
+                errors.append(
+                    f"POLARIS_REFINEMENT_JIRA_ONLY_FIELD: tasks[{idx}].jira_key is jira-only "
+                    f"and must be absent for source.type={source_type}"
+                )
         if not isinstance(task.get("allowed_files"), list) or not task.get("allowed_files"):
             strong_error(f"tasks[{idx}].allowed_files")
         if not isinstance(task.get("modules"), list):
