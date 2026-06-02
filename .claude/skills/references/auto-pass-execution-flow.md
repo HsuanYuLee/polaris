@@ -22,7 +22,11 @@ filesystem evidence。runner 內部仍 wrap probe + ledger validator + spec sour
 2. ledger gate：valid source-scoped ledger；pending pause 時 validate resume prerequisite。
    JIRA Epic-backed source 額外檢查 `consent_policy.jira_status_sync` 與 session-scoped marker。
 3. breakdown stage：dispatch breakdown，PASS 後鎖定最後一次 task snapshot。
-4. engineering stage：依 task DAG dispatch engineering，要求 non-draft workspace PR opened / ready。
+4. engineering stage：依 task DAG dispatch engineering。`task_shape: implementation`
+   （含缺欄位 default）要求 non-draft workspace PR opened / ready；`task_shape ∈
+   {audit, confirmation}` 的 task 走 no-PR completion path（completion_gate marker
+   status=PASS + evidence artifact path），不要求 deliverable PR（見下方 § Required PR
+   Set task_shape Carve-out）。
 5. verify-AC stage：要求 V work order verification disposition current。
 6. terminal fixed-point：required PR set ready + verification current + no higher-priority terminal state。
 
@@ -73,6 +77,23 @@ runner JSON 看結果。
 需要直接 debug 內部 marker 狀態時可以單獨跑 `auto-pass-probe.sh`，但 orchestrator code path
 不得以 probe 結果取代 runner JSON。runner ↔ probe 的 stage state parity 由
 `scripts/selftests/auto-pass-runner-probe-parity-selftest.sh` enforce。
+
+## Required PR Set task_shape Carve-out（DP-262 T3）
+
+terminal fixed-point 的 **required PR set** 只涵蓋 `task_shape: implementation`（含缺欄位
+default）的 task。`task_shape ∈ {audit, confirmation}` 的 task 是 audit / confirmation-only
+work order（specs-only 或 empty Allowed Files，無 source diff、無 deliverable PR），因此**排除**
+在 required PR set 之外：
+
+- engineering stage 對這類 task 以 `completion_gate` marker（status=PASS）+ marker freshness
+  的 evidence artifact path 視為完成，不要求 `deliverable.pr_url` / non-draft PR。enforcement
+  落在 `scripts/check-delivery-completion.sh` 的 `task_shape` 分支（同一 task_shape 欄位，無第二套
+  classifier）。
+- 含 audit / confirmation task 的 source，在其餘 implementation task 的 PR ready、所有
+  V work order verification disposition current 時，即可達 terminal `complete`，**不因這類 task
+  缺 PR 而阻塞** required PR set。
+- carve-out 嚴格綁 `task_shape ∈ {audit, confirmation}`；`implementation`（含缺欄位）的 task
+  仍必須有 ready 的 deliverable PR 才算進 required PR set ready，PR gate 不放寬。
 
 ## Dispatch Envelope Worktree Resolution
 
@@ -191,7 +212,9 @@ paused_for_user_external_write > paused_for_refinement > complete
 ```
 
 `complete` 只能在 required PR set ready、verification disposition current，且沒有 unresolved
-blocker / pause / retry cap 時成立。
+blocker / pause / retry cap 時成立。required PR set 依 § Required PR Set task_shape Carve-out
+排除 `task_shape ∈ {audit, confirmation}` 的 task；這類 task 以 completion_gate marker 視為完成，
+不計入 required PR set。
 
 ## Terminal Complete Sequence
 

@@ -439,6 +439,28 @@ def parse_allowed(file: Path) -> list[str]:
     return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
 
 
+# task_shape ∈ {audit, confirmation} are confirmation-only delivery shapes whose
+# work product is an evidence/spec artifact, not a tracked code change. For these
+# shapes the specs-only / empty Allowed Files rejection is relaxed (DP-262 AC2).
+# A missing field defaults to implementation, which keeps the original rejection
+# (DP-262 AC-NEG1). The enum itself is validated by validate-task-md.sh; this
+# consumer only reads the parsed value.
+CARVE_OUT_TASK_SHAPES = {"audit", "confirmation"}
+
+
+def parse_task_shape(file: Path) -> str:
+    proc = subprocess.run(
+        [str(parse_task_md), "--field", "task_shape", str(file)],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    if proc.returncode != 0:
+        return "implementation"
+    value = proc.stdout.strip()
+    return value or "implementation"
+
+
 def task_files(path: Path) -> list[Path]:
     if path.is_file():
         return [path]
@@ -736,7 +758,9 @@ def validate_changeset_scope_contract(file: Path, allowed: list[str]) -> list[st
     return errors
 
 
-def validate_scope_trace(file: Path, text: str, allowed: list[str]) -> list[str]:
+def validate_scope_trace(
+    file: Path, text: str, allowed: list[str], allow_uncovered: bool = False
+) -> list[str]:
     errors: list[str] = []
     matrix = section(text, "## Scope Trace Matrix")
     if not matrix.strip():
@@ -787,7 +811,10 @@ def validate_scope_trace(file: Path, text: str, allowed: list[str]) -> list[str]
             if not path_token(owning_file):
                 errors.append(f"{file}: Scope Trace Matrix row {row_number} owning file is not a path/glob token: {owning_file}")
                 continue
-            if not path_covered(owning_file, allowed):
+            # audit/confirmation carve-out tasks may declare empty/specs-only
+            # Allowed Files, so the owning-file coverage check is relaxed for
+            # them (DP-262 AC2). implementation tasks keep the strict check.
+            if not allow_uncovered and not path_covered(owning_file, allowed):
                 errors.append(f"{file}: Scope Trace Matrix row {row_number} owning file is not covered by Allowed Files: {owning_file}")
         if needs_render_surface(goal, surface) and not has_render_api_surface(owning_files, surface):
             errors.append(
@@ -815,15 +842,20 @@ def validate_one(file: Path) -> list[str]:
 
     text = file.read_text(encoding="utf-8")
 
+    task_shape = parse_task_shape(file)
+    is_carve_out_shape = task_shape in CARVE_OUT_TASK_SHAPES
+
     allowed = parse_allowed(file)
-    if not allowed:
+    # audit/confirmation tasks may legitimately declare empty Allowed Files
+    # (their deliverable is evidence/spec, not a tracked code change).
+    if not allowed and not is_carve_out_shape:
         errors.append(f"{file}: Allowed Files has no entries")
     for entry in allowed:
         if not path_token(entry):
             errors.append(f"{file}: Allowed Files entry is not a machine-matchable path/glob token: {entry}")
 
     is_dp_task = "/design-plans/DP-" in normalized or "| source type | dp |" in text.lower()
-    if is_dp_task:
+    if is_dp_task and not is_carve_out_shape:
         non_spec_allowed = [
             entry
             for entry in allowed
@@ -834,7 +866,7 @@ def validate_one(file: Path) -> list[str]:
                 f"{file}: DP-backed engineering task cannot target only local spec/sample artifacts under docs-manager/src/content/docs/specs; split a tracked releaseable task"
             )
 
-    errors.extend(validate_scope_trace(file, text, allowed))
+    errors.extend(validate_scope_trace(file, text, allowed, allow_uncovered=is_carve_out_shape))
     errors.extend(validate_package_graph_scope(file, text, allowed))
     errors.extend(validate_test_environment_consistency(file, text))
     errors.extend(validate_test_command_debug_hygiene(file, text))

@@ -20,6 +20,28 @@
 | `## Gate Closure Matrix` | **Breakdown readiness Hard** | DP-082 | `validate-breakdown-ready.sh`（章節存在 + scope/test/verify/ci-local + pass condition + owner/decision） |
 | `## Verify Command` | **Hard**（`Level≠static` 時） | DP-023 | `validate-task-md.sh`（章節存在 + 含 fenced code block + Level=runtime 時 host alignment） |
 
+### 3.1a Frontmatter `task_shape`（implementation default — DP-262）
+
+Implementation task（`task_kind: T`）的 frontmatter `task_shape` 欄位語意與 common schema
+（見 `task-md-schema-common.md` § 2.1）一致，這裡只補 T-task-specific 慣例：
+
+- **Default = `implementation`**：T task 絕大多數會改 code / scripts / skills，因此缺
+  `task_shape` 欄位時 reader 一律當 `implementation`。breakdown 從
+  `refinement.json planned_tasks[].task_shape` 機械寫入；planned task 未宣告時 task.md
+  省略此欄位，行為與本 DP 之前的既有 task.md 完全相同（零 migration shim）。
+- **`audit` / `confirmation` 為 carve-out shape**：當 T task 的交付物只稽核（`audit`）或
+  只確認既有狀態（`confirmation`）、不需要產出 tracked code diff 時才宣告。此時
+  `validate-breakdown-ready.sh` 接受 specs-only 或 empty `## Allowed Files`，
+  `check-delivery-completion.sh` 以 completion-gate marker(status=PASS)+evidence artifact
+  path 完成、不要求 non-draft PR，auto-pass terminal required-PR set 也排除此 task。
+- **與 `task_kind` 正交**：`task_shape` 描述「交付形狀」，`task_kind`（T/V）描述
+  completion-gate dispatcher 走 implementation 還是 verification 路徑；兩者獨立，不得互相
+  覆寫。`task_shape` 對 V task 不生效（V task 既有路徑不 regress）。
+- **單一欄位、單一 enum 認定點**：三個 consumer（`validate-breakdown-ready` /
+  `check-delivery-completion` / auto-pass terminal）讀同一個 frontmatter 欄位，enum 合法性
+  集中在 `validate-task-md.sh`（非 enum 值如 `confirmaton` 直接 reject，不 silently
+  default）；沒有第二套 classifier，preflight 亦複用 `validate-breakdown-ready` 本體。
+
 ### 3.2 `## Operational Context` table cells
 
 必填 cells（每個 cell 名稱在 markdown table 第一欄；validator 要求字面比對命中）：

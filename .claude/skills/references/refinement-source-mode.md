@@ -272,6 +272,26 @@ Artifact 必須保留足夠的 scope、AC、dependencies、edge cases、downstre
 
    若本輪 decisions / dependencies / Background 已吸收 predecessor scope，`predecessor_audit`
    不得為空，且每筆 entry 都必須把 disposition 與 writeback 寫清楚；不可只留在 prose。
+
+2b. **Breakdown-ready preflight（DP-262 T4，fail-stop）**：跑
+
+    ```bash
+    bash scripts/validate-refinement-lock-preflight.sh {source_container}/refinement.json
+    ```
+
+    這支 preflight 讀 `refinement.json` 的 `planned_tasks[]`（schema 見
+    `refinement-artifact.md` § planned_tasks），對每筆合成一份 ephemeral placeholder
+    task.md，再呼叫真正的 `scripts/validate-breakdown-ready.sh` 判斷該 planned task 的
+    宣告 deliverable 是否可通過 breakdown readiness。它**不**自行重寫 specs-only /
+    `task_shape` 判斷，只委派 validate-breakdown-ready（DP-262 AC7）。
+
+    - exit 0：所有 planned task 在 LOCK 時就已是 breakdown-ready。
+    - exit 2 + `POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED`：至少一筆 planned task 不
+      ready（例如 `task_shape: implementation` 卻宣告 specs-only deliverable，DP-262
+      AC-NEG3）。這是 **fail-stop**，不是 advisory：停下，修正 `planned_tasks[]` 的
+      `task_shape` / `tracked_deliverable_hint`（或改設計），再重跑，不得 LOCK。
+    - `refinement.json` 沒有 `planned_tasks[]`（pre-DP-262 source）時 preflight no-op
+      PASS，零 migration shim（DP-262 AC8）。
 3. 將 primary doc frontmatter 改為：
 
    ```yaml

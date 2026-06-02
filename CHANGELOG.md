@@ -4,6 +4,23 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.139] - 2026-06-02
+
+### Added — DP-262 audit/confirmation-only task_shape 識別與 lifecycle carve-out
+
+- **`scripts/validate-task-md.sh`**（DP-262-T1）：task.md frontmatter 新增 `task_shape` enum（`implementation` / `audit` / `confirmation`，預設 `implementation`），並提供 `--field task_shape` 解析，讓下游 gate 能讀取 task 形態。
+- **`scripts/validate-breakdown-ready.sh`**（DP-262-T2）：對 `task_shape: audit` / `confirmation` 的 task 套用 breakdown-ready carve-out，audit/confirmation-only task 不再被誤判為缺 implementation 交付物（mechanism `audit-confirmation-task-kind-carve-out`）。
+- **`scripts/validate-refinement-lock-preflight.sh`** + selftest（DP-262-T4）：新增 refinement LOCK-time breakdown-ready preflight，於 LOCK 前驗證 task_shape 分類與 breakdown-ready 狀態一致；`scripts/manifest.json` 新增對應 row。
+- **`.claude/skills/breakdown/SKILL.md` + `.claude/skills/references/task-md-schema-task.md`**（DP-262-T5）：breakdown 在 task packaging 階段傳遞 `task_shape`，並於 T-task schema 文件化該欄位；`.claude/rules/mechanism-registry.md` 新增 `audit-confirmation-task-kind-carve-out` Runtime Annotation Registry row。
+
+### Fixed — DP-262 auto-pass terminal required-PR set 對 audit/confirmation task 的排除
+
+- **`scripts/check-delivery-completion.sh`**（DP-262-T3）：delivery completion 對 `task_shape: audit` / `confirmation` 套用 carve-out，auto-pass terminal 的 required-PR set 不再要求 audit/confirmation-only task 產出 implementation PR；新增 `check-delivery-completion-task-shape-selftest.sh`。
+
+### Why
+
+audit-only 與 confirmation-only task（例：純驗證、純確認既有行為）原本被 breakdown-ready 與 delivery-completion gate 一律當成 implementation task，缺 code PR 時被誤判為未完成。DP-262 以 task.md frontmatter `task_shape` enum 顯式標記 task 形態，讓 breakdown-ready preflight、delivery completion、auto-pass terminal required-PR set 對 audit/confirmation 形態 deterministic 地套用 carve-out，避免靠 LLM 自律判斷。
+
 ## [3.75.138] - 2026-06-01
 
 ### Fixed — DP-264 derive-task-md stacked task base-branch 推導 form-agnostic

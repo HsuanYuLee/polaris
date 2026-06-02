@@ -81,6 +81,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | script-categorization | scripts/validate-script-categorization.sh | script | portable | scripts/selftests/validate-script-categorization-selftest.sh | governance |
 | python-union-annotation-py39-portability | scripts/selftests/python-union-annotation-py39-portability-selftest.sh | script | portable | scripts/selftests/python-union-annotation-py39-portability-selftest.sh | governance |
 | derive-task-md-stacked-base-branch | scripts/selftests/derive-task-md-stacked-base-branch-selftest.sh | script | portable | N/A | governance |
+| audit-confirmation-task-kind-carve-out | scripts/validate-breakdown-ready.sh | script | portable | scripts/selftests/validate-breakdown-ready-task-shape-selftest.sh | governance |
 
 ## Mechanism Canary Entries
 
@@ -91,6 +92,8 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | auto-pass-orchestrator-premature-stop | contract_pointer | inner skill HALT 或 session pressure 建議後，auto-pass 直接停下交回 user，而 deterministic sidecar 已可繼續 | `pause.kind=session_handoff` + `scripts/validate-auto-pass-resume.sh`；若 sidecar PASS 則不得 pause |
 | closeout-chain-archive-not-deterministic | contract_pointer | terminal complete 後 parent spec 留在 active 區，還需要使用者另跑 archive | `scripts/selftests/closeout-chain-archive-selftest.sh` 覆蓋 mark-spec / auto-pass docs / framework-release closeout callsite |
 | baseline-snapshot-stale-after-intake | contract_pointer | breakdown route=task_update 合法改動 planner-owned task.md 後，engineering/finalize 仍讀到舊 baseline snapshot | `scripts/refresh-baseline-snapshot.sh` 重新產生 current head snapshot，舊 snapshot rename `*.superseded` |
+| audit-confirmation-task-kind-carve-out | contract_pointer | implementation task 被誤標 `task_shape: audit` / `confirmation` 來逃避 specs-only / non-PR gate，或 carve-out 外溢到 implementation（含缺欄位）task | `scripts/validate-breakdown-ready.sh` 對 `task_shape ∈ {audit, confirmation}` 放寬 specs-only/empty Allowed Files，implementation 維持原 exit 1；`scripts/check-delivery-completion.sh` 對同集合走 completion-gate marker(status=PASS)+evidence path，implementation 維持原 non-draft PR gate（DP-262 T2/T3 selftest） |
+| refinement-lock-preflight | contract_pointer | LOCK 時把 planned implementation task 宣告成 specs-only deliverable，要到 breakdown 階段才被 `validate-breakdown-ready` 擋下 | `scripts/validate-refinement-lock-preflight.sh` 讀 `refinement.json planned_tasks[]`、合成 placeholder task.md 跑 `validate-breakdown-ready` 本體（不重寫 specs-prefix 判斷），違規 exit 2 + 指名失敗 planned task；refinement Step 7 LOCK gate 串接為 fail-stop（DP-262 T4 selftest） |
 
 ## Script Candidate Graduation Schedule
 

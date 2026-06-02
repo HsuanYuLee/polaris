@@ -154,6 +154,16 @@ bash scripts/write-producer-owned-artifact.sh \
   `allowed_files`、`ac_ids`、`verification.detail`、`estimate_points`）一比一還原
   task.md schema 必填欄位；缺欄位即 fail-loud，沒有 LLM fallback 把 gap 填起來。需要新
   欄位時改 refinement artifact，不在 breakdown 層補。
+- **`task_shape` propagation（DP-262）**：breakdown 是 task.md frontmatter `task_shape`
+  的 **canonical writer**。derive script 從 `refinement.json` 的
+  `planned_tasks[].task_shape`（值若存在須為 `implementation` \| `audit` \| `confirmation`）
+  一比一寫入對應 task.md frontmatter；`planned_tasks[]` 缺 `task_shape` 或整個欄位不存在
+  時，task.md 一律省略 `task_shape`（reader 端 default = `implementation`，見
+  `task-md-schema-common.md`）。breakdown 不在主對話中自行推斷或覆寫 `task_shape`——它是
+  refinement 階段宣告的 delivery shape，breakdown 只負責機械搬運。下游三個 consumer
+  （`validate-breakdown-ready.sh` carve-out、`check-delivery-completion.sh` no-PR
+  completion path、auto-pass terminal required-PR set）都讀同一個 frontmatter 欄位，
+  enum 認定集中在 `validate-task-md.sh`，breakdown 不重寫第二套 classifier。
 - `breakdown:initial-create` token 只覆蓋 **首次建立** 的 task.md；既有 task.md 的後續
   編修（status flip、jira_transition_log 補寫等）沿用原來的 `dp-task-status-writer`
   flow，不注入此 token。

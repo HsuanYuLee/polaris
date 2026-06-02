@@ -1167,6 +1167,25 @@ validate_file() {
   fi
 
   # ---------------------------------------------------------------------------
+  # OPTIONAL: frontmatter task_shape — delivery-shape enum (DP-262 T1).
+  # enum: implementation | audit | confirmation; default implementation (absent).
+  # Orthogonal to task_kind (T/V completion-gate dispatcher) — do not conflate.
+  # If present, the value must be one of the enum members.
+  # ---------------------------------------------------------------------------
+  if frontmatter_key_exists "$FILE" "task_shape"; then
+    local fm_task_shape
+    fm_task_shape=$(extract_frontmatter_scalar "$FILE" "task_shape" 2>/dev/null || true)
+    fm_task_shape="${fm_task_shape%\"}"
+    fm_task_shape="${fm_task_shape#\"}"
+    fm_task_shape="${fm_task_shape%\'}"
+    fm_task_shape="${fm_task_shape#\'}"
+    case "$fm_task_shape" in
+      implementation|audit|confirmation) ;;
+      *) errors+=("frontmatter task_shape must be implementation|audit|confirmation (got: '$fm_task_shape')") ;;
+    esac
+  fi
+
+  # ---------------------------------------------------------------------------
   # HARD REQUIRED: Title line regex (§ 2.2)
   # ^# (T|V)[0-9]+[a-z]*: .+\([0-9.]+ ?pt\)
   # ---------------------------------------------------------------------------

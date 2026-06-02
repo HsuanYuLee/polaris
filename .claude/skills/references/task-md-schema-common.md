@@ -72,6 +72,7 @@ inventory / migration 不得用 broad grep 刪除 nested semantic fields。
 ---
 title: "T1: Example implementation task (3 pt)"
 status: IN_PROGRESS         # optional：IN_PROGRESS | IMPLEMENTED | BLOCKED
+task_shape: implementation  # optional：implementation | audit | confirmation；default implementation（DP-262）
 depends_on: [T1]            # optional：array of task id strings；長度 ≤ 1（DP-028 強制線性）
 deliverable:                # Lifecycle-conditional（DP-032 D2）；engineering Step 7c 寫入
   pr_url: https://github.com/.../pull/2202
@@ -109,6 +110,7 @@ verification:               # Optional；breakdown 可宣告 runtime visual / be
 |------|---------|---------------|
 | `title` | breakdown 建立 task.md 時寫入，須與 H1 summary 穩定對應 | Required for docs-manager Starlight `docsSchema()` |
 | `status` | breakdown 寫初值（可省略）；engineering Step 8a 標 `IMPLEMENTED`；verify-AC 全 PASS 標 `IMPLEMENTED`（Epic level）| Optional（值若存在須為 enum） |
+| `task_shape` | breakdown / refinement 宣告 task 的 delivery shape（DP-262）| Optional；缺省 = `implementation`。值若存在須為 `implementation` \| `audit` \| `confirmation`，否則 validator fail。**與 `task_kind`（T/V completion-gate dispatcher）正交**：`task_shape` 描述「交付形狀」（implementation 改 code / audit 只稽核 / confirmation 只確認），`task_kind` 描述「task 是 T 還是 V」；兩者獨立，不得互相覆寫或混用 |
 | `depends_on` | breakdown Step 14 |  Optional；存在則須為 array、長度 ≤ 1、所有 entry 須對應同 `tasks/` 下既有 task.md（含 `pr-release/` fallback，見 § 5.2） |
 | `deliverable` | engineering Step 7c (`gh pr create` 成功後) | Lifecycle-conditional — breakdown 階段不存在；engineering 寫入後須結構正確（schema + writer contract 見下） |
 | `extension_deliverable` | local_extension completion helper（DP-048） | Lifecycle-conditional — local extension completion metadata；可補充真實 workspace PR deliverable 的 post-PR release tail；不得與 fake `deliverable.pr_url` 混用；Layer B evidence path 優先使用 `.polaris/evidence/verify/` durable mirror |

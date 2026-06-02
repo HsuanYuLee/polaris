@@ -618,6 +618,123 @@ print(candidates[-1])
 PY
 }
 
+resolve_task_shape() {
+  # Reads the canonical task_shape enum (DP-262 T1) from task.md frontmatter.
+  # Empty / absent => caller treats as the default "implementation" shape.
+  local task_md_path="$1"
+
+  bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field task_shape 2>/dev/null || true
+}
+
+completion_gate_marker_path() {
+  # Locates the engineering-owned completion_gate marker for {work_item_id}-{head_sha}.
+  # Mirrors planner_baseline_snapshot_path: searches REPO_ROOT plus, when REPO_ROOT
+  # is a worktree, the resolved main checkout (markers anchor at the main checkout).
+  local work_item_id="$1"
+  local head_sha="$2"
+
+  python3 - "$work_item_id" "$head_sha" "$REPO_ROOT" <<'PY'
+import sys
+from pathlib import Path
+
+work_item_id, head_sha, repo_root = sys.argv[1:4]
+roots = [Path(repo_root)]
+git_file = Path(repo_root) / ".git"
+if git_file.is_file():
+    text = git_file.read_text(encoding="utf-8", errors="ignore").strip()
+    if text.startswith("gitdir:"):
+        git_dir = (git_file.parent / text.split(":", 1)[1].strip()).resolve()
+        common = git_dir.parent.parent
+        if common.name == ".git":
+            roots.append(common.parent)
+
+seen = set()
+for root in roots:
+    marker_dir = root / ".polaris" / "evidence" / "completion-gate"
+    # head_sha may be stored full or abbreviated; match both directions.
+    for path in sorted(marker_dir.glob(f"{work_item_id}-*.json")):
+        suffix = path.name[len(work_item_id) + 1:-len(".json")]
+        if suffix == head_sha or head_sha.startswith(suffix) or suffix.startswith(head_sha):
+            resolved = str(path.resolve())
+            if resolved not in seen:
+                seen.add(resolved)
+                print(path)
+                raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
+check_audit_confirmation_completion() {
+  # DP-262 T3 carve-out: audit / confirmation tasks complete via an
+  # engineering-owned completion_gate marker (status=PASS) whose freshness
+  # carries a real evidence artifact path. They do NOT require deliverable.pr_url
+  # or a non-draft PR — those tasks may legitimately ship specs-only / empty
+  # Allowed Files (see validate-breakdown-ready.sh task_shape carve-out, T2).
+  local task_shape="$1"
+  local work_item_id="$2"
+  local deliverable_head_sha="$3"
+  local marker_path=""
+
+  if [[ -z "$work_item_id" ]]; then
+    echo "$PREFIX BLOCKED: cannot resolve work_item_id for ${task_shape} completion gate" >&2
+    exit 2
+  fi
+
+  if ! marker_path="$(completion_gate_marker_path "$work_item_id" "$deliverable_head_sha" 2>/dev/null)" || [[ -z "$marker_path" ]]; then
+    echo "$PREFIX BLOCKED: missing completion_gate marker for ${task_shape} task ${work_item_id}@${deliverable_head_sha}" >&2
+    echo "$PREFIX Expected under: ${REPO_ROOT}/.polaris/evidence/completion-gate/${work_item_id}-${deliverable_head_sha}.json" >&2
+    echo "$PREFIX Write it with: bash scripts/write-completion-gate-marker.sh --source-id <SOURCE> --work-item-id ${work_item_id} --head-sha ${deliverable_head_sha} --status PASS --task-md ${TASK_MD_PATH}" >&2
+    exit 2
+  fi
+
+  local marker_rc=0
+  python3 - "$marker_path" "$work_item_id" "$deliverable_head_sha" <<'PY' || marker_rc=$?
+import json
+import sys
+from pathlib import Path
+
+marker_path, work_item_id, head_sha = sys.argv[1:4]
+try:
+    data = json.loads(Path(marker_path).read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(1)
+
+if data.get("marker_kind") != "completion_gate":
+    raise SystemExit(1)
+if data.get("status") != "PASS":
+    raise SystemExit(1)
+if data.get("work_item_id") != work_item_id:
+    raise SystemExit(1)
+
+freshness = data.get("freshness") or {}
+marker_head = str(freshness.get("head_sha") or "")
+if not (marker_head == head_sha or head_sha.startswith(marker_head) or marker_head.startswith(head_sha)):
+    raise SystemExit(1)
+
+# Evidence artifact path: the marker must point at a real on-disk artifact
+# (the bound task.md / verify report). This is what keeps a confirmation/audit
+# task auditable even without a PR (refinement EC1).
+evidence = freshness.get("evidence_artifact") or freshness.get("source_artifact")
+if not evidence or not Path(evidence).is_file():
+    sys.stderr.write(f"evidence_artifact_missing:{evidence}\n")
+    raise SystemExit(2)
+raise SystemExit(0)
+PY
+  if [[ "$marker_rc" != "0" ]]; then
+    if [[ "$marker_rc" == "2" ]]; then
+      echo "$PREFIX BLOCKED: completion_gate marker for ${task_shape} task ${work_item_id} lacks a resolvable evidence artifact path" >&2
+      echo "$PREFIX Marker: ${marker_path}" >&2
+      echo "$PREFIX Re-run write-completion-gate-marker.sh with --task-md so freshness.source_artifact binds to a real file." >&2
+    else
+      echo "$PREFIX BLOCKED: completion_gate marker for ${task_shape} task ${work_item_id} is stale or not PASS@${deliverable_head_sha}" >&2
+      echo "$PREFIX Marker: ${marker_path}" >&2
+    fi
+    exit 2
+  fi
+
+  echo "$PREFIX ✅ ${task_shape} task completion gate satisfied via completion_gate marker: ${marker_path}" >&2
+}
+
 check_planner_baseline_snapshot() {
   local task_md_path="$1"
   local snapshot=""
@@ -719,8 +836,7 @@ fi
 
 # Developer PR metadata/deliverable gates.
 if [[ "$MODE" != "admin" ]]; then
-  bash "${SCRIPT_DIR}/gates/gate-pr-title.sh" --repo "$REPO_ROOT"
-  bash "${SCRIPT_DIR}/gates/gate-changeset.sh" --repo "$REPO_ROOT"
+  TASK_SHAPE="$(resolve_task_shape "$TASK_MD_PATH")"
 
   DELIVERABLE_HEAD_SHA="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$TASK_MD_PATH" --no-resolve --field deliverable_head_sha)"
   if [[ -z "$DELIVERABLE_HEAD_SHA" ]]; then
@@ -740,7 +856,25 @@ if [[ "$MODE" != "admin" ]]; then
   fi
   check_task_verify_report "$TASK_MD_PATH" "$REPORT_TICKET" "$DELIVERABLE_HEAD_SHA"
 
-  check_deliverable_pr_remote_truth "$TASK_MD_PATH" "$DELIVERABLE_HEAD_SHA"
+  case "$TASK_SHAPE" in
+    audit|confirmation)
+      # DP-262 T3 carve-out: no-PR completion path for audit / confirmation
+      # tasks. Skip PR-title / changeset / remote-PR-truth gates (those tasks
+      # may have specs-only / empty Allowed Files and no deliverable PR) and
+      # require an engineering completion_gate marker + evidence artifact path.
+      WORK_ITEM_ID="$REPORT_TICKET"
+      if [[ -z "$WORK_ITEM_ID" ]]; then
+        WORK_ITEM_ID="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$TASK_MD_PATH" --no-resolve --field work_item_id 2>/dev/null || true)"
+      fi
+      check_audit_confirmation_completion "$TASK_SHAPE" "$WORK_ITEM_ID" "$DELIVERABLE_HEAD_SHA"
+      ;;
+    *)
+      # implementation (incl. absent task_shape => default): unchanged PR gate.
+      bash "${SCRIPT_DIR}/gates/gate-pr-title.sh" --repo "$REPO_ROOT"
+      bash "${SCRIPT_DIR}/gates/gate-changeset.sh" --repo "$REPO_ROOT"
+      check_deliverable_pr_remote_truth "$TASK_MD_PATH" "$DELIVERABLE_HEAD_SHA"
+      ;;
+  esac
 fi
 
 echo "$PREFIX ✅ completion gates satisfied." >&2

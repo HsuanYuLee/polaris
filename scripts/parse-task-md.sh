@@ -23,7 +23,7 @@
 #     3. If both miss → exit 2 with "broken ref" message
 #
 # Field keys for --field (flat alias of nested JSON paths):
-#   status, task_id, summary, story_points,
+#   status, task_shape, task_id, summary, story_points,
 #   deliverable_pr_url, deliverable_pr_state, deliverable_head_sha,
 #   deliverables_changeset_package_scope,
 #   deliverables_changeset_bump_level_default,
@@ -513,6 +513,7 @@ except json.JSONDecodeError as e:
 
 aliases = {
     "status":                  ["frontmatter", "status"],
+    "task_shape":              ["frontmatter", "task_shape"],
     "deliverable_pr_url":      ["frontmatter", "deliverable", "pr_url"],
     "deliverable_pr_state":    ["frontmatter", "deliverable", "pr_state"],
     "deliverable_head_sha":    ["frontmatter", "deliverable", "head_sha"],
