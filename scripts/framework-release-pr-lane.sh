@@ -25,6 +25,9 @@ DEFER_VERSION_BUMP_TO_METADATA=0
 GH_BIN="${GH_BIN:-gh}"
 TERMINAL_TASK_MD=""
 TASK_MDS=()
+# DP-270: set to the shared bundle_branch_alias when all resolved task.md are
+# bundle members; empty in the unchanged per-task release path (AC-NEG1).
+BUNDLE_ALIAS=""
 
 if [[ -f "$GITHUB_REST_LIB" ]]; then
   # shellcheck source=lib/github-rest.sh
@@ -100,6 +103,22 @@ json_field() {
   python3 -c "import json,sys; d=json.load(sys.stdin); print(${expr} or '')" <<<"$json"
 }
 
+# DP-270: extract `bundle_branch_alias` from a task.md leading YAML frontmatter
+# block. Same parse shape as resolve-task-md-by-branch.sh / gate-work-source.sh.
+# Empty stdout when the task.md is not a bundle member.
+task_md_bundle_alias() {
+  local file="$1"
+  awk '
+    /^---$/ { fm++; next }
+    fm == 1 && /^bundle_branch_alias:/ {
+      sub(/^bundle_branch_alias:[[:space:]]*/, "")
+      sub(/[[:space:]]+$/, "")
+      print
+      exit
+    }
+  ' "$file" 2>/dev/null || true
+}
+
 line_in_list() {
   local needle="$1"
   shift
@@ -164,21 +183,29 @@ pr_view_json() {
 }
 
 run_version_bump_release_gate() {
-  local final_task_md final_task_branch
+  local final_task_md gate_head_ref
   if [[ "$DEFER_VERSION_BUMP_TO_METADATA" == "1" ]]; then
     info "VERSION gate deferred to framework-release metadata lane; implementation PR merge still requires a later VERSION/CHANGELOG release metadata proof."
     return 0
   fi
-  final_task_md="${TASK_MDS[$((${#TASK_MDS[@]} - 1))]}"
-  final_task_branch="$(table_field "Task branch" "$final_task_md")"
-  [[ -n "$final_task_branch" ]] || die "missing Task branch in terminal task.md: $final_task_md"
   [[ -f "$VERSION_BUMP_CHECKER" ]] || die "missing checker: $VERSION_BUMP_CHECKER"
 
-  info "running version-bump release gate on ${final_task_branch} against origin/${MAIN_BRANCH}"
+  # DP-270 (AC3): in bundle mode the version-bump gate evaluates the bundle
+  # branch diff, not any single per-task branch. In per-task mode it evaluates
+  # the terminal task branch exactly as before (AC-NEG1).
+  if [[ -n "$BUNDLE_ALIAS" ]]; then
+    gate_head_ref="$BUNDLE_ALIAS"
+  else
+    final_task_md="${TASK_MDS[$((${#TASK_MDS[@]} - 1))]}"
+    gate_head_ref="$(table_field "Task branch" "$final_task_md")"
+    [[ -n "$gate_head_ref" ]] || die "missing Task branch in terminal task.md: $final_task_md"
+  fi
+
+  info "running version-bump release gate on ${gate_head_ref} against origin/${MAIN_BRANCH}"
   bash "$VERSION_BUMP_CHECKER" \
     --mode release-preflight \
     --base "origin/${MAIN_BRANCH}" \
-    --head-ref "$final_task_branch" \
+    --head-ref "$gate_head_ref" \
     --repo "$REPO_PATH" || die "release preflight blocked: missing required VERSION bump"
 }
 
@@ -206,18 +233,25 @@ run_script_manifest_release_gate() {
 }
 
 run_governed_script_tests_release_gate() {
-  local final_task_md final_task_branch
-  final_task_md="${TASK_MDS[$((${#TASK_MDS[@]} - 1))]}"
-  final_task_branch="$(table_field "Task branch" "$final_task_md")"
-  [[ -n "$final_task_branch" ]] || die "missing Task branch in terminal task.md: $final_task_md"
+  local final_task_md gate_head_ref
   [[ -f "$GOVERNED_SCRIPT_TEST_RUNNER" ]] || die "missing runner: $GOVERNED_SCRIPT_TEST_RUNNER"
 
-  info "running governed script test suite for ${final_task_branch}"
+  # DP-270 (AC3): bundle mode runs the governed script test suite against the
+  # bundle branch; per-task mode keeps the terminal task branch (AC-NEG1).
+  if [[ -n "$BUNDLE_ALIAS" ]]; then
+    gate_head_ref="$BUNDLE_ALIAS"
+  else
+    final_task_md="${TASK_MDS[$((${#TASK_MDS[@]} - 1))]}"
+    gate_head_ref="$(table_field "Task branch" "$final_task_md")"
+    [[ -n "$gate_head_ref" ]] || die "missing Task branch in terminal task.md: $final_task_md"
+  fi
+
+  info "running governed script test suite for ${gate_head_ref}"
   bash "$GOVERNED_SCRIPT_TEST_RUNNER" \
     --root "$REPO_PATH" \
     --profile release \
     --base "origin/${MAIN_BRANCH}" \
-    --head-ref "$final_task_branch" \
+    --head-ref "$gate_head_ref" \
     || die "release preflight blocked: governed script tests failed"
 }
 
@@ -276,6 +310,119 @@ resolve_task_mds_from_terminal() {
   done < <(bash "$SCRIPT_DIR/resolve-branch-chain.sh" "$TERMINAL_TASK_MD")
 
   [[ ${#TASK_MDS[@]} -gt 0 ]] || die "no task branches found in terminal Branch chain"
+}
+
+# DP-270 (D1/D2 + AC-NEG2): inspect the resolved TASK_MDS for a shared
+# bundle_branch_alias frontmatter.
+#   * none of the task.md declare an alias -> per-task mode (BUNDLE_ALIAS stays
+#     empty; unchanged behavior, AC-NEG1).
+#   * all task.md share one alias              -> bundle mode (BUNDLE_ALIAS set).
+#   * aliases inconsistent / partially present -> fail-closed (AC-NEG2): a
+#     bundle must group exactly one shared alias; no partial / mixed plan.
+detect_bundle() {
+  local task_md alias first_alias="" with_alias=0 total=0
+  for task_md in "${TASK_MDS[@]}"; do
+    total=$((total + 1))
+    alias="$(task_md_bundle_alias "$task_md")"
+    if [[ -n "$alias" ]]; then
+      with_alias=$((with_alias + 1))
+      if [[ -z "$first_alias" ]]; then
+        first_alias="$alias"
+      elif [[ "$alias" != "$first_alias" ]]; then
+        die "release preflight blocked: bundle members declare inconsistent bundle_branch_alias ('$first_alias' vs '$alias'). All members of one bundle must share a single alias; refusing to plan a mixed merge."
+      fi
+    fi
+  done
+
+  if [[ "$with_alias" -eq 0 ]]; then
+    BUNDLE_ALIAS=""
+    return 0
+  fi
+  if [[ "$with_alias" -ne "$total" ]]; then
+    die "release preflight blocked: bundle is partially declared ($with_alias of $total task.md carry bundle_branch_alias='$first_alias'). Every bundle member must share the alias; refusing to plan a partial merge."
+  fi
+  BUNDLE_ALIAS="$first_alias"
+}
+
+# DP-270 (D2/AC1 + AC-NEG2): bundle release plan.
+#   * one `gh pr view` on the bundle branch (the shared alias);
+#   * per-member lineage: each member task.md must resolve from the bundle
+#     branch (resolver multi-match) and pr_head must equal the bundle alias;
+#   * exactly one merge planned (no per-task merge, no no-PR-found die);
+#   * fail-closed (AC-NEG2) when the bundle branch has no PR.
+validate_and_plan_bundle() {
+  local json number state base head head_branch url
+  local task_md task_id member_branch
+  local resolver_err resolver_out resolver_status resolved
+
+  echo "$PREFIX release lane plan (bundle ${BUNDLE_ALIAS}):"
+
+  set +e
+  json="$(pr_view_json "$BUNDLE_ALIAS" 2>/dev/null)"
+  local pr_view_status=$?
+  set -e
+  if [[ "$pr_view_status" -ne 0 || -z "$json" ]]; then
+    die "release preflight blocked: bundle_branch_alias '$BUNDLE_ALIAS' has no open PR. Every bundle member points at this branch; refusing to plan a partial merge."
+  fi
+
+  number="$(json_field "$json" "d.get('number')")"
+  state="$(json_field "$json" "d.get('state')")"
+  base="$(json_field "$json" "d.get('baseRefName')")"
+  head="$(json_field "$json" "d.get('headRefOid')")"
+  head_branch="$(json_field "$json" "d.get('headRefName')")"
+  url="$(json_field "$json" "d.get('url')")"
+
+  [[ -n "$number" ]] || die "release preflight blocked: bundle_branch_alias '$BUNDLE_ALIAS' has no open PR (empty PR number). Refusing to plan a partial merge."
+  [[ "$state" != "CLOSED" ]] || die "bundle PR #$number for '$BUNDLE_ALIAS' is CLOSED: $url"
+  [[ -n "$head" ]] || die "bundle PR #$number for '$BUNDLE_ALIAS' has empty headRefOid"
+  [[ "$head_branch" == "$BUNDLE_ALIAS" ]] || die "bundle PR #$number head is '$head_branch'; expected bundle branch '$BUNDLE_ALIAS'"
+  [[ "$base" == "$MAIN_BRANCH" ]] || die "bundle PR #$number base is '$base'; expected '$MAIN_BRANCH'"
+
+  # Resolve the bundle branch back to its members once; the resolver returns
+  # every task.md sharing the alias (multi-match is legal).
+  resolver_err="$(mktemp -t framework-release-pr-lane-bundle-err.XXXXXX)"
+  resolver_out="$(mktemp -t framework-release-pr-lane-bundle-out.XXXXXX)"
+  set +e
+  bash "$SCRIPT_DIR/resolve-task-md-by-branch.sh" --scan-root "$REPO_PATH" "$BUNDLE_ALIAS" >"$resolver_out" 2>"$resolver_err"
+  resolver_status=$?
+  set -e
+  resolved=()
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && resolved+=("$line")
+  done < "$resolver_out"
+  rm -f "$resolver_err" "$resolver_out"
+  [[ "$resolver_status" -eq 0 && ${#resolved[@]} -gt 0 ]] \
+    || die "release preflight blocked: bundle branch '$BUNDLE_ALIAS' resolves to no task.md lineage."
+
+  # Verify every supplied member is in the resolved set and carries the alias.
+  for task_md in "${TASK_MDS[@]}"; do
+    [[ -f "$task_md" ]] || die "task.md not found: $task_md"
+    task_id="$(table_field "Task ID" "$task_md")"
+    [[ -n "$task_id" ]] || task_id="$(table_field "Task JIRA key" "$task_md")"
+    member_branch="$(table_field "Task branch" "$task_md")"
+    [[ "$member_branch" == task/* ]] || die "release preflight blocked: bundle member $task_id uses Task branch '$member_branch', not a DP task branch."
+    if ! line_in_list "$(abs_path "$task_md")" "${resolved[@]}"; then
+      die "release preflight blocked: bundle member $task_id ($task_md) does not resolve from bundle branch '$BUNDLE_ALIAS'. Resolved members: ${resolved[*]}"
+    fi
+    printf '  - member %s task_branch=%s (verified against bundle PR #%s)\n' \
+      "${task_id:-$member_branch}" "$member_branch" "$number"
+  done
+
+  printf '  => bundle PR #%s base=%s state=%s head=%s action=merge into %s (single merge for %d member(s))\n' \
+    "$number" "$base" "$state" "$head" "$MAIN_BRANCH" "${#TASK_MDS[@]}"
+
+  if [[ "$EXECUTE" == "1" && "$state" != "MERGED" ]]; then
+    info "merging bundle PR #$number ($BUNDLE_ALIAS)"
+    "$GH_BIN" pr merge "$number" ${gh_repo_args[@]+"${gh_repo_args[@]}"} --merge
+  fi
+
+  if [[ "$REQUIRE_MAIN_CONTAINS_FINAL" == "1" ]]; then
+    [[ -n "$head" ]] || die "cannot check final ancestry without bundle head"
+    git -C "$REPO_PATH" fetch origin "$MAIN_BRANCH" >/dev/null
+    git -C "$REPO_PATH" merge-base --is-ancestor "$head" "origin/$MAIN_BRANCH" \
+      || die "origin/$MAIN_BRANCH does not contain bundle head $head"
+    info "origin/$MAIN_BRANCH contains bundle head $head"
+  fi
 }
 
 validate_and_plan() {
@@ -418,8 +565,16 @@ if [[ ${#TASK_MDS[@]} -eq 0 ]]; then
   resolve_task_mds_from_terminal
 fi
 
+# DP-270: classify bundle vs per-task before the release gates so the
+# version-bump / governed-script gates evaluate the correct head ref.
+detect_bundle
+
 run_version_bump_release_gate
 run_script_manifest_release_gate
 run_governed_script_tests_release_gate
-validate_and_plan
+if [[ -n "$BUNDLE_ALIAS" ]]; then
+  validate_and_plan_bundle
+else
+  validate_and_plan
+fi
 echo "$PREFIX PASS"

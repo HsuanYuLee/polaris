@@ -29,11 +29,25 @@
 # Matching rule
 #   For each specs/**/tasks/T*.md or specs/**/tasks/T*/index.md found under
 #   <scan-root>:
-#     extract `Task branch` value from the Operational Context table
-#     (format: `| Task branch | <value> |`) and compare string-equal to
-#     the input branch.
+#     - extract `Task branch` value from the Operational Context table
+#       (format: `| Task branch | <value> |`) and compare string-equal to
+#       the input branch; AND
+#     - extract `bundle_branch_alias` from the YAML frontmatter (format:
+#       `bundle_branch_alias: <value>` inside the leading `---` block) and
+#       compare string-equal to the input branch.
+#     A task.md matches the query branch if EITHER field equals it.
 #   This includes product specs roots (`docs-manager/src/content/docs/specs/companies/{company}/{EPIC}/tasks/`) and
 #   framework DP specs roots (`docs-manager/src/content/docs/specs/design-plans/DP-NNN-*/tasks/`).
+#
+# DP-270 bundle layer
+# -------------------
+# DP-230's --aggregate-release lane writes a shared `bundle_branch_alias:
+# bundle-DP-NNN-vX.Y.Z` into each bundled task.md frontmatter. A bundle-alias
+# query (branch == that shared alias) therefore resolves to ALL bundle members
+# (multi-match is legal and expected — the release lane consumes the full set).
+# A per-task `Task branch` query keeps its original single-match semantics; the
+# two matching fields are independent (a per-task Task branch query never
+# accidentally widens into a bundle multi-match, and vice versa).
 #
 # Notes
 #   * Excludes .worktrees/, node_modules/, .git/ to avoid duplicate hits
@@ -77,7 +91,7 @@ resolve_task_md_scan() {
   local specs_root=""
   local scanned=0
   local -a matches=()
-  local f val
+  local f val alias
   specs_root="$(resolve_specs_root "$root")" || return 1
 
   while IFS= read -r -d '' f; do
@@ -94,7 +108,21 @@ resolve_task_md_scan() {
       }
     ' "$f")"
 
-    if [[ -n "$val" && "$val" == "$branch" ]]; then
+    # DP-270: extract `bundle_branch_alias` from the leading YAML frontmatter
+    # block (same parse shape as gate-work-source.sh). A bundle-alias query
+    # matches every member sharing the alias.
+    alias="$(awk '
+      /^---$/ { fm++; next }
+      fm == 1 && /^bundle_branch_alias:/ {
+        sub(/^bundle_branch_alias:[[:space:]]*/, "")
+        sub(/[[:space:]]+$/, "")
+        print
+        exit
+      }
+    ' "$f" 2>/dev/null || true)"
+
+    if [[ -n "$val" && "$val" == "$branch" ]] \
+      || [[ -n "$alias" && "$alias" == "$branch" ]]; then
       matches+=("$f")
     fi
   done < <(find "$specs_root" \
@@ -103,7 +131,7 @@ resolve_task_md_scan() {
     \( -type f \( -path '*/tasks/T*.md' -o -path '*/tasks/T*/index.md' -o -path '*/tasks/pr-release/T*.md' -o -path '*/tasks/pr-release/T*/index.md' \) -print0 \))
 
   if [[ ${#matches[@]} -eq 0 ]]; then
-    echo "no task.md matched 'Task branch = $branch' (scanned $scanned file(s) under $specs_root)" >&2
+    echo "no task.md matched 'Task branch = $branch' or 'bundle_branch_alias = $branch' (scanned $scanned file(s) under $specs_root)" >&2
     return 1
   fi
 
@@ -133,6 +161,9 @@ if [[ "${RESOLVE_TASK_MD_SELFTEST:-0}" == "1" ]]; then
            "$tmpdir/docs-manager/src/content/docs/specs/EPIC-2/tasks/T3" \
            "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-047-framework-work-order-bridge/tasks" \
            "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-048-folder-native-resolver/tasks/T1" \
+           "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-099-bundle-fixture/tasks/T1" \
+           "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-099-bundle-fixture/tasks/T2" \
+           "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-099-bundle-fixture/tasks/T3" \
            "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-7/tasks/pr-release/T1" \
            "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/EPIC-9/tasks" \
            "$tmpdir/.worktrees/shadow/specs/EPIC-1/tasks" \
@@ -192,6 +223,41 @@ MD
 | 欄位 | 值 |
 |------|-----|
 | Task branch | task/PR-1-epsilon |
+MD
+
+  # DP-270 bundle fixture: three members sharing one bundle_branch_alias in
+  # frontmatter, each with its own per-task Task branch in the table.
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-099-bundle-fixture/tasks/T1/index.md" <<'MD'
+---
+bundle_branch_alias: bundle-DP-099-v1.0.0
+---
+# T1
+## Operational Context
+| 欄位 | 值 |
+|------|-----|
+| Task branch | task/DP-099-T1-one |
+MD
+
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-099-bundle-fixture/tasks/T2/index.md" <<'MD'
+---
+bundle_branch_alias: bundle-DP-099-v1.0.0
+---
+# T2
+## Operational Context
+| 欄位 | 值 |
+|------|-----|
+| Task branch | task/DP-099-T2-two |
+MD
+
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-099-bundle-fixture/tasks/T3/index.md" <<'MD'
+---
+bundle_branch_alias: bundle-DP-099-v1.0.0
+---
+# T3
+## Operational Context
+| 欄位 | 值 |
+|------|-----|
+| Task branch | task/DP-099-T3-three |
 MD
 
   # Worktree shadow copy — must be ignored by prune.
@@ -293,10 +359,40 @@ MD
   run_case case7 task/ARCHIVED-1-only 1
   if [[ -s "$out_file" ]]; then echo "[selftest] case7 stdout should be empty"; fail=1; fi
 
+  # Case 8 (DP-270 AC2): a bundle_branch_alias query returns ALL members that
+  # share that alias (multi-match is legal). Expect exit 0, three member paths,
+  # and a 'multiple matches' stderr warning.
+  run_case case8 bundle-DP-099-v1.0.0 0
+  local_count="$(wc -l < "$out_file" | tr -d ' ')"
+  if [[ "$local_count" != "3" ]]; then
+    echo "[selftest] case8 expected 3 bundle member lines, got $local_count"; fail=1
+  fi
+  if ! grep -q 'DP-099-bundle-fixture/tasks/T1/index.md' "$out_file"; then echo "[selftest] case8 missing bundle member T1"; fail=1; fi
+  if ! grep -q 'DP-099-bundle-fixture/tasks/T2/index.md' "$out_file"; then echo "[selftest] case8 missing bundle member T2"; fail=1; fi
+  if ! grep -q 'DP-099-bundle-fixture/tasks/T3/index.md' "$out_file"; then echo "[selftest] case8 missing bundle member T3"; fail=1; fi
+  if ! grep -q 'multiple matches' "$err_file"; then
+    echo "[selftest] case8 expected 'multiple matches' warning for bundle"; fail=1
+  fi
+
+  # Case 9 (DP-270 AC2 independence): querying a bundle member's per-task Task
+  # branch resolves to exactly that one member — the alias multi-match semantic
+  # must NOT widen a per-task Task branch query into the whole bundle.
+  run_case case9 task/DP-099-T2-two 0
+  local_count="$(wc -l < "$out_file" | tr -d ' ')"
+  if [[ "$local_count" != "1" ]]; then
+    echo "[selftest] case9 expected 1 line for per-task Task branch, got $local_count"; fail=1
+  fi
+  if ! grep -q 'DP-099-bundle-fixture/tasks/T2/index.md' "$out_file"; then
+    echo "[selftest] case9 wrong path for per-task Task branch query"; fail=1
+  fi
+  if grep -q 'multiple matches' "$err_file"; then
+    echo "[selftest] case9 per-task Task branch query must not multi-match"; fail=1
+  fi
+
   rm -f "$out_file" "$err_file"
 
   if [[ $fail -eq 0 ]]; then
-    echo "[selftest] PASS (7 cases)"
+    echo "[selftest] PASS (9 cases)"
     exit 0
   else
     echo "[selftest] FAIL"

@@ -4,6 +4,15 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.140] - 2026-06-02
+
+### Added — DP-270 framework-release lane single-DP bundle support
+
+- **`scripts/resolve-task-md-by-branch.sh`**（DP-270-T1）：新增 frontmatter `bundle_branch_alias` 比對。給定 branch `B`，除既有「Task branch == B」比對外，額外回傳所有 frontmatter `bundle_branch_alias == B` 的 task.md（bundle 情境下 multi-match 為合法、非錯誤）。
+- **`scripts/framework-release-pr-lane.sh`**（DP-270-T1）：當 resolved task.md 共用同一 `bundle_branch_alias` 時群組成單一 bundle PR——對 bundle branch 單次 `gh pr view`、逐一驗證 member lineage（接受 `pr_head == bundle_branch_alias`）、plan 單一 merge、version gate 對 bundle branch。非 bundle 的單票 per-task 路徑零行為變更。
+- **`scripts/framework-release-pr-lane-selftest.sh`**（DP-270-T1）：擴充 selftest fixture 涵蓋 bundle 群組、單一 merge plan、per-task regression、fail-closed。
+- 直接成果：解阻 DP-269 的 bundle PR（PR #495 為 T1–T5 bundle）走標準 release lane，未來所有單-DP bundle 共用同一條 lane，不需 maintainer-orchestrated 特例。
+
 ## [3.75.139] - 2026-06-02
 
 ### Added — DP-262 audit/confirmation-only task_shape 識別與 lifecycle carve-out
