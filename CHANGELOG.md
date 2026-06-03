@@ -4,6 +4,21 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.144] - 2026-06-03
+
+### Added — DP-277 memory-hygiene topic-folder-aware index producers（apply / emit-index 收斂單一磁碟列舉 + apply chain 透明 gate）
+
+- **`scripts/memory-hygiene-tiering.py`**（DP-277-T1，AC1–AC4 / AC-NEG1–NEG3）：新增 `discover_topic_folders()` 與 `enumerate_topic_folder()`，apply topic-index writer 與 `render_emit_index_block` 的 per-topic 段共用同一個「以磁碟列舉」來源，消除 apply 與 `--emit-index` 各自列舉造成的 MEMORY.md per-topic pointer drift。topic folder pointer 即使 warm set 為空仍保留（flat-empty 不再吃掉 pointer）、`archive/`（Cold 區）排除、缺 frontmatter 的檔 link text fallback 到檔名不 crash。
+- **`scripts/validate-memory-hygiene-plan.sh`**（DP-277-T2，AC5 / AC6 / AC-NEG4）：改為透明 pipe gate — PASS 把驗證過的 plan JSON 原樣輸出到 stdout、verdict 寫 stderr；FAIL stdout 不輸出 plan 且 exit 非 0，讓 documented chain（`dry-run --json | validate | apply`）在 `set -o pipefail` 下 fail-closed。`.claude/skills/references/memory-hygiene-apply-flow.md` Preferred Command 改為單管 chain；修正 DP-213 後遺留的 stale `invalid_nested` fixture（`nested_frontmatter` 現為 warnings-only）並對齊兩個 coupled selftest 的 verdict→stderr 契約。
+
+### Why
+
+memory-hygiene 的 apply 與 `--emit-index` 兩條 index producer 原本各自列舉 topic 來源，造成 MEMORY.md per-topic pointer 與 `{topic}/index.md` 內容 drift；plan 驗證閘原本吃掉 stdout，使 documented apply chain 無法 fail-closed。DP-277 把兩條 producer 收斂到單一磁碟列舉 source of truth，並把 plan gate 改成透明 pipe，讓 chain 在 plan 不合法時確實中止、不污染 memory_dir。
+
+### Verified
+
+V1 verify-AC dogfood 12/12 PASS（AC1–AC6 + AC-NF1 / AC-NF2 + AC-NEG1–NEG4）：5 個 selftest（topic-folder-index / apply-chain / validate-plan / emit-index / tiering）exit 0、AC-NF1 diff 無新 PyPI import、AC-NF2 emit-index generated-block marker byte-equivalent 無變更。aggregate-release bundle PR #505（T1 + T2 content + V1 verify-report）。
+
 ## [3.75.143] - 2026-06-02
 
 ### Added — DP-242 DP-240 legacy backfill audit（scripts / markdown / cross-LLM hooks 分類盤點）

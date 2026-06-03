@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Purpose: selftest for validate-memory-hygiene-plan.sh — pins the DP-277 T2
+#   transparent pipe gate contract (PASS -> validated plan JSON on stdout +
+#   verdict on stderr; FAIL -> empty stdout + non-zero exit) and the
+#   nested_frontmatter warnings-only / missing_pinned_reason fixtures.
+# Inputs:  none (builds plan fixtures in a tmpdir).
+# Outputs: "PASS: validate-memory-hygiene-plan selftest" on stdout; non-zero
+#   exit on any contract violation.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -61,8 +68,10 @@ cat >"$valid_additive" <<'JSON'
 }
 JSON
 
-invalid_nested="$TMP/invalid-nested.json"
-cat >"$invalid_nested" <<'JSON'
+# DP-213: nested_frontmatter is warnings-only (not a hard issue) — the validator
+# PASSES this plan but must surface a nested_frontmatter warning.
+warn_nested="$TMP/warn-nested.json"
+cat >"$warn_nested" <<'JSON'
 {
   "date": "2026-05-19",
   "classifications": [
@@ -104,20 +113,39 @@ cat >"$invalid_pinned" <<'JSON'
 }
 JSON
 
+# DP-277 T2 transparent pipe gate: on PASS the validator re-emits the validated
+# plan JSON verbatim on stdout and writes the verdict to stderr; on FAIL stdout
+# is empty and exit is non-zero. These assertions pin that contract.
 bash "$VALIDATOR" --input "$valid_legacy" >/dev/null
-bash "$VALIDATOR" --input "$valid_additive" >/dev/null
-if bash "$VALIDATOR" --input "$invalid_nested" >/tmp/invalid-nested.out 2>&1; then
-  echo "expected invalid nested fixture to fail" >&2
+bash "$VALIDATOR" --input "$valid_additive" >"$TMP/additive-stdout.json" 2>/dev/null
+# AC6: PASS stdout must equal the input plan byte-for-byte (transparent pass-through).
+if ! diff -q "$valid_additive" "$TMP/additive-stdout.json" >/dev/null; then
+  echo "FAIL: PASS stdout did not re-emit the input plan verbatim (AC6 transparent gate)" >&2
   exit 1
 fi
-grep -q "nested_frontmatter" /tmp/invalid-nested.out
-if bash "$VALIDATOR" --input "$invalid_pinned" >/tmp/invalid-pinned.out 2>&1; then
+
+# nested_frontmatter is warnings-only (DP-213): validator PASSES (exit 0) but the
+# verdict on stderr must carry the nested_frontmatter warning.
+bash "$VALIDATOR" --input "$warn_nested" >/dev/null 2>"$TMP/warn-nested.err"
+grep -q "nested_frontmatter" "$TMP/warn-nested.err"
+
+# missing_pinned_reason is a hard issue: validator FAILS, stdout is empty, the
+# issue detail is reported on stderr.
+if bash "$VALIDATOR" --input "$invalid_pinned" >"$TMP/pinned-stdout" 2>"$TMP/pinned-stderr"; then
   echo "expected invalid pinned fixture to fail" >&2
   exit 1
 fi
-grep -q "missing_pinned_reason" /tmp/invalid-pinned.out
+if [[ -s "$TMP/pinned-stdout" ]]; then
+  echo "FAIL: validator must not emit plan JSON on stdout when the plan is invalid (AC6)" >&2
+  exit 1
+fi
+grep -q "missing_pinned_reason" "$TMP/pinned-stderr"
 
+# stdin form is also a transparent pass-through.
 cat "$valid_additive" | bash "$VALIDATOR" >/dev/null
-bash "$VALIDATOR" --input "$valid_additive" --format json | grep -q '"passed": true'
+# --format json selects the stderr verdict representation; stdout stays reserved
+# for the plan pass-through.
+bash "$VALIDATOR" --input "$valid_additive" --format json >/dev/null 2>"$TMP/additive-verdict.json"
+grep -q '"passed": true' "$TMP/additive-verdict.json"
 
 echo "PASS: validate-memory-hygiene-plan selftest"

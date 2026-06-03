@@ -61,6 +61,8 @@ if [[ "$nested_flag" != "True" ]]; then
 fi
 
 # AC3: validator exits 0
+# DP-277 T2: verdict (--format json) now goes to STDERR; stdout is the plan
+# pass-through. Read the JSON verdict from stderr.
 validator_exit=0
 "$VALIDATOR" --input "$plan_json" --format json >"$WORK/validator.out" 2>"$WORK/validator.err" || validator_exit=$?
 if [[ "$validator_exit" -ne 0 ]]; then
@@ -69,16 +71,16 @@ if [[ "$validator_exit" -ne 0 ]]; then
   exit 1
 fi
 
-# AC-NEG3: warnings array must contain nested_frontmatter for nested_01.md
-nested_in_warnings="$(python3 -c "import json; d=json.load(open('$WORK/validator.out')); print(any(w['code']=='nested_frontmatter' and w['detail']=='nested_01.md' for w in d.get('warnings', [])))")"
+# AC-NEG3: warnings array (verdict on stderr) must contain nested_frontmatter for nested_01.md
+nested_in_warnings="$(python3 -c "import json; d=json.load(open('$WORK/validator.err')); print(any(w['code']=='nested_frontmatter' and w['detail']=='nested_01.md' for w in d.get('warnings', [])))")"
 if [[ "$nested_in_warnings" != "True" ]]; then
   echo "FAIL: validator warnings missing nested_frontmatter entry for nested_01.md (AC-NEG3)" >&2
-  cat "$WORK/validator.out" >&2
+  cat "$WORK/validator.err" >&2
   exit 1
 fi
 
 # AC-NEG3: validator must NOT silently strip the signal — issues array should not contain nested_frontmatter
-issues_has_nested="$(python3 -c "import json; d=json.load(open('$WORK/validator.out')); print(any(i['code']=='nested_frontmatter' for i in d.get('issues', [])))")"
+issues_has_nested="$(python3 -c "import json; d=json.load(open('$WORK/validator.err')); print(any(i['code']=='nested_frontmatter' for i in d.get('issues', [])))")"
 if [[ "$issues_has_nested" == "True" ]]; then
   echo "FAIL: validator issues should not contain nested_frontmatter (now warnings-only; AC-NEG3)" >&2
   exit 1

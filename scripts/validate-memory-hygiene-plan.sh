@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# validate-memory-hygiene-plan.sh — validate memory-hygiene dry-run plan artifact.
+# Purpose: Transparent-pipe gate for memory-hygiene dry-run plan artifacts.
+# Inputs:  plan JSON via --input PATH or stdin; --format text|json selects the
+#          verdict representation written to stderr.
+# Outputs: On PASS, the validated plan JSON is re-emitted verbatim to stdout
+#          (so it can be piped to apply) and the verdict goes to stderr (exit 0).
+#          On FAIL, stdout is empty and the verdict + issues go to stderr (exit 1).
 
 set -euo pipefail
 
@@ -10,6 +15,9 @@ usage: validate-memory-hygiene-plan.sh [--input PATH] [--format text|json]
 Defaults:
   --input   stdin
   --format  text
+
+On PASS the plan JSON is passed through verbatim on stdout; the verdict
+(--format text|json) is written to stderr. On FAIL stdout is empty.
 EOF
   exit 2
 }
@@ -193,19 +201,26 @@ result = {
     "warnings": warnings,
 }
 
+# Verdict goes to stderr (--format selects its representation). On PASS the
+# plan JSON is re-emitted verbatim to stdout so the chain can pipe it to apply.
 if fmt == "json":
-    print(json.dumps(result, ensure_ascii=False))
+    print(json.dumps(result, ensure_ascii=False), file=sys.stderr)
 else:
     if result["passed"]:
-        print("PASS: memory hygiene plan valid")
+        print("PASS: memory hygiene plan valid", file=sys.stderr)
     else:
-        print("FAIL: memory hygiene plan invalid")
+        print("FAIL: memory hygiene plan invalid", file=sys.stderr)
         for issue in issues:
-            print(f"  - {issue['code']}: {issue['detail']}")
+            print(f"  - {issue['code']}: {issue['detail']}", file=sys.stderr)
     if warnings:
-        print("WARNINGS:")
+        print("WARNINGS:", file=sys.stderr)
         for w in warnings:
-            print(f"  - {w['code']}: {w['detail']}")
+            print(f"  - {w['code']}: {w['detail']}", file=sys.stderr)
+
+if result["passed"]:
+    # Verbatim pass-through (exact bytes read from input).
+    sys.stdout.write(payload_text)
+    sys.stdout.flush()
 
 sys.exit(0 if result["passed"] else 1)
 PY

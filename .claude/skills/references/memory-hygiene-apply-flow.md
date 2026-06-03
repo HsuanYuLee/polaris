@@ -23,10 +23,13 @@ Apply 前確認：
 Prefer dry-run JSON piped to apply，確保 apply 使用同一組 file set：
 
 ```bash
+set -o pipefail
 scripts/memory-hygiene-tiering.py dry-run --memory-dir "{memory_dir}" --json \
   | bash scripts/validate-memory-hygiene-plan.sh \
   | scripts/memory-hygiene-tiering.py apply --memory-dir "{memory_dir}"
 ```
+
+Validator 在 PASS 時把 plan JSON 原樣 pass-through 到 stdout（verdict 走 stderr），讓 apply 收到同一份 plan；plan 不合法時 fail closed（stdout 空、exit 非零），整條 chain 在 `set -o pipefail` 下中止，apply 不會搬任何檔案。
 
 若 validator 或 apply mode 不支援該輸入，停止並回報 script limitation；不要手動搬檔補洞。
 

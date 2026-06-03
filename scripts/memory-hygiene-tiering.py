@@ -923,25 +923,27 @@ def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
         for name in sorted(normalized_files):
             log_entries.append(f"- `{name}`")
 
-    # Write topic index files
-    for topic, items in sorted(warm_topics.items()):
+    # Write topic index files. Moves already executed above, so the shared
+    # enumerator sees existing + just-moved files and reads each file's OWN
+    # frontmatter for link text / summary (DP-277 T1 AC1/AC4).
+    for topic in sorted(warm_topics):
         topic_index = memory_dir / topic / "index.md"
+        folder_entries = enumerate_topic_folder(memory_dir, topic)
         lines = [f"# {topic} — Warm Memory", "",
                  "Topic folder for memory files moved out of Hot index.",
                  f"These files are loaded on-demand when {topic}-related work is active.",
                  "", "## Files", ""]
-        for c in sorted(items, key=lambda x: x["file"]):
-            fn = c["file"]
-            existing = existing_entries.get(fn, {})
-            title = existing.get("title") or fn
-            desc = existing.get("description") or ""
+        for entry in folder_entries:
+            title = entry["title"]
+            fn = entry["file"]
+            desc = entry["description"]
             if desc:
                 lines.append(f"- [{title}]({fn}) — {desc}")
             else:
                 lines.append(f"- [{title}]({fn})")
         lines.append("")
         topic_index.write_text("\n".join(lines), encoding="utf-8")
-        print(f"  wrote index: {topic}/index.md ({len(items)} entries)")
+        print(f"  wrote index: {topic}/index.md ({len(folder_entries)} entries)")
 
     # Rewrite MEMORY.md
     def format_entry(c: dict, path_prefix: str = "") -> str:
@@ -1081,15 +1083,55 @@ def emit_index_format_entry(
     return f"- [{title}]({link_target})"
 
 
-def count_topic_folder_entries(memory_dir: Path, topic: str) -> int:
+# Reserved subdirectories under memory_dir that are NOT topic folders.
+RESERVED_MEMORY_SUBDIRS = {"archive"}
+
+
+def discover_topic_folders(memory_dir: Path) -> list[str]:
+    """Return sorted topic-folder names on disk, excluding reserved areas
+    (archive/ Cold zone) and hidden dirs. Disk is the source of truth — a
+    topic whose flat files are already migrated still appears."""
+    topics = []
+    for p in sorted(memory_dir.iterdir(), key=lambda x: x.name):
+        if not p.is_dir():
+            continue
+        if p.name in RESERVED_MEMORY_SUBDIRS or p.name.startswith("."):
+            continue
+        topics.append(p.name)
+    return topics
+
+
+def enumerate_topic_folder(memory_dir: Path, topic: str) -> list[dict]:
+    """Enumerate every memory .md in a topic folder, reading each file's own
+    frontmatter for link text / summary. Returns dicts
+    {"file","title","description"} sorted by filename, deduped by resolved real
+    path. index.md and non-.md excluded. Missing frontmatter falls back to
+    filename for link text and empty summary (no crash)."""
     folder = memory_dir / topic
     if not folder.is_dir():
-        return 0
-    count = 0
-    for p in folder.iterdir():
-        if p.is_file() and p.suffix == ".md" and p.name != "index.md":
-            count += 1
-    return count
+        return []
+    seen = set()
+    entries = []
+    for p in sorted(folder.iterdir(), key=lambda x: x.name):
+        if not p.is_file() or p.suffix != ".md" or p.name == "index.md":
+            continue
+        key = str(p.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        title, desc = p.name, ""
+        try:
+            fm = parse_frontmatter(p.read_text(encoding="utf-8"))
+            title = fm.name or p.name
+            desc = fm.description or ""
+        except Exception:
+            pass
+        entries.append({"file": p.name, "title": title, "description": desc})
+    return entries
+
+
+def count_topic_folder_entries(memory_dir: Path, topic: str) -> int:
+    return len(enumerate_topic_folder(memory_dir, topic))
 
 
 def render_emit_index_block(
@@ -1129,13 +1171,20 @@ def render_emit_index_block(
         lines.append(emit_index_format_entry(c, existing_entries))
     lines.append("")
 
-    if warm_topics:
-        topic_total = sum(
-            count_topic_folder_entries(memory_dir, topic) or len(items)
-            for topic, items in warm_topics.items()
-        )
+    # Per-topic list is DISK-driven (DP-277 T1 AC2): a folder with files always
+    # shows its pointer + count even when the flat layer has no topic-T file.
+    all_topics = sorted(set(warm_topics) | set(discover_topic_folders(memory_dir)))
+    if all_topics:
+        topic_counts = {
+            topic: (
+                count_topic_folder_entries(memory_dir, topic)
+                or len(warm_topics.get(topic, []))
+            )
+            for topic in all_topics
+        }
+        topic_total = sum(topic_counts.values())
         lines.append(
-            f"## Warm — per-topic folders ({len(warm_topics)} topics, "
+            f"## Warm — per-topic folders ({len(all_topics)} topics, "
             f"{topic_total} files)"
         )
         lines.append("")
@@ -1144,10 +1193,8 @@ def render_emit_index_block(
             "pulls when relevant. Click through to each folder's index."
         )
         lines.append("")
-        for topic in sorted(warm_topics.keys()):
-            count = count_topic_folder_entries(memory_dir, topic) or len(
-                warm_topics[topic]
-            )
+        for topic in all_topics:
+            count = topic_counts[topic]
             lines.append(f"- [{topic}/]({topic}/index.md) — {count} entries")
         lines.append("")
 
