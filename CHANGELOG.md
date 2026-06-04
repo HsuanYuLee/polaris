@@ -4,6 +4,23 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.145] - 2026-06-04
+
+### Added — DP-281 write-ac-verification.sh emit ac_verification verdict marker（canonical deterministic writer）
+
+- **`scripts/write-ac-verification.sh`**（DP-281-T1，AC1–AC6 / AC-NEG1–NEG2）：擴充為 `ac_verification` verdict marker 的唯一 canonical deterministic writer。新增 `--source-id` / `--work-item-id` / `--head-sha` flag（D2）；source `scripts/lib/main-checkout.sh` 以 `resolve_main_checkout` 把 marker 錨定到 main checkout（D3），即使在 `git worktree` 內被 auto-pass 呼叫，marker 仍落 main checkout 的 `.polaris/evidence/ac-verification/{work_item}-{head}.json`，與 `auto-pass-runner` probe 路徑一致；只有 terminal verdict status（PASS / FAIL / MANUAL_REQUIRED / UNCERTAIN / BLOCKED_ENV）才 emit marker、`--status IN_PROGRESS` 只寫 frontmatter（D4）；marker payload 對齊 D5 schema（schema_version / marker_kind=ac_verification / writer=verify-AC / owning_skill=verify-AC / source_id / work_item_id / status / ac_counts / human_disposition / freshness / 正確 ISO8601 UTC `at` / summary），並帶 `ticket` / 頂層 `head_sha` 相容別名供既有 reader 使用；marker emit 失敗 fail-stop exit 1（D6）。pattern 對齊 `scripts/write-completion-gate-marker.sh`。
+- **`.claude/skills/verify-AC/SKILL.md` / `scripts/lib/evidence-producers.json`**（AC5）：消除 documented≠implemented drift — registry notes 與 SKILL.md 敘述均更新為「write-ac-verification.sh 實際 emit ac_verification verdict marker（main-checkout 錨定、IN_PROGRESS 不 emit、純 Bash file I/O、fail-stop exit 1）」，並補新 flag 呼叫範例。
+- **`scripts/check-local-extension-completion.sh`**：確認 `check_ac_verification_evidence` 與新 marker 相容（marker 頂層 `ticket` / `head_sha` 別名滿足既有 reader 期望，`writer=verify-AC` 已在 whitelist），加註 DP-281 compatibility 說明。
+- **`scripts/selftests/write-ac-verification-selftest.sh`**：擴充涵蓋 AC1（marker D5 schema）、AC2（worktree→main-checkout 錨定）、AC3（實跑 `auto-pass-probe` verify-AC stage 得 status=PASS / next_action=report / terminal=complete）、AC4（IN_PROGRESS 不 emit）、AC5（registry + SKILL.md 文件對齊）、AC6（no-POLARIS-env script I/O）、AC-NEG1（缺 flag fail-stop）、AC-NEG2（marker 失敗 exit 1）。
+
+### Why
+
+`scripts/write-ac-verification.sh` 先前只寫 V*.md frontmatter，registry 與 SKILL.md 卻宣稱它會產生 `ac_verification` marker（documented≠implemented）。auto-pass-runner verify-AC stage 依賴 `.polaris/evidence/ac-verification/{work_item}-{head}.json` marker 判定 terminal complete；缺 marker 會讓 verify-AC PASS 卻無法收斂。DP-281 把這支 writer 補成 marker 的唯一 sanctioned writer，並用 main-checkout 錨定解決 worktree（auto-pass 寫）與 main checkout（probe 讀）路徑不一致的 circular missing-marker 問題。
+
+### Verified
+
+`bash scripts/selftests/write-ac-verification-selftest.sh` PASS（AC1–AC6 + AC-NEG1–NEG2 全綠，含實跑 `auto-pass-probe` verify-AC stage assert status=PASS / next_action=report）；`bash scripts/check-script-manifest.sh --root . --quiet` PASS。驗收委派 DP-281-V1。
+
 ## [3.75.144] - 2026-06-03
 
 ### Added — DP-277 memory-hygiene topic-folder-aware index producers（apply / emit-index 收斂單一磁碟列舉 + apply chain 透明 gate）

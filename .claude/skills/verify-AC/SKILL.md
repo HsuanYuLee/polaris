@@ -142,9 +142,26 @@ specs-bound `verification/V*/**`、`tasks/V*/**` 或 `.polaris/evidence/ac-verif
 等 verify-AC owning_skill paths 的 writer authority 來自 producer-env +
 `scripts/lib/evidence-producers.json` registry。
 
-- V*.md lifecycle metadata 與 `ac_verification` marker 由 deterministic writer
-  `scripts/write-ac-verification.sh` 產生（內部已設定 producer token），不應直接以 Claude
-  tool 改寫；該流程不需要 agent 手動 export 環境變數。
+- V*.md lifecycle metadata 與 `ac_verification` verdict marker 都由 deterministic writer
+  `scripts/write-ac-verification.sh` 產生，不應直接以 Claude tool 改寫；該流程不需要 agent
+  手動 export 環境變數。對 terminal verdict status（PASS / FAIL / MANUAL_REQUIRED /
+  UNCERTAIN / BLOCKED_ENV）傳入 `--source-id` / `--work-item-id` / `--head-sha`，writer
+  在寫完 V*.md frontmatter 後會額外 emit
+  `.polaris/evidence/ac-verification/{work_item}-{head}.json` proof marker，並透過
+  `scripts/lib/main-checkout.sh` `resolve_main_checkout` 錨定到 main checkout（即使在
+  worktree 內被 auto-pass 呼叫，marker 仍落 main checkout，與 `auto-pass-runner` probe 路徑
+  一致）。`--status IN_PROGRESS` 只更新 frontmatter、不 emit marker；marker emit 為純
+  Bash file I/O（不經 `POLARIS_SKILL_WRITER` env、與 `no-direct-evidence-write` hook 無關），
+  寫入失敗即 fail-stop exit 1。呼叫範例：
+
+```bash
+scripts/write-ac-verification.sh <V-task-md> \
+  --status PASS \
+  --last-run-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --ac-total 6 --ac-pass 6 --ac-fail 0 --ac-manual-required 0 --ac-uncertain 0 \
+  --human-disposition passed \
+  --source-id DP-NNN --work-item-id DP-NNN-V1 --head-sha "$head_sha"
+```
 - 若驗收過程必須直接以 Claude `Write` / `Edit` / `MultiEdit` 寫 verify report 或
   evidence layout 內非 lifecycle metadata 的補充檔（例如 `verify-report.md`、
   `links.json`、`publication-manifest.json` 之外的補充說明），先 `export

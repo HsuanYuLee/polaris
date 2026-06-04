@@ -213,6 +213,12 @@ check_verify_evidence() {
 # same task / head, was written by the expected verify-AC writer, and has
 # status PASS. This is the V counterpart to check_verify_evidence (which
 # validates Layer B verify markers for T tasks).
+#
+# DP-281 compatibility: scripts/write-ac-verification.sh now emits this marker
+# with top-level `ticket` (= work_item_id) and `head_sha` aliases alongside the
+# canonical work_item_id / freshness.head_sha keys, so this reader's field
+# expectations (ticket / head_sha / writer / status) stay satisfied with no
+# change to the checks below. `writer` is "verify-AC", already in ALLOWED_WRITERS.
 check_ac_verification_evidence() {
   local evidence="$1"
   [[ -n "$evidence" && "$evidence" != "N/A" ]] || block "ac_verification evidence path missing (V task)"

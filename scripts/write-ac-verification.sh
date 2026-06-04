@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# write-ac-verification.sh
-#
-# Atomically writes verify-AC lifecycle metadata into a V*.md task file.
-# This is the verification counterpart to write-deliverable.sh: the latest
-# ac_verification block is replaced and ac_verification_log receives one
-# append-only entry.
+# Purpose: verify-AC owning writer for ac_verification lifecycle metadata AND
+#          the DP-201 ac_verification proof marker. It atomically replaces the
+#          latest ac_verification block in a V*.md task file, appends one entry
+#          to ac_verification_log, and — for terminal verdict statuses — emits a
+#          durable .polaris/evidence/ac-verification/{work_item}-{head}.json
+#          marker anchored at the main checkout (DP-281). Pattern mirrors
+#          scripts/write-completion-gate-marker.sh.
+# Inputs:  <v-task-md> + flags (see Usage); no env required for marker I/O.
+# Outputs: updated V*.md frontmatter; for terminal status, a durable marker
+#          JSON. Exit code contract below.
 #
 # Usage:
 #   scripts/write-ac-verification.sh <v-task-md> \
@@ -18,16 +22,35 @@ set -uo pipefail
 #     --ac-manual-required <n> \
 #     --ac-uncertain <n> \
 #     [--human-disposition <passed|rejected|deferred>] \
-#     [--summary <text>]
+#     [--summary <text>] \
+#     [--source-id <DP-NNN>] \
+#     [--work-item-id <DP-NNN-V1>] \
+#     [--head-sha <sha>]
+#
+# Marker (DP-281):
+#   When --status is a terminal verdict (PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|
+#   BLOCKED_ENV), --source-id / --work-item-id / --head-sha are REQUIRED and a
+#   proof marker is emitted to
+#   <main-checkout>/.polaris/evidence/ac-verification/{work_item}-{head}.json.
+#   --status IN_PROGRESS only updates frontmatter and emits no marker.
 #
 # Exit:
 #   0 success
-#   1 inconsistent write after retries; caller must halt
+#   1 inconsistent write after retries OR marker emit failed; caller must halt
 #   2 invalid input
 
 MAX_RETRIES=3
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALIDATE_TASK_MD="${SCRIPT_DIR}/validate-task-md.sh"
+
+# DP-281 D3: framework artifact markers anchor at the main checkout, even when
+# this writer runs inside a `git worktree add` copy. Source the shared resolver
+# helper instead of recomputing the rule (same pattern as
+# scripts/write-completion-gate-marker.sh).
+if [[ -f "$SCRIPT_DIR/lib/main-checkout.sh" ]]; then
+  # shellcheck source=lib/main-checkout.sh
+  . "$SCRIPT_DIR/lib/main-checkout.sh"
+fi
 
 die() {
   printf '[write-ac-verification] ERROR: %s\n' "$1" >&2
@@ -47,7 +70,7 @@ fail_inconsistent() {
 }
 
 usage() {
-  sed -n '3,24p' "$0" >&2
+  sed -n '3,46p' "$0" >&2
 }
 
 is_non_negative_int() {
@@ -67,6 +90,9 @@ AC_MANUAL_REQUIRED=""
 AC_UNCERTAIN=""
 HUMAN_DISPOSITION=""
 SUMMARY=""
+SOURCE_ID=""
+WORK_ITEM_ID=""
+HEAD_SHA=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -79,6 +105,9 @@ while [[ $# -gt 0 ]]; do
     --ac-uncertain) AC_UNCERTAIN="${2:-}"; shift 2 ;;
     --human-disposition) HUMAN_DISPOSITION="${2:-}"; shift 2 ;;
     --summary) SUMMARY="${2:-}"; shift 2 ;;
+    --source-id) SOURCE_ID="${2:-}"; shift 2 ;;
+    --work-item-id) WORK_ITEM_ID="${2:-}"; shift 2 ;;
+    --head-sha) HEAD_SHA="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
@@ -122,8 +151,110 @@ if [[ -n "$HUMAN_DISPOSITION" ]]; then
   esac
 fi
 
+# DP-281 D4: terminal verdict statuses emit a proof marker; IN_PROGRESS does
+# not. A terminal status REQUIRES --source-id / --work-item-id / --head-sha so
+# the marker filename + payload can align with the auto-pass-runner probe
+# (AC-NEG1: never silently skip the marker on a missing flag).
+is_terminal_verdict() {
+  case "$1" in
+    PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|BLOCKED_ENV) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+if is_terminal_verdict "$STATUS"; then
+  [[ -n "$SOURCE_ID" ]] || die "--source-id is required when status is terminal ($STATUS); marker would be skipped silently"
+  [[ -n "$WORK_ITEM_ID" ]] || die "--work-item-id is required when status is terminal ($STATUS); marker would be skipped silently"
+  [[ -n "$HEAD_SHA" ]] || die "--head-sha is required when status is terminal ($STATUS); marker would be skipped silently"
+fi
+
 TASK_MD="$(cd "$(dirname "$TASK_MD")" && pwd)/$(basename "$TASK_MD")"
 TASK_DIR="$(dirname "$TASK_MD")"
+
+# DP-281 D3/D5/D6: emit the ac_verification proof marker for terminal verdicts.
+# Anchored at the main checkout via resolve_main_checkout so worktree-internal
+# calls (auto-pass) and main-checkout readers (auto-pass-runner probe) agree on
+# the path. Returns non-zero on any write failure so the caller can fail-stop
+# (AC-NEG2: a marker emit failure must surface as exit 1, never a false exit 0).
+emit_ac_verification_marker() {
+  local main_checkout="" out=""
+  if declare -F resolve_main_checkout >/dev/null 2>&1; then
+    # Resolve from the V*.md location so worktree context is honoured even when
+    # the caller's CWD is elsewhere.
+    main_checkout="$(resolve_main_checkout "$TASK_DIR" 2>/dev/null || true)"
+  fi
+  if [[ -n "$main_checkout" ]]; then
+    out="${main_checkout}/.polaris/evidence/ac-verification/${WORK_ITEM_ID}-${HEAD_SHA}.json"
+  else
+    # No git context (resolver failed) — fall back to CWD-relative path so
+    # callers outside a repo still get a useful marker.
+    out=".polaris/evidence/ac-verification/${WORK_ITEM_ID}-${HEAD_SHA}.json"
+  fi
+
+  mkdir -p "$(dirname "$out")" || return 1
+
+  python3 - "$SOURCE_ID" "$WORK_ITEM_ID" "$HEAD_SHA" "$STATUS" \
+    "$AC_TOTAL" "$AC_PASS" "$AC_FAIL" "$AC_MANUAL_REQUIRED" "$AC_UNCERTAIN" \
+    "$HUMAN_DISPOSITION" "$SUMMARY" "$LAST_RUN_AT" "$TASK_MD" "$out" <<'PY' || return 1
+import hashlib
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+(
+    source_id,
+    work_item_id,
+    head_sha,
+    status,
+    ac_total,
+    ac_pass,
+    ac_fail,
+    ac_manual_required,
+    ac_uncertain,
+    human_disposition,
+    summary,
+    last_run_at,
+    task_md,
+    out,
+) = sys.argv[1:15]
+
+freshness = {"head_sha": head_sha, "last_run_at": last_run_at}
+task_path = Path(task_md)
+if task_path.is_file():
+    freshness["task_artifact_sha256"] = hashlib.sha256(task_path.read_bytes()).hexdigest()
+    freshness["source_artifact"] = task_path.as_posix()
+
+payload = {
+    "schema_version": 1,
+    "marker_kind": "ac_verification",
+    "writer": "verify-AC",
+    "owning_skill": "verify-AC",
+    "source_id": source_id,
+    "work_item_id": work_item_id,
+    # Compatibility aliases for legacy readers that key off `ticket` / top-level
+    # `head_sha` (e.g. check-local-extension-completion.sh
+    # check_ac_verification_evidence). The canonical key is work_item_id /
+    # freshness.head_sha; aliases keep one marker readable by every consumer.
+    "ticket": work_item_id,
+    "head_sha": head_sha,
+    "status": status,
+    "ac_counts": {
+        "ac_total": int(ac_total),
+        "ac_pass": int(ac_pass),
+        "ac_fail": int(ac_fail),
+        "ac_manual_required": int(ac_manual_required),
+        "ac_uncertain": int(ac_uncertain),
+    },
+    "human_disposition": human_disposition or None,
+    "freshness": freshness,
+    "at": datetime.now(timezone.utc).isoformat(),
+    "summary": summary or None,
+}
+Path(out).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+print(out)
+PY
+}
 
 attempt=0
 last_error=""
@@ -275,6 +406,15 @@ PY
       last_error="validate-task-md failed after write: ${validate_output}"
     else
       echo "[write-ac-verification] OK: wrote ac_verification to $TASK_MD" >&2
+      # DP-281 D4/D6: frontmatter is now consistent. For terminal verdicts emit
+      # the durable proof marker; a marker write failure is a hard stop (exit 1)
+      # so the V*.md and the marker never drift into a false-success state.
+      if is_terminal_verdict "$STATUS"; then
+        if ! marker_path="$(emit_ac_verification_marker)"; then
+          fail_inconsistent "ac_verification marker emit failed for ${WORK_ITEM_ID}-${HEAD_SHA}"
+        fi
+        echo "[write-ac-verification] OK: wrote ac_verification marker to $marker_path" >&2
+      fi
       exit 0
     fi
   fi
