@@ -83,6 +83,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | derive-task-md-stacked-base-branch | scripts/selftests/derive-task-md-stacked-base-branch-selftest.sh | script | portable | N/A | governance |
 | derive-task-shape-propagation | scripts/derive-task-md-from-refinement-json.sh | script | portable | scripts/selftests/derive-task-md-from-refinement-json-selftest.sh | governance |
 | audit-confirmation-task-kind-carve-out | scripts/validate-breakdown-ready.sh | script | portable | scripts/selftests/validate-breakdown-ready-task-shape-selftest.sh | governance |
+| research-dispatch-unit-gate | scripts/validate-breakdown-ready.sh | script | portable | scripts/selftests/validate-breakdown-ready-research-dispatch-unit-selftest.sh | governance |
 
 ## Mechanism Canary Entries
 
@@ -95,6 +96,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | baseline-snapshot-stale-after-intake | contract_pointer | breakdown route=task_update 合法改動 planner-owned task.md 後，engineering/finalize 仍讀到舊 baseline snapshot | `scripts/refresh-baseline-snapshot.sh` 重新產生 current head snapshot，舊 snapshot rename `*.superseded` |
 | audit-confirmation-task-kind-carve-out | contract_pointer | implementation task 被誤標 `task_shape: audit` / `confirmation` 來逃避 specs-only / non-PR gate，或 carve-out 外溢到 implementation（含缺欄位）task | `scripts/validate-breakdown-ready.sh` 對 `task_shape ∈ {audit, confirmation}` 放寬 specs-only/empty Allowed Files，implementation 維持原 exit 1；`scripts/check-delivery-completion.sh` 對同集合走 completion-gate marker(status=PASS)+evidence path，implementation 維持原 non-draft PR gate（DP-262 T2/T3 selftest） |
 | refinement-lock-preflight | contract_pointer | LOCK 時把 planned implementation task 宣告成 specs-only deliverable，要到 breakdown 階段才被 `validate-breakdown-ready` 擋下 | `scripts/validate-refinement-lock-preflight.sh` 讀 `refinement.json planned_tasks[]`、合成 placeholder task.md 跑 `validate-breakdown-ready` 本體（不重寫 specs-prefix 判斷），違規 exit 2 + 指名失敗 planned task；refinement Step 7 LOCK gate 串接為 fail-stop（DP-262 T4 selftest） |
+| research-dispatch-unit-gate | contract_pointer | 研究單（全 audit task、無 implementation task）或轉發/theme 單（無 implementation task、僅 confirmation/dispatch）被當成獨立 delivery unit 走 breakdown / LOCK，繞過 D1 completion-standard contract | `scripts/validate-breakdown-ready.sh` 在 directory target 對 source 跑 delivery-unit shape gate，banks on 既有 task_shape classifier（無第二套）：研究單 exit 2 + `POLARIS_RESEARCH_UNIT_NO_IMPLEMENTATION`，轉發/theme 單 exit 2 + `POLARIS_DISPATCH_THEME_UNIT_NO_IMPLEMENTATION`；含 ≥1 implementation task 的 mixed-task DP（DP-262 carve-out）PASS。`scripts/validate-refinement-lock-preflight.sh` 委派同判定，LOCK 時就擋（DP-274 T2 selftest） |
 
 ## Script Candidate Graduation Schedule
 

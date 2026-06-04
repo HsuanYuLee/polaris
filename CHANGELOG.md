@@ -4,6 +4,25 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.146] - 2026-06-04
+
+### Added — DP-274 delivery-unit completion-standard contract（D1）+ 研究單（D2）/ 轉發 theme 單（D3）定義與 D4 deterministic gate
+
+- **`.claude/skills/references/delivery-unit-completion-standard.md`**（DP-274-T1，新檔，D1/D2/D3 canonical 契約）：新增 delivery unit 結案標準的 canonical reference。**D1**：delivery unit 必須具備 runtime-verifiable 結案標準（至少一條可機械執行的 AC + 合法 producer / sanctioned writer 路徑 + 至少一張 `task_shape: implementation` task），form / format proxy（只把 status 字串改成 `IMPLEMENTED`、只產 audit prose、全 `manual` AC）不算結案 → hollow completion。**D2**：研究單（全 audit task、無 implementation task、無 verifiable AC、不改 production contract）是 refinement-phase activity，收編進 implementation DP 的 refinement seed，不獨立成 delivery unit。**D3**：轉發 / theme 單（無自身 verifiable AC、deliverable 僅 dispatch 到其他 concrete DP）改寫成 north-star artifact（含 supersede 訊號：被 seed 的 concrete DP 全 IMPLEMENTED 即標 superseded），禁止成為 delivery DP。
+- **`.claude/rules/canonical-contract-governance.md`**（DP-274-T1）：新增 § Delivery Unit Completion Standard routing pointer，把 D1/D2/D3 收進 canonical contract governance（對齊 Strong constraints first / Fail closed on missing inputs），並指明 D4 deterministic gate 負責機械 enforce。
+- **`scripts/validate-breakdown-ready.sh` / `scripts/validate-refinement-lock-preflight.sh`**（DP-274-T2，D4 deterministic gate，AC2）：在 directory target 對 source 跑 delivery-unit shape gate，**banks on 既有 `task_shape` classifier**（不另寫第二套 classifier、不做 full rescan）：研究單 fail-stop exit 2 + `POLARIS_RESEARCH_UNIT_NO_IMPLEMENTATION`，轉發 / theme 單 exit 2 + `POLARIS_DISPATCH_THEME_UNIT_NO_IMPLEMENTATION`；含 ≥1 implementation task 的 mixed-task DP（DP-262 carve-out）PASS。`validate-refinement-lock-preflight.sh` 委派同一判定，LOCK 時就擋。`mechanism-registry.md` 新增 `research-dispatch-unit-gate` runtime annotation + canary entry。
+- **`scripts/lib/evidence-producers.json` / `scripts/write-producer-owned-artifact.sh`**（DP-274-T3，D9 producer-env writer coverage，AC5）：refinement design-doc 的 sanctioned writer 補成 `refinement:primary-doc` producer token（綁 refinement 容器 index.md glob）；`write-producer-owned-artifact.sh` 新增 `artifact_kind=refinement_primary_doc` 分支——index.md 寫入後跑 primary-doc content gates（`validate-spec-primary-doc-authoring.sh` for DP-backed paths、`validate-starlight-authoring.sh` + `validate-language-policy.sh` for all paths），失敗 rollback。non-owning token 寫 container index.md 仍被 path-glob check 擋下，binding 不外溢到任意 .md。
+- **`scripts/selftests/validate-breakdown-ready-research-dispatch-unit-selftest.sh` / `scripts/selftests/write-producer-owned-artifact-refinement-coverage-selftest.sh`**（DP-274-T2 / T3，AC2 / AC5 evidence）：2 支 selftest 覆蓋研究單 / 轉發單 fail-stop、mixed-task carve-out PASS、refinement design-doc sanctioned writer 路徑與 content gate rollback。
+- **DP-274-T4 migration（plan 紀錄，非本 bundle code diff）**：DP-247 標記 SUPERSEDED + in-flight cleanup（4-dimension scope）；Multi-DP plan 以 durable DP-248-251 seed inline 記錄於 DP-247；DP-263 reclassify 成 north-star artifact；Plan B 完成定義對齊 D1 runtime-verifiable 標準。
+
+### Why
+
+過去研究 umbrella / 轉發 theme 單會被當成獨立 delivery unit 走主鏈並期待 `IMPLEMENTED` 終局，但它們沒有 runtime-verifiable 結案標準，只能靠 form proxy（status 字串、audit prose）宣告完成 → hollow completion，且 north-star 方向容器無 lifecycle 永久 stale。DP-274 把 delivery-unit 結案標準收斂成 canonical contract（D1），明文研究單（D2）/ 轉發 theme 單（D3）的正確收編路徑，並用 D4 deterministic gate（banks on 既有 task_shape classifier，無第二套）在 LOCK / breakdown 階段機械擋下，對齊 contract-design.md § Deterministic-First。同時補上 refinement design-doc 的 producer-env sanctioned writer 覆蓋（D9），消除「文件規範 sanctioned writer 但實際沒有 producer 路徑」的 hollow writer gap。
+
+### Verified
+
+驗收委派 DP-274-V1：9/9 AC PASS（AC1-AC6 + AC-NEG1-NEG3）。`bash scripts/selftests/validate-breakdown-ready-research-dispatch-unit-selftest.sh` PASS（研究單 / 轉發單 fail-stop + mixed-task carve-out PASS）；`bash scripts/selftests/write-producer-owned-artifact-refinement-coverage-selftest.sh` PASS（refinement design-doc sanctioned writer + content gate rollback）；`bash scripts/check-script-manifest.sh --root . --quiet` PASS；`bash scripts/compile-runtime-instructions.sh --check` PASS。
+
 ## [3.75.145] - 2026-06-04
 
 ### Added — DP-281 write-ac-verification.sh emit ac_verification verdict marker（canonical deterministic writer）

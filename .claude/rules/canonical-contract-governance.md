@@ -19,6 +19,23 @@ path。
 - **Fail closed on missing inputs**：缺少 required authority inputs 時，Polaris 必須停止，不得從 prose、
   conversation history 或 best-effort inference 合成 correctness。
 
+## Delivery Unit Completion Standard
+
+delivery unit 的結案標準本身就是一種 canonical contract surface：哪些東西可以成為獨立
+delivery unit、研究單與轉發/theme 單為何不算 delivery unit，以及它們的正確收編路徑，由
+`.claude/skills/references/delivery-unit-completion-standard.md` 定義（D1 completion-standard
+contract、D2 研究單、D3 轉發/theme 單）。
+
+- **D1**：delivery unit 必須具備 runtime-verifiable 結案標準；form / format proxy 不算結案
+  （對齊本檔 Strong constraints first / Fail closed on missing inputs）。
+- **D2**：研究單（全 audit task、無 implementation task、無 verifiable AC）是 refinement-phase
+  activity，收編進 implementation DP 的 refinement，不獨立成 delivery unit。
+- **D3**：轉發 / theme 單（無自身 verifiable AC、deliverable 僅 dispatch）改寫成 north-star
+  artifact，禁止成為 delivery DP。
+
+規劃 / LOCK refinement-owned source 時必須對齊上述 reference；D4 deterministic gate
+（`validate-breakdown-ready.sh` / `validate-refinement-lock-preflight.sh`）負責機械 enforce。
+
 ## Applicability
 
 變更或設計下列表面時套用本 rule：

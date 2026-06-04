@@ -474,6 +474,69 @@ def task_files(path: Path) -> list[Path]:
     raise FileNotFoundError(path)
 
 
+# --- D4: delivery-unit shape gate (DP-274) ------------------------------------
+# A refinement-owned source that walks breakdown -> engineering -> verify-AC must
+# be a real delivery unit (delivery-unit-completion-standard.md D1): it needs at
+# least one task that actually changes framework/product behavior
+# (task_shape: implementation). Two shapes are NOT delivery units and must
+# fail-stop at breakdown / LOCK time:
+#
+#   - 研究單 (research unit, D2): every task is task_shape: audit and there is no
+#     implementation task. The deliverable is a research/audit conclusion with no
+#     runtime-verifiable completion standard. -> POLARIS_RESEARCH_UNIT_NO_IMPLEMENTATION
+#   - 轉發 / theme 單 (dispatch / theme unit, D3): the source has no implementation
+#     task either, but its tasks are confirmation/dispatch shapes (e.g. all
+#     confirmation, or an audit+confirmation mix). The deliverable merely dispatches
+#     to other concrete delivery units. -> POLARIS_DISPATCH_THEME_UNIT_NO_IMPLEMENTATION
+#
+# The detection BANKS ON the existing task_shape classifier (parse_task_shape /
+# CARVE_OUT_TASK_SHAPES) — it does NOT introduce a second classifier (DP-274 D4).
+# The single, sufficient gate is "the source must contain >= 1 implementation
+# task". A DP that mixes implementation + audit/confirmation tasks (DP-262
+# carve-out) therefore PASSes, because it has at least one implementation task
+# (DP-274 AC-NEG1).
+
+RESEARCH_UNIT_MARKER = "POLARIS_RESEARCH_UNIT_NO_IMPLEMENTATION"
+DISPATCH_THEME_UNIT_MARKER = "POLARIS_DISPATCH_THEME_UNIT_NO_IMPLEMENTATION"
+
+
+def validate_delivery_unit_shape(target: Path, files: list[Path]) -> tuple[str, str] | None:
+    """Detect research-unit / dispatch-theme-unit shapes at the source level.
+
+    Returns (marker, message) on a contract violation, or None when the source
+    is a legitimate delivery unit (>= 1 implementation task) or has no tasks to
+    classify. Only runs for a directory target (a refinement-owned source's
+    tasks/ surface); a single task.md cannot represent a whole source's shape.
+    """
+    task_shapes = [parse_task_shape(file) for file in files if task_id_for_file(file) is not None]
+    if not task_shapes:
+        return None
+
+    if "implementation" in task_shapes:
+        # >= 1 implementation task -> legitimate delivery unit (DP-262 carve-out,
+        # DP-274 AC-NEG1). No second classifier is consulted.
+        return None
+
+    # No implementation task: classify as research vs dispatch/theme purely from
+    # the existing task_shape values.
+    if all(shape == "audit" for shape in task_shapes):
+        return (
+            RESEARCH_UNIT_MARKER,
+            f"{target}: 研究單 (research unit) — all tasks are task_shape: audit with no "
+            f"implementation task; research is a refinement-phase activity and cannot be an "
+            f"independent delivery unit. Fold its scope into an implementation DP's refinement "
+            f"seed (see .claude/skills/references/delivery-unit-completion-standard.md D2).",
+        )
+
+    return (
+        DISPATCH_THEME_UNIT_MARKER,
+        f"{target}: 轉發 / theme 單 (dispatch / theme unit) — no implementation task; the source "
+        f"only dispatches to other concrete delivery units. Rewrite it as a north-star artifact "
+        f"(not a delivery DP) with a defined supersede signal "
+        f"(see .claude/skills/references/delivery-unit-completion-standard.md D3).",
+    )
+
+
 def table_rows(markdown: str) -> list[list[str]]:
     rows: list[list[str]] = []
     for line in markdown.splitlines():
@@ -902,8 +965,22 @@ if not target.exists():
     print(f"validate-breakdown-ready: path not found: {target}", file=sys.stderr)
     raise SystemExit(2)
 
+files = task_files(target)
+
+# D4 (DP-274): source-level delivery-unit shape gate. Runs before the per-task
+# readiness checks so a 研究單 / 轉發單 fail-stops with a POLARIS_* marker and
+# exit 2 (contract violation), distinct from the generic exit-1 readiness FAIL.
+if target.is_dir():
+    shape_violation = validate_delivery_unit_shape(target, files)
+    if shape_violation is not None:
+        marker, message = shape_violation
+        print("validate-breakdown-ready.sh FAIL", file=sys.stderr)
+        print(f"  - {message}", file=sys.stderr)
+        print(f"{marker}:{target}", file=sys.stderr)
+        raise SystemExit(2)
+
 all_errors: list[str] = []
-for file in task_files(target):
+for file in files:
     all_errors.extend(validate_one(file))
 
 if target.is_dir() and validate_task_md_deps.exists():

@@ -268,6 +268,25 @@ PY
     return 2
   fi
 
+  # DP-274 D4: delegate the source-level delivery-unit shape gate to the same
+  # validate-breakdown-ready.sh. The synthesized placeholders live as folder-native
+  # $tmpdir/T{n}/index.md, so running the validator against $tmpdir (directory mode)
+  # exercises the identical research-unit / dispatch-theme-unit detection that
+  # breakdown will hit later — LOCK fails-stop here instead of waiting for breakdown.
+  # We do NOT reimplement the classifier; we reuse validate-breakdown-ready's own.
+  local shape_err shape_rc
+  shape_err="$tmpdir/__delivery_unit_shape.err"
+  set +e
+  bash "$VALIDATE_BREAKDOWN_READY" "$tmpdir" >/dev/null 2>"$shape_err"
+  shape_rc=$?
+  set -e
+  if [[ "$shape_rc" -eq 2 ]]; then
+    echo "validate-refinement-lock-preflight.sh FAIL - $refinement_json" >&2
+    grep -E 'POLARIS_(RESEARCH_UNIT_NO_IMPLEMENTATION|DISPATCH_THEME_UNIT_NO_IMPLEMENTATION)' "$shape_err" >&2 || cat "$shape_err" >&2
+    echo "POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED:$refinement_json" >&2
+    return 2
+  fi
+
   echo "validate-refinement-lock-preflight.sh PASS - $refinement_json"
   return 0
 }

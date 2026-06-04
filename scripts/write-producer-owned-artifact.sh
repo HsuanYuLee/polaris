@@ -41,6 +41,8 @@
 #   - auto-pass:engineering    → ledger update at engineering stage
 #   - auto-pass:verify         → ledger update at verify-AC stage; resume/report JSON
 #   - breakdown:initial-create → tasks/T*/index.md or tasks/V*/index.md create
+#   - refinement:design-doc    → refinement.json / refinement.md design doc write
+#   - refinement:primary-doc   → refinement-owned container index.md primary doc
 
 set -euo pipefail
 
@@ -204,6 +206,18 @@ case "$MARKER_KINDS" in
   *task_md_initial_create*)
     artifact_kind="task_md_initial_create"
     ;;
+  *refinement_md_artifact*)
+    # DP-274 D9: refinement design documents (refinement.json / refinement.md)
+    # under a DP or Epic container are written through the refinement-owned
+    # sanctioned writer branch; the content validator is selected by file kind.
+    artifact_kind="refinement_design_doc"
+    ;;
+  *dp_index_status*|*epic_index_status*)
+    # DP-274 D9: refinement-owned container index.md primary doc. Written through
+    # the refinement-owned sanctioned writer branch (token refinement:primary-doc),
+    # bound to the container index.md owning globs + primary-doc content validator.
+    artifact_kind="refinement_primary_doc"
+    ;;
   *)
     artifact_kind="generic"
     ;;
@@ -229,7 +243,7 @@ mkdir -p "$target_dir"
 backup_file=""
 needs_final_path_validation=0
 case "$artifact_kind" in
-  task_md_initial_create|auto_pass_resume|auto_pass_ledger|auto_pass_report|verify_evidence_layout)
+  task_md_initial_create|auto_pass_resume|auto_pass_ledger|auto_pass_report|verify_evidence_layout|refinement_design_doc|refinement_primary_doc)
     needs_final_path_validation=1
     ;;
 esac
@@ -307,6 +321,56 @@ case "$artifact_kind" in
        && -f "$layout_dir/links.json" \
        && -f "$layout_dir/publication-manifest.json" ]]; then
       "${validator_cmd[@]}" >&2 || validator_exit=$?
+    fi
+    ;;
+  refinement_design_doc)
+    # DP-274 D9: refinement design-doc content validator dispatch by file kind.
+    #   refinement.json → schema validator (validate-refinement-json.sh).
+    #   refinement.md   → generated derived view; render-refinement-md.sh --check
+    #     asserts the .md matches the sibling refinement.json render. Only run the
+    #     render check when the sibling json exists (a standalone .md write has no
+    #     authoritative source to compare against; the json write is the canonical
+    #     content gate).
+    if [[ "$TARGET_PATH" == *refinement.json ]]; then
+      validator_cmd=("$WORKSPACE_ROOT/scripts/validate-refinement-json.sh" "$TARGET_PATH")
+      if [[ -x "${validator_cmd[0]}" ]]; then
+        "${validator_cmd[@]}" >&2 || validator_exit=$?
+      fi
+    elif [[ "$TARGET_PATH" == *refinement.md ]]; then
+      sibling_json="$(dirname "$TARGET_PATH")/refinement.json"
+      validator_cmd=("$WORKSPACE_ROOT/scripts/render-refinement-md.sh" "$sibling_json" --check)
+      if [[ -x "${validator_cmd[0]}" && -f "$sibling_json" ]]; then
+        "${validator_cmd[@]}" >&2 || validator_exit=$?
+      fi
+    fi
+    ;;
+  refinement_primary_doc)
+    # DP-274 D9: refinement-owned container index.md content gates.
+    #   - All paths run the universal primary-doc content gates (Starlight
+    #     authoring shape + workspace language policy); these are source-type
+    #     agnostic and hermetic.
+    #   - DP-backed container index.md additionally runs the full primary-doc
+    #     authoring wrapper (validate-spec-primary-doc-authoring.sh), which layers
+    #     DP metadata / sidebar / route-safe / DP-number guards. The wrapper only
+    #     accepts design-plans/ (and epics/) primary-doc paths, so Epic-backed
+    #     companies/{company}/{EPIC}/index.md writes rely on the universal gates
+    #     above — this preserves source parity for the producer glob without the
+    #     wrapper wrongly rejecting a legitimate Epic-backed parity write.
+    starlight_validator="$WORKSPACE_ROOT/scripts/validate-starlight-authoring.sh"
+    if [[ -x "$starlight_validator" ]]; then
+      "$starlight_validator" check "$TARGET_PATH" >&2 || validator_exit=$?
+    fi
+    if [[ "$validator_exit" -eq 0 ]]; then
+      language_validator="$WORKSPACE_ROOT/scripts/validate-language-policy.sh"
+      if [[ -x "$language_validator" ]]; then
+        "$language_validator" --blocking --mode artifact "$TARGET_PATH" >&2 || validator_exit=$?
+      fi
+    fi
+    if [[ "$validator_exit" -eq 0 && "$TARGET_PATH" == */design-plans/* ]]; then
+      primary_doc_validator="$WORKSPACE_ROOT/scripts/validate-spec-primary-doc-authoring.sh"
+      if [[ -x "$primary_doc_validator" ]]; then
+        "$primary_doc_validator" "$TARGET_PATH" >&2 || validator_exit=$?
+      fi
     fi
     ;;
 esac
