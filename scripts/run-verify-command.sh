@@ -138,7 +138,12 @@ VERIFY_COMMAND="$(parse_field verify_command)"
 VERIFY_FALLBACK_COMMAND="$(parse_field verify_fallback_command)"
 LEVEL="$(parse_field level)"
 REPO_NAME="$(parse_field repo)"
-TASK_TICKET="$(parse_field task_jira_key)"
+# delivery_ticket_key is the canonical product-PR-identity atom (DP-238): Bug
+# source = real JIRA key, DP source = work_item_id. Evidence is keyed on this so
+# the verify report binds to the same ticket as the PR-create evidence; the
+# legacy task_jira_key alias would key Bug-source evidence on the internal task
+# marker work_item_id (AC-NEG5). For DP sources both resolve identically.
+TASK_TICKET="$(parse_field delivery_ticket_key)"
 DEV_ENV_CONFIG="$(parse_field dev_env_config)"
 ENV_BOOTSTRAP_COMMAND="$(parse_field env_bootstrap_command)"
 RUNTIME_VERIFY_TARGET="$(parse_field runtime_verify_target)"

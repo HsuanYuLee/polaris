@@ -4,6 +4,25 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.147] - 2026-06-04
+
+### Added — DP-238 pipeline handoff contract slimming（refinement → breakdown → engineering → verify-AC）
+
+清理 `refinement -> breakdown -> engineering -> verify-AC` 之間的冗餘 handoff contract：在不降低 pipeline 可靠性的前提下，讓每個 cross-skill 欄位都能回答 canonical authority、derived surface、防 drift validator 與 LLM role，並降低 LLM 在每段 handoff 前 reconcile 多份 prose / schema 的負擔。
+
+- **`.claude/skills/references/pipeline-handoff.md`**（DP-238-T1，已於 #460 / T1 merge，本 bundle 不含 code diff）：新增 handoff atom matrix，盤點 `refinement.json` / T task.md / V*.md / lifecycle marker / orchestration signal 的 owner / canonical source / derived surface / validator / LLM role；matrix 只保留 pointer，不再整份 copy schema。`scripts/selftests/pipeline-handoff-authority-selftest.sh` 新增 `atom-matrix-required-columns` / `atom-matrix-no-full-schema-copy` / `probe-ledger-atom-declared` cases。
+- **`.claude/skills/{breakdown,engineering,refinement,verify-AC}/SKILL.md` / `.claude/skills/references/{INDEX,refinement-artifact,task-md-schema-verification}.md`**（DP-238-T2，AC2-AC4）：修正 consumer 邊界並收斂重複 schema reference。`refinement.json` 確立為需求 / AC machine source，`task.md` 為 `engineering` 唯一施工來源，V*.md 確立為 execution envelope（非第二份 AC authority）；各 skill 主文只保留 routing / owning scope / fail-stop / pointer，duplicate schema prose 移除。selftest 新增 `engineering-consumer-boundary` / `v-envelope-boundary` / `duplicate-schema-scan` cases。
+- **`scripts/selftests/pipeline-handoff-authority-selftest.sh`**（DP-238-T3，AC3 / AC5 / AC7）：新增 duplicate / drift 的 deterministic selftest 守則，覆蓋 duplicate schema table、consumer boundary、V*.md drift、raw prose 補判斷與 derived-copy drift policy；新增 `probe-ledger-schema-parity` case，與 `verify-AC-deterministic-consumption-selftest.sh` 串接。
+- **`scripts/{parse-task-md,resolve-task-branch,gate-pr-title,polaris-pr-create,check-delivery-completion,run-verify-command}.sh` / `scripts/gates/gate-pr-title.sh` / `scripts/manifest.json`**（DP-238-T4，AC5 / AC6）：補 Bug source product PR identity consumer 邊界——內部 task DAG identity 用 `work_item_id`（例 `PROJ-4190-T1`），產品 repo branch / PR title / JIRA transition 用真實 `jira_key`（例 `PROJ-4190`），消除 legacy `task_jira_key` alias 把 `T1` suffix 外溢到產品 PR title / branch 的 drift。selftest 新增 `identity-atom-split` / `bug-source-product-pr-identity` 與 negative cases（no-gate-removal / legacy-reader-compatibility / bug-source-product-pr-identity-negative）做 regression 鞏固，確認 slimming 未移除 gate、未破壞 legacy reader、未增加 runtime-specific 依賴。
+
+### Why
+
+pipeline 的可靠性設計方向正確，但交付面混在一起：`refinement-artifact.md` 仍暗示 `engineering` 可直讀 `acceptance_criteria[].verification` 與 `modules[].path`；同一批 AC / module 語意散落在 `refinement.json` / `task.md` / V*.md prose；多個 skill 重複 `pipeline-handoff` / language / producer-env / boundary gate / schema 段落，維護成本高且讓 LLM 在每段 handoff 前吸收大量低階 contract。PROJ-4190 dogfood 進一步暴露 identity handoff 混亂。DP-238 把 cross-skill 欄位收斂成單一 canonical authority + derived surface + deterministic drift gate，對齊 `contract-design.md` § Deterministic-First 與 `canonical-contract-governance.md` § No special writer paths。
+
+### Verified
+
+DP-238-T2 / T3 / T4 各自 Layer B verify evidence exit 0（`pipeline-handoff-authority-selftest.sh` 全 case + `verify-AC-deterministic-consumption-selftest.sh` + `validate-refinement-json.sh` + `check-script-manifest.sh --root . --quiet` PASS）。Bundle 內容經 cherry-pick T2/T3/T4 commits 組成，tree 與已驗 T4 tip（`dbb41c4`）byte-identical。
+
 ## [3.75.146] - 2026-06-04
 
 ### Added — DP-274 delivery-unit completion-standard contract（D1）+ 研究單（D2）/ 轉發 theme 單（D3）定義與 D4 deterministic gate

@@ -31,7 +31,9 @@ bug-triage 讀 handbook 定位原因。
 
 寫 verification report、V*.md lifecycle metadata 或 handoff artifact 前，必讀
 `pipeline-handoff.md` § Artifact Schemas，再讀 `task-md-schema.md` 等對應
-artifact-specific schema。
+artifact-specific schema。atom ownership 邊界（V*.md envelope vs refinement.json
+verification authority）以 `pipeline-handoff-atom-matrix.md` 為準；SKILL 主文不複製
+完整 schema 表。
 
 ## Reference Loading
 

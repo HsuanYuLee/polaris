@@ -1,6 +1,11 @@
 # Refinement Artifact Schema
 
-Refinement 產出的結構化 artifact，供下游 skill（breakdown, engineering）直接消費。
+Refinement 產出的結構化 artifact。**Consumer boundary（DP-238 AC2）**：`breakdown` 是唯一
+直接消費 `refinement.json`（acceptance_criteria / modules / dependencies / downstream）並
+derive work order 的 owner。`engineering` 不直接讀 `refinement.json` 補 scope authority；它
+只消費 `breakdown` 產出的 authoritative task.md。atom ownership 以
+[`pipeline-handoff-atom-matrix.md`](pipeline-handoff-atom-matrix.md) `refinement_artifact`
+row 為準。
 
 此 artifact 支援 JIRA-backed 與 ticketless / DP-backed source。Source resolution 規則以
 [`spec-source-resolver.md`](spec-source-resolver.md) 為準。
@@ -263,10 +268,18 @@ AC hardening contract：
 
 ## 下游 Skill 如何使用
 
+> **Consumer boundary（DP-238 AC2）**：`breakdown` 是唯一直接消費 `refinement.json`
+> 並 derive work order 的 owner。`engineering` 不在本表 —— 它只消費 `breakdown` 產出的
+> authoritative task.md（Allowed Files / Scope Trace Matrix / Verify Command），不直接讀
+> `refinement.json` 的 `acceptance_criteria` / `modules` 補 scope。`verify-AC` 讀
+> `acceptance_criteria[].verification` 作 verification method/detail authority（見
+> [`pipeline-handoff-atom-matrix.md`](pipeline-handoff-atom-matrix.md) `refinement_artifact`
+> / `v_task_envelope` row）。
+
 | Skill | 讀取欄位 | 用途 |
 |-------|---------|------|
-| **breakdown** | `modules`, `dependencies`, `downstream.breakdown_hints`, `modules[].complexity/risk`, `edge_cases`, `acceptance_criteria`, `planned_tasks[].task_shape` | 每個 module action = 一張子單；blocking dependency = 排序依據；complexity + risk + edge case 數量 → 點數加權；`planned_tasks[].task_shape` 寫入 task.md frontmatter |
-| **engineering** | `acceptance_criteria[].verification`, `modules[].path` | 知道要改哪些檔案、怎麼驗證 |
+| **breakdown** | `modules`, `dependencies`, `downstream.breakdown_hints`, `modules[].complexity/risk`, `edge_cases`, `acceptance_criteria`, `planned_tasks[].task_shape` | 每個 module action = 一張子單；blocking dependency = 排序依據；complexity + risk + edge case 數量 → 點數加權；`planned_tasks[].task_shape` 寫入 task.md frontmatter。task.md（含 Allowed Files / Verify Command）由 breakdown derive，是 engineering 的唯一施工輸入 |
+| **verify-AC** | `acceptance_criteria[].verification.method/detail` | verification method/detail authority（V*.md 是 execution envelope，不覆寫此來源） |
 | **breakdown** (scope-challenge) | `gaps.rd_risks`, `research[].confidence`, `research_gate` | 低信心研究 + 高風險 = challenge 候選 |
 | **refinement** (LOCK preflight, DP-262) | `planned_tasks[].task_shape`, `planned_tasks[].tracked_deliverable_hint` | `validate-refinement-lock-preflight.sh` 合成 placeholder 跑 `validate-breakdown-ready.sh`，LOCK 時 fail-stop 不 ready 的 planned task |
 

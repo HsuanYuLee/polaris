@@ -2,6 +2,16 @@
 
 驗收 task.md schema。對稱原則：與 § 3 Implementation Schema 對齊，所有共用基礎設施（中央 parser、move-first closer、PreToolUse hook dispatch、D6 pr-release/、D7 atomic write contract、`jira_transition_log[]`）一份權威、T/V 共用，**不平行造**。
 
+> **Envelope boundary（DP-238 AC3）**：V*.md 是 **verify-AC execution envelope /
+> lifecycle surface** —— 它承載「要驗哪些 AC、在哪個環境跑、跑出來的 lifecycle
+> 狀態（`ac_verification` / `ac_verification_log[]`）」。它**不是**第二份 AC verification
+> method authority：每條 AC 的 `method` / `detail`（怎麼驗、跑什麼命令）權威來源是
+> `refinement.json` `acceptance_criteria[].verification`。當 V*.md `## 驗收項目` 文字與
+> `refinement.json.acceptance_criteria[].verification` drift 時，verify-AC runner 一律以
+> `refinement.json` 為準並 advisory log drift（見
+> [`pipeline-handoff-atom-matrix.md`](pipeline-handoff-atom-matrix.md) `v_task_envelope`
+> row 與 `verify-AC` SKILL.md § Deterministic Consumption）。
+
 **Filename pattern**：`V{n}[suffix].md`（`V1.md` / `V2a.md` / `V8b.md`）— sequential 從 `V1` 起、sub-split 用 `V1a` / `V1b`（與 T{n} 同規則 — DP-033 D2 + BS#10）。**Filename 為唯一 type 訊號**，frontmatter **不**引入 `type` 欄位（DP-033 D2 修正版，2026-04-26）。
 
 > **既有 `{JIRA-KEY}.md` 命名的驗收 task.md migration（filename 從 KB2CW-XXXX.md 改為 V{n}.md）+ verify-AC consumer 重構（讀 V*.md / 寫回 `ac_verification`）→ 移交 DP-039 `/verify-AC refactor`**（DP-033 D3 + BS#7 + BS#8）。本 § 4 只定義 target schema 與 contract，producer / consumer 切換由 DP-039 atomic 切到位。

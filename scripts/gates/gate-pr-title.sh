@@ -78,7 +78,12 @@ if [[ ! -f "$TASK_MD" ]]; then
   exit 2
 fi
 
-ticket="$(bash "$PARSE_TASK" "$TASK_MD" --field task_jira_key 2>/dev/null || true)"
+# delivery_ticket_key is the canonical product-PR-identity atom (DP-238): Bug
+# source = real JIRA key (e.g. PROJ-4190); DP source = work_item_id (e.g.
+# DP-238-T4). The legacy task_jira_key alias holds the internal work_item_id for
+# Bug sources and must not be used here, or the internal task marker would leak
+# into the reviewer-visible PR title (AC-NEG5).
+ticket="$(bash "$PARSE_TASK" "$TASK_MD" --field delivery_ticket_key 2>/dev/null || true)"
 summary="$(bash "$PARSE_TASK" "$TASK_MD" --field summary 2>/dev/null || true)"
 
 if [[ -z "$ticket" || -z "$summary" ]]; then

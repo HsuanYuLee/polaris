@@ -3120,6 +3120,17 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/pipeline-handoff-authority-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-238 pipeline handoff atom-matrix authority + identity-split (work_item_id / jira_key / delivery_ticket_key) selftest."
+    },
+    {
       "path": "scripts/selftests/polaris-bootstrap-selftest.sh",
       "kind": "selftest",
       "runner": "bash",

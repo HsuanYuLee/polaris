@@ -217,7 +217,11 @@ check_task_verify_report() {
   local report_path=""
 
   if [[ -z "$report_ticket" ]]; then
-    report_ticket="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field task_jira_key 2>/dev/null || true)"
+    # delivery_ticket_key is the canonical product-PR-identity atom (DP-238): the
+    # verify report is keyed on the same ticket the verify runner and PR-create
+    # evidence used. The legacy task_jira_key alias holds the internal task
+    # marker for Bug sources (AC-NEG5); DP sources resolve identically.
+    report_ticket="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field delivery_ticket_key 2>/dev/null || true)"
   fi
   if [[ -z "$report_ticket" ]]; then
     echo "$PREFIX task verify report check failed: unable to resolve task ticket for ${task_md_path}" >&2
@@ -447,7 +451,10 @@ check_deliverable_pr_remote_truth() {
 
   local publication_ticket="$TICKET"
   if [[ -z "$publication_ticket" ]]; then
-    publication_ticket="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field task_jira_key 2>/dev/null || true)"
+    # delivery_ticket_key (DP-238): keep the publication ticket aligned with the
+    # verify report / PR-create evidence ticket; never the legacy task_jira_key
+    # alias (internal task marker for Bug sources, AC-NEG5).
+    publication_ticket="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field delivery_ticket_key 2>/dev/null || true)"
   fi
   if [[ -n "$publication_ticket" ]]; then
     check_pr_visible_evidence_publication "$publication_ticket" "$deliverable_head_sha" "$pr_url" "$gh_repo" "$pr_number" "$pr_body_file"
@@ -582,7 +589,10 @@ planner_baseline_snapshot_path() {
   local main_checkout=""
 
   if [[ -z "$task_id" ]]; then
-    task_id="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field task_jira_key 2>/dev/null || true)"
+    # Baseline snapshots are keyed on work_item_id by engineering-branch-setup.sh
+    # (the internal task node id), NOT the delivery_ticket_key. Keep this lookup
+    # aligned with work_item_id; for DP sources it equals the delivery ticket.
+    task_id="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field work_item_id 2>/dev/null || true)"
   fi
   [[ -n "$task_id" ]] || return 1
 
@@ -738,11 +748,11 @@ PY
 check_planner_baseline_snapshot() {
   local task_md_path="$1"
   local snapshot=""
-  local task_id="$TICKET"
-
-  if [[ -z "$task_id" ]]; then
-    task_id="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field task_jira_key 2>/dev/null || true)"
-  fi
+  # Baseline snapshots are keyed on work_item_id (the internal task node id), not
+  # the delivery_ticket_key / $TICKET. Always derive work_item_id so Bug-source
+  # lookups bind to the engineering-branch-setup snapshot key (AC-NEG5 / DP-238).
+  local task_id=""
+  task_id="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field work_item_id 2>/dev/null || true)"
 
   if ! snapshot="$(planner_baseline_snapshot_path "$task_md_path" "$task_id" 2>/dev/null)" || [[ -z "$snapshot" ]]; then
     echo "$PREFIX BLOCKED: missing planner-owned baseline snapshot for ${task_id:-<unknown>}" >&2

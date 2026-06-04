@@ -19,7 +19,9 @@ to `refinement`。
   `authoring-preflight.md` 與 root `language`；preview、JIRA comment、task.md / V*.md
   artifact 必須直接用 policy language 起稿，不可把 language gate 當送出前翻譯器。
 - 寫 artifact 前必讀 `pipeline-handoff.md` § Artifact Schemas，再讀
-  `refinement-artifact.md` / `task-md-schema.md` 等對應 artifact-specific schema。
+  `refinement-artifact.md` / `task-md-schema.md` 等對應 artifact-specific schema。breakdown
+  是唯一直接消費 `refinement.json` derive work order 的 owner；atom ownership 邊界以
+  `pipeline-handoff-atom-matrix.md` 為準，SKILL 主文不複製完整 schema 表。
 - 寫入 specs Markdown 時遵守 `starlight-authoring-contract.md`；task work order
   寫入 folder-native `tasks/Tn/index.md` 或 `tasks/Vn/index.md`；task schema 以
   `task-md-schema.md` 為準。

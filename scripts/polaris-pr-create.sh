@@ -620,7 +620,11 @@ task_delivery_ticket() {
   local ticket=""
 
   [[ -x "$parser" ]] || return 1
-  ticket="$(bash "$parser" "$task_md" --no-resolve --field task_jira_key 2>/dev/null || true)"
+  # delivery_ticket_key is the canonical product-PR-identity atom (DP-238): Bug
+  # source = real JIRA key, DP source = work_item_id. Do not read the legacy
+  # task_jira_key alias, which holds the internal work_item_id for Bug sources
+  # and would key PR-create evidence / deliverable on the leaked marker (AC-NEG5).
+  ticket="$(bash "$parser" "$task_md" --no-resolve --field delivery_ticket_key 2>/dev/null || true)"
   case "$ticket" in
     ""|N/A|null)
       ticket="$(bash "$parser" "$task_md" --no-resolve --field task_id 2>/dev/null || true)"

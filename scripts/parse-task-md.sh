@@ -35,7 +35,7 @@
 #   extension_deliverable_evidence_ci_local, extension_deliverable_evidence_verify,
 #   extension_deliverable_evidence_vr,
 #   epic, jira, repo,
-#   source_type, source_id, work_item_id, jira_key,
+#   source_type, source_id, work_item_id, jira_key, delivery_ticket_key,
 #   task_jira_key, parent_epic, test_sub_tasks, ac_verification_ticket,
 #   base_branch, branch_chain, task_branch, depends_on, references_to_load,
 #   level, dev_env_config, fixtures, runtime_verify_target, env_bootstrap_command,
@@ -73,7 +73,7 @@ Key-based lookup (DP-033 D8): resolves active tasks/{key}.md first,
   then fallback to tasks/pr-release/{key}.md. Exit 2 if both missing.
 
 Field keys: status, task_id, summary, story_points, epic, jira, repo,
-            source_type, source_id, work_item_id, jira_key,
+            source_type, source_id, work_item_id, jira_key, delivery_ticket_key,
             deliverable_pr_url, deliverable_pr_state, deliverable_head_sha,
             deliverables_changeset_package_scope,
             deliverables_changeset_bump_level_default,
@@ -360,11 +360,23 @@ if source_type == "dp":
 elif source_type == "jira" and jira_key is None:
     jira_key = work_item_id
 
+# delivery_ticket_key (DP-238 atom matrix): the canonical product-PR-identity
+# atom consumed by resolve-task-branch.sh / gate-pr-title.sh / polaris-pr-create.sh.
+#   - Bug / JIRA source → jira_key (the real delivery ticket, e.g. PROJ-4190),
+#     never the internal task marker work_item_id (e.g. PROJ-4190-T1).
+#   - DP-backed source → work_item_id (e.g. DP-238-T4), keeping framework
+#     pseudo-task identity backward compatible.
+if source_type == "jira":
+    delivery_ticket_key = jira_key or work_item_id
+else:
+    delivery_ticket_key = work_item_id
+
 identity = {
     "source_type": source_type,
     "source_id": source_id,
     "work_item_id": work_item_id,
     "jira_key": jira_key,
+    "delivery_ticket_key": delivery_ticket_key,
 }
 
 # Migration aliases. Product aliases equal the real JIRA key; DP aliases return
@@ -541,6 +553,7 @@ aliases = {
     "source_id":               ["identity", "source_id"],
     "work_item_id":            ["identity", "work_item_id"],
     "jira_key":                ["identity", "jira_key"],
+    "delivery_ticket_key":     ["identity", "delivery_ticket_key"],
     "task_jira_key":           ["operational_context", "task_jira_key"],
     "parent_epic":             ["operational_context", "parent_epic"],
     "test_sub_tasks":          ["operational_context", "test_sub_tasks"],
@@ -828,6 +841,7 @@ MD
   expect_field "$fixture" source_id              "EPIC-478"                "F1.source_id"
   expect_field "$fixture" work_item_id           "TASK-3900"            "F1.work_item_id"
   expect_field "$fixture" jira_key               "TASK-3900"            "F1.jira_key"
+  expect_field "$fixture" delivery_ticket_key    "TASK-3900"            "F1.delivery_ticket_key"
   expect_field "$fixture" task_jira_key          "TASK-3900"            "F1.task_jira_key"
   expect_field "$fixture" parent_epic            "EPIC-478"                "F1.parent_epic"
   expect_field "$fixture" base_branch            "task/TASK-3711-dayjs-infra-util"          "F1.base_branch"
@@ -914,6 +928,7 @@ MD
   expect_field "$fixture3" source_id              "DP-050"                "F3.source_id"
   expect_field "$fixture3" work_item_id           "DP-050-T1"             "F3.work_item_id"
   expect_field "$fixture3" jira_key               ""                      "F3.jira_key_empty"
+  expect_field "$fixture3" delivery_ticket_key    "DP-050-T1"             "F3.delivery_ticket_key_dp"
   expect_field "$fixture3" jira                   ""                      "F3.legacy_jira_empty"
   expect_field "$fixture3" task_jira_key          "DP-050-T1"             "F3.task_jira_key_alias"
 

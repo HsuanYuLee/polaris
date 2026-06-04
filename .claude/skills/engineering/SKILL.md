@@ -52,7 +52,14 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
 - downstream-facing PR body、commit message、handoff、sidecar、JIRA / Slack text 必須遵守
   `workspace-language-policy.md`；specs Markdown 另遵守 `starlight-authoring-contract.md`。
 - 寫 artifact 前必讀 `pipeline-handoff.md` § Artifact Schemas，再讀
-  `refinement-artifact.md` / `task-md-schema.md` 等對應 artifact-specific schema。
+  `refinement-artifact.md` / `task-md-schema.md` 等對應 artifact-specific schema。atom
+  ownership 邊界以 `pipeline-handoff-atom-matrix.md` 為準；SKILL 主文不複製完整 schema 表。
+- **Consumer boundary（DP-238 AC2）**：engineering 的唯一施工輸入是 authoritative
+  task.md（Allowed Files / Scope Trace Matrix / Verify Command）。engineering
+  **不直接讀 refinement.json** 的 `acceptance_criteria` / `modules` 補 scope authority；
+  work-order derivation 是 `breakdown` 的 owning scope。需要改 scope 時走 scope
+  escalation 回 breakdown，不從 refinement.json 自行 re-derive（atom matrix
+  `t_task_work_order` row）。
 - 開始撰寫 PR title/body 前必須先讀 `pr-body-builder.md`，並依該 reference 的 L1→L2→L3
   template detection 讀 repo PR template；PR body draft 必須從 template skeleton 起稿，不可先
   用 generic summary 再等 `gate-pr-body-template.sh` 擋下重寫。

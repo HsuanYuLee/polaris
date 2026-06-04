@@ -2,6 +2,12 @@
 
 Defines the role boundaries and handoff inputs/outputs between **breakdown → engineering → verify-AC → bug-triage**. This is the contract document — each skill's SKILL.md implements its own side of the contract.
 
+> **Atom ownership single source of truth**：本檔負責 narrative / contract prose；
+> 每個 cross-skill atom（refinement / T task / V task / lifecycle marker / orchestration
+> signal / identity / loop counters …）的 canonical writer、allowed consumer、validator、
+> drift policy 由 [pipeline-handoff-atom-matrix.md](pipeline-handoff-atom-matrix.md) 持有。
+> 修改 atom ownership 前先更新該 matrix + 對應 selftest，再改本檔或 SKILL.md。
+
 ## Pipeline Overview
 
 ```
@@ -494,6 +500,7 @@ Pipeline 收斂在以下任一條件：
 
 ## 和其他 references 的關係
 
+- [pipeline-handoff-atom-matrix.md](pipeline-handoff-atom-matrix.md) — pipeline atom ownership mapping（canonical writer / allowed consumer / drift policy）
 - [handoff-artifact.md](handoff-artifact.md) — Evidence artifact 格式規範（本文件結論層的補充）
 - [epic-verification-structure.md](epic-verification-structure.md) — 驗收單本身的結構（本文件描述的是 pipeline handoff，不是 ticket 結構）
 - [jira-subtask-creation.md](jira-subtask-creation.md) — breakdown 建 JIRA 子單的機械步驟
