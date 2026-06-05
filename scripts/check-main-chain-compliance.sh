@@ -8,6 +8,10 @@ TASK_MD=""
 CHECK_CALLSITES=0
 ALLOW_ACTIVE_VERIFICATION=0
 REQUIRE_RELEASE_METADATA=0
+# DP-273 Wall B: release-tail (closeout) callers pass --closeout so the
+# downstream refinement-handoff-gate skips the refinement-session boundary
+# check (that boundary belongs only to a live refinement->breakdown handoff).
+CLOSEOUT=0
 if [[ -f "$SCRIPT_DIR/lib/main-checkout.sh" ]]; then
   # shellcheck source=lib/main-checkout.sh
   . "$SCRIPT_DIR/lib/main-checkout.sh"
@@ -16,7 +20,7 @@ fi
 usage() {
   cat >&2 <<'USAGE'
 Usage:
-  bash scripts/check-main-chain-compliance.sh [--repo <path>] [--source-container <path>] [--task-md <path>] [--check-callsites] [--allow-active-verification] [--require-release-metadata]
+  bash scripts/check-main-chain-compliance.sh [--repo <path>] [--source-container <path>] [--task-md <path>] [--check-callsites] [--allow-active-verification] [--require-release-metadata] [--closeout]
 
 Checks the strict refinement -> breakdown -> engineering -> verify-AC main chain
 mechanics for active DP/Epic source containers.
@@ -31,6 +35,7 @@ while [[ $# -gt 0 ]]; do
     --check-callsites) CHECK_CALLSITES=1; shift ;;
     --allow-active-verification) ALLOW_ACTIVE_VERIFICATION=1; shift ;;
     --require-release-metadata) REQUIRE_RELEASE_METADATA=1; shift ;;
+    --closeout) CLOSEOUT=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "check-main-chain-compliance: unknown argument: $1" >&2; usage; exit 2 ;;
   esac
@@ -106,7 +111,11 @@ check_source_container() {
   if [[ -f "$source/index.md" ]]; then parent="$source/index.md"; elif [[ -f "$source/refinement.md" ]]; then parent="$source/refinement.md"; elif [[ -f "$source/plan.md" ]]; then parent="$source/plan.md"; fi
   [[ -n "$parent" ]] || fail "source container missing parent markdown: $source"
   if [[ -f "$source/refinement.md" ]]; then
-    bash "$SCRIPT_DIR/refinement-handoff-gate.sh" "$source/refinement.md" >/dev/null || fail "refinement handoff failed: $source/refinement.md"
+    local handoff_args=("$source/refinement.md")
+    # DP-273 Wall B: in release-tail closeout context, tell the handoff gate to
+    # skip the refinement-session boundary check (live handoff boundary intact).
+    [[ "$CLOSEOUT" -eq 1 ]] && handoff_args+=(--closeout)
+    bash "$SCRIPT_DIR/refinement-handoff-gate.sh" "${handoff_args[@]}" >/dev/null || fail "refinement handoff failed: $source/refinement.md"
   fi
   [[ -d "$source/tasks" ]] || { fail "source container missing tasks directory: $source"; return; }
 

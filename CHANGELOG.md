@@ -4,6 +4,24 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.148] - 2026-06-05
+
+### Fixed — DP-273 framework-release auto-pass delivery-lane hardening（multi-DP bundle / post-bundle closeout / version-race robustness）
+
+修正 framework-release closeout 三道牆（Wall A/B/C）在 multi-DP bundle、no-branch task、refinement-session boundary 與 stale baseline 場景下的 false-positive，讓 bundle release 與 single-DP release 共用同一條 deterministic closeout 路徑且 idempotent。
+
+- **`scripts/framework-release-closeout.sh` / `scripts/engineering-clean-worktree.sh`**（DP-273-T1，Wall A + Wall C，已於 #514 / T1 交付）：closeout 的 head-ancestry 斷言改 **bundle-aware**——偵測 `bundle_branch_alias` / Bundle Identity 時以 bundle release head（release diff ∩ Allowed Files）驗交付，取代 per-task-head ancestry；`engineering-clean-worktree.sh` 的 delivered-head-ancestry 同步套 bundle release head（copy-content 變體）。Wall C 對 `task_shape ∈ {confirmation, verify}` 且無 `task_branch` 的 task 不再 `die`，改以 content-delivered 語義（驗 deliverable 證據後）flip IMPLEMENTED 計入 parent completion，並辨識 **legacy no-branch `task_kind:V`** 舊式驗收子單慣例（evidence 在 → flip IMPLEMENTED；container 其餘已齊 → parent archive；evidence 缺 → fail-closed）。single-DP 非 bundle 維持原嚴格 per-task-head 路徑；重跑 idempotent。
+- **`scripts/check-main-chain-compliance.sh` / `scripts/refinement-handoff-gate.sh` / `scripts/skill-workflow-boundary-gate.sh`**（DP-273-T2，Wall B，已於 #515 / T2 交付）：release-tail（closeout）context 跳過 `skill-workflow-boundary-gate --skill refinement --check`（該 boundary 只屬 live refinement→breakdown handoff，closeout 不應 re-validate refinement-session scope）；`skill-workflow-boundary-gate.sh` 加 defense-in-depth——refinement handoff gate PASS 後清理該 source 的 stale boundary baseline，避免後續 closeout 誤判 out-of-scope mutation。不放鬆 live handoff boundary。
+- **`scripts/selftests/framework-release-closeout-bundle-task-closeout-selftest.sh` / `scripts/selftests/closeout-no-refinement-session-boundary-selftest.sh`**（DP-273-T1 / T2，AC1-AC7 + AC-NEG1-3 deterministic evidence）：兩支 hermetic selftest 覆蓋三道牆，含 **C-LEGV** case（no-branch legacy `task_kind:V`）驗 AC4；`mechanism-registry.md` 補 `framework-release-closeout-bundle-task-closeout` 與 `closeout-no-refinement-session-boundary` runtime annotation。
+
+### Why
+
+DP-191 形態的 bundle release（單顆 PR bundle 多 task，`tasks/pr-release/` pattern）與 DP-242/269 形態的 no-branch confirmation/verify task，在舊 closeout per-task-head ancestry 斷言下會 false-positive `die`，把合法 bundle / no-branch 交付擋在 release tail 之外；release-tail closeout 又誤跑 live refinement-session boundary check，對已收尾的 source 報假性 out-of-scope。DP-273 把三道牆收斂成 bundle-aware + content-delivered + closeout-context-aware 的 deterministic 判定，並以 hermetic selftest fail-closed 固定行為，對齊 `contract-design.md` § Deterministic-First 與 `canonical-contract-governance.md` § No special writer paths。
+
+### Verified
+
+DP-273-V1 verify-AC：11/11 PASS（AC1-AC7 + AC-NEG1-4）。AC4 走 `framework-release-closeout-bundle-task-closeout-selftest.sh` 的 C-LEGV case（no-branch legacy `task_kind:V`）；AC-NEG4 由 selftest 內 closeout 真路徑佐證、無 hand-assemble marker。兩支 hermetic selftest 全 case PASS（33/33 + 6/6）+ `check-script-manifest.sh --root . --quiet` PASS + template-leak scan 0 hits。Bundle 內容經 cherry-pick T1（`2093ea0`）/ T2（`3d14843`）commits 組成。
+
 ## [3.75.147] - 2026-06-04
 
 ### Added — DP-238 pipeline handoff contract slimming（refinement → breakdown → engineering → verify-AC）

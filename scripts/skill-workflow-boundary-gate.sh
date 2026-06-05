@@ -75,6 +75,10 @@ CONTAINER=""
 SESSION_ID="${POLARIS_SKILL_BOUNDARY_SESSION_ID:-}"
 REPO=""
 TASK_MD=""
+# DP-273 Wall B: --check + --cleanup-stale-on-pass removes the baseline once the
+# refinement handoff boundary check PASSes (EC4 defense-in-depth). Opt-in so
+# ordinary in-session re-checks keep their baseline.
+CLEANUP_STALE_ON_PASS=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -85,6 +89,7 @@ while [[ $# -gt 0 ]]; do
     --session-id) SESSION_ID="${2:-}"; shift 2 ;;
     --repo) REPO="${2:-}"; shift 2 ;;
     --task-md) TASK_MD="${2:-}"; shift 2 ;;
+    --cleanup-stale-on-pass) CLEANUP_STALE_ON_PASS=1; shift ;;
     --help|-h) usage ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage ;;
   esac
@@ -326,6 +331,15 @@ if violations:
 
 print(f"PASS: skill-workflow-boundary respected for {skill} ({rel_container})")
 PY
+  # Defense-in-depth (DP-273 Wall B, EC4): when explicitly asked to retire a
+  # stale baseline on PASS, remove it so a later release-tail closeout cannot
+  # re-trip on a left-over refinement baseline against a delivery diff. This is
+  # opt-in (--cleanup-stale-on-pass) so ordinary in-session re-checks keep their
+  # baseline; cleanup is bound to the PASS path only (never before the check
+  # succeeds).
+  if [[ "$CLEANUP_STALE_ON_PASS" -eq 1 && -f "$BASELINE_PATH" ]]; then
+    rm -f "$BASELINE_PATH"
+  fi
 }
 
 case "$ACTION" in

@@ -109,6 +109,25 @@ delivered_head_source() {
   fi
 }
 
+# DP-273 Wall A (copy-content variant): read `bundle_branch_alias` from task.md
+# frontmatter using the SAME awk parse shape as gate-work-source.sh /
+# resolve-task-md-by-branch.sh (DP-237 / DP-270). Reused verbatim so closeout
+# and clean-worktree share ONE bundle detector — no second bundle cognition.
+# Echoes the alias value (empty when absent).
+bundle_branch_alias_for_task() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  awk '
+    /^---$/ { fm++; next }
+    fm == 1 && /^bundle_branch_alias:/ {
+      sub(/^bundle_branch_alias:[[:space:]]*/, "")
+      sub(/[[:space:]]+$/, "")
+      print
+      exit
+    }
+  ' "$file" 2>/dev/null || true
+}
+
 canonical_path() {
   local path="$1"
   python3 - "$path" <<'PY'
@@ -379,6 +398,7 @@ TASK_BRANCH="$(json_field "$TASK_JSON" "d.get('operational_context',{}).get('tas
 TASK_KEY="$(json_field "$TASK_JSON" "d.get('operational_context',{}).get('task_jira_key') or d.get('metadata',{}).get('jira')")"
 DELIVERED_HEAD_SHA="$(task_delivered_head_sha "$TASK_MD")"
 DELIVERED_HEAD_SOURCE="$(delivered_head_source "$TASK_MD")"
+BUNDLE_BRANCH_ALIAS="$(bundle_branch_alias_for_task "$TASK_MD")"
 
 if [[ -z "$TASK_BRANCH" ]]; then
   echo "$PREFIX task branch missing in task.md" >&2
@@ -445,6 +465,17 @@ if [[ "$CURRENT_HEAD_SHA" != "$DELIVERED_HEAD_SHA" && "$CURRENT_HEAD_SHA" != "${
   if [[ "$DELIVERED_HEAD_SOURCE" == "extension_deliverable" ]] &&
      git -C "$WORKTREE" merge-base --is-ancestor "$CURRENT_HEAD_SHA" "$DELIVERED_HEAD_SHA" >/dev/null 2>&1; then
     echo "$PREFIX extension deliverable head contains worktree HEAD (${CURRENT_HEAD_SHA} <= ${DELIVERED_HEAD_SHA})" >&2
+  elif [[ -n "$BUNDLE_BRANCH_ALIAS" ]]; then
+    # DP-273 Wall A (copy-content variant): copy-content bundle releases
+    # (`git checkout <sha> -- files`) build the bundle release head WITHOUT
+    # committing the per-task worktree branch into the release commit's history,
+    # so the per-task ancestry assertion would BLOCK. When this task is part of a
+    # BUNDLE — detected via the EXISTING `bundle_branch_alias` frontmatter
+    # (DP-237 / DP-270 reader, reused verbatim; no second bundle detector) —
+    # the bundle release head is the task's authoritative head. The worktree is
+    # clean (asserted above) and the bundle release commit carries the actual
+    # delivered content, so cleanup is safe even though HEADs differ.
+    echo "$PREFIX bundle release head is authoritative for ${TASK_KEY:-$TASK_BRANCH} (bundle=${BUNDLE_BRANCH_ALIAS}); worktree HEAD (${CURRENT_HEAD_SHA}) != delivered head (${DELIVERED_HEAD_SHA}) accepted" >&2
   else
     echo "$PREFIX blocked: delivered head (${DELIVERED_HEAD_SHA}) != worktree HEAD (${CURRENT_HEAD_SHA})" >&2
     exit 2

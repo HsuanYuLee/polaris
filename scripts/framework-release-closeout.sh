@@ -234,6 +234,134 @@ frontmatter_status() {
   ' "$file"
 }
 
+# DP-273 Wall A: read `bundle_branch_alias` from task.md frontmatter using the
+# SAME awk parse shape that gate-work-source.sh and resolve-task-md-by-branch.sh
+# (DP-237 / DP-270) already use. Reusing the canonical reader keeps a single
+# source of truth for bundle detection — closeout must NOT introduce a second
+# bundle detector. Echoes the alias value (empty when absent).
+bundle_branch_alias_for_task() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  awk '
+    /^---$/ { fm++; next }
+    fm == 1 && /^bundle_branch_alias:/ {
+      sub(/^bundle_branch_alias:[[:space:]]*/, "")
+      sub(/[[:space:]]+$/, "")
+      print
+      exit
+    }
+  ' "$file" 2>/dev/null || true
+}
+
+# DP-273 Wall C: read `task_shape` from task.md frontmatter via the central
+# parse-task-md.sh parser (single source of truth for task.md schema). Echoes
+# the shape value (e.g. implementation / confirmation / verify), empty when
+# absent.
+task_shape_for_task() {
+  local parser_json="$1"
+  json_field "$parser_json" "d.get('frontmatter', {}).get('task_shape')"
+}
+
+# DP-273 Wall A: report whether the release commit's diff touches any file owned
+# by this task's Allowed Files. This is the PRIMARY bundle-delivery signal
+# (release diff ∩ task Allowed Files non-empty). It is best-effort: a bundle
+# task whose delivery only touches generated / shared (carved-out) files may
+# legitimately have an EMPTY intersection (see DP-273 Blind Spots), so callers
+# must NOT treat an empty result as a delivery failure — the bundle release head
+# remains the authoritative head and verify evidence is enforced downstream by
+# the completion gate. Echoes the count of intersecting files.
+release_diff_intersects_allowed_files() {
+  local task_md="$1"
+  local release_commit="$2"
+  local parser_json="$3"
+  python3 - "$task_md" "$release_commit" "$REPO_ROOT" "$parser_json" <<'PY'
+import json
+import subprocess
+import sys
+
+task_md, release_commit, repo_root, parser_json = sys.argv[1:5]
+
+data = json.loads(parser_json)
+patterns = []
+for entry in data.get("allowed_files") or []:
+    s = entry.strip()
+    if s.startswith("`") and s.endswith("`"):
+        s = s[1:-1]
+    if s:
+        patterns.append(s)
+
+# Release diff = files changed by the release commit relative to its first
+# parent. Squashed cherry-pick / fresh-commit bundles land as a single commit,
+# so commit^..commit captures the bundled delivery. When the commit has no
+# parent (root), fall back to the full tree listing.
+def diff_files():
+    rc = subprocess.run(
+        ["git", "-C", repo_root, "rev-parse", "--verify", "--quiet",
+         release_commit + "^"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    if rc.returncode == 0:
+        proc = subprocess.run(
+            ["git", "-C", repo_root, "diff", "--name-only",
+             release_commit + "^", release_commit],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        )
+    else:
+        proc = subprocess.run(
+            ["git", "-C", repo_root, "ls-tree", "-r", "--name-only",
+             release_commit],
+            text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        )
+    return [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
+
+def match_parts(fparts, fi, pparts, pi):
+    import fnmatch
+    if fi == len(fparts) and pi == len(pparts):
+        return True
+    if pi == len(pparts):
+        return False
+    if fi == len(fparts):
+        return all(p == "**" for p in pparts[pi:])
+    pseg = pparts[pi]
+    if pseg == "**":
+        if match_parts(fparts, fi, pparts, pi + 1):
+            return True
+        if match_parts(fparts, fi + 1, pparts, pi):
+            return True
+        return False
+    return fnmatch.fnmatchcase(fparts[fi], pseg) and match_parts(
+        fparts, fi + 1, pparts, pi + 1
+    )
+
+def matches(fp, pattern):
+    if fp == pattern:
+        return True
+    return match_parts(fp.split("/"), 0, pattern.split("/"), 0)
+
+count = 0
+for fp in diff_files():
+    if any(matches(fp, p) for p in patterns):
+        count += 1
+print(count)
+PY
+}
+
+# DP-273 Wall C: content-delivered no-branch task evidence probe. confirmation /
+# verify tasks have no task_branch (no PR, no code branch); their deliverable is
+# a specs / verification artifact. flip IMPLEMENTED only when that deliverable
+# evidence is present (fail-closed: missing evidence must NOT flip). Returns 0
+# when evidence is present, 1 otherwise. Echoes a short description of the
+# matched evidence on stdout.
+no_branch_deliverable_present() {
+  local verify_evidence="$1"
+
+  if [[ -n "$verify_evidence" && "$verify_evidence" != "N/A" && -f "$verify_evidence" ]]; then
+    printf 'verify-evidence %s\n' "$verify_evidence"
+    return 0
+  fi
+  return 1
+}
+
 update_frontmatter_status() {
   local file="$1"
   local new_status="$2"
@@ -504,7 +632,7 @@ if [[ -n "$TEMPLATE_REPO" ]]; then
   fi
 fi
 
-declare -a ABS_TASK_MDS TASK_IDS TASK_BRANCHES RESOLVED_TASK_HEADS TASK_WORKTREE_KINDS
+declare -a ABS_TASK_MDS TASK_IDS TASK_BRANCHES RESOLVED_TASK_HEADS TASK_WORKTREE_KINDS TASK_NO_BRANCH_FLAGS
 
 for i in "${!TASK_MDS[@]}"; do
   task_md="$(abs_path "${TASK_MDS[$i]}")"
@@ -513,8 +641,47 @@ for i in "${!TASK_MDS[@]}"; do
   parser_json="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md" --no-resolve)" || die "unable to parse task.md: ${task_md}"
   task_id="$(json_field "$parser_json" "d.get('identity', {}).get('work_item_id') or d.get('header', {}).get('task_id')")"
   task_branch="$(json_field "$parser_json" "d.get('operational_context', {}).get('task_branch')")"
+  task_shape="$(task_shape_for_task "$parser_json")"
   [[ -n "$task_id" ]] || die "task identity missing in ${task_md}"
-  [[ -n "$task_branch" ]] || die "Task branch missing in ${task_md}"
+
+  # DP-273 Wall C: no-branch confirmation / verify tasks (deliverable is a
+  # specs / verification artifact, not a code branch) are NOT driven through the
+  # branch-bearing closeout. They are flipped IMPLEMENTED via content-delivered
+  # semantics in the second loop, after their deliverable evidence is verified
+  # (fail-closed). Branch-bearing implementation tasks keep the original strict
+  # per-task closeout (incl. branch / head ancestry / cleanup) unchanged.
+  no_branch_content_delivered=0
+  if [[ -z "$task_branch" ]]; then
+    # DP-273 amendment: legacy verify tasks predate task_shape — they carry
+    # `task_kind: V` with no `task_shape`. A no-branch `task_kind=V` is
+    # content-delivered like a verify task (flip via the second loop), else die.
+    task_kind="$(json_field "$parser_json" "d.get('frontmatter', {}).get('task_kind')")"
+    case "$task_shape" in
+      confirmation|verify)
+        no_branch_content_delivered=1
+        ;;
+      *)
+        if [[ "$task_kind" == "V" ]]; then
+          no_branch_content_delivered=1
+        else
+          die "Task branch missing in ${task_md}"
+        fi
+        ;;
+    esac
+  fi
+
+  if [[ "$no_branch_content_delivered" -eq 1 ]]; then
+    # No branch → no task_head_sha to resolve, no worktree to classify, no head
+    # ancestry to assert. Delivery is verified later by content-delivered
+    # evidence. Record sentinels so the second loop can route this task.
+    ABS_TASK_MDS+=("$task_md")
+    TASK_IDS+=("$task_id")
+    TASK_BRANCHES+=("")
+    RESOLVED_TASK_HEADS+=("")
+    TASK_WORKTREE_KINDS+=("none")
+    TASK_NO_BRANCH_FLAGS+=("1")
+    continue
+  fi
 
   task_head_sha=""
   if [[ "$TASK_HEAD_SHA_MAP_USED" -eq 1 ]]; then
@@ -531,7 +698,33 @@ for i in "${!TASK_MDS[@]}"; do
   fi
   is_sha "$task_head_sha" || die "--task-head-sha value malformed for ${task_id}: ${task_head_sha} (expected 7-40 char hex SHA; map syntax is task_id=<sha>)"
   git -C "$REPO_ROOT" cat-file -e "${task_head_sha}^{commit}" 2>/dev/null || die "task head does not exist for ${task_id}: ${task_head_sha}"
-  git -C "$REPO_ROOT" merge-base --is-ancestor "$task_head_sha" "$WORKSPACE_COMMIT" || die "workspace commit does not contain task head for ${task_id}"
+
+  # DP-273 Wall A: bundle-aware head-ancestry. aggregate / cherry-pick /
+  # fresh-commit / copy-content bundle releases produce a release commit whose
+  # ancestor is NOT the per-task branch head, so the original strict
+  # `merge-base --is-ancestor` assertion would `die`. When this task is part of
+  # a BUNDLE — detected via the EXISTING `bundle_branch_alias` frontmatter
+  # (DP-237 / DP-270 reader, reused verbatim; no second bundle detector) —
+  # verify delivery by EITHER (a) release diff ∩ task Allowed Files non-empty,
+  # OR (b) the bundle release head serving as the task's authoritative head.
+  # An empty intersection is LEGAL for generated/shared-only delivery
+  # (DP-273 Blind Spots), so (b) is the fail-safe; verify evidence at the
+  # per-task head is still enforced downstream by the completion gate.
+  # NON-bundle (single-DP) keeps the original strict ancestry assertion
+  # unchanged (bundle size = 1 degenerate, AC-NEG1).
+  bundle_alias="$(bundle_branch_alias_for_task "$task_md")"
+  if [[ -n "$bundle_alias" ]]; then
+    if ! git -C "$REPO_ROOT" merge-base --is-ancestor "$task_head_sha" "$WORKSPACE_COMMIT" 2>/dev/null; then
+      intersect_count="$(release_diff_intersects_allowed_files "$task_md" "$WORKSPACE_COMMIT" "$parser_json")"
+      if [[ "$intersect_count" -gt 0 ]]; then
+        info "bundle delivery verified for ${task_id} via release diff ∩ Allowed Files (${intersect_count} file(s)); bundle=${bundle_alias}"
+      else
+        info "bundle delivery for ${task_id} accepted via bundle release head as authoritative head (empty Allowed-Files intersection — generated/shared carve-out); bundle=${bundle_alias}"
+      fi
+    fi
+  else
+    git -C "$REPO_ROOT" merge-base --is-ancestor "$task_head_sha" "$WORKSPACE_COMMIT" || die "workspace commit does not contain task head for ${task_id}"
+  fi
 
   worktree_kind="$(classify_worktree_for_branch "$task_branch")"
 
@@ -540,6 +733,7 @@ for i in "${!TASK_MDS[@]}"; do
   TASK_BRANCHES+=("$task_branch")
   RESOLVED_TASK_HEADS+=("$task_head_sha")
   TASK_WORKTREE_KINDS+=("$worktree_kind")
+  TASK_NO_BRANCH_FLAGS+=("0")
 done
 
 for i in "${!ABS_TASK_MDS[@]}"; do
@@ -548,6 +742,7 @@ for i in "${!ABS_TASK_MDS[@]}"; do
   task_branch="${TASK_BRANCHES[$i]}"
   task_head_sha="${RESOLVED_TASK_HEADS[$i]}"
   worktree_kind="${TASK_WORKTREE_KINDS[$i]}"
+  no_branch_content_delivered="${TASK_NO_BRANCH_FLAGS[$i]}"
   verify_evidence="${VERIFY_EVIDENCES[$i]}"
 
   if [[ "$worktree_kind" == "sub-agent" ]]; then
@@ -555,6 +750,55 @@ for i in "${!ABS_TASK_MDS[@]}"; do
     # space. framework-release closeout must skip per-task closeout entirely so
     # the closeout log carries no sub-agent worktree path.
     info "skip per-task closeout for ${task_id}: sub-agent worktree"
+    continue
+  fi
+
+  if [[ "$no_branch_content_delivered" -eq 1 ]]; then
+    # DP-273 Wall C: no-branch confirmation / verify task. There is no PR, no
+    # code branch, and no task_head_sha — the deliverable is a specs /
+    # verification artifact. Drive it with content-delivered semantics:
+    #   1. Idempotency (AC5): if the task is already IMPLEMENTED + moved to
+    #      pr-release, skip without re-flipping / double-archiving.
+    #   2. Fail-closed (AC-NEG3): flip ONLY when the deliverable evidence is
+    #      present. Missing evidence must NOT flip (no spurious flip / archive).
+    #   3. Flip IMPLEMENTED via mark_task_implemented so close-parent counts it
+    #      toward parent completion and the parent can archive (AC3).
+    # Branch-bearing implementation tasks below keep their original per-task
+    # closeout (extension deliverable, completion gate, worktree / branch
+    # cleanup) unchanged.
+    existing_status="$(frontmatter_status "$task_md")"
+    if [[ "$task_md" == */tasks/pr-release/* && "$existing_status" == "IMPLEMENTED" ]]; then
+      info "no-branch task ${task_id} already IMPLEMENTED in pr-release; skip (idempotent)"
+      continue
+    fi
+
+    evidence_desc="$(no_branch_deliverable_present "$verify_evidence")" \
+      || die "no-branch ${task_id} content-delivered evidence missing; refusing to flip IMPLEMENTED (fail-closed)"
+    info "no-branch ${task_id} content-delivered evidence present: ${evidence_desc}"
+
+    moved_task_md="$(mark_task_implemented "$task_md" "$task_id")"
+    [[ -f "$moved_task_md" ]] || die "implemented task file not found after mark-spec-implemented: ${task_id}"
+
+    case "$moved_task_md" in
+      */specs/design-plans/archive/*|*/specs/companies/*/archive/*)
+        archived_parent_file="$(parent_file_for_task "$moved_task_md")"
+        [[ -n "$archived_parent_file" && -f "$archived_parent_file" ]] || die "archived parent file not found for ${moved_task_md}"
+        update_frontmatter_status "$archived_parent_file" IMPLEMENTED
+        info "marked archived parent implemented: ${archived_parent_file}"
+        ;;
+      *)
+        close_parent_args=(
+          --task-md "$moved_task_md"
+          --workspace "$REPO_ROOT"
+        )
+        if [[ "$i" -eq $((${#ABS_TASK_MDS[@]} - 1)) ]]; then
+          close_parent_args+=(--archive-terminal-parent)
+        fi
+        bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" "${close_parent_args[@]}"
+        ;;
+    esac
+
+    info "closed out ${task_id} (content-delivered, no branch)"
     continue
   fi
 

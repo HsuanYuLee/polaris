@@ -23,11 +23,27 @@ EOF
   exit 2
 }
 
-if [[ $# -ne 1 ]]; then
+# DP-273 Wall B: a release-tail (closeout) caller passes --closeout (or sets
+# POLARIS_REFINEMENT_HANDOFF_CLOSEOUT=1) to declare that this is NOT a live
+# refinement->breakdown handoff. In closeout context the refinement-session
+# boundary check is skipped (it would falsely BLOCK on a stale refinement
+# baseline against a release diff that contains code deliverables). The live
+# refinement->breakdown handoff boundary is left untouched.
+CLOSEOUT="${POLARIS_REFINEMENT_HANDOFF_CLOSEOUT:-0}"
+positional=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --closeout) CLOSEOUT=1; shift ;;
+    --) shift; while [[ $# -gt 0 ]]; do positional+=("$1"); shift; done ;;
+    *) positional+=("$1"); shift ;;
+  esac
+done
+
+if [[ "${#positional[@]}" -ne 1 ]]; then
   usage
 fi
 
-input="$1"
+input="${positional[0]}"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 validator="$script_dir/validate-refinement-json.sh"
 ac_coverage_validator="$script_dir/validate-refinement-ac-coverage.sh"
@@ -132,6 +148,17 @@ fi
 # advisory (no enforcement) so legacy invocations without the baseline
 # step keep working; the gate becomes hard once refinement SKILL.md
 # Step 0 calls --start at session entry.
+#
+# DP-273 Wall B: this boundary belongs ONLY to a live refinement->breakdown
+# handoff. A release-tail closeout runs long after the refinement session and
+# must NOT re-validate refinement-session scope (it would falsely BLOCK on a
+# stale refinement baseline plus a release diff that contains code
+# deliverables). Closeout context is detected two ways:
+#   1. Explicit: --closeout / POLARIS_REFINEMENT_HANDOFF_CLOSEOUT=1.
+#   2. Liveness auto-detection: if the committed diff between the refinement
+#      baseline HEAD and current HEAD already contains files outside
+#      refinement-owned scope, downstream breakdown/engineering work has
+#      landed -> the refinement session is no longer live -> skip.
 boundary_gate="$script_dir/skill-workflow-boundary-gate.sh"
 if [[ -x "$boundary_gate" ]]; then
   # Resolve the repo that actually owns this source container; this may
@@ -143,9 +170,47 @@ if [[ -x "$boundary_gate" ]]; then
   refn_baseline_id="$(printf '%s|%s' refinement "$boundary_real_container" \
     | python3 -c "import hashlib,sys; print(hashlib.sha1(sys.stdin.read().encode()).hexdigest()[:16])")"
   refn_baseline_path="$baseline_dir/refinement-${refn_baseline_id}.json"
-  if [[ -f "$refn_baseline_path" ]]; then
-    "$boundary_gate" --skill refinement --check \
-      --source-container "$source_container" --repo "$boundary_repo"
+  if [[ -f "$refn_baseline_path" && "$CLOSEOUT" -ne 1 ]]; then
+    # Liveness auto-detection: inspect the committed diff between the baseline
+    # HEAD and current HEAD. If downstream (non-refinement-owned) files were
+    # already committed, this is a closeout, not a live handoff.
+    refn_baseline_head="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('head_sha',''))" "$refn_baseline_path")"
+    session_live=1
+    if [[ -n "$refn_baseline_head" ]]; then
+      rel_container="$(python3 -c "import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))" \
+        "$boundary_real_container" "$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$boundary_repo")")"
+      rel_container="${rel_container%/}"
+      committed_diff="$(git -C "$boundary_repo" diff --name-only "$refn_baseline_head" HEAD 2>/dev/null || true)"
+      if [[ -n "$committed_diff" ]]; then
+        # A committed change is "downstream" when it is outside the refinement
+        # source container and outside framework runtime/git internals.
+        downstream="$(printf '%s\n' "$committed_diff" | python3 -c "
+import sys
+rel = sys.argv[1].rstrip('/')
+for line in sys.stdin:
+    p = line.strip()
+    if not p:
+        continue
+    if p.startswith('.polaris/') or p.startswith('.git/'):
+        continue
+    if rel and (p == rel or p.startswith(rel + '/')):
+        continue
+    print(p)
+" "$rel_container")"
+        [[ -n "$downstream" ]] && session_live=0
+      fi
+    fi
+    if [[ "$session_live" -eq 1 ]]; then
+      "$boundary_gate" --skill refinement --check \
+        --source-container "$source_container" --repo "$boundary_repo"
+    else
+      # Closeout / stale session: skip the boundary check AND retire the stale
+      # baseline (EC4 defense-in-depth) so it cannot re-trip on a later run.
+      rm -f "$refn_baseline_path"
+    fi
+  elif [[ -f "$refn_baseline_path" && "$CLOSEOUT" -eq 1 ]]; then
+    # Explicit closeout: skip the boundary check and retire the stale baseline.
+    rm -f "$refn_baseline_path"
   fi
 fi
 
