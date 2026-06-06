@@ -90,6 +90,10 @@ docs-manager/src/content/docs/specs/
 # Personal settings
 .claude/settings.local.json
 
+# Cross-session active-thread anchor (DP-290) — local session state, not source.
+# Written by scripts/update-active-thread.sh, cat'd by the SessionStart hook.
+.claude/active-thread.md
+
 # Local-only user workspace surface. This is intentionally peer-level with
 # company folders, but it is not a company and is never runtime-discovered.
 user/

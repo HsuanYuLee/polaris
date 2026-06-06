@@ -57,6 +57,8 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | stop-todo-check | .claude/hooks/stop-todo-check.sh | hook | portable | N/A | governance |
 | version-bump-reminder | .claude/hooks/version-bump-reminder.sh | hook | portable | N/A | governance |
 | version-docs-lint-gate | .claude/hooks/version-docs-lint-gate.sh | hook | portable | N/A | governance |
+| session-start-thread-anchor | .claude/hooks/session-start-thread-anchor.sh | hook | claude-code-only | scripts/update-active-thread.sh | governance |
+| stop-active-thread-reminder | .claude/hooks/stop-active-thread-reminder.sh | hook | portable | N/A | governance |
 | framework-pr-gate | scripts/check-framework-pr-gate.sh | script | portable | N/A | governance |
 | mechanism-runtime-annotations | scripts/validate-mechanism-runtime-annotations.sh | script | portable | N/A | governance |
 | mechanism-graduation-audit | scripts/audit-mechanism-graduation.sh | script | portable | N/A | governance |
@@ -86,6 +88,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | research-dispatch-unit-gate | scripts/validate-breakdown-ready.sh | script | portable | scripts/selftests/validate-breakdown-ready-research-dispatch-unit-selftest.sh | governance |
 | framework-release-closeout-bundle-task-closeout | scripts/selftests/framework-release-closeout-bundle-task-closeout-selftest.sh | script | portable | scripts/selftests/framework-release-closeout-bundle-task-closeout-selftest.sh | governance |
 | closeout-no-refinement-session-boundary | scripts/selftests/closeout-no-refinement-session-boundary-selftest.sh | script | portable | scripts/selftests/closeout-no-refinement-session-boundary-selftest.sh | governance |
+| update-active-thread | scripts/update-active-thread.sh | script | portable | scripts/selftests/update-active-thread-selftest.sh | governance |
 
 ## Mechanism Canary Entries
 

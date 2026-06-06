@@ -80,6 +80,17 @@
         ]
       }
     ],
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start-thread-anchor.sh\""
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "",
@@ -99,6 +110,10 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/feedback-reflection-stop.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-active-thread-reminder.sh\""
           }
         ]
       }

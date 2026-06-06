@@ -5210,6 +5210,45 @@
       "selftest": "scripts/selftests/run-behavior-contract-selftest.sh",
       "lifecycle": "support_path",
       "relocation": "stay"
+    },
+    {
+      "path": "scripts/update-active-thread.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "session_handoff",
+      "selftest": "scripts/selftests/update-active-thread-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftests/update-active-thread-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/session-start-thread-anchor-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/stop-active-thread-reminder-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     }
   ],
   "test_governance": {

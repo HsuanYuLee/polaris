@@ -4,6 +4,26 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.149] - 2026-06-06
+
+### Added — DP-290 deterministic cross-session handoff via SessionStart anchor hook
+
+用 `SessionStart` startup hook 機械注入單一 canonical active-thread 錨點，讓跨-session handoff 從「靠 harness 隨機 recall memory + 使用者貼對 resume prompt」的機率性，收斂成 deterministic 注入。解決多次切 session 後 plan / next-action 遺失、舊計劃變殭屍的問題。
+
+- **`scripts/update-active-thread.sh`**（DP-290-T1，single writer）：覆寫（不 append）維護 `.claude/active-thread.md` 錨點，idempotent，帶 `last-updated` 時戳，>10,000 字元時截斷尾段、保留「下一步」頭段並印提示（官方上限）。`.gitignore` 忽略錨點檔（session 狀態非 source）。
+- **`.claude/hooks/session-start-thread-anchor.sh` + `.claude/settings.json`**（DP-290-T2）：SessionStart `startup` matcher fail-open hook，開場 `cat` 錨點 + branch + dirty filename 注入 context，**exit 0 永不 block**（缺檔印 fail-open 提示、非 git 目錄 / git status 失敗皆 exit 0）；只 cat + git status，不 dump env / secrets。
+- **`.claude/hooks/stop-active-thread-reminder.sh` + `.claude/settings.json`**（DP-290-T3）：session-end Stop advisory 提醒更新錨點，exit 0 不 block；配套 selftest。
+- **`.claude/rules/mechanism-registry.md`**（DP-290-T4）：Runtime Annotation Registry 新增 `session-start-thread-anchor`（claude-code-only + portable writer fallback）、`update-active-thread`、`stop-active-thread-reminder` 三條條目，通過 `validate-mechanism-runtime-annotations` + `mechanism-parity --strict`。
+- **三支 hermetic selftest**（`update-active-thread-selftest` / `session-start-thread-anchor-selftest` / `stop-active-thread-reminder-selftest`）覆蓋 AC1-AC6 + AC-NEG1/2，registered 進 script manifest。
+
+### Why
+
+新 session 的自動載入面只有 `CLAUDE.md` / `MEMORY.md` Hot 索引 / harness 隨機 recall 的 memory / 使用者貼的 prompt；`user/` 計劃、checkpoints、resume prompt 都不在自動載入面，導致 handoff state 切多次必失。官方 docs 證實 `SessionStart startup` hook stdout 注入是唯一 deterministic 通道。DP-290 以 single-writer 錨點 + fail-open hook 把 handoff 收斂成 deterministic，對齊 `canonical-contract-governance.md` § No special writer paths 與 `contract-design.md` § Deterministic-First。
+
+### Verified
+
+DP-290-V1 verify-AC：8/8 PASS（AC1-AC6 + AC-NEG1/2），全 unit_test method。3 支 hermetic selftest 於 bundle head `46be4c0` 獨立重跑 rc=0；`.claude/settings.json` SessionStart matcher startup 由 jq assert 確認；AC-NEG1 no-env-dump 經 selftest grep + 原始碼比對（env pattern 僅在註解）；`validate-mechanism-runtime-annotations` PASS / `mechanism-parity --strict` IN SYNC / `check-script-manifest` PASS / `verify-cross-llm-parity` PARITY OK / `scan-template-leaks` 0 hits。Bundle 內含 T1-T4 per-task commits。
+
 ## [3.75.148] - 2026-06-05
 
 ### Fixed — DP-273 framework-release auto-pass delivery-lane hardening（multi-DP bundle / post-bundle closeout / version-race robustness）
