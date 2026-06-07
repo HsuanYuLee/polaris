@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 # runtime-final-response-language-guard-selftest.sh
 #
-# Enforces AC39 from DP-230:
-#   - .claude/instructions/core/bootstrap.md must declare that final/chat
-#     response is user-facing prose governed by workspace-config.yaml language.
-#   - .claude/instructions/runtime/{claude,codex,copilot}.md must each carry a
-#     runtime-specific caveat: hook/model does NOT intercept final response;
-#     agent must self-check workspace language before replying.
-#   - After compiling, CLAUDE.md, AGENTS.md, .codex/AGENTS.md, and
-#     .github/copilot-instructions.md must each contain the corresponding guard.
+# Enforces AC39 from DP-230, corrected for the actual source-of-truth layering
+# (DP-294 AC3):
+#   - The Final Response Language Guard's SOURCE layer lives in the runtime
+#     overlays .claude/instructions/runtime/{claude,codex,copilot}.md. Each must
+#     carry the guard: hook/model does NOT intercept the final response, so the
+#     agent must self-check workspace-config.yaml language before replying.
+#   - The universal "## Final Response Language Guard" core section and the
+#     per-runtime "### {Runtime} Runtime Caveat" are EMITTED BY THE COMPILER
+#     (scripts/compile-runtime-instructions.sh), not authored in bootstrap.md.
+#     They are therefore asserted at the COMPILED layer (the four generated
+#     targets), below.
+#   - bootstrap.md does NOT author this guard. Asserting it there was a
+#     false FAIL — the guard is not part of bootstrap core (DP-294 AC3).
 #
 # The selftest greps deterministic phrases rather than full-text equality so
 # the wording can evolve without breaking the contract.
@@ -28,17 +33,12 @@ fail() {
   exit 1
 }
 
-# --- Source layer ------------------------------------------------------------
-
-BOOTSTRAP="$ROOT/.claude/instructions/core/bootstrap.md"
-[[ -f "$BOOTSTRAP" ]] || fail "missing bootstrap source: $BOOTSTRAP"
-
-grep -q "Final Response Language Guard" "$BOOTSTRAP" \
-  || fail "bootstrap missing 'Final Response Language Guard' section"
-grep -q "workspace-config.yaml" "$BOOTSTRAP" \
-  || fail "bootstrap final-response guard does not reference workspace-config.yaml"
-grep -qE "user-facing prose|user facing prose" "$BOOTSTRAP" \
-  || fail "bootstrap final-response guard does not classify final response as user-facing prose"
+# --- Source layer: runtime overlay SoT ---------------------------------------
+#
+# The guard's authored source-of-truth is the three runtime overlays. The
+# universal core section is compiler-emitted and is verified at the compiled
+# layer below — it is intentionally NOT asserted against bootstrap.md (DP-294
+# AC3: bootstrap core must not be falsely failed for a guard it does not own).
 
 for adapter in claude codex copilot; do
   src="$ROOT/.claude/instructions/runtime/${adapter}.md"

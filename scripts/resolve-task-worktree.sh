@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # Resolve the active engineering task worktree path for a given source / work item.
 #
-# Contract (AC33):
+# Contract (AC33 + DP-294 AC1):
 #   - Inputs: --source-id <DP-NNN | JIRA-EPIC-KEY> --work-item-id <Tn | DP-NNN-Tn | EPIC-KEY-Tn>
-#   - Looks up `git worktree list --porcelain` against canonical task branch
-#     pattern `task/{TASK_KEY}-*` where {TASK_KEY} = combined source / work item identity.
+#   - Canonical delivery-branch resolution covers BOTH delivery modes:
+#       * per-task delivery → `task/{TASK_KEY}-*` branch (default), and
+#       * bundle delivery   → the `bundle_branch_alias` declared in the work
+#         item's task.md frontmatter (aggregate-release mode). When the task.md
+#         declares a bundle_branch_alias, the bundle worktree is checked out on
+#         that exact branch (NOT a task/ branch), so the resolver matches the
+#         worktree whose branch equals the alias.
+#   - Looks up `git worktree list --porcelain`.
 #   - Single match → print absolute worktree path, exit 0.
 #   - Zero matches → print "NONE", exit 0 (caller may decide blocking).
 #   - Multiple matches → fail-stop, stderr `POLARIS_DISPATCH_WORKTREE_AMBIGUOUS`, exit 2.
@@ -14,6 +20,17 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# main-checkout.sh provides resolve_main_checkout (worktree → main checkout);
+# specs-root.sh provides resolve_specs_root (canonical specs root SoT). DP-294 T1
+# reads the canonical bundle_branch_alias from the work item's task.md, which
+# lives in the main checkout's specs tree. specs-root.sh only sources
+# main-checkout.sh lazily inside a function, so source it explicitly here to get
+# resolve_main_checkout at top level.
+# shellcheck source=lib/main-checkout.sh
+. "$SCRIPT_DIR/lib/main-checkout.sh"
+# shellcheck source=lib/specs-root.sh
+. "$SCRIPT_DIR/lib/specs-root.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -112,18 +129,65 @@ resolve_repo_root() {
   fi
 }
 
-resolve_main_checkout() {
-  # `git worktree list` works against the common_dir, so even when invoked from
-  # an engineering worktree we get the full registry. We just need a repo to
-  # invoke against.
-  local repo="$1"
-  local common_dir
-  common_dir="$(git -C "$repo" rev-parse --git-common-dir 2>/dev/null)" || return 1
-  if [[ "$common_dir" != /* ]]; then
-    common_dir="$repo/$common_dir"
+# Derive the short work-item id (`T9` / `V1`) used as the tasks/ subdir name,
+# from either short-form (`V1`) or fully-qualified (`DP-294-V1`) input.
+short_work_item() {
+  local wid="$1"
+  if [[ "$wid" =~ ([TV][0-9]+)$ ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+  else
+    printf '%s\n' "$wid"
   fi
-  # common_dir is something like /path/to/main/.git. Strip the trailing /.git.
-  printf '%s\n' "${common_dir%/.git}"
+}
+
+# Read `bundle_branch_alias` from a task.md YAML frontmatter block. Reuses the
+# SAME awk parse shape that gate-work-source.sh / resolve-task-md-by-branch.sh /
+# framework-release-closeout.sh already use, keeping a single source of truth for
+# bundle detection — the resolver must NOT introduce a second bundle detector.
+# Echoes the alias value (empty when absent).
+bundle_branch_alias_for_task() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  awk '
+    /^---$/ { fm++; next }
+    fm == 1 && /^bundle_branch_alias:/ {
+      sub(/^bundle_branch_alias:[[:space:]]*/, "")
+      sub(/[[:space:]]+$/, "")
+      print
+      exit
+    }
+  ' "$file" 2>/dev/null || true
+}
+
+# Locate the work item's task.md under the canonical specs tree of the repo's
+# main checkout, covering both DP-backed (design-plans/) and JIRA Epic-backed
+# (companies/) sources (source parity). Echoes the path or nothing.
+locate_task_md() {
+  local source_id="$1" short_item="$2" repo="$3"
+  [[ -n "$source_id" && -n "$short_item" ]] || return 0
+  local main_co specs_root cand
+  main_co="$(resolve_main_checkout "$repo" 2>/dev/null)" || return 0
+  specs_root="$(resolve_specs_root "$main_co" 2>/dev/null)" || return 0
+  for cand in \
+    "$specs_root"/design-plans/"$source_id"-*/tasks/"$short_item"/index.md \
+    "$specs_root"/companies/*/"$source_id"/tasks/"$short_item"/index.md; do
+    if [[ -f "$cand" ]]; then
+      printf '%s\n' "$cand"
+      return 0
+    fi
+  done
+  return 0
+}
+
+# Resolve the delivery branch alias for a work item: the bundle_branch_alias
+# from its task.md when bundle-delivered, otherwise empty (per-task delivery).
+resolve_delivery_alias() {
+  local source_id="$1" work_item_id="$2" repo="$3"
+  local short_item task_md
+  short_item="$(short_work_item "$work_item_id")"
+  task_md="$(locate_task_md "$source_id" "$short_item" "$repo")"
+  [[ -n "$task_md" ]] || return 0
+  bundle_branch_alias_for_task "$task_md"
 }
 
 resolve_task_worktree() {
@@ -149,24 +213,48 @@ resolve_task_worktree() {
     return 2
   }
 
-  # Match worktrees whose branch matches `task/{task_key}-*` (canonical task
-  # branch shape, see resolve-task-branch.sh). The trailing `-` ensures we do
-  # not collide with e.g. `task/DP-230-T1` matching `DP-230-T13`.
+  # Canonical delivery-branch resolution. When the work item's task.md declares a
+  # bundle_branch_alias (aggregate-release / bundle delivery), match the worktree
+  # whose branch equals that alias EXACTLY. Otherwise (per-task delivery) match
+  # the canonical `task/{task_key}-*` branch shape. The two modes are mutually
+  # exclusive per task.md declaration, so there is no cross-mode collision.
+  local delivery_alias
+  delivery_alias="$(resolve_delivery_alias "$source_id" "$work_item_id" "$repo")"
+
   local matches
-  matches="$(printf '%s\n' "$listing" | awk -v key="$task_key" '
-    BEGIN { wt=""; br="" }
-    /^worktree /   { if (wt!="" && br!="") emit(); wt=$2; br="" }
-    /^branch /     { br=$2 }
-    /^$/           { if (wt!="" && br!="") emit(); wt=""; br="" }
-    END            { if (wt!="" && br!="") emit() }
-    function emit() {
-      # br looks like refs/heads/task/<task_key>-<slug>
-      prefix="refs/heads/task/" key "-"
-      if (substr(br, 1, length(prefix)) == prefix) {
-        print wt
+  if [[ -n "$delivery_alias" ]]; then
+    # Bundle mode: exact match on refs/heads/<alias>.
+    matches="$(printf '%s\n' "$listing" | awk -v alias="$delivery_alias" '
+      BEGIN { wt=""; br="" }
+      /^worktree /   { if (wt!="" && br!="") emit(); wt=$2; br="" }
+      /^branch /     { br=$2 }
+      /^$/           { if (wt!="" && br!="") emit(); wt=""; br="" }
+      END            { if (wt!="" && br!="") emit() }
+      function emit() {
+        if (br == "refs/heads/" alias) {
+          print wt
+        }
       }
-    }
-  ')"
+    ')"
+  else
+    # Per-task mode: match `task/{task_key}-*` (canonical task branch shape, see
+    # resolve-task-branch.sh). The trailing `-` ensures we do not collide with
+    # e.g. `task/DP-230-T1` matching `DP-230-T13`.
+    matches="$(printf '%s\n' "$listing" | awk -v key="$task_key" '
+      BEGIN { wt=""; br="" }
+      /^worktree /   { if (wt!="" && br!="") emit(); wt=$2; br="" }
+      /^branch /     { br=$2 }
+      /^$/           { if (wt!="" && br!="") emit(); wt=""; br="" }
+      END            { if (wt!="" && br!="") emit() }
+      function emit() {
+        # br looks like refs/heads/task/<task_key>-<slug>
+        prefix="refs/heads/task/" key "-"
+        if (substr(br, 1, length(prefix)) == prefix) {
+          print wt
+        }
+      }
+    ')"
+  fi
 
   local count
   count="$(printf '%s\n' "$matches" | grep -c . || true)"

@@ -157,6 +157,14 @@ if ! bash "$SCRIPT_DIR/compile-runtime-instructions.sh" --check; then
   refresh_runtime_targets
   bash "$SCRIPT_DIR/compile-runtime-instructions.sh" --check
 fi
+# DP-294 AC7: converge the final-response language-guard parity into the canonical
+# aggregate. The guard's SoT is the runtime overlays + compiler-emitted core; this
+# selftest asserts the overlay three-file SoT and the four generated targets carry
+# it. Wiring it here makes the cross-runtime guard presence a blocking parity
+# invariant instead of a standalone selftest that the closeout could skip — which
+# is what produced the earlier false "closeout parity advisory" (the guard was in
+# fact present; the misreport came from a stale bootstrap assertion, fixed in AC3).
+bash "$SCRIPT_DIR/selftests/runtime-final-response-language-guard-selftest.sh"
 
 echo
 echo

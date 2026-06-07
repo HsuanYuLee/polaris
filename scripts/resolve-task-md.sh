@@ -57,13 +57,19 @@ abs_path() {
 
 lock_path_for_root() {
   local root="$1"
-  python3 - "$root" <<'PY'
+  # Lock files live under /tmp by default. POLARIS_WORK_ORDER_LOCK_DIR overrides
+  # the directory so hermetic selftests can keep the lock inside their own tmpdir
+  # (DP-294 T6 / AC8) and clean it via the tmpdir trap — never touching the live
+  # /tmp session lock.
+  local lock_dir="${POLARIS_WORK_ORDER_LOCK_DIR:-/tmp}"
+  python3 - "$root" "$lock_dir" <<'PY'
 import hashlib
 import sys
 
 root = sys.argv[1]
+lock_dir = sys.argv[2].rstrip("/") or "/tmp"
 digest = hashlib.sha1(root.encode("utf-8")).hexdigest()[:12]
-print(f"/tmp/polaris-work-order-lock-{digest}.json")
+print(f"{lock_dir}/polaris-work-order-lock-{digest}.json")
 PY
 }
 
@@ -501,6 +507,10 @@ run_selftest() {
 
   tmpdir="$(mktemp -d -t resolve-task-md-selftest.XXXXXX)"
   trap "rm -rf '$tmpdir'" EXIT
+  # DP-294 T6 / AC8: keep any --write-lock invocation hermetic — direct the lock
+  # file into the selftest tmpdir so the trap above removes it, instead of leaking
+  # a /tmp/polaris-work-order-lock-*.json that pollutes the live session lock dir.
+  export POLARIS_WORK_ORDER_LOCK_DIR="$tmpdir"
   mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks/pr-release" "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks" "$tmpdir/docs-manager/src/content/docs/specs/EPIC-999" \
            "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks/pr-release" "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks" \
            "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/EPIC-999/tasks" \

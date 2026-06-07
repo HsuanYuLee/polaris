@@ -273,15 +273,50 @@ fi
 # must never silently fall back to a sibling schema.
 case "$task_kind" in
   T)
-    # DP-293 T3 / AC4: the Layer B verify-evidence skip contract must be end-to-end
-    # consistent producer<->consumer. The producer-side gates
-    # (verification-evidence-gate.sh, check-delivery-completion.sh Layer B,
-    # gates/gate-evidence.sh) all bypass the Layer B verify marker for non-ticket
-    # framework PRs when POLARIS_SKIP_EVIDENCE=1. This closeout consumer must honor
-    # the SAME flag; otherwise the producer legitimately skips the marker yet this
-    # gate hard-blocks (the Gap 3 producer-skip / consumer-require mutual exclusion).
-    if [[ "${POLARIS_SKIP_EVIDENCE:-}" == "1" ]]; then
-      echo "$PREFIX POLARIS_SKIP_EVIDENCE=1 — bypassing Layer B verify-evidence (non-ticket framework PR)." >&2
+    # DP-294 AC4+AC5: closeout consumer shares the SAME evidence-disposition rule
+    # as the D15 pre-push gate (scripts/gates/gate-evidence.sh) via the single
+    # classifier lib, and uses the engineering-owned completion_gate marker as the
+    # evidence source-of-truth for non-ticket framework T-tasks — neither path
+    # needs a manual POLARIS_SKIP_EVIDENCE bypass.
+    #
+    # Resolution order:
+    #   1. classifier: release_bump / metadata_only deliverable → exempt (AC4).
+    #   2. non-ticket framework T-task (work_item_id DP-NNN-Tn) → completion_gate
+    #      marker (status=PASS, head_sha-bound, evidence artifact present) is the
+    #      evidence SoT (AC5).
+    #   3. ticket-backed task → Layer B verify-evidence (unchanged).
+    #   4. POLARIS_SKIP_EVIDENCE=1 is still honored as a transitional backward-compat
+    #      bypass (DP-293 T3) — it is NOT a new bypass and is no longer required for
+    #      the AC4/AC5 paths above.
+    # AC4 disposition policy at closeout: the classifier RULE is shared with the
+    # D15 pre-push gate, but the consumer policy differs by context. A release_bump
+    # deliverable (VERSION+CHANGELOG only — the framework-release tail) is exempt
+    # here. A metadata_only deliverable is NOT blanket-exempted at closeout; it
+    # falls through to the AC5 completion_gate-marker SoT below, which keeps every
+    # delivered T-task auditable via a marker rather than silently skipping it.
+    EVIDENCE_CLASSIFIER="${SCRIPT_DIR}/lib/evidence-classifier.sh"
+    cls_disp=""
+    if [[ -x "$EVIDENCE_CLASSIFIER" ]]; then
+      cls_disp="$(bash "$EVIDENCE_CLASSIFIER" classify --repo "$REPO_ROOT" --head "$task_head_sha" 2>/dev/null || true)"
+    fi
+    if [[ "$cls_disp" == "release_bump" ]]; then
+      echo "$PREFIX release_bump deliverable — exempt from Layer B verify-evidence (DP-294 AC4 classifier; no manual skip)." >&2
+    elif [[ "${POLARIS_SKIP_EVIDENCE:-}" == "1" ]]; then
+      echo "$PREFIX POLARIS_SKIP_EVIDENCE=1 — bypassing Layer B verify-evidence (transitional backward-compat)." >&2
+    elif [[ "$TASK_ID" =~ ^DP-[0-9]+-[TV][0-9]+$ ]]; then
+      # AC5: non-ticket framework T-task → completion_gate marker is the evidence
+      # SoT. A valid marker satisfies the gate with no SKIP env. For backward
+      # compatibility a legitimate Layer B verify-evidence is still accepted as a
+      # fallback so existing delivery records do not regress.
+      if marker_path="$(bash "$EVIDENCE_CLASSIFIER" marker-pass --repo "$REPO_ROOT" --work-item-id "$TASK_ID" --head-sha "$task_head_sha" 2>/dev/null)"; then
+        echo "$PREFIX ✅ T-task completion gate satisfied via completion_gate marker: ${marker_path}" >&2
+      else
+        # No valid marker → fall back to the Layer B verify-evidence contract.
+        # check_verify_evidence emits its own block() (containing "verify evidence")
+        # on a missing/N-A path or returns 1 on a stale marker.
+        check_verify_evidence "$verify_evidence" \
+          || block "verify evidence is malformed or stale: $verify_evidence"
+      fi
     elif ! check_verify_evidence "$verify_evidence"; then
       block "verify evidence is malformed or stale: $verify_evidence"
     fi

@@ -137,5 +137,79 @@ rc=$?
 set -e
 assert_rc "$rc" "2" "short-form work_item_id without source-id fails"
 
+# ===========================================================================
+# DP-294 T1 / AC1: canonical delivery-branch resolution covers BOTH
+#   (a) per-task delivery  → task/{task_key}-* branch (legacy, tests 1-7), and
+#   (b) bundle delivery    → bundle_branch_alias declared in the task.md.
+# The bundle worktree is checked out on the bundle branch (NOT a task/ branch),
+# so legacy resolution returns NONE for bundle-delivered work items. The fix
+# reads the canonical bundle_branch_alias frontmatter (single source of truth,
+# same reader shape as gate-work-source.sh / framework-release-closeout.sh) and
+# matches the worktree on that exact branch.
+# ===========================================================================
+
+# Build a canonical specs container inside the fixture so the resolver can
+# locate the work item's task.md and read its bundle_branch_alias.
+SPECS_DP="$FIXTURE_REPO/docs-manager/src/content/docs/specs/design-plans/DP-294-bundle-fixture"
+mkdir -p "$SPECS_DP/tasks/V1" "$SPECS_DP/tasks/T9" "$SPECS_DP/tasks/T8"
+
+BUNDLE_ALIAS="bundle-DP-294-v9.9.9"
+
+# V1 + T9 are bundle-delivered: their task.md declares bundle_branch_alias.
+cat >"$SPECS_DP/tasks/V1/index.md" <<EOF
+---
+bundle_branch_alias: $BUNDLE_ALIAS
+title: "fixture V1"
+---
+# fixture
+EOF
+cat >"$SPECS_DP/tasks/T9/index.md" <<EOF
+---
+bundle_branch_alias: $BUNDLE_ALIAS
+title: "fixture T9"
+---
+# fixture
+EOF
+# T8 is per-task delivered: NO bundle_branch_alias → must use task/ pattern.
+cat >"$SPECS_DP/tasks/T8/index.md" <<EOF
+---
+title: "fixture T8 per-task"
+---
+# fixture
+EOF
+
+# --- Test 8: bundle alias declared but no bundle worktree yet → NONE ---
+out="$("$RESOLVER" --source-id DP-294 --work-item-id V1 --repo "$FIXTURE_REPO" 2>/dev/null)"
+assert_eq "$out" "NONE" "bundle alias declared but no bundle worktree -> NONE"
+
+# --- Set up the bundle worktree on the alias branch ---
+WT_BUNDLE="$FIXTURE_REPO/.worktrees/repo-aggregate-release-DP-294"
+git -C "$FIXTURE_REPO" worktree add -q -b "$BUNDLE_ALIAS" "$WT_BUNDLE" main
+
+# --- Test 9: bundle-delivered V task resolves to the bundle worktree (FOUND) ---
+out="$("$RESOLVER" --source-id DP-294 --work-item-id V1 --repo "$FIXTURE_REPO" 2>/dev/null)"
+assert_eq "$out" "$WT_BUNDLE" "bundle V1 resolves to bundle worktree"
+
+# --- Test 9b: a second bundle member (T9) resolves to the SAME bundle worktree ---
+out="$("$RESOLVER" --source-id DP-294 --work-item-id T9 --repo "$FIXTURE_REPO" 2>/dev/null)"
+assert_eq "$out" "$WT_BUNDLE" "bundle T9 resolves to same bundle worktree"
+
+# --- Test 9c: JSON shape for bundle FOUND ---
+out_json="$("$RESOLVER" --source-id DP-294 --work-item-id V1 --repo "$FIXTURE_REPO" --format json 2>/dev/null)"
+assert_eq "$out_json" "{\"status\":\"FOUND\",\"path\":\"$WT_BUNDLE\",\"task_key\":\"DP-294-V1\"}" "json bundle FOUND shape"
+
+# --- Test 10: per-task NOT regressed — T8 has no alias, so even with a bundle
+#             worktree present for the source, T8 uses the task/ pattern and
+#             returns NONE (no task/DP-294-T8-* worktree exists yet) ---
+out="$("$RESOLVER" --source-id DP-294 --work-item-id T8 --repo "$FIXTURE_REPO" 2>/dev/null)"
+assert_eq "$out" "NONE" "per-task T8 (no alias) ignores bundle worktree -> NONE"
+
+# --- Test 10b: per-task delivery resolves its own task/ worktree even when a
+#             sibling bundle worktree exists for the same source ---
+WT_T8="$FIXTURE_REPO/.worktrees/repo-engineering-DP-294-T8"
+git -C "$FIXTURE_REPO" worktree add -q -b task/DP-294-T8-impl "$WT_T8" main
+out="$("$RESOLVER" --source-id DP-294 --work-item-id T8 --repo "$FIXTURE_REPO" 2>/dev/null)"
+assert_eq "$out" "$WT_T8" "per-task T8 resolves task/ worktree alongside bundle"
+
 echo "[resolve-task-worktree-selftest] $PASS/$TOTAL passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]] && exit 0 || exit 1

@@ -63,10 +63,23 @@ write_placeholder_task() {
   local task_id="$2"
   local task_shape="$3"
   local hint="$4"
+  local title="${5:-}"
 
   local shape_fm=""
   if [[ -n "$task_shape" ]]; then
     shape_fm="task_shape: $task_shape"
+  fi
+
+  # DP-294 T7 / AC9: the summary line carries the real planned title so the
+  # existing validate-task-md.sh summary-language guard evaluates it. A title-less
+  # planned task falls back to a CJK summary, which keeps the guard a no-op (there
+  # is no asserted title to language-check). No second classifier lives here — the
+  # verdict comes from validate-task-md.sh via validate-breakdown-ready.sh.
+  local summary_line
+  if [[ -n "$title" ]]; then
+    summary_line="$title"
+  else
+    summary_line="LOCK 前置佔位"
   fi
 
   # Choose a placeholder Allowed Files / owning file per declared deliverable
@@ -97,7 +110,7 @@ verification:
 depends_on: []
 ---
 
-# ${task_id}: refinement LOCK preflight placeholder (1 pt)
+# ${task_id}: ${summary_line} (1 pt)
 
 > Source: DP-262 | Task: DP-262-${task_id} | JIRA: N/A | Repo: polaris-framework
 
@@ -198,6 +211,33 @@ run_preflight() {
   # shellcheck disable=SC2064
   trap "rm -rf '$tmpdir'" RETURN
 
+  # DP-294 T7 / AC9: synthesize a hermetic mini-workspace so validate-task-md.sh's
+  # summary-language guard activates against the placeholders. The guard walks up
+  # from each placeholder index.md for a workspace-config.yaml `language:`; without
+  # it the guard would silently skip and English-only planned titles would slip
+  # through LOCK. Mirror the LIVE workspace policy (not a hardcode) so a non-zh-TW
+  # source repo keeps its own contract under source parity. Reading the policy
+  # scalar is not a second language classifier — the CJK verdict stays in
+  # validate-task-md.sh.
+  # Source the live workspace language policy by walking up from the source
+  # container (same resolution semantics as validate-task-md), then copy only the
+  # `language:` line into the mini-workspace so validate-task-md reads the real
+  # policy value verbatim. No second parser, no other config fields that could
+  # perturb validate-breakdown-ready's directory scan. No config found -> nothing
+  # written -> guard skips (correct for a no-language workspace).
+  local probe live_config=""
+  probe="$(cd "$(dirname "$refinement_json")" && pwd)"
+  while [[ -n "$probe" && "$probe" != "/" ]]; do
+    if [[ -f "$probe/workspace-config.yaml" ]]; then
+      live_config="$probe/workspace-config.yaml"
+      break
+    fi
+    probe="$(dirname "$probe")"
+  done
+  if [[ -n "$live_config" ]]; then
+    grep -E '^[[:space:]]*language[[:space:]]*:' "$live_config" >"$tmpdir/workspace-config.yaml" 2>/dev/null || true
+  fi
+
   # Extract planned_tasks[] as <task_id><US><task_shape><US><hint> rows, where
   # <US> is the ASCII unit separator (\x1f). A non-whitespace separator is
   # required so `read` preserves an empty task_shape field (a missing field
@@ -228,11 +268,16 @@ for idx, entry in enumerate(planned):
     task_id = str(entry.get("task_id") or f"PT{idx + 1}").strip() or f"PT{idx + 1}"
     task_shape = str(entry.get("task_shape") or "").strip()
     hint = str(entry.get("tracked_deliverable_hint") or "tracked").strip() or "tracked"
+    # DP-294 T7 / AC9: carry the real planned title so the placeholder summary
+    # line triggers the validate-task-md summary-language guard per task. May be
+    # empty (pre-T7 refinement.json) when title-less tasks fall back to a CJK
+    # summary downstream so the guard stays a no-op (backward compat).
+    title = str(entry.get("title") or "").strip()
     # The unit separator / newline would corrupt the row contract; reject early.
-    if any("\x1f" in v or "\n" in v for v in (task_id, task_shape, hint)):
+    if any("\x1f" in v or "\n" in v for v in (task_id, task_shape, hint, title)):
         print(f"BADFIELD\t{idx}", file=sys.stderr)
         raise SystemExit(3)
-    print(f"{task_id}\x1f{task_shape}\x1f{hint}")
+    print(f"{task_id}\x1f{task_shape}\x1f{hint}\x1f{title}")
 PY
 )" || {
     echo "validate-refinement-lock-preflight: failed to parse planned_tasks[] in $refinement_json" >&2
@@ -245,11 +290,11 @@ PY
   fi
 
   local failures=()
-  local task_id task_shape hint placeholder_dir err
-  while IFS=$'\x1f' read -r task_id task_shape hint; do
+  local task_id task_shape hint title placeholder_dir err
+  while IFS=$'\x1f' read -r task_id task_shape hint title; do
     [[ -z "$task_id" ]] && continue
     placeholder_dir="$tmpdir/$task_id"
-    write_placeholder_task "$placeholder_dir" "$task_id" "$task_shape" "$hint"
+    write_placeholder_task "$placeholder_dir" "$task_id" "$task_shape" "$hint" "$title"
     err="$tmpdir/$task_id.err"
     if ! bash "$VALIDATE_BREAKDOWN_READY" "$placeholder_dir/index.md" >/dev/null 2>"$err"; then
       local detail

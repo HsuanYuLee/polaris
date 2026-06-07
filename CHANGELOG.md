@@ -4,6 +4,20 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.151] - 2026-06-07
+
+### Fixed — DP-294 framework deterministic-gate correctness follow-ups
+
+把 DP-293 release 全程實證的 7 個 framework deterministic-gate 缺口收斂成「單一共用標準規格」（canonical shared spec），而非增開容許／豁免規格；每個缺口的解法都是一條涵蓋既有與新情境的 canonical contract / single writer path / deterministic classifier。
+
+- **Theme 1 — 共用 delivery-branch worktree resolution**（DP-294-T1）：`resolve-task-worktree.sh` 把解析重新定義為「work-item 的 delivery branch worktree」，per-task task branch 與 bundle `bundle_branch_alias` 共用同一條 canonical 規則；bundle-delivered DP（含 V task）的 verify-AC dispatch 不再 false `blocked_by_missing_worktree`，per-task 解析行為不變。
+- **Theme 2 — amendment 同步 in-flight ledger refinement_hash**（DP-294-T2）：in-session breakdown amendment 經 amendment writer 單一 writer path re-anchor auto-pass ledger 的 `refinement_hash`，resume runner source gate 不再對 amend 後 fresh marker false-stale；runner 維持 reader，不加 stale-but-ok 分支。
+- **Theme 3 — 語言守則 selftest 斷言指向 SoT**（DP-294-T3）：`runtime-final-response-language-guard-selftest.sh` 斷言改指 runtime overlay 三檔（claude/codex/copilot），origin/main 不再長期假紅燈；closeout parity advisory 確認。
+- **Theme 4 — metadata-only/release-bump commit deterministic 分類**（DP-294-T4）：純 VERSION/CHANGELOG/release-metadata commit 與 non-ticket framework T-task 由共用 deterministic classifier / completion-gate marker 判定 evidence，D15 pre-push gate 與 closeout consumer（`check-local-extension-completion.sh`）共用同一規則，移除對 `POLARIS_SKIP_EVIDENCE` carve-out 的依賴。
+- **Theme 5 — refinement-inbox canonical producer**（DP-294-T5）：補 canonical producer token + 把 `write-producer-owned-artifact.sh` 納入 `evidence-producers.json` refinement-inbox writer_scripts，inbox emission 與其他 producer 同型（token-first lookup + atomic write + validator），amendment loop 可機械觸發。
+- **Theme 6 — selftest session-lock hermeticity**（DP-294-T6）：`resolve-task-md.sh` 內嵌 selftest 改用 hermetic lock 路徑 + trap 清理，不再洩漏 live session lock 誤擋正常 work-order 解析。
+- **Theme 7 — LOCK-preflight 任務標題語言守則**（DP-294-T7）：`validate-refinement-lock-preflight.sh` 合成 placeholder task.md 時帶入真實 `tasks[].title`，重用既有 `validate-task-md.sh` summary-language 判定（無第二套 classifier），English-only title 在 LOCK 即 fail-stop，不再逃逸到 breakdown。
+
 ## [3.75.150] - 2026-06-07
 
 ### Fixed — DP-293 framework deterministic release & closeout gate correctness

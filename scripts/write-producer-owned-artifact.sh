@@ -43,6 +43,7 @@
 #   - breakdown:initial-create → tasks/T*/index.md or tasks/V*/index.md create
 #   - refinement:design-doc    → refinement.json / refinement.md design doc write
 #   - refinement:primary-doc   → refinement-owned container index.md primary doc
+#   - refinement:inbox-record  → refinement-inbox/*.md amendment-request record
 
 set -euo pipefail
 
@@ -218,6 +219,13 @@ case "$MARKER_KINDS" in
     # bound to the container index.md owning globs + primary-doc content validator.
     artifact_kind="refinement_primary_doc"
     ;;
+  *refinement_inbox_record*)
+    # DP-294 T5 / AC6: refinement-inbox amendment-request record (token
+    # refinement:inbox-record). Same-shape producer write: token-first lookup +
+    # glob check + atomic rename, with the canonical inbox-record content gate
+    # (validate-refinement-inbox-record.sh) dispatched against the final path.
+    artifact_kind="refinement_inbox_record"
+    ;;
   *)
     artifact_kind="generic"
     ;;
@@ -243,7 +251,7 @@ mkdir -p "$target_dir"
 backup_file=""
 needs_final_path_validation=0
 case "$artifact_kind" in
-  task_md_initial_create|auto_pass_resume|auto_pass_ledger|auto_pass_report|verify_evidence_layout|refinement_design_doc|refinement_primary_doc)
+  task_md_initial_create|auto_pass_resume|auto_pass_ledger|auto_pass_report|verify_evidence_layout|refinement_design_doc|refinement_primary_doc|refinement_inbox_record)
     needs_final_path_validation=1
     ;;
 esac
@@ -373,6 +381,16 @@ case "$artifact_kind" in
       fi
     fi
     ;;
+  refinement_inbox_record)
+    # DP-294 T5 / AC6: canonical inbox-record content gate. Reuse the existing
+    # validate-refinement-inbox-record.sh (breakdown scope-escalation schema);
+    # no second validator. Inbox records are sidecars, not Starlight pages, so
+    # only this schema gate applies.
+    validator_cmd=("$WORKSPACE_ROOT/scripts/validate-refinement-inbox-record.sh" "$TARGET_PATH")
+    if [[ -x "${validator_cmd[0]}" ]]; then
+      "${validator_cmd[@]}" >&2 || validator_exit=$?
+    fi
+    ;;
 esac
 
 if [[ "$validator_exit" -ne 0 ]]; then
@@ -385,6 +403,59 @@ fi
 # Validator passed (or no validator dispatched); discard backup.
 if [[ -n "$backup_file" && -f "$backup_file" ]]; then
   rm -f "$backup_file"
+fi
+
+# DP-294 T2 / AC2: amendment-time ledger refinement_hash re-anchor.
+#
+# When an amendment mutates a source's refinement design doc (refinement.json)
+# AND the caller supplies the in-flight auto-pass --ledger-path, this writer —
+# as the SINGLE canonical writer path — re-anchors that ledger's
+# source.refinement_hash to the new canonical hash in the SAME action. The
+# auto-pass runner / source gate stays a strict reader (no stale-but-ok branch):
+# correctness is restored at write time, not synthesized at read time. The new
+# hash is computed by reusing validate-auto-pass-ledger.sh --print-refinement-hash
+# (canonical refinement_hash), never a second hash implementation here.
+if [[ "$artifact_kind" == "refinement_design_doc" \
+   && "$TARGET_PATH" == *refinement.json \
+   && -n "$LEDGER_PATH" ]]; then
+  if [[ ! -f "$LEDGER_PATH" ]]; then
+    echo "ERROR: --ledger-path provided for amendment re-anchor but file missing: $LEDGER_PATH" >&2
+    exit 2
+  fi
+  reanchor_container="$(dirname "$TARGET_PATH")"
+  reanchor_cmd=("$WORKSPACE_ROOT/scripts/validate-auto-pass-ledger.sh" "$LEDGER_PATH"
+                --source-container "$reanchor_container" --print-refinement-hash)
+  if [[ -n "$SOURCE_ID" ]]; then
+    reanchor_cmd+=(--source-id "$SOURCE_ID")
+  fi
+  # --print-refinement-hash prints the canonical hash to stdout even when the
+  # ledger is currently stale (the print happens before the stale-check append).
+  # Capture only the sha256: line; the validator's own exit status is expected to
+  # be non-zero here (stale), so don't let pipefail abort.
+  new_hash="$("${reanchor_cmd[@]}" 2>/dev/null | grep -E '^sha256:' | head -n1 || true)"
+  if [[ -z "$new_hash" ]]; then
+    echo "ERROR: failed to compute canonical refinement_hash for ledger re-anchor (ledger=$LEDGER_PATH container=$reanchor_container)" >&2
+    exit 2
+  fi
+  POLARIS_NEW_HASH="$new_hash" python3 - "$LEDGER_PATH" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+ledger = Path(sys.argv[1])
+new_hash = os.environ["POLARIS_NEW_HASH"]
+data = json.loads(ledger.read_text(encoding="utf-8"))
+src = data.get("source")
+if not isinstance(src, dict):
+    print("ERROR: ledger has no source object to re-anchor", file=sys.stderr)
+    sys.exit(2)
+src["refinement_hash"] = new_hash
+tmp = ledger.with_suffix(ledger.suffix + ".reanchor.tmp")
+tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+tmp.replace(ledger)
+PY
+  echo "[write-producer-owned-artifact] re-anchored ledger refinement_hash: $LEDGER_PATH -> $new_hash" >&2
 fi
 
 echo "[write-producer-owned-artifact] producer=$PRODUCER_TOKEN owning_skill=$OWNING_SKILL artifact_kind=$artifact_kind path=$TARGET_PATH" >&2

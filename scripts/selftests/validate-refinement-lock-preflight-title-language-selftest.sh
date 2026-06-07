@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# Purpose: DP-294 T7 / AC9 — assert validate-refinement-lock-preflight.sh carries
+#          each planned task's real title into the synthesized placeholder summary
+#          line, so the EXISTING validate-task-md.sh summary-language guard fires
+#          per task (reuse, no second classifier). An English-only title under the
+#          zh-TW workspace policy fail-stops (exit 2 +
+#          POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED); an all-zh-TW title PASSes.
+# Inputs:  none (hermetic tmp refinement.json fixtures).
+# Outputs: PASS/FAIL lines; exit 0 (all pass) / 1 (any fail).
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PREFLIGHT="$ROOT/scripts/validate-refinement-lock-preflight.sh"
+BREAKDOWN_READY="$ROOT/scripts/validate-breakdown-ready.sh"
+[[ -x "$PREFLIGHT" ]] || { echo "FAIL: missing/not executable: $PREFLIGHT" >&2; exit 1; }
+
+TMP="$(mktemp -d -t lock-preflight-title-lang-XXXX)"
+trap 'rm -rf "$TMP"' EXIT
+
+# Mini-workspace under zh-TW policy: the preflight walks up from the refinement.json
+# directory to source the live language, so the fixtures must sit under this config.
+printf 'language: zh-TW\n' >"$TMP/workspace-config.yaml"
+
+PASS=0; FAIL=0
+ok()  { PASS=$((PASS+1)); }
+bad() { FAIL=$((FAIL+1)); echo "FAIL: $1" >&2; }
+
+# --- Case 1: English-only title under zh-TW policy -> exit 2 fail-stop ----------
+cat >"$TMP/english.json" <<'JSON'
+{
+  "source": { "type": "dp", "id": "DP-294" },
+  "planned_tasks": [
+    { "task_id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked",
+      "title": "Add deterministic gate coverage for the evidence classifier helper" }
+  ]
+}
+JSON
+set +e
+out_en="$(bash "$PREFLIGHT" "$TMP/english.json" 2>&1)"; rc_en=$?
+set -e
+[[ "$rc_en" -eq 2 ]] && ok || bad "English-only title should fail-stop with exit 2 (got $rc_en)"
+printf '%s' "$out_en" | grep -q 'POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED' \
+  && ok || bad "English-only title failure should emit POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED"
+
+# --- Case 2: all zh-TW title -> PASS ------------------------------------------
+cat >"$TMP/zhtw.json" <<'JSON'
+{
+  "source": { "type": "dp", "id": "DP-294" },
+  "planned_tasks": [
+    { "task_id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked",
+      "title": "新增 evidence classifier 的確定性 gate 覆蓋與驗證" }
+  ]
+}
+JSON
+set +e
+out_zh="$(bash "$PREFLIGHT" "$TMP/zhtw.json" 2>&1)"; rc_zh=$?
+set -e
+[[ "$rc_zh" -eq 0 ]] && ok || bad "all-zh-TW title should PASS exit 0 (got $rc_zh): $out_zh"
+
+# --- Case 3: backward-compat — title-less planned tasks still PASS -------------
+cat >"$TMP/notitle.json" <<'JSON'
+{
+  "source": { "type": "dp", "id": "DP-294" },
+  "planned_tasks": [
+    { "task_id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked" }
+  ]
+}
+JSON
+set +e
+out_nt="$(bash "$PREFLIGHT" "$TMP/notitle.json" 2>&1)"; rc_nt=$?
+set -e
+[[ "$rc_nt" -eq 0 ]] && ok || bad "title-less planned task should PASS exit 0 (got $rc_nt): $out_nt"
+
+# --- Case 4: reuse, no second classifier --------------------------------------
+# The preflight must NOT carry its own language/CJK classifier; the language
+# verdict comes from validate-task-md.sh via validate-breakdown-ready.sh.
+if grep -qE 'u3400|u4e00|u9fff|uf900' "$PREFLIGHT"; then
+  bad "preflight must not embed a second CJK/language classifier regex"
+else
+  ok
+fi
+if grep -q 'English prose' "$PREFLIGHT"; then
+  bad "preflight must not duplicate the validate-task-md language message (no second classifier)"
+else
+  ok
+fi
+grep -q 'validate-breakdown-ready.sh' "$PREFLIGHT" \
+  && ok || bad "preflight should delegate to validate-breakdown-ready.sh (reuse chain)"
+grep -q 'validate-task-md' "$BREAKDOWN_READY" \
+  && ok || bad "validate-breakdown-ready.sh should run validate-task-md.sh (summary-language source)"
+
+echo "[validate-refinement-lock-preflight-title-language-selftest] $PASS passed, $FAIL failed"
+[[ "$FAIL" -eq 0 ]] && exit 0 || exit 1

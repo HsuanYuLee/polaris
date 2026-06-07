@@ -196,6 +196,27 @@ if [[ -d "$REPO_ROOT/.git" || -f "$REPO_ROOT/.git" ]]; then
   HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 fi
 
+# DP-294 AC4: metadata-only / release-bump deltas are exempt from head_sha-bound
+# verification evidence via the shared deterministic classifier — no manual
+# POLARIS_SKIP_EVIDENCE needed. Behavioral deltas fall through and stay
+# fail-closed below. This is the SAME rule the closeout consumer
+# (check-local-extension-completion.sh) applies, sourced from one classifier lib.
+EVIDENCE_CLASSIFIER="${ROOT_SCRIPT_DIR}/lib/evidence-classifier.sh"
+if [[ -n "$HEAD_SHA" && -x "$EVIDENCE_CLASSIFIER" ]]; then
+  cls_base="$(git -C "$REPO_ROOT" merge-base origin/main HEAD 2>/dev/null || true)"
+  if [[ -n "$cls_base" && "$cls_base" != "$HEAD_SHA" ]]; then
+    cls_disp="$(bash "$EVIDENCE_CLASSIFIER" classify --repo "$REPO_ROOT" --range "${cls_base}..${HEAD_SHA}" 2>/dev/null || true)"
+  else
+    cls_disp="$(bash "$EVIDENCE_CLASSIFIER" classify --repo "$REPO_ROOT" --head "$HEAD_SHA" 2>/dev/null || true)"
+  fi
+  case "$cls_disp" in
+    release_bump|metadata_only)
+      echo "$PREFIX ${cls_disp} delta — exempt from head_sha-bound evidence (DP-294 AC4 classifier; no manual skip)." >&2
+      exit 0
+      ;;
+  esac
+fi
+
 evidence_root="$(verification_evidence_root_for_repo "$REPO_ROOT" 2>/dev/null || true)"
 if [[ "$BEHAVIOR_ONLY" != "1" ]]; then
   if [[ -z "$TASK_MD" ]]; then
