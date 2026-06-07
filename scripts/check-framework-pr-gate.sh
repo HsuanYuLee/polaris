@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Purpose: aggregate blocking framework PR gate — runs each validator (W1..W11) and
+#          fails closed if any one fails. W11 (DP-293 T1) is the runtime-instruction
+#          parity step: compile-runtime-instructions --check + mechanism-parity --strict.
+# Inputs:  env BIN overrides (POLARIS_*_BIN) for each gate; POLARIS_FRAMEWORK_PR_BODY/BASE.
+# Outputs: stdout "PASS: framework PR gate"; non-zero exit + "framework-pr-gate failed: …".
 set -euo pipefail
 
 VALIDATE_RUNTIME="${POLARIS_VALIDATE_RUNTIME_BIN:-scripts/validate-mechanism-runtime-annotations.sh}"
@@ -11,6 +16,11 @@ LINT_BASH_VAR_UTF8_BOUNDARY="${POLARIS_LINT_BASH_VAR_UTF8_BOUNDARY_BIN:-scripts/
 VALIDATE_MISE_DEPENDENCY="${POLARIS_VALIDATE_MISE_DEPENDENCY_BIN:-scripts/validate-mise-dependency-change.sh}"
 VALIDATE_SCRIPT_HEADER="${POLARIS_VALIDATE_SCRIPT_HEADER_BIN:-scripts/validate-script-header-comment.sh}"
 VALIDATE_SCRIPT_CATEGORIZATION="${POLARIS_VALIDATE_SCRIPT_CATEGORIZATION_BIN:-scripts/validate-script-categorization.sh}"
+# W11 (DP-293 T1): runtime-instruction parity. compile --check catches drifted
+# generated targets (CLAUDE.md / AGENTS.md / .codex / copilot) before merge;
+# mechanism-parity --strict catches cross-runtime skill/mechanism divergence.
+COMPILE_RUNTIME_INSTRUCTIONS="${POLARIS_COMPILE_RUNTIME_INSTRUCTIONS_BIN:-scripts/compile-runtime-instructions.sh}"
+MECHANISM_PARITY="${POLARIS_MECHANISM_PARITY_BIN:-scripts/mechanism-parity.sh}"
 
 run_gate() {
   local label="$1"
@@ -61,5 +71,9 @@ fi
 if [[ -f "$VALIDATE_SCRIPT_CATEGORIZATION" ]]; then
   run_gate "W10 script categorization" "$VALIDATE_SCRIPT_CATEGORIZATION" --mode diff --base HEAD
 fi
+# W11: runtime-instruction parity (DP-293 T1 / AC1). Blocking — a drifted generated
+# target or cross-runtime divergence must fail the PR gate, not slip to post-merge.
+run_gate "W11 runtime-instruction parity (compile --check)" "$COMPILE_RUNTIME_INSTRUCTIONS" --check
+run_gate "W11 runtime-instruction parity (mechanism-parity --strict)" "$MECHANISM_PARITY" --strict
 
 echo "PASS: framework PR gate"

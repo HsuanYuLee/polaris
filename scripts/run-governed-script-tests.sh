@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Purpose: run the governed script-test suite (scripts/manifest.json) selected by
+#          --profile and/or changed files. With --head-ref, the suite runs against
+#          a PR-head isolated worktree (POLARIS_GOVERNED_TEST_ROOT) so compile/parity
+#          --check-class selftests validate the PR head tree, not the lane checkout.
+# Inputs:  --root <repo> --manifest <path> --profile <name> --changed-file <path>...
+#          --base <ref> --head-ref <ref> --dry-run
+# Outputs: stdout selection/run log; exit 0 PASS, 2 arg error, non-zero on test fail.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -48,6 +55,27 @@ if [[ -n "$BASE_REF" || -n "$HEAD_REF" ]]; then
   while IFS= read -r changed; do
     [[ -n "$changed" ]] && CHANGED_FILES+=("$changed")
   done < <(git -C "$ROOT_DIR" diff --name-only "${BASE_REF}...${HEAD_REF}")
+fi
+
+# DP-293 T1: when a PR head ref is given, materialise it in an isolated worktree and
+# point compile/parity --check-class selftests at it via POLARIS_GOVERNED_TEST_ROOT.
+# Without this, those selftests resolve ROOT from their own BASH_SOURCE (the lane
+# checkout = main) and a clean PR head gets false-blocked by pre-existing main drift.
+ISOLATED_HEAD_TREE=""
+cleanup_isolated_head_tree() {
+  if [[ -n "$ISOLATED_HEAD_TREE" && -d "$ISOLATED_HEAD_TREE" ]]; then
+    git -C "$ROOT_DIR" worktree remove --force "$ISOLATED_HEAD_TREE" >/dev/null 2>&1 || true
+    rm -rf "$ISOLATED_HEAD_TREE" 2>/dev/null || true
+  fi
+}
+if [[ -n "$HEAD_REF" ]]; then
+  ISOLATED_HEAD_TREE="$(mktemp -d -t polaris-governed-head.XXXXXX)"
+  trap cleanup_isolated_head_tree EXIT
+  if ! git -C "$ROOT_DIR" worktree add --detach --force "$ISOLATED_HEAD_TREE" "$HEAD_REF" >/dev/null 2>&1; then
+    echo "run-governed-script-tests: failed to checkout head ref '$HEAD_REF' into isolated worktree" >&2
+    exit 2
+  fi
+  export POLARIS_GOVERNED_TEST_ROOT="$ISOLATED_HEAD_TREE"
 fi
 
 python_args=("$MANIFEST_PATH" "$PROFILE")

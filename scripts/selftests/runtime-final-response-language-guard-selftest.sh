@@ -15,7 +15,13 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DP-293 T1: honor POLARIS_GOVERNED_TEST_ROOT so the release lane can point this
+# selftest at a PR-head isolated worktree instead of its own (main) checkout.
+if [[ -n "${POLARIS_GOVERNED_TEST_ROOT:-}" ]]; then
+  ROOT="$(cd "$POLARIS_GOVERNED_TEST_ROOT" && pwd)"
+else
+  ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
 
 fail() {
   echo "FAIL: $*" >&2

@@ -14,7 +14,13 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# DP-293 T1: honor POLARIS_GOVERNED_TEST_ROOT so the release lane can run --check
+# against a PR-head isolated worktree instead of this selftest's own (main) checkout.
+if [[ -n "${POLARIS_GOVERNED_TEST_ROOT:-}" ]]; then
+  ROOT="$(cd "$POLARIS_GOVERNED_TEST_ROOT" && pwd)"
+else
+  ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+fi
 COMPILER="$ROOT/scripts/compile-runtime-instructions.sh"
 
 [[ -f "$COMPILER" ]] || { echo "FAIL: compiler not found: $COMPILER" >&2; exit 1; }

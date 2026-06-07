@@ -4,6 +4,22 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.150] - 2026-06-07
+
+### Fixed — DP-293 framework deterministic release & closeout gate correctness
+
+修正 DP-290 release 過程實證踩到的三類 framework deterministic-gate 正確性缺陷，讓 self-iteration 不再被自身壞 gate 擋住，也不讓 generated-artifact drift 與 incomplete delivery 漏過 gate。
+
+- **Theme A — runtime-instruction parity 對 PR head tree 生效**（DP-293-T1）：`run-governed-script-tests.sh` release profile 把 `--head-ref` checkout 到隔離 tree，讓 `compile --check` 類 selftest 跑在 PR head 而非 selftest 自身 main checkout；移除 3 支 selftest 寫死的 BASH_SOURCE ROOT；`check-framework-pr-gate.sh` 新增 blocking W11 parity step（`compile-runtime-instructions --check` + `mechanism-parity --strict`）。
+- **Theme B — closeout loop soft-block 容錯**（DP-293-T2）：`framework-release-closeout.sh` per-task loop 對 `close-parent-spec-if-complete.sh` rc==2（active verification tasks remain 類 intentional block）改為 soft-block continue 並 log parent + reason，非 2 exit 仍 fail loud；含 implementation + verification 的 bundle 可單次 invocation 收尾。
+- **Theme C — verify-evidence skip 契約端到端對齊**（DP-293-T3）：`check-local-extension-completion.sh` consumer 端與 engineering producer 端對 `POLARIS_SKIP_EVIDENCE` skip 契約一致，消除 producer 跳過、consumer 硬要的互斥。
+- **Theme D — refinement research producer**（DP-293-T4）：`scripts/lib/evidence-producers.json` 新增 refinement-owned research producer entry（glob `artifacts/research/*.md`）+ token `refinement:research-snapshot`，與 learning research 同型且 token 唯一。
+- 4 支新 hermetic selftest（release-lane-head-ref-parity / framework-release-closeout-mixed-task-bundle / local-extension-verify-evidence-contract / refinement-research-producer）覆蓋 AC1-AC6 + AC-NEG1/2。
+
+### Verified
+
+DP-293-V1 verify-AC：9/9 PASS（AC1-AC6 + AC-NEG1/2/3）@ bundle head efd35ff，全於 PR head tree 重跑。Pre-existing Gap G（runtime-final-response-language-guard-selftest）為 origin/main 既有 FAIL、非 release governed suite、與 DP-293 無關，未計入。
+
 ## [3.75.149] - 2026-06-06
 
 ### Added — DP-290 deterministic cross-session handoff via SessionStart anchor hook

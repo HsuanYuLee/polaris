@@ -736,6 +736,29 @@ for i in "${!TASK_MDS[@]}"; do
   TASK_NO_BRANCH_FLAGS+=("0")
 done
 
+# DP-293 T2: close-parent-spec-if-complete.sh exits 2 as an *intentional* block when
+# the parent spec still has active sibling tasks (e.g. a pending verification task).
+# In a mixed bundle (T1..Tn + V) processed in one loop under `set -euo pipefail`,
+# every implementation task before the V task legitimately triggers this block, which
+# previously killed the whole closeout before the V task was reached. Treat rc==2 as a
+# soft-block (log parent + reason, continue the loop); any other non-zero exit is a
+# real failure and must still fail loud (AC3 / AC-NEG2).
+run_close_parent() {
+  local label="$1"; shift
+  local rc=0
+  bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" "$@" || rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    2)
+      info "parent closeout soft-block for ${label} (close-parent rc=2: active sibling/verification tasks remain); continuing"
+      return 0
+      ;;
+    *)
+      die "close-parent-spec-if-complete.sh failed (rc=${rc}) for ${label}"
+      ;;
+  esac
+}
+
 for i in "${!ABS_TASK_MDS[@]}"; do
   task_md="${ABS_TASK_MDS[$i]}"
   task_id="${TASK_IDS[$i]}"
@@ -794,7 +817,7 @@ for i in "${!ABS_TASK_MDS[@]}"; do
         if [[ "$i" -eq $((${#ABS_TASK_MDS[@]} - 1)) ]]; then
           close_parent_args+=(--archive-terminal-parent)
         fi
-        bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" "${close_parent_args[@]}"
+        run_close_parent "$task_id" "${close_parent_args[@]}"
         ;;
     esac
 
@@ -911,7 +934,7 @@ PY
       if [[ "$i" -eq $((${#ABS_TASK_MDS[@]} - 1)) ]]; then
         close_parent_args+=(--archive-terminal-parent)
       fi
-      bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh" "${close_parent_args[@]}"
+      run_close_parent "$task_id" "${close_parent_args[@]}"
       ;;
   esac
 

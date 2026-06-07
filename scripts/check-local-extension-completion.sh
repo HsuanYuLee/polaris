@@ -273,7 +273,16 @@ fi
 # must never silently fall back to a sibling schema.
 case "$task_kind" in
   T)
-    if ! check_verify_evidence "$verify_evidence"; then
+    # DP-293 T3 / AC4: the Layer B verify-evidence skip contract must be end-to-end
+    # consistent producer<->consumer. The producer-side gates
+    # (verification-evidence-gate.sh, check-delivery-completion.sh Layer B,
+    # gates/gate-evidence.sh) all bypass the Layer B verify marker for non-ticket
+    # framework PRs when POLARIS_SKIP_EVIDENCE=1. This closeout consumer must honor
+    # the SAME flag; otherwise the producer legitimately skips the marker yet this
+    # gate hard-blocks (the Gap 3 producer-skip / consumer-require mutual exclusion).
+    if [[ "${POLARIS_SKIP_EVIDENCE:-}" == "1" ]]; then
+      echo "$PREFIX POLARIS_SKIP_EVIDENCE=1 — bypassing Layer B verify-evidence (non-ticket framework PR)." >&2
+    elif ! check_verify_evidence "$verify_evidence"; then
       block "verify evidence is malformed or stale: $verify_evidence"
     fi
     ;;
