@@ -30,6 +30,17 @@ ANCHOR_FILE="$PROJECT_DIR/.claude/active-thread.md"
 
 echo "=== active-thread anchor (DP-290 cross-session handoff) ==="
 if [ -f "$ANCHOR_FILE" ]; then
+  # DP-300 T3: the anchor may now carry multiple keyed thread sections
+  # (<!-- thread:KEY --> ... <!-- /thread:KEY -->). When more than one active
+  # thread is parked, surface ALL of them — list every key up front so the
+  # session-start context shows every parked 「下一步」, not just the first.
+  THREAD_KEYS="$(grep -oE '^<!-- thread:[^ ]+ -->$' "$ANCHOR_FILE" 2>/dev/null \
+    | sed -E 's/^<!-- thread:(.+) -->$/\1/' || true)"
+  if [ -n "$THREAD_KEYS" ]; then
+    THREAD_COUNT="$(printf '%s\n' "$THREAD_KEYS" | grep -c . || true)"
+    echo "active threads ($THREAD_COUNT) — resume each 下一步 below:"
+    printf '%s\n' "$THREAD_KEYS" | sed 's/^/  - thread: /'
+  fi
   cat "$ANCHOR_FILE" 2>/dev/null || echo "[session-start-thread-anchor] fail-open: anchor unreadable; skipping."
 else
   echo "[session-start-thread-anchor] fail-open: no active-thread anchor yet (run scripts/update-active-thread.sh to set the「下一步」handoff)."

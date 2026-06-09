@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.155] - 2026-06-09
+
+### Added — DP-300 session mid-task resume：active-thread anchor 從單 thread advisory 升 multi-thread fail-closed 機制
+
+把跨-session resume 的 active-thread anchor 從「單 thread + advisory 提醒」缺口，收斂成 multi-thread fail-closed 機制：parked work 未刷新 anchor 即 block stop，且 anchor 可並存多條 thread 全列。
+
+- **grounded 診斷落地 + registry 標註**（DP-300-T1）：DP 文件寫入 grounded 診斷（canonical path 命名 DP-290 active-thread 三件套、writer advisory-only 無 trigger / single-thread overwrite 兩根因、機制 vs path-flaw 判定）；`mechanism-registry.md` 新增 `active-thread-writer-trigger-gap` / `active-thread-single-thread-overwrite` 兩 canary，deterministic target 指向 T2/T3 selftest。
+- **Stop gate 升 fail-closed**（DP-300-T2）：`stop-active-thread-reminder.sh` 從 advisory 升為 fail-closed Stop gate——偵測 incomplete work（TodoWrite in_progress 或 fallback：未 closeout boundary baseline）+ 本 session 未刷新 anchor → block stop + 提示刷新；明確 bypass / 無 parked work → exit 0。新增 selftest 涵蓋 block / 不擋 / bypass / false-positive 四態。
+- **multi-thread anchor upsert + 全列 reader**（DP-300-T3）：`update-active-thread.sh` 改 per-thread-key upsert（寫第二條不 clobber 第一條、同 key idempotent、`--done`/`--remove`）；`session-start-thread-anchor.sh` reader 注入所有 active thread 下一步。既有單 thread selftest 回歸全綠。
+
 ## [3.75.154] - 2026-06-09
 
 ### Added — DP-299 prose-vs-gate 行為原則准入標準 + review-inbox discovery fail-closed probe

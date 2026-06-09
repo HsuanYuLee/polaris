@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Purpose: Hermetic selftest for scripts/update-active-thread.sh (DP-290 T1).
-#          Covers AC2 (overwrite, no append residue, byte-idempotent for identical
-#          input) and AC3 (>10k input truncates tail, preserves「下一步」head, emits
-#          truncation notice, total length <= 10000).
+# Purpose: Hermetic selftest for scripts/update-active-thread.sh.
+#          DP-290 coverage: AC2 (overwrite, no append residue, byte-idempotent for
+#          identical input) and AC3 (>10k input truncates tail, preserves「下一步」
+#          head, emits truncation notice, total length <= 10000).
+#          DP-300 T3 coverage: AC4 per-thread-key upsert — writing a second thread
+#          key does NOT clobber the first; rewriting the same key with identical
+#          content is byte-idempotent; --done / --remove drops a key's section;
+#          and the legacy keyless single-thread path stays byte-identical (regression).
 # Inputs:  None (builds its own tmp git repo as CLAUDE_PROJECT_DIR).
 # Outputs: Prints PASS on success; exits non-zero with FAIL on any assertion failure.
 
@@ -82,4 +86,83 @@ if grep -q 'TAILFILLER-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-240' "$ANCHO
   fail "AC3: tail filler末段 should have been truncated"
 fi
 
-echo "PASS: update-active-thread selftest (AC2 overwrite/idempotent, AC3 10k truncation)"
+# ============================================================================
+# DP-300 T3 — per-thread-key upsert (AC4) + legacy regression
+# ============================================================================
+# Use a fresh project so DP-290 fixtures above don't bleed into the multi-thread
+# assertions.
+MT="$TMP/multithread"
+mkdir -p "$MT"
+git -C "$MT" init -q
+git -C "$MT" config user.email test@example.com
+git -C "$MT" config user.name "Multithread Test"
+MT_ANCHOR="$MT/.claude/active-thread.md"
+export CLAUDE_PROJECT_DIR="$MT"
+
+# ---- AC4: write key A, then key B — both coexist (no clobber) ----
+A_BODY=$'# 下一步: DP-298\n\nResume /auto-pass DP-298 verify-AC next.'
+B_BODY=$'# 下一步: review-inbox\n\nFinish review-inbox thread parking.'
+
+bash "$WRITER" --key DP-298 --content "$A_BODY" >/dev/null
+[[ -f "$MT_ANCHOR" ]] || fail "AC4: anchor not created on first keyed write"
+grep -q '<!-- thread:DP-298 -->' "$MT_ANCHOR" || fail "AC4: key A section marker missing"
+grep -q 'Resume /auto-pass DP-298' "$MT_ANCHOR" || fail "AC4: key A body missing"
+
+bash "$WRITER" --key review-inbox --content "$B_BODY" >/dev/null
+# After the second write, BOTH threads must be present (no clobber).
+grep -q '<!-- thread:DP-298 -->' "$MT_ANCHOR" || fail "AC4: key A was clobbered by key B write"
+grep -q 'Resume /auto-pass DP-298' "$MT_ANCHOR" || fail "AC4: key A body lost after key B write"
+grep -q '<!-- thread:review-inbox -->' "$MT_ANCHOR" || fail "AC4: key B section marker missing"
+grep -q 'Finish review-inbox thread parking' "$MT_ANCHOR" || fail "AC4: key B body missing"
+
+# ---- AC4: idempotency — rewrite key A with identical content => file unchanged ----
+HASH_BEFORE="$(shasum "$MT_ANCHOR" | awk '{print $1}')"
+bash "$WRITER" --key DP-298 --content "$A_BODY" >/dev/null
+HASH_AFTER="$(shasum "$MT_ANCHOR" | awk '{print $1}')"
+[[ "$HASH_BEFORE" == "$HASH_AFTER" ]] \
+  || fail "AC4: rewriting key DP-298 with identical content changed the file (not idempotent)"
+# Both threads still present after the idempotent rewrite.
+grep -q '<!-- thread:review-inbox -->' "$MT_ANCHOR" || fail "AC4: key B lost after idempotent key A rewrite"
+
+# ---- AC4: same-key rewrite with NEW content updates only that section ----
+A_BODY2=$'# 下一步: DP-298\n\nDP-298 moved to engineering — resume there.'
+bash "$WRITER" --key DP-298 --content "$A_BODY2" >/dev/null
+grep -q 'moved to engineering' "$MT_ANCHOR" || fail "AC4: key A update did not take effect"
+if grep -q 'Resume /auto-pass DP-298 verify-AC next' "$MT_ANCHOR"; then
+  fail "AC4: old key A body survived an update (upsert should replace the section body)"
+fi
+grep -q 'Finish review-inbox thread parking' "$MT_ANCHOR" || fail "AC4: key B clobbered by key A update"
+
+# ---- AC4: --done removes a key's section, leaving others ----
+bash "$WRITER" --key DP-298 --done >/dev/null
+if grep -q '<!-- thread:DP-298 -->' "$MT_ANCHOR"; then
+  fail "AC4: --done did not remove key DP-298 section"
+fi
+grep -q '<!-- thread:review-inbox -->' "$MT_ANCHOR" || fail "AC4: --done dropped an unrelated key (review-inbox)"
+
+# ---- AC4: --remove is an alias of --done ----
+bash "$WRITER" --key review-inbox --remove >/dev/null
+if grep -q '<!-- thread:review-inbox -->' "$MT_ANCHOR"; then
+  fail "AC4: --remove did not remove key review-inbox section"
+fi
+
+# ---- AC4 regression: legacy keyless path stays flat (no delimiters) ----
+LEG="$TMP/legacy"
+mkdir -p "$LEG"
+git -C "$LEG" init -q
+git -C "$LEG" config user.email test@example.com
+git -C "$LEG" config user.name "Legacy Test"
+LEG_ANCHOR="$LEG/.claude/active-thread.md"
+CLAUDE_PROJECT_DIR="$LEG" bash "$WRITER" --content $'# 下一步\n\nlegacy single thread' >/dev/null
+if grep -q '<!-- thread:' "$LEG_ANCHOR"; then
+  fail "AC4 regression: keyless write introduced thread delimiters (legacy must stay flat)"
+fi
+LEG_EXPECTED="$TMP/legacy_expected.md"
+printf '%s\n\n%s\n' "last-updated: $POLARIS_ACTIVE_THREAD_STAMP" $'# 下一步\n\nlegacy single thread' >"$LEG_EXPECTED"
+if ! diff -q "$LEG_EXPECTED" "$LEG_ANCHOR" >/dev/null; then
+  echo "--- expected ---" >&2; cat "$LEG_EXPECTED" >&2
+  echo "--- actual ---" >&2; cat "$LEG_ANCHOR" >&2
+  fail "AC4 regression: legacy keyless anchor is not byte-identical to pre-DP-300 flat form"
+fi
+
+echo "PASS: update-active-thread selftest (AC2 overwrite/idempotent, AC3 10k truncation, AC4 multi-thread upsert/done + legacy regression)"

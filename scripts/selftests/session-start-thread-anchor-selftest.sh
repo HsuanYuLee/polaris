@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# Purpose: Hermetic selftest for .claude/hooks/session-start-thread-anchor.sh (DP-290 T2).
-#          Covers AC1 (anchor + 「下一步」injected on startup), AC4 (missing anchor =>
-#          exit 0 + fail-open notice), AC5 (settings.json hooks.SessionStart matcher
-#          startup points at an existing executable hook), AC6 (hook body uses only
-#          cat + git, no curl/wget/build), AC-NEG1 (no PATH=/env dumps in stdout),
+# Purpose: Hermetic selftest for .claude/hooks/session-start-thread-anchor.sh.
+#          DP-290 coverage: AC1 (anchor + 「下一步」injected on startup), AC4 (missing
+#          anchor => exit 0 + fail-open notice), AC5 (settings.json hooks.SessionStart
+#          matcher startup points at an existing executable hook), AC6 (hook body uses
+#          only cat + git, no curl/wget/build), AC-NEG1 (no PATH=/env dumps in stdout),
 #          AC-NEG2 (each error branch — non-git dir, failing git status, missing anchor —
 #          exits 0).
+#          DP-300 T3 coverage: DP-300 AC5 — when the anchor carries more than one keyed
+#          thread section, SessionStart surfaces ALL active threads' 下一步, not only the
+#          first (multi-thread 全列). Single-thread legacy injection stays green (regression).
 # Inputs:  None (builds its own tmp git repos as CLAUDE_PROJECT_DIR).
 # Outputs: Prints PASS on success; exits non-zero with FAIL on any assertion failure.
 
@@ -114,4 +117,37 @@ RESOLVED="$ROOT/$HOOK_REL"
 [ -f "$RESOLVED" ] || fail "AC5: registered hook path does not exist: $RESOLVED"
 [ -x "$RESOLVED" ] || fail "AC5: registered hook is not executable: $RESOLVED"
 
-echo "PASS: session-start-thread-anchor selftest (AC1/AC4/AC5/AC6/AC-NEG1/AC-NEG2)"
+# ============================================================================
+# DP-300 T3 — multi-thread reader 全列 (DP-300 AC5)
+# ============================================================================
+# Park two threads under distinct keys, then assert SessionStart surfaces BOTH
+# threads' 下一步 (not only the first).
+MT="$TMP/multithread"
+mkdir -p "$MT"
+git -C "$MT" init -q
+git -C "$MT" config user.email test@example.com
+git -C "$MT" config user.name "Multithread Reader Test"
+git -C "$MT" commit -q --allow-empty -m base
+
+POLARIS_ACTIVE_THREAD_STAMP="2026-06-09T00:00:00Z" CLAUDE_PROJECT_DIR="$MT" \
+  bash "$WRITER" --key DP-298 --content $'# 下一步: DP-298\n\nResume /auto-pass DP-298 verify-AC.' >/dev/null
+POLARIS_ACTIVE_THREAD_STAMP="2026-06-09T00:00:00Z" CLAUDE_PROJECT_DIR="$MT" \
+  bash "$WRITER" --key review-inbox --content $'# 下一步: review-inbox\n\nFinish review-inbox parking.' >/dev/null
+
+OUT_MT="$TMP/out_mt.txt"
+printf '{"hook_event_name":"SessionStart","matcher":"startup"}' \
+  | CLAUDE_PROJECT_DIR="$MT" bash "$HOOK" >"$OUT_MT" 2>&1
+rc=$?
+[ "$rc" -eq 0 ] || fail "DP-300 AC5: multi-thread hook did not exit 0 (rc=$rc)"
+
+# Both threads' next-step bodies must be present in the injected output.
+grep -q 'Resume /auto-pass DP-298' "$OUT_MT" \
+  || fail "DP-300 AC5: first thread (DP-298) 下一步 missing from SessionStart output"
+grep -q 'Finish review-inbox parking' "$OUT_MT" \
+  || fail "DP-300 AC5: second thread (review-inbox) 下一步 missing — reader only listed the first"
+
+# Both thread keys must be enumerated up-front (全列 summary).
+grep -q 'DP-298' "$OUT_MT" || fail "DP-300 AC5: key DP-298 not enumerated in active-thread summary"
+grep -q 'review-inbox' "$OUT_MT" || fail "DP-300 AC5: key review-inbox not enumerated in active-thread summary"
+
+echo "PASS: session-start-thread-anchor selftest (DP-290 AC1/AC4/AC5/AC6/AC-NEG1/AC-NEG2 + DP-300 AC5 multi-thread 全列)"
