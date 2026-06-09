@@ -4,6 +4,16 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.154] - 2026-06-09
+
+### Added — DP-299 prose-vs-gate 行為原則准入標準 + review-inbox discovery fail-closed probe
+
+把「該不該再寫一條 prose 提醒」收斂成一條明文准入標準，並用 review-inbox discovery 的 fail-closed probe 作為「A 類 invariant 落成 gate」的 worked example，阻止 prose 治 prose 通膨。
+
+- **prose-vs-gate 行為原則准入標準落地**（DP-299-T1）：`contract-design.md` Heuristic 1 新增准入標準——新增行為原則先分類 A 類（gateable invariant，必須做成 fail-closed gate，禁止 prose-only）或 B 類（無 tool-call 邊界的純態度/生成行為，唯一合法落地是 `mechanism-registry.md` canary entry，禁止新增 prose 規則規範態度）；附 carve-out 保護既有 rationale/background prose 不被機械刪除，並登記 `prose-vs-gate-admission` canary 吃自己狗糧。
+- **review-inbox discovery fail-closed probe（worked example）**（DP-299-T2）：新增 `scripts/review-inbox-discovery-probe.sh` + selftest，把原本靠 prose「主來源不可用時應早報、不要靜默 fallback」的 A 類 invariant 落成實際 fail-closed gate。
+- **discovery-flow 改 detailed 並串接 probe**（DP-299-T3）：`review-inbox-discovery-flow.md` 改為 detailed 一致化敘述，串接 fail-closed probe 作為 discovery 主來源不可用時的早報路徑。
+
 ## [3.75.153] - 2026-06-09
 
 ### Fixed — DP-298 business gate 讀 authoritative refinement.json 而非 derived refinement.md（DP-296 fix-forward）

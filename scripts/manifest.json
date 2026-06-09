@@ -2255,6 +2255,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/review-inbox-discovery-probe.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/review-inbox-discovery-probe-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/revision-rebase-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3584,6 +3593,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/review-inbox-discovery-probe-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/run-behavior-contract-selftest.sh",
