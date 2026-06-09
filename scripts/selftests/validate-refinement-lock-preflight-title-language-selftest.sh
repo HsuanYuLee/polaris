@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# Purpose: DP-294 T7 / AC9 — assert validate-refinement-lock-preflight.sh carries
-#          each planned task's real title into the synthesized placeholder summary
-#          line, so the EXISTING validate-task-md.sh summary-language guard fires
-#          per task (reuse, no second classifier). An English-only title under the
-#          zh-TW workspace policy fail-stops (exit 2 +
+# Purpose: DP-296 T5 / AC4 (fix-forward of DP-294 T7) — assert
+#          validate-refinement-lock-preflight.sh carries each canonical task's real
+#          title (tasks[].title) into the synthesized placeholder summary line, so
+#          the EXISTING validate-task-md.sh summary-language guard fires per task in
+#          the REAL policy path (reuse, no second classifier). An English-only title
+#          under the zh-TW workspace policy fail-stops (exit 2 +
 #          POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED); an all-zh-TW title PASSes.
+#          Fixtures use the canonical tasks[] shape the production preflight reads
+#          (planned_tasks[] was removed in DP-296 T3); a hand-detached planned_tasks[]
+#          fixture would yield zero rows and silently mask the guard (AC-NEG2).
 # Inputs:  none (hermetic tmp refinement.json fixtures).
 # Outputs: PASS/FAIL lines; exit 0 (all pass) / 1 (any fail).
 
@@ -26,12 +30,18 @@ PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); }
 bad() { FAIL=$((FAIL+1)); echo "FAIL: $1" >&2; }
 
+# DP-296 T5 / AC4 / AC-NEG2: fixtures use the canonical tasks[] shape (id /
+# task_shape / tracked_deliverable_hint / title are first-class tasks[] fields),
+# matching the production preflight reader. Hand-detached planned_tasks[] fixtures
+# would silently yield zero rows under the canonical-only reader, masking the
+# language guard — so the real-callsite shape is mandatory here.
+
 # --- Case 1: English-only title under zh-TW policy -> exit 2 fail-stop ----------
 cat >"$TMP/english.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-294" },
-  "planned_tasks": [
-    { "task_id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked",
+  "tasks": [
+    { "id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked",
       "title": "Add deterministic gate coverage for the evidence classifier helper" }
   ]
 }
@@ -47,8 +57,8 @@ printf '%s' "$out_en" | grep -q 'POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED' \
 cat >"$TMP/zhtw.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-294" },
-  "planned_tasks": [
-    { "task_id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked",
+  "tasks": [
+    { "id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked",
       "title": "新增 evidence classifier 的確定性 gate 覆蓋與驗證" }
   ]
 }
@@ -62,8 +72,8 @@ set -e
 cat >"$TMP/notitle.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-294" },
-  "planned_tasks": [
-    { "task_id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked" }
+  "tasks": [
+    { "id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked" }
   ]
 }
 JSON

@@ -1733,6 +1733,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/migrate-refinement-planned-tasks-to-canonical.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "refinement",
+      "selftest": "scripts/selftests/migrate-refinement-planned-tasks-to-canonical-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/migrate-spec-container-layout.mjs",
       "kind": "support",
       "runner": "node",
@@ -4869,6 +4878,15 @@
       "runner": "bash",
       "owner_surface": "refinement",
       "selftest": "scripts/selftests/validate-refinement-artifact-parity-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-refinement-consumer-schema-binding.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/validate-refinement-consumer-schema-binding-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },

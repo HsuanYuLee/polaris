@@ -200,15 +200,18 @@ run_validator_expect_exit 0 "mixed" "$mixed_dir" || fail=1
 
 # --- Case 5 (AC2 LOCK-time delegation): research unit blocked at LOCK preflight -> exit 2 ---
 # validate-refinement-lock-preflight.sh delegates the same D4 detection. A
-# refinement.json whose planned_tasks[] are all audit (no implementation) must
+# refinement.json whose canonical tasks[] are all audit (no implementation) must
 # fail-stop at LOCK with the research-unit marker, not just at breakdown.
+# DP-296 T3 migrated the preflight to read the canonical tasks[] shape (entry key
+# `id`, first-class `task_shape` / `tracked_deliverable_hint`); the legacy
+# top-level planned-task array read is gone, so this fixture uses tasks[].
 research_json="$tmpdir/research-lock.json"
 cat >"$research_json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-274" },
-  "planned_tasks": [
-    { "task_id": "T1", "task_shape": "audit", "tracked_deliverable_hint": "specs_only" },
-    { "task_id": "T2", "task_shape": "audit", "tracked_deliverable_hint": "specs_only" }
+  "tasks": [
+    { "id": "T1", "task_shape": "audit", "tracked_deliverable_hint": "specs_only" },
+    { "id": "T2", "task_shape": "audit", "tracked_deliverable_hint": "specs_only" }
   ]
 }
 JSON
@@ -226,19 +229,19 @@ elif ! grep -q "POLARIS_RESEARCH_UNIT_NO_IMPLEMENTATION" "$tmpdir/research-lock.
   fail=1
 fi
 
-# --- Case 6 (AC-NEG1 LOCK-time): mixed planned_tasks at LOCK -> exit 0 -------
+# --- Case 6 (AC-NEG1 LOCK-time): mixed tasks[] at LOCK -> exit 0 -------------
 mixed_json="$tmpdir/mixed-lock.json"
 cat >"$mixed_json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-274" },
-  "planned_tasks": [
-    { "task_id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked" },
-    { "task_id": "T2", "task_shape": "audit", "tracked_deliverable_hint": "specs_only" }
+  "tasks": [
+    { "id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked" },
+    { "id": "T2", "task_shape": "audit", "tracked_deliverable_hint": "specs_only" }
   ]
 }
 JSON
 if ! bash "$LOCK_PREFLIGHT" "$mixed_json" >/dev/null 2>"$tmpdir/mixed-lock.err"; then
-  echo "[selftest] FAIL (mixed-lock): expected LOCK preflight to PASS for mixed planned_tasks" >&2
+  echo "[selftest] FAIL (mixed-lock): expected LOCK preflight to PASS for mixed tasks[]" >&2
   cat "$tmpdir/mixed-lock.err" >&2
   fail=1
 fi

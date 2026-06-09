@@ -459,6 +459,19 @@ def strong_error(field):
     errors.append(f"strong-bound schema: {field}")
 
 
+# DP-296: top-level planned_tasks[] is removed. task_shape /
+# tracked_deliverable_hint are now first-class tasks[] fields (canonical home).
+# Reject any artifact that still carries a top-level planned_tasks[] key
+# (fail-closed; no bypass). Migrate via
+# scripts/migrate-refinement-planned-tasks-to-canonical.sh.
+if "planned_tasks" in data:
+    errors.append(
+        "POLARIS_REFINEMENT_LEGACY_PLANNED_TASKS: top-level 'planned_tasks[]' is "
+        "removed (DP-296); task_shape / tracked_deliverable_hint are now first-class "
+        "tasks[] fields. Run scripts/migrate-refinement-planned-tasks-to-canonical.sh "
+        "to fold planned_tasks[] into tasks[]."
+    )
+
 schema_version = data.get("schema_version")
 if schema_version in (None, ""):
     strong_error("schema_version")
@@ -487,6 +500,25 @@ else:
         for field in sorted(task_required):
             if field not in task:
                 strong_error(f"tasks[{idx}].{field}")
+        # DP-296: task_shape / tracked_deliverable_hint are first-class tasks[]
+        # fields (canonical home, migrated from the removed top-level
+        # planned_tasks[]). They are validated-when-present: a task that omits
+        # them is still valid (implementation / tracked default). When present
+        # they must be a string drawn from the canonical enum.
+        if "task_shape" in task:
+            task_shape = task.get("task_shape")
+            if task_shape not in {"implementation", "audit", "confirmation"}:
+                errors.append(
+                    f"tasks[{idx}].task_shape '{task_shape!r}' is invalid "
+                    "(must be one of ['audit', 'confirmation', 'implementation'])"
+                )
+        if "tracked_deliverable_hint" in task:
+            hint = task.get("tracked_deliverable_hint")
+            if hint not in {"tracked", "specs_only"}:
+                errors.append(
+                    f"tasks[{idx}].tracked_deliverable_hint '{hint!r}' is invalid "
+                    "(must be one of ['specs_only', 'tracked'])"
+                )
         # DP-260 T1: tasks[].id must be short form (T1/V1, optionally a-suffix)
         # OR full form (EPIC-NNN-Tn) whose source prefix equals source.id.
         # Foreign prefixes and malformed strings are fail-stop with marker.

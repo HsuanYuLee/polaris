@@ -57,87 +57,114 @@ expect_exit2_contains() {
 }
 
 # ---------------------------------------------------------------------------
-# AC5 — legal planned tasks pass. confirmation/audit may plan specs-only
-# deliverables; implementation may plan a tracked deliverable. The preflight
-# delegates the verdict to validate-breakdown-ready.sh (no second classifier).
+# DP-296 T3 / AC2 — the preflight reads canonical tasks[] (task_shape /
+# tracked_deliverable_hint are first-class tasks[] fields, NOT a removed
+# top-level shape array). All fixtures below use canonical tasks[].
+#
+# AC5 — legal tasks pass. confirmation/audit may plan specs-only deliverables;
+# implementation may plan a tracked deliverable. The preflight delegates the
+# verdict to validate-breakdown-ready.sh (no second classifier).
 # ---------------------------------------------------------------------------
 
 cat >"$tmpdir/legal.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-262" },
-  "planned_tasks": [
-    { "task_id": "T1", "task_shape": "confirmation", "tracked_deliverable_hint": "specs_only" },
-    { "task_id": "T2", "task_shape": "audit", "tracked_deliverable_hint": "specs_only" },
-    { "task_id": "T3", "task_shape": "implementation", "tracked_deliverable_hint": "tracked" }
+  "tasks": [
+    { "id": "T1", "task_shape": "confirmation", "tracked_deliverable_hint": "specs_only" },
+    { "id": "T2", "task_shape": "audit", "tracked_deliverable_hint": "specs_only" },
+    { "id": "T3", "task_shape": "implementation", "tracked_deliverable_hint": "tracked" }
   ]
 }
 JSON
-expect_pass "legal-planned-tasks" "$tmpdir/legal.json"
+expect_pass "legal-canonical-tasks" "$tmpdir/legal.json"
+
+# AC2 — full-form tasks[].id (DP-NNN-Tn) must also resolve to the short work-item
+# id and be read off canonical tasks[]. Mixed full/short ids in one source.
+cat >"$tmpdir/legal-fullform-id.json" <<'JSON'
+{
+  "source": { "type": "dp", "id": "DP-262" },
+  "tasks": [
+    { "id": "DP-262-T1", "task_shape": "confirmation", "tracked_deliverable_hint": "specs_only" },
+    { "id": "T2", "task_shape": "implementation", "tracked_deliverable_hint": "tracked" }
+  ]
+}
+JSON
+expect_pass "legal-fullform-id" "$tmpdir/legal-fullform-id.json"
 
 # AC5 default task_shape (missing field defaults to implementation) with a
 # tracked deliverable is also legal.
 cat >"$tmpdir/legal-default.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-262" },
-  "planned_tasks": [
-    { "task_id": "T1", "tracked_deliverable_hint": "tracked" }
+  "tasks": [
+    { "id": "T1", "tracked_deliverable_hint": "tracked" }
   ]
 }
 JSON
 expect_pass "legal-default-implementation-tracked" "$tmpdir/legal-default.json"
 
 # ---------------------------------------------------------------------------
-# AC-NEG3 — a planned implementation task that declares a specs-only deliverable
-# must fail-stop (exit 2), naming the offending planned task. The preflight must
-# not pass just because it runs as a dry-run.
+# AC-NEG3 — an implementation task that declares a specs-only deliverable must
+# fail-stop (exit 2), naming the offending task. The preflight must not pass
+# just because it runs as a dry-run.
 # ---------------------------------------------------------------------------
 
 cat >"$tmpdir/bad-impl-specs-only.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-262" },
-  "planned_tasks": [
-    { "task_id": "T9", "task_shape": "implementation", "tracked_deliverable_hint": "specs_only" }
+  "tasks": [
+    { "id": "T9", "task_shape": "implementation", "tracked_deliverable_hint": "specs_only" }
   ]
 }
 JSON
 expect_exit2_contains "implementation-specs-only" "$tmpdir/bad-impl-specs-only.json" \
-  "planned task 'T9'"
+  "task 'T9'"
 
 # AC-NEG3 default task_shape (missing field = implementation) + specs-only
 # deliverable must also fail-stop.
 cat >"$tmpdir/bad-default-specs-only.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-262" },
-  "planned_tasks": [
-    { "task_id": "T8", "tracked_deliverable_hint": "specs_only" }
+  "tasks": [
+    { "id": "T8", "tracked_deliverable_hint": "specs_only" }
   ]
 }
 JSON
 expect_exit2_contains "default-implementation-specs-only" "$tmpdir/bad-default-specs-only.json" \
   "POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED"
 
-# A mixed batch where only one planned task is illegal still fails (exit 2) and
-# names the offending one.
+# A mixed batch where only one task is illegal still fails (exit 2) and names the
+# offending one.
 cat >"$tmpdir/mixed.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-262" },
-  "planned_tasks": [
-    { "task_id": "T1", "task_shape": "confirmation", "tracked_deliverable_hint": "specs_only" },
-    { "task_id": "T2", "task_shape": "implementation", "tracked_deliverable_hint": "specs_only" }
+  "tasks": [
+    { "id": "T1", "task_shape": "confirmation", "tracked_deliverable_hint": "specs_only" },
+    { "id": "T2", "task_shape": "implementation", "tracked_deliverable_hint": "specs_only" }
   ]
 }
 JSON
-expect_exit2_contains "mixed-batch" "$tmpdir/mixed.json" "planned task 'T2'"
+expect_exit2_contains "mixed-batch" "$tmpdir/mixed.json" "task 'T2'"
 
 # ---------------------------------------------------------------------------
-# AC8 (zero migration shim) — refinement.json without planned_tasks[] is a
-# no-op PASS, preserving pre-DP-262 behavior.
+# Zero migration shim — refinement.json without tasks[] is a no-op PASS.
 # ---------------------------------------------------------------------------
 
-cat >"$tmpdir/no-planned-tasks.json" <<'JSON'
+cat >"$tmpdir/no-tasks.json" <<'JSON'
 { "source": { "type": "dp", "id": "DP-262" } }
 JSON
-expect_pass "no-planned-tasks" "$tmpdir/no-planned-tasks.json"
+expect_pass "no-tasks" "$tmpdir/no-tasks.json"
+
+# ---------------------------------------------------------------------------
+# DP-296 AC-NEG1 — the production preflight no longer reads the removed
+# top-level shape array. Assert rg 'planned_tasks' has zero hits in the
+# production script (canonical tasks[] is the sole shape source).
+# ---------------------------------------------------------------------------
+if grep -q 'planned_tasks' "$PREFLIGHT"; then
+  echo "FAIL [AC-NEG1]: production preflight still references the removed planned_tasks[] key"
+  grep -n 'planned_tasks' "$PREFLIGHT"
+  exit 1
+fi
 
 # Embedded smoke test must also pass.
 if ! bash "$PREFLIGHT" --self-test >/dev/null 2>"$tmpdir/embedded.err"; then

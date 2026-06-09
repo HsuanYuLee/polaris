@@ -16,6 +16,11 @@ LINT_BASH_VAR_UTF8_BOUNDARY="${POLARIS_LINT_BASH_VAR_UTF8_BOUNDARY_BIN:-scripts/
 VALIDATE_MISE_DEPENDENCY="${POLARIS_VALIDATE_MISE_DEPENDENCY_BIN:-scripts/validate-mise-dependency-change.sh}"
 VALIDATE_SCRIPT_HEADER="${POLARIS_VALIDATE_SCRIPT_HEADER_BIN:-scripts/validate-script-header-comment.sh}"
 VALIDATE_SCRIPT_CATEGORIZATION="${POLARIS_VALIDATE_SCRIPT_CATEGORIZATION_BIN:-scripts/validate-script-categorization.sh}"
+# W12 (DP-296 T4 / AC3): refinement.json consumer schema binding. Binds every
+# declared tasks[] consumer to the canonical schema field whitelist (the field set
+# validated by validate-refinement-json.sh) and fails closed on out-of-schema reads
+# or unregistered consumers.
+VALIDATE_CONSUMER_SCHEMA_BINDING="${POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN:-scripts/validate-refinement-consumer-schema-binding.sh}"
 # W11 (DP-293 T1): runtime-instruction parity. compile --check catches drifted
 # generated targets (CLAUDE.md / AGENTS.md / .codex / copilot) before merge;
 # mechanism-parity --strict catches cross-runtime skill/mechanism divergence.
@@ -75,5 +80,9 @@ fi
 # target or cross-runtime divergence must fail the PR gate, not slip to post-merge.
 run_gate "W11 runtime-instruction parity (compile --check)" "$COMPILE_RUNTIME_INSTRUCTIONS" --check
 run_gate "W11 runtime-instruction parity (mechanism-parity --strict)" "$MECHANISM_PARITY" --strict
+# W12: refinement.json consumer schema binding (DP-296 T4 / AC3). Blocking — a
+# declared consumer reading an out-of-schema tasks[] field, or a new unregistered
+# tasks[] consumer, must fail the PR gate before merge.
+run_gate "W12 refinement consumer schema binding" "$VALIDATE_CONSUMER_SCHEMA_BINDING"
 
 echo "PASS: framework PR gate"

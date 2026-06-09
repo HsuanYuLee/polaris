@@ -40,6 +40,52 @@ reads that inbox record and never opens the raw sidecar. See
 | **QA** | verify-AC | 跑 AC 驗證步驟、呈現 observed vs expected | 不判斷 FAIL 原因（交給人工 disposition） |
 | **Diagnosis** | bug-triage | Root cause 分析、規劃修復 | 不直接寫 code（交給 engineering） |
 
+## Canonical Schema Traversal Contract（DP-296 AC6 / AC-NFR2）
+
+Pipeline 內每一段 skill 既是上游 artifact 的 **consumer**，也是下游 artifact 的
+**producer**。本契約定義生產端與消費端的預設行為，是四段 skill（refinement /
+breakdown / engineering / verify-AC）SKILL.md 共同指向的 single source of truth。
+
+### Default — 互走 canonical schema/template
+
+- **Producer 預設產出 canonical artifact**：refinement 產 `refinement.json`（canonical
+  `tasks[]` schema）、breakdown 產 canonical `task.md`（`task-md-schema.md` 形狀）、
+  engineering / verify-AC 寫入 canonical proof-of-work marker 與 verification artifact。
+  producer 不得為了某個下游消費端方便而 hand-author 偏離 canonical schema 的形狀。
+- **Consumer 預設 traverse 上游 canonical schema/template**：breakdown 消費
+  `refinement.json` canonical `tasks[]`、engineering 消費 breakdown 產出的 canonical
+  `task.md`（`Allowed Files` / Scope Trace Matrix / Verify Command）、verify-AC 消費
+  `refinement.json` canonical `acceptance_criteria` verification method/detail。
+  consumer **不得**改去解析 producer 的 LLM freeform prose 來補 schema 缺口——freeform
+  不是 handoff 介面。
+- 兩端共享同一份 canonical schema 定義（見下方 Artifact Schemas 章節與
+  `pipeline-handoff-atom-matrix.md`），任一端偏離 canonical 形狀都由對應 deterministic
+  gate fail-stop。
+
+### Fallback — LLM freeform 僅限 standalone
+
+LLM freeform（非 canonical schema 的自由敘述）**只**允許在 **standalone** 情境使用，
+亦即該產出 **沒有下游 pipeline consumer** 會機械消費它：
+
+- 例如純人讀的 `refinement.md`（derived view）、對使用者的口頭 status、不被下一段 skill
+  parse 的解釋性 prose。
+- 一旦該產出會被下游 skill 機械消費（成為 handoff artifact），就 **必須** 走 canonical
+  schema，不得以 standalone freeform 充當 handoff 介面。
+- standalone freeform 不是「跳過 canonical schema」的後門：判定 test 是「下游有沒有
+  consumer 會 parse 它」。有 consumer → canonical；無 consumer → standalone freeform OK。
+
+### Scope — 契約只管 handoff 介面，不管內部 reasoning（AC-NFR2）
+
+本契約 **只** 約束 **handoff artifact 介面**（cross-skill 機械消費的 schema/template），
+**不** 約束 skill 的 **內部 reasoning**：
+
+- skill 內部如何思考、探索 codebase、推導方案、組織 chain-of-thought，完全自由，
+  契約不介入。
+- 契約只在「產出會跨 skill 邊界被機械消費」的那一刻生效——即 artifact 的 schema 形狀。
+- 因此本契約不新增任何 `POLARIS_*_BYPASS` carve-out，也不靠豁免分支放行（AC-NFR1）；
+  它只是把「handoff = canonical、internal reasoning = 自由、無 consumer = standalone
+  freeform」這條既有邊界寫明確。
+
 ## Artifact Schemas
 
 **此章節為 Atom 層 single source of truth**。所有 pipeline validator script（`scripts/validate-*.sh`）都從此文件派生；skill 產出 artifact 時的必填欄位以此為準。若本章節與個別 skill 的 SKILL.md 描述衝突，**以本章節為準**。

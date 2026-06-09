@@ -252,6 +252,18 @@ export POLARIS_SKILL_WRITER=breakdown
   lineage cap 或 planner decision 指向 refinement，只建立 refinement inbox record 後提示
   `refinement {EPIC}`。
 
+### Canonical / Standalone Handoff Contract（DP-296 AC6）
+
+breakdown 同時是 consumer 與 producer：consumer 端預設 traverse refinement 的
+**canonical** `refinement.json tasks[]` schema 來 derive work order，**不**改去解析
+refinement 的 LLM freeform prose 補 scope 缺口；producer 端產出 canonical `task.md`
+（`task-md-schema.md` 形狀，含 Allowed Files / Scope Trace Matrix / Verify Command）給
+engineering 機械消費。LLM freeform 只在 **standalone** 情境合法——亦即該產出沒有下游
+pipeline consumer 會機械消費它（例如對使用者的 task preview prose）。會被下一段 skill
+機械消費的 handoff artifact 一律走 canonical schema。本契約只約束 handoff artifact 介面，
+**不**約束 breakdown 內部如何拆 task 或推導估點。完整契約見
+`.claude/skills/references/pipeline-handoff.md` § Canonical Schema Traversal Contract。
+
 ## Skill Workflow Boundary Gate (DP-230 D40)
 
 `breakdown` session 開始時必須呼叫 skill-workflow-boundary baseline writer：

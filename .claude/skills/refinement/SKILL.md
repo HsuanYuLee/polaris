@@ -146,6 +146,18 @@ gates 全部通過後，再對使用者提示 `/auto-pass {KEY}`。
 Bug 不屬於 refinement-owned source；Bug 的 planning handoff 由 `bug-triage` 的 confirmed
 `[ROOT_CAUSE]` comment 與 local evidence artifact 承擔。
 
+### Canonical / Standalone Handoff Contract（DP-296 AC6）
+
+refinement 作為 producer，預設產出 **canonical** schema artifact 給下游消費：
+`refinement.json` 的 canonical `tasks[]` 是 breakdown 的唯一 handoff 介面，breakdown
+traverse 該 canonical schema 而非 refinement 的 freeform prose。LLM freeform（非
+canonical schema 的自由敘述）只在 **standalone** 情境合法——亦即該產出沒有下游 pipeline
+consumer 會機械消費它，例如純人讀的 `refinement.md` derived view 或對使用者的解釋性
+prose。一旦產出會被下一段 skill 機械消費，就必須走 canonical schema。本契約只約束 handoff
+artifact 介面，**不**約束 refinement 內部如何探索 codebase、推導方案或組織 reasoning。
+完整契約見 `.claude/skills/references/pipeline-handoff.md` § Canonical Schema Traversal
+Contract。
+
 ## JIRA-Epic-Backed Source Field Population (DP-269)
 
 當 refinement-owned source 是 **JIRA-Epic-backed**（`source.type=jira`，container 在

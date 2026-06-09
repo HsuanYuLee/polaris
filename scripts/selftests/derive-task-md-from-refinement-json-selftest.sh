@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# DP-230-T10: derive-task-md-from-refinement-json selftest
+# DP-230-T10 (+ DP-296 T3): derive-task-md-from-refinement-json selftest
 #
 # AC28 (positive): refinement.json structured `tasks[]` fields are sufficient to
 #   deterministically derive a task.md body that passes `validate-task-md.sh`.
@@ -8,6 +8,9 @@
 #   fields (id / title / scope / allowed_files / verification.detail), the
 #   derive script must fail-loud and refuse to emit a task.md body. There is
 #   NO LLM-judgment fallback.
+# DP-296 T3 / AC2: task_shape is read from the canonical first-class
+#   tasks[].task_shape field (the removed top-level shape array is no longer a
+#   source). DP-296 AC-NEG1: the production script has zero 'planned_tasks' reads.
 
 set -euo pipefail
 
@@ -475,10 +478,11 @@ if grep -E '^[[:space:]]*(import|from)[[:space:]]' "$SCRIPT" | grep -vqE '^[[:sp
   exit 1
 fi
 
-# Case 13 (DP-272 T1 / AC1): planned_tasks[Tn].task_shape propagates into the
-# T-task frontmatter as `task_shape: <value>`. The value source is
-# planned_tasks[] joined by short task_id, NOT tasks[]. When the matched
-# planned_tasks entry has no task_shape (or is absent), the line is omitted.
+# Case 13 (DP-296 T3 / AC2, was DP-272 AC1): tasks[Tn].task_shape propagates into
+# the T-task frontmatter as `task_shape: <value>`. The value source is the
+# canonical first-class tasks[].task_shape field (DP-296 canonicalize; the
+# removed top-level shape array is no longer read). When the matched tasks[]
+# entry has no task_shape (or is empty), the line is omitted.
 # ---------------------------------------------------------------------------
 shape_json="$tmpdir/refinement-shape.json"
 cat >"$shape_json" <<'JSON'
@@ -491,16 +495,13 @@ cat >"$shape_json" <<'JSON'
     "jira_key": null
   },
   "schema_version": 1,
-  "planned_tasks": [
-    { "task_id": "T1", "task_shape": "confirmation" },
-    { "task_id": "T2" }
-  ],
   "tasks": [
     {
       "id": "DP-999-T1",
       "kind": "implementation",
+      "task_shape": "confirmation",
       "title": "確認型 task",
-      "scope": "驗證 planned_tasks task_shape 注入 T-task frontmatter。",
+      "scope": "驗證 canonical tasks[].task_shape 注入 T-task frontmatter。",
       "allowed_files": ["docs-manager/src/content/docs/specs/design-plans/DP-999-x/index.md"],
       "modules": ["docs-manager/src/content/docs/specs/design-plans/DP-999-x/index.md"],
       "ac_ids": ["AC1"],
@@ -548,7 +549,7 @@ if ! grep -Pzoq 'task_kind: T\ntask_shape: confirmation\n' "$shape_t1_out" 2>/de
   fi
 fi
 
-# AC1 absent half: T2 has no task_shape in planned_tasks → no task_shape line.
+# AC2 absent half: tasks[].T2 has no task_shape field → no task_shape line.
 shape_t2_out="$tmpdir/shape-t2.md"
 bash "$SCRIPT" --refinement-json "$shape_json" --task-id "DP-999-T2" > "$shape_t2_out"
 shape_t2_count=$(grep -c '^task_shape:' "$shape_t2_out" || true)
@@ -559,8 +560,8 @@ if [[ "$shape_t2_count" -ne 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Case 14 (DP-272 T1 / AC2): V tasks must NEVER receive a task_shape line, even
-# when planned_tasks declares one for the V id.
+# Case 14 (DP-296 T3 / AC2, was DP-272 AC2): V tasks must NEVER receive a
+# task_shape line, even when the canonical tasks[] V entry declares one.
 # ---------------------------------------------------------------------------
 v_shape_json="$tmpdir/refinement-v-shape.json"
 cat >"$v_shape_json" <<'JSON'
@@ -573,10 +574,6 @@ cat >"$v_shape_json" <<'JSON'
     "jira_key": null
   },
   "schema_version": 1,
-  "planned_tasks": [
-    { "task_id": "T1", "task_shape": "confirmation" },
-    { "task_id": "V1", "task_shape": "audit" }
-  ],
   "acceptance_criteria": [
     {
       "id": "AC1",
@@ -590,6 +587,7 @@ cat >"$v_shape_json" <<'JSON'
     {
       "id": "DP-999-T1",
       "kind": "implementation",
+      "task_shape": "confirmation",
       "title": "確認型 task",
       "scope": "驗證 T task。",
       "allowed_files": ["scripts/sample.sh"],
@@ -602,6 +600,7 @@ cat >"$v_shape_json" <<'JSON'
     {
       "id": "DP-999-V1",
       "kind": "verification",
+      "task_shape": "audit",
       "title": "範例 umbrella 驗收",
       "scope": "驗收 T task。",
       "allowed_files": ["scripts/selftests/sample-selftest.sh"],
@@ -644,9 +643,9 @@ if ! bash "$VALIDATE_BREAKDOWN_READY" "$shape_t1_out" >"$tmpdir/breakdown-ready.
 fi
 
 # ---------------------------------------------------------------------------
-# Case 16 (DP-272 T1 / AC-NEG1): derive is passthrough-only and does NOT
-# validate the enum. A typo'd task_shape is emitted verbatim, and the single
-# classifier (validate-task-md.sh) rejects it.
+# Case 16 (DP-296 T3 / AC2, was DP-272 AC-NEG1): derive is passthrough-only and
+# does NOT validate the enum. A typo'd canonical tasks[].task_shape is emitted
+# verbatim, and the single classifier (validate-task-md.sh) rejects it.
 # ---------------------------------------------------------------------------
 typo_json="$tmpdir/refinement-typo.json"
 cat >"$typo_json" <<'JSON'
@@ -659,13 +658,11 @@ cat >"$typo_json" <<'JSON'
     "jira_key": null
   },
   "schema_version": 1,
-  "planned_tasks": [
-    { "task_id": "T1", "task_shape": "confirmaton" }
-  ],
   "tasks": [
     {
       "id": "DP-999-T1",
       "kind": "implementation",
+      "task_shape": "confirmaton",
       "title": "typo shape task",
       "scope": "驗證 derive passthrough 不做 enum 驗證。",
       "allowed_files": ["scripts/sample.sh"],
@@ -692,21 +689,33 @@ if bash "$VALIDATE_TASK_MD" "$typo_out" >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
-# Case 17 (DP-272 T1 / AC8 zero-shim): refinement.json with no planned_tasks
-# at all derives byte-identical output to before this feature. We assert this
-# against the existing positive fixture, whose output already passed all
-# earlier anchors and validate-task-md.sh — re-deriving must not regress and
-# must contain no task_shape line.
+# Case 17 (DP-296 T3 / AC8 zero-shim): a tasks[] entry with no task_shape field
+# derives byte-identical output to a source that never carried the feature. We
+# assert this against the existing positive fixture (whose tasks[].T1 has no
+# task_shape), whose output already passed all earlier anchors and
+# validate-task-md.sh — re-deriving must not regress and must contain no
+# task_shape line.
 # ---------------------------------------------------------------------------
 zero_shim_out="$tmpdir/zero-shim.md"
 bash "$SCRIPT" --refinement-json "$positive_json" --task-id "DP-999-T1" > "$zero_shim_out"
 if ! cmp -s "$positive_out" "$zero_shim_out"; then
-  echo "FAIL [case 17 / DP-272 AC8]: no-planned_tasks output drifted from baseline derive" >&2
+  echo "FAIL [case 17 / AC8]: no-task_shape output drifted from baseline derive" >&2
   diff "$positive_out" "$zero_shim_out" | head -40 >&2
   exit 1
 fi
 if grep -q '^task_shape:' "$zero_shim_out"; then
-  echo "FAIL [case 17 / DP-272 AC8]: no-planned_tasks output must not contain task_shape" >&2
+  echo "FAIL [case 17 / AC8]: no-task_shape output must not contain task_shape" >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Case 18 (DP-296 T3 / AC-NEG1): the production derive script no longer reads the
+# removed top-level shape array. Assert rg 'planned_tasks' has zero hits in the
+# production script (canonical tasks[].task_shape is the sole shape source).
+# ---------------------------------------------------------------------------
+if grep -q 'planned_tasks' "$SCRIPT"; then
+  echo "FAIL [case 18 / AC-NEG1]: production derive script still references the removed planned_tasks[] key" >&2
+  grep -n 'planned_tasks' "$SCRIPT" >&2
   exit 1
 fi
 

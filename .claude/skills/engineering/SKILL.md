@@ -64,6 +64,19 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
   template detection 讀 repo PR template；PR body draft 必須從 template skeleton 起稿，不可先
   用 generic summary 再等 `gate-pr-body-template.sh` 擋下重寫。
 
+## Canonical / Standalone Handoff Contract（DP-296 AC6）
+
+engineering 作為 consumer，預設 traverse breakdown 產出的 **canonical** `task.md`
+schema（`Allowed Files` / Scope Trace Matrix / Verify Command）作為唯一施工輸入，**不**
+改去解析 refinement / breakdown 的 LLM freeform prose 補 scope 缺口（對齊上方 Consumer
+boundary 條文）。engineering 作為 producer，寫入 canonical proof-of-work marker 與
+deliverable lifecycle metadata 給下游 verify-AC / closeout 機械消費。LLM freeform 只在
+**standalone** 情境合法——亦即該產出沒有下游 pipeline consumer 會機械消費它（例如對使用者
+的 status 說明）。會被下一段 skill 機械消費的 handoff artifact 一律走 canonical schema。
+本契約只約束 handoff artifact 介面，**不**約束 engineering 內部如何 TDD、debug 或組織實作
+reasoning。完整契約見 `.claude/skills/references/pipeline-handoff.md` § Canonical Schema
+Traversal Contract。
+
 ## Mode Routing
 
 先讀 `engineering-entry-resolution.md`，用 resolver 找到單一 task.md，再由 work order

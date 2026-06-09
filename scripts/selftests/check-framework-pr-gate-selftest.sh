@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# Purpose: DP-296 T4 / AC3 selftest for check-framework-pr-gate.sh — asserts the new
+#   W12 refinement-consumer-schema-binding gate is wired into the aggregate and runs.
+#   The aggregate is composed of many cwd/content-sensitive gates, so this selftest
+#   does NOT run the whole aggregate end-to-end; instead it verifies the W12 wiring
+#   deterministically:
+#     1. the aggregate source references the W12 gate binary + run_gate label
+#     2. the W12 gate is overridable via POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN
+#     3. when the W12 gate stub FAILS, the aggregate fails closed at W12 (all other
+#        gates stubbed PASS) → proves W12 is a blocking member, not advisory
+#     4. when every gate stub PASSes, the aggregate prints the terminal PASS line
+# Inputs:  none (stubs each gate binary via POLARIS_*_BIN env in a tmpdir).
+# Outputs: PASS/FAIL lines per case; exit 0 if all pass, 1 otherwise.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+AGG="$ROOT/scripts/check-framework-pr-gate.sh"
+
+if [[ ! -f "$AGG" ]]; then
+  echo "FAIL: aggregate missing: $AGG" >&2
+  exit 1
+fi
+
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+
+pass=0
+fail=0
+
+assert_exit() {
+  local label="$1" expected="$2" actual="$3"
+  if [[ "$expected" -eq "$actual" ]]; then
+    echo "PASS: $label (exit=$actual)"
+    pass=$((pass + 1))
+  else
+    echo "FAIL: $label (expected exit=$expected, got $actual)" >&2
+    fail=$((fail + 1))
+  fi
+}
+
+assert_grep() {
+  local label="$1" needle="$2" file="$3"
+  if grep -Fq "$needle" "$file"; then
+    echo "PASS: $label"
+    pass=$((pass + 1))
+  else
+    echo "FAIL: $label (missing '$needle')" >&2
+    fail=$((fail + 1))
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Case 1: aggregate source references the W12 gate binary default + label.
+# ---------------------------------------------------------------------------
+assert_grep "case1 W12 binary default present" \
+  "scripts/validate-refinement-consumer-schema-binding.sh" "$AGG"
+assert_grep "case1 W12 run_gate label present" \
+  "W12 refinement consumer schema binding" "$AGG"
+assert_grep "case1 W12 override env present" \
+  "POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN" "$AGG"
+
+# ---------------------------------------------------------------------------
+# Build PASS / FAIL gate stubs.
+# ---------------------------------------------------------------------------
+pass_stub="$tmpdir/pass-stub.sh"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$pass_stub"
+chmod +x "$pass_stub"
+
+fail_stub="$tmpdir/fail-stub.sh"
+printf '#!/usr/bin/env bash\necho "POLARIS_REFINEMENT_CONSUMER_SCHEMA_BINDING:stub failure" >&2\nexit 2\n' >"$fail_stub"
+chmod +x "$fail_stub"
+
+# All non-W12 gate overrides point at the PASS stub so the aggregate reaches W12
+# regardless of the live workspace state. W12 itself is varied per case.
+common_env=(
+  "POLARIS_VALIDATE_RUNTIME_BIN=$pass_stub"
+  "POLARIS_AUDIT_GRADUATION_BIN=$pass_stub"
+  "POLARIS_LINT_REFERENCE_LINE_COUNT_BIN=$pass_stub"
+  "POLARIS_CHECK_QUARANTINE_BIN=$pass_stub"
+  "POLARIS_VALIDATE_SPEC_SOURCE_PARITY_BIN=$pass_stub"
+  "POLARIS_GATE_TEMPLATE_LEAKS_BIN=$pass_stub"
+  "POLARIS_LINT_BASH_VAR_UTF8_BOUNDARY_BIN=$pass_stub"
+  "POLARIS_VALIDATE_MISE_DEPENDENCY_BIN=$pass_stub"
+  "POLARIS_VALIDATE_SCRIPT_HEADER_BIN=$pass_stub"
+  "POLARIS_VALIDATE_SCRIPT_CATEGORIZATION_BIN=$pass_stub"
+  "POLARIS_COMPILE_RUNTIME_INSTRUCTIONS_BIN=$pass_stub"
+  "POLARIS_MECHANISM_PARITY_BIN=$pass_stub"
+)
+
+# ---------------------------------------------------------------------------
+# Case 2: W12 gate FAILS → aggregate fails closed at W12.
+# ---------------------------------------------------------------------------
+set +e
+env "${common_env[@]}" "POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN=$fail_stub" \
+  bash "$AGG" >"$tmpdir/case2.out" 2>"$tmpdir/case2.err"; rc2=$?
+set -e
+assert_exit "case2 W12 failure blocks aggregate" 1 "$rc2"
+assert_grep "case2 aggregate names W12" "W12 refinement consumer schema binding" "$tmpdir/case2.err"
+
+# ---------------------------------------------------------------------------
+# Case 3: every gate (including W12) PASSes → aggregate prints terminal PASS.
+# ---------------------------------------------------------------------------
+set +e
+env "${common_env[@]}" "POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN=$pass_stub" \
+  bash "$AGG" >"$tmpdir/case3.out" 2>"$tmpdir/case3.err"; rc3=$?
+set -e
+assert_exit "case3 all-pass aggregate" 0 "$rc3"
+assert_grep "case3 terminal PASS line" "PASS: framework PR gate" "$tmpdir/case3.out"
+
+# ---------------------------------------------------------------------------
+echo "----------------------------------------"
+echo "selftest summary: pass=$pass fail=$fail"
+if [[ "$fail" -ne 0 ]]; then
+  exit 1
+fi
+echo "PASS: check-framework-pr-gate selftest"

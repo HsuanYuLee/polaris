@@ -191,15 +191,6 @@ refinement 完成時同時產出兩份：
     "missing_research": []
   },
 
-  // --- Planned Tasks (optional, DP-262) ---
-  "planned_tasks": [
-    {
-      "task_id": "T1",                   // planned sub-task id (breakdown writes the same id)
-      "task_shape": "confirmation",       // "implementation" (default) | "audit" | "confirmation"
-      "tracked_deliverable_hint": "specs_only" // "tracked" (default) | "specs_only"
-    }
-  ],
-
   // --- Downstream Hints ---
   "downstream": {
     "suggested_subtask_count": 4,
@@ -212,30 +203,37 @@ refinement 完成時同時產出兩份：
 }
 ```
 
-### `planned_tasks[]`（DP-262）
+### `tasks[].task_shape` / `tasks[].tracked_deliverable_hint`（canonical home，DP-296）
 
-`planned_tasks[]` 是 LOCK 時宣告的 sub-task 計畫摘要，讓 LOCK gate 的
-breakdown-ready preflight（`scripts/validate-refinement-lock-preflight.sh`）能在
-**LOCK 當下**就驗證每筆 planned task 的 delivery shape 是否可通過
-`validate-breakdown-ready.sh`，而不必等 breakdown 真的打包出 task.md 才發現違規。
+`task_shape` 與 `tracked_deliverable_hint` 是 `tasks[]` entry 的 **first-class** 欄位，
+是這兩個語義的 canonical home。LOCK gate 的 breakdown-ready preflight
+（`scripts/validate-refinement-lock-preflight.sh`）直接讀 `tasks[]`，在 **LOCK 當下**
+就驗證每筆 planned task 的 delivery shape 是否可通過 `validate-breakdown-ready.sh`，
+而不必等 breakdown 真的打包出 task.md 才發現違規。
 
 | Field | Required | 說明 |
 |-------|----------|------|
-| `task_id` | yes | planned sub-task id（如 `T1`）；breakdown 打包時寫入同一 id 的 task.md |
 | `task_shape` | optional | `implementation`（缺欄位 default）/ `audit` / `confirmation`；enum 由 `validate-task-md.sh` 認定，breakdown 從本欄位寫入 task.md frontmatter `task_shape`（canonical writer） |
-| `tracked_deliverable_hint` | optional | `tracked`（缺欄位 default）/ `specs_only`；宣告該 planned task 的交付物是 tracked code change（`tracked`）還是 specs/evidence-only artifact（`specs_only`），preflight 用來決定合成 placeholder 的 Allowed Files 形狀 |
+| `tracked_deliverable_hint` | optional | `tracked`（缺欄位 default）/ `specs_only`；宣告該 task 的交付物是 tracked code change（`tracked`）還是 specs/evidence-only artifact（`specs_only`），preflight 用來決定合成 placeholder 的 Allowed Files 形狀 |
 
-Contract（DP-262 AC5 / AC-NEG3 / AC7）：
+Contract（DP-262 AC5 / AC-NEG3 / AC7，DP-296 canonicalize）：
 
 - `task_shape: implementation`（或缺欄位）卻宣告 `tracked_deliverable_hint: specs_only`
-  的 planned task，會在 LOCK preflight 被 `validate-breakdown-ready.sh` 判為非
+  的 task，會在 LOCK preflight 被 `validate-breakdown-ready.sh` 判為非
   breakdown-ready，preflight exit 2 fail-stop（carve-out 不外溢到 implementation）。
-- `task_shape ∈ {audit, confirmation}` 的 planned task 宣告 `specs_only` deliverable
+- `task_shape ∈ {audit, confirmation}` 的 task 宣告 `specs_only` deliverable
   合法（confirmation-only delivery shape）。
 - preflight 複用 `validate-breakdown-ready.sh` 本體，不自行重寫 specs-prefix /
   `task_shape` 判斷（單一 classifier）。
-- 沒有 `planned_tasks[]` 的 pre-DP-262 `refinement.json` 在 preflight 是 no-op PASS
-  （零 migration shim，DP-262 AC8）。
+- 缺這兩個欄位的 task 在 preflight 是 no-op PASS（implementation / tracked default）。
+
+> **Legacy top-level `planned_tasks[]` 已移除（DP-296）**：DP-262 曾用 top-level
+> `planned_tasks[]` 攜帶 `task_shape` / `tracked_deliverable_hint`。DP-296 把這兩個語義
+> 收斂為 `tasks[]` first-class 欄位，移除 `planned_tasks[]` schema 與雙 writer path。
+> 既有含 `planned_tasks[]` 的 active `refinement.json` 由
+> `scripts/migrate-refinement-planned-tasks-to-canonical.sh` 一次性確定性遷移
+> （依 task_id 折入 `tasks[]` 後刪除 `planned_tasks[]`）；新 producer 一律寫
+> `tasks[]`，不得重新產生 `planned_tasks[]`。
 
 ### Ticketless / DP-backed metadata example
 
@@ -278,10 +276,10 @@ AC hardening contract：
 
 | Skill | 讀取欄位 | 用途 |
 |-------|---------|------|
-| **breakdown** | `modules`, `dependencies`, `downstream.breakdown_hints`, `modules[].complexity/risk`, `edge_cases`, `acceptance_criteria`, `planned_tasks[].task_shape` | 每個 module action = 一張子單；blocking dependency = 排序依據；complexity + risk + edge case 數量 → 點數加權；`planned_tasks[].task_shape` 寫入 task.md frontmatter。task.md（含 Allowed Files / Verify Command）由 breakdown derive，是 engineering 的唯一施工輸入 |
+| **breakdown** | `modules`, `dependencies`, `downstream.breakdown_hints`, `modules[].complexity/risk`, `edge_cases`, `acceptance_criteria`, `tasks[].task_shape` | 每個 module action = 一張子單；blocking dependency = 排序依據；complexity + risk + edge case 數量 → 點數加權；`tasks[].task_shape` 寫入 task.md frontmatter。task.md（含 Allowed Files / Verify Command）由 breakdown derive，是 engineering 的唯一施工輸入 |
 | **verify-AC** | `acceptance_criteria[].verification.method/detail` | verification method/detail authority（V*.md 是 execution envelope，不覆寫此來源） |
 | **breakdown** (scope-challenge) | `gaps.rd_risks`, `research[].confidence`, `research_gate` | 低信心研究 + 高風險 = challenge 候選 |
-| **refinement** (LOCK preflight, DP-262) | `planned_tasks[].task_shape`, `planned_tasks[].tracked_deliverable_hint` | `validate-refinement-lock-preflight.sh` 合成 placeholder 跑 `validate-breakdown-ready.sh`，LOCK 時 fail-stop 不 ready 的 planned task |
+| **refinement** (LOCK preflight, DP-262/DP-296) | `tasks[].task_shape`, `tasks[].tracked_deliverable_hint` | `validate-refinement-lock-preflight.sh` 合成 placeholder 跑 `validate-breakdown-ready.sh`，LOCK 時 fail-stop 不 ready 的 task |
 
 ### `tool_requirements` handoff（DP-194）
 
@@ -326,6 +324,9 @@ Producer rule：
 - `schema_version`：必填。
 - `tasks[]`：每筆必填 `id` / `kind` / `title` / `scope` / `allowed_files` /
   `modules` / `ac_ids` / `dependencies` / `estimate_points` / `verification`。
+  `task_shape`（`implementation` default / `audit` / `confirmation`）與
+  `tracked_deliverable_hint`（`tracked` default / `specs_only`）為 optional first-class
+  欄位（DP-296 canonical home，見 § `tasks[].task_shape` / `tasks[].tracked_deliverable_hint`）。
 - `tasks[].id` 接受兩種形式（DP-260）：短式 `T1` / `V1`（可選 `a`-suffix，如 `T1a`），
   或完整 work-item id（例如 `DP-231-T1`、`EPIC-4190-V2`）。完整形式的 source prefix
   必須等於 `source.id`；外族 prefix（例如 `OTHERDP-999-T1`）由

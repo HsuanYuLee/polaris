@@ -94,6 +94,19 @@ verify-AC 與 framework-release closeout 的 verification method/detail authorit
 POLARIS_VERIFY_AC_DETERMINISTIC_CONSUMPTION_MARKER: verify-AC 與 framework-release
 closeout 消費 refinement.json verification.method/detail，不讀 task.md acceptance text。
 
+## Canonical / Standalone Handoff Contract（DP-296 AC6）
+
+verify-AC 作為 consumer，預設 traverse **canonical** `refinement.json`
+`acceptance_criteria` verification method/detail schema（見上方 Deterministic
+Consumption），**不**改去解析 task.md acceptance text 或上游 LLM freeform prose 來決定
+runner 行為。verify-AC 作為 producer，寫入 canonical verification artifact 與
+proof-of-work marker 給 closeout 機械消費。LLM freeform 只在 **standalone** 情境合法——
+亦即該產出沒有下游 pipeline consumer 會機械消費它（例如對使用者呈現 observed vs expected
+的解釋性 prose）。會被下一段 skill / closeout 機械消費的 handoff artifact 一律走 canonical
+schema。本契約只約束 handoff artifact 介面，**不**約束 verify-AC 內部如何判讀 observed
+結果。完整契約見 `.claude/skills/references/pipeline-handoff.md` § Canonical Schema
+Traversal Contract。
+
 ## Hard Rules
 
 - HTTP verification 必須先檢查 status code，再看 body。

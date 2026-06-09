@@ -1,29 +1,30 @@
 #!/usr/bin/env bash
-# Purpose: Refinement LOCK-time breakdown-ready preflight (DP-262 T4).
-#          Reads refinement.json planned_tasks[], synthesizes an ephemeral
-#          placeholder task.md per planned task, and runs the real
-#          validate-breakdown-ready.sh against each. A planned task whose
-#          declared deliverable shape would fail breakdown readiness (e.g. an
+# Purpose: Refinement LOCK-time breakdown-ready preflight (DP-262 T4, DP-296 T3).
+#          Reads refinement.json canonical tasks[], synthesizes an ephemeral
+#          placeholder task.md per task, and runs the real
+#          validate-breakdown-ready.sh against each. A task whose declared
+#          deliverable shape would fail breakdown readiness (e.g. an
 #          implementation task that plans a specs-only deliverable) makes the
-#          preflight fail-stop (exit 2), naming the offending planned task.
+#          preflight fail-stop (exit 2), naming the offending task.
 # Inputs:  <refinement.json path | source-container dir> (positional)
 #          --self-test : run the embedded smoke test
 # Outputs: stdout PASS line; exit 0 PASS, exit 1 usage/IO error,
-#          exit 2 contract violation (one or more planned tasks not ready)
+#          exit 2 contract violation (one or more tasks not ready)
 # Side effects: writes/removes a tmpdir of synthesized placeholder task.md files
 #
-# Design (DP-262 AC5 / AC-NEG3 / AC7):
+# Design (DP-262 AC5 / AC-NEG3 / AC7; DP-296 AC2 / AC-NEG1):
 # - The preflight does NOT reimplement the specs-only / task_shape carve-out
 #   classification. It composes a minimal schema-valid placeholder task.md per
-#   planned task and delegates the verdict to validate-breakdown-ready.sh, the
-#   single source of truth shared with breakdown / engineering (AC7).
-# - planned_tasks[].tracked_deliverable_hint drives the placeholder Allowed
-#   Files shape: "specs_only" yields a specs-only entry, "tracked" (default)
-#   yields a tracked entry. An implementation planned task with a specs_only
-#   hint therefore fails validate-breakdown-ready exactly as a real
-#   implementation task would (AC-NEG3), with no preflight-side relaxation.
-# - Missing planned_tasks[] (pre-DP-262 refinement.json) is a no-op PASS: zero
-#   migration shim, existing sources keep their behavior (DP-262 AC8).
+#   task and delegates the verdict to validate-breakdown-ready.sh, the single
+#   source of truth shared with breakdown / engineering (AC7).
+# - DP-296 T3: task_shape / tracked_deliverable_hint are read from the canonical
+#   first-class tasks[] fields (the legacy top-level shape array read is removed,
+#   AC2 / AC-NEG1). tracked_deliverable_hint drives the placeholder Allowed Files
+#   shape: "specs_only" yields a specs-only entry, "tracked" (default) yields a
+#   tracked entry. An implementation task with a specs_only hint therefore fails
+#   validate-breakdown-ready exactly as a real implementation task would
+#   (AC-NEG3), with no preflight-side relaxation.
+# - Missing tasks[] (or non-array) is a no-op PASS.
 
 set -euo pipefail
 
@@ -35,10 +36,10 @@ usage() {
 usage: validate-refinement-lock-preflight.sh <refinement.json|source-container>
        validate-refinement-lock-preflight.sh --self-test
 
-Reads refinement.json planned_tasks[], synthesizes one placeholder task.md per
-planned task, and runs validate-breakdown-ready.sh against each. Fails (exit 2)
-when any planned task's declared deliverable shape would not pass breakdown
-readiness, naming the offending planned task.
+Reads refinement.json canonical tasks[], synthesizes one placeholder task.md per
+task, and runs validate-breakdown-ready.sh against each. Fails (exit 2)
+when any task's declared deliverable shape would not pass breakdown
+readiness, naming the offending task.
 EOF
 }
 
@@ -128,7 +129,7 @@ depends_on: []
 | Branch chain | main -> task/DP-262-${task_id}-placeholder |
 | Task branch | task/DP-262-${task_id}-placeholder |
 | Depends on | N/A |
-| References to load | - refinement.json planned_tasks |
+| References to load | - refinement.json tasks |
 
 ## Verification Handoff
 
@@ -238,15 +239,20 @@ run_preflight() {
     grep -E '^[[:space:]]*language[[:space:]]*:' "$live_config" >"$tmpdir/workspace-config.yaml" 2>/dev/null || true
   fi
 
-  # Extract planned_tasks[] as <task_id><US><task_shape><US><hint> rows, where
-  # <US> is the ASCII unit separator (\x1f). A non-whitespace separator is
-  # required so `read` preserves an empty task_shape field (a missing field
-  # defaults to implementation downstream) instead of collapsing consecutive
-  # whitespace delimiters.
-  # Missing planned_tasks[] (or non-array) yields no rows -> no-op PASS (AC8).
+  # DP-296 T3: Extract canonical tasks[] as <task_id><US><task_shape><US><hint><US><title>
+  # rows, where <US> is the ASCII unit separator (\x1f). task_shape and
+  # tracked_deliverable_hint are now first-class tasks[] fields (canonical home,
+  # migrated from the removed legacy top-level shape array, AC2 / AC-NEG1). A
+  # non-whitespace separator is required so `read` preserves an empty task_shape
+  # field (a missing field defaults to implementation downstream) instead of
+  # collapsing consecutive whitespace delimiters.
+  # task_id is the short work-item form (T1/V1) derived from tasks[].id, which may
+  # be short (T1) or full (DP-NNN-Tn) form per the canonical schema.
+  # Missing tasks[] (or non-array) yields no rows -> no-op PASS.
   local rows
   rows="$(python3 - "$refinement_json" <<'PY'
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -257,21 +263,33 @@ except (json.JSONDecodeError, OSError) as exc:
     print(f"PARSE_ERROR\t{exc}", file=sys.stderr)
     raise SystemExit(3)
 
-planned = data.get("planned_tasks")
-if not isinstance(planned, list):
+
+def short_work_item_id(value, fallback):
+    """Normalize a tasks[].id (short T1/V1 or full DP-NNN-Tn) to its short form."""
+    value = str(value or "").strip()
+    if re.fullmatch(r"[TV][0-9]+[a-z]?", value):
+        return value
+    m = re.fullmatch(r"[A-Z][A-Z0-9]*-[0-9]+-([TV][0-9]+[a-z]?)", value)
+    if m:
+        return m.group(1)
+    return fallback
+
+
+tasks = data.get("tasks")
+if not isinstance(tasks, list):
     raise SystemExit(0)
 
-for idx, entry in enumerate(planned):
+for idx, entry in enumerate(tasks):
     if not isinstance(entry, dict):
         print(f"BADENTRY\t{idx}", file=sys.stderr)
         raise SystemExit(3)
-    task_id = str(entry.get("task_id") or f"PT{idx + 1}").strip() or f"PT{idx + 1}"
+    task_id = short_work_item_id(entry.get("id"), f"PT{idx + 1}")
     task_shape = str(entry.get("task_shape") or "").strip()
     hint = str(entry.get("tracked_deliverable_hint") or "tracked").strip() or "tracked"
     # DP-294 T7 / AC9: carry the real planned title so the placeholder summary
     # line triggers the validate-task-md summary-language guard per task. May be
-    # empty (pre-T7 refinement.json) when title-less tasks fall back to a CJK
-    # summary downstream so the guard stays a no-op (backward compat).
+    # empty when title-less tasks fall back to a CJK summary downstream so the
+    # guard stays a no-op (backward compat).
     title = str(entry.get("title") or "").strip()
     # The unit separator / newline would corrupt the row contract; reject early.
     if any("\x1f" in v or "\n" in v for v in (task_id, task_shape, hint, title)):
@@ -280,12 +298,12 @@ for idx, entry in enumerate(planned):
     print(f"{task_id}\x1f{task_shape}\x1f{hint}\x1f{title}")
 PY
 )" || {
-    echo "validate-refinement-lock-preflight: failed to parse planned_tasks[] in $refinement_json" >&2
+    echo "validate-refinement-lock-preflight: failed to parse tasks[] in $refinement_json" >&2
     return 1
   }
 
   if [[ -z "$rows" ]]; then
-    echo "validate-refinement-lock-preflight.sh PASS - no planned_tasks[] to preflight ($refinement_json)"
+    echo "validate-refinement-lock-preflight.sh PASS - no tasks[] to preflight ($refinement_json)"
     return 0
   fi
 
@@ -299,7 +317,7 @@ PY
     if ! bash "$VALIDATE_BREAKDOWN_READY" "$placeholder_dir/index.md" >/dev/null 2>"$err"; then
       local detail
       detail="$(head -n 3 "$err" | tr '\n' ' ')"
-      failures+=("planned task '$task_id' (task_shape='${task_shape:-implementation}', deliverable_hint='$hint') not breakdown-ready: $detail")
+      failures+=("task '$task_id' (task_shape='${task_shape:-implementation}', deliverable_hint='$hint') not breakdown-ready: $detail")
     fi
   done <<<"$rows"
 
@@ -342,29 +360,31 @@ run_self_test() {
   # shellcheck disable=SC2064
   trap "rm -rf '$tmpdir'" RETURN
 
+  # DP-296 T3: canonical tasks[] fixtures (task_shape / tracked_deliverable_hint
+  # are first-class tasks[] fields; the preflight reads them directly).
   # Legal: confirmation/audit specs-only + implementation tracked -> PASS.
   cat >"$tmpdir/ok.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-262" },
-  "planned_tasks": [
-    { "task_id": "T1", "task_shape": "confirmation", "tracked_deliverable_hint": "specs_only" },
-    { "task_id": "T2", "task_shape": "audit", "tracked_deliverable_hint": "specs_only" },
-    { "task_id": "T3", "task_shape": "implementation", "tracked_deliverable_hint": "tracked" }
+  "tasks": [
+    { "id": "T1", "task_shape": "confirmation", "tracked_deliverable_hint": "specs_only" },
+    { "id": "T2", "task_shape": "audit", "tracked_deliverable_hint": "specs_only" },
+    { "id": "T3", "task_shape": "implementation", "tracked_deliverable_hint": "tracked" }
   ]
 }
 JSON
   if ! bash "${BASH_SOURCE[0]}" "$tmpdir/ok.json" >/dev/null 2>"$tmpdir/ok.err"; then
-    echo "self-test failed: legal planned_tasks did not pass" >&2
+    echo "self-test failed: legal tasks[] did not pass" >&2
     cat "$tmpdir/ok.err" >&2
     return 1
   fi
 
-  # Illegal: implementation planned task declares specs-only deliverable -> exit 2.
+  # Illegal: implementation task declares specs-only deliverable -> exit 2.
   cat >"$tmpdir/bad.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-262" },
-  "planned_tasks": [
-    { "task_id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "specs_only" }
+  "tasks": [
+    { "id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "specs_only" }
   ]
 }
 JSON
@@ -373,16 +393,16 @@ JSON
   local rc=$?
   set -e
   if [[ "$rc" -ne 2 ]]; then
-    echo "self-test failed: implementation specs-only planned task expected exit 2, got $rc" >&2
+    echo "self-test failed: implementation specs-only task expected exit 2, got $rc" >&2
     return 1
   fi
 
-  # Missing planned_tasks[] -> no-op PASS.
+  # Missing tasks[] -> no-op PASS.
   cat >"$tmpdir/empty.json" <<'JSON'
 { "source": { "type": "dp", "id": "DP-262" } }
 JSON
   if ! bash "${BASH_SOURCE[0]}" "$tmpdir/empty.json" >/dev/null 2>"$tmpdir/empty.err"; then
-    echo "self-test failed: missing planned_tasks did not pass" >&2
+    echo "self-test failed: missing tasks[] did not pass" >&2
     cat "$tmpdir/empty.err" >&2
     return 1
   fi

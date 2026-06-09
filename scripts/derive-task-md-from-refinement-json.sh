@@ -390,25 +390,15 @@ depends_on: []
     sys.stdout.write(doc)
     sys.exit(0)
 
-# DP-272 T1: task_shape propagation (T-task only — the V-task branch returned
-# above, AC2). The canonical source is planned_tasks[] (NOT tasks[]): join by
-# the normalized short task id and read task_shape. Passthrough only — derive
-# does not validate the enum (single classifier = validate-task-md.sh, DP-262
-# AC7). No matching planned_tasks entry or empty task_shape → omit the line and
-# the reader defaults to implementation (AC8 zero-shim).
-planned_shape_by_short = {}
-for planned_entry in (data.get("planned_tasks") or []):
-    if not isinstance(planned_entry, dict):
-        continue
-    planned_short = short_work_item_id(str(planned_entry.get("task_id") or ""))
-    if not planned_short:
-        continue
-    raw_shape = planned_entry.get("task_shape")
-    shape = str(raw_shape).strip() if raw_shape not in (None, "") else ""
-    if shape:
-        planned_shape_by_short[planned_short] = shape
-
-task_shape_value = planned_shape_by_short.get(short_id, "")
+# DP-296 T1/T3: task_shape propagation (T-task only — the V-task branch returned
+# above, AC2). The canonical source is the matched tasks[] entry's first-class
+# `task_shape` field (DP-296 canonicalize; the legacy top-level shape array read
+# is removed, AC-NEG1). Passthrough only — derive does not validate the enum
+# (single classifier = validate-task-md.sh, DP-262 AC7). A missing or empty
+# task_shape → omit the line and the reader defaults to implementation (AC8
+# zero-shim).
+raw_shape = match.get("task_shape")
+task_shape_value = str(raw_shape).strip() if raw_shape not in (None, "") else ""
 task_shape_line = f"task_shape: {task_shape_value}\n" if task_shape_value else ""
 
 doc = f"""---

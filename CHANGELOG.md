@@ -4,6 +4,20 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.152] - 2026-06-09
+
+### Fixed — DP-296 skill produce/consume canonical 契約綁定 + selftest callsite parity
+
+把 refinement.json 的 task 描述從 legacy top-level `planned_tasks[]` 收斂成單一 canonical `tasks[]` schema（`task_shape` / `tracked_deliverable_hint` 為 first-class 欄位），收緊 validator、遷移所有消費端、新增 consumer schema-binding 守門 gate，並把 DP-294 fix-forward 的 selftest 對齊真實 callsite 形狀；四段 skill 互走契約一併文件化。版號治理機制本身的根本解法留待 DP-295。
+
+- **遷移腳本與既有 active source 收編**（DP-296-T1）：新增 `migrate-refinement-planned-tasks-to-canonical.sh`（orphan fail-loud、idempotent），把 DP-296 自身與 7 個 LOCKED sibling（DP-242/272/274/280/281/282/289）的 active refinement.json 由 `planned_tasks[]` 折進 canonical `tasks[]`。
+- **收緊 schema validator**（DP-296-T2）：`validate-refinement-json.sh` 對 top-level `planned_tasks[]` fail-close，接受 `tasks[].task_shape` / `tracked_deliverable_hint`。
+- **消費端遷移**（DP-296-T3）：`derive-task-md-from-refinement-json.sh` 與 `validate-refinement-lock-preflight.sh` 改讀 canonical `tasks[]`，移除 `planned_tasks[]` 讀取。
+- **consumer schema-binding gate**（DP-296-T4）：新增 `validate-refinement-consumer-schema-binding.sh`，消費端讀 schema 外欄位時 exit 非 0，接進 `check-framework-pr-gate.sh`。
+- **DP-294 fix-forward callsite-real selftest**（DP-296-T5）：四主題（T1 真實 nested bundle、T2 live-ledger re-anchor、T6 hermetic session-lock、T7 LOCK-preflight title-language）各帶對齊真實 callsite 形狀的斷言與 negative counterpart。
+- **四段 skill canonical 契約文件**（DP-296-T6）：refinement / breakdown / engineering / verify-AC 的 SKILL.md 與共用 `pipeline-handoff.md` 載明預設互走 canonical 契約 + standalone fallback LLM 契約。
+- **research-dispatch-unit selftest fixture canonical 化**（DP-296-T7）：`validate-breakdown-ready-research-dispatch-unit-selftest.sh` 的 2 個 LOCK-time fixture 由 `planned_tasks[]` 改寫為 canonical `tasks[]`，research-lock case 正確 exit 2（`POLARIS_RESEARCH_UNIT_NO_IMPLEMENTATION`）。
+
 ## [3.75.151] - 2026-06-07
 
 ### Fixed — DP-294 framework deterministic-gate correctness follow-ups

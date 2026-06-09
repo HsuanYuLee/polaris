@@ -736,6 +736,68 @@ MD
   [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T3b.md" ]] || { echo "[selftest] write-lock FAIL"; return 1; }
   [[ -f "$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --print-lock-path EPIC-480 2>/dev/null)" ]] || { echo "[selftest] lock file missing"; return 1; }
 
+  # -------------------------------------------------------------------------
+  # DP-296 T5 / AC5 — DP-294 fix-forward themes asserted against the REAL
+  # callsite shape, each with its negative counterpart. These are not synthetic
+  # stand-ins: they exercise the same lock-path resolver and folder-native
+  # work-order resolution the live engineering flow uses.
+  # -------------------------------------------------------------------------
+
+  # AC5 T6 — hermetic session-lock must NOT leak/use the real session lock.
+  # POLARIS_WORK_ORDER_LOCK_DIR redirects the lock into $tmpdir (set at the top of
+  # this selftest). Positive: the written lock lands at the hermetic path. Negative:
+  # the live /tmp lock path for the SAME root (identical sha1(root) digest, only the
+  # directory differs) must NOT exist — the selftest never touches the real session
+  # lock dir.
+  local hermetic_lock live_lock
+  hermetic_lock="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --print-lock-path EPIC-480 2>/dev/null)"
+  [[ "$hermetic_lock" == "$tmpdir/"* ]] || { echo "[selftest] AC5 T6 hermetic lock path not under tmpdir: $hermetic_lock"; return 1; }
+  live_lock="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORK_ORDER_LOCK_DIR bash "$0" --scan-root "$tmpdir" --print-lock-path EPIC-480 2>/dev/null)"
+  [[ "$live_lock" == /tmp/* ]] || { echo "[selftest] AC5 T6 live lock path not under /tmp: $live_lock"; return 1; }
+  [[ ! -e "$live_lock" ]] || { echo "[selftest] AC5 T6 hermetic selftest leaked live session lock: $live_lock"; rm -f "$live_lock"; return 1; }
+
+  # AC5 T1 — real nested bundle worktree fixture shape. A delivery-branch bundle
+  # worktree is NOT flattened next to the main checkout: it nests the canonical
+  # docs-manager/.../specs/design-plans/DP-NNN-*/tasks/Tn/index.md tree under a
+  # worktree directory. Resolving DP-296-T1 from that nested worktree (no inline
+  # specs, overlay falls back to the nested specs root) must find the folder-native
+  # task.md. Negative: a flattened "tasks/T1.md.txt" sibling (wrong extension /
+  # non-canonical shape) must NOT be picked up.
+  local bundle_wt="$tmpdir/.worktrees/polaris-framework-bundle-DP-296"
+  mkdir -p "$bundle_wt/docs-manager/src/content/docs/specs/design-plans/DP-296-canonical-binding/tasks/T1"
+  cat > "$bundle_wt/docs-manager/src/content/docs/specs/design-plans/DP-296-canonical-binding/tasks/T1/index.md" <<'MD'
+# T1: Nested bundle worktree task (1 pt)
+> Source: DP-296 | Task: DP-296-T1 | JIRA: N/A | Repo: polaris-framework
+## Operational Context
+| Source type | dp |
+| Source ID | DP-296 |
+| Task ID | DP-296-T1 |
+| JIRA key | N/A |
+MD
+  # Negative-shape decoy: a flattened, non-canonical filename that the resolver
+  # must ignore (only [TV]*.md / [TV]*/index.md under tasks/ are canonical).
+  : > "$bundle_wt/docs-manager/src/content/docs/specs/design-plans/DP-296-canonical-binding/tasks/T1.md.txt"
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$bundle_wt" DP-296-T1)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-296-canonical-binding/tasks/T1/index.md" ]] || { echo "[selftest] AC5 T1 nested bundle worktree resolution FAIL (got rc=$rc out=$out)"; return 1; }
+  [[ "$out" != *".md.txt" ]] || { echo "[selftest] AC5 T1 resolver picked up flattened decoy shape: $out"; return 1; }
+
+  # AC5 T2 — live ledger (work-order lock) path re-anchor. A second --write-lock for
+  # the same root must re-anchor the EXISTING live ledger file in place (same path),
+  # rewriting its resolved_path payload — not stub a new sidecar. Resolve a
+  # different work order and assert the single lock file is overwritten to the new
+  # resolution.
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --write-lock EPIC-481)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T4.md" ]] || { echo "[selftest] AC5 T2 ledger re-anchor write FAIL (got rc=$rc out=$out)"; return 1; }
+  # Same hermetic lock path as before (root unchanged) — re-anchored in place.
+  [[ -f "$hermetic_lock" ]] || { echo "[selftest] AC5 T2 ledger file missing after re-anchor: $hermetic_lock"; return 1; }
+  grep -q '/specs/EPIC-478/tasks/T4.md' "$hermetic_lock" || { echo "[selftest] AC5 T2 ledger not re-anchored to new resolved_path"; cat "$hermetic_lock"; return 1; }
+  # Negative: the stale resolution must be gone (re-anchor overwrites, not appends).
+  if grep -q '/specs/EPIC-478/tasks/T3b.md' "$hermetic_lock"; then
+    echo "[selftest] AC5 T2 ledger still carries stale resolved_path after re-anchor"; cat "$hermetic_lock"; return 1
+  fi
+
   echo "[selftest] PASS"
 }
 
