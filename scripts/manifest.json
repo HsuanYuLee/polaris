@@ -1629,6 +1629,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/lint-no-business-gate-reads-derived-md.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_derived_md_read_boundary",
+      "selftest": "scripts/selftests/lint-no-business-gate-reads-derived-md-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/lint-reference-line-count.sh",
       "kind": "gate",
       "runner": "bash",
@@ -4754,10 +4763,9 @@
       "kind": "gate",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
-      "selftest": "N/A",
+      "selftest": "scripts/selftests/validate-language-policy-selftest.sh",
       "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "relocation": "stay"
     },
     {
       "path": "scripts/validate-learning-seed-contract.sh",

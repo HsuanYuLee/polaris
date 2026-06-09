@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
-# validate-refinement-locked-scope.sh — DP-212 LOCKED scope guard.
+# validate-refinement-locked-scope.sh — DP-212 LOCKED scope guard (DP-298 T2:
+# JSON-authority only).
 #
-# Compares a refinement amendment diff against the LOCKED-protected section
-# whitelist. If the diff touches Goal / Background / Decisions / Scope /
-# Acceptance Criteria (Markdown headings) or the corresponding JSON top-level
-# fields (`goal`, `background`, `decisions`, `scope`, `acceptance_criteria`),
-# the validator exits 2 with `POLARIS_LOCKED_SCOPE_VIOLATION` on stderr.
+# Compares a refinement amendment diff against the LOCKED-protected JSON
+# authority fields. If the diff touches the JSON top-level fields (`goal`,
+# `background`, `decisions`, `scope`, `acceptance_criteria`) in
+# `refinement.json`, the validator exits 2 with `POLARIS_LOCKED_SCOPE_VIOLATION`
+# on stderr.
+#
+# DP-298 T2 removed the `refinement.md` `## Scope` / heading-diff business-read
+# branch: `refinement.json` is the single authoritative source for LOCKED scope,
+# and the derived `refinement.md` body is no longer read to make a LOCKED-scope
+# decision (it is a render target, not authority). The only remaining reference
+# to `refinement.md` in this guard is this comment — there is no executing path
+# that reads its body.
 #
 # Usage:
 #   scripts/validate-refinement-locked-scope.sh \
@@ -14,9 +22,9 @@
 #     [--head-ref <git ref or commit after amendment, default HEAD>]
 #
 # Exit codes:
-#   0  amendment touches only allowed sections (or no diff)
+#   0  amendment touches only allowed JSON fields (or no diff)
 #   1  invalid input / IO error
-#   2  POLARIS_LOCKED_SCOPE_VIOLATION — amendment touched a LOCKED section
+#   2  POLARIS_LOCKED_SCOPE_VIOLATION — amendment touched a LOCKED JSON field
 
 set -euo pipefail
 
@@ -67,17 +75,8 @@ REPO_REAL="$(python3 -c "import os,sys; print(os.path.realpath(sys.argv[1]))" "$
 REL_CONTAINER="$(python3 -c "import os,sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))" "$CONTAINER_REAL" "$REPO_REAL")"
 REPO="$REPO_REAL"
 
-REFINEMENT_MD_REL="${REL_CONTAINER%/}/refinement.md"
 REFINEMENT_JSON_REL="${REL_CONTAINER%/}/refinement.json"
 
-LOCKED_HEADINGS=(
-  "## Goal"
-  "## Background"
-  "## Decisions"
-  "## Scope"
-  "## Out of Scope"
-  "## Acceptance Criteria"
-)
 LOCKED_JSON_FIELDS=(
   "goal"
   "background"
@@ -86,79 +85,7 @@ LOCKED_JSON_FIELDS=(
   "acceptance_criteria"
 )
 
-# Helper: extract the heading section a hunk modifies. We rely on git diff's
-# hunk header (-U0 keeps unchanged lines out and matches the closest ## heading
-# via -p hunk-context).
 violations=()
-
-if git -C "$REPO" diff --quiet "$BASE_REF" "$HEAD_REF" -- "$REFINEMENT_MD_REL"; then
-  : # no md change
-else
-  md_violations="$(python3 - "$REPO" "$REFINEMENT_MD_REL" "$BASE_REF" "$HEAD_REF" "${LOCKED_HEADINGS[@]}" <<'PY'
-import subprocess
-import sys
-
-repo, rel_path, base_ref, head_ref, *headings = sys.argv[1:]
-
-
-def show(ref):
-    try:
-        out = subprocess.check_output(
-            ["git", "-C", repo, "show", f"{ref}:{rel_path}"],
-            stderr=subprocess.DEVNULL,
-        )
-    except subprocess.CalledProcessError:
-        return ""
-    return out.decode("utf-8", errors="replace")
-
-
-def split_sections(text):
-    # Return dict mapping section_name to body string.
-    # section_name PREAMBLE captures content before the first heading.
-    # Headings are stored verbatim, e.g. ## Goal.
-    current = "PREAMBLE"
-    buckets = {current: []}
-    for line in text.splitlines(keepends=False):
-        if line.startswith("## "):
-            current = line.strip()
-            buckets.setdefault(current, [])
-            buckets[current].append(line)
-        else:
-            buckets[current].append(line)
-    return {k: "\n".join(v) for k, v in buckets.items()}
-
-
-before = split_sections(show(base_ref))
-after = split_sections(show(head_ref))
-
-violated = []
-heading_set = set(headings)
-all_sections = sorted(set(before) | set(after))
-for section in all_sections:
-    if section not in heading_set:
-        continue
-    if before.get(section) != after.get(section):
-        violated.append(f"refinement.md LOCKED section changed: {section}")
-
-# Also flag any heading rename (LOCKED heading removed and a new heading appeared).
-removed = set(before) - set(after)
-added = set(after) - set(before)
-for h in removed & heading_set:
-    if h not in violated:
-        violated.append(f"refinement.md LOCKED heading removed or renamed: {h}")
-for h in added & heading_set:
-    # adding a heading that did not previously exist is also a scope extension.
-    violated.append(f"refinement.md LOCKED heading added: {h}")
-
-print("\n".join(violated))
-PY
-)"
-  if [[ -n "$md_violations" ]]; then
-    while IFS= read -r v; do
-      [[ -n "$v" ]] && violations+=("$v")
-    done <<<"$md_violations"
-  fi
-fi
 
 # JSON diff: re-parse both sides and compare locked top-level fields. If any
 # of those fields differ, that is a violation. Adds / removes count too.

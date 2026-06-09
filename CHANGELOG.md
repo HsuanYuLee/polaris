@@ -4,6 +4,17 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.153] - 2026-06-09
+
+### Fixed — DP-298 business gate 讀 authoritative refinement.json 而非 derived refinement.md（DP-296 fix-forward）
+
+把所有 business gate 的判斷來源從 derived `refinement.md` body 收斂到 authoritative `refinement.json`，解開 DP-295 的 locked-scope dead-lock，並把語言不變式前移到 write-time。
+
+- **canonical 契約落地 + derived-md reader 盤點守門**（DP-298-T1）：`canonical-contract-governance.md` 新增明文條文「任何 business gate 不得讀 derived `refinement.md` body，對 `refinement.md` 唯一允許 idempotency/parity `--check`」；新增 regression lint `lint-no-business-gate-reads-derived-md.sh`，以 allowlist 區分 idempotency/parity/shape/existence reader（legitimate）與 business-read（violation）。
+- **locked-scope guard 改只驗 JSON 權威欄位**（DP-298-T2）：`validate-refinement-locked-scope.sh` 移除讀 `refinement.md` `## Scope`/heading diff 的 business 分支，只保留 `LOCKED_JSON_FIELDS` JSON 比對，解開 DP-295「amend 非 LOCKED 欄位卻被 derived md 誤判 exit 2」的 dead-lock；LOCKED 保護不變。
+- **語言不變式前移至 write-time**（DP-298-T3）：`validate-language-policy.sh` 新增 JSON field-aware mode，對 `refinement.json` human-facing prose 欄位（`tasks[].title`/`tasks[].scope`/`acceptance_criteria[].text`）逐欄位驗 config 語言，沿用既有 inline-code strip heuristic 避免誤擋技術術語。
+- **交付/接收邊界綁定 prose 欄位語言**（DP-298-T4）：`validate-refinement-consumer-schema-binding.sh` 延伸 DP-296 schema-binding，把 prose 欄位語言合規納入交付/接收邊界檢查。
+
 ## [3.75.152] - 2026-06-09
 
 ### Fixed — DP-296 skill produce/consume canonical 契約綁定 + selftest callsite parity

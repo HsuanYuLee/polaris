@@ -1,12 +1,26 @@
 #!/usr/bin/env bash
-# refinement-locked-scope-selftest.sh — DP-212 LOCKED scope guard fixtures.
+# refinement-locked-scope-selftest.sh — DP-212 LOCKED scope guard fixtures,
+# updated for DP-298 T2 (JSON-authority-only guard).
+#
+# DP-298 T2 removed the `refinement.md` `## Scope` / heading-diff business-read
+# branch. `refinement.json` is the single authoritative source for LOCKED scope.
+# The derived `refinement.md` body is no longer read to make a LOCKED-scope
+# decision, so amending non-LOCKED JSON fields (e.g. `tasks[].title`) — even
+# alongside a derived `## Scope` change in refinement.md — must PASS.
 #
 # Cases:
-#   1. Amendment touches only Technical Approach / Dependencies / tasks
-#      → validator exits 0 (PASS).
-#   2. Amendment changes ## Goal heading body         → exit 2 violation.
-#   3. Amendment changes refinement.json acceptance_criteria → exit 2 violation.
-#   4. Amendment renames ## Decisions heading         → exit 2 violation.
+#   1. (AC-NF1) Amendment touches only a non-LOCKED JSON field
+#      (`technical_approach`)                                  → exit 0 (PASS).
+#   2. (AC1) Amendment changes non-LOCKED `tasks[].title` AND the derived
+#      `refinement.md` `## Scope` body                          → exit 0 (PASS);
+#      no longer mis-flagged by a removed derived-md branch.
+#   3. (AC2) Amendment changes refinement.json `acceptance_criteria`
+#                                                               → exit 2 violation.
+#   4. (AC-NF1) Each JSON LOCKED field
+#      (goal/background/decisions/scope/acceptance_criteria)    → exit 2 violation;
+#      existing JSON-authority behavior unchanged.
+#   5. (AC-NEG1) The guard source contains no executing `refinement.md`
+#      body-read path (refinement.md references only appear in comments).
 
 set -euo pipefail
 
@@ -69,7 +83,8 @@ cat >"$CONTAINER/refinement.json" <<'JSON'
   "decisions": ["D1"],
   "scope": ["thing A"],
   "acceptance_criteria": [{"id": "AC1", "text": "original"}],
-  "technical_approach": "original approach"
+  "technical_approach": "original approach",
+  "tasks": [{"id": "DP-999-T1", "title": "original task title"}]
 }
 JSON
 
@@ -77,45 +92,7 @@ git -C "$REPO" add .
 git -C "$REPO" commit -q -m "initial LOCKED snapshot"
 BASE_SHA="$(git -C "$REPO" rev-parse HEAD)"
 
-# === Case 1: legitimate amendment (Technical Approach + Dependencies) ===
-cat >"$CONTAINER/refinement.md" <<'MD'
----
-title: "DP-999 refinement"
-description: "locked scope fixture"
----
-
-## Goal
-
-Original goal sentence.
-
-## Background
-
-Background body.
-
-## Decisions
-
-- D1: original decision
-
-## Scope
-
-- thing A
-
-## Acceptance Criteria
-
-- AC1: original
-
-## Technical Approach
-
-- Original approach.
-- Added implementation detail discovered by dogfood.
-
-## Dependencies
-
-- DP-X
-- DP-Y (new)
-MD
-
-# Update json only in non-locked field
+# === Case 1 (AC-NF1): legitimate amendment of a non-LOCKED JSON field ===
 python3 - "$CONTAINER/refinement.json" <<'PY'
 import json, sys
 from pathlib import Path
@@ -129,38 +106,46 @@ git -C "$REPO" add .
 git -C "$REPO" commit -q -m "amendment: technical approach refinement"
 
 if ! "$VALIDATOR" --container "$CONTAINER" --base-ref "$BASE_SHA" --head-ref HEAD >"$TMP/case1.out" 2>&1; then
-  echo "FAIL: case 1 (legitimate amendment) was incorrectly rejected" >&2
+  echo "FAIL: case 1 (legitimate non-LOCKED JSON amendment) was incorrectly rejected" >&2
   cat "$TMP/case1.out" >&2
   exit 1
 fi
 
-# === Case 2: violation — change Goal body ===
+# === Case 2 (AC1): amend non-LOCKED tasks[].title AND derived md ## Scope ===
+# This is the DP-298 T2 fix: the derived refinement.md ## Scope change must NOT
+# cause a violation because the guard no longer reads the md body.
 git -C "$REPO" reset --hard "$BASE_SHA" -q
 
+python3 - "$CONTAINER/refinement.json" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+data = json.loads(p.read_text(encoding="utf-8"))
+data["tasks"][0]["title"] = "amended task title (non-locked)"
+p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PY
+
+# Also mutate the derived refinement.md ## Scope body to prove the md branch is gone.
 python3 - "$CONTAINER/refinement.md" <<'PY'
 import sys
 from pathlib import Path
 p = Path(sys.argv[1])
 text = p.read_text(encoding="utf-8")
-text = text.replace("Original goal sentence.", "Rewritten goal sentence (violation).")
+text = text.replace("- thing A", "- thing A\n- thing B (derived md scope rerender)")
 p.write_text(text, encoding="utf-8")
 PY
 
 git -C "$REPO" add .
-git -C "$REPO" commit -q -m "amendment: change Goal body (violation)"
+git -C "$REPO" commit -q -m "amendment: tasks[].title + derived md scope rerender"
 
-if "$VALIDATOR" --container "$CONTAINER" --base-ref "$BASE_SHA" --head-ref HEAD >"$TMP/case2.out" 2>&1; then
-  echo "FAIL: case 2 (Goal body violation) was incorrectly accepted" >&2
-  cat "$TMP/case2.out" >&2
-  exit 1
-fi
-if ! grep -q "POLARIS_LOCKED_SCOPE_VIOLATION" "$TMP/case2.out"; then
-  echo "FAIL: case 2 missing POLARIS_LOCKED_SCOPE_VIOLATION stderr signal" >&2
+if ! "$VALIDATOR" --container "$CONTAINER" --base-ref "$BASE_SHA" --head-ref HEAD >"$TMP/case2.out" 2>&1; then
+  echo "FAIL: case 2 (tasks[].title + derived md ## Scope) was incorrectly rejected" >&2
+  echo "      AC1 regression: guard must not read derived refinement.md body" >&2
   cat "$TMP/case2.out" >&2
   exit 1
 fi
 
-# === Case 3: violation — change acceptance_criteria in json ===
+# === Case 3 (AC2): violation — change acceptance_criteria in json ===
 git -C "$REPO" reset --hard "$BASE_SHA" -q
 
 python3 - "$CONTAINER/refinement.json" <<'PY'
@@ -182,32 +167,51 @@ if "$VALIDATOR" --container "$CONTAINER" --base-ref "$BASE_SHA" --head-ref HEAD 
 fi
 if ! grep -q "POLARIS_LOCKED_SCOPE_VIOLATION" "$TMP/case3.out"; then
   echo "FAIL: case 3 missing POLARIS_LOCKED_SCOPE_VIOLATION stderr signal" >&2
+  cat "$TMP/case3.out" >&2
   exit 1
 fi
 
-# === Case 4: violation — rename ## Decisions heading ===
-git -C "$REPO" reset --hard "$BASE_SHA" -q
-
-python3 - "$CONTAINER/refinement.md" <<'PY'
-import sys
+# === Case 4 (AC-NF1): every JSON LOCKED field still triggers exit 2 ===
+LOCKED_MUTATIONS=(
+  'data["goal"] = "rewritten goal (violation)"'
+  'data["background"] = "rewritten background (violation)"'
+  'data["decisions"] = ["D1", "D2 (violation)"]'
+  'data["scope"] = ["thing A", "thing B (violation)"]'
+  'data["acceptance_criteria"] = [{"id": "AC1", "text": "rewritten (violation)"}]'
+)
+for mutation in "${LOCKED_MUTATIONS[@]}"; do
+  git -C "$REPO" reset --hard "$BASE_SHA" -q
+  python3 - "$CONTAINER/refinement.json" "$mutation" <<'PY'
+import json, sys
 from pathlib import Path
 p = Path(sys.argv[1])
-text = p.read_text(encoding="utf-8")
-text = text.replace("## Decisions", "## Architectural decisions")
-p.write_text(text, encoding="utf-8")
+data = json.loads(p.read_text(encoding="utf-8"))
+exec(sys.argv[2])
+p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 PY
+  git -C "$REPO" add .
+  git -C "$REPO" commit -q -m "amendment: LOCKED field mutation (violation)"
+  if "$VALIDATOR" --container "$CONTAINER" --base-ref "$BASE_SHA" --head-ref HEAD >"$TMP/case4.out" 2>&1; then
+    echo "FAIL: case 4 LOCKED-field mutation incorrectly accepted: $mutation" >&2
+    cat "$TMP/case4.out" >&2
+    exit 1
+  fi
+  if ! grep -q "POLARIS_LOCKED_SCOPE_VIOLATION" "$TMP/case4.out"; then
+    echo "FAIL: case 4 missing violation signal for: $mutation" >&2
+    cat "$TMP/case4.out" >&2
+    exit 1
+  fi
+done
 
-git -C "$REPO" add .
-git -C "$REPO" commit -q -m "amendment: rename Decisions heading (violation)"
-
-if "$VALIDATOR" --container "$CONTAINER" --base-ref "$BASE_SHA" --head-ref HEAD >"$TMP/case4.out" 2>&1; then
-  echo "FAIL: case 4 (Decisions heading rename) was incorrectly accepted" >&2
-  cat "$TMP/case4.out" >&2
+# === Case 5 (AC-NEG1): no executing refinement.md body-read path in guard ===
+# Strip comment lines, then assert the executable body never references
+# refinement.md (no `git show ...refinement.md`, no REFINEMENT_MD_REL, no
+# heading-diff python block).
+EXEC_BODY="$(grep -vE '^[[:space:]]*#' "$VALIDATOR")"
+if printf '%s\n' "$EXEC_BODY" | grep -qE 'refinement\.md|REFINEMENT_MD_REL|LOCKED_HEADINGS'; then
+  echo "FAIL: case 5 (AC-NEG1) guard still has an executing refinement.md body-read path" >&2
+  printf '%s\n' "$EXEC_BODY" | grep -nE 'refinement\.md|REFINEMENT_MD_REL|LOCKED_HEADINGS' >&2
   exit 1
 fi
-if ! grep -q "POLARIS_LOCKED_SCOPE_VIOLATION" "$TMP/case4.out"; then
-  echo "FAIL: case 4 missing POLARIS_LOCKED_SCOPE_VIOLATION stderr signal" >&2
-  exit 1
-fi
 
-echo "PASS: DP-212 refinement LOCKED scope guard selftest (4/4 cases)"
+echo "PASS: DP-298 T2 refinement LOCKED scope guard selftest (JSON-authority only, 5/5 cases)"

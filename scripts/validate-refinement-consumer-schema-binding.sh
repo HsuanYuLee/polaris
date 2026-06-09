@@ -8,8 +8,24 @@
 #          literal `grep planned_tasks` scan — the whitelist is derived from the
 #          schema validator source, so dynamic-field-access drift is caught by the
 #          out-of-schema field rule rather than a bypassable literal match (AC3).
+#
+#          DP-298 T4 (AC3/AC5) adds the DELIVERY/RECEIVING-BOUNDARY language check:
+#          when one or more --refinement-json targets are supplied, the gate also
+#          binds the prose-field language invariant. Each target refinement.json is
+#          handed to validate-language-policy.sh --mode json-fields (the SINGLE
+#          language detector authored in DP-298 T3 — no second heuristic); a
+#          non-config-language human-facing prose field (tasks[].title / scope,
+#          acceptance_criteria[].text) fails the consumer gate closed, naming the
+#          violating field path. This binds "what the consumer receives" to
+#          "producer output is already config language". When no --refinement-json
+#          target is supplied the language boundary check is skipped, so the repo-wide
+#          framework-pr-gate run keeps the schema-binding-only behaviour (and does not
+#          retroactively block legacy refinement.json artifacts).
 # Inputs:  optional --root <repo> (defaults to the script's repo root); env override
-#          POLARIS_REFINEMENT_SCHEMA_VALIDATOR for the canonical schema source.
+#          POLARIS_REFINEMENT_SCHEMA_VALIDATOR for the canonical schema source;
+#          repeatable --refinement-json <path> for receiving-boundary language checks;
+#          optional --language <LANG> / --workspace-root <dir> passed through to the
+#          language gate (default: workspace-config.yaml language under --root).
 # Outputs: stdout "PASS: refinement consumer schema binding" on success;
 #          exit 2 + POLARIS_REFINEMENT_CONSUMER_SCHEMA_BINDING:{detail} on violation;
 #          exit 2 on usage / IO error.
@@ -25,10 +41,16 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LANGUAGE_OVERRIDE=""
+WORKSPACE_ROOT_OVERRIDE=""
+REFINEMENT_TARGETS=()
 
 usage() {
   cat >&2 <<'USAGE'
 usage: validate-refinement-consumer-schema-binding.sh [--root <repo>]
+                                                      [--refinement-json <path>]...
+                                                      [--language <LANG>]
+                                                      [--workspace-root <dir>]
 USAGE
   exit 2
 }
@@ -36,6 +58,9 @@ USAGE
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --root) ROOT_DIR="${2:?--root needs a value}"; shift 2 ;;
+    --refinement-json) REFINEMENT_TARGETS+=("${2:?--refinement-json needs a value}"); shift 2 ;;
+    --language) LANGUAGE_OVERRIDE="${2:?--language needs a value}"; shift 2 ;;
+    --workspace-root) WORKSPACE_ROOT_OVERRIDE="${2:?--workspace-root needs a value}"; shift 2 ;;
     -h|--help) usage ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage ;;
   esac
@@ -47,6 +72,7 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 SCHEMA_VALIDATOR="${POLARIS_REFINEMENT_SCHEMA_VALIDATOR:-$ROOT_DIR/scripts/validate-refinement-json.sh}"
+LANGUAGE_POLICY_BIN="${POLARIS_VALIDATE_LANGUAGE_POLICY_BIN:-$ROOT_DIR/scripts/validate-language-policy.sh}"
 
 python3 - "$ROOT_DIR" "$SCHEMA_VALIDATOR" <<'PY'
 """Bind declared refinement.json consumers to the canonical tasks[] schema whitelist.
@@ -204,6 +230,54 @@ if errors:
     for e in errors:
         print(f"POLARIS_REFINEMENT_CONSUMER_SCHEMA_BINDING:{e}", file=sys.stderr)
     sys.exit(2)
-
-print("PASS: refinement consumer schema binding")
 PY
+
+# --- 5. Delivery/receiving-boundary language check (DP-298 T4, AC3/AC5) ---------
+# The schema-binding + registration checks above passed (any failure would have
+# exited the python block with status 2 under `set -e`). When the caller supplies
+# one or more refinement.json delivery targets, bind the prose-field language
+# invariant: each target must already be config language. We delegate to the
+# DP-298 T3 json-fields language gate — the single authored detector — instead of
+# re-implementing a second language heuristic here (canonical-contract-governance:
+# one canonical writer/detector path).
+if [[ ${#REFINEMENT_TARGETS[@]} -gt 0 ]]; then
+  if [[ ! -f "$LANGUAGE_POLICY_BIN" ]]; then
+    echo "POLARIS_REFINEMENT_CONSUMER_SCHEMA_BINDING:language gate not found: ${LANGUAGE_POLICY_BIN} (POLARIS_VALIDATE_LANGUAGE_POLICY_BIN / scripts/validate-language-policy.sh)" >&2
+    exit 2
+  fi
+
+  lang_args=(--blocking --mode json-fields)
+  if [[ -n "$LANGUAGE_OVERRIDE" ]]; then
+    lang_args+=(--language "$LANGUAGE_OVERRIDE")
+  fi
+  if [[ -n "$WORKSPACE_ROOT_OVERRIDE" ]]; then
+    lang_args+=(--workspace-root "$WORKSPACE_ROOT_OVERRIDE")
+  fi
+
+  boundary_failed=0
+  for target in "${REFINEMENT_TARGETS[@]}"; do
+    if [[ ! -f "$target" ]]; then
+      echo "POLARIS_REFINEMENT_CONSUMER_SCHEMA_BINDING:refinement.json delivery target not found: ${target}" >&2
+      boundary_failed=1
+      continue
+    fi
+    set +e
+    lang_stderr="$(bash "$LANGUAGE_POLICY_BIN" "${lang_args[@]}" "$target" 2>&1 1>/dev/null)"
+    lang_rc=$?
+    set -e
+    if [[ "$lang_rc" -ne 0 ]]; then
+      # The language gate names each violating field path (e.g. tasks[0].title);
+      # surface those lines under the consumer-gate marker so the boundary failure
+      # is grep-able with the same POLARIS_REFINEMENT_CONSUMER_SCHEMA_BINDING token.
+      echo "POLARIS_REFINEMENT_CONSUMER_SCHEMA_BINDING:delivery boundary language violation in ${target} (producer output is not config language); offending fields:" >&2
+      printf '%s\n' "$lang_stderr" | sed 's/^/  /' >&2
+      boundary_failed=1
+    fi
+  done
+
+  if [[ "$boundary_failed" -ne 0 ]]; then
+    exit 2
+  fi
+fi
+
+echo "PASS: refinement consumer schema binding"

@@ -36,6 +36,40 @@ contract、D2 研究單、D3 轉發/theme 單）。
 規劃 / LOCK refinement-owned source 時必須對齊上述 reference；D4 deterministic gate
 （`validate-breakdown-ready.sh` / `validate-refinement-lock-preflight.sh`）負責機械 enforce。
 
+## Derived Artifact Read Boundary
+
+`refinement.md` 是由 `refinement.json` render 出來的 **derived view**（producer：
+`scripts/render-refinement-md.sh`），不是 authoritative source。authoritative source 是
+`refinement.json`。任何 **business gate**——亦即用 read 結果驅動 lifecycle / scope /
+correctness 判斷（exit 2 / fail-closed / branch decision）的 validator、hook、release
+gate——**不得**讀 derived `refinement.md` body 做 business 判斷。business judgment 一律從
+authoritative `refinement.json` 取得。
+
+對 `refinement.md` 唯一允許的 gate 是 **idempotency / parity `--check`**：確認 derived
+view 與 `refinement.json` 一致（例如 `render-refinement-md.sh --check`、
+`validate-refinement-artifact-parity.sh` 比對 json AC ids ↔ md AC ids）。這類 reader 把
+`refinement.md` 當 render target 做一致性檢查，而非 source of business truth。
+
+合法（非 business-read）的 `refinement.md` 互動：
+
+- **idempotency / parity**：`--check` 模式比對 derived view 與 `refinement.json` 一致性。
+- **shape / existence**：`[[ -f .../refinement.md ]]` 存在性探測、primary-doc basename 檢查、
+  resolver candidate path 列舉。
+
+違反（business-read）的 `refinement.md` 互動：
+
+- 用 `git show <ref>:.../refinement.md` 取出 body、再 diff `## Scope` / `## Goal` 等 heading
+  section 來判定 LOCKED scope violation 或其他 lifecycle gate。
+- `cat` / `grep` / heading-parse `refinement.md` body，把結果當 scope / status / AC 的
+  authority 來源。
+
+此條對齊本檔 **Strong constraints first / Canonical shape first / Fail closed on missing
+inputs**：authoritative source 只有一個（`refinement.json`），derived view 不得成為第二條
+business authority path。deterministic enforcement 由
+`scripts/lint-no-business-gate-reads-derived-md.sh` 提供：以 allowlist 區分 idempotency /
+parity / shape / existence reader（legitimate）與 business-read（violation），新增的
+business-read gate 會被偵測 fail，既有 legitimate reader 不被誤判。
+
 ## Applicability
 
 變更或設計下列表面時套用本 rule：

@@ -16,12 +16,15 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<EOF
-usage: $0 [--blocking|--advisory] [--mode artifact|bilingual|bilingual-source|bilingual-translation] [--language LANG] [--workspace-root DIR] <file>...
+usage: $0 [--blocking|--advisory] [--mode artifact|json-fields|bilingual|bilingual-source|bilingual-translation] [--language LANG] [--workspace-root DIR] <file>...
 
 Options:
   --blocking            Exit 1 when violations are found.
   --advisory            Print findings but exit 0. Default.
   --mode artifact       Enforce normal artifact policy. Default.
+  --mode json-fields    Enforce per-field policy on refinement.json human-facing
+                        prose fields (tasks[].title, tasks[].scope,
+                        acceptance_criteria[].text). Violations name the field path.
   --mode bilingual      Allow bilingual/source documents without zh-TW-only enforcement.
   --mode bilingual-source|bilingual-translation
                         Aliases for bilingual documentation pairs.
@@ -81,8 +84,8 @@ mode = sys.argv[2]
 language = sys.argv[3]
 files = sys.argv[4:]
 
-if mode not in {"artifact", "bilingual", "bilingual-source", "bilingual-translation"}:
-    print(f"error: unsupported mode '{mode}' (expected artifact|bilingual|bilingual-source|bilingual-translation)", file=sys.stderr)
+if mode not in {"artifact", "json-fields", "bilingual", "bilingual-source", "bilingual-translation"}:
+    print(f"error: unsupported mode '{mode}' (expected artifact|json-fields|bilingual|bilingual-source|bilingual-translation)", file=sys.stderr)
     sys.exit(2)
 
 if enforcement not in {"blocking", "advisory"}:
@@ -227,24 +230,97 @@ def is_full_english_natural_language(text: str) -> bool:
         return False
     return True
 
+
+def is_english_prose_field(text: str) -> bool:
+    """Per-field English detector for json-fields mode.
+
+    Unlike is_full_english_natural_language (tuned for long document
+    paragraphs), this targets short human-facing prose fields that are known
+    to be natural language (a refinement.json task title / scope / AC text).
+    It reuses the same inline-code / code-token strip heuristic so a zh-TW
+    field that merely wraps a technical identifier in backticks is never
+    flagged (AC-NEG2). After stripping code, the residue must contain ≥2
+    English words and ≥1 English function word for the field to be classed as
+    English prose — short enough to catch an English title, strict enough to
+    let an all-code residue through.
+    """
+    if not text or not text.strip():
+        return False
+    if CJK_RE.search(text):
+        return False
+    cleaned = cleaned_for_language(text)
+    if CJK_RE.search(cleaned):
+        return False
+    words = [w.lower() for w in WORD_RE.findall(cleaned)]
+    if len(words) < 2:
+        return False
+    function_count = sum(1 for w in words if w in FUNCTION_WORDS)
+    if function_count < 1:
+        return False
+    identifierish = sum(1 for w in words if "_" in w or any(ch.isdigit() for ch in w))
+    if identifierish / max(len(words), 1) > 0.5:
+        return False
+    return True
+
+
+def json_prose_fields(data):
+    """Yield (field_path, text) for each human-facing prose field in a
+    refinement.json document: tasks[].title, tasks[].scope,
+    acceptance_criteria[].text. Missing / non-string fields are skipped."""
+    tasks = data.get("tasks") if isinstance(data, dict) else None
+    if isinstance(tasks, list):
+        for i, task in enumerate(tasks):
+            if not isinstance(task, dict):
+                continue
+            for field in ("title", "scope"):
+                value = task.get(field)
+                if isinstance(value, str):
+                    yield f"tasks[{i}].{field}", value
+    acs = data.get("acceptance_criteria") if isinstance(data, dict) else None
+    if isinstance(acs, list):
+        for i, ac in enumerate(acs):
+            if not isinstance(ac, dict):
+                continue
+            value = ac.get("text")
+            if isinstance(value, str):
+                yield f"acceptance_criteria[{i}].text", value
+
+
 violations = []
 for file_name in files:
     path = Path(file_name)
     if not path.is_file():
         print(f"error: file not found: {file_name}", file=sys.stderr)
         sys.exit(2)
-    for idx, para in enumerate(paragraphs(path), start=1):
-        if is_full_english_natural_language(para):
-            snippet = re.sub(r"\s+", " ", para).strip()
-            if len(snippet) > 140:
-                snippet = snippet[:137] + "..."
-            violations.append((str(path), idx, snippet))
+    if mode == "json-fields":
+        import json
+        try:
+            data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+        except json.JSONDecodeError as exc:
+            print(f"error: invalid JSON in {path}: {exc}", file=sys.stderr)
+            sys.exit(2)
+        for field_path, text in json_prose_fields(data):
+            if is_english_prose_field(text):
+                snippet = re.sub(r"\s+", " ", text).strip()
+                if len(snippet) > 140:
+                    snippet = snippet[:137] + "..."
+                violations.append((str(path), field_path, snippet))
+    else:
+        for idx, para in enumerate(paragraphs(path), start=1):
+            if is_full_english_natural_language(para):
+                snippet = re.sub(r"\s+", " ", para).strip()
+                if len(snippet) > 140:
+                    snippet = snippet[:137] + "..."
+                violations.append((str(path), idx, snippet))
 
 if violations:
     label = "language policy violations" if enforcement == "blocking" else "language policy advisory findings"
     print(f"✗ {label}:", file=sys.stderr)
-    for path, idx, snippet in violations:
-        print(f"  - {path}: paragraph {idx}: full English natural-language paragraph under zh-TW policy", file=sys.stderr)
+    for path, locator, snippet in violations:
+        if mode == "json-fields":
+            print(f"  - {path}: field {locator}: full English prose under zh-TW policy", file=sys.stderr)
+        else:
+            print(f"  - {path}: paragraph {locator}: full English natural-language paragraph under zh-TW policy", file=sys.stderr)
         print(f"    {snippet}", file=sys.stderr)
     sys.exit(1 if enforcement == "blocking" else 0)
 
