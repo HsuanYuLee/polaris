@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.1] - 2026-06-10
+
+### Changed
+
+- 1656c18: 修正 validate-task-md.sh docs-manager page-deliverable 分類判準 + selftest
+- b2d5aca: working-habits.md 例外 (b) 加 skill-contracted notification carve-out + 判別 test
+
 ## [3.76.0] - 2026-06-10
 
 ### Changed

@@ -202,6 +202,57 @@ extract_first_fenced_code_block() {
   '
 }
 
+# ---------------------------------------------------------------------------
+# Helper: decide whether a task is a genuine docs-manager *content-page*
+# deliverable, for which the Runtime verify target / Verify Command URL must use
+# a /docs-manager/ path (DP-023 Target-first rule for docs viewer pages).
+#
+# This is a precise classifier — NOT a file-wide `grep docs-manager`. A docs-manager
+# specs-container path that merely appears in "References to load"
+# (e.g. docs-manager/src/content/docs/specs/.../refinement.md) is a
+# References-only artifact and does NOT make the task a page deliverable.
+#
+# A task counts as a docs-manager page deliverable when EITHER signal holds:
+#   (a) Runtime verify target host = local docs viewer (127.0.0.1:8080 /
+#       localhost:8080); or
+#   (b) the ## Allowed Files section lists a docs-manager content page —
+#       a path under docs-manager/src/content/docs/** that is NOT a specs
+#       container artifact (docs-manager/src/content/docs/specs/** is excluded).
+#
+# Args: $1 = task.md file path, $2 = normalized Runtime verify target URL.
+# Returns: 0 (true) if it is a docs-manager page deliverable, 1 (false) otherwise.
+# ---------------------------------------------------------------------------
+is_docs_manager_page_deliverable() {
+  local file="$1"
+  local normalized_target="$2"
+
+  # Signal (a): Runtime verify target host = local docs viewer (port 8080).
+  local target_host_port
+  target_host_port=$(python3 -c "
+from urllib.parse import urlparse
+import sys
+u = urlparse(sys.argv[1])
+host = (u.hostname or '').lower()
+port = u.port
+print(f'{host}:{port}')
+" "$normalized_target" 2>/dev/null || true)
+  if [[ "$target_host_port" == "127.0.0.1:8080" || "$target_host_port" == "localhost:8080" ]]; then
+    return 0
+  fi
+
+  # Signal (b): ## Allowed Files lists a docs-manager content page that is NOT a
+  # specs container artifact.
+  local allowed_files_body
+  allowed_files_body=$(extract_markdown_section "$file" "## Allowed Files")
+  if printf '%s\n' "$allowed_files_body" \
+    | grep -oE 'docs-manager/src/content/docs/[^[:space:]`<>)]+' \
+    | grep -qvE '^docs-manager/src/content/docs/specs/'; then
+    return 0
+  fi
+
+  return 1
+}
+
 verify_command_static_smoke() {
   local file="$1"
   local command="$2"
@@ -1541,7 +1592,7 @@ print((urlparse(u).hostname or '').lower())
                 errors+=("Level=runtime: Verify Command URL host ($verify_host) must match Runtime verify target host ($target_host) — DP-023 Target-first rule")
               fi
 
-              if grep -qi 'docs-manager' "$FILE"; then
+              if is_docs_manager_page_deliverable "$FILE" "$normalized_target"; then
                 local target_path verify_path
                 target_path=$(python3 -c "
 from urllib.parse import urlparse
