@@ -6,12 +6,20 @@ set -euo pipefail
 # Deterministic preflight / executor for DP-backed framework workspace PR lanes.
 # It verifies that a task chain's PR bases match the task.md Branch chain before
 # framework-release syncs workspace main to the Polaris template repo.
+#
+# DP-295 T6: version + CHANGELOG are now consumed changeset-driven INSIDE the PR
+# via `mise run release:version` (scripts/release-version.sh) so they ride the
+# verified PR HEAD. This lane no longer runs a separate pre-merge VERSION-bump
+# gate and no longer defers a post-merge VERSION/CHANGELOG release-metadata step;
+# it converges to lineage validation + merge, leaving tag / sync / GitHub release
+# / closeout to framework-release. release-readiness (changeset present +
+# VERSION ≡ package.json + CHANGELOG) is enforced earlier in ci-local / remote
+# CI (T4).
 
 PREFIX="[framework-release-pr-lane]"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_PATH="$(cd "${SCRIPT_DIR}/.." && pwd)"
 GITHUB_REST_LIB="${SCRIPT_DIR}/lib/github-rest.sh"
-VERSION_BUMP_CHECKER="${SCRIPT_DIR}/check-version-bump-reminder.sh"
 SCRIPT_MANIFEST_CHECKER="${SCRIPT_DIR}/check-script-manifest.sh"
 SCRIPT_HEADER_VALIDATOR="${SCRIPT_DIR}/validate-script-header-comment.sh"
 SCRIPT_CATEGORIZATION_VALIDATOR="${SCRIPT_DIR}/validate-script-categorization.sh"
@@ -21,7 +29,6 @@ MAIN_BRANCH="main"
 EXECUTE=0
 REQUIRE_MAIN_CONTAINS_FINAL=0
 DAG_MODE=0
-DEFER_VERSION_BUMP_TO_METADATA=0
 GH_BIN="${GH_BIN:-gh}"
 TERMINAL_TASK_MD=""
 TASK_MDS=()
@@ -50,9 +57,6 @@ Options:
   --execute                  Merge open PRs in order, retargeting downstream PRs to main
   --allow-dag                Validate explicit --task-md list as a topological DAG,
                              not as one linear branch chain
-  --defer-version-bump-to-release-metadata
-                             Skip the pre-merge VERSION gate because framework-release
-                             will add VERSION/CHANGELOG in a release metadata lane
   --require-main-contains-final
                              After execution/preflight, require origin/main contains final head
   -h, --help                 Show help
@@ -180,33 +184,6 @@ pr_view_json() {
 
   "$GH_BIN" pr view "$branch" ${gh_repo_args[@]+"${gh_repo_args[@]}"} \
     --json number,state,baseRefName,headRefName,headRefOid,mergeStateStatus,url
-}
-
-run_version_bump_release_gate() {
-  local final_task_md gate_head_ref
-  if [[ "$DEFER_VERSION_BUMP_TO_METADATA" == "1" ]]; then
-    info "VERSION gate deferred to framework-release metadata lane; implementation PR merge still requires a later VERSION/CHANGELOG release metadata proof."
-    return 0
-  fi
-  [[ -f "$VERSION_BUMP_CHECKER" ]] || die "missing checker: $VERSION_BUMP_CHECKER"
-
-  # DP-270 (AC3): in bundle mode the version-bump gate evaluates the bundle
-  # branch diff, not any single per-task branch. In per-task mode it evaluates
-  # the terminal task branch exactly as before (AC-NEG1).
-  if [[ -n "$BUNDLE_ALIAS" ]]; then
-    gate_head_ref="$BUNDLE_ALIAS"
-  else
-    final_task_md="${TASK_MDS[$((${#TASK_MDS[@]} - 1))]}"
-    gate_head_ref="$(table_field "Task branch" "$final_task_md")"
-    [[ -n "$gate_head_ref" ]] || die "missing Task branch in terminal task.md: $final_task_md"
-  fi
-
-  info "running version-bump release gate on ${gate_head_ref} against origin/${MAIN_BRANCH}"
-  bash "$VERSION_BUMP_CHECKER" \
-    --mode release-preflight \
-    --base "origin/${MAIN_BRANCH}" \
-    --head-ref "$gate_head_ref" \
-    --repo "$REPO_PATH" || die "release preflight blocked: missing required VERSION bump"
 }
 
 run_script_manifest_release_gate() {
@@ -550,7 +527,6 @@ while [[ $# -gt 0 ]]; do
     --main=*) MAIN_BRANCH="${1#--main=}"; shift ;;
     --execute) EXECUTE=1; shift ;;
     --allow-dag) DAG_MODE=1; shift ;;
-    --defer-version-bump-to-release-metadata) DEFER_VERSION_BUMP_TO_METADATA=1; shift ;;
     --require-main-contains-final) REQUIRE_MAIN_CONTAINS_FINAL=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1" ;;
@@ -566,10 +542,12 @@ if [[ ${#TASK_MDS[@]} -eq 0 ]]; then
 fi
 
 # DP-270: classify bundle vs per-task before the release gates so the
-# version-bump / governed-script gates evaluate the correct head ref.
+# governed-script gates evaluate the correct head ref.
+# DP-295 T6: the pre-merge VERSION-bump gate is removed; version/CHANGELOG are
+# consumed changeset-driven inside the PR (mise run release:version) and ride the
+# verified PR HEAD, so the lane only runs the script-governance gates + merge.
 detect_bundle
 
-run_version_bump_release_gate
 run_script_manifest_release_gate
 run_governed_script_tests_release_gate
 if [[ -n "$BUNDLE_ALIAS" ]]; then

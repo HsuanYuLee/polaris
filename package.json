@@ -1,5 +1,6 @@
 {
   "name": "polaris-framework-workspace",
+  "version": "3.76.0",
   "private": true,
   "packageManager": "pnpm@10.10.0",
   "engines": {
@@ -16,5 +17,8 @@
     "toolchain:manifest": "bash scripts/polaris-toolchain.sh manifest --required",
     "scripts:check": "bash scripts/check-script-manifest.sh",
     "commands:check": "bash scripts/validate-polaris-command-catalog.sh"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.11"
   }
 }

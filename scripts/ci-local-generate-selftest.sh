@@ -1190,6 +1190,146 @@ rm -f "$T15_EVIDENCE" /tmp/ci-local-test15-generate.out /tmp/ci-local-test15-run
 
 # ============================================================================
 echo
+echo "== Test 16: changeset-SoT repo emits release-readiness consistency check (DP-295-T4) =="
+# ============================================================================
+# A repo carrying the changeset version SoT (.changeset/config.json + package.json
+# version + VERSION mirror) must have the generated mirror assert VERSION ≡
+# package.json version and CHANGELOG.md carrying the matching version block.
+# AC4: "changeset 已消費但 VERSION/package.json/CHANGELOG 不一致 → block".
+T16="$TMPROOT/release-readiness-consistency"
+mkdir -p "$T16/.changeset" "$T16/.github/workflows"
+cat > "$T16/.changeset/config.json" <<'JSON'
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
+  "changelog": "@changesets/changelog-git",
+  "commit": false,
+  "fixed": [],
+  "linked": [],
+  "access": "restricted",
+  "baseBranch": "main"
+}
+JSON
+cat > "$T16/.github/workflows/ci.yml" <<'YAML'
+name: CI
+on: [pull_request]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo lint
+YAML
+cat > "$T16/package.json" <<'JSON'
+{
+  "name": "fixture-pkg",
+  "version": "1.2.3",
+  "private": true
+}
+JSON
+printf '1.2.3\n' > "$T16/VERSION"
+cat > "$T16/CHANGELOG.md" <<'MD'
+# Changelog
+
+## [1.2.3] - 2026-06-09
+
+### Added
+
+- fixture release block
+MD
+init_git_repo "$T16"
+OUT16="$(ci_local_path_for_repo "$T16")"
+"$GEN" --repo "$T16" --out "$OUT16" --force >/dev/null 2>&1
+assert "Test 16: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+bash -n "$OUT16" 2>/dev/null
+assert "Test 16: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+assert_contains "Test 16: release-readiness policy check emitted" "$OUT16" "[policy] release-readiness::version-changelog-consistency"
+assert_contains "Test 16: release-readiness mirror has PASS marker" "$OUT16" "release-readiness consistency PASS"
+
+# Consistent state → PASS
+(cd "$T16" && bash "$OUT16" --repo "$T16" --base-branch main >/tmp/ci-local-test16-pass.out 2>&1)
+T16_PASS_RC=$?
+assert "Test 16: consistent VERSION/package.json/CHANGELOG passes" "$([ $T16_PASS_RC -eq 0 ] && echo 1 || echo 0)"
+assert_contains "Test 16: run output names release-readiness policy" /tmp/ci-local-test16-pass.out "release-readiness::version-changelog-consistency"
+T16_PASS_EVIDENCE="$(latest_ci_local_evidence)"
+python3 - "$T16_PASS_EVIDENCE" <<'PY' >/tmp/ci-local-test16-pass-evidence.out
+import json, sys
+d = json.load(open(sys.argv[1]))
+print("overall=" + d["status"])
+rr = [c for c in d["checks"] if c.get("job") == "version-changelog-consistency"]
+print("check_status=" + (rr[0]["status"] if rr else "MISSING"))
+print("tail=" + (rr[0].get("output_tail", "") if rr else ""))
+PY
+assert_contains "Test 16: evidence overall status PASS" /tmp/ci-local-test16-pass-evidence.out "overall=PASS"
+assert_contains "Test 16: release-readiness check recorded PASS" /tmp/ci-local-test16-pass-evidence.out "check_status=PASS"
+assert_contains "Test 16: evidence tail records consistency PASS" /tmp/ci-local-test16-pass-evidence.out "release-readiness consistency PASS"
+rm -f "$T16_PASS_EVIDENCE" /tmp/ci-local-test16-pass.out /tmp/ci-local-test16-pass-evidence.out
+
+# VERSION mismatch package.json → block
+printf '9.9.9\n' > "$T16/VERSION"
+set +e
+(cd "$T16" && bash "$OUT16" --repo "$T16" --base-branch main >/tmp/ci-local-test16-mismatch.out 2>&1)
+T16_MISMATCH_RC=$?
+set -e
+assert "Test 16: VERSION ≠ package.json blocks" "$([ $T16_MISMATCH_RC -ne 0 ] && echo 1 || echo 0)"
+assert_contains "Test 16: mismatch reason names VERSION drift" /tmp/ci-local-test16-mismatch.out "VERSION (9.9.9) != package.json version (1.2.3)"
+T16_MISMATCH_EVIDENCE="$(latest_ci_local_evidence)"
+python3 - "$T16_MISMATCH_EVIDENCE" <<'PY' >/tmp/ci-local-test16-mismatch-evidence.out
+import json, sys
+d = json.load(open(sys.argv[1]))
+print("overall=" + d["status"])
+rr = [c for c in d["checks"] if c.get("job") == "version-changelog-consistency"]
+print("check_status=" + (rr[0]["status"] if rr else "MISSING"))
+PY
+assert_contains "Test 16: mismatch evidence overall is FAIL-status" /tmp/ci-local-test16-mismatch-evidence.out "overall=FAIL"
+assert_contains "Test 16: mismatch release-readiness check is FAIL-status" /tmp/ci-local-test16-mismatch-evidence.out "check_status=FAIL"
+rm -f "$T16_MISMATCH_EVIDENCE" /tmp/ci-local-test16-mismatch.out /tmp/ci-local-test16-mismatch-evidence.out
+printf '1.2.3\n' > "$T16/VERSION"
+
+# CHANGELOG missing version block → block
+cat > "$T16/CHANGELOG.md" <<'MD'
+# Changelog
+
+## [1.0.0] - 2026-01-01
+
+### Added
+
+- old block only
+MD
+set +e
+(cd "$T16" && bash "$OUT16" --repo "$T16" --base-branch main >/tmp/ci-local-test16-nochangelog.out 2>&1)
+T16_NOCL_RC=$?
+set -e
+assert "Test 16: CHANGELOG missing version block blocks" "$([ $T16_NOCL_RC -ne 0 ] && echo 1 || echo 0)"
+assert_contains "Test 16: changelog reason names missing block" /tmp/ci-local-test16-nochangelog.out "CHANGELOG.md has no block for version 1.2.3"
+T16_NOCL_EVIDENCE="$(latest_ci_local_evidence)"
+rm -f "$T16_NOCL_EVIDENCE" /tmp/ci-local-test16-nochangelog.out
+
+# ============================================================================
+echo
+echo "== Test 17: repo without changeset SoT does NOT emit release-readiness check (DP-295-T4) =="
+# ============================================================================
+# Product repos that do not carry the changeset version SoT must not gain a
+# release-readiness consistency check (no false positives).
+T17="$TMPROOT/no-changeset-sot"
+mkdir -p "$T17/.github/workflows"
+cat > "$T17/.github/workflows/ci.yml" <<'YAML'
+name: CI
+on: [pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: pnpm test:unit
+YAML
+init_git_repo "$T17"
+OUT17="$(ci_local_path_for_repo "$T17")"
+"$GEN" --repo "$T17" --out "$OUT17" --force >/dev/null 2>&1
+assert "Test 17: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+bash -n "$OUT17" 2>/dev/null
+assert "Test 17: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
+assert_not_contains "Test 17: no release-readiness check when changeset SoT absent" "$OUT17" "version-changelog-consistency"
+
+# ============================================================================
+echo
 echo "== Summary =="
 echo "  Assertions: $ASSERTIONS"
 echo "  Pass:       $PASS"

@@ -371,6 +371,98 @@ print("[ci-local] changeset policy PASS: " + ", ".join(files))
 CILOCAL_CHANGESET_POLICY_PY'''
 
 
+def release_readiness_consistency_command() -> str:
+    """Emit the changeset-driven release-readiness consistency check (DP-295 AC4).
+
+    A repo carrying the changeset version SoT (.changeset/config.json + package.json
+    version + VERSION mirror) must keep VERSION == package.json version and have a
+    CHANGELOG.md block for that version. Once a version bump consumes changesets, a
+    drift between VERSION / package.json / CHANGELOG blocks the PR. The check runs
+    from REPO_ROOT, which the generated mirror cd's into before any check.
+    """
+    return r'''python3 - <<'CILOCAL_RELEASE_READINESS_PY'
+import json
+import pathlib
+import re
+import sys
+
+root = pathlib.Path.cwd()
+pkg_path = root / "package.json"
+version_path = root / "VERSION"
+changelog_path = root / "CHANGELOG.md"
+
+if not pkg_path.is_file():
+    print("[ci-local] FAIL: release-readiness expects package.json at repo root", file=sys.stderr)
+    raise SystemExit(1)
+
+try:
+    pkg_version = str(json.loads(pkg_path.read_text(encoding="utf-8"))["version"]).strip()
+except (json.JSONDecodeError, KeyError, OSError) as exc:
+    print(f"[ci-local] FAIL: cannot read package.json version: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+if not version_path.is_file():
+    print("[ci-local] FAIL: VERSION mirror file missing at repo root", file=sys.stderr)
+    raise SystemExit(1)
+
+version_mirror = version_path.read_text(encoding="utf-8").strip()
+
+if version_mirror != pkg_version:
+    print(
+        f"[ci-local] FAIL: VERSION ({version_mirror}) != package.json version ({pkg_version})",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+if not changelog_path.is_file():
+    print("[ci-local] FAIL: CHANGELOG.md missing at repo root", file=sys.stderr)
+    raise SystemExit(1)
+
+changelog = changelog_path.read_text(encoding="utf-8")
+block_re = re.compile(r"^##\s*\[" + re.escape(pkg_version) + r"\]", re.MULTILINE)
+if not block_re.search(changelog):
+    print(f"[ci-local] FAIL: CHANGELOG.md has no block for version {pkg_version}", file=sys.stderr)
+    raise SystemExit(1)
+
+print(f"[ci-local] release-readiness consistency PASS: VERSION == package.json == {pkg_version}; CHANGELOG block present")
+CILOCAL_RELEASE_READINESS_PY'''
+
+
+def has_changeset_version_sot() -> bool:
+    """True when the repo carries the changeset version SoT (DP-295).
+
+    Gate the release-readiness consistency check to repos that actually own a
+    changeset config + package.json version + VERSION mirror, so product repos
+    without that SoT do not gain a false-positive check.
+    """
+    if not (repo / ".changeset" / "config.json").is_file():
+        return False
+    if not (repo / "VERSION").is_file():
+        return False
+    pkg = repo / "package.json"
+    if not pkg.is_file():
+        return False
+    try:
+        return bool(str(json.loads(pkg.read_text(encoding="utf-8")).get("version") or "").strip())
+    except (json.JSONDecodeError, OSError):
+        return False
+
+
+def synthesize_release_readiness_checks():
+    """Emit the release-readiness consistency policy for changeset-SoT repos."""
+    if not has_changeset_version_sot():
+        return []
+    return [
+        {
+            "category": "policy",
+            "source_file": "release-readiness",
+            "job": "version-changelog-consistency",
+            "command": release_readiness_consistency_command(),
+            "conditions": {},
+        }
+    ]
+
+
 def synthesize_policy_checks(checks):
     """Replace known CI policy jobs with local equivalents.
 
@@ -404,6 +496,7 @@ def synthesize_policy_checks(checks):
 
 checks = filter_checks(contract.get("checks", []))
 policy_checks = synthesize_policy_checks(contract.get("checks", []))
+policy_checks.extend(synthesize_release_readiness_checks())
 checks, forced_skip_checks = apply_check_overrides(checks)
 policy_checks, forced_skip_policy_checks = apply_check_overrides(policy_checks)
 forced_skip_checks.extend(forced_skip_policy_checks)

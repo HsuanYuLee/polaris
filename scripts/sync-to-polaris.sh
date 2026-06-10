@@ -19,6 +19,7 @@
 #   - .claude/settings.local.json.sub-repo-example
 #   - .github/copilot-instructions.md + .github/.generated/
 #   - scripts/**/*.sh, scripts/**/*.py, scripts/**/*.mjs, and scripts/manifest.json
+#   - .changeset/ mechanism only: config.json, README.md, *.cjs formatter
 #   - _template/
 #   - docs-manager/ (framework docs browser app, excluding generated outputs)
 #   - .gitignore, CHANGELOG.md, VERSION, README.md, README.zh-TW.md, CLAUDE.md
@@ -32,6 +33,7 @@
 #   - workspace-config.yaml (instance-specific)
 #   - .claude/settings.local.json (personal settings)
 #   - docs-manager/src/content/docs/specs/ (local canonical specs source)
+#   - .changeset/*.md entries (unconsumed changesets — instance/PR-local, never leak)
 #
 # --commit: auto-commit in template with version from VERSION file
 # --push:   auto-push (includes gh auth switch for dual-account setups)
@@ -503,6 +505,35 @@ if [[ -d "$INSTANCE_DIR/.github" ]]; then
             "$POLARIS_DIR/.github/.generated/copilot-rules-manifest.txt" "copilot-rules-manifest.txt"
 fi
 
+# ── Step 8d: Sync .changeset/ mechanism (NOT unconsumed entries) ──
+# Sync the changeset machinery to the template — config.json, README.md, and the
+# Keep a Changelog custom formatter (*.cjs). Unconsumed changeset ENTRY files
+# (.changeset/*.md other than README.md) are instance/PR-local; they must never
+# leak into the template (AC-NEG4). Steady state after release-version is config
+# + README + formatter only, so the template should hold exactly those.
+
+is_changeset_entry() {
+  # A changeset ENTRY is any *.md under .changeset/ that is not README.md.
+  local name
+  name="$(basename "$1")"
+  [[ "$name" == *.md && "$name" != "README.md" ]]
+}
+
+if [[ -d "$INSTANCE_DIR/.changeset" ]]; then
+  echo "Changeset mechanism..."
+  mkdir -p "$POLARIS_DIR/.changeset" 2>/dev/null || true
+  for cs_file in "$INSTANCE_DIR/.changeset/"*; do
+    [[ -f "$cs_file" ]] || continue
+    if is_changeset_entry "$cs_file"; then
+      # Unconsumed changeset entry — instance/PR-local, do not sync (AC-NEG4).
+      echo "  ~ .changeset/$(basename "$cs_file") (unconsumed entry, not synced)"
+      continue
+    fi
+    copy_file "$cs_file" "$POLARIS_DIR/.changeset/$(basename "$cs_file")" \
+      ".changeset/$(basename "$cs_file")"
+  done
+fi
+
 # ── Step 8c: Prune — remove files in template that no longer exist ─
 
 if [[ "$PRUNE" == true ]]; then
@@ -614,6 +645,28 @@ if [[ "$PRUNE" == true ]]; then
     fi
     echo "  ✂ docs-manager/"
     prune_count=$((prune_count + 1))
+  fi
+
+  # 8c-8: Changeset — remove any .changeset entry (or stale config/formatter) in
+  # the template that isn't a synced mechanism file. This sweeps out unconsumed
+  # changeset entries that leaked from an earlier sync (AC-NEG4) and stale
+  # mechanism files removed from the instance.
+  if [[ -d "$POLARIS_DIR/.changeset" ]]; then
+    for polaris_cs in "$POLARIS_DIR/.changeset/"*; do
+      [[ -f "$polaris_cs" ]] || continue
+      cs_name="$(basename "$polaris_cs")"
+      # Entry .md is never a synced mechanism file → always prune.
+      # Mechanism files (config.json / README.md / *.cjs) prune only when the
+      # instance no longer has them.
+      if is_changeset_entry "$polaris_cs" \
+        || [[ ! -f "$INSTANCE_DIR/.changeset/$cs_name" ]]; then
+        if [[ "$DRY_RUN" == false ]]; then
+          rm -f "$polaris_cs"
+        fi
+        echo "  ✂ .changeset/$cs_name"
+        prune_count=$((prune_count + 1))
+      fi
+    done
   fi
 
   if [[ "$prune_count" -eq 0 ]]; then

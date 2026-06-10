@@ -44,14 +44,22 @@ marker-pass:
 USAGE
 }
 
-# Behavioral file detector + disposition classifier over a newline-delimited
-# changed-file list passed via the EC_FILELIST env var. The list is passed by env
-# (not stdin) because the python program itself is delivered on stdin via the
-# heredoc; reading data from stdin too would collide with the program read.
-# Kept in python for readable path/extension rules (Decision Priority:
-# readability over shell brevity here).
-_ec_classify_filelist() {
-  EC_FILELIST="$1" python3 - <<'PY'
+# Behavioral file detector + disposition classifier over a status-annotated
+# changed-file list passed via the EC_NAMESTATUS env var ("<status>\t<path>" per
+# line, as `git diff --name-status` emits) and a package.json unified diff passed
+# via EC_PKGJSON_DIFF. Both are passed by env (not stdin) because the python
+# program itself is delivered on stdin via the heredoc; reading data from stdin
+# too would collide with the program read. Kept in python for readable
+# path/extension/status rules (Decision Priority: readability over shell brevity).
+#
+# DP-295 AC7: a changeset-driven release bump touches some combination of VERSION,
+# CHANGELOG.md, package.json (version-only), and consumed .changeset/*.md files
+# (deletions). Those deltas classify as release_bump so head_sha-bound evidence
+# stays exempt (belt-and-suspenders with the PR-internal verify-before-bump rule).
+# Any non-version package.json edit, any .changeset config/content change, or any
+# .changeset/*.md that is added/modified rather than deleted stays fail-closed.
+_ec_classify_status() {
+  python3 - <<'PY'
 import os
 
 BEHAVIORAL_SUFFIXES = (".sh", ".py", ".mjs", ".ts", ".js", ".json", ".yaml", ".yml", ".toml")
@@ -65,12 +73,66 @@ BEHAVIORAL_PREFIXES = (
 )
 RELEASE_BUMP_FILES = {"VERSION", "CHANGELOG.md"}
 
-files = [ln.strip() for ln in os.environ.get("EC_FILELIST", "").splitlines() if ln.strip()]
+# Parse "<status>\t<path>" lines. git quotes paths containing non-ASCII bytes
+# (e.g. CJK changeset slugs); strip the surrounding quotes so prefix/suffix tests
+# operate on the logical path. Rename status (R###) carries two tab-separated
+# paths; classify on the destination path and treat as a modify.
+def parse_status(line):
+    parts = line.split("\t")
+    if len(parts) < 2:
+        return None, None
+    code = parts[0].strip()
+    path = parts[-1].strip()
+    if path.startswith('"') and path.endswith('"'):
+        path = path[1:-1]
+    return code[:1], path
+
+entries = []
+for ln in os.environ.get("EC_NAMESTATUS", "").splitlines():
+    if not ln.strip():
+        continue
+    code, path = parse_status(ln)
+    if path:
+        entries.append((code, path))
 
 # Empty delta: nothing to prove exempt → fail-closed.
-if not files:
+if not entries:
     print("behavioral")
     raise SystemExit(0)
+
+
+def package_json_version_only():
+    """True iff the package.json diff changes only the "version" value line."""
+    diff = os.environ.get("EC_PKGJSON_DIFF", "")
+    if not diff.strip():
+        return False
+    changed = []
+    for ln in diff.splitlines():
+        if ln.startswith("+++") or ln.startswith("---"):
+            continue
+        if ln.startswith("+") or ln.startswith("-"):
+            changed.append(ln[1:].strip())
+    if not changed:
+        return False
+    # Every added/removed body line must be a "version": "..." declaration.
+    return all(c.lstrip().startswith('"version"') for c in changed)
+
+
+def is_release_bump_delta(code, path):
+    if path in RELEASE_BUMP_FILES:
+        return True
+    if path == "package.json":
+        # Only a pure version bump (modify) qualifies; add/delete of the manifest
+        # is not a routine release bump.
+        return code == "M" and package_json_version_only()
+    if path.startswith(".changeset/") and path.endswith(".md"):
+        # Only consumed (deleted) changeset entries count; authoring a changeset
+        # (add/modify) is a behavioral PR delta, and .changeset/README.md content
+        # is not a consumption.
+        base = path[len(".changeset/"):]
+        return code == "D" and base != "README.md"
+    return False
+
 
 def is_behavioral(path):
     if path.endswith(BEHAVIORAL_SUFFIXES):
@@ -80,21 +142,28 @@ def is_behavioral(path):
             return True
     return False
 
-if any(is_behavioral(f) for f in files):
-    print("behavioral")
-    raise SystemExit(0)
 
-if all(f in RELEASE_BUMP_FILES for f in files):
+# Release-bump deltas (incl. package.json / .changeset that are otherwise
+# behavioral-by-suffix) are evaluated first so they are not pre-empted by the
+# behavioral-suffix screen.
+non_release = [(c, p) for (c, p) in entries if not is_release_bump_delta(c, p)]
+
+if not non_release:
     print("release_bump")
     raise SystemExit(0)
 
-# All remaining files are non-behavioral metadata/docs (e.g. *.md, LICENSE).
+if any(is_behavioral(p) for (_, p) in non_release):
+    print("behavioral")
+    raise SystemExit(0)
+
+# Remaining files are non-behavioral metadata/docs (e.g. *.md, LICENSE) mixed
+# with — or instead of — release-bump deltas. Treat the aggregate as metadata.
 print("metadata_only")
 PY
 }
 
 ec_classify() {
-  local repo="" range="" head=""
+  local repo="" range="" head="" base="" tip=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --repo) repo="${2:-}"; shift 2 ;;
@@ -109,20 +178,22 @@ ec_classify() {
     return 64
   fi
 
-  local names=""
+  local namestatus="" pkgdiff=""
   if [[ -n "$range" ]]; then
-    names="$(git -C "$repo" diff --name-only "$range" 2>/dev/null || true)"
+    namestatus="$(git -C "$repo" diff --name-status "$range" 2>/dev/null || true)"
+    pkgdiff="$(git -C "$repo" diff "$range" -- package.json 2>/dev/null || true)"
+  elif git -C "$repo" rev-parse -q --verify "${head}^1" >/dev/null 2>&1; then
+    # Single commit: diff against its first parent.
+    base="${head}^1"; tip="$head"
+    namestatus="$(git -C "$repo" diff --name-status "$base" "$tip" 2>/dev/null || true)"
+    pkgdiff="$(git -C "$repo" diff "$base" "$tip" -- package.json 2>/dev/null || true)"
   else
-    # Single commit: diff against its first parent; root commit has no parent,
-    # so fall back to listing the commit's own tree.
-    if git -C "$repo" rev-parse -q --verify "${head}^1" >/dev/null 2>&1; then
-      names="$(git -C "$repo" diff --name-only "${head}^1" "$head" 2>/dev/null || true)"
-    else
-      names="$(git -C "$repo" show --name-only --format= "$head" 2>/dev/null || true)"
-    fi
+    # Root commit has no parent; show its own tree as additions.
+    namestatus="$(git -C "$repo" show --name-status --format= "$head" 2>/dev/null || true)"
+    pkgdiff="$(git -C "$repo" show --format= "$head" -- package.json 2>/dev/null || true)"
   fi
 
-  _ec_classify_filelist "$names"
+  EC_NAMESTATUS="$namestatus" EC_PKGJSON_DIFF="$pkgdiff" _ec_classify_status
 }
 
 # Validate an engineering-owned completion_gate marker as evidence SoT. Mirrors

@@ -1,8 +1,20 @@
 # Changelog
 
-All notable changes to Polaris are documented here. Format follows [Keep a Changelog](https://keepachangelog.com/).
+## [3.76.0] - 2026-06-10
 
-> Versions before 1.4.0 were retroactively tagged during the initial development sprint.
+### Changed
+
+- b9b53dd: Keep a Changelog custom formatter + changeset/bump 慣例 reference
+- 1efac9e: 建立 .changeset scaffolding + package.json 版本 SoT + config
+- e120a95: 壓版本 wrapper（mise run release:version）+ VERSION mirror + selftest
+- 34d9c96: release-readiness 整合進 ci-local + remote CI + selftest
+- ec8b374: evidence-classifier 擴充壓版本 commit 分類 + selftest
+- 605ed99: framework-release: 移除 release lane 的版本壓回（version bounce-back）。版本與
+  CHANGELOG 改由 PR 內 changeset-driven 的 `mise run release:version` 壓制並隨被驗證的
+  PR HEAD 進版，release lane（`framework-release-pr-lane.sh`）薄化為 lineage 驗證 +
+  merge，不再跑 pre-merge version-bump gate，也不再 defer 一道 merge 後的 release-metadata
+  壓版步驟。
+- 8506652: sync-to-polaris 邊界（機制 sync 到 template，未消費 changeset 不洩漏）
 
 ## [3.75.158] - 2026-06-10
 
@@ -150,14 +162,14 @@ DP-273-V1 verify-AC：11/11 PASS（AC1-AC7 + AC-NEG1-4）。AC4 走 `framework-r
 
 清理 `refinement -> breakdown -> engineering -> verify-AC` 之間的冗餘 handoff contract：在不降低 pipeline 可靠性的前提下，讓每個 cross-skill 欄位都能回答 canonical authority、derived surface、防 drift validator 與 LLM role，並降低 LLM 在每段 handoff 前 reconcile 多份 prose / schema 的負擔。
 
-- **`.claude/skills/references/pipeline-handoff.md`**（DP-238-T1，已於 #460 / T1 merge，本 bundle 不含 code diff）：新增 handoff atom matrix，盤點 `refinement.json` / T task.md / V*.md / lifecycle marker / orchestration signal 的 owner / canonical source / derived surface / validator / LLM role；matrix 只保留 pointer，不再整份 copy schema。`scripts/selftests/pipeline-handoff-authority-selftest.sh` 新增 `atom-matrix-required-columns` / `atom-matrix-no-full-schema-copy` / `probe-ledger-atom-declared` cases。
-- **`.claude/skills/{breakdown,engineering,refinement,verify-AC}/SKILL.md` / `.claude/skills/references/{INDEX,refinement-artifact,task-md-schema-verification}.md`**（DP-238-T2，AC2-AC4）：修正 consumer 邊界並收斂重複 schema reference。`refinement.json` 確立為需求 / AC machine source，`task.md` 為 `engineering` 唯一施工來源，V*.md 確立為 execution envelope（非第二份 AC authority）；各 skill 主文只保留 routing / owning scope / fail-stop / pointer，duplicate schema prose 移除。selftest 新增 `engineering-consumer-boundary` / `v-envelope-boundary` / `duplicate-schema-scan` cases。
-- **`scripts/selftests/pipeline-handoff-authority-selftest.sh`**（DP-238-T3，AC3 / AC5 / AC7）：新增 duplicate / drift 的 deterministic selftest 守則，覆蓋 duplicate schema table、consumer boundary、V*.md drift、raw prose 補判斷與 derived-copy drift policy；新增 `probe-ledger-schema-parity` case，與 `verify-AC-deterministic-consumption-selftest.sh` 串接。
+- **`.claude/skills/references/pipeline-handoff.md`**（DP-238-T1，已於 #460 / T1 merge，本 bundle 不含 code diff）：新增 handoff atom matrix，盤點 `refinement.json` / T task.md / V\*.md / lifecycle marker / orchestration signal 的 owner / canonical source / derived surface / validator / LLM role；matrix 只保留 pointer，不再整份 copy schema。`scripts/selftests/pipeline-handoff-authority-selftest.sh` 新增 `atom-matrix-required-columns` / `atom-matrix-no-full-schema-copy` / `probe-ledger-atom-declared` cases。
+- **`.claude/skills/{breakdown,engineering,refinement,verify-AC}/SKILL.md` / `.claude/skills/references/{INDEX,refinement-artifact,task-md-schema-verification}.md`**（DP-238-T2，AC2-AC4）：修正 consumer 邊界並收斂重複 schema reference。`refinement.json` 確立為需求 / AC machine source，`task.md` 為 `engineering` 唯一施工來源，V\*.md 確立為 execution envelope（非第二份 AC authority）；各 skill 主文只保留 routing / owning scope / fail-stop / pointer，duplicate schema prose 移除。selftest 新增 `engineering-consumer-boundary` / `v-envelope-boundary` / `duplicate-schema-scan` cases。
+- **`scripts/selftests/pipeline-handoff-authority-selftest.sh`**（DP-238-T3，AC3 / AC5 / AC7）：新增 duplicate / drift 的 deterministic selftest 守則，覆蓋 duplicate schema table、consumer boundary、V\*.md drift、raw prose 補判斷與 derived-copy drift policy；新增 `probe-ledger-schema-parity` case，與 `verify-AC-deterministic-consumption-selftest.sh` 串接。
 - **`scripts/{parse-task-md,resolve-task-branch,gate-pr-title,polaris-pr-create,check-delivery-completion,run-verify-command}.sh` / `scripts/gates/gate-pr-title.sh` / `scripts/manifest.json`**（DP-238-T4，AC5 / AC6）：補 Bug source product PR identity consumer 邊界——內部 task DAG identity 用 `work_item_id`（例 `PROJ-4190-T1`），產品 repo branch / PR title / JIRA transition 用真實 `jira_key`（例 `PROJ-4190`），消除 legacy `task_jira_key` alias 把 `T1` suffix 外溢到產品 PR title / branch 的 drift。selftest 新增 `identity-atom-split` / `bug-source-product-pr-identity` 與 negative cases（no-gate-removal / legacy-reader-compatibility / bug-source-product-pr-identity-negative）做 regression 鞏固，確認 slimming 未移除 gate、未破壞 legacy reader、未增加 runtime-specific 依賴。
 
 ### Why
 
-pipeline 的可靠性設計方向正確，但交付面混在一起：`refinement-artifact.md` 仍暗示 `engineering` 可直讀 `acceptance_criteria[].verification` 與 `modules[].path`；同一批 AC / module 語意散落在 `refinement.json` / `task.md` / V*.md prose；多個 skill 重複 `pipeline-handoff` / language / producer-env / boundary gate / schema 段落，維護成本高且讓 LLM 在每段 handoff 前吸收大量低階 contract。PROJ-4190 dogfood 進一步暴露 identity handoff 混亂。DP-238 把 cross-skill 欄位收斂成單一 canonical authority + derived surface + deterministic drift gate，對齊 `contract-design.md` § Deterministic-First 與 `canonical-contract-governance.md` § No special writer paths。
+pipeline 的可靠性設計方向正確，但交付面混在一起：`refinement-artifact.md` 仍暗示 `engineering` 可直讀 `acceptance_criteria[].verification` 與 `modules[].path`；同一批 AC / module 語意散落在 `refinement.json` / `task.md` / V\*.md prose；多個 skill 重複 `pipeline-handoff` / language / producer-env / boundary gate / schema 段落，維護成本高且讓 LLM 在每段 handoff 前吸收大量低階 contract。PROJ-4190 dogfood 進一步暴露 identity handoff 混亂。DP-238 把 cross-skill 欄位收斂成單一 canonical authority + derived surface + deterministic drift gate，對齊 `contract-design.md` § Deterministic-First 與 `canonical-contract-governance.md` § No special writer paths。
 
 ### Verified
 
@@ -193,7 +205,7 @@ DP-238-T2 / T3 / T4 各自 Layer B verify evidence exit 0（`pipeline-handoff-au
 
 ### Why
 
-`scripts/write-ac-verification.sh` 先前只寫 V*.md frontmatter，registry 與 SKILL.md 卻宣稱它會產生 `ac_verification` marker（documented≠implemented）。auto-pass-runner verify-AC stage 依賴 `.polaris/evidence/ac-verification/{work_item}-{head}.json` marker 判定 terminal complete；缺 marker 會讓 verify-AC PASS 卻無法收斂。DP-281 把這支 writer 補成 marker 的唯一 sanctioned writer，並用 main-checkout 錨定解決 worktree（auto-pass 寫）與 main checkout（probe 讀）路徑不一致的 circular missing-marker 問題。
+`scripts/write-ac-verification.sh` 先前只寫 V\*.md frontmatter，registry 與 SKILL.md 卻宣稱它會產生 `ac_verification` marker（documented≠implemented）。auto-pass-runner verify-AC stage 依賴 `.polaris/evidence/ac-verification/{work_item}-{head}.json` marker 判定 terminal complete；缺 marker 會讓 verify-AC PASS 卻無法收斂。DP-281 把這支 writer 補成 marker 的唯一 sanctioned writer，並用 main-checkout 錨定解決 worktree（auto-pass 寫）與 main checkout（probe 讀）路徑不一致的 circular missing-marker 問題。
 
 ### Verified
 
@@ -791,26 +803,26 @@ DP-218 release 時手動傳 `--repo <worktree-path>` 是這條 bug 的 workaroun
 
 Mapping（memory file → target framework anchor）：
 
-| Memory file | Target | Anchor |
-|---|---|---|
-| `feedback_no_checkpoint_as_work_order` | `.claude/rules/skill-routing.md` | § Checkpoint vs Work Order |
-| `feedback_framework_release_is_self_iteration` | `.claude/rules/framework-iteration.md` | § Self-Iteration Release Boundary |
-| `feedback_auto_pass_must_not_stop_on_recoverable_halt` | `.claude/skills/auto-pass/SKILL.md` | Execution Loop § Recoverable HALT |
-| `feedback_refinement_no_unsolicited_lock_prompt` | `.claude/skills/refinement/SKILL.md` | § Unsolicited LOCK Prompt Forbidden |
-| `feedback_pr_resolver_branch_fallback` | `.claude/skills/references/engineer-delivery-flow.md` | § Revision Mode — Explicit --pr |
-| `feedback_portable_gate_paths` | `.claude/skills/references/engineer-delivery-flow.md` | § Gate Invocation — Portable Paths |
-| `feedback_aggregate_gate_file_lists` | `.claude/rules/bash-command-splitting.md` | § Aggregate File Lists Need xargs |
-| `feedback_polaris_scripts_require_workspace_root` | `.claude/rules/bash-command-splitting.md` | § Helper Script Invocation — Workspace Root |
-| `feedback_template_examples_must_be_generic` | `.claude/rules/framework-iteration.md` | § Template-Facing Examples Must Be Generic |
-| `feedback_refinement_contract_requires_dp_artifact` | `.claude/skills/refinement/SKILL.md` | § Framework Contract Change Guard |
-| `feedback_gate_preflight_fail_stop` | `.claude/rules/bash-command-splitting.md` | § Gate Preflight Fail-Stop |
-| `feedback_skill_reference_relative_paths` | `.claude/skills/references/INDEX.md` | § Path Resolution — Skill-Relative |
-| `feedback_dp_completion_audit_must_verify_merged_pr` | `.claude/rules/sub-agent-delegation.md` | Delegation Patterns § DP completion audit |
-| `feedback_learning_seed_contract_gap` | `.claude/skills/learning/SKILL.md` | External Mode § External Seed Contract — DP Container Authority |
-| `feedback_refinement_no_overspilt_contract_tasks` | `.claude/skills/breakdown/SKILL.md` | § Task Splitting Heuristic — Reviewable PR Boundary |
-| `feedback_apply_standards_not_ask_user` | `.claude/rules/handbook/working-habits.md` | § Strategist 互動風格 § Apply 標準 |
-| `feedback_company_subtask_close_via_pending` | company-scoped JIRA conventions rule | (company-scoped, path varies per workspace) |
-| `feedback_small_framework_gap_fix_now` | `.claude/rules/skill-routing.md` | § Framework Gap Immediate Routing |
+| Memory file                                            | Target                                                | Anchor                                                          |
+| ------------------------------------------------------ | ----------------------------------------------------- | --------------------------------------------------------------- |
+| `feedback_no_checkpoint_as_work_order`                 | `.claude/rules/skill-routing.md`                      | § Checkpoint vs Work Order                                      |
+| `feedback_framework_release_is_self_iteration`         | `.claude/rules/framework-iteration.md`                | § Self-Iteration Release Boundary                               |
+| `feedback_auto_pass_must_not_stop_on_recoverable_halt` | `.claude/skills/auto-pass/SKILL.md`                   | Execution Loop § Recoverable HALT                               |
+| `feedback_refinement_no_unsolicited_lock_prompt`       | `.claude/skills/refinement/SKILL.md`                  | § Unsolicited LOCK Prompt Forbidden                             |
+| `feedback_pr_resolver_branch_fallback`                 | `.claude/skills/references/engineer-delivery-flow.md` | § Revision Mode — Explicit --pr                                 |
+| `feedback_portable_gate_paths`                         | `.claude/skills/references/engineer-delivery-flow.md` | § Gate Invocation — Portable Paths                              |
+| `feedback_aggregate_gate_file_lists`                   | `.claude/rules/bash-command-splitting.md`             | § Aggregate File Lists Need xargs                               |
+| `feedback_polaris_scripts_require_workspace_root`      | `.claude/rules/bash-command-splitting.md`             | § Helper Script Invocation — Workspace Root                     |
+| `feedback_template_examples_must_be_generic`           | `.claude/rules/framework-iteration.md`                | § Template-Facing Examples Must Be Generic                      |
+| `feedback_refinement_contract_requires_dp_artifact`    | `.claude/skills/refinement/SKILL.md`                  | § Framework Contract Change Guard                               |
+| `feedback_gate_preflight_fail_stop`                    | `.claude/rules/bash-command-splitting.md`             | § Gate Preflight Fail-Stop                                      |
+| `feedback_skill_reference_relative_paths`              | `.claude/skills/references/INDEX.md`                  | § Path Resolution — Skill-Relative                              |
+| `feedback_dp_completion_audit_must_verify_merged_pr`   | `.claude/rules/sub-agent-delegation.md`               | Delegation Patterns § DP completion audit                       |
+| `feedback_learning_seed_contract_gap`                  | `.claude/skills/learning/SKILL.md`                    | External Mode § External Seed Contract — DP Container Authority |
+| `feedback_refinement_no_overspilt_contract_tasks`      | `.claude/skills/breakdown/SKILL.md`                   | § Task Splitting Heuristic — Reviewable PR Boundary             |
+| `feedback_apply_standards_not_ask_user`                | `.claude/rules/handbook/working-habits.md`            | § Strategist 互動風格 § Apply 標準                              |
+| `feedback_company_subtask_close_via_pending`           | company-scoped JIRA conventions rule                  | (company-scoped, path varies per workspace)                     |
+| `feedback_small_framework_gap_fix_now`                 | `.claude/rules/skill-routing.md`                      | § Framework Gap Immediate Routing                               |
 
 - `scripts/selftests/dp218-graduation-anchors-selftest.sh`（新）：18 條 anchor grep check，AC1 / AC-NEG1 evidence；任一 anchor 缺失 exit 1。
 - `scripts/manifest.json`：登記 `dp218-graduation-anchors` selftest（governed test profile `core` / `release`）。
@@ -831,7 +843,7 @@ Mapping（memory file → target framework anchor）：
 - `.claude/rules/mechanism-registry.md`：Runtime Annotation Registry 新增 `pre-write-language-policy` 列；修正 `specs-collection-shape-write-gate` 既有的 `claude-code` → `claude-code-only` runtime enum，並指明對應 fallback validator。
 - `scripts/selftests/pre-write-language-policy-selftest.sh`：新 selftest，覆蓋 scope 內英文 block / zh-TW pass / out-of-scope no-op / 非 Write 工具 no-op / `POLARIS_LANGUAGE_POLICY_BYPASS` bypass / `POLARIS_PRODUCER` bypass / wall-clock 500ms budget 7 個案例。
 - `scripts/selftests/gate-pr-body-template-selftest.sh`：擴充 11 個案例，覆蓋 DP-217 regression（body 無任何 `## ` heading 時 gate 不得 emit `unbound variable` 訊息）。
-- `scripts/selftests/gate-work-source-chore-followup-selftest.sh`：新 selftest，覆蓋 chore-followup PASS（active + archived container）、no-IMPLEMENTED task、missing container、非 DP chore/* 五個案例。
+- `scripts/selftests/gate-work-source-chore-followup-selftest.sh`：新 selftest，覆蓋 chore-followup PASS（active + archived container）、no-IMPLEMENTED task、missing container、非 DP chore/\* 五個案例。
 
 ## [3.75.110] - 2026-05-21
 
@@ -840,7 +852,7 @@ Mapping（memory file → target framework anchor）：
 - `scripts/validate-auto-pass-ledger.sh`：`paused_for_refinement` 從 terminal enum 移除（DP-212 D1），改為 non-terminal `pause.kind`；legacy ledger 若仍帶 `terminal_status=paused_for_refinement`，validator 顯示 `PAUSED_FOR_REFINEMENT_LEGACY_TERMINAL` 並指向 migration note。`loop_counters.breakdown_to_refinement_inbox > 3` 必須 promote 到 `terminal_status=loop_cap_reached`，validator 主動把關。
 - `scripts/auto-pass-probe.sh`：`refinement-inbox/` 出現與 verify-AC `spec_issue` 不再回 terminal `paused_for_refinement`，改為 `ROUTE_BACK_AMEND` + action=`refinement_amendment`，由 orchestrator 自動 loop 而非中斷。
 - `.claude/skills/auto-pass/SKILL.md`：Dispatch Boundary 加 `refinement`（amendment mode）；execution loop 文件補 amendment counter 行為；scope guard 違規時改 `blocked_by_gate_failure` + follow-up DP seed。
-- `.claude/skills/refinement/SKILL.md`：Mode Routing 新增 *auto-pass driven amendment* 列；amendment 不發問、不重做 Phase 0/1/2 discovery，只消費 `refinement-inbox/` 並在 LOCKED scope guard 限制內更新 refinement artifact。
+- `.claude/skills/refinement/SKILL.md`：Mode Routing 新增 _auto-pass driven amendment_ 列；amendment 不發問、不重做 Phase 0/1/2 discovery，只消費 `refinement-inbox/` 並在 LOCKED scope guard 限制內更新 refinement artifact。
 - `.claude/skills/references/refinement-return-inbox.md`：補 `consumed_by_amendment` schema (`amender` / `amendment_commit_sha` / `amendment_round` / `rejected_by_scope_guard` / `scope_violation_detail`)。
 - `.claude/skills/references/refinement-dp-source-mode.md`：新增 § LOCKED Scope Guard，逐 section 標註 LOCKED 後可否變動 + 人工 unlock 流程。
 - `.claude/skills/references/auto-pass-ledger.md`：terminal enum 更新；non-terminal pause kind 補 amendment loop fields；probe mapping 表標 `ROUTE_BACK_AMEND`。
@@ -1010,7 +1022,7 @@ Mapping（memory file → target framework anchor）：
 ### Added — main-chain authoring contract completeness
 
 - 補齊 refinement / breakdown / engineering / verify-AC 的 artifact authoring preflight pointer，明確先讀 `pipeline-handoff.md` gateway 再讀 artifact-specific schema。
-- 強化 refinement JSON、V*.md、behavior contract、return inbox 與 escalation sidecar 的 producer guidance。
+- 強化 refinement JSON、V\*.md、behavior contract、return inbox 與 escalation sidecar 的 producer guidance。
 - 明確 root-level task dispatch `type:` 與 nested domain `type` fields 的邊界。
 - 新增 Completion Envelope advisory validator 與 selftest，並在 sub-agent role reference 標明 blocking 使用邊界。
 
@@ -1525,14 +1537,14 @@ Mapping（memory file → target framework anchor）：
 
 - 新增 DP/Epic 共用 refinement source template contract，並加入 company/project additive template resolver 與 drift gate。
 - 新增 `refinement -> breakdown -> engineering -> verify-AC` 主鏈的 deterministic flow-gap 與 main-chain compliance gates。
-- 強化 parent closeout 語意，active 或 non-PASS 的 V*.md dogfood verification 會阻擋 DP closeout/archive。
+- 強化 parent closeout 語意，active 或 non-PASS 的 V\*.md dogfood verification 會阻擋 DP closeout/archive。
 
 ## [3.75.27] - 2026-05-09
 
 ### Fixed — verify-AC V-mode lifecycle gate closure
 
-- Added `write-ac-verification.sh` with selftests so verify-AC can update V*.md `ac_verification` metadata through a deterministic writer instead of hand-written frontmatter.
-- Hardened `check-verification-passed.sh` so V-mode PASS is accepted only after the V*.md schema validator passes.
+- Added `write-ac-verification.sh` with selftests so verify-AC can update V\*.md `ac_verification` metadata through a deterministic writer instead of hand-written frontmatter.
+- Hardened `check-verification-passed.sh` so V-mode PASS is accepted only after the V\*.md schema validator passes.
 - Restored refinement handoff selftest coverage for required `predecessor_audit` data and made DP intake references include the breakdown readiness gate.
 
 ## [3.75.26] - 2026-05-09
@@ -3811,7 +3823,7 @@ adds `--repo` support to the generated script, so the same canonical
   Step 2 now calls — keeps the doc instruction simple.
 - **`.claude/hooks/ci-local-gate.sh`** — uses canonical resolution via
   `resolve_main_checkout`, invokes the canonical script with `--repo
-  <target>`. Worktree-local script path retained as legacy fallback.
+<target>`. Worktree-local script path retained as legacy fallback.
 - **`skills/references/engineer-delivery-flow.md`** — Step 2 now uses
   `${POLARIS_ROOT}/scripts/ci-local-run.sh`. Existence invariant updated to
   mention "main checkout" canonical script (shared across worktrees).
@@ -3960,12 +3972,12 @@ delivery evidence invariants as git/PR actions.
   from `--task-md` / `--project`, prefers
   `workspace-config.yaml -> projects[].dev_environment.install_command`, and
   falls back to lockfile / manifest detection (`pnpm-lock.yaml` → `pnpm install
-  --frozen-lockfile`, `package-lock.json` → `npm ci`, `requirements.txt` →
+--frozen-lockfile`, `package-lock.json` → `npm ci`, `requirements.txt` →
   `python3 -m pip install -r ...`, etc.). It emits JSON evidence and fails
   loudly on real install failures.
 - **Runtime orchestrator wiring**: `scripts/start-test-env.sh` now chains
   `ensure-dependencies → install-project-deps → start-command → health-check →
-  [fixtures-start]`, so runtime verification in a fresh worktree hydrates the
+[fixtures-start]`, so runtime verification in a fresh worktree hydrates the
   project before boot.
 - **Engineering contract update**: `engineering/SKILL.md` now requires
   `install-project-deps.sh` before any test / build / dev-server command in a
@@ -4024,9 +4036,9 @@ TASK-2863 revision session.
 - **`scripts/revision-rebase.sh`** — pure deterministic R0 automation.
   Defaults derive from cwd via `git rev-parse --show-toplevel` +
   `resolve-task-md-by-branch.sh --current` + `gh pr view --json
-  number,baseRefName`; all overridable via `--repo` / `--task-md` / `--pr`.
+number,baseRefName`; all overridable via `--repo` / `--task-md` / `--pr`.
   Internally chains: resolve task.md → `resolve-task-base.sh` → `git
-  fetch origin` → `git rebase origin/<RESOLVED_BASE>` → PR base sync via
+fetch origin` → `git rebase origin/<RESOLVED_BASE>` → PR base sync via
   `gh pr edit --base` (only when `pr.baseRefName ≠ RESOLVED_BASE`). Emits
   JSON evidence on stdout (`task_md` / `resolved_base` / `rebase_status` /
   `pr_base_synced` / `legacy_fallback` / `writer` / `at`). Exit
@@ -4089,7 +4101,7 @@ types `繼續 X` / `continue X`.
   folder scan with `Read {topic}/index.md`, (3) recursive
   `find {memory_dir} -type f -iname '*{keyword}*.md'`. Explicitly
   rejects `ls memory/ | grep` as the only search method. Mentions the
-  hook output as authoritative when injected. Plan vs memory分工 line
+  hook output as authoritative when injected. Plan vs memory 分工 line
   added (plan = decisions, memory = session handoff — both must be
   read).
 
@@ -4122,7 +4134,7 @@ is preserved.
 The Pre-PR Self-Review Loop (originally engineer-delivery-flow Step 4) is
 relocated to **Step 1.3** — the exit gate of Phase 3 (LLM implementation
 段). Phase 3 = TDD → /simplify → Self-Review (iterable, fail-cheap);
-Phase 4 Step 1.5 onward = mechanical verify段 (linear fail-stop). Self-Review
+Phase 4 Step 1.5 onward = mechanical verify 段 (linear fail-stop). Self-Review
 blocking never crosses the segment boundary.
 
 - **Reviewer baseline = handbook-first**：handbook + repo CLAUDE.md +
@@ -4234,6 +4246,7 @@ Wave γ wiring (call-site updates in `engineer-delivery-flow.md` /
 primitives are ready to be wired when the delivery-flow rewrite begins.
 
 DP-032 plan.md Implementation Checklist:
+
 - A class `run-verify-command.sh` ✅ landed
 - A class `polaris-changeset.sh` ✅ landed
 - A class `changeset-clean-inherited.sh` ✅ landed
@@ -4276,6 +4289,7 @@ instead of proposed write content. Fixed without adding bypass flags.
   Backlog #4.
 
 Each fix was verified end-to-end with stdin JSON dispatch:
+
 - design-plan gate: body-only mention of `status: IMPLEMENTED` → allow;
   frontmatter transition with unchecked items → block; frontmatter
   transition with all checked → allow.
@@ -4310,7 +4324,7 @@ Phase B adds **only** what the verification side genuinely needs:
   `Task branch`, adds `Implementation tasks`), `## 驗收項目`, `## 驗收步驟`,
   `## Test Environment` reuses T mode rules, `ac_verification` writer
   contract symmetric to D7 `deliverable` (atomic + verify + retry-3 +
-  fail-stop), `ac_verification_log[]` loose list-of-maps (same精神 as
+  fail-stop), `ac_verification_log[]` loose list-of-maps (same 精神 as
   `jira_transition_log[]`)
 - `scripts/validate-task-md.sh` (B3): filename-dispatched dual-path
   validator. T mode unchanged (zero-regression dogfood: 7 pass / 9 fail /
@@ -4324,7 +4338,7 @@ Phase B adds **only** what the verification side genuinely needs:
   V→T pass / V→V pass / T→V fail (DP-033 D4 § 5.3). Synthetic dogfood
   confirmed both sides fire correctly; existing exampleco/specs scan: 3 pass /
   0 fail (no regression).
-- `.claude/hooks/pipeline-artifact-gate.sh`: V*.md branch now also runs
+- `.claude/hooks/pipeline-artifact-gate.sh`: V\*.md branch now also runs
   `validate-task-md-deps.sh` (Phase A had a TODO comment; Phase B activates).
 - `breakdown/SKILL.md` Step D (B6): V{n}.md naming spec written into the
   skill (sequential V1, sub-split V1a/V1b, symmetric to T). **Producer
@@ -4375,7 +4389,7 @@ wiring of D11 / D8 / D22 / D25 into consumers.
 **Batch 3 — env primitives (D11)**
 
 - 3 callsites switch to `scripts/start-test-env.sh --task-md <path>
-  [--with-fixtures]` (D11 L3 orchestrator that chains
+[--with-fixtures]` (D11 L3 orchestrator that chains
   ensure-dependencies → start-command → health-check → fixtures-start):
   `engineer-delivery-flow.md` § 3b (orchestrator becomes primary, polaris-env.sh
   retained as fallback for Admin / no-task.md / handbook-driven repos);
@@ -4501,8 +4515,8 @@ plan stays at `status: DISCUSSION` until Phase B closes.
 **Breakdown gate (A3)**
 
 - `breakdown` Path A Step 14.5 now runs `validate-task-md.sh` per file
-  + `validate-task-md-deps.sh` over the produced batch. Any non-zero
-  exit blocks progression to JIRA sub-task creation / branch creation.
+  - `validate-task-md-deps.sh` over the produced batch. Any non-zero
+    exit blocks progression to JIRA sub-task creation / branch creation.
 
 **Migration tooling (A7)**
 
@@ -4514,7 +4528,7 @@ plan stays at `status: DISCUSSION` until Phase B closes.
   fabricated (Task JIRA key / Base branch / Task branch). Backfill
   TODO marker convention (`TODO(DP-033-migration):`) for grep-driven
   follow-up.
-- Live workspace dry-run: 16 T*.md files (5 to move, 2 to backfill, 9
+- Live workspace dry-run: 16 T\*.md files (5 to move, 2 to backfill, 9
   unchanged, 0 fail). Apply is owned by the human, not run automatically.
 
 **Dogfood (A10 + A11)**
@@ -4522,7 +4536,7 @@ plan stays at `status: DISCUSSION` until Phase B closes.
 - A10 schema dogfood against EPIC-478: 0 false positives. All 7 findings
   are true positives that A7 migration apply will resolve cleanly.
 - A11 synthetic end-to-end (10 steps in `/tmp` exercising A2 + A3 + A4
-  + A5 + A6 + A8 + § 5.5 + same-key uniqueness): 10/10 PASS.
+  - A5 + A6 + A8 + § 5.5 + same-key uniqueness): 10/10 PASS.
 
 **SKILL / reference touch-ups**
 
@@ -4578,7 +4592,7 @@ PreToolUse hook (`ci-local-gate.sh`) that reads evidence and sync-runs
 **New**
 
 - `.claude/hooks/ci-local-gate.sh` PreToolUse hook intercepts
-  `git commit` / `git push` (task/* / fix/* only) / `gh pr create`. Reads
+  `git commit` / `git push` (task/_ / fix/_ only) / `gh pr create`. Reads
   `/tmp/polaris-ci-local-{branch_slug}-{head_sha}.json` for cache hit; on
   miss/FAIL syncs runs `bash {repo}/scripts/ci-local.sh` and blocks on
   exit ≠ 0 with tail of log
@@ -4697,6 +4711,7 @@ repo but not in the public template. This release pushes them.
 Land the foundational scripts and reference docs for the engineering-deterministic-extraction plan. No breaking changes; legacy `ci-contract-run.sh` and `quality-gate.sh` remain in place — D12-c (next release) will retire them.
 
 **D11 — env primitives + L3 orchestrator**:
+
 - `scripts/env/_lib.sh` (workspace-config router→company resolver, yaml→json, dotted-path field extract, fail-loud helper)
 - `scripts/env/health-check.sh` / `fixtures-start.sh` / `start-command.sh` / `ensure-dependencies.sh` (4 L2 primitives)
 - `scripts/env/selftest.sh` (25 assertions)
@@ -4704,6 +4719,7 @@ Land the foundational scripts and reference docs for the engineering-determinist
 - Callsite rewiring deferred to Wave γ
 
 **D8 — task.md central parser**:
+
 - `scripts/parse-task-md.sh` (bash + python3 inline parser)
 - Two output modes: full JSON envelope or `--field <key>` flat alias
 - N/A sentinel normalized to null; resolves base via `resolve-task-base.sh` with soft-fail
@@ -4711,6 +4727,7 @@ Land the foundational scripts and reference docs for the engineering-determinist
 - Callsite rewiring deferred to Wave γ
 
 **D25 — JIRA transition unified entry**:
+
 - `scripts/polaris-jira-transition.sh` (cross-LLM REST API; bash 3.2 compatible)
 - Built-in default slug→name map (in_development / code_review / done / waiting_qa / qa_pass / blocked)
 - Aggressive soft-fail (per D25 reframe: JIRA transition is a nice-to-have display layer; task.md is authoritative)
@@ -4718,16 +4735,19 @@ Land the foundational scripts and reference docs for the engineering-determinist
 - Callsite rewiring (engineering / verify-AC / bug-triage / start-dev) deferred to Wave γ
 
 **D12-b — tool-agnostic CI mirror generator**:
+
 - `scripts/ci-local-generate.sh` produces per-repo `{repo}/scripts/ci-local.sh`
 - Reuses `ci-contract-discover.sh` to parse 4 of 5 CI providers (Woodpecker / GitHub Actions / GitLab CI + .husky/ + .pre-commit-config.yaml + package.json scripts; CircleCI deferred)
 - Strict filtering: install/lint/typecheck/test/coverage categories only, `local_executable=true`, no `$CI_*` env dep
 - `scripts/ci-local-generate-selftest.sh` (50 assertions across 6 fixtures)
 
 **D22 + D24 — L3 default convention specs**:
+
 - `references/commit-convention-default.md` (L3 fallback for commit messages: type enum, `{TICKET}` derivation, multi-commit, revision rules)
 - `references/changeset-convention-default.md` (L3 fallback for changesets: filename slug, `{package}: patch` default, description = stripped task title, `ticket_prefix_handling=strip`)
 
 **A0 — Polaris CI baseline (dog-food)**:
+
 - `.github/workflows/ci.yml` (lint + selftest jobs)
 - `.pre-commit-config.yaml` (mirrors workflow for local pre-commit framework)
 - shellcheck `--severity=error` gate (0 errors today; warning + info + style cleanup deferred — separate session via "cleanup polaris shellcheck warnings" trigger)
@@ -4744,15 +4764,18 @@ Land the foundational scripts and reference docs for the engineering-determinist
 Revision mode 只做 `git push`（不經 `gh pr create`），完全繞過 DP-029 建立的 evidence gate — 修 CI fail 的 revision 反而是最需要 CI 模擬的場景，卻是唯一沒被攔的路徑。
 
 **D1 — L1 hook: `verification-evidence-gate.sh` 擴展攔截 `git push`**:
+
 - 新增 `git push` 攔截（條件：`task/*` / `fix/*` branch + repo 有 codecov config + 非 `--delete`/`--tags`）
 - `wip/*`、`feat/*`、framework repo、tag push 不攔
 - `.claude/settings.json` 新增 `Bash(git push*)` hook entry
 
 **D2 — L2 skill embed: engineering SKILL.md R5 明確列出 `ci-contract-run.sh`**:
+
 - Revision R5 重跑完整驗收時，Step 2a（ci-contract-run.sh）標示為必跑步驟
 - 警告區塊說明 revision mode 是最需要 CI 模擬的場景
 
 **D2b — mechanism-registry.md 更新**:
+
 - `verification-evidence-required`：補充 `git push` 攔截描述 + DP-031 條件
 - `revision-r5-mandatory`：補充 DP-031 deterministic backup 說明
 
@@ -4765,6 +4788,7 @@ Revision mode 只做 `git push`（不經 `gh pr create`），完全繞過 DP-029
 Review-inbox session (web-design-system PR #667) 中 sub-agent 以「`DS_IMPORT_RE` 缺 `s` flag 因 `[^}]+` 無法跨行匹配」為由送出 must-fix + REQUEST_CHANGES，事實上 JS character class `[^}]+` 不受 `dotAll` 影響、本來就可跨行 — must-fix 判斷為誤，雖 reply 撤回但 REQUEST_CHANGES 仍在 GitHub 擋 merge。
 
 **Updated — `.claude/skills/review-pr/SKILL.md § 4d Severity Calibration 注意事項`**:
+
 - 新增一列：語言 / 函式庫行為推論（regex、array 方法、framework 預設值等） → 未驗證前最多 should-fix，驗證（Node REPL / MDN / 官方文件）後才可升 must-fix；附上 `[^}]+` dotAll 誤判為標準案例
 - 核心原則段落補「語言/函式庫特性若未當場驗證，同樣最多 should-fix」
 
@@ -5060,6 +5084,7 @@ Closes a latent portability bug discovered during the DP-028 v3.48.0 commit sess
 - `.claude/hooks/version-bump-reminder.sh` (L21, also fixed `\S` → `[^[:space:]]`)
 
 **Dogfood** — macOS BSD sed now correctly extracts paths:
+
 ```bash
 echo 'git -C /Users/hsuanyu.lee/work commit -m "test"' | \
   sed -nE 's/.*git[[:space:]]+-C[[:space:]]+([^ ]+).*/\1/p'
@@ -5270,11 +5295,11 @@ Closes the gap where multi-task Epics let engineering open PRs against stale or 
 
 **Scan results (2026-04-22 baseline)**
 
-| Artifact | Scanned | Pass | Fail |
-|----------|---------|------|------|
-| refinement.json | 2 | 2 | 0 |
-| task.md | 13 | 13 | 0 |
-| task.md deps | 3 Epics | 3 | 0 |
+| Artifact        | Scanned | Pass | Fail |
+| --------------- | ------- | ---- | ---- |
+| refinement.json | 2       | 2    | 0    |
+| task.md         | 13      | 13   | 0    |
+| task.md deps    | 3 Epics | 3    | 0    |
 
 All existing exampleco artifacts 通過新 schema — 無需回補。未來 artifact 若違反 schema 會在 Edit/Write 當下被 hook 攔截。
 
@@ -5341,6 +5366,7 @@ P4 pilot 範圍：bug-triage → engineering 單一 handoff。其餘 4 個 hando
 **Storage**
 
 `~/.polaris/projects/{slug}/embeddings.json`：
+
 ```json
 {
   "version": 1,
@@ -5600,6 +5626,7 @@ EPIC-478 實作期間發現 engineering sub-agent 讀 task.md 後不知道如何
 **Added**
 
 - `.claude/skills/design-plan/SKILL.md` (v1.2.0):
+
   - 新增 `SEEDED` 作為 plan frontmatter `status` 合法值（原有：DISCUSSION / LOCKED / IMPLEMENTED / ABANDONED）
   - Phase 1 新增 Mode B（DP-NNN argument trigger）：`/design-plan DP-019` 讀 `artifacts/research-report.md` 產初版 Goal / Background / D1 候選
   - Mode B fail loud if report missing（BS#16 — 不 silent fallback）
@@ -5608,6 +5635,7 @@ EPIC-478 實作期間發現 engineering sub-agent 讀 task.md 後不知道如何
   - Integration table 新增 `/learning` 列
 
 - `.claude/skills/learning/SKILL.md`:
+
   - Step 5 改為主動呈現三路徑（DP / backlog / learnings-only），支援混選（D10 — 不做自動分類樹，由使用者判斷）
   - 新增 "design-plan seeding" sub-flow（D12）：建 DP folder + artifacts/ + research-report.md（固定 structure：Goal / Comparison Matrix / Knowledge Compile Results / Recommendations）+ stub plan.md (status: SEEDED) + 告知 DP 編號，**不** auto-invoke /design-plan
   - Quick-path gate（BS#15）：depth tier == Quick 時禁走 DP 路線
@@ -5616,6 +5644,7 @@ EPIC-478 實作期間發現 engineering sub-agent 讀 task.md 後不知道如何
   - DP route 下 skip polaris-backlog entry，照寫 learnings（D4）
 
 - `.claude/hooks/version-docs-lint-gate.sh`:
+
   - VERSION staged 時新增 backlog scan（D11 + BS#20 warn-only v1）
   - 列出所有 open `[ ]` 項目 + age（days since `(YYYY-MM-DD)` creation date）
   - 標記 age > 14d 且無 park tag（`[next-epic]`/`[platform]`）的項目
@@ -5832,6 +5861,7 @@ Fixed parity verification edge cases that could produce false drift in Codex boo
 Completed DP-012 rollout for deterministic gate parity between Claude and Codex.
 
 **Codex fallback wrappers added**:
+
 - `scripts/gate-hook-adapter.sh` to execute Claude-style gate scripts with synthetic hook JSON
 - `scripts/codex-guarded-git-commit.sh` (`quality-evidence-required`, `version-docs-lint-gate`)
 - `scripts/codex-guarded-gh-pr-create.sh` (`verification-evidence-required`)
@@ -5840,6 +5870,7 @@ Completed DP-012 rollout for deterministic gate parity between Claude and Codex.
 - `scripts/codex-mark-design-plan-implemented.sh` (`design-plan-checklist-gate`)
 
 **Parity verification strengthened**:
+
 - `scripts/verify-cross-llm-parity.sh` now checks fallback wiring + smoke tests for P0/P0.5/P1 wrappers
 
 ### Docs Viewer Sidebar Sync Hardening
@@ -5856,15 +5887,18 @@ Resolved the mismatch where design plan status could be updated via Bash wrapper
 Three changes to reduce review-inbox's main session context consumption:
 
 **Step 5 notification sub-agent delegation**:
+
 - Slack notification logic (GitHub→Slack user mapping + thread replies) moved entirely to a sub-agent
 - Main session no longer runs the 4-step lookup chain per author or assembles mrkdwn messages
 - Applies to both Label mode (channel summary) and Slack/Thread mode (per-thread replies)
 
 **SKILL.md slimdown** (397 → 273 lines, −31%):
+
 - Format templates (JSON schema, review_status table, Slack mrkdwn, conversation summary) extracted to `references/review-inbox-templates.md`
 - SKILL.md retains flow logic only; sub-agents read templates from reference file
 
 **Review dispatch prompt scripting** (`scripts/build-review-prompt.sh`):
+
 - Generates per-PR prompt files from candidates JSON, eliminating manual prompt assembly in main session
 - Outputs manifest JSON for Strategist to iterate and dispatch sub-agents
 - Step 4 now: run script → read manifest → parallel dispatch (each sub-agent reads its prompt file)
@@ -5876,16 +5910,19 @@ Three changes to reduce review-inbox's main session context consumption:
 Three new mechanisms inspired by Boris Cherny's Claude Code tips, pushing behavioral rules into deterministic enforcement:
 
 **PostCompact hook** (`.claude/hooks/post-compact-context-restore.sh`):
+
 - Fires after auto-compaction, re-injects branch, ticket, modified file count, stash count
 - Prompts Strategist to confirm company context — replaces behavioral-only `post-compression-company-context`
 - Registered in settings.json as PostCompact hook (auto trigger only)
 
 **Stop hook** (`.claude/hooks/stop-todo-check.sh`):
+
 - On substantial sessions (10+ tool calls), blocks Claude from stopping until todo review is confirmed
 - Prevents premature completion — the #1 quality drift in long sessions
 - Checks `stop_hook_active` to prevent infinite loops
 
 **Auto-compact window** (`CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000`):
+
 - Added to `~/.claude/settings.json` env block
 - Triggers compaction at 400k tokens, before reasoning quality degrades (300-400k range)
 - Complements `context-pressure-monitor.sh` (tool-call count) with token-level precision
@@ -5899,10 +5936,12 @@ Three new mechanisms inspired by Boris Cherny's Claude Code tips, pushing behavi
 Rebase-only revision (no review comments to fix) was silently skipping R5 behavioral verification. Now R5 is mandatory for ALL revision paths.
 
 **Engineering SKILL.md:**
+
 - New § R2d Empty-Signal Route: when review signals are empty (QA-reported, rebase-only), skip R3-R4 but still run R5
 - R5 title updated to "硬門檻 — 所有 revision path 必經", explicit that rebase-only must verify
 
 **Mechanism Registry:**
+
 - New `revision-r5-mandatory` (Critical): canary detects `git push` in revision mode without behavioral verification
 
 ### Specs Sidebar — Universal Auto-Sync
@@ -5920,18 +5959,22 @@ Previously only design-plan triggered sidebar regeneration. Now all skills writi
 Rebase moved from delivery-time (Step 5) to pre-development/pre-revision, so conflicts surface before coding starts — not after.
 
 **Engineering SKILL.md:**
+
 - New § 4.5 Pre-Development Rebase (first-cut): rebase after branch checkout, before TDD
 - New § R0 Pre-Revision Rebase (revision mode): rebase before reading work order
 - Batch sub-agent prompt: new § 1.5 mirrors the same gate
 
 **cascade-rebase.md → Pre-Work Rebase (renamed):**
+
 - Generalized from "feature branch only" to all branch types (task→feature, feature→develop, task→develop)
 - Added "why before development" rationale and feature PR edge case
 
 **engineer-delivery-flow.md:**
+
 - Step 5 downgraded to "Final Re-Sync" — skips when base hasn't moved since pre-work rebase
 
 **mechanism-registry.md:**
+
 - New `pre-work-rebase` entry (High drift): canary = Edit/Write on source files without prior `git rebase`
 
 ## [3.17.0] - 2026-04-17
@@ -5941,12 +5984,14 @@ Rebase moved from delivery-time (Step 5) to pre-development/pre-revision, so con
 Replaced the `trigger_count >= 3` graduation pipeline with immediate direct rule write. Confirmed corrections are now promoted to rules immediately, not after 3 triggers.
 
 **Core behavior change:**
+
 - `feedback-and-memory.md` item 2: "referenced >= 3 times → graduation" → "confirmed correct → direct rule write"
 - `mechanism-registry.md`: deleted `graduation-at-three-triggers` canary row + Priority Audit #10 reference
 - `framework-iteration.md`: updated framework-experience signals table + constraints
 - `trigger_count` field retained as usage frequency tracker, no longer a promotion gate
 
 **References rewritten (7 files):**
+
 - `feedback-memory-procedures.md`: "Standard Graduation" → "Direct Rule Write", manual trigger updated
 - `cross-session-learnings.md`: "Graduation Pipeline" → "Promotion Pipeline", schema fields `graduated` → `promoted`
 - `post-task-reflection-checkpoint.md`: "Graduation Check" → "Rule Promotion Check"
@@ -5954,6 +5999,7 @@ Replaced the `trigger_count >= 3` graduation pipeline with immediate direct rule
 - `quality-check-flow.md`, `epic-verification-workflow.md`: terminology updates
 
 **Skills updated (5 files):**
+
 - `validate/SKILL.md`: removed `(should graduate)` flag from check 6
 - `sprint-planning/SKILL.md`: deleted Pre-Step graduation scan (12 lines)
 - `standup/SKILL.md`: deleted Post-Step graduation scan (12 lines)
@@ -5969,11 +6015,13 @@ Replaced the `trigger_count >= 3` graduation pipeline with immediate direct rule
 ### DP-009 Close: Deterministic Checklist Gate + D3 Detail Path Propagation
 
 **design-plan-checklist-gate (new deterministic hook)**
+
 - `scripts/design-plan-checklist-gate.sh`: PreToolUse hook on Edit/Write — blocks `status: IMPLEMENTED` when plan has unchecked `[ ]` items in Implementation Checklist
 - Registered in `settings.json` PreToolUse, `mechanism-registry.md` upgraded from behavioral to deterministic
 - Root cause: Strategist skipped checklist check when closing DP-009 — behavioral rule failed, now enforced by hook
 
 **D3 Detail path propagation (gap fix)**
+
 - 13 SKILL.md files updated with Completion Envelope Detail path instructions in sub-agent dispatch prompts
 - Root cause: v3.14.0 deferred this item claiming "Reference Discovery auto pull-in" — but sub-agents don't read INDEX.md; dispatch prompts are the only delivery mechanism
 
@@ -5984,15 +6032,18 @@ Replaced the `trigger_count >= 3` graduation pipeline with immediate direct rule
 Rules auto-load reduced from 1,520 → 879 lines (−641, 42%). Procedure and reference content moved to `skills/references/` (loaded on-demand via INDEX.md triggers).
 
 **Whole file moves:**
+
 - `library-change-protocol.md` → `skills/references/library-change-protocol.md` (rules/ stub: 7 lines)
 
 **Split extractions:**
+
 - `framework-iteration.md`: procedures → `skills/references/framework-iteration-procedures.md` (119→57 lines)
 - `feedback-and-memory.md`: graduation, hygiene, carry-forward, dedup, backlog, frontmatter, injection scan → `skills/references/feedback-memory-procedures.md` (328→103 lines)
 - `sub-agent-delegation.md`: model tiers, T1/T2/T3, scoring, isolation, restore, fan-in, safety hooks → `skills/references/sub-agent-reference.md` (188→21 lines)
 - `mechanism-registry.md`: all Common Rationalizations + Deterministic Hooks detail → `skills/references/mechanism-rationalizations.md` (338→272 lines)
 
 **Reference integrity:**
+
 - INDEX.md: 5 new entries with triggers
 - 4 SKILL.md broken path fixes (learning, converge, design-plan, post-task-reflection-checkpoint)
 - mechanism-registry source path updated for library-change-protocol
@@ -6004,18 +6055,21 @@ Rules auto-load reduced from 1,520 → 879 lines (−641, 42%). Procedure and re
 Structural improvements to reduce per-session context consumption. D2 (rules slimming) deferred to a separate session.
 
 **D1: hooks override prevention**
+
 - `/validate` Mechanisms mode check 10: scans `settings.local.json` for `hooks` key → warn
 - `polaris-sync.sh` deploy: post-sync check warns if deployed `settings.local.json` contains `hooks`
 - New rule in `CLAUDE.md` Additional Rules: `settings.local.json` must not define `hooks` key
 - `mechanism-registry.md`: new `no-hooks-in-local-settings` canary; updated `version-docs-lint-gate` description (now in `settings.json`)
 
 **D3: sub-agent structured return**
+
 - `sub-agent-roles.md` Completion Envelope: new `Detail` line + Summary ≤ 3 sentences + "Summary vs Detail Separation" section with write path rules (Epic/DP/tmp) and verified flag
 - `epic-folder-structure.md`: new `artifacts/` subdirectory for sub-agent detail files
 - Exploration Pattern dispatch prompt updated to reference Envelope format
 - `mechanism-registry.md`: `subagent-completion-envelope` canary upgraded to High with Detail check
 
 **D4: skill-completion session split + checkpoint todo-diff**
+
 - `context-monitoring.md` § 5a-bis: skill completion as natural session split point (decision table + override rules)
 - New `scripts/checkpoint-todo-diff.sh`: fuzzy-matches todo items against checkpoint content, exit 1 on missing items
 - `post-task-reflection-checkpoint.md` Step 5: todo-diff as hard gate before session split notification
@@ -6039,6 +6093,7 @@ Closes the fixture gap that caused EPIC-521 AC verification to return all UNCERT
 Fixes user-specific data leakage when sharing the framework with teammates. Colleague discovered hardcoded GitHub username (`daniel-lee-kk`) in company handbook leaking to all framework users.
 
 **User config isolation (DP-007)**
+
 - Removed hardcoded `developer account daniel-lee-kk` from `rules/exampleco/handbook/index.md`
 - Added `user:` section to `workspace-config.yaml` — config-first, fallback `gh api user`
 - Updated `workspace-config.yaml.example` with user section template
@@ -6049,6 +6104,7 @@ Fixes user-specific data leakage when sharing the framework with teammates. Coll
 - Deferred: `/init` graceful fallback when `gh api` unavailable (backlog Medium)
 
 **Docs viewer improvements**
+
 - New PostToolUse hook `specs-sidebar-sync.sh` — auto-regenerates sidebar when specs files are written/edited
 - Hot reload for docs-viewer — 1s polling on `_sidebar.md` Last-Modified, pauses when tab hidden
 
@@ -6059,12 +6115,14 @@ Fixes user-specific data leakage when sharing the framework with teammates. Coll
 Migrates baseline MCP servers (Atlassian, Slack) from legacy stdio (`npx @anthropic-ai/claude-code-mcp-*`) to streamable HTTP connectors, and adds Codex mirror instructions.
 
 **sync-codex-mcp.sh**
+
 - Baseline servers now use `add_streamable_server` with official connector URLs
 - Added transport type/URL detection — automatically replaces servers with wrong transport
 - `existing_transport_type()` / `existing_streamable_url()` helpers for introspection
 - Google Calendar example URL updated to `gcal.mcp.claude.com`
 
 **Documentation**
+
 - README + README.zh-TW: MCP setup rewritten with Claude Code `/mcp` connector flow + Codex mirror commands
 - Legacy stdio npx setup marked as deprecated
 
@@ -6075,6 +6133,7 @@ Migrates baseline MCP servers (Atlassian, Slack) from legacy stdio (`npx @anthro
 Closes two quality gaps discovered in EPIC-521/TASK-3788: (1) engineering sub-agents used generic `npx vitest run` instead of project-specific test commands, (2) sub-agent dispatch prompts omitted handbook injection, causing coding conventions to be ignored.
 
 **Test Command pipeline (new)**
+
 - `pipeline-handoff.md` — task.md schema gains `## Test Command` section (between 測試計畫 and Verify Command)
 - `breakdown/SKILL.md` — Step 14.5 fills Test Command from `workspace-config.yaml` → `projects[].dev_environment.test_command`
 - `workspace-config-reader.md` — documents new `test_command` config field
@@ -6082,12 +6141,14 @@ Closes two quality gaps discovered in EPIC-521/TASK-3788: (1) engineering sub-ag
 - `engineering/SKILL.md` — sub-agent must use task.md's Test Command; environment failure = hard stop
 
 **Handbook injection (fix)**
+
 - `engineering/SKILL.md` — removed "handbook 自動載入" lie; added explicit handbook injection block for batch + first-cut modes
 - `breakdown/SKILL.md` — corrected "handbook 自動載入" to accurate wording
 - `design-plan/SKILL.md` — Phase 4b sub-agent prompt adds handbook reading instruction; Phase 5 adds sidebar regeneration step
 - `converge/SKILL.md` — Phase 3 execution sub-agents gain handbook pre-read for code-modifying skills
 
 **Mechanism canaries (new)**
+
 - `mechanism-registry.md` — `handbook-injection-in-subagent` (High), `test-command-in-task-md` (High), `test-env-hard-gate` (Critical)
 
 ## [3.9.1] - 2026-04-16
@@ -6122,11 +6183,13 @@ design-plan Phase 5 now runs `grep -c '- [ ]'` before allowing status → IMPLEM
 All Epic artifacts now live under `specs/{EPIC}/` — mockoon fixtures, VR baselines, verification evidence, lighthouse reports, refinement artifacts, and task work orders. Previously, mockoon fixtures lived in `ai-config/{company}/mockoon-environments/{epic}/` separate from refinement data. This migration unifies everything so an Epic folder is self-contained: one folder to share, archive, or delete at Epic completion.
 
 **Design decisions (DP-003):**
+
 - D1: proxy-config.yaml stays at company level (`{company_base_dir}/mockoon-config/`) — cross-epic shared config
 - D2: VR baselines become permanent per-epic (`specs/{EPIC}/tests/vr/baseline/`) — specs folder is gitignored, no size concern
 - D3: verify-AC evidence gets local copy (`specs/{EPIC}/verification/{TICKET}/{timestamp}/`) before JIRA upload
 
 **Changes:**
+
 - `skills/references/epic-folder-structure.md` — **new** reference defining the complete folder schema, path resolution, artifact lifecycle, and bootstrap rules
 - `skills/references/INDEX.md` — new § Epic Folder Structure section
 - `skills/references/visual-regression-config.md` — directory structure split into tooling (domain-level) and data (per-epic); fixtures schema updated (`runner` + `shared_config_dir` replace `environments_dir` + `active_epic` + hardcoded `start_command`)
@@ -6143,6 +6206,7 @@ All Epic artifacts now live under `specs/{EPIC}/` — mockoon fixtures, VR basel
 - `polaris-backlog.md` — closed "Epic-centric specs folder" item
 
 **Data migration (exampleco):**
+
 - `exampleco/ai-config/exampleco/mockoon-environments/EPIC-478/` → `exampleco/specs/EPIC-478/tests/mockoon/`
 - `exampleco/ai-config/exampleco/mockoon-environments/EPIC-483/` → `exampleco/specs/EPIC-483/tests/mockoon/`
 - `exampleco/ai-config/exampleco/mockoon-environments/proxy-config.yaml` → `exampleco/mockoon-config/proxy-config.yaml`
@@ -6374,6 +6438,7 @@ Phase 4 實作階段新增雙模式選擇：
 - **4b. Sub-agent Handoff 模式**：大 scope 走「dispatch sub-agents 消費 plan.md 作為 work order」的 pattern，類比 `breakdown → task.md → engineering`
 
 **Sub-agent Handoff 要點**：
+
 - Dispatch prompt 只傳 plan file **路徑**（sub-agent 自己讀），不 copy plan 內容
 - Phases 依賴關係決定平行 vs 順序；多 sub-agent 寫同檔時用 worktree isolation
 - Main agent 只做 orchestration + fan-in validate + 統一 tick off Checklist
@@ -6399,6 +6464,7 @@ Phase 4 實作階段新增雙模式選擇：
 6. 回覆 reviewer + lesson 萃取
 
 **嚴格性規則**：
+
 - **Plan gap / spec issue → 硬擋退回上游**（breakdown / refinement），不就地補 plan（避免便宜行事繞過品質關卡）
 - **Legacy PR 無施工圖 → 硬擋**（要求先跑 `/breakdown {TICKET}` 補 plan，或用 `--bypass` 旗標並警告）
 - **Review comments 不分級**：所有 comment（typo 或邏輯漏洞）一律走完整 revision flow，不做 triage
@@ -6607,17 +6673,20 @@ check-pr-approvals 從「偵測 + 自動修正 + 催 review」瘦身為「偵測
 `work-on` 更名為 `engineering`，搭配三層確定性強化，確保 AI 工程師不再跳過品質檢查。
 
 #### 確定性品質 Gate（P0）
+
 - **`scripts/pre-commit-quality.sh`** — 自動偵測 lint/typecheck/test 並執行，全過寫 quality evidence
 - **`scripts/quality-gate.sh`** — PreToolUse hook，`git commit` 前檢查 evidence，沒有就 exit 2 擋下
 - Coverage advisory — 列出缺少 test 的 source files（non-blocking）
 - 整合進 `quality-check-flow.md` Step 4b + `mechanism-registry.md`
 
 #### Scope Lock（P1）
+
 - `pipeline-handoff.md` task.md schema 新增 `## Allowed Files` section
 - `engineer-delivery-flow.md` 新增 Step 5.5 Scope Check（advisory + risk signal）
 - `sub-agent-delegation.md` self-regulation scoring：計畫外檔案 +10% → +15%
 
 #### Skill Rename: work-on → engineering
+
 - 目錄 `skills/work-on/` → `skills/engineering/`
 - SKILL.md 開頭加工程師 persona 宣言
 - 全框架 ~30 個檔案 cross-reference 更新
@@ -7039,7 +7108,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 ## [1.76.0] - 2026-04-07
 
 - **fix-bug Step 4.5 AC Local Verification** — 開發完成後、發 PR 前，根據 ticket 的 [VERIFICATION] Local 項目逐一驗證（unit test / Playwright 截圖 / 手動確認），結果更新回 JIRA。Post-deploy 項目標記「待 SIT 驗證」不阻擋 PR
-- **fix-bug VR Gate（條件觸發）** — 改動涉及前端可見代碼（pages/components/layouts/*.vue/*.scss）且有 VR 設定時，自動觸發 visual regression 檢查
+- **fix-bug VR Gate（條件觸發）** — 改動涉及前端可見代碼（pages/components/layouts/_.vue/_.scss）且有 VR 設定時，自動觸發 visual regression 檢查
 - **jira-estimation VERIFICATION 兩層模板** — Bug 的預計驗證方式分 Local（PR 前，RD 負責）和 Post-deploy（SIT/Prod，驗證子任務追蹤）兩層，JIRA comment 模板同步更新
 
 ## [1.75.0] - 2026-04-07
@@ -7179,7 +7248,7 @@ execution backbone 從分散的 skill 統一到共用 reference，work-on 和 gi
 
 ## [1.52.0] - 2026-04-04
 
-- **VR conditional trigger in quality gate** — `dev-quality-check` Step 8b: auto-detect frontend-visible changes (pages/, components/, layouts/, *.vue, *.css) and recommend VR when `visual_regression` is configured. Also triggers for member-ci and design-system changes that affect b2c rendering. Informational, not blocking
+- **VR conditional trigger in quality gate** — `dev-quality-check` Step 8b: auto-detect frontend-visible changes (pages/, components/, layouts/, _.vue, _.css) and recommend VR when `visual_regression` is configured. Also triggers for member-ci and design-system changes that affect b2c rendering. Informational, not blocking
 - **Epic verification backlog** — three-layer verification structure designed: Task test plans (PR gate records), per-AC verification tickets (Playwright E2E), Feature branch integration tests. Auto-rebase pre-step, auto-generated verification tickets, and feature integration testing planned for upcoming versions
 
 ## [1.51.0] - 2026-04-04

@@ -18,6 +18,8 @@
 !package.json
 !pnpm-workspace.yaml
 !pnpm-lock.yaml
+!.changeset/
+!.changeset/**
 !AGENTS.md
 !workspace-config.yaml.example
 !polaris-toolchain.yaml

@@ -2123,6 +2123,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/release-version.sh",
+      "kind": "release",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/release-version-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/render-refinement-md.sh",
       "kind": "writer",
       "runner": "bash",
@@ -3520,6 +3529,16 @@
     },
     {
       "path": "scripts/selftests/refresh-baseline-snapshot-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/release-version-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",

@@ -290,17 +290,24 @@ if bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DI
 fi
 grep -q "expected 'task/DP-999-T1-one'" "$TMPDIR"/wrong-base.out
 
+# DP-295 T6 (AC5): the lane no longer runs a pre-merge VERSION-bump gate.
+# The single-task TB fixture (release-tooling touch WITHOUT a VERSION bump) used
+# to be BLOCKED by the version-bump gate; under the changeset-driven model the
+# version rides the verified PR HEAD (mise run release:version), so the lane must
+# now PASS this fixture on lineage + script-governance gates alone.
 cat > "$TMPDIR/pr-state.tsv" <<'EOF'
 task/DP-999-TB-blocked	9	OPEN	main	9999999999999999999999999999999999999999	https://example.test/pull/9
 EOF
-if env -u POLARIS_ALLOW_MISSING_VERSION_BUMP bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/TB.md" >"$TMPDIR"/blocked.out 2>&1; then
-  echo "expected missing VERSION bump fixture to fail" >&2
-  exit 1
+bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/TB.md" >"$TMPDIR"/no-version-gate.out 2>&1 || {
+  echo "AC5: lane must PASS a no-VERSION-bump fixture (version-bump gate removed)" >&2
+  cat "$TMPDIR"/no-version-gate.out >&2; exit 1; }
+grep -q "\[framework-release-pr-lane\] PASS" "$TMPDIR"/no-version-gate.out \
+  || { echo "AC5: expected PASS on no-VERSION fixture" >&2; cat "$TMPDIR"/no-version-gate.out >&2; exit 1; }
+# AC5: the removed gate must NOT have run.
+if grep -qiE "version-bump release gate|BLOCKED: release-preflight|missing required VERSION bump" "$TMPDIR"/no-version-gate.out; then
+  echo "AC5: version-bump bounce-back gate still firing in the lane" >&2
+  cat "$TMPDIR"/no-version-gate.out >&2; exit 1
 fi
-grep -q "BLOCKED: release-preflight" "$TMPDIR"/blocked.out
-
-POLARIS_ALLOW_MISSING_VERSION_BUMP=1 bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/TB.md" >"$TMPDIR"/override.out 2>&1
-grep -q "override accepted" "$TMPDIR"/override.out
 
 cat > "$TMPDIR/pr-state.tsv" <<'EOF'
 codex/generic-publish	10	OPEN	main	1010101010101010101010101010101010101010	https://example.test/pull/10
@@ -421,25 +428,31 @@ if ! diff -q "$TMPDIR"/dryrun.out "$TMPDIR"/pertask-regression.out >/dev/null; t
   exit 1
 fi
 
-# AC3: version gate runs on the bundle branch. The no-VERSION bundle branch
-# fires the version-bump signal without a VERSION bump → FAIL.
-make_bundle_task "$BUNDLE_TASK_DIR/NV1/index.md" "DP-998-NV1" "task/DP-998-NV1-one" "bundle-DP-998-novers"
-make_bundle_task "$BUNDLE_TASK_DIR/NV2/index.md" "DP-998-NV2" "task/DP-998-NV2-two" "bundle-DP-998-novers"
+# DP-295 T6 (AC5): the bundle path no longer runs a version-bump gate either.
+# The no-VERSION bundle branch (release-tooling touch without a VERSION bump) used
+# to FAIL the version-bump gate; under the changeset-driven model it must now PASS
+# on lineage + script-governance gates alone.
+# Member dirs use a `T*` basename so resolve-task-md-by-branch.sh's tasks/T* glob
+# resolves the bundle members (the lane now reaches lineage resolution because the
+# version-bump gate no longer short-circuits first).
+make_bundle_task "$BUNDLE_TASK_DIR/T8/index.md" "DP-998-T8" "task/DP-998-T8-one" "bundle-DP-998-novers"
+make_bundle_task "$BUNDLE_TASK_DIR/T9/index.md" "DP-998-T9" "task/DP-998-T9-two" "bundle-DP-998-novers"
 cat > "$TMPDIR/pr-state.tsv" <<'EOF'
 bundle-DP-998-novers	21	OPEN	main	2121212121212121212121212121212121212121	https://example.test/pull/21
 EOF
-if env -u POLARIS_ALLOW_MISSING_VERSION_BUMP bash "$HELPER" --repo "$REPO" \
-    --task-md "$BUNDLE_TASK_DIR/NV1/index.md" \
-    --task-md "$BUNDLE_TASK_DIR/NV2/index.md" \
-    >"$TMPDIR"/bundle-noversion.out 2>&1; then
-  echo "AC3: expected bundle missing-VERSION fixture to FAIL" >&2
+bash "$HELPER" --repo "$REPO" \
+    --task-md "$BUNDLE_TASK_DIR/T8/index.md" \
+    --task-md "$BUNDLE_TASK_DIR/T9/index.md" \
+    >"$TMPDIR"/bundle-noversion.out 2>&1 || {
+  echo "AC5: expected bundle no-VERSION fixture to PASS (version-bump gate removed)" >&2
+  cat "$TMPDIR"/bundle-noversion.out >&2; exit 1; }
+grep -q "\[framework-release-pr-lane\] PASS" "$TMPDIR"/bundle-noversion.out \
+  || { echo "AC5: expected PASS on no-VERSION bundle" >&2; cat "$TMPDIR"/bundle-noversion.out >&2; exit 1; }
+# AC5: the removed version-bump gate must NOT have run on the bundle branch.
+if grep -qiE "version-bump release gate|BLOCKED: release-preflight" "$TMPDIR"/bundle-noversion.out; then
+  echo "AC5: version-bump gate still firing on the bundle branch" >&2
   cat "$TMPDIR"/bundle-noversion.out >&2; exit 1
 fi
-grep -q "BLOCKED: release-preflight" "$TMPDIR"/bundle-noversion.out \
-  || { echo "AC3: expected release-preflight block on bundle branch" >&2; cat "$TMPDIR"/bundle-noversion.out >&2; exit 1; }
-# AC3: the gate must have evaluated the BUNDLE branch, not a per-task branch.
-grep -q "version-bump release gate on bundle-DP-998-novers" "$TMPDIR"/bundle-noversion.out \
-  || { echo "AC3: version gate did not target the bundle branch" >&2; cat "$TMPDIR"/bundle-noversion.out >&2; exit 1; }
 
 # AC-NEG2 (a): a declared bundle whose alias branch has NO PR → fail-closed.
 cat > "$TMPDIR/pr-state.tsv" <<'EOF'
@@ -449,7 +462,6 @@ if bash "$HELPER" --repo "$REPO" \
     --task-md "$BUNDLE_TASK_DIR/T1/index.md" \
     --task-md "$BUNDLE_TASK_DIR/T2/index.md" \
     --task-md "$BUNDLE_TASK_DIR/T3/index.md" \
-    --defer-version-bump-to-release-metadata \
     >"$TMPDIR"/bundle-nopr.out 2>&1; then
   echo "AC-NEG2(a): expected bundle-with-no-PR fixture to FAIL" >&2
   cat "$TMPDIR"/bundle-nopr.out >&2; exit 1
@@ -471,7 +483,6 @@ EOF
 if bash "$HELPER" --repo "$REPO" \
     --task-md "$INCONSISTENT_DIR/T1/index.md" \
     --task-md "$INCONSISTENT_DIR/T2/index.md" \
-    --defer-version-bump-to-release-metadata \
     >"$TMPDIR"/bundle-inconsistent.out 2>&1; then
   echo "AC-NEG2(b): expected inconsistent-alias fixture to FAIL" >&2
   cat "$TMPDIR"/bundle-inconsistent.out >&2; exit 1
@@ -481,5 +492,20 @@ grep -q "inconsistent bundle_branch_alias" "$TMPDIR"/bundle-inconsistent.out \
 if grep -q "=> bundle PR" "$TMPDIR"/bundle-inconsistent.out; then
   echo "AC-NEG2(b): planned a merge despite inconsistent aliases" >&2; cat "$TMPDIR"/bundle-inconsistent.out >&2; exit 1
 fi
+
+# ---------------------------------------------------------------------------
+# DP-295 T6 (AC5 / AC-NEG2 / AC-NEG5): version bounce-back fully removed.
+# The lane source must no longer carry the pre-merge VERSION-bump gate, the
+# post-merge release-metadata defer flag, or the version-bump checker wiring.
+# Version/CHANGELOG now ride the verified PR HEAD (changeset-driven, T1-T5).
+# ---------------------------------------------------------------------------
+if grep -nE 'DEFER_VERSION_BUMP_TO_METADATA|defer-version-bump-to-release-metadata|run_version_bump_release_gate|VERSION_BUMP_CHECKER|check-version-bump-reminder' "$HELPER" >/dev/null; then
+  echo "AC5: framework-release-pr-lane.sh still references the removed version-bump bounce-back mechanism" >&2
+  grep -nE 'DEFER_VERSION_BUMP_TO_METADATA|defer-version-bump-to-release-metadata|run_version_bump_release_gate|VERSION_BUMP_CHECKER|check-version-bump-reminder' "$HELPER" >&2
+  exit 1
+fi
+# AC5: the lane must point at the changeset-driven version path (release:version).
+grep -qE 'release:version|release-version' "$HELPER" \
+  || { echo "AC5: lane does not reference the changeset-driven release:version path" >&2; exit 1; }
 
 echo "[framework-release-pr-lane-selftest] PASS"

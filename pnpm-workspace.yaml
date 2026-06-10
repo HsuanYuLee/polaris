@@ -1,4 +1,5 @@
 packages:
+  - .
   - docs-manager
   - tools/polaris-toolchain
   - scripts/e2e
