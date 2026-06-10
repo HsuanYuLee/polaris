@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.2] - 2026-06-11
+
+### Changed
+
+- 167b3e1: gate-changeset.sh 補 release_bump carve-out（bundle release tail false-block 修正）
+- 3bf7e95: 改寫 framework-release SKILL.md：bundle-release orchestration + 版本邊界 + gate-lane 指引 + selftest
+
 ## [3.76.1] - 2026-06-10
 
 ### Changed

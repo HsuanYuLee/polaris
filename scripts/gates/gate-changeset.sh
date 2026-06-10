@@ -70,6 +70,29 @@ if bash "$POLARIS_CHANGESET" check --task-md "$TASK_MD" --repo "$REPO_ROOT"; the
   exit 0
 fi
 
+# DP-305 AC8: release-bump / metadata-only push deltas are exempt — the bundle
+# release tail consumes the member changeset via `mise run release:version`, so a
+# resolved member task.md legitimately has no pending changeset on a release-bump
+# HEAD. Classify the push delta via the SAME shared classifier gate-evidence.sh
+# uses (DP-294); behavioral deltas fall through and stay fail-closed below. No
+# manual POLARIS_SKIP_CHANGESET_GATE needed.
+EVIDENCE_CLASSIFIER="${WORKSPACE_SCRIPTS}/lib/evidence-classifier.sh"
+HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
+if [[ -n "$HEAD_SHA" && -x "$EVIDENCE_CLASSIFIER" ]]; then
+  cls_base="$(git -C "$REPO_ROOT" merge-base origin/main HEAD 2>/dev/null || true)"
+  if [[ -n "$cls_base" && "$cls_base" != "$HEAD_SHA" ]]; then
+    cls_disp="$(bash "$EVIDENCE_CLASSIFIER" classify --repo "$REPO_ROOT" --range "${cls_base}..${HEAD_SHA}" 2>/dev/null || true)"
+  else
+    cls_disp="$(bash "$EVIDENCE_CLASSIFIER" classify --repo "$REPO_ROOT" --head "$HEAD_SHA" 2>/dev/null || true)"
+  fi
+  case "$cls_disp" in
+    release_bump|metadata_only)
+      echo "$PREFIX ${cls_disp} delta — exempt from task-bound changeset (DP-305 AC8 classifier; no manual skip)." >&2
+      exit 0
+      ;;
+  esac
+fi
+
 cat >&2 <<EOF
 $PREFIX BLOCKED: missing task changeset.
   Repo:    $REPO_ROOT
