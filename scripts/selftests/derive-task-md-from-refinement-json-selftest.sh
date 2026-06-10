@@ -1,39 +1,68 @@
 #!/usr/bin/env bash
-# DP-230-T10 (+ DP-296 T3): derive-task-md-from-refinement-json selftest
+# Purpose: selftest for derive-task-md-from-refinement-json.sh — the deterministic
+#   task.md body derivation. Covers source.type-free output parity (DP-302),
+#   field-driven body, references-by-container, fail-loud, and constructability.
+# Inputs:  none (constructs refinement.json fixtures in a tmpdir)
+# Outputs: stdout PASS line on success; non-zero exit + stderr on failure
+# Exit code: 0 = pass, non-zero = fail
 #
-# AC28 (positive): refinement.json structured `tasks[]` fields are sufficient to
-#   deterministically derive a task.md body that passes `validate-task-md.sh`.
-#   No LLM-judgment text is required.
-# AC-NEG9 (negative): when `tasks[]` entry is missing required deterministic
-#   fields (id / title / scope / allowed_files / verification.detail), the
-#   derive script must fail-loud and refuse to emit a task.md body. There is
-#   NO LLM-judgment fallback.
-# DP-296 T3 / AC2: task_shape is read from the canonical first-class
-#   tasks[].task_shape field (the removed top-level shape array is no longer a
-#   source). DP-296 AC-NEG1: the production script has zero 'planned_tasks' reads.
+# History / AC coverage:
+# - DP-230-T10 (AC28 / AC-NEG9): structured tasks[] fields deterministically derive
+#   a task.md body that passes validate-task-md.sh; missing field -> fail-loud.
+# - DP-231 D45: V tasks derive the V-mode schema (Implementation tasks / 驗收項目).
+# - DP-260 AC-NEG1: CLI --task-id must be canonical full form.
+# - DP-296 T3 / AC2 / AC-NEG1: tasks[].task_shape passthrough (T only); no removed
+#   planned_tasks read.
+# - DP-302 (this task):
+#     AC1     : same refinement.json content fed as dp vs jira derives a task.md
+#               whose STRUCTURE (frontmatter keys, section headings, table shapes)
+#               is identical -- diff falls only on field values, never on structure
+#               or framework literals.
+#     AC2     : derive source has no source_type== branch affecting
+#               identity/body/references/gate; jira_key cell renders `jira_key or
+#               N/A` via one field-driven path.
+#     AC3     : body fields (behavior_contract / test_environment / verify_command /
+#               references) come from refinement.json; references are generated from
+#               the resolved container (jira -> companies/, dp -> design-plans/); the
+#               Verify Command has no unconditional framework tail.
+#     AC4     : derived dp/jira task.md run through validate-breakdown-ready.sh; a
+#               synthesized test-runner + static/N/A env body must be judged FAIL.
+#     AC-NEG1 : a task partially declaring body fields fails fail-loud naming the
+#               missing field (no silent framework default).
+#     AC-NEG2 : an existing dp work order, after backfilling equivalent body fields,
+#               derives equivalent output; the no-body legacy path is unchanged.
 
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$ROOT_DIR/scripts/derive-task-md-from-refinement-json.sh"
 VALIDATE_TASK_MD="$ROOT_DIR/scripts/validate-task-md.sh"
+VALIDATE_BREAKDOWN_READY="$ROOT_DIR/scripts/validate-breakdown-ready.sh"
 
 [[ -x "$SCRIPT" ]] || { echo "FAIL: derive script not executable: $SCRIPT" >&2; exit 1; }
+[[ -x "$VALIDATE_TASK_MD" ]] || { echo "FAIL: validate-task-md.sh not executable" >&2; exit 1; }
+[[ -x "$VALIDATE_BREAKDOWN_READY" ]] || { echo "FAIL: validate-breakdown-ready.sh not executable" >&2; exit 1; }
 
 tmpdir="$(mktemp -d -t derive-task-md.XXXXXX)"
 trap 'rm -rf "$tmpdir"' EXIT
 
+# Body fields populate the field-driven path. A fully-populated task.md is the
+# DP-302 steady state; the no-body legacy path is exercised separately (case 16).
+BODY_BC='"behavior_contract": { "applies": false, "reason": "framework infra; no runtime behavior" }'
+BODY_TE='"test_environment": { "level": "static" }'
+BODY_REFS='"references": ["scripts/sample.sh"]'
+
 # ---------------------------------------------------------------------------
-# Case 1 (AC28): positive — full refinement.json `tasks[]` entry derives a
-# valid task.md body. No LLM judgment in the derivation pipeline.
+# Case 1 (AC28): positive -- full refinement.json `tasks[]` entry with per-task
+# body fields derives a valid task.md body that passes validate-task-md.sh.
 # ---------------------------------------------------------------------------
 positive_json="$tmpdir/refinement-positive.json"
-cat >"$positive_json" <<'JSON'
+cat >"$positive_json" <<JSON
 {
   "source": {
     "type": "dp",
     "id": "DP-999",
-    "container": "/tmp/dp-999",
+    "container": "/Users/x/work/docs-manager/src/content/docs/specs/design-plans/DP-999-sample",
     "plan_path": "/tmp/dp-999/index.md",
     "jira_key": null
   },
@@ -56,7 +85,11 @@ cat >"$positive_json" <<'JSON'
       "estimate_points": 2,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh"
+        "detail": "bash scripts/selftests/sample-selftest.sh",
+        "verify_command": "bash scripts/selftests/sample-selftest.sh",
+        $BODY_BC,
+        $BODY_TE,
+        $BODY_REFS
       }
     }
   ]
@@ -66,8 +99,8 @@ JSON
 positive_out="$tmpdir/positive-task.md"
 bash "$SCRIPT" --refinement-json "$positive_json" --task-id "DP-999-T1" > "$positive_out"
 
-# Required deterministic anchors — these come straight from refinement.json
-# fields, not from any LLM reasoning step.
+# Anchors come straight from refinement.json fields, not from any LLM step or
+# hardcoded framework literal.
 required_anchors=(
   "# T1: 範例 deterministic derivation (2 pt)"
   "task_kind: T"
@@ -85,7 +118,6 @@ required_anchors=(
   "## Gate Closure Matrix"
   "bash scripts/selftests/sample-selftest.sh"
   "## Verify Command"
-  "echo \"PASS: DP-999-T1\""
 )
 for anchor in "${required_anchors[@]}"; do
   if ! grep -qF -- "$anchor" "$positive_out"; then
@@ -96,7 +128,14 @@ for anchor in "${required_anchors[@]}"; do
   fi
 done
 
-# Derived body must pass `validate-task-md.sh` without any post-edit.
+# References come from the resolved container (design-plans/), not a hardcoded
+# `DP-999-*` glob literal (AC3).
+if ! grep -qF -- "docs-manager/src/content/docs/specs/design-plans/DP-999-sample/refinement.json" "$positive_out"; then
+  echo "FAIL [case 1 / AC3]: references not derived from container path" >&2
+  cat "$positive_out" >&2
+  exit 1
+fi
+
 bash "$VALIDATE_TASK_MD" "$positive_out" >/dev/null 2>&1 || {
   echo "FAIL [case 1 / AC28]: derived task.md does not pass validate-task-md.sh" >&2
   bash "$VALIDATE_TASK_MD" "$positive_out" >&2 || true
@@ -104,8 +143,7 @@ bash "$VALIDATE_TASK_MD" "$positive_out" >/dev/null 2>&1 || {
 }
 
 # ---------------------------------------------------------------------------
-# Case 2 (AC28): determinism — running the script twice yields byte-identical
-# output. There is no time-dependent / random-seeded behavior.
+# Case 2 (AC28): determinism -- running twice is byte-identical.
 # ---------------------------------------------------------------------------
 positive_out_b="$tmpdir/positive-task-b.md"
 bash "$SCRIPT" --refinement-json "$positive_json" --task-id "DP-999-T1" > "$positive_out_b"
@@ -116,8 +154,7 @@ if ! cmp -s "$positive_out" "$positive_out_b"; then
 fi
 
 # ---------------------------------------------------------------------------
-# Case 3 (AC-NEG9): negative — missing required field must fail-loud. No
-# LLM-judgment fallback that fills the gap.
+# Case 3 (AC-NEG9): missing required structural field -> fail-loud.
 # ---------------------------------------------------------------------------
 negative_json="$tmpdir/refinement-negative.json"
 cat >"$negative_json" <<'JSON'
@@ -135,7 +172,7 @@ cat >"$negative_json" <<'JSON'
       "id": "DP-999-T2",
       "kind": "implementation",
       "title": "Missing allowed_files",
-      "scope": "Negative case — allowed_files intentionally omitted to assert fail-loud.",
+      "scope": "Negative case -- allowed_files intentionally omitted to assert fail-loud.",
       "ac_ids": ["AC2"],
       "dependencies": [],
       "estimate_points": 1,
@@ -159,7 +196,7 @@ if ! grep -q "allowed_files" "$tmpdir/neg.stderr"; then
 fi
 
 # ---------------------------------------------------------------------------
-# Case 4 (AC-NEG9): unknown task id must fail-loud.
+# Case 4 (AC-NEG9): unknown task id -> fail-loud.
 # ---------------------------------------------------------------------------
 if bash "$SCRIPT" --refinement-json "$positive_json" --task-id "DP-999-TX" >/dev/null 2>"$tmpdir/unknown.stderr"; then
   echo "FAIL [case 4 / AC-NEG9]: script accepted unknown task id" >&2
@@ -172,7 +209,7 @@ if ! grep -q "DP-999-TX" "$tmpdir/unknown.stderr"; then
 fi
 
 # ---------------------------------------------------------------------------
-# Case 5 (AC-NEG9): missing refinement.json file must fail-loud.
+# Case 5 (AC-NEG9): missing refinement.json file -> fail-loud.
 # ---------------------------------------------------------------------------
 if bash "$SCRIPT" --refinement-json "$tmpdir/does-not-exist.json" --task-id "DP-999-T1" >/dev/null 2>"$tmpdir/missing.stderr"; then
   echo "FAIL [case 5 / AC-NEG9]: script accepted missing refinement.json" >&2
@@ -180,8 +217,7 @@ if bash "$SCRIPT" --refinement-json "$tmpdir/does-not-exist.json" --task-id "DP-
 fi
 
 # ---------------------------------------------------------------------------
-# Case 6 (DP-231 D45): V tasks derive a V-mode schema body with
-# Implementation tasks and 驗收項目, not the T-mode sections.
+# Case 6 (DP-231 D45): V tasks derive the V-mode schema.
 # ---------------------------------------------------------------------------
 v_json="$tmpdir/refinement-v.json"
 cat >"$v_json" <<'JSON'
@@ -189,7 +225,7 @@ cat >"$v_json" <<'JSON'
   "source": {
     "type": "dp",
     "id": "DP-999",
-    "container": "/tmp/dp-999",
+    "container": "/Users/x/work/docs-manager/src/content/docs/specs/design-plans/DP-999-sample",
     "plan_path": "/tmp/dp-999/index.md",
     "jira_key": null
   },
@@ -259,6 +295,12 @@ for anchor in "${v_anchors[@]}"; do
     exit 1
   fi
 done
+# V references are container-derived too (AC3 / AC2 -- no hardcoded design-plans literal).
+if ! grep -qF -- "docs-manager/src/content/docs/specs/design-plans/DP-999-sample/refinement.json" "$v_out"; then
+  echo "FAIL [case 6 / AC3]: V references not derived from container path" >&2
+  cat "$v_out" >&2
+  exit 1
+fi
 bash "$VALIDATE_TASK_MD" "$v_out" >/dev/null 2>&1 || {
   echo "FAIL [case 6 / D45]: derived V task.md does not pass validate-task-md.sh" >&2
   bash "$VALIDATE_TASK_MD" "$v_out" >&2 || true
@@ -266,9 +308,7 @@ bash "$VALIDATE_TASK_MD" "$v_out" >/dev/null 2>&1 || {
 }
 
 # ---------------------------------------------------------------------------
-# Case 7 (DP-260 AC-NEG1): --task-id CLI argument must be canonical full form
-# (EPIC-NNN-Tn). Passing a short form (e.g. "T1") must fail-loud; the dual-form
-# support is for refinement.json `tasks[].id` only, never for the CLI handoff.
+# Case 7 (DP-260 AC-NEG1): CLI --task-id must be canonical full form.
 # ---------------------------------------------------------------------------
 if bash "$SCRIPT" --refinement-json "$positive_json" --task-id "T1" >/dev/null 2>"$tmpdir/cli-short.stderr"; then
   echo "FAIL [case 7 / DP-260 AC-NEG1]: derive accepted short-form CLI --task-id" >&2
@@ -280,127 +320,436 @@ if ! grep -q "canonical pattern" "$tmpdir/cli-short.stderr"; then
   exit 1
 fi
 
-# ---------------------------------------------------------------------------
-# Case 8 (DP-269 AC1): jira mode positive — source_type=jira with a real
-# per-task jira_key + source.repo + source.base_branch derives a task.md whose
-# identity is the real jira_key, Repo=source.repo, Base branch=source.base_branch,
-# and JIRA key cell is the real key (not N/A). The derived body must pass
-# validate-task-md.sh.
-# ---------------------------------------------------------------------------
-jira_json="$tmpdir/refinement-jira.json"
-cat >"$jira_json" <<'JSON'
+# ===========================================================================
+# DP-302 -- source.type-free derive: parity, field-driven body, references-by-
+# container, constructability, fail-loud, back-compat.
+# ===========================================================================
+
+# write_refinement <dest> <type> <jira_key_cell:null|"KEY"> <repo:null|"slug"> \
+#   <base_branch:null|"branch"> <container>
+# Emits a refinement.json whose tasks[].T1 carries the SAME body fields for every
+# call. Only the source/identity values differ between calls, so a structural diff
+# of two derived task.md must come out empty (AC1).
+write_refinement() {
+  local dest="$1" stype="$2" jkey="$3" repo="$4" base="$5" container="$6"
+  local repo_line="" base_line="" task_jkey_line=""
+  [[ "$repo" != "null" ]] && repo_line="\"repo\": \"$repo\","
+  [[ "$base" != "null" ]] && base_line="\"base_branch\": \"$base\","
+  [[ "$jkey" != "null" ]] && task_jkey_line="\"jira_key\": \"$jkey\","
+  cat >"$dest" <<JSON
 {
   "source": {
-    "type": "jira",
-    "id": "PROJ-100",
-    "container": "/tmp/proj-100",
-    "plan_path": "/tmp/proj-100/index.md",
-    "jira_key": "PROJ-100",
-    "repo": "exampleco-web",
-    "base_branch": "develop"
+    "type": "$stype",
+    "id": "DP-500",
+    $repo_line
+    $base_line
+    "container": "$container",
+    "jira_key": null
   },
   "schema_version": 1,
   "tasks": [
     {
-      "id": "PROJ-100-T1",
-      "kind": "task",
-      "jira_key": "PROJ-201",
-      "title": "jira mode derive",
-      "scope": "驗證 jira mode 注入真實 jira_key / repo / base_branch。",
+      "id": "DP-500-T1",
+      "kind": "implementation",
+      $task_jkey_line
+      "title": "parity task",
+      "scope": "驗證 source.type-free parity。",
       "allowed_files": ["scripts/sample.sh", "scripts/selftests/sample-selftest.sh"],
-      "modules": ["scripts/sample.sh", "scripts/selftests/sample-selftest.sh"],
+      "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
       "estimate_points": 2,
       "verification": {
         "method": "unit_test",
         "detail": "bash scripts/selftests/sample-selftest.sh",
-        "verify_command": "bash scripts/selftests/sample-selftest.sh"
+        "verify_command": "bash scripts/selftests/sample-selftest.sh",
+        "behavior_contract": { "applies": false, "reason": "framework infra; no runtime behavior" },
+        "test_environment": { "level": "static" },
+        "references": ["scripts/sample.sh"]
       }
     }
   ]
 }
 JSON
+}
 
-jira_out="$tmpdir/jira-task.md"
-bash "$SCRIPT" --refinement-json "$jira_json" --task-id "PROJ-100-T1" > "$jira_out"
-jira_anchors=(
-  "> Source: PROJ-100 | Task: PROJ-201 | JIRA: PROJ-201 | Repo: exampleco-web"
-  "| Source type | jira |"
-  "| Source ID | PROJ-100 |"
-  "| Task ID | PROJ-201 |"
-  "| JIRA key | PROJ-201 |"
-  "| Base branch | develop |"
-  "| Branch chain | develop -> task/PROJ-100-T1-jira-mode-derive |"
-)
-for anchor in "${jira_anchors[@]}"; do
-  if ! grep -qF -- "$anchor" "$jira_out"; then
-    echo "FAIL [case 8 / DP-269 AC1]: jira anchor not found: $anchor" >&2
-    echo "--- derived output ---" >&2
-    cat "$jira_out" >&2
-    exit 1
-  fi
-done
-# jira mode must NOT leak the dp-mode N/A JIRA key default.
-if grep -qF "| JIRA key | N/A |" "$jira_out"; then
-  echo "FAIL [case 8 / DP-269 AC1]: jira mode leaked N/A JIRA key cell" >&2
+# structural_skeleton <task.md> -- reduce a task.md to its STRUCTURE: frontmatter
+# keys (left of ':'), section headings, and table-row column COUNT (cell content
+# blanked). Two task.md with the same structure but different values normalize to
+# the same skeleton.
+structural_skeleton() {
+  python3 - "$1" <<'PY'
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+out = []
+in_fm = False
+fm_seen = 0
+for line in text.splitlines():
+    if line.strip() == "---":
+        fm_seen += 1
+        in_fm = fm_seen == 1
+        out.append("FM_DELIM")
+        continue
+    if in_fm:
+        m = re.match(r"^(\s*)([A-Za-z_][\w-]*):", line)
+        if m:
+            out.append(f"FM_KEY {m.group(1)}{m.group(2)}")
+        elif line.strip() == "":
+            out.append("FM_BLANK")
+        else:
+            out.append("FM_OTHER")
+        continue
+    if line.startswith("#"):
+        out.append("HEAD " + line.strip())
+        continue
+    if line.lstrip().startswith("|"):
+        out.append(f"ROW cols={line.count('|')}")
+        continue
+    if line.startswith("```"):
+        out.append("FENCE")
+        continue
+    if line.strip() == "":
+        out.append("BLANK")
+        continue
+    out.append("TEXT")
+print("\n".join(out))
+PY
+}
+
+# --- Case 8 (AC1 / AC2): same content fed dp vs jira -> identical STRUCTURE. ---
+dp_parity="$tmpdir/parity-dp.json"
+jira_parity="$tmpdir/parity-jira.json"
+write_refinement "$dp_parity" "dp" "null" "null" "null" \
+  "/Users/x/work/docs-manager/src/content/docs/specs/design-plans/DP-500-sample"
+write_refinement "$jira_parity" "jira" "PROJ-201" "exampleco-web" "develop" \
+  "/Users/x/work/docs-manager/src/content/docs/specs/companies/exampleco/PROJ-500"
+
+dp_parity_out="$tmpdir/parity-dp.md"
+jira_parity_out="$tmpdir/parity-jira.md"
+bash "$SCRIPT" --refinement-json "$dp_parity" --task-id "DP-500-T1" > "$dp_parity_out"
+bash "$SCRIPT" --refinement-json "$jira_parity" --task-id "DP-500-T1" > "$jira_parity_out"
+
+bash "$VALIDATE_TASK_MD" "$dp_parity_out" >/dev/null 2>&1 || {
+  echo "FAIL [case 8 / AC1]: dp parity task.md does not pass validate-task-md.sh" >&2
+  bash "$VALIDATE_TASK_MD" "$dp_parity_out" >&2 || true
   exit 1
-fi
-bash "$VALIDATE_TASK_MD" "$jira_out" >/dev/null 2>&1 || {
-  echo "FAIL [case 8 / DP-269 AC1]: derived jira task.md does not pass validate-task-md.sh" >&2
-  bash "$VALIDATE_TASK_MD" "$jira_out" >&2 || true
+}
+bash "$VALIDATE_TASK_MD" "$jira_parity_out" >/dev/null 2>&1 || {
+  echo "FAIL [case 8 / AC1]: jira parity task.md does not pass validate-task-md.sh" >&2
+  bash "$VALIDATE_TASK_MD" "$jira_parity_out" >&2 || true
   exit 1
 }
 
-# ---------------------------------------------------------------------------
-# Case 9 (DP-269 AC2): dp mode parity — dp source derive output is unchanged.
-# Re-assert the dp-mode defaults remain N/A / polaris-framework / main /
-# identity=DP-NNN-Tn even now that jira mode dispatch exists.
-# ---------------------------------------------------------------------------
-dp_parity_anchors=(
-  "> Source: DP-999 | Task: DP-999-T1 | JIRA: N/A | Repo: polaris-framework"
-  "| Source type | dp |"
-  "| Task ID | DP-999-T1 |"
-  "| JIRA key | N/A |"
-  "| Base branch | main |"
-)
-for anchor in "${dp_parity_anchors[@]}"; do
-  if ! grep -qF -- "$anchor" "$positive_out"; then
-    echo "FAIL [case 9 / DP-269 AC2]: dp-mode parity anchor regressed: $anchor" >&2
-    cat "$positive_out" >&2
-    exit 1
-  fi
-done
+structural_skeleton "$dp_parity_out" > "$tmpdir/skel-dp.txt"
+structural_skeleton "$jira_parity_out" > "$tmpdir/skel-jira.txt"
+if ! cmp -s "$tmpdir/skel-dp.txt" "$tmpdir/skel-jira.txt"; then
+  echo "FAIL [case 8 / AC1]: dp vs jira derived task.md differ in STRUCTURE, not just values" >&2
+  diff "$tmpdir/skel-dp.txt" "$tmpdir/skel-jira.txt" | head -40 >&2
+  exit 1
+fi
 
-# ---------------------------------------------------------------------------
-# Case 10 (DP-269 EC1): jira mode with null jira_key must fail-closed; derive
-# must NOT fall back to N/A.
-# ---------------------------------------------------------------------------
-jira_null_json="$tmpdir/refinement-jira-null.json"
-cat >"$jira_null_json" <<'JSON'
+# Structures match; values still differ on the expected cells (AC2: field-driven).
+grep -qF "| JIRA key | N/A |" "$dp_parity_out" || {
+  echo "FAIL [case 8 / AC2]: dp jira_key cell did not render N/A" >&2; cat "$dp_parity_out" >&2; exit 1; }
+grep -qF "| Task ID | DP-500-T1 |" "$dp_parity_out" || {
+  echo "FAIL [case 8 / AC2]: dp identity not local task id" >&2; exit 1; }
+grep -qF "| Base branch | main |" "$dp_parity_out" || {
+  echo "FAIL [case 8 / AC2]: dp base branch not main" >&2; exit 1; }
+grep -qF "| Repo: polaris-framework" "$dp_parity_out" || {
+  echo "FAIL [case 8 / AC2]: dp repo not polaris-framework default" >&2; exit 1; }
+
+grep -qF "| JIRA key | PROJ-201 |" "$jira_parity_out" || {
+  echo "FAIL [case 8 / AC2]: jira jira_key cell did not render the real key" >&2; cat "$jira_parity_out" >&2; exit 1; }
+grep -qF "| Task ID | PROJ-201 |" "$jira_parity_out" || {
+  echo "FAIL [case 8 / AC2]: jira identity not the per-task jira_key" >&2; exit 1; }
+grep -qF "| Base branch | develop |" "$jira_parity_out" || {
+  echo "FAIL [case 8 / AC2]: jira base branch not source.base_branch" >&2; exit 1; }
+grep -qF "| Repo: exampleco-web" "$jira_parity_out" || {
+  echo "FAIL [case 8 / AC2]: jira repo not source.repo" >&2; exit 1; }
+
+# --- Case 9 (AC2): zero source_type== branch in the derive CODE. The only allowed
+# use is reading source.type for the rendered "Source type" cell value. Strip
+# python comment lines first so documentation prose mentioning the old pattern
+# does not false-positive; the assertion is about executable code. ---
+if grep -vE '^[[:space:]]*#' "$SCRIPT" | grep -nE 'source_type[[:space:]]*=='; then
+  echo "FAIL [case 9 / AC2]: derive still contains a source_type== branch in code" >&2
+  exit 1
+fi
+
+# --- Case 10 (AC3): references track the container type. jira -> companies/. ---
+if ! grep -qF -- "docs-manager/src/content/docs/specs/companies/exampleco/PROJ-500/refinement.json" "$jira_parity_out"; then
+  echo "FAIL [case 10 / AC3]: jira references not derived from companies/ container" >&2
+  cat "$jira_parity_out" >&2
+  exit 1
+fi
+if grep -qF -- "design-plans/" "$jira_parity_out"; then
+  echo "FAIL [case 10 / AC3]: jira task.md leaked a design-plans/ literal" >&2
+  cat "$jira_parity_out" >&2
+  exit 1
+fi
+
+# --- Case 11 (AC3): the Verify Command fence has NO unconditional framework tail
+# (no check-script-manifest, no echo PASS) -- body is the field-driven command. ---
+verify_fence="$tmpdir/verify-fence.txt"
+awk '/^## Verify Command$/ {capture=1; next} capture && /^```bash$/ {next} capture && /^```$/ {exit} capture {print}' "$jira_parity_out" >"$verify_fence"
+if grep -q 'check-script-manifest' "$verify_fence"; then
+  echo "FAIL [case 11 / AC3]: Verify Command still emits the unconditional framework manifest tail" >&2
+  cat "$verify_fence" >&2
+  exit 1
+fi
+if grep -qE 'echo "PASS:' "$verify_fence"; then
+  echo "FAIL [case 11 / AC3]: Verify Command still emits the unconditional framework echo PASS tail" >&2
+  cat "$verify_fence" >&2
+  exit 1
+fi
+if ! grep -q 'bash scripts/selftests/sample-selftest.sh' "$verify_fence"; then
+  echo "FAIL [case 11 / AC3]: Verify Command fence missing the field-driven verify_command" >&2
+  cat "$verify_fence" >&2
+  exit 1
+fi
+
+# --- Case 12 (AC3): behavior_contract / test_environment come from the fields.
+# Flip the field values and assert the output tracks them (no hardcoded default). ---
+bc_true_json="$tmpdir/bc-true.json"
+cat >"$bc_true_json" <<'JSON'
 {
-  "source": {
-    "type": "jira",
-    "id": "PROJ-100",
-    "container": "/tmp/proj-100",
-    "plan_path": "/tmp/proj-100/index.md",
-    "jira_key": "PROJ-100",
-    "repo": "exampleco-web",
-    "base_branch": "develop"
-  },
+  "source": { "type": "dp", "id": "DP-500", "container": "/tmp/dp-500", "jira_key": null },
   "schema_version": 1,
   "tasks": [
     {
-      "id": "PROJ-100-T1",
-      "kind": "task",
-      "jira_key": null,
-      "title": "jira mode null key",
-      "scope": "Negative — jira_key intentionally null.",
+      "id": "DP-500-T1",
+      "kind": "implementation",
+      "title": "runtime task",
+      "scope": "驗證 behavior_contract / test_environment 由欄位驅動。",
+      "allowed_files": ["src/app.ts", "src/app.test.ts"],
+      "modules": ["src/app.ts"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 2,
+      "verification": {
+        "method": "unit_test",
+        "detail": "pnpm vitest run src/app.test.ts",
+        "verify_command": "pnpm vitest run src/app.test.ts",
+        "behavior_contract": { "applies": true, "mode": "parity", "source_of_truth": "existing_behavior", "fixture_policy": "live_allowed", "flow": "載入頁面並比對既有行為", "assertions": ["回應結構不變", "互動行為一致"] },
+        "test_environment": { "level": "build", "env_bootstrap_command": "pnpm install" },
+        "references": []
+      }
+    }
+  ]
+}
+JSON
+bc_true_out="$tmpdir/bc-true.md"
+bash "$SCRIPT" --refinement-json "$bc_true_json" --task-id "DP-500-T1" > "$bc_true_out"
+if ! grep -qE '^[[:space:]]+applies: true$' "$bc_true_out"; then
+  echo "FAIL [case 12 / AC3]: behavior_contract.applies=true not rendered from field" >&2
+  cat "$bc_true_out" >&2
+  exit 1
+fi
+if ! grep -qE '^[[:space:]]+mode: parity$' "$bc_true_out"; then
+  echo "FAIL [case 12 / AC3]: behavior_contract.mode not rendered from field" >&2
+  cat "$bc_true_out" >&2
+  exit 1
+fi
+# DP-302 revision: applies=true must render the FULL sub-field set that
+# validate-task-md.sh requires (source_of_truth / fixture_policy / flow /
+# assertions), not just applies+mode.
+if ! grep -qE '^[[:space:]]+source_of_truth: existing_behavior$' "$bc_true_out"; then
+  echo "FAIL [case 12 / AC3]: behavior_contract.source_of_truth not rendered from field" >&2
+  cat "$bc_true_out" >&2
+  exit 1
+fi
+if ! grep -qE '^[[:space:]]+fixture_policy: live_allowed$' "$bc_true_out"; then
+  echo "FAIL [case 12 / AC3]: behavior_contract.fixture_policy not rendered from field" >&2
+  cat "$bc_true_out" >&2
+  exit 1
+fi
+if ! grep -qF -- "    flow: 載入頁面並比對既有行為" "$bc_true_out"; then
+  echo "FAIL [case 12 / AC3]: behavior_contract.flow not rendered from field" >&2
+  cat "$bc_true_out" >&2
+  exit 1
+fi
+if ! grep -qE '^[[:space:]]+assertions:$' "$bc_true_out"; then
+  echo "FAIL [case 12 / AC3]: behavior_contract.assertions list not rendered from field" >&2
+  cat "$bc_true_out" >&2
+  exit 1
+fi
+if ! grep -qF -- "      - 回應結構不變" "$bc_true_out"; then
+  echo "FAIL [case 12 / AC3]: behavior_contract.assertions entry not rendered from field" >&2
+  cat "$bc_true_out" >&2
+  exit 1
+fi
+# An applies=true derived task.md must itself pass validate-task-md.sh (the
+# pre-existing validator requires the full sub-field set when applies=true).
+bash "$VALIDATE_TASK_MD" "$bc_true_out" >/dev/null 2>&1 || {
+  echo "FAIL [case 12 / AC3]: applies=true derived task.md does not pass validate-task-md.sh" >&2
+  bash "$VALIDATE_TASK_MD" "$bc_true_out" >&2 || true
+  exit 1
+}
+if ! grep -qF -- "- **Level**: build" "$bc_true_out"; then
+  echo "FAIL [case 12 / AC3]: test_environment.level not rendered from field" >&2
+  cat "$bc_true_out" >&2
+  exit 1
+fi
+if grep -qF -- "framework deterministic gate / selftest / helper" "$bc_true_out"; then
+  echo "FAIL [case 12 / AC3]: field-driven task leaked the hardcoded framework behavior_contract reason" >&2
+  cat "$bc_true_out" >&2
+  exit 1
+fi
+
+# --- Case 13 (AC4): constructability bar -- a body that declares a test runner
+# verify_command/Test Command but a static Test Environment must be judged FAIL by
+# validate-breakdown-ready.sh (the DP-269 false-completion path). ---
+construct_json="$tmpdir/construct.json"
+cat >"$construct_json" <<'JSON'
+{
+  "source": { "type": "dp", "id": "DP-500", "container": "/tmp/dp-500", "jira_key": null },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "DP-500-T1",
+      "kind": "implementation",
+      "title": "constructability contradiction",
+      "scope": "驗證 test runner + static env 的合成 case 被 validate-breakdown-ready 判 FAIL。",
+      "allowed_files": ["src/app.ts", "src/app.test.ts"],
+      "modules": ["src/app.ts"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 2,
+      "verification": {
+        "method": "unit_test",
+        "detail": "pnpm vitest run src/app.test.ts",
+        "verify_command": "pnpm vitest run src/app.test.ts",
+        "behavior_contract": { "applies": false, "reason": "no runtime behavior" },
+        "test_environment": { "level": "static" },
+        "references": []
+      }
+    }
+  ]
+}
+JSON
+# validate-breakdown-ready resolves a task id only from a real task path
+# (`.../T<n>.md` or `.../T<n>/index.md`); a loose tmp filename yields a vacuous
+# PASS. Materialize the derived body at a canonical task path so the gate runs.
+mkdir -p "$tmpdir/construct/T1"
+construct_out="$tmpdir/construct/T1/index.md"
+bash "$SCRIPT" --refinement-json "$construct_json" --task-id "DP-500-T1" > "$construct_out"
+if bash "$VALIDATE_BREAKDOWN_READY" "$construct_out" >"$tmpdir/construct.ready" 2>&1; then
+  echo "FAIL [case 13 / AC4]: test-runner + static env task.md wrongly passed validate-breakdown-ready.sh" >&2
+  cat "$tmpdir/construct.ready" >&2
+  echo "--- derived task.md ---" >&2
+  cat "$construct_out" >&2
+  exit 1
+fi
+
+# --- Case 14 (AC4): a coherent dp task.md (static env + non-runner Verify) passes
+# validate-breakdown-ready.sh -- the bar only trips on the contradiction. The
+# derived body is materialized at a canonical task path for the same reason. ---
+mkdir -p "$tmpdir/coherent/T1"
+coherent_out="$tmpdir/coherent/T1/index.md"
+bash "$SCRIPT" --refinement-json "$dp_parity" --task-id "DP-500-T1" > "$coherent_out"
+if ! bash "$VALIDATE_BREAKDOWN_READY" "$coherent_out" >"$tmpdir/dp-ready.out" 2>&1; then
+  echo "FAIL [case 14 / AC4]: coherent dp task.md did not pass validate-breakdown-ready.sh" >&2
+  cat "$tmpdir/dp-ready.out" >&2
+  cat "$coherent_out" >&2
+  exit 1
+fi
+
+# --- Case 15 (AC-NEG1): a task declaring SOME body fields but omitting a required
+# one fails fail-loud naming the missing field -- no silent framework default. ---
+partial_json="$tmpdir/partial.json"
+cat >"$partial_json" <<'JSON'
+{
+  "source": { "type": "dp", "id": "DP-500", "container": "/tmp/dp-500", "jira_key": null },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "DP-500-T1",
+      "kind": "implementation",
+      "title": "partial body fields",
+      "scope": "Negative -- declares test_environment but drops behavior_contract.",
       "allowed_files": ["scripts/sample.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "bash scripts/selftests/sample-selftest.sh",
+        "test_environment": { "level": "static" }
+      }
+    }
+  ]
+}
+JSON
+if bash "$SCRIPT" --refinement-json "$partial_json" --task-id "DP-500-T1" >/dev/null 2>"$tmpdir/partial.stderr"; then
+  echo "FAIL [case 15 / AC-NEG1]: derive silently accepted a partial body-field task" >&2
+  exit 1
+fi
+if ! grep -q "behavior_contract" "$tmpdir/partial.stderr"; then
+  echo "FAIL [case 15 / AC-NEG1]: fail-loud did not name the missing body field" >&2
+  cat "$tmpdir/partial.stderr" >&2
+  exit 1
+fi
+
+# --- Case 15b (AC-NEG1): behavior_contract.applies=false WITHOUT reason ->
+# fail-loud (no framework default reason injected). ---
+noreason_json="$tmpdir/noreason.json"
+cat >"$noreason_json" <<'JSON'
+{
+  "source": { "type": "dp", "id": "DP-500", "container": "/tmp/dp-500", "jira_key": null },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "DP-500-T1",
+      "kind": "implementation",
+      "title": "missing reason",
+      "scope": "Negative -- applies=false but no reason.",
+      "allowed_files": ["scripts/sample.sh"],
+      "modules": ["scripts/sample.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "bash scripts/selftests/sample-selftest.sh",
+        "behavior_contract": { "applies": false },
+        "test_environment": { "level": "static" }
+      }
+    }
+  ]
+}
+JSON
+if bash "$SCRIPT" --refinement-json "$noreason_json" --task-id "DP-500-T1" >/dev/null 2>"$tmpdir/noreason.stderr"; then
+  echo "FAIL [case 15b / AC-NEG1]: derive accepted applies=false with no reason" >&2
+  exit 1
+fi
+if ! grep -q "reason" "$tmpdir/noreason.stderr"; then
+  echo "FAIL [case 15b / AC-NEG1]: fail-loud did not name the missing reason" >&2
+  cat "$tmpdir/noreason.stderr" >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Case 16 (AC-NEG2 / back-compat): a dp task with NO body fields still derives a
+# valid task.md via the legacy framework-infra default path (existing work orders
+# predate the fields). It must pass validate-task-md.sh and be deterministic.
+# ---------------------------------------------------------------------------
+nobody_json="$tmpdir/nobody.json"
+cat >"$nobody_json" <<'JSON'
+{
+  "source": { "type": "dp", "id": "DP-500", "container": "/tmp/dp-500", "jira_key": null },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "DP-500-T1",
+      "kind": "implementation",
+      "title": "legacy no-body task",
+      "scope": "Back-compat -- no per-task body fields declared.",
+      "allowed_files": ["scripts/sample.sh", "scripts/selftests/sample-selftest.sh"],
+      "modules": ["scripts/sample.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
       "verification": {
         "method": "unit_test",
         "detail": "bash scripts/selftests/sample-selftest.sh"
@@ -409,80 +758,189 @@ cat >"$jira_null_json" <<'JSON'
   ]
 }
 JSON
-if bash "$SCRIPT" --refinement-json "$jira_null_json" --task-id "PROJ-100-T1" >/dev/null 2>"$tmpdir/jira-null.stderr"; then
-  echo "FAIL [case 10 / DP-269 EC1]: derive accepted jira task with null jira_key" >&2
+nobody_out="$tmpdir/nobody.md"
+bash "$SCRIPT" --refinement-json "$nobody_json" --task-id "DP-500-T1" > "$nobody_out"
+bash "$VALIDATE_TASK_MD" "$nobody_out" >/dev/null 2>&1 || {
+  echo "FAIL [case 16 / AC-NEG2]: legacy no-body derived task.md does not pass validate-task-md.sh" >&2
+  bash "$VALIDATE_TASK_MD" "$nobody_out" >&2 || true
   exit 1
-fi
-if ! grep -q "jira_key" "$tmpdir/jira-null.stderr"; then
-  echo "FAIL [case 10 / DP-269 EC1]: stderr did not name the missing jira_key" >&2
-  cat "$tmpdir/jira-null.stderr" >&2
-  exit 1
-fi
+}
+nobody_out_b="$tmpdir/nobody-b.md"
+bash "$SCRIPT" --refinement-json "$nobody_json" --task-id "DP-500-T1" > "$nobody_out_b"
+cmp -s "$nobody_out" "$nobody_out_b" || {
+  echo "FAIL [case 16 / AC-NEG2]: legacy no-body derive is not deterministic" >&2; exit 1; }
 
-# ---------------------------------------------------------------------------
-# Case 11 (DP-269): jira mode missing source.repo / source.base_branch must
-# fail-closed.
-# ---------------------------------------------------------------------------
-jira_norepo_json="$tmpdir/refinement-jira-norepo.json"
-cat >"$jira_norepo_json" <<'JSON'
+# --- Case 16b (AC-NEG2): backfilling the equivalent legacy framework defaults as
+# explicit fields reproduces the legacy frontmatter behavior_contract + Test
+# Environment Level / Fixtures (equivalent output). ---
+backfill_json="$tmpdir/backfill.json"
+cat >"$backfill_json" <<'JSON'
 {
-  "source": {
-    "type": "jira",
-    "id": "PROJ-100",
-    "container": "/tmp/proj-100",
-    "plan_path": "/tmp/proj-100/index.md",
-    "jira_key": "PROJ-100"
-  },
+  "source": { "type": "dp", "id": "DP-500", "container": "/tmp/dp-500", "jira_key": null },
   "schema_version": 1,
   "tasks": [
     {
-      "id": "PROJ-100-T1",
-      "kind": "task",
-      "jira_key": "PROJ-201",
-      "title": "jira mode no repo",
-      "scope": "Negative — source.repo / base_branch omitted.",
-      "allowed_files": ["scripts/sample.sh"],
+      "id": "DP-500-T1",
+      "kind": "implementation",
+      "title": "legacy no-body task",
+      "scope": "Back-compat -- no per-task body fields declared.",
+      "allowed_files": ["scripts/sample.sh", "scripts/selftests/sample-selftest.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
+      "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh"
+        "detail": "bash scripts/selftests/sample-selftest.sh",
+        "verify_command": "bash scripts/selftests/sample-selftest.sh",
+        "behavior_contract": { "applies": false, "reason": "framework deterministic gate / selftest / helper；無 runtime / UI 行為變更" },
+        "test_environment": { "level": "static", "fixtures": "tmpdir + repo-tracked selftest fixtures" },
+        "references": []
       }
     }
   ]
 }
 JSON
-if bash "$SCRIPT" --refinement-json "$jira_norepo_json" --task-id "PROJ-100-T1" >/dev/null 2>"$tmpdir/jira-norepo.stderr"; then
-  echo "FAIL [case 11 / DP-269]: derive accepted jira source missing source.repo" >&2
+backfill_out="$tmpdir/backfill.md"
+bash "$SCRIPT" --refinement-json "$backfill_json" --task-id "DP-500-T1" > "$backfill_out"
+for anchor in \
+  '    applies: false' \
+  "framework deterministic gate / selftest / helper；無 runtime / UI 行為變更" \
+  "- **Level**: static" \
+  "- **Fixtures**: tmpdir + repo-tracked selftest fixtures"; do
+  if ! grep -qF -- "$anchor" "$backfill_out"; then
+    echo "FAIL [case 16b / AC-NEG2]: backfilled body did not reproduce the legacy default anchor: $anchor" >&2
+    cat "$backfill_out" >&2
+    exit 1
+  fi
+  if ! grep -qF -- "$anchor" "$nobody_out"; then
+    echo "FAIL [case 16b / AC-NEG2]: legacy no-body output missing expected anchor: $anchor" >&2
+    cat "$nobody_out" >&2
+    exit 1
+  fi
+done
+
+# ===========================================================================
+# DP-302 revision (V1 drift fix): an applies=true (runtime/product, PROJ-700-
+# style) refinement.json with a COMPLETE behavior_contract must derive a task.md
+# that the pre-existing validate-task-md.sh / validate-breakdown-ready.sh accept,
+# i.e. the applies=true (jira/product) derive output must be CONSTRUCTIBLE. The
+# previous applies=true branch rendered only applies+mode, dropping the sub-fields
+# validate-task-md.sh requires (source_of_truth / fixture_policy / flow /
+# assertions), so the output was not constructible. These cases close that gap.
+# ===========================================================================
+
+# --- Case 22 (DP-302 V1 / AC4): applies=true runtime/product task with a complete
+# behavior_contract + coherent runtime env -> derive -> validate-breakdown-ready
+# PASS (exit 0). Materialize at a real tasks/T*/index.md path (a loose tmp path
+# vacuous-PASSes validate-breakdown-ready, so it would not exercise the gate). ---
+applies_true_json="$tmpdir/applies-true.json"
+cat >"$applies_true_json" <<'JSON'
+{
+  "source": { "type": "jira", "id": "DP-302", "repo": "exampleco-web", "base_branch": "develop", "container": "/Users/x/work/docs-manager/src/content/docs/specs/companies/exampleco/PROJ-700", "jira_key": null },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "DP-302-T1",
+      "kind": "implementation",
+      "jira_key": "PROJ-701",
+      "title": "runtime product task",
+      "scope": "驗證 applies=true 的 runtime/product task 可被 derive 並通過 validate-breakdown-ready。",
+      "allowed_files": ["src/components/Card.vue", "src/components/Card.test.ts"],
+      "modules": ["src/components/Card.vue"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 3,
+      "verification": {
+        "method": "component_test",
+        "detail": "pnpm vitest run src/components/Card.test.ts",
+        "verify_command": "pnpm vitest run src/components/Card.test.ts",
+        "behavior_contract": {
+          "applies": true,
+          "mode": "parity",
+          "source_of_truth": "existing_behavior",
+          "fixture_policy": "live_allowed",
+          "flow": "載入卡片元件並比對既有渲染行為",
+          "assertions": ["卡片標題與既有版本一致", "點擊事件行為不變"]
+        },
+        "test_environment": { "level": "build", "env_bootstrap_command": "pnpm install" },
+        "references": []
+      }
+    }
+  ]
+}
+JSON
+mkdir -p "$tmpdir/applies-true/T1"
+applies_true_out="$tmpdir/applies-true/T1/index.md"
+bash "$SCRIPT" --refinement-json "$applies_true_json" --task-id "DP-302-T1" > "$applies_true_out"
+# Pre-existing validate-task-md.sh must accept the applies=true frontmatter.
+bash "$VALIDATE_TASK_MD" "$applies_true_out" >/dev/null 2>&1 || {
+  echo "FAIL [case 22 / DP-302 AC4]: applies=true derived task.md does not pass validate-task-md.sh" >&2
+  bash "$VALIDATE_TASK_MD" "$applies_true_out" >&2 || true
+  cat "$applies_true_out" >&2
+  exit 1
+}
+# Constructability: the derived task.md must pass validate-breakdown-ready (exit 0).
+if ! bash "$VALIDATE_BREAKDOWN_READY" "$applies_true_out" >"$tmpdir/applies-true.ready" 2>&1; then
+  echo "FAIL [case 22 / DP-302 AC4]: applies=true derived task.md did not pass validate-breakdown-ready.sh" >&2
+  cat "$tmpdir/applies-true.ready" >&2
+  echo "--- derived task.md ---" >&2
+  cat "$applies_true_out" >&2
   exit 1
 fi
-if ! grep -q "source.repo" "$tmpdir/jira-norepo.stderr"; then
-  echo "FAIL [case 11 / DP-269]: stderr did not name missing source.repo" >&2
-  cat "$tmpdir/jira-norepo.stderr" >&2
+
+# --- Case 23 (DP-302 V1 / AC-NEG1): applies=true missing a required sub-field
+# (source_of_truth) -> fail-loud naming the missing field. No framework default. ---
+applies_true_partial_json="$tmpdir/applies-true-partial.json"
+cat >"$applies_true_partial_json" <<'JSON'
+{
+  "source": { "type": "dp", "id": "DP-302", "container": "/tmp/dp-302", "jira_key": null },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "DP-302-T1",
+      "kind": "implementation",
+      "title": "incomplete runtime contract",
+      "scope": "Negative -- applies=true but source_of_truth omitted; derive must fail-loud.",
+      "allowed_files": ["src/components/Card.vue", "src/components/Card.test.ts"],
+      "modules": ["src/components/Card.vue"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 3,
+      "verification": {
+        "method": "component_test",
+        "detail": "pnpm vitest run src/components/Card.test.ts",
+        "verify_command": "pnpm vitest run src/components/Card.test.ts",
+        "behavior_contract": {
+          "applies": true,
+          "mode": "parity",
+          "flow": "載入卡片元件",
+          "assertions": ["標題一致"]
+        },
+        "test_environment": { "level": "build", "env_bootstrap_command": "pnpm install" },
+        "references": []
+      }
+    }
+  ]
+}
+JSON
+if bash "$SCRIPT" --refinement-json "$applies_true_partial_json" --task-id "DP-302-T1" >/dev/null 2>"$tmpdir/applies-true-partial.stderr"; then
+  echo "FAIL [case 23 / DP-302 AC-NEG1]: derive accepted applies=true missing source_of_truth" >&2
+  exit 1
+fi
+if ! grep -q "source_of_truth" "$tmpdir/applies-true-partial.stderr"; then
+  echo "FAIL [case 23 / DP-302 AC-NEG1]: fail-loud did not name the missing source_of_truth field" >&2
+  cat "$tmpdir/applies-true-partial.stderr" >&2
+  exit 1
+fi
+if ! grep -q "applies=true" "$tmpdir/applies-true-partial.stderr"; then
+  echo "FAIL [case 23 / DP-302 AC-NEG1]: fail-loud message did not anchor on applies=true" >&2
+  cat "$tmpdir/applies-true-partial.stderr" >&2
   exit 1
 fi
 
 # ---------------------------------------------------------------------------
-# Case 12 (DP-269 AC5): jira mode introduces no new external dependency —
-# derive script remains pure stdlib python3 (shebang + import audit).
-# ---------------------------------------------------------------------------
-if ! head -1 "$SCRIPT" | grep -q 'env bash'; then
-  echo "FAIL [case 12 / DP-269 AC5]: derive script shebang changed" >&2
-  exit 1
-fi
-if grep -E '^[[:space:]]*(import|from)[[:space:]]' "$SCRIPT" | grep -vqE '^[[:space:]]*(import|from)[[:space:]]+(json|re|sys|unicodedata|pathlib|hashlib|datetime)'; then
-  echo "FAIL [case 12 / DP-269 AC5]: derive script imports a non-stdlib module" >&2
-  grep -E '^[[:space:]]*(import|from)[[:space:]]' "$SCRIPT" >&2
-  exit 1
-fi
-
-# Case 13 (DP-296 T3 / AC2, was DP-272 AC1): tasks[Tn].task_shape propagates into
-# the T-task frontmatter as `task_shape: <value>`. The value source is the
-# canonical first-class tasks[].task_shape field (DP-296 canonicalize; the
-# removed top-level shape array is no longer read). When the matched tasks[]
-# entry has no task_shape (or is empty), the line is omitted.
+# Case 17 (DP-296 T3 / AC2): tasks[].task_shape propagates into T-task frontmatter.
 # ---------------------------------------------------------------------------
 shape_json="$tmpdir/refinement-shape.json"
 cat >"$shape_json" <<'JSON'
@@ -535,33 +993,26 @@ shape_t1_out="$tmpdir/shape-t1.md"
 bash "$SCRIPT" --refinement-json "$shape_json" --task-id "DP-999-T1" > "$shape_t1_out"
 shape_t1_count=$(grep -c '^task_shape: confirmation$' "$shape_t1_out" || true)
 if [[ "$shape_t1_count" -ne 1 ]]; then
-  echo "FAIL [case 13 / DP-272 AC1]: expected exactly one 'task_shape: confirmation' line, got $shape_t1_count" >&2
+  echo "FAIL [case 17 / DP-296 AC2]: expected exactly one 'task_shape: confirmation' line, got $shape_t1_count" >&2
   cat "$shape_t1_out" >&2
   exit 1
 fi
-# task_shape must sit immediately after task_kind in the frontmatter.
-if ! grep -Pzoq 'task_kind: T\ntask_shape: confirmation\n' "$shape_t1_out" 2>/dev/null; then
-  # grep -P may be unavailable; fall back to awk adjacency check.
-  if ! awk '/^task_kind: T$/{k=NR} /^task_shape: confirmation$/{if(NR==k+1){found=1}} END{exit found?0:1}' "$shape_t1_out"; then
-    echo "FAIL [case 13 / DP-272 AC1]: task_shape line not directly after task_kind" >&2
-    cat "$shape_t1_out" >&2
-    exit 1
-  fi
+if ! awk '/^task_kind: T$/{k=NR} /^task_shape: confirmation$/{if(NR==k+1){found=1}} END{exit found?0:1}' "$shape_t1_out"; then
+  echo "FAIL [case 17 / DP-296 AC2]: task_shape line not directly after task_kind" >&2
+  cat "$shape_t1_out" >&2
+  exit 1
 fi
-
-# AC2 absent half: tasks[].T2 has no task_shape field → no task_shape line.
 shape_t2_out="$tmpdir/shape-t2.md"
 bash "$SCRIPT" --refinement-json "$shape_json" --task-id "DP-999-T2" > "$shape_t2_out"
 shape_t2_count=$(grep -c '^task_shape:' "$shape_t2_out" || true)
 if [[ "$shape_t2_count" -ne 0 ]]; then
-  echo "FAIL [case 13 / DP-272 AC1]: expected no task_shape line for T2 (absent), got $shape_t2_count" >&2
+  echo "FAIL [case 17 / DP-296 AC2]: expected no task_shape line for T2 (absent), got $shape_t2_count" >&2
   cat "$shape_t2_out" >&2
   exit 1
 fi
 
 # ---------------------------------------------------------------------------
-# Case 14 (DP-296 T3 / AC2, was DP-272 AC2): V tasks must NEVER receive a
-# task_shape line, even when the canonical tasks[] V entry declares one.
+# Case 18 (DP-296 T3 / AC2): V tasks must NEVER receive a task_shape line.
 # ---------------------------------------------------------------------------
 v_shape_json="$tmpdir/refinement-v-shape.json"
 cat >"$v_shape_json" <<'JSON'
@@ -619,33 +1070,14 @@ v_shape_out="$tmpdir/V1-shape/index.md"
 bash "$SCRIPT" --refinement-json "$v_shape_json" --task-id "DP-999-V1" > "$v_shape_out"
 v_shape_count=$(grep -c '^task_shape:' "$v_shape_out" || true)
 if [[ "$v_shape_count" -ne 0 ]]; then
-  echo "FAIL [case 14 / DP-272 AC2]: V task must never carry task_shape, got $v_shape_count line(s)" >&2
+  echo "FAIL [case 18 / DP-296 AC2]: V task must never carry task_shape, got $v_shape_count line(s)" >&2
   cat "$v_shape_out" >&2
   exit 1
 fi
 
 # ---------------------------------------------------------------------------
-# Case 15 (DP-272 T1 / AC3): a derived task.md with task_shape=confirmation +
-# specs-only allowed_files must pass validate-breakdown-ready.sh (exit 0). This
-# is the end-to-end carve-out the DP-262 docs promised but never wired up.
-# ---------------------------------------------------------------------------
-VALIDATE_BREAKDOWN_READY="$ROOT_DIR/scripts/validate-breakdown-ready.sh"
-if [[ ! -x "$VALIDATE_BREAKDOWN_READY" ]]; then
-  echo "FAIL [case 15 / DP-272 AC3]: validate-breakdown-ready.sh not executable: $VALIDATE_BREAKDOWN_READY" >&2
-  exit 1
-fi
-if ! bash "$VALIDATE_BREAKDOWN_READY" "$shape_t1_out" >"$tmpdir/breakdown-ready.out" 2>&1; then
-  echo "FAIL [case 15 / DP-272 AC3]: derived confirmation task.md did not pass validate-breakdown-ready.sh" >&2
-  cat "$tmpdir/breakdown-ready.out" >&2
-  echo "--- derived task.md ---" >&2
-  cat "$shape_t1_out" >&2
-  exit 1
-fi
-
-# ---------------------------------------------------------------------------
-# Case 16 (DP-296 T3 / AC2, was DP-272 AC-NEG1): derive is passthrough-only and
-# does NOT validate the enum. A typo'd canonical tasks[].task_shape is emitted
-# verbatim, and the single classifier (validate-task-md.sh) rejects it.
+# Case 19 (DP-296 T3 / AC2): derive is passthrough-only; a typo'd task_shape is
+# emitted verbatim and rejected by the single classifier validate-task-md.sh.
 # ---------------------------------------------------------------------------
 typo_json="$tmpdir/refinement-typo.json"
 cat >"$typo_json" <<'JSON'
@@ -679,43 +1111,35 @@ JSON
 typo_out="$tmpdir/typo-t1.md"
 bash "$SCRIPT" --refinement-json "$typo_json" --task-id "DP-999-T1" > "$typo_out"
 if ! grep -q '^task_shape: confirmaton$' "$typo_out"; then
-  echo "FAIL [case 16 / DP-272 AC-NEG1]: derive must passthrough typo'd task_shape verbatim" >&2
+  echo "FAIL [case 19 / DP-296 AC2]: derive must passthrough typo'd task_shape verbatim" >&2
   cat "$typo_out" >&2
   exit 1
 fi
 if bash "$VALIDATE_TASK_MD" "$typo_out" >/dev/null 2>&1; then
-  echo "FAIL [case 16 / DP-272 AC-NEG1]: validate-task-md.sh accepted invalid task_shape enum" >&2
+  echo "FAIL [case 19 / DP-296 AC2]: validate-task-md.sh accepted invalid task_shape enum" >&2
   exit 1
 fi
 
 # ---------------------------------------------------------------------------
-# Case 17 (DP-296 T3 / AC8 zero-shim): a tasks[] entry with no task_shape field
-# derives byte-identical output to a source that never carried the feature. We
-# assert this against the existing positive fixture (whose tasks[].T1 has no
-# task_shape), whose output already passed all earlier anchors and
-# validate-task-md.sh — re-deriving must not regress and must contain no
-# task_shape line.
-# ---------------------------------------------------------------------------
-zero_shim_out="$tmpdir/zero-shim.md"
-bash "$SCRIPT" --refinement-json "$positive_json" --task-id "DP-999-T1" > "$zero_shim_out"
-if ! cmp -s "$positive_out" "$zero_shim_out"; then
-  echo "FAIL [case 17 / AC8]: no-task_shape output drifted from baseline derive" >&2
-  diff "$positive_out" "$zero_shim_out" | head -40 >&2
-  exit 1
-fi
-if grep -q '^task_shape:' "$zero_shim_out"; then
-  echo "FAIL [case 17 / AC8]: no-task_shape output must not contain task_shape" >&2
-  exit 1
-fi
-
-# ---------------------------------------------------------------------------
-# Case 18 (DP-296 T3 / AC-NEG1): the production derive script no longer reads the
-# removed top-level shape array. Assert rg 'planned_tasks' has zero hits in the
-# production script (canonical tasks[].task_shape is the sole shape source).
+# Case 20 (DP-296 AC-NEG1): the production derive script no longer reads the
+# removed top-level planned_tasks[] key.
 # ---------------------------------------------------------------------------
 if grep -q 'planned_tasks' "$SCRIPT"; then
-  echo "FAIL [case 18 / AC-NEG1]: production derive script still references the removed planned_tasks[] key" >&2
+  echo "FAIL [case 20 / AC-NEG1]: production derive script still references planned_tasks[]" >&2
   grep -n 'planned_tasks' "$SCRIPT" >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Case 21 (DP-269 AC5, retained): derive remains pure stdlib python3.
+# ---------------------------------------------------------------------------
+if ! head -1 "$SCRIPT" | grep -q 'env bash'; then
+  echo "FAIL [case 21 / DP-269 AC5]: derive script shebang changed" >&2
+  exit 1
+fi
+if grep -E '^[[:space:]]*(import|from)[[:space:]]' "$SCRIPT" | grep -vqE '^[[:space:]]*(import|from)[[:space:]]+(json|re|sys|unicodedata|pathlib|hashlib|datetime)'; then
+  echo "FAIL [case 21 / DP-269 AC5]: derive script imports a non-stdlib module" >&2
+  grep -E '^[[:space:]]*(import|from)[[:space:]]' "$SCRIPT" >&2
   exit 1
 fi
 

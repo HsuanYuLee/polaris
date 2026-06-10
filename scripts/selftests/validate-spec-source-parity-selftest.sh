@@ -16,6 +16,15 @@
 #   F6 DP-only routing prose PASS when surface is listed under
 #      [auto-pass-prose].
 #   F7 Smoke — real registry under repo cwd must PASS.
+#   F8 Render-body parity PASS (DP-302 AC5) — a dp render and a jira render of
+#      identical content where every `design-plans/` body literal in the dp
+#      render shifts to a `companies/` literal at the same structural position
+#      in the jira render (field-driven, container-derived). The gate proves the
+#      body cannot grow DP-only literals.
+#   F9 Render-body parity FAIL (DP-302 AC5) — the dp render carries a DP-only
+#      body literal (hardcoded `design-plans/` path / framework-only Verify tail)
+#      that does NOT shift in the jira render of identical content, proving the
+#      literal is hardcoded rather than container-driven.
 
 set -uo pipefail
 
@@ -215,6 +224,80 @@ _assert "$?" "0" "F6: allowlisted surface should PASS even with DP-only prose"
 # ---------------------------------------------------------------------------
 ( cd "$ROOT_DIR" && bash "$VALIDATOR" ) >/dev/null 2>"$TMP/f7.err"
 _assert "$?" "0" "F7: real registry under repo cwd should PASS"
+
+# ---------------------------------------------------------------------------
+# Render-body parity helpers (DP-302 AC5)
+# ---------------------------------------------------------------------------
+# A clean field-driven render pair: identical structure, container-derived body
+# literals. The dp render carries `design-plans/` references; the jira render
+# carries the matching `companies/` references at the same structural position.
+# Because the dp `design-plans/` literal shifts to a `companies/` literal in the
+# jira render, the gate concludes the literal is container-derived (PASS).
+write_render_pair() {
+  # args: dp_out jira_out dp_ref_dir jira_ref_dir [verify_tail_dp] [verify_tail_jira]
+  local dp_out="$1" jira_out="$2" dp_ref="$3" jira_ref="$4"
+  local verify_dp="${5:-bash scripts/selftests/sample-selftest.sh}"
+  local verify_jira="${6:-bash scripts/selftests/sample-selftest.sh}"
+  cat >"$dp_out" <<EOF
+| References to load | - \`$dp_ref/refinement.md\`<br>- \`$dp_ref/refinement.json\` |
+
+## Verify Command
+
+\`\`\`bash
+set -euo pipefail
+$verify_dp
+\`\`\`
+EOF
+  cat >"$jira_out" <<EOF
+| References to load | - \`$jira_ref/refinement.md\`<br>- \`$jira_ref/refinement.json\` |
+
+## Verify Command
+
+\`\`\`bash
+set -euo pipefail
+$verify_jira
+\`\`\`
+EOF
+}
+
+run_validator_render_pair() {
+  # args: dp_render jira_render
+  POLARIS_PRODUCER_REGISTRY="$F1_DIR/registry.json" \
+    POLARIS_PARITY_ALLOWLIST="$F1_DIR/allowlist.txt" \
+    POLARIS_AUTO_PASS_SURFACES="$F1_DIR/surface/SKILL.md" \
+    POLARIS_RENDER_BODY_PAIRS="$1::$2" \
+    bash "$VALIDATOR"
+}
+
+# ---------------------------------------------------------------------------
+# F8 — render-body parity PASS (field-driven, container-derived literals)
+# ---------------------------------------------------------------------------
+F8_DIR="$TMP/f8"
+mkdir -p "$F8_DIR"
+write_render_pair "$F8_DIR/dp.md" "$F8_DIR/jira.md" \
+  "docs-manager/src/content/docs/specs/design-plans/DP-500-sample" \
+  "docs-manager/src/content/docs/specs/companies/exampleco/PROJ-500"
+run_validator_render_pair "$F8_DIR/dp.md" "$F8_DIR/jira.md" >/dev/null 2>"$TMP/f8.err"
+_assert "$?" "0" "F8: field-driven render pair (design-plans -> companies) should PASS"
+
+# ---------------------------------------------------------------------------
+# F9 — render-body parity FAIL (hardcoded DP-only body literal)
+# ---------------------------------------------------------------------------
+# The dp render carries a `design-plans/` Verify-tail literal that the jira
+# render reproduces UNCHANGED (still `design-plans/`), proving the literal is
+# hardcoded rather than container-derived.
+F9_DIR="$TMP/f9"
+mkdir -p "$F9_DIR"
+write_render_pair "$F9_DIR/dp.md" "$F9_DIR/jira.md" \
+  "docs-manager/src/content/docs/specs/design-plans/DP-500-sample" \
+  "docs-manager/src/content/docs/specs/companies/exampleco/PROJ-500" \
+  "bash scripts/x.sh docs-manager/src/content/docs/specs/design-plans/DP-500-sample" \
+  "bash scripts/x.sh docs-manager/src/content/docs/specs/design-plans/DP-500-sample"
+run_validator_render_pair "$F9_DIR/dp.md" "$F9_DIR/jira.md" >/dev/null 2>"$TMP/f9.err"
+F9_RC=$?
+_assert "$F9_RC" "2" "F9: hardcoded DP-only body literal in render should exit 2"
+if grep -q "DP-only body literal" "$TMP/f9.err"; then F9_MSG="found"; else F9_MSG="missing"; fi
+_assert "$F9_MSG" "found" "F9: stderr should cite the DP-only body literal"
 
 echo ""
 echo "validate-spec-source-parity selftest: $PASS/$TOTAL passed, $FAIL failed"

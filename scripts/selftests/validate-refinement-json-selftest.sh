@@ -26,6 +26,17 @@
 #   AC7     : the tightened validator over the live LOCKED active refinement.json
 #             set all PASS (active-set scoping below).
 #
+# Covers (DP-302 — per-task verification body fields, all source):
+#   AC3     : a dp fixture with well-formed per-task verification body fields
+#             (behavior_contract / test_environment / verify_command / references)
+#             PASSes; the SAME fields on a jira fixture also PASS (all-source,
+#             not jira-only); a fixture WITHOUT the fields still PASSes
+#             (validated-when-present).
+#   AC-NEG1 : when a body field IS present but malformed, the validator fails
+#             fail-loud naming the field — behavior_contract missing 'applies',
+#             applies=false without 'reason', test_environment out-of-enum level,
+#             empty verify_command, non-array references.
+#
 # AC-NEG2 fixture discipline: DP-296 positive fixtures are produced from a single
 # canonical-shaped base (write_dp_canonical) and only mutated at the explicit
 # point under test (e.g. add planned_tasks[], drop the optional fields, set an
@@ -518,7 +529,10 @@ if [[ -d "$specs_root" ]]; then
   while IFS= read -r f; do
     idx_md="$(dirname "$f")/index.md"
     [[ -f "$idx_md" ]] || continue
-    status="$(grep -m1 '^status:' "$idx_md" 2>/dev/null | sed 's/^status:[[:space:]]*//' | tr -d '[:space:]')"
+    # An index.md without a 'status:' line makes grep exit 1; under
+    # `set -euo pipefail` that would abort the whole selftest. Append `|| true`
+    # so a missing status yields an empty string and the loop simply continues.
+    status="$(grep -m1 '^status:' "$idx_md" 2>/dev/null | sed 's/^status:[[:space:]]*//' | tr -d '[:space:]' || true)"
     [[ "$status" == "LOCKED" ]] || continue
     # Differential scope: only assert files that the validator currently passes;
     # pre-existing strong-bound legacy failures are out of DP-296 scope.
@@ -547,6 +561,221 @@ if [[ -d "$specs_root" ]]; then
   echo "INFO [case 12 / AC7]: $asserted LOCKED active refinement.json asserted PASS (canonical, no planned_tasks[])" >&2
 else
   echo "INFO [case 12 / AC7]: specs root not found ($specs_root); skipping live active-set assertion" >&2
+fi
+
+# =====================================================================
+# DP-302 — per-task verification body fields (all source, validated-when-present)
+#
+# T1 adds the per-task body schema under tasks[].verification:
+#   behavior_contract / test_environment / verify_command / references
+# These are field-driven inputs the derive (T2) reads to build task.md body.
+# They are validated-when-present (mirroring the DP-296 task_shape pattern) so
+# existing active refinement.json that predate the fields still PASS; when a body
+# field IS present its shape is enforced fail-loud (AC-NEG1).
+# =====================================================================
+
+# write_jira_with_body <dest_file> — jira positive fixture with well-formed
+# per-task verification body fields on the first task. Proves the body schema is
+# all-source (not jira-only): a jira source carrying the body fields PASSes.
+write_jira_with_body() {
+  cat >"$1" <<JSON
+{
+  "epic": "PROJ-100",
+  "source": {
+    "type": "jira",
+    "id": "PROJ-100",
+    "container": "$container",
+    "jira_key": "PROJ-100",
+    "repo": "exampleco-web",
+    "base_branch": "develop"
+  },
+  "version": "1.0",
+  "schema_version": "1.0",
+  "created_at": "2026-06-09T00:00:00Z",
+  "modules": [{ "path": "scripts/sample.sh", "action": "modify" }],
+  "acceptance_criteria": [
+    { "id": "AC1", "text": "t", "verification": { "method": "unit_test", "detail": "d" } }
+  ],
+  "dependencies": [],
+  "edge_cases": [],
+  "predecessor_audit": [],
+  "tasks": [
+    {
+      "id": "T1",
+      "kind": "task",
+      "jira_key": "PROJ-201",
+      "title": "t",
+      "scope": "s",
+      "allowed_files": ["src/sample.ts"],
+      "modules": ["src/sample.ts"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 2,
+      "verification": {
+        "method": "unit_test",
+        "detail": "d",
+        "behavior_contract": { "applies": true, "mode": "parity" },
+        "test_environment": { "level": "component" },
+        "verify_command": "pnpm vitest run src/sample.test.ts",
+        "references": ["src/sample.ts"]
+      }
+    }
+  ],
+  "adversarial_pass": [{ "ac_id": "AC1", "attack": "a", "enforce": "e" }]
+}
+JSON
+}
+
+# --- Case 13 (AC3): canonical dp fixture with well-formed per-task body fields
+# PASSes (validated-when-present, all-source). ---
+dp_body_dir="$tmpdir/dp-body"
+write_dp_canonical "$dp_body_dir"
+python3 - "$dp_body_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["tasks"][0]["verification"].update({
+    "behavior_contract": {"applies": False, "reason": "framework infra; no runtime behavior"},
+    "test_environment": {"level": "static"},
+    "verify_command": "bash scripts/selftests/sample-selftest.sh",
+    "references": ["scripts/sample.sh"],
+})
+json.dump(data, open(p, "w"))
+PY
+if ! bash "$SCRIPT" "$dp_body_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-body.stderr"; then
+  echo "FAIL [case 13 / AC3]: canonical dp fixture with well-formed per-task body fields did not pass" >&2
+  cat "$tmpdir/dp-body.stderr" >&2
+  exit 1
+fi
+
+# --- Case 14 (AC3): jira fixture with the SAME body fields also PASSes —
+# the body schema is all-source, not jira-only. ---
+jira_body="$tmpdir/jira-body.json"
+write_jira_with_body "$jira_body"
+if ! bash "$SCRIPT" "$jira_body" >/dev/null 2>"$tmpdir/jira-body.stderr"; then
+  echo "FAIL [case 14 / AC3]: jira fixture with per-task body fields did not pass (body schema must be all-source)" >&2
+  cat "$tmpdir/jira-body.stderr" >&2
+  exit 1
+fi
+
+# --- Case 15 (AC3 / back-compat): a dp fixture WITHOUT any per-task body fields
+# still PASSes (validated-when-present, not mandatory at schema level). ---
+dp_no_body_dir="$tmpdir/dp-no-body"
+write_dp_canonical "$dp_no_body_dir"
+if ! bash "$SCRIPT" "$dp_no_body_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-no-body.stderr"; then
+  echo "FAIL [case 15 / AC3]: dp fixture without per-task body fields did not pass (body fields are validated-when-present)" >&2
+  cat "$tmpdir/dp-no-body.stderr" >&2
+  exit 1
+fi
+
+# --- Case 16 (AC-NEG1): behavior_contract present but missing 'applies' →
+# fail-loud naming the field. ---
+dp_bc_missing_dir="$tmpdir/dp-bc-missing"
+write_dp_canonical "$dp_bc_missing_dir"
+python3 - "$dp_bc_missing_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["tasks"][0]["verification"]["behavior_contract"] = {"mode": "parity"}
+json.dump(data, open(p, "w"))
+PY
+if bash "$SCRIPT" "$dp_bc_missing_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-bc-missing.stderr"; then
+  echo "FAIL [case 16 / AC-NEG1]: behavior_contract without 'applies' passed (expected fail-loud)" >&2
+  exit 1
+fi
+if ! grep -q "behavior_contract" "$tmpdir/dp-bc-missing.stderr"; then
+  echo "FAIL [case 16 / AC-NEG1]: missing behavior_contract violation marker" >&2
+  cat "$tmpdir/dp-bc-missing.stderr" >&2
+  exit 1
+fi
+
+# --- Case 17 (AC-NEG1): behavior_contract.applies=false without 'reason' →
+# fail-loud (applies=false must justify why). ---
+dp_bc_noreason_dir="$tmpdir/dp-bc-noreason"
+write_dp_canonical "$dp_bc_noreason_dir"
+python3 - "$dp_bc_noreason_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["tasks"][0]["verification"]["behavior_contract"] = {"applies": False}
+json.dump(data, open(p, "w"))
+PY
+if bash "$SCRIPT" "$dp_bc_noreason_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-bc-noreason.stderr"; then
+  echo "FAIL [case 17 / AC-NEG1]: behavior_contract.applies=false without reason passed (expected fail-loud)" >&2
+  exit 1
+fi
+if ! grep -q "behavior_contract" "$tmpdir/dp-bc-noreason.stderr"; then
+  echo "FAIL [case 17 / AC-NEG1]: missing behavior_contract.reason violation marker" >&2
+  cat "$tmpdir/dp-bc-noreason.stderr" >&2
+  exit 1
+fi
+
+# --- Case 18 (AC-NEG1): test_environment present but with out-of-enum 'level' →
+# fail-loud. ---
+dp_te_bad_dir="$tmpdir/dp-te-bad"
+write_dp_canonical "$dp_te_bad_dir"
+python3 - "$dp_te_bad_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["tasks"][0]["verification"]["test_environment"] = {"level": "not-a-level"}
+json.dump(data, open(p, "w"))
+PY
+if bash "$SCRIPT" "$dp_te_bad_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-te-bad.stderr"; then
+  echo "FAIL [case 18 / AC-NEG1]: test_environment with out-of-enum level passed (expected fail-loud)" >&2
+  exit 1
+fi
+if ! grep -q "test_environment" "$tmpdir/dp-te-bad.stderr"; then
+  echo "FAIL [case 18 / AC-NEG1]: missing test_environment violation marker" >&2
+  cat "$tmpdir/dp-te-bad.stderr" >&2
+  exit 1
+fi
+
+# --- Case 19 (AC-NEG1): verify_command present but empty string → fail-loud. ---
+dp_vc_empty_dir="$tmpdir/dp-vc-empty"
+write_dp_canonical "$dp_vc_empty_dir"
+python3 - "$dp_vc_empty_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["tasks"][0]["verification"]["verify_command"] = "   "
+json.dump(data, open(p, "w"))
+PY
+if bash "$SCRIPT" "$dp_vc_empty_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-vc-empty.stderr"; then
+  echo "FAIL [case 19 / AC-NEG1]: verify_command empty string passed (expected fail-loud)" >&2
+  exit 1
+fi
+if ! grep -q "verify_command" "$tmpdir/dp-vc-empty.stderr"; then
+  echo "FAIL [case 19 / AC-NEG1]: missing verify_command violation marker" >&2
+  cat "$tmpdir/dp-vc-empty.stderr" >&2
+  exit 1
+fi
+
+# --- Case 20 (AC-NEG1): references present but not an array → fail-loud. ---
+dp_refs_bad_dir="$tmpdir/dp-refs-bad"
+write_dp_canonical "$dp_refs_bad_dir"
+python3 - "$dp_refs_bad_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["tasks"][0]["verification"]["references"] = "scripts/sample.sh"
+json.dump(data, open(p, "w"))
+PY
+if bash "$SCRIPT" "$dp_refs_bad_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-refs-bad.stderr"; then
+  echo "FAIL [case 20 / AC-NEG1]: references as non-array passed (expected fail-loud)" >&2
+  exit 1
+fi
+if ! grep -q "references" "$tmpdir/dp-refs-bad.stderr"; then
+  echo "FAIL [case 20 / AC-NEG1]: missing references violation marker" >&2
+  cat "$tmpdir/dp-refs-bad.stderr" >&2
+  exit 1
 fi
 
 echo "PASS: validate-refinement-json selftest"

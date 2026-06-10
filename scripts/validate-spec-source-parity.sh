@@ -20,6 +20,19 @@
 #      the allowlist under [auto-pass-prose]; new DP-only routing prose on
 #      surfaces NOT in the allowlist is fail-stop.
 #
+#   3. Render-body parity proof (DP-302 AC5):
+#      Field-driven detection of DP-only body literals in derived task.md
+#      render output. The caller supplies one or more dp-render::jira-render
+#      pairs (derive output of IDENTICAL refinement.json content, differing
+#      only in source.type / container). The gate proves each `design-plans/`
+#      body literal in the dp render is CONTAINER-DERIVED (it shifts to a
+#      `companies/` literal at the same structural position in the jira render),
+#      not HARDCODED. A `design-plans/` literal that appears UNCHANGED in the
+#      jira render is a hardcoded DP-only body literal -> exit 2. This replaces
+#      a brittle absolute string blacklist (EC3): a task that legitimately
+#      mentions `design-plans/` via a container path shifts under jira, while a
+#      hardcoded framework literal does not.
+#
 # Exit codes:
 #   0  PASS
 #   2  Parity / DP-only drift detected
@@ -31,6 +44,12 @@
 #   POLARIS_AUTO_PASS_SURFACES    newline-separated override for the auto-pass
 #                                 surface file list (used by the selftest to
 #                                 redirect the scan into a fixture).
+#   POLARIS_RENDER_BODY_PAIRS     newline-separated render-body parity proofs,
+#                                 each "dp_render_path::jira_render_path". When
+#                                 empty (the framework PR gate default) Part 3
+#                                 is a no-op; callers that can produce a render
+#                                 pair (derive selftest, auto-pass dispatch)
+#                                 supply pairs to exercise the proof.
 #
 # Usage:
 #   bash scripts/validate-spec-source-parity.sh
@@ -81,6 +100,7 @@ fi
 export POLARIS_REGISTRY_INPUT="$REGISTRY"
 export POLARIS_ALLOWLIST_INPUT="$ALLOWLIST"
 export POLARIS_AUTO_PASS_SURFACES_INPUT="$AUTO_PASS_SURFACES"
+export POLARIS_RENDER_BODY_PAIRS_INPUT="${POLARIS_RENDER_BODY_PAIRS:-}"
 export POLARIS_PREFIX="$PREFIX"
 
 python3 - <<'PY'
@@ -96,6 +116,7 @@ PREFIX = os.environ["POLARIS_PREFIX"]
 registry_path = Path(os.environ["POLARIS_REGISTRY_INPUT"])
 allowlist_path = Path(os.environ["POLARIS_ALLOWLIST_INPUT"])
 surfaces_raw = os.environ.get("POLARIS_AUTO_PASS_SURFACES_INPUT", "")
+render_pairs_raw = os.environ.get("POLARIS_RENDER_BODY_PAIRS_INPUT", "")
 
 errors: list[str] = []
 
@@ -284,6 +305,80 @@ for surface in surfaces:
 
 
 # ---------------------------------------------------------------------------
+# Part 3 — Render-body parity proof (DP-302 AC5)
+# ---------------------------------------------------------------------------
+# Detect hardcoded DP-only body literals in derived task.md render output via a
+# field-driven proof rather than an absolute string blacklist (EC3). Each pair
+# is "dp_render_path::jira_render_path", produced from IDENTICAL refinement.json
+# content under source.type dp vs jira. A `design-plans/` literal in the dp
+# render is legitimate ONLY when it is container-derived — i.e. the jira render
+# carries a `companies/` literal at the same structural position. A
+# `design-plans/` literal that appears unchanged in the jira render is hardcoded
+# (DP-only) and fails the gate.
+
+DESIGN_PLANS_LITERAL = "docs-manager/src/content/docs/specs/design-plans/"
+COMPANIES_LITERAL = "docs-manager/src/content/docs/specs/companies/"
+
+
+def render_body_lines(path: Path) -> list[str]:
+    """Read a render output and return its lines (best-effort, IO errors raise)."""
+    return path.read_text(encoding="utf-8").splitlines()
+
+
+def parse_render_pairs(raw: str) -> list[tuple[str, str]]:
+    pairs: list[tuple[str, str]] = []
+    for entry in raw.splitlines():
+        entry = entry.strip()
+        if not entry:
+            continue
+        if "::" not in entry:
+            errors.append(
+                f"render-body pair malformed (expected 'dp::jira'): {entry!r}"
+            )
+            continue
+        dp_path, jira_path = entry.split("::", 1)
+        pairs.append((dp_path.strip(), jira_path.strip()))
+    return pairs
+
+
+for dp_path_str, jira_path_str in parse_render_pairs(render_pairs_raw):
+    dp_path = Path(dp_path_str)
+    jira_path = Path(jira_path_str)
+    if not dp_path.exists():
+        errors.append(f"render-body dp render missing: {dp_path_str}")
+        continue
+    if not jira_path.exists():
+        errors.append(f"render-body jira render missing: {jira_path_str}")
+        continue
+    try:
+        dp_lines = render_body_lines(dp_path)
+        jira_lines = render_body_lines(jira_path)
+    except OSError as exc:
+        errors.append(f"render-body read failed for {dp_path_str}/{jira_path_str}: {exc}")
+        continue
+
+    # Field-driven proof: a `design-plans/` literal in the dp render is allowed
+    # only if the jira render's same-position line replaces it with a
+    # `companies/` literal (container-derived). If the dp `design-plans/` line is
+    # reproduced unchanged in the jira render, the literal is hardcoded DP-only.
+    for lineno, dp_line in enumerate(dp_lines, start=1):
+        if DESIGN_PLANS_LITERAL not in dp_line:
+            continue
+        jira_line = jira_lines[lineno - 1] if lineno - 1 < len(jira_lines) else ""
+        shifted = (
+            COMPANIES_LITERAL in jira_line
+            and DESIGN_PLANS_LITERAL not in jira_line
+        )
+        if not shifted:
+            errors.append(
+                f"DP-only body literal at {dp_path_str}:{lineno}: "
+                f"{dp_line.strip()!r}; the jira render of identical content does "
+                f"not shift it to a companies/ container path, so it is hardcoded "
+                f"rather than container-derived (DP-302 AC5)"
+            )
+
+
+# ---------------------------------------------------------------------------
 # Report
 # ---------------------------------------------------------------------------
 
@@ -294,6 +389,8 @@ if errors:
     sys.exit(2)
 
 producer_count = len(registry_data.get("producers", []))
+render_pair_count = len(parse_render_pairs(render_pairs_raw))
 print(f"{PREFIX} PASS: spec source parity ({producer_count} producers scanned, "
-      f"{len(surfaces)} auto-pass surfaces inspected)")
+      f"{len(surfaces)} auto-pass surfaces inspected, "
+      f"{render_pair_count} render-body pairs proven)")
 PY

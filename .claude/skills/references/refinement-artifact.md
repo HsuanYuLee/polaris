@@ -235,6 +235,31 @@ Contract（DP-262 AC5 / AC-NEG3 / AC7，DP-296 canonicalize）：
 > （依 task_id 折入 `tasks[]` 後刪除 `planned_tasks[]`）；新 producer 一律寫
 > `tasks[]`，不得重新產生 `planned_tasks[]`。
 
+### `tasks[].verification` per-task body fields（all source，DP-302）
+
+`tasks[].verification` 除了 verification `method` / `detail` 之外，可攜帶一組 **per-task
+body 欄位**，作為 `derive-task-md-from-refinement-json.sh` 產出 task.md body 的
+**field-driven** 輸入。這些欄位對**所有** `source.type` 適用（不是 jira-only）：derive 一律讀
+欄位，不看 type，body 因此「結構一模一樣、只有值不同」（DP-302 Goal / D3）。
+
+| Field | Required | 說明 |
+|-------|----------|------|
+| `behavior_contract` | optional | object；required boolean `applies`。`applies=false` 時必須附非空 `reason`（對齊 task.md frontmatter `verification.behavior_contract` 契約：framework infra task=false 須說明、runtime/UI/product task=true）。`applies=true` 可附 `mode`（如 `parity` / `hybrid`）。derive 寫入 task.md frontmatter `verification.behavior_contract` |
+| `test_environment` | optional | object；required `level` ∈ `static` / `component` / `integration` / `runtime`。derive 寫入 task.md `## Test Environment` 的 Level |
+| `verify_command` | optional | 非空字串；derive 寫入 task.md `## Verify Command`（無無條件 framework 尾段；framework-only 步驟只在此欄位明確要求時才出現，D5） |
+| `references` | optional | 字串陣列（每筆非空）；derive 寫入 task.md `References to load`。實際 container 路徑（`companies/` vs `design-plans/`）由 resolved container 生成，不由本欄位寫死（D4） |
+
+Contract（DP-302 AC3 / AC-NEG1）：
+
+- 這四個欄位是 **validated-when-present**：缺欄位的 task 在 `validate-refinement-json.sh`
+  是 no-op PASS（既有 active refinement.json 早於本欄位仍可通過；back-compat）。
+- 但只要欄位 **present**，其 shape 就被 fail-loud enforce（缺 `applies`、`applies=false`
+  缺 `reason`、`test_environment.level` 出 enum、`verify_command` 空字串、`references`
+  非陣列皆 exit 1 並指名欄位）。這讓 derive 不能 silently 套 framework default
+  （AC-NEG1）。
+- back-compat 鬆綁不外洩：本欄位是 additive optional，不改動既有 `method` / `detail`
+  required 契約。
+
 ### Ticketless / DP-backed metadata example
 
 ```jsonc
@@ -327,6 +352,9 @@ Producer rule：
   `task_shape`（`implementation` default / `audit` / `confirmation`）與
   `tracked_deliverable_hint`（`tracked` default / `specs_only`）為 optional first-class
   欄位（DP-296 canonical home，見 § `tasks[].task_shape` / `tasks[].tracked_deliverable_hint`）。
+  `tasks[].verification` 的 per-task body 欄位（`behavior_contract` / `test_environment` /
+  `verify_command` / `references`）為 optional、validated-when-present，對所有 source 適用
+  （DP-302，見 § `tasks[].verification` per-task body fields）。
 - `tasks[].id` 接受兩種形式（DP-260）：短式 `T1` / `V1`（可選 `a`-suffix，如 `T1a`），
   或完整 work-item id（例如 `DP-231-T1`、`EPIC-4190-V2`）。完整形式的 source prefix
   必須等於 `source.id`；外族 prefix（例如 `OTHERDP-999-T1`）由

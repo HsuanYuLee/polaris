@@ -89,24 +89,35 @@ except json.JSONDecodeError as exc:
 source = data.get("source") or {}
 source_id = source.get("id")
 source_type = source.get("type") or "dp"
+source_container = source.get("container")
 if not source_id:
     fail("refinement.json missing source.id")
 
-# DP-269: derive dispatches on source.type. dp mode keeps the legacy defaults
-# (JIRA key N/A / Repo polaris-framework / Base branch main / identity DP-NNN-Tn).
-# jira mode injects the real per-task jira_key as the task identity and reads
-# source.repo / source.base_branch for the product repo + base branch. The CLI
-# --repo flag stays authoritative only for dp mode (polaris-framework default);
-# jira mode always takes Repo from source.repo and ignores --repo.
-if source_type == "jira":
-    jira_repo = source.get("repo")
-    jira_base_branch = source.get("base_branch")
-    if not jira_repo:
-        fail("source_type=jira requires source.repo (product repo slug)")
-    if not jira_base_branch:
-        fail("source_type=jira requires source.base_branch (product base branch)")
-    repo_name = jira_repo
-# dp mode keeps repo_name as the CLI --repo default (polaris-framework).
+# DP-302: derive output is source.type-free. Every value that used to dispatch on
+# `source.type == "jira"` is now field-driven, so feeding the SAME refinement.json
+# content (only source.repo / source.base_branch / tasks[].jira_key differing)
+# produces a task.md whose structure is identical and whose values track the
+# fields (AC1 / AC2). The derivation reads source.type for nothing that affects
+# output; it is retained only as a rendered Operational Context cell value.
+#
+#   Repo        : source.repo when present, else the CLI --repo default
+#                 (polaris-framework). No type branch.
+#   Base branch : source.base_branch when present, else "main" (root tasks).
+#                 No type branch.
+# A jira source naturally carries source.repo / source.base_branch; a dp source
+# omits them and falls back to the framework defaults — same code path, no
+# `if source_type == ...`.
+source_repo = source.get("repo")
+if isinstance(source_repo, str) and source_repo.strip():
+    repo_name = source_repo.strip()
+# else: repo_name keeps the CLI --repo default (polaris-framework).
+
+source_base_branch = source.get("base_branch")
+root_base_branch = (
+    source_base_branch.strip()
+    if isinstance(source_base_branch, str) and source_base_branch.strip()
+    else "main"
+)
 
 tasks = data.get("tasks") or []
 # DP-260 T1: tasks[].id accepts both short form (T1/V1, optionally with a-suffix)
@@ -163,21 +174,41 @@ raw_dependencies = [str(dep).strip() for dep in list(match.get("dependencies") o
 short_id = cli_short_id
 mode = short_id[0]
 
-# DP-269: task identity + JIRA key cell dispatch on source.type.
-#   dp   : identity = canonical task_id (DP-NNN-Tn); JIRA key cell = N/A.
-#   jira : identity = real per-task jira_key; JIRA key cell = the same real key.
-# jira mode fail-closes on a null jira_key — derive must NOT fall back to N/A
-# (that would fail validate-task-md.sh, which requires a real key for jira
-# sources). The task must already be populated with a real jira_key before
-# derive (D3a). The plain JIRA key (^[A-Z][A-Z0-9]*-[0-9]+$) satisfies
-# is_valid_task_identity, so the derived task.md identity validates.
-if source_type == "jira":
-    task_jira_key = match.get("jira_key")
-    if not (isinstance(task_jira_key, str) and task_jira_key.strip()):
-        fail(
-            f"task {task_id} has source_type=jira but missing tasks[].jira_key; "
-            "populate the real JIRA key before derive (no N/A fallback)"
-        )
+# DP-302 (AC3): references are generated from the resolved source.container, so a
+# jira container yields `specs/companies/...` and a dp container yields
+# `specs/design-plans/...` without any source.type branch or hardcoded literal.
+# The container is an absolute path under docs-manager/src/content/docs/; we
+# relativize against that marker. Test fixtures with a bare path (e.g. /tmp/dp-x)
+# fall back to the container basename so the field stays deterministic. Computed
+# here (before the V-task branch) so both T and V tasks share the same path
+# derivation.
+def container_reference_dir(container: str) -> str:
+    if not container:
+        return source_id
+    marker = "src/content/docs/"
+    idx = container.find(marker)
+    if idx != -1:
+        rel = container[idx + len(marker):].strip("/")
+        return f"docs-manager/{marker}{rel}"
+    return Path(container).name
+
+
+ref_dir = container_reference_dir(str(source_container or ""))
+container_references = [
+    f"{ref_dir}/refinement.md",
+    f"{ref_dir}/refinement.json",
+]
+
+# DP-302: identity + JIRA key cell are field-driven, not source.type-driven.
+# The single code path keys off the per-task `tasks[].jira_key` field:
+#   jira_key present : identity = the real per-task jira_key; JIRA key cell = it.
+#   jira_key absent  : identity = canonical task_id (DP-NNN-Tn); cell = "N/A".
+# The plain JIRA key (^[A-Z][A-Z0-9]*-[0-9]+$) and the DP pseudo identity both
+# satisfy validate-task-md.sh is_valid_task_identity, so either path validates.
+# A malformed jira_key is rejected here (loud), but a missing one is NOT a
+# fail — it simply renders N/A. There is no `if source_type == ...` branch.
+task_jira_key = match.get("jira_key")
+if isinstance(task_jira_key, str) and task_jira_key.strip():
     task_jira_key = task_jira_key.strip()
     if not re.fullmatch(r"[A-Z][A-Z0-9]*-[0-9]+", task_jira_key):
         fail(
@@ -260,9 +291,8 @@ if local_dependencies:
     base_branch = f"task/{dep_full_id}-{slugify(dep_title)}"
     branch_chain = f"{base_branch} -> {task_branch}"
 else:
-    # DP-269: root base branch dispatches on source.type. dp mode roots at main;
-    # jira mode roots at the product repo's source.base_branch (e.g. develop).
-    root_base_branch = jira_base_branch if source_type == "jira" else "main"
+    # DP-302: root base branch is field-driven (source.base_branch or "main"),
+    # resolved once above as root_base_branch — no source.type dispatch.
     base_branch = root_base_branch
     branch_chain = f"{root_base_branch} -> {task_branch}"
 
@@ -291,10 +321,9 @@ for ac in ac_list:
 trace_block = "\n".join(trace_rows)
 
 if mode == "V":
-    # DP-269: V-task base branch dispatches on source.type. dp V-tasks keep the
-    # legacy hardcoded `main` (umbrella verification branches off main); jira
-    # V-tasks root at the product repo's source.base_branch for parity.
-    v_base_branch = jira_base_branch if source_type == "jira" else "main"
+    # DP-302: V-task base branch is field-driven (source.base_branch or "main"),
+    # the same root_base_branch resolved above — no source.type dispatch.
+    v_base_branch = root_base_branch
     ac_by_id = {
         str(item.get("id")): item
         for item in (data.get("acceptance_criteria") or [])
@@ -324,6 +353,12 @@ if mode == "V":
     if not ac_rows:
         ac_rows.append(f"| AC-N/A | {scope} | {implementation_cell} | {verification.get('method') or 'unit_test'} |")
     ac_block = "\n".join(ac_rows)
+
+    # DP-302 (AC3): V-task references = container-derived refinement paths plus
+    # the verify-AC SKILL reference; container paths track jira vs dp by container
+    # (no source.type branch / no hardcoded design-plans literal).
+    v_references = container_references + [".claude/skills/verify-AC/SKILL.md"]
+    v_references_cell = "<br>".join(f"- `{r}`" for r in v_references)
 
     doc = f"""---
 title: "{source_id} {short_id}: {title} ({points} pt)"
@@ -355,7 +390,7 @@ depends_on: []
 | Implementation tasks | {implementation_cell} |
 | Base branch | {v_base_branch} |
 | Depends on | {depends_cell} |
-| References to load | - `docs-manager/src/content/docs/specs/design-plans/{source_id}-*/refinement.md`<br>- `docs-manager/src/content/docs/specs/design-plans/{source_id}-*/refinement.json`<br>- `.claude/skills/verify-AC/SKILL.md` |
+| References to load | {v_references_cell} |
 
 ## 目標
 
@@ -401,6 +436,172 @@ raw_shape = match.get("task_shape")
 task_shape_value = str(raw_shape).strip() if raw_shape not in (None, "") else ""
 task_shape_line = f"task_shape: {task_shape_value}\n" if task_shape_value else ""
 
+# ---------------------------------------------------------------------------
+# DP-302: per-task body fields are field-driven, not hardcoded framework
+# defaults. The four fields (behavior_contract / test_environment /
+# verify_command / references) live under tasks[].verification and are
+# validated-when-present by validate-refinement-json.sh (T1). derive consumes
+# them with three regimes so the same code path serves dp and jira:
+#
+#   * fully populated (the three body-shaping fields present) → field-driven;
+#     zero framework literal leaks into frontmatter / Test Environment.
+#   * partially populated (some present, some absent) → fail-loud naming the
+#     missing field (AC-NEG1). derive must NOT re-inject the framework default
+#     for the absent field once the task started declaring body fields.
+#   * none present → legacy framework-infra defaults (back-compat for historical
+#     dp work orders that predate the fields, AC-NEG2). This is a temporary
+#     compat path; refinement (T3) populates the fields for all new source.
+#
+# `references` is additive: the resolved container refinement paths are always
+# emitted, with any task-declared references appended.
+BODY_SHAPING_FIELDS = ("behavior_contract", "test_environment")
+present_body_fields = [f for f in BODY_SHAPING_FIELDS if f in verification]
+body_is_field_driven = len(present_body_fields) == len(BODY_SHAPING_FIELDS)
+if present_body_fields and not body_is_field_driven:
+    missing = [f for f in BODY_SHAPING_FIELDS if f not in verification]
+    fail(
+        f"task {task_id} partially declares per-task body fields "
+        f"(present: {present_body_fields}); missing required body field(s): "
+        f"{missing}. Populate all body fields or none — derive will not "
+        "silently apply a framework default for the missing field"
+    )
+
+if body_is_field_driven:
+    bc = verification.get("behavior_contract") or {}
+    bc_applies = bool(bc.get("applies"))
+    if bc_applies:
+        # DP-302 revision: when applies=true the derived frontmatter must carry the
+        # FULL behavior_contract sub-field set that validate-task-md.sh requires for
+        # a runtime/product task (source_of_truth / fixture_policy / flow /
+        # assertions, plus mode), so the derived task.md is constructible (passes
+        # validate-task-md.sh / validate-breakdown-ready.sh). Rendering only
+        # applies+mode produced a task.md that the pre-existing validator rejected,
+        # i.e. an applies=true (jira/product) derive output was not constructible.
+        # Fail-loud (no framework default) on any missing required sub-field — the
+        # same discipline the AC-NEG1 body-field path uses; derive must NOT invent
+        # defaults for an applies=true task.
+        def bc_require(field):
+            value = bc.get(field)
+            text = str(value).strip() if value not in (None, "") else ""
+            if not text:
+                fail(
+                    f"task {task_id} behavior_contract.applies=true requires a "
+                    f"non-empty '{field}' (no framework default)"
+                )
+            return text
+
+        bc_mode = bc_require("mode")
+        bc_source = bc_require("source_of_truth")
+        bc_fixture = bc_require("fixture_policy")
+        bc_flow = bc_require("flow")
+        raw_assertions = bc.get("assertions")
+        assertions = [
+            str(item).strip()
+            for item in (raw_assertions or [])
+            if isinstance(item, str) and str(item).strip()
+        ]
+        if not assertions:
+            fail(
+                f"task {task_id} behavior_contract.applies=true requires a "
+                "non-empty 'assertions' list of non-empty strings (no framework default)"
+            )
+        bc_lines = [
+            "    applies: true",
+            f"    mode: {bc_mode}",
+            f"    source_of_truth: {bc_source}",
+            f"    fixture_policy: {bc_fixture}",
+        ]
+        # fixture_policy=mockoon_required additionally requires a flow_script
+        # (validate-task-md.sh accepts flow_script / script_path / playwright_script).
+        if bc_fixture == "mockoon_required":
+            bc_flow_script = bc.get("flow_script") or bc.get("script_path") or bc.get("playwright_script")
+            bc_flow_script = str(bc_flow_script).strip() if bc_flow_script not in (None, "") else ""
+            if not bc_flow_script:
+                fail(
+                    f"task {task_id} behavior_contract.fixture_policy=mockoon_required "
+                    "requires a non-empty 'flow_script' (no framework default)"
+                )
+            bc_lines.append(f"    flow_script: {bc_flow_script}")
+        # Optional passthrough fields, emitted only when declared. mode=hybrid
+        # additionally requires a non-empty allowed_differences list (validator).
+        bc_baseline_ref = str(bc.get("baseline_ref") or "").strip()
+        if bc_baseline_ref:
+            bc_lines.append(f"    baseline_ref: {bc_baseline_ref}")
+        bc_target_url = str(bc.get("target_url") or "").strip()
+        if bc_target_url:
+            bc_lines.append(f"    target_url: {bc_target_url}")
+        bc_viewport = str(bc.get("viewport") or "").strip()
+        if bc_viewport:
+            bc_lines.append(f"    viewport: {bc_viewport}")
+        raw_allowed_diff = bc.get("allowed_differences")
+        allowed_diff = [
+            str(item).strip()
+            for item in (raw_allowed_diff or [])
+            if isinstance(item, str) and str(item).strip()
+        ]
+        if bc_mode == "hybrid" and not allowed_diff:
+            fail(
+                f"task {task_id} behavior_contract.mode=hybrid requires a non-empty "
+                "'allowed_differences' list (no framework default)"
+            )
+        bc_lines.append(f"    flow: {bc_flow}")
+        bc_lines.append("    assertions:")
+        for item in assertions:
+            bc_lines.append(f"      - {item}")
+        if allowed_diff:
+            bc_lines.append("    allowed_differences:")
+            for item in allowed_diff:
+                bc_lines.append(f"      - {item}")
+        behavior_contract_block = "\n".join(bc_lines)
+    else:
+        bc_reason = str(bc.get("reason") or "").strip()
+        if not bc_reason:
+            fail(
+                f"task {task_id} behavior_contract.applies=false requires a "
+                "non-empty 'reason' (no framework default)"
+            )
+        behavior_contract_block = (
+            "    applies: false\n"
+            f'    reason: "{bc_reason}"'
+        )
+    te = verification.get("test_environment") or {}
+    te_level = str(te.get("level") or "").strip()
+    if not te_level:
+        fail(
+            f"task {task_id} test_environment.level is required when "
+            "test_environment is declared (no framework default)"
+        )
+    te_dev_env = str(te.get("dev_env_config") or "N/A").strip() or "N/A"
+    te_fixtures = str(te.get("fixtures") or "N/A").strip() or "N/A"
+    te_runtime_target = str(te.get("runtime_verify_target") or "N/A").strip() or "N/A"
+    te_bootstrap = str(te.get("env_bootstrap_command") or "N/A").strip() or "N/A"
+else:
+    # Legacy framework-infra default (temporary back-compat, AC-NEG2).
+    behavior_contract_block = (
+        "    applies: false\n"
+        '    reason: "framework deterministic gate / selftest / helper；無 runtime / UI 行為變更"'
+    )
+    te_level = "static"
+    te_dev_env = "N/A"
+    te_fixtures = "tmpdir + repo-tracked selftest fixtures"
+    te_runtime_target = "N/A"
+    te_bootstrap = "N/A"
+
+
+# DP-302 (AC3): T-task references = container-derived refinement paths plus any
+# task-declared references (the container paths were resolved before the V-task
+# branch so both T and V share them).
+declared_references = []
+if body_is_field_driven:
+    raw_refs = verification.get("references") or []
+    declared_references = [
+        str(r).strip() for r in raw_refs if isinstance(r, str) and str(r).strip()
+    ]
+all_references = container_references + [
+    r for r in declared_references if r not in container_references
+]
+references_cell = "<br>".join(f"- `{r}`" for r in all_references)
+
 doc = f"""---
 title: "{source_id} {short_id}: {title} ({points} pt)"
 description: "{scope}"
@@ -411,8 +612,7 @@ status: IN_PROGRESS
 task_kind: {mode}
 {task_shape_line}verification:
   behavior_contract:
-    applies: false
-    reason: "framework deterministic gate / selftest / helper；無 runtime / UI 行為變更"
+{behavior_contract_block}
 depends_on: [{depends_on_frontmatter}]
 ---
 
@@ -434,7 +634,7 @@ depends_on: [{depends_on_frontmatter}]
 | Branch chain | {branch_chain} |
 | Task branch | {task_branch} |
 | Depends on | {depends_cell} |
-| References to load | - `docs-manager/src/content/docs/specs/design-plans/{source_id}-*/refinement.md`<br>- `docs-manager/src/content/docs/specs/design-plans/{source_id}-*/refinement.json` |
+| References to load | {references_cell} |
 
 ## Verification Handoff
 
@@ -466,7 +666,7 @@ framework work order；驗收委派給 {source_id}-V1（umbrella regression）�
 |------|---------|----------------|------------------|
 | scope | yes | changed files all match Allowed Files | engineering |
 | test | yes | `{verify_detail}` PASS | engineering |
-| verify | yes | `{verify_detail}` PASS + manifest 通過 | engineering |
+| verify | yes | `{verify_command_or_detail}` PASS | engineering |
 | ci-local | no | N/A | framework repo 無 ci-local |
 
 ## 估點理由
@@ -478,32 +678,28 @@ framework work order；驗收委派給 {source_id}-V1（umbrella regression）�
 1. 先擴張對應 selftest，新增 failing cases 涵蓋 {', '.join(ac_list)}。
 2. 實作 Allowed Files 內的 producer / hook / validator 變更。
 3. 跑 `{verify_detail}` 直到 PASS。
-4. 確認 manifest 登記、CHANGELOG 與 VERSION（若有）同步。
+4. 確認 CHANGELOG 與 VERSION（若有）同步。
 
 ## Test Command
 
 ```bash
-{verify_detail}
+{verify_command_or_detail}
 ```
 
 ## Test Environment
 
-- **Level**: static
-- **Dev env config**: N/A
-- **Fixtures**: tmpdir + repo-tracked selftest fixtures
-- **Runtime verify target**: N/A
-- **Env bootstrap command**: N/A
+- **Level**: {te_level}
+- **Dev env config**: {te_dev_env}
+- **Fixtures**: {te_fixtures}
+- **Runtime verify target**: {te_runtime_target}
+- **Env bootstrap command**: {te_bootstrap}
 
 ## Verify Command
 
 ```bash
 set -euo pipefail
 {verify_command_or_detail}
-bash scripts/check-script-manifest.sh --root . --quiet
-echo "PASS: {task_id}"
 ```
-
-預期輸出：`PASS: {task_id}`
 """
 
 sys.stdout.write(doc)

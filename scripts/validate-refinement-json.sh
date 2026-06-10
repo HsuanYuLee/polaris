@@ -459,6 +459,67 @@ def strong_error(field):
     errors.append(f"strong-bound schema: {field}")
 
 
+# DP-302 T1: per-task verification body field schema. The derive
+# (derive-task-md-from-refinement-json.sh, T2) reads these field-driven inputs to
+# build the task.md body for ALL source types — no jira-only branch and no
+# hardcoded framework default. They are validated-when-present: a task that omits
+# them is still valid (back-compat with active refinement.json that predate the
+# fields). When a field IS present its shape is enforced fail-loud so the derive
+# never silently falls back to a framework default (AC3 / AC-NEG1).
+VALID_TEST_ENVIRONMENT_LEVELS = {"static", "component", "integration", "runtime"}
+
+
+def validate_task_verification_body(verification, label):
+    # behavior_contract — object with required boolean `applies`; when
+    # applies=false a non-empty `reason` must justify why no behavior contract
+    # runs (mirrors the task.md frontmatter contract).
+    if "behavior_contract" in verification:
+        bc = verification.get("behavior_contract")
+        if not isinstance(bc, dict):
+            errors.append(f"{label}.behavior_contract must be an object when present")
+        else:
+            applies = bc.get("applies")
+            if not isinstance(applies, bool):
+                errors.append(f"{label}.behavior_contract.applies is required and must be boolean")
+            elif applies is False:
+                reason = bc.get("reason")
+                if not isinstance(reason, str) or not reason.strip():
+                    errors.append(
+                        f"{label}.behavior_contract.applies=false requires a non-empty 'reason'"
+                    )
+
+    # test_environment — object with required `level` drawn from the canonical enum.
+    if "test_environment" in verification:
+        te = verification.get("test_environment")
+        if not isinstance(te, dict):
+            errors.append(f"{label}.test_environment must be an object when present")
+        else:
+            level = te.get("level")
+            if not isinstance(level, str) or not level.strip():
+                errors.append(f"{label}.test_environment.level is required and must be a non-empty string")
+            elif level not in VALID_TEST_ENVIRONMENT_LEVELS:
+                errors.append(
+                    f"{label}.test_environment.level '{level}' is invalid "
+                    f"(must be one of {sorted(VALID_TEST_ENVIRONMENT_LEVELS)})"
+                )
+
+    # verify_command — non-empty string (the task.md Verify Command body).
+    if "verify_command" in verification:
+        vc = verification.get("verify_command")
+        if not isinstance(vc, str) or not vc.strip():
+            errors.append(f"{label}.verify_command must be a non-empty string when present")
+
+    # references — array of non-empty strings (the task.md References to load).
+    if "references" in verification:
+        refs = verification.get("references")
+        if not isinstance(refs, list):
+            errors.append(f"{label}.references must be an array when present")
+        else:
+            for ridx, ref in enumerate(refs):
+                if not isinstance(ref, str) or not ref.strip():
+                    errors.append(f"{label}.references[{ridx}] must be a non-empty string")
+
+
 # DP-296: top-level planned_tasks[] is removed. task_shape /
 # tracked_deliverable_hint are now first-class tasks[] fields (canonical home).
 # Reject any artifact that still carries a top-level planned_tasks[] key
@@ -608,8 +669,19 @@ else:
                 )
         if not isinstance(task.get("estimate_points"), (int, float)):
             strong_error(f"tasks[{idx}].estimate_points")
-        if not isinstance(task.get("verification"), dict):
+        task_verification = task.get("verification")
+        if not isinstance(task_verification, dict):
             strong_error(f"tasks[{idx}].verification")
+        else:
+            # DP-302 T1: per-task verification body fields (behavior_contract /
+            # test_environment / verify_command / references). These are the
+            # field-driven inputs derive (T2) reads to build the task.md body,
+            # for ALL source types (not jira-only). They are validated-when-present
+            # (mirroring the DP-296 task_shape pattern): a task that omits them is
+            # still valid (existing active refinement.json predate the fields), but
+            # when a field IS present its shape is enforced fail-loud (AC-NEG1) so
+            # the derive cannot silently fall back to a framework default.
+            validate_task_verification_body(task_verification, f"tasks[{idx}].verification")
         task_ac_ids = task.get("ac_ids")
         if not isinstance(task_ac_ids, list) or not task_ac_ids:
             strong_error(f"tasks[{idx}].ac_ids")

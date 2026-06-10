@@ -4,6 +4,33 @@ All notable changes to Polaris are documented here. Format follows [Keep a Chang
 
 > Versions before 1.4.0 were retroactively tagged during the initial development sprint.
 
+## [3.75.158] - 2026-06-10
+
+### Fixed — DP-302 release hygiene：CHANGELOG prose template leak 修正
+
+v3.75.157 entry 的敘述文字本身含 live 公司 ticket prefix，被 `sync-to-polaris.sh` 的 template leak scan 擋下（CHANGELOG.md 也屬 template surface）。本版把該 entry 改寫成 generic placeholder 並完成發布；DP-302 的功能變更內容同 v3.75.156。
+
+- **template leak 修正**：CHANGELOG release-hygiene 敘述改用 generic placeholder（live 公司 ticket prefix → `PROJ-700-style`），不再於文件 prose 內留 live ticket key。
+
+## [3.75.157] - 2026-06-10
+
+### Fixed — DP-302 release hygiene：derive selftest 註解 template leak 修正
+
+v3.75.156（DP-302 bundle）在 `sync-to-polaris.sh` 的 template leak scan 被擋下：`scripts/selftests/derive-task-md-from-refinement-json-selftest.sh` case 22 註解使用 live 公司 ticket prefix 作為 applies=true 範例（test fixture 屬 template surface，禁止 live ticket prefix）。該版改為 generic placeholder；DP-302 的功能變更內容同 v3.75.156。
+
+- **template leak 修正**：derive selftest 註解改用 `PROJ-700-style` generic placeholder，對齊該 test 自身的 fixture 資料。
+
+## [3.75.156] - 2026-06-10
+
+### Changed — DP-302 derive task.md 去 source.type 分支：identity/body/references 改 field-driven，per-task body schema 對 all source 適用
+
+把 `derive-task-md-from-refinement-json.sh` 的 task.md 輸出收斂成 source.type-free：identity、verification body、references-by-container 改由 refinement.json 欄位驅動，JIRA 成為 optional side effect 而非 output 分支條件，確保 DP-backed 與 JIRA Epic-backed source 產出 identical 結構。
+
+- **per-task body 欄位 schema（all source）**（DP-302-T1）：`validate-refinement-json.sh` 新增 per-task verification body 欄位 schema，對所有 source type 適用（不再 DP-only）；selftest 補對應覆蓋。
+- **derive 去 source.type 分支 + body field-driven**（DP-302-T2）：`derive-task-md-from-refinement-json.sh` 移除 source.type 分支，body 與 references-by-container 改 field-driven；`applies=true` 的 behavior_contract 完整 render（source_of_truth / fixture_policy / flow / assertions），缺欄位 fail-loud。
+- **refinement skill 為所有 source populate per-task body 欄位**（DP-302-T3）：`refinement/SKILL.md` + `references/refinement-artifact.md` 接線 behavior_contract 判定，為所有 source populate per-task body 欄位。
+- **parity gate 補 render-body coverage**（DP-302-T4）：`validate-spec-source-parity.sh` 補 render-body coverage（field-driven DP-only literal proof）；selftest 補對應覆蓋。
+
 ## [3.75.155] - 2026-06-09
 
 ### Added — DP-300 session mid-task resume：active-thread anchor 從單 thread advisory 升 multi-thread fail-closed 機制
