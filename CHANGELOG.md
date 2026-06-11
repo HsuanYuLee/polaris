@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.76.3] - 2026-06-11
+
+### Changed
+
+- 79486f9: 抽出 shared bundle-detection lib + F3：check-local-extension-completion 改 bundle-aware
+- 6f64183: F2：framework-release-closeout 改 order-independent close-parent（V-task 排序無關）
+- e30ca22: closeout-drift detector + evidence helpers + selftest（偵測 delivered/stranded drift）
+- 434b7c4: detector surfacing 接線（mise + my-triage/standup）+ mechanism-registry 升級
+
 ## [3.76.2] - 2026-06-11
 
 ### Changed

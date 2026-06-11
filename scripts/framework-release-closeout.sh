@@ -46,6 +46,11 @@ CHECK_MAIN_CHAIN_COMPLIANCE="${SCRIPT_DIR}/check-main-chain-compliance.sh"
 . "$SCRIPT_DIR/lib/specs-root.sh"
 # shellcheck source=lib/worktree-classifier.sh
 . "$SCRIPT_DIR/lib/worktree-classifier.sh"
+# DP-280 Wall A: single bundle detector, shared with
+# check-local-extension-completion.sh. Provides bundle_branch_alias_for_task and
+# release_diff_intersects_allowed_files (no second inline copy here).
+# shellcheck source=lib/bundle-closeout-ancestry.sh
+. "$SCRIPT_DIR/lib/bundle-closeout-ancestry.sh"
 TEMPLATE_REPO=""
 EXTENSION_ID="framework-release"
 WORKSPACE_COMMIT=""
@@ -234,24 +239,9 @@ frontmatter_status() {
   ' "$file"
 }
 
-# DP-273 Wall A: read `bundle_branch_alias` from task.md frontmatter using the
-# SAME awk parse shape that gate-work-source.sh and resolve-task-md-by-branch.sh
-# (DP-237 / DP-270) already use. Reusing the canonical reader keeps a single
-# source of truth for bundle detection — closeout must NOT introduce a second
-# bundle detector. Echoes the alias value (empty when absent).
-bundle_branch_alias_for_task() {
-  local file="$1"
-  [[ -f "$file" ]] || return 0
-  awk '
-    /^---$/ { fm++; next }
-    fm == 1 && /^bundle_branch_alias:/ {
-      sub(/^bundle_branch_alias:[[:space:]]*/, "")
-      sub(/[[:space:]]+$/, "")
-      print
-      exit
-    }
-  ' "$file" 2>/dev/null || true
-}
+# DP-280 Wall A: bundle_branch_alias_for_task is now provided by
+# scripts/lib/bundle-closeout-ancestry.sh (sourced above) — the single bundle
+# detector shared with check-local-extension-completion.sh.
 
 # DP-273 Wall C: read `task_shape` from task.md frontmatter via the central
 # parse-task-md.sh parser (single source of truth for task.md schema). Echoes
@@ -262,89 +252,9 @@ task_shape_for_task() {
   json_field "$parser_json" "d.get('frontmatter', {}).get('task_shape')"
 }
 
-# DP-273 Wall A: report whether the release commit's diff touches any file owned
-# by this task's Allowed Files. This is the PRIMARY bundle-delivery signal
-# (release diff ∩ task Allowed Files non-empty). It is best-effort: a bundle
-# task whose delivery only touches generated / shared (carved-out) files may
-# legitimately have an EMPTY intersection (see DP-273 Blind Spots), so callers
-# must NOT treat an empty result as a delivery failure — the bundle release head
-# remains the authoritative head and verify evidence is enforced downstream by
-# the completion gate. Echoes the count of intersecting files.
-release_diff_intersects_allowed_files() {
-  local task_md="$1"
-  local release_commit="$2"
-  local parser_json="$3"
-  python3 - "$task_md" "$release_commit" "$REPO_ROOT" "$parser_json" <<'PY'
-import json
-import subprocess
-import sys
-
-task_md, release_commit, repo_root, parser_json = sys.argv[1:5]
-
-data = json.loads(parser_json)
-patterns = []
-for entry in data.get("allowed_files") or []:
-    s = entry.strip()
-    if s.startswith("`") and s.endswith("`"):
-        s = s[1:-1]
-    if s:
-        patterns.append(s)
-
-# Release diff = files changed by the release commit relative to its first
-# parent. Squashed cherry-pick / fresh-commit bundles land as a single commit,
-# so commit^..commit captures the bundled delivery. When the commit has no
-# parent (root), fall back to the full tree listing.
-def diff_files():
-    rc = subprocess.run(
-        ["git", "-C", repo_root, "rev-parse", "--verify", "--quiet",
-         release_commit + "^"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    if rc.returncode == 0:
-        proc = subprocess.run(
-            ["git", "-C", repo_root, "diff", "--name-only",
-             release_commit + "^", release_commit],
-            text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-        )
-    else:
-        proc = subprocess.run(
-            ["git", "-C", repo_root, "ls-tree", "-r", "--name-only",
-             release_commit],
-            text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-        )
-    return [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
-
-def match_parts(fparts, fi, pparts, pi):
-    import fnmatch
-    if fi == len(fparts) and pi == len(pparts):
-        return True
-    if pi == len(pparts):
-        return False
-    if fi == len(fparts):
-        return all(p == "**" for p in pparts[pi:])
-    pseg = pparts[pi]
-    if pseg == "**":
-        if match_parts(fparts, fi, pparts, pi + 1):
-            return True
-        if match_parts(fparts, fi + 1, pparts, pi):
-            return True
-        return False
-    return fnmatch.fnmatchcase(fparts[fi], pseg) and match_parts(
-        fparts, fi + 1, pparts, pi + 1
-    )
-
-def matches(fp, pattern):
-    if fp == pattern:
-        return True
-    return match_parts(fp.split("/"), 0, pattern.split("/"), 0)
-
-count = 0
-for fp in diff_files():
-    if any(matches(fp, p) for p in patterns):
-        count += 1
-print(count)
-PY
-}
+# DP-280 Wall A: release_diff_intersects_allowed_files is now provided by
+# scripts/lib/bundle-closeout-ancestry.sh (sourced above). The shared lib takes
+# repo_root as an explicit 4th argument, so the call site passes "$REPO_ROOT".
 
 # DP-273 Wall C: content-delivered no-branch task evidence probe. confirmation /
 # verify tasks have no task_branch (no PR, no code branch); their deliverable is
@@ -715,7 +625,7 @@ for i in "${!TASK_MDS[@]}"; do
   bundle_alias="$(bundle_branch_alias_for_task "$task_md")"
   if [[ -n "$bundle_alias" ]]; then
     if ! git -C "$REPO_ROOT" merge-base --is-ancestor "$task_head_sha" "$WORKSPACE_COMMIT" 2>/dev/null; then
-      intersect_count="$(release_diff_intersects_allowed_files "$task_md" "$WORKSPACE_COMMIT" "$parser_json")"
+      intersect_count="$(release_diff_intersects_allowed_files "$task_md" "$WORKSPACE_COMMIT" "$REPO_ROOT" "$parser_json")"
       if [[ "$intersect_count" -gt 0 ]]; then
         info "bundle delivery verified for ${task_id} via release diff ∩ Allowed Files (${intersect_count} file(s)); bundle=${bundle_alias}"
       else
@@ -738,11 +648,11 @@ done
 
 # DP-293 T2: close-parent-spec-if-complete.sh exits 2 as an *intentional* block when
 # the parent spec still has active sibling tasks (e.g. a pending verification task).
-# In a mixed bundle (T1..Tn + V) processed in one loop under `set -euo pipefail`,
-# every implementation task before the V task legitimately triggers this block, which
-# previously killed the whole closeout before the V task was reached. Treat rc==2 as a
-# soft-block (log parent + reason, continue the loop); any other non-zero exit is a
-# real failure and must still fail loud (AC3 / AC-NEG2).
+# DP-280-T2's two-phase closeout removes the ordering-induced false positive, but the
+# parent can still legitimately carry active siblings OUTSIDE this closeout's --task-md
+# set (e.g. a pending V task verified post-merge). Treat rc==2 as a soft-block (log
+# parent + reason, continue); any other non-zero exit is a real failure and must still
+# fail loud (AC3 / AC-NEG2).
 run_close_parent() {
   local label="$1"; shift
   local rc=0
@@ -758,6 +668,26 @@ run_close_parent() {
       ;;
   esac
 }
+
+# DP-280-T2 (F2 / AC8): order-independent parent closeout. The per-task loop is
+# split into two phases. Phase 1 (the loop below) flips EVERY task IMPLEMENTED
+# (mark_task_implemented + per-task extension deliverable / completion gate /
+# worktree + branch cleanup) and records each task's moved path here. Phase 2
+# (after the loop) invokes close-parent-spec-if-complete.sh exactly ONCE per
+# distinct parent container, always with --archive-terminal-parent. Previously
+# close-parent ran once per task with --archive-terminal-parent pinned to the
+# LAST task; that made closeout sensitive to where a V / verification task sat
+# in --task-md ordering, because an earlier close-parent call would see the
+# still-active V sibling and hit close-parent-spec-if-complete.sh's
+# active_verification block (a false positive). Flipping all tasks before the
+# single close-parent call removes that ordering trigger without touching the
+# active_verification block logic itself (a genuinely unverified V task still
+# blocks the parent, because it would not have been flipped IMPLEMENTED).
+declare -a MOVED_TASK_MDS=()
+# Parallel to MOVED_TASK_MDS: 1 = branch-bearing task (per-task release-completed
+# check applies in Phase 2), 0 = no-branch content-delivered task (no
+# release-completed check, matching the original no-branch closeout path).
+declare -a MOVED_RELEASE_COMPLETED_CHECK=()
 
 for i in "${!ABS_TASK_MDS[@]}"; do
   task_md="${ABS_TASK_MDS[$i]}"
@@ -802,24 +732,11 @@ for i in "${!ABS_TASK_MDS[@]}"; do
     moved_task_md="$(mark_task_implemented "$task_md" "$task_id")"
     [[ -f "$moved_task_md" ]] || die "implemented task file not found after mark-spec-implemented: ${task_id}"
 
-    case "$moved_task_md" in
-      */specs/design-plans/archive/*|*/specs/companies/*/archive/*)
-        archived_parent_file="$(parent_file_for_task "$moved_task_md")"
-        [[ -n "$archived_parent_file" && -f "$archived_parent_file" ]] || die "archived parent file not found for ${moved_task_md}"
-        update_frontmatter_status "$archived_parent_file" IMPLEMENTED
-        info "marked archived parent implemented: ${archived_parent_file}"
-        ;;
-      *)
-        close_parent_args=(
-          --task-md "$moved_task_md"
-          --workspace "$REPO_ROOT"
-        )
-        if [[ "$i" -eq $((${#ABS_TASK_MDS[@]} - 1)) ]]; then
-          close_parent_args+=(--archive-terminal-parent)
-        fi
-        run_close_parent "$task_id" "${close_parent_args[@]}"
-        ;;
-    esac
+    # DP-280-T2 Phase 1: record the flipped task; parent closeout happens once
+    # after the loop (see Phase 2 below). No-branch tasks do not get the
+    # per-task release-completed check (matches the original path).
+    MOVED_TASK_MDS+=("$moved_task_md")
+    MOVED_RELEASE_COMPLETED_CHECK+=("0")
 
     info "closed out ${task_id} (content-delivered, no branch)"
     continue
@@ -897,10 +814,6 @@ PY
     --extension-id "$EXTENSION_ID" \
     ${TEMPLATE_REPO:+--template-repo "$TEMPLATE_REPO"}
 
-  # Terminal closeout chain: task closeout can close the parent, and the final
-  # task in this closeout invokes close-parent-spec-if-complete.sh with
-  # --archive-terminal-parent so archive-spec.sh is deterministic.
-  #
   # DP-230 D30 deterministic consumption: this block delegates lifecycle to
   # frontmatter status (mark_task_implemented -> mark-spec-implemented.sh) and
   # never reads task.md acceptance_criteria text. parent-closeout consumes
@@ -919,6 +832,24 @@ PY
       --source-container "$source_container" \
       --allow-active-verification
   fi
+
+  # DP-280-T2 Phase 1: record the flipped task; parent closeout + per-task
+  # release-completed check happen once after the loop (see Phase 2 below).
+  MOVED_TASK_MDS+=("$moved_task_md")
+  MOVED_RELEASE_COMPLETED_CHECK+=("1")
+
+  info "closed out ${task_id}"
+done
+
+# DP-280-T2 (F2 / AC8) Phase 2: order-independent parent closeout. Every task
+# in this closeout has now been flipped IMPLEMENTED (Phase 1). Terminal closeout
+# chain runs ONCE per distinct parent container, always with
+# --archive-terminal-parent so archive-spec.sh is deterministic and independent
+# of where a V / verification task sat in --task-md ordering. archived-parent
+# tasks (already under an archive/ tree) keep their direct frontmatter flip.
+declare -a CLOSED_PARENT_CONTAINERS=()
+for j in "${!MOVED_TASK_MDS[@]}"; do
+  moved_task_md="${MOVED_TASK_MDS[$j]}"
   case "$moved_task_md" in
     */specs/design-plans/archive/*|*/specs/companies/*/archive/*)
       archived_parent_file="$(parent_file_for_task "$moved_task_md")"
@@ -927,24 +858,31 @@ PY
       info "marked archived parent implemented: ${archived_parent_file}"
       ;;
     *)
-      close_parent_args=(
-        --task-md "$moved_task_md"
-        --workspace "$REPO_ROOT"
-      )
-      if [[ "$i" -eq $((${#ABS_TASK_MDS[@]} - 1)) ]]; then
-        close_parent_args+=(--archive-terminal-parent)
+      parent_container="$(resolve_source_container_for_task "$moved_task_md")"
+      already_closed=0
+      for closed in "${CLOSED_PARENT_CONTAINERS[@]:-}"; do
+        [[ -n "$closed" && "$closed" == "$parent_container" ]] && { already_closed=1; break; }
+      done
+      if [[ "$already_closed" -eq 0 ]]; then
+        CLOSED_PARENT_CONTAINERS+=("$parent_container")
+        # DP-293 T2 soft-block: the parent may still carry active siblings outside
+        # this closeout's --task-md set (e.g. a pending V task); rc==2 must not
+        # kill the whole closeout.
+        run_close_parent "$parent_container" \
+          --task-md "$moved_task_md" \
+          --workspace "$REPO_ROOT" \
+          --archive-terminal-parent
       fi
-      run_close_parent "$task_id" "${close_parent_args[@]}"
       ;;
   esac
 
-  current_task_md="$(resolve_current_task_md_path "$moved_task_md")"
-  bash "${CHECK_RELEASE_COMPLETED}" \
-    --repo "$REPO_ROOT" \
-    --task-md "$current_task_md" \
-    ${TEMPLATE_REPO:+--template-repo "$TEMPLATE_REPO"}
-
-  info "closed out ${task_id}"
+  if [[ "${MOVED_RELEASE_COMPLETED_CHECK[$j]}" -eq 1 ]]; then
+    current_task_md="$(resolve_current_task_md_path "$moved_task_md")"
+    bash "${CHECK_RELEASE_COMPLETED}" \
+      --repo "$REPO_ROOT" \
+      --task-md "$current_task_md" \
+      ${TEMPLATE_REPO:+--template-repo "$TEMPLATE_REPO"}
+  fi
 done
 
 info "PASS: framework release closeout completed for ${#ABS_TASK_MDS[@]} task(s)"

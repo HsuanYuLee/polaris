@@ -827,6 +827,15 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/detect-closeout-drift.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/detect-closeout-drift-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/detect-stacked-delivery-lane.mjs",
       "kind": "gate",
       "runner": "node",
@@ -2779,6 +2788,16 @@
       "selftest": "N/A",
       "lifecycle": "support_path",
       "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/detect-closeout-drift-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
       "selftest_reason": "selftest script"
     },
     {

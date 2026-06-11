@@ -24,6 +24,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "${SCRIPT_DIR}/lib/ci-local-path.sh"
 # shellcheck source=lib/verification-evidence.sh
 . "${SCRIPT_DIR}/lib/verification-evidence.sh"
+# DP-280 Wall A: single bundle detector, shared with framework-release-closeout.sh.
+# Provides bundle_branch_alias_for_task and release_diff_intersects_allowed_files.
+# shellcheck source=lib/bundle-closeout-ancestry.sh
+. "${SCRIPT_DIR}/lib/bundle-closeout-ancestry.sh"
 
 REPO_ROOT=""
 TASK_MD=""
@@ -161,8 +165,43 @@ git -C "$REPO_ROOT" cat-file -e "${task_head_sha}^{commit}" 2>/dev/null \
   || block "task_head_sha does not exist in workspace repo: $task_head_sha"
 git -C "$REPO_ROOT" cat-file -e "${workspace_commit}^{commit}" 2>/dev/null \
   || block "workspace_commit does not exist in workspace repo: $workspace_commit"
-git -C "$REPO_ROOT" merge-base --is-ancestor "$task_head_sha" "$workspace_commit" 2>/dev/null \
-  || block "workspace_commit does not contain task_head_sha"
+
+# DP-280 Wall A: strict OR bundle-aware head-ancestry.
+#
+# The default per-task strict assertion stays byte-equivalent: a task WITHOUT a
+# `bundle_branch_alias` must have its task_head_sha be a strict ancestor of the
+# release (workspace) commit, and its evidence head is compared against the
+# per-task head exactly as before.
+#
+# When the task IS part of a bundle — detected via the EXISTING
+# `bundle_branch_alias` frontmatter (shared lib reader; no second detector) —
+# aggregate / cherry-pick / fresh-commit / copy-content releases produce a
+# release commit whose ancestor is NOT the per-task head, so the strict
+# assertion would block. For a bundle, a strict-ancestry miss is validated by
+# EITHER (a) release diff ∩ task Allowed Files non-empty, OR (b) accepting the
+# bundle release head as the task's authoritative head (the (b) fail-safe covers
+# DP-273 Blind Spots: generated/shared-only delivery legitimately has an empty
+# intersection). In the bundle path the bundle release head becomes the
+# authoritative `effective_head_sha`, so the downstream evidence head comparison
+# accepts the bundle head — and still fails closed when the recorded evidence
+# head is neither the strict ancestor nor the bundle head (AC-NEG4).
+effective_head_sha="$task_head_sha"
+if git -C "$REPO_ROOT" merge-base --is-ancestor "$task_head_sha" "$workspace_commit" 2>/dev/null; then
+  : # strict ancestry holds — per-task head is authoritative (no-alias byte-equivalent path)
+else
+  bundle_alias="$(bundle_branch_alias_for_task "$TASK_MD")"
+  [[ -n "$bundle_alias" ]] \
+    || block "workspace_commit does not contain task_head_sha"
+  # Bundle task: validate delivery, then treat the bundle release head as the
+  # authoritative head for the evidence comparison.
+  intersect_count="$(release_diff_intersects_allowed_files "$TASK_MD" "$workspace_commit" "$REPO_ROOT" "$parser_json")"
+  if [[ "$intersect_count" -gt 0 ]]; then
+    echo "$PREFIX bundle delivery verified for ${TASK_ID} via release diff ∩ Allowed Files (${intersect_count} file(s)); bundle=${bundle_alias}" >&2
+  else
+    echo "$PREFIX bundle delivery for ${TASK_ID} accepted via bundle release head as authoritative head (empty Allowed-Files intersection — generated/shared carve-out); bundle=${bundle_alias}" >&2
+  fi
+  effective_head_sha="$workspace_commit"
+fi
 
 current_workspace_head="$(git -C "$REPO_ROOT" rev-parse HEAD)"
 sha_matches "$workspace_commit" "$current_workspace_head" \
@@ -178,7 +217,9 @@ check_ci_evidence() {
   local evidence="$1"
   [[ -n "$evidence" && "$evidence" != "N/A" ]] || block "ci_local evidence path missing"
   [[ -f "$evidence" ]] || block "ci_local evidence file not found: $evidence"
-  python3 - "$evidence" "$task_head_sha" <<'PY'
+  # DP-280 Wall A: compare against effective_head_sha (= bundle release head for
+  # a validated bundle task, else the per-task head — byte-equivalent no-alias).
+  python3 - "$evidence" "$effective_head_sha" <<'PY'
 import json
 import sys
 
@@ -204,7 +245,9 @@ check_verify_evidence() {
   local evidence="$1"
   [[ -n "$evidence" && "$evidence" != "N/A" ]] || block "verify evidence path missing"
   [[ -f "$evidence" ]] || block "verify evidence file not found: $evidence"
-  verification_evidence_validate_file "$evidence" "$TASK_ID" "$task_head_sha" >/dev/null || return 1
+  # DP-280 Wall A: effective_head_sha = bundle release head for a validated
+  # bundle task, else the per-task head (byte-equivalent no-alias path).
+  verification_evidence_validate_file "$evidence" "$TASK_ID" "$effective_head_sha" >/dev/null || return 1
   verification_evidence_is_pass "$evidence" >/dev/null || return 1
 }
 
@@ -223,7 +266,9 @@ check_ac_verification_evidence() {
   local evidence="$1"
   [[ -n "$evidence" && "$evidence" != "N/A" ]] || block "ac_verification evidence path missing (V task)"
   [[ -f "$evidence" ]] || block "ac_verification evidence file not found: $evidence"
-  python3 - "$evidence" "$TASK_ID" "$task_head_sha" <<'PY' || return 1
+  # DP-280 Wall A: effective_head_sha = bundle release head for a validated
+  # bundle V task, else the per-task head (byte-equivalent no-alias path).
+  python3 - "$evidence" "$TASK_ID" "$effective_head_sha" <<'PY' || return 1
 import json
 import sys
 
