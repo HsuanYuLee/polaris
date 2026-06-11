@@ -54,6 +54,11 @@ HOT_TRIGGER_THRESHOLD = 5
 FRESH_WRITE_GRACE_DAYS = 7  # files with no last_triggered but recently written count as Hot
 MEMORY_HOT_CAPACITY = int(os.environ.get("MEMORY_HOT_CAPACITY", "15"))
 OVERFLOW_REASON_PREFIX = "overflowed-hot-capacity"
+# Durable per-file frontmatter signal (DP-282 D1/D2): apply demotion stamps this
+# on flat-root files that overflow Hot capacity but stay flat (no topic move), so
+# validate-memory-write.sh can treat them as NOT Hot without re-deriving capacity.
+# Removed on re-qualification (D3); never written to pinned / graduated_to (D4).
+HOT_OVERFLOW_DEMOTED_FIELD = "hot_overflow_demoted"
 
 
 @dataclass
@@ -68,6 +73,7 @@ class Frontmatter:
     pinned: bool = False
     pinned_reason: Optional[str] = None
     topic: Optional[str] = None
+    hot_overflow_demoted: bool = False
     snapshot_of: Optional[str] = None
     snapshot_taken: Optional[date] = None
     graduated_to: Optional[str] = None
@@ -148,6 +154,8 @@ def parse_frontmatter(text: str) -> Frontmatter:
     fm.pinned = pinned in ("true", "yes", "1")
     fm.pinned_reason = data.get("pinned_reason") or None
     fm.topic = data.get("topic") or None
+    hot_overflow_demoted = data.get("hot_overflow_demoted", "").lower()
+    fm.hot_overflow_demoted = hot_overflow_demoted in ("true", "yes", "1")
     fm.snapshot_of = data.get("snapshot_of") or None
     snapshot_taken = data.get("snapshot_taken")
     if snapshot_taken:
@@ -781,6 +789,54 @@ def normalize_memory_file(path: Path) -> bool:
     return True
 
 
+def set_frontmatter_bool_flag(path: Path, field_name: str, present: bool) -> bool:
+    """Add or remove a flat boolean frontmatter field. Idempotent.
+
+    When ``present`` is True the field is written as ``<field_name>: true`` (added
+    if absent, left untouched if already true). When False the field line is
+    removed if present. Returns True only when the file content actually changed,
+    so callers can log / count real mutations and re-runs are no-ops (EC4).
+
+    Only flat top-level frontmatter is touched; the body is preserved byte-equal.
+    """
+    text = path.read_text(encoding="utf-8")
+    match = FRONTMATTER_RE.match(text)
+    if not match:
+        return False
+    body = match.group(1)
+    lines = body.splitlines()
+    rest = text[match.end():]
+
+    new_lines: list[str] = []
+    found = False
+    changed = False
+    for line in lines:
+        key = line.partition(":")[0].strip() if (":" in line and not line[:1].isspace()) else None
+        if key == field_name:
+            found = True
+            if present:
+                # Normalise the existing value to `true`; drop duplicates.
+                normalized = f"{field_name}: true"
+                if line != normalized:
+                    changed = True
+                if normalized not in new_lines:
+                    new_lines.append(normalized)
+            else:
+                # Removal: skip the line.
+                changed = True
+            continue
+        new_lines.append(line)
+
+    if present and not found:
+        new_lines.append(f"{field_name}: true")
+        changed = True
+
+    if not changed:
+        return False
+    path.write_text("---\n" + "\n".join(new_lines) + "\n---\n" + rest, encoding="utf-8")
+    return True
+
+
 def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
     """Read a classification plan JSON from stdin and execute it.
 
@@ -811,6 +867,39 @@ def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
         src = memory_dir / c.get("file", "")
         if src.exists() and normalize_memory_file(src):
             normalized_files.append(src.name)
+
+    # --- DP-282: durable per-file hot-overflow-demoted signal ----------------
+    # Flat-root files that overflow Hot capacity stay flat (no move), so the only
+    # canonical signal that they are no longer Hot must live in the file's own
+    # frontmatter — MEMORY.md index alone is not consulted by validate-memory-
+    # write.sh. Stamp the signal on overflow-demoted flat files (D1/D2); remove
+    # it from every other flat file so re-qualified entries self-heal (D3).
+    # pinned / graduated_to files are never overflow-demoted, so they never carry
+    # the signal (D4). Must run BEFORE MEMORY.md rewrite / emit-index (EC3).
+    overflow_demoted_signaled: list[str] = []
+    overflow_signal_cleared: list[str] = []
+    for c in classifications:
+        fn = c.get("file", "")
+        src = memory_dir / fn
+        if not src.exists():
+            continue
+        # Only flat-root files are affected; topic-moved / cold files have already
+        # been relocated by their own tier handling and leave the flat layer.
+        is_overflow_demoted = (
+            c.get("tier") == "warm"
+            and not c.get("topic")
+            and (c.get("reason", "") or "").startswith(OVERFLOW_REASON_PREFIX)
+        )
+        # D4 guard: never stamp pinned / graduated_to files even if a plan tried.
+        fm = parse_frontmatter(src.read_text(encoding="utf-8"))
+        if fm.pinned or fm.graduated_to:
+            is_overflow_demoted = False
+        if is_overflow_demoted:
+            if set_frontmatter_bool_flag(src, HOT_OVERFLOW_DEMOTED_FIELD, True):
+                overflow_demoted_signaled.append(fn)
+        else:
+            if set_frontmatter_bool_flag(src, HOT_OVERFLOW_DEMOTED_FIELD, False):
+                overflow_signal_cleared.append(fn)
 
     # Fill in frontmatter fallback for orphans (files on disk but not in MEMORY.md)
     for c in classifications:
@@ -915,6 +1004,15 @@ def run_apply(memory_dir: Path, today: date, plan_stream) -> int:
             log_entries.append(
                 f"- `{c['file']}` → warm/{topic} — {OVERFLOW_REASON_PREFIX}"
             )
+
+    if overflow_demoted_signaled or overflow_signal_cleared:
+        log_entries.append("")
+        log_entries.append("## Hot-overflow per-file signal")
+        log_entries.append("")
+        for name in sorted(overflow_demoted_signaled):
+            log_entries.append(f"- `{name}` — stamped {HOT_OVERFLOW_DEMOTED_FIELD}: true")
+        for name in sorted(overflow_signal_cleared):
+            log_entries.append(f"- `{name}` — cleared {HOT_OVERFLOW_DEMOTED_FIELD}")
 
     if normalized_files:
         log_entries.append("")

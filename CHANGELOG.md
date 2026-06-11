@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.4] - 2026-06-11
+
+### Changed
+
+- 50bc9f9: 產 .claude/rules/handbook/code-documentation-conventions.md（workspace handbook 新檔）
+- 3c84ce5: memory Hot-membership 單一 canonical 定義收斂：apply demotion 寫 hot_overflow_demoted per-file 訊號 + validate-memory-write 尊重訊號 + hermetic selftest
+
 ## [3.76.3] - 2026-06-11
 
 ### Changed

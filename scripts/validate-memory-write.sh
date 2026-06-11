@@ -19,6 +19,11 @@
 #   - topic: <slug> → either folder memory_dir/<slug>/ exists, OR the file is
 #     already inside memory_dir/<slug>/.
 #   - Adding/updating candidate would push Hot count > soft limit.
+#     Files (and the candidate itself) carrying `hot_overflow_demoted: true`
+#     are treated as NOT Hot and excluded from the 15-cap (DP-282). The signal
+#     is written by `memory-hygiene-tiering.py apply` on flat-root files demoted
+#     out of Hot; Hot membership stays a cheap flat-frontmatter-only model with
+#     no MEMORY.md index parse.
 #
 # Exit codes:
 #   0  PASS
@@ -258,8 +263,18 @@ def parse_date(value) -> date | None:
         return None
 
 
+def is_hot_overflow_demoted(fm: dict) -> bool:
+    """DP-282: a flat-root file carrying the durable hot_overflow_demoted signal
+    was demoted out of Hot by the last hygiene apply and must NOT count toward the
+    15-cap. Cheap: read only the file's own flat frontmatter, no MEMORY.md index
+    parse (AC5). pinned / graduated_to never carry the signal (D4)."""
+    return fm.get("hot_overflow_demoted") is True
+
+
 def candidate_would_be_hot(fm: dict, written_path: Path) -> bool:
     if fm.get("graduated_to"):
+        return False
+    if is_hot_overflow_demoted(fm):
         return False
     if fm.get("pinned") is True:
         return True
@@ -287,6 +302,8 @@ def file_is_hot(p: Path) -> bool:
         return False
     file_fm = parse_frontmatter(text)
     if file_fm.get("graduated_to"):
+        return False
+    if is_hot_overflow_demoted(file_fm):
         return False
     if file_fm.get("pinned") is True:
         return True
