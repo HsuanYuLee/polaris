@@ -92,6 +92,10 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | refinement-consumer-schema-binding | scripts/validate-refinement-consumer-schema-binding.sh | script | portable | scripts/selftests/validate-refinement-consumer-schema-binding-selftest.sh | governance |
 | closeout-drift-detector | scripts/detect-closeout-drift.sh | script | portable | scripts/selftests/detect-closeout-drift-selftest.sh | governance |
 | closeout-drift-bundle-aware-completion | scripts/selftests/check-local-extension-completion-bundle-aware-selftest.sh | script | portable | scripts/selftests/check-local-extension-completion-bundle-aware-selftest.sh | governance |
+| framework-release-closeout-pr-close | scripts/framework-release-closeout.sh | script | portable | scripts/selftests/framework-release-closeout-pr-close-selftest.sh | governance |
+| scan-template-leaks-gitignore-aware | scripts/scan-template-leaks.sh | script | portable | scripts/selftests/scan-template-leaks-gitignore-aware-selftest.sh | governance |
+| install-copilot-hooks-pre-push-carve-out | scripts/install-copilot-hooks.sh | script | portable | scripts/selftests/install-copilot-hooks-pre-push-carve-out-selftest.sh | governance |
+| release-cleanup-sweep | scripts/release-cleanup-sweep.sh | script | portable | scripts/selftests/release-cleanup-sweep-selftest.sh | governance |
 
 ## Mechanism Canary Entries
 

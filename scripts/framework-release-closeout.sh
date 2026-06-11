@@ -58,6 +58,11 @@ TEMPLATE_COMMIT=""
 VERSION_TAG=""
 RELEASE_URL=""
 DELETE_BRANCHES=0
+# DP-305 D1: resolved gh binary for bundled task PR close. Lazily resolved the
+# first time a deliverable PR needs closing (see close_bundled_task_pr); a bundle
+# with no deliverable PRs never pays the gh preflight cost.
+GH_BIN="${GH_BIN:-}"
+GH_RESOLVED=0
 
 TASK_MDS=()
 TASK_HEAD_SHAS=()
@@ -429,6 +434,80 @@ classify_worktree_for_branch() {
   esac
 }
 
+# DP-305 D1/AC7: resolve the gh binary used for bundled task PR close, mirroring
+# scripts/framework-release-pr-lane.sh resolve_gh_bin. fail-stops (exit 2) with
+# POLARIS_TOOL_MISSING when the binary is absent/non-executable and
+# POLARIS_TOOL_AUTH_FAILED when gh is installed but unauthenticated; never
+# swallows the error. Resolution is memoized in GH_RESOLVED so a multi-task
+# bundle preflights gh once.
+resolve_gh_bin() {
+  [[ "$GH_RESOLVED" -eq 1 ]] && return 0
+  local candidate="${GH_BIN:-gh}"
+  if [[ "$candidate" != "gh" ]]; then
+    [[ -x "$candidate" ]] \
+      || die "POLARIS_TOOL_MISSING tool=gh owner=delivery install_authority=system hint=GH_BIN is not executable: $candidate"
+  else
+    command -v gh >/dev/null 2>&1 \
+      || die "POLARIS_TOOL_MISSING tool=gh owner=delivery install_authority=system hint=GitHub CLI (gh) not found on PATH; run 'mise install'"
+  fi
+  "$candidate" auth status >/dev/null 2>&1 \
+    || die "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery install_authority=system hint=GitHub CLI is installed but not authenticated"
+  GH_BIN="$candidate"
+  GH_RESOLVED=1
+  return 0
+}
+
+# DP-305 D1/D2: close one bundled task PR resolved from the task.md
+# `deliverable.pr_url` (NOT head ancestry). Keyed on RELEASE EVIDENCE — the fact
+# that closeout is running at release time plus a recorded deliverable PR — so a
+# re-fold whose per-task head is not a main-ancestor and manually-assembled
+# bundles still get their PR closed; we never consult `merge-base --is-ancestor`
+# here. Already-merged / already-closed PRs are idempotent-skipped. Tasks with no
+# deliverable PR are a NOOP (nothing to close).
+#   $1 parser_json   $2 task_id
+close_bundled_task_pr() {
+  local parser_json="$1"
+  local task_id="$2"
+  local pr_url pr_ref pr_state
+
+  pr_url="$(json_field "$parser_json" "d.get('frontmatter', {}).get('deliverable', {}).get('pr_url')")"
+  if [[ -z "$pr_url" ]]; then
+    info "no deliverable PR recorded for ${task_id}; PR-close NOOP"
+    return 0
+  fi
+
+  # Accept either a full PR URL or a bare PR number as the gh ref.
+  if [[ "$pr_url" =~ /pull/([0-9]+) ]]; then
+    pr_ref="${BASH_REMATCH[1]}"
+  elif [[ "$pr_url" =~ ^[0-9]+$ ]]; then
+    pr_ref="$pr_url"
+  else
+    die "deliverable PR url malformed for ${task_id}: ${pr_url} (expected .../pull/<n> or a PR number)"
+  fi
+
+  resolve_gh_bin
+
+  # Idempotent skip: query current PR state; only OPEN PRs get closed/commented.
+  pr_state="$("$GH_BIN" pr view "$pr_ref" --json state -q .state 2>/dev/null || true)"
+  pr_state="$(printf '%s' "$pr_state" | tr '[:lower:]' '[:upper:]' | tr -d '[:space:]')"
+  case "$pr_state" in
+    MERGED|CLOSED)
+      info "deliverable PR #${pr_ref} for ${task_id} already ${pr_state}; PR-close idempotent skip"
+      return 0
+      ;;
+    OPEN|"")
+      : # OPEN (or unknown — attempt close) falls through to the close path.
+      ;;
+  esac
+
+  "$GH_BIN" pr comment "$pr_ref" \
+    --body "released ${VERSION_TAG} — bundled into the release; closing this task PR via framework-release closeout." \
+    || die "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery hint=failed to comment released note on PR #${pr_ref} for ${task_id}"
+  "$GH_BIN" pr close "$pr_ref" --delete-branch \
+    || die "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery hint=failed to close PR #${pr_ref} for ${task_id}"
+  info "closed bundled task PR #${pr_ref} for ${task_id} (released ${VERSION_TAG})"
+}
+
 delete_branch_if_safe() {
   local task_branch="$1"
   local task_head_sha="$2"
@@ -542,7 +621,7 @@ if [[ -n "$TEMPLATE_REPO" ]]; then
   fi
 fi
 
-declare -a ABS_TASK_MDS TASK_IDS TASK_BRANCHES RESOLVED_TASK_HEADS TASK_WORKTREE_KINDS TASK_NO_BRANCH_FLAGS
+declare -a ABS_TASK_MDS TASK_IDS TASK_BRANCHES RESOLVED_TASK_HEADS TASK_WORKTREE_KINDS TASK_NO_BRANCH_FLAGS TASK_PARSER_JSONS
 
 for i in "${!TASK_MDS[@]}"; do
   task_md="$(abs_path "${TASK_MDS[$i]}")"
@@ -590,6 +669,7 @@ for i in "${!TASK_MDS[@]}"; do
     RESOLVED_TASK_HEADS+=("")
     TASK_WORKTREE_KINDS+=("none")
     TASK_NO_BRANCH_FLAGS+=("1")
+    TASK_PARSER_JSONS+=("$parser_json")
     continue
   fi
 
@@ -644,6 +724,7 @@ for i in "${!TASK_MDS[@]}"; do
   RESOLVED_TASK_HEADS+=("$task_head_sha")
   TASK_WORKTREE_KINDS+=("$worktree_kind")
   TASK_NO_BRANCH_FLAGS+=("0")
+  TASK_PARSER_JSONS+=("$parser_json")
 done
 
 # DP-293 T2: close-parent-spec-if-complete.sh exits 2 as an *intentional* block when
@@ -696,6 +777,7 @@ for i in "${!ABS_TASK_MDS[@]}"; do
   task_head_sha="${RESOLVED_TASK_HEADS[$i]}"
   worktree_kind="${TASK_WORKTREE_KINDS[$i]}"
   no_branch_content_delivered="${TASK_NO_BRANCH_FLAGS[$i]}"
+  parser_json="${TASK_PARSER_JSONS[$i]}"
   verify_evidence="${VERIFY_EVIDENCES[$i]}"
 
   if [[ "$worktree_kind" == "sub-agent" ]]; then
@@ -823,6 +905,11 @@ PY
   [[ -f "$moved_task_md" ]] || die "implemented task file not found after mark-spec-implemented: ${task_id}"
 
   bash "${SCRIPT_DIR}/engineering-clean-worktree.sh" --task-md "$moved_task_md" --repo "$REPO_ROOT"
+  # DP-305 D1/D2: close the bundled task PR (release-evidence-keyed; resolved from
+  # task.md deliverable.pr_url, not head ancestry; idempotent) BEFORE deleting the
+  # local/remote branch, so GitHub does not leave the task PR stuck open after a
+  # re-fold whose head is not a main-ancestor.
+  close_bundled_task_pr "$parser_json" "$task_id"
   delete_branch_if_safe "$task_branch" "$task_head_sha"
   source_container="$(resolve_source_container_for_task "$moved_task_md")"
   if [[ -n "$source_container" && -x "$CHECK_MAIN_CHAIN_COMPLIANCE" ]] \

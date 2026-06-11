@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.76.5] - 2026-06-11
+
+### Changed
+
+- e555eb4: closeout 補 PR 關閉 + 改以 release evidence 觸發 cleanup
+- a0cd28b: scan-template-leaks.sh 改 gitignore-aware 跳過 ignored 檔
+- 6a55de1: install-copilot-hooks.sh pre-push delete/tags carve-out 鏡像
+- b7bb6f6: 新增 idempotent release-cleanup sweep 清既有殘骸
+- 50cf1a0: mechanism-registry 登錄 + selftest aggregate 接線
+
 ## [3.76.4] - 2026-06-11
 
 ### Changed

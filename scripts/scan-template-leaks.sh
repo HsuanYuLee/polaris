@@ -39,6 +39,7 @@ python3 - "$WORKSPACE" "$TEMPLATE" "$SOURCE" "$FORMAT" "$BLOCKING" <<'PY'
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -179,10 +180,46 @@ def is_maintainer_only_skill(root: Path, skill_name: str):
     return bool(re.search(r"(?m)^scope:\s*maintainer-only\s*$", frontmatter[1]))
 
 
-def skip_path(root: Path, path: Path, source_name: str):
+def resolve_gitignored(root: Path, rel_paths):
+    """Return the subset of rel_paths that git considers ignored.
+
+    DP-305 D5: uses `git check-ignore --stdin` so any git-ignored local
+    session-state file (e.g. .claude/active-thread.md) is auto-exempt from the
+    scan, replacing per-path hardcoded exception lists. Tracked files are never
+    returned here, so tracked-file leak detection stays fail-closed (AC-NEG3).
+
+    Fails open (returns empty set) when the workspace is not a git repo or git
+    is unavailable: the scanner then keeps its non-gitignore skip rules, and no
+    legitimate leak is silently dropped.
+    """
+    rel_paths = list(rel_paths)
+    if not rel_paths:
+        return set()
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "check-ignore", "--stdin"],
+            input="\n".join(rel_paths) + "\n",
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, OSError):
+        return set()
+    # git check-ignore exits 0 (some ignored), 1 (none ignored), 128 (error,
+    # e.g. not a git repo). Only 0/1 carry a usable path list on stdout.
+    if proc.returncode not in (0, 1):
+        return set()
+    return {line.strip() for line in proc.stdout.splitlines() if line.strip()}
+
+
+def skip_path(root: Path, path: Path, source_name: str, gitignored=frozenset()):
     rel = path.relative_to(root).as_posix()
     parts = rel.split("/")
     if any(part in {".git", "node_modules", "dist", ".astro", "e2e-results", "test-results"} for part in parts):
+        return True
+    # DP-305 D5: skip git-ignored local session-state files (e.g.
+    # .claude/active-thread.md). Tracked files never appear in this set, so
+    # tracked-file leak detection is unaffected (AC-NEG3).
+    if rel in gitignored:
         return True
     if rel == "scripts/selftests/scan-template-leaks-selftest.sh":
         return True
@@ -227,18 +264,31 @@ def scan_roots(root: Path, source_name: str):
         "README.zh-TW.md",
         "CHANGELOG.md",
     ]
-    files = []
+    # Gather text-file candidates first (cheap path/suffix filters only), then
+    # resolve git-ignored paths in a single batched `git check-ignore` call so
+    # DP-305 D5 gitignore-aware skip stays O(1) git invocations per root.
+    candidate_files = []
     for rel in candidates:
         item = root / rel
         if not item.exists():
             continue
         if item.is_file():
-            if is_text_file(item) and not skip_path(root, item, source_name):
-                files.append(item)
+            if is_text_file(item):
+                candidate_files.append(item)
             continue
         for path in item.rglob("*"):
-            if path.is_file() and is_text_file(path) and not skip_path(root, path, source_name):
-                files.append(path)
+            if path.is_file() and is_text_file(path):
+                candidate_files.append(path)
+
+    gitignored = resolve_gitignored(
+        root, [p.relative_to(root).as_posix() for p in candidate_files]
+    )
+
+    files = [
+        p
+        for p in candidate_files
+        if not skip_path(root, p, source_name, gitignored)
+    ]
     return sorted(set(files))
 
 

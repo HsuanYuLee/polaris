@@ -92,6 +92,34 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 GATES_DIR="$REPO_ROOT/scripts/gates"
 
+# Delete/tags carve-out (DP-305 D4): mirror the pre-push-quality-gate.sh
+# --delete|--tags exemption. A git-native pre-push hook reads refs from STDIN
+# (one per line: "<local_ref> <local_sha> <remote_ref> <remote_sha>"); for a
+# deletion the local SHA is all-zeros (and the local ref is rendered "(delete)").
+# Exit 0 BEFORE running any gate when EVERY ref in the push is a deletion, or
+# EVERY ref is a tag. A content-bearing or mixed push falls through to the gates.
+push_refs="$(cat || true)"
+if [[ -n "$push_refs" ]]; then
+  all_deletions=1
+  all_tags=1
+  saw_ref=0
+  while read -r local_ref local_sha remote_ref _remote_sha _rest; do
+    [[ -n "${local_ref:-}" ]] || continue
+    saw_ref=1
+    # deletion: local SHA is all-zeros, or git rendered the local ref "(delete)"
+    if [[ "$local_ref" != "(delete)" && ! "${local_sha:-}" =~ ^0+$ ]]; then
+      all_deletions=0
+    fi
+    # tag: the remote ref lives under refs/tags/
+    if [[ "${remote_ref:-}" != refs/tags/* ]]; then
+      all_tags=0
+    fi
+  done <<<"$push_refs"
+  if [[ "$saw_ref" -eq 1 ]] && { [[ "$all_deletions" -eq 1 ]] || [[ "$all_tags" -eq 1 ]]; }; then
+    exit 0
+  fi
+fi
+
 # Gate: ci-local (push-mode: only task/fix branches)
 if [[ -x "$GATES_DIR/gate-ci-local.sh" ]]; then
   bash "$GATES_DIR/gate-ci-local.sh" --repo "$REPO_ROOT" --push-mode
