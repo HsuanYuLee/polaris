@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.76.6] - 2026-06-12
+
+### Changed
+
+- 95f348e: auto-pass Terminal Complete Sequence：V task canonical terminal 推進 + fail-closed gate
+- eaee6f3: ledger finalize：standalone helper + parent-flip callsite（LOCKED 階段 terminal_status=complete）
+- 788220b: validate-auto-pass-report：report↔ledger terminal + verification↔head-bound marker 兩道 fail-closed cross-check
+- e441ef5: framework-release-closeout：V task 自動列舉 / idempotent 確認
+- a4fc6b8: locked-scope guard per-field 粒度：唯一開放 acceptance_criteria[].verification.detail
+- 8da1b7a: derive + readiness 的 Verify Command executability fail-closed（共用 helper）
+- 1d805c4: mark-spec-implemented bare-DP 遞迴 qualified key + Path 2 多 match fail-closed
+
 ## [3.76.5] - 2026-06-11
 
 ### Changed

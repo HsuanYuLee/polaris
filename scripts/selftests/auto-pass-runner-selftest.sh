@@ -477,13 +477,37 @@ forbidden_patterns = [
     r"\bkubectl apply\b",
     r"sync-to-polaris\.sh",
     r"write-producer-owned-artifact\.sh",  # runner does not write evidence
-    r"mark-spec-implemented\.sh",          # closeout chain is auto-pass's job
+    # mark-spec-implemented.sh moved to the DP-311 declared-exception check
+    # below; it is no longer a blanket-forbidden token.
     r"polaris-pr-create\.sh",              # PR creation is engineering's job
 ]
 for pattern in forbidden_patterns:
     if re.search(pattern, src):
         print(f"FAIL: AC-NEG2 runner contains forbidden mutation '{pattern}'", file=sys.stderr)
         raise SystemExit(1)
+# DP-311 declared exception (Terminal Complete Sequence, escalation T1-1):
+# before declaring terminal_status=complete the runner advances required V
+# work items through the existing canonical task-level writer
+# scripts/mark-spec-implemented.sh. The DP-237 blanket ban on that token is
+# superseded for this single declared writer path only — the guard intent
+# stays: the token may appear in comments plus exactly ONE writer-path
+# assignment (mark_spec = scripts_dir / "mark-spec-implemented.sh") inside
+# terminal_complete_v_gate; any other code reference is still a violation.
+dp311_allowed_assignment = re.compile(
+    r'^\s*mark_spec\s*=\s*scripts_dir\s*/\s*"mark-spec-implemented\.sh"\s*$'
+)
+mark_spec_code_lines = [
+    line for line in src.splitlines()
+    if "mark-spec-implemented.sh" in line and not line.lstrip().startswith("#")
+]
+if len(mark_spec_code_lines) != 1 or not dp311_allowed_assignment.match(mark_spec_code_lines[0]):
+    print(
+        "FAIL: AC-NEG2 mark-spec-implemented.sh may only appear as the single "
+        "DP-311 Terminal Complete Sequence writer-path assignment; found: "
+        f"{mark_spec_code_lines!r}",
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
 # Also forbid direct writes to task.md / refinement.md / refinement.json.
 forbidden_writes = [
     r"task\.md.*>\s*['\"]?",

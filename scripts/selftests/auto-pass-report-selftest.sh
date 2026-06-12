@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Purpose: selftest for scripts/validate-auto-pass-report.sh — DP-198 report
+#          schema happy paths / threshold negatives, DP-228 AC4 source-neutral
+#          source_id cases. Fixtures satisfy the DP-311 T3 fail-closed
+#          cross-checks (real complete ledger + head-bound ac_verification
+#          PASS markers under a hermetic POLARIS_WORKSPACE_ROOT).
+# Inputs:  none (hermetic; fixtures in mktemp dir)
+# Outputs: "PASS: ..." on success; non-zero exit with diagnostics on failure.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -6,13 +13,48 @@ VALIDATOR="$ROOT/scripts/validate-auto-pass-report.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# DP-311 T3 cross-check fixtures: hermetic evidence root + complete ledger +
+# head-bound PASS markers for every source_id whose fixture claims
+# verification.status=PASS.
+export POLARIS_WORKSPACE_ROOT="$TMP"
+MARKER_DIR="$TMP/.polaris/evidence/ac-verification"
+mkdir -p "$MARKER_DIR"
+FIXTURE_HEAD="cccccccccccccccccccccccccccccccccccccccc"
+FIXTURE_LEDGER="$TMP/fixture-ledger.json"
+python3 - "$FIXTURE_LEDGER" <<'PY'
+import json, sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({
+    "schema_version": "1",
+    "terminal_status": "complete",
+    "pause": None,
+    "friction_log": [],
+}) + "\n", encoding="utf-8")
+PY
+for work_item in "DP-198-V1" "EXAMPLE-999-V1" "EXB2C-3461-V1"; do
+  python3 - "$MARKER_DIR/${work_item}-${FIXTURE_HEAD}.json" "$work_item" "$FIXTURE_HEAD" <<'PY'
+import json, sys
+from pathlib import Path
+path, work_item, head = sys.argv[1:4]
+Path(path).write_text(json.dumps({
+    "schema_version": 1,
+    "marker_kind": "ac_verification",
+    "writer": "verify-AC",
+    "work_item_id": work_item,
+    "head_sha": head,
+    "status": "PASS",
+}) + "\n", encoding="utf-8")
+PY
+done
+
 write_report() {
   local path="$1"
   local terminal="$2"
   local mode="$3"
   local source_id="${4:-DP-198}"
-  python3 - "$path" "$terminal" "$mode" "$source_id" <<'PY'
+  REPORT_LEDGER_FIXTURE="$FIXTURE_LEDGER" python3 - "$path" "$terminal" "$mode" "$source_id" <<'PY'
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -22,7 +64,7 @@ payload = {
     "source_id": source_id,
     "terminal_status": terminal,
     "created_at": "2026-05-19T10:30:00+08:00",
-    "ledger_path": "/tmp/ledger.json",
+    "ledger_path": os.environ.get("REPORT_LEDGER_FIXTURE", "/tmp/ledger.json"),
     "required_prs": [{"task_id": f"{source_id}-T1", "pr_url": "https://github.com/org/repo/pull/1", "head_sha": "abc"}],
     "verification": {"status": "PASS", "work_item_id": f"{source_id}-V1"},
     "issues": [],

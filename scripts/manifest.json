@@ -2132,6 +2132,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/release-cleanup-sweep.sh",
+      "kind": "release",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "scripts/selftests/release-cleanup-sweep-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/release-version.sh",
       "kind": "release",
       "runner": "bash",

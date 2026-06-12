@@ -129,4 +129,18 @@ fi
 # -----------------------------------------------------------------------------
 bash "$ROOT/scripts/selftests/mark-spec-implemented-bare-key-selftest.sh"
 
+# -----------------------------------------------------------------------------
+# Layer 4 — DP-311 T2 ledger finalize wiring: mark-spec-implemented.sh 的
+# parent / bare-DP 分支必須在翻 IMPLEMENTED 之前接上 auto-pass-finalize-ledger.sh，
+# 且 execution-flow 文件與 mechanism registry 都登錄此 finalize 步驟。
+# (hermetic 行為覆蓋委派給 auto-pass-finalize-ledger-selftest.sh。)
+# -----------------------------------------------------------------------------
+polaris_with_runtime_tools rg -n 'finalize_auto_pass_ledger_before_flip|auto-pass-finalize-ledger' \
+  "$ROOT/scripts/mark-spec-implemented.sh" \
+  >"$TMPDIR_OUT/ledger-finalize-callsite.out"
+polaris_with_runtime_tools rg -n 'auto-pass-finalize-ledger' \
+  "$ROOT/.claude/skills/references/auto-pass-execution-flow.md" \
+  "$ROOT/.claude/rules/mechanism-registry.md" \
+  >"$TMPDIR_OUT/ledger-finalize-docs.out"
+
 echo "PASS: closeout chain archive selftest"

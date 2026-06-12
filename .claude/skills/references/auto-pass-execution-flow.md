@@ -218,10 +218,52 @@ blocker / pause / retry cap 時成立。required PR set 依 § Required PR Set t
 
 ## Terminal Complete Sequence
 
+### Runner 端 V task canonical terminal gate（DP-311 T1）
+
+`scripts/auto-pass-runner.sh` 在輸出 `terminal_status=complete` **之前**（fresh verify-AC
+PASS path 與 resume-complete rerun path 都經同一個 `map_next_action` hook）執行：
+
+1. **推進**：對每個 required V work item，若其 `ac_verification` frontmatter 為
+   `status: PASS` 且 `human_disposition: passed`，呼叫既有 canonical task-level writer
+   `scripts/mark-spec-implemented.sh {key} --no-auto-archive`（move → `tasks/pr-release/` +
+   status `IMPLEMENTED`）。不新增第二套判定 / writer path（AC-NEG3）。
+2. **fail-closed 確認**：重讀 canonical V task file state，確認全部 required V 已達
+   canonical terminal contract——位於 `pr-release/` + status `IMPLEMENTED` +
+   `ac_verification` PASS（與 `close-parent-spec-if-complete.sh` 同一契約；單看
+   ac-verification marker 不算數，AC2）。任一未達 → runner 改輸出
+   `terminal_status=blocked_by_gate_failure`，不宣告 complete。
+3. **不推進**：`FAIL` / `MANUAL_REQUIRED` / `UNCERTAIN` / `BLOCKED_ENV` 或缺
+   `human_disposition=passed` 的 V item 一律不動（AC-NEG1）；`ABANDONED` V 沿用
+   close-parent carve-out（留在原位、不阻塞）；T（implementation）task 不在本 gate
+   範圍（AC-NEG2）。
+
+此 gate 是 DP-237「runner read-only」契約的唯一 declared exception：runner 只透過既有
+canonical writer 推進，selftest（`auto-pass-runner-selftest.sh` AC-NEG2 declared-exception
+check）保證該 writer 引用只存在單一 assignment site。Hermetic 覆蓋見
+`scripts/selftests/auto-pass-terminal-v-advance-selftest.sh`。
+
+### Closeout chain
+
 terminal complete 後 closeout chain 不需要使用者另戳 archive：
 
 1. 寫 durable auto-pass report。
 2. 對 terminal parent 呼叫 `scripts/mark-spec-implemented.sh --auto-archive`。
-3. `mark-spec-implemented.sh` 標記 parent `IMPLEMENTED` 後呼叫 `archive-spec.sh`。
-4. 若 terminal path 來自 framework release closeout，`framework-release-closeout.sh` 透過
+3. **Ledger finalize（DP-311 T2）**：`mark-spec-implemented.sh` 的 parent / bare-DP 分支在翻
+   `IMPLEMENTED` **之前**（source 仍 LOCKED）呼叫 `scripts/auto-pass-finalize-ledger.sh`，把
+   本次 closeout 的 ledger（`{container}/artifacts/auto-pass/` 最新一份，或 caller 以
+   `--ledger` 指定）`terminal_status` 推進成 `complete`。這是 deterministic sanctioned
+   writer，不是 LLM prose 步驟（AC-NF1）；fresh-complete 與 paused→resume→complete 共用
+   同一 entry。守則：
+   - non-complete terminal（`loop_cap_reached` / `blocked_by_gate_failure` / `user_aborted` /
+     `paused_for_user_external_write`）與未解除 pause 一律 NOOP，不得改寫成 `complete`
+     （AC-NEG4）。
+   - 已 `IMPLEMENTED` / archived 的 source 重跑為 idempotent NOOP；不對 archived container
+     做 LOCKED-required 寫入，不 migrate frozen archived legacy ledger（AC-NEG5）。
+   - task-level mark-spec-implemented 呼叫（推進單一 task，parent 仍 LOCKED）不觸發
+     finalize（EC7）。
+   - finalize fail-closed（exit 2 + `POLARIS_LEDGER_FINALIZE_*` marker）時 parent 不得翻
+     `IMPLEMENTED`。`validate-auto-pass-ledger.sh` 的 LOCKED precondition 維持嚴格，
+     不新增 relaxation。
+4. `mark-spec-implemented.sh` 標記 parent `IMPLEMENTED` 後呼叫 `archive-spec.sh`。
+5. 若 terminal path 來自 framework release closeout，`framework-release-closeout.sh` 透過
    `close-parent-spec-if-complete.sh --archive-terminal-parent` 進入同一 archive chain。

@@ -1,21 +1,66 @@
 #!/usr/bin/env bash
+# Purpose: validate an auto-pass terminal report JSON against the report
+#          contract (.claude/skills/references/auto-pass-report.md): schema
+#          shape, follow-up DP seed threshold, overlap disposition,
+#          friction_log_summary ledger aggregation, plus DP-311 T3 fail-closed
+#          cross-checks — (a) report.terminal_status=complete ↔ referenced
+#          ledger terminal state; (b) report.verification.status=PASS ↔
+#          head-bound .polaris/evidence/ac-verification/{work_item}-{head}.json
+#          PASS marker (stale summaries are not trusted).
+# Inputs:  $1 = /path/to/report.json. Optional env POLARIS_WORKSPACE_ROOT
+#          overrides the evidence root used for marker lookup (hermetic
+#          selftests); default resolves the main checkout via
+#          scripts/lib/main-checkout.sh from the report location.
+# Outputs: "PASS: ..." on stdout. On failure: error list on stderr; cross-check
+#          violations additionally emit structured POLARIS_AUTO_PASS_REPORT_*
+#          markers and exit 2; schema-only violations exit 1.
 set -euo pipefail
 
 if [[ $# -ne 1 || "$1" == "--help" || "$1" == "-h" ]]; then
   cat >&2 <<'USAGE'
 usage:
   scripts/validate-auto-pass-report.sh /path/to/report.json
+
+env:
+  POLARIS_WORKSPACE_ROOT  override evidence root for head-bound
+                          ac_verification marker lookup (selftests)
 USAGE
   exit 2
 fi
 
-python3 - "$1" <<'PY'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# DP-311 T3: resolve the evidence root for head-bound ac_verification markers.
+# Order: explicit env override → main checkout resolved from the report path
+# (worktree-safe; markers live only in the main checkout) → main checkout
+# resolved from this script's location.
+EVIDENCE_ROOT="${POLARIS_WORKSPACE_ROOT:-}"
+if [[ -z "$EVIDENCE_ROOT" ]]; then
+  # shellcheck source=lib/main-checkout.sh
+  source "$SCRIPT_DIR/lib/main-checkout.sh"
+  report_dir="$(cd "$(dirname "$1")" 2>/dev/null && pwd || true)"
+  if [[ -n "$report_dir" ]]; then
+    EVIDENCE_ROOT="$(resolve_main_checkout "$report_dir" 2>/dev/null || true)"
+  fi
+  if [[ -z "$EVIDENCE_ROOT" ]]; then
+    EVIDENCE_ROOT="$(resolve_main_checkout "$SCRIPT_DIR" 2>/dev/null || true)"
+  fi
+fi
+
+python3 - "$1" "$EVIDENCE_ROOT" <<'PY'
+"""Purpose: auto-pass report contract validation body (see bash header).
+
+Inputs: argv[1]=report path, argv[2]=evidence root ('' when unresolvable).
+Outputs: PASS line on stdout; error list + POLARIS_AUTO_PASS_REPORT_* markers
+on stderr. Exit 2 on cross-check violation, 1 on schema violation.
+"""
 import json
 import re
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
+evidence_root = sys.argv[2] if len(sys.argv) > 2 else ""
 TERMINAL = {
     "complete",
     "paused_for_refinement",
@@ -28,13 +73,32 @@ OVERLAP = {"keep", "narrow", "deprecate-note", "follow-up-sunset"}
 # DP-228 AC4: source-neutral schema. source_id must match resolver-compatible
 # {PREFIX}-NNN — no hard-coded DP regex.
 SOURCE_ID_PATTERN = re.compile(r"[A-Z][A-Z0-9]*-[0-9]+")
+# DP-311 T3: head-bound marker filename suffix — abbreviated or full git sha.
+HEAD_SHA_PATTERN = re.compile(r"[0-9a-f]{7,40}")
+
+# DP-311 T3 structured cross-check markers (exit 2, fail-closed).
+CROSS_LEDGER_UNREADABLE = "POLARIS_AUTO_PASS_REPORT_LEDGER_UNREADABLE"
+CROSS_LEDGER_MISMATCH = "POLARIS_AUTO_PASS_REPORT_LEDGER_TERMINAL_MISMATCH"
+CROSS_MARKER_MISSING = "POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISSING"
+CROSS_MARKER_MISMATCH = "POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISMATCH"
 
 
-def fail(errors):
+def fail(errors, cross_errors=()):
+    """Print the error list (+ structured markers) and exit 2/1.
+
+    Args:
+        errors: schema-level error strings (exit 1 tier).
+        cross_errors: (token, detail) tuples from DP-311 cross-checks
+            (exit 2 tier; each also emits "{token}:{report_path}").
+    """
     print("FAIL: auto-pass report validation", file=sys.stderr)
     for error in errors:
         print(f"  - {error}", file=sys.stderr)
-    raise SystemExit(1)
+    for _token, detail in cross_errors:
+        print(f"  - {detail}", file=sys.stderr)
+    for token, _detail in cross_errors:
+        print(f"{token}:{path}", file=sys.stderr)
+    raise SystemExit(2 if cross_errors else 1)
 
 
 if not path.is_file():
@@ -45,6 +109,7 @@ except Exception as exc:
     fail([f"invalid JSON: {exc}"])
 
 errors = []
+cross_errors = []
 if data.get("schema_version") != 1:
     errors.append("schema_version must be 1")
 report_source_id = data.get("source_id")
@@ -116,6 +181,14 @@ FRICTION_STAGE_ENUM = {"source", "breakdown", "engineering", "verify-AC", "frame
 
 
 def aggregate_friction(entries):
+    """Aggregate ledger friction_log[] into the friction_log_summary shape.
+
+    Args:
+        entries: ledger friction_log list (possibly None).
+
+    Returns:
+        dict with total / by_stage / by_kind counters.
+    """
     summary = {"total": 0, "by_stage": {}, "by_kind": {}}
     for entry in entries or []:
         if not isinstance(entry, dict):
@@ -130,21 +203,36 @@ def aggregate_friction(entries):
     return summary
 
 
-ledger_friction = None
+# Load the referenced ledger once; consumed by the friction_log_summary check
+# and the DP-311 T3 report↔ledger terminal cross-check.
+ledger_payload = None
+ledger_read_error = None
 ledger_path_value = data.get("ledger_path")
 if isinstance(ledger_path_value, str) and ledger_path_value:
     ledger_p = Path(ledger_path_value)
     if ledger_p.is_file():
         try:
-            ledger_payload = json.loads(ledger_p.read_text(encoding="utf-8"))
+            raw_ledger = json.loads(ledger_p.read_text(encoding="utf-8"))
         except Exception as exc:
-            errors.append(f"ledger_path JSON invalid: {exc}")
-            ledger_payload = None
-        if isinstance(ledger_payload, dict):
-            ledger_friction = ledger_payload.get("friction_log") or []
-            if not isinstance(ledger_friction, list):
-                errors.append("ledger friction_log must be an array when present")
-                ledger_friction = []
+            ledger_read_error = f"ledger_path JSON invalid: {exc}"
+            errors.append(ledger_read_error)
+        else:
+            if isinstance(raw_ledger, dict):
+                ledger_payload = raw_ledger
+            else:
+                ledger_read_error = "ledger_path JSON is not an object"
+                errors.append(ledger_read_error)
+    else:
+        ledger_read_error = f"ledger file not found: {ledger_p}"
+else:
+    ledger_read_error = "ledger_path is missing or empty"
+
+ledger_friction = None
+if ledger_payload is not None:
+    ledger_friction = ledger_payload.get("friction_log") or []
+    if not isinstance(ledger_friction, list):
+        errors.append("ledger friction_log must be an array when present")
+        ledger_friction = []
 
 computed_summary = aggregate_friction(ledger_friction) if ledger_friction is not None else None
 declared_summary = data.get("friction_log_summary")
@@ -160,7 +248,116 @@ if declared_summary is not None:
             f"got {json.dumps(declared_summary, sort_keys=True)}"
         )
 
-if errors:
-    fail(errors)
+# ── DP-311 T3 cross-check (a): report complete ↔ ledger terminal (AC5) ──────
+# A complete report must reference a readable ledger whose durable terminal
+# truth is "complete", or the complete-eligible write-time state (terminal
+# null/empty AND no unresolved pause) that scripts/auto-pass-finalize-ledger.sh
+# flips at the mark-spec-implemented parent-flip callsite (D5 ordering: the
+# report write precedes the ledger finalize inside the closeout chain).
+if terminal == "complete":
+    if ledger_payload is None:
+        cross_errors.append((
+            CROSS_LEDGER_UNREADABLE,
+            f"terminal_status=complete but referenced ledger is unreadable ({ledger_read_error})",
+        ))
+    else:
+        ledger_terminal = ledger_payload.get("terminal_status")
+        ledger_pause = ledger_payload.get("pause")
+        if ledger_terminal == "complete":
+            pass
+        elif ledger_terminal in (None, "") and not ledger_pause:
+            pass  # complete-eligible: finalize helper flips this state at parent flip
+        else:
+            pause_kind = ledger_pause.get("kind") if isinstance(ledger_pause, dict) else ledger_pause
+            cross_errors.append((
+                CROSS_LEDGER_MISMATCH,
+                "terminal_status=complete but ledger terminal_status="
+                f"{ledger_terminal!r} (pause={pause_kind!r}) is not complete or complete-eligible",
+            ))
+
+
+def marker_satisfies(marker_path, work_item, pinned_head):
+    """Check one head-bound ac_verification marker file against the report claim.
+
+    Args:
+        marker_path: Path to a {work_item}-{head}.json candidate.
+        work_item: expected work_item_id from report.verification.
+        pinned_head: report.verification.head_sha when declared, else None.
+
+    Returns:
+        True when the marker is a PASS marker consistently bound to the
+        work item (and to pinned_head when declared).
+    """
+    filename_head = marker_path.name[len(work_item) + 1:-len(".json")]
+    try:
+        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    if not isinstance(marker, dict) or marker.get("status") != "PASS":
+        return False
+    if marker.get("work_item_id") not in (None, work_item):
+        return False
+    marker_head = marker.get("head_sha")
+    if marker_head not in (None, filename_head):
+        return False
+    if pinned_head and filename_head != str(pinned_head):
+        return False
+    return True
+
+
+# ── DP-311 T3 cross-check (b): verification PASS ↔ head-bound marker (AC6) ──
+# A PASS verification claim is only trusted when the V work item has a durable
+# head-bound .polaris/evidence/ac-verification/{work_item}-{head}.json PASS
+# marker; the report's own prose/summary is never accepted as evidence.
+if isinstance(verification, dict) and verification.get("status") == "PASS":
+    work_item = verification.get("work_item_id")
+    pinned_head = verification.get("head_sha")
+    if not work_item:
+        cross_errors.append((
+            CROSS_MARKER_MISSING,
+            "verification.status=PASS requires verification.work_item_id to locate the head-bound marker",
+        ))
+    elif not evidence_root:
+        cross_errors.append((
+            CROSS_MARKER_MISSING,
+            "verification.status=PASS but the workspace root for "
+            ".polaris/evidence/ac-verification marker lookup could not be resolved",
+        ))
+    else:
+        marker_dir = Path(evidence_root) / ".polaris" / "evidence" / "ac-verification"
+        if pinned_head is not None and not HEAD_SHA_PATTERN.fullmatch(str(pinned_head)):
+            cross_errors.append((
+                CROSS_MARKER_MISMATCH,
+                f"verification.head_sha must be a 7-40 char hex sha, got {pinned_head!r}",
+            ))
+        else:
+            candidates = []
+            if pinned_head:
+                pinned_path = marker_dir / f"{work_item}-{pinned_head}.json"
+                if pinned_path.is_file():
+                    candidates.append(pinned_path)
+            elif marker_dir.is_dir():
+                prefix = f"{work_item}-"
+                for entry in sorted(marker_dir.iterdir()):
+                    if not entry.name.startswith(prefix) or not entry.name.endswith(".json"):
+                        continue
+                    suffix = entry.name[len(prefix):-len(".json")]
+                    if HEAD_SHA_PATTERN.fullmatch(suffix):
+                        candidates.append(entry)
+            if not candidates:
+                cross_errors.append((
+                    CROSS_MARKER_MISSING,
+                    "verification.status=PASS but no head-bound ac_verification marker "
+                    f"found for {work_item} under {marker_dir}",
+                ))
+            elif not any(marker_satisfies(c, work_item, pinned_head) for c in candidates):
+                cross_errors.append((
+                    CROSS_MARKER_MISMATCH,
+                    f"verification.status=PASS but no head-bound marker for {work_item} "
+                    f"under {marker_dir} is a consistent PASS marker (stale summary is not trusted)",
+                ))
+
+if errors or cross_errors:
+    fail(errors, cross_errors)
 print(f"PASS: auto-pass report validation ({path})")
 PY

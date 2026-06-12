@@ -34,6 +34,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 REFINEMENT_JSON=""
 TASK_ID=""
 REPO_NAME="polaris-framework"
@@ -66,14 +68,15 @@ if [[ ! -f "$REFINEMENT_JSON" ]]; then
   exit 2
 fi
 
-python3 - "$REFINEMENT_JSON" "$TASK_ID" "$REPO_NAME" <<'PY'
+python3 - "$REFINEMENT_JSON" "$TASK_ID" "$REPO_NAME" "$SCRIPT_DIR" <<'PY'
 import json
 import re
+import subprocess
 import sys
 import unicodedata
 from pathlib import Path
 
-refinement_path, task_id, repo_name = sys.argv[1:4]
+refinement_path, task_id, repo_name, script_dir = sys.argv[1:5]
 
 
 def fail(msg, code=2):
@@ -158,10 +161,47 @@ if not verify_detail.strip():
     fail(f"task {task_id} missing verification.detail")
 # verify_command is the executable shell command form (preferred when set);
 # verification.detail remains zh-TW prose used for Scope Trace / Test Plan / Gate
-# rendering. The ## Verify Command fence prefers verify_command and falls back
-# to detail only when verify_command is null (legacy refinement.json shape).
+# rendering.
+#
+# DP-311 T6 (AC8 / AC-NEG7): the unconditional prose fallback is removed. The
+# effective fence command still prefers verify_command and may use detail only
+# when verify_command is null (legacy refinement.json shape predating the
+# field), but BEFORE any task.md body is emitted the effective command must
+# pass the SHARED executability helper
+# (scripts/lib/check-verify-command-executability.sh: bash -n parse +
+# outside-quote CJK detection — the same judgment validate-breakdown-ready.sh
+# runs at readiness time, D9 no second copy). A prose detail (DP-252-T1 family)
+# therefore fail-closes with exit 2 + POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE and
+# derive produces no output; an executable detail / quoted-CJK pattern keeps
+# passing (AC-NEG7 zero false-block).
 verify_command = (verification.get("verify_command") or "").strip()
-verify_command_or_detail = verify_command or verify_detail
+effective_verify_command = verify_command or verify_detail.strip()
+
+
+def check_verify_command_executability(label: str, command_text: str) -> None:
+    """Fail-close derive when the effective verify/test command is not executable bash.
+
+    Args:
+        label: context written into the structured marker (the canonical task id).
+        command_text: the effective command destined for the Verify Command /
+            Test Command fenced blocks.
+
+    Delegates the verdict to the shared helper; on violation, relays the
+    helper's stderr (reasons + POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE marker)
+    and exits 2 without emitting any task.md body.
+    """
+    helper = Path(script_dir) / "lib" / "check-verify-command-executability.sh"
+    if not helper.is_file():
+        fail(f"missing shared executability helper: {helper}")
+    proc = subprocess.run(
+        ["bash", str(helper), "--label", label],
+        input=command_text,
+        text=True,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr)
+        sys.exit(2)
 
 title = str(match["title"]).strip()
 scope = str(match["scope"]).strip()
@@ -425,6 +465,12 @@ depends_on: []
     sys.stdout.write(doc)
     sys.exit(0)
 
+# DP-311 T6 (AC8): T-task bodies carry the effective command in the ## Test
+# Command / ## Verify Command fenced blocks; gate it through the shared
+# executability helper BEFORE building the body, so a violation emits nothing.
+# (V-task bodies have no command fence — the branch above already returned.)
+check_verify_command_executability(task_id, effective_verify_command)
+
 # DP-296 T1/T3: task_shape propagation (T-task only — the V-task branch returned
 # above, AC2). The canonical source is the matched tasks[] entry's first-class
 # `task_shape` field (DP-296 canonicalize; the legacy top-level shape array read
@@ -666,7 +712,7 @@ framework work order；驗收委派給 {source_id}-V1（umbrella regression）�
 |------|---------|----------------|------------------|
 | scope | yes | changed files all match Allowed Files | engineering |
 | test | yes | `{verify_detail}` PASS | engineering |
-| verify | yes | `{verify_command_or_detail}` PASS | engineering |
+| verify | yes | `{effective_verify_command}` PASS | engineering |
 | ci-local | no | N/A | framework repo 無 ci-local |
 
 ## 估點理由
@@ -683,7 +729,7 @@ framework work order；驗收委派給 {source_id}-V1（umbrella regression）�
 ## Test Command
 
 ```bash
-{verify_command_or_detail}
+{effective_verify_command}
 ```
 
 ## Test Environment
@@ -698,7 +744,7 @@ framework work order；驗收委派給 {source_id}-V1（umbrella regression）�
 
 ```bash
 set -euo pipefail
-{verify_command_or_detail}
+{effective_verify_command}
 ```
 """
 

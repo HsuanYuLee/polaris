@@ -318,13 +318,18 @@ engineering 已建立的 workspace PR。
 primary doc 進入 `status: LOCKED` 後，**任何** refinement amendment 都受 LOCKED scope guard
 管制（適用所有 source type）：
 
-| Section | LOCKED 後可改？ | 原因 |
-|---------|------------------|------|
+| Section / Field | LOCKED 後可改？ | 原因 |
+|-----------------|------------------|------|
 | `## Goal` | ❌ 不可 | LOCK 承諾的核心目標 |
 | `## Background` | ❌ 不可 | 鎖定當下的事件脈絡 |
 | `## Decisions` | ❌ 不可 | 鎖定的設計決策 |
 | `## Scope` / `## Out of Scope` | ❌ 不可 | 鎖定的範圍邊界 |
-| `## Acceptance Criteria` | ❌ 不可 | 鎖定的 AC 承諾 |
+| AC 增刪（`acceptance_criteria[].id` 集合變動） | ❌ 不可 | 鎖定的 AC 承諾範圍 |
+| `acceptance_criteria[].id` | ❌ 不可 | per-AC-id 配對的 identity，rename 即 id 集合變動 |
+| `acceptance_criteria[].text` | ❌ 不可 | AC 意圖權威，不得為遷就 implementation 改寫 |
+| `acceptance_criteria[].category` | ❌ 不可 | AC 分類屬 LOCK 承諾 |
+| `acceptance_criteria[].verification.method` | ❌ 不可 | 驗證方法不可變，防 amendment 弱化驗收 |
+| `acceptance_criteria[].verification.detail` | ✅ 可 | 驗證執行細節屬 implementation detail，amendment 可調（DP-311 T5） |
 | `## Technical Approach` | ✅ 可 | implementation detail，可隨 amendment 調 |
 | `## Dependencies` | ✅ 可 | dependency 變動需 amendment 反映 |
 | `## Open Questions` | ✅ 可 | 隨 dogfood 收斂 |
@@ -332,9 +337,12 @@ primary doc 進入 `status: LOCKED` 後，**任何** refinement amendment 都受
 | `tasks/**/*.md` | ✅ 可 | task.md 細節 / Verify Command / Allowed Files 可 amendment |
 
 實際 enforce 由 `scripts/validate-refinement-locked-scope.sh` 負責：amendment commit 的
-`refinement.md` / `refinement.json` diff 對照白名單 section，若觸及 LOCKED section
-（heading 或 JSON `acceptance_criteria` / `goal` / `scope` field）則 exit 2 並輸出
-`POLARIS_LOCKED_SCOPE_VIOLATION` stderr。auto-pass 收到 exit 2 後必須升 terminal
+`refinement.json` diff（JSON authority，DP-298 T2）對照上表，`goal` / `background` /
+`decisions` / `scope` 整欄 deep-compare；`acceptance_criteria` 採 per-AC-id 配對 +
+per-field 比對（DP-311 T5）——AC 增刪、id / text / category / `verification.method`
+任一變更即 exit 2 並輸出 `POLARIS_LOCKED_SCOPE_VIOLATION` stderr；唯一開放欄位是
+`verification.detail`。同筆 AC 同時改 `verification.detail` 與鎖定欄位時整筆 fail，
+不因含合法 detail 變更而放行。auto-pass 收到 exit 2 後必須升 terminal
 `blocked_by_gate_failure`，由人類決定是否走完整 unlock + refinement 流程。
 
 ### 人工 Unlock 流程

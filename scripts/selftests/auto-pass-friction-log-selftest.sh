@@ -220,13 +220,31 @@ if [[ "$total" != "4" ]]; then
 fi
 
 # AC4: report validator computes friction_log_summary from ledger and accepts matching snapshot.
+# DP-311 T3 cross-checks: the complete report must reference a readable
+# complete-eligible ledger (terminal null + no pause — $LEDGER already is) and a
+# head-bound ac_verification PASS marker for DP-999-V1, materialised under a
+# hermetic POLARIS_WORKSPACE_ROOT so the lookup never falls back to the real
+# main checkout.
+REPORT_MARKER_HEAD="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+mkdir -p "$TMP/.polaris/evidence/ac-verification"
+cat >"$TMP/.polaris/evidence/ac-verification/DP-999-V1-${REPORT_MARKER_HEAD}.json" <<JSON
+{
+  "schema_version": 1,
+  "marker_kind": "ac_verification",
+  "writer": "verify-AC",
+  "work_item_id": "DP-999-V1",
+  "head_sha": "${REPORT_MARKER_HEAD}",
+  "status": "PASS"
+}
+JSON
+
 REPORT="$TMP/report.json"
-python3 - "$REPORT" "$LEDGER" <<'PY'
+python3 - "$REPORT" "$LEDGER" "$REPORT_MARKER_HEAD" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-report_path, ledger_path = sys.argv[1], sys.argv[2]
+report_path, ledger_path, marker_head = sys.argv[1], sys.argv[2], sys.argv[3]
 ledger = json.loads(Path(ledger_path).read_text(encoding="utf-8"))
 friction = ledger.get("friction_log", [])
 summary = {"total": 0, "by_stage": {}, "by_kind": {}}
@@ -244,7 +262,7 @@ payload = {
     "created_at": "2026-05-21T11:00:00+08:00",
     "ledger_path": ledger_path,
     "required_prs": [],
-    "verification": {"status": "PASS", "work_item_id": "DP-999-V1"},
+    "verification": {"status": "PASS", "work_item_id": "DP-999-V1", "head_sha": marker_head},
     "issues": [],
     "blockers": [],
     "manual_items": [],
@@ -263,7 +281,7 @@ payload = {
 Path(report_path).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
 
-"$REPORT_VALIDATOR" "$REPORT" >/dev/null
+POLARIS_WORKSPACE_ROOT="$TMP" "$REPORT_VALIDATOR" "$REPORT" >/dev/null
 
 # AC-NEG4: mismatched friction_log_summary must fail.
 BAD_REPORT="$TMP/report-mismatch.json"
@@ -278,7 +296,7 @@ data["friction_log_summary"]["total"] = 999
 Path(dst).write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
 
-if "$REPORT_VALIDATOR" "$BAD_REPORT" >"$TMP/bad-report.out" 2>&1; then
+if POLARIS_WORKSPACE_ROOT="$TMP" "$REPORT_VALIDATOR" "$BAD_REPORT" >"$TMP/bad-report.out" 2>&1; then
   echo "FAIL: report validator accepted mismatched friction_log_summary" >&2
   cat "$TMP/bad-report.out" >&2
   exit 1

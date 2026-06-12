@@ -386,6 +386,7 @@ target = Path(sys.argv[2])
 parse_task_md = script_dir / "parse-task-md.sh"
 validate_task_md = script_dir / "validate-task-md.sh"
 validate_task_md_deps = script_dir / "validate-task-md-deps.sh"
+check_verify_command_executability = script_dir / "lib" / "check-verify-command-executability.sh"
 
 
 def section(text: str, heading: str) -> str:
@@ -757,6 +758,60 @@ def validate_test_command_debug_hygiene(file: Path, text: str) -> list[str]:
     return errors
 
 
+# --- DP-311 T6 (AC8 / AC-NEG7): Verify/Test Command executability gate ---------
+# The ## Verify Command / ## Test Command fenced blocks must be executable bash,
+# not prose (the DP-252-T1 plan defect: zh-TW prose copied verbatim into the
+# fence, exploding only at the verify gate). The verdict comes from the SHARED
+# helper scripts/lib/check-verify-command-executability.sh (bash -n parse +
+# outside-quote CJK detection; quoted CJK patterns stay legal) — the same
+# judgment derive-task-md-from-refinement-json.sh runs at write time (D9: no
+# second copy). A violation is a contract violation: exit 2 with the helper's
+# POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE marker, distinct from the generic
+# exit-1 readiness FAIL. validate-refinement-lock-preflight.sh inherits this
+# gate through its existing delegation to this validator.
+
+VERIFY_COMMAND_NOT_EXECUTABLE_MARKER = "POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE"
+
+
+def validate_command_executability(file: Path, text: str) -> list[str]:
+    """Run the shared executability helper over the Verify/Test Command fences.
+
+    Args:
+        file: the task.md under validation (used as the marker label context).
+        text: the full task.md text.
+
+    Returns:
+        One violation message per non-executable fenced block (empty when both
+        fences are absent or executable). A missing helper is itself a
+        violation (fail-closed), never a silent skip.
+    """
+    violations: list[str] = []
+    if not check_verify_command_executability.is_file():
+        return [
+            f"{file}: missing shared executability helper: {check_verify_command_executability}"
+        ]
+    for heading in ("## Verify Command", "## Test Command"):
+        command = first_fenced_code(section(text, heading))
+        if not command:
+            continue
+        proc = subprocess.run(
+            ["bash", str(check_verify_command_executability), "--label", f"{file}:{heading}"],
+            input=command,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if proc.returncode != 0:
+            reasons = [
+                line for line in (proc.stderr or "").splitlines() if line.strip()
+            ]
+            detail = "; ".join(reasons[:4]) or "executability helper failed"
+            violations.append(
+                f"{file}: {heading} fenced block is not executable bash ({detail})"
+            )
+    return violations
+
+
 def validate_verify_command_specificity(file: Path, text: str) -> list[str]:
     errors: list[str] = []
     verify_command = first_fenced_code(section(text, "## Verify Command"))
@@ -980,8 +1035,20 @@ if target.is_dir():
         raise SystemExit(2)
 
 all_errors: list[str] = []
+# DP-311 T6: executability violations are tracked separately because they are
+# contract violations (exit 2 + structured marker), not generic readiness
+# failures (exit 1). The skip guards mirror validate_one's own.
+executability_violations: list[tuple[Path, str]] = []
 for file in files:
     all_errors.extend(validate_one(file))
+    normalized = str(file)
+    if "/tasks/pr-release/" in normalized or "/archive/" in normalized:
+        continue
+    if task_id_for_file(file) is None:
+        continue
+    file_text = file.read_text(encoding="utf-8")
+    for violation in validate_command_executability(file, file_text):
+        executability_violations.append((file, violation))
 
 if target.is_dir() and validate_task_md_deps.exists():
     deps = subprocess.run(
@@ -992,10 +1059,18 @@ if target.is_dir() and validate_task_md_deps.exists():
     if deps.returncode != 0:
         all_errors.append(f"{target}: validate-task-md-deps.sh failed; fix dependency closure before readiness handoff")
 
-if all_errors:
+if all_errors or executability_violations:
     print("validate-breakdown-ready.sh FAIL", file=sys.stderr)
     for error in all_errors:
         print(f"  - {error}", file=sys.stderr)
+    for _, violation in executability_violations:
+        print(f"  - {violation}", file=sys.stderr)
+    if executability_violations:
+        # Contract violation: structured marker + exit 2 (AC8), one marker per
+        # offending task.md; readiness-only failures keep the legacy exit 1.
+        for offending_file in dict.fromkeys(file for file, _ in executability_violations):
+            print(f"{VERIFY_COMMAND_NOT_EXECUTABLE_MARKER}:{offending_file}", file=sys.stderr)
+        raise SystemExit(2)
     raise SystemExit(1)
 
 print(f"validate-breakdown-ready.sh PASS - {target}")

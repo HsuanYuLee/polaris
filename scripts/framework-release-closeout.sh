@@ -727,6 +727,140 @@ for i in "${!TASK_MDS[@]}"; do
   TASK_PARSER_JSONS+=("$parser_json")
 done
 
+# ---------------------------------------------------------------------------
+# DP-311 T4 (AC3): source-container V task auto-enumeration / idempotent confirm
+# ---------------------------------------------------------------------------
+
+# ac_verification_fields <task-status-file>
+#   Echo "status<TAB>human_disposition" read from the ac_verification
+#   frontmatter block (empty fields when absent / unreadable). Same block-walk
+#   shape as close-parent-spec-if-complete.sh ac_verification_status(),
+#   extended with human_disposition because the advance-eligibility input
+#   needs both fields (mirrors the DP-311 T1 auto-pass-runner reader). This is
+#   an advance-eligibility INPUT reader only — the canonical V terminal
+#   contract (pr-release/ + IMPLEMENTED + ac_verification PASS) stays owned by
+#   close-parent-spec-if-complete.sh (AC-NEG3: no second terminal
+#   determination here).
+ac_verification_fields() {
+  local file="$1"
+  python3 - "$file" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+status = ""
+disposition = ""
+try:
+    text = Path(sys.argv[1]).read_text(encoding="utf-8")
+except OSError:
+    text = ""
+if text.startswith("---\n"):
+    end = text.find("\n---", 4)
+    if end != -1:
+        in_block = False
+        for line in text[4:end].splitlines():
+            if line == "ac_verification:":
+                in_block = True
+                continue
+            if in_block and line and not line.startswith((" ", "-")):
+                break
+            if in_block:
+                match = re.match(r"\s+status:\s*(\S+)", line)
+                if match and not status:
+                    status = match.group(1)
+                match = re.match(r"\s+human_disposition:\s*(\S+)", line)
+                if match and not disposition:
+                    disposition = match.group(1)
+print(f"{status}\t{disposition}")
+PY
+}
+
+# auto_advance_unlisted_v_tasks <source-container>
+#   DP-311 T4 (AC3): before the single Phase-2 parent closeout call, enumerate
+#   V task entries directly from the source container so an operator who
+#   omitted a V task from --task-md does not leave the parent stuck behind
+#   close-parent's active_verification block:
+#     - active V + ac_verification PASS + human_disposition=passed → advance
+#       through the EXISTING canonical task-level writer
+#       mark-spec-implemented.sh (--no-auto-archive; parent archive stays
+#       owned by close-parent-spec-if-complete.sh --archive-terminal-parent).
+#       DP container → fully-qualified DP-NNN-{stem} key (deterministic
+#       Path 3); JIRA Epic container → bare stem key (Path 2), mirroring the
+#       DP-311 T1 runner key construction.
+#     - active V not advance-eligible (FAIL / MANUAL_REQUIRED / UNCERTAIN /
+#       BLOCKED_ENV / missing block / disposition != passed) → never advanced
+#       (AC-NEG1); close-parent keeps blocking the parent (soft-block).
+#     - ABANDONED V → close-parent carve-out preserved: left in place, never
+#       advanced, never blocking.
+#     - V already advanced (tasks/pr-release/) → idempotent confirm only
+#       (NOOP, no writer call, no rewrite); re-running closeout over an
+#       already-advanced V never re-moves it.
+#   No second "V terminal" determination is introduced (AC-NEG3): this helper
+#   only reads advance-eligibility inputs and invokes the existing writer;
+#   terminal-contract enforcement stays with close-parent-spec-if-complete.sh.
+auto_advance_unlisted_v_tasks() {
+  local container="$1"
+  local tasks_dir="${container}/tasks"
+  [[ -d "$tasks_dir" ]] || return 0
+
+  local dp_prefix=""
+  if [[ "$(basename "$(dirname "$container")")" == "design-plans" \
+        && "$(basename "$container")" =~ ^(DP-[0-9]{3})(-|$) ]]; then
+    dp_prefix="${BASH_REMATCH[1]}"
+  fi
+
+  local entry status_file stem key task_status fields ac_status disposition
+  for entry in "$tasks_dir"/V*; do
+    [[ -e "$entry" ]] || continue
+    if [[ -f "$entry" && "$entry" == *.md ]]; then
+      stem="$(basename "${entry%.md}")"
+      status_file="$entry"
+    elif [[ -d "$entry" && -f "$entry/index.md" ]]; then
+      stem="$(basename "$entry")"
+      status_file="$entry/index.md"
+    else
+      continue
+    fi
+    [[ "$stem" =~ ^V[0-9]+[a-z]*$ ]] || continue
+
+    task_status="$(frontmatter_status "$status_file")"
+    if [[ "$task_status" == "ABANDONED" ]]; then
+      info "V enumeration: ${stem} is ABANDONED; close-parent carve-out preserved (left in place)"
+      continue
+    fi
+
+    fields="$(ac_verification_fields "$status_file")"
+    ac_status="${fields%%$'\t'*}"
+    disposition="${fields#*$'\t'}"
+    if [[ "$ac_status" == "PASS" && "$disposition" == "passed" ]]; then
+      key="$stem"
+      [[ -n "$dp_prefix" ]] && key="${dp_prefix}-${stem}"
+      bash "${SCRIPT_DIR}/mark-spec-implemented.sh" "$key" \
+        --workspace "$REPO_ROOT" --no-auto-archive >&2 \
+        || die "V enumeration: mark-spec-implemented failed for ${key}"
+      info "V enumeration: auto-advanced unlisted V task ${key} to canonical terminal (pr-release/ + IMPLEMENTED)"
+    else
+      info "V enumeration: ${stem} not advance-eligible (ac_verification=${ac_status:-absent}, human_disposition=${disposition:-absent}); left active — parent closeout stays blocked by close-parent (AC-NEG1)"
+    fi
+  done
+
+  # Already-advanced V entries need no writer call: re-running closeout over
+  # them is an idempotent confirm (AC3). Terminal-contract enforcement on
+  # pr-release entries stays with close-parent (AC-NEG3).
+  for entry in "$tasks_dir"/pr-release/V*; do
+    [[ -e "$entry" ]] || continue
+    if [[ -f "$entry" && "$entry" == *.md ]]; then
+      stem="$(basename "${entry%.md}")"
+    elif [[ -d "$entry" && -f "$entry/index.md" ]]; then
+      stem="$(basename "$entry")"
+    else
+      continue
+    fi
+    [[ "$stem" =~ ^V[0-9]+[a-z]*$ ]] || continue
+    info "V enumeration: ${stem} already advanced under pr-release/; idempotent confirm (NOOP)"
+  done
+}
+
 # DP-293 T2: close-parent-spec-if-complete.sh exits 2 as an *intentional* block when
 # the parent spec still has active sibling tasks (e.g. a pending verification task).
 # DP-280-T2's two-phase closeout removes the ordering-induced false positive, but the
@@ -952,6 +1086,11 @@ for j in "${!MOVED_TASK_MDS[@]}"; do
       done
       if [[ "$already_closed" -eq 0 ]]; then
         CLOSED_PARENT_CONTAINERS+=("$parent_container")
+        # DP-311 T4 (AC3): enumerate V siblings from the source container before
+        # parent closeout so unlisted-but-eligible V tasks are folded in via the
+        # canonical writer, and already-advanced V tasks are an idempotent
+        # confirm. Non-eligible V tasks stay active and keep the soft-block.
+        auto_advance_unlisted_v_tasks "$parent_container"
         # DP-293 T2 soft-block: the parent may still carry active siblings outside
         # this closeout's --task-md set (e.g. a pending V task); rc==2 must not
         # kill the whole closeout.

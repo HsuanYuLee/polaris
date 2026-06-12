@@ -41,6 +41,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
 SYNC_SPEC_SIDEBAR="${SCRIPT_DIR}/sync-spec-sidebar-metadata.sh"
 ARCHIVE_SPEC="${MARK_SPEC_ARCHIVE_SPEC_BIN:-${SCRIPT_DIR}/archive-spec.sh}"
+FINALIZE_LEDGER="${MARK_SPEC_FINALIZE_LEDGER_BIN:-${SCRIPT_DIR}/auto-pass-finalize-ledger.sh}"
 # shellcheck source=lib/specs-root.sh
 . "$SCRIPT_DIR/lib/specs-root.sh"
 
@@ -190,6 +191,72 @@ MD
   env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" GT-PARENT --workspace "$tmpdir" --no-auto-archive >/dev/null || rc=$?
   [[ "$rc" -eq 0 ]] || { echo "[selftest] parent no-auto-archive failed"; return 1; }
 
+  # DP-311 T7 (AC9): bare-DP 遞迴必須傳 fully-qualified key（container-bound Path 3），
+  # 雙容器同名 stem 時不得 cross-DP 誤標另一個 container 的同名 task。
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-053-bare-dp-qualified-recursion/tasks" \
+           "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-054-sibling-same-stem/tasks"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-053-bare-dp-qualified-recursion/tasks/T9.md" <<'MD'
+# T9: Owning container task (1 pt)
+
+> Source: DP-053 | Task: DP-053-T9 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-053 |
+| Task ID | DP-053-T9 |
+| Task branch | task/DP-053-T9-owning |
+MD
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-054-sibling-same-stem/tasks/T9.md" <<'MD'
+# T9: Sibling container task with same stem (1 pt)
+
+> Source: DP-054 | Task: DP-054-T9 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-054 |
+| Task ID | DP-054-T9 |
+| Task branch | task/DP-054-T9-sibling |
+MD
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-053-bare-dp-qualified-recursion/index.md" <<'MD'
+---
+title: "DP-053"
+status: LOCKED
+---
+
+# DP-053
+MD
+
+  rc=0
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" DP-053 --workspace "$tmpdir" >/dev/null || rc=$?
+  [[ "$rc" -eq 0 ]] || { echo "[selftest] bare DP qualified-key recursion failed"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-053-bare-dp-qualified-recursion/tasks/pr-release/T9.md" ]] || { echo "[selftest] owning container T9 pr-release missing"; return 1; }
+  grep -q '^status: IMPLEMENTED$' "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-053-bare-dp-qualified-recursion/tasks/pr-release/T9.md" || { echo "[selftest] owning container T9 status missing"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-054-sibling-same-stem/tasks/T9.md" ]] || { echo "[selftest] sibling container T9 was moved (cross-DP mis-mark)"; return 1; }
+  [[ ! -e "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-054-sibling-same-stem/tasks/pr-release/T9.md" ]] || { echo "[selftest] sibling container T9 leaked into pr-release"; return 1; }
+
+  # DP-311 T7 (AC-NEG8): Path 2 bare task key 多 match（跨 container 同名 stem）必須
+  # fail-closed 並列出全部候選，不得取 first match。
+  rc=0
+  multi_match_out="$(env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" T9 --workspace "$tmpdir" 2>&1)" || rc=$?
+  [[ "$rc" -ne 0 ]] || { echo "[selftest] bare task key with multiple matches did not fail closed"; return 1; }
+  printf '%s\n' "$multi_match_out" | grep -q 'DP-053-bare-dp-qualified-recursion/tasks/pr-release/T9.md' || { echo "[selftest] multi-match candidate list missing DP-053 T9"; return 1; }
+  printf '%s\n' "$multi_match_out" | grep -q 'DP-054-sibling-same-stem/tasks/T9.md' || { echo "[selftest] multi-match candidate list missing DP-054 T9"; return 1; }
+
+  # DP-311 T7: 同 container 的 active + pr-release 同內容是單一 identity，
+  # 仍走既有 idempotent reconciliation，不得被多 match fail-closed 誤擋。
+  cp "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-001/tasks/pr-release/T2.md" \
+     "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-001/tasks/T2.md"
+  rc=0
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" T2 --workspace "$tmpdir" >/dev/null 2>&1 || rc=$?
+  [[ "$rc" -eq 0 ]] || { echo "[selftest] same-container dual-presence reconciliation regressed"; return 1; }
+  [[ ! -f "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-001/tasks/T2.md" ]] || { echo "[selftest] active duplicate T2 not reconciled"; return 1; }
+
   echo "[selftest] PASS"
 }
 
@@ -294,6 +361,23 @@ sync_parent_sidebar_metadata() {
   local file="$1"
   [[ -x "$SYNC_SPEC_SIDEBAR" ]] || return 0
   bash "$SYNC_SPEC_SIDEBAR" --apply "$file" >/dev/null
+}
+
+# Description: DP-311 T2 — 在 parent 翻 IMPLEMENTED 之前（source 仍 LOCKED 階段），把
+#   對應 auto-pass ledger 的 terminal_status 推進成 complete。只在 parent / bare-DP 分支
+#   觸發（task-level path 不觸發，EC7）；non-complete terminal / 未解除 pause / archived /
+#   已 IMPLEMENTED 由 helper 自身判定 NOOP。helper exit 非 0 時 fail-stop，parent 不得翻面。
+# Args:        $1 = source container 絕對路徑；$2 = parent anchor 檔案路徑
+# Side effects: 可能改寫 {container}/artifacts/auto-pass/ 最新 ledger 的 terminal_status
+finalize_auto_pass_ledger_before_flip() {
+  local container="$1"
+  local anchor="$2"
+  [ "$STATUS" = "IMPLEMENTED" ] || return 0
+  if [ ! -f "$FINALIZE_LEDGER" ]; then
+    echo "POLARIS_TOOL_MISSING:auto-pass-finalize-ledger.sh (${FINALIZE_LEDGER})" >&2
+    return 1
+  fi
+  bash "$FINALIZE_LEDGER" --source-container "$container" --anchor "$anchor" --source-id "$TICKET"
 }
 
 auto_archive_parent_if_terminal() {
@@ -424,11 +508,32 @@ if [ -z "$ANCHOR" ] && echo "$TICKET" | grep -qE '^DP-[0-9]{3}$'; then
   fi
 fi
 
+# Description: 解析 task 檔案（T1.md / T1/index.md，含 pr-release/ 變體）所屬的
+#   normalized tasks/ 目錄（pr-release 折回上層 tasks/），輸出到 stdout。
+#   同一 task 的 active 與 pr-release 變體會 normalize 成同一個目錄（同一 identity）。
+# Args:        $1 = task 檔案絕對路徑
+# Side effects: 無（read-only）
+resolve_task_identity_dir() {
+  local file="$1"
+  local dir
+  dir="$(dirname "$file")"
+  if [ "$(basename "$file")" = "index.md" ]; then
+    dir="$(dirname "$dir")"
+  fi
+  if [ "$(basename "$dir")" = "pr-release" ]; then
+    dir="$(dirname "$dir")"
+  fi
+  printf '%s' "$dir"
+}
+
 # Path 2 — Task key (T{n}/V{n}) — look up by filename in active tasks/ or pr-release/
 if [ -z "$ANCHOR" ] && is_task_key "$TICKET"; then
   # Search for T{n}[suffix].md or V{n}[suffix].md in tasks/ directories
   # The key is the "stem" (e.g., T1 matches T1.md but not T10.md).
   # We match: tasks/{TICKET}.md  or  tasks/pr-release/{TICKET}.md
+  # DP-311 T7 (AC-NEG8): collect ALL matches first; resolving to more than one task
+  # identity (distinct normalized tasks/ dirs) is fail-closed — do not take first match.
+  task_key_matches=()
   while IFS= read -r f; do
     bname="$(basename "$f")"
     if [ "$bname" = "index.md" ]; then
@@ -437,8 +542,7 @@ if [ -z "$ANCHOR" ] && is_task_key "$TICKET"; then
       stem="${bname%.md}"
     fi
     if [ "$stem" = "$TICKET" ]; then
-      set_task_anchor_from_file "$f"
-      break
+      task_key_matches+=("$f")
     fi
   done < <(find "$SPECS_ROOT" \
     \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
@@ -447,7 +551,22 @@ if [ -z "$ANCHOR" ] && is_task_key "$TICKET"; then
       -o -path "*/tasks/${TICKET}/index.md" \
       -o -path "*/tasks/pr-release/${TICKET}.md" \
       -o -path "*/tasks/pr-release/${TICKET}/index.md" \
-    \) -print \) 2>/dev/null)
+    \) -print \) 2>/dev/null | sort)
+  if [ "${#task_key_matches[@]}" -gt 0 ]; then
+    # active + pr-release of the SAME task normalize to one identity (the existing
+    # downstream same-key reconciliation handles that pair); distinct containers
+    # with the same stem are distinct identities and must fail closed.
+    identity_count="$(for f in "${task_key_matches[@]}"; do resolve_task_identity_dir "$f"; printf '\n'; done | sort -u | grep -c .)"
+    if [ "$identity_count" -gt 1 ]; then
+      echo "ERROR: task key $TICKET resolved to multiple matches:" >&2
+      for f in "${task_key_matches[@]}"; do
+        echo "  $f" >&2
+      done
+      echo "  Use a fully-qualified key (e.g., DP-NNN-${TICKET}) or a JIRA key to disambiguate." >&2
+      exit 1
+    fi
+    set_task_anchor_from_file "${task_key_matches[0]}"
+  fi
 fi
 
 # Path 3 — DP task key (DP-NNN-Tn / DP-NNN-Vn) — look up by DP folder + task filename
@@ -508,6 +627,8 @@ fi
 # Epic anchor — existing in-place update (behavior unchanged)
 # ---------------------------------------------------------------------------
 if [ "$ANCHOR_TYPE" = "epic" ]; then
+  # DP-311 T2: ledger finalize 必須在 parent 翻 IMPLEMENTED 之前（仍 LOCKED）執行
+  finalize_auto_pass_ledger_before_flip "$(dirname "$ANCHOR")" "$ANCHOR"
   existing_status="$(get_existing_status "$ANCHOR")"
   if [ "$existing_status" = "$STATUS" ]; then
     sync_parent_sidebar_metadata "$ANCHOR"
@@ -568,9 +689,12 @@ if [ "$ANCHOR_TYPE" = "bare_dp" ]; then
       # Recursively invoke this script in per-task mode so move-first + frontmatter
       # update logic stays in one place. We disable auto-archive here because the
       # bare-DP flow archives the parent container after all tasks finish.
-      env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" "$stem" \
+      # DP-311 T7 (AC9): pass the fully-qualified key (DP-NNN-{stem}) so the recursion
+      # resolves container-bound via Path 3 — a bare stem would fall into Path 2's
+      # global find and could mis-mark a same-stem task in another container.
+      env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" "${TICKET}-${stem}" \
         --workspace "$WORKSPACE_ROOT" --no-auto-archive >/dev/null || {
-          echo "ERROR: failed to mark task ${stem} IMPLEMENTED under ${BARE_DP_CONTAINER}" >&2
+          echo "ERROR: failed to mark task ${TICKET}-${stem} IMPLEMENTED under ${BARE_DP_CONTAINER}" >&2
           exit 1
         }
     done < <(find "$tasks_dir" -mindepth 1 -maxdepth 1 \
@@ -578,6 +702,9 @@ if [ "$ANCHOR_TYPE" = "bare_dp" ]; then
          -o -type d -name 'T*' -o -type d -name 'V*' \) \
       \! -name 'pr-release' 2>/dev/null | sort)
   fi
+
+  # DP-311 T2: ledger finalize 必須在 parent 翻 IMPLEMENTED 之前（仍 LOCKED）執行
+  finalize_auto_pass_ledger_before_flip "$BARE_DP_CONTAINER" "$ANCHOR"
 
   # Update parent anchor status
   existing_status="$(get_existing_status "$ANCHOR")"

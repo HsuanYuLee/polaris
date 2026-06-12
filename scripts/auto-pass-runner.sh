@@ -12,10 +12,19 @@
 # auto-pass-probe, validate-auto-pass-ledger). Those are implementation
 # detail; the orchestrator contract is the JSON shape below.
 #
-# The runner is read-only:
+# The runner is read-only, with one declared exception:
 # - It NEVER calls release, deploy, merge, or any code mutation.
 # - It NEVER writes task.md, refinement.md, refinement.json, or any
-#   workflow artifact.
+#   workflow artifact — EXCEPT the DP-311 Terminal Complete Sequence:
+#   before declaring terminal_status=complete it advances every required V
+#   work item whose ac_verification block is PASS with
+#   human_disposition=passed through the existing canonical task-level
+#   writer scripts/mark-spec-implemented.sh (move → tasks/pr-release/ +
+#   status IMPLEMENTED), then fail-closed confirms every required V work
+#   item reached the canonical terminal contract (pr-release/ + IMPLEMENTED
+#   + ac_verification PASS, same contract as
+#   close-parent-spec-if-complete.sh). Any miss downgrades the result to
+#   blocked_by_gate_failure instead of complete.
 # - It NEVER reads inner-skill prose ("PASS" text) to escalate status;
 #   missing / UNKNOWN markers are always blocked_by_gate_failure.
 #
@@ -144,6 +153,7 @@ export PROBE_OUTPUT_RAW
 python3 - "$STAGE" "$SOURCE_ID" "$WORK_ITEM_ID" "$HEAD_SHA" "$LEDGER" "$PROBE_RC" "$LEDGER_VALIDATOR" "$REPO" <<'PY'
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -171,6 +181,226 @@ else:
 def emit(payload):
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     raise SystemExit(0)
+
+
+# ── DP-311 T1: Terminal Complete Sequence ────────────────────────────────────
+# Before the runner declares terminal_status=complete (fresh verify-AC PASS and
+# the resume-complete rerun of the same stage), it must:
+#   (a) advance every required V work item whose ac_verification frontmatter is
+#       PASS with human_disposition=passed through the existing canonical
+#       task-level writer scripts/mark-spec-implemented.sh, and
+#   (b) fail-closed confirm that every required V work item reached the
+#       canonical terminal contract — pr-release/ + status IMPLEMENTED +
+#       ac_verification PASS — the single contract owned by
+#       close-parent-spec-if-complete.sh (AC-NEG3: no second contract; this
+#       gate only invokes the existing writer and re-reads the same canonical
+#       V task file state, never the ac-verification marker alone).
+# Non-PASS verdicts (FAIL / MANUAL_REQUIRED / UNCERTAIN / BLOCKED_ENV) are
+# never advanced (AC-NEG1). ABANDONED V siblings keep the close-parent
+# carve-out: left in place, not blocking. T (implementation) tasks are never
+# touched (AC-NEG2).
+
+V_STEM_RE = re.compile(r"^V\d+[a-z]*$")
+# Resolver lookup mirrors auto-pass-probe.sh resolve_source timeout budget.
+RESOLVER_TIMEOUT_SECONDS = 5.0
+# mark-spec-implemented does frontmatter rewrite + directory move; generous cap.
+MARK_SPEC_TIMEOUT_SECONDS = 30.0
+
+
+def read_frontmatter_lines(path):
+    """Return frontmatter lines of a markdown file, or [] when absent/unreadable."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    if not text.startswith("---\n"):
+        return []
+    end = text.find("\n---", 4)
+    if end == -1:
+        return []
+    return text[4:end].splitlines()
+
+
+def frontmatter_status(path):
+    """Read the top-level `status:` frontmatter field (empty string when absent)."""
+    for line in read_frontmatter_lines(path):
+        if line.startswith("status:"):
+            return line.split(":", 1)[1].strip().strip('"').strip("'")
+    return ""
+
+
+def ac_verification_fields(path):
+    """Read (status, human_disposition) from the ac_verification frontmatter block.
+
+    Same block-walk shape as close-parent-spec-if-complete.sh
+    ac_verification_status(); extended with human_disposition because the
+    advance-eligibility input needs both fields.
+    """
+    status = ""
+    disposition = ""
+    in_block = False
+    for line in read_frontmatter_lines(path):
+        if line == "ac_verification:":
+            in_block = True
+            continue
+        if in_block and line and not line.startswith((" ", "-")):
+            break
+        if in_block:
+            match = re.match(r"\s+status:\s*(\S+)", line)
+            if match and not status:
+                status = match.group(1)
+            match = re.match(r"\s+human_disposition:\s*(\S+)", line)
+            if match and not disposition:
+                disposition = match.group(1)
+    return status, disposition
+
+
+def v_entry_status_file(entry):
+    """Map a V task entry (file or folder-native dir) to its status file."""
+    return entry / "index.md" if entry.is_dir() else entry
+
+
+def list_v_entries(directory):
+    """List V task entries (legacy V1.md and folder-native V1/) in a directory."""
+    if not directory.is_dir():
+        return []
+    entries = []
+    for child in sorted(directory.iterdir()):
+        if child.name == "pr-release":
+            continue
+        if child.is_file() and child.suffix == ".md" and V_STEM_RE.match(child.stem):
+            entries.append(child)
+        elif child.is_dir() and V_STEM_RE.match(child.name) and (child / "index.md").is_file():
+            entries.append(child)
+    return entries
+
+
+def v_entry_stem(entry):
+    return entry.name if entry.is_dir() else entry.stem
+
+
+def gate_blocked(reason, evidence_path=None):
+    """Build the blocked_by_gate_failure replacement payload for the V gate."""
+    return {
+        "status": "BLOCKED",
+        "terminal_status": "blocked_by_gate_failure",
+        "next_action": "blocked",
+        "next_skill": None,
+        "next_work_item_id": None,
+        "evidence_path": str(evidence_path) if evidence_path else None,
+        "reason": reason,
+    }
+
+
+def terminal_complete_v_gate(repo_path, scripts_dir):
+    """Run the Terminal Complete Sequence; return a blocked payload or None.
+
+    None means the gate passed (or is vacuous: no source tasks/ directory or
+    no V work items at all — the breakdown missing_v_task gate owns that case)
+    and the caller may keep terminal_status=complete.
+    """
+    resolver = scripts_dir / "spec-source-resolver.sh"
+    mark_spec = scripts_dir / "mark-spec-implemented.sh"
+    for required in (resolver, mark_spec):
+        if not required.is_file():
+            return gate_blocked(f"terminal complete gate: helper missing: {required}")
+
+    specs_root = repo_path / "docs-manager" / "src" / "content" / "docs" / "specs"
+    cmd = ["bash", str(resolver), "--source-id", source_id]
+    if specs_root.is_dir():
+        cmd.extend(["--specs-root", str(specs_root)])
+    try:
+        proc = subprocess.run(
+            cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=RESOLVER_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        return gate_blocked(f"terminal complete gate: resolver invocation failed: {exc}")
+    if proc.returncode != 0:
+        stderr_text = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
+        return gate_blocked(
+            "terminal complete gate: source resolver failed: "
+            + (stderr_text or f"exit {proc.returncode}")
+        )
+    try:
+        resolved = json.loads(proc.stdout.decode("utf-8"))
+    except Exception as exc:
+        return gate_blocked(f"terminal complete gate: resolver output not JSON: {exc}")
+
+    container = Path(resolved.get("container") or "")
+    if not container.is_dir():
+        return gate_blocked("terminal complete gate: resolved container missing", container)
+    tasks_dir = container / "tasks"
+    pr_release_dir = tasks_dir / "pr-release"
+
+    active_v = list_v_entries(tasks_dir)
+    pr_release_v = list_v_entries(pr_release_dir)
+    if not active_v and not pr_release_v:
+        # Vacuous: source has no V work items on disk. Missing V coverage is
+        # the breakdown missing_v_task gate's responsibility, not this gate's.
+        return None
+
+    # DP container → fully-qualified DP-NNN-{stem} key (deterministic Path 3 in
+    # mark-spec-implemented). JIRA Epic container → bare stem key (Path 2).
+    dp_match = re.match(r"^(DP-\d{3})(?:-|$)", container.name)
+    dp_prefix = dp_match.group(1) if (dp_match and container.parent.name == "design-plans") else None
+
+    # (a) Advance eligible V work items through the canonical writer.
+    for entry in active_v:
+        status_file = v_entry_status_file(entry)
+        if frontmatter_status(status_file) == "ABANDONED":
+            continue
+        ac_status, disposition = ac_verification_fields(status_file)
+        if ac_status != "PASS" or disposition != "passed":
+            continue
+        stem = v_entry_stem(entry)
+        key = f"{dp_prefix}-{stem}" if dp_prefix else stem
+        try:
+            proc = subprocess.run(
+                ["bash", str(mark_spec), key, "--workspace", str(repo_path), "--no-auto-archive"],
+                check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=MARK_SPEC_TIMEOUT_SECONDS,
+            )
+        except Exception as exc:
+            return gate_blocked(
+                f"terminal complete gate: mark-spec-implemented invocation failed for {key}: {exc}",
+                status_file,
+            )
+        if proc.returncode != 0:
+            stderr_text = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
+            return gate_blocked(
+                f"terminal complete gate: mark-spec-implemented failed for {key}: "
+                + (stderr_text or f"exit {proc.returncode}"),
+                status_file,
+            )
+
+    # (b) Fail-closed confirmation: every required V must now sit at the
+    # canonical terminal. The ac-verification marker alone never satisfies
+    # this check (AC2).
+    remaining = [
+        entry for entry in list_v_entries(tasks_dir)
+        if frontmatter_status(v_entry_status_file(entry)) != "ABANDONED"
+    ]
+    if remaining:
+        names = ", ".join(v_entry_stem(entry) for entry in remaining)
+        return gate_blocked(
+            f"terminal complete blocked: required V work item(s) not at canonical terminal: {names}",
+            v_entry_status_file(remaining[0]),
+        )
+    for entry in list_v_entries(pr_release_dir):
+        status_file = v_entry_status_file(entry)
+        if frontmatter_status(status_file) != "IMPLEMENTED":
+            return gate_blocked(
+                f"terminal complete blocked: pr-release V {v_entry_stem(entry)} status is not IMPLEMENTED",
+                status_file,
+            )
+        ac_status, _ = ac_verification_fields(status_file)
+        if ac_status != "PASS":
+            return gate_blocked(
+                f"terminal complete blocked: pr-release V {v_entry_stem(entry)} ac_verification is not PASS",
+                status_file,
+            )
+    return None
 
 
 # Stage → expected next skill on PASS (forward dispatch).
@@ -359,6 +589,17 @@ if ledger_resume is not None:
     })
 
 mapped = map_next_action(probe_status, probe_terminal, probe_next, probe_evidence, probe_reason)
+
+# DP-311 T1: every path that would emit terminal_status=complete (fresh
+# verify-AC PASS and the resume-complete rerun) funnels through map_next_action,
+# so the Terminal Complete Sequence gate hooks here exactly once.
+if mapped.get("terminal_status") == "complete":
+    # ledger_validator lives in the same scripts/ directory as this runner,
+    # spec-source-resolver.sh and mark-spec-implemented.sh.
+    gate_result = terminal_complete_v_gate(Path(repo).resolve(), Path(ledger_validator).parent)
+    if gate_result is not None:
+        mapped = gate_result
+
 payload = {
     "schema_version": 1,
     "source_id": source_id,

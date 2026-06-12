@@ -1137,9 +1137,164 @@ if ! head -1 "$SCRIPT" | grep -q 'env bash'; then
   echo "FAIL [case 21 / DP-269 AC5]: derive script shebang changed" >&2
   exit 1
 fi
-if grep -E '^[[:space:]]*(import|from)[[:space:]]' "$SCRIPT" | grep -vqE '^[[:space:]]*(import|from)[[:space:]]+(json|re|sys|unicodedata|pathlib|hashlib|datetime)'; then
+# subprocess joined the allowlist with DP-311 T6: derive delegates the verify
+# command executability verdict to the shared helper via subprocess (stdlib).
+if grep -E '^[[:space:]]*(import|from)[[:space:]]' "$SCRIPT" | grep -vqE '^[[:space:]]*(import|from)[[:space:]]+(json|re|subprocess|sys|unicodedata|pathlib|hashlib|datetime)'; then
   echo "FAIL [case 21 / DP-269 AC5]: derive script imports a non-stdlib module" >&2
   grep -E '^[[:space:]]*(import|from)[[:space:]]' "$SCRIPT" >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Case 22 (DP-311 AC8): the DP-252-T1 original prose detail (no verify_command)
+# must fail-close — exit 2, POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE marker, and
+# NO task.md body on stdout (the prose fallback is removed).
+# ---------------------------------------------------------------------------
+prose_json="$tmpdir/refinement-dp252-prose.json"
+cat >"$prose_json" <<'JSON'
+{
+  "source": {
+    "type": "dp",
+    "id": "DP-999",
+    "container": "/tmp/dp-999",
+    "plan_path": "/tmp/dp-999/index.md",
+    "jira_key": null
+  },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "DP-999-T1",
+      "kind": "implementation",
+      "title": "prose verify command task",
+      "scope": "驗證 prose Verify Command 會被 derive fail-closed 攔下。",
+      "allowed_files": ["scripts/sample.sh"],
+      "modules": ["scripts/sample.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "set -euo pipefail\n檔案 existence + frontmatter assert + 5 H2 sections grep + language table 4 rows + 每 row code block fence\n+ Don't/Do >= 2 對 + grandfather/new-modified/modified-邊界 wording + advisory/reviewer-signoff/mechanism-registry\npointer wording + wc -l <= 500 + 2 個 gate replay"
+      }
+    }
+  ]
+}
+JSON
+
+prose_out="$tmpdir/prose-t1.md"
+prose_err="$tmpdir/prose-t1.err"
+set +e
+bash "$SCRIPT" --refinement-json "$prose_json" --task-id "DP-999-T1" >"$prose_out" 2>"$prose_err"
+prose_rc=$?
+set -e
+if [[ "$prose_rc" -ne 2 ]]; then
+  echo "FAIL [case 22 / DP-311 AC8]: derive must exit 2 on DP-252-T1 prose verify command (got rc=$prose_rc)" >&2
+  cat "$prose_err" >&2
+  exit 1
+fi
+if ! grep -q 'POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE' "$prose_err"; then
+  echo "FAIL [case 22 / DP-311 AC8]: derive stderr missing POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE marker" >&2
+  cat "$prose_err" >&2
+  exit 1
+fi
+if [[ -s "$prose_out" ]]; then
+  echo "FAIL [case 22 / DP-311 AC8]: derive emitted a task.md body despite the executability violation" >&2
+  cat "$prose_out" >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Case 23 (DP-311 AC8 / EC11): CJK prose that bash -n happily parses (a CJK
+# bare word becomes a command name) must still fail-close — the outside-quote
+# CJK check is the primary interceptor, applied to verify_command too.
+# ---------------------------------------------------------------------------
+cjk_cmd_json="$tmpdir/refinement-cjk-command.json"
+cat >"$cjk_cmd_json" <<'JSON'
+{
+  "source": {
+    "type": "dp",
+    "id": "DP-999",
+    "container": "/tmp/dp-999",
+    "plan_path": "/tmp/dp-999/index.md",
+    "jira_key": null
+  },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "DP-999-T1",
+      "kind": "implementation",
+      "title": "cjk bare word verify command task",
+      "scope": "驗證 bash -n 可 parse 的 CJK prose 仍被 quote 外 CJK 檢查攔下。",
+      "allowed_files": ["scripts/sample.sh"],
+      "modules": ["scripts/sample.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "bash scripts/selftests/sample-selftest.sh",
+        "verify_command": "檔案 existence + frontmatter assert"
+      }
+    }
+  ]
+}
+JSON
+
+cjk_cmd_err="$tmpdir/cjk-cmd.err"
+set +e
+bash "$SCRIPT" --refinement-json "$cjk_cmd_json" --task-id "DP-999-T1" >/dev/null 2>"$cjk_cmd_err"
+cjk_cmd_rc=$?
+set -e
+if [[ "$cjk_cmd_rc" -ne 2 ]] || ! grep -q 'POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE' "$cjk_cmd_err"; then
+  echo "FAIL [case 23 / DP-311 AC8]: bash-parseable CJK prose verify_command must exit 2 with marker (got rc=$cjk_cmd_rc)" >&2
+  cat "$cjk_cmd_err" >&2
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Case 24 (DP-311 AC-NEG7): a verify_command with a quoted CJK grep pattern is
+# legal — derive must succeed and render the pattern verbatim in the fences.
+# ---------------------------------------------------------------------------
+quoted_cjk_json="$tmpdir/refinement-quoted-cjk.json"
+cat >"$quoted_cjk_json" <<'JSON'
+{
+  "source": {
+    "type": "dp",
+    "id": "DP-999",
+    "container": "/tmp/dp-999",
+    "plan_path": "/tmp/dp-999/index.md",
+    "jira_key": null
+  },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "DP-999-T1",
+      "kind": "implementation",
+      "title": "quoted cjk verify command task",
+      "scope": "驗證 quoted CJK grep pattern 是合法可執行命令、零誤擋。",
+      "allowed_files": ["scripts/sample.sh"],
+      "modules": ["scripts/sample.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "bash scripts/selftests/sample-selftest.sh",
+        "verify_command": "grep -q '既有未動' .claude/rules/handbook/code-documentation-conventions.md && bash scripts/selftests/sample-selftest.sh"
+      }
+    }
+  ]
+}
+JSON
+
+quoted_cjk_out="$tmpdir/quoted-cjk-t1.md"
+bash "$SCRIPT" --refinement-json "$quoted_cjk_json" --task-id "DP-999-T1" >"$quoted_cjk_out" || {
+  echo "FAIL [case 24 / DP-311 AC-NEG7]: quoted CJK grep pattern verify_command was falsely blocked" >&2
+  exit 1
+}
+if ! grep -qF -- "grep -q '既有未動'" "$quoted_cjk_out"; then
+  echo "FAIL [case 24 / DP-311 AC-NEG7]: quoted CJK pattern not rendered verbatim in derived task.md" >&2
+  cat "$quoted_cjk_out" >&2
   exit 1
 fi
 
