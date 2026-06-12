@@ -122,6 +122,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/auto-pass-finalize-ledger.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/auto-pass-finalize-ledger-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/auto-pass-increment-counter.sh",
       "kind": "writer",
       "runner": "bash",

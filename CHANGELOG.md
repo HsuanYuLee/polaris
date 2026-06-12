@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.8] - 2026-06-12
+
+### Changed
+
+- 6ecf6e3: detect-closeout-drift 新增 V-task 驗收 read-only gate 與 selftest V-task 案例
+- 9038545: mark-spec-implemented archive 容器 folder-native anchor 解析與 embedded selftest 案例
+
 ## [3.76.7] - 2026-06-12
 
 ### Changed

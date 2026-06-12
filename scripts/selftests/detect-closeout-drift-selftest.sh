@@ -34,6 +34,20 @@
 #             (open delivery PR wins; no premature archive of stacked delivery).
 #   in:title precision — PR search scoped to title so body cross-references
 #             are not counted as the DP's own delivery PR.
+#
+# DP-310 T1 additions (V-task verification read-only gate):
+#   AC1     — active V anchor with ac_verification.status != PASS (incl. missing
+#             ac_verification block, treated not-PASS) holds the DP at in-flight
+#             even with complete T markers + merged PR; report flags
+#             evidence.verification_pending=true; --apply does not call
+#             mark-spec-implemented (V-active-not-PASS, V-missing-ac-block).
+#   AC2     — active V anchor ac_verification.status == PASS, or a V anchor
+#             already in tasks/pr-release/, does NOT block closeout =>
+#             delivered-drift-high + mark-spec-implemented invoked
+#             (V-PASS, V-in-pr-release).
+#   AC-NEG3 — the V gate is read-only: the detector never mutates V anchor
+#             frontmatter / location; the only closeout writer is still
+#             mark-spec-implemented.sh (V-gate-read-only).
 
 set -euo pipefail
 
@@ -98,6 +112,58 @@ task_shape: implementation
 EOF
   done
   printf '%s\n' "$container"
+}
+
+# Add an active folder-native V anchor (tasks/V{n}/index.md) to an existing DP
+# container, with a chosen ac_verification.status. Pass status="" to OMIT the
+# ac_verification block entirely (missing-block case => treated not-PASS).
+# Usage: make_active_v_anchor <container> <V-num> <ac_status|"">
+make_active_v_anchor() {
+  local container="$1" vnum="$2" ac_status="$3"
+  mkdir -p "$container/tasks/V${vnum}"
+  if [[ -n "$ac_status" ]]; then
+    cat >"$container/tasks/V${vnum}/index.md" <<EOF
+---
+title: "V${vnum}"
+status: IN_PROGRESS
+task_kind: V
+ac_verification:
+  status: ${ac_status}
+---
+
+# V${vnum}
+EOF
+  else
+    cat >"$container/tasks/V${vnum}/index.md" <<EOF
+---
+title: "V${vnum}"
+status: IN_PROGRESS
+task_kind: V
+---
+
+# V${vnum}
+EOF
+  fi
+}
+
+# Add a V anchor already moved to tasks/pr-release/V{n}/index.md (historically
+# closed out / verified). Such anchors are treated as completed and must NOT
+# block delivered-drift-high.
+# Usage: make_pr_release_v_anchor <container> <V-num>
+make_pr_release_v_anchor() {
+  local container="$1" vnum="$2"
+  mkdir -p "$container/tasks/pr-release/V${vnum}"
+  cat >"$container/tasks/pr-release/V${vnum}/index.md" <<EOF
+---
+title: "V${vnum}"
+status: IMPLEMENTED
+task_kind: V
+ac_verification:
+  status: PASS
+---
+
+# V${vnum}
+EOF
 }
 
 # Write a completion-gate marker for a DP task.
@@ -214,6 +280,23 @@ for item in data.get("results", []):
         break
 else:
     print("__ABSENT__")
+PY
+}
+
+# Echo the evidence.verification_pending boolean for a DP ("true"/"false"/"").
+verification_pending_of() {
+  local json="$1" dp="$2"
+  python3 - "$json" "$dp" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+dp = sys.argv[2]
+for item in data.get("results", []):
+    if item.get("dp") == dp:
+        val = item.get("evidence", {}).get("verification_pending")
+        print("true" if val is True else ("false" if val is False else ""))
+        break
+else:
+    print("")
 PY
 }
 
@@ -565,6 +648,210 @@ test_active_locked_only() {
 }
 
 # ---------------------------------------------------------------------------
+# AC1: active V anchor with ac_verification.status != PASS must hold the DP at
+# in-flight (NOT delivered-drift-high), even with complete T markers + merged
+# PR, and the report must flag evidence.verification_pending=true. --apply must
+# not call mark-spec-implemented (no premature closeout before AC verification).
+# ---------------------------------------------------------------------------
+test_v_active_not_pass() {
+  local tc; tc="$(mktemp -d)"; trap 'rm -rf "'"$tc"'"' RETURN
+  make_workspace "$tc"
+  local container; container="$(make_dp "$tc" "DP-911" "v-not-pass" "LOCKED" 2)"
+  make_marker "$tc" "DP-911" "T1"
+  make_marker "$tc" "DP-911" "T2"
+  make_changelog_entry "$tc" "DP-911"
+  # Active V anchor still pending verification (IN_PROGRESS, not PASS).
+  make_active_v_anchor "$container" "1" "IN_PROGRESS"
+  local gh; gh="$tc/gh"; make_gh_stub_merged "$gh"
+  local mark; mark="$tc/mark.sh"; make_mark_stub "$mark"
+  local log="$tc/mark.log" out="$tc/report.json"
+
+  if ! run_detector "$tc" "$gh" "$mark" "$log" "$out"; then
+    record_fail "AC1 detector run (V-active-not-PASS)"; return
+  fi
+
+  local cls; cls="$(classify_of "$out" "DP-911")"
+  if [[ "$cls" == "in-flight" ]]; then
+    record_pass "AC1 V-active-not-PASS => in-flight (not delivered-drift-high)"
+  else
+    record_fail "AC1 V-active-not-PASS expected in-flight, got: $cls"
+  fi
+
+  local vp; vp="$(verification_pending_of "$out" "DP-911")"
+  if [[ "$vp" == "true" ]]; then
+    record_pass "AC1 V-active-not-PASS report flags verification_pending=true"
+  else
+    record_fail "AC1 V-active-not-PASS verification_pending not true (got: $vp)"
+  fi
+
+  if grep -q 'MARK_SPEC_CALLED' "$log"; then
+    record_fail "AC1 V-active-not-PASS auto-closed (mark-spec called before AC verification)"
+  else
+    record_pass "AC1 V-active-not-PASS did NOT auto-close (no mark-spec call)"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# AC1 / EC1: active V anchor missing the ac_verification block entirely is
+# treated as not-PASS (conservative, aligned with
+# close-parent-spec-if-complete.sh ac_verification_status reader). Same hold:
+# in-flight + verification_pending, never auto-close.
+# ---------------------------------------------------------------------------
+test_v_missing_ac_block() {
+  local tc; tc="$(mktemp -d)"; trap 'rm -rf "'"$tc"'"' RETURN
+  make_workspace "$tc"
+  local container; container="$(make_dp "$tc" "DP-912" "v-missing-ac" "LOCKED" 2)"
+  make_marker "$tc" "DP-912" "T1"
+  make_marker "$tc" "DP-912" "T2"
+  make_changelog_entry "$tc" "DP-912"
+  # Active V anchor with NO ac_verification block => treated not-PASS.
+  make_active_v_anchor "$container" "1" ""
+  local gh; gh="$tc/gh"; make_gh_stub_merged "$gh"
+  local mark; mark="$tc/mark.sh"; make_mark_stub "$mark"
+  local log="$tc/mark.log" out="$tc/report.json"
+
+  if ! run_detector "$tc" "$gh" "$mark" "$log" "$out"; then
+    record_fail "AC1/EC1 detector run (V-missing-ac-block)"; return
+  fi
+
+  local cls; cls="$(classify_of "$out" "DP-912")"
+  if [[ "$cls" == "in-flight" ]]; then
+    record_pass "EC1 V-missing-ac-block => in-flight (missing block treated not-PASS)"
+  else
+    record_fail "EC1 V-missing-ac-block expected in-flight, got: $cls"
+  fi
+
+  local vp; vp="$(verification_pending_of "$out" "DP-912")"
+  if [[ "$vp" == "true" ]]; then
+    record_pass "EC1 V-missing-ac-block report flags verification_pending=true"
+  else
+    record_fail "EC1 V-missing-ac-block verification_pending not true (got: $vp)"
+  fi
+
+  if grep -q 'MARK_SPEC_CALLED' "$log"; then
+    record_fail "EC1 V-missing-ac-block auto-closed (mark-spec called)"
+  else
+    record_pass "EC1 V-missing-ac-block did NOT auto-close (no mark-spec call)"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# AC2: active V anchor with ac_verification.status == PASS does NOT block
+# closeout — markers complete + merged PR + V PASS => delivered-drift-high,
+# --apply calls mark-spec-implemented. verification_pending must be false.
+# ---------------------------------------------------------------------------
+test_v_pass() {
+  local tc; tc="$(mktemp -d)"; trap 'rm -rf "'"$tc"'"' RETURN
+  make_workspace "$tc"
+  local container; container="$(make_dp "$tc" "DP-913" "v-pass" "LOCKED" 2)"
+  make_marker "$tc" "DP-913" "T1"
+  make_marker "$tc" "DP-913" "T2"
+  make_changelog_entry "$tc" "DP-913"
+  make_active_v_anchor "$container" "1" "PASS"
+  local gh; gh="$tc/gh"; make_gh_stub_merged "$gh"
+  local mark; mark="$tc/mark.sh"; make_mark_stub "$mark"
+  local log="$tc/mark.log" out="$tc/report.json"
+
+  if ! run_detector "$tc" "$gh" "$mark" "$log" "$out"; then
+    record_fail "AC2 detector run (V-PASS)"; return
+  fi
+
+  local cls; cls="$(classify_of "$out" "DP-913")"
+  if [[ "$cls" == "delivered-drift-high" ]]; then
+    record_pass "AC2 V-PASS => delivered-drift-high (PASS does not block closeout)"
+  else
+    record_fail "AC2 V-PASS expected delivered-drift-high, got: $cls"
+  fi
+
+  local vp; vp="$(verification_pending_of "$out" "DP-913")"
+  if [[ "$vp" == "false" ]]; then
+    record_pass "AC2 V-PASS report flags verification_pending=false"
+  else
+    record_fail "AC2 V-PASS verification_pending not false (got: $vp)"
+  fi
+
+  if grep -q 'MARK_SPEC_CALLED' "$log" && grep -q 'DP-913' "$log"; then
+    record_pass "AC2 V-PASS auto mark-spec-implemented invoked"
+  else
+    record_fail "AC2 V-PASS mark-spec-implemented NOT invoked"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# AC2 / EC2: a V anchor already moved to tasks/pr-release/ is treated as
+# completed verification and must NOT hold the DP at in-flight. markers
+# complete + merged PR + V in pr-release => delivered-drift-high.
+# ---------------------------------------------------------------------------
+test_v_in_pr_release() {
+  local tc; tc="$(mktemp -d)"; trap 'rm -rf "'"$tc"'"' RETURN
+  make_workspace "$tc"
+  local container; container="$(make_dp "$tc" "DP-914" "v-pr-release" "LOCKED" 2)"
+  make_marker "$tc" "DP-914" "T1"
+  make_marker "$tc" "DP-914" "T2"
+  make_changelog_entry "$tc" "DP-914"
+  make_pr_release_v_anchor "$container" "1"
+  local gh; gh="$tc/gh"; make_gh_stub_merged "$gh"
+  local mark; mark="$tc/mark.sh"; make_mark_stub "$mark"
+  local log="$tc/mark.log" out="$tc/report.json"
+
+  if ! run_detector "$tc" "$gh" "$mark" "$log" "$out"; then
+    record_fail "AC2/EC2 detector run (V-in-pr-release)"; return
+  fi
+
+  local cls; cls="$(classify_of "$out" "DP-914")"
+  if [[ "$cls" == "delivered-drift-high" ]]; then
+    record_pass "EC2 V-in-pr-release => delivered-drift-high (pr-release V treated completed)"
+  else
+    record_fail "EC2 V-in-pr-release expected delivered-drift-high, got: $cls"
+  fi
+
+  if grep -q 'MARK_SPEC_CALLED' "$log" && grep -q 'DP-914' "$log"; then
+    record_pass "EC2 V-in-pr-release auto mark-spec-implemented invoked"
+  else
+    record_fail "EC2 V-in-pr-release mark-spec-implemented NOT invoked"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# AC-NEG3: the V gate is a read-only judgement — the detector must NOT mutate
+# any task frontmatter / file location itself. In a dry-run over the V-gate
+# fixtures, the V anchor files must be byte-identical before and after, and the
+# only sanctioned mutation path remains mark-spec-implemented.sh.
+# ---------------------------------------------------------------------------
+test_v_gate_read_only() {
+  local tc; tc="$(mktemp -d)"; trap 'rm -rf "'"$tc"'"' RETURN
+  make_workspace "$tc"
+  local container; container="$(make_dp "$tc" "DP-915" "v-readonly" "LOCKED" 2)"
+  make_marker "$tc" "DP-915" "T1"
+  make_marker "$tc" "DP-915" "T2"
+  make_changelog_entry "$tc" "DP-915"
+  make_active_v_anchor "$container" "1" "IN_PROGRESS"
+  local v_anchor="$container/tasks/V1/index.md"
+  local before_hash; before_hash="$(shasum "$v_anchor" | cut -d' ' -f1)"
+  local gh; gh="$tc/gh"; make_gh_stub_merged "$gh"
+  local mark; mark="$tc/mark.sh"; make_mark_stub "$mark"
+  local log="$tc/mark.log" out="$tc/report.json"
+
+  # Dry-run: never mutate, never call mark-spec.
+  if ! run_detector "$tc" "$gh" "$mark" "$log" "$out" --dry-run; then
+    record_fail "AC-NEG3 detector run (V-gate read-only dry-run)"; return
+  fi
+
+  local after_hash; after_hash="$(shasum "$v_anchor" | cut -d' ' -f1)"
+  if [[ "$before_hash" == "$after_hash" ]]; then
+    record_pass "AC-NEG3 V anchor frontmatter byte-identical after V-gate (read-only)"
+  else
+    record_fail "AC-NEG3 detector mutated V anchor frontmatter (second writer path)"
+  fi
+
+  if grep -q 'MARK_SPEC_CALLED' "$log"; then
+    record_fail "AC-NEG3 dry-run called mark-spec (should be report-only)"
+  else
+    record_pass "AC-NEG3 dry-run did NOT call mark-spec (single writer preserved)"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Run all
 # ---------------------------------------------------------------------------
 test_delivered_high
@@ -576,6 +863,11 @@ test_in_flight_stacked
 test_in_title_precision
 test_gh_absent_fail_open
 test_active_locked_only
+test_v_active_not_pass
+test_v_missing_ac_block
+test_v_pass
+test_v_in_pr_release
+test_v_gate_read_only
 
 echo "----"
 echo "detect-closeout-drift selftest: ${pass} passed, ${fail} failed"

@@ -257,6 +257,109 @@ MD
   [[ "$rc" -eq 0 ]] || { echo "[selftest] same-container dual-presence reconciliation regressed"; return 1; }
   [[ ! -f "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-001/tasks/T2.md" ]] || { echo "[selftest] active duplicate T2 not reconciled"; return 1; }
 
+  # DP-310 T2 (AC3): archive 容器（design-plans/archive/DP-NNN-*）內的 folder-native task
+  # anchor 必須能被 DP task key 解析（Path 3），flip status 並 MOVE-FIRST 搬入該容器的
+  # tasks/pr-release/；重跑 idempotent NOOP exit 0。
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-070-archived-folder-native/tasks/V1"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-070-archived-folder-native/tasks/V1/index.md" <<'MD'
+---
+status: LOCKED
+ac_verification:
+  status: PASS
+---
+
+# V1: Archived folder-native DP verification task (1 pt)
+
+> Source: DP-070 | Task: DP-070-V1 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-070 |
+| Task ID | DP-070-V1 |
+| Task branch | task/DP-070-V1-archived |
+MD
+
+  rc=0
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" DP-070-V1 --workspace "$tmpdir" >/dev/null || rc=$?
+  [[ "$rc" -eq 0 ]] || { echo "[selftest] archived design-plans folder-native DP task mark implemented failed"; return 1; }
+  [[ ! -d "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-070-archived-folder-native/tasks/V1" ]] || { echo "[selftest] archived design-plans active task was not moved"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-070-archived-folder-native/tasks/pr-release/V1/index.md" ]] || { echo "[selftest] archived design-plans pr-release task missing"; return 1; }
+  grep -q '^status: IMPLEMENTED$' "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-070-archived-folder-native/tasks/pr-release/V1/index.md" || { echo "[selftest] archived design-plans status missing"; return 1; }
+  grep -q '^  status: PASS$' "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-070-archived-folder-native/tasks/pr-release/V1/index.md" || { echo "[selftest] archived design-plans ac_verification block not preserved"; return 1; }
+  # idempotent rerun → NOOP exit 0, no half state
+  rc=0
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" DP-070-V1 --workspace "$tmpdir" >/dev/null || rc=$?
+  [[ "$rc" -eq 0 ]] || { echo "[selftest] archived design-plans folder-native idempotent rerun failed"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-070-archived-folder-native/tasks/pr-release/V1/index.md" ]] || { echo "[selftest] archived design-plans pr-release task lost on rerun"; return 1; }
+
+  # DP-310 T2 (AC3): companies/*/archive 對稱——archived JIRA Epic-backed source 容器內的
+  # folder-native task anchor 必須能被 JIRA key 解析（Path 4），MOVE-FIRST 搬入該容器
+  # tasks/pr-release/（source parity，不留 DP-only path）。
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/GT-ARCH/tasks/T1"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/GT-ARCH/tasks/T1/index.md" <<'MD'
+---
+status: LOCKED
+---
+
+# T1: Archived product folder-native task (1 pt)
+
+> Source: GT-ARCH | Task: GT-ARCH-T1 | JIRA: GT-ARCH | Repo: exampleco
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | jira |
+| Source ID | GT-ARCH |
+| Task ID | GT-ARCH-T1 |
+| JIRA key | GT-ARCH |
+| Task branch | task/GT-ARCH-T1-archived |
+MD
+
+  rc=0
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" GT-ARCH --workspace "$tmpdir" >/dev/null || rc=$?
+  [[ "$rc" -eq 0 ]] || { echo "[selftest] archived companies folder-native JIRA task mark implemented failed"; return 1; }
+  [[ ! -d "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/GT-ARCH/tasks/T1" ]] || { echo "[selftest] archived companies active task was not moved"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/GT-ARCH/tasks/pr-release/T1/index.md" ]] || { echo "[selftest] archived companies pr-release task missing"; return 1; }
+  grep -q '^status: IMPLEMENTED$' "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/GT-ARCH/tasks/pr-release/T1/index.md" || { echo "[selftest] archived companies status missing"; return 1; }
+
+  # DP-310 T2 (AC-NEG2): active-vs-archive 同 DP task key——active 容器存在同 key anchor 時，
+  # archive fallback 不得被選中；DP-071-V1 必須解析到 active 容器、archive 容器不被搬動。
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-071-active-priority/tasks/V1" \
+           "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-071-archived-same-key/tasks/V1"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-071-active-priority/tasks/V1/index.md" <<'MD'
+# V1: Active container verification task (1 pt)
+
+> Source: DP-071 | Task: DP-071-V1 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Task branch | task/DP-071-V1-active |
+MD
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-071-archived-same-key/tasks/V1/index.md" <<'MD'
+# V1: Archived container verification task with same DP task key (1 pt)
+
+> Source: DP-071 | Task: DP-071-V1 | JIRA: N/A | Repo: polaris-framework
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Task branch | task/DP-071-V1-archived |
+MD
+
+  rc=0
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST MARK_SPEC_ARCHIVE_SPEC_BIN="$archive_stub" MARK_SPEC_ARCHIVE_LOG="$archive_log" bash "$0" DP-071-V1 --workspace "$tmpdir" >/dev/null || rc=$?
+  [[ "$rc" -eq 0 ]] || { echo "[selftest] active-vs-archive same key mark implemented failed"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-071-active-priority/tasks/pr-release/V1/index.md" ]] || { echo "[selftest] active container was not selected (AC-NEG2)"; return 1; }
+  [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-071-archived-same-key/tasks/V1/index.md" ]] || { echo "[selftest] archived same-key container was moved (active priority violated, AC-NEG2)"; return 1; }
+  [[ ! -e "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-071-archived-same-key/tasks/pr-release/V1/index.md" ]] || { echo "[selftest] archived same-key container leaked into pr-release (AC-NEG2)"; return 1; }
+
   echo "[selftest] PASS"
 }
 
@@ -492,6 +595,20 @@ if [ -z "$ANCHOR" ] && echo "$TICKET" | grep -qE '^DP-[0-9]{3}$'; then
     fi
     dp_container="$dp_dir"
   done
+  # Archive fallback: only resolve design-plans/archive/DP-NNN-* when no active
+  # container matched, so an active container always wins over an archived one.
+  if [ -z "$dp_container" ]; then
+    for dp_dir in "$SPECS_ROOT"/design-plans/archive/"$TICKET"-*; do
+      [ -d "$dp_dir" ] || continue
+      if [ -n "$dp_container" ]; then
+        echo "ERROR: bare DP key $TICKET resolved to multiple archived containers" >&2
+        echo "  $dp_container" >&2
+        echo "  $dp_dir" >&2
+        exit 1
+      fi
+      dp_container="$dp_dir"
+    done
+  fi
   if [ -n "$dp_container" ]; then
     # Locate parent anchor (index.md preferred, plan.md fallback, refinement.md fallback)
     if [ -f "$dp_container/index.md" ]; then
@@ -570,6 +687,10 @@ if [ -z "$ANCHOR" ] && is_task_key "$TICKET"; then
 fi
 
 # Path 3 — DP task key (DP-NNN-Tn / DP-NNN-Vn) — look up by DP folder + task filename
+# Active containers (design-plans/DP-NNN-*) are resolved first; archive containers
+# (design-plans/archive/DP-NNN-*) are a separate fallback ordered after active so a
+# same-key active anchor always wins (AC-NEG2). DP-NNN-* glob never matches the nested
+# archive/ subdir, so the two branches stay disjoint.
 if [ -z "$ANCHOR" ] && echo "$TICKET" | grep -qE '^DP-[0-9]{3}-[TV][0-9]+[a-z]*$'; then
   dp_id="$(printf '%s' "$TICKET" | sed -E 's/^(DP-[0-9]{3})-[TV][0-9]+[a-z]*$/\1/')"
   task_stem="$(printf '%s' "$TICKET" | sed -E 's/^DP-[0-9]{3}-([TV][0-9]+[a-z]*)$/\1/')"
@@ -577,7 +698,11 @@ if [ -z "$ANCHOR" ] && echo "$TICKET" | grep -qE '^DP-[0-9]{3}-[TV][0-9]+[a-z]*$
     "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/"$task_stem".md \
     "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/"$task_stem"/index.md \
     "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/pr-release/"$task_stem".md \
-    "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/pr-release/"$task_stem"/index.md
+    "$SPECS_ROOT"/design-plans/"$dp_id"-*/tasks/pr-release/"$task_stem"/index.md \
+    "$SPECS_ROOT"/design-plans/archive/"$dp_id"-*/tasks/"$task_stem".md \
+    "$SPECS_ROOT"/design-plans/archive/"$dp_id"-*/tasks/"$task_stem"/index.md \
+    "$SPECS_ROOT"/design-plans/archive/"$dp_id"-*/tasks/pr-release/"$task_stem".md \
+    "$SPECS_ROOT"/design-plans/archive/"$dp_id"-*/tasks/pr-release/"$task_stem"/index.md
   do
     [ -f "$f" ] || continue
     set_task_anchor_from_file "$f"
@@ -585,10 +710,14 @@ if [ -z "$ANCHOR" ] && echo "$TICKET" | grep -qE '^DP-[0-9]{3}-[TV][0-9]+[a-z]*$
   done
 fi
 
-# Path 4 — Task-level by JIRA key in header (only if Path 1-3 missed)
-if [ -z "$ANCHOR" ]; then
-  # Search active tasks/ and tasks/pr-release/ by canonical parser jira_key
-  # first, then legacy "> JIRA: KEY" header fallback.
+# Description: 在指定 find 範圍掃 task anchor，依 canonical parser jira_key（fallback 到
+#   legacy "> JIRA: KEY" header）比對 $TICKET，命中即設定 ANCHOR 並回傳 0；無命中回傳 1。
+#   stdin 接 newline-separated 的 task anchor 候選路徑（由 caller 的 find 提供），讓 active
+#   與 archive 兩種掃描共用同一套比對邏輯。
+# Args:        無（候選路徑由 stdin 提供）
+# Side effects: 命中時設定 global ANCHOR / ANCHOR_TYPE / TASK_FILENAME / TASKS_DIR
+match_task_by_jira_key() {
+  local f parsed_jira
   while IFS= read -r f; do
     parsed_jira=""
     if [ -x "$PARSE_TASK_MD" ]; then
@@ -596,9 +725,18 @@ if [ -z "$ANCHOR" ]; then
     fi
     if [ "$parsed_jira" = "$TICKET" ] || grep -Eq "^> .*JIRA: ${TICKET}([[:space:]]|\$|\|)" "$f"; then
       set_task_anchor_from_file "$f"
-      break
+      return 0
     fi
-  done < <(find "$SPECS_ROOT" \
+  done
+  return 1
+}
+
+# Path 4 — Task-level by JIRA key in header (only if Path 1-3 missed)
+# Active containers are scanned first (archive pruned); archive containers
+# (specs/*/archive/**) are only scanned as a fallback when no active anchor matched,
+# so a same-key active anchor always wins over an archived one (AC-NEG2 / source parity).
+if [ -z "$ANCHOR" ]; then
+  match_task_by_jira_key < <(find "$SPECS_ROOT" \
     \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
     -o \( -type f \( \
       -path "*/tasks/T*.md" \
@@ -609,7 +747,23 @@ if [ -z "$ANCHOR" ]; then
       -o -path "*/tasks/pr-release/V*.md" \
       -o -path "*/tasks/pr-release/T*/index.md" \
       -o -path "*/tasks/pr-release/V*/index.md" \
-    \) -print \) 2>/dev/null)
+    \) -print \) 2>/dev/null) || true
+fi
+
+# Path 4b — archive fallback for JIRA key (design-plans/archive/** and companies/*/archive/**)
+if [ -z "$ANCHOR" ]; then
+  match_task_by_jira_key < <(find "$SPECS_ROOT" \
+    \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
+    -o \( -type f \( \
+      -path "*/archive/*/tasks/T*.md" \
+      -o -path "*/archive/*/tasks/V*.md" \
+      -o -path "*/archive/*/tasks/T*/index.md" \
+      -o -path "*/archive/*/tasks/V*/index.md" \
+      -o -path "*/archive/*/tasks/pr-release/T*.md" \
+      -o -path "*/archive/*/tasks/pr-release/V*.md" \
+      -o -path "*/archive/*/tasks/pr-release/T*/index.md" \
+      -o -path "*/archive/*/tasks/pr-release/V*/index.md" \
+    \) -print \) 2>/dev/null) || true
 fi
 
 if [ -z "$ANCHOR" ]; then

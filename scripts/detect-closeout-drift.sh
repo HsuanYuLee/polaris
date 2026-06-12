@@ -173,6 +173,68 @@ dp_task_stems() {
   done | sort -u
 }
 
+# Read the ac_verification.status field from a task frontmatter file. Mirrors
+# scripts/close-parent-spec-if-complete.sh ac_verification_status reader: scan
+# inside the `ac_verification:` block for a nested `status:` line. A missing
+# block or empty status yields "" (callers treat "" as not-PASS, conservative).
+# Portable awk only (no GNU match()-array extension) so BSD/GNU awk agree.
+ac_verification_status() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  awk '
+    $0 == "ac_verification:" { in_block = 1; next }
+    in_block && /^[^[:space:]-].*:/ { exit }
+    in_block && /^[[:space:]]+status:/ {
+      line = $0
+      sub(/^[[:space:]]+status:[[:space:]]*/, "", line)
+      sub(/[[:space:]].*$/, "", line)
+      print line
+      exit
+    }
+  ' "$file"
+}
+
+# Enumerate ACTIVE verification (task_kind: V) anchors of a DP container.
+# Active = under tasks/ but NOT tasks/pr-release/ (pr-release V anchors are
+# historically closed-out / verified and do not gate closeout). Handles
+# folder-native (tasks/V{n}/index.md) and legacy flat (tasks/V{n}.md) layouts.
+dp_active_v_anchors() {
+  local container="$1" file="" stem=""
+  {
+    find "$container/tasks" -maxdepth 1 -type f -name 'V*.md' 2>/dev/null
+    find "$container/tasks" -maxdepth 2 -type f -path '*/V*/index.md' 2>/dev/null
+  } | while IFS= read -r file; do
+    [[ -n "$file" ]] || continue
+    # Exclude anything under tasks/pr-release/ (already closed out).
+    [[ "$file" == */tasks/pr-release/* ]] && continue
+    if [[ "$file" == */index.md ]]; then
+      stem="$(basename "$(dirname "$file")")"
+    else
+      stem="$(basename "$file" .md)"
+    fi
+    [[ "$stem" == V* ]] || continue
+    printf '%s\n' "$file"
+  done | sort -u
+}
+
+# Returns 0 (true) if the DP has at least one ACTIVE V anchor whose
+# ac_verification.status is not PASS (including a missing ac_verification block,
+# treated conservatively as not-PASS). Returns 1 (false) when every active V
+# anchor is verified PASS, or when the DP has no active V anchors at all. A
+# pending V anchor means AC verification is incomplete: the DP must hold at
+# in-flight and must never be auto closed out before verification.
+dp_v_verification_pending() {
+  local container="$1" anchor="" status=""
+  while IFS= read -r anchor; do
+    [[ -n "$anchor" ]] || continue
+    status="$(ac_verification_status "$anchor")"
+    if [[ "$status" != "PASS" ]]; then
+      return 0
+    fi
+  done < <(dp_active_v_anchors "$container")
+  return 1
+}
+
 # Count completion-gate markers present for a DP's task stems.
 # Echos "<covered> <total>".
 dp_marker_coverage() {
@@ -254,6 +316,15 @@ while IFS= read -r container; do
     any_evidence=1
   fi
 
+  # AC1: read-only V-task verification gate. If any active V anchor has not
+  # passed AC verification (status != PASS, including a missing ac_verification
+  # block), the DP is not closeout-ready regardless of T-marker / merged-PR
+  # evidence. pr-release V anchors are treated as already verified and excluded.
+  verification_pending=0
+  if dp_v_verification_pending "$container"; then
+    verification_pending=1
+  fi
+
   # Classification.
   classification=""
   if [[ "$pr_open" -eq 1 ]]; then
@@ -263,8 +334,14 @@ while IFS= read -r container; do
     # others are still open. A closeout false-negative (defer) is far safer than a
     # false-positive (wrongly archiving an in-flight DP).
     classification="in-flight"
+  elif [[ "$verification_pending" -eq 1 ]]; then
+    # AC1: an active V anchor still pending AC verification holds the DP at
+    # in-flight (report-only). Closeout must wait until verification PASSes, so
+    # the auto-archive path below is never taken while a V anchor is unverified.
+    classification="in-flight"
   elif [[ "$markers_complete" -eq 1 && "$pr_merged" -eq 1 ]]; then
-    # AC1/AC2: all task markers + confirmed merged PR => high-confidence drift.
+    # AC1/AC2: all task markers + confirmed merged PR + all V anchors verified
+    # (or none) => high-confidence drift.
     classification="delivered-drift-high"
   elif [[ "$any_evidence" -eq 1 ]]; then
     if [[ "$covered" -gt 0 && "$markers_complete" -eq 0 ]]; then
@@ -300,9 +377,10 @@ while IFS= read -r container; do
     action="would-close-out"
   fi
 
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "$dp" "$classification" "$action" "$covered" "$total" \
-    "$changelog_hit" "$pr_merged" "$pr_open" "$pr_unchecked" "$(basename "$container")" \
+    "$changelog_hit" "$pr_merged" "$pr_open" "$pr_unchecked" "$verification_pending" \
+    "$(basename "$container")" \
     >>"$RESULTS_TSV"
 done < <(active_dp_containers)
 
@@ -318,7 +396,7 @@ with open(tsv, encoding="utf-8") as fh:
         line = line.rstrip("\n")
         if not line:
             continue
-        dp, classification, action, covered, total, changelog_hit, pr_merged, pr_open, pr_unchecked, container = line.split("\t")
+        dp, classification, action, covered, total, changelog_hit, pr_merged, pr_open, pr_unchecked, verification_pending, container = line.split("\t")
         pr_unchecked_b = pr_unchecked == "1"
         merged_pr = "unchecked" if pr_unchecked_b else ("merged" if pr_merged == "1" else "none")
         results.append({
@@ -332,6 +410,7 @@ with open(tsv, encoding="utf-8") as fh:
                 "changelog": changelog_hit == "1",
                 "merged_pr": merged_pr,
                 "in_flight_open_pr": pr_open == "1",
+                "verification_pending": verification_pending == "1",
             },
         })
 report = {
@@ -351,9 +430,9 @@ fi
   if [[ "$GH_OK" -ne 1 ]]; then
     echo "  NOTE: gh unavailable — merged-PR evidence unchecked (D7 fail-open)."
   fi
-  while IFS=$'\t' read -r dp classification action covered total changelog_hit pr_merged pr_open pr_unchecked container; do
+  while IFS=$'\t' read -r dp classification action covered total changelog_hit pr_merged pr_open pr_unchecked verification_pending container; do
     [[ -n "$dp" ]] || continue
-    echo "  - ${dp} [${classification}] action=${action} markers=${covered}/${total} changelog=${changelog_hit} pr_merged=${pr_merged} pr_open=${pr_open} pr_unchecked=${pr_unchecked}"
+    echo "  - ${dp} [${classification}] action=${action} markers=${covered}/${total} changelog=${changelog_hit} pr_merged=${pr_merged} pr_open=${pr_open} pr_unchecked=${pr_unchecked} verification_pending=${verification_pending}"
   done <"$RESULTS_TSV"
 } >&2
 
