@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.76.7] - 2026-06-12
+
+### Changed
+
+- c5daf9b: 新增單一 shared staleness helper + 改寫 canonical 定義
+- af4b81a: check-pr-approval-status.sh 收斂到 helper、移除 pushed_at
+- 93d06ac: check-my-review-status.sh APPROVED branch 收斂到 helper、移除 committer-date staleness
+
 ## [3.76.6] - 2026-06-12
 
 ### Changed

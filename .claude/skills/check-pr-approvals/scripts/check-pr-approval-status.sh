@@ -7,17 +7,33 @@
 # Progress (stderr): 檢查進度
 #
 # 附加欄位：
-#   - valid_approvals   — 有效的 approve 數（submitted_at > pushed_at）
+#   - valid_approvals   — 有效的 approve 數（review.commit_id == pr.head.sha）
 #   - total_approvals   — 所有 APPROVED review 數
 #   - has_stale         — 是否有 stale approve
 #   - reviewers         — reviewer 明細 JSON array [{user, state, is_stale}]
 #   - needs_review      — 是否需要（更多）review（valid < threshold）
+#
+# Staleness 判定走 scripts/lib/approval-staleness.sh（DP-315 canonical commit_id
+# 基準的單一 writer path）：review 綁定的 commit_id 與 PR 當前 head.sha 相等才算
+# valid，不相等或任一為空 / null 一律 fail-closed 判 stale。已移除舊的時間戳基準
+# （review submit time 與 PR last-push time 比較），改為純 commit_id 比對。
 #
 # Example:
 #   ./fetch-user-open-prs.sh --author your-username \
 #     | ./check-pr-approval-status.sh --threshold 2
 
 set -euo pipefail
+
+# Source the canonical commit_id-based staleness atom (DP-315). approval_staleness
+# <review_commit_id> <head_sha> echoes "valid" / "stale"; this is the only writer
+# path for the staleness decision, shared with review-inbox.
+APPROVAL_STALENESS_HELPER="$(dirname "${BASH_SOURCE[0]}")/../../../../scripts/lib/approval-staleness.sh"
+if [[ ! -f "$APPROVAL_STALENESS_HELPER" ]]; then
+  echo "POLARIS_TOOL_MISSING:approval-staleness.sh (expected at $APPROVAL_STALENESS_HELPER)" >&2
+  exit 1
+fi
+# shellcheck source=../../../../scripts/lib/approval-staleness.sh
+source "$APPROVAL_STALENESS_HELPER"
 
 ORG="${ORG:-}"
 if [[ -z "$ORG" ]]; then
@@ -56,13 +72,15 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
 
   count=$((count + 1))
 
-  # 取得 reviews
+  # 取得 reviews（commit_id 為 staleness 判定基準；submitted_at 僅用於挑出
+  # 同一 reviewer 的最新一筆 review）
   reviews=$(gh api "repos/$ORG/$repo/pulls/$number/reviews" \
-    --jq '[.[] | {user: .user.login, state: .state, submitted_at: .submitted_at}]' 2>/dev/null || echo "[]")
+    --jq '[.[] | {user: .user.login, state: .state, submitted_at: .submitted_at, commit_id: .commit_id}]' 2>/dev/null || echo "[]")
 
-  # 取得最後 push 時間
-  pushed_at=$(gh api "repos/$ORG/$repo/pulls/$number" \
-    --jq '.head.repo.pushed_at' 2>/dev/null || echo "")
+  # 取得 PR 當前 head commit SHA（沿用同一個 PR endpoint，僅改 --jq 投影，
+  # 不新增 API round-trip）
+  head_sha=$(gh api "repos/$ORG/$repo/pulls/$number" \
+    --jq '.head.sha' 2>/dev/null || echo "")
 
   # 計算每位 reviewer 的最新狀態
   # 先取得所有 unique reviewers，再找各自最新的 review
@@ -77,17 +95,18 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
     # 該 reviewer 最新的 review
     latest=$(echo "$reviews" | jq "[.[] | select(.user == \"$user\")] | sort_by(.submitted_at) | last")
     state=$(echo "$latest" | jq -r '.state')
-    submitted_at=$(echo "$latest" | jq -r '.submitted_at')
+    commit_id=$(echo "$latest" | jq -r '.commit_id')
 
     is_stale=false
 
     if [ "$state" = "APPROVED" ]; then
       total_approvals=$((total_approvals + 1))
-      if [ -n "$pushed_at" ] && [[ "$submitted_at" < "$pushed_at" ]]; then
+      # 走 canonical helper：commit_id == head.sha 才 valid，否則 stale（fail-closed）。
+      if [ "$(approval_staleness "$commit_id" "$head_sha")" = "valid" ]; then
+        valid_approvals=$((valid_approvals + 1))
+      else
         is_stale=true
         has_stale=true
-      else
-        valid_approvals=$((valid_approvals + 1))
       fi
     fi
 

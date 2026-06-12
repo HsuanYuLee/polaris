@@ -9,17 +9,34 @@
 #
 # review_status 值：
 #   - "needs_first_review"  — 從未 review 過
-#   - "needs_re_approve"    — approve 後作者有新 commit（stale）
+#   - "needs_re_approve"    — approve 後 head 已變動（review.commit_id != head.sha，stale）
 #   - "needs_re_review"     — REQUEST_CHANGES 後作者有回覆 review comments（不論有無新 push）
-#   - "valid_approve"       — approve 仍有效，不需動作
+#   - "valid_approve"       — approve 仍有效（review.commit_id == head.sha），不需動作
 #   - "waiting_for_author"  — REQUEST_CHANGES 後作者未回覆 review comments（即使有新 push 也視為還在改）
-#                            或 prior_review_no_new_push：我已 review 且 review 後沒有新 commit
+#                            或 prior_review_no_new_push：我已 review 且 review 後 head 未變
+#
+# DP-315：approval-staleness（APPROVED→needs_re_approve）改走共用 helper
+# scripts/lib/approval-staleness.sh，以 review.commit_id == head.sha 為唯一基準；
+# 不再用 commit 時間戳（review submit time 與 PR last-push time 比較）判 approval 是否失效
+# ——shared repo 中他人 push 不相干 branch 會 bump 時間戳，commit_id 比對不受影響。head.sha
+# 由既有 /commits 呼叫的 .[-1].sha 投影取得（BS3），不新增 API round-trip。
 #
 # Example:
 #   ./scan-need-review-prs.sh --exclude-author your-github-user \
 #     | ORG=my-github-org ./check-my-review-status.sh your-github-user
 
 set -euo pipefail
+
+# 載入 DP-315 canonical commit_id 基準 staleness atom（單一 writer path，與
+# check-pr-approvals 共用）。approval_staleness <review_commit_id> <head_sha>
+# 輸出 "valid" / "stale"。
+APPROVAL_STALENESS_HELPER="$(dirname "${BASH_SOURCE[0]}")/../../../../scripts/lib/approval-staleness.sh"
+if [[ ! -f "$APPROVAL_STALENESS_HELPER" ]]; then
+  echo "POLARIS_TOOL_MISSING:approval-staleness.sh (expected at $APPROVAL_STALENESS_HELPER)" >&2
+  exit 1
+fi
+# shellcheck source=../../../../scripts/lib/approval-staleness.sh
+source "$APPROVAL_STALENESS_HELPER"
 
 usage() {
   cat >&2 <<'EOF'
@@ -106,9 +123,9 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
 
   count=$((count + 1))
 
-  # 取得該 PR 所有 reviews
+  # 取得該 PR 所有 reviews（投影含 commit_id，作為 DP-315 staleness 判定基準）
   reviews=$(gh api "repos/$ORG/$repo/pulls/$number/reviews" \
-    --jq "[.[] | {user: .user.login, state: .state, submitted_at: .submitted_at}]" 2>/dev/null || echo "[]")
+    --jq "[.[] | {user: .user.login, state: .state, submitted_at: .submitted_at, commit_id: .commit_id}]" 2>/dev/null || echo "[]")
 
   # 找出自己的最新 review
   my_latest=$(echo "$reviews" | jq "[.[] | select(.user == \"$MY_USER\")] | sort_by(.submitted_at) | last // empty")
@@ -120,23 +137,33 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
   else
     my_state=$(echo "$my_latest" | jq -r '.state')
     my_time=$(echo "$my_latest" | jq -r '.submitted_at')
+    # 我這筆 review 綁定的 commit_id（approval-staleness / push-since-review 判定基準）
+    my_commit_id=$(echo "$my_latest" | jq -r '.commit_id')
 
-    # 取得最後 commit 時間
-    last_commit_time=$(gh api "repos/$ORG/$repo/pulls/$number/commits" \
-      --jq '.[-1].commit.committer.date' 2>/dev/null || echo "")
+    # 取得 PR 當前 head commit SHA（沿用既有 /commits 呼叫，僅改 --jq 投影為 .[-1].sha，
+    # 不新增 API round-trip；BS3）
+    head_sha=$(gh api "repos/$ORG/$repo/pulls/$number/commits" \
+      --jq '.[-1].sha' 2>/dev/null || echo "")
 
-    if [ -n "$last_commit_time" ] \
-      && { [[ "$last_commit_time" < "$my_time" ]] || [[ "$last_commit_time" == "$my_time" ]]; } \
+    # push-since-review 判定改以 commit_id 比對：head 未變（commit_id == head.sha）即無新 push。
+    # 與 approval-staleness 同一基準（commit_id != head.sha ⇒ stale / pushed），不再用 committer-date。
+    pushed_since_review=false
+    if [ "$(approval_staleness "$my_commit_id" "$head_sha")" = "stale" ]; then
+      pushed_since_review=true
+    fi
+
+    if [ "$pushed_since_review" = "false" ] \
       && [[ "$my_state" =~ ^(COMMENTED|CHANGES_REQUESTED|APPROVED)$ ]]; then
       status="waiting_for_author"
       detail="⏳ prior_review_no_new_push（我已 review，head SHA 未變）"
     elif [ "$my_state" = "APPROVED" ]; then
-      if [ -n "$last_commit_time" ] && [[ "$last_commit_time" > "$my_time" ]]; then
-        status="needs_re_approve"
-        detail="⚠️ 需 re-approve（approve: ${my_time%T*}, 最新 commit: ${last_commit_time%T*}）"
-      else
+      # DP-315：approval-staleness 唯一基準走 helper（commit_id == head.sha 才 valid）
+      if [ "$(approval_staleness "$my_commit_id" "$head_sha")" = "valid" ]; then
         status="valid_approve"
         detail="✓ approve 有效"
+      else
+        status="needs_re_approve"
+        detail="⚠️ 需 re-approve（approve commit: ${my_commit_id:0:7}, 當前 head: ${head_sha:0:7}）"
       fi
     elif [ "$my_state" = "CHANGES_REQUESTED" ]; then
       # 判斷作者是否回覆了我的 review comments（比單純看 push 更準確）
@@ -144,7 +171,7 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
 
       if [ "$author_replied" = "true" ]; then
         # 作者有回覆 → 不論有無新 push，都該去 re-review
-        if [ -n "$last_commit_time" ] && [[ "$last_commit_time" > "$my_time" ]]; then
+        if [ "$pushed_since_review" = "true" ]; then
           status="needs_re_review"
           detail="🔄 作者已修正並回覆，需 re-review"
         else
@@ -154,7 +181,7 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
       else
         # 作者沒回覆 → 即使有新 push 也視為還在改（還沒改到我提的問題）
         status="waiting_for_author"
-        if [ -n "$last_commit_time" ] && [[ "$last_commit_time" > "$my_time" ]]; then
+        if [ "$pushed_since_review" = "true" ]; then
           detail="⏳ 作者有新 push 但尚未回覆 review comments"
         else
           detail="⏳ 等作者修正"
@@ -162,7 +189,7 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
       fi
     else
       # COMMENTED or other — 視為需要 review
-      if [ -n "$last_commit_time" ] && [[ "$last_commit_time" > "$my_time" ]]; then
+      if [ "$pushed_since_review" = "true" ]; then
         status="needs_re_review"
         detail="🔄 有新 commit，需 re-review"
       else

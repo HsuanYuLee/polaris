@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# Selftest for check-my-review-status.sh.
+# Purpose: check-my-review-status.sh 的 selftest，斷言 review-status 狀態機，
+#          含 DP-315 commit_id 基準的 approval-staleness 判定（AC4），以及
+#          consumer 內已無 committer-date / pushed_at staleness 依據（AC-NF1 / AC-NEG2）。
+# Inputs:  無（自行在 temp dir 建 mock gh + candidate fixtures）。
+# Outputs: stdout "check-my-review-status selftest: PASS"；成功 exit 0，
+#          任一斷言失敗時 exit 非 0。
 
 set -euo pipefail
 
@@ -11,8 +16,12 @@ trap 'rm -rf "$tmp"' EXIT
 mock_bin="$tmp/bin"
 mkdir -p "$mock_bin"
 
+# Mock gh：reviews 帶 commit_id（DP-315 staleness 基準）；commits 投影 .sha
+# （head.sha 由 .[-1].sha 取得，依 BS3），同時仍輸出 committer.date，
+# 讓 selftest 能證明 consumer 已不再用它判 staleness。
 cat > "$mock_bin/gh" <<'MOCK'
 #!/usr/bin/env bash
+# mock gh：僅支援 api 子命令，回傳預設 fixtures
 set -euo pipefail
 
 if [[ "$1" != "api" ]]; then
@@ -23,6 +32,7 @@ shift
 endpoint="$1"
 shift
 jq_filter=""
+# 解析 --jq 與 --paginate 旗標
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --jq) jq_filter="$2"; shift 2 ;;
@@ -31,6 +41,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# 由 endpoint 取出 PR / issue 編號
 number="$(sed -E 's#.*pulls/([0-9]+).*#\1#' <<<"$endpoint")"
 if [[ "$endpoint" == *"/issues/"* ]]; then
   number="$(sed -E 's#.*issues/([0-9]+).*#\1#' <<<"$endpoint")"
@@ -38,31 +49,49 @@ fi
 
 payload='[]'
 case "$endpoint" in
+  # PR 1 — 從未 review → needs_first_review
   */pulls/1/reviews) payload='[]' ;;
-  */pulls/1/commits) payload='[{"commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
+  */pulls/1/commits) payload='[{"sha":"sha1","commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
   */pulls/1/comments|*/issues/1/comments) payload='[]' ;;
 
-  */pulls/2/reviews) payload='[{"user":{"login":"reviewer"},"state":"COMMENTED","submitted_at":"2026-05-06T10:00:00Z"}]' ;;
-  */pulls/2/commits) payload='[{"commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
+  # PR 2 — 只有 COMMENTED，head 未變（commit_id == head.sha）→ waiting_for_author（排除）
+  */pulls/2/reviews) payload='[{"user":{"login":"reviewer"},"state":"COMMENTED","submitted_at":"2026-05-06T10:00:00Z","commit_id":"sha2"}]' ;;
+  */pulls/2/commits) payload='[{"sha":"sha2","commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
   */pulls/2/comments|*/issues/2/comments) payload='[]' ;;
 
-  */pulls/3/reviews) payload='[{"user":{"login":"reviewer"},"state":"CHANGES_REQUESTED","submitted_at":"2026-05-06T10:00:00Z"}]' ;;
-  */pulls/3/commits) payload='[{"commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
+  # PR 3 — CHANGES_REQUESTED，無新 push、作者未回覆 → waiting_for_author（排除）
+  */pulls/3/reviews) payload='[{"user":{"login":"reviewer"},"state":"CHANGES_REQUESTED","submitted_at":"2026-05-06T10:00:00Z","commit_id":"sha3"}]' ;;
+  */pulls/3/commits) payload='[{"sha":"sha3","commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
   */pulls/3/comments) payload='[{"user":{"login":"carol"},"created_at":"2026-05-06T10:30:00Z"}]' ;;
   */issues/3/comments) payload='[]' ;;
 
-  */pulls/4/reviews) payload='[{"user":{"login":"reviewer"},"state":"APPROVED","submitted_at":"2026-05-06T10:00:00Z"}]' ;;
-  */pulls/4/commits) payload='[{"commit":{"committer":{"date":"2026-05-06T11:00:00Z"}}}]' ;;
+  # PR 4 — APPROVED 但 head 已移動（review commit_id != head.sha）→ needs_re_approve（AC4）
+  */pulls/4/reviews) payload='[{"user":{"login":"reviewer"},"state":"APPROVED","submitted_at":"2026-05-06T10:00:00Z","commit_id":"sha4-old"}]' ;;
+  */pulls/4/commits) payload='[{"sha":"sha4-new","commit":{"committer":{"date":"2026-05-06T11:00:00Z"}}}]' ;;
   */pulls/4/comments|*/issues/4/comments) payload='[]' ;;
 
-  */pulls/5/reviews) payload='[{"user":{"login":"reviewer"},"state":"CHANGES_REQUESTED","submitted_at":"2026-05-06T10:00:00Z"}]' ;;
-  */pulls/5/commits) payload='[{"commit":{"committer":{"date":"2026-05-06T11:00:00Z"}}}]' ;;
+  # PR 5 — CHANGES_REQUESTED，作者回覆 + 新 push → needs_re_review
+  */pulls/5/reviews) payload='[{"user":{"login":"reviewer"},"state":"CHANGES_REQUESTED","submitted_at":"2026-05-06T10:00:00Z","commit_id":"sha5-old"}]' ;;
+  */pulls/5/commits) payload='[{"sha":"sha5-new","commit":{"committer":{"date":"2026-05-06T11:00:00Z"}}}]' ;;
   */pulls/5/comments) payload='[{"user":{"login":"erin"},"created_at":"2026-05-06T11:30:00Z"}]' ;;
   */issues/5/comments) payload='[]' ;;
 
-  */pulls/6/reviews) payload='[{"user":{"login":"reviewer"},"state":"COMMENTED","submitted_at":"2026-05-06T08:00:00Z"},{"user":{"login":"reviewer"},"state":"APPROVED","submitted_at":"2026-05-06T10:00:00Z"}]' ;;
-  */pulls/6/commits) payload='[{"commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
+  # PR 6 — 最新 review 為 APPROVED，commit_id == head.sha、head 未變 → 非 actionable（排除）
+  */pulls/6/reviews) payload='[{"user":{"login":"reviewer"},"state":"COMMENTED","submitted_at":"2026-05-06T08:00:00Z","commit_id":"sha6"},{"user":{"login":"reviewer"},"state":"APPROVED","submitted_at":"2026-05-06T10:00:00Z","commit_id":"sha6"}]' ;;
+  */pulls/6/commits) payload='[{"sha":"sha6","commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
   */pulls/6/comments|*/issues/6/comments) payload='[]' ;;
+
+  # PR 7 — shared-repo false-positive 守門（AC-NEG1 精神）：在 head approve，
+  # 但較晚的不相干 commit 把 committer.date bump 到 approval 之後。
+  # commit_id == head.sha、head 未變 ⇒ 非 actionable（排除）。若用 committer-date 基準會誤判 needs_re_approve。
+  */pulls/7/reviews) payload='[{"user":{"login":"reviewer"},"state":"APPROVED","submitted_at":"2026-05-06T10:00:00Z","commit_id":"sha7"}]' ;;
+  */pulls/7/commits) payload='[{"sha":"sha7","commit":{"committer":{"date":"2026-05-06T23:00:00Z"}}}]' ;;
+  */pulls/7/comments|*/issues/7/comments) payload='[]' ;;
+
+  # PR 8 — APPROVED 但 commit_id 為 null → fail-closed stale → needs_re_approve（AC-NEG3）
+  */pulls/8/reviews) payload='[{"user":{"login":"reviewer"},"state":"APPROVED","submitted_at":"2026-05-06T10:00:00Z","commit_id":null}]' ;;
+  */pulls/8/commits) payload='[{"sha":"sha8","commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
+  */pulls/8/comments|*/issues/8/comments) payload='[]' ;;
 esac
 
 if [[ -n "$jq_filter" ]]; then
@@ -81,27 +110,35 @@ cat > "$candidates" <<'JSON'
   {"repo":"demo","number":3,"title":"changes no push","url":"https://github.com/acme/demo/pull/3","author":"carol","created_at":"2026-05-06T08:00:00Z"},
   {"repo":"demo","number":4,"title":"approved stale","url":"https://github.com/acme/demo/pull/4","author":"dan","created_at":"2026-05-06T08:00:00Z"},
   {"repo":"demo","number":5,"title":"changes replied with push","url":"https://github.com/acme/demo/pull/5","author":"erin","created_at":"2026-05-06T08:00:00Z"},
-  {"repo":"demo","number":6,"title":"multiple reviews latest approved no push","url":"https://github.com/acme/demo/pull/6","author":"frank","created_at":"2026-05-06T08:00:00Z"}
+  {"repo":"demo","number":6,"title":"multiple reviews latest approved no push","url":"https://github.com/acme/demo/pull/6","author":"frank","created_at":"2026-05-06T08:00:00Z"},
+  {"repo":"demo","number":7,"title":"approve at head later unrelated commit","url":"https://github.com/acme/demo/pull/7","author":"grace","created_at":"2026-05-06T08:00:00Z"},
+  {"repo":"demo","number":8,"title":"approved null commit_id","url":"https://github.com/acme/demo/pull/8","author":"heidi","created_at":"2026-05-06T08:00:00Z"}
 ]
 JSON
 
+# 回歸斷言（既有 schema 不變）：actionable 集合與各 status 必須對齊 DP-315 前
+# selftest 對 PR 1/4/5 的斷言，再加上 commit_id 基準的 PR 7（valid → 排除）
+# 與 PR 8（null → needs_re_approve）。
 assert_actionable() {
   local out="$1"
   python3 - "$out" <<'PY'
+# 斷言 actionable 清單與各 PR 的 review_status 是否符合預期
 import json
 import sys
 from pathlib import Path
 
-items = json.loads(Path(sys.argv[1]).read_text())
+items = json.loads(Path(sys.argv[1]).read_text())  # 讀取 actionable 輸出
 by_number = {item["number"]: item for item in items}
-if sorted(by_number) != [1, 4, 5]:
+if sorted(by_number) != [1, 4, 5, 8]:  # PR 7 排除、PR 8 必須出現
     raise SystemExit(f"unexpected actionable PRs: {sorted(by_number)}")
 if by_number[1]["review_status"] != "needs_first_review":
     raise SystemExit("PR 1 should need first review")
 if by_number[4]["review_status"] != "needs_re_approve":
-    raise SystemExit("PR 4 should need re-approve")
+    raise SystemExit("PR 4 should need re-approve (commit_id != head.sha)")
 if by_number[5]["review_status"] != "needs_re_review":
     raise SystemExit("PR 5 should need re-review")
+if by_number[8]["review_status"] != "needs_re_approve":
+    raise SystemExit("PR 8 (null commit_id) should fail-closed to needs_re_approve")
 PY
 }
 
@@ -115,6 +152,22 @@ assert_actionable "$out_flags"
 
 if PATH="$mock_bin:$PATH" "$checker" --my-user reviewer < "$candidates" >/dev/null 2>&1; then
   echo "missing org should fail" >&2
+  exit 1
+fi
+
+# Grep guard（AC-NF1 / AC-NEG2）：approval-staleness 基準只能是 commit_id。
+# consumer 內不得殘留 committer-date 比較，也不得殘留 head.repo.pushed_at。
+guard_consumer="$script_dir/check-my-review-status.sh"  # 守門基準：僅 commit_id
+if grep -nE 'committer\.date|last_commit_time' "$guard_consumer"; then
+  echo "AC-NEG2 violation: committer-date staleness basis still present in consumer" >&2
+  exit 1
+fi
+if grep -nE 'head\.repo\.pushed_at|pushed_at' "$guard_consumer"; then
+  echo "AC-NEG2 violation: head.repo.pushed_at still present in consumer" >&2
+  exit 1
+fi
+if ! grep -q 'approval_staleness' "$guard_consumer"; then
+  echo "AC4 violation: consumer does not route through the shared approval_staleness helper" >&2
   exit 1
 fi
 
