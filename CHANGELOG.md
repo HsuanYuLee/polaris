@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.9] - 2026-06-12
+
+### Changed
+
+- 19c2592: derive bridge level projection：canonical mapping 取代逐字複製
+- 86a555c: lock-preflight parity：placeholder 帶真實 level 並 reuse 同一 projection
+
 ## [3.76.8] - 2026-06-12
 
 ### Changed

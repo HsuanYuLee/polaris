@@ -84,6 +84,57 @@ def fail(msg, code=2):
     sys.exit(code)
 
 
+# DP-316: canonical projection from the refinement.json `test_environment.level`
+# enum (wider — includes component / integration) onto the task.md Level enum
+# (narrower — only static / build / runtime, the values validate-task-md.sh
+# accepts). The two enums are intentionally NOT reconciled at the validator
+# layer (AC-NEG2); the derive bridge is the single place that translates between
+# them. This table is the sole source of the mapping — DP-316-T2's lock-preflight
+# placeholder reuses project_test_environment_level() rather than copying a second
+# table (AC4 single-source / parity).
+#
+#   static      -> static  (identity)
+#   component   -> build    (many-to-one: component-level work runs at build time)
+#   integration -> build    (many-to-one: integration without a live URL is build,
+#                            not runtime — avoids wrongly imposing runtime
+#                            live-URL cross-field on a non-runtime task)
+#   runtime     -> runtime  (identity)
+#
+# Any value outside this table (unknown / typo) fail-louds (AC-NEG1): no silent
+# fallback to static, which would hide a typo behind a weaker verification level.
+LEVEL_PROJECTION = {
+    "static": "static",
+    "component": "build",
+    "integration": "build",
+    "runtime": "runtime",
+}
+
+
+def project_test_environment_level(raw_level: str, task_id: str) -> str:
+    """Project a refinement.json test_environment.level onto the task.md Level enum.
+
+    Args:
+        raw_level: the refinement.json `test_environment.level` value (already
+            stripped non-empty by the caller).
+        task_id: canonical task id, used for the fail-loud error message.
+
+    Returns:
+        The projected task.md Level (one of static / build / runtime).
+
+    Fail-louds (exit 2) when raw_level is not in LEVEL_PROJECTION — an unknown or
+    mistyped level must never silently fall back to static (DP-316 AC-NEG1).
+    """
+    projected = LEVEL_PROJECTION.get(raw_level)
+    if projected is None:
+        valid = ", ".join(sorted(LEVEL_PROJECTION))
+        fail(
+            f"task {task_id} test_environment.level '{raw_level}' is not a "
+            f"projectable level (expected one of: {valid}); refusing to "
+            "silently fall back to static"
+        )
+    return projected
+
+
 try:
     data = json.loads(Path(refinement_path).read_text(encoding="utf-8"))
 except json.JSONDecodeError as exc:
@@ -611,12 +662,17 @@ if body_is_field_driven:
             f'    reason: "{bc_reason}"'
         )
     te = verification.get("test_environment") or {}
-    te_level = str(te.get("level") or "").strip()
-    if not te_level:
+    te_level_raw = str(te.get("level") or "").strip()
+    if not te_level_raw:
         fail(
             f"task {task_id} test_environment.level is required when "
             "test_environment is declared (no framework default)"
         )
+    # DP-316: project the refinement-side level onto the task.md Level enum
+    # through the single canonical mapping. Previously this copied te_level_raw
+    # verbatim, so a refinement level=component / integration produced a task.md
+    # with an out-of-enum Level that validate-task-md.sh rejected.
+    te_level = project_test_environment_level(te_level_raw, task_id)
     te_dev_env = str(te.get("dev_env_config") or "N/A").strip() or "N/A"
     te_fixtures = str(te.get("fixtures") or "N/A").strip() or "N/A"
     te_runtime_target = str(te.get("runtime_verify_target") or "N/A").strip() or "N/A"

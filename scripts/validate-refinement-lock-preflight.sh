@@ -30,6 +30,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALIDATE_BREAKDOWN_READY="$SCRIPT_DIR/validate-breakdown-ready.sh"
+# DP-316 T2: the projection from refinement test_environment.level onto the
+# task.md Level enum lives in exactly one place — derive-task-md-from-refinement-json.sh
+# (DP-316 T1, AC4 single-source). The preflight reuses it by invoking the derive
+# bridge, never by copying a second mapping table.
+DERIVE_TASK_MD="$SCRIPT_DIR/derive-task-md-from-refinement-json.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -54,17 +59,96 @@ resolve_refinement_json() {
   printf '%s\n' "$arg"
 }
 
-# write_placeholder_task <dir> <task_id> <task_shape> <deliverable_hint>
+# project_planned_level <source_id> <task_id> <raw_level>
+# DP-316 T2 (AC3 / AC4): project a planned task's declared refinement
+# test_environment.level onto the task.md Level enum through the SINGLE canonical
+# projection owned by derive-task-md-from-refinement-json.sh. We synthesize a
+# minimal one-task refinement.json carrying the raw level and run the real derive
+# bridge, then read back the `- **Level**:` line it emits. The projected value
+# therefore equals what a real derive would produce for the same input (parity by
+# construction), and no second mapping table lives in this file. An unknown level
+# makes the derive bridge fail-loud (exit non-zero); we propagate that as a
+# failure so the preflight refuses to silently fall back to static (AC-NEG1).
+# Echoes the projected Level on success; returns non-zero on projection failure.
+project_planned_level() {
+  local source_id="$1"
+  local task_id="$2"
+  local raw_level="$3"
+
+  if [[ ! -f "$DERIVE_TASK_MD" ]]; then
+    echo "validate-refinement-lock-preflight: missing derive bridge at $DERIVE_TASK_MD" >&2
+    return 1
+  fi
+
+  local proj_dir proj_json derived projected
+  proj_dir="$(mktemp -d -t validate-refinement-lock-preflight-level.XXXXXX)"
+  proj_json="$proj_dir/refinement.json"
+
+  # Minimal canonical one-task refinement.json the derive bridge accepts. The
+  # derive bridge's id contract requires the short id to be Tn/Vn form, so the
+  # probe task is T1 and we invoke it as the full-form ${source_id}-T1. This is a
+  # throwaway projection probe — the real planned task id is irrelevant here; only
+  # the level mapping output matters.
+  cat >"$proj_json" <<JSON
+{
+  "source": { "type": "dp", "id": "${source_id}" },
+  "acceptance_criteria": [ { "id": "AC1", "text": "lock preflight level projection" } ],
+  "tasks": [
+    {
+      "id": "T1",
+      "kind": "T",
+      "title": "lock preflight level projection",
+      "scope": "project ${raw_level} onto the task.md Level enum",
+      "task_shape": "implementation",
+      "tracked_deliverable_hint": "tracked",
+      "allowed_files": ["scripts/lock-preflight-level-probe.sh"],
+      "modules": ["scripts/lock-preflight-level-probe.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "lock preflight level projection",
+        "behavior_contract": { "applies": false, "reason": "framework lock preflight level projection" },
+        "test_environment": { "level": "${raw_level}" },
+        "verify_command": "echo PASS",
+        "references": []
+      }
+    }
+  ]
+}
+JSON
+
+  if ! derived="$(bash "$DERIVE_TASK_MD" --refinement-json "$proj_json" \
+      --task-id "${source_id}-T1" 2>/dev/null)"; then
+    rm -rf "$proj_dir"
+    return 1
+  fi
+  rm -rf "$proj_dir"
+
+  projected="$(printf '%s\n' "$derived" \
+    | grep -E '^- \*\*Level\*\*:' | head -n 1 \
+    | sed -E 's/^- \*\*Level\*\*:[[:space:]]*//')"
+  if [[ -z "$projected" ]]; then
+    return 1
+  fi
+  printf '%s\n' "$projected"
+}
+
+# write_placeholder_task <dir> <task_id> <task_shape> <deliverable_hint> <title> <level>
 # Synthesizes a folder-native T{n}/index.md placeholder that satisfies
 # validate-task-md.sh's minimum T-task schema, so that validate-breakdown-ready
 # evaluates the real task_shape / Allowed Files contract rather than tripping on
-# the placeholder itself (DP-262 EC2).
+# the placeholder itself (DP-262 EC2). The <level> arg is the already-projected
+# task.md Level (DP-316 T2); when empty the placeholder keeps the static default
+# (backward compat for tasks that declare no test_environment.level).
 write_placeholder_task() {
   local dir="$1"
   local task_id="$2"
   local task_shape="$3"
   local hint="$4"
   local title="${5:-}"
+  local level="${6:-static}"
 
   local shape_fm=""
   if [[ -n "$task_shape" ]]; then
@@ -94,6 +178,22 @@ write_placeholder_task() {
   else
     allowed_entry="scripts/${task_id}-placeholder.sh"
     owning_file="scripts/${task_id}-placeholder.sh"
+  fi
+
+  # DP-316 T2: keep the Test Environment block self-consistent for the projected
+  # Level so validate-task-md's Level-specific cross-field rules evaluate the
+  # placeholder as a real task.md would. A Level=runtime task.md requires a
+  # non-N/A http Runtime verify target, a non-N/A Env bootstrap command, and a
+  # Verify Command fence whose live URL host matches the target. Non-runtime
+  # levels (static / build) keep the N/A defaults.
+  # The probe host is a non-8080 local port so it is treated as a generic runtime
+  # target, not the docs-manager viewer (which would additionally require a
+  # /docs-manager/ path). Target host and Verify Command host match (DP-023).
+  local te_runtime_target="N/A" te_bootstrap="N/A" verify_block="echo PASS"
+  if [[ "$level" == "runtime" ]]; then
+    te_runtime_target="http://127.0.0.1:9999/lock-preflight-placeholder"
+    te_bootstrap="echo bootstrap"
+    verify_block="curl -fsS http://127.0.0.1:9999/lock-preflight-placeholder"
   fi
 
   mkdir -p "$dir"
@@ -180,16 +280,16 @@ echo PASS
 
 ## Test Environment
 
-- **Level**: static
+- **Level**: ${level}
 - **Dev env config**: N/A
 - **Fixtures**: N/A
-- **Runtime verify target**: N/A
-- **Env bootstrap command**: N/A
+- **Runtime verify target**: ${te_runtime_target}
+- **Env bootstrap command**: ${te_bootstrap}
 
 ## Verify Command
 
 \`\`\`bash
-echo PASS
+${verify_block}
 \`\`\`
 EOF
 }
@@ -207,10 +307,38 @@ run_preflight() {
     return 1
   fi
 
-  local tmpdir
-  tmpdir="$(mktemp -d -t validate-refinement-lock-preflight.XXXXXX)"
-  # shellcheck disable=SC2064
-  trap "rm -rf '$tmpdir'" RETURN
+  # Extract the canonical source id once; the level projection synthesizes a
+  # one-task refinement.json whose source id must match the derive bridge's
+  # full-form task id contract (DP-NNN-Tn). Default keeps the embedded smoke /
+  # legacy fixtures working when source.id is absent.
+  local source_id
+  source_id="$(python3 - "$refinement_json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+try:
+    data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+except Exception:
+    print("DP-262")
+    raise SystemExit(0)
+print(str((data.get("source") or {}).get("id") or "DP-262").strip() or "DP-262")
+PY
+)"
+
+  # DP-316 T2 test-observability seam: when POLARIS_LOCK_PREFLIGHT_KEEP_TMPDIR is
+  # set to a writable directory, keep the synthesized placeholders there (and do
+  # not auto-remove) so the selftest can read the placeholder Level and assert
+  # projection parity. Unset (the production path) uses an auto-removed mktemp dir.
+  local tmpdir keep_tmpdir="${POLARIS_LOCK_PREFLIGHT_KEEP_TMPDIR:-}"
+  if [[ -n "$keep_tmpdir" ]]; then
+    mkdir -p "$keep_tmpdir"
+    tmpdir="$keep_tmpdir"
+  else
+    tmpdir="$(mktemp -d -t validate-refinement-lock-preflight.XXXXXX)"
+    # shellcheck disable=SC2064
+    trap "rm -rf '$tmpdir'" RETURN
+  fi
 
   # DP-294 T7 / AC9: synthesize a hermetic mini-workspace so validate-task-md.sh's
   # summary-language guard activates against the placeholders. The guard walks up
@@ -239,13 +367,16 @@ run_preflight() {
     grep -E '^[[:space:]]*language[[:space:]]*:' "$live_config" >"$tmpdir/workspace-config.yaml" 2>/dev/null || true
   fi
 
-  # DP-296 T3: Extract canonical tasks[] as <task_id><US><task_shape><US><hint><US><title>
-  # rows, where <US> is the ASCII unit separator (\x1f). task_shape and
-  # tracked_deliverable_hint are now first-class tasks[] fields (canonical home,
-  # migrated from the removed legacy top-level shape array, AC2 / AC-NEG1). A
-  # non-whitespace separator is required so `read` preserves an empty task_shape
-  # field (a missing field defaults to implementation downstream) instead of
-  # collapsing consecutive whitespace delimiters.
+  # DP-296 T3 / DP-316 T2: Extract canonical tasks[] as
+  # <task_id><US><task_shape><US><hint><US><title><US><level> rows, where <US> is
+  # the ASCII unit separator (\x1f). task_shape and tracked_deliverable_hint are
+  # first-class tasks[] fields (canonical home, migrated from the removed legacy
+  # top-level shape array, AC2 / AC-NEG1). level is the raw declared
+  # verification.test_environment.level (DP-316 T2), passed to the single
+  # canonical projection before it lands in the placeholder. A non-whitespace
+  # separator is required so `read` preserves an empty task_shape / level field
+  # (a missing field defaults downstream) instead of collapsing consecutive
+  # whitespace delimiters.
   # task_id is the short work-item form (T1/V1) derived from tasks[].id, which may
   # be short (T1) or full (DP-NNN-Tn) form per the canonical schema.
   # Missing tasks[] (or non-array) yields no rows -> no-op PASS.
@@ -291,11 +422,19 @@ for idx, entry in enumerate(tasks):
     # empty when title-less tasks fall back to a CJK summary downstream so the
     # guard stays a no-op (backward compat).
     title = str(entry.get("title") or "").strip()
+    # DP-316 T2: the raw declared test_environment.level (test-pyramid value). It
+    # is projected onto the task.md Level enum through the single canonical
+    # projection before reaching the placeholder. Empty when the task declares no
+    # test_environment.level (placeholder keeps the static default downstream).
+    level = str(
+        ((entry.get("verification") or {}).get("test_environment") or {}).get("level")
+        or ""
+    ).strip()
     # The unit separator / newline would corrupt the row contract; reject early.
-    if any("\x1f" in v or "\n" in v for v in (task_id, task_shape, hint, title)):
+    if any("\x1f" in v or "\n" in v for v in (task_id, task_shape, hint, title, level)):
         print(f"BADFIELD\t{idx}", file=sys.stderr)
         raise SystemExit(3)
-    print(f"{task_id}\x1f{task_shape}\x1f{hint}\x1f{title}")
+    print(f"{task_id}\x1f{task_shape}\x1f{hint}\x1f{title}\x1f{level}")
 PY
 )" || {
     echo "validate-refinement-lock-preflight: failed to parse tasks[] in $refinement_json" >&2
@@ -308,11 +447,24 @@ PY
   fi
 
   local failures=()
-  local task_id task_shape hint title placeholder_dir err
-  while IFS=$'\x1f' read -r task_id task_shape hint title; do
+  local task_id task_shape hint title raw_level placeholder_dir err
+  while IFS=$'\x1f' read -r task_id task_shape hint title raw_level; do
     [[ -z "$task_id" ]] && continue
+
+    # DP-316 T2: project the declared level through the single canonical
+    # projection. A declared-but-unknown level fail-louds in the derive bridge;
+    # we surface it as a per-task failure (no silent fallback to static, AC-NEG1).
+    # A task with no declared level keeps the static placeholder default.
+    local projected_level=""
+    if [[ -n "$raw_level" ]]; then
+      if ! projected_level="$(project_planned_level "$source_id" "$task_id" "$raw_level")"; then
+        failures+=("task '$task_id' declares test_environment.level='$raw_level' which is not a projectable level (derive bridge fail-loud); refusing to silently fall back to static")
+        continue
+      fi
+    fi
+
     placeholder_dir="$tmpdir/$task_id"
-    write_placeholder_task "$placeholder_dir" "$task_id" "$task_shape" "$hint" "$title"
+    write_placeholder_task "$placeholder_dir" "$task_id" "$task_shape" "$hint" "$title" "$projected_level"
     err="$tmpdir/$task_id.err"
     if ! bash "$VALIDATE_BREAKDOWN_READY" "$placeholder_dir/index.md" >/dev/null 2>"$err"; then
       local detail

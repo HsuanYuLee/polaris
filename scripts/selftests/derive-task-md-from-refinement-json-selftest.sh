@@ -531,7 +531,7 @@ cat >"$bc_true_json" <<'JSON'
         "detail": "pnpm vitest run src/app.test.ts",
         "verify_command": "pnpm vitest run src/app.test.ts",
         "behavior_contract": { "applies": true, "mode": "parity", "source_of_truth": "existing_behavior", "fixture_policy": "live_allowed", "flow": "載入頁面並比對既有行為", "assertions": ["回應結構不變", "互動行為一致"] },
-        "test_environment": { "level": "build", "env_bootstrap_command": "pnpm install" },
+        "test_environment": { "level": "integration", "env_bootstrap_command": "pnpm install" },
         "references": []
       }
     }
@@ -863,7 +863,7 @@ cat >"$applies_true_json" <<'JSON'
           "flow": "載入卡片元件並比對既有渲染行為",
           "assertions": ["卡片標題與既有版本一致", "點擊事件行為不變"]
         },
-        "test_environment": { "level": "build", "env_bootstrap_command": "pnpm install" },
+        "test_environment": { "level": "integration", "env_bootstrap_command": "pnpm install" },
         "references": []
       }
     }
@@ -917,7 +917,7 @@ cat >"$applies_true_partial_json" <<'JSON'
           "flow": "載入卡片元件",
           "assertions": ["標題一致"]
         },
-        "test_environment": { "level": "build", "env_bootstrap_command": "pnpm install" },
+        "test_environment": { "level": "integration", "env_bootstrap_command": "pnpm install" },
         "references": []
       }
     }
