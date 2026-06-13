@@ -69,6 +69,36 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/workspace-config-root.sh
 . "$SCRIPT_DIR/lib/workspace-config-root.sh"
 
+# resolve_scan_root_source_repo <scan_root>
+#   DP-322: clean-worktree specs overlay lookup. When --scan-root points at a
+#   worktree whose specs tree is absent (gitignored or rm -rf'd, e.g. a
+#   framework-release bundle worktree), resolve the worktree's git common-dir
+#   source repo so specs can be found there. Without this, resolve_specs_root's
+#   overlay branch falls through to resolve_specs_workspace_root, which honors
+#   POLARIS_WORKSPACE_ROOT and resolves the *caller's* workspace (the wrong
+#   source tree). Fail-closed: emit nothing and return 1 when git is
+#   unavailable, the path is not a git worktree, or the resolved source repo
+#   has no specs — the caller then keeps the literal scan root and never falls
+#   back to a PWD/env-driven workspace.
+#   stdout: absolute source-repo path (only when it contains a specs tree)
+#   exit:   0 resolved with specs, 1 otherwise
+resolve_scan_root_source_repo() {
+  local scan_root="$1"
+  local common_dir source_repo
+  command -v git >/dev/null 2>&1 || return 1
+  common_dir="$(git -C "$scan_root" rev-parse --git-common-dir 2>/dev/null)" || return 1
+  [[ -n "$common_dir" ]] || return 1
+  # --git-common-dir is relative to scan_root for a linked worktree; the source
+  # repo root is the parent of that resolved .git directory.
+  if [[ "$common_dir" != /* ]]; then
+    common_dir="$(cd "$scan_root" && cd "$common_dir" 2>/dev/null && pwd)" || return 1
+  fi
+  source_repo="$(cd "$(dirname "$common_dir")" 2>/dev/null && pwd)" || return 1
+  [[ -n "$source_repo" ]] || return 1
+  [[ -d "$source_repo/docs-manager/src/content/docs/specs" ]] || return 1
+  printf '%s\n' "$source_repo"
+}
+
 usage() {
   cat >&2 <<'USAGE'
 usage: resolve-task-md-by-branch.sh <branch-name>
@@ -467,6 +497,15 @@ if [[ -n "$scan_root" ]]; then
     exit 2
   fi
   root="$(cd "$scan_root" && pwd)"
+  # DP-322: when the scan root has no specs of its own (clean worktree), resolve
+  # its git common-dir source repo and prefer it so resolve_specs_root finds
+  # specs directly instead of falling through to a POLARIS_WORKSPACE_ROOT-driven
+  # (wrong) workspace. No-op when the scan root already has specs.
+  if [[ ! -d "$root/docs-manager/src/content/docs/specs" ]]; then
+    if source_repo="$(resolve_scan_root_source_repo "$root")" && [[ -n "$source_repo" ]]; then
+      root="$source_repo"
+    fi
+  fi
 else
   root=""
   if root="$(resolve_workspace_config_root "$(pwd)" 2>/dev/null || true)" && [[ -n "$root" ]]; then

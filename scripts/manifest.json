@@ -2258,10 +2258,9 @@
       "kind": "resolver",
       "runner": "bash",
       "owner_surface": "hook",
-      "selftest": "N/A",
+      "selftest": "scripts/selftests/resolve-task-md-by-branch-overlay-scan-root-selftest.sh",
       "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "relocation": "stay"
     },
     {
       "path": "scripts/resolve-task-md.sh",
@@ -3618,6 +3617,17 @@
       "posture_decision": "DP-189-T3b covers canonical specs root overlay fallback and symlink primary rejection."
     },
     {
+      "path": "scripts/selftests/resolve-task-md-by-branch-overlay-scan-root-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-322 resolver-level guard: --scan-root clean-worktree specs overlay lookup resolves git common-dir source repo, never leaks to POLARIS_WORKSPACE_ROOT workspace."
+    },
+    {
       "path": "scripts/selftests/resolve-task-md-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -4719,6 +4729,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/validate-branch-name-ascii.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/validate-branch-name-ascii-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-breakdown-escalation-intake.sh",
       "kind": "gate",
       "runner": "bash",
@@ -5541,7 +5560,9 @@
       "changed_paths": [
         "scripts/framework-release-pr-lane.sh",
         "scripts/framework-release-pr-lane-selftest.sh",
-        "scripts/lib/github-rest.sh"
+        "scripts/lib/github-rest.sh",
+        "scripts/resolve-task-md-by-branch.sh",
+        "scripts/lib/specs-root.sh"
       ],
       "fixtures": [
         "fake gh"
@@ -5751,6 +5772,26 @@
       "fixtures": [
         "preflight evidence reference",
         "release closeout"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "resolve-task-md-by-branch-overlay-scan-root",
+      "command": "bash scripts/selftests/resolve-task-md-by-branch-overlay-scan-root-selftest.sh",
+      "profiles": [
+        "core",
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/resolve-task-md-by-branch.sh",
+        "scripts/selftests/resolve-task-md-by-branch-overlay-scan-root-selftest.sh",
+        "scripts/lib/specs-root.sh"
+      ],
+      "fixtures": [
+        "clean worktree specs overlay",
+        "decoy workspace root"
       ],
       "enrolled": true,
       "owner": "polaris-framework"

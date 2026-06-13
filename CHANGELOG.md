@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.11] - 2026-06-13
+
+### Fixed
+
+- 473a8ef: resolve-task-md-by-branch.sh clean-worktree specs overlay lookup：--scan-root 無 specs 時解析 git-common-dir source repo，不退 PWD，使 framework-release pr-lane governed-test gate 全綠
+
 ## [3.76.10] - 2026-06-13
 
 ### Changed
