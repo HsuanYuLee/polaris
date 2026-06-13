@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Purpose: Validate an auto-pass source-scoped ledger.json against the contract
+#          (schema_version, source/refinement-hash, consent enum, terminal enum,
+#          loop_counters cap incl. engineering_revision_rounds, pause/friction shape).
+# Inputs:  ledger path (absolute) + optional --source-container/--source-id/--task-write-at.
+# Outputs: stdout PASS line; exit 0 PASS, 1 validation failure, 2 usage error.
 set -euo pipefail
 
 usage() {
@@ -344,7 +349,19 @@ loop_counters = ledger.get("loop_counters")
 #   - legacy integer shape: N  (backward compat; still accepted)
 #   - new object shape: {"count": N, "evidence_ids": [...]}
 # Both shapes are valid. The validator extracts the count from either form.
+#
+# DP-313 T2 (AC4): engineering_revision_rounds is an additive counter key tracking how
+# many engineering revision rounds the auto-pass review-revision loop has dispatched. It
+# is validated-when-present (absent key == 0, same as the other counters), shares the same
+# {count, evidence_ids[]} / legacy-int shape for idempotency, and is subject to the same
+# cap: count > cap requires terminal_status=loop_cap_reached so the revision loop cannot
+# iterate silently.
 COUNTER_CAP = 3
+CAP_ENFORCED_COUNTERS = (
+    "engineering_to_breakdown",
+    "breakdown_to_refinement_inbox",
+    "engineering_revision_rounds",
+)
 
 
 def _counter_count(value):
@@ -373,7 +390,7 @@ if loop_counters is not None:
     if not isinstance(loop_counters, dict):
         errors.append("loop_counters must be an object")
     else:
-        for key in ("engineering_to_breakdown", "breakdown_to_refinement_inbox"):
+        for key in CAP_ENFORCED_COUNTERS:
             value = loop_counters.get(key)
             if value is None:
                 # Key absent is fine — treated as 0.

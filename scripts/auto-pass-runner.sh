@@ -57,6 +57,16 @@
 #     --stage breakdown|engineering|verify-AC
 #     --work-item-id DP-NNN-T1
 #     [--head-sha SHA] [--ledger /abs/path] [--repo /abs/path]
+#     [--pr-state-file /abs/path]
+#
+# DP-313 T1: at the engineering stage, --pr-state-file passes an explicit
+# review-state classification (a fixture / pr-action-classifier.sh output JSON;
+# never a live gh read inside the runner/probe) that the runner forwards to the
+# probe. After the completion-gate marker is PASS, an actionable review state
+# routes back to the owning skill: needs_code_changes → engineering (revision),
+# planning_gap → breakdown, spec issue → refinement (amendment). Any
+# non-actionable state (or no file) keeps parity with current behaviour and
+# continues to verify-AC.
 
 set -euo pipefail
 
@@ -70,6 +80,7 @@ usage:
     --stage breakdown|engineering|verify-AC
     --work-item-id DP-NNN-T1
     [--head-sha SHA] [--ledger /abs/path] [--repo /abs/path]
+    [--pr-state-file /abs/path]
 USAGE
   exit 2
 }
@@ -80,6 +91,7 @@ SOURCE_ID=""
 WORK_ITEM_ID=""
 HEAD_SHA=""
 LEDGER=""
+PR_STATE_FILE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -89,6 +101,7 @@ while [[ $# -gt 0 ]]; do
     --work-item-id) WORK_ITEM_ID="${2:-}"; shift 2 ;;
     --head-sha) HEAD_SHA="${2:-}"; shift 2 ;;
     --ledger) LEDGER="${2:-}"; shift 2 ;;
+    --pr-state-file) PR_STATE_FILE="${2:-}"; shift 2 ;;
     --help|-h) usage ;;
     *)
       if [[ -z "$STAGE" && -z "$SOURCE_ID" && "$1" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]]; then
@@ -141,14 +154,33 @@ fi
 if [[ -n "$LEDGER" ]]; then
   PROBE_ARGS+=(--ledger "$LEDGER")
 fi
+# DP-313 T1: forward the explicit review-state input to the probe. The runner
+# does not interpret the file itself; the probe owns the actionable / parity
+# classification and emits a route-back the runner mirrors below.
+if [[ -n "$PR_STATE_FILE" ]]; then
+  PROBE_ARGS+=(--pr-state-file "$PR_STATE_FILE")
+fi
 
-# We must NOT capture errors silently — probe writes to stdout for JSON and
-# can write to stderr for ledger-friction side effects; both are fine.
+# Probe writes JSON to stdout; stderr carries ledger-friction side effects and,
+# for the DP-313 T3 fail-closed path, a POLARIS_TOOL_MISSING marker (review-state
+# unavailable, probe exit 3). Capture stderr to a temp file so the runner can
+# re-surface that marker instead of swallowing it (AC-NEG2): a fail-open here
+# would silently let the work item be declared complete.
+PROBE_STDERR_FILE="$(mktemp)"
+trap 'rm -f "$PROBE_STDERR_FILE"' EXIT
 set +e
-PROBE_OUTPUT_RAW="$(bash "$PROBE" "${PROBE_ARGS[@]}" 2>/dev/null)"
+PROBE_OUTPUT_RAW="$(bash "$PROBE" "${PROBE_ARGS[@]}" 2>"$PROBE_STDERR_FILE")"
 PROBE_RC=$?
 set -e
 export PROBE_OUTPUT_RAW
+
+# DP-313 T3 (AC-NEG2): the probe fails closed with exit 3 + POLARIS_TOOL_MISSING
+# on stderr when --pr-state-file was supplied but the review state is unavailable
+# (gh missing / PR state unreadable). Re-surface that marker on the runner's own
+# stderr before mapping the blocked result, so hooks / orchestrator can grep it.
+if [[ "$PROBE_RC" -eq 3 ]] && grep -q 'POLARIS_TOOL_MISSING' "$PROBE_STDERR_FILE"; then
+  cat "$PROBE_STDERR_FILE" >&2
+fi
 
 python3 - "$STAGE" "$SOURCE_ID" "$WORK_ITEM_ID" "$HEAD_SHA" "$LEDGER" "$PROBE_RC" "$LEDGER_VALIDATOR" "$REPO" <<'PY'
 import json
@@ -172,6 +204,11 @@ if probe_raw:
         probe_data = json.loads(probe_raw)
     except Exception as exc:
         probe_error = f"probe output not JSON: {exc}"
+elif probe_rc == 3:
+    # DP-313 T3 (AC-NEG2): probe fail-closed on an unavailable review-state read.
+    # Stays blocked_by_gate_failure — never silently complete. The runner already
+    # re-surfaced POLARIS_TOOL_MISSING on its own stderr above.
+    probe_error = "review-state unavailable (POLARIS_TOOL_MISSING); fail-closed"
 elif probe_rc != 0:
     probe_error = f"probe exited rc={probe_rc} with empty stdout"
 else:
@@ -485,6 +522,33 @@ def map_next_action(probe_status, probe_terminal, probe_next, probe_evidence, pr
             "next_work_item_id": source_id,
             "evidence_path": probe_evidence,
             "reason": probe_reason or "refinement amendment loop",
+        }
+    # DP-313 T1: engineering-stage review-state route-backs. The probe consumed
+    # an explicit review-state classification (after completion gate PASS) and
+    # emitted a non-terminal route-back. Both routes dispatch the owning skill
+    # (revision = engineering, planning gap = breakdown); terminal_status stays
+    # null so the orchestrator loops rather than stopping. Keyed on the probe
+    # STATUS token only — probe next_action ("engineering" / "breakdown") would
+    # collide with forward-stage hints (e.g. source PASS emits next="breakdown").
+    if probe_status == "ROUTE_BACK_REVISION":
+        return {
+            "status": "ROUTE_BACK_REVISION",
+            "terminal_status": None,
+            "next_action": "dispatch",
+            "next_skill": "engineering",
+            "next_work_item_id": work_item_id,
+            "evidence_path": probe_evidence,
+            "reason": probe_reason or "actionable review signal (revision)",
+        }
+    if probe_status == "ROUTE_BACK_BREAKDOWN":
+        return {
+            "status": "ROUTE_BACK_BREAKDOWN",
+            "terminal_status": None,
+            "next_action": "dispatch",
+            "next_skill": "breakdown",
+            "next_work_item_id": work_item_id,
+            "evidence_path": probe_evidence,
+            "reason": probe_reason or "review planning gap (breakdown)",
         }
     if probe_status == "PASS":
         next_skill = STAGE_NEXT_SKILL.get(stage)

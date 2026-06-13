@@ -123,6 +123,13 @@ elif probe_term == "blocked_by_gate_failure":
     expected_action = "blocked"
 elif probe_status == "ROUTE_BACK_AMEND" or probe.get("next_action") == "refinement_amendment":
     expected_action = "refinement_amendment"
+elif probe_status == "ROUTE_BACK_REVISION":
+    # DP-313 T1: actionable review signal → engineering revision dispatch.
+    # Keyed on status only — probe next_action collides with forward hints.
+    expected_action = "dispatch"
+elif probe_status == "ROUTE_BACK_BREAKDOWN":
+    # DP-313 T1: planning_gap review signal → breakdown dispatch.
+    expected_action = "dispatch"
 elif probe_status == "PASS":
     expected_action = "terminal" if stage == "verify-AC" else "dispatch"
 else:
@@ -164,6 +171,31 @@ assert_parity "engineering-pass"       --stage engineering --source-id DP-900 --
 rm "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json"
 
 assert_parity "engineering-missing"    --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
+
+# DP-313 T1: engineering-stage review-state branch parity. Completion gate is
+# PASS; an explicit --pr-state-file carries an actionable / planning / spec
+# review state. Runner and probe must agree on the new route's machine fields.
+write_marker "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json" PASS
+write_pr_state() {
+  python3 - "$1" "$2" "${3:-}" <<'PY'
+import json, sys
+from pathlib import Path
+path, readiness, revision_class = sys.argv[1:4]
+payload = {"pr_state": "OPEN", "readiness_state": readiness}
+if revision_class:
+    payload["revision_class"] = revision_class
+Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+}
+write_pr_state "$TMP/parity-actionable.json" needs_code_changes code_drift
+assert_parity "engineering-review-actionable" --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234 --pr-state-file "$TMP/parity-actionable.json"
+write_pr_state "$TMP/parity-plangap.json" planning_gap plan_gap
+assert_parity "engineering-review-plangap"    --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234 --pr-state-file "$TMP/parity-plangap.json"
+write_pr_state "$TMP/parity-specissue.json" planning_gap spec_issue
+assert_parity "engineering-review-specissue"  --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234 --pr-state-file "$TMP/parity-specissue.json"
+write_pr_state "$TMP/parity-nonactionable.json" mergeable_ready
+assert_parity "engineering-review-nonactionable" --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234 --pr-state-file "$TMP/parity-nonactionable.json"
+rm "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json"
 
 # ─── verify-AC parity ────────────────────────────────────────────────────────
 write_marker "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json" PASS DP-900 DP-900-V1

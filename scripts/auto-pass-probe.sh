@@ -2,8 +2,27 @@
 # Purpose: auto-pass durable-evidence probe — read .polaris/evidence/** markers for
 #          a given stage (source/breakdown/engineering/verify-AC) and emit the
 #          machine terminal status (PASS / blocked_by_gate_failure / etc.) as JSON.
-# Inputs:  --stage, --source-id, --work-item-id, [--head-sha], [--ledger], [--repo].
-# Outputs: probe JSON on stdout; exit 0 on emit, 2 on usage error.
+# Inputs:  --stage, --source-id, --work-item-id, [--head-sha], [--ledger],
+#          [--pr-state-file], [--repo].
+# Outputs: probe JSON on stdout; exit 0 on emit, 2 on usage error,
+#          3 on fail-closed review-state unavailability (POLARIS_TOOL_MISSING).
+#
+# DP-313 T1: at the engineering stage, AFTER the completion-gate marker is PASS,
+# the probe optionally consumes a review-state classification supplied as
+# EXPLICIT INPUT via --pr-state-file (a fixture / classifier-output JSON; the
+# probe NEVER calls gh or any network itself). When the review state is
+# actionable it routes back to the owning skill (engineering revision /
+# breakdown / refinement amendment); otherwise it stays at parity with current
+# behaviour and continues to verify-AC.
+#
+# DP-313 T3 (AC-NEG2): when --pr-state-file IS supplied (the orchestrator
+# attempted a review-state read) but the state is UNAVAILABLE — the file is
+# missing / unreadable / not JSON, or it explicitly signals gh/PR-state
+# unavailability (tool_missing:true, or pr_state:UNKNOWN with no readiness) —
+# the probe FAILS CLOSED: it writes POLARIS_TOOL_MISSING to stderr and exits 3
+# instead of silently continuing to verify-AC and declaring the work item
+# complete. Omitting --pr-state-file entirely is NOT a failure (parity,
+# AC-NEG1): no review-state was requested, so the probe continues to verify-AC.
 set -euo pipefail
 
 usage() {
@@ -14,6 +33,7 @@ usage:
   scripts/auto-pass-probe.sh --stage breakdown|engineering|verify-AC
     --source-id DP-NNN --work-item-id DP-NNN-T1 [--repo PATH]
     [--head-sha SHA] [--ledger /absolute/path/to/ledger.json]
+    [--pr-state-file /absolute/path/to/review-state.json]
 USAGE
   exit 2
 }
@@ -24,6 +44,7 @@ SOURCE_ID=""
 WORK_ITEM_ID=""
 HEAD_SHA=""
 LEDGER=""
+PR_STATE_FILE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -33,6 +54,7 @@ while [[ $# -gt 0 ]]; do
     --work-item-id) WORK_ITEM_ID="${2:-}"; shift 2 ;;
     --head-sha) HEAD_SHA="${2:-}"; shift 2 ;;
     --ledger) LEDGER="${2:-}"; shift 2 ;;
+    --pr-state-file) PR_STATE_FILE="${2:-}"; shift 2 ;;
     --help|-h) usage ;;
     *)
       if [[ -z "$STAGE" && -z "$SOURCE_ID" && "$1" =~ ^[A-Z][A-Z0-9]*-[0-9]+$ ]]; then
@@ -69,7 +91,7 @@ fi
 SCRIPT_DIR_RESOLVED="$(cd "$(dirname "$0")" && pwd)"
 RESOLVER="$SCRIPT_DIR_RESOLVED/spec-source-resolver.sh"
 
-python3 - "$REPO" "$STAGE" "$SOURCE_ID" "$WORK_ITEM_ID" "$HEAD_SHA" "$LEDGER" "$RESOLVER" <<'PY'
+python3 - "$REPO" "$STAGE" "$SOURCE_ID" "$WORK_ITEM_ID" "$HEAD_SHA" "$LEDGER" "$RESOLVER" "$PR_STATE_FILE" <<'PY'
 import hashlib
 import json
 import os
@@ -78,7 +100,7 @@ import sys
 from pathlib import Path
 
 repo = Path(sys.argv[1]).resolve()
-stage, source_id, work_item_id, head_sha, ledger_arg, resolver_path = sys.argv[2:8]
+stage, source_id, work_item_id, head_sha, ledger_arg, resolver_path, pr_state_file = sys.argv[2:9]
 
 
 def marker(path):
@@ -252,6 +274,97 @@ def _resolve_or_emit(sid):
     return resolved
 
 
+def emit_tool_missing(reason, evidence_path=None):
+    """Fail-closed exit for an unavailable review-state read (DP-313 T3, AC-NEG2).
+
+    The orchestrator supplied --pr-state-file (it attempted a gh/PR-state read)
+    but the resulting state is unavailable. Per pr-state-contract.md § Fail-Closed
+    Rules and the Tool Missing Discipline, the probe must NOT silently continue to
+    verify-AC and let the work item be declared complete. It writes
+    POLARIS_TOOL_MISSING to stderr (so hooks / orchestrator can grep it) and exits
+    3 with no stdout JSON, which the runner maps to blocked_by_gate_failure.
+
+    Args:
+        reason: short human-readable cause for the unavailability.
+        evidence_path: the offending --pr-state-file path, or None.
+    """
+    detail = f": {evidence_path}" if evidence_path else ""
+    print(f"POLARIS_TOOL_MISSING:gh review-state unavailable ({reason}){detail}",
+          file=sys.stderr)
+    raise SystemExit(3)
+
+
+def review_state_route(state_file_arg):
+    """Map an explicit review-state classification to a route-back emit tuple.
+
+    DP-313 T1: the review state arrives as EXPLICIT INPUT — a fixture /
+    classifier-output JSON path. The probe NEVER calls gh or any network here;
+    the orchestrator owns the live gh read + head-rebind and hands the probe a
+    materialized state file.
+
+    The fixture shape mirrors pr-action-classifier.sh output:
+        {"readiness_state": "<vocab token>", "revision_class": "<R3 class>"}
+    using the pr-state-contract.md readiness vocabulary and the
+    engineering-revision-flow.md R3 classes (code_drift / plan_gap / spec_issue).
+
+    DP-313 T3 (AC-NEG2): a SUPPLIED-but-UNAVAILABLE review state (missing file /
+    unreadable / not JSON / explicit gh-or-PR-state unavailability sentinel) is a
+    fail-closed condition, not parity — it calls emit_tool_missing() and never
+    returns. Only an ABSENT --pr-state-file (state_file_arg == "") stays at parity
+    (the orchestrator did not request a review-state read).
+
+    Args:
+        state_file_arg: absolute path to the review-state JSON, or "" when no
+            explicit input was supplied.
+
+    Returns:
+        An emit() tuple (status, terminal_status, next_action, evidence_path,
+        reason) for an actionable route-back, or None when no review-state was
+        requested OR the state is present-and-non-actionable — in which case the
+        caller keeps parity with current behaviour (continue to verify-AC).
+        terminal_status stays null for every route-back (non-terminal dispatch,
+        mirroring the refinement_amendment shape in auto-pass-execution-flow.md).
+    """
+    # No review-state requested at all → parity (AC-NEG1): the orchestrator did
+    # not attempt a read, so there is nothing to fail closed on.
+    if not state_file_arg:
+        return None
+    # From here on a read WAS requested. Any unavailability fails closed (AC-NEG2).
+    state_path = Path(state_file_arg)
+    if not state_path.is_file():
+        emit_tool_missing("pr-state file missing", state_path)
+    try:
+        data = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        emit_tool_missing(f"pr-state file not JSON: {exc}", state_path)
+    if not isinstance(data, dict):
+        emit_tool_missing("pr-state file is not a JSON object", state_path)
+    # Explicit unavailability sentinel: the orchestrator's gh read failed and it
+    # recorded that in the state file rather than a real classification.
+    if data.get("tool_missing") is True:
+        emit_tool_missing("classifier reported tool_missing", state_path)
+    readiness = data.get("readiness_state")
+    revision_class = data.get("revision_class")
+    # A file with neither a readiness token nor a revision class carries no usable
+    # PR state (e.g. pr_state:UNKNOWN with no classification) → fail closed.
+    if not readiness and not revision_class:
+        emit_tool_missing("pr-state file has no readiness_state/revision_class", state_path)
+    # Spec issue (R3 spec_issue) routes to refinement amendment regardless of the
+    # collapsed readiness token, matching engineering-revision-flow.md R3a.
+    if revision_class == "spec_issue":
+        return ("ROUTE_BACK_AMEND", None, "refinement_amendment", state_path,
+                "review spec issue (amendment loop)")
+    if readiness == "needs_code_changes":
+        return ("ROUTE_BACK_REVISION", None, "engineering", state_path,
+                "actionable review signal (revision)")
+    if readiness == "planning_gap":
+        return ("ROUTE_BACK_BREAKDOWN", None, "breakdown", state_path,
+                "review planning gap (breakdown)")
+    # review_required / awaiting_re_review / mergeable_ready / wait_ci and any
+    # other present, non-actionable state → parity: continue to verify-AC.
+    return None
+
+
 if stage == "source":
     # AC12: source resolution delegated to spec-source-resolver.sh; non-DP keys
     # (JIRA / Epic) resolve via companies/{company}/{KEY} containers and must
@@ -378,6 +491,12 @@ if stage == "engineering":
             emit(status_of(path) or "BLOCKED", "blocked_by_gate_failure", "blocked", path, reason)
     path = evidence / "completion-gate" / f"{work_item_id}-{head_sha}.json"
     if status_of(path) == "PASS":
+        # DP-313 T1: AFTER completion gate is PASS, consume the explicit
+        # review-state classification (if any) before forwarding to verify-AC.
+        # Non-actionable / absent state → parity (continue to verify-AC).
+        route = review_state_route(pr_state_file)
+        if route is not None:
+            emit(*route)
         emit("PASS", None, "verify-AC", path)
     emit("UNKNOWN", "blocked_by_gate_failure", "blocked", None, "completion gate marker missing")
 

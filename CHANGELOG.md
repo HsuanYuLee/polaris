@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.76.12] - 2026-06-13
+
+### Changed
+
+- 0f0a530: runner / probe review-state extension：actionable signals 觸發 ROUTE_BACK_REVISION
+- 53504e1: ledger schema + execution-flow + SKILL.md：engineering_revision_rounds counter 與 dispatch boundary 明文
+- 452264e: orchestrator head rebind 接線：revision 後新 head probe 與 verify-AC refresh、gh fail-closed
+
 ## [3.76.11] - 2026-06-13
 
 ### Fixed

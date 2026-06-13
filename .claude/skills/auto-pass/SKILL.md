@@ -71,6 +71,13 @@ bash scripts/auto-pass-runner.sh \
 
 1. `breakdown` — 產生或修正本 source 的 work orders。
 2. `engineering` — 依 authoritative task.md 施工、驗證並建立 non-draft workspace PR。
+   涵蓋兩種 mode：**first-cut**（completion-gate marker 尚未 PASS 的初次施工）與
+   **revision**（completion-gate marker PASS 後，open PR 的 shared classifier 回
+   `needs_code_changes` actionable review signals，runner emit `ROUTE_BACK_REVISION`）。
+   兩種 mode 都由同一個 `engineering` skill 契約承載；revision 的 R6 comment reply 是
+   `engineering` skill-contracted write（非 auto-pass `consent_excludes`）。review-revision
+   loop 的 trigger 範圍、head rebind、`engineering_revision_rounds` counter / cap 與 fail-closed
+   行為以 `.claude/skills/references/auto-pass-execution-flow.md` § Review-Revision Loop 為準。
 3. `verify-AC` — 驗收 V work order 並產生 current verification disposition。
 4. `refinement`（amendment mode only）— `{source_container}/refinement-inbox/*.md` 出現或
    verify-AC 回 `spec_issue` 時，consume inbox、把 implementation detail 微調寫回

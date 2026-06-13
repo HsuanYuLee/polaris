@@ -71,7 +71,7 @@ runner JSON 看結果。
 | Stage | PASS marker | Blocked / route-back signal | Terminal / next action |
 |-------|------------|----------------------------|------------------------|
 | breakdown | `.polaris/evidence/task-snapshot/{work_item_id}.json` status PASS | `validation_fail`、`missing_v_task`、`refinement-inbox/` | PASS dispatch engineering；route-back amendment loop；blocked gate failure |
-| engineering | `.polaris/evidence/completion-gate/{work_item_id}-{head_sha}.json` status PASS | `blocked_conflict`、`unsupported_mutation` | PASS dispatch verify-AC；blocked gate failure |
+| engineering | `.polaris/evidence/completion-gate/{work_item_id}-{head_sha}.json` status PASS | `blocked_conflict`、`unsupported_mutation`、open PR `needs_code_changes`（actionable review signals） | PASS + 無 actionable signal dispatch verify-AC；`needs_code_changes` `ROUTE_BACK_REVISION` dispatch engineering（revision）；`planning_gap` breakdown；spec issue refinement amendment；blocked gate failure |
 | verify-AC | `.polaris/evidence/ac-verification/{work_item_id}-{head_sha}.json` status PASS | `spec_issue`、`MANUAL_REQUIRED`、`BLOCKED_ENV`、`UNCERTAIN`、missing marker | PASS complete；spec issue amendment loop；manual/env pause；unknown blocked |
 
 需要直接 debug 內部 marker 狀態時可以單獨跑 `auto-pass-probe.sh`，但 orchestrator code path
@@ -129,7 +129,17 @@ Planning loop counters live in ledger:
 
 任一 counter 達 3，terminal `loop_cap_reached`。此 cap 只涵蓋 planning backward transition。
 
-Implementation drift retry 另存在 `drift_retry`，以 V item 為 key。單一 V item 達 3 次仍 FAIL，
+Review-revision loop counter（DP-313）：
+
+- `loop_counters.engineering_revision_rounds`
+
+engineering stage 偵測到 open PR 的 actionable review signals（classifier 回
+`needs_code_changes`）後 dispatch `engineering`（revision mode）；每輪 dispatch 以
+`auto-pass-increment-counter.sh` 對此 counter +=1。比照 `engineering_to_breakdown` 模式，
+`count > 3` 時 terminal `loop_cap_reached` 並產出 report（schema、shape、cap、consent 明文以
+`.claude/skills/references/auto-pass-ledger.md` § engineering_revision_rounds counter 為準）。
+
+Implementation drift retry 另存在 `drift_retry`，以 V item 為 key。單一 V item 達 3 次仍 FAIL,
 terminal `blocked_by_gate_failure`。
 
 ### Counter Increment Contract (DP-246)
@@ -181,6 +191,32 @@ Helper 驗證三條 precondition，任一失敗即 exit 1 + stderr `POLARIS_COUN
 
 Recovery 完成後，以新 ledger 路徑繼續 `auto-pass {SOURCE_ID} resume`；orchestrator 會沿用原 ledger
 的 snapshot 與 drift_retry，不會重置 loop state。
+
+## Review-Revision Loop (DP-313)
+
+engineering stage 的 completion-gate marker PASS 後，runner 追加一條 review-state branch：
+若 work item 有 open PR 且 shared classifier（`pr-state-snapshot.sh` /
+`pr-action-classifier.sh`，vocabulary 以 `pr-state-contract.md` 為 authority）回
+`needs_code_changes`（actionable review signals），runner emit `ROUTE_BACK_REVISION`：
+`next_action=dispatch`、`next_skill=engineering`（revision mode）。
+
+- **Trigger 範圍**：只認 actionable signals，與 `engineering-revision-flow.md` R2 同一組定義
+  （unresolved non-outdated root inline comments、reviewer newer follow-up、completed failed
+  CI、codecov fail）。`review_required` / `awaiting_re_review` / `wait_ci`（queued / pending
+  CI）/ 已 resolved threads 不是 trigger——runner 此時維持既有行為 dispatch verify-AC，輸出與
+  現行 byte-parity。
+- **Escalation 分流**：classifier 回 `planning_gap` → `next_skill=breakdown`；spec issue →
+  `next_action=refinement_amendment`。不在 revision 內就地擴 scope。
+- **Head rebind**：revision dispatch 完成後 orchestrator 以新 head sha 重跑 engineering
+  probe；completion-gate marker 由 engineering R5 在新 head 重寫，verify-AC 走既有 stale
+  refresh path（不重跑 breakdown）。舊 head 的 marker 不得被當成 current verification。
+- **Counter / cap**：每輪 revision dispatch 對 `loop_counters.engineering_revision_rounds`
+  +=1（見上方 § Loop Caps）；超 cap=3 → terminal `loop_cap_reached`。
+- **fail-closed**：`gh` / PR state 不可得時 review-state 檢查 fail-closed
+  （`POLARIS_TOOL_MISSING`），不得 fail-open 假裝沒有 review 而宣告 complete。
+- **terminal `complete` 語義不變**：不等 reviewer approval、不 merge（forbidden actions
+  不動）。本 loop 只把「已存在的 actionable review feedback」收進 deterministic loop。
+- **Source parity**：DP-backed 與 JIRA Epic-backed source 對稱適用，無 DP-only branch。
 
 ## Pause Rules
 

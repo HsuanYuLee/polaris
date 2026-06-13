@@ -512,4 +512,70 @@ path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding=
 PY
 expect_fail "object-counters-invalid-evidence-type" "$VALIDATOR" "$INVALID_EVIDENCE_TYPE" --source-container "$SOURCE" --source-id DP-999
 
+# DP-313 T2 / AC4: engineering_revision_rounds counter.
+#
+# Helper to overwrite loop_counters with an arbitrary engineering_revision_rounds
+# value (object or legacy int) and optional terminal_status, then run the validator.
+set_revision_counter() {
+  local src="$1"
+  local dst="$2"
+  local counter_json="$3"
+  local terminal="${4:-null}"
+  cp "$src" "$dst"
+  python3 - "$dst" "$counter_json" "$terminal" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+counter = json.loads(sys.argv[2])
+terminal = sys.argv[3]
+data = json.loads(path.read_text(encoding="utf-8"))
+data["loop_counters"] = {
+    "engineering_to_breakdown": {"count": 0, "evidence_ids": []},
+    "breakdown_to_refinement_inbox": {"count": 0, "evidence_ids": []},
+    "engineering_revision_rounds": counter,
+}
+if terminal != "null":
+    data["terminal_status"] = terminal
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
+# AC4 — validated-when-present: object shape with count + evidence_ids is accepted.
+REVISION_OBJECT="$TMP/revision-rounds-object.json"
+set_revision_counter "$VALID" "$REVISION_OBJECT" '{"count": 2, "evidence_ids": ["DP-999:revision:1", "DP-999:revision:2"]}'
+"$VALIDATOR" "$REVISION_OBJECT" --source-container "$SOURCE" --source-id DP-999
+
+# AC4 — additive / missing-treated-as-0: a ledger without the key still passes (VALID has no
+# engineering_revision_rounds key at all).
+"$VALIDATOR" "$VALID" --source-container "$SOURCE" --source-id DP-999
+
+# AC4 — legacy integer shape for the revision counter is accepted (backward compat).
+REVISION_LEGACY_INT="$TMP/revision-rounds-legacy-int.json"
+set_revision_counter "$VALID" "$REVISION_LEGACY_INT" '1'
+"$VALIDATOR" "$REVISION_LEGACY_INT" --source-container "$SOURCE" --source-id DP-999
+
+# AC4 — at-cap (count == cap) is still valid: cap is the inclusive ceiling, only > cap requires
+# terminal. evidence_ids mirror the auto-pass-increment-counter idempotent model.
+REVISION_AT_CAP="$TMP/revision-rounds-at-cap.json"
+set_revision_counter "$VALID" "$REVISION_AT_CAP" '{"count": 3, "evidence_ids": ["DP-999:revision:1", "DP-999:revision:2", "DP-999:revision:3"]}'
+"$VALIDATOR" "$REVISION_AT_CAP" --source-container "$SOURCE" --source-id DP-999
+
+# AC4 — cap exceeded without terminal_status=loop_cap_reached must FAIL (counter cannot loop silently).
+REVISION_OVER_CAP="$TMP/revision-rounds-over-cap.json"
+set_revision_counter "$VALID" "$REVISION_OVER_CAP" '{"count": 4, "evidence_ids": ["DP-999:revision:1", "DP-999:revision:2", "DP-999:revision:3", "DP-999:revision:4"]}'
+expect_fail "revision-rounds-over-cap-no-terminal" "$VALIDATOR" "$REVISION_OVER_CAP" --source-container "$SOURCE" --source-id DP-999
+
+# AC4 — cap exceeded WITH terminal_status=loop_cap_reached is the sanctioned terminal and PASSES.
+REVISION_OVER_CAP_TERMINAL="$TMP/revision-rounds-over-cap-terminal.json"
+set_revision_counter "$VALID" "$REVISION_OVER_CAP_TERMINAL" '{"count": 4, "evidence_ids": ["DP-999:revision:1", "DP-999:revision:2", "DP-999:revision:3", "DP-999:revision:4"]}' "loop_cap_reached"
+"$VALIDATOR" "$REVISION_OVER_CAP_TERMINAL" --source-container "$SOURCE" --source-id DP-999
+
+# AC4 — invalid count type on the revision counter must FAIL (validated-when-present, same rigor
+# as the other counters).
+REVISION_BAD_TYPE="$TMP/revision-rounds-bad-type.json"
+set_revision_counter "$VALID" "$REVISION_BAD_TYPE" '{"count": "nope", "evidence_ids": []}'
+expect_fail "revision-rounds-invalid-count-type" "$VALIDATOR" "$REVISION_BAD_TYPE" --source-container "$SOURCE" --source-id DP-999
+
 echo "PASS: validate-auto-pass-ledger selftest"

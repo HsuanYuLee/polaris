@@ -334,6 +334,49 @@ legacy ledger 的 `loop_counters` 仍可使用純整數值（如 `"engineering_t
 validator 與 helper 均向後兼容，integer 值被視為 `count=N, evidence_ids=[]`。
 新 ledger 應使用 object shape。
 
+### engineering_revision_rounds counter（DP-313 T2 / AC4）
+
+`engineering_revision_rounds` 是 review-revision loop 的 transition counter，記錄
+`auto-pass` 在 engineering stage 偵測到 open PR 的 actionable review signals 後，dispatch
+`engineering`（revision mode）的累計輪數。它與既有 planning counter 共享同一條 schema、
+writer path 與 cap，**不另開第二套 shape**：
+
+- **additive / validated-when-present**：欄位 absent 時視為 `0`（與其他 counter 一致）；
+  舊 ledger 缺此欄位仍 valid，不需 migration。
+- **shape**：新 ledger 用 object `{"count": N, "evidence_ids": [...]}`；legacy integer 仍
+  向後兼容（視為 `count=N, evidence_ids=[]`）。`evidence_ids[]` 沿用
+  `auto-pass-increment-counter.sh` 的 idempotent 模型——重複 evidence_id 是同一邏輯
+  transition 的 no-op。
+- **cap**：與 `engineering_to_breakdown` / `breakdown_to_refinement_inbox` 同一 cap=3。
+  `count == 3` 仍 valid（inclusive ceiling）；`count > 3` 時 ledger 必須帶
+  `terminal_status=loop_cap_reached`，否則 validator fail——revision loop 不得 silently
+  iterate。超 cap 的 terminal 收尾必須產出 auto-pass report（terminal report 規則同
+  其他 `loop_cap_reached`）。
+
+```json
+"loop_counters": {
+  "engineering_to_breakdown": {"count": 0, "evidence_ids": []},
+  "breakdown_to_refinement_inbox": {"count": 0, "evidence_ids": []},
+  "engineering_revision_rounds": {
+    "count": 1,
+    "evidence_ids": ["DP-NNN:engineering->revision:1"]
+  }
+}
+```
+
+`--evidence-id` 建議格式沿用 stable transition-key：`<source_id>:engineering->revision:<seq>`。
+
+### Revision Comment Reply Is Skill-Contracted Write（DP-313 consent 明文）
+
+`engineering` revision mode 的 R6 會在 PR 上 reply review comments，這是 external write。
+依 `working-habits.md` 的 skill-contracted notification carve-out 判別 test，此 reply 是
+**使用者 invoke 的 `engineering` skill 契約定義的終局步驟**，屬 skill-contracted write，
+**不需** auto-pass 額外 prompt，也**不**屬於 `consent_excludes`。`consent_excludes` 內列舉
+的 `jira_comment_write` / `jira_child_write` 等是 auto-pass orchestrator **自身**不得執行的
+external write；它們不約束 inner skill 契約內的 PR comment reply。因此 review-revision loop
+不新增 consent 欄位，沿用既有 consent model：revision dispatch 與其 comment reply 由
+`engineering` skill 契約授權，auto-pass 只負責 dispatch 與 counter 記帳。
+
 ### Counter 寫入
 
 只能透過 `scripts/auto-pass-increment-counter.sh` 寫入，且 `--evidence-id` 為必填：
