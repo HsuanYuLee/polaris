@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
-# Selftest for scripts/lint-bash-variable-utf8-boundary.sh.
+# Purpose: selftest for scripts/lint-bash-variable-utf8-boundary.sh.
+# Inputs:  none (hermetic; builds fixtures under mktemp).
+# Outputs: PASS line on stdout; non-zero exit + FAIL diagnostics on failure.
 #
 # Covers DP-255 AC4 / AC-NEG1 / AC-NEG2:
 #   - positive fixture (unbraced $VAR followed by CJK fullwidth byte) → exit 2
 #   - negative fixture (braced ${VAR} followed by CJK fullwidth byte) → exit 0
 #   - negative fixture (unbraced $VAR followed by ASCII punctuation) → exit 0
 #   - negative fixture (unbraced $VAR followed by ASCII space + non-ASCII text) → exit 0
+#
+# Covers DP-307 AC7 (push refspec construction):
+#   - positive fixture (git push with task-title-derived var in refspec) → exit 2
+#     + POLARIS_REFSPEC_VAR_INTERPOLATION
+#   - negative fixture (git push origin HEAD:"$(git symbolic-ref --short HEAD)") → exit 0
+#   - real engineering-branch-setup.sh / polaris-pr-create.sh pass the lint
 
 set -euo pipefail
 
@@ -106,4 +114,71 @@ if [[ $neg_space_rc -ne 0 ]]; then
   exit 1
 fi
 
-echo "PASS: lint-bash-variable-utf8-boundary selftest (positive + 3 negatives)"
+# --- DP-307 AC7: push refspec construction ---------------------------------
+# Fixtures assemble the trigger bytes at runtime via printf so this selftest's
+# own source lines never literally contain a `git push <refspec-var>` sequence
+# (otherwise the default-scan Verify gate would flag this file). DOLLAR holds a
+# literal `$` so `${DOLLAR}TITLE` renders as `$TITLE` in the fixture, not here.
+DOLLAR='$'
+
+# Positive fixture — git push with a task-title-derived var in the refspec.
+refspec_bad="${tmpdir}/refspec_bad.sh"
+{
+  printf '%s\n' '#!/usr/bin/env bash'
+  printf '%s\n' 'TITLE=$(make_slug)'
+  printf 'git push origin refs/heads/%sTITLE:refs/heads/%sTITLE\n' "$DOLLAR" "$DOLLAR"
+} > "$refspec_bad"
+
+set +e
+bash "$LINT" "$refspec_bad" >/dev/null 2>"${tmpdir}/refspec_bad.err"
+refspec_bad_rc=$?
+set -e
+if [[ $refspec_bad_rc -ne 2 ]]; then
+  echo "FAIL: refspec interpolation fixture expected exit 2, got ${refspec_bad_rc}" >&2
+  cat "${tmpdir}/refspec_bad.err" >&2 || true
+  exit 1
+fi
+if ! grep -q 'POLARIS_REFSPEC_VAR_INTERPOLATION' "${tmpdir}/refspec_bad.err"; then
+  echo "FAIL: refspec interpolation fixture missing POLARIS_REFSPEC_VAR_INTERPOLATION token" >&2
+  cat "${tmpdir}/refspec_bad.err" >&2 || true
+  exit 1
+fi
+
+# Negative fixture — safe construction reads the ref from git via $(...).
+refspec_safe="${tmpdir}/refspec_safe.sh"
+{
+  printf '%s\n' '#!/usr/bin/env bash'
+  printf 'git push origin HEAD:"%s(git symbolic-ref --short HEAD)"\n' "$DOLLAR"
+} > "$refspec_safe"
+
+set +e
+bash "$LINT" "$refspec_safe" >/dev/null 2>"${tmpdir}/refspec_safe.err"
+refspec_safe_rc=$?
+set -e
+if [[ $refspec_safe_rc -ne 0 ]]; then
+  echo "FAIL: safe symbolic-ref refspec fixture expected exit 0, got ${refspec_safe_rc}" >&2
+  cat "${tmpdir}/refspec_safe.err" >&2 || true
+  exit 1
+fi
+
+# Real-script coverage — engineering-branch-setup.sh and polaris-pr-create.sh
+# must pass the lint (they construct branch/head refs from git, not from
+# task-title-derived vars).
+for real in engineering-branch-setup.sh polaris-pr-create.sh; do
+  real_path="${WORKSPACE_ROOT}/${real}"
+  if [[ ! -f "$real_path" ]]; then
+    echo "FAIL: expected real script not found: ${real_path}" >&2
+    exit 1
+  fi
+  set +e
+  bash "$LINT" "$real_path" >/dev/null 2>"${tmpdir}/${real}.err"
+  real_rc=$?
+  set -e
+  if [[ $real_rc -ne 0 ]]; then
+    echo "FAIL: real script ${real} expected to pass lint, got exit ${real_rc}" >&2
+    cat "${tmpdir}/${real}.err" >&2 || true
+    exit 1
+  fi
+done
+
+echo "PASS: lint-bash-variable-utf8-boundary selftest (4 boundary + 2 refspec + 2 real-script)"

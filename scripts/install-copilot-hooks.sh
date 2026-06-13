@@ -120,6 +120,24 @@ if [[ -n "$push_refs" ]]; then
   fi
 fi
 
+# Gate: branch-name ASCII (DP-307 D4 / AC5). Reuse the single-source judgment in
+# scripts/validate-branch-name-ascii.sh; do NOT re-implement the byte check here.
+# Only runs for content-bearing pushes — the delete-only / tags-only carve-out
+# above already exited (AC-NEG2). Each content-bearing local branch ref is
+# checked; a non-ASCII name fails the push closed.
+BRANCH_ASCII_VALIDATOR="$REPO_ROOT/scripts/validate-branch-name-ascii.sh"
+if [[ -n "$push_refs" && -f "$BRANCH_ASCII_VALIDATOR" ]]; then
+  while read -r local_ref local_sha _remote_ref _remote_sha _rest; do
+    [[ -n "${local_ref:-}" ]] || continue
+    # Skip deletions (zero local SHA / "(delete)") — they never carry content.
+    [[ "$local_ref" == "(delete)" || "${local_sha:-}" =~ ^0+$ ]] && continue
+    # Only branch refs carry a branch name; tags / other refs are not gated here.
+    case "$local_ref" in
+      refs/heads/*) bash "$BRANCH_ASCII_VALIDATOR" "${local_ref#refs/heads/}" ;;
+    esac
+  done <<<"$push_refs"
+fi
+
 # Gate: ci-local (push-mode: only task/fix branches)
 if [[ -x "$GATES_DIR/gate-ci-local.sh" ]]; then
   bash "$GATES_DIR/gate-ci-local.sh" --repo "$REPO_ROOT" --push-mode

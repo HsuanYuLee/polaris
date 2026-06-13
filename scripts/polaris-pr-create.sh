@@ -168,6 +168,10 @@ inject_bundle_identity_block() {
   fi
 
   # Detect existing branch name (alias for bundle_branch_alias).
+  # DP-307 D6/AC7: the head ref is read from git (`rev-parse --abbrev-ref HEAD`),
+  # never interpolated from a task-title-derived var, so the push refspec that
+  # `gh pr create` derives from HEAD stays UTF-8 byte-safe even on legacy CJK
+  # branches. Keep it so — covered by lint-bash-variable-utf8-boundary.
   local branch_alias=""
   branch_alias="$(git -C "$REPO_PATH" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
   [[ -n "$branch_alias" && "$branch_alias" != "HEAD" ]] \

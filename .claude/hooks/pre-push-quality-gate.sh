@@ -25,13 +25,36 @@ except Exception:
     print("")
 ' 2>/dev/null || true)"
 
-[[ -z "$command" || "$command" =~ (^|[[:space:]])git[[:space:]]+(-C[[:space:]]+[^[:space:]]+[[:space:]]+)?push\b ]] || exit 0
-
+# Resolve the target repo from a `git -C <path> push` form when present; fall
+# back to the Claude Code project dir / current toplevel. Shared by the
+# branch-name gate below and the legacy gate body further down.
 repo_root="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 if [[ -n "$command" ]]; then
   extracted="$(printf '%s' "$command" | grep -oE 'git -C [^ ]+' | head -1 | sed 's/git -C //' || true)"
   [[ -n "$extracted" ]] && repo_root="$extracted"
 fi
+
+# Gate: branch-name ASCII (DP-307 D4 / AC5). This is a self-contained push gate
+# that runs independently of the legacy gate body below: it recognizes a push
+# command, honours the DP-305-T3 --delete|--tags carve-out (AC-NEG2), resolves
+# the pushed branch, and reuses the single-source judgment in
+# validate-branch-name-ascii.sh (no re-implemented byte check). A non-ASCII
+# branch name fails the push closed.
+if [[ -n "$command" ]] \
+  && printf '%s' "$command" | grep -qE '(^|[[:space:]])git[[:space:]]+(-C[[:space:]]+[^[:space:]]+[[:space:]]+)?push([[:space:]]|$)' \
+  && ! printf '%s' "$command" | grep -qE -- '--delete|--tags' \
+  && [[ -d "$repo_root" ]]; then
+  push_branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  case "$push_branch" in
+    ""|HEAD) : ;;
+    *)
+      BRANCH_ASCII_VALIDATOR="$ROOT_DIR/scripts/validate-branch-name-ascii.sh"
+      [[ -f "$BRANCH_ASCII_VALIDATOR" ]] && bash "$BRANCH_ASCII_VALIDATOR" "$push_branch"
+      ;;
+  esac
+fi
+
+[[ -z "$command" || "$command" =~ (^|[[:space:]])git[[:space:]]+(-C[[:space:]]+[^[:space:]]+[[:space:]]+)?push\b ]] || exit 0
 
 [[ -d "$repo_root" ]] || exit 0
 

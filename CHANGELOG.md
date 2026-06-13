@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.76.10] - 2026-06-13
+
+### Changed
+
+- ba75371: derive slugify 改 ASCII-only + 3-producer parity selftest
+- 036e12e: 新增 branch-name ASCII validator 並接進 breakdown task-readiness
+- 0420e2d: pre-push 兩層 enforcement reuse validator
+- d0168dd: push refspec 構造 hardening + utf8-boundary-lint 擴及 branch-setup/pr-create
+- aabaf16: mechanism-registry 登錄新機制 + selftest fallback 接線
+
 ## [3.76.9] - 2026-06-12
 
 ### Changed

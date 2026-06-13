@@ -815,7 +815,12 @@ fi
 
 # Check if branch already exists
 if [[ "$EXACT_BRANCH_EXISTS" -eq 0 ]]; then
-  # Step 5: Create branch from origin/{resolved_base}
+  # Step 5: Create branch from origin/{resolved_base}.
+  # DP-307 D6/AC7: branch creation is local-only (`git branch` + `git worktree
+  # add`); this script never pushes a refspec. The remote push happens later via
+  # the delivery flow / polaris-pr-create wrapper, which reads HEAD from git
+  # rather than interpolating a task-title-derived var into a refspec. Keep it so
+  # — covered by lint-bash-variable-utf8-boundary refspec detection.
   git branch "$BRANCH_NAME" "origin/$RESOLVED_BASE" 2>/dev/null || {
     echo "ERROR: git branch $BRANCH_NAME origin/$RESOLVED_BASE failed" >&2
     exit 2

@@ -73,7 +73,6 @@ import json
 import re
 import subprocess
 import sys
-import unicodedata
 from pathlib import Path
 
 refinement_path, task_id, repo_name, script_dir = sys.argv[1:5]
@@ -311,24 +310,39 @@ else:
     task_identity = task_id
     jira_key_cell = "N/A"
 
-# Branch slug: deterministic, lowercase, hyphen-separated. Drop punctuation, keep
-# CJK characters (refinement.json titles routinely include zh-TW). Match the
-# existing convention used by sibling DP-230 task.md files.
+# Branch slug: deterministic, lowercase, hyphen-separated, ASCII-only (DP-307
+# D1/D2). Byte-identical with the canonical bash slugify in
+# engineering-branch-setup.sh / resolve-task-branch.sh:
+#   tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' \
+#     | sed 's/^-//;s/-$//' | cut -c1-40
+# Every non-[a-z0-9] character (CJK included) collapses into hyphens and gets
+# trimmed; an all-CJK title slugifies to "" and the call sites below fall back
+# to the literal "task" so the derived branch stays non-empty pure ASCII
+# (AC-NEG4). Parity is enforced by
+# scripts/selftests/branch-slug-producer-parity-selftest.sh.
 def slugify(text: str) -> str:
-    normalized = unicodedata.normalize("NFC", text).strip().lower()
-    out_chars = []
-    for ch in normalized:
-        if ch.isalnum():
-            out_chars.append(ch)
-        elif ch in (" ", "-", "_", "/"):
-            out_chars.append("-")
-        # else: drop punctuation
-    slug = "".join(out_chars)
-    slug = re.sub(r"-+", "-", slug).strip("-")
-    return slug or "task"
+    """Slugify a task title into the canonical ASCII-only branch slug.
+
+    Args:
+        text: raw task title (may contain CJK / punctuation / uppercase).
+
+    Returns:
+        Lowercase hyphen-separated slug, max 40 chars, possibly empty for
+        input with no [a-z0-9] characters (callers apply the "task" fallback).
+    """
+    # ASCII-only lowercase mirrors `tr '[:upper:]' '[:lower:]'`; non-ASCII
+    # letters fall through to the [^a-z0-9] -> "-" replacement below.
+    lowered = "".join(chr(ord(ch) + 32) if "A" <= ch <= "Z" else ch for ch in text)
+    slug = re.sub(r"[^a-z0-9]", "-", lowered)
+    slug = re.sub(r"-+", "-", slug)
+    slug = slug.strip("-")
+    slug_max_chars = 40  # parity with the bash producers' `cut -c1-40`
+    return slug[:slug_max_chars]
 
 
-slug = slugify(title)
+# Empty-slug fallback: keeps the branch identity non-empty when the title has
+# no [a-z0-9] characters at all (e.g. a pure zh-TW title).
+slug = slugify(title) or "task"
 task_branch = f"task/{task_id}-{slug}"
 
 def short_work_item_id(value: str) -> str:
@@ -379,7 +393,7 @@ depends_cell = ", ".join(full_form_dependencies) if full_form_dependencies else 
 if local_dependencies:
     dep_full_id = f"{source_id}-{local_dependencies[-1]}"
     dep_title = str((task_by_id.get(dep_full_id) or {}).get("title") or dep_full_id)
-    base_branch = f"task/{dep_full_id}-{slugify(dep_title)}"
+    base_branch = f"task/{dep_full_id}-{slugify(dep_title) or 'task'}"
     branch_chain = f"{base_branch} -> {task_branch}"
 else:
     # DP-302: root base branch is field-driven (source.base_branch or "main"),

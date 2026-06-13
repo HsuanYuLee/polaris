@@ -13,6 +13,8 @@
 # - DP-260 AC-NEG1: CLI --task-id must be canonical full form.
 # - DP-296 T3 / AC2 / AC-NEG1: tasks[].task_shape passthrough (T only); no removed
 #   planned_tasks read.
+# - DP-307 T1: slugify is ASCII-only (drop non-[a-z0-9], collapse hyphens); the
+#   case-1 Task branch anchor asserts the ASCII-only expectation for a CJK title.
 # - DP-302 (this task):
 #     AC1     : same refinement.json content fed as dp vs jira derives a task.md
 #               whose STRUCTURE (frontmatter keys, section headings, table shapes)
@@ -109,7 +111,7 @@ required_anchors=(
   "| Source ID | DP-999 |"
   "| Task ID | DP-999-T1 |"
   "| Base branch | main |"
-  "| Task branch | task/DP-999-T1-範例-deterministic-derivation |"
+  "| Task branch | task/DP-999-T1-deterministic-derivation |"
   "## Allowed Files"
   "- \`scripts/sample.sh\`"
   "- \`scripts/selftests/sample-selftest.sh\`"

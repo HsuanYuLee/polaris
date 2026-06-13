@@ -387,6 +387,7 @@ parse_task_md = script_dir / "parse-task-md.sh"
 validate_task_md = script_dir / "validate-task-md.sh"
 validate_task_md_deps = script_dir / "validate-task-md-deps.sh"
 check_verify_command_executability = script_dir / "lib" / "check-verify-command-executability.sh"
+validate_branch_name_ascii = script_dir / "validate-branch-name-ascii.sh"
 
 
 def section(text: str, heading: str) -> str:
@@ -812,6 +813,86 @@ def validate_command_executability(file: Path, text: str) -> list[str]:
     return violations
 
 
+# --- DP-307 T2 (D3 / AC4): branch-name ASCII gate ------------------------------
+# A task.md "Task branch" field with any non-ASCII byte ships a CJK/UTF-8 branch
+# name into engineering-branch-setup, PR creation, and release tooling. The
+# byte-level verdict comes from scripts/validate-branch-name-ascii.sh (the same
+# validator usable standalone; no second judgment here). git check-ref-format is
+# NOT a substitute — it accepts UTF-8/CJK ref names (AC-NEG5). A violation is a
+# contract violation: exit 2 with the validator's POLARIS_BRANCH_NAME_NON_ASCII
+# marker, distinct from the generic exit-1 readiness FAIL.
+
+BRANCH_NAME_NON_ASCII_MARKER = "POLARIS_BRANCH_NAME_NON_ASCII"
+
+
+def task_branch_field(text: str) -> str:
+    """Extract the Operational Context "Task branch" value from task.md text.
+
+    Args:
+        text: the full task.md text.
+
+    Returns:
+        The branch name with surrounding backticks stripped, or "" when the
+        row is absent or holds a placeholder (N/A, -, none).
+    """
+    match = re.search(r"^\|\s*Task branch\s*\|\s*(.*?)\s*\|\s*$", text, re.MULTILINE)
+    if not match:
+        return ""
+    value = match.group(1).strip()
+    if value.startswith("`") and value.endswith("`"):
+        value = value[1:-1].strip()
+    if value.lower() in {"", "n/a", "na", "-", "--", "none"}:
+        return ""
+    return value
+
+
+def validate_branch_name_ascii_gate(file: Path, text: str) -> list[tuple[str, str]]:
+    """Run the branch-name ASCII validator over the task.md "Task branch" field.
+
+    Args:
+        file: the task.md under validation (used in violation messages).
+        text: the full task.md text.
+
+    Returns:
+        A list of (message, marker_line) violations; empty when the field is
+        absent (nothing to certify here — schema gates own field presence) or
+        the branch name is pure ASCII. A missing validator script is itself a
+        violation (fail-closed), never a silent skip.
+    """
+    branch = task_branch_field(text)
+    if not branch:
+        return []
+    if not validate_branch_name_ascii.is_file():
+        return [
+            (
+                f"{file}: missing branch-name ASCII validator: {validate_branch_name_ascii}",
+                f"{BRANCH_NAME_NON_ASCII_MARKER}:{branch}",
+            )
+        ]
+    proc = subprocess.run(
+        ["bash", str(validate_branch_name_ascii), branch],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if proc.returncode == 0:
+        return []
+    marker = next(
+        (
+            line.strip()
+            for line in (proc.stderr or "").splitlines()
+            if line.startswith(BRANCH_NAME_NON_ASCII_MARKER)
+        ),
+        f"{BRANCH_NAME_NON_ASCII_MARKER}:{branch}",
+    )
+    return [
+        (
+            f"{file}: Task branch `{branch}` contains non-ASCII bytes; branch names must be ASCII-only (DP-307 D3)",
+            marker,
+        )
+    ]
+
+
 def validate_verify_command_specificity(file: Path, text: str) -> list[str]:
     errors: list[str] = []
     verify_command = first_fenced_code(section(text, "## Verify Command"))
@@ -1039,6 +1120,9 @@ all_errors: list[str] = []
 # contract violations (exit 2 + structured marker), not generic readiness
 # failures (exit 1). The skip guards mirror validate_one's own.
 executability_violations: list[tuple[Path, str]] = []
+# DP-307 T2: branch-name ASCII violations share the contract-violation lane
+# (exit 2 + structured marker); each entry carries its own marker line.
+branch_name_violations: list[tuple[str, str]] = []
 for file in files:
     all_errors.extend(validate_one(file))
     normalized = str(file)
@@ -1049,6 +1133,7 @@ for file in files:
     file_text = file.read_text(encoding="utf-8")
     for violation in validate_command_executability(file, file_text):
         executability_violations.append((file, violation))
+    branch_name_violations.extend(validate_branch_name_ascii_gate(file, file_text))
 
 if target.is_dir() and validate_task_md_deps.exists():
     deps = subprocess.run(
@@ -1059,17 +1144,21 @@ if target.is_dir() and validate_task_md_deps.exists():
     if deps.returncode != 0:
         all_errors.append(f"{target}: validate-task-md-deps.sh failed; fix dependency closure before readiness handoff")
 
-if all_errors or executability_violations:
+if all_errors or executability_violations or branch_name_violations:
     print("validate-breakdown-ready.sh FAIL", file=sys.stderr)
     for error in all_errors:
         print(f"  - {error}", file=sys.stderr)
     for _, violation in executability_violations:
         print(f"  - {violation}", file=sys.stderr)
-    if executability_violations:
-        # Contract violation: structured marker + exit 2 (AC8), one marker per
-        # offending task.md; readiness-only failures keep the legacy exit 1.
+    for message, _ in branch_name_violations:
+        print(f"  - {message}", file=sys.stderr)
+    if executability_violations or branch_name_violations:
+        # Contract violation: structured marker + exit 2 (AC8 / DP-307 AC4);
+        # readiness-only failures keep the legacy exit 1.
         for offending_file in dict.fromkeys(file for file, _ in executability_violations):
             print(f"{VERIFY_COMMAND_NOT_EXECUTABLE_MARKER}:{offending_file}", file=sys.stderr)
+        for marker in dict.fromkeys(marker for _, marker in branch_name_violations):
+            print(marker, file=sys.stderr)
         raise SystemExit(2)
     raise SystemExit(1)
 
