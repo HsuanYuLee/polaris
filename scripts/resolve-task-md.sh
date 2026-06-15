@@ -642,99 +642,99 @@ MD
   mkdir -p "$tmpdir/implementation-worktree" "$tmpdir/symlink-worktree/docs-manager/src/content/docs"
   ln -s "$tmpdir/docs-manager/src/content/docs/specs" "$tmpdir/symlink-worktree/docs-manager/src/content/docs/specs"
 
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" EPIC-480)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" EPIC-480)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T3b.md" ]] || { echo "[selftest] jira active FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir/implementation-worktree" --specs-source "$tmpdir/docs-manager/src/content/docs/specs" DP-047-T1)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir/implementation-worktree" --specs-source "$tmpdir/docs-manager/src/content/docs/specs" DP-047-T1)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] || { echo "[selftest] explicit specs-source FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir/implementation-worktree" DP-047-T1)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir/implementation-worktree" DP-047-T1)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] || { echo "[selftest] overlay specs-source FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir/symlink-worktree" DP-047-T1 2>&1)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir/symlink-worktree" DP-047-T1 2>&1)" || rc=$?
   [[ $rc -eq 1 && "$out" == *"symlink primary path is not allowed"* ]] || { echo "[selftest] symlink specs primary should fail"; return 1; }
 
   missing_root="$(mktemp -d -t resolve-task-md-missing.XXXXXX)"
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$missing_root" DP-047-T1 2>&1)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$missing_root" DP-047-T1 2>&1)" || rc=$?
   rm -rf "$missing_root"
   [[ $rc -eq 1 && "$out" == *"pass --specs-source or run from the main checkout"* ]] || { echo "[selftest] missing specs-source should fail"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" EPIC-479)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" EPIC-479)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/pr-release/T3a.md" ]] || { echo "[selftest] jira complete FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" EPIC-481)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" EPIC-481)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T4.md" ]] || { echo "[selftest] canonical jira lookup FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" TASK-3905)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" TASK-3905)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/EPIC-478/tasks/T5/index.md" ]] || { echo "[selftest] folder-native jira active FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" TASK-3906)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" TASK-3906)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/EPIC-478/tasks/pr-release/T6/index.md" ]] || { echo "[selftest] folder-native jira pr-release FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" EPIC-999)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" EPIC-999)" || rc=$?
   [[ $rc -eq 1 ]] || { echo "[selftest] default archive exclusion FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --include-archive --scan-root "$tmpdir" EPIC-999)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --include-archive --scan-root "$tmpdir" EPIC-999)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/archive/EPIC-999/tasks/T1.md" ]] || { echo "[selftest] include-archive lookup FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-480')" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-480')" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T3b.md" ]] || { echo "[selftest] from-input jira FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" DP-047-T1)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" DP-047-T1)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] || { echo "[selftest] dp task FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input 'engineering DP-047-T1')" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" --from-input 'engineering DP-047-T1')" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] || { echo "[selftest] from-input dp task FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" DP-047-V1)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" DP-047-V1)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/V1.md" ]] || { echo "[selftest] dp verification task FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input 'verify DP-047-V1')" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" --from-input 'verify DP-047-V1')" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/V1.md" ]] || { echo "[selftest] from-input dp verification task FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" DP-048-T2)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" DP-048-T2)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-048-folder-native-resolver/tasks/T2/index.md" ]] || { echo "[selftest] folder-native dp task FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input 'verify DP-048-V1')" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" --from-input 'verify DP-048-V1')" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-048-folder-native-resolver/tasks/pr-release/V1/index.md" ]] || { echo "[selftest] folder-native dp verification pr-release FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-478 T3 系列第一張')" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-478 T3 系列第一張')" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/EPIC-478/tasks/pr-release/T3a.md" ]] || { echo "[selftest] from-input epic series first FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-478 T4')" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-478 T4')" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T4.md" ]] || { echo "[selftest] from-input unique epic series FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-478 T3 series')" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" --from-input '請做 EPIC-478 T3 series')" || rc=$?
   [[ $rc -eq 1 ]] || { echo "[selftest] ambiguous epic series should fail"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" DP-050-T1)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" DP-050-T1)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-050-dp-pseudo-task-identity-separation/tasks/pr-release/T1.md" ]] || { echo "[selftest] canonical dp pr-release task FAIL"; return 1; }
 
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --write-lock EPIC-480)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" --write-lock EPIC-480)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T3b.md" ]] || { echo "[selftest] write-lock FAIL"; return 1; }
-  [[ -f "$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --print-lock-path EPIC-480 2>/dev/null)" ]] || { echo "[selftest] lock file missing"; return 1; }
+  [[ -f "$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" --print-lock-path EPIC-480 2>/dev/null)" ]] || { echo "[selftest] lock file missing"; return 1; }
 
   # -------------------------------------------------------------------------
   # DP-296 T5 / AC5 — DP-294 fix-forward themes asserted against the REAL
@@ -750,9 +750,9 @@ MD
   # directory differs) must NOT exist — the selftest never touches the real session
   # lock dir.
   local hermetic_lock live_lock
-  hermetic_lock="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --print-lock-path EPIC-480 2>/dev/null)"
+  hermetic_lock="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" --print-lock-path EPIC-480 2>/dev/null)"
   [[ "$hermetic_lock" == "$tmpdir/"* ]] || { echo "[selftest] AC5 T6 hermetic lock path not under tmpdir: $hermetic_lock"; return 1; }
-  live_lock="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORK_ORDER_LOCK_DIR bash "$0" --scan-root "$tmpdir" --print-lock-path EPIC-480 2>/dev/null)"
+  live_lock="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT -u POLARIS_WORK_ORDER_LOCK_DIR bash "$0" --scan-root "$tmpdir" --print-lock-path EPIC-480 2>/dev/null)"
   [[ "$live_lock" == /tmp/* ]] || { echo "[selftest] AC5 T6 live lock path not under /tmp: $live_lock"; return 1; }
   [[ ! -e "$live_lock" ]] || { echo "[selftest] AC5 T6 hermetic selftest leaked live session lock: $live_lock"; rm -f "$live_lock"; return 1; }
 
@@ -778,7 +778,7 @@ MD
   # must ignore (only [TV]*.md / [TV]*/index.md under tasks/ are canonical).
   : > "$bundle_wt/docs-manager/src/content/docs/specs/design-plans/DP-296-canonical-binding/tasks/T1.md.txt"
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$bundle_wt" DP-296-T1)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$bundle_wt" DP-296-T1)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-296-canonical-binding/tasks/T1/index.md" ]] || { echo "[selftest] AC5 T1 nested bundle worktree resolution FAIL (got rc=$rc out=$out)"; return 1; }
   [[ "$out" != *".md.txt" ]] || { echo "[selftest] AC5 T1 resolver picked up flattened decoy shape: $out"; return 1; }
 
@@ -788,7 +788,7 @@ MD
   # different work order and assert the single lock file is overwritten to the new
   # resolution.
   rc=0
-  out="$(env -u RESOLVE_TASK_MD_SELFTEST bash "$0" --scan-root "$tmpdir" --write-lock EPIC-481)" || rc=$?
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" --write-lock EPIC-481)" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/EPIC-478/tasks/T4.md" ]] || { echo "[selftest] AC5 T2 ledger re-anchor write FAIL (got rc=$rc out=$out)"; return 1; }
   # Same hermetic lock path as before (root unchanged) — re-anchored in place.
   [[ -f "$hermetic_lock" ]] || { echo "[selftest] AC5 T2 ledger file missing after re-anchor: $hermetic_lock"; return 1; }
@@ -797,6 +797,33 @@ MD
   if grep -q '/specs/EPIC-478/tasks/T3b.md' "$hermetic_lock"; then
     echo "[selftest] AC5 T2 ledger still carries stale resolved_path after re-anchor"; cat "$hermetic_lock"; return 1
   fi
+
+  # DP-326 AC1/AC2 — environment hermeticity regression pin. The framework bash
+  # contract requires Polaris helpers to be invoked with POLARIS_WORKSPACE_ROOT
+  # set, so this selftest must resolve fixture work orders identically whether or
+  # not that variable (and POLARIS_SPECS_ROOT) is present in the calling process.
+  # Each fixture-based child invocation above unsets both vars; this case proves
+  # the unset — not a clean parent env — is what holds the resolution hermetic.
+  # Resolve a fixture-only work order with both vars deliberately exported to the
+  # REAL workspace. If the per-invocation unset regressed, resolve_specs_root's
+  # POLARIS_WORKSPACE_ROOT short-circuit / POLARIS_SPECS_ROOT branch would point
+  # at the live specs (which lacks DP-047) and this would fail.
+  local hermeticity_env_root
+  hermeticity_env_root="$(resolve_specs_workspace_root 2>/dev/null || true)"
+  if [[ -z "$hermeticity_env_root" || ! -d "$hermeticity_env_root/docs-manager/src/content/docs/specs" ]]; then
+    # No live specs root available (e.g. clean checkout without docs-manager) —
+    # fall back to a synthetic non-fixture specs root so the export still diverges
+    # from the fixture tmpdir.
+    hermeticity_env_root="$(mktemp -d -t resolve-task-md-hermeticity-root.XXXXXX)"
+    mkdir -p "$hermeticity_env_root/docs-manager/src/content/docs/specs"
+  fi
+  rc=0
+  out="$(POLARIS_WORKSPACE_ROOT="$hermeticity_env_root" \
+         POLARIS_SPECS_ROOT="$hermeticity_env_root/docs-manager/src/content/docs/specs" \
+         env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT \
+         bash "$0" --scan-root "$tmpdir/implementation-worktree" DP-047-T1)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] \
+    || { echo "[selftest] DP-326 env hermeticity regression FAIL (got rc=$rc out=$out)"; return 1; }
 
   echo "[selftest] PASS"
 }

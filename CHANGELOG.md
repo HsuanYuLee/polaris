@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.14] - 2026-06-15
+
+### Changed
+
+- b25012e: 修 resolve-task-md.sh run*selftest fixture-based child invocation 的 POLARIS*\* env hermeticity
+
 ## [3.76.13] - 2026-06-15
 
 ### Changed
