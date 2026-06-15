@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.76.13] - 2026-06-15
+
+### Changed
+
+- 2cfc584: FD1：task_snapshot 綁 source canonical refinement_hash + staleness fail-closed gate
+- 25cd2f5: FD4-2：run-verify-command 改 structured exit code、移除 stdout FAIL substring
+- 6882f3a: FD6：gate-pr-title 在 aggregate-release 接受 bundle title
+- 5e4ed79: FD3：engineering finalize 自動寫 completion_gate marker
+
 ## [3.76.12] - 2026-06-13
 
 ### Changed

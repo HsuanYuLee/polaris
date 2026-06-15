@@ -223,6 +223,98 @@ ensure_task_verify_report() {
     --status PASS >/dev/null
 }
 
+# Description: Write the engineering-owned completion_gate marker as a deterministic
+#   side effect of finalize, replacing the DP-201 D30 LLM-driven manual step. The
+#   marker is a post-gate roll-up: it is written only after check-delivery-completion.sh
+#   has already passed for $TICKET. Idempotent — if a marker for the resolved
+#   {work_item_id}-{head_sha} already exists, the write is skipped so re-running
+#   finalize produces a byte-identical marker (AC4 / EC4).
+# Args:        none (reads $TICKET, $WORKSPACE_ROOT, $SCRIPT_DIR globals)
+# Side effects: writes <main-checkout>/.polaris/evidence/completion-gate/<work-item>-<sha>.json
+#   via the canonical write-completion-gate-marker.sh writer; never overwrites an
+#   existing marker for the same head sha.
+write_completion_gate_marker() {
+  local task_md_path=""
+  local source_id=""
+  local work_item_id=""
+  local head_sha=""
+  local existing=""
+
+  task_md_path="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" "$TICKET" 2>/dev/null || true)"
+  if [[ -z "$task_md_path" || ! -f "$task_md_path" ]]; then
+    return 0
+  fi
+
+  source_id="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field source_id 2>/dev/null || true)"
+  work_item_id="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field work_item_id 2>/dev/null || true)"
+  head_sha="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field deliverable_head_sha 2>/dev/null || true)"
+
+  # Missing authority inputs => fail closed: do not synthesize a marker from
+  # partial data (canonical-contract-governance.md § Fail closed on missing inputs).
+  if [[ -z "$source_id" || -z "$work_item_id" || -z "$head_sha" ]]; then
+    echo "$PREFIX skipping completion_gate marker auto-write: missing source_id/work_item_id/head_sha for ${TICKET}" >&2
+    return 0
+  fi
+
+  # Idempotency guard: reuse the same locator the completion gate uses so a
+  # full-vs-abbreviated head sha still matches an existing marker. If one already
+  # exists for this {work_item_id}-{head_sha}, the auto-write is a no-op and the
+  # marker stays byte-identical across re-runs.
+  existing="$(completion_gate_marker_for "$work_item_id" "$head_sha" 2>/dev/null || true)"
+  if [[ -n "$existing" && -f "$existing" ]]; then
+    echo "$PREFIX completion_gate marker already present; auto-write is a no-op: $existing" >&2
+    return 0
+  fi
+
+  bash "${SCRIPT_DIR}/write-completion-gate-marker.sh" \
+    --source-id "$source_id" \
+    --work-item-id "$work_item_id" \
+    --head-sha "$head_sha" \
+    --status PASS \
+    --task-md "$task_md_path" >&2
+}
+
+# Description: Locate an existing engineering-owned completion_gate marker for
+#   {work_item_id}-{head_sha}. Mirrors check-delivery-completion.sh's locator so the
+#   idempotency guard matches whether the marker stored a full or abbreviated head
+#   sha, and searches both REPO_ROOT and the resolved main checkout (markers anchor
+#   at the main checkout even when finalize runs inside a worktree).
+# Args:        $1 = work_item_id, $2 = head_sha
+# Side effects: none (read-only; prints the marker path to stdout, exit 1 if none)
+completion_gate_marker_for() {
+  local work_item_id="$1"
+  local head_sha="$2"
+
+  python3 - "$work_item_id" "$head_sha" "$REPO_ROOT" <<'PY'
+import sys
+from pathlib import Path
+
+work_item_id, head_sha, repo_root = sys.argv[1:4]
+roots = [Path(repo_root)]
+git_file = Path(repo_root) / ".git"
+if git_file.is_file():
+    text = git_file.read_text(encoding="utf-8", errors="ignore").strip()
+    if text.startswith("gitdir:"):
+        git_dir = (git_file.parent / text.split(":", 1)[1].strip()).resolve()
+        common = git_dir.parent.parent
+        if common.name == ".git":
+            roots.append(common.parent)
+
+seen = set()
+for root in roots:
+    marker_dir = root / ".polaris" / "evidence" / "completion-gate"
+    for path in sorted(marker_dir.glob(f"{work_item_id}-*.json")):
+        suffix = path.name[len(work_item_id) + 1:-len(".json")]
+        if suffix == head_sha or head_sha.startswith(suffix) or suffix.startswith(head_sha):
+            resolved = str(path.resolve())
+            if resolved not in seen:
+                seen.add(resolved)
+                print(path)
+                raise SystemExit(0)
+raise SystemExit(1)
+PY
+}
+
 planner_baseline_snapshot_path() {
   local task_md_path="$1"
   local task_id="$2"
@@ -297,6 +389,12 @@ if ! bash "${SCRIPT_DIR}/check-delivery-completion.sh" --repo "$REPO_ROOT" --tic
   echo "$PREFIX completion gate blocked; task lifecycle was not changed" >&2
   exit 2
 fi
+
+# DP-301 T4 (FD3): completion_gate marker write is now a deterministic side effect
+# of finalize, not an LLM-driven manual step (DP-201 D30). Emit the engineering-owned
+# roll-up marker only after the completion gate above has passed; idempotent re-runs
+# leave the marker byte-identical.
+write_completion_gate_marker
 
 TASK_MD_PATH="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" "$TICKET" 2>/dev/null || true)"
 if [[ -z "$TASK_MD_PATH" || ! -f "$TASK_MD_PATH" ]]; then

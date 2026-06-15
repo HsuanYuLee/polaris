@@ -7,12 +7,21 @@ set -euo pipefail
 # when configured, then falls back to:
 #   [{TICKET}] {summary}
 #
+# Aggregate-release lane (FD6, DP-301-T3): when the resolved task.md carries a
+# `bundle_branch_alias` frontmatter field matching the current branch — the SAME
+# aggregate-release detection source DP-287 gate-work-source.sh uses — the gate
+# switches to the bundle title contract:
+#   chore(release): bundle DP-NNN -> vX.Y.Z
+# In that lane a valid bundle title passes WITHOUT POLARIS_SKIP_PR_TITLE_GATE,
+# and an invalid one still fails closed. The non-aggregate developer-title
+# contract is unchanged (the relaxation is scoped to aggregate-release only).
+#
 # Usage:
 #   bash scripts/gates/gate-pr-title.sh [--repo <path>] [--task-md <path>] [--title <title>]
 #
 # If --title is omitted, the gate reads the current branch's PR title via gh.
 #
-# Exit: 0 = pass/skip, 2 = block
+# Exit: 0 = pass/skip, 2 = block (with POLARIS_PR_TITLE_GATE_BLOCKED on stderr)
 # Bypass: POLARIS_SKIP_PR_TITLE_GATE=1
 
 PREFIX="[polaris gate-pr-title]"
@@ -75,6 +84,74 @@ fi
 
 if [[ ! -f "$TASK_MD" ]]; then
   echo "$PREFIX BLOCKED: resolved task.md does not exist: $TASK_MD" >&2
+  exit 2
+fi
+
+# read_bundle_branch_alias: echo the first-frontmatter `bundle_branch_alias`
+# value of a task.md, or empty when absent. This mirrors DP-287
+# gate-work-source.sh: aggregate-release is identified by the bundle_branch_alias
+# frontmatter (written by engineering-branch-setup.sh --aggregate-release)
+# matching the current branch. Shared detection source — no second detector.
+read_bundle_branch_alias() {
+  local task_md="$1"
+  awk '
+    /^---$/ { fm++; next }
+    fm == 1 && /^bundle_branch_alias:/ {
+      sub(/^bundle_branch_alias:[[:space:]]*/, "")
+      print
+      exit
+    }
+  ' "$task_md" 2>/dev/null || true
+}
+
+# acquire_actual_title: resolve the PR title to validate. Prefers the explicit
+# --title; otherwise reads the current branch's PR title via gh (D7
+# readiness-probe carve-out: fail-open when gh is unavailable). Echoes the title
+# (possibly empty).
+acquire_actual_title() {
+  local repo_root="$1"
+  local explicit="$2"
+  if [[ -n "$explicit" ]]; then
+    printf '%s\n' "$explicit"
+    return 0
+  fi
+  command -v gh >/dev/null 2>&1 || return 0
+  local title=""
+  if declare -F polaris_current_branch_pr_rest >/dev/null 2>&1; then
+    title="$(polaris_current_branch_pr_rest "$repo_root" 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("title") or "")' 2>/dev/null || true)"
+  fi
+  if [[ -z "$title" ]]; then
+    title="$(cd "$repo_root" && gh pr view --json title --jq .title 2>/dev/null || true)"
+  fi
+  printf '%s\n' "$title"
+}
+
+# Aggregate-release lane (FD6): when the task.md bundle_branch_alias matches the
+# current branch, validate the bundle title format instead of the developer
+# format, with no POLARIS_SKIP_PR_TITLE_GATE requirement. Bundle title contract:
+#   chore(release): bundle DP-NNN -> vX.Y.Z
+BUNDLE_BRANCH_ALIAS="$(read_bundle_branch_alias "$TASK_MD")"
+if [[ -n "$BUNDLE_BRANCH_ALIAS" && -n "$branch" && "$branch" == "$BUNDLE_BRANCH_ALIAS" ]]; then
+  bundle_title_regex='^chore\(release\): bundle DP-[0-9]+ -> v[0-9]+\.[0-9]+\.[0-9]+$'
+  agg_actual_title="$(acquire_actual_title "$REPO_ROOT" "$ACTUAL_TITLE")"
+  if [[ -z "$agg_actual_title" ]]; then
+    # No PR yet and no --title supplied; nothing to validate.
+    exit 0
+  fi
+  if [[ "$agg_actual_title" =~ $bundle_title_regex ]]; then
+    echo "$PREFIX ✅ aggregate-release PR title matches bundle format." >&2
+    exit 0
+  fi
+  cat >&2 <<EOF
+$PREFIX BLOCKED: POLARIS_PR_TITLE_GATE_BLOCKED aggregate-release PR title does not match bundle format.
+  Task.md:  $TASK_MD
+  Branch:   $branch (aggregate-release bundle)
+  Expected: chore(release): bundle DP-NNN -> vX.Y.Z
+  Actual:   $agg_actual_title
+
+Fix:
+  gh pr edit --title "chore(release): bundle DP-NNN -> vX.Y.Z"
+EOF
   exit 2
 fi
 
@@ -228,7 +305,7 @@ if [[ "$ACTUAL_TITLE" == "$expected_title" ]]; then
 fi
 
 cat >&2 <<EOF
-$PREFIX BLOCKED: PR title does not match Developer format.
+$PREFIX BLOCKED: POLARIS_PR_TITLE_GATE_BLOCKED PR title does not match Developer format.
   Task.md:  $TASK_MD
   Template: $title_template
   Expected: $expected_title

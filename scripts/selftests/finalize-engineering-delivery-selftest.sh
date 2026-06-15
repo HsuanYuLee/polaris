@@ -6,6 +6,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 FINALIZE="$SCRIPT_DIR/finalize-engineering-delivery.sh"
 WRITE_REPORT="$SCRIPT_DIR/write-task-verify-report.sh"
+REFRESH_SNAPSHOT="$SCRIPT_DIR/refresh-baseline-snapshot.sh"
 TMPROOT="$(mktemp -d -t finalize-delivery-selftest-XXXXXX)"
 TMPROOT="$(cd "$TMPROOT" && pwd -P)"
 
@@ -179,6 +180,20 @@ write_task_verify_report() {
     --status PASS >/dev/null
 }
 
+write_baseline_snapshot() {
+  local repo="$1"
+  local workspace="$2"
+  local head_sha="$3"
+
+  # Reuse the canonical baseline-snapshot producer (refresh-baseline-snapshot.sh)
+  # so finalize's planner-owned snapshot gate (check_planner_baseline_snapshot) has
+  # the same snapshot engineering-branch-setup.sh would have written for a real run.
+  bash "$REFRESH_SNAPSHOT" \
+    --repo "$repo" \
+    --task-md "$workspace/docs-manager/src/content/docs/specs/design-plans/DP-999-finalize-cwd/tasks/T1.md" \
+    --head-sha "$head_sha" >/dev/null
+}
+
 main_repo="$TMPROOT/workspace"
 worktree_repo="$TMPROOT/.worktrees/finalize-cwd"
 mockbin="$TMPROOT/bin"
@@ -204,6 +219,7 @@ head_sha="$(git -C "$worktree_repo" rev-parse HEAD)"
 write_task "$main_repo" "$head_sha"
 install_mock_gh "$mockbin" "$head_sha"
 write_verify_evidence "$head_sha"
+write_baseline_snapshot "$worktree_repo" "$main_repo" "$head_sha"
 set +e
 out="$(
   cd "$worktree_repo" &&
@@ -243,6 +259,90 @@ fi
 report_path="$main_repo/docs-manager/src/content/docs/specs/design-plans/DP-999-finalize-cwd/tasks/T1/verify-report.md"
 if [[ ! -f "$report_path" ]] || ! grep -q "$head_sha" "$report_path"; then
   echo "not ok auto-generated verify report missing or stale" >&2
+  exit 1
+fi
+
+# DP-301 T4 (FD3 / AC4): finalize must auto-write the engineering-owned
+# completion_gate marker as a deterministic side effect. The marker anchors at the
+# main checkout under .polaris/evidence/completion-gate/<work-item>-<sha>.json.
+marker_path="$main_repo/.polaris/evidence/completion-gate/DP-999-T1-${head_sha}.json"
+if [[ ! -f "$marker_path" ]]; then
+  echo "not ok finalize did not auto-write completion_gate marker (expected $marker_path)" >&2
+  exit 1
+fi
+
+# Marker must be a PASS completion_gate roll-up bound to the finalized head sha.
+if ! python3 - "$marker_path" "$head_sha" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+marker_path, head_sha = sys.argv[1:3]
+data = json.loads(Path(marker_path).read_text(encoding="utf-8"))
+assert data.get("marker_kind") == "completion_gate", data.get("marker_kind")
+assert data.get("status") == "PASS", data.get("status")
+assert data.get("work_item_id") == "DP-999-T1", data.get("work_item_id")
+freshness = data.get("freshness") or {}
+marker_head = str(freshness.get("head_sha") or "")
+assert marker_head == head_sha or head_sha.startswith(marker_head) or marker_head.startswith(head_sha), marker_head
+PY
+then
+  echo "not ok completion_gate marker has wrong kind/status/work_item_id/head_sha" >&2
+  exit 1
+fi
+
+# AC4 idempotency (adversarial): a second completion_gate auto-write for the same
+# {work_item_id}-{head_sha} must NOT mutate the marker. finalize's idempotency guard
+# detects the existing marker and no-ops, so the marker stays byte-identical even
+# though write-completion-gate-marker.sh itself re-stamps `at` on every direct call
+# (refinement EC4: no drift on same head-sha re-write).
+marker_before="$(python3 - "$marker_path" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())
+PY
+)"
+
+# Re-run finalize against the now-finalized (pr-release) task. resolve-task-md.sh still
+# resolves it, the mock PR is still OPEN, and the completion_gate auto-write must hit
+# the idempotency guard rather than overwrite the marker.
+set +e
+out2="$(
+    POLARIS_SKIP_CI_LOCAL=1 \
+    POLARIS_SKIP_EVIDENCE=1 \
+    POLARIS_SKIP_PR_TITLE_GATE=1 \
+    POLARIS_SKIP_CHANGESET_GATE=1 \
+    PATH="$mockbin:$PATH" \
+    "$FINALIZE" --repo "$main_repo" --ticket DP-999-T1 --workspace "$main_repo" 2>&1
+)"
+set -e
+
+if [[ ! -f "$marker_path" ]]; then
+  printf '%s\n' "$out2" >&2
+  echo "not ok completion_gate marker vanished after second finalize" >&2
+  exit 1
+fi
+
+marker_after="$(python3 - "$marker_path" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())
+PY
+)"
+
+if [[ "$marker_before" != "$marker_after" ]]; then
+  printf '%s\n' "$out2" >&2
+  echo "not ok completion_gate marker drifted on idempotent re-run (before=$marker_before after=$marker_after)" >&2
+  exit 1
+fi
+
+if ! printf '%s\n' "$out2" | grep -q 'auto-write is a no-op'; then
+  printf '%s\n' "$out2" >&2
+  echo "not ok second finalize did not report idempotent no-op for completion_gate marker" >&2
   exit 1
 fi
 

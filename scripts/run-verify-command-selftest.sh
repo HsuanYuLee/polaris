@@ -176,7 +176,7 @@ TASK_S="$PARENT_S/specs/SELFTEST-001/tasks/T1.md"
 make_fake_task_md "$REPO_S" "myrepo" "$TASK_S" "static" 'echo HELLO_STATIC' "RVC-1"
 
 OUT_S="$WORK_DIR/static.out"; ERR_S="$WORK_DIR/static.err"
-"$RVC" --task-md "$TASK_S" >"$OUT_S" 2>"$ERR_S"
+"$RVC" --task-md "$TASK_S" --repo "$REPO_S" >"$OUT_S" 2>"$ERR_S"
 RC_S=$?
 assert_eq "$RC_S" "0" "static level exits 0 on PASS"
 assert_contains "$(cat "$OUT_S")" "HELLO_STATIC" "static stdout surfaced from verify command"
@@ -217,7 +217,7 @@ assert_eq "$EV_EXEC_CWD" "$REPO_S" "evidence: execution_cwd field"
 # command itself to opt in explicitly.
 TASK_DEBUG="$PARENT_S/specs/SELFTEST-001/tasks/T_debug_env.md"
 make_fake_task_md "$REPO_S" "myrepo" "$TASK_DEBUG" "static" 'printf "DEBUG=%s\n" "${DEBUG:-unset}"' "RVC-DEBUG"
-DEBUG=release "$RVC" --task-md "$TASK_DEBUG" >"$WORK_DIR/debug_env.out" 2>"$WORK_DIR/debug_env.err"
+DEBUG=release "$RVC" --task-md "$TASK_DEBUG" --repo "$REPO_S" >"$WORK_DIR/debug_env.out" 2>"$WORK_DIR/debug_env.err"
 RC_DEBUG=$?
 assert_eq "$RC_DEBUG" "0" "inherited DEBUG env is sanitized"
 assert_contains "$(cat "$WORK_DIR/debug_env.out")" "DEBUG=unset" "verify command does not inherit DEBUG"
@@ -261,7 +261,7 @@ echo FALLBACK_PASS
 ```
 EOF
 HEAD_F="$(git -C "$REPO_F" rev-parse HEAD)"
-"$RVC" --task-md "$TASK_F" >"$WORK_DIR/fallback.out" 2>"$WORK_DIR/fallback.err"
+"$RVC" --task-md "$TASK_F" --repo "$REPO_F" >"$WORK_DIR/fallback.out" 2>"$WORK_DIR/fallback.err"
 RC_F=$?
 assert_eq "$RC_F" "0" "explicit fallback exits 0 when fallback passes"
 assert_contains "$(cat "$WORK_DIR/fallback.out")" "PRIMARY_FAIL" "fallback surfaces primary stdout"
@@ -288,7 +288,7 @@ make_fake_task_md "$REPO_D" "myrepo" "$TASK_D" "static" 'echo SHOULD_NOT_RUN' "R
 HEAD_D="$(git -C "$REPO_D" rev-parse HEAD)"
 echo "dirty" > "$REPO_D/untracked.txt"
 
-"$RVC" --task-md "$TASK_D" >"$WORK_DIR/dirty.out" 2>"$WORK_DIR/dirty.err"
+"$RVC" --task-md "$TASK_D" --repo "$REPO_D" >"$WORK_DIR/dirty.out" 2>"$WORK_DIR/dirty.err"
 RC_D=$?
 assert_eq "$RC_D" "1" "dirty worktree refuses verify evidence"
 assert_contains "$(cat "$WORK_DIR/dirty.err")" "refusing to write HEAD-bound evidence" "dirty refusal message"
@@ -306,7 +306,7 @@ echo "=== verify command FAIL → exit 1, evidence still written ==="
 TASK_F="$PARENT_S/specs/SELFTEST-001/tasks/T_fail.md"
 make_fake_task_md "$REPO_S" "myrepo" "$TASK_F" "static" 'exit 7' "RVC-FAIL"
 
-"$RVC" --task-md "$TASK_F" >"$WORK_DIR/fail.out" 2>"$WORK_DIR/fail.err"
+"$RVC" --task-md "$TASK_F" --repo "$REPO_S" >"$WORK_DIR/fail.out" 2>"$WORK_DIR/fail.err"
 RC_F=$?
 assert_eq "$RC_F" "1" "verify exit 7 → script exit 1"
 
@@ -319,27 +319,39 @@ EV_F_EXIT="$(python3 -c "import json; print(json.load(open('$EV_F'))['exit_code'
 assert_eq "$EV_F_EXIT" "7" "evidence: exit_code reflects FAIL"
 
 # ────────────────────────────────────────────────────────────────────────────
-echo "=== stdout FAIL marker → exit 1, evidence still written ==="
+# DP-301 FD4-2: the verify command's own exit code is the sole PASS/FAIL
+# authority. A command that prints a literal "FAIL" token to stdout but exits 0
+# must be treated as PASS — the removed stdout-substring heuristic must not
+# resurrect. The exit-7 case above is the kept "real failure → FAIL" counterpart.
+echo "=== stdout FAIL substring but exit 0 → PASS (exit code is authority) ==="
 TASK_STDOUT_FAIL="$PARENT_S/specs/SELFTEST-001/tasks/T_stdout_fail.md"
-make_fake_task_md "$REPO_S" "myrepo" "$TASK_STDOUT_FAIL" "static" 'echo "FAIL: semantic verification failed"' "RVC-STDOUT-FAIL"
+make_fake_task_md "$REPO_S" "myrepo" "$TASK_STDOUT_FAIL" "static" 'echo "FAIL: descriptive output, command still succeeds"' "RVC-STDOUT-FAIL"
 
-"$RVC" --task-md "$TASK_STDOUT_FAIL" >"$WORK_DIR/stdout_fail.out" 2>"$WORK_DIR/stdout_fail.err"
+"$RVC" --task-md "$TASK_STDOUT_FAIL" --repo "$REPO_S" >"$WORK_DIR/stdout_fail.out" 2>"$WORK_DIR/stdout_fail.err"
 RC_STDOUT_FAIL=$?
-assert_eq "$RC_STDOUT_FAIL" "1" "stdout FAIL marker → script exit 1"
-assert_contains "$(cat "$WORK_DIR/stdout_fail.err")" "stdout contains FAIL marker" "stdout FAIL marker warning"
+assert_eq "$RC_STDOUT_FAIL" "0" "stdout FAIL substring + exit 0 → script exit 0 (PASS)"
+# The removed heuristic warning must not appear.
+if printf '%s' "$(cat "$WORK_DIR/stdout_fail.err")" | grep -qF "stdout contains FAIL marker"; then
+  FAIL=$((FAIL + 1))
+  printf "  [FAIL] stdout FAIL substring heuristic still active (warning emitted)\n"
+else
+  PASS=$((PASS + 1))
+  [[ "$DEBUG" == "1" ]] && printf "  [ok] no stdout FAIL substring heuristic warning\n"
+fi
+assert_contains "$(cat "$WORK_DIR/stdout_fail.out")" "FAIL: descriptive output" "stdout FAIL substring surfaced (not treated as failure)"
 
 EV_STDOUT_FAIL="/tmp/polaris-verified-RVC-STDOUT-FAIL-${HEAD_S}.json"
-assert_file_exists "$EV_STDOUT_FAIL" "stdout FAIL evidence file"
+assert_file_exists "$EV_STDOUT_FAIL" "stdout FAIL substring evidence file"
 
 EV_STDOUT_FAIL_EXIT="$(python3 -c "import json; print(json.load(open('$EV_STDOUT_FAIL'))['exit_code'])" 2>/dev/null)"
-assert_eq "$EV_STDOUT_FAIL_EXIT" "1" "stdout FAIL evidence exit_code reflects semantic failure"
+assert_eq "$EV_STDOUT_FAIL_EXIT" "0" "stdout FAIL substring evidence exit_code reflects PASS (exit 0)"
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== --ticket override ==="
 TASK_T="$PARENT_S/specs/SELFTEST-001/tasks/T_override.md"
 make_fake_task_md "$REPO_S" "myrepo" "$TASK_T" "static" 'echo override' "RVC-IGNORED"
 
-"$RVC" --task-md "$TASK_T" --ticket "RVC-OVERRIDE" >/dev/null 2>&1
+"$RVC" --task-md "$TASK_T" --ticket "RVC-OVERRIDE" --repo "$REPO_S" >/dev/null 2>&1
 RC_T=$?
 assert_eq "$RC_T" "0" "--ticket override exec succeeds"
 
@@ -373,7 +385,7 @@ REPO_B="$(setup_fake_repo "$PARENT_B" "myrepo")"
 TASK_B="$PARENT_B/specs/SELFTEST-001/tasks/T1.md"
 make_fake_task_md "$REPO_B" "myrepo" "$TASK_B" "build" 'echo BUILD_OK' "RVC-B1"
 
-env WORK_DIR="$WORK_DIR" "$FAKE_BUILD_DIR/run-verify-command.sh" --task-md "$TASK_B" >"$WORK_DIR/build.out" 2>"$WORK_DIR/build.err"
+env WORK_DIR="$WORK_DIR" "$FAKE_BUILD_DIR/run-verify-command.sh" --task-md "$TASK_B" --repo "$REPO_B" >"$WORK_DIR/build.out" 2>"$WORK_DIR/build.err"
 RC_B=$?
 assert_eq "$RC_B" "0" "build level exits 0 with mock prep"
 assert_contains "$(cat "$WORK_DIR/build.err")" "FAKE_RUN_TEST_PREP_INVOKED" "build level invokes run-test-prep.sh"
@@ -389,7 +401,7 @@ cp "$SCRIPT_DIR/parse-task-md.sh" "$FAKE_BUILD_BAD_DIR/parse-task-md.sh"
 cp "$SCRIPT_DIR/resolve-task-base.sh" "$FAKE_BUILD_BAD_DIR/resolve-task-base.sh" 2>/dev/null || true
 chmod +x "$FAKE_BUILD_BAD_DIR"/*.sh 2>/dev/null
 # No env/run-test-prep.sh in this tree
-"$FAKE_BUILD_BAD_DIR/run-verify-command.sh" --task-md "$TASK_B" >/dev/null 2>"$WORK_DIR/build_missing.err"
+"$FAKE_BUILD_BAD_DIR/run-verify-command.sh" --task-md "$TASK_B" --repo "$REPO_B" >/dev/null 2>"$WORK_DIR/build_missing.err"
 RC_BB=$?
 assert_eq "$RC_BB" "0" "build level missing prep → warning + exit 0"
 assert_contains "$(cat "$WORK_DIR/build_missing.err")" "WARN build-level prep primitive missing" "build missing prep warning message"
@@ -430,7 +442,7 @@ make_fake_task_md "$REPO_R" "myrepo" "$TASK_R" "runtime" \
   "RVC-R1" \
   "$RT_TARGET"
 
-"$FAKE_RT_DIR/run-verify-command.sh" --task-md "$TASK_R" >"$WORK_DIR/rt.out" 2>"$WORK_DIR/rt.err"
+"$FAKE_RT_DIR/run-verify-command.sh" --task-md "$TASK_R" --repo "$REPO_R" >"$WORK_DIR/rt.out" 2>"$WORK_DIR/rt.err"
 RC_R=$?
 assert_eq "$RC_R" "0" "runtime level exits 0 with mock orchestrator + live http"
 assert_contains "$(cat "$WORK_DIR/rt.err")" "FAKE_START_TEST_ENV_INVOKED" "runtime level invokes start-test-env.sh"
@@ -489,6 +501,7 @@ make_validator_task_md() {
 ---
 title: "Work Order - T1: docs-manager runtime 測試 (1 pt)"
 description: "此工單描述 docs-manager runtime 測試。"
+status: PLANNED
 ---
 
 # T1: docs-manager runtime 測試 (1 pt)
@@ -597,7 +610,7 @@ echo "=== idempotent re-run on same head_sha (overwrite) ==="
 # Re-run static and confirm evidence file still present and timestamp updated
 SLEEP_THRESHOLD="$(date -u +%s)"
 sleep 1
-"$RVC" --task-md "$TASK_S" >/dev/null 2>&1
+"$RVC" --task-md "$TASK_S" --repo "$REPO_S" >/dev/null 2>&1
 RC_RR=$?
 assert_eq "$RC_RR" "0" "re-run static level exits 0"
 EV_AT="$(python3 -c "
@@ -619,7 +632,7 @@ echo "extra" > "$REPO_S/extra.txt"
 git -C "$REPO_S" -c user.email=t@t.t -c user.name=t add . >/dev/null
 git -C "$REPO_S" -c user.email=t@t.t -c user.name=t commit -q -m "extra"
 HEAD_S2="$(git -C "$REPO_S" rev-parse HEAD)"
-"$RVC" --task-md "$TASK_S" >/dev/null 2>&1
+"$RVC" --task-md "$TASK_S" --repo "$REPO_S" >/dev/null 2>&1
 RC_RR2=$?
 assert_eq "$RC_RR2" "0" "re-run after new commit succeeds"
 EV_S2="/tmp/polaris-verified-RVC-1-${HEAD_S2}.json"

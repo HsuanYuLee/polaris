@@ -452,10 +452,12 @@ else
   FALLBACK_EXIT=""
 fi
 
-if [[ "$EFFECTIVE_EXIT" -eq 0 ]] && grep -Eq '(^|[[:space:]])FAIL(:|[[:space:]]|$)' "$EFFECTIVE_STDOUT_FILE"; then
-  echo "run-verify-command: stdout contains FAIL marker; treating Verify Command as failed despite exit 0" >&2
-  EFFECTIVE_EXIT=1
-fi
+# DP-301 FD4-2: the verify command's own exit code is the sole PASS/FAIL
+# authority. The previous stdout 'FAIL' substring heuristic was removed because
+# a passing command may legitimately print a literal "FAIL" token (descriptive
+# output, a test-summary line, a grep match) while exiting 0. Evidence-write
+# success is enforced as an independent AND below (each evidence-write failure
+# exits 1 before the final disposition reached at the end of this script).
 
 # --- Compute runtime contract (if level == runtime) ------------------------
 # Extract first URL from verify command for host comparison.
