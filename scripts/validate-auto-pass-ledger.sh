@@ -68,7 +68,9 @@ if [[ -z "$LEDGER" ]]; then
   usage
 fi
 
-python3 - "$LEDGER" "$SOURCE_CONTAINER" "$SOURCE_ID" "$TASK_WRITE_AT" "$PRINT_HASH" <<'PY'
+SCRIPT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+python3 - "$LEDGER" "$SOURCE_CONTAINER" "$SOURCE_ID" "$TASK_WRITE_AT" "$PRINT_HASH" "$SCRIPT_ROOT" <<'PY'
 import datetime as dt
 import hashlib
 import json
@@ -81,6 +83,10 @@ expected_container = sys.argv[2]
 expected_source_id = sys.argv[3]
 task_write_at = sys.argv[4]
 print_hash = sys.argv[5] == "1"
+repo_root = Path(sys.argv[6]).resolve()
+
+sys.path.insert(0, str(repo_root / "scripts" / "lib"))
+from contract_evidence import validate_contract_evidence_entries
 
 CONSENT_EXCLUDES = [
     "base_branch_force_push",
@@ -224,8 +230,18 @@ try:
 except Exception as exc:
     fail([f"invalid JSON: {exc}"])
 
-if str(ledger.get("schema_version")) != "1":
-    errors.append("schema_version must be \"1\"")
+ledger_schema_version = str(ledger.get("schema_version"))
+# DP-330 read-compat boundary: schema_version "1" is the pre-DP-330 (legacy) ledger
+# shape — gap-assertion friction entries on it are NOT required to carry
+# contract_evidence (read-compat warn, not fail), so the 100+ historical "1" ledgers
+# are not retroactively false-failed. schema_version "2" is the post-DP-330 strict
+# shape that requires contract_evidence on the two gap-assertion kinds.
+# owner=DP-330; removal criterion: once every active ledger initializer stamps "2"
+# and no live "1" ledger remains, drop "1" from the accepted set. archived ledgers are
+# immutable history and stay read-compat.
+if ledger_schema_version not in {"1", "2"}:
+    errors.append("schema_version must be \"1\" or \"2\"")
+legacy_friction_schema = ledger_schema_version == "1"
 
 source = ledger.get("source")
 if not isinstance(source, dict):
@@ -464,6 +480,39 @@ FRICTION_KIND_ENUM = {
 }
 FRICTION_STAGE_ENUM = {"source", "breakdown", "engineering", "verify-AC", "framework-release", "post-task"}
 FRICTION_SUMMARY_SOFT_LIMIT = 280
+# DP-330: the two gap-assertion kinds must carry contract_evidence on new-schema ledgers
+# (read-side fail-closed, blocks a hand-edited ledger from bypassing the writer gate).
+FRICTION_CONTRACT_EVIDENCE_REQUIRED_KINDS = {
+    "deterministic_gap",
+    "validator_contract_conflict",
+}
+
+
+def validate_contract_evidence_shape(value, prefix):
+    """Append contract_evidence shape errors for one friction entry to ``errors``.
+
+    Args:
+        value: the entry's contract_evidence field (any JSON value).
+        prefix: the friction_log[idx] prefix for error messages.
+    """
+    errors.extend(
+        validate_contract_evidence_entries(
+            value,
+            repo_root=repo_root,
+            prefix=f"{prefix}.contract_evidence",
+            require_non_empty=True,
+            not_array_error=f"{prefix}.contract_evidence must be a non-empty array",
+            empty_error=f"{prefix}.contract_evidence must be a non-empty array",
+            item_empty_error="{field} must be a non-empty string",
+            shape_error="{field} must use repo/path:line shape",
+            outside_root_error="{field} path must resolve under repo root",
+            not_found_error="{field} path not found: {path}",
+            unreadable_error="{field} path could not be read: {path} ({exc})",
+            out_of_range_error="{field} line {line} is outside file range for {path}",
+        )
+    )
+
+
 friction_log = ledger.get("friction_log")
 if friction_log is not None:
     if not isinstance(friction_log, list):
@@ -492,6 +541,23 @@ if friction_log is not None:
             summary = entry.get("summary")
             if not summary or not isinstance(summary, str):
                 errors.append(f"{prefix}.summary is required and must be a string")
+
+            contract_evidence = entry.get("contract_evidence")
+            if kind in FRICTION_CONTRACT_EVIDENCE_REQUIRED_KINDS:
+                if legacy_friction_schema and contract_evidence is None:
+                    # Pre-DP-330 legacy ledger: gap-assertion friction predates the
+                    # contract_evidence requirement; warn but do not fail (read-compat).
+                    print(
+                        f"WARNING: {prefix}.contract_evidence absent on legacy "
+                        f"schema_version=1 ledger",
+                        file=sys.stderr,
+                    )
+                else:
+                    validate_contract_evidence_shape(contract_evidence, prefix)
+            elif contract_evidence is not None:
+                # Non-gap-assertion kinds do not require evidence, but if a value is
+                # present it must still be well-shaped.
+                validate_contract_evidence_shape(contract_evidence, prefix)
 
 if errors:
     fail(errors)

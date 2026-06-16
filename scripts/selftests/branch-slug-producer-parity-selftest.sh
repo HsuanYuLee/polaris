@@ -202,6 +202,67 @@ PYEOF
 }
 
 # ---------------------------------------------------------------------------
+# Helper: write a minimal valid JIRA-Epic-backed refinement.json fixture
+# (source.type=jira) whose task carries a real per-task jira_key that DIFFERS
+# from the composite work_item_id ({source_id}-Tn). This is the case the
+# DP-backed helper above cannot exercise: there task_id == identity because
+# jira_key is None. Generic placeholders only (EXCO / exampleco-web) — this
+# selftest is a template-synced surface (framework-iteration § Template-Facing
+# Examples Must Be Generic).
+# Args: $1 = output path, $2 = epic id, $3 = task title, $4 = per-task jira_key
+# ---------------------------------------------------------------------------
+write_jira_refinement_fixture() {
+  local out="$1"
+  local epic_id="$2"
+  local title="$3"
+  local jira_key="$4"
+  python3 - "$out" "$epic_id" "$title" "$jira_key" <<'PYEOF'
+import json
+import sys
+
+out, epic_id, title, jira_key = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+fixture = {
+    "source": {
+        "type": "jira",
+        "id": epic_id,
+        "container": f"/tmp/{epic_id.lower()}-fixture",
+        "plan_path": f"/tmp/{epic_id.lower()}-fixture/index.md",
+        "repo": "exampleco-web",
+        "base_branch": "develop",
+    },
+    "schema_version": 1,
+    "tasks": [
+        {
+            "id": f"{epic_id}-T1",
+            "kind": "implementation",
+            "title": title,
+            "scope": "jira-epic branch identity parity selftest fixture",
+            "allowed_files": ["scripts/sample.sh"],
+            "modules": ["scripts/sample.sh"],
+            "ac_ids": ["AC1"],
+            "dependencies": [],
+            "estimate_points": 1,
+            "jira_key": jira_key,
+            "verification": {
+                "method": "unit_test",
+                "detail": "bash scripts/selftests/sample-selftest.sh",
+                "verify_command": "bash scripts/selftests/sample-selftest.sh",
+                "behavior_contract": {
+                    "applies": False,
+                    "reason": "selftest fixture; no runtime behavior",
+                },
+                "test_environment": {"level": "static"},
+                "references": ["scripts/sample.sh"],
+            },
+        }
+    ],
+}
+with open(out, "w", encoding="utf-8") as fh:
+    json.dump(fixture, fh, ensure_ascii=False, indent=1)
+PYEOF
+}
+
+# ---------------------------------------------------------------------------
 # Case 2 (AC-NEG4): end-to-end derive with a zh-TW title — the rendered
 # `Task branch` field must be pure ASCII (every byte < 0x80) and must keep the
 # ASCII tokens from the title.
@@ -247,5 +308,52 @@ if ! printf '%s' "$cjk_row" | grep -qF 'task/DP-902-T1-task'; then
   exit 1
 fi
 echo "PASS [case 3]: pure-CJK title falls back to the pure-ASCII 'task' slug"
+
+# ---------------------------------------------------------------------------
+# Case 4 (DP-328 AC1 / AC3): JIRA-Epic-backed parity. The derived branch must
+# use the per-task delivery jira_key (EXCO-712), NOT the composite work_item_id
+# (EXCO-700-T1). This is the dual-source half the DP-backed cases above cannot
+# reach: there task_id == identity, so a producer that mistakenly emitted
+# task/{task_id}-... still resolved. Here jira_key != work_item_id, so the
+# composite leak is observable, and the derived branch is fed to the canonical
+# resolve-task-branch.sh invariant (no second branch-identity rule).
+# Regression guard: reverting the producer to f"task/{task_id}-{slug}" makes
+# both the string assertion and the resolve-task-branch.sh check FAIL.
+# ---------------------------------------------------------------------------
+jira_json="$tmpdir/refinement-jira.json"
+write_jira_refinement_fixture "$jira_json" "EXCO-700" 'jira epic branch identity parity' "EXCO-712"
+jira_out="$tmpdir/jira-task.md"
+bash "$DERIVE_SCRIPT" --refinement-json "$jira_json" --task-id "EXCO-700-T1" >"$jira_out"
+
+jira_row="$(grep -F '| Task branch |' "$jira_out")"
+expected_jira_branch='task/EXCO-712-jira-epic-branch-identity-parity'
+if printf '%s' "$jira_row" | LC_ALL=C grep -q '[^ -~]'; then
+  echo "FAIL [case 4 / AC1]: JIRA-Epic Task branch row contains non-ASCII bytes" >&2
+  printf '%s\n' "$jira_row" >&2
+  exit 1
+fi
+if ! printf '%s' "$jira_row" | grep -qF "$expected_jira_branch"; then
+  echo "FAIL [case 4 / AC1]: derived branch did not use per-task jira_key identity" >&2
+  echo "  expected branch: $expected_jira_branch" >&2
+  printf '  actual row: %s\n' "$jira_row" >&2
+  exit 1
+fi
+# Explicit composite-leak guard: the internal work_item_id must never appear as
+# the branch prefix (this is exactly what the producer bug emitted).
+if printf '%s' "$jira_row" | grep -qF 'task/EXCO-700-T1-'; then
+  echo "FAIL [case 4 / AC1]: derived branch leaked the composite work_item_id (EXCO-700-T1)" >&2
+  printf '  actual row: %s\n' "$jira_row" >&2
+  exit 1
+fi
+
+# The derived task.md must satisfy the canonical resolve-task-branch.sh
+# invariant (delivery_ticket_key prefix, AC-NEG5 no-leak) — reuse, no 2nd rule.
+if ! bash "$RESOLVE_BRANCH_SCRIPT" "$jira_out" >/dev/null 2>&1; then
+  echo "FAIL [case 4 / AC3]: derived JIRA-Epic task.md branch rejected by resolve-task-branch.sh" >&2
+  printf '%s\n' "$jira_row" >&2
+  bash "$RESOLVE_BRANCH_SCRIPT" "$jira_out" >/dev/null || true
+  exit 1
+fi
+echo "PASS [case 4]: JIRA-Epic derive uses jira_key identity and passes resolve-task-branch.sh"
 
 echo "PASS: branch-slug-producer-parity-selftest"

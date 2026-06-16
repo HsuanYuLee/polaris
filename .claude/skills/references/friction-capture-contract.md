@@ -65,6 +65,7 @@ scripts/append-auto-pass-friction.sh "$AUTO_PASS_LEDGER_PATH" \
   --stage <stage_enum> \
   --kind  <kind_enum> \
   --summary "<workspace language 短語句，soft-limit 280 chars>" \
+  [--contract-evidence <repo/path:line>] \
   [--ts <ISO8601, default=now>]
 ```
 
@@ -72,12 +73,36 @@ scripts/append-auto-pass-friction.sh "$AUTO_PASS_LEDGER_PATH" \
 - summary 為空字串時回 exit 1。
 - summary 超過 280 chars 時印 stderr `WARNING: summary length ...`；**不截斷**
   （AC-NEG3 from DP-214）。
+- `kind ∈ {deterministic_gap, validator_contract_conflict}` 時必須至少帶一筆
+  `--contract-evidence <repo/path:line>`；缺值時 helper exit 1，不寫 ledger（DP-330）。
 - ledger 不存在時 silent exit 0（NOOP boundary），讓 deterministic trigger 在
   非 `/auto-pass` 流程也能安全執行。
 - summary 必須使用 `workspace-config.yaml` `language`（預設 zh-TW），不要先寫英文再翻譯。
 
 不得用其他方式寫 `friction_log[]`：不可直接 `jq` 或 python edit ledger、不可在 final
 report 內補 summary 數字、不可由 LLM 口頭交代「已記錄」。
+
+## Contract Evidence（DP-330）
+
+`contract_evidence[]` 記錄作者**檢查過的 pinned contract surface**，格式是 repo 內可解析的
+`path:line`（含 `.md`）。它**不是**「證明 gap 必然成立」的那一行——validator 只檢查 shape、
+path 可解析、且 line 落在檔案範圍內，**不**判斷該契約是否真的證明 gap（語意殘量由 B 類
+canary 事後偵測）。這個欄位的目的，是逼宣稱 `deterministic_gap` 或 `validator_contract_conflict`
+的人打開最接近的契約面：若該 gap 其實已被既有契約涵蓋，作者在 cite 時就會撞到既存契約，
+claim 當場被推翻。
+
+對 `deterministic_gap` / `validator_contract_conflict`：
+
+- writer side：`append-auto-pass-friction.sh` fail-closed 要求至少一筆 `--contract-evidence`，
+  缺值 exit 1 不寫 ledger。
+- reader side：`validate-auto-pass-ledger.sh` 對 **新 schema（`schema_version: "2"`）** ledger
+  同步 fail-closed 檢查 `contract_evidence[]` 存在且 shape 合法（防手改 ledger 繞過 writer）。
+  **legacy schema（`schema_version: "1"`）** 只 warning、不回溯 false-fail 歷史 ledger。
+  POLARIS_*_BYPASS 類 env 無法 silence 此 fail-closed。
+- 真 gap（無任何既存契約涵蓋）時，cite 本該 own 此事的最近契約 surface（path:line）並於
+  summary 說明缺口；evidence 仍取得 path:line，gate 通過。
+
+非 gap-assertion kind（其餘 6 個）不要求 `contract_evidence`；若提供，validator 仍檢查 shape。
 
 ## Deterministic Trigger Map (DP-220)
 

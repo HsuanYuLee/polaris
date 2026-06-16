@@ -343,7 +343,13 @@ def slugify(text: str) -> str:
 # Empty-slug fallback: keeps the branch identity non-empty when the title has
 # no [a-z0-9] characters at all (e.g. a pure zh-TW title).
 slug = slugify(title) or "task"
-task_branch = f"task/{task_id}-{slug}"
+# Branch identity uses task_identity (= tasks[].jira_key for JIRA-Epic-backed
+# sources, else the canonical task_id), NOT the composite task_id. Leaking the
+# internal composite work_item_id (e.g. EPIC-1234-T1) into the product branch
+# violates the resolve-task-branch.sh AC-NEG5 invariant; task_identity collapses
+# to task_id for DP-backed sources, so DP branches stay task/DP-NNN-Tn-...
+# (DP-328 D1/D4; completes the DP-269 task_identity follow-through).
+task_branch = f"task/{task_identity}-{slug}"
 
 def short_work_item_id(value: str) -> str:
     m_short = re.fullmatch(r"[TV]\d+[a-z]?", value)

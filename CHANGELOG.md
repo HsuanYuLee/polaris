@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.76.17] - 2026-06-17
+
+### Changed
+
+- a748548: genericize live ticket key in branch-identity selftest comment
+  `scripts/selftests/validate-breakdown-ready-branch-identity-selftest.sh` 的 Case 3 註解引用了 live ticket key（template leak），改為 generic「real-world JIRA-Epic bug shape」描述，移除 template-facing 違規。純註解變更，selftest 行為不變、fixtures 維持 generic placeholder（EXCO-712 / exampleco-web）。
+- a020ae2: Producer branch-identity 修正 + dual-source parity selftest
+- 48d12d8: breakdown-ready branch-identity gate（複用 resolve-task-branch invariant）
+- a4744dc: friction gap-assertion kind 強制 contract_evidence（writer + ledger validator 雙邊 fail-closed）+ selftest + reference
+- 97e362f: follow_up_dp_seed 加 framework_gap + 條件式 contract_evidence（report validator fail-closed）+ selftest + reference
+- fc7612d: B 類 canary（mechanism-registry）+ self-authored-prose Writer side evidence-binding prose
+
 ## [3.76.16] - 2026-06-17
 
 ### Changed

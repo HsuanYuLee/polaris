@@ -578,4 +578,110 @@ REVISION_BAD_TYPE="$TMP/revision-rounds-bad-type.json"
 set_revision_counter "$VALID" "$REVISION_BAD_TYPE" '{"count": "nope", "evidence_ids": []}'
 expect_fail "revision-rounds-invalid-count-type" "$VALIDATOR" "$REVISION_BAD_TYPE" --source-container "$SOURCE" --source-id DP-999
 
+# --- DP-330: contract_evidence read-side fail-closed on gap-assertion friction ---------
+# AC4: shape-only gate — a well-shaped, repo-resolvable path:line passes even if the cited
+# contract does not "prove" the gap; the validator does not judge semantics.
+GAP_WITH_EVIDENCE="$TMP/gap-with-evidence.json"
+cp "$VALID" "$GAP_WITH_EVIDENCE"
+python3 - "$GAP_WITH_EVIDENCE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["schema_version"] = "2"
+data["friction_log"] = [
+    {
+        "ts": "2026-05-19T10:10:00+08:00",
+        "stage": "engineering",
+        "friction_kind": "validator_contract_conflict",
+        "summary": "fixture gap with evidence",
+        "contract_evidence": ["scripts/validate-auto-pass-ledger.sh:1"],
+    }
+]
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+"$VALIDATOR" "$GAP_WITH_EVIDENCE" --source-container "$SOURCE" --source-id DP-999 >/dev/null
+
+# AC2: strict (schema_version "2") ledger with gap-kind friction but no contract_evidence FAILS.
+GAP_WITHOUT_EVIDENCE="$TMP/gap-without-evidence.json"
+cp "$GAP_WITH_EVIDENCE" "$GAP_WITHOUT_EVIDENCE"
+python3 - "$GAP_WITHOUT_EVIDENCE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["friction_log"][0].pop("contract_evidence", None)
+data["friction_log"][0]["friction_kind"] = "deterministic_gap"
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+expect_fail "gap-without-contract-evidence" "$VALIDATOR" "$GAP_WITHOUT_EVIDENCE" --source-container "$SOURCE" --source-id DP-999
+
+# AC2 adversarial: malformed (non path:line) contract_evidence on strict ledger FAILS.
+GAP_BAD_EVIDENCE="$TMP/gap-bad-evidence.json"
+cp "$GAP_WITH_EVIDENCE" "$GAP_BAD_EVIDENCE"
+python3 - "$GAP_BAD_EVIDENCE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["friction_log"][0]["contract_evidence"] = ["not-a-path-line"]
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+expect_fail "gap-bad-contract-evidence" "$VALIDATOR" "$GAP_BAD_EVIDENCE" --source-container "$SOURCE" --source-id DP-999
+
+# AC2 adversarial: out-of-range line on strict ledger FAILS.
+GAP_OUT_OF_RANGE_EVIDENCE="$TMP/gap-out-of-range-evidence.json"
+cp "$GAP_WITH_EVIDENCE" "$GAP_OUT_OF_RANGE_EVIDENCE"
+python3 - "$GAP_OUT_OF_RANGE_EVIDENCE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["friction_log"][0]["contract_evidence"] = ["scripts/validate-auto-pass-ledger.sh:999999"]
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+expect_fail "gap-out-of-range-contract-evidence" "$VALIDATOR" "$GAP_OUT_OF_RANGE_EVIDENCE" --source-container "$SOURCE" --source-id DP-999
+grep -q "outside file range" "$TMP/gap-out-of-range-contract-evidence.out"
+
+# AC4: a .md contract surface path:line is also valid evidence (rd_risk mitigation).
+GAP_MD_EVIDENCE="$TMP/gap-md-evidence.json"
+cp "$GAP_WITH_EVIDENCE" "$GAP_MD_EVIDENCE"
+python3 - "$GAP_MD_EVIDENCE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["friction_log"][0]["contract_evidence"] = [
+    ".claude/skills/references/friction-capture-contract.md:1"
+]
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+"$VALIDATOR" "$GAP_MD_EVIDENCE" --source-container "$SOURCE" --source-id DP-999 >/dev/null
+
+# AC-NEG4: the same evidence-free gap entry on a legacy (schema_version "1") ledger is
+# read-compatible — validator warns but does not fail.
+LEGACY_GAP_WITHOUT_EVIDENCE="$TMP/legacy-gap-without-evidence.json"
+cp "$GAP_WITHOUT_EVIDENCE" "$LEGACY_GAP_WITHOUT_EVIDENCE"
+python3 - "$LEGACY_GAP_WITHOUT_EVIDENCE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["schema_version"] = "1"
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+"$VALIDATOR" "$LEGACY_GAP_WITHOUT_EVIDENCE" --source-container "$SOURCE" --source-id DP-999 >/dev/null
+
 echo "PASS: validate-auto-pass-ledger selftest"

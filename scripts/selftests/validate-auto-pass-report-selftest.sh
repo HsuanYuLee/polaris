@@ -28,6 +28,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VALIDATOR="$ROOT/scripts/validate-auto-pass-report.sh"
+# DP-330 T2: a real workspace-root-bound source file for framework_gap
+# contract_evidence (the validator resolves it under WORKSPACE_ROOT=$ROOT,
+# which is independent of the hermetic POLARIS_WORKSPACE_ROOT marker override).
+CONTRACT_EVIDENCE="scripts/validate-auto-pass-report.sh:1"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -116,6 +120,7 @@ if mode == "blocked":
         "path": "docs-manager/src/content/docs/specs/design-plans/DP-999/index.md",
         "reason": terminal,
         "source_report": str(Path(path)),
+        "framework_gap": False,
     }
 elif mode == "loop_cap":
     payload["blockers"].append({"kind": "loop_cap", "reason": "planning loop > 3"})
@@ -123,6 +128,7 @@ elif mode == "loop_cap":
         "path": "docs-manager/src/content/docs/specs/design-plans/DP-999/index.md",
         "reason": terminal,
         "source_report": str(Path(path)),
+        "framework_gap": False,
     }
 elif mode == "paused_user":
     payload["manual_items"].append({"kind": "manual_review", "reason": "needs user external write"})
@@ -130,6 +136,7 @@ elif mode == "paused_user":
         "path": "docs-manager/src/content/docs/specs/design-plans/DP-999/index.md",
         "reason": terminal,
         "source_report": str(Path(path)),
+        "framework_gap": False,
     }
 elif mode == "complete":
     pass
@@ -244,6 +251,161 @@ Path(sys.argv[1]).write_text(json.dumps({
 PY
 assert_fail "no-seed" "$VALIDATOR" "$NO_SEED"
 grep -q "follow_up_dp_seed is required" "$TMP/no-seed.out"
+
+# ─── 10. follow_up_dp_seed framework_gap contract (DP-330 T2: AC3/AC4/AC-NEG2) ─
+# AC3: framework_gap=true with valid contract_evidence → PASS.
+FRAMEWORK_GAP_OK="$TMP/framework-gap-ok.json"
+python3 - "$FRAMEWORK_GAP_OK" "$CONTRACT_EVIDENCE" <<'PY'
+import json, sys
+from pathlib import Path
+report_path, evidence = sys.argv[1:3]
+Path(report_path).write_text(json.dumps({
+    "schema_version": 1,
+    "source_id": "DP-237",
+    "terminal_status": "blocked_by_gate_failure",
+    "created_at": "2026-05-19T10:30:00+08:00",
+    "ledger_path": "/tmp/x",
+    "required_prs": [],
+    "verification": {"status": "UNCERTAIN"},
+    "issues": [{"kind": "x"}],
+    "blockers": [],
+    "manual_items": [],
+    "follow_ups": [],
+    "overlap_disposition": [],
+    "follow_up_dp_seed": {
+        "path": "docs-manager/src/content/docs/specs/design-plans/DP-999/index.md",
+        "reason": "blocked_by_gate_failure",
+        "source_report": str(Path(report_path)),
+        "framework_gap": True,
+        "contract_evidence": [evidence],
+    },
+}) + "\n", encoding="utf-8")
+PY
+assert_pass "framework-gap-ok" "$VALIDATOR" "$FRAMEWORK_GAP_OK"
+
+# AC3: framework_gap=true but contract_evidence absent → FAIL (required).
+FRAMEWORK_GAP_MISSING_EVIDENCE="$TMP/framework-gap-missing-evidence.json"
+python3 - "$FRAMEWORK_GAP_MISSING_EVIDENCE" <<'PY'
+import json, sys
+from pathlib import Path
+report_path = sys.argv[1]
+Path(report_path).write_text(json.dumps({
+    "schema_version": 1,
+    "source_id": "DP-237",
+    "terminal_status": "blocked_by_gate_failure",
+    "created_at": "2026-05-19T10:30:00+08:00",
+    "ledger_path": "/tmp/x",
+    "required_prs": [],
+    "verification": {"status": "UNCERTAIN"},
+    "issues": [{"kind": "x"}],
+    "blockers": [],
+    "manual_items": [],
+    "follow_ups": [],
+    "overlap_disposition": [],
+    "follow_up_dp_seed": {
+        "path": "docs-manager/src/content/docs/specs/design-plans/DP-999/index.md",
+        "reason": "blocked_by_gate_failure",
+        "source_report": str(Path(report_path)),
+        "framework_gap": True,
+    },
+}) + "\n", encoding="utf-8")
+PY
+assert_fail "framework-gap-missing-evidence" "$VALIDATOR" "$FRAMEWORK_GAP_MISSING_EVIDENCE"
+grep -q "contract_evidence is required" "$TMP/framework-gap-missing-evidence.out"
+
+# AC-NEG2: seed present but framework_gap field absent → FAIL (must be boolean).
+FRAMEWORK_GAP_MISSING_BOOL="$TMP/framework-gap-missing-bool.json"
+python3 - "$FRAMEWORK_GAP_MISSING_BOOL" <<'PY'
+import json, sys
+from pathlib import Path
+report_path = sys.argv[1]
+Path(report_path).write_text(json.dumps({
+    "schema_version": 1,
+    "source_id": "DP-237",
+    "terminal_status": "blocked_by_gate_failure",
+    "created_at": "2026-05-19T10:30:00+08:00",
+    "ledger_path": "/tmp/x",
+    "required_prs": [],
+    "verification": {"status": "UNCERTAIN"},
+    "issues": [{"kind": "x"}],
+    "blockers": [],
+    "manual_items": [],
+    "follow_ups": [],
+    "overlap_disposition": [],
+    "follow_up_dp_seed": {
+        "path": "docs-manager/src/content/docs/specs/design-plans/DP-999/index.md",
+        "reason": "blocked_by_gate_failure",
+        "source_report": str(Path(report_path)),
+    },
+}) + "\n", encoding="utf-8")
+PY
+assert_fail "framework-gap-missing-bool" "$VALIDATOR" "$FRAMEWORK_GAP_MISSING_BOOL"
+grep -q "framework_gap must be a boolean" "$TMP/framework-gap-missing-bool.out"
+
+# AC-NEG2: framework_gap=true but contract_evidence points outside workspace root → FAIL.
+FRAMEWORK_GAP_BAD_EVIDENCE="$TMP/framework-gap-bad-evidence.json"
+OUTSIDE_CONTRACT="$TMP/outside-contract.md"
+printf '%s\n' "outside workspace contract fixture" >"$OUTSIDE_CONTRACT"
+python3 - "$FRAMEWORK_GAP_BAD_EVIDENCE" "$OUTSIDE_CONTRACT" <<'PY'
+import json, sys
+from pathlib import Path
+report_path, outside_contract = sys.argv[1:3]
+Path(report_path).write_text(json.dumps({
+    "schema_version": 1,
+    "source_id": "DP-237",
+    "terminal_status": "blocked_by_gate_failure",
+    "created_at": "2026-05-19T10:30:00+08:00",
+    "ledger_path": "/tmp/x",
+    "required_prs": [],
+    "verification": {"status": "UNCERTAIN"},
+    "issues": [{"kind": "x"}],
+    "blockers": [],
+    "manual_items": [],
+    "follow_ups": [],
+    "overlap_disposition": [],
+    "follow_up_dp_seed": {
+        "path": "docs-manager/src/content/docs/specs/design-plans/DP-999/index.md",
+        "reason": "blocked_by_gate_failure",
+        "source_report": str(Path(report_path)),
+        "framework_gap": True,
+        "contract_evidence": [f"{outside_contract}:1"],
+    },
+}) + "\n", encoding="utf-8")
+PY
+assert_fail "framework-gap-bad-evidence" "$VALIDATOR" "$FRAMEWORK_GAP_BAD_EVIDENCE"
+grep -q "workspace root" "$TMP/framework-gap-bad-evidence.out"
+
+# AC-NEG2: framework_gap=true but contract_evidence line beyond file range → FAIL.
+FRAMEWORK_GAP_LINE_OUT_OF_RANGE="$TMP/framework-gap-line-out-of-range.json"
+python3 - "$FRAMEWORK_GAP_LINE_OUT_OF_RANGE" "$CONTRACT_EVIDENCE" <<'PY'
+import json, sys
+from pathlib import Path
+report_path, evidence = sys.argv[1:3]
+raw_path, _raw_line = evidence.rsplit(":", 1)
+Path(report_path).write_text(json.dumps({
+    "schema_version": 1,
+    "source_id": "DP-237",
+    "terminal_status": "blocked_by_gate_failure",
+    "created_at": "2026-05-19T10:30:00+08:00",
+    "ledger_path": "/tmp/x",
+    "required_prs": [],
+    "verification": {"status": "UNCERTAIN"},
+    "issues": [{"kind": "x"}],
+    "blockers": [],
+    "manual_items": [],
+    "follow_ups": [],
+    "overlap_disposition": [],
+    "follow_up_dp_seed": {
+        "path": "docs-manager/src/content/docs/specs/design-plans/DP-999/index.md",
+        "reason": "blocked_by_gate_failure",
+        "source_report": str(Path(report_path)),
+        "framework_gap": True,
+        "contract_evidence": [f"{raw_path}:999999"],
+    },
+}) + "\n", encoding="utf-8")
+PY
+assert_fail "framework-gap-line-out-of-range" "$VALIDATOR" "$FRAMEWORK_GAP_LINE_OUT_OF_RANGE"
+grep -q "outside file range" "$TMP/framework-gap-line-out-of-range.out"
 
 # ─── 10. friction_log_summary contract ───────────────────────────────────────
 # Build a ledger with friction entries and verify summary-match contract.

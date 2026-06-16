@@ -388,6 +388,7 @@ validate_task_md = script_dir / "validate-task-md.sh"
 validate_task_md_deps = script_dir / "validate-task-md-deps.sh"
 check_verify_command_executability = script_dir / "lib" / "check-verify-command-executability.sh"
 validate_branch_name_ascii = script_dir / "validate-branch-name-ascii.sh"
+resolve_task_branch = script_dir / "resolve-task-branch.sh"
 
 
 def section(text: str, heading: str) -> str:
@@ -893,6 +894,84 @@ def validate_branch_name_ascii_gate(file: Path, text: str) -> list[tuple[str, st
     ]
 
 
+# --- DP-328 T2 (AC4 / AC5): branch-identity gate -------------------------------
+# A task.md "Task branch" must carry the delivery_ticket_key prefix
+# (task/{delivery_ticket_key}-...), NOT the internal composite work_item_id
+# marker. For a JIRA-Epic-backed source the work_item_id (e.g. EXCO-700-T2)
+# differs from the delivery_ticket_key (the real per-task jira_key, e.g.
+# EXCO-712); a branch prefixed with the composite marker (task/EXCO-700-T2-...)
+# is an internal task marker identity leak. For a DP-backed source the two atoms
+# collapse (delivery_ticket_key == work_item_id == DP-NNN-Tn), so a well-formed
+# DP branch never trips this gate (AC-NEG1).
+#
+# The verdict REUSES scripts/resolve-task-branch.sh validate_branch — the single
+# canonical branch-identity rule (AC5). No second prefix/leak implementation
+# lives here: this gate only invokes resolve-task-branch.sh per task.md and maps
+# its exit-1 (validate_branch rejection, incl. the AC-NEG5 leak) to a contract
+# violation (exit 2 + structured marker), distinct from the generic exit-1
+# readiness FAIL. Moving the invariant here makes the leak fail at breakdown-ready
+# instead of leaking through to engineering-branch-setup (the previous sole
+# enforcement point, too late). resolve exit 2 (no identity / parse failure) is
+# left to the schema gates that own field presence; this gate does not
+# double-report it.
+
+TASK_BRANCH_IDENTITY_LEAK_MARKER = "POLARIS_TASK_BRANCH_IDENTITY_LEAK"
+
+
+def validate_branch_identity_gate(file: Path, text: str) -> list[tuple[str, str]]:
+    """Certify the task.md "Task branch" carries the delivery_ticket_key prefix.
+
+    Reuses scripts/resolve-task-branch.sh validate_branch as the single
+    canonical branch-identity rule (DP-328 AC5); no second prefix/leak
+    implementation lives here.
+
+    Args:
+        file: the task.md under validation (used in violation messages).
+        text: the full task.md text; used only to skip when there is no Task
+            branch field to certify (schema gates own field presence).
+
+    Returns:
+        A list of (message, marker_line) violations; empty when there is no
+        Task branch field, the branch passes validate_branch (exit 0), or the
+        resolver cannot reach the branch check (exit 2 — a structural problem
+        owned by the schema gates, not double-reported here). A missing
+        resolver script is itself a violation (fail-closed), never a silent
+        skip.
+    """
+    branch = task_branch_field(text)
+    if not branch:
+        return []
+    if not resolve_task_branch.is_file():
+        return [
+            (
+                f"{file}: missing branch-identity resolver: {resolve_task_branch}",
+                f"{TASK_BRANCH_IDENTITY_LEAK_MARKER}:{file}",
+            )
+        ]
+    proc = subprocess.run(
+        ["bash", str(resolve_task_branch), str(file)],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if proc.returncode == 0:
+        return []
+    if proc.returncode != 1:
+        # exit 2 = task_md not found / parse failure / no identity. The schema
+        # gates (validate-task-md) own field presence; do not double-report.
+        return []
+    detail = "; ".join(
+        line.strip() for line in (proc.stderr or "").splitlines() if line.strip()
+    )[:240] or "resolve-task-branch.sh validate_branch rejected the Task branch"
+    return [
+        (
+            f"{file}: Task branch `{branch}` fails the canonical branch-identity invariant "
+            f"(resolve-task-branch.sh validate_branch): {detail} (DP-328 AC4)",
+            f"{TASK_BRANCH_IDENTITY_LEAK_MARKER}:{file}",
+        )
+    ]
+
+
 def validate_verify_command_specificity(file: Path, text: str) -> list[str]:
     errors: list[str] = []
     verify_command = first_fenced_code(section(text, "## Verify Command"))
@@ -1123,6 +1202,9 @@ executability_violations: list[tuple[Path, str]] = []
 # DP-307 T2: branch-name ASCII violations share the contract-violation lane
 # (exit 2 + structured marker); each entry carries its own marker line.
 branch_name_violations: list[tuple[str, str]] = []
+# DP-328 T2: branch-identity violations (composite work_item_id leak) share the
+# same contract-violation lane; verdict reuses resolve-task-branch.sh.
+branch_identity_violations: list[tuple[str, str]] = []
 for file in files:
     all_errors.extend(validate_one(file))
     normalized = str(file)
@@ -1134,6 +1216,7 @@ for file in files:
     for violation in validate_command_executability(file, file_text):
         executability_violations.append((file, violation))
     branch_name_violations.extend(validate_branch_name_ascii_gate(file, file_text))
+    branch_identity_violations.extend(validate_branch_identity_gate(file, file_text))
 
 if target.is_dir() and validate_task_md_deps.exists():
     deps = subprocess.run(
@@ -1144,7 +1227,7 @@ if target.is_dir() and validate_task_md_deps.exists():
     if deps.returncode != 0:
         all_errors.append(f"{target}: validate-task-md-deps.sh failed; fix dependency closure before readiness handoff")
 
-if all_errors or executability_violations or branch_name_violations:
+if all_errors or executability_violations or branch_name_violations or branch_identity_violations:
     print("validate-breakdown-ready.sh FAIL", file=sys.stderr)
     for error in all_errors:
         print(f"  - {error}", file=sys.stderr)
@@ -1152,12 +1235,16 @@ if all_errors or executability_violations or branch_name_violations:
         print(f"  - {violation}", file=sys.stderr)
     for message, _ in branch_name_violations:
         print(f"  - {message}", file=sys.stderr)
-    if executability_violations or branch_name_violations:
-        # Contract violation: structured marker + exit 2 (AC8 / DP-307 AC4);
-        # readiness-only failures keep the legacy exit 1.
+    for message, _ in branch_identity_violations:
+        print(f"  - {message}", file=sys.stderr)
+    if executability_violations or branch_name_violations or branch_identity_violations:
+        # Contract violation: structured marker + exit 2 (AC8 / DP-307 AC4 /
+        # DP-328 AC4); readiness-only failures keep the legacy exit 1.
         for offending_file in dict.fromkeys(file for file, _ in executability_violations):
             print(f"{VERIFY_COMMAND_NOT_EXECUTABLE_MARKER}:{offending_file}", file=sys.stderr)
         for marker in dict.fromkeys(marker for _, marker in branch_name_violations):
+            print(marker, file=sys.stderr)
+        for marker in dict.fromkeys(marker for _, marker in branch_identity_violations):
             print(marker, file=sys.stderr)
         raise SystemExit(2)
     raise SystemExit(1)

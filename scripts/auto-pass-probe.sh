@@ -144,6 +144,8 @@ def emit(status, terminal_status, next_action, evidence_path=None, reason=None):
                             stage if stage in {"source", "breakdown", "engineering", "verify-AC", "framework-release", "post-task"} else "post-task",
                             "--kind",
                             "deterministic_gap",
+                            "--contract-evidence",
+                            ".claude/skills/references/friction-capture-contract.md:85",
                             "--summary",
                             summary[:280],
                         ],

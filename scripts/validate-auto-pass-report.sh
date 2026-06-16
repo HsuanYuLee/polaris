@@ -29,6 +29,12 @@ USAGE
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# DP-330 T2: workspace root for follow_up_dp_seed.contract_evidence path:line
+# validation. This is the repo containing scripts/, resolved from this script's
+# location — distinct from EVIDENCE_ROOT (which can be overridden to a hermetic
+# temp dir for ac_verification marker selftests). contract_evidence points at
+# real source files, so it always resolves against the actual repo.
+WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # DP-311 T3: resolve the evidence root for head-bound ac_verification markers.
 # Order: explicit env override → main checkout resolved from the report path
@@ -47,10 +53,12 @@ if [[ -z "$EVIDENCE_ROOT" ]]; then
   fi
 fi
 
-python3 - "$1" "$EVIDENCE_ROOT" <<'PY'
+python3 - "$1" "$EVIDENCE_ROOT" "$WORKSPACE_ROOT" <<'PY'
 """Purpose: auto-pass report contract validation body (see bash header).
 
-Inputs: argv[1]=report path, argv[2]=evidence root ('' when unresolvable).
+Inputs: argv[1]=report path, argv[2]=evidence root ('' when unresolvable),
+        argv[3]=workspace root for follow_up_dp_seed.contract_evidence
+        path:line validation.
 Outputs: PASS line on stdout; error list + POLARIS_AUTO_PASS_REPORT_* markers
 on stderr. Exit 2 on cross-check violation, 1 on schema violation.
 """
@@ -61,6 +69,9 @@ from pathlib import Path
 
 path = Path(sys.argv[1])
 evidence_root = sys.argv[2] if len(sys.argv) > 2 else ""
+workspace_root = Path(sys.argv[3]).resolve() if len(sys.argv) > 3 else Path.cwd().resolve()
+sys.path.insert(0, str(workspace_root / "scripts" / "lib"))
+from contract_evidence import validate_contract_evidence_entries
 TERMINAL = {
     "complete",
     "paused_for_refinement",
@@ -99,6 +110,36 @@ def fail(errors, cross_errors=()):
     for token, _detail in cross_errors:
         print(f"{token}:{path}", file=sys.stderr)
     raise SystemExit(2 if cross_errors else 1)
+
+
+def validate_contract_evidence(raw, prefix, require_non_empty):
+    """Append follow_up_dp_seed.contract_evidence shape errors to ``errors``.
+
+    Delegates to the shared contract_evidence helper (T1-delivered). When
+    framework_gap is true, contract_evidence must be a non-empty array of
+    workspace-root-bound repo/path:line strings; when false, it is optional.
+
+    Args:
+        raw: the seed's contract_evidence field (any JSON value).
+        prefix: field path used in diagnostics.
+        require_non_empty: whether missing/empty evidence is an error
+            (mirrors framework_gap).
+    """
+    errors.extend(validate_contract_evidence_entries(
+        raw,
+        repo_root=workspace_root,
+        prefix=prefix,
+        require_non_empty=require_non_empty,
+        missing_error=f"{prefix} is required when follow_up_dp_seed.framework_gap is true",
+        not_array_error=f"{prefix} must be an array of repo/path:line strings",
+        empty_error=f"{prefix} must contain at least one repo/path:line string when follow_up_dp_seed.framework_gap is true",
+        item_empty_error="{field} must be a non-empty repo/path:line string",
+        shape_error="{field} must match repo/path:line with a positive line number",
+        outside_root_error="{field} must point inside the workspace root: {path}",
+        not_found_error="{field} file not found: {path}",
+        unreadable_error="{field} file could not be read: {path} ({exc})",
+        out_of_range_error="{field} line {line} is outside file range for {path}",
+    ))
 
 
 if not path.is_file():
@@ -153,6 +194,18 @@ if seed_needed:
         for field in ("path", "reason", "source_report"):
             if not seed.get(field):
                 errors.append(f"follow_up_dp_seed.{field} is required")
+        # DP-330 T2: framework_gap=true requires contract_evidence (≥1
+        # repo/path:line); false makes it optional. Threshold trigger and the
+        # path/reason/source_report requirements above are unchanged.
+        framework_gap = seed.get("framework_gap")
+        if not isinstance(framework_gap, bool):
+            errors.append("follow_up_dp_seed.framework_gap must be a boolean")
+        else:
+            validate_contract_evidence(
+                seed.get("contract_evidence"),
+                "follow_up_dp_seed.contract_evidence",
+                framework_gap,
+            )
 else:
     if seed is not None:
         errors.append("follow_up_dp_seed must be null when no issue threshold is present")

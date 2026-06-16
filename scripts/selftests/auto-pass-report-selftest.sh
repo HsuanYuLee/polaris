@@ -10,6 +10,11 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VALIDATOR="$ROOT/scripts/validate-auto-pass-report.sh"
+# DP-330 T2: workspace-root-bound source file for framework_gap contract_evidence
+# (validator resolves it under WORKSPACE_ROOT=$ROOT, independent of the hermetic
+# POLARIS_WORKSPACE_ROOT marker override). Exported so the write_report heredoc
+# can read it via os.environ.
+export CONTRACT_EVIDENCE="scripts/validate-auto-pass-report.sh:1"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -85,6 +90,26 @@ if mode in {"blocked", "sunset"}:
         "path": "docs-manager/src/content/docs/specs/design-plans/DP-999-follow-up/index.md",
         "reason": terminal,
         "source_report": str(Path(path)),
+        "framework_gap": False,
+    }
+if mode == "framework_gap":
+    payload["blockers"].append({"kind": "framework_gap", "reason": "validator contract gap"})
+    payload["verification"]["status"] = "UNCERTAIN"
+    payload["follow_up_dp_seed"] = {
+        "path": "docs-manager/src/content/docs/specs/design-plans/DP-999-follow-up/index.md",
+        "reason": terminal,
+        "source_report": str(Path(path)),
+        "framework_gap": True,
+        "contract_evidence": [os.environ["CONTRACT_EVIDENCE"]],
+    }
+if mode == "framework_gap_missing_evidence":
+    payload["blockers"].append({"kind": "framework_gap", "reason": "validator contract gap"})
+    payload["verification"]["status"] = "UNCERTAIN"
+    payload["follow_up_dp_seed"] = {
+        "path": "docs-manager/src/content/docs/specs/design-plans/DP-999-follow-up/index.md",
+        "reason": terminal,
+        "source_report": str(Path(path)),
+        "framework_gap": True,
     }
 if mode == "missing_seed":
     payload["blockers"].append({"kind": "manual", "reason": "needs seed"})
@@ -136,6 +161,17 @@ write_report "$JIRA_COMPLETE" complete complete EXAMPLE-999
 JIRA_BLOCKED="$TMP/jira-blocked.json"
 write_report "$JIRA_BLOCKED" blocked_by_gate_failure blocked EXB2C-3461
 "$VALIDATOR" "$JIRA_BLOCKED"
+
+# DP-330 T2 AC3: framework_gap=true with valid contract_evidence → PASS.
+FRAMEWORK_GAP="$TMP/framework-gap.json"
+write_report "$FRAMEWORK_GAP" blocked_by_gate_failure framework_gap
+"$VALIDATOR" "$FRAMEWORK_GAP"
+
+# DP-330 T2 AC3: framework_gap=true but contract_evidence absent → FAIL.
+FRAMEWORK_GAP_MISSING_EVIDENCE="$TMP/framework-gap-missing-evidence.json"
+write_report "$FRAMEWORK_GAP_MISSING_EVIDENCE" blocked_by_gate_failure framework_gap_missing_evidence
+expect_fail "framework-gap-missing-evidence" "$VALIDATOR" "$FRAMEWORK_GAP_MISSING_EVIDENCE"
+grep -q 'contract_evidence is required' "$TMP/framework-gap-missing-evidence.out"
 
 # DP-228 AC4 neg case: malformed source_id (lowercase) must fail.
 BAD_PATTERN="$TMP/bad-pattern.json"

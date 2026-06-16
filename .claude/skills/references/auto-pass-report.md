@@ -77,9 +77,34 @@ paused_for_user_external_write > paused_for_refinement > complete
 {
   "path": "docs-manager/src/content/docs/specs/design-plans/DP-NNN-follow-up/index.md",
   "reason": "blocked_by_gate_failure",
-  "source_report": "/absolute/path/to/report.json"
+  "source_report": "/absolute/path/to/report.json",
+  "framework_gap": false
 }
 ```
+
+`framework_gap`（DP-330 T2）是必填 boolean，宣告這個 follow-up seed 是否主張一個 framework
+gap：
+
+- `framework_gap: true` → 必須附 `contract_evidence`（至少一筆 workspace-root-bound
+  `repo/path:line` 字串，指向實際存在且行號在檔案範圍內的 source）。這把「我主張框架有
+  gap」綁定到可機械驗證的證據，writer-side fail-closed。
+
+  ```json
+  {
+    "path": "docs-manager/src/content/docs/specs/design-plans/DP-NNN-follow-up/index.md",
+    "reason": "blocked_by_gate_failure",
+    "source_report": "/absolute/path/to/report.json",
+    "framework_gap": true,
+    "contract_evidence": ["scripts/validate-auto-pass-report.sh:140"]
+  }
+  ```
+
+- `framework_gap: false` → `contract_evidence` 不要求（非 framework-gap 的一般 follow-up
+  seed）。
+
+`framework_gap` 缺漏或非 boolean → fail。`framework_gap: true` 而 `contract_evidence`
+缺漏 / 空陣列 / 路徑越界 workspace root / 檔案不存在 / 行號越界 → fail。seed_needed 觸發條件
+與 `path` / `reason` / `source_report` 必填不變。
 
 complete 且沒有 issue threshold 時，`follow_up_dp_seed` 必須是 `null`。
 

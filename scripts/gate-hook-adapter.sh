@@ -171,6 +171,7 @@ if [[ "$gate_rc" -eq 2 ]]; then
       "$AUTO_PASS_LEDGER_PATH" \
       --stage engineering \
       --kind deterministic_gap \
+      --contract-evidence ".claude/skills/references/friction-capture-contract.md:85" \
       --summary "gate exit 2: gate_id=$gate_id task=$task_id (auto-trigger from gate-hook-adapter, DP-220)" \
       >/dev/null 2>&1 || true
   fi

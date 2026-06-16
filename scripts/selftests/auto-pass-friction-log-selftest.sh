@@ -97,7 +97,9 @@ from pathlib import Path
 
 path, container, ref_hash = sys.argv[1:4]
 payload = {
-    "schema_version": "1",
+    # DP-330: schema_version "2" is the post-DP-330 strict shape that requires
+    # contract_evidence on gap-assertion friction (read-side fail-closed).
+    "schema_version": "2",
     "source": {
         "type": "dp",
         "id": "DP-999",
@@ -144,10 +146,70 @@ PY
   --summary "fixture: 補 V-task implementation_tasks 欄位才能 PASS validator" \
   --ts "2026-05-21T10:05:00+08:00" >/dev/null
 
+# AC1 / AC-NEG3 (DP-330): deterministic_gap without --contract-evidence is rejected,
+# even under POLARIS_*_BYPASS env (the evidence binding is not bypassable).
+if POLARIS_LANGUAGE_POLICY_BYPASS=1 POLARIS_SKILL_BOUNDARY_BYPASS=1 "$APPEND_HELPER" "$LEDGER" \
+    --stage engineering \
+    --kind deterministic_gap \
+    --summary "fixture: deterministic gap without contract evidence" \
+    --ts "2026-05-21T10:09:00+08:00" >"$TMP/missing-contract-evidence.out" 2>&1; then
+  echo "FAIL: helper accepted deterministic_gap without contract_evidence (even with bypass env)" >&2
+  exit 1
+fi
+if ! grep -q -- "--contract-evidence is required" "$TMP/missing-contract-evidence.out"; then
+  echo "FAIL: missing contract evidence error was not explicit" >&2
+  cat "$TMP/missing-contract-evidence.out" >&2
+  exit 1
+fi
+
+# AC1 (DP-330 adversarial): garbage / non-resolvable evidence is rejected.
+OUTSIDE_CONTRACT="$TMP/outside-contract.md"
+printf '%s\n' "outside repo contract fixture" >"$OUTSIDE_CONTRACT"
+ESCAPED_CONTRACT="$(python3 - "$ROOT" "$OUTSIDE_CONTRACT" <<'PY'
+import os
+import sys
+
+print(os.path.relpath(sys.argv[2], sys.argv[1]))
+PY
+)"
+if "$APPEND_HELPER" "$LEDGER" \
+    --stage engineering \
+    --kind deterministic_gap \
+    --summary "fixture: deterministic gap with escaped contract evidence" \
+    --contract-evidence "$ESCAPED_CONTRACT:1" \
+    --ts "2026-05-21T10:09:30+08:00" >"$TMP/escaped-contract-evidence.out" 2>&1; then
+  echo "FAIL: helper accepted escaped contract_evidence path" >&2
+  exit 1
+fi
+if ! grep -q -- "path must resolve under repo root" "$TMP/escaped-contract-evidence.out"; then
+  echo "FAIL: escaped contract evidence error was not explicit" >&2
+  cat "$TMP/escaped-contract-evidence.out" >&2
+  exit 1
+fi
+
+if "$APPEND_HELPER" "$LEDGER" \
+    --stage engineering \
+    --kind deterministic_gap \
+    --summary "fixture: deterministic gap with out-of-range contract evidence" \
+    --contract-evidence ".claude/skills/references/friction-capture-contract.md:999999" \
+    --ts "2026-05-21T10:09:45+08:00" >"$TMP/out-of-range-contract-evidence.out" 2>&1; then
+  echo "FAIL: helper accepted out-of-range contract_evidence line" >&2
+  exit 1
+fi
+if ! grep -q -- "outside file range" "$TMP/out-of-range-contract-evidence.out"; then
+  echo "FAIL: out-of-range contract evidence error was not explicit" >&2
+  cat "$TMP/out-of-range-contract-evidence.out" >&2
+  exit 1
+fi
+
+# AC1 / AC4: deterministic_gap with a well-shaped, repo-resolvable path:line is accepted.
+# AC4: the validator checks shape/resolvability only — it does not judge whether the cited
+# contract actually proves the gap, so citing any existing contract surface passes the gate.
 "$APPEND_HELPER" "$LEDGER" \
   --stage engineering \
   --kind deterministic_gap \
   --summary "fixture: validator 無法判斷 PR freshness，需手動 rebind head_sha" \
+  --contract-evidence ".claude/skills/references/friction-capture-contract.md:1" \
   --ts "2026-05-21T10:10:00+08:00" >/dev/null
 
 "$APPEND_HELPER" "$LEDGER" \
@@ -162,8 +224,59 @@ if [[ "$count" != "3" ]]; then
   exit 1
 fi
 
-# AC1: ledger validator accepts well-formed friction_log[]
+# AC1: the accepted deterministic_gap entry persisted its contract_evidence[].
+det_gap_evidence_count="$(python3 -c "import json; data=json.load(open('$LEDGER')); print(len(data['friction_log'][1].get('contract_evidence', [])))")"
+if [[ "$det_gap_evidence_count" != "1" ]]; then
+  echo "FAIL: deterministic_gap entry did not persist contract_evidence" >&2
+  exit 1
+fi
+
+# AC1: ledger validator accepts well-formed friction_log[] (schema_version "2", strict path).
 "$LEDGER_VALIDATOR" "$LEDGER" --source-container "$SOURCE" --source-id DP-999 >/dev/null
+
+# AC2 (DP-330): on the strict (schema_version "2") ledger, a hand-edited deterministic_gap
+# entry with contract_evidence stripped is fail-closed by the validator (blocks bypassing
+# the writer gate by editing the ledger directly).
+MISSING_EVIDENCE_LEDGER="$TMP/missing-evidence-ledger.json"
+cp "$LEDGER" "$MISSING_EVIDENCE_LEDGER"
+python3 - "$MISSING_EVIDENCE_LEDGER" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+for entry in data["friction_log"]:
+    if entry.get("friction_kind") == "deterministic_gap":
+        entry.pop("contract_evidence", None)
+        break
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+if "$LEDGER_VALIDATOR" "$MISSING_EVIDENCE_LEDGER" --source-container "$SOURCE" --source-id DP-999 >"$TMP/missing-evidence-validator.out" 2>&1; then
+  echo "FAIL: ledger validator accepted strict-schema deterministic_gap without contract_evidence" >&2
+  exit 1
+fi
+
+# AC-NEG4 (DP-330): the same evidence-free deterministic_gap on a legacy (schema_version "1")
+# ledger is read-compatible — validator warns but does not fail (no retroactive false-fail of
+# historical ledgers).
+LEGACY_MISSING_EVIDENCE="$TMP/legacy-missing-evidence-ledger.json"
+cp "$MISSING_EVIDENCE_LEDGER" "$LEGACY_MISSING_EVIDENCE"
+python3 - "$LEGACY_MISSING_EVIDENCE" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["schema_version"] = "1"
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+if ! "$LEDGER_VALIDATOR" "$LEGACY_MISSING_EVIDENCE" --source-container "$SOURCE" --source-id DP-999 >"$TMP/legacy-missing-evidence-validator.out" 2>&1; then
+  echo "FAIL: legacy schema_version=1 ledger without contract_evidence should be read-compatible" >&2
+  cat "$TMP/legacy-missing-evidence-validator.out" >&2
+  exit 1
+fi
 
 # AC-NEG1: helper rejects unknown enum values
 if "$APPEND_HELPER" "$LEDGER" \
@@ -274,6 +387,7 @@ payload = {
         "path": "docs-manager/src/content/docs/specs/design-plans/DP-999-follow-up/index.md",
         "reason": "friction_log non-empty",
         "source_report": report_path,
+        "framework_gap": False,
     },
     "framework_release_tail": None,
     "friction_log_summary": summary,
