@@ -61,6 +61,16 @@ Trade-off 規則：
 - 當出現候選方案時，優先依本原則直接決定並交付一個方案，附 reasoning 與 tradeoff。
 - 不得把當前 skill 契約已排除的選項（forbidden_actions、consent_excludes、dispatch_boundary 之外的動作）列給使用者選，也不得寫進 self-authored report 的 `manual_items[]`、handoff prompt 或下一 session 的選項清單。違反契約的選項在 writer 端就要過濾，不應留待 reader 端再檢查。
 
+## Evidence-Before-Invention
+
+提任何新結構（DP、方法、governance、option 清單）前，先回答「哪條既有 canonical contract 管這件事」並窮盡它；證明既有契約不足、且附上 evidence，才談新增。
+
+- 任何驅動決策的 constraint 句（「X 需要 Y」「Z 不能做」「卡住因為…」）說出口前必須附 evidence 或既有契約條文。附不出來就當 missing input 先驗證，不拿來當下一步地基。
+- 不把自己剛生成的 framing 當權威——它是 draft assertion，不是契約（見 `rules/handbook/self-authored-prose-is-not-contract.md`）。
+- Mid-task 發現 framework gap 時，先附佐證辨「真實 gap」與「框架正確擋下（working-as-designed）」，確認是真實 gap 才開 DP。
+
+理由、incident 與範例見 § Decision Priority Principle、`rules/handbook/self-authored-prose-is-not-contract.md`，與 graduated memory `feedback-resolve-against-existing-contract-before-inventing`；本節不複製完整 rationale。
+
 ## Skill-First Routing
 
 When the user's message matches a skill trigger, the agent must invoke the matching Skill tool **before** performing any other tool call, research, or pre-processing. This is a hard contract, not advisory prose.

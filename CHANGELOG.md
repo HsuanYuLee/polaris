@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.16] - 2026-06-17
+
+### Changed
+
+- 01245cb: bootstrap.md core 新增 Evidence-Before-Invention 原則 + recompile 4 runtime target
+- c7a8d2f: mechanism-registry.md 新增 B-class post-task canary（semantic_only）
+
 ## [3.76.15] - 2026-06-16
 
 ### Changed
