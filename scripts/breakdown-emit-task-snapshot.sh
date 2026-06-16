@@ -4,11 +4,16 @@
 #          current canonical refinement hash. FD1 (DP-301): binds task_snapshot
 #          freshness to the source canonical refinement_hash so a task.md derived
 #          before a re-LOCK refinement.json change is caught deterministically.
+#          DP-325 T3 (B): on a successful PASS emit, supersedes the SAME
+#          work-item's stale validation-fail / missing-v-task blocker markers so
+#          auto-pass-probe.sh (stage breakdown) stops pinning a re-packaged work
+#          item on a stale blocker.
 # Inputs:  emit  → --source-id, --work-item-id, --task-md, [--status], [--out],
 #                  [--source-container PATH] [--ledger PATH]
 #          check → --check, --source-container PATH, --ledger PATH,
 #                  (--marker PATH | --work-item-id ID [--out PATH])
-# Outputs: emit  → writes marker JSON; prints WROTE: <path>.
+# Outputs: emit  → writes marker JSON; prints WROTE: <path>. On PASS status,
+#                  prints SUPERSEDED: <path> for each blocker marker removed.
 #          check → exit 0 PASS (match or missing-field no-op);
 #                  exit 2 + POLARIS_TASK_SNAPSHOT_STALE on hash mismatch.
 #          Usage error → exit 2.
@@ -182,3 +187,31 @@ payload = {
 Path(out).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 print(f"WROTE: {out}")
 PY
+
+# DP-325 T3 (B): a successful PASS re-package supersedes the SAME work-item's
+# stale blocker markers. auto-pass-probe.sh (stage breakdown) checks
+# validation-fail/{id}.json and missing-v-task/{id}.json BEFORE the PASS
+# task_snapshot, so a leftover blocker from an earlier failed breakdown run
+# would otherwise keep pinning the re-packaged work item at
+# blocked_by_gate_failure. Removing them is the canonical writer-side supersede;
+# the probe reader is unchanged. Only a PASS status supersedes — a non-PASS
+# snapshot must not clear a real blocker. Scope is the SAME work_item_id only.
+supersede_blocker_markers() {
+  local snapshot_out="$1"
+  local work_item_id="$2"
+  local evidence_root marker
+  # The snapshot lives at {evidence_root}/task-snapshot/{id}.json; its sibling
+  # blocker subdirs share the same {evidence_root}.
+  evidence_root="$(dirname "$(dirname "$snapshot_out")")"
+  for subdir in validation-fail missing-v-task; do
+    marker="${evidence_root}/${subdir}/${work_item_id}.json"
+    if [[ -f "$marker" ]]; then
+      rm -f "$marker"
+      printf 'SUPERSEDED: %s\n' "$marker"
+    fi
+  done
+}
+
+if [[ "$STATUS" == "PASS" ]]; then
+  supersede_blocker_markers "$OUT" "$WORK_ITEM_ID"
+fi

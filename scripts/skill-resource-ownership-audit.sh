@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Purpose: audit ownership of shared references and root scripts — classify each
+#   resource as keep_shared / keep_private / candidate_rehome / needs_manual_review.
+#   Root-script infrastructure status reads the authoritative scripts/manifest.json
+#   `kind` field, not a filename prefix (DP-325 T4 / AC6).
+# Inputs:  --root <path>, --skills-dir <path>, --markdown (optional flags)
+# Outputs: stdout ownership table (text or Starlight Markdown); exit 0 on success,
+#          2 on bad arguments / missing root.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,6 +37,7 @@ done
 python3 - "$ROOT" "$SKILLS_DIR" "$OUTPUT_FORMAT" <<'PY'
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -40,6 +48,40 @@ output_format = sys.argv[3]
 skills_dir = Path(skills_arg).expanduser().resolve() if skills_arg else root / ".claude" / "skills"
 shared_ref_dir = skills_dir / "references"
 root_scripts_dir = root / "scripts"
+
+# Authoritative per-script manifest fields (kind / owner_surface). The root-script
+# classifier reads the recorded `kind` rather than inferring infrastructure status
+# from a filename prefix (DP-325 T4 / AC6) — the manifest field is the single
+# source of truth, so classification follows the field, not the script's name.
+# Manifest kinds that mark a root script as framework-shared infrastructure.
+SHARED_INFRA_MANIFEST_KINDS = {"gate", "writer", "resolver", "release", "selftest", "support"}
+
+
+def load_manifest_kinds(workspace_root: Path) -> dict:
+    """Load each manifest script row's `kind` field, keyed by repo-relative path.
+
+    Args:
+        workspace_root: workspace root holding scripts/manifest.json.
+
+    Returns:
+        Mapping of manifest `path` to its `kind` string; empty when the manifest
+        is absent or unreadable (classifier then falls back to no-kind handling).
+    """
+    manifest_path = workspace_root / "scripts" / "manifest.json"
+    if not manifest_path.exists():
+        return {}
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {
+        str(row["path"]): str(row.get("kind", ""))
+        for row in data.get("scripts", [])
+        if isinstance(row, dict) and row.get("path")
+    }
+
+
+manifest_kind_by_path = load_manifest_kinds(root)
 
 if output_format not in {"text", "markdown"}:
     print("skill-resource-ownership-audit: invalid output format", file=sys.stderr)
@@ -199,10 +241,13 @@ def classify_private_resource(path: Path, owner: str) -> tuple[set[str], str, st
 
 def classify_root_script(path: Path) -> tuple[set[str], str, str, str]:
     consumers = direct_consumers(path)
-    name = path.name
-    infra = name.startswith(("validate-", "check-", "run-", "sync-", "compile-", "gate-", "codex-", "polaris-")) or "selftest" in name
-    if infra:
-        return consumers, "shared", "keep_shared", "root infrastructure script"
+    # DP-325 T4 / AC6: infrastructure status follows the authoritative manifest
+    # `kind` field, not a filename prefix. A root script whose manifest kind is a
+    # framework-shared role (gate / writer / resolver / release / selftest /
+    # support) is shared infrastructure regardless of how it is named.
+    manifest_kind = manifest_kind_by_path.get(rel(path), "")
+    if manifest_kind in SHARED_INFRA_MANIFEST_KINDS:
+        return consumers, "shared", "keep_shared", f"root infrastructure script (manifest kind={manifest_kind})"
     skill_consumers = sorted(c for c in consumers if c in skill_set)
     if len(skill_consumers) == 1 and len(consumers) == 1:
         return consumers, skill_consumers[0], "needs_manual_review", "single skill consumer root script"

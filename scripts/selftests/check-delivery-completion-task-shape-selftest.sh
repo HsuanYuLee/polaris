@@ -419,7 +419,13 @@ case_confirmation_marker_not_pass_blocks() {
 }
 
 # ---------------------------------------------------------------------------
-# Case 6 (AC3 adversarial): marker PASS but evidence artifact path missing => BLOCKED
+# Case 6 (AC3 adversarial / AC8): marker PASS but evidence artifact is truly
+#   unresolvable => BLOCKED. After the DP-325 T5 reader change (existence-only =>
+#   resolve-by-id), a path-corrupt-but-id-resolvable marker correctly PASSes
+#   (asserted by the move-resilience selftest). To keep asserting the fail-closed
+#   invariant here, the marker must be genuinely non-resolvable: corrupt the frozen
+#   source_artifact path AND drop task_artifact_sha256 AND point the bound work
+#   item at a non-existent task id so resolve-by-id cannot relocate it.
 # ---------------------------------------------------------------------------
 case_confirmation_marker_missing_evidence_blocks() {
   local label="confirmation-marker-missing-evidence-blocks"
@@ -433,7 +439,9 @@ case_confirmation_marker_missing_evidence_blocks() {
   marker="$repo/.polaris/evidence/completion-gate/DP-999-T4-${head_sha}.json"
   bash "$WRITE_MARKER" --source-id DP-999 --work-item-id DP-999-T4 --head-sha "$head_sha" \
     --status PASS --task-md "$task_md" --out "$marker" >/dev/null
-  # Corrupt the marker: point source_artifact at a non-existent file.
+  # Make the marker truly unresolvable: corrupt source_artifact to a non-existent
+  # path and drop task_artifact_sha256 so resolve-by-id has nothing to verify
+  # against — the path-only-and-stale case must still fail closed.
   python3 - "$marker" <<'PY'
 import json
 import sys
@@ -441,6 +449,8 @@ from pathlib import Path
 p = Path(sys.argv[1])
 data = json.loads(p.read_text(encoding="utf-8"))
 data["freshness"]["source_artifact"] = "/nonexistent/evidence/artifact.md"
+data["freshness"].pop("evidence_artifact", None)
+data["freshness"].pop("task_artifact_sha256", None)
 p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
 

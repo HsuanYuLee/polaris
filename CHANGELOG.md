@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.76.15] - 2026-06-16
+
+### Changed
+
+- a895bd4: C-b：selftest POLARIS\_\* env-leak hermeticity 修正 + detector（解 DP-301 release block）
+- 1298156: C-a（keystone）：aggregate selftest runner + enrollment gate + 接入 PR/release lane + 窮舉 triage
+- 3b15575: B：marker supersede 修正（成功 re-package 清舊 blocker marker）
+- 6e6f57c: A：consumer 改讀權威欄位（derive modules[].action / audit manifest kind+owner_surface）+ selftest
+- f78af24: D：marker source_artifact path-stale 修正（reader resolve-by-id + 全表面 detector）
+
 ## [3.76.14] - 2026-06-15
 
 ### Changed

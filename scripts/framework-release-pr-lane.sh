@@ -232,6 +232,38 @@ run_governed_script_tests_release_gate() {
     || die "release preflight blocked: governed script tests failed"
 }
 
+# run_aggregate_selftests_release_gate — DP-325 T2 / AC3: the release lane must no
+# longer rely solely on the 38 governed selftests. Enforce selftest enrollment and
+# then execute the full filesystem selftest corpus; any non-quarantined red blocks
+# the release. Args: none. Side effects: runs both validators; die() on failure.
+run_aggregate_selftests_release_gate() {
+  local enrollment_gate="${SCRIPT_DIR}/validate-selftest-enrollment.sh"
+  local aggregate_runner="${SCRIPT_DIR}/run-aggregate-selftests.sh"
+  local corpus_count
+
+  # Skip-with-log when the target repo has no selftest corpus at all (i.e. not a
+  # framework workspace, e.g. a synthetic release-lane fixture). This is NOT a
+  # fail-open on real input: a workspace that ships the selftest corpus is gated
+  # fail-closed below. A repo with zero *-selftest.sh files is simply out of the
+  # selftest-enrollment contract scope.
+  corpus_count="$(find "$REPO_PATH/scripts" -maxdepth 2 -type f -name '*-selftest.sh' 2>/dev/null | head -1 | wc -l | tr -d '[:space:]')"
+  if [[ "$corpus_count" -eq 0 ]]; then
+    info "no selftest corpus under ${REPO_PATH}/scripts — skipping aggregate selftest release gate (non-framework repo)"
+    return 0
+  fi
+
+  [[ -f "$enrollment_gate" ]] || die "missing enrollment gate: $enrollment_gate"
+  [[ -f "$aggregate_runner" ]] || die "missing aggregate runner: $aggregate_runner"
+
+  info "running selftest enrollment gate (DP-325 T2 / AC2)"
+  bash "$enrollment_gate" --root "$REPO_PATH" \
+    || die "release preflight blocked: selftest enrollment gap"
+
+  info "running aggregate selftest corpus (DP-325 T2 / AC1+AC3)"
+  bash "$aggregate_runner" --root "$REPO_PATH" \
+    || die "release preflight blocked: aggregate selftests failed"
+}
+
 verify_pr_task_lineage() {
   local task_md="$1"
   local task_id="$2"
@@ -550,6 +582,7 @@ detect_bundle
 
 run_script_manifest_release_gate
 run_governed_script_tests_release_gate
+run_aggregate_selftests_release_gate
 if [[ -n "$BUNDLE_ALIAS" ]]; then
   validate_and_plan_bundle
 else

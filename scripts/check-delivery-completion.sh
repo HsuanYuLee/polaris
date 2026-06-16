@@ -698,12 +698,14 @@ check_audit_confirmation_completion() {
   fi
 
   local marker_rc=0
-  python3 - "$marker_path" "$work_item_id" "$deliverable_head_sha" <<'PY' || marker_rc=$?
+  python3 - "$marker_path" "$work_item_id" "$deliverable_head_sha" "$SCRIPT_DIR/resolve-task-md.sh" "$REPO_ROOT" <<'PY' || marker_rc=$?
+import hashlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 
-marker_path, work_item_id, head_sha = sys.argv[1:4]
+marker_path, work_item_id, head_sha, resolver, scan_root = sys.argv[1:6]
 try:
     data = json.loads(Path(marker_path).read_text(encoding="utf-8"))
 except Exception:
@@ -721,12 +723,59 @@ marker_head = str(freshness.get("head_sha") or "")
 if not (marker_head == head_sha or head_sha.startswith(marker_head) or marker_head.startswith(head_sha)):
     raise SystemExit(1)
 
-# Evidence artifact path: the marker must point at a real on-disk artifact
-# (the bound task.md / verify report). This is what keeps a confirmation/audit
-# task auditable even without a PR (refinement EC1).
-evidence = freshness.get("evidence_artifact") or freshness.get("source_artifact")
-if not evidence or not Path(evidence).is_file():
-    sys.stderr.write(f"evidence_artifact_missing:{evidence}\n")
+
+def evidence_resolvable(freshness, work_item_id, resolver, scan_root):
+    """Confirm the marker's evidence artifact is still reachable (DP-325 D class).
+
+    The frozen freshness.source_artifact path is preferred, but a task.md that
+    moved to pr-release/ or container archive after the marker was written no
+    longer resolves at that path. In that case relocate by work_item_id through
+    the canonical resolve-task-md.sh and verify the recorded
+    task_artifact_sha256, so a legitimately-moved task.md still passes while a
+    path-only-and-stale marker fails closed.
+
+    Args:
+        freshness: the marker's freshness dict.
+        work_item_id: the marker identity key used to relocate a moved task.md.
+        resolver: path to scripts/resolve-task-md.sh (the canonical resolver).
+        scan_root: workspace root to relocate within (the marker's own repo).
+
+    Returns:
+        True when the artifact resolves (frozen path or re-resolved + sha match),
+        False when it is path-only-and-stale.
+    """
+    artifact = freshness.get("evidence_artifact") or freshness.get("source_artifact")
+    if not artifact:
+        return False
+    if Path(artifact).is_file():
+        return True
+    recorded_sha = freshness.get("task_artifact_sha256")
+    if not recorded_sha or not work_item_id:
+        return False
+    try:
+        out = subprocess.run(
+            ["bash", resolver, "--scan-root", scan_root, "--include-archive", work_item_id],
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception:
+        return False
+    if out.returncode != 0:
+        return False
+    lines = out.stdout.strip().splitlines()
+    if not lines:
+        return False
+    relocated = Path(lines[-1].strip())
+    if not relocated.is_file():
+        return False
+    return hashlib.sha256(relocated.read_bytes()).hexdigest() == recorded_sha
+
+
+# Evidence artifact: the marker must point at a real on-disk artifact (the bound
+# task.md / verify report). This keeps a confirmation/audit task auditable even
+# without a PR (refinement EC1), and stays valid after the task.md moves.
+if not evidence_resolvable(freshness, work_item_id, resolver, scan_root):
+    artifact = freshness.get("evidence_artifact") or freshness.get("source_artifact")
+    sys.stderr.write(f"evidence_artifact_missing:{artifact}\n")
     raise SystemExit(2)
 raise SystemExit(0)
 PY

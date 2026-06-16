@@ -404,16 +404,45 @@ else:
 # --- Build artifacts ---
 allowed_files_block = "\n".join(f"- `{p}`" for p in allowed_files)
 
-action_for = lambda path: "create" if "selftest" in path or path.endswith(".md") and "references/" in path else "modify"
-# Keep change summary text deterministic: short scope prefix.
-change_summary = (scope[:80] + "...") if len(scope) > 80 else scope
-change_rows = []
-for path in allowed_files:
-    action = "create" if (
-        "selftests/" in path or "/references/" in path and path.endswith(".md")
-    ) else "modify"
-    change_rows.append(f"| `{path}` | {action} | {change_summary} |")
-change_block = "\n".join(change_rows)
+
+# Default Action when the refinement's modules[] (codebase analysis of EXISTING
+# modules being touched) records no entry for a path. An allowed file absent from
+# that analysis is a net-new file the task creates, so "create" is the field-driven
+# default — derived from the path's PRESENCE/ABSENCE in the authoritative modules
+# array, NOT from any filename/path-shape heuristic (DP-325 T4 / AC5). Whenever a
+# module entry exists, its recorded action wins outright.
+DEFAULT_MODULE_ACTION = "create"
+
+
+def module_action_for(path):
+    """Resolve the change-table Action for an allowed file from the refinement.
+
+    Reads the authoritative per-path `action` field from top-level
+    `modules[]` (the canonical create/modify decision the refinement records),
+    rather than inferring it from path/filename heuristics (DP-325 T4 / AC5).
+    The Action a task.md presents follows the recorded field, so a
+    create-vs-modify decision can never drift from path shape.
+
+    Args:
+        path: an allowed-file path string from the task's allowed_files.
+
+    Returns:
+        The action string recorded in modules[].action for that path; when the
+        path is absent from the authoritative modules[] analysis (a net-new
+        allowed file), the deterministic DEFAULT_MODULE_ACTION ("create") —
+        never a path/filename heuristic.
+    """
+    return module_action_by_path.get(path, DEFAULT_MODULE_ACTION)
+
+
+# Authoritative create/modify decision per path comes from refinement.json
+# top-level modules[] (each entry carries {path, action, ...}); the T-task change
+# table reads this field instead of guessing from the path shape (DP-325 T4 / AC5).
+module_action_by_path = {
+    str(mod["path"]): str(mod["action"])
+    for mod in (data.get("modules") or [])
+    if isinstance(mod, dict) and mod.get("path") and mod.get("action")
+}
 
 # Scope Trace Matrix — one row per AC id, owning files = allowed_files joined
 # Use the first allowed file as canonical owning file for simplicity; surface
@@ -535,6 +564,17 @@ depends_on: []
 # executability helper BEFORE building the body, so a violation emits nothing.
 # (V-task bodies have no command fence — the branch above already returned.)
 check_verify_command_executability(task_id, effective_verify_command)
+
+# T-task change table (## 改動範圍): each row's Action follows the authoritative
+# modules[].action field (DP-325 T4 / AC5), never a path/filename heuristic. The
+# V-task branch returned above, so this only runs for T tasks whose allowed files
+# the refinement records in top-level modules[].
+change_summary = (scope[:80] + "...") if len(scope) > 80 else scope
+change_rows = []
+for path in allowed_files:
+    action = module_action_for(path)
+    change_rows.append(f"| `{path}` | {action} | {change_summary} |")
+change_block = "\n".join(change_rows)
 
 # DP-296 T1/T3: task_shape propagation (T-task only — the V-task branch returned
 # above, AC2). The canonical source is the matched tasks[] entry's first-class

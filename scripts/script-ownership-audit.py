@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+"""Purpose: classify each root script as skill_local / root_contract / shim_candidate
+/ sunset_orphan by cross-referencing its consumers with scripts/manifest.json.
+
+Inputs:  --root <path>, --format {table,json}.
+Outputs: stdout classification table or JSON; exit 0 on success.
+Side effects: none (read-only scan).
+
+root_contract status reads the authoritative manifest `kind` / `owner_surface`
+fields, not a path/filename prefix (DP-325 T4 / AC6).
+"""
 import argparse
 import json
 import os
@@ -19,6 +29,12 @@ TEXT_SUFFIXES = {
 }
 
 SKIP_DIRS = {".git", "node_modules", ".worktrees", ".astro", "dist", "build", "__pycache__"}
+
+# Manifest `kind` values that mark a root script as a framework infrastructure
+# contract (it stays at the root, owned by the framework, not a single skill).
+# Classification reads this authoritative field rather than a path/filename prefix
+# (DP-325 T4 / AC6).
+ROOT_CONTRACT_MANIFEST_KINDS = {"gate", "writer", "resolver", "release"}
 
 
 def iter_text_files(root: Path):
@@ -72,6 +88,7 @@ def classify(script_path, manifest_row, consumers):
     skill_owners = sorted({owner for path in consumers if (owner := skill_owner_for(path))})
     non_skill = sorted(path for path in consumers if not skill_owner_for(path))
     owner_surface = manifest_row.get("owner_surface", "") if manifest_row else ""
+    kind = manifest_row.get("kind", "") if manifest_row else ""
     relocation = manifest_row.get("relocation", "") if manifest_row else ""
 
     local_leakage = []
@@ -101,7 +118,13 @@ def classify(script_path, manifest_row, consumers):
             "local_leakage": local_leakage,
         }
 
-    if script_path.startswith("scripts/gates/") or script_path.startswith("scripts/env/"):
+    # DP-325 T4 / AC6: a script whose authoritative manifest kind is a framework
+    # infrastructure role (gate / writer / resolver / release) is a root contract
+    # regardless of path, filename, or text-search consumer count. Reading the
+    # recorded kind field — not a path/filename prefix — stops live framework
+    # infrastructure (e.g. a PR gate with no detectable textual consumer) from
+    # being mislabeled sunset_orphan.
+    if kind in ROOT_CONTRACT_MANIFEST_KINDS:
         return {
             "classification": "root_contract",
             "recommendation": "stay",

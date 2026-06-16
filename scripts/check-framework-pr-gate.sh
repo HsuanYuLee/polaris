@@ -21,6 +21,12 @@ VALIDATE_SCRIPT_CATEGORIZATION="${POLARIS_VALIDATE_SCRIPT_CATEGORIZATION_BIN:-sc
 # validated by validate-refinement-json.sh) and fails closed on out-of-schema reads
 # or unregistered consumers.
 VALIDATE_CONSUMER_SCHEMA_BINDING="${POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN:-scripts/validate-refinement-consumer-schema-binding.sh}"
+# W13/W14 (DP-325 T2 / AC1+AC2+AC3): aggregate selftest enrollment + execution.
+# W13 fail-closes when a filesystem selftest is not enrolled in the aggregate
+# runner; W14 runs the full selftest corpus (any red => non-zero). Together they
+# stop the framework PR gate from only exercising the 38 governed selftests.
+VALIDATE_SELFTEST_ENROLLMENT="${POLARIS_VALIDATE_SELFTEST_ENROLLMENT_BIN:-scripts/validate-selftest-enrollment.sh}"
+RUN_AGGREGATE_SELFTESTS="${POLARIS_RUN_AGGREGATE_SELFTESTS_BIN:-scripts/run-aggregate-selftests.sh}"
 # W11 (DP-293 T1): runtime-instruction parity. compile --check catches drifted
 # generated targets (CLAUDE.md / AGENTS.md / .codex / copilot) before merge;
 # mechanism-parity --strict catches cross-runtime skill/mechanism divergence.
@@ -84,5 +90,11 @@ run_gate "W11 runtime-instruction parity (mechanism-parity --strict)" "$MECHANIS
 # declared consumer reading an out-of-schema tasks[] field, or a new unregistered
 # tasks[] consumer, must fail the PR gate before merge.
 run_gate "W12 refinement consumer schema binding" "$VALIDATE_CONSUMER_SCHEMA_BINDING"
+# W13: selftest enrollment gate (DP-325 T2 / AC2). Fail-closed when any filesystem
+# selftest is not enrolled in the aggregate runner.
+run_gate "W13 selftest enrollment" "$VALIDATE_SELFTEST_ENROLLMENT"
+# W14: aggregate selftest execution (DP-325 T2 / AC1+AC3). Runs the full
+# filesystem selftest corpus; any non-quarantined red fails the PR gate.
+run_gate "W14 aggregate selftest run" "$RUN_AGGREGATE_SELFTESTS"
 
 echo "PASS: framework PR gate"

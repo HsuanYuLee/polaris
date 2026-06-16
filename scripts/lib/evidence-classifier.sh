@@ -214,15 +214,21 @@ ec_marker_pass() {
   [[ -n "$repo" && -n "$work_item_id" && -n "$head_sha" ]] \
     || { echo "ERROR: marker-pass: --repo, --work-item-id, --head-sha required" >&2; return 64; }
 
-  REPO_ROOT="$repo" WORK_ITEM_ID="$work_item_id" HEAD_SHA="$head_sha" python3 - <<'PY'
+  local ec_lib_dir
+  ec_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  REPO_ROOT="$repo" WORK_ITEM_ID="$work_item_id" HEAD_SHA="$head_sha" \
+    RESOLVER="$ec_lib_dir/../resolve-task-md.sh" python3 - <<'PY'
+import hashlib
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
 work_item_id = os.environ["WORK_ITEM_ID"]
 head_sha = os.environ["HEAD_SHA"]
 repo_root = os.environ["REPO_ROOT"]
+resolver = os.environ["RESOLVER"]
 
 # Markers anchor at the main checkout; resolve it when REPO_ROOT is a worktree
 # (same traversal as check-delivery-completion.sh completion_gate_marker_path).
@@ -269,9 +275,51 @@ marker_head = str(freshness.get("head_sha") or "")
 if not (marker_head == head_sha or head_sha.startswith(marker_head) or marker_head.startswith(head_sha)):
     sys.stderr.write("freshness.head_sha mismatch\n"); raise SystemExit(2)
 
-evidence = freshness.get("evidence_artifact") or freshness.get("source_artifact")
-if not evidence or not Path(evidence).is_file():
-    sys.stderr.write(f"evidence artifact missing: {evidence}\n"); raise SystemExit(2)
+def evidence_resolvable(freshness, work_item_id, resolver):
+    """Confirm the marker's evidence artifact is still reachable (DP-325 D class).
+
+    Prefers the frozen freshness.source_artifact path; when a task.md moved to
+    pr-release/ or container archive after the marker was written, relocate by
+    work_item_id through the canonical resolve-task-md.sh and verify the recorded
+    task_artifact_sha256. A path-only-and-stale marker fails closed.
+
+    Args:
+        freshness: the marker's freshness dict.
+        work_item_id: the marker identity key used to relocate a moved task.md.
+        resolver: path to scripts/resolve-task-md.sh (the canonical resolver).
+
+    Returns:
+        True when the artifact resolves, False when path-only-and-stale.
+    """
+    artifact = freshness.get("evidence_artifact") or freshness.get("source_artifact")
+    if not artifact:
+        return False
+    if Path(artifact).is_file():
+        return True
+    recorded_sha = freshness.get("task_artifact_sha256")
+    if not recorded_sha or not work_item_id:
+        return False
+    try:
+        out = subprocess.run(
+            ["bash", resolver, "--scan-root", repo_root, "--include-archive", work_item_id],
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception:
+        return False
+    if out.returncode != 0:
+        return False
+    lines = out.stdout.strip().splitlines()
+    if not lines:
+        return False
+    relocated = Path(lines[-1].strip())
+    if not relocated.is_file():
+        return False
+    return hashlib.sha256(relocated.read_bytes()).hexdigest() == recorded_sha
+
+
+if not evidence_resolvable(freshness, work_item_id, resolver):
+    artifact = freshness.get("evidence_artifact") or freshness.get("source_artifact")
+    sys.stderr.write(f"evidence artifact missing: {artifact}\n"); raise SystemExit(2)
 
 print(str(marker))
 raise SystemExit(0)
