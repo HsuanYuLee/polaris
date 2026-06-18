@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # Purpose: Assert the framework-release SKILL.md contract markers required by
-#          DP-308 are present (bundle-release orchestration, version boundary on
-#          the verified bundle PR HEAD, existing gate-lane guidance, and the
-#          engineering=individual-DP-PR boundary). Keeps the framework-release
-#          contract deterministic instead of prose-only.
+#          DP-334 (feature-branch aggregation release model) are present:
+#          single feat/DP-NNN -> main PR orchestration, version compression on the
+#          feat/DP-NNN HEAD (one DP one version, AC-NEG2), sync AFTER feat->main
+#          merge (AC6), bootstrap fallback / rollback steps (AC7), the
+#          engineering=individual-DP-task-PR boundary, and that the retained bundle
+#          wording is annotated as a guarded bootstrap fallback (Migration
+#          Boundaries) rather than the default release lane. Keeps the
+#          framework-release contract deterministic instead of prose-only.
 # Inputs:  none (reads workspace .claude/skills/framework-release/SKILL.md).
 # Outputs: stdout PASS lines per assertion; stderr POLARIS_* token on failure.
 # Exit:    0 PASS, 1 FAIL (one or more contract markers missing / drift detected).
@@ -63,52 +67,79 @@ assert_absent() {
   fi
 }
 
-# --- AC1: bundle-release orchestration step + engineering-PR-only boundary ---
-assert_grep "AC1" "bundle-release orchestration: aggregate-release branch step" \
-  'engineering-branch-setup.sh --aggregate-release'
-assert_grep "AC1" "bundle-release orchestration: release:version on bundle branch" \
+# --- AC4: single feat/DP-NNN -> main PR orchestration + engineering boundary ---
+assert_grep "AC4" "release orchestration: single feat/DP-NNN -> main PR" \
+  'feat/DP-NNN -> main'
+assert_grep "AC4" "release orchestration: version compression at feat HEAD" \
   'mise run release:version'
-assert_grep "AC1" "bundle-release orchestration: open+merge bundle PR" \
+assert_grep "AC4" "release orchestration: open the PR via canonical producer" \
   'polaris-pr-create.sh'
-assert_grep "AC1" "engineering=individual-DP-PR boundary declared" \
-  '個別 DP PR'
+# AC4 adversarial: main keeps a SINGLE merge commit (no fast-forward / squash that
+# flattens per-task commits onto the main mainline).
+assert_grep_regex "AC4" "main keeps a single merge commit (no per-task commit)" \
+  'merge commit|無 per-task 中間 commit'
+assert_grep "AC4" "engineering=individual-DP-task-PR boundary declared" \
+  '個別 DP task PR'
 
-# --- AC2: version compression only on verified bundle PR HEAD + AC-NEG5 ---
-assert_grep "AC2" "version compression located on bundle PR HEAD" \
-  'bundle PR HEAD'
-assert_grep "AC2" "AC-NEG5 no post-merge raw version commit" \
+# --- AC3 / AC-NEG2: version compression at feat/DP-NNN HEAD, one DP one version ---
+assert_grep "AC3" "version compression located on feat/DP-NNN HEAD" \
+  'feat/DP-NNN HEAD'
+assert_grep "AC-NEG2" "one DP one version / forbid multi-DP stacking" \
+  'POLARIS_RELEASE_VERSION_MULTI_DP_STACKING'
+assert_grep_regex "AC-NEG2" "explicit one-DP-one-version concept" \
+  '一 DP 一版本|禁止多 DP 壓版|一張 DP.*版本'
+# AC-NEG5 retained: no post-merge raw version commit.
+assert_grep "AC-NEG5" "AC-NEG5 no post-merge raw version commit" \
   'AC-NEG5'
-# Ensure the forbidden post-merge-version-commit concept is present somewhere
-# (phrasing-tolerant via ERE alternation).
-assert_grep_regex "AC2" "post-merge version commit prohibition concept" \
+assert_grep_regex "AC-NEG5" "post-merge version commit prohibition concept" \
   'post-merge.*版本.*commit|版本.*commit.*post-merge|事後 release commit|merge 後.*壓版本'
 
-# --- AC3: existing gate lanes (chore-followup + bundle_branch_alias) ---
-assert_grep "AC3" "gate lane: chore/DP-NNN-* chore-followup" \
+# --- AC6: sync runs AFTER feat -> main merge (version lands on main first) ---
+assert_grep_regex "AC6" "sync after feat->main merge" \
+  'AFTER feat/DP-NNN -> main merge|merge.*之後才.*sync|sync.*merge.*之後'
+assert_grep "AC6" "sync producer invoked" \
+  'sync-to-polaris.sh'
+
+# --- AC7: bootstrap fallback / rollback steps present ---
+assert_grep_regex "AC7" "bootstrap fallback / rollback section present" \
+  'Bootstrap Fallback|rollback|Rollback'
+assert_grep_regex "AC7" "rollback recovers half-finished feat / tag / sync state" \
+  '半完成的 feat|半完成.*tag|不留下半完成'
+
+# --- AC1 gate lane: feat/DP-NNN aggregation lane is the canonical/target lane ---
+assert_grep "AC1" "gate lane: feat/DP-NNN aggregation lane" \
+  'feat/DP-NNN aggregation lane'
+assert_grep "AC1" "gate lane: chore/DP-NNN-* chore-followup retained" \
   'chore/DP-NNN-'
-assert_grep "AC3" "gate lane: chore-followup named lane" \
-  'chore-followup'
-assert_grep "AC3" "gate lane: bundle_branch_alias aggregate-release" \
-  'bundle_branch_alias'
+
+# --- AC5 Migration Boundaries: bundle wording retained ONLY as bootstrap fallback ---
+# The bundle_branch_alias lane may remain, but it must be annotated as a guarded
+# bootstrap fallback with removal criteria (not the default release lane).
+assert_grep "AC5" "bundle lane annotated as bootstrap fallback only" \
+  'BOOTSTRAP FALLBACK ONLY'
+assert_grep "AC5" "Migration Boundaries removal criteria referenced" \
+  'Migration Boundaries'
+assert_grep_regex "AC5" "removal criteria for bundle path declared" \
+  'removal criteria|AC7 PASS'
 
 # --- AC-NF1: maintainer-only frontmatter retained ---
 assert_grep "AC-NF1" "scope: maintainer-only frontmatter retained" \
   'scope: maintainer-only'
 
-# --- AC-NEG1: individual DP PR carries only changeset, no version compression ---
-assert_grep "AC-NEG1" "individual DP PR boundary: changeset only, no version bump" \
+# --- AC-NEG1: individual DP task PR carries only changeset, no version compression ---
+assert_grep "AC-NEG1" "individual DP task PR boundary: changeset only, no version bump" \
   '只含 changeset'
-assert_grep_regex "AC-NEG1" "individual DP PR boundary: explicit no-version-compression" \
-  '個別 DP PR[^。]*不壓版本|不壓版本[^。]*個別 DP PR'
-# AC-NEG1 adversarial: no residual per-PR "author runs release:version in the PR"
-# legacy wording that would make individual DP PRs carry version changes again.
-assert_absent "AC-NEG1" "no legacy per-PR release:version author wording" \
-  '作者在 PR 內以 `mise run release:version`'
+assert_grep_regex "AC-NEG1" "individual DP task PR boundary: explicit no-version-compression" \
+  '個別 DP task PR[^。]*不壓版本|不壓版本[^。]*個別 DP task PR'
+# AC-NEG1: DP task PR must target feat/DP-NNN, never main directly (no PR-less /
+# main-targeting raw commit escape into the aggregation branch).
+assert_grep_regex "AC-NEG1" "DP task PR targets feat, never main directly" \
+  'target `feat/DP-NNN`|拒絕 DP task PR 直接 target `main`|絕不直 target `main`|絕不直 merge `main`'
 
-# --- AC-NEG2: no new env bypass / generic carve-out introduced in SKILL.md ---
-assert_absent "AC-NEG2" "no POLARIS_SKIP bypass encouraged in skill prose" \
+# --- AC-NEG: no new env bypass / generic carve-out introduced in SKILL.md ---
+assert_absent "AC-NEG" "no POLARIS_SKIP bypass encouraged in skill prose" \
   'POLARIS_SKIP_DOCS_LINT=1 to bypass'
-assert_absent "AC-NEG2" "no generic gate carve-out env var introduced" \
+assert_absent "AC-NEG" "no generic gate carve-out env var introduced" \
   'POLARIS_BUNDLE_GATE_BYPASS'
 
 # --- Report ---

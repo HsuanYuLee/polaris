@@ -70,12 +70,19 @@ if bash "$POLARIS_CHANGESET" check --task-md "$TASK_MD" --repo "$REPO_ROOT"; the
   exit 0
 fi
 
-# DP-305 AC8: release-bump / metadata-only push deltas are exempt — the bundle
-# release tail consumes the member changeset via `mise run release:version`, so a
+# DP-305 AC8: release-bump / metadata-only push deltas are exempt — the release
+# tail consumes the accumulated changesets via `mise run release:version`, so a
 # resolved member task.md legitimately has no pending changeset on a release-bump
 # HEAD. Classify the push delta via the SAME shared classifier gate-evidence.sh
 # uses (DP-294); behavioral deltas fall through and stay fail-closed below. No
 # manual POLARIS_SKIP_CHANGESET_GATE needed.
+#
+# DP-334 AC5: the release-stage exemption keys off the push-delta classifier
+# (release_bump / metadata_only), not the legacy bundle model. It is therefore
+# lifecycle-agnostic and already correct for the feat/DP-NNN model, where the
+# version is squashed once at the feat HEAD (release:version consumes the
+# accumulated member changesets there). No bundle_branch_alias coupling exists in
+# this gate.
 EVIDENCE_CLASSIFIER="${WORKSPACE_SCRIPTS}/lib/evidence-classifier.sh"
 HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 if [[ -n "$HEAD_SHA" && -x "$EVIDENCE_CLASSIFIER" ]]; then

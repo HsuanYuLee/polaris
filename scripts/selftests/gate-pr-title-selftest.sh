@@ -159,4 +159,33 @@ assert_pass "non-aggregate correct developer title PASS" \
   env -u POLARIS_SKIP_PR_TITLE_GATE \
   bash "$GATE" --repo "$REPO" --task-md "$NON_AGG_TASK" --title "$DEV_TITLE"
 
+# --- DP-334 T2 / AC2 / AC5: feat/DP-NNN lifecycle. A feat-lifecycle DP task
+#     carries NO bundle_branch_alias, so it falls through to the unchanged
+#     developer title contract — the bundle title lane stays scoped to the legacy
+#     bootstrap fallback only. ---
+
+# Feat-lifecycle DP task fixture: NO bundle_branch_alias frontmatter (4th arg
+# omitted). Reuses the same write_task_md producer; the task branch is the DP
+# task branch already created above.
+FEAT_TASK="$TMPDIR/specs/dp-999/tasks/T1/feat-index.md"
+write_task_md "$FEAT_TASK" "DP-999-T1" "$TASK_BRANCH"
+FEAT_DEV_TITLE="[DP-999-T1] $DEV_SUMMARY"
+
+# Case 3 (POSITIVE / target feat): feat-lifecycle DP task, correct developer
+# title → PASS (developer contract, not bundle). Proves the feat-lifecycle DP
+# task is handled by the developer lane with no bundle coupling.
+git -C "$REPO" checkout -q "$TASK_BRANCH"
+assert_pass "feat-lifecycle DP task developer title PASS (no bundle coupling)" \
+  "Developer format" -- \
+  env -u POLARIS_SKIP_PR_TITLE_GATE \
+  bash "$GATE" --repo "$REPO" --task-md "$FEAT_TASK" --title "$FEAT_DEV_TITLE"
+
+# Case 3b (NEGATIVE): feat-lifecycle DP task given a bundle-style title → still
+# fail-closed. The bundle title contract must NOT leak onto a feat-lifecycle DP
+# task that carries no bundle_branch_alias.
+assert_block "feat-lifecycle DP task rejects bundle title (no bundle coupling leak)" \
+  "POLARIS_PR_TITLE_GATE_BLOCKED" -- \
+  env -u POLARIS_SKIP_PR_TITLE_GATE \
+  bash "$GATE" --repo "$REPO" --task-md "$FEAT_TASK" --title "chore(release): bundle DP-999 -> v9.9.9"
+
 echo "[gate-pr-title-selftest] PASS"

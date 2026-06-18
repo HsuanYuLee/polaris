@@ -16,6 +16,10 @@
 # Outputs: stdout progress; exit 0 success/no-op, 1 generic failure, 2 usage error.
 # Side effects: mutates package.json version, VERSION, CHANGELOG.md, and deletes
 #               consumed .changeset/*.md (via the changeset CLI).
+# DP-334:  feature-branch release model — this wrapper compresses the changesets
+#          accumulated at a single feat/DP-NNN HEAD into ONE version bump. One DP =
+#          one version: pending changesets that span more than one distinct "dp-NNN"
+#          marker fail-loud with POLARIS_RELEASE_VERSION_MULTI_DP_STACKING (AC-NEG2).
 set -euo pipefail
 
 usage() {
@@ -97,11 +101,60 @@ count_pending_changesets() {
   echo "$n"
 }
 
+# DP-334 D1 / AC-NEG2: one DP = one version. A framework release compresses the
+# changesets accumulated at a single feat/DP-NNN HEAD into ONE version bump. The
+# changeset filename slug carries the owning DP marker ("dp-NNN-..." — produced by
+# polaris-changeset.sh from the task ticket key), so distinct DP markers across
+# pending changesets mean two different DP aggregations were stacked into one
+# compression. That is the forbidden cross-DP version-stacking path: refuse it
+# fail-loud rather than press a multi-DP version.
+#
+# Discipline: only the "dp-NNN" marker drives the decision. Pending changesets
+# with no DP marker at all (e.g. product-repo / ad-hoc changesets) carry no DP
+# boundary signal, so they do not trigger the guard — the framework feat-HEAD
+# release path is the caller that owns the one-DP invariant.
+distinct_pending_dp_markers() {
+  local f base
+  [[ -d "$CHANGESET_DIR" ]] || return 0
+  for f in "$CHANGESET_DIR"/*.md; do
+    [[ -e "$f" ]] || continue
+    base="$(basename "$f")"
+    [[ "$base" == "README.md" ]] && continue
+    # Extract a leading "dp-NNN" marker from the changeset slug (case-insensitive).
+    printf '%s\n' "$base" \
+      | grep -oiE '^dp-[0-9]+' \
+      | tr '[:upper:]' '[:lower:]'
+  done | sort -u
+}
+
+assert_single_dp_aggregation() {
+  local markers count
+  markers="$(distinct_pending_dp_markers)"
+  # No DP marker present → no cross-DP boundary signal to enforce (no-op).
+  [[ -n "$markers" ]] || return 0
+  count="$(printf '%s\n' "$markers" | grep -c .)"
+  if [[ "$count" -gt 1 ]]; then
+    {
+      echo "POLARIS_RELEASE_VERSION_MULTI_DP_STACKING: pending changesets span $count distinct DPs; one DP = one version (DP-334 D1 / AC-NEG2)."
+      echo "  distinct DP markers:"
+      printf '    - %s\n' $markers
+      echo "  Compress each feat/DP-NNN at its own HEAD into its own version; do not stack multiple DPs into a single version."
+    } >&2
+    return 1
+  fi
+  return 0
+}
+
 PENDING="$(count_pending_changesets)"
 
 if [[ "$PENDING" -eq 0 ]]; then
   echo "release-version: no pending changeset; nothing to bump (no-op)."
   exit 0
+fi
+
+# Fail-loud before pressing the version if pending changesets stack across DPs.
+if ! assert_single_dp_aggregation; then
+  exit 1
 fi
 
 VERSION_BEFORE="$(read_pkg_version)"

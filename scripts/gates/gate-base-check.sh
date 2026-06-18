@@ -5,6 +5,16 @@ set -euo pipefail
 # Extracted from .claude/hooks/pr-base-gate.sh for cross-LLM portability.
 # Can be called from: git pre-push hooks, polaris-pr-create.sh, or directly.
 #
+# DP-334 D3 / AC2 / AC-NEG1: framework DP delivery routes through a per-DP
+# feat/DP-NNN aggregation branch (resolve-task-base.sh returns feat/DP-NNN as the
+# expected base). A DP task PR must target its feat/DP-NNN branch; a DP task PR
+# that directly targets main fails closed (the v3.76.18 raw-commit escape this DP
+# closes). The legacy --aggregate-release bundle escape below is RETAINED as a
+# bootstrap fallback only — Migration Boundaries removal criteria: removed in
+# DP-334 once it self-releases under the feat model (AC7 PASS); see
+# docs-manager/.../DP-334-framework-release-feature-branch-aggregation-release-model/index.md
+# § Migration Boundaries.
+#
 # Usage:
 #   bash scripts/gates/gate-base-check.sh [--repo <path>] [--base <branch>] [--aggregate-release]
 #
@@ -110,6 +120,39 @@ if [[ "$ACTUAL_BASE" == "$expected_base" ]]; then
   exit 0
 fi
 
+# DP-334 D3 / AC2 / AC-NEG1: framework DP feature-branch aggregation lifecycle.
+# When the task.md resolves to a feat/DP-NNN aggregation base, the DP task PR
+# MUST target that feat branch; a DP task PR that directly targets main is a
+# fail-closed violation — even under --aggregate-release. The --aggregate-release
+# bundle escape (below) is reserved for the legacy bundle release path whose
+# task.md base is itself a non-feat upstream; it must never launder a DP task
+# whose expected base is feat/DP-NNN into a main-targeting PR (that is the
+# v3.76.18 raw-commit escape this DP closes).
+if [[ "$expected_base" =~ ^feat/DP-[0-9]+$ && "$ACTUAL_BASE" == "main" ]]; then
+  current_branch=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "<unknown>")
+  cat >&2 <<EOF
+
+$PREFIX BLOCKED: DP task PR must target its feat/DP-NNN aggregation branch, not main.
+  Current branch:  ${current_branch}
+  Task.md:         ${task_md_path}
+  Expected --base: ${expected_base}
+  Actual --base:   ${ACTUAL_BASE}
+
+Why: DP-334 routes framework DP delivery through a per-DP feat/DP-NNN aggregation
+branch. Task PRs merge into feat/DP-NNN; only a single feat/DP-NNN -> main PR may
+target main. Targeting main from a task branch is the raw-commit escape this gate
+closes (AC2 / AC-NEG1).
+
+Fix:
+  Use --base ${expected_base} (the feat/DP-NNN value from task.md).
+EOF
+  exit 2
+fi
+
+# DP-334 Migration Boundaries: legacy aggregate-release bundle escape. RETAINED as
+# bootstrap fallback only; removed in DP-334 once it self-releases under the
+# feat/DP-NNN model (AC7 PASS). The guard above already fail-closes a feat/DP-NNN
+# DP task that targets main, so this escape can no longer launder DP task commits.
 if [[ "$AGGREGATE_RELEASE" == "1" ]]; then
   current_branch=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "<unknown>")
   if [[ "$ACTUAL_BASE" != "main" ]]; then

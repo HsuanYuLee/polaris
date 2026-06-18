@@ -157,6 +157,54 @@ if [[ "$current_branch" =~ ^chore/(DP-[0-9]+)- ]]; then
   exit 2
 fi
 
+# DP-334 feat/DP-NNN -> main release PR lane: under the feature-branch
+# aggregation release model, framework DP delivery merges per-task branches into
+# feat/DP-NNN, then opens a single feat/DP-NNN -> main release PR. That release
+# PR is created from the feat/DP-NNN branch itself, which has no table-form
+# `Task branch` binding, so without this lane gate-work-source would block it.
+# The lane only triggers when:
+#   - branch is exactly feat/DP-NNN (anchored ^...$, so feat/DP-334-foo does not
+#     match and still falls through to the task.md resolver)
+#   - the corresponding DP container exists under docs-manager/.../design-plans/
+#   - at least one tasks/pr-release/T*.md or T*/index.md is status: IMPLEMENTED
+# Other feat/* branches still fall through; this is not a generic escape.
+if [[ "$current_branch" =~ ^feat/(DP-[0-9]+)$ ]]; then
+  feat_dp="${BASH_REMATCH[1]}"
+  feat_container=""
+  for candidate in "$REPO_ROOT/docs-manager/src/content/docs/specs/design-plans/${feat_dp}-"*; do
+    [[ -d "$candidate" ]] || continue
+    feat_container="$candidate"
+    break
+  done
+  if [[ -z "$feat_container" ]]; then
+    # Maybe DP was archived between delivery and release.
+    for candidate in "$REPO_ROOT/docs-manager/src/content/docs/specs/design-plans/archive/${feat_dp}-"*; do
+      [[ -d "$candidate" ]] || continue
+      feat_container="$candidate"
+      break
+    done
+  fi
+  if [[ -n "$feat_container" ]]; then
+    feat_release_implemented=0
+    while IFS= read -r task_file; do
+      [[ -f "$task_file" ]] || continue
+      if grep -qE "^status: IMPLEMENTED" "$task_file"; then
+        feat_release_implemented=1
+        break
+      fi
+    done < <(find "$feat_container/tasks/pr-release" -maxdepth 3 -type f \
+              \( -name "T*.md" -o -name "index.md" \) 2>/dev/null)
+    if [[ "$feat_release_implemented" -eq 1 ]]; then
+      echo "$PREFIX ✅ feat-release lane: branch=$current_branch dp=$feat_dp IMPLEMENTED" >&2
+      exit 0
+    fi
+    echo "$PREFIX BLOCKED: feat-release lane requires DP $feat_dp to have an IMPLEMENTED pr-release task." >&2
+    exit 2
+  fi
+  echo "$PREFIX BLOCKED: feat-release lane could not resolve DP container for $feat_dp." >&2
+  exit 2
+fi
+
 if [[ -z "$TASK_MD" ]]; then
   resolver="$ROOT_DIR/scripts/resolve-task-md.sh"
   if [[ ! -x "$resolver" ]]; then
@@ -194,6 +242,16 @@ task_branch="$(table_field "Task branch" "$TASK_MD")"
 # each bundled task.md frontmatter. When the current branch matches that alias,
 # the gate treats this as a legal aggregate-release source even though the
 # table-form `Task branch` field still points at the per-task branch.
+#
+# DP-334 Migration Boundaries: this bundle_branch_alias acceptance is RETAINED as
+# a bootstrap fallback only. Framework DP delivery now keys off feat/DP-NNN
+# aggregation (engineering-branch-setup.sh creates feat/DP-NNN; the Task branch
+# field binds the per-task branch whose base is feat/DP-NNN, so the table-form
+# `Task branch` check below already accepts the feat-lifecycle work source).
+# Removal criteria: removed in DP-334 once it self-releases under the feat model
+# (AC7 PASS); see
+# docs-manager/.../DP-334-framework-release-feature-branch-aggregation-release-model/index.md
+# § Migration Boundaries.
 bundle_branch_alias=""
 bundle_branch_alias="$(awk '
   /^---$/ { fm++; next }

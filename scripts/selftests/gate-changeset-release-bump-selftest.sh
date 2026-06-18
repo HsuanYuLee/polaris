@@ -166,6 +166,60 @@ set -e
 [[ "$rc4" -eq 0 ]] && ok "behavioral delta WITH changeset -> exit 0 (normal path)" \
   || bad "behavioral delta with changeset should pass (exit 0); got exit $rc4"
 
+# ── DP-334 T2 / AC5: release-stage exemption keys off the push-delta classifier ─
+# (release_bump / metadata_only), NOT the legacy bundle model. Prove it is
+# lifecycle-agnostic and correct for the feat/DP-NNN model: a release bump on a
+# feat/DP-NNN HEAD (where release:version squashes the accumulated changesets) is
+# exempt (POSITIVE / on feat), while a behavioral delta on a feat HEAD with no
+# changeset stays fail-closed (NEGATIVE — no bundle/feat-name escape).
+
+# ── Scenario 5: release_bump delta on a feat/DP-NNN HEAD -> exempt (exit 0) ─────
+R5="$(make_repo repo5)"
+git -C "$R5" checkout -q -b feat/DP-334
+printf -- '---\n"polaris-framework-workspace": patch\n---\n\nfeat-head release bump\n' >"$R5/.changeset/feat-head-bump.md"
+git -C "$R5" add -A
+git -C "$R5" commit -q -m "stage changeset to consume"
+# Re-point origin/main to the staged-changeset commit so the classified push
+# delta is the release-bump commit alone (mirrors Scenario 1).
+git -C "$R5" update-ref refs/remotes/origin/main HEAD
+printf '3.76.1\n' >"$R5/VERSION"
+printf '# changelog\n- 3.76.1\n' >"$R5/CHANGELOG.md"
+cat >"$R5/package.json" <<'JSON'
+{
+  "name": "polaris-framework-workspace",
+  "version": "3.76.1",
+  "private": true
+}
+JSON
+git -C "$R5" rm -q "$R5/.changeset/feat-head-bump.md"
+git -C "$R5" add -A
+git -C "$R5" commit -q -m "release bump v3.76.1 on feat HEAD"
+set +e
+bash "$GATE" --repo "$R5" --task-md "$R5/$TASK_REL" >/dev/null 2>&1
+rc5=$?
+set -e
+[[ "$rc5" -eq 0 ]] && ok "release_bump delta on feat/DP-NNN HEAD -> exit 0 (AC5 lifecycle-agnostic)" \
+  || bad "release_bump on feat HEAD should exempt (exit 0); got exit $rc5"
+
+# ── Scenario 6: behavioral delta on a feat/DP-NNN HEAD, no changeset -> BLOCKED ─
+# The feat branch name must NOT itself become an escape; only the delta class
+# (release_bump / metadata_only) exempts. A behavioral .sh change with no
+# changeset stays fail-closed (exit 2).
+R6="$(make_repo repo6)"
+git -C "$R6" checkout -q -b feat/DP-334
+printf '#!/usr/bin/env bash\necho behavioral change on feat\n' >"$R6/scripts/x.sh"
+git -C "$R6" add -A
+git -C "$R6" commit -q -m "behavioral .sh change on feat without changeset"
+set +e
+err6="$(bash "$GATE" --repo "$R6" --task-md "$R6/$TASK_REL" 2>&1 >/dev/null)"
+rc6=$?
+set -e
+if [[ "$rc6" -eq 2 ]]; then
+  ok "behavioral delta on feat HEAD, no changeset -> exit 2 (no feat-name escape)"
+else
+  bad "behavioral delta on feat HEAD should BLOCK (exit 2); got exit $rc6"
+fi
+
 echo ""
 echo "[gate-changeset-release-bump-selftest] $PASS passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]] && exit 0 || exit 1

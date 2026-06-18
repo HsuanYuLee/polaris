@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.76.18] - 2026-06-18
+
+### Changed
+
+- 161ee3a: engineering-branch-setup.sh framework DP 路徑改 feat/DP-NNN 聚合
+- 8043a77: 四條 release gate lifecycle 改 key off feat/DP-NNN，移除 bundle_branch_alias
+- 5398a04: release tail 改 feat HEAD 壓版 + 單一 feat->main PR + 後 sync（含 bootstrap fallback）
+- 3d32bc8: gate-work-source 補 feat/DP-NNN→main 釋出 PR work-source lane（補齊 AC5）
+
 ## [3.76.17] - 2026-06-17
 
 ### Changed

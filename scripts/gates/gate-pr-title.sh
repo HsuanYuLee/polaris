@@ -16,6 +16,14 @@ set -euo pipefail
 # and an invalid one still fails closed. The non-aggregate developer-title
 # contract is unchanged (the relaxation is scoped to aggregate-release only).
 #
+# DP-334 Migration Boundaries: the bundle_branch_alias title lane is RETAINED as a
+# bootstrap fallback only. Framework DP delivery now keys off feat/DP-NNN
+# aggregation; a feat-lifecycle DP task PR (no bundle_branch_alias) falls through
+# to the unchanged developer title contract below. Removal criteria: removed in
+# DP-334 once it self-releases under the feat model (AC7 PASS); see
+# docs-manager/.../DP-334-framework-release-feature-branch-aggregation-release-model/index.md
+# § Migration Boundaries.
+#
 # Usage:
 #   bash scripts/gates/gate-pr-title.sh [--repo <path>] [--task-md <path>] [--title <title>]
 #

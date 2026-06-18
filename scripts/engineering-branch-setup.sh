@@ -1,21 +1,33 @@
 #!/usr/bin/env bash
-# scripts/engineering-branch-setup.sh — DP-032 Wave γ D4
+# Purpose: Atomic task branch + worktree creation for engineering first-cut.
+#          DP-032 Wave γ D4. Replaces the multi-step LLM-driven flow
+#          (read base → create-branch.sh → manual worktree) with a single
+#          deterministic script. New branch from origin/{base} HEAD is already
+#          at tip — no first-cut pre-dev rebase needed.
 #
-# Atomic branch + worktree creation for engineering first-cut. Replaces the
-# multi-step LLM-driven flow (read base → create-branch.sh → manual worktree)
-# with a single deterministic script. Eliminates first-cut pre-dev rebase
-# (new branch from origin/{base} HEAD is already at tip — no rebase needed).
+# DP-334 T1: framework DP sources aggregate through a per-DP feature branch.
+# When the resolved base is feat/DP-NNN and that feat branch is absent on
+# origin, the default (positional task.md) path auto-creates feat/DP-NNN from
+# origin/main and cuts the DP task branch from it — reusing the existing
+# resolve-task-base.sh feat semantics (the Base branch field is the single
+# authority; no second base/aggregation mechanism is introduced, AC-NF1).
+#
+# The legacy run_aggregate_release bundle model (--aggregate-release mode:
+# empty-delta bundle branch + bundle_branch_alias writer) is RETAINED only as a
+# bootstrap-failure fallback per DP-334 Migration Boundaries; the DP default
+# path no longer uses it. See the "Aggregate-release helpers" block for the
+# removal criteria.
 #
 # Contract:
-#   engineering-branch-setup.sh <task_md> [--repo-base DIR]
+#   engineering-branch-setup.sh <task_md> [--repo-base DIR] [--auto-stash]
 #
 # Steps:
 #   1. parse-task-md.sh → task_jira_key, summary, resolved_base, repo
-#   2. Verify resolved_base exists on origin (git ls-remote)
-#   3. git fetch origin {resolved_base}
+#   2. feat/DP-NNN auto-create from origin/main when the DP feat base is absent
+#   3. Verify resolved_base exists on origin or locally, then fetch
 #   4. Resolve branch name from task.md `Task branch` contract
 #   5. Duplicate guard: refuse same-ticket local/remote branches and stale worktree paths
-#   6. git branch {resolved_task_branch} origin/{resolved_base}
+#   6. git branch {resolved_task_branch} {resolved base ref}
 #   7. Derive worktree path: {repo_base}/.worktrees/{repo}-engineering-{KEY}
 #   8. git worktree add {worktree_path} {resolved_task_branch}
 #   9. stdout last line: absolute worktree path (for caller consumption)
@@ -337,6 +349,50 @@ cleanup_existing_worktree() {
   }
 }
 
+# Description: For a framework DP feature-branch aggregation base (feat/DP-NNN),
+#              ensure the feat branch exists locally so the DP task branch can be
+#              cut from it. When absent on both origin and local, create it from
+#              origin/main (DP-334 T1 / AC1). Reuses the Base branch field that
+#              resolve-task-base.sh already returns as the single authority; no
+#              second base/aggregation mechanism is introduced (AC-NF1).
+# Args:        $1 = resolved base branch (e.g. feat/DP-334)
+# Outputs:     exit 0 on success (feat branch present/created); exit 2 on fatal
+#              git error. Logs progress to stderr.
+# Side effects: may create a local feat/DP-NNN branch from origin/main.
+ensure_feat_dp_branch() {
+  local base="$1"
+
+  # Only the framework DP feature-branch aggregation base is auto-created.
+  # Product / JIRA-Epic feat branches (feat/EXCO-NNN) and develop/main bases
+  # follow the existing remote-existence contract unchanged.
+  [[ "$base" =~ ^feat/DP-[0-9]+$ ]] || return 0
+
+  # Already present locally or on origin → reuse it; nothing to create.
+  if git show-ref --verify --quiet "refs/heads/$base" 2>/dev/null; then
+    return 0
+  fi
+  if git ls-remote --exit-code origin "refs/heads/$base" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  # Absent everywhere → bootstrap the per-DP feat branch from origin/main.
+  echo "ℹ Framework DP feat base '$base' absent; creating it from origin/main..." >&2
+  if ! git ls-remote --exit-code origin "refs/heads/main" >/dev/null 2>&1; then
+    echo "ERROR: feature-branch aggregation requires origin/main to exist" >&2
+    return 2
+  fi
+  git fetch origin main >/dev/null 2>&1 || {
+    echo "ERROR: git fetch origin main failed (needed to create $base)" >&2
+    return 2
+  }
+  git branch "$base" "origin/main" >/dev/null 2>&1 || {
+    echo "ERROR: git branch $base origin/main failed" >&2
+    return 2
+  }
+  echo "✓ Created framework DP feat branch: $base (from origin/main)" >&2
+  return 0
+}
+
 # ---------------------------------------------------------------------------
 # Selftest
 # ---------------------------------------------------------------------------
@@ -469,7 +525,21 @@ PY
 fi
 
 # ---------------------------------------------------------------------------
-# Aggregate-release helpers (DP-230 D16)
+# Aggregate-release helpers (DP-230 D16) — RETAINED bootstrap fallback only.
+#
+# DP-334 Migration Boundaries (temporary compatibility mechanism):
+#   owner:            scripts/engineering-branch-setup.sh
+#   removal criteria: after DP-334 self-releases with the new feat model
+#                     (AC7 PASS), remove this --aggregate-release bundle path
+#                     (run_aggregate_release + write_bundle_branch_alias) within
+#                     the same DP; if AC7 fails and a bundle rollback is needed,
+#                     remove no later than the immediate follow-up DP.
+#   verification:     gates / selftests no longer reference bundle_branch_alias;
+#                     run_aggregate_release callsites drop to zero.
+#   follow-up:        DP-334 T2/T3 retire the gate + release-tail bundle coupling;
+#                     this writer is removed once the feat model is dogfood-proven.
+# The DP default (positional task.md) path does NOT use this bundle model; it
+# uses ensure_feat_dp_branch() above (feat/DP-NNN aggregation, AC1).
 # ---------------------------------------------------------------------------
 
 # Write `bundle_branch_alias: <value>` into a task.md YAML frontmatter block.
@@ -737,19 +807,29 @@ if [[ -n "$BRANCH_CHAIN" && -f "$CASCADE_REBASE_CHAIN" ]]; then
   fi
 fi
 
-# Step 2: Verify resolved_base exists on remote
-if ! git ls-remote --exit-code origin "refs/heads/$RESOLVED_BASE" >/dev/null 2>&1; then
-  echo "ERROR: base branch '$RESOLVED_BASE' not found on origin." >&2
+# Step 2: Ensure the framework DP feature-branch aggregation base exists.
+# For feat/DP-NNN bases this creates the feat branch from origin/main when it is
+# absent; for every other base it is a no-op (DP-334 T1 / AC1).
+ensure_feat_dp_branch "$RESOLVED_BASE" || exit 2
+
+# Step 3: Verify resolved_base exists, then fetch the latest tip. A base may
+# legitimately live only locally — the feat/DP-NNN branch this script just
+# created has not been pushed yet — so accept a local ref as well as origin.
+BASE_REF=""
+if git ls-remote --exit-code origin "refs/heads/$RESOLVED_BASE" >/dev/null 2>&1; then
+  echo "ℹ Fetching origin/$RESOLVED_BASE..." >&2
+  git fetch origin "$RESOLVED_BASE" >/dev/null 2>&1 || {
+    echo "ERROR: git fetch origin $RESOLVED_BASE failed" >&2
+    exit 2
+  }
+  BASE_REF="origin/$RESOLVED_BASE"
+elif git show-ref --verify --quiet "refs/heads/$RESOLVED_BASE" 2>/dev/null; then
+  BASE_REF="$RESOLVED_BASE"
+else
+  echo "ERROR: base branch '$RESOLVED_BASE' not found on origin or locally." >&2
   echo "  → Run /breakdown to update task.md or verify the base branch exists." >&2
   exit 2
 fi
-
-# Step 3: Fetch latest
-echo "ℹ Fetching origin/$RESOLVED_BASE..." >&2
-git fetch origin "$RESOLVED_BASE" >/dev/null 2>&1 || {
-  echo "ERROR: git fetch origin $RESOLVED_BASE failed" >&2
-  exit 2
-}
 
 # Step 4: Resolve branch name from task.md contract
 if [[ ! -x "$RESOLVE_TASK_BRANCH" ]]; then
@@ -815,14 +895,15 @@ fi
 
 # Check if branch already exists
 if [[ "$EXACT_BRANCH_EXISTS" -eq 0 ]]; then
-  # Step 5: Create branch from origin/{resolved_base}.
+  # Step 5: Create branch from the resolved base ref (origin/{resolved_base}
+  # when present on origin, or the local feat/DP-NNN this script just created).
   # DP-307 D6/AC7: branch creation is local-only (`git branch` + `git worktree
   # add`); this script never pushes a refspec. The remote push happens later via
   # the delivery flow / polaris-pr-create wrapper, which reads HEAD from git
   # rather than interpolating a task-title-derived var into a refspec. Keep it so
   # — covered by lint-bash-variable-utf8-boundary refspec detection.
-  git branch "$BRANCH_NAME" "origin/$RESOLVED_BASE" 2>/dev/null || {
-    echo "ERROR: git branch $BRANCH_NAME origin/$RESOLVED_BASE failed" >&2
+  git branch "$BRANCH_NAME" "$BASE_REF" 2>/dev/null || {
+    echo "ERROR: git branch $BRANCH_NAME $BASE_REF failed" >&2
     exit 2
   }
   echo "✓ Created branch: $BRANCH_NAME" >&2
