@@ -159,20 +159,40 @@ else:
         if jira_key not in (None, "", "N/A"):
             errors.append(f"source.jira_key must be null/N/A for source.type={source_type}")
 
-        # DP-269 AC-NEG1: source.repo / source.base_branch are jira-only fields.
-        # They must NOT appear on a non-jira (dp) source (fail-closed, mirroring
-        # the DP-228 jira-only field prohibition). This prevents the jira-only
-        # schema relaxation from leaking into the dp branch.
+        # DP-269 AC-NEG1: source.repo stays a jira-only field. It must NOT appear
+        # on a non-jira source (fail-closed, mirroring the DP-228 jira-only field
+        # prohibition). This prevents the jira-only schema relaxation from leaking
+        # into the non-jira branch.
         if source.get("repo") is not None:
             errors.append(
                 f"POLARIS_REFINEMENT_JIRA_ONLY_FIELD: source.repo is jira-only and "
                 f"must be absent for source.type={source_type}"
             )
-        if source.get("base_branch") is not None:
-            errors.append(
-                f"POLARIS_REFINEMENT_JIRA_ONLY_FIELD: source.base_branch is jira-only and "
-                f"must be absent for source.type={source_type}"
-            )
+
+        # DP-337: source.base_branch is graduated from a jira-only field to a
+        # universal field, but only for dp sources (the feat-lane release model).
+        #   - dp source, base_branch absent      → schema-optional (PASS). ~230
+        #     historical dp refinement.json carry base_branch=None and must not be
+        #     retroactively broken; the delivery-boundary required gate
+        #     (validate-breakdown-ready.sh, T2) enforces presence at breakdown.
+        #   - dp source, base_branch present      → must equal feat/<source.id>;
+        #     any other value fail-closed with POLARIS_REFINEMENT_DP_BASE_BRANCH_INVALID.
+        #   - other non-jira source (topic/etc.)  → base_branch stays jira-only
+        #     (the graduation does not leak beyond dp).
+        base_branch = source.get("base_branch")
+        if base_branch is not None:
+            if source_type == "dp":
+                expected_base = f"feat/{source_id}" if source_id else None
+                if not isinstance(base_branch, str) or base_branch != expected_base:
+                    errors.append(
+                        f"POLARIS_REFINEMENT_DP_BASE_BRANCH_INVALID: source.base_branch "
+                        f"'{base_branch}' must equal 'feat/{source_id}' for source.type=dp"
+                    )
+            else:
+                errors.append(
+                    f"POLARIS_REFINEMENT_JIRA_ONLY_FIELD: source.base_branch is jira-only and "
+                    f"must be absent for source.type={source_type}"
+                )
 
 require_nonempty_string("version")
 require_nonempty_string("created_at")

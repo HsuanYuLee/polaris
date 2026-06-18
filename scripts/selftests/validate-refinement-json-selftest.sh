@@ -778,4 +778,248 @@ if ! grep -q "references" "$tmpdir/dp-refs-bad.stderr"; then
   exit 1
 fi
 
+# =====================================================================
+# DP-337 — base_branch graduated to a universal field (dp + jira), with a
+# dp feat/{source.id} format gate.
+#
+# Before DP-337, source.base_branch was jira-only: any dp source carrying it
+# fail-closed with POLARIS_REFINEMENT_JIRA_ONLY_FIELD (DP-269 AC-NEG1). DP-337
+# graduates base_branch to a universal field. For a dp source:
+#   - base_branch absent      → PASS  (schema-optional; ~230 historical dp
+#                                       refinement.json all carry base_branch=None
+#                                       and must not be retroactively broken)
+#   - base_branch=feat/{id}   → PASS  (format == feat/<source.id>)
+#   - base_branch other value → FAIL  (POLARIS_REFINEMENT_DP_BASE_BRANCH_INVALID)
+# source.repo / tasks[].jira_key stay jira-only (the relaxation must not leak to
+# those two fields) — already asserted by cases 2/3 above; case 24 re-asserts
+# the source.repo prohibition stands AFTER base_branch is graduated.
+# =====================================================================
+
+# write_dp_with_base_branch <dest_dir> <base_branch_value> — write a canonical dp
+# fixture whose source.id is DP-337 and source.base_branch is the given value.
+write_dp_with_base_branch() {
+  local dest_dir="$1"
+  local base_branch="$2"
+  mkdir -p "$dest_dir"
+  touch "$dest_dir/index.md"
+  cat >"$dest_dir/refinement.json" <<JSON
+{
+  "epic": null,
+  "source": {
+    "type": "dp",
+    "id": "DP-337",
+    "container": "$dest_dir",
+    "plan_path": "$dest_dir/index.md",
+    "jira_key": null,
+    "base_branch": "$base_branch"
+  },
+  "version": "1.0",
+  "schema_version": "1.0",
+  "created_at": "2026-06-18T00:00:00Z",
+  "modules": [{ "path": "scripts/sample.sh", "action": "modify" }],
+  "acceptance_criteria": [
+    { "id": "AC1", "text": "t", "verification": { "method": "unit_test", "detail": "d" } }
+  ],
+  "dependencies": [],
+  "edge_cases": [],
+  "predecessor_audit": [],
+  "tasks": [
+    {
+      "id": "DP-337-T1",
+      "kind": "implementation",
+      "task_shape": "implementation",
+      "tracked_deliverable_hint": "tracked",
+      "title": "t",
+      "scope": "s",
+      "allowed_files": ["scripts/sample.sh"],
+      "modules": ["scripts/sample.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 2,
+      "verification": { "method": "unit_test", "detail": "d" }
+    }
+  ],
+  "adversarial_pass": [{ "ac_id": "AC1", "attack": "a", "enforce": "e" }]
+}
+JSON
+}
+
+# --- Case 21 (AC1): dp source carrying source.base_branch=feat/{source.id}
+# PASSes — base_branch is no longer rejected as jira-only, and the format
+# matches feat/DP-337. ---
+dp_feat_ok_dir="$tmpdir/dp-feat-ok"
+write_dp_with_base_branch "$dp_feat_ok_dir" "feat/DP-337"
+if ! bash "$SCRIPT" "$dp_feat_ok_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-feat-ok.stderr"; then
+  echo "FAIL [case 21 / AC1]: dp source with base_branch=feat/DP-337 did not pass (base_branch must be a universal field)" >&2
+  cat "$tmpdir/dp-feat-ok.stderr" >&2
+  exit 1
+fi
+if grep -q "POLARIS_REFINEMENT_JIRA_ONLY_FIELD" "$tmpdir/dp-feat-ok.stderr"; then
+  echo "FAIL [case 21 / AC1]: dp source with base_branch still flagged jira-only (DP-337 graduation incomplete)" >&2
+  cat "$tmpdir/dp-feat-ok.stderr" >&2
+  exit 1
+fi
+
+# --- Case 22 (AC2): dp source with base_branch=main (not feat/{id}) FAILs
+# fail-closed with POLARIS_REFINEMENT_DP_BASE_BRANCH_INVALID. ---
+dp_base_main_dir="$tmpdir/dp-base-main"
+write_dp_with_base_branch "$dp_base_main_dir" "main"
+if bash "$SCRIPT" "$dp_base_main_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-base-main.stderr"; then
+  echo "FAIL [case 22 / AC2]: dp source with base_branch=main passed (expected feat/{id} format gate fail-closed)" >&2
+  exit 1
+fi
+if ! grep -q "POLARIS_REFINEMENT_DP_BASE_BRANCH_INVALID" "$tmpdir/dp-base-main.stderr"; then
+  echo "FAIL [case 22 / AC2]: missing POLARIS_REFINEMENT_DP_BASE_BRANCH_INVALID marker for base_branch=main" >&2
+  cat "$tmpdir/dp-base-main.stderr" >&2
+  exit 1
+fi
+
+# --- Case 23 (AC2): dp source with base_branch=feat/DP-999 (a DIFFERENT DP's
+# feat branch, not feat/<source.id>) FAILs — the format gate compares against
+# source.id, not just the "feat/" prefix. ---
+dp_base_wrong_dir="$tmpdir/dp-base-wrong"
+write_dp_with_base_branch "$dp_base_wrong_dir" "feat/DP-999"
+if bash "$SCRIPT" "$dp_base_wrong_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-base-wrong.stderr"; then
+  echo "FAIL [case 23 / AC2]: dp source with mismatched feat/DP-999 passed (expected == feat/<source.id> gate)" >&2
+  exit 1
+fi
+if ! grep -q "POLARIS_REFINEMENT_DP_BASE_BRANCH_INVALID" "$tmpdir/dp-base-wrong.stderr"; then
+  echo "FAIL [case 23 / AC2]: missing POLARIS_REFINEMENT_DP_BASE_BRANCH_INVALID marker for mismatched feat branch" >&2
+  cat "$tmpdir/dp-base-wrong.stderr" >&2
+  exit 1
+fi
+
+# --- Case 24 (AC-NEG1): dp source WITHOUT base_branch still PASSes
+# (schema-optional; historical dp refinement.json carry base_branch=None and
+# must not be retroactively broken). The clean dp fixture (case 4) already omits
+# base_branch and passes; this case re-asserts the invariant explicitly under
+# the DP-337 graduation (a dp source with source.id=DP-337 and no base_branch). ---
+dp_no_base_dir="$tmpdir/dp-no-base-337"
+mkdir -p "$dp_no_base_dir"; touch "$dp_no_base_dir/index.md"
+cat >"$dp_no_base_dir/refinement.json" <<JSON
+{
+  "epic": null,
+  "source": {
+    "type": "dp",
+    "id": "DP-337",
+    "container": "$dp_no_base_dir",
+    "plan_path": "$dp_no_base_dir/index.md",
+    "jira_key": null
+  },
+  "version": "1.0",
+  "schema_version": "1.0",
+  "created_at": "2026-06-18T00:00:00Z",
+  "modules": [{ "path": "scripts/sample.sh", "action": "modify" }],
+  "acceptance_criteria": [
+    { "id": "AC1", "text": "t", "verification": { "method": "unit_test", "detail": "d" } }
+  ],
+  "dependencies": [],
+  "edge_cases": [],
+  "predecessor_audit": [],
+  "tasks": [
+    {
+      "id": "DP-337-T1",
+      "kind": "implementation",
+      "task_shape": "implementation",
+      "tracked_deliverable_hint": "tracked",
+      "title": "t",
+      "scope": "s",
+      "allowed_files": ["scripts/sample.sh"],
+      "modules": ["scripts/sample.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 2,
+      "verification": { "method": "unit_test", "detail": "d" }
+    }
+  ],
+  "adversarial_pass": [{ "ac_id": "AC1", "attack": "a", "enforce": "e" }]
+}
+JSON
+if ! bash "$SCRIPT" "$dp_no_base_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-no-base-337.stderr"; then
+  echo "FAIL [case 24 / AC-NEG1]: dp source without base_branch did not pass (must stay schema-optional)" >&2
+  cat "$tmpdir/dp-no-base-337.stderr" >&2
+  exit 1
+fi
+
+# --- Case 25 (AC-NEG2): the base_branch graduation must NOT leak to source.repo
+# — a dp source carrying source.repo (and a valid base_branch=feat/{id}) still
+# FAILs fail-closed with POLARIS_REFINEMENT_JIRA_ONLY_FIELD. This proves the
+# relaxation is scoped to base_branch only; source.repo stays jira-only. ---
+dp_repo_after_dir="$tmpdir/dp-repo-after-grad"
+write_dp_with_base_branch "$dp_repo_after_dir" "feat/DP-337"
+python3 - "$dp_repo_after_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["source"]["repo"] = "exampleco-web"
+json.dump(data, open(p, "w"))
+PY
+if bash "$SCRIPT" "$dp_repo_after_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-repo-after.stderr"; then
+  echo "FAIL [case 25 / AC-NEG2]: dp source with source.repo passed after base_branch graduation (source.repo must stay jira-only)" >&2
+  exit 1
+fi
+if ! grep -q "POLARIS_REFINEMENT_JIRA_ONLY_FIELD" "$tmpdir/dp-repo-after.stderr"; then
+  echo "FAIL [case 25 / AC-NEG2]: missing POLARIS_REFINEMENT_JIRA_ONLY_FIELD marker for source.repo after graduation" >&2
+  cat "$tmpdir/dp-repo-after.stderr" >&2
+  exit 1
+fi
+
+# --- Case 26 (AC-NEG2 / no-leak): the base_branch graduation must not leak to a
+# non-dp/non-jira source type (topic). A topic source carrying base_branch still
+# FAILs fail-closed with POLARIS_REFINEMENT_JIRA_ONLY_FIELD — only dp gets the
+# format-gated graduation. ---
+topic_base_dir="$tmpdir/topic-base"; mkdir -p "$topic_base_dir"; touch "$topic_base_dir/index.md"
+cat >"$topic_base_dir/refinement.json" <<JSON
+{
+  "epic": null,
+  "source": {
+    "type": "topic",
+    "id": "some-topic",
+    "container": "$topic_base_dir",
+    "jira_key": null,
+    "base_branch": "feat/some-topic"
+  },
+  "version": "1.0",
+  "schema_version": "1.0",
+  "created_at": "2026-06-18T00:00:00Z",
+  "modules": [{ "path": "scripts/sample.sh", "action": "modify" }],
+  "acceptance_criteria": [
+    { "id": "AC1", "text": "t", "verification": { "method": "unit_test", "detail": "d" } }
+  ],
+  "dependencies": [],
+  "edge_cases": [],
+  "predecessor_audit": [],
+  "tasks": [
+    {
+      "id": "T1",
+      "kind": "task",
+      "title": "t",
+      "scope": "s",
+      "allowed_files": ["scripts/sample.sh"],
+      "modules": ["scripts/sample.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 2,
+      "verification": { "method": "unit_test", "detail": "d" }
+    }
+  ],
+  "adversarial_pass": [{ "ac_id": "AC1", "attack": "a", "enforce": "e" }]
+}
+JSON
+if bash "$SCRIPT" "$topic_base_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/topic-base.stderr"; then
+  echo "FAIL [case 26 / AC-NEG2]: topic source with base_branch passed (graduation must be dp-scoped)" >&2
+  exit 1
+fi
+if ! grep -q "POLARIS_REFINEMENT_JIRA_ONLY_FIELD" "$tmpdir/topic-base.stderr"; then
+  echo "FAIL [case 26 / AC-NEG2]: missing POLARIS_REFINEMENT_JIRA_ONLY_FIELD marker for topic source base_branch" >&2
+  cat "$tmpdir/topic-base.stderr" >&2
+  exit 1
+fi
+
 echo "PASS: validate-refinement-json selftest"

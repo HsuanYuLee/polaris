@@ -477,6 +477,108 @@ def task_files(path: Path) -> list[Path]:
     raise FileNotFoundError(path)
 
 
+# --- DP-337 T2 (AC3 / AC-NEG3): delivery-boundary feat-base required gate -------
+# DP-337 graduated source.base_branch to a universal field. At the refinement-json
+# layer (T1) it is schema-OPTIONAL for a dp source: the ~230 historical dp
+# refinement.json carry base_branch=None and must not be retroactively broken.
+# The REQUIRED enforcement lives here, at the delivery boundary: when a dp-backed
+# source actually walks breakdown, it MUST carry source.base_branch=feat/{id}
+# (the feat-lane release model, DP-334). A dp source missing it (or carrying a
+# non-feat value) fail-closes with POLARIS_DP_FEAT_BASE_REQUIRED.
+#
+# This is the SINGLE enforcement point. validate-refinement-lock-preflight.sh
+# delegates to validate-breakdown-ready.sh and therefore inherits this gate at
+# LOCK time — no second feat-base implementation lives in the preflight.
+#
+# The gate resolves the source's refinement.json from the target (the tasks/
+# directory or a tasks/T{n}/index.md file both sit under a source container whose
+# sibling is refinement.json). When no dp refinement.json is reachable (a non-DP
+# tree, or the synthesized placeholders the lock-preflight runs in a tmpdir), the
+# gate is a no-op: there is no source-level base_branch to certify there, and the
+# real source's gate already ran (or will run) against its own refinement.json.
+#
+# AC-NEG3: the gate consults NO bypass env. There is intentionally no
+# POLARIS_*_BYPASS read path; a missing feat base always fail-closes.
+
+DP_FEAT_BASE_REQUIRED_MARKER = "POLARIS_DP_FEAT_BASE_REQUIRED"
+
+
+def resolve_source_refinement_json(target: Path) -> Path | None:
+    """Locate the refinement.json for the source container that owns the target.
+
+    The breakdown / lock-preflight invocations pass either a source's tasks/
+    directory or a tasks/T{n}/index.md file; both live under a source container
+    whose direct child is refinement.json. Walk up from the target until a
+    refinement.json sibling of a tasks/ ancestor is found.
+
+    Args:
+        target: the validate-breakdown-ready target path (file or directory).
+
+    Returns:
+        The resolved refinement.json Path when found, else None.
+    """
+    start = target if target.is_dir() else target.parent
+    current = start.resolve()
+    while True:
+        candidate = current / "refinement.json"
+        if candidate.is_file():
+            return candidate
+        # Only climb while we are still inside a source's tasks/ subtree; once we
+        # pass the container boundary keep climbing one more level so the
+        # container's own refinement.json (sibling of tasks/) is reached.
+        parent = current.parent
+        if parent == current:
+            return None
+        current = parent
+
+
+def validate_dp_feat_base_required(target: Path) -> tuple[str, str] | None:
+    """Require source.base_branch=feat/{id} for a dp source entering breakdown.
+
+    Reads the resolved source refinement.json. Only dp sources are gated here:
+    jira sources carry their own (jira-only) base contract enforced at the
+    refinement-json layer, and a non-dp/non-jira tree has no source to certify.
+
+    Args:
+        target: the validate-breakdown-ready target path.
+
+    Returns:
+        (marker, message) on a contract violation (missing or non-feat
+        base_branch on a dp source), or None when the source carries the
+        required feat base, is not a dp source, or no refinement.json is
+        reachable (e.g. the lock-preflight tmpdir placeholders).
+    """
+    refinement_json = resolve_source_refinement_json(target)
+    if refinement_json is None:
+        return None
+    try:
+        data = json.loads(refinement_json.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        # A malformed refinement.json is owned by validate-refinement-json.sh;
+        # do not double-report it as a feat-base failure.
+        return None
+    source = data.get("source") if isinstance(data, dict) else None
+    if not isinstance(source, dict):
+        return None
+    if source.get("type") != "dp":
+        return None
+    source_id = str(source.get("id") or "").strip()
+    if not source_id:
+        # No source.id to derive the expected feat base; this is a schema problem
+        # owned by validate-refinement-json.sh, not a feat-base failure here.
+        return None
+    expected_base = f"feat/{source_id}"
+    base_branch = source.get("base_branch")
+    if isinstance(base_branch, str) and base_branch == expected_base:
+        return None
+    return (
+        DP_FEAT_BASE_REQUIRED_MARKER,
+        f"{refinement_json}: dp source {source_id} entering breakdown must declare "
+        f"source.base_branch='{expected_base}' (DP-337 delivery-boundary required gate); "
+        f"found {base_branch!r}. Backfill the feat-lane base before breakdown handoff.",
+    )
+
+
 # --- D4: delivery-unit shape gate (DP-274) ------------------------------------
 # A refinement-owned source that walks breakdown -> engineering -> verify-AC must
 # be a real delivery unit (delivery-unit-completion-standard.md D1): it needs at
@@ -1193,6 +1295,19 @@ if target.is_dir():
         print(f"  - {message}", file=sys.stderr)
         print(f"{marker}:{target}", file=sys.stderr)
         raise SystemExit(2)
+
+# DP-337 T2 (AC3 / AC-NEG3): delivery-boundary feat-base required gate. Runs for
+# both directory and single-file targets (the resolver finds the owning source's
+# refinement.json either way), so the dp source's feat-lane base is certified at
+# the breakdown boundary, not after derive has already produced a main-targeting
+# task.md. Like the D4 gate it is a contract violation: exit 2 + POLARIS_* marker.
+feat_base_violation = validate_dp_feat_base_required(target)
+if feat_base_violation is not None:
+    marker, message = feat_base_violation
+    print("validate-breakdown-ready.sh FAIL", file=sys.stderr)
+    print(f"  - {message}", file=sys.stderr)
+    print(f"{marker}:{target}", file=sys.stderr)
+    raise SystemExit(2)
 
 all_errors: list[str] = []
 # DP-311 T6: executability violations are tracked separately because they are

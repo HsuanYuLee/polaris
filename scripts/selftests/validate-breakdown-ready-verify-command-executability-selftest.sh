@@ -105,6 +105,7 @@ cat >"$refinement_json" <<'JSON'
     "id": "DP-999",
     "container": "/tmp/dp-999",
     "plan_path": "/tmp/dp-999/index.md",
+    "base_branch": "feat/DP-999",
     "jira_key": null
   },
   "schema_version": 1,

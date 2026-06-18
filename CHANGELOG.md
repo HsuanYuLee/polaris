@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.19] - 2026-06-18
+
+### Changed
+
+- a1d43b0: base_branch 畢業為 universal 欄位 + dp feat/{id} format gate
+- cd47bc6: delivery-boundary required gate：dp source 進 breakdown 須有 feat/{id}
+
 ## [3.76.18] - 2026-06-18
 
 ### Changed
