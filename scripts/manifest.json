@@ -1323,6 +1323,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/gates/gate-runtime-instruction-manifest.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "scripts/selftests/gate-runtime-instruction-manifest-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/gates/gate-template-leaks.sh",
       "kind": "gate",
       "runner": "bash",
@@ -3317,6 +3326,16 @@
     },
     {
       "path": "scripts/selftests/post-memory-index-regenerate-hook-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/post-runtime-instruction-manifest-regenerate-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
@@ -6056,6 +6075,25 @@
       ],
       "fixtures": [
         "clean workspace exits 0; planted ACME-9999 leak exits non-zero with BLOCKED marker"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "gate-runtime-instruction-manifest",
+      "command": "bash scripts/selftests/gate-runtime-instruction-manifest-selftest.sh",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/gates/gate-runtime-instruction-manifest.sh",
+        ".claude/hooks/pre-push-quality-gate.sh",
+        "scripts/install-copilot-hooks.sh",
+        "scripts/selftests/gate-runtime-instruction-manifest-selftest.sh"
+      ],
+      "fixtures": [
+        "fresh manifest exits 0; stale source / missing manifest target exits non-zero with compile-runtime-instructions.sh repair hint; POLARIS_*_BYPASS env does not silence; portable git hook + Claude pre-push adapter both wire the gate before the main/develop branch early-exit"
       ],
       "enrolled": true,
       "owner": "polaris-framework"

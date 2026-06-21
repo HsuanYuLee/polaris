@@ -138,6 +138,15 @@ if [[ -n "$push_refs" && -f "$BRANCH_ASCII_VALIDATOR" ]]; then
   done <<<"$push_refs"
 fi
 
+# Gate: runtime-instruction manifest freshness (DP-320 D1 / AC2 / R1). The
+# portable git hook deliberately does NOT branch-filter this check: a stale
+# manifest pushed directly to main/develop must still be blocked (EC2). The gate
+# is verdict-equivalent to compile-runtime-instructions.sh --check, so a fresh
+# manifest passes on any branch and product repos without the compiler no-op.
+if [[ -x "$GATES_DIR/gate-runtime-instruction-manifest.sh" ]]; then
+  bash "$GATES_DIR/gate-runtime-instruction-manifest.sh" --repo "$REPO_ROOT"
+fi
+
 # Gate: ci-local (push-mode: only task/fix branches)
 if [[ -x "$GATES_DIR/gate-ci-local.sh" ]]; then
   bash "$GATES_DIR/gate-ci-local.sh" --repo "$REPO_ROOT" --push-mode

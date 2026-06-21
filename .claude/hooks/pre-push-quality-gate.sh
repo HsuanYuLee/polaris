@@ -62,6 +62,15 @@ if printf '%s' "$command" | grep -qE -- '--delete|--tags'; then
   exit 0
 fi
 
+# Gate: runtime-instruction manifest freshness (DP-320 D1 / AC2 / EC2). This MUST
+# run before the main/master/develop branch early-exit below: a stale manifest
+# pushed directly to main would otherwise escape the legacy branch filter. The
+# gate is fail-closed and verdict-equivalent to compile-runtime-instructions.sh
+# --check, so it never blocks a fresh-manifest push regardless of target branch.
+if [[ -x "$GATES_DIR/gate-runtime-instruction-manifest.sh" ]]; then
+  bash "$GATES_DIR/gate-runtime-instruction-manifest.sh" --repo "$repo_root"
+fi
+
 branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 case "$branch" in
   ""|HEAD|main|master|develop) exit 0 ;;

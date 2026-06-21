@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.22] - 2026-06-22
+
+### Changed
+
+- 99b27c2: portable manifest-freshness gate + push-time 雙路接入 + reconcile
+- 2765daf: 新增 PostToolUse auto-regen hook 與 settings wiring，並補 registry annotation
+
 ## [3.76.21] - 2026-06-22
 
 ### Added

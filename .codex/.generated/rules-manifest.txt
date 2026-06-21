@@ -35,7 +35,7 @@ c7be87783a1d96dc8cfa3549c41f84bb50df79dc24b7a678df3a6c602ecc6968  .claude/rules/
 f9218de968b596dc73ded5b7dee202bbeebcf806aa713c12de1064da742a7af2  .claude/rules/framework-iteration.md
 4e4b28748a9c48c2b01d3c5e02beea41c51b8e7d73f27d80c288f49707005456  .claude/rules/jira-quality.md
 2b26e8fe7fe5c74135c96e97b439fe42cc3042556ed02f20682aee979e058fe9  .claude/rules/library-change-protocol.md
-6307af7c16d4d21ba1f7a879a230ad5c4bb8f62cce95f72ab047b16313ff468d  .claude/rules/mechanism-registry.md
+7ccb4dcdc6a6bbd524b2653f2d8f2ec692538ff88ff93d4eb364f675b0281a57  .claude/rules/mechanism-registry.md
 56883c7e9cea1b1199069b1ed03469db89b32b7725a38f401dd81eea8b816c8c  .claude/rules/multi-company-isolation.md
 4a010d01c2d1968a136adc0f12e059929ffd1c3a850dcabc7d2d406972f094da  .claude/rules/pr-and-review.md
 000654f7adf327f0ed89a18a73ac0d55670330dc33d8082bdc826618a3feab50  .claude/rules/skill-routing.md
