@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.23] - 2026-06-22
+
+### Changed
+
+- 622396b: 為 stop hook 加入 per-session block 確認狀態與 baseline 新鮮度視窗過濾
+- 589937f: release-cleanup-sweep baseline 與 stop-gate state retention sweep
+
 ## [3.76.22] - 2026-06-22
 
 ### Changed

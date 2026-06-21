@@ -345,6 +345,110 @@ _assert_contains "$UNAUTH_OUT" "POLARIS_TOOL_AUTH_FAILED" "AC7: gh unauth fail-s
 _assert_eq "$([[ "$D_EXIT" -ne 0 ]] && echo nonzero || echo zero)" "nonzero" \
   "AC7: gh unauth yields non-zero exit"
 
+# ===========================================================================
+# Case E — DP-314 AC3: runtime state retention sweep. The sweep removes
+# skill-workflow-boundary baseline files and stop-gate block-state files older
+# than the retention window, while preserving:
+#   - files inside the window (not expired),
+#   - non-.json files in the same directories (adversarial: glob must not
+#     delete arbitrary files),
+#   - and never failing on a missing/empty runtime dir (fail-open enumerate).
+# The sweep is dry-run by default (reports only) and only deletes under --apply.
+# Runtime retention applies even when there are no released DPs to clean.
+# ===========================================================================
+WS_E="$TMPROOT/ws-e"
+mkdir -p "$WS_E"
+git -C "$WS_E" init --quiet
+git -C "$WS_E" config user.email selftest@example.com
+git -C "$WS_E" config user.name selftest
+git -C "$WS_E" config commit.gpgsign false
+mkdir -p "$WS_E/docs-manager/src/content/docs/specs/design-plans/archive"
+git -C "$WS_E" add -A
+git -C "$WS_E" commit --quiet --allow-empty -m "seed empty specs"
+
+RUNTIME_E="$WS_E/.polaris/runtime"
+BOUNDARY_DIR_E="$RUNTIME_E/skill-workflow-boundary"
+STOPGATE_DIR_E="$RUNTIME_E/stop-gate"
+mkdir -p "$BOUNDARY_DIR_E" "$STOPGATE_DIR_E"
+
+# Expired (older than 30d retention default): 40 days old.
+EXPIRED_TS="$(date -v-40d +%Y%m%d%H%M 2>/dev/null || date -d '40 days ago' +%Y%m%d%H%M)"
+# Fresh (inside the window): 1 day old.
+FRESH_TS="$(date -v-1d +%Y%m%d%H%M 2>/dev/null || date -d '1 day ago' +%Y%m%d%H%M)"
+
+printf '{"skill":"refinement"}\n' >"$BOUNDARY_DIR_E/refinement-expired.json"
+printf '{"skill":"breakdown"}\n' >"$BOUNDARY_DIR_E/breakdown-fresh.json"
+printf '{"session_id":"sess-old"}\n' >"$STOPGATE_DIR_E/sess-old.json"
+printf '{"session_id":"sess-new"}\n' >"$STOPGATE_DIR_E/sess-new.json"
+# Adversarial: a non-.json file in the boundary dir, expired by mtime, must
+# survive (the sweep must only target *.json state files).
+printf 'not a state file\n' >"$BOUNDARY_DIR_E/README.txt"
+
+touch -t "$EXPIRED_TS" "$BOUNDARY_DIR_E/refinement-expired.json"
+touch -t "$FRESH_TS" "$BOUNDARY_DIR_E/breakdown-fresh.json"
+touch -t "$EXPIRED_TS" "$STOPGATE_DIR_E/sess-old.json"
+touch -t "$FRESH_TS" "$STOPGATE_DIR_E/sess-new.json"
+touch -t "$EXPIRED_TS" "$BOUNDARY_DIR_E/README.txt"
+
+# --- Dry-run: plans the two expired deletions, mutates nothing. ---
+DRY_E="$(bash "$SWEEP" --workspace "$WS_E" --dry-run --json 2>&1)" || true
+_assert_contains "$DRY_E" "refinement-expired.json" "AC3: dry-run plans expired baseline removal"
+_assert_contains "$DRY_E" "sess-old.json" "AC3: dry-run plans expired stop-gate state removal"
+_assert_not_contains "$DRY_E" "breakdown-fresh.json" "AC3: dry-run does not plan fresh baseline"
+_assert_not_contains "$DRY_E" "sess-new.json" "AC3: dry-run does not plan fresh stop-gate state"
+_assert_eq "$([[ -f "$BOUNDARY_DIR_E/refinement-expired.json" ]] && echo present || echo gone)" "present" \
+  "AC3: dry-run does not delete expired baseline"
+_assert_eq "$([[ -f "$STOPGATE_DIR_E/sess-old.json" ]] && echo present || echo gone)" "present" \
+  "AC3: dry-run does not delete expired stop-gate state"
+
+# --- Apply: removes only the expired .json state files. ---
+bash "$SWEEP" --workspace "$WS_E" --apply --json >/dev/null 2>&1 || true
+_assert_eq "$([[ -f "$BOUNDARY_DIR_E/refinement-expired.json" ]] && echo present || echo gone)" "gone" \
+  "AC3: apply removes expired baseline"
+_assert_eq "$([[ -f "$STOPGATE_DIR_E/sess-old.json" ]] && echo present || echo gone)" "gone" \
+  "AC3: apply removes expired stop-gate state"
+_assert_eq "$([[ -f "$BOUNDARY_DIR_E/breakdown-fresh.json" ]] && echo present || echo gone)" "present" \
+  "AC3: apply preserves fresh baseline (inside window)"
+_assert_eq "$([[ -f "$STOPGATE_DIR_E/sess-new.json" ]] && echo present || echo gone)" "present" \
+  "AC3: apply preserves fresh stop-gate state (inside window)"
+_assert_eq "$([[ -f "$BOUNDARY_DIR_E/README.txt" ]] && echo present || echo gone)" "present" \
+  "AC3 (adversarial): apply never deletes a non-.json file even when expired"
+
+# --- Idempotent re-apply: nothing left to remove. ---
+APPLY_E2="$(bash "$SWEEP" --workspace "$WS_E" --apply --json 2>&1)" || true
+_assert_not_contains "$APPLY_E2" "refinement-expired.json" "AC3: re-apply has nothing to remove (idempotent)"
+_assert_not_contains "$APPLY_E2" "sess-old.json" "AC3: re-apply has nothing to remove (idempotent, stop-gate)"
+
+# --- Retention window override via env: a 0-day window expires everything. ---
+WS_F="$TMPROOT/ws-f"
+mkdir -p "$WS_F/docs-manager/src/content/docs/specs/design-plans/archive"
+git -C "$WS_F" init --quiet
+git -C "$WS_F" config user.email selftest@example.com
+git -C "$WS_F" config user.name selftest
+git -C "$WS_F" config commit.gpgsign false
+git -C "$WS_F" add -A
+git -C "$WS_F" commit --quiet --allow-empty -m "seed empty specs"
+BOUNDARY_DIR_F="$WS_F/.polaris/runtime/skill-workflow-boundary"
+mkdir -p "$BOUNDARY_DIR_F"
+printf '{"skill":"engineering"}\n' >"$BOUNDARY_DIR_F/engineering-today.json"
+POLARIS_RUNTIME_STATE_RETENTION_DAYS=0 \
+  bash "$SWEEP" --workspace "$WS_F" --apply --json >/dev/null 2>&1 || true
+_assert_eq "$([[ -f "$BOUNDARY_DIR_F/engineering-today.json" ]] && echo present || echo gone)" "gone" \
+  "AC3: POLARIS_RUNTIME_STATE_RETENTION_DAYS=0 expires even a today baseline"
+
+# --- Missing runtime dir: sweep must not error (fail-open enumerate). ---
+WS_G="$TMPROOT/ws-g"
+mkdir -p "$WS_G/docs-manager/src/content/docs/specs/design-plans/archive"
+git -C "$WS_G" init --quiet
+git -C "$WS_G" config user.email selftest@example.com
+git -C "$WS_G" config user.name selftest
+git -C "$WS_G" config commit.gpgsign false
+git -C "$WS_G" add -A
+git -C "$WS_G" commit --quiet --allow-empty -m "seed empty specs"
+bash "$SWEEP" --workspace "$WS_G" --apply --json >/dev/null 2>&1 && G_EXIT=0 || G_EXIT=$?
+_assert_eq "$([[ "$G_EXIT" -eq 0 ]] && echo zero || echo nonzero)" "zero" \
+  "AC3: sweep with no runtime dir exits 0 (fail-open enumerate)"
+
 # ---------------------------------------------------------------------------
 printf '\n=== release-cleanup-sweep selftest: %d passed, %d failed (of %d) ===\n' \
   "$PASS" "$FAIL" "$TOTAL"

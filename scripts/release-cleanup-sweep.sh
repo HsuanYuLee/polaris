@@ -18,22 +18,35 @@
 #          framework-release-closeout.sh (branch delete, gh pr close, gh
 #          fail-stop) rather than inventing a parallel close lane.
 #
+# DP-314 D3: the same sweep also retires aged Polaris runtime STATE files —
+#          skill-workflow-boundary baselines and stop-gate per-session
+#          block-state — so the runtime dir does not accumulate forever (which
+#          would keep the stop gate's "any baseline = parked work" signal
+#          permanently true). State files whose mtime is older than the
+#          retention window (default 30 days) are removed; newer files and any
+#          non-.json file are preserved. This runtime retention runs regardless
+#          of whether any released DPs were found.
+#
 # Inputs:  [--workspace <path>]   workspace root (default: resolved specs root)
 #          [--dry-run]            (DEFAULT) report planned actions; mutate nothing
 #          [--apply]              execute destructive actions (close PR / delete
-#                                 remote branch / remove clean worktree)
+#                                 remote branch / remove clean worktree / remove
+#                                 aged runtime state file)
 #          [--json]               also emit a machine-readable JSON report
 #          env RELEASE_CLEANUP_SWEEP_GH_BIN  gh binary (default gh). Required for
 #                                 the PR path under --apply; missing/unauth =>
 #                                 fail-stop with POLARIS_TOOL_MISSING /
 #                                 POLARIS_TOOL_AUTH_FAILED (AC7).
+#          env POLARIS_RUNTIME_STATE_RETENTION_DAYS  retention window in days for
+#                                 runtime state files (DP-314 D3; default 30).
+#          env POLARIS_RUNTIME_DIR  runtime dir (default <workspace>/.polaris/runtime).
 # Outputs: stdout — human summary (and JSON when --json). exit 0 on a successful
 #          sweep; exit 1 on usage / environment failure; exit 2 on a fail-stop
 #          contract violation (gh missing/unauth on the destructive path).
 # Side effects: with --apply — gh pr close --delete-branch, gh pr comment,
-#          git push origin --delete, git worktree remove. Dirty worktrees and
-#          active (not-yet-released, e.g. LOCKED) DPs are NEVER touched
-#          (AC-NEG1).
+#          git push origin --delete, git worktree remove, rm aged runtime state
+#          files. Dirty worktrees and active (not-yet-released, e.g. LOCKED) DPs
+#          are NEVER touched (AC-NEG1); non-.json runtime files are never removed.
 
 set -euo pipefail
 
@@ -42,6 +55,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/lib/specs-root.sh"
 
 GH_BIN="${RELEASE_CLEANUP_SWEEP_GH_BIN:-gh}"
+
+# DP-314 D3: runtime state retention window (days). Files in the runtime state
+# dirs older than this are swept. Default 30; env override for review tuning.
+RUNTIME_STATE_RETENTION_DAYS="${POLARIS_RUNTIME_STATE_RETENTION_DAYS:-30}"
 
 WORKSPACE_ROOT=""
 APPLY=0
@@ -300,6 +317,47 @@ resolve_dp_dir() {
   printf '%s\n' "$d"
 }
 
+# DP-314 D3: retire aged runtime STATE files. Sweeps the skill-workflow-boundary
+# baseline dir and the stop-gate block-state dir, removing only *.json files
+# whose mtime is older than the retention window. Newer files and any non-.json
+# file are preserved (adversarial: the glob must not delete arbitrary files).
+# Missing dirs are a no-op (fail-open enumerate) so an empty runtime never errors.
+# Increments STATE_ACTIONS_PLANNED for each planned/applied removal.
+STATE_ACTIONS_PLANNED=0
+
+sweep_runtime_state() {
+  local runtime_dir="${POLARIS_RUNTIME_DIR:-$WORKSPACE_ROOT/.polaris/runtime}"
+  # Cutoff epoch: files with mtime strictly older than this are expired.
+  local now cutoff
+  now="$(date +%s)"
+  cutoff=$((now - RUNTIME_STATE_RETENTION_DAYS * 86400))
+
+  local state_dir label f mtime
+  for state_dir in \
+    "$runtime_dir/skill-workflow-boundary" \
+    "$runtime_dir/stop-gate"; do
+    label="$(basename "$state_dir")"
+    [[ -d "$state_dir" ]] || continue
+    for f in "$state_dir"/*.json; do
+      # Only target *.json state files; the literal glob (no match) is skipped.
+      [[ -e "$f" ]] || continue
+      mtime="$(date -r "$f" +%s 2>/dev/null || echo 0)"
+      # Age (now - mtime) >= retention window => expired, i.e. mtime <= cutoff.
+      # Files newer than the window are preserved. Using <= (not <) makes a
+      # 0-day window retire today's files despite whole-second mtime resolution.
+      [[ "$mtime" -le "$cutoff" ]] || continue
+      STATE_ACTIONS_PLANNED=$((STATE_ACTIONS_PLANNED + 1))
+      if [[ "$APPLY" -eq 1 ]]; then
+        rm -f "$f" \
+          || emit "  WARN: failed to remove runtime state file $f"
+        emit "  [apply] removed aged ${label} state: $(basename "$f")"
+      else
+        emit "  [dry-run] would remove aged ${label} state: $(basename "$f")"
+      fi
+    done
+  done
+}
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -309,24 +367,27 @@ emit "release-cleanup-sweep (${MODE_LABEL}) — workspace: $WORKSPACE_ROOT"
 emit "released DPs: ${#RELEASED_DP_IDS[@]}"
 
 if [[ "${#RELEASED_DP_IDS[@]}" -eq 0 ]]; then
-  emit "no released DPs found; 0 actions"
-  [[ "$EMIT_JSON" -eq 1 ]] && printf '{"mode":"%s","released_dps":0,"actions":0}\n' "$MODE_LABEL"
-  exit 0
+  emit "no released DPs found"
+else
+  for dp_id in "${RELEASED_DP_IDS[@]}"; do
+    dp_dir="$(resolve_dp_dir "$dp_id")"
+    emit "$dp_id:"
+    sweep_orphan_prs_for_dp "$dp_id" "$dp_dir"
+    sweep_remote_branches_for_dp "$dp_id"
+    sweep_clean_worktrees_for_dp "$dp_id"
+  done
 fi
 
-for dp_id in "${RELEASED_DP_IDS[@]}"; do
-  dp_dir="$(resolve_dp_dir "$dp_id")"
-  emit "$dp_id:"
-  sweep_orphan_prs_for_dp "$dp_id" "$dp_dir"
-  sweep_remote_branches_for_dp "$dp_id"
-  sweep_clean_worktrees_for_dp "$dp_id"
-done
+# DP-314 D3: runtime state retention runs regardless of released-DP count.
+emit "runtime state retention (window: ${RUNTIME_STATE_RETENTION_DAYS}d):"
+sweep_runtime_state
 
-emit "${ACTIONS_PLANNED} action(s) ${MODE_LABEL}"
+TOTAL_ACTIONS=$((ACTIONS_PLANNED + STATE_ACTIONS_PLANNED))
+emit "${TOTAL_ACTIONS} action(s) ${MODE_LABEL} (${ACTIONS_PLANNED} release, ${STATE_ACTIONS_PLANNED} runtime-state)"
 
 if [[ "$EMIT_JSON" -eq 1 ]]; then
-  printf '{"mode":"%s","released_dps":%d,"actions":%d}\n' \
-    "$MODE_LABEL" "${#RELEASED_DP_IDS[@]}" "$ACTIONS_PLANNED"
+  printf '{"mode":"%s","released_dps":%d,"actions":%d,"release_actions":%d,"runtime_state_actions":%d}\n' \
+    "$MODE_LABEL" "${#RELEASED_DP_IDS[@]}" "$TOTAL_ACTIONS" "$ACTIONS_PLANNED" "$STATE_ACTIONS_PLANNED"
 fi
 
 exit 0
