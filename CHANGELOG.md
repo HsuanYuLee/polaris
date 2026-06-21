@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.76.24] - 2026-06-22
+
+### Changed
+
+- 83553e8: review-inbox-discovery-flow.md — newest-first 指引 + oldest/escaped-JSON pitfall + normalize 步驟說明
+- 677600d: check-my-review-status.sh review 效力判定修正 + selftest
+- da524cc: Slack MCP detailed escaped-JSON 確定性 normalize（共用 decoder）+ selftest
+
 ## [3.76.23] - 2026-06-22
 
 ### Changed

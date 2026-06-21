@@ -127,8 +127,10 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
   reviews=$(gh api "repos/$ORG/$repo/pulls/$number/reviews" \
     --jq "[.[] | {user: .user.login, state: .state, submitted_at: .submitted_at, commit_id: .commit_id}]" 2>/dev/null || echo "[]")
 
-  # 找出自己的最新 review
-  my_latest=$(echo "$reviews" | jq "[.[] | select(.user == \"$MY_USER\")] | sort_by(.submitted_at) | last // empty")
+  # 我所有 review，依 submit 時間排序（最舊→最新），供「最新且最高效力」判定使用
+  my_reviews=$(echo "$reviews" | jq "[.[] | select(.user == \"$MY_USER\")] | sort_by(.submitted_at)")
+  # 找出自己的最新 review（仍以時間為準，作為 CHANGES_REQUESTED / fallback 分類基礎）
+  my_latest=$(echo "$my_reviews" | jq 'last // empty')
 
   if [ -z "$my_latest" ] || [ "$my_latest" = "null" ]; then
     # 從未 review
@@ -152,7 +154,24 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
       pushed_since_review=true
     fi
 
-    if [ "$pushed_since_review" = "false" ] \
+    # Gap 2（DP-312 / D2 / EC4）：以「最新且最高效力 review 是否為 valid APPROVED at head」為準。
+    # 效力序 APPROVED / CHANGES_REQUESTED > COMMENTED：interleaved COMMENTED 不得把一個已
+    # valid-approve（某筆 APPROVED 的 commit_id == head、之後無新 push）的 PR 翻成 needs_re_review。
+    #   valid_approve_at_head ⟺ 我有一筆 APPROVED 其 commit_id == head_sha，
+    #     且該 APPROVED 之後沒有更晚（submitted_at 較大）的 CHANGES_REQUESTED 覆蓋它。
+    # 較晚的 COMMENTED（即使 commit_id stale）不影響此判定；較晚的 CHANGES_REQUESTED 才會覆蓋。
+    valid_approve_at_head=$(echo "$my_reviews" | jq -r --arg head "$head_sha" '
+      ([.[] | select(.state == "APPROVED" and .commit_id == $head)] | last) as $appr
+      | if ($appr == null) then "false"
+        else
+          ([.[] | select(.state == "CHANGES_REQUESTED" and .submitted_at > $appr.submitted_at)] | length) as $cr_after
+          | if $cr_after > 0 then "false" else "true" end
+        end')
+
+    if [ "$valid_approve_at_head" = "true" ]; then
+      status="valid_approve"
+      detail="✓ approve 有效（最高效力 review 為 head 上的 APPROVED；忽略 interleaved COMMENTED）"
+    elif [ "$pushed_since_review" = "false" ] \
       && [[ "$my_state" =~ ^(COMMENTED|CHANGES_REQUESTED|APPROVED)$ ]]; then
       status="waiting_for_author"
       detail="⏳ prior_review_no_new_push（我已 review，head SHA 未變）"

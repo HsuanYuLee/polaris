@@ -92,6 +92,22 @@ case "$endpoint" in
   */pulls/8/reviews) payload='[{"user":{"login":"reviewer"},"state":"APPROVED","submitted_at":"2026-05-06T10:00:00Z","commit_id":null}]' ;;
   */pulls/8/commits) payload='[{"sha":"sha8","commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
   */pulls/8/comments|*/issues/8/comments) payload='[]' ;;
+
+  # PR 9 — #12475-like（AC2 / EC4）：先 APPROVED at head（commit_id == head.sha），
+  # 之後夾一筆「較晚」的 COMMENTED 且其 commit_id 為 stale（不是 head）。沒有新 push。
+  # 最新 review 雖是 COMMENTED，但最高效力 review 是 head 上的 valid APPROVED ⇒ 非 actionable。
+  # 若只看「最新 review」會誤把它翻成 needs_re_review（Gap 2 的回歸）。
+  */pulls/9/reviews) payload='[{"user":{"login":"reviewer"},"state":"APPROVED","submitted_at":"2026-05-06T10:00:00Z","commit_id":"sha9"},{"user":{"login":"reviewer"},"state":"COMMENTED","submitted_at":"2026-05-06T12:00:00Z","commit_id":"sha9-old"}]' ;;
+  */pulls/9/commits) payload='[{"sha":"sha9","commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
+  */pulls/9/comments|*/issues/9/comments) payload='[]' ;;
+
+  # PR 10 — over-broaden 守門（AC-NEG1）：APPROVED 但 commit_id 為 stale（不是 head），
+  # 之後夾一筆較晚的 COMMENTED。head 已移動（有新 push）。沒有任何 APPROVED at head ⇒
+  # valid_approve_at_head=false，最新 COMMENTED + pushed ⇒ 仍正確列入 needs_re_review。
+  # 確保 Gap 2 修正沒有把「stale APPROVED + interleaved COMMENTED」誤放成 valid。
+  */pulls/10/reviews) payload='[{"user":{"login":"reviewer"},"state":"APPROVED","submitted_at":"2026-05-06T10:00:00Z","commit_id":"sha10-old"},{"user":{"login":"reviewer"},"state":"COMMENTED","submitted_at":"2026-05-06T12:00:00Z","commit_id":"sha10-old"}]' ;;
+  */pulls/10/commits) payload='[{"sha":"sha10-new","commit":{"committer":{"date":"2026-05-06T11:00:00Z"}}}]' ;;
+  */pulls/10/comments|*/issues/10/comments) payload='[]' ;;
 esac
 
 if [[ -n "$jq_filter" ]]; then
@@ -112,13 +128,17 @@ cat > "$candidates" <<'JSON'
   {"repo":"demo","number":5,"title":"changes replied with push","url":"https://github.com/acme/demo/pull/5","author":"erin","created_at":"2026-05-06T08:00:00Z"},
   {"repo":"demo","number":6,"title":"multiple reviews latest approved no push","url":"https://github.com/acme/demo/pull/6","author":"frank","created_at":"2026-05-06T08:00:00Z"},
   {"repo":"demo","number":7,"title":"approve at head later unrelated commit","url":"https://github.com/acme/demo/pull/7","author":"grace","created_at":"2026-05-06T08:00:00Z"},
-  {"repo":"demo","number":8,"title":"approved null commit_id","url":"https://github.com/acme/demo/pull/8","author":"heidi","created_at":"2026-05-06T08:00:00Z"}
+  {"repo":"demo","number":8,"title":"approved null commit_id","url":"https://github.com/acme/demo/pull/8","author":"heidi","created_at":"2026-05-06T08:00:00Z"},
+  {"repo":"demo","number":9,"title":"approved at head plus interleaved commented","url":"https://github.com/acme/demo/pull/9","author":"ivan","created_at":"2026-05-06T08:00:00Z"},
+  {"repo":"demo","number":10,"title":"stale approve plus interleaved commented with push","url":"https://github.com/acme/demo/pull/10","author":"judy","created_at":"2026-05-06T08:00:00Z"}
 ]
 JSON
 
 # 回歸斷言（既有 schema 不變）：actionable 集合與各 status 必須對齊 DP-315 前
 # selftest 對 PR 1/4/5 的斷言，再加上 commit_id 基準的 PR 7（valid → 排除）
-# 與 PR 8（null → needs_re_approve）。
+# 與 PR 8（null → needs_re_approve）。DP-312 Gap 2 再加：PR 9（#12475-like，valid
+# APPROVED at head + interleaved COMMENTED → 排除，AC2/EC4）與 PR 10（stale APPROVED +
+# interleaved COMMENTED + push → 仍 needs_re_review，AC-NEG1 over-broaden 守門）。
 assert_actionable() {
   local out="$1"
   python3 - "$out" <<'PY'
@@ -129,7 +149,8 @@ from pathlib import Path
 
 items = json.loads(Path(sys.argv[1]).read_text())  # 讀取 actionable 輸出
 by_number = {item["number"]: item for item in items}
-if sorted(by_number) != [1, 4, 5, 8]:  # PR 7 排除、PR 8 必須出現
+# PR 7、PR 9 排除（valid approve at head）；PR 8、PR 10 必須出現
+if sorted(by_number) != [1, 4, 5, 8, 10]:
     raise SystemExit(f"unexpected actionable PRs: {sorted(by_number)}")
 if by_number[1]["review_status"] != "needs_first_review":
     raise SystemExit("PR 1 should need first review")
@@ -139,6 +160,12 @@ if by_number[5]["review_status"] != "needs_re_review":
     raise SystemExit("PR 5 should need re-review")
 if by_number[8]["review_status"] != "needs_re_approve":
     raise SystemExit("PR 8 (null commit_id) should fail-closed to needs_re_approve")
+if 9 in by_number:
+    raise SystemExit("PR 9 (#12475-like valid APPROVED at head + interleaved COMMENTED) "
+                     "must not be actionable")
+if by_number[10]["review_status"] != "needs_re_review":
+    raise SystemExit("PR 10 (stale APPROVED + interleaved COMMENTED + push) should still "
+                     "need re-review (not falsely marked valid)")
 PY
 }
 

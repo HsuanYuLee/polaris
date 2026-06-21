@@ -74,7 +74,70 @@ def parse_args():
                         help="Output path for PR URL → thread_ts mapping")
     parser.add_argument("--thread-ts", default=None,
                         help="Thread mode: skip per-message parsing, map all URLs to this thread_ts")
+    parser.add_argument("--emit-normalized", action="store_true",
+                        help="Decode single-line escaped-JSON detailed dump to canonical "
+                             "real-newline text and write it to stdout; the same canonical "
+                             "text can then feed both this parser and the discovery probe.")
     return parser.parse_args()
+
+
+# Detailed-dump markers that the channel-mode parser and the discovery probe both key off.
+# Detecting either marker confirms the decoded payload is a Slack MCP "detailed" dump.
+DETAILED_DUMP_MARKERS = ("=== Message from ", "Message TS: ")
+
+
+def _looks_like_detailed_dump(text):
+    """Return True when text carries a Slack MCP detailed-dump marker."""
+    return any(marker in text for marker in DETAILED_DUMP_MARKERS)
+
+
+def normalize_detailed_dump(raw):
+    """Decode a single-line escaped-JSON detailed dump to canonical real-newline text.
+
+    The Slack MCP "detailed" channel output can arrive as a single-line escaped-JSON
+    payload (real newlines collapsed into literal `\\n`), either as a bare JSON string
+    or wrapped in `{"messages": "<escaped dump>"}`. This is the single shared decoder:
+    its canonical real-newline output is consumed identically by this parser's channel
+    mode and by review-inbox-discovery-probe.sh, so the two never drift on the same
+    input (DP-312-T3, AC3).
+
+    Inputs that are not escaped-JSON detailed dumps pass through unchanged (AC-NEG2):
+    an already real-newline detailed dump, plain text, or a genuinely empty / failed
+    fetch are returned as-is so a real source-unavailable state is never masked.
+
+    Args:
+        raw: Raw stdin text (escaped-JSON single line, real-newline dump, or empty).
+
+    Returns:
+        Canonical real-newline detailed-dump text when raw was escaped-JSON; otherwise
+        raw unchanged.
+    """
+    stripped = raw.strip()
+    if not stripped:
+        return raw
+
+    # Only single-physical-line input is a normalize candidate; a real-newline dump
+    # already has its newlines and must pass through untouched.
+    if "\n" in stripped:
+        return raw
+
+    try:
+        data = json.loads(stripped)
+    except json.JSONDecodeError:
+        return raw
+
+    if isinstance(data, str):
+        decoded = data
+    elif isinstance(data, dict) and isinstance(data.get("messages"), str):
+        decoded = data["messages"]
+    else:
+        return raw
+
+    # Only treat it as a decoded detailed dump when the markers are present; otherwise
+    # leave the original raw for the existing webapi / thread code paths to handle.
+    if _looks_like_detailed_dump(decoded):
+        return decoded
+    return raw
 
 
 def root_ticket_key_for_text(text):
@@ -282,6 +345,16 @@ def main():
     args = parse_args()
 
     raw = sys.stdin.read()
+
+    # Single shared decoder: collapse a single-line escaped-JSON detailed dump into
+    # canonical real-newline text up front (DP-312-T3). Both this parser and the
+    # discovery probe then see the same canonical input; non-escaped input is unchanged.
+    raw = normalize_detailed_dump(raw)
+
+    if args.emit_normalized:
+        sys.stdout.write(raw)
+        return
+
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:

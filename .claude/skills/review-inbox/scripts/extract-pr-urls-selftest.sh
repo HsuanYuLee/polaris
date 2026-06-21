@@ -165,4 +165,147 @@ assert len(warn_lines) == 1, f"expected 1 WARN line, got {warn_lines!r}"
 assert "BadAuthor" in warn_lines[0], warn_lines[0]
 PY
 
+# --- Gap 3 shared decoder (DP-312-T3, AC3 / AC-NEG2) -----------------------------------
+# The Slack MCP "detailed" channel dump can arrive as a single-line escaped-JSON string
+# (real newlines collapsed into literal `\n`). A single canonical decoder
+# (`extract-pr-urls.py --emit-normalized`) normalizes that input to a real-newline
+# detailed dump so BOTH consumers see the same input:
+#   - extract-pr-urls.py (channel mode) parses PR URLs from the normalized text
+#   - review-inbox-discovery-probe.sh keys off `=== Message from` / `Message TS:` lines
+# Three-state contract:
+#   C) escaped-JSON single line  -> decode correctly, both consumers parse
+#   D) real-newline detailed dump -> passthrough unchanged (no double-decode / breakage)
+#   E) empty input               -> stays empty; probe still reports SOURCE_UNAVAILABLE
+probe="$(cd "$script_dir/../../../.." && pwd)/scripts/review-inbox-discovery-probe.sh"
+[[ -r "$probe" ]] || { echo "FAIL: probe not found at $probe" >&2; exit 1; }
+
+# Canonical real-newline detailed dump used to build the escaped-JSON fixture. Use a
+# fresh Message TS so the probe's default 24h staleness window does not trip.
+now_epoch="$(date +%s)"
+fresh_ts="${now_epoch}.000000"
+
+canonical_dump="$tmp/canonical-detailed.txt"
+cat > "$canonical_dump" <<TEXT
+Channel: #product-pr (C012EXAMPLE)
+
+=== Message from Reviewer (U123456789) at 2026-06-01 10:00:00 CST ===
+Message TS: ${fresh_ts}
+[APP-5000] please review
+<https://github.com/example-org/example-web/pull/5000>
+TEXT
+
+# --- Fixture C: escaped-JSON single line (AC3) -----------------------------------------
+# Build a single-line escaped-JSON payload: {"messages": "<escaped detailed dump>"}.
+raw_c="$tmp/slack-fixture-c.json"
+python3 - "$canonical_dump" "$raw_c" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+dump = Path(sys.argv[1]).read_text()
+# One physical line, real newlines escaped to literal \n inside the JSON string.
+Path(sys.argv[2]).write_text(json.dumps({"messages": dump}))
+PY
+
+# Guard: the fixture must genuinely be a single physical line of escaped JSON.
+line_count_c="$(wc -l < "$raw_c" | tr -d '[:space:]')"
+[[ "$line_count_c" -eq 0 || "$line_count_c" -eq 1 ]] || {
+  echo "FAIL: fixture C should be a single-line escaped-JSON payload (lines=$line_count_c)" >&2
+  exit 1
+}
+
+normalized_c="$tmp/normalized-c.txt"
+"$extractor" --org example-org --emit-normalized < "$raw_c" > "$normalized_c"
+
+# Both consumers see the SAME normalized canonical dump.
+urls_c="$tmp/urls-c.txt"
+mapping_c="$tmp/mapping-c.json"
+"$extractor" --org example-org --mapping "$mapping_c" < "$normalized_c" > "$urls_c"
+
+python3 - "$normalized_c" "$urls_c" "$mapping_c" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+normalized = Path(sys.argv[1]).read_text()
+urls = [line for line in Path(sys.argv[2]).read_text().splitlines() if line]
+mapping = json.loads(Path(sys.argv[3]).read_text())
+
+# Decoded to a real-newline detailed dump that carries the detailed markers.
+assert "=== Message from" in normalized, normalized
+assert "Message TS:" in normalized, normalized
+assert "\\n" not in normalized, "normalized output must not contain literal \\n escapes"
+
+target = "https://github.com/example-org/example-web/pull/5000"
+assert urls == [target], f"expected decoded PR URL, got {urls}"
+assert mapping[target]["root_ticket_key"] == "APP-5000", mapping[target]
+PY
+
+# Probe must NOT report SOURCE_UNAVAILABLE on the normalized dump (source is healthy).
+probe_out_c="$tmp/probe-c.txt"
+set +e
+bash "$probe" --raw-dump "$normalized_c" --candidates "$urls_c" --now-epoch "$now_epoch" > "$probe_out_c" 2>&1
+probe_rc_c=$?
+set -e
+grep -q 'POLARIS_DISCOVERY_OK' "$probe_out_c" || {
+  echo "FAIL: probe should report OK on normalized escaped-JSON dump, got:" >&2
+  cat "$probe_out_c" >&2
+  exit 1
+}
+[[ "$probe_rc_c" -eq 0 ]] || { echo "FAIL: probe exit $probe_rc_c on fixture C" >&2; exit 1; }
+grep -q 'POLARIS_DISCOVERY_SOURCE_UNAVAILABLE' "$probe_out_c" && {
+  echo "FAIL: probe must not report SOURCE_UNAVAILABLE on a healthy normalized dump" >&2
+  exit 1
+}
+
+# --- Fixture D: real-newline detailed dump passthrough (AC-NEG2) -----------------------
+# A genuine real-newline detailed dump (webapi fallback shape) must pass through the
+# decoder byte-for-byte: no double-decode, no breakage.
+normalized_d="$tmp/normalized-d.txt"
+"$extractor" --org example-org --emit-normalized < "$canonical_dump" > "$normalized_d"
+diff "$canonical_dump" "$normalized_d" || {
+  echo "FAIL: real-newline detailed dump must pass through normalize unchanged" >&2
+  exit 1
+}
+
+# And the extractor still parses URLs from the passthrough output.
+urls_d="$tmp/urls-d.txt"
+mapping_d="$tmp/mapping-d.json"
+"$extractor" --org example-org --mapping "$mapping_d" < "$normalized_d" > "$urls_d"
+python3 - "$urls_d" <<'PY'
+import sys
+from pathlib import Path
+
+urls = [line for line in Path(sys.argv[1]).read_text().splitlines() if line]
+assert urls == ["https://github.com/example-org/example-web/pull/5000"], urls
+PY
+
+# --- Fixture E: empty input stays source-unavailable (AC-NEG2) -------------------------
+# A genuinely empty / failed-fetch input must NOT be masked by normalize; the probe must
+# still classify it as SOURCE_UNAVAILABLE (fail-closed).
+raw_e="$tmp/slack-fixture-e.txt"
+: > "$raw_e"
+
+normalized_e="$tmp/normalized-e.txt"
+"$extractor" --org example-org --emit-normalized < "$raw_e" > "$normalized_e"
+[[ ! -s "$normalized_e" ]] || {
+  echo "FAIL: empty input must normalize to empty output, not synthesize content" >&2
+  cat "$normalized_e" >&2
+  exit 1
+}
+
+urls_e="$tmp/urls-e.txt"
+: > "$urls_e"
+probe_out_e="$tmp/probe-e.txt"
+set +e
+bash "$probe" --raw-dump "$normalized_e" --candidates "$urls_e" --now-epoch "$now_epoch" > "$probe_out_e" 2>&1
+probe_rc_e=$?
+set -e
+grep -q 'POLARIS_DISCOVERY_SOURCE_UNAVAILABLE' "$probe_out_e" || {
+  echo "FAIL: empty normalized dump must report SOURCE_UNAVAILABLE, got:" >&2
+  cat "$probe_out_e" >&2
+  exit 1
+}
+[[ "$probe_rc_e" -eq 2 ]] || { echo "FAIL: probe should fail-closed (exit 2) on empty input, got $probe_rc_e" >&2; exit 1; }
+
 echo "extract-pr-urls selftest: PASS"
