@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.76.20] - 2026-06-22
+
+### Changed
+
+- 09b7596: gate-work-source feat-release lane：裸 $REPO_ROOT 改 worktree-aware resolve_specs_root（G4）
+- 909f479: gate-evidence feat-aggregation evidence awareness：消除釋出 lane 手動 POLARIS_SKIP_EVIDENCE（G1）
+- 3a3b03e: gate-evidence feat-aggregation：改讀每筆 pr-release task 自己的 frontmatter head_sha，並驗持久 per-task verify / completion_gate 證據（非 feat HEAD），解除 feat-model 自我釋出 self-block；selftest 改 real-state（marker 綁各 task 自己 head ≠ feat HEAD、completion-gate 不在、verify 在）。一併把 pre-existing-on-main、feat/DP-351 未觸及的 `post-memory-index-regenerate-hook-selftest.sh`（T4 hook-path Hot-count assertion drift）收進 aggregate-runner quarantine（DP-325 umbrella），解除 release aggregate gate 對非本 DP red 的誤擋（DP-351-T2 尾巴修正）
+
 ## [3.76.19] - 2026-06-18
 
 ### Changed

@@ -165,24 +165,37 @@ fi
 # The lane only triggers when:
 #   - branch is exactly feat/DP-NNN (anchored ^...$, so feat/DP-334-foo does not
 #     match and still falls through to the task.md resolver)
-#   - the corresponding DP container exists under docs-manager/.../design-plans/
+#   - the corresponding DP container exists under the canonical specs root
+#     (design-plans/), resolved worktree-aware via resolve_specs_root
 #   - at least one tasks/pr-release/T*.md or T*/index.md is status: IMPLEMENTED
 # Other feat/* branches still fall through; this is not a generic escape.
 if [[ "$current_branch" =~ ^feat/(DP-[0-9]+)$ ]]; then
   feat_dp="${BASH_REMATCH[1]}"
+  # Resolve the canonical specs root in a worktree-aware way. When the release run
+  # launches from a feat/DP-NNN worktree, the specs container lives only in the
+  # main checkout, so a bare per-worktree path lookup would not find it and the
+  # lane would falsely BLOCK. resolve_specs_root chains to the main checkout (via
+  # resolve_main_checkout), mirroring resolve_task_by_branch_fallback above. When
+  # the specs root cannot be resolved (e.g. no canonical specs tree at all), leave
+  # feat_container empty so the existing "could not resolve DP container" fail-
+  # closed path below fires — the gate never falls open.
+  feat_specs_root=""
+  feat_specs_root="$(resolve_specs_root "$REPO_ROOT" 2>/dev/null || true)"
   feat_container=""
-  for candidate in "$REPO_ROOT/docs-manager/src/content/docs/specs/design-plans/${feat_dp}-"*; do
-    [[ -d "$candidate" ]] || continue
-    feat_container="$candidate"
-    break
-  done
-  if [[ -z "$feat_container" ]]; then
-    # Maybe DP was archived between delivery and release.
-    for candidate in "$REPO_ROOT/docs-manager/src/content/docs/specs/design-plans/archive/${feat_dp}-"*; do
+  if [[ -n "$feat_specs_root" && -d "$feat_specs_root" ]]; then
+    for candidate in "$feat_specs_root/design-plans/${feat_dp}-"*; do
       [[ -d "$candidate" ]] || continue
       feat_container="$candidate"
       break
     done
+    if [[ -z "$feat_container" ]]; then
+      # Maybe DP was archived between delivery and release.
+      for candidate in "$feat_specs_root/design-plans/archive/${feat_dp}-"*; do
+        [[ -d "$candidate" ]] || continue
+        feat_container="$candidate"
+        break
+      done
+    fi
   fi
   if [[ -n "$feat_container" ]]; then
     feat_release_implemented=0

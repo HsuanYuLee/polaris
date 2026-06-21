@@ -22,6 +22,8 @@ CHECK_VERIFICATION_PASSED="${ROOT_SCRIPT_DIR}/check-verification-passed.sh"
 
 MAIN_CHECKOUT_LIB="${ROOT_SCRIPT_DIR}/lib/main-checkout.sh"
 VERIFICATION_EVIDENCE_LIB="${ROOT_SCRIPT_DIR}/lib/verification-evidence.sh"
+SPECS_ROOT_LIB="${ROOT_SCRIPT_DIR}/lib/specs-root.sh"
+EVIDENCE_CLASSIFIER="${ROOT_SCRIPT_DIR}/lib/evidence-classifier.sh"
 if [[ -f "$MAIN_CHECKOUT_LIB" ]]; then
   # shellcheck source=../lib/main-checkout.sh
   . "$MAIN_CHECKOUT_LIB"
@@ -29,6 +31,10 @@ fi
 if [[ -f "$VERIFICATION_EVIDENCE_LIB" ]]; then
   # shellcheck source=../lib/verification-evidence.sh
   . "$VERIFICATION_EVIDENCE_LIB"
+fi
+if [[ -f "$SPECS_ROOT_LIB" ]]; then
+  # shellcheck source=../lib/specs-root.sh
+  . "$SPECS_ROOT_LIB"
 fi
 
 # Parse args
@@ -179,6 +185,161 @@ emit_shared_gate_block() {
   esac
 }
 
+# DP-351 G1: feat-aggregation evidence awareness. On a feat/DP-NNN -> main release
+# push (the feature-branch aggregation release model, DP-334), the release diff is
+# the union of already-delivered per-task changes. Each constituent task carried
+# its own head_sha-bound verification evidence at its own PR; re-asserting that on
+# the aggregated feat HEAD is impossible (the aggregated SHA never matched any one
+# task's evidence) and historically forced a manual POLARIS_SKIP_EVIDENCE on the
+# release push. Instead, treat the aggregation as exempt iff every canonical
+# pr-release task already has a PASS completion_gate / ac_verification marker — the
+# SAME markers closeout consumes (no new evidence file type). Any missing marker or
+# an unresolvable / empty pr-release task set fails closed; the message never tells
+# the operator to set POLARIS_SKIP_EVIDENCE.
+#
+# Returns: 0 = aggregation evidence satisfied (exempt); 2 = fail-closed.
+# This function only runs when the head branch is exactly feat/DP-NNN (anchored),
+# so a per-task branch (task/DP-NNN-Tn-... -> feat) never triggers it and keeps the
+# default behavioral head-bound-evidence requirement.
+
+# Resolve a PASS marker for one constituent pr-release task, keyed on that task's
+# OWN head_sha (NOT the aggregated feat HEAD). DP-351 T2: per-task evidence is
+# written at each task's own PR head — never at the feat aggregation SHA — so the
+# gate must read each task's recorded head and look up the marker bound to it.
+# Two existing marker types satisfy the task (no new evidence source): the
+# completion_gate / ac_verification marker (via EVIDENCE_CLASSIFIER marker-pass)
+# OR the persistent Layer B verify marker (.polaris/evidence/verify/, exit_code 0).
+# Args: $1 = work_item_id, $2 = that task's own head_sha (from task.md frontmatter)
+# Returns: 0 = a PASS marker resolves for the task at its own head; 1 = none found.
+aggregation_task_pass_evidence() {
+  local work_item_id="$1"
+  local task_head="$2"
+  [[ -n "$task_head" ]] || return 1
+  if bash "$EVIDENCE_CLASSIFIER" marker-pass --repo "$REPO_ROOT" \
+       --work-item-id "$work_item_id" --head-sha "$task_head" >/dev/null 2>&1; then
+    return 0
+  fi
+  local roots=("$REPO_ROOT")
+  if declare -F resolve_main_checkout >/dev/null 2>&1; then
+    local mc
+    mc="$(resolve_main_checkout "$REPO_ROOT" 2>/dev/null || true)"
+    [[ -n "$mc" && "$mc" != "$REPO_ROOT" ]] && roots+=("$mc")
+  fi
+  local root marker
+  for root in "${roots[@]}"; do
+    for marker in "$root"/.polaris/evidence/verify/polaris-verified-"$work_item_id"-"$task_head"*.json; do
+      [[ -f "$marker" ]] || continue
+      if python3 -c "import json,sys;d=json.load(open(sys.argv[1]));sys.exit(0 if d.get('exit_code')==0 and d.get('ticket')==sys.argv[2] else 1)" "$marker" "$work_item_id" 2>/dev/null; then
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
+check_feat_aggregation_evidence() {
+  local feat_dp="$1"
+  local specs_root=""
+  local container=""
+  local work_item_id=""
+  local task_head=""
+  local any_task=0
+  local missing=0
+
+  # Worktree-aware specs root resolution (mirrors gate-work-source.sh feat lane,
+  # DP-351 T1): when the release runs from a feat/DP-NNN worktree the canonical
+  # specs tree lives only in the main checkout, so a bare $REPO_ROOT/docs-manager
+  # lookup would falsely fail. resolve_specs_root chains to the main checkout via
+  # resolve_main_checkout. When it cannot resolve, leave container empty so the
+  # fail-closed path below fires — the gate never falls open.
+  if declare -F resolve_specs_root >/dev/null 2>&1; then
+    specs_root="$(resolve_specs_root "$REPO_ROOT" 2>/dev/null || true)"
+  fi
+  if [[ -n "$specs_root" && -d "$specs_root" ]]; then
+    for candidate in "$specs_root/design-plans/${feat_dp}-"*; do
+      [[ -d "$candidate" ]] || continue
+      container="$candidate"
+      break
+    done
+    if [[ -z "$container" ]]; then
+      # Maybe the DP was archived between delivery and release.
+      for candidate in "$specs_root/design-plans/archive/${feat_dp}-"*; do
+        [[ -d "$candidate" ]] || continue
+        container="$candidate"
+        break
+      done
+    fi
+  fi
+
+  if [[ -z "$container" ]]; then
+    echo "$PREFIX BLOCKED: feat-aggregation evidence requires a resolvable DP container for ${feat_dp}; none found under the canonical specs root." >&2
+    echo "$PREFIX Confirm the DP container exists under docs-manager/.../design-plans/${feat_dp}-* (or archive/) before opening the feat -> main release PR." >&2
+    return 2
+  fi
+
+  # Enumerate the canonical pr-release task set: one completion_gate /
+  # ac_verification PASS marker is required per task. EVIDENCE_CLASSIFIER
+  # marker-pass is the SAME reader closeout uses — worktree-aware, status=PASS,
+  # head_sha-bound, evidence-artifact resolvable — so this reuses the existing
+  # marker contract instead of introducing a second reader.
+  while IFS= read -r -d '' task_file; do
+    work_item_id="$(table_field_for_aggregation 'Task ID' "$task_file")"
+    [[ -n "$work_item_id" ]] || work_item_id="$(table_field_for_aggregation 'work_item_id' "$task_file")"
+    [[ -n "$work_item_id" ]] || continue
+    any_task=1
+    # Read THIS task's own head_sha from its task.md frontmatter deliverable block;
+    # the marker bound to that head — never the aggregated feat HEAD ($HEAD_SHA) —
+    # is the evidence. head_sha is nested under `deliverable:` so it is indented;
+    # scope the scan to the frontmatter (between the first two `---`) and allow
+    # leading whitespace.
+    task_head="$(awk -F: '
+      /^---[[:space:]]*$/ { fm++; next }
+      fm==1 && /^[[:space:]]*head_sha:[[:space:]]*/ { v=$2; gsub(/^[[:space:]]+|[[:space:]]+$/,"",v); print v; exit }
+    ' "$task_file")"
+    if ! aggregation_task_pass_evidence "$work_item_id" "$task_head"; then
+      echo "$PREFIX BLOCKED: feat-aggregation evidence missing for constituent task ${work_item_id}." >&2
+      echo "$PREFIX No PASS completion_gate / verify marker resolves for ${work_item_id}@${task_head:-<no head_sha in task.md frontmatter>}; deliver that task (engineering / verify-AC) before the release push." >&2
+      missing=1
+    fi
+  done < <(
+    find "$container/tasks/pr-release" \
+      -type f \( -path '*/T*/index.md' -o -name 'T*.md' \) -print0 2>/dev/null
+  )
+
+  if [[ "$any_task" -eq 0 ]]; then
+    echo "$PREFIX BLOCKED: feat-aggregation evidence requires a non-empty pr-release task set for ${feat_dp}; none resolved under ${container}/tasks/pr-release." >&2
+    return 2
+  fi
+  if [[ "$missing" -ne 0 ]]; then
+    return 2
+  fi
+
+  echo "$PREFIX ✅ feat-aggregation evidence satisfied for ${feat_dp}: every pr-release task has a PASS marker." >&2
+  return 0
+}
+
+# table_field_for_aggregation <field> <task-md>: read a markdown table-form
+# Operational Context field (| field | value |). Mirrors the table_field readers
+# in gate-work-source.sh / check-delivery-completion.sh; kept local so this gate
+# does not need to source those scripts just for a one-row lookup.
+table_field_for_aggregation() {
+  local field="$1"
+  local file="$2"
+  awk -F '|' -v key="$field" '
+    /^[[:space:]]*\|[[:space:]]*-+/ { next }
+    NF >= 3 {
+      f = $2
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", f)
+      if (f == key) {
+        v = $3
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+        print v
+        exit
+      }
+    }
+  ' "$file"
+}
+
 # Extract ticket/task identity from branch if not provided.
 if [[ -z "$TICKET" ]]; then
   branch=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
@@ -196,12 +357,29 @@ if [[ -d "$REPO_ROOT/.git" || -f "$REPO_ROOT/.git" ]]; then
   HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 fi
 
+# DP-351 G1: feat-aggregation evidence branch — must run BEFORE the release_bump /
+# metadata_only classifier and the behavioral head-bound-evidence requirement.
+# Trigger condition: the head branch is exactly feat/DP-NNN (the DP-334
+# feature-branch aggregation release model targets main). The anchored regex
+# excludes per-task branches (task/DP-NNN-Tn-... -> feat) and main/other heads, so
+# the aggregation exemption never widens to a non-release head. A matching head
+# always goes through the marker-verification path (never the metadata free-pass),
+# so the exemption is earned by real per-task evidence, not granted on branch name.
+if [[ -n "$HEAD_SHA" ]]; then
+  feat_head_branch="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  if [[ "$feat_head_branch" =~ ^feat/(DP-[0-9]+)$ ]]; then
+    if check_feat_aggregation_evidence "${BASH_REMATCH[1]}"; then
+      exit 0
+    fi
+    exit 2
+  fi
+fi
+
 # DP-294 AC4: metadata-only / release-bump deltas are exempt from head_sha-bound
 # verification evidence via the shared deterministic classifier — no manual
 # POLARIS_SKIP_EVIDENCE needed. Behavioral deltas fall through and stay
 # fail-closed below. This is the SAME rule the closeout consumer
 # (check-local-extension-completion.sh) applies, sourced from one classifier lib.
-EVIDENCE_CLASSIFIER="${ROOT_SCRIPT_DIR}/lib/evidence-classifier.sh"
 if [[ -n "$HEAD_SHA" && -x "$EVIDENCE_CLASSIFIER" ]]; then
   cls_base="$(git -C "$REPO_ROOT" merge-base origin/main HEAD 2>/dev/null || true)"
   if [[ -n "$cls_base" && "$cls_base" != "$HEAD_SHA" ]]; then

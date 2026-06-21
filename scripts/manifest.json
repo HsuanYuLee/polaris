@@ -1666,6 +1666,15 @@
       "selftest_reason": "covered by DP-188 Verify Command"
     },
     {
+      "path": "scripts/lint-selftest-env-hermeticity.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/selftests/lint-selftest-env-hermeticity-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/lint-skill-size.sh",
       "kind": "gate",
       "runner": "bash",
@@ -2326,6 +2335,15 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "dry-run scanner validated by DP-188 Verify Command"
+    },
+    {
+      "path": "scripts/run-aggregate-selftests.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "scripts/selftests/run-aggregate-selftests-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/run-behavior-contract.sh",
@@ -4881,6 +4899,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/validate-marker-artifact-resolvable.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/selftests/validate-marker-artifact-resolvable-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-mechanism-runtime-annotations.sh",
       "kind": "gate",
       "runner": "bash",
@@ -5092,6 +5119,16 @@
       "selftest": "scripts/selftests/validate-skill-contracts-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-selftest-enrollment.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "enrollment gate behavior is covered by scripts/selftests/run-aggregate-selftests-selftest.sh (the aggregate runner selftest exercises the --list output this gate compares against); a dedicated selftest would be circular since this gate guards the same corpus the runner enumerates"
     },
     {
       "path": "scripts/validate-spec-boundary.sh",

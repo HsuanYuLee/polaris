@@ -53,6 +53,7 @@ QUARANTINE=(
   "scripts/selftests/migrate-specs-artifact-frontmatter-selftest.sh|pre-existing red on main: manual-fix-required report assertion (no-date file missing). Follow-up: DP-325 umbrella remediation."
   "scripts/selftests/parse-task-md-selftest.sh|pre-existing red on main: refinement.json strong-bound schema violations in fixture. Follow-up: DP-325 umbrella remediation."
   "scripts/selftests/polaris-jira-transition-selftest.sh|pre-existing red on main: resolver-first routing expected beta got acme (company-routing assertion drift). Follow-up: DP-325 umbrella remediation."
+  "scripts/selftests/post-memory-index-regenerate-hook-selftest.sh|pre-existing red on main: T4 hook-path MEMORY.md regenerate Hot-count assertion drift (direct --emit-index Hot header is correct; feat/DP-351 untouched). Follow-up: DP-325 umbrella remediation."
   "scripts/selftests/resolve-specs-root-selftest.sh|pre-existing red on main: workspace overlay specs-root resolution assertion drift. Follow-up: DP-325 umbrella remediation."
   "scripts/selftests/run-behavior-contract-selftest.sh|pre-existing red on main: gate-missing-behavior expected-failure assertion drift. Follow-up: DP-325 umbrella remediation."
   "scripts/selftests/run-visual-snapshot-selftest.sh|pre-existing red on main: visual-snapshot runner assertion drift. Follow-up: DP-325 umbrella remediation."
