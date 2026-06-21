@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.21] - 2026-06-22
+
+### Added
+
+- ad0bd1e: auto-pass-runner Terminal Complete Sequence 對 implementation T task 對稱 advance + fail-closed confirm
+  `scripts/auto-pass-runner.sh` 宣告 terminal=complete 前，除既有 V gate 外，對 required implementation（task_shape=implementation，含缺欄位 default）T work item 加入對稱處理：completion_gate marker PASS at head 但未落 pr-release → 經唯一 canonical writer `mark-spec-implemented.sh`（與 V advance 共用同一 assignment site）advance，再 fail-closed 重讀確認 pr-release/+IMPLEMENTED（重用 `close-parent-spec-if-complete.sh` 契約，無第二 classifier）。carve-out：audit/confirmation 走 DP-262 no-PR path、ABANDONED 留原位；fresh 與 resume-complete 共用同 hook。擴充 `auto-pass-terminal-v-advance-selftest.sh`（case11-16）與補 `mechanism-registry.md` 對稱 canary。
+
 ## [3.76.20] - 2026-06-22
 
 ### Changed

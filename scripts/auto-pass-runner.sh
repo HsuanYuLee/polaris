@@ -238,6 +238,11 @@ def emit(payload):
 # touched (AC-NEG2).
 
 V_STEM_RE = re.compile(r"^V\d+[a-z]*$")
+T_STEM_RE = re.compile(r"^T\d+[a-z]*$")
+# DP-317: task_shape values that take the DP-262 specs-only / no-PR completion
+# path; the implementation T-assert leaves them in place (not advanced, not
+# blocked). Absent / empty task_shape defaults to "implementation".
+T_CARVE_OUT_SHAPES = frozenset({"audit", "confirmation"})
 # Resolver lookup mirrors auto-pass-probe.sh resolve_source timeout budget.
 RESOLVER_TIMEOUT_SECONDS = 5.0
 # mark-spec-implemented does frontmatter rewrite + directory move; generous cap.
@@ -316,6 +321,60 @@ def v_entry_stem(entry):
     return entry.name if entry.is_dir() else entry.stem
 
 
+def frontmatter_field(path, field):
+    """Read a top-level frontmatter field (empty string when absent)."""
+    prefix = f"{field}:"
+    for line in read_frontmatter_lines(path):
+        if line.startswith(prefix):
+            return line.split(":", 1)[1].strip().strip('"').strip("'")
+    return ""
+
+
+def t_entry_status_file(entry):
+    """Map a T task entry (file or folder-native dir) to its status file."""
+    return entry / "index.md" if entry.is_dir() else entry
+
+
+def t_entry_stem(entry):
+    return entry.name if entry.is_dir() else entry.stem
+
+
+def list_t_entries(directory):
+    """List T task entries (legacy T1.md and folder-native T1/) in a directory."""
+    if not directory.is_dir():
+        return []
+    entries = []
+    for child in sorted(directory.iterdir()):
+        if child.name == "pr-release":
+            continue
+        if child.is_file() and child.suffix == ".md" and T_STEM_RE.match(child.stem):
+            entries.append(child)
+        elif child.is_dir() and T_STEM_RE.match(child.name) and (child / "index.md").is_file():
+            entries.append(child)
+    return entries
+
+
+def completion_gate_marker_status(repo_path, work_item_id):
+    """Return the status of the work item's completion_gate marker, or "".
+
+    Mirrors auto-pass-probe.sh / check-delivery-completion.sh: the marker lives
+    at .polaris/evidence/completion-gate/{work_item_id}-{head_sha}.json. The
+    T-assert advance-eligibility binds to a PASS marker; absent / non-PASS keeps
+    the task out of pr-release so the fail-closed confirmation blocks complete.
+    """
+    marker_dir = repo_path / ".polaris" / "evidence" / "completion-gate"
+    candidates = sorted(marker_dir.glob(f"{work_item_id}-*.json"))
+    if not candidates:
+        return ""
+    # Newest marker wins (matches probe head-bound resolution intent).
+    latest = max(candidates, key=lambda p: p.stat().st_mtime)
+    try:
+        data = json.loads(latest.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    return str(data.get("status") or "")
+
+
 def gate_blocked(reason, evidence_path=None):
     """Build the blocked_by_gate_failure replacement payload for the V gate."""
     return {
@@ -372,9 +431,11 @@ def terminal_complete_v_gate(repo_path, scripts_dir):
 
     active_v = list_v_entries(tasks_dir)
     pr_release_v = list_v_entries(pr_release_dir)
-    if not active_v and not pr_release_v:
-        # Vacuous: source has no V work items on disk. Missing V coverage is
-        # the breakdown missing_v_task gate's responsibility, not this gate's.
+    active_t = list_t_entries(tasks_dir)
+    pr_release_t = list_t_entries(pr_release_dir)
+    if not active_v and not pr_release_v and not active_t and not pr_release_t:
+        # Vacuous: source has no V or T work items on disk. Missing V coverage
+        # is the breakdown missing_v_task gate's responsibility, not this gate's.
         return None
 
     # DP container → fully-qualified DP-NNN-{stem} key (deterministic Path 3 in
@@ -435,6 +496,68 @@ def terminal_complete_v_gate(repo_path, scripts_dir):
         if ac_status != "PASS":
             return gate_blocked(
                 f"terminal complete blocked: pr-release V {v_entry_stem(entry)} ac_verification is not PASS",
+                status_file,
+            )
+
+    # ── DP-317 T1: symmetric required-implementation-T assert ─────────────────
+    # (c) Advance every required implementation T work item whose engineering-
+    #     owned completion_gate marker is PASS but still sits under tasks/, then
+    #     (d) fail-closed confirm every required implementation T reached the
+    #     canonical terminal (pr-release/ + IMPLEMENTED), reusing the same
+    #     mark-spec-implemented writer and the close-parent pr-release contract
+    #     (AC2: no second classifier). audit / confirmation carve-out tasks take
+    #     the DP-262 no-PR path (left in place, not advanced, not blocked,
+    #     AC-NEG1); ABANDONED T tasks keep the close-parent carve-out (AC-NEG2).
+    for entry in list_t_entries(tasks_dir):
+        status_file = t_entry_status_file(entry)
+        if frontmatter_status(status_file) == "ABANDONED":
+            continue
+        if frontmatter_field(status_file, "task_shape") in T_CARVE_OUT_SHAPES:
+            continue
+        stem = t_entry_stem(entry)
+        key = f"{dp_prefix}-{stem}" if dp_prefix else stem
+        if completion_gate_marker_status(repo_path, key) != "PASS":
+            continue
+        try:
+            proc = subprocess.run(
+                ["bash", str(mark_spec), key, "--workspace", str(repo_path), "--no-auto-archive"],
+                check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                timeout=MARK_SPEC_TIMEOUT_SECONDS,
+            )
+        except Exception as exc:
+            return gate_blocked(
+                f"terminal complete gate: mark-spec-implemented invocation failed for {key}: {exc}",
+                status_file,
+            )
+        if proc.returncode != 0:
+            stderr_text = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
+            return gate_blocked(
+                f"terminal complete gate: mark-spec-implemented failed for {key}: "
+                + (stderr_text or f"exit {proc.returncode}"),
+                status_file,
+            )
+
+    # Fail-closed confirmation: every required implementation T must now sit at
+    # the canonical terminal. audit / confirmation carve-out and ABANDONED T are
+    # excluded; a remaining required implementation T in tasks/ blocks complete
+    # (EC2: missing / non-PASS completion_gate marker → never advanced → blocks).
+    remaining_t = [
+        entry for entry in list_t_entries(tasks_dir)
+        if frontmatter_status(t_entry_status_file(entry)) != "ABANDONED"
+        and frontmatter_field(t_entry_status_file(entry), "task_shape") not in T_CARVE_OUT_SHAPES
+    ]
+    if remaining_t:
+        names = ", ".join(t_entry_stem(entry) for entry in remaining_t)
+        return gate_blocked(
+            "terminal complete blocked: required implementation T work item(s) "
+            f"not at canonical terminal: {names}",
+            t_entry_status_file(remaining_t[0]),
+        )
+    for entry in list_t_entries(pr_release_dir):
+        status_file = t_entry_status_file(entry)
+        if frontmatter_status(status_file) != "IMPLEMENTED":
+            return gate_blocked(
+                f"terminal complete blocked: pr-release T {t_entry_stem(entry)} status is not IMPLEMENTED",
                 status_file,
             )
     return None
