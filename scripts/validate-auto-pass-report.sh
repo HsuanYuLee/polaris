@@ -53,12 +53,21 @@ if [[ -z "$EVIDENCE_ROOT" ]]; then
   fi
 fi
 
-python3 - "$1" "$EVIDENCE_ROOT" "$WORKSPACE_ROOT" <<'PY'
+# DP-303 T5: resolve the specs root used for the follow_up_dp_seed collision
+# check. The seed's DP number must not already be occupied across the active
+# (design-plans/DP-*) and archive (design-plans/archive/DP-*) namespaces — the
+# same occupancy semantics as scripts/allocate-design-plan-number.sh. Order:
+# explicit POLARIS_SPECS_ROOT override (hermetic selftests) → workspace docs
+# specs root resolved from this script's location.
+SPECS_ROOT="${POLARIS_SPECS_ROOT:-$WORKSPACE_ROOT/docs-manager/src/content/docs/specs}"
+
+python3 - "$1" "$EVIDENCE_ROOT" "$WORKSPACE_ROOT" "$SPECS_ROOT" <<'PY'
 """Purpose: auto-pass report contract validation body (see bash header).
 
 Inputs: argv[1]=report path, argv[2]=evidence root ('' when unresolvable),
         argv[3]=workspace root for follow_up_dp_seed.contract_evidence
-        path:line validation.
+        path:line validation, argv[4]=specs root for follow_up_dp_seed
+        collision check (DP-303 T5).
 Outputs: PASS line on stdout; error list + POLARIS_AUTO_PASS_REPORT_* markers
 on stderr. Exit 2 on cross-check violation, 1 on schema violation.
 """
@@ -70,6 +79,7 @@ from pathlib import Path
 path = Path(sys.argv[1])
 evidence_root = sys.argv[2] if len(sys.argv) > 2 else ""
 workspace_root = Path(sys.argv[3]).resolve() if len(sys.argv) > 3 else Path.cwd().resolve()
+specs_root = sys.argv[4] if len(sys.argv) > 4 else ""
 sys.path.insert(0, str(workspace_root / "scripts" / "lib"))
 from contract_evidence import validate_contract_evidence_entries
 TERMINAL = {
@@ -92,6 +102,10 @@ CROSS_LEDGER_UNREADABLE = "POLARIS_AUTO_PASS_REPORT_LEDGER_UNREADABLE"
 CROSS_LEDGER_MISMATCH = "POLARIS_AUTO_PASS_REPORT_LEDGER_TERMINAL_MISMATCH"
 CROSS_MARKER_MISSING = "POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISSING"
 CROSS_MARKER_MISMATCH = "POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISMATCH"
+# DP-303 T5 follow_up_dp_seed collision marker (exit 2, fail-closed).
+SEED_COLLISION = "POLARIS_AUTO_PASS_REPORT_SEED_COLLISION"
+# Resolver-compatible {PREFIX}-NNN extracted from a design-plans subdir name.
+SEED_DP_DIR_PATTERN = re.compile(r"(?P<prefix>[A-Z][A-Z0-9]*)-(?P<num>[0-9]+)")
 
 
 def fail(errors, cross_errors=()):
@@ -140,6 +154,61 @@ def validate_contract_evidence(raw, prefix, require_non_empty):
         unreadable_error="{field} file could not be read: {path} ({exc})",
         out_of_range_error="{field} line {line} is outside file range for {path}",
     ))
+
+
+def seed_dp_identity(seed_path):
+    """Extract the design-plan identity ({PREFIX}-NNN) a seed.path would create.
+
+    Args:
+        seed_path: the seed's ``path`` field (e.g.
+            ``docs-manager/.../design-plans/DP-999-follow-up/index.md``).
+
+    Returns:
+        (prefix, number) tuple for the design-plans subdir, or None when the
+        path is not under design-plans or carries no resolver-compatible id.
+    """
+    parts = Path(seed_path).parts
+    if "design-plans" not in parts:
+        return None
+    idx = parts.index("design-plans")
+    # Skip the optional ``archive`` segment; the seed names a new active DP dir.
+    rest = [p for p in parts[idx + 1:] if p != "archive"]
+    if not rest:
+        return None
+    match = SEED_DP_DIR_PATTERN.match(rest[0])
+    if not match:
+        return None
+    return (match.group("prefix"), int(match.group("num")))
+
+
+def seed_number_occupied(specs_root_path, prefix, number):
+    """Report whether {prefix}-{number} is already a plan dir (active+archive).
+
+    Mirrors scripts/allocate-design-plan-number.sh occupancy semantics: a
+    design-plans (or design-plans/archive) subdir matching the same prefix and
+    number that contains an index.md or plan.md counts as occupied.
+
+    Args:
+        specs_root_path: specs root directory (may not exist).
+        prefix: design-plan prefix (e.g. "DP").
+        number: design-plan number to test for occupancy.
+
+    Returns:
+        The occupying directory Path on collision, else None.
+    """
+    base = Path(specs_root_path) / "design-plans"
+    if not base.is_dir():
+        return None
+    candidates = list(base.glob(f"{prefix}-*")) + list((base / "archive").glob(f"{prefix}-*"))
+    for parent in candidates:
+        if not parent.is_dir():
+            continue
+        match = SEED_DP_DIR_PATTERN.match(parent.name)
+        if not match or match.group("prefix") != prefix or int(match.group("num")) != number:
+            continue
+        if (parent / "index.md").is_file() or (parent / "plan.md").is_file():
+            return parent
+    return None
 
 
 if not path.is_file():
@@ -206,6 +275,23 @@ if seed_needed:
                 "follow_up_dp_seed.contract_evidence",
                 framework_gap,
             )
+        # DP-303 T5 (AC8): the seeded follow-up DP number must not already be
+        # occupied across the active + archive design-plans namespaces (the
+        # writer must take a fresh number via allocate-design-plan-number.sh or
+        # verify the given number is free). An occupied number fails closed.
+        seed_path = seed.get("path")
+        if isinstance(seed_path, str) and seed_path and specs_root:
+            identity = seed_dp_identity(seed_path)
+            if identity is not None:
+                prefix, number = identity
+                occupier = seed_number_occupied(specs_root, prefix, number)
+                if occupier is not None:
+                    cross_errors.append((
+                        SEED_COLLISION,
+                        f"follow_up_dp_seed.path targets {prefix}-{number:03d} but that "
+                        f"number is already occupied by {occupier} (active + archive). "
+                        "Take a fresh number via allocate-design-plan-number.sh.",
+                    ))
 else:
     if seed is not None:
         errors.append("follow_up_dp_seed must be null when no issue threshold is present")

@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.76.26] - 2026-06-22
+
+### Changed
+
+- 097d05b: closeout authority hygiene：head 取自 immutable marker、邊界拒 V 單、aggregate 缺 head fail-closed
+- be8f6ed: DP-303-T2：verify-AC 整合隔離——throwaway integration branch 契約 + boundary gate 偵測 task/\* delivery branch ref 位移即 fail-closed
+- 2a8da3e: leak-scan scope 對齊 sync set：排除 gitignored runtime state
+- 44a1110: bundle-PR canonical path + gate-evidence aggregate-aware，關閉 bundle escape-hatch（gate-pr-title 不在本 task，由 DP-319 交付）
+- 9281ac7: DP seed collision check：report seed 經 allocator 取號或驗證未占用
+
 ## [3.76.25] - 2026-06-22
 
 ### Changed

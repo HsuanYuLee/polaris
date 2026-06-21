@@ -23,7 +23,8 @@
 #     [--task-md </abs/path/to/task.md>]
 #
 # Behavior:
-#   --start  Capture session baseline (HEAD sha + dirty tracked paths) at
+#   --start  Capture session baseline (HEAD sha + dirty tracked paths +
+#            task/* delivery branch ref snapshot) at
 #            "${POLARIS_RUNTIME_DIR:-<repo>/.polaris/runtime}/skill-workflow-boundary/{skill}-{session_id}.json".
 #            Dirty files already in the working tree at --start are recorded
 #            as the "pre-existing dirty baseline carve-out" set.
@@ -32,6 +33,23 @@
 #            that does not match the skill's owning_scope glob is a
 #            mutation boundary violation; exit 1 with
 #            POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:{skill} on stderr.
+#            For --skill verify-AC ONLY, also compares the task/* delivery
+#            branch ref snapshot against the baseline: any baseline task/* ref
+#            that was MOVED to a different commit or REMOVED during the session
+#            is a delivery branch mutation and fails closed with the same
+#            marker (DP-303 S2). engineering legitimately creates/advances
+#            task/* branches, so the ref-shift guard does not apply to it.
+#
+# task/* delivery branch ref-shift detection (DP-303 S2 / AC2 / AC3 / AC-NEG3):
+#   verify-AC umbrella integration must run on a throwaway
+#   "verify-integration-{source}-{Vn}" branch and must never check out, advance,
+#   or delete a task/* delivery branch. To enforce this deterministically the
+#   gate snapshots task/* refs at --start and re-checks them at --check (for
+#   --skill verify-AC), so a delivery branch move/removal is caught even when no
+#   in-scope file changed (ref-only mutation). Throwaway "verify-integration-*"
+#   branches are EXCLUDED from the snapshot so creating/deleting them is not
+#   mistaken for a delivery branch shift (EC2/R2). Newly-created task/* refs are
+#   not flagged (concurrent-session noise in a shared repo).
 #
 # Owning scope (relative to --source-container or repo root as marked):
 #   refinement   : <container>/refinement.json
@@ -143,6 +161,34 @@ fi
 
 BASELINE_PATH="$BASELINE_DIR/${SKILL}-${SESSION_ID}.json"
 
+# Description: Emit a JSON object mapping each task/* delivery branch name to
+#              its current commit sha. Throwaway verify-integration-* branches
+#              are excluded so their create/delete lifecycle is never read as a
+#              delivery branch ref shift (DP-303 S2 / EC2 / R2).
+# Args:        none (reads refs from $REPO_REAL via git for-each-ref)
+# Side effects: none (read-only); prints JSON object to stdout
+snapshot_task_refs() {
+  git -C "$REPO_REAL" for-each-ref --format='%(refname:short) %(objectname)' \
+    'refs/heads/task/*' 2>/dev/null \
+    | python3 -c "
+import json, sys
+refs = {}
+for line in sys.stdin:
+    line = line.rstrip('\n')
+    if not line:
+        continue
+    parts = line.split(' ', 1)
+    if len(parts) != 2:
+        continue
+    name, sha = parts
+    # Throwaway verify-AC integration branches are NOT delivery branches.
+    if name.startswith('verify-integration-'):
+        continue
+    refs[name] = sha
+print(json.dumps(refs, sort_keys=True))
+"
+}
+
 emit_engineering_scope() {
   local task_md="$1"
   if [[ ! -f "$task_md" ]]; then
@@ -233,9 +279,11 @@ for entry in data.split('\0'):
     files.append(entry[3:])
 print(json.dumps(files))
 ")"
-  python3 - "$BASELINE_PATH" "$SKILL" "$SESSION_ID" "$REL_CONTAINER" "$head_sha" "$dirty_list" "$TASK_MD" <<'PY'
+  local task_refs_json
+  task_refs_json="$(snapshot_task_refs)"
+  python3 - "$BASELINE_PATH" "$SKILL" "$SESSION_ID" "$REL_CONTAINER" "$head_sha" "$dirty_list" "$TASK_MD" "$task_refs_json" <<'PY'
 import json, os, sys
-out_path, skill, session_id, rel_container, head_sha, dirty_json, task_md = sys.argv[1:]
+out_path, skill, session_id, rel_container, head_sha, dirty_json, task_md, task_refs_json = sys.argv[1:]
 payload = {
     "skill": skill,
     "session_id": session_id,
@@ -243,6 +291,7 @@ payload = {
     "head_sha": head_sha,
     "dirty_at_start": json.loads(dirty_json),
     "task_md": task_md,
+    "task_refs_at_start": json.loads(task_refs_json),
 }
 tmp = out_path + ".tmp"
 with open(tmp, "w", encoding="utf-8") as f:
@@ -265,6 +314,62 @@ EOF
   baseline_head="$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['head_sha'])" "$BASELINE_PATH")"
   local carve_json
   carve_json="$(python3 -c "import json,sys; print(json.dumps(json.load(open(sys.argv[1]))['dirty_at_start']))" "$BASELINE_PATH")"
+
+  # DP-303 S2: task/* delivery branch ref-shift detection (verify-AC only).
+  # verify-AC umbrella integration must not check out / advance / delete any
+  # task/* delivery branch ref — it runs on a throwaway verify-integration-*
+  # branch instead. Compare the current task/* ref snapshot against the
+  # baseline and flag any delivery branch ref that was MOVED to a different
+  # commit or REMOVED during the session (the precise forbidden mutation).
+  #
+  # Scope decisions:
+  #   - Only verify-AC is checked: engineering legitimately creates/advances a
+  #     task/* delivery branch, so the ref-shift guard does not apply to it.
+  #   - Only baseline refs that moved/were removed are flagged. A newly-created
+  #     task/* ref is NOT flagged, because in a shared repo unrelated concurrent
+  #     sessions create task/* branches and those are not this session's
+  #     mutation. The throwaway verify-integration-* branch verify-AC itself
+  #     creates is already excluded by snapshot_task_refs (AC-NEG3).
+  if [[ "$SKILL" == "verify-AC" ]]; then
+  local baseline_task_refs_json current_task_refs_json
+  baseline_task_refs_json="$(python3 -c "import json,sys; print(json.dumps(json.load(open(sys.argv[1])).get('task_refs_at_start', {})))" "$BASELINE_PATH")"
+  current_task_refs_json="$(snapshot_task_refs)"
+  python3 - "$SKILL" "$REL_CONTAINER" "$baseline_task_refs_json" "$current_task_refs_json" <<'PY'
+import json
+import sys
+
+skill, rel_container, baseline_json, current_json = sys.argv[1:]
+
+baseline = json.loads(baseline_json)
+current = json.loads(current_json)
+
+shifts = []
+# Only inspect delivery branches that existed at session start. A moved or
+# removed baseline ref is the forbidden verify-AC mutation; newly created refs
+# are excluded as concurrent-session noise.
+for name in sorted(baseline):
+    before = baseline.get(name)
+    after = current.get(name)
+    if before == after:
+        continue
+    if after is None:
+        shifts.append(f"removed: {name} (was {before})")
+    else:
+        shifts.append(f"moved: {name} {before} -> {after}")
+
+if shifts:
+    print(f"POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:{skill}", file=sys.stderr)
+    print(f"  skill={skill} container={rel_container}", file=sys.stderr)
+    print("  task/* delivery branch ref shift detected during the skill "
+          "session (use a throwaway verify-integration-* branch instead):",
+          file=sys.stderr)
+    for s in shifts:
+        print(f"  - {s}", file=sys.stderr)
+    print("  (POLARIS_LANGUAGE_POLICY_BYPASS / POLARIS_SKILL_BOUNDARY_BYPASS env "
+          "are ignored by this gate.)", file=sys.stderr)
+    sys.exit(1)
+PY
+  fi
 
   local committed_changes=""
   if [[ -n "$baseline_head" ]]; then

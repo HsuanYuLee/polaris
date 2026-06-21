@@ -164,6 +164,32 @@ specs/{EPIC_KEY}/tests/mockoon/    # Per-epic fixtures (see references/epic-fold
 - VR（全目標頁）
 - 所有已整合子單的驗證項（Layer 3，見下方）
 
+#### Umbrella 整合隔離：throwaway integration branch（DP-303 S2）
+
+verify-AC umbrella 在本地把多個已交付 task 合在一起整合驗證時，**一律建立 throwaway
+integration branch**，命名 `verify-integration-{source}-{Vn}`（例：
+`verify-integration-DP-303-V1`），整合完即丟棄：
+
+```bash
+git worktree add -b verify-integration-DP-303-V1 \
+  "$base_dir/.worktrees/polaris-framework-verify-integration-DP-303-V1" origin/main
+# ...在此 throwaway branch 上 merge 各已交付 task head 做整合驗證...
+git worktree remove "$base_dir/.worktrees/polaris-framework-verify-integration-DP-303-V1"
+git branch -D verify-integration-DP-303-V1
+```
+
+硬規則：
+
+- verify-AC **不得 checkout、advance、或以任何方式位移任何 `task/*` delivery branch
+  ref**。delivery branch 由 engineering 擁有；整合驗證只讀其 head，不動其 ref。
+- 整合一律在 throwaway `verify-integration-*` branch 上進行；驗證結束即刪除，不留 ref。
+- 此契約由 `scripts/skill-workflow-boundary-gate.sh --check` 機械 enforce：它在 skill
+  session `--start`／`--check` 之間 snapshot 全部 `task/*` delivery branch ref，偵測到
+  任一 `task/*` ref 被新增／移除／移到不同 commit 即 fail-closed，輸出
+  `POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:verify-AC`。
+- throwaway `verify-integration-*` branch 被排除在偵測集合外，因此其建立／刪除
+  不會被誤判為 delivery branch 位移（false-positive 守門）。
+
 ### Epic 完成 — Fixture Cleanup
 
 Feature PR merge 到 develop 後：

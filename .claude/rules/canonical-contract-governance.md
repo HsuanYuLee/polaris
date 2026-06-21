@@ -70,6 +70,37 @@ business authority path。deterministic enforcement 由
 parity / shape / existence reader（legitimate）與 business-read（violation），新增的
 business-read gate 會被偵測 fail，既有 legitimate reader 不被誤判。
 
+## Closeout Delivered-Head Authority
+
+framework-release closeout 在決定一張 task 的「交付 head sha」時，唯一允許的權威來源是
+**immutable evidence**，不得讀 mutable `task/*` branch ref。task branch head 會隨後續
+push / rebase / 其他 session 的 WIP 漂移，把它當 authority 會讓 closeout 綁到 stale 或
+無關的 head（DP-319 incident：closeout 透過 branch ref 取到舊 task-PR head 7b7474b，而
+verify marker 已在 feat HEAD f6d9198，導致 `local_extension_completion_failed`）。
+
+closeout 取交付 head 的 resolution 順序（三者皆 immutable）：
+
+1. **明確 `--task-head-sha {work_item_id}={sha}` override**：caller 指定的 head map，
+   最高優先。
+2. **completion-gate marker filename head**：讀
+   `.polaris/evidence/completion-gate/{work_item_id}-{head}.json` 的 filename head；
+   marker 由 evidence-producing skill 在交付當下寫入、檔名綁交付 head，是 immutable
+   delivered-head 的 canonical record。
+3. **task.md `deliverable.head_sha` delivery block**：persisted 在 task.md frontmatter
+   的交付 head。
+
+三者皆無法解析時 **fail-closed**（die），不得 fall back 到 branch ref，也不得 silent
+pass。aggregate / bundle task（`bundle_branch_alias` present）必須由 caller 明確帶
+`--task-head-sha`，不得從 branch 推斷。
+
+此條對齊本檔 **No special writer paths / Fail closed on missing inputs**：交付 head 只有
+一條 immutable authority path（marker filename + delivery block + explicit override），
+mutable branch ref 不得成為第二條 silent authority。deterministic enforcement 由
+`scripts/framework-release-closeout.sh` 的 head-resolution 順序與
+`scripts/selftests/framework-release-closeout-head-authority-selftest.sh` 提供：污染
+`task/*` ref 時 head 仍取自 marker、缺所有 immutable source 時 fail-closed、V-task 走
+parent-closeout、aggregate 缺 `--task-head-sha` 時 fail-closed。
+
 ## Applicability
 
 變更或設計下列表面時套用本 rule：

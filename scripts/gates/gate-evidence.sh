@@ -7,9 +7,19 @@ set -euo pipefail
 #
 # Usage:
 #   bash scripts/gates/gate-evidence.sh [--repo <path>] [--ticket <KEY>] [--task-md <path>]
+#   bash scripts/gates/gate-evidence.sh [--repo <path>] --aggregate-release \
+#        --source <DP-NNN> --bundled-tasks <T1,T2,...>
 #
 # Exit: 0 = pass/skip, 2 = block
 # Bypass: POLARIS_SKIP_EVIDENCE=1
+#
+# DP-303 S4: --aggregate-release switches the gate to aggregate mode. A bundle PR
+# has no single delivery head; instead each bundled task already carries its own
+# completion_gate marker (status PASS) keyed on that task's delivery head. The
+# aggregate path treats those per-task markers as satisfying the evidence gate so
+# the canonical bundle build path (polaris-pr-create.sh --aggregate-release) no
+# longer needs --skip-gates. To prevent forged markers, each marker head must
+# equal the bundled task's recorded delivery head (task.md deliverable.head_sha).
 
 PREFIX="[polaris gate-evidence]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -17,8 +27,13 @@ ROOT_SCRIPT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 REPO_ROOT=""
 TICKET=""
 TASK_MD=""
+AGGREGATE_RELEASE=0
+AGG_SOURCE=""
+AGG_BUNDLED_TASKS=""
 BEHAVIOR_ONLY="${POLARIS_GATE_EVIDENCE_BEHAVIOR_ONLY:-0}"
 CHECK_VERIFICATION_PASSED="${ROOT_SCRIPT_DIR}/check-verification-passed.sh"
+PARSE_TASK_MD="${ROOT_SCRIPT_DIR}/parse-task-md.sh"
+RESOLVE_TASK_MD="${ROOT_SCRIPT_DIR}/resolve-task-md.sh"
 
 MAIN_CHECKOUT_LIB="${ROOT_SCRIPT_DIR}/lib/main-checkout.sh"
 VERIFICATION_EVIDENCE_LIB="${ROOT_SCRIPT_DIR}/lib/verification-evidence.sh"
@@ -43,11 +58,18 @@ while [[ $# -gt 0 ]]; do
     --repo) REPO_ROOT="$2"; shift 2 ;;
     --ticket) TICKET="$2"; shift 2 ;;
     --task-md) TASK_MD="$2"; shift 2 ;;
+    --aggregate-release) AGGREGATE_RELEASE=1; shift ;;
+    --source) AGG_SOURCE="$2"; shift 2 ;;
+    --bundled-tasks) AGG_BUNDLED_TASKS="$2"; shift 2 ;;
     -h|--help)
       echo "Usage: bash scripts/gates/gate-evidence.sh [--repo <path>] [--ticket <KEY>] [--task-md <path>]"
+      echo "       bash scripts/gates/gate-evidence.sh [--repo <path>] --aggregate-release --source <DP-NNN> --bundled-tasks <T1,T2,...>"
       echo "  --repo <path>     Target repo (default: git rev-parse --show-toplevel)"
       echo "  --ticket <KEY>    JIRA ticket key (default: extract from branch name)"
       echo "  --task-md <path>  Work order path for conditional Layer C VR evidence"
+      echo "  --aggregate-release          Aggregate bundle PR mode (per-task marker check)"
+      echo "  --source <DP-NNN>            Bundle source DP id (with --aggregate-release)"
+      echo "  --bundled-tasks T1,T2,...    Bundled task ids (with --aggregate-release)"
       exit 0
       ;;
     *) shift ;;
@@ -64,6 +86,146 @@ fi
 if [[ "${POLARIS_SKIP_EVIDENCE:-}" == "1" ]]; then
   echo "$PREFIX POLARIS_SKIP_EVIDENCE=1 — bypassing." >&2
   exit 0
+fi
+
+# resolve_completion_marker_path: echo the durable completion_gate marker path for
+# a bundled work item id keyed on a given head, or empty if absent.
+# Args: $1 = repo root, $2 = work_item_id, $3 = head_sha
+resolve_completion_marker_path() {
+  local repo="$1" work_item_id="$2" head_sha="$3"
+  local main_checkout="$repo"
+  if declare -F resolve_main_checkout >/dev/null 2>&1; then
+    main_checkout="$(resolve_main_checkout "$repo" 2>/dev/null || echo "$repo")"
+  fi
+  local candidate="${main_checkout}/.polaris/evidence/completion-gate/${work_item_id}-${head_sha}.json"
+  if [[ -f "$candidate" ]]; then
+    printf '%s' "$candidate"
+    return 0
+  fi
+  # Fall back to the repo-relative path (worktree / no main-checkout resolver).
+  candidate="${repo}/.polaris/evidence/completion-gate/${work_item_id}-${head_sha}.json"
+  if [[ -f "$candidate" ]]; then
+    printf '%s' "$candidate"
+  fi
+  return 0
+}
+
+# resolve_bundled_task_md: echo the canonical task.md path for a bundled work item
+# id, or empty if it cannot be resolved.
+# Args: $1 = repo root, $2 = work_item_id
+resolve_bundled_task_md() {
+  local repo="$1" work_item_id="$2"
+  local main_checkout="$repo"
+  if declare -F resolve_main_checkout >/dev/null 2>&1; then
+    main_checkout="$(resolve_main_checkout "$repo" 2>/dev/null || echo "$repo")"
+  fi
+  [[ -x "$RESOLVE_TASK_MD" ]] || return 0
+  # Probe the workspace root that owns docs-manager specs (markers anchor at main
+  # checkout, but specs may live under a parent workspace root).
+  local probe="$main_checkout"
+  while [[ -n "$probe" && "$probe" != "/" ]]; do
+    if [[ -d "$probe/docs-manager/src/content/docs/specs" ]]; then
+      bash "$RESOLVE_TASK_MD" --scan-root "$probe" --include-archive "$work_item_id" 2>/dev/null | head -n 1
+      return 0
+    fi
+    probe="$(dirname "$probe")"
+  done
+  return 0
+}
+
+# task_delivery_head: echo the recorded delivery head (deliverable.head_sha) for a
+# bundled task.md, or empty if unset. This is the anti-forgery anchor: the
+# completion_gate marker head must equal this value.
+# Args: $1 = task.md path
+task_delivery_head() {
+  local task_md="$1"
+  [[ -x "$PARSE_TASK_MD" && -f "$task_md" ]] || return 0
+  bash "$PARSE_TASK_MD" "$task_md" --no-resolve --field deliverable_head_sha 2>/dev/null || true
+  return 0
+}
+
+# run_aggregate_evidence_gate: validate that every bundled task carries a PASS
+# completion_gate marker whose head matches the task's recorded delivery head.
+# Fails closed (exit 2) on any missing marker, non-PASS status, or head mismatch.
+run_aggregate_evidence_gate() {
+  echo "$PREFIX aggregate mode: validating bundled-task completion markers for ${AGG_SOURCE}." >&2
+  if [[ -z "$AGG_SOURCE" || -z "$AGG_BUNDLED_TASKS" ]]; then
+    echo "$PREFIX BLOCKED: --aggregate-release requires --source and --bundled-tasks." >&2
+    exit 2
+  fi
+
+  local IFS=','
+  local raw_tasks=()
+  read -r -a raw_tasks <<<"$AGG_BUNDLED_TASKS"
+  unset IFS
+
+  local failures=0
+  local task_id work_item_id marker delivery_head status
+  for task_id in "${raw_tasks[@]}"; do
+    task_id="$(printf '%s' "$task_id" | tr -d '[:space:]')"
+    [[ -n "$task_id" ]] || continue
+
+    # Accept both bare task ids (T1) and fully-qualified work item ids (DP-303-T1).
+    if [[ "$task_id" == "$AGG_SOURCE"* ]]; then
+      work_item_id="$task_id"
+    else
+      work_item_id="${AGG_SOURCE}-${task_id}"
+    fi
+
+    local task_md
+    task_md="$(resolve_bundled_task_md "$REPO_ROOT" "$work_item_id")"
+    if [[ -z "$task_md" || ! -f "$task_md" ]]; then
+      echo "$PREFIX BLOCKED: cannot resolve task.md for bundled task ${work_item_id}." >&2
+      failures=$((failures + 1))
+      continue
+    fi
+
+    delivery_head="$(task_delivery_head "$task_md")"
+    if [[ -z "$delivery_head" || "$delivery_head" == "N/A" || "$delivery_head" == "null" ]]; then
+      echo "$PREFIX BLOCKED: bundled task ${work_item_id} has no recorded delivery head (deliverable.head_sha); cannot anchor marker." >&2
+      failures=$((failures + 1))
+      continue
+    fi
+
+    marker="$(resolve_completion_marker_path "$REPO_ROOT" "$work_item_id" "$delivery_head")"
+    if [[ -z "$marker" ]]; then
+      echo "$PREFIX BLOCKED: bundled task ${work_item_id} has no completion_gate marker at delivery head ${delivery_head}." >&2
+      echo "  Expected: .polaris/evidence/completion-gate/${work_item_id}-${delivery_head}.json" >&2
+      failures=$((failures + 1))
+      continue
+    fi
+
+    status="$(python3 - "$marker" <<'PY'
+import json
+import sys
+try:
+    data = json.load(open(sys.argv[1], encoding="utf-8"))
+except Exception:
+    print("")
+    raise SystemExit(0)
+print(str(data.get("status", "")).strip())
+PY
+)"
+    if [[ "$status" != "PASS" ]]; then
+      echo "$PREFIX BLOCKED: bundled task ${work_item_id} completion marker status is '${status:-<empty>}', expected PASS." >&2
+      failures=$((failures + 1))
+      continue
+    fi
+
+    echo "$PREFIX ✅ ${work_item_id}: completion marker PASS @ ${delivery_head}." >&2
+  done
+
+  if [[ "$failures" -gt 0 ]]; then
+    echo "$PREFIX BLOCKED: ${failures} bundled task(s) failed aggregate evidence check for ${AGG_SOURCE}." >&2
+    exit 2
+  fi
+  echo "$PREFIX ✅ aggregate evidence gate passed for ${AGG_SOURCE} (all bundled-task markers PASS)." >&2
+  exit 0
+}
+
+if [[ "$AGGREGATE_RELEASE" -eq 1 ]]; then
+  REPO_ROOT="${REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+  run_aggregate_evidence_gate
 fi
 
 extract_task_key_from_branch() {

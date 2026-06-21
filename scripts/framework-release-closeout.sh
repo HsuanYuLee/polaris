@@ -44,6 +44,10 @@ CHECK_RELEASE_COMPLETED="${SCRIPT_DIR}/check-release-completed.sh"
 CHECK_MAIN_CHAIN_COMPLIANCE="${SCRIPT_DIR}/check-main-chain-compliance.sh"
 # shellcheck source=lib/specs-root.sh
 . "$SCRIPT_DIR/lib/specs-root.sh"
+# DP-303-T1: resolve_main_checkout for completion-gate marker head lookup
+# (markers anchor at the main checkout, not a worktree copy).
+# shellcheck source=lib/main-checkout.sh
+. "$SCRIPT_DIR/lib/main-checkout.sh"
 # shellcheck source=lib/worktree-classifier.sh
 . "$SCRIPT_DIR/lib/worktree-classifier.sh"
 # DP-280 Wall A: single bundle detector, shared with
@@ -244,6 +248,25 @@ frontmatter_status() {
   ' "$file"
 }
 
+# DP-303-T1 (S5 / AC6): read the top-level `task_kind` from task.md frontmatter.
+# Used at argument-parsing time to reject a V (verification) task passed as a
+# --task-md (V tasks have no code branch / PR; their lifecycle is driven by the
+# parent closeout, not this branch-bearing producer closeout). Echoes the value
+# (e.g. T / V) or empty when absent.
+frontmatter_task_kind() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  awk -F ':' '
+    NR == 1 && $0 == "---" { in_frontmatter = 1; next }
+    in_frontmatter && $0 == "---" { exit }
+    in_frontmatter && /^task_kind:/ {
+      sub(/^[[:space:]]+/, "", $2)
+      print $2
+      exit
+    }
+  ' "$file"
+}
+
 # DP-280 Wall A: bundle_branch_alias_for_task is now provided by
 # scripts/lib/bundle-closeout-ancestry.sh (sourced above) — the single bundle
 # detector shared with check-local-extension-completion.sh.
@@ -383,15 +406,39 @@ registered_worktree_for_branch() {
   '
 }
 
-resolve_branch_sha() {
-  local branch="$1"
-  local sha=""
-  sha="$(git -C "$REPO_ROOT" rev-parse --verify --quiet "${branch}^{commit}" 2>/dev/null || true)"
-  if [[ -z "$sha" ]]; then
-    sha="$(git -C "$REPO_ROOT" rev-parse --verify --quiet "origin/${branch}^{commit}" 2>/dev/null || true)"
-  fi
-  [[ -n "$sha" ]] || die "cannot resolve task branch commit: ${branch}"
-  printf '%s\n' "$sha"
+# DP-303-T1 (S1): resolve the delivered head from the IMMUTABLE completion-gate
+# marker filename instead of the (mutable) task/* branch ref. Marker filenames
+# are keyed {work_item_id}-{head_sha}.json and live under the main checkout's
+# .polaris/evidence/completion-gate/. The branch ref is rewritable (a polluting
+# commit, a force-push, a stale local ref) and therefore is NOT a trustworthy
+# authority for the delivered head; the marker filename is written once at
+# completion gate time and is the canonical head record.
+# Echoes the resolved head SHA on success (exit 0). Echoes nothing and returns 1
+# when no PASS completion-gate marker exists for this work item (the caller
+# fail-closes rather than falling back to the branch ref).
+# Args: $1 = work_item_id (e.g. DP-303-T1)
+resolve_completion_gate_marker_head() {
+  local work_item_id="$1"
+  local main_checkout marker_dir candidate suffix head=""
+
+  main_checkout="$(resolve_main_checkout "$REPO_ROOT" 2>/dev/null || true)"
+  [[ -n "$main_checkout" ]] || main_checkout="$REPO_ROOT"
+  marker_dir="${main_checkout}/.polaris/evidence/completion-gate"
+  [[ -d "$marker_dir" ]] || return 1
+
+  for candidate in "$marker_dir/${work_item_id}-"*.json; do
+    [[ -e "$candidate" ]] || continue
+    suffix="$(basename "$candidate")"
+    suffix="${suffix#"${work_item_id}-"}"
+    suffix="${suffix%.json}"
+    if is_sha "$suffix"; then
+      head="$suffix"
+      break
+    fi
+  done
+
+  [[ -n "$head" ]] || return 1
+  printf '%s\n' "$head"
 }
 
 # classify_worktree_for_branch <task_branch>
@@ -600,6 +647,19 @@ done
 is_sha "$WORKSPACE_COMMIT" || die "--workspace-commit must be a 7-40 char hex SHA"
 is_sha "$TEMPLATE_COMMIT" || die "--template-commit must be a 7-40 char hex SHA"
 
+# DP-303-T1 (S5 / AC6): reject a verification (task_kind=V) task passed as a
+# --task-md at argument-parsing time. V tasks have no code branch / PR; their
+# IMPLEMENTED transition is owned by the parent closeout (V auto-enumeration in
+# close-parent-spec-if-complete.sh + auto_advance_unlisted_v_tasks), NOT by this
+# branch-bearing producer closeout. Fail-closed with a parent-closeout hint
+# before any side effect runs.
+for _arg_task_md in "${TASK_MDS[@]}"; do
+  [[ -f "$_arg_task_md" ]] || continue
+  if [[ "$(frontmatter_task_kind "$_arg_task_md")" == "V" ]]; then
+    die "refusing task_kind=V --task-md: ${_arg_task_md}; V (verification) tasks are driven by the parent-closeout V enumeration, not by framework-release-closeout's per-task --task-md producer path"
+  fi
+done
+
 REPO_ROOT="$(abs_path "$REPO_ROOT")"
 [[ -d "$REPO_ROOT/.git" || -f "$REPO_ROOT/.git" ]] || die "repo is not a git checkout: ${REPO_ROOT}"
 git -C "$REPO_ROOT" cat-file -e "${WORKSPACE_COMMIT}^{commit}" 2>/dev/null || die "workspace commit not found: ${WORKSPACE_COMMIT}"
@@ -673,6 +733,20 @@ for i in "${!TASK_MDS[@]}"; do
     continue
   fi
 
+  # DP-303-T1 (S1/S5): resolve the task's delivered head from an IMMUTABLE
+  # authority chain, in priority order:
+  #   1. --task-head-sha (explicit operator-supplied; map or positional)
+  #   2. completion-gate marker filename head (immutable; written at gate time)
+  #   3. task.md delivery block (deliverable.head_sha)
+  # resolve_branch_sha is NO LONGER an authority source: the task/* branch ref
+  # is mutable and a polluting commit / force-push would silently mis-resolve the
+  # head. When none of the three immutable sources yields a head, closeout
+  # fail-closes (AC-NEG2: no silent pass / no branch-ref fallback).
+  #
+  # DP-273 bundle detection moved up here so the AGGREGATE fail-closed contract
+  # (S5 / AC7) can run before any auto-resolution attempt.
+  bundle_alias="$(bundle_branch_alias_for_task "$task_md")"
+
   task_head_sha=""
   if [[ "$TASK_HEAD_SHA_MAP_USED" -eq 1 ]]; then
     if task_head_sha="$(task_head_sha_map_get "$task_id")"; then
@@ -683,8 +757,28 @@ for i in "${!TASK_MDS[@]}"; do
   elif [[ "${#TASK_HEAD_SHAS[@]}" -gt 0 ]]; then
     task_head_sha="${TASK_HEAD_SHAS[$i]}"
   fi
+
   if [[ -z "$task_head_sha" ]]; then
-    task_head_sha="$(resolve_branch_sha "$task_branch")"
+    # DP-303-T1 (S5 / AC7): an AGGREGATE task (carries bundle_branch_alias) whose
+    # delivered head was not supplied via --task-head-sha must fail-closed. The
+    # bundle release head is not the per-task head, so auto-resolving from a
+    # marker / delivery block would assert against the wrong commit. Bundle PR
+    # identity requires the explicit per-task SHA.
+    if [[ -n "$bundle_alias" ]]; then
+      die "aggregate task ${task_id} (bundle=${bundle_alias}) requires an explicit --task-head-sha; closeout will not auto-resolve a bundled task head"
+    fi
+    if task_head_sha="$(resolve_completion_gate_marker_head "$task_id")"; then
+      info "resolved delivered head for ${task_id} from completion-gate marker: ${task_head_sha}"
+    else
+      task_head_sha="$(json_field "$parser_json" "d.get('frontmatter', {}).get('deliverable', {}).get('head_sha')")"
+      if [[ -n "$task_head_sha" ]]; then
+        info "resolved delivered head for ${task_id} from task.md delivery block: ${task_head_sha}"
+      fi
+    fi
+  fi
+
+  if [[ -z "$task_head_sha" ]]; then
+    die "cannot resolve delivered head for ${task_id}: no --task-head-sha, no completion-gate marker, no task.md delivery block (fail-closed; branch ref is not an authority source)"
   fi
   is_sha "$task_head_sha" || die "--task-head-sha value malformed for ${task_id}: ${task_head_sha} (expected 7-40 char hex SHA; map syntax is task_id=<sha>)"
   git -C "$REPO_ROOT" cat-file -e "${task_head_sha}^{commit}" 2>/dev/null || die "task head does not exist for ${task_id}: ${task_head_sha}"
@@ -702,7 +796,6 @@ for i in "${!TASK_MDS[@]}"; do
   # per-task head is still enforced downstream by the completion gate.
   # NON-bundle (single-DP) keeps the original strict ancestry assertion
   # unchanged (bundle size = 1 degenerate, AC-NEG1).
-  bundle_alias="$(bundle_branch_alias_for_task "$task_md")"
   if [[ -n "$bundle_alias" ]]; then
     if ! git -C "$REPO_ROOT" merge-base --is-ancestor "$task_head_sha" "$WORKSPACE_COMMIT" 2>/dev/null; then
       intersect_count="$(release_diff_intersects_allowed_files "$task_md" "$WORKSPACE_COMMIT" "$REPO_ROOT" "$parser_json")"

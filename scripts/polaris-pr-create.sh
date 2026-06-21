@@ -742,7 +742,15 @@ if [[ -n "$BASE_BRANCH" ]]; then
 fi
 
 # Gate 2: evidence (Layer B plus conditional Layer C VR; skip for non-ticket branches)
-if [[ "$IS_TICKET_BRANCH" -eq 1 ]]; then
+# DP-303 S4: for the canonical aggregate-release bundle path, forward the bundle
+# context so gate-evidence runs in aggregate mode (per bundled-task completion
+# markers). This is the single canonical bundle build path — it does NOT depend on
+# --skip-gates and does NOT route through the POLARIS_PR_WORKFLOW=1 escape-hatch.
+if [[ "$AGGREGATE_RELEASE" -eq 1 ]]; then
+  EVIDENCE_GATE_ARGS=(--repo "$REPO_PATH" --aggregate-release \
+    --source "$AGG_SOURCE" --bundled-tasks "$AGG_BUNDLED_TASKS")
+  run_gate gate-evidence.sh "${EVIDENCE_GATE_ARGS[@]}"
+elif [[ "$IS_TICKET_BRANCH" -eq 1 ]]; then
   EVIDENCE_GATE_ARGS=(--repo "$REPO_PATH")
   if [[ -n "$TASK_MD_PATH" ]]; then
     EVIDENCE_GATE_ARGS+=(--task-md "$TASK_MD_PATH")

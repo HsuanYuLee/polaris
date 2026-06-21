@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# Purpose: Scan a Polaris workspace (and/or the Polaris template) for company-specific
+#          leaks (slugs, JIRA prefixes, domains, Slack IDs, GitHub org, active DP paths)
+#          before sync-to-polaris. Scan scope converges to the sync copy set: gitignored
+#          runtime state is the single "does NOT sync" authority and is exempt (DP-303 T3).
+# Inputs:  --workspace <path> --template <path> --source <workspace|template|both>
+#          --format <summary|markdown|json> --blocking
+# Outputs: leak report on stdout; exit 0 clean, exit 1 with --blocking when hits exist,
+#          exit 2 on usage / missing-input error. POLARIS_TEMPLATE_LEAK on stderr when blocked.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -216,9 +224,17 @@ def skip_path(root: Path, path: Path, source_name: str, gitignored=frozenset()):
     parts = rel.split("/")
     if any(part in {".git", "node_modules", "dist", ".astro", "e2e-results", "test-results"} for part in parts):
         return True
-    # DP-305 D5: skip git-ignored local session-state files (e.g.
-    # .claude/active-thread.md). Tracked files never appear in this set, so
-    # tracked-file leak detection is unaffected (AC-NEG3).
+    # DP-303 T3 (AC4): gitignore is the SINGLE source of truth for the
+    # "does NOT sync" runtime-state set. sync-to-polaris.sh never copies
+    # gitignored files, so any gitignored path (e.g. .claude/active-thread.md,
+    # .claude/settings.local.json, .claude/polaris-backlog.md,
+    # .claude/checkpoints/**, .claude/worktrees/**, workspace-config.yaml,
+    # docs-manager/src/content/docs/specs/**) is exempt here via this one
+    # check — no parallel hardcoded path list that could drift from .gitignore.
+    # Tracked files never appear in this set, so tracked-file leak detection
+    # stays fail-closed (a runtime-state file that is NOT gitignored is still
+    # scanned, because sync would copy it). DP-305 D5 established the gitignore
+    # mechanism; DP-303 T3 removed the redundant duplicate skip entries.
     if rel in gitignored:
         return True
     if rel == "scripts/selftests/scan-template-leaks-selftest.sh":
@@ -229,10 +245,6 @@ def skip_path(root: Path, path: Path, source_name: str, gitignored=frozenset()):
     # block sync-to-polaris while still flagging the same prefix anywhere
     # outside the fixture path.
     if rel.startswith("scripts/selftests/fixtures/"):
-        return True
-    if rel in {".claude/settings.local.json", ".claude/polaris-backlog.md"} or rel.startswith(".claude/checkpoints/"):
-        return True
-    if ".claude/worktrees/" in rel or rel.startswith(".claude/worktrees/"):
         return True
     if rel.startswith(".agents/skills"):
         return True
