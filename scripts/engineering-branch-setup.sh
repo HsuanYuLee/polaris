@@ -181,6 +181,25 @@ task_collection_dir() {
   printf '%s\n' "$dir"
 }
 
+# Description: Decide whether a task.md lives under a finalized tasks/pr-release/
+#              lifecycle location. release-stage bundling is gated solely on this
+#              pr-release position — not on container archive state or branch naming
+#              (AC-NEG3). A finalized work order is at .../tasks/pr-release/{Tn}/index.md
+#              or .../tasks/pr-release/{Tn}.md; an active one is at .../tasks/{Tn}/...
+# Args:        $1 = task.md path (absolute or relative)
+# Outputs:     exit 0 when under tasks/pr-release/, exit 1 otherwise. No stdout.
+is_pr_release_task() {
+  local task_md="$1"
+  local dir
+  dir="$(dirname "$task_md")"
+  # Strip a trailing T{n}/V{n} folder so both tasks/pr-release/Tn/index.md and
+  # tasks/pr-release/Tn.md resolve to the pr-release directory.
+  if [[ "$(basename "$dir")" =~ ^[TV][0-9]+[a-z]*$ ]]; then
+    dir="$(dirname "$dir")"
+  fi
+  [[ "$(basename "$dir")" == "pr-release" && "$(basename "$(dirname "$dir")")" == "tasks" ]]
+}
+
 is_canonical_pipeline_task() {
   local task_md="$1"
   [[ "$task_md" == *"/docs-manager/src/content/docs/specs/"* ]] || return 1
@@ -606,13 +625,26 @@ run_aggregate_release() {
   fi
   local abs_task_mds=()
   local task_md
+  local abs_task_md
   if [[ "${#task_mds[@]}" -gt 0 ]]; then
     for task_md in "${task_mds[@]}"; do
       if [[ ! -f "$task_md" ]]; then
         echo "ERROR: --task-md not found: $task_md" >&2
         return 2
       fi
-      abs_task_mds+=("$(cd "$(dirname "$task_md")" && pwd)/$(basename "$task_md")")
+      abs_task_md="$(cd "$(dirname "$task_md")" && pwd)/$(basename "$task_md")"
+      # DP-319 AC4: bundle assembly may only collect work orders that have already
+      # moved into tasks/pr-release/ (finalize-engineering-delivery.sh closeout).
+      # All-members rule: any member still in an active tasks/Tn/ location fails the
+      # whole bundle closed before any branch/worktree is created, so release-stage
+      # bundling cannot be torn apart. Gated on pr-release lifecycle position only —
+      # not container archive state or branch naming (AC-NEG3).
+      if ! is_pr_release_task "$abs_task_md"; then
+        echo "POLARIS_RELEASE_STAGE_TASK_NOT_FINALIZED: --task-md is not under tasks/pr-release/: $abs_task_md" >&2
+        echo "  → Finalize each member through finalize-engineering-delivery.sh (move-first closeout into tasks/pr-release/) before assembling the aggregate-release bundle." >&2
+        return 2
+      fi
+      abs_task_mds+=("$abs_task_md")
     done
   fi
 

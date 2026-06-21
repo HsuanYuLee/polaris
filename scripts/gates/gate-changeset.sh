@@ -47,12 +47,25 @@ if [[ ! -f "$REPO_ROOT/.changeset/config.json" ]]; then
   exit 0
 fi
 
-if [[ -z "$TASK_MD" ]]; then
+# RESOLVED_TASK_MDS holds the FULL resolved candidate set (one per line). When
+# --task-md is supplied it is the single member; when resolved by branch it is
+# every task.md matching the branch (a bundle alias legitimately multi-matches).
+# TASK_MD stays the first member so the per-task changeset contract below is
+# unchanged; the release-stage exemption (DP-319) consults the full set.
+RESOLVED_TASK_MDS=""
+if [[ -n "$TASK_MD" ]]; then
+  RESOLVED_TASK_MDS="$TASK_MD"
+else
   branch="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
   if [[ -z "$branch" || "$branch" == "HEAD" ]]; then
     exit 0
   fi
-  TASK_MD="$(bash "$RESOLVE_BY_BRANCH" --scan-root "$WORKSPACE_SCRIPTS/.." "$branch" 2>/dev/null | head -n 1 || true)"
+  # Resolve the branch against the repo being gated ($REPO_ROOT). In every real
+  # callsite the gate script lives in that same repo, so this equals the prior
+  # "$WORKSPACE_SCRIPTS/.." while also resolving multi-match members correctly in
+  # hermetic fixtures (DP-319 all-members rule).
+  RESOLVED_TASK_MDS="$(bash "$RESOLVE_BY_BRANCH" --scan-root "$REPO_ROOT" "$branch" 2>/dev/null || true)"
+  TASK_MD="$(printf '%s\n' "$RESOLVED_TASK_MDS" | head -n 1 || true)"
 fi
 
 if [[ -z "$TASK_MD" ]]; then
@@ -63,6 +76,39 @@ fi
 if [[ ! -f "$TASK_MD" ]]; then
   echo "$PREFIX BLOCKED: resolved task.md does not exist: $TASK_MD" >&2
   exit 2
+fi
+
+# is_release_stage_exempt: DP-319 — release-stage exemption keyed off the
+# pr-release TASK LIFECYCLE POSITION, not container archive timing or branch
+# naming. A framework-release bundle finalizes every member task.md into
+# */tasks/pr-release/*; once that has happened the bundle PR delta is
+# legitimately behavioral (it carries the members' implementation), so the
+# per-task changeset / PR-title contracts must NOT tear it apart.
+#
+# all-members rule (AC5): EVERY resolved member must live under */tasks/pr-release/*.
+# If any member is still in tasks/Tn/ (active development), the bundle is not
+# release-staged — fall through to the per-task contract. Echoes nothing; returns
+# 0 when release-stage exempt, 1 otherwise (including empty input).
+is_release_stage_exempt() {
+  local members="$1"
+  local saw_member=0 line
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    saw_member=1
+    case "$line" in
+      */tasks/pr-release/*) ;;
+      *) return 1 ;;
+    esac
+  done <<<"$members"
+  [[ "$saw_member" -eq 1 ]]
+}
+
+# DP-319: this exemption runs BEFORE the changeset check and the
+# evidence-classifier so an impl-bearing (behavioral) bundle delta is not
+# misclassified and blocked (EC2 / AC1). It does not relax any other gate.
+if is_release_stage_exempt "$RESOLVED_TASK_MDS"; then
+  echo "$PREFIX ✅ release-stage (all members in tasks/pr-release/) — exempt from per-task changeset (DP-319; pr-release lifecycle position)." >&2
+  exit 0
 fi
 
 if bash "$POLARIS_CHANGESET" check --task-md "$TASK_MD" --repo "$REPO_ROOT"; then

@@ -78,11 +78,24 @@ fi
 
 branch="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 
-if [[ -z "$TASK_MD" ]]; then
+# RESOLVED_TASK_MDS holds the FULL resolved candidate set (one per line). When
+# --task-md is supplied it is the single member; when resolved by branch it is
+# every task.md matching the branch (a bundle alias legitimately multi-matches).
+# TASK_MD stays the first member so the per-task title contract below is
+# unchanged; the release-stage exemption (DP-319) consults the full set.
+RESOLVED_TASK_MDS=""
+if [[ -n "$TASK_MD" ]]; then
+  RESOLVED_TASK_MDS="$TASK_MD"
+else
   if [[ -z "$branch" || "$branch" == "HEAD" ]]; then
     exit 0
   fi
-  TASK_MD="$(bash "$RESOLVE_BY_BRANCH" --scan-root "$WORKSPACE_SCRIPTS/.." "$branch" 2>/dev/null | head -n 1 || true)"
+  # Resolve the branch against the repo being gated ($REPO_ROOT). In every real
+  # callsite the gate script lives in that same repo, so this equals the prior
+  # "$WORKSPACE_SCRIPTS/.." while also resolving multi-match members correctly in
+  # hermetic fixtures (DP-319 all-members rule).
+  RESOLVED_TASK_MDS="$(bash "$RESOLVE_BY_BRANCH" --scan-root "$REPO_ROOT" "$branch" 2>/dev/null || true)"
+  TASK_MD="$(printf '%s\n' "$RESOLVED_TASK_MDS" | head -n 1 || true)"
 fi
 
 if [[ -z "$TASK_MD" ]]; then
@@ -110,6 +123,30 @@ read_bundle_branch_alias() {
       exit
     }
   ' "$task_md" 2>/dev/null || true
+}
+
+# is_release_stage_exempt: DP-319 — release-stage exemption keyed off the
+# pr-release TASK LIFECYCLE POSITION, not container archive timing or branch
+# naming. Once a framework-release bundle finalizes every member task.md into
+# */tasks/pr-release/*, the per-task [KEY-Tn] PR-title contract must not be
+# required of the bundle PR title.
+#
+# all-members rule (AC5): EVERY resolved member must live under */tasks/pr-release/*.
+# If any member is still in tasks/Tn/ (active development), fall through to the
+# per-task contract. Returns 0 when release-stage exempt, 1 otherwise (including
+# empty input).
+is_release_stage_exempt() {
+  local members="$1"
+  local saw_member=0 line
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    saw_member=1
+    case "$line" in
+      */tasks/pr-release/*) ;;
+      *) return 1 ;;
+    esac
+  done <<<"$members"
+  [[ "$saw_member" -eq 1 ]]
 }
 
 # acquire_actual_title: resolve the PR title to validate. Prefers the explicit
@@ -156,6 +193,37 @@ $PREFIX BLOCKED: POLARIS_PR_TITLE_GATE_BLOCKED aggregate-release PR title does n
   Branch:   $branch (aggregate-release bundle)
   Expected: chore(release): bundle DP-NNN -> vX.Y.Z
   Actual:   $agg_actual_title
+
+Fix:
+  gh pr edit --title "chore(release): bundle DP-NNN -> vX.Y.Z"
+EOF
+  exit 2
+fi
+
+# Release-stage exemption (DP-319): when EVERY resolved member task.md lives
+# under */tasks/pr-release/*, the bundle is release-staged. Validate the bundle
+# title contract instead of requiring the per-task [KEY-Tn] developer format.
+# This runs BEFORE deriving ticket/summary so an impl-bearing bundle is not
+# blocked for lacking a per-task title. It only relaxes the [KEY-Tn] format — the
+# bundle_title_regex still enforces a language-safe English title shape, so
+# gate-pr-language equivalence holds (AC2 attack: no language bypass).
+if is_release_stage_exempt "$RESOLVED_TASK_MDS"; then
+  rs_bundle_title_regex='^chore\(release\): bundle DP-[0-9]+ -> v[0-9]+\.[0-9]+\.[0-9]+$'
+  rs_actual_title="$(acquire_actual_title "$REPO_ROOT" "$ACTUAL_TITLE")"
+  if [[ -z "$rs_actual_title" ]]; then
+    # No PR yet and no --title supplied; nothing to validate.
+    exit 0
+  fi
+  if [[ "$rs_actual_title" =~ $rs_bundle_title_regex ]]; then
+    echo "$PREFIX ✅ release-stage (all members in tasks/pr-release/) — bundle title accepted (DP-319; pr-release lifecycle position)." >&2
+    exit 0
+  fi
+  cat >&2 <<EOF
+$PREFIX BLOCKED: POLARIS_PR_TITLE_GATE_BLOCKED release-stage bundle PR title does not match bundle format.
+  Task.md:  $TASK_MD
+  Branch:   $branch (release-stage: all members in tasks/pr-release/)
+  Expected: chore(release): bundle DP-NNN -> vX.Y.Z
+  Actual:   $rs_actual_title
 
 Fix:
   gh pr edit --title "chore(release): bundle DP-NNN -> vX.Y.Z"

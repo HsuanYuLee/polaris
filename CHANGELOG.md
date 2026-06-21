@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.25] - 2026-06-22
+
+### Changed
+
+- 55058ac: DP-319-T1：gate-changeset / gate-pr-title 以 pr-release lifecycle 位置作 release-stage exemption（含 multi-match all-members rule）
+- 111463e: engineering-branch-setup --aggregate-release bundle 組裝前置 fail-closed（member 必須在 pr-release/）
+
 ## [3.76.24] - 2026-06-22
 
 ### Changed
