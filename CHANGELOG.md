@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.76.29] - 2026-06-22
+
+### Changed
+
+- f80adff: PostToolUse tick hook（session-keyed）+ 刪死碼 + settings 註冊 + selftest
+- 2419a8f: DP-291-T2：新增 UserPromptSubmit session-switch-eval hook、session_switch 設定區塊、settings 註冊與 hermetic selftest
+- 2aa37e1: 薄轉述 rule + mechanism-registry runtime annotation + cross-llm parity
+
 ## [3.76.28] - 2026-06-22
 
 ### Changed

@@ -60,6 +60,8 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | version-docs-lint-gate | .claude/hooks/version-docs-lint-gate.sh | hook | portable | N/A | governance |
 | session-start-thread-anchor | .claude/hooks/session-start-thread-anchor.sh | hook | claude-code-only | scripts/update-active-thread.sh | governance |
 | stop-active-thread-reminder | .claude/hooks/stop-active-thread-reminder.sh | hook | portable | N/A | governance |
+| session-pressure-tick | .claude/hooks/session-pressure-tick.sh | hook | claude-code-only | N/A | ux_enhancement_only |
+| session-switch-eval | .claude/hooks/session-switch-eval.sh | hook | claude-code-only | N/A | ux_enhancement_only |
 | framework-pr-gate | scripts/check-framework-pr-gate.sh | script | portable | N/A | governance |
 | mechanism-runtime-annotations | scripts/validate-mechanism-runtime-annotations.sh | script | portable | N/A | governance |
 | mechanism-graduation-audit | scripts/audit-mechanism-graduation.sh | script | portable | N/A | governance |

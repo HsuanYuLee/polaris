@@ -768,16 +768,6 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
-      "path": "scripts/context-pressure-monitor.sh",
-      "kind": "support",
-      "runner": "bash",
-      "owner_surface": "skill_or_reference",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
-    },
-    {
       "path": "scripts/contract-check.sh",
       "kind": "support",
       "runner": "bash",
