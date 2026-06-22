@@ -49,7 +49,18 @@ def iter_text_files(root: Path):
         if not scan_root.exists():
             continue
         for path in scan_root.rglob("*"):
-            if any(part in SKIP_DIRS for part in path.parts):
+            # Compute the skip decision relative to the resolved root so
+            # that only SKIP_DIRS nested *inside* the scanned tree are
+            # skipped. The root itself may live under a .worktrees/ path
+            # (an engineering worktree); checking the absolute path.parts
+            # against SKIP_DIRS would then match ".worktrees" in the root
+            # prefix and blank out every consumer, turning the
+            # categorization Verify Command into a false-pass (EC1).
+            try:
+                rel_parts = path.relative_to(root).parts
+            except ValueError:
+                rel_parts = path.parts
+            if any(part in SKIP_DIRS for part in rel_parts):
                 continue
             if path.is_file() and path.suffix in TEXT_SUFFIXES:
                 yield path
@@ -82,6 +93,25 @@ def skill_owner_for(path: str):
             return "shared-references"
         return parts[2]
     return None
+
+
+def is_own_selftest_or_fixture(path: str) -> bool:
+    """Return True when ``path`` is a script's own selftest or fixture.
+
+    Selftests live under ``scripts/selftests/`` and fixtures under
+    ``scripts/fixtures/``. A script's own selftest/fixture moves WITH the
+    owning skill, so it must not disqualify skill_local classification
+    (EC2). Any other non-skill consumer (hook, rule, workflow, another
+    root script) still disqualifies skill_local — see ``classify`` for the
+    conservative guard.
+
+    Args:
+        path: repo-relative consumer path (POSIX-style).
+
+    Returns:
+        True if the consumer is a selftest or fixture under scripts/.
+    """
+    return path.startswith("scripts/selftests/") or path.startswith("scripts/fixtures/")
 
 
 def classify(script_path, manifest_row, consumers):
@@ -152,6 +182,27 @@ def classify(script_path, manifest_row, consumers):
         }
 
     if len(skill_owners) == 1 and not non_skill and skill_owners[0] != "shared-references":
+        return {
+            "classification": "skill_local",
+            "recommendation": "skill_local",
+            "owner_skill": skill_owners[0],
+            "bridge_removal_criteria": None,
+            "local_leakage": local_leakage,
+        }
+
+    # EC2: exactly one skill owner, and every non-skill consumer is this
+    # script's own selftest/fixture. The script is movable WITH the owning
+    # skill (its selftest/fixture moves alongside it), so classify
+    # skill_local rather than demoting to keep_root_with_reason.
+    # Conservative: a hook / rule / another-skill / another-root-script
+    # non-skill consumer still disqualifies (it is not an own
+    # selftest/fixture), falling through to the existing branches.
+    if (
+        len(skill_owners) == 1
+        and skill_owners[0] != "shared-references"
+        and non_skill
+        and all(is_own_selftest_or_fixture(path) for path in non_skill)
+    ):
         return {
             "classification": "skill_local",
             "recommendation": "skill_local",

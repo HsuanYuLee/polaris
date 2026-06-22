@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
+"""Purpose: flag dangling referrers when a refinement module is deleted/renamed.
+
+Inputs:  argv[1] = container dir or refinement.json path.
+Outputs: exit 0; emits POLARIS_REFERRER_CASCADE_REVIEW on stderr for each
+         delete/rename path that still has referrers (or lacks an explicit
+         "referrer scan: 0 hits" note). exit 2 when rg is unavailable.
+"""
 import subprocess
 import sys
-from pathlib import Path
 
 from refinement_common import load_json, refinement_paths
 from tool_resolution import ToolResolutionError, resolve_tool

@@ -234,4 +234,41 @@ if grep -q "POLARIS_SCRIPT_MISPLACED:" "$out6"; then
   exit 1
 fi
 
+# ------------------------------------------------------------------
+# Case 7 (DP-289 T1, AC1 / AC-NEG1): a root script whose only non-skill
+# consumers are its OWN owning-skill's selftest is now classified
+# skill_local by the corrected audit definition. The categorization
+# validator must consume that corrected classification and STILL FAIL
+# the misplaced script in diff mode — without loosening its own
+# threshold. This proves the validator reflects the refined skill_local
+# definition (a still-mislocated single-skill script keeps failing).
+# ------------------------------------------------------------------
+case7="$tmpdir/case7"
+build_repo "$case7"
+mkdir -p "$case7/scripts/selftests"
+cp "$ROOT/scripts/fixtures/script-categorization/single-skill-misplaced-sample.sh" \
+   "$case7/scripts/owned-tool.sh"
+write_manifest "$case7" \
+  '{"path": "scripts/owned-tool.sh", "kind": "support", "runner": "bash", "owner_surface": "skill_or_reference", "selftest": "N/A", "selftest_reason": "fixture", "lifecycle": "support_path", "relocation": "stay"}'
+mkdir -p "$case7/.claude/skills/ownerskill"
+printf 'See scripts/owned-tool.sh\n' > "$case7/.claude/skills/ownerskill/SKILL.md"
+# Own-skill selftest is the only non-skill consumer. Under the corrected
+# definition this stays skill_local (movable with ownerskill) rather than
+# being demoted, so the misplaced root script must still FAIL diff mode.
+printf '#!/usr/bin/env bash\nbash scripts/owned-tool.sh\n' \
+  > "$case7/scripts/selftests/owned-tool-selftest.sh"
+out7="$tmpdir/out7"
+if bash "$SCRIPT" --root "$case7" --mode diff --file "scripts/owned-tool.sh" \
+    >"$out7" 2>&1; then
+  echo "FAIL: case 7 — skill_local-with-own-selftest incorrectly passed diff mode" >&2
+  cat "$out7" >&2
+  exit 1
+fi
+if ! grep -q "POLARIS_SCRIPT_MISPLACED:scripts/owned-tool.sh -> .claude/skills/ownerskill/scripts/" \
+    "$out7"; then
+  echo "FAIL: case 7 — missing migration hint for own-selftest skill_local script" >&2
+  cat "$out7" >&2
+  exit 1
+fi
+
 echo "PASS: validate-script-categorization selftest"

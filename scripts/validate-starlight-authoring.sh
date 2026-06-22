@@ -41,6 +41,55 @@ def is_generated_path(path: Path) -> bool:
             return True
     return "dist" in parts and "docs-manager" in parts
 
+# Path segments that docs-manager/src/content.config.ts excludes from the docs
+# collection via "!**/{escalations,jira-comments,refinement-inbox,tests}/**".
+# Files under any such directory never render as a Starlight page.
+EXCLUDED_DIR_SEGMENTS = {"escalations", "jira-comments", "refinement-inbox", "tests"}
+
+# Two-segment sequences excluded by "!**/artifacts/external-writes/**" and
+# "!**/artifacts/research/**". Other artifacts/* paths (e.g. artifacts/auto-pass)
+# still render and must remain validated.
+EXCLUDED_ARTIFACT_SUBDIRS = {"external-writes", "research"}
+
+# The Starlight docs collection base is dirname(POLARIS_SPECS_ROOT), which always
+# resolves to a ".../docs-manager/src/content/docs" tree (content.config.ts).
+# Only Markdown under such a collection root becomes a rendered Starlight page;
+# files elsewhere (e.g. .claude/skills/references, .claude/rules/handbook) are
+# agent-loaded references, never rendered, and outside this contract's scope.
+DOCS_COLLECTION_ROOT_MARKER = "docs-manager/src/content/docs/"
+
+def is_dir_walk_excluded(file: Path) -> bool:
+    """Mirror content.config.ts render exclusions for directory traversal.
+
+    The docs collection glob "**/[^_]*.{md,...}" plus its negative patterns
+    decide which files become Starlight pages. A recursive directory walk must
+    skip the same files so the check only validates genuinely-rendered pages.
+    Explicit file arguments are NOT routed through this filter.
+
+    Args:
+        file: A markdown path discovered during a directory walk.
+
+    Returns:
+        True when content.config.ts would exclude the file from rendering.
+    """
+    posix = file.as_posix()
+    # Outside the docs-manager content collection root nothing renders as a
+    # Starlight page, so a directory walk has no page to validate there.
+    if DOCS_COLLECTION_ROOT_MARKER not in posix:
+        return True
+    parts = posix.split("/")
+    # "[^_]" in the glob only constrains the filename, not intermediate dirs.
+    if file.name.startswith("_"):
+        return True
+    # Directory segments (exclude the filename itself).
+    dir_parts = parts[:-1]
+    if any(part in EXCLUDED_DIR_SEGMENTS for part in dir_parts):
+        return True
+    for idx in range(len(dir_parts) - 1):
+        if dir_parts[idx] == "artifacts" and dir_parts[idx + 1] in EXCLUDED_ARTIFACT_SUBDIRS:
+            return True
+    return False
+
 def markdown_files(path: Path):
     if not path.exists():
         print(f"error: path not found: {path}", file=sys.stderr)
@@ -55,8 +104,11 @@ def markdown_files(path: Path):
         yield path
         return
     for file in sorted(path.rglob("*.md")):
-        if not is_generated_path(file):
-            yield file
+        if is_generated_path(file):
+            continue
+        if is_dir_walk_excluded(file):
+            continue
+        yield file
 
 def strip_quotes(value: str) -> str:
     value = value.strip()

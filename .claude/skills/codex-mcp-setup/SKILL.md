@@ -50,7 +50,7 @@ bash scripts/sync-codex-mcp.sh --apply --login \
 ```bash
 mise run cross-runtime-sync
 bash scripts/mechanism-parity.sh --strict
-bash scripts/polaris-codex-doctor.sh
+bash .claude/skills/codex-mcp-setup/scripts/polaris-codex-doctor.sh
 ```
 
 ### 5) Report

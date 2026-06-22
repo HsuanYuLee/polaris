@@ -747,7 +747,6 @@ def normalize_memory_file(path: Path) -> bool:
     match = FRONTMATTER_RE.match(text)
     if not match:
         return False
-    fm = parse_frontmatter(text)
     body = match.group(1)
     lines = body.splitlines()
     existing_keys: set[str] = set()

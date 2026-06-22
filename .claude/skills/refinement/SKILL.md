@@ -290,8 +290,7 @@ chat：
 2. 在 `{source_container}/refinement.md` + `refinement.json` 寫入 Goal、Background、
    Decisions、Blind Spots、AC、Implementation Scope（不是只在 chat 列重點）。
 3. 跑 `scripts/validate-language-policy.sh --blocking --mode artifact <refinement.md>`。
-4. 跑 docs-viewer sidebar sync（`scripts/docs-viewer-sync-hook.sh` 或 specs-sidebar-sync
-   hook）讓使用者能在 docs-manager preview 讀到。
+4. 跑 docs-viewer sidebar sync（`.claude/hooks/specs-sidebar-sync.sh` hook）讓使用者能在 docs-manager preview 讀到。
 5. **完成上述後**才向使用者回報 DP path，等指示是否進入 breakdown / engineering。
 
 Why：chat-only proposal 跨 session 容易丟失，且違反「framework contract change 預設走

@@ -245,7 +245,7 @@ case "$tool_name" in
     # For Edit/MultiEdit the file already exists. We assemble a worst-case
     # preview by reading the file and substituting every (old_string, new_string)
     # pair the input provides. If anything looks malformed we exit 0 (fail open).
-    preview="$(printf '%s' "$input" | python3 <<'PY' 2>/dev/null || true
+    preview="$(printf '%s' "$input" | python3 -c '
 import json, sys
 try:
     data = json.load(sys.stdin)
@@ -278,8 +278,7 @@ try:
     sys.stdout.write(text)
 except Exception:
     pass
-PY
-)"
+' 2>/dev/null || true)"
     tmp_payload="$(mktemp -t pre-write-lang-XXXX.md)"
     printf '%s' "$preview" >"$tmp_payload"
     ;;

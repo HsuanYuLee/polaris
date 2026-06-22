@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
+"""Purpose: verify every refinement decision (D-NNN) is reflected in the AC blob.
+
+Inputs:  argv[1] = container dir or refinement.json path.
+Outputs: exit 0 when all decisions are covered; exit 2 +
+         POLARIS_DECISION_AC_COVERAGE_MISSING on stderr listing uncovered Ds.
+"""
 import re
 import sys
-from pathlib import Path
 
 from refinement_common import ac_blob, load_json, refinement_paths
 

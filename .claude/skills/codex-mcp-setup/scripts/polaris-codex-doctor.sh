@@ -163,5 +163,5 @@ if [[ "$warn_count" -eq 0 ]]; then
 else
   echo
   echo "Result: NOT READY (${warn_count} warning(s))."
-  echo "Fix warnings, then run: bash scripts/polaris-codex-doctor.sh"
+  echo "Fix warnings, then run: bash .claude/skills/codex-mcp-setup/scripts/polaris-codex-doctor.sh"
 fi

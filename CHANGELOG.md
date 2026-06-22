@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.76.30] - 2026-06-22
+
+### Changed
+
+- f202707: Prerequisite classifier 正確性 — 修 script-ownership-audit.py worktree SKIP_DIRS blank-out + skill_local 定義（own-owning-skill selftest = skill-owned）
+- a86026d: 依真實角色正確歸類每支 root executable — single-skill script（含自身 selftest）移入 skill 目錄、gate→gates/、util→lib/、orphan review；callsite/manifest/catalog 同步
+- ab1754c: .sh/.py 全面改寫成 canonical mature pattern — shellcheck-clean .sh、ruff-clean .py、檔首 Purpose
+- fce6e63: validate-starlight-authoring.sh dir-walk 對齊 content.config.ts render 排除 glob（refinement-inbox/escalations/jira-comments/tests/、artifacts/external-writes/、artifacts/research/、\_ 前綴檔名，以及非 docs-manager content-collection root 的非 render 樹），使 check 只驗真正 render 的 Starlight page；explicit file 參數仍照驗。
+- 39fd7e3: 攜帶性證明 + DP-242 supersede
+
 ## [3.76.29] - 2026-06-22
 
 ### Changed

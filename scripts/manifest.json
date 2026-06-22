@@ -1879,16 +1879,6 @@
       "relocation": "stay"
     },
     {
-      "path": "scripts/polaris-codex-doctor.sh",
-      "kind": "support",
-      "runner": "bash",
-      "owner_surface": "skill_or_reference",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
-    },
-    {
       "path": "scripts/polaris-doctor-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -5119,6 +5109,16 @@
       "selftest": "scripts/selftests/validate-script-header-comment-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-selftest-enrollment.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "enrollment gate behavior is covered by scripts/selftests/run-aggregate-selftests-selftest.sh (the aggregate runner selftest exercises the --list output this gate compares against); a dedicated selftest would be circular since this gate guards the same corpus the runner enumerates"
     },
     {
       "path": "scripts/validate-skill-contracts.sh",
