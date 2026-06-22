@@ -194,7 +194,7 @@ fi
 RC="$(make_bundle_repo repoC mixed)"
 # Sanity: confirm the multi-match actually surfaces both members by branch.
 set +e
-multi="$(bash "$ROOT/scripts/resolve-task-md-by-branch.sh" --scan-root "$RC" "release/finalize-batch-42" 2>/dev/null)"
+multi="$(env -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$ROOT/scripts/resolve-task-md-by-branch.sh" --scan-root "$RC" "release/finalize-batch-42" 2>/dev/null)"
 set -e
 multi_count="$(printf '%s\n' "$multi" | grep -c 'index.md' || true)"
 if [[ "$multi_count" -ge 2 ]]; then

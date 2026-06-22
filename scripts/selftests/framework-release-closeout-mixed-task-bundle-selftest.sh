@@ -1,16 +1,24 @@
 #!/usr/bin/env bash
-# Purpose: Hermetic selftest for DP-293 T2 — framework-release-closeout.sh per-task
-#          loop must treat close-parent-spec-if-complete.sh rc==2 (intentional block:
-#          active sibling/verification tasks remain) as a soft-block (log + continue)
-#          so a mixed bundle (T1,T2,V1) closes out in ONE invocation, while any other
-#          non-zero close-parent exit still fails loud.
+# Purpose: Hermetic selftest for DP-293 T2 — framework-release-closeout.sh treats
+#          close-parent-spec-if-complete.sh rc==2 (intentional block: active
+#          sibling/verification tasks remain) as a soft-block (log + continue),
+#          while any other non-zero close-parent exit still fails loud. Under the
+#          DP-280-T2 two-phase closeout the mixed bundle (T1,T2 + a folder-native
+#          V1) closes out in ONE invocation: phase 1 flips the listed T tasks,
+#          phase 2 auto-enumerates the eligible V1 and archives the parent.
+#          DP-303-S5 / DP-354-T2: production refuses a task_kind=V passed as a
+#          per-task --task-md, so V1 is driven by the parent-closeout V
+#          enumeration (mirroring framework-release-closeout-v-enumeration-
+#          selftest.sh), NOT listed via --task-md.
 # Asserts:
-#   AC3      bundle (T1,T2,V1) single invocation: the non-terminal implementation
-#            tasks' close-parent returns 2 (V1 still active) yet the loop continues,
-#            reaches the terminal V1, archives the parent (status IMPLEMENTED), exit 0.
-#   AC-NEG2  inject a non-2 close-parent exit (rc=3) -> closeout dies loud.
-#   Static   BOTH close-parent call sites in framework-release-closeout.sh route
-#            through run_close_parent (so the branch path gets the same soft-block).
+#   AC3      mixed bundle (T1,T2 via --task-md; V1 folded by V enumeration)
+#            single invocation: T1/T2 flip IMPLEMENTED + move to pr-release/, the
+#            eligible V1 is folded in via the canonical writer, the parent
+#            archives (status IMPLEMENTED), exit 0.
+#   AC-NEG2  inject a non-2 terminal close-parent exit (rc=3) -> closeout dies loud.
+#   Static   the parent close routes through run_close_parent (rc==2 soft-block,
+#            other non-zero dies), and the only bare close-parent invocation lives
+#            inside the run_close_parent helper (single per-container call site).
 # Inputs:  none (CLI args ignored). Builds a synthetic git repo + specs container +
 #          stub scripts dir in a private tmpdir.
 # Outputs: stdout PASS/FAIL summary. Exit 0 = all cases PASS, 1 = a case failed.
@@ -48,6 +56,26 @@ _assert_contains() {
   fi
 }
 
+_assert_not_contains() {
+  TOTAL=$((TOTAL + 1))
+  if printf '%s' "$1" | grep -qF -- "$2"; then
+    FAIL=$((FAIL + 1))
+    printf '[FAILED %d] %s: substring should NOT appear: %q\n' "$TOTAL" "$3" "$2" >&2
+  else
+    PASS=$((PASS + 1))
+  fi
+}
+
+_assert_no_path() {
+  TOTAL=$((TOTAL + 1))
+  if [[ -e "$1" ]]; then
+    FAIL=$((FAIL + 1))
+    printf '[FAILED %d] %s: path should NOT exist: %s\n' "$TOTAL" "$2" "$1" >&2
+  else
+    PASS=$((PASS + 1))
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Stub scripts dir: real closeout + parser + lib, with side-effecting downstream
 # helpers replaced by deterministic stubs. The close-parent stub is configurable:
@@ -77,43 +105,16 @@ STUB
     chmod +x "$dst/$helper"
   done
 
-  # mark-spec-implemented stub: flips frontmatter status to IMPLEMENTED in place.
-  cat >"$dst/mark-spec-implemented.sh" <<'STUB'
-#!/usr/bin/env bash
-set -euo pipefail
-TASK_ID="$1"; shift
-WORKSPACE=""
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --workspace) WORKSPACE="$2"; shift 2 ;;
-    *) shift ;;
-  esac
-done
-printf 'mark-spec-implemented.sh %s\n' "$TASK_ID" >>"${POLARIS_STUB_LOG:?}"
-specs="$WORKSPACE/docs-manager/src/content/docs/specs"
-suffix="${TASK_ID##*-}"
-while IFS= read -r f; do
-  [[ -n "$f" ]] || continue
-  python3 - "$f" <<'PY'
-import re, sys
-from pathlib import Path
-p = Path(sys.argv[1]); t = p.read_text(encoding="utf-8"); lines = t.split("\n")
-if lines and lines[0] == "---":
-    end = lines.index("---", 1)
-    fm = lines[1:end]
-    done = False
-    for i, l in enumerate(fm):
-        if re.match(r"^status:\s*", l):
-            fm[i] = "status: IMPLEMENTED"; done = True; break
-    if not done: fm.append("status: IMPLEMENTED")
-    p.write_text("---\n" + "\n".join(fm) + "\n---\n" + "\n".join(lines[end+1:]), encoding="utf-8")
-PY
-done < <(find "$specs" -path "*/tasks/$suffix/index.md" 2>/dev/null)
-exit 0
-STUB
-  chmod +x "$dst/mark-spec-implemented.sh"
+  # REAL canonical writer: the parent-closeout V enumeration folds the bundle V
+  # in through mark-spec-implemented.sh (flip IMPLEMENTED + move to pr-release/).
+  cp "$ROOT/scripts/mark-spec-implemented.sh" "$dst/mark-spec-implemented.sh"
 
-  # Configurable close-parent stub (see header).
+  # close-parent stub: mirrors the real active_verification block slice (a
+  # non-ABANDONED V still active under tasks/ — not pr-release — blocks with
+  # exit 2). The terminal (--archive-terminal-parent) exit code is configurable
+  # via POLARIS_TEST_CP_RC_TERMINAL so AC-NEG2 can inject a non-2 failure; on a
+  # terminal rc 0 it flips the parent index.md to IMPLEMENTED (simulated archive)
+  # so the test can observe the parent status.
   cat >"$dst/close-parent-spec-if-complete.sh" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -127,17 +128,37 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 printf 'close-parent task-md=%s archive=%s\n' "$TASK_MD" "$ARCHIVE" >>"${POLARIS_STUB_LOG:?}"
+container="$TASK_MD"
+while [[ -n "$container" && "$(basename "$container")" != "tasks" ]]; do
+  container="$(dirname "$container")"
+done
+container="$(dirname "$container")"
+# Active-verification block slice: a non-ABANDONED V sibling still active under
+# tasks/ (not pr-release) blocks the parent with exit 2 (the real BLOCK code).
+if [[ -d "$container/tasks" ]]; then
+  while IFS= read -r v; do
+    [[ -n "$v" ]] || continue
+    case "$v" in
+      */tasks/pr-release/*) continue ;;
+    esac
+    if grep -q '^status: ABANDONED$' "$v"; then
+      continue
+    fi
+    printf '[polaris parent-closeout] BLOCKED: active verification tasks remain: %s\n' "$v" >&2
+    exit 2
+  done < <(find "$container/tasks" \( -path '*/V*/index.md' -o -name 'V*.md' \) -type f 2>/dev/null)
+fi
 if [[ "$ARCHIVE" -eq 1 ]]; then
   rc="${POLARIS_TEST_CP_RC_TERMINAL:-0}"
-  if [[ "$rc" -eq 0 && -n "$TASK_MD" ]]; then
-    parent="$(cd "$(dirname "$TASK_MD")/../.." && pwd)/index.md"
+  if [[ "$rc" -eq 0 ]]; then
+    parent="$container/index.md"
     if [[ -f "$parent" ]]; then
       sed -i.bak 's/^status: .*/status: IMPLEMENTED/' "$parent" && rm -f "$parent.bak"
     fi
   fi
   exit "$rc"
 fi
-exit "${POLARIS_TEST_CP_RC_NONTERMINAL:-2}"
+exit 0
 STUB
   chmod +x "$dst/close-parent-spec-if-complete.sh"
 }
@@ -189,6 +210,34 @@ MD
   } >"$dir/tasks/$suffix/index.md"
 }
 
+# Folder-native verify task at tasks/<stem>/index.md carrying an ac_verification
+# frontmatter block (the verify-AC writer output shape). The bundle V is folded
+# in by the parent-closeout V enumeration, NOT listed via --task-md (production
+# refuses task_kind=V per-task — DP-303-S5 / DP-354-T2).
+#   $1 container dir  $2 stem (V1)  $3 ac status  $4 human_disposition
+#   $5 task frontmatter status (default IN_PROGRESS)
+write_v_task() {
+  local dir="$1" stem="$2" ac_status="$3" disposition="${4:-}" task_status="${5:-IN_PROGRESS}"
+  mkdir -p "$dir/tasks/$stem"
+  {
+    printf -- '---\n'
+    printf 'title: "%s fixture verification task"\n' "$stem"
+    printf 'status: %s\n' "$task_status"
+    printf 'task_kind: V\n'
+    if [[ "$ac_status" != "NONE" ]]; then
+      printf 'ac_verification:\n'
+      printf '  status: %s\n' "$ac_status"
+      if [[ -n "$disposition" ]]; then
+        printf '  human_disposition: %s\n' "$disposition"
+      fi
+      printf '  ac_total: 1\n'
+      printf '  ac_pass: 1\n'
+    fi
+    printf -- '---\n\n'
+    printf '# %s fixture\n' "$stem"
+  } >"$dir/tasks/$stem/index.md"
+}
+
 valid_verify_marker() {
   local path="$1" ticket="$2" head="$3"
   cat >"$path" <<JSON
@@ -205,73 +254,78 @@ run_closeout() {
   set -e
 }
 
-# Build a mixed bundle DP-950: T1 (confirmation), T2 (confirmation), V1 (verify) —
-# all no-branch content-delivered, released in one commit. Returns via globals.
+# Build a mixed bundle DP-950: T1 (confirmation), T2 (confirmation) listed via
+# --task-md, plus a folder-native V1 (kind=V, ac_verification PASS + passed) that
+# is folded in by the parent-closeout V enumeration. All no-branch
+# content-delivered, released in one commit. Returns via globals.
 build_mixed_bundle() {
   local ws="$1" stub="$2"
   build_stub_scripts_dir "$stub"
   init_workspace_repo "$ws"
+  local dir="$ws/docs-manager/src/content/docs/specs/design-plans/DP-950-fixture"
   write_task_container "$ws" DP-950 T1 confirmation 'docs-manager/a'
   write_task_container "$ws" DP-950 T2 confirmation 'docs-manager/b'
-  write_task_container "$ws" DP-950 V1 verify 'docs-manager/c'
+  write_v_task "$dir" V1 PASS passed
   git -C "$ws" add -A
   git -C "$ws" commit -qm "mixed bundle release"
   RELEASE_HEAD="$(git -C "$ws" rev-parse HEAD)"
-  local base="$ws/docs-manager/src/content/docs/specs/design-plans/DP-950-fixture/tasks"
+  local base="$dir/tasks"
   T1_MD="$base/T1/index.md"; T2_MD="$base/T2/index.md"; V1_MD="$base/V1/index.md"
-  PARENT_MD="$ws/docs-manager/src/content/docs/specs/design-plans/DP-950-fixture/index.md"
+  PARENT_MD="$dir/index.md"
   valid_verify_marker "$TMPROOT/m-t1.json" DP-950-T1 "$RELEASE_HEAD"
   valid_verify_marker "$TMPROOT/m-t2.json" DP-950-T2 "$RELEASE_HEAD"
-  valid_verify_marker "$TMPROOT/m-v1.json" DP-950-V1 "$RELEASE_HEAD"
 }
 
 # ===========================================================================
-# Case AC3: non-terminal close-parent returns 2 (active V remains) -> soft-block
-# continue; terminal V1 archives parent; single invocation exits 0.
+# Case AC3: mixed bundle (T1, T2 confirmation via --task-md; folder-native V1
+# folded in by parent-closeout V enumeration). Two-phase closeout (DP-280-T2)
+# flips T1/T2 IMPLEMENTED in phase 1, then phase 2 auto-enumerates the eligible
+# V1, folds it in through the canonical writer (pr-release/ + IMPLEMENTED), and
+# archives the parent in a SINGLE invocation, exit 0. Because the V1 is folded
+# in BEFORE the single parent close, no active-verification soft-block fires.
 # ===========================================================================
 {
   WS="$TMPROOT/ac3-ws"; SCRIPTS="$TMPROOT/ac3-scripts"; STUB_LOG="$TMPROOT/ac3.log"
   : >"$STUB_LOG"
   build_mixed_bundle "$WS" "$SCRIPTS"
+  DIR="$WS/docs-manager/src/content/docs/specs/design-plans/DP-950-fixture"
 
-  export POLARIS_TEST_CP_RC_NONTERMINAL=2
-  export POLARIS_TEST_CP_RC_TERMINAL=0
   run_closeout "$SCRIPTS" \
     --task-md "$T1_MD" --verify-evidence "$TMPROOT/m-t1.json" \
     --task-md "$T2_MD" --verify-evidence "$TMPROOT/m-t2.json" \
-    --task-md "$V1_MD" --verify-evidence "$TMPROOT/m-v1.json" \
     --workspace-commit "$RELEASE_HEAD" --template-commit "$RELEASE_HEAD" \
     --version-tag v1.0.0 --release-url N/A --repo "$WS"
-  unset POLARIS_TEST_CP_RC_NONTERMINAL POLARIS_TEST_CP_RC_TERMINAL
 
   _assert_eq "$CLOSEOUT_RC" "0" "AC3 mixed bundle single invocation exits 0"
-  _assert_contains "$CLOSEOUT_OUT" "parent closeout soft-block for DP-950-T1" "AC3 T1 soft-block logged"
-  _assert_contains "$CLOSEOUT_OUT" "parent closeout soft-block for DP-950-T2" "AC3 T2 soft-block logged"
-  # All three tasks flipped IMPLEMENTED; parent archived to IMPLEMENTED on terminal V1.
-  _assert_eq "$(grep -c '^status: IMPLEMENTED$' "$T1_MD")" "1" "AC3 T1 IMPLEMENTED"
-  _assert_eq "$(grep -c '^status: IMPLEMENTED$' "$T2_MD")" "1" "AC3 T2 IMPLEMENTED"
-  _assert_eq "$(grep -c '^status: IMPLEMENTED$' "$V1_MD")" "1" "AC3 V1 IMPLEMENTED"
+  # T1/T2 confirmation tasks flipped IMPLEMENTED + moved to pr-release/.
+  _assert_eq "$(grep -c '^status: IMPLEMENTED$' "$DIR/tasks/pr-release/T1/index.md" || true)" "1" "AC3 T1 IMPLEMENTED"
+  _assert_eq "$(grep -c '^status: IMPLEMENTED$' "$DIR/tasks/pr-release/T2/index.md" || true)" "1" "AC3 T2 IMPLEMENTED"
+  # V1 folded in by parent-closeout enumeration (canonical writer move).
+  _assert_no_path "$DIR/tasks/V1" "AC3 active tasks/V1 folded into pr-release"
+  _assert_eq "$(grep -c '^status: IMPLEMENTED$' "$DIR/tasks/pr-release/V1/index.md" || true)" "1" "AC3 V1 IMPLEMENTED"
+  # Parent archived to IMPLEMENTED on the single terminal close, no soft-block.
   _assert_eq "$(grep -c '^status: IMPLEMENTED$' "$PARENT_MD")" "1" "AC3 parent IMPLEMENTED (archived)"
+  _assert_not_contains "$CLOSEOUT_OUT" "active verification tasks remain" "AC3 no verification block after fold-in"
   _assert_contains "$(cat "$STUB_LOG")" "archive=1" "AC3 terminal parent archive invoked"
 }
 
 # ===========================================================================
-# Case AC-NEG2: a non-2 close-parent exit (rc=3) on the first task must fail loud.
+# Case AC-NEG2: a non-2 close-parent exit (rc=3) on the terminal parent close
+# must fail loud (run_close_parent only soft-blocks rc==2; any other non-zero
+# exit dies). Injected via POLARIS_TEST_CP_RC_TERMINAL=3.
 # ===========================================================================
 {
   WS="$TMPROOT/neg2-ws"; SCRIPTS="$TMPROOT/neg2-scripts"; STUB_LOG="$TMPROOT/neg2.log"
   : >"$STUB_LOG"
   build_mixed_bundle "$WS" "$SCRIPTS"
 
-  export POLARIS_TEST_CP_RC_NONTERMINAL=3
-  export POLARIS_TEST_CP_RC_TERMINAL=0
+  export POLARIS_TEST_CP_RC_TERMINAL=3
   run_closeout "$SCRIPTS" \
     --task-md "$T1_MD" --verify-evidence "$TMPROOT/m-t1.json" \
     --task-md "$T2_MD" --verify-evidence "$TMPROOT/m-t2.json" \
-    --task-md "$V1_MD" --verify-evidence "$TMPROOT/m-v1.json" \
     --workspace-commit "$RELEASE_HEAD" --template-commit "$RELEASE_HEAD" \
     --version-tag v1.0.0 --release-url N/A --repo "$WS"
-  unset POLARIS_TEST_CP_RC_NONTERMINAL POLARIS_TEST_CP_RC_TERMINAL
+  unset POLARIS_TEST_CP_RC_TERMINAL
 
   [[ "$CLOSEOUT_RC" -ne 0 ]] && NEG2_DIED=1 || NEG2_DIED=0
   _assert_eq "$NEG2_DIED" "1" "AC-NEG2 non-2 close-parent exit fails loud"
@@ -279,13 +333,15 @@ build_mixed_bundle() {
 }
 
 # ===========================================================================
-# Static: BOTH close-parent call sites route through run_close_parent (so the
-# branch path inherits the same soft-block as the no-branch path exercised above),
-# and no bare `bash .../close-parent-spec-if-complete.sh` call site remains.
+# Static: the parent close routes through run_close_parent (so rc==2 is a
+# soft-block, any other non-zero dies), and the only bare
+# `bash .../close-parent-spec-if-complete.sh` invocation lives inside the
+# run_close_parent helper itself (two-phase closeout — DP-280-T2 — invokes
+# close-parent exactly once per distinct parent container).
 # ===========================================================================
 {
   CLOSEOUT_SRC="$ROOT/scripts/framework-release-closeout.sh"
-  _assert_eq "$(grep -c 'run_close_parent "\$task_id"' "$CLOSEOUT_SRC")" "2" "Static: 2 run_close_parent call sites"
+  _assert_eq "$(grep -c 'run_close_parent "\$parent_container"' "$CLOSEOUT_SRC")" "1" "Static: single run_close_parent call site (per-container)"
   _assert_eq "$(grep -c 'bash "${SCRIPT_DIR}/close-parent-spec-if-complete.sh"' "$CLOSEOUT_SRC")" "1" "Static: only the helper invokes close-parent (no bare loop call site)"
 }
 

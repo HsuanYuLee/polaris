@@ -62,6 +62,26 @@ _assert_not_contains() {
   fi
 }
 
+_assert_file() {
+  TOTAL=$((TOTAL + 1))
+  if [[ -f "$1" ]]; then
+    PASS=$((PASS + 1))
+  else
+    FAIL=$((FAIL + 1))
+    printf '[FAILED %d] %s: file missing: %s\n' "$TOTAL" "$2" "$1" >&2
+  fi
+}
+
+_assert_no_path() {
+  TOTAL=$((TOTAL + 1))
+  if [[ -e "$1" ]]; then
+    FAIL=$((FAIL + 1))
+    printf '[FAILED %d] %s: path should NOT exist: %s\n' "$TOTAL" "$2" "$1" >&2
+  else
+    PASS=$((PASS + 1))
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Build a stub scripts/ dir: real closeout + clean-worktree + parser + lib,
 # with the side-effecting downstream helpers replaced by deterministic stubs.
@@ -365,45 +385,171 @@ run_closeout() {
   _assert_contains "$(cat "$STUB_LOG")" "--archive-terminal-parent" "C3 terminal parent archive requested"
 }
 
+# ---------------------------------------------------------------------------
+# Description: build a stub scripts dir for the legacy-V parent-closeout
+#              enumeration case. It uses the REAL framework-release-closeout.sh,
+#              parse-task-md.sh and mark-spec-implemented.sh (so the legacy V is
+#              folded in through the canonical writer), with side-effecting
+#              downstream helpers stubbed. The close-parent stub mirrors the real
+#              active_verification block slice: a non-ABANDONED V still active
+#              under tasks/ (not pr-release) blocks with exit 2; otherwise it
+#              records the invocation (incl. --archive-terminal-parent).
+#              DP-303-S5 / DP-354-T2: production refuses task_kind=V passed as a
+#              per-task --task-md, so the legacy V is driven by parent-closeout
+#              V enumeration (mirroring framework-release-closeout-v-enumeration-
+#              selftest.sh), not by listing the V via --task-md.
+# Args:        $1 = destination stub scripts dir
+# Side effects: creates $1 with copied + stubbed scripts
+# ---------------------------------------------------------------------------
+build_v_enum_stub_scripts_dir() {
+  local dst="$1"
+  mkdir -p "$dst/selftests"
+  cp -R "$ROOT/scripts/lib" "$dst/lib"
+  cp "$ROOT/scripts/framework-release-closeout.sh" "$dst/framework-release-closeout.sh"
+  cp "$ROOT/scripts/parse-task-md.sh" "$dst/parse-task-md.sh"
+  cp "$ROOT/scripts/resolve-task-base.sh" "$dst/resolve-task-base.sh"
+  # REAL canonical writer: the auto-enumeration path under test folds the legacy
+  # V in through mark-spec-implemented.sh (no second writer).
+  cp "$ROOT/scripts/mark-spec-implemented.sh" "$dst/mark-spec-implemented.sh"
+
+  local helper
+  for helper in check-release-eligible.sh check-release-completed.sh \
+                check-main-chain-compliance.sh write-extension-deliverable.sh \
+                check-local-extension-completion.sh engineering-clean-worktree.sh; do
+    cat >"$dst/$helper" <<STUB
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s %s\n' "$helper" "\$*" >>"\${POLARIS_STUB_LOG:?}"
+exit 0
+STUB
+    chmod +x "$dst/$helper"
+  done
+
+  cat >"$dst/close-parent-spec-if-complete.sh" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'close-parent-spec-if-complete.sh %s\n' "$*" >>"${POLARIS_STUB_LOG:?}"
+TASK_MD=""
+ARCHIVE=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --task-md) TASK_MD="$2"; shift 2 ;;
+    --archive-terminal-parent) ARCHIVE=1; shift ;;
+    *) shift ;;
+  esac
+done
+container="$TASK_MD"
+while [[ -n "$container" && "$(basename "$container")" != "tasks" ]]; do
+  container="$(dirname "$container")"
+done
+container="$(dirname "$container")"
+# Mirror the real active_verification block slice: a non-ABANDONED V sibling
+# still active under tasks/ (not pr-release) blocks the parent with exit 2.
+if [[ -d "$container/tasks" ]]; then
+  while IFS= read -r v; do
+    [[ -n "$v" ]] || continue
+    case "$v" in
+      */tasks/pr-release/*) continue ;;
+    esac
+    if grep -q '^status: ABANDONED$' "$v"; then
+      continue
+    fi
+    printf '[polaris parent-closeout] BLOCKED: active verification tasks remain: %s\n' "$v" >&2
+    exit 2
+  done < <(find "$container/tasks" \( -path '*/V*/index.md' -o -name 'V*.md' \) -type f 2>/dev/null)
+fi
+if [[ "$ARCHIVE" -eq 1 ]]; then
+  printf 'ARCHIVED %s\n' "$container" >>"${POLARIS_STUB_LOG:?}"
+fi
+exit 0
+STUB
+  chmod +x "$dst/close-parent-spec-if-complete.sh"
+}
+
+# Description: write a folder-native legacy V task fixture (task_kind: V, NO
+#              task_shape) carrying an ac_verification frontmatter block so the
+#              parent-closeout V enumeration can classify advance-eligibility.
+# Args:        $1 = container dir  $2 = stem (V1)  $3 = ac status
+#              $4 = human_disposition  $5 = task frontmatter status (default
+#              IN_PROGRESS)
+# Side effects: writes tasks/<stem>/index.md
+write_legacy_v_task() {
+  local dir="$1" stem="$2" ac_status="$3" disposition="${4:-}" task_status="${5:-IN_PROGRESS}"
+  mkdir -p "$dir/tasks/$stem"
+  {
+    printf -- '---\n'
+    printf 'title: "%s fixture legacy verification task"\n' "$stem"
+    printf 'status: %s\n' "$task_status"
+    printf 'task_kind: V\n'
+    if [[ "$ac_status" != "NONE" ]]; then
+      printf 'ac_verification:\n'
+      printf '  status: %s\n' "$ac_status"
+      if [[ -n "$disposition" ]]; then
+        printf '  human_disposition: %s\n' "$disposition"
+      fi
+      printf '  ac_total: 1\n'
+      printf '  ac_pass: 1\n'
+    fi
+    printf -- '---\n\n'
+    printf '# %s fixture\n' "$stem"
+  } >"$dir/tasks/$stem/index.md"
+}
+
 # ===========================================================================
 # Case C-LEGV (Wall C, AC4 legacy): a no-branch LEGACY verify task — task_kind: V
-# with NO task_shape (predates the task_shape field) — with deliverable evidence
-# present must flip IMPLEMENTED + parent archive, exactly like a task_shape=verify
-# task. This is the DP-273 amendment that unblocks the 7 stranded legacy-V
-# containers (DP-238/242/262/264/269/274/281), whose V1 tasks are all legacy
-# task_kind: V with no task_shape.
+# with NO task_shape (predates the task_shape field). Production refuses a
+# task_kind=V passed as a per-task --task-md (DP-303-S5); its IMPLEMENTED
+# transition is owned by the parent-closeout V enumeration. So the legacy V is
+# left in the container (with deliverable evidence ac_verification PASS +
+# human_disposition=passed) and the container's T1 confirmation task is listed
+# via --task-md. Closeout must auto-enumerate the legacy V, fold it in through
+# the canonical writer (flip IMPLEMENTED + move to pr-release/), and archive the
+# parent — exactly like framework-release-closeout-v-enumeration-selftest.sh.
+# This still unblocks the 7 stranded legacy-V containers
+# (DP-238/242/262/264/269/274/281), whose V1 tasks are all legacy task_kind: V
+# with no task_shape, via the canonical V-enumeration path.
 # ===========================================================================
 {
   WS="$TMPROOT/clegv-ws"
   SCRIPTS="$TMPROOT/clegv-scripts"
   STUB_LOG="$TMPROOT/clegv-stub.log"
   : >"$STUB_LOG"
-  build_stub_scripts_dir "$SCRIPTS"
+  build_v_enum_stub_scripts_dir "$SCRIPTS"
   init_workspace_repo "$WS"
 
-  # Legacy verify task: kind=V, empty shape (no task_shape line emitted), no branch.
-  write_task_container "$WS" DP-905 V1 '' '' '' 'docs-manager/z' V
+  DIR="$WS/docs-manager/src/content/docs/specs/design-plans/DP-905-fixture"
+  # Container T1 confirmation task drives the closeout via --task-md; the legacy
+  # V1 (kind=V, no task_shape) is folded in by parent-closeout V enumeration.
+  write_task_container "$WS" DP-905 T1 confirmation '' '' 'docs-manager/z'
+  write_legacy_v_task "$DIR" V1 PASS passed
   git -C "$WS" add -A
   git -C "$WS" commit -qm "legacy-V no-branch task release"
   RELEASE_HEAD="$(git -C "$WS" rev-parse HEAD)"
 
-  V1_MD="$WS/docs-manager/src/content/docs/specs/design-plans/DP-905-fixture/tasks/V1/index.md"
-  # Sanity: the fixture really is legacy-shaped (task_kind: V, no task_shape).
+  T1_MD="$DIR/tasks/T1/index.md"
+  V1_MD="$DIR/tasks/V1/index.md"
+  # Sanity: the V1 fixture really is legacy-shaped (task_kind: V, no task_shape).
   _assert_eq "$(grep -c '^task_kind: V$' "$V1_MD")" "1" "C-LEGV fixture has task_kind: V"
   _assert_eq "$(grep -c '^task_shape:' "$V1_MD")" "0" "C-LEGV fixture has NO task_shape"
 
-  V1_MARKER="$TMPROOT/clegv-v1.json"
-  valid_verify_marker "$V1_MARKER" DP-905-V1 "$RELEASE_HEAD"
+  T1_MARKER="$TMPROOT/clegv-t1.json"
+  valid_verify_marker "$T1_MARKER" DP-905-T1 "$RELEASE_HEAD"
 
   run_closeout "$SCRIPTS" \
-    --task-md "$V1_MD" --verify-evidence "$V1_MARKER" \
+    --task-md "$T1_MD" --verify-evidence "$T1_MARKER" \
     --workspace-commit "$RELEASE_HEAD" --template-commit "$RELEASE_HEAD" \
     --version-tag v1.0.0 --release-url N/A --repo "$WS"
 
-  _assert_eq "$CLOSEOUT_RC" "0" "C-LEGV legacy-V no-branch closeout exits 0"
+  _assert_eq "$CLOSEOUT_RC" "0" "C-LEGV legacy-V parent-closeout enumeration exits 0"
   _assert_not_contains "$CLOSEOUT_OUT" "Task branch missing" "C-LEGV no Wall-C die"
-  _assert_contains "$CLOSEOUT_OUT" "content-delivered" "C-LEGV content-delivered path taken"
-  _assert_eq "$(grep -c '^status: IMPLEMENTED$' "$V1_MD")" "1" "C-LEGV V1 flipped IMPLEMENTED"
+  # Legacy V folded in through the canonical writer: flipped IMPLEMENTED + moved.
+  _assert_no_path "$DIR/tasks/V1" "C-LEGV active tasks/V1 folded into pr-release"
+  _assert_file "$DIR/tasks/pr-release/V1/index.md" "C-LEGV pr-release V1 exists"
+  _assert_eq "$(grep -c '^status: IMPLEMENTED$' "$DIR/tasks/pr-release/V1/index.md" || true)" "1" \
+    "C-LEGV legacy V1 flipped IMPLEMENTED"
+  # Parent closeout proceeded (no verification block after fold-in) and archived.
+  _assert_not_contains "$CLOSEOUT_OUT" "active verification tasks remain" \
+    "C-LEGV no verification block after fold-in"
   _assert_contains "$(cat "$STUB_LOG")" "close-parent-spec-if-complete.sh" "C-LEGV parent close invoked"
   _assert_contains "$(cat "$STUB_LOG")" "--archive-terminal-parent" "C-LEGV terminal parent archive requested"
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.76.27] - 2026-06-22
+
+### Changed
+
+- bbe2c98: Cluster A：closeout-selftest + folder-native 補 completion-gate marker（real-state fidelity）+ de-quarantine folder-native
+- 8cd1eee: Cluster B：bundle-task-closeout + mixed-task-bundle 改由 parent-closeout V enumeration 驅動 V + de-quarantine mixed-task-bundle
+- eb0bf9a: DP-319 finalize-precondition：engineering-bundle-pr-identity fixture 改用 tasks/pr-release finalized layout
+- 7c76467: Hermeticity：closeout-chain-archive order-independence + release-stage-pr-release-gate env-leak 修正
+
 ## [3.76.26] - 2026-06-22
 
 ### Changed

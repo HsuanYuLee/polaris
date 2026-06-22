@@ -100,6 +100,7 @@ make_task_md() {
   local dest="$2"
   local jira="$3"
   local task_branch="task/${task_id}-bundle-fixture"
+  mkdir -p "$(dirname "$dest")"
   cat > "$dest" <<TASK
 ---
 title: "${task_id} bundle fixture"
@@ -140,8 +141,14 @@ echo ok
 TASK
 }
 
-TASK_MD1="$TMPDIR_ST/task-T1.md"
-TASK_MD2="$TMPDIR_ST/task-T2.md"
+# DP-319 release-stage-bundle-precondition: run_aggregate_release only assembles a
+# bundle when EVERY --task-md is finalized under a tasks/pr-release/ lifecycle
+# location (is_pr_release_task). Place each fixture work order at
+# .../tasks/pr-release/{Tn}/index.md so the precondition passes; flat tmp paths
+# would (correctly) trip POLARIS_RELEASE_STAGE_TASK_NOT_FINALIZED.
+FIXTURE_SPECS_DIR="$TMPDIR_ST/specs/DP-9990/tasks/pr-release"
+TASK_MD1="$FIXTURE_SPECS_DIR/T1/index.md"
+TASK_MD2="$FIXTURE_SPECS_DIR/T2/index.md"
 make_task_md "DP-9990-T1" "$TASK_MD1" "FX-1"
 make_task_md "DP-9990-T2" "$TASK_MD2" "FX-2"
 

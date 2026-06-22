@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Purpose: Selftest for framework-release-closeout.sh (flat-file DP layout) — drives
+#          single / stacked / pre-implemented / archived / delayed-archive positive
+#          cases and stale-evidence / dirty-worktree / stale-repo negative cases,
+#          writing real verify + completion-gate markers so closeout reaches its
+#          intended diagnostics.
+# Inputs:  none (builds hermetic git fixtures under mktemp).
+# Outputs: exit 0 + "PASS" line on success; non-zero on any assertion failure.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,6 +69,19 @@ EOF
 chmod +x "${RUNTIME_TMP}/bin/mise" "${RUNTIME_TMP}/bin/node"
 PATH="${RUNTIME_TMP}/bin:${PATH}"
 export PATH
+
+# The codex portable mirror smoke (verify-agents-mirror-portable.sh) validates the
+# CURRENT cwd's .claude/rules/mechanism-registry.md, so it fails when the closeout
+# runs from a /tmp fixture sandbox. Stub it to a no-op here (same pattern as the
+# mise/node stubs above) so the fixture stays hermetic; production closeout still
+# runs the real smoke against the real workspace.
+cat >"${RUNTIME_TMP}/bin/verify-agents-mirror-portable.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "${RUNTIME_TMP}/bin/verify-agents-mirror-portable.sh"
+POLARIS_VERIFY_AGENTS_MIRROR_PORTABLE_BIN="${RUNTIME_TMP}/bin/verify-agents-mirror-portable.sh"
+export POLARIS_VERIFY_AGENTS_MIRROR_PORTABLE_BIN
 
 git_quiet() {
   git "$@" >/dev/null 2>&1
@@ -243,6 +263,32 @@ Path(path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 PY
 }
 
+write_completion_gate_marker() {
+  local repo="$1"
+  local task_id="$2"
+  local head_sha="$3"
+  local dir="${repo}/.polaris/evidence/completion-gate"
+  mkdir -p "$dir"
+  python3 - "${dir}/${task_id}-${head_sha}.json" "$task_id" "$head_sha" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+
+path, task_id, head_sha = sys.argv[1:4]
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(
+        {
+            "work_item_id": task_id,
+            "head_sha": head_sha,
+            "status": "PASS",
+            "writer": "engineering-completion-gate",
+            "at": datetime.now(timezone.utc).isoformat(),
+        },
+        fh,
+    )
+PY
+}
+
 make_repos() {
   local tmp="$1"
   local repo="${tmp}/repo"
@@ -315,6 +361,7 @@ run_single_task_case() {
   preflight="${tmp}/preflight-t1.json"
   write_verify_evidence "$evidence" DP-999-T1 "$task_head"
   write_preflight_evidence "$preflight" DP-999-T1 "$task_head"
+  write_completion_gate_marker "$repo" DP-999-T1 "$task_head"
 
   bash "$CLOSEOUT" \
     --repo "$repo" \
@@ -365,6 +412,8 @@ run_stacked_task_case() {
   ev2="${tmp}/verify-t2.json"
   write_verify_evidence "$ev1" DP-999-T1 "$head1"
   write_verify_evidence "$ev2" DP-999-T2 "$head2"
+  write_completion_gate_marker "$repo" DP-999-T1 "$head1"
+  write_completion_gate_marker "$repo" DP-999-T2 "$head2"
 
   bash "$CLOSEOUT" \
     --repo "$repo" \
@@ -443,6 +492,8 @@ PY
   ev2="${tmp}/verify-t2.json"
   write_verify_evidence "$ev1" DP-999-T1 "$head1"
   write_verify_evidence "$ev2" DP-999-T2 "$head2"
+  write_completion_gate_marker "$repo" DP-999-T1 "$head1"
+  write_completion_gate_marker "$repo" DP-999-T2 "$head2"
 
   bash "$CLOSEOUT" \
     --repo "$repo" \
@@ -485,6 +536,7 @@ run_archived_pr_release_case() {
   template_commit="$(git -C "$template" rev-parse HEAD)"
   evidence="${tmp}/verify-t1.json"
   write_verify_evidence "$evidence" DP-999-T1 "$task_head"
+  write_completion_gate_marker "$repo" DP-999-T1 "$task_head"
 
   bash "$CLOSEOUT" \
     --repo "$repo" \
@@ -547,6 +599,7 @@ MD
   template_commit="$(git -C "$template" rev-parse HEAD)"
   evidence="${tmp}/verify-t1.json"
   write_verify_evidence "$evidence" DP-999-T1 "$task_head"
+  write_completion_gate_marker "$repo" DP-999-T1 "$task_head"
 
   bash "$CLOSEOUT" \
     --repo "$repo" \
@@ -605,6 +658,7 @@ run_stale_evidence_case() {
   template_commit="$(git -C "$template" rev-parse HEAD)"
   evidence="${tmp}/verify-stale.json"
   write_verify_evidence "$evidence" DP-999-T1 "$(git -C "$repo" rev-parse HEAD~1)"
+  write_completion_gate_marker "$repo" DP-999-T1 "$task_head"
 
   rc=0
   bash "$CLOSEOUT" \
@@ -646,6 +700,7 @@ run_dirty_worktree_case() {
   template_commit="$(git -C "$template" rev-parse HEAD)"
   evidence="${tmp}/verify-t1.json"
   write_verify_evidence "$evidence" DP-999-T1 "$task_head"
+  write_completion_gate_marker "$repo" DP-999-T1 "$task_head"
 
   rc=0
   bash "$CLOSEOUT" \
@@ -685,6 +740,7 @@ run_stale_repo_selection_case() {
   template_commit="$(git -C "$template" rev-parse HEAD)"
   evidence="${tmp}/verify-t1.json"
   write_verify_evidence "$evidence" DP-999-T1 "$task_head"
+  write_completion_gate_marker "$repo" DP-999-T1 "$task_head"
   stale_repo="${tmp}/stale-repo"
   git -C "$repo" worktree add --detach "$stale_repo" "${workspace_commit}~1" >/dev/null 2>&1
 

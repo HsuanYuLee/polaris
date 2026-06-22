@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# Purpose: Selftest for framework-release-closeout.sh against the folder-native DP
+#          layout (tasks/T1/index.md) — drives the positive close-out path, writing
+#          real verify + completion-gate markers and task_kind frontmatter so the
+#          local-extension completion gate is satisfied.
+# Inputs:  none (builds a hermetic git fixture under mktemp).
+# Outputs: exit 0 + "PASS" line on success; non-zero on any assertion failure.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,6 +20,12 @@ write_task() {
   local branch="$3"
   mkdir -p "$(dirname "$path")"
   cat >"$path" <<MD
+---
+title: "DP-999 ${task_no} folder-native closeout selftest"
+description: "Selftest task fixture for folder-native framework release closeout."
+task_kind: T
+---
+
 # ${task_no}: Folder-native closeout selftest (1 pt)
 
 > Source: DP-999 | Task: DP-999-${task_no} | JIRA: N/A | Repo: selftest-repo
@@ -81,6 +93,7 @@ write_verify_evidence() {
   python3 - "$path" "$task_id" "$head_sha" <<'PY'
 import json
 import sys
+from datetime import datetime, timezone
 
 path, task_id, head_sha = sys.argv[1:4]
 with open(path, "w", encoding="utf-8") as fh:
@@ -90,6 +103,33 @@ with open(path, "w", encoding="utf-8") as fh:
             "head_sha": head_sha,
             "writer": "run-verify-command.sh",
             "exit_code": 0,
+            "at": datetime.now(timezone.utc).isoformat(),
+        },
+        fh,
+    )
+PY
+}
+
+write_completion_gate_marker() {
+  local repo="$1"
+  local task_id="$2"
+  local head_sha="$3"
+  local dir="${repo}/.polaris/evidence/completion-gate"
+  mkdir -p "$dir"
+  python3 - "${dir}/${task_id}-${head_sha}.json" "$task_id" "$head_sha" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+
+path, task_id, head_sha = sys.argv[1:4]
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(
+        {
+            "work_item_id": task_id,
+            "head_sha": head_sha,
+            "status": "PASS",
+            "writer": "engineering-completion-gate",
+            "at": datetime.now(timezone.utc).isoformat(),
         },
         fh,
     )
@@ -98,6 +138,19 @@ PY
 
 TMP="$(mktemp -d -t framework-closeout-folder-native.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
+
+# The codex portable mirror smoke (verify-agents-mirror-portable.sh) validates the
+# CURRENT cwd's .claude/rules/mechanism-registry.md, so it fails when the closeout
+# runs from a /tmp fixture sandbox. Stub it to a no-op (same hermetic pattern as the
+# sibling closeout selftest); production closeout still runs the real smoke.
+mkdir -p "${TMP}/bin"
+cat >"${TMP}/bin/verify-agents-mirror-portable.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "${TMP}/bin/verify-agents-mirror-portable.sh"
+POLARIS_VERIFY_AGENTS_MIRROR_PORTABLE_BIN="${TMP}/bin/verify-agents-mirror-portable.sh"
+export POLARIS_VERIFY_AGENTS_MIRROR_PORTABLE_BIN
 
 REPO="${TMP}/repo"
 TEMPLATE="${TMP}/template"
@@ -160,6 +213,7 @@ WORKSPACE_COMMIT="$(git -C "$REPO" rev-parse HEAD)"
 TEMPLATE_COMMIT="$(git -C "$TEMPLATE" rev-parse HEAD)"
 EVIDENCE="${TMP}/verify-t1.json"
 write_verify_evidence "$EVIDENCE" DP-999-T1 "$TASK_HEAD"
+write_completion_gate_marker "$REPO" DP-999-T1 "$TASK_HEAD"
 
 bash "$CLOSEOUT" \
   --repo "$REPO" \

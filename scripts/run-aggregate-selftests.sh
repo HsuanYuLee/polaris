@@ -33,7 +33,6 @@ LIST_ONLY=false
 QUARANTINE=(
   "scripts/check-framework-pr-gate-selftest.sh|pre-existing red: W7 \$VAR+non-ASCII boundary at scripts/mark-spec-implemented.sh:714 (not a DP-325-T2 Allowed File). Follow-up: DP-325 umbrella remediation."
   "scripts/cross-session-warm-scan-selftest.sh|pre-existing red on main: warm-scan keyword/index assertions drifted. Follow-up: DP-325 umbrella remediation."
-  "scripts/framework-release-closeout-folder-native-selftest.sh|pre-existing red on main: local_extension_completion_failed in folder-native closeout fixture. Follow-up: DP-325 umbrella remediation."
   "scripts/selftests/auto-pass-full-source-completion-invariant-selftest.sh|pre-existing red on main: runtime instruction targets out of sync (.codex/.generated drift). Follow-up: DP-325 umbrella remediation."
   "scripts/selftests/auto-pass-report-producer-selftest.sh|pre-existing red on main: AC32 writer report expected exit 0 got 2 (missing head-bound ac_verification marker). Follow-up: DP-325 umbrella remediation."
   "scripts/selftests/auto-pass-thin-skill-selftest.sh|pre-existing red on main: SKILL.md line budget assertion (200 > 185). Follow-up: DP-325 umbrella remediation."
@@ -46,7 +45,6 @@ QUARANTINE=(
   "scripts/selftests/compile-runtime-instructions-selftest.sh|pre-existing red on main: .codex/.generated/rules-manifest.txt out of date (generated-target drift). Follow-up: DP-325 umbrella remediation."
   "scripts/selftests/delivery-contract-gap-convergence-selftest.sh|pre-existing red on main: delivery-contract-gap convergence assertion drift. Follow-up: DP-325 umbrella remediation."
   "scripts/selftests/dp230-umbrella-selftest.sh|pre-existing red on main: POLARIS_MANIFEST_MISSING for several selftests not registered in scripts/manifest.json. Follow-up: DP-325 umbrella remediation."
-  "scripts/selftests/framework-release-closeout-mixed-task-bundle-selftest.sh|pre-existing red on main: mixed-task bundle V-advance eligibility assertion drift. Follow-up: DP-325 umbrella remediation."
   "scripts/selftests/local-extension-completion-selftest.sh|pre-existing red on main: POLARIS_COMPLETION_GATE_UNKNOWN_TASK_KIND on legacy fixture task.md. Follow-up: DP-325 umbrella remediation."
   "scripts/selftests/migrate-epic-frontmatter-selftest.sh|pre-existing red on main: DEMO-100/index.md missing priority assertion. Follow-up: DP-325 umbrella remediation."
   "scripts/selftests/migrate-epic-refinement-handoff-selftest.sh|pre-existing red on main: epic refinement-handoff migration assertion drift. Follow-up: DP-325 umbrella remediation."
