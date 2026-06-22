@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.76.28] - 2026-06-22
+
+### Changed
+
+- d1e8bff: 修 Bug #1：engineering-branch-setup 確保 feat base 先於 cascade-rebase
+- 9e004bc: 修 Bug #2：polaris-pr-create 的 gh pr create 注入 repo context（cwd-independent）
+- 2574794: 修 Bug #3：cascade-rebase-chain conflict 路徑 abort + restore（維持 fail-loud）
+- 7b39e48: 修 Bug #4 (hygiene)：framework-release-pr-lane corpus-count 不洩漏 SIGPIPE rc=141
+
 ## [3.76.27] - 2026-06-22
 
 ### Changed

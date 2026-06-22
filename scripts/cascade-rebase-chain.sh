@@ -293,6 +293,12 @@ while [ "$i" -le "$CHAIN_LEN" ]; do
     printf '{"branch":%s,"upstream":%s,"target_ref":%s,"status":"conflict"}\n' \
       "$(json_escape "$branch")" "$(json_escape "$upstream")" "$(json_escape "$target_ref")" >> "$STEPS_FILE"
     emit_evidence "$REPO" "$TASK_MD" "conflict" "$CHAIN_FILE" "$STEPS_FILE"
+    # Bug #3: a conflicting rebase leaves the checkout mid-rebase and detached.
+    # Abort the in-progress rebase and restore the original branch (mirroring the
+    # push_failed path) so the caller's working tree is clean, then still fail
+    # loud (exit 1) with the conflict evidence already emitted above.
+    git -C "$REPO" rebase --abort >/dev/null 2>&1 || true
+    restore_original_branch
     exit 1
   fi
 

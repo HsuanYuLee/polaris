@@ -236,18 +236,30 @@ run_governed_script_tests_release_gate() {
 # longer rely solely on the 38 governed selftests. Enforce selftest enrollment and
 # then execute the full filesystem selftest corpus; any non-quarantined red blocks
 # the release. Args: none. Side effects: runs both validators; die() on failure.
+# Description: Probe whether a scripts dir ships any *-selftest.sh corpus file.
+# Args:        $1 = scripts directory to probe
+# Returns:     0 if at least one *-selftest.sh exists (maxdepth 2), 1 if none.
+# Side effects: none (read-only filesystem probe). Uses `find -print -quit` — find
+#   exits after the first hit, so a populated corpus does NOT leak a SIGPIPE rc=141
+#   the way `find ... | head -1` does when head closes the pipe early under
+#   `set -o pipefail` (DP-352 Bug #4 hygiene).
+release_lane_corpus_present() {
+  local scripts_dir="$1"
+  local first_hit
+  first_hit="$(find "$scripts_dir" -maxdepth 2 -type f -name '*-selftest.sh' -print -quit 2>/dev/null)"
+  [[ -n "$first_hit" ]]
+}
+
 run_aggregate_selftests_release_gate() {
   local enrollment_gate="${SCRIPT_DIR}/validate-selftest-enrollment.sh"
   local aggregate_runner="${SCRIPT_DIR}/run-aggregate-selftests.sh"
-  local corpus_count
 
   # Skip-with-log when the target repo has no selftest corpus at all (i.e. not a
   # framework workspace, e.g. a synthetic release-lane fixture). This is NOT a
   # fail-open on real input: a workspace that ships the selftest corpus is gated
   # fail-closed below. A repo with zero *-selftest.sh files is simply out of the
   # selftest-enrollment contract scope.
-  corpus_count="$(find "$REPO_PATH/scripts" -maxdepth 2 -type f -name '*-selftest.sh' 2>/dev/null | head -1 | wc -l | tr -d '[:space:]')"
-  if [[ "$corpus_count" -eq 0 ]]; then
+  if ! release_lane_corpus_present "$REPO_PATH/scripts"; then
     info "no selftest corpus under ${REPO_PATH}/scripts — skipping aggregate selftest release gate (non-framework repo)"
     return 0
   fi
@@ -545,47 +557,52 @@ validate_and_plan() {
   fi
 }
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --repo) REPO_PATH="$2"; shift 2 ;;
-    --repo=*) REPO_PATH="${1#--repo=}"; shift ;;
-    --workspace-repo) WORKSPACE_REPO="$2"; shift 2 ;;
-    --workspace-repo=*) WORKSPACE_REPO="${1#--workspace-repo=}"; shift ;;
-    --terminal-task-md) TERMINAL_TASK_MD="$2"; shift 2 ;;
-    --terminal-task-md=*) TERMINAL_TASK_MD="${1#--terminal-task-md=}"; shift ;;
-    --task-md) TASK_MDS+=("$(abs_path "$2")"); shift 2 ;;
-    --task-md=*) TASK_MDS+=("$(abs_path "${1#--task-md=}")"); shift ;;
-    --main) MAIN_BRANCH="$2"; shift 2 ;;
-    --main=*) MAIN_BRANCH="${1#--main=}"; shift ;;
-    --execute) EXECUTE=1; shift ;;
-    --allow-dag) DAG_MODE=1; shift ;;
-    --require-main-contains-final) REQUIRE_MAIN_CONTAINS_FINAL=1; shift ;;
-    -h|--help) usage; exit 0 ;;
-    *) die "unknown argument: $1" ;;
-  esac
-done
+# Source-guard the CLI exec flow so test harnesses (e.g. the corpus-count
+# robustness selftest) can `source` this script to call individual helpers like
+# release_lane_corpus_present without triggering the full release-lane run.
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --repo) REPO_PATH="$2"; shift 2 ;;
+      --repo=*) REPO_PATH="${1#--repo=}"; shift ;;
+      --workspace-repo) WORKSPACE_REPO="$2"; shift 2 ;;
+      --workspace-repo=*) WORKSPACE_REPO="${1#--workspace-repo=}"; shift ;;
+      --terminal-task-md) TERMINAL_TASK_MD="$2"; shift 2 ;;
+      --terminal-task-md=*) TERMINAL_TASK_MD="${1#--terminal-task-md=}"; shift ;;
+      --task-md) TASK_MDS+=("$(abs_path "$2")"); shift 2 ;;
+      --task-md=*) TASK_MDS+=("$(abs_path "${1#--task-md=}")"); shift ;;
+      --main) MAIN_BRANCH="$2"; shift 2 ;;
+      --main=*) MAIN_BRANCH="${1#--main=}"; shift ;;
+      --execute) EXECUTE=1; shift ;;
+      --allow-dag) DAG_MODE=1; shift ;;
+      --require-main-contains-final) REQUIRE_MAIN_CONTAINS_FINAL=1; shift ;;
+      -h|--help) usage; exit 0 ;;
+      *) die "unknown argument: $1" ;;
+    esac
+  done
 
-REPO_PATH="$(abs_path "$REPO_PATH")"
-refresh_gh_repo_args
-resolve_gh_bin
+  REPO_PATH="$(abs_path "$REPO_PATH")"
+  refresh_gh_repo_args
+  resolve_gh_bin
 
-if [[ ${#TASK_MDS[@]} -eq 0 ]]; then
-  resolve_task_mds_from_terminal
+  if [[ ${#TASK_MDS[@]} -eq 0 ]]; then
+    resolve_task_mds_from_terminal
+  fi
+
+  # DP-270: classify bundle vs per-task before the release gates so the
+  # governed-script gates evaluate the correct head ref.
+  # DP-295 T6: the pre-merge VERSION-bump gate is removed; version/CHANGELOG are
+  # consumed changeset-driven inside the PR (mise run release:version) and ride the
+  # verified PR HEAD, so the lane only runs the script-governance gates + merge.
+  detect_bundle
+
+  run_script_manifest_release_gate
+  run_governed_script_tests_release_gate
+  run_aggregate_selftests_release_gate
+  if [[ -n "$BUNDLE_ALIAS" ]]; then
+    validate_and_plan_bundle
+  else
+    validate_and_plan
+  fi
+  echo "$PREFIX PASS"
 fi
-
-# DP-270: classify bundle vs per-task before the release gates so the
-# governed-script gates evaluate the correct head ref.
-# DP-295 T6: the pre-merge VERSION-bump gate is removed; version/CHANGELOG are
-# consumed changeset-driven inside the PR (mise run release:version) and ride the
-# verified PR HEAD, so the lane only runs the script-governance gates + merge.
-detect_bundle
-
-run_script_manifest_release_gate
-run_governed_script_tests_release_gate
-run_aggregate_selftests_release_gate
-if [[ -n "$BUNDLE_ALIAS" ]]; then
-  validate_and_plan_bundle
-else
-  validate_and_plan
-fi
-echo "$PREFIX PASS"

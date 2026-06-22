@@ -824,9 +824,20 @@ fi
 run_readiness_pack "$TASK_MD" || exit 2
 maybe_auto_stash_dirty_main "$(git rev-parse --show-toplevel)" "$TASK_JSON"
 
-# Step 1.5: If breakdown supplied an explicit branch chain, align upstream
+# Step 1.5: Ensure the framework DP feature-branch aggregation base exists.
+# For feat/DP-NNN bases this creates the feat branch from origin/main when it is
+# absent; for every other base it is a no-op (DP-334 T1 / AC1). This MUST run
+# before the branch-chain cascade below: when breakdown supplies a Branch chain
+# whose first link is feat/DP-NNN and that feat base is still absent (every fresh
+# feat-model DP's first task), running the cascade first dies with
+# "upstream branch not found: feat/DP-NNN" before the feat base is ever created
+# (DP-352 T1 / Bug #1 — the v3.76.19-onward zero-release root cause).
+ensure_feat_dp_branch "$RESOLVED_BASE" || exit 2
+
+# Step 2: If breakdown supplied an explicit branch chain, align upstream
 # branches before cutting the task branch. The task branch does not exist yet,
-# so cascade-rebase-chain skips the missing last link.
+# so cascade-rebase-chain skips the missing last link. The feat/DP-NNN base it
+# may reference now exists thanks to Step 1.5 above.
 if [[ -n "$BRANCH_CHAIN" && -f "$CASCADE_REBASE_CHAIN" ]]; then
   if [[ "$BASE_BRANCH" == task/* && "$RESOLVED_BASE" != "$BASE_BRANCH" ]]; then
     echo "ℹ Stacked base resolved to $RESOLVED_BASE; skipping stale branch-chain cascade for completed upstream." >&2
@@ -838,11 +849,6 @@ if [[ -n "$BRANCH_CHAIN" && -f "$CASCADE_REBASE_CHAIN" ]]; then
   }
   fi
 fi
-
-# Step 2: Ensure the framework DP feature-branch aggregation base exists.
-# For feat/DP-NNN bases this creates the feat branch from origin/main when it is
-# absent; for every other base it is a no-op (DP-334 T1 / AC1).
-ensure_feat_dp_branch "$RESOLVED_BASE" || exit 2
 
 # Step 3: Verify resolved_base exists, then fetch the latest tip. A base may
 # legitimately live only locally — the feat/DP-NNN branch this script just

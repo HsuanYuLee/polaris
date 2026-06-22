@@ -54,17 +54,48 @@ polaris_github_current_login() {
   polaris_gh_api user --jq '.login' 2>/dev/null || true
 }
 
+# Description: report whether a `gh` arg list already carries repo context.
+# Args:        $@ = the gh pr create args to scan.
+# Side effects: none. Returns 0 if --repo / --repo=<slug> is present, else 1.
+_polaris_pr_args_have_repo() {
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      --repo|--repo=*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# Description: run `gh pr create`, injecting repo context so head/base refs
+#   resolve against the target repo even when invoked from a cwd that is not
+#   that repo. Without --repo, gh infers the repo from cwd and produces blank
+#   refs from a non-repo cwd (DP-352 Bug #2). Repo root is taken from
+#   POLARIS_PR_CREATE_REPO_ROOT, falling back to the caller's REPO_PATH; the
+#   owner/repo slug is derived via the existing polaris_github_repo_slug helper.
+#   If the caller already supplied --repo, it is left untouched (no double-inject).
+# Args:        $1 = output file to tee the gh output into; remaining = gh pr create args.
+# Side effects: writes $output_file; invokes gh. Returns gh's exit code.
 polaris_github_pr_create_cli() {
   local output_file="$1"
   local had_errexit=0
   local rc=0
   shift
 
+  local -a gh_args=("$@")
+  local repo_root="${POLARIS_PR_CREATE_REPO_ROOT:-${REPO_PATH:-}}"
+  if [[ -n "$repo_root" ]] && ! _polaris_pr_args_have_repo "${gh_args[@]+"${gh_args[@]}"}"; then
+    local repo_slug=""
+    if repo_slug="$(polaris_github_repo_slug "$repo_root" 2>/dev/null)" && [[ -n "$repo_slug" ]]; then
+      gh_args=(--repo "$repo_slug" "${gh_args[@]+"${gh_args[@]}"}")
+    fi
+  fi
+
   case "$-" in
     *e*) had_errexit=1; set +e ;;
     *) had_errexit=0 ;;
   esac
-  "${GH_BIN:-gh}" pr create "$@" | tee "$output_file"
+  "${GH_BIN:-gh}" pr create "${gh_args[@]+"${gh_args[@]}"}" | tee "$output_file"
   rc=${PIPESTATUS[0]}
   [[ "$had_errexit" -eq 1 ]] && set -e
   return "$rc"
