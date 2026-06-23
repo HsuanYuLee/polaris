@@ -27,6 +27,11 @@ VALIDATE_CONSUMER_SCHEMA_BINDING="${POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN
 # stop the framework PR gate from only exercising the 38 governed selftests.
 VALIDATE_SELFTEST_ENROLLMENT="${POLARIS_VALIDATE_SELFTEST_ENROLLMENT_BIN:-scripts/validate-selftest-enrollment.sh}"
 RUN_AGGREGATE_SELFTESTS="${POLARIS_RUN_AGGREGATE_SELFTESTS_BIN:-scripts/run-aggregate-selftests.sh}"
+# W15 (DP-345 T2 / AC5): naive markdown section-parse lint. Fail-closed when a new
+# blob-level `.find`/`.index`/`.split` for a `## heading` over un-frontmatter-stripped
+# text reappears (the DP-344-T1 collision shape DP-345 T1 converged). `--self-check`
+# scans the converged scripts/** + .claude/** source tree.
+LINT_NAIVE_SECTION_PARSE="${POLARIS_LINT_NAIVE_SECTION_PARSE_BIN:-scripts/lint-naive-section-parse.sh}"
 # W11 (DP-293 T1): runtime-instruction parity. compile --check catches drifted
 # generated targets (CLAUDE.md / AGENTS.md / .codex / copilot) before merge;
 # mechanism-parity --strict catches cross-runtime skill/mechanism divergence.
@@ -96,5 +101,9 @@ run_gate "W13 selftest enrollment" "$VALIDATE_SELFTEST_ENROLLMENT"
 # W14: aggregate selftest execution (DP-325 T2 / AC1+AC3). Runs the full
 # filesystem selftest corpus; any non-quarantined red fails the PR gate.
 run_gate "W14 aggregate selftest run" "$RUN_AGGREGATE_SELFTESTS"
+# W15: naive section-parse lint (DP-345 T2 / AC5). Fail-closed when a naive
+# blob-level `## heading` find/index/split over un-frontmatter-stripped markdown
+# reappears in the converged source tree.
+run_gate "W15 naive section-parse lint" "$LINT_NAIVE_SECTION_PARSE" --self-check
 
 echo "PASS: framework PR gate"

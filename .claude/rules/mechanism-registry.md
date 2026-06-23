@@ -80,6 +80,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | counter-race-recovery | scripts/auto-pass-counter-race-recovery.sh | script | portable | scripts/selftests/auto-pass-counter-race-recovery-selftest.sh | governance |
 | skill-size-policy | scripts/lint-skill-size.sh | script | portable | scripts/selftests/lint-skill-size-selftest.sh | governance |
 | bash-var-utf8-boundary-lint | scripts/lint-bash-variable-utf8-boundary.sh | script | portable | scripts/selftests/lint-bash-variable-utf8-boundary-selftest.sh | governance |
+| naive-section-parse-lint | scripts/lint-naive-section-parse.sh | script | portable | scripts/selftests/lint-naive-section-parse-selftest.sh | governance |
 | slugify-ascii | scripts/derive-task-md-from-refinement-json.sh | script | portable | scripts/selftests/branch-slug-producer-parity-selftest.sh | governance |
 | branch-name-validator | scripts/validate-branch-name-ascii.sh | script | portable | scripts/selftests/validate-branch-name-ascii-selftest.sh | governance |
 | pre-push-branch-name-gate | .claude/hooks/pre-push-quality-gate.sh | hook | portable | scripts/selftests/pre-push-branch-name-ascii-selftest.sh | governance |

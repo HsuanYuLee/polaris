@@ -40,7 +40,11 @@
 #   base_branch, branch_chain, task_branch, depends_on, references_to_load,
 #   level, dev_env_config, fixtures, runtime_verify_target, env_bootstrap_command,
 #   verification_visual_regression_expected, verification_visual_regression_pages,
-#   test_command, verify_command, verify_fallback_command, allowed_files, resolved_base
+#   test_command, verify_command, verify_fallback_command, allowed_files,
+#   required_tools, resolved_base
+#
+#   required_tools is a structured list; consumers should read the full JSON
+#   `.required_tools` array rather than the flat --field form.
 #
 # Exit codes:
 #   0 — success (JSON or single field on stdout)
@@ -484,6 +488,58 @@ for ln in section_lines("## Allowed Files"):
         allowed_files.append(s[2:].strip())
 
 
+# ---- Required Tools (markdown table) -------------------------------------
+# DP-345 D1/D2: canonical handoff source for the ## Required Tools section so
+# consumers (env/install-project-deps.sh) read one parser instead of each
+# re-implementing a naive `text.find("## Required Tools")` that mis-fires on a
+# `## Required Tools` literal inside the frontmatter description.
+def parse_required_tools(lns):
+    rows = []
+    for raw in lns:
+        s = raw.strip()
+        if not s.startswith("|") or not s.endswith("|"):
+            continue
+        rows.append([cell.strip().strip("`") for cell in s.strip("|").split("|")])
+    if not rows:
+        return []
+
+    def norm(value):
+        return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
+
+    aliases = {"tool": "name", "tool_name": "name", "profile": "runtime_profile"}
+    headers = []
+    data_rows = []
+    for row in rows:
+        if not headers:
+            headers = [aliases.get(norm(cell), norm(cell)) for cell in row]
+            continue
+        if all(re.fullmatch(r":?-{3,}:?", cell.strip()) for cell in row):
+            continue
+        data_rows.append(row)
+
+    tools = []
+    for row in data_rows:
+        values = {headers[idx]: row[idx].strip() if idx < len(row) else "" for idx in range(len(headers))}
+        name = values.get("name", "").strip()
+        check = values.get("check_command", "").strip()
+        if not name or not check:
+            continue
+        install = values.get("install_command", "").strip()
+        tools.append({
+            "name": name,
+            "owner": values.get("owner", "").strip(),
+            "install_authority": values.get("install_authority", "").strip(),
+            "check_command": check,
+            "install_command": "" if install.upper() == "N/A" else install,
+            "runtime_profile": values.get("runtime_profile", "").strip(),
+            "goes_to_mise": values.get("goes_to_mise", "").strip().lower(),
+            "handoff_hint": values.get("handoff_hint", "").strip(),
+        })
+    return tools
+
+required_tools = parse_required_tools(section_lines("## Required Tools"))
+
+
 out = {
     "task_md_path": path,
     "frontmatter": frontmatter,
@@ -497,6 +553,7 @@ out = {
     "verify_command": verify_command,
     "verify_fallback_command": verify_fallback_command,
     "allowed_files": allowed_files,
+    "required_tools": required_tools,
     "resolved_base": resolved_base,
 }
 
@@ -578,6 +635,7 @@ aliases = {
     "verify_command":          ["verify_command"],
     "verify_fallback_command": ["verify_fallback_command"],
     "allowed_files":           ["allowed_files"],
+    "required_tools":          ["required_tools"],
     "resolved_base":           ["resolved_base"],
 }
 

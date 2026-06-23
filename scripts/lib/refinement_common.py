@@ -15,16 +15,60 @@ def container_from(path):
     return p.parent
 
 
+def _strip_frontmatter(text):
+    """Drop the leading ``---``...``---`` YAML frontmatter block.
+
+    DP-345 D3: refinement.md may carry a frontmatter ``description`` that
+    literally contains a ``## heading`` (DP-344-T1 collision shape). Stripping
+    the frontmatter before section parsing prevents that literal from being
+    mistaken for a real body section.
+
+    Args:
+        text: Full refinement.md (or task.md) text.
+
+    Returns:
+        The body text with any leading frontmatter block removed.
+    """
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return text
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return "".join(lines[i + 1 :])
+    return text
+
+
 def section(text, heading):
+    """Return the body of a ``## {heading}`` section, frontmatter-aware.
+
+    Short-term DP-345 fix (long-term: read refinement.json, DP-346). Strips the
+    frontmatter block, then line-anchors on ``^## `` so only a real body heading
+    matches — the same idiom as parse-task-md.sh.
+
+    Args:
+        text: Full refinement.md text.
+        heading: Heading label without the leading ``## ``.
+
+    Returns:
+        The section body (lines between this heading and the next ``## ``),
+        or an empty string when the heading is absent.
+    """
+    body = _strip_frontmatter(text)
     marker = f"## {heading}"
-    start = text.find(marker)
-    if start == -1:
+    lines = body.splitlines()
+    start = None
+    for idx, line in enumerate(lines):
+        if line.rstrip() == marker or line.startswith(marker + " "):
+            start = idx + 1
+            break
+    if start is None:
         return ""
-    start = text.find("\n", start)
-    if start == -1:
-        return ""
-    end = text.find("\n## ", start + 1)
-    return text[start + 1 :] if end == -1 else text[start + 1 : end]
+    end = len(lines)
+    for idx in range(start, len(lines)):
+        if lines[idx].startswith("## "):
+            end = idx
+            break
+    return "\n".join(lines[start:end])
 
 
 def refinement_paths(input_path):

@@ -77,16 +77,37 @@ def digest(value):
     payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
+def _strip_frontmatter(text):
+    # DP-345 D1: drop the leading `---`...`---` YAML frontmatter block before
+    # section parsing so a frontmatter `description` containing a literal
+    # `## heading` (DP-344-T1 shape) cannot be mistaken for a real body section.
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return text
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return "".join(lines[i + 1:])
+    return text
+
 def section(text, heading):
+    # Frontmatter-aware, line-anchored: strip frontmatter, then match a `## `
+    # heading only at the start of a line (same idiom as parse-task-md.sh).
+    body = _strip_frontmatter(text)
     marker = f"## {heading}"
-    start = text.find(marker)
-    if start == -1:
+    lines = body.splitlines()
+    start = None
+    for idx, ln in enumerate(lines):
+        if ln.rstrip() == marker or ln.startswith(marker + " "):
+            start = idx + 1
+            break
+    if start is None:
         return ""
-    start = text.find("\n", start)
-    if start == -1:
-        return ""
-    end = text.find("\n## ", start + 1)
-    return text[start + 1:] if end == -1 else text[start + 1:end]
+    end = len(lines)
+    for idx in range(start, len(lines)):
+        if lines[idx].startswith("## "):
+            end = idx
+            break
+    return "\n".join(lines[start:end])
 
 def first_fence(block):
     match = re.search(r"```[^\n]*\n(.*?)\n```", block, re.S)
@@ -283,16 +304,36 @@ def _read_task_text() -> str:
     except Exception:
         return ""
 
+def _strip_frontmatter(text: str) -> str:
+    # DP-345 D1: drop the leading `---`...`---` YAML frontmatter block before
+    # section parsing so a frontmatter `description` containing a literal
+    # `## heading` (DP-344-T1 shape) cannot be mistaken for a real body section.
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return text
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return "".join(lines[i + 1:])
+    return text
+
 def _section_text(text: str, heading: str) -> str:
+    # Frontmatter-aware, line-anchored (same idiom as parse-task-md.sh).
+    body = _strip_frontmatter(text)
     marker = f"## {heading}"
-    start = text.find(marker)
-    if start == -1:
+    lines = body.splitlines()
+    start = None
+    for idx, ln in enumerate(lines):
+        if ln.rstrip() == marker or ln.startswith(marker + " "):
+            start = idx + 1
+            break
+    if start is None:
         return ""
-    start = text.find("\n", start)
-    if start == -1:
-        return ""
-    end = text.find("\n## ", start + 1)
-    return text[start + 1:] if end == -1 else text[start + 1:end]
+    end = len(lines)
+    for idx in range(start, len(lines)):
+        if lines[idx].startswith("## "):
+            end = idx
+            break
+    return "\n".join(lines[start:end])
 
 def _parse_change_scope_create_paths(text: str) -> set[str]:
     """Parse `## 改動範圍` markdown table rows whose action column equals
@@ -507,16 +548,36 @@ from pathlib import Path
 path = Path(sys.argv[1])
 text = path.read_text(encoding="utf-8")
 
+def _strip_frontmatter(text):
+    # DP-345 D1: drop the leading `---`...`---` YAML frontmatter block before
+    # section parsing so a frontmatter `description` containing a literal
+    # `## heading` (DP-344-T1 shape) cannot be mistaken for a real body section.
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return text
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            return "".join(lines[i + 1:])
+    return text
+
 def section(text, heading):
+    # Frontmatter-aware, line-anchored (same idiom as parse-task-md.sh).
+    body = _strip_frontmatter(text)
     marker = f"## {heading}"
-    start = text.find(marker)
-    if start == -1:
+    lines = body.splitlines()
+    start = None
+    for idx, ln in enumerate(lines):
+        if ln.rstrip() == marker or ln.startswith(marker + " "):
+            start = idx + 1
+            break
+    if start is None:
         return ""
-    start = text.find("\n", start)
-    if start == -1:
-        return ""
-    end = text.find("\n## ", start + 1)
-    return text[start + 1:] if end == -1 else text[start + 1:end]
+    end = len(lines)
+    for idx in range(start, len(lines)):
+        if lines[idx].startswith("## "):
+            end = idx
+            break
+    return "\n".join(lines[start:end])
 
 def split_row(line):
     raw = line.strip()

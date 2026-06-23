@@ -42,101 +42,21 @@ assert_contains() {
   fi
 }
 
+# DP-345 D1/AC4: delegate baseline-snapshot writing to the canonical CLI
+# (refresh-baseline-snapshot.sh, which reads via parse-task-md.sh) instead of
+# embedding a buggy naive `text.find("## heading")` parser copy here. The
+# canonical writer derives task_id from the task.md identity and emits to
+# {repo}/.polaris/evidence/baseline-snapshot/{task_id}-{head_sha}.json — the
+# same path this selftest previously wrote by hand.
+# Signature kept for callsite compatibility; $3 (task_id) is unused because the
+# canonical writer derives identity from the task.md.
 write_baseline_snapshot() {
   local repo="$1"
   local task_md="$2"
-  local task_id="$3"
   local head_sha="$4"
 
-  mkdir -p "$repo/.polaris/evidence/baseline-snapshot"
-  python3 - "$task_md" "$repo/.polaris/evidence/baseline-snapshot/${task_id}-${head_sha}.json" "$task_id" "$head_sha" <<'PY'
-import hashlib
-import json
-import re
-import sys
-from pathlib import Path
-
-task_path = Path(sys.argv[1])
-snapshot_path = Path(sys.argv[2])
-task_id = sys.argv[3]
-head_sha = sys.argv[4]
-
-def digest(value):
-    payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-def section(text, heading):
-    marker = f"## {heading}"
-    start = text.find(marker)
-    if start == -1:
-        return ""
-    start = text.find("\n", start)
-    if start == -1:
-        return ""
-    end = text.find("\n## ", start + 1)
-    return text[start + 1:] if end == -1 else text[start + 1:end]
-
-def first_fence(block):
-    match = re.search(r"```[^\n]*\n(.*?)\n```", block, re.S)
-    return match.group(1).strip() if match else ""
-
-def table_value(text, field):
-    for raw in text.splitlines():
-        if not raw.lstrip().startswith("|"):
-            continue
-        cells = [c.strip() for c in raw.split("|")]
-        if len(cells) >= 4 and cells[1] == field:
-            return cells[2]
-    return ""
-
-def frontmatter_depends_on(text):
-    if not text.startswith("---\n"):
-        return []
-    end = text.find("\n---\n", 4)
-    if end == -1:
-        return []
-    fm = text[4:end]
-    for raw in fm.splitlines():
-        if raw.startswith("depends_on:"):
-            value = raw.split(":", 1)[1].strip()
-            if value in ("", "[]"):
-                return []
-            if value.startswith("[") and value.endswith("]"):
-                return [item.strip().strip("'\"") for item in value[1:-1].split(",") if item.strip()]
-            return [value.strip("'\"")]
-    return []
-
-def allowed_files(text):
-    values = []
-    for raw in section(text, "Allowed Files").splitlines():
-        stripped = raw.strip()
-        if stripped.startswith("- "):
-            values.append(stripped[2:].strip())
-    return values
-
-text = task_path.read_text(encoding="utf-8")
-planner_owned = {
-    "verify_command": first_fence(section(text, "Verify Command")),
-    "depends_on": frontmatter_depends_on(text),
-    "base_branch": table_value(text, "Base branch"),
-    "allowed_files": allowed_files(text),
-}
-snapshot = {
-    "schema_version": 1,
-    "writer": "check-delivery-completion-selftest",
-    "task_id": task_id,
-    "task_md": str(task_path),
-    "head_sha": head_sha,
-    "planner_owned": planner_owned,
-    "hashes": {
-        "verify_command_sha256": digest(planner_owned["verify_command"]),
-        "depends_on_sha256": digest(planner_owned["depends_on"]),
-        "base_branch_sha256": digest(planner_owned["base_branch"]),
-        "allowed_files_sha256": digest(planner_owned["allowed_files"]),
-    },
-}
-snapshot_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-PY
+  bash "$SCRIPT_DIR/refresh-baseline-snapshot.sh" \
+    --repo "$repo" --task-md "$task_md" --head-sha "$head_sha" >/dev/null
 }
 
 write_task() {

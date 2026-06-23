@@ -1646,6 +1646,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/lint-naive-section-parse.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_naive_section_parse_lint",
+      "selftest": "scripts/selftests/lint-naive-section-parse-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/lint-no-business-gate-reads-derived-md.sh",
       "kind": "gate",
       "runner": "bash",
@@ -5128,16 +5137,6 @@
       "selftest": "scripts/selftests/validate-skill-contracts-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
-    },
-    {
-      "path": "scripts/validate-selftest-enrollment.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "framework_pr_gate",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "enrollment gate behavior is covered by scripts/selftests/run-aggregate-selftests-selftest.sh (the aggregate runner selftest exercises the --list output this gate compares against); a dedicated selftest would be circular since this gate guards the same corpus the runner enumerates"
     },
     {
       "path": "scripts/validate-spec-boundary.sh",

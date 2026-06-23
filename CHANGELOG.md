@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.31] - 2026-06-23
+
+### Changed
+
+- 9efa3b7: 收斂三處 live naive section parser 到 canonical parse-task-md.sh + 修 selftest 複本
+- f997ff3: 新增 lint-naive-section-parse.sh（A 類 fail-closed）+ 接 framework PR gate + mechanism-registry annotation
+
 ## [3.76.30] - 2026-06-22
 
 ### Changed

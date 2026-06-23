@@ -74,74 +74,18 @@ run_required_tools() {
   local cwd="$2"
   local tools_json
 
-  tools_json="$(python3 - "$task_md" <<'PY'
-import json
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
-
-def section(text, heading):
-    marker = f"## {heading}"
-    start = text.find(marker)
-    if start == -1:
-        return ""
-    start = text.find("\n", start)
-    if start == -1:
-        return ""
-    end = text.find("\n## ", start + 1)
-    return text[start + 1:] if end == -1 else text[start + 1:end]
-
-def split_row(line):
-    raw = line.strip()
-    if not raw.startswith("|") or not raw.endswith("|"):
-        return []
-    return [cell.strip().strip(chr(96)) for cell in raw.strip("|").split("|")]
-
-def norm(value):
-    return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
-
-body = section(text, "Required Tools")
-if not body:
-    print("[]")
-    raise SystemExit(0)
-
-rows = [split_row(line) for line in body.splitlines() if split_row(line)]
-headers = []
-data_rows = []
-aliases = {"tool": "name", "tool_name": "name", "profile": "runtime_profile"}
-for row in rows:
-    if not headers:
-        headers = [aliases.get(norm(cell), norm(cell)) for cell in row]
-        continue
-    if all(re.fullmatch(r":?-{3,}:?", cell.strip()) for cell in row):
-        continue
-    data_rows.append(row)
-
-tools = []
-for row in data_rows:
-    values = {headers[idx]: row[idx].strip() if idx < len(row) else "" for idx in range(len(headers))}
-    name = values.get("name", "").strip()
-    check = values.get("check_command", "").strip()
-    if not name or not check:
-        continue
-    install = values.get("install_command", "").strip()
-    tools.append({
-        "name": name,
-        "owner": values.get("owner", "").strip(),
-        "install_authority": values.get("install_authority", "").strip(),
-        "check_command": check,
-        "install_command": "" if install.upper() == "N/A" else install,
-        "runtime_profile": values.get("runtime_profile", "").strip(),
-        "goes_to_mise": values.get("goes_to_mise", "").strip().lower(),
-        "handoff_hint": values.get("handoff_hint", "").strip(),
-    })
-
-print(json.dumps(tools, ensure_ascii=False))
-PY
-)"
+  # DP-345 D2: consume the canonical parse-task-md.sh `required_tools` field
+  # instead of re-implementing a naive `text.find("## Required Tools")` parser
+  # here. The canonical parser strips frontmatter before line-anchoring `^## `,
+  # so a frontmatter description containing the literal `## Required Tools` no
+  # longer pollutes the parse.
+  local parser
+  parser="$(cd "$SCRIPT_DIR/.." && pwd)/parse-task-md.sh"
+  if [[ ! -x "$parser" ]]; then
+    env_lib_log_fail "parse-task-md.sh not executable at $parser"; return 1
+  fi
+  tools_json="$("$parser" "$task_md" --no-resolve 2>/dev/null \
+    | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin).get("required_tools") or [], ensure_ascii=False))')"
 
   local tool_count
   tool_count="$(printf '%s' "$tools_json" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')"
