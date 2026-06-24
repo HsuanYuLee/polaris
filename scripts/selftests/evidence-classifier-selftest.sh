@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# Purpose: DP-294 T4 / AC4+AC5 — selftest for scripts/lib/evidence-classifier.sh.
-# Inputs:  none (hermetic tmp git repo + tmp completion-gate markers).
+# Purpose: DP-294 T4 / AC4+AC5 + DP-360 T7 — selftest for
+#          scripts/lib/evidence-classifier.sh.
+# Inputs:  none (hermetic tmp git repo + tmp DP specs tree with task.md blocks).
 # Outputs: PASS/FAIL lines; exit 0 (all pass) / 1 (any fail).
 # Covers:  classify metadata_only / release_bump / behavioral (incl. mixed
-#          behavioral fail-closed + empty fail-closed); marker-pass valid PASS,
-#          missing marker FAIL, stale head FAIL, non-PASS status FAIL.
+#          behavioral fail-closed + empty fail-closed); DP-360 T7 marker-pass now
+#          reads the task.md `deliverable` block instead of a head-sha marker:
+#            - AC3:    no marker file anywhere; PASS resolves from task.md block.
+#            - head-bound: a different head fails closed.
+#            - non-PASS deliverable.verification.status fails closed.
+#            - missing deliverable block fails closed.
+#            - AC-NEG1: a polluted branch ref does NOT rescue a non-PASS block.
+#            - AC-NEG2: a (stray) head-sha marker is ignored — no marker read.
 
 set -euo pipefail
 
@@ -73,42 +80,99 @@ H_MIX="$(git -C "$R" rev-parse HEAD)"
 # --- range spanning only release bump -> release_bump -------------------------
 [[ "$(classify_range "${BASE}..${H_REL}")" == "release_bump" ]] && ok || bad "range VERSION+CHANGELOG -> release_bump"
 
-# === marker-pass (AC5) =======================================================
+# === marker-pass (AC5 + DP-360 T7 task.md-block contract) ====================
+# DP-360 T7: marker-pass no longer reads a head-sha completion_gate marker. It
+# resolves the task.md by work_item_id and asserts deliverable.head_sha is bound
+# to the requested head AND deliverable.verification.status == PASS. We scaffold a
+# DP specs tree under the hermetic repo so resolve-task-md.sh can find the task.md.
 WI="DP-294-T4"
-MK_DIR="$R/.polaris/evidence/completion-gate"
-mkdir -p "$MK_DIR"
-TASK_MD="$TMP/task.md"; echo "# task" >"$TASK_MD"
 HS="$H_BEH"
+SPECS="$R/docs-manager/src/content/docs/specs"
+TASK_DIR="$SPECS/design-plans/DP-294-evidence-classifier-fixture/tasks/T4"
+mkdir -p "$TASK_DIR"
+TASK_MD="$TASK_DIR/index.md"
 
-write_marker() {
-  # $1 status, $2 head_sha, $3 source_artifact (or empty)
-  python3 - "$MK_DIR/$WI-$2.json" "$WI" "$1" "$2" "${3:-}" <<'PY'
-import json,sys
-out,wi,status,head,art=sys.argv[1:6]
-fr={"head_sha":head}
-if art: fr["source_artifact"]=art
-json.dump({"schema_version":1,"marker_kind":"completion_gate","writer":"engineering",
-          "owning_skill":"engineering","source_id":"DP-294","work_item_id":wi,
-          "status":status,"freshness":fr,"at":"2026-06-07T10:00:00+00:00"},
-         open(out,"w")); open(out,"a").write("\n")
-PY
+# Write a task.md carrying a deliverable block. $1 head_sha, $2 verification status.
+write_task_block() {
+  local head="$1" status="$2"
+  cat >"$TASK_MD" <<EOF
+---
+title: "fixture"
+status: IN_PROGRESS
+task_kind: T
+task_shape: implementation
+deliverable:
+  pr_url: https://github.com/o/r/pull/1
+  pr_state: OPEN
+  head_sha: ${head}
+  verification:
+    status: ${status}
+    ac_counts:
+      ac_total: 1
+      ac_pass: 1
+      ac_fail: 0
+      ac_manual_required: 0
+      ac_uncertain: 0
+---
+# fixture
+EOF
 }
+
+# Write a task.md with NO deliverable block at all.
+write_task_no_block() {
+  cat >"$TASK_MD" <<'EOF'
+---
+title: "fixture"
+status: IN_PROGRESS
+task_kind: T
+task_shape: implementation
+---
+# fixture
+EOF
+}
+
 marker_pass() { bash "$CLS" marker-pass --repo "$R" --work-item-id "$WI" --head-sha "$1"; }
 
-# valid PASS marker with resolvable artifact -> exit 0
-write_marker PASS "$HS" "$TASK_MD"
-if marker_pass "$HS" >/dev/null 2>&1; then ok; else bad "valid PASS marker -> exit 0"; fi
+# AC3: PASS block at the requested head, with NO marker file anywhere -> exit 0.
+write_task_block "$HS" PASS
+[[ ! -d "$R/.polaris/evidence/completion-gate" ]] || bad "AC3 precondition: no marker dir should exist"
+if marker_pass "$HS" >/dev/null 2>&1; then ok; else bad "AC3 PASS task.md block (no marker) -> exit 0"; fi
 
-# missing marker (different head) -> exit 2
-if marker_pass "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" >/dev/null 2>&1; then bad "missing marker should exit 2"; else ok; fi
+# head-bound: a different head fails closed (task.md head does not match).
+if marker_pass "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" >/dev/null 2>&1; then
+  bad "different head should exit 2"; else ok; fi
 
-# status != PASS -> exit 2
-rm -f "$MK_DIR/$WI-$HS.json"; write_marker FAIL "$HS" "$TASK_MD"
-if marker_pass "$HS" >/dev/null 2>&1; then bad "FAIL-status marker should exit 2"; else ok; fi
+# non-PASS verification.status fails closed.
+write_task_block "$HS" FAIL
+if marker_pass "$HS" >/dev/null 2>&1; then bad "FAIL-status block should exit 2"; else ok; fi
 
-# PASS but evidence artifact missing on disk -> exit 2
-rm -f "$MK_DIR/$WI-$HS.json"; write_marker PASS "$HS" "$TMP/nonexistent.md"
-if marker_pass "$HS" >/dev/null 2>&1; then bad "marker w/ missing artifact should exit 2"; else ok; fi
+# missing deliverable block fails closed.
+write_task_no_block
+if marker_pass "$HS" >/dev/null 2>&1; then bad "missing deliverable block should exit 2"; else ok; fi
+
+# AC-NEG1: a non-PASS block must NOT be rescued by branch state. Create a branch
+# whose name embeds the head, then assert a FAIL block still fails closed (the
+# reader never consults a branch ref for delivery head / PASS).
+write_task_block "$HS" FAIL
+git -C "$R" branch -f "task/${WI}-${HS}" "$HS" 2>/dev/null || true
+if marker_pass "$HS" >/dev/null 2>&1; then bad "AC-NEG1 branch ref must not rescue FAIL block"; else ok; fi
+
+# AC-NEG2: a stray head-sha marker on disk must be IGNORED (no marker read). The
+# task.md block is FAIL, so even a PASS marker file must not flip the result.
+mkdir -p "$R/.polaris/evidence/completion-gate"
+python3 - "$R/.polaris/evidence/completion-gate/$WI-$HS.json" "$WI" "$HS" <<'PY'
+import json,sys
+out,wi,head=sys.argv[1:4]
+json.dump({"schema_version":1,"marker_kind":"completion_gate","writer":"engineering",
+          "owning_skill":"engineering","source_id":"DP-294","work_item_id":wi,
+          "status":"PASS","freshness":{"head_sha":head},
+          "at":"2026-06-07T10:00:00+00:00"}, open(out,"w")); open(out,"a").write("\n")
+PY
+if marker_pass "$HS" >/dev/null 2>&1; then bad "AC-NEG2 stray PASS marker must not flip FAIL block"; else ok; fi
+# Flip the block to PASS: still exit 0 — proving the PASS came from the block, not
+# the marker (the marker was already present above for both polarities).
+write_task_block "$HS" PASS
+if marker_pass "$HS" >/dev/null 2>&1; then ok; else bad "AC3 PASS block resolves even with stray marker present"; fi
 
 echo "[evidence-classifier-selftest] $PASS passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]] && exit 0 || exit 1

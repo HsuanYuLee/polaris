@@ -152,6 +152,67 @@ chmod +x "${TMP}/bin/verify-agents-mirror-portable.sh"
 POLARIS_VERIFY_AGENTS_MIRROR_PORTABLE_BIN="${TMP}/bin/verify-agents-mirror-portable.sh"
 export POLARIS_VERIFY_AGENTS_MIRROR_PORTABLE_BIN
 
+# DP-360 T7: stub `gh` for close_bundled_task_pr, driven by the task.md
+# deliverable.pr_url recorded by inject_deliverable_head. The hermetic fixture has
+# no real PR #999, so the stub reports the recorded deliverable PR as MERGED — the
+# idempotent-skip path the production closeout takes for an already-merged bundled
+# PR — letting closeout finish without a real gh call. `auth status` succeeds so
+# resolve_gh_bin passes its readiness preflight. Prepend the stub dir to PATH so
+# resolve_gh_bin's `command -v gh` resolves to this stub.
+cat >"${TMP}/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  auth)
+    exit 0
+    ;;
+  pr)
+    if [[ "$2" == "view" ]]; then
+      echo "MERGED"
+    fi
+    exit 0
+    ;;
+esac
+exit 0
+EOF
+chmod +x "${TMP}/bin/gh"
+PATH="${TMP}/bin:${PATH}"
+export PATH
+
+# DP-360 T7: persist the delivered head into the task.md `deliverable` block. The
+# head-sha-keyed completion-gate marker is retired as a head-resolution authority;
+# the task.md delivery block is now the sole non-override delivered-head source.
+# The full canonical block (pr_url / pr_state / head_sha) is written so the surface
+# resolver (run by check-release-eligible.sh) classifies a real delivery surface
+# instead of flagging `deliverable_without_pr_url`; the gh stub above keeps the
+# recorded pr_url's PR-close an idempotent NOOP.
+inject_deliverable_head() {
+  local path="$1"
+  local head_sha="$2"
+  python3 - "$path" "$head_sha" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+head_sha = sys.argv[2]
+text = path.read_text(encoding="utf-8")
+block = (
+    "deliverable:\n"
+    "  pr_url: https://github.com/example/polaris/pull/999\n"
+    "  pr_state: MERGED\n"
+    f"  head_sha: {head_sha}\n"
+)
+if text.startswith("---\n"):
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        raise SystemExit(f"unclosed frontmatter in {path}")
+    fm = text[4:end + 1]
+    body = text[end + 1:]
+    path.write_text("---\n" + fm + block + body, encoding="utf-8")
+else:
+    path.write_text("---\n" + block + "---\n" + text, encoding="utf-8")
+PY
+}
+
 REPO="${TMP}/repo"
 TEMPLATE="${TMP}/template"
 git init -b main "$REPO" >/dev/null
@@ -214,6 +275,7 @@ TEMPLATE_COMMIT="$(git -C "$TEMPLATE" rev-parse HEAD)"
 EVIDENCE="${TMP}/verify-t1.json"
 write_verify_evidence "$EVIDENCE" DP-999-T1 "$TASK_HEAD"
 write_completion_gate_marker "$REPO" DP-999-T1 "$TASK_HEAD"
+inject_deliverable_head "$TASK_MD" "$TASK_HEAD"
 
 bash "$CLOSEOUT" \
   --repo "$REPO" \

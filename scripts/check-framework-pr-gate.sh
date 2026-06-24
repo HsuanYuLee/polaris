@@ -1,10 +1,47 @@
 #!/usr/bin/env bash
-# Purpose: aggregate blocking framework PR gate — runs each validator (W1..W11) and
+# Purpose: aggregate blocking framework PR gate — runs each validator (W1..W15) and
 #          fails closed if any one fails. W11 (DP-293 T1) is the runtime-instruction
 #          parity step: compile-runtime-instructions --check + mechanism-parity --strict.
+#          W14 runs the full selftest corpus (run-aggregate-selftests.sh) — this makes
+#          THIS script the canonical full-corpus backstop entrypoint (DP-360 T-backstop):
+#          it is wired into both the release lane (framework-release-pr-lane.sh, PR tail)
+#          and is the local DP-iteration entrypoint (run it directly to exercise the
+#          full corpus before pushing a DP). The full corpus is hour-scale (319
+#          selftests), so per AC-NF1 it MUST NOT be wired onto the commit/push hot path
+#          (pre-commit fast-lint + pre-push affected-scoped only); the three-layer split
+#          keeps the full corpus on the DP-iteration/release backstop lanes exclusively.
 # Inputs:  env BIN overrides (POLARIS_*_BIN) for each gate; POLARIS_FRAMEWORK_PR_BODY/BASE.
+#          --list-stages   introspection: print one "Wn <label>" line per aggregate stage
+#                          (including the W14 full-corpus backstop) and exit 0, without
+#                          running any gate. Lets the backstop-wiring selftest assert the
+#                          full corpus is part of this backstop deterministically.
 # Outputs: stdout "PASS: framework PR gate"; non-zero exit + "framework-pr-gate failed: …".
 set -euo pipefail
+
+# --list-stages: deterministic introspection of the aggregate stage list. Emitting this
+# does NOT run any gate (so it is safe on the hot path / in selftests) — it only declares
+# which stages this DP-iteration/release backstop entrypoint covers, including the W14
+# full-corpus run. Keep this list in sync with the run_gate calls below.
+if [[ "${1:-}" == "--list-stages" ]]; then
+  cat <<'STAGES'
+W1 runtime annotations
+W2 graduation audit
+W3 reference line-count policy
+W4 quarantine duplication
+W5 spec source parity
+W6 template leaks (workspace)
+W7 bash $VAR UTF-8 boundary
+W8 mise dependency change
+W9 script header comment
+W10 script categorization
+W11 runtime-instruction parity
+W12 refinement consumer schema binding
+W13 selftest enrollment
+W14 aggregate selftest run (full-corpus backstop)
+W15 naive section-parse lint
+STAGES
+  exit 0
+fi
 
 VALIDATE_RUNTIME="${POLARIS_VALIDATE_RUNTIME_BIN:-scripts/validate-mechanism-runtime-annotations.sh}"
 AUDIT_GRADUATION="${POLARIS_AUDIT_GRADUATION_BIN:-scripts/audit-mechanism-graduation.sh}"

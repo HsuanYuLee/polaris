@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# Purpose: Selftest for scripts/validate-auto-pass-proof.sh — exercises the
+#          auto-pass proof validator together with the evidence-producer
+#          whitelist gate and the no-direct-evidence-write hook over hermetic
+#          fixtures, asserting accept/reject decisions.
+# Inputs:  none (builds hermetic fixtures under a mktemp dir)
+# Outputs: stdout PASS/FAIL lines; exit 0 on PASS, non-zero on failure
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -29,7 +35,6 @@ mkdir -p \
   "$TMP/.polaris/evidence/task-snapshot" \
   "$TMP/.polaris/evidence/validation-fail" \
   "$TMP/.polaris/evidence/missing-v-task" \
-  "$TMP/.polaris/evidence/completion-gate" \
   "$TMP/.polaris/evidence/blocked-conflict" \
   "$TMP/.polaris/evidence/unsupported-mutation" \
   "$TMP/.polaris/evidence/ci-local" \
@@ -84,12 +89,16 @@ cp "$PRODUCER_GATE" scripts/gates/gate-evidence-producer-whitelist.sh
 write_marker ".polaris/evidence/task-snapshot/DP-201-T1.json" task_snapshot breakdown breakdown PASS
 write_marker ".polaris/evidence/validation-fail/DP-201-T1.json" validation_fail breakdown breakdown FAIL
 write_marker ".polaris/evidence/missing-v-task/DP-201-T1.json" missing_v_task breakdown breakdown BLOCKED
-write_marker ".polaris/evidence/completion-gate/DP-201-T1-abc1234.json" completion_gate engineering engineering PASS
+# DP-360 T7: head-sha-keyed completion_gate marker retired (delivery PASS now in
+# task.md deliverable.verification block). The producer-1 surviving kinds are the
+# latent reader-guard / sidecar markers below.
 write_marker ".polaris/evidence/blocked-conflict/DP-201-T1-abc1234.json" blocked_conflict engineering engineering BLOCKED
 write_marker ".polaris/evidence/unsupported-mutation/DP-201-T1-abc1234.json" unsupported_mutation engineering engineering BLOCKED
 write_marker ".polaris/evidence/ci-local/DP-201-T1-abc1234.json" ci_local engineering engineering PASS
 write_marker ".polaris/evidence/verify/polaris-verified-DP-201-T1-abc1234.json" verify run-verify-command.sh engineering PASS
-write_marker ".polaris/evidence/ac-verification/DP-201-V1-abc1234.json" ac_verification verify-AC verify-AC PASS
+# DP-360 T7: head-sha-keyed ac_verification verdict marker retired (V-task delivery
+# verification now in V*.md ac_verification frontmatter). Surviving verify-AC
+# sidecar kinds (spec_issue / drift_* / audit_closure / dp198_handoff) below.
 write_marker ".polaris/evidence/ac-verification/spec-issue-DP-201-V1-abc1234.json" spec_issue verify-AC verify-AC ROUTE_BACK
 write_marker ".polaris/evidence/ac-verification/drift-retry-DP-201-V1-abc1234.json" drift_retry verify-AC verify-AC IN_PROGRESS
 write_marker ".polaris/evidence/ac-verification/drift-counter-DP-201-V1.json" drift_counter verify-AC verify-AC IN_PROGRESS
@@ -101,12 +110,10 @@ bash scripts/validate-auto-pass-proof.sh \
   .polaris/evidence/task-snapshot/DP-201-T1.json \
   .polaris/evidence/validation-fail/DP-201-T1.json \
   .polaris/evidence/missing-v-task/DP-201-T1.json \
-  .polaris/evidence/completion-gate/DP-201-T1-abc1234.json \
   .polaris/evidence/blocked-conflict/DP-201-T1-abc1234.json \
   .polaris/evidence/unsupported-mutation/DP-201-T1-abc1234.json \
   .polaris/evidence/ci-local/DP-201-T1-abc1234.json \
   .polaris/evidence/verify/polaris-verified-DP-201-T1-abc1234.json \
-  .polaris/evidence/ac-verification/DP-201-V1-abc1234.json \
   .polaris/evidence/ac-verification/spec-issue-DP-201-V1-abc1234.json \
   .polaris/evidence/ac-verification/drift-retry-DP-201-V1-abc1234.json \
   .polaris/evidence/ac-verification/drift-counter-DP-201-V1.json \
@@ -116,22 +123,19 @@ bash scripts/validate-auto-pass-proof.sh \
 bash scripts/gates/gate-evidence-producer-whitelist.sh --repo "$TMP" --files \
   .polaris/evidence/task-snapshot/DP-201-T1.json \
   .polaris/evidence/verify/polaris-verified-DP-201-T1-abc1234.json \
-  .polaris/evidence/ac-verification/DP-201-V1-abc1234.json
+  .polaris/evidence/ac-verification/spec-issue-DP-201-V1-abc1234.json
 
+# DP-360 T7: the second-pass write+validate of a freshly emitted completion_gate
+# marker is removed — write-completion-gate-marker.sh is retired and the
+# completion_gate marker_kind no longer has a producer mapping. The task_snapshot
+# writer round-trip (kept untouched, NEG3) still exercises the breakdown producer.
 bash "$ROOT/scripts/breakdown-emit-task-snapshot.sh" \
   --source-id DP-201 \
   --work-item-id DP-201-T99 \
   --task-md .polaris/evidence/task-snapshot/DP-201-T1.json \
   --out .polaris/evidence/task-snapshot/DP-201-T99.json >/tmp/dp201-task-snapshot-writer.out
-bash "$ROOT/scripts/write-completion-gate-marker.sh" \
-  --source-id DP-201 \
-  --work-item-id DP-201-T99 \
-  --head-sha abc1234 \
-  --task-md .polaris/evidence/task-snapshot/DP-201-T1.json \
-  --out .polaris/evidence/completion-gate/DP-201-T99-abc1234.json >/tmp/dp201-completion-writer.out
 bash scripts/validate-auto-pass-proof.sh \
-  .polaris/evidence/task-snapshot/DP-201-T99.json \
-  .polaris/evidence/completion-gate/DP-201-T99-abc1234.json
+  .polaris/evidence/task-snapshot/DP-201-T99.json
 
 python3 - <<'PY'
 import json

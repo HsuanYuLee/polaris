@@ -54,9 +54,9 @@ anchor。
 
 下列 script 已遵守（或在 AC14 要求下必須遵守）此 convention：
 
-- `scripts/write-completion-gate-marker.sh` — engineering producer，
-  owning writer，涵蓋 `pr_freshness`、`completion_gate`、`blocked_conflict`、
-  `unsupported_mutation`、`ci_local` marker。
+- `scripts/finalize-engineering-delivery.sh` — engineering producer，
+  owning writer，把交付 head + verification PASS 寫進 task.md `deliverable` block
+  （DP-360 T7 退役 head-sha-keyed `completion_gate` marker 後的單一交付證據 writer）。
 - `scripts/run-verify-command.sh` — Layer B `verify` marker writer
   （`<main>/.polaris/evidence/verify/polaris-verified-*.json`），已 source
   `lib/main-checkout.sh`。
@@ -74,7 +74,7 @@ anchor。
 ## 驗證
 
 - `scripts/selftests/framework-artifact-writer-cwd-selftest.sh` 以 worktree
-  fixture 覆蓋示範 writer（`write-completion-gate-marker.sh`），assert
+  fixture 覆蓋示範 writer（`run-verify-command.sh`），assert
   marker 的絕對路徑開頭是 main checkout，不是 worktree。
 - `scripts/check-script-manifest.sh` 維持「每支 writer 都登記 owning
   selftest」的契約；新 writer 若遵守本 convention，manifest entry 的

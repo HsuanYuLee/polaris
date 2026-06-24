@@ -115,10 +115,13 @@ if [[ "$rc" -ne 2 ]]; then
 fi
 
 # Report artifact happy path: auto-pass reports are producer-owned and must
-# dispatch validate-auto-pass-report.sh after final-path write. DP-311 T3
-# cross-checks require a readable complete ledger + head-bound ac_verification
-# PASS marker, so the fixture materialises both under a hermetic
-# POLARIS_WORKSPACE_ROOT (consumed by the dispatched report validator).
+# dispatch validate-auto-pass-report.sh after final-path write. The validator's
+# verification.status=PASS cross-check (DP-360 T7) resolves the V work item's
+# task.md `deliverable` block (deliverable.head_sha bound to
+# verification.head_sha + deliverable.verification.status=PASS) as the sole
+# delivery-evidence source — the head-sha-keyed ac_verification marker is
+# retired. The fixture materialises a complete ledger + a resolvable DP-226-V1
+# task.md under a hermetic POLARIS_WORKSPACE_ROOT (consumed by the validator).
 report_body="$WORKDIR/report.json"
 report_path="$ROOT_DIR/docs-manager/src/content/docs/specs/design-plans/__dp226_fixture_report__/artifacts/auto-pass/x-report.json"
 report_ledger="$WORKDIR/dp226-report-ledger.json"
@@ -131,17 +134,21 @@ cat >"$report_ledger" <<'JSON'
 }
 JSON
 report_marker_head="dddddddddddddddddddddddddddddddddddddddd"
-mkdir -p "$WORKDIR/.polaris/evidence/ac-verification"
-cat >"$WORKDIR/.polaris/evidence/ac-verification/DP-226-V1-${report_marker_head}.json" <<JSON
-{
-  "schema_version": 1,
-  "marker_kind": "ac_verification",
-  "writer": "verify-AC",
-  "work_item_id": "DP-226-V1",
-  "head_sha": "${report_marker_head}",
-  "status": "PASS"
-}
-JSON
+report_v_dir="$WORKDIR/docs-manager/src/content/docs/specs/design-plans/DP-226-report-fixture/tasks/V1"
+mkdir -p "$report_v_dir"
+cat >"$report_v_dir/index.md" <<MD
+---
+task_kind: V
+deliverable:
+  pr_url: https://github.com/example/polaris/pull/1
+  pr_state: MERGED
+  head_sha: ${report_marker_head}
+  verification:
+    status: PASS
+---
+
+# V1
+MD
 cat >"$report_body" <<JSON
 {
   "schema_version": 1,

@@ -134,7 +134,9 @@ GATE_PR_TITLE="$ROOT/scripts/gates/gate-pr-title.sh"
 BOOTSTRAP="$ROOT/.claude/instructions/core/bootstrap.md"
 EVIDENCE_PRODUCERS="$ROOT/scripts/lib/evidence-producers.json"
 NO_DIRECT_EVIDENCE_HOOK="$ROOT/.claude/hooks/no-direct-evidence-write.sh"
-COMPLETION_GATE_MARKER_WRITER="$ROOT/scripts/write-completion-gate-marker.sh"
+# DP-360 T7: completion-gate marker writer retired; the proof-marker surface is
+# now the task.md deliverable.verification block written by finalize-engineering-delivery.sh.
+DELIVERABLE_VERIFICATION_WRITER="$ROOT/scripts/finalize-engineering-delivery.sh"
 VERIFY_AC_SIBLING="$ROOT/scripts/selftests/verify-AC-deterministic-consumption-selftest.sh"
 
 usage() {
@@ -934,8 +936,20 @@ MD
       fail=1
     fi
 
-    # (6) proof marker writer: completion-gate marker producer present.
-    require_file "$COMPLETION_GATE_MARKER_WRITER"
+    # (6) proof marker writer: the proof surface is the task.md
+    # deliverable.verification block (DP-360 T7 retired the head-sha-keyed
+    # completion-gate marker). Assert the canonical writer is present AND
+    # actually authors the deliverable.verification sub-block (contract, not a
+    # bare file-existence laundering check).
+    require_file "$DELIVERABLE_VERIFICATION_WRITER"
+    if ! grep -q 'deliverable.verification' "$DELIVERABLE_VERIFICATION_WRITER"; then
+      echo "FAIL: finalize-engineering-delivery.sh no longer authors the deliverable.verification proof surface" >&2
+      fail=1
+    fi
+    if grep -q 'scripts/write-completion-gate-marker.sh' "$DELIVERABLE_VERIFICATION_WRITER"; then
+      echo "FAIL: finalize-engineering-delivery.sh still references the retired completion-gate marker writer" >&2
+      fail=1
+    fi
 
     # (7) AC verification gate: verify-AC deterministic consumption sibling
     # selftest present (this DP's AC-verification deterministic surface) and

@@ -25,6 +25,10 @@
 # Field keys for --field (flat alias of nested JSON paths):
 #   status, task_shape, task_id, summary, story_points,
 #   deliverable_pr_url, deliverable_pr_state, deliverable_head_sha,
+#   deliverable_verification_status, deliverable_verification_ac_total,
+#   deliverable_verification_ac_pass, deliverable_verification_ac_fail,
+#   deliverable_verification_ac_manual_required,
+#   deliverable_verification_ac_uncertain,
 #   deliverables_changeset_package_scope,
 #   deliverables_changeset_bump_level_default,
 #   deliverables_changeset_filename_slug,
@@ -79,6 +83,10 @@ Key-based lookup (DP-033 D8): resolves active tasks/{key}.md first,
 Field keys: status, task_id, summary, story_points, epic, jira, repo,
             source_type, source_id, work_item_id, jira_key, delivery_ticket_key,
             deliverable_pr_url, deliverable_pr_state, deliverable_head_sha,
+            deliverable_verification_status, deliverable_verification_ac_total,
+            deliverable_verification_ac_pass, deliverable_verification_ac_fail,
+            deliverable_verification_ac_manual_required,
+            deliverable_verification_ac_uncertain,
             deliverables_changeset_package_scope,
             deliverables_changeset_bump_level_default,
             deliverables_changeset_filename_slug,
@@ -148,8 +156,9 @@ def parse_frontmatter_lines(fm_lines):
     """Parse the YAML subset used by task.md lifecycle metadata.
 
     This intentionally avoids a PyYAML dependency. It supports top-level
-    scalars, bracket lists, 2-space nested maps, and one 4-space nested map
-    level (for extension_deliverable.evidence).
+    scalars, bracket lists, 2-space nested maps, one 4-space nested map level
+    (for extension_deliverable.evidence), and one 6-space nested map level
+    under a 4-space key (for deliverable.verification.ac_counts, DP-360 T6/T7).
     """
     out = {}
     i = 0
@@ -201,7 +210,31 @@ def parse_frontmatter_lines(fm_lines):
                 nested_stripped = nested_raw.strip()
                 if nested_indent == 4 and ":" in nested_stripped:
                     nested_key, _, nested_value = nested_stripped.partition(":")
-                    nested[nested_key.strip()] = parse_scalar(nested_value.strip())
+                    nested_key = nested_key.strip()
+                    nested_value = nested_value.strip()
+                    if nested_value:
+                        nested[nested_key] = parse_scalar(nested_value)
+                        i += 1
+                        continue
+                    # 4-space key with no inline value → one deeper (6-space) map
+                    # level, e.g. deliverable.verification.ac_counts (DP-360).
+                    deep = {}
+                    i += 1
+                    while i < len(fm_lines):
+                        deep_raw = fm_lines[i]
+                        if not deep_raw.strip():
+                            i += 1
+                            continue
+                        deep_indent = len(deep_raw) - len(deep_raw.lstrip(" "))
+                        if deep_indent <= 4:
+                            break
+                        deep_stripped = deep_raw.strip()
+                        if deep_indent == 6 and ":" in deep_stripped:
+                            deep_key, _, deep_value = deep_stripped.partition(":")
+                            deep[deep_key.strip()] = parse_scalar(deep_value.strip())
+                        i += 1
+                    nested[nested_key] = deep
+                    continue
                 i += 1
             mapping[child_key] = nested
         out[key] = mapping
@@ -586,6 +619,12 @@ aliases = {
     "deliverable_pr_url":      ["frontmatter", "deliverable", "pr_url"],
     "deliverable_pr_state":    ["frontmatter", "deliverable", "pr_state"],
     "deliverable_head_sha":    ["frontmatter", "deliverable", "head_sha"],
+    "deliverable_verification_status":            ["frontmatter", "deliverable", "verification", "status"],
+    "deliverable_verification_ac_total":          ["frontmatter", "deliverable", "verification", "ac_counts", "ac_total"],
+    "deliverable_verification_ac_pass":           ["frontmatter", "deliverable", "verification", "ac_counts", "ac_pass"],
+    "deliverable_verification_ac_fail":           ["frontmatter", "deliverable", "verification", "ac_counts", "ac_fail"],
+    "deliverable_verification_ac_manual_required":["frontmatter", "deliverable", "verification", "ac_counts", "ac_manual_required"],
+    "deliverable_verification_ac_uncertain":      ["frontmatter", "deliverable", "verification", "ac_counts", "ac_uncertain"],
     "deliverables_changeset_package_scope":       ["frontmatter", "deliverables", "changeset", "package_scope"],
     "deliverables_changeset_bump_level_default":  ["frontmatter", "deliverables", "changeset", "bump_level_default"],
     "deliverables_changeset_filename_slug":       ["frontmatter", "deliverables", "changeset", "filename_slug"],

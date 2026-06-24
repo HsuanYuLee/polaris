@@ -94,9 +94,9 @@ JSON
 write_tasks_fixture() {
   local ac_status="$1" disposition="${2:-}"
   rm -rf "$TASKS_DIR"
-  # Reset completion-gate markers so each case's T-assert eligibility is hermetic
-  # (a stale PASS marker from a prior case must not re-trigger an advance).
-  rm -rf "$COMPLETION_GATE_DIR"
+  # DP-360 T7: T-advance eligibility now reads each task.md's own
+  # deliverable.verification block (no shared marker dir to reset); rm -rf
+  # "$TASKS_DIR" already makes each case hermetic.
   mkdir -p "$TASKS_DIR/V1" "$TASKS_DIR/pr-release"
   cat >"$TASKS_DIR/pr-release/T1.md" <<'MD'
 ---
@@ -143,11 +143,13 @@ MD
   } >"$TASKS_DIR/V1/index.md"
 }
 
-# Description: write the head-bound ac-verification PASS marker for DP-901-V1 so
-#              the probe maps verify-AC to terminal complete.
+# Description: DP-360 T7 — write a TORN-DOWN head-sha ac-verification marker for
+#              DP-901-V1. The runner/probe must IGNORE it (the V-task
+#              ac_verification frontmatter block is the sole authority). Used only
+#              by the stray-marker-ignored cases to prove no marker rescue.
 # Args:        $1 = marker status (default PASS)
 # Side effects: writes $EVIDENCE_DIR/DP-901-V1-$HEAD_SHA.json
-write_pass_marker() {
+write_stray_marker() {
   local status="${1:-PASS}"
   python3 - "$EVIDENCE_DIR/DP-901-V1-${HEAD_SHA}.json" "$status" <<'PY'
 import json, sys
@@ -166,39 +168,18 @@ Path(path).write_text(json.dumps({
 PY
 }
 
-COMPLETION_GATE_DIR="$TMP/.polaris/evidence/completion-gate"
-
-# Description: write an engineering-owned completion_gate marker for a T work
-#              item at $HEAD_SHA, mirroring write-completion-gate-marker.sh schema.
-# Args:        $1 = work_item_id (e.g. DP-901-T3), $2 = status (default PASS)
-# Side effects: writes $COMPLETION_GATE_DIR/{work_item_id}-{HEAD_SHA}.json
-write_completion_gate_marker() {
-  local work_item_id="$1" status="${2:-PASS}"
-  mkdir -p "$COMPLETION_GATE_DIR"
-  python3 - "$COMPLETION_GATE_DIR/${work_item_id}-${HEAD_SHA}.json" "$work_item_id" "$status" <<'PY'
-import json, sys
-from pathlib import Path
-path, work_item_id, status = sys.argv[1:4]
-Path(path).write_text(json.dumps({
-    "schema_version": 1,
-    "marker_kind": "completion_gate",
-    "writer": "engineering",
-    "owning_skill": "engineering",
-    "source_id": "DP-901",
-    "work_item_id": work_item_id,
-    "status": status,
-    "freshness": {"head_sha": "abc1234"},
-}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-PY
-}
-
 # Description: append an active implementation T work item under tasks/, with the
-#              given stem and optional task_shape frontmatter field.
+#              given stem, optional task_shape, and optional DP-360 deliverable
+#              verification status. DP-360 T7: the T-advance advance-eligibility
+#              now binds to the task.md deliverable.verification.status block (the
+#              head-sha completion_gate marker is retired), so the verification
+#              status is written into the task.md itself, not a marker file.
 # Args:        $1 = T stem (e.g. T5), $2 = status (default IN_PROGRESS),
-#              $3 = task_shape (optional; omitted when empty)
+#              $3 = task_shape (optional; omitted when empty),
+#              $4 = deliverable.verification.status (optional; "" omits the block)
 # Side effects: writes $TASKS_DIR/{stem}/index.md (folder-native)
 write_active_t_task() {
-  local stem="$1" status="${2:-IN_PROGRESS}" task_shape="${3:-}"
+  local stem="$1" status="${2:-IN_PROGRESS}" task_shape="${3:-}" vstatus="${4:-}"
   mkdir -p "$TASKS_DIR/$stem"
   {
     printf '%s\n' '---'
@@ -208,6 +189,18 @@ write_active_t_task() {
     printf '%s\n' 'task_kind: T'
     if [[ -n "$task_shape" ]]; then
       printf '%s\n' "task_shape: ${task_shape}"
+    fi
+    if [[ -n "$vstatus" ]]; then
+      printf '%s\n' 'deliverable:'
+      printf '%s\n' '  head_sha: abc1234'
+      printf '%s\n' '  verification:'
+      printf '%s\n' "    status: ${vstatus}"
+      printf '%s\n' '    ac_counts:'
+      printf '%s\n' '      ac_total: 1'
+      printf '%s\n' '      ac_pass: 1'
+      printf '%s\n' '      ac_fail: 0'
+      printf '%s\n' '      ac_manual_required: 0'
+      printf '%s\n' '      ac_uncertain: 0'
     fi
     printf '%s\n' '---'
     printf '%s\n' ''
@@ -230,8 +223,8 @@ json_field() {
 write_container
 
 # ── Case 1 (AC1): PASS + passed V advanced, terminal complete declared ───────
+# DP-360 T7: no marker — the runner reads the V-task ac_verification block.
 write_tasks_fixture PASS passed
-write_pass_marker PASS
 out="$TMP/out1.json"
 run_runner >"$out"
 [[ "$(json_field "$out" terminal_status)" == "complete" ]] || fail "case1: expected terminal_status=complete, got $(json_field "$out" terminal_status)"
@@ -257,7 +250,7 @@ run_runner >"$out"
 
 # ── Case 4 (AC2): V not at canonical terminal → fail-closed, marker not enough ─
 write_tasks_fixture IN_PROGRESS ""
-write_pass_marker PASS
+write_stray_marker PASS   # AC-NEG2: stray marker must not rescue
 out="$TMP/out4.json"
 run_runner >"$out"
 [[ "$(json_field "$out" terminal_status)" == "blocked_by_gate_failure" ]] || fail "case4: expected blocked_by_gate_failure, got $(json_field "$out" terminal_status)"
@@ -268,7 +261,7 @@ run_runner >"$out"
 
 # ── Case 5 (AC2): missing ac_verification block entirely → fail-closed ───────
 write_tasks_fixture NONE ""
-write_pass_marker PASS
+write_stray_marker PASS   # AC-NEG2: stray marker must not rescue
 out="$TMP/out5.json"
 run_runner >"$out"
 [[ "$(json_field "$out" terminal_status)" == "blocked_by_gate_failure" ]] || fail "case5: expected blocked_by_gate_failure, got $(json_field "$out" terminal_status)"
@@ -278,7 +271,7 @@ run_runner >"$out"
 # ── Case 6 (AC-NEG1): non-PASS verdicts never advanced ───────────────────────
 for verdict in FAIL MANUAL_REQUIRED UNCERTAIN BLOCKED_ENV; do
   write_tasks_fixture "$verdict" passed
-  write_pass_marker PASS
+  write_stray_marker PASS   # AC-NEG2: stray marker must not rescue non-PASS verdicts
   out="$TMP/out6-${verdict}.json"
   run_runner >"$out"
   [[ "$(json_field "$out" terminal_status)" != "complete" ]] || fail "case6/${verdict}: terminal complete must not be declared"
@@ -289,7 +282,7 @@ done
 
 # ── Case 7: PASS without human_disposition=passed → not advanced, fail-closed ─
 write_tasks_fixture PASS rejected
-write_pass_marker PASS
+write_stray_marker PASS   # AC-NEG2: stray marker must not rescue PASS+rejected
 out="$TMP/out7.json"
 run_runner >"$out"
 [[ "$(json_field "$out" terminal_status)" == "blocked_by_gate_failure" ]] || fail "case7: expected blocked_by_gate_failure, got $(json_field "$out" terminal_status)"
@@ -311,7 +304,7 @@ ac_verification:
 
 # V1 stale fixture
 MD
-write_pass_marker PASS
+write_stray_marker PASS   # AC-NEG2: stray marker must not rescue stale pr-release V
 out="$TMP/out8.json"
 run_runner >"$out"
 [[ "$(json_field "$out" terminal_status)" == "blocked_by_gate_failure" ]] || fail "case8: expected blocked_by_gate_failure, got $(json_field "$out" terminal_status)"
@@ -329,7 +322,6 @@ task_kind: V
 
 # V2 abandoned fixture
 MD
-write_pass_marker PASS
 out="$TMP/out9.json"
 run_runner >"$out"
 [[ "$(json_field "$out" terminal_status)" == "complete" ]] || fail "case9: ABANDONED V must not block complete, got $(json_field "$out" terminal_status)"
@@ -338,22 +330,25 @@ grep -q '^status: ABANDONED$' "$TASKS_DIR/V2/index.md" 2>/dev/null || fail "case
 [[ -f "$TASKS_DIR/pr-release/V1/index.md" ]] || fail "case9: eligible V1 not advanced"
 [[ "$FAILED" -eq 0 ]] && ok "case9 ABANDONED V carve-out preserved"
 
-# ── Case 10: container without tasks/ keeps existing complete behavior ───────
+# ── Case 10 (DP-360 T7): verify-AC for a work item with no resolvable V-task →
+#    fail-closed blocked. Pre-DP-360 this "no-tasks container" completed via the
+#    standalone head-sha ac-verification marker; with that marker torn down there
+#    is no ac_verification authority to read (AC3: read the V-task block, no
+#    marker; AC-NEG2: no marker dual-write). A stray marker must NOT rescue. ────
 rm -rf "$TASKS_DIR"
-write_pass_marker PASS
+write_stray_marker PASS   # stray torn-down marker — must be ignored
 out="$TMP/out10.json"
 run_runner >"$out"
-[[ "$(json_field "$out" terminal_status)" == "complete" ]] || fail "case10: no-tasks container regression, got $(json_field "$out" terminal_status)"
-[[ "$FAILED" -eq 0 ]] && ok "case10 no-tasks container keeps terminal complete (regression)"
+[[ "$(json_field "$out" terminal_status)" == "blocked_by_gate_failure" ]] || fail "case10: no-V-task verify-AC must fail-closed (stray marker ignored), got $(json_field "$out" terminal_status)"
+[[ "$FAILED" -eq 0 ]] && ok "case10 no-V-task verify-AC fail-closed (stray ac-verification marker ignored)"
 
 # ── DP-317 T-gate: symmetric implementation T assert ─────────────────────────
 
-# ── Case 11 (DP-317 AC1): required implementation T with PASS completion-gate
-#    marker but still in tasks/ → advanced to pr-release/ + IMPLEMENTED ────────
+# ── Case 11 (DP-317 AC1 / DP-360 T7): required implementation T with PASS
+#    deliverable.verification.status block but still in tasks/ → advanced to
+#    pr-release/ + IMPLEMENTED (reads task.md block, no marker) ─────────────────
 write_tasks_fixture PASS passed          # V1 eligible (advanced first)
-write_pass_marker PASS                    # V1 ac-verification marker
-write_active_t_task T5 IN_PROGRESS ""     # implementation T (default shape)
-write_completion_gate_marker DP-901-T5 PASS
+write_active_t_task T5 IN_PROGRESS "" PASS   # implementation T with PASS block
 out="$TMP/out11.json"
 run_runner >"$out"
 [[ "$(json_field "$out" terminal_status)" == "complete" ]] || fail "case11: expected complete, got $(json_field "$out" terminal_status)"
@@ -369,37 +364,33 @@ run_runner >"$out"
 [[ -f "$TASKS_DIR/pr-release/T5/index.md" ]] || fail "case12: pr-release T5 missing after rerun"
 [[ "$FAILED" -eq 0 ]] && ok "case12 DP-317 AC3 fresh + resume-complete share T-assert gate (idempotent)"
 
-# ── Case 13 (DP-317 EC2): required implementation T with missing completion-gate
-#    marker → fail-closed blocked (no advance, no evidence) ────────────────────
+# ── Case 13 (DP-317 EC2 / DP-360 T7): required implementation T with NO
+#    deliverable.verification block → fail-closed blocked (no advance) ──────────
 write_tasks_fixture PASS passed
-write_pass_marker PASS
-write_active_t_task T5 IN_PROGRESS ""      # no completion-gate marker written
+write_active_t_task T5 IN_PROGRESS "" ""    # no deliverable.verification block
 out="$TMP/out13.json"
 run_runner >"$out"
 [[ "$(json_field "$out" terminal_status)" == "blocked_by_gate_failure" ]] || fail "case13: expected blocked_by_gate_failure, got $(json_field "$out" terminal_status)"
 [[ "$(json_field "$out" next_action)" == "blocked" ]] || fail "case13: expected next_action=blocked"
 [[ -f "$TASKS_DIR/T5/index.md" ]] || fail "case13: T5 must stay in tasks/ when blocked"
-[[ ! -e "$TASKS_DIR/pr-release/T5" ]] || fail "case13: T5 must not be advanced without marker"
-[[ "$FAILED" -eq 0 ]] && ok "case13 DP-317 EC2 missing completion-gate marker fail-closed"
+[[ ! -e "$TASKS_DIR/pr-release/T5" ]] || fail "case13: T5 must not be advanced without PASS block"
+[[ "$FAILED" -eq 0 ]] && ok "case13 DP-317 EC2 missing deliverable.verification block fail-closed"
 
-# ── Case 14 (DP-317 AC1 adversarial): completion-gate marker non-PASS → no
-#    advance, fail-closed ──────────────────────────────────────────────────────
+# ── Case 14 (DP-317 AC1 adversarial / DP-360 T7): deliverable.verification.status
+#    non-PASS → no advance, fail-closed ─────────────────────────────────────────
 write_tasks_fixture PASS passed
-write_pass_marker PASS
-write_active_t_task T5 IN_PROGRESS ""
-write_completion_gate_marker DP-901-T5 FAIL
+write_active_t_task T5 IN_PROGRESS "" FAIL    # FAIL deliverable.verification block
 out="$TMP/out14.json"
 run_runner >"$out"
 [[ "$(json_field "$out" terminal_status)" == "blocked_by_gate_failure" ]] || fail "case14: expected blocked_by_gate_failure, got $(json_field "$out" terminal_status)"
-[[ -f "$TASKS_DIR/T5/index.md" ]] || fail "case14: T5 must stay in tasks/ for non-PASS marker"
-[[ ! -e "$TASKS_DIR/pr-release/T5" ]] || fail "case14: T5 must not be advanced for non-PASS marker"
-[[ "$FAILED" -eq 0 ]] && ok "case14 DP-317 non-PASS completion-gate marker not advanced"
+[[ -f "$TASKS_DIR/T5/index.md" ]] || fail "case14: T5 must stay in tasks/ for non-PASS block"
+[[ ! -e "$TASKS_DIR/pr-release/T5" ]] || fail "case14: T5 must not be advanced for non-PASS block"
+[[ "$FAILED" -eq 0 ]] && ok "case14 DP-317 non-PASS deliverable.verification block not advanced"
 
 # ── Case 15 (DP-317 AC-NEG1): audit / confirmation carve-out neither blocked
 #    nor advanced, even without a completion-gate marker ───────────────────────
 for shape in audit confirmation; do
   write_tasks_fixture PASS passed
-  write_pass_marker PASS
   write_active_t_task T6 IN_PROGRESS "$shape"   # carve-out: no PR / no pr-release
   out="$TMP/out15-${shape}.json"
   run_runner >"$out"
@@ -411,7 +402,6 @@ done
 
 # ── Case 16 (DP-317 AC-NEG2): ABANDONED T task left in place, does not block ──
 write_tasks_fixture PASS passed
-write_pass_marker PASS
 write_active_t_task T7 ABANDONED ""
 out="$TMP/out16.json"
 run_runner >"$out"

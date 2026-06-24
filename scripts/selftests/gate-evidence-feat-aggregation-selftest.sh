@@ -173,53 +173,42 @@ with open(out, "w", encoding="utf-8") as fh:
 PY
 }
 
-# write_completion_marker <repo> <dp> <Tn> <head_sha>: write a PASS completion_gate
-# marker at the canonical path the evidence-classifier marker-pass reader consumes
-# ($repo/.polaris/evidence/completion-gate/), keyed on {work_item_id}-{head_sha}.
-# freshness.source_artifact points at the real pr-release task.md so the
-# evidence-resolvable check passes. Used by IS2b to prove the completion_gate
-# marker type also resolves at the per-task head.
+# write_completion_marker <repo> <dp> <Tn> <head_sha>: DP-360 T7 — the head-sha
+# completion_gate marker is retired; the durable delivery-evidence record is the
+# task.md `deliverable` block (head_sha + verification.status=PASS), which the
+# evidence-classifier marker-pass reader now consumes. This helper patches the
+# pr-release task.md to add the `deliverable.verification` PASS sub-block (the
+# head is already written by write_dp_container) and re-commits. Used by IS2b to
+# prove the task.md deliverable block also resolves at the per-task head — the
+# second supported evidence path alongside the Layer B verify marker.
 write_completion_marker() {
   local repo="$1"
   local dp="$2"
   local tn="$3"
-  local head_sha="$4"
-  local work_item_id="${dp}-${tn}"
-  local marker_dir="$repo/.polaris/evidence/completion-gate"
+  local head_sha="$4"  # already recorded in the task.md by write_dp_container
   local task_md="$repo/docs-manager/src/content/docs/specs/design-plans/${dp}-active-fixture/tasks/pr-release/${tn}/index.md"
-  mkdir -p "$marker_dir"
-  WORK_ITEM_ID="$work_item_id" HEAD_SHA="$head_sha" SOURCE_ID="$dp" TASK_MD="$task_md" \
-    OUT="$marker_dir/${work_item_id}-${head_sha}.json" python3 - <<'PY'
-import hashlib
-import json
+  TASK_MD="$task_md" python3 - <<'PY'
 import os
 from pathlib import Path
 
-work_item_id = os.environ["WORK_ITEM_ID"]
-head_sha = os.environ["HEAD_SHA"]
-source_id = os.environ["SOURCE_ID"]
-task_md = os.environ["TASK_MD"]
-out = os.environ["OUT"]
-
-freshness = {"head_sha": head_sha}
-task_path = Path(task_md)
-if task_path.is_file():
-    freshness["task_artifact_sha256"] = hashlib.sha256(task_path.read_bytes()).hexdigest()
-    freshness["source_artifact"] = task_path.as_posix()
-
-payload = {
-    "schema_version": 1,
-    "marker_kind": "completion_gate",
-    "writer": "engineering",
-    "owning_skill": "engineering",
-    "source_id": source_id,
-    "work_item_id": work_item_id,
-    "status": "PASS",
-    "freshness": freshness,
-    "at": "2026-06-22T00:00:00+00:00",
-}
-Path(out).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+task_md = Path(os.environ["TASK_MD"])
+text = task_md.read_text(encoding="utf-8")
+assert text.startswith("---\n"), task_md
+end = text.find("\n---\n", 4)
+assert end != -1, task_md
+# Append the verification PASS sub-block under the existing `deliverable:` key,
+# just before the closing frontmatter fence.
+block = (
+    "  verification:\n"
+    "    status: PASS\n"
+    "    ac_counts:\n"
+    "      ac_total: 1\n"
+    "      ac_pass: 1\n"
+)
+task_md.write_text(text[:end + 1] + block + text[end + 1:], encoding="utf-8")
 PY
+  git -C "$repo" add -A >/dev/null
+  git -C "$repo" -c commit.gpgsign=false commit -q -m "${dp}-${tn} deliverable verification PASS"
 }
 
 assert_no_skip_hint() {

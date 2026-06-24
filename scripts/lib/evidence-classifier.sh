@@ -7,20 +7,24 @@
 #                  behavioral, so metadata-only / release-bump deltas are exempt
 #                  from head_sha-bound verification evidence WITHOUT a manual
 #                  POLARIS_SKIP_EVIDENCE bypass; behavioral deltas stay fail-closed.
-#            (AC5) validate a non-ticket framework T-task's engineering-owned
-#                  completion_gate marker (status=PASS, head_sha-bound, evidence
-#                  artifact present) as the evidence source-of-truth, mirroring the
-#                  canonical contract in scripts/check-delivery-completion.sh.
+#            (AC5) validate a non-ticket framework T-task's delivery evidence —
+#                  the task.md `deliverable` block (head_sha-bound +
+#                  verification.status=PASS) — as the evidence source-of-truth
+#                  (DP-360 T7: the head-sha completion_gate marker is retired),
+#                  mirroring scripts/check-delivery-completion.sh.
 # Inputs:  subcommand + flags (see usage()).
 # Outputs: classify → one of release_bump|metadata_only|behavioral on stdout, exit 0.
-#          marker-pass → marker path on stdout + exit 0 when valid; exit 2 otherwise.
+#          marker-pass → resolved task.md path on stdout + exit 0 when valid;
+#                        exit 2 otherwise.
 # Exit:    0 ok / 2 contract failure / 64 usage error.
 #
-# NOTE (canonical contract, AC-NEG1): this file does NOT introduce a second
-# classifier for any surface already owned elsewhere. The completion_gate marker
-# field contract mirrors scripts/check-delivery-completion.sh exactly; a follow-up
-# DP should extract that embedded reader into this lib so there is a single
-# reader. Until then the field set asserted here is kept byte-for-byte aligned.
+# NOTE (canonical contract, AC-NEG1/AC-NEG2): this file does NOT introduce a
+# second classifier for any surface already owned elsewhere. DP-360 T7 retires the
+# completion_gate head-sha marker; the delivery-head + PASS authority is now the
+# task.md `deliverable` block read through scripts/parse-task-md.sh. This reader
+# never falls back to a branch ref (AC-NEG1) and never reads a marker file
+# (AC-NEG2). The field contract stays aligned with
+# scripts/check-delivery-completion.sh.
 
 set -euo pipefail
 
@@ -37,10 +41,10 @@ classify:
   (fail-closed).
 
 marker-pass:
-  Exit 0 (and print the marker path) when an engineering-owned completion_gate
-  marker exists for {work-item-id}-{head-sha} with status=PASS, matching
-  work_item_id, head_sha-bound freshness, and a resolvable evidence artifact.
-  Exit 2 otherwise.
+  Exit 0 (and print the resolved task.md path) when the task.md for {work-item-id}
+  carries a deliverable block whose head_sha is bound to {head-sha} and whose
+  verification.status is PASS (DP-360 T7: reads task.md, not a marker file; never
+  falls back to a branch ref). Exit 2 otherwise.
 USAGE
 }
 
@@ -196,11 +200,17 @@ ec_classify() {
   EC_NAMESTATUS="$namestatus" EC_PKGJSON_DIFF="$pkgdiff" _ec_classify_status
 }
 
-# Validate an engineering-owned completion_gate marker as evidence SoT. Mirrors
-# the field contract enforced in scripts/check-delivery-completion.sh
-# (check_audit_confirmation_completion): marker_kind=completion_gate, status=PASS,
-# work_item_id match, freshness.head_sha bound (full/abbrev either direction),
-# and a resolvable evidence artifact (freshness.evidence_artifact|source_artifact).
+# Validate a framework T-task's delivery evidence as SoT. DP-360 T7 teardown:
+# the head-sha-keyed completion_gate marker is retired; the durable evidence
+# record is now the task.md `deliverable` block (D1/D2/D4). This reader resolves
+# the task.md by work_item_id through the canonical resolve-task-md.sh and asserts
+# the same head-bound PASS contract the marker used to carry:
+#   - deliverable.head_sha is bound to the requested head (full/abbrev either way)
+#   - deliverable.verification.status == PASS
+# It NEVER falls back to a branch ref (AC-NEG1) and NEVER reads a marker file
+# (AC-NEG2). On success it prints the resolved task.md path; exit 2 otherwise.
+# Mirrors the field contract in scripts/check-delivery-completion.sh
+# (check_audit_confirmation_completion) which also now reads the task.md block.
 ec_marker_pass() {
   local repo="" work_item_id="" head_sha=""
   while [[ $# -gt 0 ]]; do
@@ -217,9 +227,8 @@ ec_marker_pass() {
   local ec_lib_dir
   ec_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   REPO_ROOT="$repo" WORK_ITEM_ID="$work_item_id" HEAD_SHA="$head_sha" \
-    RESOLVER="$ec_lib_dir/../resolve-task-md.sh" python3 - <<'PY'
-import hashlib
-import json
+    RESOLVER="$ec_lib_dir/../resolve-task-md.sh" \
+    PARSER="$ec_lib_dir/../parse-task-md.sh" python3 - <<'PY'
 import os
 import subprocess
 import sys
@@ -229,99 +238,73 @@ work_item_id = os.environ["WORK_ITEM_ID"]
 head_sha = os.environ["HEAD_SHA"]
 repo_root = os.environ["REPO_ROOT"]
 resolver = os.environ["RESOLVER"]
+parser = os.environ["PARSER"]
 
-# Markers anchor at the main checkout; resolve it when REPO_ROOT is a worktree
-# (same traversal as check-delivery-completion.sh completion_gate_marker_path).
-roots = [Path(repo_root)]
-git_file = Path(repo_root) / ".git"
-if git_file.is_file():
-    text = git_file.read_text(encoding="utf-8", errors="ignore").strip()
-    if text.startswith("gitdir:"):
-        git_dir = (git_file.parent / text.split(":", 1)[1].strip()).resolve()
-        common = git_dir.parent.parent
-        if common.name == ".git":
-            roots.append(common.parent)
 
-marker = None
-for root in roots:
-    marker_dir = root / ".polaris" / "evidence" / "completion-gate"
-    for path in sorted(marker_dir.glob(f"{work_item_id}-*.json")):
-        suffix = path.name[len(work_item_id) + 1:-len(".json")]
-        if suffix == head_sha or head_sha.startswith(suffix) or suffix.startswith(head_sha):
-            marker = path
-            break
-    if marker:
-        break
+def resolve_task_md(work_item_id):
+    """Resolve the canonical task.md path for work_item_id (active or archived).
 
-if marker is None:
-    sys.stderr.write(f"no completion_gate marker for {work_item_id}@{head_sha}\n")
-    raise SystemExit(2)
-
-try:
-    data = json.loads(marker.read_text(encoding="utf-8"))
-except Exception as exc:
-    sys.stderr.write(f"invalid completion_gate marker JSON: {exc}\n")
-    raise SystemExit(2)
-
-if data.get("marker_kind") != "completion_gate":
-    sys.stderr.write("marker_kind != completion_gate\n"); raise SystemExit(2)
-if data.get("status") != "PASS":
-    sys.stderr.write("status != PASS\n"); raise SystemExit(2)
-if data.get("work_item_id") != work_item_id:
-    sys.stderr.write("work_item_id mismatch\n"); raise SystemExit(2)
-
-freshness = data.get("freshness") or {}
-marker_head = str(freshness.get("head_sha") or "")
-if not (marker_head == head_sha or head_sha.startswith(marker_head) or marker_head.startswith(head_sha)):
-    sys.stderr.write("freshness.head_sha mismatch\n"); raise SystemExit(2)
-
-def evidence_resolvable(freshness, work_item_id, resolver):
-    """Confirm the marker's evidence artifact is still reachable (DP-325 D class).
-
-    Prefers the frozen freshness.source_artifact path; when a task.md moved to
-    pr-release/ or container archive after the marker was written, relocate by
-    work_item_id through the canonical resolve-task-md.sh and verify the recorded
-    task_artifact_sha256. A path-only-and-stale marker fails closed.
-
-    Args:
-        freshness: the marker's freshness dict.
-        work_item_id: the marker identity key used to relocate a moved task.md.
-        resolver: path to scripts/resolve-task-md.sh (the canonical resolver).
-
-    Returns:
-        True when the artifact resolves, False when path-only-and-stale.
+    Uses scripts/resolve-task-md.sh — the single canonical resolver — so a task.md
+    that moved to pr-release/ or container archive after delivery still resolves.
+    Returns the path string or None.
     """
-    artifact = freshness.get("evidence_artifact") or freshness.get("source_artifact")
-    if not artifact:
-        return False
-    if Path(artifact).is_file():
-        return True
-    recorded_sha = freshness.get("task_artifact_sha256")
-    if not recorded_sha or not work_item_id:
-        return False
     try:
         out = subprocess.run(
             ["bash", resolver, "--scan-root", repo_root, "--include-archive", work_item_id],
             capture_output=True, text=True, timeout=30,
         )
     except Exception:
-        return False
+        return None
     if out.returncode != 0:
-        return False
+        return None
     lines = out.stdout.strip().splitlines()
     if not lines:
+        return None
+    candidate = Path(lines[-1].strip())
+    return str(candidate) if candidate.is_file() else None
+
+
+def field(task_md, key):
+    """Read one parse-task-md.sh --field value (stripped) or empty string."""
+    try:
+        out = subprocess.run(
+            ["bash", parser, task_md, "--no-resolve", "--field", key],
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception:
+        return ""
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
+def head_bound(recorded, requested):
+    """True when recorded delivery head matches the requested head (full/abbrev)."""
+    if not recorded:
         return False
-    relocated = Path(lines[-1].strip())
-    if not relocated.is_file():
-        return False
-    return hashlib.sha256(relocated.read_bytes()).hexdigest() == recorded_sha
+    return (
+        recorded == requested
+        or requested.startswith(recorded)
+        or recorded.startswith(requested)
+    )
 
 
-if not evidence_resolvable(freshness, work_item_id, resolver):
-    artifact = freshness.get("evidence_artifact") or freshness.get("source_artifact")
-    sys.stderr.write(f"evidence artifact missing: {artifact}\n"); raise SystemExit(2)
+task_md = resolve_task_md(work_item_id)
+if task_md is None:
+    sys.stderr.write(f"no task.md resolvable for {work_item_id}\n")
+    raise SystemExit(2)
 
-print(str(marker))
+recorded_head = field(task_md, "deliverable_head_sha")
+if not head_bound(recorded_head, head_sha):
+    sys.stderr.write(
+        f"deliverable.head_sha mismatch: recorded={recorded_head!r} requested={head_sha!r}\n"
+    )
+    raise SystemExit(2)
+
+status = field(task_md, "deliverable_verification_status")
+if status != "PASS":
+    sys.stderr.write(f"deliverable.verification.status != PASS (got {status!r})\n")
+    raise SystemExit(2)
+
+print(task_md)
 raise SystemExit(0)
 PY
 }

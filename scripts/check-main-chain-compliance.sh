@@ -188,16 +188,19 @@ check_dp201_contract() {
   fi
 
   if [[ -n "$v1" && "$(status_of "$v1")" == "IMPLEMENTED" && "$(ac_status_of "$v1")" == "PASS" ]]; then
-    local evidence_repo evidence_root audit_count handoff_count
+    # DP-360 T7: the V1 PASS fact is already asserted above via ac_status_of
+    # (which reads the task.md ac_verification block). The head-sha-keyed
+    # ac-verification handoff marker is retired, so the redundant marker-existence
+    # assertion is dropped. The auto-pass audit-closure marker is a distinct
+    # evidence kind (not retired by DP-360) and remains required.
+    local evidence_repo evidence_root audit_count
     evidence_repo="$REPO_ROOT"
     if declare -F resolve_main_checkout >/dev/null 2>&1; then
       evidence_repo="$(resolve_main_checkout "$REPO_ROOT" 2>/dev/null || printf '%s\n' "$REPO_ROOT")"
     fi
     evidence_root="$evidence_repo/.polaris/evidence"
     audit_count="$(find "$evidence_root/auto-pass/audit" -maxdepth 1 -type f -name 'audit-closure-DP-201-*.json' 2>/dev/null | wc -l | tr -d ' ')"
-    handoff_count="$(find "$evidence_root/ac-verification" -maxdepth 1 -type f -name 'DP-201-V1-*.json' 2>/dev/null | wc -l | tr -d ' ')"
     [[ "$audit_count" -gt 0 ]] || fail "DP-201 V1 PASS missing audit closure marker"
-    [[ "$handoff_count" -gt 0 ]] || fail "DP-201 V1 PASS missing DP-198 handoff / AC verification marker"
   fi
 }
 

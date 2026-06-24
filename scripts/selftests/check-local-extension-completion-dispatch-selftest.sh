@@ -8,15 +8,17 @@ set -euo pipefail
 #   schema by task_kind frontmatter (V vs T) and fail-stop on unknown task_kind
 #   with stderr token POLARIS_COMPLETION_GATE_UNKNOWN_TASK_KIND.
 #
-# Cases:
+# Cases (DP-360 T7: V disposition read from the V-task ac_verification block):
 #   1. task_kind=T with valid verify evidence → PASS (rc=0).
-#   2. task_kind=V with valid ac_verification evidence → PASS (rc=0).
-#   3. task_kind=V with FAIL ac_verification evidence → BLOCK (rc=2).
+#   2. task_kind=V with PASS ac_verification block → PASS (rc=0).
+#   3. task_kind=V with FAIL ac_verification block → BLOCK (rc=2).
 #   4. Missing task_kind frontmatter (legacy hand-edit) → fail-stop with
 #      POLARIS_COMPLETION_GATE_UNKNOWN_TASK_KIND (rc=2).
 #   5. task_kind=Z (unknown) → fail-stop with POLARIS_COMPLETION_GATE_UNKNOWN_TASK_KIND (rc=2).
-#   6. task_kind=V where evidence.ac_verification path missing → BLOCK (rc=2)
+#   6. task_kind=V with no ac_verification block → BLOCK (rc=2)
 #      (V schema must not silently fall back to verify-evidence Layer B).
+#   7. AC-NEG2: task_kind=V PASS block + stray torn-down ac-verification marker
+#      → block authority wins (marker ignored), rc=0.
 
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/check-local-extension-completion.sh"
 TMPROOT="$(mktemp -d -t local-ext-completion-dispatch-XXXXXX)"
@@ -80,7 +82,11 @@ init_repo() {
   git -C "$repo" commit --quiet -m "init"
 }
 
-# write_task <repo_root> <task_md_path> <task_id> <task_kind|"NONE"> <head_sha> <evidence_kind=verify|ac_verification> <evidence_path> <ci_local_path>
+# write_task <repo_root> <task_md_path> <task_id> <task_kind|"NONE"> <head_sha> <evidence_kind=verify|ac_verification> <evidence_path> <ci_local_path> [ac_block_status]
+# DP-360 T7: for V tasks, $9 (ac_block_status) embeds an `ac_verification`
+# frontmatter block on the V-task itself (the canonical authority the V dispatcher
+# now reads). Empty → no block. The external evidence path is retained only for
+# the legacy guard cases (it must be ignored).
 write_task() {
   local repo="$1"
   local task_path="$2"
@@ -90,6 +96,7 @@ write_task() {
   local evidence_kind="$6"
   local evidence_path="$7"
   local ci_local_path="$8"
+  local ac_block_status="${9:-}"
 
   mkdir -p "$(dirname "$task_path")"
   {
@@ -101,6 +108,10 @@ write_task() {
     printf 'status: IN_PROGRESS\n'
     if [[ "$task_kind" != "NONE" ]]; then
       printf 'task_kind: %s\n' "$task_kind"
+    fi
+    if [[ -n "$ac_block_status" ]]; then
+      printf 'ac_verification:\n'
+      printf '  status: %s\n' "$ac_block_status"
     fi
     printf 'depends_on: []\n'
     printf 'extension_deliverable:\n'
@@ -147,28 +158,6 @@ write_verify_evidence() {
 EOF
 }
 
-write_ac_verification_evidence() {
-  local path="$1"
-  local task_id="$2"
-  local head_sha="$3"
-  local status="${4:-PASS}"
-  mkdir -p "$(dirname "$path")"
-  cat > "$path" <<EOF
-{
-  "ticket": "$task_id",
-  "head_sha": "$head_sha",
-  "writer": "write-ac-verification.sh",
-  "status": "$status",
-  "ac_total": 3,
-  "ac_pass": 3,
-  "ac_fail": 0,
-  "ac_manual_required": 0,
-  "ac_uncertain": 0,
-  "at": "2026-05-25T12:00:00+08:00"
-}
-EOF
-}
-
 REPO="$TMPROOT/repo"
 init_repo "$REPO"
 HEAD_SHA="$(git -C "$REPO" rev-parse HEAD)"
@@ -192,11 +181,9 @@ set -e
 assert_rc "T-task valid verify evidence rc=0" "$RC_T" 0
 assert_contains "T-task PASS message" "$OUTPUT_T" "local extension completion satisfied"
 
-# ── Case 2: task_kind=V with valid ac_verification evidence → rc=0 ──
+# ── Case 2 (DP-360 T7): task_kind=V with PASS ac_verification block → rc=0 ──
 TASK_V="$REPO/tasks/V1.md"
-EV_V_AC="$TMPROOT/case2-ac.json"
-write_ac_verification_evidence "$EV_V_AC" "DP-999-V1" "$HEAD_SHA" "PASS"
-write_task "$REPO" "$TASK_V" "DP-999-V1" "V" "$HEAD_SHA" "ac_verification" "$EV_V_AC" ""
+write_task "$REPO" "$TASK_V" "DP-999-V1" "V" "$HEAD_SHA" "ac_verification" "N/A" "" "PASS"
 
 set +e
 OUTPUT_V="$(
@@ -211,11 +198,9 @@ set -e
 assert_rc "V-task valid ac_verification evidence rc=0" "$RC_V" 0
 assert_contains "V-task PASS message" "$OUTPUT_V" "local extension completion satisfied"
 
-# ── Case 3: task_kind=V with FAIL ac_verification evidence → rc=2 ──
+# ── Case 3 (DP-360 T7): task_kind=V with FAIL ac_verification block → rc=2 ──
 TASK_V_FAIL="$REPO/tasks/V2.md"
-EV_V_AC_FAIL="$TMPROOT/case3-ac-fail.json"
-write_ac_verification_evidence "$EV_V_AC_FAIL" "DP-999-V2" "$HEAD_SHA" "FAIL"
-write_task "$REPO" "$TASK_V_FAIL" "DP-999-V2" "V" "$HEAD_SHA" "ac_verification" "$EV_V_AC_FAIL" ""
+write_task "$REPO" "$TASK_V_FAIL" "DP-999-V2" "V" "$HEAD_SHA" "ac_verification" "N/A" "" "FAIL"
 
 set +e
 OUTPUT_V_FAIL="$(
@@ -268,14 +253,14 @@ assert_rc "unknown task_kind value fail-stop rc=2" "$RC_UNK" 2
 assert_contains "unknown task_kind emits token" "$OUTPUT_UNK" "POLARIS_COMPLETION_GATE_UNKNOWN_TASK_KIND"
 assert_not_contains "unknown task_kind must not silently dispatch to T or V" "$OUTPUT_UNK" "local extension completion satisfied"
 
-# ── Case 6: task_kind=V but missing ac_verification path (silent fallback guard) → rc=2 ──
+# ── Case 6 (DP-360 T7): task_kind=V with NO ac_verification block → rc=2 ──
+# The V dispatcher reads the V-task's own ac_verification frontmatter block.
+# Absent block → block; it must NOT fall back to a verify-evidence path.
 TASK_V_MISS="$REPO/tasks/V3.md"
 EV_V_MISS_VERIFY="$TMPROOT/case6-verify.json"
 write_verify_evidence "$EV_V_MISS_VERIFY" "DP-999-V3" "$HEAD_SHA" 0
-# Write V-task but point evidence at a verify-style marker (not ac_verification) to
-# simulate "writer wired the wrong schema". V dispatcher must block, not silently
-# accept the verify-shaped marker.
-write_task "$REPO" "$TASK_V_MISS" "DP-999-V3" "V" "$HEAD_SHA" "verify" "$EV_V_MISS_VERIFY" ""
+# Point a verify-style evidence path at it (must be ignored) and omit the block.
+write_task "$REPO" "$TASK_V_MISS" "DP-999-V3" "V" "$HEAD_SHA" "verify" "$EV_V_MISS_VERIFY" "" ""
 
 set +e
 OUTPUT_V_MISS="$(
@@ -287,8 +272,29 @@ OUTPUT_V_MISS="$(
 )"
 RC_V_MISS=$?
 set -e
-assert_rc "V-task with no ac_verification evidence rc=2" "$RC_V_MISS" 2
+assert_rc "V-task with no ac_verification block rc=2" "$RC_V_MISS" 2
 assert_not_contains "V dispatcher must not fall back to verify schema" "$OUTPUT_V_MISS" "local extension completion satisfied"
+
+# ── Case 7 (DP-360 T7 AC-NEG2): task_kind=V with PASS block but a STRAY torn-down
+# ac-verification marker — the block is authority; marker must not influence. ──
+TASK_V_STRAY="$REPO/tasks/V4.md"
+mkdir -p "$REPO/.polaris/evidence/ac-verification"
+cat > "$REPO/.polaris/evidence/ac-verification/DP-999-V4-${HEAD_SHA}.json" <<EOF
+{"schema_version":1,"marker_kind":"ac_verification","writer":"verify-AC","work_item_id":"DP-999-V4","status":"FAIL","freshness":{"head_sha":"${HEAD_SHA}"}}
+EOF
+write_task "$REPO" "$TASK_V_STRAY" "DP-999-V4" "V" "$HEAD_SHA" "ac_verification" "N/A" "" "PASS"
+
+set +e
+OUTPUT_V_STRAY="$(
+  bash "$SCRIPT_PATH" \
+    --repo "$REPO" \
+    --task-md "$TASK_V_STRAY" \
+    --task-id "DP-999-V4" \
+    --extension-id "example-ext" 2>&1
+)"
+RC_V_STRAY=$?
+set -e
+assert_rc "V-task PASS block + stray FAIL marker → block authority wins rc=0" "$RC_V_STRAY" 0
 
 printf '\nTOTAL=%d PASS=%d FAIL=%d\n' "$TOTAL" "$PASS" "$((TOTAL - PASS))"
 if [[ "$PASS" -ne "$TOTAL" ]]; then

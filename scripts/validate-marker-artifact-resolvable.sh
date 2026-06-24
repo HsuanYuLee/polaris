@@ -2,8 +2,9 @@
 set -euo pipefail
 
 # Purpose: DP-325 T5 / AC9 — full-surface detector for marker source_artifact
-#          path-staleness (D class). Scans every completion_gate / ac_verification
-#          / task_snapshot marker under .polaris/evidence/ and asserts each marker
+#          path-staleness (D class). DP-360 T7 retires the completion_gate /
+#          ac_verification head-sha markers, so this scans the remaining
+#          task_snapshot marker under .polaris/evidence/ and asserts each marker
 #          that carries a freshness.source_artifact is still resolvable: either the
 #          frozen path resolves on disk, OR the marker can be re-resolved by its
 #          work_item_id (via the canonical resolve-task-md.sh) and verified against
@@ -86,9 +87,11 @@ resolver = os.environ["RESOLVER"]
 scan_root = os.environ["SCAN_ROOT"]
 
 # marker_kind -> evidence subdirectory holding that kind's markers.
+# DP-360 T7: the head-sha-keyed completion_gate / ac_verification markers are
+# retired (delivery head + PASS now live in the task.md `deliverable` block);
+# only the task_snapshot planning-freshness marker remains in scope (AC-NEG3 —
+# task_snapshot guard must keep working).
 KIND_DIRS = {
-    "completion_gate": "completion-gate",
-    "ac_verification": "ac-verification",
     "task_snapshot": "task-snapshot",
 }
 

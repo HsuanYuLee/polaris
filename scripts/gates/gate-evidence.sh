@@ -13,13 +13,16 @@ set -euo pipefail
 # Exit: 0 = pass/skip, 2 = block
 # Bypass: POLARIS_SKIP_EVIDENCE=1
 #
-# DP-303 S4: --aggregate-release switches the gate to aggregate mode. A bundle PR
-# has no single delivery head; instead each bundled task already carries its own
-# completion_gate marker (status PASS) keyed on that task's delivery head. The
-# aggregate path treats those per-task markers as satisfying the evidence gate so
-# the canonical bundle build path (polaris-pr-create.sh --aggregate-release) no
-# longer needs --skip-gates. To prevent forged markers, each marker head must
-# equal the bundled task's recorded delivery head (task.md deliverable.head_sha).
+# DP-303 S4 (amended DP-360 T7): --aggregate-release switches the gate to
+# aggregate mode. A bundle PR has no single delivery head; instead each bundled
+# task's task.md deliverable block records its own delivery head
+# (deliverable.head_sha) + PASS verification (deliverable.verification.status).
+# The aggregate path treats those per-task blocks as satisfying the evidence gate
+# so the canonical bundle build path (polaris-pr-create.sh --aggregate-release)
+# does not need --skip-gates. DP-360 T7 retires the head-sha-keyed completion_gate
+# marker: the task.md deliverable block is the sole evidence record, so there is
+# no separate marker to forge — the recorded head + PASS in the block is the
+# proof (the pre-push gate makes any pushed head verified-by-construction).
 
 PREFIX="[polaris gate-evidence]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -88,28 +91,6 @@ if [[ "${POLARIS_SKIP_EVIDENCE:-}" == "1" ]]; then
   exit 0
 fi
 
-# resolve_completion_marker_path: echo the durable completion_gate marker path for
-# a bundled work item id keyed on a given head, or empty if absent.
-# Args: $1 = repo root, $2 = work_item_id, $3 = head_sha
-resolve_completion_marker_path() {
-  local repo="$1" work_item_id="$2" head_sha="$3"
-  local main_checkout="$repo"
-  if declare -F resolve_main_checkout >/dev/null 2>&1; then
-    main_checkout="$(resolve_main_checkout "$repo" 2>/dev/null || echo "$repo")"
-  fi
-  local candidate="${main_checkout}/.polaris/evidence/completion-gate/${work_item_id}-${head_sha}.json"
-  if [[ -f "$candidate" ]]; then
-    printf '%s' "$candidate"
-    return 0
-  fi
-  # Fall back to the repo-relative path (worktree / no main-checkout resolver).
-  candidate="${repo}/.polaris/evidence/completion-gate/${work_item_id}-${head_sha}.json"
-  if [[ -f "$candidate" ]]; then
-    printf '%s' "$candidate"
-  fi
-  return 0
-}
-
 # resolve_bundled_task_md: echo the canonical task.md path for a bundled work item
 # id, or empty if it cannot be resolved.
 # Args: $1 = repo root, $2 = work_item_id
@@ -134,8 +115,9 @@ resolve_bundled_task_md() {
 }
 
 # task_delivery_head: echo the recorded delivery head (deliverable.head_sha) for a
-# bundled task.md, or empty if unset. This is the anti-forgery anchor: the
-# completion_gate marker head must equal this value.
+# bundled task.md, or empty if unset. DP-360 T7: the task.md deliverable block is
+# the sole delivery-evidence record (the head-sha completion_gate marker is
+# retired); this head + the PASS status below are read straight from the block.
 # Args: $1 = task.md path
 task_delivery_head() {
   local task_md="$1"
@@ -144,11 +126,27 @@ task_delivery_head() {
   return 0
 }
 
-# run_aggregate_evidence_gate: validate that every bundled task carries a PASS
-# completion_gate marker whose head matches the task's recorded delivery head.
-# Fails closed (exit 2) on any missing marker, non-PASS status, or head mismatch.
+# task_verification_status: echo deliverable.verification.status for a bundled
+# task.md (PASS / FAIL / empty). DP-360 T7: replaces the completion_gate marker
+# status read; the PASS authority now lives in the task.md deliverable block.
+# Args: $1 = task.md path
+task_verification_status() {
+  local task_md="$1"
+  [[ -x "$PARSE_TASK_MD" && -f "$task_md" ]] || return 0
+  bash "$PARSE_TASK_MD" "$task_md" --no-resolve --field deliverable_verification_status 2>/dev/null || true
+  return 0
+}
+
+# run_aggregate_evidence_gate: validate that every bundled task's task.md
+# deliverable block records a delivery head (deliverable.head_sha) AND a PASS
+# verification (deliverable.verification.status=PASS). DP-360 T7: the head-sha
+# completion_gate marker is retired; the task.md block is the sole evidence
+# source. The pre-push gate makes any pushed head verified-by-construction, so a
+# block recording head + PASS is the durable delivery proof. Fails closed
+# (exit 2) on any unresolvable task, missing head, or non-PASS status. Branch
+# refs are never consulted (AC-NEG1).
 run_aggregate_evidence_gate() {
-  echo "$PREFIX aggregate mode: validating bundled-task completion markers for ${AGG_SOURCE}." >&2
+  echo "$PREFIX aggregate mode: validating bundled-task deliverable blocks for ${AGG_SOURCE}." >&2
   if [[ -z "$AGG_SOURCE" || -z "$AGG_BUNDLED_TASKS" ]]; then
     echo "$PREFIX BLOCKED: --aggregate-release requires --source and --bundled-tasks." >&2
     exit 2
@@ -160,7 +158,7 @@ run_aggregate_evidence_gate() {
   unset IFS
 
   local failures=0
-  local task_id work_item_id marker delivery_head status
+  local task_id work_item_id delivery_head status
   for task_id in "${raw_tasks[@]}"; do
     task_id="$(printf '%s' "$task_id" | tr -d '[:space:]')"
     [[ -n "$task_id" ]] || continue
@@ -182,44 +180,26 @@ run_aggregate_evidence_gate() {
 
     delivery_head="$(task_delivery_head "$task_md")"
     if [[ -z "$delivery_head" || "$delivery_head" == "N/A" || "$delivery_head" == "null" ]]; then
-      echo "$PREFIX BLOCKED: bundled task ${work_item_id} has no recorded delivery head (deliverable.head_sha); cannot anchor marker." >&2
+      echo "$PREFIX BLOCKED: bundled task ${work_item_id} has no recorded delivery head (deliverable.head_sha) in its task.md block." >&2
       failures=$((failures + 1))
       continue
     fi
 
-    marker="$(resolve_completion_marker_path "$REPO_ROOT" "$work_item_id" "$delivery_head")"
-    if [[ -z "$marker" ]]; then
-      echo "$PREFIX BLOCKED: bundled task ${work_item_id} has no completion_gate marker at delivery head ${delivery_head}." >&2
-      echo "  Expected: .polaris/evidence/completion-gate/${work_item_id}-${delivery_head}.json" >&2
-      failures=$((failures + 1))
-      continue
-    fi
-
-    status="$(python3 - "$marker" <<'PY'
-import json
-import sys
-try:
-    data = json.load(open(sys.argv[1], encoding="utf-8"))
-except Exception:
-    print("")
-    raise SystemExit(0)
-print(str(data.get("status", "")).strip())
-PY
-)"
+    status="$(task_verification_status "$task_md")"
     if [[ "$status" != "PASS" ]]; then
-      echo "$PREFIX BLOCKED: bundled task ${work_item_id} completion marker status is '${status:-<empty>}', expected PASS." >&2
+      echo "$PREFIX BLOCKED: bundled task ${work_item_id} deliverable.verification.status is '${status:-<empty>}', expected PASS." >&2
       failures=$((failures + 1))
       continue
     fi
 
-    echo "$PREFIX ✅ ${work_item_id}: completion marker PASS @ ${delivery_head}." >&2
+    echo "$PREFIX ✅ ${work_item_id}: deliverable block PASS @ ${delivery_head}." >&2
   done
 
   if [[ "$failures" -gt 0 ]]; then
     echo "$PREFIX BLOCKED: ${failures} bundled task(s) failed aggregate evidence check for ${AGG_SOURCE}." >&2
     exit 2
   fi
-  echo "$PREFIX ✅ aggregate evidence gate passed for ${AGG_SOURCE} (all bundled-task markers PASS)." >&2
+  echo "$PREFIX ✅ aggregate evidence gate passed for ${AGG_SOURCE} (all bundled-task deliverable blocks PASS)." >&2
   exit 0
 }
 

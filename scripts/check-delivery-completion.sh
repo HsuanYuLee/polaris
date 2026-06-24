@@ -636,162 +636,42 @@ resolve_task_shape() {
   bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field task_shape 2>/dev/null || true
 }
 
-completion_gate_marker_path() {
-  # Locates the engineering-owned completion_gate marker for {work_item_id}-{head_sha}.
-  # Mirrors planner_baseline_snapshot_path: searches REPO_ROOT plus, when REPO_ROOT
-  # is a worktree, the resolved main checkout (markers anchor at the main checkout).
-  local work_item_id="$1"
-  local head_sha="$2"
-
-  python3 - "$work_item_id" "$head_sha" "$REPO_ROOT" <<'PY'
-import sys
-from pathlib import Path
-
-work_item_id, head_sha, repo_root = sys.argv[1:4]
-roots = [Path(repo_root)]
-git_file = Path(repo_root) / ".git"
-if git_file.is_file():
-    text = git_file.read_text(encoding="utf-8", errors="ignore").strip()
-    if text.startswith("gitdir:"):
-        git_dir = (git_file.parent / text.split(":", 1)[1].strip()).resolve()
-        common = git_dir.parent.parent
-        if common.name == ".git":
-            roots.append(common.parent)
-
-seen = set()
-for root in roots:
-    marker_dir = root / ".polaris" / "evidence" / "completion-gate"
-    # head_sha may be stored full or abbreviated; match both directions.
-    for path in sorted(marker_dir.glob(f"{work_item_id}-*.json")):
-        suffix = path.name[len(work_item_id) + 1:-len(".json")]
-        if suffix == head_sha or head_sha.startswith(suffix) or suffix.startswith(head_sha):
-            resolved = str(path.resolve())
-            if resolved not in seen:
-                seen.add(resolved)
-                print(path)
-                raise SystemExit(0)
-raise SystemExit(1)
-PY
-}
-
 check_audit_confirmation_completion() {
-  # DP-262 T3 carve-out: audit / confirmation tasks complete via an
-  # engineering-owned completion_gate marker (status=PASS) whose freshness
-  # carries a real evidence artifact path. They do NOT require deliverable.pr_url
-  # or a non-draft PR — those tasks may legitimately ship specs-only / empty
-  # Allowed Files (see validate-breakdown-ready.sh task_shape carve-out, T2).
+  # DP-262 T3 carve-out + DP-360 T7: audit / confirmation tasks complete via the
+  # task.md `deliverable` block (verification.status=PASS) — the head-sha
+  # completion_gate marker is retired. They do NOT require deliverable.pr_url or a
+  # non-draft PR — those tasks may legitimately ship specs-only / empty Allowed
+  # Files (see validate-breakdown-ready.sh task_shape carve-out, T2). The
+  # deliverable.head_sha is already validated == HEAD by the caller (completion
+  # freshness check), so this reads the bound task.md's verification status
+  # directly from TASK_MD_PATH; it never reads a marker file (AC-NEG2) and never
+  # falls back to a branch ref (AC-NEG1).
   local task_shape="$1"
   local work_item_id="$2"
   local deliverable_head_sha="$3"
-  local marker_path=""
 
   if [[ -z "$work_item_id" ]]; then
     echo "$PREFIX BLOCKED: cannot resolve work_item_id for ${task_shape} completion gate" >&2
     exit 2
   fi
 
-  if ! marker_path="$(completion_gate_marker_path "$work_item_id" "$deliverable_head_sha" 2>/dev/null)" || [[ -z "$marker_path" ]]; then
-    echo "$PREFIX BLOCKED: missing completion_gate marker for ${task_shape} task ${work_item_id}@${deliverable_head_sha}" >&2
-    echo "$PREFIX Expected under: ${REPO_ROOT}/.polaris/evidence/completion-gate/${work_item_id}-${deliverable_head_sha}.json" >&2
-    echo "$PREFIX Write it with: bash scripts/write-completion-gate-marker.sh --source-id <SOURCE> --work-item-id ${work_item_id} --head-sha ${deliverable_head_sha} --status PASS --task-md ${TASK_MD_PATH}" >&2
+  local verification_status
+  verification_status="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$TASK_MD_PATH" --no-resolve --field deliverable_verification_status 2>/dev/null || true)"
+
+  if [[ -z "$verification_status" ]]; then
+    echo "$PREFIX BLOCKED: missing deliverable.verification.status for ${task_shape} task ${work_item_id}@${deliverable_head_sha}" >&2
+    echo "$PREFIX Expected in: ${TASK_MD_PATH} under deliverable.verification.status" >&2
+    echo "$PREFIX The delivery flow (engineering finalize) writes the deliverable block; re-run finalize so the task.md records verification=PASS." >&2
     exit 2
   fi
 
-  local marker_rc=0
-  python3 - "$marker_path" "$work_item_id" "$deliverable_head_sha" "$SCRIPT_DIR/resolve-task-md.sh" "$REPO_ROOT" <<'PY' || marker_rc=$?
-import hashlib
-import json
-import subprocess
-import sys
-from pathlib import Path
-
-marker_path, work_item_id, head_sha, resolver, scan_root = sys.argv[1:6]
-try:
-    data = json.loads(Path(marker_path).read_text(encoding="utf-8"))
-except Exception:
-    raise SystemExit(1)
-
-if data.get("marker_kind") != "completion_gate":
-    raise SystemExit(1)
-if data.get("status") != "PASS":
-    raise SystemExit(1)
-if data.get("work_item_id") != work_item_id:
-    raise SystemExit(1)
-
-freshness = data.get("freshness") or {}
-marker_head = str(freshness.get("head_sha") or "")
-if not (marker_head == head_sha or head_sha.startswith(marker_head) or marker_head.startswith(head_sha)):
-    raise SystemExit(1)
-
-
-def evidence_resolvable(freshness, work_item_id, resolver, scan_root):
-    """Confirm the marker's evidence artifact is still reachable (DP-325 D class).
-
-    The frozen freshness.source_artifact path is preferred, but a task.md that
-    moved to pr-release/ or container archive after the marker was written no
-    longer resolves at that path. In that case relocate by work_item_id through
-    the canonical resolve-task-md.sh and verify the recorded
-    task_artifact_sha256, so a legitimately-moved task.md still passes while a
-    path-only-and-stale marker fails closed.
-
-    Args:
-        freshness: the marker's freshness dict.
-        work_item_id: the marker identity key used to relocate a moved task.md.
-        resolver: path to scripts/resolve-task-md.sh (the canonical resolver).
-        scan_root: workspace root to relocate within (the marker's own repo).
-
-    Returns:
-        True when the artifact resolves (frozen path or re-resolved + sha match),
-        False when it is path-only-and-stale.
-    """
-    artifact = freshness.get("evidence_artifact") or freshness.get("source_artifact")
-    if not artifact:
-        return False
-    if Path(artifact).is_file():
-        return True
-    recorded_sha = freshness.get("task_artifact_sha256")
-    if not recorded_sha or not work_item_id:
-        return False
-    try:
-        out = subprocess.run(
-            ["bash", resolver, "--scan-root", scan_root, "--include-archive", work_item_id],
-            capture_output=True, text=True, timeout=30,
-        )
-    except Exception:
-        return False
-    if out.returncode != 0:
-        return False
-    lines = out.stdout.strip().splitlines()
-    if not lines:
-        return False
-    relocated = Path(lines[-1].strip())
-    if not relocated.is_file():
-        return False
-    return hashlib.sha256(relocated.read_bytes()).hexdigest() == recorded_sha
-
-
-# Evidence artifact: the marker must point at a real on-disk artifact (the bound
-# task.md / verify report). This keeps a confirmation/audit task auditable even
-# without a PR (refinement EC1), and stays valid after the task.md moves.
-if not evidence_resolvable(freshness, work_item_id, resolver, scan_root):
-    artifact = freshness.get("evidence_artifact") or freshness.get("source_artifact")
-    sys.stderr.write(f"evidence_artifact_missing:{artifact}\n")
-    raise SystemExit(2)
-raise SystemExit(0)
-PY
-  if [[ "$marker_rc" != "0" ]]; then
-    if [[ "$marker_rc" == "2" ]]; then
-      echo "$PREFIX BLOCKED: completion_gate marker for ${task_shape} task ${work_item_id} lacks a resolvable evidence artifact path" >&2
-      echo "$PREFIX Marker: ${marker_path}" >&2
-      echo "$PREFIX Re-run write-completion-gate-marker.sh with --task-md so freshness.source_artifact binds to a real file." >&2
-    else
-      echo "$PREFIX BLOCKED: completion_gate marker for ${task_shape} task ${work_item_id} is stale or not PASS@${deliverable_head_sha}" >&2
-      echo "$PREFIX Marker: ${marker_path}" >&2
-    fi
+  if [[ "$verification_status" != "PASS" ]]; then
+    echo "$PREFIX BLOCKED: ${task_shape} task ${work_item_id} deliverable.verification.status is '${verification_status}' (need PASS) @${deliverable_head_sha}" >&2
+    echo "$PREFIX Task: ${TASK_MD_PATH}" >&2
     exit 2
   fi
 
-  echo "$PREFIX ✅ ${task_shape} task completion gate satisfied via completion_gate marker: ${marker_path}" >&2
+  echo "$PREFIX ✅ ${task_shape} task completion gate satisfied via task.md deliverable block (verification.status=PASS): ${TASK_MD_PATH}" >&2
 }
 
 check_planner_baseline_snapshot() {

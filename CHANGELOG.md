@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.76.32] - 2026-06-24
+
+### Changed
+
+- d32221e: T-tier：selftest tier manifest（319 支，量 wall-clock + 解析 scope，speed × scope 兩軸標 tier）
+- d32221e: T-sweep：branch sweep runner（跑 gate、hit-rate 報告、轉 /auto-pass、遷移 evidence）（D10）
+- fc35753: T-friction：friction→DP intake 機械化（D11）
+- c270e1c: T-precommit：pre-commit 快 lint slot 灌入（staged per-file lint）
+- d32221e: T-affected：affected-runner（changed→closure，shared 升 full）+ pre-push wiring（解 :76 main 早退、補 feat/chore）
+- 5dcc00e: T-backstop：DP-iteration/release full corpus 串接確認 + 慢 selftest 盤點
+- 961c5d3: T-timer：staleness 計時器（clone session-switch-eval）+ workspace-config threshold
+- d32221e: T-schema：task.md delivery/verification block 欄位 + derive writer（D1/D2）
+- f429089: T-consumer：≥6 consumer 改讀 task.md block + teardown head-sha marker writer；窮舉 input shape；selftest + mechanism-registry 同步
+- 33a7738: T-contract：canonical-contract-governance.md § Closeout Delivered-Head Authority amendment（D6 憲法層）
+- 8189abb: T-rebase：cascade-rebase-chain.sh 簽章改 feat→main + re-verify 路由（D5，root bug #6）
+
 ## [3.76.31] - 2026-06-23
 
 ### Changed

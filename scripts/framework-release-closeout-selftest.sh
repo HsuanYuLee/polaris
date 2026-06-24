@@ -83,6 +83,31 @@ chmod +x "${RUNTIME_TMP}/bin/verify-agents-mirror-portable.sh"
 POLARIS_VERIFY_AGENTS_MIRROR_PORTABLE_BIN="${RUNTIME_TMP}/bin/verify-agents-mirror-portable.sh"
 export POLARIS_VERIFY_AGENTS_MIRROR_PORTABLE_BIN
 
+# DP-360 T7: stub `gh` for close_bundled_task_pr (driven by the task.md
+# deliverable.pr_url now recorded by inject_deliverable_head). The hermetic
+# fixture has no real PR #999, so the stub reports the recorded deliverable PR as
+# MERGED — exactly the idempotent-skip path the production closeout takes for an
+# already-merged bundled PR — letting closeout finish without a real gh call.
+# `auth status` succeeds so resolve_gh_bin passes its readiness preflight.
+cat >"${RUNTIME_TMP}/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "$1" in
+  auth)
+    exit 0
+    ;;
+  pr)
+    # `gh pr view <ref> --json state -q .state` → report the bundled PR as MERGED
+    # so close_bundled_task_pr idempotent-skips (no comment/close attempted).
+    if [[ "$2" == "view" ]]; then
+      echo "MERGED"
+    fi
+    exit 0
+    ;;
+esac
+exit 0
+EOF
+chmod +x "${RUNTIME_TMP}/bin/gh"
+
 git_quiet() {
   git "$@" >/dev/null 2>&1
 }
@@ -215,6 +240,45 @@ true
 echo PASS
 \`\`\`
 MD
+}
+
+# DP-360 T7: persist the delivered head into the task.md `deliverable` block.
+# The head-sha-keyed completion-gate marker is retired as a head-resolution
+# authority; the task.md delivery block is now the sole non-override
+# delivered-head source, so closeout fixtures must record it. The full canonical
+# block (pr_url / pr_state / head_sha, matching
+# derive-task-md-from-refinement-json.sh) is written: head_sha is the delivered-
+# head authority the closeout reads, and the recorded pr_url keeps the surface
+# resolver (run by check-release-eligible.sh) classifying a real delivery surface
+# instead of flagging `deliverable_without_pr_url`. The bin/gh stub installed in
+# setup returns MERGED for `pr view`, so close_bundled_task_pr idempotent-skips
+# without attempting a comment/close on the hermetic PR.
+inject_deliverable_head() {
+  local path="$1"
+  local head_sha="$2"
+  python3 - "$path" "$head_sha" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+head_sha = sys.argv[2]
+text = path.read_text(encoding="utf-8")
+block = (
+    "deliverable:\n"
+    "  pr_url: https://github.com/example/polaris/pull/999\n"
+    "  pr_state: MERGED\n"
+    f"  head_sha: {head_sha}\n"
+)
+if text.startswith("---\n"):
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        raise SystemExit(f"unclosed frontmatter in {path}")
+    fm = text[4:end + 1]
+    body = text[end + 1:]
+    path.write_text("---\n" + fm + block + body, encoding="utf-8")
+else:
+    path.write_text("---\n" + block + "---\n" + text, encoding="utf-8")
+PY
 }
 
 write_verify_evidence() {
@@ -354,6 +418,7 @@ run_single_task_case() {
   write_task "$task_md" T1 "$branch" ""
   wt="$(add_task_branch_and_worktree "$repo" "$branch" "t1")"
   task_head="$(git -C "$wt" rev-parse HEAD)"
+  inject_deliverable_head "$task_md" "$task_head"
   merge_task_branch "$repo" "$branch"
   workspace_commit="$(git -C "$repo" rev-parse HEAD)"
   template_commit="$(git -C "$template" rev-parse HEAD)"
@@ -404,6 +469,8 @@ run_stacked_task_case() {
   wt2="$(add_task_branch_and_worktree "$repo" "$branch2" "t2")"
   head1="$(git -C "$wt1" rev-parse HEAD)"
   head2="$(git -C "$wt2" rev-parse HEAD)"
+  inject_deliverable_head "$task1" "$head1"
+  inject_deliverable_head "$task2" "$head2"
   merge_task_branch "$repo" "$branch1"
   merge_task_branch "$repo" "$branch2"
   workspace_commit="$(git -C "$repo" rev-parse HEAD)"
@@ -484,6 +551,8 @@ PY
   wt2="$(add_task_branch_and_worktree "$repo" "$branch2" "t2")"
   head1="$(git -C "$wt1" rev-parse HEAD)"
   head2="$(git -C "$wt2" rev-parse HEAD)"
+  inject_deliverable_head "$pr_task1" "$head1"
+  inject_deliverable_head "$pr_task2" "$head2"
   merge_task_branch "$repo" "$branch1"
   merge_task_branch "$repo" "$branch2"
   workspace_commit="$(git -C "$repo" rev-parse HEAD)"
@@ -531,6 +600,7 @@ run_archived_pr_release_case() {
   write_task "$task_md" T1 "$branch" ""
   wt="$(add_task_branch_and_worktree "$repo" "$branch" "t1")"
   task_head="$(git -C "$wt" rev-parse HEAD)"
+  inject_deliverable_head "$task_md" "$task_head"
   merge_task_branch "$repo" "$branch"
   workspace_commit="$(git -C "$repo" rev-parse HEAD)"
   template_commit="$(git -C "$template" rev-parse HEAD)"
@@ -594,6 +664,7 @@ MD
   write_task "$task_md" T1 "$branch" ""
   wt="$(add_task_branch_and_worktree "$repo" "$branch" "t1")"
   task_head="$(git -C "$wt" rev-parse HEAD)"
+  inject_deliverable_head "$task_md" "$task_head"
   merge_task_branch "$repo" "$branch"
   workspace_commit="$(git -C "$repo" rev-parse HEAD)"
   template_commit="$(git -C "$template" rev-parse HEAD)"
@@ -653,6 +724,7 @@ run_stale_evidence_case() {
   write_task "$task_md" T1 "$branch" ""
   wt="$(add_task_branch_and_worktree "$repo" "$branch" "t1")"
   task_head="$(git -C "$wt" rev-parse HEAD)"
+  inject_deliverable_head "$task_md" "$task_head"
   merge_task_branch "$repo" "$branch"
   workspace_commit="$(git -C "$repo" rev-parse HEAD)"
   template_commit="$(git -C "$template" rev-parse HEAD)"
@@ -694,6 +766,7 @@ run_dirty_worktree_case() {
   write_task "$task_md" T1 "$branch" ""
   wt="$(add_task_branch_and_worktree "$repo" "$branch" "t1")"
   task_head="$(git -C "$wt" rev-parse HEAD)"
+  inject_deliverable_head "$task_md" "$task_head"
   echo dirty >>"${wt}/selftest-t1.txt"
   merge_task_branch "$repo" "$branch"
   workspace_commit="$(git -C "$repo" rev-parse HEAD)"
@@ -735,6 +808,7 @@ run_stale_repo_selection_case() {
   write_task "$task_md" T1 "$branch" ""
   wt="$(add_task_branch_and_worktree "$repo" "$branch" "t1")"
   task_head="$(git -C "$wt" rev-parse HEAD)"
+  inject_deliverable_head "$task_md" "$task_head"
   merge_task_branch "$repo" "$branch"
   workspace_commit="$(git -C "$repo" rev-parse HEAD)"
   template_commit="$(git -C "$template" rev-parse HEAD)"

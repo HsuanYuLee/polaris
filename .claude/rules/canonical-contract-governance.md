@@ -78,28 +78,40 @@ push / rebase / 其他 session 的 WIP 漂移，把它當 authority 會讓 close
 無關的 head（DP-319 incident：closeout 透過 branch ref 取到舊 task-PR head 7b7474b，而
 verify marker 已在 feat HEAD f6d9198，導致 `local_extension_completion_failed`）。
 
-closeout 取交付 head 的 resolution 順序（三者皆 immutable）：
+closeout 取交付 head 的 resolution 順序（兩者皆 immutable）：
 
 1. **明確 `--task-head-sha {work_item_id}={sha}` override**：caller 指定的 head map，
    最高優先。
-2. **completion-gate marker filename head**：讀
-   `.polaris/evidence/completion-gate/{work_item_id}-{head}.json` 的 filename head；
-   marker 由 evidence-producing skill 在交付當下寫入、檔名綁交付 head，是 immutable
-   delivered-head 的 canonical record。
-3. **task.md `deliverable.head_sha` delivery block**：persisted 在 task.md frontmatter
+2. **task.md `deliverable.head_sha` delivery block**：persisted 在 task.md frontmatter
    的交付 head。
 
-三者皆無法解析時 **fail-closed**（die），不得 fall back 到 branch ref，也不得 silent
+DP-360 起，原本作為來源 #2 的 **completion-gate marker filename head**
+（`.polaris/evidence/completion-gate/{work_item_id}-{head}.json`）**已自 resolution 順序
+移除**。DP-360 把 framework-workspace 三層 local gate 收斂成唯一交付證據，並拆除
+parallel head-sha-keyed marker；交付 head 的單一 durable evidence record 改為 task.md 的
+delivery / verification block，不再保留與其平行的 head-sha marker authority path。
+
+兩者皆無法解析時 **fail-closed**（die），不得 fall back 到 branch ref，也不得 silent
 pass。aggregate / bundle task（`bundle_branch_alias` present）必須由 caller 明確帶
 `--task-head-sha`，不得從 branch 推斷。
 
 此條對齊本檔 **No special writer paths / Fail closed on missing inputs**：交付 head 只有
-一條 immutable authority path（marker filename + delivery block + explicit override），
-mutable branch ref 不得成為第二條 silent authority。deterministic enforcement 由
-`scripts/framework-release-closeout.sh` 的 head-resolution 順序與
-`scripts/selftests/framework-release-closeout-head-authority-selftest.sh` 提供：污染
-`task/*` ref 時 head 仍取自 marker、缺所有 immutable source 時 fail-closed、V-task 走
-parent-closeout、aggregate 缺 `--task-head-sha` 時 fail-closed。
+一條 immutable authority path（task.md `deliverable.head_sha` delivery block + explicit
+override），mutable branch ref 不得成為第二條 silent authority，被移除的 marker filename
+head 也不得作為第二條平行 authority 復活。
+
+**deterministic enforcement（target state + transitional owner）**：
+target enforcement 是 `scripts/framework-release-closeout.sh` 的 head-resolution 順序——以
+task.md `deliverable.head_sha` delivery block 加 `--task-head-sha` override 解析交付 head，
+污染 `task/*` ref 時不退回 branch、缺所有 immutable source 時 fail-closed、V-task 走
+parent-closeout、aggregate 缺 `--task-head-sha` 時 fail-closed。**本 T8 只交付 prose / 契約層
+的目標態收斂**；把 closeout / classifier / probe 從讀 completion-gate marker 改成讀 task.md
+delivery block、並退役 marker writer（`scripts/write-completion-gate-marker.sh`）的 consumer
+relocation，由 **DP-360-T7（T-consumer）** 作為完成此 collapse 的 transitional migration step
+交付。removal criteria = 所有 consumer 與 selftest 都已 relocate 到 task.md delivery block。
+這是 target-state-first + transitional-owner pattern（DP-360 Decision Policy / Migration
+Boundaries）；incident 與決策沿革見 DP-360（marker filename head 的歷史脈絡見上方 DP-319
+incident）。
 
 ## Applicability
 

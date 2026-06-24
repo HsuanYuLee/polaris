@@ -251,49 +251,41 @@ check_verify_evidence() {
   verification_evidence_is_pass "$evidence" >/dev/null || return 1
 }
 
-# DP-230 D22 / AC18: V task ac_verification marker schema.
-# Validates that the writer-produced ac_verification JSON exists, points at the
-# same task / head, was written by the expected verify-AC writer, and has
-# status PASS. This is the V counterpart to check_verify_evidence (which
-# validates Layer B verify markers for T tasks).
-#
-# DP-281 compatibility: scripts/write-ac-verification.sh now emits this marker
-# with top-level `ticket` (= work_item_id) and `head_sha` aliases alongside the
-# canonical work_item_id / freshness.head_sha keys, so this reader's field
-# expectations (ticket / head_sha / writer / status) stay satisfied with no
-# change to the checks below. `writer` is "verify-AC", already in ALLOWED_WRITERS.
+# DP-360 T7: V-task verification disposition is read from the V-task's own
+# `ac_verification` frontmatter block (the canonical V-task lifecycle record,
+# also read by the runner / close-parent / drift detector), NOT a head-sha-keyed
+# ac-verification marker. The block is NOT head-bound — the V-task frontmatter is
+# the authority. This is the V counterpart to the T-task evidence-classifier
+# marker-pass path (which now reads the T-task deliverable block).
+# Returns 0 when the V-task ac_verification.status == PASS; non-zero otherwise.
 check_ac_verification_evidence() {
-  local evidence="$1"
-  [[ -n "$evidence" && "$evidence" != "N/A" ]] || block "ac_verification evidence path missing (V task)"
-  [[ -f "$evidence" ]] || block "ac_verification evidence file not found: $evidence"
-  # DP-280 Wall A: effective_head_sha = bundle release head for a validated
-  # bundle V task, else the per-task head (byte-equivalent no-alias path).
-  python3 - "$evidence" "$TASK_ID" "$effective_head_sha" <<'PY' || return 1
-import json
+  python3 - "$TASK_MD" <<'PY' || return 1
+import re
 import sys
 
-path, expected_ticket, expected_head = sys.argv[1:4]
-ALLOWED_WRITERS = {"write-ac-verification.sh", "verify-AC"}
+path = sys.argv[1]
 try:
-    with open(path, encoding="utf-8") as handle:
-        data = json.load(handle)
-except Exception as exc:
-    print(f"invalid ac_verification evidence JSON: {exc}", file=sys.stderr)
+    lines = open(path, encoding="utf-8").read().splitlines()
+except OSError as exc:
+    print(f"cannot read V task.md for ac_verification: {exc}", file=sys.stderr)
     sys.exit(1)
 
-ticket = str(data.get("ticket") or "")
-head = str(data.get("head_sha") or "")
-writer = str(data.get("writer") or "")
-status = str(data.get("status") or "")
+in_block = False
+status = ""
+for line in lines:
+    if line == "ac_verification:":
+        in_block = True
+        continue
+    if in_block and line and not line.startswith((" ", "-")) and ":" in line:
+        break
+    if in_block:
+        m = re.match(r"\s+status:\s*(\S+)", line)
+        if m:
+            status = m.group(1).strip().strip('"').strip("'")
+            break
 
-if ticket != expected_ticket:
-    print(f"ticket mismatch: evidence={ticket!r} expected={expected_ticket!r}", file=sys.stderr)
-    sys.exit(1)
-if not (head == expected_head or head.startswith(expected_head) or expected_head.startswith(head)):
-    print(f"head_sha mismatch: evidence={head!r} expected={expected_head!r}", file=sys.stderr)
-    sys.exit(1)
-if writer not in ALLOWED_WRITERS:
-    print(f"writer not in whitelist: {writer!r}", file=sys.stderr)
+if not status:
+    print("V task.md has no ac_verification.status block", file=sys.stderr)
     sys.exit(1)
 if status != "PASS":
     print(f"ac_verification status must be PASS, got {status!r}", file=sys.stderr)
@@ -349,12 +341,15 @@ case "$task_kind" in
     elif [[ "${POLARIS_SKIP_EVIDENCE:-}" == "1" ]]; then
       echo "$PREFIX POLARIS_SKIP_EVIDENCE=1 — bypassing Layer B verify-evidence (transitional backward-compat)." >&2
     elif [[ "$TASK_ID" =~ ^DP-[0-9]+-[TV][0-9]+$ ]]; then
-      # AC5: non-ticket framework T-task → completion_gate marker is the evidence
-      # SoT. A valid marker satisfies the gate with no SKIP env. For backward
-      # compatibility a legitimate Layer B verify-evidence is still accepted as a
-      # fallback so existing delivery records do not regress.
+      # AC5 (DP-360 T7): non-ticket framework T-task → the evidence-classifier
+      # marker-pass now reads the T-task's task.md deliverable block
+      # (deliverable.head_sha bound + deliverable.verification.status PASS), NOT a
+      # head-sha-keyed completion_gate marker. A bound PASS block satisfies the
+      # gate with no SKIP env. For backward compatibility a legitimate Layer B
+      # verify-evidence is still accepted as a fallback so existing delivery
+      # records do not regress.
       if marker_path="$(bash "$EVIDENCE_CLASSIFIER" marker-pass --repo "$REPO_ROOT" --work-item-id "$TASK_ID" --head-sha "$task_head_sha" 2>/dev/null)"; then
-        echo "$PREFIX ✅ T-task completion gate satisfied via completion_gate marker: ${marker_path}" >&2
+        echo "$PREFIX ✅ T-task completion gate satisfied via task.md deliverable block: ${marker_path}" >&2
       else
         # No valid marker → fall back to the Layer B verify-evidence contract.
         # check_verify_evidence emits its own block() (containing "verify evidence")
@@ -367,8 +362,10 @@ case "$task_kind" in
     fi
     ;;
   V)
-    if ! check_ac_verification_evidence "$ac_verification_evidence"; then
-      block "ac_verification evidence is malformed or stale: $ac_verification_evidence"
+    # DP-360 T7: read the V-task's own ac_verification frontmatter block (no
+    # external evidence file / marker). The block is the canonical authority.
+    if ! check_ac_verification_evidence; then
+      block "V task.md ac_verification.status is missing or not PASS"
     fi
     ;;
   "")

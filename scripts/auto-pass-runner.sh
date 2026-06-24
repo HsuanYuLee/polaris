@@ -354,25 +354,38 @@ def list_t_entries(directory):
     return entries
 
 
-def completion_gate_marker_status(repo_path, work_item_id):
-    """Return the status of the work item's completion_gate marker, or "".
+def deliverable_verification_status(path):
+    """Return deliverable.verification.status from a task.md, or "".
 
-    Mirrors auto-pass-probe.sh / check-delivery-completion.sh: the marker lives
-    at .polaris/evidence/completion-gate/{work_item_id}-{head_sha}.json. The
-    T-assert advance-eligibility binds to a PASS marker; absent / non-PASS keeps
-    the task out of pr-release so the fail-closed confirmation blocks complete.
+    DP-360 T7: the head-sha completion_gate marker is retired; the delivery
+    evidence is the task.md `deliverable` block. The T-assert advance-eligibility
+    now binds to deliverable.verification.status == PASS read from the task.md
+    itself (never a marker file, never a branch ref). Walks the nested frontmatter
+    block (deliverable: → verification: → status:) without a YAML dependency,
+    mirroring the ac_verification_fields() block-walk shape.
     """
-    marker_dir = repo_path / ".polaris" / "evidence" / "completion-gate"
-    candidates = sorted(marker_dir.glob(f"{work_item_id}-*.json"))
-    if not candidates:
-        return ""
-    # Newest marker wins (matches probe head-bound resolution intent).
-    latest = max(candidates, key=lambda p: p.stat().st_mtime)
-    try:
-        data = json.loads(latest.read_text(encoding="utf-8"))
-    except Exception:
-        return ""
-    return str(data.get("status") or "")
+    in_deliverable = False
+    in_verification = False
+    for line in read_frontmatter_lines(path):
+        if line == "deliverable:":
+            in_deliverable = True
+            in_verification = False
+            continue
+        # Leaving the deliverable block: a non-indented, non-empty line.
+        if in_deliverable and line and not line.startswith((" ", "-")):
+            break
+        if in_deliverable:
+            if re.match(r"\s{2}verification:\s*$", line):
+                in_verification = True
+                continue
+            # A new 2-space key ends the verification sub-block.
+            if in_verification and re.match(r"\s{2}\S", line) and not line.startswith("    "):
+                in_verification = False
+            if in_verification:
+                match = re.match(r"\s{4}status:\s*(\S+)", line)
+                if match:
+                    return match.group(1).strip().strip('"').strip("'")
+    return ""
 
 
 def gate_blocked(reason, evidence_path=None):
@@ -499,9 +512,9 @@ def terminal_complete_v_gate(repo_path, scripts_dir):
                 status_file,
             )
 
-    # ── DP-317 T1: symmetric required-implementation-T assert ─────────────────
-    # (c) Advance every required implementation T work item whose engineering-
-    #     owned completion_gate marker is PASS but still sits under tasks/, then
+    # ── DP-317 T1 (DP-360 T7 reader): symmetric required-implementation-T assert
+    # (c) Advance every required implementation T work item whose task.md
+    #     deliverable.verification.status is PASS but still sits under tasks/, then
     #     (d) fail-closed confirm every required implementation T reached the
     #     canonical terminal (pr-release/ + IMPLEMENTED), reusing the same
     #     mark-spec-implemented writer and the close-parent pr-release contract
@@ -516,7 +529,7 @@ def terminal_complete_v_gate(repo_path, scripts_dir):
             continue
         stem = t_entry_stem(entry)
         key = f"{dp_prefix}-{stem}" if dp_prefix else stem
-        if completion_gate_marker_status(repo_path, key) != "PASS":
+        if deliverable_verification_status(status_file) != "PASS":
             continue
         try:
             proc = subprocess.run(
@@ -547,6 +560,8 @@ def terminal_complete_v_gate(repo_path, scripts_dir):
         and frontmatter_field(t_entry_status_file(entry), "task_shape") not in T_CARVE_OUT_SHAPES
     ]
     if remaining_t:
+        # EC2: missing / non-PASS deliverable.verification.status → never advanced
+        # → blocks complete (task.md block is the sole evidence, no marker).
         names = ", ".join(t_entry_stem(entry) for entry in remaining_t)
         return gate_blocked(
             "terminal complete blocked: required implementation T work item(s) "

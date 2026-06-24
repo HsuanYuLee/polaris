@@ -44,10 +44,6 @@ CHECK_RELEASE_COMPLETED="${SCRIPT_DIR}/check-release-completed.sh"
 CHECK_MAIN_CHAIN_COMPLIANCE="${SCRIPT_DIR}/check-main-chain-compliance.sh"
 # shellcheck source=lib/specs-root.sh
 . "$SCRIPT_DIR/lib/specs-root.sh"
-# DP-303-T1: resolve_main_checkout for completion-gate marker head lookup
-# (markers anchor at the main checkout, not a worktree copy).
-# shellcheck source=lib/main-checkout.sh
-. "$SCRIPT_DIR/lib/main-checkout.sh"
 # shellcheck source=lib/worktree-classifier.sh
 . "$SCRIPT_DIR/lib/worktree-classifier.sh"
 # DP-280 Wall A: single bundle detector, shared with
@@ -406,41 +402,6 @@ registered_worktree_for_branch() {
   '
 }
 
-# DP-303-T1 (S1): resolve the delivered head from the IMMUTABLE completion-gate
-# marker filename instead of the (mutable) task/* branch ref. Marker filenames
-# are keyed {work_item_id}-{head_sha}.json and live under the main checkout's
-# .polaris/evidence/completion-gate/. The branch ref is rewritable (a polluting
-# commit, a force-push, a stale local ref) and therefore is NOT a trustworthy
-# authority for the delivered head; the marker filename is written once at
-# completion gate time and is the canonical head record.
-# Echoes the resolved head SHA on success (exit 0). Echoes nothing and returns 1
-# when no PASS completion-gate marker exists for this work item (the caller
-# fail-closes rather than falling back to the branch ref).
-# Args: $1 = work_item_id (e.g. DP-303-T1)
-resolve_completion_gate_marker_head() {
-  local work_item_id="$1"
-  local main_checkout marker_dir candidate suffix head=""
-
-  main_checkout="$(resolve_main_checkout "$REPO_ROOT" 2>/dev/null || true)"
-  [[ -n "$main_checkout" ]] || main_checkout="$REPO_ROOT"
-  marker_dir="${main_checkout}/.polaris/evidence/completion-gate"
-  [[ -d "$marker_dir" ]] || return 1
-
-  for candidate in "$marker_dir/${work_item_id}-"*.json; do
-    [[ -e "$candidate" ]] || continue
-    suffix="$(basename "$candidate")"
-    suffix="${suffix#"${work_item_id}-"}"
-    suffix="${suffix%.json}"
-    if is_sha "$suffix"; then
-      head="$suffix"
-      break
-    fi
-  done
-
-  [[ -n "$head" ]] || return 1
-  printf '%s\n' "$head"
-}
-
 # classify_worktree_for_branch <task_branch>
 #   Echo one of:
 #     none        — no registered worktree for the branch (cleanup NOOP)
@@ -733,15 +694,18 @@ for i in "${!TASK_MDS[@]}"; do
     continue
   fi
 
-  # DP-303-T1 (S1/S5): resolve the task's delivered head from an IMMUTABLE
-  # authority chain, in priority order:
+  # DP-303-T1 (S1/S5), amended DP-360 T7: resolve the task's delivered head from
+  # an IMMUTABLE authority chain, in priority order:
   #   1. --task-head-sha (explicit operator-supplied; map or positional)
-  #   2. completion-gate marker filename head (immutable; written at gate time)
-  #   3. task.md delivery block (deliverable.head_sha)
-  # resolve_branch_sha is NO LONGER an authority source: the task/* branch ref
-  # is mutable and a polluting commit / force-push would silently mis-resolve the
-  # head. When none of the three immutable sources yields a head, closeout
-  # fail-closes (AC-NEG2: no silent pass / no branch-ref fallback).
+  #   2. task.md delivery block (deliverable.head_sha)
+  # DP-360 T7 retires the head-sha-keyed completion-gate marker; the persisted
+  # task.md `deliverable.head_sha` is the sole non-override delivered-head
+  # authority (the local three-layer pre-push gate makes that head
+  # verified-by-construction). resolve_branch_sha is NOT an authority source: the
+  # task/* branch ref is mutable and a polluting commit / force-push would
+  # silently mis-resolve the head. When neither immutable source yields a head,
+  # closeout fail-closes (AC-NEG1/AC-NEG2: no silent pass / no branch-ref
+  # fallback).
   #
   # DP-273 bundle detection moved up here so the AGGREGATE fail-closed contract
   # (S5 / AC7) can run before any auto-resolution attempt.
@@ -767,18 +731,14 @@ for i in "${!TASK_MDS[@]}"; do
     if [[ -n "$bundle_alias" ]]; then
       die "aggregate task ${task_id} (bundle=${bundle_alias}) requires an explicit --task-head-sha; closeout will not auto-resolve a bundled task head"
     fi
-    if task_head_sha="$(resolve_completion_gate_marker_head "$task_id")"; then
-      info "resolved delivered head for ${task_id} from completion-gate marker: ${task_head_sha}"
-    else
-      task_head_sha="$(json_field "$parser_json" "d.get('frontmatter', {}).get('deliverable', {}).get('head_sha')")"
-      if [[ -n "$task_head_sha" ]]; then
-        info "resolved delivered head for ${task_id} from task.md delivery block: ${task_head_sha}"
-      fi
+    task_head_sha="$(json_field "$parser_json" "d.get('frontmatter', {}).get('deliverable', {}).get('head_sha')")"
+    if [[ -n "$task_head_sha" ]]; then
+      info "resolved delivered head for ${task_id} from task.md delivery block: ${task_head_sha}"
     fi
   fi
 
   if [[ -z "$task_head_sha" ]]; then
-    die "cannot resolve delivered head for ${task_id}: no --task-head-sha, no completion-gate marker, no task.md delivery block (fail-closed; branch ref is not an authority source)"
+    die "cannot resolve delivered head for ${task_id}: no --task-head-sha, no task.md delivery block (deliverable.head_sha) (fail-closed; branch ref is not an authority source)"
   fi
   is_sha "$task_head_sha" || die "--task-head-sha value malformed for ${task_id}: ${task_head_sha} (expected 7-40 char hex SHA; map syntax is task_id=<sha>)"
   git -C "$REPO_ROOT" cat-file -e "${task_head_sha}^{commit}" 2>/dev/null || die "task head does not exist for ${task_id}: ${task_head_sha}"

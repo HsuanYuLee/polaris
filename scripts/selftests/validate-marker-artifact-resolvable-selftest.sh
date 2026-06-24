@@ -86,15 +86,19 @@ MOVED="$ROOT/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tas
 MOVED_SHA="$(sha256_of "$MOVED")"
 EV="$ROOT/.polaris/evidence"
 
+# DP-360 T7: completion_gate / ac_verification markers are retired; the detector
+# only scans the surviving task_snapshot kind. Every path-staleness case below is
+# asserted against task_snapshot markers.
+
 # Case 1: frozen path still resolves (points at the live moved file) → PASS.
-write_marker "$EV/completion-gate/DP-900-T1-deadbeef.json" completion_gate DP-900-T1 "$MOVED" "$MOVED_SHA"
+write_marker "$EV/task-snapshot/DP-900-T1.json" task_snapshot DP-900-T1 "$MOVED" "$MOVED_SHA"
 
 rc=0; out="$(bash "$DETECTOR" --repo "$ROOT" 2>&1)" || rc=$?
 assert_rc "case1: frozen path resolves -> PASS" "$rc" "0"
 
 # Case 2: frozen path gone but sha+work_item_id re-resolves (task moved) → PASS.
-rm -f "$EV/completion-gate/DP-900-T1-deadbeef.json"
-write_marker "$EV/ac-verification/DP-900-T1-deadbeef.json" ac_verification DP-900-T1 \
+rm -f "$EV/task-snapshot/DP-900-T1.json"
+write_marker "$EV/task-snapshot/DP-900-T1.json" task_snapshot DP-900-T1 \
   "/gone/old/tasks/T1/index.md" "$MOVED_SHA"
 rc=0; out="$(bash "$DETECTOR" --repo "$ROOT" 2>&1)" || rc=$?
 assert_rc "case2: re-resolvable moved task.md -> PASS" "$rc" "0"
@@ -108,19 +112,31 @@ assert_contains "case3: structured POLARIS marker" "$out" "POLARIS_MARKER_ARTIFA
 
 # Case 4: re-resolved artifact sha mismatch → fail closed.
 rm -f "$EV/task-snapshot/DP-900-T2.json"
-rm -f "$EV/ac-verification/DP-900-T1-deadbeef.json"
-write_marker "$EV/completion-gate/DP-900-T1-deadbeef.json" completion_gate DP-900-T1 \
+rm -f "$EV/task-snapshot/DP-900-T1.json"
+write_marker "$EV/task-snapshot/DP-900-T1.json" task_snapshot DP-900-T1 \
   "/gone/old/tasks/T1/index.md" "0000000000000000000000000000000000000000000000000000000000000000"
 rc=0; out="$(bash "$DETECTOR" --repo "$ROOT" 2>&1)" || rc=$?
 assert_rc "case4: relocated sha mismatch -> exit 2" "$rc" "2"
 assert_contains "case4: sha mismatch reason" "$out" "POLARIS_MARKER_ARTIFACT_UNRESOLVABLE:"
 
 # Case 5: clean workspace with only resolvable markers → PASS (regression guard).
-rm -f "$EV/completion-gate/DP-900-T1-deadbeef.json"
+rm -f "$EV/task-snapshot/DP-900-T1.json"
 write_marker "$EV/task-snapshot/DP-900-T1.json" task_snapshot DP-900-T1 "$MOVED" "$MOVED_SHA"
 rc=0; out="$(bash "$DETECTOR" --repo "$ROOT" 2>&1)" || rc=$?
 assert_rc "case5: all resolvable -> PASS" "$rc" "0"
 assert_contains "case5: PASS summary" "$out" "PASS:"
+
+# Case 6 (DP-360 T7 / AC-NEG2): a STRAY retired completion_gate / ac_verification
+# marker that is path-only-and-stale must be IGNORED (out of scope) — the detector
+# only governs task_snapshot now, so a clean task_snapshot set still PASSes even
+# with broken retired markers present.
+write_marker "$EV/completion-gate/DP-900-T1-deadbeef.json" completion_gate DP-900-T1 \
+  "/gone/old/tasks/T1/index.md"
+write_marker "$EV/ac-verification/DP-900-V1-deadbeef.json" ac_verification DP-900-V1 \
+  "/gone/old/tasks/V1/index.md"
+rc=0; out="$(bash "$DETECTOR" --repo "$ROOT" 2>&1)" || rc=$?
+assert_rc "case6: retired markers ignored -> PASS" "$rc" "0"
+assert_contains "case6: PASS summary (retired out of scope)" "$out" "PASS:"
 
 printf '\n%s/%s checks passed\n' "$PASS" "$TOTAL"
 [[ "$PASS" == "$TOTAL" ]]

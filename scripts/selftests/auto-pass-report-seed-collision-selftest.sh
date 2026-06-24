@@ -148,8 +148,32 @@ grep -q 'POLARIS_AUTO_PASS_REPORT_SEED_COLLISION' "$TMP/seed-archive-collision.o
   || { echo "FAIL: archive collision should emit POLARIS_AUTO_PASS_REPORT_SEED_COLLISION" >&2; cat "$TMP/seed-archive-collision.out" >&2; exit 1; }
 
 # ─── 4. POS: complete report with no seed (null) → seed check is a no-op ─────
-# verification.status=PASS needs a head-bound marker (DP-311 cross-check (b)).
+# verification.status=PASS needs a resolvable V task.md whose deliverable block
+# records a head-bound delivered head + PASS status (DP-311 cross-check (b),
+# amended DP-360 T7 — the ac_verification marker is retired as the head-resolution
+# authority; the task.md `deliverable` block is the sole delivery-evidence source).
+# DP-303-V1 resolves under POLARIS_SPECS_ROOT=$SPECS_ROOT; the deliverable.head_sha
+# is head-bound to the report's verification.head_sha=$HEAD_SHA.
 write_pass_marker "DP-303-V1"
+mkdir -p "${DESIGN_PLANS}/DP-303-report-fixture/tasks/V1"
+python3 - "${DESIGN_PLANS}/DP-303-report-fixture/tasks/V1/index.md" "$HEAD_SHA" <<'PY'
+import sys
+from pathlib import Path
+path, head = sys.argv[1:3]
+Path(path).write_text(
+    "---\n"
+    "task_kind: V\n"
+    "deliverable:\n"
+    "  pr_url: https://github.com/example/polaris/pull/1\n"
+    "  pr_state: MERGED\n"
+    f"  head_sha: {head}\n"
+    "  verification:\n"
+    "    status: PASS\n"
+    "---\n\n"
+    "# V1\n",
+    encoding="utf-8",
+)
+PY
 NO_SEED="$TMP/no-seed.json"
 python3 - "$NO_SEED" <<PY
 import json, sys

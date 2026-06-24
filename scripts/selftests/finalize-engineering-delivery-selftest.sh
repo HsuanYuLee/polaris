@@ -262,41 +262,66 @@ if [[ ! -f "$report_path" ]] || ! grep -q "$head_sha" "$report_path"; then
   exit 1
 fi
 
-# DP-301 T4 (FD3 / AC4): finalize must auto-write the engineering-owned
-# completion_gate marker as a deterministic side effect. The marker anchors at the
-# main checkout under .polaris/evidence/completion-gate/<work-item>-<sha>.json.
-marker_path="$main_repo/.polaris/evidence/completion-gate/DP-999-T1-${head_sha}.json"
-if [[ ! -f "$marker_path" ]]; then
-  echo "not ok finalize did not auto-write completion_gate marker (expected $marker_path)" >&2
+# DP-360 T7 (AC3 / NEG2): finalize must record the delivery PASS into the
+# canonical task.md `deliverable.verification` block — NOT a head-sha-keyed
+# completion_gate marker. The block is the single delivery-evidence source; no
+# marker file may be written (no dual-source steady state).
+if [[ -e "$main_repo/.polaris/evidence/completion-gate" ]]; then
+  echo "not ok finalize wrote a retired completion-gate marker dir (NEG2 dual-source)" >&2
   exit 1
 fi
 
-# Marker must be a PASS completion_gate roll-up bound to the finalized head sha.
-if ! python3 - "$marker_path" "$head_sha" <<'PY'
-import json
+# The deliverable.verification.status must be PASS, bound to the finalized head
+# sha recorded in deliverable.head_sha (artifact field, never a branch ref).
+if ! python3 - "$task_path" "$head_sha" <<'PY'
 import sys
 from pathlib import Path
 
-marker_path, head_sha = sys.argv[1:3]
-data = json.loads(Path(marker_path).read_text(encoding="utf-8"))
-assert data.get("marker_kind") == "completion_gate", data.get("marker_kind")
-assert data.get("status") == "PASS", data.get("status")
-assert data.get("work_item_id") == "DP-999-T1", data.get("work_item_id")
-freshness = data.get("freshness") or {}
-marker_head = str(freshness.get("head_sha") or "")
-assert marker_head == head_sha or head_sha.startswith(marker_head) or marker_head.startswith(head_sha), marker_head
+task_path, head_sha = sys.argv[1:3]
+text = Path(task_path).read_text(encoding="utf-8")
+assert text.startswith("---\n"), "no frontmatter"
+end = text.find("\n---\n", 4)
+assert end != -1, "unterminated frontmatter"
+fm = text[4:end]
+
+# Walk the deliverable block and its nested verification sub-block.
+recorded_head = ""
+ver_status = ""
+in_deliverable = False
+in_verification = False
+for line in fm.splitlines():
+    if line.rstrip() == "deliverable:":
+        in_deliverable = True
+        continue
+    if in_deliverable and line and not line.startswith(" "):
+        break
+    if not in_deliverable:
+        continue
+    if line.startswith("  ") and not line.startswith("    "):
+        in_verification = line.strip().startswith("verification:")
+        s = line.strip()
+        if s.startswith("head_sha:"):
+            recorded_head = s.split(":", 1)[1].strip()
+        continue
+    if in_verification and line.strip().startswith("status:"):
+        ver_status = line.split(":", 1)[1].strip()
+
+assert ver_status == "PASS", f"deliverable.verification.status={ver_status!r}"
+assert recorded_head and (
+    recorded_head == head_sha
+    or head_sha.startswith(recorded_head)
+    or recorded_head.startswith(head_sha)
+), f"deliverable.head_sha={recorded_head!r} not bound to {head_sha!r}"
 PY
 then
-  echo "not ok completion_gate marker has wrong kind/status/work_item_id/head_sha" >&2
+  echo "not ok deliverable.verification block missing PASS bound to finalized head sha" >&2
   exit 1
 fi
 
-# AC4 idempotency (adversarial): a second completion_gate auto-write for the same
-# {work_item_id}-{head_sha} must NOT mutate the marker. finalize's idempotency guard
-# detects the existing marker and no-ops, so the marker stays byte-identical even
-# though write-completion-gate-marker.sh itself re-stamps `at` on every direct call
-# (refinement EC4: no drift on same head-sha re-write).
-marker_before="$(python3 - "$marker_path" <<'PY'
+# AC3 idempotency (adversarial): a second finalize for the same head must leave
+# the task.md byte-identical (the stamp is a no-op when status is already PASS),
+# and must still write no marker file.
+task_before="$(python3 - "$task_path" <<'PY'
 import hashlib
 import sys
 from pathlib import Path
@@ -306,8 +331,8 @@ PY
 )"
 
 # Re-run finalize against the now-finalized (pr-release) task. resolve-task-md.sh still
-# resolves it, the mock PR is still OPEN, and the completion_gate auto-write must hit
-# the idempotency guard rather than overwrite the marker.
+# resolves it, the mock PR is still OPEN, and the deliverable.verification stamp must
+# be a byte-identical no-op rather than re-stamp / duplicate the block.
 set +e
 out2="$(
     POLARIS_SKIP_CI_LOCAL=1 \
@@ -319,13 +344,13 @@ out2="$(
 )"
 set -e
 
-if [[ ! -f "$marker_path" ]]; then
+if [[ -e "$main_repo/.polaris/evidence/completion-gate" ]]; then
   printf '%s\n' "$out2" >&2
-  echo "not ok completion_gate marker vanished after second finalize" >&2
+  echo "not ok second finalize wrote a retired completion-gate marker dir (NEG2)" >&2
   exit 1
 fi
 
-marker_after="$(python3 - "$marker_path" <<'PY'
+task_after="$(python3 - "$task_path" <<'PY'
 import hashlib
 import sys
 from pathlib import Path
@@ -334,15 +359,15 @@ print(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest())
 PY
 )"
 
-if [[ "$marker_before" != "$marker_after" ]]; then
+if [[ "$task_before" != "$task_after" ]]; then
   printf '%s\n' "$out2" >&2
-  echo "not ok completion_gate marker drifted on idempotent re-run (before=$marker_before after=$marker_after)" >&2
+  echo "not ok deliverable.verification block drifted on idempotent re-run (before=$task_before after=$task_after)" >&2
   exit 1
 fi
 
-if ! printf '%s\n' "$out2" | grep -q 'auto-write is a no-op'; then
+if ! printf '%s\n' "$out2" | grep -q 'deliverable.verification already PASS; no-op'; then
   printf '%s\n' "$out2" >&2
-  echo "not ok second finalize did not report idempotent no-op for completion_gate marker" >&2
+  echo "not ok second finalize did not report idempotent no-op for deliverable.verification" >&2
   exit 1
 fi
 

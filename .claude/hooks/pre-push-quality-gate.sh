@@ -54,7 +54,13 @@ if [[ -n "$command" ]] \
   esac
 fi
 
-[[ -z "$command" || "$command" =~ (^|[[:space:]])git[[:space:]]+(-C[[:space:]]+[^[:space:]]+[[:space:]]+)?push\b ]] || exit 0
+# DP-360 T3 / AC2 / AC-NEG4: push detection MUST be portable. The legacy `push\b`
+# word-boundary anchor is not honoured by ERE on macOS bash 3.2 (it treats `\b` as a
+# literal `b`), so on that platform the legacy hook silently exited 0 on EVERY push —
+# the gates below never ran. Use the same `push([[:space:]]|$)` form as the branch-name
+# gate above, which matches portably. A non-push command still exits 0 (the hook only
+# governs pushes), but a real push now always proceeds to the gates (fail-closed).
+[[ -z "$command" || "$command" =~ (^|[[:space:]])git[[:space:]]+(-C[[:space:]]+[^[:space:]]+[[:space:]]+)?push([[:space:]]|$) ]] || exit 0
 
 [[ -d "$repo_root" ]] || exit 0
 
@@ -72,8 +78,14 @@ if [[ -x "$GATES_DIR/gate-runtime-instruction-manifest.sh" ]]; then
 fi
 
 branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+# DP-360 T3 / AC2 / AC-NEG4: the legacy `main|master|develop) exit 0` early-exit at
+# :76 is REMOVED. main / master / develop / feat/* / chore/* (and every other named
+# branch) now run the delivery gates below. The ONLY exit-0 here is the genuinely
+# unresolvable case — empty branch / detached HEAD — which cannot be gated against a
+# branch name; this is fail-stop-on-missing-input, not a fail-open branch skip. There
+# is no env bypass for the named-branch gates.
 case "$branch" in
-  ""|HEAD|main|master|develop) exit 0 ;;
+  ""|HEAD) exit 0 ;;
 esac
 
 if [[ -x "$GATES_DIR/gate-ci-local.sh" ]]; then
@@ -139,6 +151,21 @@ specs_collection_changed_files() {
   fi
   git -C "$repo" diff --name-only HEAD~1..HEAD 2>/dev/null || true
 }
+
+# Gate: affected-scoped selftest closure (DP-360 T3 / AC2 / AC7 / AC-NEG5). Derive the
+# changed-file set from the push payload (reusing the specs-collection resolver above),
+# then run the affected selftest closure. A shared / high-fanout change escalates to
+# the full backstop inside the runner; an unmapped code change fails closed (no silent
+# pass). Runs only when the runner exists so older trees stay unaffected, but when
+# present it is mandatory and fail-closed (no env bypass). Defined here so the
+# specs_collection_changed_files helper is already in scope.
+AFFECTED_RUNNER="$ROOT_DIR/scripts/selftest-affected-runner.sh"
+if [[ -x "$AFFECTED_RUNNER" ]]; then
+  affected_changed="$(specs_collection_changed_files "$input" "$repo_root" | sort -u)"
+  if [[ -n "$affected_changed" ]]; then
+    printf '%s\n' "$affected_changed" | bash "$AFFECTED_RUNNER" --root "$repo_root" --run
+  fi
+fi
 
 should_run_specs_collection_shape() {
   local file=""

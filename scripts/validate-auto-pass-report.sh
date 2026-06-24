@@ -4,12 +4,15 @@
 #          shape, follow-up DP seed threshold, overlap disposition,
 #          friction_log_summary ledger aggregation, plus DP-311 T3 fail-closed
 #          cross-checks — (a) report.terminal_status=complete ↔ referenced
-#          ledger terminal state; (b) report.verification.status=PASS ↔
-#          head-bound .polaris/evidence/ac-verification/{work_item}-{head}.json
-#          PASS marker (stale summaries are not trusted).
+#          ledger terminal state; (b) report.verification.status=PASS ↔ the V
+#          work item's task.md `deliverable` block (deliverable.head_sha bound to
+#          verification.head_sha + deliverable.verification.status=PASS). DP-360
+#          T7: the head-sha-keyed ac_verification marker is retired; the task.md
+#          block is the sole delivery-evidence source. Stale summaries / branch
+#          refs are never trusted.
 # Inputs:  $1 = /path/to/report.json. Optional env POLARIS_WORKSPACE_ROOT
-#          overrides the evidence root used for marker lookup (hermetic
-#          selftests); default resolves the main checkout via
+#          overrides the scan root used to resolve the V work item's task.md
+#          (hermetic selftests); default resolves the main checkout via
 #          scripts/lib/main-checkout.sh from the report location.
 # Outputs: "PASS: ..." on stdout. On failure: error list on stderr; cross-check
 #          violations additionally emit structured POLARIS_AUTO_PASS_REPORT_*
@@ -22,8 +25,8 @@ usage:
   scripts/validate-auto-pass-report.sh /path/to/report.json
 
 env:
-  POLARIS_WORKSPACE_ROOT  override evidence root for head-bound
-                          ac_verification marker lookup (selftests)
+  POLARIS_WORKSPACE_ROOT  override scan root for resolving the V work item's
+                          task.md deliverable block (selftests)
 USAGE
   exit 2
 fi
@@ -61,18 +64,23 @@ fi
 # specs root resolved from this script's location.
 SPECS_ROOT="${POLARIS_SPECS_ROOT:-$WORKSPACE_ROOT/docs-manager/src/content/docs/specs}"
 
+RESOLVER="$SCRIPT_DIR/resolve-task-md.sh" PARSER="$SCRIPT_DIR/parse-task-md.sh" \
 python3 - "$1" "$EVIDENCE_ROOT" "$WORKSPACE_ROOT" "$SPECS_ROOT" <<'PY'
 """Purpose: auto-pass report contract validation body (see bash header).
 
 Inputs: argv[1]=report path, argv[2]=evidence root ('' when unresolvable),
         argv[3]=workspace root for follow_up_dp_seed.contract_evidence
         path:line validation, argv[4]=specs root for follow_up_dp_seed
-        collision check (DP-303 T5).
+        collision check (DP-303 T5). Env RESOLVER/PARSER point at the canonical
+        resolve-task-md.sh / parse-task-md.sh used to read the V work item's
+        task.md deliverable block (DP-360 T7).
 Outputs: PASS line on stdout; error list + POLARIS_AUTO_PASS_REPORT_* markers
 on stderr. Exit 2 on cross-check violation, 1 on schema violation.
 """
 import json
+import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -415,85 +423,115 @@ if terminal == "complete":
             ))
 
 
-def marker_satisfies(marker_path, work_item, pinned_head):
-    """Check one head-bound ac_verification marker file against the report claim.
+def head_bound(recorded, requested):
+    """True when the recorded delivery head matches requested (full/abbrev)."""
+    if not recorded or not requested:
+        return False
+    recorded, requested = str(recorded), str(requested)
+    return (
+        recorded == requested
+        or requested.startswith(recorded)
+        or recorded.startswith(requested)
+    )
 
-    Args:
-        marker_path: Path to a {work_item}-{head}.json candidate.
-        work_item: expected work_item_id from report.verification.
-        pinned_head: report.verification.head_sha when declared, else None.
 
-    Returns:
-        True when the marker is a PASS marker consistently bound to the
-        work item (and to pinned_head when declared).
+def resolve_task_md(work_item, scan_root):
+    """Resolve the canonical task.md for work_item via resolve-task-md.sh.
+
+    Uses the single canonical resolver (active or archived) so a V task.md that
+    moved to pr-release/ still resolves. Returns the path string or None.
     """
-    filename_head = marker_path.name[len(work_item) + 1:-len(".json")]
+    resolver = os.environ.get("RESOLVER")
+    if not resolver or not scan_root:
+        return None
     try:
-        marker = json.loads(marker_path.read_text(encoding="utf-8"))
+        out = subprocess.run(
+            ["bash", resolver, "--scan-root", scan_root, "--include-archive", work_item],
+            capture_output=True, text=True, timeout=30,
+        )
     except Exception:
-        return False
-    if not isinstance(marker, dict) or marker.get("status") != "PASS":
-        return False
-    if marker.get("work_item_id") not in (None, work_item):
-        return False
-    marker_head = marker.get("head_sha")
-    if marker_head not in (None, filename_head):
-        return False
-    if pinned_head and filename_head != str(pinned_head):
-        return False
-    return True
+        return None
+    if out.returncode != 0:
+        return None
+    lines = out.stdout.strip().splitlines()
+    if not lines:
+        return None
+    candidate = Path(lines[-1].strip())
+    return str(candidate) if candidate.is_file() else None
 
 
-# ── DP-311 T3 cross-check (b): verification PASS ↔ head-bound marker (AC6) ──
-# A PASS verification claim is only trusted when the V work item has a durable
-# head-bound .polaris/evidence/ac-verification/{work_item}-{head}.json PASS
-# marker; the report's own prose/summary is never accepted as evidence.
+def task_field(task_md, key):
+    """Read one parse-task-md.sh --field value (stripped) or '' on any failure."""
+    parser = os.environ.get("PARSER")
+    if not parser:
+        return ""
+    try:
+        out = subprocess.run(
+            ["bash", parser, task_md, "--no-resolve", "--field", key],
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception:
+        return ""
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
+# ── DP-311 T3 cross-check (b), amended DP-360 T7: verification PASS ↔ task.md ──
+# A PASS verification claim is only trusted when the V work item's task.md
+# `deliverable` block records a delivered head (deliverable.head_sha) bound to
+# the report's verification.head_sha AND deliverable.verification.status=PASS.
+# DP-360 T7 retires the head-sha-keyed ac_verification marker; the task.md block
+# is the sole durable delivery-evidence record. This reader NEVER reads a marker
+# file (AC-NEG2) and NEVER falls back to a branch ref (AC-NEG1); the report's own
+# prose/summary is never accepted as evidence.
 if isinstance(verification, dict) and verification.get("status") == "PASS":
     work_item = verification.get("work_item_id")
     pinned_head = verification.get("head_sha")
+    # Scan root for the canonical resolver: explicit evidence-root override
+    # (hermetic selftests) else the resolved workspace root.
+    scan_root = evidence_root or str(workspace_root)
     if not work_item:
         cross_errors.append((
             CROSS_MARKER_MISSING,
-            "verification.status=PASS requires verification.work_item_id to locate the head-bound marker",
+            "verification.status=PASS requires verification.work_item_id to locate the task.md deliverable block",
         ))
-    elif not evidence_root:
+    elif pinned_head is not None and not HEAD_SHA_PATTERN.fullmatch(str(pinned_head)):
         cross_errors.append((
-            CROSS_MARKER_MISSING,
-            "verification.status=PASS but the workspace root for "
-            ".polaris/evidence/ac-verification marker lookup could not be resolved",
+            CROSS_MARKER_MISMATCH,
+            f"verification.head_sha must be a 7-40 char hex sha, got {pinned_head!r}",
         ))
     else:
-        marker_dir = Path(evidence_root) / ".polaris" / "evidence" / "ac-verification"
-        if pinned_head is not None and not HEAD_SHA_PATTERN.fullmatch(str(pinned_head)):
+        task_md = resolve_task_md(work_item, scan_root)
+        if task_md is None:
             cross_errors.append((
-                CROSS_MARKER_MISMATCH,
-                f"verification.head_sha must be a 7-40 char hex sha, got {pinned_head!r}",
+                CROSS_MARKER_MISSING,
+                "verification.status=PASS but no task.md resolvable for "
+                f"{work_item} (deliverable block is the sole delivery-evidence source)",
             ))
         else:
-            candidates = []
-            if pinned_head:
-                pinned_path = marker_dir / f"{work_item}-{pinned_head}.json"
-                if pinned_path.is_file():
-                    candidates.append(pinned_path)
-            elif marker_dir.is_dir():
-                prefix = f"{work_item}-"
-                for entry in sorted(marker_dir.iterdir()):
-                    if not entry.name.startswith(prefix) or not entry.name.endswith(".json"):
-                        continue
-                    suffix = entry.name[len(prefix):-len(".json")]
-                    if HEAD_SHA_PATTERN.fullmatch(suffix):
-                        candidates.append(entry)
-            if not candidates:
+            recorded_head = task_field(task_md, "deliverable_head_sha")
+            block_status = task_field(task_md, "deliverable_verification_status")
+            if not recorded_head:
+                # No delivered head recorded at all → the delivery-evidence
+                # record is absent (MISSING).
                 cross_errors.append((
                     CROSS_MARKER_MISSING,
-                    "verification.status=PASS but no head-bound ac_verification marker "
-                    f"found for {work_item} under {marker_dir}",
+                    f"verification.status=PASS but {work_item} task.md has no "
+                    "deliverable.head_sha (delivery-evidence record absent)",
                 ))
-            elif not any(marker_satisfies(c, work_item, pinned_head) for c in candidates):
+            elif block_status != "PASS":
+                # The block exists but its verification status contradicts the
+                # report's PASS claim (stale summary is not trusted) → MISMATCH.
                 cross_errors.append((
                     CROSS_MARKER_MISMATCH,
-                    f"verification.status=PASS but no head-bound marker for {work_item} "
-                    f"under {marker_dir} is a consistent PASS marker (stale summary is not trusted)",
+                    f"verification.status=PASS but {work_item} task.md "
+                    f"deliverable.verification.status={block_status!r} is not PASS "
+                    "(stale summary is not trusted)",
+                ))
+            elif pinned_head and not head_bound(recorded_head, pinned_head):
+                cross_errors.append((
+                    CROSS_MARKER_MISMATCH,
+                    f"verification.head_sha={pinned_head!r} does not match the "
+                    f"{work_item} task.md deliverable.head_sha={recorded_head!r}",
                 ))
 
 if errors or cross_errors:

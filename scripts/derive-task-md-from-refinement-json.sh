@@ -24,11 +24,24 @@
 #   - task-id not found in `tasks[]`
 #   - required field missing on the resolved task entry
 #
+# DP-360 T6 (D1/D2): when delivery inputs are supplied, derive additionally
+# emits a task.md delivery/verification block. The block carries
+# `deliverable.head_sha` (D1: the persisted artifact field that absorbs the
+# delivered-head role, contract source #3 — not a mutable branch ref) plus a
+# nested `deliverable.verification` sub-block (D2: PASS / FAIL status + ac_counts
+# relocated from the head-sha-keyed completion_gate / ac_verification markers).
+# This task only adds the derive writer's ability to emit the block; retiring the
+# marker writers and switching consumers to read it is T7. The block is purely
+# additive — with no delivery inputs the body is byte-for-byte the legacy output.
+#
 # Usage:
 #   bash scripts/derive-task-md-from-refinement-json.sh \
 #     --refinement-json <path> \
 #     --task-id <DP-NNN-Tn> \
-#     [--repo polaris-framework]
+#     [--repo polaris-framework] \
+#     [--deliverable-head-sha SHA --deliverable-pr-url URL --deliverable-pr-state STATE \
+#      --verification-status STATUS \
+#      --ac-total N --ac-pass N --ac-fail N --ac-manual-required N --ac-uncertain N]
 #
 # Output: task.md body on stdout.
 
@@ -40,13 +53,33 @@ REFINEMENT_JSON=""
 TASK_ID=""
 REPO_NAME="polaris-framework"
 
+# DP-360 T6 delivery/verification block inputs (all optional; the block is only
+# emitted when --deliverable-head-sha is supplied). Empty string = "not supplied".
+DELIVERABLE_HEAD_SHA=""
+DELIVERABLE_PR_URL=""
+DELIVERABLE_PR_STATE=""
+VERIFICATION_STATUS=""
+AC_TOTAL=""
+AC_PASS=""
+AC_FAIL=""
+AC_MANUAL_REQUIRED=""
+AC_UNCERTAIN=""
+
 usage() {
   cat >&2 <<'USAGE'
 usage:
   derive-task-md-from-refinement-json.sh --refinement-json <path> --task-id <DP-NNN-Tn> [--repo <name>]
+    [--deliverable-head-sha <sha> --deliverable-pr-url <url> --deliverable-pr-state <OPEN|MERGED|CLOSED>
+     --verification-status <PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|BLOCKED_ENV|IN_PROGRESS>
+     --ac-total <n> --ac-pass <n> --ac-fail <n> --ac-manual-required <n> --ac-uncertain <n>]
 
 Emits a canonical task.md body on stdout, derived deterministically from the
 structured `tasks[]` entry in the supplied refinement.json. No LLM judgment.
+
+When --deliverable-head-sha is supplied, a delivery/verification block is appended
+to the (T-task only) frontmatter: deliverable.head_sha (D1) plus a nested
+deliverable.verification sub-block (D2 — status + ac_counts). The block is purely
+additive; omit the delivery flags to derive the legacy body unchanged.
 USAGE
   exit 2
 }
@@ -56,6 +89,15 @@ while [[ $# -gt 0 ]]; do
     --refinement-json) REFINEMENT_JSON="${2:-}"; shift 2 ;;
     --task-id) TASK_ID="${2:-}"; shift 2 ;;
     --repo) REPO_NAME="${2:-}"; shift 2 ;;
+    --deliverable-head-sha) DELIVERABLE_HEAD_SHA="${2:-}"; shift 2 ;;
+    --deliverable-pr-url) DELIVERABLE_PR_URL="${2:-}"; shift 2 ;;
+    --deliverable-pr-state) DELIVERABLE_PR_STATE="${2:-}"; shift 2 ;;
+    --verification-status) VERIFICATION_STATUS="${2:-}"; shift 2 ;;
+    --ac-total) AC_TOTAL="${2:-}"; shift 2 ;;
+    --ac-pass) AC_PASS="${2:-}"; shift 2 ;;
+    --ac-fail) AC_FAIL="${2:-}"; shift 2 ;;
+    --ac-manual-required) AC_MANUAL_REQUIRED="${2:-}"; shift 2 ;;
+    --ac-uncertain) AC_UNCERTAIN="${2:-}"; shift 2 ;;
     -h|--help) usage ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage ;;
   esac
@@ -68,7 +110,10 @@ if [[ ! -f "$REFINEMENT_JSON" ]]; then
   exit 2
 fi
 
-python3 - "$REFINEMENT_JSON" "$TASK_ID" "$REPO_NAME" "$SCRIPT_DIR" <<'PY'
+python3 - "$REFINEMENT_JSON" "$TASK_ID" "$REPO_NAME" "$SCRIPT_DIR" \
+  "$DELIVERABLE_HEAD_SHA" "$DELIVERABLE_PR_URL" "$DELIVERABLE_PR_STATE" \
+  "$VERIFICATION_STATUS" \
+  "$AC_TOTAL" "$AC_PASS" "$AC_FAIL" "$AC_MANUAL_REQUIRED" "$AC_UNCERTAIN" <<'PY'
 import json
 import re
 import subprocess
@@ -76,11 +121,155 @@ import sys
 from pathlib import Path
 
 refinement_path, task_id, repo_name, script_dir = sys.argv[1:5]
+(
+    deliverable_head_sha,
+    deliverable_pr_url,
+    deliverable_pr_state,
+    verification_status,
+    ac_total_arg,
+    ac_pass_arg,
+    ac_fail_arg,
+    ac_manual_required_arg,
+    ac_uncertain_arg,
+) = sys.argv[5:14]
 
 
 def fail(msg, code=2):
     print(f"ERROR: {msg}", file=sys.stderr)
     sys.exit(code)
+
+
+# DP-360 T6 (D1/D2): build the optional task.md delivery/verification block.
+#
+# The block extends the canonical T-mode `deliverable:` frontmatter
+# (deliverable.pr_url / pr_state / head_sha — validate-task-md.sh § 2.1 + DP-033
+# D7) with a nested `verification:` sub-block that relocates the PASS / ac_counts
+# payload from the head-sha-keyed completion_gate / ac_verification markers (D2).
+# It is emitted ONLY when a delivered head_sha is supplied; otherwise derive
+# returns "" and the body is the legacy (no-block) output (AC-NEG back-compat).
+#
+# This task adds the writer capability only — switching consumers to read the
+# block and retiring the marker writers is T7.
+VERIFICATION_STATUSES = (
+    "PASS",
+    "FAIL",
+    "MANUAL_REQUIRED",
+    "UNCERTAIN",
+    "BLOCKED_ENV",
+    "IN_PROGRESS",
+)
+PR_STATES = ("OPEN", "MERGED", "CLOSED")
+AC_COUNT_FIELDS = ("ac_total", "ac_pass", "ac_fail", "ac_manual_required", "ac_uncertain")
+
+
+def build_delivery_block(task_id: str) -> str:
+    """Build the task.md delivery/verification frontmatter block, or "" when absent.
+
+    Args:
+        task_id: canonical task id, used for fail-loud error messages.
+
+    Returns:
+        The rendered `deliverable:` block (indented YAML, no trailing newline),
+        or an empty string when no delivered head_sha was supplied — in which
+        case the caller emits the legacy block-free body.
+
+    Fail-louds (exit 2) when the supplied delivery inputs are malformed (bad SHA,
+    bad PR url/state, unknown verification status, non-integer ac_counts, or
+    ac_pass+ac_fail+ac_manual_required+ac_uncertain != ac_total) — no silent
+    framework default, mirroring the AC-NEG1 fail-loud discipline elsewhere.
+    """
+    head_sha = deliverable_head_sha.strip()
+    if not head_sha:
+        # No delivery inputs → no block. Reject partial input loudly so a typo'd
+        # flag set can never silently drop the delivery payload.
+        partial = [
+            label
+            for label, value in (
+                ("--deliverable-pr-url", deliverable_pr_url),
+                ("--deliverable-pr-state", deliverable_pr_state),
+                ("--verification-status", verification_status),
+                ("--ac-total", ac_total_arg),
+                ("--ac-pass", ac_pass_arg),
+                ("--ac-fail", ac_fail_arg),
+                ("--ac-manual-required", ac_manual_required_arg),
+                ("--ac-uncertain", ac_uncertain_arg),
+            )
+            if value.strip()
+        ]
+        if partial:
+            fail(
+                f"task {task_id} delivery block inputs supplied ({', '.join(partial)}) "
+                "without --deliverable-head-sha; supply the delivered head or none"
+            )
+        return ""
+
+    if not re.fullmatch(r"[0-9a-fA-F]{7,40}", head_sha):
+        fail(
+            f"task {task_id} --deliverable-head-sha must be a 7-40 char hex SHA "
+            f"(got: '{head_sha}')"
+        )
+
+    pr_url = deliverable_pr_url.strip()
+    if not pr_url:
+        fail(f"task {task_id} --deliverable-pr-url is required when a delivery block is emitted")
+    if not re.fullmatch(r"https://github\.com/.+/pull/[0-9]+", pr_url):
+        fail(
+            f"task {task_id} --deliverable-pr-url must match "
+            f"'https://github.com/.+/pull/[0-9]+' (got: '{pr_url}')"
+        )
+
+    pr_state = deliverable_pr_state.strip()
+    if pr_state not in PR_STATES:
+        fail(
+            f"task {task_id} --deliverable-pr-state must be one of "
+            f"{', '.join(PR_STATES)} (got: '{pr_state or '<empty>'}')"
+        )
+
+    status = verification_status.strip()
+    if status not in VERIFICATION_STATUSES:
+        fail(
+            f"task {task_id} --verification-status must be one of "
+            f"{', '.join(VERIFICATION_STATUSES)} (got: '{status or '<empty>'}')"
+        )
+
+    raw_counts = {
+        "ac_total": ac_total_arg,
+        "ac_pass": ac_pass_arg,
+        "ac_fail": ac_fail_arg,
+        "ac_manual_required": ac_manual_required_arg,
+        "ac_uncertain": ac_uncertain_arg,
+    }
+    counts = {}
+    for field in AC_COUNT_FIELDS:
+        raw = raw_counts[field].strip()
+        if not raw:
+            fail(
+                f"task {task_id} {field.replace('_', '-', 1)} is required when a "
+                "delivery block is emitted"
+            )
+        if not re.fullmatch(r"[0-9]+", raw):
+            fail(f"task {task_id} --{field.replace('_', '-')} must be a non-negative integer (got: '{raw}')")
+        counts[field] = int(raw)
+    counted = counts["ac_pass"] + counts["ac_fail"] + counts["ac_manual_required"] + counts["ac_uncertain"]
+    if counted != counts["ac_total"]:
+        fail(
+            f"task {task_id} ac_counts inconsistent: ac_pass + ac_fail + "
+            f"ac_manual_required + ac_uncertain ({counted}) must equal ac_total "
+            f"({counts['ac_total']})"
+        )
+
+    lines = [
+        "deliverable:",
+        f"  pr_url: {pr_url}",
+        f"  pr_state: {pr_state}",
+        f"  head_sha: {head_sha}",
+        "  verification:",
+        f"    status: {status}",
+        "    ac_counts:",
+    ]
+    for field in AC_COUNT_FIELDS:
+        lines.append(f"      {field}: {counts[field]}")
+    return "\n".join(lines)
 
 
 # DP-316: canonical projection from the refinement.json `test_environment.level`
@@ -461,6 +650,16 @@ for ac in ac_list:
 trace_block = "\n".join(trace_rows)
 
 if mode == "V":
+    # DP-360 T6: the delivery/verification block is a T-task lifecycle field
+    # (deliverable). V tasks carry the symmetric ac_verification block instead, so
+    # delivery inputs against a V task are a caller error — fail loud rather than
+    # silently dropping the payload.
+    if deliverable_head_sha.strip():
+        fail(
+            f"task {task_id} is a V task; the deliverable/verification block is a "
+            "T-task lifecycle field (V tasks use ac_verification). Do not pass "
+            "--deliverable-head-sha to a V task"
+        )
     # DP-302: V-task base branch is field-driven (source.base_branch or "main"),
     # the same root_base_branch resolved above — no source.type dispatch.
     v_base_branch = root_base_branch
@@ -764,6 +963,14 @@ all_references = container_references + [
 ]
 references_cell = "<br>".join(f"- `{r}`" for r in all_references)
 
+# DP-360 T6 (D1/D2): the delivery/verification block is T-task-only — V tasks
+# carry the symmetric ac_verification lifecycle block, not deliverable, and the
+# V-task branch already returned above. Emitted only when delivery inputs are
+# supplied; otherwise build_delivery_block() returns "" and the frontmatter is
+# unchanged (additive / back-compat).
+delivery_block = build_delivery_block(task_id)
+delivery_block_line = f"{delivery_block}\n" if delivery_block else ""
+
 doc = f"""---
 title: "{source_id} {short_id}: {title} ({points} pt)"
 description: "{scope}"
@@ -776,7 +983,7 @@ task_kind: {mode}
   behavior_contract:
 {behavior_contract_block}
 depends_on: [{depends_on_frontmatter}]
----
+{delivery_block_line}---
 
 # {short_id}: {title} ({points} pt)
 

@@ -2,21 +2,22 @@
 # Purpose: Hermetic selftest for DP-303-T1 framework-release closeout authority
 #          hygiene. Asserts the closeout head-resolution authority chain and the
 #          --task-md boundary fail-closed contract:
-#   - AC1 / AC-NEG2: with NO --task-head-sha, a non-bundle task resolves its
-#     delivery head from the immutable completion-gate marker filename head
-#     (then task.md delivery block), NOT from the (mutable) task/* branch ref.
-#     A fixture that pollutes the task/* ref to a DIFFERENT commit must still
-#     close out against the marker head — resolve_branch_sha is no longer an
-#     authority source.
-#   - AC-NEG2 (no silent pass): with NO --task-head-sha AND no marker AND no
-#     task.md delivery head, closeout fail-closes instead of silently falling
-#     back to the branch ref.
+#   - AC1 / AC-NEG1 / AC-NEG2 (DP-360 T7): with NO --task-head-sha, a non-bundle
+#     task resolves its delivery head from the task.md deliverable.head_sha
+#     delivery block, NOT from the (mutable) task/* branch ref and NOT from the
+#     retired head-sha-keyed completion-gate marker. A fixture that pollutes the
+#     task/* ref to a DIFFERENT commit AND drops a stray torn-down marker at that
+#     polluted head must still close out against the task.md block —
+#     resolve_branch_sha is no longer an authority source and the marker is gone.
+#   - AC-NEG2 (no silent pass): with NO --task-head-sha AND no task.md delivery
+#     head, closeout fail-closes instead of silently falling back to the branch
+#     ref.
 #   - AC6: a --task-md whose frontmatter is task_kind=V is rejected at argument
 #     parsing with a parent-closeout hint (fail-closed, exit 2).
 #   - AC7: an aggregate task (carries bundle_branch_alias) WITHOUT a matching
 #     --task-head-sha fail-closes; the bundle path never auto-resolves the head.
 # Inputs:  none (CLI args ignored). Builds synthetic git repos + specs
-#          containers + completion-gate markers in a private tmpdir.
+#          containers in a private tmpdir.
 # Outputs: stdout PASS/FAIL summary. Exit 0 = all cases PASS, 1 = a case failed.
 # Side effects: tmpdir only (trap-removed). Never mutates the real workspace.
 
@@ -198,9 +199,10 @@ valid_verify_marker() {
 JSON
 }
 
-# Write a completion-gate marker at .polaris/evidence/completion-gate keyed
-# {work_item_id}-{head}.json (the immutable marker the closeout reads for head).
-write_completion_gate_marker() {
+# DP-360 T7: write a STRAY (torn-down) completion-gate marker. The closeout must
+# IGNORE it — the task.md deliverable.head_sha is the sole non-override head
+# authority. Used only to prove the retired marker does not influence the head.
+write_stray_completion_gate_marker() {
   local repo="$1" work_item_id="$2" head="$3"
   local dir="$repo/.polaris/evidence/completion-gate"
   mkdir -p "$dir"
@@ -219,8 +221,10 @@ run_closeout() {
 }
 
 # ===========================================================================
-# Case A1 (AC1 / AC-NEG2): polluted task/* ref — head comes from the immutable
-# completion-gate marker, NOT from the branch ref. No --task-head-sha given.
+# Case A1 (AC1 / AC-NEG1 / AC-NEG2, DP-360 T7): polluted task/* ref + stray
+# torn-down completion-gate marker — head comes from the task.md
+# deliverable.head_sha block, NOT from the branch ref and NOT from the marker.
+# No --task-head-sha given.
 # ===========================================================================
 {
   WS="$TMPROOT/a1-ws"
@@ -241,7 +245,8 @@ run_closeout() {
   # The release commit on main contains the delivery (ancestor of workspace).
   git -C "$WS" checkout -q main
   git -C "$WS" merge -q --no-ff task/DP-901-T1-x -m "merge delivery"
-  write_task_container "$WS" DP-901 T1 implementation task/DP-901-T1-x '' 'scripts/feature-a1.sh'
+  # task.md carries the GENUINE delivery head in its deliverable block.
+  write_task_container "$WS" DP-901 T1 implementation task/DP-901-T1-x '' 'scripts/feature-a1.sh' T "$DELIVERY_HEAD"
   git -C "$WS" add docs-manager
   git -C "$WS" commit -qm "container"
   RELEASE_HEAD="$(git -C "$WS" rev-parse HEAD)"
@@ -254,8 +259,9 @@ run_closeout() {
   POLLUTED_HEAD="$(git -C "$WS" rev-parse HEAD)"
   git -C "$WS" checkout -q main
 
-  # Immutable marker records the GENUINE delivery head.
-  write_completion_gate_marker "$WS" DP-901-T1 "$DELIVERY_HEAD"
+  # AC-NEG2: a STRAY torn-down completion-gate marker at the POLLUTED head must
+  # be ignored — only the task.md deliverable.head_sha may be the authority.
+  write_stray_completion_gate_marker "$WS" DP-901-T1 "$POLLUTED_HEAD"
 
   TASK_MD="$WS/docs-manager/src/content/docs/specs/design-plans/DP-901-fixture/tasks/T1/index.md"
   MARKER="$TMPROOT/a1-verify.json"
@@ -264,18 +270,20 @@ run_closeout() {
   [[ "$DELIVERY_HEAD" != "$POLLUTED_HEAD" ]] \
     || echo "[setup-error] A1 delivery head == polluted head" >&2
 
-  # No --task-head-sha: head MUST come from marker, not the polluted ref.
+  # No --task-head-sha: head MUST come from the task.md delivery block, not the
+  # polluted ref and not the stray marker.
   run_closeout "$SCRIPTS" \
     --task-md "$TASK_MD" \
     --verify-evidence "$MARKER" \
     --workspace-commit "$RELEASE_HEAD" --template-commit "$RELEASE_HEAD" \
     --version-tag v1.0.0 --release-url N/A --repo "$WS"
 
-  _assert_eq "$CLOSEOUT_RC" "0" "A1 closeout exits 0 (marker head resolved)"
+  _assert_eq "$CLOSEOUT_RC" "0" "A1 closeout exits 0 (delivery-block head resolved)"
   # The extension deliverable is written against the resolved head; assert the
-  # GENUINE delivery head (from marker) was used, not the polluted ref head.
-  _assert_contains "$(cat "$STUB_LOG")" "$DELIVERY_HEAD" "A1 closeout used marker delivery head"
-  _assert_not_contains "$(cat "$STUB_LOG")" "$POLLUTED_HEAD" "A1 closeout did NOT use polluted ref head"
+  # GENUINE delivery head (from task.md block) was used, not the polluted ref /
+  # stray-marker head.
+  _assert_contains "$(cat "$STUB_LOG")" "$DELIVERY_HEAD" "A1 closeout used task.md delivery-block head"
+  _assert_not_contains "$(cat "$STUB_LOG")" "$POLLUTED_HEAD" "A1 closeout did NOT use polluted ref / stray-marker head"
 }
 
 # ===========================================================================
@@ -319,8 +327,9 @@ run_closeout() {
 }
 
 # ===========================================================================
-# Case NEG2 (AC-NEG2): no --task-head-sha, no marker, no delivery block →
-# fail-closed. resolve_branch_sha is NOT an authority fallback.
+# Case NEG2 (AC-NEG2, DP-360 T7): no --task-head-sha, no task.md delivery block →
+# fail-closed. resolve_branch_sha is NOT an authority fallback (the head-sha
+# completion-gate marker is retired and never a fallback either).
 # ===========================================================================
 {
   WS="$TMPROOT/neg2-ws"
@@ -418,8 +427,9 @@ run_closeout() {
   MARKER="$TMPROOT/agg-verify.json"
   valid_verify_marker "$MARKER" DP-905-T1 "$TASK_HEAD"
 
-  # Even if a marker exists, the AGGREGATE path must require --task-head-sha.
-  write_completion_gate_marker "$WS" DP-905-T1 "$TASK_HEAD"
+  # Even if a stray (torn-down) marker exists, the AGGREGATE path must require
+  # --task-head-sha and must never auto-resolve a head from it.
+  write_stray_completion_gate_marker "$WS" DP-905-T1 "$TASK_HEAD"
 
   run_closeout "$SCRIPTS" \
     --task-md "$TASK_MD" \

@@ -5329,16 +5329,6 @@
       "relocation": "stay"
     },
     {
-      "path": "scripts/write-completion-gate-marker.sh",
-      "kind": "writer",
-      "runner": "bash",
-      "owner_surface": "engineering",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered by DP-207 auto-pass proof-of-work validation"
-    },
-    {
       "path": "scripts/write-deliverable.sh",
       "kind": "writer",
       "runner": "bash",

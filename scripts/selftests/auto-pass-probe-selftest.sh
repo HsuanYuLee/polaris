@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Purpose: Selftest for scripts/auto-pass-probe.sh — drives the auto-pass stage
+#          probe across task-snapshot / validation-fail / missing-v-task evidence
+#          fixtures and asserts the emitted stage decisions.
+# Inputs:  none (builds hermetic fixtures under a mktemp dir)
+# Outputs: stdout PASS/FAIL lines; exit 0 on PASS, non-zero on failure
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -140,6 +145,73 @@ cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/archive/DP-901-archi
 }
 JSON
 
+# DP-360 T7: engineering/verify-AC stages now read the canonical task.md
+# `deliverable` block (deliverable.head_sha + deliverable.verification.status)
+# resolved by work_item_id — no head-sha-keyed completion-gate / ac-verification
+# markers. write_task_deliverable scaffolds a real tasks/<Tn>/index.md so
+# resolve-task-md.sh can locate it.
+#   $1 = work_item_id (e.g. DP-900-T1, DP-900-V1)
+#   $2 = delivered head_sha (empty string to omit the deliverable block entirely)
+#   $3 = verification status (empty string to omit the verification sub-block)
+write_task_deliverable() {
+  local wid="$1"
+  local head="$2"
+  local vstatus="$3"
+  local task_id="${wid##*-}"
+  local task_dir="$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/$task_id"
+  mkdir -p "$task_dir"
+  {
+    echo "---"
+    echo "title: \"$wid fixture\""
+    echo "description: \"auto-pass probe task.md deliverable fixture\""
+    echo "status: IN_PROGRESS"
+    if [[ -n "$head" ]]; then
+      echo "deliverable:"
+      echo "  head_sha: $head"
+      if [[ -n "$vstatus" ]]; then
+        echo "  verification:"
+        echo "    status: $vstatus"
+      fi
+    fi
+    echo "---"
+    echo ""
+    echo "## Fixture"
+  } >"$task_dir/index.md"
+}
+
+remove_task_deliverable() {
+  local wid="$1"
+  local task_id="${wid##*-}"
+  rm -rf "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/$task_id"
+}
+
+# DP-360 T7: the verify-AC stage reads the V-task `ac_verification` frontmatter
+# block (the canonical V-task lifecycle record), NOT a head-keyed marker and NOT
+# a deliverable block. write_v_task_ac scaffolds tasks/<Vn>/index.md with it.
+#   $1 = work_item_id (e.g. DP-900-V1)
+#   $2 = ac_verification status (empty string omits the block entirely)
+write_v_task_ac() {
+  local wid="$1"
+  local vstatus="$2"
+  local task_id="${wid##*-}"
+  local task_dir="$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/$task_id"
+  mkdir -p "$task_dir"
+  {
+    echo "---"
+    echo "title: \"$wid fixture\""
+    echo "description: \"auto-pass probe V-task ac_verification fixture\""
+    echo "status: IN_PROGRESS"
+    echo "task_kind: V"
+    if [[ -n "$vstatus" ]]; then
+      echo "ac_verification:"
+      echo "  status: $vstatus"
+    fi
+    echo "---"
+    echo ""
+    echo "## Fixture"
+  } >"$task_dir/index.md"
+}
+
 write_marker() {
   local path="$1"
   local kind="$2"
@@ -245,30 +317,68 @@ assert_field "source-jira-missing" "BLOCKED" status --stage source --source-id E
 # ─── source stage (AC-NEG7: archived must BLOCK) ─────────────────────────────
 assert_field "source-archived-blocked" "BLOCKED" status --stage source --source-id DP-901 --work-item-id DP-901
 
-# ─── engineering stage (pre-existing) ─────────────────────────────────────────
-write_marker "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json" completion_gate PASS
+# ─── engineering stage (DP-360 T7: task.md deliverable block) ─────────────────
+# AC3: no marker; task.md deliverable.head_sha bound to probe head + PASS → verify-AC.
+write_task_deliverable DP-900-T1 abc1234 PASS
 assert_field "engineering-pass" "verify-AC" next_action --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
-rm -f "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json"
 
+# AC-NEG1: a polluting branch ref must NOT rescue — head mismatch in task.md
+# blocks even though the work item would be deliverable at a different head.
+git -C "$TMP" init -q 2>/dev/null || true
+git -C "$TMP" update-ref "refs/heads/task/DP-900-T1-abc1234" HEAD 2>/dev/null || true
+assert_field "engineering-head-mismatch-blocks" "blocked_by_gate_failure" terminal_status --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha deadbee
+git -C "$TMP" update-ref -d "refs/heads/task/DP-900-T1-abc1234" 2>/dev/null || true
+
+# AC-NEG2: a stray completion-gate marker at the probe head must be IGNORED —
+# the deliverable block (here non-PASS) is the sole authority.
+write_task_deliverable DP-900-T1 abc1234 IN_PROGRESS
+write_marker "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json" completion_gate PASS
+assert_field "engineering-stray-marker-ignored" "blocked_by_gate_failure" terminal_status --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
+rm -f "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json"
+remove_task_deliverable DP-900-T1
+
+# Latent reader guard (DP-325): blocked-conflict marker still blocks.
+write_task_deliverable DP-900-T1 abc1234 PASS
 write_marker "$TMP/.polaris/evidence/blocked-conflict/DP-900-T1-abc1234.json" blocked_conflict BLOCKED
 assert_field "engineering-blocked-conflict" "blocked_by_gate_failure" terminal_status --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
 rm -f "$TMP/.polaris/evidence/blocked-conflict/DP-900-T1-abc1234.json"
+remove_task_deliverable DP-900-T1
 
-# ─── verify-AC stage ─────────────────────────────────────────────────────────
-write_marker "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json" ac_verification PASS
+# AC3: missing deliverable block entirely → blocked (task.md exists, no head).
+write_task_deliverable DP-900-T1 "" ""
+assert_field "engineering-no-deliverable-blocks" "blocked_by_gate_failure" terminal_status --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
+remove_task_deliverable DP-900-T1
+
+# ─── verify-AC stage (DP-360 T7: V-task ac_verification frontmatter block) ─────
+# AC3: no marker; V-task ac_verification.status=PASS → complete.
+write_v_task_ac DP-900-V1 PASS
 assert_field "verify-pass" "complete" terminal_status --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
+
+# AC-NEG2: a stray PASS ac-verification marker must be IGNORED — the V-task
+# ac_verification block (here FAIL) is the sole authority and still blocks.
+write_v_task_ac DP-900-V1 FAIL
+write_marker "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json" ac_verification PASS
+assert_field "verify-stray-marker-ignored" "blocked_by_gate_failure" terminal_status --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
 rm -f "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json"
 
-# DP-212 amendment loop: spec-issue marker → ROUTE_BACK_AMEND, terminal null.
+# DP-212 amendment loop: spec-issue marker (distinct, NOT torn down) →
+# ROUTE_BACK_AMEND, terminal null. Read BEFORE the ac_verification block.
+write_v_task_ac DP-900-V1 PASS
 write_marker "$TMP/.polaris/evidence/ac-verification/spec-issue-DP-900-V1-abc1234.json" spec_issue ROUTE_BACK
 assert_field "verify-spec-issue-terminal" "None" terminal_status --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
 assert_field "verify-spec-issue-next" "refinement_amendment" next_action --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
 rm -f "$TMP/.polaris/evidence/ac-verification/spec-issue-DP-900-V1-abc1234.json"
 
-write_marker "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json" ac_verification MANUAL_REQUIRED
+# Verification disposition MANUAL_REQUIRED → paused_for_user_external_write.
+write_v_task_ac DP-900-V1 MANUAL_REQUIRED
 assert_field "verify-manual" "paused_for_user_external_write" terminal_status --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
-rm -f "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json"
 
+# Missing ac_verification block → blocked (V-task present, no status).
+write_v_task_ac DP-900-V1 ""
+assert_field "verify-no-status-blocks" "blocked_by_gate_failure" terminal_status --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
+remove_task_deliverable DP-900-V1
+
+# Missing task.md entirely → blocked (no V-task authority).
 assert_field "verify-unknown" "blocked_by_gate_failure" terminal_status --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
 
 LEDGER="$TMP/ledger.json"
@@ -354,9 +464,9 @@ echo "$ac_neg3_out" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.e
 }
 rm -f "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/prose-decoy.md"
 
-# (3) Engineering PASS marker stability.
-write_marker "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json" completion_gate PASS
+# (3) Engineering PASS stability (DP-360 T7: task.md deliverable block).
+write_task_deliverable DP-900-T1 abc1234 PASS
 stability_check "stability-engineering-pass" --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
-rm -f "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json"
+remove_task_deliverable DP-900-T1
 
 echo "PASS: auto-pass probe selftest"

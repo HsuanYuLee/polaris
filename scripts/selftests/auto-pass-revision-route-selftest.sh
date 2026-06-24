@@ -61,18 +61,28 @@ cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refin
 {"source": {"type": "dp", "id": "DP-900"}, "modules": [], "acceptance_criteria": []}
 JSON
 
-# Completion-gate PASS marker — engineering stage precondition for the
-# review-state branch (only fires AFTER completion gate is PASS).
-write_completion_gate() {
-  python3 - "$TMP/.polaris/evidence/completion-gate/${WORK_ITEM_ID}-${HEAD_SHA}.json" <<'PY'
-import json, sys
-from pathlib import Path
-Path(sys.argv[1]).write_text(json.dumps({
-    "schema_version": 1, "marker_kind": "selftest", "writer": "selftest",
-    "owning_skill": "selftest", "source_id": "DP-900", "work_item_id": "DP-900-T1",
-    "status": "PASS", "freshness": {"head_sha": "abc1234"},
-}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-PY
+# DP-360 T7: the engineering-stage precondition for the review-state branch is a
+# task.md `deliverable` block (deliverable.head_sha bound to the probe head +
+# deliverable.verification.status == PASS), NOT a head-sha-keyed completion-gate
+# marker. The review-state route only fires AFTER that PASS signal. Scaffold a
+# real tasks/T1/index.md so resolve-task-md.sh can locate it.
+write_task_deliverable() {
+  local task_id="${WORK_ITEM_ID##*-}"
+  local task_dir="$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/$task_id"
+  mkdir -p "$task_dir"
+  {
+    echo "---"
+    echo "title: \"$WORK_ITEM_ID fixture\""
+    echo "description: \"revision route deliverable fixture\""
+    echo "status: IN_PROGRESS"
+    echo "deliverable:"
+    echo "  head_sha: $HEAD_SHA"
+    echo "  verification:"
+    echo "    status: PASS"
+    echo "---"
+    echo ""
+    echo "## Fixture"
+  } >"$task_dir/index.md"
 }
 
 # Build an explicit review-state fixture file mirroring pr-action-classifier.sh
@@ -127,7 +137,7 @@ if errs:
 PY
 }
 
-write_completion_gate
+write_task_deliverable
 
 # ── (a) actionable review signal → engineering revision (AC1) ────────────────
 write_pr_state_file "$TMP/state-actionable.json" needs_code_changes code_drift

@@ -49,11 +49,18 @@ fi
 # Branch detection
 branch=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)
 
-# Push mode: only run on task/* and fix/* branches
+# Push mode branch coverage (DP-360 T3 / AC2 / AC-NEG4). The legacy filter ran ci-local
+# only on task/* and fix/* branches, silently skipping feat/* / chore/* / main /
+# master / develop. That branch skip is REMOVED: every named branch now runs ci-local
+# in push mode. The ONLY exit-0 here is the genuinely unresolvable branch (empty /
+# detached HEAD / "unknown"), which cannot be gated against a branch name — this is
+# fail-stop-on-missing-input, not a fail-open branch skip. Framework repos with no
+# canonical ci-local script still fall through to the NO_CI_LOCAL_CONFIGURED exit 0
+# below (that is the documented "no repo CI" path, governed by the legacy-script
+# fail-closed check, not a branch skip).
 if [[ "$PUSH_MODE" -eq 1 ]]; then
   case "$branch" in
-    task/*|fix/*) ;;
-    *)
+    ""|HEAD|unknown)
       exit 0
       ;;
   esac

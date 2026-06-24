@@ -52,18 +52,61 @@ Path(path).write_text(json.dumps({
 PY
 done
 
+# DP-360 T7: the report's verification.status=PASS cross-check now resolves the V
+# work item's task.md (via the canonical resolver under the hermetic evidence
+# root) and reads its `deliverable` block — the ac_verification marker above is
+# retired as the head-resolution authority. Write a resolvable V1 task.md carrying
+# a PASS deliverable block for every source whose fixture claims a PASS
+# verification, so the cross-check is independently satisfiable. The report pins
+# no verification.head_sha, so any recorded head_sha satisfies the head-bound
+# check; status must be PASS. Place files under the docs-manager specs root the
+# resolver derives from --scan-root=$POLARIS_WORKSPACE_ROOT.
+SPECS_DP="$TMP/docs-manager/src/content/docs/specs/design-plans"
+write_v_deliverable_task() {
+  local dp_dir="$1"
+  local task_no="$2"
+  mkdir -p "${dp_dir}/tasks/${task_no}"
+  python3 - "${dp_dir}/tasks/${task_no}/index.md" "$task_no" "$FIXTURE_HEAD" <<'PY'
+import sys
+from pathlib import Path
+path, task_no, head = sys.argv[1:4]
+Path(path).write_text(
+    "---\n"
+    "task_kind: V\n"
+    "deliverable:\n"
+    "  pr_url: https://github.com/example/polaris/pull/1\n"
+    "  pr_state: MERGED\n"
+    f"  head_sha: {head}\n"
+    "  verification:\n"
+    "    status: PASS\n"
+    "---\n\n"
+    f"# {task_no}\n",
+    encoding="utf-8",
+)
+PY
+}
+# DP-198-V1 (default source_id=DP-198): COMPLETE + SUNSET reports fire PASS.
+write_v_deliverable_task "${SPECS_DP}/DP-198-report-fixture" V1
+
 write_report() {
   local path="$1"
   local terminal="$2"
   local mode="$3"
   local source_id="${4:-DP-198}"
-  REPORT_LEDGER_FIXTURE="$FIXTURE_LEDGER" python3 - "$path" "$terminal" "$mode" "$source_id" <<'PY'
+  # DP-360 T7: the verification cross-check resolves the V work item's task.md via
+  # the canonical resolver. A DP source's V id (`DP-NNN-V1`) is directly
+  # resolvable, but a JIRA-Epic source's V work item carries its own JIRA ticket
+  # key (resolvable as a plain `^[A-Z][A-Z0-9]+-[0-9]+$` key) — never `{epic}-V1`,
+  # which the resolver rejects. Callers may pass an explicit resolvable V
+  # work_item_id (arg 5) for the JIRA happy path; default keeps the DP shape.
+  local v_work_item="${5:-${source_id}-V1}"
+  REPORT_LEDGER_FIXTURE="$FIXTURE_LEDGER" python3 - "$path" "$terminal" "$mode" "$source_id" "$v_work_item" <<'PY'
 import json
 import os
 import sys
 from pathlib import Path
 
-path, terminal, mode, source_id = sys.argv[1:5]
+path, terminal, mode, source_id, v_work_item = sys.argv[1:6]
 payload = {
     "schema_version": 1,
     "source_id": source_id,
@@ -71,7 +114,7 @@ payload = {
     "created_at": "2026-05-19T10:30:00+08:00",
     "ledger_path": os.environ.get("REPORT_LEDGER_FIXTURE", "/tmp/ledger.json"),
     "required_prs": [{"task_id": f"{source_id}-T1", "pr_url": "https://github.com/org/repo/pull/1", "head_sha": "abc"}],
-    "verification": {"status": "PASS", "work_item_id": f"{source_id}-V1"},
+    "verification": {"status": "PASS", "work_item_id": v_work_item},
     "issues": [],
     "blockers": [],
     "manual_items": [],
@@ -154,8 +197,35 @@ write_report "$BAD_OVERLAP" complete bad_overlap
 expect_fail "bad-overlap" "$VALIDATOR" "$BAD_OVERLAP"
 
 # DP-228 AC4: JIRA source report fixture — happy path with non-DP source_id.
+# DP-360 T7: a JIRA-Epic source's V work item carries its own JIRA ticket key
+# (resolvable as a plain JIRA key); pass it explicitly and provide the resolvable
+# V task.md (T-path with a matching jira_key field + PASS deliverable block) so
+# the verification cross-check is independently satisfiable.
+JIRA_V_WORK_ITEM="EXAMPLE-1000"
+JIRA_V_TASK_DIR="$TMP/docs-manager/src/content/docs/specs/companies/exampleco/EXAMPLE-999/tasks/T1"
+mkdir -p "$JIRA_V_TASK_DIR"
+python3 - "$JIRA_V_TASK_DIR/index.md" "$JIRA_V_WORK_ITEM" "$FIXTURE_HEAD" <<'PY'
+import sys
+from pathlib import Path
+path, jira_key, head = sys.argv[1:4]
+Path(path).write_text(
+    "---\n"
+    "task_kind: V\n"
+    f"jira_key: {jira_key}\n"
+    "deliverable:\n"
+    "  pr_url: https://github.com/example/polaris/pull/1\n"
+    "  pr_state: MERGED\n"
+    f"  head_sha: {head}\n"
+    "  verification:\n"
+    "    status: PASS\n"
+    "---\n\n"
+    "# V1\n\n"
+    f"> Source: EXAMPLE-999 | Task: {jira_key} | JIRA: {jira_key} | Repo: selftest\n",
+    encoding="utf-8",
+)
+PY
 JIRA_COMPLETE="$TMP/jira-complete.json"
-write_report "$JIRA_COMPLETE" complete complete EXAMPLE-999
+write_report "$JIRA_COMPLETE" complete complete EXAMPLE-999 "$JIRA_V_WORK_ITEM"
 "$VALIDATOR" "$JIRA_COMPLETE"
 
 JIRA_BLOCKED="$TMP/jira-blocked.json"

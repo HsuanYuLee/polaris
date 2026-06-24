@@ -4,10 +4,14 @@
 #          (a) report.terminal_status=complete ↔ referenced ledger terminal
 #              (AC5: paused / non-complete terminal / unreadable ledger →
 #              exit 2 + 結構化 marker；complete 與 complete-eligible 放行)
-#          (b) report.verification.status=PASS ↔ head-bound
-#              .polaris/evidence/ac-verification/{work_item}-{head}.json PASS
-#              marker（AC6: 缺 marker / stale summary → exit 2 + marker）
-# Inputs:  none (hermetic; fixtures in mktemp dir, evidence root pinned via
+#          (b) report.verification.status=PASS ↔ the V work item's task.md
+#              `deliverable` block (deliverable.head_sha + verification.status
+#              =PASS). DP-360 T7: the head-sha-keyed ac_verification marker is
+#              retired; the task.md block is the sole delivery-evidence source
+#              (AC6: no resolvable task.md / no head → MISSING; status≠PASS or
+#              pinned-head mismatch → MISMATCH; never reads a marker file or a
+#              branch ref).
+# Inputs:  none (hermetic; fixtures in mktemp dir, scan root pinned via
 #          POLARIS_WORKSPACE_ROOT override)
 # Outputs: "PASS: ..." on success; non-zero exit with diagnostics on failure.
 #
@@ -35,29 +39,50 @@ CONTRACT_EVIDENCE="scripts/validate-auto-pass-report.sh:1"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# DP-311 T3: hermetic evidence root — the validator resolves head-bound
-# ac_verification markers under {workspace_root}/.polaris/evidence/.
+# DP-360 T7: hermetic scan root — the validator resolves the V work item's
+# task.md `deliverable` block via resolve-task-md.sh --scan-root $TMP (the
+# head-sha-keyed ac_verification marker is retired).
 export POLARIS_WORKSPACE_ROOT="$TMP"
-MARKER_DIR="$TMP/.polaris/evidence/ac-verification"
-mkdir -p "$MARKER_DIR"
+SPECS_DESIGN_PLANS="$TMP/docs-manager/src/content/docs/specs/design-plans"
+mkdir -p "$SPECS_DESIGN_PLANS"
 
-# Description: write an ac_verification marker fixture.
-# Args:        $1 = work_item_id; $2 = head sha; $3 = status (PASS/FAIL)
-# Side effects: creates $MARKER_DIR/{work_item}-{head}.json
+# Description: record a V work item's delivery in its task.md `deliverable` block
+#              (DP-360 T7 replacement for the retired ac_verification marker).
+#              Creates the DP container + V task.md resolvable by work_item_id.
+# Args:        $1 = work_item_id (DP-NNN-V{n}); $2 = head sha; $3 = status
+# Side effects: writes $SPECS_DESIGN_PLANS/{DP}-selftest/tasks/{stem}/index.md
 write_marker() {
   local work_item="$1" head="$2" status="$3"
-  python3 - "$MARKER_DIR/${work_item}-${head}.json" "$work_item" "$head" "$status" <<'PY'
-import json, sys
+  python3 - "$SPECS_DESIGN_PLANS" "$work_item" "$head" "$status" <<'PY'
+import re
+import sys
 from pathlib import Path
-path, work_item, head, status = sys.argv[1:5]
-Path(path).write_text(json.dumps({
-    "schema_version": 1,
-    "marker_kind": "ac_verification",
-    "writer": "verify-AC",
-    "work_item_id": work_item,
-    "head_sha": head,
-    "status": status,
-}) + "\n", encoding="utf-8")
+
+base, work_item, head, status = sys.argv[1:5]
+m = re.match(r"^(DP-\d+)-([A-Za-z]+\d+)$", work_item)
+assert m, f"unexpected work_item shape: {work_item}"
+dp, stem = m.group(1), m.group(2)
+task_dir = Path(base) / f"{dp}-selftest" / "tasks" / stem
+task_dir.mkdir(parents=True, exist_ok=True)
+(task_dir / "index.md").write_text(
+    "---\n"
+    f'title: "{stem}"\n'
+    "status: IN_PROGRESS\n"
+    "task_kind: V\n"
+    f"work_item_id: {work_item}\n"
+    "deliverable:\n"
+    f"  head_sha: {head}\n"
+    "  pr_url: https://github.com/example-org/example/pull/1\n"
+    "  pr_state: MERGED\n"
+    "  verification:\n"
+    f"    status: {status}\n"
+    "    ac_counts:\n"
+    "      ac_total: 1\n"
+    f"      ac_pass: {'1' if status == 'PASS' else '0'}\n"
+    "---\n\n"
+    f"# {stem}\n",
+    encoding="utf-8",
+)
 PY
 }
 
@@ -530,7 +555,12 @@ write_report "$AC6_STALE" complete complete DP-557 "$COMPLETE_LEDGER"
 assert_fail2 "ac6-stale" "$VALIDATOR" "$AC6_STALE"
 grep -q 'POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISMATCH' "$TMP/ac6-stale.out"
 
-# ─── 18. AC6 NEG: pinned verification.head_sha without matching marker ───────
+# ─── 18. AC6 NEG: pinned verification.head_sha that does not match the V ─────
+#         work item's recorded deliverable.head_sha → exit 2 + MISMATCH.
+#         DP-360 T7: there is ONE durable delivery record per work item (the
+#         task.md deliverable block, head=aaaa from line 84). A pinned head
+#         (bbbb) that does not bind to the recorded head is a genuine MISMATCH
+#         (delivery happened at a different head), not a missing record.
 AC6_PINNED_MISS="$TMP/ac6-pinned-miss.json"
 python3 - "$AC6_PINNED_MISS" "$COMPLETE_LEDGER" <<'PY'
 import json, sys
@@ -554,7 +584,7 @@ Path(report_path).write_text(json.dumps({
 }) + "\n", encoding="utf-8")
 PY
 assert_fail2 "ac6-pinned-miss" "$VALIDATOR" "$AC6_PINNED_MISS"
-grep -q 'POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISSING' "$TMP/ac6-pinned-miss.out"
+grep -q 'POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISMATCH' "$TMP/ac6-pinned-miss.out"
 
 # ─── 19. AC6 POS: pinned verification.head_sha with matching PASS marker ─────
 AC6_PINNED_OK="$TMP/ac6-pinned-ok.json"

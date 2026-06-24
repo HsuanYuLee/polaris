@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Purpose: Detect DP closeout drift — active LOCKED design plans whose delivery
-#          evidence (completion-gate markers / merged PR / CHANGELOG) shows the
+#          evidence (task.md deliverable block / merged PR / CHANGELOG) shows the
 #          work shipped but the spec container was never archived (delivered
 #          drift), or that have been LOCKED with zero delivery evidence past a
 #          staleness threshold (stranded). High-confidence delivered drift is
@@ -102,7 +102,6 @@ fi
 WORKSPACE_ROOT="$(cd "$WORKSPACE_ROOT" && pwd)"
 SPECS_ROOT="$(resolve_specs_root "$WORKSPACE_ROOT")" || fail "unable to resolve specs root"
 
-MARKER_DIR="$WORKSPACE_ROOT/.polaris/evidence/completion-gate"
 CHANGELOG="$WORKSPACE_ROOT/CHANGELOG.md"
 
 now_epoch() {
@@ -235,14 +234,68 @@ dp_v_verification_pending() {
   return 1
 }
 
-# Count completion-gate markers present for a DP's task stems.
-# Echos "<covered> <total>".
+# Read whether a T task's task.md frontmatter records a delivered head + PASS
+# verification via the `deliverable` block (DP-360 T7). A task is "delivered"
+# when its task.md carries a non-empty `deliverable.head_sha` AND a nested
+# `deliverable.verification.status: PASS`. The head-sha-keyed completion-gate
+# marker is retired (D2/D4); the task.md `deliverable` block is the sole durable
+# delivery-evidence record. Branch refs are never consulted (AC-NEG1).
+# Echos "delivered" when both hold, "" otherwise (callers treat "" as not
+# delivered, conservative — same posture as ac_verification_status).
+# Portable awk only (no GNU match()-array) so BSD/GNU awk agree.
+task_deliverable_delivered() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  awk '
+    # Stop scanning at the closing frontmatter fence.
+    NR > 1 && $0 == "---" && seen_open { exit }
+    NR == 1 && $0 == "---" { seen_open = 1; next }
+    $0 == "deliverable:" { in_deliverable = 1; next }
+    # A new top-level (col-0, non-list) key ends the deliverable block.
+    in_deliverable && /^[^[:space:]-].*:/ { in_deliverable = 0 }
+    in_deliverable && /^[[:space:]]+head_sha:[[:space:]]*[^[:space:]]/ {
+      line = $0
+      sub(/^[[:space:]]+head_sha:[[:space:]]*/, "", line)
+      sub(/[[:space:]].*$/, "", line)
+      if (line != "") have_head = 1
+    }
+    in_deliverable && /^[[:space:]]+verification:/ { in_verification = 1; next }
+    # A sibling 2-space key under deliverable ends the verification sub-block.
+    in_verification && /^[[:space:]][[:space:]][^[:space:]].*:/ && !/^[[:space:]][[:space:]][[:space:]]/ {
+      in_verification = 0
+    }
+    in_verification && /^[[:space:]]+status:[[:space:]]*PASS/ { have_pass = 1 }
+    END { if (have_head && have_pass) print "delivered" }
+  ' "$file"
+}
+
+# Resolve the task.md path for a DP task stem (folder-native or legacy flat,
+# active tasks/ or finalized tasks/pr-release/). Echos the first match.
+dp_task_file_for_stem() {
+  local container="$1" stem="$2" cand=""
+  for cand in \
+    "$container/tasks/$stem/index.md" \
+    "$container/tasks/$stem.md" \
+    "$container/tasks/pr-release/$stem/index.md" \
+    "$container/tasks/pr-release/$stem.md"; do
+    if [[ -f "$cand" ]]; then
+      printf '%s\n' "$cand"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Count T tasks whose task.md `deliverable` block records delivery (head + PASS)
+# for a DP container. Echos "<covered> <total>". (DP-360 T7: replaces the
+# completion-gate marker count; same covered/total semantics feed classification.)
 dp_marker_coverage() {
-  local dp="$1" container="$2" stem="" total=0 covered=0
+  local container="$2" stem="" file="" total=0 covered=0
   while IFS= read -r stem; do
     [[ -n "$stem" ]] || continue
     total=$((total + 1))
-    if compgen -G "$MARKER_DIR/${dp}-${stem}-*.json" >/dev/null 2>&1; then
+    file="$(dp_task_file_for_stem "$container" "$stem" || true)"
+    if [[ -n "$file" && "$(task_deliverable_delivered "$file")" == "delivered" ]]; then
       covered=$((covered + 1))
     fi
   done < <(dp_task_stems "$container")

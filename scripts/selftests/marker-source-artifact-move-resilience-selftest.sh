@@ -1,24 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Purpose: DP-325 T5 / AC8 + AC-NF1 — selftest for D-class reader resilience to a
-#          moved source_artifact. When a task.md moves to pr-release/ (or container
-#          archive) after its completion_gate / ac_verification marker is written,
-#          the frozen freshness.source_artifact path no longer resolves; the reader
-#          must relocate by work_item_id (resolve-task-md.sh) and verify the marker's
-#          task_artifact_sha256 instead of failing existence-only. Covers both reader
-#          sites:
-#            - scripts/check-delivery-completion.sh (completion_gate reader),
+# Purpose: DP-325 T5 / AC8 + DP-360 T7 — selftest for D-class reader resilience to
+#          a moved task.md. DP-360 T7 retires the head-sha completion_gate /
+#          ac_verification markers; the delivery evidence is now the task.md
+#          `deliverable` block. Move-resilience is therefore intrinsic to task.md
+#          resolution (resolve-task-md.sh --include-archive) rather than marker
+#          relocation. This asserts both reader sites still pass after the task.md
+#          moves to pr-release/, with NO marker file present (AC3 / AC-NEG2), and
+#          that a non-PASS block still fails closed after the move (no laundering):
+#            - scripts/check-delivery-completion.sh (audit/confirmation reader),
 #            - scripts/lib/evidence-classifier.sh marker-pass (shared reader).
-#          Also asserts a path-only marker (no sha to re-resolve) still fails closed.
-# Inputs:  none (builds tmp git fixture repos + evidence markers).
+# Inputs:  none (builds tmp git fixture repos + task.md deliverable blocks).
 # Outputs: TAP-ish lines; exit 0 when all cases pass, 1 otherwise.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHECK="$SCRIPT_DIR/check-delivery-completion.sh"
 CLASSIFIER="$SCRIPT_DIR/lib/evidence-classifier.sh"
-WRITE_MARKER="$SCRIPT_DIR/write-completion-gate-marker.sh"
-WRITE_REPORT="$SCRIPT_DIR/write-task-verify-report.sh"
 TMPROOT="$(mktemp -d -t marker-move-resilience-XXXXXX)"
 PASS=0
 TOTAL=0
@@ -47,7 +45,15 @@ assert_contains() {
   fi
 }
 
-sha256_of() { shasum -a 256 "$1" | cut -d' ' -f1; }
+assert_no_marker() {
+  local label="$1" repo="$2"
+  TOTAL=$((TOTAL + 1))
+  if [[ ! -d "$repo/.polaris/evidence/completion-gate" && ! -d "$repo/.polaris/evidence/ac-verification" ]]; then
+    PASS=$((PASS + 1)); printf 'ok %s\n' "$label"
+  else
+    printf 'not ok %s: marker dir present (AC-NEG2 expects none)\n' "$label" >&2
+  fi
+}
 
 # Build the planner-owned baseline snapshot the completion gate expects, mirroring
 # the canonical writer in engineering-branch-setup.sh exactly (it extracts
@@ -106,9 +112,10 @@ setup_repo() {
   git -C "$repo" commit -q -m "init"
 }
 
-# Writes a confirmation-shape DP task.md at $tasks_dir/$task_n/index.md.
+# Writes a confirmation-shape DP task.md at $rel_dir/$task_n/index.md, carrying the
+# DP-360 deliverable block (head_sha + verification.status). $6 = verification status.
 write_task() {
-  local repo="$1" head_sha="$2" task_id="$3" task_n="$4" rel_dir="$5"
+  local repo="$1" head_sha="$2" task_id="$3" task_n="$4" rel_dir="$5" vstatus="${6:-PASS}"
   local task_md="$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-move/${rel_dir}/${task_n}/index.md"
   mkdir -p "$(dirname "$task_md")"
   cat > "$task_md" <<EOF
@@ -116,6 +123,14 @@ write_task() {
 task_shape: confirmation
 deliverable:
   head_sha: $head_sha
+  verification:
+    status: $vstatus
+    ac_counts:
+      ac_total: 1
+      ac_pass: 1
+      ac_fail: 0
+      ac_manual_required: 0
+      ac_uncertain: 0
 status: IN_PROGRESS
 depends_on: []
 ---
@@ -172,7 +187,9 @@ run_check() {
 }
 
 # ---------------------------------------------------------------------------
-# Case A: completion_gate reader passes after task.md moves to pr-release/.
+# Case A: audit/confirmation completion (check-delivery-completion.sh) passes
+# after the task.md moves to pr-release/, reading the task.md deliverable block
+# with NO marker file present.
 # ---------------------------------------------------------------------------
 case_check_delivery_completion_after_move() {
   local repo="$TMPROOT/check-move/repo"
@@ -180,35 +197,33 @@ case_check_delivery_completion_after_move() {
   setup_repo "$repo"
   local head_sha task_md
   head_sha="$(git -C "$repo" rev-parse HEAD)"
-  # Write the live task.md, baseline snapshot, verify report + marker bound to it.
-  task_md="$(write_task "$repo" "$head_sha" "DP-999-T9" "T9" "tasks")"
+  task_md="$(write_task "$repo" "$head_sha" "DP-999-T9" "T9" "tasks" "PASS")"
   write_baseline_snapshot "$repo" "$task_md" "DP-999-T9" "$head_sha"
-  bash "$WRITE_REPORT" --repo "$repo" --ticket "DP-999-T9" --task-md "$task_md" --head-sha "$head_sha" --status PASS >/dev/null
-  bash "$WRITE_MARKER" --source-id DP-999 --work-item-id DP-999-T9 --head-sha "$head_sha" \
-    --status PASS --task-md "$task_md" \
-    --out "$repo/.polaris/evidence/completion-gate/DP-999-T9-${head_sha}.json" >/dev/null
+  bash "$SCRIPT_DIR/write-task-verify-report.sh" --repo "$repo" --ticket "DP-999-T9" \
+    --task-md "$task_md" --head-sha "$head_sha" --status PASS >/dev/null
+
+  assert_no_marker "caseA: AC-NEG2 no marker dir created" "$repo"
 
   # Sanity: the completion gate passes while the task.md is in place.
   set +e; out="$(run_check "$repo" "DP-999-T9")"; rc=$?; set -e
   assert_rc "caseA-pre: gate passes with live task.md" "$rc" "0"
 
-  # Move the whole task dir to pr-release/ (closeout pattern moves index.md +
-  # sibling verify-report.md together). The marker's frozen source_artifact path
-  # is now stale, but work_item_id + sha must re-resolve it. The completion gate
-  # resolves task.md by path (resolve-task-md.sh), not via git, so a plain mv
-  # mirrors the closeout move without advancing HEAD (which would break the
-  # unrelated deliverable.head_sha == HEAD freshness check).
+  # Move the whole task dir to pr-release/ (closeout pattern). The completion gate
+  # resolves task.md by work_item_id (resolve-task-md.sh --include-archive), so a
+  # plain mv mirrors the closeout move without advancing HEAD (which would break
+  # the unrelated deliverable.head_sha == HEAD freshness check).
   local tasks_dir="$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-move/tasks"
   mkdir -p "$tasks_dir/pr-release"
   mv "$tasks_dir/T9" "$tasks_dir/pr-release/T9"
 
   set +e; out="$(run_check "$repo" "DP-999-T9")"; rc=$?; set -e
   assert_rc "caseA: completion gate passes after task.md moved to pr-release/" "$rc" "0"
-  assert_contains "caseA: gate satisfied message" "$out" "completion gate satisfied"
+  assert_contains "caseA: gate satisfied via task.md deliverable block" "$out" "deliverable block"
 }
 
 # ---------------------------------------------------------------------------
-# Case B: evidence-classifier marker-pass reader relocates a moved task.md.
+# Case B: evidence-classifier marker-pass relocates a moved task.md via
+# work_item_id, with NO marker file present.
 # ---------------------------------------------------------------------------
 case_evidence_classifier_after_move() {
   local repo="$TMPROOT/classifier-move/repo"
@@ -216,19 +231,18 @@ case_evidence_classifier_after_move() {
   setup_repo "$repo"
   local head_sha task_md
   head_sha="$(git -C "$repo" rev-parse HEAD)"
-  task_md="$(write_task "$repo" "$head_sha" "DP-999-T9" "T9" "tasks")"
-  bash "$WRITE_MARKER" --source-id DP-999 --work-item-id DP-999-T9 --head-sha "$head_sha" \
-    --status PASS --task-md "$task_md" \
-    --out "$repo/.polaris/evidence/completion-gate/DP-999-T9-${head_sha}.json" >/dev/null
+  task_md="$(write_task "$repo" "$head_sha" "DP-999-T9" "T9" "tasks" "PASS")"
 
-  # Pre-move: marker-pass resolves the live frozen path.
+  assert_no_marker "caseB: AC-NEG2 no marker dir created" "$repo"
+
+  # Pre-move: marker-pass resolves the live task.md block.
   set +e
   out="$(bash "$CLASSIFIER" marker-pass --repo "$repo" --work-item-id DP-999-T9 --head-sha "$head_sha" 2>&1)"
   rc=$?
   set -e
   assert_rc "caseB-pre: marker-pass with live task.md" "$rc" "0"
 
-  # Move and re-check: the reader must relocate via work_item_id + sha.
+  # Move and re-check: the reader must relocate via work_item_id.
   local moved="$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-move/tasks/pr-release/T9/index.md"
   mkdir -p "$(dirname "$moved")"
   mv "$task_md" "$moved"
@@ -241,37 +255,32 @@ case_evidence_classifier_after_move() {
 }
 
 # ---------------------------------------------------------------------------
-# Case C: path-only marker (no task_artifact_sha256) still fails closed when the
-# frozen path is gone — the relocation must NOT laundered-pass a marker with no
-# sha to re-verify.
+# Case C: a non-PASS deliverable.verification.status fails closed even after the
+# task.md moves — relocation must NOT launder a FAIL block into a pass.
 # ---------------------------------------------------------------------------
-case_path_only_stale_fails_closed() {
-  local repo="$TMPROOT/path-only/repo"
+case_non_pass_block_fails_closed_after_move() {
+  local repo="$TMPROOT/non-pass/repo"
   mkdir -p "$(dirname "$repo")"
   setup_repo "$repo"
-  local head_sha
+  local head_sha task_md
   head_sha="$(git -C "$repo" rev-parse HEAD)"
-  # Hand-write a path-only completion_gate marker (no task_artifact_sha256) whose
-  # frozen path does not exist. work_item_id present but no sha to re-verify.
-  mkdir -p "$repo/.polaris/evidence/completion-gate"
-  python3 - "$repo/.polaris/evidence/completion-gate/DP-999-T9-${head_sha}.json" "$head_sha" <<'PY'
-import json, sys
-out, head = sys.argv[1:3]
-json.dump({"schema_version": 1, "marker_kind": "completion_gate", "work_item_id": "DP-999-T9",
-           "status": "PASS", "freshness": {"head_sha": head, "source_artifact": "/gone/old/tasks/T9/index.md"}},
-          open(out, "w"))
-PY
+  task_md="$(write_task "$repo" "$head_sha" "DP-999-T9" "T9" "tasks" "FAIL")"
+
+  local moved="$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-move/tasks/pr-release/T9/index.md"
+  mkdir -p "$(dirname "$moved")"
+  mv "$task_md" "$moved"
+
   set +e
   out="$(bash "$CLASSIFIER" marker-pass --repo "$repo" --work-item-id DP-999-T9 --head-sha "$head_sha" 2>&1)"
   rc=$?
   set -e
-  assert_rc "caseC: path-only-stale marker fails closed" "$rc" "2"
-  assert_contains "caseC: evidence missing reason" "$out" "evidence artifact missing"
+  assert_rc "caseC: non-PASS block fails closed after move" "$rc" "2"
+  assert_contains "caseC: status != PASS reason" "$out" "status != PASS"
 }
 
 case_check_delivery_completion_after_move
 case_evidence_classifier_after_move
-case_path_only_stale_fails_closed
+case_non_pass_block_fails_closed_after_move
 
 printf '\n%s/%s checks passed\n' "$PASS" "$TOTAL"
 [[ "$PASS" == "$TOTAL" ]]

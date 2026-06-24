@@ -85,6 +85,14 @@ common_env=(
   "POLARIS_VALIDATE_SCRIPT_CATEGORIZATION_BIN=$pass_stub"
   "POLARIS_COMPILE_RUNTIME_INSTRUCTIONS_BIN=$pass_stub"
   "POLARIS_MECHANISM_PARITY_BIN=$pass_stub"
+  # W13/W14 must point at the PASS stub: the real binaries are
+  # scripts/validate-selftest-enrollment.sh and scripts/run-aggregate-selftests.sh,
+  # and the latter executes the ENTIRE selftest corpus — including this very
+  # selftest, which re-enters check-framework-pr-gate.sh. Leaving them unstubbed
+  # causes unbounded recursion (~hours of wall-clock). Stubbing keeps cases 2/3
+  # asserting wiring (W12 fail/pass behaviour) without spawning the full corpus.
+  "POLARIS_VALIDATE_SELFTEST_ENROLLMENT_BIN=$pass_stub"
+  "POLARIS_RUN_AGGREGATE_SELFTESTS_BIN=$pass_stub"
 )
 
 # ---------------------------------------------------------------------------

@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Purpose: selftest for DP-262 T3 task_shape carve-out in check-delivery-completion.sh.
-#          Verifies audit/confirmation tasks complete via completion_gate marker + evidence
-#          artifact path (no deliverable PR required), while implementation tasks keep the
-#          PR gate. Covers AC3, AC4, AC-NEG2.
+# Purpose: selftest for DP-262 T3 task_shape carve-out in check-delivery-completion.sh,
+#          updated for DP-360 T7. Audit/confirmation tasks now complete via the
+#          task.md `deliverable.verification.status == PASS` block (the head-sha
+#          completion_gate marker is retired); implementation tasks keep the PR
+#          gate. Covers AC3 (task.md block PASS), AC-NEG1 (no branch ref),
+#          AC-NEG2 (no marker file), and the implementation PR gate.
 # Inputs:  none (builds tmpdir fixtures).
 # Outputs: TAP-ish lines to stdout; exit 0 when all cases pass, 1 otherwise.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CHECK="$SCRIPT_DIR/check-delivery-completion.sh"
 WRITE_REPORT="$SCRIPT_DIR/write-task-verify-report.sh"
-WRITE_MARKER="$SCRIPT_DIR/write-completion-gate-marker.sh"
 TMPROOT="$(mktemp -d -t completion-gate-task-shape-XXXXXX)"
 PASS=0
 TOTAL=0
@@ -96,13 +97,16 @@ EOF
 }
 
 # Writes a DP task.md. $5 = task_shape value ("audit"|"confirmation"|"implementation"|"");
-# when implementation/empty, includes a deliverable PR block, otherwise omits pr_url.
+# $6 = verification status for the audit/confirmation deliverable block (empty =>
+# omit the verification sub-block entirely, modelling "finalize never ran").
+# When implementation/empty shape, includes a deliverable PR block, otherwise omits pr_url.
 write_task() {
   local repo="$1"
   local head_sha="$2"
   local task_id="$3"      # e.g. DP-999-T9
   local task_n="$4"       # e.g. T9
   local task_shape="$5"
+  local vstatus="${6:-}"
   local task_md="$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-task-shape/tasks/${task_n}.md"
   mkdir -p "$(dirname "$task_md")"
 
@@ -113,9 +117,22 @@ write_task() {
 
   local deliverable_block
   if [[ "$task_shape" == "audit" || "$task_shape" == "confirmation" ]]; then
-    # no-PR shape: only head_sha for freshness binding, no pr_url.
+    # DP-360 T7 no-PR shape: head_sha for freshness binding + a verification block
+    # carrying the PASS/FAIL status (no pr_url). The verification sub-block is
+    # omitted entirely when $vstatus is empty (models "finalize never ran").
     deliverable_block="deliverable:
   head_sha: $head_sha"
+    if [[ -n "$vstatus" ]]; then
+      deliverable_block="${deliverable_block}
+  verification:
+    status: ${vstatus}
+    ac_counts:
+      ac_total: 1
+      ac_pass: 1
+      ac_fail: 0
+      ac_manual_required: 0
+      ac_uncertain: 0"
+    fi
   else
     deliverable_block="deliverable:
   pr_url: https://github.com/demo/example/pull/1
@@ -217,42 +234,42 @@ run_check() {
 }
 
 # ---------------------------------------------------------------------------
-# Case 1 (AC3): confirmation task + completion_gate marker(PASS) + evidence path => PASS
+# Case 1 (AC3): confirmation task + task.md deliverable.verification.status=PASS,
+#   no marker file anywhere => PASS.
 # ---------------------------------------------------------------------------
-case_confirmation_marker_passes() {
-  local label="confirmation-marker-passes"
+case_confirmation_block_passes() {
+  local label="confirmation-block-passes"
   local repo="$TMPROOT/$label/repo"
   mkdir -p "$(dirname "$repo")"
   setup_repo "$repo"
   local head_sha task_md
   head_sha="$(git -C "$repo" rev-parse HEAD)"
-  task_md="$(write_task "$repo" "$head_sha" "DP-999-T9" "T9" "confirmation")"
+  task_md="$(write_task "$repo" "$head_sha" "DP-999-T9" "T9" "confirmation" "PASS")"
   write_task_verify_report "$repo" "DP-999-T9" "$task_md" "$head_sha"
-  bash "$WRITE_MARKER" --source-id DP-999 --work-item-id DP-999-T9 --head-sha "$head_sha" \
-    --status PASS --task-md "$task_md" --out "$repo/.polaris/evidence/completion-gate/DP-999-T9-${head_sha}.json" >/dev/null
+
+  [[ ! -d "$repo/.polaris/evidence/completion-gate" ]] || \
+    { printf 'not ok %s: marker dir should not exist (AC-NEG2)\n' "$label" >&2; }
 
   set +e
   out="$(run_check "$repo" "DP-999-T9")"
   rc=$?
   set -e
   assert_rc "$label rc" "$rc" "0"
-  assert_contains "$label message" "$out" "confirmation task completion gate satisfied"
+  assert_contains "$label message" "$out" "deliverable block"
 }
 
 # ---------------------------------------------------------------------------
-# Case 2 (AC3): audit task + marker(PASS) => PASS
+# Case 2 (AC3): audit task + task.md deliverable.verification.status=PASS => PASS
 # ---------------------------------------------------------------------------
-case_audit_marker_passes() {
-  local label="audit-marker-passes"
+case_audit_block_passes() {
+  local label="audit-block-passes"
   local repo="$TMPROOT/$label/repo"
   mkdir -p "$(dirname "$repo")"
   setup_repo "$repo"
   local head_sha task_md
   head_sha="$(git -C "$repo" rev-parse HEAD)"
-  task_md="$(write_task "$repo" "$head_sha" "DP-999-T8" "T8" "audit")"
+  task_md="$(write_task "$repo" "$head_sha" "DP-999-T8" "T8" "audit" "PASS")"
   write_task_verify_report "$repo" "DP-999-T8" "$task_md" "$head_sha"
-  bash "$WRITE_MARKER" --source-id DP-999 --work-item-id DP-999-T8 --head-sha "$head_sha" \
-    --status PASS --task-md "$task_md" --out "$repo/.polaris/evidence/completion-gate/DP-999-T8-${head_sha}.json" >/dev/null
 
   set +e
   out="$(run_check "$repo" "DP-999-T8")"
@@ -275,10 +292,8 @@ case_confirmation_excluded_from_required_pr_set() {
   install_gh_recorder "$mockbin"
   local head_sha task_md
   head_sha="$(git -C "$repo" rev-parse HEAD)"
-  task_md="$(write_task "$repo" "$head_sha" "DP-999-T7" "T7" "confirmation")"
+  task_md="$(write_task "$repo" "$head_sha" "DP-999-T7" "T7" "confirmation" "PASS")"
   write_task_verify_report "$repo" "DP-999-T7" "$task_md" "$head_sha"
-  bash "$WRITE_MARKER" --source-id DP-999 --work-item-id DP-999-T7 --head-sha "$head_sha" \
-    --status PASS --task-md "$task_md" --out "$repo/.polaris/evidence/completion-gate/DP-999-T7-${head_sha}.json" >/dev/null
 
   set +e
   out="$(run_check "$repo" "DP-999-T7" "$mockbin")"
@@ -295,16 +310,18 @@ case_confirmation_excluded_from_required_pr_set() {
 }
 
 # ---------------------------------------------------------------------------
-# Case 4 (AC3 adversarial): confirmation task missing completion_gate marker => BLOCKED
+# Case 4 (AC3 adversarial): confirmation task with NO deliverable.verification
+#   block at all => BLOCKED (models "finalize never wrote the verification block").
 # ---------------------------------------------------------------------------
-case_confirmation_missing_marker_blocks() {
-  local label="confirmation-missing-marker-blocks"
+case_confirmation_missing_block_blocks() {
+  local label="confirmation-missing-block-blocks"
   local repo="$TMPROOT/$label/repo"
   mkdir -p "$(dirname "$repo")"
   setup_repo "$repo"
   local head_sha task_md
   head_sha="$(git -C "$repo" rev-parse HEAD)"
-  task_md="$(write_task "$repo" "$head_sha" "DP-999-T6" "T6" "confirmation")"
+  # vstatus empty => no verification sub-block emitted.
+  task_md="$(write_task "$repo" "$head_sha" "DP-999-T6" "T6" "confirmation" "")"
   write_task_verify_report "$repo" "DP-999-T6" "$task_md" "$head_sha"
 
   set +e
@@ -312,66 +329,52 @@ case_confirmation_missing_marker_blocks() {
   rc=$?
   set -e
   assert_rc "$label rc" "$rc" "2"
-  assert_contains "$label message" "$out" "missing completion_gate marker"
+  assert_contains "$label message" "$out" "missing deliverable.verification.status"
 }
 
 # ---------------------------------------------------------------------------
-# Case 5 (AC3 adversarial): marker present but status != PASS => BLOCKED
+# Case 5 (AC3 adversarial): deliverable.verification.status != PASS => BLOCKED.
 # ---------------------------------------------------------------------------
-case_confirmation_marker_not_pass_blocks() {
-  local label="confirmation-marker-not-pass-blocks"
+case_confirmation_block_not_pass_blocks() {
+  local label="confirmation-block-not-pass-blocks"
   local repo="$TMPROOT/$label/repo"
   mkdir -p "$(dirname "$repo")"
   setup_repo "$repo"
   local head_sha task_md
   head_sha="$(git -C "$repo" rev-parse HEAD)"
-  task_md="$(write_task "$repo" "$head_sha" "DP-999-T5" "T5" "confirmation")"
+  task_md="$(write_task "$repo" "$head_sha" "DP-999-T5" "T5" "confirmation" "IN_PROGRESS")"
   write_task_verify_report "$repo" "DP-999-T5" "$task_md" "$head_sha"
-  bash "$WRITE_MARKER" --source-id DP-999 --work-item-id DP-999-T5 --head-sha "$head_sha" \
-    --status IN_PROGRESS --task-md "$task_md" --out "$repo/.polaris/evidence/completion-gate/DP-999-T5-${head_sha}.json" >/dev/null
 
   set +e
   out="$(run_check "$repo" "DP-999-T5")"
   rc=$?
   set -e
   assert_rc "$label rc" "$rc" "2"
-  assert_contains "$label message" "$out" "stale or not PASS"
+  assert_contains "$label message" "$out" "(need PASS)"
 }
 
 # ---------------------------------------------------------------------------
-# Case 6 (AC3 adversarial / AC8): marker PASS but evidence artifact is truly
-#   unresolvable => BLOCKED. After the DP-325 T5 reader change (existence-only =>
-#   resolve-by-id), a path-corrupt-but-id-resolvable marker correctly PASSes
-#   (asserted by the move-resilience selftest). To keep asserting the fail-closed
-#   invariant here, the marker must be genuinely non-resolvable: corrupt the frozen
-#   source_artifact path AND drop task_artifact_sha256 AND point the bound work
-#   item at a non-existent task id so resolve-by-id cannot relocate it.
+# Case 6 (AC-NEG2): a stray completion_gate marker on disk must NOT override a
+#   non-PASS task.md block — the reader never consults a marker file. FAIL block +
+#   PASS marker still BLOCKS.
 # ---------------------------------------------------------------------------
-case_confirmation_marker_missing_evidence_blocks() {
-  local label="confirmation-marker-missing-evidence-blocks"
+case_confirmation_stray_marker_ignored() {
+  local label="confirmation-stray-marker-ignored"
   local repo="$TMPROOT/$label/repo"
   mkdir -p "$(dirname "$repo")"
   setup_repo "$repo"
-  local head_sha task_md marker
+  local head_sha task_md
   head_sha="$(git -C "$repo" rev-parse HEAD)"
-  task_md="$(write_task "$repo" "$head_sha" "DP-999-T4" "T4" "confirmation")"
+  task_md="$(write_task "$repo" "$head_sha" "DP-999-T4" "T4" "confirmation" "FAIL")"
   write_task_verify_report "$repo" "DP-999-T4" "$task_md" "$head_sha"
-  marker="$repo/.polaris/evidence/completion-gate/DP-999-T4-${head_sha}.json"
-  bash "$WRITE_MARKER" --source-id DP-999 --work-item-id DP-999-T4 --head-sha "$head_sha" \
-    --status PASS --task-md "$task_md" --out "$marker" >/dev/null
-  # Make the marker truly unresolvable: corrupt source_artifact to a non-existent
-  # path and drop task_artifact_sha256 so resolve-by-id has nothing to verify
-  # against — the path-only-and-stale case must still fail closed.
-  python3 - "$marker" <<'PY'
-import json
-import sys
-from pathlib import Path
-p = Path(sys.argv[1])
-data = json.loads(p.read_text(encoding="utf-8"))
-data["freshness"]["source_artifact"] = "/nonexistent/evidence/artifact.md"
-data["freshness"].pop("evidence_artifact", None)
-data["freshness"].pop("task_artifact_sha256", None)
-p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+  # Plant a PASS completion_gate marker on disk; the reader must ignore it.
+  mkdir -p "$repo/.polaris/evidence/completion-gate"
+  python3 - "$repo/.polaris/evidence/completion-gate/DP-999-T4-${head_sha}.json" "$head_sha" <<'PY'
+import json, sys
+out, head = sys.argv[1:3]
+json.dump({"schema_version": 1, "marker_kind": "completion_gate", "work_item_id": "DP-999-T4",
+           "status": "PASS", "freshness": {"head_sha": head}}, open(out, "w"))
+open(out, "a").write("\n")
 PY
 
   set +e
@@ -379,7 +382,7 @@ PY
   rc=$?
   set -e
   assert_rc "$label rc" "$rc" "2"
-  assert_contains "$label message" "$out" "lacks a resolvable evidence artifact path"
+  assert_contains "$label message" "$out" "(need PASS)"
 }
 
 # ---------------------------------------------------------------------------
@@ -468,12 +471,12 @@ EOF
   assert_contains "$label message" "$out" "deliverable PR is draft"
 }
 
-case_confirmation_marker_passes
-case_audit_marker_passes
+case_confirmation_block_passes
+case_audit_block_passes
 case_confirmation_excluded_from_required_pr_set
-case_confirmation_missing_marker_blocks
-case_confirmation_marker_not_pass_blocks
-case_confirmation_marker_missing_evidence_blocks
+case_confirmation_missing_block_blocks
+case_confirmation_block_not_pass_blocks
+case_confirmation_stray_marker_ignored
 case_implementation_draft_pr_blocks
 
 printf '\n=== check-delivery-completion task_shape selftest: %d/%d PASS ===\n' "$PASS" "$TOTAL"

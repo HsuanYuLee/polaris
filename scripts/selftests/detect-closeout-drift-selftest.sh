@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Purpose: DP-280 T3 hermetic selftest for scripts/detect-closeout-drift.sh —
-#          assert the 3-source (completion-gate marker / merged PR / CHANGELOG)
+#          assert the 3-source (task.md deliverable block / merged PR / CHANGELOG)
 #          evidence collection + drift classification, the single-writer auto
 #          close path through mark-spec-implemented.sh, the gh-absent fail-open
 #          carve-out, the active/LOCKED-only scope, and the negative guards
 #          (in-flight never auto flips, stranded never auto changes state, no
 #          second closeout writer).
-# Inputs:  none (builds synthetic workspaces + DP containers + markers under
-#          mktemp; stubs gh and mark-spec-implemented.sh).
+# Inputs:  none (builds synthetic workspaces + DP containers + task.md
+#          deliverable blocks under mktemp; stubs gh and mark-spec-implemented.sh).
 # Outputs: stdout PASS/FAIL lines; exit 0 all-pass, exit 1 any failure.
 # Side effects: tmpdir only (removed on EXIT). No live workspace mutation,
 #          no real gh calls, no real archiving.
@@ -72,7 +72,6 @@ record_fail() { echo "FAIL $1" >&2; fail=$((fail + 1)); }
 make_workspace() {
   local root="$1"
   mkdir -p "$root/docs-manager/src/content/docs/specs/design-plans/archive"
-  mkdir -p "$root/.polaris/evidence/completion-gate"
   : >"$root/CHANGELOG.md"
 }
 
@@ -166,15 +165,48 @@ ac_verification:
 EOF
 }
 
-# Write a completion-gate marker for a DP task.
+# Record a DP task as DELIVERED by populating its task.md `deliverable` block
+# (head_sha + verification.status: PASS). DP-360 T7 retires the head-sha-keyed
+# completion-gate marker; the task.md `deliverable` block is the sole durable
+# delivery-evidence record, so the detector now counts delivered tasks from the
+# block (never from a branch ref or a marker file). Kept the make_marker name +
+# signature so existing callsites keep reading; only the storage changed from
+# marker file to task.md block (anti-laundering: this asserts the NEW contract).
 # Usage: make_marker <root> <DP-NNN> <T-stem>
 make_marker() {
   local root="$1" dp="$2" stem="$3"
-  local sha
+  local base="$root/docs-manager/src/content/docs/specs/design-plans"
+  local container task_md sha
+  # Resolve the (slug-suffixed) active container for this DP.
+  container="$(find "$base" -maxdepth 1 -type d -name "${dp}-*" 2>/dev/null | head -n1)"
+  [[ -n "$container" ]] || { echo "make_marker: no container for $dp under $base" >&2; return 1; }
+  task_md="$container/tasks/${stem}/index.md"
+  [[ -f "$task_md" ]] || task_md="$container/tasks/${stem}.md"
+  [[ -f "$task_md" ]] || { echo "make_marker: no task.md for ${dp}-${stem}" >&2; return 1; }
   sha="$(printf '%s-%s' "$dp" "$stem" | shasum | cut -c1-40)"
-  cat >"$root/.polaris/evidence/completion-gate/${dp}-${stem}-${sha}.json" <<EOF
-{"schema_version":1,"marker_kind":"completion_gate","writer":"engineering","source_id":"${dp}","work_item_id":"${dp}-${stem}","status":"PASS"}
-EOF
+  # Insert the deliverable block just before the closing frontmatter fence.
+  python3 - "$task_md" "$sha" <<'PY'
+import sys
+from pathlib import Path
+
+path, sha = Path(sys.argv[1]), sys.argv[2]
+text = path.read_text(encoding="utf-8")
+assert text.startswith("---\n"), path
+end = text.find("\n---\n", 4)
+assert end != -1, path
+block = (
+    f"deliverable:\n"
+    f"  head_sha: {sha}\n"
+    f"  pr_url: https://github.com/example-org/example/pull/1\n"
+    f"  pr_state: MERGED\n"
+    f"  verification:\n"
+    f"    status: PASS\n"
+    f"    ac_counts:\n"
+    f"      ac_total: 1\n"
+    f"      ac_pass: 1\n"
+)
+path.write_text(text[:end + 1] + block + text[end + 1:], encoding="utf-8")
+PY
 }
 
 # Append a CHANGELOG Fixed/Added section for a DP.

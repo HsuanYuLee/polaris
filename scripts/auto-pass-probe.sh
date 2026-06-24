@@ -1,11 +1,24 @@
 #!/usr/bin/env bash
-# Purpose: auto-pass durable-evidence probe — read .polaris/evidence/** markers for
-#          a given stage (source/breakdown/engineering/verify-AC) and emit the
-#          machine terminal status (PASS / blocked_by_gate_failure / etc.) as JSON.
+# Purpose: auto-pass durable-evidence probe — for a given stage
+#          (source/breakdown/engineering/verify-AC) read the durable delivery
+#          evidence and emit the machine terminal status (PASS /
+#          blocked_by_gate_failure / etc.) as JSON.
 # Inputs:  --stage, --source-id, --work-item-id, [--head-sha], [--ledger],
 #          [--pr-state-file], [--repo].
 # Outputs: probe JSON on stdout; exit 0 on emit, 2 on usage error,
 #          3 on fail-closed review-state unavailability (POLARIS_TOOL_MISSING).
+#
+# DP-360 T7: the engineering and verify-AC stages no longer read head-sha-keyed
+# completion-gate / ac-verification markers. The delivered head and the
+# verification disposition are read from the canonical task.md `deliverable`
+# block (deliverable.head_sha + deliverable.verification.status), resolved by
+# work_item_id through the single canonical resolve-task-md.sh (so a task.md
+# that moved to pr-release/ or container archive after delivery still resolves).
+# The three-layer local pre-push gate makes the pushed head verified-by-
+# construction, so the persisted task.md head is the delivered-head authority —
+# the probe NEVER falls back to a mutable branch ref. The breakdown stage still
+# reads the task-snapshot marker (planning freshness, untouched); the amendment
+# loop still reads spec-issue-{id}-{head}.json (distinct from ac-verification).
 #
 # DP-313 T1: at the engineering stage, AFTER the completion-gate marker is PASS,
 # the probe optionally consumes a review-state classification supplied as
@@ -90,17 +103,21 @@ fi
 
 SCRIPT_DIR_RESOLVED="$(cd "$(dirname "$0")" && pwd)"
 RESOLVER="$SCRIPT_DIR_RESOLVED/spec-source-resolver.sh"
+TASK_MD_RESOLVER="$SCRIPT_DIR_RESOLVED/resolve-task-md.sh"
+TASK_MD_PARSER="$SCRIPT_DIR_RESOLVED/parse-task-md.sh"
 
-python3 - "$REPO" "$STAGE" "$SOURCE_ID" "$WORK_ITEM_ID" "$HEAD_SHA" "$LEDGER" "$RESOLVER" "$PR_STATE_FILE" <<'PY'
+python3 - "$REPO" "$STAGE" "$SOURCE_ID" "$WORK_ITEM_ID" "$HEAD_SHA" "$LEDGER" "$RESOLVER" "$PR_STATE_FILE" "$TASK_MD_RESOLVER" "$TASK_MD_PARSER" <<'PY'
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 repo = Path(sys.argv[1]).resolve()
 stage, source_id, work_item_id, head_sha, ledger_arg, resolver_path, pr_state_file = sys.argv[2:9]
+task_md_resolver_path, task_md_parser_path = sys.argv[9:11]
 
 
 def marker(path):
@@ -165,6 +182,84 @@ def status_of(path):
     if not data:
         return None
     return data.get("status") or "UNKNOWN"
+
+
+def resolve_task_md(wid):
+    """Resolve the canonical task.md path for work_item_id (active or archived).
+
+    DP-360 T7: delegates to the single canonical resolve-task-md.sh so a task.md
+    that moved to pr-release/ or container archive after delivery still resolves.
+    Returns the path string or None.
+    """
+    try:
+        out = subprocess.run(
+            ["bash", task_md_resolver_path, "--scan-root", str(repo),
+             "--include-archive", wid],
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception:
+        return None
+    if out.returncode != 0:
+        return None
+    lines = out.stdout.strip().splitlines()
+    if not lines:
+        return None
+    candidate = Path(lines[-1].strip())
+    return str(candidate) if candidate.is_file() else None
+
+
+def task_field(task_md, key):
+    """Read one parse-task-md.sh --field value (stripped) or empty string."""
+    try:
+        out = subprocess.run(
+            ["bash", task_md_parser_path, task_md, "--no-resolve", "--field", key],
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception:
+        return ""
+    return out.stdout.strip() if out.returncode == 0 else ""
+
+
+def head_bound(recorded, requested):
+    """True when the recorded delivery head matches the requested head.
+
+    Accepts full/abbreviated prefix matches in either direction so a 40-char
+    recorded sha matches a 7-char probe head and vice versa.
+    """
+    if not recorded:
+        return False
+    return (
+        recorded == requested
+        or requested.startswith(recorded)
+        or recorded.startswith(requested)
+    )
+
+
+def ac_verification_status(task_md):
+    """Read the V-task `ac_verification.status` frontmatter block value.
+
+    DP-360 T7: the verify-AC disposition for a V work item lives in the V-task's
+    own `ac_verification` frontmatter block (the canonical V-task lifecycle
+    record read by the runner / close-parent / detect-closeout-drift), NOT a
+    head-sha-keyed marker. Mirrors close-parent-spec-if-complete's reader.
+    Returns the status string or "" when absent.
+    """
+    try:
+        lines = Path(task_md).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return ""
+    in_block = False
+    for line in lines:
+        if line == "ac_verification:":
+            in_block = True
+            continue
+        if in_block and line and not line.startswith((" ", "-")) and ":" in line:
+            break
+        if in_block:
+            m = re.match(r"\s+status:\s*(\S+)", line)
+            if m:
+                return m.group(1).strip().strip('"').strip("'")
+    return ""
 
 
 def frontmatter_status(path: Path):
@@ -491,16 +586,30 @@ if stage == "engineering":
         path = evidence / subdir / f"{work_item_id}-{head_sha}.json"
         if path.is_file():
             emit(status_of(path) or "BLOCKED", "blocked_by_gate_failure", "blocked", path, reason)
-    path = evidence / "completion-gate" / f"{work_item_id}-{head_sha}.json"
-    if status_of(path) == "PASS":
-        # DP-313 T1: AFTER completion gate is PASS, consume the explicit
-        # review-state classification (if any) before forwarding to verify-AC.
-        # Non-actionable / absent state → parity (continue to verify-AC).
+    # DP-360 T7: the delivered head + completion disposition are read from the
+    # canonical task.md `deliverable` block (no head-sha-keyed completion-gate
+    # marker). The local three-layer pre-push gate makes the pushed head
+    # verified-by-construction, so a task.md whose deliverable.head_sha is bound
+    # to the probe head and whose deliverable.verification.status == PASS is the
+    # engineering-stage PASS signal. We NEVER fall back to a branch ref.
+    task_md = resolve_task_md(work_item_id)
+    if task_md is None:
+        emit("UNKNOWN", "blocked_by_gate_failure", "blocked", None,
+             "task.md not resolvable for delivered-head read")
+    recorded_head = task_field(task_md, "deliverable_head_sha")
+    if not head_bound(recorded_head, head_sha):
+        emit("UNKNOWN", "blocked_by_gate_failure", "blocked", Path(task_md),
+             "deliverable.head_sha not bound to probe head")
+    if task_field(task_md, "deliverable_verification_status") == "PASS":
+        # DP-313 T1: AFTER the delivered head/disposition is PASS, consume the
+        # explicit review-state classification (if any) before forwarding to
+        # verify-AC. Non-actionable / absent state → parity (continue).
         route = review_state_route(pr_state_file)
         if route is not None:
             emit(*route)
-        emit("PASS", None, "verify-AC", path)
-    emit("UNKNOWN", "blocked_by_gate_failure", "blocked", None, "completion gate marker missing")
+        emit("PASS", None, "verify-AC", Path(task_md))
+    emit("UNKNOWN", "blocked_by_gate_failure", "blocked", Path(task_md),
+         "task.md deliverable.verification.status not PASS")
 
 if stage == "verify-AC":
     if not head_sha:
@@ -511,13 +620,23 @@ if stage == "verify-AC":
         # inbox presence). terminal_status stays null; orchestrator continues
         # to dispatch refinement amendment mode until cap or scope guard fires.
         emit(status_of(spec_issue) or "ROUTE_BACK_AMEND", None, "refinement_amendment", spec_issue, "verify-AC spec issue (amendment loop)")
-    path = evidence / "ac-verification" / f"{work_item_id}-{head_sha}.json"
-    status = status_of(path)
+    # DP-360 T7: the verify-AC disposition for a V work item is read from the
+    # V-task's `ac_verification` frontmatter block (the canonical V-task
+    # lifecycle record, also read by the runner / close-parent / drift detector),
+    # resolved by work_item_id (active or archived). This block is NOT head-keyed
+    # and is NOT a separate marker — it is the V-task's own authority. We NEVER
+    # fall back to a branch ref.
+    task_md = resolve_task_md(work_item_id)
+    if task_md is None:
+        emit("UNKNOWN", "blocked_by_gate_failure", "blocked", None,
+             "task.md not resolvable for verification disposition read")
+    status = ac_verification_status(task_md) or "UNKNOWN"
     if status == "PASS":
-        emit("PASS", "complete", "report", path)
+        emit("PASS", "complete", "report", Path(task_md))
     if status in {"MANUAL_REQUIRED", "BLOCKED_ENV"}:
-        emit(status, "paused_for_user_external_write", "user", path, status)
+        emit(status, "paused_for_user_external_write", "user", Path(task_md), status)
     if status in {"UNCERTAIN", "FAIL", "UNKNOWN"}:
-        emit(status, "blocked_by_gate_failure", "blocked", path, "verification not pass")
-    emit("UNKNOWN", "blocked_by_gate_failure", "blocked", None, "AC verification marker missing")
+        emit(status, "blocked_by_gate_failure", "blocked", Path(task_md), "verification not pass")
+    emit("UNKNOWN", "blocked_by_gate_failure", "blocked", Path(task_md),
+         "V-task ac_verification.status missing")
 PY

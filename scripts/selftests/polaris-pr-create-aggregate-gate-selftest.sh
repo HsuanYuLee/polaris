@@ -11,15 +11,18 @@
 #
 # Coverage:
 #   AC5     — gate-evidence.sh --aggregate-release treats each bundled task's
-#             completion_gate marker (head == task delivery head, status PASS) as
-#             satisfying the evidence gate; no --skip-gates needed.
+#             task.md deliverable block (deliverable.head_sha present, status PASS)
+#             as satisfying the evidence gate; no --skip-gates needed. DP-360 T7:
+#             the task.md block is the sole delivery-evidence record (the head-sha
+#             completion_gate marker is retired — no dual-source, NEG2).
 #   AC-NEG1 — bundle release must not depend on the POLARIS_PR_WORKFLOW=1
 #             escape-hatch: the legacy bare `gh pr create` escape-hatch is NOT a
-#             bundle build path, and a forged / missing marker still fails closed.
+#             bundle build path, and a bundled task whose deliverable block lacks a
+#             PASS verification still fails closed.
 #
-# Anti-forgery enforcement (edge case S4): a completion_gate marker whose head
-# does not correspond to the bundled task's recorded delivery head
-# (task.md deliverable.head_sha) is rejected fail-closed.
+# DP-360 T7 (AC3 / NEG1): a bundled task whose task.md deliverable block has no
+# verification PASS (missing sub-block or non-PASS status) is rejected fail-closed;
+# the gate never reads a separate marker and never falls back to a branch ref.
 
 set -euo pipefail
 
@@ -28,7 +31,6 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 GATE_EVIDENCE="$ROOT_DIR/scripts/gates/gate-evidence.sh"
 PR_CREATE="$ROOT_DIR/scripts/polaris-pr-create.sh"
 PR_GUARD="$ROOT_DIR/scripts/pr-create-guard.sh"
-WRITE_COMPLETION="$ROOT_DIR/scripts/write-completion-gate-marker.sh"
 
 PASS=0
 FAIL=0
@@ -58,13 +60,19 @@ _assert_contains() {
 TMPROOT="$(mktemp -d -t polaris-aggregate-gate-XXXXXX)"
 trap 'rm -rf "$TMPROOT"' EXIT
 
-# write_bundled_task_md <task_md_path> <source_id> <task_id> <repo_name> <head_sha>
-# Emits a minimal canonical task.md carrying a deliverable.head_sha so that the
-# aggregate gate can resolve the per-task delivery head.
+# write_bundled_task_md <task_md_path> <source_id> <task_id> <repo_name> <head_sha> [verification]
+# Emits a minimal canonical task.md carrying a deliverable block. DP-360 T7: the
+# task.md deliverable block (head_sha + verification.status) is the SOLE delivery
+# evidence the aggregate gate reads — there is no head-sha completion_gate marker.
+#   verification = PASS  -> deliverable.verification.status: PASS (default)
+#   verification = FAIL  -> deliverable.verification.status: FAIL
+#   verification = none  -> no verification sub-block (delivery head, no PASS proof)
 write_bundled_task_md() {
   local task_md="$1" source_id="$2" task_id="$3" repo_name="$4" head_sha="$5"
+  local verification="${6:-PASS}"
   mkdir -p "$(dirname "$task_md")"
-  cat >"$task_md" <<EOF
+  {
+    cat <<EOF
 ---
 title: "${task_id}"
 status: IMPLEMENTED
@@ -73,6 +81,20 @@ deliverable:
   pr_url: https://github.com/demo/example/pull/100
   pr_state: MERGED
   head_sha: ${head_sha}
+EOF
+    if [[ "$verification" != "none" ]]; then
+      cat <<EOF
+  verification:
+    status: ${verification}
+    ac_counts:
+      ac_total: 0
+      ac_pass: 0
+      ac_fail: 0
+      ac_manual_required: 0
+      ac_uncertain: 0
+EOF
+    fi
+    cat <<EOF
 ---
 
 # ${task_id}
@@ -89,6 +111,7 @@ deliverable:
 echo ok
 \`\`\`
 EOF
+  } >"$task_md"
 }
 
 # ---------------------------------------------------------------------------
@@ -111,14 +134,8 @@ EOF
   tasks_dir="$workspace/docs-manager/src/content/docs/specs/design-plans/DP-303-fixture/tasks"
   head1="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   head2="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-  write_bundled_task_md "$tasks_dir/T1/index.md" DP-303 DP-303-T1 repo "$head1"
-  write_bundled_task_md "$tasks_dir/T2/index.md" DP-303 DP-303-T2 repo "$head2"
-
-  ev_dir="$repo/.polaris/evidence/completion-gate"
-  bash "$WRITE_COMPLETION" --source-id DP-303 --work-item-id DP-303-T1 --head-sha "$head1" \
-    --status PASS --out "$ev_dir/DP-303-T1-${head1}.json" >/dev/null
-  bash "$WRITE_COMPLETION" --source-id DP-303 --work-item-id DP-303-T2 --head-sha "$head2" \
-    --status PASS --out "$ev_dir/DP-303-T2-${head2}.json" >/dev/null
+  write_bundled_task_md "$tasks_dir/T1/index.md" DP-303 DP-303-T1 repo "$head1" PASS
+  write_bundled_task_md "$tasks_dir/T2/index.md" DP-303 DP-303-T2 repo "$head2" PASS
 
   set +e
   output=$(
@@ -128,13 +145,14 @@ EOF
   )
   rc=$?
   set -e
-  _assert "$rc" "0" "C1: aggregate evidence gate must PASS with valid per-task markers"
+  _assert "$rc" "0" "C1: aggregate evidence gate must PASS with valid per-task deliverable blocks"
   _assert_contains "$output" "aggregate" "C1: gate output must reference aggregate mode"
 }
 
 # ---------------------------------------------------------------------------
-# Case 2 (AC-NEG1 / forgery): a marker whose head does NOT match the bundled
-#               task's recorded delivery head is rejected fail-closed.
+# Case 2 (AC-NEG1 / no PASS proof): a bundled task whose deliverable block records
+#               a head but has NO verification sub-block is rejected fail-closed —
+#               a recorded delivery head without a PASS proof is not evidence.
 # ---------------------------------------------------------------------------
 {
   workspace="$TMPROOT/c2-ws"
@@ -150,13 +168,8 @@ EOF
 
   tasks_dir="$workspace/docs-manager/src/content/docs/specs/design-plans/DP-303-fixture/tasks"
   real_head="cccccccccccccccccccccccccccccccccccccccc"
-  forged_head="dddddddddddddddddddddddddddddddddddddddd"
-  write_bundled_task_md "$tasks_dir/T1/index.md" DP-303 DP-303-T1 repo "$real_head"
-
-  ev_dir="$repo/.polaris/evidence/completion-gate"
-  # Forged: marker keyed on a head that is NOT the task's delivery head.
-  bash "$WRITE_COMPLETION" --source-id DP-303 --work-item-id DP-303-T1 --head-sha "$forged_head" \
-    --status PASS --out "$ev_dir/DP-303-T1-${forged_head}.json" >/dev/null
+  # Delivery head present, but NO deliverable.verification PASS proof.
+  write_bundled_task_md "$tasks_dir/T1/index.md" DP-303 DP-303-T1 repo "$real_head" none
 
   set +e
   output=$(
@@ -166,13 +179,13 @@ EOF
   )
   rc=$?
   set -e
-  _assert "$rc" "2" "C2: forged marker head must fail-closed (exit 2)"
+  _assert "$rc" "2" "C2: deliverable head without a verification PASS must fail-closed (exit 2)"
   _assert_contains "$output" "DP-303-T1" "C2: failure must name the offending task"
 }
 
 # ---------------------------------------------------------------------------
-# Case 3 (AC-NEG1 / missing): a bundled task with NO completion_gate marker
-#               fails closed (no silent pass).
+# Case 3 (AC-NEG1 / missing task.md): a bundled task with NO resolvable task.md
+#               fails closed (no silent pass, no branch-ref fallback).
 # ---------------------------------------------------------------------------
 {
   workspace="$TMPROOT/c3-ws"
@@ -186,11 +199,7 @@ EOF
   git -C "$repo" commit -q -m base
   git -C "$repo" checkout -q -b bundle-DP-303-v9.9.7
 
-  tasks_dir="$workspace/docs-manager/src/content/docs/specs/design-plans/DP-303-fixture/tasks"
-  head1="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-  write_bundled_task_md "$tasks_dir/T1/index.md" DP-303 DP-303-T1 repo "$head1"
-  # No marker written.
-
+  # No task.md written for DP-303-T1 → unresolvable → fail closed.
   set +e
   output=$(
     POLARIS_WORKSPACE_ROOT="$workspace" \
@@ -199,12 +208,12 @@ EOF
   )
   rc=$?
   set -e
-  _assert "$rc" "2" "C3: missing marker must fail-closed (exit 2)"
+  _assert "$rc" "2" "C3: unresolvable bundled task.md must fail-closed (exit 2)"
 }
 
 # ---------------------------------------------------------------------------
-# Case 4 (AC-NEG1 / non-PASS status): a bundled task marker with status != PASS
-#               fails closed.
+# Case 4 (AC-NEG1 / non-PASS status): a bundled task whose deliverable block
+#               records verification.status != PASS fails closed.
 # ---------------------------------------------------------------------------
 {
   workspace="$TMPROOT/c4-ws"
@@ -220,10 +229,7 @@ EOF
 
   tasks_dir="$workspace/docs-manager/src/content/docs/specs/design-plans/DP-303-fixture/tasks"
   head1="ffffffffffffffffffffffffffffffffffffffff"
-  write_bundled_task_md "$tasks_dir/T1/index.md" DP-303 DP-303-T1 repo "$head1"
-  ev_dir="$repo/.polaris/evidence/completion-gate"
-  bash "$WRITE_COMPLETION" --source-id DP-303 --work-item-id DP-303-T1 --head-sha "$head1" \
-    --status FAIL --out "$ev_dir/DP-303-T1-${head1}.json" >/dev/null
+  write_bundled_task_md "$tasks_dir/T1/index.md" DP-303 DP-303-T1 repo "$head1" FAIL
 
   set +e
   output=$(
@@ -233,7 +239,7 @@ EOF
   )
   rc=$?
   set -e
-  _assert "$rc" "2" "C4: non-PASS marker status must fail-closed (exit 2)"
+  _assert "$rc" "2" "C4: non-PASS deliverable.verification.status must fail-closed (exit 2)"
 }
 
 # ---------------------------------------------------------------------------

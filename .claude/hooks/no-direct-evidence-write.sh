@@ -42,7 +42,6 @@ case "$file_path" in
   .polaris/evidence/task-snapshot/*.json|*/.polaris/evidence/task-snapshot/*.json|\
   .polaris/evidence/validation-fail/*.json|*/.polaris/evidence/validation-fail/*.json|\
   .polaris/evidence/missing-v-task/*.json|*/.polaris/evidence/missing-v-task/*.json|\
-  .polaris/evidence/completion-gate/*.json|*/.polaris/evidence/completion-gate/*.json|\
   .polaris/evidence/blocked-conflict/*.json|*/.polaris/evidence/blocked-conflict/*.json|\
   .polaris/evidence/unsupported-mutation/*.json|*/.polaris/evidence/unsupported-mutation/*.json|\
   .polaris/evidence/ci-local/*.json|*/.polaris/evidence/ci-local/*.json|\

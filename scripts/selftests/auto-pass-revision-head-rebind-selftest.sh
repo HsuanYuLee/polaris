@@ -69,19 +69,36 @@ cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refin
 {"source": {"type": "dp", "id": "DP-900"}, "modules": [], "acceptance_criteria": []}
 JSON
 
-# write_marker: emit a head-scoped evidence marker under a given evidence subdir.
-write_marker() {
-  local subdir="$1" head="$2" status="$3"
-  python3 - "$TMP/.polaris/evidence/$subdir/${WORK_ITEM_ID}-${head}.json" "$status" "$head" <<'PY'
-import json, sys
-from pathlib import Path
-path, status, head = sys.argv[1:4]
-Path(path).write_text(json.dumps({
-    "schema_version": 1, "marker_kind": "selftest", "writer": "selftest",
-    "owning_skill": "selftest", "source_id": "DP-900", "work_item_id": "DP-900-T1",
-    "status": status, "freshness": {"head_sha": head},
-}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-PY
+# DP-360 T7: head-rebind is now expressed via the task.md `deliverable` block
+# (deliverable.head_sha bound to the probe head + deliverable.verification.status),
+# NOT a head-sha-keyed completion-gate / ac-verification marker filename. The
+# engineering stage's head_bound check IS the rebind: an old delivered head does
+# not satisfy a probe keyed on the new head, and vice versa. write_task_deliverable
+# scaffolds a real tasks/T1/index.md so resolve-task-md.sh can locate it.
+#   $1 = delivered head_sha (empty string omits the deliverable block entirely)
+#   $2 = verification status (empty string omits the verification sub-block)
+write_task_deliverable() {
+  local head="$1" vstatus="$2"
+  local task_id="${WORK_ITEM_ID##*-}"
+  local task_dir="$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/$task_id"
+  mkdir -p "$task_dir"
+  {
+    echo "---"
+    echo "title: \"$WORK_ITEM_ID fixture\""
+    echo "description: \"head rebind deliverable fixture\""
+    echo "status: IN_PROGRESS"
+    if [[ -n "$head" ]]; then
+      echo "deliverable:"
+      echo "  head_sha: $head"
+      if [[ -n "$vstatus" ]]; then
+        echo "  verification:"
+        echo "    status: $vstatus"
+      fi
+    fi
+    echo "---"
+    echo ""
+    echo "## Fixture"
+  } >"$task_dir/index.md"
 }
 
 # run_runner: invoke the runner, capture stdout (JSON) and stderr separately.
@@ -128,34 +145,35 @@ if errs:
 PY
 }
 
-# ── AC2 head rebind ──────────────────────────────────────────────────────────
-# Both heads carry a PASS completion gate (the revision produced a new head, the
-# old head's engineering evidence is still on disk). Only the OLD head carries an
-# ac-verification PASS marker.
-write_marker completion-gate "$OLD_HEAD" PASS
-write_marker completion-gate "$NEW_HEAD" PASS
-write_marker ac-verification "$OLD_HEAD" PASS
+# ── AC2 head rebind (DP-360 T7: engineering-stage deliverable head binding) ───
+# After a revision the delivered head moves OLD → NEW. The task.md deliverable
+# block records exactly one delivered head. The engineering probe's head_bound
+# check is the rebind: a probe keyed on a head other than the recorded
+# deliverable.head_sha must NOT pass.
 
-# (a) verify-AC keyed on the NEW head must NOT inherit the OLD head's stale
-#     ac-verification PASS — it sees no current marker and stays blocked.
-run_runner --stage verify-AC --source-id "$SOURCE_ID" --work-item-id "$WORK_ITEM_ID" --head-sha "$NEW_HEAD"
-assert_runner_json "ac2-new-head-no-stale-verification" UNKNOWN blocked_by_gate_failure blocked
+# (a) deliverable bound to the OLD head; probe keyed on the NEW head must NOT
+#     inherit the stale OLD-head delivery → blocked (head not bound).
+write_task_deliverable "$OLD_HEAD" PASS
+run_runner --stage engineering --source-id "$SOURCE_ID" --work-item-id "$WORK_ITEM_ID" --head-sha "$NEW_HEAD"
+assert_runner_json "ac2-new-head-no-stale-delivery" UNKNOWN blocked_by_gate_failure blocked
 
-# (b) verify-AC keyed on the OLD head still resolves the old marker → complete.
-#     Proves markers are head-scoped, not head-agnostic (the rebind is real).
-run_runner --stage verify-AC --source-id "$SOURCE_ID" --work-item-id "$WORK_ITEM_ID" --head-sha "$OLD_HEAD"
-assert_runner_json "ac2-old-head-resolves-old-marker" PASS complete terminal
+# (b) the same deliverable (bound to the OLD head) keyed on the OLD head still
+#     resolves → PASS. Proves the deliverable head binding is head-scoped, not
+#     head-agnostic (the rebind is real).
+run_runner --stage engineering --source-id "$SOURCE_ID" --work-item-id "$WORK_ITEM_ID" --head-sha "$OLD_HEAD"
+assert_runner_json "ac2-old-head-resolves-old-delivery" PASS null dispatch
 
-# (c) after the revision verification reruns on the NEW head and writes the
-#     NEW-head ac-verification PASS marker, the NEW head completes.
-write_marker ac-verification "$NEW_HEAD" PASS
-run_runner --stage verify-AC --source-id "$SOURCE_ID" --work-item-id "$WORK_ITEM_ID" --head-sha "$NEW_HEAD"
-assert_runner_json "ac2-new-head-completes-after-rebind" PASS complete terminal
+# (c) after the revision the deliverable block rebinds to the NEW head; the NEW
+#     head now passes (and the OLD head no longer does — covered by symmetry).
+write_task_deliverable "$NEW_HEAD" PASS
+run_runner --stage engineering --source-id "$SOURCE_ID" --work-item-id "$WORK_ITEM_ID" --head-sha "$NEW_HEAD"
+assert_runner_json "ac2-new-head-passes-after-rebind" PASS null dispatch
 
 # ── AC-NEG2 gh fail-closed ───────────────────────────────────────────────────
-# Engineering stage on the NEW head with a PASS completion gate. When the
+# Engineering stage on the NEW head with a PASS deliverable block. When the
 # orchestrator requested a review-state read (--pr-state-file) but the state is
 # unavailable, the runner must stay blocked and re-surface POLARIS_TOOL_MISSING.
+# (deliverable already rebound to NEW_HEAD by case (c) above.)
 assert_tool_missing() {
   local label="$1"
   if [[ "$RUNNER_ERR" != *"POLARIS_TOOL_MISSING"* ]]; then
