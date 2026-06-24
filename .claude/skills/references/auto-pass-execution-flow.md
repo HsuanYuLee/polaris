@@ -240,6 +240,28 @@ skill。只有真正的 context pressure / runtime pressure 可寫 `pause.kind=s
 - verify-AC 回報 `MANUAL_REQUIRED` 或 `BLOCKED_ENV`。
 - resume 必須有 `pause.external_write_acknowledged_at`。
 
+## Automatic Pause-Release Sequence
+
+當 runner JSON emit `next_action=resume`（代表 ledger 內有 active `session_handoff` pause，
+runner 因此 short-circuit 不算 per-stage verdict）時，orchestrator **必須** 走下列
+deterministic chain 釋放 pause，不得用其他方式：
+
+1. **Validate**：`scripts/validate-auto-pass-resume.sh --ledger <ledger> --resume-artifact <artifact> [--source-id <id>]`
+   — 對照 ledger pause 驗證 resume artifact（resume prerequisite、source 對齊、artifact
+   freshness）。validate fail 時 fail-stop，不得跳過直接清 pause。
+2. **Consume**：`scripts/auto-pass-consume-resume.sh --ledger <ledger> --resume-artifact <artifact> [--source-id <id>]`
+   — 這是消費 `session_handoff` pause 的 **唯一 sanctioned writer**：清 `pause=null` + 蓋上
+   `resumed_at`，byte-preserving 既有 `loop_counters` / `task_snapshot` / `drift_retry`，
+   寫入後再以 `scripts/validate-auto-pass-ledger.sh` re-validate ledger 一致性。
+3. **Re-probe**：`scripts/auto-pass-runner.sh --stage ...` — pause 已清，runner 不再
+   short-circuit 到 `resume`，改回傳該 stage 的真實 per-stage verdict，orchestrator 依此
+   verdict 繼續主鏈。
+
+**禁止手動改 ledger 清 pause**：消費 `session_handoff` pause 的唯一 sanctioned writer 是
+`scripts/auto-pass-consume-resume.sh`。直接 hand-edit ledger 把 `pause` 改成 null、或補寫
+`resumed_at`，都違反 single-writer 契約（會 silently 漏掉 byte-preserve 與 re-validate），
+一律禁止。
+
 ## Terminal Priority
 
 ```text

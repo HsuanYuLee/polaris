@@ -108,8 +108,12 @@ internal probe wrapping、recoverable HALT continue、loop cap、pause / termina
 closeout chain 以 `.claude/skills/references/auto-pass-execution-flow.md` 為 canonical
 source。簡述：`next_action=dispatch` → 下一階段；`terminal` → 寫 report 進 closeout；
 `refinement_amendment` → amendment loop；`blocked` → terminal blocked。Recoverable HALT 必須繼續 dispatch，
-並自動 loop dispatch；只有 session pressure 才能寫 `pause.kind=session_handoff`，且
-`resume` 必須先跑 `scripts/validate-auto-pass-resume.sh`。
+並自動 loop dispatch；只有 session pressure 才能寫 `pause.kind=session_handoff`。
+`next_action=resume`（active `session_handoff` pause）時，orchestrator 以 deterministic
+sequence 釋放 pause：`scripts/validate-auto-pass-resume.sh` → `scripts/auto-pass-consume-resume.sh`
+（唯一 sanctioned writer，清 `pause=null` + 蓋 `resumed_at`）→ re-probe runner，**不得**手動
+改 ledger 清 pause（見 `.claude/skills/references/auto-pass-execution-flow.md`
+§ Automatic Pause-Release Sequence）。
 
 ## Full Source Completion Invariant
 

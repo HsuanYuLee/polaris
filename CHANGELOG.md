@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.38] - 2026-06-25
+
+### Changed
+
+- a59376a: DP-339-T1: 新增 scripts/auto-pass-consume-resume.sh sanctioned writer（消費 auto-pass session_handoff pause：清 pause + 補 resumed_at、byte-preserve loop_counters/task_snapshot/drift_retry、tempfile+os.replace atomic rewrite、寫後過 validate-auto-pass-ledger.sh；非 session_handoff / resume 不匹配 fail-closed、無 pause idempotent NOOP）+ 對應 hermetic selftest 覆蓋 AC1-4 / AC-NEG1-3。
+- 6b277fa: DP-339-T2: wiring — auto-pass-execution-flow.md 載明自動 pause-release sequence（runner next_action=resume → validate-auto-pass-resume → auto-pass-consume-resume.sh → re-probe，明文禁止手動改 ledger）、auto-pass/SKILL.md Execution Loop 加 pointer、mechanism-registry.md Runtime Annotation Registry 新增 auto-pass-consume-resume row。
+
 ## [3.76.37] - 2026-06-25
 
 ### Changed

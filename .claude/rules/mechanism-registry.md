@@ -106,6 +106,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | release-cleanup-sweep | scripts/release-cleanup-sweep.sh | script | portable | scripts/selftests/release-cleanup-sweep-selftest.sh | governance |
 | auto-pass-terminal-v-advance | scripts/auto-pass-runner.sh | script | portable | scripts/selftests/auto-pass-terminal-v-advance-selftest.sh | governance |
 | auto-pass-ledger-finalize | scripts/auto-pass-finalize-ledger.sh | script | portable | scripts/selftests/auto-pass-finalize-ledger-selftest.sh | governance |
+| auto-pass-consume-resume | scripts/auto-pass-consume-resume.sh | script | portable | scripts/selftests/auto-pass-consume-resume-selftest.sh | governance |
 | approval-staleness-helper | scripts/lib/approval-staleness.sh | script | portable | scripts/selftests/approval-staleness-selftest.sh | governance |
 | task-snapshot-refinement-hash | scripts/breakdown-emit-task-snapshot.sh | script | portable | scripts/selftests/task-snapshot-refinement-hash-selftest.sh | governance |
 | selftest-env-hermeticity-lint | scripts/lint-selftest-env-hermeticity.sh | script | portable | scripts/selftests/lint-selftest-env-hermeticity-selftest.sh | governance |
