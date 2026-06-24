@@ -11,9 +11,9 @@
 # Steps:
 #   1. parse-task-md.sh → allowed_files array + resolved_base + task_jira_key
 #   2. collect committed diff plus staged, unstaged, and untracked files
-#   3. Ignore delivery metadata that engineering itself must produce
-#      (.changeset/*.md), then check each remaining changed file against
-#      allowed patterns
+#   3. check each changed file against the allowed patterns. (DP-344 D2: the old
+#      .changeset/*.md auto-within-scope carve-out is removed — a changeset file
+#      passes ONLY because derive-task-md injected it into Allowed Files, D1.)
 #   4. Emit JSON: {within_scope, scope_additions, task_key, allowed_count, diff_count}
 #
 # Pattern matching:
@@ -22,7 +22,9 @@
 #   - Glob `*`: `src/*.ts` matches `src/foo.ts`
 #   - Backtick-wrapped entries are unwrapped: `\`src/foo.ts\`` → `src/foo.ts`
 #   - Root exact filenames are valid entries: `VERSION` matches root `VERSION`
-#   - Non-path entries (Chinese text, descriptions) are skipped
+#   - Non-path entries (Chinese prose, descriptions) are skipped — but a
+#     CJK-containing token that is path-shaped (has '/' or a trailing file
+#     extension) is treated as a path (DP-344: CJK changeset filenames).
 #
 # Exit codes:
 #   0  All changes within scope (scope_additions is empty)
@@ -105,16 +107,27 @@ def _seg_match(text, pattern):
     return fnmatch.fnmatchcase(text, pattern)
 
 def is_path_pattern(value):
-    \"\"\"Return True for explicit path/glob tokens, including root filenames.\"\"\"
+    \"\"\"Return True for explicit path/glob tokens, including root filenames.
+
+    Whitespace, leading-dash, and bare-CJK-prose tokens are skipped (they are
+    descriptions, not paths). DP-344: a CJK-containing token is still a path when
+    it is path-SHAPED \u2014 it contains '/' or ends in a recognizable file extension
+    \u2014 because changeset filenames derived from CJK task titles legitimately carry
+    CJK codepoints (e.g. .changeset/dp-344-t1-\u6ce8\u5165-\u79fb\u9664.md). Only bare CJK prose
+    with no path shape remains skipped.
+    \"\"\"
     s = value.strip()
     if not s:
         return False
     if any(ch.isspace() for ch in s):
         return False
-    if re.search(r'[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]', s):
-        return False
     if s.startswith('-'):
         return False
+    if re.search(r'[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]', s):
+        # CJK present: admit only when the token is path-shaped (has a directory
+        # separator or a trailing file extension); otherwise treat as prose.
+        path_shaped = ('/' in s) or bool(re.search(r'\.[A-Za-z0-9]+$', s))
+        return path_shaped
     return True
 
 with open(sys.argv[1]) as f:
@@ -134,9 +147,11 @@ for p in patterns:
 within = []
 additions = []
 for f in files:
-    if f.startswith('.changeset/') and f.endswith('.md'):
-        within.append(f)
-        continue
+    # DP-344 D2: the .changeset/*.md auto-within-scope carve-out was removed. A
+    # changeset file now passes check-scope ONLY because it appears in the task.md
+    # Allowed Files (injected by derive-task-md, DP-344 D1) — there is no special
+    # .changeset back door. This makes check-scope pure Allowed-Files matching,
+    # the same single mechanism the skill-workflow-boundary gate already uses.
     matched = any(match_pattern(f, p) for p in clean_patterns)
     if matched:
         within.append(f)

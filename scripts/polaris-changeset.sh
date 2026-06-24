@@ -10,6 +10,15 @@
 # Contract:
 #   polaris-changeset.sh new --task-md PATH [--repo PATH] [--bump patch|minor|major]
 #   polaris-changeset.sh check --task-md PATH [--repo PATH] [--bump patch|minor|major]
+#   polaris-changeset.sh slug --ticket TICKET --title TITLE [--print slug|path]
+#
+# The `slug` subcommand (DP-344 D3) is the SINGLE slug source shared by both the
+# task.md-driven `new`/`check` path and the derive-task-md injection (D1). It takes
+# a ticket + title directly and prints either the bare filename slug (default) or
+# the deterministic `.changeset/{slug}.md` path (--print path). derive-task-md
+# reuses THIS slug source rather than re-implementing kebab — slug parity (AC1/AC4,
+# including CJK byte-identity) is guaranteed because both producers call the same
+# derive_slug() function.
 #
 # Behavior:
 #   1. Resolve repo path from task.md `repo` field (walk ancestors)
@@ -45,6 +54,7 @@ usage() {
 Usage:
   $(basename "$0") new --task-md PATH [--repo PATH] [--bump patch|minor|major]
   $(basename "$0") check --task-md PATH [--repo PATH] [--bump patch|minor|major]
+  $(basename "$0") slug --ticket TICKET --title TITLE [--print slug|path]
 
 Mechanically writes .changeset/{slug}.md from a task.md per
 references/changeset-convention-default.md (L3 default).
@@ -52,8 +62,78 @@ references/changeset-convention-default.md (L3 default).
 The check subcommand derives the same expected file and verifies it exists
 without writing anything.
 
+The slug subcommand prints the deterministic filename slug (--print slug,
+default) or the .changeset/{slug}.md path (--print path) for a ticket+title;
+it is the single slug source reused by derive-task-md (DP-344 D1/D3).
+
 Exit:  0 = success / no-op / idempotent skip, 1 = fail-loud, 2 = usage error.
 EOF
+}
+
+# Description: Derive the deterministic filename slug from a ticket + title.
+#              kebab(ticket) + "-" + kebab(strip(title)), preserving CJK/unicode
+#              word chars (changeset filenames support unicode). This is the SINGLE
+#              slug source (DP-344 D3): both the task.md-driven new/check path and
+#              the derive-task-md injection (D1) call it, so the injected Allowed
+#              Files path and the file polaris-changeset writes are byte-identical.
+# Args:        \$1 = ticket (may be empty for non-ticket tasks)
+#              \$2 = task title (ticket prefix is stripped internally)
+# Outputs:     the filename slug on stdout (no .md extension, no .changeset/ dir).
+derive_slug() {
+  local ticket="$1"
+  local title="$2"
+  python3 - "$ticket" "$title" <<'PY'
+import sys, re, unicodedata
+
+ticket = sys.argv[1].strip()
+title = sys.argv[2].strip()
+
+# Strip ticket prefix from title:
+#   [TICKET] foo  → foo
+#   TICKET: foo   → foo
+title = re.sub(r"^\s*\[[A-Za-z][A-Za-z0-9]*-\d+\]\s*", "", title)
+title = re.sub(r"^\s*[A-Za-z][A-Za-z0-9]*-\d+\s*:\s*", "", title)
+title = title.strip()
+
+def kebab(s, max_len=60):
+    # Normalize unicode (NFKD: separate accents); keep CJK/unicode word chars.
+    s = unicodedata.normalize("NFKD", s)
+    # Replace non-word chars with hyphens (keep unicode letters/digits).
+    out = []
+    prev_hyphen = False
+    for ch in s:
+        if ch.isalnum():
+            out.append(ch.lower())
+            prev_hyphen = False
+        elif ch in "-_ \t":
+            if not prev_hyphen and out:
+                out.append("-")
+                prev_hyphen = True
+        # Drop punctuation / emoji silently.
+    result = "".join(out).strip("-")
+    # Truncate to max_len at word boundary.
+    if len(result) > max_len:
+        cut = result[:max_len]
+        # Backtrack to last hyphen to preserve whole words.
+        last_h = cut.rfind("-")
+        if last_h > max_len * 0.5:
+            cut = cut[:last_h]
+        result = cut.rstrip("-")
+    return result
+
+ticket_kebab = ""
+if ticket:
+    ticket_kebab = ticket.lower()
+
+short = kebab(title)
+if not short:
+    short = "change"
+
+if ticket_kebab:
+    print(f"{ticket_kebab}-{short}")
+else:
+    print(short)
+PY
 }
 
 # --- Args -------------------------------------------------------------------
@@ -68,10 +148,56 @@ fi
 SUB="$1"; shift
 
 case "$SUB" in
-  new|check) ;;
+  new|check|slug) ;;
   -h|--help) usage; exit 0 ;;
   *) echo "polaris-changeset: unknown subcommand: $SUB" >&2; usage; exit 2 ;;
 esac
+
+# --- slug subcommand (DP-344 D3): single slug source, no task.md required -------
+# Prints the deterministic slug (or .changeset/{slug}.md path) for a ticket+title.
+# Handled before the task.md-dependent argument contract below so derive-task-md
+# can reuse the same slug producer without synthesizing a task.md.
+if [[ "$SUB" == "slug" ]]; then
+  SLUG_TICKET=""
+  SLUG_TITLE=""
+  SLUG_PRINT="slug"
+  SLUG_TICKET_SET=0
+  SLUG_TITLE_SET=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --ticket) SLUG_TICKET="${2:-}"; SLUG_TICKET_SET=1; shift 2 ;;
+      --title)  SLUG_TITLE="${2:-}"; SLUG_TITLE_SET=1; shift 2 ;;
+      --print)  SLUG_PRINT="${2:-}"; shift 2 ;;
+      -h|--help) usage; exit 0 ;;
+      *) echo "polaris-changeset: unknown arg for slug: $1" >&2; usage; exit 2 ;;
+    esac
+  done
+  # --ticket may be empty (non-ticket task), but the flag must be supplied so the
+  # caller is explicit; --title is required and must be non-empty.
+  if [[ "$SLUG_TICKET_SET" -ne 1 || "$SLUG_TITLE_SET" -ne 1 ]]; then
+    echo "polaris-changeset: slug requires --ticket and --title" >&2
+    usage; exit 2
+  fi
+  if [[ -z "$SLUG_TITLE" ]]; then
+    echo "polaris-changeset: slug --title must be non-empty" >&2
+    exit 1
+  fi
+  case "$SLUG_PRINT" in
+    slug|path) ;;
+    *) echo "polaris-changeset: slug --print must be one of: slug, path (got '$SLUG_PRINT')" >&2; exit 2 ;;
+  esac
+  SLUG_VALUE="$(derive_slug "$SLUG_TICKET" "$SLUG_TITLE" || true)"
+  if [[ -z "$SLUG_VALUE" ]]; then
+    echo "polaris-changeset: failed to derive slug from ticket='$SLUG_TICKET' title='$SLUG_TITLE'" >&2
+    exit 1
+  fi
+  if [[ "$SLUG_PRINT" == "path" ]]; then
+    printf '%s\n' ".changeset/${SLUG_VALUE}.md"
+  else
+    printf '%s\n' "$SLUG_VALUE"
+  fi
+  exit 0
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -379,63 +505,8 @@ if [[ -n "$BUMP_OVERRIDE" ]]; then
 fi
 
 # --- Slug derivation (declared > derived) ----------------------------------
-derive_slug() {
-  local ticket="$1"
-  local title="$2"
-  python3 - "$ticket" "$title" <<'PY'
-import sys, re, unicodedata
-
-ticket = sys.argv[1].strip()
-title = sys.argv[2].strip()
-
-# Strip ticket prefix from title:
-#   [TICKET] foo  → foo
-#   TICKET: foo   → foo
-title = re.sub(r"^\s*\[[A-Za-z][A-Za-z0-9]*-\d+\]\s*", "", title)
-title = re.sub(r"^\s*[A-Za-z][A-Za-z0-9]*-\d+\s*:\s*", "", title)
-title = title.strip()
-
-def kebab(s, max_len=60):
-    # Normalize unicode (NFKD: separate accents); keep CJK/unicode word chars.
-    s = unicodedata.normalize("NFKD", s)
-    # Replace non-word chars with hyphens (keep unicode letters/digits).
-    out = []
-    prev_hyphen = False
-    for ch in s:
-        if ch.isalnum():
-            out.append(ch.lower())
-            prev_hyphen = False
-        elif ch in "-_ \t":
-            if not prev_hyphen and out:
-                out.append("-")
-                prev_hyphen = True
-        # Drop punctuation / emoji silently.
-    result = "".join(out).strip("-")
-    # Truncate to max_len at word boundary.
-    if len(result) > max_len:
-        cut = result[:max_len]
-        # Backtrack to last hyphen to preserve whole words.
-        last_h = cut.rfind("-")
-        if last_h > max_len * 0.5:
-            cut = cut[:last_h]
-        result = cut.rstrip("-")
-    return result
-
-ticket_kebab = ""
-if ticket:
-    ticket_kebab = ticket.lower()
-
-short = kebab(title)
-if not short:
-    short = "change"
-
-if ticket_kebab:
-    print(f"{ticket_kebab}-{short}")
-else:
-    print(short)
-PY
-}
-
+# derive_slug() is defined once near the top of this script (DP-344 D3 single slug
+# source); the new/check path and the `slug` subcommand both call it.
 if [[ -n "$DECLARED_FILENAME_SLUG" ]]; then
   FILENAME_SLUG="$DECLARED_FILENAME_SLUG"
 else

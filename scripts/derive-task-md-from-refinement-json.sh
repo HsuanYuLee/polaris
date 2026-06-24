@@ -52,6 +52,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REFINEMENT_JSON=""
 TASK_ID=""
 REPO_NAME="polaris-framework"
+# DP-344 D1: optional override for the changeset-detection repo root. When unset,
+# derive auto-detects the resolved repo root (workspace root for DP-backed, or
+# <workspace>/<source.repo> for a JIRA-Epic product repo). Selftests pass an
+# explicit fixture root so the .changeset/config.json probe is hermetic.
+REPO_ROOT_OVERRIDE=""
 
 # DP-360 T6 delivery/verification block inputs (all optional; the block is only
 # emitted when --deliverable-head-sha is supplied). Empty string = "not supplied".
@@ -68,7 +73,7 @@ AC_UNCERTAIN=""
 usage() {
   cat >&2 <<'USAGE'
 usage:
-  derive-task-md-from-refinement-json.sh --refinement-json <path> --task-id <DP-NNN-Tn> [--repo <name>]
+  derive-task-md-from-refinement-json.sh --refinement-json <path> --task-id <DP-NNN-Tn> [--repo <name>] [--repo-root <path>]
     [--deliverable-head-sha <sha> --deliverable-pr-url <url> --deliverable-pr-state <OPEN|MERGED|CLOSED>
      --verification-status <PASS|FAIL|MANUAL_REQUIRED|UNCERTAIN|BLOCKED_ENV|IN_PROGRESS>
      --ac-total <n> --ac-pass <n> --ac-fail <n> --ac-manual-required <n> --ac-uncertain <n>]
@@ -80,6 +85,10 @@ When --deliverable-head-sha is supplied, a delivery/verification block is append
 to the (T-task only) frontmatter: deliverable.head_sha (D1) plus a nested
 deliverable.verification sub-block (D2 — status + ac_counts). The block is purely
 additive; omit the delivery flags to derive the legacy body unchanged.
+
+--repo-root overrides the changeset-detection repo root (DP-344 D1); when the
+resolved repo root contains .changeset/config.json, derive injects the
+deterministic .changeset/{slug}.md into ## Allowed Files.
 USAGE
   exit 2
 }
@@ -89,6 +98,7 @@ while [[ $# -gt 0 ]]; do
     --refinement-json) REFINEMENT_JSON="${2:-}"; shift 2 ;;
     --task-id) TASK_ID="${2:-}"; shift 2 ;;
     --repo) REPO_NAME="${2:-}"; shift 2 ;;
+    --repo-root) REPO_ROOT_OVERRIDE="${2:-}"; shift 2 ;;
     --deliverable-head-sha) DELIVERABLE_HEAD_SHA="${2:-}"; shift 2 ;;
     --deliverable-pr-url) DELIVERABLE_PR_URL="${2:-}"; shift 2 ;;
     --deliverable-pr-state) DELIVERABLE_PR_STATE="${2:-}"; shift 2 ;;
@@ -110,7 +120,7 @@ if [[ ! -f "$REFINEMENT_JSON" ]]; then
   exit 2
 fi
 
-python3 - "$REFINEMENT_JSON" "$TASK_ID" "$REPO_NAME" "$SCRIPT_DIR" \
+python3 - "$REFINEMENT_JSON" "$TASK_ID" "$REPO_NAME" "$SCRIPT_DIR" "$REPO_ROOT_OVERRIDE" \
   "$DELIVERABLE_HEAD_SHA" "$DELIVERABLE_PR_URL" "$DELIVERABLE_PR_STATE" \
   "$VERIFICATION_STATUS" \
   "$AC_TOTAL" "$AC_PASS" "$AC_FAIL" "$AC_MANUAL_REQUIRED" "$AC_UNCERTAIN" <<'PY'
@@ -120,7 +130,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-refinement_path, task_id, repo_name, script_dir = sys.argv[1:5]
+refinement_path, task_id, repo_name, script_dir, repo_root_override = sys.argv[1:6]
 (
     deliverable_head_sha,
     deliverable_pr_url,
@@ -131,7 +141,7 @@ refinement_path, task_id, repo_name, script_dir = sys.argv[1:5]
     ac_fail_arg,
     ac_manual_required_arg,
     ac_uncertain_arg,
-) = sys.argv[5:14]
+) = sys.argv[6:15]
 
 
 def fail(msg, code=2):
@@ -498,6 +508,87 @@ if isinstance(task_jira_key, str) and task_jira_key.strip():
 else:
     task_identity = task_id
     jira_key_cell = "N/A"
+
+
+# DP-344 D1: changeset Allowed-Files injection. When the resolved repo root has a
+# .changeset/config.json (the repo participates in Changesets), inject the
+# deterministic .changeset/{slug}.md into the task's ## Allowed Files. The slug is
+# computed by REUSING polaris-changeset.sh's `slug` subcommand (DP-344 D3 single
+# slug source — no second kebab implementation here), so the injected path is
+# byte-identical with the file polaris-changeset writes, including for CJK titles.
+def resolve_changeset_repo_root() -> str:
+    """Resolve the repo root used to probe for .changeset/config.json.
+
+    Detection is relative to the RESOLVED repo root, never the workspace root, so a
+    product repo that does not use Changesets is not falsely injected with the
+    framework workspace's .changeset (DP-344 AC-NEG1).
+
+    Returns:
+        The absolute repo-root path string, or "" when it cannot be resolved.
+
+    Resolution order:
+      1. --repo-root override (selftests pass a hermetic fixture root).
+      2. <workspace>/<source.repo> when that directory exists (JIRA-Epic product
+         repo). workspace = dirname(script_dir) (script_dir is <workspace>/scripts).
+      3. <workspace> itself (DP-backed framework source: the framework workspace IS
+         the repo root, where .changeset/config.json lives).
+    """
+    if repo_root_override.strip():
+        return repo_root_override.strip()
+    workspace_root = Path(script_dir).parent
+    repo_field = (source.get("repo") or "").strip() if isinstance(source.get("repo"), str) else ""
+    if repo_field:
+        candidate = workspace_root / repo_field
+        if candidate.is_dir():
+            return str(candidate)
+    return str(workspace_root)
+
+
+def changeset_allowed_file_path() -> str:
+    """Return the deterministic .changeset/{slug}.md to inject, or "" to skip.
+
+    Returns "" (no injection) when the resolved repo root has no
+    .changeset/config.json (non-changeset repo, AC-NEG1). Otherwise delegates the
+    slug derivation to polaris-changeset.sh `slug` (single slug source, AC1/AC4),
+    using task_identity as the ticket and the task title.
+    """
+    repo_root = resolve_changeset_repo_root()
+    if not repo_root:
+        return ""
+    if not (Path(repo_root) / ".changeset" / "config.json").is_file():
+        return ""
+    changeset_helper = Path(script_dir) / "polaris-changeset.sh"
+    if not changeset_helper.is_file():
+        fail(f"missing slug source helper: {changeset_helper}")
+    proc = subprocess.run(
+        [
+            "bash",
+            str(changeset_helper),
+            "slug",
+            "--ticket",
+            task_identity,
+            "--title",
+            title,
+            "--print",
+            "path",
+        ],
+        text=True,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr)
+        fail(f"task {task_id} changeset slug derivation failed")
+    return proc.stdout.strip()
+
+
+# Inject for implementation (T) tasks only — a changeset is a PR deliverable; V
+# (verification) tasks produce no PR/changeset. Idempotent: never append a path
+# already present in allowed_files (AC-NEG2 re-derive idempotency).
+if mode == "T":
+    _changeset_path = changeset_allowed_file_path()
+    if _changeset_path and _changeset_path not in allowed_files:
+        allowed_files.append(_changeset_path)
+
 
 # Branch slug: deterministic, lowercase, hyphen-separated, ASCII-only (DP-307
 # D1/D2). Byte-identical with the canonical bash slugify in

@@ -61,6 +61,18 @@ assert_file_exists() {
   fi
 }
 
+# assert_contains_str: PASS when $1 contains substring $2 (DP-344 slug parity).
+assert_contains_str() {
+  local haystack="$1" needle="$2" label="$3"
+  if [[ "$haystack" == *"$needle"* ]]; then
+    PASS=$((PASS + 1))
+    [[ "$DEBUG" == "1" ]] && printf "  [ok] %s\n" "$label"
+  else
+    FAIL=$((FAIL + 1))
+    printf "  [FAIL] %s — needle=%s not in: %s\n" "$label" "$needle" "$haystack"
+  fi
+}
+
 cleanup() { rm -rf "$WORK_DIR" 2>/dev/null || true; }
 trap cleanup EXIT
 
@@ -352,6 +364,62 @@ fix: [PCS-9] multi package coverage
 EOF
 "$PCS" check --task-md "$TASK_M" >/dev/null 2>&1
 assert_eq "$?" "0" "multi-pkg existing coverage changeset → check exit 0"
+
+# ────────────────────────────────────────────────────────────────────────────
+# DP-344 D3 — `slug` subcommand is the single slug source that derive-task-md
+# reuses. These cases assert: slug print, path print, CJK preservation, error
+# handling, and parity between `slug --print path` and the filename that `new`
+# actually writes (so derive's injected Allowed-Files entry == the real file).
+# ────────────────────────────────────────────────────────────────────────────
+
+# slug --print slug (default) emits the deterministic kebab slug, no dir/ext.
+SLUG_OUT="$("$PCS" slug --ticket "DP-344-T1" --title "changeset allowed files derive" --print slug)"
+assert_eq "$SLUG_OUT" "dp-344-t1-changeset-allowed-files-derive" "slug --print slug → kebab slug"
+
+# slug --print path emits .changeset/{slug}.md.
+PATH_OUT="$("$PCS" slug --ticket "DP-344-T1" --title "changeset allowed files derive" --print path)"
+assert_eq "$PATH_OUT" ".changeset/dp-344-t1-changeset-allowed-files-derive.md" "slug --print path → .changeset path"
+
+# Default --print is slug.
+DEFAULT_OUT="$("$PCS" slug --ticket "DP-344-T1" --title "changeset allowed files derive")"
+assert_eq "$DEFAULT_OUT" "dp-344-t1-changeset-allowed-files-derive" "slug default print → slug"
+
+# CJK in title must be preserved (the canonical slug source NFKD-normalizes and
+# keeps isalnum codepoints; it must NOT ASCII-strip CJK).
+CJK_OUT="$("$PCS" slug --ticket "DP-344-T1" --title "changeset 注入 移除" --print path)"
+assert_contains_str "$CJK_OUT" "注入" "slug CJK title preserves 注入"
+assert_contains_str "$CJK_OUT" "移除" "slug CJK title preserves 移除"
+
+# Missing required flag → exit 2 (contract violation).
+"$PCS" slug --ticket "DP-344-T1" >/dev/null 2>&1
+assert_eq "$?" "2" "slug without --title → exit 2"
+
+# Invalid --print value → exit 2.
+"$PCS" slug --ticket "DP-344-T1" --title "x" --print bogus >/dev/null 2>&1
+assert_eq "$?" "2" "slug --print bogus → exit 2"
+
+# Parity: `slug --print path` basename == the file `new` actually writes for the
+# same ticket+title. Reuse the existing fake-repo / task.md helpers so the task.md
+# shape matches what parse-task-md.sh expects (repo / task_jira_key / summary).
+PARITY_PARENT="$WORK_DIR/dp344-parity"
+mkdir -p "$PARITY_PARENT"
+PARITY_REPO="$(make_fake_repo "$PARITY_PARENT" "myrepo" "single-pkg")"
+PARITY_TASK="$PARITY_PARENT/specs/SELFTEST-001/tasks/T1.md"
+make_task_md "$PARITY_REPO" "myrepo" "$PARITY_TASK" "DP-344-T1" "changeset parity case"
+
+# The slug source consumes the parsed summary; read it back the same way `new` does.
+PARSE_TASK_MD="$SCRIPT_DIR/parse-task-md.sh"
+PARITY_SUMMARY="$("$PARSE_TASK_MD" --field summary "$PARITY_TASK" 2>/dev/null || true)"
+PARITY_PATH="$("$PCS" slug --ticket "DP-344-T1" --title "$PARITY_SUMMARY" --print path)"
+
+"$PCS" new --task-md "$PARITY_TASK" >/dev/null 2>&1 || true
+PARITY_WRITTEN="$(find "$PARITY_REPO/.changeset" -maxdepth 1 -name '*.md' 2>/dev/null | head -1 || true)"
+if [[ -n "$PARITY_WRITTEN" ]]; then
+  assert_eq ".changeset/$(basename "$PARITY_WRITTEN")" "$PARITY_PATH" "slug --print path == filename new writes (parity)"
+else
+  FAIL=$((FAIL + 1))
+  printf "  [FAIL] DP-344 parity — new did not write a changeset file\n"
+fi
 
 # ────────────────────────────────────────────────────────────────────────────
 echo ""

@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.34] - 2026-06-24
+
+### Changed
+
+- c0c5227: changeset Allowed-Files derive 注入 + check-scope carve-out 移除 + polaris-changeset slug 介面收斂
+
 ## [3.76.33] - 2026-06-24
 
 ### Changed
