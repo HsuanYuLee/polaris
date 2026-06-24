@@ -157,7 +157,7 @@ mk_fake_gh() {
   cat > "$bindir/gh" <<'EOF'
 #!/usr/bin/env bash
 # fake gh CLI for revision-rebase selftest
-LOG="${FAKE_GH_LOG:-/tmp/fake-gh.log}"
+LOG="${FAKE_GH_LOG:-$WORK_DIR/fake-gh.log}"
 {
   printf 'INVOKED: '
   for a in "$@"; do printf '%q ' "$a"; done
@@ -240,14 +240,14 @@ FAKE_GH_LOG="$C2/gh.log"
 # Push the same task to origin too — rebase target = origin/feat/demo, ancestor of HEAD.
 out=$(PATH="$C2/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C2/repo" --task-md "$TASK_MD2" 2>/tmp/rr-c2-stderr)
+  bash "$RR" --repo "$C2/repo" --task-md "$TASK_MD2" 2>"$WORK_DIR"/rr-c2-stderr)
 rc=$?
-[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat /tmp/rr-c2-stderr; }
+[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat "$WORK_DIR"/rr-c2-stderr; }
 assert_eq "$rc" "0" "case2.exit"
 assert_json_eq "$out" "rebase_status" "not_needed" "case2"
 assert_json_eq "$out" "resolved_base" "feat/demo" "case2"
 assert_json_eq "$out" "legacy_fallback" "false" "case2"
-python3 - "$out" <<'PY' >/tmp/rr-c2-evidence.out
+python3 - "$out" <<'PY' >"$WORK_DIR"/rr-c2-evidence.out
 import json
 import pathlib
 import sys
@@ -259,8 +259,8 @@ print("ok" if ok else "missing")
 for p in paths:
     pathlib.Path(p).unlink(missing_ok=True)
 PY
-assert_contains "$(cat /tmp/rr-c2-evidence.out)" "ok" "case2.persisted evidence"
-rm -f /tmp/rr-c2-evidence.out
+assert_contains "$(cat "$WORK_DIR"/rr-c2-evidence.out)" "ok" "case2.persisted evidence"
+rm -f "$WORK_DIR"/rr-c2-evidence.out
 
 # ────────────────────────────────────────────────────────────────────────────
 # Case 3: base ahead, no conflict → clean rebase
@@ -290,9 +290,9 @@ FAKE_GH_LOG="$C3/gh.log"
 
 out=$(PATH="$C3/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C3/repo" --task-md "$TASK_MD3" 2>/tmp/rr-c3-stderr)
+  bash "$RR" --repo "$C3/repo" --task-md "$TASK_MD3" 2>"$WORK_DIR"/rr-c3-stderr)
 rc=$?
-[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat /tmp/rr-c3-stderr; }
+[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat "$WORK_DIR"/rr-c3-stderr; }
 assert_eq "$rc" "0" "case3.exit"
 assert_json_eq "$out" "rebase_status" "clean" "case3"
 
@@ -335,9 +335,9 @@ FAKE_GH_LOG="$C4/gh.log"
 
 out=$(PATH="$C4/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C4/repo" --task-md "$TASK_MD4" 2>/tmp/rr-c4-stderr)
+  bash "$RR" --repo "$C4/repo" --task-md "$TASK_MD4" 2>"$WORK_DIR"/rr-c4-stderr)
 rc=$?
-[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat /tmp/rr-c4-stderr; }
+[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat "$WORK_DIR"/rr-c4-stderr; }
 assert_eq "$rc" "1" "case4.exit"
 assert_json_eq "$out" "rebase_status" "conflict" "case4"
 # Verify rebase-in-progress
@@ -349,7 +349,7 @@ else
   printf "  [FAIL] case4.rebase-in-progress — no .git/rebase-merge or rebase-apply found\n"
 fi
 # Stderr advisory
-stderr_c4=$(cat /tmp/rr-c4-stderr)
+stderr_c4=$(cat "$WORK_DIR"/rr-c4-stderr)
 assert_contains "$stderr_c4" "Conflict during rebase" "case4.advisory"
 
 # Abort the rebase to clean state (also tests case 14 below)
@@ -373,9 +373,9 @@ FAKE_GH_LOG="$C5/gh.log"
 
 out=$(PATH="$C5/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C5/repo" --task-md "$TASK_MD5" 2>/tmp/rr-c5-stderr)
+  bash "$RR" --repo "$C5/repo" --task-md "$TASK_MD5" 2>"$WORK_DIR"/rr-c5-stderr)
 rc=$?
-[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat /tmp/rr-c5-stderr; }
+[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat "$WORK_DIR"/rr-c5-stderr; }
 assert_eq "$rc" "0" "case5.exit"
 assert_json_eq "$out" "pr_base_synced" "false" "case5"
 assert_json_eq "$out" "pr_base_already_aligned" "true" "case5"
@@ -404,9 +404,9 @@ FAKE_GH_LOG="$C6/gh.log"
 
 out=$(PATH="$C6/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C6/repo" --task-md "$TASK_MD6" 2>/tmp/rr-c6-stderr)
+  bash "$RR" --repo "$C6/repo" --task-md "$TASK_MD6" 2>"$WORK_DIR"/rr-c6-stderr)
 rc=$?
-[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat /tmp/rr-c6-stderr; cat "$FAKE_GH_LOG"; }
+[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat "$WORK_DIR"/rr-c6-stderr; cat "$FAKE_GH_LOG"; }
 assert_eq "$rc" "0" "case6.exit"
 assert_json_eq "$out" "pr_base_before" "develop" "case6"
 assert_json_eq "$out" "pr_base_after" "feat/demo" "case6"
@@ -456,9 +456,9 @@ FAKE_GH_LOG="$C7/gh.log"
 
 out=$(PATH="$C7/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C7/repo" --task-md "$TASK_MD7" 2>/tmp/rr-c7-stderr)
+  bash "$RR" --repo "$C7/repo" --task-md "$TASK_MD7" 2>"$WORK_DIR"/rr-c7-stderr)
 rc=$?
-[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat /tmp/rr-c7-stderr; }
+[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat "$WORK_DIR"/rr-c7-stderr; }
 assert_eq "$rc" "0" "case7.exit"
 assert_json_eq "$out" "resolved_base" "develop" "case7"
 assert_json_eq "$out" "pr_base_before" "feat/old-base" "case7"
@@ -496,7 +496,7 @@ FAKE_GH_LOG="$C8/gh.log"
 
 out=$(PATH="$C8/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C8/repo" 2>/tmp/rr-c8-stderr)
+  env -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$RR" --repo "$C8/repo" 2>"$WORK_DIR"/rr-c8-stderr)
 rc=$?
 assert_eq "$rc" "1" "case8.exit"
 assert_json_eq "$out" "legacy_fallback" "false" "case8"
@@ -510,7 +510,7 @@ else
   PASS=$((PASS + 1))
   [ "$DEBUG" = "1" ] && printf "  [ok] case8.no-pr-edit\n"
 fi
-stderr_c8=$(cat /tmp/rr-c8-stderr)
+stderr_c8=$(cat "$WORK_DIR"/rr-c8-stderr)
 assert_contains "$stderr_c8" "no task.md for current branch" "case8.advisory"
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -531,7 +531,7 @@ FAKE_GH_LOG="$C9/gh.log"
 # Run from /tmp (not inside the repo) and supply --repo explicitly
 out=$(PATH="$C9/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash -c "cd /tmp && bash '$RR' --repo '$C9/repo' --task-md '$TASK_MD9'" 2>/tmp/rr-c9-stderr)
+  bash -c "cd /tmp && bash '$RR' --repo '$C9/repo' --task-md '$TASK_MD9'" 2>"$WORK_DIR"/rr-c9-stderr)
 rc=$?
 assert_eq "$rc" "0" "case9.exit"
 # git rev-parse --show-toplevel resolves symlinks (macOS /var → /private/var); use the same
@@ -556,7 +556,7 @@ FAKE_GH_LOG="$C10/gh.log"
 
 out=$(PATH="$C10/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C10/repo" --task-md "$TASK_MD10" --pr 999 2>/tmp/rr-c10-stderr)
+  bash "$RR" --repo "$C10/repo" --task-md "$TASK_MD10" --pr 999 2>"$WORK_DIR"/rr-c10-stderr)
 rc=$?
 assert_eq "$rc" "0" "case10.exit"
 assert_json_eq "$out" "pr_number" "999" "case10"
@@ -578,7 +578,7 @@ FAKE_GH_LOG="$C11/gh.log"
 
 out=$(PATH="$C11/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C11/repo" --task-md "$TASK_MD11" 2>/tmp/rr-c11-stderr)
+  bash "$RR" --repo "$C11/repo" --task-md "$TASK_MD11" 2>"$WORK_DIR"/rr-c11-stderr)
 rc=$?
 assert_eq "$rc" "0" "case11.exit"
 assert_json_eq "$out" "task_md" "$TASK_MD11" "case11"
@@ -601,10 +601,10 @@ FAKE_GH_LOG="$C12/gh.log"
 
 out=$(PATH="$C12/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C12/repo" --task-md "$TASK_MD12" 2>/tmp/rr-c12-stderr)
+  bash "$RR" --repo "$C12/repo" --task-md "$TASK_MD12" 2>"$WORK_DIR"/rr-c12-stderr)
 rc=$?
 assert_eq "$rc" "1" "case12.exit"
-stderr_c12=$(cat /tmp/rr-c12-stderr)
+stderr_c12=$(cat "$WORK_DIR"/rr-c12-stderr)
 assert_contains "$stderr_c12" "fetch origin failed" "case12.advisory"
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -627,10 +627,10 @@ FAKE_GH_LOG="$C13/gh.log"
 
 out=$(PATH="$C13/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$C13/scripts-shadow/revision-rebase.sh" --repo "$C13/repo" --task-md "$TASK_MD13" 2>/tmp/rr-c13-stderr)
+  bash "$C13/scripts-shadow/revision-rebase.sh" --repo "$C13/repo" --task-md "$TASK_MD13" 2>"$WORK_DIR"/rr-c13-stderr)
 rc=$?
 assert_eq "$rc" "1" "case13.exit"
-stderr_c13=$(cat /tmp/rr-c13-stderr)
+stderr_c13=$(cat "$WORK_DIR"/rr-c13-stderr)
 assert_contains "$stderr_c13" "helper missing" "case13.advisory"
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -677,9 +677,9 @@ write_fake_pr_view "$FAKE_PR_VIEW" 102 "feat/demo"
 
 out=$(PATH="$C4/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$C4/gh.log" \
-  bash "$RR" --repo "$C4/repo" --task-md "$TASK_MD4" 2>/tmp/rr-c15-stderr)
+  bash "$RR" --repo "$C4/repo" --task-md "$TASK_MD4" 2>"$WORK_DIR"/rr-c15-stderr)
 rc=$?
-[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat /tmp/rr-c15-stderr; }
+[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat "$WORK_DIR"/rr-c15-stderr; }
 assert_eq "$rc" "0" "case15.exit"
 # After manual reset to origin/feat/demo + extra commit, target is ancestor of HEAD
 # → rebase is "not_needed". Either "clean" or "not_needed" is acceptable here, since
@@ -714,9 +714,9 @@ FAKE_GH_LOG="$C16/gh.log"
 
 out=$(PATH="$C16/bin:$PATH" \
   FAKE_GH_PR_VIEW="$FAKE_PR_VIEW" FAKE_GH_LOG="$FAKE_GH_LOG" \
-  bash "$RR" --repo "$C16/repo" --task-md "$TASK_MD16" --aggregate-release 2>/tmp/rr-c16-stderr)
+  bash "$RR" --repo "$C16/repo" --task-md "$TASK_MD16" --aggregate-release 2>"$WORK_DIR"/rr-c16-stderr)
 rc=$?
-[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat /tmp/rr-c16-stderr; cat "$FAKE_GH_LOG"; }
+[ "$DEBUG" = "1" ] && { printf '  out: %s\n' "$out"; cat "$WORK_DIR"/rr-c16-stderr; cat "$FAKE_GH_LOG"; }
 assert_eq "$rc" "0" "case16.exit"
 assert_json_eq "$out" "resolved_base" "feat/demo" "case16"
 assert_json_eq "$out" "pr_base_before" "main" "case16"

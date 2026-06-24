@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.33] - 2026-06-24
+
+### Changed
+
+- 3e10daa: revision-rebase-selftest.sh：固定 /tmp 路徑改唯一 WORK_DIR + case8 env -u 隔離（hermetic）
+
 ## [3.76.32] - 2026-06-24
 
 ### Changed
