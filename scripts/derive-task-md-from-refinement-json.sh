@@ -515,7 +515,7 @@ else:
 # deterministic .changeset/{slug}.md into the task's ## Allowed Files. The slug is
 # computed by REUSING polaris-changeset.sh's `slug` subcommand (DP-344 D3 single
 # slug source — no second kebab implementation here), so the injected path is
-# byte-identical with the file polaris-changeset writes, including for CJK titles.
+# byte-identical with the slug polaris-changeset writes (ASCII-only; CJK dropped).
 def resolve_changeset_repo_root() -> str:
     """Resolve the repo root used to probe for .changeset/config.json.
 

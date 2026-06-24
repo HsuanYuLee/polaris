@@ -71,9 +71,10 @@ EOF
 }
 
 # Description: Derive the deterministic filename slug from a ticket + title.
-#              kebab(ticket) + "-" + kebab(strip(title)), preserving CJK/unicode
-#              word chars (changeset filenames support unicode). This is the SINGLE
-#              slug source (DP-344 D3): both the task.md-driven new/check path and
+#              kebab(ticket) + "-" + kebab(strip(title)), dropping non-ASCII
+#              (CJK / punctuation / emoji) so the slug stays machine-matchable.
+#              This is the SINGLE slug source (DP-344 D3): both the task.md-driven
+#              new/check path and
 #              the derive-task-md injection (D1) call it, so the injected Allowed
 #              Files path and the file polaris-changeset writes are byte-identical.
 # Args:        \$1 = ticket (may be empty for non-ticket tasks)
@@ -96,13 +97,14 @@ title = re.sub(r"^\s*[A-Za-z][A-Za-z0-9]*-\d+\s*:\s*", "", title)
 title = title.strip()
 
 def kebab(s, max_len=60):
-    # Normalize unicode (NFKD: separate accents); keep CJK/unicode word chars.
+    # Normalize unicode (NFKD: separate accents); keep ASCII alphanumeric only.
     s = unicodedata.normalize("NFKD", s)
-    # Replace non-word chars with hyphens (keep unicode letters/digits).
+    # Keep only ASCII alphanumeric; CJK / punctuation / emoji are dropped so the
+    # filename slug stays machine-matchable (validate-breakdown-ready contract).
     out = []
     prev_hyphen = False
     for ch in s:
-        if ch.isalnum():
+        if ch.isascii() and ch.isalnum():
             out.append(ch.lower())
             prev_hyphen = False
         elif ch in "-_ \t":

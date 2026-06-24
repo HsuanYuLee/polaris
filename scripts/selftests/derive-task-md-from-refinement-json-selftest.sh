@@ -1393,10 +1393,12 @@ if ! printf '%s\n' "$allowed_section_ascii" | grep -qF -- "$expected_cs_ascii"; 
 fi
 
 # ---------------------------------------------------------------------------
-# Case 26 (DP-344 AC4): slug parity holds for both ASCII and CJK titles -- the
+# Case 26 (DP-344 AC4 / DP-362): slug parity holds for a CJK-bearing title -- the
 # derive-injected path is byte-identical to polaris-changeset slug --print path.
-# This guards against derive re-implementing a second (ASCII-only) kebab that
-# would drop CJK characters the canonical slug source preserves.
+# DP-362: CJK is now DROPPED (ASCII-only slug, machine-matchable). This case
+# still guards that derive does not re-implement a second kebab: it must reuse
+# the canonical slug source, so the injected path matches byte-for-byte and the
+# result is pure ASCII.
 # ---------------------------------------------------------------------------
 dp344_title_cjk="changeset 注入 derive 移除 carve-out"
 dp344_ref_cjk="$tmpdir/dp344-cjk.json"
@@ -1413,11 +1415,11 @@ expected_cs_cjk="$(bash "$POLARIS_CHANGESET" slug \
   --ticket "DP-344-T1" --title "$dp344_title_cjk" --print path)"
 [[ -n "$expected_cs_cjk" ]] || { echo "FAIL [case 26 / DP-344 AC4]: empty CJK slug path" >&2; exit 1; }
 
-# CJK must be preserved -- if derive used an ASCII-only kebab, the CJK segment
-# would be dropped and this would differ from the canonical slug source.
+# DP-362: CJK must be DROPPED -- the canonical slug source keeps only ASCII
+# alphanumeric, so the derived path must be pure ASCII (no 注入 / 移除 segment).
 case "$expected_cs_cjk" in
-  *注入*移除*) : ;;
-  *) echo "FAIL [case 26 / DP-344 AC4]: canonical slug dropped CJK ('$expected_cs_cjk')" >&2; exit 1 ;;
+  *注入* | *移除*)
+    echo "FAIL [case 26 / DP-362]: slug retained CJK ('$expected_cs_cjk')" >&2; exit 1 ;;
 esac
 
 allowed_section_cjk="$(awk '/^## Allowed Files/{f=1;next} /^## /{f=0} f' "$dp344_out_cjk")"

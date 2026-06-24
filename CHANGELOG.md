@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.35] - 2026-06-25
+
+### Changed
+
+- 1c5acb0: polaris-changeset kebab slug 收斂 ASCII-only 並 teardown derive cjk-preserve selftest 斷言
+
 ## [3.76.34] - 2026-06-24
 
 ### Changed

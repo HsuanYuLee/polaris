@@ -384,11 +384,31 @@ assert_eq "$PATH_OUT" ".changeset/dp-344-t1-changeset-allowed-files-derive.md" "
 DEFAULT_OUT="$("$PCS" slug --ticket "DP-344-T1" --title "changeset allowed files derive")"
 assert_eq "$DEFAULT_OUT" "dp-344-t1-changeset-allowed-files-derive" "slug default print → slug"
 
-# CJK in title must be preserved (the canonical slug source NFKD-normalizes and
-# keeps isalnum codepoints; it must NOT ASCII-strip CJK).
+# DP-362: CJK in title must be DROPPED so the slug stays machine-matchable
+# (validate-breakdown-ready contract). The canonical slug source keeps only ASCII
+# alphanumeric; CJK / punctuation / emoji are silently dropped.
 CJK_OUT="$("$PCS" slug --ticket "DP-344-T1" --title "changeset 注入 移除" --print path)"
-assert_contains_str "$CJK_OUT" "注入" "slug CJK title preserves 注入"
-assert_contains_str "$CJK_OUT" "移除" "slug CJK title preserves 移除"
+assert_eq "$CJK_OUT" ".changeset/dp-344-t1-changeset.md" "slug all-ASCII-after-dropping-CJK"
+case "$CJK_OUT" in
+  *注入* | *移除*)
+    FAIL=$((FAIL + 1))
+    printf "  [FAIL] slug must not contain CJK — got: %s\n" "$CJK_OUT"
+    ;;
+  *)
+    PASS=$((PASS + 1))
+    [[ "$DEBUG" == "1" ]] && printf "  [ok] slug CJK dropped\n"
+    ;;
+esac
+
+# Mixed CJK+ASCII title → slug is pure ASCII, keeps the ASCII tokens, no CJK,
+# no double-hyphen.
+MIXED_OUT="$("$PCS" slug --ticket "DP-362-T1" --title "changeset 注入 cleanup" --print slug)"
+assert_eq "$MIXED_OUT" "dp-362-t1-changeset-cleanup" "slug mixed CJK+ASCII → pure ASCII tokens"
+
+# Pure-CJK title → kebab(title) is empty, so the slug source falls back to
+# {ticket}-change.
+PURE_CJK_OUT="$("$PCS" slug --ticket "DP-362-T1" --title "注入移除" --print slug)"
+assert_eq "$PURE_CJK_OUT" "dp-362-t1-change" "slug pure-CJK title → {ticket}-change fallback"
 
 # Missing required flag → exit 2 (contract violation).
 "$PCS" slug --ticket "DP-344-T1" >/dev/null 2>&1
