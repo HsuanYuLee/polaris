@@ -16,9 +16,11 @@ trap 'rm -rf "$tmp"' EXIT
 mock_bin="$tmp/bin"
 mkdir -p "$mock_bin"
 
-# Mock gh：reviews 帶 commit_id（DP-315 staleness 基準）；commits 投影 .sha
-# （head.sha 由 .[-1].sha 取得，依 BS3），同時仍輸出 committer.date，
-# 讓 selftest 能證明 consumer 已不再用它判 staleness。
+# Mock gh：reviews 帶 commit_id（DP-315 staleness 基準）；head.sha 改由 /pulls/N
+# 物件的 .head.sha 投影取得（DP-355，與 check-pr-approval-status.sh 一致）。
+# /commits 仍保留 fixture（且仍輸出 committer.date），用來證明 consumer 已不再讀
+# /commits 分頁第一頁判 head——>30-commit case 故意把 /commits 第一頁 .[-1] 設成
+# 非 head sha，若 head 仍取自 /commits 分頁就會誤分類。
 cat > "$mock_bin/gh" <<'MOCK'
 #!/usr/bin/env bash
 # mock gh：僅支援 api 子命令，回傳預設 fixtures
@@ -108,6 +110,37 @@ case "$endpoint" in
   */pulls/10/reviews) payload='[{"user":{"login":"reviewer"},"state":"APPROVED","submitted_at":"2026-05-06T10:00:00Z","commit_id":"sha10-old"},{"user":{"login":"reviewer"},"state":"COMMENTED","submitted_at":"2026-05-06T12:00:00Z","commit_id":"sha10-old"}]' ;;
   */pulls/10/commits) payload='[{"sha":"sha10-new","commit":{"committer":{"date":"2026-05-06T11:00:00Z"}}}]' ;;
   */pulls/10/comments|*/issues/10/comments) payload='[]' ;;
+
+  # PR 11 — >30-commit COMMENTED at real head（AC1）：reviewer 在當前 head COMMENTED、
+  # 之後無新 push（commit_id == head.sha）。/pulls/11 物件回傳真 head sha11-head；
+  # /commits 第一頁 .[-1] 故意設成 sha11-page1-not-head（>30 commit，head 在後面分頁），
+  # 證明 head 取自 /pulls/N 而非 /commits 分頁。預期 waiting_for_author（排除）。
+  */pulls/11/reviews) payload='[{"user":{"login":"reviewer"},"state":"COMMENTED","submitted_at":"2026-05-06T10:00:00Z","commit_id":"sha11-head"}]' ;;
+  */pulls/11/commits) payload='[{"sha":"sha11-page1-not-head","commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
+  */pulls/11/comments|*/issues/11/comments) payload='[]' ;;
+
+  # PR 12 — >30-commit APPROVED at real head（AC2）：reviewer 在當前 head APPROVED
+  # （commit_id == head.sha），無新 push。/pulls/12 物件回傳真 head sha12-head；
+  # /commits 第一頁 .[-1] 故意設成 sha12-page1-not-head，證明 head 取自 /pulls/N。
+  # 預期 valid_approve（排除）。
+  */pulls/12/reviews) payload='[{"user":{"login":"reviewer"},"state":"APPROVED","submitted_at":"2026-05-06T10:00:00Z","commit_id":"sha12-head"}]' ;;
+  */pulls/12/commits) payload='[{"sha":"sha12-page1-not-head","commit":{"committer":{"date":"2026-05-06T09:00:00Z"}}}]' ;;
+  */pulls/12/comments|*/issues/12/comments) payload='[]' ;;
+
+  # /pulls/N 物件（無 trailing path）→ .head.sha 投影（DP-355 canonical head 來源）。
+  # exact pattern，永遠不會 shadow 上方 */pulls/N/{reviews,commits,comments}。
+  */pulls/1) payload='{"head":{"sha":"sha1"}}' ;;
+  */pulls/2) payload='{"head":{"sha":"sha2"}}' ;;
+  */pulls/3) payload='{"head":{"sha":"sha3"}}' ;;
+  */pulls/4) payload='{"head":{"sha":"sha4-new"}}' ;;
+  */pulls/5) payload='{"head":{"sha":"sha5-new"}}' ;;
+  */pulls/6) payload='{"head":{"sha":"sha6"}}' ;;
+  */pulls/7) payload='{"head":{"sha":"sha7"}}' ;;
+  */pulls/8) payload='{"head":{"sha":"sha8"}}' ;;
+  */pulls/9) payload='{"head":{"sha":"sha9"}}' ;;
+  */pulls/10) payload='{"head":{"sha":"sha10-new"}}' ;;
+  */pulls/11) payload='{"head":{"sha":"sha11-head"}}' ;;
+  */pulls/12) payload='{"head":{"sha":"sha12-head"}}' ;;
 esac
 
 if [[ -n "$jq_filter" ]]; then
@@ -130,7 +163,9 @@ cat > "$candidates" <<'JSON'
   {"repo":"demo","number":7,"title":"approve at head later unrelated commit","url":"https://github.com/acme/demo/pull/7","author":"grace","created_at":"2026-05-06T08:00:00Z"},
   {"repo":"demo","number":8,"title":"approved null commit_id","url":"https://github.com/acme/demo/pull/8","author":"heidi","created_at":"2026-05-06T08:00:00Z"},
   {"repo":"demo","number":9,"title":"approved at head plus interleaved commented","url":"https://github.com/acme/demo/pull/9","author":"ivan","created_at":"2026-05-06T08:00:00Z"},
-  {"repo":"demo","number":10,"title":"stale approve plus interleaved commented with push","url":"https://github.com/acme/demo/pull/10","author":"judy","created_at":"2026-05-06T08:00:00Z"}
+  {"repo":"demo","number":10,"title":"stale approve plus interleaved commented with push","url":"https://github.com/acme/demo/pull/10","author":"judy","created_at":"2026-05-06T08:00:00Z"},
+  {"repo":"demo","number":11,"title":"over 30 commit commented at head no push","url":"https://github.com/acme/demo/pull/11","author":"kevin","created_at":"2026-05-06T08:00:00Z"},
+  {"repo":"demo","number":12,"title":"over 30 commit approved at head","url":"https://github.com/acme/demo/pull/12","author":"laura","created_at":"2026-05-06T08:00:00Z"}
 ]
 JSON
 
@@ -150,6 +185,9 @@ from pathlib import Path
 items = json.loads(Path(sys.argv[1]).read_text())  # 讀取 actionable 輸出
 by_number = {item["number"]: item for item in items}
 # PR 7、PR 9 排除（valid approve at head）；PR 8、PR 10 必須出現
+# PR 7、9、11、12 排除（valid approve / waiting_for_author at real head）；
+# PR 8、10 必須出現。PR 11/12 是 >30-commit case：head 取自 /pulls/N 而非 /commits
+# 分頁，DP-355 修正前 head 會誤取自 /commits 第一頁非-head sha 而被錯列入 actionable。
 if sorted(by_number) != [1, 4, 5, 8, 10]:
     raise SystemExit(f"unexpected actionable PRs: {sorted(by_number)}")
 if by_number[1]["review_status"] != "needs_first_review":
@@ -166,6 +204,12 @@ if 9 in by_number:
 if by_number[10]["review_status"] != "needs_re_review":
     raise SystemExit("PR 10 (stale APPROVED + interleaved COMMENTED + push) should still "
                      "need re-review (not falsely marked valid)")
+if 11 in by_number:
+    raise SystemExit("PR 11 (>30-commit COMMENTED at real head, no push) must not be "
+                     "actionable — head must come from /pulls/N .head.sha, not /commits page 1")
+if 12 in by_number:
+    raise SystemExit("PR 12 (>30-commit APPROVED at real head) must not be actionable — "
+                     "head must come from /pulls/N .head.sha, not /commits page 1")
 PY
 }
 

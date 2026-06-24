@@ -18,8 +18,9 @@
 # DP-315：approval-staleness（APPROVED→needs_re_approve）改走共用 helper
 # scripts/lib/approval-staleness.sh，以 review.commit_id == head.sha 為唯一基準；
 # 不再用 commit 時間戳（review submit time 與 PR last-push time 比較）判 approval 是否失效
-# ——shared repo 中他人 push 不相干 branch 會 bump 時間戳，commit_id 比對不受影響。head.sha
-# 由既有 /commits 呼叫的 .[-1].sha 投影取得（BS3），不新增 API round-trip。
+# ——shared repo 中他人 push 不相干 branch 會 bump 時間戳，commit_id 比對不受影響。
+# DP-355：head.sha 改由 PR 物件 /pulls/N 的 .head.sha 取得（與 check-pr-approvals 一致），
+# 不再依賴 /commits 分頁的 .[-1].sha——commit 數超過分頁上限時 .[-1] 不是真 head。
 #
 # Example:
 #   ./scan-need-review-prs.sh --exclude-author your-github-user \
@@ -142,10 +143,13 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
     # 我這筆 review 綁定的 commit_id（approval-staleness / push-since-review 判定基準）
     my_commit_id=$(echo "$my_latest" | jq -r '.commit_id')
 
-    # 取得 PR 當前 head commit SHA（沿用既有 /commits 呼叫，僅改 --jq 投影為 .[-1].sha，
-    # 不新增 API round-trip；BS3）
-    head_sha=$(gh api "repos/$ORG/$repo/pulls/$number/commits" \
-      --jq '.[-1].sha' 2>/dev/null || echo "")
+    # 取得 PR 當前 head commit SHA：用 PR 物件本身的 .head.sha
+    # （與 check-pr-approvals/scripts/check-pr-approval-status.sh:82 同一 canonical
+    # 投影）。不再讀 /pulls/N/commits 分頁的 .[-1].sha——/commits 預設只回第一頁，
+    # PR commit 數超過分頁上限時 .[-1] 取到的是第一頁最後一筆而非真 head，會讓
+    # staleness / push-since-review 判定誤判（BS3 修正）。
+    head_sha=$(gh api "repos/$ORG/$repo/pulls/$number" \
+      --jq '.head.sha' 2>/dev/null || echo "")
 
     # push-since-review 判定改以 commit_id 比對：head 未變（commit_id == head.sha）即無新 push。
     # 與 approval-staleness 同一基準（commit_id != head.sha ⇒ stale / pushed），不再用 committer-date。

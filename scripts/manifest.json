@@ -46,6 +46,62 @@
   },
   "scripts": [
     {
+      "path": "scripts/branch-sweep-runner.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "scripts/selftests/branch-sweep-runner-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/friction-to-dp-intake.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "scripts/selftests/friction-to-dp-intake-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/install-precommit-fast-lint.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "DP-360 T2 pre-commit fast-lint slot installer; idempotent injector covered by manifest governance and active git pre-commit hook callsite"
+    },
+    {
+      "path": "scripts/selftest-affected-runner.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/selftests/selftest-affected-runner-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftest-slow-inventory.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "DP-360 T4 pathological-slow selftest inventory + push-time baseline; reuses selftest-tier-manifest, covered by full-corpus-backstop-wiring selftest"
+    },
+    {
+      "path": "scripts/selftest-tier-manifest.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/selftests/selftest-tier-manifest-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/aggregate-release-lane-selftest.sh",
       "kind": "selftest",
       "runner": "bash",

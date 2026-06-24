@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.36] - 2026-06-25
+
+### Changed
+
+- 2ab691f: check-my-review-status.sh head_sha 改用 canonical /pulls/N .head.sha + 擴 selftest >30-commit case
+
 ## [3.76.35] - 2026-06-25
 
 ### Changed
