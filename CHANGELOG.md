@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.37] - 2026-06-25
+
+### Changed
+
+- 50f7d97: archive-spec.sh 注入 closeout 驅動 thread 回收 + selftest
+
 ## [3.76.36] - 2026-06-25
 
 ### Changed

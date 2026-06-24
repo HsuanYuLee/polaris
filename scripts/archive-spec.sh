@@ -18,6 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SYNC_SPEC_SIDEBAR="${SCRIPT_DIR}/sync-spec-sidebar-metadata.sh"
 COLLECTION_SHAPE_VALIDATOR="${SCRIPT_DIR}/validate-specs-collection-shape.sh"
+ACTIVE_THREAD_WRITER="${SCRIPT_DIR}/update-active-thread.sh"
 SPECS_ROOT=""
 DRY_RUN=0
 APPLY=0
@@ -69,6 +70,69 @@ validate_collection_shape() {
   local container="$1"
   [[ -x "$COLLECTION_SHAPE_VALIDATOR" ]] || return 0
   bash "$COLLECTION_SHAPE_VALIDATOR" --workspace "$WORKSPACE_ROOT" "$container"
+}
+
+# Description: Derive the canonical active-thread source key for an archived spec
+#              container — DP container -> `DP-NNN` (extracted from basename), JIRA
+#              Epic container (companies/{company}/{TICKET}) -> basename ticket key.
+# Args:        $1 = the just-archived container source path (active-area path)
+# Side effects: none (pure stdout); prints the key or nothing on no match.
+active_thread_key_for_container() {
+  local container="$1"
+  local rel base
+  rel="${container#"$SPECS_ROOT"/}"
+  base="$(basename "$container")"
+  case "$rel" in
+    design-plans/*)
+      # DP container basename is "DP-NNN-slug"; the canonical key is the DP-NNN prefix.
+      if [[ "$base" =~ ^(DP-[0-9]+) ]]; then
+        printf '%s\n' "${BASH_REMATCH[1]}"
+      fi
+      ;;
+    companies/*)
+      # JIRA-Epic container basename is the ticket key itself.
+      printf '%s\n' "$base"
+      ;;
+  esac
+}
+
+# Description: Closeout-driven active-thread recycle. After a container is archived,
+#              drop its matching parked thread from the anchor via the canonical
+#              writer. Best-effort: a missing anchor, an unresolvable key, an
+#              absent/failing writer, or an unresolvable workspace root all warn and
+#              return success so the archive's own exit code is never affected.
+# Args:        $1 = the just-archived container source path (active-area path)
+# Side effects: may invoke update-active-thread.sh --key <key> --done against
+#               "$WORKSPACE_ROOT/.claude/active-thread.md".
+recycle_active_thread_for_container() {
+  local container="$1"
+  local key anchor
+  key="$(active_thread_key_for_container "$container")"
+  if [[ -z "$key" ]]; then
+    return 0
+  fi
+  anchor="$WORKSPACE_ROOT/.claude/active-thread.md"
+  if [[ ! -f "$anchor" ]]; then
+    return 0
+  fi
+  # Exact-key gate: only call the writer when the precise `<!-- thread:<key> -->`
+  # marker exists. This keeps prefix-similar keys (e.g. DP-30 vs DP-303) isolated
+  # and guarantees a no-match anchor is left byte-identical (the writer would
+  # otherwise re-serialize and bump the timestamp).
+  if ! grep -qF "<!-- thread:${key} -->" "$anchor"; then
+    return 0
+  fi
+  if [[ ! -x "$ACTIVE_THREAD_WRITER" ]]; then
+    echo "WARN: active-thread writer not available; skipped recycle for ${key}" >&2
+    return 0
+  fi
+  if ! CLAUDE_PROJECT_DIR="$WORKSPACE_ROOT" bash "$ACTIVE_THREAD_WRITER" \
+       --key "$key" --done >/dev/null 2>&1; then
+    echo "WARN: active-thread recycle for ${key} failed; archive unaffected" >&2
+    return 0
+  fi
+  echo "RECYCLED-THREAD: ${key}"
+  return 0
 }
 
 rel_path() {
@@ -283,6 +347,7 @@ run_sweep() {
     mkdir -p "$(dirname "$destination_abs")"
     mv "$source_abs" "$destination_abs"
     echo "ARCHIVED: $source_rel -> $destination_rel"
+    recycle_active_thread_for_container "$source_abs"
     moved=$((moved + 1))
   done <"$report_file"
 
@@ -382,6 +447,7 @@ mkdir -p "$archive_parent"
 sync_sidebar_metadata "$anchor"
 mv "$container" "$destination"
 echo "ARCHIVED: $container -> $destination"
+recycle_active_thread_for_container "$container"
 
 echo "Docs-manager reads canonical specs directly; viewer lifecycle is user-owned."
 echo "For static/search verification, start a preview viewer, then run: scripts/polaris-toolchain.sh run docs.viewer.verify -- --ports <preview-port> --preview"
