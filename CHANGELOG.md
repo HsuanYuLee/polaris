@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.41] - 2026-06-26
+
+### Changed
+
+- ce6a8f2: DP-366-T1：reconcile-spec-lifecycle 與 status/inference 認列 ABANDONED / SUPERSEDED task 為 terminal-resolved sibling，使含 terminal-resolved sibling 的 parent 能正確 derive 並寫出 IMPLEMENTED（修正 ABANDONED task 被算成 unknown 導致 total != implemented、parent 永遠卡在 IMPLEMENTING 的 bug）。
+
 ## [3.76.40] - 2026-06-26
 
 ### Changed

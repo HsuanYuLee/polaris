@@ -71,7 +71,13 @@ function projectLifecycleItem(item, specsRoot) {
   const checklist = readImplementationChecklist(specsRoot, item.artifact?.path);
   const taskCounts = item.tasks.byStatus;
   const completedTasks = taskCounts.implemented ?? 0;
-  const allTasksImplemented = item.tasks.total > 0 && completedTasks === item.tasks.total;
+  // ABANDONED / SUPERSEDED siblings are terminal-resolved: they are not pending
+  // work, so they must be excluded from the implementable denominator. Otherwise
+  // a parent with one ABANDONED task can never derive implemented (total stays
+  // above completed forever — DP-338/T4 first triggered this path).
+  const terminalResolved = (taskCounts.abandoned ?? 0) + (taskCounts.superseded ?? 0);
+  const realImplementable = item.tasks.total - terminalResolved;
+  const allTasksImplemented = realImplementable > 0 && completedTasks === realImplementable;
   const hasStartedWork =
     item.tasks.total > 0 &&
     completedTasks + (taskCounts.in_progress ?? 0) + (taskCounts.in_review ?? 0) + (taskCounts.blocked ?? 0) > 0;

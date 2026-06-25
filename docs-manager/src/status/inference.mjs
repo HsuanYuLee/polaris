@@ -28,6 +28,7 @@ const TASK_STATUS_VALUES = new Set([
   'implemented',
   'blocked',
   'abandoned',
+  'superseded',
 ]);
 const TASK_STATUS_ALIASES = new Map([
   ...STATUS_ALIASES,
@@ -57,7 +58,7 @@ const EXTERNAL_REF_TYPES = new Set(['jira_comment', 'pr', 'slack', 'report', 'ot
 /**
  * @typedef {'design-plan' | 'company-spec'} StatusSourceType
  * @typedef {'seeded' | 'discussion' | 'locked' | 'in_progress' | 'implementing' | 'implemented' | 'superseded' | 'blocked' | 'abandoned' | 'unknown'} DashboardStatus
- * @typedef {{total: number, byStatus: {planned: number, implemented: number, in_progress: number, in_review: number, blocked: number, unknown: number, stale: number}, staleSignals: string[]}} TaskSummary
+ * @typedef {{total: number, byStatus: {planned: number, implemented: number, in_progress: number, in_review: number, blocked: number, abandoned: number, superseded: number, unknown: number, stale: number}, staleSignals: string[]}} TaskSummary
  * @typedef {{name: string, path: string}} DashboardArtifact
  * @typedef {{name: string, path: string}} DashboardReport
  * @typedef {{status: string, path?: string}} PublicationSummary
@@ -449,6 +450,8 @@ function summarizeTasks(tasksDir) {
       in_progress: 0,
       in_review: 0,
       blocked: 0,
+      abandoned: 0,
+      superseded: 0,
       unknown: 0,
       stale: 0,
     },
@@ -547,6 +550,11 @@ function projectTaskState(file) {
     return { bucket: 'in_progress', staleSignals };
   }
   if (status === 'blocked') return { bucket: 'blocked', staleSignals };
+  // ABANDONED / SUPERSEDED are terminal-resolved task states: bucket them
+  // explicitly so they are excluded from "implementable" task counts instead of
+  // falling through to unknown (which makes total !== implemented forever).
+  if (status === 'abandoned') return { bucket: 'abandoned', staleSignals };
+  if (status === 'superseded') return { bucket: 'superseded', staleSignals };
   if (deliverable.valid) return { bucket: 'in_review', staleSignals };
   return { bucket: 'unknown', staleSignals };
 }
