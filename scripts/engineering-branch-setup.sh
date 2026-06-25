@@ -94,7 +94,8 @@ slugify() {
 
 worktree_for_branch() {
   local branch="$1"
-  git worktree list --porcelain 2>/dev/null | awk -v branch="refs/heads/${branch}" '
+  local repo="${2:-.}"
+  git -C "$repo" worktree list --porcelain 2>/dev/null | awk -v branch="refs/heads/${branch}" '
     /^worktree / { wt = substr($0, 10); next }
     /^branch / {
       if (substr($0, 8) == branch) {
@@ -179,6 +180,64 @@ task_collection_dir() {
     dir="$(dirname "$dir")"
   fi
   printf '%s\n' "$dir"
+}
+
+# Description: Resolve the git repo path that owns a task.md, anchored on the
+#              task.md location rather than the caller's cwd (DP-338 T5 / AC5 / D5).
+#              Mirrors the canonical {workspace_root}/{Repo} convention defined by
+#              resolve-task-base.sh's derive_repo_path: walk up to the nearest
+#              `specs/` ancestor, peel the docs-manager specs prefix to get the
+#              workspace root, then join the task.md "Repo:" header name. This is
+#              the same single Base-branch / repo authority convention — not a
+#              second repo-resolution mechanism; the header "Repo:" field stays
+#              the source of truth.
+# Args:        $1 = task.md path (absolute or relative)
+# Outputs:     prints the resolved repo path on stdout when it resolves to a real
+#              git work tree; returns 1 (no stdout) when the repo cannot be
+#              derived (legacy/non-canonical task.md with no specs/ ancestor, or
+#              a derived candidate that is not a git work tree — e.g. the
+#              framework workspace, whose "Repo: polaris-framework" header points
+#              at the workspace root itself). The caller then falls back to the
+#              cwd repo.
+resolve_repo_from_task_md() {
+  local task_md="$1"
+  local repo_name dir specs_dir base_dir candidate
+
+  repo_name="$(head -n 20 "$task_md" 2>/dev/null \
+    | grep -oE 'Repo:[[:space:]]*[A-Za-z0-9._/-]+' \
+    | head -n 1 | sed -E 's/^Repo:[[:space:]]*//')"
+  [[ -n "$repo_name" ]] || return 1
+
+  dir="$(cd "$(dirname "$task_md")" 2>/dev/null && pwd)" || return 1
+  specs_dir=""
+  while [[ "$dir" != "/" && -n "$dir" ]]; do
+    if [[ "$(basename "$dir")" == "specs" ]]; then
+      specs_dir="$dir"
+      break
+    fi
+    dir="$(dirname "$dir")"
+  done
+  [[ -n "$specs_dir" ]] || return 1
+
+  case "$specs_dir" in
+    */docs-manager/src/content/docs/specs)
+      base_dir="${specs_dir%/docs-manager/src/content/docs/specs}"
+      ;;
+    *)
+      base_dir="$(dirname "$specs_dir")"
+      ;;
+  esac
+
+  candidate="$base_dir/$repo_name"
+  # Only accept the derived candidate when it is a real git work tree; otherwise
+  # the caller must fall back to the cwd repo (which for the framework workspace
+  # IS the repo, since "Repo: polaris-framework" resolves to a non-existent
+  # workspace/polaris-framework directory).
+  if git -C "$candidate" rev-parse --show-toplevel >/dev/null 2>&1; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+  return 1
 }
 
 # Description: Decide whether a task.md lives under a finalized tasks/pr-release/
@@ -324,7 +383,8 @@ PY
 
 task_branch_refs() {
   local task_key="$1"
-  git for-each-ref --format='%(refname:short)' \
+  local repo="${2:-.}"
+  git -C "$repo" for-each-ref --format='%(refname:short)' \
     "refs/heads/task/${task_key}-*" \
     "refs/remotes/origin/task/${task_key}-*" 2>/dev/null | sort -u
 }
@@ -333,6 +393,7 @@ emit_duplicate_branch_error() {
   local task_key="$1"
   local branch_name="$2"
   local existing_refs="$3"
+  local repo="${4:-.}"
 
   echo "ERROR: existing task branch detected for ${task_key}; refusing to open a duplicate engineering branch." >&2
   echo "  Expected branch: ${branch_name}" >&2
@@ -341,7 +402,7 @@ emit_duplicate_branch_error() {
     [[ -n "$ref" ]] || continue
     local branch="${ref#origin/}"
     local wt=""
-    wt="$(worktree_for_branch "$branch")"
+    wt="$(worktree_for_branch "$branch" "$repo")"
     if [[ -n "$wt" ]]; then
       echo "    - ${ref} (worktree: ${wt})" >&2
     else
@@ -380,31 +441,33 @@ cleanup_existing_worktree() {
 # Side effects: may create a local feat/DP-NNN branch from origin/main.
 ensure_feat_dp_branch() {
   local base="$1"
+  local repo="${2:-.}"
 
   # Only the framework DP feature-branch aggregation base is auto-created.
   # Product / JIRA-Epic feat branches (feat/EXCO-NNN) and develop/main bases
   # follow the existing remote-existence contract unchanged.
   [[ "$base" =~ ^feat/DP-[0-9]+$ ]] || return 0
 
+  # All git operations target the resolved REPO (DP-338 T5), not the caller's cwd.
   # Already present locally or on origin → reuse it; nothing to create.
-  if git show-ref --verify --quiet "refs/heads/$base" 2>/dev/null; then
+  if git -C "$repo" show-ref --verify --quiet "refs/heads/$base" 2>/dev/null; then
     return 0
   fi
-  if git ls-remote --exit-code origin "refs/heads/$base" >/dev/null 2>&1; then
+  if git -C "$repo" ls-remote --exit-code origin "refs/heads/$base" >/dev/null 2>&1; then
     return 0
   fi
 
   # Absent everywhere → bootstrap the per-DP feat branch from origin/main.
   echo "ℹ Framework DP feat base '$base' absent; creating it from origin/main..." >&2
-  if ! git ls-remote --exit-code origin "refs/heads/main" >/dev/null 2>&1; then
+  if ! git -C "$repo" ls-remote --exit-code origin "refs/heads/main" >/dev/null 2>&1; then
     echo "ERROR: feature-branch aggregation requires origin/main to exist" >&2
     return 2
   fi
-  git fetch origin main >/dev/null 2>&1 || {
+  git -C "$repo" fetch origin main >/dev/null 2>&1 || {
     echo "ERROR: git fetch origin main failed (needed to create $base)" >&2
     return 2
   }
-  git branch "$base" "origin/main" >/dev/null 2>&1 || {
+  git -C "$repo" branch "$base" "origin/main" >/dev/null 2>&1 || {
     echo "ERROR: git branch $base origin/main failed" >&2
     return 2
   }
@@ -821,8 +884,19 @@ if [[ -z "$RESOLVED_BASE" || "$RESOLVED_BASE" == "null" ]]; then
   exit 2
 fi
 
+# Resolve the owning repo from the task.md (DP-338 T5 / D5). Base resolution,
+# branch-chain cascade, duplicate guards, and worktree cleanup all run against
+# this REPO via `git -C "$REPO"`, so branch setup no longer depends on the
+# caller's cwd being the product repo. Fall back to the cwd toplevel when the
+# task.md cannot derive a repo (legacy/non-canonical task.md or the framework
+# workspace, whose "Repo:" header points at the workspace root itself).
+REPO="$(resolve_repo_from_task_md "$TASK_MD" 2>/dev/null || true)"
+if [[ -z "$REPO" ]]; then
+  REPO="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+fi
+
 run_readiness_pack "$TASK_MD" || exit 2
-maybe_auto_stash_dirty_main "$(git rev-parse --show-toplevel)" "$TASK_JSON"
+maybe_auto_stash_dirty_main "$REPO" "$TASK_JSON"
 
 # Step 1.5: Ensure the framework DP feature-branch aggregation base exists.
 # For feat/DP-NNN bases this creates the feat branch from origin/main when it is
@@ -832,7 +906,7 @@ maybe_auto_stash_dirty_main "$(git rev-parse --show-toplevel)" "$TASK_JSON"
 # feat-model DP's first task), running the cascade first dies with
 # "upstream branch not found: feat/DP-NNN" before the feat base is ever created
 # (DP-352 T1 / Bug #1 — the v3.76.19-onward zero-release root cause).
-ensure_feat_dp_branch "$RESOLVED_BASE" || exit 2
+ensure_feat_dp_branch "$RESOLVED_BASE" "$REPO" || exit 2
 
 # Step 2: If breakdown supplied an explicit branch chain, align upstream
 # branches before cutting the task branch. The task branch does not exist yet,
@@ -843,7 +917,7 @@ if [[ -n "$BRANCH_CHAIN" && -f "$CASCADE_REBASE_CHAIN" ]]; then
     echo "ℹ Stacked base resolved to $RESOLVED_BASE; skipping stale branch-chain cascade for completed upstream." >&2
   else
   echo "ℹ Aligning branch chain before task branch creation..." >&2
-  "$CASCADE_REBASE_CHAIN" --repo "$(git rev-parse --show-toplevel)" --task-md "$TASK_MD" --skip-missing-last >/dev/null || {
+  "$CASCADE_REBASE_CHAIN" --repo "$REPO" --task-md "$TASK_MD" --skip-missing-last >/dev/null || {
     echo "ERROR: branch chain rebase failed; resolve upstream branch first." >&2
     exit 2
   }
@@ -853,15 +927,16 @@ fi
 # Step 3: Verify resolved_base exists, then fetch the latest tip. A base may
 # legitimately live only locally — the feat/DP-NNN branch this script just
 # created has not been pushed yet — so accept a local ref as well as origin.
+# All git operations target the resolved REPO (DP-338 T5), not the caller's cwd.
 BASE_REF=""
-if git ls-remote --exit-code origin "refs/heads/$RESOLVED_BASE" >/dev/null 2>&1; then
+if git -C "$REPO" ls-remote --exit-code origin "refs/heads/$RESOLVED_BASE" >/dev/null 2>&1; then
   echo "ℹ Fetching origin/$RESOLVED_BASE..." >&2
-  git fetch origin "$RESOLVED_BASE" >/dev/null 2>&1 || {
+  git -C "$REPO" fetch origin "$RESOLVED_BASE" >/dev/null 2>&1 || {
     echo "ERROR: git fetch origin $RESOLVED_BASE failed" >&2
     exit 2
   }
   BASE_REF="origin/$RESOLVED_BASE"
-elif git show-ref --verify --quiet "refs/heads/$RESOLVED_BASE" 2>/dev/null; then
+elif git -C "$REPO" show-ref --verify --quiet "refs/heads/$RESOLVED_BASE" 2>/dev/null; then
   BASE_REF="$RESOLVED_BASE"
 else
   echo "ERROR: base branch '$RESOLVED_BASE' not found on origin or locally." >&2
@@ -884,7 +959,7 @@ BRANCH_NAME="$("$RESOLVE_TASK_BRANCH" "$TASK_MD" 2>/tmp/polaris-resolve-task-bra
 # already present, fail before touching refs; otherwise a retry can leave a
 # branch behind without a usable worktree.
 if [[ -z "$REPO_BASE" ]]; then
-  REPO_BASE=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+  REPO_BASE="$REPO"
 fi
 WT_DIR="${REPO_BASE}/.worktrees"
 WT_NAME="${REPO_NAME:-repo}-engineering-${TASK_KEY}"
@@ -894,7 +969,7 @@ WT_PATH="${WT_DIR}/${WT_NAME}"
 # is almost always an accidental second first-cut. Exact local branch reuse is
 # handled below; exact remote branch still blocks because first-cut would fork
 # from the base branch instead of resuming the existing remote work.
-EXISTING_TASK_REFS="$(task_branch_refs "$TASK_KEY")"
+EXISTING_TASK_REFS="$(task_branch_refs "$TASK_KEY" "$REPO")"
 DUPLICATE_REFS=""
 if [[ -n "$EXISTING_TASK_REFS" ]]; then
   while IFS= read -r ref; do
@@ -907,28 +982,28 @@ if [[ -n "$EXISTING_TASK_REFS" ]]; then
 fi
 
 if [[ -n "$DUPLICATE_REFS" ]]; then
-  emit_duplicate_branch_error "$TASK_KEY" "$BRANCH_NAME" "$DUPLICATE_REFS"
+  emit_duplicate_branch_error "$TASK_KEY" "$BRANCH_NAME" "$DUPLICATE_REFS" "$REPO"
   exit 1
 fi
 
-if git show-ref --verify --quiet "refs/remotes/origin/$BRANCH_NAME" 2>/dev/null; then
-  emit_duplicate_branch_error "$TASK_KEY" "$BRANCH_NAME" "origin/$BRANCH_NAME"
+if git -C "$REPO" show-ref --verify --quiet "refs/remotes/origin/$BRANCH_NAME" 2>/dev/null; then
+  emit_duplicate_branch_error "$TASK_KEY" "$BRANCH_NAME" "origin/$BRANCH_NAME" "$REPO"
   exit 1
 fi
 
 EXACT_BRANCH_EXISTS=0
-if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME" 2>/dev/null; then
+if git -C "$REPO" show-ref --verify --quiet "refs/heads/$BRANCH_NAME" 2>/dev/null; then
   EXACT_BRANCH_EXISTS=1
   echo "ℹ Branch $BRANCH_NAME already exists." >&2
-  EXISTING_WT="$(worktree_for_branch "$BRANCH_NAME")"
+  EXISTING_WT="$(worktree_for_branch "$BRANCH_NAME" "$REPO")"
   if [[ -n "$EXISTING_WT" ]]; then
-    cleanup_existing_worktree "$(git rev-parse --show-toplevel)" "$TASK_KEY" "$EXISTING_WT" || exit 1
+    cleanup_existing_worktree "$REPO" "$TASK_KEY" "$EXISTING_WT" || exit 1
   fi
   echo "ℹ Branch exists; creating a fresh worktree." >&2
 fi
 
 if [[ -d "$WT_PATH" ]]; then
-  cleanup_existing_worktree "$(git rev-parse --show-toplevel)" "$TASK_KEY" "$WT_PATH" || exit 1
+  cleanup_existing_worktree "$REPO" "$TASK_KEY" "$WT_PATH" || exit 1
 fi
 
 # Check if branch already exists
@@ -940,7 +1015,7 @@ if [[ "$EXACT_BRANCH_EXISTS" -eq 0 ]]; then
   # the delivery flow / polaris-pr-create wrapper, which reads HEAD from git
   # rather than interpolating a task-title-derived var into a refspec. Keep it so
   # — covered by lint-bash-variable-utf8-boundary refspec detection.
-  git branch "$BRANCH_NAME" "$BASE_REF" 2>/dev/null || {
+  git -C "$REPO" branch "$BRANCH_NAME" "$BASE_REF" 2>/dev/null || {
     echo "ERROR: git branch $BRANCH_NAME $BASE_REF failed" >&2
     exit 2
   }
@@ -950,10 +1025,10 @@ fi
 # Step 7: Create worktree
 mkdir -p "$WT_DIR"
 
-git worktree add "$WT_PATH" "$BRANCH_NAME" 2>/dev/null || {
+git -C "$REPO" worktree add "$WT_PATH" "$BRANCH_NAME" 2>/dev/null || {
   echo "ERROR: git worktree add failed for $WT_PATH $BRANCH_NAME" >&2
   # Cleanup branch if we just created it
-  git branch -d "$BRANCH_NAME" 2>/dev/null || true
+  git -C "$REPO" branch -d "$BRANCH_NAME" 2>/dev/null || true
   exit 2
 }
 

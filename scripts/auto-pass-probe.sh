@@ -517,7 +517,85 @@ ledger_result = ledger_terminal()
 if ledger_result:
     emit(*ledger_result)
 
-evidence = repo / ".polaris" / "evidence"
+
+def resolve_evidence_root():
+    """Resolve the .polaris/evidence root SYMMETRICALLY with the marker writer.
+
+    DP-338 D2: for a JIRA-Epic-backed source the spec container lives in the
+    Polaris workspace (companies/{co}/{EPIC}) but the breakdown / engineering
+    evidence is written into the PRODUCT repo — the marker writer
+    (breakdown-emit-task-snapshot.sh) emits a relative .polaris/evidence path
+    from the product-repo cwd. The orchestrator invokes this probe with --repo =
+    the workspace main-checkout, so reading {repo}/.polaris/evidence would miss
+    the marker. We therefore resolve the product repo the same way the canonical
+    resolve-task-base.sh::derive_repo_path does — the task.md `Repo:` header maps
+    to {workspace_root}/{repo_name} — and read evidence there.
+
+    This is a READER-only change (AC9: single writer untouched). It NEVER writes
+    or band-aids a marker into the workspace root (AC-NEG2): when the product
+    repo or its evidence is absent the reader simply does not find the marker and
+    the stage blocks fail-loud.
+
+    DP-backed sources keep reading {repo}/.polaris/evidence unchanged (symmetry).
+    JIRA sources fall back to {repo} only when the product repo cannot be
+    resolved (no task.md yet / no Repo header / repo dir absent) — that fallback
+    is a resolution miss, not a synthesized workspace-root marker, so a genuinely
+    missing marker still blocks.
+
+    Returns the evidence root Path ({...}/.polaris/evidence).
+    """
+    default_root = repo / ".polaris" / "evidence"
+    resolved, err = resolve_source(source_id)
+    if err is not None or not resolved:
+        return default_root
+    if resolved.get("source_type") != "jira":
+        return default_root
+    container = Path(resolved.get("container") or "")
+    # The work_item_id is the de-conflated canonical {Epic}-T{n} (DP-338 D1);
+    # its trailing stem maps to {container}/tasks/{stem}[/index.md|.md]. Resolve
+    # the task.md within the already-resolved container (resolve-task-md.sh keys
+    # JIRA tasks by delivery_ticket_key, not by work_item_id, so we locate the
+    # file by container + stem instead and read its `Repo:` header).
+    stem = work_item_id.split("-")[-1]
+    task_md = None
+    for candidate in (
+        container / "tasks" / stem / "index.md",
+        container / "tasks" / f"{stem}.md",
+        container / "tasks" / "pr-release" / stem / "index.md",
+        container / "tasks" / "pr-release" / f"{stem}.md",
+    ):
+        if candidate.is_file():
+            task_md = str(candidate)
+            break
+    if task_md is None:
+        return default_root
+    repo_name = task_field(task_md, "repo")
+    if not repo_name:
+        return default_root
+    # specs_root = {workspace_root}/docs-manager/src/content/docs/specs; the
+    # product repo is a sibling of the workspace root at {workspace_root}/{repo}.
+    # Walk up the container to the nearest `specs` ancestor, then strip the
+    # canonical docs-manager suffix to get the workspace root (mirrors
+    # resolve-task-base.sh::derive_repo_path's specs-ancestor walk).
+    specs_dir = None
+    for ancestor in container.parents:
+        if ancestor.name == "specs":
+            specs_dir = ancestor
+            break
+    if specs_dir is None:
+        return default_root
+    suffix = Path("docs-manager") / "src" / "content" / "docs" / "specs"
+    if specs_dir.match(str(suffix) + "/*") or str(specs_dir).endswith(str(suffix)):
+        workspace_root = Path(str(specs_dir)[: -(len(str(suffix)) + 1)])
+    else:
+        workspace_root = specs_dir.parent
+    product_repo = workspace_root / repo_name
+    if not product_repo.is_dir():
+        return default_root
+    return product_repo / ".polaris" / "evidence"
+
+
+evidence = resolve_evidence_root()
 
 if stage == "breakdown":
     for subdir, terminal, action, default_reason in (

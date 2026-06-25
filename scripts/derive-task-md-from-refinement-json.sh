@@ -509,6 +509,17 @@ else:
     task_identity = task_id
     jira_key_cell = "N/A"
 
+# DP-338 D1: de-conflate the work_item_id atom from the branch-identity atom.
+# `task_identity` (above) is the BRANCH identity — it equals the per-task jira_key
+# for JIRA-Epic sources, so for those sources it must NOT also be the work_item_id
+# (the internal task marker). The canonical work_item_id is always {source}-T{n}
+# (= the canonical CLI task_id), regardless of source.type; for DP-backed sources
+# the two atoms collapse to the same value. derive writes BOTH cells: the new
+# "Work item ID" cell carries this canonical work_item_id, while the legacy
+# "Task ID" cell keeps carrying task_identity so DP-328 branch identity is
+# unchanged. parse-task-md.sh reads work_item_id from the new cell first.
+work_item_id_cell = task_id
+
 
 # DP-344 D1: changeset Allowed-Files injection. When the resolved repo root has a
 # .changeset/config.json (the repo participates in Changesets), inject the
@@ -815,6 +826,7 @@ depends_on: []
 |------|-----|
 | Source type | {source_type} |
 | Source ID | {source_id} |
+| Work item ID | {work_item_id_cell} |
 | Task ID | {task_identity} |
 | JIRA key | {jira_key_cell} |
 | Implementation tasks | {implementation_cell} |
@@ -1086,6 +1098,7 @@ depends_on: [{depends_on_frontmatter}]
 |------|-----|
 | Source type | {source_type} |
 | Source ID | {source_id} |
+| Work item ID | {work_item_id_cell} |
 | Task ID | {task_identity} |
 | JIRA key | {jira_key_cell} |
 | Test sub-tasks | N/A - framework work order |

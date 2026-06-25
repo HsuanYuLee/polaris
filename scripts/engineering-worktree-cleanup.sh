@@ -135,6 +135,79 @@ live_process_pids() {
   done < <(lsof -t +D "$path" 2>/dev/null | sort -u || true)
 }
 
+# Description: Determine whether a live PID is a worktree-scoped dev server.
+#   Worktree-scoped means the PID's current working directory canonically
+#   resolves inside the worktree path. A PID that merely holds an open file
+#   descriptor under the path (e.g. a shared colima / nginx / dev.exampleco.com
+#   process inspecting a file) but whose cwd is elsewhere is NOT worktree-scoped
+#   and must never be stopped.
+# Args:        $1 = PID, $2 = canonical worktree path
+# Side effects: none (read-only lsof probe)
+# Returns:     0 if cwd is inside the worktree path; 1 otherwise
+pid_cwd_inside_worktree() {
+  local pid="$1"
+  local worktree="$2"
+  local cwd
+  command -v lsof >/dev/null 2>&1 || return 1
+  cwd="$(lsof -a -d cwd -p "$pid" -Fn 2>/dev/null | awk '/^n/ { print substr($0, 2); exit }')"
+  [[ -n "$cwd" ]] || return 1
+  cwd="$(canonical_path "$cwd")"
+  [[ "$cwd" == "$worktree" || "$cwd" == "$worktree"/* ]]
+}
+
+# Description: Partition a worktree's live PIDs into worktree-scoped dev servers
+#   (cwd inside the worktree, safe to stop on --apply) and foreign PIDs (cwd
+#   outside the worktree, e.g. shared services that must never be stopped).
+# Args:        $1 = canonical worktree path
+# Outputs:     stdout lines "scoped <pid>" / "foreign <pid>" for each live PID
+# Side effects: none (read-only)
+partition_live_pids() {
+  local worktree="$1"
+  local pid
+  while IFS= read -r pid; do
+    [[ -n "$pid" ]] || continue
+    if pid_cwd_inside_worktree "$pid" "$worktree"; then
+      printf 'scoped %s\n' "$pid"
+    else
+      printf 'foreign %s\n' "$pid"
+    fi
+  done < <(live_process_pids "$worktree")
+}
+
+# Description: Stop worktree-scoped dev server PIDs (cwd inside the worktree)
+#   before worktree removal. Sends SIGTERM, waits briefly, then SIGKILL any
+#   survivor. Only PIDs already classified as worktree-scoped are passed in;
+#   shared / foreign PIDs are never sent here.
+# Args:        $@ = worktree-scoped PIDs to stop
+# Side effects: signals the given PIDs; prints one log line per stopped PID
+# Note:        SIGTERM grace window before escalating to SIGKILL.
+stop_worktree_scoped_pids() {
+  local pid
+  local -i grace_seconds=3
+  for pid in "$@"; do
+    [[ -n "$pid" ]] || continue
+    kill "$pid" >/dev/null 2>&1 || true
+    echo "$PREFIX stopping worktree-scoped dev server pid=$pid" >&2
+  done
+  local -i waited=0
+  while [[ "$waited" -lt "$grace_seconds" ]]; do
+    local remaining=0
+    for pid in "$@"; do
+      [[ -n "$pid" ]] || continue
+      if kill -0 "$pid" >/dev/null 2>&1; then
+        remaining=1
+      fi
+    done
+    [[ "$remaining" -eq 0 ]] && return 0
+    sleep 1
+    waited=$((waited + 1))
+  done
+  for pid in "$@"; do
+    [[ -n "$pid" ]] || continue
+    kill -9 "$pid" >/dev/null 2>&1 || true
+  done
+}
+
 emit_line() {
   local state="$1"
   local action="$2"
@@ -204,8 +277,20 @@ classify_one() {
 
   pids="$(live_process_pids "$canonical")"
   if [[ -n "$pids" ]]; then
-    emit_line "BLOCKED" "keep" "live_process" "$canonical" "$branch"
-    return 10
+    local partition foreign_pids scoped_pids
+    partition="$(partition_live_pids "$canonical")"
+    foreign_pids="$(awk '$1 == "foreign" { print $2 }' <<<"$partition")"
+    scoped_pids="$(awk '$1 == "scoped" { print $2 }' <<<"$partition")"
+    : "$scoped_pids"
+    if [[ -n "$foreign_pids" ]]; then
+      # At least one live process has its cwd outside the worktree (e.g. a
+      # shared colima / nginx / dev.exampleco.com process). Keep blocking; we never
+      # stop processes that are not worktree-scoped.
+      emit_line "BLOCKED" "keep" "live_process" "$canonical" "$branch"
+      return 10
+    fi
+    # All live processes are worktree-scoped dev servers; apply mode re-derives
+    # and stops them before removing the worktree (D6).
   fi
 
   if [[ -z "$identity" ]]; then
@@ -312,6 +397,8 @@ self_test() {
   assert_eq "$?" "0" "detached temp apply removes path"
 
   if command -v lsof >/dev/null 2>&1; then
+    # D6: a worktree-scoped dev server (cwd inside the worktree) is stopped on
+    # --apply, then the worktree is removed.
     git -C "$main" branch task/TEST-LIVE-clean main
     git -C "$main" worktree add "${main}/.worktrees/repo-engineering-TEST-LIVE" task/TEST-LIVE-clean >/dev/null 2>&1
     wt="${main}/.worktrees/repo-engineering-TEST-LIVE"
@@ -319,12 +406,47 @@ self_test() {
     pid=$!
     LIVE_PIDS+=("$pid")
     sleep 1
-    if bash "$helper" --repo "$main" --identity TEST-LIVE --apply >/tmp/polaris-cleanup-selftest.out 2>&1; then
-      echo "FAIL: live-process worktree should block" >&2
+    bash "$helper" --repo "$main" --identity TEST-LIVE --apply >/tmp/polaris-cleanup-selftest.out 2>&1
+    assert_eq "$?" "0" "worktree-scoped dev server apply succeeds"
+    [[ ! -d "$wt" ]]
+    assert_eq "$?" "0" "worktree-scoped dev server worktree removed"
+    sleep 1
+    if kill -0 "$pid" >/dev/null 2>&1; then
+      echo "FAIL: worktree-scoped dev server should be stopped" >&2
+      return 1
+    fi
+    assert_eq "0" "0" "worktree-scoped dev server stopped"
+    kill "$pid" >/dev/null 2>&1 || true
+    wait "$pid" >/dev/null 2>&1 || true
+    LIVE_PIDS=()
+
+    # D6 / AC-NEG3: a foreign process whose cwd is OUTSIDE the worktree (shared
+    # service simulation) but which holds an open fd under the worktree must
+    # keep the worktree BLOCKED and must NOT be stopped.
+    git -C "$main" branch task/TEST-FOREIGN-clean main
+    git -C "$main" worktree add "${main}/.worktrees/repo-engineering-TEST-FOREIGN" task/TEST-FOREIGN-clean >/dev/null 2>&1
+    wt="${main}/.worktrees/repo-engineering-TEST-FOREIGN"
+    echo held >"${wt}/held.txt"
+    git -C "$wt" add held.txt
+    git -C "$wt" commit -m held >/dev/null 2>&1
+    foreign_dir="${tmp}/foreign-cwd"
+    mkdir -p "$foreign_dir"
+    # cwd is foreign_dir (outside worktree); fd 9 is open on a file under the
+    # worktree, so lsof +D lists this PID but its cwd is foreign.
+    (cd "$foreign_dir" && exec 9<"${wt}/held.txt" && sleep 60) &
+    pid=$!
+    LIVE_PIDS+=("$pid")
+    sleep 1
+    if bash "$helper" --repo "$main" --identity TEST-FOREIGN --apply >/tmp/polaris-cleanup-selftest.out 2>&1; then
+      echo "FAIL: foreign-cwd live process should block" >&2
       return 1
     fi
     grep -q "reason=live_process" /tmp/polaris-cleanup-selftest.out
-    assert_eq "$?" "0" "live process blocks"
+    assert_eq "$?" "0" "foreign-cwd live process blocks"
+    [[ -d "$wt" ]]
+    assert_eq "$?" "0" "foreign-cwd worktree remains"
+    kill -0 "$pid" >/dev/null 2>&1
+    assert_eq "$?" "0" "foreign-cwd process not stopped"
     kill "$pid" >/dev/null 2>&1 || true
     wait "$pid" >/dev/null 2>&1 || true
     LIVE_PIDS=()
@@ -411,6 +533,18 @@ if [[ "$MODE" == "apply" ]]; then
   fi
   cd "$MAIN_CHECKOUT"
   for safe_path in "${SAFE_PATHS[@]}"; do
+    # Re-derive worktree-scoped dev server PIDs (cwd inside this worktree) and
+    # stop them before removal so the worktree is not blocked by its own dev
+    # server. A SAFE path only reaches here when every live process is
+    # worktree-scoped; shared colima / nginx / dev.exampleco.com processes were
+    # classified as foreign and kept the worktree BLOCKED above (D6).
+    scoped_arr=()
+    while IFS= read -r scoped_pid; do
+      [[ -n "$scoped_pid" ]] && scoped_arr+=("$scoped_pid")
+    done < <(partition_live_pids "$safe_path" | awk '$1 == "scoped" { print $2 }')
+    if [[ "${#scoped_arr[@]}" -gt 0 ]]; then
+      stop_worktree_scoped_pids "${scoped_arr[@]}"
+    fi
     echo "$PREFIX removing $safe_path" >&2
     git -C "$MAIN_CHECKOUT" worktree remove "$safe_path"
   done

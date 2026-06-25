@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.76.40] - 2026-06-26
+
+### Changed
+
+- c627752: DP-338 D1：task.md 拆分 work_item_id 與 branch-identity 兩個 cell；derive 新增 canonical「Work item ID」cell（{source}-T{n}，不分 source.type），parse 優先讀新 cell、缺新 cell 的舊 task.md fallback 讀「Task ID」cell，branch-identity 維持 task_identity（DP-328 不反轉）
+- da0b444: DP-338 D2：auto-pass marker reader 對 product-repo source 的 evidence root 對稱解析。`auto-pass-probe.sh` 對 JIRA-Epic source 經 spec-source-resolver 解 container、由 task.md `Repo:` header 推導 product repo（`{workspace_root}/{repo_name}`，與 resolve-task-base.sh derive_repo_path 同權威）作為 `.polaris/evidence` 讀取根，與 marker writer anchor 對稱；DP source 維持讀 workspace root。reader-only，不改 writer、不新增第二條 emit path、product repo / marker 缺失時 fail-loud 不 band-aid 到 workspace root。
+- 3664e13: DP-338 D3：ci-local staleness 由 mtime 改為 content-hash。`ci-local-generate.sh` 的 `file_fingerprint()` 捕捉每個 CI source 檔的 `content_sha`（SHA256），生成的 `ci-local.sh` staleness guard 改以 runtime content hash 比對嵌入的 `content_sha`（`shasum -a 256` / `sha256sum` fallback），移除 `_src_mtime > SCRIPT_MTIME` 比對。worktree checkout 重寫 source mtime（內容未變）不再觸發 `CI config changed` false-positive；內容變更或 source 缺失仍正確 detect stale。selftest：`scripts/selftests/ci-local-content-hash-staleness-selftest.sh`。
+- 42dd701: DP-338 D5：PR 建立 / base 解析 context 錨定 product repo，移出 worktree cwd 依賴。`engineering-branch-setup.sh` 預設 first-cut path 新增 `resolve_repo_from_task_md`（複用 `resolve-task-base.sh::derive_repo_path` 的 canonical `{workspace_root}/{Repo}` 約定，非第二套 repo resolver）解出 `REPO`，base 解析、branch-chain cascade、duplicate guard、worktree cleanup 全部走 `git -C "$REPO"`，不再依賴 cwd-dependent `git rev-parse --show-toplevel`；task.md 無法 derive repo（legacy / framework workspace `Repo: polaris-framework`）時 fallback 回 cwd toplevel。`polaris-pr-create.sh` 無 `--repo` 時改由 `--task-md` derive product repo（explicit `--repo` 仍最高優先，`--head` 仍顯式帶）。aggregate-release retained-bootstrap path 不在此 scope。selftest：`scripts/selftests/branch-setup-base-resolution-selftest.sh`。
+- df23d70: DP-338 D6：finalize 的 worktree cleanup 在 `--apply` 前自動停止 worktree-scoped dev server（cwd 在 worktree 內），再移除 worktree；不碰共享 colima / nginx / dev.exampleco.com。`engineering-worktree-cleanup.sh` 新增 `pid_cwd_inside_worktree` / `partition_live_pids` / `stop_worktree_scoped_pids`（複用既有 `live_process_pids` 的 `lsof +D` 枚舉，不寫第二套 process scanner），按 PID cwd 分 scoped / foreign：全部 scoped 時 classify SAFE 並在 `git worktree remove` 前以 SIGTERM→grace→SIGKILL 停止 scoped PID；任一 foreign（cwd 在 worktree 外，例如共享服務）仍維持 BLOCKED `reason=live_process`、不停任何 process；dry-run 永不停 process、永不移除。selftest：`scripts/selftests/worktree-cleanup-stop-dev-server-selftest.sh`（AC6 worktree-scoped 停 + 移除 / AC-NEG3 foreign-cwd 不停 + 仍移除 clean worktree / dry-run safety）+ embedded `--self-test`。
+
 ## [3.76.39] - 2026-06-25
 
 ### Changed

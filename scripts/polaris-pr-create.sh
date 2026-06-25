@@ -46,6 +46,63 @@ if [[ -f "$GITHUB_REST_LIB" ]]; then
   . "$GITHUB_REST_LIB"
 fi
 
+# Description: Resolve the git repo path that owns a task.md, anchored on the
+#              task.md location rather than the caller's cwd (DP-338 T5 / AC5 / D5).
+#              Mirrors the canonical {workspace_root}/{Repo} convention shared with
+#              resolve-task-base.sh derive_repo_path / engineering-branch-setup.sh:
+#              walk up to the nearest `specs/` ancestor, peel the docs-manager
+#              specs prefix to get the workspace root, then join the task.md
+#              "Repo:" header name. PR creation is then anchored on the product
+#              repo main checkout instead of the worktree / arbitrary cwd; the
+#              --head ref is still carried explicitly from the gh args. The header
+#              "Repo:" field stays the single source of truth — this is not a
+#              second repo-resolution mechanism.
+# Args:        $1 = task.md path (absolute or relative)
+# Outputs:     prints the resolved repo path on stdout when it resolves to a real
+#              git work tree; returns 1 (no stdout) when the repo cannot be
+#              derived (legacy/non-canonical task.md, or a derived candidate that
+#              is not a git work tree — e.g. the framework workspace, whose
+#              "Repo: polaris-framework" header points at the workspace root
+#              itself). The caller then falls back to the cwd repo.
+resolve_repo_from_task_md() {
+  local task_md="$1"
+  local repo_name dir specs_dir base_dir candidate
+
+  [[ -n "$task_md" && -f "$task_md" ]] || return 1
+
+  repo_name="$(head -n 20 "$task_md" 2>/dev/null \
+    | grep -oE 'Repo:[[:space:]]*[A-Za-z0-9._/-]+' \
+    | head -n 1 | sed -E 's/^Repo:[[:space:]]*//')"
+  [[ -n "$repo_name" ]] || return 1
+
+  dir="$(cd "$(dirname "$task_md")" 2>/dev/null && pwd)" || return 1
+  specs_dir=""
+  while [[ "$dir" != "/" && -n "$dir" ]]; do
+    if [[ "$(basename "$dir")" == "specs" ]]; then
+      specs_dir="$dir"
+      break
+    fi
+    dir="$(dirname "$dir")"
+  done
+  [[ -n "$specs_dir" ]] || return 1
+
+  case "$specs_dir" in
+    */docs-manager/src/content/docs/specs)
+      base_dir="${specs_dir%/docs-manager/src/content/docs/specs}"
+      ;;
+    *)
+      base_dir="$(dirname "$specs_dir")"
+      ;;
+  esac
+
+  candidate="$base_dir/$repo_name"
+  if git -C "$candidate" rev-parse --show-toplevel >/dev/null 2>&1; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+  return 1
+}
+
 usage() {
   cat <<EOF
 Usage: polaris-pr-create.sh [--repo <path>] [--task-md <path>] [--skip-gates] [--dry-run]
@@ -114,6 +171,15 @@ if [[ "$AGGREGATE_RELEASE" -eq 1 ]]; then
   fi
 fi
 
+# Anchor the repo context on the product repo (DP-338 T5 / D5). Explicit --repo
+# wins; otherwise derive the owning repo from --task-md so PR creation runs
+# against the product repo main checkout instead of an arbitrary cwd. The --head
+# ref is still carried explicitly via the gh args. Fall back to cwd only when
+# neither --repo nor a derivable task.md repo is available (legacy invocation /
+# framework workspace whose "Repo:" header points at the workspace root itself).
+if [[ -z "$REPO_PATH" && -n "$TASK_MD_PATH" ]]; then
+  REPO_PATH="$(resolve_repo_from_task_md "$TASK_MD_PATH" 2>/dev/null || true)"
+fi
 REPO_PATH="${REPO_PATH:-$(pwd)}"
 
 # --- Extract --base from GH_ARGS ---

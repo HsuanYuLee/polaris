@@ -515,12 +515,22 @@ has_anything = bool(checks) or bool(policy_checks) or bool(forced_skip_checks) o
 
 # ---------- Source fingerprints (for staleness advisory) ----------
 def file_fingerprint(rel_path: str):
+    # DP-338 D3: capture a content SHA so the generated staleness guard compares
+    # file content (not mtime). A worktree checkout rewrites mtime without changing
+    # content, which made the old mtime guard fire a false-positive stale error.
     p = repo / rel_path
     try:
+        data = p.read_bytes()
         st = p.stat()
-        return {"path": rel_path, "size": st.st_size, "mtime": int(st.st_mtime)}
+        content_sha = hashlib.sha256(data).hexdigest()
+        return {
+            "path": rel_path,
+            "size": st.st_size,
+            "mtime": int(st.st_mtime),
+            "content_sha": content_sha,
+        }
     except FileNotFoundError:
-        return {"path": rel_path, "size": None, "mtime": None}
+        return {"path": rel_path, "size": None, "mtime": None, "content_sha": None}
 
 
 sources = []
@@ -549,6 +559,7 @@ if override_path.exists():
                 "path": str(override_path),
                 "size": st.st_size,
                 "mtime": int(st.st_mtime),
+                "content_sha": hashlib.sha256(override_path.read_bytes()).hexdigest(),
             }
         )
 
@@ -671,17 +682,30 @@ parts.append(f'CILOCAL_ENV_CLASSIFIER={shell_quote(env_classifier)}')
 parts.append('echo "[ci-local] command env: CI=$COMMAND_CI TZ=$COMMAND_TZ DEBUG=$COMMAND_DEBUG_LABEL"')
 parts.append("")
 parts.append('# --- Staleness guard: CI declarations are the source of this mirror.')
-parts.append('# If any source file changed after generation, fail before cache lookup.')
-parts.append('SCRIPT_MTIME=$(stat -f %m "$0" 2>/dev/null || stat -c %Y "$0" 2>/dev/null || echo 0)')
+parts.append('# DP-338 D3: compare each source file by CONTENT HASH captured at generation')
+parts.append('# time, not mtime. A worktree checkout rewrites source mtime without changing')
+parts.append('# content; an mtime guard would false-positive "CI config changed" there.')
+parts.append('# A real content edit still changes the hash and trips the guard.')
+parts.append('_ci_local_content_sha() {')
+parts.append('  if command -v shasum >/dev/null 2>&1; then')
+parts.append('    shasum -a 256 "$1" 2>/dev/null | cut -d" " -f1')
+parts.append('  elif command -v sha256sum >/dev/null 2>&1; then')
+parts.append('    sha256sum "$1" 2>/dev/null | cut -d" " -f1')
+parts.append('  else')
+parts.append('    echo "[ci-local] ERROR: neither shasum nor sha256sum found for staleness check" >&2')
+parts.append('    echo "POLARIS_TOOL_MISSING:shasum" >&2')
+parts.append('    exit 2')
+parts.append('  fi')
+parts.append('}')
 parts.append('STALE_FILES=""')
 for s in sources:
-    if s["mtime"] is None:
+    if s["content_sha"] is None:
         continue
     parts.append(f'if [ ! -e "{s["path"]}" ]; then')
     parts.append(f'  STALE_FILES="$STALE_FILES {s["path"]}(missing)"')
     parts.append('else')
-    parts.append(f'  _src_mtime=$(stat -f %m "{s["path"]}" 2>/dev/null || stat -c %Y "{s["path"]}" 2>/dev/null || echo 0)')
-    parts.append(f'  if [ "$_src_mtime" -gt "$SCRIPT_MTIME" ]; then STALE_FILES="$STALE_FILES {s["path"]}"; fi')
+    parts.append(f'  _src_sha=$(_ci_local_content_sha "{s["path"]}")')
+    parts.append(f'  if [ "$_src_sha" != "{s["content_sha"]}" ]; then STALE_FILES="$STALE_FILES {s["path"]}"; fi')
     parts.append('fi')
 parts.append('if [ -n "$STALE_FILES" ]; then')
 parts.append('  echo "[ci-local] ERROR: CI config changed after ci-local.sh generation:$STALE_FILES" >&2')

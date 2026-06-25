@@ -346,6 +346,11 @@ operational_context = {
     "task_jira_key": opf("Task JIRA key"),
     "source_type": opf("Source type"),
     "source_id": opf("Source ID"),
+    # DP-338 D1: the dedicated work_item_id cell (canonical {source}-T{n},
+    # source-type-agnostic). De-conflated from the "Task ID" cell, which now
+    # carries the branch-identity atom. Absent on legacy task.md that predate
+    # the split — the identity resolution below falls back to "Task ID" then.
+    "work_item_id_cell": opf("Work item ID"),
     "task_id": opf("Task ID"),
     "jira_key": opf("JIRA key"),
     "parent_epic": opf("Parent Epic"),
@@ -384,8 +389,15 @@ source_id = (
     or operational_context.get("parent_epic")
     or metadata.get("epic")
 )
+# DP-338 D1: work_item_id resolution prefers the dedicated "Work item ID" cell
+# (canonical {source}-T{n}); the legacy "Task ID" cell / `Task:` quote / jira
+# aliases are read-side fallbacks only for task.md that predate the de-conflation
+# (EC1). On a current task.md the "Task ID" cell carries the branch-identity atom
+# (= jira_key for JIRA-Epic sources), so reading it as work_item_id would re-
+# conflate the two; the new cell must therefore win.
 work_item_id = (
-    operational_context.get("task_id")
+    operational_context.get("work_item_id_cell")
+    or operational_context.get("task_id")
     or metadata.get("task")
     or operational_context.get("task_jira_key")
     or metadata.get("jira")
