@@ -168,6 +168,16 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/auto-pass-consume-resume.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "description": "DP-339 T1 sanctioned writer that consumes an auto-pass session_handoff pause (clears pause, stamps resumed_at, byte-preserves loop_counters/task_snapshot/drift_retry) and re-validates the ledger; root script row backfilled by DP-356 T3 to satisfy the manifest coverage gate.",
+      "selftest": "scripts/selftests/auto-pass-consume-resume-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/auto-pass-counter-race-recovery.sh",
       "kind": "writer",
       "runner": "bash",
@@ -1702,6 +1712,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/lint-evidence-command-direct-call.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_evidence_command_direct_call_lint",
+      "selftest": "scripts/selftests/lint-evidence-command-direct-call-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/lint-naive-section-parse.sh",
       "kind": "gate",
       "runner": "bash",
@@ -2426,6 +2445,15 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/run-evidence-command.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "framework_evidence_immune_execution",
+      "selftest": "scripts/selftests/run-evidence-command-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/run-verify-command.sh",
@@ -3783,6 +3811,36 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/run-evidence-command-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/lint-evidence-command-direct-call-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/auto-pass-consume-resume-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/run-verify-command-worktree-selftest.sh",

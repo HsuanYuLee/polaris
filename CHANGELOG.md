@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.76.39] - 2026-06-25
+
+### Changed
+
+- b50e259: 新增 run-evidence-command.sh evidence-immune 執行 helper + selftest
+- 7c6c04e: 新增 lint-evidence-command-direct-call.sh + mechanism-registry canary + selftest
+- 2368f45: DP-356-T3: 新增 .claude/skills/references/evidence-immune-execution.md（evidence-bearing pattern 明確清單、必走 immune 路徑契約、run-verify-command.sh 既有子行程免疫之記載、A/B 分類與 user-owned proxy-config exclusion 建議）+ 在 scripts/manifest.json 註冊 DP-356 T1/T2 的 run-evidence-command.sh / lint-evidence-command-direct-call.sh 與其 selftest；同時回填 DP-339 T1 遺漏的 auto-pass-consume-resume.sh root script manifest row 以解除 base 的 check-script-manifest coverage gate。覆蓋 AC3(doc)。
+
 ## [3.76.38] - 2026-06-25
 
 ### Changed
