@@ -251,4 +251,10 @@ rm -rf "$tmp_root"
 bash "$SCRIPT_DIR/validate-model-tier-policy.sh"
 
 echo
+echo "[9/9] Verify Claude/Codex dual-platform mechanism parity (D43)"
+# DP-343 T1 / AC43: same deterministic gate the framework PR gate (W16) runs, so
+# hook parity is blocked at both PR-merge and release-preflight time.
+bash "$SCRIPT_DIR/validate-cross-llm-mechanism-parity.sh" --repo "$ROOT_DIR"
+
+echo
 echo "Result: CROSS-LLM PARITY OK"

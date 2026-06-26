@@ -158,6 +158,37 @@ Codex runtimes have no Claude Code hook model. Neither `pre-write-language-polic
 Plugin workflow authority lives in `.claude/skills/references/plugin-workflow-quarantine.md`;
 load it with `.claude/rules/skill-routing.md` whenever plugin workflows and Polaris-managed delivery could both match.
 
+## Codex Hook Invocation Parity (D43)
+
+Codex runtimes have no Claude Code hook model. Every active Claude hook listed in the
+Cross-LLM Hook Parity Registry (`.claude/rules/mechanism-registry.md`) must have a
+runtime-neutral enforcement path in Codex: run the declared `fallback_script` directly,
+invoke the declared `codex_adapter` at its `codex_invocation_point`
+(`codex_hook` / `guarded_wrapper` / `pr_gate`), or honor a recorded `parity_exception`.
+Parity is machine-enforced by `scripts/validate-cross-llm-mechanism-parity.sh`, wired into
+`scripts/check-framework-pr-gate.sh` and `scripts/verify-cross-llm-parity.sh`.
+
+Active hooks under parity governance:
+- `feedback-read-logger.sh`
+- `feedback-reflection-stop.sh`
+- `feedback-trigger-advisory.sh`
+- `no-direct-evidence-write.sh`
+- `no-manual-work-order-search.sh`
+- `post-compact-context-restore.sh`
+- `post-memory-index-regenerate.sh`
+- `post-runtime-instruction-manifest-regenerate.sh`
+- `pre-memory-write.sh`
+- `pre-write-language-policy.sh`
+- `session-pressure-tick.sh`
+- `session-start-thread-anchor.sh`
+- `session-summary-precompact.sh`
+- `session-summary-stop.sh`
+- `session-switch-eval.sh`
+- `specs-sidebar-sync.sh`
+- `stop-active-thread-reminder.sh`
+- `stop-todo-check.sh`
+- `version-bump-reminder.sh`
+
 ## Universal Rule Index
 
 Global targets reference universal rules without inlining their full bodies. Load the relevant files explicitly when the task context requires them.

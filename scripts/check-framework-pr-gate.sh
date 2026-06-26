@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: aggregate blocking framework PR gate — runs each validator (W1..W15) and
+# Purpose: aggregate blocking framework PR gate — runs each validator (W1..W16) and
 #          fails closed if any one fails. W11 (DP-293 T1) is the runtime-instruction
 #          parity step: compile-runtime-instructions --check + mechanism-parity --strict.
 #          W14 runs the full selftest corpus (run-aggregate-selftests.sh) — this makes
@@ -39,6 +39,7 @@ W12 refinement consumer schema binding
 W13 selftest enrollment
 W14 aggregate selftest run (full-corpus backstop)
 W15 naive section-parse lint
+W16 cross-LLM mechanism parity
 STAGES
   exit 0
 fi
@@ -74,6 +75,11 @@ LINT_NAIVE_SECTION_PARSE="${POLARIS_LINT_NAIVE_SECTION_PARSE_BIN:-scripts/lint-n
 # mechanism-parity --strict catches cross-runtime skill/mechanism divergence.
 COMPILE_RUNTIME_INSTRUCTIONS="${POLARIS_COMPILE_RUNTIME_INSTRUCTIONS_BIN:-scripts/compile-runtime-instructions.sh}"
 MECHANISM_PARITY="${POLARIS_MECHANISM_PARITY_BIN:-scripts/mechanism-parity.sh}"
+# W16 (DP-343 T1 / AC43): Claude/Codex dual-platform mechanism parity. Blocking —
+# an active hook lacking a Codex-equivalent enforcement path (fallback callsite,
+# adapter target/registration, golden digest parity) or a recorded parity_exception
+# must fail the PR gate before merge, not only at release preflight.
+VALIDATE_CROSS_LLM_PARITY="${POLARIS_VALIDATE_CROSS_LLM_PARITY_BIN:-scripts/validate-cross-llm-mechanism-parity.sh}"
 
 run_gate() {
   local label="$1"
@@ -142,5 +148,9 @@ run_gate "W14 aggregate selftest run" "$RUN_AGGREGATE_SELFTESTS"
 # blob-level `## heading` find/index/split over un-frontmatter-stripped markdown
 # reappears in the converged source tree.
 run_gate "W15 naive section-parse lint" "$LINT_NAIVE_SECTION_PARSE" --self-check
+# W16: cross-LLM mechanism parity (DP-343 T1 / AC43). Blocking — an active hook
+# lacking a Codex-equivalent enforcement path or a recorded parity_exception must
+# fail before merge.
+run_gate "W16 cross-LLM mechanism parity" "$VALIDATE_CROSS_LLM_PARITY"
 
 echo "PASS: framework PR gate"

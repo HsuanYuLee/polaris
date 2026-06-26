@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.44] - 2026-06-26
+
+### Changed
+
+- 9dfb913: DP-343-T1: Claude/Codex dual-platform mechanism parity constitutional gate (validate-cross-llm-mechanism-parity.sh + selftest + PR-gate wiring)
+
 ## [3.76.43] - 2026-06-26
 
 ### Changed

@@ -5198,6 +5198,15 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/validate-cross-llm-mechanism-parity.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "cross_llm_parity",
+      "selftest": "scripts/selftests/cross-llm-mechanism-parity-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-mise-dependency-change.sh",
       "kind": "gate",
       "runner": "bash",

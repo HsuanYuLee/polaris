@@ -125,6 +125,66 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | ci-local-content-hash-staleness | scripts/ci-local-generate.sh | script | portable | scripts/selftests/ci-local-content-hash-staleness-selftest.sh | governance |
 | branch-setup-base-context-cwd-independent | scripts/engineering-branch-setup.sh | script | portable | scripts/selftests/branch-setup-base-resolution-selftest.sh | governance |
 | worktree-cleanup-stop-worktree-scoped-dev-server | scripts/engineering-worktree-cleanup.sh | script | portable | scripts/selftests/worktree-cleanup-stop-dev-server-selftest.sh | governance |
+| cross-llm-mechanism-parity | scripts/validate-cross-llm-mechanism-parity.sh | script | portable | scripts/selftests/cross-llm-mechanism-parity-selftest.sh | governance |
+
+## Cross-LLM Hook Parity Registry
+
+D43（DP-343）Claude/Codex 雙平台全機制 parity 的 constitutional source。每一支由有效
+Claude project hook source（`.claude/settings.json` 與存在時的 `.claude/settings.local.json`，
+跨所有 event family 解析）啟用的 active hook，都必須在本表登記：要嘛給出完整 parity
+宣告，要嘛帶一個有紀錄的 `parity_exception`。`scripts/validate-cross-llm-mechanism-parity.sh`
+以本表為 machine-checkable authority，並 wire 進 `scripts/check-framework-pr-gate.sh`
+與 `scripts/verify-cross-llm-parity.sh` step 9。
+
+欄位契約：
+
+- `runtime` — `portable` 或 `claude-code-only`。
+- `fallback_script` — Codex shell 可直接執行、產出相同 PASS/FAIL 的 runtime-neutral
+  validator；active hook script 必須可機器驗證地委派它（callsite-verifiable）。
+- `codex_adapter` — `codex_hook` 時為 Codex adapter 檔案；`guarded_wrapper` / `pr_gate`
+  時為實際 invoke adapter/fallback 的 callsite script。
+- `codex_invocation_point` — 可機器驗證的機制：`codex_hook`（在 `.codex/config.toml`
+  active 註冊）、`guarded_wrapper` 或 `pr_gate`。`manual` / `skill_prose` / 空值都不是
+  等價機制，一律 fail-stop。
+- `adapter_selftest` — 驗證 adapter 的 selftest。
+- `payload_contract` / `golden_fixture` — payload normalization 契約與 golden fixture；
+  Claude 與 Codex normalize 後的 decision-field digest（tool_name / matcher /
+  tool_input.path / changed_paths / session_id / transcript provider / cwd /
+  env carve-out token）與 fallback PASS/FAIL 必須完全一致。
+- `parity_exception` — `DP-NNN:<reason-anchor>` carve-out；owning DP plan 必須記錄理由。
+  有效 carve-out 會 short-circuit 該 hook 其餘 parity 欄位的檢查。
+
+Bootstrap carve-out（DP-343）：下表 active governance hooks 一律帶
+`parity_exception=DP-343:dual-platform-parity-bootstrap`。D43 本 task 交付的是 constitutional
+gate（`validate-cross-llm-mechanism-parity.sh` + registry authority + compiler-emitted
+guidance + PR-gate / release-preflight wiring）；把 runtime-neutral 委派推廣到每一支既有
+hook 的 per-hook Codex adapter / golden-fixture infrastructure 由後續 framework-source-write
+adapter track 擁有。Owning DP plan
+（`docs-manager/src/content/docs/specs/design-plans/DP-343-*/index.md`）記錄此 parity
+carve-out 理由。本 gate 生效後，任何**新增**的 active hook 都必須在此登記完整 parity，或
+自帶有紀錄的 `parity_exception`；bootstrap carve-out 不延伸到 DP-343 之後新增的 hook。
+
+| hook | runtime | fallback_script | codex_adapter | codex_invocation_point | adapter_selftest | payload_contract | golden_fixture | parity_exception |
+|------|---------|-----------------|---------------|------------------------|------------------|------------------|----------------|------------------|
+| feedback-read-logger.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| feedback-reflection-stop.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| feedback-trigger-advisory.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| no-direct-evidence-write.sh | claude-code-only | scripts/validate-specs-bound-write-contract.sh | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| no-manual-work-order-search.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| post-compact-context-restore.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| post-memory-index-regenerate.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| post-runtime-instruction-manifest-regenerate.sh | claude-code-only | scripts/compile-runtime-instructions.sh | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| pre-memory-write.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| pre-write-language-policy.sh | claude-code-only | scripts/validate-language-policy.sh | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| session-pressure-tick.sh | claude-code-only | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| session-start-thread-anchor.sh | claude-code-only | scripts/update-active-thread.sh | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| session-summary-precompact.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| session-summary-stop.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| session-switch-eval.sh | claude-code-only | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| specs-sidebar-sync.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| stop-active-thread-reminder.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| stop-todo-check.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| version-bump-reminder.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
 
 ## Mechanism Canary Entries
 

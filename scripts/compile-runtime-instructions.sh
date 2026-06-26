@@ -152,6 +152,61 @@ load it with `.claude/rules/skill-routing.md` whenever plugin workflows and Pola
 EOF
 }
 
+emit_codex_hook_invocation_guidance() {
+  # D43 (DP-343): emit Codex hook invocation guidance derived from the
+  # Cross-LLM Hook Parity Registry in mechanism-registry.md. This makes the
+  # generated agent-neutral / Codex runtime targets carry the registry-sourced
+  # parity guidance; compile --check then catches stale generated output.
+  local registry="$ROOT_DIR/.claude/rules/mechanism-registry.md"
+  echo "## Codex Hook Invocation Parity (D43)"
+  echo
+  cat <<'EOF'
+Codex runtimes have no Claude Code hook model. Every active Claude hook listed in the
+Cross-LLM Hook Parity Registry (`.claude/rules/mechanism-registry.md`) must have a
+runtime-neutral enforcement path in Codex: run the declared `fallback_script` directly,
+invoke the declared `codex_adapter` at its `codex_invocation_point`
+(`codex_hook` / `guarded_wrapper` / `pr_gate`), or honor a recorded `parity_exception`.
+Parity is machine-enforced by `scripts/validate-cross-llm-mechanism-parity.sh`, wired into
+`scripts/check-framework-pr-gate.sh` and `scripts/verify-cross-llm-parity.sh`.
+
+Active hooks under parity governance:
+EOF
+  python3 - "$registry" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text()
+capture = False
+section = []
+for line in text.splitlines():
+    if line.strip() == "## Cross-LLM Hook Parity Registry":
+        capture = True
+        continue
+    if capture and line.startswith("## "):
+        break
+    if capture:
+        section.append(line)
+
+rows = []
+for line in section:
+    s = line.strip()
+    if not s.startswith("|"):
+        continue
+    cells = [c.strip().strip("`") for c in s.strip("|").split("|")]
+    if cells and all(re.fullmatch(r":?-{3,}:?", c.replace(" ", "")) for c in cells):
+        continue
+    rows.append(cells)
+
+if len(rows) >= 2:
+    header = [c.lower() for c in rows[0]]
+    hi = header.index("hook")
+    for row in sorted(rows[1:], key=lambda r: r[hi] if len(r) > hi else ""):
+        if len(row) > hi and row[hi]:
+            print(f"- `{row[hi]}`")
+PY
+}
+
 emit_final_response_language_guard_core() {
   cat <<'EOF'
 ## Final Response Language Guard
@@ -244,6 +299,8 @@ EOF
   echo
   emit_plugin_workflow_quarantine
   echo
+  emit_codex_hook_invocation_guidance
+  echo
   emit_rule_index
 }
 
@@ -266,6 +323,8 @@ EOF
   emit_final_response_language_guard_codex
   echo
   emit_plugin_workflow_quarantine
+  echo
+  emit_codex_hook_invocation_guidance
   echo
   emit_rule_index
 }

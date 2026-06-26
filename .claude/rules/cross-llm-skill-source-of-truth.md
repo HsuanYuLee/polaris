@@ -32,6 +32,40 @@
 3. 確認 Codex rule transpile 已同步。
 4. 確認 parity checks PASS。
 
+## Dual-Platform Parity Mandate（D43, constitutional）
+
+涉及 Polaris 的開發，**必須做到 Claude / Codex 雙平台全機制相容**。這是 framework
+constitutional contract，不是 advisory prose：任何 `.claude/hooks/*.sh` hook，只要被
+有效 Claude project hook source（`.claude/settings.json` 與存在時的
+`.claude/settings.local.json`，跨所有 active hook event family）啟用，就必須在
+`.claude/rules/mechanism-registry.md` 的 **Cross-LLM Hook Parity Registry** 表登記，且其
+Codex enforcement 不得退化成 rules prose self-discipline：
+
+- **每支 active hook** 必須 (a) 在 registry 標 `runtime=claude-code-only` +
+  runtime-neutral `fallback_script`，或 `runtime=portable` + documented Codex adapter；
+  (b) hook script 本身可機器驗證地委派 declared `fallback_script`（只做 payload
+  normalization / mode selection，不保留與 fallback 分離的 runtime-specific allow/deny
+  判斷）；(c) `codex_invocation_point` 為 `codex_hook` / `guarded_wrapper` / `pr_gate`
+  之一（`manual` / `skill_prose` / 空值都不是等價機制）；(d) 具 `adapter_selftest` 與
+  payload_contract / golden_fixture，且 Claude 與 Codex payload normalize 後的
+  decision-field digest 與 fallback PASS/FAIL 完全一致。
+- **Active hook command 必須 canonicalize** 為單一 `.claude/hooks/*.sh` invocation；
+  inline shell、`bash -lc`、chained command、redirect、env-injected command、或
+  settings.local-only 未註冊 hook 一律 fail-stop。
+- **Generated Codex runtime targets**（`AGENTS.md` / `.codex/AGENTS.md`）必須含由
+  `scripts/compile-runtime-instructions.sh` 從 registry emit 的 Codex invocation
+  guidance；手改 generated target 視為 parity drift。
+- **Carve-out** 只允許在 owning DP plan 明文記載 runtime exclusivity 理由（如
+  Claude-Code-only IDE feature），並在 registry 標 `parity_exception=<DP>:<reason>`；
+  validator 反查 owning DP plan 的 reason，缺 reason 一樣 fail-stop。
+
+Deterministic enforcement 由 `scripts/validate-cross-llm-mechanism-parity.sh` 提供，
+並 wire 進 `scripts/check-framework-pr-gate.sh`（PR-merge time）與
+`scripts/verify-cross-llm-parity.sh` step 9（release preflight）；違反時 exit 2 +
+stderr `POLARIS_CROSS_LLM_PARITY_BLOCKED:{hook}`。BYPASS env（`POLARIS_CROSS_LLM_PARITY_BYPASS`
+/ `POLARIS_LANGUAGE_POLICY_BYPASS` / `POLARIS_SKILL_BOUNDARY_BYPASS` 等）不能 silence 這個
+gate。
+
 ## Why
 
 Rules 可以告訴每個 LLM 該去哪裡編輯，但只有 symlink 能從機制上消除 mirror drift。Rule 定義意圖；
