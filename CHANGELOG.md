@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.43] - 2026-06-26
+
+### Changed
+
+- 0998404: DP-342-T1: classify() pinned short-circuit moved to first branch so pinned files are never demoted
+
 ## [3.76.42] - 2026-06-26
 
 ### Changed

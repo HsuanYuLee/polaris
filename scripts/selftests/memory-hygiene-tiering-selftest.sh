@@ -37,6 +37,7 @@ cat >"$MEMORY/MEMORY.md" <<'EOF'
 - [Old](old_no_created.md)
 - [Newer](hot_newer.md)
 - [Older](hot_older.md)
+- ~~[Pinned archived](pinned_archived.md)~~
 EOF
 
 cat >"$MEMORY/locked_snapshot.md" <<'EOF'
@@ -125,6 +126,58 @@ trigger_count: 1
 ---
 EOF
 
+# DP-342 AC1: pinned file that ALSO has a stale snapshot must classify Hot.
+# snapshot_taken 2026-01-01 is ~138 days before --today 2026-05-19 (> 14d → stale).
+cat >"$MEMORY/pinned_stale_snapshot.md" <<'EOF'
+---
+name: pinned stale snapshot
+description: pinned overrides stale snapshot demotion
+type: project
+pinned: true
+pinned_reason: user requested permanent retention
+snapshot_of: DP-903
+snapshot_taken: 2026-01-01
+trigger_count: 0
+---
+EOF
+
+# DP-342 AC2 regression guard: NON-pinned file with same stale snapshot stays Warm.
+cat >"$MEMORY/unpinned_stale_snapshot.md" <<'EOF'
+---
+name: unpinned stale snapshot
+description: non-pinned stale snapshot stays warm
+type: project
+snapshot_of: DP-903
+snapshot_taken: 2026-01-01
+trigger_count: 0
+---
+EOF
+
+# DP-342 AC-NEG1a: pinned file with graduated_to must classify Hot (not Cold).
+cat >"$MEMORY/pinned_graduated.md" <<'EOF'
+---
+name: pinned graduated
+description: pinned overrides graduated_to demotion
+type: feedback
+pinned: true
+pinned_reason: user requested permanent retention
+graduated_to: .claude/rules/feedback-and-memory.md
+trigger_count: 0
+---
+EOF
+
+# DP-342 AC-NEG1b: pinned file archived via MEMORY.md strikethrough must classify Hot (not Cold).
+cat >"$MEMORY/pinned_archived.md" <<'EOF'
+---
+name: pinned archived
+description: pinned overrides strikethrough archive demotion
+type: project
+pinned: true
+pinned_reason: user requested permanent retention
+trigger_count: 0
+---
+EOF
+
 touch -t 202605010000 "$MEMORY/old_no_created.md"
 
 PLAN="$TMP/plan.json"
@@ -135,8 +188,8 @@ import json
 import sys
 data = json.load(open(sys.argv[1]))
 summary = data["summary"]
-assert summary["stale_snapshot"] == 1, summary
-assert summary["graduated_feedback"] == 1, summary
+assert summary["stale_snapshot"] == 3, summary
+assert summary["graduated_feedback"] == 2, summary
 assert summary["nested_frontmatter"] == 1, summary
 assert summary["fresh_write_hot"] == 1, summary
 assert summary["created_backfill"] >= 1, summary
@@ -145,6 +198,12 @@ assert by_file["locked_snapshot.md"]["flags"]["stale_snapshot"] is False
 assert by_file["implemented_snapshot.md"]["flags"]["stale_snapshot"] is True
 assert by_file["fresh.md"]["flags"]["fresh_write_hot"] is True
 assert by_file["old_no_created.md"]["created_backfill"] == "2026-05-01"
+# DP-342: pinned short-circuit must win over demotion branches.
+assert by_file["pinned_stale_snapshot.md"]["tier"] == "hot", by_file["pinned_stale_snapshot.md"]
+assert by_file["pinned_stale_snapshot.md"]["flags"]["stale_snapshot"] is True
+assert by_file["unpinned_stale_snapshot.md"]["tier"] == "warm", by_file["unpinned_stale_snapshot.md"]
+assert by_file["pinned_graduated.md"]["tier"] == "hot", by_file["pinned_graduated.md"]
+assert by_file["pinned_archived.md"]["tier"] == "hot", by_file["pinned_archived.md"]
 hot_order = data["hot_order"]
 assert hot_order.index("hot_newer.md") < hot_order.index("hot_older.md"), hot_order
 PY

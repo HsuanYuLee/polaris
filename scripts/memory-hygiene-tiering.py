@@ -309,6 +309,16 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
         "grace_baseline": baseline_source,
     }
 
+    # pinned=true is an unconditional Hot signal — it must short-circuit BEFORE
+    # any demotion branch (archived / graduated_to / stale_snapshot), otherwise a
+    # pinned file that also hits a demotion branch would be wrongly cold/warm.
+    if fm.pinned:
+        return Classification(
+            path=path, tier="hot", topic=None,
+            reason="pinned=true", frontmatter=fm, mtime=mtime,
+            flags=flags, created_backfill=created_backfill,
+        )
+
     # Archived-in-index takes priority → Cold
     if archived:
         return Classification(
@@ -333,13 +343,6 @@ def classify(path: Path, text: str, today: date, archived_set: set[str]) -> Clas
                    + (f", topic={topic}" if topic else ", no topic"),
             frontmatter=fm, mtime=mtime, flags=flags,
             created_backfill=created_backfill,
-        )
-
-    if fm.pinned:
-        return Classification(
-            path=path, tier="hot", topic=None,
-            reason="pinned=true", frontmatter=fm, mtime=mtime,
-            flags=flags, created_backfill=created_backfill,
         )
     if fm.trigger_count >= HOT_TRIGGER_THRESHOLD:
         return Classification(
