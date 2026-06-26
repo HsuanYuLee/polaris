@@ -72,15 +72,31 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
 
   count=$((count + 1))
 
+  # Input-shape guard：repo 應該是裸 repo 名（gh api 會自己拼上 "$ORG/"）。
+  # 帶 "/" 的 org-prefixed 值（例如 "owner/repo"）形狀錯誤，會讓後續
+  # "repos/$ORG/$repo/..." 變成 "repos/$ORG/owner/repo/..."，命中錯誤或不存在
+  # 的 endpoint。fail-closed，不在錯誤輸入上繼續消費 gh。
+  if [[ "$repo" == */* ]]; then
+    echo "POLARIS_APPROVAL_INPUT_SHAPE: repo '$repo' 含 '/'（org-prefixed 形狀錯誤，應為裸 repo 名）" >&2
+    exit 2
+  fi
+
   # 取得 reviews（commit_id 為 staleness 判定基準；submitted_at 僅用於挑出
-  # 同一 reviewer 的最新一筆 review）
-  reviews=$(gh api "repos/$ORG/$repo/pulls/$number/reviews" \
-    --jq '[.[] | {user: .user.login, state: .state, submitted_at: .submitted_at, commit_id: .commit_id}]' 2>/dev/null || echo "[]")
+  # 同一 reviewer 的最新一筆 review）。兩段式捕捉 exit code：成功才採用輸出，
+  # 非零（含網路 / 404 / auth 失敗）一律 fail-closed，不靜默吞成 []。
+  if ! reviews=$(gh api "repos/$ORG/$repo/pulls/$number/reviews" \
+    --jq '[.[] | {user: .user.login, state: .state, submitted_at: .submitted_at, commit_id: .commit_id}]'); then
+    echo "POLARIS_APPROVAL_API_ERROR: gh api 取得 $repo #$number reviews 失敗" >&2
+    exit 2
+  fi
 
   # 取得 PR 當前 head commit SHA（沿用同一個 PR endpoint，僅改 --jq 投影，
-  # 不新增 API round-trip）
-  head_sha=$(gh api "repos/$ORG/$repo/pulls/$number" \
-    --jq '.head.sha' 2>/dev/null || echo "")
+  # 不新增 API round-trip）。同樣兩段式 fail-closed。
+  if ! head_sha=$(gh api "repos/$ORG/$repo/pulls/$number" \
+    --jq '.head.sha'); then
+    echo "POLARIS_APPROVAL_API_ERROR: gh api 取得 $repo #$number head.sha 失敗" >&2
+    exit 2
+  fi
 
   # 計算每位 reviewer 的最新狀態
   # 先取得所有 unique reviewers，再找各自最新的 review

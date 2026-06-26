@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.76.42] - 2026-06-26
+
+### Changed
+
+- dd8b49d: validate-breakdown-ready.sh 加 vacuous-pass guard（單檔解析不到 task id / 空目錄 fail-closed）
+- 30f9226: check-pr-approval-status.sh 加 input-shape 與 gh api 失敗 fail-closed
+- 49f4e0d: cascade-rebase-chain.sh 的 silent local-fallback 改 fail-closed：origin/<upstream> 缺失時不再退回 rebase 到 local branch（避免吞掉別 session 未 push 的 WIP），改為非零 exit + 印 POLARIS_REBASE_LOCAL_FALLBACK。主路徑 origin/$RESOLVED_BASE 不變。
+- 3d9da02: mechanism-registry 新增 in-session-decision-slip canary（不加 prose）
+
 ## [3.76.41] - 2026-06-26
 
 ### Changed

@@ -1284,6 +1284,58 @@ if not target.exists():
 
 files = task_files(target)
 
+
+# --- DP-324 T1 (AC1 / AC2 / AC-NEG1): vacuous-pass guard ----------------------
+# Without this guard the validator silently printed PASS for two empty inputs:
+#   (a) a single-file target whose path does not resolve to a recognized task id
+#       (task_id_for_file is None) and is not under tasks/pr-release/ or
+#       /archive/ — every per-file check is skipped, so nothing fails.
+#   (b) a directory target whose task-file glob yields 0 recognized task files —
+#       the per-file loop never runs.
+# Both are vacuous passes: the gate certified nothing yet returned exit 0. They
+# now fail-closed (exit 2 + POLARIS_VACUOUS_PASS), distinct from the generic
+# exit-1 readiness FAIL.
+#
+# Marker layering: this guard fires ONLY when there is no recognized task to
+# certify. It is disjoint from the D4 delivery-unit shape gate below, which fires
+# when a directory DOES contain recognized tasks but none is task_shape:
+# implementation (research-unit / dispatch-theme-unit). A single-file target
+# never reaches the D4 gate (it is dir-only), and the pr-release/archive per-file
+# skip is preserved: a recognized task.md under tasks/pr-release/ or /archive/
+# resolves to a task id, so it is not "unrecognized" and does not trip the guard
+# (it still skips its per-file checks downstream, keeping its prior exit 0).
+
+VACUOUS_PASS_MARKER = "POLARIS_VACUOUS_PASS"
+
+
+def fail_vacuous_pass(message: str) -> None:
+    """Emit the vacuous-pass contract violation and exit 2.
+
+    Args:
+        message: the human-readable reason describing the empty input.
+    """
+    print("validate-breakdown-ready.sh FAIL", file=sys.stderr)
+    print(f"  - {message}", file=sys.stderr)
+    print(f"{VACUOUS_PASS_MARKER}:{target}", file=sys.stderr)
+    raise SystemExit(2)
+
+
+if target.is_file():
+    if "/tasks/pr-release/" not in str(target) and "/archive/" not in str(target):
+        if task_id_for_file(target) is None:
+            fail_vacuous_pass(
+                f"{target}: single-file target does not resolve to a recognized task id "
+                f"(expected T{{n}}.md or T{{n}}/index.md) and is not under tasks/pr-release/ "
+                f"or /archive/; refusing to certify nothing (DP-324 T1 vacuous-pass guard)."
+            )
+elif target.is_dir():
+    if not any(task_id_for_file(file) is not None for file in files):
+        fail_vacuous_pass(
+            f"{target}: directory target yielded 0 recognized task files "
+            f"(no T{{n}}.md or T{{n}}/index.md after the pr-release/archive exclusion); "
+            f"refusing to certify an empty breakdown (DP-324 T1 vacuous-pass guard)."
+        )
+
 # D4 (DP-274): source-level delivery-unit shape gate. Runs before the per-task
 # readiness checks so a 研究單 / 轉發單 fail-stops with a POLARIS_* marker and
 # exit 2 (contract violation), distinct from the generic exit-1 readiness FAIL.

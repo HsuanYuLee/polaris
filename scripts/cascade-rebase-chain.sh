@@ -452,7 +452,13 @@ while [ "$i" -le "$CHAIN_LEN" ]; do
   target_ref="origin/$upstream"
   if ! git -C "$REPO" rev-parse --verify --quiet "$target_ref" >/dev/null 2>&1; then
     if git -C "$REPO" rev-parse --verify --quiet "$upstream" >/dev/null 2>&1; then
-      target_ref="$upstream"
+      # Fail-closed: refuse to silently fall back to the LOCAL upstream branch.
+      # A local-only upstream may carry another session's un-pushed WIP; rebasing
+      # onto it would silently absorb unrelated commits into the task branch.
+      log "POLARIS_REBASE_LOCAL_FALLBACK: origin/$upstream missing; refusing to rebase onto local branch $upstream"
+      emit_evidence "$REPO" "$TASK_MD" "local_fallback_refused" "$CHAIN_FILE" "$STEPS_FILE"
+      restore_original_branch
+      exit 1
     else
       log "upstream branch not found: $upstream"
       emit_evidence "$REPO" "$TASK_MD" "missing_upstream" "$CHAIN_FILE" "$STEPS_FILE"
