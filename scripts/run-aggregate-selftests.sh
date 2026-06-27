@@ -73,6 +73,20 @@ QUARANTINE=(
   # T2 triage. Owned follow-up: DP-327 hermeticity fix (make AC7 fixture-based + extend the
   # hermeticity lint to catch hardcoded live-specs reads); DP-327 also removes this entry.
   "scripts/selftests/validate-refinement-json-selftest.sh|pre-existing non-hermetic red: AC7 (case 12) asserts live workspace has >=1 LOCKED-and-valid refinement.json - state-dependent, flipped red after DP-325 became IMPLEMENTED. Follow-up: DP-327 hermeticity fix."
+  # 37th entry - another pre-existing NON-HERMETIC selftest surfaced by the W14
+  # exhaustive sweep (distinct class from the DP-325-T2 triage reds and the DP-327
+  # AC7 state-dependency above). The fixture pushes only origin/main, then
+  # ensure_feat_dp_branch creates feat/DP-902 LOCAL-ONLY (never pushed to origin).
+  # When Step 1.5 cascade-rebase-chain runs, the DP-324-T3 local-fallback guard
+  # CORRECTLY refuses to rebase onto an origin/feat/DP-902 that is missing
+  # (POLARIS_REBASE_LOCAL_FALLBACK). That refusal is working-as-designed, not a
+  # product regression - it is the fixture that is non-hermetic (it asserts a
+  # cascade success that the guard is right to block). Owned follow-up: DP-373
+  # cascade<->ensure_feat hermeticity fix (make the fixture publish the feat base to
+  # origin, or reorder ensure_feat to publish before cascade); DP-373 also removes
+  # this entry.
+  "scripts/selftests/engineering-branch-setup-ensure-feat-before-cascade-selftest.sh|pre-existing non-hermetic red: fixture pushes only origin/main; ensure_feat_dp_branch creates feat/DP-902 local-only (not pushed to origin), so Step 1.5 cascade-rebase-chain's DP-324-T3 local-fallback guard correctly refuses to rebase onto missing origin/feat/DP-902 (POLARIS_REBASE_LOCAL_FALLBACK) = WAD, not a product regression. Follow-up: DP-373 cascade<->ensure_feat hermeticity fix."
+  "scripts/selftests/release-lane-head-ref-parity-selftest.sh|transient: R1 archive-aware parity fix delivered by DP-371; quarantine removed when DP-371 lands. Sequential-release ordering artifact (DP-372 v3.76.45 before DP-371 v3.76.46)."
 )
 
 usage() {

@@ -43,6 +43,19 @@ build_fixture() {
   printf '## Copilot\n' >"$repo/.claude/instructions/runtime/copilot.md"
   printf '# Rule A\n\nrule a body\n' >"$repo/.claude/rules/rule-a.md"
 
+  # compile-runtime-instructions.sh emit_codex_hook_invocation_guidance() reads
+  # .claude/rules/mechanism-registry.md and parses its "## Cross-LLM Hook Parity
+  # Registry" table (needs a header row with a "hook" column + >=1 data row).
+  # Provide a minimal, generic-placeholder registry so the fixture compiler runs
+  # cleanly instead of raising FileNotFoundError.
+  {
+    printf '# Mechanism Registry\n\n'
+    printf '## Cross-LLM Hook Parity Registry\n\n'
+    printf '| hook | runtime | parity_exception |\n'
+    printf '|------|---------|------------------|\n'
+    printf '| sample-hook.sh | portable | DP-372:fixture |\n'
+  } >"$repo/.claude/rules/mechanism-registry.md"
+
   git -C "$repo" init -q
   git -C "$repo" config user.email "polaris@example.invalid"
   git -C "$repo" config user.name "Polaris Selftest"

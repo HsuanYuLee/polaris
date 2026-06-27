@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.76.45] - 2026-06-27
+
+### Changed
+
+- 9d4c329: DP-372-T3: transient quarantine of release-lane-head-ref-parity selftest to enable sequential release ordering (DP-372 before DP-371); removed by DP-371
+  `scripts/selftests/release-lane-head-ref-parity-selftest.sh`（R1）依賴 archive-aware
+  cross-LLM parity fix，該本體修正由 DP-371-T1 交付。DP-372-only feat 分支不含該 fix，因此 R1
+  會在 aggregate selftest red。為了支援序列釋出排序（DP-372 先於 DP-371，一 DP 一版本，守
+  AC-NEG2 單一 dp-marker），additive 在 `scripts/run-aggregate-selftests.sh` 的 QUARANTINE
+  array 追加一筆 transient entry，標明 owner=DP-371、removal criteria=DP-371 落地時移除。不改
+  split parser、不動既有 quarantine entry、不動 selftest 本體。
+
+### Fixed
+
+- e28833c: gate-runtime-instruction-manifest selftest fixture builds mechanism-registry.md
+  `scripts/selftests/gate-runtime-instruction-manifest-selftest.sh` 的 `build_fixture()` 之前只造 `.claude/rules/rule-a.md`，但 `scripts/compile-runtime-instructions.sh` 的 `emit_codex_hook_invocation_guidance()`（DP-343 引入）會讀 `.claude/rules/mechanism-registry.md`，導致 fixture compile 拋 `FileNotFoundError` 使整支 selftest deterministic FAIL。修正：additive 在 fixture 補造一個含 `## Cross-LLM Hook Parity Registry` section（header row 帶 `hook` 欄位 + 一筆 generic placeholder data row）的最小 registry，使 fixture compiler 正常 emit Codex guidance。不動 gate 本體與其他 fixture case。
+- 96d639e: quarantine non-hermetic cascade selftest in run-aggregate-selftests
+  `scripts/selftests/engineering-branch-setup-ensure-feat-before-cascade-selftest.sh` 是 W14 exhaustive sweep 浮現的 pre-existing non-hermetic red：fixture 只 push `origin/main`，`ensure_feat_dp_branch` 把 `feat/DP-902` 建在 local-only（未 push origin），因此 Step 1.5 cascade-rebase-chain 的 DP-324-T3 local-fallback guard 正確地拒絕 rebase 到 missing 的 `origin/feat/DP-902`（`POLARIS_REBASE_LOCAL_FALLBACK`）。該拒絕是 working-as-designed，不是 product regression——non-hermetic 的是 fixture（它斷言一個 guard 本就該擋下的 cascade 成功）。修正：additive 在 `scripts/run-aggregate-selftests.sh` 的 QUARANTINE array 追加第 37 筆 entry（沿用既有 `path|reason. Follow-up: DP-NNN ...` 格式），綁 follow-up token DP-373（cascade↔ensure_feat hermeticity fix）。不改 split parser、不動既有 quarantine entry、不動 selftest 本體。
+
 ## [3.76.44] - 2026-06-26
 
 ### Changed
