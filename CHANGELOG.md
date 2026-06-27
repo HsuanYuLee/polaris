@@ -1,5 +1,29 @@
 # Changelog
 
+## [3.76.46] - 2026-06-27
+
+### Changed
+
+- 21bdc45: remove transient R1 quarantine of release-lane-head-ref-parity selftest
+  DP-372-T3 additive 在 `scripts/run-aggregate-selftests.sh` 的 QUARANTINE array 追加一筆
+  transient entry（`release-lane-head-ref-parity-selftest.sh`），標明 owner=DP-371、removal
+  criteria=DP-371 落地時移除——因為該 selftest 依賴 DP-371-T1 的 archive-aware cross-LLM
+  parity_exception owning-DP resolution，而 DP-372-only feat 分支不含該本體修正，aggregate
+  selftest 會 red。
+  DP-371-T1 已交付 archive-aware fix（feat/DP-371 rebased onto main 後該 selftest 在 feat HEAD
+  PASS），removal criteria 達成，故移除此 transient quarantine entry。不動 split parser、不動
+  其餘 quarantine entry（DP-373-owned `engineering-branch-setup-ensure-feat-before-cascade`
+  non-hermetic entry 保留）、不動 selftest 本體。
+
+### Fixed
+
+- 192d565: cross-LLM parity_exception owning-DP resolution is archive-aware
+  `scripts/validate-cross-llm-mechanism-parity.sh` 的 `parity_exception_valid()` 原本只 glob active `design-plans/{dp}-*/index.md` 解析 `parity_exception=DP-NNN:<reason>` carve-out。DP-343 release 後其 container 被 archive 到 `design-plans/archive/DP-343-*/`，active glob 找不到 → 18 支 bootstrap hook 全 `POLARIS_CROSS_LLM_PARITY_BLOCKED:...owning DP plan not found: DP-343`，W16 parity gate 在 main 紅。
+  修法（additive，archive 是正常 lifecycle state）：active glob 落空時 fall back 搜 `design-plans/archive/{dp}-*/index.md`；archive 命中仍跑同一組 recorded-reason check（`dp in plan_text` + `"parity" in plan_text.lower()`），不繞過 reason check；active 與 archive 皆找不到才 `owning DP plan not found`。新增 `scripts/selftests/cross-llm-mechanism-parity-archive-aware-selftest.sh`（hermetic tmpdir + `env -u`，real-TDD：archive-only PASS、genuinely-missing FAIL、archive-but-no-reason FAIL、active-still-present PASS），自動 enroll 進 aggregate runner。
+- 0cef3a2: validate-breakdown-ready recognizes V-tasks, not just T-tasks
+  `scripts/validate-breakdown-ready.sh` 的 `task_id_for_file()`（L682-687）只認 `^T[0-9]+[a-z]*` 的 `T{n}.md` / `T{n}/index.md`，不認 `V{n}` 形。V-task 是 Polaris 一級 task id，卻被判 `None`，使 DP-324 vacuous-pass guard（L1323-1330）對 V-task single-file target 誤 fire `POLARIS_VACUOUS_PASS`；含 V-task 的 directory target 的 dir-scan（`task_files()`）也只 glob `T*`，從不收集 V 檔餵給 resolver。
+  修法（additive，與既有 T 分支對稱）：`task_id_for_file()` 改用 `^[TV][0-9]+[a-z]*` 同時辨識 `V{n}.md` / `V{n}/index.md`；`task_files()` dir-scan glob 增加 `V*.md` + `V*/index.md`。不動 DP-324 guard 本體。新增 `scripts/selftests/breakdown-ready-v-task-recognition-selftest.sh`（hermetic tmpdir，real-TDD：V-named target 不再 vacuous-pass、非 T/V 檔名仍 vacuous-pass、T 行為不變），自動 enroll 進 aggregate runner。
+
 ## [3.76.45] - 2026-06-27
 
 ### Changed

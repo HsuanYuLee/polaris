@@ -210,6 +210,14 @@ def parity_exception_valid(token):
         return True, ""
     plans = list(plans_dir.glob(f"{dp}-*/index.md"))
     if not plans:
+        # Released DPs archive their own container under design-plans/archive/;
+        # archive is a normal lifecycle state, so fall back to the archive tree
+        # before declaring the owning DP plan missing. The recorded-reason check
+        # below still applies to archived plans (archive does not bypass it).
+        archive_dir = plans_dir / "archive"
+        if archive_dir.is_dir():
+            plans = list(archive_dir.glob(f"{dp}-*/index.md"))
+    if not plans:
         return False, f"parity_exception owning DP plan not found: {dp}"
     plan_text = "".join(p.read_text() for p in plans)
     if dp not in plan_text or "parity" not in plan_text.lower():

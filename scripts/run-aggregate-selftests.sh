@@ -86,7 +86,6 @@ QUARANTINE=(
   # origin, or reorder ensure_feat to publish before cascade); DP-373 also removes
   # this entry.
   "scripts/selftests/engineering-branch-setup-ensure-feat-before-cascade-selftest.sh|pre-existing non-hermetic red: fixture pushes only origin/main; ensure_feat_dp_branch creates feat/DP-902 local-only (not pushed to origin), so Step 1.5 cascade-rebase-chain's DP-324-T3 local-fallback guard correctly refuses to rebase onto missing origin/feat/DP-902 (POLARIS_REBASE_LOCAL_FALLBACK) = WAD, not a product regression. Follow-up: DP-373 cascade<->ensure_feat hermeticity fix."
-  "scripts/selftests/release-lane-head-ref-parity-selftest.sh|transient: R1 archive-aware parity fix delivered by DP-371; quarantine removed when DP-371 lands. Sequential-release ordering artifact (DP-372 v3.76.45 before DP-371 v3.76.46)."
 )
 
 usage() {

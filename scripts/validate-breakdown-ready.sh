@@ -468,7 +468,15 @@ def task_files(path: Path) -> list[Path]:
     if path.is_file():
         return [path]
     if path.is_dir():
-        files = sorted(path.glob("T*.md")) + sorted(path.glob("T*/index.md"))
+        # Collect both T-tasks and V-tasks (DP-371 T2): the directory scan must
+        # feed V{n}.md / V{n}/index.md to task_id_for_file symmetrically with the
+        # T forms, otherwise V-tasks in a directory target are never seen.
+        files = (
+            sorted(path.glob("T*.md"))
+            + sorted(path.glob("T*/index.md"))
+            + sorted(path.glob("V*.md"))
+            + sorted(path.glob("V*/index.md"))
+        )
         return [
             file
             for file in files
@@ -680,9 +688,12 @@ def has_meaningful_cell(row: list[str], idx: int) -> bool:
 
 
 def task_id_for_file(file: Path) -> str | None:
-    if re.match(r"^T[0-9]+[a-z]*\.md$", file.name):
+    # T-tasks and V-tasks are both first-class Polaris task ids (DP-371 T2),
+    # recognized symmetrically in their flat (T{n}.md / V{n}.md) and folder-native
+    # (T{n}/index.md / V{n}/index.md) forms.
+    if re.match(r"^[TV][0-9]+[a-z]*\.md$", file.name):
         return file.stem
-    if file.name == "index.md" and re.match(r"^T[0-9]+[a-z]*$", file.parent.name):
+    if file.name == "index.md" and re.match(r"^[TV][0-9]+[a-z]*$", file.parent.name):
         return file.parent.name
     return None
 
