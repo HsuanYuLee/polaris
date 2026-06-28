@@ -277,8 +277,15 @@ print(f'{host}:{port}')
 verify_command_static_smoke() {
   local file="$1"
   local command="$2"
+  # DP-369 GapA: optional kind selector. Default "verify_command" preserves the
+  # existing Verify Command smoke behavior unchanged; "env_bootstrap" additionally
+  # runs a first-token command-shape executability check on the Env bootstrap
+  # command so prose env_bootstrap fails LOCK/breakdown (run-verify-command.sh
+  # later runs `bash -c` on it at engineering RUN). Single classifier — same
+  # primitive, reusing this function's command_lines/shlex tokenizer (AC-NEG3).
+  local kind="${3:-verify_command}"
 
-  python3 - "$file" "$command" <<'PY'
+  python3 - "$file" "$command" "$kind" <<'PY'
 import os
 import re
 import shlex
@@ -290,6 +297,7 @@ from urllib.parse import urlparse
 
 task_path = Path(sys.argv[1])
 command = sys.argv[2]
+kind = sys.argv[3] if len(sys.argv) > 3 else "verify_command"
 repo_root = Path.cwd()
 errors = []
 
@@ -530,6 +538,102 @@ for line in command_lines(command):
     elif tokens and tokens[0].startswith("scripts/") and tokens[0].endswith(".sh"):
         smoke_script_flags(line, tokens)
     smoke_rg_pattern(line, tokens)
+
+# DP-369 GapA: env_bootstrap executability — first-token command-shape check.
+# Reuses this primitive's command_lines/shlex tokenizer (no second parser).
+# Goal: prose env_bootstrap (e.g. "啟動 dev.kkday.com 三層 stack ...") fails LOCK,
+# while a legitimate pipe-free shell chain that merely references host binaries
+# absent from the gate host (colima / docker-compose / pnpm) still passes — the
+# check validates command-name SHAPE, never binary existence.
+
+# A shell statement separator splits a chain into individual commands; the first
+# word of each is the command name and must be command-shaped.
+_STATEMENT_SEPARATORS = (";", "&&", "||", "|", "&")
+# A command word is a binary name or path: ASCII alnum plus ._-/:+@ punctuation.
+# CJK / prose words do not match, so a prose env_bootstrap value is rejected.
+_COMMAND_NAME_RE = re.compile(r"^[A-Za-z0-9_./:+@-]+$")
+# A leading `VAR=value` env-assignment prefix is not the command word; skip it.
+_ENV_ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def _split_statements(line: str):
+    """Split one bootstrap line into statements on top-level shell separators.
+
+    Args:
+        line: a single non-comment command line.
+
+    Returns:
+        List of non-empty statement strings (each the text between separators).
+    """
+    statements = []
+    buf = []
+    i = 0
+    n = len(line)
+    while i < n:
+        matched = None
+        for sep in _STATEMENT_SEPARATORS:
+            if line.startswith(sep, i):
+                matched = sep
+                break
+        if matched:
+            statements.append("".join(buf))
+            buf = []
+            i += len(matched)
+            continue
+        buf.append(line[i])
+        i += 1
+    statements.append("".join(buf))
+    return [s for s in (st.strip() for st in statements) if s]
+
+
+def _first_command_word(statement: str):
+    """Return the first command word of a statement.
+
+    Skips leading subshell/grouping/negation punctuation and `VAR=value`
+    env-assignment prefixes so the actual command name is returned.
+
+    Args:
+        statement: a single shell statement (no top-level separators).
+
+    Returns:
+        The command-name token, or "" when none can be extracted.
+    """
+    try:
+        toks = shlex.split(statement, comments=False, posix=True)
+    except ValueError:
+        return ""
+    for tok in toks:
+        if tok in {"(", ")", "{", "}", "!"}:
+            continue
+        if _ENV_ASSIGN_RE.match(tok) and "/" not in tok.split("=", 1)[0]:
+            continue
+        return tok
+    return ""
+
+
+def env_bootstrap_shape_smoke():
+    """Append an error for any bootstrap statement whose first token is not a
+    runnable command name. Catches prose env_bootstrap while tolerating absent
+    host binaries, since only command-name shape (not existence) is checked."""
+    for line in command_lines(command):
+        for statement in _split_statements(line):
+            word = _first_command_word(statement)
+            if not word:
+                errors.append(
+                    "Env bootstrap command executability: cannot resolve a "
+                    f"command from statement (statement: {statement!r})"
+                )
+                continue
+            if not _COMMAND_NAME_RE.match(word):
+                errors.append(
+                    "Env bootstrap command executability: first token "
+                    f"{word!r} is not a runnable command (prose, not a shell "
+                    f"command; statement: {statement!r})"
+                )
+
+
+if kind == "env_bootstrap":
+    env_bootstrap_shape_smoke()
 
 for error in errors:
     print(error)
@@ -1693,6 +1797,31 @@ print(urlparse(sys.argv[1]).path or '/')
         t_val=$(printf '%s' "${target:-}" | sed -E 's/^`|`$//g' | xargs 2>/dev/null || true)
         if [[ -n "$t_val" && "$t_val" != "N/A" && "$t_val" != "n/a" ]]; then
           errors+=("Level=$level expects Runtime verify target = N/A (got: '$t_val') — build gates should not declare live endpoints")
+        fi
+      fi
+
+      # --- DP-369 GapA: Env bootstrap command executability smoke ---
+      # run-verify-command.sh runs `bash -c` on the Env bootstrap command at
+      # engineering RUN; a prose / non-executable value must fail LOCK/breakdown
+      # here instead of exploding at RUN. Applies to runtime and build levels
+      # (both can carry a non-N/A bootstrap); static requires N/A (enforced
+      # above) so no smoke is needed. N/A / empty stays valid (no-op). Reuses the
+      # verify_command_static_smoke primitive with kind=env_bootstrap — single
+      # classifier, no second parser (AC-NEG3).
+      if [[ "$level" == "runtime" || "$level" == "build" ]]; then
+        local env_bootstrap_norm
+        env_bootstrap_norm=$(printf '%s' "${bootstrap:-}" | sed -E 's/^`|`$//g' | xargs 2>/dev/null || true)
+        if [[ -n "$env_bootstrap_norm" && "$env_bootstrap_norm" != "N/A" && "$env_bootstrap_norm" != "n/a" ]]; then
+          local eb_output eb_rc
+          set +e
+          eb_output=$(verify_command_static_smoke "$FILE" "$env_bootstrap_norm" env_bootstrap 2>/dev/null)
+          eb_rc=$?
+          set -e
+          if [[ "$eb_rc" -ne 0 ]]; then
+            while IFS= read -r eb_line; do
+              [[ -n "$eb_line" ]] && errors+=("$eb_line")
+            done <<< "$eb_output"
+          fi
         fi
       fi
     fi

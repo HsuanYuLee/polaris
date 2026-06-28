@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.47] - 2026-06-29
+
+### Changed
+
+- 46b0ec3: DP-369-T1: validate-task-md.sh 對 Env bootstrap command 套用 verify_command_static_smoke executability gate（reuse primitive，無第二套 parser）。
+- c527b68: DP-369-T2: validate-refinement-lock-preflight.sh 改以 derive-task-md-from-refinement-json.sh full-derive 真實 task.md 驗 LOCK，取代 hardcoded-clean placeholder（supersedes DP-376），保留 DP-262/274/296/316 既有契約。
+
 ## [3.76.46] - 2026-06-27
 
 ### Changed
