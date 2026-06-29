@@ -1081,13 +1081,20 @@ delivery_block_line = f"{delivery_block}\n" if delivery_block else ""
 #   * verification.behavior_contract.applies == true  (Layer D self-verification)
 #   * verification.visual_regression declared/non-empty (Layer C self-verification)
 # When either holds, the handoff reflects the task's OWN wiring and must NOT emit
-# the phantom `{source_id}-V1（umbrella regression）` text nor the「framework work
-# order」label. Otherwise (framework-infra task with applies=false and no
-# visual_regression) the existing umbrella-V1 delegation text is preserved
-# unchanged (no regression). `bc_applies` is recomputed here from the same
-# `verification.behavior_contract` dict the frontmatter path read, because the
-# field-driven branch above scopes its local `bc_applies` inside
-# `if body_is_field_driven:` and the legacy back-compat branch never computed it.
+# the phantom `{source_id}-V1（umbrella regression）` text nor delegate to an
+# umbrella V.
+#
+# DP-359 T1 (AC1 / D6) supersede: the framework-infra default (applies=false and no
+# visual_regression) is now ALSO per-task self-contained — the `else` branch no
+# longer emits the phantom `{source_id}-V1（umbrella regression）` delegation. A
+# framework work order verifies itself via its own verify_command; there is no
+# umbrella V to delegate to. The「framework work order」classifier is retained
+# (it is not the umbrella-delegation phrasing DP-359 removes).
+#
+# `bc_applies` is recomputed here from the same `verification.behavior_contract`
+# dict the frontmatter path read, because the field-driven branch above scopes its
+# local `bc_applies` inside `if body_is_field_driven:` and the legacy back-compat
+# branch never computed it.
 _bc = verification.get("behavior_contract") or {}
 handoff_bc_applies = bool(_bc.get("applies"))
 _vr = verification.get("visual_regression")
@@ -1105,7 +1112,8 @@ elif handoff_has_visual_regression:
     )
 else:
     verification_handoff_block = (
-        f"framework work order；驗收委派給 {source_id}-V1（umbrella regression）。"
+        "framework work order；本 task 為 per-task self-contained，"
+        "驗收以自身 verify_command（無 umbrella V 委派）。"
     )
 
 doc = f"""---
@@ -1135,8 +1143,8 @@ depends_on: [{depends_on_frontmatter}]
 | Work item ID | {work_item_id_cell} |
 | Task ID | {task_identity} |
 | JIRA key | {jira_key_cell} |
-| Test sub-tasks | N/A - framework work order |
-| AC 驗收單 | N/A - framework work order |
+| Test sub-tasks | N/A - per-task self-contained |
+| AC 驗收單 | N/A - per-task self-contained |
 | Base branch | {base_branch} |
 | Branch chain | {branch_chain} |
 | Task branch | {task_branch} |

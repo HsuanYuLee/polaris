@@ -1467,4 +1467,142 @@ if [[ "$cs_count" != "1" ]]; then
   exit 1
 fi
 
+# ===========================================================================
+# DP-359 T1 (AC1 / AC-NEG2) — framework-infra default = per-task self-contained.
+#
+# The framework-infra `## Verification Handoff` branch (applies=false, no
+# visual_regression) must NOT emit the phantom umbrella-V1 delegation
+# `驗收委派給 {source_id}-V1（umbrella regression）`, and the `## Operational
+# Context` table must NOT carry the two hardcoded `N/A - framework work order`
+# rows (Test sub-tasks / AC 驗收單). A legacy no-body task must derive without
+# failing AND without umbrella prose (AC-NEG2).
+# ===========================================================================
+
+DP359_PHANTOM_DELEGATION='V1（umbrella regression）'
+DP359_PHANTOM_VERB='驗收委派給'
+DP359_DEAD_ROW='Test sub-tasks | N/A - framework work order'
+
+# --- Case 29 (DP-359 AC1): framework-infra task (applies=false, no VR) must NOT
+# emit the phantom umbrella delegation in `## Verification Handoff`, and must NOT
+# carry the dead `N/A - framework work order` Operational Context rows. ---
+dp359_infra_json="$tmpdir/dp359-infra.json"
+cat >"$dp359_infra_json" <<'JSON'
+{
+  "source": {
+    "type": "dp",
+    "id": "DP-999",
+    "container": "/Users/x/work/docs-manager/src/content/docs/specs/design-plans/DP-999-sample",
+    "plan_path": "/tmp/dp-999/index.md",
+    "jira_key": null
+  },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "DP-999-T1",
+      "kind": "implementation",
+      "title": "framework deterministic derive 條件化",
+      "scope": "純 framework deterministic gate / selftest；無 runtime / UI 行為變更。",
+      "allowed_files": ["scripts/sample.sh"],
+      "modules": ["scripts/sample.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 2,
+      "verification": {
+        "method": "unit_test",
+        "detail": "bash scripts/selftests/sample-selftest.sh",
+        "verify_command": "bash scripts/selftests/sample-selftest.sh",
+        "behavior_contract": { "applies": false, "reason": "framework infra; no runtime behavior" },
+        "test_environment": { "level": "static" },
+        "references": ["scripts/sample.sh"]
+      }
+    }
+  ]
+}
+JSON
+
+dp359_infra_out="$tmpdir/dp359-infra.md"
+bash "$SCRIPT" --refinement-json "$dp359_infra_json" --task-id "DP-999-T1" > "$dp359_infra_out"
+
+if grep -qF -- "$DP359_PHANTOM_DELEGATION" "$dp359_infra_out"; then
+  echo "FAIL [case 29 / DP-359 AC1]: framework-infra task.md still emits phantom umbrella-V1 delegation '$DP359_PHANTOM_DELEGATION'" >&2
+  cat "$dp359_infra_out" >&2
+  exit 1
+fi
+if grep -qF -- "$DP359_PHANTOM_VERB" "$dp359_infra_out"; then
+  echo "FAIL [case 29 / DP-359 AC1]: framework-infra task.md still delegates verification to an umbrella V ('$DP359_PHANTOM_VERB')" >&2
+  cat "$dp359_infra_out" >&2
+  exit 1
+fi
+if grep -qF -- "$DP359_DEAD_ROW" "$dp359_infra_out"; then
+  echo "FAIL [case 29 / DP-359 AC1]: framework-infra task.md still carries the dead '$DP359_DEAD_ROW' Operational Context row" >&2
+  cat "$dp359_infra_out" >&2
+  exit 1
+fi
+if grep -qF -- "AC 驗收單 | N/A - framework work order" "$dp359_infra_out"; then
+  echo "FAIL [case 29 / DP-359 AC1]: framework-infra task.md still carries the dead 'AC 驗收單 | N/A - framework work order' Operational Context row" >&2
+  cat "$dp359_infra_out" >&2
+  exit 1
+fi
+# Positive: the handoff reflects per-task self-contained framework wiring.
+dp359_infra_handoff="$(awk '/^## Verification Handoff$/{c=1;next} c&&/^## /{c=0} c' "$dp359_infra_out")"
+if ! printf '%s\n' "$dp359_infra_handoff" | grep -qF -- "per-task self-contained"; then
+  echo "FAIL [case 29 / DP-359 AC1]: framework-infra handoff does not state per-task self-contained verification" >&2
+  cat "$dp359_infra_out" >&2
+  exit 1
+fi
+
+# --- Case 30 (DP-359 AC-NEG2): a legacy task with NO per-task body fields (no
+# behavior_contract present) still derives without failing AND without umbrella
+# prose — the framework-infra default path is self-contained, not delegated. ---
+dp359_nobody_json="$tmpdir/dp359-nobody.json"
+cat >"$dp359_nobody_json" <<'JSON'
+{
+  "source": { "type": "dp", "id": "DP-500", "container": "/tmp/dp-500", "jira_key": null },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "DP-500-T1",
+      "kind": "implementation",
+      "title": "legacy no-body framework task",
+      "scope": "AC-NEG2 -- no per-task body fields declared; legacy framework-infra path.",
+      "allowed_files": ["scripts/sample.sh", "scripts/selftests/sample-selftest.sh"],
+      "modules": ["scripts/sample.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "bash scripts/selftests/sample-selftest.sh"
+      }
+    }
+  ]
+}
+JSON
+
+dp359_nobody_out="$tmpdir/dp359-nobody.md"
+bash "$SCRIPT" --refinement-json "$dp359_nobody_json" --task-id "DP-500-T1" > "$dp359_nobody_out" || {
+  echo "FAIL [case 30 / DP-359 AC-NEG2]: legacy no-body framework task derive failed" >&2
+  exit 1
+}
+bash "$VALIDATE_TASK_MD" "$dp359_nobody_out" >/dev/null 2>&1 || {
+  echo "FAIL [case 30 / DP-359 AC-NEG2]: legacy no-body derived task.md does not pass validate-task-md.sh" >&2
+  bash "$VALIDATE_TASK_MD" "$dp359_nobody_out" >&2 || true
+  exit 1
+}
+if grep -qF -- "$DP359_PHANTOM_DELEGATION" "$dp359_nobody_out"; then
+  echo "FAIL [case 30 / DP-359 AC-NEG2]: legacy no-body task.md still emits phantom umbrella-V1 delegation" >&2
+  cat "$dp359_nobody_out" >&2
+  exit 1
+fi
+if grep -qF -- "$DP359_PHANTOM_VERB" "$dp359_nobody_out"; then
+  echo "FAIL [case 30 / DP-359 AC-NEG2]: legacy no-body task.md still delegates verification to an umbrella V" >&2
+  cat "$dp359_nobody_out" >&2
+  exit 1
+fi
+if grep -qF -- "$DP359_DEAD_ROW" "$dp359_nobody_out"; then
+  echo "FAIL [case 30 / DP-359 AC-NEG2]: legacy no-body task.md still carries the dead Operational Context row" >&2
+  cat "$dp359_nobody_out" >&2
+  exit 1
+fi
+
 echo "PASS: derive-task-md-from-refinement-json selftest"

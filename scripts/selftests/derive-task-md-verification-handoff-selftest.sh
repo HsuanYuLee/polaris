@@ -16,9 +16,10 @@
 #             visual_regression wiring and does NOT emit the phantom
 #             `{source_id}-V1（umbrella regression）` text nor the「framework work
 #             order」label.
-#   regress : a framework-infra task (behavior_contract.applies=false, no
-#             visual_regression) KEEPS the existing umbrella-V1 delegation text —
-#             the DP-335 framework-DP case must not regress.
+#   DP-359  : a framework-infra task (behavior_contract.applies=false, no
+#             visual_regression) now derives a PER-TASK SELF-CONTAINED handoff (D6) —
+#             no phantom `{source_id}-V1（umbrella regression）` delegation. This
+#             supersedes the DP-335 framework-DP umbrella-delegation default.
 #   AC-NEG1 : no large VR / mobile capability structure is exercised here (this
 #             selftest only inspects derived prose, no run-visual-snapshot wiring).
 #
@@ -132,10 +133,14 @@ fi
 echo "PASS: Case A — applies=true product-UI handoff reflects own behavior_contract, no phantom umbrella-V1"
 
 # ---------------------------------------------------------------------------
-# Case B (regression guard): framework-infra task with behavior_contract.applies=false
-# and NO visual_regression. The derived handoff must KEEP the existing umbrella-V1
-# delegation text `framework work order；驗收委派給 {source_id}-V1（umbrella regression）。`.
-# Passes both before and after the patch (must not regress).
+# Case B (DP-359 D6 / AC1): framework-infra task with behavior_contract.applies=false
+# and NO visual_regression. The framework-infra default is now per-task
+# self-contained — the derived handoff must NOT carry the phantom umbrella-V1
+# delegation `驗收委派給 {source_id}-V1（umbrella regression）` and must reflect the
+# task's own verify_command wiring (no umbrella V delegation).
+# RED→GREEN shape: against the UNPATCHED derive script the `else` branch still emits
+# the phantom delegation line, so this case FAILS pre-fix, proving the test drives
+# the DP-359 supersede.
 # ---------------------------------------------------------------------------
 case_b_json="$tmpdir/case-b.json"
 cat >"$case_b_json" <<'JSON'
@@ -178,11 +183,22 @@ bash "$SCRIPT" --refinement-json "$case_b_json" --task-id "DP-999-T1" > "$case_b
 case_b_handoff="$tmpdir/case-b-handoff.txt"
 extract_handoff "$case_b_out" > "$case_b_handoff"
 
-expected_b="framework work order；驗收委派給 DP-999-V1（umbrella regression）。"
-if ! grep -qF "$expected_b" "$case_b_handoff"; then
-  fail_case "Case B (applies=false framework-infra): handoff lost the umbrella-V1 delegation; expected '$expected_b'" "$case_b_handoff"
+# DP-359 D6: framework-infra default is per-task self-contained — no umbrella V
+# delegation. The phantom delegation literal and its '驗收委派給' verb must be ABSENT.
+if grep -qF "$PHANTOM_DELEGATION" "$case_b_handoff"; then
+  fail_case "Case B (applies=false framework-infra): handoff still emits phantom umbrella-V1 delegation '$PHANTOM_DELEGATION'" "$case_b_handoff"
 fi
-echo "PASS: Case B — applies=false framework-infra handoff keeps umbrella-V1 delegation (no regression)"
+if grep -qF "驗收委派給" "$case_b_handoff"; then
+  fail_case "Case B (applies=false framework-infra): handoff still delegates verification to an umbrella V ('驗收委派給')" "$case_b_handoff"
+fi
+# Positive: the per-task self-contained framework handoff reflects own wiring.
+if ! grep -qF "framework work order" "$case_b_handoff"; then
+  fail_case "Case B (applies=false framework-infra): handoff dropped the「framework work order」classifier" "$case_b_handoff"
+fi
+if ! grep -qF "per-task self-contained" "$case_b_handoff"; then
+  fail_case "Case B (applies=false framework-infra): handoff does not state per-task self-contained verification" "$case_b_handoff"
+fi
+echo "PASS: Case B — applies=false framework-infra handoff is per-task self-contained, no umbrella-V delegation"
 
 # ---------------------------------------------------------------------------
 # Case C (AC1, visual_regression authoritative field): a task with

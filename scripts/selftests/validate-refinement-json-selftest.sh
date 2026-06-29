@@ -1022,4 +1022,198 @@ if ! grep -q "POLARIS_REFINEMENT_JIRA_ONLY_FIELD" "$tmpdir/topic-base.stderr"; t
   exit 1
 fi
 
+# =====================================================================
+# DP-359 — SCSS-removal verify_command curated-token subset gate (AC2 / AC-NF1 /
+# AC-NEG1).
+#
+# T2 adds a fail-closed gate to validate-refinement-json.sh: when a task's
+# verification.verify_command contains an SCSS-removal clause — a negative
+# assertion `! rg ... <class-token> ...` scanning assets/style/css OR *.scss OR
+# *.css — the scanned class-token(s) must be a SUBSET of the curated-token set
+# declared on the AC entries the task references (task.ac_ids ->
+# acceptance_criteria[*].verification.curated_tokens). Over-scope (a scanned token
+# not in the curated set) OR an un-anchored over-broad family pattern (a bare
+# `\.modal` / `\.btn` regex not tied to the curated-token list) is fail-closed
+# exit 2 + POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE.
+#
+# curated_tokens is the single source of truth (AC-NF1): it lives ONLY on the AC
+# entry's verification block; the verify_command gate reads the same source — no
+# second token definition path.
+#
+# write_dp_scss <dest_dir> <curated_tokens_json> <verify_command> — write a
+# canonical dp fixture whose single AC carries verification.curated_tokens and
+# whose single task's verify_command is the given SCSS-removal command (ac_ids
+# already points at AC1, the curated source).
+# =====================================================================
+write_dp_scss() {
+  local dest_dir="$1"
+  local curated_json="$2"
+  local verify_command="$3"
+  mkdir -p "$dest_dir"
+  touch "$dest_dir/index.md"
+  cat >"$dest_dir/refinement.json" <<JSON
+{
+  "epic": null,
+  "source": {
+    "type": "dp",
+    "id": "DP-999",
+    "container": "$dest_dir",
+    "plan_path": "$dest_dir/index.md",
+    "jira_key": null
+  },
+  "version": "1.0",
+  "schema_version": "1.0",
+  "created_at": "2026-06-24T00:00:00Z",
+  "modules": [{ "path": "assets/style/css/sample.scss", "action": "modify" }],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "text": "t",
+      "verification": {
+        "method": "unit_test",
+        "detail": "d",
+        "curated_tokens": $curated_json
+      }
+    }
+  ],
+  "dependencies": [],
+  "edge_cases": [],
+  "predecessor_audit": [],
+  "tasks": [
+    {
+      "id": "DP-999-T1",
+      "kind": "implementation",
+      "task_shape": "implementation",
+      "tracked_deliverable_hint": "tracked",
+      "title": "t",
+      "scope": "s",
+      "allowed_files": ["assets/style/css/sample.scss"],
+      "modules": ["assets/style/css/sample.scss"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 2,
+      "verification": {
+        "method": "unit_test",
+        "detail": "d",
+        "verify_command": "$verify_command"
+      }
+    }
+  ],
+  "adversarial_pass": [{ "ac_id": "AC1", "attack": "a", "enforce": "e" }]
+}
+JSON
+}
+
+# --- Case 27 (AC2): SCSS-removal clause whose scanned token is NOT in the AC
+# curated_tokens FAILs fail-closed exit 2 + POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE.
+# curated = [form-input]; verify scans 'modal' (out of scope). ---
+dp_scss_over_dir="$tmpdir/dp-scss-over"
+write_dp_scss "$dp_scss_over_dir" '["form-input"]' \
+  "! rg '\\\\.modal' assets/style/css"
+set +e
+bash "$SCRIPT" "$dp_scss_over_dir/refinement.json" >/dev/null 2>"$tmpdir/dp-scss-over.stderr"
+scss_over_rc=$?
+set -e
+if [[ "$scss_over_rc" -ne 2 ]]; then
+  echo "FAIL [case 27 / AC2]: SCSS over-scope token expected exit 2, got $scss_over_rc" >&2
+  cat "$tmpdir/dp-scss-over.stderr" >&2
+  exit 1
+fi
+if ! grep -q "POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE" "$tmpdir/dp-scss-over.stderr"; then
+  echo "FAIL [case 27 / AC2]: missing POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE marker" >&2
+  cat "$tmpdir/dp-scss-over.stderr" >&2
+  exit 1
+fi
+
+# --- Case 28 (AC2): SCSS-removal clause whose scanned tokens are ALL in the AC
+# curated_tokens PASSes. curated = [form-input, form-select]; verify scans both. ---
+dp_scss_in_dir="$tmpdir/dp-scss-in"
+write_dp_scss "$dp_scss_in_dir" '["form-input", "form-select"]' \
+  "! rg '\\\\.form-input|\\\\.form-select' assets/style/css"
+if ! bash "$SCRIPT" "$dp_scss_in_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-scss-in.stderr"; then
+  echo "FAIL [case 28 / AC2]: SCSS in-scope subset clause did not pass" >&2
+  cat "$tmpdir/dp-scss-in.stderr" >&2
+  exit 1
+fi
+
+# --- Case 29 (AC2): a bare over-broad family pattern (`\.modal`) with NO matching
+# curated token (curated lists only KKday-own form selectors) is rejected as
+# over-broad — the un-anchored family pattern is not tied to the curated-token
+# list. exit 2 + marker. ---
+dp_scss_family_dir="$tmpdir/dp-scss-family"
+write_dp_scss "$dp_scss_family_dir" '["form-input"]' \
+  "! rg '\\\\.btn' assets/style/css/_buttons.scss"
+set +e
+bash "$SCRIPT" "$dp_scss_family_dir/refinement.json" >/dev/null 2>"$tmpdir/dp-scss-family.stderr"
+scss_family_rc=$?
+set -e
+if [[ "$scss_family_rc" -ne 2 ]]; then
+  echo "FAIL [case 29 / AC2]: bare over-broad family pattern expected exit 2, got $scss_family_rc" >&2
+  cat "$tmpdir/dp-scss-family.stderr" >&2
+  exit 1
+fi
+if ! grep -q "POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE" "$tmpdir/dp-scss-family.stderr"; then
+  echo "FAIL [case 29 / AC2]: missing POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE marker for family pattern" >&2
+  cat "$tmpdir/dp-scss-family.stderr" >&2
+  exit 1
+fi
+
+# --- Case 30 (AC-NEG1): a verify_command WITHOUT any SCSS-removal clause (a
+# normal selftest command) is a no-op PASS — not falsely flagged even when the AC
+# carries no curated_tokens. ---
+dp_scss_noop_dir="$tmpdir/dp-scss-noop"
+write_dp_canonical "$dp_scss_noop_dir"
+python3 - "$dp_scss_noop_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["tasks"][0]["verification"]["verify_command"] = "bash scripts/selftests/foo-selftest.sh"
+json.dump(data, open(p, "w"))
+PY
+if ! bash "$SCRIPT" "$dp_scss_noop_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-scss-noop.stderr"; then
+  echo "FAIL [case 30 / AC-NEG1]: non-SCSS verify_command falsely flagged (expected no-op PASS)" >&2
+  cat "$tmpdir/dp-scss-noop.stderr" >&2
+  exit 1
+fi
+
+# --- Case 31 (AC-NF1 / single source of truth): curated_tokens lives ONLY on the
+# AC entry. Mutating the AC curated_tokens alone flips the verify_command gate
+# verdict — proving the gate reads the same single source (no second token def).
+# Start from the in-scope fixture (PASS); shrink the AC curated set so the scanned
+# token is no longer covered → the SAME verify_command now FAILs over-scope. ---
+dp_scss_single_dir="$tmpdir/dp-scss-single"
+write_dp_scss "$dp_scss_single_dir" '["form-input", "form-select"]' \
+  "! rg '\\\\.form-input|\\\\.form-select' assets/style/css"
+# Sanity: passes while both tokens are curated.
+if ! bash "$SCRIPT" "$dp_scss_single_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-scss-single-before.stderr"; then
+  echo "FAIL [case 31 / AC-NF1]: pre-mutation in-scope fixture did not pass" >&2
+  cat "$tmpdir/dp-scss-single-before.stderr" >&2
+  exit 1
+fi
+# Mutate ONLY the AC curated_tokens (the single source); verify_command untouched.
+python3 - "$dp_scss_single_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["acceptance_criteria"][0]["verification"]["curated_tokens"] = ["form-input"]
+json.dump(data, open(p, "w"))
+PY
+set +e
+bash "$SCRIPT" "$dp_scss_single_dir/refinement.json" >/dev/null 2>"$tmpdir/dp-scss-single-after.stderr"
+scss_single_rc=$?
+set -e
+if [[ "$scss_single_rc" -ne 2 ]]; then
+  echo "FAIL [case 31 / AC-NF1]: shrinking AC curated_tokens did not flip verify_command gate to fail (single-source not enforced), got $scss_single_rc" >&2
+  cat "$tmpdir/dp-scss-single-after.stderr" >&2
+  exit 1
+fi
+if ! grep -q "POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE" "$tmpdir/dp-scss-single-after.stderr"; then
+  echo "FAIL [case 31 / AC-NF1]: missing over-scope marker after AC curated_tokens shrink" >&2
+  cat "$tmpdir/dp-scss-single-after.stderr" >&2
+  exit 1
+fi
+
 echo "PASS: validate-refinement-json selftest"

@@ -220,6 +220,12 @@ else:
 
 # --- acceptance_criteria: array with ≥ 1, each with id + text + verification{method,detail} ---
 ac = data.get("acceptance_criteria")
+# DP-359 D3 / AC-NF1: curated_tokens is the single source of truth for
+# SCSS-removal scan tokens. It lives ONLY on the AC entry's verification block.
+# Collect it here keyed by AC id (lowercased token strings) so the verify_command
+# SCSS-removal subset gate below resolves the curated set from the AC entries the
+# task references — there is no second token definition path.
+ac_curated_tokens = {}
 if not isinstance(ac, list):
     errors.append("missing required field 'acceptance_criteria' (expected array)")
 elif len(ac) == 0:
@@ -270,6 +276,30 @@ else:
             d = ver.get("detail")
             if not isinstance(d, str) or not d.strip():
                 errors.append(f"acceptance_criteria[{idx}].verification: missing or empty 'detail'")
+
+            # DP-359 D3: curated_tokens — optional, validated-when-present. When
+            # present it must be an array of non-empty strings (the curated
+            # SCSS/CSS class selector tokens this AC declares in scope). It is the
+            # single source the SCSS-removal verify_command subset gate reads.
+            if "curated_tokens" in ver:
+                tokens = ver.get("curated_tokens")
+                if not isinstance(tokens, list):
+                    errors.append(
+                        f"acceptance_criteria[{idx}].verification.curated_tokens "
+                        "must be an array when present"
+                    )
+                else:
+                    collected = []
+                    for tidx, tok in enumerate(tokens):
+                        if not isinstance(tok, str) or not tok.strip():
+                            errors.append(
+                                f"acceptance_criteria[{idx}].verification.curated_tokens[{tidx}] "
+                                "must be a non-empty string"
+                            )
+                        else:
+                            collected.append(tok.strip().lstrip(".").lower())
+                    if isinstance(aid, str) and aid.strip():
+                        ac_curated_tokens[aid.strip()] = set(collected)
 
 # --- dependencies: array (may be empty); if non-empty, each must have type + target + blocking ---
 deps = data.get("dependencies")
@@ -540,6 +570,105 @@ def validate_task_verification_body(verification, label):
                     errors.append(f"{label}.references[{ridx}] must be a non-empty string")
 
 
+# DP-359 D4: SCSS-removal verify_command curated-token subset gate.
+#
+# A "SCSS-removal clause" is a negative-assertion `! rg ... <class-token> ...`
+# that scans the SCSS/CSS layer (a path containing assets/style/css, or a *.scss
+# / *.css path). It exists to assert that a CSS class selector no longer appears
+# in the stylesheet layer after a Bootstrap-removal style refactor. The scanned
+# class-token(s) must be a SUBSET of the curated-token set the task's AC entries
+# declare (the single source of truth, AC-NF1). Over-scope — a scanned token not
+# in the curated set, OR an un-anchored over-broad family pattern not tied to the
+# curated-token list — is fail-closed exit 2 + POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE.
+#
+# This signals the SCSS-overscope verdict separately so the shell wrapper can
+# propagate the distinct exit-2 contract (other schema violations stay exit 1).
+scss_overscope_violation = [False]
+
+# Match a negative ripgrep assertion: `! rg <flags...> '<pattern>' <path...>`.
+# The pattern may be single- or double-quoted; trailing args carry the scan path.
+# The clause body runs to the next SHELL command boundary (newline, `;`, `&&`,
+# `||`) — a single `|` is NOT a boundary because it can be a regex-alternation
+# `|` inside the quoted rg pattern (e.g. `'\.form-input|\.form-select'`); the
+# quoted pattern is pulled out by _split_rg_args, which keeps the alternation
+# intact.
+_SCSS_RG_CLAUSE = re.compile(r"!\s*rg\b(.*?)(?=$|;|&&|\|\||\n)", re.MULTILINE)
+# A scan target that hits the SCSS/CSS layer.
+_SCSS_PATH = re.compile(r"(assets/style/css|\.scss\b|\.css\b)")
+# Extract class tokens from an rg pattern: `\.<token>` occurrences. The leading
+# `\.` anchors the token to a class selector; a bare token without it is treated
+# as an un-anchored over-broad family pattern.
+_SCSS_ANCHORED_TOKEN = re.compile(r"\\\.([A-Za-z][A-Za-z0-9_-]*)")
+# A family-style metacharacter in the pattern (wildcard / char class / etc.)
+# beyond the anchored class tokens marks it over-broad when not pinned to curated.
+_SCSS_BARE_DOTSTAR = re.compile(r"\\\.[A-Za-z][A-Za-z0-9_-]*[*+?]")
+
+
+def _split_rg_args(segment):
+    # Split an rg invocation tail into (first quoted-or-bare pattern, rest path
+    # args). `segment` is the text following `! rg` up to the clause terminator.
+    # The pattern may be single- or double-quoted; the rest carries the scan path.
+    dq = chr(34)
+    # Match a single-quoted OR double-quoted argument (group 2 / group 3).
+    quoted_re = re.compile("('([^']*)'|" + dq + "([^" + dq + "]*)" + dq + ")")
+    m = quoted_re.search(segment)
+    if m:
+        pattern = m.group(2) if m.group(2) is not None else m.group(3)
+        rest = segment[m.end():]
+        return pattern, rest
+    # Fallback: first whitespace-delimited non-flag token is the pattern.
+    non_flags = [t for t in segment.split() if not t.startswith("-")]
+    if not non_flags:
+        return "", ""
+    return non_flags[0], " ".join(non_flags[1:])
+
+
+def check_scss_removal_verify_command(verify_command, curated, label):
+    """Gate an SCSS-removal verify_command against the curated-token set.
+
+    Args:
+        verify_command: the task verify_command string.
+        curated: set of curated token strings (lowercased, no leading dot).
+        label: task label for error messages.
+
+    Side effects: appends to `errors` and flips scss_overscope_violation on
+        over-scope; no-op when the command carries no SCSS-removal clause.
+    """
+    if not isinstance(verify_command, str) or not verify_command:
+        return
+    for m in _SCSS_RG_CLAUSE.finditer(verify_command):
+        tail = m.group(1)
+        pattern, rest = _split_rg_args(tail)
+        scan_path = rest if rest.strip() else tail
+        # Only an rg negative assertion that scans the SCSS/CSS layer is a
+        # SCSS-removal clause (AC-NEG1: non-SCSS commands are no-ops).
+        if not _SCSS_PATH.search(scan_path):
+            continue
+        # Over-broad family pattern (e.g. `\.modal[s-]?`) not pinned to curated:
+        # an anchored token followed by a regex quantifier widens the match
+        # beyond the exact curated selector.
+        if _SCSS_BARE_DOTSTAR.search(pattern):
+            errors.append(
+                f"POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE: {label}.verify_command "
+                f"uses an un-anchored over-broad family pattern '{pattern}' not tied to "
+                "the AC curated-token list"
+            )
+            scss_overscope_violation[0] = True
+            continue
+        # A bare `\.<token>` (e.g. `\.modal`, `\.btn`) IS an anchored token; it
+        # is rejected by the subset check below when <token> is not curated —
+        # that is exactly the "bare family pattern not tied to curated" case.
+        scanned = {t.lower() for t in _SCSS_ANCHORED_TOKEN.findall(pattern)}
+        overscoped = sorted(t for t in scanned if t not in curated)
+        if overscoped:
+            errors.append(
+                f"POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE: {label}.verify_command "
+                f"scans SCSS token(s) {overscoped} not in the AC curated-token set "
+                f"{sorted(curated)} (curated-token is the single source of truth)"
+            )
+            scss_overscope_violation[0] = True
+
+
 # DP-296: top-level planned_tasks[] is removed. task_shape /
 # tracked_deliverable_hint are now first-class tasks[] fields (canonical home).
 # Reject any artifact that still carries a top-level planned_tasks[] key
@@ -710,6 +839,20 @@ else:
                 if str(aid) not in ac_ids:
                     strong_error(f"tasks[{idx}].ac_ids[{aid}]")
 
+        # DP-359 D4: SCSS-removal verify_command curated-token subset gate. Resolve
+        # the curated set as the UNION of curated_tokens declared on the AC entries
+        # this task references (task.ac_ids -> acceptance_criteria curated_tokens)
+        # — the single source of truth (AC-NF1) — and gate the verify_command.
+        if isinstance(task_verification, dict) and isinstance(task_ac_ids, list):
+            curated_union = set()
+            for aid in task_ac_ids:
+                curated_union |= ac_curated_tokens.get(str(aid), set())
+            check_scss_removal_verify_command(
+                task_verification.get("verify_command"),
+                curated_union,
+                f"tasks[{idx}]",
+            )
+
 adversarial_pass = data.get("adversarial_pass")
 if not isinstance(adversarial_pass, list) or not adversarial_pass:
     strong_error("adversarial_pass")
@@ -737,7 +880,10 @@ else:
 if errors:
     for e in errors:
         print(e)
-    sys.exit(1)
+    # DP-359 D4: the SCSS-removal curated-token over-scope violation is a
+    # fail-closed A-class gate that exits 2 (distinct from the generic schema
+    # exit 1) so the shell wrapper can surface the dedicated contract.
+    sys.exit(2 if scss_overscope_violation[0] else 1)
 
 sys.exit(0)
 PY
@@ -755,6 +901,11 @@ PY
   done <<< "$result"
   echo "" >&2
   echo "Contract: skills/references/pipeline-handoff.md § Artifact Schemas — refinement.json" >&2
+  # DP-359 D4: propagate the dedicated exit 2 of the SCSS-removal curated-token
+  # over-scope gate; all other schema violations stay exit 1.
+  if [[ $rc -eq 2 ]]; then
+    return 2
+  fi
   return 1
 }
 

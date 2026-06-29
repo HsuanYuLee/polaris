@@ -152,6 +152,21 @@ refinement 完成時同時產出兩份：
         "detail": "before/after Lighthouse 跑分比對"
       },
       "negative": true
+    },
+    {
+      "id": "AC3",
+      "text": "T13 SCSS 層只移除 form-* 與 bootstrap import，排除 KKday 自有 selector",
+      "category": "functional",
+      "quantifiable": true,
+      "verification": {
+        "method": "unit_test",
+        "detail": "grep 確認 form-input / form-select selector 已移除",
+        // DP-359 D3：SCSS-removal verify_command 的 curated-token single source
+        // of truth（additive optional，validated-when-present）。見下方
+        // § `acceptance_criteria[].verification.curated_tokens`。
+        "curated_tokens": ["form-input", "form-select"]
+      },
+      "negative": false
     }
   ],
 
@@ -316,6 +331,70 @@ verification:
     reason: "framework reference doc 對齊 + deterministic selftest；無 runtime / UI 行為變更"
 ```
 
+### `acceptance_criteria[].verification.curated_tokens`（SCSS-removal scan token single source of truth，DP-359）
+
+`curated_tokens` 是 **AC entry verification block** 的 optional 欄位，是
+SCSS-removal 類 verify_command 掃描 token 的 **single source of truth**。當某張
+AC 描述「移除某些 CSS class selector 殘留」這類驗收（典型 Bootstrap-removal
+重構），AC 在 `verification.curated_tokens` 列出**允許掃描的 class selector
+token 清單**；綁到該 AC 的 task（`tasks[].ac_ids` → 此 AC）的 SCSS-removal
+verify_command 掃描 token 必須是 curated-token 的子集。
+
+| Field path | Required | Shape |
+|------------|----------|-------|
+| `acceptance_criteria[].verification.curated_tokens` | optional | 非空字串陣列；每筆是一個 class selector token（可帶或不帶前導 `.`，gate 以去點、小寫後比對） |
+
+Contract（DP-359 D3 / D4 / AC-NF1）：
+
+- **additive optional、validated-when-present**：缺欄位的 AC 在
+  `validate-refinement-json.sh` 是 no-op PASS（既有 active refinement.json 早於本
+  欄位仍可通過；back-compat 對齊 DP-302 AC-NEG2 pattern）。present 時 shape 被
+  enforce：非陣列、或含空字串元素 fail-loud。
+- **single source of truth（AC-NF1）**：curated-token **只**定義於此 AC 欄位；
+  verify_command 的 SCSS-removal gate 讀同一來源（task 的 `ac_ids` → 對應
+  `acceptance_criteria[*].verification.curated_tokens` 的 union），不存在第二條
+  token 定義 path。「排除 KKday 自有 selector」是 data——結構化清單本就不含
+  KKday-own token，subset 檢查 mechanical，不靠散文判斷。
+- **deterministic gate（D4）**：`validate-refinement-json.sh` 偵測 task 的
+  `verification.verify_command` 含 SCSS-removal clause——一個掃 `assets/style/css`
+  / `*.scss` / `*.css` 的 negative-assertion `! rg ... '\.<token>' ...`——時，抽出
+  其掃描的 anchored class token，與該 task `ac_ids` 對應 AC 的 curated-token union
+  比對：掃描 token 非子集（含裸 `\.modal` / `\.btn` 這類未列在 curated-token 的
+  family pattern），或使用未錨定的過寬 family pattern（如 `\.modal*`）時，
+  **fail-closed exit 2 + `POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE`**。掃描
+  token ⊆ curated set → PASS。不含 SCSS-removal clause 的一般 verify_command（如
+  `bash scripts/selftests/*.sh`）是 no-op PASS（AC-NEG1）。
+
+範例（T13 SCSS 層只移 `form-*`，curated-token 排除 KKday 自有 selector）：
+
+```jsonc
+{
+  "acceptance_criteria": [
+    {
+      "id": "AC3",
+      "text": "T13 SCSS 層只移除 form-* 與 bootstrap import，排除 KKday 自有 selector",
+      "verification": {
+        "method": "unit_test",
+        "detail": "grep 確認 form-* selector 已移除",
+        "curated_tokens": ["form-input", "form-select"]   // single source of truth
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "DP-NNN-T13",
+      "ac_ids": ["AC3"],
+      "verification": {
+        // ⊆ curated_tokens → PASS
+        "verify_command": "! rg '\\.form-input|\\.form-select' assets/style/css"
+        // 若改成裸 `! rg '\\.modal' assets/style/css`（modal 不在 curated）→
+        // exit 2 + POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE
+      }
+    }
+  ]
+}
+```
+
 ### Ticketless / DP-backed metadata example
 
 ```jsonc
@@ -344,6 +423,10 @@ AC hardening contract：
 - `acceptance_criteria[]` 每條必須保留 `verification`。
 - 新 producer 應寫 `category`，讓 JSON artifact 不丟失 markdown 中的分類。
 - `negative` 欄位只作 legacy compatibility；consumer 應優先讀 `category`。
+- `verification.curated_tokens`（DP-359）為 optional、validated-when-present：當
+  AC 描述 SCSS class selector 移除驗收時，列出允許掃描的 curated-token 清單，作為
+  SCSS-removal verify_command 的 single source of truth（見
+  § `acceptance_criteria[].verification.curated_tokens`）。
 
 ## 下游 Skill 如何使用
 

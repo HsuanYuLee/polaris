@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.50] - 2026-06-29
+
+### Changed
+
+- eddb4f2: derive 去寫死 V-umbrella 散文 + field-driven render verification surface
+- 0f352b6: SCSS-removal verify_command 綁定 AC curated-token subset gate + schema + selftest
+
 ## [3.76.49] - 2026-06-29
 
 ### Changed
