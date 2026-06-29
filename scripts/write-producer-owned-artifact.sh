@@ -247,6 +247,72 @@ fi
 target_dir="$(dirname "$TARGET_PATH")"
 mkdir -p "$target_dir"
 
+# DP-368 T1: LOCK-readiness pre-write gate (refinement_primary_doc branch only).
+#
+# A refinement-owned container index.md status transition into LOCKED is the
+# moment the source is declared handoff-ready. Bind that transition to the same
+# readiness gates breakdown / auto-pass already trust: refinement-handoff-gate.sh
+# (changed_files + artifact parity + schema) AND validate-refinement-lock-preflight.sh
+# (every planned task is breakdown-ready). Either failing fails the LOCK closed.
+#
+# The gate fires ONLY on a non-LOCKED -> LOCKED transition (on-disk current status
+# is absent or != LOCKED, body-file target status == LOCKED). A LOCKED -> LOCKED
+# amendment is NOT a transition and must NOT re-fire the gate. A DISCUSSION (or
+# any non-LOCKED) target is not a transition either, so ledger / task.md / report /
+# DISCUSSION-index.md writes are never affected. dp (design-plans/) and jira-Epic
+# (companies/{company}/{EPIC}/) containers are symmetric: the container is resolved
+# purely by dirname(TARGET_PATH), with no source-type prefix hardcoding.
+#
+# The gate is placed BEFORE the final-path write to avoid any half-written LOCKED
+# (pre-write gate; no rollback hole — fail closed means nothing is written). The
+# gate uses its own exit; no POLARIS_*_BYPASS / POLARIS_SKILL_BOUNDARY_BYPASS env
+# can silence it (aligned with the no-direct-evidence-write AC-NEG design).
+#
+# Reuse the canonical frontmatter status reader (same awk shape as
+# archive-spec.sh / detect-closeout-drift.sh frontmatter_status); do NOT add a
+# second parser.
+frontmatter_status() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  awk -F ':' '
+    NR == 1 && $0 == "---" { in_frontmatter = 1; next }
+    in_frontmatter && $0 == "---" { exit }
+    in_frontmatter && /^status:/ {
+      sub(/^[[:space:]]+/, "", $2)
+      print $2
+      exit
+    }
+  ' "$file"
+}
+
+if [[ "$artifact_kind" == "refinement_primary_doc" ]]; then
+  current_status="$(frontmatter_status "$TARGET_PATH")"
+  target_status="$(frontmatter_status "$BODY_FILE")"
+  if [[ "$current_status" != "LOCKED" && "$target_status" == "LOCKED" ]]; then
+    lock_container="$(dirname "$TARGET_PATH")"
+    refinement_json="$lock_container/refinement.json"
+    handoff_gate="$WORKSPACE_ROOT/scripts/refinement-handoff-gate.sh"
+    lock_preflight="$WORKSPACE_ROOT/scripts/validate-refinement-lock-preflight.sh"
+    readiness_exit=0
+    if [[ -x "$handoff_gate" ]]; then
+      "$handoff_gate" "$refinement_json" >&2 || readiness_exit=$?
+    else
+      echo "ERROR: missing LOCK-readiness gate: $handoff_gate" >&2
+      readiness_exit=2
+    fi
+    if [[ "$readiness_exit" -eq 0 && -x "$lock_preflight" ]]; then
+      "$lock_preflight" "$refinement_json" >&2 || readiness_exit=$?
+    elif [[ "$readiness_exit" -eq 0 ]]; then
+      echo "ERROR: missing LOCK-readiness gate: $lock_preflight" >&2
+      readiness_exit=2
+    fi
+    if [[ "$readiness_exit" -ne 0 ]]; then
+      echo "POLARIS_LOCK_READINESS_NOT_MET: $lock_container (handoff-gate / lock-preflight failed; status NOT flipped to LOCKED)" >&2
+      exit 2
+    fi
+  fi
+fi
+
 # Backup existing content if final-path validation is required.
 backup_file=""
 needs_final_path_validation=0

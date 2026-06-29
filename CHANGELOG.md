@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.48] - 2026-06-29
+
+### Changed
+
+- b36c90c: DP-368-T1: LOCK transition fail-closed binding to handoff-readiness gate (refinement_primary_doc writer pre-write gate).
+- 9288477: DP-368-T2: retire backfill-locked-dp-changed-files.sh (T1 pre-write LOCK-readiness gate supersedes post-hoc backfill).
+
 ## [3.76.47] - 2026-06-29
 
 ### Changed

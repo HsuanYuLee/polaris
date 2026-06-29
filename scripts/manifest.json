@@ -224,15 +224,6 @@
       "relocation": "stay"
     },
     {
-      "path": "scripts/backfill-locked-dp-changed-files.sh",
-      "kind": "writer",
-      "runner": "bash",
-      "owner_surface": "refinement",
-      "selftest": "scripts/selftests/backfill-locked-dp-changed-files-selftest.sh",
-      "lifecycle": "support_path",
-      "relocation": "stay"
-    },
-    {
       "path": "scripts/backfill-refinement-predecessor-audit.sh",
       "kind": "writer",
       "runner": "bash",
@@ -2677,16 +2668,6 @@
     },
     {
       "path": "scripts/selftests/auto-pass-thin-skill-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/backfill-locked-dp-changed-files-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
