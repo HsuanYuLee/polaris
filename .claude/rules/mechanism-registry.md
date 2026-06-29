@@ -114,6 +114,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | selftest-enrollment-gate | scripts/validate-selftest-enrollment.sh | script | portable | scripts/selftests/run-aggregate-selftests-selftest.sh | governance |
 | breakdown-marker-supersede | scripts/breakdown-emit-task-snapshot.sh | script | portable | scripts/selftests/breakdown-marker-supersede-selftest.sh | governance |
 | consumer-reads-authoritative-field | scripts/derive-task-md-from-refinement-json.sh | script | portable | scripts/selftests/derive-task-md-action-from-field-selftest.sh | governance |
+| verification-handoff-authoritative-field | scripts/derive-task-md-from-refinement-json.sh | script | portable | scripts/selftests/derive-task-md-verification-handoff-selftest.sh | governance |
 | marker-artifact-resolvable | scripts/validate-marker-artifact-resolvable.sh | script | portable | scripts/selftests/validate-marker-artifact-resolvable-selftest.sh | governance |
 | marker-source-artifact-move-resilience | scripts/check-delivery-completion.sh | script | portable | scripts/selftests/marker-source-artifact-move-resilience-selftest.sh | governance |
 | branch-identity-gate | scripts/validate-breakdown-ready.sh | script | portable | scripts/selftests/validate-breakdown-ready-branch-identity-selftest.sh | governance |

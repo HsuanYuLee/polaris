@@ -244,7 +244,7 @@ body 欄位**，作為 `derive-task-md-from-refinement-json.sh` 產出 task.md b
 
 | Field | Required | 說明 |
 |-------|----------|------|
-| `behavior_contract` | optional | object；required boolean `applies`。`applies=false` 時必須附非空 `reason`（對齊 task.md frontmatter `verification.behavior_contract` 契約：framework infra task=false 須說明、runtime/UI/product task=true）。`applies=true` 可附 `mode`（如 `parity` / `hybrid`）。derive 寫入 task.md frontmatter `verification.behavior_contract` |
+| `behavior_contract` | optional | object；required boolean `applies`。`applies=false` 時必須附非空 `reason`（對齊 task.md frontmatter `verification.behavior_contract` 契約：framework infra task=false 須說明、runtime/UI/product task=true）。`applies=true` 時 derive **fail-loud** 強制一組子欄位（見下方 § behavior_contract `applies=true` 子欄位契約）。derive 寫入 task.md frontmatter `verification.behavior_contract` |
 | `test_environment` | optional | object；required `level` ∈ `static` / `component` / `integration` / `runtime`。derive 寫入 task.md `## Test Environment` 的 Level |
 | `verify_command` | optional | 非空字串；derive 寫入 task.md `## Verify Command`（無無條件 framework 尾段；framework-only 步驟只在此欄位明確要求時才出現，D5） |
 | `references` | optional | 字串陣列（每筆非空）；derive 寫入 task.md `References to load`。實際 container 路徑（`companies/` vs `design-plans/`）由 resolved container 生成，不由本欄位寫死（D4） |
@@ -259,6 +259,62 @@ Contract（DP-302 AC3 / AC-NEG1）：
   （AC-NEG1）。
 - back-compat 鬆綁不外洩：本欄位是 additive optional，不改動既有 `method` / `detail`
   required 契約。
+
+#### behavior_contract `applies=true` 子欄位契約
+
+當 `behavior_contract.applies=true` 時，`derive-task-md-from-refinement-json.sh`
+（`bc_applies` block）對下列子欄位 **fail-loud**（缺任一即 exit 1 並指名欄位，
+no framework default），與 `validate-task-md.sh` 對 runtime/product task 的要求一致。
+這份清單與 derive enforcement 同步，由 doc↔enforcement parity selftest
+（`scripts/selftests/refinement-artifact-behavior-contract-doc-parity-selftest.sh`）
+機械斷言 doc 不得比 enforcement 寬鬆。
+
+**無條件必填子欄位**（`applies=true` 時全部都要）：
+
+| 子欄位 | 說明 |
+|--------|------|
+| `mode` | 比對模式，例如 `parity`（before/after 完全一致）/ `hybrid`（允許列舉差異）。 |
+| `source_of_truth` | 行為基準來源（baseline 由哪個 commit / 環境 / fixture 定義）。 |
+| `fixture_policy` | fixture 取用政策，例如 `mockoon_required`（必須掛 Mockoon fixture）/ `none`。 |
+| `flow` | 驗證流程描述（要走哪些步驟才觀察到該行為）。 |
+| `assertions` | 非空字串陣列，每筆是一條可觀察的行為斷言（空陣列 fail-loud）。 |
+
+**條件必填子欄位**（依上面值再展開）：
+
+| 觸發條件 | 額外必填 | 說明 |
+|----------|----------|------|
+| `fixture_policy: mockoon_required` | `flow_script` | 必填非空 flow script 路徑（validator 接受 `flow_script` / `script_path` / `playwright_script` 任一）。 |
+| `mode: hybrid` | `allowed_differences` | 必填非空字串陣列，逐條列出允許的 before/after 差異。 |
+
+**可選 passthrough 子欄位**（宣告時才寫入 task.md，缺則略過）：`baseline_ref`、
+`target_url`、`viewport`。其中 mobile UI parity task 用 `viewport: mobile` 宣告（desktop
+省略或填 `viewport: desktop`）。
+
+範例（mobile UI parity task，`mode: parity` + `fixture_policy: mockoon_required`）：
+
+```yaml
+verification:
+  behavior_contract:
+    applies: true
+    mode: parity
+    source_of_truth: "feat/DP-335 HEAD before refactor"
+    fixture_policy: mockoon_required
+    flow_script: scripts/flows/product-detail-mobile.sh
+    flow: "載入商品頁 mobile viewport，截圖比對 before/after"
+    viewport: mobile
+    assertions:
+      - "mobile 商品頁 above-the-fold 元素位置與 baseline 一致"
+      - "CLS 無新增位移"
+```
+
+範例（framework infra task，無 runtime / UI 行為）：
+
+```yaml
+verification:
+  behavior_contract:
+    applies: false
+    reason: "framework reference doc 對齊 + deterministic selftest；無 runtime / UI 行為變更"
+```
 
 ### Ticketless / DP-backed metadata example
 

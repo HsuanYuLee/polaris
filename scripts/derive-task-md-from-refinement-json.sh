@@ -1074,6 +1074,40 @@ references_cell = "<br>".join(f"- `{r}`" for r in all_references)
 delivery_block = build_delivery_block(task_id)
 delivery_block_line = f"{delivery_block}\n" if delivery_block else ""
 
+# DP-335 T1 (AC1): the `## Verification Handoff` paragraph is conditional on the
+# task's AUTHORITATIVE verification declaration fields, not a path / filename
+# heuristic (consumer-reads-authoritative-field canary). Two authoritative signals
+# mark a "product-UI task that verifies itself" (no umbrella-V delegation):
+#   * verification.behavior_contract.applies == true  (Layer D self-verification)
+#   * verification.visual_regression declared/non-empty (Layer C self-verification)
+# When either holds, the handoff reflects the task's OWN wiring and must NOT emit
+# the phantom `{source_id}-V1（umbrella regression）` text nor the「framework work
+# order」label. Otherwise (framework-infra task with applies=false and no
+# visual_regression) the existing umbrella-V1 delegation text is preserved
+# unchanged (no regression). `bc_applies` is recomputed here from the same
+# `verification.behavior_contract` dict the frontmatter path read, because the
+# field-driven branch above scopes its local `bc_applies` inside
+# `if body_is_field_driven:` and the legacy back-compat branch never computed it.
+_bc = verification.get("behavior_contract") or {}
+handoff_bc_applies = bool(_bc.get("applies"))
+_vr = verification.get("visual_regression")
+# Non-empty when declared: a dict/list with content, or any other truthy value.
+handoff_has_visual_regression = bool(_vr)
+if handoff_bc_applies:
+    verification_handoff_block = (
+        "product UI work order；本 task 自身以 Layer D `verification.behavior_contract` "
+        "驗收（無 umbrella V 委派）。"
+    )
+elif handoff_has_visual_regression:
+    verification_handoff_block = (
+        "product UI work order；本 task 自身以 Layer C `verification.visual_regression` "
+        "驗收（無 umbrella V 委派）。"
+    )
+else:
+    verification_handoff_block = (
+        f"framework work order；驗收委派給 {source_id}-V1（umbrella regression）。"
+    )
+
 doc = f"""---
 title: "{source_id} {short_id}: {title} ({points} pt)"
 description: "{scope}"
@@ -1111,7 +1145,7 @@ depends_on: [{depends_on_frontmatter}]
 
 ## Verification Handoff
 
-framework work order；驗收委派給 {source_id}-V1（umbrella regression）。
+{verification_handoff_block}
 
 ## 目標
 

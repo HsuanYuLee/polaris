@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.49] - 2026-06-29
+
+### Changed
+
+- d728fcb: DP-335 T1：把 `scripts/derive-task-md-from-refinement-json.sh` 的 `## Verification Handoff` 段落條件化。原本此段是 heredoc 字面，無條件硬寫 `framework work order；驗收委派給 {source_id}-V1（umbrella regression）。`，只內插 `{source_id}`，不看 task 是否有自身驗收接線。改為依該 task 的 authoritative verification 宣告欄位決定輸出（非 path / filename heuristic，對齊 `consumer-reads-authoritative-field` canary）：`verification.behavior_contract.applies=true` 或 `verification.visual_regression` 已宣告的 product-UI task 反映自身 Layer D / Layer C 驗收接線、不再輸出 phantom umbrella-V1 與「framework work order」字樣；`applies=false` 且無 visual_regression 的 framework-infra task 保留既有 umbrella-V1 委派語意（不回歸）。新增 RED→GREEN selftest `scripts/selftests/derive-task-md-verification-handoff-selftest.sh`（Case A 先重現 phantom 輸出再斷言消失、Case B framework-infra 不回歸、Case C visual_regression 權威欄位），並在 mechanism-registry.md Runtime Annotation Registry 註冊 `verification-handoff-authoritative-field` row。
+- c34a37b: DP-335 T2：把 `.claude/skills/references/refinement-artifact.md` 的 `tasks[].verification.behavior_contract` schema doc 對齊到 `derive-task-md-from-refinement-json.sh`（`bc_applies` block）的實際 fail-loud enforcement。原本該 row 只寫「`applies=true` 可附 `mode`」，比 derive 實際要求寬鬆，作者因此 under-populate，要到 breakdown 階段才被擋下。現明列 `applies=true` 無條件必填子欄位 `mode` / `source_of_truth` / `fixture_policy` / `flow` / `assertions[]`，條件必填 `fixture_policy: mockoon_required → flow_script`、`mode: hybrid → allowed_differences`，以及 mobile UI parity task 的 `viewport: mobile` 填法與 yaml 範例。對齊方向為 doc→enforcement（AC-NEG3，不降級 derive）。新增 doc↔enforcement parity selftest `scripts/selftests/refinement-artifact-behavior-contract-doc-parity-selftest.sh`，從 derive 的 `bc_require(...)` callsite 抽出無條件必填集合，斷言 doc 字面列出全部子欄位、兩條件子欄位與 `viewport: mobile` 範例，缺任一即 fail（RED→GREEN driver）。
+
 ## [3.76.48] - 2026-06-29
 
 ### Changed
