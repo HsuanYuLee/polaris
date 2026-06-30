@@ -4,7 +4,7 @@
 # Aggregate-release scope gate. Reads a PR's "Bundle Identity" block from the
 # remote PR body (via `gh pr view --json body`), discovers the bundled tasks'
 # task.md Allowed Files, and validates the PR diff against the union of those
-# Allowed Files. Release-tail files (VERSION / CHANGELOG.md /
+# Allowed Files. Release-tail files (VERSION / package.json / CHANGELOG.md /
 # scripts/manifest.json / sync-to-polaris.sh) are tolerated per refinement EC11
 # so framework release metadata can ship with the bundle PR.
 #
@@ -177,22 +177,38 @@ for task_id in tasks:
         continue
     source_id = "-".join(parts[:2])  # DP-NNN
     task_suffix = parts[-1]          # T{n}
-    # Look under design-plans/<source_id>-*/tasks/<task_suffix>/index.md OR
-    # companies/*/<source_id>/tasks/<task_suffix>/index.md.
+    # Look under active/archive design-plan and company task locations. Finalized
+    # framework tasks live in tasks/pr-release/<task_suffix>/index.md, which must
+    # resolve the same as the canonical task resolver.
     candidates = []
-    dp_root = os.path.join(specs_root, "design-plans")
-    if os.path.isdir(dp_root):
-        for entry in os.listdir(dp_root):
+    dp_roots = [
+        os.path.join(specs_root, "design-plans"),
+        os.path.join(specs_root, "design-plans", "archive"),
+    ]
+    for dp_root in dp_roots:
+        if not os.path.isdir(dp_root):
+            continue
+        for entry in sorted(os.listdir(dp_root)):
             if entry.startswith(source_id):
-                p = os.path.join(dp_root, entry, "tasks", task_suffix, "index.md")
-                if os.path.isfile(p):
-                    candidates.append(p)
+                for rel in [
+                    ("tasks", task_suffix, "index.md"),
+                    ("tasks", "pr-release", task_suffix, "index.md"),
+                ]:
+                    p = os.path.join(dp_root, entry, *rel)
+                    if os.path.isfile(p):
+                        candidates.append(p)
     companies_root = os.path.join(specs_root, "companies")
     if os.path.isdir(companies_root):
-        for company in os.listdir(companies_root):
-            p = os.path.join(companies_root, company, source_id, "tasks", task_suffix, "index.md")
-            if os.path.isfile(p):
-                candidates.append(p)
+        for company in sorted(os.listdir(companies_root)):
+            for rel in [
+                (company, source_id, "tasks", task_suffix, "index.md"),
+                (company, source_id, "tasks", "pr-release", task_suffix, "index.md"),
+                (company, "archive", source_id, "tasks", task_suffix, "index.md"),
+                (company, "archive", source_id, "tasks", "pr-release", task_suffix, "index.md"),
+            ]:
+                p = os.path.join(companies_root, *rel)
+                if os.path.isfile(p):
+                    candidates.append(p)
     if not candidates:
         missing.append(task_id)
         continue
@@ -283,6 +299,7 @@ with open(diff_path, "r", encoding="utf-8") as fh:
 # DP-230 EC11 / R4: release-tail Allowed Files are tolerated in aggregate-release union.
 RELEASE_TAIL = {
     "VERSION",
+    "package.json",
     "CHANGELOG.md",
     "scripts/manifest.json",
     "scripts/sync-to-polaris.sh",

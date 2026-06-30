@@ -7,7 +7,7 @@
 #         emits bundle identity block (bundle_branch_alias + bundled_tasks) in PR body.
 #         check-pr-scope.sh recognizes aggregate-release identity and unions merged-task
 #         Allowed Files. Random file outside union fails. Release-tail files (VERSION /
-#         CHANGELOG.md / scripts/manifest.json / sync-to-polaris.sh) are tolerated.
+#         package.json / CHANGELOG.md / scripts/manifest.json / sync-to-polaris.sh) are tolerated.
 #         The legacy --allow-dag alias has been removed from the production PR / scope
 #         pipeline; this selftest is the surviving search anchor (literal token below
 #         is intentional for `rg -- '--allow-dag'` verify-command attestation).
@@ -318,8 +318,10 @@ YAML
   git -C "$repo" commit -q -m base
   git -C "$repo" checkout -q -b bundle-DP-999-v9.9.9
 
-  # Two task.md files inside the local workspace docs-manager
-  tasks_dir="$workspace/docs-manager/src/content/docs/specs/design-plans/DP-999-fixture/tasks"
+  # Two finalized task.md files inside the local workspace docs-manager. Keep
+  # them only under tasks/pr-release to verify check-pr-scope follows the same
+  # finalized task lookup surface as resolve-task-md.sh.
+  tasks_dir="$workspace/docs-manager/src/content/docs/specs/design-plans/DP-999-fixture/tasks/pr-release"
   mkdir -p "$tasks_dir/T1" "$tasks_dir/T2"
   cat >"$tasks_dir/T1/index.md" <<'EOF'
 ---
@@ -472,8 +474,8 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Case 6: release-tail files (VERSION / CHANGELOG.md / scripts/manifest.json /
-#         sync-to-polaris.sh) tolerated in aggregate-release union (EC11)
+# Case 6: release-tail files (VERSION / package.json / CHANGELOG.md /
+#         scripts/manifest.json / sync-to-polaris.sh) tolerated in aggregate-release union (EC11)
 # ---------------------------------------------------------------------------
 {
   workspace="$TMPROOT/c6-ws"
@@ -494,6 +496,7 @@ YAML
   mkdir -p "$repo/src/a" "$repo/scripts"
   echo init >"$repo/src/a/file.ts"
   echo 3.99.0 >"$repo/VERSION"
+  printf '{"version":"3.99.0"}\n' >"$repo/package.json"
   echo init >"$repo/CHANGELOG.md"
   echo init >"$repo/scripts/manifest.json"
   echo init >"$repo/scripts/sync-to-polaris.sh"
@@ -528,7 +531,7 @@ case "$*" in
     exit 0
     ;;
   *"pr diff"*"--name-only"*)
-    printf 'src/a/file.ts\nVERSION\nCHANGELOG.md\nscripts/manifest.json\nscripts/sync-to-polaris.sh\n'
+    printf 'src/a/file.ts\nVERSION\npackage.json\nCHANGELOG.md\nscripts/manifest.json\nscripts/sync-to-polaris.sh\n'
     exit 0
     ;;
   *"pr diff"*)
@@ -551,6 +554,7 @@ EOF
   set -e
   _assert "$rc" "0" "C6: release-tail files tolerated in aggregate-release union"
   _assert_contains "$output" "VERSION" "C6: VERSION must be marked within_scope"
+  _assert_contains "$output" "package.json" "C6: package.json must be marked within_scope"
   _assert_contains "$output" "release_tail_tolerated" \
     "C6: report should annotate release-tail tolerance"
 }

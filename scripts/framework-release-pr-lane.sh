@@ -26,6 +26,7 @@ SCRIPT_CATEGORIZATION_VALIDATOR="${SCRIPT_DIR}/validate-script-categorization.sh
 GOVERNED_SCRIPT_TEST_RUNNER="${SCRIPT_DIR}/run-governed-script-tests.sh"
 WORKSPACE_REPO=""
 MAIN_BRANCH="main"
+MAIN_BRANCH_EXPLICIT=0
 EXECUTE=0
 REQUIRE_MAIN_CONTAINS_FINAL=0
 DAG_MODE=0
@@ -93,9 +94,9 @@ info() {
 abs_path() {
   local path="$1"
   if [[ "$path" = /* ]]; then
-    printf '%s\n' "$path"
+    printf '%s\n' "$(cd -P "$(dirname "$path")" && pwd -P)/$(basename "$path")"
   else
-    printf '%s\n' "$(cd "$(dirname "$path")" && pwd)/$(basename "$path")"
+    printf '%s\n' "$(cd -P "$(dirname "$path")" && pwd -P)/$(basename "$path")"
   fi
 }
 
@@ -159,6 +160,29 @@ refresh_gh_repo_args() {
   gh_repo_args=()
   if [[ -n "$WORKSPACE_REPO" ]]; then
     gh_repo_args=(--repo "$WORKSPACE_REPO")
+  fi
+}
+
+resolve_workspace_repo_slug() {
+  [[ -n "$WORKSPACE_REPO" ]] && return 0
+  if declare -F polaris_github_repo_slug >/dev/null 2>&1; then
+    WORKSPACE_REPO="$(polaris_github_repo_slug "$REPO_PATH" 2>/dev/null || true)"
+  fi
+  if [[ -z "$WORKSPACE_REPO" ]]; then
+    WORKSPACE_REPO="$(git -C "$REPO_PATH" remote get-url origin 2>/dev/null | python3 -c '
+import re
+import sys
+url = sys.stdin.read().strip()
+patterns = [
+    r"github\\.com[:/]([^/]+)/([^/.]+)(?:\\.git)?$",
+    r"https://github\\.com/([^/]+)/([^/.]+)(?:\\.git)?$",
+]
+for pattern in patterns:
+    m = re.search(pattern, url)
+    if m:
+        print(f"{m.group(1)}/{m.group(2)}")
+        break
+' || true)"
   fi
 }
 
@@ -323,6 +347,11 @@ verify_pr_task_lineage() {
   done < "$resolver_out"
 
   if [[ $resolver_status -ne 0 || ${#resolved[@]} -eq 0 ]]; then
+    task_md="$(abs_path "$task_md")"
+    if [[ "$task_md" != "$REPO_PATH"/* || ! -d "$REPO_PATH/docs-manager/src/content/docs/specs" ]]; then
+      rm -f "$resolver_err" "$resolver_out"
+      return 0
+    fi
     local detail
     detail="$(tr '\n' ' ' < "$resolver_err" | sed 's/[[:space:]]\+/ /g')"
     rm -f "$resolver_err" "$resolver_out"
@@ -340,18 +369,57 @@ resolve_task_mds_from_terminal() {
   [[ -n "$TERMINAL_TASK_MD" ]] || die "provide --task-md or --terminal-task-md"
   [[ -f "$TERMINAL_TASK_MD" ]] || die "terminal task.md not found: $TERMINAL_TASK_MD"
 
-  local branch task_path
-  while IFS= read -r branch; do
-    [[ "$branch" == task/* ]] || continue
-    task_path="$(bash "$SCRIPT_DIR/resolve-task-md-by-branch.sh" --scan-root "$REPO_PATH" "$branch" | head -1 || true)"
-    if [[ -z "$task_path" && "$branch" == "$(table_field "Task branch" "$TERMINAL_TASK_MD")" ]]; then
-      task_path="$TERMINAL_TASK_MD"
-    fi
-    [[ -n "$task_path" ]] || die "could not resolve task.md for branch in chain: $branch"
-    TASK_MDS+=("$(abs_path "$task_path")")
-  done < <(bash "$SCRIPT_DIR/resolve-branch-chain.sh" "$TERMINAL_TASK_MD")
+  local terminal_abs terminal_source_container
+  local seen_tasks=()
+  terminal_abs="$(abs_path "$TERMINAL_TASK_MD")"
+  terminal_source_container="${terminal_abs%%/tasks/*}"
 
+  resolve_task_for_branch() {
+    local branch="$1"
+    local fallback="$2"
+    local resolved="" candidate
+    resolved="$(bash "$SCRIPT_DIR/resolve-task-md-by-branch.sh" --scan-root "$REPO_PATH" "$branch" | head -1 || true)"
+    if [[ -z "$resolved" && -d "$terminal_source_container/tasks" ]]; then
+      while IFS= read -r candidate; do
+        if [[ "$(table_field "Task branch" "$candidate")" == "$branch" ]]; then
+          resolved="$candidate"
+          break
+        fi
+      done < <(find "$terminal_source_container/tasks" -type f \( -name 'index.md' -o -name 'T*.md' \) | sort)
+    fi
+    if [[ -z "$resolved" && -n "$fallback" ]]; then
+      resolved="$fallback"
+    fi
+    [[ -n "$resolved" ]] || die "could not resolve task.md for branch in chain: $branch"
+    abs_path "$resolved"
+  }
+
+  append_task_with_upstream() {
+    local task_md="$1"
+    local task_abs base upstream
+    task_abs="$(abs_path "$task_md")"
+    if [[ ${#seen_tasks[@]} -gt 0 ]] && line_in_list "$task_abs" "${seen_tasks[@]}"; then
+      return 0
+    fi
+    seen_tasks+=("$task_abs")
+    base="$(table_field "Base branch" "$task_abs")"
+    if [[ "$base" == task/* ]]; then
+      upstream="$(resolve_task_for_branch "$base" "")"
+      append_task_with_upstream "$upstream"
+    fi
+    TASK_MDS+=("$task_abs")
+  }
+
+  append_task_with_upstream "$terminal_abs"
   [[ ${#TASK_MDS[@]} -gt 0 ]] || die "no task branches found in terminal Branch chain"
+
+  if [[ "$MAIN_BRANCH_EXPLICIT" -eq 0 ]]; then
+    local first_base
+    first_base="$(table_field "Base branch" "${TASK_MDS[0]}")"
+    if is_feat_aggregation_branch "$first_base"; then
+      MAIN_BRANCH="$first_base"
+    fi
+  fi
 }
 
 # DP-270 (D1/D2 + AC-NEG2): inspect the resolved TASK_MDS for a shared
@@ -601,8 +669,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
       --task-md) TASK_MDS+=("$(abs_path "$2")"); shift 2 ;;
       --task-md=*) TASK_MDS+=("$(abs_path "${1#--task-md=}")"); shift ;;
       --list-stage-owners) list_stage_owners; exit 0 ;;
-      --main) MAIN_BRANCH="$2"; shift 2 ;;
-      --main=*) MAIN_BRANCH="${1#--main=}"; shift ;;
+      --main) MAIN_BRANCH="$2"; MAIN_BRANCH_EXPLICIT=1; shift 2 ;;
+      --main=*) MAIN_BRANCH="${1#--main=}"; MAIN_BRANCH_EXPLICIT=1; shift ;;
       --execute) EXECUTE=1; shift ;;
       --allow-dag) DAG_MODE=1; shift ;;
       --require-main-contains-final) REQUIRE_MAIN_CONTAINS_FINAL=1; shift ;;
@@ -612,6 +680,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   done
 
   REPO_PATH="$(abs_path "$REPO_PATH")"
+  resolve_workspace_repo_slug
   refresh_gh_repo_args
   resolve_gh_bin
 

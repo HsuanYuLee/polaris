@@ -170,6 +170,16 @@ fi
   exit 2
 }
 
+if [[ "${FRAMEWORK_PR_LANE_REQUIRE_REPO_ARGS:-0}" == "1" ]]; then
+  case " $* " in
+    *" --repo demo/example "*) ;;
+    *)
+      echo "expected --repo demo/example for gh $cmd $sub: $*" >&2
+      exit 2
+      ;;
+  esac
+fi
+
 if [[ "$cmd $sub" == "pr view" ]]; then
   branch="$1"
   awk -F '\t' -v branch="$branch" '
@@ -236,6 +246,7 @@ TASK_DIR="$REPO/docs-manager/src/content/docs/specs/design-plans/DP-999-fixture/
 make_task "$TASK_DIR/T1.md" "DP-999-T1" "main" "main -> task/DP-999-T1-one" "task/DP-999-T1-one"
 make_task "$TASK_DIR/T2.md" "DP-999-T2" "task/DP-999-T1-one" "main -> task/DP-999-T1-one -> task/DP-999-T2-two" "task/DP-999-T2-two"
 make_task "$TASK_DIR/T3.md" "DP-999-T3" "task/DP-999-T2-two" "main -> task/DP-999-T1-one -> task/DP-999-T2-two -> task/DP-999-T3-three" "task/DP-999-T3-three"
+make_task "$TASK_DIR/T3-local-chain.md" "DP-999-T3" "task/DP-999-T2-two" "task/DP-999-T2-two -> task/DP-999-T3-three" "task/DP-999-T3-three"
 make_task "$TASK_DIR/TB.md" "DP-999-TB" "main" "main -> task/DP-999-TB-blocked" "task/DP-999-TB-blocked"
 make_task "$TASK_DIR/TG.md" "DP-999-TG" "main" "main -> codex/generic-publish" "codex/generic-publish"
 
@@ -268,6 +279,22 @@ bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T
 
 write_state
 bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" --execute >"$TMPDIR"/execute.out
+awk -F '\t' '$2 == "2" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
+awk -F '\t' '$2 == "3" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
+
+# DP-384: terminal-task mode must recover the full upstream stack from Base
+# branch links even when the terminal task's Branch chain only names its direct
+# predecessor. It must also pass --repo through every gh view/edit/merge call.
+write_state
+FRAMEWORK_PR_LANE_REQUIRE_REPO_ARGS=1 \
+  bash "$HELPER" --repo "$REPO" --workspace-repo demo/example \
+    --terminal-task-md "$TASK_DIR/T3-local-chain.md" --execute \
+    >"$TMPDIR"/terminal-stack-execute.out 2>&1 || {
+      echo "DP-384: expected terminal stacked chain execute fixture to PASS" >&2
+      cat "$TMPDIR"/terminal-stack-execute.out >&2
+      exit 1
+    }
+awk -F '\t' '$2 == "1" && $3 == "MERGED" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
 awk -F '\t' '$2 == "2" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
 awk -F '\t' '$2 == "3" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
 
@@ -384,7 +411,11 @@ write_state
 bash "$HELPER" \
   --repo "$OVERLAY_WORKTREE" \
   --terminal-task-md "$OVERLAY_TASK_DIR/T3/index.md" \
-  >"$TMPDIR"/overlay.out 2>&1
+  >"$TMPDIR"/overlay.out 2>&1 || {
+    echo "overlay release lane should PASS when task source is outside release worktree" >&2
+    cat "$TMPDIR"/overlay.out >&2
+    exit 1
+  }
 if grep -q "no task.md matched" "$TMPDIR"/overlay.out; then
   echo "overlay release lane should resolve canonical task source without scan miss fallback" >&2
   cat "$TMPDIR"/overlay.out >&2

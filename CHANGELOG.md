@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.53] - 2026-07-01
+
+### Changed
+
+- 9f2b832: DP-384 lets aggregate release scope checks treat `package.json` as release-tail version metadata alongside `VERSION` and `CHANGELOG.md`.
+- 025b1e9: 補齊 framework-release stacked rebase lane autodiscovery 與 pr-release scope resolver
+
 ## [3.76.52] - 2026-07-01
 
 ### Changed
