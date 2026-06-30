@@ -161,7 +161,7 @@ JSON
 expect_pass "legal-full-derive-runtime-and-carveout" "$tmpdir/legal-full-derive.json"
 
 # ---------------------------------------------------------------------------
-# AC3 — a planned runtime task whose env_bootstrap is PROSE (the GT-646 original
+# AC3 — a planned runtime task whose env_bootstrap is PROSE (the DEMO-646 original
 # value, CJK prose with no parseable command) makes the preflight fail-stop
 # (exit 2). With the old hardcoded-clean placeholder (te_bootstrap="echo
 # bootstrap") this prose value was never validated; full-derive emits the REAL
@@ -174,7 +174,7 @@ cat >"$tmpdir/prose-env-bootstrap.json" <<JSON
   "modules": [],
   "tasks": [
 $(canonical_impl_task "T1" "DP-369 runtime task prose env bootstrap" "runtime" \
-    "啟動 dev.kkday.com 三層 stack 並把 dev server 釘在 3001" \
+    "啟動 app.example.test 三層 stack 並把 dev server 釘在 3001" \
     "$RUNTIME_PROBE_URL" "curl -fsS $RUNTIME_PROBE_URL")
   ]
 }
@@ -219,7 +219,7 @@ cat >"$tmpdir/bad-prose-named.json" <<JSON
   "modules": [],
   "tasks": [
 $(canonical_impl_task "T9" "DP-369 runtime task prose env bootstrap named" "runtime" \
-    "啟動 dev.kkday.com 三層 stack 並把 dev server 釘在 3001" \
+    "啟動 app.example.test 三層 stack 並把 dev server 釘在 3001" \
     "$RUNTIME_PROBE_URL" "curl -fsS $RUNTIME_PROBE_URL")
   ]
 }
@@ -238,7 +238,7 @@ cat >"$tmpdir/mixed.json" <<JSON
   "tasks": [
 $(canonical_specs_only_task "T1" "confirmation"),
 $(canonical_impl_task "T2" "DP-369 runtime task prose env bootstrap mixed" "runtime" \
-    "啟動 dev.kkday.com 三層 stack 並把 dev server 釘在 3001" \
+    "啟動 app.example.test 三層 stack 並把 dev server 釘在 3001" \
     "$RUNTIME_PROBE_URL" "curl -fsS $RUNTIME_PROBE_URL")
   ]
 }

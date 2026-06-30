@@ -171,12 +171,12 @@ EOF
 
 env_marker="Env bootstrap command executability"
 
-# AC1 — prose env_bootstrap (real GT-646-style Chinese prose) at runtime → FAIL.
+# AC1 — prose env_bootstrap (real DEMO-646-style Chinese prose) at runtime → FAIL.
 ac1="$TMPROOT/env-AC1-prose.md"
 write_env_task "$ac1" runtime \
-  "https://dev.kkday.com/en/product/123" \
-  "啟動 dev.kkday.com 三層 stack（colima + nginx + dev server）" \
-  "curl -sf https://dev.kkday.com/en/product/123"
+  "https://app.example.test/en/product/123" \
+  "啟動 app.example.test 三層 stack（colima + nginx + dev server）" \
+  "curl -sf https://app.example.test/en/product/123"
 if bash "$VALIDATE" "$ac1" >"$TMPROOT/env-AC1.out" 2>&1; then
   echo "validate-task-md-selftest AC1: expected prose Env bootstrap command to FAIL" >&2
   cat "$TMPROOT/env-AC1.out" >&2
@@ -192,9 +192,9 @@ echo "PASS: validate-task-md env-bootstrap AC1 (prose fails)"
 # AC2 — legitimate pipe-free chain referencing absent host binaries → PASS (runtime).
 ac2="$TMPROOT/env-AC2-missing-binary.md"
 write_env_task "$ac2" runtime \
-  "https://dev.kkday.com/en/product/123" \
+  "https://app.example.test/en/product/123" \
   "colima start; docker-compose up -d; pnpm dev" \
-  "curl -sf https://dev.kkday.com/en/product/123"
+  "curl -sf https://app.example.test/en/product/123"
 if ! bash "$VALIDATE" "$ac2" >"$TMPROOT/env-AC2.out" 2>&1; then
   echo "validate-task-md-selftest AC2: legit missing-binary chain must PASS (shape, not existence)" >&2
   cat "$TMPROOT/env-AC2.out" >&2

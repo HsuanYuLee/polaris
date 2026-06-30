@@ -120,14 +120,14 @@ body = {
     "adversarial_pass": [{"ac_id": "AC1", "attack": "a", "enforce": "e"}],
     "tasks": [
         {
-            "id": "T1", "kind": "T", "title": "t", "scope": "s",
+            "id": "T1", "kind": "T", "title": "新增 lock readiness fixture", "scope": "建立 LOCK readiness selftest fixture。",
             "allowed_files": ["scripts/x.sh"], "modules": ["scripts/x.sh"],
             "ac_ids": ["AC1"], "dependencies": [], "estimate_points": 1,
-            "verification": {"method": "unit_test", "detail": "d", "verify_command": "true"},
+            "verification": {"method": "unit_test", "detail": "echo PASS", "verify_command": "echo PASS"},
             # JIRA-Epic tasks derive their branch identity from tasks[].jira_key
             # (a real PROJ-NNN child key); without it derive-task-md emits JIRA: N/A
             # which validate-task-md rejects for source.type=jira. dp tasks omit it.
-            **({"jira_key": "EX-9002"} if is_jira else {}),
+            **({"jira_key": "PR-9002"} if is_jira else {}),
         }
     ],
 }
@@ -248,10 +248,10 @@ grep -q 'POLARIS_LOCK_READINESS_NOT_MET' "$WORKDIR/ac3.out" && fail "AC3: gate m
 # AC4: dp + jira-Epic parity (container resolved by dirname, no source-type prefix).
 #   jira green -> allowed; jira handoff-fail -> blocked. (dp covered by AC1/AC2a.)
 # ---------------------------------------------------------------------------
-ac4_green_c="$WORKDIR/docs-manager/src/content/docs/specs/companies/exampleco/EX-9001"
-build_container "$ac4_green_c" jira EX-9001 DISCUSSION 1
+ac4_green_c="$WORKDIR/docs-manager/src/content/docs/specs/companies/exampleco/PR-9001"
+build_container "$ac4_green_c" jira PR-9001 DISCUSSION 1
 ac4_green_body="$WORKDIR/ac4-green-locked.md"
-locked_body_for "$ac4_green_c/index.md" "EX-9001 green jira" "$ac4_green_body"
+locked_body_for "$ac4_green_c/index.md" "PR-9001 green jira" "$ac4_green_body"
 set +e
 "$WRITER" --producer-token refinement:primary-doc \
   --path "$ac4_green_c/index.md" --body-file "$ac4_green_body" >"$WORKDIR/ac4-green.out" 2>&1
@@ -260,10 +260,10 @@ set -e
 [[ "$rc" -eq 0 ]] || fail "AC4: jira-Epic green DISCUSSION->LOCKED expected exit 0, got $rc" "$WORKDIR/ac4-green.out"
 [[ "$(on_disk_status "$ac4_green_c/index.md")" == "LOCKED" ]] || fail "AC4: jira-Epic on-disk status should be LOCKED after green LOCK"
 
-ac4_fail_c="$WORKDIR/docs-manager/src/content/docs/specs/companies/exampleco/EX-9002"
-build_container "$ac4_fail_c" jira EX-9002 DISCUSSION 0
+ac4_fail_c="$WORKDIR/docs-manager/src/content/docs/specs/companies/exampleco/PR-9002"
+build_container "$ac4_fail_c" jira PR-9002 DISCUSSION 0
 ac4_fail_body="$WORKDIR/ac4-fail-locked.md"
-locked_body_for "$ac4_fail_c/index.md" "EX-9002 fail jira" "$ac4_fail_body"
+locked_body_for "$ac4_fail_c/index.md" "PR-9002 fail jira" "$ac4_fail_body"
 set +e
 "$WRITER" --producer-token refinement:primary-doc \
   --path "$ac4_fail_c/index.md" --body-file "$ac4_fail_body" >"$WORKDIR/ac4-fail.out" 2>&1

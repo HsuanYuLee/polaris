@@ -209,9 +209,50 @@ research_json="$tmpdir/research-lock.json"
 cat >"$research_json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-274" },
+  "acceptance_criteria": [ { "id": "AC1", "text": "delivery-unit shape fixture" } ],
   "tasks": [
-    { "id": "T1", "task_shape": "audit", "tracked_deliverable_hint": "specs_only" },
-    { "id": "T2", "task_shape": "audit", "tracked_deliverable_hint": "specs_only" }
+    {
+      "id": "T1",
+      "kind": "T",
+      "task_shape": "audit",
+      "tracked_deliverable_hint": "specs_only",
+      "title": "稽核 delivery-unit shape fixture",
+      "scope": "建立 research-unit lock preflight fixture。",
+      "allowed_files": ["docs-manager/src/content/docs/specs/design-plans/DP-274-example/index.md"],
+      "modules": [],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "echo PASS",
+        "behavior_contract": { "applies": false, "reason": "framework selftest；無 runtime / UI 行為變更" },
+        "test_environment": { "level": "static" },
+        "verify_command": "echo PASS",
+        "references": []
+      }
+    },
+    {
+      "id": "T2",
+      "kind": "T",
+      "task_shape": "audit",
+      "tracked_deliverable_hint": "specs_only",
+      "title": "補充 delivery-unit shape 稽核 fixture",
+      "scope": "建立第二個 research-unit lock preflight fixture。",
+      "allowed_files": ["docs-manager/src/content/docs/specs/design-plans/DP-274-example/index.md"],
+      "modules": [],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "echo PASS",
+        "behavior_contract": { "applies": false, "reason": "framework selftest；無 runtime / UI 行為變更" },
+        "test_environment": { "level": "static" },
+        "verify_command": "echo PASS",
+        "references": []
+      }
+    }
   ]
 }
 JSON
@@ -234,9 +275,50 @@ mixed_json="$tmpdir/mixed-lock.json"
 cat >"$mixed_json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-274" },
+  "acceptance_criteria": [ { "id": "AC1", "text": "delivery-unit shape fixture" } ],
   "tasks": [
-    { "id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked" },
-    { "id": "T2", "task_shape": "audit", "tracked_deliverable_hint": "specs_only" }
+    {
+      "id": "T1",
+      "kind": "T",
+      "task_shape": "implementation",
+      "tracked_deliverable_hint": "tracked",
+      "title": "新增 delivery-unit shape implementation fixture",
+      "scope": "建立 mixed-task lock preflight implementation fixture。",
+      "allowed_files": ["scripts/dp274-fixture.sh"],
+      "modules": ["scripts/dp274-fixture.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "echo PASS",
+        "behavior_contract": { "applies": false, "reason": "framework selftest；無 runtime / UI 行為變更" },
+        "test_environment": { "level": "static" },
+        "verify_command": "echo PASS",
+        "references": []
+      }
+    },
+    {
+      "id": "T2",
+      "kind": "T",
+      "task_shape": "audit",
+      "tracked_deliverable_hint": "specs_only",
+      "title": "稽核 delivery-unit shape mixed fixture",
+      "scope": "建立 mixed-task lock preflight audit fixture。",
+      "allowed_files": ["docs-manager/src/content/docs/specs/design-plans/DP-274-example/index.md"],
+      "modules": [],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "echo PASS",
+        "behavior_contract": { "applies": false, "reason": "framework selftest；無 runtime / UI 行為變更" },
+        "test_environment": { "level": "static" },
+        "verify_command": "echo PASS",
+        "references": []
+      }
+    }
   ]
 }
 JSON

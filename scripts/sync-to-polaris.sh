@@ -152,7 +152,7 @@ leak_check() {
     local cfg="$INSTANCE_DIR/$company/workspace-config.yaml"
     [[ -f "$cfg" ]] || continue
 
-    # JIRA project keys as ticket patterns (e.g., GT-\d+, KB2CW-\d+)
+    # JIRA project keys as ticket patterns (e.g., DEMO-\d+, SAMPLE-\d+)
     # Use ticket format (KEY-123) to avoid false positives on short keys like "GT"
     while IFS= read -r key; do
       [[ -n "$key" ]] && patterns+=("${key}-[0-9]+")
@@ -580,6 +580,19 @@ if [[ "$PRUNE" == true ]]; then
       echo "  ✂ rules/$rule_name"
       prune_count=$((prune_count + 1))
     fi
+  done
+
+  # 8c-3b: Rule subdirectories — template only syncs root L1 .claude/rules/*.md.
+  # Company / project rule overlays are instance-local and must not survive as
+  # stale template subtrees from earlier sync implementations.
+  for polaris_rule_dir in "$POLARIS_DIR"/.claude/rules/*/; do
+    [[ -d "$polaris_rule_dir" ]] || continue
+    rule_dir_name=$(basename "$polaris_rule_dir")
+    if [[ "$DRY_RUN" == false ]]; then
+      rm -rf "$polaris_rule_dir"
+    fi
+    echo "  ✂ rules/$rule_dir_name/"
+    prune_count=$((prune_count + 1))
   done
 
   # 8c-4: Hooks — remove hook files in polaris that don't exist in instance

@@ -1138,7 +1138,7 @@ if ! bash "$SCRIPT" "$dp_scss_in_dir/refinement.json" \
 fi
 
 # --- Case 29 (AC2): a bare over-broad family pattern (`\.modal`) with NO matching
-# curated token (curated lists only KKday-own form selectors) is rejected as
+# curated token (curated lists only ExampleCo-own form selectors) is rejected as
 # over-broad — the un-anchored family pattern is not tied to the curated-token
 # list. exit 2 + marker. ---
 dp_scss_family_dir="$tmpdir/dp-scss-family"

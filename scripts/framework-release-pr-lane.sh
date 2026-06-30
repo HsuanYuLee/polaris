@@ -133,6 +133,11 @@ line_in_list() {
   return 1
 }
 
+is_feat_aggregation_branch() {
+  local branch="$1"
+  [[ "$branch" == feat/DP-* ]]
+}
+
 gh_repo_args=()
 refresh_gh_repo_args() {
   gh_repo_args=()
@@ -477,7 +482,13 @@ validate_and_plan() {
     [[ -n "$head" ]] || die "PR #$number for $task_id has empty headRefOid"
     verify_pr_task_lineage "$task_md" "$task_id" "$task_branch" "$number" "$head_branch"
 
-    if [[ "$DAG_MODE" == "1" ]]; then
+    if is_feat_aggregation_branch "$base"; then
+      if [[ "$state" == "MERGED" ]]; then
+        action="already merged into $base"
+      else
+        action="merge into $base before release"
+      fi
+    elif [[ "$DAG_MODE" == "1" ]]; then
       expected_base="$(table_field "Base branch" "$task_md")"
       [[ -n "$expected_base" ]] || die "missing Base branch in $task_md"
       action="merge into $MAIN_BRANCH"
@@ -523,7 +534,9 @@ validate_and_plan() {
       "${task_id:-$task_branch}" "$number" "$base" "$state" "$head" "$action"
 
     if [[ "$EXECUTE" == "1" && "$state" != "MERGED" ]]; then
-      if [[ "$DAG_MODE" == "1" && "$base" != "$MAIN_BRANCH" ]]; then
+      if is_feat_aggregation_branch "$base"; then
+        :
+      elif [[ "$DAG_MODE" == "1" && "$base" != "$MAIN_BRANCH" ]]; then
         info "retargeting PR #$number ($task_id) from $base to $MAIN_BRANCH"
         "$GH_BIN" pr edit "$number" ${gh_repo_args[@]+"${gh_repo_args[@]}"} --base "$MAIN_BRANCH"
         json="$(pr_view_json "$task_branch")"

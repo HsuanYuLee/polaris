@@ -74,18 +74,18 @@ cat >"$case_a_json" <<'JSON'
 {
   "source": {
     "type": "jira",
-    "id": "KB2CW-4357",
-    "container": "/Users/x/work/docs-manager/src/content/docs/specs/companies/kkday/KB2CW-4357",
+    "id": "DEMO-4357",
+    "container": "/Users/x/work/docs-manager/src/content/docs/specs/companies/exampleco/DEMO-4357",
     "repo": "b2c-web",
-    "base_branch": "feat/KB2CW-4357",
-    "jira_key": "KB2CW-4357"
+    "base_branch": "feat/DEMO-4357",
+    "jira_key": "DEMO-4357"
   },
   "schema_version": 1,
   "tasks": [
     {
-      "id": "KB2CW-4357-T3",
+      "id": "DEMO-4357-T3",
       "kind": "implementation",
-      "jira_key": "KB2CW-4364",
+      "jira_key": "DEMO-4364",
       "title": "jQuery → Design-System mobile lib-swap",
       "scope": "把 product UI 的 jQuery 互動換成 Design-System，並以 behavior parity 驗收。",
       "allowed_files": ["apps/main/pages/product/sample.vue"],
@@ -95,8 +95,8 @@ cat >"$case_a_json" <<'JSON'
       "estimate_points": 3,
       "verification": {
         "method": "behavior_contract",
-        "detail": "node scripts/run-behavior-contract.sh --task KB2CW-4357-T3",
-        "verify_command": "node scripts/run-behavior-contract.sh --task KB2CW-4357-T3",
+        "detail": "node scripts/run-behavior-contract.sh --task DEMO-4357-T3",
+        "verify_command": "node scripts/run-behavior-contract.sh --task DEMO-4357-T3",
         "behavior_contract": {
           "applies": true,
           "mode": "parity",
@@ -115,7 +115,7 @@ cat >"$case_a_json" <<'JSON'
 JSON
 
 case_a_out="$tmpdir/case-a-task.md"
-bash "$SCRIPT" --refinement-json "$case_a_json" --task-id "KB2CW-4357-T3" > "$case_a_out"
+bash "$SCRIPT" --refinement-json "$case_a_json" --task-id "DEMO-4357-T3" > "$case_a_out"
 
 case_a_handoff="$tmpdir/case-a-handoff.txt"
 extract_handoff "$case_a_out" > "$case_a_handoff"
@@ -212,18 +212,18 @@ cat >"$case_c_json" <<'JSON'
 {
   "source": {
     "type": "jira",
-    "id": "KB2CW-4357",
-    "container": "/Users/x/work/docs-manager/src/content/docs/specs/companies/kkday/KB2CW-4357",
+    "id": "DEMO-4357",
+    "container": "/Users/x/work/docs-manager/src/content/docs/specs/companies/exampleco/DEMO-4357",
     "repo": "b2c-web",
-    "base_branch": "feat/KB2CW-4357",
-    "jira_key": "KB2CW-4357"
+    "base_branch": "feat/DEMO-4357",
+    "jira_key": "DEMO-4357"
   },
   "schema_version": 1,
   "tasks": [
     {
-      "id": "KB2CW-4357-T5",
+      "id": "DEMO-4357-T5",
       "kind": "implementation",
-      "jira_key": "KB2CW-4366",
+      "jira_key": "DEMO-4366",
       "title": "product UI 視覺回歸守門",
       "scope": "對 product UI 改動加 Layer C visual_regression 守門。",
       "allowed_files": ["apps/main/pages/product/other.vue"],
@@ -233,8 +233,8 @@ cat >"$case_c_json" <<'JSON'
       "estimate_points": 2,
       "verification": {
         "method": "visual_regression",
-        "detail": "bash scripts/run-visual-snapshot.sh --task KB2CW-4357-T5",
-        "verify_command": "bash scripts/run-visual-snapshot.sh --task KB2CW-4357-T5",
+        "detail": "bash scripts/run-visual-snapshot.sh --task DEMO-4357-T5",
+        "verify_command": "bash scripts/run-visual-snapshot.sh --task DEMO-4357-T5",
         "behavior_contract": { "applies": false, "reason": "視覺以 Layer C visual_regression 守門" },
         "visual_regression": { "pages": ["/product/sample"], "devices": ["desktop"] },
         "test_environment": { "level": "runtime" },
@@ -246,7 +246,7 @@ cat >"$case_c_json" <<'JSON'
 JSON
 
 case_c_out="$tmpdir/case-c-task.md"
-bash "$SCRIPT" --refinement-json "$case_c_json" --task-id "KB2CW-4357-T5" > "$case_c_out"
+bash "$SCRIPT" --refinement-json "$case_c_json" --task-id "DEMO-4357-T5" > "$case_c_out"
 
 case_c_handoff="$tmpdir/case-c-handoff.txt"
 extract_handoff "$case_c_out" > "$case_c_handoff"

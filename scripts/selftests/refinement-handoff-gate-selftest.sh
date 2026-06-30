@@ -62,7 +62,7 @@ write_valid_epic_artifact() {
   local target="$1"
   cat > "$target" <<'JSON'
 {
-  "epic": "EPIC-999",
+  "epic": "PR-999",
   "version": "1.0",
   "schema_version": "1.0",
   "created_at": "2026-04-29T00:00:00+08:00",
@@ -87,7 +87,7 @@ write_valid_epic_artifact() {
   "predecessor_audit": [],
   "tasks": [
     {
-      "id": "EPIC-999-T1",
+      "id": "PR-999-T1",
       "kind": "implementation",
       "title": "Add SSR JSON-LD",
       "scope": "Emit JSON-LD block on the home page.",
@@ -98,7 +98,8 @@ write_valid_epic_artifact() {
       "estimate_points": 2,
       "verification": {
         "method": "curl",
-        "detail": "GET / and parse JSON-LD"
+        "detail": "echo PASS",
+        "verify_command": "echo PASS"
       }
     }
   ],
@@ -163,7 +164,8 @@ payload = {
             "estimate_points": 1,
             "verification": {
                 "method": "unit_test",
-                "detail": "Run refinement handoff gate selftest.",
+                "detail": "echo PASS",
+                "verify_command": "echo PASS",
             },
         }
     ],
@@ -204,7 +206,7 @@ index_lines.append("")
 PY
 }
 
-spec="$tmp/specs/EPIC-999"
+spec="$tmp/specs/PR-999"
 mkdir -p "$spec"
 printf '# Refinement\n' > "$spec/refinement.md"
 
@@ -247,12 +249,12 @@ assert_fail "invalid refinement.json blocks handoff" "$gate" "$spec"
 
 if [[ -x "$boundary_gate" ]]; then
   bg_repo="$tmp/bgrepo"
-  bg_container="$bg_repo/docs-manager/src/content/docs/specs/design-plans/DP-bg-001"
+  bg_container="$bg_repo/docs-manager/src/content/docs/specs/design-plans/DP-9001"
   mkdir -p "$bg_container/artifacts" "$bg_container/refinement-inbox" "$bg_repo/src"
   git -C "$bg_repo" init -q
   git -C "$bg_repo" config user.email selftest@local
   git -C "$bg_repo" config user.name selftest
-  printf '# DP-bg-001 plan\n' > "$bg_container/plan.md"
+  printf '# DP-9001 plan\n' > "$bg_container/plan.md"
   write_valid_dp_artifact "$bg_container/refinement.json" "$bg_container"
   write_parity_md_and_index "$bg_container"
   printf 'pre\n' > "$bg_repo/src/legacy.py"

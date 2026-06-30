@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.76.51] - 2026-07-01
+
+### Changed
+
+- eec867b: Generalize template-facing workspace fixtures so company-specific sample names, domains, and ticket keys do not sync into the Polaris template.
+- 785fc62: Prune stale `.claude/rules/*/` subtrees from the Polaris template during sync so company and project rule overlays remain workspace-local.
+- 82f8f4b: 中性化 rule prune fixture 與 ticket pattern 註解
+- f1fb5d8: 修正 DP-380 release preflight 揭露的 5 個 fixture contract selftest blocker，讓 full-derive、LOCK readiness 與 refinement handoff fixtures 對齊現行 contract。
+- ebfc510: DP-380 T5: allow framework release preflight to validate task PRs already merged into feat/DP aggregation branches.
+
 ## [3.76.50] - 2026-06-29
 
 ### Changed

@@ -155,7 +155,7 @@ refinement 完成時同時產出兩份：
     },
     {
       "id": "AC3",
-      "text": "T13 SCSS 層只移除 form-* 與 bootstrap import，排除 KKday 自有 selector",
+      "text": "T13 SCSS 層只移除 form-* 與 bootstrap import，排除 ExampleCo 自有 selector",
       "category": "functional",
       "quantifiable": true,
       "verification": {
@@ -353,8 +353,8 @@ Contract（DP-359 D3 / D4 / AC-NF1）：
 - **single source of truth（AC-NF1）**：curated-token **只**定義於此 AC 欄位；
   verify_command 的 SCSS-removal gate 讀同一來源（task 的 `ac_ids` → 對應
   `acceptance_criteria[*].verification.curated_tokens` 的 union），不存在第二條
-  token 定義 path。「排除 KKday 自有 selector」是 data——結構化清單本就不含
-  KKday-own token，subset 檢查 mechanical，不靠散文判斷。
+  token 定義 path。「排除 ExampleCo 自有 selector」是 data——結構化清單本就不含
+  ExampleCo-own token，subset 檢查 mechanical，不靠散文判斷。
 - **deterministic gate（D4）**：`validate-refinement-json.sh` 偵測 task 的
   `verification.verify_command` 含 SCSS-removal clause——一個掃 `assets/style/css`
   / `*.scss` / `*.css` 的 negative-assertion `! rg ... '\.<token>' ...`——時，抽出
@@ -365,14 +365,14 @@ Contract（DP-359 D3 / D4 / AC-NF1）：
   token ⊆ curated set → PASS。不含 SCSS-removal clause 的一般 verify_command（如
   `bash scripts/selftests/*.sh`）是 no-op PASS（AC-NEG1）。
 
-範例（T13 SCSS 層只移 `form-*`，curated-token 排除 KKday 自有 selector）：
+範例（T13 SCSS 層只移 `form-*`，curated-token 排除 ExampleCo 自有 selector）：
 
 ```jsonc
 {
   "acceptance_criteria": [
     {
       "id": "AC3",
-      "text": "T13 SCSS 層只移除 form-* 與 bootstrap import，排除 KKday 自有 selector",
+      "text": "T13 SCSS 層只移除 form-* 與 bootstrap import，排除 ExampleCo 自有 selector",
       "verification": {
         "method": "unit_test",
         "detail": "grep 確認 form-* selector 已移除",

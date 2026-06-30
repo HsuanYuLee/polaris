@@ -40,9 +40,24 @@ bad() { FAIL=$((FAIL+1)); echo "FAIL: $1" >&2; }
 cat >"$TMP/english.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-294" },
+  "acceptance_criteria": [ { "id": "AC1", "text": "title language guard fixture" } ],
   "tasks": [
     { "id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked",
-      "title": "Add deterministic gate coverage for the evidence classifier helper" }
+      "title": "Add deterministic gate coverage for the evidence classifier helper",
+      "scope": "新增 title language guard 的 full-derive fixture。",
+      "allowed_files": ["scripts/title-language-fixture.sh"],
+      "modules": ["scripts/title-language-fixture.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "echo PASS",
+        "behavior_contract": { "applies": false, "reason": "framework selftest；無 runtime / UI 行為變更" },
+        "test_environment": { "level": "static" },
+        "verify_command": "echo PASS",
+        "references": []
+      } }
   ]
 }
 JSON
@@ -57,9 +72,24 @@ printf '%s' "$out_en" | grep -q 'POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED' \
 cat >"$TMP/zhtw.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-294" },
+  "acceptance_criteria": [ { "id": "AC1", "text": "title language guard fixture" } ],
   "tasks": [
     { "id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked",
-      "title": "新增 evidence classifier 的確定性 gate 覆蓋與驗證" }
+      "title": "新增 evidence classifier 的確定性 gate 覆蓋與驗證",
+      "scope": "新增 title language guard 的 full-derive fixture。",
+      "allowed_files": ["scripts/title-language-fixture.sh"],
+      "modules": ["scripts/title-language-fixture.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "echo PASS",
+        "behavior_contract": { "applies": false, "reason": "framework selftest；無 runtime / UI 行為變更" },
+        "test_environment": { "level": "static" },
+        "verify_command": "echo PASS",
+        "references": []
+      } }
   ]
 }
 JSON
@@ -68,7 +98,7 @@ out_zh="$(bash "$PREFLIGHT" "$TMP/zhtw.json" 2>&1)"; rc_zh=$?
 set -e
 [[ "$rc_zh" -eq 0 ]] && ok || bad "all-zh-TW title should PASS exit 0 (got $rc_zh): $out_zh"
 
-# --- Case 3: backward-compat — title-less planned tasks still PASS -------------
+# --- Case 3: incomplete task body fail-louds under full-derive -----------------
 cat >"$TMP/notitle.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-294" },
@@ -80,7 +110,9 @@ JSON
 set +e
 out_nt="$(bash "$PREFLIGHT" "$TMP/notitle.json" 2>&1)"; rc_nt=$?
 set -e
-[[ "$rc_nt" -eq 0 ]] && ok || bad "title-less planned task should PASS exit 0 (got $rc_nt): $out_nt"
+[[ "$rc_nt" -eq 2 ]] && ok || bad "title-less planned task should fail-stop exit 2 under full-derive (got $rc_nt): $out_nt"
+printf '%s' "$out_nt" | grep -q 'POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED' \
+  && ok || bad "title-less task failure should emit POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED"
 
 # --- Case 4: reuse, no second classifier --------------------------------------
 # The preflight must NOT carry its own language/CJK classifier; the language

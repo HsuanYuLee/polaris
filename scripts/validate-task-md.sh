@@ -541,7 +541,7 @@ for line in command_lines(command):
 
 # DP-369 GapA: env_bootstrap executability — first-token command-shape check.
 # Reuses this primitive's command_lines/shlex tokenizer (no second parser).
-# Goal: prose env_bootstrap (e.g. "啟動 dev.kkday.com 三層 stack ...") fails LOCK,
+# Goal: prose env_bootstrap (e.g. "啟動 app.example.test 三層 stack ...") fails LOCK,
 # while a legitimate pipe-free shell chain that merely references host binaries
 # absent from the gate host (colima / docker-compose / pnpm) still passes — the
 # check validates command-name SHAPE, never binary existence.

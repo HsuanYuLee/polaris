@@ -142,12 +142,13 @@ body = {
     "edge_cases": [],
     "predecessor_audit": [],
     "adversarial_pass": [{"ac_id": "AC1", "attack": "a", "enforce": "e"}],
+    "changed_files": ["scripts/x.sh"],
     "tasks": [
         {
-            "id": "T1", "kind": "T", "title": "t", "scope": "s",
+            "id": "T1", "kind": "T", "title": "新增 sanctioned writer fixture", "scope": "建立 refinement writer selftest fixture。",
             "allowed_files": ["scripts/x.sh"], "modules": ["scripts/x.sh"],
             "ac_ids": ["AC1"], "dependencies": [], "estimate_points": 1,
-            "verification": {"method": "unit_test", "detail": "d", "verify_command": "true"},
+            "verification": {"method": "unit_test", "detail": "echo PASS", "verify_command": "echo PASS"},
         }
     ],
 }
@@ -281,17 +282,17 @@ fi
 # not this writer-capability test). The body is intentionally minimal but valid:
 # frontmatter title/description/status + a single non-H1 section.
 write_valid_index_body() {
-  local body_out="$1" title="$2"
+  local body_out="$1" title="$2" status="${3:-LOCKED}"
   cat >"$body_out" <<EOF
 ---
 title: "$title"
 description: "DP-274 T3 sanctioned-writer selftest 用的 container index fixture。"
-status: LOCKED
+status: $status
 ---
 
 ## 背景
 
-供 selftest 使用的 container index 內容，會被 sanctioned writer 整份覆寫。
+供 selftest 使用的 container index 內容，會被 sanctioned writer 整份覆寫；涵蓋 AC1。
 EOF
 }
 
@@ -300,6 +301,12 @@ EOF
 idx_target="$WORKDIR/docs-manager/src/content/docs/specs/design-plans/DP-999-fixture-index-coverage/index.md"
 idx_body="$WORKDIR/idx-body.md"
 mkdir -p "$(dirname "$idx_target")"
+idx_refinement="$(dirname "$idx_target")/refinement.json"
+idx_refinement_body="$WORKDIR/idx-refinement.json"
+write_valid_body "$idx_refinement" "$idx_refinement_body"
+cp "$idx_refinement_body" "$idx_refinement"
+bash "$ROOT_DIR/scripts/render-refinement-md.sh" "$idx_refinement" >"$(dirname "$idx_target")/refinement.md"
+write_valid_index_body "$idx_target" "DP-999 Fixture Index Coverage" DISCUSSION
 write_valid_index_body "$idx_body" "DP-999 Fixture Index Coverage"
 set +e
 "$WRITER" \

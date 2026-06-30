@@ -271,6 +271,24 @@ bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T
 awk -F '\t' '$2 == "2" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
 awk -F '\t' '$2 == "3" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
 
+# DP-334 feature-branch release model: task PRs may already be merged into a
+# feat/DP-NNN aggregation branch. The release lane validates that state and must
+# not require historical task PR metadata to be retargeted to main; the later
+# framework-release step opens the single feat/DP-NNN -> main PR.
+cat > "$TMPDIR/pr-state.tsv" <<'EOF'
+task/DP-999-T1-one	1	MERGED	feat/DP-999	1111111111111111111111111111111111111111	https://example.test/pull/1
+task/DP-999-T2-two	2	MERGED	feat/DP-999	2222222222222222222222222222222222222222	https://example.test/pull/2
+task/DP-999-T3-three	3	MERGED	feat/DP-999	3333333333333333333333333333333333333333	https://example.test/pull/3
+EOF
+bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" >"$TMPDIR"/feat-aggregation.out 2>&1 || {
+  echo "DP-334: expected merged feat aggregation fixture to PASS" >&2
+  cat "$TMPDIR"/feat-aggregation.out >&2
+  exit 1
+}
+grep -q "already merged into feat/DP-999" "$TMPDIR"/feat-aggregation.out \
+  || { echo "DP-334: expected feat aggregation action in plan" >&2; cat "$TMPDIR"/feat-aggregation.out >&2; exit 1; }
+grep -q "\[framework-release-pr-lane\] PASS" "$TMPDIR"/feat-aggregation.out
+
 write_state
 python3 - "$FRAMEWORK_PR_LANE_STATE" <<'PY'
 import sys

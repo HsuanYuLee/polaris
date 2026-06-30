@@ -366,7 +366,7 @@ JSON
         "method": "unit_test",
         "detail": "curl -fsS http://127.0.0.1:9999/lock-preflight-smoke-probe",
         "behavior_contract": { "applies": false, "reason": "framework smoke fixture；無 runtime / UI 行為變更" },
-        "test_environment": { "level": "runtime", "runtime_verify_target": "http://127.0.0.1:9999/lock-preflight-smoke-probe", "env_bootstrap_command": "啟動 dev.kkday.com 三層 stack 並把 dev server 釘在 3001" },
+        "test_environment": { "level": "runtime", "runtime_verify_target": "http://127.0.0.1:9999/lock-preflight-smoke-probe", "env_bootstrap_command": "啟動 app.example.test 三層 stack 並把 dev server 釘在 3001" },
         "verify_command": "curl -fsS http://127.0.0.1:9999/lock-preflight-smoke-probe",
         "references": []
       }
