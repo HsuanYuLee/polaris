@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.76.52] - 2026-07-01
+
+### Changed
+
+- 2bac26d: DP-382 T1 adds a release-gate owner matrix and framework-release route-back contract for upstream-owned legality failures.
+- 900db8d: DP-382 T2 runs the framework aggregate selftest corpus before engineering completion finalize, and de-flakes the run-verify worktree selftest timing budget so full-corpus completion does not fail on local contention.
+- e0e77a9: DP-382 T3 replaces aggregate selftest static skip handling with base-vs-head tracked debt reporting, and scrubs live Polaris root env from run-verify child processes.
+- 033e87a: DP-382 T4 records the release gate ownership end-state confirmation and roadmap disposition evidence for DP-348 / DP-375 partial absorption.
+
 ## [3.76.51] - 2026-07-01
 
 ### Changed

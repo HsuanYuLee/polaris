@@ -18,10 +18,38 @@
 # Outputs: stdout "PASS: framework PR gate"; non-zero exit + "framework-pr-gate failed: …".
 set -euo pipefail
 
-# --list-stages: deterministic introspection of the aggregate stage list. Emitting this
-# does NOT run any gate (so it is safe on the hot path / in selftests) — it only declares
-# which stages this DP-iteration/release backstop entrypoint covers, including the W14
-# full-corpus run. Keep this list in sync with the run_gate calls below.
+list_stage_owners() {
+  cat <<'OWNERS'
+stage	label	owner	route_back	release_tail_only_reason
+W1	runtime annotations	upstream:mechanism-governance	mechanism-registry	N/A
+W2	graduation audit	upstream:mechanism-governance	mechanism-registry	N/A
+W3	reference line-count policy	upstream:docs-governance	docs-health	N/A
+W4	quarantine duplication	upstream:framework-pr-gate	engineering	N/A
+W5	spec source parity	upstream:refinement-breakdown	refinement	N/A
+W6	template leaks (workspace)	upstream:workspace-template-gate	engineering	N/A
+W7	bash $VAR UTF-8 boundary	upstream:script-authoring	engineering	N/A
+W8	mise dependency change	upstream:dependency-governance	engineering	N/A
+W9	script header comment	upstream:script-authoring	engineering	N/A
+W10	script categorization	upstream:script-governance	engineering	N/A
+W11	runtime-instruction parity	upstream:runtime-instruction-governance	engineering	N/A
+W12	refinement consumer schema binding	upstream:refinement-breakdown	breakdown	N/A
+W13	selftest enrollment	upstream:selftest-governance	engineering	N/A
+W14	aggregate selftest run (full-corpus backstop)	upstream:selftest-governance	engineering	N/A
+W15	naive section-parse lint	upstream:markdown-parser-governance	engineering	N/A
+W16	cross-LLM mechanism parity	upstream:mechanism-governance	engineering	N/A
+OWNERS
+}
+
+# --list-stages / --list-stage-owners: deterministic introspection of the aggregate
+# stage list. Emitting this does NOT run any gate (so it is safe on the hot path /
+# in selftests) — it only declares which stages this DP-iteration/release backstop
+# entrypoint covers, including the W14 full-corpus run. Keep both lists in sync
+# with the run_gate calls below.
+if [[ "${1:-}" == "--list-stage-owners" ]]; then
+  list_stage_owners
+  exit 0
+fi
+
 if [[ "${1:-}" == "--list-stages" ]]; then
   cat <<'STAGES'
 W1 runtime annotations

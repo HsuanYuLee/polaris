@@ -23,7 +23,7 @@
 #   (3) the same line does NOT pass an explicit `--specs-source` (an explicit
 #       specs path makes the resolver hermetic regardless of inherited env);
 #   (4) the same line does NOT neutralize the live env (`env -u
-#       POLARIS_WORKSPACE_ROOT`), and does NOT inline-export a fixture
+#       POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT`), and does NOT inline-export a fixture
 #       POLARIS_WORKSPACE_ROOT for the child (an explicit fixture export is
 #       likewise env-independent; such files are nonetheless enrolled in the
 #       allowlist because they are deliberately env-dependent leak-guard tests).
@@ -147,7 +147,9 @@ explicit_specs_source_pattern = re.compile(rb'--specs-source\b')
 # Neutralized: the live env is explicitly unset for this invocation. `env` may
 # unset several vars (`env -u RESOLVE -u POLARIS_WORKSPACE_ROOT ...`), so match the
 # `-u POLARIS_WORKSPACE_ROOT` token anywhere on a line that also runs `env`.
-env_unset_pattern = re.compile(rb'\benv\b.*-u\s+POLARIS_WORKSPACE_ROOT')
+env_unset_pattern = re.compile(
+    rb'\benv\b(?=.*-u\s+POLARIS_WORKSPACE_ROOT)(?=.*-u\s+POLARIS_SPECS_ROOT)'
+)
 # Inline fixture export: an explicit `POLARIS_WORKSPACE_ROOT=<fixture> bash ...`
 # is env-independent for that invocation. Files that do this on purpose (decoy
 # leak-guard tests) are still enrolled in the allowlist with a rationale; the

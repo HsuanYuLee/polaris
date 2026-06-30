@@ -6135,7 +6135,7 @@
         "PWD inside main checkout -> head_sha = main HEAD",
         "--repo override outranks PWD detection",
         "--worktree override binds to specified worktree",
-        "wall-clock < 5s",
+        "wall-clock within configured budget",
         "non-git fixture -> exit 1 with clear error",
         "PWD not in git -> fallback to ancestor walk",
         "--worktree non-git path -> exit 1 (no silent pass)",

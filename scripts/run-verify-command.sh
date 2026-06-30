@@ -61,6 +61,7 @@ TMP_ERR=""
 TMP_FALLBACK_OUT=""
 TMP_FALLBACK_ERR=""
 VERIFY_DEBUG="${POLARIS_VERIFY_DEBUG:-}"
+POLARIS_ENV_SCRUB=(env -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT)
 
 if [[ -f "$SCRIPT_DIR/lib/main-checkout.sh" ]]; then
   # shellcheck source=lib/main-checkout.sh
@@ -84,16 +85,16 @@ run_verify_shell() {
   if command -v mise >/dev/null 2>&1 && [[ -n "${REPO_PATH:-}" ]] && [[ -f "$REPO_PATH/mise.toml" || -f "$REPO_PATH/.mise.toml" ]]; then
     (cd "$REPO_PATH" && mise trust --quiet >/dev/null 2>&1) || true
     if [[ -n "${POLARIS_VERIFY_DEBUG+x}" ]]; then
-      mise exec -- bash -c "$verify_command"
+      mise exec -- "${POLARIS_ENV_SCRUB[@]}" bash -c "$verify_command"
     else
-      mise exec -- env -u DEBUG bash -c "$verify_command"
+      mise exec -- "${POLARIS_ENV_SCRUB[@]}" -u DEBUG bash -c "$verify_command"
     fi
     return $?
   fi
   if [[ -n "${POLARIS_VERIFY_DEBUG+x}" ]]; then
-    DEBUG="$VERIFY_DEBUG" bash -c "$verify_command"
+    DEBUG="$VERIFY_DEBUG" "${POLARIS_ENV_SCRUB[@]}" bash -c "$verify_command"
   else
-    env -u DEBUG bash -c "$verify_command"
+    "${POLARIS_ENV_SCRUB[@]}" -u DEBUG bash -c "$verify_command"
   fi
 }
 
@@ -360,7 +361,7 @@ run_env_bootstrap_command() {
   echo "run-verify-command: starting Env bootstrap command" >&2
   (
     cd "$REPO_PATH" || exit 1
-    bash -c "$command"
+    "${POLARIS_ENV_SCRUB[@]}" bash -c "$command"
   ) >"$log_file" 2>&1 &
   pid="$!"
   BOOTSTRAP_PIDS+=("$pid")
@@ -392,7 +393,7 @@ case "$LEVEL" in
   build)
     if [[ ! -x "$RUN_TEST_PREP" ]]; then
       echo "run-verify-command: WARN build-level prep primitive missing; running Verify Command against current repo state" >&2
-    elif ! "$RUN_TEST_PREP" --task-md "$TASK_MD" --repo "$REPO_PATH" >&2; then
+    elif ! "${POLARIS_ENV_SCRUB[@]}" "$RUN_TEST_PREP" --task-md "$TASK_MD" --repo "$REPO_PATH" >&2; then
       echo "run-verify-command: scripts/env/run-test-prep.sh failed (build-level prep)" >&2
       exit 1
     fi
@@ -403,7 +404,7 @@ case "$LEVEL" in
         echo "run-verify-command: runtime-level requires scripts/start-test-env.sh — orchestrator missing" >&2
         exit 1
       fi
-      if ! "$START_TEST_ENV" --task-md "$TASK_MD" --repo "$REPO_PATH" >&2; then
+      if ! "${POLARIS_ENV_SCRUB[@]}" "$START_TEST_ENV" --task-md "$TASK_MD" --repo "$REPO_PATH" >&2; then
         echo "run-verify-command: scripts/start-test-env.sh failed (runtime-level env start)" >&2
         exit 1
       fi

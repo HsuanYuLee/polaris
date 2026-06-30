@@ -10,6 +10,12 @@ bash "${POLARIS_ROOT}/scripts/check-delivery-completion.sh" --repo "$(git rev-pa
 
 Developer completion gate 會讀 task.md `deliverable.pr_url`，用 `gh pr view` 取得 remote PR `state`、`isDraft`、`body`、head metadata，並重用 `gate-pr-body-template.sh` 與 `gate-pr-language.sh` 檢查 remote PR body。Gate 也會要求 task folder 內存在 matching `verify-report.md`，且報告含同一個 ticket 與 `deliverable.head_sha`。接著呼叫 `publish-delivery-evidence.sh --mode check`，若本地有 VR artifact 或 Playwright behavior evidence，必須在 PR comments 找到 matching `polaris-evidence-publication:v1` marker、`polaris-verify-report:v1` marker，或 `polaris-jira-evidence:v1` marker；Playwright behavior evidence 必須含 video reference。Evidence publication body 必須遵守 `evidence-upload-bundle.md` 的 PR / JIRA 對照表 contract：欄位至少包含情境、嵌入預覽、驗證結果、影片或原始檔連結；JIRA 圖片 preview 使用 `!filename.png|thumbnail!`；影片只作 link，預覽由 screenshot / thumbnail / GIF 或 `MANUAL_REQUIRED` 承擔。Completion gate 也會讀 GitHub reviewThreads，若有 unresolved 且 non-outdated 的 active root thread，必須存在 head-bound review-thread disposition manifest（`fixed` / `reply_only` / `not_actionable` / `deferred_with_reason`），否則 fail loud。GitHub API / `gh` 讀取失敗、PR 為 draft、PR 非 open、remote head 與 deliverable head 不一致、task verify report 缺失或 stale、body 不符合 repo template、body 違反 workspace language policy、active review threads 未 disposition、或 evidence 仍只停在 local ignored path，都必須 fail loud；不得跳過並口頭回報完成。若 CLI/API 無法上傳二進位附檔，使用 `collect-evidence-upload-bundle.sh --target pr` 產生的 bundle 作為人工拖檔來源；bundle 本身不是 remote publication marker。
 
+Framework workspace completion gate 在上述 PR / evidence closeout 前，若目標 repo 自己
+存在 `scripts/run-aggregate-selftests.sh` 且有 `*-selftest.sh` corpus，會先於 task worktree
+整合態執行 glob-discovered aggregate corpus。任何非 quarantine red 會 fail-closed，且
+`finalize-engineering-delivery.sh` 不得把該 task 移入 `tasks/pr-release/`。產品 repo 或無
+framework corpus 的 repo 只記錄 skip，不把 framework full corpus 掛到產品 completion gate。
+
 Local Extension mode：
 
 ```bash

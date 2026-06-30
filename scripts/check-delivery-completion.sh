@@ -22,6 +22,36 @@ if [[ -f "$GITHUB_REST_LIB" ]]; then
   . "$GITHUB_REST_LIB"
 fi
 
+completion_corpus_present() {
+  local scripts_dir="$1"
+  local first_hit
+  first_hit="$(find "$scripts_dir/selftests" -maxdepth 1 -type f -name '*-selftest.sh' -print -quit 2>/dev/null || true)"
+  if [[ -z "$first_hit" ]]; then
+    first_hit="$(find "$scripts_dir" -maxdepth 1 -type f -name '*-selftest.sh' -print -quit 2>/dev/null || true)"
+  fi
+  [[ -n "$first_hit" ]]
+}
+
+run_completion_aggregate_corpus_gate() {
+  local runner="${POLARIS_COMPLETION_AGGREGATE_SELFTESTS_BIN:-${REPO_ROOT}/scripts/run-aggregate-selftests.sh}"
+
+  if [[ ! -f "$runner" ]]; then
+    echo "$PREFIX aggregate corpus gate skipped: runner missing under target repo ($runner)" >&2
+    return 0
+  fi
+  if ! completion_corpus_present "$REPO_ROOT/scripts"; then
+    echo "$PREFIX aggregate corpus gate skipped: no selftest corpus under ${REPO_ROOT}/scripts" >&2
+    return 0
+  fi
+
+  echo "$PREFIX running aggregate selftest corpus before completion finalize" >&2
+  bash "$runner" --root "$REPO_ROOT" \
+    || {
+      echo "$PREFIX BLOCKED: aggregate selftest corpus failed before completion finalize" >&2
+      exit 2
+    }
+}
+
 parse_github_pr_url() {
   local pr_url="$1"
 
@@ -753,6 +783,8 @@ if [[ "$MODE" != "admin" ]]; then
   fi
   check_planner_baseline_snapshot "$TASK_MD_PATH"
 fi
+
+run_completion_aggregate_corpus_gate
 
 # Layer A: repo-level Local CI Mirror. Existing script must be treated as
 # authoritative regardless of git tracking state (tracked/untracked/generated).

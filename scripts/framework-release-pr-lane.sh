@@ -53,6 +53,7 @@ Options:
                              GitHub repo slug for gh commands
   --terminal-task-md <path>  Terminal DP task.md; branch chain is resolved from it
   --task-md <path>           Explicit ordered task.md. May repeat; bypasses chain lookup
+  --list-stage-owners        Print release-blocking stage owner matrix and exit
   --main <branch>            Main branch name (default: main)
   --execute                  Merge open PRs in order, retargeting downstream PRs to main
   --allow-dag                Validate explicit --task-md list as a topological DAG,
@@ -63,6 +64,21 @@ Options:
 
 Default mode is dry-run preflight: no GitHub writes.
 EOF
+}
+
+list_stage_owners() {
+  cat <<'OWNERS'
+stage	label	owner	route_back	release_tail_only_reason
+R1	script manifest release gate	release_tail_only	engineering	Validates the final release checkout immediately before feat/DP merge because the manifest surface is release-lane scoped.
+R2	script header release gate	upstream:script-authoring	engineering	N/A
+R3	script categorization release gate	upstream:script-governance	engineering	N/A
+R4	governed script test suite	upstream:engineering-completion	engineering	N/A
+R5	selftest enrollment gate	upstream:selftest-governance	engineering	N/A
+R6	aggregate selftest corpus	upstream:selftest-governance	engineering	N/A
+R7	task PR lineage and base legality	release_tail_only	engineering	Requires live GitHub task PR state and the final feat/DP aggregation topology, which only exist at release tail.
+R8	bundle PR lineage and base legality	release_tail_only	engineering	Bootstrap fallback legality requires the live bundle PR and member task mapping, which only exist at release tail.
+R9	main contains final release head	release_tail_only	framework-release	This is a post-merge release-tail invariant over origin/main ancestry, not an implementation repair gate.
+OWNERS
 }
 
 die() {
@@ -584,6 +600,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
       --terminal-task-md=*) TERMINAL_TASK_MD="${1#--terminal-task-md=}"; shift ;;
       --task-md) TASK_MDS+=("$(abs_path "$2")"); shift 2 ;;
       --task-md=*) TASK_MDS+=("$(abs_path "${1#--task-md=}")"); shift ;;
+      --list-stage-owners) list_stage_owners; exit 0 ;;
       --main) MAIN_BRANCH="$2"; shift 2 ;;
       --main=*) MAIN_BRANCH="${1#--main=}"; shift ;;
       --execute) EXECUTE=1; shift ;;
