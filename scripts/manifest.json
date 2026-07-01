@@ -1127,7 +1127,26 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/framework-release-main-promotion.sh",
+      "kind": "release",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "scripts/selftests/framework-release-main-promotion-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/framework-release-pr-lane-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/framework-release-main-promotion-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "release_flow",
@@ -5704,6 +5723,24 @@
         "scripts/lib/specs-root.sh"
       ],
       "fixtures": [
+        "fake gh"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "framework-release-main-promotion",
+      "command": "bash scripts/selftests/framework-release-main-promotion-selftest.sh",
+      "profiles": [
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/framework-release-main-promotion.sh",
+        "scripts/selftests/framework-release-main-promotion-selftest.sh"
+      ],
+      "fixtures": [
+        "bare git remote",
         "fake gh"
       ],
       "enrolled": true,

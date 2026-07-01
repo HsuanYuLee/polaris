@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: Changeset-driven version-bump wrapper (mise run release:version).
+# Purpose: Changeset-driven version-bump wrapper (mise run release-version).
 #          Runs `changeset version` to consume pending changesets and bump the
 #          package.json version, mirrors that version into the VERSION file,
 #          verifies CHANGELOG.md gained the new version block, and collates that

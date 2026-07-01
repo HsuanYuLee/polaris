@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # Purpose: Assert the framework-release SKILL.md contract markers required by
-#          DP-334 (feature-branch aggregation release model) are present:
-#          single feat/DP-NNN -> main PR orchestration, version compression on the
-#          feat/DP-NNN HEAD (one DP one version, AC-NEG2), sync AFTER feat->main
-#          merge (AC6), bootstrap fallback / rollback steps (AC7), the
-#          engineering=individual-DP-task-PR boundary, and that the retained bundle
-#          wording is annotated as a guarded bootstrap fallback (Migration
-#          Boundaries) rather than the default release lane. Keeps the
-#          framework-release contract deterministic instead of prose-only.
+#          DP-334 / DP-388 are present: single feat/DP-NNN -> main PR gate,
+#          PR-gated fast-forward main promotion, version compression on the
+#          feat/DP-NNN HEAD (one DP one version, AC-NEG2), sync AFTER main
+#          promotion (AC6), bootstrap fallback / rollback steps (AC7), the
+#          engineering=individual-DP-task-PR boundary, and that retained bundle
+#          wording is annotated as a guarded bootstrap fallback rather than the
+#          default release lane. Keeps the framework-release contract deterministic.
 # Inputs:  none (reads workspace .claude/skills/framework-release/SKILL.md).
 # Outputs: stdout PASS lines per assertion; stderr POLARIS_* token on failure.
 # Exit:    0 PASS, 1 FAIL (one or more contract markers missing / drift detected).
@@ -67,17 +66,19 @@ assert_absent() {
   fi
 }
 
-# --- AC4: single feat/DP-NNN -> main PR orchestration + engineering boundary ---
-assert_grep "AC4" "release orchestration: single feat/DP-NNN -> main PR" \
+# --- AC4: single feat/DP-NNN -> main PR gate + fast-forward promotion ---
+assert_grep "AC4" "release orchestration: single feat/DP-NNN -> main PR gate" \
   'feat/DP-NNN -> main'
 assert_grep "AC4" "release orchestration: version compression at feat HEAD" \
-  'mise run release:version'
+  'mise run release-version'
 assert_grep "AC4" "release orchestration: open the PR via canonical producer" \
   'polaris-pr-create.sh'
-# AC4 adversarial: main keeps a SINGLE merge commit (no fast-forward / squash that
-# flattens per-task commits onto the main mainline).
-assert_grep_regex "AC4" "main keeps a single merge commit (no per-task commit)" \
-  'merge commit|無 per-task 中間 commit'
+assert_grep "AC4" "release orchestration: PR-gated fast-forward helper" \
+  'framework-release-main-promotion.sh'
+assert_grep_regex "AC4" "main promotion is fast-forward / linear" \
+  'fast-forward|快轉|linear|線性'
+assert_grep_regex "AC4" "final merge bubble is forbidden" \
+  'final merge bubble|不新增 final `Merge pull request'
 assert_grep "AC4" "engineering=individual-DP-task-PR boundary declared" \
   '個別 DP task PR'
 
@@ -88,15 +89,15 @@ assert_grep "AC-NEG2" "one DP one version / forbid multi-DP stacking" \
   'POLARIS_RELEASE_VERSION_MULTI_DP_STACKING'
 assert_grep_regex "AC-NEG2" "explicit one-DP-one-version concept" \
   '一 DP 一版本|禁止多 DP 壓版|一張 DP.*版本'
-# AC-NEG5 retained: no post-merge raw version commit.
-assert_grep "AC-NEG5" "AC-NEG5 no post-merge raw version commit" \
+# AC-NEG5 retained: no post-promotion raw version commit.
+assert_grep "AC-NEG5" "AC-NEG5 no post-promotion raw version commit" \
   'AC-NEG5'
-assert_grep_regex "AC-NEG5" "post-merge version commit prohibition concept" \
-  'post-merge.*版本.*commit|版本.*commit.*post-merge|事後 release commit|merge 後.*壓版本'
+assert_grep_regex "AC-NEG5" "post-promotion version commit prohibition concept" \
+  'post-promotion.*版本.*commit|版本.*commit.*post-promotion|事後 release commit|promotion 後.*壓版本'
 
-# --- AC6: sync runs AFTER feat -> main merge (version lands on main first) ---
-assert_grep_regex "AC6" "sync after feat->main merge" \
-  'AFTER feat/DP-NNN -> main merge|merge.*之後才.*sync|sync.*merge.*之後'
+# --- AC6: sync runs AFTER PR-gated main promotion (version lands on main first) ---
+assert_grep_regex "AC6" "sync after main promotion" \
+  'AFTER PR-Gated main Promotion|promotion.*之後才.*sync|sync.*promotion.*之後'
 assert_grep "AC6" "sync producer invoked" \
   'sync-to-polaris.sh'
 
@@ -135,6 +136,12 @@ assert_grep_regex "AC-NEG1" "individual DP task PR boundary: explicit no-version
 # main-targeting raw commit escape into the aggregation branch).
 assert_grep_regex "AC-NEG1" "DP task PR targets feat, never main directly" \
   'target `feat/DP-NNN`|拒絕 DP task PR 直接 target `main`|絕不直 target `main`|絕不直 merge `main`'
+
+# --- AC-NEG3: no steady-state GitHub merge mode / old single-merge contract ---
+assert_absent "AC-NEG3" "no GitHub merge commit command in steady contract" \
+  'gh pr merge'
+assert_absent "AC-NEG3" "no old single merge commit steady contract" \
+  'main` 每版只留一個 merge commit'
 
 # --- AC-NEG: no new env bypass / generic carve-out introduced in SKILL.md ---
 assert_absent "AC-NEG" "no POLARIS_SKIP bypass encouraged in skill prose" \

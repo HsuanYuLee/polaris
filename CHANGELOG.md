@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.55] - 2026-07-01
+
+### Changed
+
+- edbe59b: framework-release 以 PR gate 快轉推進 main，並同步 release-version command marker
+
 ## [3.76.54] - 2026-07-01
 
 ### Changed
