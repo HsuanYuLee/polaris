@@ -19,8 +19,21 @@ SKILL="$ROOT/.claude/skills/framework-release/SKILL.md"
 TOKEN="POLARIS_FRAMEWORK_RELEASE_CONTRACT_MARKER_MISSING"
 FAILURES=()
 
+is_template_checkout() {
+  local origin_url=""
+  origin_url="$(git -C "$ROOT" remote get-url origin 2>/dev/null || true)"
+  case "$origin_url" in
+    git@github.com:*/polaris|git@github.com:*/polaris.git|https://github.com/*/polaris|https://github.com/*/polaris.git)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 if [[ ! -f "$SKILL" ]]; then
-  if [[ ! -f "$ROOT/workspace-config.yaml" ]]; then
+  if is_template_checkout; then
     echo "PASS [TEMPLATE] framework-release skill is maintainer-only and absent from this template checkout; contract marker assertions skipped"
     exit 0
   fi

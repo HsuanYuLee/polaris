@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.57] - 2026-07-01
+
+### Changed
+
+- 8300904: framework-release skill contract selftest 改用 git origin remote 判斷 template checkout，避免 template root workspace-config.yaml 造成 maintainer-only skill 缺席誤紅。
+
 ## [3.76.56] - 2026-07-01
 
 ### Changed
