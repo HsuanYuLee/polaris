@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.56] - 2026-07-01
+
+### Changed
+
+- cc8b4d5: framework-release skill contract selftest 在 template checkout 缺少 maintainer-only skill 時不再誤紅；workspace checkout 仍維持 skill contract marker 強檢。
+
 ## [3.76.55] - 2026-07-01
 
 ### Changed

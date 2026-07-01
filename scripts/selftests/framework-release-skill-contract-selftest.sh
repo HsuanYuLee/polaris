@@ -20,6 +20,10 @@ TOKEN="POLARIS_FRAMEWORK_RELEASE_CONTRACT_MARKER_MISSING"
 FAILURES=()
 
 if [[ ! -f "$SKILL" ]]; then
+  if [[ ! -f "$ROOT/workspace-config.yaml" ]]; then
+    echo "PASS [TEMPLATE] framework-release skill is maintainer-only and absent from this template checkout; contract marker assertions skipped"
+    exit 0
+  fi
   echo "$TOKEN: framework-release SKILL.md not found at $SKILL" >&2
   exit 1
 fi
