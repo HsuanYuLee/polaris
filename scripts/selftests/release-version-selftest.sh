@@ -286,6 +286,30 @@ assert_eq "$(cat "$REPO_OK/VERSION")" "1.0.1" "VERSION stable on re-run (no doub
 assert_grep "$OUT_RR" "no pending changeset" "re-run no-op message present"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "=== linked worktree: reuse sibling installed @changesets/cli binary ==="
+REPO_LINK_MAIN="$WORK_DIR/linked-main"
+make_fixture_repo "$REPO_LINK_MAIN" "1.0.0"
+(
+  cd "$REPO_LINK_MAIN"
+  git init -q -b main
+  git config user.name "Polaris Selftest"
+  git config user.email "polaris-selftest@example.com"
+  git add package.json VERSION CHANGELOG.md .changeset/config.json .changeset/README.md
+  git commit -q -m "base"
+)
+mkdir -p "$REPO_LINK_MAIN/node_modules/.bin"
+make_stub_cli "$REPO_LINK_MAIN/node_modules/.bin/changeset" "version-bump" "1.0.1"
+REPO_LINKED="$WORK_DIR/linked-feat"
+git -C "$REPO_LINK_MAIN" worktree add -q -b feat/DP-999 "$REPO_LINKED" main
+add_changeset "$REPO_LINKED" "dp-999-linked-worktree"
+OUT_LINKED="$WORK_DIR/linked.out"
+"$RV" --repo "$REPO_LINKED" >"$OUT_LINKED" 2>&1
+assert_eq "$?" "0" "linked worktree without local node_modules → exit 0"
+assert_eq "$(python3 -c 'import json;print(json.load(open("'"$REPO_LINKED"'/package.json"))["version"])')" "1.0.1" "linked worktree package.json bumped via sibling binary"
+assert_eq "$(cat "$REPO_LINKED/VERSION")" "1.0.1" "linked worktree VERSION mirror updated"
+assert_file_absent "$REPO_LINKED/.changeset/dp-999-linked-worktree.md" "linked worktree changeset consumed"
+
+# ────────────────────────────────────────────────────────────────────────────
 # GENUINE END-TO-END (NOT the POLARIS_RELEASE_CHANGESET_CMD stub, NOT changelog:false).
 #
 # Every stub-based assertion above injects a fake changeset CLI, and the earlier

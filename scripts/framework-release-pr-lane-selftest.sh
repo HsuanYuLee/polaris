@@ -316,6 +316,39 @@ grep -q "already merged into feat/DP-999" "$TMPDIR"/feat-aggregation.out \
   || { echo "DP-334: expected feat aggregation action in plan" >&2; cat "$TMPDIR"/feat-aggregation.out >&2; exit 1; }
 grep -q "\[framework-release-pr-lane\] PASS" "$TMPDIR"/feat-aggregation.out
 
+# New feat aggregation task PRs are integrated by fast-forwarding the aggregation
+# branch to the validated task head, preserving the evidence-bound task commit
+# SHA and avoiding inner "Merge pull request #..." noise before the single
+# feat/DP-NNN -> main release merge.
+T1_SHA="$(git -C "$REPO" rev-parse task/DP-999-T1-one)"
+T2_SHA="$(git -C "$REPO" rev-parse task/DP-999-T2-two)"
+T3_SHA="$(git -C "$REPO" rev-parse task/DP-999-T3-three)"
+git -C "$REPO" branch -f feat/DP-999 main
+git -C "$REPO" fetch -q origin feat/DP-999:refs/remotes/origin/feat/DP-999
+cat > "$TMPDIR/pr-state.tsv" <<EOF
+task/DP-999-T1-one	1	OPEN	feat/DP-999	${T1_SHA}	https://example.test/pull/1
+task/DP-999-T2-two	2	OPEN	feat/DP-999	${T2_SHA}	https://example.test/pull/2
+task/DP-999-T3-three	3	OPEN	feat/DP-999	${T3_SHA}	https://example.test/pull/3
+EOF
+bash "$HELPER" --repo "$REPO" \
+  --task-md "$TASK_DIR/T1.md" \
+  --task-md "$TASK_DIR/T2.md" \
+  --task-md "$TASK_DIR/T3.md" \
+  --execute >"$TMPDIR"/feat-aggregation-ff.out 2>&1 || {
+    echo "DP-334: expected feat aggregation fast-forward execute fixture to PASS" >&2
+    cat "$TMPDIR"/feat-aggregation-ff.out >&2
+    exit 1
+  }
+[[ "$(git -C "$REPO" rev-parse feat/DP-999)" == "$T3_SHA" ]] \
+  || { echo "DP-334: feat aggregation branch did not fast-forward to terminal task head" >&2; cat "$TMPDIR"/feat-aggregation-ff.out >&2; exit 1; }
+if git -C "$REPO" log --oneline --merges main..feat/DP-999 | grep -q .; then
+  echo "DP-334: feat aggregation fast-forward path must not create inner merge commits" >&2
+  git -C "$REPO" log --oneline --graph --decorate main..feat/DP-999 >&2
+  exit 1
+fi
+grep -q "fast-forwarding feat/DP-999" "$TMPDIR"/feat-aggregation-ff.out \
+  || { echo "DP-334: expected fast-forward execution trace" >&2; cat "$TMPDIR"/feat-aggregation-ff.out >&2; exit 1; }
+
 write_state
 python3 - "$FRAMEWORK_PR_LANE_STATE" <<'PY'
 import sys

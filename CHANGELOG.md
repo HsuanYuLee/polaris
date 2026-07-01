@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.54] - 2026-07-01
+
+### Changed
+
+- 34bcdd5: framework-release task aggregation fast-forward 與 linked-worktree changeset resolution
+
 ## [3.76.53] - 2026-07-01
 
 ### Changed

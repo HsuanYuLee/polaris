@@ -162,21 +162,56 @@ echo "release-version: $PENDING pending changeset(s); current version=$VERSION_B
 
 # Resolve the changeset CLI invocation. The hermetic selftest injects a stub via
 # POLARIS_RELEASE_CHANGESET_CMD. In production the workspace runs the local
-# @changesets/cli devDependency installed via pnpm.
+# @changesets/cli devDependency installed via pnpm. Linked git worktrees do not
+# inherit ignored node_modules/ from the primary checkout, so fall back to a
+# sibling worktree's installed binary before reporting the dependency as missing.
+resolve_installed_changeset_bin() {
+  local candidate worktree
+
+  candidate="$REPO_ROOT/node_modules/.bin/changeset"
+  if [[ -x "$candidate" ]]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  if git -C "$REPO_ROOT" rev-parse --git-common-dir >/dev/null 2>&1; then
+    while IFS= read -r worktree; do
+      [[ -n "$worktree" ]] || continue
+      candidate="$worktree/node_modules/.bin/changeset"
+      if [[ -x "$candidate" ]]; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+    done < <(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null \
+      | awk '/^worktree / { sub(/^worktree /, ""); print }')
+  fi
+
+  return 1
+}
+
 run_changeset_version() {
+  local changeset_bin
   if [[ -n "${POLARIS_RELEASE_CHANGESET_CMD:-}" ]]; then
     ( cd "$REPO_ROOT" && "${POLARIS_RELEASE_CHANGESET_CMD}" version )
     return
   fi
-  if command -v pnpm >/dev/null 2>&1; then
-    ( cd "$REPO_ROOT" && pnpm exec changeset version )
+  if changeset_bin="$(resolve_installed_changeset_bin)"; then
+    ( cd "$REPO_ROOT" && "$changeset_bin" version )
     return
+  fi
+  if command -v pnpm >/dev/null 2>&1; then
+    if ( cd "$REPO_ROOT" && pnpm exec changeset --version >/dev/null 2>&1 ); then
+      ( cd "$REPO_ROOT" && pnpm exec changeset version )
+      return
+    fi
   fi
   if command -v npx >/dev/null 2>&1; then
-    ( cd "$REPO_ROOT" && npx --no-install changeset version )
-    return
+    if ( cd "$REPO_ROOT" && npx --no-install changeset --version >/dev/null 2>&1 ); then
+      ( cd "$REPO_ROOT" && npx --no-install changeset version )
+      return
+    fi
   fi
-  echo "POLARIS_TOOL_MISSING:changeset (need pnpm/npx with @changesets/cli devDependency; run mise install)" >&2
+  echo "POLARIS_TOOL_MISSING:changeset (declared devDependency @changesets/cli is not installed in this checkout/worktree; run 'mise run bootstrap' from the Polaris workspace root, or run from a worktree set that has node_modules/.bin/changeset)" >&2
   return 1
 }
 

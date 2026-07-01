@@ -155,6 +155,47 @@ is_feat_aggregation_branch() {
   [[ "$branch" == feat/DP-* ]]
 }
 
+fetch_remote_branch_ref() {
+  local branch="$1"
+  git -C "$REPO_PATH" fetch -q origin "+refs/heads/${branch}:refs/remotes/origin/${branch}"
+}
+
+remote_branch_contains_head() {
+  local branch="$1"
+  local head="$2"
+  fetch_remote_branch_ref "$branch" >/dev/null 2>&1 || return 1
+  git -C "$REPO_PATH" cat-file -e "${head}^{commit}" >/dev/null 2>&1 || return 1
+  git -C "$REPO_PATH" merge-base --is-ancestor "$head" "refs/remotes/origin/${branch}" >/dev/null 2>&1
+}
+
+fast_forward_feat_task_pr() {
+  local task_id="$1"
+  local number="$2"
+  local base="$3"
+  local head_branch="$4"
+  local head="$5"
+  local new_head
+
+  [[ -n "$head_branch" ]] || die "PR #$number for $task_id has empty headRefName"
+  fetch_remote_branch_ref "$base" \
+    || die "release preflight blocked: cannot fetch aggregation branch '$base'"
+  git -C "$REPO_PATH" fetch -q origin "+refs/heads/${head_branch}:refs/remotes/origin/${head_branch}" \
+    || die "release preflight blocked: cannot fetch task branch '$head_branch'"
+  git -C "$REPO_PATH" cat-file -e "${head}^{commit}" >/dev/null 2>&1 \
+    || die "release preflight blocked: task head $head is not available locally after fetch"
+  git -C "$REPO_PATH" merge-base --is-ancestor "refs/remotes/origin/${base}" "$head" \
+    || die "release preflight blocked: $base cannot fast-forward to $task_id head $head; rebase the task branch onto the current aggregation branch first"
+
+  info "fast-forwarding $base to PR #$number ($task_id) head $head"
+  git -C "$REPO_PATH" push origin "$head:refs/heads/${base}" \
+    || die "release preflight blocked: push fast-forward to $base failed"
+  fetch_remote_branch_ref "$base" \
+    || die "release preflight blocked: cannot refetch aggregation branch '$base' after fast-forward"
+  new_head="$(git -C "$REPO_PATH" rev-parse "refs/remotes/origin/${base}")"
+  [[ "$new_head" == "$head" ]] \
+    || die "release preflight blocked: $base fast-forward verification failed; expected $head got $new_head"
+}
+
 gh_repo_args=()
 refresh_gh_repo_args() {
   gh_repo_args=()
@@ -569,8 +610,10 @@ validate_and_plan() {
     if is_feat_aggregation_branch "$base"; then
       if [[ "$state" == "MERGED" ]]; then
         action="already merged into $base"
+      elif remote_branch_contains_head "$base" "$head"; then
+        action="already integrated into $base"
       else
-        action="merge into $base before release"
+        action="fast-forward $base to task head before release"
       fi
     elif [[ "$DAG_MODE" == "1" ]]; then
       expected_base="$(table_field "Base branch" "$task_md")"
@@ -619,7 +662,11 @@ validate_and_plan() {
 
     if [[ "$EXECUTE" == "1" && "$state" != "MERGED" ]]; then
       if is_feat_aggregation_branch "$base"; then
-        :
+        if remote_branch_contains_head "$base" "$head"; then
+          info "PR #$number ($task_id) head already integrated into $base"
+        else
+          fast_forward_feat_task_pr "$task_id" "$number" "$base" "$head_branch" "$head"
+        fi
       elif [[ "$DAG_MODE" == "1" && "$base" != "$MAIN_BRANCH" ]]; then
         info "retargeting PR #$number ($task_id) from $base to $MAIN_BRANCH"
         "$GH_BIN" pr edit "$number" ${gh_repo_args[@]+"${gh_repo_args[@]}"} --base "$MAIN_BRANCH"
