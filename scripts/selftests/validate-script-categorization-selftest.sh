@@ -271,4 +271,72 @@ if ! grep -q "POLARIS_SCRIPT_MISPLACED:scripts/owned-tool.sh -> .claude/skills/o
   exit 1
 fi
 
+# ------------------------------------------------------------------
+# Case 8 (DP-386 T6): ownership audit emits machine-readable taxonomy
+# and evidence for framework libs, hooks, selftests, fixtures, skill-local
+# scripts, and root framework contracts from the SAME audit source of truth
+# consumed by validate-script-categorization.sh.
+# ------------------------------------------------------------------
+case8="$tmpdir/case8"
+build_repo "$case8"
+mkdir -p "$case8/scripts/selftests" \
+         "$case8/scripts/fixtures" \
+         "$case8/.claude/skills/localskill/scripts"
+printf '#!/usr/bin/env bash\n' > "$case8/scripts/gate.sh"
+printf '#!/usr/bin/env bash\n' > "$case8/scripts/lib/helper.sh"
+printf '#!/usr/bin/env bash\nbash scripts/lib/helper.sh\n' \
+  > "$case8/scripts/selftests/helper-selftest.sh"
+printf '#!/usr/bin/env bash\n' > "$case8/scripts/fixtures/generated.sh"
+printf '#!/usr/bin/env bash\n' > "$case8/.claude/hooks/pre-tool.sh"
+printf '#!/usr/bin/env bash\n' > "$case8/.claude/skills/localskill/scripts/local.sh"
+write_manifest "$case8" \
+  '{"path": "scripts/gate.sh", "kind": "gate", "runner": "bash", "owner_surface": "release_flow", "selftest": "N/A", "selftest_reason": "fixture", "lifecycle": "release_gate", "relocation": "stay"}'
+json8="$tmpdir/case8.json"
+python3 "$AUDIT_PY" --root "$case8" --format json > "$json8"
+python3 - "$json8" <<'PY'
+from __future__ import annotations
+
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as handle:
+    data = json.load(handle)
+
+rows = {row["path"]: row for row in data.get("scripts", [])}
+expected = {
+    "scripts/gate.sh": "root_contract",
+    "scripts/lib/helper.sh": "framework_lib",
+    "scripts/selftests/helper-selftest.sh": "selftest",
+    "scripts/fixtures/generated.sh": "generated_or_fixture",
+    ".claude/hooks/pre-tool.sh": "hook",
+    ".claude/skills/localskill/scripts/local.sh": "skill_local",
+}
+
+errors = []
+for script_path, taxonomy in expected.items():
+    row = rows.get(script_path)
+    if not row:
+        errors.append(f"missing row: {script_path}")
+        continue
+    if row.get("taxonomy") != taxonomy:
+        errors.append(
+            f"{script_path}: expected taxonomy {taxonomy}, got {row.get('taxonomy')}"
+        )
+    evidence = row.get("taxonomy_evidence") or []
+    if not evidence:
+        errors.append(f"{script_path}: missing taxonomy_evidence")
+
+summary = data.get("summary", {}).get("taxonomy", {})
+for taxonomy in set(expected.values()):
+    if summary.get(taxonomy, 0) < 1:
+        errors.append(f"summary missing taxonomy count: {taxonomy}")
+
+if errors:
+    sys.stderr.write("FAIL: case 8 — taxonomy audit mismatch\n")
+    for error in errors:
+        sys.stderr.write(f"  {error}\n")
+    sys.exit(1)
+PY
+
 echo "PASS: validate-script-categorization selftest"

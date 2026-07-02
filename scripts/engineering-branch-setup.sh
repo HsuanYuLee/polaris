@@ -915,6 +915,10 @@ ensure_feat_dp_branch "$RESOLVED_BASE" "$REPO" || exit 2
 if [[ -n "$BRANCH_CHAIN" && -f "$CASCADE_REBASE_CHAIN" ]]; then
   if [[ "$BASE_BRANCH" == task/* && "$RESOLVED_BASE" != "$BASE_BRANCH" ]]; then
     echo "ℹ Stacked base resolved to $RESOLVED_BASE; skipping stale branch-chain cascade for completed upstream." >&2
+  elif [[ "$RESOLVED_BASE" =~ ^feat/DP-[0-9]+$ ]] \
+    && git -C "$REPO" show-ref --verify --quiet "refs/heads/$RESOLVED_BASE" 2>/dev/null \
+    && ! git -C "$REPO" rev-parse --verify --quiet "origin/$RESOLVED_BASE" >/dev/null 2>&1; then
+    echo "ℹ Fresh local-only framework DP feat base $RESOLVED_BASE; skipping branch-chain cascade until origin base exists." >&2
   else
   echo "ℹ Aligning branch chain before task branch creation..." >&2
   "$CASCADE_REBASE_CHAIN" --repo "$REPO" --task-md "$TASK_MD" --skip-missing-last >/dev/null || {

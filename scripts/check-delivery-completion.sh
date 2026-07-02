@@ -7,6 +7,7 @@ set -euo pipefail
 #
 # Usage:
 #   bash scripts/check-delivery-completion.sh [--repo <path>] [--ticket <KEY>] [--admin]
+#     [--verification-profile task-bound|narrow|full-backstop|high-fanout]
 #
 # Exit: 0 = pass, 2 = block, 64 = usage error
 
@@ -16,6 +17,7 @@ GITHUB_REST_LIB="${SCRIPT_DIR}/lib/github-rest.sh"
 REPO_ROOT=""
 TICKET=""
 MODE="auto"
+COMPLETION_PROFILE="${POLARIS_COMPLETION_PROFILE:-task-bound}"
 
 if [[ -f "$GITHUB_REST_LIB" ]]; then
   # shellcheck source=lib/github-rest.sh
@@ -50,6 +52,32 @@ run_completion_aggregate_corpus_gate() {
       echo "$PREFIX BLOCKED: aggregate selftest corpus failed before completion finalize" >&2
       exit 2
     }
+}
+
+completion_profile_requires_aggregate() {
+  case "$COMPLETION_PROFILE" in
+    task-bound|narrow)
+      return 1
+      ;;
+    full-backstop|high-fanout)
+      return 0
+      ;;
+    *)
+      echo "$PREFIX invalid completion verification profile: $COMPLETION_PROFILE" >&2
+      echo "$PREFIX expected one of: task-bound, narrow, full-backstop, high-fanout" >&2
+      exit 64
+      ;;
+  esac
+}
+
+run_completion_aggregate_corpus_gate_for_profile() {
+  if completion_profile_requires_aggregate; then
+    echo "$PREFIX completion verification profile '${COMPLETION_PROFILE}' requires aggregate corpus" >&2
+    run_completion_aggregate_corpus_gate
+    return 0
+  fi
+
+  echo "$PREFIX completion verification profile '${COMPLETION_PROFILE}' uses task-bound gates; aggregate corpus skipped" >&2
 }
 
 parse_github_pr_url() {
@@ -537,6 +565,11 @@ resolve_task_for_completion_check() {
     return 1
   fi
 
+  if [[ -n "${POLARIS_COMPLETION_TASK_MD:-}" && -f "${POLARIS_COMPLETION_TASK_MD:-}" ]]; then
+    printf '%s\n' "$POLARIS_COMPLETION_TASK_MD"
+    return 0
+  fi
+
   local candidate=""
   local candidates=()
   local main_checkout=""
@@ -580,7 +613,7 @@ resolve_task_for_completion_check() {
     fi
   done
 
-  for candidate in "${candidates[@]}"; do
+  for candidate in ${candidates[@]+"${candidates[@]}"}; do
     if [[ -f "$candidate" ]]; then
       printf '%s\n' "$candidate"
       return 0
@@ -743,11 +776,20 @@ while [[ $# -gt 0 ]]; do
       MODE="admin"
       shift
       ;;
+    --verification-profile)
+      if [[ $# -lt 2 || "${2:-}" == --* ]]; then
+        echo "$PREFIX --verification-profile requires a value" >&2
+        exit 64
+      fi
+      COMPLETION_PROFILE="${2:-}"
+      shift 2
+      ;;
     -h|--help)
-      echo "Usage: bash scripts/check-delivery-completion.sh [--repo <path>] [--ticket <KEY>] [--admin]"
+      echo "Usage: bash scripts/check-delivery-completion.sh [--repo <path>] [--ticket <KEY>] [--admin] [--verification-profile task-bound|narrow|full-backstop|high-fanout]"
       echo "  --repo <path>   Target repo (default: git rev-parse --show-toplevel)"
       echo "  --ticket <KEY>  JIRA ticket key for verification evidence gate"
       echo "  --admin         Skip ticket-bound verification evidence gate"
+      echo "  --verification-profile  Completion test scope. Default: task-bound"
       exit 0
       ;;
     *)
@@ -784,7 +826,7 @@ if [[ "$MODE" != "admin" ]]; then
   check_planner_baseline_snapshot "$TASK_MD_PATH"
 fi
 
-run_completion_aggregate_corpus_gate
+run_completion_aggregate_corpus_gate_for_profile
 
 # Layer A: repo-level Local CI Mirror. Existing script must be treated as
 # authoritative regardless of git tracking state (tracked/untracked/generated).

@@ -1,16 +1,23 @@
 #!/usr/bin/env bash
 # Purpose: Verify the generated .git/hooks/pre-push from install-copilot-hooks.sh
-#          mirrors the pre-push-quality-gate.sh delete/tags carve-out (DP-305 D4).
+#          mirrors the pre-push-quality-gate.sh portable push contract: delete /
+#          tags carve-out (DP-305 D4), generated hook callsite parity, and the
+#          affected-scoped selftest closure runner for content-bearing pushes.
 # Inputs:  none (builds an isolated temp git repo + installs the hook)
 # Outputs: exit 0 + "PASS" on success; non-zero + diagnostic on failure
 # Side effects: creates and removes a temp dir under $TMPDIR
 #
-# Contract under test (AC4 / AC-NEG2):
+# Contract under test (AC4 / AC-NEG2 / DP-386 T2):
 #   - delete-only push (stdin all-zero local SHA) -> hook exits 0 BEFORE gates run
 #   - tags-only push (remote refs all refs/tags/*) -> hook exits 0 BEFORE gates run
 #   - content-bearing push (real local SHA on a branch ref) -> gates RUN; when a
 #     gate fails the hook propagates the non-zero exit (carve-out must not leak
 #     content pushes through).
+#   - generated hook contains the portable pre-push callsites also owned by the
+#     Claude hook: runtime manifest freshness, evidence, changeset, revision
+#     rebase, template leak, manifest parity, and affected selftest closure.
+#   - content-bearing push invokes scripts/selftest-affected-runner.sh with the
+#     derived changed files, and propagates runner failure.
 
 set -euo pipefail
 
@@ -47,6 +54,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 touch "${repo:-.}/.gates-ran"
+if [[ -f "${repo:-.}/.sentinel-pass" ]]; then
+  exit 0
+fi
 echo "[sentinel gate] FAIL (gates reached)" >&2
 exit 1
 SENTINEL
@@ -57,8 +67,47 @@ bash "$repo/scripts/install-copilot-hooks.sh" >/dev/null
 pre_push="$repo/.git/hooks/pre-push"
 [[ -x "$pre_push" ]] || { echo "[selftest] pre-push hook was not installed" >&2; exit 1; }
 
+required_callsites=(
+  "gate-runtime-instruction-manifest.sh"
+  "gate-evidence-producer-whitelist.sh"
+  "gate-revision-rebase.sh"
+  "gate-evidence.sh"
+  "gate-changeset.sh"
+  "validate-manifest-parity.sh"
+  "gate-template-leaks.sh"
+  "selftest-affected-runner.sh"
+)
+for callsite in "${required_callsites[@]}"; do
+  if ! grep -q "$callsite" "$pre_push"; then
+    echo "[selftest][parity] generated pre-push hook missing callsite: $callsite" >&2
+    exit 1
+  fi
+done
+
 base_sha="$(git -C "$repo" rev-parse HEAD)"
 zero_sha="0000000000000000000000000000000000000000"
+
+# Plant a second commit so content-bearing stdin can derive a real changed-file
+# set via <local_sha>^..<local_sha> without needing a remote branch fixture.
+mkdir -p "$repo/scripts"
+printf 'changed\n' >"$repo/scripts/foo.sh"
+git -C "$repo" add scripts/foo.sh
+git -C "$repo" commit -m "content change" >/dev/null
+content_sha="$(git -C "$repo" rev-parse HEAD)"
+
+# Affected runner stub used by the generated hook. It records the changed-file
+# list and exits with an injectable code so the selftest can assert both wiring
+# and fail-closed propagation without running the live corpus.
+cat >"$repo/scripts/selftest-affected-runner.sh" <<STUB
+#!/usr/bin/env bash
+set -euo pipefail
+touch "$repo/.affected-ran"
+cat >"$repo/.affected-stdin"
+rc=0
+[[ -f "$repo/.affected-stub-rc" ]] && rc="\$(cat "$repo/.affected-stub-rc")"
+exit "\$rc"
+STUB
+chmod +x "$repo/scripts/selftest-affected-runner.sh"
 
 # run_hook <stdin-payload> -> prints exit code, leaves $sentinel iff gates ran.
 # The generated pre-push hook resolves REPO_ROOT via `git rev-parse --show-toplevel`
@@ -144,6 +193,41 @@ if [[ "$rc" == "0" ]]; then
 fi
 if [[ ! -e "$sentinel" ]]; then
   echo "[selftest][AC-NEG2] mixed delete+content push did not reach gates (no sentinel)" >&2
+  exit 1
+fi
+
+# --- DP-386 T2: content-bearing push invokes affected closure runner ----------
+# Let the sentinel pass so the generated hook reaches the affected runner, then
+# assert the derived changed-file set is handed to the runner.
+touch "$repo/.sentinel-pass"
+rm -f "$repo/.affected-ran" "$repo/.affected-stdin" "$repo/.affected-stub-rc"
+content_payload="refs/heads/task/DP-386-T2 ${content_sha} refs/heads/task/DP-386-T2 ${zero_sha}
+"
+rc="$(run_hook "$content_payload")"
+if [[ "$rc" != "0" ]]; then
+  echo "[selftest][affected] content-bearing push with green affected runner expected exit 0, got $rc" >&2
+  exit 1
+fi
+if [[ ! -e "$repo/.affected-ran" ]]; then
+  echo "[selftest][affected] content-bearing push did not invoke affected runner" >&2
+  exit 1
+fi
+if ! grep -qx 'scripts/foo.sh' "$repo/.affected-stdin"; then
+  echo "[selftest][affected] affected runner did not receive scripts/foo.sh changed file" >&2
+  cat "$repo/.affected-stdin" >&2 || true
+  exit 1
+fi
+
+# --- DP-386 T2: affected RED propagates through generated hook ----------------
+rm -f "$repo/.affected-ran" "$repo/.affected-stdin"
+printf '2\n' >"$repo/.affected-stub-rc"
+rc="$(run_hook "$content_payload")"
+if [[ "$rc" == "0" ]]; then
+  echo "[selftest][affected] injected affected runner failure leaked through generated hook" >&2
+  exit 1
+fi
+if [[ ! -e "$repo/.affected-ran" ]]; then
+  echo "[selftest][affected] red affected runner case was not invoked" >&2
   exit 1
 fi
 

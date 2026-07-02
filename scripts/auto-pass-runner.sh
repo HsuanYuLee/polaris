@@ -388,6 +388,134 @@ def deliverable_verification_status(path):
     return ""
 
 
+def frontmatter_depends_on(path):
+    """Return top-level depends_on entries from task.md frontmatter."""
+    lines = read_frontmatter_lines(path)
+    deps = []
+    for idx, line in enumerate(lines):
+        if not line.startswith("depends_on:"):
+            continue
+        rest = line.split(":", 1)[1].strip()
+        if rest.startswith("[") and rest.endswith("]"):
+            raw = rest[1:-1].strip()
+            if raw:
+                deps.extend(part.strip().strip('"').strip("'") for part in raw.split(","))
+            break
+        if rest:
+            deps.append(rest.strip().strip('"').strip("'"))
+            break
+        for child in lines[idx + 1:]:
+            if child and not child.startswith((" ", "-")):
+                break
+            match = re.match(r"\s*-\s+(.+?)\s*$", child)
+            if match:
+                deps.append(match.group(1).strip().strip('"').strip("'"))
+        break
+    return [dep for dep in deps if dep]
+
+
+def source_context(repo_path, scripts_dir):
+    """Resolve source container, task dirs, and DP prefix for source_id."""
+    resolver = scripts_dir / "spec-source-resolver.sh"
+    if not resolver.is_file():
+        return None, gate_blocked(f"source context: helper missing: {resolver}")
+    specs_root = repo_path / "docs-manager" / "src" / "content" / "docs" / "specs"
+    cmd = ["bash", str(resolver), "--source-id", source_id]
+    if specs_root.is_dir():
+        cmd.extend(["--specs-root", str(specs_root)])
+    try:
+        proc = subprocess.run(
+            cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=RESOLVER_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        return None, gate_blocked(f"source context: resolver invocation failed: {exc}")
+    if proc.returncode != 0:
+        stderr_text = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
+        return None, gate_blocked(
+            "source context: resolver failed: " + (stderr_text or f"exit {proc.returncode}")
+        )
+    try:
+        resolved = json.loads(proc.stdout.decode("utf-8"))
+    except Exception as exc:
+        return None, gate_blocked(f"source context: resolver output not JSON: {exc}")
+    container = Path(resolved.get("container") or "")
+    if not container.is_dir():
+        return None, gate_blocked("source context: resolved container missing", container)
+    dp_match = re.match(r"^(DP-\d{3})(?:-|$)", container.name)
+    dp_prefix = dp_match.group(1) if (dp_match and container.parent.name == "design-plans") else None
+    return {
+        "container": container,
+        "tasks_dir": container / "tasks",
+        "pr_release_dir": container / "tasks" / "pr-release",
+        "dp_prefix": dp_prefix,
+    }, None
+
+
+def qualified_key(stem, dp_prefix):
+    return f"{dp_prefix}-{stem}" if dp_prefix else stem
+
+
+def dependency_satisfied(dep, completed, dp_prefix):
+    candidates = {dep}
+    if dp_prefix and not dep.startswith(f"{dp_prefix}-"):
+        candidates.add(f"{dp_prefix}-{dep}")
+    if dp_prefix and dep.startswith(f"{dp_prefix}-"):
+        candidates.add(dep.removeprefix(f"{dp_prefix}-"))
+    return any(candidate in completed for candidate in candidates)
+
+
+def next_ready_work_item(repo_path, scripts_dir):
+    """Return the next dependency-ready active T/V work item, or None.
+
+    Runner owns source-level next-action selection. Probe remains scoped to the
+    current work item's evidence; it deliberately does not inspect sibling task
+    DAG state.
+    """
+    ctx, blocked = source_context(repo_path, scripts_dir)
+    if blocked is not None:
+        return None, blocked
+    tasks_dir = ctx["tasks_dir"]
+    pr_release_dir = ctx["pr_release_dir"]
+    dp_prefix = ctx["dp_prefix"]
+
+    completed = set()
+    for entry in list_t_entries(pr_release_dir):
+        status_file = t_entry_status_file(entry)
+        if frontmatter_status(status_file) == "IMPLEMENTED":
+            stem = t_entry_stem(entry)
+            completed.add(stem)
+            completed.add(qualified_key(stem, dp_prefix))
+    for entry in list_v_entries(pr_release_dir):
+        status_file = v_entry_status_file(entry)
+        if frontmatter_status(status_file) == "IMPLEMENTED":
+            stem = v_entry_stem(entry)
+            completed.add(stem)
+            completed.add(qualified_key(stem, dp_prefix))
+
+    for entry in list_t_entries(tasks_dir):
+        status_file = t_entry_status_file(entry)
+        if frontmatter_status(status_file) == "ABANDONED":
+            continue
+        if frontmatter_field(status_file, "task_shape") in T_CARVE_OUT_SHAPES:
+            continue
+        if deliverable_verification_status(status_file) == "PASS":
+            continue
+        deps = frontmatter_depends_on(status_file)
+        if all(dependency_satisfied(dep, completed, dp_prefix) for dep in deps):
+            return qualified_key(t_entry_stem(entry), dp_prefix), None
+
+    for entry in list_v_entries(tasks_dir):
+        status_file = v_entry_status_file(entry)
+        if frontmatter_status(status_file) == "ABANDONED":
+            continue
+        deps = frontmatter_depends_on(status_file)
+        if all(dependency_satisfied(dep, completed, dp_prefix) for dep in deps):
+            return qualified_key(v_entry_stem(entry), dp_prefix), None
+
+    return None, None
+
+
 def gate_blocked(reason, evidence_path=None):
     """Build the blocked_by_gate_failure replacement payload for the V gate."""
     return {
@@ -408,39 +536,16 @@ def terminal_complete_v_gate(repo_path, scripts_dir):
     no V work items at all — the breakdown missing_v_task gate owns that case)
     and the caller may keep terminal_status=complete.
     """
-    resolver = scripts_dir / "spec-source-resolver.sh"
     mark_spec = scripts_dir / "mark-spec-implemented.sh"
-    for required in (resolver, mark_spec):
+    for required in (mark_spec,):
         if not required.is_file():
             return gate_blocked(f"terminal complete gate: helper missing: {required}")
-
-    specs_root = repo_path / "docs-manager" / "src" / "content" / "docs" / "specs"
-    cmd = ["bash", str(resolver), "--source-id", source_id]
-    if specs_root.is_dir():
-        cmd.extend(["--specs-root", str(specs_root)])
-    try:
-        proc = subprocess.run(
-            cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            timeout=RESOLVER_TIMEOUT_SECONDS,
-        )
-    except Exception as exc:
-        return gate_blocked(f"terminal complete gate: resolver invocation failed: {exc}")
-    if proc.returncode != 0:
-        stderr_text = (proc.stderr or b"").decode("utf-8", errors="replace").strip()
-        return gate_blocked(
-            "terminal complete gate: source resolver failed: "
-            + (stderr_text or f"exit {proc.returncode}")
-        )
-    try:
-        resolved = json.loads(proc.stdout.decode("utf-8"))
-    except Exception as exc:
-        return gate_blocked(f"terminal complete gate: resolver output not JSON: {exc}")
-
-    container = Path(resolved.get("container") or "")
-    if not container.is_dir():
-        return gate_blocked("terminal complete gate: resolved container missing", container)
-    tasks_dir = container / "tasks"
-    pr_release_dir = tasks_dir / "pr-release"
+    ctx, blocked = source_context(repo_path, scripts_dir)
+    if blocked is not None:
+        return blocked
+    container = ctx["container"]
+    tasks_dir = ctx["tasks_dir"]
+    pr_release_dir = ctx["pr_release_dir"]
 
     active_v = list_v_entries(tasks_dir)
     pr_release_v = list_v_entries(pr_release_dir)
@@ -453,8 +558,7 @@ def terminal_complete_v_gate(repo_path, scripts_dir):
 
     # DP container → fully-qualified DP-NNN-{stem} key (deterministic Path 3 in
     # mark-spec-implemented). JIRA Epic container → bare stem key (Path 2).
-    dp_match = re.match(r"^(DP-\d{3})(?:-|$)", container.name)
-    dp_prefix = dp_match.group(1) if (dp_match and container.parent.name == "design-plans") else None
+    dp_prefix = ctx["dp_prefix"]
 
     # (a) Advance eligible V work items through the canonical writer.
     for entry in active_v:
@@ -690,6 +794,17 @@ def map_next_action(probe_status, probe_terminal, probe_next, probe_evidence, pr
         }
     if probe_status == "PASS":
         next_skill = STAGE_NEXT_SKILL.get(stage)
+        next_work_item_id = work_item_id if stage != "source" else None
+        if stage == "engineering":
+            selected, blocked = next_ready_work_item(
+                Path(repo).resolve(),
+                Path(ledger_validator).parent,
+            )
+            if blocked is not None:
+                return blocked
+            if selected:
+                next_work_item_id = selected
+                next_skill = "verify-AC" if "-V" in selected else "engineering"
         # On verify-AC PASS without explicit "complete" terminal, treat as
         # complete (probe always pairs PASS+complete for verify-AC, but be
         # defensive).
@@ -703,6 +818,32 @@ def map_next_action(probe_status, probe_terminal, probe_next, probe_evidence, pr
                 "evidence_path": probe_evidence,
                 "reason": probe_reason or "verify-AC complete",
             }
+        if stage == "engineering":
+            next_work_item, blocked = next_ready_work_item(
+                Path(repo).resolve(), Path(ledger_validator).parent
+            )
+            if blocked is not None:
+                return blocked
+            if next_work_item:
+                next_skill = "verify-AC" if re.search(r"-V\d+$", next_work_item) else "engineering"
+                return {
+                    "status": "PASS",
+                    "terminal_status": None,
+                    "next_action": "dispatch",
+                    "next_skill": next_skill,
+                    "next_work_item_id": next_work_item,
+                    "evidence_path": probe_evidence,
+                    "reason": probe_reason or f"{stage} PASS",
+                }
+            return {
+                "status": "PASS",
+                "terminal_status": "complete",
+                "next_action": "terminal",
+                "next_skill": None,
+                "next_work_item_id": None,
+                "evidence_path": probe_evidence,
+                "reason": probe_reason or "engineering complete",
+            }
         return {
             "status": "PASS",
             "terminal_status": None,
@@ -711,7 +852,7 @@ def map_next_action(probe_status, probe_terminal, probe_next, probe_evidence, pr
             # Forward to a placeholder work item id — orchestrator owns the
             # exact next id; runner reports the source id when it cannot infer
             # a sibling task id from current evidence.
-            "next_work_item_id": work_item_id if stage != "source" else None,
+            "next_work_item_id": next_work_item_id,
             "evidence_path": probe_evidence,
             "reason": probe_reason or f"{stage} PASS",
         }

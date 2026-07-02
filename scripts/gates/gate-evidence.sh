@@ -101,15 +101,21 @@ resolve_bundled_task_md() {
     main_checkout="$(resolve_main_checkout "$repo" 2>/dev/null || echo "$repo")"
   fi
   [[ -x "$RESOLVE_TASK_MD" ]] || return 0
-  # Probe the workspace root that owns docs-manager specs (markers anchor at main
-  # checkout, but specs may live under a parent workspace root).
-  local probe="$main_checkout"
-  while [[ -n "$probe" && "$probe" != "/" ]]; do
-    if [[ -d "$probe/docs-manager/src/content/docs/specs" ]]; then
-      bash "$RESOLVE_TASK_MD" --scan-root "$probe" --include-archive "$work_item_id" 2>/dev/null | head -n 1
-      return 0
-    fi
-    probe="$(dirname "$probe")"
+  # Probe the release worktree first, then the main checkout fallback. Aggregate
+  # release branches may carry pr-release task files that are not present in the
+  # main checkout's current branch.
+  local root probe seen="|"
+  for root in "$repo" "$main_checkout"; do
+    [[ -n "$root" ]] || continue
+    probe="$root"
+    while [[ -n "$probe" && "$probe" != "/" ]]; do
+      if [[ "$seen" != *"|$probe|"* && -d "$probe/docs-manager/src/content/docs/specs" ]]; then
+        seen="${seen}${probe}|"
+        bash "$RESOLVE_TASK_MD" --scan-root "$probe" --include-archive "$work_item_id" 2>/dev/null | head -n 1
+        return 0
+      fi
+      probe="$(dirname "$probe")"
+    done
   done
   return 0
 }
@@ -510,6 +516,13 @@ fi
 if [[ -n "$HEAD_SHA" ]]; then
   feat_head_branch="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
   if [[ "$feat_head_branch" =~ ^feat/(DP-[0-9]+)$ ]]; then
+    if ! git -C "$REPO_ROOT" rev-parse --verify --quiet "origin/$feat_head_branch" >/dev/null 2>&1; then
+      origin_main_sha="$(git -C "$REPO_ROOT" rev-parse origin/main 2>/dev/null || true)"
+      if [[ -n "$origin_main_sha" && "$HEAD_SHA" == "$origin_main_sha" ]]; then
+        echo "$PREFIX empty feat-aggregation bootstrap branch ${feat_head_branch} — evidence not required until task PRs land." >&2
+        exit 0
+      fi
+    fi
     if check_feat_aggregation_evidence "${BASH_REMATCH[1]}"; then
       exit 0
     fi

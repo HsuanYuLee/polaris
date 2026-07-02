@@ -510,6 +510,65 @@ if ! grep -q 'bash scripts/selftests/sample-selftest.sh' "$verify_fence"; then
   exit 1
 fi
 
+# --- Case 11b (DP-386 bootstrap): multiline verify_command must not be inlined
+# into the Gate Closure Matrix table cell. The complete command remains in the
+# fenced Verify Command block, while the table row uses a stable one-line pass
+# condition that validate-task-md.sh can parse. ---
+multiline_cmd_json="$tmpdir/multiline-command.json"
+cat >"$multiline_cmd_json" <<'JSON'
+{
+  "source": { "type": "dp", "id": "DP-501", "container": "/tmp/dp-501", "jira_key": null },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "DP-501-T1",
+      "kind": "implementation",
+      "title": "multiline verify command",
+      "scope": "驗證多行 verify_command 不會破壞 Gate Closure Matrix table。",
+      "allowed_files": ["scripts/derive-task-md-from-refinement-json.sh"],
+      "modules": ["scripts/derive-task-md-from-refinement-json.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "multiline verify command fixture",
+        "verify_command": "echo PASS\nprintf '%s\\n' PASS",
+        "behavior_contract": { "applies": false, "reason": "framework renderer fixture；無 runtime / UI 行為變更" },
+        "test_environment": { "level": "static" },
+        "references": []
+      }
+    }
+  ]
+}
+JSON
+mkdir -p "$tmpdir/multiline/T1"
+multiline_cmd_out="$tmpdir/multiline/T1/index.md"
+bash "$SCRIPT" --refinement-json "$multiline_cmd_json" --task-id "DP-501-T1" > "$multiline_cmd_out"
+gate_matrix="$tmpdir/multiline-gate-matrix.txt"
+awk '/^## Gate Closure Matrix$/ {capture=1; next} capture && /^## / {exit} capture {print}' "$multiline_cmd_out" >"$gate_matrix"
+if ! grep -qF -- "| verify | yes | Verify Command exits 0 | engineering |" "$gate_matrix"; then
+  echo "FAIL [case 11b / DP-386]: multiline verify_command did not render as a stable one-line gate summary" >&2
+  cat "$gate_matrix" >&2
+  exit 1
+fi
+if grep -qF -- "printf '%s\\n' PASS" "$gate_matrix"; then
+  echo "FAIL [case 11b / DP-386]: raw multiline verify_command leaked into Gate Closure Matrix" >&2
+  cat "$gate_matrix" >&2
+  exit 1
+fi
+awk '/^## Verify Command$/ {capture=1; next} capture && /^```bash$/ {next} capture && /^```$/ {exit} capture {print}' "$multiline_cmd_out" >"$verify_fence"
+if ! grep -qF -- "echo PASS" "$verify_fence" || ! grep -qF -- "printf '%s\\n' PASS" "$verify_fence"; then
+  echo "FAIL [case 11b / DP-386]: Verify Command fence did not preserve the full multiline command" >&2
+  cat "$verify_fence" >&2
+  exit 1
+fi
+bash "$VALIDATE_BREAKDOWN_READY" "$multiline_cmd_out" >/tmp/derive-multiline-breakdown-ready.out 2>&1 || {
+  echo "FAIL [case 11b / DP-386]: multiline-derived task.md should be breakdown-ready" >&2
+  cat /tmp/derive-multiline-breakdown-ready.out >&2
+  exit 1
+}
+
 # --- Case 12 (AC3): behavior_contract / test_environment come from the fields.
 # Flip the field values and assert the output tracks them (no hardcoded default). ---
 bc_true_json="$tmpdir/bc-true.json"

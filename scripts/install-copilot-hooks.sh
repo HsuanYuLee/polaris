@@ -157,14 +157,6 @@ if [[ -x "$GATES_DIR/gate-no-tracked-specs.sh" ]]; then
   bash "$GATES_DIR/gate-no-tracked-specs.sh" --repo "$REPO_ROOT"
 fi
 
-# Gate: template leaks (recurrence prevention for DP-228 — scan workspace
-# tracked files for live company slug / JIRA prefix / Slack ID / internal URL
-# before push, per rules/framework-iteration.md § Template-Facing Examples
-# Must Be Generic).
-if [[ -x "$GATES_DIR/gate-template-leaks.sh" ]]; then
-  bash "$GATES_DIR/gate-template-leaks.sh" --repo "$REPO_ROOT"
-fi
-
 # Gate: evidence producer whitelist (changed marker writers)
 if [[ -x "$GATES_DIR/gate-evidence-producer-whitelist.sh" ]]; then
   bash "$GATES_DIR/gate-evidence-producer-whitelist.sh" --repo "$REPO_ROOT"
@@ -183,6 +175,57 @@ fi
 # Gate: changeset (developer ticket branches only)
 if [[ -x "$GATES_DIR/gate-changeset.sh" ]]; then
   bash "$GATES_DIR/gate-changeset.sh" --repo "$REPO_ROOT"
+fi
+
+# Gate: manifest parity (DP-230 D20). Keep this before template leak / affected
+# closure so framework push-time governance is parity-checked before broader
+# content scans or selftest execution.
+if [[ -x "$REPO_ROOT/scripts/validate-manifest-parity.sh" ]]; then
+  bash "$REPO_ROOT/scripts/validate-manifest-parity.sh" --root "$REPO_ROOT" --quiet
+fi
+
+# Gate: template leaks (recurrence prevention for DP-228 — scan workspace
+# tracked files for live company slug / JIRA prefix / Slack ID / internal URL
+# before push, per rules/framework-iteration.md § Template-Facing Examples
+# Must Be Generic).
+if [[ -x "$GATES_DIR/gate-template-leaks.sh" ]]; then
+  bash "$GATES_DIR/gate-template-leaks.sh" --repo "$REPO_ROOT"
+fi
+
+pre_push_changed_files() {
+  local data="$1"
+  local local_ref="" local_sha="" remote_ref="" remote_sha="" branch_name=""
+
+  while read -r local_ref local_sha remote_ref remote_sha _rest; do
+    [[ -n "${local_ref:-}" ]] || continue
+    [[ "$local_ref" == "(delete)" || "${local_sha:-}" =~ ^0+$ ]] && continue
+    case "${remote_ref:-}" in
+      refs/tags/*) continue ;;
+    esac
+
+    if [[ -n "${remote_sha:-}" && ! "$remote_sha" =~ ^0+$ ]]; then
+      git -C "$REPO_ROOT" diff --name-only "$remote_sha" "$local_sha" 2>/dev/null || true
+      continue
+    fi
+
+    branch_name="${local_ref#refs/heads/}"
+    if [[ "$branch_name" != "$local_ref" ]] && git -C "$REPO_ROOT" rev-parse --verify "origin/$branch_name" >/dev/null 2>&1; then
+      git -C "$REPO_ROOT" diff --name-only "origin/$branch_name...$local_sha" 2>/dev/null || true
+    else
+      git -C "$REPO_ROOT" diff --name-only "$local_sha^" "$local_sha" 2>/dev/null || true
+    fi
+  done <<<"$data"
+}
+
+# Gate: affected-scoped selftest closure (DP-360 T3 / AC7 / AC-NEG5). Generated
+# git hooks and the Claude pre-push adapter must share the same portable closure
+# runner; no hook-local classifier or env bypass is introduced here.
+AFFECTED_RUNNER="$REPO_ROOT/scripts/selftest-affected-runner.sh"
+if [[ -x "$AFFECTED_RUNNER" ]]; then
+  affected_changed="$(pre_push_changed_files "$push_refs" | sort -u)"
+  if [[ -n "$affected_changed" ]]; then
+    printf "%s\n" "$affected_changed" | bash "$AFFECTED_RUNNER" --root "$REPO_ROOT" --run
+  fi
 fi
 '
 

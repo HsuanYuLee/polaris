@@ -247,10 +247,13 @@ rm "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinem
 # DP-360 T7: engineering PASS proven by task.md deliverable.head_sha (bound to
 # probe head) + deliverable.verification.status=PASS, not a completion-gate marker.
 write_task_deliverable DP-900-T1 abc1234 PASS
+write_task_deliverable DP-900-T2 "" ""
 assert_field "engineering-pass-status" "PASS" status --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
 assert_field "engineering-pass-action" "dispatch" next_action --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
-assert_field "engineering-pass-skill"  "verify-AC" next_skill --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
+assert_field "engineering-pass-skill"  "engineering" next_skill --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
+assert_field "engineering-pass-next-t" "DP-900-T2" next_work_item_id --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
 remove_task_deliverable DP-900-T1
+remove_task_deliverable DP-900-T2
 
 # Missing deliverable block → blocked.
 assert_field "engineering-missing-terminal" "blocked_by_gate_failure" terminal_status --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234

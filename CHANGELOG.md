@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.76.58] - 2026-07-02
+
+### Changed
+
+- 89bcaff: DP-386 T0 bootstrap unblockers: stabilize multiline verify command task rendering, allow first DP task worktree setup from a local-only feat base, and stop treating an empty feat branch bootstrap push as release aggregation evidence.
+- 50d115b: DP-386 T1: release preflight now defaults to release-tail-owned gates plus upstream evidence freshness, with explicit `--full-backstop` for transitional full-corpus runs.
+- 9b7124b: DP-386 T2 generated pre-push hook parity: wire manifest parity and affected selftest closure into the installer output, and lock the generated hook callsites with a hermetic selftest.
+- aa77a85: DP-386 T3: split framework release PR lane helpers and keep the orchestration script under the release gate line-count guard.
+- b8a1488: DP-386 T4: strengthen framework script governance handbook and add a structure validator for shell and Python hot-path scripts.
+- 6ea9eb8: DP-386 T5: extend framework script structure audit to produce a structured debt inventory across scripts and .claude shell/Python surfaces.
+- 6b733bc: DP-386 T6: add machine-readable script taxonomy and evidence to the script ownership audit.
+- 60ef5ec: Fix auto-pass runner routing after self-contained T task completion so engineering PASS dispatches the next dependency-ready T work item instead of sending the same T item through the V-only verify-AC probe.
+- 3c71c3f: Completion gate verification profile 與 source-neutral hot path 解阻
+- 1108717: Auto-pass T task PASS 後 dispatch 下一個 ready work item
+- release-tail: Fix aggregate evidence gate to resolve bundled pr-release tasks from the release worktree before main checkout fallback.
+
 ## [3.76.57] - 2026-07-01
 
 ### Changed

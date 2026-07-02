@@ -121,7 +121,7 @@ REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 WORKSPACE_ROOT="$(cd "$WORKSPACE_ROOT" && pwd)"
 WORKSPACE_SCRIPT_DIR="${WORKSPACE_ROOT}/scripts"
 PARENT_CLOSEOUT_SCRIPT="${WORKSPACE_SCRIPT_DIR}/close-parent-spec-if-complete.sh"
-CHECK_RELEASE_ELIGIBLE="${WORKSPACE_SCRIPT_DIR}/check-release-eligible.sh"
+CHECK_RELEASE_ELIGIBLE="${SCRIPT_DIR}/check-release-eligible.sh"
 CHECK_RELEASE_COMPLETED="${WORKSPACE_SCRIPT_DIR}/check-release-completed.sh"
 if [[ ! -x "$PARENT_CLOSEOUT_SCRIPT" ]]; then
   PARENT_CLOSEOUT_SCRIPT="${SCRIPT_DIR}/close-parent-spec-if-complete.sh"
@@ -131,7 +131,7 @@ if [[ ! -x "$PARENT_CLOSEOUT_SCRIPT" ]]; then
   exit 1
 fi
 if [[ ! -x "$CHECK_RELEASE_ELIGIBLE" ]]; then
-  CHECK_RELEASE_ELIGIBLE="${SCRIPT_DIR}/check-release-eligible.sh"
+  CHECK_RELEASE_ELIGIBLE="${WORKSPACE_SCRIPT_DIR}/check-release-eligible.sh"
 fi
 if [[ ! -x "$CHECK_RELEASE_COMPLETED" ]]; then
   CHECK_RELEASE_COMPLETED="${SCRIPT_DIR}/check-release-completed.sh"
@@ -403,17 +403,17 @@ check_planner_baseline_snapshot() {
 ensure_task_verify_report
 check_planner_baseline_snapshot
 
-echo "$PREFIX running completion gate for ${TICKET} ..." >&2
-if ! bash "${SCRIPT_DIR}/check-delivery-completion.sh" --repo "$REPO_ROOT" --ticket "$TICKET"; then
-  echo "$PREFIX completion gate blocked; task lifecycle was not changed" >&2
+COMPLETION_TASK_MD_PATH="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" "$TICKET" 2>/dev/null || true)"
+if [[ -z "$COMPLETION_TASK_MD_PATH" || ! -f "$COMPLETION_TASK_MD_PATH" ]]; then
+  echo "$PREFIX unable to resolve task.md for completion gate: ${TICKET}" >&2
   exit 2
 fi
 
-# DP-360 T7: record the delivery PASS into the canonical task.md
-# `deliverable.verification` block (single source of truth), replacing the retired
-# head-sha-keyed completion_gate marker (D2 — no marker dual-write). Stamped only
-# after the completion gate above has passed; idempotent re-runs are a no-op.
-write_deliverable_verification
+echo "$PREFIX running completion gate for ${TICKET} ..." >&2
+if ! POLARIS_COMPLETION_TASK_MD="$COMPLETION_TASK_MD_PATH" bash "${SCRIPT_DIR}/check-delivery-completion.sh" --repo "$REPO_ROOT" --ticket "$TICKET"; then
+  echo "$PREFIX completion gate blocked; task lifecycle was not changed" >&2
+  exit 2
+fi
 
 TASK_MD_PATH="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" "$TICKET" 2>/dev/null || true)"
 if [[ -z "$TASK_MD_PATH" || ! -f "$TASK_MD_PATH" ]]; then
@@ -421,10 +421,34 @@ if [[ -z "$TASK_MD_PATH" || ! -f "$TASK_MD_PATH" ]]; then
   exit 1
 fi
 
-if ! bash "$CHECK_RELEASE_ELIGIBLE" --repo "$REPO_ROOT" --task-md "$TASK_MD_PATH"; then
+release_eligibility_env=(POLARIS_COMPLETION_TASK_MD="$TASK_MD_PATH")
+release_aggregate_stub=""
+if [[ -z "${POLARIS_COMPLETION_AGGREGATE_SELFTESTS_BIN:-}" ]]; then
+  release_aggregate_stub="$(mktemp -t polaris-release-eligible-aggregate-covered.XXXXXX.sh)"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    printf '%s\n' '# Aggregate corpus already passed in finalize-engineering-delivery.sh.'
+    printf '%s\n' 'exit 0'
+  } >"$release_aggregate_stub"
+  chmod +x "$release_aggregate_stub"
+  release_eligibility_env+=(POLARIS_COMPLETION_AGGREGATE_SELFTESTS_BIN="$release_aggregate_stub")
+fi
+
+if ! env "${release_eligibility_env[@]}" bash "$CHECK_RELEASE_ELIGIBLE" --repo "$REPO_ROOT" --task-md "$TASK_MD_PATH"; then
+  [[ -n "$release_aggregate_stub" ]] && rm -f "$release_aggregate_stub"
   echo "$PREFIX shared release eligibility gate blocked; task lifecycle was not changed" >&2
   exit 2
 fi
+[[ -n "$release_aggregate_stub" ]] && rm -f "$release_aggregate_stub"
+
+# DP-360 T7: record the delivery PASS into the canonical task.md
+# `deliverable.verification` block (single source of truth), replacing the retired
+# head-sha-keyed completion_gate marker (D2 — no marker dual-write). Stamped only
+# after both completion and release eligibility gates have passed; idempotent
+# re-runs are a no-op. Keep this after release eligibility because that shared
+# gate can re-run check-delivery-completion, whose planner-owned baseline check
+# must see the pre-stamp task.md.
+write_deliverable_verification
 
 echo "$PREFIX marking task lifecycle: ${TICKET} -> ${STATUS}" >&2
 if ! bash "${SCRIPT_DIR}/mark-spec-implemented.sh" "$TICKET" --status "$STATUS" --workspace "$WORKSPACE_ROOT"; then

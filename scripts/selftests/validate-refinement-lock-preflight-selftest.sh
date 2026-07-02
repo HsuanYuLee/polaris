@@ -203,6 +203,41 @@ $(canonical_impl_task "T3" "DP-262 implementation tracked task" "static" "N/A" "
 JSON
 expect_pass "ok-canonical-tasks" "$tmpdir/ok.json"
 
+# DP-386 bootstrap — multiline verify_command stays breakdown-ready after the
+# full-derive lock preflight path. This guards the producer-generated task.md
+# shape that previously broke Gate Closure Matrix parsing.
+cat >"$tmpdir/multiline-verify-command.json" <<'JSON'
+{
+  "source": { "type": "dp", "id": "DP-386", "base_branch": "feat/DP-386" },
+  "acceptance_criteria": [ { "id": "AC10", "text": "multiline verify command remains derivable" } ],
+  "modules": [],
+  "tasks": [
+    {
+      "id": "T1",
+      "kind": "implementation",
+      "title": "DP-386 multiline verify command",
+      "scope": "DP-386 lock-preflight multiline verify command fixture",
+      "task_shape": "implementation",
+      "tracked_deliverable_hint": "tracked",
+      "allowed_files": ["scripts/derive-task-md-from-refinement-json.sh"],
+      "modules": ["scripts/derive-task-md-from-refinement-json.sh"],
+      "ac_ids": ["AC10"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "multiline verify command fixture",
+        "behavior_contract": { "applies": false, "reason": "framework lock-preflight fixture；無 runtime / UI 行為變更" },
+        "test_environment": { "level": "static", "runtime_verify_target": "N/A", "env_bootstrap_command": "N/A" },
+        "verify_command": "echo PASS\nprintf '%s\\n' PASS",
+        "references": []
+      }
+    }
+  ]
+}
+JSON
+expect_pass "multiline-verify-command" "$tmpdir/multiline-verify-command.json"
+
 # Illegal (full-derive-reproducible) — a runtime implementation task whose
 # Env bootstrap command is PROSE fail-stops, naming the offending task. Under
 # full-derive this is the realistic illegitimate-implementation signal (the

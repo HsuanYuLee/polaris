@@ -131,16 +131,18 @@ PREPUSH_ADAPTER="$ROOT_DIR/.claude/hooks/pre-push-quality-gate.sh"
 grep -q 'gate-runtime-instruction-manifest.sh' "$PREPUSH_ADAPTER" \
   || fail "AC2: pre-push-quality-gate.sh must wire gate-runtime-instruction-manifest.sh"
 
-# The adapter's legacy gate body early-exits on main/master/develop and on
-# non-push commands. The manifest check must run BEFORE that branch-filter
-# early-exit so EC2 (direct push to main) is covered. Assert ordering: the
-# manifest gate callsite must appear before the `case "$branch" in` early-exit.
+# The adapter must not branch-filter this check. Assert ordering against the
+# branch-resolution case that remains for detached HEAD handling, and separately
+# fail if a non-comment main/master/develop early-exit returns.
 manifest_line="$(grep -n 'gate-runtime-instruction-manifest.sh' "$PREPUSH_ADAPTER" | head -1 | cut -d: -f1)"
-branch_exit_line="$(grep -n 'main|master|develop) exit 0' "$PREPUSH_ADAPTER" | head -1 | cut -d: -f1)"
-[[ -n "$manifest_line" && -n "$branch_exit_line" ]] \
-  || fail "AC2: could not locate manifest gate / branch early-exit in pre-push adapter"
-[[ "$manifest_line" -lt "$branch_exit_line" ]] \
-  || fail "AC2/EC2: manifest gate must run before the main/develop branch early-exit (got manifest@$manifest_line, branch-exit@$branch_exit_line)"
+branch_case_line="$(grep -n '^case "\$branch" in' "$PREPUSH_ADAPTER" | head -1 | cut -d: -f1)"
+[[ -n "$manifest_line" && -n "$branch_case_line" ]] \
+  || fail "AC2: could not locate manifest gate / branch case in pre-push adapter"
+[[ "$manifest_line" -lt "$branch_case_line" ]] \
+  || fail "AC2/EC2: manifest gate must run before the branch case (got manifest@$manifest_line, branch-case@$branch_case_line)"
+if awk '/^[[:space:]]*#/ {next} /main\|master\|develop\).*exit 0/ {found=1} END {exit found ? 0 : 1}' "$PREPUSH_ADAPTER"; then
+  fail "AC2/R1: pre-push adapter must not contain a non-comment main/master/develop early-exit"
+fi
 
 # AC2 path 2 — portable git hook produced by install-copilot-hooks.sh
 INSTALL_HOOKS="$ROOT_DIR/scripts/install-copilot-hooks.sh"

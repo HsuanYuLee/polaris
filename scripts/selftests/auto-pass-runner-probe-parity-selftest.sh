@@ -68,6 +68,36 @@ Path(path).write_text(json.dumps({
 PY
 }
 
+write_task_deliverable() {
+  local wid="$1" head="$2" vstatus="$3"
+  local task_id="${wid##*-}"
+  local task_dir="$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/$task_id"
+  mkdir -p "$task_dir"
+  {
+    echo "---"
+    echo "title: \"$wid fixture\""
+    echo "description: \"auto-pass runner/probe parity task fixture\""
+    echo "status: IN_PROGRESS"
+    if [[ -n "$head" ]]; then
+      echo "deliverable:"
+      echo "  head_sha: $head"
+      if [[ -n "$vstatus" ]]; then
+        echo "  verification:"
+        echo "    status: $vstatus"
+      fi
+    fi
+    echo "---"
+    echo ""
+    echo "## Fixture"
+  } >"$task_dir/index.md"
+}
+
+remove_task_deliverable() {
+  local wid="$1"
+  local task_id="${wid##*-}"
+  rm -rf "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/$task_id"
+}
+
 # probe_to_runner_terminal: terminal_status semantics MUST be identical.
 # probe_to_runner_action: probe next_action is a stage hint, runner is a verb.
 #   Mapping rules (runner-owned semantic mapping):
@@ -166,16 +196,18 @@ assert_parity "breakdown-amend"        --stage breakdown --source-id DP-900 --wo
 rm "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement-inbox/x.md"
 
 # ─── engineering parity ──────────────────────────────────────────────────────
-write_marker "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json" PASS
+write_task_deliverable DP-900-T1 abc1234 PASS
+write_task_deliverable DP-900-T2 "" ""
 assert_parity "engineering-pass"       --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
-rm "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json"
+remove_task_deliverable DP-900-T1
+remove_task_deliverable DP-900-T2
 
 assert_parity "engineering-missing"    --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
 
 # DP-313 T1: engineering-stage review-state branch parity. Completion gate is
 # PASS; an explicit --pr-state-file carries an actionable / planning / spec
 # review state. Runner and probe must agree on the new route's machine fields.
-write_marker "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json" PASS
+write_task_deliverable DP-900-T1 abc1234 PASS
 write_pr_state() {
   python3 - "$1" "$2" "${3:-}" <<'PY'
 import json, sys
@@ -194,8 +226,10 @@ assert_parity "engineering-review-plangap"    --stage engineering --source-id DP
 write_pr_state "$TMP/parity-specissue.json" planning_gap spec_issue
 assert_parity "engineering-review-specissue"  --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234 --pr-state-file "$TMP/parity-specissue.json"
 write_pr_state "$TMP/parity-nonactionable.json" mergeable_ready
+write_task_deliverable DP-900-T2 "" ""
 assert_parity "engineering-review-nonactionable" --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234 --pr-state-file "$TMP/parity-nonactionable.json"
-rm "$TMP/.polaris/evidence/completion-gate/DP-900-T1-abc1234.json"
+remove_task_deliverable DP-900-T1
+remove_task_deliverable DP-900-T2
 
 # ─── verify-AC parity ────────────────────────────────────────────────────────
 write_marker "$TMP/.polaris/evidence/ac-verification/DP-900-V1-abc1234.json" PASS DP-900 DP-900-V1

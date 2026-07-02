@@ -16,6 +16,7 @@ set +e
 rg -n 'bug-rca|/bug-rca|bug RCA|補 RCA' \
   CLAUDE.md .claude scripts \
   -g '!docs-manager/**' \
+  -g '!scripts/manifest.json' \
   -g '!scripts/selftests/bug-rca-skill-absence-selftest.sh' \
   >"$tmp"
 status=$?

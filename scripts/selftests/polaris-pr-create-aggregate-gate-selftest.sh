@@ -243,7 +243,44 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Case 5 (AC5): polaris-pr-create.sh forwards the aggregate context to
+# Case 5 (AC5): aggregate-release evidence gate resolves folder-native pr-release
+#               tasks from the supplied release worktree before falling back to
+#               the main checkout. This locks the real framework-release shape:
+#               a linked worktree branch can carry DP tasks that are absent from
+#               the main checkout's current branch.
+# ---------------------------------------------------------------------------
+{
+  main_repo="$TMPROOT/c5-main"
+  git init -q -b main "$main_repo"
+  git -C "$main_repo" config user.name selftest
+  git -C "$main_repo" config user.email selftest@example.invalid
+  echo init >"$main_repo/README.md"
+  git -C "$main_repo" add README.md
+  git -C "$main_repo" commit -q -m base
+
+  git -C "$main_repo" checkout -q -b feat/DP-304
+  git -C "$main_repo" checkout -q main
+  worktree="$TMPROOT/c5-release-worktree"
+  git -C "$main_repo" worktree add -q "$worktree" feat/DP-304
+
+  tasks_dir="$worktree/docs-manager/src/content/docs/specs/design-plans/DP-304-fixture/tasks/pr-release"
+  head1="dddddddddddddddddddddddddddddddddddddddd"
+  write_bundled_task_md "$tasks_dir/T1/index.md" DP-304 DP-304-T1 repo "$head1" PASS
+
+  set +e
+  output=$(
+    env -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT \
+      bash "$GATE_EVIDENCE" --repo "$worktree" --aggregate-release \
+        --source DP-304 --bundled-tasks DP-304-T1 2>&1
+  )
+  rc=$?
+  set -e
+  _assert "$rc" "0" "C5: aggregate evidence gate must resolve tasks from linked release worktree"
+  _assert_contains "$output" "DP-304-T1" "C5: output must name the worktree-resolved bundled task"
+}
+
+# ---------------------------------------------------------------------------
+# Case 6 (AC5): polaris-pr-create.sh forwards the aggregate context to
 #               gate-evidence so the bundle PR builds the canonical way (no
 #               --skip-gates). The evidence gate invocation in the production
 #               wrapper must thread --aggregate-release / --source /
@@ -255,9 +292,9 @@ EOF
   # Production wrapper must pass the aggregate context into the evidence gate.
   evidence_block="$(awk '/^# Gate 2: evidence/{p=1} p{print} /^# Gate 3:/{if(p)exit}' "$PR_CREATE")"
   _assert_contains "$evidence_block" "--aggregate-release" \
-    "C5: evidence gate invocation must forward --aggregate-release"
+    "C6: evidence gate invocation must forward --aggregate-release"
   _assert_contains "$evidence_block" "--bundled-tasks" \
-    "C5: evidence gate invocation must forward --bundled-tasks"
+    "C6: evidence gate invocation must forward --bundled-tasks"
 
   # The aggregate-release path must NOT silently require --skip-gates: the
   # --skip-gates branch is an explicit opt-out, never an implicit bundle default.
@@ -267,11 +304,11 @@ EOF
     auto_skip=absent
   fi
   _assert "$auto_skip" "absent" \
-    "C5: aggregate-release must not auto-enable --skip-gates"
+    "C6: aggregate-release must not auto-enable --skip-gates"
 }
 
 # ---------------------------------------------------------------------------
-# Case 6 (AC-NEG1): the POLARIS_PR_WORKFLOW=1 escape-hatch is NOT a bundle build
+# Case 7 (AC-NEG1): the POLARIS_PR_WORKFLOW=1 escape-hatch is NOT a bundle build
 #               path. pr-create-guard.sh still blocks bare `gh pr create` for the
 #               bundle title unless the escape-hatch env is set — and the
 #               canonical bundle path never relies on it. We assert the guard
@@ -288,8 +325,8 @@ print(json.dumps({"tool_name": "Bash", "tool_input": {"command": sys.argv[1]}}))
   output=$(printf '%s' "$payload" | bash "$PR_GUARD" 2>&1)
   rc=$?
   set -e
-  _assert "$rc" "2" "C6: bare bundle gh pr create must be blocked (escape-hatch not a bundle path)"
-  _assert_contains "$output" "polaris-pr-create" "C6: guard must steer bundle to canonical wrapper"
+  _assert "$rc" "2" "C7: bare bundle gh pr create must be blocked (escape-hatch not a bundle path)"
+  _assert_contains "$output" "polaris-pr-create" "C7: guard must steer bundle to canonical wrapper"
 }
 
 # ---------------------------------------------------------------------------

@@ -1514,6 +1514,33 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/lib/release-gate-backstops.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/framework-release-pr-lane-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/release-gate-core.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/framework-release-pr-lane-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/release-gate-lineage.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/framework-release-pr-lane-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/lib/main-checkout.sh",
       "kind": "support",
       "runner": "bash",
@@ -3083,6 +3110,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/framework-script-structure-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/github-rest-selftest.sh",
@@ -5216,6 +5253,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/validate-framework-script-structure.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/selftests/framework-script-structure-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-script-categorization.sh",
       "kind": "gate",
       "runner": "bash",
@@ -5627,6 +5673,29 @@
       "owner": "polaris-framework"
     },
     {
+      "id": "framework-script-structure",
+      "command": "bash scripts/selftests/framework-script-structure-selftest.sh",
+      "profiles": [
+        "core",
+        "runtime",
+        "delivery",
+        "full",
+        "release"
+      ],
+      "changed_paths": [
+        ".claude/rules/handbook/framework/script-governance.md",
+        "scripts/validate-framework-script-structure.sh",
+        "scripts/selftests/framework-script-structure-selftest.sh"
+      ],
+      "fixtures": [
+        "shellcheck suppression",
+        "python argparse",
+        "handbook baseline terms"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
       "id": "polaris-bootstrap-dry-run",
       "command": "bash scripts/selftests/polaris-bootstrap-selftest.sh",
       "profiles": [
@@ -5719,6 +5788,9 @@
         "scripts/framework-release-pr-lane.sh",
         "scripts/framework-release-pr-lane-selftest.sh",
         "scripts/lib/github-rest.sh",
+        "scripts/lib/release-gate-backstops.sh",
+        "scripts/lib/release-gate-core.sh",
+        "scripts/lib/release-gate-lineage.sh",
         "scripts/resolve-task-md-by-branch.sh",
         "scripts/lib/specs-root.sh"
       ],

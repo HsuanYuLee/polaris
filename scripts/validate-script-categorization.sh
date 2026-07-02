@@ -12,8 +12,8 @@
 # fixtures under scripts/fixtures/** are out of scope (AC-NEG2).
 #
 # This validator wraps scripts/script-ownership-audit.py and consumes its
-# JSON classification. It does NOT duplicate the callsite scan; the audit
-# script is the single source of truth for ownership classification.
+# JSON classification/taxonomy. It does NOT duplicate the callsite scan;
+# the audit script is the single source of truth for ownership placement.
 #
 # Modes:
 #   --mode diff   (default) Only flag scripts that are newly added or
@@ -175,6 +175,7 @@ except json.JSONDecodeError as exc:
     sys.exit(2)
 
 scripts_by_path = {row["path"]: row for row in audit.get("scripts", [])}
+taxonomy_summary = audit.get("summary", {}).get("taxonomy", {})
 
 HOT_PATH_EXTS = {".sh", ".py", ".mjs", ".ts"}
 
@@ -351,6 +352,11 @@ sys.stdout.write(
     f"AUDIT: validate-script-categorization scanned {checked} script(s); "
     f"{len(audit_candidates)} skill_local candidate(s)\n"
 )
+if taxonomy_summary:
+    rendered = ", ".join(
+        f"{name}={taxonomy_summary[name]}" for name in sorted(taxonomy_summary)
+    )
+    sys.stdout.write(f"  taxonomy: {rendered}\n")
 for owner, marker in audit_candidates:
     rel = marker.split(":", 1)[1].split(" -> ", 1)[0]
     sys.stdout.write(f"  legacy-debt: {rel} -> .claude/skills/{owner}/scripts/\n")

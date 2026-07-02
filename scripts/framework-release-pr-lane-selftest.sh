@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Purpose: exercise framework-release-pr-lane PR lineage, owner-aware release
+# preflight, evidence freshness, and bundle fallback fixtures.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,8 +15,26 @@ make_task() {
   local base="$3"
   local chain="$4"
   local branch="$5"
+  local head="${6:-}"
+  if [[ -z "$head" ]]; then
+    head="$(default_head_for_branch "$branch")"
+  fi
   mkdir -p "$(dirname "$file")"
   cat > "$file" <<MD
+---
+deliverable:
+  pr_url: https://example.test/pull/1
+  pr_state: OPEN
+  head_sha: ${head}
+  verification:
+    status: PASS
+    ac_counts:
+      ac_total: 0
+      ac_pass: 0
+      ac_fail: 0
+      ac_manual_required: 0
+      ac_uncertain: 0
+---
 # ${task_id}
 
 ## Operational Context
@@ -35,12 +55,50 @@ make_task() {
 MD
 }
 
+default_head_for_branch() {
+  case "$1" in
+    task/DP-999-T1-one) printf '%s\n' "1111111111111111111111111111111111111111" ;;
+    task/DP-999-T2-two) printf '%s\n' "2222222222222222222222222222222222222222" ;;
+    task/DP-999-T3-three) printf '%s\n' "3333333333333333333333333333333333333333" ;;
+    task/DP-999-TB-blocked) printf '%s\n' "9999999999999999999999999999999999999999" ;;
+    codex/generic-publish) printf '%s\n' "1010101010101010101010101010101010101010" ;;
+    *) printf '%s\n' "1111111111111111111111111111111111111111" ;;
+  esac
+}
+
+set_task_deliverable_head() {
+  local file="$1"
+  local head="$2"
+  python3 - "$file" "$head" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+head = sys.argv[2]
+text = path.read_text(encoding="utf-8")
+text = re.sub(r"(?m)^  head_sha: .*$", f"  head_sha: {head}", text, count=1)
+path.write_text(text, encoding="utf-8")
+PY
+}
+
+refresh_default_deliverables() {
+  [[ -n "${TASK_DIR:-}" ]] || return 0
+  [[ -f "$TASK_DIR/T1.md" ]] && set_task_deliverable_head "$TASK_DIR/T1.md" "1111111111111111111111111111111111111111"
+  [[ -f "$TASK_DIR/T2.md" ]] && set_task_deliverable_head "$TASK_DIR/T2.md" "2222222222222222222222222222222222222222"
+  [[ -f "$TASK_DIR/T3.md" ]] && set_task_deliverable_head "$TASK_DIR/T3.md" "3333333333333333333333333333333333333333"
+  [[ -f "$TASK_DIR/T3-local-chain.md" ]] && set_task_deliverable_head "$TASK_DIR/T3-local-chain.md" "3333333333333333333333333333333333333333"
+  [[ -f "$TASK_DIR/TB.md" ]] && set_task_deliverable_head "$TASK_DIR/TB.md" "9999999999999999999999999999999999999999"
+  [[ -f "$TASK_DIR/TG.md" ]] && set_task_deliverable_head "$TASK_DIR/TG.md" "1010101010101010101010101010101010101010"
+}
+
 write_state() {
   cat > "$TMPDIR/pr-state.tsv" <<'EOF'
 task/DP-999-T1-one	1	OPEN	main	1111111111111111111111111111111111111111	https://example.test/pull/1
 task/DP-999-T2-two	2	OPEN	task/DP-999-T1-one	2222222222222222222222222222222222222222	https://example.test/pull/2
 task/DP-999-T3-three	3	OPEN	task/DP-999-T2-two	3333333333333333333333333333333333333333	https://example.test/pull/3
 EOF
+  refresh_default_deliverables
 }
 
 # DP-270: a bundle member task.md carries the shared bundle_branch_alias in
@@ -50,10 +108,29 @@ make_bundle_task() {
   local task_id="$2"
   local branch="$3"
   local alias="$4"
+  local head
+  case "$alias" in
+    bundle-DP-998-v1.0.0) head="2020202020202020202020202020202020202020" ;;
+    bundle-DP-998-novers) head="2121212121212121212121212121212121212121" ;;
+    bundle-DP-997-vA|bundle-DP-997-vB) head="3030303030303030303030303030303030303030" ;;
+    *) head="2020202020202020202020202020202020202020" ;;
+  esac
   mkdir -p "$(dirname "$file")"
   cat > "$file" <<MD
 ---
 bundle_branch_alias: ${alias}
+deliverable:
+  pr_url: https://example.test/pull/20
+  pr_state: OPEN
+  head_sha: ${head}
+  verification:
+    status: PASS
+    ac_counts:
+      ac_total: 0
+      ac_pass: 0
+      ac_fail: 0
+      ac_manual_required: 0
+      ac_uncertain: 0
 ---
 # ${task_id}
 
@@ -276,6 +353,49 @@ export FRAMEWORK_PR_LANE_STATE="$TMPDIR/pr-state.tsv"
 
 write_state
 bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" >"$TMPDIR"/dryrun.out
+write_state
+bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" >"$TMPDIR"/default-route.out 2>&1
+grep -q "upstream evidence fresh: stage=R2-R6" "$TMPDIR"/default-route.out \
+  || { echo "DP-386 T1: default lane must check upstream evidence freshness" >&2; cat "$TMPDIR"/default-route.out >&2; exit 1; }
+grep -q "skipping upstream-owned release preflight backstop stages by default" "$TMPDIR"/default-route.out \
+  || { echo "DP-386 T1: default lane must declare upstream backstop skip" >&2; cat "$TMPDIR"/default-route.out >&2; exit 1; }
+if grep -qE "running governed script test suite|running aggregate selftest corpus|running script header release gate|running script categorization release gate" "$TMPDIR"/default-route.out; then
+  echo "DP-386 T1: default lane must not rerun upstream-owned backstop gates" >&2
+  cat "$TMPDIR"/default-route.out >&2
+  exit 1
+fi
+
+write_state
+bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" --full-backstop >"$TMPDIR"/full-backstop.out 2>&1 || {
+  echo "DP-386 T1: --full-backstop fixture must pass" >&2
+  cat "$TMPDIR"/full-backstop.out >&2
+  exit 1
+}
+grep -q "running explicit --full-backstop upstream-owned release preflight stages" "$TMPDIR"/full-backstop.out \
+  || { echo "DP-386 T1: --full-backstop must announce explicit upstream run" >&2; cat "$TMPDIR"/full-backstop.out >&2; exit 1; }
+grep -q "running governed script test suite" "$TMPDIR"/full-backstop.out \
+  || { echo "DP-386 T1: --full-backstop must run governed script tests" >&2; cat "$TMPDIR"/full-backstop.out >&2; exit 1; }
+
+write_state
+set_task_deliverable_head "$TASK_DIR/T2.md" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+if bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" >"$TMPDIR"/stale-evidence.out 2>&1; then
+  echo "DP-386 T1: stale upstream evidence must fail release preflight" >&2
+  cat "$TMPDIR"/stale-evidence.out >&2
+  exit 1
+fi
+grep -q "stage=R2-R6" "$TMPDIR"/stale-evidence.out \
+  || { echo "DP-386 T1: stale evidence failure must name stage" >&2; cat "$TMPDIR"/stale-evidence.out >&2; exit 1; }
+grep -q "owner=upstream:engineering-completion" "$TMPDIR"/stale-evidence.out \
+  || { echo "DP-386 T1: stale evidence failure must name owner" >&2; cat "$TMPDIR"/stale-evidence.out >&2; exit 1; }
+grep -q "route_back=engineering" "$TMPDIR"/stale-evidence.out \
+  || { echo "DP-386 T1: stale evidence failure must name route_back" >&2; cat "$TMPDIR"/stale-evidence.out >&2; exit 1; }
+grep -q "evidence_status=stale" "$TMPDIR"/stale-evidence.out \
+  || { echo "DP-386 T1: stale evidence failure must name evidence_status" >&2; cat "$TMPDIR"/stale-evidence.out >&2; exit 1; }
+if grep -q "running aggregate selftest corpus" "$TMPDIR"/stale-evidence.out; then
+  echo "DP-386 T1: stale evidence must route back before full corpus can mask it" >&2
+  cat "$TMPDIR"/stale-evidence.out >&2
+  exit 1
+fi
 
 write_state
 bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" --execute >"$TMPDIR"/execute.out
@@ -323,6 +443,9 @@ grep -q "\[framework-release-pr-lane\] PASS" "$TMPDIR"/feat-aggregation.out
 T1_SHA="$(git -C "$REPO" rev-parse task/DP-999-T1-one)"
 T2_SHA="$(git -C "$REPO" rev-parse task/DP-999-T2-two)"
 T3_SHA="$(git -C "$REPO" rev-parse task/DP-999-T3-three)"
+set_task_deliverable_head "$TASK_DIR/T1.md" "$T1_SHA"
+set_task_deliverable_head "$TASK_DIR/T2.md" "$T2_SHA"
+set_task_deliverable_head "$TASK_DIR/T3.md" "$T3_SHA"
 git -C "$REPO" branch -f feat/DP-999 main
 git -C "$REPO" fetch -q origin feat/DP-999:refs/remotes/origin/feat/DP-999
 cat > "$TMPDIR/pr-state.tsv" <<EOF

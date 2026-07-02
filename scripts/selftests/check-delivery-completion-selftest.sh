@@ -1146,5 +1146,90 @@ EOF
 
 run_behavior_contract_case
 
+run_completion_profile_case() {
+  local label="$1"
+  local profile_arg="$2"
+  local spy_mode="$3"
+  local want_text="$4"
+
+  local repo="$TMPROOT/$label/repo"
+  local mockbin="$TMPROOT/$label/bin"
+  local body_file="$TMPROOT/$label/body.md"
+  local aggregate_spy="$TMPROOT/$label/aggregate-spy.sh"
+  local aggregate_marker="$TMPROOT/$label/aggregate-called"
+  mkdir -p "$TMPROOT/$label"
+
+  setup_repo "$repo"
+  mkdir -p "$repo/scripts/selftests"
+  cat > "$repo/scripts/selftests/completion-profile-fixture-selftest.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+  chmod +x "$repo/scripts/selftests/completion-profile-fixture-selftest.sh"
+
+  local head_sha
+  head_sha="$(git -C "$repo" rev-parse HEAD)"
+  write_task "$repo" "$head_sha"
+  write_task_verify_report "$repo" "$repo" "$head_sha"
+
+  cat > "$body_file" <<'EOF'
+## Description
+
+這是 completion gate selftest 內容。
+
+## Changed
+
+- 補齊 completion profile 檢查。
+
+## Screenshots (Test Plan)
+
+- 已執行 selftest。
+
+## Related documents
+
+- DP-999
+
+## QA notes
+
+- N/A
+EOF
+  install_mock_gh "$mockbin" "$body_file" "OPEN" "false" "$head_sha"
+
+  if [[ "$spy_mode" == "must_not_call" ]]; then
+    cat > "$aggregate_spy" <<'EOF'
+#!/usr/bin/env bash
+echo "aggregate runner should not be called for task-bound profile" >&2
+exit 42
+EOF
+  else
+    cat > "$aggregate_spy" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'called\\n' > "$aggregate_marker"
+exit 0
+EOF
+  fi
+  chmod +x "$aggregate_spy"
+
+  local profile_args=()
+  if [[ -n "$profile_arg" ]]; then
+    profile_args=(--verification-profile "$profile_arg")
+  fi
+
+  set +e
+  out="$(POLARIS_SKIP_CI_LOCAL=1 POLARIS_SKIP_EVIDENCE=1 POLARIS_SKIP_PR_TITLE_GATE=1 POLARIS_SKIP_CHANGESET_GATE=1 POLARIS_COMPLETION_AGGREGATE_SELFTESTS_BIN="$aggregate_spy" PATH="$mockbin:$PATH" "$CHECK" --repo "$repo" --ticket DP-999-T1 ${profile_args[@]+"${profile_args[@]}"} 2>&1)"
+  rc=$?
+  set -e
+
+  assert_rc "$label rc" "$rc" "0"
+  assert_contains "$label message" "$out" "$want_text"
+  if [[ "$spy_mode" == "must_call" ]]; then
+    assert_contains "$label aggregate called" "$(cat "$aggregate_marker" 2>/dev/null || true)" "called"
+  fi
+}
+
+run_completion_profile_case "task-bound-profile-skips-aggregate" "" "must_not_call" "aggregate corpus skipped"
+run_completion_profile_case "full-backstop-profile-runs-aggregate" "full-backstop" "must_call" "requires aggregate corpus"
+
 printf '\n=== check-delivery-completion selftest: %d/%d PASS ===\n' "$PASS" "$TOTAL"
 [[ "$PASS" -eq "$TOTAL" ]]

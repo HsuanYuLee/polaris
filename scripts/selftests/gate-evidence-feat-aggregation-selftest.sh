@@ -26,6 +26,10 @@
 #   while verify markers DO persist — the exact shape of the real DP-351 release.
 #
 # Coverage:
+#   IS0  / AC12    PASS:    empty feat/DP-NNN bootstrap branch whose HEAD equals
+#                           origin/main and origin/feat/DP-NNN does not yet exist
+#                           -> exit 0; this is branch creation, not release
+#                           aggregation, so pr-release evidence is not required.
 #   IS2  / AC1     PASS:    feat/DP-NNN head; completion-gate ABSENT but every
 #                           pr-release task has a persistent PASS verify marker
 #                           keyed on that task's OWN frontmatter head_sha
@@ -220,6 +224,26 @@ assert_no_skip_hint() {
     exit 1
   fi
 }
+
+# ── IS0 / AC12: empty feat/DP-NNN bootstrap branch, before any task PR lands. ──
+repo0="$WORKDIR/is0"
+setup_repo "$repo0" "feat/DP-386"
+git -C "$repo0" update-ref refs/remotes/origin/main HEAD
+set +e
+run_gate "$repo0" >"$WORKDIR/is0.out" 2>&1
+rc=$?
+set -e
+if [[ "$rc" -ne 0 ]]; then
+  echo "FAIL (IS0: empty feat bootstrap branch): expected exit 0, got $rc" >&2
+  cat "$WORKDIR/is0.out" >&2
+  exit 1
+fi
+grep -q 'empty feat-aggregation bootstrap branch feat/DP-386' "$WORKDIR/is0.out" || {
+  echo "FAIL (IS0): expected empty feat bootstrap branch message" >&2
+  cat "$WORKDIR/is0.out" >&2
+  exit 1
+}
+assert_no_skip_hint "$WORKDIR/is0.out" "IS0"
 
 # ── IS2 / AC1: feat/DP-NNN, completion-gate ABSENT, persistent verify markers at
 #    per-task heads (!= feat HEAD) → exit 0. This is the real DP-351 release shape.

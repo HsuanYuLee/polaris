@@ -877,6 +877,7 @@ check_verify_command_executability(task_id, effective_verify_command)
 # modules[].action field (DP-325 T4 / AC5), never a path/filename heuristic. The
 # V-task branch returned above, so this only runs for T tasks whose allowed files
 # the refinement records in top-level modules[].
+verify_gate_summary = "Verify Command exits 0"
 change_summary = (scope[:80] + "...") if len(scope) > 80 else scope
 change_rows = []
 for path in allowed_files:
@@ -1181,7 +1182,7 @@ depends_on: [{depends_on_frontmatter}]
 |------|---------|----------------|------------------|
 | scope | yes | changed files all match Allowed Files | engineering |
 | test | yes | `{verify_detail}` PASS | engineering |
-| verify | yes | `{effective_verify_command}` PASS | engineering |
+| verify | yes | {verify_gate_summary} | engineering |
 | ci-local | no | N/A | framework repo 無 ci-local |
 
 ## 估點理由

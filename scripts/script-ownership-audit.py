@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Purpose: classify each root script as skill_local / root_contract / shim_candidate
-/ sunset_orphan by cross-referencing its consumers with scripts/manifest.json.
+"""Purpose: classify framework scripts with placement taxonomy evidence.
 
 Inputs:  --root <path>, --format {table,json}.
 Outputs: stdout classification table or JSON; exit 0 on success.
@@ -35,6 +34,7 @@ SKIP_DIRS = {".git", "node_modules", ".worktrees", ".astro", "dist", "build", "_
 # Classification reads this authoritative field rather than a path/filename prefix
 # (DP-325 T4 / AC6).
 ROOT_CONTRACT_MANIFEST_KINDS = {"gate", "writer", "resolver", "release"}
+SCRIPT_SUFFIXES = {".sh", ".py", ".mjs", ".ts"}
 
 
 def iter_text_files(root: Path):
@@ -78,10 +78,35 @@ def load_manifest(root: Path):
     return {row["path"]: row for row in data.get("scripts", []) if isinstance(row, dict) and "path" in row}
 
 
-def root_scripts(root: Path):
+def candidate_scripts(root: Path):
+    scan_roots = [
+        root / "scripts",
+        root / ".claude" / "hooks",
+        root / ".claude" / "skills",
+    ]
     scripts = []
-    for path in (root / "scripts").iterdir():
-        if path.is_file() and path.suffix in {".sh", ".py", ".mjs"}:
+    for scan_root in scan_roots:
+        if not scan_root.exists():
+            continue
+        for path in scan_root.rglob("*"):
+            try:
+                rel_parts = path.relative_to(root).parts
+            except ValueError:
+                rel_parts = path.parts
+            if any(part in SKIP_DIRS for part in rel_parts):
+                continue
+            if path.is_file() and path.suffix in SCRIPT_SUFFIXES:
+                scripts.append(rel(root, path))
+    return sorted(set(scripts))
+
+
+def legacy_root_scripts(root: Path):
+    scripts = []
+    scripts_dir = root / "scripts"
+    if not scripts_dir.exists():
+        return scripts
+    for path in scripts_dir.iterdir():
+        if path.is_file() and path.suffix in SCRIPT_SUFFIXES:
             scripts.append(rel(root, path))
     return sorted(scripts)
 
@@ -229,8 +254,63 @@ def classify(script_path, manifest_row, consumers):
     }
 
 
+def shebang_for(root: Path, script_path: str) -> str | None:
+    try:
+        with (root / script_path).open("r", encoding="utf-8", errors="ignore") as handle:
+            first_line = handle.readline().strip()
+    except OSError:
+        return None
+    if first_line.startswith("#!"):
+        return first_line
+    return None
+
+
+def taxonomy_for(script_path, manifest_row, consumers, decision):
+    owner_surface = manifest_row.get("owner_surface", "") if manifest_row else ""
+    kind = manifest_row.get("kind", "") if manifest_row else ""
+    classification = decision["classification"]
+
+    if script_path.startswith("scripts/fixtures/") or "/fixtures/" in script_path:
+        return "generated_or_fixture"
+    if script_path.startswith("scripts/selftests/") or kind == "selftest":
+        return "selftest"
+    if script_path.startswith(".claude/hooks/") or owner_surface == "hook":
+        return "hook"
+    if script_path.startswith("scripts/lib/"):
+        return "framework_lib"
+    if script_path.startswith(".claude/skills/"):
+        return "skill_local"
+    if classification in {"skill_local", "root_contract", "shim_candidate", "sunset_orphan"}:
+        return classification
+    if classification in {"shared_reference_keep", "keep_root_with_reason"}:
+        return "framework_orchestration"
+    return "framework_orchestration"
+
+
+def taxonomy_evidence(root, script_path, manifest_row, consumers, taxonomy, decision):
+    evidence = [f"path={script_path}", f"taxonomy={taxonomy}"]
+    if manifest_row:
+        kind = manifest_row.get("kind")
+        owner_surface = manifest_row.get("owner_surface")
+        relocation = manifest_row.get("relocation")
+        if kind:
+            evidence.append(f"manifest.kind={kind}")
+        if owner_surface:
+            evidence.append(f"manifest.owner_surface={owner_surface}")
+        if relocation:
+            evidence.append(f"manifest.relocation={relocation}")
+    shebang = shebang_for(root, script_path)
+    if shebang:
+        evidence.append(f"shebang={shebang}")
+    evidence.append(f"classification={decision['classification']}")
+    evidence.append(f"consumer_count={len(consumers)}")
+    if decision.get("owner_skill"):
+        evidence.append(f"owner_skill={decision['owner_skill']}")
+    return evidence
+
+
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument("--root", default=".")
     parser.add_argument("--format", choices=["table", "json"], default="table")
     args = parser.parse_args()
@@ -246,7 +326,7 @@ def main():
             continue
 
     rows = []
-    for script_path in root_scripts(root):
+    for script_path in candidate_scripts(root):
         basename = os.path.basename(script_path)
         consumers = []
         for consumer_path, text in texts.items():
@@ -257,11 +337,14 @@ def main():
         consumers = sorted(set(consumers))
         row = manifest.get(script_path, {})
         decision = classify(script_path, row, consumers)
+        taxonomy = taxonomy_for(script_path, row, consumers, decision)
         rows.append(
             {
                 "path": script_path,
                 "kind": row.get("kind"),
                 "owner_surface": row.get("owner_surface"),
+                "taxonomy": taxonomy,
+                "taxonomy_evidence": taxonomy_evidence(root, script_path, row, consumers, taxonomy, decision),
                 "classification": decision["classification"],
                 "recommendation": decision["recommendation"],
                 "owner_skill": decision["owner_skill"],
@@ -272,12 +355,28 @@ def main():
             }
         )
 
+    root_only_count = len(legacy_root_scripts(root))
     summary = {
-        "root_scripts": len(rows),
+        "root_scripts": root_only_count,
+        "total_scripts": len(rows),
         "skill_local_scripts": sum(1 for row in rows if row["classification"] == "skill_local"),
         "root_contracts": sum(1 for row in rows if row["classification"] == "root_contract"),
         "shim_candidates": sum(1 for row in rows if row["classification"] == "shim_candidate"),
         "sunset_orphans": sum(1 for row in rows if row["classification"] == "sunset_orphan"),
+        "taxonomy": {
+            name: sum(1 for row in rows if row["taxonomy"] == name)
+            for name in [
+                "root_contract",
+                "framework_orchestration",
+                "framework_lib",
+                "selftest",
+                "hook",
+                "skill_local",
+                "generated_or_fixture",
+                "sunset_orphan",
+                "shim_candidate",
+            ]
+        },
     }
     output = {"summary": summary, "scripts": rows}
 
@@ -285,12 +384,13 @@ def main():
         print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
         return
 
-    print("path\tclassification\trecommendation\towner_skill\tconsumers\tlocal_leakage")
+    print("path\ttaxonomy\tclassification\trecommendation\towner_skill\tconsumers\tlocal_leakage")
     for row in rows:
         print(
             "\t".join(
                 [
                     row["path"],
+                    row["taxonomy"],
                     row["classification"],
                     row["recommendation"],
                     row.get("owner_skill") or "-",
