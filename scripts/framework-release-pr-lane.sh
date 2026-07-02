@@ -24,6 +24,7 @@ SCRIPT_MANIFEST_CHECKER="${POLARIS_SCRIPT_MANIFEST_CHECKER:-${SCRIPT_DIR}/check-
 SCRIPT_HEADER_VALIDATOR="${POLARIS_SCRIPT_HEADER_VALIDATOR:-${SCRIPT_DIR}/validate-script-header-comment.sh}"
 SCRIPT_CATEGORIZATION_VALIDATOR="${POLARIS_SCRIPT_CATEGORIZATION_VALIDATOR:-${SCRIPT_DIR}/validate-script-categorization.sh}"
 GOVERNED_SCRIPT_TEST_RUNNER="${POLARIS_GOVERNED_SCRIPT_TEST_RUNNER:-${SCRIPT_DIR}/run-governed-script-tests.sh}"
+TOPOLOGY_LIB="${POLARIS_FRAMEWORK_RELEASE_TOPOLOGY_LIB:-${SCRIPT_DIR}/lib/framework-release-topology.sh}"
 WORKSPACE_REPO=""
 MAIN_BRANCH="main"
 MAIN_BRANCH_EXPLICIT=0
@@ -51,6 +52,10 @@ fi
 . "${SCRIPT_DIR}/lib/release-gate-backstops.sh"
 # shellcheck source=lib/release-gate-lineage.sh
 . "${SCRIPT_DIR}/lib/release-gate-lineage.sh"
+if [[ -f "$TOPOLOGY_LIB" ]]; then
+  # shellcheck source=lib/framework-release-topology.sh
+  . "$TOPOLOGY_LIB"
+fi
 
 usage() {
   cat >&2 <<'EOF'
@@ -119,6 +124,12 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   # consumed changeset-driven inside the PR (mise run release:version) and ride the
   # verified PR HEAD, so the lane only runs the script-governance gates + merge.
   detect_bundle
+  if [[ -z "$BUNDLE_ALIAS" ]]; then
+    if ! declare -F framework_release_topology_classify_task_mds >/dev/null 2>&1; then
+      die "release preflight blocked: framework release topology guard is unavailable. Expected helper: $TOPOLOGY_LIB"
+    fi
+    framework_release_topology_classify_task_mds "${TASK_MDS[@]}" >/dev/null
+  fi
 
   run_script_manifest_release_gate
   if [[ -n "$BUNDLE_ALIAS" ]]; then

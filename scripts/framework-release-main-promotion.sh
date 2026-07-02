@@ -130,7 +130,7 @@ if [[ "$old_main" == "$release_head" ]]; then
 fi
 
 if git -C "$REPO_PATH" log --merges --format='%H' "${old_main}..${release_head}" | grep -q .; then
-  die "$HEAD_BRANCH introduces merge commits into ${BASE_BRANCH}. Rebase/linearize the feat branch before promotion."
+  die "$HEAD_BRANCH introduces merge commits into ${BASE_BRANCH} (final merge bubble / per-task merge commit / GitHub merge commit). Rebase/linearize the feat branch before promotion; framework-release promotion must be PR-gated fast-forward only."
 fi
 
 if [[ "$EXECUTE" != "1" ]]; then
@@ -145,7 +145,7 @@ git -C "$REPO_PATH" fetch origin "refs/heads/${BASE_BRANCH}:refs/remotes/origin/
 new_main="$(git -C "$REPO_PATH" rev-parse "refs/remotes/origin/${BASE_BRANCH}")"
 [[ "$new_main" == "$release_head" ]] || die "post-promotion origin/$BASE_BRANCH is '$new_main'; expected '$release_head'"
 if git -C "$REPO_PATH" log --merges --format='%H' "${old_main}..refs/remotes/origin/${BASE_BRANCH}" | grep -q .; then
-  die "post-promotion origin/$BASE_BRANCH contains merge commits between $old_main and $release_head"
+  die "post-promotion origin/$BASE_BRANCH contains merge commits between $old_main and $release_head (final merge bubble / per-task merge commit / GitHub merge commit)"
 fi
 
 echo "$PREFIX PASS: origin/$BASE_BRANCH fast-forwarded to $HEAD_BRANCH head $release_head"

@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.76.59] - 2026-07-02
+
+### Changed
+
+- 9d59219: 新增 framework DP release topology resolver，先以 task metadata、PR base/head records 與 git ancestry 分類 single PR、declared stack PR、sibling parallel invalid，並阻擋 squash-like trace loss。
+- 10f2b22: 將 framework release topology classifier 接進 release PR lane，non-bundle 多 task release 必須是 declared stack，並強化 main promotion 對 final merge bubble / per-task merge commit / GitHub merge commit 的 fail-stop 訊息。
+- 18e745d: 文件化 framework release topology contract：只允許 single PR 或 declared stack PR，禁止 sibling parallel task PR release、squash-like trace loss、promotion merge bubble 與 post-promotion raw repair。
+
 ## [3.76.58] - 2026-07-02
 
 ### Changed

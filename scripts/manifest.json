@@ -1146,6 +1146,16 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/framework-release-topology-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/framework-release-main-promotion-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -1512,6 +1522,15 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/lib/framework-release-topology.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "scripts/selftests/framework-release-topology-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/lib/release-gate-backstops.sh",
@@ -5796,6 +5815,25 @@
       ],
       "fixtures": [
         "fake gh"
+      ],
+      "enrolled": true,
+      "owner": "polaris-framework"
+    },
+    {
+      "id": "framework-release-topology",
+      "command": "bash scripts/selftests/framework-release-topology-selftest.sh",
+      "profiles": [
+        "delivery",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/lib/framework-release-topology.sh",
+        "scripts/selftests/framework-release-topology-selftest.sh"
+      ],
+      "fixtures": [
+        "task metadata",
+        "PR base/head records",
+        "git ancestry"
       ],
       "enrolled": true,
       "owner": "polaris-framework"

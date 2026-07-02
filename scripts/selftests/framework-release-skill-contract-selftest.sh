@@ -96,6 +96,8 @@ assert_grep_regex "AC4" "main promotion is fast-forward / linear" \
   'fast-forward|快轉|linear|線性'
 assert_grep_regex "AC4" "final merge bubble is forbidden" \
   'final merge bubble|不新增 final `Merge pull request'
+assert_grep_regex "AC4" "per-task / GitHub merge commit forbidden" \
+  'per-task merge commit|GitHub merge commit'
 assert_grep "AC4" "engineering=individual-DP-task-PR boundary declared" \
   '個別 DP task PR'
 
@@ -111,6 +113,8 @@ assert_grep "AC-NEG5" "AC-NEG5 no post-promotion raw version commit" \
   'AC-NEG5'
 assert_grep_regex "AC-NEG5" "post-promotion version commit prohibition concept" \
   'post-promotion.*版本.*commit|版本.*commit.*post-promotion|事後 release commit|promotion 後.*壓版本'
+assert_grep_regex "AC-NEG5" "post-promotion raw repair prohibition" \
+  'post-promotion raw version/template repair|promotion 後才 raw commit'
 
 # --- AC6: sync runs AFTER PR-gated main promotion (version lands on main first) ---
 assert_grep_regex "AC6" "sync after main promotion" \
@@ -153,6 +157,16 @@ assert_grep_regex "AC-NEG1" "individual DP task PR boundary: explicit no-version
 # main-targeting raw commit escape into the aggregation branch).
 assert_grep_regex "AC-NEG1" "DP task PR targets feat, never main directly" \
   'target `feat/DP-NNN`|拒絕 DP task PR 直接 target `main`|絕不直 target `main`|絕不直 merge `main`'
+assert_grep_regex "AC-NEG1" "release topology allows single PR or declared stack PR" \
+  'single PR|declared stack PR'
+assert_grep_regex "AC-NEG1" "sibling parallel task PR release forbidden" \
+  'multi-head sibling task PR release|sibling parallel heads'
+assert_grep_regex "AC-NEG3" "squash-like trace loss forbidden" \
+  'squash-like trace loss|soft reset flatten|GitHub squash merge|rebase merge'
+assert_grep_regex "AC-NEG4" "legacy non-stack repair guidance required" \
+  'legacy non-stack incident|repair guidance|ancestry disposition'
+assert_grep_regex "AC-NF4" "no DP-346-sized topology schema" \
+  'DP-346 類大型 topology schema|不得新增 DP-346'
 
 # --- AC-NEG3: no steady-state GitHub merge mode / old single-merge contract ---
 assert_absent "AC-NEG3" "no GitHub merge commit command in steady contract" \

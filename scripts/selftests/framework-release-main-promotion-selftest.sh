@@ -161,6 +161,32 @@ assert_eq "C3 mismatched PR head blocks" "2" "$rc"
 assert_contains "C3 identifies head oid mismatch" "$out" "head oid"
 assert_eq "C3 origin/main unchanged" "$old_main" "$(git -C "$repo" rev-parse origin/main)"
 
+# Case 4: promotion fails when the release head range contains a merge commit.
+repo="$(make_repo c4)"
+git -C "$repo" checkout -q -b feat/DP-999
+printf 'release\n' >>"$repo/file.txt"
+git -C "$repo" add file.txt
+git -C "$repo" commit -q -m "fix(framework): release payload"
+git -C "$repo" checkout -q -b task/DP-999-T1
+printf 'task\n' >>"$repo/file.txt"
+git -C "$repo" add file.txt
+git -C "$repo" commit -q -m "fix(framework): task payload"
+git -C "$repo" checkout -q feat/DP-999
+git -C "$repo" merge --no-ff -m "Merge pull request #1 from task/DP-999-T1" task/DP-999-T1 >/dev/null 2>&1
+git -C "$repo" push -u origin feat/DP-999 >/dev/null 2>&1
+release_head="$(git -C "$repo" rev-parse origin/feat/DP-999)"
+old_main="$(git -C "$repo" rev-parse origin/main)"
+mockbin="$TMPROOT/c4-bin"
+write_mock_gh "$mockbin" "OPEN" "main" "feat/DP-999" "$release_head" "CLEAN" "false"
+
+set +e
+out="$(GH_BIN="$mockbin/gh" bash "$HELPER" --repo "$repo" --pr 999 --head feat/DP-999 --execute 2>&1)"
+rc=$?
+set -e
+assert_eq "C4 merge commit blocks" "2" "$rc"
+assert_contains "C4 identifies final merge bubble" "$out" "final merge bubble"
+assert_eq "C4 origin/main unchanged" "$old_main" "$(git -C "$repo" rev-parse origin/main)"
+
 # Static contract: the helper must not call GitHub merge modes or force-push.
 assert_not_grep_file "helper avoids gh merge modes" 'gh pr merge|[[:space:]]--merge([[:space:]]|$)|[[:space:]]--squash([[:space:]]|$)|[[:space:]]--rebase([[:space:]]|$)' "$HELPER"
 assert_not_grep_file "helper avoids force push flags" '--force|force-with-lease' "$HELPER"

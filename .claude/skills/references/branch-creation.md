@@ -85,6 +85,12 @@ develop -> feat/EPIC-478-cwv-js-bundle -> task/TASK-3711-dayjs-infra -> task/TAS
 
 engineering first-cut / revision 會以 `scripts/cascade-rebase-chain.sh` 先自上而下 rebase 這條鏈；但 `gh pr create --base` / `gh pr edit --base` 仍只使用 `resolve-task-base.sh` 的輸出。
 
+Framework DP release topology note（DP-392）：同一 framework DP 若拆成多張 task
+PR，`Branch chain` 必須表達 declared stack PR，例如
+`feat/DP-NNN -> task/DP-NNN-T1 -> task/DP-NNN-T2`。不要讓多張 task PR 都 base 到同一個
+`feat/DP-NNN` 形成 multi-head sibling task PR release；framework-release 會 fail-stop，
+要求改成 single PR 或 declared stack PR。
+
 外部 dependency branch 不是本 Epic 的 owned branch。若 task 需要 base on 別人的 unmerged branch / PR head，`Branch chain` 從該外部 branch 開始：
 
 ```text

@@ -53,6 +53,13 @@ until one of these is true:
 
 The release lane must not silently reinterpret this signal as advisory-only.
 
+DP-392 topology guard 屬於同一個 release preflight boundary。Framework DP release
+只能是 single PR 或 declared stack PR；multi-head sibling task PR release 一律 invalid。
+legacy non-stack repair 必須 fail-stop，附 repair guidance 與 SHA ancestry disposition，
+不得靠 `bundle_branch_alias` 或 prose metadata 放行。PR-gated fast-forward promotion
+後，`main` 的 release range 不得包含 final merge bubble、per-task merge commit 或
+GitHub merge commit。
+
 ## Backlog Hygiene
 
 `polaris-backlog.md` items carry a date tag `(YYYY-MM-DD)` and optional exemption tags (`[platform]`, `[next-epic]`).
