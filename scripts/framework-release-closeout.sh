@@ -24,6 +24,16 @@ set -euo pipefail
 # Repeated per-task inputs are positional. Each --task-md must have one
 # --verify-evidence. --task-head-sha is optional; when omitted it is resolved
 # from the task branch in task.md.
+#
+# DP-393 T2: release-residue branch/worktree cleanup is DEFAULT / MANDATORY.
+# After every task is closed out, closeout deletes each released DP's feat/DP-NNN,
+# task/DP-NNN-*, and chore/DP-NNN-* branches (local AND remote, idempotent — an
+# already-gone branch is a no-op, not an error), removes their clean
+# implementation worktrees, and runs a fail-loud FINAL residue verification that
+# exits non-zero with POLARIS_FRAMEWORK_RELEASE_RESIDUE when any DP-scoped branch
+# or worktree residue survives. The legacy --delete-branches flag is accepted but
+# DEPRECATED / no-op: cleanup no longer depends on it (AC-NEG4 — cleanup must be
+# the closeout's default behavior, not a maintainer-supplied flag).
 # After the parent DP reaches IMPLEMENTED, the canonical DP container is archived
 # automatically. docs-manager reads canonical specs directly, so no viewer sync is
 # needed after this move.
@@ -57,7 +67,6 @@ WORKSPACE_COMMIT=""
 TEMPLATE_COMMIT=""
 VERSION_TAG=""
 RELEASE_URL=""
-DELETE_BRANCHES=0
 # DP-305 D1: resolved gh binary for bundled task PR close. Lazily resolved the
 # first time a deliverable PR needs closing (see close_bundled_task_pr); a bundle
 # with no deliverable PRs never pays the gh preflight cost.
@@ -106,7 +115,7 @@ task_head_sha_map_get() {
 }
 
 usage() {
-  sed -n '3,34p' "$0" >&2
+  sed -n '3,39p' "$0" >&2
 }
 
 die() {
@@ -516,29 +525,185 @@ close_bundled_task_pr() {
   info "closed bundled task PR #${pr_ref} for ${task_id} (released ${VERSION_TAG})"
 }
 
-delete_branch_if_safe() {
-  local task_branch="$1"
-  local task_head_sha="$2"
+# --- DP-393 T2: mandatory release-residue branch/worktree cleanup ------------
+#
+# Release-residue cleanup is DEFAULT / MANDATORY (it is NOT gated on any flag;
+# the legacy --delete-branches is a deprecated no-op). These helpers reuse the
+# residue-enumeration PRIMITIVES established in scripts/release-cleanup-sweep.sh
+# (git ref-glob branch enumeration + a `git worktree list --porcelain` parse)
+# rather than adding a second residue classifier (D20 reuse-first).
+# release-cleanup-sweep sweeps the WHOLE workspace for every already-released DP
+# and depends on gh for its orphan-PR path, so it cannot serve as a per-DP
+# fail-loud verification at closeout time; the same git enumeration technique is
+# applied inline here, scoped to one DP and widened to the feat / task / chore
+# branch families the closeout owns (release-cleanup-sweep only sweeps task/ +
+# bundle- remotes).
 
-  [[ "$DELETE_BRANCHES" -eq 1 ]] || return 0
+# Description: Derive the DP id (DP-NNN) from a work-item / task id.
+# Args:        $1 = task id, e.g. "DP-393-T2" (a bare "DP-393" is returned as-is).
+# Side effects: none. Prints the DP-NNN token, or nothing for a non-DP id.
+dp_id_from_task_id() {
+  printf '%s\n' "$1" | grep -oE '^DP-[0-9]+' || true
+}
 
-  if ! git -C "$REPO_ROOT" merge-base --is-ancestor "$task_head_sha" "$WORKSPACE_COMMIT"; then
-    die "refusing branch delete; workspace_commit does not contain task head for ${task_branch}"
+# Description: Short name of the branch currently checked out in REPO_ROOT.
+# Args:        none.
+# Side effects: none (read-only). Empty on a detached HEAD.
+current_branch_short() {
+  git -C "$REPO_ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null || true
+}
+
+# Description: Enumerate LOCAL residue branches for a DP (feat/DP-NNN,
+#              feat/DP-NNN-*, task/DP-NNN-*, chore/DP-NNN-*), one short name per
+#              line.
+# Args:        $1 = DP id (DP-NNN).
+# Side effects: none (read-only).
+dp_residue_local_branches() {
+  local dp="$1"
+  git -C "$REPO_ROOT" for-each-ref --format='%(refname:short)' \
+    "refs/heads/feat/${dp}" "refs/heads/feat/${dp}-*" \
+    "refs/heads/task/${dp}-*" "refs/heads/chore/${dp}-*" 2>/dev/null || true
+}
+
+# Description: Enumerate REMOTE (origin) residue branches for a DP, one short
+#              name per line. Guarded so a missing / offline origin is a clean
+#              no-op (idempotent when the remote branch — or origin — is absent).
+# Args:        $1 = DP id (DP-NNN).
+# Side effects: none (read-only network query on origin).
+dp_residue_remote_branches() {
+  local dp="$1"
+  git -C "$REPO_ROOT" ls-remote --heads origin \
+    "refs/heads/feat/${dp}" "refs/heads/feat/${dp}-*" \
+    "refs/heads/task/${dp}-*" "refs/heads/chore/${dp}-*" 2>/dev/null \
+    | awk '{ ref = $2; sub(/^refs\/heads\//, "", ref); print ref }' || true
+}
+
+# Description: Enumerate LINKED worktrees checked out on a DP residue branch
+#              (feat/task/chore for this DP). Emits "path<TAB>branch" lines. The
+#              PRIMARY worktree (the main checkout — always the first porcelain
+#              record) is never residue and is excluded, so a dirty main checkout
+#              standing on a DP branch is not mistaken for a removable residue
+#              worktree.
+# Args:        $1 = DP id (DP-NNN).
+# Side effects: none (read-only).
+dp_residue_worktrees() {
+  local dp="$1"
+  local line cur_wt="" branch main_wt=""
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*)
+        cur_wt="${line#worktree }"
+        # The first porcelain record is always the primary (main) worktree.
+        if [[ -z "$main_wt" ]]; then main_wt="$cur_wt"; fi
+        ;;
+      "branch "*)
+        branch="${line#branch }"
+        branch="${branch#refs/heads/}"
+        if [[ "$cur_wt" != "$main_wt" ]] \
+           && { [[ "$branch" == "feat/${dp}" ]] || [[ "$branch" == feat/"${dp}"-* ]] \
+             || [[ "$branch" == task/"${dp}"-* ]] || [[ "$branch" == chore/"${dp}"-* ]]; }; then
+          printf '%s\t%s\n' "$cur_wt" "$branch"
+        fi
+        cur_wt=""
+        ;;
+      "") cur_wt="" ;;
+    esac
+  done < <(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null)
+}
+
+# Description: Mandatory (default) residue cleanup for ONE released DP. Removes
+#              clean implementation worktrees on the DP's feat/task/chore
+#              branches, then deletes those branches locally and on origin. Every
+#              primitive is idempotent: an already-removed worktree, an
+#              already-deleted local branch, and an already-absent remote branch
+#              are all no-ops, not errors (EC4). The branch the closeout is
+#              standing on is never deleted (git cannot delete the checked-out
+#              branch); a dirty residue worktree is a fail-stop so uncommitted
+#              work is never silently discarded.
+# Args:        $1 = DP id (DP-NNN).
+# Side effects: git worktree remove, git branch -D, git push origin --delete.
+cleanup_dp_release_residue() {
+  local dp="$1"
+  local cur_branch path branch short
+  cur_branch="$(current_branch_short)"
+
+  # Worktrees first — a branch checked out in a worktree cannot be deleted.
+  while IFS=$'\t' read -r path branch; do
+    [[ -n "$path" ]] || continue
+    [[ -d "$path" ]] || continue
+    if [[ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ]]; then
+      die "refusing residue cleanup: dirty worktree on ${branch} at ${path} (commit or stash before release closeout)"
+    fi
+    if git -C "$REPO_ROOT" worktree remove "$path" >/dev/null 2>&1 \
+       || git -C "$REPO_ROOT" worktree remove --force "$path" >/dev/null 2>&1; then
+      info "removed release-residue worktree: ${path} (${branch})"
+    else
+      info "release-residue worktree already absent or unremovable: ${path}"
+    fi
+  done < <(dp_residue_worktrees "$dp")
+  git -C "$REPO_ROOT" worktree prune >/dev/null 2>&1 || true
+
+  # Local branches. -D (force): released heads already contained in the workspace
+  # release commit. Never delete the branch HEAD is standing on.
+  while IFS= read -r short; do
+    [[ -n "$short" ]] || continue
+    if [[ "$short" == "$cur_branch" ]]; then
+      info "release-residue local branch is current HEAD; not deleting: ${short}"
+      continue
+    fi
+    if git -C "$REPO_ROOT" branch -D "$short" >/dev/null 2>&1; then
+      info "deleted release-residue local branch: ${short}"
+    else
+      info "release-residue local branch already absent: ${short}"
+    fi
+  done < <(dp_residue_local_branches "$dp")
+
+  # Remote branches on origin (idempotent — absent origin / branch is a no-op).
+  while IFS= read -r short; do
+    [[ -n "$short" ]] || continue
+    if git -C "$REPO_ROOT" push origin --delete "$short" >/dev/null 2>&1; then
+      info "deleted release-residue remote branch: origin/${short}"
+    else
+      info "release-residue remote branch already absent: origin/${short}"
+    fi
+  done < <(dp_residue_remote_branches "$dp")
+}
+
+# Description: Fail-loud FINAL residue verification for ONE released DP.
+#              Re-enumerates the DP's local branches, origin remote branches and
+#              worktrees; if ANY residue survives, dies with
+#              POLARIS_FRAMEWORK_RELEASE_RESIDUE (exit 2). A still-checked-out
+#              residue branch is reported too — closeout must be run from the
+#              default branch so feat/DP-NNN is deletable. Clean => return 0.
+# Args:        $1 = DP id (DP-NNN).
+# Side effects: none (read-only); dies (exit 2) on surviving residue.
+verify_no_dp_release_residue() {
+  local dp="$1"
+  local short path branch item
+  local -a residue=()
+
+  while IFS= read -r short; do
+    [[ -n "$short" ]] || continue
+    residue+=("local-branch:${short}")
+  done < <(dp_residue_local_branches "$dp")
+
+  while IFS= read -r short; do
+    [[ -n "$short" ]] || continue
+    residue+=("remote-branch:origin/${short}")
+  done < <(dp_residue_remote_branches "$dp")
+
+  while IFS=$'\t' read -r path branch; do
+    [[ -n "$path" ]] || continue
+    residue+=("worktree:${path} (${branch})")
+  done < <(dp_residue_worktrees "$dp")
+
+  if [[ "${#residue[@]}" -gt 0 ]]; then
+    for item in "${residue[@]}"; do
+      info "release residue survived for ${dp}: ${item}"
+    done
+    die "POLARIS_FRAMEWORK_RELEASE_RESIDUE:${dp} residue survived mandatory closeout cleanup (run closeout from the default branch so feat/${dp} is deletable)"
   fi
-
-  if git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/${task_branch}"; then
-    git -C "$REPO_ROOT" branch -d "$task_branch"
-    info "deleted local branch ${task_branch}"
-  else
-    info "local branch already absent: ${task_branch}"
-  fi
-
-  if git -C "$REPO_ROOT" ls-remote --exit-code --heads origin "$task_branch" >/dev/null 2>&1; then
-    git -C "$REPO_ROOT" push origin --delete "$task_branch"
-    info "deleted remote branch origin/${task_branch}"
-  else
-    info "remote branch already absent: origin/${task_branch}"
-  fi
+  info "verified no release residue for ${dp}"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -587,7 +752,12 @@ while [[ $# -gt 0 ]]; do
     --template-commit) TEMPLATE_COMMIT="${2:-}"; shift 2 ;;
     --version-tag) VERSION_TAG="${2:-}"; shift 2 ;;
     --release-url) RELEASE_URL="${2:-}"; shift 2 ;;
-    --delete-branches) DELETE_BRANCHES=1; shift ;;
+    --delete-branches)
+      # DP-393 T2: deprecated no-op. Residue cleanup is now mandatory / default
+      # (AC-NEG4), so this flag no longer gates any behavior; accepted for
+      # backward compatibility so existing callers do not error.
+      info "note: --delete-branches is DEPRECATED and a no-op; release-residue cleanup is now mandatory (DP-393 T2)"
+      shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
@@ -960,7 +1130,9 @@ declare -a MOVED_RELEASE_COMPLETED_CHECK=()
 for i in "${!ABS_TASK_MDS[@]}"; do
   task_md="${ABS_TASK_MDS[$i]}"
   task_id="${TASK_IDS[$i]}"
-  task_branch="${TASK_BRANCHES[$i]}"
+  # DP-393 T2: per-task branch delete removed; task_branch is no longer read in
+  # this loop (residue cleanup runs per-DP after Phase 2). TASK_BRANCHES stays
+  # populated for classify/head bookkeeping in the parse loop above.
   task_head_sha="${RESOLVED_TASK_HEADS[$i]}"
   worktree_kind="${TASK_WORKTREE_KINDS[$i]}"
   no_branch_content_delivered="${TASK_NO_BRANCH_FLAGS[$i]}"
@@ -1097,7 +1269,9 @@ PY
   # local/remote branch, so GitHub does not leave the task PR stuck open after a
   # re-fold whose head is not a main-ancestor.
   close_bundled_task_pr "$parser_json" "$task_id"
-  delete_branch_if_safe "$task_branch" "$task_head_sha"
+  # DP-393 T2: per-task branch delete removed. Release-residue branch/worktree
+  # cleanup (feat/task/chore, local + remote) + fail-loud verification now runs
+  # once per released DP after Phase 2 (see the mandatory cleanup pass below).
   source_container="$(resolve_source_container_for_task "$moved_task_md")"
   if [[ -n "$source_container" && -x "$CHECK_MAIN_CHAIN_COMPLIANCE" ]] \
     && find "$source_container/tasks" \( -name 'V*.md' -o -path '*/V*/index.md' \) -type f -print -quit 2>/dev/null | grep -q .; then
@@ -1162,6 +1336,29 @@ for j in "${!MOVED_TASK_MDS[@]}"; do
       --task-md "$current_task_md" \
       ${TEMPLATE_REPO:+--template-repo "$TEMPLATE_REPO"}
   fi
+done
+
+# ---------------------------------------------------------------------------
+# DP-393 T2: mandatory release-residue cleanup + fail-loud FINAL verification.
+# Every task has been closed out (Phase 1) and every parent container closed
+# (Phase 2). Now, once per released DP, delete its feat/DP-NNN, task/DP-NNN-*
+# and chore/DP-NNN-* branches (local AND remote) and remove their clean
+# implementation worktrees — DEFAULT behavior, not gated on any flag (AC-NEG4) —
+# then fail loud (POLARIS_FRAMEWORK_RELEASE_RESIDUE / exit 2) if any DP-scoped
+# residue survived. Non-DP task ids (e.g. JIRA-Epic sources) have no DP-scoped
+# residue and are skipped.
+declare -a CLEANED_DP_IDS=()
+for task_id in "${TASK_IDS[@]}"; do
+  dp_id="$(dp_id_from_task_id "$task_id")"
+  [[ -n "$dp_id" ]] || continue
+  already_cleaned=0
+  for cleaned in "${CLEANED_DP_IDS[@]:-}"; do
+    [[ -n "$cleaned" && "$cleaned" == "$dp_id" ]] && { already_cleaned=1; break; }
+  done
+  [[ "$already_cleaned" -eq 1 ]] && continue
+  CLEANED_DP_IDS+=("$dp_id")
+  cleanup_dp_release_residue "$dp_id"
+  verify_no_dp_release_residue "$dp_id"
 done
 
 info "PASS: framework release closeout completed for ${#ABS_TASK_MDS[@]} task(s)"

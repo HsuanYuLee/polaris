@@ -15,6 +15,11 @@ TASK_MD=""
 
 # shellcheck source=../lib/specs-root.sh
 . "$ROOT_DIR/scripts/lib/specs-root.sh"
+# specs-root.sh sources main-checkout.sh lazily (only inside
+# resolve_specs_workspace_root); the DP-393 chore guard needs resolve_main_checkout
+# up front, so source it explicitly here.
+# shellcheck source=../lib/main-checkout.sh
+. "$ROOT_DIR/scripts/lib/main-checkout.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -82,6 +87,133 @@ resolve_task_by_branch_fallback() {
   return 1
 }
 
+# ── DP-393 chore-followup framework-owned change guard ────────────────────────
+# The chore-followup lane below only checks that the parent DP is IMPLEMENTED; it
+# historically did NOT inspect the branch's changed files, so a chore/DP-NNN
+# branch could smuggle a framework-owned behavior change (scripts/**, .claude
+# rules/skills/hooks, generated runtime targets, config surfaces) into a release-
+# tail housekeeping PR and skip the DP-backed task.md work-order flow. This guard
+# resolves a worktree-aware diff base, computes the branch's changed files with
+# the same `git diff --name-only base..HEAD` primitive gate-changed-files-scope.sh
+# uses, then classifies each changed path with a fixed denylist/allowlist:
+#   - denylist (framework-owned behavior surfaces) → BLOCK
+#   - allowlist (release-tail manifest / housekeeping) → permitted
+#   - anything else (incl. generated runtime targets) → BLOCK (fail-closed)
+# Deny takes precedence over allow, so a diff touching both is BLOCKed (EC1). The
+# guard is not routed through gate-changed-files-scope.sh itself because that gate
+# is a pure refinement.json allowlist with different repair guidance, and it is
+# not in this task's Allowed Files; the diff primitive and glob matching are the
+# shared reuse point.
+
+# chore_changed_file_is_denied <path>: framework-owned behavior surface denylist.
+# Mirrors the framework-owned path list in
+# .claude/rules/workspace-self-development.md. Returns 0 when denied.
+chore_changed_file_is_denied() {
+  local path="$1"
+  case "$path" in
+    .claude/skills/*|.claude/rules/*|.claude/hooks/*|.claude/references/*|.claude/instructions/*) return 0 ;;
+    scripts/*) return 0 ;;
+    .agents/*|.codex/*) return 0 ;;
+    .github/copilot-instructions.md) return 0 ;;
+    mise.toml|workspace-config.yaml) return 0 ;;
+  esac
+  return 1
+}
+
+# chore_changed_file_is_allowed <path>: release-tail manifest / housekeeping
+# allowlist. Generated runtime targets (CLAUDE.md / AGENTS.md / .codex/AGENTS.md /
+# .github/copilot-instructions.md) are deliberately NOT in the allowlist and so
+# fall through to a fail-closed BLOCK (EC2). Returns 0 when allowed.
+chore_changed_file_is_allowed() {
+  local path="$1"
+  case "$path" in
+    VERSION|package.json|CHANGELOG.md) return 0 ;;
+    .changeset/*) return 0 ;;
+    docs-manager/src/content/docs/specs/design-plans/*) return 0 ;;
+  esac
+  return 1
+}
+
+# chore_resolve_diff_base <repo> <dp>: echo the worktree-aware diff base for the
+# chore branch's changed-file computation, or return 1 (fail-closed) when no base
+# can be resolved. Three scenarios (EC3):
+#   1. feat/DP-NNN exists  → base = merge-base(HEAD, feat/DP-NNN)
+#   2. no feat/DP-NNN but a main/master merge-base exists → base = that merge-base
+#   3. neither resolvable  → return 1 (caller BLOCKs; the lane never falls open)
+# resolve_main_checkout (sourced transitively via specs-root.sh) makes ref
+# resolution work from inside a linked worktree as well as the main checkout.
+chore_resolve_diff_base() {
+  local repo="$1"
+  local dp="$2"
+  local main_root=""
+  main_root="$(resolve_main_checkout "$repo" 2>/dev/null || true)"
+  [[ -n "$main_root" ]] || return 1
+  local base=""
+  local feat_ref="feat/$dp"
+  if git -C "$repo" rev-parse --verify --quiet "$feat_ref^{commit}" >/dev/null 2>&1; then
+    base="$(git -C "$repo" merge-base HEAD "$feat_ref" 2>/dev/null || true)"
+  fi
+  if [[ -z "$base" ]]; then
+    local main_ref
+    for main_ref in origin/main main origin/master master; do
+      if git -C "$repo" rev-parse --verify --quiet "$main_ref^{commit}" >/dev/null 2>&1; then
+        base="$(git -C "$repo" merge-base HEAD "$main_ref" 2>/dev/null || true)"
+        [[ -n "$base" ]] && break
+      fi
+    done
+  fi
+  [[ -n "$base" ]] || return 1
+  printf '%s\n' "$base"
+}
+
+# chore_guard_changed_files <repo> <dp>: enforce the denylist/allowlist over the
+# chore branch's changed files. Returns 0 when every changed file is permitted,
+# 2 when a framework-owned change is present or the diff base is unresolvable.
+# Emits the offending path(s) and repair guidance to stderr on BLOCK (AC-NF2).
+chore_guard_changed_files() {
+  local repo="$1"
+  local dp="$2"
+  local base=""
+  if ! base="$(chore_resolve_diff_base "$repo" "$dp")"; then
+    cat >&2 <<EOF
+$PREFIX BLOCKED: chore-followup lane could not resolve a diff base for $current_branch.
+Cannot verify the branch only touches release-tail housekeeping, so the lane
+fails closed. Push feat/$dp (or ensure a main merge-base exists), or route the
+change through a DP-backed task.md work order.
+EOF
+    return 2
+  fi
+  local changed=""
+  changed="$(git -C "$repo" diff --name-only "$base..HEAD" 2>/dev/null || true)"
+  local offending=()
+  local path
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    if chore_changed_file_is_denied "$path"; then
+      offending+=("$path (framework-owned behavior surface)")
+    elif chore_changed_file_is_allowed "$path"; then
+      continue
+    else
+      offending+=("$path (not a release-tail housekeeping path)")
+    fi
+  done <<EOF
+$changed
+EOF
+  if [[ "${#offending[@]}" -gt 0 ]]; then
+    {
+      echo "$PREFIX BLOCKED: chore-followup lane is release-tail housekeeping only;"
+      echo "framework-owned behavior changes must go through a DP-backed task.md."
+      echo "Offending changed files:"
+      for path in "${offending[@]}"; do
+        echo "  - $path"
+      done
+      echo "Route the change through: DP/refinement -> breakdown -> engineering task.md -> PR."
+    } >&2
+    return 2
+  fi
+  return 0
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO_ROOT="$2"; shift 2 ;;
@@ -147,6 +279,12 @@ if [[ "$current_branch" =~ ^chore/(DP-[0-9]+)- ]]; then
     done < <(find "$chore_container/tasks/pr-release" -maxdepth 3 -type f \
               \( -name "T*.md" -o -name "index.md" \) 2>/dev/null)
     if [[ "$chore_parent_implemented" -eq 1 ]]; then
+      # DP-393: the parent DP being IMPLEMENTED is necessary but not sufficient.
+      # The chore-followup lane is release-tail housekeeping only, so also require
+      # the branch's changed files to stay off framework-owned behavior surfaces.
+      if ! chore_guard_changed_files "$REPO_ROOT" "$chore_dp"; then
+        exit 2
+      fi
       echo "$PREFIX ✅ chore-followup lane: branch=$current_branch parent_dp=$chore_dp IMPLEMENTED" >&2
       exit 0
     fi

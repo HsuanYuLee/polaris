@@ -9,6 +9,9 @@
 #   - text header（friction-intake unconverted=N ledgers-scanned=M）+ per-entry
 #     line（INTAKE source=... ledger=... ts=... kind=... summary=...）格式。
 #   - --json mode shape（unconverted / ledgers_scanned / entries[]）。
+#   - archived-DP / archived-company ledger（design-plans/archive/DP-*、
+#     companies/*/archive/*）的 UN-CONVERTED friction 仍進入 intake（DP-393 T3 AC4/AC5/
+#     AC-NEG3）；archived 且已 seed（EC5）維持 CONVERTED 隱藏；active-DP 行為不變。
 #   - idempotency：兩次執行 byte-identical。
 #   - fail-closed negative：壞 ledger JSON → POLARIS_LEDGER_MALFORMED + exit 2；
 #     --root 與 --ledger 互斥 → exit 2。
@@ -209,6 +212,62 @@ _assert_eq "$([[ "$N_EXIT" -eq 2 ]] && echo two || echo "$N_EXIT")" "two" \
   "missing python3 fail-closed exit 2"
 _assert_contains "$NOPY_OUT" "POLARIS_TOOL_MISSING:python3" \
   "missing python3 emits POLARIS_TOOL_MISSING with repair hint"
+
+# ===========================================================================
+# Case 8 (DP-393 T3) — archived-DP / archived-company ledgers still enter intake.
+# A fresh fixture tree keeps the earlier exact-count assertions untouched. It mixes
+# active + archived containers to prove the archive globs are additive (active-DP
+# discovery unchanged) and source-symmetric (DP-backed + JIRA-Epic-backed archive).
+# ===========================================================================
+WS2="$TMPROOT/ws2"
+SPECS2="$WS2/docs-manager/src/content/docs/specs"
+DP2="$SPECS2/design-plans"
+CO2="$SPECS2/companies"
+
+# (a) ACTIVE DP, UN-CONVERTED — regression: adding archive globs must not drop active.
+write_ledger "$DP2/DP-393-active/artifacts/auto-pass/20260601-000000-ledger.json" \
+  '[{"ts":"2026-06-01T00:00:00Z","stage":"engineering","friction_kind":"manual_artifact_patch","summary":"active-dp-friction-K"}]'
+
+# (b) ARCHIVED DP (DP-392-like), UN-CONVERTED — must appear in intake (AC4/AC5/AC-NEG3).
+#     No sibling report → not converted; models release-cleanup friction stranded in
+#     an archived ledger.
+write_ledger "$DP2/archive/DP-392-release-cleanup/artifacts/auto-pass/20260602-000000-ledger.json" \
+  '[{"ts":"2026-06-02T00:00:00Z","stage":"framework-release","friction_kind":"deterministic_gap","summary":"archived-dp392-cleanup-friction-L"}]'
+
+# (c) ARCHIVED DP already seeded (EC5) — sibling report.follow_up_dp_seed non-null →
+#     stays CONVERTED and hidden even inside archive/.
+write_ledger "$DP2/archive/DP-392-seeded/artifacts/auto-pass/20260603-000000-ledger.json" \
+  '[{"ts":"2026-06-03T00:00:00Z","stage":"framework-release","friction_kind":"deterministic_gap","summary":"archived-dp392-seeded-friction-M"}]'
+write_report "$DP2/archive/DP-392-seeded/artifacts/auto-pass/20260603-000000-report.json" \
+  '{"path":"docs-manager/src/content/docs/specs/design-plans/DP-393-follow-up/index.md","reason":"manual_items","source_report":"/abs/report.json","framework_gap":true}'
+
+# (d) ARCHIVED company (JIRA-Epic-backed) ledger, UN-CONVERTED — source-parity: the
+#     archive glob must catch companies/*/archive/* too, not just DP-backed archive.
+write_ledger "$CO2/exampleco/archive/EXAMPLE-999/artifacts/auto-pass/20260604-000000-ledger.json" \
+  '[{"ts":"2026-06-04T00:00:00Z","stage":"verify-AC","friction_kind":"env_bypass","summary":"archived-company-friction-N"}]'
+
+ARC_OUT="$(bash "$SCANNER" --root "$WS2" 2>&1)" && A_EXIT=0 || A_EXIT=$?
+_assert_eq "$A_EXIT" "0" "archived-fixture scan exits 0"
+
+# 4 ledgers scanned (active DP + 2 archived DP + 1 archived company); unconverted = K+L+N.
+_assert_contains "$ARC_OUT" "friction-intake unconverted=3 ledgers-scanned=4" \
+  "archived globs additive: 4 scanned, 3 unconverted"
+_assert_contains "$ARC_OUT" "INTAKE source=DP-392-release-cleanup" \
+  "archived-DP UN-CONVERTED friction enters intake (AC4/AC5/AC-NEG3)"
+_assert_contains "$ARC_OUT" "archived-dp392-cleanup-friction-L" \
+  "archived-DP friction summary present in intake output"
+_assert_contains "$ARC_OUT" "INTAKE source=EXAMPLE-999" \
+  "archived-company (JIRA-Epic) friction enters intake (source parity)"
+_assert_contains "$ARC_OUT" "INTAKE source=DP-393-active" \
+  "active-DP discovery unchanged by archive globs (regression)"
+_assert_not_contains "$ARC_OUT" "archived-dp392-seeded-friction-M" \
+  "archived + seeded (EC5) stays CONVERTED, hidden from intake"
+
+# json mode over the same archived tree keeps the seeded friction hidden as well.
+ARC_JSON="$(bash "$SCANNER" --root "$WS2" --json 2>&1)" && AJ_EXIT=0 || AJ_EXIT=$?
+_assert_eq "$AJ_EXIT" "0" "archived-fixture json mode exits 0"
+_assert_not_contains "$ARC_JSON" "archived-dp392-seeded-friction-M" \
+  "json mode also hides archived + seeded CONVERTED friction"
 
 # ---------------------------------------------------------------------------
 printf '\npass=%d fail=%d\n' "$PASS" "$FAIL"

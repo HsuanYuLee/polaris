@@ -180,6 +180,30 @@ assert_absent "AC-NEG" "no POLARIS_SKIP bypass encouraged in skill prose" \
 assert_absent "AC-NEG" "no generic gate carve-out env var introduced" \
   'POLARIS_BUNDLE_GATE_BYPASS'
 
+# --- DP-393 AC3: closeout residue cleanup is MANDATORY (default/必經), covering
+#     feat/task/chore local+remote branches + worktrees, with a fail-loud final
+#     residue verification. These labels are DP-393-scoped and do not collide with
+#     the DP-334/DP-388 AC3/AC-NEG4 assertions above (different DP AC namespace). ---
+assert_grep "DP393-AC3" "closeout cleanup declared MANDATORY (not opt-in)" \
+  'MANDATORY release-residue cleanup'
+assert_grep "DP393-AC3" "cleanup covers feat/task/chore release branches" \
+  'feat/DP-NNN`、`task/DP-NNN-*`、`chore/DP-NNN-*`'
+assert_grep_regex "DP393-AC3" "cleanup covers both local and remote branches" \
+  'local 與 remote 皆清|local.*remote.*皆清'
+assert_grep "DP393-AC3" "fail-loud final residue verification contract marker" \
+  'POLARIS_FRAMEWORK_RELEASE_RESIDUE'
+assert_grep_regex "DP393-AC3" "cleanup is idempotent on missing residue" \
+  'idempotent no-op|缺失時.*idempotent'
+assert_grep_regex "DP393-AC3" "run closeout from default branch so feat is deletable" \
+  'default branch.*promotion.*之後|從 default branch（`main`'
+
+# --- DP-393 AC-NEG4: cleanup must NOT be gated on a manual maintainer flag; the
+#     legacy --delete-branches flag is deprecated / a no-op. ---
+assert_grep_regex "DP393-AC-NEG4" "--delete-branches flag is deprecated / no-op" \
+  '`--delete-branches` 旗標 DEPRECATED|--delete-branches.*DEPRECATED.*no-op'
+assert_grep_regex "DP393-AC-NEG4" "forbid demoting cleanup back to a manual prose flag" \
+  '禁止把清理退回成.*手動傳 cleanup flag|不由 maintainer 手動傳 flag'
+
 # --- Report ---
 if [[ "${#FAILURES[@]}" -gt 0 ]]; then
   {

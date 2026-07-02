@@ -32,6 +32,31 @@
 #      feat/DP-NNN) does NOT enter feat-release lane; the anchored ^feat/DP-NNN$
 #      regex makes it fall through to the normal task.md resolver → exit 2.
 #
+# DP-393 chore-followup framework-owned change guard (cases 12-18): the chore
+# lane being IMPLEMENTED is necessary but not sufficient — the branch's changed
+# files must stay off framework-owned behavior surfaces. The guard resolves a
+# worktree-aware diff base, computes changed files, then applies a denylist /
+# allowlist with deny precedence:
+#
+#  12. BLOCKED: chore branch changes scripts/** (framework-owned) → exit 2 (AC1).
+#  13. PASS:    chore branch changes only VERSION / CHANGELOG.md / .changeset/**
+#      (release-tail housekeeping allowlist) → exit 0 (AC2).
+#  14. BLOCKED: chore branch changes both VERSION (allow) and scripts/** (deny)
+#      → deny precedence → exit 2 (EC1).
+#  15. BLOCKED: chore branch regenerates CLAUDE.md (generated runtime target, not
+#      in the allowlist) → exit 2 (EC2).
+#  16. PASS:    diff-base scenario 1 — feat/DP-NNN present, chore delta relative
+#      to feat is housekeeping only; a framework change delivered via feat is
+#      part of the base and not re-flagged → exit 0 (AC-NF1 / base = feat).
+#  17. BLOCKED: diff-base scenario 2 — no feat/DP-NNN, base resolves via the main
+#      merge-base; framework change → exit 2 (AC-NF1 / base = main).
+#  18. BLOCKED: diff-base scenario 3 — neither feat/DP-NNN nor a main merge-base
+#      resolvable → fail-closed exit 2 (EC3 / AC-NF1).
+#
+# Cases 12, 14, 15, 17, 18 assert the offending path + repair guidance are on
+# stderr (AC-NF2). The guard uses no env bypass / ticket allowlist (AC-NEG1) and
+# is a real gate exercised by these fixtures, not prose (AC-NEG2).
+#
 # Cases 3-5 cover AC-NEG3 ("chore lane must not become a generic escape").
 # Cases 9-11 cover DP-334 AC-NEG1 ("feat-release lane must fail closed and must
 # not become a generic escape").
@@ -423,5 +448,133 @@ if grep -q 'feat-release lane' "$WORKDIR/case11.out"; then
   cat "$WORKDIR/case11.out" >&2
   exit 1
 fi
+
+# ── DP-393 chore-followup framework-owned change guard ────────────────────────
+# The IMPLEMENTED parent DP is committed on the default branch so it is NOT part
+# of the chore branch's changed-file delta; each case then commits its own delta
+# on the chore branch (or a feat base) to exercise the denylist/allowlist guard.
+
+# setup_guard_repo <repo> <dp>: Polaris-governed repo with an IMPLEMENTED DP
+# container committed on the default branch, HEAD left on the default branch.
+setup_guard_repo() {
+  local repo="$1"
+  local dp="$2"
+  rm -rf "$repo"
+  mkdir -p "$repo/scripts"
+  git -C "$repo" init -q
+  git -C "$repo" config user.email selftest@example.com
+  git -C "$repo" config user.name "DP-393 selftest"
+  printf 'language: zh-TW\n' >"$repo/workspace-config.yaml"
+  touch "$repo/AGENTS.md"
+  printf '#!/usr/bin/env bash\n' >"$repo/scripts/polaris-pr-create.sh"
+  chmod +x "$repo/scripts/polaris-pr-create.sh"
+  local container="$repo/docs-manager/src/content/docs/specs/design-plans/${dp}-guard-fixture"
+  mkdir -p "$container/tasks/pr-release/T1"
+  printf -- '---\ntitle: "%s"\nstatus: IMPLEMENTED\n---\n' "$dp" >"$container/index.md"
+  printf -- '---\ntitle: "%s T1"\nstatus: IMPLEMENTED\n---\n' "$dp" >"$container/tasks/pr-release/T1/index.md"
+  git -C "$repo" add -A
+  git -C "$repo" -c commit.gpgsign=false commit -q -m "init + $dp container"
+}
+
+# guard_commit_file <repo> <relpath> <content> <msg>: write and commit one file.
+guard_commit_file() {
+  local repo="$1"
+  local relpath="$2"
+  local content="$3"
+  local msg="$4"
+  mkdir -p "$repo/$(dirname "$relpath")"
+  printf '%s\n' "$content" >"$repo/$relpath"
+  git -C "$repo" add -A >/dev/null
+  git -C "$repo" -c commit.gpgsign=false commit -q -m "$msg"
+}
+
+# run_guard <repo> <label> <expected_rc> [grep_pattern ...]
+run_guard() {
+  local repo="$1"
+  local label="$2"
+  local expected_rc="$3"
+  shift 3
+  set +e
+  (cd "$repo" && "$GATE" --repo "$repo") >"$WORKDIR/$label.out" 2>&1
+  local rc=$?
+  set -e
+  if [[ "$rc" -ne "$expected_rc" ]]; then
+    echo "FAIL ($label): expected exit $expected_rc, got $rc" >&2
+    cat "$WORKDIR/$label.out" >&2
+    exit 1
+  fi
+  local pattern
+  for pattern in "$@"; do
+    if ! grep -qF "$pattern" "$WORKDIR/$label.out"; then
+      echo "FAIL ($label): expected output to contain: $pattern" >&2
+      cat "$WORKDIR/$label.out" >&2
+      exit 1
+    fi
+  done
+}
+
+# Case 12 (AC1 BLOCK): chore branch touches scripts/** (framework-owned surface).
+repo12="$WORKDIR/repo12"
+setup_guard_repo "$repo12" "DP-393"
+git -C "$repo12" checkout -q -b "chore/DP-393-followup"
+guard_commit_file "$repo12" "scripts/foo.sh" "#!/usr/bin/env bash" "chore: touch a script"
+run_guard "$repo12" "case12" 2 "scripts/foo.sh (framework-owned behavior surface)" "DP-backed task.md"
+
+# Case 13 (AC2 PASS): chore branch touches only release-tail housekeeping.
+repo13="$WORKDIR/repo13"
+setup_guard_repo "$repo13" "DP-393"
+git -C "$repo13" checkout -q -b "chore/DP-393-followup"
+guard_commit_file "$repo13" "VERSION" "9.9.9" "chore: bump VERSION"
+guard_commit_file "$repo13" "CHANGELOG.md" "# changelog" "chore: changelog"
+guard_commit_file "$repo13" ".changeset/dp-393-housekeeping.md" "housekeeping" "chore: changeset"
+run_guard "$repo13" "case13" 0 "chore-followup lane"
+
+# Case 14 (EC1 BLOCK): chore branch touches both allowlist (VERSION) and denylist
+# (scripts/**) → deny takes precedence.
+repo14="$WORKDIR/repo14"
+setup_guard_repo "$repo14" "DP-393"
+git -C "$repo14" checkout -q -b "chore/DP-393-followup"
+guard_commit_file "$repo14" "VERSION" "9.9.9" "chore: bump VERSION"
+guard_commit_file "$repo14" "scripts/bar.sh" "#!/usr/bin/env bash" "chore: touch a script"
+run_guard "$repo14" "case14" 2 "scripts/bar.sh (framework-owned behavior surface)"
+
+# Case 15 (EC2 BLOCK): chore branch regenerates a generated runtime target
+# (CLAUDE.md), which is not in the housekeeping allowlist.
+repo15="$WORKDIR/repo15"
+setup_guard_repo "$repo15" "DP-393"
+git -C "$repo15" checkout -q -b "chore/DP-393-followup"
+guard_commit_file "$repo15" "CLAUDE.md" "# generated runtime target" "chore: regen CLAUDE.md"
+run_guard "$repo15" "case15" 2 "CLAUDE.md (not a release-tail housekeeping path)"
+
+# Case 16 (diff-base scenario 1 PASS): feat/DP-393 present. A framework change is
+# delivered via feat (part of the base); the chore branch's delta relative to
+# feat is housekeeping only → PASS. If the base were main, feat's framework
+# change would leak into the delta and BLOCK, so PASS proves the feat-relative
+# base is used.
+repo16="$WORKDIR/repo16"
+setup_guard_repo "$repo16" "DP-393"
+git -C "$repo16" checkout -q -b "feat/DP-393"
+guard_commit_file "$repo16" "scripts/feat-change.sh" "#!/usr/bin/env bash" "feat: framework change"
+git -C "$repo16" checkout -q -b "chore/DP-393-followup"
+guard_commit_file "$repo16" "VERSION" "9.9.9" "chore: bump VERSION"
+run_guard "$repo16" "case16" 0 "chore-followup lane"
+
+# Case 17 (diff-base scenario 2 BLOCK): no feat/DP-393; base resolves via the
+# main merge-base. Framework change on the chore branch → BLOCK.
+repo17="$WORKDIR/repo17"
+setup_guard_repo "$repo17" "DP-393"
+git -C "$repo17" checkout -q -b "chore/DP-393-followup"
+guard_commit_file "$repo17" "scripts/only.sh" "#!/usr/bin/env bash" "chore: touch a script"
+run_guard "$repo17" "case17" 2 "scripts/only.sh (framework-owned behavior surface)"
+
+# Case 18 (diff-base scenario 3 BLOCK): neither feat/DP-393 nor a main/master
+# merge-base is resolvable → fail-closed, the lane never falls open.
+repo18="$WORKDIR/repo18"
+setup_guard_repo "$repo18" "DP-393"
+default_branch18="$(git -C "$repo18" rev-parse --abbrev-ref HEAD)"
+git -C "$repo18" checkout -q -b "chore/DP-393-followup"
+guard_commit_file "$repo18" "scratch.txt" "x" "chore: scratch"
+git -C "$repo18" branch -D "$default_branch18" >/dev/null
+run_guard "$repo18" "case18" 2 "could not resolve a diff base"
 
 echo "PASS: gate-work-source chore-followup selftest"

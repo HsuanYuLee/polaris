@@ -101,7 +101,11 @@ def fail(token: str, message: str) -> None:
 
 
 def discover_ledgers(root_dir: Path) -> list[Path]:
-    """枚舉 root 下兩條 container glob 的所有 ledger，依絕對路徑排序去重。
+    """枚舉 root 下 active 與 archived container glob 的所有 ledger，依絕對路徑排序去重。
+
+    掃描四條 container glob，涵蓋 DP-backed 與 JIRA-Epic-backed source 各自的 active 與
+    archive lifecycle 位置。archive glob 確保 release-tail friction 不因 DP / Epic 被移到
+    `.../archive/` 而從 intake 靜默消失（DP-393 T3）。
 
     Args:
         root_dir: 掃描 root。
@@ -110,9 +114,14 @@ def discover_ledgers(root_dir: Path) -> list[Path]:
         排序後的 ledger 路徑清單（deterministic）。
     """
     specs = root_dir / "docs-manager" / "src" / "content" / "docs" / "specs"
+    # 四條 glob：active DP / active company / archived DP / archived company。archive glob
+    # 對齊 archive-spec.sh 的搬移目的地（design-plans/archive/DP-*、companies/*/archive/*），
+    # 是為了掃描而擴充，不改動 is_converted() 的 CONVERTED 判定。
     patterns = [
         "design-plans/DP-*/artifacts/auto-pass/*-ledger.json",
         "companies/*/*/artifacts/auto-pass/*-ledger.json",
+        "design-plans/archive/DP-*/artifacts/auto-pass/*-ledger.json",
+        "companies/*/archive/*/artifacts/auto-pass/*-ledger.json",
     ]
     found: set[Path] = set()
     for pattern in patterns:

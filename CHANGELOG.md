@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.76.60] - 2026-07-03
+
+### Changed
+
+- b266a94: 收窄 gate-work-source 的 chore-followup lane：放行前先以 worktree-aware diff base（複用 main-checkout.sh）計算 chore 分支的 changed files，再套用 denylist/allowlist——framework-owned behavior surface（.claude rules/skills/hooks/references/instructions、scripts/**、.agents/.codex、copilot-instructions、mise.toml、workspace-config.yaml）與 generated runtime targets 一律 fail-stop 並提示改走 DP-backed task.md，只放行 release-tail housekeeping（VERSION/package.json/CHANGELOG.md/.changeset/**、design-plans/\*\* subtree）；deny 優先於 allow，diff base 無法解析時 fail-closed。補 BLOCK / carve-out / diff-base 三情境 selftest。
+- d2e91b8: DP-393 T2: framework-release closeout 的 branch/worktree cleanup 改為預設/必經。closeout
+  在 release 收尾時一律清理該 DP 的 `feat/DP-NNN`、`task/DP-NNN-*`、`chore/DP-NNN-*` release
+  branch（local 與 remote，缺失時 idempotent no-op）與掛在這些 branch 上的 implementation
+  worktree，並在最後跑 fail-loud residue verification：若仍偵測到任何 DP-scoped branch /
+  worktree residue，closeout 以 non-zero 失敗並印 `POLARIS_FRAMEWORK_RELEASE_RESIDUE:<DP>`。
+  `--delete-branches` 旗標退役成 no-op（cleanup 已是預設行為，不再靠 maintainer 手動傳
+  旗標）。residue 列舉複用 `release-cleanup-sweep.sh` 既有 git 列舉技法，不新增第二套 scanner。
+- 1e154f5: friction-to-dp-intake 掃描器新增 archive container glob（design-plans/archive/DP-_、companies/_/archive/\*），讓被 archive 的 DP / Epic release-tail friction ledger 不再因 archive lifecycle 從 intake 掃描中消失（DP-393 T3）；is_converted() 判定不變。
+
 ## [3.76.59] - 2026-07-02
 
 ### Changed
