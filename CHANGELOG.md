@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.76.65] - 2026-07-04
+
+### Changed
+
+- 7e1d50a: DP-347-T1 feat(release): add deterministic task-to-feat landing executor
+- d44110a: DP-347-T2 fix(release): disable task-to-main pr-lane execute path
+- c675b7c: DP-347-T3 feat(release): wire deterministic framework release tail
+
 ## [3.76.64] - 2026-07-03
 
 ### Fixed

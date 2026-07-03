@@ -278,7 +278,7 @@ validate_and_plan() {
     elif [[ "$DAG_MODE" == "1" ]]; then
       expected_base="$(table_field "Base branch" "$task_md")"
       [[ -n "$expected_base" ]] || die "missing Base branch in $task_md"
-      action="merge into $MAIN_BRANCH"
+      action="validate lineage only; task-to-main execute disabled"
       if [[ "$base" == "$expected_base" ]]; then
         if [[ "$base" != "$MAIN_BRANCH" ]]; then
           upstream_state=""
@@ -289,32 +289,24 @@ validate_and_plan() {
             fi
           done
           [[ -n "$upstream_state" ]] || die "$task_id PR #$number base is '$base', but upstream base branch was not seen earlier in --task-md DAG order"
-          if [[ "$EXECUTE" == "1" ]]; then
-            [[ "$upstream_state" == "MERGED" ]] || die "$task_id PR #$number cannot be retargeted because upstream base '$base' is not merged yet"
-            action="retarget to $MAIN_BRANCH, then merge"
-          else
-            action="retarget to $MAIN_BRANCH after upstream merge"
-          fi
+          [[ "$EXECUTE" != "1" || "$upstream_state" == "MERGED" ]] \
+            || die "$task_id PR #$number cannot be validated for task-to-main legacy execution because upstream base '$base' is not merged yet"
         fi
       elif [[ "$base" == "$MAIN_BRANCH" ]]; then
-        action="merge into $MAIN_BRANCH"
+        action="validate lineage only; task-to-main execute disabled"
       else
         die "$task_id PR #$number base is '$base'; expected task.md Base branch '$expected_base' or '$MAIN_BRANCH' after upstream merge"
       fi
     elif [[ $idx -eq 0 ]]; then
       expected_initial_base="$MAIN_BRANCH"
       [[ "$base" == "$MAIN_BRANCH" ]] || die "$task_id PR #$number base is '$base'; expected '$MAIN_BRANCH'"
-      action="merge into $MAIN_BRANCH"
+      action="validate lineage only; task-to-main execute disabled"
     else
       expected_initial_base="$previous_branch"
       if [[ "$base" != "$previous_branch" && ! ( "$previous_state" == "MERGED" && "$base" == "$MAIN_BRANCH" ) ]]; then
         die "$task_id PR #$number base is '$base'; expected '$expected_initial_base'"
       fi
-      if [[ "$base" == "$previous_branch" ]]; then
-        action="retarget to $MAIN_BRANCH, then merge"
-      else
-        action="merge into $MAIN_BRANCH"
-      fi
+      action="validate lineage only; task-to-main execute disabled"
     fi
 
     printf '  - %s PR #%s base=%s state=%s head=%s action=%s\n' \
@@ -335,23 +327,8 @@ validate_and_plan() {
         else
           fast_forward_feat_task_pr "$task_id" "$number" "$base" "$head_branch" "$head"
         fi
-      elif [[ "$DAG_MODE" == "1" && "$base" != "$MAIN_BRANCH" ]]; then
-        info "retargeting PR #$number ($task_id) from $base to $MAIN_BRANCH"
-        "$GH_BIN" pr edit "$number" ${gh_repo_args[@]+"${gh_repo_args[@]}"} --base "$MAIN_BRANCH"
-        json="$(pr_view_json "$task_branch")"
-        base="$(json_field "$json" "d.get('baseRefName')")"
-        [[ "$base" == "$MAIN_BRANCH" ]] || die "PR #$number retarget verification failed; base is '$base'"
-      elif [[ $idx -gt 0 && "$base" == "$previous_branch" ]]; then
-        info "retargeting PR #$number ($task_id) to $MAIN_BRANCH"
-        "$GH_BIN" pr edit "$number" ${gh_repo_args[@]+"${gh_repo_args[@]}"} --base "$MAIN_BRANCH"
-        json="$(pr_view_json "$task_branch")"
-        base="$(json_field "$json" "d.get('baseRefName')")"
-        [[ "$base" == "$MAIN_BRANCH" ]] || die "PR #$number retarget verification failed; base is '$base'"
-      fi
-      if [[ "$feat_stack_mode" != "1" ]]; then
-        info "merging PR #$number ($task_id)"
-        "$GH_BIN" pr merge "$number" ${gh_repo_args[@]+"${gh_repo_args[@]}"} --merge
-        state="MERGED"
+      else
+        die "release preflight blocked: task-to-main execute is disabled for $task_id PR #$number. Land task PR heads into a feat/DP-NNN aggregation branch with framework-release-execute.sh before the single feat-to-main release."
       fi
     fi
 

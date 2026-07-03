@@ -1127,6 +1127,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/framework-release-execute.sh",
+      "kind": "release",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "scripts/selftests/framework-release-task-to-feat-landing-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/framework-release-main-promotion.sh",
       "kind": "release",
       "runner": "bash",

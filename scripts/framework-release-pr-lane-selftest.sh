@@ -404,25 +404,34 @@ if grep -q "running aggregate selftest corpus" "$TMPDIR"/stale-evidence.out; the
 fi
 
 write_state
-bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" --execute >"$TMPDIR"/execute.out
-awk -F '\t' '$2 == "2" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
-awk -F '\t' '$2 == "3" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
+if bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" --execute >"$TMPDIR"/execute.out 2>&1; then
+  echo "DP-347 T2: legacy task-to-main execute fixture must fail closed" >&2
+  cat "$TMPDIR"/execute.out >&2
+  exit 1
+fi
+grep -q "task-to-main execute is disabled" "$TMPDIR"/execute.out \
+  || { echo "DP-347 T2: disabled execute failure must name task-to-main path" >&2; cat "$TMPDIR"/execute.out >&2; exit 1; }
+awk -F '\t' '$2 == "2" && $3 == "OPEN" && $4 == "task/DP-999-T1-one" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
+awk -F '\t' '$2 == "3" && $3 == "OPEN" && $4 == "task/DP-999-T2-two" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
 
 # DP-384: terminal-task mode must recover the full upstream stack from Base
 # branch links even when the terminal task's Branch chain only names its direct
-# predecessor. It must also pass --repo through every gh view/edit/merge call.
+# predecessor. It must also pass --repo through every gh view call while refusing
+# the retired task-to-main merge/retarget executor path.
 write_state
 FRAMEWORK_PR_LANE_REQUIRE_REPO_ARGS=1 \
   bash "$HELPER" --repo "$REPO" --workspace-repo demo/example \
     --terminal-task-md "$TASK_DIR/T3-local-chain.md" --execute \
-    >"$TMPDIR"/terminal-stack-execute.out 2>&1 || {
-      echo "DP-384: expected terminal stacked chain execute fixture to PASS" >&2
+    >"$TMPDIR"/terminal-stack-execute.out 2>&1 && {
+      echo "DP-347 T2: terminal stacked task-to-main execute fixture must fail closed" >&2
       cat "$TMPDIR"/terminal-stack-execute.out >&2
       exit 1
     }
-awk -F '\t' '$2 == "1" && $3 == "MERGED" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
-awk -F '\t' '$2 == "2" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
-awk -F '\t' '$2 == "3" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
+grep -q "task-to-main execute is disabled" "$TMPDIR"/terminal-stack-execute.out \
+  || { echo "DP-347 T2: terminal execute failure must name task-to-main path" >&2; cat "$TMPDIR"/terminal-stack-execute.out >&2; exit 1; }
+awk -F '\t' '$2 == "1" && $3 == "OPEN" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
+awk -F '\t' '$2 == "2" && $3 == "OPEN" && $4 == "task/DP-999-T1-one" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
+awk -F '\t' '$2 == "3" && $3 == "OPEN" && $4 == "task/DP-999-T2-two" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
 
 # DP-398: terminal-task feat stack mode must integrate task PR heads by
 # fast-forwarding feat/DP-NNN only. It must not retarget downstream PRs and must

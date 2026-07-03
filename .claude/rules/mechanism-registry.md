@@ -100,6 +100,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | refinement-consumer-schema-binding | scripts/validate-refinement-consumer-schema-binding.sh | script | portable | scripts/selftests/validate-refinement-consumer-schema-binding-selftest.sh | governance |
 | closeout-drift-detector | scripts/detect-closeout-drift.sh | script | portable | scripts/selftests/detect-closeout-drift-selftest.sh | governance |
 | closeout-drift-bundle-aware-completion | scripts/selftests/check-local-extension-completion-bundle-aware-selftest.sh | script | portable | scripts/selftests/check-local-extension-completion-bundle-aware-selftest.sh | governance |
+| framework-release-execute | scripts/framework-release-execute.sh | script | portable | scripts/selftests/framework-release-full-tail-selftest.sh | governance |
 | framework-release-closeout-pr-close | scripts/framework-release-closeout.sh | script | portable | scripts/selftests/framework-release-closeout-pr-close-selftest.sh | governance |
 | framework-release-closeout-residue-cleanup | scripts/framework-release-closeout.sh | script | portable | scripts/selftests/framework-release-closeout-residue-cleanup-selftest.sh | governance |
 | scan-template-leaks-gitignore-aware | scripts/scan-template-leaks.sh | script | portable | scripts/selftests/scan-template-leaks-gitignore-aware-selftest.sh | governance |
