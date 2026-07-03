@@ -39,7 +39,8 @@ description: $name
 type: feedback
 created: 2026-05-20
 last_triggered: 2026-05-20
-trigger_count: 1
+# Keep fixture members Hot without depending on the wall-clock age window.
+trigger_count: 6
 ---
 
 body

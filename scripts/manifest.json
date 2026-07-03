@@ -1908,6 +1908,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/migrate-refinement-packaging-fields.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "refinement",
+      "selftest": "scripts/selftests/refinement-breakdown-packaging-boundary-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/migrate-refinement-planned-tasks-to-canonical.sh",
       "kind": "support",
       "runner": "bash",

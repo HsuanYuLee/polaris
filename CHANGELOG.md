@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.64] - 2026-07-03
+
+### Fixed
+
+- 3913426: de-rot post-memory-index regenerate hook selftest Hot fixture
+
 ## [3.76.63] - 2026-07-03
 
 ### Changed
