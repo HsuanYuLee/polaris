@@ -52,6 +52,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REFINEMENT_JSON=""
 TASK_ID=""
 REPO_NAME="polaris-framework"
+# DP-341 T2: optional path to an EXISTING target task.md whose breakdown-authored
+# packaging (## Allowed Files block + points-in-title) is PRESERVED when the
+# refinement.json tasks[] entry no longer carries per-task packaging fields
+# (regime 2 / AC3 idempotency). Empty / missing file = no preserve source.
+PRESERVE_FROM=""
 # DP-344 D1: optional override for the changeset-detection repo root. When unset,
 # derive auto-detects the resolved repo root (workspace root for DP-backed, or
 # <workspace>/<source.repo> for a JIRA-Epic product repo). Selftests pass an
@@ -99,6 +104,7 @@ while [[ $# -gt 0 ]]; do
     --task-id) TASK_ID="${2:-}"; shift 2 ;;
     --repo) REPO_NAME="${2:-}"; shift 2 ;;
     --repo-root) REPO_ROOT_OVERRIDE="${2:-}"; shift 2 ;;
+    --preserve-from) PRESERVE_FROM="${2:-}"; shift 2 ;;
     --deliverable-head-sha) DELIVERABLE_HEAD_SHA="${2:-}"; shift 2 ;;
     --deliverable-pr-url) DELIVERABLE_PR_URL="${2:-}"; shift 2 ;;
     --deliverable-pr-state) DELIVERABLE_PR_STATE="${2:-}"; shift 2 ;;
@@ -123,7 +129,8 @@ fi
 python3 - "$REFINEMENT_JSON" "$TASK_ID" "$REPO_NAME" "$SCRIPT_DIR" "$REPO_ROOT_OVERRIDE" \
   "$DELIVERABLE_HEAD_SHA" "$DELIVERABLE_PR_URL" "$DELIVERABLE_PR_STATE" \
   "$VERIFICATION_STATUS" \
-  "$AC_TOTAL" "$AC_PASS" "$AC_FAIL" "$AC_MANUAL_REQUIRED" "$AC_UNCERTAIN" <<'PY'
+  "$AC_TOTAL" "$AC_PASS" "$AC_FAIL" "$AC_MANUAL_REQUIRED" "$AC_UNCERTAIN" \
+  "$PRESERVE_FROM" <<'PY'
 import json
 import re
 import subprocess
@@ -142,6 +149,9 @@ refinement_path, task_id, repo_name, script_dir, repo_root_override = sys.argv[1
     ac_manual_required_arg,
     ac_uncertain_arg,
 ) = sys.argv[6:15]
+# DP-341 T2: optional --preserve-from task.md path (15th positional). Empty string
+# = not supplied; resolution of per-task packaging precedence happens below.
+preserve_from = sys.argv[15] if len(sys.argv) > 15 else ""
 
 
 def fail(msg, code=2):
@@ -399,7 +409,12 @@ if match is None and cli_source_id == source_id:
 if match is None:
     fail(f"task-id not found in refinement.json tasks[]: {task_id}")
 
-required_fields = ("id", "title", "scope", "allowed_files", "verification", "estimate_points")
+# DP-341 T2: allowed_files / estimate_points are NO LONGER required intent fields.
+# refinement.json tasks[] is the intent layer; per-task packaging is owned by the
+# breakdown writer path (task.md). They are resolved below via the regime
+# precedence (refinement field -> --preserve-from task.md -> intent-only default),
+# so the required-field gate keeps only the genuine intent fields.
+required_fields = ("id", "title", "scope", "verification")
 for field in required_fields:
     if field not in match or match[field] in (None, "", []):
         fail(f"task {task_id} missing required field: {field}")
@@ -454,8 +469,98 @@ def check_verify_command_executability(label: str, command_text: str) -> None:
 
 title = str(match["title"]).strip()
 scope = str(match["scope"]).strip()
-points = int(match["estimate_points"])
-allowed_files = list(match["allowed_files"])
+
+
+# DP-341 T2: per-task packaging (Allowed Files + estimate points) is resolved with
+# a fixed precedence, because derive is intent-regenerate + packaging-preserve (NOT
+# a destructive full regenerate). estimate_points / allowed_files are no longer read
+# unconditionally from refinement.json tasks[].
+#
+# Default estimate points used by regime 3 (initial-create) when neither
+# refinement.json nor an authored task.md provides a value. Intent-only task.md is
+# packaged by the breakdown writer afterwards, which sets the real estimate.
+DEFAULT_INTENT_ONLY_POINTS = 1
+
+
+def parse_authored_packaging(task_md_path: str):
+    """Parse breakdown-authored packaging from an existing task.md (regime 2).
+
+    Reads the authored ## Allowed Files block (lines shaped `- \\`path\\``) and the
+    estimate points from the `(N pt)` suffix in the title / first heading. These are
+    the breakdown-owned packaging values that a same-intent re-derive must PRESERVE
+    byte-identically (AC3 idempotency).
+
+    Args:
+        task_md_path: path to the existing target task.md (the --preserve-from arg).
+
+    Returns:
+        A tuple (allowed_files, points): allowed_files is the ordered list of
+        authored paths (possibly empty); points is the parsed int or None when the
+        title carried no `(N pt)` suffix.
+    """
+    text = Path(task_md_path).read_text(encoding="utf-8")
+    authored_files = []
+    in_block = False
+    for line in text.splitlines():
+        if re.match(r"^##\s+Allowed Files\s*$", line):
+            in_block = True
+            continue
+        if in_block and line.startswith("## "):
+            break
+        if in_block:
+            m_path = re.match(r"^-\s+`(?P<p>[^`]+)`\s*$", line)
+            if m_path:
+                authored_files.append(m_path.group("p"))
+    m_points = re.search(r"\((?P<n>\d+)\s*pt\)", text)
+    authored_points = int(m_points.group("n")) if m_points else None
+    return authored_files, authored_points
+
+
+def resolve_packaging():
+    """Resolve (points, allowed_files) by the DP-341 T2 regime precedence.
+
+    Precedence:
+      Regime 1 (legacy back-compat): refinement.json tasks[] still carries
+        estimate_points / allowed_files -> use those (per field, independently).
+      Regime 2 (preserve, AC3): --preserve-from task.md exists and carries authored
+        packaging -> preserve its ## Allowed Files and `(N pt)` points.
+      Regime 3 (initial-create): neither source -> empty Allowed Files +
+        DEFAULT_INTENT_ONLY_POINTS, emitted without crashing.
+
+    Each field falls through the precedence independently, so a refinement that
+    still carries one field (legacy mid-migration) does not force the other.
+
+    Returns:
+        A tuple (points: int, allowed_files: list[str]).
+    """
+    refinement_points = match.get("estimate_points")
+    refinement_files = match.get("allowed_files")
+
+    authored_files = None
+    authored_points = None
+    if preserve_from and Path(preserve_from).is_file():
+        authored_files, authored_points = parse_authored_packaging(preserve_from)
+
+    # estimate_points: refinement field -> authored task.md -> default.
+    if refinement_points not in (None, "", []):
+        resolved_points = int(refinement_points)
+    elif authored_points is not None:
+        resolved_points = authored_points
+    else:
+        resolved_points = DEFAULT_INTENT_ONLY_POINTS
+
+    # allowed_files: refinement field -> authored task.md -> empty (intent-only).
+    if refinement_files not in (None, "", []):
+        resolved_files = list(refinement_files)
+    elif authored_files:
+        resolved_files = list(authored_files)
+    else:
+        resolved_files = []
+
+    return resolved_points, resolved_files
+
+
+points, allowed_files = resolve_packaging()
 ac_ids = list(match.get("ac_ids") or [])
 raw_dependencies = [str(dep).strip() for dep in list(match.get("dependencies") or []) if str(dep).strip()]
 
@@ -744,7 +849,9 @@ module_action_by_path = {
 # Scope Trace Matrix — one row per AC id, owning files = allowed_files joined
 # Use the first allowed file as canonical owning file for simplicity; surface
 # stays "framework deterministic gate / selftest contract" for DP-backed work.
-owning_anchor = f"`{allowed_files[0]}`"
+# DP-341 T2: regime-3 intent-only tasks have no authored Allowed Files yet, so
+# guard the empty list (the breakdown writer fills packaging afterwards).
+owning_anchor = f"`{allowed_files[0]}`" if allowed_files else "(none)"
 trace_rows = []
 ac_list = ac_ids if ac_ids else ["AC-N/A"]
 for ac in ac_list:

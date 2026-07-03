@@ -32,14 +32,20 @@ set -euo pipefail
 
 ALLOWED_ROUTES_REGEX='^(engineering|refinement|wait|baseline_approval|task_update)$'
 ALLOWED_FLAVORS_REGEX='^(plan-defect|scope-drift|env-drift)$'
+# DP-341 T4: --scope distinguishes a packaging-only plan-defect (per-task
+# Allowed Files / estimate_points backfill, owned by the breakdown task.md
+# writer path) from a broader plan-defect that needs the DP-212 amendment loop.
+# Reuses the existing flavor/route regexes — it is not a second classifier.
+ALLOWED_SCOPES_REGEX='^(packaging|full)$'
 
 usage() {
   cat >&2 <<EOF
-usage: $0 --sidecar <path> --route <route> --closes-gate <true|false> --flavor <flavor> --disposition <text> --decision <text> [--decision <text>...] [--task-md <path> --repo <path> --head-sha <sha>]
+usage: $0 --sidecar <path> --route <route> --closes-gate <true|false> --flavor <flavor> --disposition <text> --decision <text> [--decision <text>...] [--scope <packaging|full>] [--task-md <path> --repo <path> --head-sha <sha>] [--inbox-dir <path>]
        $0 --self-test
 
 routes: engineering | refinement | wait | baseline_approval | task_update
 flavor: plan-defect | scope-drift | env-drift
+scope:  packaging (per-task Allowed Files / estimate_points backfill; default full)
 disposition: "accepted flavor: X" when X matches sidecar flavor, or "re-classified to X: reason" when it differs
 EOF
   exit 2
@@ -122,7 +128,8 @@ validate() {
   local closes_gate="$3"
   local flavor="$4"
   local disposition="$5"
-  shift 5
+  local scope="$6"
+  shift 6
   local decisions=("$@")
   local errors=()
 
@@ -132,6 +139,20 @@ validate() {
   fi
   if ! [[ "$route" =~ $ALLOWED_ROUTES_REGEX ]]; then
     errors+=("route must be one of engineering|refinement|wait|baseline_approval|task_update (got '$route')")
+  fi
+  if ! [[ "$scope" =~ $ALLOWED_SCOPES_REGEX ]]; then
+    errors+=("scope must be one of packaging|full (got '$scope')")
+  fi
+  # DP-341 T4: a packaging-scope escalation is only legal when breakdown lands a
+  # per-task packaging backfill directly — i.e. a plan-defect routed to
+  # task_update. Any other route/flavor must use full scope (DP-212 amendment).
+  if [[ "$scope" == "packaging" ]]; then
+    if [[ "$flavor" != "plan-defect" ]]; then
+      errors+=("scope=packaging requires flavor=plan-defect (got flavor='$flavor')")
+    fi
+    if [[ "$route" != "task_update" ]]; then
+      errors+=("scope=packaging requires route=task_update; a packaging backfill is landed by breakdown, not bounced to route=refinement (got route='$route')")
+    fi
   fi
   if ! [[ "$closes_gate" =~ ^(true|false)$ ]]; then
     errors+=("closes-gate must be true or false (got '$closes_gate')")
@@ -207,7 +228,14 @@ validate() {
     return 1
   fi
 
-  echo "✓ validate-breakdown-escalation-intake.sh PASS — route=$route closes_gate=$closes_gate flavor=$flavor"
+  # DP-341 T4: a packaging-only plan-defect task_update is a one-line backfill —
+  # it must NOT consume the loop cap, so report escalation_count_delta=0. A full
+  # scope escalation is counted by the caller's loop-cap accounting as before.
+  if [[ "$scope" == "packaging" ]]; then
+    echo "✓ validate-breakdown-escalation-intake.sh PASS — route=$route closes_gate=$closes_gate flavor=$flavor scope=packaging escalation_count_delta=0"
+  else
+    echo "✓ validate-breakdown-escalation-intake.sh PASS — route=$route closes_gate=$closes_gate flavor=$flavor"
+  fi
 }
 
 run_self_test() {
@@ -244,7 +272,7 @@ EOF
 
   echo "self-test: partial route to engineering must FAIL"
   if validate "$sidecar" "engineering" "true" "plan-defect" \
-      "re-classified to plan-defect: storage helper belongs to this task" \
+      "re-classified to plan-defect: storage helper belongs to this task" "full" \
       "storage helper typing folded into T3a" >/dev/null 2>&1; then
     echo "self-test failed: partial engineering decision passed" >&2
     return 1
@@ -252,7 +280,7 @@ EOF
 
   echo "self-test: accepted flavor requires accepted disposition"
   if validate "$sidecar" "wait" "false" "env-drift" \
-      "re-classified to env-drift: missing accepted wording" \
+      "re-classified to env-drift: missing accepted wording" "full" \
       "residual baseline/env handled by waiting for sibling baseline correction" >/dev/null 2>&1; then
     echo "self-test failed: accepted flavor with re-classified wording passed" >&2
     return 1
@@ -260,19 +288,36 @@ EOF
 
   echo "self-test: complete route to engineering must PASS"
   validate "$sidecar" "engineering" "true" "env-drift" \
-    "accepted flavor: env-drift" \
+    "accepted flavor: env-drift" "full" \
     "storage helper typing folded into T3a" \
     "residual baseline/env handled by waiting for sibling baseline correction before engineering resumes"
 
   echo "self-test: re-classified disposition must PASS"
   validate "$sidecar" "refinement" "false" "plan-defect" \
-    "re-classified to plan-defect: storage helper belongs to the original task and residual scope needs replanning" \
+    "re-classified to plan-defect: storage helper belongs to the original task and residual scope needs replanning" "full" \
     "residual baseline/env indicates deeper planning drift; route refinement instead of engineering"
 
   echo "self-test: route to refinement with closes=false must PASS"
   validate "$sidecar" "refinement" "false" "env-drift" \
-    "accepted flavor: env-drift" \
+    "accepted flavor: env-drift" "full" \
     "residual baseline/env indicates deeper planning drift; route refinement instead of engineering"
+
+  echo "self-test: packaging plan-defect task_update must PASS with no-increment token"
+  validate "$sidecar" "task_update" "true" "plan-defect" \
+    "re-classified to plan-defect: only the per-task packaging field needs a backfill" "packaging" \
+    "widen the per-task Allowed Files glob so the colocated change is in scope" \
+    | grep -qF 'escalation_count_delta=0' || {
+      echo "self-test failed: packaging task_update did not emit escalation_count_delta=0" >&2
+      return 1
+    }
+
+  echo "self-test: packaging scope with non-task_update route must FAIL"
+  if validate "$sidecar" "refinement" "false" "plan-defect" \
+      "re-classified to plan-defect: only the per-task packaging field needs a backfill" "packaging" \
+      "this should be rejected because packaging requires task_update" >/dev/null 2>&1; then
+    echo "self-test failed: packaging scope with route=refinement passed" >&2
+    return 1
+  fi
 }
 
 if [[ $# -eq 1 && "$1" == "--self-test" ]]; then
@@ -285,10 +330,12 @@ route=""
 closes_gate=""
 flavor=""
 disposition=""
+scope="full"
 decisions=()
 task_md=""
 repo=""
 head_sha=""
+inbox_dir=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -315,6 +362,16 @@ while [[ $# -gt 0 ]]; do
     --disposition)
       [[ $# -ge 2 ]] || usage
       disposition="$2"
+      shift 2
+      ;;
+    --scope)
+      [[ $# -ge 2 ]] || usage
+      scope="$2"
+      shift 2
+      ;;
+    --inbox-dir)
+      [[ $# -ge 2 ]] || usage
+      inbox_dir="$2"
       shift 2
       ;;
     --decision)
@@ -351,7 +408,12 @@ if [[ -z "$sidecar" || -z "$route" || -z "$closes_gate" || -z "$flavor" || -z "$
   usage
 fi
 
-validate "$sidecar" "$route" "$closes_gate" "$flavor" "$disposition" "${decisions[@]}"
+validate "$sidecar" "$route" "$closes_gate" "$flavor" "$disposition" "$scope" "${decisions[@]}"
+# DP-341 T4: a packaging plan-defect task_update is landed directly by breakdown
+# in task.md — it never writes a refinement-inbox record (that path belongs to
+# route=refinement, the DP-212 amendment loop). --inbox-dir is accepted so the
+# caller can name where inbox records would go; this validator never writes one.
+: "${inbox_dir:=}"
 if [[ "$route" == "task_update" && -n "$task_md" ]]; then
   [[ -n "$repo" ]] || repo="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   refresh_args=(--repo "$repo" --task-md "$task_md" --evidence "$sidecar")

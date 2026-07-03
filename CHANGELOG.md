@@ -1,5 +1,63 @@
 # Changelog
 
+## [3.76.63] - 2026-07-03
+
+### Changed
+
+- b0186b9: DP-341-T1: refinement.json schema 移除 per-task packaging 欄位 + negative fail-closed gate。
+  `validate-refinement-json.sh` 把 `allowed_files` / `estimate_points` 從 `tasks[]` 的
+  required schema 移除，並對其在 `tasks[]` 出現時 fail-closed（exit 2 +
+  `POLARIS_REFINEMENT_PACKAGING_FIELD_FORBIDDEN`），杜絕 packaging 欄位回流 refinement.json
+  intent layer。gate 對 `source.type=dp` 與 `source.type=jira` 對稱生效（不分 source type）。
+  packaging 欄位的 ownership 自此歸 breakdown writer path（task.md）。
+- 9f9561f: DP-341-T2: `derive-task-md-from-refinement-json.sh` 從「破壞性全量重生」改為「intent 重生 + packaging 保留」。
+  derive 不再無條件從 `refinement.json` `tasks[]` 讀 `allowed_files` / `estimate_points`，
+  改以固定 precedence 解析 per-task packaging：
+  1. **Regime 1（legacy 相容）**：`tasks[]` 仍帶 packaging 欄位時沿用該值。
+  2. **Regime 2（保留，AC3 idempotency）**：refinement 不帶 packaging，但目標 `task.md`
+     已有 breakdown-authored packaging 時，透過新 `--preserve-from <task.md>` 旗標保留其
+     `## Allowed Files` 區塊（byte-identical）與 `(N pt)` 估點；同 intent 重生不得 clobber。
+  3. **Regime 3（initial-create）**：兩者皆無時 emit intent-only（空 `## Allowed Files`、
+     預設估點），且不得 crash（空清單 owning-anchor guard）。
+     同時把 `allowed_files` / `estimate_points` 自 `required_fields` 移除，packaging ownership
+     歸 breakdown writer path（task.md）。DP-302 / DP-335 / DP-359 / DP-360 等既有 derive 契約不回歸。
+- fd3a8d8: DP-341-T3: producer registry + `no-direct-evidence-write` 把 per-task packaging writer 收斂到
+  breakdown 的 task.md writer path，refinement.json（intent layer）維持 fail-closed。
+  - `scripts/lib/evidence-producers.json`：把 breakdown 的 `spec-task-status-writer`
+    （owning_skill `breakdown`，glob 含 `design-plans/DP-*/tasks/**/index.md` + companies parity）
+    排到 refinement 的 `spec-index-status-writer` 之前，使 PR-gate naive-first-match resolver
+    對 `tasks/T*/index.md`（packaging write）解析為 `breakdown`，bare container `index.md`
+    仍解析為 `refinement`。refinement.json 的 `refinement-md-writer` producer 不帶 packaging glob
+    （AC4：refinement producer 不承載 packaging）。
+  - `.claude/hooks/no-direct-evidence-write.sh`：把 `refinement.json` 加入 `in_protected_scope`，
+    使 `breakdown` 直寫 refinement.json（intent layer）落在 fail-closed DENY（markdown-only
+    `POLARIS_SKILL_WRITER` bypass 不適用 `.json`）；task.md packaging（`.md`）仍走既有 writer
+    bypass ALLOW（AC-NEG2）。合法 refinement.json writer（`POLARIS_PRODUCER`=`refinement:design-doc`
+    via `write-producer-owned-artifact.sh`）的 token bypass 不受影響——只擋 token-less 直寫。
+  - `scripts/selftests/refinement-breakdown-packaging-boundary-selftest.sh`：新增 AC4 / AC-NEG2
+    failing cases，鏡像真實 PR-gate naive-first-match + artifact_kind-filter resolver。
+- 7ba38d3: DP-341-T4: escalation-intake 把「scope 只動 per-task packaging（Allowed Files /
+  estimate_points）的 plan-defect」route 到 `route=task_update`（breakdown 直接改 task.md），
+  不再 bounce 到 `route=refinement`（DP-212 amendment loop，gap-a 根因），且 packaging-only
+  task_update 不遞增 `escalation_count`（一行 packaging backfill 不消耗 loop cap）。
+  - `scripts/validate-breakdown-escalation-intake.sh`：新增 `--scope <packaging|full>`
+    （預設 `full`，複用既有 `ALLOWED_ROUTES_REGEX` / `ALLOWED_FLAVORS_REGEX`，不寫第二套
+    classifier）。`--scope packaging` 強制 `flavor=plan-defect` 且 `route=task_update`，
+    PASS 行帶 `escalation_count_delta=0`（selftest-assertable 的 no-increment invariant）。
+    `--inbox-dir` 接受但此 validator 永不寫 inbox（inbox 屬 `route=refinement`）。
+  - `.claude/skills/references/breakdown-escalation-intake-flow.md`：在 Flavor Decision 加
+    「Packaging-Only Plan-Defect Lane（scope=packaging）」、Closure Validation And Writes
+    補 `--scope` 與 packaging 落地規則。
+  - `scripts/selftests/refinement-breakdown-packaging-boundary-selftest.sh`：新增 T4 AC1
+    （allowed_files packaging plan-defect → task_update、無 inbox、`escalation_count_delta=0`）
+    與 AC2（estimate_points 同走 task_update lane、未被 bounce 到 refinement）failing cases。
+- d8c554a: DP-341-T5: migrate legacy active framework `refinement.json` task packaging fields
+  to the post-DP-341 intent-only shape.
+  The migration removes `allowed_files` / `estimate_points` from active framework
+  design-plan `refinement.json` files, keeps archive history frozen, defers DP-231
+  and DP-375, and reports stale refinement-vs-task.md packaging differences
+  explicitly while preserving task.md as the packaging authority.
+
 ## [3.76.62] - 2026-07-03
 
 ### Changed

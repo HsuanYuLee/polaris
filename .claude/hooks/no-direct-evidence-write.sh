@@ -20,6 +20,15 @@
 # Strict owning_skill binding: env set to skill A cannot bypass skill B's
 # globs (AC-NEG4). Evidence JSON (non-markdown) is never bypassed by this
 # env (AC-NEG2); deterministic writer scripts remain the only path.
+#
+# DP-341 T3: refinement.json (the intent layer) is added to the protected
+# scope. Per-task packaging (allowed_files / estimate_points) is owned by the
+# breakdown task.md writer, not refinement.json. A breakdown attempt to write
+# refinement.json directly stays fail-closed DENY: refinement.json is a .json,
+# so the POLARIS_SKILL_WRITER markdown bypass (which only fires for *.md) never
+# applies, and there is no refinement.json producer_token bypass (AC-NEG2).
+# Writing the task.md packaging section (.md) still ALLOWs via the markdown
+# skill-writer bypass.
 
 set -euo pipefail
 
@@ -49,6 +58,7 @@ case "$file_path" in
   .polaris/evidence/ac-verification/*.json|*/.polaris/evidence/ac-verification/*.json|\
   .polaris/evidence/auto-pass/audit/*.json|*/.polaris/evidence/auto-pass/audit/*.json|\
   docs-manager/src/content/docs/specs/**/*.md|*/docs-manager/src/content/docs/specs/**/*.md|\
+  docs-manager/src/content/docs/specs/**/refinement.json|*/docs-manager/src/content/docs/specs/**/refinement.json|\
   docs-manager/src/content/docs/specs/**/verification/V*/*.json|*/docs-manager/src/content/docs/specs/**/verification/V*/*.json|\
   docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-ledger.json|*/docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-ledger.json|\
   docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-resume.json|*/docs-manager/src/content/docs/specs/**/artifacts/auto-pass/*-resume.json|\

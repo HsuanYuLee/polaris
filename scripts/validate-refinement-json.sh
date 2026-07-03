@@ -585,6 +585,13 @@ def validate_task_verification_body(verification, label):
 # propagate the distinct exit-2 contract (other schema violations stay exit 1).
 scss_overscope_violation = [False]
 
+# DP-341 / AC-NEG1: signals that a refinement.json tasks[] entry carried a
+# forbidden per-task packaging field (allowed_files / estimate_points). Like the
+# SCSS-overscope sentinel, this is a fail-closed A-class gate that exits 2
+# (distinct from the generic schema exit 1) so the shell wrapper surfaces the
+# dedicated contract. The gate fires for every source.type (dp + jira parity).
+packaging_field_violation = [False]
+
 # Match a negative ripgrep assertion: `! rg <flags...> '<pattern>' <path...>`.
 # The pattern may be single- or double-quoted; trailing args carry the scan path.
 # The clause body runs to the next SHELL command boundary (newline, `;`, `&&`,
@@ -691,18 +698,25 @@ tasks = data.get("tasks")
 if not isinstance(tasks, list) or not tasks:
     strong_error("tasks")
 else:
+    # DP-341: per-task packaging fields (allowed_files / estimate_points) are
+    # NOT part of the refinement.json intent layer. refinement.json tasks[]
+    # carries planning intent only; the breakdown writer path (task.md) owns the
+    # packaging fields. These two keys are therefore removed from task_required
+    # and are fail-closed when PRESENT (see PACKAGING_FORBIDDEN gate below). The
+    # gate fires for EVERY source.type (dp + jira parity); it must not branch on
+    # source.type.
     task_required = {
         "id",
         "kind",
         "title",
         "scope",
-        "allowed_files",
         "modules",
         "ac_ids",
         "dependencies",
-        "estimate_points",
         "verification",
     }
+    # DP-341: per-task packaging fields forbidden on refinement.json tasks[].
+    packaging_forbidden_fields = ("allowed_files", "estimate_points")
     for idx, task in enumerate(tasks):
         if not isinstance(task, dict):
             strong_error(f"tasks[{idx}]")
@@ -774,8 +788,21 @@ else:
                     f"POLARIS_REFINEMENT_JIRA_ONLY_FIELD: tasks[{idx}].jira_key is jira-only "
                     f"and must be absent for source.type={source_type}"
                 )
-        if not isinstance(task.get("allowed_files"), list) or not task.get("allowed_files"):
-            strong_error(f"tasks[{idx}].allowed_files")
+        # DP-341 / AC-NEG1: per-task packaging fields are forbidden on the
+        # refinement.json intent layer. If a tasks[] entry CONTAINS
+        # allowed_files or estimate_points (key present at all), fail-closed.
+        # This gate fires for EVERY source.type (dp + jira parity) — it does
+        # NOT branch on source_type. The packaging fields are owned by the
+        # breakdown writer path (task.md), not refinement.json tasks[].
+        for forbidden_field in packaging_forbidden_fields:
+            if forbidden_field in task:
+                packaging_field_violation[0] = True
+                errors.append(
+                    "POLARIS_REFINEMENT_PACKAGING_FIELD_FORBIDDEN: "
+                    f"tasks[{idx}].{forbidden_field} is a per-task packaging field "
+                    "owned by the breakdown writer path (task.md) and must be absent "
+                    "from the refinement.json intent layer"
+                )
         if not isinstance(task.get("modules"), list):
             strong_error(f"tasks[{idx}].modules")
         task_deps = task.get("dependencies")
@@ -816,8 +843,9 @@ else:
                     f"task {task_id} has non-linear local dependencies {local_deps}; "
                     "breakdown task.md dependency binding is linear"
                 )
-        if not isinstance(task.get("estimate_points"), (int, float)):
-            strong_error(f"tasks[{idx}].estimate_points")
+        # DP-341: the estimate_points positive shape check is removed —
+        # estimate_points is now forbidden on refinement.json tasks[] (handled by
+        # the PACKAGING_FIELD_FORBIDDEN gate above), not a required/validated field.
         task_verification = task.get("verification")
         if not isinstance(task_verification, dict):
             strong_error(f"tasks[{idx}].verification")
@@ -883,7 +911,10 @@ if errors:
     # DP-359 D4: the SCSS-removal curated-token over-scope violation is a
     # fail-closed A-class gate that exits 2 (distinct from the generic schema
     # exit 1) so the shell wrapper can surface the dedicated contract.
-    sys.exit(2 if scss_overscope_violation[0] else 1)
+    # DP-341: the per-task packaging-field gate is an A-class fail-closed gate
+    # that also exits 2 (alongside the SCSS-overscope gate); all other schema
+    # violations stay exit 1.
+    sys.exit(2 if (scss_overscope_violation[0] or packaging_field_violation[0]) else 1)
 
 sys.exit(0)
 PY

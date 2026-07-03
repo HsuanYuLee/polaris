@@ -156,8 +156,55 @@ if ! cmp -s "$positive_out" "$positive_out_b"; then
 fi
 
 # ---------------------------------------------------------------------------
-# Case 3 (AC-NEG9): missing required structural field -> fail-loud.
+# Case 3 (AC-NEG9 / DP-341 T2): missing required structural field -> fail-loud.
+#
+# DP-341 contract change: allowed_files / estimate_points are NO LONGER required
+# intent fields (refinement.json is intent-only; packaging is breakdown-owned in
+# task.md). So an intent-only refinement.json that OMITS allowed_files must now
+# SUCCEED (regime 3 initial-create), NOT fail-loud. The negative AC-NEG9 contract
+# (a genuinely-missing required field fail-louds + names the field) is preserved
+# against a field that is STILL required (scope).
 # ---------------------------------------------------------------------------
+
+# Sub-case 3a (DP-341 T2): omitting allowed_files is now the intent-only target
+# shape -> derive succeeds (regime 3), it is not a missing-required-field error.
+intent_only_json="$tmpdir/refinement-intent-only-no-allowed.json"
+cat >"$intent_only_json" <<'JSON'
+{
+  "source": {
+    "type": "dp",
+    "id": "DP-999",
+    "container": "/tmp/dp-999",
+    "plan_path": "/tmp/dp-999/index.md",
+    "jira_key": null
+  },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "DP-999-T2",
+      "kind": "implementation",
+      "title": "Intent only, no allowed_files",
+      "scope": "Intent-only shape -- allowed_files omitted; packaging is task.md-owned.",
+      "ac_ids": ["AC2"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "bash scripts/selftests/missing-selftest.sh"
+      }
+    }
+  ]
+}
+JSON
+
+if ! bash "$SCRIPT" --refinement-json "$intent_only_json" --task-id "DP-999-T2" >/dev/null 2>"$tmpdir/intent-only.stderr"; then
+  echo "FAIL [case 3a / DP-341 T2]: derive rejected intent-only refinement.json missing allowed_files (regime 3 must succeed)" >&2
+  cat "$tmpdir/intent-only.stderr" >&2
+  exit 1
+fi
+
+# Sub-case 3b (AC-NEG9): a genuinely-still-required structural field (scope)
+# omitted -> fail-loud + names the missing field.
 negative_json="$tmpdir/refinement-negative.json"
 cat >"$negative_json" <<'JSON'
 {
@@ -173,8 +220,7 @@ cat >"$negative_json" <<'JSON'
     {
       "id": "DP-999-T2",
       "kind": "implementation",
-      "title": "Missing allowed_files",
-      "scope": "Negative case -- allowed_files intentionally omitted to assert fail-loud.",
+      "title": "Missing scope",
       "ac_ids": ["AC2"],
       "dependencies": [],
       "estimate_points": 1,
@@ -188,11 +234,11 @@ cat >"$negative_json" <<'JSON'
 JSON
 
 if bash "$SCRIPT" --refinement-json "$negative_json" --task-id "DP-999-T2" >/dev/null 2>"$tmpdir/neg.stderr"; then
-  echo "FAIL [case 3 / AC-NEG9]: script accepted refinement.json missing allowed_files" >&2
+  echo "FAIL [case 3b / AC-NEG9]: script accepted refinement.json missing required field scope" >&2
   exit 1
 fi
-if ! grep -q "allowed_files" "$tmpdir/neg.stderr"; then
-  echo "FAIL [case 3 / AC-NEG9]: script did not surface the missing field name" >&2
+if ! grep -q "scope" "$tmpdir/neg.stderr"; then
+  echo "FAIL [case 3b / AC-NEG9]: script did not surface the missing field name" >&2
   cat "$tmpdir/neg.stderr" >&2
   exit 1
 fi

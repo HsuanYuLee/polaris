@@ -25,7 +25,11 @@
 #   AC1     : a canonical dp fixture with an out-of-enum task_shape FAILs.
 #   AC7     : the tightened validator over a hermetic LOCKED active
 #             refinement.json fixture PASSes; live active-set scan is optional
-#             when the checkout has local specs available.
+#             when the checkout has local specs available. The optional live scan
+#             is differential: every LOCKED file that PASSes must be canonical +
+#             intent-only. DP-341 packaging-field failures may make the live
+#             passing set empty before the one-time T5 migration, and that is not
+#             a regression.
 #
 # Covers (DP-302 — per-task verification body fields, all source):
 #   AC3     : a dp fixture with well-formed per-task verification body fields
@@ -87,11 +91,9 @@ write_jira_positive() {
       "jira_key": "PROJ-201",
       "title": "t",
       "scope": "s",
-      "allowed_files": ["scripts/sample.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
       "verification": { "method": "unit_test", "detail": "d" }
     },
     {
@@ -100,11 +102,9 @@ write_jira_positive() {
       "jira_key": null,
       "title": "t2",
       "scope": "s2",
-      "allowed_files": ["scripts/sample.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
       "verification": { "method": "unit_test", "detail": "d" }
     }
   ],
@@ -149,11 +149,9 @@ write_dp_canonical() {
       "tracked_deliverable_hint": "tracked",
       "title": "t",
       "scope": "s",
-      "allowed_files": ["scripts/sample.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
       "verification": { "method": "unit_test", "detail": "d" }
     }
   ],
@@ -203,11 +201,9 @@ cat >"$dp_repo" <<JSON
       "kind": "task",
       "title": "t",
       "scope": "s",
-      "allowed_files": ["scripts/sample.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
       "verification": { "method": "unit_test", "detail": "d" }
     }
   ],
@@ -254,11 +250,9 @@ cat >"$dp_taskkey" <<JSON
       "jira_key": "PROJ-201",
       "title": "t",
       "scope": "s",
-      "allowed_files": ["scripts/sample.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
       "verification": { "method": "unit_test", "detail": "d" }
     }
   ],
@@ -305,11 +299,9 @@ cat >"$dp_clean" <<JSON
       "kind": "task",
       "title": "t",
       "scope": "s",
-      "allowed_files": ["scripts/sample.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
       "verification": { "method": "unit_test", "detail": "d" }
     }
   ],
@@ -350,11 +342,9 @@ cat >"$jira_missing" <<JSON
       "jira_key": "PROJ-201",
       "title": "t",
       "scope": "s",
-      "allowed_files": ["scripts/sample.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
       "verification": { "method": "unit_test", "detail": "d" }
     }
   ],
@@ -554,10 +544,21 @@ if [[ -d "$specs_root" ]]; then
     [[ "$status" == "LOCKED" ]] || continue
     # Differential scope: only assert files that the validator currently passes;
     # pre-existing strong-bound legacy failures are out of DP-296 scope.
+    #
+    # DP-341 teardown: the validator now also fail-closes on tasks[].allowed_files
+    # / tasks[].estimate_points (per-task packaging fields, now owned by the
+    # breakdown writer path / task.md). LOCKED active files that still carry those
+    # fields therefore drop out of the passing set here by design — that is the
+    # fail-loud signal that the one-time T5 migration
+    # (scripts/migrate-refinement-packaging-fields.sh) has not yet moved them to
+    # intent-only. So this case asserts a *differential* invariant only ("a file
+    # that passes is intent-only and canonical"), not an absolute count floor: at
+    # T1's integrated head, before T5 migrates the live LOCKED set, the passing
+    # set is legitimately empty, and that is correct, not a regression.
     bash "$SCRIPT" "$f" >/dev/null 2>&1 || continue
     live_asserted=$((live_asserted + 1))
-    # Already passed the validator above, which now rejects planned_tasks[]; this
-    # re-assert + explicit planned_tasks check documents the AC7 invariant.
+    # Already passed the validator above, which now rejects planned_tasks[] AND
+    # packaging fields; this re-assert + explicit checks document the invariant.
     if ! bash "$SCRIPT" "$f" >/dev/null 2>"$tmpdir/active-set.stderr"; then
       echo "FAIL [case 12 / AC7]: tightened validator regressed a LOCKED active file: $f" >&2
       cat "$tmpdir/active-set.stderr" >&2
@@ -567,12 +568,25 @@ if [[ -d "$specs_root" ]]; then
       echo "FAIL [case 12 / AC7]: LOCKED active file still carries top-level planned_tasks[]: $f" >&2
       exit 1
     fi
+    # DP-341 invariant: a LOCKED file that PASSES must be intent-only — it must
+    # NOT carry per-task packaging fields. (Carriers fail the validator above and
+    # never reach here; this guards against a future regression that relaxes the
+    # negative gate.)
+    if grep -qE '"(allowed_files|estimate_points)"' "$f"; then
+      echo "FAIL [case 12 / AC7]: LOCKED active file passed the validator yet still carries per-task packaging fields: $f" >&2
+      exit 1
+    fi
   done < <(
     find "$specs_root" \
       \( -path '*/archive/*' -o -path '*/.git/*' \) -prune \
       -o -type f -name 'refinement.json' -print 2>/dev/null | sort
   )
-  echo "INFO [case 12 / AC7]: hermetic LOCKED active fixture asserted PASS; optional live LOCKED active assertions=$live_asserted" >&2
+  # DP-341: no absolute count floor. Pre-T5-migration, the passing LOCKED set is
+  # legitimately empty (all live LOCKED files still carry packaging fields and
+  # fail the negative gate fail-loud); post-T5-migration it repopulates. The
+  # invariant under test is differential (any passing file is intent-only +
+  # canonical), enforced per-file in the loop above.
+  echo "INFO [case 12 / AC7]: hermetic LOCKED active fixture asserted PASS; optional live LOCKED active assertions=$live_asserted (canonical, intent-only: no planned_tasks[], no packaging fields)" >&2
 else
   echo "INFO [case 12 / AC7]: hermetic LOCKED active fixture asserted PASS; specs root not found ($specs_root), skipping optional live active-set scan" >&2
 fi
@@ -620,11 +634,9 @@ write_jira_with_body() {
       "jira_key": "PROJ-201",
       "title": "t",
       "scope": "s",
-      "allowed_files": ["src/sample.ts"],
       "modules": ["src/sample.ts"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
       "verification": {
         "method": "unit_test",
         "detail": "d",
@@ -845,11 +857,9 @@ write_dp_with_base_branch() {
       "tracked_deliverable_hint": "tracked",
       "title": "t",
       "scope": "s",
-      "allowed_files": ["scripts/sample.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
       "verification": { "method": "unit_test", "detail": "d" }
     }
   ],
@@ -941,11 +951,9 @@ cat >"$dp_no_base_dir/refinement.json" <<JSON
       "tracked_deliverable_hint": "tracked",
       "title": "t",
       "scope": "s",
-      "allowed_files": ["scripts/sample.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
       "verification": { "method": "unit_test", "detail": "d" }
     }
   ],
@@ -1014,11 +1022,9 @@ cat >"$topic_base_dir/refinement.json" <<JSON
       "kind": "task",
       "title": "t",
       "scope": "s",
-      "allowed_files": ["scripts/sample.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
       "verification": { "method": "unit_test", "detail": "d" }
     }
   ],
@@ -1101,11 +1107,9 @@ write_dp_scss() {
       "tracked_deliverable_hint": "tracked",
       "title": "t",
       "scope": "s",
-      "allowed_files": ["assets/style/css/sample.scss"],
       "modules": ["assets/style/css/sample.scss"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
       "verification": {
         "method": "unit_test",
         "detail": "d",
