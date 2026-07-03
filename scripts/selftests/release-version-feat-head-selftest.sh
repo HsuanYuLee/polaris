@@ -224,6 +224,54 @@ assert_eq "$?" "0" "no-DP-marker changesets → guard no-op, exit 0"
 assert_eq "$(cat "$REPO_NODP/VERSION")" "3.0.1" "no-DP-marker changesets bump normally"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "=== DP-399: stale feat/DP branch missing current origin/main → fail-loud ==="
+REPO_STALE="$WORK_DIR/stale-main"
+make_fixture_repo "$REPO_STALE" "4.0.0"
+(
+  cd "$REPO_STALE"
+  git init -q -b main
+  git config user.name "Polaris Selftest"
+  git config user.email "polaris-selftest@example.com"
+  git add .
+  git commit -q -m "base"
+  git remote add origin "$REPO_STALE"
+  git fetch -q origin main:refs/remotes/origin/main
+  git checkout -q -b feat/DP-334
+)
+add_changeset "$REPO_STALE" "dp-334-t1-stale-main-guard" "stale main guard"
+(
+  cd "$REPO_STALE"
+  git checkout -q main
+  printf 'main advanced after feat branch\n' > main-advanced.txt
+  git add main-advanced.txt
+  git commit -q -m "main advanced after feat"
+  git fetch -q origin main:refs/remotes/origin/main
+  git checkout -q feat/DP-334
+)
+STUB_STALE="$WORK_DIR/stub-stale.sh"
+make_feat_stub_cli "$STUB_STALE" "4.0.1"
+OUT_STALE="$WORK_DIR/stale.out"
+POLARIS_RELEASE_CHANGESET_CMD="$STUB_STALE" "$RV" --repo "$REPO_STALE" >"$OUT_STALE" 2>&1
+RC_STALE=$?
+if [[ "$RC_STALE" -ne 0 ]]; then
+  PASS=$((PASS + 1))
+  [[ "$DEBUG" == "1" ]] && printf "  [ok] DP-399 stale feat/main ancestry fail-loud (rc=%s)\n" "$RC_STALE"
+else
+  FAIL=$((FAIL + 1))
+  printf "  [FAIL] DP-399 — expected non-zero exit on stale feat/main ancestry, got 0\n    out: %s\n" "$(cat "$OUT_STALE")"
+fi
+assert_grep "$OUT_STALE" "POLARIS_RELEASE_VERSION_STALE_FEAT_MAIN" "DP-399 emits stale feat/main marker"
+assert_eq "$(cat "$REPO_STALE/VERSION")" "4.0.0" "DP-399 version NOT advanced on stale feat/main"
+assert_file_absent "$REPO_STALE/.changeset/dp-334-t1-stale-main-guard.md.consumed" "DP-399 no fake consumed marker"
+if [[ -f "$REPO_STALE/.changeset/dp-334-t1-stale-main-guard.md" ]]; then
+  PASS=$((PASS + 1))
+  [[ "$DEBUG" == "1" ]] && printf "  [ok] DP-399 changeset remains for retry\n"
+else
+  FAIL=$((FAIL + 1))
+  printf "  [FAIL] DP-399 — changeset was consumed despite stale feat/main guard\n"
+fi
+
+# ────────────────────────────────────────────────────────────────────────────
 echo ""
 echo "=== Summary ==="
 TOTAL=$((PASS + FAIL))

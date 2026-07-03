@@ -502,6 +502,38 @@ fi
 grep -q "contains merge commits in its release range" "$TMPDIR"/feat-stack-polluted.out \
   || { echo "DP-398: polluted feat failure must name merge commits" >&2; cat "$TMPDIR"/feat-stack-polluted.out >&2; exit 1; }
 
+# DP-399 negative fixture: a linear feat branch that does not contain current
+# origin/main must fail before version compression. Otherwise release-version
+# can bump from a stale VERSION and produce a duplicate / stale release head.
+BASE_MAIN_SHA="$(git -C "$REPO" rev-parse main)"
+git -C "$REPO" branch -f feat/DP-999 "$T3_SHA"
+git -C "$REPO" checkout -q main
+printf 'main advanced after feat stack\n' > "$REPO/main-advanced.txt"
+git -C "$REPO" add main-advanced.txt
+git -C "$REPO" commit -q -m "main advanced after feat stack"
+git -C "$REPO" fetch -q origin +refs/heads/main:refs/remotes/origin/main
+git -C "$REPO" fetch -q origin +refs/heads/feat/DP-999:refs/remotes/origin/feat/DP-999
+cat > "$TMPDIR/pr-state.tsv" <<EOF
+task/DP-999-T1-one	1	MERGED	feat/DP-999	${T1_SHA}	https://example.test/pull/1
+task/DP-999-T2-two	2	MERGED	feat/DP-999	${T2_SHA}	https://example.test/pull/2
+task/DP-999-T3-three	3	MERGED	feat/DP-999	${T3_SHA}	https://example.test/pull/3
+EOF
+if bash "$HELPER" --repo "$REPO" \
+    --main feat/DP-999 \
+    --task-md "$TASK_DIR/T1-feat-stack.md" \
+    --task-md "$TASK_DIR/T2-feat-stack.md" \
+    --task-md "$TASK_DIR/T3-feat-stack.md" \
+    >"$TMPDIR"/feat-stack-stale-main.out 2>&1; then
+  echo "DP-399: stale-current-main feat branch fixture must fail" >&2
+  cat "$TMPDIR"/feat-stack-stale-main.out >&2
+  exit 1
+fi
+grep -q "does not contain current origin/main before version compression" "$TMPDIR"/feat-stack-stale-main.out \
+  || { echo "DP-399: stale-current-main failure must name current main ancestry" >&2; cat "$TMPDIR"/feat-stack-stale-main.out >&2; exit 1; }
+git -C "$REPO" checkout -q main
+git -C "$REPO" reset -q --hard "$BASE_MAIN_SHA"
+git -C "$REPO" fetch -q origin +refs/heads/main:refs/remotes/origin/main
+
 # DP-334 feature-branch release model: task PRs may already be merged into a
 # feat/DP-NNN aggregation branch. The release lane validates that state and must
 # not require historical task PR metadata to be retargeted to main; the later

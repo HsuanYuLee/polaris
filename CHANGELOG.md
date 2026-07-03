@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.62] - 2026-07-03
+
+### Changed
+
+- 89eed00: 修正 framework-release preflight，在 `feat/DP-NNN` 不包含 current `origin/main` 時於 version compression 前 fail-closed，避免 stale feat head 壓出重複或不完整 release。
+
 ## [3.76.61] - 2026-07-03
 
 ### Changed

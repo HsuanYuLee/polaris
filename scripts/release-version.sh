@@ -145,6 +145,41 @@ assert_single_dp_aggregation() {
   return 0
 }
 
+assert_feat_branch_contains_current_main_before_version() {
+  local branch=""
+  local main_sha=""
+  local head_sha=""
+  local merge_base=""
+
+  branch="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  [[ "$branch" == feat/DP-* ]] || return 0
+
+  git -C "$REPO_ROOT" fetch -q origin main \
+    || {
+      echo "POLARIS_RELEASE_VERSION_STALE_FEAT_MAIN: cannot fetch origin/main for ${branch}; release-version on feat/DP-NNN requires current main ancestry." >&2
+      return 1
+    }
+
+  main_sha="$(git -C "$REPO_ROOT" rev-parse refs/remotes/origin/main 2>/dev/null || true)"
+  head_sha="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
+  if [[ -z "$main_sha" || -z "$head_sha" ]]; then
+    echo "POLARIS_RELEASE_VERSION_STALE_FEAT_MAIN: cannot resolve origin/main or HEAD for ${branch}." >&2
+    return 1
+  fi
+
+  if ! git -C "$REPO_ROOT" merge-base --is-ancestor refs/remotes/origin/main HEAD >/dev/null 2>&1; then
+    merge_base="$(git -C "$REPO_ROOT" merge-base refs/remotes/origin/main HEAD 2>/dev/null || true)"
+    {
+      echo "POLARIS_RELEASE_VERSION_STALE_FEAT_MAIN: ${branch} does not contain current origin/main before version compression."
+      echo "  origin/main=${main_sha}"
+      echo "  HEAD=${head_sha}"
+      echo "  merge_base=${merge_base:-unknown}"
+      echo "  Re-drive or rebase the DP stack on current main before running release-version."
+    } >&2
+    return 1
+  fi
+}
+
 PENDING="$(count_pending_changesets)"
 
 if [[ "$PENDING" -eq 0 ]]; then
@@ -154,6 +189,9 @@ fi
 
 # Fail-loud before pressing the version if pending changesets stack across DPs.
 if ! assert_single_dp_aggregation; then
+  exit 1
+fi
+if ! assert_feat_branch_contains_current_main_before_version; then
   exit 1
 fi
 

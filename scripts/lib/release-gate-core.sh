@@ -224,6 +224,27 @@ assert_feat_branch_linear_release_head() {
   fi
 }
 
+assert_feat_branch_contains_current_main() {
+  local branch="$1"
+  local main_sha=""
+  local branch_sha=""
+  local merge_base=""
+
+  [[ -n "$branch" ]] || die "release preflight blocked: empty feat aggregation branch"
+  is_feat_aggregation_branch "$branch" || return 0
+  fetch_remote_branch_ref "$branch" \
+    || die "release preflight blocked: cannot fetch aggregation branch '$branch'"
+  git -C "$REPO_PATH" fetch -q origin main \
+    || die "release preflight blocked: cannot fetch origin/main"
+
+  main_sha="$(git -C "$REPO_PATH" rev-parse "refs/remotes/origin/main")"
+  branch_sha="$(git -C "$REPO_PATH" rev-parse "refs/remotes/origin/${branch}")"
+  if ! git -C "$REPO_PATH" merge-base --is-ancestor "refs/remotes/origin/main" "refs/remotes/origin/${branch}" >/dev/null 2>&1; then
+    merge_base="$(git -C "$REPO_PATH" merge-base "refs/remotes/origin/main" "refs/remotes/origin/${branch}" 2>/dev/null || true)"
+    die "release preflight blocked: $branch does not contain current origin/main before version compression; re-drive or rebase the DP stack on current main. origin/main=${main_sha} ${branch}=${branch_sha} merge_base=${merge_base:-unknown}"
+  fi
+}
+
 fast_forward_feat_task_pr() {
   local task_id="$1"
   local number="$2"

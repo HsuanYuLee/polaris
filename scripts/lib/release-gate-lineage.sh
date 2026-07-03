@@ -229,6 +229,7 @@ validate_and_plan() {
 
   if is_feat_aggregation_branch "$MAIN_BRANCH"; then
     feat_stack_mode=1
+    assert_feat_branch_contains_current_main "$MAIN_BRANCH"
     assert_feat_branch_linear_release_head "$MAIN_BRANCH"
   fi
 
@@ -326,6 +327,7 @@ validate_and_plan() {
         else
           fast_forward_feat_task_pr "$task_id" "$number" "$MAIN_BRANCH" "$head_branch" "$head"
         fi
+        assert_feat_branch_contains_current_main "$MAIN_BRANCH"
         assert_feat_branch_linear_release_head "$MAIN_BRANCH"
       elif is_feat_aggregation_branch "$base"; then
         if remote_branch_contains_head "$base" "$head"; then
