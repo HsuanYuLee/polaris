@@ -221,10 +221,16 @@ validate_and_plan() {
   local previous_state=""
   local idx=0
   local final_head=""
+  local feat_stack_mode=0
   local task_md task_id task_branch expected_initial_base json number state base head head_branch url action
   local expected_base upstream_state
   local seen_branches=()
   local seen_states=()
+
+  if is_feat_aggregation_branch "$MAIN_BRANCH"; then
+    feat_stack_mode=1
+    assert_feat_branch_linear_release_head "$MAIN_BRANCH"
+  fi
 
   echo "$PREFIX release lane plan:"
   for task_md in "${TASK_MDS[@]}"; do
@@ -248,7 +254,19 @@ validate_and_plan() {
     check_task_upstream_evidence_freshness "$task_md" "${task_id:-$task_branch}" "$head"
     verify_pr_task_lineage "$task_md" "$task_id" "$task_branch" "$number" "$head_branch"
 
-    if is_feat_aggregation_branch "$base"; then
+    if [[ "$feat_stack_mode" == "1" ]]; then
+      if [[ $idx -eq 0 ]]; then
+        [[ "$base" == "$MAIN_BRANCH" ]] || die "$task_id PR #$number base is '$base'; expected '$MAIN_BRANCH'"
+      elif [[ "$base" != "$previous_branch" && "$base" != "$MAIN_BRANCH" ]]; then
+        die "$task_id PR #$number base is '$base'; expected declared stack base '$previous_branch' or '$MAIN_BRANCH' after integration"
+      fi
+
+      if remote_branch_contains_head "$MAIN_BRANCH" "$head"; then
+        action="already integrated into $MAIN_BRANCH"
+      else
+        action="fast-forward $MAIN_BRANCH to task head before release"
+      fi
+    elif is_feat_aggregation_branch "$base"; then
       if [[ "$state" == "MERGED" ]]; then
         action="already merged into $base"
       elif remote_branch_contains_head "$base" "$head"; then
@@ -302,7 +320,14 @@ validate_and_plan() {
       "${task_id:-$task_branch}" "$number" "$base" "$state" "$head" "$action"
 
     if [[ "$EXECUTE" == "1" && "$state" != "MERGED" ]]; then
-      if is_feat_aggregation_branch "$base"; then
+      if [[ "$feat_stack_mode" == "1" ]]; then
+        if remote_branch_contains_head "$MAIN_BRANCH" "$head"; then
+          info "PR #$number ($task_id) head already integrated into $MAIN_BRANCH"
+        else
+          fast_forward_feat_task_pr "$task_id" "$number" "$MAIN_BRANCH" "$head_branch" "$head"
+        fi
+        assert_feat_branch_linear_release_head "$MAIN_BRANCH"
+      elif is_feat_aggregation_branch "$base"; then
         if remote_branch_contains_head "$base" "$head"; then
           info "PR #$number ($task_id) head already integrated into $base"
         else
@@ -321,9 +346,11 @@ validate_and_plan() {
         base="$(json_field "$json" "d.get('baseRefName')")"
         [[ "$base" == "$MAIN_BRANCH" ]] || die "PR #$number retarget verification failed; base is '$base'"
       fi
-      info "merging PR #$number ($task_id)"
-      "$GH_BIN" pr merge "$number" ${gh_repo_args[@]+"${gh_repo_args[@]}"} --merge
-      state="MERGED"
+      if [[ "$feat_stack_mode" != "1" ]]; then
+        info "merging PR #$number ($task_id)"
+        "$GH_BIN" pr merge "$number" ${gh_repo_args[@]+"${gh_repo_args[@]}"} --merge
+        state="MERGED"
+      fi
     fi
 
     previous_branch="$task_branch"

@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.61] - 2026-07-03
+
+### Changed
+
+- ad45560: 修正 framework-release PR lane，使 declared stack task PR 整合進 `feat/DP-NNN` 時保持線性 fast-forward，不再產生 fast-forward promotion 會拒絕的 per-task GitHub merge commit。
+
 ## [3.76.60] - 2026-07-03
 
 ### Changed

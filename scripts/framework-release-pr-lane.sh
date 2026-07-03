@@ -71,7 +71,10 @@ Options:
   --full-backstop            Transitional explicit mode: also run upstream-owned
                              script-authoring / selftest backstop stages (R2-R6)
   --main <branch>            Main branch name (default: main)
-  --execute                  Merge open PRs in order, retargeting downstream PRs to main
+  --execute                  Integrate open PR heads in order. For feat/DP-NNN
+                             aggregation lanes, fast-forward feat to each task
+                             head without GitHub merge commits; legacy main/DAG
+                             lanes retain existing PR merge behavior.
   --allow-dag                Validate explicit --task-md list as a topological DAG,
                              not as one linear branch chain
   --require-main-contains-final

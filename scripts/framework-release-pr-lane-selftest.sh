@@ -299,6 +299,9 @@ fi
 
 if [[ "$cmd $sub" == "pr merge" ]]; then
   number="$1"
+  if [[ -n "${FRAMEWORK_PR_LANE_GH_LOG:-}" ]]; then
+    printf 'merge\t%s\n' "$number" >> "$FRAMEWORK_PR_LANE_GH_LOG"
+  fi
   python3 - "$STATE" "$number" <<'PY'
 import sys
 from pathlib import Path
@@ -324,6 +327,9 @@ make_task "$TASK_DIR/T1.md" "DP-999-T1" "main" "main -> task/DP-999-T1-one" "tas
 make_task "$TASK_DIR/T2.md" "DP-999-T2" "task/DP-999-T1-one" "main -> task/DP-999-T1-one -> task/DP-999-T2-two" "task/DP-999-T2-two"
 make_task "$TASK_DIR/T3.md" "DP-999-T3" "task/DP-999-T2-two" "main -> task/DP-999-T1-one -> task/DP-999-T2-two -> task/DP-999-T3-three" "task/DP-999-T3-three"
 make_task "$TASK_DIR/T3-local-chain.md" "DP-999-T3" "task/DP-999-T2-two" "task/DP-999-T2-two -> task/DP-999-T3-three" "task/DP-999-T3-three"
+make_task "$TASK_DIR/T1-feat-stack.md" "DP-999-T1" "feat/DP-999" "feat/DP-999 -> task/DP-999-T1-one" "task/DP-999-T1-one"
+make_task "$TASK_DIR/T2-feat-stack.md" "DP-999-T2" "task/DP-999-T1-one" "feat/DP-999 -> task/DP-999-T1-one -> task/DP-999-T2-two" "task/DP-999-T2-two"
+make_task "$TASK_DIR/T3-feat-stack.md" "DP-999-T3" "task/DP-999-T2-two" "feat/DP-999 -> task/DP-999-T1-one -> task/DP-999-T2-two -> task/DP-999-T3-three" "task/DP-999-T3-three"
 make_task "$TASK_DIR/TB.md" "DP-999-TB" "main" "main -> task/DP-999-TB-blocked" "task/DP-999-TB-blocked"
 make_task "$TASK_DIR/TG.md" "DP-999-TG" "main" "main -> codex/generic-publish" "codex/generic-publish"
 
@@ -418,10 +424,89 @@ awk -F '\t' '$2 == "1" && $3 == "MERGED" { ok=1 } END { exit ok ? 0 : 1 }' "$FRA
 awk -F '\t' '$2 == "2" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
 awk -F '\t' '$2 == "3" && $3 == "MERGED" && $4 == "main" { ok=1 } END { exit ok ? 0 : 1 }' "$FRAMEWORK_PR_LANE_STATE"
 
+# DP-398: terminal-task feat stack mode must integrate task PR heads by
+# fast-forwarding feat/DP-NNN only. It must not retarget downstream PRs and must
+# not call gh pr merge, because GitHub merge commits pollute the release head and
+# framework-release-main-promotion.sh rejects them.
+T1_SHA="$(git -C "$REPO" rev-parse task/DP-999-T1-one)"
+T2_SHA="$(git -C "$REPO" rev-parse task/DP-999-T2-two)"
+T3_SHA="$(git -C "$REPO" rev-parse task/DP-999-T3-three)"
+set_task_deliverable_head "$TASK_DIR/T1.md" "$T1_SHA"
+set_task_deliverable_head "$TASK_DIR/T2.md" "$T2_SHA"
+set_task_deliverable_head "$TASK_DIR/T3.md" "$T3_SHA"
+set_task_deliverable_head "$TASK_DIR/T1-feat-stack.md" "$T1_SHA"
+set_task_deliverable_head "$TASK_DIR/T2-feat-stack.md" "$T2_SHA"
+set_task_deliverable_head "$TASK_DIR/T3-feat-stack.md" "$T3_SHA"
+git -C "$REPO" branch -f feat/DP-999 main
+git -C "$REPO" fetch -q origin +refs/heads/feat/DP-999:refs/remotes/origin/feat/DP-999
+cat > "$TMPDIR/pr-state.tsv" <<EOF
+task/DP-999-T1-one	1	OPEN	feat/DP-999	${T1_SHA}	https://example.test/pull/1
+task/DP-999-T2-two	2	OPEN	task/DP-999-T1-one	${T2_SHA}	https://example.test/pull/2
+task/DP-999-T3-three	3	OPEN	task/DP-999-T2-two	${T3_SHA}	https://example.test/pull/3
+EOF
+: > "$TMPDIR/feat-stack-gh.log"
+FRAMEWORK_PR_LANE_GH_LOG="$TMPDIR/feat-stack-gh.log" \
+  bash "$HELPER" --repo "$REPO" \
+    --main feat/DP-999 \
+    --task-md "$TASK_DIR/T1-feat-stack.md" \
+    --task-md "$TASK_DIR/T2-feat-stack.md" \
+    --task-md "$TASK_DIR/T3-feat-stack.md" \
+    --execute \
+    >"$TMPDIR"/feat-stack-linear-execute.out 2>&1 || {
+      echo "DP-398: expected feat stack linear execute fixture to PASS" >&2
+      cat "$TMPDIR"/feat-stack-linear-execute.out >&2
+      exit 1
+    }
+[[ "$(git -C "$REPO" rev-parse feat/DP-999)" == "$T3_SHA" ]] \
+  || { echo "DP-398: feat aggregation branch did not end at terminal task head" >&2; cat "$TMPDIR"/feat-stack-linear-execute.out >&2; exit 1; }
+for upstream in "$T1_SHA" "$T2_SHA"; do
+  git -C "$REPO" merge-base --is-ancestor "$upstream" "$T3_SHA" \
+    || { echo "DP-398: terminal task head lost upstream ancestry $upstream" >&2; exit 1; }
+done
+if git -C "$REPO" log --oneline --merges main..feat/DP-999 | grep -q .; then
+  echo "DP-398: feat stack execute must not create merge commits" >&2
+  git -C "$REPO" log --oneline --graph --decorate main..feat/DP-999 >&2
+  exit 1
+fi
+if grep -q '^merge' "$TMPDIR/feat-stack-gh.log"; then
+  echo "DP-398: feat stack execute must not call gh pr merge" >&2
+  cat "$TMPDIR/feat-stack-gh.log" >&2
+  cat "$TMPDIR"/feat-stack-linear-execute.out >&2
+  exit 1
+fi
+grep -q "fast-forwarding feat/DP-999" "$TMPDIR"/feat-stack-linear-execute.out \
+  || { echo "DP-398: expected feat stack fast-forward trace" >&2; cat "$TMPDIR"/feat-stack-linear-execute.out >&2; exit 1; }
+
+# DP-398 negative fixture: a feat branch already polluted with merge commits must
+# fail before version compression, even if task heads remain reachable.
+git -C "$REPO" branch -f feat/DP-999 "$T1_SHA"
+git -C "$REPO" checkout -q feat/DP-999
+git -C "$REPO" merge --no-ff -q "$T2_SHA" -m "Merge pull request #2 from task/DP-999-T2-two"
+git -C "$REPO" checkout -q main
+git -C "$REPO" fetch -q origin +refs/heads/feat/DP-999:refs/remotes/origin/feat/DP-999
+cat > "$TMPDIR/pr-state.tsv" <<EOF
+task/DP-999-T1-one	1	MERGED	feat/DP-999	${T1_SHA}	https://example.test/pull/1
+task/DP-999-T2-two	2	MERGED	feat/DP-999	${T2_SHA}	https://example.test/pull/2
+task/DP-999-T3-three	3	OPEN	task/DP-999-T2-two	${T3_SHA}	https://example.test/pull/3
+EOF
+if bash "$HELPER" --repo "$REPO" \
+    --main feat/DP-999 \
+    --task-md "$TASK_DIR/T1-feat-stack.md" \
+    --task-md "$TASK_DIR/T2-feat-stack.md" \
+    --task-md "$TASK_DIR/T3-feat-stack.md" \
+    >"$TMPDIR"/feat-stack-polluted.out 2>&1; then
+  echo "DP-398: polluted feat branch fixture must fail" >&2
+  cat "$TMPDIR"/feat-stack-polluted.out >&2
+  exit 1
+fi
+grep -q "contains merge commits in its release range" "$TMPDIR"/feat-stack-polluted.out \
+  || { echo "DP-398: polluted feat failure must name merge commits" >&2; cat "$TMPDIR"/feat-stack-polluted.out >&2; exit 1; }
+
 # DP-334 feature-branch release model: task PRs may already be merged into a
 # feat/DP-NNN aggregation branch. The release lane validates that state and must
 # not require historical task PR metadata to be retargeted to main; the later
 # framework-release step opens the single feat/DP-NNN -> main PR.
+refresh_default_deliverables
 cat > "$TMPDIR/pr-state.tsv" <<'EOF'
 task/DP-999-T1-one	1	MERGED	feat/DP-999	1111111111111111111111111111111111111111	https://example.test/pull/1
 task/DP-999-T2-two	2	MERGED	feat/DP-999	2222222222222222222222222222222222222222	https://example.test/pull/2
@@ -447,7 +532,7 @@ set_task_deliverable_head "$TASK_DIR/T1.md" "$T1_SHA"
 set_task_deliverable_head "$TASK_DIR/T2.md" "$T2_SHA"
 set_task_deliverable_head "$TASK_DIR/T3.md" "$T3_SHA"
 git -C "$REPO" branch -f feat/DP-999 main
-git -C "$REPO" fetch -q origin feat/DP-999:refs/remotes/origin/feat/DP-999
+git -C "$REPO" fetch -q origin +refs/heads/feat/DP-999:refs/remotes/origin/feat/DP-999
 cat > "$TMPDIR/pr-state.tsv" <<EOF
 task/DP-999-T1-one	1	OPEN	feat/DP-999	${T1_SHA}	https://example.test/pull/1
 task/DP-999-T2-two	2	OPEN	feat/DP-999	${T2_SHA}	https://example.test/pull/2

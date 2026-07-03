@@ -203,6 +203,27 @@ remote_branch_contains_head() {
   git -C "$REPO_PATH" merge-base --is-ancestor "$head" "refs/remotes/origin/${branch}" >/dev/null 2>&1
 }
 
+assert_feat_branch_linear_release_head() {
+  local branch="$1"
+  local merge_commits=""
+
+  [[ -n "$branch" ]] || die "release preflight blocked: empty feat aggregation branch"
+  is_feat_aggregation_branch "$branch" || return 0
+  fetch_remote_branch_ref "$branch" \
+    || die "release preflight blocked: cannot fetch aggregation branch '$branch'"
+  git -C "$REPO_PATH" fetch -q origin main >/dev/null 2>&1 || true
+
+  if git -C "$REPO_PATH" rev-parse --verify "refs/remotes/origin/main" >/dev/null 2>&1; then
+    merge_commits="$(git -C "$REPO_PATH" log --format='%H %s' --merges "refs/remotes/origin/main..refs/remotes/origin/${branch}" || true)"
+  else
+    merge_commits="$(git -C "$REPO_PATH" log --format='%H %s' --merges "refs/remotes/origin/${branch}" || true)"
+  fi
+
+  if [[ -n "$merge_commits" ]]; then
+    die "release preflight blocked: $branch contains merge commits in its release range; framework-release requires a linear feat head before version compression. Offending commits: $(printf '%s' "$merge_commits" | tr '\n' '; ')"
+  fi
+}
+
 fast_forward_feat_task_pr() {
   local task_id="$1"
   local number="$2"
