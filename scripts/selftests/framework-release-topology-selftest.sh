@@ -54,6 +54,14 @@ TASK_DIR="$TMPDIR/tasks"
 make_task "$TASK_DIR/T1/index.md" "DP-392-T1" "feat/DP-392" "task/DP-392-T1-one"
 make_task "$TASK_DIR/T2/index.md" "DP-392-T2" "task/DP-392-T1-one" "task/DP-392-T2-two"
 make_task "$TASK_DIR/T3/index.md" "DP-392-T3" "feat/DP-392" "task/DP-392-T3-three"
+cat >>"$TASK_DIR/T2/index.md" <<'MD'
+
+## Freeform Notes
+
+This prose is intentionally misleading and must not be parsed by the topology
+classifier: Base branch | feat/DP-392 | Branch chain | feat/DP-392 -> task/fake |
+Task branch | task/fake |
+MD
 
 framework_release_topology_classify_task_mds "$TASK_DIR/T1/index.md" >"$TMPDIR/single.out"
 grep -q "topology=single_pr" "$TMPDIR/single.out" || {
@@ -68,6 +76,17 @@ grep -q "topology=stack_pr" "$TMPDIR/stack.out" || {
   cat "$TMPDIR/stack.out" >&2
   exit 1
 }
+if grep -q "task/fake" "$TMPDIR/stack.out"; then
+  echo "topology classifier must ignore task.md freeform body prose" >&2
+  cat "$TMPDIR/stack.out" >&2
+  exit 1
+fi
+
+if grep -Eq 'table_field "Branch chain"|handbook|freeform|prose' "$LIB"; then
+  echo "topology helper must not parse Branch chain, handbook, or freeform prose" >&2
+  grep -En 'table_field "Branch chain"|handbook|freeform|prose' "$LIB" >&2
+  exit 1
+fi
 
 assert_fail_contains "sibling_parallel_invalid" \
   framework_release_topology_classify_task_mds "$TASK_DIR/T1/index.md" "$TASK_DIR/T3/index.md"
@@ -111,23 +130,50 @@ git init -q -b main "$REPO"
   git add file.txt
   git commit -q -m "two"
   TWO_HEAD="$(git rev-parse HEAD)"
+  git checkout -q main
+  git checkout -q -b task/sibling
+  printf 'sibling\n' > sibling.txt
+  git add sibling.txt
+  git commit -q -m "sibling"
+  SIBLING_HEAD="$(git rev-parse HEAD)"
   git checkout -q --orphan squash-like
   rm -f file.txt
   printf 'flattened\n' > file.txt
   git add file.txt
   git commit -q -m "flattened"
   SQUASH_HEAD="$(git rev-parse HEAD)"
-  printf '%s\n%s\n%s\n' "$ONE_HEAD" "$TWO_HEAD" "$SQUASH_HEAD" > "$TMPDIR/heads.txt"
+  printf '%s\n%s\n%s\n%s\n' "$ONE_HEAD" "$TWO_HEAD" "$SIBLING_HEAD" "$SQUASH_HEAD" > "$TMPDIR/heads.txt"
 )
 ONE_HEAD="$(sed -n '1p' "$TMPDIR/heads.txt")"
 TWO_HEAD="$(sed -n '2p' "$TMPDIR/heads.txt")"
-SQUASH_HEAD="$(sed -n '3p' "$TMPDIR/heads.txt")"
+SIBLING_HEAD="$(sed -n '3p' "$TMPDIR/heads.txt")"
+SQUASH_HEAD="$(sed -n '4p' "$TMPDIR/heads.txt")"
 framework_release_topology_validate_ancestor_trace "$REPO" "$TWO_HEAD" "DP-392-T1=$ONE_HEAD" "DP-392-T2=$TWO_HEAD" >"$TMPDIR/ancestor.out"
 grep -q "ancestor_trace=pass" "$TMPDIR/ancestor.out" || {
   echo "expected ancestor trace to pass for real stack" >&2
   cat "$TMPDIR/ancestor.out" >&2
   exit 1
 }
+
+cat >"$TMPDIR/pr-retargeted-stack.tsv" <<TSV
+task_id|task_branch|task_base|pr_number|pr_state|pr_base|pr_head_branch|pr_head_sha
+DP-392-T1|task/DP-392-T1-one|feat/DP-392|11|MERGED|feat/DP-392|task/DP-392-T1-one|${ONE_HEAD}
+DP-392-T2|task/DP-392-T2-two|task/DP-392-T1-one|12|OPEN|feat/DP-392|task/DP-392-T2-two|${TWO_HEAD}
+TSV
+framework_release_topology_validate_pr_records_with_git "$REPO" <"$TMPDIR/pr-retargeted-stack.tsv" >"$TMPDIR/pr-retargeted-stack.out"
+grep -q "topology=stack_pr" "$TMPDIR/pr-retargeted-stack.out" || {
+  echo "same-feat PR records with upstream ancestry should normalize to stack_pr" >&2
+  cat "$TMPDIR/pr-retargeted-stack.out" >&2
+  exit 1
+}
+
+cat >"$TMPDIR/pr-sibling-no-ancestry.tsv" <<TSV
+task_id|task_branch|task_base|pr_number|pr_state|pr_base|pr_head_branch|pr_head_sha
+DP-392-T1|task/DP-392-T1-one|feat/DP-392|11|OPEN|feat/DP-392|task/DP-392-T1-one|${ONE_HEAD}
+DP-392-T2|task/DP-392-T2-two|task/DP-392-T1-one|12|OPEN|feat/DP-392|task/DP-392-T2-two|${SIBLING_HEAD}
+TSV
+assert_fail_contains "sibling_parallel_invalid" \
+  framework_release_topology_validate_pr_records_with_git "$REPO" <"$TMPDIR/pr-sibling-no-ancestry.tsv"
 
 assert_fail_contains "squash-like trace loss" \
   framework_release_topology_validate_ancestor_trace "$REPO" "$SQUASH_HEAD" "DP-392-T1=$ONE_HEAD"

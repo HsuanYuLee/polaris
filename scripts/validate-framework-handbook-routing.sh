@@ -26,6 +26,7 @@ set -euo pipefail
 #     {
 #       "schema_version": 1,
 #       "framework_handbook_required": true|false,
+#       "framework_handbook_topics": [...],
 #       "framework_owned_hits": [...],
 #       "product_repo_paths": [...],
 #       "unclassified": [...]
@@ -48,6 +49,10 @@ set -euo pipefail
 #       _template/**
 #   - Mixed hit (both surfaces) → framework_handbook_required=true AND
 #     product_repo_paths populated; caller must load both handbooks.
+#   - Framework DP release topology routing is additive topic guidance:
+#       DP source paths and framework source entrypoint references require
+#       .claude/rules/handbook/framework/release-topology.md in addition to
+#       the framework handbook index.
 
 PREFIX="[polaris validate-framework-handbook-routing]"
 
@@ -177,12 +182,36 @@ is_product_repo_path() {
 }
 
 FRAMEWORK_HITS=()
+FRAMEWORK_TOPICS=()
 PRODUCT_PATHS=()
 UNCLASSIFIED=()
+
+push_framework_topic() {
+  local topic="$1" existing
+  for existing in "${FRAMEWORK_TOPICS[@]+"${FRAMEWORK_TOPICS[@]}"}"; do
+    [[ "$existing" == "$topic" ]] && return 0
+  done
+  FRAMEWORK_TOPICS+=("$topic")
+}
+
+collect_framework_topics_for_path() {
+  local path="$1"
+
+  push_framework_topic ".claude/rules/handbook/framework/index.md"
+
+  case "$path" in
+    docs-manager/src/content/docs/specs/design-plans/DP-*|.claude/skills/references/refinement-source-mode.md|.claude/skills/references/breakdown-dp-intake-flow.md|.claude/skills/references/engineering-entry-resolution.md|.claude/skills/framework-release/SKILL.md|.claude/rules/handbook/framework/release-topology.md)
+      push_framework_topic ".claude/rules/handbook/framework/release-topology.md"
+      ;;
+    *)
+      ;;
+  esac
+}
 
 for path in "${CANDIDATES[@]+"${CANDIDATES[@]}"}"; do
   if is_framework_owned "$path"; then
     FRAMEWORK_HITS+=("$path")
+    collect_framework_topics_for_path "$path"
   elif is_product_repo_path "$path"; then
     PRODUCT_PATHS+=("$path")
   else
@@ -221,6 +250,9 @@ json_array() {
   printf '{'
   printf '"schema_version":1,'
   printf '"framework_handbook_required":%s,' "$required"
+  printf '"framework_handbook_topics":'
+  json_array "${FRAMEWORK_TOPICS[@]+"${FRAMEWORK_TOPICS[@]}"}"
+  printf ','
   printf '"framework_owned_hits":'
   json_array "${FRAMEWORK_HITS[@]+"${FRAMEWORK_HITS[@]}"}"
   printf ','
@@ -237,6 +269,12 @@ if [[ "$MODE" == "diff" && "${#FRAMEWORK_HITS[@]}" -gt 0 ]]; then
   for hit in "${FRAMEWORK_HITS[@]}"; do
     printf '  - %s\n' "$hit" >&2
   done
+  if [[ "${#FRAMEWORK_TOPICS[@]}" -gt 0 ]]; then
+    echo "$PREFIX framework handbook topics:" >&2
+    for topic in "${FRAMEWORK_TOPICS[@]}"; do
+      printf '  - %s\n' "$topic" >&2
+    done
+  fi
 fi
 
 exit 0

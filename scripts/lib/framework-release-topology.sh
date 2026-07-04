@@ -134,6 +134,112 @@ framework_release_topology_validate_pr_records() {
   framework_release_topology_die "invalid topology=undeclared_stack prs=${count}; PR base/head metadata does not form a legal framework DP release chain."
 }
 
+framework_release_topology_validate_pr_records_with_git() {
+  local repo="$1"
+  local count=0
+  local previous_task_branch=""
+  local previous_head_branch=""
+  local previous_head_sha=""
+  local first_pr_base=""
+  local same_base_count=0
+  local stack_edges=0
+  local task_id task_branch task_base pr_number pr_state pr_base pr_head_branch pr_head_sha
+  local task_ids=()
+  local task_branches=()
+  local task_bases=()
+  local pr_numbers=()
+  local pr_states=()
+  local pr_bases=()
+  local pr_head_branches=()
+  local pr_head_shas=()
+
+  [[ -d "$repo/.git" || -f "$repo/.git" ]] \
+    || framework_release_topology_die "not a git repository: $repo" || return $?
+
+  while IFS='|' read -r task_id task_branch task_base pr_number pr_state pr_base pr_head_branch pr_head_sha; do
+    [[ -n "${task_id}${task_branch}${task_base}${pr_number}${pr_state}${pr_base}${pr_head_branch}${pr_head_sha}" ]] || continue
+    [[ "$task_id" != "task_id" ]] || continue
+    count=$((count + 1))
+
+    [[ -n "$task_branch" && "$task_branch" == task/* ]] || framework_release_topology_die "invalid task branch for ${task_id}: ${task_branch}" || return $?
+    [[ -n "$task_base" ]] || framework_release_topology_die "missing task base for ${task_id}" || return $?
+    [[ -n "$pr_number" ]] || framework_release_topology_die "missing PR number for ${task_id}" || return $?
+    [[ -n "$pr_state" ]] || framework_release_topology_die "missing PR state for ${task_id} PR #${pr_number}" || return $?
+    [[ -n "$pr_base" ]] || framework_release_topology_die "missing PR base for ${task_id} PR #${pr_number}" || return $?
+    [[ -n "$pr_head_sha" ]] || framework_release_topology_die "missing PR head SHA for ${task_id} PR #${pr_number}" || return $?
+    [[ "$pr_head_branch" == "$task_branch" ]] || framework_release_topology_die "PR #${pr_number} for ${task_id} head branch is ${pr_head_branch}; expected ${task_branch}" || return $?
+
+    task_ids+=("$task_id")
+    task_branches+=("$task_branch")
+    task_bases+=("$task_base")
+    pr_numbers+=("$pr_number")
+    pr_states+=("$pr_state")
+    pr_bases+=("$pr_base")
+    pr_head_branches+=("$pr_head_branch")
+    pr_head_shas+=("$pr_head_sha")
+
+    if [[ "$count" -eq 1 ]]; then
+      first_pr_base="$pr_base"
+      same_base_count=1
+    else
+      [[ "$pr_base" == "$first_pr_base" ]] && same_base_count=$((same_base_count + 1))
+    fi
+  done
+
+  [[ "$count" -gt 0 ]] || framework_release_topology_die "no PR records supplied" || return $?
+  if [[ "$count" -eq 1 ]]; then
+    printf 'topology=single_pr prs=1\n'
+    return 0
+  fi
+
+  local i
+  for (( i=0; i<count; i++ )); do
+    task_id="${task_ids[$i]}"
+    task_branch="${task_branches[$i]}"
+    task_base="${task_bases[$i]}"
+    pr_number="${pr_numbers[$i]}"
+    pr_base="${pr_bases[$i]}"
+    pr_head_sha="${pr_head_shas[$i]}"
+
+    if [[ "$i" -eq 0 ]]; then
+      [[ "$pr_base" == "$task_base" ]] \
+        || framework_release_topology_die "PR #${pr_number} for ${task_id} base is ${pr_base}; expected initial task base ${task_base}" || return $?
+    else
+      if [[ "$pr_base" == "$previous_head_branch" ]]; then
+        stack_edges=$((stack_edges + 1))
+      elif [[ "$task_base" == "$previous_task_branch" && "$pr_base" == "$first_pr_base" && "$first_pr_base" == feat/DP-* ]]; then
+        git -C "$repo" cat-file -e "${previous_head_sha}^{commit}" >/dev/null 2>&1 \
+          || framework_release_topology_die "cannot normalize PR #${pr_number} for ${task_id}: upstream task head ${previous_head_sha} is not a local commit" || return $?
+        git -C "$repo" cat-file -e "${pr_head_sha}^{commit}" >/dev/null 2>&1 \
+          || framework_release_topology_die "cannot normalize PR #${pr_number} for ${task_id}: PR head ${pr_head_sha} is not a local commit" || return $?
+        git -C "$repo" merge-base --is-ancestor "$previous_head_sha" "$pr_head_sha" || {
+          framework_release_topology_die "invalid topology=sibling_parallel_invalid base=${first_pr_base} PR #${pr_number} for ${task_id} does not contain upstream task head ${previous_head_sha}; rebase downstream task PRs onto their direct predecessor or collapse implementation into one PR before framework-release."
+          return $?
+        }
+        stack_edges=$((stack_edges + 1))
+      else
+        framework_release_topology_die "PR #${pr_number} for ${task_id} base is ${pr_base}; expected declared stack base ${previous_head_branch} or ancestry-proven retarget to ${first_pr_base}"
+        return $?
+      fi
+    fi
+
+    previous_task_branch="$task_branch"
+    previous_head_branch="$task_branch"
+    previous_head_sha="$pr_head_sha"
+  done
+
+  if [[ "$stack_edges" -eq $((count - 1)) ]]; then
+    printf 'topology=stack_pr prs=%s normalized_base=%s\n' "$count" "$first_pr_base"
+    return 0
+  fi
+
+  if [[ "$same_base_count" -eq "$count" && "$first_pr_base" == feat/DP-* ]]; then
+    framework_release_topology_die "invalid topology=sibling_parallel_invalid base=${first_pr_base} prs=${count}; offending PRs are sibling heads for one framework DP. Convert to a declared stack or a single source-level PR before release."
+    return $?
+  fi
+  framework_release_topology_die "invalid topology=undeclared_stack prs=${count}; PR base/head metadata does not form a legal framework DP release chain."
+}
+
 framework_release_topology_validate_ancestor_trace() {
   local repo="$1"
   local final_head="$2"

@@ -55,6 +55,39 @@ deliverable:
 MD
 }
 
+make_v_evidence_task() {
+  local file="$1"
+  local task_id="$2"
+  mkdir -p "$(dirname "$file")"
+  cat > "$file" <<MD
+---
+status: IN_PROGRESS
+task_kind: V
+task_shape: confirmation
+ac_verification:
+  status: PASS
+  human_disposition: passed
+---
+# ${task_id}
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | dp |
+| Source ID | DP-999 |
+| Task ID | ${task_id} |
+| JIRA key | N/A |
+| Test sub-tasks | N/A - framework verification evidence |
+| AC 驗收單 | N/A - framework verification evidence |
+| Base branch | N/A |
+| Branch chain | N/A |
+| Task branch | N/A |
+| Depends on | DP-999-T3 |
+| References to load | - \`scripts/framework-release-pr-lane.sh\` |
+MD
+}
+
 default_head_for_branch() {
   case "$1" in
     task/DP-999-T1-one) printf '%s\n' "1111111111111111111111111111111111111111" ;;
@@ -332,6 +365,7 @@ make_task "$TASK_DIR/T2-feat-stack.md" "DP-999-T2" "task/DP-999-T1-one" "feat/DP
 make_task "$TASK_DIR/T3-feat-stack.md" "DP-999-T3" "task/DP-999-T2-two" "feat/DP-999 -> task/DP-999-T1-one -> task/DP-999-T2-two -> task/DP-999-T3-three" "task/DP-999-T3-three"
 make_task "$TASK_DIR/TB.md" "DP-999-TB" "main" "main -> task/DP-999-TB-blocked" "task/DP-999-TB-blocked"
 make_task "$TASK_DIR/TG.md" "DP-999-TG" "main" "main -> codex/generic-publish" "codex/generic-publish"
+make_v_evidence_task "$TASK_DIR/V1.md" "DP-999-V1"
 
 if GH_BIN="$TMPDIR/missing-gh" bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" >"$TMPDIR"/missing-gh.out 2>&1; then
   echo "expected missing gh fixture to fail" >&2
@@ -359,6 +393,26 @@ export FRAMEWORK_PR_LANE_STATE="$TMPDIR/pr-state.tsv"
 
 write_state
 bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" >"$TMPDIR"/dryrun.out
+write_state
+bash "$HELPER" --repo "$REPO" \
+  --task-md "$TASK_DIR/T1.md" \
+  --task-md "$TASK_DIR/T2.md" \
+  --task-md "$TASK_DIR/T3.md" \
+  --task-md "$TASK_DIR/V1.md" \
+  >"$TMPDIR"/v-evidence-filter.out 2>&1 || {
+    echo "DP-396 T3: no-branch V evidence must not enter release PR topology" >&2
+    cat "$TMPDIR"/v-evidence-filter.out >&2
+    exit 1
+  }
+grep -q "V evidence task DP-999-V1 has no implementation PR; excluding it from release PR stack topology" "$TMPDIR"/v-evidence-filter.out \
+  || { echo "DP-396 T3: V evidence exclusion trace missing" >&2; cat "$TMPDIR"/v-evidence-filter.out >&2; exit 1; }
+grep -q "\[framework-release-pr-lane\] PASS" "$TMPDIR"/v-evidence-filter.out \
+  || { echo "DP-396 T3: V evidence filtered lane should PASS" >&2; cat "$TMPDIR"/v-evidence-filter.out >&2; exit 1; }
+if grep -q "gh pr view failed for N/A" "$TMPDIR"/v-evidence-filter.out; then
+  echo "DP-396 T3: no-branch V evidence leaked into gh PR lookup" >&2
+  cat "$TMPDIR"/v-evidence-filter.out >&2
+  exit 1
+fi
 write_state
 bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" >"$TMPDIR"/default-route.out 2>&1
 grep -q "upstream evidence fresh: stage=R2-R6" "$TMPDIR"/default-route.out \
@@ -547,13 +601,19 @@ git -C "$REPO" fetch -q origin +refs/heads/main:refs/remotes/origin/main
 # feat/DP-NNN aggregation branch. The release lane validates that state and must
 # not require historical task PR metadata to be retargeted to main; the later
 # framework-release step opens the single feat/DP-NNN -> main PR.
-refresh_default_deliverables
-cat > "$TMPDIR/pr-state.tsv" <<'EOF'
-task/DP-999-T1-one	1	MERGED	feat/DP-999	1111111111111111111111111111111111111111	https://example.test/pull/1
-task/DP-999-T2-two	2	MERGED	feat/DP-999	2222222222222222222222222222222222222222	https://example.test/pull/2
-task/DP-999-T3-three	3	MERGED	feat/DP-999	3333333333333333333333333333333333333333	https://example.test/pull/3
+set_task_deliverable_head "$TASK_DIR/T1-feat-stack.md" "$T1_SHA"
+set_task_deliverable_head "$TASK_DIR/T2-feat-stack.md" "$T2_SHA"
+set_task_deliverable_head "$TASK_DIR/T3-feat-stack.md" "$T3_SHA"
+cat > "$TMPDIR/pr-state.tsv" <<EOF
+task/DP-999-T1-one	1	MERGED	feat/DP-999	${T1_SHA}	https://example.test/pull/1
+task/DP-999-T2-two	2	MERGED	feat/DP-999	${T2_SHA}	https://example.test/pull/2
+task/DP-999-T3-three	3	MERGED	feat/DP-999	${T3_SHA}	https://example.test/pull/3
 EOF
-bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" >"$TMPDIR"/feat-aggregation.out 2>&1 || {
+bash "$HELPER" --repo "$REPO" \
+  --task-md "$TASK_DIR/T1-feat-stack.md" \
+  --task-md "$TASK_DIR/T2-feat-stack.md" \
+  --task-md "$TASK_DIR/T3-feat-stack.md" \
+  >"$TMPDIR"/feat-aggregation.out 2>&1 || {
   echo "DP-334: expected merged feat aggregation fixture to PASS" >&2
   cat "$TMPDIR"/feat-aggregation.out >&2
   exit 1
@@ -569,9 +629,9 @@ grep -q "\[framework-release-pr-lane\] PASS" "$TMPDIR"/feat-aggregation.out
 T1_SHA="$(git -C "$REPO" rev-parse task/DP-999-T1-one)"
 T2_SHA="$(git -C "$REPO" rev-parse task/DP-999-T2-two)"
 T3_SHA="$(git -C "$REPO" rev-parse task/DP-999-T3-three)"
-set_task_deliverable_head "$TASK_DIR/T1.md" "$T1_SHA"
-set_task_deliverable_head "$TASK_DIR/T2.md" "$T2_SHA"
-set_task_deliverable_head "$TASK_DIR/T3.md" "$T3_SHA"
+set_task_deliverable_head "$TASK_DIR/T1-feat-stack.md" "$T1_SHA"
+set_task_deliverable_head "$TASK_DIR/T2-feat-stack.md" "$T2_SHA"
+set_task_deliverable_head "$TASK_DIR/T3-feat-stack.md" "$T3_SHA"
 git -C "$REPO" branch -f feat/DP-999 main
 git -C "$REPO" fetch -q origin +refs/heads/feat/DP-999:refs/remotes/origin/feat/DP-999
 cat > "$TMPDIR/pr-state.tsv" <<EOF
@@ -580,9 +640,9 @@ task/DP-999-T2-two	2	OPEN	feat/DP-999	${T2_SHA}	https://example.test/pull/2
 task/DP-999-T3-three	3	OPEN	feat/DP-999	${T3_SHA}	https://example.test/pull/3
 EOF
 bash "$HELPER" --repo "$REPO" \
-  --task-md "$TASK_DIR/T1.md" \
-  --task-md "$TASK_DIR/T2.md" \
-  --task-md "$TASK_DIR/T3.md" \
+  --task-md "$TASK_DIR/T1-feat-stack.md" \
+  --task-md "$TASK_DIR/T2-feat-stack.md" \
+  --task-md "$TASK_DIR/T3-feat-stack.md" \
   --execute >"$TMPDIR"/feat-aggregation-ff.out 2>&1 || {
     echo "DP-334: expected feat aggregation fast-forward execute fixture to PASS" >&2
     cat "$TMPDIR"/feat-aggregation-ff.out >&2
@@ -615,7 +675,7 @@ if bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DI
   echo "expected wrong base fixture to fail" >&2
   exit 1
 fi
-grep -q "expected 'task/DP-999-T1-one'" "$TMPDIR"/wrong-base.out
+grep -Eq "expected 'task/DP-999-T1-one'|expected declared stack base task/DP-999-T1-one" "$TMPDIR"/wrong-base.out
 
 # DP-295 T6 (AC5): the lane no longer runs a pre-merge VERSION-bump gate.
 # The single-task TB fixture (release-tooling touch WITHOUT a VERSION bump) used
@@ -643,7 +703,7 @@ if bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/TG.md" >"$TMPDIR"/generic.
   echo "expected generic publish branch fixture to fail" >&2
   exit 1
 fi
-grep -q "generic GitHub publish branches are not valid release inputs" "$TMPDIR"/generic.out
+grep -Eq "generic GitHub publish branches are not valid release inputs|invalid task branch" "$TMPDIR"/generic.out
 
 OVERLAY_REPO="$TMPDIR/overlay-repo"
 git init -q -b main "$OVERLAY_REPO"
@@ -838,5 +898,15 @@ fi
 # AC5: the lane must point at the changeset-driven version path (release:version).
 grep -qE 'release:version|release-version' "$HELPER" \
   || { echo "AC5: lane does not reference the changeset-driven release:version path" >&2; exit 1; }
+
+# DP-396 T4: release PR lane topology classification must stay source-neutral
+# and structured-data-only. Branch topology comes from task.md Base branch /
+# Task branch table cells plus live PR metadata, never from Branch chain prose,
+# handbook text, or freeform task body scanning.
+if grep -nE 'table_field "Branch chain"|handbook|freeform|prose' "$HELPER" >/dev/null; then
+  echo "DP-396 T4: framework-release-pr-lane.sh must not parse Branch chain, handbook, or freeform prose" >&2
+  grep -nE 'table_field "Branch chain"|handbook|freeform|prose' "$HELPER" >&2
+  exit 1
+fi
 
 echo "[framework-release-pr-lane-selftest] PASS"

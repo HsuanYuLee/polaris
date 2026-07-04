@@ -62,6 +62,12 @@ DP / Epic source template 必須已收斂到 shared contract
 `refinement.json acceptance_criteria[]`、或 `downstream.breakdown_hints[]`，breakdown 不得
 用 markdown prose 補洞，必須 route back to refinement。
 
+Framework-owned DP source 若會進 `framework-release`，breakdown 必須載入
+`.claude/rules/handbook/framework/index.md`，並依 index on-demand 讀
+`.claude/rules/handbook/framework/release-topology.md`。task 排序與 Branch chain 要反映真實
+implementation order 與預期 stack base；不要為了滿足 stack 外觀新增 fake semantic
+dependency，也不要新增 generic validator 取代 `framework-release` lane 的 hard gate。
+
 DP-backed work 若要驗證 framework 自身開發鏈，必須另外產出 V*.md dogfood verification
 work order。T*.md 實作 task 不可把「驗收 DP 自身」塞進 engineering 完成宣告；V*.md PASS
 前 parent closeout/archive 必須被 deterministic gate 擋住。

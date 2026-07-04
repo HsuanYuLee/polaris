@@ -1118,6 +1118,16 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/framework-release-closeout-v-enumeration-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/framework-release-closeout.sh",
       "kind": "release",
       "runner": "bash",

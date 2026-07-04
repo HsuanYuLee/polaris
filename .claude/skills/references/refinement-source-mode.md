@@ -41,6 +41,12 @@ Source locator hard rules（適用所有 source type）：
 - `LOCKED` / `IMPLEMENTED` source 不可被 new topic overwrite。方向改變時，開新 source 並
   加 see-also links。
 
+Framework-owned DP source 若預期拆成多張 task PR 後走 `framework-release`，必須在
+refinement 階段載入 `.claude/rules/handbook/framework/index.md`，並依 index on-demand 讀
+`.claude/rules/handbook/framework/release-topology.md`。該 topic 只提供 release topology
+planning guidance；不要把線性 PR stack 寫成 fake code dependency，也不要用 markdown prose
+取代 `framework-release` lane 的結構化 release gate。
+
 ## T1. Create Or Update Source Plan
 
 新 ticketless topic 必須使用單一建單入口，不可手動 `mkdir` 或手寫 minimal template：

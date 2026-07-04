@@ -117,6 +117,14 @@ EOF
 fixture_empty="$TMPROOT/fixture-empty.txt"
 : > "$fixture_empty"
 
+# Fixture 9: framework source entrypoint references that must surface release topology
+fixture_entrypoints="$TMPROOT/fixture-entrypoints.txt"
+cat > "$fixture_entrypoints" <<'EOF'
+.claude/skills/references/refinement-source-mode.md
+.claude/skills/references/breakdown-dp-intake-flow.md
+.claude/skills/references/engineering-entry-resolution.md
+EOF
+
 # Case 1: .claude/** files → framework_handbook_required=true
 set +e
 out="$("$VALIDATOR" --changed-files "$fixture_claude" 2>&1)"
@@ -143,6 +151,7 @@ set -e
 assert_rc "T8: DP source changes exit 0" "$rc" "0"
 assert_contains "T8: DP source triggers handbook" "$out" '"framework_handbook_required":true'
 assert_contains "T8: DP source lists task path" "$out" "DP-240-foo"
+assert_contains "T8: DP source routes release topology topic" "$out" 'framework/release-topology.md'
 
 # Case 4: product repo path only → framework_handbook_required=false
 set +e
@@ -153,6 +162,7 @@ assert_rc "T8: product-only changes exit 0" "$rc" "0"
 assert_contains "T8: product-only framework_handbook_required=false" "$out" '"framework_handbook_required":false'
 assert_contains "T8: product-only paths captured" "$out" "polaris-config/exampleco-web/handbook"
 assert_not_contains "T8: product-only does NOT mis-route framework_owned_hits" "$out" '"framework_owned_hits":[".claude'
+assert_not_contains "T8: product-only does NOT route release topology topic" "$out" 'framework/release-topology.md'
 
 # Case 5: mixed hit → framework_handbook_required=true AND product_repo_paths populated
 set +e
@@ -185,6 +195,7 @@ set -e
 assert_rc "T8: template changes exit 0" "$rc" "0"
 assert_contains "T8: template does NOT require framework handbook" "$out" '"framework_handbook_required":false'
 assert_contains "T8: template path classified as product" "$out" '"product_repo_paths":["_template/rule-examples/foo.md"'
+assert_not_contains "T8: template does NOT route release topology topic" "$out" 'framework/release-topology.md'
 
 # Case 8: empty file → no candidates, both arrays empty, required=false
 set +e
@@ -194,8 +205,21 @@ set -e
 assert_rc "T8: empty changes exit 0" "$rc" "0"
 assert_contains "T8: empty framework_handbook_required=false" "$out" '"framework_handbook_required":false'
 assert_contains "T8: empty hits array" "$out" '"framework_owned_hits":[]'
+assert_contains "T8: empty topics array" "$out" '"framework_handbook_topics":[]'
 
-# Case 9: --file repeatable, single explicit path
+# Case 9: framework source entrypoints route release topology topic
+set +e
+out="$("$VALIDATOR" --changed-files "$fixture_entrypoints" 2>&1)"
+rc=$?
+set -e
+assert_rc "T8: entrypoint references exit 0" "$rc" "0"
+assert_contains "T8: entrypoint references trigger handbook" "$out" '"framework_handbook_required":true'
+assert_contains "T8: entrypoint references route release topology topic" "$out" 'framework/release-topology.md'
+assert_contains "T8: entrypoint references include refinement source mode" "$out" 'refinement-source-mode.md'
+assert_contains "T8: entrypoint references include breakdown intake" "$out" 'breakdown-dp-intake-flow.md'
+assert_contains "T8: entrypoint references include engineering entry" "$out" 'engineering-entry-resolution.md'
+
+# Case 10: --file repeatable, single explicit path
 set +e
 out="$("$VALIDATOR" --file ".claude/rules/foo.md" --file "src/components/Foo.vue" 2>&1)"
 rc=$?
@@ -204,7 +228,15 @@ assert_rc "T8: --file repeatable exit 0" "$rc" "0"
 assert_contains "T8: --file framework hit captured" "$out" '.claude/rules/foo.md'
 assert_contains "T8: --file unclassified captured" "$out" '"unclassified":["src/components/Foo.vue"]'
 
-# Case 10: deduplication (same path supplied twice)
+# Case 11: explicit DP source path routes release topology topic
+set +e
+out="$("$VALIDATOR" --file "docs-manager/src/content/docs/specs/design-plans/DP-396-foo/index.md" 2>&1)"
+rc=$?
+set -e
+assert_rc "T8: --file DP source exit 0" "$rc" "0"
+assert_contains "T8: --file DP source routes release topology topic" "$out" 'framework/release-topology.md'
+
+# Case 12: deduplication (same path supplied twice)
 dedup_file="$TMPROOT/dedup.txt"
 cat > "$dedup_file" <<'EOF'
 .claude/rules/skill-routing.md
@@ -226,7 +258,7 @@ else
   printf 'not ok T8: dedup expected 1 hit, got %s\n%s\n' "$hits_count" "$out" >&2
 fi
 
-# Case 11: --mode diff emits stderr observability line
+# Case 13: --mode diff emits stderr observability line
 set +e
 out_stderr="$("$VALIDATOR" --changed-files "$fixture_claude" --mode diff 2>&1 >/dev/null)"
 rc=$?
@@ -234,7 +266,15 @@ set -e
 assert_rc "T8: --mode diff exit 0" "$rc" "0"
 assert_contains "T8: --mode diff stderr mentions handbook" "$out_stderr" "handbook/framework/index.md"
 
-# Case 12: missing --changed-files path → BLOCK
+# Case 14: --mode diff emits release topology topic for DP source
+set +e
+out_stderr="$("$VALIDATOR" --changed-files "$fixture_dp_source" --mode diff 2>&1 >/dev/null)"
+rc=$?
+set -e
+assert_rc "T8: --mode diff DP source exit 0" "$rc" "0"
+assert_contains "T8: --mode diff DP source mentions release topology" "$out_stderr" "handbook/framework/release-topology.md"
+
+# Case 15: missing --changed-files path → BLOCK
 set +e
 out="$("$VALIDATOR" --changed-files "$TMPROOT/does-not-exist.txt" 2>&1)"
 rc=$?
@@ -242,7 +282,7 @@ set -e
 assert_rc "T8: missing --changed-files blocks" "$rc" "2"
 assert_contains "T8: missing path error" "$out" "does not exist"
 
-# Case 13: no --changed-files / --file supplied → BLOCK
+# Case 16: no --changed-files / --file supplied → BLOCK
 set +e
 out="$("$VALIDATOR" 2>&1)"
 rc=$?
@@ -250,7 +290,7 @@ set -e
 assert_rc "T8: no input blocks" "$rc" "2"
 assert_contains "T8: no input error" "$out" "at least one"
 
-# Case 14: invalid --mode value → BLOCK
+# Case 17: invalid --mode value → BLOCK
 set +e
 out="$("$VALIDATOR" --changed-files "$fixture_claude" --mode bogus 2>&1)"
 rc=$?

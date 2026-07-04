@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.76.66] - 2026-07-05
+
+### Changed
+
+- c802d38: 新增 framework release topology handbook routing，讓 DP multi-task chain 在 refinement、breakdown、engineering 階段能讀到線性 stack 指引。
+- 42856aa: framework-release PR 拓樸正規化與 fail-stop
+- c0db270: V PR 與 evidence 分類及 closeout 互動
+- a300454: 來源中立與禁止 prose parse 回歸 guard
+
 ## [3.76.65] - 2026-07-04
 
 ### Changed

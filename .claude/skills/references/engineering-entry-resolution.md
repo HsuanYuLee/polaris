@@ -49,6 +49,12 @@ status 當施工指令來源。Epic key 無法 resolve 到單一 task.md 時 fai
 DP-backed task 若 local policy 明確宣告 delivery extension，first-cut 的尾段可接
 local extension；resolver、handbook、TDD、ci-local、verify、scope、base freshness 不變。
 
+Framework-owned DP task 進 first-cut 前，若 task 屬於多 task DP 且後續交由
+`framework-release`，讀 `.claude/rules/handbook/framework/index.md` 並依 index on-demand 讀
+`.claude/rules/handbook/framework/release-topology.md`，用來理解 task PR 的 stack / release
+base。施工權威仍是 resolved `task.md`；handbook 不覆寫 Allowed Files、Verify Command 或
+deliverable state。
+
 ## Duplicate Work Guard
 
 First-cut 建 branch / worktree 前，必須由 `scripts/engineering-branch-setup.sh` 執行

@@ -480,11 +480,43 @@ case_company_container_bare_stem() {
     "${label} parent archived"
 }
 
+case_v_task_refused_as_per_task_input() {
+  local label="v-task-refused"
+  local WS="$TMPROOT/${label}-ws"
+  local SCRIPTS="$TMPROOT/${label}-scripts"
+  STUB_LOG="$TMPROOT/${label}-stub.log"
+  : >"$STUB_LOG"
+  build_stub_scripts_dir "$SCRIPTS"
+  init_workspace_repo "$WS"
+
+  local dir="$WS/docs-manager/src/content/docs/specs/design-plans/DP-924-fixture"
+  write_parent_index "$dir" "DP-924"
+  write_v_task "$dir" V1 PASS passed
+  git -C "$WS" add -A
+  git -C "$WS" commit -qm "fixture release (${label})"
+  local head
+  head="$(git -C "$WS" rev-parse HEAD)"
+
+  run_closeout "$SCRIPTS" \
+    --task-md "$dir/tasks/V1/index.md" --verify-evidence "$TMPROOT/${label}-verify.json" \
+    --workspace-commit "$head" --template-commit "$head" \
+    --version-tag v1.0.0 --release-url N/A --repo "$WS"
+
+  _assert_eq "$CLOSEOUT_RC" "2" "${label} V task per-task closeout is refused"
+  _assert_contains "$CLOSEOUT_OUT" "refusing task_kind=V --task-md" \
+    "${label} refusal names task_kind=V"
+  _assert_contains "$CLOSEOUT_OUT" "parent-closeout V enumeration" \
+    "${label} refusal routes to parent closeout enumeration"
+  _assert_file "$dir/tasks/V1/index.md" "${label} V task remains active for parent enumeration"
+  _assert_no_path "$dir/tasks/pr-release/V1" "${label} per-task closeout did not advance V"
+}
+
 case_auto_enumeration_dp
 case_idempotent_already_advanced
 case_non_eligible_not_advanced
 case_abandoned_v_carve_out
 case_company_container_bare_stem
+case_v_task_refused_as_per_task_input
 
 printf '\n[framework-release-closeout-v-enumeration-selftest] %d/%d assertions passed\n' "$PASS" "$TOTAL"
 if [[ "$FAIL" -gt 0 ]]; then

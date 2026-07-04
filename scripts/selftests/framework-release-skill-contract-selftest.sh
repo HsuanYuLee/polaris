@@ -83,6 +83,26 @@ assert_absent() {
   fi
 }
 
+assert_file_absent_regex() {
+  local ac_id="$1" desc="$2" file="$3" pat="$4"
+  if grep -qE -- "$pat" "$file"; then
+    FAILURES+=("$ac_id ($desc): forbidden regex present in ${file#$ROOT/} -> $pat")
+    echo "FAIL [$ac_id] $desc" >&2
+  else
+    echo "PASS [$ac_id] $desc"
+  fi
+}
+
+assert_file_grep_regex() {
+  local ac_id="$1" desc="$2" file="$3" pat="$4"
+  if grep -qE -- "$pat" "$file"; then
+    echo "PASS [$ac_id] $desc"
+  else
+    FAILURES+=("$ac_id ($desc): missing regex marker in ${file#$ROOT/} -> $pat")
+    echo "FAIL [$ac_id] $desc" >&2
+  fi
+}
+
 # --- AC4: single feat/DP-NNN -> main PR gate + fast-forward promotion ---
 assert_grep "AC4" "release orchestration: single feat/DP-NNN -> main PR gate" \
   'feat/DP-NNN -> main'
@@ -159,14 +179,39 @@ assert_grep_regex "AC-NEG1" "DP task PR targets feat, never main directly" \
   'target `feat/DP-NNN`|拒絕 DP task PR 直接 target `main`|絕不直 target `main`|絕不直 merge `main`'
 assert_grep_regex "AC-NEG1" "release topology allows single PR or declared stack PR" \
   'single PR|declared stack PR'
+assert_grep_regex "AC2" "release topology normalizes structured PR metadata" \
+  'structured metadata normalize|PR structured metadata normalize'
+assert_grep_regex "AC2" "equivalent retarget stack requires git ancestry proof" \
+  '等價 retarget stack|git ancestry 證明'
 assert_grep_regex "AC-NEG1" "sibling parallel task PR release forbidden" \
   'multi-head sibling task PR release|sibling parallel heads'
+assert_grep "AC6" "sibling parallel invalid marker documented" \
+  'sibling_parallel_invalid'
 assert_grep_regex "AC-NEG3" "squash-like trace loss forbidden" \
   'squash-like trace loss|soft reset flatten|GitHub squash merge|rebase merge'
 assert_grep_regex "AC-NEG4" "legacy non-stack repair guidance required" \
   'legacy non-stack incident|repair guidance|ancestry disposition'
 assert_grep_regex "AC-NF4" "no DP-346-sized topology schema" \
   'DP-346 類大型 topology schema|不得新增 DP-346'
+
+# --- DP-396 T4: source-neutral lifecycle surfaces must not regain DP/Epic
+# stack branches. The canonical contract is source-owned metadata
+# (refinement.json -> task.md table/frontmatter), not source-type prose forks.
+for source_neutral_file in \
+  "$ROOT/scripts/derive-task-md-from-refinement-json.sh" \
+  "$ROOT/scripts/validate-breakdown-ready.sh" \
+  "$ROOT/scripts/validate-refinement-lock-preflight.sh" \
+  "$ROOT/.claude/skills/references/refinement-source-template.md"; do
+  assert_file_absent_regex "DP396-AC-NF2" "no source-type-specific stack branch in ${source_neutral_file#$ROOT/}" \
+    "$source_neutral_file" \
+    'source_type[[:space:]]*==[[:space:]]*["'\''](dp|jira|epic|company)["'\'']|source\.get\(["'\'']type["'\'']\)[[:space:]]*=='
+  assert_file_absent_regex "DP396-AC-NF3" "no DP-only routing prose in ${source_neutral_file#$ROOT/}" \
+    "$source_neutral_file" \
+    'only DP-backed source|只接受 DP-backed source|DP-only route|DP-only routing'
+done
+assert_file_grep_regex "DP396-AC-NF4" "source template remains shared across DP and JIRA Epic sources" \
+  "$ROOT/.claude/skills/references/refinement-source-template.md" \
+  'JIRA Epic refinement 與 DP-backed refinement 共用|共用的 source'
 
 # --- AC-NEG3: no steady-state GitHub merge mode / old single-merge contract ---
 assert_absent "AC-NEG3" "no GitHub merge commit command in steady contract" \
