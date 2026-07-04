@@ -91,11 +91,9 @@ write_valid_epic_artifact() {
       "kind": "implementation",
       "title": "Add SSR JSON-LD",
       "scope": "Emit JSON-LD block on the home page.",
-      "allowed_files": ["apps/main/pages/home/index.vue"],
       "modules": ["apps/main/pages/home/index.vue"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 2,
       "verification": {
         "method": "curl",
         "detail": "echo PASS",
@@ -157,11 +155,9 @@ payload = {
             "kind": "implementation",
             "title": "Add model-tier policy reference",
             "scope": "Create the model-tier policy reference.",
-            "allowed_files": [".claude/skills/references/model-tier-policy.md"],
             "modules": [".claude/skills/references/model-tier-policy.md"],
             "ac_ids": ["AC1"],
             "dependencies": [],
-            "estimate_points": 1,
             "verification": {
                 "method": "unit_test",
                 "detail": "echo PASS",

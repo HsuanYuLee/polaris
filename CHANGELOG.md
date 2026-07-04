@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.76.67] - 2026-07-05
+
+### Fixed
+
+- 5615450: remove live company fixtures from template-facing framework sources.
+- dee608b: prune stale company rule subtrees during Polaris template sync.
+- d587ab2: align release preflight selftest fixtures with the refinement intent schema.
+
 ## [3.76.66] - 2026-07-05
 
 ### Changed

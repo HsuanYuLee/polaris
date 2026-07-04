@@ -45,11 +45,9 @@ cat >"$TMP/english.json" <<'JSON'
     { "id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked",
       "title": "Add deterministic gate coverage for the evidence classifier helper",
       "scope": "新增 title language guard 的 full-derive fixture。",
-      "allowed_files": ["scripts/title-language-fixture.sh"],
       "modules": ["scripts/title-language-fixture.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 1,
       "verification": {
         "method": "unit_test",
         "detail": "echo PASS",
@@ -77,11 +75,9 @@ cat >"$TMP/zhtw.json" <<'JSON'
     { "id": "T1", "task_shape": "implementation", "tracked_deliverable_hint": "tracked",
       "title": "新增 evidence classifier 的確定性 gate 覆蓋與驗證",
       "scope": "新增 title language guard 的 full-derive fixture。",
-      "allowed_files": ["scripts/title-language-fixture.sh"],
       "modules": ["scripts/title-language-fixture.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 1,
       "verification": {
         "method": "unit_test",
         "detail": "echo PASS",

@@ -146,8 +146,8 @@ body = {
     "tasks": [
         {
             "id": "T1", "kind": "T", "title": "新增 sanctioned writer fixture", "scope": "建立 refinement writer selftest fixture。",
-            "allowed_files": ["scripts/x.sh"], "modules": ["scripts/x.sh"],
-            "ac_ids": ["AC1"], "dependencies": [], "estimate_points": 1,
+            "modules": ["scripts/x.sh"],
+            "ac_ids": ["AC1"], "dependencies": [],
             "verification": {"method": "unit_test", "detail": "echo PASS", "verify_command": "echo PASS"},
         }
     ],
