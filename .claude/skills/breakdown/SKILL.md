@@ -59,6 +59,11 @@ to `refinement`。
   `docs-manager/src/content/docs/specs/**`），不得包成 implementation task handoff
   engineering；必須留在 refinement / breakdown artifact，或另拆真正的 tracked
   releaseable task。
+- DP reset / redo / backfill 時，若 implementation task 的非 `.changeset/*.md` scope
+  已被 base/current checkout 吸收，且該 task verify command 在該 checkout PASS，該 task
+  不得再包成 task-bound implementation work order；必須標成 absorbed/backfilled、
+  移出 refreshed task set，或 route back refinement 記錄 disposition。補一張只有
+  `.changeset/*.md` 的 task PR 不是合法 delivery。
 - 任何 sub-agent dispatch 前讀 `sub-agent-roles.md` 並注入 Completion Envelope；Codex
   runtime / model fallback contract 見該 reference § Runtime Adapter Contract /
   Fallback Behavior。
@@ -238,6 +243,9 @@ export POLARIS_SKILL_WRITER=breakdown
 - DP-backed task 若混合「tracked releaseable framework work」與「local sample/spec recut」，
   或 Allowed Files 全落在 ignored local artifact surface：停止，回 planning 重拆，不得
   handoff engineering / framework-release。
+- DP reset / redo / backfill 發現 task 已被 base/current 吸收且 verify PASS：停止派工，
+  記錄 absorbed/backfilled disposition，或回 refinement 重算 surviving task set；不得用
+  changeset-only work order 追認舊 lineage。
 - DP-201 proof-of-work marker contract 生效後，breakdown 是 `task_snapshot`、
   `validation_fail`、`missing_v_task` 與 `route_back_refinement_inbox` canonical signal 的
   owning writer。Marker schema、producer mapping 與 freshness rule 以

@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.68] - 2026-07-05
+
+### Changed
+
+- 274d7d4: 補強 breakdown / engineering contract，要求 reset / redo / backfill 時已被 base 吸收且驗證通過的 task 走 absorbed/backfilled disposition，不得以 changeset-only PR 當成 implementation delivery。
+- b267a8a: 新增 gate-changeset 防線，當 task-bound delivery 只包含 `.changeset/*.md` 而沒有實作 delta 時，以 `POLARIS_CHANGESET_ONLY_TASK_DELTA` fail-closed。
+
 ## [3.76.67] - 2026-07-05
 
 ### Fixed

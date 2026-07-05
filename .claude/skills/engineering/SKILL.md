@@ -32,6 +32,9 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
   為準。
 - planner-owned task.md 欄位（Allowed Files、estimate、Test Command、Verify Command、
   Test Environment、depends_on）不可由 engineering 手動改；需要改時走 scope escalation。
+- First-cut / revision 若實作結果的 task delta 只包含 `.changeset/*.md`，不得開 PR，也不得
+  自行修改 planner-owned scope 讓 PR 通過；必須 fail-stop route back planning/refinement，
+  由上游判定該 task 是否 absorbed/backfilled 或需要重新拆 surviving scope。
 - First-cut branch setup 必須先執行 readiness pack（`validate-task-md.sh`、
   `validate-task-md-deps.sh`、`validate-breakdown-ready.sh`、`resolve-task-base.sh`、
   `resolve-task-branch.sh`），並在 fresh worktree 建立後寫入 planner-owned 欄位 baseline
@@ -117,6 +120,9 @@ Traversal Contract。
   framework-owned dirty source（`scripts/**`、`.claude/skills/**`、`.claude/rules/**`、
   `.claude/instructions/**`、`CLAUDE.md`、`AGENTS.md`、`.codex/**`、`.agents/**` 等）
   是 fail-stop；不得把 main dirty 當成可直接續做的施工面。
+- Task diff 若只有 `.changeset/*.md`，代表 implementation delta 不存在或已被 base/current
+  吸收；停止並 route back planning/refinement。若後續 deterministic gate 回
+  `POLARIS_CHANGESET_ONLY_TASK_DELTA`，同樣視為 planning gap，不得補空 PR。
 - shared PR state 若是 `unsupported_mutation`、`blocked_conflict`、或
   `stale_downstream`，停止把 revision lane 說成「已收斂」或「可 review」。
 - Review signal 分類出 plan gap / spec issue：停止，寫 handoff / learning，需要

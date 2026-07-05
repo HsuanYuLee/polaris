@@ -103,6 +103,38 @@ is_release_stage_exempt() {
   [[ "$saw_member" -eq 1 ]]
 }
 
+task_base_ref() {
+  local task_md="$1"
+  local base
+  base="$(awk -F'|' '
+    $2 ~ /Base branch/ {
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", $3)
+      print $3
+      exit
+    }
+  ' "$task_md")"
+  [[ -n "$base" && "$base" != "N/A" ]] || base="origin/main"
+  if git -C "$REPO_ROOT" rev-parse --verify -q "origin/${base}" >/dev/null 2>&1; then
+    printf 'origin/%s\n' "$base"
+  elif git -C "$REPO_ROOT" rev-parse --verify -q "$base" >/dev/null 2>&1; then
+    printf '%s\n' "$base"
+  else
+    printf 'origin/main\n'
+  fi
+}
+
+changeset_only_task_delta() {
+  local task_md="$1"
+  local base_ref merge_base changed non_changeset
+  base_ref="$(task_base_ref "$task_md")"
+  merge_base="$(git -C "$REPO_ROOT" merge-base "$base_ref" HEAD 2>/dev/null || true)"
+  [[ -n "$merge_base" ]] || return 1
+  changed="$(git -C "$REPO_ROOT" diff --name-only "${merge_base}..HEAD" -- 2>/dev/null || true)"
+  [[ -n "$changed" ]] || return 1
+  non_changeset="$(printf '%s\n' "$changed" | grep -Ev '^\.changeset/[^/]+\.md$' || true)"
+  [[ -z "$non_changeset" ]]
+}
+
 # DP-319: this exemption runs BEFORE the changeset check and the
 # evidence-classifier so an impl-bearing (behavioral) bundle delta is not
 # misclassified and blocked (EC2 / AC1). It does not relax any other gate.
@@ -112,6 +144,19 @@ if is_release_stage_exempt "$RESOLVED_TASK_MDS"; then
 fi
 
 if bash "$POLARIS_CHANGESET" check --task-md "$TASK_MD" --repo "$REPO_ROOT"; then
+  if changeset_only_task_delta "$TASK_MD"; then
+    cat >&2 <<EOF
+$PREFIX BLOCKED: task delivery delta only contains .changeset/*.md.
+  Marker:  POLARIS_CHANGESET_ONLY_TASK_DELTA
+  Repo:    $REPO_ROOT
+  Task.md: $TASK_MD
+
+Fix:
+  Route back to planning/refinement and disposition this task as absorbed/backfilled,
+  or restore the task-owned implementation delta before opening an implementation PR.
+EOF
+    exit 2
+  fi
   echo "$PREFIX ✅ changeset present for $(basename "$TASK_MD")." >&2
   exit 0
 fi

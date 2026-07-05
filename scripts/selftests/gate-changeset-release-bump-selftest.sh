@@ -10,7 +10,8 @@
 # Covers:  (1) release_bump delta, no pending changeset -> exempt exit 0 (AC8);
 #          (2) metadata_only delta, no pending changeset -> exempt exit 0 (AC8);
 #          (3) behavioral delta, no changeset -> BLOCKED exit 2 (AC-NEG4);
-#          (4) behavioral delta WITH changeset present -> normal pass exit 0.
+#          (4) behavioral delta WITH changeset present -> normal pass exit 0;
+#          (5) changeset-only task delta WITH expected changeset -> BLOCKED exit 2.
 
 set -euo pipefail
 
@@ -218,6 +219,24 @@ if [[ "$rc6" -eq 2 ]]; then
   ok "behavioral delta on feat HEAD, no changeset -> exit 2 (no feat-name escape)"
 else
   bad "behavioral delta on feat HEAD should BLOCK (exit 2); got exit $rc6"
+fi
+
+# ── Scenario 7: expected changeset exists, but task delta is changeset-only ────
+# This is the DP-380 T1/T2 failure shape: the task-bound changeset exists, so the
+# old gate would pass, but there is no task-owned implementation delta in the
+# task branch. The new detector must block with POLARIS_CHANGESET_ONLY_TASK_DELTA.
+R7="$(make_repo repo7)"
+bash "$PCS" new --task-md "$R7/$TASK_REL" --repo "$R7" >/dev/null 2>&1
+git -C "$R7" add -A
+git -C "$R7" commit -q -m "changeset-only task delivery"
+set +e
+err7="$(bash "$GATE" --repo "$R7" --task-md "$R7/$TASK_REL" 2>&1 >/dev/null)"
+rc7=$?
+set -e
+if [[ "$rc7" -eq 2 ]] && grep -q "POLARIS_CHANGESET_ONLY_TASK_DELTA" <<<"$err7"; then
+  ok "changeset-only task delta WITH expected changeset -> exit 2 + marker"
+else
+  bad "changeset-only task delta should BLOCK with POLARIS_CHANGESET_ONLY_TASK_DELTA; exit=$rc7 stderr=$err7"
 fi
 
 echo ""
