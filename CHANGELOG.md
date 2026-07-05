@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.69] - 2026-07-05
+
+### Changed
+
+- 6aabf0c: completion gate（finalize 前）於整合態 worktree 跑 glob-discovered corpus + fail-closed
+- d975b44: V 單 umbrella 跑完整 corpus + escalation flavor guide removal-teardown worked example
+
 ## [3.76.68] - 2026-07-05
 
 ### Changed

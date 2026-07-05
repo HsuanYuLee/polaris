@@ -28,6 +28,16 @@ comment 要求補充 AC 描述，停止該張。
 3. 對比 expected。
 4. 分類。
 
+### Framework DP Umbrella Corpus
+
+Framework DP 的 V 單 / umbrella regression 在 implementation tasks 完成後，必須把完整
+`run-aggregate-selftests.sh` 納入 source-level 整合態驗證。這個步驟用既有 filesystem-glob
+discovery，不新增 script↔selftest 綁定表；任一非 quarantine selftest 紅燈時，V 單不得標
+PASS，必須回報為 FAIL 或依實際 blocker 分類。
+
+這個規則是 release-tail backstop 的前移：V 單不能只採信 per-task verify 或 local marker，因為
+跨 task 的 teardown / 舊規格測試可能只在完整 corpus 內出現。
+
 ### Visual AC native runner
 
 若 task.md 有 `verification.visual_regression`，visual AC 必須使用 native runner：

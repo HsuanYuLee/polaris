@@ -102,6 +102,23 @@ cache layer。
 **Resolution**: breakdown 拆一張新 task（可能是 1-2pt），掛 `depends_on:
 [<原 task>]`；原 task 等新 task merge 後再 rebase 一次。
 
+### Example 4 — `plan-defect`（移除舊機制需要 teardown 既有測試）
+
+**Scenario**: task 明確要求移除舊 framework 機制，implementation 已刪除 production
+path，也新增了斷言新行為的 selftest；但完整 corpus 內仍有既有 selftest 正面斷言舊行為，導致
+completion gate 在 finalize 前 fail。
+
+**Red-triage**: 先判斷紅燈代表刻意改規格，還是非預期 regression。若舊 selftest 斷言的行為正是
+本 task 要移除的機制，紅燈屬於規格 teardown；若紅燈落在無關 surface，才回到 code regression
+或 env-drift 判斷。
+
+**Why plan-defect**: 既有 selftest 是同一個行為契約的規格檔。既然 task 要移除該舊機制，breakdown
+應把對應 selftest teardown 放進同一 task 的 Allowed Files / Test Command，而不是新增 escalation
+flavor，也不是建立 un-finalize path。
+
+**Resolution**: breakdown 更新 task scope，讓 engineering 在 task 仍可編輯時同步改 production path
+與舊規格 selftest。Flavor 仍用 `plan-defect`；不要新增超出 DP-044 的 flavor enum。
+
 ## When to Skip the Sidecar
 
 不是每個 gate fail 都該升級成 escalation：

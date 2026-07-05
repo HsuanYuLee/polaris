@@ -49,7 +49,7 @@ repo_pass="$TMP/repo-pass"
 make_repo "$repo_pass"
 pass_runner="$TMP/pass-runner.sh"
 write_stub_runner "$pass_runner" 0
-pass_out="$(POLARIS_COMPLETION_AGGREGATE_SELFTESTS_BIN="$pass_runner" bash "$CHECK" --repo "$repo_pass" --admin 2>&1)" \
+pass_out="$(POLARIS_COMPLETION_PROFILE=full-backstop POLARIS_COMPLETION_AGGREGATE_SELFTESTS_BIN="$pass_runner" bash "$CHECK" --repo "$repo_pass" --admin 2>&1)" \
   || fail "admin completion should pass when aggregate corpus passes: $pass_out"
 [[ "$pass_out" == *"running aggregate selftest corpus before completion finalize"* ]] \
   || fail "completion gate did not announce aggregate corpus execution"
@@ -63,7 +63,7 @@ make_repo "$repo_fail"
 fail_runner="$TMP/fail-runner.sh"
 write_stub_runner "$fail_runner" 1
 set +e
-fail_out="$(POLARIS_COMPLETION_AGGREGATE_SELFTESTS_BIN="$fail_runner" bash "$CHECK" --repo "$repo_fail" --admin 2>&1)"
+fail_out="$(POLARIS_COMPLETION_PROFILE=full-backstop POLARIS_COMPLETION_AGGREGATE_SELFTESTS_BIN="$fail_runner" bash "$CHECK" --repo "$repo_fail" --admin 2>&1)"
 fail_rc=$?
 set -e
 [[ "$fail_rc" -eq 2 ]] || fail "red aggregate corpus should exit 2, got $fail_rc: $fail_out"
@@ -80,9 +80,18 @@ git init -q -b main "$repo_skip"
 git -C "$repo_skip" config user.name "Polaris Selftest"
 git -C "$repo_skip" config user.email "polaris-selftest@example.com"
 git -C "$repo_skip" commit --allow-empty -q -m "empty"
-skip_out="$(bash "$CHECK" --repo "$repo_skip" --admin 2>&1)" \
+skip_out="$(POLARIS_COMPLETION_PROFILE=full-backstop bash "$CHECK" --repo "$repo_skip" --admin 2>&1)" \
   || fail "non-framework repo without runner/corpus should skip: $skip_out"
 [[ "$skip_out" == *"aggregate corpus gate skipped"* ]] \
   || fail "missing skip log for repo without framework corpus"
+
+grep -q "run-aggregate-selftests.sh" "$ROOT_DIR/.claude/skills/references/verify-ac-execution-flow.md" \
+  || fail "verify-AC flow missing framework DP umbrella corpus command"
+grep -q "source-level 整合態驗證" "$ROOT_DIR/.claude/skills/references/verify-ac-execution-flow.md" \
+  || fail "verify-AC flow missing source-level umbrella corpus wording"
+grep -q "移除舊機制需要 teardown 既有測試" "$ROOT_DIR/.claude/skills/references/escalation-flavor-guide.md" \
+  || fail "escalation flavor guide missing removal-teardown worked example"
+grep -q "Flavor 仍用 \`plan-defect\`" "$ROOT_DIR/.claude/skills/references/escalation-flavor-guide.md" \
+  || fail "removal-teardown example must stay on existing plan-defect flavor"
 
 echo "[completion-gate-integration-corpus-selftest] PASS"
