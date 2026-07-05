@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.76.71] - 2026-07-06
+
+### Changed
+
+- 28d731c: Add an archive-aware framework-release closeout regression selftest covering active-vs-archive task lookup and already-advanced V-task idempotency.
+- c2e6e17: Preserve existing deliverable verification metadata when refreshing task PR metadata.
+- b8d0c17: Add framework release preflight drift guards for stale changeset package keys, removed skill references, and template-facing company fixture leaks.
+- ce47503: Add a deterministic helper for legacy DP plan.md inventory and migration to folder-native index.md.
+- 1dbda6f: Repair framework docs health by aligning sidebar badge assertions with priority-aware badge variants, tightening Codex parity fixture work-source wiring, and backfilling manifest coverage for governed scripts.
+
 ## [3.76.70] - 2026-07-05
 
 ### Changed

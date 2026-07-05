@@ -194,6 +194,13 @@ Source container 的 markdown path classification：
 - Existing sidecar：`jira-comments/`、`escalations/`、`refinement-inbox/`。這些也會從 docs
   collection 排除，但不套 D2 metadata，保留各自既有 schema。
 
+Legacy DP `plan.md` is a read-only compatibility fallback. Active DP containers
+must use folder-native `index.md`; if an active design-plan container still has
+`plan.md`, run `scripts/migrate-legacy-dp-plan-to-index.sh --workspace <root>
+--execute` before downstream handoff. Archived `design-plans/archive/**/plan.md`
+files are explicit historical allowlist unless `--include-archive` is supplied;
+the helper preserves frontmatter and body when migrating them.
+
 D2 transport artifact 寫入後需跑：
 
 ```bash

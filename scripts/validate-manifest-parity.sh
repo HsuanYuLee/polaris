@@ -3,13 +3,14 @@
 #
 # Enforces parity between scripts/manifest.json and the on-disk script tree.
 # Where check-script-manifest.sh validates row schema + root-level scripts
-# coverage, this validator extends the coverage scope to scripts/lib/*.py and
-# scripts/selftests/*.sh so new helper libs and selftests cannot land without
-# explicit manifest ownership metadata.
+# coverage, this validator extends the coverage scope to scripts/lib/*.py.
+# Selftest filesystem enrollment is governed by validate-selftest-enrollment.sh,
+# not by scripts/manifest.json, so historical selftest inventory debt does not
+# become release-blocking manifest debt.
 #
 # Failure mode: prints one `POLARIS_MANIFEST_MISSING: {script_path}` line per
-# unregistered script to stderr and exits 1. PASS prints a quiet summary on
-# stdout (suppressed with --quiet).
+# unregistered governed script/lib helper to stderr and exits 1. PASS prints a
+# quiet summary on stdout (suppressed with --quiet).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -20,8 +21,9 @@ usage() {
   cat <<'USAGE'
 Usage: bash scripts/validate-manifest-parity.sh [--root <repo>] [--manifest <path>] [--quiet]
 
-Scans scripts/*.sh, scripts/lib/*.py, and scripts/selftests/*.sh and verifies
-that every file is registered in scripts/manifest.json. Missing entries emit
+Scans scripts/*.sh and scripts/lib/*.py and verifies that every file is
+registered in scripts/manifest.json. scripts/selftests/* enrollment is checked
+by validate-selftest-enrollment.sh. Missing entries emit
 `POLARIS_MANIFEST_MISSING: {path}` to stderr and exit 1.
 USAGE
 }
@@ -102,7 +104,6 @@ def collect(globs):
 target_globs = [
     "scripts/*.sh",
     "scripts/lib/*.py",
-    "scripts/selftests/*.sh",
 ]
 filesystem = collect(target_globs)
 missing = sorted(filesystem - registered)

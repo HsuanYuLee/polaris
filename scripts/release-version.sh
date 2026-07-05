@@ -88,6 +88,13 @@ print(json.load(open(sys.argv[1]))["version"])
 PY
 }
 
+read_pkg_name() {
+  python3 - "$PKG_JSON" <<'PY'
+import json, sys
+print(json.load(open(sys.argv[1]))["name"])
+PY
+}
+
 # Count pending changesets: *.md under .changeset/ excluding README.md.
 count_pending_changesets() {
   local n=0 f base
@@ -145,6 +152,49 @@ assert_single_dp_aggregation() {
   return 0
 }
 
+assert_pending_changeset_package_keys_match() {
+  local expected_package
+  expected_package="$(read_pkg_name)"
+  python3 - "$CHANGESET_DIR" "$expected_package" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+changeset_dir = Path(sys.argv[1])
+expected = sys.argv[2]
+mismatches = []
+
+if changeset_dir.exists():
+    for path in sorted(changeset_dir.glob("*.md")):
+        if path.name == "README.md":
+            continue
+        text = path.read_text(encoding="utf-8")
+        if not text.startswith("---"):
+            continue
+        parts = text.split("---", 2)
+        if len(parts) < 3:
+            continue
+        frontmatter = parts[1]
+        for line in frontmatter.splitlines():
+            match = re.match(r"""\s*["']?([^"':]+)["']?\s*:\s*(major|minor|patch)\s*(?:#.*)?$""", line)
+            if not match:
+                continue
+            package = match.group(1).strip()
+            if package != expected:
+                mismatches.append((path.name, package))
+
+if mismatches:
+    print(
+        "POLARIS_RELEASE_VERSION_CHANGESET_PACKAGE_MISMATCH: pending changeset package key does not match package.json name.",
+        file=sys.stderr,
+    )
+    print(f"  expected: {expected}", file=sys.stderr)
+    for filename, package in mismatches:
+        print(f"  - {filename}: {package}", file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
 assert_feat_branch_contains_current_main_before_version() {
   local branch=""
   local main_sha=""
@@ -189,6 +239,9 @@ fi
 
 # Fail-loud before pressing the version if pending changesets stack across DPs.
 if ! assert_single_dp_aggregation; then
+  exit 1
+fi
+if ! assert_pending_changeset_package_keys_match; then
   exit 1
 fi
 if ! assert_feat_branch_contains_current_main_before_version; then

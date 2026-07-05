@@ -195,7 +195,7 @@ if grep -qE 'exec[[:space:]]+gh[[:space:]]+pr[[:space:]]+create' "$SCRIPT_DIR/co
   exit 1
 fi
 bash "$SCRIPT_DIR/codex-guarded-git-commit.sh" --dry-run >/dev/null
-bash "$SCRIPT_DIR/codex-guarded-git-push.sh" --dry-run >/dev/null
+POLARIS_SKIP_EVIDENCE=1 bash "$SCRIPT_DIR/codex-guarded-git-push.sh" --dry-run >/dev/null
 bash "$SCRIPT_DIR/codex-guarded-bash.sh" --dry-run -- "echo parity-smoke" >/dev/null
 CLOSE_PARENT_SPEC_SELFTEST=1 bash "$SCRIPT_DIR/close-parent-spec-if-complete.sh" >/dev/null
 
@@ -204,7 +204,8 @@ fixture_repo="$(make_codex_fallback_fixture "$tmp_root")"
 POLARIS_SKIP_EVIDENCE=1 \
   GATE_PROJECT_DIR="$fixture_repo" \
   MISE_TRUSTED_CONFIG_PATHS="$fixture_repo/mise.toml" \
-  bash "$SCRIPT_DIR/codex-guarded-gh-pr-create.sh" --dry-run >/dev/null
+  bash "$SCRIPT_DIR/codex-guarded-gh-pr-create.sh" --dry-run \
+    --task-md "$fixture_repo/docs-manager/src/content/docs/specs/design-plans/DP-999-parity-source/tasks/T1/index.md" >/dev/null
 tmp_dir="$tmp_root/specs/design-plans/DP-999-parity-smoke"
 tmp_plan="$tmp_dir/plan.md"
 mkdir -p "$tmp_dir"

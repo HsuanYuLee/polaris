@@ -4,8 +4,9 @@
 # Verifies scripts/validate-manifest-parity.sh:
 #   * FAIL when scripts/manifest.json is missing an entry that exists on disk,
 #     with stderr token `POLARIS_MANIFEST_MISSING: {path}`.
-#   * PASS when manifest covers every scripts/*.sh / scripts/lib/*.py /
-#     scripts/selftests/*.sh path.
+#   * PASS when manifest covers every scripts/*.sh / scripts/lib/*.py path.
+#   * Does not require scripts/selftests/*.sh rows; selftest filesystem
+#     enrollment belongs to validate-selftest-enrollment.sh.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -19,8 +20,8 @@ fi
 tmpdir="$(mktemp -d -t validate-manifest-parity.XXXXXX)"
 trap 'rm -rf "$tmpdir"' EXIT
 
-# Build a synthetic workspace with three scripts across the AC16 globs and a
-# minimal manifest that registers all three.
+# Build a synthetic workspace with governed root/lib scripts and an unregistered
+# selftest. The selftest is intentionally outside manifest parity scope.
 ws="$tmpdir/ws"
 mkdir -p "$ws/scripts/lib" "$ws/scripts/selftests"
 cat >"$ws/scripts/example.sh" <<'SH'
@@ -58,22 +59,12 @@ cat >"$ws/scripts/manifest.json" <<'JSON'
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "library helper"
-    },
-    {
-      "path": "scripts/selftests/example-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
     }
   ]
 }
 JSON
 
-# --- Case A: clean fixture → PASS ---
+# --- Case A: clean fixture → PASS, even with an unregistered selftest ---
 set +e
 bash "$VALIDATOR" --root "$ws" --quiet >/tmp/validate-manifest-parity-clean.out 2>/tmp/validate-manifest-parity-clean.err
 rc=$?

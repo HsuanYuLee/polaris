@@ -19,12 +19,13 @@ Exit codes: 0 = clean, 1 = drift found, 2 = error
 """
 
 import argparse
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(os.environ.get("POLARIS_README_LINT_ROOT", Path(__file__).resolve().parent.parent)).resolve()
 SKILLS_DIR = ROOT / ".claude" / "skills"
 README_FILES = [ROOT / "README.md", ROOT / "README.zh-TW.md"]
 DOCS_DIR = ROOT / "docs"

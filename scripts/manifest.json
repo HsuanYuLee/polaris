@@ -1626,6 +1626,16 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/lib/contract_evidence.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
       "path": "scripts/lib/migrate-refinement-json-to-strong-bound.py",
       "kind": "support",
       "runner": "python3",
@@ -1653,6 +1663,16 @@
       "selftest": "scripts/selftests/polaris-pr-create-selftest.sh",
       "lifecycle": "support_path",
       "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement-bug-source-detector.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
     },
     {
       "path": "scripts/lib/refinement_common.py",
@@ -1942,6 +1962,15 @@
       "runner": "bash",
       "owner_surface": "manual_maintainer",
       "selftest": "scripts/selftests/migrate-epic-refinement-handoff-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/migrate-legacy-dp-plan-to-index.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "scripts/selftests/migrate-legacy-dp-plan-to-index-selftest.sh",
       "lifecycle": "support_path",
       "relocation": "stay"
     },

@@ -131,13 +131,51 @@ if not match:
 else:
     fm_body = match.group(1)
 
-    # Remove any existing deliverable: block (multiline, indented sub-keys)
-    cleaned_fm = re.sub(
-        r'^deliverable:(?:\n(?:[ \t]+[^\n]*))*\n?',
-        '',
-        fm_body,
-        flags=re.MULTILINE
-    )
+    lines = fm_body.splitlines(keepends=True)
+    deliverable_start = None
+    deliverable_end = None
+
+    for index, line in enumerate(lines):
+        if re.match(r'^deliverable:\s*(?:#.*)?$', line.rstrip('\n')):
+            deliverable_start = index
+            break
+
+    verification_lines = []
+    if deliverable_start is not None:
+        deliverable_end = len(lines)
+        for index in range(deliverable_start + 1, len(lines)):
+            line = lines[index]
+            stripped = line.strip()
+            is_top_level = line[:1] not in (' ', '\t') and stripped and not stripped.startswith('#')
+            if is_top_level:
+                deliverable_end = index
+                break
+
+        deliverable_lines = lines[deliverable_start:deliverable_end]
+        verification_start = None
+        verification_end = None
+
+        for index, line in enumerate(deliverable_lines):
+            if re.match(r'^[ \t]{2}verification:\s*(?:#.*)?$', line.rstrip('\n')):
+                verification_start = index
+                break
+
+        if verification_start is not None:
+            verification_end = len(deliverable_lines)
+            for index in range(verification_start + 1, len(deliverable_lines)):
+                line = deliverable_lines[index]
+                stripped = line.strip()
+                indent = len(line) - len(line.lstrip(' \t'))
+                if stripped and indent <= 2:
+                    verification_end = index
+                    break
+            verification_lines = deliverable_lines[verification_start:verification_end]
+
+        cleaned_lines = lines[:deliverable_start] + lines[deliverable_end:]
+        cleaned_fm = ''.join(cleaned_lines)
+    else:
+        cleaned_fm = fm_body
+
     # Ensure trailing newline
     if cleaned_fm and not cleaned_fm.endswith('\n'):
         cleaned_fm += '\n'
@@ -149,6 +187,10 @@ else:
         f'  pr_state: {pr_state}\n'
         f'  head_sha: {head_sha}\n'
     )
+    if verification_lines:
+        cleaned_fm += ''.join(verification_lines)
+        if not cleaned_fm.endswith('\n'):
+            cleaned_fm += '\n'
 
     new_content = '---\n' + cleaned_fm + '---\n' + content[match.end():]
 
