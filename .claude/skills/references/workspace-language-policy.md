@@ -114,7 +114,7 @@ Commit message 不是完全排除，也不是一律跟 workspace language。
 
 T5 第一版已接入下列 producer-level gate：
 
-- JIRA comment：`bug-triage`、`intake-triage`、`jira-worklog`。
+- JIRA comment：`refinement Bug source mode`、`intake-triage`、`jira-worklog`。
 - Slack message：`standup` 的 Confluence 前本地 artifact、`check-pr-approvals`、`review-inbox`、`intake-triage`、`learning`。
 - Confluence page：`standup`、`sasd-review`、`sprint-planning`。
 
@@ -132,7 +132,7 @@ DP-230 D17 後，external surface 寫入多了一層 writer identity registry。
 | 步驟 | 動作 |
 |------|------|
 | 1 | Producer 把最終文字寫進 temp / durable body file（同 § 2）。 |
-| 2 | Producer export `POLARIS_EXTERNAL_WRITE_WRITER=<token>`，token 例如 `bug-triage:jira-comment`。 |
+| 2 | Producer export `POLARIS_EXTERNAL_WRITE_WRITER=<token>`，token 例如 `refinement Bug source mode:jira-comment`。 |
 | 3 | Producer 呼叫 `scripts/polaris-external-write-gate.sh --surface <surface> --body-file <path>`。 |
 | 4 | Gate PASS 後執行 MCP / CLI 真正寫入；寫入完成後可 unset env var 或結束 sub-shell。 |
 

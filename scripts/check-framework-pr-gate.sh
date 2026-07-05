@@ -37,6 +37,7 @@ W13	selftest enrollment	upstream:selftest-governance	engineering	N/A
 W14	aggregate selftest run (full-corpus backstop)	upstream:selftest-governance	engineering	N/A
 W15	naive section-parse lint	upstream:markdown-parser-governance	engineering	N/A
 W16	cross-LLM mechanism parity	upstream:mechanism-governance	engineering	N/A
+W17	framework source write authority	upstream:framework-source-governance	engineering	N/A
 OWNERS
 }
 
@@ -68,6 +69,7 @@ W13 selftest enrollment
 W14 aggregate selftest run (full-corpus backstop)
 W15 naive section-parse lint
 W16 cross-LLM mechanism parity
+W17 framework source write authority
 STAGES
   exit 0
 fi
@@ -108,6 +110,10 @@ MECHANISM_PARITY="${POLARIS_MECHANISM_PARITY_BIN:-scripts/mechanism-parity.sh}"
 # adapter target/registration, golden digest parity) or a recorded parity_exception
 # must fail the PR gate before merge, not only at release preflight.
 VALIDATE_CROSS_LLM_PARITY="${POLARIS_VALIDATE_CROSS_LLM_PARITY_BIN:-scripts/validate-cross-llm-mechanism-parity.sh}"
+# W17 (DP-231 T11 / D41): framework source write authority. This PR-time lane
+# asserts that Claude hooks, Codex adapters, guarded bash, and registry rows all
+# delegate to the single validator.
+VALIDATE_FRAMEWORK_SOURCE_WRITE="${POLARIS_VALIDATE_FRAMEWORK_SOURCE_WRITE_BIN:-scripts/validate-framework-source-write.sh}"
 
 run_gate() {
   local label="$1"
@@ -180,5 +186,6 @@ run_gate "W15 naive section-parse lint" "$LINT_NAIVE_SECTION_PARSE" --self-check
 # lacking a Codex-equivalent enforcement path or a recorded parity_exception must
 # fail before merge.
 run_gate "W16 cross-LLM mechanism parity" "$VALIDATE_CROSS_LLM_PARITY"
+run_gate "W17 framework source write authority" "$VALIDATE_FRAMEWORK_SOURCE_WRITE" --repo "$(pwd)" --self-check-wiring
 
 echo "PASS: framework PR gate"

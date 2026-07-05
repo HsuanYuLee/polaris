@@ -8,7 +8,7 @@ description: >
   Trigger: "做 PROJ-123", "work on", "engineering", "開始做", "接這張", "做這張",
   "修 PROJ-123", "fix review on PROJ-123", PR URL (from pr-pickup or direct),
   or user provides JIRA ticket key(s).
-  NOT for planning: Bug → bug-triage first; Story/Task/Epic → breakdown first.
+  NOT for planning: Bug → refinement Bug source mode first; Story/Task/Epic → breakdown first.
   Key distinction: "下一步" / "繼續" without ticket key → my-triage (zero-input router + resume scan).
 tier: product
 metadata:
@@ -20,7 +20,7 @@ metadata:
 
 `engineering` 是純施工 skill。唯一施工來源是 authoritative task.md；JIRA、PR、
 review comments、CI 都只是 side effect 或 revision signal，不是施工圖。規劃、估點、
-RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
+RCA、scope ownership 由 `refinement Bug source mode` / `breakdown` / `refinement` 持有。
 
 ## Mandatory Authority
 
@@ -35,6 +35,10 @@ RCA、scope ownership 由 `bug-triage` / `breakdown` / `refinement` 持有。
 - First-cut / revision 若實作結果的 task delta 只包含 `.changeset/*.md`，不得開 PR，也不得
   自行修改 planner-owned scope 讓 PR 通過；必須 fail-stop route back planning/refinement，
   由上游判定該 task 是否 absorbed/backfilled 或需要重新拆 surviving scope。
+- Developer deliverable PR 必須由 `scripts/polaris-pr-create.sh` 產生、不可 draft，並在
+  completion gate 後保留可被 `scripts/auto-pass-pr-ownership-gate.sh` 消費的 provenance /
+  completion / freshness 事實；generic GitHub PR 或 plugin publisher 不能補成
+  auto-pass delivery ownership。
 - First-cut branch setup 必須先執行 readiness pack（`validate-task-md.sh`、
   `validate-task-md-deps.sh`、`validate-breakdown-ready.sh`、`resolve-task-base.sh`、
   `resolve-task-branch.sh`），並在 fresh worktree 建立後寫入 planner-owned 欄位 baseline
@@ -120,6 +124,11 @@ Traversal Contract。
   framework-owned dirty source（`scripts/**`、`.claude/skills/**`、`.claude/rules/**`、
   `.claude/instructions/**`、`CLAUDE.md`、`AGENTS.md`、`.codex/**`、`.agents/**` 等）
   是 fail-stop；不得把 main dirty 當成可直接續做的施工面。
+- Product delivery 中若發現必須改 Polaris/framework 才能讓流程跑通，必須隔離 framework
+  diff，走 DP-backed framework workstream seed/handoff 或更新既有 DP-backed framework
+  source。產品 PR 不得包含 framework-owned diff；用
+  `scripts/framework-scope-escalation-gate.sh --mode product` 檢查時命中
+  `POLARIS_FRAMEWORK_SCOPE_ESCALATION_REQUIRED` 就停止產品交付並分流。
 - Task diff 若只有 `.changeset/*.md`，代表 implementation delta 不存在或已被 base/current
   吸收；停止並 route back planning/refinement。若後續 deterministic gate 回
   `POLARIS_CHANGESET_ONLY_TASK_DELTA`，同樣視為 planning gap，不得補空 PR。
@@ -160,6 +169,12 @@ Allowed Files 來通過 gate，必須走 `engineering-scope-escalation.md`。
 
 `POLARIS_LANGUAGE_POLICY_BYPASS` / `POLARIS_SKILL_BOUNDARY_BYPASS` 等 env 不能
 silence 這個 gate（AC-NEG16）。
+
+Framework/control-plane source（`.claude/**`、`.codex/**`、`scripts/**`、runtime
+instructions 等）另受 `scripts/validate-framework-source-write.sh` 寫入時 gate 保護。
+Claude hook、Codex adapter、`scripts/codex-guarded-bash.sh` 與 framework PR gate 都必須
+委派同一 validator；engineering 施工時要把 resolved task.md 綁到 `POLARIS_TASK_MD`
+或以 `--task-md` 傳入，validator 會用 task.md `## Allowed Files` 作唯一可寫範圍。
 
 ## L2 Deterministic Check: version-bump-reminder
 

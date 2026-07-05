@@ -34,6 +34,12 @@ command_string="$*"
 
 "$ROOT_DIR/scripts/gates/gate-pr-language.sh" --repo "${GATE_PROJECT_DIR:-$(pwd)}" --command "$command_string"
 "$ROOT_DIR/scripts/gates/gate-commit-language.sh" --repo "${GATE_PROJECT_DIR:-$(pwd)}" --command "$command_string"
+"$ROOT_DIR/scripts/validate-framework-source-write.sh" \
+  --repo "${GATE_PROJECT_DIR:-$ROOT_DIR}" \
+  --mode pre-write \
+  --writer codex-guarded-bash \
+  --task-md "${POLARIS_TASK_MD:-${POLARIS_FRAMEWORK_TASK_MD:-}}" \
+  --command "$command_string"
 "$ADAPTER" "$ROOT_DIR/scripts/safety-gate.sh" "$command_string"
 
 if [[ "$dry_run" == true ]]; then

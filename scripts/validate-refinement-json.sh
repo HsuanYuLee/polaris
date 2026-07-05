@@ -156,7 +156,12 @@ else:
                     )
 
         jira_key = source.get("jira_key")
-        if jira_key not in (None, "", "N/A"):
+        if source_type == "bug":
+            if jira_key not in (None, "", "N/A") and (
+                not isinstance(jira_key, str) or not JIRA_KEY.match(jira_key)
+            ):
+                errors.append("source.jira_key must be a JIRA key, null, or N/A for source.type=bug")
+        elif jira_key not in (None, "", "N/A"):
             errors.append(f"source.jira_key must be null/N/A for source.type={source_type}")
 
         # DP-269 AC-NEG1: source.repo stays a jira-only field. It must NOT appear
@@ -895,12 +900,28 @@ else:
         if str(item.get("ac_id")) not in ac_ids:
             strong_error(f"adversarial_pass[{idx}].ac_id")
 
-bug_fields = {"reproduction", "root_cause", "source_pr", "severity", "impact_scope", "regression"}
+required_bug_fields = {"reproduction_steps", "root_cause", "source_pr", "severity", "impact_scope", "regression"}
+bug_fields = required_bug_fields | {"reproduction"}
 present_bug_fields = bug_fields & set(data.keys())
 if source_type == "bug":
-    for field in sorted(bug_fields):
+    for field in sorted(required_bug_fields):
         if field not in data:
             strong_error(field)
+
+    steps = data.get("reproduction_steps")
+    if not isinstance(steps, list) or not steps:
+        errors.append("bug field reproduction_steps must be a non-empty array")
+    elif any(not isinstance(step, str) or not step.strip() for step in steps):
+        errors.append("bug field reproduction_steps[] entries must be non-empty strings")
+
+    for field in ("root_cause", "source_pr", "severity", "impact_scope"):
+        value = data.get(field)
+        if not isinstance(value, str) or not value.strip():
+            errors.append(f"bug field {field} must be a non-empty string")
+
+    regression = data.get("regression")
+    if not isinstance(regression, bool) and (not isinstance(regression, str) or not regression.strip()):
+        errors.append("bug field regression must be boolean or a non-empty string")
 else:
     for field in sorted(present_bug_fields):
         strong_error(field)

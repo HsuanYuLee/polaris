@@ -3,7 +3,7 @@
 #
 # Cross-LLM entry point for transitioning a JIRA issue to a target status.
 # Replaces scattered MCP `transitionJiraIssue` calls in engineering / verify-AC /
-# bug-triage / start-dev so non-Claude runtimes (Codex, Cursor, Gemini CLI) can
+# refinement Bug source mode / start-dev so non-Claude runtimes (Codex, Cursor, Gemini CLI) can
 # share the same primitive.
 #
 # Aggressive soft-fail strategy (per DP-032 D25):

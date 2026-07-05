@@ -302,10 +302,11 @@ check）保證該 writer 引用只存在單一 assignment site。Hermetic 覆蓋
 
 ### Closeout chain
 
-terminal complete 後 closeout chain 不需要使用者另戳 archive：
+terminal complete 後 closeout chain 不需要使用者另戳 archive；complete report 只有在 parent
+source 已完成 lifecycle closeout 後才合法。
 
 1. 寫 durable auto-pass report。
-2. 對 terminal parent 呼叫 `scripts/mark-spec-implemented.sh --auto-archive`。
+2. 對 terminal parent 呼叫 `scripts/mark-spec-implemented.sh {SOURCE_ID} --auto-archive`。
 3. **Ledger finalize（DP-311 T2）**：`mark-spec-implemented.sh` 的 parent / bare-DP 分支在翻
    `IMPLEMENTED` **之前**（source 仍 LOCKED）呼叫 `scripts/auto-pass-finalize-ledger.sh`，把
    本次 closeout 的 ledger（`{container}/artifacts/auto-pass/` 最新一份，或 caller 以
@@ -325,3 +326,7 @@ terminal complete 後 closeout chain 不需要使用者另戳 archive：
 4. `mark-spec-implemented.sh` 標記 parent `IMPLEMENTED` 後呼叫 `archive-spec.sh`。
 5. 若 terminal path 來自 framework release closeout，`framework-release-closeout.sh` 透過
    `close-parent-spec-if-complete.sh --archive-terminal-parent` 進入同一 archive chain。
+6. `scripts/validate-auto-pass-report.sh` 會對 `terminal_status=complete` 反查 source parent；
+   若仍在 active namespace 且 status 不是 `IMPLEMENTED`，輸出
+   `POLARIS_AUTO_PASS_TERMINAL_PARENT_NOT_ARCHIVED` 並 fail-stop。Report summary 不得把這種
+   active `LOCKED` parent 降級成 advisory。

@@ -12,7 +12,7 @@
 #   AC-NEG2 POLARIS_SKILL_WRITER set, but file_path is .polaris/evidence/*.json
 #           (evidence JSON, not specs-bound markdown) → exit 2 (env must not
 #           bypass evidence JSON writers).
-#   AC-NEG4 POLARIS_SKILL_WRITER=refinement, but file_path is in bug-triage's
+#   AC-NEG4 POLARIS_SKILL_WRITER=verify-AC, but file_path is in learning's
 #           path_globs (cross-skill) → exit 2 (strict owning_skill binding).
 #   Extra   POLARIS_SKILL_WRITER unset + specs-bound markdown → exit 2.
 #   Extra   POLARIS_SKILL_WRITER=unknown-skill + specs-bound markdown → exit 2.
@@ -111,7 +111,7 @@ python3 - <<PY
 import json, sys
 data = json.load(open("$PRODUCERS_JSON"))
 skills_seen = {p.get("owning_skill") for p in data.get("producers", [])}
-required = {"refinement", "bug-triage", "verify-AC", "learning"}
+required = {"refinement", "verify-AC", "learning"}
 missing = required - skills_seen
 if missing:
     print(f"FAIL: registry missing owning_skill entries: {sorted(missing)}", file=sys.stderr)
@@ -164,14 +164,6 @@ run_hook "$payload_ac1" 0 ac1-skill-writer-refinement \
   "POLARIS_SKILL_WRITER=refinement"
 grep -q 'polaris_skill_writer=refinement' "$WORKDIR/ac1-skill-writer-refinement.out"
 
-# AC1b: POLARIS_SKILL_WRITER=bug-triage + jira-comments root-cause path
-# matches bug-triage entry's path_globs → bypass.
-bug_triage_path="$ROOT/docs-manager/src/content/docs/specs/design-plans/__dp228_fixture__/jira-comments/2026-05-22-root-cause.md"
-payload_ac1b=$(make_payload "$bug_triage_path")
-run_hook "$payload_ac1b" 0 ac1b-skill-writer-bug-triage \
-  "POLARIS_SKILL_WRITER=bug-triage"
-grep -q 'polaris_skill_writer=bug-triage' "$WORKDIR/ac1b-skill-writer-bug-triage.out"
-
 # AC1c: POLARIS_SKILL_WRITER=learning + research artifact path → bypass.
 learning_path="$ROOT/docs-manager/src/content/docs/specs/design-plans/__dp228_fixture__/artifacts/research/2026-05-22-notes.md"
 payload_ac1c=$(make_payload "$learning_path")
@@ -199,11 +191,11 @@ run_hook "$payload_neg2" 2 neg2-evidence-json-not-bypassed \
   "POLARIS_SKILL_WRITER=verify-AC"
 grep -q 'BLOCKED' "$WORKDIR/neg2-evidence-json-not-bypassed.out"
 
-# AC-NEG4: POLARIS_SKILL_WRITER=refinement + bug-triage's jira-comments path
+# AC-NEG4: POLARIS_SKILL_WRITER=verify-AC + learning's research path
 # → DENIED (cross-skill isolation, strict owning_skill binding).
-payload_neg4=$(make_payload "$bug_triage_path")
+payload_neg4=$(make_payload "$learning_path")
 run_hook "$payload_neg4" 2 neg4-cross-skill-denied \
-  "POLARIS_SKILL_WRITER=refinement"
+  "POLARIS_SKILL_WRITER=verify-AC"
 grep -q 'DENIED skill_writer path mismatch' "$WORKDIR/neg4-cross-skill-denied.out"
 grep -q 'BLOCKED' "$WORKDIR/neg4-cross-skill-denied.out"
 

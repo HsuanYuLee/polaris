@@ -219,6 +219,58 @@ resolve_by_dp_task() {
   return 1
 }
 
+resolve_by_source_task() {
+  local root="$1"
+  local source_task="$2"
+  local include_archive="${3:-0}"
+  local source_id=""
+  local task_id=""
+  local specs_root=""
+  local -a matches=()
+  local line=""
+
+  if [[ ! "$source_task" =~ ^([A-Z][A-Z0-9]*-[0-9]+)-([TV][0-9]+[a-z]*)$ ]]; then
+    return 1
+  fi
+  source_id="${BASH_REMATCH[1]}"
+  task_id="${BASH_REMATCH[2]}"
+  specs_root="$(resolve_specs_root "$root")" || return 1
+
+  while IFS= read -r -d '' line; do
+    matches+=("$line")
+  done < <(
+    if [[ "$include_archive" == "1" ]]; then
+      find "$specs_root" \
+        \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
+        -o \
+        \( -type f \( \
+          -path "*/${source_id}/tasks/${task_id}.md" \
+          -o -path "*/${source_id}/tasks/${task_id}/index.md" \
+          -o -path "*/${source_id}/tasks/pr-release/${task_id}.md" \
+          -o -path "*/${source_id}/tasks/pr-release/${task_id}/index.md" \
+          \) -print0 \)
+    else
+      find "$specs_root" \
+        \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
+        -o \
+        \( -type f \( \
+          -path "*/${source_id}/tasks/${task_id}.md" \
+          -o -path "*/${source_id}/tasks/${task_id}/index.md" \
+          -o -path "*/${source_id}/tasks/pr-release/${task_id}.md" \
+          -o -path "*/${source_id}/tasks/pr-release/${task_id}/index.md" \
+          \) -print0 \)
+    fi
+  )
+
+  if [[ ${#matches[@]} -gt 0 ]]; then
+    emit_unique_match "source task ${source_task}" "${matches[@]}"
+    return $?
+  fi
+
+  echo "error: no source task.md found for ${source_task}" >&2
+  return 1
+}
+
 resolve_by_jira() {
   local root="$1"
   local jira_key="$2"
@@ -418,7 +470,7 @@ import re
 import sys
 
 raw = sys.argv[1]
-if re.search(r"\bDP-\d{3}-[TV]\d+[a-z]*\b", raw, re.I):
+if re.search(r"\b[A-Z][A-Z0-9]+-\d+-[TV]\d+[a-z]*\b", raw, re.I):
     raise SystemExit(1)
 epic = re.search(r"\b([A-Z][A-Z0-9]+-\d+)\b", raw)
 series = re.search(r"\b(T\d+)\s*(?:系列|series)?\b", raw, re.I)
@@ -446,6 +498,7 @@ import sys
 
 raw = sys.argv[1]
 patterns = [
+    ("source_task", r"\b([A-Z][A-Z0-9]*-\d+-[TV]\d+[a-z]*)\b"),
     ("dp_task", r"\b(DP-\d{3}-[TV]\d+[a-z]*)\b"),
     ("path", r"((?:\.\.?/|~/|/)?[^\s'\"]+\.md)\b"),
     ("pr_url", r"(https?://github\.com/[^/\s]+/[^/\s]+/pull/\d+)"),
@@ -467,6 +520,13 @@ PY
   kind="${extracted%%$'\t'*}"
   value="${extracted#*$'\t'}"
   case "$kind" in
+    source_task)
+      if [[ "$value" =~ ^DP-[0-9]{3}-[TV][0-9]+[a-z]*$ ]]; then
+        resolve_by_dp_task "$root" "$value" "$include_archive"
+      else
+        resolve_by_source_task "$root" "$value" "$include_archive"
+      fi
+      ;;
     dp_task)
       resolve_by_dp_task "$root" "$value" "$include_archive"
       ;;
@@ -941,6 +1001,8 @@ case "$mode" in
       resolved_path="$(resolve_direct_path "$input_value")"
     elif [[ "$input_value" =~ ^DP-[0-9]{3}-[TV][0-9]+[a-z]*$ ]]; then
       resolved_path="$(resolve_by_dp_task "$root" "$input_value" "$include_archive_flag")"
+    elif [[ "$input_value" =~ ^[A-Z][A-Z0-9]*-[0-9]+-[TV][0-9]+[a-z]*$ ]]; then
+      resolved_path="$(resolve_by_source_task "$root" "$input_value" "$include_archive_flag")"
     elif [[ "$input_value" =~ ^[A-Z][A-Z0-9]+-[0-9]+$ ]]; then
       resolved_path="$(resolve_by_jira "$root" "$input_value" "$include_archive_flag")"
     elif [[ "$input_value" =~ ^https?://github\.com/.+/pull/[0-9]+$ || "$input_value" =~ ^#?[0-9]+$ ]]; then

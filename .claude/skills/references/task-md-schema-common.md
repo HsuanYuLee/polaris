@@ -30,6 +30,12 @@ Framework DP-backed work orders（DP-047 / DP-050）使用同一份 Implementati
 
 DP-backed task 使用 source-neutral identity：`source_type=dp`、`source_id=DP-NNN`、`work_item_id=DP-NNN-Tn` / `DP-NNN-Vn`、`jira_key=null`。Migration 期仍接受舊 task.md 把 pseudo-task ID 放在 `Task JIRA key` / `JIRA:`，但新 DP-backed task 應使用 canonical metadata row，並保留 `JIRA: N/A` 讓舊 reader 不因欄位缺失失效。
 
+Bug source work order 使用同一個 source-neutral identity：`source_type=bug`、
+`source_id={BUG_KEY}`、`work_item_id={BUG_KEY}-Tn` / `{BUG_KEY}-Vn`。Bug source 沒有
+parent Epic，也不需要為每個 task 補一個假的 JIRA sub-task；`JIRA: N/A` / `JIRA key` =
+`N/A` 是合法值。Resolver 以 exact source container `.../{BUG_KEY}/tasks/{Tn|Vn}` 查找，
+不得把 `{BUG_KEY}-Tn` 截短後誤走一般 JIRA issue lookup。
+
 DP-backed implementation task 與 Epic implementation task 沒有不同的施工捷徑：同樣由
 `breakdown` 產出 authoritative work order，交給 `engineering` 施工；若 local policy
 需要 `framework-release`，那是 PR 之後的 local extension tail。只觸及
@@ -301,7 +307,7 @@ Canonical source-neutral metadata（DP-050 migration candidate）:
 ```
 
 - `Epic:` / `Source:` **Soft required**（DP-033 D5 + DP-050）— product task 通常用 `Epic:`，source-neutral task 用 `Source:`；Bug task 是真實無 Epic 場景，硬 require 只會逼填假 Epic
-- `Task:` **canonical task identity** — source-neutral `work_item_id`。Product task 可等於 JIRA key；DP-backed framework work item 使用 pseudo ID `DP-NNN-Tn` / `DP-NNN-Vn`
+- `Task:` **canonical task identity** — source-neutral `work_item_id`。Product task 可等於 JIRA key；source-backed work item 使用 pseudo ID `{SOURCE_KEY}-Tn` / `{SOURCE_KEY}-Vn`（例如 `DP-NNN-Tn`、`BUG-123-T1`）
 - `JIRA:` **migration required segment** — 真實 JIRA key；若來源不是 JIRA（例如 DP task）填 `N/A`。Legacy task 可只用 `JIRA:` 承載 task identity
 - `Repo:` **必填** — 非空字串
 
@@ -309,7 +315,7 @@ Validator accepts either legacy or canonical shape:
 
 ```regex
 legacy:    ^> .*JIRA: ([A-Z][A-Z0-9]*-[0-9]+|DP-[0-9]{3}-[TV][0-9]+[a-z]*)
-canonical: ^> .*Task: ([A-Z][A-Z0-9]*-[0-9]+|DP-[0-9]{3}-[TV][0-9]+[a-z]*).*JIRA: ([A-Z][A-Z0-9]*-[0-9]+|N/A)
+canonical: ^> .*Task: ([A-Z][A-Z0-9]*-[0-9]+|[A-Z][A-Z0-9]*-[0-9]+-[TV][0-9]+[a-z]*).*JIRA: ([A-Z][A-Z0-9]*-[0-9]+|N/A)
 ^> .*Repo: \S+
 ```
 
@@ -330,8 +336,8 @@ Migration aliases:
 
 | Field | Product task | DP-backed task |
 |-------|--------------|----------------|
-| `work_item_id` | Real task JIRA key | DP pseudo ID (`DP-NNN-Tn` / `DP-NNN-Vn`) |
-| `jira_key` | Real task JIRA key | `null` / empty field output |
+| `work_item_id` | Real task JIRA key | Source pseudo ID (`DP-NNN-Tn` / `DP-NNN-Vn` / `BUG-123-T1`) |
+| `jira_key` | Real task JIRA key | `null` / empty field output; Bug source may use `N/A` |
 | `task_jira_key` | Alias of `work_item_id` | Compatibility alias of `work_item_id`; deprecated for new consumers |
 | `jira` | Legacy metadata alias | Empty when metadata says `JIRA: N/A` |
 

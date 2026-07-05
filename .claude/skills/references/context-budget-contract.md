@@ -78,5 +78,5 @@ runtime metrics。
 | 3 | `verify-AC` | Browser evidence、logs、screenshots metadata、AC run output。 |
 | 4 | `intake-triage` | Batch ticket descriptions、JIRA comments、priority evidence。 |
 | 5 | `converge` | Multi-ticket status scan、PR review comments、CI summaries。 |
-| 6 | `bug-triage` | Logs、stack traces、multi-file debugging evidence。 |
+| 6 | `refinement Bug source mode` | Logs、stack traces、multi-file debugging evidence。 |
 | 7 | `kibana-logs` | Raw production log windows。 |

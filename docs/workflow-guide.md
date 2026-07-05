@@ -43,7 +43,7 @@ For locked/current DP-backed framework work, `auto-pass DP-NNN` is the canonical
 
 ## Ticket Lifecycle
 
-`engineering` is the primary orchestrator. `bug-triage` handles Bug diagnosis before handing off to `engineering` for execution. Feature, Bug, and Refactor paths share the Quality → PR → Release tail.
+`engineering` is the primary orchestrator. `refinement` handles Bug source diagnosis before handing off to `breakdown` and `engineering` for execution. Feature, Bug, and Refactor paths share the Quality → PR → Release tail.
 
 ```mermaid
 flowchart TD
@@ -63,8 +63,8 @@ flowchart TD
     end
 
     %% ── Bug Path ──
-    subgraph bugfix["🐛 Bug Diagnosis Path<br/><code>bug-triage</code>"]
-        B1["🤖👤 Root Cause Analysis<br/><code>bug-triage</code>"]
+    subgraph bugfix["🐛 Bug Diagnosis Path<br/><code>refinement</code>"]
+        B1["🤖👤 Root Cause Analysis<br/><code>refinement</code>"]
         B2["👤 Developer confirms Root Cause"]
         B3["🤖 Breakdown & Estimation<br/><code>breakdown</code>"]
     end
@@ -184,7 +184,7 @@ How skills invoke and delegate to each other. Solid arrows = invoke (skill calls
 flowchart LR
     %% ── Orchestrators ──
     WO["engineering<br/>(smart router)"]
-    BT["bug-triage<br/>(diagnosis)"]
+    BT["refinement<br/>(Bug source mode)"]
 
     %% ── Planning Skills ──
     RF["refinement"]
@@ -776,13 +776,13 @@ Executed by the release manager. If there are conflicts, the developer resolves 
 
 Receive the bug ticket, confirm the problem description and reproduction steps.
 
-### Step 2. 🤖👤 Bug Diagnosis (bug-triage)
+### Step 2. 🤖👤 Bug Diagnosis (refinement)
 
 ```text
 修 bug PROJ-432
 ```
 
-AI executes `bug-triage` skill — **diagnosis only**, not end-to-end:
+AI executes `refinement` Bug source mode — **diagnosis only**, not end-to-end:
 
 1. **Read JIRA ticket** → identify project (auto-matches project mapping)
 2. **Root cause analysis** → scans codebase to find the **Root Cause** (specific code location or logic error)
@@ -798,9 +798,9 @@ After RD confirmation, the flow hands off to `breakdown` → `engineering` for e
 | **Root Cause** | Root cause of the issue; points to specific code location |
 | **Solution** | Fix approach; lists files/modules to change |
 
-> Note: "fix" + JIRA key → `bug-triage`; "fix" + PR URL → `engineering` (revision mode)
+> Note: "fix" + JIRA key → `refinement` Bug source mode; "fix" + PR URL → `engineering` (revision mode)
 
-> Trigger keywords: `修 bug`, `triage bug`, `fix bug`, `fix this ticket`, `bug-triage`
+> Trigger keywords: `修 bug`, `triage bug`, `fix bug`, `fix this ticket`, `refinement`
 
 ### Step 3. 🤖👤 Code Review (human focus)
 
@@ -837,7 +837,7 @@ Typically reported via Slack. Paste the Slack URL and say "修這個" or "fix th
 If no JIRA ticket key is provided, the Strategist automatically:
 1. Reads the Slack thread to extract the problem description
 2. Creates a JIRA Bug ticket (project key inferred from `workspace-config.yaml`)
-3. Routes to `bug-triage` with the new ticket key
+3. Routes to `refinement` Bug source mode with the new ticket key
 
 Framework hotfixes without a ticket should still enter the planning lane first: create or locate the relevant JIRA/DP source, then continue through `breakdown` and `engineering`.
 

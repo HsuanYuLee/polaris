@@ -43,6 +43,7 @@ trap 'rm -rf "$TMP"' EXIT
 # task.md `deliverable` block via resolve-task-md.sh --scan-root $TMP (the
 # head-sha-keyed ac_verification marker is retired).
 export POLARIS_WORKSPACE_ROOT="$TMP"
+export POLARIS_SPECS_ROOT="$TMP/docs-manager/src/content/docs/specs"
 SPECS_DESIGN_PLANS="$TMP/docs-manager/src/content/docs/specs/design-plans"
 mkdir -p "$SPECS_DESIGN_PLANS"
 

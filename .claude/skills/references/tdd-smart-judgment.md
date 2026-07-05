@@ -43,6 +43,6 @@ Coverage gate: [detected / absent]
 
 此判斷邏輯配合 `unit-test` skill 的 Red-Green-Refactor 循環使用。Skill 讀取 `unit-test` SKILL.md + 專案 CLAUDE.md 以確保程式碼符合專案規範。
 
-呼叫端（engineering、bug-triage 等）在進入開發階段時套用此判斷，無需重複描述規則。
+呼叫端（engineering、refinement Bug source mode 等）在進入開發階段時套用此判斷，無需重複描述規則。
 
 TDD 完成後、push 前必須依 `engineer-delivery-flow.md § Step 2 Local CI Mirror` 跑 `ci-local.sh` 並寫 evidence（若 repo 有 `ci-local.sh`；patch gate / lint / typecheck 等 workflow checks 由 `ci-local-generate.sh` 從 repo CI config 推導內含）。

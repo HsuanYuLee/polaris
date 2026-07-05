@@ -35,7 +35,6 @@ set -euo pipefail
 # PR body) must export POLARIS_EXTERNAL_WRITE_WRITER=<token> from this list
 # before invoking the body-file write.
 POLARIS_EXTERNAL_WRITERS=(
-  "bug-triage:jira-comment"
   "intake-triage:jira-comment"
   "jira-worklog:jira-comment"
   "verify-AC:jira-comment"

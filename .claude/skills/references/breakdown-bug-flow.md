@@ -1,20 +1,23 @@
 ---
 title: "Breakdown Bug Flow"
-description: "breakdown Bug path：讀取 bug-triage RCA、估點、簡單修復規劃與複雜 bug 轉 planning flow。"
+description: "breakdown Bug path：讀取 refinement Bug source artifact、估點、簡單修復規劃與複雜 bug 轉 planning flow。"
 ---
 
 # Bug Flow
 
 ## Entry
 
-只處理 JIRA Issue Type = Bug。先檢查 JIRA comments 是否存在 `[ROOT_CAUSE]`；沒有時
-停止，請使用者先跑 `bug-triage {TICKET}`。
+只處理 JIRA Issue Type = Bug。先檢查是否存在 refinement Bug source artifact，且已包含
+`reproduction_steps[]`、`root_cause`、`source_pr`、`severity`、`impact_scope` 與
+`regression`；沒有時停止，請使用者先跑 `/refinement {TICKET}` 並標示
+`source_kind=bug`。
 
-讀取 bug-triage 產出的結構化資訊：
+讀取 refinement Bug source artifact 產出的結構化資訊：
 
-- `[ROOT_CAUSE]`：根因、檔案位置、問題描述。
-- `[IMPACT]`：影響範圍、變更風險。
-- `[PROPOSED_FIX]`：修正方向、預估改動範圍。
+- `root_cause`：根因、檔案位置、問題描述。
+- `impact_scope`：影響範圍、變更風險。
+- `source_pr`：相關 PR / commit / external evidence。
+- `reproduction_steps[]`：重現步驟或 external reproduction evidence。
 
 ## Estimate And Route
 

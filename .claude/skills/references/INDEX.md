@@ -28,7 +28,7 @@ resolve，不是以 workspace `.claude/` root 為基準。
 | [jira-subtask-creation.md](jira-subtask-creation.md) | 批次建 JIRA 子單流程：查既有→建單→估點→測試計畫→驗收 | breakdown, createJiraIssue, engineering |
 | [epic-verification-structure.md](epic-verification-structure.md) | 驗收架構：測試計畫/AC 驗證分離、測試 Sub-task、驗收單 lifecycle | breakdown, jira-subtask-creation, engineering |
 | [epic-verification-workflow.md](epic-verification-workflow.md) | Epic 驗證完整流程：fixture lifecycle、VR gate、feature branch flow | breakdown, engineering, visual-regression, converge |
-| [pipeline-handoff.md](pipeline-handoff.md) | Pipeline 角色邊界與 handoff contract：breakdown/engineering/verify-AC/bug-triage + task.md schema + AC-FAIL disposition gate | breakdown, engineering, verify-AC, bug-triage, refinement |
+| [pipeline-handoff.md](pipeline-handoff.md) | Pipeline 角色邊界與 handoff contract：refinement/breakdown/engineering/verify-AC + task.md schema + AC-FAIL disposition gate | refinement, breakdown, engineering, verify-AC |
 | [pipeline-handoff-atom-matrix.md](pipeline-handoff-atom-matrix.md) | Pipeline atom ownership mapping：refinement / T task / V task / lifecycle marker / orchestration signal / identity atoms（work_item_id / jira_key / delivery_ticket_key split，product PR identity 只用 delivery_ticket_key）/ loop counters 的 canonical writer、allowed consumer、validator 與 drift policy | refinement, breakdown, engineering, verify-AC, auto-pass, identity atom, delivery_ticket_key, loop counters |
 | [auto-pass-proof-of-work.md](auto-pass-proof-of-work.md) | auto-pass proof-of-work marker contract：durable evidence schema、producer ownership、writer whitelist 與 DP-198 handoff | auto-pass, proof marker, evidence producer, breakdown, engineering, verify-AC |
 | [auto-pass-ledger.md](auto-pass-ledger.md) | auto-pass source-scoped ledger contract：locked/current DP source、task dependency consent、workspace PR readiness、verification disposition 與 release-boundary state | auto-pass, DP-backed source, ledger, orchestrator |
@@ -39,13 +39,9 @@ resolve，不是以 workspace `.claude/` root 為基準。
 | [refinement-adversarial-pass.md](refinement-adversarial-pass.md) | refinement handoff 前的 author-side adversarial pass pattern bank | refinement, adversarial pass, handoff gate |
 | [escalation-flavor-guide.md](escalation-flavor-guide.md) | Engineering scope-escalation sidecar 的 flavor 分類決策樹（plan-defect / scope-drift / env-drift）+ worked examples | engineering（寫 sidecar）, breakdown（intake path 重新分類） |
 | [refinement-return-inbox.md](refinement-return-inbox.md) | breakdown route refinement 時的 inbox record 契約；refinement 只讀 inbox、不讀 engineering raw sidecar | breakdown（route refinement）, refinement（return inbox intake）, engineering（lineage cap routing） |
-| [handoff-artifact.md](handoff-artifact.md) | Pipeline handoff evidence artifact 格式（Summary/Raw Evidence、20KB cap、secret scrub、on-demand read） | bug-triage, engineering, verify-AC（producer or consumer of handoff artifact） |
+| [handoff-artifact.md](handoff-artifact.md) | Pipeline handoff evidence artifact 格式（Summary/Raw Evidence、20KB cap、secret scrub、on-demand read） | refinement, engineering, verify-AC（producer or consumer of handoff artifact） |
 | [evidence-upload-bundle.md](evidence-upload-bundle.md) | Engineering / verify-AC 圖片、影片、JSON 佐證的固定人工上傳包位置與 helper contract | engineering evidence upload, verify-AC visual evidence, PR/Jira attachments |
 | [decision-audit-trail.md](decision-audit-trail.md) | JIRA Decision Record comment 格式與寫入規則 | breakdown, sasd-review |
-| [bug-triage-entry-flow.md](bug-triage-entry-flow.md) | bug-triage ticket parsing、Issue Type guard、project mapping、existing ROOT_CAUSE detection、fast-path routing | bug-triage, root cause, bug diagnosis |
-| [bug-triage-acfail-flow.md](bug-triage-acfail-flow.md) | bug-triage 處理 verify-AC `[VERIFICATION_FAIL]` Bug 的 feature-branch scoped investigation 與 artifact handoff | bug-triage AC-FAIL, verification fail |
-| [bug-triage-root-cause-flow.md](bug-triage-root-cause-flow.md) | bug-triage fast/full path root cause analysis、Explorer boundary、impact/proposed fix schema、evidence artifact | bug-triage RCA, root cause analysis |
-| [bug-triage-confirm-handoff-flow.md](bug-triage-confirm-handoff-flow.md) | bug-triage RD confirmation hard stop、JIRA ROOT_CAUSE comment、handbook observations、handoff message、error handling | bug-triage confirm, ROOT_CAUSE, breakdown handoff |
 | [intake-triage-input-flow.md](intake-triage-input-flow.md) | intake-triage ticket key/JQL/Slack/Epic input parsing、JIRA fetch、standard record、Epic child convergence、theme/lens detection | intake-triage, intake input, 收單 |
 | [intake-triage-scoring-flow.md](intake-triage-scoring-flow.md) | intake-triage readiness、effort、impact lens、dependencies、duplicate risk、hard blockers、verdict matrix、sorting | intake-triage, scoring, 排工 |
 | [intake-triage-writeback-flow.md](intake-triage-writeback-flow.md) | intake-triage decision table、RD confirmation、JIRA intake labels/comments、PM Slack summary、workflow handoff | intake-triage writeback, Slack summary, JIRA labels |
@@ -57,7 +53,7 @@ resolve，不是以 workspace `.claude/` root 為基準。
 | [estimation-scale.md](estimation-scale.md) | Story point scale (1/2/3/5/8/13) 定義與時程換算 | breakdown, engineering estimation phase |
 | [epic-template.md](epic-template.md) | Epic description 結構化模板與 readiness checklist | refinement, breakdown, PM epic quality review |
 | [project-mapping.md](project-mapping.md) | JIRA ticket → local project 目錄對應（config-first） | breakdown, sasd-review, engineering |
-| [breakdown-bug-flow.md](breakdown-bug-flow.md) | breakdown Bug path：讀 bug-triage ROOT_CAUSE、估點、simple bug JIRA write 與 complex bug planning handoff | breakdown bug, ROOT_CAUSE, estimate bug |
+| [breakdown-bug-flow.md](breakdown-bug-flow.md) | breakdown Bug path：讀 refinement Bug source artifact、估點、simple bug JIRA write 與 complex bug planning handoff | breakdown bug, ROOT_CAUSE, estimate bug |
 | [breakdown-escalation-intake-flow.md](breakdown-escalation-intake-flow.md) | breakdown scope-escalation intake：讀 engineering sidecar、re-classify flavor、closure validation、task/refinement 落地 | breakdown escalation, scope escalation, sidecar |
 | [breakdown-dp-intake-flow.md](breakdown-dp-intake-flow.md) | breakdown DP-backed intake：消費 locked DP refinement artifact，產出 DP tasks/T*.md，不寫 JIRA | breakdown DP-NNN, ticketless DP, DP task |
 | [breakdown-planning-flow.md](breakdown-planning-flow.md) | breakdown JIRA Story/Task/Epic planning：探索、拆單、Quality Challenge、Constructability Gate、JIRA write | breakdown story, split tasks, sub-tasks |
@@ -68,6 +64,7 @@ resolve，不是以 workspace `.claude/` root 為基準。
 | [infra-first-decision.md](infra-first-decision.md) | 由 AC verification method 決定 refinement preview / breakdown split 是否需要 Mockoon fixtures、VR baseline 或 stable data seed prerequisite | refinement suggested task structure, breakdown split strategy, infra prerequisite |
 | [spec-source-resolver.md](spec-source-resolver.md) | JIRA / DP-NNN / ticketless topic / artifact path 的共用 source resolution contract，含 DP locator、artifact path、section ownership | refinement, breakdown, engineering, verify-AC |
 | [refinement-source-mode.md](refinement-source-mode.md) | refinement source-neutral 操作細節：source resolution、primary doc / preview / artifact output、LOCKED handoff、LOCKED scope guard；DP inherent property 附錄 | refinement DP-NNN, ticketless topic, design plan, ADR, JIRA-backed Epic refinement, artifact_path |
+| [refinement-bug-source-mode.md](refinement-bug-source-mode.md) | refinement Bug source mode：source_kind=bug 觸發 reproduction、RCA investigation、source PR identification、severity/impact assessment 並產出 canonical refinement artifacts | refinement bug, source_kind=bug, Bug ticket, RCA |
 | [refinement-batch-readiness-flow.md](refinement-batch-readiness-flow.md) | refinement batch readiness scan：批次掃 Epic 完整度、readiness table、JIRA label/comment 與下一步路由 | refinement batch, sprint prep, readiness |
 | [refinement-phase0-discovery-flow.md](refinement-phase0-discovery-flow.md) | refinement Phase 0：RD 主動發現 tech debt / code smell / performance issue，分析價值並產 JIRA ticket 草稿 | refinement phase 0, tech debt, 想重構 |
 | [refinement-phase1-elaboration-flow.md](refinement-phase1-elaboration-flow.md) | refinement Phase 1：JIRA Epic 需求充實、codebase exploration、AC hardening、local preview 與定版 artifact | refinement phase 1, grooming, 補完 Epic |
@@ -130,14 +127,14 @@ resolve，不是以 workspace `.claude/` root 為基準。
 | [model-tier-policy.md](model-tier-policy.md) | 跨 LLM model selection policy：semantic classes、Codex / Claude runtime mapping、approved small-model candidates、risk gates、effort 分離 | sub-agent dispatch, model tier, small_fast, realtime_fast, model override |
 | [sub-agent-roles.md](sub-agent-roles.md) | Sub-agent dispatch 標準：completion envelope、model tier、QA/Architect/Critic | 任何 skill 啟動 sub-agent |
 | [sub-agent-reference.md](sub-agent-reference.md) | Sub-agent 輔助參考：model tier 表、T1/T2/T3 決策分類、self-regulation scoring、pipeline restore points、fan-in validation、write isolation model、safety hooks | 任何 skill 啟動 sub-agent, engineering batch mode, parallel sub-agent dispatch |
-| [explore-pattern.md](explore-pattern.md) | Adaptive codebase 探索模式：handbook-first → 小範圍直讀 / 大範圍平行 sub-agent → handbook 回寫 | refinement (Tier 2+), sasd-review, breakdown, systematic-debugging, engineering, bug-triage |
-| [worktree-dispatch-paths.md](worktree-dispatch-paths.md) | Worktree 子代理必須使用主 checkout 絕對路徑存取 gitignored 框架 artifacts（`specs/`、`.claude/skills/`），含 copy-paste dispatch block | engineering, breakdown, verify-AC, refinement, bug-triage, sasd-review（任何 dispatch 子代理進 worktree 且需讀寫 specs/ 的 skill） |
+| [explore-pattern.md](explore-pattern.md) | Adaptive codebase 探索模式：handbook-first → 小範圍直讀 / 大範圍平行 sub-agent → handbook 回寫 | refinement (Tier 2+), sasd-review, breakdown, systematic-debugging, engineering |
+| [worktree-dispatch-paths.md](worktree-dispatch-paths.md) | Worktree 子代理必須使用主 checkout 絕對路徑存取 gitignored 框架 artifacts（`specs/`、`.claude/skills/`），含 copy-paste dispatch block | engineering, breakdown, verify-AC, refinement, sasd-review（任何 dispatch 子代理進 worktree 且需讀寫 specs/ 的 skill） |
 
 ## Testing & VR
 
 | File | Description | Triggers |
 |------|-------------|----------|
-| [tdd-smart-judgment.md](tdd-smart-judgment.md) | 逐檔判斷是否適用 TDD（testable vs config/style/type-def） | unit-test, engineering, bug-triage |
+| [tdd-smart-judgment.md](tdd-smart-judgment.md) | 逐檔判斷是否適用 TDD（testable vs config/style/type-def） | unit-test, engineering |
 | [unit-test-detection-tdd-flow.md](unit-test-detection-tdd-flow.md) | unit-test framework detection、repo-specific command selection、TDD applicability、red/green/refactor cycle、cycle log | unit-test, TDD, 紅綠燈 |
 | [unit-test-framework-patterns.md](unit-test-framework-patterns.md) | unit-test Jest/Vitest/Vue component/store/composable/mock/async 測試 pattern 與範例 | unit-test examples, mock imports |
 | [unit-test-strategy-coverage.md](unit-test-strategy-coverage.md) | unit-test test target selection、coverage expectations、quality review checklist、anti-patterns、skipped-test rationale | unit-test review, coverage |
@@ -232,7 +229,7 @@ resolve，不是以 workspace `.claude/` root 為基準。
 | [mechanism-rationalizations.md](mechanism-rationalizations.md) | Mechanism Registry 的 Common Rationalizations 查表集 + Deterministic Quality Hooks 技術細節（evidence file spec、bypass flags） | post-task mechanism audit (when drift suspected), hook configuration, verification-evidence debugging |
 | [deterministic-hooks-registry.md](deterministic-hooks-registry.md) | Deterministic Quality Hooks 完整表（ID、Rule、Enforcement、Script）— 從 mechanism-registry.md 拆出以降低 rules 載入成本 | hook configuration, hook debugging, validate-mechanisms |
 | [mechanism-deterministic-contracts.md](mechanism-deterministic-contracts.md) | Mechanism Registry 拆出的 deterministic contract groups：artifact schemas、handoff gates、delivery wrappers、release closeout 等只在 gate 被忽略/誤讀時 audit | mechanism registry, post-task audit, validate-mechanisms, deterministic contract |
-| [library-change-protocol.md](library-change-protocol.md) | 依賴變更完整協議：三層調查、替換/升級評估、Decision Tier、config 系統性排除、workaround 文件標準 | engineering (library evaluation), review-pr (reviewer suggests upgrade), bug-triage (dependency issue) |
+| [library-change-protocol.md](library-change-protocol.md) | 依賴變更完整協議：三層調查、替換/升級評估、Decision Tier、config 系統性排除、workaround 文件標準 | engineering (library evaluation), review-pr (reviewer suggests upgrade), refinement Bug source mode (dependency issue) |
 | [knowledge-compilation-protocol.md](knowledge-compilation-protocol.md) | Framework 知識編譯協議：Atom vs Derived 邊界、backwrite、parallel naming lock | learning (External mode framework target), docs-sync, framework docs/rules updates |
 | [starlight-authoring-contract.md](starlight-authoring-contract.md) | Specs Markdown 的 Starlight authoring contract：frontmatter、description、duplicate H1、producer boundary、validator explicit path、legacy migration | refinement, breakdown, engineering, verify-AC, docs-manager, specs markdown producer |
 | [validate-isolation-flow.md](validate-isolation-flow.md) | validate isolation mode 的 multi-company scope headers、cross-company conflicts、memory company tags、MEMORY.md index、user data leak scan、report rows | validate isolation, 檢查隔離 |

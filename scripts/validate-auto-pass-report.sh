@@ -65,6 +65,7 @@ fi
 SPECS_ROOT="${POLARIS_SPECS_ROOT:-$WORKSPACE_ROOT/docs-manager/src/content/docs/specs}"
 
 RESOLVER="$SCRIPT_DIR/resolve-task-md.sh" PARSER="$SCRIPT_DIR/parse-task-md.sh" \
+PR_OWNERSHIP_GATE="$SCRIPT_DIR/auto-pass-pr-ownership-gate.sh" \
 python3 - "$1" "$EVIDENCE_ROOT" "$WORKSPACE_ROOT" "$SPECS_ROOT" <<'PY'
 """Purpose: auto-pass report contract validation body (see bash header).
 
@@ -112,6 +113,9 @@ CROSS_MARKER_MISSING = "POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISSING"
 CROSS_MARKER_MISMATCH = "POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISMATCH"
 # DP-303 T5 follow_up_dp_seed collision marker (exit 2, fail-closed).
 SEED_COLLISION = "POLARIS_AUTO_PASS_REPORT_SEED_COLLISION"
+TERMINAL_PARENT_NOT_ARCHIVED = "POLARIS_AUTO_PASS_TERMINAL_PARENT_NOT_ARCHIVED"
+PR_OWNERSHIP_BLOCKED = "POLARIS_AUTO_PASS_PR_OWNERSHIP_BLOCKED"
+PR_DRAFT_BLOCKED = "POLARIS_AUTO_PASS_PR_DRAFT_BLOCKED"
 # Resolver-compatible {PREFIX}-NNN extracted from a design-plans subdir name.
 SEED_DP_DIR_PATTERN = re.compile(r"(?P<prefix>[A-Z][A-Z0-9]*)-(?P<num>[0-9]+)")
 
@@ -219,6 +223,41 @@ def seed_number_occupied(specs_root_path, prefix, number):
     return None
 
 
+def read_frontmatter_status(index_path):
+    """Read a specs index.md frontmatter status value, if present."""
+    try:
+        text = Path(index_path).read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return None
+    if not text.startswith("---\n"):
+        return None
+    end = text.find("\n---", 4)
+    if end == -1:
+        return None
+    for line in text[4:end].splitlines():
+        if line.startswith("status:"):
+            return line.split(":", 1)[1].strip().strip('"')
+    return None
+
+
+def source_parent_lifecycle(specs_root_path, source_id):
+    """Resolve active/archive parent lifecycle for report source_id."""
+    if not specs_root_path or not source_id:
+        return None
+    base = Path(specs_root_path)
+    active_parent = base / "design-plans"
+    archive_parent = active_parent / "archive"
+    active_matches = sorted(active_parent.glob(f"{source_id}-*/index.md")) if active_parent.is_dir() else []
+    archive_matches = sorted(archive_parent.glob(f"{source_id}-*/index.md")) if archive_parent.is_dir() else []
+    if active_matches:
+        first = active_matches[0]
+        return {"namespace": "active", "path": str(first), "status": read_frontmatter_status(first)}
+    if archive_matches:
+        first = archive_matches[0]
+        return {"namespace": "archive", "path": str(first), "status": read_frontmatter_status(first)}
+    return None
+
+
 if not path.is_file():
     fail([f"report not found: {path}"])
 try:
@@ -247,6 +286,70 @@ for field in ("required_prs", "issues", "blockers", "manual_items", "follow_ups"
 verification = data.get("verification")
 if not isinstance(verification, dict) or not verification.get("status"):
     errors.append("verification.status is required")
+
+
+def required_pr_ownership_required(row):
+    """Whether required_prs[] row opted into DP-231 T7 PR ownership checks."""
+    if not isinstance(row, dict):
+        return False
+    keys = {
+        "auto_pass_pr_ownership_required",
+        "auto_pass_pr_ownership",
+        "pr_ownership",
+        "isDraft",
+        "is_draft",
+        "draft",
+        "publisher",
+        "writer",
+        "provenance",
+        "engineering_completion_marker",
+        "completion_marker",
+        "completion_gate",
+        "base_freshness",
+    }
+    return any(key in row for key in keys)
+
+
+def run_pr_ownership_gate(row):
+    """Run the shared DP-231 T7 PR ownership gate against a required_prs row."""
+    gate = os.environ.get("PR_OWNERSHIP_GATE")
+    if not gate:
+        return (PR_OWNERSHIP_BLOCKED, "auto-pass PR ownership gate path missing")
+    try:
+        proc = subprocess.run(
+            ["bash", gate, "--stdin"],
+            input=json.dumps(row, ensure_ascii=False),
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+    except Exception as exc:
+        return (PR_OWNERSHIP_BLOCKED, f"auto-pass PR ownership gate failed to run: {exc}")
+    if proc.returncode == 0:
+        return None
+    detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+    reason = detail[0] if detail else f"auto-pass PR ownership gate exit {proc.returncode}"
+    token = PR_DRAFT_BLOCKED if PR_DRAFT_BLOCKED in reason else PR_OWNERSHIP_BLOCKED
+    return (token, reason)
+
+
+for idx, row in enumerate(data.get("required_prs") or []):
+    if not isinstance(row, dict):
+        continue
+    if not required_pr_ownership_required(row):
+        continue
+    gate_error = run_pr_ownership_gate(row)
+    if gate_error is not None:
+        token, detail = gate_error
+        cross_errors.append((token, f"required_prs[{idx}] failed auto-pass PR ownership gate: {detail}"))
+
+if terminal == "complete" and report_source_id:
+    lifecycle = source_parent_lifecycle(specs_root, str(report_source_id))
+    if lifecycle and lifecycle["namespace"] == "active" and lifecycle.get("status") != "IMPLEMENTED":
+        cross_errors.append((
+            TERMINAL_PARENT_NOT_ARCHIVED,
+            f"{TERMINAL_PARENT_NOT_ARCHIVED}: complete report references active parent {lifecycle['path']} with status={lifecycle.get('status') or 'UNKNOWN'}; run mark-spec-implemented.sh {report_source_id} --auto-archive before terminal complete",
+        ))
 
 for idx, row in enumerate(data.get("overlap_disposition") or []):
     disposition = row.get("disposition") if isinstance(row, dict) else None

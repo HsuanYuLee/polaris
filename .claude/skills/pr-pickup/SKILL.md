@@ -123,7 +123,7 @@ engineering 進入 revision mode（依 engineering SKILL.md Step 0 mode detectio
 | **成功完成** | engineering 已回傳 shared PR state readiness；pr-pickup 只可轉述該 state，不可自行判定「已完成 / 可 merge / 可 release」 |
 | **退回 breakdown** | plan gap — 施工圖有漏洞，需退回上游重新規劃（D3） |
 | **退回 refinement** | spec issue — AC 本身有問題，需退回需求釐清（D3） |
-| **硬擋（無 task.md）** | PR 沒有新版 task.md，需先跑 bug-triage 或 breakdown 補 work order |
+| **硬擋（無 task.md）** | PR 沒有新版 task.md，需先跑 refinement Bug source mode 或 breakdown 補 work order |
 | **失敗** | 其他原因（build 失敗、環境問題等） |
 
 ---
@@ -168,7 +168,7 @@ shared PR state: `{awaiting_re_review | mergeable_ready}`
 
 此 PR 沒有對應的新版 task.md。
 
-:point_right: *下一步*: Bug 執行 `/bug-triage {TICKET}`，Story/Task/Epic 執行 `/breakdown {TICKET}`，建立 `specs/{EPIC}/tasks/T*.md` 後再重新觸發 engineering。
+:point_right: *下一步*: Bug 執行 `/refinement {TICKET}`，Story/Task/Epic 執行 `/breakdown {TICKET}`，建立 `specs/{EPIC}/tasks/T*.md` 後再重新觸發 engineering。
 ```
 
 ### 失敗

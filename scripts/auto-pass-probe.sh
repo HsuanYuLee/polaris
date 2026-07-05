@@ -105,8 +105,9 @@ SCRIPT_DIR_RESOLVED="$(cd "$(dirname "$0")" && pwd)"
 RESOLVER="$SCRIPT_DIR_RESOLVED/spec-source-resolver.sh"
 TASK_MD_RESOLVER="$SCRIPT_DIR_RESOLVED/resolve-task-md.sh"
 TASK_MD_PARSER="$SCRIPT_DIR_RESOLVED/parse-task-md.sh"
+PR_OWNERSHIP_GATE="$SCRIPT_DIR_RESOLVED/auto-pass-pr-ownership-gate.sh"
 
-python3 - "$REPO" "$STAGE" "$SOURCE_ID" "$WORK_ITEM_ID" "$HEAD_SHA" "$LEDGER" "$RESOLVER" "$PR_STATE_FILE" "$TASK_MD_RESOLVER" "$TASK_MD_PARSER" <<'PY'
+python3 - "$REPO" "$STAGE" "$SOURCE_ID" "$WORK_ITEM_ID" "$HEAD_SHA" "$LEDGER" "$RESOLVER" "$PR_STATE_FILE" "$TASK_MD_RESOLVER" "$TASK_MD_PARSER" "$PR_OWNERSHIP_GATE" <<'PY'
 import hashlib
 import json
 import os
@@ -117,7 +118,7 @@ from pathlib import Path
 
 repo = Path(sys.argv[1]).resolve()
 stage, source_id, work_item_id, head_sha, ledger_arg, resolver_path, pr_state_file = sys.argv[2:9]
-task_md_resolver_path, task_md_parser_path = sys.argv[9:11]
+task_md_resolver_path, task_md_parser_path, pr_ownership_gate_path = sys.argv[9:12]
 
 
 def marker(path):
@@ -442,9 +443,40 @@ def review_state_route(state_file_arg):
         emit_tool_missing("classifier reported tool_missing", state_path)
     readiness = data.get("readiness_state")
     revision_class = data.get("revision_class")
+    ownership_keys = {
+        "auto_pass_pr_ownership_required",
+        "auto_pass_pr_ownership",
+        "pr_ownership",
+        "isDraft",
+        "is_draft",
+        "draft",
+        "publisher",
+        "writer",
+        "provenance",
+        "engineering_completion_marker",
+        "completion_marker",
+        "completion_gate",
+        "base_freshness",
+    }
+    has_ownership_payload = any(key in data for key in ownership_keys)
+    if has_ownership_payload:
+        try:
+            gate = subprocess.run(
+                ["bash", pr_ownership_gate_path, "--state-file", str(state_path)],
+                capture_output=True, text=True, timeout=30,
+            )
+        except Exception as exc:
+            return ("BLOCKED", "blocked_by_gate_failure", "blocked", state_path,
+                    f"auto-pass PR ownership gate failed to run: {exc}")
+        if gate.returncode != 0:
+            detail = (gate.stderr or gate.stdout or "").strip().splitlines()
+            reason = detail[0] if detail else f"auto-pass PR ownership gate exit {gate.returncode}"
+            return ("BLOCKED", "blocked_by_gate_failure", "blocked", state_path, reason)
     # A file with neither a readiness token nor a revision class carries no usable
     # PR state (e.g. pr_state:UNKNOWN with no classification) → fail closed.
     if not readiness and not revision_class:
+        if has_ownership_payload:
+            return None
         emit_tool_missing("pr-state file has no readiness_state/revision_class", state_path)
     # Spec issue (R3 spec_issue) routes to refinement amendment regardless of the
     # collapsed readiness token, matching engineering-revision-flow.md R3a.

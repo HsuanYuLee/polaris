@@ -509,8 +509,16 @@ Producer rule：
   `POLARIS_REFINEMENT_TASK_DEPENDENCY_INVALID` fail-loud，避免 breakdown derive 產出
   `Depends on=DP-229` + `Base branch=main` 的非法 task.md。
 - `adversarial_pass[]`：每筆必填 `ac_id` / `attack` / `enforce`。
-- Bug-specific fields（`reproduction` / `root_cause` / `source_pr` / `severity` /
-  `impact_scope` / `regression`）只允許 `source.type=bug`，其他 source type 不得出現。
+- Bug-specific fields 只允許 `source.type=bug`，其他 source type 不得出現：
+  - `reproduction_steps[]`：必填，non-empty string array。
+  - `root_cause`：必填，non-empty string。
+  - `source_pr`：必填，non-empty string；尚未定位時必須寫明 `N/A - <reason>`。
+  - `severity`：必填，non-empty string。
+  - `impact_scope`：必填，non-empty string。
+  - `regression`：必填，boolean 或 non-empty string。
+- Legacy `reproduction` 不再是 canonical field；new producer 必須寫
+  `reproduction_steps[]`，validator 仍會阻擋 non-bug source 出現 legacy
+  bug-only field。
 - **jira-only schema 欄位（DP-269）**：下列欄位只允許 `source.type=jira`，是 derive
   jira mode 注入 task.md `Repo` / `Base branch` / 真實 JIRA identity 的來源；
   `source.type=dp` 出現任一欄位時 `validate-refinement-json.sh` 以

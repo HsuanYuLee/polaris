@@ -48,9 +48,9 @@ Implementation task（`task_kind: T`）的 frontmatter `task_shape` 欄位語意
 
 | Cell | 內容 | Required |
 |------|------|----------|
-| `Source type` | Canonical source type：`jira` / `dp` | **Hard in canonical identity** |
-| `Source ID` | Parent source/container：product Epic key（如 `EPIC-478`）或 DP id（如 `DP-050`） | **Hard in canonical identity** |
-| `Task ID` | Canonical `work_item_id`：product task JIRA key 或 DP pseudo ID（如 `DP-050-T1` / `DP-050-V1`） | **Hard in canonical identity** |
+| `Source type` | Canonical source type：`jira` / `dp` / `bug` | **Hard in canonical identity** |
+| `Source ID` | Parent source/container：product Epic key（如 `EPIC-478`）、DP id（如 `DP-050`）或 Bug key（如 `BUG-123`） | **Hard in canonical identity** |
+| `Task ID` | Canonical `work_item_id`：product task JIRA key 或 source pseudo ID（如 `DP-050-T1` / `DP-050-V1` / `BUG-123-T1`） | **Hard in canonical identity** |
 | `JIRA key` | 真實 JIRA issue key；無 JIRA 時填 `N/A` | **Hard in canonical identity** |
 | `Task JIRA key` | Legacy identity cell；migration 期仍接受。新 DP-backed task 不應使用此 cell 承載 pseudo-task ID | **Hard in legacy identity** |
 | `Parent Epic` | Legacy parent cell；migration 期仍接受 | **Hard in legacy identity** |
@@ -100,6 +100,28 @@ Canonical DP-backed task example:
 | Task branch | task/DP-050-T1-canonical-task-identity |
 | Depends on | N/A |
 | References to load | - `skills/references/task-md-schema.md` |
+```
+
+Canonical Bug source task example:
+
+```markdown
+> Source: BUG-123 | Task: BUG-123-T1 | JIRA: N/A | Repo: exampleco-b2c-web
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source type | bug |
+| Source ID | BUG-123 |
+| Task ID | BUG-123-T1 |
+| JIRA key | N/A |
+| Test sub-tasks | N/A - per-task self-contained |
+| AC 驗收單 | N/A - per-task self-contained |
+| Base branch | main |
+| Branch chain | main -> task/BUG-123-T1-root-cause-fix |
+| Task branch | task/BUG-123-T1-root-cause-fix |
+| Depends on | N/A |
+| References to load | - `companies/exampleco/BUG-123/refinement.json` |
 ```
 
 ### 3.3 `## Test Environment` schema (DP-023 runtime contract)

@@ -1710,4 +1710,65 @@ if grep -qF -- "$DP359_DEAD_ROW" "$dp359_nobody_out"; then
   exit 1
 fi
 
+# ---------------------------------------------------------------------------
+# Case 31 (DP-231 T8 / AC38): Bug source identity -- derive accepts
+# source.type=bug with {BUG_KEY}-Tn work_item_id and renders JIRA key N/A.
+# ---------------------------------------------------------------------------
+bug_source_json="$tmpdir/bug-source-refinement.json"
+cat >"$bug_source_json" <<'JSON'
+{
+  "source": {
+    "type": "bug",
+    "id": "BUG-321",
+    "container": "/Users/x/work/docs-manager/src/content/docs/specs/companies/exampleco/BUG-321",
+    "repo": "exampleco-b2c-web",
+    "base_branch": "main"
+  },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "BUG-321-T1",
+      "kind": "implementation",
+      "title": "修正 Bug source identity",
+      "scope": "驗證 Bug source work item identity。",
+      "allowed_files": ["scripts/selftests/derive-task-md-from-refinement-json-selftest.sh"],
+      "modules": ["scripts/selftests/derive-task-md-from-refinement-json-selftest.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "bash scripts/selftests/derive-task-md-from-refinement-json-selftest.sh",
+        "verify_command": "bash scripts/selftests/derive-task-md-from-refinement-json-selftest.sh",
+        "behavior_contract": {"applies": false, "reason": "static identity fixture"},
+        "test_environment": {"level": "static"}
+      }
+    }
+  ]
+}
+JSON
+
+bug_source_out="$tmpdir/bug-source-task.md"
+bash "$SCRIPT" --refinement-json "$bug_source_json" --task-id "BUG-321-T1" > "$bug_source_out"
+bug_anchors=(
+  "> Source: BUG-321 | Task: BUG-321-T1 | JIRA: N/A | Repo: exampleco-b2c-web"
+  "| Source type | bug |"
+  "| Source ID | BUG-321 |"
+  "| Task ID | BUG-321-T1 |"
+  "| JIRA key | N/A |"
+  "| Task branch | task/BUG-321-T1-bug-source-identity |"
+)
+for anchor in "${bug_anchors[@]}"; do
+  if ! grep -qF -- "$anchor" "$bug_source_out"; then
+    echo "FAIL [case 31 / DP-231 T8]: Bug source anchor not found: $anchor" >&2
+    cat "$bug_source_out" >&2
+    exit 1
+  fi
+done
+bash "$VALIDATE_TASK_MD" "$bug_source_out" >/dev/null 2>&1 || {
+  echo "FAIL [case 31 / DP-231 T8]: derived Bug source task.md does not pass validate-task-md.sh" >&2
+  bash "$VALIDATE_TASK_MD" "$bug_source_out" >&2 || true
+  exit 1
+}
+
 echo "PASS: derive-task-md-from-refinement-json selftest"

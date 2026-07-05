@@ -1,44 +1,52 @@
 # Pipeline Handoff Artifact
 
-Defines the **evidence artifact** dropped at skill handoff points so the next skill in the pipeline can on-demand verify raw findings without re-exploring.
+定義 skill handoff 點寫下的 **evidence artifact**，讓 pipeline 下一個 skill 可在需要時驗證 raw
+findings，而不必重新探索。
 
-This reference extends `pipeline-handoff.md` (which defines role boundaries and task.md schema) with the evidence layer. DP-024 P4.
+本 reference 在 `pipeline-handoff.md`（角色邊界與 task.md schema）之上補上 evidence layer。
+來源：DP-024 P4。
 
 ## Why
 
-Skill pipeline (`refinement → breakdown → engineering → verify-AC → bug-triage`) currently hands off **conclusion documents only** (refinement.md, task.md, JIRA comments). Raw tool return — grep matches, error traces, endpoint responses, commit hashes — gets lost after the producing skill's session ends.
+Skill pipeline（`refinement → breakdown → engineering → verify-AC`）目前主要 handoff
+**結論文件**（refinement.md、task.md、JIRA comments）。Raw tool return，例如 grep matches、
+error traces、endpoint responses、commit hashes，會在 producing skill session 結束後流失。
 
-Result: the next skill either (a) trusts conclusions blindly, or (b) re-greps/re-runs to verify. (b) wastes context and risks drift.
+結果是下一個 skill 只能 (a) 盲信結論，或 (b) 重新 grep / rerun 來驗證；(b) 會浪費 context，
+也提高 drift 風險。
 
-Handoff artifact = compact, scrubbed snapshot of the supporting evidence, written at the handoff seam. Default behaviour: the next skill's sub-agent trusts the conclusion and skips the artifact. Only when the conclusion is ambiguous, contradicted, or needs verification does the sub-agent open it.
+Handoff artifact 是 supporting evidence 的精簡、scrubbed snapshot，寫在 handoff 點。預設行為是：
+下一個 skill 的 sub-agent 信任結論並跳過 artifact；只有結論含糊、互相矛盾或需要驗證時才打開。
 
 ## File Location and Naming
 
-Write handoff artifacts to the **same** `specs/{EPIC_OR_TICKET}/artifacts/` folder already used for sub-agent Completion Envelope Detail files (see `sub-agent-roles.md` § Summary vs Detail Separation). This intentionally collapses two concepts:
+Handoff artifacts 寫到 sub-agent Completion Envelope Detail files 已使用的同一個
+`specs/{EPIC_OR_TICKET}/artifacts/` folder（見 `sub-agent-roles.md` § Summary vs Detail
+Separation）。這刻意收斂兩個概念：
 
-- **Detail file** (Completion Envelope): written by a sub-agent, read by its dispatching Strategist in the current skill
-- **Handoff artifact** (this doc): written at skill end, read by the next skill's sub-agent
+- **Detail file**（Completion Envelope）：由 sub-agent 寫入，由目前 skill 的 dispatching Strategist 讀取
+- **Handoff artifact**（本文件）：由 skill 結束時寫入，由下一個 skill 的 sub-agent 讀取
 
-Both sit in the same folder and follow the same format. The difference is the **consumer**, not the file.
+兩者位於同一 folder 並使用相同格式；差異在 **consumer**，不是檔案本身。
 
 **Filename**: `{skill}-{scope}-{ticket_key}-{timestamp}.md`
 
 | Part | Format | Example |
 |------|--------|---------|
-| skill | skill name slug | `bug-triage`, `engineering`, `verify-ac` |
+| skill | skill name slug | `refinement Bug source mode`, `engineering`, `verify-ac` |
 | scope | optional scope qualifier, omit if not meaningful | `root-cause`, `ac-fail`, `verify-fail` |
 | ticket_key | primary JIRA key being worked on | `TASK-3847`, `EPIC-521` |
 | timestamp | UTC, seconds-precision, `Z` suffix | `2026-04-22T153000Z` |
 
-Full example: `specs/EPIC-521/artifacts/bug-triage-root-cause-TASK-3847-2026-04-22T153000Z.md`
+完整範例：`specs/EPIC-521/artifacts/refinement-root-cause-TASK-3847-2026-04-22T153000Z.md`
 
-When `scope` is not needed the segment is dropped: `engineering-TASK-3847-2026-04-22T154500Z.md`.
+不需要 `scope` 時省略該 segment：`engineering-TASK-3847-2026-04-22T154500Z.md`。
 
 ## Artifact Format
 
 ```markdown
 ---
-skill: bug-triage
+skill: refinement Bug source mode
 ticket: TASK-3847
 scope: root-cause
 timestamp: 2026-04-22T15:30:00Z
@@ -76,17 +84,19 @@ inserts a single `[truncated, N bytes omitted]` marker between kept head and tai
 
 ### Size Cap (Hard Limit 20KB)
 
-Content after scrubbing must be ≤ 20KB. If raw evidence exceeds the cap:
+Scrub 後的內容必須 ≤ 20KB。若 raw evidence 超過上限：
 
 1. Keep head (first **13000 bytes**)
 2. Insert marker `\n\n[truncated, N bytes omitted]\n\n` (where N = total raw bytes − kept bytes)
 3. Keep tail (last **6000 bytes**)
 
-Head + marker + tail ≤ 19100 bytes, well under the cap. Frontmatter and `## Summary` section are outside the cap calculation (they live on top; the cap only applies to `## Raw Evidence` content).
+Head + marker + tail ≤ 19100 bytes，低於上限。Frontmatter 與 `## Summary` 不納入 cap 計算；
+cap 只套用在 `## Raw Evidence` 內容。
 
 ### Secret Scrubbing
 
-All artifacts must pass through `scripts/snapshot-scrub.py` before write. The script replaces matches of the patterns below with `[REDACTED:kind]` markers:
+所有 artifacts 寫入前都必須通過 `scripts/snapshot-scrub.py`。此 script 會把下列 patterns
+替換成 `[REDACTED:kind]` markers：
 
 | Pattern family | Kind marker |
 |----------------|-------------|
@@ -99,13 +109,15 @@ All artifacts must pass through `scripts/snapshot-scrub.py` before write. The sc
 | Atlassian / generic `api_token`-labelled strings | `api-token` |
 | Generic `password|secret|token|api_key = ...` | `secret` |
 
-If scrubbing is skipped (unusual — only for evidence that must preserve exact token values, e.g. a security review), set `scrubbed: false` and flag the artifact in the JIRA handoff comment so the reader knows to handle with care.
+若跳過 scrubbing（非常少見，只適用於必須保留精確 token value 的 evidence，例如 security review），
+必須設定 `scrubbed: false`，並在 JIRA handoff comment 標示，讓 reader 知道需要謹慎處理。
 
 ## Per-Skill Write Policy (「結論不自明」判定 — per-skill, not shared heuristic)
 
-Each producing skill decides its own write rules. Keep the rule concrete: what **scope** produces an artifact, and what **content** goes into Raw Evidence.
+每個 producing skill 決定自己的 write rules。規則必須具體：哪個 **scope** 會產生 artifact，
+以及哪些 **content** 會進 Raw Evidence。
 
-### bug-triage
+### refinement Bug source mode
 
 | Path | Artifact? | Scope | Raw Evidence content |
 |------|-----------|-------|----------------------|
@@ -125,7 +137,10 @@ Filename examples:
 - `engineering-TASK-3847-2026-04-22T154500Z.md` (first-cut)
 - `engineering-revision-TASK-3847-2026-04-22T170000Z.md` (revision)
 
-Why write unconditionally: engineering's work IS the delivered change. verify-AC needs the Layer B evidence trail to understand what was tested locally vs what it's about to re-verify. This is also the Completion Envelope Detail file for the dispatching Strategist — single file, dual consumer (see § Interaction with Existing Mechanisms below).
+為何無條件寫入：engineering 的工作本身就是 delivered change。verify-AC 需要 Layer B evidence
+trail，才能理解本機已測試什麼、接下來要 re-verify 什麼。這同時也是 dispatching Strategist
+的 Completion Envelope Detail file；同一檔案，雙 consumer（見下方 § Interaction with Existing
+Mechanisms）。
 
 ### verify-AC
 
@@ -138,11 +153,15 @@ Why write unconditionally: engineering's work IS the delivered change. verify-AC
 
 Filename: `verify-ac-verify-fail-{BUG_KEY}-{timestamp}.md` (one per Bug created for 實作偏差)
 
-Why: bug-triage AC-FAIL Path (`[VERIFICATION_FAIL]` block detection in Bug description) uses the Bug description as primary work order. The artifact adds the raw observed/expected evidence verify-AC collected, so bug-triage's Explorer can triangulate the broken code without re-running the AC.
+原因：refinement Bug source mode 的 AC-FAIL path（Bug description 內的 `[VERIFICATION_FAIL]`
+block detection）以 Bug description 作為 primary work order。Artifact 補上 verify-AC 收集的 raw
+observed/expected evidence，讓 refinement Bug source mode 的 Explorer 不必重跑 AC 就能定位疑似
+壞掉的 code。
 
 ## On-Demand Read — Dispatch Prompt Template
 
-Consumer skills **must not** blindly read the artifact. Default = trust the conclusion document (task.md, JIRA comment). Read the artifact only when needed.
+Consumer skills **不得**盲目讀 artifact。預設是信任 conclusion document（task.md、JIRA comment）。
+只有需要時才讀 artifact。
 
 Injection point in the consumer sub-agent dispatch prompt:
 
@@ -161,7 +180,8 @@ Format: `## Summary` (≤500 字 decision digest) + `## Raw Evidence` (capped ra
 Read the Summary first; only scan Raw Evidence when Summary does not answer your question.
 ```
 
-Place this block **after** the work-order reading instruction (so the sub-agent still treats task.md / JIRA comment as the primary input).
+將此 block 放在 work-order reading instruction **之後**，讓 sub-agent 仍把 task.md / JIRA comment
+視為 primary input。
 
 ## Interaction with Existing Mechanisms
 
@@ -177,12 +197,13 @@ Place this block **after** the work-order reading instruction (so the sub-agent 
 - **Writer-side scrub + cap**: `scripts/snapshot-scrub.py` (stdin → stdout, or `--file path` in place)
 - **Typical invocation** (inside a sub-agent Bash step):
   ```bash
-  python3 scripts/snapshot-scrub.py --file specs/EPIC-521/artifacts/bug-triage-root-cause-TASK-3847-2026-04-22T153000Z.md
+  python3 scripts/snapshot-scrub.py --file specs/EPIC-521/artifacts/refinement-root-cause-TASK-3847-2026-04-22T153000Z.md
   ```
-  The script reads the file, scrubs secrets in `## Raw Evidence`, applies the 20KB cap, updates frontmatter `scrubbed` / `truncated` booleans, and rewrites the file in place.
+  此 script 讀取檔案、scrub `## Raw Evidence` 內的 secrets、套用 20KB cap、更新 frontmatter
+  `scrubbed` / `truncated` booleans，並原地重寫檔案。
 
 ## Source
 
 - Design plan: `specs/design-plans/DP-024-memory-system-enhancement/plan.md` § D3 + D5
-- Pilot handoff: bug-triage → engineering (2026-04-22 confirmed)
-- Follow-up expansion: engineering → verify-AC, verify-AC FAIL → bug-triage
+- Pilot handoff: refinement Bug source mode → engineering (2026-04-22 confirmed)
+- Follow-up expansion: engineering → verify-AC, verify-AC FAIL → refinement Bug source mode

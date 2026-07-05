@@ -125,7 +125,7 @@ Callers (breakdown / refinement) must handle `skipped: true` by:
 |-------|--------------|
 | **breakdown** (Planning Path) | Always at Step 5.5, unless exceptions match or `refinement.json` absent |
 | **refinement** | Step 5 — use to pre-render § 子單結構 preview row, so team sees infra decision during refinement |
-| **bug-triage** | N/A — bugs inherit parent Epic's infra state |
+| **refinement Bug source mode** | N/A — bugs inherit parent Epic's infra state |
 | **sasd-review** | N/A — SA/SD predates subtask decomposition |
 | **breakdown** (Bug Path) | N/A — bug path does not decompose into infra + feature |
 

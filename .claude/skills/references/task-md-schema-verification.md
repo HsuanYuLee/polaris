@@ -57,7 +57,7 @@ V 不適用的 T cells（**移除**，validator V mode 不檢）：
 
 - `Test sub-tasks` — T 用來列驗測 sub-task；V 自己就是 driver，不需要列再下一層 sub-task
 - `AC 驗收單` — T 用來指向 V；V 自己就是 AC 驗收單，不指向自己
-- `Task branch` — V 不開 branch（驗收不開 fix branch；AC FAIL 走 bug-triage 開新 T）
+- `Task branch` — V 不開 branch（驗收不開 fix branch；AC FAIL 走 refinement Bug source mode 開新 T）
 
 範例（節錄自 EPIC-478 的 V1，未來 DP-039 migration 落地後）：
 
@@ -293,7 +293,7 @@ jira_transition_log:
 
 ## Verification Handoff
 
-驗收委派 verify-AC skill 執行；FAIL 走 bug-triage AC-FAIL Path（`bug-triage-ac-fail-detection` canary）。
+驗收委派 verify-AC skill 執行；FAIL 走 refinement Bug source mode AC-FAIL Path（`refinement Bug source mode-ac-fail-detection` canary）。
 
 ## 目標
 

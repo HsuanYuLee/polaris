@@ -50,6 +50,8 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | post-runtime-instruction-manifest-regenerate | .claude/hooks/post-runtime-instruction-manifest-regenerate.sh | hook | claude-code-only | scripts/compile-runtime-instructions.sh | governance |
 | pre-memory-write | .claude/hooks/pre-memory-write.sh | hook | portable | N/A | governance |
 | pre-write-language-policy | .claude/hooks/pre-write-language-policy.sh | hook | claude-code-only | scripts/validate-language-policy.sh | governance |
+| pre-framework-source-write | .claude/hooks/pre-framework-source-write.sh | hook | portable | scripts/validate-framework-source-write.sh | governance |
+| post-framework-source-diff-audit | .claude/hooks/post-framework-source-diff-audit.sh | hook | portable | scripts/validate-framework-source-write.sh | governance |
 | pr-base-gate | .claude/hooks/pr-base-gate.sh | hook | portable | N/A | governance |
 | pre-push-quality-gate | .claude/hooks/pre-push-quality-gate.sh | hook | portable | N/A | governance |
 | session-summary-precompact | .claude/hooks/session-summary-precompact.sh | hook | portable | N/A | observability |
@@ -179,6 +181,8 @@ carve-out 理由。本 gate 生效後，任何**新增**的 active hook 都必�
 | post-runtime-instruction-manifest-regenerate.sh | claude-code-only | scripts/compile-runtime-instructions.sh | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
 | pre-memory-write.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
 | pre-write-language-policy.sh | claude-code-only | scripts/validate-language-policy.sh | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
+| pre-framework-source-write.sh | portable | scripts/validate-framework-source-write.sh | .codex/hooks/pre-framework-source-write.sh | codex_hook | scripts/selftests/framework-source-mutation-no-bypass-selftest.sh | .codex/hooks/pre-framework-source-write.payload.md | .codex/hooks/pre-framework-source-write.golden.json | N/A |
+| post-framework-source-diff-audit.sh | portable | scripts/validate-framework-source-write.sh | .codex/hooks/post-framework-source-diff-audit.sh | codex_hook | scripts/selftests/framework-source-mutation-no-bypass-selftest.sh | .codex/hooks/post-framework-source-diff-audit.payload.md | .codex/hooks/post-framework-source-diff-audit.golden.json | N/A |
 | session-pressure-tick.sh | claude-code-only | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
 | session-start-thread-anchor.sh | claude-code-only | scripts/update-active-thread.sh | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
 | session-summary-precompact.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |

@@ -106,10 +106,17 @@ Developer path：
 - `run-verify-command.sh`。
 - `run-behavior-contract.sh --mode compare` if behavior contract applies。
 - post-implementation flow gap audit。
+- product delivery 若產生 framework-owned diff，先跑
+  `scripts/framework-scope-escalation-gate.sh --mode product`；命中
+  `POLARIS_FRAMEWORK_SCOPE_ESCALATION_REQUIRED` 時，移出產品 PR，建立 DP-backed framework
+  workstream seed/handoff 或更新既有 DP-backed framework source。
 - VR if triggered。
 - base freshness。
 - commit。
 - PR via `scripts/polaris-pr-create.sh`，不可 draft。
+- auto-pass ownership consumption 只接受 `polaris-pr-create.sh` provenance、non-draft PR、
+  completion marker PASS、base freshness current；裸 `gh pr create`、generic publisher、
+  plugin publisher 或 draft PR 不可在後段補認成 valid delivery。
 - JIRA transition / comment。
 - completion gate。
 - worktree cleanup。

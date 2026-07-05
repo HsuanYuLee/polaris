@@ -14,7 +14,7 @@
 #  - changeset
 #
 # Usage:
-#   codex-guarded-gh-pr-create.sh [--dry-run] [--task-md <path>] [--skip-gates] [gh pr create args...]
+#   codex-guarded-gh-pr-create.sh [--dry-run] [--task-md <path>] [gh pr create args...]
 
 set -euo pipefail
 
@@ -22,7 +22,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 dry_run=false
-skip_gates=false
 TASK_MD_PATH=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -31,8 +30,8 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --skip-gates)
-      skip_gates=true
-      shift
+      echo "POLARIS_ENGINEERING_NO_BYPASS: --skip-gates is not allowed for Codex PR creation; use scripts/polaris-pr-create.sh with canonical gates" >&2
+      exit 2
       ;;
     --task-md)
       TASK_MD_PATH="${2:-}"
@@ -56,9 +55,6 @@ REPO_PATH="${GATE_PROJECT_DIR:-$(pwd)}"
 POLARIS_ARGS=(--repo "$REPO_PATH")
 if [[ "$dry_run" == true ]]; then
   POLARIS_ARGS+=(--dry-run)
-fi
-if [[ "$skip_gates" == true ]]; then
-  POLARIS_ARGS+=(--skip-gates)
 fi
 if [[ -n "$TASK_MD_PATH" ]]; then
   POLARIS_ARGS+=(--task-md "$TASK_MD_PATH")

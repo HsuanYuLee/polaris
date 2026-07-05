@@ -17,7 +17,6 @@ description: "Polaris skill 的中文與英文觸發詞對照。"
 |------|-----------|-----------|------|
 | **engineering** — 智慧開發路由 | 做 PROJ-123、開始做、接這張、做這張 | work on, engineering, start dev | 偵測 ticket 狀態，自動路由到估點／拆單／建 branch／開發。支援批次模式（多張 ticket 同時輸入） |
 | **auto-pass** — DP 正式流程 orchestrator | 快速通關 DP-198、完整流程 DP-198、DP-198 跑到底、DP-198 到 PR ready | auto-pass DP-198, fast pass DP-198 | 只接受 locked/current DP-backed source；串接 breakdown → engineering → verify-AC，到 workspace PR ready、verification current 與 durable report 產出後停下，release 交給 framework-release |
-| **bug-triage** — Bug 診斷 | 修 bug PROJ-123、分析 bug、triage bug、bug 分析、修這張 bug、幫我修正、修這個 + Slack URL | fix bug, triage bug, help me fix, fix this ticket, fix this + Slack URL | Bug 診斷層：讀單→根因分析→RD 確認。僅處理診斷，估點/測試計畫/開發由 breakdown → engineering 接手 |
 | **sasd-review** — SA/SD 設計文件 | 寫 SA、出 SA/SD、SA 文件、SD 文件、架構文件、技術設計、異動範圍、dev scope | SASD, SA/SD, design doc, implementation plan, technical design, dev scope | Design-First Gate：在寫任何程式碼之前產出 SA/SD — 需求分析→歧義收集→2-3 方案比較→確認後產出 Dev Scope + System Flow + Task List |
 | **breakdown** — 拆單、估點與需求質疑 | 拆單、拆解、分解任務、子單、評估這張單、評估 epic、挑戰需求、需求質疑、需求合理性 | break down epic, split tasks, decompose, create sub-tasks, evaluate this ticket, scope challenge, challenge requirements, scope review | 通用規劃技能：Bug 讀取根因後估點；Story/Task/Epic 探索 codebase 後拆分子任務。含 Scope Challenge 模式（在估點前挑戰需求合理性） |
 | **converge** — 批次推進到 Review / Epic 進度 | 收斂、推進、全部推到 review、把我的單收一收、離 merge 還多遠、補全 epic、epic 進度、epic 狀態 | converge, push to review, close gaps, what's left, epic status, epic progress | 一次把所有進行中的工作推進到 review：掃 Epic + PR 狀態、補全缺口、批次催 review。也支援 Epic-only 模式做 gap analysis |
@@ -89,7 +88,7 @@ description: "Polaris skill 的中文與英文觸發詞對照。"
 | 情境 | 中文說法 | 路由 skill |
 |------|---------|-----------|
 | 什麼都不知道，想開始做某張單 | 做 PROJ-123 | `engineering`（自動判斷下一步） |
-| 診斷一個 JIRA Bug 單 | 修 bug PROJ-123、分析 bug PROJ-123 | `bug-triage`（診斷）→ `engineering`（開發） |
+| 診斷一個 JIRA Bug 單 | 修 bug PROJ-123、分析 bug PROJ-123 | `refinement`（Bug source mode）→ `breakdown` → `engineering` |
 | 拆解 Epic 為子任務 | 拆單 PROJ-123、評估 Epic | `breakdown` |
 | 看 Epic 進度（掃 JIRA/GitHub 狀態） | epic 進度、epic 狀態 | `converge`（Epic-only 模式） |
 | 批次推進所有進行中工作、補全缺口 | 收斂、推進、離 merge 還多遠、還差什麼 | `converge` |

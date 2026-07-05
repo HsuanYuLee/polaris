@@ -8,7 +8,7 @@ metadata:
 
 # Breakdown — Packer
 
-`breakdown` 是 Packer：接收 refinement artifact、bug-triage RCA、JIRA ticket 或
+`breakdown` 是 Packer：接收 refinement artifact、refinement Bug source mode RCA、JIRA ticket 或
 DP source，把已定案的需求拆成可施工 work orders。它不擁有需求探索或技術決策；需要
 改 Goal / Background / Decisions / Blind Spots / Technical Approach 時，route back
 to `refinement`。
@@ -232,8 +232,8 @@ export POLARIS_SKILL_WRITER=breakdown
 
 - 每種 source 在 work-order packaging 前都必須有對應的 planning handoff：
   refinement-owned DP / Epic / Story / Task 需要 current `refinement.json`；Bug 需要
-  `bug-triage` confirmed `[ROOT_CAUSE]` handoff。
-- Bug ticket 沒有 `[ROOT_CAUSE]` comment：停止，請使用者先跑 `bug-triage {TICKET}`。
+  `refinement Bug source mode` confirmed `[ROOT_CAUSE]` handoff。
+- Bug ticket 沒有 `[ROOT_CAUSE]` comment：停止，請使用者先跑 `refinement Bug source mode {TICKET}`。
 - DP `status: DISCUSSION` 或缺 `refinement.json`：停止並 route back to
   `refinement DP-NNN`。
 - Escalation sidecar 缺 gate-closure sections：停止，要求 engineering 重建 sidecar。

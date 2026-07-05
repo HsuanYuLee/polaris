@@ -44,7 +44,7 @@ write_fixture() {
     {"id": "AC1", "text": "驗證 task dependency schema。", "category": "functional", "quantifiable": true, "verification": {"method": "unit_test", "detail": "bash scripts/example.sh"}}
   ],
   "tasks": [
-    {"id": "DP-999-T1", "kind": "implementation", "title": "範例 task", "scope": "測試", "allowed_files": ["scripts/example.sh"], "modules": ["scripts/example.sh"], "ac_ids": ["AC1"], "dependencies": $dep_json, "estimate_points": 1, "verification": {"method": "unit_test", "detail": "bash scripts/example.sh"}}
+    {"id": "DP-999-T1", "kind": "implementation", "title": "範例 task", "scope": "測試", "modules": ["scripts/example.sh"], "ac_ids": ["AC1"], "dependencies": $dep_json, "verification": {"method": "unit_test", "detail": "bash scripts/example.sh"}}
   ],
   "adversarial_pass": [
     {"ac_id": "AC1", "attack": "fixture", "enforce": "fixture"}

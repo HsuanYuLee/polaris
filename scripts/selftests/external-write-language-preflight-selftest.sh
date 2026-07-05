@@ -88,11 +88,11 @@ run_hook_env() {
 # body files (e.g., /tmp/polaris-*.md or .polaris/runtime/external-writes/).
 body_path="$WORKDIR/polaris-jira-comment.md"
 
-# Case 1: Registered writer (bug-triage:jira-comment) + zh-TW body → PASS.
+# Case 1: Registered writer (intake-triage:jira-comment) + zh-TW body → PASS.
 payload1=$(build_payload Write "$body_path" "這是中文 JIRA comment，描述 root cause 與 impact。")
 out1=$(run_hook_env "$payload1" 0 case1-registered-zh \
-  POLARIS_EXTERNAL_WRITE_WRITER=bug-triage:jira-comment)
-grep -q 'BYPASS external-write-writer registered=bug-triage:jira-comment' "$out1" \
+  POLARIS_EXTERNAL_WRITE_WRITER=intake-triage:jira-comment)
+grep -q 'BYPASS external-write-writer registered=intake-triage:jira-comment' "$out1" \
   || { echo "FAIL case1: expected registered bypass log" >&2; cat "$out1" >&2; exit 1; }
 
 # Case 2: Registered writer + English body on out-of-scope path → PASS

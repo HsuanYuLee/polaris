@@ -236,6 +236,30 @@ Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", 
 PY
 }
 
+write_pr_ownership_state() {
+  local path="$1"
+  local draft="$2"
+  local publisher="$3"
+  local freshness="$4"
+  python3 - "$path" "$draft" "$publisher" "$freshness" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path, draft, publisher, freshness = sys.argv[1:5]
+payload = {
+    "pr_state": "OPEN",
+    "readiness_state": "mergeable_ready",
+    "pr_url": "https://github.com/org/repo/pull/900",
+    "isDraft": draft == "true",
+    "publisher": publisher,
+    "engineering_completion_marker": True,
+    "base_freshness": freshness,
+}
+Path(path).write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
 probe_field() {
   local field="$1"
   shift
@@ -321,6 +345,18 @@ assert_field "source-archived-blocked" "BLOCKED" status --stage source --source-
 # AC3: no marker; task.md deliverable.head_sha bound to probe head + PASS → verify-AC.
 write_task_deliverable DP-900-T1 abc1234 PASS
 assert_field "engineering-pass" "verify-AC" next_action --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
+
+# DP-231 T7: when the explicit PR state carries auto-pass ownership payload,
+# engineering PASS must first consume the shared ownership/non-draft gate before
+# continuing to verify-AC.
+write_pr_ownership_state "$TMP/pr-ownership-pass.json" false polaris-pr-create.sh fresh
+assert_field "engineering-pr-ownership-pass" "verify-AC" next_action --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234 --pr-state-file "$TMP/pr-ownership-pass.json"
+
+write_pr_ownership_state "$TMP/pr-ownership-draft.json" true polaris-pr-create.sh fresh
+assert_field "engineering-pr-ownership-draft-blocks" "blocked_by_gate_failure" terminal_status --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234 --pr-state-file "$TMP/pr-ownership-draft.json"
+
+write_pr_ownership_state "$TMP/pr-ownership-generic.json" false generic-github-publisher fresh
+assert_field "engineering-pr-ownership-generic-blocks" "blocked_by_gate_failure" terminal_status --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234 --pr-state-file "$TMP/pr-ownership-generic.json"
 
 # AC-NEG1: a polluting branch ref must NOT rescue — head mismatch in task.md
 # blocks even though the work item would be deliverable at a different head.

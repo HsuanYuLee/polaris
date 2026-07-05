@@ -87,6 +87,10 @@ bash scripts/auto-pass-runner.sh \
 inner skill mandatory gates 保持原樣。Planner-owned gap、scope escalation、AC spec issue、
 consent 外 external write、blocked conflict、unknown probe 都必須回 owning skill 或明確
 pause / blocked。
+當 product-flow engineering 發現需要 framework-owned diff 才能繼續時，`auto-pass` 不把該
+diff 吸收到產品 PR；必須讓 engineering 產出 DP-backed framework workstream seed/handoff
+或更新既有 DP-backed framework source，再回主鏈。產品 PR 內的 framework-owned diff 是
+`blocked_by_gate_failure`，不是可人工略過的 convenience patch。
 
 dispatch envelope 必帶：
 
@@ -122,6 +126,10 @@ PR、version tag、framework-release closeout 或 local-extension deliverable）
 evidence；sibling tasks、V tasks、verification disposition、source status、parent lifecycle
 closeout 仍未完成時不得宣告 source complete。terminal `complete` 最低條件以
 `.claude/skills/references/auto-pass-execution-flow.md` § Terminal Complete Sequence 為準。
+terminal complete report 送出前，parent source 必須已經由
+`scripts/mark-spec-implemented.sh {SOURCE_ID} --auto-archive` 推進至 `IMPLEMENTED` /
+archive；`scripts/validate-auto-pass-report.sh` 會對 active `LOCKED` parent + complete report
+fail-stop（`POLARIS_AUTO_PASS_TERMINAL_PARENT_NOT_ARCHIVED`）。
 
 terminal `complete` 也必須保留 delivery 可檢視性：required implementation work items
 必須有 non-draft workspace PR，且 completion gate / report 能列出 PR URL 與遠端可見的
@@ -130,6 +138,11 @@ evidence publication URL 或 marker。合法 marker 由 evidence-producing skill
 `polaris-jira-evidence:v1`。`auto-pass` 只能透過 runner / probe 檢查 current marker 與
 report state；不得直接呼叫 GitHub / JIRA API、`publish-delivery-evidence.sh` 或
 `publish-jira-evidence.mjs` 來發表佐證。
+當 PR state / terminal report 帶有 auto-pass PR ownership payload 時，必須通過
+`scripts/auto-pass-pr-ownership-gate.sh`：`isDraft=false`、publisher provenance 為
+`polaris-pr-create.sh`、engineering completion marker PASS、base freshness current。generic
+GitHub PR、plugin publisher、draft PR 或缺 completion marker 的 PR 只能被拒收為
+`blocked_by_gate_failure`，不得被 report 吸收成 source complete。
 
 ## Friction Log Capture (pointer)
 

@@ -33,11 +33,11 @@ verify-AC 是 stateless full re-run。觸發方式：
 
 - 使用者明確說 `驗 {EPIC}` 或 `verify {AC_KEY}`。
 - State-check skills 發現 feature branch task PRs 已 merge、AC tickets 仍 Open/FAIL、且沒有進行中
-  bug-triage Bug，surface 建議驗收。
+  refinement Bug source mode Bug，surface 建議驗收。
 
 不做 webhook，不做 polling。
 
 ## Loop Escalation
 
-verify-AC 和 bug-triage 來回三輪以上時，Strategist 介入檢查是否是架構問題、spec ambiguity、
+verify-AC 和 refinement Bug source mode 來回三輪以上時，Strategist 介入檢查是否是架構問題、spec ambiguity、
 fixture drift、或 hidden dependency，而不是繼續單點修 bug。

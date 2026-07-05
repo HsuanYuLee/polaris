@@ -46,12 +46,30 @@
   },
   "scripts": [
     {
+      "path": "scripts/auto-pass-pr-ownership-gate.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "auto_pass",
+      "selftest": "scripts/selftests/auto-pass-pr-ownership-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/branch-sweep-runner.sh",
       "kind": "support",
       "runner": "bash",
       "owner_surface": "manual_maintainer",
       "selftest": "scripts/selftests/branch-sweep-runner-selftest.sh",
       "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/framework-scope-escalation-gate.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/framework-scope-escalation-gate-selftest.sh",
+      "lifecycle": "hot_path",
       "relocation": "stay"
     },
     {
@@ -64,6 +82,16 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/migrate-legacy-bug-diagnosis-to-refinement.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "refinement",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "legacy bug diagnosis migration support is covered by active-surface removal guard"
+    },
+    {
       "path": "scripts/install-precommit-fast-lint.sh",
       "kind": "support",
       "runner": "bash",
@@ -72,6 +100,15 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "DP-360 T2 pre-commit fast-lint slot installer; idempotent injector covered by manifest governance and active git pre-commit hook callsite"
+    },
+    {
+      "path": "scripts/validate-framework-source-write.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_source_governance",
+      "selftest": "scripts/selftests/framework-source-mutation-no-bypass-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/selftest-affected-runner.sh",
@@ -3025,6 +3062,16 @@
     },
     {
       "path": "scripts/selftests/dp230-umbrella-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "umbrella selftest script"
+    },
+    {
+      "path": "scripts/selftests/dp231-umbrella-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",

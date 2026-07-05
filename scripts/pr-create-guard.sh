@@ -19,15 +19,7 @@ PR_LANGUAGE_GATE="$SCRIPT_DIR/gates/gate-pr-language.sh"
 
 # Block gh pr create (direct PR creation without quality gates)
 # Only match when gh pr create is the actual command, not inside quotes/args
-# POLARIS_PR_WORKFLOW=1 is a legacy escape hatch. New flows should use
-# scripts/polaris-pr-create.sh from engineering after quality gates pass.
 if printf '%s' "$command" | grep -qiE '^gh[[:space:]]+pr[[:space:]]+create\b'; then
-  if [[ "${POLARIS_PR_WORKFLOW:-}" == "1" ]]; then
-    if [[ -x "$PR_LANGUAGE_GATE" ]]; then
-      "$PR_LANGUAGE_GATE" --command "$command"
-    fi
-    exit 0
-  fi
   echo "BLOCKED: Direct gh pr create — use engineering / scripts/polaris-pr-create.sh" >&2
   echo "The engineering flow runs lint, test, coverage, pre-PR review, evidence, and changeset gates before creating the PR." >&2
   echo "Command was: $command" >&2

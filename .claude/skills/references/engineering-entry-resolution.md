@@ -23,6 +23,30 @@ PR comments 來猜流程。
 Resolver 成功後結果就是 authoritative；不得再用 `find` / `rg` / ad hoc fallback 覆寫。
 若要重新解析，先 `scripts/resolve-task-md.sh --clear-lock`。
 
+## No-Bypass Contract
+
+engineering PR delivery 不接受任何 create-time 或 readiness-time shortcut。合法 PR path
+必須從 resolved authoritative task.md 開始，並保留下列機械事實：
+
+- `resolve-task-md.sh --write-lock` 產生的 resolver lock。
+- `engineering-branch-setup.sh` 寫入的 planner-owned readiness / baseline snapshot。
+- `skill-workflow-boundary-gate.sh --start/--check` 的 engineering boundary marker。
+- `run-verify-command.sh` / completion gate 寫入的 engineering completion marker。
+- `polaris-pr-create.sh` provenance、non-draft PR、base freshness current。
+
+`codex-guarded-gh-pr-create.sh` 不得接受 `--skip-gates`；`pr-create-guard.sh` 不得用
+`POLARIS_PR_WORKFLOW=1` 或其他 env 讓裸 `gh pr create` 通過。外部已建立的 PR 無法在
+provider create-time 被撤回，但後續 readiness / completion / auto-pass ownership payload
+必須以 `scripts/auto-pass-pr-ownership-gate.sh` 拒收缺 lineage、resolver lock、baseline
+snapshot、boundary marker 或 completion marker 的 PR。framework-release tail 使用自己的
+release-specific readiness check，不把 generic engineering bypass 當 carve-out。
+
+Framework/control-plane source 寫入不得繞過 `scripts/validate-framework-source-write.sh`。
+進入 first-cut / revision 後，resolved task.md 必須可由 hook / wrapper 取得（建議設定
+`POLARIS_TASK_MD`，或在 deterministic script call 傳 `--task-md`）；validator 只接受
+task.md `## Allowed Files` 內的 framework-owned path。缺 task.md、未知 writer、或越界 path
+都以 `POLARIS_FRAMEWORK_SOURCE_WRITE_BLOCKED:*` fail-closed。
+
 ## Work Order Gate
 
 唯一合法施工來源是 canonical task.md：

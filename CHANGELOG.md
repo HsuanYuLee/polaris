@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.76.70] - 2026-07-05
+
+### Changed
+
+- 7862a87: DP-231 updates public workflow docs to route Bug diagnosis through refinement
+  Bug source mode instead of the retired bug-triage skill.
+- f20facb: D31 /refinement Bug source mode 接線
+- 06281c0: D40 product-flow framework scope escalation 固定點
+- 7ff8af5: DP-231 T11 adds a framework source write authority that routes Claude hooks,
+  Codex adapters, guarded bash, and the framework PR gate through one validator.
+- 54cdaba: DP-231 T15 aligns the refinement dependency selftest fixture with the current
+  intent-layer contract so task dependencies are validated without reintroducing
+  per-task packaging fields.
+- e16c97a: D32 refinement.json Bug-specific field 接線
+- 97281f1: D33 /bug-triage skill 整支刪除
+- ab70314: D34 Strategist 前處理路由改寫
+- 1510e99: D35 既有 Bug ticket migration script (graceful degradation)
+- 5e8b801: D36 auto-pass terminal lifecycle 固定點
+- ca0dced: D37 auto-pass PR ownership / non-draft 固定點
+- 4ea828c: D38 Bug source task identity 固定點
+- 0ce94c6: D39 engineering no-bypass 固定點
+
 ## [3.76.69] - 2026-07-05
 
 ### Changed

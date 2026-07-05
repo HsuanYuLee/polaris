@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Verify skill routing trigger anchors and generated runtime routing pointers.
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,7 +41,7 @@ agents_target = root / "AGENTS.md"
 cases = [
     ("review 這個 PR", "review-pr", [r"review", r"PR"]),
     ("我的 PR 狀態", "check-pr-approvals", [r"我的 PR", r"PR 狀態"]),
-    ("修 bug DEMO-123", "bug-triage", [r"修 bug", r"bug"]),
+    ("修 bug DEMO-123", "refinement", [r"修 bug", r"bug"]),
     ("做 DEMO-123", "engineering", [r"做", r"engineering"]),
     ("討論需求", "refinement", [r"討論需求", r"refinement"]),
     ("learning 這篇文章", "learning", [r"learning", r"學習"]),
@@ -76,10 +78,8 @@ require_file_patterns(
     "plugin workflow quarantine routing",
     [
         r"Plugin Workflow Quarantine",
-        r"OpenAI-curated / marketplace plugin skills are adapter surfaces",
-        r"Product repo PR revision[\s\S]*engineering[\s\S]*authority",
-        r"github:gh-address-comments.*engineering.*R2",
-        r"cannot.*Write Safety.*engineering.*R6",
+        r"plugin-workflow-quarantine\.md",
+        r"Canonical contract",
     ],
 )
 
@@ -87,11 +87,11 @@ require_file_patterns(
     skill_routing,
     "full workflow framework release routing",
     [
-        r"Full Development Workflow Orchestration",
+        r"Full Development Workflow Route Policy",
         r"完整流程.*完整 workflow.*走完整開發流程",
         r"建 DP.*建一個 DP",
-        r"DP -> PR -> 升版",
-        r"refinement -> breakdown -> engineering -> verify-AC",
+        r"\{KEY\} -> PR -> 升版",
+        r"refinement -> breakdown",
         r"framework-release.*terminal-only",
         r"同一句.*建 DP / 開發 / 發 PR",
     ],
@@ -114,8 +114,8 @@ require_file_patterns(
     "AGENTS plugin workflow quarantine target",
     [
         r"Plugin Workflow Quarantine",
-        r"plugin-contributed skill",
-        r"engineering.*R6",
+        r"plugin-workflow-quarantine\.md",
+        r"skill-routing\.md",
     ],
 )
 

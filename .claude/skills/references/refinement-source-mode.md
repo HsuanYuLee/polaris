@@ -7,6 +7,8 @@ free-text、article、paragraph、artifact path）
 當 `refinement` 將 source 解析為以下類型時使用：
 
 - `jira`：既有 JIRA Epic / Task / Story（含 Epic-backed source）
+- `bug`：既有 JIRA Bug 或明確 `source_kind=bug` source；sub-step contract 見
+  `refinement-bug-source-mode.md`
 - `dp`：既有 `DP-NNN` design-plan container（ticketless source）
 - `topic`：必須成為 DP container 的新 ticketless topic
 - `free-text` / `article` / `paragraph`：由 resolver 產生 slug+hash 的 workspace-local
@@ -26,6 +28,7 @@ JIRA-backed source 的 comment / label / description 與 source-state transition
 | Input | Action |
 |-------|--------|
 | `PROJ-NNN` (JIRA key) | 透過 JIRA fetch + project mapping 解析為 Epic / Task / Story；container 為 `docs-manager/src/content/docs/specs/companies/{company}/{ticket}/` |
+| Bug ticket / `source_kind=bug` | 透過 `refinement-bug-source-mode.md` 執行 reproduction / RCA / source PR / severity-impact sub-steps，container 仍為對應 company ticket source |
 | `DP-NNN` | Locate exactly one `docs-manager/src/content/docs/specs/design-plans/DP-NNN-*` container；`index.md` 為 canonical primary doc，legacy `plan.md` 只作 fallback |
 | direct DP plan/refinement path | 使用該 DP folder 作為 `source_container` |
 | direct JIRA-backed artifact path | 使用該 ticket folder 作為 `source_container` |

@@ -41,7 +41,6 @@ audit-facing 描述。
 
 | writer_token | owning_skill | surfaces | notes |
 |--------------|--------------|----------|-------|
-| `bug-triage:jira-comment` | bug-triage | jira-comment, jira-description | bug-triage JIRA comment / RCA description writer |
 | `intake-triage:jira-comment` | intake-triage | jira-comment | intake-triage JIRA intake labels and decision comment |
 | `jira-worklog:jira-comment` | jira-worklog | jira-comment | jira-worklog daily / backfill comment |
 | `verify-AC:jira-comment` | verify-AC | jira-comment | verify-AC verification report comment on the AC ticket |
@@ -85,7 +84,7 @@ context：
 1. 在 `scripts/lib/evidence-producers.json` 的 `external_writers` 陣列登錄 entry。
 2. 呼叫 `scripts/polaris-external-write-gate.sh` 之前，於環境設定
    `POLARIS_EXTERNAL_WRITE_WRITER=<token>`。Token 命名建議用 `{skill}:{surface}` 形式，
-   例如 `bug-triage:jira-comment`、`standup:slack`、`engineering:pr-body`。
+   例如 `intake-triage:jira-comment`、`standup:slack`、`engineering:pr-body`。
 3. Gate 通過後執行真實 external write（MCP / gh CLI / Slack webhook）。
 4. Skill 在 final summary 提及 writer token 與 gate 結果。
 
@@ -121,7 +120,7 @@ DP-230 R8 之前：external surface producer 只走 `polaris-external-write-gate
 identity registry。AC13 上線後：
 
 - 新 producer 必須先在 registry 登錄 token，才允許跑 gate。
-- 既有 producer（`bug-triage`、`standup`、`intake-triage`、`learning` 等）依
+- 既有 producer（`standup`、`intake-triage`、`learning` 等）依
   `workspace-language-policy.md` § 8 列出的 surface 一次補上 registry entry。
 - Hook 上線時若 producer 還沒設 `POLARIS_EXTERNAL_WRITE_WRITER`，hook 走 legacy path，
   不會誤擋；只有當 producer 顯式宣告 `POLARIS_EXTERNAL_WRITE_WRITER` 但 token 未登錄時，

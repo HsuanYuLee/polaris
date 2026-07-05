@@ -1234,4 +1234,6 @@ if ! grep -q "POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE" "$tmpdir/dp-scss-s
   exit 1
 fi
 
+bash "$ROOT_DIR/scripts/selftests/refinement-json-bug-fields-selftest.sh"
+
 echo "PASS: validate-refinement-json selftest"

@@ -1,6 +1,6 @@
 # Planning Skill Worktree Isolation
 
-Planning skills (refinement / breakdown / bug-triage / sasd-review) that run **runtime verification** — build, dev server, Lighthouse, curl SSR output, bug reproduction — must do so in a **dedicated git worktree**, never in the user's main checkout.
+Planning skills (refinement / breakdown / refinement Bug source mode / sasd-review) that run **runtime verification** — build, dev server, Lighthouse, curl SSR output, bug reproduction — must do so in a **dedicated git worktree**, never in the user's main checkout.
 
 ## Why
 
@@ -10,7 +10,7 @@ Planning skills increasingly need live signal beyond static code reading:
 |-------|------------------------------|
 | refinement | Tier 2+ baseline measurements (Lighthouse, SSR timing, curl diff) |
 | breakdown | Estimation sanity-check (run tests, measure scope via grep+build), infra-first AC rehearsal |
-| bug-triage | Bug reproduction, stack inspection, confirming which branch exhibits defect |
+| refinement Bug source mode | Bug reproduction, stack inspection, confirming which branch exhibits defect |
 | sasd-review | Technical feasibility probe (does the proposed API path work? does the config honor this option?) |
 
 These operations typically:
@@ -35,15 +35,15 @@ These operations typically:
 
 ## Execution Flow
 
-Replace `{skill}` with the actual skill name (`refinement` / `breakdown` / `bug-triage` / `sasd-review`) and `{TICKET_KEY}` with the ticket being processed.
+Replace `{skill}` with the actual skill name (`refinement` / `breakdown` / `refinement Bug source mode` / `sasd-review`) and `{TICKET_KEY}` with the ticket being processed.
 
 ### 1. Decide the base ref
 
 | Skill context | Base ref |
 |---------------|----------|
 | refinement / breakdown Planning Path / sasd-review | `origin/develop` (or `origin/main`, per repo convention) |
-| bug-triage for `[VERIFICATION_FAIL]` Bug | feature branch from the `[VERIFICATION_FAIL]` block (the branch that failed AC) |
-| bug-triage for generic Bug | `origin/develop` unless user specifies otherwise |
+| refinement Bug source mode for `[VERIFICATION_FAIL]` Bug | feature branch from the `[VERIFICATION_FAIL]` block (the branch that failed AC) |
+| refinement Bug source mode for generic Bug | `origin/develop` unless user specifies otherwise |
 
 ### 2. Fetch (do not pull)
 
@@ -119,7 +119,7 @@ The worktree requirement kicks in the moment the skill needs to run `pnpm instal
 |-------|---------|---------------------------|
 | refinement | No worktree | Tier 2+ (need baseline Lighthouse / SSR timing / infra-level verification) |
 | breakdown | No worktree | Planning Path needs to run tests/build to size tickets; infra-first decision requires rehearsal |
-| bug-triage | No worktree | Need to start dev server to reproduce bug; `[VERIFICATION_FAIL]` Bug (feature branch checkout) |
+| refinement Bug source mode | No worktree | Need to start dev server to reproduce bug; `[VERIFICATION_FAIL]` Bug (feature branch checkout) |
 | sasd-review | No worktree | Technical feasibility probe (does the module actually support option X? does endpoint actually return this shape?) |
 
 If the answer to "do I need to run a build / server / install?" is yes, create the worktree — even for a single command. The cost of `worktree add` is seconds; the cost of corrupting the user's WIP is hours.

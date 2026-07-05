@@ -175,8 +175,10 @@ Active hooks under parity governance:
 - `no-direct-evidence-write.sh`
 - `no-manual-work-order-search.sh`
 - `post-compact-context-restore.sh`
+- `post-framework-source-diff-audit.sh`
 - `post-memory-index-regenerate.sh`
 - `post-runtime-instruction-manifest-regenerate.sh`
+- `pre-framework-source-write.sh`
 - `pre-memory-write.sh`
 - `pre-write-language-policy.sh`
 - `session-pressure-tick.sh`

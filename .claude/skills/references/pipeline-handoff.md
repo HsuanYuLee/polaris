@@ -1,6 +1,7 @@
 # Pipeline Handoff Contract
 
-Defines the role boundaries and handoff inputs/outputs between **breakdown → engineering → verify-AC → bug-triage**. This is the contract document — each skill's SKILL.md implements its own side of the contract.
+定義 **refinement → breakdown → engineering → verify-AC** 之間的角色邊界與 handoff
+輸入/輸出。這份文件是 contract；各 skill 的 SKILL.md 實作自己那一側的契約。
 
 > **Atom ownership single source of truth**：本檔負責 narrative / contract prose；
 > 每個 cross-skill atom（refinement / T task / V task / lifecycle marker / orchestration
@@ -18,16 +19,16 @@ refinement → breakdown（打包 task.md）
           verify-AC（QA agent）
             ├─ PASS → 驗收單轉 Done、Epic 可 merge
             └─ FAIL（人工 disposition）
-                ├─ 實作偏差 → bug-triage → engineering → re-verify
+                ├─ 實作偏差 → refinement Bug source mode → engineering → re-verify
                 └─ 規格問題 → refinement → breakdown → engineering → verify
 ```
 
-Core principle: **each skill consumes a self-contained input and produces a well-defined output.** No skill needs to reach back into upstream artifacts to fill gaps.
+核心原則：**每個 skill 消費自足輸入，並產出明確定義的輸出。**任何 skill 都不應回頭解析上游
+artifact 來補 handoff gap。
 
-Scope-escalation returns follow the same rule. `engineering` raw sidecars are
-consumed by `breakdown` only. If `breakdown` decides the issue must return to
-`refinement`, it writes a `refinement-inbox/*.md` decision record first; `refinement`
-reads that inbox record and never opens the raw sidecar. See
+Scope-escalation return 也遵守同一規則。`engineering` raw sidecars 只由 `breakdown`
+消費。若 `breakdown` 判定問題必須回到 `refinement`，它必須先寫
+`refinement-inbox/*.md` decision record；`refinement` 只讀該 inbox record，不開 raw sidecar。見
 `refinement-return-inbox.md`.
 
 ## Role Boundaries
@@ -38,7 +39,7 @@ reads that inbox record and never opens the raw sidecar. See
 | **Packer** (Packing) | breakdown | 拆 task + 建 JIRA 子單 + 產 task.md work order | 不做技術探索（有 `refinement.json` 時直接消費 artifact） |
 | **Engineer** (Execution) | engineering | 實作 + TDD unit test + 開 PR | 不做 AC 驗證、不診斷 bug |
 | **QA** | verify-AC | 跑 AC 驗證步驟、呈現 observed vs expected | 不判斷 FAIL 原因（交給人工 disposition） |
-| **Diagnosis** | bug-triage | Root cause 分析、規劃修復 | 不直接寫 code（交給 engineering） |
+| **Diagnosis** | refinement Bug source mode | Root cause 分析、規劃修復 | 不直接寫 code（交給 engineering） |
 
 ## Canonical Schema Traversal Contract（DP-296 AC6 / AC-NFR2）
 
@@ -90,7 +91,7 @@ LLM freeform（非 canonical schema 的自由敘述）**只**允許在 **standal
 
 **此章節為 Atom 層 single source of truth**。所有 pipeline validator script（`scripts/validate-*.sh`）都從此文件派生；skill 產出 artifact 時的必填欄位以此為準。若本章節與個別 skill 的 SKILL.md 描述衝突，**以本章節為準**。
 
-作用範圍（DP-025 locked 2026-04-22）：檔案型 artifact（refinement.json / task.md）。**不含** JIRA comment 結構（bug-triage `[ROOT_CAUSE]`、verify-AC `## 驗證結果`），見 DP-025 scope boundary。
+作用範圍（DP-025 locked 2026-04-22）：檔案型 artifact（refinement.json / task.md）。**不含** JIRA comment 結構（refinement Bug source mode `[ROOT_CAUSE]`、verify-AC `## 驗證結果`），見 DP-025 scope boundary。
 
 所有欄位驗證以 **hard-fail**（validator exit 2）為預設；若實務上發現必填欄位阻礙 refinement / breakdown 推進，再個別討論降級。
 
@@ -208,7 +209,9 @@ engineering revision mode（`§ R0` pre-work rebase）每次進入都重跑 Reso
 
 Breakdown 產出的 task.md 是 engineering 的唯一施工輸入（除了 codebase、company handbook、repo handbook）。Engineering / sub-agent 須自行讀取 workspace-owned handbook SoT：`{company}/polaris-config/handbook/index.md` + index 引用子文件，以及 `{company}/polaris-config/{project}/handbook/index.md` + index 引用子文件；handbook 不會自動載入。必須 self-contained。
 
-Repo root `CLAUDE.md` / `AGENTS.md` native files are not required for this contract. A repo-owned adapter can be added only by repo owner decision; native adapter deferred is the default. Polaris handoff never asks downstream skills to edit tracked repo AI config to make the framework harness work.
+Repo root `CLAUDE.md` / `AGENTS.md` native files 不是本 contract 的必要條件。只有 repo owner
+決定時才可加入 repo-owned adapter；預設是 deferred。Polaris handoff 不會要求 downstream
+skills 修改 tracked repo AI config 來讓 framework harness 運作。
 
 ```markdown
 # T{n}: {Task summary} ({SP} pt)
@@ -411,20 +414,20 @@ AI 不擅自壓通過。每條 AC 驗證結果分四態：
 
 ## Disposition（請人工勾選）
 
-- [ ] **實作偏差** — code 沒達到 AC 行為 → 走 bug-triage
+- [ ] **實作偏差** — code 沒達到 AC 行為 → 走 refinement Bug source mode
 - [ ] **規格問題** — AC 描述錯誤/不完整 → 回 refinement
 ```
 
 **AI 只呈現事實，不判斷原因。** Disposition 由人工勾選後，skill 再依勾選路由。
 
-### FAIL → bug-triage（實作偏差）
+### FAIL → refinement Bug source mode（實作偏差）
 
 當人工勾「實作偏差」時，verify-AC 自動：
 
 1. **建 Bug ticket**（issueType: Bug, parent: Epic）
 2. **貼 comment on Bug ticket**（載體 = JIRA comment，格式見下）
 3. **在 AC 驗收單留 comment**：「FAIL — 追蹤於 {BUG_KEY}」
-4. **Routing** → bug-triage skill，以 Bug ticket key 為入口
+4. **Routing** → refinement Bug source mode skill，以 Bug ticket key 為入口
 
 #### Bug ticket 必要資訊
 
@@ -468,7 +471,7 @@ AI 不擅自壓通過。每條 AC 驗證結果分四態：
 | 實作者不在（PTO / 離職） | Epic owner |
 | Bug-triage 後發現 root cause 在**非本 Epic 的共用 code** | Re-assign 給共用 code 原作者 |
 
-**重要**：Assignee 是**運維層**（誰去修），**bug-triage skill 對此 blind**：
+**重要**：Assignee 是**運維層**（誰去修），**refinement Bug source mode skill 對此 blind**：
 - Bug-triage dispatch prompt **不包含 assignee 欄位**
 - Bug-triage 不跑 `git log --author` 或 `git blame`
 - 避免「X 通常怎麼寫錯」的錨定偏差，確保純粹的 root-cause 分析
@@ -511,7 +514,7 @@ Strategist 沒有 passive event 能力（不做 webhook / polling），因此 re
 
 - Feature branch 所有 task PR 已 merge
 - AC 驗收單狀態仍是 Open（或 FAIL）
-- 沒有正在進行中的 bug-triage Bug ticket
+- 沒有正在進行中的 refinement Bug source mode Bug ticket
 
 ### 實作影響
 
@@ -533,7 +536,7 @@ Pipeline 收斂在以下任一條件：
 - verify-AC 全部 PASS → Epic merge
 - 人工介入中止（scope 撤回、Epic 取消）
 
-如果 verify-AC ↔ bug-triage 來回 **≥ 3 輪**，Strategist 必須介入檢查：是否為架構問題，而非單點 bug。
+如果 verify-AC ↔ refinement Bug source mode 來回 **≥ 3 輪**，Strategist 必須介入檢查：是否為架構問題，而非單點 bug。
 
 ## Evidence Artifact（Handoff 層的證據載體）
 
@@ -542,7 +545,7 @@ Pipeline 收斂在以下任一條件：
 - 規格：[handoff-artifact.md](handoff-artifact.md) — Summary/Raw Evidence 格式、20KB cap、secret scrub
 - 位置：`{source_container}/artifacts/{skill}-{scope}-{ticket}-{ts}.md`（與 Completion Envelope Detail 合流）
 - 讀取：下游 sub-agent **on-demand**，預設信任結論文件
-- P4 pilot：bug-triage → engineering（DP-024 P4 2026-04-22）
+- P4 pilot：refinement Bug source mode → engineering（DP-024 P4 2026-04-22）
 
 ## 和其他 references 的關係
 
@@ -561,7 +564,7 @@ Pipeline 收斂在以下任一條件：
 2. **P2** — 更新 breakdown skill 產出符合 schema 的 task.md
 3. **P3** — 精簡 engineering dispatch prompt 只帶 task.md
 4. **P4** — 新建 verify-AC skill（含 disposition gate）
-5. **P5** — 更新 bug-triage 接受 AC-FAIL input + routing table
+5. **P5** — 更新 refinement Bug source mode 接受 AC-FAIL input + routing table
 
 ## 來源
 
