@@ -4,9 +4,9 @@
 
 ### Changed
 
-- 5319535: Make parent closeout consume `refinement.json` verification manifests so `source_level_v_required` sources fail closed when a required V task is missing, active, or not PASS.
-- 5141bd9: Make auto-pass terminal completion consume `refinement.json` verification manifests so required source-level V work cannot be vacuously skipped.
-- a009617: Make main-chain compliance respect `refinement.json` verification strategy so per-task self-verify sources do not require local V tasks.
+- 5319535: 讓 parent closeout 消費 `refinement.json` verification manifest，確保 `source_level_v_required` source 在 required V task missing、active 或未 PASS 時 fail-closed。
+- 5141bd9: 讓 auto-pass terminal completion 消費 `refinement.json` verification manifest，避免 required source-level V work 因 disk 無 V task 而 vacuously skipped。
+- a009617: 讓 main-chain compliance 遵守 `refinement.json` verification strategy，使 per-task self-verify source 不需要 local V task。
 
 ## [3.76.75] - 2026-07-07
 
