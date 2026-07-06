@@ -88,4 +88,57 @@ if [[ "$rc" -eq 0 ]]; then
   exit 1
 fi
 
+repo="$tmpdir/repo"
+config_absent_worktree="$tmpdir/repo-linked"
+mkdir -p "$repo/.claude/skills/references" "$repo/acme"
+cat > "$repo/.gitignore" <<'TXT'
+acme/
+TXT
+cat > "$repo/acme/workspace-config.yaml" <<'YAML'
+jira:
+  projects:
+    - key: ACME
+github:
+  org: acme-inc
+YAML
+cat > "$repo/.claude/skills/references/example.md" <<'MD'
+Neutral placeholder only.
+MD
+git -C "$repo" init -q
+git -C "$repo" add .gitignore .claude/skills/references/example.md
+git -C "$repo" -c user.email=polaris@example.invalid -c user.name=Polaris commit -qm init
+git -C "$repo" worktree add -q "$config_absent_worktree"
+cat > "$config_absent_worktree/.claude/skills/references/leak.md" <<'MD'
+Do not ship ACME-123 in template-facing references.
+MD
+
+set +e
+"$SCANNER" --workspace "$config_absent_worktree" --source workspace --blocking >/tmp/scan-template-leaks-selftest-absent.out 2>/tmp/scan-template-leaks-selftest-absent.err
+rc=$?
+set -e
+if [[ "$rc" -eq 0 ]]; then
+  echo "selftest failed: config-absent linked worktree should still block ACME-123" >&2
+  exit 1
+fi
+if ! grep -q "ACME-123" /tmp/scan-template-leaks-selftest-absent.out; then
+  echo "selftest failed: config-absent linked worktree output should include ACME-123" >&2
+  exit 1
+fi
+
+set +e
+POLARIS_TEMPLATE_LEAK_BYPASS=1 "$SCANNER" --workspace "$config_absent_worktree" --source workspace --blocking >/tmp/scan-template-leaks-selftest-bypass.out 2>/tmp/scan-template-leaks-selftest-bypass.err
+rc=$?
+set -e
+if [[ "$rc" -eq 0 ]]; then
+  echo "selftest failed: bypass env must not silence config-absent linked worktree leak" >&2
+  exit 1
+fi
+
+no_company="$tmpdir/no-company"
+mkdir -p "$no_company/.claude/skills/references"
+cat > "$no_company/.claude/skills/references/example.md" <<'MD'
+Neutral placeholder only.
+MD
+"$SCANNER" --workspace "$no_company" --source workspace --blocking >/tmp/scan-template-leaks-selftest-no-company.out
+
 echo "PASS: scan-template-leaks selftest"

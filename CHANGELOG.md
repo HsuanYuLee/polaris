@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.77] - 2026-07-07
+
+### Changed
+
+- 27e9eaf: 讓 template leak scan 在 linked worktree 缺少 ignored company config 時，仍能從同 repo 的其他 worktree 解析 company patterns，避免 workspace scan 因零 pattern vacuous PASS。
+
 ## [3.76.76] - 2026-07-07
 
 ### Changed

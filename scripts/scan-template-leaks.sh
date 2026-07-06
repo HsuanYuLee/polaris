@@ -91,10 +91,47 @@ def load_company_configs(root: Path):
     return configs
 
 
+def load_company_configs_from_git_worktrees(root: Path):
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "worktree", "list", "--porcelain"],
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, OSError):
+        return []
+    if proc.returncode != 0:
+        return []
+
+    roots = []
+    for line in proc.stdout.splitlines():
+        if not line.startswith("worktree "):
+            continue
+        candidate = Path(line.split(" ", 1)[1]).expanduser()
+        try:
+            candidate = candidate.resolve()
+        except OSError:
+            continue
+        if candidate == root:
+            continue
+        roots.append(candidate)
+
+    for candidate in roots:
+        if not candidate.exists():
+            continue
+        configs = load_company_configs(candidate)
+        if configs:
+            return configs
+    return []
+
+
 def collect_patterns(root: Path):
     patterns = []
     companies = []
-    for company, cfg_path in load_company_configs(root):
+    configs = load_company_configs(root)
+    if not configs and source_mode == "workspace":
+        configs = load_company_configs_from_git_worktrees(root)
+    for company, cfg_path in configs:
         companies.append(company)
         patterns.append({
             "label": f"company-slug:{company}",
