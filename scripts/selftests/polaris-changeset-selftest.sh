@@ -366,6 +366,32 @@ EOF
 assert_eq "$?" "0" "multi-pkg existing coverage changeset → check exit 0"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "=== all-private explicit packages + tag:false → root package scope ==="
+PARENT_PRIVATE="$WORK_DIR/all-private"
+mkdir -p "$PARENT_PRIVATE"
+REPO_PRIVATE="$PARENT_PRIVATE/myrepo"
+mkdir -p "$REPO_PRIVATE/.changeset" "$REPO_PRIVATE/packages/a" "$REPO_PRIVATE/packages/b"
+cat > "$REPO_PRIVATE/.changeset/config.json" <<'EOF'
+{ "$schema": "x", "changelog": "@changesets/cli/changelog", "commit": false, "fixed": [], "linked": [], "access": "restricted", "baseBranch": "main", "updateInternalDependencies": "patch", "ignore": [], "privatePackages": {"tag": false}, "packages": ["packages/*"] }
+EOF
+cat > "$REPO_PRIVATE/package.json" <<'EOF'
+{ "name": "polaris-framework-workspace", "version": "0.0.1", "private": true }
+EOF
+cat > "$REPO_PRIVATE/packages/a/package.json" <<'EOF'
+{ "name": "@selftest/private-a", "version": "0.0.1", "private": true }
+EOF
+cat > "$REPO_PRIVATE/packages/b/package.json" <<'EOF'
+{ "name": "@selftest/private-b", "version": "0.0.1", "private": true }
+EOF
+TASK_PRIVATE="$PARENT_PRIVATE/specs/SELFTEST-001/tasks/T_private.md"
+make_task_md "$REPO_PRIVATE" "myrepo" "$TASK_PRIVATE" "PCS-10" "[PCS-10] all private package scope"
+"$PCS" new --task-md "$TASK_PRIVATE" >/dev/null 2>&1
+assert_eq "$?" "0" "all-private tag:false explicit packages → exit 0"
+EXPECTED_PRIVATE="$REPO_PRIVATE/.changeset/pcs-10-all-private-package-scope.md"
+assert_file_exists "$EXPECTED_PRIVATE" "all-private root-scope changeset file"
+assert_contains_file "$EXPECTED_PRIVATE" '"polaris-framework-workspace": patch' "all-private uses root package scope"
+
+# ────────────────────────────────────────────────────────────────────────────
 # DP-344 D3 — `slug` subcommand is the single slug source that derive-task-md
 # reuses. These cases assert: slug print, path print, CJK preservation, error
 # handling, and parity between `slug --print path` and the filename that `new`

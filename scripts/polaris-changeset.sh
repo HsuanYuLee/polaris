@@ -357,6 +357,21 @@ if isinstance(cfg_packages, list) and cfg_packages:
                     add_candidate(name, d)
             except Exception:
                 continue
+    # All-private workspace + privatePackages.tag=false may intentionally filter
+    # every workspace package. In the Polaris feat-model release lane the root
+    # package still owns the changeset key, so fall back to the root package name
+    # instead of requiring a hand-written package scope.
+    if not candidates:
+        root_pkg = os.path.join(repo_path, "package.json")
+        if os.path.isfile(root_pkg):
+            try:
+                with open(root_pkg) as f:
+                    pkg = json.load(f)
+                name = pkg.get("name")
+                if name:
+                    add_candidate(name, repo_path)
+            except Exception:
+                pass
 else:
     # No packages glob in config — try pnpm-workspace.yaml or root package.json
     pnpm_ws = os.path.join(repo_path, "pnpm-workspace.yaml")

@@ -135,6 +135,29 @@ printf 'close-parent-spec-if-complete.sh %s\n' "$*" >>"${POLARIS_STUB_LOG:?}"
 exit 0
 STUB
   chmod +x "$dst/close-parent-spec-if-complete.sh"
+
+  cat >"$dst/gh" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-}" in
+  auth)
+    exit 0
+    ;;
+  pr)
+    if [[ "${2:-}" == "view" ]]; then
+      case " $* " in
+        *" headRefOid "*)
+          printf '%s\n' "${POLARIS_STUB_PR_HEAD:?}"
+          ;;
+        *" state "*)
+          printf 'OPEN\n'
+          ;;
+      esac
+    fi
+    ;;
+esac
+STUB
+  chmod +x "$dst/gh"
 }
 
 init_workspace_repo() {
@@ -152,9 +175,11 @@ init_workspace_repo() {
 # Write a DP container with one task at tasks/<suffix>/index.md.
 #   $1 repo  $2 dp-id  $3 suffix  $4 shape  $5 task-branch  $6 bundle-alias
 #   $7 allowed-file  $8 task_kind (default T)  $9 deliverable.head_sha (optional)
+#   $10 deliverable.pr_url (optional)  $11 deliverable.pr_state (default OPEN)
 write_task_container() {
   local repo="$1" dp="$2" suffix="$3" shape="$4" branch="$5" alias="$6" allowed="$7"
   local kind="${8:-T}" deliver_head="${9:-}"
+  local deliver_pr_url="${10:-}" deliver_pr_state="${11:-OPEN}"
   local dir="$repo/docs-manager/src/content/docs/specs/design-plans/${dp}-fixture"
   mkdir -p "$dir/tasks/$suffix"
   cat >"$dir/index.md" <<MD
@@ -171,9 +196,11 @@ MD
     printf 'status: IN_PROGRESS\n'
     printf 'task_kind: %s\n' "$kind"
     [[ -n "$shape" ]] && printf 'task_shape: %s\n' "$shape"
-    if [[ -n "$deliver_head" ]]; then
+    if [[ -n "$deliver_head" || -n "$deliver_pr_url" ]]; then
       printf 'deliverable:\n'
-      printf '  head_sha: %s\n' "$deliver_head"
+      [[ -n "$deliver_pr_url" ]] && printf '  pr_url: %s\n' "$deliver_pr_url"
+      [[ -n "$deliver_pr_url" ]] && printf '  pr_state: %s\n' "$deliver_pr_state"
+      [[ -n "$deliver_head" ]] && printf '  head_sha: %s\n' "$deliver_head"
     fi
     printf -- '---\n\n'
     printf '# %s: fixture task (1 pt)\n\n' "$suffix"
@@ -215,6 +242,8 @@ run_closeout() {
   local scripts_dir="$1"; shift
   set +e
   CLOSEOUT_OUT="$(POLARIS_STUB_LOG="$STUB_LOG" \
+    POLARIS_STUB_PR_HEAD="${POLARIS_STUB_PR_HEAD:-}" \
+    GH_BIN="$scripts_dir/gh" \
     bash "$scripts_dir/framework-release-closeout.sh" "$@" 2>&1)"
   CLOSEOUT_RC=$?
   set -e
@@ -324,6 +353,59 @@ run_closeout() {
 
   _assert_eq "$CLOSEOUT_RC" "0" "A2 closeout exits 0 (delivery-block head)"
   _assert_contains "$(cat "$STUB_LOG")" "$DELIVERY_HEAD" "A2 closeout used task.md delivery-block head"
+}
+
+# ===========================================================================
+# Case STALE_ACTIVE_PR (AC2 / AC-NEG1): task.md deliverable.head_sha is an old
+# delivery head that remains an ancestor of the release commit, but the active
+# task PR head has moved forward. Closeout must fail-closed instead of accepting
+# the stale lineage solely because ancestry still holds.
+# ===========================================================================
+{
+  WS="$TMPROOT/stale-pr-ws"
+  SCRIPTS="$TMPROOT/stale-pr-scripts"
+  STUB_LOG="$TMPROOT/stale-pr-stub.log"
+  : >"$STUB_LOG"
+  build_stub_scripts_dir "$SCRIPTS"
+  init_workspace_repo "$WS"
+
+  git -C "$WS" checkout -q -b task/DP-907-T1-x
+  mkdir -p "$WS/scripts"
+  echo old >"$WS/scripts/feature-stale.sh"
+  git -C "$WS" add scripts/feature-stale.sh
+  git -C "$WS" commit -qm "old delivery head"
+  OLD_DELIVERY_HEAD="$(git -C "$WS" rev-parse HEAD)"
+
+  git -C "$WS" checkout -q main
+  git -C "$WS" merge -q --no-ff task/DP-907-T1-x -m "merge old delivery"
+
+  git -C "$WS" checkout -q task/DP-907-T1-x
+  echo current >"$WS/scripts/feature-stale.sh"
+  git -C "$WS" add scripts/feature-stale.sh
+  git -C "$WS" commit -qm "current task PR head"
+  CURRENT_PR_HEAD="$(git -C "$WS" rev-parse HEAD)"
+  git -C "$WS" checkout -q main
+
+  write_task_container "$WS" DP-907 T1 implementation task/DP-907-T1-x '' \
+    'scripts/feature-stale.sh' T "$OLD_DELIVERY_HEAD" \
+    'https://github.com/example/polaris/pull/999' OPEN
+  git -C "$WS" add docs-manager
+  git -C "$WS" commit -qm "container"
+  RELEASE_HEAD="$(git -C "$WS" rev-parse HEAD)"
+
+  TASK_MD="$WS/docs-manager/src/content/docs/specs/design-plans/DP-907-fixture/tasks/T1/index.md"
+  MARKER="$TMPROOT/stale-pr-verify.json"
+  valid_verify_marker "$MARKER" DP-907-T1 "$OLD_DELIVERY_HEAD"
+
+  POLARIS_STUB_PR_HEAD="$CURRENT_PR_HEAD" run_closeout "$SCRIPTS" \
+    --task-md "$TASK_MD" \
+    --verify-evidence "$MARKER" \
+    --workspace-commit "$RELEASE_HEAD" --template-commit "$RELEASE_HEAD" \
+    --version-tag v1.0.0 --release-url N/A --repo "$WS"
+
+  _assert_eq "$CLOSEOUT_RC" "2" "STALE_ACTIVE_PR closeout fail-closed"
+  _assert_contains "$CLOSEOUT_OUT" "POLARIS_FRAMEWORK_RELEASE_STALE_DELIVERABLE_HEAD" "STALE_ACTIVE_PR diagnostic marker"
+  _assert_contains "$CLOSEOUT_OUT" "$CURRENT_PR_HEAD" "STALE_ACTIVE_PR reports current PR head"
 }
 
 # ===========================================================================

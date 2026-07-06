@@ -588,6 +588,53 @@ close_bundled_task_pr() {
   info "closed bundled task PR #${pr_ref} for ${task_id} (released ${VERSION_TAG})"
 }
 
+deliverable_pr_ref_from_parser() {
+  local parser_json="$1"
+  local task_id="$2"
+  local pr_url pr_ref
+
+  pr_url="$(json_field "$parser_json" "d.get('frontmatter', {}).get('deliverable', {}).get('pr_url')")"
+  [[ -n "$pr_url" ]] || return 0
+  if [[ "$pr_url" =~ /pull/([0-9]+) ]]; then
+    pr_ref="${BASH_REMATCH[1]}"
+  elif [[ "$pr_url" =~ ^[0-9]+$ ]]; then
+    pr_ref="$pr_url"
+  else
+    die "deliverable PR url malformed for ${task_id}: ${pr_url} (expected .../pull/<n> or a PR number)"
+  fi
+  printf '%s\n' "$pr_ref"
+}
+
+assert_active_deliverable_head_fresh() {
+  local parser_json="$1"
+  local task_id="$2"
+  local task_head_sha="$3"
+  local pr_ref pr_state pr_head
+
+  pr_ref="$(deliverable_pr_ref_from_parser "$parser_json" "$task_id")"
+  [[ -n "$pr_ref" ]] || return 0
+
+  pr_state="$(json_field "$parser_json" "d.get('frontmatter', {}).get('deliverable', {}).get('pr_state')")"
+  pr_state="$(printf '%s' "$pr_state" | tr '[:lower:]' '[:upper:]' | tr -d '[:space:]')"
+  case "$pr_state" in
+    MERGED|CLOSED)
+      return 0
+      ;;
+  esac
+
+  resolve_gh_bin
+  pr_head="$("$GH_BIN" pr view "$pr_ref" --json headRefOid -q .headRefOid 2>/dev/null || true)"
+  pr_head="$(printf '%s' "$pr_head" | tr -d '[:space:]')"
+  [[ -n "$pr_head" ]] \
+    || die "POLARIS_FRAMEWORK_RELEASE_STALE_DELIVERABLE_HEAD task=${task_id} evidence_status=unknown pr=${pr_ref} detail=unable_to_read_pr_head"
+
+  if ! sha_matches "$task_head_sha" "$pr_head"; then
+    die "POLARIS_FRAMEWORK_RELEASE_STALE_DELIVERABLE_HEAD task=${task_id} evidence_status=stale route_back=engineering recorded_head=${task_head_sha} pr_head=${pr_head} pr=${pr_ref}"
+  fi
+
+  info "active deliverable head fresh for ${task_id}: ${task_head_sha}"
+}
+
 # --- DP-393 T2: mandatory release-residue branch/worktree cleanup ------------
 #
 # Release-residue cleanup is DEFAULT / MANDATORY (it is NOT gated on any flag;
@@ -945,14 +992,16 @@ for i in "${!TASK_MDS[@]}"; do
   bundle_alias="$(bundle_branch_alias_for_task "$task_md")"
 
   task_head_sha=""
+  task_head_source=""
   if [[ "$TASK_HEAD_SHA_MAP_USED" -eq 1 ]]; then
     if task_head_sha="$(task_head_sha_map_get "$task_id")"; then
-      :
+      task_head_source="explicit"
     else
       die "--task-head-sha map missing entry for ${task_id}; bundle PR identity requires per-task SHA"
     fi
   elif [[ "${#TASK_HEAD_SHAS[@]}" -gt 0 ]]; then
     task_head_sha="${TASK_HEAD_SHAS[$i]}"
+    task_head_source="explicit"
   fi
 
   if [[ -z "$task_head_sha" ]]; then
@@ -966,6 +1015,7 @@ for i in "${!TASK_MDS[@]}"; do
     fi
     task_head_sha="$(json_field "$parser_json" "d.get('frontmatter', {}).get('deliverable', {}).get('head_sha')")"
     if [[ -n "$task_head_sha" ]]; then
+      task_head_source="deliverable"
       info "resolved delivered head for ${task_id} from task.md delivery block: ${task_head_sha}"
     fi
   fi
@@ -975,6 +1025,9 @@ for i in "${!TASK_MDS[@]}"; do
   fi
   is_sha "$task_head_sha" || die "--task-head-sha value malformed for ${task_id}: ${task_head_sha} (expected 7-40 char hex SHA; map syntax is task_id=<sha>)"
   git -C "$REPO_ROOT" cat-file -e "${task_head_sha}^{commit}" 2>/dev/null || die "task head does not exist for ${task_id}: ${task_head_sha}"
+  if [[ "$task_head_source" == "deliverable" ]]; then
+    assert_active_deliverable_head_fresh "$parser_json" "$task_id" "$task_head_sha"
+  fi
 
   # DP-273 Wall A: bundle-aware head-ancestry. aggregate / cherry-pick /
   # fresh-commit / copy-content bundle releases produce a release commit whose

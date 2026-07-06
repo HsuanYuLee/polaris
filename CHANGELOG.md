@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.73] - 2026-07-06
+
+### Changed
+
+- 52fc8fb: all-private / tag:false changeset package scope 推導
+- a58db4b: framework-release deliverable head authority fail-closed guard 收斂
+
 ## [3.76.72] - 2026-07-06
 
 ### Changed
