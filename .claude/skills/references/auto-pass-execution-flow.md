@@ -52,7 +52,7 @@ JSON 輸出（`schema_version=1`，欄位穩定）：
 - `stage`
 - `status`：`PASS` | `BLOCKED` | `UNKNOWN` | `ROUTE_BACK_AMEND` | `MANUAL_REQUIRED` | …
 - `terminal_status`：`complete` | `loop_cap_reached` | `blocked_by_gate_failure` |
-  `paused_for_user_external_write` | `paused_for_session_handoff` | `null`
+  `paused_for_user_external_write` | `user_aborted` | `null`
 - `next_action`：`dispatch` | `terminal` | `blocked` | `resume` | `refinement_amendment`
 - `next_skill`：`breakdown` | `engineering` | `verify-AC` | `refinement` | `null`
 - `next_work_item_id`：sibling task / V item id 或 source_id；non-applicable 時 `null`
@@ -228,7 +228,7 @@ completion marker、verification marker），orchestrator 必須繼續 dispatch 
 skill。只有真正的 context pressure / runtime pressure 可寫 `pause.kind=session_handoff`，
 並同時 emit resume artifact 供 `/auto-pass {KEY} resume` 驗證後續跑。
 
-`paused_for_refinement`：
+`paused_for_refinement`（non-terminal `pause.kind`）：
 
 - breakdown 判斷需要 refinement。
 - verify-AC 回報 spec issue。
@@ -266,7 +266,7 @@ deterministic chain 釋放 pause，不得用其他方式：
 
 ```text
 user_aborted > blocked_by_gate_failure > loop_cap_reached >
-paused_for_user_external_write > paused_for_refinement > complete
+paused_for_user_external_write > complete
 ```
 
 `complete` 只能在 required PR set ready、verification disposition current，且沒有 unresolved

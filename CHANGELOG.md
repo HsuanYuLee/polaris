@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.76.74] - 2026-07-06
+
+### Changed
+
+- c913ca3: DP-406 T1：對齊 auto-pass terminal enum、ledger pause 與 report archive lifecycle contract，並新增 terminal lifecycle selftest。
+- c913ca3: DP-406 T2：framework-release full-tail 在 cascade 後、version compression 前驗證 feat release head 包含 task deliverable heads，並讓 release lineage 可解析 auto-pass archive 後的 task metadata。
+- c913ca3: DP-406 T3：新增 refinement、auto-pass、framework-release 主鏈 contract parity selftest，固定 Bucket 2.7 插隊邊界。
+
 ## [3.76.73] - 2026-07-06
 
 ### Changed

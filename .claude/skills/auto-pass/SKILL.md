@@ -182,9 +182,12 @@ workspace PR opened + verification stale 時，`auto-pass {KEY}` refresh verify-
 - `complete`
 - `loop_cap_reached`
 - `blocked_by_gate_failure`
-- `paused_for_session_handoff`
 - `paused_for_user_external_write`
 - `user_aborted`
+
+`session_handoff` 與 `paused_for_refinement` 是 ledger `pause.kind` 的 non-terminal
+狀態，不是 `terminal_status`；resume / amendment loop 以 runner JSON `next_action`
+處理。
 
 terminal priority 與觸發條件以
 `.claude/skills/references/auto-pass-execution-flow.md` § Terminal Priority 為準。

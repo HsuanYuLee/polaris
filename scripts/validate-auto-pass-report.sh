@@ -93,7 +93,6 @@ sys.path.insert(0, str(workspace_root / "scripts" / "lib"))
 from contract_evidence import validate_contract_evidence_entries
 TERMINAL = {
     "complete",
-    "paused_for_refinement",
     "paused_for_user_external_write",
     "loop_cap_reached",
     "blocked_by_gate_failure",

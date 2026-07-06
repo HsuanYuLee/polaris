@@ -162,6 +162,50 @@ abs_path() {
   fi
 }
 
+head_invariant_die() {
+  echo "$PREFIX POLARIS_FRAMEWORK_RELEASE_EXECUTE_HEAD_INVARIANT: $*" >&2
+  exit 2
+}
+
+task_deliverable_head_sha() {
+  local task_md="$1"
+  awk '
+    /^deliverable:/ { in_blk = 1; next }
+    in_blk && /^[^[:space:]]/ { in_blk = 0 }
+    in_blk && /^[[:space:]]+head_sha:/ {
+      v = $0
+      sub(/^[[:space:]]+head_sha:[[:space:]]*/, "", v)
+      gsub(/[[:space:]]+$/, "", v)
+      gsub(/^["'\''"]|["'\''"]$/, "", v)
+      print v
+      exit
+    }
+  ' "$task_md"
+}
+
+assert_post_cascade_release_head_invariant() {
+  local current_branch current_head task_md task_head
+  current_branch="$(git -C "$REPO_PATH" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  [[ "$current_branch" == "$FEAT_BRANCH" ]] || \
+    head_invariant_die "expected current branch ${FEAT_BRANCH} after cascade, got ${current_branch:-DETACHED}"
+
+  current_head="$(git -C "$REPO_PATH" rev-parse HEAD 2>/dev/null || true)"
+  [[ -n "$current_head" ]] || head_invariant_die "unable to resolve ${FEAT_BRANCH} HEAD"
+  [[ "$(git -C "$REPO_PATH" rev-parse "$FEAT_BRANCH" 2>/dev/null || true)" == "$current_head" ]] || \
+    head_invariant_die "${FEAT_BRANCH} ref does not match current HEAD after cascade"
+
+  for task_md in "${TASK_MDS[@]}"; do
+    task_head="$(task_deliverable_head_sha "$task_md")"
+    [[ -n "$task_head" ]] || \
+      head_invariant_die "task.md has no deliverable.head_sha authority: $task_md"
+    git -C "$REPO_PATH" cat-file -e "${task_head}^{commit}" 2>/dev/null || \
+      head_invariant_die "task deliverable.head_sha does not exist: ${task_head} (${task_md})"
+    git -C "$REPO_PATH" merge-base --is-ancestor "$task_head" "$current_head" 2>/dev/null || \
+      head_invariant_die "task deliverable.head_sha is not contained in ${FEAT_BRANCH} HEAD: ${task_head} (${task_md})"
+  done
+  echo "$PREFIX PASS post-cascade release head invariant feat_branch=${FEAT_BRANCH} head=${current_head}"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO_PATH="${2:-}"; shift 2 ;;
@@ -225,13 +269,18 @@ if [[ "$FULL_TAIL" != "1" ]]; then
   exit 0
 fi
 
+echo "$PREFIX syncing local ${FEAT_BRANCH} to origin/${FEAT_BRANCH} after task landing"
+git -C "$REPO_PATH" fetch origin "$FEAT_BRANCH" >/dev/null
+git -C "$REPO_PATH" checkout -B "$FEAT_BRANCH" "origin/${FEAT_BRANCH}" >/dev/null
+
 echo "$PREFIX rebasing ${FEAT_BRANCH} onto origin/main"
-git -C "$REPO_PATH" checkout "$FEAT_BRANCH" >/dev/null
 git -C "$REPO_PATH" fetch origin main >/dev/null
 bash "$SCRIPT_DIR/cascade-rebase-chain.sh" \
   --repo "$REPO_PATH" \
   --onto origin/main \
   "${lane_args[@]}"
+
+assert_post_cascade_release_head_invariant
 
 echo "$PREFIX compressing version at ${FEAT_BRANCH} HEAD"
 (cd "$REPO_PATH" && mise run release-version)

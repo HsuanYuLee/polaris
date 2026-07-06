@@ -40,8 +40,7 @@
 #     "stage": "source|breakdown|engineering|verify-AC",
 #     "status": "PASS|UNKNOWN|HALT|FAIL|BLOCKED|ROUTE_BACK_AMEND|...",
 #     "terminal_status": "complete|loop_cap_reached|blocked_by_gate_failure
-#                         |paused_for_session_handoff|paused_for_user_external_write
-#                         |null",
+#                         |paused_for_user_external_write|user_aborted|null",
 #     "next_action": "dispatch|blocked|terminal|resume|refinement_amendment|...",
 #     "next_skill": "breakdown|engineering|verify-AC|refinement|null",
 #     "next_work_item_id": "DP-237-T1|null",

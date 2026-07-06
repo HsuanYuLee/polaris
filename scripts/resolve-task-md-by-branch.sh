@@ -19,6 +19,7 @@
 # Usage
 #   resolve-task-md-by-branch.sh <branch-name>
 #   resolve-task-md-by-branch.sh --current          # use HEAD's current branch
+#   resolve-task-md-by-branch.sh --include-archive <branch-name>
 #   resolve-task-md-by-branch.sh --scan-root <path> <branch-name|--current>
 #
 # Exit codes
@@ -103,6 +104,7 @@ usage() {
   cat >&2 <<'USAGE'
 usage: resolve-task-md-by-branch.sh <branch-name>
        resolve-task-md-by-branch.sh --current
+       resolve-task-md-by-branch.sh --include-archive <branch-name|--current>
        resolve-task-md-by-branch.sh --scan-root <path> <branch-name|--current>
 exit: 0 = found (stdout: absolute task.md path(s))
       1 = not found (stderr: scan diagnostics)
@@ -123,6 +125,22 @@ resolve_task_md_scan() {
   local -a matches=()
   local f val alias
   specs_root="$(resolve_specs_root "$root")" || return 1
+
+  if [[ "${INCLUDE_ARCHIVE:-0}" == "1" ]]; then
+    find_args=(
+      "$specs_root"
+      \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \)
+      -o
+      \( -type f \( -path '*/tasks/T*.md' -o -path '*/tasks/T*/index.md' -o -path '*/tasks/pr-release/T*.md' -o -path '*/tasks/pr-release/T*/index.md' \) -print0 \)
+    )
+  else
+    find_args=(
+      "$specs_root"
+      \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \)
+      -o
+      \( -type f \( -path '*/tasks/T*.md' -o -path '*/tasks/T*/index.md' -o -path '*/tasks/pr-release/T*.md' -o -path '*/tasks/pr-release/T*/index.md' \) -print0 \)
+    )
+  fi
 
   while IFS= read -r -d '' f; do
     scanned=$((scanned + 1))
@@ -155,10 +173,7 @@ resolve_task_md_scan() {
       || [[ -n "$alias" && "$alias" == "$branch" ]]; then
       matches+=("$f")
     fi
-  done < <(find "$specs_root" \
-    \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
-    -o \
-    \( -type f \( -path '*/tasks/T*.md' -o -path '*/tasks/T*/index.md' -o -path '*/tasks/pr-release/T*.md' -o -path '*/tasks/pr-release/T*/index.md' \) -print0 \))
+  done < <(find "${find_args[@]}")
 
   if [[ ${#matches[@]} -eq 0 ]]; then
     echo "no task.md matched 'Task branch = $branch' or 'bundle_branch_alias = $branch' (scanned $scanned file(s) under $specs_root)" >&2
@@ -419,10 +434,22 @@ MD
     echo "[selftest] case9 per-task Task branch query must not multi-match"; fail=1
   fi
 
+  # Case 10: framework-release may explicitly include archived task lineage
+  # after auto-pass has completed and archived the source.
+  INCLUDE_ARCHIVE=1 run_case case10 task/ARCHIVED-1-only 0
+  INCLUDE_ARCHIVE=0
+  local_count="$(wc -l < "$out_file" | tr -d ' ')"
+  if [[ "$local_count" != "1" ]]; then
+    echo "[selftest] case10 expected 1 archived line, got $local_count"; fail=1
+  fi
+  if ! grep -q 'companies/exampleco/archive/EPIC-9/tasks/T1.md' "$out_file"; then
+    echo "[selftest] case10 missing archived task path"; fail=1
+  fi
+
   rm -f "$out_file" "$err_file"
 
   if [[ $fail -eq 0 ]]; then
-    echo "[selftest] PASS (9 cases)"
+    echo "[selftest] PASS (10 cases)"
     exit 0
   else
     echo "[selftest] FAIL"
@@ -433,9 +460,14 @@ fi
 # ---------- arg parsing --------------------------------------------------
 scan_root=""
 branch=""
+INCLUDE_ARCHIVE="${POLARIS_RESOLVE_TASK_MD_INCLUDE_ARCHIVE:-0}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --include-archive)
+      INCLUDE_ARCHIVE=1
+      shift
+      ;;
     --scan-root)
       [[ $# -ge 2 ]] || { usage; exit 2; }
       scan_root="$2"

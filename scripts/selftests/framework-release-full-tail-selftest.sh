@@ -112,6 +112,18 @@ write_stubs() {
 #!/usr/bin/env bash
 set -euo pipefail
 echo "01 pr-lane $*" >>"${FULL_TAIL_LOG:?}"
+repo=""
+main=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --repo) repo="$2"; shift 2 ;;
+    --main) main="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+[[ -n "$repo" && -n "$main" ]] || exit 2
+git -C "$repo" checkout -q "$main"
+git -C "$repo" merge --ff-only task/DP-347-T1-one >/dev/null
 exit 0
 SH
   cat >"$REPO/scripts/cascade-rebase-chain.sh" <<'SH'

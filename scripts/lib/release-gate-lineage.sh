@@ -19,7 +19,7 @@ verify_pr_task_lineage() {
   resolver_err="$(mktemp -t framework-release-pr-lane-resolve-err.XXXXXX)"
   resolver_out="$(mktemp -t framework-release-pr-lane-resolve-out.XXXXXX)"
   set +e
-  bash "$SCRIPT_DIR/resolve-task-md-by-branch.sh" --scan-root "$REPO_PATH" "$pr_head_branch" >"$resolver_out" 2>"$resolver_err"
+  bash "$SCRIPT_DIR/resolve-task-md-by-branch.sh" --include-archive --scan-root "$REPO_PATH" "$pr_head_branch" >"$resolver_out" 2>"$resolver_err"
   resolver_status=$?
   set -e
   while IFS= read -r line; do
@@ -58,7 +58,7 @@ resolve_task_mds_from_terminal() {
     local branch="$1"
     local fallback="$2"
     local resolved="" candidate
-    resolved="$(bash "$SCRIPT_DIR/resolve-task-md-by-branch.sh" --scan-root "$REPO_PATH" "$branch" | head -1 || true)"
+    resolved="$(bash "$SCRIPT_DIR/resolve-task-md-by-branch.sh" --include-archive --scan-root "$REPO_PATH" "$branch" | head -1 || true)"
     if [[ -z "$resolved" && -d "$terminal_source_container/tasks" ]]; then
       while IFS= read -r candidate; do
         if [[ "$(table_field "Task branch" "$candidate")" == "$branch" ]]; then
@@ -173,7 +173,7 @@ validate_and_plan_bundle() {
   resolver_err="$(mktemp -t framework-release-pr-lane-bundle-err.XXXXXX)"
   resolver_out="$(mktemp -t framework-release-pr-lane-bundle-out.XXXXXX)"
   set +e
-  bash "$SCRIPT_DIR/resolve-task-md-by-branch.sh" --scan-root "$REPO_PATH" "$BUNDLE_ALIAS" >"$resolver_out" 2>"$resolver_err"
+  bash "$SCRIPT_DIR/resolve-task-md-by-branch.sh" --include-archive --scan-root "$REPO_PATH" "$BUNDLE_ALIAS" >"$resolver_out" 2>"$resolver_err"
   resolver_status=$?
   set -e
   resolved=()

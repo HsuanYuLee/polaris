@@ -47,7 +47,6 @@ description: "auto-pass terminal report schema、follow-up DP seed threshold、o
 `terminal_status` 必須是：
 
 - `complete`
-- `paused_for_refinement`
 - `paused_for_user_external_write`
 - `loop_cap_reached`
 - `blocked_by_gate_failure`
@@ -57,8 +56,12 @@ priority 仍以 ledger / execution flow 為準：
 
 ```text
 user_aborted > blocked_by_gate_failure > loop_cap_reached >
-paused_for_user_external_write > paused_for_refinement > complete
+paused_for_user_external_write > complete
 ```
+
+`paused_for_refinement` 與 `session_handoff` 只存在於 ledger `pause.kind`；report
+`terminal_status` 不接受這兩個值。refinement amendment / session resume 由 runner
+`next_action` 處理，不寫成 terminal report。
 
 ## DP Seed Threshold
 
