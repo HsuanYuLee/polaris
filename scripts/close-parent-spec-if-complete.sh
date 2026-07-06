@@ -449,6 +449,298 @@ MD
     return 1
   }
 
+  dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-991-manifest-missing-verification"
+  mkdir -p "$dp_dir/tasks/pr-release/T1"
+  cat >"$dp_dir/index.md" <<'MD'
+---
+title: "DP-991 manifest missing verification"
+description: "DP-991 manifest missing verification smoke fixture."
+topic: manifest missing verification smoke
+created: 2026-07-07
+status: LOCKED
+locked_at: 2026-07-07
+---
+
+# DP-991
+
+## Implementation Checklist
+
+- [ ] T1: First task — `tasks/T1/index.md`
+- [ ] V1: Dogfood verification — `tasks/V1/index.md`
+MD
+  cat >"$dp_dir/refinement.json" <<'JSON'
+{
+  "source": {"type": "dp", "id": "DP-991"},
+  "verification_strategy": {"mode": "source_level_v_required", "reason": "selftest", "authority": "selftest"},
+  "tasks": [
+    {"id": "T1", "title": "implementation"},
+    {"id": "V1", "title": "verification"}
+  ]
+}
+JSON
+  cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
+---
+title: "DP-991 T1"
+description: "DP-991 T1 manifest missing verification smoke fixture."
+status: IMPLEMENTED
+---
+# T1
+
+> Source: DP-991 | Task: DP-991-T1 | JIRA: N/A | Repo: polaris-framework
+MD
+  if env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T1/index.md" --workspace "$tmpdir" >/dev/null 2>&1; then
+    echo "[selftest] source_level_v_required manifest missing V did not block parent closeout" >&2
+    return 1
+  fi
+  ! grep -q '^status: IMPLEMENTED$' "$dp_dir/index.md" || {
+    echo "[selftest] source_level_v_required missing V allowed parent implemented status" >&2
+    return 1
+  }
+
+  dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-990-manifest-pass-verification"
+  mkdir -p "$dp_dir/tasks/pr-release/T1" "$dp_dir/tasks/pr-release/V1"
+  cat >"$dp_dir/index.md" <<'MD'
+---
+title: "DP-990 manifest pass verification"
+description: "DP-990 manifest pass verification smoke fixture."
+topic: manifest pass verification smoke
+created: 2026-07-07
+status: LOCKED
+locked_at: 2026-07-07
+---
+
+# DP-990
+
+## Implementation Checklist
+
+- [ ] T1: First task — `tasks/T1/index.md`
+- [ ] V1: Dogfood verification — `tasks/V1/index.md`
+MD
+  cat >"$dp_dir/refinement.json" <<'JSON'
+{
+  "source": {"type": "dp", "id": "DP-990"},
+  "verification_strategy": {"mode": "source_level_v_required", "reason": "selftest", "authority": "selftest"},
+  "tasks": [
+    {"id": "T1", "title": "implementation"},
+    {"id": "V1", "title": "verification"}
+  ]
+}
+JSON
+  cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
+---
+title: "DP-990 T1"
+description: "DP-990 T1 manifest pass verification smoke fixture."
+status: IMPLEMENTED
+---
+# T1
+
+> Source: DP-990 | Task: DP-990-T1 | JIRA: N/A | Repo: polaris-framework
+MD
+  cat >"$dp_dir/tasks/pr-release/V1/index.md" <<'MD'
+---
+title: "DP-990 V1"
+description: "DP-990 V1 manifest pass verification smoke fixture."
+status: IMPLEMENTED
+ac_verification:
+  status: PASS
+  last_run_at: 2026-07-07T00:00:00Z
+  ac_total: 1
+  ac_pass: 1
+  ac_fail: 0
+  ac_manual_required: 0
+  ac_uncertain: 0
+---
+# V1
+
+> Source: DP-990 | Task: DP-990-V1 | JIRA: N/A | Repo: polaris-framework
+MD
+  env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T1/index.md" --workspace "$tmpdir" >/dev/null
+  grep -q '^status: IMPLEMENTED$' "$dp_dir/index.md" || {
+    echo "[selftest] source_level_v_required terminal PASS V did not close parent" >&2
+    return 1
+  }
+
+  dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-989-manifest-fail-verification"
+  mkdir -p "$dp_dir/tasks/pr-release/T1" "$dp_dir/tasks/pr-release/V1"
+  cat >"$dp_dir/index.md" <<'MD'
+---
+title: "DP-989 manifest fail verification"
+description: "DP-989 manifest fail verification smoke fixture."
+topic: manifest fail verification smoke
+created: 2026-07-07
+status: LOCKED
+locked_at: 2026-07-07
+---
+
+# DP-989
+
+## Implementation Checklist
+
+- [ ] T1: First task — `tasks/T1/index.md`
+- [ ] V1: Dogfood verification — `tasks/V1/index.md`
+MD
+  cp "$dp_dir/../DP-990-manifest-pass-verification/refinement.json" "$dp_dir/refinement.json"
+  sed -i.bak 's/DP-990/DP-989/g' "$dp_dir/refinement.json" && rm -f "$dp_dir/refinement.json.bak"
+  cp "$dp_dir/../DP-990-manifest-pass-verification/tasks/pr-release/T1/index.md" "$dp_dir/tasks/pr-release/T1/index.md"
+  sed -i.bak 's/DP-990/DP-989/g' "$dp_dir/tasks/pr-release/T1/index.md" && rm -f "$dp_dir/tasks/pr-release/T1/index.md.bak"
+  cat >"$dp_dir/tasks/pr-release/V1/index.md" <<'MD'
+---
+title: "DP-989 V1"
+description: "DP-989 V1 manifest fail verification smoke fixture."
+status: IMPLEMENTED
+ac_verification:
+  status: FAIL
+  last_run_at: 2026-07-07T00:00:00Z
+  ac_total: 1
+  ac_pass: 0
+  ac_fail: 1
+  ac_manual_required: 0
+  ac_uncertain: 0
+  human_disposition: rejected
+---
+# V1
+
+> Source: DP-989 | Task: DP-989-V1 | JIRA: N/A | Repo: polaris-framework
+MD
+  if env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T1/index.md" --workspace "$tmpdir" >/dev/null 2>&1; then
+    echo "[selftest] source_level_v_required terminal non-PASS V did not block parent closeout" >&2
+    return 1
+  fi
+  ! grep -q '^status: IMPLEMENTED$' "$dp_dir/index.md" || {
+    echo "[selftest] source_level_v_required non-PASS V allowed parent implemented status" >&2
+    return 1
+  }
+
+  dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-988-per-task-no-verification"
+  mkdir -p "$dp_dir/tasks/pr-release/T1"
+  cat >"$dp_dir/index.md" <<'MD'
+---
+title: "DP-988 per task no verification"
+description: "DP-988 per task no verification smoke fixture."
+topic: per task no verification smoke
+created: 2026-07-07
+status: LOCKED
+locked_at: 2026-07-07
+---
+
+# DP-988
+
+## Implementation Checklist
+
+- [ ] T1: First task — `tasks/T1/index.md`
+MD
+  cat >"$dp_dir/refinement.json" <<'JSON'
+{
+  "source": {"type": "dp", "id": "DP-988"},
+  "verification_strategy": {"mode": "per_task_self_verify", "reason": "selftest", "authority": "selftest"},
+  "tasks": [
+    {"id": "T1", "title": "implementation"}
+  ]
+}
+JSON
+  cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
+---
+title: "DP-988 T1"
+description: "DP-988 T1 per task no verification smoke fixture."
+status: IMPLEMENTED
+---
+# T1
+
+> Source: DP-988 | Task: DP-988-T1 | JIRA: N/A | Repo: polaris-framework
+MD
+  env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T1/index.md" --workspace "$tmpdir" >/dev/null
+  grep -q '^status: IMPLEMENTED$' "$dp_dir/index.md" || {
+    echo "[selftest] per_task_self_verify no-V source did not close parent" >&2
+    return 1
+  }
+
+  dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-987-external-ac-no-verification"
+  mkdir -p "$dp_dir/tasks/pr-release/T1"
+  cat >"$dp_dir/index.md" <<'MD'
+---
+title: "DP-987 external ac no verification"
+description: "DP-987 external ac no verification smoke fixture."
+topic: external ac no verification smoke
+created: 2026-07-07
+status: LOCKED
+locked_at: 2026-07-07
+---
+
+# DP-987
+
+## Implementation Checklist
+
+- [ ] T1: First task — `tasks/T1/index.md`
+MD
+  cat >"$dp_dir/refinement.json" <<'JSON'
+{
+  "source": {"type": "dp", "id": "DP-987"},
+  "verification_strategy": {"mode": "external_ac_ticket", "reason": "selftest", "authority": "selftest"},
+  "tasks": [
+    {"id": "T1", "title": "implementation"}
+  ]
+}
+JSON
+  cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
+---
+title: "DP-987 T1"
+description: "DP-987 T1 external ac no verification smoke fixture."
+status: IMPLEMENTED
+---
+# T1
+
+> Source: DP-987 | Task: DP-987-T1 | JIRA: N/A | Repo: polaris-framework
+MD
+  env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T1/index.md" --workspace "$tmpdir" >/dev/null
+  grep -q '^status: IMPLEMENTED$' "$dp_dir/index.md" || {
+    echo "[selftest] external_ac_ticket no local V source did not close parent" >&2
+    return 1
+  }
+
+  company_dir="$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-991"
+  mkdir -p "$company_dir/tasks/pr-release/T1"
+  cat >"$company_dir/refinement.md" <<'MD'
+---
+title: "EPIC-991 manifest missing verification"
+description: "EPIC-991 manifest missing verification smoke fixture."
+status: LOCKED
+---
+# EPIC-991
+
+## Implementation Checklist
+
+- [ ] T1: Product task — `tasks/T1/index.md`
+- [ ] V1: Product verification — `tasks/V1/index.md`
+MD
+  cat >"$company_dir/refinement.json" <<'JSON'
+{
+  "source": {"type": "jira", "id": "EPIC-991"},
+  "verification_strategy": {"mode": "source_level_v_required", "reason": "selftest", "authority": "selftest"},
+  "tasks": [
+    {"id": "T1", "title": "implementation"},
+    {"id": "V1", "title": "verification"}
+  ]
+}
+JSON
+  cat >"$company_dir/tasks/pr-release/T1/index.md" <<'MD'
+---
+title: "EPIC-991 T1"
+description: "EPIC-991 T1 manifest missing verification smoke fixture."
+status: IMPLEMENTED
+---
+# T1
+
+> Source: EPIC-991 | Task: TASK-9911 | JIRA: TASK-9911 | Repo: exampleco-b2c-web
+MD
+  if env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$company_dir/tasks/pr-release/T1/index.md" --workspace "$tmpdir" >/dev/null 2>&1; then
+    echo "[selftest] jira source_level_v_required manifest missing V did not block parent closeout" >&2
+    return 1
+  fi
+  ! grep -q '^status: IMPLEMENTED$' "$company_dir/refinement.md" || {
+    echo "[selftest] jira source_level_v_required missing V allowed parent implemented status" >&2
+    return 1
+  }
+
   dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-995-folder-native-parent-archive"
   mkdir -p "$dp_dir/tasks/pr-release/T1"
   cat >"$dp_dir/index.md" <<'MD'
@@ -586,6 +878,52 @@ def ac_verification_status(path: Path) -> str:
                 return match.group(1)
     return ""
 
+def short_work_item_id(value: object) -> str:
+    raw = str(value or "").strip()
+    match = re.fullmatch(r"[A-Z][A-Z0-9]*-\d+-([TV]\d+[a-z]*)", raw)
+    if match:
+        return match.group(1)
+    if re.fullmatch(r"[TV]\d+[a-z]*", raw):
+        return raw
+    return raw
+
+def required_manifest_v_ids(parent_dir: Path) -> list[str]:
+    refinement_json = parent_dir / "refinement.json"
+    if not refinement_json.exists():
+        return []
+    try:
+        data = json.loads(refinement_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    strategy = data.get("verification_strategy")
+    if not isinstance(strategy, dict) or strategy.get("mode") != "source_level_v_required":
+        return []
+
+    required = []
+    tasks = data.get("tasks")
+    if not isinstance(tasks, list):
+        return required
+    for entry in tasks:
+        if not isinstance(entry, dict):
+            continue
+        task_id = short_work_item_id(entry.get("id"))
+        kind = str(entry.get("kind") or entry.get("task_kind") or entry.get("type") or "").strip().lower()
+        if task_id.startswith("V") or kind in {"v", "verification"}:
+            if task_id:
+                required.append(task_id)
+    return sorted(set(required))
+
+def task_path_for_stem(root: Path, stem: str) -> Path | None:
+    candidates = [
+        root / f"{stem}.md",
+        root / stem / "index.md",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
 parts = task_md.parts
 if "tasks" not in parts:
     emit(action="noop", reason="task path is not under tasks/", task_md=str(task_md))
@@ -663,6 +1001,7 @@ implemented_stems = {
     task_stem(p) for p in completed_tasks
     if frontmatter_status(p) == "IMPLEMENTED"
 }
+required_manifest_vs = required_manifest_v_ids(parent_dir)
 # AC-NEG13: ABANDONED siblings should reflect ABANDONED status in the Work Orders
 # table, not be silently migrated to IMPLEMENTED.
 abandoned_stems_for_work_orders = {
@@ -771,6 +1110,20 @@ if active_tasks:
         reason="active sibling tasks remain",
         parent=str(parent_file),
         active=[str(p) for p in active_tasks],
+    )
+    sys.exit(0)
+
+missing_manifest_vs = [
+    stem for stem in required_manifest_vs
+    if task_path_for_stem(tasks_dir, stem) is None
+    and task_path_for_stem(pr_release, stem) is None
+]
+if missing_manifest_vs:
+    emit(
+        action="block",
+        reason="required verification tasks missing from refinement manifest",
+        parent=str(parent_file),
+        missing=missing_manifest_vs,
     )
     sys.exit(0)
 

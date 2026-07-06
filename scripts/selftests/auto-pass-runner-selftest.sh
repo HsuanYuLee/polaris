@@ -175,6 +175,34 @@ write_v_task_ac() {
   } >"$task_dir/index.md"
 }
 
+write_dp900_refinement_strategy() {
+  local mode="$1" include_v="${2:-0}"
+  {
+    echo "{"
+    echo "  \"source\": {\"type\": \"dp\", \"id\": \"DP-900\"},"
+    echo "  \"verification_strategy\": {\"mode\": \"$mode\", \"reason\": \"selftest\", \"authority\": \"selftest\"},"
+    echo "  \"modules\": [{\"path\": \"scripts/auto-pass-runner.sh\", \"action\": \"modify\"}],"
+    echo "  \"acceptance_criteria\": [],"
+    echo "  \"tasks\": ["
+    echo "    {\"id\": \"T1\", \"title\": \"implementation\"}"
+    if [[ "$include_v" == "1" ]]; then
+      echo "    ,{\"id\": \"V1\", \"title\": \"verification\"}"
+    fi
+    echo "  ]"
+    echo "}"
+  } >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement.json"
+}
+
+reset_dp900_refinement() {
+  cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement.json" <<'JSON'
+{
+  "source": {"type": "dp", "id": "DP-900"},
+  "modules": [{"path": "scripts/auto-pass-runner.sh", "action": "modify"}],
+  "acceptance_criteria": []
+}
+JSON
+}
+
 run_runner() {
   bash "$RUNNER" --repo "$TMP" "$@"
 }
@@ -293,6 +321,28 @@ assert_field "verify-spec-issue-action"   "refinement_amendment" next_action --s
 assert_field "verify-spec-issue-terminal" "null" terminal_status --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
 rm "$TMP/.polaris/evidence/ac-verification/spec-issue-DP-900-V1-abc1234.json"
 remove_task_deliverable DP-900-V1
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Terminal complete manifest V gate fixtures
+# ──────────────────────────────────────────────────────────────────────────────
+write_dp900_refinement_strategy source_level_v_required 1
+write_task_deliverable DP-900-T1 abc1234 PASS
+assert_field "terminal-manifest-missing-v" "blocked_by_gate_failure" terminal_status --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
+remove_task_deliverable DP-900-T1
+rm -rf "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/pr-release"
+
+write_dp900_refinement_strategy per_task_self_verify 0
+write_task_deliverable DP-900-T1 abc1234 PASS
+assert_field "terminal-per-task-no-v" "complete" terminal_status --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
+remove_task_deliverable DP-900-T1
+rm -rf "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/pr-release"
+
+write_dp900_refinement_strategy external_ac_ticket 0
+write_task_deliverable DP-900-T1 abc1234 PASS
+assert_field "terminal-external-ac-no-v" "complete" terminal_status --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
+remove_task_deliverable DP-900-T1
+rm -rf "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/pr-release"
+reset_dp900_refinement
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Loop cap fixture (via ledger)

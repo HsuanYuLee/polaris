@@ -70,9 +70,32 @@ ac_status_of() {
   ' "$1"
 }
 
+verification_strategy_mode() {
+  local source="$1"
+  local refinement_json="$source/refinement.json"
+  [[ -f "$refinement_json" ]] || { printf '\n'; return 0; }
+  python3 - "$refinement_json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+try:
+    data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+except Exception:
+    print("")
+    raise SystemExit(0)
+
+strategy = data.get("verification_strategy")
+if isinstance(strategy, dict):
+    print(strategy.get("mode") or "")
+else:
+    print("")
+PY
+}
+
 check_callsites() {
   rg -q "check-main-chain-compliance.sh" "$REPO_ROOT/.claude/skills/references/breakdown-dp-intake-flow.md" || fail "breakdown DP intake missing main-chain compliance callsite"
-  rg -q "check-main-chain-compliance.sh" "$REPO_ROOT/.claude/skills/references/engineer-delivery-flow.md" || fail "engineering delivery missing main-chain compliance callsite"
+  rg -q "check-main-chain-compliance.sh" "$REPO_ROOT/.claude/skills/references/engineer-delivery-flow-R2-flow-vr.md" || fail "engineering delivery missing main-chain compliance callsite"
   rg -q "check-main-chain-compliance.sh" "$REPO_ROOT/.claude/skills/references/verify-ac-reporting-flow.md" || fail "verify-AC reporting missing main-chain compliance callsite"
   rg -q "check-main-chain-compliance.sh" "$REPO_ROOT/scripts/framework-release-closeout.sh" || fail "framework release closeout missing main-chain compliance callsite"
 }
@@ -119,7 +142,8 @@ check_source_container() {
   fi
   [[ -d "$source/tasks" ]] || { fail "source container missing tasks directory: $source"; return; }
 
-  local t_count=0 v_count=0 active_v=0 bad_v=0
+  local t_count=0 v_count=0 active_v=0 bad_v=0 verification_mode=""
+  verification_mode="$(verification_strategy_mode "$source")"
   while IFS= read -r task; do
     [[ -n "$task" ]] || continue
     t_count=$((t_count + 1))
@@ -140,7 +164,9 @@ check_source_container() {
   done < <(find_verification_tasks "$source")
 
   [[ "$t_count" -gt 0 ]] || fail "source container has no T*.md implementation tasks"
-  [[ "$v_count" -gt 0 ]] || fail "source container has no V*.md dogfood/AC verification task"
+  if [[ "$verification_mode" == "source_level_v_required" ]]; then
+    [[ "$v_count" -gt 0 ]] || fail "source container has no V*.md dogfood/AC verification task"
+  fi
 
   if [[ "$REQUIRE_RELEASE_METADATA" -eq 1 ]]; then
     while IFS= read -r task; do

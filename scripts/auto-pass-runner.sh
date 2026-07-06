@@ -329,6 +329,51 @@ def frontmatter_field(path, field):
     return ""
 
 
+def short_work_item_id(value):
+    raw = str(value or "").strip()
+    match = re.fullmatch(r"[A-Z][A-Z0-9]*-\d+-([TV]\d+[a-z]*)", raw)
+    if match:
+        return match.group(1)
+    if re.fullmatch(r"[TV]\d+[a-z]*", raw):
+        return raw
+    return raw
+
+
+def required_manifest_v_ids(container):
+    refinement_json = container / "refinement.json"
+    if not refinement_json.is_file():
+        return []
+    try:
+        data = json.loads(refinement_json.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+    strategy = data.get("verification_strategy")
+    if not isinstance(strategy, dict) or strategy.get("mode") != "source_level_v_required":
+        return []
+
+    tasks = data.get("tasks")
+    if not isinstance(tasks, list):
+        return []
+    required = []
+    for entry in tasks:
+        if not isinstance(entry, dict):
+            continue
+        task_id = short_work_item_id(entry.get("id"))
+        kind = str(entry.get("kind") or entry.get("task_kind") or entry.get("type") or "").strip().lower()
+        if task_id.startswith("V") or kind in {"v", "verification"}:
+            if task_id:
+                required.append(task_id)
+    return sorted(set(required))
+
+
+def task_path_for_stem(root, stem):
+    for candidate in (root / f"{stem}.md", root / stem / "index.md"):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 def t_entry_status_file(entry):
     """Map a T task entry (file or folder-native dir) to its status file."""
     return entry / "index.md" if entry.is_dir() else entry
@@ -532,8 +577,8 @@ def terminal_complete_v_gate(repo_path, scripts_dir):
     """Run the Terminal Complete Sequence; return a blocked payload or None.
 
     None means the gate passed (or is vacuous: no source tasks/ directory or
-    no V work items at all — the breakdown missing_v_task gate owns that case)
-    and the caller may keep terminal_status=complete.
+    no V work items are required by refinement.json) and the caller may keep
+    terminal_status=complete.
     """
     mark_spec = scripts_dir / "mark-spec-implemented.sh"
     for required in (mark_spec,):
@@ -545,14 +590,27 @@ def terminal_complete_v_gate(repo_path, scripts_dir):
     container = ctx["container"]
     tasks_dir = ctx["tasks_dir"]
     pr_release_dir = ctx["pr_release_dir"]
+    required_manifest_vs = required_manifest_v_ids(container)
 
     active_v = list_v_entries(tasks_dir)
     pr_release_v = list_v_entries(pr_release_dir)
     active_t = list_t_entries(tasks_dir)
     pr_release_t = list_t_entries(pr_release_dir)
+    missing_manifest_vs = [
+        stem for stem in required_manifest_vs
+        if task_path_for_stem(tasks_dir, stem) is None
+        and task_path_for_stem(pr_release_dir, stem) is None
+    ]
+    if missing_manifest_vs:
+        names = ", ".join(missing_manifest_vs)
+        return gate_blocked(
+            "terminal complete blocked: required V work item(s) missing from "
+            f"refinement manifest: {names}",
+            container / "refinement.json",
+        )
     if not active_v and not pr_release_v and not active_t and not pr_release_t:
-        # Vacuous: source has no V or T work items on disk. Missing V coverage
-        # is the breakdown missing_v_task gate's responsibility, not this gate's.
+        # Vacuous: source has no work items on disk and refinement.json did not
+        # declare source-level required local V work items.
         return None
 
     # DP container → fully-qualified DP-NNN-{stem} key (deterministic Path 3 in
