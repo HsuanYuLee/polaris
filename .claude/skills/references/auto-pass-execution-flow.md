@@ -104,15 +104,21 @@ dispatch envelope 描述 orchestrator 把 runner JSON 翻譯成下一段 sub-age
   皆必帶；resume 也帶同一個 ledger）。
 - `worktree_resolution`：engineering / verify-AC stage 透過
   `scripts/resolve-task-worktree.sh --source-id ... --work-item-id ... --format json`
-  解析得到，JSON 形如 `{"status": "FOUND|NONE", "path": "<abs|null>", "task_key": "<key>"}`。
-  - `FOUND` → 帶 worktree path，sub-agent 直接以該路徑作為 implementation repo / cwd。
+  解析得到，JSON 形如
+  `{"status": "FOUND|NONE", "path": "<abs|null>", "task_key": "<key>", "kind": "implementation|verify_integration|null"}`。
+  - `FOUND` + `kind=implementation` → 帶 implementation worktree path，sub-agent 直接以
+    該路徑作為 implementation repo / cwd。
+  - `FOUND` + `kind=verify_integration` → 僅限 source-level V work order；resolver 已依
+    predecessor deliverable head 或 V task `Base branch` 建立 / 找到
+    `verify-integration-{source}-{Vn}` throwaway worktree。orchestrator 必須把此 path 原樣
+    dispatch 給 verify-AC，verify-AC 必須在該 path 執行，不得 fall back 到 main checkout。
   - `NONE` 且 stage 為 engineering first-cut（runner JSON 為 `next_action=dispatch`，
     `next_skill=engineering`，且 `evidence_path` 尚無 completion-gate marker）→ 正常初始
     狀態，orchestrator 仍 dispatch `engineering`，由 `engineering-branch-setup.sh` 建 fresh
     branch / worktree。
   - `NONE` 但 stage 為 verify-AC 或 engineering resume（runner JSON 不是 first-cut path）→
-    terminal `blocked_by_missing_worktree`；orchestrator 不得在 verify-AC 階段隱式建立新的
-    implementation worktree。
+    terminal `blocked_by_missing_worktree`；orchestrator 不得在 verify-AC 階段 fallback 到 main
+    checkout 或隱式建立 implementation worktree。
   - `AMBIGUOUS` → resolver 自身 fail-stop（stderr），orchestrator 升 terminal
     `blocked_by_gate_failure` 並把 resolver stderr 寫入 ledger friction。
 

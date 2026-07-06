@@ -81,7 +81,7 @@ assert_rc "$?" "0" "NONE path exits 0"
 
 # --- Test 1b: JSON shape for NONE ---
 out_json="$("$RESOLVER" --source-id DP-228 --work-item-id T17 --repo "$FIXTURE_REPO" --format json 2>/dev/null)"
-assert_eq "$out_json" '{"status":"NONE","path":null,"task_key":"DP-228-T17"}' "json NONE shape"
+assert_eq "$out_json" '{"status":"NONE","path":null,"task_key":"DP-228-T17","kind":null}' "json NONE shape"
 
 # --- Set up a single active worktree on task/DP-228-T17-impl ---
 WT_SINGLE="$FIXTURE_REPO/.worktrees/repo-engineering-DP-228-T17"
@@ -93,7 +93,7 @@ assert_eq "$out" "$WT_SINGLE" "active worktree returns absolute path"
 
 # --- Test 2b: JSON shape for FOUND ---
 out_json="$("$RESOLVER" --source-id DP-228 --work-item-id T17 --repo "$FIXTURE_REPO" --format json 2>/dev/null)"
-assert_eq "$out_json" "{\"status\":\"FOUND\",\"path\":\"$WT_SINGLE\",\"task_key\":\"DP-228-T17\"}" "json FOUND shape"
+assert_eq "$out_json" "{\"status\":\"FOUND\",\"path\":\"$WT_SINGLE\",\"task_key\":\"DP-228-T17\",\"kind\":\"implementation\"}" "json FOUND shape"
 
 # --- Test 3: fully-qualified work_item_id without --source-id ---
 out="$("$RESOLVER" --work-item-id DP-228-T17 --repo "$FIXTURE_REPO" 2>/dev/null)"
@@ -196,7 +196,7 @@ assert_eq "$out" "$WT_BUNDLE" "bundle T9 resolves to same bundle worktree"
 
 # --- Test 9c: JSON shape for bundle FOUND ---
 out_json="$("$RESOLVER" --source-id DP-294 --work-item-id V1 --repo "$FIXTURE_REPO" --format json 2>/dev/null)"
-assert_eq "$out_json" "{\"status\":\"FOUND\",\"path\":\"$WT_BUNDLE\",\"task_key\":\"DP-294-V1\"}" "json bundle FOUND shape"
+assert_eq "$out_json" "{\"status\":\"FOUND\",\"path\":\"$WT_BUNDLE\",\"task_key\":\"DP-294-V1\",\"kind\":\"implementation\"}" "json bundle FOUND shape"
 
 # --- Test 10: per-task NOT regressed — T8 has no alias, so even with a bundle
 #             worktree present for the source, T8 uses the task/ pattern and
@@ -210,6 +210,102 @@ WT_T8="$FIXTURE_REPO/.worktrees/repo-engineering-DP-294-T8"
 git -C "$FIXTURE_REPO" worktree add -q -b task/DP-294-T8-impl "$WT_T8" main
 out="$("$RESOLVER" --source-id DP-294 --work-item-id T8 --repo "$FIXTURE_REPO" 2>/dev/null)"
 assert_eq "$out" "$WT_T8" "per-task T8 resolves task/ worktree alongside bundle"
+
+# ===========================================================================
+# DP-409 / source-level V integration handoff:
+# No implementation worktree is expected after engineering cleanup. A V task
+# without bundle_branch_alias resolves to a verify-integration-{source}-{Vn}
+# throwaway branch/worktree, bound to the predecessor deliverable head first.
+# ===========================================================================
+
+DP410="$FIXTURE_REPO/docs-manager/src/content/docs/specs/design-plans/DP-410-v-integration-fixture"
+mkdir -p "$DP410/tasks/pr-release/T1" "$DP410/tasks/V1"
+T1_HEAD="$(git -C "$FIXTURE_REPO" rev-parse HEAD)"
+cat >"$DP410/tasks/pr-release/T1/index.md" <<EOF
+---
+title: "fixture T1 delivered"
+status: IMPLEMENTED
+deliverable:
+  pr_url: https://github.com/example/repo/pull/1
+  pr_state: OPEN
+  head_sha: $T1_HEAD
+---
+# T1 fixture
+EOF
+cat >"$DP410/tasks/V1/index.md" <<'EOF'
+---
+title: "fixture V1"
+depends_on: [DP-410-T1]
+---
+# V1 fixture
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Base branch | missing mutable branch |
+EOF
+
+WT_V1="$FIXTURE_REPO/.worktrees/repo-verify-integration-DP-410-V1"
+out="$("$RESOLVER" --source-id DP-410 --work-item-id V1 --repo "$FIXTURE_REPO" 2>/dev/null)"
+assert_eq "$out" "$WT_V1" "V1 creates verify-integration worktree from predecessor deliverable head"
+branch_head="$(git -C "$FIXTURE_REPO" rev-parse verify-integration-DP-410-V1)"
+assert_eq "$branch_head" "$T1_HEAD" "V1 integration branch head equals predecessor deliverable head"
+out_json="$("$RESOLVER" --source-id DP-410 --work-item-id V1 --repo "$FIXTURE_REPO" --format json 2>/dev/null)"
+assert_eq "$out_json" "{\"status\":\"FOUND\",\"path\":\"$WT_V1\",\"task_key\":\"DP-410-V1\",\"kind\":\"verify_integration\"}" "json verify integration FOUND shape"
+
+# --- DP/JIRA parity: company-scoped sources use the same source-level V handoff ---
+JIRA_SRC="$FIXTURE_REPO/docs-manager/src/content/docs/specs/companies/acme/ACME-500"
+mkdir -p "$JIRA_SRC/tasks/pr-release/T1" "$JIRA_SRC/tasks/V1"
+cat >"$JIRA_SRC/tasks/pr-release/T1/index.md" <<EOF
+---
+title: "fixture T1 delivered"
+status: IMPLEMENTED
+deliverable:
+  pr_url: https://github.com/example/repo/pull/2
+  pr_state: OPEN
+  head_sha: $T1_HEAD
+---
+# T1 fixture
+EOF
+cat >"$JIRA_SRC/tasks/V1/index.md" <<'EOF'
+---
+title: "fixture V1"
+depends_on: [ACME-500-T1]
+---
+# V1 fixture
+EOF
+
+WT_JIRA_V1="$FIXTURE_REPO/.worktrees/repo-verify-integration-ACME-500-V1"
+out="$("$RESOLVER" --source-id ACME-500 --work-item-id V1 --repo "$FIXTURE_REPO" 2>/dev/null)"
+assert_eq "$out" "$WT_JIRA_V1" "JIRA V1 creates verify-integration worktree from predecessor deliverable head"
+out_json="$("$RESOLVER" --source-id ACME-500 --work-item-id V1 --repo "$FIXTURE_REPO" --format json 2>/dev/null)"
+assert_eq "$out_json" "{\"status\":\"FOUND\",\"path\":\"$WT_JIRA_V1\",\"task_key\":\"ACME-500-V1\",\"kind\":\"verify_integration\"}" "json JIRA verify integration FOUND shape"
+
+# --- Missing predecessor/base authority fails closed instead of guessing a ref ---
+DP411="$FIXTURE_REPO/docs-manager/src/content/docs/specs/design-plans/DP-411-v-integration-missing-authority"
+mkdir -p "$DP411/tasks/V1"
+cat >"$DP411/tasks/V1/index.md" <<'EOF'
+---
+title: "fixture V1 missing authority"
+depends_on: [DP-411-T1]
+---
+# V1 fixture
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Base branch | missing mutable branch |
+EOF
+
+missing_err="$TMPDIR/missing-authority.err"
+set +e
+out="$("$RESOLVER" --source-id DP-411 --work-item-id V1 --repo "$FIXTURE_REPO" 2>"$missing_err")"
+rc=$?
+set -e
+assert_rc "$rc" "1" "V1 missing predecessor/base authority exits 1"
+assert_contains "$(cat "$missing_err")" "POLARIS_VERIFY_INTEGRATION_AUTHORITY_MISSING" "missing authority stderr token"
 
 echo "[resolve-task-worktree-selftest] $PASS/$TOTAL passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]] && exit 0 || exit 1

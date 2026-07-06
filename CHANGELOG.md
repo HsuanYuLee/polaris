@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.75] - 2026-07-07
+
+### Changed
+
+- 7500660: source-level V integration worktree resolver 補強
+- da7698b: auto-pass verify-AC integration dispatch contract 補強
+
 ## [3.76.74] - 2026-07-06
 
 ### Changed

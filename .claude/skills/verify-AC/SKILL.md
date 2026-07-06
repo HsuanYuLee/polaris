@@ -140,8 +140,13 @@ receiver-side 合約：
 
 - `worktree_resolution.status=FOUND`：verify-AC 必須在 `worktree_resolution.path` 內
   執行 verify command 與讀取 evidence layout，不得 fall back 到 main checkout。
+  - `worktree_resolution.kind=implementation`：path 是 implementation worktree。
+  - `worktree_resolution.kind=verify_integration`：path 是
+    `verify-integration-{source}-{Vn}` throwaway worktree，僅供 source-level V 驗收使用；
+    verify-AC 不得 checkout、advance 或刪除任何 `task/*` delivery branch。
 - `worktree_resolution.status=NONE`：不得自動建 worktree；回 orchestrator 由
-  `blocked_by_missing_worktree` 處理，advisory 提示使用者重建。
+  `blocked_by_missing_worktree` 處理，advisory 提示使用者重建；不得改用 main checkout
+  執行驗收。
 - envelope 缺 `worktree_resolution` 欄位：fail-stop，stderr
   `POLARIS_DISPATCH_WORKTREE_RESOLUTION_MISSING`。
 - envelope `worktree_resolution.path` 與 resolver 輸出（同 source-id / work-item-id）

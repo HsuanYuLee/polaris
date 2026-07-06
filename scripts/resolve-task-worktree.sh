@@ -179,6 +179,26 @@ locate_task_md() {
   return 0
 }
 
+# Locate a task.md in either active tasks/ or completed tasks/pr-release/.
+locate_any_task_md() {
+  local source_id="$1" short_item="$2" repo="$3"
+  [[ -n "$source_id" && -n "$short_item" ]] || return 0
+  local main_co specs_root cand
+  main_co="$(resolve_main_checkout "$repo" 2>/dev/null)" || return 0
+  specs_root="$(resolve_specs_root "$main_co" 2>/dev/null)" || return 0
+  for cand in \
+    "$specs_root"/design-plans/"$source_id"-*/tasks/"$short_item"/index.md \
+    "$specs_root"/design-plans/"$source_id"-*/tasks/pr-release/"$short_item"/index.md \
+    "$specs_root"/companies/*/"$source_id"/tasks/"$short_item"/index.md \
+    "$specs_root"/companies/*/"$source_id"/tasks/pr-release/"$short_item"/index.md; do
+    if [[ -f "$cand" ]]; then
+      printf '%s\n' "$cand"
+      return 0
+    fi
+  done
+  return 0
+}
+
 # Resolve the delivery branch alias for a work item: the bundle_branch_alias
 # from its task.md when bundle-delivered, otherwise empty (per-task delivery).
 resolve_delivery_alias() {
@@ -188,6 +208,150 @@ resolve_delivery_alias() {
   task_md="$(locate_task_md "$source_id" "$short_item" "$repo")"
   [[ -n "$task_md" ]] || return 0
   bundle_branch_alias_for_task "$task_md"
+}
+
+frontmatter_depends_on_last_t() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  awk '
+    /^---$/ { fm++; next }
+    fm == 1 && /^depends_on:/ {
+      line=$0
+      gsub(/^depends_on:[[:space:]]*\[/, "", line)
+      gsub(/\][[:space:]]*$/, "", line)
+      n=split(line, parts, ",")
+      for (i=1; i<=n; i++) {
+        dep=parts[i]
+        gsub(/^[[:space:]"'\''`]+|[[:space:]"'\''`]+$/, "", dep)
+        if (dep ~ /-T[0-9]+[a-z]?$/ || dep ~ /^T[0-9]+[a-z]?$/) {
+          last=dep
+        }
+      }
+      if (last != "") print last
+      exit
+    }
+  ' "$file" 2>/dev/null || true
+}
+
+operational_context_value() {
+  local file="$1" field="$2"
+  [[ -f "$file" ]] || return 0
+  awk -F '|' -v field="$field" '
+    $0 ~ /^\|/ {
+      key=$2
+      val=$3
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
+      if (key == field) {
+        print val
+        exit
+      }
+    }
+  ' "$file" 2>/dev/null || true
+}
+
+deliverable_head_sha() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  awk '
+    /^deliverable:/ { in_deliverable=1; next }
+    in_deliverable && /^[^[:space:]][^:]*:/ { exit }
+    in_deliverable && /^[[:space:]]+head_sha:/ {
+      sub(/^[[:space:]]+head_sha:[[:space:]]*/, "")
+      print
+      exit
+    }
+  ' "$file" 2>/dev/null || true
+}
+
+resolve_ref() {
+  local repo="$1" ref="$2"
+  [[ -n "$ref" ]] || return 1
+  git -C "$repo" rev-parse --verify --quiet "$ref^{commit}" \
+    || git -C "$repo" rev-parse --verify --quiet "refs/heads/$ref^{commit}" \
+    || git -C "$repo" rev-parse --verify --quiet "refs/remotes/origin/$ref^{commit}"
+}
+
+resolve_v_integration_authority() {
+  local source_id="$1" work_item_id="$2" repo="$3"
+  local short_item v_task dep dep_short dep_task head base_ref
+  short_item="$(short_work_item "$work_item_id")"
+  [[ "$short_item" == V* ]] || return 1
+  v_task="$(locate_any_task_md "$source_id" "$short_item" "$repo")"
+  [[ -n "$v_task" ]] || {
+    echo "POLARIS_VERIFY_INTEGRATION_AUTHORITY_MISSING: V task not found for $source_id-$short_item" >&2
+    return 1
+  }
+
+  dep="$(frontmatter_depends_on_last_t "$v_task")"
+  if [[ -n "$dep" ]]; then
+    dep_short="$(short_work_item "$dep")"
+    dep_task="$(locate_any_task_md "$source_id" "$dep_short" "$repo")"
+    if [[ -n "$dep_task" ]]; then
+      head="$(deliverable_head_sha "$dep_task")"
+      if [[ -n "$head" ]]; then
+        printf '%s\n' "$head"
+        return 0
+      fi
+    fi
+  fi
+
+  base_ref="$(operational_context_value "$v_task" "Base branch")"
+  if [[ -n "$base_ref" ]]; then
+    resolve_ref "$repo" "$base_ref" && return 0
+  fi
+
+  echo "POLARIS_VERIFY_INTEGRATION_AUTHORITY_MISSING: no predecessor deliverable head or resolvable Base branch for $source_id-$short_item" >&2
+  return 1
+}
+
+worktree_for_branch() {
+  local branch="$1" repo="$2"
+  [[ -n "$branch" && -n "$repo" ]] || return 0
+  git -C "$repo" worktree list --porcelain 2>/dev/null | awk -v branch="$branch" '
+    BEGIN { wt=""; br="" }
+    /^worktree /   { if (wt!="" && br!="") emit(); wt=$2; br="" }
+    /^branch /     { br=$2 }
+    /^$/           { if (wt!="" && br!="") emit(); wt=""; br="" }
+    END            { if (wt!="" && br!="") emit() }
+    function emit() {
+      if (br == "refs/heads/" branch) {
+        print wt
+      }
+    }
+  ' || true
+}
+
+resolve_or_create_verify_integration_worktree() {
+  local source_id="$1" work_item_id="$2" repo="$3"
+  local short_item branch wt_path head repo_name
+  short_item="$(short_work_item "$work_item_id")"
+  [[ "$short_item" == V* ]] || return 1
+
+  branch="verify-integration-${source_id}-${short_item}"
+  repo_name="$(basename "$repo")"
+  wt_path="$repo/.worktrees/${repo_name}-${branch}"
+
+  local existing
+  existing="$(worktree_for_branch "$branch" "$repo")"
+  if [[ -n "$existing" ]]; then
+    printf '%s\n' "$existing"
+    return 0
+  fi
+
+  head="$(resolve_v_integration_authority "$source_id" "$work_item_id" "$repo")" || return 1
+
+  if ! git -C "$repo" rev-parse --verify --quiet "refs/heads/$branch" >/dev/null; then
+    git -C "$repo" branch "$branch" "$head" || return 1
+  fi
+
+  if [[ -e "$wt_path" ]]; then
+    echo "POLARIS_VERIFY_INTEGRATION_WORKTREE_BLOCKED: path exists without registered worktree: $wt_path" >&2
+    return 2
+  fi
+
+  git -C "$repo" worktree add -q "$wt_path" "$branch" || return 1
+  printf '%s\n' "$wt_path"
 }
 
 resolve_task_worktree() {
@@ -266,8 +430,19 @@ resolve_task_worktree() {
   fi
 
   if [[ "$count" -eq 0 ]]; then
+    local short_item integration_path
+    short_item="$(short_work_item "$work_item_id")"
+    if [[ "$short_item" == V* && -z "$delivery_alias" ]]; then
+      integration_path="$(resolve_or_create_verify_integration_worktree "$source_id" "$work_item_id" "$repo")" || return $?
+      if [[ "$format" == "json" ]]; then
+        printf '{"status":"FOUND","path":"%s","task_key":"%s","kind":"verify_integration"}\n' "$integration_path" "$task_key"
+      else
+        printf '%s\n' "$integration_path"
+      fi
+      return 0
+    fi
     if [[ "$format" == "json" ]]; then
-      printf '{"status":"NONE","path":null,"task_key":"%s"}\n' "$task_key"
+      printf '{"status":"NONE","path":null,"task_key":"%s","kind":null}\n' "$task_key"
     else
       echo "NONE"
     fi
@@ -278,7 +453,7 @@ resolve_task_worktree() {
   path="$(printf '%s\n' "$matches" | head -n 1)"
 
   if [[ "$format" == "json" ]]; then
-    printf '{"status":"FOUND","path":"%s","task_key":"%s"}\n' "$path" "$task_key"
+    printf '{"status":"FOUND","path":"%s","task_key":"%s","kind":"implementation"}\n' "$path" "$task_key"
   else
     printf '%s\n' "$path"
   fi
