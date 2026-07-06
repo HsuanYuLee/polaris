@@ -3,7 +3,7 @@
 #          task PR-close (D1) + release-evidence-keyed cleanup trigger (D2) +
 #          gh fail-stop (AC7). Asserts:
 #   - AC1 (PR close): closeout runs `gh pr close --delete-branch` + a
-#     `released vX.Y.Z` comment for each bundled task PR resolved from task.md
+#     zh-TW `已發版 vX.Y.Z` comment for each bundled task PR resolved from task.md
 #     deliverable.pr_url (NOT head ancestry). Already-merged / already-closed PRs
 #     are idempotent-skipped (re-run produces zero extra gh close/comment calls).
 #   - AC2 (release-evidence-keyed trigger): a bundle re-fold whose per-task head
@@ -73,6 +73,21 @@ build_stub_scripts_dir() {
   cp "$ROOT/scripts/framework-release-closeout.sh" "$dst/framework-release-closeout.sh"
   cp "$ROOT/scripts/parse-task-md.sh" "$dst/parse-task-md.sh"
   cp "$ROOT/scripts/resolve-task-base.sh" "$dst/resolve-task-base.sh" 2>/dev/null || true
+  cat >"$dst/polaris-external-write-gate.sh" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+body_file=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --body-file) body_file="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+[[ -n "$body_file" && -f "$body_file" ]] || exit 2
+printf 'external-write-gate %s\n' "$body_file" >>"${POLARIS_STUB_LOG:?}"
+exit 0
+STUB
+  chmod +x "$dst/polaris-external-write-gate.sh"
 
   local helper
   for helper in check-release-eligible.sh check-release-completed.sh \
@@ -170,7 +185,19 @@ case "$1" in
         echo
         exit 0
         ;;
-      comment) exit 0 ;;
+      comment)
+        body_file=""
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --body-file) body_file="$2"; shift 2 ;;
+            *) shift ;;
+          esac
+        done
+        if [[ -n "$body_file" && -f "$body_file" ]]; then
+          printf 'body-file-content %s\n' "$(cat "$body_file")" >>"${FAKE_GH_LOG:?}"
+        fi
+        exit 0
+        ;;
       close) exit 0 ;;
       *) exit 0 ;;
     esac
@@ -187,9 +214,10 @@ init_workspace_repo() {
   git -C "$repo" config user.email selftest@example.com
   git -C "$repo" config user.name selftest
   git -C "$repo" checkout -q -b main
+  printf 'language: "zh-TW"\n' >"$repo/workspace-config.yaml"
   mkdir -p "$repo/docs-manager/src/content/docs/specs/design-plans"
   echo init >"$repo/seed.txt"
-  git -C "$repo" add seed.txt
+  git -C "$repo" add seed.txt workspace-config.yaml
   git -C "$repo" commit -qm init
 }
 
@@ -292,7 +320,7 @@ build_refold_bundle() {
 
 # ===========================================================================
 # Case PR1 (AC1 + AC2): re-fold bundle with an OPEN deliverable PR #1. Closeout
-# must run `gh pr close 1 --delete-branch` + a `released v1.0.0` comment even
+# must run `gh pr close 1 --delete-branch` + a zh-TW release comment even
 # though the per-task head is NOT a main-ancestor. Then a SECOND run with PR #1
 # now CLOSED must idempotent-skip (no extra close/comment gh calls).
 # ===========================================================================
@@ -313,7 +341,8 @@ build_refold_bundle() {
   _assert_contains "$GH_OUT" "pr close 1" "PR1 gh pr close called for PR #1"
   _assert_contains "$GH_OUT" "--delete-branch" "PR1 close uses --delete-branch"
   _assert_contains "$GH_OUT" "pr comment 1" "PR1 released-version comment posted"
-  _assert_contains "$GH_OUT" "released v1.0.0" "PR1 comment carries released version"
+  _assert_contains "$GH_OUT" "已發版 v1.0.0" "PR1 comment carries zh-TW released version"
+  _assert_not_contains "$GH_OUT" "bundled into the release" "PR1 comment no longer uses English default prose"
 
   # Second run: PR #1 now CLOSED. Idempotent skip — no further close/comment.
   : >"$GH_LOG"

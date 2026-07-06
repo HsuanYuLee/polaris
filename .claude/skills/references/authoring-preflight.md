@@ -11,16 +11,24 @@ body、preview 或 handoff 文字之前先讀。Validator 仍是 blocking source
 
 ## 1. Language First
 
-所有 skill 先解析 root `workspace-config.yaml` 的 `language`，再開始撰寫 user-facing 或
-downstream-facing prose。這是 authoring default，不是送出前翻譯步驟。
+所有 skill / runtime adapter / deterministic prose producer 先解析 root `workspace-config.yaml`
+的 `language`，再開始撰寫 user-facing 或 downstream-facing prose。這是 authoring default，
+不是送出前翻譯步驟。
 
 規則：
 
 - 若 root `language` 存在，skill 自己新增的自然語言 prose 必須直接使用該語言起稿。
 - `language` 缺失時，不可宣稱已 enforce；需要對人或下游公開的輸出要先 fail closed 或明確
   標示 `language_unset` blocker。
-- 原文引用、code、identifier、CLI、path、API name、PR template heading、log/error transcript
-  可保留原文；producer 自己的說明 prose 仍依 workspace language。
+- 原文引用、code syntax、identifier、CLI、path、API name、PR template heading、
+  log/error transcript 可保留原文；producer 自己的說明 prose 仍依 workspace language。
+- Runtime final/chat response、artifact preview、handoff、script help / usage text、
+  template-facing examples、test fixture prose、以及 LLM 新增或改寫的 code comments 都是
+  LLM prose surface；除 code token / identifier / 原文引用外，應直接用 workspace language
+  起稿。
+- Code comments 不等同 source code syntax。LLM 新增 explanatory comment 時，comment prose
+  遵從 workspace language；若註解必須保留英文 API 名稱、log 原文或第三方引用，需在 fixture /
+  output / exception registry 說明來源。
 - 外部寫入與 durable artifacts 送出前仍必須跑 `workspace-language-policy.md` 定義的 gate。
 
 Preflight command：
@@ -155,6 +163,9 @@ bash scripts/validate-starlight-authoring.sh check <source_container>/refinement
 - deterministic script 變更若影響 behavior、release gate、bootstrap/doctor、dependency
   governance 或 selected suite，authoring 時要先描述 script test contract；text-only /
   trivial 變更可明確列為不新增 failing selftest 的例外。
+- task 或 script 需要新增 comment / help text / fixture body 時，先套用
+  `workspace-language-policy.md` 的 LLM prose surface 與 exception boundary；不得把 code
+  comment 整包列為 code carve-out。
 
 Readiness gate：
 

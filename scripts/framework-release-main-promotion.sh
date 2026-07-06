@@ -139,7 +139,7 @@ if [[ "$EXECUTE" != "1" ]]; then
 fi
 
 info "fast-forwarding origin/$BASE_BRANCH to $HEAD_BRANCH ($release_head) via PR-gated promotion"
-git -C "$REPO_PATH" push origin "${release_head}:refs/heads/${BASE_BRANCH}" >/dev/null
+git -C "$REPO_PATH" push origin "$(git -C "$REPO_PATH" rev-parse "$release_head"):refs/heads/${BASE_BRANCH}" >/dev/null
 git -C "$REPO_PATH" fetch origin "refs/heads/${BASE_BRANCH}:refs/remotes/origin/${BASE_BRANCH}" >/dev/null
 
 new_main="$(git -C "$REPO_PATH" rev-parse "refs/remotes/origin/${BASE_BRANCH}")"

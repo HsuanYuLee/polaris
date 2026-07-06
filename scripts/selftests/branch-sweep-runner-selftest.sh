@@ -14,7 +14,7 @@
 #          所有 Polaris child 一律以 fixture-anchored env 執行；selftest 自身不依賴
 #          live workspace（hermeticity lint 要求 spawn Polaris child 時 unset
 #          POLARIS_WORKSPACE_ROOT / POLARIS_SPECS_ROOT 或注入 fixture）。
-# Inputs:  無（builds isolated fixture repo under $TMPDIR）。
+# Inputs:  無（builds isolated fixture repo under ${TMPDIR}）。
 # Outputs: `pass=N fail=M` summary 行；任一 fail 時 exit 非 0。
 # Exit code: 0 = all pass, 非 0 = 有 fail。
 set -euo pipefail

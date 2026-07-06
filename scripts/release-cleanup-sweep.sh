@@ -53,6 +53,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/specs-root.sh
 . "$SCRIPT_DIR/lib/specs-root.sh"
+# shellcheck source=lib/workspace-config-root.sh
+. "$SCRIPT_DIR/lib/workspace-config-root.sh"
 
 GH_BIN="${RELEASE_CLEANUP_SWEEP_GH_BIN:-gh}"
 
@@ -68,6 +70,62 @@ GH_RESOLVED=0
 fail() {
   echo "ERROR: $*" >&2
   exit 1
+}
+
+read_workspace_language() {
+  local start="${1:-$WORKSPACE_ROOT}"
+  local config_path=""
+  config_path="$(resolve_workspace_config_path "$start" 2>/dev/null || true)"
+  [[ -n "$config_path" && -f "$config_path" ]] || return 0
+  awk -F ':' '
+    /^[[:space:]]*language[[:space:]]*:/ {
+      v=$2
+      sub(/#.*/, "", v)
+      gsub(/^[[:space:]"'\''"]+|[[:space:]"'\''"]+$/, "", v)
+      if (v != "") print v
+      exit
+    }
+  ' "$config_path"
+}
+
+workspace_root_for_language_gate() {
+  local start="${1:-$WORKSPACE_ROOT}"
+  local root=""
+  root="$(resolve_workspace_config_root "$start" 2>/dev/null || true)"
+  if [[ -n "$root" ]]; then
+    printf '%s\n' "$root"
+  else
+    printf '%s\n' "$WORKSPACE_ROOT"
+  fi
+}
+
+is_zh_language() {
+  case "$1" in
+    zh|zh-*|zh_*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+write_orphan_pr_cleanup_comment() {
+  local target="$1"
+  local dp_id="$2"
+  local language="$3"
+  if is_zh_language "$language"; then
+    printf '已發版：%s 的孤立 task PR 已由 release-cleanup-sweep 清理。\n' "$dp_id" >"$target"
+  else
+    printf 'released — orphan task PR cleaned by release-cleanup-sweep for %s.\n' "$dp_id" >"$target"
+  fi
+}
+
+gate_github_comment_body() {
+  local body_file="$1"
+  local language=""
+  language="$(read_workspace_language "$WORKSPACE_ROOT")"
+  local gate_args=(--surface github-comment --body-file "$body_file" --blocking)
+  [[ -n "$language" ]] && gate_args+=(--language "$language")
+  POLARIS_EXTERNAL_WRITE_WRITER=framework-release:pr-body \
+    bash "$SCRIPT_DIR/polaris-external-write-gate.sh" \
+      "${gate_args[@]}" >/dev/null
 }
 
 usage() {
@@ -261,11 +319,16 @@ sweep_orphan_prs_for_dp() {
 
     ACTIONS_PLANNED=$((ACTIONS_PLANNED + 1))
     if [[ "$APPLY" -eq 1 ]]; then
+      local comment_file
+      comment_file="$(mktemp -t release-cleanup-comment.XXXXXX.md)"
+      write_orphan_pr_cleanup_comment "$comment_file" "$dp_id" "$(read_workspace_language "$WORKSPACE_ROOT")"
+      gate_github_comment_body "$comment_file"
       resolve_gh_bin
       "$GH_BIN" pr comment "$pr_ref" \
-        --body "released — orphan task PR cleaned by release-cleanup-sweep for ${dp_id}." \
+        --body-file "$comment_file" \
         >/dev/null 2>&1 \
         || { echo "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery hint=failed to comment on PR #${pr_ref} for ${dp_id}" >&2; exit 2; }
+      rm -f "$comment_file"
       "$GH_BIN" pr close "$pr_ref" --delete-branch >/dev/null 2>&1 \
         || { echo "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery hint=failed to close PR #${pr_ref} for ${dp_id}" >&2; exit 2; }
       emit "  [apply] closed orphan PR: #${pr_ref} ($dp_id)"

@@ -115,6 +115,25 @@ path.write_text(text, encoding="utf-8")
 PY
 }
 
+set_task_verification_aggregate_head() {
+  local file="$1"
+  local head="$2"
+  python3 - "$file" "$head" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+head = sys.argv[2]
+text = path.read_text(encoding="utf-8")
+if re.search(r"(?m)^    aggregate_head_sha:", text):
+    text = re.sub(r"(?m)^    aggregate_head_sha: .*$", f"    aggregate_head_sha: {head}", text, count=1)
+else:
+    text = re.sub(r"(?m)^  verification:\n", f"  verification:\n    aggregate_head_sha: {head}\n", text, count=1)
+path.write_text(text, encoding="utf-8")
+PY
+}
+
 refresh_default_deliverables() {
   [[ -n "${TASK_DIR:-}" ]] || return 0
   [[ -f "$TASK_DIR/T1.md" ]] && set_task_deliverable_head "$TASK_DIR/T1.md" "1111111111111111111111111111111111111111"
@@ -424,6 +443,18 @@ if grep -qE "running governed script test suite|running aggregate selftest corpu
   cat "$TMPDIR"/default-route.out >&2
   exit 1
 fi
+
+write_state
+set_task_verification_aggregate_head "$TASK_DIR/T2.md" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" >"$TMPDIR"/aggregate-head-rerun.out 2>&1 || {
+  echo "DP-405 T4: aggregate verification head must not make task PR freshness stale" >&2
+  cat "$TMPDIR"/aggregate-head-rerun.out >&2
+  exit 1
+}
+grep -q "evidence_status=fresh task=DP-999-T2 head=2222222222222222222222222222222222222222" "$TMPDIR"/aggregate-head-rerun.out \
+  || { echo "DP-405 T4: release lane must report the top-level task PR head as freshness authority" >&2; cat "$TMPDIR"/aggregate-head-rerun.out >&2; exit 1; }
+grep -q "\[framework-release-pr-lane\] PASS" "$TMPDIR"/aggregate-head-rerun.out \
+  || { echo "DP-405 T4: aggregate head rerun fixture should PASS" >&2; cat "$TMPDIR"/aggregate-head-rerun.out >&2; exit 1; }
 
 write_state
 bash "$HELPER" --repo "$REPO" --task-md "$TASK_DIR/T1.md" --task-md "$TASK_DIR/T2.md" --task-md "$TASK_DIR/T3.md" --full-backstop >"$TMPDIR"/full-backstop.out 2>&1 || {

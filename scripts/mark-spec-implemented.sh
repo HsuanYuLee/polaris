@@ -711,7 +711,7 @@ if [ -z "$ANCHOR" ] && echo "$TICKET" | grep -qE '^DP-[0-9]{3}-[TV][0-9]+[a-z]*$
 fi
 
 # Description: 在指定 find 範圍掃 task anchor，依 canonical parser jira_key（fallback 到
-#   legacy "> JIRA: KEY" header）比對 $TICKET，命中即設定 ANCHOR 並回傳 0；無命中回傳 1。
+#   legacy "> JIRA: KEY" header）比對 ${TICKET}，命中即設定 ANCHOR 並回傳 0；無命中回傳 1。
 #   stdin 接 newline-separated 的 task anchor 候選路徑（由 caller 的 find 提供），讓 active
 #   與 archive 兩種掃描共用同一套比對邏輯。
 # Args:        無（候選路徑由 stdin 提供）

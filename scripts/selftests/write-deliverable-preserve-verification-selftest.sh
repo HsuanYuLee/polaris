@@ -37,6 +37,7 @@ deliverable:
 MD
 
 bash "$WRITER" "$task" "https://github.com/example/repo/pull/2" OPEN bbbbbbb >/tmp/write-deliverable-preserve.out 2>&1
+bash "$WRITER" --verification-aggregate-head "$task" ccccccc >/tmp/write-deliverable-aggregate-head.out 2>&1
 
 python3 - "$task" <<'PY'
 import re
@@ -51,6 +52,7 @@ required = [
     "  pr_state: OPEN",
     "  head_sha: bbbbbbb",
     "  verification:",
+    "    aggregate_head_sha: ccccccc",
     "    status: PASS",
     "    evidence_path: /tmp/original-verify.json",
     "      ac_total: 2",
@@ -63,6 +65,8 @@ if len(re.findall(r"^deliverable:", fm, flags=re.MULTILINE)) != 1:
     raise SystemExit("FAIL: deliverable block duplicated")
 if len(re.findall(r"^  verification:", fm, flags=re.MULTILINE)) != 1:
     raise SystemExit("FAIL: deliverable.verification block duplicated")
+if "  head_sha: ccccccc" in fm:
+    raise SystemExit("FAIL: verification aggregate head leaked into top-level deliverable.head_sha")
 PY
 
 echo "[write-deliverable-preserve-verification-selftest] PASS"

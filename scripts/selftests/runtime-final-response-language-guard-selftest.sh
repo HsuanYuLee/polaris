@@ -51,6 +51,28 @@ for adapter in claude codex copilot; do
     || fail "$src does not reference workspace-config.yaml"
 done
 
+# --- Reference layer：全 LLM prose surface ----------------------------------
+#
+# DP-405 T1：final/chat guard 之外，workspace language policy 也必須明確涵蓋
+# script help / fixture prose / code comments。這些 assertion 讓 reference-only drift
+# 不會等到 release producer 才被發現。
+POLICY="$ROOT/.claude/skills/references/workspace-language-policy.md"
+PREFLIGHT="$ROOT/.claude/skills/references/authoring-preflight.md"
+[[ -f "$POLICY" ]] || fail "missing workspace language policy: $POLICY"
+[[ -f "$PREFLIGHT" ]] || fail "missing authoring preflight: $PREFLIGHT"
+grep -qi "runtime final/chat response" "$POLICY" \
+  || fail "$POLICY missing runtime final/chat response surface"
+grep -qi "script help / usage" "$POLICY" \
+  || fail "$POLICY missing script help / usage prose surface"
+grep -qi "test fixture prose" "$POLICY" \
+  || fail "$POLICY missing test fixture prose surface"
+grep -q "Code comments 不是整體排除項" "$POLICY" \
+  || fail "$POLICY missing code comment exception boundary"
+grep -q "LLM 新增或改寫的 code comments" "$PREFLIGHT" \
+  || fail "$PREFLIGHT missing LLM-authored code comments preflight"
+grep -q "comment 整包列為 code carve-out" "$PREFLIGHT" \
+  || fail "$PREFLIGHT missing code-comment carve-out guard"
+
 # --- Compiled layer ----------------------------------------------------------
 
 # Refresh generated targets so the selftest reflects the current source.

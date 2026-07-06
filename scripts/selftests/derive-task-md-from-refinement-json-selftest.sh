@@ -77,7 +77,7 @@ cat >"$positive_json" <<JSON
       "scope": "驗證 derive script 會從 refinement.json structured fields 產出 canonical task.md body。",
       "allowed_files": [
         "scripts/sample.sh",
-        "scripts/selftests/sample-selftest.sh"
+        "scripts/selftests/derive-task-md-from-refinement-json-selftest.sh"
       ],
       "modules": [
         "scripts/sample.sh"
@@ -87,8 +87,8 @@ cat >"$positive_json" <<JSON
       "estimate_points": 2,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh",
-        "verify_command": "bash scripts/selftests/sample-selftest.sh",
+        "detail": "bash scripts/validate-config-driven-authoring.sh",
+        "verify_command": "bash scripts/validate-config-driven-authoring.sh",
         $BODY_BC,
         $BODY_TE,
         $BODY_REFS
@@ -98,8 +98,18 @@ cat >"$positive_json" <<JSON
 }
 JSON
 
+positive_preserve="$tmpdir/positive-preserve.md"
+cat >"$positive_preserve" <<'MD'
+# T1: preserve packaging fixture (2 pt)
+
+## Allowed Files
+
+- `scripts/sample.sh`
+- `scripts/selftests/derive-task-md-from-refinement-json-selftest.sh`
+MD
+
 positive_out="$tmpdir/positive-task.md"
-bash "$SCRIPT" --refinement-json "$positive_json" --task-id "DP-999-T1" > "$positive_out"
+bash "$SCRIPT" --refinement-json "$positive_json" --task-id "DP-999-T1" --preserve-from "$positive_preserve" > "$positive_out"
 
 # Anchors come straight from refinement.json fields, not from any LLM step or
 # hardcoded framework literal.
@@ -114,11 +124,11 @@ required_anchors=(
   "| Task branch | task/DP-999-T1-deterministic-derivation |"
   "## Allowed Files"
   "- \`scripts/sample.sh\`"
-  "- \`scripts/selftests/sample-selftest.sh\`"
+  "- \`scripts/selftests/derive-task-md-from-refinement-json-selftest.sh\`"
   "## Scope Trace Matrix"
   "| AC1 | \`scripts/sample.sh\`"
   "## Gate Closure Matrix"
-  "bash scripts/selftests/sample-selftest.sh"
+  "bash scripts/validate-config-driven-authoring.sh"
   "## Verify Command"
 )
 for anchor in "${required_anchors[@]}"; do
@@ -148,7 +158,7 @@ bash "$VALIDATE_TASK_MD" "$positive_out" >/dev/null 2>&1 || {
 # Case 2 (AC28): determinism -- running twice is byte-identical.
 # ---------------------------------------------------------------------------
 positive_out_b="$tmpdir/positive-task-b.md"
-bash "$SCRIPT" --refinement-json "$positive_json" --task-id "DP-999-T1" > "$positive_out_b"
+bash "$SCRIPT" --refinement-json "$positive_json" --task-id "DP-999-T1" --preserve-from "$positive_preserve" > "$positive_out_b"
 if ! cmp -s "$positive_out" "$positive_out_b"; then
   echo "FAIL [case 2 / AC28]: derive script output is not deterministic" >&2
   diff "$positive_out" "$positive_out_b" | head -40 >&2
@@ -286,7 +296,7 @@ cat >"$v_json" <<'JSON'
       "quantifiable": true,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh"
+        "detail": "bash scripts/validate-config-driven-authoring.sh"
       }
     }
   ],
@@ -303,7 +313,7 @@ cat >"$v_json" <<'JSON'
       "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh"
+        "detail": "bash scripts/validate-config-driven-authoring.sh"
       }
     },
     {
@@ -311,14 +321,14 @@ cat >"$v_json" <<'JSON'
       "kind": "verification",
       "title": "範例 umbrella 驗收",
       "scope": "驗收 T task 的 AC。",
-      "allowed_files": ["scripts/selftests/sample-selftest.sh"],
-      "modules": ["scripts/selftests/sample-selftest.sh"],
+      "allowed_files": ["scripts/selftests/derive-task-md-from-refinement-json-selftest.sh"],
+      "modules": ["scripts/selftests/derive-task-md-from-refinement-json-selftest.sh"],
       "ac_ids": ["AC1"],
       "dependencies": ["DP-999-T1"],
       "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh"
+        "detail": "bash scripts/validate-config-driven-authoring.sh"
       }
     }
   ]
@@ -402,15 +412,15 @@ write_refinement() {
       $task_jkey_line
       "title": "parity task",
       "scope": "驗證 source.type-free parity。",
-      "allowed_files": ["scripts/sample.sh", "scripts/selftests/sample-selftest.sh"],
+      "allowed_files": ["scripts/sample.sh", "scripts/selftests/derive-task-md-from-refinement-json-selftest.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
       "estimate_points": 2,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh",
-        "verify_command": "bash scripts/selftests/sample-selftest.sh",
+        "detail": "bash scripts/validate-config-driven-authoring.sh",
+        "verify_command": "bash scripts/validate-config-driven-authoring.sh",
         "behavior_contract": { "applies": false, "reason": "framework infra; no runtime behavior" },
         "test_environment": { "level": "static" },
         "references": ["scripts/sample.sh"]
@@ -550,7 +560,7 @@ if grep -qE 'echo "PASS:' "$verify_fence"; then
   cat "$verify_fence" >&2
   exit 1
 fi
-if ! grep -q 'bash scripts/selftests/sample-selftest.sh' "$verify_fence"; then
+if ! grep -q 'bash scripts/validate-config-driven-authoring.sh' "$verify_fence"; then
   echo "FAIL [case 11 / AC3]: Verify Command fence missing the field-driven verify_command" >&2
   cat "$verify_fence" >&2
   exit 1
@@ -781,7 +791,7 @@ cat >"$partial_json" <<'JSON'
       "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh",
+        "detail": "bash scripts/validate-config-driven-authoring.sh",
         "test_environment": { "level": "static" }
       }
     }
@@ -818,7 +828,7 @@ cat >"$noreason_json" <<'JSON'
       "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh",
+        "detail": "bash scripts/validate-config-driven-authoring.sh",
         "behavior_contract": { "applies": false },
         "test_environment": { "level": "static" }
       }
@@ -852,14 +862,14 @@ cat >"$nobody_json" <<'JSON'
       "kind": "implementation",
       "title": "legacy no-body task",
       "scope": "Back-compat -- no per-task body fields declared.",
-      "allowed_files": ["scripts/sample.sh", "scripts/selftests/sample-selftest.sh"],
+      "allowed_files": ["scripts/sample.sh", "scripts/selftests/derive-task-md-from-refinement-json-selftest.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
       "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh"
+        "detail": "bash scripts/validate-config-driven-authoring.sh"
       }
     }
   ]
@@ -891,15 +901,15 @@ cat >"$backfill_json" <<'JSON'
       "kind": "implementation",
       "title": "legacy no-body task",
       "scope": "Back-compat -- no per-task body fields declared.",
-      "allowed_files": ["scripts/sample.sh", "scripts/selftests/sample-selftest.sh"],
+      "allowed_files": ["scripts/sample.sh", "scripts/selftests/derive-task-md-from-refinement-json-selftest.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
       "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh",
-        "verify_command": "bash scripts/selftests/sample-selftest.sh",
+        "detail": "bash scripts/validate-config-driven-authoring.sh",
+        "verify_command": "bash scripts/validate-config-driven-authoring.sh",
         "behavior_contract": { "applies": false, "reason": "framework deterministic gate / selftest / helper；無 runtime / UI 行為變更" },
         "test_environment": { "level": "static", "fixtures": "tmpdir + repo-tracked selftest fixtures" },
         "references": []
@@ -1074,7 +1084,7 @@ cat >"$shape_json" <<'JSON'
       "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh"
+        "detail": "bash scripts/validate-config-driven-authoring.sh"
       }
     },
     {
@@ -1089,7 +1099,7 @@ cat >"$shape_json" <<'JSON'
       "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh"
+        "detail": "bash scripts/validate-config-driven-authoring.sh"
       }
     }
   ]
@@ -1138,7 +1148,7 @@ cat >"$v_shape_json" <<'JSON'
       "text": "驗收 V task 不帶 task_shape。",
       "category": "functional",
       "quantifiable": true,
-      "verification": { "method": "unit_test", "detail": "bash scripts/selftests/sample-selftest.sh" }
+      "verification": { "method": "unit_test", "detail": "bash scripts/validate-config-driven-authoring.sh" }
     }
   ],
   "tasks": [
@@ -1153,7 +1163,7 @@ cat >"$v_shape_json" <<'JSON'
       "ac_ids": ["AC1"],
       "dependencies": [],
       "estimate_points": 1,
-      "verification": { "method": "unit_test", "detail": "bash scripts/selftests/sample-selftest.sh" }
+      "verification": { "method": "unit_test", "detail": "bash scripts/validate-config-driven-authoring.sh" }
     },
     {
       "id": "DP-999-V1",
@@ -1161,12 +1171,12 @@ cat >"$v_shape_json" <<'JSON'
       "task_shape": "audit",
       "title": "範例 umbrella 驗收",
       "scope": "驗收 T task。",
-      "allowed_files": ["scripts/selftests/sample-selftest.sh"],
-      "modules": ["scripts/selftests/sample-selftest.sh"],
+      "allowed_files": ["scripts/selftests/derive-task-md-from-refinement-json-selftest.sh"],
+      "modules": ["scripts/selftests/derive-task-md-from-refinement-json-selftest.sh"],
       "ac_ids": ["AC1"],
       "dependencies": ["DP-999-T1"],
       "estimate_points": 1,
-      "verification": { "method": "unit_test", "detail": "bash scripts/selftests/sample-selftest.sh" }
+      "verification": { "method": "unit_test", "detail": "bash scripts/validate-config-driven-authoring.sh" }
     }
   ]
 }
@@ -1209,7 +1219,7 @@ cat >"$typo_json" <<'JSON'
       "ac_ids": ["AC1"],
       "dependencies": [],
       "estimate_points": 1,
-      "verification": { "method": "unit_test", "detail": "bash scripts/selftests/sample-selftest.sh" }
+      "verification": { "method": "unit_test", "detail": "bash scripts/validate-config-driven-authoring.sh" }
     }
   ]
 }
@@ -1339,7 +1349,7 @@ cat >"$cjk_cmd_json" <<'JSON'
       "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh",
+        "detail": "bash scripts/validate-config-driven-authoring.sh",
         "verify_command": "檔案 existence + frontmatter assert"
       }
     }
@@ -1386,8 +1396,8 @@ cat >"$quoted_cjk_json" <<'JSON'
       "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh",
-        "verify_command": "grep -q '既有未動' .claude/rules/handbook/code-documentation-conventions.md && bash scripts/selftests/sample-selftest.sh"
+        "detail": "bash scripts/validate-config-driven-authoring.sh",
+        "verify_command": "grep -q '既有未動' .claude/rules/handbook/code-documentation-conventions.md && bash scripts/validate-config-driven-authoring.sh"
       }
     }
   ]
@@ -1450,8 +1460,8 @@ make_dp344_refinement() {
       $BODY_REFS,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh",
-        "verify_command": "bash scripts/selftests/sample-selftest.sh"
+        "detail": "bash scripts/validate-config-driven-authoring.sh",
+        "verify_command": "bash scripts/validate-config-driven-authoring.sh"
       }
     }
   ]
@@ -1614,8 +1624,8 @@ cat >"$dp359_infra_json" <<'JSON'
       "estimate_points": 2,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh",
-        "verify_command": "bash scripts/selftests/sample-selftest.sh",
+        "detail": "bash scripts/validate-config-driven-authoring.sh",
+        "verify_command": "bash scripts/validate-config-driven-authoring.sh",
         "behavior_contract": { "applies": false, "reason": "framework infra; no runtime behavior" },
         "test_environment": { "level": "static" },
         "references": ["scripts/sample.sh"]
@@ -1670,14 +1680,14 @@ cat >"$dp359_nobody_json" <<'JSON'
       "kind": "implementation",
       "title": "legacy no-body framework task",
       "scope": "AC-NEG2 -- no per-task body fields declared; legacy framework-infra path.",
-      "allowed_files": ["scripts/sample.sh", "scripts/selftests/sample-selftest.sh"],
+      "allowed_files": ["scripts/sample.sh", "scripts/selftests/derive-task-md-from-refinement-json-selftest.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
       "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh"
+        "detail": "bash scripts/validate-config-driven-authoring.sh"
       }
     }
   ]
@@ -1738,8 +1748,8 @@ cat >"$bug_source_json" <<'JSON'
       "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/derive-task-md-from-refinement-json-selftest.sh",
-        "verify_command": "bash scripts/selftests/derive-task-md-from-refinement-json-selftest.sh",
+        "detail": "bash scripts/validate-config-driven-authoring.sh",
+        "verify_command": "bash scripts/validate-config-driven-authoring.sh",
         "behavior_contract": {"applies": false, "reason": "static identity fixture"},
         "test_environment": {"level": "static"}
       }

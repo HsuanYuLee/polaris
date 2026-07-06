@@ -51,6 +51,63 @@ AUTO_PUSH=false
 PRUNE=true
 LEAK_BLOCKING=true
 
+read_workspace_language() {
+  local start="${1:-$INSTANCE_DIR}"
+  local dir=""
+  local highest=""
+  local config_path=""
+
+  if [[ -d "$start" ]]; then
+    dir="$(cd "$start" 2>/dev/null && pwd || true)"
+  else
+    dir="$(cd "$(dirname "$start")" 2>/dev/null && pwd || true)"
+  fi
+  while [[ -n "$dir" && "$dir" != "/" ]]; do
+    if [[ -f "$dir/workspace-config.yaml" ]]; then
+      highest="$dir"
+    fi
+    dir="$(dirname "$dir")"
+  done
+  [[ -n "$highest" ]] && config_path="$highest/workspace-config.yaml"
+  [[ -n "$config_path" && -f "$config_path" ]] || return 0
+  awk -F ':' '
+    /^[[:space:]]*language[[:space:]]*:/ {
+      v=$2
+      sub(/#.*/, "", v)
+      gsub(/^[[:space:]"'\''"]+|[[:space:]"'\''"]+$/, "", v)
+      if (v != "") print v
+      exit
+    }
+  ' "$config_path"
+}
+
+is_zh_language() {
+  case "$1" in
+    zh|zh-*|zh_*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+release_notes_fallback() {
+  local tag_name="$1"
+  if is_zh_language "$(read_workspace_language "$INSTANCE_DIR")"; then
+    printf 'Polaris %s 發版。\n' "$tag_name"
+  else
+    printf 'Release %s\n' "$tag_name"
+  fi
+}
+
+gate_release_notes() {
+  local notes_file="$1"
+  local language=""
+  language="$(read_workspace_language "$INSTANCE_DIR")"
+  local gate_args=(--surface release --body-file "$notes_file" --blocking)
+  [[ -n "$language" ]] && gate_args+=(--language "$language")
+  POLARIS_EXTERNAL_WRITE_WRITER=framework-release:pr-body \
+    bash "$SCRIPT_DIR/polaris-external-write-gate.sh" \
+      "${gate_args[@]}" >/dev/null
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --polaris) POLARIS_DIR="$2"; shift 2 ;;
@@ -800,13 +857,17 @@ if [[ "$AUTO_PUSH" == true ]]; then
         found && /^## \[/ { exit }
         found { print }
       ' "$INSTANCE_DIR/CHANGELOG.md" | sed '/^$/d')
-      [[ -z "$RELEASE_NOTES" ]] && RELEASE_NOTES="Release $TAG_NAME"
+      [[ -z "$RELEASE_NOTES" ]] && RELEASE_NOTES="$(release_notes_fallback "$TAG_NAME")"
+      RELEASE_NOTES_FILE="$(mktemp -t sync-to-polaris-release-notes.XXXXXX.md)"
+      printf '%s\n' "$RELEASE_NOTES" >"$RELEASE_NOTES_FILE"
+      gate_release_notes "$RELEASE_NOTES_FILE"
 
       gh release create "$TAG_NAME" \
         --repo "$REPO_SLUG" \
         --title "Polaris $TAG_NAME" \
-        --notes "$RELEASE_NOTES" \
+        --notes-file "$RELEASE_NOTES_FILE" \
         --verify-tag 2>/dev/null && echo "✓ Release $TAG_NAME created" || echo "⚠ Release creation failed (non-blocking)"
+      rm -f "$RELEASE_NOTES_FILE"
     fi
   fi
 

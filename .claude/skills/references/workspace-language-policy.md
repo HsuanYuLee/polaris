@@ -5,22 +5,25 @@
 
 ## 1. 適用輸出
 
-凡是會交給人讀、交給下游 skill 讀、或寫到外部系統的自然語言文字，都需要先經過
-language gate。
+凡是會交給人讀、交給下游 skill 讀、或寫到外部系統的自然語言文字，都屬於 LLM prose
+surface，必須使用 workspace language 起稿，並在可 materialize 的 surface 送出前經過
+language gate。這個範圍不只包含 Markdown artifact 與外部 write，也包含 runtime
+final/chat response、script help / usage text、template-facing examples、test fixture prose、
+以及 LLM 新增或改寫的 code comments。
 
 ## 1.1 Authoring default
 
 Workspace `language` 是預設 authoring language，不只是送出前的 validation language。
-Skill、runtime adapter、外部寫入 producer 在產生 user-facing / downstream-facing prose 時，
-必須直接用解析出的 workspace language 起稿；不可把英文第一稿當成正常流程，最後才在送出前
-翻譯成 workspace language。
+Skill、runtime adapter、外部寫入 producer、deterministic script producer 在產生
+user-facing / downstream-facing prose 時，必須直接用解析出的 workspace language 起稿；不可把
+英文第一稿當成正常流程，最後才在送出前翻譯成 workspace language。
 
 Language gate 是 fail-stop validation，不是翻譯器。若 gate 發現英文自然語言違反 zh-TW
 policy，正確處理是回到 producer/template/prompt 修正原始產出語言，再重跑 gate。
 
-例外仍依本檔 § 5：source code、identifier、CLI、log/error 原文、PR template heading、
-bilingual source docs 等可以保留原文；skill 自己新增的說明 prose 仍要依 workspace language
-撰寫。
+例外仍依本檔 § 5：source code syntax、identifier、CLI、log/error 原文、PR template
+heading、bilingual source docs 等可以保留原文；skill 自己新增的說明 prose、script help
+prose、fixture prose 與 code comment prose 仍要依 workspace language 撰寫。
 
 | Surface | 範例 | Gate |
 |---------|------|------|
@@ -31,6 +34,10 @@ bilingual source docs 等可以保留原文；skill 自己新增的說明 prose 
 | Confluence | SA/SD page、sprint page、release page、report | create/update 前寫暫存 markdown 並 gate |
 | Git commit | commit subject/body 的自然語言部分 | 使用 commit language gate；規則見 § 4 |
 | Release prose | changelog prose、GitHub release body、changeset description | producer 或 wrapper 送出前 gate |
+| Runtime final/chat response | assistant final answer、status update、engineering report、verify-AC summary | runtime 無 hook 時由 agent self-check workspace language；generated instructions 必須包含 guard |
+| Script help / usage prose | `--help` output、usage text、error repair hint、template-facing examples | script producer 直接依 workspace language 起稿；selftest / audit 覆蓋 hardcoded prose 或登錄例外 |
+| Test fixture prose | selftest fixture 中模擬 PR body/comment/report 的人讀文字 | fixture 預設遵從 workspace language；英文 fixture 必須是 identifier、log/API 原文或明確負例 |
+| Code comments | LLM 新增或改寫的 explanatory comment、template-facing generated comment | comment prose 遵從 workspace language；code syntax、identifier、quoted upstream text 保留原文 |
 
 ## 2. 標準 temp artifact 流程
 
@@ -80,13 +87,16 @@ Commit message 不是完全排除，也不是一律跟 workspace language。
 
 下列內容不要求翻譯成 workspace language：
 
-- Source code、identifier、import path、JSON/YAML key、CLI flag、env var。
+- Source code syntax、identifier、import path、JSON/YAML key、CLI flag、env var。
 - URL、branch name、ticket key、version tag、package name、API name。
 - Repo PR template headings 或保留格式用的固定標籤。
 - Reviewer、customer、PM、系統錯誤訊息、HTTP response、log transcript 的原文引用。
 - Bilingual mode 的 English source。
 
-例外必須寫在輸出或 skill 規則中，說明來源與保留理由。不可用「這次看起來合理」作為跳過 gate 的理由。
+Code comments 不是整體排除項：只有註解中的 code token、API 名稱、log/error 原文或第三方
+引用可保留原文；LLM 自己寫的 explanatory prose 仍要遵從 workspace language。
+
+例外必須寫在輸出、producer fixture 或 skill 規則中，說明來源與保留理由。不可用「這次看起來合理」作為跳過 gate 的理由。
 
 ## 6. Skill 接入點
 

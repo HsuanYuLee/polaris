@@ -38,6 +38,7 @@ W14	aggregate selftest run (full-corpus backstop)	upstream:selftest-governance	e
 W15	naive section-parse lint	upstream:markdown-parser-governance	engineering	N/A
 W16	cross-LLM mechanism parity	upstream:mechanism-governance	engineering	N/A
 W17	framework source write authority	upstream:framework-source-governance	engineering	N/A
+W18	config-driven authoring audit	upstream:language-governance	engineering	N/A
 OWNERS
 }
 
@@ -70,6 +71,7 @@ W14 aggregate selftest run (full-corpus backstop)
 W15 naive section-parse lint
 W16 cross-LLM mechanism parity
 W17 framework source write authority
+W18 config-driven authoring audit
 STAGES
   exit 0
 fi
@@ -114,6 +116,7 @@ VALIDATE_CROSS_LLM_PARITY="${POLARIS_VALIDATE_CROSS_LLM_PARITY_BIN:-scripts/vali
 # asserts that Claude hooks, Codex adapters, guarded bash, and registry rows all
 # delegate to the single validator.
 VALIDATE_FRAMEWORK_SOURCE_WRITE="${POLARIS_VALIDATE_FRAMEWORK_SOURCE_WRITE_BIN:-scripts/validate-framework-source-write.sh}"
+VALIDATE_CONFIG_DRIVEN_AUTHORING="${POLARIS_VALIDATE_CONFIG_DRIVEN_AUTHORING_BIN:-scripts/validate-config-driven-authoring.sh}"
 
 run_gate() {
   local label="$1"
@@ -187,5 +190,6 @@ run_gate "W15 naive section-parse lint" "$LINT_NAIVE_SECTION_PARSE" --self-check
 # fail before merge.
 run_gate "W16 cross-LLM mechanism parity" "$VALIDATE_CROSS_LLM_PARITY"
 run_gate "W17 framework source write authority" "$VALIDATE_FRAMEWORK_SOURCE_WRITE" --repo "$(pwd)" --self-check-wiring
+run_gate "W18 config-driven authoring audit" "$VALIDATE_CONFIG_DRIVEN_AUTHORING" --root "$(pwd)"
 
 echo "PASS: framework PR gate"

@@ -520,39 +520,27 @@ def resolve_packaging():
     """Resolve (points, allowed_files) by the DP-341 T2 regime precedence.
 
     Precedence:
-      Regime 1 (legacy back-compat): refinement.json tasks[] still carries
-        estimate_points / allowed_files -> use those (per field, independently).
-      Regime 2 (preserve, AC3): --preserve-from task.md exists and carries authored
+      Regime 1 (preserve, AC3): --preserve-from task.md exists and carries authored
         packaging -> preserve its ## Allowed Files and `(N pt)` points.
-      Regime 3 (initial-create): neither source -> empty Allowed Files +
+      Regime 2 (initial-create): neither source -> empty Allowed Files +
         DEFAULT_INTENT_ONLY_POINTS, emitted without crashing.
-
-    Each field falls through the precedence independently, so a refinement that
-    still carries one field (legacy mid-migration) does not force the other.
 
     Returns:
         A tuple (points: int, allowed_files: list[str]).
     """
-    refinement_points = match.get("estimate_points")
-    refinement_files = match.get("allowed_files")
-
     authored_files = None
     authored_points = None
     if preserve_from and Path(preserve_from).is_file():
         authored_files, authored_points = parse_authored_packaging(preserve_from)
 
-    # estimate_points: refinement field -> authored task.md -> default.
-    if refinement_points not in (None, "", []):
-        resolved_points = int(refinement_points)
-    elif authored_points is not None:
+    # estimate_points: authored task.md -> default.
+    if authored_points is not None:
         resolved_points = authored_points
     else:
         resolved_points = DEFAULT_INTENT_ONLY_POINTS
 
-    # allowed_files: refinement field -> authored task.md -> empty (intent-only).
-    if refinement_files not in (None, "", []):
-        resolved_files = list(refinement_files)
-    elif authored_files:
+    # allowed_files: authored task.md -> empty (intent-only).
+    if authored_files:
         resolved_files = list(authored_files)
     else:
         resolved_files = []

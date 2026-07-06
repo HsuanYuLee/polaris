@@ -56,11 +56,9 @@ write_refinement() {
       "kind": "implementation",
       "title": "範例 field-driven action",
       "scope": "驗證 task.md 改動範圍 Action 跟 modules[].action 欄位、不跟 path。",
-      "allowed_files": ["scripts/selftests/shape-conflict-selftest.sh"],
       "modules": ["scripts/selftests/shape-conflict-selftest.sh"],
       "ac_ids": ["AC5"],
       "dependencies": [],
-      "estimate_points": 1,
       "verification": {
         "method": "unit_test",
         "detail": "bash scripts/selftests/shape-conflict-selftest.sh",
@@ -74,6 +72,15 @@ write_refinement() {
 }
 JSON
 }
+
+preserve_task="$tmpdir/preserve-task.md"
+cat >"$preserve_task" <<'MD'
+# T1: preserve packaging fixture (1 pt)
+
+## Allowed Files
+
+- `scripts/selftests/shape-conflict-selftest.sh`
+MD
 
 action_cell_for() {
   # Extract the ## 改動範圍 change-table action column for the single allowed path.
@@ -94,7 +101,7 @@ action_cell_for() {
 # ---------------------------------------------------------------------------
 write_refinement "$tmpdir/modify.json" "modify"
 out_modify="$tmpdir/task-modify.md"
-bash "$DERIVE" --refinement-json "$tmpdir/modify.json" --task-id "DP-901-T1" >"$out_modify" 2>"$tmpdir/modify.err" \
+bash "$DERIVE" --refinement-json "$tmpdir/modify.json" --task-id "DP-901-T1" --preserve-from "$preserve_task" >"$out_modify" 2>"$tmpdir/modify.err" \
   || fail "case 1 / AC5" "derive failed for modify fixture: $(cat "$tmpdir/modify.err")"
 got_modify="$(action_cell_for "$out_modify")"
 [[ "$got_modify" == "modify" ]] \
@@ -106,7 +113,7 @@ got_modify="$(action_cell_for "$out_modify")"
 # ---------------------------------------------------------------------------
 write_refinement "$tmpdir/create.json" "create"
 out_create="$tmpdir/task-create.md"
-bash "$DERIVE" --refinement-json "$tmpdir/create.json" --task-id "DP-901-T1" >"$out_create" 2>"$tmpdir/create.err" \
+bash "$DERIVE" --refinement-json "$tmpdir/create.json" --task-id "DP-901-T1" --preserve-from "$preserve_task" >"$out_create" 2>"$tmpdir/create.err" \
   || fail "case 2 / AC5" "derive failed for create fixture: $(cat "$tmpdir/create.err")"
 got_create="$(action_cell_for "$out_create")"
 [[ "$got_create" == "create" ]] \

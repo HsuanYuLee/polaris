@@ -183,6 +183,18 @@ else
   _assert "B3: origin present -> task branch rebased onto origin/feat/DP-901" "fail"
 fi
 
+# ===========================================================================
+# Case (c): --onto reverify metadata keeps task PR head authority.
+# ===========================================================================
+out_c="$WORK_DIR/c.out"
+err_c="$WORK_DIR/c.err"
+if bash "$SCRIPT_DIR/selftests/cascade-reverify-deliverable-head-authority-selftest.sh" >"$out_c" 2>"$err_c"; then
+  _assert "C1: --onto reverify writes aggregate head without replacing task PR head" "ok"
+else
+  _assert "C1: --onto reverify writes aggregate head without replacing task PR head" "fail"
+  printf '       stdout:\n%s\n       stderr:\n%s\n' "$(cat "$out_c")" "$(cat "$err_c")" >&2
+fi
+
 printf 'cascade-rebase-chain: PASS=%s FAIL=%s TOTAL=%s\n' "$PASS" "$FAIL" "$TOTAL"
 [[ "$FAIL" -eq 0 ]] || exit 1
 exit 0

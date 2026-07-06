@@ -53,15 +53,15 @@ make_fixture() {
       "kind": "implementation",
       "title": "level projection fixture task",
       "scope": "驗證 derive bridge 把 refinement level 投影到 task.md Level enum。",
-      "allowed_files": ["scripts/sample.sh", "scripts/selftests/sample-selftest.sh"],
+      "allowed_files": ["scripts/sample.sh", "scripts/selftests/derive-task-md-level-projection-selftest.sh"],
       "modules": ["scripts/sample.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
       "estimate_points": 1,
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/sample-selftest.sh",
-        "verify_command": "bash scripts/selftests/sample-selftest.sh",
+        "detail": "bash scripts/validate-config-driven-authoring.sh",
+        "verify_command": "bash scripts/validate-config-driven-authoring.sh",
         "behavior_contract": { "applies": false, "reason": "framework infra; no runtime behavior" },
         "test_environment": { "level": "$level" }
       }

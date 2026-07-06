@@ -2,7 +2,7 @@
 # Purpose: rebase a task branch chain (chain mode) OR rebase the current owner
 #   branch onto an upstream ref and run the re-verify delivery-flow step (--onto
 #   mode), so that "rebase" is never an isolated git mutation but a complete
-#   rebase -> re-verify -> rewrite-task.md-head/block delivery step.
+#   rebase -> re-verify -> record-aggregate-head delivery step.
 # Inputs:
 #   chain mode: --repo <repo> --task-md <task.md> [--skip-missing-last]
 #   --onto mode: --repo <repo> --onto <ref> [--task-md <task.md> ...]
@@ -24,20 +24,18 @@
 #   the re-verify delivery-flow step for every task.md whose recorded
 #   deliverable.head_sha is reachable from the pre-rebase head:
 #     1. re-run the verify gate at the new head (run-verify-command.sh)
-#     2. rewrite that task.md `deliverable` head_sha + state to the new head
-#        (write-deliverable.sh)
-#   Because the rebase rewrites SHAs, the pre-rebase head's delivery evidence
-#   would otherwise be orphaned (root bug #6: local_extension_completion_failed).
-#   Rebuilding the task.md head/block keeps the delivered head fresh; with the
-#   head-sha-keyed completion-gate marker retired (DP-360 T7) there is no frozen
-#   marker left to orphan, so root bug #6 is structurally absent (AC4 RED->GREEN).
+#     2. write the rebased aggregate head to
+#        deliverable.verification.aggregate_head_sha (write-deliverable.sh)
+#   The top-level deliverable.head_sha remains the task PR head authority. The
+#   aggregate head is verification evidence only, so framework-release reruns do
+#   not mistake the aggregate head for a stale PR head.
 
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVE_BRANCH_CHAIN="$SCRIPT_DIR/resolve-branch-chain.sh"
-RUN_VERIFY_COMMAND="$SCRIPT_DIR/run-verify-command.sh"
-WRITE_DELIVERABLE="$SCRIPT_DIR/write-deliverable.sh"
+RUN_VERIFY_COMMAND="${POLARIS_RUN_VERIFY_COMMAND:-$SCRIPT_DIR/run-verify-command.sh}"
+WRITE_DELIVERABLE="${POLARIS_WRITE_DELIVERABLE:-$SCRIPT_DIR/write-deliverable.sh}"
 REVERIFY_FILE=""
 
 log() {
@@ -53,8 +51,8 @@ usage:
 Modes:
   chain mode (--task-md, no --onto): rebase the task.md Branch chain upstream->down.
   --onto mode (--onto <ref>): rebase the current branch onto <ref> (feat->main)
-    and run the re-verify delivery-flow step (re-run gate + rewrite task.md
-    deliverable head/block) at the rebased head.
+    and run the re-verify delivery-flow step (re-run gate + write verification
+    aggregate head) at the rebased head.
 
 Exit:
   0 chain rebased / onto rebased + re-verify clean (or already up to date)
@@ -159,10 +157,10 @@ resolve_onto_task_mds() {
 }
 
 # --onto mode: rebase the current branch onto <ref>, then run the re-verify
-# delivery-flow step (re-run gate + rewrite task.md deliverable head/block) at
+# delivery-flow step (re-run gate + write verification-only aggregate head) at
 # the new head for every in-scope task.md.
 run_onto_mode() {
-  local pre_head branch pr_state
+  local pre_head branch
   branch=$(git -C "$REPO" symbolic-ref --quiet --short HEAD 2>/dev/null || true)
   if [ -z "$branch" ]; then
     log "--onto mode requires the repo to be on a named branch (detached HEAD)"
@@ -206,7 +204,7 @@ run_onto_mode() {
   fi
 
   # Re-verify delivery-flow step at the new (rebased) head.
-  local new_head task_md task_pr_url
+  local new_head task_md task_pr_url task_pr_head
   new_head=$(git -C "$REPO" rev-parse HEAD 2>/dev/null || true)
   while IFS= read -r task_md; do
     [ -n "$task_md" ] || continue
@@ -216,8 +214,8 @@ run_onto_mode() {
       emit_onto_evidence "$REPO" "$ONTO_REF" "$branch" "reverify_failed" "$reverify_file"
       exit 1
     fi
-    # Preserve the existing PR url/state from the deliverable block; only the
-    # head_sha must move to the rebased head.
+    # Preserve the existing task PR deliverable authority. The rebased head is
+    # verification evidence, not the task PR head.
     task_pr_url=$(awk '
       /^deliverable:/ { in_blk = 1; next }
       in_blk && /^[^[:space:]]/ { in_blk = 0 }
@@ -226,28 +224,32 @@ run_onto_mode() {
         gsub(/[[:space:]]+$/, "", v); print v; exit
       }
     ' "$task_md")
-    pr_state=$(awk '
+    task_pr_head=$(awk '
       /^deliverable:/ { in_blk = 1; next }
       in_blk && /^[^[:space:]]/ { in_blk = 0 }
-      in_blk && /^[[:space:]]+pr_state:/ {
-        v = $0; sub(/^[[:space:]]+pr_state:[[:space:]]*/, "", v)
+      in_blk && /^[[:space:]]+head_sha:/ {
+        v = $0; sub(/^[[:space:]]+head_sha:[[:space:]]*/, "", v)
         gsub(/[[:space:]]+$/, "", v); print v; exit
       }
     ' "$task_md")
-    [ -n "$pr_state" ] || pr_state="OPEN"
     if [ -z "$task_pr_url" ]; then
       log "task.md has no deliverable.pr_url to preserve: $task_md"
       emit_onto_evidence "$REPO" "$ONTO_REF" "$branch" "missing_pr_url" "$reverify_file"
       exit 1
     fi
-    if ! bash "$WRITE_DELIVERABLE" "$task_md" "$task_pr_url" "$pr_state" "$new_head" >&2; then
-      log "write-deliverable failed rewriting head/block for $task_md"
+    if [ -z "$task_pr_head" ]; then
+      log "task.md has no deliverable.head_sha task PR authority to preserve: $task_md"
+      emit_onto_evidence "$REPO" "$ONTO_REF" "$branch" "missing_task_pr_head" "$reverify_file"
+      exit 1
+    fi
+    if ! bash "$WRITE_DELIVERABLE" --verification-aggregate-head "$task_md" "$new_head" >&2; then
+      log "write-deliverable failed writing verification aggregate head for $task_md"
       emit_onto_evidence "$REPO" "$ONTO_REF" "$branch" "write_deliverable_failed" "$reverify_file"
       exit 1
     fi
-    printf '{"task_md":%s,"head_sha":%s,"pr_url":%s,"pr_state":%s}\n' \
-      "$(json_escape "$task_md")" "$(json_escape "$new_head")" \
-      "$(json_escape "$task_pr_url")" "$(json_escape "$pr_state")" >> "$reverify_file"
+    printf '{"task_md":%s,"task_pr_head_sha":%s,"aggregate_head_sha":%s,"pr_url":%s}\n' \
+      "$(json_escape "$task_md")" "$(json_escape "$task_pr_head")" \
+      "$(json_escape "$new_head")" "$(json_escape "$task_pr_url")" >> "$reverify_file"
   done < <(resolve_onto_task_mds "$REPO" "$pre_head")
 
   emit_onto_evidence "$REPO" "$ONTO_REF" "$branch" "ok" "$reverify_file"

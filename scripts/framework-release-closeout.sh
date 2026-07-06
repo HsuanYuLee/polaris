@@ -54,6 +54,8 @@ CHECK_RELEASE_COMPLETED="${SCRIPT_DIR}/check-release-completed.sh"
 CHECK_MAIN_CHAIN_COMPLIANCE="${SCRIPT_DIR}/check-main-chain-compliance.sh"
 # shellcheck source=lib/specs-root.sh
 . "$SCRIPT_DIR/lib/specs-root.sh"
+# shellcheck source=lib/workspace-config-root.sh
+. "$SCRIPT_DIR/lib/workspace-config-root.sh"
 # shellcheck source=lib/worktree-classifier.sh
 . "$SCRIPT_DIR/lib/worktree-classifier.sh"
 # DP-280 Wall A: single bundle detector, shared with
@@ -125,6 +127,61 @@ die() {
 
 info() {
   echo "$PREFIX $1" >&2
+}
+
+read_workspace_language() {
+  local start="${1:-$REPO_ROOT}"
+  local config_path=""
+  config_path="$(resolve_workspace_config_path "$start" 2>/dev/null || true)"
+  [[ -n "$config_path" && -f "$config_path" ]] || return 0
+  awk -F ':' '
+    /^[[:space:]]*language[[:space:]]*:/ {
+      v=$2
+      sub(/#.*/, "", v)
+      gsub(/^[[:space:]"'\''"]+|[[:space:]"'\''"]+$/, "", v)
+      if (v != "") print v
+      exit
+    }
+  ' "$config_path"
+}
+
+workspace_root_for_language_gate() {
+  local start="${1:-$REPO_ROOT}"
+  local root=""
+  root="$(resolve_workspace_config_root "$start" 2>/dev/null || true)"
+  if [[ -n "$root" ]]; then
+    printf '%s\n' "$root"
+  else
+    printf '%s\n' "$REPO_ROOT"
+  fi
+}
+
+is_zh_language() {
+  case "$1" in
+    zh|zh-*|zh_*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+write_task_pr_close_comment() {
+  local target="$1"
+  local language="$2"
+  if is_zh_language "$language"; then
+    printf '已發版 %s：已併入本次 release，透過 framework-release closeout 關閉此 task PR。\n' "$VERSION_TAG" >"$target"
+  else
+    printf 'released %s — bundled into the release; closing this task PR via framework-release closeout.\n' "$VERSION_TAG" >"$target"
+  fi
+}
+
+gate_github_comment_body() {
+  local body_file="$1"
+  local language=""
+  language="$(read_workspace_language "$REPO_ROOT")"
+  local gate_args=(--surface github-comment --body-file "$body_file" --blocking)
+  [[ -n "$language" ]] && gate_args+=(--language "$language")
+  POLARIS_EXTERNAL_WRITE_WRITER=framework-release:pr-body \
+    bash "$SCRIPT_DIR/polaris-external-write-gate.sh" \
+      "${gate_args[@]}" >/dev/null
 }
 
 repo_diagnostic_summary() {
@@ -517,9 +574,15 @@ close_bundled_task_pr() {
       ;;
   esac
 
+  local comment_file
+  comment_file="$(mktemp -t framework-release-closeout-comment.XXXXXX.md)"
+  write_task_pr_close_comment "$comment_file" "$(read_workspace_language "$REPO_ROOT")"
+  gate_github_comment_body "$comment_file"
+
   "$GH_BIN" pr comment "$pr_ref" \
-    --body "released ${VERSION_TAG} — bundled into the release; closing this task PR via framework-release closeout." \
+    --body-file "$comment_file" \
     || die "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery hint=failed to comment released note on PR #${pr_ref} for ${task_id}"
+  rm -f "$comment_file"
   "$GH_BIN" pr close "$pr_ref" --delete-branch \
     || die "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery hint=failed to close PR #${pr_ref} for ${task_id}"
   info "closed bundled task PR #${pr_ref} for ${task_id} (released ${VERSION_TAG})"

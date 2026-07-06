@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Purpose: 測試 aggregate framework PR gate wiring，且不遞迴呼叫真實 full-corpus gates。
+# Inputs:  無；在 temporary directory 建立 stub gate binaries。
+# Outputs: 成功時輸出 PASS；contract drift 時在 stderr 輸出 failure detail。
 set -euo pipefail
 
 ROOT="$(pwd)"
@@ -22,6 +25,36 @@ make_stub w3-pass 0
 make_stub w4-pass 0
 make_stub w5-pass 0
 make_stub w6-pass 0
+make_stub w7-pass 0
+make_stub w8-pass 0
+make_stub w9-pass 0
+make_stub w10-pass 0
+make_stub w11a-pass 0
+make_stub w11b-pass 0
+make_stub w12-pass 0
+make_stub w13-pass 0
+make_stub w14-pass 0
+make_stub w15-pass 0
+make_stub w16-pass 0
+make_stub w17-pass 0
+make_stub w18-pass 0
+
+common_gate_env=(
+  POLARIS_LINT_BASH_VAR_UTF8_BOUNDARY_BIN="$TMP/w7-pass"
+  POLARIS_VALIDATE_MISE_DEPENDENCY_BIN="$TMP/w8-pass"
+  POLARIS_VALIDATE_SCRIPT_HEADER_BIN="$TMP/w9-pass"
+  POLARIS_VALIDATE_SCRIPT_CATEGORIZATION_BIN="$TMP/w10-pass"
+  POLARIS_COMPILE_RUNTIME_INSTRUCTIONS_BIN="$TMP/w11a-pass"
+  POLARIS_MECHANISM_PARITY_BIN="$TMP/w11b-pass"
+  POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN="$TMP/w12-pass"
+  POLARIS_VALIDATE_SELFTEST_ENROLLMENT_BIN="$TMP/w13-pass"
+  POLARIS_RUN_AGGREGATE_SELFTESTS_BIN="$TMP/w14-pass"
+  POLARIS_LINT_NAIVE_SECTION_PARSE_BIN="$TMP/w15-pass"
+  POLARIS_VALIDATE_CROSS_LLM_PARITY_BIN="$TMP/w16-pass"
+  POLARIS_VALIDATE_FRAMEWORK_SOURCE_WRITE_BIN="$TMP/w17-pass"
+  POLARIS_VALIDATE_CONFIG_DRIVEN_AUTHORING_BIN="$TMP/w18-pass"
+)
+
 env \
   POLARIS_VALIDATE_RUNTIME_BIN="$TMP/w1-pass" \
   POLARIS_AUDIT_GRADUATION_BIN="$TMP/w2-pass" \
@@ -29,6 +62,7 @@ env \
   POLARIS_CHECK_QUARANTINE_BIN="$TMP/w4-pass" \
   POLARIS_VALIDATE_SPEC_SOURCE_PARITY_BIN="$TMP/w5-pass" \
   POLARIS_GATE_TEMPLATE_LEAKS_BIN="$TMP/w6-pass" \
+  "${common_gate_env[@]}" \
   bash scripts/check-framework-pr-gate.sh >/dev/null
 
 for fail in w1 w2 w3 w4 w5 w6; do
@@ -46,6 +80,7 @@ for fail in w1 w2 w3 w4 w5 w6; do
     POLARIS_CHECK_QUARANTINE_BIN="$TMP/w4" \
     POLARIS_VALIDATE_SPEC_SOURCE_PARITY_BIN="$TMP/w5" \
     POLARIS_GATE_TEMPLATE_LEAKS_BIN="$TMP/w6" \
+    "${common_gate_env[@]}" \
     bash scripts/check-framework-pr-gate.sh >"$TMP/out" 2>"$TMP/err"; then
     echo "self-test failed: $fail failure did not fail aggregator" >&2
     exit 1
@@ -60,6 +95,7 @@ env \
   POLARIS_CHECK_QUARANTINE_BIN="$TMP/w4-pass" \
   POLARIS_VALIDATE_SPEC_SOURCE_PARITY_BIN="$TMP/w5-pass" \
   POLARIS_GATE_TEMPLATE_LEAKS_BIN="$TMP/w6-pass" \
+  "${common_gate_env[@]}" \
   POLARIS_SURFACE_CLASS="developer_pr" \
   bash scripts/check-framework-pr-gate.sh >/dev/null
 

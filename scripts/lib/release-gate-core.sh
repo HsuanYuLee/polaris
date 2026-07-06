@@ -264,7 +264,7 @@ fast_forward_feat_task_pr() {
     || die "release preflight blocked: $base cannot fast-forward to $task_id head $head; rebase the task branch onto the current aggregation branch first"
 
   info "fast-forwarding $base to PR #$number ($task_id) head $head"
-  git -C "$REPO_PATH" push origin "$head:refs/heads/${base}" \
+  git -C "$REPO_PATH" push origin "$(git -C "$REPO_PATH" rev-parse "$head"):refs/heads/${base}" \
     || die "release preflight blocked: push fast-forward to $base failed"
   fetch_remote_branch_ref "$base" \
     || die "release preflight blocked: cannot refetch aggregation branch '$base' after fast-forward"

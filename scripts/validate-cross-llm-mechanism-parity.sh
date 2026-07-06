@@ -29,6 +29,7 @@ done
 if [[ -z "$REPO" ]]; then
   REPO="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 fi
+REPO="$(cd "$REPO" && pwd)"
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "POLARIS_TOOL_MISSING:python3" >&2
@@ -42,6 +43,12 @@ COMPILE_BIN="${POLARIS_COMPILE_RUNTIME_INSTRUCTIONS_BIN:-$REPO/scripts/compile-r
 # (docs-manager specs are local planning artifacts, not tracked in the task branch).
 # Resolve them from POLARIS_SPECS_ROOT / POLARIS_WORKSPACE_ROOT, falling back to --repo.
 SPECS_ROOT="${POLARIS_SPECS_ROOT:-${POLARIS_WORKSPACE_ROOT:-$REPO}}"
+if [[ -z "${POLARIS_SPECS_ROOT:-}" && -z "${POLARIS_WORKSPACE_ROOT:-}" && "$REPO" == *"/.worktrees/"* ]]; then
+  MAIN_WORKSPACE="${REPO%%/.worktrees/*}"
+  if [[ -d "$MAIN_WORKSPACE/docs-manager/src/content/docs/specs/design-plans" ]]; then
+    SPECS_ROOT="$MAIN_WORKSPACE"
+  fi
+fi
 
 # Phase 1: registry + settings + adapter + golden-digest parity (python).
 python3 - "$REPO" "$SPECS_ROOT" <<'PY'

@@ -6,6 +6,7 @@
 #
 # Usage:
 #   scripts/write-deliverable.sh <task-md-path> <pr-url> <pr-state> <head-sha>
+#   scripts/write-deliverable.sh --verification-aggregate-head <task-md-path> <aggregate-head-sha>
 #
 # Arguments:
 #   task-md-path   Absolute or workspace-relative path to the T{n}.md file.
@@ -27,6 +28,9 @@
 #
 # Idempotency:
 #   If a `deliverable:` block already exists in the frontmatter, it is REPLACED (not appended).
+#   The --verification-aggregate-head mode updates only
+#   deliverable.verification.aggregate_head_sha and preserves the top-level
+#   deliverable head_sha as the task PR head authority.
 
 set -uo pipefail
 
@@ -61,6 +65,142 @@ fail_inconsistent() {
 log() {
   printf '[write-deliverable] %s\n' "$1" >&2
 }
+
+# ── Verification-only aggregate head mode ───────────────────────────────────────
+
+if [[ "${1:-}" == "--verification-aggregate-head" ]]; then
+  [[ $# -eq 3 ]] || die "Usage: $SCRIPT_NAME --verification-aggregate-head <task-md-path> <aggregate-head-sha>"
+
+  TASK_MD="$2"
+  AGGREGATE_HEAD_SHA="$3"
+
+  [[ -f "$TASK_MD" ]] || die "task.md not found: $TASK_MD"
+  if ! printf '%s' "$AGGREGATE_HEAD_SHA" | grep -qE '^[0-9a-fA-F]{7,}$'; then
+    die "aggregate-head-sha must be 7+ hex characters, got: $AGGREGATE_HEAD_SHA"
+  fi
+
+  TASK_MD="$(cd "$(dirname "$TASK_MD")" && pwd)/$(basename "$TASK_MD")"
+  TMP_FILE="${TASK_MD}.tmp"
+
+  VERIFY_HEAD_REWRITER=$(cat <<'PYEOF'
+import re
+import sys
+
+task_path = sys.argv[1]
+tmp_path = sys.argv[2]
+aggregate_head = sys.argv[3]
+
+with open(task_path, "r", encoding="utf-8") as f:
+    content = f.read()
+
+fm_pattern = re.compile(r"^---\n(.*?)^---\n", re.DOTALL | re.MULTILINE)
+match = fm_pattern.match(content)
+if not match:
+    print("NO_FRONTMATTER", end="")
+    sys.exit(1)
+
+fm_body = match.group(1)
+lines = fm_body.splitlines(keepends=True)
+
+deliverable_start = None
+for index, line in enumerate(lines):
+    if re.match(r"^deliverable:\s*(?:#.*)?$", line.rstrip("\n")):
+        deliverable_start = index
+        break
+
+if deliverable_start is None:
+    print("NO_DELIVERABLE", end="")
+    sys.exit(1)
+
+deliverable_end = len(lines)
+for index in range(deliverable_start + 1, len(lines)):
+    line = lines[index]
+    stripped = line.strip()
+    is_top_level = line[:1] not in (" ", "\t") and stripped and not stripped.startswith("#")
+    if is_top_level:
+        deliverable_end = index
+        break
+
+verification_start = None
+verification_end = None
+for index in range(deliverable_start + 1, deliverable_end):
+    if re.match(r"^[ \t]{2}verification:\s*(?:#.*)?$", lines[index].rstrip("\n")):
+        verification_start = index
+        break
+
+if verification_start is None:
+    lines[deliverable_end:deliverable_end] = [
+        "  verification:\n",
+        f"    aggregate_head_sha: {aggregate_head}\n",
+    ]
+else:
+    verification_end = deliverable_end
+    for index in range(verification_start + 1, deliverable_end):
+        line = lines[index]
+        stripped = line.strip()
+        indent = len(line) - len(line.lstrip(" \t"))
+        if stripped and indent <= 2:
+            verification_end = index
+            break
+
+    replaced = False
+    for index in range(verification_start + 1, verification_end):
+        if re.match(r"^[ \t]{4}aggregate_head_sha:", lines[index]):
+            lines[index] = f"    aggregate_head_sha: {aggregate_head}\n"
+            replaced = True
+            break
+    if not replaced:
+        lines[verification_end:verification_end] = [f"    aggregate_head_sha: {aggregate_head}\n"]
+
+new_content = "---\n" + "".join(lines) + "---\n" + content[match.end():]
+
+with open(tmp_path, "w", encoding="utf-8") as f:
+    f.write(new_content)
+PYEOF
+)
+
+  VERIFY_HEAD_VERIFIER=$(cat <<'PYEOF'
+import re
+import sys
+
+task_path = sys.argv[1]
+expected = sys.argv[2]
+
+with open(task_path, "r", encoding="utf-8") as f:
+    content = f.read()
+
+fm_pattern = re.compile(r"^---\n(.*?)^---\n", re.DOTALL | re.MULTILINE)
+match = fm_pattern.match(content)
+if not match:
+    print("NO_FRONTMATTER", end="")
+    sys.exit(1)
+
+found = re.search(r"^    aggregate_head_sha:\s*(.+)$", match.group(1), re.MULTILINE)
+if not found:
+    print("NO_AGGREGATE_HEAD", end="")
+    sys.exit(1)
+if found.group(1).strip() != expected:
+    print(f"MISMATCH:{found.group(1).strip()}", end="")
+    sys.exit(1)
+
+print("OK", end="")
+PYEOF
+)
+
+  log "Writing verification aggregate head in $TASK_MD..."
+  if ! write_error=$(python3 - "$TASK_MD" "$TMP_FILE" "$AGGREGATE_HEAD_SHA" <<< "$VERIFY_HEAD_REWRITER" 2>&1); then
+    rm -f "$TMP_FILE" 2>/dev/null || true
+    die "verification aggregate head rewriter failed: $write_error"
+  fi
+  if ! mv_error=$(mv "$TMP_FILE" "$TASK_MD" 2>&1); then
+    rm -f "$TMP_FILE" 2>/dev/null || true
+    die "verification aggregate head mv failed: $mv_error"
+  fi
+  verify_result=$(python3 - "$TASK_MD" "$AGGREGATE_HEAD_SHA" <<< "$VERIFY_HEAD_VERIFIER" 2>&1) || true
+  [[ "$verify_result" == "OK" ]] || die "verification aggregate head read-back failed: $verify_result"
+  log "Success: verification aggregate head written in $TASK_MD"
+  exit 0
+fi
 
 # ── Argument validation ─────────────────────────────────────────────────────────
 

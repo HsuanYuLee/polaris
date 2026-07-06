@@ -5696,6 +5696,35 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/validate-config-driven-authoring.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "language_governance",
+      "selftest": "scripts/selftests/config-driven-authoring-audit-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftests/config-driven-authoring-audit-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/framework-release-language-producer-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
     }
   ],
   "test_governance": {
@@ -6598,6 +6627,40 @@
       ],
       "enrolled": true,
       "owner": "polaris-framework"
+    },
+    {
+      "id": "config-driven-authoring-audit-selftest",
+      "command": "bash scripts/selftests/config-driven-authoring-audit-selftest.sh",
+      "profiles": [
+        "core",
+        "full"
+      ],
+      "changed_paths": [
+        "scripts/validate-config-driven-authoring.sh",
+        "scripts/lib/config-driven-authoring-exceptions.json",
+        "scripts/check-framework-pr-gate.sh"
+      ],
+      "fixtures": [],
+      "enrolled": true,
+      "owner": "DP-405-T2"
+    },
+    {
+      "id": "framework-release-language-producer-selftest",
+      "command": "bash scripts/selftests/framework-release-language-producer-selftest.sh",
+      "profiles": [
+        "core",
+        "release",
+        "full"
+      ],
+      "changed_paths": [
+        "scripts/framework-release-execute.sh",
+        "scripts/framework-release-closeout.sh",
+        "scripts/release-cleanup-sweep.sh",
+        "scripts/sync-to-polaris.sh"
+      ],
+      "fixtures": [],
+      "enrolled": true,
+      "owner": "DP-405-T3"
     }
   ]
 }

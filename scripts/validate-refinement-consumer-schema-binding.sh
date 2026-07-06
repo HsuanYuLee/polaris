@@ -188,6 +188,7 @@ DISCOVERY_EXCLUDE = {
     # rewrites the schema are not consumers in the binding sense.
     "scripts/validate-refinement-json.sh",
     "scripts/migrate-refinement-planned-tasks-to-canonical.sh",
+    "scripts/migrate-refinement-packaging-fields.sh",
     # this gate is the schema-binding meta-scanner, not a tasks[] consumer; its
     # REGISTRY / regex literals would otherwise self-trip the discovery heuristic.
     "scripts/validate-refinement-consumer-schema-binding.sh",

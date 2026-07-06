@@ -7,6 +7,8 @@ set -euo pipefail
 
 PREFIX="[framework-release-execute]"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/workspace-config-root.sh
+. "$SCRIPT_DIR/lib/workspace-config-root.sh"
 REPO_PATH="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SOURCE_ID=""
 FEAT_BRANCH=""
@@ -34,6 +36,121 @@ USAGE
 die() {
   echo "$PREFIX POLARIS_FRAMEWORK_RELEASE_EXECUTE_BLOCKED: $*" >&2
   exit 2
+}
+
+read_workspace_language() {
+  local start="${1:-$REPO_PATH}"
+  local config_path=""
+  config_path="$(resolve_workspace_config_path "$start" 2>/dev/null || true)"
+  [[ -n "$config_path" && -f "$config_path" ]] || return 0
+  awk -F ':' '
+    /^[[:space:]]*language[[:space:]]*:/ {
+      v=$2
+      sub(/#.*/, "", v)
+      gsub(/^[[:space:]"'\''"]+|[[:space:]"'\''"]+$/, "", v)
+      if (v != "") print v
+      exit
+    }
+  ' "$config_path"
+}
+
+workspace_root_for_language_gate() {
+  local start="${1:-$REPO_PATH}"
+  local root=""
+  root="$(resolve_workspace_config_root "$start" 2>/dev/null || true)"
+  if [[ -n "$root" ]]; then
+    printf '%s\n' "$root"
+  else
+    printf '%s\n' "$REPO_PATH"
+  fi
+}
+
+is_zh_language() {
+  case "$1" in
+    zh|zh-*|zh_*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+default_release_pr_title() {
+  local language="$1"
+  if is_zh_language "$language"; then
+    printf '[%s] Polaris 框架發版\n' "$SOURCE_ID"
+  else
+    printf '[%s] framework release\n' "$SOURCE_ID"
+  fi
+}
+
+write_default_release_pr_body() {
+  local target="$1"
+  local language="$2"
+  if is_zh_language "$language"; then
+    cat >"$target" <<EOF
+## Description
+${SOURCE_ID} Polaris 框架發版。
+
+## Changed
+- 在 ${FEAT_BRANCH} HEAD 壓縮累積的 changeset。
+- 透過 PR-gated fast-forward promotion 將 ${FEAT_BRANCH} 推進到 main。
+
+## Evidence Summary
+| Layer | Status | Evidence |
+|-------|--------|----------|
+| Release tail | PASS | ${FEAT_BRANCH} 已由 framework-release-execute.sh 驗證 |
+
+## Screenshots (Test Plan)
+- framework-release-execute.sh --full-tail
+
+## Related documents
+- ${SOURCE_ID}
+
+## QA notes
+Polaris 框架發版自動化；無 UI artifact。
+EOF
+  else
+    cat >"$target" <<EOF
+## Description
+${SOURCE_ID} framework release.
+
+## Changed
+- Compress accumulated changesets at ${FEAT_BRANCH} HEAD.
+- Promote ${FEAT_BRANCH} to main through PR-gated fast-forward promotion.
+
+## Evidence Summary
+| Layer | Status | Evidence |
+|-------|--------|----------|
+| Release tail | PASS | ${FEAT_BRANCH} validated by framework-release-execute.sh |
+
+## Screenshots (Test Plan)
+- framework-release-execute.sh --full-tail
+
+## Related documents
+- ${SOURCE_ID}
+
+## QA notes
+Framework release-tail automation; no UI artifact.
+EOF
+  fi
+}
+
+gate_external_body() {
+  local surface="$1"
+  local body_file="$2"
+  local language=""
+  language="$(read_workspace_language "$REPO_PATH")"
+  local gate_args=(--surface "$surface" --body-file "$body_file" --blocking)
+  [[ -n "$language" ]] && gate_args+=(--language "$language")
+  POLARIS_EXTERNAL_WRITE_WRITER=framework-release:pr-body \
+    bash "$SCRIPT_DIR/polaris-external-write-gate.sh" \
+      "${gate_args[@]}" >/dev/null
+}
+
+gate_release_pr_title() {
+  local title_file=""
+  title_file="$(mktemp -t framework-release-title.XXXXXX.txt)"
+  printf '%s\n' "$RELEASE_PR_TITLE" >"$title_file"
+  gate_external_body pr-body "$title_file"
+  rm -f "$title_file"
 }
 
 abs_path() {
@@ -131,33 +248,14 @@ git -C "$REPO_PATH" push origin "HEAD:refs/heads/${FEAT_BRANCH}" >/dev/null
 git -C "$REPO_PATH" fetch origin "$FEAT_BRANCH" >/dev/null
 
 if [[ -z "$RELEASE_PR_TITLE" ]]; then
-  RELEASE_PR_TITLE="[${SOURCE_ID}] framework release"
+  RELEASE_PR_TITLE="$(default_release_pr_title "$(read_workspace_language "$REPO_PATH")")"
 fi
 if [[ -z "$RELEASE_PR_BODY_FILE" ]]; then
   RELEASE_PR_BODY_FILE="$(mktemp -t framework-release-pr.XXXXXX.md)"
-  cat >"$RELEASE_PR_BODY_FILE" <<EOF
-## Description
-${SOURCE_ID} framework release.
-
-## Changed
-- Compress accumulated changesets at ${FEAT_BRANCH} HEAD.
-- Promote ${FEAT_BRANCH} to main through PR-gated fast-forward promotion.
-
-## Evidence Summary
-| Layer | Status | Evidence |
-|-------|--------|----------|
-| Release tail | PASS | ${FEAT_BRANCH} validated by framework-release-execute.sh |
-
-## Screenshots (Test Plan)
-- framework-release-execute.sh --full-tail
-
-## Related documents
-- ${SOURCE_ID}
-
-## QA notes
-Framework release-tail automation; no UI artifact.
-EOF
+  write_default_release_pr_body "$RELEASE_PR_BODY_FILE" "$(read_workspace_language "$REPO_PATH")"
 fi
+gate_release_pr_title
+gate_external_body pr-body "$RELEASE_PR_BODY_FILE"
 
 if [[ -z "$RELEASE_PR_NUMBER" ]]; then
   echo "$PREFIX creating ${FEAT_BRANCH} -> main release PR"

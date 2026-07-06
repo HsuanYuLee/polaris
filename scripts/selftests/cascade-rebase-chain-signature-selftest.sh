@@ -4,9 +4,9 @@
 #   chain `--repo --task-md [--skip-missing-last]` form AND the documented
 #   `--repo --onto <ref>` form parse without an unknown-arg error), and that the
 #   --onto mode actually performs a feat->main rebase followed by the re-verify
-#   delivery-flow step (verify gate re-run + task.md deliverable head/block
-#   rewritten to the rebased head). This is exercised against real git fixtures,
-#   not a usage-string grep.
+#   delivery-flow step (verify gate re-run + verification-only aggregate head
+#   recorded without replacing the task PR deliverable head). This is exercised
+#   against real git fixtures, not a usage-string grep.
 # Inputs:  none (self-contained git fixtures via mktemp).
 # Outputs: stdout `cascade-rebase-chain-signature: PASS=N FAIL=M TOTAL=K`;
 #   exit 0 only when FAIL=0.
@@ -19,7 +19,8 @@
 #     depend on the chain `--task-md` form, so it must keep parsing too.
 #   - DP-360 D5 / AC5: --onto mode is a delivery-flow step, not an isolated git
 #     rebase — after rebasing feat onto main it must re-run the verify gate at
-#     the new head and rewrite the task.md deliverable head/block to that head.
+#     the new head and record that head as verification aggregate evidence while
+#     keeping top-level deliverable.head_sha bound to the task PR head.
 
 set -euo pipefail
 
@@ -76,8 +77,9 @@ else
 fi
 
 # --- Fixture: bare origin + feat behind main, with a task.md whose deliverable
-#     block records the pre-rebase head. The rebase + re-verify must move the
-#     deliverable head to the rebased head. ------------------------------------
+#     block records the task PR head. The rebase + re-verify must keep that
+#     top-level task PR head and record the rebased aggregate head under
+#     deliverable.verification. ------------------------------------------------
 BARE="$WORK_DIR/origin.git"
 git init -q --bare "$BARE"
 
@@ -157,7 +159,8 @@ else
   _assert "fixture: deliverable head is a pre-rebase ancestor (orphan precondition)" "fail"
 fi
 
-# --- Run --onto origin/main: must rebase feat AND re-verify + rewrite block. --
+# --- Run --onto origin/main: must rebase feat AND re-verify + write aggregate
+#     verification head. -------------------------------------------------------
 onto_out="$WORK_DIR/onto.out"
 rc=0
 bash "$CASCADE" --repo "$REPO" --onto origin/main >"$onto_out" 2>"$WORK_DIR/onto-run.err" || rc=$?
@@ -191,12 +194,14 @@ else
   printf '       stderr:\n%s\n' "$(cat "$WORK_DIR/onto-run.err")" >&2
 fi
 
-# A6 (AC5): task.md deliverable head/block rewritten to the rebased head.
+# A6 (AC5): task.md top-level deliverable head remains the task PR head, while
+# the rebased head is recorded only under deliverable.verification.
 recorded_head_after="$(grep -E '^  head_sha:' "$TASK_MD" | awk '{print $2}')"
-if [[ "$recorded_head_after" == "$NEW_HEAD" ]]; then
-  _assert "A6: task.md deliverable head/block updated to rebased head" "ok"
+aggregate_head_after="$(grep -E '^    aggregate_head_sha:' "$TASK_MD" | awk '{print $2}')"
+if [[ "$recorded_head_after" == "$DELIVERED_HEAD" && "$aggregate_head_after" == "$NEW_HEAD" ]]; then
+  _assert "A6: task.md preserves task PR head and records aggregate verification head" "ok"
 else
-  _assert "A6: task.md deliverable head/block updated to rebased head (recorded=$recorded_head_after expected=$NEW_HEAD)" "fail"
+  _assert "A6: task.md preserves task PR head and records aggregate verification head (recorded=$recorded_head_after task_pr=$DELIVERED_HEAD aggregate=$aggregate_head_after expected_aggregate=$NEW_HEAD)" "fail"
 fi
 
 printf 'cascade-rebase-chain-signature: PASS=%s FAIL=%s TOTAL=%s\n' "$PASS" "$FAIL" "$TOTAL"

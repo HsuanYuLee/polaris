@@ -45,7 +45,7 @@ write_refinement() {
   },
   "schema_version": 1,
   "modules": [
-    { "path": "scripts/selftests/derive-delivery-block-fixture-selftest.sh", "action": "create", "complexity": "low", "risk": "low", "reason": "fixture", "references": 0 }
+    { "path": "scripts/selftests/derive-task-md-delivery-block-selftest.sh", "action": "create", "complexity": "low", "risk": "low", "reason": "fixture", "references": 0 }
   ],
   "tasks": [
     {
@@ -53,19 +53,19 @@ write_refinement() {
       "kind": "implementation",
       "title": "delivery block fixture task",
       "scope": "驗證 derive 能寫出 delivery/verification block。",
-      "allowed_files": ["scripts/selftests/derive-delivery-block-fixture-selftest.sh"],
-      "modules": ["scripts/selftests/derive-delivery-block-fixture-selftest.sh"],
+      "allowed_files": ["scripts/selftests/derive-task-md-delivery-block-selftest.sh"],
+      "modules": ["scripts/selftests/derive-task-md-delivery-block-selftest.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
       "estimate_points": 1,
       "task_shape": "implementation",
       "verification": {
         "method": "unit_test",
-        "detail": "bash scripts/selftests/derive-delivery-block-fixture-selftest.sh",
-        "verify_command": "bash scripts/selftests/derive-delivery-block-fixture-selftest.sh",
+        "detail": "bash scripts/validate-config-driven-authoring.sh",
+        "verify_command": "bash scripts/validate-config-driven-authoring.sh",
         "behavior_contract": { "applies": false, "reason": "framework infra" },
         "test_environment": { "level": "static" },
-        "references": ["scripts/selftests/derive-delivery-block-fixture-selftest.sh"]
+        "references": ["scripts/selftests/derive-task-md-delivery-block-selftest.sh"]
       }
     }
   ]

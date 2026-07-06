@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.76.72] - 2026-07-06
+
+### Changed
+
+- 89cdaf8: 擴充 workspace language policy 與 authoring preflight，明確納入 final/chat、script prose、fixture prose 與 LLM-authored code comments。
+- 237be74: 新增 config-driven authoring audit，阻擋未遵從 workspace-config language 的外部 prose 產物與硬編 release 文案，並以 callsite-level 例外 registry 承接已排入後續 task 的既有債務。
+- aa38a9e: 讓 framework-release 的 PR title/body、task PR close comment、release cleanup comment 與 GitHub release notes fallback 依 workspace language 產生，並在送出 GitHub surface 前執行 external-write language gate。
+- 421c3e3: 修正 cascade reverify 的 metadata 寫入：rebased aggregate head 改寫入 `deliverable.verification.aggregate_head_sha`，top-level `deliverable.head_sha` 保持 task PR head 權威，避免 framework-release rerun freshness 誤判。
+
 ## [3.76.71] - 2026-07-06
 
 ### Changed

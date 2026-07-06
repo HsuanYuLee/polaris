@@ -214,6 +214,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   if [[ -n "$BUNDLE_ALIAS" ]]; then
     validate_and_plan_bundle
   else
+    # validate_and_plan checks freshness against top-level deliverable.head_sha
+    # via release-gate-lineage; verification aggregate heads are evidence only.
     validate_and_plan
   fi
   run_upstream_backstop_gates_if_requested

@@ -124,7 +124,7 @@ if grep -qF "$PHANTOM_DELEGATION" "$case_a_handoff"; then
   fail_case "Case A (applies=true product UI): handoff still emits phantom umbrella-V1 delegation '$PHANTOM_DELEGATION'" "$case_a_handoff"
 fi
 if grep -qF "$PHANTOM_LABEL" "$case_a_handoff"; then
-  fail_case "Case A (applies=true product UI): handoff still emits phantom「$PHANTOM_LABEL」label" "$case_a_handoff"
+  fail_case "Case A (applies=true product UI): handoff still emits phantom「${PHANTOM_LABEL}」label" "$case_a_handoff"
 fi
 # Positive: the conditionalized handoff reflects the task's own behavior_contract.
 if ! grep -qF "behavior_contract" "$case_a_handoff"; then
@@ -255,7 +255,7 @@ if grep -qF "$PHANTOM_DELEGATION" "$case_c_handoff"; then
   fail_case "Case C (visual_regression declared): handoff still emits phantom umbrella-V1 delegation '$PHANTOM_DELEGATION'" "$case_c_handoff"
 fi
 if grep -qF "$PHANTOM_LABEL" "$case_c_handoff"; then
-  fail_case "Case C (visual_regression declared): handoff still emits phantom「$PHANTOM_LABEL」label" "$case_c_handoff"
+  fail_case "Case C (visual_regression declared): handoff still emits phantom「${PHANTOM_LABEL}」label" "$case_c_handoff"
 fi
 if ! grep -qF "visual_regression" "$case_c_handoff"; then
   fail_case "Case C (visual_regression declared): handoff does not reference the task's own visual_regression wiring" "$case_c_handoff"

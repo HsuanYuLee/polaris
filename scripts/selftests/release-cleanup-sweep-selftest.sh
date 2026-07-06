@@ -106,6 +106,18 @@ case "$1" in
         exit 0
         ;;
       close|comment)
+        if [[ "$sub" == "comment" ]]; then
+          body_file=""
+          while [[ $# -gt 0 ]]; do
+            case "$1" in
+              --body-file) body_file="$2"; shift 2 ;;
+              *) shift ;;
+            esac
+          done
+          if [[ -n "$body_file" && -f "$body_file" ]]; then
+            printf 'body-file-content %s\n' "$(cat "$body_file")" >>"$log"
+          fi
+        fi
         exit 0
         ;;
       *)
@@ -154,6 +166,7 @@ EOF
 setup_workspace() {
   local ws="$1"
   mkdir -p "$ws"
+  printf 'language: "zh-TW"\n' >"$ws/workspace-config.yaml"
   local specs="$ws/docs-manager/src/content/docs/specs"
   mkdir -p "$specs/design-plans/archive"
 
@@ -265,6 +278,8 @@ _assert_contains "$RB_AFTER_APPLY" "bundle-DP-902-v9.9.902" "AC-NEG1: active DP-
 APPLY_GH="$(cat "$GH_LOG" 2>/dev/null || true)"
 _assert_contains "$APPLY_GH" "pr close 901" "AC3: apply closes orphan PR 901"
 _assert_contains "$APPLY_GH" "pr close 903" "AC3: apply closes orphan PR 903"
+_assert_contains "$APPLY_GH" "已發版：DP-901" "AC4: orphan cleanup comment follows zh-TW workspace language"
+_assert_not_contains "$APPLY_GH" "orphan task PR cleaned" "AC4: orphan cleanup comment no longer uses English default prose"
 _assert_not_contains "$APPLY_GH" "pr close 902" "AC-NEG1: apply never closes active DP-902 PR"
 _assert_not_contains "$APPLY_GH" "pr view 902" "AC-NEG1: apply never even queries active DP-902 PR"
 

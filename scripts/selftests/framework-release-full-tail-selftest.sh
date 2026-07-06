@@ -58,6 +58,7 @@ init_repo() {
     cd "$REPO"
     git config user.name "Polaris Selftest"
     git config user.email "polaris-selftest@example.com"
+    printf 'language: "zh-TW"\n' > workspace-config.yaml
     printf '3.76.64\n' > VERSION
     cat >package.json <<'JSON'
 {"name":"polaris-framework-workspace","version":"3.76.64"}
@@ -71,7 +72,7 @@ JSON
 
 DP-347 fixture changeset
 MD
-    git add VERSION package.json CHANGELOG.md .changeset/dp-347-fixture.md
+    git add workspace-config.yaml VERSION package.json CHANGELOG.md .changeset/dp-347-fixture.md
     git commit -q -m "base"
     git remote add origin "$REPO"
     git fetch -q origin main:refs/remotes/origin/main
@@ -86,7 +87,23 @@ MD
       +refs/heads/task/DP-347-T1-one:refs/remotes/origin/task/DP-347-T1-one
   )
   cp "$SCRIPT_DIR/framework-release-execute.sh" "$REPO/scripts/framework-release-execute.sh"
+  cp -R "$SCRIPT_DIR/lib" "$REPO/scripts/lib"
+  cat >"$REPO/scripts/polaris-external-write-gate.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+body_file=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --body-file) body_file="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+[[ -n "$body_file" && -f "$body_file" ]] || exit 2
+echo "external-write-gate $(cat "$body_file")" >>"${FULL_TAIL_LOG:?}"
+exit 0
+SH
   chmod +x "$REPO/scripts/framework-release-execute.sh"
+  chmod +x "$REPO/scripts/polaris-external-write-gate.sh"
   HELPER="$REPO/scripts/framework-release-execute.sh"
 }
 
@@ -133,6 +150,15 @@ SH
 #!/usr/bin/env bash
 set -euo pipefail
 echo "04 pr-create $*" >>"${FULL_TAIL_LOG:?}"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --body-file)
+      echo "04 pr-create-body $(cat "$2")" >>"${FULL_TAIL_LOG:?}"
+      shift 2
+      ;;
+    *) shift ;;
+  esac
+done
 echo "https://github.com/example/repo/pull/77"
 SH
   cat >"$REPO/scripts/framework-release-main-promotion.sh" <<'SH'
@@ -159,6 +185,10 @@ grep -q "01 pr-lane" "$LOG" || fail "pr-lane did not run"
 grep -q "02 cascade" "$LOG" || fail "cascade did not run"
 grep -q "03 release-version" "$LOG" || fail "release-version did not run"
 grep -q "04 pr-create" "$LOG" || fail "pr-create did not run"
+grep -q "Polaris 框架發版" "$LOG" || fail "release PR title/body should follow zh-TW workspace language"
+if grep -q "framework release" "$LOG"; then
+  fail "release PR default prose must not remain English under zh-TW workspace language"
+fi
 grep -q "05 main-promotion" "$LOG" || fail "main promotion did not run"
 [[ "$(git -C "$REPO" rev-parse --abbrev-ref HEAD)" == "feat/DP-347" ]] \
   || fail "full-tail should operate on feat branch"

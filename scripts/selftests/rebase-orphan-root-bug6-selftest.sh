@@ -5,10 +5,10 @@
 #   rewrites the feat SHA strands that evidence, so a closeout that resolves the
 #   delivered head and looks for evidence at the rebased head fails with
 #   `local_extension_completion_failed`. New design (cascade-rebase-chain.sh
-#   --onto = a delivery-flow step that re-runs the verify gate at the new head
-#   and rewrites the task.md deliverable head/block) is GREEN: the closeout reads
-#   the rebased head from the task.md block and finds matching fresh evidence, so
-#   it PASSES.
+#   --onto = a delivery-flow step that re-runs the verify gate at the new
+#   aggregate head and records that aggregate under deliverable.verification) is
+#   GREEN: the closeout preserves the task PR head as delivered-head authority
+#   while finding fresh aggregate reverify evidence, so it PASSES.
 # Inputs:  none (self-contained git fixtures via mktemp).
 # Outputs: stdout `rebase-orphan-root-bug6: PASS=N FAIL=M TOTAL=K`;
 #   exit 0 only when FAIL=0.
@@ -22,11 +22,13 @@
 #   `local_extension_completion_failed` — the genuine root bug #6 symptom.
 #
 # GREEN fidelity: the GREEN branch runs the actual cascade-rebase-chain.sh
-#   --onto delivery-flow step, which rewrites the task.md deliverable head/block
-#   to the rebased head. The closeout model then resolves the delivered head from
-#   the task.md block and finds the fresh verify evidence at that head → PASS.
-#   With the head-sha-keyed marker retired (DP-360 T7) there is no frozen marker
-#   left to orphan, so root bug #6 is structurally absent.
+#   --onto delivery-flow step, which keeps the task.md deliverable head bound to
+#   the task PR head and writes the rebased head to
+#   deliverable.verification.aggregate_head_sha. The closeout model then resolves
+#   the delivered head from the task.md block and finds fresh verify evidence at
+#   the aggregate head → PASS. With the head-sha-keyed marker retired (DP-360 T7)
+#   there is no frozen marker left to orphan, so root bug #6 is structurally
+#   absent.
 
 set -euo pipefail
 
@@ -58,24 +60,31 @@ _assert() {
 #   both designs and echoes either a head sha (resolved+evidence present) or
 #   "local_extension_completion_failed".
 #   MODE=marker → resolve delivered head from a frozen marker (old design).
-#   MODE=block  → resolve delivered head from the task.md deliverable block.
+#   MODE=block  → resolve delivered head from the task.md deliverable block and,
+#                 when present, use deliverable.verification.aggregate_head_sha
+#                 as the reverify evidence head.
 closeout_resolves_delivered_head() {
   local mode="$1" task_md="$2" marker_head="$3" evidence_dir="$4"
-  local delivered_head=""
+  local delivered_head="" evidence_head=""
   case "$mode" in
     marker)
       delivered_head="$marker_head"
+      evidence_head="$marker_head"
       ;;
     block)
       delivered_head="$(grep -E '^  head_sha:' "$task_md" 2>/dev/null | awk '{print $2}' | head -n1)"
+      evidence_head="$(grep -E '^    aggregate_head_sha:' "$task_md" 2>/dev/null | awk '{print $2}' | head -n1)"
       ;;
   esac
+  [[ -n "$evidence_head" ]] || evidence_head="$delivered_head"
   if [[ -z "$delivered_head" ]]; then
     echo "local_extension_completion_failed"
     return 0
   fi
-  # Evidence must exist at the resolved delivered head.
-  if [[ -f "$evidence_dir/verify-$delivered_head.json" ]]; then
+  # Evidence must exist at the active verification head. For post-rebase
+  # cascade, that is the aggregate head; the delivered task PR head remains the
+  # top-level authority.
+  if [[ -f "$evidence_dir/verify-$evidence_head.json" ]]; then
     echo "$delivered_head"
   else
     echo "local_extension_completion_failed"
@@ -186,8 +195,8 @@ GREEN_OUT="$WORK_DIR/green-fixture.txt"
 build_fixture "$GREEN_REPO" "$GREEN_OUT"
 IFS='|' read -r _ GREEN_TASK_MD GREEN_DELIVERED_HEAD <"$GREEN_OUT"
 
-# Run the actual delivery-flow step: rebase feat->main + re-verify + rewrite the
-# task.md deliverable head/block to the rebased head.
+# Run the actual delivery-flow step: rebase feat->main + re-verify + write the
+# rebased aggregate head under deliverable.verification.
 green_run_rc=0
 bash "$CASCADE" --repo "$GREEN_REPO" --onto origin/main \
   >"$WORK_DIR/green.out" 2>"$WORK_DIR/green.err" || green_run_rc=$?
@@ -206,22 +215,23 @@ GREEN_EVIDENCE="$WORK_DIR/green-evidence"
 mkdir -p "$GREEN_EVIDENCE"
 : >"$GREEN_EVIDENCE/verify-$GREEN_NEW_HEAD.json"
 
-# Closeout (new design) resolves the delivered head from the task.md deliverable
-# block (which --onto rewrote to the rebased head) and finds the fresh evidence.
+# Closeout (new design) resolves the delivered task PR head from the task.md
+# deliverable block and finds fresh reverify evidence at the aggregate head.
 green_result="$(closeout_resolves_delivered_head block "$GREEN_TASK_MD" "" "$GREEN_EVIDENCE")"
-if [[ "$green_result" == "$GREEN_NEW_HEAD" ]]; then
-  _assert "GREEN: new design passes closeout (delivered head = rebased head, evidence found)" "ok"
+if [[ "$green_result" == "$GREEN_DELIVERED_HEAD" ]]; then
+  _assert "GREEN: new design passes closeout (delivered head = task PR head, aggregate evidence found)" "ok"
 else
-  _assert "GREEN: new design passes closeout (got '$green_result' expected '$GREEN_NEW_HEAD')" "fail"
+  _assert "GREEN: new design passes closeout (got '$green_result' expected '$GREEN_DELIVERED_HEAD')" "fail"
 fi
 
-# Cross-check: the GREEN task.md block no longer points at the orphaned pre-rebase
-# head — it was rewritten to the rebased head (no frozen marker left to orphan).
+# Cross-check: the GREEN task.md top-level block still points at the task PR
+# head, while the rebased aggregate head is recorded only in verification.
 green_block_head="$(grep -E '^  head_sha:' "$GREEN_TASK_MD" | awk '{print $2}' | head -n1)"
-if [[ "$green_block_head" == "$GREEN_NEW_HEAD" && "$green_block_head" != "$GREEN_DELIVERED_HEAD" ]]; then
-  _assert "GREEN: task.md head/block rewritten to rebased head (orphan structurally gone)" "ok"
+green_aggregate_head="$(grep -E '^    aggregate_head_sha:' "$GREEN_TASK_MD" | awk '{print $2}' | head -n1)"
+if [[ "$green_block_head" == "$GREEN_DELIVERED_HEAD" && "$green_aggregate_head" == "$GREEN_NEW_HEAD" ]]; then
+  _assert "GREEN: task.md preserves task PR head and records aggregate verification head" "ok"
 else
-  _assert "GREEN: task.md head/block rewritten to rebased head (block=$green_block_head new=$GREEN_NEW_HEAD)" "fail"
+  _assert "GREEN: task.md preserves task PR head and records aggregate verification head (block=$green_block_head task_pr=$GREEN_DELIVERED_HEAD aggregate=$green_aggregate_head new=$GREEN_NEW_HEAD)" "fail"
 fi
 
 printf 'rebase-orphan-root-bug6: PASS=%s FAIL=%s TOTAL=%s\n' "$PASS" "$FAIL" "$TOTAL"
