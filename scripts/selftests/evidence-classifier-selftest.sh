@@ -86,11 +86,15 @@ H_MIX="$(git -C "$R" rev-parse HEAD)"
 # to the requested head AND deliverable.verification.status == PASS. We scaffold a
 # DP specs tree under the hermetic repo so resolve-task-md.sh can find the task.md.
 WI="DP-294-T4"
+JIRA_WI="FOO-646-T1"
 HS="$H_BEH"
 SPECS="$R/docs-manager/src/content/docs/specs"
 TASK_DIR="$SPECS/design-plans/DP-294-evidence-classifier-fixture/tasks/T4"
+JIRA_TASK_DIR="$SPECS/companies/exampleco/FOO-646/tasks/T1"
 mkdir -p "$TASK_DIR"
+mkdir -p "$JIRA_TASK_DIR"
 TASK_MD="$TASK_DIR/index.md"
+JIRA_TASK_MD="$JIRA_TASK_DIR/index.md"
 
 # Write a task.md carrying a deliverable block. $1 head_sha, $2 verification status.
 write_task_block() {
@@ -132,15 +136,23 @@ EOF
 }
 
 marker_pass() { bash "$CLS" marker-pass --repo "$R" --work-item-id "$WI" --head-sha "$1"; }
+jira_marker_pass() { bash "$CLS" marker-pass --repo "$R" --work-item-id "$JIRA_WI" --head-sha "$1"; }
 
 # AC3: PASS block at the requested head, with NO marker file anywhere -> exit 0.
 write_task_block "$HS" PASS
 [[ ! -d "$R/.polaris/evidence/completion-gate" ]] || bad "AC3 precondition: no marker dir should exist"
 if marker_pass "$HS" >/dev/null 2>&1; then ok; else bad "AC3 PASS task.md block (no marker) -> exit 0"; fi
 
+# JIRA Epic composite parity: marker-pass resolves companies/{co}/{EPIC}/task.md
+# by work_item_id through the same canonical resolver as DP composite ids.
+cp "$TASK_MD" "$JIRA_TASK_MD"
+if jira_marker_pass "$HS" >/dev/null 2>&1; then ok; else bad "JIRA Epic composite PASS task.md block -> exit 0"; fi
+
 # head-bound: a different head fails closed (task.md head does not match).
 if marker_pass "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" >/dev/null 2>&1; then
   bad "different head should exit 2"; else ok; fi
+if jira_marker_pass "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef" >/dev/null 2>&1; then
+  bad "JIRA Epic composite different head should exit 2"; else ok; fi
 
 # non-PASS verification.status fails closed.
 write_task_block "$HS" FAIL

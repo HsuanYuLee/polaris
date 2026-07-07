@@ -33,6 +33,11 @@
 #      mentions `design-plans/` via a container path shifts under jira, while a
 #      hardcoded framework literal does not.
 #
+#   4. Resolver-logic parity face (DP-370 T3):
+#      Delegate to scripts/lint-dp-keyed-source-symmetry.sh so DP-keyed
+#      resolver/reader/container-enum logic must carry a companies/JIRA-Epic
+#      counterpart unless documented in [resolver-logic] allowlist.
+#
 # Exit codes:
 #   0  PASS
 #   2  Parity / DP-only drift detected
@@ -50,6 +55,9 @@
 #                                 is a no-op; callers that can produce a render
 #                                 pair (derive selftest, auto-pass dispatch)
 #                                 supply pairs to exercise the proof.
+#   POLARIS_DP_KEYED_SOURCE_SURFACES
+#                                 newline-separated resolver-logic surface
+#                                 override, forwarded to the resolver lint.
 #
 # Usage:
 #   bash scripts/validate-spec-source-parity.sh
@@ -77,9 +85,12 @@ fi
 
 REGISTRY="${POLARIS_PRODUCER_REGISTRY:-scripts/lib/evidence-producers.json}"
 ALLOWLIST="${POLARIS_PARITY_ALLOWLIST:-scripts/lib/spec-source-parity-allowlist.txt}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DP_KEYED_SOURCE_LINT="${POLARIS_DP_KEYED_SOURCE_LINT:-$SCRIPT_DIR/lint-dp-keyed-source-symmetry.sh}"
 
 [[ -f "$REGISTRY" ]] || { echo "$PREFIX registry not found: $REGISTRY" >&2; exit 3; }
 [[ -f "$ALLOWLIST" ]] || { echo "$PREFIX allowlist not found: $ALLOWLIST" >&2; exit 3; }
+[[ -x "$DP_KEYED_SOURCE_LINT" ]] || { echo "$PREFIX resolver-logic lint not executable: $DP_KEYED_SOURCE_LINT" >&2; exit 3; }
 
 # Default auto-pass surface list — overrideable via POLARIS_AUTO_PASS_SURFACES
 # (newline-separated). Selftest fixtures point this at a temp directory.
@@ -102,6 +113,8 @@ export POLARIS_ALLOWLIST_INPUT="$ALLOWLIST"
 export POLARIS_AUTO_PASS_SURFACES_INPUT="$AUTO_PASS_SURFACES"
 export POLARIS_RENDER_BODY_PAIRS_INPUT="${POLARIS_RENDER_BODY_PAIRS:-}"
 export POLARIS_PREFIX="$PREFIX"
+
+POLARIS_PARITY_ALLOWLIST="$ALLOWLIST" bash "$DP_KEYED_SOURCE_LINT" >/dev/null
 
 python3 - <<'PY'
 from __future__ import annotations

@@ -25,6 +25,9 @@
 #      body literal (hardcoded `design-plans/` path / framework-only Verify tail)
 #      that does NOT shift in the jira render of identical content, proving the
 #      literal is hardcoded rather than container-driven.
+#   F10 Resolver-logic parity FAIL (DP-370 T3) — aggregate validator consumes
+#      lint-dp-keyed-source-symmetry.sh and fails on DP-keyed resolver logic
+#      without a companies/JIRA-Epic counterpart.
 
 set -uo pipefail
 
@@ -298,6 +301,26 @@ F9_RC=$?
 _assert "$F9_RC" "2" "F9: hardcoded DP-only body literal in render should exit 2"
 if grep -q "DP-only body literal" "$TMP/f9.err"; then F9_MSG="found"; else F9_MSG="missing"; fi
 _assert "$F9_MSG" "found" "F9: stderr should cite the DP-only body literal"
+
+# ---------------------------------------------------------------------------
+# F10 — resolver-logic parity FAIL (DP-370 T3 aggregate face)
+# ---------------------------------------------------------------------------
+F10_DIR="$TMP/f10"
+mkdir -p "$F10_DIR"
+cat >"$F10_DIR/asymmetric.sh" <<'EOF'
+resolve_by_dp() {
+  find docs-manager/src/content/docs/specs/design-plans -name 'DP-*'
+}
+EOF
+POLARIS_PRODUCER_REGISTRY="$F1_DIR/registry.json" \
+  POLARIS_PARITY_ALLOWLIST="$F1_DIR/allowlist.txt" \
+  POLARIS_AUTO_PASS_SURFACES="$F1_DIR/surface/SKILL.md" \
+  POLARIS_DP_KEYED_SOURCE_SURFACES="$F10_DIR/asymmetric.sh" \
+  bash "$VALIDATOR" >/dev/null 2>"$TMP/f10.err"
+F10_RC=$?
+_assert "$F10_RC" "2" "F10: aggregate validator should consume resolver-logic lint and exit 2"
+if grep -q "POLARIS_DP_KEYED_SOURCE_ASYMMETRY" "$TMP/f10.err"; then F10_MSG="found"; else F10_MSG="missing"; fi
+_assert "$F10_MSG" "found" "F10: stderr should include resolver-logic asymmetry marker"
 
 echo ""
 echo "validate-spec-source-parity selftest: $PASS/$TOTAL passed, $FAIL failed"

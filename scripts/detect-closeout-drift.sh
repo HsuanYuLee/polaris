@@ -125,7 +125,7 @@ gh_available() {
   command -v "$GH_BIN" >/dev/null 2>&1
 }
 
-# Returns 0 if a merged PR whose TITLE references the DP exists, 1 otherwise.
+# Returns 0 if a merged PR whose TITLE references the source key exists, 1 otherwise.
 # The `in:title` qualifier scopes the search to the DP's own delivery / bundle PRs
 # (titled with the DP key, e.g. "[DP-238-T1] ..." / "chore(release): bundle DP-238").
 # Without it, a plain full-text search also matches merged PRs that merely *mention*
@@ -133,22 +133,22 @@ gh_available() {
 # DPs that have no merged delivery PR of their own. Caller must only invoke this
 # when gh_available is true.
 dp_has_merged_pr() {
-  local dp="$1" out=""
-  out="$("$GH_BIN" pr list --search "$dp in:title" --state merged --json number 2>/dev/null || printf '[]')"
+  local source_key="$1" out=""
+  out="$("$GH_BIN" pr list --search "$source_key in:title" --state merged --json number 2>/dev/null || printf '[]')"
   [[ -n "$out" && "$out" != "[]" ]]
 }
 
-# Returns 0 if an OPEN PR whose TITLE references the DP exists, 1 otherwise.
+# Returns 0 if an OPEN PR whose TITLE references the source key exists, 1 otherwise.
 # An open delivery / bundle PR (in:title) means the DP is still in flight and not
 # closeout-ready. Same `in:title` scoping rationale as dp_has_merged_pr. Caller must
 # only invoke this when gh_available is true.
 dp_has_open_pr() {
-  local dp="$1" out=""
-  out="$("$GH_BIN" pr list --search "$dp in:title" --state open --json number 2>/dev/null || printf '[]')"
+  local source_key="$1" out=""
+  out="$("$GH_BIN" pr list --search "$source_key in:title" --state open --json number 2>/dev/null || printf '[]')"
   [[ -n "$out" && "$out" != "[]" ]]
 }
 
-# Collect the implementation (task_kind: T) task stems of a DP container.
+# Collect the implementation (task_kind: T) task stems of a source container.
 # Handles folder-native (tasks/T{n}/index.md, tasks/pr-release/T{n}/index.md)
 # and legacy flat (tasks/T{n}.md, tasks/pr-release/T{n}.md) layouts.
 dp_task_stems() {
@@ -193,7 +193,7 @@ ac_verification_status() {
   ' "$file"
 }
 
-# Enumerate ACTIVE verification (task_kind: V) anchors of a DP container.
+# Enumerate ACTIVE verification (task_kind: V) anchors of a source container.
 # Active = under tasks/ but NOT tasks/pr-release/ (pr-release V anchors are
 # historically closed-out / verified and do not gate closeout). Handles
 # folder-native (tasks/V{n}/index.md) and legacy flat (tasks/V{n}.md) layouts.
@@ -269,7 +269,7 @@ task_deliverable_delivered() {
   ' "$file"
 }
 
-# Resolve the task.md path for a DP task stem (folder-native or legacy flat,
+# Resolve the task.md path for a source task stem (folder-native or legacy flat,
 # active tasks/ or finalized tasks/pr-release/). Echos the first match.
 dp_task_file_for_stem() {
   local container="$1" stem="$2" cand=""
@@ -287,7 +287,7 @@ dp_task_file_for_stem() {
 }
 
 # Count T tasks whose task.md `deliverable` block records delivery (head + PASS)
-# for a DP container. Echos "<covered> <total>". (DP-360 T7: replaces the
+# for a source container. Echos "<covered> <total>". (DP-360 T7: replaces the
 # completion-gate marker count; same covered/total semantics feed classification.)
 dp_marker_coverage() {
   local container="$2" stem="" file="" total=0 covered=0
@@ -302,19 +302,57 @@ dp_marker_coverage() {
   printf '%s %s\n' "$covered" "$total"
 }
 
-# Returns 0 if CHANGELOG has a Fixed/Added section referencing the DP.
+# Returns 0 if CHANGELOG has a Fixed/Added section referencing the source key.
 dp_in_changelog() {
-  local dp="$1"
+  local source_key="$1"
   [[ -f "$CHANGELOG" ]] || return 1
-  grep -Eq "^###[[:space:]]+(Fixed|Added)[[:space:]].*\b${dp}\b" "$CHANGELOG"
+  grep -Eq "^###[[:space:]]+(Fixed|Added)[[:space:]].*\b${source_key}\b" "$CHANGELOG"
 }
 
-# Enumerate active design-plan containers (excludes archive/). Mirrors the
-# archive-spec.sh sweep_containers enumeration for design-plans.
-active_dp_containers() {
+# Enumerate active source containers (excludes archive/). Design-plan sources
+# live under design-plans/DP-*, while JIRA Epic-backed sources live under
+# companies/*/{EPIC}. Both feed the same evidence/classification/writer path.
+active_source_containers() {
   [[ -d "$SPECS_ROOT/design-plans" ]] || return 0
   find "$SPECS_ROOT/design-plans" -maxdepth 1 -type d -name 'DP-[0-9][0-9][0-9]-*' -print0 2>/dev/null \
     | tr '\0' '\n'
+  if [[ -d "$SPECS_ROOT/companies" ]]; then
+    find "$SPECS_ROOT/companies" -mindepth 2 -maxdepth 2 -type d -print0 2>/dev/null \
+      | tr '\0' '\n' \
+      | while IFS= read -r container; do
+          local base=""
+          base="$(basename "$container")"
+          [[ "$base" =~ ^[A-Z][A-Z0-9]+-[0-9]+$ ]] || continue
+          printf '%s\n' "$container"
+        done
+  fi
+}
+
+source_key_for_container() {
+  local container="$1" base=""
+  base="$(basename "$container")"
+  case "$container" in
+    */design-plans/DP-[0-9][0-9][0-9]-*)
+      printf '%s\n' "$base" | sed -E 's/^(DP-[0-9]{3})-.*/\1/'
+      ;;
+    */companies/*/[A-Z]*-[0-9]*)
+      printf '%s\n' "$base"
+      ;;
+    *)
+      printf '%s\n' "$base"
+      ;;
+  esac
+}
+
+source_anchor_for_container() {
+  local container="$1" cand=""
+  for cand in "$container/index.md" "$container/refinement.md" "$container/plan.md"; do
+    if [[ -f "$cand" ]]; then
+      printf '%s\n' "$cand"
+      return 0
+    fi
+  done
+  return 1
 }
 
 # --- main scan -------------------------------------------------------------
@@ -331,9 +369,9 @@ trap 'rm -f "$RESULTS_TSV"' EXIT
 container=""
 while IFS= read -r container; do
   [[ -n "$container" ]] || continue
-  dp="$(basename "$container" | sed -E 's/^(DP-[0-9]{3})-.*/\1/')"
-  anchor="$container/index.md"
-  [[ -f "$anchor" ]] || anchor="$container/plan.md"
+  dp="$(source_key_for_container "$container")"
+  anchor="$(source_anchor_for_container "$container" || true)"
+  [[ -n "$anchor" ]] || continue
   status="$(frontmatter_status "$anchor")"
 
   # AC6: only active/ LOCKED containers are in scope. Non-LOCKED is a no-op.
@@ -435,7 +473,7 @@ while IFS= read -r container; do
     "$changelog_hit" "$pr_merged" "$pr_open" "$pr_unchecked" "$verification_pending" \
     "$(basename "$container")" \
     >>"$RESULTS_TSV"
-done < <(active_dp_containers)
+done < <(active_source_containers)
 
 # --- render ----------------------------------------------------------------
 

@@ -45,25 +45,32 @@ trap 'rm -rf "$TMP"' EXIT
 export POLARIS_WORKSPACE_ROOT="$TMP"
 export POLARIS_SPECS_ROOT="$TMP/docs-manager/src/content/docs/specs"
 SPECS_DESIGN_PLANS="$TMP/docs-manager/src/content/docs/specs/design-plans"
+SPECS_ROOT="$TMP/docs-manager/src/content/docs/specs"
 mkdir -p "$SPECS_DESIGN_PLANS"
 
 # Description: record a V work item's delivery in its task.md `deliverable` block
 #              (DP-360 T7 replacement for the retired ac_verification marker).
-#              Creates the DP container + V task.md resolvable by work_item_id.
-# Args:        $1 = work_item_id (DP-NNN-V{n}); $2 = head sha; $3 = status
-# Side effects: writes $SPECS_DESIGN_PLANS/{DP}-selftest/tasks/{stem}/index.md
+#              Creates the DP or JIRA Epic container + V task.md resolvable by
+#              work_item_id.
+# Args:        $1 = work_item_id (DP-NNN-V{n} or KEY-NNN-V{n}); $2 = head sha;
+#              $3 = status
+# Side effects: writes a task.md under design-plans/ or companies/exampleco/.
 write_marker() {
   local work_item="$1" head="$2" status="$3"
-  python3 - "$SPECS_DESIGN_PLANS" "$work_item" "$head" "$status" <<'PY'
+  python3 - "$SPECS_ROOT" "$work_item" "$head" "$status" <<'PY'
 import re
 import sys
 from pathlib import Path
 
-base, work_item, head, status = sys.argv[1:5]
-m = re.match(r"^(DP-\d+)-([A-Za-z]+\d+)$", work_item)
+specs_root, work_item, head, status = sys.argv[1:5]
+m = re.match(r"^([A-Z][A-Z0-9]+-\d+)-([A-Za-z]+\d+)$", work_item)
 assert m, f"unexpected work_item shape: {work_item}"
-dp, stem = m.group(1), m.group(2)
-task_dir = Path(base) / f"{dp}-selftest" / "tasks" / stem
+source_id, stem = m.group(1), m.group(2)
+base = Path(specs_root)
+if source_id.startswith("DP-"):
+    task_dir = base / "design-plans" / f"{source_id}-selftest" / "tasks" / stem
+else:
+    task_dir = base / "companies" / "exampleco" / source_id / "tasks" / "pr-release" / stem
 task_dir.mkdir(parents=True, exist_ok=True)
 (task_dir / "index.md").write_text(
     "---\n"
@@ -81,7 +88,8 @@ task_dir.mkdir(parents=True, exist_ok=True)
     "      ac_total: 1\n"
     f"      ac_pass: {'1' if status == 'PASS' else '0'}\n"
     "---\n\n"
-    f"# {stem}\n",
+    f"# {stem}\n\n"
+    f"> Source: {source_id} | Task: {work_item} | JIRA: {work_item} | Repo: polaris-framework\n",
     encoding="utf-8",
 )
 PY
@@ -611,7 +619,39 @@ Path(report_path).write_text(json.dumps({
 PY
 assert_pass "ac6-pinned-ok" "$VALIDATOR" "$AC6_PINNED_OK"
 
-# ─── 20. AC6 NEG: verification PASS without work_item_id → exit 2 ────────────
+# ─── 20. AC6 POS: JIRA Epic composite V-task resolves via companies path ─────
+write_marker "FOO-646-V1" "$HEAD_SHA" "PASS"
+AC6_JIRA_OK="$TMP/ac6-jira-ok.json"
+write_report "$AC6_JIRA_OK" complete complete FOO-646 "$COMPLETE_LEDGER"
+assert_pass "ac6-jira-composite-ok" "$VALIDATOR" "$AC6_JIRA_OK"
+
+# ─── 21. AC6 NEG: JIRA Epic composite pinned head mismatch → exit 2 ─────────
+AC6_JIRA_PINNED_MISS="$TMP/ac6-jira-pinned-miss.json"
+python3 - "$AC6_JIRA_PINNED_MISS" "$COMPLETE_LEDGER" <<'PY'
+import json, sys
+from pathlib import Path
+report_path, ledger_path = sys.argv[1:3]
+Path(report_path).write_text(json.dumps({
+    "schema_version": 1,
+    "source_id": "FOO-646",
+    "terminal_status": "complete",
+    "created_at": "2026-05-19T10:30:00+08:00",
+    "ledger_path": ledger_path,
+    "required_prs": [],
+    "verification": {"status": "PASS", "work_item_id": "FOO-646-V1",
+                     "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+    "issues": [],
+    "blockers": [],
+    "manual_items": [],
+    "follow_ups": [],
+    "overlap_disposition": [],
+    "follow_up_dp_seed": None,
+}) + "\n", encoding="utf-8")
+PY
+assert_fail2 "ac6-jira-pinned-miss" "$VALIDATOR" "$AC6_JIRA_PINNED_MISS"
+grep -q 'POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISMATCH' "$TMP/ac6-jira-pinned-miss.out"
+
+# ─── 22. AC6 NEG: verification PASS without work_item_id → exit 2 ────────────
 AC6_NO_WI="$TMP/ac6-no-wi.json"
 python3 - "$AC6_NO_WI" "$COMPLETE_LEDGER" <<'PY'
 import json, sys

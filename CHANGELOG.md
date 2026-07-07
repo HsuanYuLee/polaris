@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.76.79] - 2026-07-07
+
+### Changed
+
+- 2070bd4: Resolve JIRA Epic composite work item ids through the canonical task.md resolver and pin downstream reader parity.
+- 5ffde58: Expand closeout drift detection to JIRA Epic source containers under companies paths.
+- 2b8c928: Add a resolver-logic source parity lint to catch DP-keyed source asymmetry.
+
 ## [3.76.78] - 2026-07-07
 
 ### Changed

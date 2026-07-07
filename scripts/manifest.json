@@ -5754,6 +5754,25 @@
       "lifecycle": "support_path",
       "relocation": "move_direct",
       "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/lint-dp-keyed-source-symmetry.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/selftests/lint-dp-keyed-source-symmetry-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftests/lint-dp-keyed-source-symmetry-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     }
   ],
   "test_governance": {

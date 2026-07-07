@@ -219,6 +219,61 @@ resolve_by_dp_task() {
   return 1
 }
 
+resolve_by_jira_epic_task() {
+  local root="$1"
+  local source_task="$2"
+  local include_archive="${3:-0}"
+  local source_id=""
+  local task_id=""
+  local specs_root=""
+  local companies_root=""
+  local -a matches=()
+  local line=""
+
+  if [[ ! "$source_task" =~ ^([A-Z][A-Z0-9]+-[0-9]+)-([TV][0-9]+[a-z]*)$ ]]; then
+    return 1
+  fi
+  source_id="${BASH_REMATCH[1]}"
+  task_id="${BASH_REMATCH[2]}"
+  specs_root="$(resolve_specs_root "$root")" || return 1
+  companies_root="$specs_root/companies"
+  [[ -d "$companies_root" ]] || { echo "error: no companies specs root found for ${source_task}" >&2; return 1; }
+
+  while IFS= read -r -d '' line; do
+    matches+=("$line")
+  done < <(
+    if [[ "$include_archive" == "1" ]]; then
+      find "$companies_root" \
+        \( -type d \( -name .git -o -name .worktrees -o -name node_modules \) -prune \) \
+        -o \
+        \( -type f \( \
+          -path "*/${source_id}/tasks/${task_id}.md" \
+          -o -path "*/${source_id}/tasks/${task_id}/index.md" \
+          -o -path "*/${source_id}/tasks/pr-release/${task_id}.md" \
+          -o -path "*/${source_id}/tasks/pr-release/${task_id}/index.md" \
+          \) -print0 \)
+    else
+      find "$companies_root" \
+        \( -type d \( -name .git -o -name .worktrees -o -name node_modules -o -name archive \) -prune \) \
+        -o \
+        \( -type f \( \
+          -path "*/${source_id}/tasks/${task_id}.md" \
+          -o -path "*/${source_id}/tasks/${task_id}/index.md" \
+          -o -path "*/${source_id}/tasks/pr-release/${task_id}.md" \
+          -o -path "*/${source_id}/tasks/pr-release/${task_id}/index.md" \
+          \) -print0 \)
+    fi
+  )
+
+  if [[ ${#matches[@]} -gt 0 ]]; then
+    emit_unique_match "JIRA Epic task ${source_task}" "${matches[@]}"
+    return $?
+  fi
+
+  echo "error: no JIRA Epic task.md found for ${source_task}" >&2
+  return 1
+}
+
 resolve_by_source_task() {
   local root="$1"
   local source_task="$2"
@@ -524,7 +579,7 @@ PY
       if [[ "$value" =~ ^DP-[0-9]{3}-[TV][0-9]+[a-z]*$ ]]; then
         resolve_by_dp_task "$root" "$value" "$include_archive"
       else
-        resolve_by_source_task "$root" "$value" "$include_archive"
+        resolve_by_jira_epic_task "$root" "$value" "$include_archive"
       fi
       ;;
     dp_task)
@@ -574,6 +629,10 @@ run_selftest() {
   mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks/pr-release" "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks" "$tmpdir/docs-manager/src/content/docs/specs/EPIC-999" \
            "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks/pr-release" "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks" \
            "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/EPIC-999/tasks" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/FOO-646/tasks/T1" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/FOO-646/tasks/pr-release/V1" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/FOO-646/tasks/T2" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/FOO-6460/tasks/T1" \
            "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks/T5" \
            "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/EPIC-478/tasks/pr-release/T6" \
            "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-048-folder-native-resolver/tasks/T2" \
@@ -629,6 +688,50 @@ MD
 | Source ID | EPIC-478 |
 | Task ID | TASK-3906 |
 | JIRA key | TASK-3906 |
+MD
+
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/FOO-646/tasks/T1/index.md" <<'MD'
+# T1: JIRA Epic composite task (1 pt)
+> Source: FOO-646 | Task: FOO-646-T1 | JIRA: FOO-646-T1 | Repo: exampleco
+## Operational Context
+| Source type | jira |
+| Source ID | FOO-646 |
+| Work item ID | FOO-646-T1 |
+| Task ID | FOO-646-T1 |
+| JIRA key | FOO-646-T1 |
+MD
+
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/FOO-646/tasks/pr-release/V1/index.md" <<'MD'
+# V1: JIRA Epic composite verification (1 pt)
+> Source: FOO-646 | Task: FOO-646-V1 | JIRA: FOO-646-V1 | Repo: exampleco
+## Operational Context
+| Source type | jira |
+| Source ID | FOO-646 |
+| Work item ID | FOO-646-V1 |
+| Task ID | FOO-646-V1 |
+| JIRA key | FOO-646-V1 |
+MD
+
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/archive/FOO-646/tasks/T2/index.md" <<'MD'
+# T2: Archived JIRA Epic composite task (1 pt)
+> Source: FOO-646 | Task: FOO-646-T2 | JIRA: FOO-646-T2 | Repo: exampleco
+## Operational Context
+| Source type | jira |
+| Source ID | FOO-646 |
+| Work item ID | FOO-646-T2 |
+| Task ID | FOO-646-T2 |
+| JIRA key | FOO-646-T2 |
+MD
+
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/companies/exampleco/FOO-6460/tasks/T1/index.md" <<'MD'
+# T1: Decoy JIRA Epic composite task (1 pt)
+> Source: FOO-6460 | Task: FOO-6460-T1 | JIRA: FOO-6460-T1 | Repo: exampleco
+## Operational Context
+| Source type | jira |
+| Source ID | FOO-6460 |
+| Work item ID | FOO-6460-T1 |
+| Task ID | FOO-6460-T1 |
+| JIRA key | FOO-6460-T1 |
 MD
 
   cat > "$tmpdir/docs-manager/src/content/docs/specs/EPIC-478/tasks/T4.md" <<'MD'
@@ -740,6 +843,23 @@ MD
   [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/EPIC-478/tasks/pr-release/T6/index.md" ]] || { echo "[selftest] folder-native jira pr-release FAIL"; return 1; }
 
   rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" FOO-646-T1)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/FOO-646/tasks/T1/index.md" ]] || { echo "[selftest] jira epic composite task FAIL"; return 1; }
+  [[ "$out" != *"/FOO-6460/"* ]] || { echo "[selftest] jira epic composite decoy isolation FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" FOO-646-V1)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/FOO-646/tasks/pr-release/V1/index.md" ]] || { echo "[selftest] jira epic composite verification FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" FOO-646-T2)" || rc=$?
+  [[ $rc -eq 1 ]] || { echo "[selftest] jira epic composite default archive exclusion FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --include-archive --scan-root "$tmpdir" FOO-646-T2)" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/archive/FOO-646/tasks/T2/index.md" ]] || { echo "[selftest] jira epic composite include-archive FAIL"; return 1; }
+
+  rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" EPIC-999)" || rc=$?
   [[ $rc -eq 1 ]] || { echo "[selftest] default archive exclusion FAIL"; return 1; }
 
@@ -758,6 +878,10 @@ MD
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" --from-input 'engineering DP-047-T1')" || rc=$?
   [[ $rc -eq 0 && "$out" == *"/specs/design-plans/DP-047-framework-work-order-bridge/tasks/T1.md" ]] || { echo "[selftest] from-input dp task FAIL"; return 1; }
+
+  rc=0
+  out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" --from-input 'engineering FOO-646-T1')" || rc=$?
+  [[ $rc -eq 0 && "$out" == *"/specs/companies/exampleco/FOO-646/tasks/T1/index.md" ]] || { echo "[selftest] from-input jira epic composite FAIL"; return 1; }
 
   rc=0
   out="$(env -u RESOLVE_TASK_MD_SELFTEST -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$0" --scan-root "$tmpdir" DP-047-V1)" || rc=$?
@@ -1002,7 +1126,7 @@ case "$mode" in
     elif [[ "$input_value" =~ ^DP-[0-9]{3}-[TV][0-9]+[a-z]*$ ]]; then
       resolved_path="$(resolve_by_dp_task "$root" "$input_value" "$include_archive_flag")"
     elif [[ "$input_value" =~ ^[A-Z][A-Z0-9]*-[0-9]+-[TV][0-9]+[a-z]*$ ]]; then
-      resolved_path="$(resolve_by_source_task "$root" "$input_value" "$include_archive_flag")"
+      resolved_path="$(resolve_by_jira_epic_task "$root" "$input_value" "$include_archive_flag")"
     elif [[ "$input_value" =~ ^[A-Z][A-Z0-9]+-[0-9]+$ ]]; then
       resolved_path="$(resolve_by_jira "$root" "$input_value" "$include_archive_flag")"
     elif [[ "$input_value" =~ ^https?://github\.com/.+/pull/[0-9]+$ || "$input_value" =~ ^#?[0-9]+$ ]]; then

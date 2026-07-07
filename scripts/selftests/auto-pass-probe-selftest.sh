@@ -179,10 +179,47 @@ write_task_deliverable() {
   } >"$task_dir/index.md"
 }
 
+write_jira_task_deliverable() {
+  local wid="$1"
+  local head="$2"
+  local vstatus="$3"
+  local source_id="${wid%-*}"
+  local task_id="${wid##*-}"
+  local task_dir="$TMP/docs-manager/src/content/docs/specs/companies/exampleco/$source_id/tasks/$task_id"
+  mkdir -p "$task_dir"
+  {
+    echo "---"
+    echo "title: \"$wid fixture\""
+    echo "description: \"auto-pass probe JIRA Epic task.md deliverable fixture\""
+    echo "status: IN_PROGRESS"
+    echo "task_kind: T"
+    echo "work_item_id: $wid"
+    if [[ -n "$head" ]]; then
+      echo "deliverable:"
+      echo "  head_sha: $head"
+      if [[ -n "$vstatus" ]]; then
+        echo "  verification:"
+        echo "    status: $vstatus"
+      fi
+    fi
+    echo "---"
+    echo ""
+    echo "# $wid"
+    echo ""
+    echo "> Source: $source_id | Task: $wid | JIRA: $wid | Repo: polaris-framework"
+  } >"$task_dir/index.md"
+}
+
 remove_task_deliverable() {
   local wid="$1"
   local task_id="${wid##*-}"
-  rm -rf "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/$task_id"
+  local source_id="${wid%-*}"
+  if [[ "$source_id" == DP-* ]]; then
+    rm -rf "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/$task_id"
+  else
+    rm -rf "$TMP/docs-manager/src/content/docs/specs/companies/exampleco/$source_id/tasks/$task_id"
+    rm -rf "$TMP/docs-manager/src/content/docs/specs/companies/exampleco/$source_id/tasks/pr-release/$task_id"
+  fi
 }
 
 # DP-360 T7: the verify-AC stage reads the V-task `ac_verification` frontmatter
@@ -209,6 +246,32 @@ write_v_task_ac() {
     echo "---"
     echo ""
     echo "## Fixture"
+  } >"$task_dir/index.md"
+}
+
+write_jira_v_task_ac() {
+  local wid="$1"
+  local vstatus="$2"
+  local source_id="${wid%-*}"
+  local task_id="${wid##*-}"
+  local task_dir="$TMP/docs-manager/src/content/docs/specs/companies/exampleco/$source_id/tasks/pr-release/$task_id"
+  mkdir -p "$task_dir"
+  {
+    echo "---"
+    echo "title: \"$wid fixture\""
+    echo "description: \"auto-pass probe JIRA Epic V-task ac_verification fixture\""
+    echo "status: IN_PROGRESS"
+    echo "task_kind: V"
+    echo "work_item_id: $wid"
+    if [[ -n "$vstatus" ]]; then
+      echo "ac_verification:"
+      echo "  status: $vstatus"
+    fi
+    echo "---"
+    echo ""
+    echo "# $wid"
+    echo ""
+    echo "> Source: $source_id | Task: $wid | JIRA: $wid | Repo: polaris-framework"
   } >"$task_dir/index.md"
 }
 
@@ -346,6 +409,12 @@ assert_field "source-archived-blocked" "BLOCKED" status --stage source --source-
 write_task_deliverable DP-900-T1 abc1234 PASS
 assert_field "engineering-pass" "verify-AC" next_action --stage engineering --source-id DP-900 --work-item-id DP-900-T1 --head-sha abc1234
 
+# AC12/AC13 extension: JIRA Epic composite work item ids must resolve through
+# the same task.md delivery reader as DP composite ids.
+write_jira_task_deliverable EXAMPLE-556-T1 abc1234 PASS
+assert_field "engineering-jira-composite-pass" "verify-AC" next_action --stage engineering --source-id EXAMPLE-556 --work-item-id EXAMPLE-556-T1 --head-sha abc1234
+remove_task_deliverable EXAMPLE-556-T1
+
 # DP-231 T7: when the explicit PR state carries auto-pass ownership payload,
 # engineering PASS must first consume the shared ownership/non-draft gate before
 # continuing to verify-AC.
@@ -389,6 +458,10 @@ remove_task_deliverable DP-900-T1
 # AC3: no marker; V-task ac_verification.status=PASS → complete.
 write_v_task_ac DP-900-V1 PASS
 assert_field "verify-pass" "complete" terminal_status --stage verify-AC --source-id DP-900 --work-item-id DP-900-V1 --head-sha abc1234
+
+write_jira_v_task_ac EXAMPLE-556-V1 PASS
+assert_field "verify-jira-composite-pass" "complete" terminal_status --stage verify-AC --source-id EXAMPLE-556 --work-item-id EXAMPLE-556-V1 --head-sha abc1234
+remove_task_deliverable EXAMPLE-556-V1
 
 # AC-NEG2: a stray PASS ac-verification marker must be IGNORED — the V-task
 # ac_verification block (here FAIL) is the sole authority and still blocks.

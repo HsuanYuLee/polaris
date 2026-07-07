@@ -113,6 +113,44 @@ EOF
   printf '%s\n' "$container"
 }
 
+# Create a LOCKED (or arbitrary-status) JIRA Epic container with N implementation
+# tasks (task_kind: T) under companies/<company>/<EPIC>/tasks/T{n}/index.md.
+# Usage: make_epic <root> <EPIC-NNN> <status> <num_tasks> [archive]
+make_epic() {
+  local root="$1" epic="$2" status="$3" num_tasks="$4" archived="${5:-}"
+  local base="$root/docs-manager/src/content/docs/specs/companies/exampleco"
+  local container
+  if [[ "$archived" == "archive" ]]; then
+    container="$base/archive/${epic}"
+  else
+    container="$base/${epic}"
+  fi
+  mkdir -p "$container/tasks"
+  cat >"$container/refinement.md" <<EOF
+---
+title: "${epic}"
+status: ${status}
+---
+
+# ${epic}
+EOF
+  local i
+  for ((i = 1; i <= num_tasks; i++)); do
+    mkdir -p "$container/tasks/T${i}"
+    cat >"$container/tasks/T${i}/index.md" <<EOF
+---
+title: "${epic} T${i}"
+status: IN_PROGRESS
+task_kind: T
+task_shape: implementation
+---
+
+# T${i}
+EOF
+  done
+  printf '%s\n' "$container"
+}
+
 # Add an active folder-native V anchor (tasks/V{n}/index.md) to an existing DP
 # container, with a chosen ac_verification.status. Pass status="" to OMIT the
 # ac_verification block entirely (missing-block case => treated not-PASS).
@@ -175,11 +213,15 @@ EOF
 # Usage: make_marker <root> <DP-NNN> <T-stem>
 make_marker() {
   local root="$1" dp="$2" stem="$3"
-  local base="$root/docs-manager/src/content/docs/specs/design-plans"
+  local specs="$root/docs-manager/src/content/docs/specs"
   local container task_md sha
-  # Resolve the (slug-suffixed) active container for this DP.
-  container="$(find "$base" -maxdepth 1 -type d -name "${dp}-*" 2>/dev/null | head -n1)"
-  [[ -n "$container" ]] || { echo "make_marker: no container for $dp under $base" >&2; return 1; }
+  # Resolve the active source container for this DP/JIRA Epic.
+  if [[ "$dp" == DP-* ]]; then
+    container="$(find "$specs/design-plans" -maxdepth 1 -type d -name "${dp}-*" 2>/dev/null | head -n1)"
+  else
+    container="$(find "$specs/companies" -mindepth 2 -maxdepth 2 -type d -name "$dp" 2>/dev/null | head -n1)"
+  fi
+  [[ -n "$container" ]] || { echo "make_marker: no container for $dp under $specs" >&2; return 1; }
   task_md="$container/tasks/${stem}/index.md"
   [[ -f "$task_md" ]] || task_md="$container/tasks/${stem}.md"
   [[ -f "$task_md" ]] || { echo "make_marker: no task.md for ${dp}-${stem}" >&2; return 1; }
@@ -884,6 +926,123 @@ test_v_gate_read_only() {
 }
 
 # ---------------------------------------------------------------------------
+# DP-370 T2 / AC3: JIRA Epic-backed containers under companies/*/{EPIC} must
+# use the same detector helpers and mark-spec writer as DP containers. Complete
+# deliverable markers + merged title PR => delivered-drift-high and one
+# mark-spec-implemented invocation with the bare Epic key.
+# ---------------------------------------------------------------------------
+test_jira_epic_delivered_high() {
+  local tc; tc="$(mktemp -d)"; trap 'rm -rf "'"$tc"'"' RETURN
+  make_workspace "$tc"
+  make_epic "$tc" "FOO-916" "LOCKED" 2 >/dev/null
+  make_marker "$tc" "FOO-916" "T1"
+  make_marker "$tc" "FOO-916" "T2"
+  make_changelog_entry "$tc" "FOO-916"
+  local gh; gh="$tc/gh"; make_gh_stub_merged "$gh"
+  local mark; mark="$tc/mark.sh"; make_mark_stub "$mark"
+  local log="$tc/mark.log" out="$tc/report.json"
+
+  if ! run_detector "$tc" "$gh" "$mark" "$log" "$out"; then
+    record_fail "DP-370 AC3 detector run (JIRA Epic delivered-high)"; return
+  fi
+
+  local cls; cls="$(classify_of "$out" "FOO-916")"
+  if [[ "$cls" == "delivered-drift-high" ]]; then
+    record_pass "DP-370 AC3 JIRA Epic classify delivered-drift-high"
+  else
+    record_fail "DP-370 AC3 JIRA Epic expected delivered-drift-high, got: $cls"
+  fi
+
+  if grep -q 'MARK_SPEC_CALLED' "$log" && grep -q 'FOO-916' "$log"; then
+    record_pass "DP-370 AC3 JIRA Epic routes closeout through mark-spec-implemented"
+  else
+    record_fail "DP-370 AC3 JIRA Epic did not invoke mark-spec-implemented"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# DP-370 T2 / AC-NEG3: JIRA Epic-backed stranded sources are report-only, and
+# archived / non-LOCKED company containers stay out of the active scan.
+# ---------------------------------------------------------------------------
+test_jira_epic_stranded_and_scope() {
+  local tc; tc="$(mktemp -d)"; trap 'rm -rf "'"$tc"'"' RETURN
+  make_workspace "$tc"
+  local container; container="$(make_epic "$tc" "FOO-917" "LOCKED" 2)"
+  touch -t 202001010000 "$container/refinement.md" "$container"
+  make_epic "$tc" "FOO-918" "DISCUSSION" 1 >/dev/null
+  make_epic "$tc" "FOO-919" "LOCKED" 1 "archive" >/dev/null
+  local gh; gh="$tc/gh"; make_gh_stub_empty "$gh"
+  local mark; mark="$tc/mark.sh"; make_mark_stub "$mark"
+  local log="$tc/mark.log" out="$tc/report.json"
+
+  if ! run_detector "$tc" "$gh" "$mark" "$log" "$out" --stranded-days 14; then
+    record_fail "DP-370 AC-NEG3 detector run (JIRA Epic stranded/scope)"; return
+  fi
+
+  local cls917 cls918 cls919
+  cls917="$(classify_of "$out" "FOO-917")"
+  cls918="$(classify_of "$out" "FOO-918")"
+  cls919="$(classify_of "$out" "FOO-919")"
+  if [[ "$cls917" == "stranded" ]]; then
+    record_pass "DP-370 AC-NEG3 JIRA Epic classify stranded"
+  else
+    record_fail "DP-370 AC-NEG3 JIRA Epic expected stranded, got: $cls917"
+  fi
+  if grep -q 'MARK_SPEC_CALLED' "$log"; then
+    record_fail "DP-370 AC-NEG3 JIRA Epic stranded triggered mark-spec"
+  else
+    record_pass "DP-370 AC-NEG3 JIRA Epic stranded report-only"
+  fi
+  if [[ "$cls918" == "__ABSENT__" && "$cls919" == "__ABSENT__" ]]; then
+    record_pass "DP-370 AC-NEG3 JIRA Epic active scan skips non-LOCKED and archive"
+  else
+    record_fail "DP-370 AC-NEG3 JIRA Epic scope leak (FOO-918=$cls918 FOO-919=$cls919)"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# DP-370 T2 / D7: gh absent remains fail-open for JIRA Epic-backed sources; a
+# marker-complete Epic without confirmed merged PR must not auto-close.
+# ---------------------------------------------------------------------------
+test_jira_epic_gh_absent_fail_open() {
+  local tc; tc="$(mktemp -d)"; trap 'rm -rf "'"$tc"'"' RETURN
+  make_workspace "$tc"
+  make_epic "$tc" "FOO-920" "LOCKED" 2 >/dev/null
+  make_marker "$tc" "FOO-920" "T1"
+  make_marker "$tc" "FOO-920" "T2"
+  make_changelog_entry "$tc" "FOO-920"
+  local gh; gh="$tc/no-such-gh-binary"
+  local mark; mark="$tc/mark.sh"; make_mark_stub "$mark"
+  local log="$tc/mark.log" out="$tc/report.json"
+
+  if ! run_detector "$tc" "$gh" "$mark" "$log" "$out"; then
+    record_fail "DP-370 D7 detector run (JIRA Epic gh absent)"; return
+  fi
+
+  if python3 - "$out" <<'PY'
+import json, sys
+data = json.load(open(sys.argv[1]))
+for item in data.get("results", []):
+    if item.get("dp") == "FOO-920":
+        ev = item.get("evidence", {})
+        ok = item.get("pr_evidence_unchecked") is True and ev.get("merged_pr") == "unchecked"
+        sys.exit(0 if ok else 1)
+sys.exit(1)
+PY
+  then
+    record_pass "DP-370 D7 JIRA Epic report annotates PR evidence unchecked"
+  else
+    record_fail "DP-370 D7 JIRA Epic missing PR unchecked annotation"
+  fi
+
+  if grep -q 'MARK_SPEC_CALLED' "$log"; then
+    record_fail "DP-370 D7 JIRA Epic gh-absent auto-closed without PR confirmation"
+  else
+    record_pass "DP-370 D7 JIRA Epic gh-absent does NOT auto-close"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # Run all
 # ---------------------------------------------------------------------------
 test_delivered_high
@@ -900,6 +1059,9 @@ test_v_missing_ac_block
 test_v_pass
 test_v_in_pr_release
 test_v_gate_read_only
+test_jira_epic_delivered_high
+test_jira_epic_stranded_and_scope
+test_jira_epic_gh_absent_fail_open
 
 echo "----"
 echo "detect-closeout-drift selftest: ${pass} passed, ${fail} failed"
