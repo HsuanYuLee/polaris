@@ -101,6 +101,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | closeout-no-refinement-session-boundary | scripts/selftests/closeout-no-refinement-session-boundary-selftest.sh | script | portable | scripts/selftests/closeout-no-refinement-session-boundary-selftest.sh | governance |
 | update-active-thread | scripts/update-active-thread.sh | script | portable | scripts/selftests/update-active-thread-selftest.sh | governance |
 | refinement-consumer-schema-binding | scripts/validate-refinement-consumer-schema-binding.sh | script | portable | scripts/selftests/validate-refinement-consumer-schema-binding-selftest.sh | governance |
+| verification-strategy-source-neutral | scripts/validate-verification-strategy.sh | script | portable | scripts/selftests/validate-verification-strategy-selftest.sh | governance |
 | closeout-drift-detector | scripts/detect-closeout-drift.sh | script | portable | scripts/selftests/detect-closeout-drift-selftest.sh | governance |
 | closeout-drift-bundle-aware-completion | scripts/selftests/check-local-extension-completion-bundle-aware-selftest.sh | script | portable | scripts/selftests/check-local-extension-completion-bundle-aware-selftest.sh | governance |
 | framework-release-execute | scripts/framework-release-execute.sh | script | portable | scripts/selftests/framework-release-full-tail-selftest.sh | governance |

@@ -525,6 +525,64 @@ grep -qF "| Base branch | develop |" "$jira_parity_out" || {
 grep -qF "| Repo: exampleco-web" "$jira_parity_out" || {
   echo "FAIL [case 8 / AC2]: jira repo not source.repo" >&2; exit 1; }
 
+# --- Case 8b (DP-364 D1): per-task repo/base_branch override source-level
+# repo/base, and changeset detection uses the per-task repo root.
+task_repo_root="$tmpdir/task-repo"
+mkdir -p "$task_repo_root/.changeset"
+printf '{"changelog": false}\n' > "$task_repo_root/.changeset/config.json"
+per_task_repo_json="$tmpdir/refinement-per-task-repo.json"
+cat >"$per_task_repo_json" <<JSON
+{
+  "source": {
+    "type": "jira",
+    "id": "PROJ-777",
+    "container": "/Users/x/work/docs-manager/src/content/docs/specs/companies/exampleco/PROJ-777",
+    "repo": "source-repo",
+    "base_branch": "develop"
+  },
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "T1",
+      "kind": "implementation",
+      "jira_key": "PROJ-778",
+      "repo": "$task_repo_root",
+      "base_branch": "release/task-repo",
+      "title": "per task repo override",
+      "scope": "驗證 per-task repo/base_branch override 會覆蓋 source-level 欄位。",
+      "modules": ["scripts/sample.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "verification": {
+        "method": "unit_test",
+        "detail": "bash scripts/sample.sh",
+        "verify_command": "bash scripts/sample.sh",
+        $BODY_BC,
+        $BODY_TE,
+        $BODY_REFS
+      }
+    }
+  ]
+}
+JSON
+per_task_repo_out="$tmpdir/per-task-repo.md"
+bash "$SCRIPT" --refinement-json "$per_task_repo_json" --task-id "PROJ-777-T1" > "$per_task_repo_out"
+grep -qF "| Base branch | release/task-repo |" "$per_task_repo_out" || {
+  echo "FAIL [case 8b / DP-364 D1]: Base branch did not use tasks[].base_branch" >&2
+  cat "$per_task_repo_out" >&2
+  exit 1
+}
+grep -qF "| Repo: $task_repo_root" "$per_task_repo_out" || {
+  echo "FAIL [case 8b / DP-364 D1]: Repo did not use tasks[].repo" >&2
+  cat "$per_task_repo_out" >&2
+  exit 1
+}
+grep -qF -- "- \`.changeset/" "$per_task_repo_out" || {
+  echo "FAIL [case 8b / DP-364 D1]: changeset path was not injected from per-task repo root" >&2
+  cat "$per_task_repo_out" >&2
+  exit 1
+}
+
 # --- Case 9 (AC2): zero source_type== branch in the derive CODE. The only allowed
 # use is reading source.type for the rendered "Source type" cell value. Strip
 # python comment lines first so documentation prose mentioning the old pattern

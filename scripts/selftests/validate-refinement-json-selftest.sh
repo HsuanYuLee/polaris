@@ -5,10 +5,12 @@
 #
 # Covers (DP-269):
 #   AC4     : source.type=jira positive fixture (source.repo + source.base_branch
-#             + tasks[].jira_key string|null) PASSes.
+#             + tasks[].jira_key string|null + optional tasks[].repo/base_branch)
+#             PASSes.
 #   AC-NEG1 : source.type=dp fixture carrying jira-only fields
-#             (source.repo / source.base_branch / tasks[].jira_key) FAILs
-#             fail-closed with POLARIS_REFINEMENT_JIRA_ONLY_FIELD.
+#             (source.repo / source.base_branch / tasks[].jira_key /
+#             tasks[].repo / tasks[].base_branch) FAILs fail-closed with
+#             POLARIS_REFINEMENT_JIRA_ONLY_FIELD.
 #   AC-NEG2 : the jira-only relaxation does not leak into the dp branch — a dp
 #             fixture WITHOUT jira-only fields still PASSes unchanged, and a jira
 #             fixture MISSING the required jira-only fields FAILs.
@@ -89,6 +91,8 @@ write_jira_positive() {
       "id": "T1",
       "kind": "task",
       "jira_key": "PROJ-201",
+      "repo": "exampleco-member-ci",
+      "base_branch": "release/member-ci",
       "title": "t",
       "scope": "s",
       "modules": ["scripts/sample.sh"],
@@ -266,6 +270,57 @@ fi
 if ! grep -q "POLARIS_REFINEMENT_JIRA_ONLY_FIELD" "$tmpdir/dp-taskkey.stderr"; then
   echo "FAIL [case 3 / AC-NEG1]: missing POLARIS_REFINEMENT_JIRA_ONLY_FIELD marker for tasks[].jira_key" >&2
   cat "$tmpdir/dp-taskkey.stderr" >&2
+  exit 1
+fi
+
+# --- Case 3b (DP-364 D1 / AC-NEG1): dp source carrying tasks[].repo /
+# tasks[].base_branch fails fail-closed as jira-only. ---
+dp_task_repo_dir="$tmpdir/dp-task-repo"; mkdir -p "$dp_task_repo_dir"; touch "$dp_task_repo_dir/index.md"
+dp_task_repo="$dp_task_repo_dir/refinement.json"
+cat >"$dp_task_repo" <<JSON
+{
+  "epic": null,
+  "source": {
+    "type": "dp",
+    "id": "DP-999",
+    "container": "$dp_task_repo_dir",
+    "plan_path": "$dp_task_repo_dir/index.md",
+    "jira_key": null
+  },
+  "version": "1.0",
+  "schema_version": "1.0",
+  "created_at": "2026-06-02T00:00:00Z",
+  "modules": [{ "path": "scripts/sample.sh", "action": "modify" }],
+  "acceptance_criteria": [
+    { "id": "AC1", "text": "t", "verification": { "method": "unit_test", "detail": "d" } }
+  ],
+  "dependencies": [],
+  "edge_cases": [],
+  "predecessor_audit": [],
+  "tasks": [
+    {
+      "id": "DP-999-T1",
+      "kind": "task",
+      "repo": "exampleco-member-ci",
+      "base_branch": "release/member-ci",
+      "title": "t",
+      "scope": "s",
+      "modules": ["scripts/sample.sh"],
+      "ac_ids": ["AC1"],
+      "dependencies": [],
+      "verification": { "method": "unit_test", "detail": "d" }
+    }
+  ],
+  "adversarial_pass": [{ "ac_id": "AC1", "attack": "a", "enforce": "e" }]
+}
+JSON
+if bash "$SCRIPT" "$dp_task_repo" >/dev/null 2>"$tmpdir/dp-task-repo.stderr"; then
+  echo "FAIL [case 3b / DP-364 D1]: dp source with tasks[].repo/base_branch passed (expected fail-closed)" >&2
+  exit 1
+fi
+if ! grep -q "POLARIS_REFINEMENT_JIRA_ONLY_FIELD" "$tmpdir/dp-task-repo.stderr"; then
+  echo "FAIL [case 3b / DP-364 D1]: missing POLARIS_REFINEMENT_JIRA_ONLY_FIELD marker for tasks[].repo/base_branch" >&2
+  cat "$tmpdir/dp-task-repo.stderr" >&2
   exit 1
 fi
 

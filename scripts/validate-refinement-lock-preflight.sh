@@ -39,6 +39,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALIDATE_BREAKDOWN_READY="$SCRIPT_DIR/validate-breakdown-ready.sh"
+VALIDATE_VERIFICATION_STRATEGY="$SCRIPT_DIR/validate-verification-strategy.sh"
 # DP-369 T2: derive the REAL task.md per planned task through the single canonical
 # writer. The derive bridge owns the Level projection (DP-316 T1 single source),
 # the env_bootstrap executability gate (via validate-task-md.sh, DP-369 T1), the
@@ -86,6 +87,22 @@ run_preflight() {
   if [[ ! -f "$DERIVE_TASK_MD" ]]; then
     echo "validate-refinement-lock-preflight: missing derive bridge at $DERIVE_TASK_MD" >&2
     return 1
+  fi
+  if [[ -f "$VALIDATE_VERIFICATION_STRATEGY" ]]; then
+    local strategy_err strategy_rc
+    strategy_err="$(mktemp -t validate-refinement-lock-preflight-strategy.XXXXXX)"
+    set +e
+    bash "$VALIDATE_VERIFICATION_STRATEGY" "$refinement_json" >/dev/null 2>"$strategy_err"
+    strategy_rc=$?
+    set -e
+    if [[ "$strategy_rc" -ne 0 ]]; then
+      echo "validate-refinement-lock-preflight.sh FAIL - $refinement_json" >&2
+      cat "$strategy_err" >&2
+      rm -f "$strategy_err"
+      echo "POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED:$refinement_json" >&2
+      return 2
+    fi
+    rm -f "$strategy_err"
   fi
 
   # Extract the canonical source id once; the derive bridge's id contract requires

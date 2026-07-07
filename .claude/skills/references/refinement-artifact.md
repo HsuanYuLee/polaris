@@ -440,7 +440,7 @@ AC hardening contract：
 
 | Skill | 讀取欄位 | 用途 |
 |-------|---------|------|
-| **breakdown** | `modules`, `dependencies`, `downstream.breakdown_hints`, `modules[].complexity/risk`, `edge_cases`, `acceptance_criteria`, `tasks[].task_shape` | 每個 module action = 一張子單；blocking dependency = 排序依據；complexity + risk + edge case 數量 → 點數加權；`tasks[].task_shape` 寫入 task.md frontmatter。task.md（含 Allowed Files / Verify Command）由 breakdown derive，是 engineering 的唯一施工輸入 |
+| **breakdown** | `modules`, `dependencies`, `downstream.breakdown_hints`, `modules[].complexity/risk`, `edge_cases`, `acceptance_criteria`, `tasks[].task_shape`, `verification_strategy.mode` | 每個 module action = 一張子單；blocking dependency = 排序依據；complexity + risk + edge case 數量 → 點數加權；`tasks[].task_shape` 寫入 task.md frontmatter。`verification_strategy.mode` 是是否 require source-level V 的唯一 structured input；breakdown 消費此欄位，不以 `source.type` 自行決定。task.md（含 Allowed Files / Verify Command）由 breakdown derive，是 engineering 的唯一施工輸入 |
 | **verify-AC** | `acceptance_criteria[].verification.method/detail` | verification method/detail authority（V*.md 是 execution envelope，不覆寫此來源） |
 | **breakdown** (scope-challenge) | `gaps.rd_risks`, `research[].confidence`, `research_gate` | 低信心研究 + 高風險 = challenge 候選 |
 | **refinement** (LOCK preflight, DP-262/DP-296) | `tasks[].task_shape`, `tasks[].tracked_deliverable_hint` | `validate-refinement-lock-preflight.sh` 合成 placeholder 跑 `validate-breakdown-ready.sh`，LOCK 時 fail-stop 不 ready 的 task |
@@ -526,6 +526,13 @@ Producer rule：
 新 artifact 必須具備：
 
 - `schema_version`：必填。
+- `verification_strategy`：optional structured source-level AC verification strategy。
+  新 producer 在 LOCK 前必填；legacy artifact 可缺欄位以維持讀取相容。當存在時，
+  `mode` enum = `per_task_self_verify` / `source_level_v_required` /
+  `external_ac_ticket`，且 `reason` / `authority` 必填非空。此欄位是 source-neutral：
+  `breakdown` / LOCK gates 只讀 `verification_strategy.mode` 決定是否 require V task，
+  不以 `source.type` 分路。`source_level_v_required` 必須在 `tasks[]` 中有 V task；
+  `external_ac_ticket` 必須帶外部 AC ticket identity。
 - `tasks[]`：每筆必填 `id` / `kind` / `title` / `scope` / `allowed_files` /
   `modules` / `ac_ids` / `dependencies` / `estimate_points` / `verification`。
   `task_shape`（`implementation` default / `audit` / `confirmation`）與
@@ -573,6 +580,12 @@ Producer rule：
     （尚未建子單）。`source.type=jira` 時為 string | null；`derive` 在 jira mode 對
     `null` fail-closed（要求先 populate，無 N/A fallback）。`source.type=dp` 時此欄位
     必須完全缺席。
+  - `tasks[].repo`：optional per-task repo override。cross-repo Epic 的 task 可各自宣告
+    product repo；缺欄位時 derive fallback `source.repo`。`source.type=dp` 時此欄位必須
+    完全缺席。
+  - `tasks[].base_branch`：optional per-task base branch override。值必須來自該 task repo 的
+    `{company}/polaris-config/{repo}/handbook/config.yaml` `base_branch`；缺欄位時 derive
+    fallback `source.base_branch`。`source.type=dp` 時此欄位必須完全缺席。
 
 `refinement.md` 是 derived view；先收斂 strict `refinement.json`，再用
 `scripts/render-refinement-md.sh` 產生 Markdown。`draft_json` 只可用於 authoring state，

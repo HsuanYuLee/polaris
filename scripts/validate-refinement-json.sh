@@ -698,6 +698,40 @@ schema_version = data.get("schema_version")
 if schema_version in (None, ""):
     strong_error("schema_version")
 
+verification_strategy = data.get("verification_strategy")
+if verification_strategy is not None:
+    if not isinstance(verification_strategy, dict):
+        errors.append("verification_strategy must be an object when present")
+    else:
+        strategy_mode = verification_strategy.get("mode")
+        valid_strategy_modes = {"per_task_self_verify", "source_level_v_required", "external_ac_ticket"}
+        if strategy_mode not in valid_strategy_modes:
+            errors.append(
+                "POLARIS_REFINEMENT_VERIFICATION_STRATEGY_INVALID: "
+                f"verification_strategy.mode must be one of {sorted(valid_strategy_modes)} "
+                f"(got: {strategy_mode!r})"
+            )
+        for field in ("reason", "authority"):
+            value = verification_strategy.get(field)
+            if not isinstance(value, str) or not value.strip():
+                errors.append(
+                    "POLARIS_REFINEMENT_VERIFICATION_STRATEGY_INVALID: "
+                    f"verification_strategy.{field} must be a non-empty string"
+                )
+        if strategy_mode == "external_ac_ticket":
+            external_ticket = (
+                verification_strategy.get("ticket")
+                or verification_strategy.get("ticket_key")
+                or verification_strategy.get("ac_ticket")
+                or verification_strategy.get("external_ticket")
+            )
+            if not isinstance(external_ticket, str) or not external_ticket.strip():
+                errors.append(
+                    "POLARIS_REFINEMENT_VERIFICATION_STRATEGY_INVALID: "
+                    "verification_strategy.mode=external_ac_ticket requires a non-empty "
+                    "ticket/ticket_key/ac_ticket/external_ticket identity"
+                )
+
 ac_ids = {str(item.get("id")) for item in (ac or []) if isinstance(item, dict)}
 tasks = data.get("tasks")
 if not isinstance(tasks, list) or not tasks:
@@ -791,6 +825,25 @@ else:
             else:
                 errors.append(
                     f"POLARIS_REFINEMENT_JIRA_ONLY_FIELD: tasks[{idx}].jira_key is jira-only "
+                    f"and must be absent for source.type={source_type}"
+                )
+        # DP-364 D1: tasks[].repo / tasks[].base_branch are jira-only per-task
+        # overrides for cross-repo JIRA Epics. They are optional for jira sources
+        # (fallback to source.repo/source.base_branch), and forbidden elsewhere so
+        # the jira-only capability cannot leak into DP-backed framework sources.
+        for jira_only_field in ("repo", "base_branch"):
+            if jira_only_field not in task:
+                continue
+            value = task.get(jira_only_field)
+            if source_type == "jira":
+                if not isinstance(value, str) or not value.strip():
+                    errors.append(
+                        f"tasks[{idx}].{jira_only_field} must be a non-empty string when present "
+                        f"for source.type=jira (got: {value!r})"
+                    )
+            else:
+                errors.append(
+                    f"POLARIS_REFINEMENT_JIRA_ONLY_FIELD: tasks[{idx}].{jira_only_field} is jira-only "
                     f"and must be absent for source.type={source_type}"
                 )
         # DP-341 / AC-NEG1: per-task packaging fields are forbidden on the

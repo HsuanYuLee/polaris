@@ -5359,6 +5359,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/validate-verification-strategy.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/validate-verification-strategy-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-refinement-locked-scope.sh",
       "kind": "gate",
       "runner": "bash",

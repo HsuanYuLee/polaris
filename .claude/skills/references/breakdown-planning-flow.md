@@ -103,6 +103,11 @@ constructability leak：
   文件註解或待後續 task 負責的相容介面迫使 engineering 超出 Allowed Files。package /
   lockfile / final bundle cleanup task 可使用 dependency/bundle substring grep，但 scope
   必須明確指向 package graph 或 build output。
+- source-level V 是否 required 只由 refinement LOCK 前寫入的
+  `refinement.json.verification_strategy.mode` 決定。`per_task_self_verify` 不要求 V task；
+  `source_level_v_required` 必須在 `tasks[]` 中有 V task；`external_ac_ticket` 使用外部
+  AC ticket identity。Breakdown 只消費 structured field 與 canonical `tasks[]`，不得用
+  `source.type` 分路補判斷，也不得在 LOCK 後自行追加/移除 V。
 
 Behavior contract 決策來源：
 

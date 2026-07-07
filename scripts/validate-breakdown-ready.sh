@@ -698,6 +698,11 @@ def task_id_for_file(file: Path) -> str | None:
     return None
 
 
+def is_verification_task(file: Path) -> bool:
+    task_id = task_id_for_file(file)
+    return bool(task_id and task_id.startswith("V"))
+
+
 def column_index(header: list[str], *needles: str) -> int | None:
     lowered = [cell.strip().lower() for cell in header]
     for needle in needles:
@@ -1230,6 +1235,13 @@ def validate_one(file: Path) -> list[str]:
     )
     if schema.returncode != 0:
         errors.append(f"{file}: validate-task-md.sh failed; fix schema before readiness handoff")
+
+    # DP-364 D2 / AC5: V tasks have their own task.md schema. They are validated
+    # by validate-task-md.sh above and by validate-task-md-deps.sh in directory
+    # mode below; do not run T-task constructability checks such as Allowed Files,
+    # Scope Trace Matrix, or Gate Closure Matrix against V task envelopes.
+    if is_verification_task(file):
+        return errors
 
     text = file.read_text(encoding="utf-8")
 

@@ -351,6 +351,8 @@ except json.JSONDecodeError as exc:
 source = data.get("source") or {}
 source_id = source.get("id")
 source_type = source.get("type") or "dp"
+verification_strategy = data.get("verification_strategy") or {}
+verification_strategy_mode = str(verification_strategy.get("mode") or "").strip()
 source_container = source.get("container")
 if not source_id:
     fail("refinement.json missing source.id")
@@ -362,16 +364,18 @@ if not source_id:
 # fields (AC1 / AC2). The derivation reads source.type for nothing that affects
 # output; it is retained only as a rendered Operational Context cell value.
 #
-#   Repo        : source.repo when present, else the CLI --repo default
-#                 (polaris-framework). No type branch.
-#   Base branch : source.base_branch when present, else "main" (root tasks).
-#                 No type branch.
+#   Repo        : tasks[].repo when present, else source.repo when present, else
+#                 the CLI --repo default (polaris-framework). No type branch.
+#   Base branch : tasks[].base_branch when present, else source.base_branch when
+#                 present, else "main" (root tasks). No type branch.
 # A jira source naturally carries source.repo / source.base_branch; a dp source
 # omits them and falls back to the framework defaults — same code path, no
 # `if source_type == ...`.
 source_repo = source.get("repo")
+resolved_repo_field = ""
 if isinstance(source_repo, str) and source_repo.strip():
-    repo_name = source_repo.strip()
+    resolved_repo_field = source_repo.strip()
+    repo_name = resolved_repo_field
 # else: repo_name keeps the CLI --repo default (polaris-framework).
 
 source_base_branch = source.get("base_branch")
@@ -408,6 +412,18 @@ if match is None and cli_source_id == source_id:
             break
 if match is None:
     fail(f"task-id not found in refinement.json tasks[]: {task_id}")
+
+# DP-364 D1: JIRA-Epic-backed sources may carry per-task repo/base_branch fields
+# for cross-repo Epics. The derivation stays field-driven (no source.type branch):
+# task fields win when present, then source fields, then the framework defaults.
+task_repo = match.get("repo")
+if isinstance(task_repo, str) and task_repo.strip():
+    resolved_repo_field = task_repo.strip()
+    repo_name = resolved_repo_field
+
+task_base_branch = match.get("base_branch")
+if isinstance(task_base_branch, str) and task_base_branch.strip():
+    root_base_branch = task_base_branch.strip()
 
 # DP-341 T2: allowed_files / estimate_points are NO LONGER required intent fields.
 # refinement.json tasks[] is the intent layer; per-task packaging is owned by the
@@ -640,7 +656,7 @@ def resolve_changeset_repo_root() -> str:
     if repo_root_override.strip():
         return repo_root_override.strip()
     workspace_root = Path(script_dir).parent
-    repo_field = (source.get("repo") or "").strip() if isinstance(source.get("repo"), str) else ""
+    repo_field = resolved_repo_field
     if repo_field:
         candidate = workspace_root / repo_field
         if candidate.is_dir():
@@ -1205,6 +1221,16 @@ elif handoff_has_visual_regression:
     verification_handoff_block = (
         "product UI work order；本 task 自身以 Layer C `verification.visual_regression` "
         "驗收（無 umbrella V 委派）。"
+    )
+elif verification_strategy_mode == "source_level_v_required":
+    verification_handoff_block = (
+        "framework work order；本 task 先以自身 verify_command 自驗，source-level AC "
+        "另由 `verification_strategy.mode=source_level_v_required` 宣告的 V task 驗收。"
+    )
+elif verification_strategy_mode == "external_ac_ticket":
+    verification_handoff_block = (
+        "framework work order；本 task 先以自身 verify_command 自驗，source-level AC "
+        "由 `verification_strategy.mode=external_ac_ticket` 指向的外部 AC ticket 驗收。"
     )
 else:
     verification_handoff_block = (

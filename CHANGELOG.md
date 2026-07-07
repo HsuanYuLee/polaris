@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.76.80] - 2026-07-07
+
+### Changed
+
+- 42c68a7: DP-364 T1: support JIRA per-task repo and base_branch overrides in refinement derivation and validation.
+- c89dfc4: DP-364 T2: add source-neutral verification_strategy validation and V-specific readiness handling.
+
 ## [3.76.79] - 2026-07-07
 
 ### Changed
