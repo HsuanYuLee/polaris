@@ -43,4 +43,30 @@ if grep -Fq "## Bug-specific Fields" "$tmp/nonbug/refinement.md"; then
   exit 1
 fi
 
+make_refinement_fixture "$tmp/advisory"
+python3 - "$tmp/advisory/refinement.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = json.loads(path.read_text(encoding="utf-8"))
+data["handoff_advisories"] = [
+    {
+        "id": "framework-release-surface-missing",
+        "producer": "refinement-release-surface-advisory",
+        "severity": "actionable",
+        "recommended_action": "Absorb the release-surface advisory into a task.",
+        "disposition": "absorbed_by_task",
+        "task_ids": ["T1"],
+    }
+]
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+bash "$ROOT/scripts/render-refinement-md.sh" "$tmp/advisory/refinement.json"
+grep -Fq "## Handoff Advisories" "$tmp/advisory/refinement.md"
+grep -Fq "framework-release-surface-missing" "$tmp/advisory/refinement.md"
+grep -Fq "absorbed_by_task" "$tmp/advisory/refinement.md"
+bash "$ROOT/scripts/render-refinement-md.sh" "$tmp/advisory/refinement.json" --check
+
 echo "PASS: render refinement md selftest"

@@ -886,6 +886,72 @@ else:
                 f"tasks[{idx}]",
             )
 
+valid_task_ids = set()
+if isinstance(tasks, list):
+    source_prefix = str(source_id or data.get("epic") or "").strip()
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        raw_task_id = task.get("id")
+        if not isinstance(raw_task_id, str) or not raw_task_id.strip():
+            continue
+        task_id = raw_task_id.strip()
+        valid_task_ids.add(task_id)
+        short_match = re.fullmatch(r"[TV][0-9]+[a-z]?", task_id)
+        full_match = re.fullmatch(r"([A-Z][A-Z0-9]*-[0-9]+)-([TV][0-9]+[a-z]?)", task_id)
+        if source_prefix and short_match:
+            valid_task_ids.add(f"{source_prefix}-{task_id}")
+        if full_match:
+            valid_task_ids.add(full_match.group(2))
+
+handoff_advisories = data.get("handoff_advisories")
+if handoff_advisories is not None:
+    valid_dispositions = {"pending", "absorbed_by_task", "waived", "route_back_refinement"}
+    if not isinstance(handoff_advisories, list):
+        errors.append("handoff_advisories must be an array when present")
+    else:
+        seen_advisory_ids = set()
+        for idx, advisory in enumerate(handoff_advisories):
+            label = f"handoff_advisories[{idx}]"
+            if not isinstance(advisory, dict):
+                errors.append(f"{label}: expected object, got {type(advisory).__name__}")
+                continue
+            for field in ("id", "producer", "severity", "recommended_action", "disposition"):
+                value = advisory.get(field)
+                if not isinstance(value, str) or not value.strip():
+                    errors.append(f"{label}.{field} must be a non-empty string")
+            advisory_id = advisory.get("id")
+            if isinstance(advisory_id, str) and advisory_id.strip():
+                if advisory_id.strip() in seen_advisory_ids:
+                    errors.append(f"{label}.id '{advisory_id.strip()}' is duplicated")
+                seen_advisory_ids.add(advisory_id.strip())
+            disposition = advisory.get("disposition")
+            if isinstance(disposition, str) and disposition.strip() and disposition not in valid_dispositions:
+                errors.append(
+                    f"{label}.disposition '{disposition}' is invalid "
+                    f"(must be one of {sorted(valid_dispositions)})"
+                )
+            task_ids = advisory.get("task_ids")
+            if task_ids is not None:
+                if not isinstance(task_ids, list) or not task_ids:
+                    errors.append(f"{label}.task_ids must be a non-empty array when present")
+                else:
+                    for tidx, task_id in enumerate(task_ids):
+                        if not isinstance(task_id, str) or not task_id.strip():
+                            errors.append(f"{label}.task_ids[{tidx}] must be a non-empty string")
+                        elif task_id.strip() not in valid_task_ids:
+                            errors.append(
+                                f"{label}.task_ids[{tidx}] '{task_id.strip()}' "
+                                "does not match an existing task"
+                            )
+            if disposition == "absorbed_by_task":
+                if not isinstance(task_ids, list) or not task_ids:
+                    errors.append(f"{label}: absorbed_by_task requires non-empty task_ids")
+            if disposition == "waived":
+                reason = advisory.get("reason")
+                if not isinstance(reason, str) or not reason.strip():
+                    errors.append(f"{label}: waived requires a non-empty reason")
+
 adversarial_pass = data.get("adversarial_pass")
 if not isinstance(adversarial_pass, list) or not adversarial_pass:
     strong_error("adversarial_pass")

@@ -28,7 +28,7 @@ Hard rules：
 
 讀 primary DP document 的 Goal / Decisions / Blind Spots / Acceptance Criteria / Technical
 Approach，以及 `refinement.json` 的 source / modules / dependencies / edge cases /
-acceptance criteria / downstream breakdown hints。
+acceptance criteria / downstream breakdown hints / handoff advisories。
 
 Ownership：
 
@@ -37,6 +37,30 @@ Ownership：
   `tasks/T{n}.md`。
 
 Decisions 或 Technical Approach 不足時，不補寫；route back to refinement。
+
+## Consume Handoff Advisories
+
+`refinement.json.handoff_advisories[]` 是 breakdown 唯一可讀的 advisory handoff surface。
+breakdown 不得解析 handoff gate stderr、agent final answer、對話紀錄、或
+`refinement.md` derived view 來補 task scope 或判斷 advisory disposition；那些 surface 只供
+人讀 review，不是機器契約。
+
+當 `handoff_advisories[]` 缺席或為空，視為沒有 registered advisory 需要處置。當陣列存在時，
+breakdown 必須依每筆 `disposition` 處理：
+
+- `pending`：不可 handoff engineering；先 route back to refinement / amendment，或要求上游
+  把 advisory 明確吸收到 task、waive，或標記 route-back。
+- `absorbed_by_task`：只有 `task_ids[]` 指向同一 `refinement.json.tasks[]` 內既有 task，且該
+  task 會被本次 breakdown 打包成 task.md 時，才可視為 advisory 已由 task scope 吸收。若
+  `task_ids[]` 缺失、指到不存在 task、或指到非本輪 task，停止並 route back to refinement。
+- `waived`：只有在 advisory 保留非空 `reason` 時才可放行；breakdown 不得用口頭說明或 final
+  answer 補 waiver reason。
+- `route_back_refinement`：停止打包對應 handoff，回 refinement amendment / route-back；breakdown
+  不得自行從 stderr 或散文推導替代 task scope。
+
+如果 advisory 的 `disposition` 或必填欄位不符合
+`refinement-artifact.md` 的 schema，先修 refinement artifact；不得在 breakdown 產出的
+task.md 補救缺失。
 
 ## Split Work Orders
 

@@ -140,6 +140,8 @@ Phase 1 預設 Tier 2；只有明確符合 Tier 1 才降級。
 - `refinement.json`：機器讀，供 breakdown 產生 task.md；engineering 只消費
   breakdown 產出的 authoritative task.md。若本 source 有工單級工具需求，
   `tool_requirements[]` 是 breakdown 產生 `## Required Tools` 的唯一 handoff 來源。
+  若 handoff gate / author-time advisory 需要下游處置，必須寫入
+  `handoff_advisories[]`，不可只留在 stderr、對話或 final answer。
 - Handoff 前必須完成 Predecessor Scan、AC Coverage、Adversarial Pass、
   Production↔Selftest parity、Framework Release Surface、Cross-Doc Referrer Cascade
   等 author-time self-check。`refinement.md` 是 derived view；strict

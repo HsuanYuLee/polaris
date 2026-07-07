@@ -43,6 +43,62 @@ from pathlib import Path
 json_path = Path(sys.argv[1])
 out_path = Path(sys.argv[2])
 data = json.loads(json_path.read_text(encoding="utf-8"))
+advisories = data.get("handoff_advisories") or []
+if not advisories:
+    raise SystemExit(0)
+
+text = out_path.read_text(encoding="utf-8")
+if "## Handoff Advisories" in text:
+    raise SystemExit(0)
+
+text = re.sub(r"\n<!-- checksum: sha256:[0-9a-f]+ -->\n\Z", "\n", text)
+
+def cell(value):
+    return str(value or "").replace("|", "/")
+
+rows = [
+    "| ID | Producer | Severity | Disposition | Task IDs | Recommended Action |",
+    "|----|----------|----------|-------------|----------|--------------------|",
+]
+for advisory in advisories:
+    task_ids = advisory.get("task_ids") or []
+    if isinstance(task_ids, list):
+        task_ids_text = ", ".join(str(item) for item in task_ids)
+    else:
+        task_ids_text = str(task_ids or "")
+    rows.append(
+        "| "
+        + " | ".join(
+            [
+                cell(advisory.get("id")),
+                cell(advisory.get("producer")),
+                cell(advisory.get("severity")),
+                cell(advisory.get("disposition")),
+                cell(task_ids_text),
+                cell(advisory.get("recommended_action")),
+            ]
+        )
+        + " |"
+    )
+
+section = "\n".join(["## Handoff Advisories", "", *rows, ""])
+anchor = "\n## Hardened AC\n"
+if anchor not in text:
+    raise SystemExit("render-refinement-md: missing Hardened AC anchor")
+payload = text.replace(anchor, f"\n{section}{anchor}", 1).rstrip() + "\n"
+checksum = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+out_path.write_text(payload + f"\n<!-- checksum: sha256:{checksum} -->\n", encoding="utf-8")
+PY
+python3 - "$JSON_PATH" "$TMP" <<'PY'
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path
+
+json_path = Path(sys.argv[1])
+out_path = Path(sys.argv[2])
+data = json.loads(json_path.read_text(encoding="utf-8"))
 if (data.get("source") or {}).get("type") != "bug":
     raise SystemExit(0)
 

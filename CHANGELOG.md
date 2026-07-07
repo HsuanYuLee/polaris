@@ -1,5 +1,14 @@
 # Changelog
 
+## [3.76.78] - 2026-07-07
+
+### Changed
+
+- dc1d32a: 新增 `refinement.json.handoff_advisories[]` schema 驗證與 derived view 顯示，讓 refinement handoff advisory 成為可被下游消費的 durable artifact。
+- 8cd6e37: 新增 refinement handoff advisory collector，讓 framework release-surface advisory 具備 machine-readable record，並在缺少 durable disposition 時由 handoff gate 擋下。
+- f78947c: 補充 breakdown 對 `refinement.json.handoff_advisories[]` 的 consumer contract，明確禁止解析 stderr / final answer 補 scope，並定義 pending、absorbed、waived、route-back disposition 的處理語意。
+- a768b0c: 登錄 DP-379 新增的 refinement advisory collector 與 renderer selftests 到 script manifest，讓 aggregate selftest coverage 能覆蓋 durable handoff advisory release surface。
+
 ## [3.76.77] - 2026-07-07
 
 ### Changed

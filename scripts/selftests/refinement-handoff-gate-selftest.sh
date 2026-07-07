@@ -165,6 +165,16 @@ payload = {
             },
         }
     ],
+    "handoff_advisories": [
+        {
+            "id": "framework-release-surface-missing",
+            "producer": "refinement-release-surface-advisory",
+            "severity": "actionable",
+            "recommended_action": "Absorb release surface advisory into this fixture task.",
+            "disposition": "absorbed_by_task",
+            "task_ids": ["DP-999-T1"]
+        }
+    ],
     "adversarial_pass": [
         {
             "ac_id": "AC1",
@@ -222,6 +232,24 @@ write_valid_dp_artifact "$dp_spec/refinement.json" "$dp_spec"
 write_parity_md_and_index "$dp_spec"
 
 assert_ok "DP-backed artifact with epic null passes" "$gate" "$dp_spec"
+
+dp_missing_advisory="$tmp/specs/design-plans/DP-998-missing-advisory"
+mkdir -p "$dp_missing_advisory"
+printf '# DP-998 Plan\n' > "$dp_missing_advisory/plan.md"
+write_valid_dp_artifact "$dp_missing_advisory/refinement.json" "$dp_missing_advisory"
+python3 - "$dp_missing_advisory/refinement.json" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+data.pop("handoff_advisories", None)
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(data, f, ensure_ascii=False, indent=2)
+PY
+write_parity_md_and_index "$dp_missing_advisory"
+assert_fail "framework release surface advisory without durable disposition blocks handoff" "$gate" "$dp_missing_advisory"
 
 # Invalidate the EPIC artifact to trigger schema violation
 python3 - "$spec/refinement.json" <<'PY'

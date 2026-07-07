@@ -445,6 +445,46 @@ AC hardening contract：
 | **breakdown** (scope-challenge) | `gaps.rd_risks`, `research[].confidence`, `research_gate` | 低信心研究 + 高風險 = challenge 候選 |
 | **refinement** (LOCK preflight, DP-262/DP-296) | `tasks[].task_shape`, `tasks[].tracked_deliverable_hint` | `validate-refinement-lock-preflight.sh` 合成 placeholder 跑 `validate-breakdown-ready.sh`，LOCK 時 fail-stop 不 ready 的 task |
 
+### `handoff_advisories[]` durable handoff signal（DP-379）
+
+`handoff_advisories[]` 是 refinement 對下游公開的 machine-readable advisory record。它用來
+保存 author-time gate 或 release-surface advisory 的處置狀態，讓 breakdown / handoff gate
+讀 canonical artifact，而不是讀對話、stderr transcript 或 agent final answer。
+
+每筆 advisory 至少包含：
+
+| Field | Required | 說明 |
+|-------|----------|------|
+| `id` | yes | 穩定 advisory id；同一 artifact 內不可重複 |
+| `producer` | yes | 產生 advisory 的 deterministic producer / gate 名稱 |
+| `severity` | yes | advisory 嚴重度；由 producer 定義語意 |
+| `recommended_action` | yes | 對下游的建議處置 |
+| `disposition` | yes | `pending` / `absorbed_by_task` / `waived` / `route_back_refinement` |
+| `task_ids` | conditional | advisory 綁定的 task id。若 `disposition=absorbed_by_task`，必須是非空 array，且每筆指向同一 artifact 的既有 `tasks[].id`（短式或完整 work-item id 皆可） |
+| `reason` | conditional | 若 `disposition=waived`，必須提供非空 waiver reason |
+
+下游語意：
+
+- `pending`：不可 handoff；需要 refinement amendment / route-back，或由上游改成明確
+  `absorbed_by_task`、`waived`、`route_back_refinement` disposition 後再交給 breakdown。
+- `absorbed_by_task`：breakdown 只有在 `task_ids[]` 指向同一 artifact 的既有 `tasks[]`，
+  且該 task 會被 derive 成本次 task.md 時，才可把 advisory 視為已由列出的 task scope
+  吸收。缺 `task_ids[]`、指向不存在 task、或指向非本輪 task 時，不得靠散文補 scope。
+- `waived`：必須保留 reason；不得只靠口頭說明、對話紀錄或 final answer 放行。
+- `route_back_refinement`：要求回 refinement amendment / route-back，而不是由 breakdown
+  從 stderr 猜 task scope。
+
+Consumer contract：
+
+- breakdown 只能讀 `refinement.json.handoff_advisories[]` 作 advisory authority；不得讀
+  handoff gate stderr transcript、agent final answer、對話紀錄或 derived `refinement.md`
+  來補 disposition / task scope。
+- `render-refinement-md.sh` 產出的 Handoff Advisories section 是 human review view，不是第二份
+  source of truth。
+
+`render-refinement-md.sh` 會在 `refinement.md` derived view 顯示 Handoff Advisories section，
+供人讀 review；derived view 不是第二份權威。
+
 ### `tool_requirements` handoff（DP-194）
 
 `tool_requirements[]` 用來保留工單級或專案級工具需求，避免單一工單需要的 CLI / package

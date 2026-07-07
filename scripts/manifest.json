@@ -1745,6 +1745,15 @@
       "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
     },
     {
+      "path": "scripts/lib/refinement-handoff-advisory-collector.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/refinement-handoff-advisory-collector-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/lib/refinement-referrer-cascade.py",
       "kind": "support",
       "runner": "python3",
@@ -3734,6 +3743,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/refinement-handoff-advisory-collector-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/refinement-intra-dp-consistency-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3755,6 +3774,16 @@
     },
     {
       "path": "scripts/selftests/refinement-md-generator-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/render-refinement-md-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",

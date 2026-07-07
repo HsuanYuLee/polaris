@@ -1234,6 +1234,122 @@ if ! grep -q "POLARIS_REFINEMENT_SCSS_VERIFY_TOKEN_OVERSCOPE" "$tmpdir/dp-scss-s
   exit 1
 fi
 
+# --- Case 32 (DP-379 AC1): handoff_advisories[] positive fixture PASSes. ---
+dp_advisory_ok_dir="$tmpdir/dp-advisory-ok"
+write_dp_canonical "$dp_advisory_ok_dir"
+python3 - "$dp_advisory_ok_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["handoff_advisories"] = [
+    {
+        "id": "framework-release-surface-missing",
+        "producer": "refinement-release-surface-advisory",
+        "severity": "actionable",
+        "recommended_action": "Absorb the release-surface advisory into T1.",
+        "disposition": "absorbed_by_task",
+        "task_ids": ["DP-999-T1"],
+    }
+]
+json.dump(data, open(p, "w"))
+PY
+if ! bash "$SCRIPT" "$dp_advisory_ok_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-advisory-ok.stderr"; then
+  echo "FAIL [case 32 / DP-379 AC1]: valid handoff_advisories[] fixture did not pass" >&2
+  cat "$tmpdir/dp-advisory-ok.stderr" >&2
+  exit 1
+fi
+
+# --- Case 33 (DP-379 AC1): missing required advisory fields FAIL. ---
+dp_advisory_missing_dir="$tmpdir/dp-advisory-missing"
+write_dp_canonical "$dp_advisory_missing_dir"
+python3 - "$dp_advisory_missing_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["handoff_advisories"] = [
+    {
+        "id": "",
+        "severity": "actionable",
+        "recommended_action": "route back",
+        "task_ids": ["T1"],
+    }
+]
+json.dump(data, open(p, "w"))
+PY
+if bash "$SCRIPT" "$dp_advisory_missing_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-advisory-missing.stderr"; then
+  echo "FAIL [case 33 / DP-379 AC1]: advisory missing id/producer/disposition passed" >&2
+  exit 1
+fi
+if ! grep -q "handoff_advisories\\[0\\].id" "$tmpdir/dp-advisory-missing.stderr" \
+  || ! grep -q "handoff_advisories\\[0\\].producer" "$tmpdir/dp-advisory-missing.stderr" \
+  || ! grep -q "handoff_advisories\\[0\\].disposition" "$tmpdir/dp-advisory-missing.stderr"; then
+  echo "FAIL [case 33 / DP-379 AC1]: missing-field errors not reported" >&2
+  cat "$tmpdir/dp-advisory-missing.stderr" >&2
+  exit 1
+fi
+
+# --- Case 34 (DP-379 AC-NEG2): waived disposition requires reason. ---
+dp_advisory_waived_dir="$tmpdir/dp-advisory-waived"
+write_dp_canonical "$dp_advisory_waived_dir"
+python3 - "$dp_advisory_waived_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["handoff_advisories"] = [
+    {
+        "id": "waived-without-reason",
+        "producer": "refinement-release-surface-advisory",
+        "severity": "actionable",
+        "recommended_action": "waive only with an explicit reason",
+        "disposition": "waived",
+        "reason": "   ",
+    }
+]
+json.dump(data, open(p, "w"))
+PY
+if bash "$SCRIPT" "$dp_advisory_waived_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-advisory-waived.stderr"; then
+  echo "FAIL [case 34 / DP-379 AC-NEG2]: waived advisory without reason passed" >&2
+  exit 1
+fi
+if ! grep -q "waived requires a non-empty reason" "$tmpdir/dp-advisory-waived.stderr"; then
+  echo "FAIL [case 34 / DP-379 AC-NEG2]: missing waived reason error" >&2
+  cat "$tmpdir/dp-advisory-waived.stderr" >&2
+  exit 1
+fi
+
+# --- Case 35 (DP-379 AC1): absorbed_by_task task_ids must point at existing tasks. ---
+dp_advisory_task_dir="$tmpdir/dp-advisory-task"
+write_dp_canonical "$dp_advisory_task_dir"
+python3 - "$dp_advisory_task_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["handoff_advisories"] = [
+    {
+        "id": "bad-task-binding",
+        "producer": "refinement-release-surface-advisory",
+        "severity": "actionable",
+        "recommended_action": "absorb into an existing task",
+        "disposition": "absorbed_by_task",
+        "task_ids": ["DP-999-T9"],
+    }
+]
+json.dump(data, open(p, "w"))
+PY
+if bash "$SCRIPT" "$dp_advisory_task_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-advisory-task.stderr"; then
+  echo "FAIL [case 35 / DP-379 AC1]: advisory with unknown task binding passed" >&2
+  exit 1
+fi
+if ! grep -q "task_ids\\[0\\].*does not match an existing task" "$tmpdir/dp-advisory-task.stderr"; then
+  echo "FAIL [case 35 / DP-379 AC1]: missing task binding error" >&2
+  cat "$tmpdir/dp-advisory-task.stderr" >&2
+  exit 1
+fi
+
 bash "$ROOT_DIR/scripts/selftests/refinement-json-bug-fields-selftest.sh"
 
 echo "PASS: validate-refinement-json selftest"
