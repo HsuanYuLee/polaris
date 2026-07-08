@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.84] - 2026-07-08
+
+### Changed
+
+- 6fb8e56: 移除 ci-local generator 對 codecov.yml 的本地 verdict 模擬，保留一般 CI coverage command replay 與 codecov upload skip。
+
 ## [3.76.83] - 2026-07-08
 
 ### Changed

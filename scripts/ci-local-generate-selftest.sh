@@ -161,8 +161,8 @@ assert_not_contains "Test 1: skips apk add" "$OUT1" "apk add --no-cache git"
 assert_not_contains "Test 1: skips gh auth login" "$OUT1" "gh auth login"
 assert_not_contains "Test 1: skips gh pr comment" "$OUT1" "gh pr comment"
 assert_not_contains "Test 1: skips CI env-dep PR_NUMBER" "$OUT1" "CI_COMMIT_REF"
-assert_contains "Test 1: codecov post-check section emitted" "$OUT1" "Codecov patch coverage compute"
-assert_contains "Test 1: empty-coverage net retained" "$OUT1" "no_coverage_data_with_changed_files"
+assert_not_contains "Test 1: codecov post-check section omitted" "$OUT1" "Codecov patch coverage compute"
+assert_not_contains "Test 1: empty-coverage verdict omitted" "$OUT1" "no_coverage_data_with_changed_files"
 assert_contains "Test 1: command env defaults to UTC" "$OUT1" 'COMMAND_TZ="${CI_LOCAL_TZ:-${TZ:-UTC}}"'
 assert_contains "Test 1: command env clears inherited DEBUG" "$OUT1" 'env -u DEBUG CI="$COMMAND_CI" TZ="$COMMAND_TZ" bash -lc'
 assert_contains "Test 1: explicit DEBUG opt-in remains available" "$OUT1" 'CI="$COMMAND_CI" TZ="$COMMAND_TZ" DEBUG="$COMMAND_DEBUG" bash -lc'
@@ -449,10 +449,26 @@ assert "Test 8: develop-base run exits 0" "$([ $T8_RUN_RC -eq 0 ] && echo 1 || e
 assert_contains "Test 8: develop-base command executed" /tmp/ci-local-test8-run.out "lint-for-develop"
 
 # ============================================================================
-echo "== Test 9: Codecov patch uses explicit stacked PR base =="
+echo "== Test 9: codecov.yml is not converted into local verdicts =="
 # ============================================================================
-T9="$TMPROOT/codecov-stacked-base"
-mkdir -p "$T9/src" "$T9/coverage"
+T9="$TMPROOT/codecov-config-no-verdict"
+mkdir -p "$T9/.woodpecker" "$T9/src"
+cat > "$T9/.woodpecker/coverage.yml" <<'YAML'
+pipeline:
+  coverage:
+    image: node:22
+    commands:
+      - pnpm install --frozen-lockfile
+      - pnpm test:coverage:ci
+      - curl -Os https://uploader.codecov.io/latest/alpine/codecov
+      - chmod +x codecov
+      - ./codecov -t $CODECOV_TOKEN -f coverage/lcov.info -F unit
+    secrets:
+      - source: codecov_token
+        target: CODECOV_TOKEN
+    when:
+      event: pull_request
+YAML
 cat > "$T9/codecov.yml" <<'YAML'
 flag_management:
   individual_flags:
@@ -462,464 +478,27 @@ flag_management:
         - type: patch
           target: 60%
 YAML
-init_git_repo "$T9"
-git -C "$T9" branch -M develop
 cat > "$T9/src/foo.ts" <<'TS'
-export const existing = 1;
+export const covered = 1;
 TS
-git -C "$T9" add .
-git -C "$T9" -c user.email=t@t -c user.name=t commit -q -m "develop base"
-git -C "$T9" update-ref refs/remotes/origin/develop HEAD
-git -C "$T9" checkout -q -b feature/base
-cat >> "$T9/src/foo.ts" <<'TS'
-export const upstreamCovered1 = 1;
-export const upstreamCovered2 = 2;
-export const upstreamCovered3 = 3;
-export const upstreamCovered4 = 4;
-export const upstreamCovered5 = 5;
-TS
-git -C "$T9" add .
-git -C "$T9" -c user.email=t@t -c user.name=t commit -q -m "feature base"
-git -C "$T9" update-ref refs/remotes/origin/feature/base HEAD
-git -C "$T9" checkout -q -b task/demo
-cat >> "$T9/src/foo.ts" <<'TS'
-export const taskCovered = 6;
-export const taskUncovered1 = 7;
-export const taskUncovered2 = 8;
-export const taskUncovered3 = 9;
-TS
-git -C "$T9" add .
-git -C "$T9" -c user.email=t@t -c user.name=t commit -q -m "task change"
-cat > "$T9/coverage/lcov.info" <<'LCOV'
-TN:
-SF:src/foo.ts
-DA:1,1
-DA:2,1
-DA:3,1
-DA:4,1
-DA:5,1
-DA:6,1
-DA:7,1
-DA:8,0
-DA:9,0
-DA:10,0
-end_of_record
-LCOV
+init_git_repo "$T9"
 OUT9="$(ci_local_path_for_repo "$T9")"
 "$GEN" --repo "$T9" --out "$OUT9" --force >/dev/null 2>&1
 assert "Test 9: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
 bash -n "$OUT9" 2>/dev/null
 assert "Test 9: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-
-(cd "$T9" && bash "$OUT9" --repo "$T9" --base-branch develop >/tmp/ci-local-test9-develop.out 2>&1)
-T9_DEVELOP_RC=$?
-assert "Test 9: develop-base run passes" "$([ $T9_DEVELOP_RC -eq 0 ] && echo 1 || echo 0)"
-
-(cd "$T9" && bash "$OUT9" --repo "$T9" --base-branch feature/base >/tmp/ci-local-test9-feature.out 2>&1)
-T9_FEATURE_RC=$?
-assert "Test 9: feature-base run fails patch coverage" "$([ $T9_FEATURE_RC -ne 0 ] && echo 1 || echo 0)"
-T9_EVIDENCE="$(latest_ci_local_evidence)"
-python3 - "$T9_EVIDENCE" <<'PY' >/tmp/ci-local-test9-evidence.out
-import json, sys
-d=json.load(open(sys.argv[1]))
-g=[x for x in d["codecov_results"] if x.get("status_type")=="patch"][0]
-print(d["status"])
-print(d["context"]["base_branch"])
-print(g["diff_base_ref"])
-print(g["coverage_percent"])
-PY
-assert_contains "Test 9: evidence records non-pass status" /tmp/ci-local-test9-evidence.out "FAIL"
-assert_contains "Test 9: evidence context records feature base" /tmp/ci-local-test9-evidence.out "feature/base"
-assert_contains "Test 9: codecov used origin feature base" /tmp/ci-local-test9-evidence.out "origin/feature/base"
-assert_contains "Test 9: feature-base coverage reflects task-only diff" /tmp/ci-local-test9-evidence.out "25.0"
-rm -f "$T9_EVIDENCE"
-
-# ============================================================================
-echo "== Test 10: Codecov empty-line net allows files with lcov data =="
-# ============================================================================
-T10="$TMPROOT/codecov-covered-file-no-patch-lines"
-mkdir -p "$T10/src" "$T10/coverage"
-cat > "$T10/codecov.yml" <<'YAML'
-flag_management:
-  individual_flags:
-    - name: unit
-      paths: [src/]
-      statuses:
-        - type: patch
-          target: 60%
-YAML
-init_git_repo "$T10"
-git -C "$T10" branch -M develop
-cat > "$T10/src/foo.ts" <<'TS'
-export const covered1 = 1;
-export const covered2 = 2;
-TS
-git -C "$T10" add .
-git -C "$T10" -c user.email=t@t -c user.name=t commit -q -m "develop base"
-git -C "$T10" update-ref refs/remotes/origin/develop HEAD
-git -C "$T10" checkout -q -b task/no-instrumented-lines
-cat >> "$T10/src/foo.ts" <<'TS'
-export const typeOnlyOrUninstrumented = 3;
-TS
-git -C "$T10" add .
-git -C "$T10" -c user.email=t@t -c user.name=t commit -q -m "task change"
-cat > "$T10/coverage/lcov.info" <<'LCOV'
-TN:
-SF:src/foo.ts
-DA:1,1
-DA:2,1
-end_of_record
-LCOV
-OUT10="$(ci_local_path_for_repo "$T10")"
-"$GEN" --repo "$T10" --out "$OUT10" --force >/dev/null 2>&1
-assert "Test 10: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-bash -n "$OUT10" 2>/dev/null
-assert "Test 10: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-
-(cd "$T10" && bash "$OUT10" --repo "$T10" --base-branch develop >/tmp/ci-local-test10.out 2>&1)
-T10_RC=$?
-assert "Test 10: run exits 0 when matched file has lcov data" "$([ $T10_RC -eq 0 ] && echo 1 || echo 0)"
-T10_EVIDENCE="$(latest_ci_local_evidence)"
-python3 - "$T10_EVIDENCE" <<'PY' >/tmp/ci-local-test10-evidence.out
-import json, sys
-d=json.load(open(sys.argv[1]))
-g=[x for x in d["codecov_results"] if x.get("status_type")=="patch"][0]
-print(d["status"])
-print(g["status"])
-print(g.get("reason"))
-print(",".join(g.get("files_with_coverage_data", [])))
-PY
-assert_contains "Test 10: evidence status PASS" /tmp/ci-local-test10-evidence.out "PASS"
-assert_contains "Test 10: patch gate remains SKIP no instrumented lines" /tmp/ci-local-test10-evidence.out "SKIP"
-assert_contains "Test 10: reason remains no_instrumented_patch_lines" /tmp/ci-local-test10-evidence.out "no_instrumented_patch_lines"
-assert_contains "Test 10: records files with coverage data" /tmp/ci-local-test10-evidence.out "src/foo.ts"
-rm -f "$T10_EVIDENCE" /tmp/ci-local-test10.out /tmp/ci-local-test10-evidence.out
-
-# ============================================================================
-echo "== Test 10b: Codecov test-only patch no instrumented lines gets specific reason =="
-# ============================================================================
-T10B="$TMPROOT/codecov-test-only-no-patch-lines"
-mkdir -p "$T10B/src" "$T10B/coverage"
-cat > "$T10B/codecov.yml" <<'YAML'
-flag_management:
-  individual_flags:
-    - name: unit
-      paths: [src/]
-      statuses:
-        - type: patch
-          target: 60%
-YAML
-init_git_repo "$T10B"
-git -C "$T10B" branch -M develop
-cat > "$T10B/src/foo.test.ts" <<'TS'
-test("base case", () => {
-  expect(1).toBe(1);
-});
-TS
-git -C "$T10B" add .
-git -C "$T10B" -c user.email=t@t -c user.name=t commit -q -m "develop base"
-git -C "$T10B" update-ref refs/remotes/origin/develop HEAD
-git -C "$T10B" checkout -q -b task/test-only-no-instrumented-lines
-cat >> "$T10B/src/foo.test.ts" <<'TS'
-test("new uninstrumented case", () => expect(2).toBe(2));
-TS
-git -C "$T10B" add .
-git -C "$T10B" -c user.email=t@t -c user.name=t commit -q -m "test-only change"
-cat > "$T10B/coverage/lcov.info" <<'LCOV'
-TN:
-SF:src/foo.test.ts
-DA:1,1
-DA:2,1
-DA:3,1
-end_of_record
-LCOV
-OUT10B="$(ci_local_path_for_repo "$T10B")"
-"$GEN" --repo "$T10B" --out "$OUT10B" --force >/dev/null 2>&1
-assert "Test 10b: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-bash -n "$OUT10B" 2>/dev/null
-assert "Test 10b: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-
-(cd "$T10B" && bash "$OUT10B" --repo "$T10B" --base-branch develop >/tmp/ci-local-test10b.out 2>&1)
-T10B_RC=$?
-assert "Test 10b: run exits 0 for test-only no instrumented lines" "$([ $T10B_RC -eq 0 ] && echo 1 || echo 0)"
-T10B_EVIDENCE="$(latest_ci_local_evidence)"
-python3 - "$T10B_EVIDENCE" <<'PY' >/tmp/ci-local-test10b-evidence.out
-import json, sys
-d=json.load(open(sys.argv[1]))
-g=[x for x in d["codecov_results"] if x.get("status_type")=="patch"][0]
-print(d["status"])
-print(g["status"])
-print(g.get("reason"))
-print(",".join(g.get("matched_files", [])))
-PY
-assert_contains "Test 10b: evidence status PASS" /tmp/ci-local-test10b-evidence.out "PASS"
-assert_contains "Test 10b: patch gate remains SKIP no instrumented lines" /tmp/ci-local-test10b-evidence.out "SKIP"
-assert_contains "Test 10b: reason is test-only no instrumented lines" /tmp/ci-local-test10b-evidence.out "test_only_patch_no_instrumented_lines"
-assert_contains "Test 10b: records matched test file" /tmp/ci-local-test10b-evidence.out "src/foo.test.ts"
-rm -f "$T10B_EVIDENCE" /tmp/ci-local-test10b.out /tmp/ci-local-test10b-evidence.out
-
-# ============================================================================
-echo "== Test 10c: Codecov test-only patch skips when coverage data is absent =="
-# ============================================================================
-T10C="$TMPROOT/codecov-test-only-no-coverage-data"
-mkdir -p "$T10C/src" "$T10C/coverage"
-cat > "$T10C/codecov.yml" <<'YAML'
-flag_management:
-  individual_flags:
-    - name: unit
-      paths: [src/]
-      statuses:
-        - type: patch
-          target: 60%
-YAML
-init_git_repo "$T10C"
-git -C "$T10C" branch -M develop
-cat > "$T10C/src/foo.test.ts" <<'TS'
-test("base case", () => {
-  expect(1).toBe(1);
-});
-TS
-git -C "$T10C" add .
-git -C "$T10C" -c user.email=t@t -c user.name=t commit -q -m "develop base"
-git -C "$T10C" update-ref refs/remotes/origin/develop HEAD
-git -C "$T10C" checkout -q -b task/test-only-missing-coverage-data
-cat >> "$T10C/src/foo.test.ts" <<'TS'
-test("new uninstrumented case", () => expect(2).toBe(2));
-TS
-git -C "$T10C" add .
-git -C "$T10C" -c user.email=t@t -c user.name=t commit -q -m "test-only change"
-cat > "$T10C/coverage/lcov.info" <<'LCOV'
-TN:
-SF:src/other.ts
-DA:1,1
-end_of_record
-LCOV
-OUT10C="$(ci_local_path_for_repo "$T10C")"
-"$GEN" --repo "$T10C" --out "$OUT10C" --force >/dev/null 2>&1
-assert "Test 10c: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-bash -n "$OUT10C" 2>/dev/null
-assert "Test 10c: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-
-(cd "$T10C" && bash "$OUT10C" --repo "$T10C" --base-branch develop >/tmp/ci-local-test10c.out 2>&1)
-T10C_RC=$?
-assert "Test 10c: run exits 0 for test-only missing coverage data" "$([ $T10C_RC -eq 0 ] && echo 1 || echo 0)"
-T10C_EVIDENCE="$(latest_ci_local_evidence)"
-python3 - "$T10C_EVIDENCE" <<'PY' >/tmp/ci-local-test10c-evidence.out
-import json, sys
-d=json.load(open(sys.argv[1]))
-g=[x for x in d["codecov_results"] if x.get("status_type")=="patch"][0]
-print(d["status"])
-print(g["status"])
-print(g.get("reason"))
-print(",".join(g.get("matched_files", [])))
-print(",".join(g.get("files_with_coverage_data", [])))
-PY
-assert_contains "Test 10c: evidence status PASS" /tmp/ci-local-test10c-evidence.out "PASS"
-assert_contains "Test 10c: codecov status SKIP" /tmp/ci-local-test10c-evidence.out "SKIP"
-assert_contains "Test 10c: reason is test-only no instrumented lines" /tmp/ci-local-test10c-evidence.out "test_only_patch_no_instrumented_lines"
-assert_contains "Test 10c: records matched test file" /tmp/ci-local-test10c-evidence.out "src/foo.test.ts"
-rm -f "$T10C_EVIDENCE" /tmp/ci-local-test10c.out /tmp/ci-local-test10c-evidence.out
-
-# ============================================================================
-echo "== Test 11: Codecov path mismatch with coverage data passes =="
-# ============================================================================
-T11="$TMPROOT/codecov-path-mismatch"
-mkdir -p "$T11/app/src" "$T11/coverage"
-cat > "$T11/codecov.yml" <<'YAML'
-flag_management:
-  individual_flags:
-    - name: app
-      paths: [app/src/]
-      statuses:
-        - type: patch
-          target: 60%
-YAML
-init_git_repo "$T11"
-git -C "$T11" branch -M develop
-cat > "$T11/app/src/foo.ts" <<'TS'
-export const covered1 = 1;
-TS
-git -C "$T11" add .
-git -C "$T11" -c user.email=t@t -c user.name=t commit -q -m "develop base"
-git -C "$T11" update-ref refs/remotes/origin/develop HEAD
-git -C "$T11" checkout -q -b task/path-mismatch
-cat >> "$T11/app/src/foo.ts" <<'TS'
-export const covered2 = 2;
-export const covered3 = 3;
-TS
-git -C "$T11" add .
-git -C "$T11" -c user.email=t@t -c user.name=t commit -q -m "task change"
-cat > "$T11/coverage/lcov.info" <<'LCOV'
-TN:
-SF:src/foo.ts
-DA:1,1
-DA:2,1
-DA:3,1
-end_of_record
-LCOV
-OUT11="$(ci_local_path_for_repo "$T11")"
-"$GEN" --repo "$T11" --out "$OUT11" --force >/dev/null 2>&1
-assert "Test 11: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-bash -n "$OUT11" 2>/dev/null
-assert "Test 11: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-
-(cd "$T11" && bash "$OUT11" --repo "$T11" --base-branch develop >/tmp/ci-local-test11.out 2>&1)
-T11_RC=$?
-assert "Test 11: run exits zero when coverage data exists" "$([ $T11_RC -eq 0 ] && echo 1 || echo 0)"
-T11_EVIDENCE="$(latest_ci_local_evidence)"
-python3 - "$T11_EVIDENCE" <<'PY' >/tmp/ci-local-test11-evidence.out
-import json, sys
-d=json.load(open(sys.argv[1]))
-g=[x for x in d["codecov_results"] if x.get("status_type")=="patch"][0]
-print(d["status"])
-print(g["status"])
-print(g.get("reason"))
-print(g.get("path_mismatch_files", []))
-PY
-assert_contains "Test 11: evidence status PASS" /tmp/ci-local-test11-evidence.out "PASS"
-assert_contains "Test 11: codecov status PASS" /tmp/ci-local-test11-evidence.out "PASS"
-assert_contains "Test 11: records changed path" /tmp/ci-local-test11-evidence.out "app/src/foo.ts"
-assert_contains "Test 11: records coverage path" /tmp/ci-local-test11-evidence.out "src/foo.ts"
-rm -f "$T11_EVIDENCE" /tmp/ci-local-test11.out /tmp/ci-local-test11-evidence.out
-
-# ============================================================================
-echo "== Test 11c: Codecov prefers flag coverage-final branch data over lcov =="
-# ============================================================================
-T11C="$TMPROOT/codecov-v8-branch-partial"
-mkdir -p "$T11C/src" "$T11C/coverage/unit"
-cat > "$T11C/codecov.yml" <<'YAML'
-flag_management:
-  individual_flags:
-    - name: unit
-      paths: [src/]
-      statuses:
-        - type: patch
-          target: 60%
-YAML
-init_git_repo "$T11C"
-git -C "$T11C" branch -M develop
-cat > "$T11C/src/foo.ts" <<'TS'
-export const base = 1;
-TS
-git -C "$T11C" add .
-git -C "$T11C" -c user.email=t@t -c user.name=t commit -q -m "develop base"
-git -C "$T11C" update-ref refs/remotes/origin/develop HEAD
-git -C "$T11C" checkout -q -b task/v8-branch-partial
-cat >> "$T11C/src/foo.ts" <<'TS'
-export const branchy = flag ? 1 : 2;
-export const covered = 3;
-TS
-git -C "$T11C" add .
-git -C "$T11C" -c user.email=t@t -c user.name=t commit -q -m "task change"
-cat > "$T11C/coverage/unit/lcov.info" <<'LCOV'
-TN:
-SF:src/foo.ts
-DA:1,1
-DA:2,1
-DA:3,1
-end_of_record
-LCOV
-cat > "$T11C/coverage/unit/coverage-final.json" <<'JSON'
-{
-  "src/foo.ts": {
-    "statementMap": {
-      "0": { "start": { "line": 2 }, "end": { "line": 2 } },
-      "1": { "start": { "line": 3 }, "end": { "line": 3 } }
-    },
-    "s": { "0": 1, "1": 1 },
-    "branchMap": {
-      "0": { "loc": { "start": { "line": 2 } } }
-    },
-    "b": { "0": [1, 0] }
-  }
-}
-JSON
-OUT11C="$(ci_local_path_for_repo "$T11C")"
-"$GEN" --repo "$T11C" --out "$OUT11C" --force >/dev/null 2>&1
-assert "Test 11c: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-bash -n "$OUT11C" 2>/dev/null
-assert "Test 11c: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-
-set +e
-(cd "$T11C" && bash "$OUT11C" --repo "$T11C" --base-branch develop >/tmp/ci-local-test11c.out 2>&1)
-T11C_RC=$?
-set -e
-assert "Test 11c: run exits non-zero when V8 branch data fails patch" "$([ $T11C_RC -ne 0 ] && echo 1 || echo 0)"
-T11C_EVIDENCE="$(latest_ci_local_evidence)"
-python3 - "$T11C_EVIDENCE" <<'PY' >/tmp/ci-local-test11c-evidence.out
-import json, sys
-d=json.load(open(sys.argv[1]))
-g=[x for x in d["codecov_results"] if x.get("status_type")=="patch"][0]
-print(d["status"])
-print(g["status"])
-print(g.get("coverage_source"))
-print(g.get("coverage_percent"))
-PY
-assert_contains "Test 11c: evidence records non-pass status" /tmp/ci-local-test11c-evidence.out "FAIL"
-assert_contains "Test 11c: codecov records non-pass status" /tmp/ci-local-test11c-evidence.out "FAIL"
-assert_contains "Test 11c: uses v8 source" /tmp/ci-local-test11c-evidence.out "v8"
-assert_contains "Test 11c: branch partial coverage is 50" /tmp/ci-local-test11c-evidence.out "50.0"
-rm -f "$T11C_EVIDENCE" /tmp/ci-local-test11c.out /tmp/ci-local-test11c-evidence.out
-
-# ============================================================================
-echo "== Test 11b: Codecov path mismatch without coverage data still fails =="
-# ============================================================================
-T11B="$TMPROOT/codecov-path-mismatch-empty"
-mkdir -p "$T11B/app/src" "$T11B/coverage"
-cat > "$T11B/codecov.yml" <<'YAML'
-flag_management:
-  individual_flags:
-    - name: app
-      paths: [app/src/]
-      statuses:
-        - type: patch
-          target: 60%
-YAML
-init_git_repo "$T11B"
-git -C "$T11B" branch -M develop
-cat > "$T11B/app/src/foo.ts" <<'TS'
-export const covered1 = 1;
-TS
-git -C "$T11B" add .
-git -C "$T11B" -c user.email=t@t -c user.name=t commit -q -m "develop base"
-git -C "$T11B" update-ref refs/remotes/origin/develop HEAD
-git -C "$T11B" checkout -q -b task/path-mismatch-empty
-cat >> "$T11B/app/src/foo.ts" <<'TS'
-export const covered2 = 2;
-TS
-git -C "$T11B" add .
-git -C "$T11B" -c user.email=t@t -c user.name=t commit -q -m "task change"
-cat > "$T11B/coverage/lcov.info" <<'LCOV'
-TN:
-SF:src/foo.ts
-end_of_record
-LCOV
-OUT11B="$(ci_local_path_for_repo "$T11B")"
-"$GEN" --repo "$T11B" --out "$OUT11B" --force >/dev/null 2>&1
-assert "Test 11b: generator exit 0" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-bash -n "$OUT11B" 2>/dev/null
-assert "Test 11b: bash syntax valid" "$([ $? -eq 0 ] && echo 1 || echo 0)"
-
-set +e
-(cd "$T11B" && bash "$OUT11B" --repo "$T11B" --base-branch develop >/tmp/ci-local-test11b.out 2>&1)
-T11B_RC=$?
-set -e
-assert "Test 11b: run exits non-zero without coverage data" "$([ $T11B_RC -ne 0 ] && echo 1 || echo 0)"
-T11B_EVIDENCE="$(latest_ci_local_evidence)"
-python3 - "$T11B_EVIDENCE" <<'PY' >/tmp/ci-local-test11b-evidence.out
-import json, sys
-d=json.load(open(sys.argv[1]))
-g=[x for x in d["codecov_results"] if x.get("status_type")=="patch"][0]
-print(d["status"])
-print(g["status"])
-print(g.get("reason"))
-print(g.get("path_mismatch_files", []))
-PY
-assert_contains "Test 11b: evidence records non-pass status" /tmp/ci-local-test11b-evidence.out "FAIL"
-assert_contains "Test 11b: codecov reason path mismatch" /tmp/ci-local-test11b-evidence.out "coverage_path_mismatch"
-assert_contains "Test 11b: records changed path" /tmp/ci-local-test11b-evidence.out "app/src/foo.ts"
-assert_contains "Test 11b: records coverage path" /tmp/ci-local-test11b-evidence.out "src/foo.ts"
-rm -f "$T11B_EVIDENCE" /tmp/ci-local-test11b.out /tmp/ci-local-test11b-evidence.out
+assert_contains "Test 9: coverage command remains an ordinary CI check" "$OUT9" "pnpm test:coverage:ci"
+assert_not_contains "Test 9: skips codecov uploader download" "$OUT9" "uploader.codecov.io"
+assert_not_contains "Test 9: skips codecov upload command" "$OUT9" "./codecov -t"
+assert_not_contains "Test 9: no codecov post-check section" "$OUT9" "Codecov patch coverage compute"
+assert_not_contains "Test 9: no empty-coverage verdict" "$OUT9" "no_coverage_data_with_changed_files"
+assert_not_contains "Test 9: no coverage path mismatch verdict" "$OUT9" "coverage_path_mismatch"
+assert_not_contains "Test 9: no fuzzy coverage resolver" "$OUT9" "resolve_coverage_entry"
+assert_not_contains "Test 9: no mismatch evidence collection" "$OUT9" "path_mismatch_files"
+assert_not_contains "Test 9: no codecov result payload" "$OUT9" "codecov_results"
+DISC9="$TMPROOT/codecov-contract.json"
+"$SCRIPT_DIR/ci-contract-discover.sh" --repo "$T9" > "$DISC9"
+assert_not_contains "Test 9: discover omits codecov_flag_gates" "$DISC9" "codecov_flag_gates"
 
 # ============================================================================
 echo "== Test 12: stale generated mirror blocks and regenerated mirror ignores stale cache =="

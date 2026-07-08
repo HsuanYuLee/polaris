@@ -373,56 +373,6 @@ def discover_gitlab_ci():
     }
 
 
-def parse_target_percent(raw):
-    """Parse target value into (target_raw, target_percent, is_auto).
-
-    - ``auto`` → ("auto", None, True)
-    - numeric / percent string → (original_string, float_percent, False)
-    - missing / unparseable → (None, None, False)
-    """
-    if raw is None:
-        return (None, None, False)
-    if isinstance(raw, bool):
-        # treat as unknown / invalid
-        return (str(raw), None, False)
-    if isinstance(raw, (int, float)):
-        val = float(raw)
-        pct = val * 100 if val <= 1 else val
-        return (raw, pct, False)
-    text = str(raw).strip()
-    if text == "":
-        return (None, None, False)
-    if text.lower() == "auto":
-        return ("auto", None, True)
-    cleaned = text[:-1] if text.endswith("%") else text
-    try:
-        val = float(cleaned)
-        pct = val * 100 if val <= 1 and not text.endswith("%") else val
-        return (text, pct, False)
-    except ValueError:
-        return (text, None, False)
-
-
-def parse_threshold_percent(raw):
-    """Parse threshold (e.g. ``1%`` / ``1`` / ``1.0``) into float percent, or None."""
-    if raw is None:
-        return None
-    if isinstance(raw, bool):
-        return None
-    if isinstance(raw, (int, float)):
-        val = float(raw)
-        return val * 100 if val <= 1 else val
-    text = str(raw).strip()
-    if text == "" or text.lower() == "auto":
-        return None
-    cleaned = text[:-1] if text.endswith("%") else text
-    try:
-        val = float(cleaned)
-        return val * 100 if val <= 1 and not text.endswith("%") else val
-    except ValueError:
-        return None
-
-
 def discover_husky_hooks():
     """Scan .husky/ directory for hook shell scripts.
 
@@ -639,79 +589,6 @@ def discover_package_json_hooks():
     return entries
 
 
-def discover_codecov_flag_gates():
-    """Extract every flag in ``flag_management.individual_flags`` with full statuses.
-
-    Schema v2: each flag lists ALL statuses (patch + project), preserving raw
-    target / threshold so the runner can decide how to enforce each one.
-    Flags without ``statuses`` are still listed (empty list) to surface their
-    path configuration for downstream tooling.
-    """
-    gates = []
-    for filename in ("codecov.yml", ".codecov.yml"):
-        path = repo / filename
-        if not path.exists():
-            continue
-        payload = load_yaml(path)
-        if not isinstance(payload, dict):
-            continue
-
-        global_ignore = [
-            p for p in (payload.get("ignore", []) or [])
-            if isinstance(p, str) and p.strip()
-        ]
-        fm = payload.get("flag_management", {})
-        individual_flags = fm.get("individual_flags", []) if isinstance(fm, dict) else []
-        for flag in individual_flags:
-            if not isinstance(flag, dict):
-                continue
-
-            include = []
-            exclude = []
-            for p in flag.get("paths", []) or []:
-                if not isinstance(p, str):
-                    continue
-                if p.startswith("!"):
-                    exclude.append(p[1:])
-                else:
-                    include.append(p)
-
-            raw_statuses = flag.get("statuses", [])
-            statuses = []
-            if isinstance(raw_statuses, list):
-                for status in raw_statuses:
-                    if not isinstance(status, dict):
-                        continue
-                    status_type = str(status.get("type", "")).strip().lower()
-                    if not status_type:
-                        continue
-                    target_raw, target_percent, is_auto = parse_target_percent(
-                        status.get("target")
-                    )
-                    threshold_percent = parse_threshold_percent(status.get("threshold"))
-                    statuses.append(
-                        {
-                            "type": status_type,
-                            "target_raw": target_raw,
-                            "target_percent": target_percent,
-                            "threshold_percent": threshold_percent,
-                            "is_auto": is_auto,
-                        }
-                    )
-
-            gates.append(
-                {
-                    "source_file": filename,
-                    "flag": str(flag.get("name", "default")),
-                    "include_paths": include,
-                    "exclude_paths": exclude + global_ignore,
-                    "statuses": statuses,
-                }
-            )
-
-    return gates
-
-
 provider = discover_woodpecker() or discover_github_actions() or discover_gitlab_ci() or {
     "provider": "unknown",
     "files": [],
@@ -730,7 +607,6 @@ contract = {
     "provider": provider["provider"],
     "files": provider["files"],
     "checks": provider["checks"],
-    "codecov_flag_gates": discover_codecov_flag_gates(),
     "dev_hooks": dev_hooks,
 }
 
