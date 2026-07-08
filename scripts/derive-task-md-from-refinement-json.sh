@@ -938,7 +938,7 @@ verification:
   behavior_contract:
     applies: false
     reason: "framework static AC verification；無 runtime / UI 行為變更"
-depends_on: []
+depends_on: [{depends_on_frontmatter}]
 ---
 
 # {short_id}: {title} ({points} pt)

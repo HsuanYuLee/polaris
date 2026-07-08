@@ -56,6 +56,21 @@ cat >"$REF" <<'JSON'
         "method": "unit_test",
         "detail": "echo fullform"
       }
+    },
+    {
+      "id": "DP-961-V1",
+      "kind": "verification",
+      "title": "Dependent verification task",
+      "scope": "Verification task for full-form dependency fixture.",
+      "allowed_files": ["scripts/verify.sh"],
+      "modules": ["scripts/verify.sh"],
+      "ac_ids": ["AC3"],
+      "dependencies": ["DP-961-T1"],
+      "estimate_points": 1,
+      "verification": {
+        "method": "unit_test",
+        "detail": "echo verify"
+      }
     }
   ]
 }
@@ -79,6 +94,19 @@ bash "$SCRIPT" --refinement-json "$REF" --task-id DP-961-T3 >"$full_out"
 if ! grep -qF 'depends_on: [DP-961-T1]' "$full_out"; then
   echo "FAIL: full-form dependency did not stay full-form frontmatter" >&2
   cat "$full_out" >&2
+  exit 1
+fi
+
+v_out="$TMP/v.md"
+bash "$SCRIPT" --refinement-json "$REF" --task-id DP-961-V1 >"$v_out"
+if ! grep -qF 'depends_on: [DP-961-T1]' "$v_out"; then
+  echo "FAIL: V task full-form dependency did not reach frontmatter" >&2
+  cat "$v_out" >&2
+  exit 1
+fi
+if ! grep -qF '| Depends on | DP-961-T1 |' "$v_out"; then
+  echo "FAIL: V task dependency did not reach table cell" >&2
+  cat "$v_out" >&2
   exit 1
 fi
 

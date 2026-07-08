@@ -1249,6 +1249,16 @@ if [[ "$v_shape_count" -ne 0 ]]; then
   cat "$v_shape_out" >&2
   exit 1
 fi
+if ! grep -qF 'depends_on: [DP-999-T1]' "$v_shape_out"; then
+  echo "FAIL [case 18 / DP-412 AC1]: V task dependency did not reach frontmatter" >&2
+  cat "$v_shape_out" >&2
+  exit 1
+fi
+if ! grep -qF '| Depends on | DP-999-T1 |' "$v_shape_out"; then
+  echo "FAIL [case 18 / DP-412 AC2]: V task dependency did not reach Operational Context" >&2
+  cat "$v_shape_out" >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # Case 19 (DP-296 T3 / AC2): derive is passthrough-only; a typo'd task_shape is

@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.82] - 2026-07-08
+
+### Changed
+
+- 743c649: Fix V task `depends_on` frontmatter derivation so verify integration worktrees resolve predecessor deliverable heads.
+
 ## [3.76.81] - 2026-07-08
 
 ### Changed
