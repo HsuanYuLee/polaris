@@ -28,15 +28,26 @@ comment 要求補充 AC 描述，停止該張。
 3. 對比 expected。
 4. 分類。
 
-### Framework DP Umbrella Corpus
+### Framework DP V Task Regression Scope
 
-Framework DP 的 V 單 / umbrella regression 在 implementation tasks 完成後，必須把完整
-`run-aggregate-selftests.sh` 納入 source-level 整合態驗證。這個步驟用既有 filesystem-glob
-discovery，不新增 script↔selftest 綁定表；任一非 quarantine selftest 紅燈時，V 單不得標
+Framework DP 的 V 單 / umbrella regression 在 implementation tasks 完成後採分層驗證，不再把
+完整 `run-aggregate-selftests.sh` 當成每張 V 單的預設成本。
+
+V 單 verdict 必須先完成 declared direct AC verification；direct AC FAIL /
+MANUAL_REQUIRED / UNCERTAIN 時，不得用後續 selftest 結果覆蓋。direct AC PASS 後，verify-AC
+必須用 implementation deliverable range 的 changed files 呼叫 `scripts/selftest-affected-runner.sh
+--run`，讓既有 affected-selftest closure 決定要跑哪些 framework selftest。這個步驟沿用
+affected runner 內建的 filesystem-glob / registry / manifest 規則，不新增第二套
+script↔selftest 綁定表。
+
+若 changed-file range 缺失、range 不可信、或 affected runner 回
+`POLARIS_AFFECTED_FULL_CORPUS`，V 單必須 fail closed 或升級執行
+`scripts/run-aggregate-selftests.sh`。升級後任一非 quarantine selftest 紅燈時，V 單不得標
 PASS，必須回報為 FAIL 或依實際 blocker 分類。
 
-這個規則是 release-tail backstop 的前移：V 單不能只採信 per-task verify 或 local marker，因為
-跨 task 的 teardown / 舊規格測試可能只在完整 corpus 內出現。
+release tail / framework PR gate 的 full corpus backstop 不在本節降級；該 backstop 仍作為
+release 前全域安全網。本節只把 per-V 預設成本收斂為 direct AC + affected selftests，並在
+shared / high-fanout / unknown range 情境保留 full corpus escalation。
 
 ### Visual AC native runner
 

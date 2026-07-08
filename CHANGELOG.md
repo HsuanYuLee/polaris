@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.83] - 2026-07-08
+
+### Changed
+
+- 00617d9: Framework V 驗證改為先跑 direct AC 與 affected selftests，僅 high-fanout 或 sentinel 情境升級 full corpus。
+
 ## [3.76.82] - 2026-07-08
 
 ### Changed
