@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.76.81] - 2026-07-08
+
+### Changed
+
+- 246f53d: 讓 breakdown initial-create task.md 由 `tasks[].modules` 產生 Allowed Files，避免已宣告實作 scope 的 framework task 被打包成 changeset-only work order。
+
 ## [3.76.80] - 2026-07-07
 
 ### Changed

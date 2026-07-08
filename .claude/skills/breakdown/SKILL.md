@@ -158,9 +158,11 @@ bash scripts/write-producer-owned-artifact.sh \
   `derive-task-md-from-refinement-json.sh` 機械產生，不可由 breakdown skill session 在主
   對話中手寫 / 拼湊 frontmatter、Allowed Files、Scope Trace Matrix 或 Verify Command。
   derive script 從 refinement.json structured fields（`id`、`title`、`scope`、
-  `allowed_files`、`ac_ids`、`verification.detail`、`estimate_points`）一比一還原
-  task.md schema 必填欄位；缺欄位即 fail-loud，沒有 LLM fallback 把 gap 填起來。需要新
-  欄位時改 refinement artifact，不在 breakdown 層補。
+  `modules`、`ac_ids`、`verification.detail`）一比一還原 task.md schema 必填欄位；initial-create
+  的 `## Allowed Files` 由 matched `tasks[].modules` task intent 產生。`allowed_files` /
+  `estimate_points` 仍是 forbidden per-task packaging fields，不得放回 refinement artifact。
+  缺欄位即 fail-loud，沒有 LLM fallback 把 gap 填起來。需要新欄位時改 refinement artifact，
+  不在 breakdown 層補。
 - **`task_shape` propagation（DP-262）**：breakdown 是 task.md frontmatter `task_shape`
   的 **canonical writer**。derive script 從 `refinement.json` 的
   `planned_tasks[].task_shape`（值若存在須為 `implementation` \| `audit` \| `confirmation`）

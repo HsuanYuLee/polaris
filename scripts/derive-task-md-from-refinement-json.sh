@@ -538,8 +538,9 @@ def resolve_packaging():
     Precedence:
       Regime 1 (preserve, AC3): --preserve-from task.md exists and carries authored
         packaging -> preserve its ## Allowed Files and `(N pt)` points.
-      Regime 2 (initial-create): neither source -> empty Allowed Files +
-        DEFAULT_INTENT_ONLY_POINTS, emitted without crashing.
+      Regime 2 (initial-create): no authored packaging -> derive initial Allowed
+        Files from matched tasks[].modules intent. If the task has no module intent,
+        keep the legacy intent-only empty list and emit without crashing.
 
     Returns:
         A tuple (points: int, allowed_files: list[str]).
@@ -555,11 +556,24 @@ def resolve_packaging():
     else:
         resolved_points = DEFAULT_INTENT_ONLY_POINTS
 
-    # allowed_files: authored task.md -> empty (intent-only).
+    def module_intent_files():
+        files = []
+        seen = set()
+        for item in list(match.get("modules") or []):
+            path = str(item).strip()
+            if not path or path in seen:
+                continue
+            seen.add(path)
+            files.append(path)
+        return files
+
+    # allowed_files: authored task.md -> task module intent -> empty legacy
+    # intent-only. Never pull from top-level modules[] here; that would expand
+    # every task to the full source scope.
     if authored_files:
         resolved_files = list(authored_files)
     else:
-        resolved_files = []
+        resolved_files = module_intent_files()
 
     return resolved_points, resolved_files
 

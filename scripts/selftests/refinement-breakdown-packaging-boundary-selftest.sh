@@ -280,15 +280,17 @@ fi
 #     points-in-title) passed via --preserve-from -> PRESERVE those. A same-intent
 #     re-derive must NOT clobber the breakdown-authored Allowed Files; the block
 #     stays byte-identical even when an INTENT field (scope/title) is re-derived.
-#   Regime 3 (initial-create, adversarial_pass): no refinement packaging AND no
-#     task.md -> emit intent-only (empty/absent ## Allowed Files, default points)
-#     and must NOT crash.
+#   Regime 3 (initial-create): no refinement packaging AND no task.md. When the
+#     matched task carries tasks[].modules, derive initial Allowed Files from
+#     that task intent. When it carries no modules, emit legacy intent-only
+#     empty/absent Allowed Files and must NOT crash.
 #
 # AC3 (idempotency): same-intent re-derive --preserve-from an authored task.md
 #   keeps ## Allowed Files BYTE-IDENTICAL and points preserved, even when an intent
 #   field changed in refinement.json.
-# adversarial_pass: regime 3 (no task.md, no refinement packaging) must not crash
-#   on the empty Allowed Files list (owning-anchor / block build).
+# adversarial_pass: regime 3 with no task modules must not crash on the empty
+#   Allowed Files list (owning-anchor / block build), and must not blindly pull
+#   unrelated top-level modules into every task.
 # =====================================================================
 
 DERIVE="$ROOT_DIR/scripts/derive-task-md-from-refinement-json.sh"
@@ -402,24 +404,111 @@ if ! cmp -s "$tmpdir/t2-preserve.stdout" "$tmpdir/t2-preserve2.stdout"; then
   exit 1
 fi
 
-# --- T2 case 3 (adversarial_pass regime-3 initial-create): intent-only
-# refinement.json, NO --preserve-from, NO task.md. derive must NOT crash and must
-# emit intent-only (no authored Allowed Files entries). ---
+# --- T2 case 3 (AC1 regime-3 initial-create): task intent modules exist,
+# NO --preserve-from, NO task.md. derive must emit module-derived Allowed Files. ---
 t2_initial_dir="$tmpdir/t2-initial"
 write_intent_only_dp "$t2_initial_dir"
 t2_initial_rc=0
 run_derive "$t2_initial_dir/refinement.json" "DP-341-T1" \
   "$tmpdir/t2-initial.stdout" "$tmpdir/t2-initial.stderr" || t2_initial_rc=$?
 if [[ "$t2_initial_rc" -ne 0 ]]; then
-  echo "FAIL [T2 case 3 / adversarial_pass regime-3]: initial-create derive expected exit 0, got $t2_initial_rc (empty Allowed Files must not crash)" >&2
+  echo "FAIL [T2 case 3 / AC1 regime-3]: initial-create derive expected exit 0, got $t2_initial_rc" >&2
   cat "$tmpdir/t2-initial.stderr" >&2
   exit 1
 fi
-# Regime 3 emits no authored Allowed Files entries (the authored-only file from
-# case 1 must NOT leak in; the block is empty/absent).
-if grep -qF 'scripts/other-authored.sh' "$tmpdir/t2-initial.stdout"; then
-  echo "FAIL [T2 case 3 / adversarial_pass regime-3]: regime-3 leaked authored Allowed Files" >&2
+if ! grep -qF -- '- `scripts/sample.sh`' "$tmpdir/t2-initial.stdout"; then
+  echo "FAIL [T2 case 3 / AC1 regime-3]: task module scripts/sample.sh missing from derived Allowed Files" >&2
   cat "$tmpdir/t2-initial.stdout" >&2
+  exit 1
+fi
+if ! grep -qF '| AC1 | `scripts/sample.sh` |' "$tmpdir/t2-initial.stdout"; then
+  echo "FAIL [T2 case 3 / AC2 scope trace]: Scope Trace Matrix did not anchor to module-derived file" >&2
+  cat "$tmpdir/t2-initial.stdout" >&2
+  exit 1
+fi
+# The authored-only file from case 1 must NOT leak in.
+if grep -qF 'scripts/other-authored.sh' "$tmpdir/t2-initial.stdout"; then
+  echo "FAIL [T2 case 3 / AC3 preserve isolation]: regime-3 leaked authored Allowed Files" >&2
+  cat "$tmpdir/t2-initial.stdout" >&2
+  exit 1
+fi
+
+# --- T2 case 4 (AC-NEG2): no task modules. derive must not blindly pull the
+# top-level modules[] into every task; legacy intent-only no-crash remains. ---
+t2_no_modules_dir="$tmpdir/t2-no-modules"
+write_intent_only_dp "$t2_no_modules_dir"
+python3 - "$t2_no_modules_dir/refinement.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+data = json.load(open(path, encoding="utf-8"))
+data["tasks"][0].pop("modules", None)
+json.dump(data, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+PY
+t2_no_modules_rc=0
+run_derive "$t2_no_modules_dir/refinement.json" "DP-341-T1" \
+  "$tmpdir/t2-no-modules.stdout" "$tmpdir/t2-no-modules.stderr" || t2_no_modules_rc=$?
+if [[ "$t2_no_modules_rc" -ne 0 ]]; then
+  echo "FAIL [T2 case 4 / AC-NEG2]: no-modules initial-create expected exit 0, got $t2_no_modules_rc" >&2
+  cat "$tmpdir/t2-no-modules.stderr" >&2
+  exit 1
+fi
+if grep -qF -- '- `scripts/sample.sh`' "$tmpdir/t2-no-modules.stdout"; then
+  echo "FAIL [T2 case 4 / AC-NEG2]: top-level modules leaked into task Allowed Files without tasks[].modules" >&2
+  cat "$tmpdir/t2-no-modules.stdout" >&2
+  exit 1
+fi
+
+# --- T2 case 5 (AC2 DP-333 regression shape): multiple task modules plus a
+# changeset-enabled repo root produce script Allowed Files and deterministic
+# changeset, with a real script owning anchor in Scope Trace Matrix. ---
+t2_dp333_dir="$tmpdir/t2-dp333-like"
+write_intent_only_dp "$t2_dp333_dir"
+mkdir -p "$t2_dp333_dir/.changeset"
+printf '{"changelog": false, "commit": false}\\n' > "$t2_dp333_dir/.changeset/config.json"
+python3 - "$t2_dp333_dir/refinement.json" <<'PY'
+import json, sys
+path = sys.argv[1]
+data = json.load(open(path, encoding="utf-8"))
+paths = [
+    "scripts/ci-contract-discover.sh",
+    "scripts/ci-local-generate.sh",
+    "scripts/ci-local-generate-selftest.sh",
+]
+data["modules"] = [
+    {"path": item, "action": "modify", "complexity": "medium", "risk": "medium", "reason": "fixture", "references": 0}
+    for item in paths
+]
+data["tasks"][0]["title"] = "移除 ci-generate 的 codecov.yml verdict 模擬器"
+data["tasks"][0]["scope"] = "DP-333-like packaging regression fixture"
+data["tasks"][0]["modules"] = paths
+json.dump(data, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+PY
+t2_dp333_rc=0
+run_derive "$t2_dp333_dir/refinement.json" "DP-341-T1" \
+  "$tmpdir/t2-dp333.stdout" "$tmpdir/t2-dp333.stderr" || t2_dp333_rc=$?
+if [[ "$t2_dp333_rc" -ne 0 ]]; then
+  echo "FAIL [T2 case 5 / AC2 DP-333 regression]: derive expected exit 0, got $t2_dp333_rc" >&2
+  cat "$tmpdir/t2-dp333.stderr" >&2
+  exit 1
+fi
+for expected in \
+  'scripts/ci-contract-discover.sh' \
+  'scripts/ci-local-generate.sh' \
+  'scripts/ci-local-generate-selftest.sh'; do
+  if ! grep -qF -- "- \`$expected\`" "$tmpdir/t2-dp333.stdout"; then
+    echo "FAIL [T2 case 5 / AC2 DP-333 regression]: missing Allowed Files entry $expected" >&2
+    cat "$tmpdir/t2-dp333.stdout" >&2
+    exit 1
+  fi
+done
+if ! grep -qF -- '- `.changeset/' "$tmpdir/t2-dp333.stdout"; then
+  echo "FAIL [T2 case 5 / AC2 DP-333 regression]: deterministic changeset was not injected" >&2
+  cat "$tmpdir/t2-dp333.stdout" >&2
+  exit 1
+fi
+if ! grep -qF '| AC1 | `scripts/ci-contract-discover.sh` |' "$tmpdir/t2-dp333.stdout"; then
+  echo "FAIL [T2 case 5 / AC2 DP-333 regression]: Scope Trace Matrix did not anchor to real script path" >&2
+  cat "$tmpdir/t2-dp333.stdout" >&2
   exit 1
 fi
 

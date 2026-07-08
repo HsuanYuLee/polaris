@@ -59,6 +59,12 @@ artifact pointer。
 DP-backed implementation task 的 packaging 仍沿用 Epic 正規鏈：
 
 - `breakdown` 只負責產生 engineering 可施工的 releaseable tracked work order。
+- Initial-create task.md 的 `## Allowed Files` 由 deterministic derive 從 matched
+  `tasks[].modules` task intent 產生；`refinement.json tasks[]` 仍不得攜帶
+  `allowed_files` / `estimate_points` 這類 per-task packaging 欄位。
+- Re-derive / repair 若帶 `--preserve-from` existing task.md，已 authored 的
+  `## Allowed Files` 與 points 優先，必須 byte-identical preserve，不被 task module intent
+  覆寫。
 - `engineering` 依 task.md 施工、驗證、開 workspace PR。
 - 若 local policy 宣告 `framework-release`，它只能作為 engineering PR 之後的 release tail。
 - local sample/spec-only recut 不得包成 implementation task；那不是 `engineering` lane。
