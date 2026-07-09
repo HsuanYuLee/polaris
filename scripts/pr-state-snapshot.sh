@@ -14,7 +14,8 @@ usage() {
   cat >&2 <<'EOF'
 usage: pr-state-snapshot.sh [--repo PATH] [--task-md PATH] [--pr-json PATH]
                             [--pr NUMBER|URL] [--checks-json PATH]
-                            [--threads-json PATH] [--disposition PATH]
+                            [--threads-json PATH] [--comments-json PATH]
+                            [--disposition PATH]
                             [--intent mutable|read-only]
                             [--aggregate-release] [--format json|field]
                             [--field KEY]
@@ -36,6 +37,7 @@ PR_JSON=""
 PR_INPUT=""
 CHECKS_JSON=""
 THREADS_JSON=""
+COMMENTS_JSON=""
 DISPOSITION_JSON=""
 INTENT="mutable"
 AGGREGATE_RELEASE=0
@@ -50,6 +52,7 @@ while [[ $# -gt 0 ]]; do
     --pr) PR_INPUT="${2:-}"; shift 2 ;;
     --checks-json) CHECKS_JSON="${2:-}"; shift 2 ;;
     --threads-json) THREADS_JSON="${2:-}"; shift 2 ;;
+    --comments-json) COMMENTS_JSON="${2:-}"; shift 2 ;;
     --disposition) DISPOSITION_JSON="${2:-}"; shift 2 ;;
     --intent) INTENT="${2:-}"; shift 2 ;;
     --aggregate-release) AGGREGATE_RELEASE=1; shift ;;
@@ -70,7 +73,7 @@ if [[ "$FORMAT" == "field" && -z "$FIELD" ]]; then
   exit 2
 fi
 
-for file in "$PR_JSON" "$CHECKS_JSON" "$THREADS_JSON" "$DISPOSITION_JSON"; do
+for file in "$PR_JSON" "$CHECKS_JSON" "$THREADS_JSON" "$COMMENTS_JSON" "$DISPOSITION_JSON"; do
   if [[ -n "$file" && ! -f "$file" ]]; then
     echo "pr-state-snapshot: file not found: $file" >&2
     exit 2
@@ -85,6 +88,7 @@ REPO="$(abs_path "$REPO")"
 TMP_RESOLVER=""
 TMP_CHECKS=""
 TMP_THREADS=""
+TMP_COMMENTS=""
 cleanup() {
   if [[ -n "$TMP_RESOLVER" ]]; then
     rm -f "$TMP_RESOLVER"
@@ -94,6 +98,9 @@ cleanup() {
   fi
   if [[ -n "$TMP_THREADS" ]]; then
     rm -f "$TMP_THREADS"
+  fi
+  if [[ -n "$TMP_COMMENTS" ]]; then
+    rm -f "$TMP_COMMENTS"
   fi
 }
 trap cleanup EXIT
@@ -158,12 +165,65 @@ if [[ -z "$THREADS_JSON" && -n "$resolver_pr_number" ]] && declare -F polaris_gi
   fi
 fi
 
+# Conversation (issue-level) comment fetch. Unlike the review-thread fetch above,
+# this lane is fail-closed (AC-NF1): when a PR is resolved but comments can neither
+# be injected nor fetched, emit a POLARIS_TOOL_* marker and exit 2 rather than
+# fail-open with an empty comment set (which would hide unaddressed human comments).
+if [[ -z "$COMMENTS_JSON" && -n "$resolver_pr_number" ]] && declare -F polaris_github_repo_slug >/dev/null 2>&1; then
+  gh_repo="$(polaris_github_repo_slug "$REPO" 2>/dev/null || true)"
+  if [[ -n "$gh_repo" ]]; then
+    gh_bin="${GH_BIN:-gh}"
+    if ! command -v "$gh_bin" >/dev/null 2>&1; then
+      echo "pr-state-snapshot: gh unavailable; cannot fetch conversation comments (fail-closed)" >&2
+      echo "POLARIS_TOOL_MISSING:gh" >&2
+      exit 2
+    fi
+    owner="${gh_repo%%/*}"
+    repo_name="${gh_repo#*/}"
+    TMP_COMMENTS="$(mktemp -t polaris-pr-state-comments.XXXXXX.json)"
+    if "$gh_bin" api graphql \
+      -f owner="$owner" \
+      -f repo="$repo_name" \
+      -F number="$resolver_pr_number" \
+      -f query='query($owner:String!,$repo:String!,$number:Int!){ repository(owner:$owner,name:$repo){ pullRequest(number:$number){ comments(first:100){ nodes{ id url createdAt authorAssociation author{ __typename login } body } } } } }' \
+      >"$TMP_COMMENTS" 2>/dev/null; then
+      COMMENTS_JSON="$TMP_COMMENTS"
+    else
+      rm -f "$TMP_COMMENTS"
+      TMP_COMMENTS=""
+      echo "pr-state-snapshot: conversation comment fetch failed (fail-closed)" >&2
+      echo "POLARIS_TOOL_AUTH_FAILED:gh" >&2
+      exit 2
+    fi
+  fi
+fi
+
 python3 - "$REPO" "$SCRIPT_DIR/parse-task-md.sh" "$TMP_RESOLVER" "${PR_JSON:-__NULL__}" "${CHECKS_JSON:-__NULL__}" \
-  "${THREADS_JSON:-__NULL__}" "${DISPOSITION_JSON:-__NULL__}" "$FORMAT" "${FIELD:-__NULL__}" <<'PY'
+  "${THREADS_JSON:-__NULL__}" "${COMMENTS_JSON:-__NULL__}" "${DISPOSITION_JSON:-__NULL__}" "$FORMAT" "${FIELD:-__NULL__}" <<'PY'
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
+
+# GitHub GraphQL __typename for automated (App/bot) comment authors.
+BOT_AUTHOR_TYPENAME = "Bot"
+# Polaris embeds evidence / status markers as HTML comments; any body carrying one
+# is a Polaris-authored automation comment, never an unaddressed human comment.
+POLARIS_HTML_MARKER_PREFIX = "<!-- polaris"
+# Known-automation body signatures posted under a real account (e.g. a GitHub
+# Action using a PAT) so __typename reads "User" but the content is still a bot
+# summary. Matched case-insensitively on the raw body.
+KNOWN_AUTOMATION_BODY_PATTERNS = [
+    re.compile(r"^\s{0,3}#{1,6}\s*claude code review\b", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*claude finished\b", re.IGNORECASE | re.MULTILINE),
+]
+# A comment whose entire body is a JIRA ticket link is boilerplate (auto-posted
+# issue link), not an unaddressed review comment.
+JIRA_LINK_BOILERPLATE_RE = re.compile(
+    r"^\s*(?:related:?\s*|jira:?\s*|ticket:?\s*)?https?://\S+/browse/[A-Z][A-Z0-9]+-\d+\s*$",
+    re.IGNORECASE,
+)
 
 
 def load_json(path):
@@ -321,6 +381,81 @@ def review_stats(threads_data, dispositions):
     }
 
 
+def normalize_comments(data):
+    """Extract issue-level comment nodes from injected or gh-graphql shapes.
+
+    Args:
+        data: parsed comments JSON, either the gh graphql envelope
+            ({"data":{"repository":{"pullRequest":{"comments":{"nodes":[...]}}}}})
+            or the injected shape ({"pullRequest":{"comments":{"nodes":[...]}}}).
+
+    Returns:
+        The list of comment nodes, or None when no comment set is present.
+    """
+    if not isinstance(data, dict):
+        return None
+    pr = (((data.get("data") or {}).get("repository") or {}).get("pullRequest")) or data.get("pullRequest") or {}
+    if not isinstance(pr, dict):
+        return None
+    nodes = (pr.get("comments") or {}).get("nodes")
+    return nodes if isinstance(nodes, list) else None
+
+
+def is_automation_comment(node):
+    """Report whether a conversation comment is automation-authored (AC3).
+
+    Args:
+        node: a single comment node with author / authorAssociation / body.
+
+    Returns:
+        True when the comment is a bot (typename=Bot), carries a Polaris HTML
+        marker, or matches a known-automation body signature (Claude Code Review
+        summary, JIRA ticket-link boilerplate); False for genuine human comments.
+    """
+    author = node.get("author") if isinstance(node.get("author"), dict) else {}
+    if str(author.get("__typename") or "") == BOT_AUTHOR_TYPENAME:
+        return True
+    body = str(node.get("body") or "")
+    if POLARIS_HTML_MARKER_PREFIX in body:
+        return True
+    for pattern in KNOWN_AUTOMATION_BODY_PATTERNS:
+        if pattern.search(body):
+            return True
+    if JIRA_LINK_BOILERPLATE_RE.match(body.strip()):
+        return True
+    return False
+
+
+def unaddressed_comment_stats(comments_data):
+    """Build the unaddressed_human_comments signal from conversation comments (AC1).
+
+    Args:
+        comments_data: parsed comments JSON, or None when not loaded.
+
+    Returns:
+        A dict with `loaded` (bool) and `items` (list of human comment records,
+        each carrying id / url / author_login / author_typename /
+        author_association / body).
+    """
+    nodes = normalize_comments(comments_data)
+    if nodes is None:
+        return {"loaded": bool(comments_data), "items": []}
+    items = []
+    for node in nodes:
+        if not isinstance(node, dict) or is_automation_comment(node):
+            continue
+        author = node.get("author") if isinstance(node.get("author"), dict) else {}
+        items.append({
+            "id": node.get("id"),
+            "url": node.get("url"),
+            "author_login": author.get("login") or None,
+            "author_typename": author.get("__typename") or None,
+            "author_association": node.get("authorAssociation") or None,
+            "body": node.get("body") or "",
+        })
+    return {"loaded": True, "items": items}
+
+
 def git_ref(repo, name):
     if not name:
         return None
@@ -359,7 +494,7 @@ def base_freshness(repo, base_branch, head_branch, pr_type):
     return "fresh" if proc.returncode == 0 else "stale_downstream"
 
 
-repo, parse_task_md, resolver_path, pr_json_path, checks_json_path, threads_json_path, disposition_json_path, fmt, field = sys.argv[1:10]
+repo, parse_task_md, resolver_path, pr_json_path, checks_json_path, threads_json_path, comments_json_path, disposition_json_path, fmt, field = sys.argv[1:11]
 resolver = load_json(resolver_path) or {}
 raw_pr = load_json(pr_json_path)
 pr = normalize_pr(raw_pr)
@@ -367,6 +502,7 @@ assignee_names = normalize_assignees(raw_pr)
 assignee_policy = read_pr_assignee_policy(repo)
 checks = load_json(checks_json_path) or []
 threads = load_json(threads_json_path)
+comments = load_json(comments_json_path)
 dispositions = load_dispositions(load_json(disposition_json_path))
 
 ci_state = normalize_ci(checks)
@@ -375,6 +511,7 @@ mergeability = normalize_mergeability(raw_mergeability, ci_state)
 readiness = readiness_reason(mergeability, ci_state, raw_mergeability)
 review_decision = str(pr.get("reviewDecision") or "").upper() or "UNKNOWN"
 stats = review_stats(threads, dispositions)
+comment_stats = unaddressed_comment_stats(comments)
 
 deliverable_head = None
 task_md = resolver.get("task_md")
@@ -413,6 +550,9 @@ result = {
     "actionable_unresolved_threads": stats["actionable"],
     "disposed_unresolved_threads": stats["disposed"],
     "deferred_threads": stats["deferred"],
+    "conversation_comments_loaded": comment_stats["loaded"],
+    "unaddressed_human_comments": comment_stats["items"],
+    "unaddressed_human_comment_count": len(comment_stats["items"]),
     "evidence_head_sha_match": evidence_match,
     "head_branch": resolver.get("head_branch"),
     "head_sha": pr_head,

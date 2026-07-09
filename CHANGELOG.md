@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.76.85] - 2026-07-09
+
+### Changed
+
+- 48990c6: DP-413：PR state classifier 提升 conversation-comment 與 policy-first approval threshold 的判斷精度。snapshot 新增 `unaddressed_human_comments`（bot-filter 後仍待 disposition 的 human conversation comment），classifier 對未消化的 human comment 回 `needs_disposition` / `needs_code_changes`；approval threshold 依 flag > company `scrum.approval_threshold` > reviewDecision fallback 順序解析，valid approval 計數共用 canonical counter。DP-backed 與 JIRA-Epic-backed source 對稱適用，無 source-type fast path。
+- 3a6238b: pr-state-snapshot 抓取 PR issue-level conversation comments，輸出結構化 unaddressed_human_comments 訊號（含 author.\_\_typename / authorAssociation / body），並過濾 bot / Polaris HTML marker / known-automation（Claude Code Review summary、JIRA ticket-link boilerplate）；gh / PR state 不可得時 fail-closed（POLARIS_TOOL_MISSING），不 fail-open。
+- e9c1894: pr-action-classifier 在 approval 已足夠、但仍有未 disposition 的實質真人 conversation comment 時，emit action_class=needs_disposition（映射 readiness_state=needs_code_changes），使 auto-pass runner 走既有 ROUTE_BACK_REVISION 分流 dispatch engineering revision（reply_only / code_fix / escalate），不再誤回 mergeable_ready；classifier 消費 --disposition 檔的 comments[] 過濾已 disposition（fixed / reply_only / not_actionable）的 comment，只有 bot comment 時維持既有 approved-path 輸出。
+- 25d3aee: 新增 scripts/lib/pr-approval-count.sh 作為 valid-approval 計數的唯一 canonical counter，內部委派 scripts/lib/approval-staleness.sh 的 commit_id-based staleness 判定，統一 per-reviewer 最新 review 的 valid / total / stale 計數路徑。pr-action-classifier 的 APPROVED 分支改為 policy-first：帶 --approval-threshold（override）或讀 workspace-config.yaml defaults.scrum.approval_threshold 時，以 shared counter 算出的 valid_approvals 對照 company threshold 決定 mergeable_ready vs review_required；未設定 threshold 時 fallback 回既有 reviewDecision 判定。check-pr-approvals 的 check-pr-approval-status.sh 改為呼叫同一 shared counter，移除各自為政的第二套計數 loop，避免兩條路徑 drift。
+- 48990c6: DP-413-T4：`pr-state-contract.md` 補上 conversation-comment 訊號（`unaddressed_human_comments` + bot-filter 契約）、`needs_disposition` action class、approval-threshold policy 解析順序（flag > company `scrum.approval_threshold` > reviewDecision fallback，共用 `pr-approval-count.sh`），以及 source-type symmetry 註記；`pr-action-classifier-selftest.sh` 收斂 AC-NF2 覆蓋，補上 met-threshold 與 AC5-fallback 的 DP/JIRA source-parity 斷言。
+
 ## [3.76.84] - 2026-07-08
 
 ### Changed

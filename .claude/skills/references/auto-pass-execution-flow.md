@@ -211,6 +211,15 @@ engineering stage 的 completion-gate marker PASS 後，runner 追加一條 revi
   CI、codecov fail）。`review_required` / `awaiting_re_review` / `wait_ci`（queued / pending
   CI）/ 已 resolved threads 不是 trigger——runner 此時維持既有行為 dispatch verify-AC，輸出與
   現行 byte-parity。
+- **`needs_disposition` conversation comments（DP-413）**：classifier 對「approval 已足夠、
+  但仍有未 disposition 的實質真人 conversation comment」回 `action_class=needs_disposition`，
+  並映射 `readiness_state=needs_code_changes`——因此走與其他 actionable signal 相同的
+  `ROUTE_BACK_REVISION`（`next_action=dispatch`、`next_skill=engineering` revision mode），
+  不 terminal-halt、不寫 `pause.kind` 也不 `paused_for_user_external_write`。revision agent
+  對每則 comment 做 disposition：`reply_only`（回覆澄清、無 code delta）、`code_fix`（改 code
+  再 revision）、或 `escalate`（只有 user-only business 決策才回使用者）。已 disposition 的
+  comment（`fixed` / `reply_only` / `not_actionable`）不再觸發 needs_disposition；只有 bot
+  comment 時 classifier 見到空的 human comment 集合，維持既有 approved-path 輸出。
 - **Escalation 分流**：classifier 回 `planning_gap` → `next_skill=breakdown`；spec issue →
   `next_action=refinement_amendment`。不在 revision 內就地擴 scope。
 - **Head rebind**：revision dispatch 完成後 orchestrator 以新 head sha 重跑 engineering

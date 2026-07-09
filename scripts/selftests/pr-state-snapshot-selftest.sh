@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Purpose: selftest for pr-state-snapshot.sh — resolver / freshness / mergeability /
+#          review-thread stats plus issue-level conversation-comment
+#          unaddressed_human_comments signal, automation filtering, and fail-closed.
+# Inputs:  none (builds git + JSON fixtures under a temp dir).
+# Outputs: stdout PASS/FAIL summary; exit 1 on any failed assertion.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -78,9 +83,13 @@ EOF
 }
 
 write_pr_json() {
-  local path="$1" state="$2" head_branch="$3" head_sha="$4" base_branch="$5" merge_state="$6" review_decision="${7:-}"
+  local path="$1" state="$2" head_branch="$3" head_sha="$4" base_branch="$5" merge_state="$6" review_decision="${7:-}" number="${8:-}"
+  local number_field=""
+  if [[ -n "$number" ]]; then
+    number_field="\"number\":$number,"
+  fi
   cat >"$path" <<EOF
-{"state":"$state","headRefName":"$head_branch","headRefOid":"$head_sha","baseRefName":"$base_branch","mergeStateStatus":"$merge_state","reviewDecision":"$review_decision"}
+{${number_field}"state":"$state","headRefName":"$head_branch","headRefOid":"$head_sha","baseRefName":"$base_branch","mergeStateStatus":"$merge_state","reviewDecision":"$review_decision"}
 EOF
 }
 
@@ -96,6 +105,25 @@ write_checks_json() {
   cat >"$path" <<EOF
 [{"name":"ci","state":"$state"}]
 EOF
+}
+
+# Reads a field from the Nth unaddressed_human_comments entry of a snapshot JSON.
+comment_field() {
+  local file="$1" idx="$2" key="$3"
+  python3 - "$file" "$idx" "$key" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+items = data.get("unaddressed_human_comments") or []
+idx = int(sys.argv[2])
+key = sys.argv[3]
+if 0 <= idx < len(items):
+    value = items[idx].get(key)
+    print("" if value is None else value)
+else:
+    print("")
+PY
 }
 
 REPO="$TMPROOT/repo"
@@ -197,6 +225,61 @@ OUT="$TMPROOT/external-resolver.json"
 bash "$RESOLVER" --repo "$REPO" --task-md "$EXT_TASK" --intent mutable >"$OUT"
 assert_eq "external pr_type" "$(json_field "$OUT" "pr_type")" "external_base"
 assert_eq "external mutable blocked" "$(json_field "$OUT" "mutable_allowed")" "false"
+
+# --- AC1: issue-level conversation comments -> unaddressed_human_comments ---
+AC1_COMMENTS="$TMPROOT/ac1-comments.json"
+cat >"$AC1_COMMENTS" <<'EOF'
+{"pullRequest":{"comments":{"nodes":[{"id":"IC_h1","url":"https://example.invalid/c1","authorAssociation":"MEMBER","author":{"__typename":"User","login":"reviewer1"},"body":"這個判斷需要補上邊界檢查"}]}}}
+EOF
+OUT="$TMPROOT/ac1-snapshot.json"
+bash "$SNAPSHOT" --repo "$REPO" --task-md "$DIRECT_TASK" --pr-json "$DIRECT_PR" --checks-json "$DIRECT_CHECKS" --comments-json "$AC1_COMMENTS" >"$OUT"
+assert_eq "ac1 comments loaded" "$(json_field "$OUT" "conversation_comments_loaded")" "true"
+assert_eq "ac1 unaddressed count" "$(json_field "$OUT" "unaddressed_human_comment_count")" "1"
+assert_eq "ac1 author typename" "$(comment_field "$OUT" 0 "author_typename")" "User"
+assert_eq "ac1 author association" "$(comment_field "$OUT" 0 "author_association")" "MEMBER"
+assert_eq "ac1 body present" "$(comment_field "$OUT" 0 "body")" "這個判斷需要補上邊界檢查"
+
+# --- AC3: bot / Polaris HTML marker / known-automation comments filtered out ---
+AC3_COMMENTS="$TMPROOT/ac3-comments.json"
+cat >"$AC3_COMMENTS" <<'EOF'
+{"pullRequest":{"comments":{"nodes":[{"id":"IC_bot","url":"https://example.invalid/bot","authorAssociation":"NONE","author":{"__typename":"Bot","login":"github-actions"},"body":"All checks passed"},{"id":"IC_marker","url":"https://example.invalid/marker","authorAssociation":"MEMBER","author":{"__typename":"User","login":"someuser"},"body":"<!-- polaris-evidence-publication:v1 -->\nEvidence published at HEAD"},{"id":"IC_ccr","url":"https://example.invalid/ccr","authorAssociation":"CONTRIBUTOR","author":{"__typename":"User","login":"automation-account"},"body":"## Claude Code Review\n\n**Summary**: No blocking issues found."},{"id":"IC_jira","url":"https://example.invalid/jira","authorAssociation":"NONE","author":{"__typename":"User","login":"release-bot-user"},"body":"https://exampleco.atlassian.net/browse/PROJ-1234"}]}}}
+EOF
+OUT="$TMPROOT/ac3-snapshot.json"
+bash "$SNAPSHOT" --repo "$REPO" --task-md "$DIRECT_TASK" --pr-json "$DIRECT_PR" --checks-json "$DIRECT_CHECKS" --comments-json "$AC3_COMMENTS" >"$OUT"
+assert_eq "ac3 comments loaded" "$(json_field "$OUT" "conversation_comments_loaded")" "true"
+assert_eq "ac3 all automation filtered" "$(json_field "$OUT" "unaddressed_human_comment_count")" "0"
+
+# --- AC-NF1: gh unavailable -> conversation-comment fetch fail-closed, not fail-open ---
+NF1_REPO="$TMPROOT/nf1-repo"
+mkdir -p "$NF1_REPO/docs-manager/src/content/docs/specs/design-plans/DP-130-fixture/tasks/T1"
+git init -q -b main "$NF1_REPO"
+git -C "$NF1_REPO" config user.email "selftest@example.com"
+git -C "$NF1_REPO" config user.name "selftest"
+git -C "$NF1_REPO" remote add origin https://github.com/example/repo.git
+printf 'root\n' >"$NF1_REPO/file.txt"
+git -C "$NF1_REPO" add file.txt
+git -C "$NF1_REPO" commit -q -m init
+git -C "$NF1_REPO" checkout -q -b task/nf1
+printf 'nf1\n' >>"$NF1_REPO/file.txt"
+git -C "$NF1_REPO" commit -q -am nf1
+NF1_SHA="$(git -C "$NF1_REPO" rev-parse HEAD)"
+NF1_TASK="$NF1_REPO/docs-manager/src/content/docs/specs/design-plans/DP-130-fixture/tasks/T1/index.md"
+write_task "$NF1_TASK" "main" "main -> task/nf1" "task/nf1"
+NF1_PR="$TMPROOT/nf1-pr.json"
+write_pr_json "$NF1_PR" "OPEN" "task/nf1" "$NF1_SHA" "main" "CLEAN" "" "42"
+NF1_ERR="$TMPROOT/nf1-err.txt"
+set +e
+GH_BIN="$TMPROOT/nonexistent-gh-binary" bash "$SNAPSHOT" --repo "$NF1_REPO" --task-md "$NF1_TASK" \
+  --pr-json "$NF1_PR" --threads-json "$STACKED_THREADS" --checks-json "$DIRECT_CHECKS" >"$TMPROOT/nf1-out.json" 2>"$NF1_ERR"
+NF1_RC=$?
+set -e
+assert_eq "nf1 fail-closed exit code" "$NF1_RC" "2"
+if grep -q 'POLARIS_TOOL_MISSING:gh' "$NF1_ERR"; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  printf 'FAIL: nf1 fail-closed marker missing; stderr=%s\n' "$(cat "$NF1_ERR")" >&2
+fi
 
 printf 'pr-state-snapshot selftest: PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 if [[ "$FAIL" -ne 0 ]]; then

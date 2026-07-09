@@ -71,10 +71,27 @@ review semantics 與 readiness vocabulary。
 | `actionable_unresolved_threads` | integer | 未被 disposition consume 的 active threads |
 | `disposed_unresolved_threads` | integer | `fixed` / `reply_only` / `not_actionable` |
 | `deferred_threads` | integer | `deferred_with_reason` |
+| `conversation_comments_loaded` | boolean | conversation (issue-level) comments 是否真的被讀到 |
+| `unaddressed_human_comments` | array | bot-filter 後仍待 agent disposition 的 human conversation comments，每筆帶 `id` / `url` / `author_login` / `author_typename` / `author_association` |
 | `evidence_head_sha_match` | `true` / `false` / `null` | current-head evidence / deliverable head 與 PR head 是否一致 |
 | `head_branch` | string or `null` | PR head branch |
 | `head_sha` | string or `null` | PR head SHA |
 | `pr_state` | `OPEN` / `MERGED` / `CLOSED` / `UNKNOWN` | remote PR lifecycle |
+
+### Conversation Comment Bot-Filter Contract
+
+`unaddressed_human_comments` 只承載**需要 agent disposition 的 human comment**。automation-authored
+comment 必須在 **snapshot layer**（`pr-state-snapshot.sh`）就被濾掉，classifier 只看到已濾乾淨的
+human-only list；不得把 bot-filter 判斷延後到 classifier 或任何下游 consumer。判定為 automation
+的三個條件（任一命中即排除）：
+
+- author `__typename` 為 `Bot`（GitHub App / bot account）；
+- comment body 帶 Polaris HTML marker（framework 自寫的 evidence / status comment）；
+- 已知 automation 樣式（例如 Claude Code Review summary、JIRA ticket-link boilerplate）。
+
+`unaddressed_human_comments` 的 disposition 由 `--disposition` 檔提供，schema 為
+`{"comments":[{"comment_id":"<id>","disposition":"<value>"}]}`；`disposition ∈ {fixed, reply_only,
+not_actionable}` 視為已消化。所有 unaddressed human comment 都拿到上述 disposition 之一後，該訊號清空。
 
 ## Action Classes
 
@@ -87,6 +104,7 @@ review semantics 與 readiness vocabulary。
 | `blocked_conflict` | merge conflict 或 equivalent hard block |
 | `wait_ci` | checks / mergeability 尚未穩定 |
 | `code_fix` | 仍需改 code 或補 current-head evidence / review disposition |
+| `needs_disposition` | 有 `unaddressed_human_comments`（bot-filter 後仍待 agent disposition 的 conversation comment）；映射到 `needs_code_changes` readiness |
 | `planning_gap` | 規格 / disposition / authority 缺口，不應直接施工 |
 | `reviewer_handoff` | code 與 evidence 已齊，下一步是 reviewer |
 | `ready_to_merge` | PR 可進 merge lane |
@@ -106,6 +124,28 @@ review semantics 與 readiness vocabulary。
 | `review_required` | reviewer 仍未完成本輪看單 |
 | `awaiting_re_review` | 變更與 evidence 已齊，等待 reviewer 回頭看 |
 | `mergeable_ready` | branch freshness、mergeability、CI、review semantics、head-bound evidence 都過關 |
+
+## Approval Threshold Policy
+
+`pr-action-classifier.sh` 判斷 `review_decision=APPROVED` 的 PR 是否升格為 `ready_to_merge` /
+`mergeable_ready` 時，approval threshold 依 **policy-first** 順序解析（第一個命中者勝出）：
+
+1. 明確 `--approval-threshold N` flag override（selftest / explicit caller）；
+2. company config `defaults.scrum.approval_threshold`（canonical single place）；
+3. 前兩者皆缺時 fallback 到 branch-protection `reviewDecision`（`APPROVED` 已隱含 branch
+   protection 滿足，直接視為 threshold 達成）。
+
+threshold 解析出數值時，valid approval 數必須 `>= threshold` 才升格；`valid_approvals < threshold`
+（例如 `1 < 2`）維持 `review_required`，不得升 `mergeable_ready`。valid approval 的計數由唯一
+canonical counter `scripts/lib/pr-approval-count.sh` 產出（check-pr-approvals 與 classifier 共用
+同一支；內部以 `scripts/lib/approval-staleness.sh` 判定 review commit_id == head.sha 的 staleness）。
+不得在 classifier 或任何 consumer 內另寫第二套 approval-count / staleness 判斷。
+
+## Source-Type Symmetry
+
+conversation-comment 訊號與 approval-threshold policy 對 DP-backed source 與 JIRA-Epic-backed
+source **對稱適用**；classifier 不得對 `source_type`（`dp` / `jira`）開 fast path 或特殊豁免。
+兩種 source type 在相同 snapshot + 相同 threshold 下必須產出相同 action class 與 readiness term。
 
 ## Fail-Closed Rules
 

@@ -13,10 +13,12 @@
 #   - reviewers         — reviewer 明細 JSON array [{user, state, is_stale}]
 #   - needs_review      — 是否需要（更多）review（valid < threshold）
 #
-# Staleness 判定走 scripts/lib/approval-staleness.sh（DP-315 canonical commit_id
-# 基準的單一 writer path）：review 綁定的 commit_id 與 PR 當前 head.sha 相等才算
-# valid，不相等或任一為空 / null 一律 fail-closed 判 stale。已移除舊的時間戳基準
-# （review submit time 與 PR last-push time 比較），改為純 commit_id 比對。
+# valid-approval 計數（含 stale 判定）走 shared canonical counter
+# scripts/lib/pr-approval-count.sh（DP-413 T3），與 pr-action-classifier 共用同一
+# 條計數路徑（AC6）。該 counter 內部再走 scripts/lib/approval-staleness.sh
+# （DP-315 canonical commit_id 基準的單一 writer path）：review 綁定的 commit_id
+# 與 PR 當前 head.sha 相等才算 valid，不相等或任一為空 / null 一律 fail-closed 判
+# stale；舊的時間戳基準（review submit time 與 PR last-push time 比較）不再使用。
 #
 # Example:
 #   ./fetch-user-open-prs.sh --author your-username \
@@ -24,16 +26,16 @@
 
 set -euo pipefail
 
-# Source the canonical commit_id-based staleness atom (DP-315). approval_staleness
-# <review_commit_id> <head_sha> echoes "valid" / "stale"; this is the only writer
-# path for the staleness decision, shared with review-inbox.
-APPROVAL_STALENESS_HELPER="$(dirname "${BASH_SOURCE[0]}")/../../../../scripts/lib/approval-staleness.sh"
-if [[ ! -f "$APPROVAL_STALENESS_HELPER" ]]; then
-  echo "POLARIS_TOOL_MISSING:approval-staleness.sh (expected at $APPROVAL_STALENESS_HELPER)" >&2
+# Canonical valid-approval counter (DP-413 T3). The per-reviewer latest-review
+# valid/stale tally (which itself reuses the DP-315 commit_id staleness atom)
+# lives in scripts/lib/pr-approval-count.sh so check-pr-approvals and
+# pr-action-classifier share exactly one counting path (AC6) instead of each
+# keeping a private loop that can drift.
+APPROVAL_COUNT_LIB="$(dirname "${BASH_SOURCE[0]}")/../../../../scripts/lib/pr-approval-count.sh"
+if [[ ! -f "$APPROVAL_COUNT_LIB" ]]; then
+  echo "POLARIS_TOOL_MISSING:pr-approval-count.sh (expected at $APPROVAL_COUNT_LIB)" >&2
   exit 1
 fi
-# shellcheck source=../../../../scripts/lib/approval-staleness.sh
-source "$APPROVAL_STALENESS_HELPER"
 
 ORG="${ORG:-}"
 if [[ -z "$ORG" ]]; then
@@ -98,59 +100,22 @@ for row in $(echo "$prs" | jq -r '.[] | @base64'); do
     exit 2
   fi
 
-  # 計算每位 reviewer 的最新狀態
-  # 先取得所有 unique reviewers，再找各自最新的 review
-  reviewer_users=$(echo "$reviews" | jq -r '[.[].user] | unique | .[]')
-
-  reviewer_tmpfile=$(mktemp)
-  valid_approvals=0
-  total_approvals=0
-  has_stale=false
-
-  for user in $reviewer_users; do
-    # 該 reviewer 最新的 review
-    latest=$(echo "$reviews" | jq "[.[] | select(.user == \"$user\")] | sort_by(.submitted_at) | last")
-    state=$(echo "$latest" | jq -r '.state')
-    commit_id=$(echo "$latest" | jq -r '.commit_id')
-
-    is_stale=false
-
-    if [ "$state" = "APPROVED" ]; then
-      total_approvals=$((total_approvals + 1))
-      # 走 canonical helper：commit_id == head.sha 才 valid，否則 stale（fail-closed）。
-      if [ "$(approval_staleness "$commit_id" "$head_sha")" = "valid" ]; then
-        valid_approvals=$((valid_approvals + 1))
-      else
-        is_stale=true
-        has_stale=true
-      fi
-    fi
-
-    jq -n \
-      --arg user "$user" \
-      --arg state "$state" \
-      --argjson is_stale "$is_stale" \
-      '{user: $user, state: $state, is_stale: $is_stale}' >> "$reviewer_tmpfile"
-  done
-
-  reviewers=$(jq -s '.' "$reviewer_tmpfile")
-  rm -f "$reviewer_tmpfile"
+  # 走 shared canonical counter（DP-413 T3）：把 reviews + head_sha 交給
+  # scripts/lib/pr-approval-count.sh 做 per-reviewer 最新 review 的 valid/stale
+  # 計數，與 pr-action-classifier 共用同一條計數路徑（AC6），不再於此保留第二套。
+  count_json=$(printf '%s' "$reviews" | bash "$APPROVAL_COUNT_LIB" --head-sha "$head_sha")
+  valid_approvals=$(echo "$count_json" | jq -r '.valid_approvals')
+  has_stale=$(echo "$count_json" | jq -r '.has_stale')
 
   needs_review=false
   if [ "$valid_approvals" -lt "$THRESHOLD" ]; then
     needs_review=true
   fi
 
-  # 保留原本的欄位，附加新欄位
+  # 保留原本欄位，直接併入 shared counter 的計數物件（valid_approvals /
+  # total_approvals / has_stale / reviewers），再補 needs_review 與 threshold。
   original=$(echo "$row" | base64 --decode)
-  enriched=$(echo "$original" | jq \
-    --argjson valid_approvals "$valid_approvals" \
-    --argjson total_approvals "$total_approvals" \
-    --argjson has_stale "$has_stale" \
-    --argjson reviewers "$reviewers" \
-    --argjson needs_review "$needs_review" \
-    --argjson threshold "$THRESHOLD" \
-    '. + {valid_approvals: $valid_approvals, total_approvals: $total_approvals, has_stale: $has_stale, reviewers: $reviewers, needs_review: $needs_review, threshold: $threshold}')
+  enriched=$(echo "$original" | jq --argjson c "$count_json" --argjson needs_review "$needs_review" --argjson threshold "$THRESHOLD" '. + $c + {needs_review: $needs_review, threshold: $threshold}')
 
   echo "$enriched" >> "$tmpfile"
 
