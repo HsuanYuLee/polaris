@@ -1384,6 +1384,26 @@ if feat_base_violation is not None:
     print(f"{marker}:{target}", file=sys.stderr)
     raise SystemExit(2)
 
+# DP-417 T15: planning-time framework-release delivery-evidence front-load (surface, do not fail).
+# Directory (source-level) targets only. Delegates to the standalone gate in --mode planning so a
+# framework DP's plan is shaped with the framework-release delivery-evidence contract in view up
+# front — each required task's DP-360 deliverable.head_sha requirement is surfaced during breakdown
+# instead of being discovered at release. Non-failing by design (delivery blocks legitimately do not
+# exist at planning; fail-closed enforcement runs later in the framework-release pre-release gate).
+# The gate self-no-ops on jira source / when no owning refinement.json is found (e.g. synthetic
+# lock-preflight tmpdirs); only the per-task contract emit is forwarded, so no-op / non-dp runs stay
+# quiet. Reuses the canonical parse-task-md reader — no second delivery-block reader here.
+if target.is_dir():
+    _dec_gate = script_dir / "validate-delivery-evidence-conformance.sh"
+    if _dec_gate.is_file():
+        _dec = subprocess.run(
+            ["bash", str(_dec_gate), "--mode", "planning", "--tasks-dir", str(target)],
+            capture_output=True,
+            text=True,
+        )
+        if "will require" in _dec.stderr:
+            sys.stderr.write(_dec.stderr)
+
 all_errors: list[str] = []
 # DP-311 T6: executability violations are tracked separately because they are
 # contract violations (exit 2 + structured marker), not generic readiness

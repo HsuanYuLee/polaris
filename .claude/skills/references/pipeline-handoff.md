@@ -147,6 +147,22 @@ Validator：`scripts/validate-refinement-json.sh <path>` 或 `--scan <workspace_
 
 Validator：`scripts/validate-task-md.sh <path>` 或 `--scan <workspace_root>`。
 
+**Canonical task identity resolution（DP-417 T4 / AC4）**：breakdown / engineering /
+auto-pass 共用**同一個 canonical task id** = parser 的 `identity.work_item_id`
+（`{source}-T{n}`），其 parent lifecycle anchor = `identity.source_id`（`{DP}` / `{Epic}`）。
+三種輸入形式都收斂到這一個 canonical id，且不得新增第二條 resolver：
+
+- **short id**（`T1`）：`scripts/parse-task-md.sh --key T1 --tasks-dir {source}/tasks`
+  （DP-033 D8 active → pr-release reader，DP-417 T4 起同時解析 flat `T1.md` 與 folder-native
+  `T1/index.md` 兩種 layout）。
+- **full id**（`EPIC-478-T1` / `DP-417-T1`）：`scripts/resolve-task-md.sh`。
+- **folder-native path**（`tasks/pr-release/T1/index.md`、`tasks/T1/index.md`）：
+  `scripts/resolve-task-md.sh`（direct path resolution）。
+
+任一形式解析出 task.md 後，一律由 `parse-task-md.sh --field work_item_id` / `--field source_id`
+取得 canonical id 與 anchor。三形式一致性 + no-false-positive 由
+`scripts/selftests/jira-task-identity-lifecycle-anchor-alignment-selftest.sh` 機械斷言。
+
 **Runtime contract fields**（DP-023）：`Level` / `Runtime verify target` / `Env bootstrap command` 三欄位 + `Level=runtime` 時 Verify Command host alignment — 繼續由 `validate-task-md.sh` 的 runtime block enforce，不在此重述。
 
 **Breakdown readiness gate（DP-082）**：`scripts/validate-breakdown-ready.sh <task.md|tasks_dir>` 在 breakdown → engineering handoff 前執行。它不取代 schema validator，而是補上 packaging-level contract：Allowed Files 必須是 machine-matchable path / glob、Gate Closure Matrix 必須覆蓋 scope/test/verify/ci-local，且每個 gate 有 pass condition 與 owner / decision。readiness fail 的 task 不得交給 engineering。
@@ -546,6 +562,25 @@ Pipeline 收斂在以下任一條件：
 - 位置：`{source_container}/artifacts/{skill}-{scope}-{ticket}-{ts}.md`（與 Completion Envelope Detail 合流）
 - 讀取：下游 sub-agent **on-demand**，預設信任結論文件
 - P4 pilot：refinement Bug source mode → engineering（DP-024 P4 2026-04-22）
+
+## Artifact Role Ownership（mixed-diff classifier）
+
+一個 diff 的 changed paths 屬於 **product-owned** 還是 **framework-owned**，由
+deterministic classifier 決定，不靠 path allowlist 目測。canonical enforcement 是
+`scripts/classify-artifact-role-ownership.sh`：
+
+- 它讀 `scripts/lib/framework-source-owned-paths.json` 的 `owned_path_globs`（與
+  `validate-framework-source-write.sh` 共用的唯一 framework-owned glob 集，不另立第二套
+  ownership 清單）；命中 glob 的 path 判 framework-owned，其餘判 product-owned。
+- **mixed diff**（product PR 內夾帶 framework-owned flow repair，即同時含 product-owned 與
+  framework-owned path）時 **fail-closed**：exit 2 + stderr `POLARIS_MIXED_ARTIFACT_ROLE_DIFF`，
+  並列出違規的 framework owner path，要求把 flow repair 拆成獨立的 DP-backed framework PR。
+- 同質 diff（全 product 或全 framework）exit 0 並回報 `artifact-role=product|framework`；空
+  diff exit 0。changed paths 由 CLI args 或 newline-separated stdin 傳入（`git diff
+  --name-only | classify-artifact-role-ownership.sh`）。
+- selftest：`scripts/selftests/classify-artifact-role-ownership-selftest.sh`（product-only /
+  framework-only / mixed 三態 + no-false-positive），經 framework PR gate 的 aggregate
+  selftest corpus（W13/W14）機械執行。
 
 ## 和其他 references 的關係
 

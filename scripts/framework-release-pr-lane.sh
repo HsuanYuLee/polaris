@@ -30,6 +30,7 @@ MAIN_BRANCH="main"
 MAIN_BRANCH_EXPLICIT=0
 EXECUTE=0
 FULL_BACKSTOP=0
+TASK_HEAD_SHA_MAP=""
 REQUIRE_MAIN_CONTAINS_FINAL=0
 DAG_MODE=0
 GH_BIN="${GH_BIN:-gh}"
@@ -173,6 +174,8 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
       --terminal-task-md=*) TERMINAL_TASK_MD="${1#--terminal-task-md=}"; shift ;;
       --task-md) TASK_MDS+=("$(abs_path "$2")"); shift 2 ;;
       --task-md=*) TASK_MDS+=("$(abs_path "${1#--task-md=}")"); shift ;;
+      --task-head-sha) TASK_HEAD_SHA_MAP="$2"; shift 2 ;;
+      --task-head-sha=*) TASK_HEAD_SHA_MAP="${1#--task-head-sha=}"; shift ;;
       --list-stage-owners) list_stage_owners; exit 0 ;;
       --full-backstop) FULL_BACKSTOP=1; shift ;;
       --main) MAIN_BRANCH="$2"; MAIN_BRANCH_EXPLICIT=1; shift 2 ;;
@@ -208,6 +211,26 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     fi
     framework_release_topology_classify_task_mds "${STACK_TASK_MDS[@]}" >/dev/null
   fi
+
+  # DP-417 T15: framework-release delivery-evidence conformance preflight. Runs on the resolved
+  # local stack task.md paths BEFORE the first GitHub PR lookup, so a missing / malformed / stale
+  # DP-360 deliverable.head_sha delivery block fails closed here with a per-task enumeration
+  # (POLARIS_DELIVERY_EVIDENCE_NON_CONFORMANT) instead of surfacing as the late generic no-PR error
+  # deep in topology validation. Framework-DP-only (no-op on jira source). Reuses the canonical
+  # parse-task-md reader; no second delivery-block reader.
+  DELIVERY_EVIDENCE_GATE="$SCRIPT_DIR/validate-delivery-evidence-conformance.sh"
+  if [[ -f "$DELIVERY_EVIDENCE_GATE" ]]; then
+    DEC_ARGS=()
+    for _dec_task in "${STACK_TASK_MDS[@]}"; do
+      DEC_ARGS+=(--task-md "$_dec_task")
+    done
+    # Forward the DP-360 authority-order #1 override map so PR-less direct-commit-to-feat tasks can
+    # supply their delivered head without a fabricated PR URL (same --task-head-sha map as closeout).
+    [[ -n "$TASK_HEAD_SHA_MAP" ]] && DEC_ARGS+=(--task-head-sha "$TASK_HEAD_SHA_MAP")
+    bash "$DELIVERY_EVIDENCE_GATE" --mode pre-release "${DEC_ARGS[@]}" \
+      || die "release preflight blocked: delivery-evidence conformance gate failed (see POLARIS_DELIVERY_EVIDENCE_NON_CONFORMANT above; each required task needs a resolvable delivered head via --task-head-sha override or task.md deliverable.head_sha)"
+  fi
+
   validate_structured_pr_topology
 
   run_script_manifest_release_gate

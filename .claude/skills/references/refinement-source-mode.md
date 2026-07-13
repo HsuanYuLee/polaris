@@ -194,12 +194,11 @@ Source container 的 markdown path classification：
 - Existing sidecar：`jira-comments/`、`escalations/`、`refinement-inbox/`。這些也會從 docs
   collection 排除，但不套 D2 metadata，保留各自既有 schema。
 
-Legacy DP `plan.md` is a read-only compatibility fallback. Active DP containers
-must use folder-native `index.md`; if an active design-plan container still has
-`plan.md`, run `scripts/migrate-legacy-dp-plan-to-index.sh --workspace <root>
---execute` before downstream handoff. Archived `design-plans/archive/**/plan.md`
-files are explicit historical allowlist unless `--include-archive` is supplied;
-the helper preserves frontmatter and body when migrating them.
+Legacy DP `plan.md` 是唯讀相容 fallback。Active DP container 必須用 folder-native
+`index.md`；若某個 active design-plan container 仍留著 `plan.md`，在 downstream handoff
+前先跑 `scripts/migrate-legacy-dp-plan-to-index.sh --workspace <root> --execute`。已封存的
+`design-plans/archive/**/plan.md` 除非帶 `--include-archive`，否則屬明確歷史 allowlist；
+helper 在遷移時會保留 frontmatter 與 body。
 
 D2 transport artifact 寫入後需跑：
 
@@ -308,6 +307,24 @@ Artifact 必須保留足夠的 scope、AC、dependencies、edge cases、downstre
       `task_shape` / `tracked_deliverable_hint`（或改設計），再重跑，不得 LOCK。
     - `refinement.json` 沒有 `planned_tasks[]`（pre-DP-262 source）時 preflight no-op
       PASS，零 migration shim（DP-262 AC8）。
+
+    **Replace-existing source discipline（DP-417 T9，同支 preflight，fail-stop）**：
+    當 `refinement.json` 帶 `replaces_existing`（本 source 替換既有機制）時，同一支
+    preflight 在 task-derive loop 之前額外強制兩道 source-level gate（non-replacing
+    source 無此欄位 → 嚴格 no-op）：
+
+    - **枚舉 gate（AC9 / AC-NEG4）**：`replaces_existing.existing_sources` 必須非空，且每筆
+      `evidence` 必須是 runtime/build-output（`runtime` / `build-output` / `cdn` /
+      `inline`）。只用 `source-grep` discovery 或 `existing_sources` 為空 → exit 2 +
+      `POLARIS_REFINEMENT_REPLACE_EXISTING_ENUMERATION`。停下，補上枚舉被替換物**所有**現存
+      來源（含 build-time / CDN / inline 注入等源碼 grep 看不見的路徑）的 runtime/build-output
+      證據，再重跑，不得 LOCK。
+    - **反死代碼 port gate（AC11 / AC-NEG6）**：`replaces_existing.ported_symbols` 每筆必須
+      攜帶 `usage_evidence`；`usage_count == 0`（全站零使用）者 `disposition` 必須是
+      `removable`，否則 → exit 2 + `POLARIS_REFINEMENT_REPLACE_EXISTING_DEAD_PORT`。停下，
+      補 usage 檢查、把死 symbol 標成可移除（不得原封 port 製造 new legacy），再重跑。
+
+    schema shape 見 `refinement-artifact.md` § `replaces_existing`。
 3. 將 primary doc frontmatter 改為：
 
    ```yaml

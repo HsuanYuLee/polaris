@@ -1,5 +1,100 @@
 # Changelog
 
+## [3.76.86] - 2026-07-14
+
+### Changed
+
+- df6f580: DP-417-T1：新增 `scripts/classify-artifact-role-ownership.sh` — deterministic 的 artifact-role / mixed-diff ownership classifier，把 diff 的 changed paths 依 `scripts/lib/framework-source-owned-paths.json`（與 `validate-framework-source-write.sh` 共用的唯一 framework-owned glob 集）分類為 product-owned 或 framework-owned。當 product PR 靜默夾帶 framework-owned flow repair（mixed diff）時 fail-closed（exit 2 + `POLARIS_MIXED_ARTIFACT_ROLE_DIFF`，並指出 framework owner path）。新增 selftest `scripts/selftests/classify-artifact-role-ownership-selftest.sh`（product-only / framework-only / mixed / no-false-positive / stdin 五態），經 framework PR gate 的 aggregate selftest corpus（W13/W14）機械執行；`pipeline-handoff.md` 補 § Artifact Role Ownership 契約，`refinement-artifact.md` 補 cross-reference。
+- e820fd9: DP-417 T10: refinement handoff chain 改為 fail-aggregate 並新增 up-front enumerate（dry-run）。
+  `refinement-handoff-gate.sh` 以單一 canonical stage list 驅動預設 fail-first 路徑（行為與退出碼不變），另加兩個模式：
+  - `--aggregate`：跑完整條鏈（schema / ac-coverage / artifact-parity / 全部 advisory / residue / skill-boundary）再加上 lock-preflight → derive → validate-breakdown-ready leg，一次收集**所有**違規並集中回報（有任何違規時 exit 2 + `POLARIS_REFINEMENT_HANDOFF_AGGREGATE_FAILURES`），讓 producer 一次看到完整缺口，不必逐條被拒才發現下一條。
+  - `--enumerate`：不讀寫任何 artifact，直接印出整條鏈的 required-field / validator / gate 契約清單。
+    `derive-task-md-from-refinement-json.sh` 的 per-task required-field 檢查（id / title / scope / verification）由 fail-first 改為 collect-all，一次列出全部缺漏欄位。
+    `write-producer-owned-artifact.sh` 新增 `--enumerate-contract <token>`：解析 producer token 並印出其寫入契約（owning skill / marker kinds / path globs / dispatched validator），refinement design/primary-doc token 另委派 `refinement-handoff-gate.sh --enumerate` 印出完整 handoff 鏈，全程不寫檔。
+    AC21（framework-release tail fold-in）：`framework-release-execute.sh` 與 `framework-release-closeout.sh` 的 sequential precondition `die` 收斂成 collect-all 模式（預設執行行為與退出碼不變）：
+  - `--aggregate`：一次收集所有 argument-shape precondition 違規再集中回報（有違規時 exit 2 + `POLARIS_FRAMEWORK_RELEASE_*_PRECONDITION_AGGREGATE`），不再逐條 fail-first。
+  - `--enumerate` / `--dry-run`：不讀寫 git state，印出完整 release precondition 契約清單。
+  - `framework-release-closeout.sh --emit-handoff`：deterministic 產出完整的 framework-release arg set（byte-identical，不寫檔），供 auto-pass → framework-release handoff 使用。
+    同步校正 `SKILL.md` ↔ script 5 處 drift：交付 head authority 對齊 DP-360（`deliverable.head_sha` + `--task-head-sha` override）、closeout `--preflight-evidence` 與 `--task-head-sha` 記入範例、`task_kind=V` closeout `--task-md` 排除、step-heading（`2b` → `3`）與 prose reference 一致。
+    Selftest：`scripts/selftests/refinement-handoff-gate-aggregate-selftest.sh`（AC12 / AC13 / AC-NEG7 / AC-N1 / AC21a / AC21b / AC21c / AC21d）。
+- b2f055e: DP-417 T11：spec↔check 契約對齊 gate（producer 交付規格 = 檢查要求，照規格產交付物即 by construction 通過）。
+  新增 `scripts/validate-spec-check-contract-parity.sh`：雙向 parity gate，機械斷言每個 deterministic 檢查對「作者可控 refinement.json 欄位」的 hard-require / forbid，都與 LLM-facing producer 規格（`refinement-artifact.md` / `pipeline-handoff.md`）一致。任一方向漂移即 fail-closed（exit 2 + `POLARIS_SPEC_CHECK_PARITY_*`）：validator-required-but-spec-undocumented 與 spec-required-but-validator-forbidden 都擋。gate 以 anchor-liveness 把 manifest 綁回真實 validator，避免 manifest 與檢查漂移。
+  reconcile 既有 drift：`refinement-artifact.md` 補文件 `changed_files`（== `modules[].path`）、`predecessor_audit`；移除 `tasks[].allowed_files` / `tasks[].estimate_points` 的「必填」宣稱（DP-341 packaging 欄位，validator 禁止）；修正 `source.base_branch` 對 dp source 的反向矛盾（DP-337 已 graduated 為 universal，dp source == `feat/{source.id}`，不再是 jira-only-forbidden）。
+  新增 `mechanism-registry.md` canary（`spec-check-contract-parity`）與 `skill-routing.md` routing rule：執行期（post-LOCK）「rules clash / spec↔check 矛盾」key finding deterministic route 到 parity gate owner，不被 LLM 試錯吸收。
+- a86f6d8: DP-417 T12: sunset the per-turn `[SESSION-SWITCH]` change-session advisory.
+  Removes the redundant per-turn context-pressure advisory (empirically a source of
+  noise — the `minutes_since_checkpoint` axis read a deprecated `.claude/checkpoints/`
+  surface and fired false ~275504% every turn). Context pressure is now carried by
+  native runtime compaction + the active-thread anchor (DP-365) + the checkpoint
+  mechanism, making the whole advisory redundant. Target-state decision: sunset
+  (remove) rather than DP-365 T2's repoint — repointing only keeps a redundant
+  advisory alive against a new surface.
+  Removed: `session-switch-eval` + `session-pressure-tick` hooks (settings.json
+  registration + hook files), the `session-switch-advisory.md` rule, the two
+  mechanism-registry rows in each of the Runtime Annotation Registry and Cross-LLM
+  Hook Parity Registry, and the three session-switch selftests. This task supersedes
+  DP-365 T2 (axis repoint is moot once the axis is sunset).
+- 50c61bf: DP-417 T13: real-epic end-to-end trial-run acceptance harness.
+  Adds `scripts/spec-check-real-epic-trial-run.sh`, a specimen-agnostic harness that
+  runs the deterministic `refinement -> auto-pass` chain against a source container
+  and asserts zero spec<->check bounces — the integration acceptance of DP-417's
+  "author per spec => checks pass by construction" thesis, beyond each task's unit
+  selftest. It reuses existing gates (validate-refinement-lock-preflight.sh for the
+  derive / lock-preflight / handoff / breakdown-ready chain, plus the T11
+  validate-spec-check-contract-parity.sh for the contract dimension) rather than
+  re-implementing detection. The real acceptance specimen (a live product epic) is
+  supplied at invocation via `--source`, so no live ticket key is baked into the
+  template-facing source; the selftest drives it with generic fixtures. Any bounce
+  means DP-417 is not complete (a warning never counts as a pass).
+- 9ea8e96: DP-417 T14: framework-release tail end-to-end trial-run acceptance harness.
+  Adds `scripts/spec-check-framework-release-trial-run.sh`, the framework-side
+  counterpart of the T13 real-epic harness. It drives a framework DP specimen through
+  the release tail (`framework-release-execute.sh --enumerate`) plus the T11
+  `validate-spec-check-contract-parity.sh` gate and asserts zero spec<->check bounces.
+  A product epic cannot reach the framework-release code path by contract (AC-NEG12),
+  so tail acceptance MUST be provided by a framework specimen — the T13 product-epic
+  run does not substitute for this. The harness is side-effect isolated: it only ever
+  invokes `--enumerate`, never a real tag / sync / push, proven by the selftest running
+  it inside a throwaway git repo and asserting no tag was created. Any bounce means
+  DP-417 is not complete (a warning never counts as a pass).
+- 4e324ff: framework-release delivery-evidence 前置 conformance 契約（僅 framework DP source；planning-time shape + pre-release existence 雙面 fail-closed）
+- aafcb1e: DP-417 T2 / AC2：`run-behavior-contract.sh` 在 `behavior_contract.applies=true` 卻沒有可執行 flow（缺 `flow_script`、或 `fixture_policy: static_only` 沒有 runnable script）時，不再靜默當作 covered（原本 static_only 分支會寫 `assertions_only:true` 並 PASS）。改為 emit evidence-level `status=NOT_COVERED` 的 behavior marker（沿用同一 producer / evidence path / schema，僅狀態值不同）並以 exit 2 route-back，讓 auto-pass 停在 owning producer（breakdown / refinement）補上可執行 flow 或重新評估 `applies`，不在本地自行修補。有可執行 flow_script 的 task 維持原行為（no false positive）。
+- 95f8f14: Auto-pass ledger 與 report recovery state machine
+- c450c81: DP-417-T4：讓 short id、full id 與 folder-native task path 三種輸入形式收斂到**同一個 canonical task id**（parser 的 `work_item_id` = `{source}-T{n}`），並對齊其 parent lifecycle anchor（`source_id`），供 breakdown / engineering / auto-pass 共用。修補既有短 id resolver 的 folder-native gap：`scripts/parse-task-md.sh --key --tasks-dir`（DP-033 D8 active → pr-release reader）先前只解析 flat `{key}.md`，對 folder-native `{key}/index.md` layout（DP-417 自身即採此 layout）回報 broken ref；改為同時解析 flat 與 folder-native 兩種 shape（active → pr-release 精度不變），對齊 `resolve-task-md.sh` 早已支援的 canonical task.md shape，不新增第二條 resolver。新增 selftest `scripts/selftests/jira-task-identity-lifecycle-anchor-alignment-selftest.sh` 機械斷言三形式 → 單一 canonical id + parent anchor（DP-backed 與 JIRA-Epic-backed source、active 與 pr-release folder-native 皆涵蓋），並含 no-false-positive（缺席 short id fail-closed、prefix-similar sibling source 不誤解析）；`pipeline-handoff.md` / `auto-pass-execution-flow.md` 補 canonical task identity resolution 契約。
+- 478412e: DP-417 T5：固定 auto-pass terminal-complete closeout 的 enforcement order（complete
+  report write → archive → report validation）與 active/archive gate applicability matrix。
+  新增 `scripts/selftests/report-archive-validation-order-selftest.sh`，以既有 real scripts
+  （`validate-auto-pass-report.sh` report-validation gate + `mark-spec-implemented.sh
+  的正確 gate 行為（AC5）、order 違反 / archive 狀態誤判時 fail-closed（AC-NEG2）、以及非
+  complete terminal 與 genuinely-active source 不誤觸發（AC-N1）。`auto-pass-execution-flow.md`
+  § Terminal Complete Sequence 補上明確的 report/archive gate applicability matrix。
+- 0edbcd9: DP-417 T6：review-driven revision / head rebind 後閉合 PR-visible evidence 發佈 ownership。
+  `validate-auto-pass-report.sh` 在既有 `required_prs[]` 迴圈補上 head-rebind evidence
+  publication freshness 檢查：凡 row 帶 `revised_head_sha`（PR 綁定的新 head）且
+  `terminal=complete`，其 PR-visible evidence publication marker 必須 current 於該 revised
+  head（以既有 canonical `head_bound()` 比對，不新增第二個 comparator）。stale（marker 仍綁
+  舊 head）或 missing（revision 改了 head 卻沒重新發佈 evidence）一律 fail-closed
+  `POLARIS_AUTO_PASS_PR_EVIDENCE_PUBLICATION_STALE`（exit 2），不得 silent PASS（AC6 /
+  AC-NEG2）；未帶 `revised_head_sha` 的 first-cut delivery row 不受影響，
+  `terminal!=complete`（route back 給 owner）為 AC6 逃生門。deterministic 覆蓋新增
+  `scripts/selftests/revision-head-rebind-evidence-publication-ownership-selftest.sh`（AC-N1）。
+- 3a5ba8c: DP-417 T7：新增 intra-step 打轉偵測器（AC7 / AC-N1）。新增 PostToolUse hook
+  `.claude/hooks/intra-step-repeated-attempt-detector.sh`，以 deterministic 可觀測訊號
+  逐 session 累計兩類重複嘗試——(a) 同一 target 檔被重複編輯（Edit/Write/MultiEdit）、
+  (b) 同一失敗命令被重複重試（Bash + `tool_response` 失敗訊號）——當任一 key 的次數
+  超過門檻 N（`POLARIS_REPEATED_ATTEMPT_THRESHOLD`，預設 5）時，寫出 escalate marker
+  檔並在 stderr 印一行 advisory，提示 agent 停下求助而非無限打轉燒 token。跨不同檔案的
+  多樣化編輯各自成 key，不會累加到同一 key（AC-N1 no-false-positive）。hook 永遠 exit 0、
+  純 advisory、絕不 block tool call、不做網路/build/安裝。deterministic 覆蓋新增
+  `scripts/selftests/intra-step-repeated-attempt-detector-selftest.sh`（AC7a/AC7b/AC-N1/
+  fail-open + 門檻邊界，AC-N1 executable coverage），並在 mechanism-registry.md 的 Runtime
+  Annotation Registry 登記一列。
+  啟用範圍（follow-up）：本 task 只交付 deterministic、可測的偵測器 capability；把 hook
+  wire 進 `settings.json`（成為 active hook）與其連帶的 Cross-LLM Hook Parity 基礎設施
+  （`.codex/**` adapter + golden fixture）屬本 task scope 外的後續啟用步驟。
+- 9d7b498: DP-417-T8：堵住 VR / behavior「假驗證」逃逸口。新增 `scripts/lib/verification-fidelity-trust.sh` — 兩層 verification trustworthiness gate 的唯一 shared home，由 `run-behavior-contract.sh`（`parity` / `hybrid`）與 `run-visual-snapshot.sh`（`vr`）共用同一份判定，不各自另寫 comparator 或第二條 PASS path。**Layer 1（真實 render trust）**：宣告 before/after fidelity（`applies: true` + `mode` `parity` / `hybrid` / `vr`）的 compare 必須由真實 render（真實 behavior state file，或帶正確 magic bytes 的 PNG / JPEG / WEBM / MP4）與真實比對支撐；state file 自報字面 `hash`（`hardcoded_state_hash`）、或只有 placeholder / 無 render（`no_rendered_artifact`）等冒充一律 fail-closed（marker `status=FAIL`、exit 2 + `POLARIS_VERIFICATION_FIDELITY_UNTRUSTED`），不產出 PASS marker。**Layer 2（測試主體隔離）**：`replaces_existing` fidelity task 若在 compare 到達 PASS 時被替換的舊 source 仍存在於測試環境，該 PASS 被舊 source 汙染（confounded），render 前即 fail-closed（exit 2 + `POLARIS_VERIFICATION_CONFOUNDED`；VR marker `status=BLOCK`），要求「先清乾淨再驗證」。新增 executable selftest `scripts/selftests/vr-behavior-verification-trustworthiness-gate-selftest.sh`（AC8 / AC10 正例 + AC-NEG3 impersonation + AC-NEG5 confounded + AC-N1 no-false-positive），`run-visual-snapshot-selftest.sh` 補 Playwright-free 的 confounded 隔離案例；並對齊 DP-294 evidence classifier 修好 `run-behavior-contract-selftest.sh` 的 `gate-missing-behavior` fixture（改用 behavioral `.sh` delta，使其不被 metadata_only 豁免）。`behavior-contract.md` 補 § Verification Trustworthiness Gate 契約與 `replaces_existing` / `replaced_paths` 宣告方式。
+- d9a66ac: DP-417-T9：新增 refinement source-level `replaces_existing` schema 欄位（optional、additive、validated-when-present），並在單一 canonical LOCK preflight `scripts/validate-refinement-lock-preflight.sh` 強制兩道 source-level gate。`scripts/validate-refinement-json.sh` 新增 shape 驗證（`replaced` / 非空 `existing_sources[]`（`path_or_channel` / `evidence` ∈ `runtime`/`build-output`/`cdn`/`inline`/`source-grep` / `evidence_ref`）/ optional `ported_symbols[]`（`symbol` / `usage_evidence` / 非負 `usage_count` / `disposition` ∈ `removable`/`kept`）），缺欄位的 non-replacing source 仍合法。preflight 在 task-derive loop 前加：(1) 枚舉 gate（AC9/AC-NEG4）—— `existing_sources` 必須非空且每筆 evidence 為 runtime/build-output（source-grep 單獨不足，因 build-time / CDN / inline 注入路徑源碼 grep 看不見），否則 exit 2 + `POLARIS_REFINEMENT_REPLACE_EXISTING_ENUMERATION`；(2) 反死代碼 port gate（AC11/AC-NEG6）—— 每個 `ported_symbols` 必須攜帶 `usage_evidence`，`usage_count == 0` 者 `disposition` 必須是 `removable`，否則 exit 2 + `POLARIS_REFINEMENT_REPLACE_EXISTING_DEAD_PORT`。新增 `scripts/selftests/refinement-replace-existing-discipline-selftest.sh`（枚舉 grep-only / 空來源 / 死代碼 kept / 缺 usage_evidence → fail-closed；full-valid 與 non-replacing → PASS；json validator shape 五態；single-path 斷言）。`refinement-artifact.md` 補 § `replaces_existing` 與 strong-bound 條列，`refinement-source-mode.md` 補 T5 LOCK gate 步驟。
+
 ## [3.76.85] - 2026-07-09
 
 ### Changed

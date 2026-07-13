@@ -139,6 +139,39 @@ for task in data.get("tasks") or []:
     mods = (task.get("modules") or []) + (task.get("allowed_files") or [])
 EOF
 
+  # Registered consumer: auto-pass-runner (reads V-task id/kind via entry.get).
+  cat >"$fixdir/scripts/auto-pass-runner.sh" <<'EOF'
+#!/usr/bin/env bash
+: <<'PY'
+# reads refinement.json
+for entry in data.get("tasks") or []:
+    tid = entry.get("id")
+    kind = str(entry.get("kind") or "").strip().lower()
+PY
+EOF
+
+  # Registered consumer: close-parent-spec-if-complete (reads V-task id/kind via entry.get).
+  cat >"$fixdir/scripts/close-parent-spec-if-complete.sh" <<'EOF'
+#!/usr/bin/env bash
+: <<'PY'
+# reads refinement.json
+for entry in data.get("tasks") or []:
+    tid = entry.get("id")
+    kind = str(entry.get("kind") or "").strip().lower()
+PY
+EOF
+
+  # Registered consumer: validate-verification-strategy (reads id/verification via task.get).
+  cat >"$fixdir/scripts/validate-verification-strategy.sh" <<'EOF'
+#!/usr/bin/env bash
+: <<'PY'
+# reads refinement.json
+for task in data.get("tasks") or []:
+    tid = task.get("id")
+    verification = task.get("verification")
+PY
+EOF
+
   # Optional extra consumer files: each arg is "<rel-path>::<body>".
   local spec rel body
   for spec in "$@"; do
@@ -389,6 +422,59 @@ POLARIS_VALIDATE_LANGUAGE_POLICY_BIN="$LANGUAGE_POLICY_BIN" \
 set -e
 assert_exit "case9b scoping (missing --refinement-json target → fail closed)" 2 "$rc9b"
 assert_stderr_contains "case9b missing-target marker" "delivery target not found" "$tmpdir/case9b.err"
+
+# ---------------------------------------------------------------------------
+# Case 10 (DP-417 base-reconcile): the optional per-task overrides repo / base_branch
+# are first-class validated-when-present schema fields (`if "repo" in task:` /
+# `if "base_branch" in task:` anchors in the schema validator). A registered consumer
+# that reads them via a task-entry accessor must PASS (they are inside the whitelist).
+# This proves the SoT extractor picks up the new anchors and the derive consumer's
+# tasks[].repo / tasks[].base_branch reads are schema-bound, not out-of-schema.
+# ---------------------------------------------------------------------------
+fix10="$tmpdir/case10"
+build_fixture "$fix10"
+# Schema stub declaring repo / base_branch as validated-when-present anchors.
+cat >"$fix10/scripts/validate-refinement-json.sh" <<'EOF'
+#!/usr/bin/env bash
+: <<'PY'
+    task_required = {
+        "id",
+        "kind",
+        "title",
+        "scope",
+        "allowed_files",
+        "modules",
+        "ac_ids",
+        "dependencies",
+        "estimate_points",
+        "verification",
+    }
+        if "task_shape" in task:
+        if "tracked_deliverable_hint" in task:
+        if "jira_key" in task:
+        if "repo" in task:
+        if "base_branch" in task:
+PY
+EOF
+# Registered consumer reading the two new optional overrides.
+cat >"$fix10/scripts/derive-task-md-from-refinement-json.sh" <<'EOF'
+#!/usr/bin/env bash
+: <<'PY'
+tasks = data.get("tasks") or []
+title = str(match["title"])
+repo = match.get("repo")
+base_branch = match.get("base_branch")
+PY
+EOF
+set +e
+out10="$(bash "$GATE" --root "$fix10" 2>"$tmpdir/case10.err")"; rc10=$?
+set -e
+assert_exit "case10 repo/base_branch whitelisted for registered consumer" 0 "$rc10"
+if [[ "$out10" != *"PASS: refinement consumer schema binding"* ]]; then
+  echo "FAIL: case10 missing PASS line (got: $out10)" >&2
+  cat "$tmpdir/case10.err" >&2
+  fail=$((fail + 1))
+fi
 
 # ---------------------------------------------------------------------------
 echo "----------------------------------------"

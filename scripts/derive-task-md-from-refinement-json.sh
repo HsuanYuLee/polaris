@@ -431,9 +431,21 @@ if isinstance(task_base_branch, str) and task_base_branch.strip():
 # precedence (refinement field -> --preserve-from task.md -> intent-only default),
 # so the required-field gate keeps only the genuine intent fields.
 required_fields = ("id", "title", "scope", "verification")
-for field in required_fields:
-    if field not in match or match[field] in (None, "", []):
-        fail(f"task {task_id} missing required field: {field}")
+# DP-417 T10 (fail-aggregate): collect EVERY missing required field and fail
+# once listing all of them, instead of stopping at the first. This turns the
+# per-task required-field check from fail-first into fail-aggregate so a
+# producer fixing one missing field does not have to rerun just to discover the
+# next. The per-field wording (including "scope") is preserved in the message.
+missing_required = [
+    field
+    for field in required_fields
+    if field not in match or match[field] in (None, "", [])
+]
+if missing_required:
+    fail(
+        f"task {task_id} missing required field: "
+        + ", ".join(missing_required)
+    )
 
 verification = match["verification"] or {}
 verify_detail = verification.get("detail") or ""

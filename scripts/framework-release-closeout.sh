@@ -21,9 +21,19 @@ set -euo pipefail
 #     [--extension-id framework-release] \
 #     [--delete-branches]
 #
+# Dry-run / handoff modes (DP-417 T10, AC21 — report only, no git state, no
+# mutation):
+#   --aggregate      list every argument-shape precondition violation in one pass
+#                    (fail-aggregate) instead of dying at the first.
+#   --enumerate      print the full release-closeout precondition contract.
+#   --emit-handoff   emit the COMPLETE, structured framework-release arg set
+#                    (execute --full-tail + closeout invocations) for the
+#                    auto-pass -> framework-release handoff.
+#
 # Repeated per-task inputs are positional. Each --task-md must have one
-# --verify-evidence. --task-head-sha is optional; when omitted it is resolved
-# from the task branch in task.md.
+# --verify-evidence. --task-head-sha is optional; when omitted the delivery head
+# resolves from the task.md deliverable.head_sha delivery block (DP-360 canonical
+# authority), never from a mutable task branch ref.
 #
 # DP-393 T2: release-residue branch/worktree cleanup is DEFAULT / MANDATORY.
 # After every task is closed out, closeout deletes each released DP's feat/DP-NNN,
@@ -81,6 +91,11 @@ VERIFY_EVIDENCES=()
 CI_LOCAL_EVIDENCES=()
 VR_EVIDENCES=()
 PREFLIGHT_EVIDENCES=()
+# DP-417 T10 (AC21): run mode. "default" executes the closeout; the collect modes
+# (aggregate / enumerate / emit-handoff) report the argument-shape precondition
+# contract WITHOUT executing, and exit before any git-state check or mutation.
+MODE="default"
+PRECOND_FAILURES=()
 # DP-230 D16: per-task head SHA map (task_id => sha) populated when
 # --task-head-sha receives the map syntax "DP-NNN-T1=<sha1>,DP-NNN-T2=<sha2>".
 # Legacy positional --task-head-sha <sha> (one per --task-md) continues to fill
@@ -117,12 +132,132 @@ task_head_sha_map_get() {
 }
 
 usage() {
-  sed -n '3,39p' "$0" >&2
+  sed -n '3,49p' "$0" >&2
 }
 
 die() {
   echo "$PREFIX ERROR: $1" >&2
   exit 2
+}
+
+# precond_fail <message>
+# DP-417 T10 (AC21): single collect-all funnel for the up-front argument-shape
+# preconditions. In default MODE it is exactly die() (immediate exit 2, same
+# message) so execution behavior and exit codes are unchanged; in the collect
+# modes it records the message and returns 0 so ALL violations surface in one
+# pass instead of fail-first.
+precond_fail() {
+  if [[ "$MODE" == "default" ]]; then
+    die "$1"
+  fi
+  PRECOND_FAILURES+=("$1")
+}
+
+# emit_aggregate_report
+# Prints every collected precondition violation at once (fail-aggregate) and
+# exits: 2 when any violation was collected, 0 when the argument-shape contract
+# is fully satisfied.
+emit_aggregate_report() {
+  local n="${#PRECOND_FAILURES[@]}"
+  if [[ "$n" -eq 0 ]]; then
+    echo "$PREFIX PASS argument-shape preconditions (aggregate): 0 violations"
+    exit 0
+  fi
+  echo "$PREFIX POLARIS_FRAMEWORK_RELEASE_CLOSEOUT_PRECONDITION_AGGREGATE: $n" >&2
+  local f
+  for f in "${PRECOND_FAILURES[@]}"; do
+    echo "  - $f" >&2
+  done
+  exit 2
+}
+
+# print_enumeration
+# Dry-run lister: prints the complete release-closeout precondition contract
+# WITHOUT reading git state or executing anything, then exits 0.
+print_enumeration() {
+  cat <<'ENUM'
+[framework-release-closeout] enumerate: release-closeout precondition contract (dry-run; no execution)
+required arguments:
+  --repo <path>                git checkout being released (workspace commit must equal HEAD)
+  --task-md <path>             one or more ordered task.md deliverables (repeatable)
+  --verify-evidence <path>     exactly one per --task-md
+  --workspace-commit <sha>     7-40 char hex; must equal --repo HEAD
+  --template-commit <sha>      7-40 char hex; template HEAD when --template-repo given
+  --version-tag <tag>          release tag (or N/A)
+  --release-url <url>          GitHub release URL (or N/A)
+optional arguments:
+  --template-repo <path>       synced Polaris template checkout
+  --task-head-sha <id>=<sha>   delivery-head override map (highest authority)
+  --ci-local-evidence <path>   zero, one, or one per --task-md
+  --vr-evidence <path>         zero, one, or one per --task-md
+  --preflight-evidence <path>  zero, one, or one per --task-md
+delivery-head authority (DP-360):
+  canonical delivery head resolves from (1) --task-head-sha override, then
+  (2) task.md deliverable.head_sha delivery block; fail-closed if neither.
+exclusions:
+  task_kind=V tasks are refused as --task-md; V verification tasks are driven by
+  the parent-closeout V enumeration, not by this per-task producer path.
+ENUM
+}
+
+# emit_handoff
+# DP-417 T10 (AC21c): deterministic auto-pass -> framework-release handoff
+# producer. Validates the supplied arguments through the shared collect-all
+# precondition funnel (no second validator), then emits the COMPLETE, structured
+# framework-release arg set (execute --full-tail + closeout invocations) for the
+# orchestrator to run. It never assembles a bare LLM trigger string and never
+# writes. Fails closed (exit 2) if the arg set is incomplete.
+emit_handoff() {
+  if [[ "${#PRECOND_FAILURES[@]}" -gt 0 ]]; then
+    echo "$PREFIX POLARIS_FRAMEWORK_RELEASE_CLOSEOUT_PRECONDITION_AGGREGATE: ${#PRECOND_FAILURES[@]}" >&2
+    local f
+    for f in "${PRECOND_FAILURES[@]}"; do
+      echo "  - $f" >&2
+    done
+    exit 2
+  fi
+
+  local source_id="" feat_branch=""
+  local tm
+  for tm in "${TASK_MDS[@]}"; do
+    if [[ "$tm" =~ (DP-[0-9]+) ]]; then
+      source_id="${BASH_REMATCH[1]}"
+      feat_branch="feat/${source_id}"
+      break
+    fi
+  done
+
+  echo "FRAMEWORK-RELEASE HANDOFF (deterministic; assembled by framework-release-closeout.sh --emit-handoff)"
+  [[ -n "$source_id" ]] && echo "SOURCE_ID=${source_id}"
+  [[ -n "$feat_branch" ]] && echo "FEAT_BRANCH=${feat_branch}"
+  echo "REPO=${REPO_ROOT}"
+  local i
+  for i in "${!TASK_MDS[@]}"; do
+    local line="TASK[$i]=--task-md ${TASK_MDS[$i]} --verify-evidence ${VERIFY_EVIDENCES[$i]}"
+    [[ "${#PREFLIGHT_EVIDENCES[@]}" -gt "$i" ]] && line+=" --preflight-evidence ${PREFLIGHT_EVIDENCES[$i]}"
+    [[ "${#TASK_HEAD_SHAS[@]}" -gt "$i" ]] && line+=" --task-head-sha ${TASK_HEAD_SHAS[$i]}"
+    echo "$line"
+  done
+  echo "WORKSPACE_COMMIT=${WORKSPACE_COMMIT}"
+  echo "TEMPLATE_COMMIT=${TEMPLATE_COMMIT}"
+  echo "VERSION_TAG=${VERSION_TAG}"
+  echo "RELEASE_URL=${RELEASE_URL}"
+
+  local task_args=""
+  for i in "${!TASK_MDS[@]}"; do
+    task_args+=" --task-md ${TASK_MDS[$i]}"
+  done
+  local verify_args=""
+  for i in "${!TASK_MDS[@]}"; do
+    verify_args+=" --task-md ${TASK_MDS[$i]} --verify-evidence ${VERIFY_EVIDENCES[$i]}"
+  done
+  if [[ -n "$source_id" ]]; then
+    echo "RUN: bash scripts/framework-release-execute.sh --repo ${REPO_ROOT} --source-id ${source_id} --full-tail${task_args}"
+  else
+    echo "RUN: bash scripts/framework-release-execute.sh --repo ${REPO_ROOT} --feat-branch <feat/DP-NNN> --full-tail${task_args}"
+  fi
+  echo "RUN: bash scripts/framework-release-closeout.sh --repo ${REPO_ROOT}${verify_args} --workspace-commit ${WORKSPACE_COMMIT} --template-commit ${TEMPLATE_COMMIT} --version-tag ${VERSION_TAG} --release-url ${RELEASE_URL}"
+  exit 0
 }
 
 info() {
@@ -868,25 +1003,35 @@ while [[ $# -gt 0 ]]; do
       # backward compatibility so existing callers do not error.
       info "note: --delete-branches is DEPRECATED and a no-op; release-residue cleanup is now mandatory (DP-393 T2)"
       shift ;;
+    --aggregate) MODE="aggregate"; shift ;;
+    --enumerate|--dry-run) MODE="enumerate"; shift ;;
+    --emit-handoff) MODE="emit-handoff"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
 
-[[ "${#TASK_MDS[@]}" -gt 0 ]] || die "at least one --task-md is required"
-[[ "${#VERIFY_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || die "provide exactly one --verify-evidence for each --task-md"
-[[ "${#TASK_HEAD_SHAS[@]}" -eq 0 || "${#TASK_HEAD_SHAS[@]}" -eq "${#TASK_MDS[@]}" ]] || die "--task-head-sha count must be zero or match --task-md count"
+# DP-417 T10 (AC21b): --enumerate is a pure dry-run lister; it needs no inputs
+# and must never touch git state, so dispatch before the precondition funnel.
+if [[ "$MODE" == "enumerate" ]]; then
+  print_enumeration
+  exit 0
+fi
+
+[[ "${#TASK_MDS[@]}" -gt 0 ]] || precond_fail "at least one --task-md is required"
+[[ "${#VERIFY_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || precond_fail "provide exactly one --verify-evidence for each --task-md"
+[[ "${#TASK_HEAD_SHAS[@]}" -eq 0 || "${#TASK_HEAD_SHAS[@]}" -eq "${#TASK_MDS[@]}" ]] || precond_fail "--task-head-sha count must be zero or match --task-md count"
 # DP-230 D16: map mode covers per-task SHA lookup by task_id during the
 # iteration loop below; count parity is enforced at lookup time, not here.
-[[ "${#CI_LOCAL_EVIDENCES[@]}" -eq 0 || "${#CI_LOCAL_EVIDENCES[@]}" -eq 1 || "${#CI_LOCAL_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || die "--ci-local-evidence count must be zero, one, or match --task-md count"
-[[ "${#VR_EVIDENCES[@]}" -eq 0 || "${#VR_EVIDENCES[@]}" -eq 1 || "${#VR_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || die "--vr-evidence count must be zero, one, or match --task-md count"
-[[ "${#PREFLIGHT_EVIDENCES[@]}" -eq 0 || "${#PREFLIGHT_EVIDENCES[@]}" -eq 1 || "${#PREFLIGHT_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || die "--preflight-evidence count must be zero, one, or match --task-md count"
-[[ -n "$WORKSPACE_COMMIT" ]] || die "--workspace-commit is required"
-[[ -n "$TEMPLATE_COMMIT" ]] || die "--template-commit is required"
-[[ -n "$VERSION_TAG" ]] || die "--version-tag is required"
-[[ -n "$RELEASE_URL" ]] || die "--release-url is required"
-is_sha "$WORKSPACE_COMMIT" || die "--workspace-commit must be a 7-40 char hex SHA"
-is_sha "$TEMPLATE_COMMIT" || die "--template-commit must be a 7-40 char hex SHA"
+[[ "${#CI_LOCAL_EVIDENCES[@]}" -eq 0 || "${#CI_LOCAL_EVIDENCES[@]}" -eq 1 || "${#CI_LOCAL_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || precond_fail "--ci-local-evidence count must be zero, one, or match --task-md count"
+[[ "${#VR_EVIDENCES[@]}" -eq 0 || "${#VR_EVIDENCES[@]}" -eq 1 || "${#VR_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || precond_fail "--vr-evidence count must be zero, one, or match --task-md count"
+[[ "${#PREFLIGHT_EVIDENCES[@]}" -eq 0 || "${#PREFLIGHT_EVIDENCES[@]}" -eq 1 || "${#PREFLIGHT_EVIDENCES[@]}" -eq "${#TASK_MDS[@]}" ]] || precond_fail "--preflight-evidence count must be zero, one, or match --task-md count"
+[[ -n "$WORKSPACE_COMMIT" ]] || precond_fail "--workspace-commit is required"
+[[ -n "$TEMPLATE_COMMIT" ]] || precond_fail "--template-commit is required"
+[[ -n "$VERSION_TAG" ]] || precond_fail "--version-tag is required"
+[[ -n "$RELEASE_URL" ]] || precond_fail "--release-url is required"
+is_sha "$WORKSPACE_COMMIT" || precond_fail "--workspace-commit must be a 7-40 char hex SHA"
+is_sha "$TEMPLATE_COMMIT" || precond_fail "--template-commit must be a 7-40 char hex SHA"
 
 # DP-303-T1 (S5 / AC6): reject a verification (task_kind=V) task passed as a
 # --task-md at argument-parsing time. V tasks have no code branch / PR; their
@@ -897,9 +1042,14 @@ is_sha "$TEMPLATE_COMMIT" || die "--template-commit must be a 7-40 char hex SHA"
 for _arg_task_md in "${TASK_MDS[@]}"; do
   [[ -f "$_arg_task_md" ]] || continue
   if [[ "$(frontmatter_task_kind "$_arg_task_md")" == "V" ]]; then
-    die "refusing task_kind=V --task-md: ${_arg_task_md}; V (verification) tasks are driven by the parent-closeout V enumeration, not by framework-release-closeout's per-task --task-md producer path"
+    precond_fail "refusing task_kind=V --task-md: ${_arg_task_md}; V (verification) tasks are driven by the parent-closeout V enumeration, not by framework-release-closeout's per-task --task-md producer path"
   fi
 done
+
+# DP-417 T10 (AC21a / AC21c): collect-mode dispatch — report the argument-shape
+# precondition contract and exit BEFORE any git-state check or mutation.
+[[ "$MODE" == "aggregate" ]] && emit_aggregate_report
+[[ "$MODE" == "emit-handoff" ]] && emit_handoff
 
 REPO_ROOT="$(abs_path "$REPO_ROOT")"
 [[ -d "$REPO_ROOT/.git" || -f "$REPO_ROOT/.git" ]] || die "repo is not a git checkout: ${REPO_ROOT}"

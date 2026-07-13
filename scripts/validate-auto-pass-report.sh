@@ -83,6 +83,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 path = Path(sys.argv[1])
@@ -115,6 +116,10 @@ SEED_COLLISION = "POLARIS_AUTO_PASS_REPORT_SEED_COLLISION"
 TERMINAL_PARENT_NOT_ARCHIVED = "POLARIS_AUTO_PASS_TERMINAL_PARENT_NOT_ARCHIVED"
 PR_OWNERSHIP_BLOCKED = "POLARIS_AUTO_PASS_PR_OWNERSHIP_BLOCKED"
 PR_DRAFT_BLOCKED = "POLARIS_AUTO_PASS_PR_DRAFT_BLOCKED"
+# DP-417 T6 / AC6 + AC-NEG2: a review-driven revision / head rebind may only
+# reach `complete` once its PR-visible evidence publication marker is current at
+# the revised head (stale/old head or missing → fail-closed, exit 2).
+PR_EVIDENCE_PUBLICATION_STALE = "POLARIS_AUTO_PASS_PR_EVIDENCE_PUBLICATION_STALE"
 # Resolver-compatible {PREFIX}-NNN extracted from a design-plans subdir name.
 SEED_DP_DIR_PATTERN = re.compile(r"(?P<prefix>[A-Z][A-Z0-9]*)-(?P<num>[0-9]+)")
 
@@ -314,16 +319,31 @@ def run_pr_ownership_gate(row):
     gate = os.environ.get("PR_OWNERSHIP_GATE")
     if not gate:
         return (PR_OWNERSHIP_BLOCKED, "auto-pass PR ownership gate path missing")
+    # DP-417 T3: the shared gate's --stdin mode is unreachable — its python
+    # heredoc occupies stdin, so a piped row reads as empty and every
+    # ownership-bearing required_prs[] row falsely blocks as
+    # "input is not readable JSON". Drive the gate through its working
+    # --state-file mode so a legitimately owned published PR can PASS and a
+    # draft PR reports PR_DRAFT_BLOCKED (AC6), reusing the single gate path.
+    state_path = None
     try:
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as handle:
+            handle.write(json.dumps(row, ensure_ascii=False))
+            state_path = handle.name
         proc = subprocess.run(
-            ["bash", gate, "--stdin"],
-            input=json.dumps(row, ensure_ascii=False),
+            ["bash", gate, "--state-file", state_path],
             text=True,
             capture_output=True,
             timeout=30,
         )
     except Exception as exc:
         return (PR_OWNERSHIP_BLOCKED, f"auto-pass PR ownership gate failed to run: {exc}")
+    finally:
+        if state_path:
+            try:
+                os.unlink(state_path)
+            except OSError:
+                pass
     if proc.returncode == 0:
         return None
     detail = (proc.stderr or proc.stdout or "").strip().splitlines()
@@ -537,6 +557,79 @@ def head_bound(recorded, requested):
     )
 
 
+def row_pick(row, *paths):
+    """Return the first present, non-None value among nested key paths in row."""
+    for path in paths:
+        cur = row
+        found = True
+        for key in path:
+            if isinstance(cur, dict) and key in cur:
+                cur = cur[key]
+            else:
+                found = False
+                break
+        if found and cur is not None:
+            return cur
+    return None
+
+
+def required_pr_evidence_publication_error(row):
+    """DP-417 T6 / AC6 + AC-NEG2: PR-visible evidence publication ownership for a
+    review-driven revision / head rebind.
+
+    A required_prs[] row that declares a REVISED head (`revised_head_sha`, i.e. the
+    head the PR rebound to after a review-driven revision) may only reach terminal
+    `complete` once its PR-visible evidence publication marker is CURRENT at that
+    revised head. A stale (old-head) or missing evidence-publication head fails
+    closed so a revision that changed the head but did NOT re-publish evidence can
+    never silently PASS. Freshness is decided by the module head_bound() comparator
+    above — no second comparator. Rows without a revised head (first-cut delivery,
+    not a head rebind) are not subject to this gate; route-back (terminal !=
+    complete) is the AC6 escape hatch and is enforced by the caller.
+
+    Returns (token, detail) on violation, else None.
+    """
+    if not isinstance(row, dict):
+        return None
+    revised = row_pick(
+        row,
+        ("revised_head_sha",),
+        ("head_rebind_head_sha",),
+        ("revision", "head_sha"),
+        ("head_rebind", "head_sha"),
+    )
+    if revised is None:
+        return None
+    revised = str(revised)
+    if not HEAD_SHA_PATTERN.fullmatch(revised):
+        return (
+            PR_EVIDENCE_PUBLICATION_STALE,
+            f"revised_head_sha must be a 7-40 char hex sha, got {revised!r}",
+        )
+    published = row_pick(
+        row,
+        ("evidence_publication_head_sha",),
+        ("evidence_publication", "head_sha"),
+        ("evidence_publication", "head"),
+    )
+    if published is None or not str(published).strip():
+        return (
+            PR_EVIDENCE_PUBLICATION_STALE,
+            "review-driven revision/head rebind requires a PR-visible evidence "
+            f"publication marker current at the revised head {revised!r} "
+            "(evidence publication head missing — revision did not re-publish evidence)",
+        )
+    published = str(published)
+    if not head_bound(published, revised):
+        return (
+            PR_EVIDENCE_PUBLICATION_STALE,
+            f"PR-visible evidence publication head {published!r} is stale: not current "
+            f"at the revised head {revised!r} (revision changed the head but evidence "
+            "was not re-published)",
+        )
+    return None
+
+
 def resolve_task_md(work_item, scan_root):
     """Resolve the canonical task.md for work_item via resolve-task-md.sh.
 
@@ -576,6 +669,21 @@ def task_field(task_md, key):
         return ""
     return out.stdout.strip() if out.returncode == 0 else ""
 
+
+# ── DP-417 T6 / AC6 + AC-NEG2: revision/head-rebind evidence publication ──────
+# PR-visible evidence publication ownership must be CLOSED at the revised head
+# before terminal `complete`. Each required_prs[] row that declares a revised
+# head (review-driven revision / head rebind) must carry a PR-visible evidence
+# publication marker current at that head; stale (old head) or missing → fail
+# closed (never a silent PASS). Non-complete terminals are the AC6 route-back
+# escape hatch and are NOT gated here. Reuses head_bound() above (single
+# comparator); complements the per-PR ownership gate run at required_prs above.
+if terminal == "complete":
+    for idx, row in enumerate(data.get("required_prs") or []):
+        pub_error = required_pr_evidence_publication_error(row)
+        if pub_error is not None:
+            token, detail = pub_error
+            cross_errors.append((token, f"required_prs[{idx}] {detail}"))
 
 # ── DP-311 T3 cross-check (b), amended DP-360 T7: verification PASS ↔ task.md ──
 # A PASS verification claim is only trusted when the V work item's task.md

@@ -35,6 +35,9 @@
 #   - scripts/validate-refinement-lock-preflight.sh    (task-entry vars: entry)
 #   - scripts/lib/refinement-md-generator.py           (task-entry vars: task)
 #   - scripts/lib/refinement-module-ac-coverage.py     (task-entry vars: task)
+#   - scripts/auto-pass-runner.sh                       (task-entry vars: entry)
+#   - scripts/close-parent-spec-if-complete.sh          (task-entry vars: entry)
+#   - scripts/validate-verification-strategy.sh         (task-entry vars: task)
 # Adding a new script that reads refinement.json tasks[]-entry fields requires
 # registering it below AND in the python REGISTRY mapping; an unregistered consumer
 # (detected via the discovery scan) is a fail-stop until registered.
@@ -141,6 +144,9 @@ REGISTRY = {
     "scripts/validate-refinement-lock-preflight.sh": ("entry",),
     "scripts/lib/refinement-md-generator.py": ("task",),
     "scripts/lib/refinement-module-ac-coverage.py": ("task",),
+    "scripts/auto-pass-runner.sh": ("entry",),
+    "scripts/close-parent-spec-if-complete.sh": ("entry",),
+    "scripts/validate-verification-strategy.sh": ("task",),
 }
 
 

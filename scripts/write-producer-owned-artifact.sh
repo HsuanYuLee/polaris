@@ -55,6 +55,10 @@ SOURCE_ID=""
 LEDGER_PATH=""
 TASK_WRITE_AT=""
 EXTRA_VALIDATOR_ARGS=()
+# DP-417 T10: up-front contract enumeration (dry-run). When set, print the
+# complete required-field / validator / handoff-gate contract for the given
+# producer token WITHOUT writing anything, then exit 0.
+ENUMERATE_TOKEN=""
 
 usage() {
   cat >&2 <<'USAGE'
@@ -82,10 +86,105 @@ while [[ $# -gt 0 ]]; do
     --ledger-path)    LEDGER_PATH="${2:-}"; shift 2 ;;
     --task-write-at)  TASK_WRITE_AT="${2:-}"; shift 2 ;;
     --validator-arg)  EXTRA_VALIDATOR_ARGS+=("${2:-}"); shift 2 ;;
+    --enumerate-contract) ENUMERATE_TOKEN="${2:-}"; shift 2 ;;
     --help|-h)        usage ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage ;;
   esac
 done
+
+# DP-417 T10: enumerate-contract dry-run. Resolve the producer token and print
+# its complete write contract (owning skill, marker kinds, path globs, dispatched
+# validators) plus — for refinement design/primary-doc tokens — the full
+# refinement->breakdown handoff chain, all without touching any artifact.
+if [[ -n "$ENUMERATE_TOKEN" ]]; then
+  ENUM_WORKSPACE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  ENUM_PRODUCERS_JSON="$ENUM_WORKSPACE_ROOT/scripts/lib/evidence-producers.json"
+  if [[ ! -f "$ENUM_PRODUCERS_JSON" ]]; then
+    echo "ERROR: producer table missing: $ENUM_PRODUCERS_JSON" >&2
+    exit 2
+  fi
+  ENUM_RESULT="$(POLARIS_TOKEN="$ENUMERATE_TOKEN" PRODUCERS_JSON_VAL="$ENUM_PRODUCERS_JSON" python3 - <<'PY'
+import json
+import os
+import sys
+
+token = os.environ.get("POLARIS_TOKEN", "")
+producers_json = os.environ.get("PRODUCERS_JSON_VAL", "")
+
+try:
+    data = json.load(open(producers_json))
+except Exception:
+    print("STATUS=NO_TABLE")
+    sys.exit(0)
+
+producers = data.get("producers", []) or []
+matching = [p for p in producers if token in (p.get("producer_tokens") or [])]
+if len(matching) > 1:
+    print("STATUS=TOKEN_NOT_UNIQUE")
+    sys.exit(0)
+if len(matching) == 0:
+    print("STATUS=TOKEN_UNKNOWN")
+    sys.exit(0)
+
+entry = matching[0]
+print("STATUS=OK")
+print("OWNING_SKILL=" + (entry.get("owning_skill", "") or ""))
+print("MARKER_KINDS=" + ",".join(entry.get("marker_kinds", []) or []))
+for g in entry.get("path_globs", []) or []:
+    print("GLOB=" + g)
+PY
+)"
+  ENUM_STATUS="$(printf '%s\n' "$ENUM_RESULT" | sed -n 's/^STATUS=//p')"
+  case "$ENUM_STATUS" in
+    OK) ;;
+    TOKEN_NOT_UNIQUE)
+      echo "ERROR: producer token '$ENUMERATE_TOKEN' appears in multiple producer entries (token uniqueness violated)" >&2
+      exit 2 ;;
+    TOKEN_UNKNOWN)
+      echo "ERROR: producer token '$ENUMERATE_TOKEN' is not registered in scripts/lib/evidence-producers.json producer_tokens[]" >&2
+      exit 2 ;;
+    *)
+      echo "ERROR: producer resolution failed (status=$ENUM_STATUS)" >&2
+      exit 2 ;;
+  esac
+  ENUM_OWNING_SKILL="$(printf '%s\n' "$ENUM_RESULT" | sed -n 's/^OWNING_SKILL=//p')"
+  ENUM_MARKER_KINDS="$(printf '%s\n' "$ENUM_RESULT" | sed -n 's/^MARKER_KINDS=//p')"
+
+  # Map marker_kinds -> the validator(s) the write dispatches (mirrors the
+  # artifact_kind dispatch below; no second mapping table drives the write).
+  ENUM_VALIDATORS=""
+  case "$ENUM_MARKER_KINDS" in
+    *refinement_md_artifact*)
+      ENUM_VALIDATORS="validate-refinement-json.sh, render-refinement-md.sh (parity)" ;;
+    *dp_index_status*|*epic_index_status*)
+      ENUM_VALIDATORS="validate-spec-primary-doc-authoring.sh, validate-starlight-authoring.sh, validate-language-policy.sh" ;;
+    *auto_pass_ledger*|*auto_pass_resume*|*auto_pass_report*)
+      ENUM_VALIDATORS="validate-auto-pass-ledger.sh / validate-auto-pass-report.sh" ;;
+    *task_snapshot*|*breakdown*)
+      ENUM_VALIDATORS="validate-breakdown-ready.sh" ;;
+    *)
+      ENUM_VALIDATORS="(no post-write validator dispatched for these marker kinds)" ;;
+  esac
+
+  printf 'producer contract enumeration (dry-run — no artifact written)\n\n'
+  printf '  producer token : %s\n' "$ENUMERATE_TOKEN"
+  printf '  owning skill   : %s\n' "$ENUM_OWNING_SKILL"
+  printf '  marker kinds   : %s\n' "$ENUM_MARKER_KINDS"
+  printf '  path globs     :\n'
+  printf '%s\n' "$ENUM_RESULT" | sed -n 's/^GLOB=/    - /p'
+  printf '  write validator: %s\n' "$ENUM_VALIDATORS"
+
+  case "$ENUMERATE_TOKEN" in
+    refinement:design-doc|refinement:primary-doc)
+      printf '\n  This token feeds the refinement->breakdown handoff chain. Full contract:\n\n'
+      ENUM_HANDOFF_GATE="$ENUM_WORKSPACE_ROOT/scripts/refinement-handoff-gate.sh"
+      if [[ -x "$ENUM_HANDOFF_GATE" ]]; then
+        "$ENUM_HANDOFF_GATE" --enumerate | sed 's/^/  /'
+      fi
+      ;;
+  esac
+  exit 0
+fi
 
 if [[ -z "$PRODUCER_TOKEN" || -z "$TARGET_PATH" || -z "$BODY_FILE" ]]; then
   echo "ERROR: --producer-token, --path, --body-file are required" >&2

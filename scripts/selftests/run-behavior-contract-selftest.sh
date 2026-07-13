@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# Purpose: Selftest for scripts/run-behavior-contract.sh — exercises baseline /
+#   compare / drift / hybrid / health / assertion-coverage / NOT_COVERED route-back
+#   and the gate-evidence integration (behavioral task missing behavior evidence).
+# Inputs:  none (self-contained git fixtures under a mktemp workdir).
+# Outputs: "PASS: ..." on success (exit 0); "FAIL: ..." diagnostic + exit 1 otherwise.
+# Side effects: writes /tmp/polaris-behavior-* and /tmp/polaris-verified-* markers.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -489,7 +495,13 @@ PY
 repo_drift="$WORKDIR/drift-repo"
 make_repo "$repo_drift"
 printf 'after\n' >"$repo_drift/behavior-source.txt"
-git -C "$repo_drift" add behavior-source.txt
+# DP-417 T8 reconcile: the gate-missing-behavior case must exercise a *behavioral*
+# task that lacks its behavior evidence marker. Post-DP-294, a text-only HEAD delta
+# is legitimately classified metadata_only and exempt from head_sha-bound evidence,
+# so a .txt-only fixture would never reach the missing-evidence block. Include a
+# real behavioral (.sh) delta in the HEAD commit so the classifier requires evidence.
+printf '#!/usr/bin/env bash\necho after\n' >"$repo_drift/behavior-delta-after.sh"
+git -C "$repo_drift" add behavior-source.txt behavior-delta-after.sh
 git -C "$repo_drift" commit -qm "after"
 task_drift="$WORKDIR/T1-drift.md"
 write_task "$task_drift" "$(basename "$repo_drift")" "DP-109-T2" "parity" "HEAD~1" "[]"

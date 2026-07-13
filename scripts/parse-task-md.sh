@@ -16,11 +16,13 @@
 #   parse-task-md.sh --key <TASK_KEY> --tasks-dir <dir> --field <key>
 #   PARSE_TASK_MD_SELFTEST=1 bash parse-task-md.sh        # run embedded selftest
 #
-# Key-based lookup (DP-033 D8 reader fallback):
+# Key-based lookup (DP-033 D8 reader fallback; DP-417 T4 folder-native parity):
 #   Given --key T1 --tasks-dir /path/to/specs/EPIC/tasks/:
-#     1. Try {tasks_dir}/T1.md  (active)
-#     2. Try {tasks_dir}/pr-release/T1.md  (pr-release fallback)
-#     3. If both miss → exit 2 with "broken ref" message
+#     1. Try {tasks_dir}/T1.md            (active, flat)
+#     2. Try {tasks_dir}/T1/index.md      (active, folder-native)
+#     3. Try {tasks_dir}/pr-release/T1.md       (pr-release, flat)
+#     4. Try {tasks_dir}/pr-release/T1/index.md (pr-release, folder-native)
+#     5. If all miss → exit 2 with "broken ref" message
 #
 # Field keys for --field (flat alias of nested JSON paths):
 #   status, task_shape, task_id, summary, story_points,
@@ -1226,15 +1228,25 @@ if [[ -n "$task_key" ]]; then
     exit 2
   fi
   tasks_dir_abs="$(abs_path "$tasks_dir")"
-  # Lookup order: active → pr-release fallback
-  active_path="${tasks_dir_abs}/${task_key}.md"
-  pr_release_path="${tasks_dir_abs}/pr-release/${task_key}.md"
-  if [[ -f "$active_path" ]]; then
-    file="$active_path"
-  elif [[ -f "$pr_release_path" ]]; then
-    file="$pr_release_path"
-  else
-    echo "error: broken ref — task key '${task_key}' not found in ${tasks_dir_abs}/ or ${tasks_dir_abs}/pr-release/" >&2
+  # Lookup order (DP-033 D8 active → pr-release fallback, DP-417 T4 folder-native
+  # parity): within each tier honour both the flat `{key}.md` and the canonical
+  # folder-native `{key}/index.md` shape that resolve-task-md.sh already resolves.
+  # Same active → pr-release precedence; flat before folder-native inside a tier.
+  candidates=(
+    "${tasks_dir_abs}/${task_key}.md"
+    "${tasks_dir_abs}/${task_key}/index.md"
+    "${tasks_dir_abs}/pr-release/${task_key}.md"
+    "${tasks_dir_abs}/pr-release/${task_key}/index.md"
+  )
+  file=""
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate" ]]; then
+      file="$candidate"
+      break
+    fi
+  done
+  if [[ -z "$file" ]]; then
+    echo "error: broken ref — task key '${task_key}' not found under ${tasks_dir_abs}/ (flat or folder-native, active or pr-release)" >&2
     exit 2
   fi
 fi

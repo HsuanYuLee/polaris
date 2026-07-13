@@ -14,6 +14,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PARSE_TASK_MD="$SCRIPT_DIR/parse-task-md.sh"
 TOOLCHAIN_DIR="$WORKSPACE_ROOT/tools/polaris-toolchain"
+# shellcheck source=scripts/lib/verification-fidelity-trust.sh
+source "$SCRIPT_DIR/lib/verification-fidelity-trust.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -315,6 +317,23 @@ if [[ "$MODE" == "record" && -z "$FIXTURE_DIR" ]]; then
   echo "run-visual-snapshot: BLOCKED_ENV — record mode requires fixture dir" >&2
   exit 1
 fi
+# Verification trustworthiness — Layer 2 (DP-417 T8): a replaces_existing VR
+# fidelity claim whose compare reaches PASS while the replaced old source still
+# exists in the test environment is confounded ("先清乾淨再驗證"). Fail closed here,
+# before any render, so the old source is isolated first.
+if [[ "$MODE" == "compare" ]]; then
+  ISO_INFO="$(vft_extract_isolation "$TASK_MD")"
+  ISO_REPLACES="$(printf '%s\n' "$ISO_INFO" | sed -n 's/^replaces_existing=//p')"
+  ISO_PATHS="$(printf '%s\n' "$ISO_INFO" | sed -n 's/^path=//p')"
+  if [[ "$ISO_REPLACES" == "true" ]]; then
+    if ! ISO_ERR="$(vft_assert_isolated "$REPO_PATH" "$ISO_REPLACES" "$ISO_PATHS" 2>&1)"; then
+      write_evidence "BLOCK" "true" "" "$ISO_ERR" "$EVIDENCE_FILE" "$DURABLE_FILE"
+      echo "run-visual-snapshot: $ISO_ERR" >&2
+      exit 2
+    fi
+  fi
+fi
+
 if ! (cd "$TOOLCHAIN_DIR" && pnpm exec node -e "const { createRequire } = require('module'); const r = createRequire(process.cwd() + '/package.json'); r('@playwright/test')" >/dev/null 2>&1); then
   write_evidence "BLOCKED_ENV" "true" "" "Playwright dependency is missing in tools/polaris-toolchain" "$EVIDENCE_FILE" "$DURABLE_FILE"
   echo "run-visual-snapshot: BLOCKED_ENV — Playwright dependency is missing" >&2

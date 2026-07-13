@@ -105,6 +105,124 @@ run_preflight() {
     rm -f "$strategy_err"
   fi
 
+  # DP-417 T9: replace-existing source discipline. When the refinement source is
+  # marked replaces_existing, LOCK must enforce two things before any breakdown
+  # handoff: (1) the enumeration gate — every existing source of the replaced
+  # thing is enumerated with runtime/build-output evidence, because source-grep
+  # alone cannot see build-time / CDN / inline injection paths; (2) the
+  # anti-dead-code-port gate — ported symbols carry usage-check evidence and any
+  # site-wide-dead symbol (usage_count==0) is flagged removable, so a
+  # replaces_existing source cannot silently port an entire spec verbatim and
+  # manufacture new legacy. A non-replacing source (no field) is a strict no-op.
+  # This is a source-level gate reading the authoritative refinement.json directly
+  # (same position as the verification_strategy gate above); it does NOT add a
+  # second preflight path.
+  local replace_err replace_rc
+  replace_err="$(mktemp -t validate-refinement-lock-preflight-replace.XXXXXX)"
+  set +e
+  python3 - "$refinement_json" >/dev/null 2>"$replace_err" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+try:
+    data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+except Exception:
+    # A malformed/unparseable refinement.json is the json schema validator's
+    # concern; the replace-existing gate treats it as a no-op and lets the
+    # downstream derive loop fail-loud on the real problem.
+    raise SystemExit(0)
+
+rx = data.get("replaces_existing")
+if rx is None:
+    raise SystemExit(0)  # non-replacing source: strict no-op (AC-N1)
+
+errs = []
+# Runtime/build-output evidence channels — the ones that CAN see build-time /
+# CDN / inline injection paths. source-grep is a valid discovery method but is
+# insufficient on its own (AC-NEG4), so it is deliberately excluded here.
+RUNTIME_BUILD_EVIDENCE = {"runtime", "build-output", "cdn", "inline"}
+
+if not isinstance(rx, dict):
+    errs.append(
+        "POLARIS_REFINEMENT_REPLACE_EXISTING_ENUMERATION: replaces_existing must be an object"
+    )
+else:
+    # Enumeration gate (AC9 / AC-NEG4).
+    existing_sources = rx.get("existing_sources")
+    if not isinstance(existing_sources, list) or not existing_sources:
+        errs.append(
+            "POLARIS_REFINEMENT_REPLACE_EXISTING_ENUMERATION: replaces_existing marked but "
+            "existing_sources is empty — enumerate ALL existing sources of the replaced thing "
+            "with runtime/build-output evidence (source-grep cannot see build-time / CDN / "
+            "inline injection paths)"
+        )
+    else:
+        for idx, src in enumerate(existing_sources):
+            if not isinstance(src, dict):
+                errs.append(
+                    f"POLARIS_REFINEMENT_REPLACE_EXISTING_ENUMERATION: existing_sources[{idx}] "
+                    "is not an object"
+                )
+                continue
+            evidence = src.get("evidence")
+            if evidence not in RUNTIME_BUILD_EVIDENCE:
+                errs.append(
+                    f"POLARIS_REFINEMENT_REPLACE_EXISTING_ENUMERATION: existing_sources[{idx}] "
+                    f"evidence={evidence!r} is not runtime/build-output enumeration evidence "
+                    "(source-grep alone cannot see build-time / CDN / inline injection paths); "
+                    f"must be one of {sorted(RUNTIME_BUILD_EVIDENCE)}"
+                )
+
+    # Anti-dead-code-port gate (AC11 / AC-NEG6).
+    ported = rx.get("ported_symbols")
+    if ported is not None:
+        if not isinstance(ported, list):
+            errs.append(
+                "POLARIS_REFINEMENT_REPLACE_EXISTING_DEAD_PORT: ported_symbols must be an array"
+            )
+        else:
+            for idx, sym in enumerate(ported):
+                if not isinstance(sym, dict):
+                    errs.append(
+                        f"POLARIS_REFINEMENT_REPLACE_EXISTING_DEAD_PORT: ported_symbols[{idx}] "
+                        "is not an object"
+                    )
+                    continue
+                name = sym.get("symbol")
+                usage_evidence = sym.get("usage_evidence")
+                if not isinstance(usage_evidence, str) or not usage_evidence.strip():
+                    errs.append(
+                        f"POLARIS_REFINEMENT_REPLACE_EXISTING_DEAD_PORT: ported symbol {name!r} "
+                        "lacks usage_evidence — each ported symbol must carry a site-wide usage check"
+                    )
+                usage_count = sym.get("usage_count")
+                disposition = sym.get("disposition")
+                if isinstance(usage_count, int) and not isinstance(usage_count, bool) and usage_count == 0:
+                    if disposition != "removable":
+                        errs.append(
+                            f"POLARIS_REFINEMENT_REPLACE_EXISTING_DEAD_PORT: ported symbol {name!r} "
+                            f"has zero site-wide usage but disposition={disposition!r}; a dead symbol "
+                            "must be flagged 'removable', not silently ported (new legacy)"
+                        )
+
+if errs:
+    for e in errs:
+        print(e, file=sys.stderr)
+    raise SystemExit(2)
+raise SystemExit(0)
+PY
+  replace_rc=$?
+  set -e
+  if [[ "$replace_rc" -ne 0 ]]; then
+    echo "validate-refinement-lock-preflight.sh FAIL - $refinement_json" >&2
+    cat "$replace_err" >&2
+    rm -f "$replace_err"
+    echo "POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED:$refinement_json" >&2
+    return 2
+  fi
+  rm -f "$replace_err"
+
   # Extract the canonical source id once; the derive bridge's id contract requires
   # the full-form task id (DP-NNN-Tn / EPIC-NNN-Tn), composed below as
   # ${source_id}-${task_id}. Default keeps the embedded smoke / legacy fixtures

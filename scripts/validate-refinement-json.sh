@@ -510,6 +510,80 @@ else:
                     "writeback.expected_status=SUPERSEDED"
                 )
 
+# DP-417 T9: replaces_existing — optional source-level replacement discipline
+# block. A refinement source that supersedes an existing mechanism declares it
+# here so the LOCK preflight (validate-refinement-lock-preflight.sh) can enforce
+# the enumeration gate (all existing sources enumerated with runtime/build-output
+# evidence) and the anti-dead-code-port gate (ported symbols usage-checked). This
+# block validates SHAPE only (validated-when-present, additive): a refinement
+# WITHOUT the field is a non-replacing source and stays valid. The LOCK-time
+# semantic gates (enumeration sufficiency / dead-symbol disposition) live in the
+# single canonical preflight, not here — no second enforcement path.
+VALID_EXISTING_SOURCE_EVIDENCE = {"runtime", "build-output", "cdn", "inline", "source-grep"}
+VALID_PORT_DISPOSITION = {"removable", "kept"}
+replaces_existing = data.get("replaces_existing")
+if replaces_existing is not None:
+    if not isinstance(replaces_existing, dict):
+        errors.append("replaces_existing must be an object when present")
+    else:
+        replaced = replaces_existing.get("replaced")
+        if not isinstance(replaced, str) or not replaced.strip():
+            errors.append("replaces_existing.replaced must be a non-empty string")
+
+        existing_sources = replaces_existing.get("existing_sources")
+        if not isinstance(existing_sources, list) or not existing_sources:
+            errors.append(
+                "replaces_existing.existing_sources must be a non-empty array "
+                "(enumerate ALL existing sources of the replaced thing)"
+            )
+        else:
+            for sidx, src in enumerate(existing_sources):
+                label = f"replaces_existing.existing_sources[{sidx}]"
+                if not isinstance(src, dict):
+                    errors.append(f"{label}: expected object, got {type(src).__name__}")
+                    continue
+                poc = src.get("path_or_channel")
+                if not isinstance(poc, str) or not poc.strip():
+                    errors.append(f"{label}.path_or_channel must be a non-empty string")
+                evidence = src.get("evidence")
+                if evidence not in VALID_EXISTING_SOURCE_EVIDENCE:
+                    errors.append(
+                        f"{label}.evidence must be one of {sorted(VALID_EXISTING_SOURCE_EVIDENCE)} "
+                        f"(got: {evidence!r})"
+                    )
+                evidence_ref = src.get("evidence_ref")
+                if not isinstance(evidence_ref, str) or not evidence_ref.strip():
+                    errors.append(f"{label}.evidence_ref must be a non-empty string")
+
+        # ported_symbols is optional (a pure removal ports nothing); validated
+        # when present. usage_count must be a non-negative integer (bool excluded).
+        ported_symbols = replaces_existing.get("ported_symbols")
+        if ported_symbols is not None:
+            if not isinstance(ported_symbols, list):
+                errors.append("replaces_existing.ported_symbols must be an array when present")
+            else:
+                for pidx, sym in enumerate(ported_symbols):
+                    label = f"replaces_existing.ported_symbols[{pidx}]"
+                    if not isinstance(sym, dict):
+                        errors.append(f"{label}: expected object, got {type(sym).__name__}")
+                        continue
+                    symbol = sym.get("symbol")
+                    if not isinstance(symbol, str) or not symbol.strip():
+                        errors.append(f"{label}.symbol must be a non-empty string")
+                    usage_evidence = sym.get("usage_evidence")
+                    if not isinstance(usage_evidence, str) or not usage_evidence.strip():
+                        errors.append(f"{label}.usage_evidence must be a non-empty string")
+                    usage_count = sym.get("usage_count")
+                    if not isinstance(usage_count, int) or isinstance(usage_count, bool) or usage_count < 0:
+                        errors.append(f"{label}.usage_count must be a non-negative integer")
+                    disposition = sym.get("disposition")
+                    if disposition not in VALID_PORT_DISPOSITION:
+                        errors.append(
+                            f"{label}.disposition must be one of {sorted(VALID_PORT_DISPOSITION)} "
+                            f"(got: {disposition!r})"
+                        )
+
+
 def strong_error(field):
     errors.append(f"strong-bound schema: {field}")
 
@@ -831,19 +905,34 @@ else:
         # overrides for cross-repo JIRA Epics. They are optional for jira sources
         # (fallback to source.repo/source.base_branch), and forbidden elsewhere so
         # the jira-only capability cannot leak into DP-backed framework sources.
-        for jira_only_field in ("repo", "base_branch"):
-            if jira_only_field not in task:
-                continue
-            value = task.get(jira_only_field)
+        # Authored as explicit `if "X" in task:` anchors (single validation path,
+        # not a for-loop) so the canonical tasks[] field whitelist extractor in
+        # validate-refinement-consumer-schema-binding.sh recognises them as
+        # first-class validated-when-present fields (DP-417 base-reconcile).
+        if "repo" in task:
+            repo = task.get("repo")
             if source_type == "jira":
-                if not isinstance(value, str) or not value.strip():
+                if not isinstance(repo, str) or not repo.strip():
                     errors.append(
-                        f"tasks[{idx}].{jira_only_field} must be a non-empty string when present "
-                        f"for source.type=jira (got: {value!r})"
+                        f"tasks[{idx}].repo must be a non-empty string when present "
+                        f"for source.type=jira (got: {repo!r})"
                     )
             else:
                 errors.append(
-                    f"POLARIS_REFINEMENT_JIRA_ONLY_FIELD: tasks[{idx}].{jira_only_field} is jira-only "
+                    f"POLARIS_REFINEMENT_JIRA_ONLY_FIELD: tasks[{idx}].repo is jira-only "
+                    f"and must be absent for source.type={source_type}"
+                )
+        if "base_branch" in task:
+            base_branch = task.get("base_branch")
+            if source_type == "jira":
+                if not isinstance(base_branch, str) or not base_branch.strip():
+                    errors.append(
+                        f"tasks[{idx}].base_branch must be a non-empty string when present "
+                        f"for source.type=jira (got: {base_branch!r})"
+                    )
+            else:
+                errors.append(
+                    f"POLARIS_REFINEMENT_JIRA_ONLY_FIELD: tasks[{idx}].base_branch is jira-only "
                     f"and must be absent for source.type={source_type}"
                 )
         # DP-341 / AC-NEG1: per-task packaging fields are forbidden on the

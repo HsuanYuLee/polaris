@@ -128,6 +128,27 @@ curl -fsS "http://127.0.0.1:$port/page.html" >/dev/null
 
 head_sha="$(git -C "$ROOT_DIR" rev-parse HEAD)"
 
+# DP-417 T8 Layer 2: a replaces_existing compare whose replaced old source still
+# exists in the test environment is confounded → fail closed (exit 2) BEFORE any
+# render, so this case does not depend on the Playwright toolchain.
+confounded_task="$tmpdir/T2-confounded.md"
+write_task "$confounded_task" 'verification:
+  visual_regression:
+    expected: none_allowed
+    pages: ["/page.html"]
+    replaces_existing: true
+    replaced_paths:
+      - "mise.toml"' "runtime" "http://127.0.0.1:$port/page.html"
+set +e
+bash "$RUNNER" --task-md "$confounded_task" --mode compare --ticket DP-104-T2-CONFOUNDED --repo "$ROOT_DIR" --output-dir "$tmpdir/out-confounded" >/dev/null 2>&1
+confounded_rc=$?
+set -e
+if [[ "$confounded_rc" -eq 0 ]]; then
+  echo "FAIL: expected replaces_existing confounded compare to fail closed"
+  exit 1
+fi
+assert_evidence_status "/tmp/polaris-vr-DP-104-T2-CONFOUNDED-$head_sha.json" "BLOCK"
+
 same_task="$tmpdir/T2-same.md"
 write_task "$same_task" 'verification:
   visual_regression:

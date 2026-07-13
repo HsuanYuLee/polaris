@@ -9,6 +9,8 @@ set -euo pipefail
 PREFIX="[polaris behavior-contract]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PARSE_TASK_MD="$SCRIPT_DIR/parse-task-md.sh"
+# shellcheck source=scripts/lib/verification-fidelity-trust.sh
+source "$SCRIPT_DIR/lib/verification-fidelity-trust.sh"
 TASK_MD=""
 MODE=""
 REPO_OVERRIDE=""
@@ -163,6 +165,12 @@ target_url="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("ta
 viewport="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("viewport",""))' "$contract_json")"
 flow="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("flow",""))' "$contract_json")"
 flow_script="$(python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("flow_script") or d.get("script_path") or d.get("playwright_script") or "")' "$contract_json")"
+replaces_existing="$(python3 -c 'import json,sys; print("true" if json.loads(sys.argv[1]).get("replaces_existing") is True else "false")' "$contract_json")"
+replaced_paths="$(python3 -c 'import json,sys
+paths = json.loads(sys.argv[1]).get("replaced_paths") or []
+for p in paths:
+    if isinstance(p, str) and p.strip():
+        print(p.strip())' "$contract_json")"
 
 if [[ "$fixture_policy" == "mockoon_required" && -z "$flow_script" ]]; then
   echo "$PREFIX behavior_contract.flow_script is required when fixture_policy=mockoon_required" >&2
@@ -247,6 +255,7 @@ fi
 TMP_STDOUT="$(mktemp -t polaris-behavior-stdout.XXXXXX)"
 TMP_STDERR="$(mktemp -t polaris-behavior-stderr.XXXXXX)"
 command_rc=0
+not_covered=0
 if [[ -n "$script_abs" && -f "$script_abs" ]]; then
   set +e
   (
@@ -261,13 +270,15 @@ if [[ -n "$script_abs" && -f "$script_abs" ]]; then
   ) >"$TMP_STDOUT" 2>"$TMP_STDERR"
   command_rc=$?
   set -e
-elif [[ "$fixture_policy" == "static_only" ]]; then
-  printf '{"flow":"%s","assertions_only":true}\n' "$flow" >"$artifact_dir/behavior-state.json"
-  : >"$TMP_STDOUT"
-  : >"$TMP_STDERR"
 else
-  echo "$PREFIX behavior flow script not found: ${flow_script:-<empty>}" >"$TMP_STDERR"
-  command_rc=1
+  # applies=true but no executable flow to run. A static_only assertions-only
+  # marker would silently pass as "covered" without any runtime evidence, and a
+  # missing flow_script is likewise not runnable. Both are NOT_COVERED: emit a
+  # canonical NOT_COVERED behavior marker so auto-pass stops at the owning
+  # producer (breakdown / refinement) instead of applying local repair.
+  not_covered=1
+  echo "$PREFIX behavior_contract.applies=true but no executable flow to run: ${flow_script:-<empty>}" >"$TMP_STDERR"
+  : >"$TMP_STDOUT"
 fi
 cp "$TMP_STDOUT" "$artifact_dir/stdout.txt"
 cp "$TMP_STDERR" "$artifact_dir/stderr.txt"
@@ -306,7 +317,21 @@ fi
 tmp_evidence="/tmp/polaris-behavior-${SAFE_TICKET}-${HEAD_SHA}-${context_hash}.json"
 durable_evidence="$behavior_dir/polaris-behavior-${SAFE_TICKET}-${HEAD_SHA}-${context_hash}.json"
 
-python3 - "$contract_json" "$MODE" "$behavior_mode" "$TICKET" "$SAFE_TICKET" "$HEAD_SHA" "$CURRENT_HEAD_SHA" "$context_hash" "$REPO_PATH" "$RUN_REPO" "$artifact_dir" "$script_abs" "$TMP_STDOUT" "$TMP_STDERR" "$command_rc" "$baseline_file" "$baseline_state_hash" "$tmp_evidence" "$durable_evidence" <<'PY'
+# Verification trustworthiness gate (DP-417 T8): a compare that claims screen /
+# behavior before-after fidelity (applies=true, mode parity/hybrid) must be backed
+# by a real render AND an isolated test subject. Layer 2 (isolation) is checked
+# first so a confounded run is rejected before render trust is even considered.
+# The reason is fed to the single marker writer so the emitted marker records FAIL.
+fidelity_block_reason=""
+if [[ "$MODE" == "compare" ]] && vft_claims_before_after_fidelity "$applies" "$behavior_mode"; then
+  if ! iso_err="$(vft_assert_isolated "$RUN_REPO" "$replaces_existing" "$replaced_paths" 2>&1)"; then
+    fidelity_block_reason="$iso_err"
+  elif ! render_reason="$(vft_behavior_render_block_reason "$artifact_dir")"; then
+    fidelity_block_reason="POLARIS_VERIFICATION_FIDELITY_UNTRUSTED: $render_reason"
+  fi
+fi
+
+python3 - "$contract_json" "$MODE" "$behavior_mode" "$TICKET" "$SAFE_TICKET" "$HEAD_SHA" "$CURRENT_HEAD_SHA" "$context_hash" "$REPO_PATH" "$RUN_REPO" "$artifact_dir" "$script_abs" "$TMP_STDOUT" "$TMP_STDERR" "$command_rc" "$baseline_file" "$baseline_state_hash" "$tmp_evidence" "$durable_evidence" "$not_covered" "$fidelity_block_reason" <<'PY'
 import datetime as dt
 import hashlib
 import json
@@ -334,7 +359,9 @@ import sys
     baseline_state_hash,
     tmp_evidence,
     durable_evidence,
-) = sys.argv[1:20]
+    not_covered,
+    fidelity_block_reason,
+) = sys.argv[1:22]
 
 contract = json.loads(contract_json)
 artifact_root = Path(artifact_dir)
@@ -477,31 +504,54 @@ def normalize_assertion_results() -> tuple[list[dict], dict]:
 assertion_results, assertion_summary = normalize_assertion_results()
 assertion_failure = any(result.get("status") == "FAIL" for result in assertion_results)
 
-command_pass = int(command_rc) == 0 and not health_failures and not assertion_failure
-status = "PASS" if command_pass else "FAIL"
-comparison = {"kind": "none", "status": status}
-if health_failures:
-    comparison = {"kind": "runtime_health", "status": "FAIL", "failures": health_failures}
-elif assertion_failure:
-    comparison = {"kind": "assertion_coverage", "status": "FAIL", "assertion_summary": assertion_summary}
-elif command_pass and mode == "compare" and behavior_mode in {"parity", "hybrid"}:
-    drift = state_hash != baseline_state_hash
-    if not drift:
-        comparison = {"kind": "state_hash", "status": "PASS", "drift": False}
-        status = "PASS"
-    elif behavior_mode == "hybrid" and contract.get("allowed_differences"):
-        comparison = {
-            "kind": "state_hash",
-            "status": "PASS",
-            "drift": True,
-            "accepted_by_allowed_differences": contract.get("allowed_differences", []),
-        }
-        status = "PASS"
-    else:
-        comparison = {"kind": "state_hash", "status": "FAIL", "drift": True}
-        status = "FAIL"
-elif command_pass and mode == "compare":
-    comparison = {"kind": "flow_assertions", "status": "PASS"}
+not_covered_flag = str(not_covered) == "1"
+if not_covered_flag:
+    # applies=true but no executable flow ran: canonical NOT_COVERED route-back,
+    # not a silent PASS and not a crash-like FAIL. auto-pass stops at the owning
+    # producer (breakdown / refinement) instead of applying local repair.
+    status = "NOT_COVERED"
+    comparison = {
+        "kind": "not_covered",
+        "status": "NOT_COVERED",
+        "reason": "no_executable_flow",
+    }
+else:
+    command_pass = int(command_rc) == 0 and not health_failures and not assertion_failure
+    status = "PASS" if command_pass else "FAIL"
+    comparison = {"kind": "none", "status": status}
+    if health_failures:
+        comparison = {"kind": "runtime_health", "status": "FAIL", "failures": health_failures}
+    elif assertion_failure:
+        comparison = {"kind": "assertion_coverage", "status": "FAIL", "assertion_summary": assertion_summary}
+    elif command_pass and mode == "compare" and behavior_mode in {"parity", "hybrid"}:
+        drift = state_hash != baseline_state_hash
+        if not drift:
+            comparison = {"kind": "state_hash", "status": "PASS", "drift": False}
+            status = "PASS"
+        elif behavior_mode == "hybrid" and contract.get("allowed_differences"):
+            comparison = {
+                "kind": "state_hash",
+                "status": "PASS",
+                "drift": True,
+                "accepted_by_allowed_differences": contract.get("allowed_differences", []),
+            }
+            status = "PASS"
+        else:
+            comparison = {"kind": "state_hash", "status": "FAIL", "drift": True}
+            status = "FAIL"
+    elif command_pass and mode == "compare":
+        comparison = {"kind": "flow_assertions", "status": "PASS"}
+
+# Trustworthiness override (DP-417 T8): a fidelity claim whose compare evidence is
+# impersonated (hard-coded state hash / placeholder render) or confounded (replaced
+# old source still present) cannot reach PASS, regardless of the state-hash match.
+if not not_covered_flag and fidelity_block_reason.strip():
+    status = "FAIL"
+    comparison = {
+        "kind": "fidelity_trust",
+        "status": "FAIL",
+        "reason": fidelity_block_reason.strip(),
+    }
 
 if assertion_results:
     comparison["assertion_summary"] = assertion_summary
@@ -547,6 +597,21 @@ print(json.dumps({"status": status, "tmp": tmp_evidence, "durable": durable_evid
 PY
 
 status="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["status"])' "$(cat "$tmp_evidence")")"
+if [[ -n "$fidelity_block_reason" ]]; then
+  # Fail-closed (exit 2 = contract condition, distinct from the generic exit 1
+  # crash-like failure): the compare claimed before-after fidelity but the evidence
+  # is impersonated or confounded. The marker already records FAIL.
+  echo "$PREFIX $fidelity_block_reason — evidence at $tmp_evidence" >&2
+  exit 2
+fi
+if [[ "$status" == "NOT_COVERED" ]]; then
+  # Route-back (exit 2 = fail-closed contract condition, distinct from the
+  # generic exit 1 crash-like failure): applies=true but no executable flow to
+  # run. auto-pass must stop at the owning producer (breakdown / refinement) and
+  # NOT apply local repair.
+  echo "$PREFIX NOT_COVERED — behavior_contract.applies=true but no executable flow; route back to owning producer. evidence at $tmp_evidence" >&2
+  exit 2
+fi
 if [[ "$status" != "PASS" ]]; then
   echo "$PREFIX FAIL — evidence at $tmp_evidence" >&2
   exit 1

@@ -161,7 +161,6 @@ Global targets reference universal rules without inlining their full bodies. Loa
 - `.claude/rules/mechanism-registry.md`
 - `.claude/rules/multi-company-isolation.md`
 - `.claude/rules/pr-and-review.md`
-- `.claude/rules/session-switch-advisory.md`
 - `.claude/rules/skill-routing.md`
 - `.claude/rules/sub-agent-delegation.md`
 - `.claude/rules/workspace-self-development.md`

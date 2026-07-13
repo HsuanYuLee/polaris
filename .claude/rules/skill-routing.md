@@ -150,6 +150,27 @@ target，source 在他處）、或已在 active engineering task worktree scope 
 判定 test：這次修改需要寫進 CHANGELOG 嗎？需要 → DP；不需要 → mechanical，main session
 直接 edit OK。
 
+## Spec↔Check Contract Contradiction Routing
+
+執行期（engineering / breakdown / auto-pass）若 refinement.json producer 照 LLM-facing
+規格（`refinement-artifact.md` / `pipeline-handoff.md`）產出交付物、卻被 deterministic
+檢查退件——或反向，規格宣稱某欄位必填但 validator 禁止（如 DP-341 packaging 欄位
+`allowed_files` / `estimate_points`），或規格把某欄位標 source-type-forbidden 但 validator
+已 require（如 DP-337 `source.base_branch` dp graduation）——這是 **spec↔check contract
+漂移**，不是該讓 LLM 試錯（reject→rewrite churn）吸收的個案：
+
+- **不要** 反覆改交付物去猜 validator 想要什麼；重複 rewrite 只會把系統性漂移埋回單次修補，
+  下一個 producer 再撞一次。
+- 立刻跑 `scripts/validate-spec-check-contract-parity.sh`（DP-417 T11 bidirectional parity
+  gate）定位漂移方向：`POLARIS_SPEC_CHECK_PARITY_UNDOCUMENTED`（validator 要、規格沒寫）/
+  `POLARIS_SPEC_CHECK_PARITY_CONTRADICTION`（規格與 validator 相反）/
+  `POLARIS_SPEC_CHECK_PARITY_ANCHOR_STALE`（manifest 與 live check 漂移）。
+- gate 指出的是 **contract-owner** 要修的 parity drift：更新 producer 規格或更新 validator，
+  使「照規格產出」與「通過檢查」by construction 一致。走 `refinement` → `breakdown` →
+  `engineering` 主鏈修 contract surface，不在交付物層 patch。
+- deterministic 追蹤由 `.claude/rules/mechanism-registry.md` 的 `spec-check-contract-parity`
+  canary（contract_pointer）負責。
+
 ## Deprecated Admin Entrypoint Guard
 
 舊的無 task.md Admin PR entrypoint 已 sunset。當使用者要求 framework/docs repo 直接「開 PR」或「發 PR」時，先確認是否能 resolve 到 DP-backed `task.md`：

@@ -120,6 +120,63 @@ Baseline mode 也套用同一 health gate；空頁 baseline 不能作為 compare
 `parity` 比對優先使用 state hash；沒有 state file 時使用 stdout hash。`hybrid` 若 state
 drift，但 task 有 `allowed_differences`，runner 會把 drift 標為 accepted。
 
+## No Executable Flow → NOT_COVERED Route-back
+
+`applies: true` 卻沒有可執行的 flow（缺 `flow_script`、或 `fixture_policy: static_only`
+沒有 runnable script）時，runner **不得**靜默當作 covered。這種情況沒有任何 runtime 證據，
+runner 會 emit evidence-level `status=NOT_COVERED` 的 behavior marker（與 `PASS` / `FAIL`
+同一 producer、同一 evidence path、同一 schema，只是狀態值不同），`comparison.kind=not_covered`
+（`reason=no_executable_flow`），並以 **exit 2** route-back（fail-closed contract 條件，
+刻意與 generic exit 1 crash-like failure 區隔）。
+
+`NOT_COVERED` 不是 assertion-level 補值那條路徑（runner 對缺 structured result 的 assertion
+仍會補 assertion-level `NOT_COVERED`），而是整份 evidence 的終局狀態：gate 要求 `status=PASS`，
+因此 `NOT_COVERED` 不會通過 completion gate，auto-pass 必須停在 owning producer
+（breakdown / refinement）補上可執行的 flow_script 或重新評估 `applies`，**不得**在本地
+自行修補（見 `auto-pass-execution-flow.md` § No Executable Flow Route-back）。
+
+## Verification Trustworthiness Gate（DP-417 T8）
+
+當 task 宣告 before/after 畫面 / 行為 fidelity（`applies: true` 且 `mode` 為 `parity` /
+`hybrid` / `vr`）時，compare 的 PASS 必須由**真實 render** 與**真實比對**支撐。這條 gate 由
+`scripts/lib/verification-fidelity-trust.sh` 統一實作，`run-behavior-contract.sh`
+（`parity` / `hybrid`）與 `run-visual-snapshot.sh`（`vr`）共用同一份判定，不各自另寫一套。
+
+**Layer 1 — 真實 render trust**（`run-behavior-contract.sh` compare）：下列冒充一律
+fail-closed（marker `status=FAIL`、`comparison.kind=fidelity_trust`、exit 2 +
+`POLARIS_VERIFICATION_FIDELITY_UNTRUSTED`），不得產出 PASS marker：
+
+- state file 直接宣告字面 `hash`（flow 自報比對結果，沒有真的 render）→ `hardcoded_state_hash`。
+- 沒有 behavior state file 也沒有任何真實 render 的截圖 / 影片（只有 placeholder 佔位檔、
+  或 unit + grep 代替 render）→ `no_rendered_artifact`。
+
+真實的 behavior state file **或**帶有正確 magic bytes 的截圖 / 影片（PNG / JPEG / WEBM / MP4）
+即視為真實 render，比對方法（byte-SHA / state-hash / 感知）不限。
+
+**Layer 2 — 測試主體隔離**（`replaces_existing` fidelity task，兩個 runner 皆適用）：宣告
+「替換既有實作且維持 fidelity」的 task 若在 compare 到達 PASS 時，被替換的舊 source 仍存在於
+測試環境，該 PASS 是被舊 source 汙染的（confounded）。runner 在 render 前 fail-closed
+（exit 2 + `POLARIS_VERIFICATION_CONFOUNDED`；VR marker `status=BLOCK`），要求「先清乾淨再
+驗證」。
+
+宣告方式（`verification.behavior_contract` 或 `verification.visual_regression` 皆可）：
+
+```yaml
+verification:
+  behavior_contract:
+    applies: true
+    mode: parity
+    replaces_existing: true
+    replaced_paths:
+      - "src/legacy/OldWidget.js"
+```
+
+- `replaces_existing: true` 但 `replaced_paths` 為空 → 無法驗證隔離，一律 fail-closed。
+- `replaced_paths` 內任一路徑在測試環境仍存在 → confounded，fail-closed。
+- `replaces_existing` 未宣告或非 `true` → 本層 no-op，不影響既有 task。
+
+`applies: false` 與非 fidelity mode（`visual_target` / `pm_flow`）不受本 gate 影響。
+
 ## Evidence
 
 Runner 會寫 head/context 綁定 JSON：

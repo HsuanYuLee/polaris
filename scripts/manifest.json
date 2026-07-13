@@ -773,6 +773,15 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/classify-artifact-role-ownership.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/classify-artifact-role-ownership-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/close-parent-spec-if-complete-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -4766,6 +4775,24 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/spec-check-framework-release-trial-run.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/spec-check-framework-release-trial-run-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/spec-check-real-epic-trial-run.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/spec-check-real-epic-trial-run-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/spec-source-resolver.sh",
       "kind": "resolver",
       "runner": "bash",
@@ -5101,6 +5128,15 @@
       "runner": "bash",
       "owner_surface": "sub_agent_completion_contract",
       "selftest": "scripts/selftests/validate-completion-envelope-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-delivery-evidence-conformance.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/selftests/validate-delivery-evidence-conformance-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },
@@ -5477,6 +5513,15 @@
       "lifecycle": "hot_path",
       "relocation": "stay",
       "selftest_reason": "script exposes --selftest and is covered by delivery-contract-gap-convergence-selftest"
+    },
+    {
+      "path": "scripts/validate-spec-check-contract-parity.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/validate-spec-check-contract-parity-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/validate-spec-primary-doc-authoring.sh",

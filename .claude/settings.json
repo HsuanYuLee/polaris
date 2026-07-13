@@ -103,17 +103,6 @@
         ]
       }
     ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-switch-eval.sh\""
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "matcher": "",
@@ -142,15 +131,6 @@
       }
     ],
     "PostToolUse": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-pressure-tick.sh\""
-          }
-        ]
-      },
       {
         "matcher": "Bash",
         "hooks": [

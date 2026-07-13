@@ -119,6 +119,24 @@ refinement 完成時同時產出兩份：
     }
   ],
 
+  // --- Replace-Existing Discipline (optional, source-level, DP-417 T9) ---
+  // 只有當本 source 是「替換既有機制」時才出現；non-replacing source 完全省略。
+  "replaces_existing": {
+    "replaced": "Bootstrap grid utility classes",
+    "existing_sources": [
+      // 枚舉被替換物的所有現存來源。evidence 必須是 runtime/build-output/cdn/inline
+      // （源碼 grep 看不見 build-time / CDN / inline 注入路徑）；source-grep 單獨不足。
+      { "path_or_channel": "https://cdn.example.com/bootstrap.min.css", "evidence": "cdn", "evidence_ref": "prepareCdnAssets 於 build 注入 bootstrap.min.css" },
+      { "path_or_channel": "dist/main.css", "evidence": "build-output", "evidence_ref": "grep .col-md-6 dist/main.css -> present" }
+    ],
+    "ported_symbols": [
+      // optional：被 port 進新來源的 symbol 必須攜帶 usage 檢查；全站零使用
+      // （usage_count==0）必須標記 disposition: "removable"，不得原封 port 製造 new legacy。
+      { "symbol": "col-md-6", "usage_evidence": "rg '\\.col-md-6' src/ -> 42 hits", "usage_count": 42, "disposition": "kept" },
+      { "symbol": "col-md-push", "usage_evidence": "rg '\\.col-md-push' src/ -> 0 hits", "usage_count": 0, "disposition": "removable" }
+    ]
+  },
+
   // --- Edge Cases ---
   "edge_cases": [
     {
@@ -395,6 +413,31 @@ Contract（DP-359 D3 / D4 / AC-NF1）：
 }
 ```
 
+### `replaces_existing` replace-existing source discipline（optional，source-level，DP-417 T9）
+
+當 refinement source 的目的是「替換既有機制」（例如以新 CSS 系統取代 Bootstrap grid），
+必須用 `replaces_existing` 宣告，讓 LOCK preflight 強制兩件事。non-replacing source **完全
+省略**此欄位；additive、validated-when-present，舊 artifact 不受影響。
+
+| 欄位 | 必填 | 說明 |
+|------|------|------|
+| `replaced` | required | 被替換物的一句話描述 |
+| `existing_sources[]` | required（非空） | 枚舉被替換物的所有現存來源。每筆 `path_or_channel`（路徑或注入通道）、`evidence` ∈ `runtime` / `build-output` / `cdn` / `inline` / `source-grep`、`evidence_ref`（command 輸出 / artifact 路徑 / URL） |
+| `ported_symbols[]` | optional | 被 port 進新來源的 symbol。每筆 `symbol`、`usage_evidence`（全站 usage 檢查）、`usage_count`（非負整數）、`disposition` ∈ `removable` / `kept` |
+
+**Schema shape** 由 `validate-refinement-json.sh` 驗證（well-formed 才過）。**兩道 LOCK 語意
+gate** 由單一 canonical preflight `validate-refinement-lock-preflight.sh` 強制（不另開第二條
+preflight，見 `refinement-source-mode.md` § T5）：
+
+- **枚舉 gate（AC9 / AC-NEG4）**：`existing_sources` 必須非空，且每筆 `evidence` 必須是
+  runtime/build-output（`runtime` / `build-output` / `cdn` / `inline`）。只用 `source-grep`
+  discovery、或 `existing_sources` 為空時 → `POLARIS_REFINEMENT_REPLACE_EXISTING_ENUMERATION`
+  fail-closed（exit 2）。理由：build-time / CDN / inline 注入路徑源碼 grep 看不見。
+- **反死代碼 port gate（AC11 / AC-NEG6）**：每個 `ported_symbols` 必須攜帶 `usage_evidence`；
+  `usage_count == 0`（全站零使用）者 `disposition` 必須是 `removable`，否則 →
+  `POLARIS_REFINEMENT_REPLACE_EXISTING_DEAD_PORT` fail-closed（exit 2）。理由：避免原封 port
+  整份 spec 製造 new legacy。
+
 ### Ticketless / DP-backed metadata example
 
 ```jsonc
@@ -526,6 +569,19 @@ Producer rule：
 新 artifact 必須具備：
 
 - `schema_version`：必填。
+- `version` / `created_at`：必填 envelope 欄位（`validate-refinement-json.sh` 以
+  `require_nonempty_string` 對兩者 fail-closed）。`version` 標記 schema 版本（見 § 版本演進），
+  `created_at` 為 ISO 建立時間戳。
+- `acceptance_criteria`：必填，array（≥ 1），每筆含 `id` / `text` /
+  `verification{method,detail}`。
+- `edge_cases`：必填，array（可為空陣列 `[]`），每筆含 `scenario` / `handling`。
+- `changed_files`：必填，array of changed file path string；必須等於 `modules[].path`
+  的集合（`validate-refinement-artifact-parity.sh` 以 `changed_files != module_paths`
+  fail-closed）。因此 `changed_files` 是 `modules` 的 flattened path view，不得漏列或多列。
+- `predecessor_audit`：必填（可為空陣列 `[]`）。每筆記錄一個 predecessor spec 的
+  disposition（`KEEP` / `PARTIAL_ABSORB` / `FULLY_SUPERSEDED`）與 `writeback`；欄位 shape
+  詳見 `pipeline-handoff.md` § Artifact Schemas（`validate-refinement-json.sh` 對缺欄位
+  以 `missing required field 'predecessor_audit'` fail-closed）。
 - `verification_strategy`：optional structured source-level AC verification strategy。
   新 producer 在 LOCK 前必填；legacy artifact 可缺欄位以維持讀取相容。當存在時，
   `mode` enum = `per_task_self_verify` / `source_level_v_required` /
@@ -533,8 +589,11 @@ Producer rule：
   `breakdown` / LOCK gates 只讀 `verification_strategy.mode` 決定是否 require V task，
   不以 `source.type` 分路。`source_level_v_required` 必須在 `tasks[]` 中有 V task；
   `external_ac_ticket` 必須帶外部 AC ticket identity。
-- `tasks[]`：每筆必填 `id` / `kind` / `title` / `scope` / `allowed_files` /
-  `modules` / `ac_ids` / `dependencies` / `estimate_points` / `verification`。
+- `tasks[]`：每筆必填 `id` / `kind` / `title` / `scope` / `modules` / `ac_ids` /
+  `dependencies` / `verification`。per-task packaging 欄位 `allowed_files` 與
+  `estimate_points` **不屬於** refinement.json intent layer：它們由 breakdown writer
+  path（task.md）擁有，出現在 refinement.json `tasks[]` 時 `validate-refinement-json.sh`
+  以 `POLARIS_REFINEMENT_PACKAGING_FIELD_FORBIDDEN` fail-closed（DP-341，dp + jira 對稱）。
   `task_shape`（`implementation` default / `audit` / `confirmation`）與
   `tracked_deliverable_hint`（`tracked` default / `specs_only`）為 optional first-class
   欄位（DP-296 canonical home，見 § `tasks[].task_shape` / `tasks[].tracked_deliverable_hint`）。
@@ -555,6 +614,11 @@ Producer rule：
   `dependencies[]` 或文字 references；不得混入 task DAG。validator 會以
   `POLARIS_REFINEMENT_TASK_DEPENDENCY_INVALID` fail-loud，避免 breakdown derive 產出
   `Depends on=DP-229` + `Base branch=main` 的非法 task.md。
+- `replaces_existing`：optional source-level replace-existing discipline block
+  （DP-417 T9，validated-when-present）。宣告本 source 替換的既有機制。Schema shape
+  由 `validate-refinement-json.sh` 驗證（`replaced` / `existing_sources[]` 非空 /
+  optional `ported_symbols[]`）；LOCK 語意 gate（枚舉 + 反死代碼 port）由
+  `validate-refinement-lock-preflight.sh` 強制。詳見 § `replaces_existing`。
 - `adversarial_pass[]`：每筆必填 `ac_id` / `attack` / `enforce`。
 - Bug-specific fields 只允許 `source.type=bug`，其他 source type 不得出現：
   - `reproduction_steps[]`：必填，non-empty string array。
@@ -566,16 +630,20 @@ Producer rule：
 - Legacy `reproduction` 不再是 canonical field；new producer 必須寫
   `reproduction_steps[]`，validator 仍會阻擋 non-bug source 出現 legacy
   bug-only field。
+- **`source.base_branch`（DP-337，universal，validated-when-present）**：交付 base
+  branch，**不是** jira-only 欄位。`source.type=dp` 時必須等於 `feat/{source.id}`
+  （`validate-refinement-json.sh` 以 `POLARIS_REFINEMENT_DP_BASE_BRANCH_INVALID`
+  fail-closed；`validate-breakdown-ready.sh` 在 breakdown delivery boundary require 其
+  存在）。`source.type=jira` 時為產品 base branch（如 `develop`，來源
+  `polaris-config/{project}/handbook/config.yaml`），derive jira mode 注入 task.md
+  `Base branch`。歷史 dp refinement 可缺欄位以維持讀取相容。
 - **jira-only schema 欄位（DP-269）**：下列欄位只允許 `source.type=jira`，是 derive
-  jira mode 注入 task.md `Repo` / `Base branch` / 真實 JIRA identity 的來源；
+  jira mode 注入 task.md `Repo` / 真實 JIRA identity 的來源；
   `source.type=dp` 出現任一欄位時 `validate-refinement-json.sh` 以
   `POLARIS_REFINEMENT_JIRA_ONLY_FIELD` fail-closed（比照 DP-228 jira-only consent
   欄位禁令，避免鬆綁外洩到 dp 分支）：
   - `source.repo`：產品 repo slug（= `polaris-config/{project}/` 目錄名）。
     `source.type=jira` 時 **required**（derive jira mode → task.md `Repo`）。
-  - `source.base_branch`：產品 base branch（如 `develop`，來源
-    `polaris-config/{project}/handbook/config.yaml`）。`source.type=jira` 時
-    **required**（derive jira mode → task.md `Base branch`）。
   - `tasks[].jira_key`：每筆 task 的真實子單 key（JIRA key string）或 `null`
     （尚未建子單）。`source.type=jira` 時為 string | null；`derive` 在 jira mode 對
     `null` fail-closed（要求先 populate，無 N/A fallback）。`source.type=dp` 時此欄位
@@ -598,6 +666,12 @@ Producer rule：
 ```
 
 `source.type = jira` 時，`breakdown` 維持既有 JIRA sub-task + company specs path。
+
+## 相關 contract
+
+- 由 refinement 驅動的 delivery diff 若把 framework-owned flow repair 夾進 product PR，由
+  `scripts/classify-artifact-role-ownership.sh`（mixed-diff ownership classifier）fail-closed
+  攔下；契約說明見 [pipeline-handoff.md](pipeline-handoff.md) § Artifact Role Ownership。
 
 ## 版本演進
 

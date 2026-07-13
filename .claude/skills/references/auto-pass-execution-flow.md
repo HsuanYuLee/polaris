@@ -68,6 +68,11 @@ runner 內部仍 wrap `auto-pass-probe.sh` 與 `validate-auto-pass-ledger.sh`，
 canonical proof markers 做 deterministic lookup。**orchestrator 不直接呼叫**這層；只透過
 runner JSON 看結果。
 
+下表 marker path 的 `{work_item_id}` 是 breakdown / engineering / auto-pass 共用的
+**canonical task id**（`{source}-T{n}`）。short id、full id、folder-native task path 三種輸入
+如何收斂到這一個 id（及其 parent lifecycle anchor `source_id`）見
+`pipeline-handoff.md` § Canonical task identity resolution（DP-417 T4）。
+
 | Stage | PASS marker | Blocked / route-back signal | Terminal / next action |
 |-------|------------|----------------------------|------------------------|
 | breakdown | `.polaris/evidence/task-snapshot/{work_item_id}.json` status PASS | `validation_fail`、`missing_v_task`、`refinement-inbox/` | PASS dispatch engineering；route-back amendment loop；blocked gate failure |
@@ -233,6 +238,20 @@ engineering stage 的 completion-gate marker PASS 後，runner 追加一條 revi
   不動）。本 loop 只把「已存在的 actionable review feedback」收進 deterministic loop。
 - **Source parity**：DP-backed 與 JIRA Epic-backed source 對稱適用，無 DP-only branch。
 
+## No Executable Flow Route-back
+
+engineering stage 跑 behavior contract 時，若 task.md 的
+`verification.behavior_contract.applies=true` 卻沒有可執行的 flow（缺 `flow_script`、或
+`fixture_policy: static_only` 沒有 runnable script），`scripts/run-behavior-contract.sh` 會
+emit evidence-level `status=NOT_COVERED` 的 behavior marker 並以 **exit 2** route-back，而
+**不是**靜默當作 covered（見 `behavior-contract.md` § No Executable Flow → NOT_COVERED
+Route-back）。
+
+runner 把這視為 stop-at-owning-producer 條件：completion gate 要求 `status=PASS`，因此
+`NOT_COVERED` marker 不會讓 engineering stage 判成 PASS。orchestrator **不得**在本地自行
+修補（不補寫 flow_script、不改 marker），必須停在 owning producer——回 breakdown 補上可執行
+的 flow_script，或回 refinement 重新評估該 task 是否應 `applies`。
+
 ## Pause Rules
 
 ## Non-Stop Rule
@@ -345,3 +364,63 @@ source 已完成 lifecycle closeout 後才合法。
    若仍在 active namespace 且 status 不是 `IMPLEMENTED`，輸出
    `POLARIS_AUTO_PASS_TERMINAL_PARENT_NOT_ARCHIVED` 並 fail-stop。Report summary 不得把這種
    active `LOCKED` parent 降級成 advisory。
+
+### Report / archive gate applicability matrix（DP-417 T5）
+
+上述三步 closeout 具備**固定 enforcement order**：`complete report write`（步驟 1，report
+是 gate 的輸入）→ `archive`（步驟 2，由 `mark-spec-implemented.sh --auto-archive` 這條唯一
+canonical writer 執行）→ `report validation`（步驟 6，`validate-auto-pass-report.sh`）。
+report-validation 反查 parent lifecycle 的行為**編碼**了這個 order：在 archive 之前對 active
+parent 跑 report validation 一律 fail-closed，因此 validation 不可能先於 archive 通過。各 cell
+的正確 gate 行為（`terminal_status=complete` 專屬；非 complete terminal 不套用本 gate）：
+
+| Report gate × parent 狀態 | Gate 行為 |
+|---------------------------|-----------|
+| active namespace + status ≠ `IMPLEMENTED`（archive 前 / LOCKED / DISCUSSION） | fail-closed `POLARIS_AUTO_PASS_TERMINAL_PARENT_NOT_ARCHIVED`（order violation / archive-state misjudgment，AC-NEG2） |
+| active namespace + status `IMPLEMENTED`（status 已翻、尚未 move） | PASS（gate 認 status，不只認 namespace） |
+| archive namespace（continue-after-archive） | PASS（已 archive 的 source 不得被 re-fail） |
+| 非 `complete` terminal（如 `blocked_by_gate_failure`）+ active parent | 不套用本 gate（AC-N1 no-false-positive） |
+
+deterministic 覆蓋：`scripts/selftests/report-archive-validation-order-selftest.sh` 以 real
+scripts（report validation gate + real `mark-spec-implemented.sh --auto-archive` archive
+producer）驅動上述 fixed order 與 matrix 各 cell，不重寫 order 邏輯。
+
+## Recovery State Machine（deterministic recovery / fail-closed cross-check，DP-417 T3）
+
+recovery 狀態的 ledger / report 轉移必須是 **deterministic**（同一輸入 → 同一 next_action /
+gate verdict），且 active source 缺 route-back / ledger / delivery-evidence marker 時 report /
+complete gate 一律 **fail-closed**（AC-NEG2），不得從 prose 合成 correctness。各狀態的 canonical
+enforcer：
+
+| Recovery 狀態 | 判定來源 | Deterministic enforcer |
+|---------------|----------|------------------------|
+| `blocked_by_gate_failure` | ledger terminal / report terminal | `validate-auto-pass-ledger.sh`（terminal enum）；`validate-auto-pass-report.sh`（terminal ∈ TERMINAL，非 `complete` 且有 issues/blockers 時強制 `follow_up_dp_seed`，缺則 exit 1） |
+| `resume`（session_handoff） | ledger `pause.kind=session_handoff` | `validate-auto-pass-ledger.sh`（terminal=null + resume_artifact + next_work_item_id）；`validate-auto-pass-resume.sh`（artifact↔ledger 對齊）；`auto-pass-runner.sh --stage source`（emit `next_action=resume`）；`auto-pass-consume-resume.sh`（唯一 sanctioned writer 清 pause + stamp resumed_at） |
+| `continue`（forward / complete-eligible） | ledger terminal=null + pause=null | `validate-auto-pass-ledger.sh`；report terminal cross-check（complete 需 ledger complete 或 complete-eligible，否則 `POLARIS_AUTO_PASS_REPORT_LEDGER_TERMINAL_MISMATCH` exit 2；ledger 不可讀 → `..._LEDGER_UNREADABLE`） |
+| `revision`（engineering_revision_rounds） | ledger loop_counters | `validate-auto-pass-ledger.sh`（count>cap 需 terminal `loop_cap_reached`，否則 exit 1） |
+| `head-rebind` | report `verification.head_sha` ↔ task.md `deliverable` | `validate-auto-pass-report.sh`（DP-360 T7 delivery-evidence authority：deliverable head 綁定 + `verification.status=PASS`；stale head / 非 PASS → `..._VERIFICATION_MARKER_MISMATCH`；無 resolvable task.md → `..._VERIFICATION_MARKER_MISSING`） |
+
+AC6（review 後 revision / head-rebind 在宣告 `complete` 前，必須先滿足 PR-visible delivery
+evidence publication ownership）由 `validate-auto-pass-report.sh` 的 `required_prs[]` ownership
+gate 強制：對每個帶 ownership 欄位（`isDraft` / `publisher` / `engineering_completion_marker` /
+`base_freshness` 等）的 row 呼叫唯一 canonical gate `scripts/auto-pass-pr-ownership-gate.sh`。
+draft PR → `POLARIS_AUTO_PASS_PR_DRAFT_BLOCKED`；publisher / completion / freshness 未滿足 →
+`POLARIS_AUTO_PASS_PR_OWNERSHIP_BLOCKED`（皆 exit 2）。**caller 走 gate 的 `--state-file` 模式**
+（gate 的 `--stdin` 模式因 python heredoc 佔用 stdin 而 unreachable，會讓所有 ownership row 誤
+判成 `input is not readable JSON`；DP-417 T3 修正此 fail-closed gap，使已發布的合法 owned PR 能
+PASS、draft PR 能正確回報 `PR_DRAFT_BLOCKED`）。
+
+DP-417 T6 在同一 `required_prs[]` 迴圈補上 **head-rebind evidence publication freshness**：
+凡 row 帶 `revised_head_sha`（review 後 revision / head rebind 後 PR 綁定的新 head），在
+`terminal=complete` 時其 PR-visible evidence publication marker 必須 current 於該 revised head——
+`evidence_publication_head_sha`（或 nested `evidence_publication.head_sha`）以 canonical
+`head_bound()`（不新增第二個 comparator）比對 revised head。stale（綁舊 head）或 missing（revision
+改了 head 卻沒重新發佈 evidence）一律 fail-closed `POLARIS_AUTO_PASS_PR_EVIDENCE_PUBLICATION_STALE`
+（exit 2），不得 silent PASS；未帶 `revised_head_sha` 的 first-cut delivery row 不受此 gate 影響，
+`terminal!=complete`（route back 給 owner）為 AC6 逃生門、不套用此檢查。deterministic 覆蓋：
+`scripts/selftests/revision-head-rebind-evidence-publication-ownership-selftest.sh`（AC6 current-head
+pass / AC-NEG2 stale + missing fail-closed / route-back not gated / first-cut no-false-positive）。
+
+上述五狀態的 determinism（run-twice 同 verdict）與 AC-NEG2 fail-closed（含 draft PR AC6）由單一
+consolidated selftest `scripts/selftests/auto-pass-ledger-report-recovery-state-machine-selftest.sh`
+以 real validator 覆蓋（AC-N1），不重寫任何 gate 邏輯。

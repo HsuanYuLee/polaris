@@ -360,7 +360,7 @@ def required_manifest_v_ids(container):
         if not isinstance(entry, dict):
             continue
         task_id = short_work_item_id(entry.get("id"))
-        kind = str(entry.get("kind") or entry.get("task_kind") or entry.get("type") or "").strip().lower()
+        kind = str(entry.get("kind") or "").strip().lower()
         if task_id.startswith("V") or kind in {"v", "verification"}:
             if task_id:
                 required.append(task_id)

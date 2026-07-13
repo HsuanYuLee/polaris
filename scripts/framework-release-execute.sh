@@ -18,6 +18,11 @@ RELEASE_PR_NUMBER=""
 RELEASE_PR_TITLE=""
 RELEASE_PR_BODY_FILE=""
 TASK_MDS=()
+# DP-417 T10 (AC21): run mode. "default" executes the release tail; the collect
+# modes (aggregate / enumerate) report the argument-shape precondition contract
+# WITHOUT executing, and exit before any git-state check or mutation.
+MODE="default"
+PRECOND_FAILURES=()
 
 usage() {
   cat >&2 <<'USAGE'
@@ -36,6 +41,58 @@ USAGE
 die() {
   echo "$PREFIX POLARIS_FRAMEWORK_RELEASE_EXECUTE_BLOCKED: $*" >&2
   exit 2
+}
+
+# precond_fail <message>
+# DP-417 T10 (AC21): single collect-all funnel for the up-front argument-shape
+# preconditions. In default MODE it is exactly die() (immediate exit 2, same
+# message) so execution behavior and exit codes are unchanged; in the collect
+# modes it records the message and returns 0 so ALL violations surface in one
+# pass instead of fail-first.
+precond_fail() {
+  if [[ "$MODE" == "default" ]]; then
+    die "$1"
+  fi
+  PRECOND_FAILURES+=("$1")
+}
+
+# emit_aggregate_report
+# Prints every collected argument-shape precondition violation at once
+# (fail-aggregate) and exits: 2 when any violation was collected, 0 when the
+# argument-shape contract is fully satisfied.
+emit_aggregate_report() {
+  local n="${#PRECOND_FAILURES[@]}"
+  if [[ "$n" -eq 0 ]]; then
+    echo "$PREFIX PASS argument-shape preconditions (aggregate): 0 violations"
+    exit 0
+  fi
+  echo "$PREFIX POLARIS_FRAMEWORK_RELEASE_EXECUTE_PRECONDITION_AGGREGATE: $n" >&2
+  local f
+  for f in "${PRECOND_FAILURES[@]}"; do
+    echo "  - $f" >&2
+  done
+  exit 2
+}
+
+# print_enumeration
+# Dry-run lister: prints the complete release-execute precondition contract
+# WITHOUT reading git state or executing anything, then exits 0.
+print_enumeration() {
+  cat <<'ENUM'
+[framework-release-execute] enumerate: release-execute precondition contract (dry-run; no execution)
+execution phase (exactly one required):
+  --land-tasks-to-feat         land the ordered task PR(s) into feat/DP-NNN, then stop
+  --full-tail                  land, then feat rebase -> version compression -> feat/DP-NNN -> main PR -> main promotion
+required arguments:
+  --source-id DP-NNN           derives feat/DP-NNN when --feat-branch is omitted
+  --task-md <path>             one or more ordered task.md deliverables (repeatable)
+optional arguments:
+  --repo <path>                git checkout being released (default: workspace root)
+  --feat-branch feat/DP-NNN    explicit feat branch; must match feat/DP-NNN
+  --release-pr <number>        reuse an existing feat/DP-NNN -> main PR
+git-state preconditions (checked only when actually executing):
+  repo must be a clean git checkout; feat/DP-NNN must exist locally or on origin.
+ENUM
 }
 
 read_workspace_language() {
@@ -224,21 +281,42 @@ while [[ $# -gt 0 ]]; do
     --release-pr-title=*) RELEASE_PR_TITLE="${1#--release-pr-title=}"; shift ;;
     --release-pr-body-file) RELEASE_PR_BODY_FILE="$(abs_path "${2:-}")"; shift 2 ;;
     --release-pr-body-file=*) RELEASE_PR_BODY_FILE="$(abs_path "${1#--release-pr-body-file=}")"; shift ;;
+    --aggregate) MODE="aggregate"; shift ;;
+    --enumerate|--dry-run) MODE="enumerate"; shift ;;
     -h|--help) usage ;;
     *) die "unknown argument: $1" ;;
   esac
 done
 
-REPO_PATH="$(abs_path "$REPO_PATH")"
-[[ -d "$REPO_PATH/.git" || -f "$REPO_PATH/.git" ]] || die "not a git repository: $REPO_PATH"
-[[ "$LAND_TASKS_TO_FEAT" -eq 1 || "$FULL_TAIL" -eq 1 ]] || die "no execution phase selected; pass --land-tasks-to-feat or --full-tail"
-[[ "${#TASK_MDS[@]}" -gt 0 ]] || die "at least one --task-md is required"
+# DP-417 T10 (AC21b): --enumerate is a pure dry-run lister; it needs no inputs
+# and must never touch git state, so dispatch before the precondition funnel.
+if [[ "$MODE" == "enumerate" ]]; then
+  print_enumeration
+  exit 0
+fi
+
+# Argument-shape preconditions: routed through the collect-all funnel so
+# --aggregate surfaces every violation in one pass. In default MODE precond_fail
+# is exactly die() (same message, immediate exit 2), so nothing about actual
+# execution changes.
+[[ "$LAND_TASKS_TO_FEAT" -eq 1 || "$FULL_TAIL" -eq 1 ]] || precond_fail "no execution phase selected; pass --land-tasks-to-feat or --full-tail"
+[[ "${#TASK_MDS[@]}" -gt 0 ]] || precond_fail "at least one --task-md is required"
 
 if [[ -z "$FEAT_BRANCH" ]]; then
-  [[ "$SOURCE_ID" =~ ^DP-[0-9]+$ ]] || die "--source-id DP-NNN is required when --feat-branch is omitted"
-  FEAT_BRANCH="feat/${SOURCE_ID}"
+  if [[ "$SOURCE_ID" =~ ^DP-[0-9]+$ ]]; then
+    FEAT_BRANCH="feat/${SOURCE_ID}"
+  else
+    precond_fail "--source-id DP-NNN is required when --feat-branch is omitted"
+  fi
 fi
-[[ "$FEAT_BRANCH" == feat/DP-* ]] || die "feat branch must match feat/DP-NNN, got '$FEAT_BRANCH'"
+[[ -z "$FEAT_BRANCH" || "$FEAT_BRANCH" == feat/DP-* ]] || precond_fail "feat branch must match feat/DP-NNN, got '$FEAT_BRANCH'"
+
+# DP-417 T10 (AC21a): collect-mode dispatch — report the argument-shape
+# precondition contract and exit BEFORE any git-state check or mutation.
+[[ "$MODE" == "aggregate" ]] && emit_aggregate_report
+
+REPO_PATH="$(abs_path "$REPO_PATH")"
+[[ -d "$REPO_PATH/.git" || -f "$REPO_PATH/.git" ]] || die "not a git repository: $REPO_PATH"
 
 for task_md in "${TASK_MDS[@]}"; do
   [[ -f "$task_md" ]] || die "task.md not found: $task_md"
