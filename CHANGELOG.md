@@ -1,5 +1,81 @@
 # Changelog
 
+## [3.76.87] - 2026-07-14
+
+### Changed
+
+- 7db4793: DP-421 T1：通用 artifact-contract-conformance-on-contract-change 機制 + governance 登錄。
+  新增 `scripts/validate-artifact-contract-conformance.sh`——一個 registry 驅動的 conformance
+  gate，用來解決「artifact 契約收緊時既有 artifact silent drift」的系統性缺口（實測 288 個
+  pre-DP-364 的 `refinement.json` 缺 `verification_strategy`，而既有 per-artifact validator
+  對缺欄位回 PASS）：
+  - gate 讀 `scripts/lib/artifact-contract-registry.json`，以 class 宣告 required field / rule、
+    `required_since`、`delegate_validator` 與 `migration_owner`。
+  - 對每個 class 枚舉既有 artifact，只做 required field 存在性檢查（class-agnostic），並把
+    SHAPE 檢查 **委派** 給 registry 指名的既有 validator（例：`verification_strategy` 委派
+    `scripts/validate-verification-strategy.sh`），**不新增第二套平行 classifier**（對齊
+    `canonical-contract-governance.md` § No special writer paths / Canonical shape first）。
+  - new-vs-existing 由 **draining-ledger enrollment** 分類，**非** namespace：因
+    `docs-manager/**/specs/**` 為 gitignored、git base-diff 無法辨新舊，`--seed-baseline` 一次把
+    所有既有 non-conformant（任一 namespace，含 active 與 `/archive/`）enroll 進 draining migration
+    ledger 作為 pre-existing 債（`draining=true`、`waiver=false`、`target_remaining=0`、
+    `migration_owner`）。steady-state 時 enrolled 債 → OK/draining（gate 不 fail）；unenrolled（NEW ＝
+    baseline 之後新建）non-conformant → fail-closed（exit 2 + `POLARIS_ARTIFACT_CONTRACT_NON_CONFORMANT`，
+    一次枚舉全部）。enrolled artifact 後來 conformant 即從 ledger 移除、`remaining` 遞減至 0；NEW
+    violation 永不被寫進 ledger 洗成豁免（AC-NEG1）。migration_owner（`DP-421-T2`）負責把 enrolled 債
+    收斂到零。
+    同 task 內把機制登錄進 `.claude/rules/mechanism-registry.md`（`artifact-contract-conformance`，
+    disposition `contract_pointer`，A 類 gateable invariant），並在
+    `.claude/rules/handbook/framework/contract-design.md` 補一條 Deterministic-First 延伸
+    heuristic：「契約收緊必須同時交付 conformance gate + migration」（DP-416 doc-drift 歸此家族）。
+    附 `scripts/selftests/validate-artifact-contract-conformance-selftest.sh` 覆蓋
+    conformant-pass / unenrolled-fail-closed / seed-baseline-enroll / enrolled-active-OK /
+    AC-NEG1-new-beside-enrolled / draining-decreases 各態，並斷言 gate 讀 registry、委派既有 validator、
+    無第二套 classifier、不以 `/archive/` namespace 分類。
+- be2de7a: DP-421 T2：verification_strategy 全 corpus backfill —— T1 conformance 機制的第一個 migration application。
+  新增 `scripts/backfill-refinement-verification-strategy.sh`，鏡射既有
+  `scripts/backfill-refinement-predecessor-audit.sh` pattern（bash CLI wrapper + 內嵌 python
+  classifier，report / apply / check 三 mode），枚舉所有缺 `verification_strategy` 的
+  `refinement.json`（active + archive），deterministic inference 補齊：
+  - tasks[] 含 V 驗收任務（kind ∈ {verification, V} 或 id 前綴 V）→ `source_level_v_required`。
+  - tasks[] 無 V → `per_task_self_verify`。
+  - 只寫入單一 `verification_strategy` 欄位（其他欄位 byte-identical，AC-NEG2），附 provenance
+    （`authority` + `backfilled_by=DP-421`）。
+    關鍵設計：backfill **復用 canonical delegate**（`scripts/validate-verification-strategy.sh`，即
+    T1 conformance gate 委派的同一 shape validator）逐筆驗證每個推斷的 strategy 才寫入——只寫
+    delegate 接受的推斷，delegate 拒絕者標 `needs_review` 並跳過。因此寫出的 artifact by
+    construction 通過 T1 conformance gate，不新增第二套 classifier（對齊
+    `canonical-contract-governance.md` § No special writer paths / Canonical shape first）。
+    附 `scripts/selftests/backfill-refinement-verification-strategy-selftest.sh` 覆蓋三型 AC2
+    fixture（kind=verification / kind=V / 空 tasks[]）各推斷正確 mode、single-key addition
+    byte-equality、provenance、needs_review 留白不寫、check mode exit code，以及 backfill 後 T1
+    conformance gate 對 conformable corpus 回報零 remaining。
+    Migration application：對真實 corpus（340 個 refinement.json）apply，drain 307 個至
+    delegate-valid 合規。剩餘 16 個（5 個 active exampleco 產品 Epic + 11 個 archive DP）的 T 任務
+    早於 DP-364 的 per-task `verify_command` 需求（僅帶 `verification.{method, detail}`），且無 V
+    任務，`per_task_self_verify` 無法通過 delegate、其他 mode 亦不適用——backfill 正確地將其標為
+    `needs_review` 而非寫入 delegate-invalid strategy。此殘留為 AC2「零 remaining」與 delegate
+    `per_task_self_verify` shape 需求之間的 spec↔check 契約矛盾，已回報 refinement amendment，不在
+    交付物層強行補寫。
+- d147fa9: DP-421 T3：把 workspace language enforcement 下移到 changeset authoring 點，release surface 改為 CHANGELOG parity。
+  `scripts/gates/gate-changeset.sh` 對 task delta 內的 changeset body 以 workspace-config.yaml
+  `language` 契約做 fail-closed 檢查（最早 authoring 點）：非目標語言的 changeset body 在
+  changeset-gate 就被擋（`POLARIS_CHANGESET_LANGUAGE_POLICY`），不再拖到 release surface 才發現
+  （DP-417 情境）。language 解析走「從被 gate 的 repo 往上找最高一層 workspace-config.yaml」，
+  獨立 repo（如無 language 契約的 hermetic fixture）解析為空即豁免；technical identifier（script
+  名、DP key、command、path、error token）沿用（reuse、不改）`scripts/validate-language-policy.sh`
+  既有 carve-out，不新增第二套 carve-out。
+  `scripts/sync-to-polaris.sh` 的 GitHub release notes 是 CHANGELOG.md 的 derived view，依
+  `canonical-contract-governance.md` § Derived Artifact Read Boundary，release surface 從對
+  derived view 獨立的 `--blocking` language gate 改為對 authoritative source（CHANGELOG 版本 section）
+  的 source-conformance / parity 檢查（`--check-release-notes-parity` probe）：CHANGELOG source
+  已受 authoring gate，機械衍生的 release notes by construction conformant；tampered non-conformant
+  CHANGELOG section 仍被 parity 擋。此舉消除 changeset↔release 的 spec↔check 矛盾。
+  附 `scripts/selftests/gate-changeset-selftest.sh`（英文 changeset body → exit 2；zh-TW + 英文
+  identifier → PASS；純英文散文 → exit 2）與 `scripts/selftests/sync-to-polaris-selftest.sh`
+  （conformant zh-TW section → parity PASS；tampered English section → parity FAIL；版本缺席 →
+  trivially PASS）。
+
 ## [3.76.86] - 2026-07-14
 
 ### Changed
@@ -65,8 +141,8 @@
   report write → archive → report validation）與 active/archive gate applicability matrix。
   新增 `scripts/selftests/report-archive-validation-order-selftest.sh`，以既有 real scripts
   （`validate-auto-pass-report.sh` report-validation gate + `mark-spec-implemented.sh
-  的正確 gate 行為（AC5）、order 違反 / archive 狀態誤判時 fail-closed（AC-NEG2）、以及非
-  complete terminal 與 genuinely-active source 不誤觸發（AC-N1）。`auto-pass-execution-flow.md`
+的正確 gate 行為（AC5）、order 違反 / archive 狀態誤判時 fail-closed（AC-NEG2）、以及非
+complete terminal 與 genuinely-active source 不誤觸發（AC-N1）。`auto-pass-execution-flow.md`
   § Terminal Complete Sequence 補上明確的 report/archive gate applicability matrix。
 - 0edbcd9: DP-417 T6：review-driven revision / head rebind 後閉合 PR-visible evidence 發佈 ownership。
   `validate-auto-pass-report.sh` 在既有 `required_prs[]` 迴圈補上 head-rebind evidence

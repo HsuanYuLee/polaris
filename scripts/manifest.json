@@ -270,6 +270,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/backfill-refinement-verification-strategy.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/backfill-refinement-verification-strategy-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/breakdown-emit-task-snapshot.sh",
       "kind": "writer",
       "runner": "bash",
@@ -5128,6 +5137,15 @@
       "runner": "bash",
       "owner_surface": "sub_agent_completion_contract",
       "selftest": "scripts/selftests/validate-completion-envelope-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-artifact-contract-conformance.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/validate-artifact-contract-conformance-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },

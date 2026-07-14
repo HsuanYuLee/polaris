@@ -16,6 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_SCRIPTS="${SCRIPT_DIR}/.."
 RESOLVE_BY_BRANCH="${WORKSPACE_SCRIPTS}/resolve-task-md-by-branch.sh"
 POLARIS_CHANGESET="${WORKSPACE_SCRIPTS}/polaris-changeset.sh"
+LANG_POLICY="${WORKSPACE_SCRIPTS}/validate-language-policy.sh"
 
 REPO_ROOT=""
 TASK_MD=""
@@ -135,6 +136,78 @@ changeset_only_task_delta() {
   [[ -z "$non_changeset" ]]
 }
 
+# gate_changeset_body_language: DP-421 T3 — enforce the changeset BODY against the
+# workspace-config.yaml language contract at the EARLIEST authoring point
+# (changeset-gate time), so a non-target-language changeset fails HERE instead of
+# being deferred to the release surface (the DP-417 scenario). Reuses the shared
+# scripts/validate-language-policy.sh carve-out for technical identifiers (script
+# names, DP keys, commands, paths, error tokens stay in their original form) — no
+# second carve-out is defined. Gates every .changeset/*.md added in the task delta
+# (README.md excluded). Returns 2 on a language violation, 0 otherwise; the
+# language gate is additive and no-ops when the validator is absent.
+# resolve_workspace_language: read the declared workspace-config.yaml `language`
+# that governs the repo under gate by scanning UPWARD from REPO_ROOT and taking the
+# highest (topmost) workspace-config.yaml in that ancestry. Echoes the language (or
+# nothing when none is declared). Deliberately does NOT use the shared resolver's
+# main-checkout fallback: the changeset body gate must resolve the OWN contract of
+# the gated repo, so an independent repo (e.g. a hermetic fixture with no
+# workspace-config.yaml) resolves to empty and is exempt — the outer Polaris
+# workspace language must not leak into it. Worktrees live under the workspace root,
+# so the plain upward scan still reaches the workspace-config.yaml that governs them.
+resolve_workspace_language() {
+  local dir highest="" cfg
+  dir="$REPO_ROOT"
+  while [[ -n "$dir" && "$dir" != "/" ]]; do
+    [[ -f "$dir/workspace-config.yaml" ]] && highest="$dir"
+    dir="$(dirname "$dir")"
+  done
+  [[ -n "$highest" ]] || return 0
+  cfg="$highest/workspace-config.yaml"
+  awk -F ':' '
+    /^[[:space:]]*language[[:space:]]*:/ {
+      v=$2; sub(/#.*/, "", v)
+      gsub(/^[[:space:]"'\''"]+|[[:space:]"'\''"]+$/, "", v)
+      if (v != "") { print v; exit }
+    }
+  ' "$cfg"
+}
+
+gate_changeset_body_language() {
+  local task_md="$1"
+  local base_ref merge_base changed cs_file rc=0 language
+  [[ -x "$LANG_POLICY" ]] || return 0
+  language="$(resolve_workspace_language)"
+  # No declared workspace language contract -> nothing to enforce.
+  [[ -n "$language" ]] || return 0
+  base_ref="$(task_base_ref "$task_md")"
+  merge_base="$(git -C "$REPO_ROOT" merge-base "$base_ref" HEAD 2>/dev/null || true)"
+  [[ -n "$merge_base" ]] || return 0
+  changed="$(git -C "$REPO_ROOT" diff --name-only --diff-filter=d "${merge_base}..HEAD" -- 2>/dev/null \
+    | grep -E '^\.changeset/[^/]+\.md$' || true)"
+  [[ -n "$changed" ]] || return 0
+  while IFS= read -r cs_file; do
+    [[ -n "$cs_file" ]] || continue
+    [[ "$(basename "$cs_file")" == "README.md" ]] && continue
+    [[ -f "$REPO_ROOT/$cs_file" ]] || continue
+    if ! bash "$LANG_POLICY" --blocking --mode artifact --language "$language" \
+        "$REPO_ROOT/$cs_file" >/dev/null 2>&1; then
+      cat >&2 <<EOF
+$PREFIX BLOCKED: changeset body violates workspace language policy.
+  Marker:    POLARIS_CHANGESET_LANGUAGE_POLICY
+  Repo:      $REPO_ROOT
+  Changeset: $cs_file
+
+Fix:
+  Rewrite the changeset description in the workspace language. Technical
+  identifiers — script names, DP keys, commands, paths, error tokens — may stay
+  in their original form (reuses validate-language-policy carve-out).
+EOF
+      rc=2
+    fi
+  done <<<"$changed"
+  return "$rc"
+}
+
 # DP-319: this exemption runs BEFORE the changeset check and the
 # evidence-classifier so an impl-bearing (behavioral) bundle delta is not
 # misclassified and blocked (EC2 / AC1). It does not relax any other gate.
@@ -155,6 +228,9 @@ Fix:
   Route back to planning/refinement and disposition this task as absorbed/backfilled,
   or restore the task-owned implementation delta before opening an implementation PR.
 EOF
+    exit 2
+  fi
+  if ! gate_changeset_body_language "$TASK_MD"; then
     exit 2
   fi
   echo "$PREFIX ✅ changeset present for $(basename "$TASK_MD")." >&2

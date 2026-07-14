@@ -97,16 +97,74 @@ release_notes_fallback() {
   fi
 }
 
+# gate_release_notes: DP-421 T3 — the GitHub release notes are a DERIVED VIEW of
+# CHANGELOG.md. Per canonical-contract-governance § Derived Artifact Read
+# Boundary, the business language gate must read the AUTHORITATIVE source (the
+# CHANGELOG version section), NOT the mechanically-derived release-notes view. The
+# changeset body was already gated at authoring time
+# (scripts/gates/gate-changeset.sh); CHANGELOG is assembled from those changesets.
+# This source-conformance / parity check verifies the CHANGELOG section conforms to
+# the workspace authoring gate — if it passes, the derived release notes pass by
+# construction; a tampered / non-conformant CHANGELOG section is still caught here.
+# The prior independent --blocking language gate on the derived notes file is
+# removed (it duplicated a check the gated source already guarantees).
 gate_release_notes() {
-  local notes_file="$1"
-  local language=""
-  language="$(read_workspace_language "$INSTANCE_DIR")"
-  local gate_args=(--surface release --body-file "$notes_file" --blocking)
+  local version="$1"
+  local changelog="${2:-$INSTANCE_DIR/CHANGELOG.md}"
+  local language="${3:-}"
+  local section_file rc
+  [[ -f "$changelog" ]] || return 0
+  [[ -n "$language" ]] || language="$(read_workspace_language "$INSTANCE_DIR")"
+  section_file="$(mktemp -t sync-to-polaris-changelog-section.XXXXXX.md)"
+  awk -v ver="$version" '
+    $0 ~ "^## \\[" ver "\\]" { found=1; next }
+    found && /^## \[/ { exit }
+    found { print }
+  ' "$changelog" >"$section_file"
+  # Empty section — this version has no CHANGELOG entry, so the release notes fall
+  # back to a producer-generated default already in the workspace language.
+  # Nothing is derived from CHANGELOG here, so parity holds trivially.
+  if [[ ! -s "$section_file" ]]; then
+    rm -f "$section_file"
+    return 0
+  fi
+  local gate_args=(--blocking --mode artifact)
   [[ -n "$language" ]] && gate_args+=(--language "$language")
-  POLARIS_EXTERNAL_WRITE_WRITER=framework-release:pr-body \
-    bash "$SCRIPT_DIR/polaris-external-write-gate.sh" \
-      "${gate_args[@]}" >/dev/null
+  if bash "$SCRIPT_DIR/validate-language-policy.sh" "${gate_args[@]}" "$section_file" >/dev/null 2>&1; then
+    rc=0
+  else
+    rc=$?
+  fi
+  rm -f "$section_file"
+  return "$rc"
 }
+
+# DP-421 T3: hermetic parity probe. Runs ONLY the CHANGELOG source-conformance /
+# parity check used by the release tail, so the contract is deterministically
+# testable without git/gh side effects. Handled before the main arg parser and the
+# POLARIS_DIR resolution so no template checkout is required.
+if [[ "${1:-}" == "--check-release-notes-parity" ]]; then
+  shift
+  probe_version=""
+  probe_changelog=""
+  probe_language=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --version) probe_version="${2:-}"; shift 2 ;;
+      --changelog) probe_changelog="${2:-}"; shift 2 ;;
+      --language) probe_language="${2:-}"; shift 2 ;;
+      *) echo "sync-to-polaris: unknown --check-release-notes-parity arg: $1" >&2; exit 2 ;;
+    esac
+  done
+  [[ -n "$probe_version" ]] || { echo "sync-to-polaris: --check-release-notes-parity requires --version" >&2; exit 2; }
+  if gate_release_notes "$probe_version" "${probe_changelog:-$INSTANCE_DIR/CHANGELOG.md}" "$probe_language"; then
+    echo "sync-to-polaris: release-notes source parity PASS for $probe_version" >&2
+    exit 0
+  else
+    echo "sync-to-polaris: release-notes source parity FAIL for $probe_version" >&2
+    exit 1
+  fi
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -860,7 +918,10 @@ if [[ "$AUTO_PUSH" == true ]]; then
       [[ -z "$RELEASE_NOTES" ]] && RELEASE_NOTES="$(release_notes_fallback "$TAG_NAME")"
       RELEASE_NOTES_FILE="$(mktemp -t sync-to-polaris-release-notes.XXXXXX.md)"
       printf '%s\n' "$RELEASE_NOTES" >"$RELEASE_NOTES_FILE"
-      gate_release_notes "$RELEASE_NOTES_FILE"
+      # DP-421 T3: gate the AUTHORITATIVE CHANGELOG source section, not the derived
+      # RELEASE_NOTES_FILE. If the source conforms, the mechanically-derived notes
+      # conform by construction (Derived Artifact Read Boundary).
+      gate_release_notes "$VERSION"
 
       gh release create "$TAG_NAME" \
         --repo "$REPO_SLUG" \
