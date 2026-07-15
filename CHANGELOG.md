@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.76.88] - 2026-07-15
+
+### Changed
+
+- d314e29: DP-419 T1：新增自指 DP 交付 canonical reference `self-referential-dp-delivery.md`（觸發條件 / 自驗步驟 / 繞過邊界 / 與 auto-pass 對等的 evidence checklist），並在 mechanism-registry 登記 `self-referential-dp-delivery` canary 與 carve-out selftest。此為 D2 有界 bootstrap 過渡的文件層，純文件不改任何阻擋型 gate。
+- 48ea759: DP-419 T2：新增 D1 deterministic 自指判定 classifier `scripts/detect-self-referential-delivery.sh`，以 delivery-gate script set（manifest kind=gate/hook 腳本 + 三個 delivery lane 進入點 + 其 source 的 `scripts/lib/*.sh`，D4 單一來源）與 DP 的 Allowed Files 取交集，輸出 `{self_referential, matched}`，非 delivery-gate 改動不誤判為自指（AC-NEG3）；缺輸入 fail-closed。
+- 1746cfe: DP-419 T3：把 D1 自指判定 classifier `scripts/detect-self-referential-delivery.sh` 接進 `.claude/hooks/pre-push-quality-gate.sh` 與 `scripts/check-framework-pr-gate.sh` 兩個 delivery gate，自指改動（Allowed Files 與 delivery-gate script set 相交）以**當下** full governed selftest corpus 綠燈作為放行的 trust 錨（比正在被修的舊版單一 sub-gate 更難偽造），缺輸入 / classifier 無法判定 / corpus 非綠一律 fail-closed（AC-NF1），非自指走原本正常路徑（AC-NEG3），不新增任何 `POLARIS_*_BYPASS`（AC-NEG1）。
+- 796bc48: DP-419 T4：framework-release-pr-lane 新增 promotion-後 tail 自指窗口 guard。自指 release（planned-task Allowed Files 與 delivery-gate script set 相交）promotion 前要求 governed selftest corpus 綠燈為前提，corpus 非綠時 fail-closed，避免 promotion 後 tail 跑到剛 merge 的新版 gate/lane 而炸 closeout。
+- 0919d0e: DP-419 T5：補上自指 DP 手動交付（D2）evidence parity selftest，機械斷言手動交付路徑產出的 completion / Layer B verify / pr_freshness / ci_local / delivery-head / closeout evidence marker 集合與 auto-pass 交付對等（DP-417 手動交付 evidence 全缺為反例），並固守 DP-360「交付 head 以 `deliverable.head_sha` 為唯一權威、不回退 branch ref」契約。
+
 ## [3.76.87] - 2026-07-14
 
 ### Changed

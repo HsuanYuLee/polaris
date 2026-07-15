@@ -76,6 +76,80 @@ STAGES
   exit 0
 fi
 
+# DP-419 T3 (AC-NF1 / AC-NEG1 / AC-NEG2 / AC-NEG3): self-referential delivery self-verify.
+# Shared contract — inlined identically in scripts/check-framework-pr-gate.sh and
+# .claude/hooks/pre-push-quality-gate.sh (small duplication is intentional; canonical
+# contract in .claude/skills/references/self-referential-dp-delivery.md). Given a change's
+# changed files, if the change is self-referential (its files intersect the delivery-gate
+# script set, per the T2 classifier detect-self-referential-delivery.sh), the trust anchor
+# is the CURRENT full governed selftest corpus (run-aggregate-selftests.sh) going green — a
+# superset that is harder to forge than the single old sub-gate being fixed. Return codes:
+#   0  = self-referential AND current corpus green            -> caller may proceed
+#   1  = self-referential CONFIRMED but corpus red/unavailable -> fail-closed (block)
+#   10 = carve-out not applicable — either not self-referential, OR the self-ref scope is
+#        undeterminable (missing input / classifier absent / classifier undecidable) ->
+#        caller falls through to the normal (stricter) gate chain. Rationale: a CONFIRMED
+#        self-ref change without a green corpus is dangerous and MUST block (AC-NF1/NEG2);
+#        but "cannot determine self-ref scope" means the carve-out does not apply (old tree
+#        / non-framework repo / fixture without the classifier), so defer to the normal
+#        gate chain rather than hard-block EVERY push. Aligns with the file's existing `-x`
+#        graceful-degradation convention.
+# POLARIS_DETECT_SELFREF_BIN / POLARIS_AGGREGATE_SELFTESTS_BIN are *_BIN test-injection
+# seams (NOT *_BYPASS): they only relocate the two external commands for hermetic
+# selftests; the normal gate path leaves them at their canonical repo paths and never
+# silences a gate.
+selfref_self_verify() {
+  local repo_root="$1"; shift
+  local -a changed=("$@")
+  # (1) missing input -> self-ref scope undeterminable -> carve-out N/A (return 10, fall
+  #     through to the normal gate chain), NOT a hard block. Hard-blocking here would
+  #     wrongly block every push whose changed set is underivable.
+  [[ "${#changed[@]}" -gt 0 ]] || return 10
+  local classifier="${POLARIS_DETECT_SELFREF_BIN:-$repo_root/scripts/detect-self-referential-delivery.sh}"
+  local corpus="${POLARIS_AGGREGATE_SELFTESTS_BIN:-$repo_root/scripts/run-aggregate-selftests.sh}"
+  local out
+  # (2) run the classifier; if it cannot run/decide (absent binary, exit != 0) the self-ref
+  #     scope is undeterminable -> carve-out N/A (return 10), NOT a hard block (old tree /
+  #     non-framework repo / fixture without the classifier defers to the normal chain).
+  out="$(printf '%s\n' "${changed[@]}" | bash "$classifier" --stdin --repo-root "$repo_root" 2>/dev/null)" || return 10
+  # (3) not self-referential -> carve-out N/A; caller uses the normal path.
+  if ! printf '%s' "$out" | grep -Eq '"self_referential"[[:space:]]*:[[:space:]]*true'; then
+    return 10
+  fi
+  # (4) self-referential CONFIRMED -> the CURRENT corpus (fresh self-check, not a stale
+  #     snapshot marker) must be green. Green -> proceed (0); red / unavailable -> this is
+  #     the ONLY hard-block (fail-closed, AC-NF1 / AC-NEG2).
+  bash "$corpus" >/dev/null 2>&1 || return 1
+  return 0
+}
+
+# Hidden test seam: `--selfref-self-verify --changed-file <p> [...] [--repo-root <dir>]`.
+# Runs ONLY the decision function above and maps its return to the exit code the selftest
+# asserts (0 proceed / 1 fail-closed / 10 non-self-referential). Coexists with the
+# --list-stages / --list-stage-owners introspection above; the normal aggregate gate path
+# (no subcommand) is unchanged.
+if [[ "${1:-}" == "--selfref-self-verify" ]]; then
+  shift
+  _selfref_repo="$(pwd)"
+  _selfref_cf=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --changed-file)
+        [[ $# -ge 2 ]] || { echo "POLARIS_SELF_REFERENTIAL_BAD_ARGS: --changed-file requires a value" >&2; exit 1; }
+        _selfref_cf+=("$2"); shift 2 ;;
+      --repo-root)
+        [[ $# -ge 2 ]] || { echo "POLARIS_SELF_REFERENTIAL_BAD_ARGS: --repo-root requires a value" >&2; exit 1; }
+        _selfref_repo="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  set +e
+  selfref_self_verify "$_selfref_repo" "${_selfref_cf[@]+"${_selfref_cf[@]}"}"
+  _selfref_rc=$?
+  set -e
+  exit "$_selfref_rc"
+fi
+
 VALIDATE_RUNTIME="${POLARIS_VALIDATE_RUNTIME_BIN:-scripts/validate-mechanism-runtime-annotations.sh}"
 AUDIT_GRADUATION="${POLARIS_AUDIT_GRADUATION_BIN:-scripts/audit-mechanism-graduation.sh}"
 LINT_REFERENCE_LINE_COUNT="${POLARIS_LINT_REFERENCE_LINE_COUNT_BIN:-scripts/lint-reference-line-count.sh}"
@@ -127,6 +201,30 @@ run_gate() {
     return 1
   fi
 }
+
+# DP-419 T3 (AC-NF1 / AC-NEG3): early self-referential detection stage — runs BEFORE the
+# W1..W18 chain and neither removes nor reorders any of it. This gate is executed at
+# PR-gate time from the worktree (the new version) and W14 below already runs the full
+# governed corpus, so for a self-referential change the corpus anchor is enforced by W14:
+# here we only detect + record it. When this PR's changed set is derivable (a real base is
+# supplied via POLARIS_FRAMEWORK_PR_BASE, same convention as W8) we run the T2 classifier;
+# a self-referential change is recorded (corpus anchor met by W14), a classifier that
+# cannot decide fails closed, and a non-self-referential change proceeds normally. An
+# underivable base skips this advisory stage — W14 remains the real corpus backstop.
+if [[ -n "${POLARIS_FRAMEWORK_PR_BASE:-}" && "${POLARIS_FRAMEWORK_PR_BASE}" != "HEAD" ]]; then
+  _selfref_changed="$(git diff --name-only "${POLARIS_FRAMEWORK_PR_BASE}...HEAD" 2>/dev/null || true)"
+  if [[ -n "$_selfref_changed" ]]; then
+    _selfref_classifier="${POLARIS_DETECT_SELFREF_BIN:-$(pwd)/scripts/detect-self-referential-delivery.sh}"
+    if _selfref_out="$(printf '%s\n' "$_selfref_changed" | bash "$_selfref_classifier" --stdin --repo-root "$(pwd)" 2>/dev/null)"; then
+      if printf '%s' "$_selfref_out" | grep -Eq '"self_referential"[[:space:]]*:[[:space:]]*true'; then
+        echo "framework-pr-gate: self-referential delivery change detected — corpus anchor enforced by W14 full-corpus run below" >&2
+      fi
+    else
+      echo "framework-pr-gate failed: self-referential classifier undecidable (fail-closed)" >&2
+      exit 1
+    fi
+  fi
+fi
 
 run_gate "W1 runtime annotations" "$VALIDATE_RUNTIME"
 run_gate "W2 graduation audit" "$AUDIT_GRADUATION"

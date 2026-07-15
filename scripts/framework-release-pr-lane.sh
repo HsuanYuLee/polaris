@@ -159,6 +159,41 @@ release_lane_build_stack_task_mds() {
     || die "release preflight blocked: no implementation task PRs supplied after V evidence filtering; V-only verification evidence is closed by framework-release closeout, not the PR lane"
 }
 
+# Purpose: DP-419 T4 (D5) framework-release promotion-後 tail self-referential-window guard.
+#   When THIS release stack is self-referential (its planned-task Allowed Files intersect the
+#   delivery-gate script set, which includes framework-release-pr-lane.sh itself), the promotion
+#   tail would run the just-merged NEW gate/lane version; a bug there blows up closeout. So a
+#   self-referential release requires the full governed selftest corpus to be green BEFORE
+#   promotion. Non-green corpus is the ONLY hard-block (fail-closed). Mirrors T3 selfref_self_verify.
+# Args: $1 = repo_root ; $2.. = Allowed Files paths (aggregated across the release stack)
+# Returns: 0 = proceed (not self-ref, OR self-ref + corpus green) ; 10 = carve-out N/A
+#   (undeterminable scope: no files / classifier absent / classifier can't decide) ;
+#   1 = self-ref CONFIRMED but corpus red/unavailable (hard-block)
+# POLARIS_DETECT_SELFREF_BIN / POLARIS_AGGREGATE_SELFTESTS_BIN are *_BIN test-injection seams
+# (NOT *_BYPASS): they only relocate the two external commands for hermetic selftests; the normal
+# tail path leaves them at their canonical repo paths and never silences the corpus requirement.
+release_lane_selfref_tail_guard() {
+  local repo_root="$1"; shift
+  local -a allowed=("$@")
+  # (1) missing input -> self-ref scope undeterminable -> carve-out N/A (proceed to the normal
+  #     lane), NOT a hard block: an underivable Allowed Files set must not block every release.
+  [[ "${#allowed[@]}" -gt 0 ]] || return 10
+  local classifier="${POLARIS_DETECT_SELFREF_BIN:-$repo_root/scripts/detect-self-referential-delivery.sh}"
+  local corpus="${POLARIS_AGGREGATE_SELFTESTS_BIN:-$repo_root/scripts/run-aggregate-selftests.sh}"
+  local out
+  # (2) run the classifier; if it cannot run/decide (absent binary, exit != 0) the self-ref scope
+  #     is undeterminable -> carve-out N/A (return 10), NOT a hard block.
+  out="$(printf '%s\n' "${allowed[@]}" | bash "$classifier" --stdin --repo-root "$repo_root" 2>/dev/null)" || return 10
+  # (3) not self-referential -> carve-out N/A; caller proceeds to the normal lane.
+  if ! printf '%s' "$out" | grep -Eq '"self_referential"[[:space:]]*:[[:space:]]*true'; then
+    return 10
+  fi
+  # (4) self-referential CONFIRMED -> the CURRENT full governed selftest corpus must be green.
+  #     Green -> proceed (0); red / unavailable -> this is the ONLY hard-block (fail-closed).
+  bash "$corpus" >/dev/null 2>&1 || return 1
+  return 0
+}
+
 
 # Source-guard the CLI exec flow so test harnesses (e.g. the corpus-count
 # robustness selftest) can `source` this script to call individual helpers like
@@ -166,6 +201,31 @@ release_lane_build_stack_task_mds() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --selfref-tail-guard)
+        # Hidden test seam (mirrors T3 check-framework-pr-gate.sh --selfref-self-verify): runs ONLY
+        # release_lane_selfref_tail_guard and maps its return to the exit code the selftest asserts
+        # (0 proceed / 1 fail-closed / 10 carve-out N/A). Short-circuits the rest of arg parsing so
+        # the guard is unit-testable without building a whole release stack.
+        shift
+        _stg_repo="$REPO_PATH"
+        _stg_af=()
+        while [[ $# -gt 0 ]]; do
+          case "$1" in
+            --allowed-file)
+              [[ $# -ge 2 ]] || die "POLARIS_SELF_REFERENTIAL_BAD_ARGS: --allowed-file requires a value"
+              _stg_af+=("$2"); shift 2 ;;
+            --repo-root)
+              [[ $# -ge 2 ]] || die "POLARIS_SELF_REFERENTIAL_BAD_ARGS: --repo-root requires a value"
+              _stg_repo="$2"; shift 2 ;;
+            *) shift ;;
+          esac
+        done
+        set +e
+        release_lane_selfref_tail_guard "$_stg_repo" "${_stg_af[@]+"${_stg_af[@]}"}"
+        _stg_rc=$?
+        set -e
+        exit "$_stg_rc"
+        ;;
       --repo) REPO_PATH="$2"; shift 2 ;;
       --repo=*) REPO_PATH="${1#--repo=}"; shift ;;
       --workspace-repo) WORKSPACE_REPO="$2"; shift 2 ;;
@@ -229,6 +289,24 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     [[ -n "$TASK_HEAD_SHA_MAP" ]] && DEC_ARGS+=(--task-head-sha "$TASK_HEAD_SHA_MAP")
     bash "$DELIVERY_EVIDENCE_GATE" --mode pre-release "${DEC_ARGS[@]}" \
       || die "release preflight blocked: delivery-evidence conformance gate failed (see POLARIS_DELIVERY_EVIDENCE_NON_CONFORMANT above; each required task needs a resolvable delivered head via --task-head-sha override or task.md deliverable.head_sha)"
+  fi
+
+  # DP-419 T4 (D5): framework-release promotion-後 tail self-referential-window guard. When THIS
+  # release stack is self-referential (its planned-task Allowed Files intersect the delivery-gate
+  # script set, which includes framework-release-pr-lane.sh itself), the promotion tail runs the
+  # just-merged NEW gate/lane version; a bug there blows up closeout. So a self-referential release
+  # requires the full governed selftest corpus to be green BEFORE promotion. Canonical contract:
+  # .claude/skills/references/self-referential-dp-delivery.md.
+  _selfref_allowed=()
+  for _sr_task in "${STACK_TASK_MDS[@]}"; do
+    while IFS= read -r _sr_af; do
+      [[ -n "$_sr_af" ]] && _selfref_allowed+=("$_sr_af")
+    done < <(bash "$SCRIPT_DIR/parse-task-md.sh" "$_sr_task" --field allowed_files 2>/dev/null || true)
+  done
+  _selfref_rc=0
+  release_lane_selfref_tail_guard "$REPO_PATH" "${_selfref_allowed[@]+"${_selfref_allowed[@]}"}" || _selfref_rc=$?
+  if [[ "$_selfref_rc" -eq 1 ]]; then
+    die "release preflight blocked: self-referential release requires a green governed selftest corpus before the promotion tail (run: bash scripts/run-aggregate-selftests.sh); corpus is red/unavailable at HEAD"
   fi
 
   validate_structured_pr_topology

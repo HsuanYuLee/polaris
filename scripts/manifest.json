@@ -947,6 +947,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/detect-self-referential-delivery.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/selftests/detect-self-referential-delivery-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/detect-stacked-delivery-lane.mjs",
       "kind": "gate",
       "runner": "node",
@@ -3083,6 +3092,17 @@
       "lifecycle": "hot_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/detect-self-referential-delivery-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script",
+      "posture_decision": "DP-419 T2 selftest for the D1 self-referential-DP-delivery classifier."
     },
     {
       "path": "scripts/selftests/detect-stacked-delivery-lane-selftest.mjs",

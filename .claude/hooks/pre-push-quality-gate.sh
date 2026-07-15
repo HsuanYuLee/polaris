@@ -12,6 +12,79 @@ ROOT_DIR="$(cd "$HOOK_DIR/../.." && pwd)"
 GATES_DIR="$ROOT_DIR/scripts/gates"
 SPECS_COLLECTION_VALIDATOR="$ROOT_DIR/scripts/validate-specs-collection-shape.sh"
 
+# DP-419 T3 (AC-NF1 / AC-NEG1 / AC-NEG2 / AC-NEG3): self-referential delivery self-verify.
+# Shared contract — inlined identically in .claude/hooks/pre-push-quality-gate.sh and
+# scripts/check-framework-pr-gate.sh (small duplication is intentional; canonical contract
+# in .claude/skills/references/self-referential-dp-delivery.md). Given this push's changed
+# files, if the change is self-referential (its files intersect the delivery-gate script
+# set, per the T2 classifier detect-self-referential-delivery.sh), the trust anchor is the
+# CURRENT full governed selftest corpus (run-aggregate-selftests.sh) going green — a
+# superset that is harder to forge than the single old sub-gate being fixed. Return codes:
+#   0  = self-referential AND current corpus green            -> caller may proceed
+#   1  = self-referential CONFIRMED but corpus red/unavailable -> fail-closed (block)
+#   10 = carve-out not applicable — either not self-referential, OR the self-ref scope is
+#        undeterminable (missing input / classifier absent / classifier undecidable) ->
+#        caller falls through to the normal (stricter) gate chain. Rationale: a CONFIRMED
+#        self-ref change without a green corpus is dangerous and MUST block (AC-NF1/NEG2);
+#        but "cannot determine self-ref scope" means the carve-out does not apply (old tree
+#        / non-framework repo / fixture without the classifier), so defer to the normal
+#        gate chain rather than hard-block EVERY push. Aligns with this file's existing `-x`
+#        graceful-degradation convention.
+# POLARIS_DETECT_SELFREF_BIN / POLARIS_AGGREGATE_SELFTESTS_BIN are *_BIN test-injection
+# seams (NOT *_BYPASS): they only relocate the two external commands for hermetic
+# selftests; the normal hook path leaves them at their canonical repo paths and never
+# silences a gate.
+selfref_self_verify() {
+  local repo_root="$1"; shift
+  local -a changed=("$@")
+  # (1) missing input -> self-ref scope undeterminable -> carve-out N/A (return 10, fall
+  #     through to the normal gate chain), NOT a hard block. Hard-blocking here would
+  #     wrongly block every push whose changed set is underivable.
+  [[ "${#changed[@]}" -gt 0 ]] || return 10
+  local classifier="${POLARIS_DETECT_SELFREF_BIN:-$repo_root/scripts/detect-self-referential-delivery.sh}"
+  local corpus="${POLARIS_AGGREGATE_SELFTESTS_BIN:-$repo_root/scripts/run-aggregate-selftests.sh}"
+  local out
+  # (2) run the classifier; if it cannot run/decide (absent binary, exit != 0) the self-ref
+  #     scope is undeterminable -> carve-out N/A (return 10), NOT a hard block (old tree /
+  #     non-framework repo / fixture without the classifier defers to the normal chain).
+  out="$(printf '%s\n' "${changed[@]}" | bash "$classifier" --stdin --repo-root "$repo_root" 2>/dev/null)" || return 10
+  # (3) not self-referential -> carve-out N/A; caller uses the normal path.
+  if ! printf '%s' "$out" | grep -Eq '"self_referential"[[:space:]]*:[[:space:]]*true'; then
+    return 10
+  fi
+  # (4) self-referential CONFIRMED -> the CURRENT corpus (fresh self-check, not a stale
+  #     snapshot marker) must be green. Green -> proceed (0); red / unavailable -> this is
+  #     the ONLY hard-block (fail-closed, AC-NF1 / AC-NEG2).
+  bash "$corpus" >/dev/null 2>&1 || return 1
+  return 0
+}
+
+# Hidden test seam: `--selfref-self-verify --changed-file <p> [...] [--repo-root <dir>]`.
+# Runs ONLY the decision function above and maps its return to the exit code the selftest
+# asserts (0 proceed / 1 fail-closed / 10 non-self-referential). The normal hook path
+# (no subcommand) is unchanged.
+if [[ "${1:-}" == "--selfref-self-verify" ]]; then
+  shift
+  _selfref_repo="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+  _selfref_cf=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --changed-file)
+        [[ $# -ge 2 ]] || { echo "POLARIS_SELF_REFERENTIAL_BAD_ARGS: --changed-file requires a value" >&2; exit 1; }
+        _selfref_cf+=("$2"); shift 2 ;;
+      --repo-root)
+        [[ $# -ge 2 ]] || { echo "POLARIS_SELF_REFERENTIAL_BAD_ARGS: --repo-root requires a value" >&2; exit 1; }
+        _selfref_repo="$2"; shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  set +e
+  selfref_self_verify "$_selfref_repo" "${_selfref_cf[@]+"${_selfref_cf[@]}"}"
+  _selfref_rc=$?
+  set -e
+  exit "$_selfref_rc"
+fi
+
 input="$(cat || true)"
 if [[ -z "$input" && -n "${CLAUDE_TOOL_INPUT:-}" ]]; then
   input="$CLAUDE_TOOL_INPUT"
@@ -87,6 +160,45 @@ branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 case "$branch" in
   ""|HEAD) exit 0 ;;
 esac
+
+# DP-419 T3 (AC-NF1 / AC-NEG2 / AC-NEG3): self-referential delivery routing. Placed AFTER
+# the branch-name gate and the runtime-instruction manifest freshness gate (both already
+# ran above) and BEFORE the delivery sub-gate chain below (gate-ci-local / gate-evidence /
+# gate-changeset / affected-selftest-closure). Derive this push's changed set, then:
+#   self-referential + CURRENT corpus green -> proceed (exit 0), skipping the delivery
+#     sub-gate chain that the OLD (being-fixed) version would false-block; this is a
+#     STRONGER anchor (corpus superset), not a silence — branch-name/manifest already ran.
+#   self-referential + corpus red / classifier undecidable / no changed files -> fail-closed.
+#   not self-referential -> fall through to the normal delivery sub-gate chain unchanged.
+selfref_changed=""
+if git -C "$repo_root" rev-parse --verify "origin/$branch" >/dev/null 2>&1; then
+  selfref_changed="$(git -C "$repo_root" diff --name-only "origin/$branch...HEAD" 2>/dev/null || true)"
+else
+  selfref_changed="$(git -C "$repo_root" diff --name-only 'HEAD~1..HEAD' 2>/dev/null || true)"
+fi
+if [[ -n "$selfref_changed" ]]; then
+  _selfref_inline_cf=()
+  while IFS= read -r _selfref_line; do
+    [[ -n "$_selfref_line" ]] && _selfref_inline_cf+=("$_selfref_line")
+  done <<<"$selfref_changed"
+  if [[ "${#_selfref_inline_cf[@]}" -gt 0 ]]; then
+    set +e
+    selfref_self_verify "$repo_root" "${_selfref_inline_cf[@]}"
+    _selfref_inline_rc=$?
+    set -e
+    case "$_selfref_inline_rc" in
+      0)
+        echo "pre-push: self-referential delivery change — current governed corpus green; proceeding (old delivery sub-gate chain skipped as false-block)" >&2
+        exit 0
+        ;;
+      10) : ;;  # not self-referential — continue to the normal delivery gate chain
+      *)
+        echo "pre-push blocked: self-referential self-verify failed closed (missing input / classifier undecidable / corpus red)" >&2
+        exit 1
+        ;;
+    esac
+  fi
+fi
 
 if [[ -x "$GATES_DIR/gate-ci-local.sh" ]]; then
   bash "$GATES_DIR/gate-ci-local.sh" --repo "$repo_root" --push-mode
