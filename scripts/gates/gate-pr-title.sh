@@ -238,6 +238,7 @@ fi
 # into the reviewer-visible PR title (AC-NEG5).
 ticket="$(bash "$PARSE_TASK" "$TASK_MD" --field delivery_ticket_key 2>/dev/null || true)"
 summary="$(bash "$PARSE_TASK" "$TASK_MD" --field summary 2>/dev/null || true)"
+source_type="$(bash "$PARSE_TASK" "$TASK_MD" --field source_type 2>/dev/null || true)"
 
 if [[ -z "$ticket" || -z "$summary" ]]; then
   echo "$PREFIX BLOCKED: could not derive ticket/summary from $TASK_MD" >&2
@@ -247,25 +248,40 @@ fi
 resolve_title_template() {
   local repo_root="$1"
   local ticket="$2"
+  local source_type="$3"
   local fallback="[{TICKET}] {summary}"
 
   TITLE_TEMPLATE_RESOLUTION_ERROR=""
   RESOLVED_TITLE_TEMPLATE="$fallback"
+
+  # Framework DP tasks are not company-owned delivery tickets.  Use the
+  # parser-owned source_type instead of guessing ownership from the key string:
+  # a product team may legitimately own the JIRA project key "DP".
+  if [[ "$source_type" == "dp" ]]; then
+    return 0
+  fi
 
   [[ -f "$ENV_LIB" ]] || return 0
   # shellcheck source=/dev/null
   source "$ENV_LIB"
 
   local cfg=""
+  # Framework DP identities returned above; matching product ticket keys belong
+  # to the company resolver.
   if [[ -n "$ticket" && "$ticket" =~ ^[A-Z][A-Z0-9_]+-[0-9]+$ && -x "$RESOLVE_COMPANY_CONTEXT" ]]; then
-    local resolver_status resolver_error
-    resolver_status="$("$RESOLVE_COMPANY_CONTEXT" --ticket "$ticket" --format field --field status 2>/dev/null || true)"
+    local resolver_status resolver_error resolver_root
+    local -a resolver_root_args=()
+    resolver_root="$(resolve_workspace_config_root "$repo_root" 2>/dev/null || true)"
+    if [[ -n "$resolver_root" ]]; then
+      resolver_root_args=(--workspace-root "$resolver_root")
+    fi
+    resolver_status="$("$RESOLVE_COMPANY_CONTEXT" "${resolver_root_args[@]}" --ticket "$ticket" --format field --field status 2>/dev/null || true)"
     if [[ "$resolver_status" == "error" ]]; then
-      resolver_error="$("$RESOLVE_COMPANY_CONTEXT" --ticket "$ticket" --format field --field error_code 2>/dev/null || true)"
+      resolver_error="$("$RESOLVE_COMPANY_CONTEXT" "${resolver_root_args[@]}" --ticket "$ticket" --format field --field error_code 2>/dev/null || true)"
       TITLE_TEMPLATE_RESOLUTION_ERROR="${resolver_error:-resolver_failed}"
       return 0
     fi
-    cfg="$("$RESOLVE_COMPANY_CONTEXT" --ticket "$ticket" --format field --field config_path 2>/dev/null || true)"
+    cfg="$("$RESOLVE_COMPANY_CONTEXT" "${resolver_root_args[@]}" --ticket "$ticket" --format field --field config_path 2>/dev/null || true)"
   fi
 
   if [[ -z "$cfg" ]]; then
@@ -329,7 +345,7 @@ render_title_template() {
   printf '%s\n' "$rendered"
 }
 
-resolve_title_template "$REPO_ROOT" "$ticket"
+resolve_title_template "$REPO_ROOT" "$ticket" "$source_type"
 if [[ -n "$TITLE_TEMPLATE_RESOLUTION_ERROR" ]]; then
   cat >&2 <<EOF
 $PREFIX BLOCKED: cannot resolve company-specific PR title template for $ticket.

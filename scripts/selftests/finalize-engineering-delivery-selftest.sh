@@ -194,7 +194,10 @@ write_baseline_snapshot() {
     --head-sha "$head_sha" >/dev/null
 }
 
-main_repo="$TMPROOT/workspace"
+# Keep a hostile ancestor named `specs`: archive authority must be resolved
+# relative to the workspace's canonical docs-manager specs root, not by the
+# first matching path component.
+main_repo="$TMPROOT/specs/workspace"
 worktree_repo="$TMPROOT/.worktrees/finalize-cwd"
 mockbin="$TMPROOT/bin"
 
@@ -370,5 +373,175 @@ if ! printf '%s\n' "$out2" | grep -q 'deliverable.verification already PASS; no-
   echo "not ok second finalize did not report idempotent no-op for deliverable.verification" >&2
   exit 1
 fi
+
+# Post-archive revision idempotency: once the source parent is terminal and the
+# whole container has moved, finalize must treat parent closeout as complete
+# instead of re-entering an active-only close-parent resolver after cleanup.
+container="$main_repo/docs-manager/src/content/docs/specs/design-plans/DP-999-finalize-cwd"
+python3 - "$container/index.md" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = re.sub(r"^status:.*$", "status: IMPLEMENTED", text, count=1, flags=re.M)
+path.write_text(text, encoding="utf-8")
+PY
+mkdir -p "$main_repo/docs-manager/src/content/docs/specs/design-plans/archive"
+mv "$container" "$main_repo/docs-manager/src/content/docs/specs/design-plans/archive/"
+
+set +e
+out3="$(
+    POLARIS_SKIP_CI_LOCAL=1 \
+    POLARIS_SKIP_EVIDENCE=1 \
+    POLARIS_SKIP_PR_TITLE_GATE=1 \
+    POLARIS_SKIP_CHANGESET_GATE=1 \
+    PATH="$mockbin:$PATH" \
+    "$FINALIZE" --repo "$main_repo" --ticket DP-999-T1 --workspace "$main_repo" 2>&1
+)"
+rc=$?
+set -e
+if [[ "$rc" -ne 0 ]]; then
+  printf '%s\n' "$out3" >&2
+  echo "not ok archived idempotent finalize exited $rc" >&2
+  exit 1
+fi
+if ! printf '%s\n' "$out3" | grep -q 'archived parent closeout already complete'; then
+  printf '%s\n' "$out3" >&2
+  echo "not ok archived parent terminal state was not recognized" >&2
+  exit 1
+fi
+
+# A DP refinement.md is never a canonical parent fallback. Even when terminal,
+# it must not be accepted in place of the DP index.md -> plan.md precedence.
+archived_container="$main_repo/docs-manager/src/content/docs/specs/design-plans/archive/DP-999-finalize-cwd"
+mv "$archived_container/index.md" "$archived_container/refinement.md"
+set +e
+out4="$(
+    POLARIS_SKIP_CI_LOCAL=1 \
+    POLARIS_SKIP_EVIDENCE=1 \
+    POLARIS_SKIP_PR_TITLE_GATE=1 \
+    POLARIS_SKIP_CHANGESET_GATE=1 \
+    PATH="$mockbin:$PATH" \
+    "$FINALIZE" --repo "$main_repo" --ticket DP-999-T1 --workspace "$main_repo" 2>&1
+)"
+set -e
+if printf '%s\n' "$out4" | grep -q 'archived parent closeout already complete'; then
+  printf '%s\n' "$out4" >&2
+  echo "not ok terminal DP refinement.md was accepted as canonical parent" >&2
+  exit 1
+fi
+if ! printf '%s\n' "$out4" | grep -q 'parent refinement.md/plan.md not found'; then
+  printf '%s\n' "$out4" >&2
+  echo "not ok DP refinement-only fixture did not fall through canonical parent resolution" >&2
+  exit 1
+fi
+
+# Company precedence is index.md -> refinement.md -> plan.md. A terminal plan
+# must not shadow a present non-terminal refinement parent. The legal company
+# slug `tasks` also proves every consumer selects the structural task segment,
+# not the first path component with that spelling.
+company_container="$main_repo/docs-manager/src/content/docs/specs/companies/tasks/archive/GT-ARCH"
+mkdir -p "$(dirname "$company_container")"
+mv "$archived_container" "$company_container"
+company_task="$company_container/tasks/pr-release/T1.md"
+python3 - "$company_container/refinement.md" "$company_task" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = re.sub(r"^status:.*$", "status: LOCKED", text, count=1, flags=re.M)
+path.write_text(text, encoding="utf-8")
+
+task = Path(sys.argv[2])
+text = task.read_text(encoding="utf-8")
+text = text.replace("Source: DP-999", "Source: GT-ARCH")
+text = text.replace("Task: DP-999-T1", "Task: GT-ARCH-T1")
+text = text.replace("| Source type | dp |", "| Source type | jira |")
+text = text.replace("| Source ID | DP-999 |", "| Source ID | GT-ARCH |")
+text = text.replace("| Task ID | DP-999-T1 |", "| Task ID | GT-ARCH-T1 |")
+text = text.replace("| Task ID | GT-ARCH-T1 |", "| Task ID | GT-ARCH-T1 |\n| Work item ID | GT-ARCH-T1 |")
+text = text.replace("| JIRA key | N/A |", "| JIRA key | GT-ARCH |")
+task.write_text(text, encoding="utf-8")
+PY
+cat > "$company_container/plan.md" <<'EOF'
+---
+title: "DP-999 terminal non-authoritative plan"
+status: IMPLEMENTED
+---
+
+# Non-authoritative plan fixture
+EOF
+cat > "/tmp/polaris-verified-GT-ARCH-${head_sha}.json" <<EOF
+{
+  "ticket": "GT-ARCH",
+  "head_sha": "${head_sha}",
+  "writer": "run-verify-command.sh",
+  "exit_code": 0,
+  "at": "2026-05-09T00:00:00Z"
+}
+EOF
+bash "$WRITE_REPORT" \
+  --repo "$main_repo" \
+  --ticket GT-ARCH \
+  --task-md "$company_task" \
+  --head-sha "$head_sha" \
+  --status PASS >/dev/null
+bash "$REFRESH_SNAPSHOT" \
+  --repo "$main_repo" \
+  --task-md "$company_task" \
+  --head-sha "$head_sha" >/dev/null
+set +e
+out5="$(
+    POLARIS_COMPLETION_TASK_MD="$company_task" \
+    POLARIS_SKIP_CI_LOCAL=1 \
+    POLARIS_SKIP_EVIDENCE=1 \
+    POLARIS_SKIP_PR_TITLE_GATE=1 \
+    POLARIS_SKIP_CHANGESET_GATE=1 \
+    PATH="$mockbin:$PATH" \
+    "$FINALIZE" --repo "$main_repo" --ticket GT-ARCH --workspace "$main_repo" 2>&1
+)"
+set -e
+if printf '%s\n' "$out5" | grep -q 'archived parent closeout already complete'; then
+  printf '%s\n' "$out5" >&2
+  echo "not ok company plan.md overrode present refinement.md authority" >&2
+  exit 1
+fi
+if ! printf '%s\n' "$out5" | grep -q 'archived parent is not terminal: .*refinement.md (LOCKED)'; then
+  printf '%s\n' "$out5" >&2
+  echo "not ok company refinement.md precedence or company-named-tasks parsing drifted" >&2
+  exit 1
+fi
+
+# The production finalizer may execute from the implementation worktree it
+# removes. Parent closeout must run before cleanup; release-completed must use a
+# stable helper and run after cleanup so it can prove no residual worktree.
+python3 - "$FINALIZE" <<'PY'
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+load = text.index('. "${SCRIPT_DIR}/lib/specs-root.sh"')
+cleanup = text.index('bash "${SCRIPT_DIR}/engineering-clean-worktree.sh"')
+parent_closeout = text.index('if archived_parent_closeout_complete "$TASK_MD_PATH"')
+release_completed = text.index('bash "$CHECK_RELEASE_COMPLETED"')
+unsafe_helper_guard = text.index('release-completed helper must live outside the implementation worktree')
+first_mutating_phase = text.index("prepare_no_pr_deliverable\nensure_task_verify_report")
+assert text.count('. "${SCRIPT_DIR}/lib/specs-root.sh"') == 1
+assert load < parent_closeout < cleanup < release_completed
+assert unsafe_helper_guard < first_mutating_phase
+PY
+
+# DP-422 T2: finalize must select the canonical no-PR writer from task_shape
+# only after current HEAD-bound verification evidence has passed. These source
+# assertions guard the orchestration binding; writer/validator/consumer behavior
+# is exercised by their dedicated selftests.
+grep -q 'prepare_no_pr_deliverable' "$FINALIZE"
+grep -q 'check-verification-passed.sh' "$FINALIZE"
+grep -q 'write-deliverable.sh.*--no-pr' "$FINALIZE"
+bash "$SCRIPT_DIR/selftests/write-deliverable-selftest.sh" >/dev/null
 
 echo "[finalize-engineering-delivery-selftest] PASS"

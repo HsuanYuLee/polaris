@@ -32,8 +32,10 @@ Implementation task（`task_kind: T`）的 frontmatter `task_shape` 欄位語意
 - **`audit` / `confirmation` 為 carve-out shape**：當 T task 的交付物只稽核（`audit`）或
   只確認既有狀態（`confirmation`）、不需要產出 tracked code diff 時才宣告。此時
   `validate-breakdown-ready.sh` 接受 specs-only 或 empty `## Allowed Files`，
-  `check-delivery-completion.sh` 以 completion-gate marker(status=PASS)+evidence artifact
-  path 完成、不要求 non-draft PR，auto-pass terminal required-PR set 也排除此 task。
+  `finalize-engineering-delivery.sh` 先驗 current canonical durable Layer B evidence，再由
+  `write-deliverable.sh --no-pr` 寫入不含 `pr_url`／`pr_state` 的 HEAD-bound
+  `deliverable.verification.status=PASS`；`check-delivery-completion.sh` 消費同一 schema，
+  不要求 non-draft PR，auto-pass terminal required-PR set 也排除此 task。
 - **與 `task_kind` 正交**：`task_shape` 描述「交付形狀」，`task_kind`（T/V）描述
   completion-gate dispatcher 走 implementation 還是 verification 路徑；兩者獨立，不得互相
   覆寫。`task_shape` 對 V task 不生效（V task 既有路徑不 regress）。
@@ -311,9 +313,10 @@ curl -sf http://localhost:3100/api/activities -o /dev/null -w "%{http_code}" | p
 
 | Section / Field | Writer | Trigger | 結構檢查 |
 |-----------------|--------|---------|----------|
-| frontmatter `deliverable.pr_url` | engineering Step 7（atomic + retry-3 + fail-stop，見 § 2.1） | `gh pr create` 成功 | URL regex `^https://github\.com/.+/pull/\d+$` |
-| frontmatter `deliverable.pr_state` | engineering Step 7 / 啟動時 refresh | `gh pr view --json state` | enum: `OPEN` / `MERGED` / `CLOSED` |
-| frontmatter `deliverable.head_sha` | engineering 每次 push 後 | `git push` 成功 | 7+ char hex |
+| frontmatter `deliverable.pr_url` | engineering Step 7（implementation only） | `task_shape=implementation` 且 `gh pr create` 成功 | URL regex；audit／confirmation 禁止 |
+| frontmatter `deliverable.pr_state` | engineering Step 7 / 啟動時 refresh（implementation only） | `task_shape=implementation` | enum；audit／confirmation 禁止 |
+| frontmatter `deliverable.head_sha` | engineering delivery writer | implementation push 成功，或 audit／confirmation current Layer B PASS | 7+ char hex |
+| frontmatter `deliverable.verification` | `write-deliverable.sh --no-pr` / finalize | `task_shape=audit|confirmation` 且 canonical durable evidence current、PASS | `status=PASS` + zeroed `ac_counts`，不得含 PR 欄位 |
 | frontmatter `extension_deliverable.*` | local_extension completion helper（DP-048） | release metadata 寫回 | `endpoint=local_extension`、SHA/tag/URL/evidence schema；由 `check-local-extension-completion.sh` 做 freshness gate |
 | frontmatter `jira_transition_log[]` | engineering / verify-AC 跑 JIRA transition 後 | append-only | list-of-maps；`time` 建議（不強制）；其他欄位 freeform（見 § 2.1 寬鬆 schema） |
 

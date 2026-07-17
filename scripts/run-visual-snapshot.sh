@@ -16,11 +16,13 @@ PARSE_TASK_MD="$SCRIPT_DIR/parse-task-md.sh"
 TOOLCHAIN_DIR="$WORKSPACE_ROOT/tools/polaris-toolchain"
 # shellcheck source=scripts/lib/verification-fidelity-trust.sh
 source "$SCRIPT_DIR/lib/verification-fidelity-trust.sh"
+# shellcheck source=scripts/lib/verification-evidence.sh
+source "$SCRIPT_DIR/lib/verification-evidence.sh"
 
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  run-visual-snapshot.sh --task-md PATH --mode baseline|compare|record [--repo PATH] [--ticket KEY] [--source-container PATH] [--output-dir PATH] [--fixture-dir PATH]
+  run-visual-snapshot.sh --task-md PATH --mode baseline|compare|record [--repo PATH] [--ticket KEY] [--source-container PATH] [--output-dir PATH] [--fixture-dir PATH] [--resolve-evidence-path]
 
 Captures before/after screenshots for task.md verification.visual_regression
 and writes /tmp/polaris-vr-{ticket}-{head_sha}.json evidence.
@@ -28,6 +30,9 @@ and writes /tmp/polaris-vr-{ticket}-{head_sha}.json evidence.
 When --fixture-dir or Test Environment Fixtures is provided, baseline/compare
 run against reviewed fixture-backed pages. Missing fixtures block as
 BLOCKED_ENV; unreviewed fixtures block as MANUAL_REQUIRED.
+
+--resolve-evidence-path delegates the durable path to
+scripts/lib/verification-evidence.sh, prints it, and exits without writing.
 EOF
 }
 
@@ -38,6 +43,7 @@ TICKET=""
 SOURCE_CONTAINER=""
 OUTPUT_DIR=""
 FIXTURE_DIR_OVERRIDE=""
+RESOLVE_EVIDENCE_PATH=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -48,6 +54,7 @@ while [[ $# -gt 0 ]]; do
     --source-container) SOURCE_CONTAINER="${2:-}"; shift 2 ;;
     --output-dir) OUTPUT_DIR="${2:-}"; shift 2 ;;
     --fixture-dir) FIXTURE_DIR_OVERRIDE="${2:-}"; shift 2 ;;
+    --resolve-evidence-path) RESOLVE_EVIDENCE_PATH=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "run-visual-snapshot: unknown arg: $1" >&2; usage; exit 2 ;;
   esac
@@ -257,7 +264,6 @@ if [[ -z "$OUTPUT_DIR" ]]; then
   OUTPUT_DIR="$REPO_PATH/.polaris/evidence/vr/artifacts/$SAFE_TICKET"
 fi
 OUTPUT_DIR="$(abs_path_for_output "$OUTPUT_DIR")"
-mkdir -p "$OUTPUT_DIR"
 
 FIXTURE_DIR=""
 if ! is_na_value "$FIXTURE_DIR_OVERRIDE"; then
@@ -280,8 +286,15 @@ if [[ -n "$FIXTURE_DIR" ]]; then
   fi
 fi
 
-EVIDENCE_FILE="/tmp/polaris-vr-${SAFE_TICKET}-${HEAD_SHA}.json"
-DURABLE_FILE="$REPO_PATH/.polaris/evidence/vr/polaris-vr-${SAFE_TICKET}-${HEAD_SHA}.json"
+EVIDENCE_FILE="$(vr_evidence_tmp_path "$SAFE_TICKET" "$HEAD_SHA")"
+DURABLE_FILE="$(vr_evidence_durable_path "$REPO_PATH" "$SAFE_TICKET" "$HEAD_SHA")"
+
+if [[ "$RESOLVE_EVIDENCE_PATH" -eq 1 ]]; then
+  printf '%s\n' "$DURABLE_FILE"
+  exit 0
+fi
+
+mkdir -p "$OUTPUT_DIR"
 
 export VR_TICKET="$TICKET"
 export VR_HEAD_SHA="$HEAD_SHA"

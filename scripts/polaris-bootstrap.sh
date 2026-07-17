@@ -3,12 +3,16 @@
 
 set -euo pipefail
 
-WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SCRIPT_DIR="$WORKSPACE_ROOT/scripts"
-DRY_RUN=false
-PROFILE="runtime"
-# shellcheck source=lib/tool-resolution.sh
-source "$SCRIPT_DIR/lib/tool-resolution.sh"
+# POLARIS_SAFE_CLI_INTROSPECTION_BEGIN
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  command printf '%s\n' 'Usage:'
+  command printf '%s\n' '  scripts/polaris-bootstrap.sh [--profile core|runtime|delivery|full] [--dry-run]'
+  command printf '%s\n' '  scripts/polaris-bootstrap.sh --help'
+  command printf '%s\n' ''
+  command printf '%s\n' 'Bootstraps Polaris framework runtime dependencies from repo-owned contracts.'
+  exit 0
+fi
+# POLARIS_SAFE_CLI_INTROSPECTION_END
 
 usage() {
   cat <<'EOF'
@@ -25,6 +29,14 @@ Missing mise is reported with repair hints. This script does not silently instal
 global CLIs or require Homebrew.
 EOF
 }
+
+WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$WORKSPACE_ROOT/scripts"
+DRY_RUN=false
+PROFILE="runtime"
+# shellcheck source=lib/tool-resolution.sh
+source "$SCRIPT_DIR/lib/tool-resolution.sh"
+MAIN_CHECKOUT_RESOLVER="resolve_main_checkout"
 
 log() {
   printf '[polaris-bootstrap] %s\n' "$*"
@@ -58,7 +70,7 @@ resolve_toolchain_root() {
   if [[ -f "$SCRIPT_DIR/lib/main-checkout.sh" ]] && command -v git >/dev/null 2>&1; then
     # shellcheck source=lib/main-checkout.sh
     . "$SCRIPT_DIR/lib/main-checkout.sh"
-    resolve_main_checkout "$WORKSPACE_ROOT" 2>/dev/null && return 0
+    "$MAIN_CHECKOUT_RESOLVER" "$WORKSPACE_ROOT" 2>/dev/null && return 0
   fi
 
   printf '%s\n' "$WORKSPACE_ROOT"

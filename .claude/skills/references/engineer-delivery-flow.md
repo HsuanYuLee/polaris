@@ -30,19 +30,21 @@ scope -> rebase -> ci-local -> verify -> flow-gap -> VR if triggered -> base fre
 
 Developer completion gate 也會消費 `engineering-branch-setup.sh` 在 fresh worktree 建立時寫入的 planner-owned baseline snapshot。若 snapshot 缺失，或 `Verify Command`、`depends_on`、`Base branch`、`Allowed Files` 任一欄位與 snapshot 不一致，屬於 scope-escalation blocker；engineering 不得就地修改 task.md，或建立 post-hoc snapshot evidence 來通過 closeout。
 
-DP-backed framework work 在 completion gate 前必須比對實際 diff 與
-`refinement.json.changed_files`：
+所有 engineering work 的交付 scope authority 都是 resolved task.md 的
+`Allowed Files`。`refinement.json.changed_files` 只供 refinement／breakdown planning preview，
+不得作為 live engineering delivery gate。穩定 adapter 仍可用下列方式呼叫 canonical
+`check-scope.sh`：
 
 ```bash
 bash scripts/gates/gate-changed-files-scope.sh \
   --repo <task-worktree> \
-  --refinement <main-checkout-source-container>/refinement.json \
-  --base <pr-base-or-task-base> \
-  --head <task-head>
+  --task-md <resolved-task.md> \
+  --base <pr-base-or-task-base>
 ```
 
 若 gate fail，engineering 不得自行擴大 scope；應 route back to refinement 更新
-`changed_files` 或縮小 implementation diff。
+AC／architecture，或 route back to breakdown 更新 task.md `Allowed Files`；也可縮小
+implementation diff。不得修改 `refinement.json.changed_files` 來放行交付。
 
 ## Revision Mode — Explicit --pr
 
@@ -103,6 +105,29 @@ Why：`gate-ci-local.sh` 與 `gate-evidence.sh` 是 `scripts/gates/` 底下的 p
 註：若需要在另一個 cwd 觸發 worktree-bound verify（例如 sub-agent 用絕對路徑 dispatch），
 明示 `--worktree <path>` 比依賴 PWD 偵測更可預期；非 git fixture 或 stale worktree path 會
 exit 1 + clear error，不會 silent 蓋掉。
+
+## Declared Verification Orchestration
+
+需要一次執行 task 宣告的 verification layers 時，使用單一 callable：
+
+```bash
+bash scripts/run-verify-all.sh \
+  --task-md <resolved-task.md> \
+  --repo <task-worktree> \
+  --ticket <delivery-ticket-key>
+```
+
+它只做 orchestration：primary layer 委派 `run-verify-command.sh`；有
+`verification.visual_regression` 才委派 `run-visual-snapshot.sh --mode compare`；只有
+`behavior_contract.applies=true` 才委派 `run-behavior-contract.sh --mode compare`。最後由
+既有 `gate-evidence.sh` 驗證跨層 marker 語意。未宣告的 VR 與 `applies=false` behavior
+直接 skip，不產生 marker，也不形成 blocker。task 的 `Verify Command` 不得反向呼叫
+`run-verify-all.sh`，避免 orchestrator 遞迴成第二層 runner。
+
+verify／VR durable path 必須透過 `resolve-artifact-location.sh` 取得；該 adapter 只 delegate
+`scripts/lib/verification-evidence.sh`，不自行維護 path template。marker location、ticket、
+current HEAD 與 PASS outcome 則由 `validate-artifact-location.sh` 驗證。DP-backed 與
+JIRA-backed ticket 使用同一組參數與 path authority，沒有 source-type fast path。
 
 ## DP-201 Proof Markers
 

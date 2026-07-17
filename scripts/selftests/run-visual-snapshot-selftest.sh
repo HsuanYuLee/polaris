@@ -7,12 +7,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUNNER="$ROOT_DIR/scripts/run-visual-snapshot.sh"
 FIXTURE_REVIEW="$ROOT_DIR/scripts/mockoon/visual-fixture-review.mjs"
 INCLUDE_MOCKOON=false
+LOCATION_ONLY=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --include-mockoon) INCLUDE_MOCKOON=true; shift ;;
+    --location-only) LOCATION_ONLY=true; shift ;;
     -h|--help)
-      echo "Usage: $(basename "$0") [--include-mockoon]"
+      echo "Usage: $(basename "$0") [--include-mockoon] [--location-only]"
       exit 0
       ;;
     *) echo "run-visual-snapshot-selftest: unknown arg: $1" >&2; exit 2 ;;
@@ -127,6 +129,28 @@ done
 curl -fsS "http://127.0.0.1:$port/page.html" >/dev/null
 
 head_sha="$(git -C "$ROOT_DIR" rev-parse HEAD)"
+
+# Location introspection delegates the shared evidence-path authority and must
+# not create output directories or markers.
+path_task="$tmpdir/path-task.md"
+write_task "$path_task" "" "component" "N/A"
+path_evidence_root="$tmpdir/path-evidence"
+path_output_dir="$tmpdir/path-output"
+resolved_path="$(POLARIS_EVIDENCE_ROOT="$path_evidence_root" "$RUNNER" \
+  --task-md "$path_task" --mode compare --repo "$ROOT_DIR" --ticket DP-104-T2 \
+  --output-dir "$path_output_dir" --resolve-evidence-path)"
+[[ "$resolved_path" == "$path_evidence_root/vr/polaris-vr-DP-104-T2-${head_sha}.json" ]] || {
+  echo "run-visual-snapshot-selftest: unexpected resolved path: $resolved_path" >&2
+  exit 1
+}
+[[ ! -e "$path_output_dir" && ! -e "$path_evidence_root" ]] || {
+  echo "run-visual-snapshot-selftest: resolve-evidence-path wrote filesystem state" >&2
+  exit 1
+}
+if [[ "$LOCATION_ONLY" == "true" ]]; then
+  echo "run-visual-snapshot-selftest: PASS (location-only)"
+  exit 0
+fi
 
 # DP-417 T8 Layer 2: a replaces_existing compare whose replaced old source still
 # exists in the test environment is confounded → fail closed (exit 2) BEFORE any

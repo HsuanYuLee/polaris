@@ -40,8 +40,10 @@ block。
 
 ## Submit
 
-用 GitHub review API 一次提交 review body 與 inline comments。單行 comment 用 `line`；
-多行 comment 用 `start_line` + `line`。
+一律呼叫 `scripts/submit-pr-review.sh`，由 wrapper 固定 writer token、canonical
+`github.pull_request_review.submit` tool identity 與 GitHub review JSON shape；不得由 LLM
+手拼 MCP tool 名稱或 root payload。單行 comment 用 `line`；多行 comment 用
+`start_line` + `line`。wrapper 的 `--submit` lane 一次提交 review body 與 inline comments。
 
 提交後查 PR reviews 與 latest push time，計算：
 

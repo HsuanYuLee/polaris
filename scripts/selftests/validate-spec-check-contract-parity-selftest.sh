@@ -37,7 +37,8 @@ fail=0
 # Copy the real spec + validator files into a hermetic fixture root.
 setup_fixture() {
   local dst="$1"
-  mkdir -p "$dst/scripts" "$dst/.claude/skills/references"
+  mkdir -p "$dst/scripts/lib" "$dst/.claude/skills/references"
+  cp "$ROOT/scripts/lib/producer-consumer-bridges.json" "$dst/scripts/lib/"
   cp "$ROOT/scripts/validate-refinement-json.sh" "$dst/scripts/"
   cp "$ROOT/scripts/validate-refinement-artifact-parity.sh" "$dst/scripts/"
   cp "$ROOT/scripts/validate-breakdown-ready.sh" "$dst/scripts/"
@@ -152,6 +153,36 @@ text = text.replace("changed_files != module_paths", "DISABLED_ANCHOR")
 open(p, "w", encoding="utf-8").write(text)
 PY
 run_case "anchor-stale (non-vacuous manifest↔check binding)" 2 "POLARIS_SPEC_CHECK_PARITY_ANCHOR_STALE" "$fx_anchor"
+
+# --- Case 6: registry / producer missing — fail closed before parity evaluation ---
+fx_missing_registry="$tmpdir/missing-registry"
+setup_fixture "$fx_missing_registry"
+rm "$fx_missing_registry/scripts/lib/producer-consumer-bridges.json"
+run_case "missing producer registry" 2 "POLARIS_SPEC_CHECK_PARITY_MISSING_PRODUCER" "$fx_missing_registry"
+
+# --- Case 7: registered bridge validator missing ---
+fx_missing_validator="$tmpdir/missing-validator"
+setup_fixture "$fx_missing_validator"
+python3 - "$fx_missing_validator/scripts/lib/producer-consumer-bridges.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p, encoding="utf-8"))
+data["bridges"][0]["validator"] = "scripts/not-present.sh"
+open(p, "w", encoding="utf-8").write(json.dumps(data) + "\n")
+PY
+run_case "missing validator" 2 "POLARIS_SPEC_CHECK_PARITY_MISSING_VALIDATOR" "$fx_missing_validator"
+
+# --- Case 8: deleting one registered bridge must not silently shrink coverage ---
+fx_missing_bridge="$tmpdir/missing-bridge"
+setup_fixture "$fx_missing_bridge"
+python3 - "$fx_missing_bridge/scripts/lib/producer-consumer-bridges.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p, encoding="utf-8"))
+del data["bridges"][0]
+open(p, "w", encoding="utf-8").write(json.dumps(data) + "\n")
+PY
+run_case "missing producer bridge record" 2 "POLARIS_SPEC_CHECK_PARITY_MISSING_PRODUCER" "$fx_missing_bridge"
 
 echo ""
 echo "spec-check-contract-parity selftest: $pass pass, $fail fail"

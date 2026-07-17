@@ -472,6 +472,68 @@ def aggregate_friction(entries):
     return summary
 
 
+def archived_ledger_relocation(report_path, declared_path):
+    """Resolve a ledger moved with its archived source container.
+
+    The report writer records an absolute ledger path before source closeout.
+    Archiving moves both files together, so that path becomes stale.  Accept
+    only the deterministic moved-file identity: an archived source container,
+    the same source-container basename, the exact ``artifacts/auto-pass``
+    directory, and the same ledger basename.  Anything else remains a hard
+    unreadable-ledger failure.
+    """
+    try:
+        report_real = report_path.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return (False, None)
+    report_lexical = Path(os.path.abspath(os.path.normpath(str(report_path))))
+    report_dir = report_lexical.parent
+    if report_dir.name != "auto-pass" or report_dir.parent.name != "artifacts":
+        return (False, None)
+
+    container = report_dir.parent.parent
+    archive_dir = container.parent
+    dp_archive = archive_dir.name == "archive" and archive_dir.parent.name == "design-plans"
+    company_archive = (
+        archive_dir.name == "archive"
+        and archive_dir.parent.parent.name == "companies"
+    )
+    if not (dp_archive or company_archive):
+        return (False, None)
+
+    # An archived report is always governed by relocation identity. It may
+    # declare either the exact pre-archive path recorded before the move or the
+    # exact current archive path after a canonical report rewrite. Compare only
+    # normalized lexical paths: resolving the declared path would let a later
+    # symlink at the old active location rewrite the ledger basename/identity.
+    declared = Path(declared_path)
+    if not declared.is_absolute():
+        return (True, None)
+    declared_lexical = Path(os.path.abspath(os.path.normpath(str(declared))))
+    ledger_name = declared_lexical.name
+    if not ledger_name:
+        return (True, None)
+    expected_archive = report_dir / ledger_name
+    expected_active = archive_dir.parent / container.name / "artifacts" / "auto-pass" / ledger_name
+    if declared_lexical not in (expected_active, expected_archive):
+        return (True, None)
+
+    candidate = expected_archive
+    if candidate.is_symlink() or not candidate.is_file():
+        return (True, None)
+    try:
+        candidate_real = candidate.resolve(strict=True)
+    except (OSError, RuntimeError):
+        return (True, None)
+    if (
+        candidate_real.parent != report_real.parent
+        or candidate_real.name != ledger_name
+        or candidate_real == report_real
+    ):
+        return (True, None)
+    return (True, candidate_real)
+
+
 # Load the referenced ledger once; consumed by the friction_log_summary check
 # and the DP-311 T3 report↔ledger terminal cross-check.
 ledger_payload = None
@@ -479,20 +541,30 @@ ledger_read_error = None
 ledger_path_value = data.get("ledger_path")
 if isinstance(ledger_path_value, str) and ledger_path_value:
     ledger_p = Path(ledger_path_value)
-    if ledger_p.is_file():
-        try:
-            raw_ledger = json.loads(ledger_p.read_text(encoding="utf-8"))
-        except Exception as exc:
-            ledger_read_error = f"ledger_path JSON invalid: {exc}"
-            errors.append(ledger_read_error)
+    relocation_applies, relocated_ledger = archived_ledger_relocation(path, ledger_path_value)
+    if relocation_applies:
+        if relocated_ledger is None:
+            ledger_read_error = (
+                "archived ledger relocation target is missing or unsafe: "
+                f"{path.resolve(strict=False).parent / ledger_p.name}"
+            )
         else:
-            if isinstance(raw_ledger, dict):
-                ledger_payload = raw_ledger
-            else:
-                ledger_read_error = "ledger_path JSON is not an object"
+            ledger_p = relocated_ledger
+    if ledger_read_error is None:
+        if ledger_p.is_file():
+            try:
+                raw_ledger = json.loads(ledger_p.read_text(encoding="utf-8"))
+            except Exception as exc:
+                ledger_read_error = f"ledger_path JSON invalid: {exc}"
                 errors.append(ledger_read_error)
-    else:
-        ledger_read_error = f"ledger file not found: {ledger_p}"
+            else:
+                if isinstance(raw_ledger, dict):
+                    ledger_payload = raw_ledger
+                else:
+                    ledger_read_error = "ledger_path JSON is not an object"
+                    errors.append(ledger_read_error)
+        else:
+            ledger_read_error = f"ledger file not found: {ledger_p}"
 else:
     ledger_read_error = "ledger_path is missing or empty"
 

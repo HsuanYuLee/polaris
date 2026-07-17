@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.77.0] - 2026-07-17
+
+### Changed
+
+- 29cad79: 新增 observable skill-flow transition registry、單一 resolver 與 fail-closed schema validator，明確排除 LLM-owned judgment。
+- ef6bc9b: 新增 task_shape-first no-PR delivery writer，讓 audit／confirmation 共用 authoring、finalize 與 completion schema，並保留 implementation 的 PR-bearing 契約。
+- d0f7767: 將 producer／consumer／validator parity 與 refinement tasks accessor 收斂為 registry-driven W12 blocking gates。
+- 549b44d: 將 live engineering scope authority 收斂為 resolved task.md `Allowed Files`，移除 refinement preview 對 delivery gate 的影響。
+- 445aeef: 新增 registry-bound GitHub review external-write wrapper，固定 writer token、tool identity 與 payload schema。
+- 9ec02f1: 新增 canonical artifact-location adapter 與 task-declared verification orchestrator，統一驗證 current-HEAD markers。
+- 5948c4d: 新增 safe CLI introspection validator，確保列管 help path 在 aggregate、bootstrap、regeneration 與 external query 前無副作用 fast-exit。
+- d10c574: 將 DP-422 T1–T7 transition coverage、canonical owner collision 與 predecessor attribution 接入 framework PR source-closeout blocking gate。
+
 ## [3.76.88] - 2026-07-15
 
 ### Changed

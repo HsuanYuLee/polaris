@@ -250,16 +250,29 @@ Reviewer 以「這 PR 對 repo 是不是好的」為基準，不是「這 PR 是
 
 **Iteration rules**:
 
-- `passed: true` → Phase 3 exit，dispatcher 進 Step 1.5 Scope Gate
-- `passed: false` → dispatcher 回 **Phase 3**（LLM 可自由改 test / 改實作 / 重跑 /simplify 任一）
+- review 前先以 `validate-engineering-self-review-result.sh --print-current-state` 取得
+  `reviewed_head_sha` 與 `reviewed_state_sha256`，兩欄都必須原樣放入 Critic JSON
+- dispatcher 必須把 Critic JSON 交給 `write-engineering-self-review-result.sh`；只讀
+  validated artifact 的 `next_action`，不可直接從 chat prose 補判斷
+- round > 1 只接受 canonical evidence 目錄內、以 SHA-256 串起完整歷史的 prior artifact；
+  copied／自製 prior、缺輪或任一歷史 artifact 遭修改都不可解鎖
+- `next_action=proceed` → Phase 3 exit，dispatcher 進 Step 1.5 Scope Gate
+- `next_action=remediate` → dispatcher 回 **Phase 3**（LLM 可自由改 test / 改實作 /
+  重跑 /simplify 任一）
 - 回到 Phase 3 後**必然重走** TDD → /simplify → Self-Review（Phase 3 exit condition 強制）
-- **Hard cap 3 輪**，超過 → halt → 使用者手動介入
+- round 1～3 FAIL 各允許一次 remediation；第三次 remediation 後恰有一次 round 4
+  terminal re-review
+- terminal PASS → proceed；terminal FAIL → `human_review`，才要求真正人工 review
+- stale head/state 只允許相同 round current-state re-review；magic phrase、session reset、
+  counter rename 或 round 5 都不能解鎖
 - **NO bypass**（無「強制繼續」flag）
 
 **Return format** (JSON):
 ```json
 {
   "passed": true,
+  "reviewed_head_sha": "40-char git sha",
+  "reviewed_state_sha256": "sha256:...",
   "blocking": [
     {
       "file": "path/to/file.ts",
@@ -283,7 +296,9 @@ Reviewer 以「這 PR 對 repo 是不是好的」為基準，不是「這 PR 是
 - `blocking[]` items prevent Phase 3 exit — must be fixed first；每項**必須**含 `rule` 欄位指向具體 handbook path / 具體 rule 段落（dispatcher 才能把 fix target 還給 Phase 3 的 LLM）
 - `non_blocking[]` items are reported but don't block
 
-**Evidence**: Critic does **not** write evidence file，**not** part of Layer A+B+C AND gate. Self-Review 是 LLM 語意 checkpoint，不是 CI-class gate.
+**Evidence**: Critic 本身不直接寫 evidence；dispatcher 透過 canonical writer 產生
+head-and-state-bound transition artifact。該 artifact **不屬於** Layer A+B+C AND gate，
+Self-Review 仍是 LLM 語意 checkpoint，不是 CI-class gate。
 
 ---
 

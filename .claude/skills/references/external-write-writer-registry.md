@@ -88,6 +88,11 @@ context：
 3. Gate 通過後執行真實 external write（MCP / gh CLI / Slack webhook）。
 4. Skill 在 final summary 提及 writer token 與 gate 結果。
 
+GitHub review 額外使用 `scripts/submit-pr-review.sh`；wrapper 固定
+`review-pr:github-review` 與 `github.pull_request_review.submit`，並在真正 API write 前把
+canonical structured payload 交給 external-write gate。未知 token、舊 tool identity 或
+ad-hoc payload shape 一律 fail-closed。
+
 ## 5. 例外與限制
 
 - Registry 不負責檢查 body content；body content 的 language policy 仍由

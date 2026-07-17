@@ -117,7 +117,7 @@ bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
 | 步驟 | 失敗處置 |
 |------|---------|
 | Step 1 Simplify 3 輪未穩定 | 詢問使用者手動介入 |
-| Step 1.3 Self-Review 3 輪仍有 blocking | 詢問使用者手動處理 |
+| Step 1.3 Self-Review terminal round 4 仍為 FAIL | 依 validated `next_action=human_review` 要求真正人工 review；stale verdict、固定確認字串或 session reset 不算人工處置 |
 | Step 1.5 Scope exceeded | **HALT** — 回 `/breakdown {EPIC}` 更新 Allowed Files 或拆新子 task |
 | Step 2 前置 Rebase conflict | **halt** — conflict resolution 回 Phase 3 domain（LLM semantic work），解完後 resume Step 2 前置 |
 | Step 2 CI Mirror FAIL | 修 → re-run；修不了停止回報 |

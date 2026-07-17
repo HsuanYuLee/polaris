@@ -5,6 +5,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HELPERS="${ROOT_DIR}/scripts/selftests/lib/script-test-helpers.sh"
 # shellcheck source=scripts/selftests/lib/script-test-helpers.sh
 . "${HELPERS}"
+EXPECT_OUTPUT_CONTAINS="script_test_expect_output_contains"
+
+script_test_expect_pass \
+  "polaris bootstrap help" \
+  bash "${ROOT_DIR}/scripts/polaris-bootstrap.sh" --help
 
 script_test_expect_pass \
   "polaris bootstrap dry-run" \
@@ -25,7 +30,7 @@ run_expect_fail_contains() {
     cat "${output}" >&2
     exit 1
   fi
-  script_test_expect_output_contains "$name" "$pattern" "${output}"
+  "$EXPECT_OUTPUT_CONTAINS" "$name" "$pattern" "${output}"
 }
 
 run_expect_fail_contains \

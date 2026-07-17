@@ -232,6 +232,16 @@ else
 fi
 
 echo ""
+python3 - "$REPO_ROOT/scripts/refinement-consumer-registry.json" <<'PY' \
+  && ok "W12 registry binds backfill tasks[] accessors" \
+  || bad "W12 registry missing backfill accessor binding"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+records = {r["path"]: r for r in data.get("consumers", [])}
+record = records["scripts/backfill-refinement-verification-strategy.sh"]
+assert set(record["accessor_vars"]) == {"task"}
+assert record["expected_fields"] == {"task": ["id", "kind"]}
+PY
 echo "backfill-refinement-verification-strategy-selftest: PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]] || exit 1
 exit 0

@@ -80,7 +80,7 @@ title: "T1: Example implementation task (3 pt)"
 status: IN_PROGRESS         # optional：IN_PROGRESS | IMPLEMENTED | BLOCKED
 task_shape: implementation  # optional：implementation | audit | confirmation；default implementation（DP-262）
 depends_on: [T1]            # optional：array of task id strings；長度 ≤ 1（DP-028 強制線性）
-deliverable:                # Lifecycle-conditional（DP-032 D2）；engineering Step 7c 寫入
+deliverable:                # Lifecycle-conditional；以下為 task_shape=implementation
   pr_url: https://github.com/.../pull/2202
   pr_state: OPEN            # OPEN | MERGED | CLOSED
   head_sha: abc1234
@@ -118,7 +118,7 @@ verification:               # Optional；breakdown 可宣告 runtime visual / be
 | `status` | breakdown 寫初值（可省略）；engineering Step 8a 標 `IMPLEMENTED`；verify-AC 全 PASS 標 `IMPLEMENTED`（Epic level）| Optional（值若存在須為 enum） |
 | `task_shape` | breakdown / refinement 宣告 task 的 delivery shape（DP-262）| Optional；缺省 = `implementation`。值若存在須為 `implementation` \| `audit` \| `confirmation`，否則 validator fail。**與 `task_kind`（T/V completion-gate dispatcher）正交**：`task_shape` 描述「交付形狀」（implementation 改 code / audit 只稽核 / confirmation 只確認），`task_kind` 描述「task 是 T 還是 V」；兩者獨立，不得互相覆寫或混用 |
 | `depends_on` | breakdown Step 14 |  Optional；存在則須為 array、長度 ≤ 1、所有 entry 須對應同 `tasks/` 下既有 task.md（含 `pr-release/` fallback，見 § 5.2） |
-| `deliverable` | engineering Step 7c (`gh pr create` 成功後) | Lifecycle-conditional — breakdown 階段不存在；engineering 寫入後須結構正確（schema + writer contract 見下） |
+| `deliverable` | engineering delivery writer | Lifecycle-conditional — breakdown 階段不存在；`task_shape=implementation` 在 PR 建立後寫 PR-bearing schema，`audit`／`confirmation` 在 current HEAD-bound verification PASS 後寫 no-PR schema |
 | `extension_deliverable` | local_extension completion helper（DP-048） | Lifecycle-conditional — local extension completion metadata；可補充真實 workspace PR deliverable 的 post-PR release tail；不得與 fake `deliverable.pr_url` 混用；Layer B evidence path 優先使用 `.polaris/evidence/verify/` durable mirror |
 | `jira_transition_log` | engineering / verify-AC 每次跑 JIRA transition 後 append（成功 / 失敗皆記） | Lifecycle-conditional — 同上 |
 | `verification.visual_regression` | breakdown / refinement 宣告 runtime visual evidence 需求 | Optional；存在時 `expected` 必須是 enum、`pages` 必須是 YAML list，且 `## Test Environment` Level 必須是 `runtime` |
@@ -216,18 +216,23 @@ Mode 選擇：
 
 #### `deliverable` schema + writer contract（DP-033 D7，atomic + fail-stop）
 
-**Schema（when present）**：
+**Schema（when present；由 `task_shape` 選擇，DP-422）**：
 
 | 欄位 | Required | 規則 |
 |------|----------|------|
-| `pr_url` | required | 必須 match `^https://github\.com/.+/pull/\d+$` |
-| `pr_state` | required | enum：`OPEN` / `MERGED` / `CLOSED` |
+| `pr_url` | `task_shape=implementation` required；`audit`／`confirmation` forbidden | 必須 match `^https://github\.com/.+/pull/\d+$` |
+| `pr_state` | `task_shape=implementation` required；`audit`／`confirmation` forbidden | enum：`OPEN` / `MERGED` / `CLOSED` |
 | `head_sha` | required | 7+ char hex |
-| 額外欄位 | optional | 由 engineering writer 定義 |
+| `verification.status` | `audit`／`confirmation` required | 必須是 `PASS`；只能由 current canonical durable Layer B evidence 產生 |
+| `verification.ac_counts.*` | `audit`／`confirmation` required | T-task binary delivery PASS 使用五個 `0` count |
+| 額外欄位 | optional | 由 engineering writer 定義；不得繞過 task_shape-selected schema |
 
 **Writer contract（engineering Step 7）**：
 
-1. `gh pr create` 成功 → **立刻**嘗試寫 `## deliverable` section（含 frontmatter `deliverable:` block 結構，依當前實作）
+1. `task_shape=implementation`：`gh pr create` 成功後立刻寫 PR-bearing `deliverable`；
+   `audit`／`confirmation`：`check-verification-passed.sh` 驗證 current HEAD 後，由
+   `write-deliverable.sh --no-pr` 只讀 canonical durable
+   `.polaris/evidence/verify/polaris-verified-{work_item_id}-{head_sha}.json`，寫 no-PR schema。
 2. 寫入失敗（exit ≠ 0 / 被 hook 擋）→ retry **最多 3 次**（exponential backoff）
 3. 重試仍失敗 → **HARD STOP**，回報：
    - PR URL（已建立）
@@ -235,12 +240,15 @@ Mode 選擇：
    - 失敗原因（hook output / 錯誤訊息）
    - 訊息：「task is in inconsistent state — PR created but task.md not updated. Manual recovery required.」
 4. **不繼續執行下游步驟**（JIRA transition / Slack 通知 / next handoff）— 寧可 stop，不可 silent fallback
-5. 寫入後 **verify**：re-read 檔案、確認 `deliverable` block 存在且 `pr_url` 正確；mismatch → 同 step 3 fail-stop
+5. 寫入必須先在同目錄唯一 temp 完成 schema read-back validation，再 atomic rename；任何失敗均
+   保留原 task.md byte-identical。implementation 確認 `pr_url`；no-PR 確認 PR 欄位不存在、
+   `head_sha` 與 `verification.status=PASS`。
 
 **Validator 配合**：
 
 - Lifecycle-conditional：**不檢查存在性**（breakdown 階段不存在合法）
-- **存在時必須驗 schema**（pr_url / pr_state / head_sha 結構正確）
+- **存在時必須依 task_shape 驗 schema**：implementation 要求 pr_url / pr_state / head_sha；
+  audit／confirmation 禁止 PR 欄位並要求 head_sha + verification PASS
 - 不可有「validator 太嚴」擋住 engineering 自己的合法寫入（schema 寬度 ⊇ writer 輸出）
 
 **Rationale**：silent fallback（log 到 /tmp、繼續執行）= task.md 與真實狀態不一致 → 下次 engineering 重跑時誤判為 first-cut → 重複建 PR。Inconsistent state 必須立刻被人類看到並處理。

@@ -18,6 +18,8 @@
 #   not delegate-valid, and there is no V task for source_level_v_required) is classified
 #   needs_review and left untouched — the migration never writes a strategy that would fail the
 #   conformance gate.
+#   Its tasks[] `task` accessor is registered in scripts/refinement-consumer-registry.json;
+#   W12 fails closed if the id/kind reads drift outside the canonical schema.
 #
 #   Only the single top-level verification_strategy key is added; all other keys keep their value
 #   (single-key addition, AC-NEG2). Backfilled provenance is carried inside the object

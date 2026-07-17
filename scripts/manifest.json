@@ -111,6 +111,138 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/resolve-skill-flow-transition.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/selftests/validate-skill-flow-transition-registry-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/write-engineering-self-review-result.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/validate-skill-flow-transition-registry-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-engineering-self-review-result.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/validate-skill-flow-transition-registry-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-skill-flow-transition-registry.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/selftests/validate-skill-flow-transition-registry-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-safe-cli-introspection.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/selftests/validate-safe-cli-introspection-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftests/validate-safe-cli-introspection-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/polaris-bootstrap-help-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/verify-cross-llm-parity-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/resolve-artifact-location.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/resolve-artifact-location-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-artifact-location.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/resolve-artifact-location-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/run-verify-all.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/run-verify-all-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftests/resolve-artifact-location-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/validate-artifact-location-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/run-verify-all-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftest-affected-runner.sh",
       "kind": "support",
       "runner": "bash",
@@ -1326,7 +1458,8 @@
       "owner_surface": "engineering",
       "selftest": "scripts/selftests/gate-changed-files-scope-selftest.sh",
       "lifecycle": "hot_path",
-      "relocation": "stay"
+      "relocation": "stay",
+      "posture_decision": "Stable adapter over check-scope.sh; resolved task.md Allowed Files is the only engineering delivery scope authority."
     },
     {
       "path": "scripts/gates/gate-changeset.sh",
@@ -1381,10 +1514,9 @@
       "kind": "gate",
       "runner": "bash",
       "owner_surface": "hook",
-      "selftest": "N/A",
+      "selftest": "scripts/selftests/run-verify-all-selftest.sh",
       "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "relocation": "stay"
     },
     {
       "path": "scripts/gates/gate-no-tracked-specs-selftest.sh",
@@ -2213,8 +2345,18 @@
       "kind": "support",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
-      "selftest": "scripts/selftests/polaris-external-write-gate-selftest.sh",
+      "selftest": "scripts/selftests/external-write-chain-wired-selftest.sh",
       "lifecycle": "support_path",
+      "relocation": "stay",
+      "posture_decision": "DP-422 T5 registry-bound token, tool identity, and structured review payload validator."
+    },
+    {
+      "path": "scripts/submit-pr-review.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "review_pr",
+      "selftest": "scripts/selftests/external-write-chain-wired-selftest.sh",
+      "lifecycle": "hot_path",
       "relocation": "stay"
     },
     {
@@ -3167,6 +3309,16 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/engineering-source-scope-authority-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/engineering-worktree-cleanup-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3186,6 +3338,16 @@
       "relocation": "stay",
       "selftest_reason": "selftest script",
       "posture_decision": "DP-246-T1: validates evidence-producers.json escalations/ glob registration for engineering skill, covering both DP-backed and JIRA Epic-backed source types."
+    },
+    {
+      "path": "scripts/selftests/external-write-chain-wired-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/external-write-language-preflight-selftest.sh",
@@ -3550,6 +3712,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/submit-pr-review-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/polaris-jira-transition-selftest.sh",
@@ -4198,6 +4370,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/skill-flow-transition-coverage-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "DP-422 source-closeout coverage and predecessor attribution regression"
+    },
+    {
       "path": "scripts/selftests/skill-workflow-boundary-gate-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -4736,6 +4918,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/write-deliverable-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/write-producer-owned-artifact-selftest.sh",
@@ -5402,7 +5594,8 @@
       "owner_surface": "skill_or_reference",
       "selftest": "scripts/selftests/validate-refinement-consumer-schema-binding-selftest.sh",
       "lifecycle": "hot_path",
-      "relocation": "stay"
+      "relocation": "stay",
+      "posture_decision": "Registry-driven by scripts/refinement-consumer-registry.json; W12 blocking consumer binding."
     },
     {
       "path": "scripts/validate-refinement-inbox-record.sh",
@@ -5559,7 +5752,8 @@
       "owner_surface": "skill_or_reference",
       "selftest": "scripts/selftests/validate-spec-check-contract-parity-selftest.sh",
       "lifecycle": "hot_path",
-      "relocation": "stay"
+      "relocation": "stay",
+      "posture_decision": "Registry-driven by scripts/lib/producer-consumer-bridges.json; W12 blocking parity gate."
     },
     {
       "path": "scripts/validate-spec-primary-doc-authoring.sh",
@@ -5631,7 +5825,7 @@
       "kind": "gate",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
-      "selftest": "scripts/validate-task-md-selftest.sh",
+      "selftest": "scripts/selftests/validate-skill-flow-transition-registry-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },
@@ -5698,10 +5892,9 @@
       "kind": "support",
       "runner": "bash",
       "owner_surface": "script_internal",
-      "selftest": "N/A",
+      "selftest": "scripts/selftests/verify-cross-llm-parity-selftest.sh",
       "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "relocation": "stay"
     },
     {
       "path": "scripts/verify-docs-manager-direct-source.sh",
@@ -5746,10 +5939,9 @@
       "kind": "writer",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
-      "selftest": "N/A",
+      "selftest": "scripts/selftests/validate-skill-flow-transition-registry-selftest.sh",
       "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "relocation": "stay"
     },
     {
       "path": "scripts/write-extension-deliverable.sh",

@@ -720,6 +720,14 @@ check_audit_confirmation_completion() {
 
   local verification_status
   verification_status="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$TASK_MD_PATH" --no-resolve --field deliverable_verification_status 2>/dev/null || true)"
+  local forbidden_pr_url forbidden_pr_state
+  forbidden_pr_url="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$TASK_MD_PATH" --no-resolve --field deliverable_pr_url 2>/dev/null || true)"
+  forbidden_pr_state="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$TASK_MD_PATH" --no-resolve --field deliverable_pr_state 2>/dev/null || true)"
+
+  if [[ -n "$forbidden_pr_url" || -n "$forbidden_pr_state" ]]; then
+    echo "$PREFIX BLOCKED: ${task_shape} no-PR deliverable must not contain pr_url or pr_state" >&2
+    exit 2
+  fi
 
   if [[ -z "$verification_status" ]]; then
     echo "$PREFIX BLOCKED: missing deliverable.verification.status for ${task_shape} task ${work_item_id}@${deliverable_head_sha}" >&2
@@ -874,7 +882,8 @@ if [[ "$MODE" != "admin" ]]; then
       # DP-262 T3 carve-out: no-PR completion path for audit / confirmation
       # tasks. Skip PR-title / changeset / remote-PR-truth gates (those tasks
       # may have specs-only / empty Allowed Files and no deliverable PR) and
-      # require an engineering completion_gate marker + evidence artifact path.
+      # require the canonical task.md no-PR deliverable plus current Layer B
+      # evidence and task-bound verify report checked above.
       WORK_ITEM_ID="$REPORT_TICKET"
       if [[ -z "$WORK_ITEM_ID" ]]; then
         WORK_ITEM_ID="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$TASK_MD_PATH" --no-resolve --field work_item_id 2>/dev/null || true)"

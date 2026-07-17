@@ -3,7 +3,7 @@
 # the frontmatter status field in refinement.md / plan.md / task.md.
 #
 # Usage:
-#   mark-spec-implemented.sh <ticket_key> [--status IMPLEMENTED|ABANDONED] [--workspace <path>] [--auto-archive|--no-auto-archive]
+#   mark-spec-implemented.sh <ticket_key> [--status IMPLEMENTED|ABANDONED] [--workspace <path>] [--parent-anchor <path>] [--task-anchor <path>] [--auto-archive|--no-auto-archive]
 #
 # Examples:
 #   mark-spec-implemented.sh EPIC-521
@@ -360,6 +360,89 @@ MD
   [[ -f "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-071-archived-same-key/tasks/V1/index.md" ]] || { echo "[selftest] archived same-key container was moved (active priority violated, AC-NEG2)"; return 1; }
   [[ ! -e "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-071-archived-same-key/tasks/pr-release/V1/index.md" ]] || { echo "[selftest] archived same-key container leaked into pr-release (AC-NEG2)"; return 1; }
 
+  # DP-422 T8: explicit parent anchors are source-level, active, realpath-bound
+  # inputs. Nested task anchors, archive anchors, and symlinks escaping the
+  # canonical specs root must fail closed without mutating a parent.
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-072-parent-anchor-guards/tasks/T1"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-072-parent-anchor-guards/index.md" <<'MD'
+---
+status: LOCKED
+---
+# DP-072
+MD
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-072-parent-anchor-guards/tasks/T1/index.md" <<'MD'
+---
+status: IMPLEMENTED
+---
+# T1
+MD
+  if env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" DP-072 --workspace "$tmpdir" \
+    --parent-anchor "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-072-parent-anchor-guards/tasks/T1/index.md" \
+    --no-auto-archive >/dev/null 2>&1; then
+    echo "[selftest] nested task anchor was accepted as a parent anchor"
+    return 1
+  fi
+  grep -q '^status: LOCKED$' "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-072-parent-anchor-guards/index.md" || {
+    echo "[selftest] rejected nested task anchor mutated the parent"
+    return 1
+  }
+
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-073-archived-parent-anchor"
+  cat > "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-073-archived-parent-anchor/index.md" <<'MD'
+---
+status: LOCKED
+---
+# DP-073
+MD
+  if env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" DP-073 --workspace "$tmpdir" \
+    --parent-anchor "$tmpdir/docs-manager/src/content/docs/specs/design-plans/archive/DP-073-archived-parent-anchor/index.md" \
+    --no-auto-archive >/dev/null 2>&1; then
+    echo "[selftest] archive parent anchor was accepted"
+    return 1
+  fi
+
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-074-symlink-parent-anchor"
+  cat > "$tmpdir/outside-parent-anchor.md" <<'MD'
+---
+status: LOCKED
+---
+# outside
+MD
+  ln -s "$tmpdir/outside-parent-anchor.md" \
+    "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-074-symlink-parent-anchor/index.md"
+  if env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" DP-074 --workspace "$tmpdir" \
+    --parent-anchor "$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-074-symlink-parent-anchor/index.md" \
+    --no-auto-archive >/dev/null 2>&1; then
+    echo "[selftest] out-of-root symlink parent anchor was accepted"
+    return 1
+  fi
+
+  # Duplicate JIRA keys across company namespaces must not override an explicit
+  # resolved anchor. Only the caller-selected company B parent may transition.
+  mkdir -p "$tmpdir/docs-manager/src/content/docs/specs/companies/companya/EPIC-777" \
+           "$tmpdir/docs-manager/src/content/docs/specs/companies/companyb/EPIC-777"
+  for parent in \
+    "$tmpdir/docs-manager/src/content/docs/specs/companies/companya/EPIC-777/refinement.md" \
+    "$tmpdir/docs-manager/src/content/docs/specs/companies/companyb/EPIC-777/refinement.md"; do
+    cat > "$parent" <<'MD'
+---
+status: LOCKED
+---
+# EPIC-777
+MD
+  done
+  env -u MARK_SPEC_IMPLEMENTED_SELFTEST bash "$0" EPIC-777 --workspace "$tmpdir" \
+    --parent-anchor "$tmpdir/docs-manager/src/content/docs/specs/companies/companyb/EPIC-777/refinement.md" \
+    --no-auto-archive >/dev/null
+  grep -q '^status: LOCKED$' "$tmpdir/docs-manager/src/content/docs/specs/companies/companya/EPIC-777/refinement.md" || {
+    echo "[selftest] duplicate JIRA explicit anchor mutated company A"
+    return 1
+  }
+  grep -q '^status: IMPLEMENTED$' "$tmpdir/docs-manager/src/content/docs/specs/companies/companyb/EPIC-777/refinement.md" || {
+    echo "[selftest] duplicate JIRA explicit anchor did not update company B"
+    return 1
+  }
+
   echo "[selftest] PASS"
 }
 
@@ -373,11 +456,15 @@ STATUS="IMPLEMENTED"
 WORKSPACE_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SPECS_ROOT=""
 AUTO_ARCHIVE=1
+PARENT_ANCHOR=""
+TASK_ANCHOR=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --status)     STATUS="$2"; shift 2 ;;
     --workspace)  WORKSPACE_ROOT="$2"; shift 2 ;;
+    --parent-anchor) PARENT_ANCHOR="$2"; shift 2 ;;
+    --task-anchor) TASK_ANCHOR="$2"; shift 2 ;;
     --auto-archive) AUTO_ARCHIVE=1; shift ;;
     --no-auto-archive) AUTO_ARCHIVE=0; shift ;;
     -h|--help)
@@ -413,6 +500,11 @@ case "$STATUS" in
     exit 1
     ;;
 esac
+
+if [ -n "$PARENT_ANCHOR" ] && [ -n "$TASK_ANCHOR" ]; then
+  echo "ERROR: --parent-anchor and --task-anchor are mutually exclusive" >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # update_frontmatter_status <file> <new_status>
@@ -530,6 +622,55 @@ ANCHOR=""
 ANCHOR_TYPE=""  # "epic" | "task"
 TASK_FILENAME=""  # task entry name (T1.md for legacy file, T3b for folder-native)
 TASKS_DIR=""    # absolute path to the tasks/ directory containing the task
+BARE_DP_CONTAINER=""
+
+# Parent callers that already resolved the canonical source container may bind the
+# lifecycle write to that exact anchor. This preserves mark-spec-implemented.sh as
+# the sole parent writer without re-resolving a bare DP key across duplicate
+# fixtures or concurrent active containers.
+if [ -n "$PARENT_ANCHOR" ]; then
+  parent_anchor_info="$(python3 - "$SPECS_ROOT" "$PARENT_ANCHOR" "$TICKET" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+specs_root = Path(sys.argv[1]).resolve()
+requested = Path(sys.argv[2])
+ticket = sys.argv[3]
+try:
+    anchor = requested.resolve(strict=True)
+    relative = anchor.relative_to(specs_root)
+except (OSError, ValueError) as exc:
+    print(f"ERROR: parent anchor must resolve inside the canonical specs root: {requested}: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+parts = relative.parts
+anchor_names = {"index.md", "plan.md", "refinement.md"}
+if len(parts) == 3 and parts[0] == "design-plans" and parts[2] in anchor_names:
+    container = parts[1]
+    if not re.fullmatch(rf"{re.escape(ticket)}(?:-.+)?", container):
+        print(f"ERROR: parent anchor container {container!r} does not match source key {ticket!r}", file=sys.stderr)
+        raise SystemExit(1)
+    kind = "bare_dp"
+elif len(parts) == 4 and parts[0] == "companies" and parts[3] in anchor_names:
+    container = parts[2]
+    if container != ticket:
+        print(f"ERROR: parent anchor container {container!r} does not match source key {ticket!r}", file=sys.stderr)
+        raise SystemExit(1)
+    kind = "epic"
+else:
+    print(f"ERROR: parent anchor is not an active source-level anchor: {anchor}", file=sys.stderr)
+    raise SystemExit(1)
+
+print(kind)
+print(anchor)
+print(anchor.parent)
+PY
+)" || exit 1
+  ANCHOR_TYPE="$(printf '%s\n' "$parent_anchor_info" | sed -n '1p')"
+  ANCHOR="$(printf '%s\n' "$parent_anchor_info" | sed -n '2p')"
+  BARE_DP_CONTAINER="$(printf '%s\n' "$parent_anchor_info" | sed -n '3p')"
+fi
 
 set_task_anchor_from_file() {
   local file="$1"
@@ -556,28 +697,186 @@ set_task_anchor_from_file() {
   ANCHOR_TYPE="task"
 }
 
-# Path 1 — Epic-level
-for company_specs_dir in "$SPECS_ROOT"/companies/*/; do
-  [ -d "$company_specs_dir" ] || continue
-  candidate="${company_specs_dir}${TICKET}"
-  if [ -d "$candidate" ]; then
-    if [ -f "$candidate/refinement.md" ]; then
-      ANCHOR="$candidate/refinement.md"
-      ANCHOR_TYPE="epic"
-      break
-    fi
-    if [ -f "$candidate/plan.md" ]; then
-      ANCHOR="$candidate/plan.md"
-      ANCHOR_TYPE="epic"
-      break
-    fi
-    if [ -f "$candidate/index.md" ]; then
-      ANCHOR="$candidate/index.md"
-      ANCHOR_TYPE="epic"
-      break
-    fi
+# Task callers that already resolved the authoritative work order may bind the
+# lifecycle write to that exact file. Unlike --parent-anchor, archived tasks are
+# valid here because revision closeout can run after source archival. The path
+# shape and parsed work-item identity must both match before mutation.
+if [ -n "$TASK_ANCHOR" ]; then
+  task_anchor_resolved="$(python3 - "$SPECS_ROOT" "$TASK_ANCHOR" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+specs_root = Path(sys.argv[1]).resolve()
+requested = Path(sys.argv[2])
+try:
+    anchor = requested.resolve(strict=True)
+    relative = anchor.relative_to(specs_root)
+except (OSError, ValueError) as exc:
+    print(f"ERROR: task anchor must resolve inside the canonical specs root: {requested}: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+parts = relative.parts
+if len(parts) >= 4 and parts[0] == "design-plans":
+    tasks_index = 3 if parts[1] == "archive" else 2
+elif len(parts) >= 5 and parts[0] == "companies":
+    tasks_index = 4 if parts[2] == "archive" else 3
+else:
+    print(f"ERROR: task anchor is not under a canonical tasks directory: {anchor}", file=sys.stderr)
+    raise SystemExit(1)
+
+if len(parts) <= tasks_index or parts[tasks_index] != "tasks":
+    print(f"ERROR: task anchor is not under a canonical tasks directory: {anchor}", file=sys.stderr)
+    raise SystemExit(1)
+
+prefix = parts[:tasks_index]
+if not (
+    (len(prefix) == 2 and prefix[0] == "design-plans")
+    or (len(prefix) == 3 and prefix[:2] == ("design-plans", "archive"))
+    or (
+        len(prefix) == 3
+        and prefix[0] == "companies"
+        and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", prefix[1])
+        and prefix[1] != "archive"
+    )
+    or (
+        len(prefix) == 4
+        and prefix[0] == "companies"
+        and prefix[2] == "archive"
+        and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", prefix[1])
+        and prefix[1] != "archive"
+    )
+):
+    print(f"ERROR: task anchor has an unsupported source-container shape: {anchor}", file=sys.stderr)
+    raise SystemExit(1)
+
+tail = parts[tasks_index + 1:]
+if tail and tail[0] == "pr-release":
+    tail = tail[1:]
+valid = False
+if len(tail) == 1 and re.fullmatch(r"[TV][0-9]+[a-z]*\.md", tail[0]):
+    valid = True
+elif len(tail) == 2 and re.fullmatch(r"[TV][0-9]+[a-z]*", tail[0]) and tail[1] == "index.md":
+    valid = True
+if not valid:
+    print(f"ERROR: task anchor is not a canonical task.md shape: {anchor}", file=sys.stderr)
+    raise SystemExit(1)
+
+print(anchor)
+PY
+)" || exit 1
+  task_anchor_source_id="$(bash "$PARSE_TASK_MD" "$task_anchor_resolved" --no-resolve --field source_id 2>/dev/null || true)"
+  task_anchor_source_type="$(bash "$PARSE_TASK_MD" "$task_anchor_resolved" --no-resolve --field source_type 2>/dev/null || true)"
+  task_anchor_work_item="$(bash "$PARSE_TASK_MD" "$task_anchor_resolved" --no-resolve --field work_item_id 2>/dev/null || true)"
+  task_anchor_delivery_key="$(bash "$PARSE_TASK_MD" "$task_anchor_resolved" --no-resolve --field delivery_ticket_key 2>/dev/null || true)"
+  task_anchor_work_item_row_present="$(python3 - "$task_anchor_resolved" <<'PY'
+import sys
+from pathlib import Path
+
+lines = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
+in_context = False
+row_present = False
+for line in lines:
+    if line.startswith("## "):
+        in_context = line.strip() == "## Operational Context"
+        if in_context:
+            # parse-task-md stores sections by heading name, so a repeated
+            # Operational Context replaces the earlier section.
+            row_present = False
+        continue
+    if in_context and line.lstrip().startswith("|"):
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if cells and cells[0] == "Work item ID":
+            row_present = True
+if row_present:
+    print("yes")
+PY
+)"
+  task_anchor_basename="$(basename "$task_anchor_resolved")"
+  if [ "$task_anchor_basename" = "index.md" ]; then
+    task_anchor_stem="$(basename "$(dirname "$task_anchor_resolved")")"
+  else
+    task_anchor_stem="${task_anchor_basename%.md}"
   fi
-done
+  task_anchor_expected_work_item="${task_anchor_source_id}-${task_anchor_stem}"
+  task_anchor_work_item_valid=0
+  if [ "$task_anchor_work_item_row_present" = "yes" ]; then
+    [ "$task_anchor_work_item" = "$task_anchor_expected_work_item" ] && task_anchor_work_item_valid=1
+  elif echo "$task_anchor_source_id" | grep -q '^DP-' && [ "$task_anchor_work_item" = "$task_anchor_expected_work_item" ]; then
+    task_anchor_work_item_valid=1
+  elif [ "$task_anchor_source_type" = "jira" ] && [ "$task_anchor_work_item" = "$task_anchor_delivery_key" ]; then
+    # Legacy JIRA work orders predate the dedicated Work item ID row; the
+    # canonical parser intentionally falls back to delivery Task ID/JIRA key.
+    task_anchor_work_item_valid=1
+  fi
+  if [ -z "$task_anchor_source_id" ] || [ "$task_anchor_work_item_valid" -ne 1 ] || [ "$task_anchor_delivery_key" != "$TICKET" ]; then
+    echo "ERROR: task anchor identity does not match delivery ticket '$TICKET' (source_type='${task_anchor_source_type:-<empty>}', source_id='${task_anchor_source_id:-<empty>}', work_item_id='${task_anchor_work_item:-<empty>}', delivery_ticket_key='${task_anchor_delivery_key:-<empty>}')" >&2
+    exit 1
+  fi
+  python3 - "$SPECS_ROOT" "$task_anchor_resolved" "$task_anchor_source_id" <<'PY' || exit 1
+import re
+import sys
+from pathlib import Path
+
+specs_root = Path(sys.argv[1]).resolve()
+anchor = Path(sys.argv[2]).resolve(strict=True)
+source_id = sys.argv[3]
+relative = anchor.relative_to(specs_root)
+parts = relative.parts
+if len(parts) >= 4 and parts[0] == "design-plans":
+    tasks_index = 3 if parts[1] == "archive" else 2
+elif len(parts) >= 5 and parts[0] == "companies":
+    tasks_index = 4 if parts[2] == "archive" else 3
+else:
+    print(f"ERROR: task anchor is not under a canonical tasks directory: {anchor}", file=sys.stderr)
+    raise SystemExit(1)
+
+if len(parts) <= tasks_index or parts[tasks_index] != "tasks":
+    print(f"ERROR: task anchor is not under a canonical tasks directory: {anchor}", file=sys.stderr)
+    raise SystemExit(1)
+prefix = parts[:tasks_index]
+
+valid = False
+if len(prefix) == 2 and prefix[0] == "design-plans":
+    valid = source_id.startswith("DP-") and re.fullmatch(rf"{re.escape(source_id)}(?:-.+)?", prefix[1]) is not None
+elif len(prefix) == 3 and prefix[:2] == ("design-plans", "archive"):
+    valid = source_id.startswith("DP-") and re.fullmatch(rf"{re.escape(source_id)}(?:-.+)?", prefix[2]) is not None
+elif len(prefix) == 3 and prefix[0] == "companies":
+    valid = not source_id.startswith("DP-") and prefix[2] == source_id
+elif len(prefix) == 4 and prefix[0] == "companies" and prefix[2] == "archive":
+    valid = not source_id.startswith("DP-") and prefix[3] == source_id
+
+if not valid:
+    print(f"ERROR: task anchor container does not match parsed source_id '{source_id}': {anchor}", file=sys.stderr)
+    raise SystemExit(1)
+PY
+  set_task_anchor_from_file "$task_anchor_resolved"
+fi
+
+# Path 1 — Epic-level
+if [ -z "$ANCHOR" ]; then
+  for company_specs_dir in "$SPECS_ROOT"/companies/*/; do
+    [ -d "$company_specs_dir" ] || continue
+    candidate="${company_specs_dir}${TICKET}"
+    if [ -d "$candidate" ]; then
+      if [ -f "$candidate/refinement.md" ]; then
+        ANCHOR="$candidate/refinement.md"
+        ANCHOR_TYPE="epic"
+        break
+      fi
+      if [ -f "$candidate/plan.md" ]; then
+        ANCHOR="$candidate/plan.md"
+        ANCHOR_TYPE="epic"
+        break
+      fi
+      if [ -f "$candidate/index.md" ]; then
+        ANCHOR="$candidate/index.md"
+        ANCHOR_TYPE="epic"
+        break
+      fi
+    fi
+  done
+fi
 
 # Path 1b — Bare DP container key (DP-NNN)
 # Resolves to design-plans/DP-NNN-*/{index.md,plan.md,refinement.md}

@@ -71,6 +71,7 @@ assert_stderr_contains() {
 build_fixture() {
   local fixdir="$1"; shift
   mkdir -p "$fixdir/scripts/lib"
+  cp "$ROOT/scripts/refinement-consumer-registry.json" "$fixdir/scripts/refinement-consumer-registry.json"
 
   # Schema validator stub — the SINGLE SOURCE OF TRUTH for the whitelist. The gate
   # extracts `task_required = { ... }` plus every `if "X" in task:` field. The
@@ -169,6 +170,16 @@ EOF
 for task in data.get("tasks") or []:
     tid = task.get("id")
     verification = task.get("verification")
+PY
+EOF
+
+  cat >"$fixdir/scripts/backfill-refinement-verification-strategy.sh" <<'EOF'
+#!/usr/bin/env bash
+: <<'PY'
+# reads refinement.json
+for task in data.get("tasks") or []:
+    tid = task.get("id")
+    kind = task.get("kind")
 PY
 EOF
 
@@ -464,6 +475,7 @@ tasks = data.get("tasks") or []
 title = str(match["title"])
 repo = match.get("repo")
 base_branch = match.get("base_branch")
+task_id = entry.get("id")
 PY
 EOF
 set +e
@@ -475,6 +487,54 @@ if [[ "$out10" != *"PASS: refinement consumer schema binding"* ]]; then
   cat "$tmpdir/case10.err" >&2
   fail=$((fail + 1))
 fi
+
+# Case 11: missing registry is a fail-closed missing authority input.
+fix11="$tmpdir/case11"
+build_fixture "$fix11"
+rm "$fix11/scripts/refinement-consumer-registry.json"
+set +e
+bash "$GATE" --root "$fix11" 2>"$tmpdir/case11.err"; rc11=$?
+set -e
+assert_exit "case11 missing consumer registry fails closed" 2 "$rc11"
+assert_stderr_contains "case11 names missing registry" "consumer registry not found" "$tmpdir/case11.err"
+
+# Case 12: a structurally valid but incorrect accessor binding must fail closed.
+fix12="$tmpdir/case12"
+build_fixture "$fix12"
+python3 - "$fix12/scripts/refinement-consumer-registry.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p, encoding="utf-8"))
+for record in data["consumers"]:
+    if record["path"] == "scripts/backfill-refinement-verification-strategy.sh":
+        record["accessor_vars"] = ["entry"]
+        record["expected_fields"] = {"entry": ["id", "kind"]}
+open(p, "w", encoding="utf-8").write(json.dumps(data) + "\n")
+PY
+set +e
+bash "$GATE" --root "$fix12" 2>"$tmpdir/case12.err"; rc12=$?
+set -e
+assert_exit "case12 wrong accessor binding fails closed" 2 "$rc12"
+assert_stderr_contains "case12 names stale live binding" "stale/missing live binding" "$tmpdir/case12.err"
+
+# Case 13: required_fields tuple must not make a nonexistent accessor look live.
+fix13="$tmpdir/case13"
+build_fixture "$fix13"
+python3 - "$fix13/scripts/refinement-consumer-registry.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p, encoding="utf-8"))
+for record in data["consumers"]:
+    if record["path"] == "scripts/derive-task-md-from-refinement-json.sh":
+        record["accessor_vars"] = ["bogus", "entry"]
+        record["expected_fields"] = {"bogus": ["title"], "entry": ["id"]}
+open(p, "w", encoding="utf-8").write(json.dumps(data) + "\n")
+PY
+set +e
+bash "$GATE" --root "$fix13" 2>"$tmpdir/case13.err"; rc13=$?
+set -e
+assert_exit "case13 tuple cannot satisfy bogus accessor" 2 "$rc13"
+assert_stderr_contains "case13 names bogus stale binding" "accessor 'bogus' has stale/missing live binding" "$tmpdir/case13.err"
 
 # ---------------------------------------------------------------------------
 echo "----------------------------------------"

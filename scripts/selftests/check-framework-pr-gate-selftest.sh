@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Purpose: DP-296 T4 / AC3 selftest for check-framework-pr-gate.sh — asserts the new
-#   W12 refinement-consumer-schema-binding gate is wired into the aggregate and runs.
+# Purpose: check-framework-pr-gate.sh wiring selftest — asserts W12 parity and the
+#   DP-422 T8 W19 transition source-closeout gate are blocking aggregate members.
 #   The aggregate is composed of many cwd/content-sensitive gates, so this selftest
 #   does NOT run the whole aggregate end-to-end; instead it verifies the W12 wiring
 #   deterministically:
@@ -58,6 +58,18 @@ assert_grep "case1 W12 run_gate label present" \
   "W12 refinement consumer schema binding" "$AGG"
 assert_grep "case1 W12 override env present" \
   "POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN" "$AGG"
+assert_grep "case1 parity binary default present" \
+  "scripts/validate-spec-check-contract-parity.sh" "$AGG"
+assert_grep "case1 parity run_gate label present" \
+  "W12 producer-consumer-validator parity" "$AGG"
+assert_grep "case1 parity override env present" \
+  "POLARIS_VALIDATE_SPEC_CHECK_CONTRACT_PARITY_BIN" "$AGG"
+assert_grep "case1 W19 binary default present" \
+  "scripts/validate-skill-flow-transition-registry.sh" "$AGG"
+assert_grep "case1 W19 run_gate label present" \
+  "W19 DP-422 transition source closeout" "$AGG"
+assert_grep "case1 W19 override env present" \
+  "POLARIS_VALIDATE_SKILL_FLOW_TRANSITION_REGISTRY_BIN" "$AGG"
 
 # ---------------------------------------------------------------------------
 # Build PASS / FAIL gate stubs.
@@ -83,6 +95,7 @@ common_env=(
   "POLARIS_VALIDATE_MISE_DEPENDENCY_BIN=$pass_stub"
   "POLARIS_VALIDATE_SCRIPT_HEADER_BIN=$pass_stub"
   "POLARIS_VALIDATE_SCRIPT_CATEGORIZATION_BIN=$pass_stub"
+  "POLARIS_VALIDATE_SPEC_CHECK_CONTRACT_PARITY_BIN=$pass_stub"
   "POLARIS_COMPILE_RUNTIME_INSTRUCTIONS_BIN=$pass_stub"
   "POLARIS_MECHANISM_PARITY_BIN=$pass_stub"
   # W13/W14 must point at the PASS stub: the real binaries are
@@ -93,6 +106,11 @@ common_env=(
   # asserting wiring (W12 fail/pass behaviour) without spawning the full corpus.
   "POLARIS_VALIDATE_SELFTEST_ENROLLMENT_BIN=$pass_stub"
   "POLARIS_RUN_AGGREGATE_SELFTESTS_BIN=$pass_stub"
+  "POLARIS_LINT_NAIVE_SECTION_PARSE_BIN=$pass_stub"
+  "POLARIS_VALIDATE_CROSS_LLM_PARITY_BIN=$pass_stub"
+  "POLARIS_VALIDATE_FRAMEWORK_SOURCE_WRITE_BIN=$pass_stub"
+  "POLARIS_VALIDATE_CONFIG_DRIVEN_AUTHORING_BIN=$pass_stub"
+  "POLARIS_VALIDATE_SKILL_FLOW_TRANSITION_REGISTRY_BIN=$pass_stub"
 )
 
 # ---------------------------------------------------------------------------
@@ -106,14 +124,39 @@ assert_exit "case2 W12 failure blocks aggregate" 1 "$rc2"
 assert_grep "case2 aggregate names W12" "W12 refinement consumer schema binding" "$tmpdir/case2.err"
 
 # ---------------------------------------------------------------------------
-# Case 3: every gate (including W12) PASSes → aggregate prints terminal PASS.
+# Case 3: producer-consumer-validator parity FAILS → aggregate fails closed.
+# ---------------------------------------------------------------------------
+set +e
+env "${common_env[@]}" \
+  "POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN=$pass_stub" \
+  "POLARIS_VALIDATE_SPEC_CHECK_CONTRACT_PARITY_BIN=$fail_stub" \
+  bash "$AGG" >"$tmpdir/case3.out" 2>"$tmpdir/case3.err"; rc3=$?
+set -e
+assert_exit "case3 parity failure blocks aggregate" 1 "$rc3"
+assert_grep "case3 aggregate names parity stage" "W12 producer-consumer-validator parity" "$tmpdir/case3.err"
+
+# ---------------------------------------------------------------------------
+# Case 4: W19 source closeout FAILS → aggregate fails closed after current
+# reproducer stages.
+# ---------------------------------------------------------------------------
+set +e
+env "${common_env[@]}" \
+  "POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN=$pass_stub" \
+  "POLARIS_VALIDATE_SKILL_FLOW_TRANSITION_REGISTRY_BIN=$fail_stub" \
+  bash "$AGG" >"$tmpdir/case4.out" 2>"$tmpdir/case4.err"; rc4=$?
+set -e
+assert_exit "case4 W19 failure blocks aggregate" 1 "$rc4"
+assert_grep "case4 aggregate names W19" "W19 DP-422 transition source closeout" "$tmpdir/case4.err"
+
+# ---------------------------------------------------------------------------
+# Case 5: every gate (including W12 and W19) PASSes → terminal PASS.
 # ---------------------------------------------------------------------------
 set +e
 env "${common_env[@]}" "POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN=$pass_stub" \
-  bash "$AGG" >"$tmpdir/case3.out" 2>"$tmpdir/case3.err"; rc3=$?
+  bash "$AGG" >"$tmpdir/case5.out" 2>"$tmpdir/case5.err"; rc5=$?
 set -e
-assert_exit "case3 all-pass aggregate" 0 "$rc3"
-assert_grep "case3 terminal PASS line" "PASS: framework PR gate" "$tmpdir/case3.out"
+assert_exit "case5 all-pass aggregate" 0 "$rc5"
+assert_grep "case5 terminal PASS line" "PASS: framework PR gate" "$tmpdir/case5.out"
 
 # ---------------------------------------------------------------------------
 echo "----------------------------------------"

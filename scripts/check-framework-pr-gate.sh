@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: aggregate blocking framework PR gate — runs each validator (W1..W16) and
+# Purpose: aggregate blocking framework PR gate — runs each validator (W1..W19) and
 #          fails closed if any one fails. W11 (DP-293 T1) is the runtime-instruction
 #          parity step: compile-runtime-instructions --check + mechanism-parity --strict.
 #          W14 runs the full selftest corpus (run-aggregate-selftests.sh) — this makes
@@ -39,6 +39,7 @@ W15	naive section-parse lint	upstream:markdown-parser-governance	engineering	N/A
 W16	cross-LLM mechanism parity	upstream:mechanism-governance	engineering	N/A
 W17	framework source write authority	upstream:framework-source-governance	engineering	N/A
 W18	config-driven authoring audit	upstream:language-governance	engineering	N/A
+W19	DP-422 transition source closeout	upstream:skill-flow-transition-governance	engineering	N/A
 OWNERS
 }
 
@@ -72,6 +73,7 @@ W15 naive section-parse lint
 W16 cross-LLM mechanism parity
 W17 framework source write authority
 W18 config-driven authoring audit
+W19 DP-422 transition source closeout
 STAGES
   exit 0
 fi
@@ -165,6 +167,7 @@ VALIDATE_SCRIPT_CATEGORIZATION="${POLARIS_VALIDATE_SCRIPT_CATEGORIZATION_BIN:-sc
 # validated by validate-refinement-json.sh) and fails closed on out-of-schema reads
 # or unregistered consumers.
 VALIDATE_CONSUMER_SCHEMA_BINDING="${POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN:-scripts/validate-refinement-consumer-schema-binding.sh}"
+VALIDATE_SPEC_CHECK_CONTRACT_PARITY="${POLARIS_VALIDATE_SPEC_CHECK_CONTRACT_PARITY_BIN:-scripts/validate-spec-check-contract-parity.sh}"
 # W13/W14 (DP-325 T2 / AC1+AC2+AC3): aggregate selftest enrollment + execution.
 # W13 fail-closes when a filesystem selftest is not enrolled in the aggregate
 # runner; W14 runs the full selftest corpus (any red => non-zero). Together they
@@ -191,6 +194,10 @@ VALIDATE_CROSS_LLM_PARITY="${POLARIS_VALIDATE_CROSS_LLM_PARITY_BIN:-scripts/vali
 # delegate to the single validator.
 VALIDATE_FRAMEWORK_SOURCE_WRITE="${POLARIS_VALIDATE_FRAMEWORK_SOURCE_WRITE_BIN:-scripts/validate-framework-source-write.sh}"
 VALIDATE_CONFIG_DRIVEN_AUTHORING="${POLARIS_VALIDATE_CONFIG_DRIVEN_AUTHORING_BIN:-scripts/validate-config-driven-authoring.sh}"
+# W19 (DP-422 T8 / AC3+AC10+AC11+AC12)：在 W14 已執行完整 current
+# reproducer corpus 後，使用既有 transition registry validator 驗 exact coverage、
+# 唯一 callable owner 與 source-type parity；不建立第二套 registry。
+VALIDATE_SKILL_FLOW_TRANSITION_REGISTRY="${POLARIS_VALIDATE_SKILL_FLOW_TRANSITION_REGISTRY_BIN:-scripts/validate-skill-flow-transition-registry.sh}"
 
 run_gate() {
   local label="$1"
@@ -273,6 +280,7 @@ run_gate "W11 runtime-instruction parity (mechanism-parity --strict)" "$MECHANIS
 # declared consumer reading an out-of-schema tasks[] field, or a new unregistered
 # tasks[] consumer, must fail the PR gate before merge.
 run_gate "W12 refinement consumer schema binding" "$VALIDATE_CONSUMER_SCHEMA_BINDING"
+run_gate "W12 producer-consumer-validator parity" "$VALIDATE_SPEC_CHECK_CONTRACT_PARITY"
 # W13: selftest enrollment gate (DP-325 T2 / AC2). Fail-closed when any filesystem
 # selftest is not enrolled in the aggregate runner.
 run_gate "W13 selftest enrollment" "$VALIDATE_SELFTEST_ENROLLMENT"
@@ -289,5 +297,6 @@ run_gate "W15 naive section-parse lint" "$LINT_NAIVE_SECTION_PARSE" --self-check
 run_gate "W16 cross-LLM mechanism parity" "$VALIDATE_CROSS_LLM_PARITY"
 run_gate "W17 framework source write authority" "$VALIDATE_FRAMEWORK_SOURCE_WRITE" --repo "$(pwd)" --self-check-wiring
 run_gate "W18 config-driven authoring audit" "$VALIDATE_CONFIG_DRIVEN_AUTHORING" --root "$(pwd)"
+run_gate "W19 DP-422 transition source closeout" "$VALIDATE_SKILL_FLOW_TRANSITION_REGISTRY" --source-closeout
 
 echo "PASS: framework PR gate"

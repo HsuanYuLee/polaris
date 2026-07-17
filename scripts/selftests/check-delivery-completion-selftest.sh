@@ -744,6 +744,7 @@ run_pending_ci_snapshot_case() {
   local repo="$TMPROOT/$label/repo"
   local pr_json="$TMPROOT/$label/pr.json"
   local checks_json="$TMPROOT/$label/checks.json"
+  local comments_json="$TMPROOT/$label/comments.json"
   local snapshot=""
   mkdir -p "$TMPROOT/$label"
   setup_repo "$repo"
@@ -767,8 +768,9 @@ EOF
   {"name": "ci", "state": "PENDING", "conclusion": null}
 ]
 EOF
+  printf '[]\n' > "$comments_json"
 
-  snapshot="$(bash "$SCRIPT_DIR/pr-state-snapshot.sh" --repo "$repo" --pr-json "$pr_json" --checks-json "$checks_json" --intent read-only)"
+  snapshot="$(bash "$SCRIPT_DIR/pr-state-snapshot.sh" --repo "$repo" --pr-json "$pr_json" --checks-json "$checks_json" --comments-json "$comments_json" --intent read-only)"
   assert_contains "$label mergeability" "$snapshot" '"mergeability":"clean"'
   assert_contains "$label reason" "$snapshot" '"readiness_reason":"pending_ci"'
 }
@@ -1145,6 +1147,71 @@ EOF
 }
 
 run_behavior_contract_case
+
+run_no_pr_task_shape_case() {
+  local label="audit-no-pr-task-shape"
+  local repo="$TMPROOT/$label/repo"
+  setup_repo "$repo"
+
+  local head_sha task_md out rc
+  head_sha="$(git -C "$repo" rev-parse HEAD)"
+  write_task "$repo" "$head_sha"
+  task_md="$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-completion-gate/tasks/T1.md"
+  python3 - "$task_md" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+text = text.replace("status: IN_PROGRESS\n", "status: IN_PROGRESS\ntask_shape: audit\n", 1)
+text = re.sub(r"^  pr_url:.*\n^  pr_state:.*\n", "", text, count=1, flags=re.MULTILINE)
+text = text.replace(
+    "  head_sha:",
+    "  verification:\n"
+    "    status: PASS\n"
+    "    ac_counts:\n"
+    "      ac_total: 0\n"
+    "      ac_pass: 0\n"
+    "      ac_fail: 0\n"
+    "      ac_manual_required: 0\n"
+    "      ac_uncertain: 0\n"
+    "  head_sha:",
+    1,
+)
+path.write_text(text, encoding="utf-8")
+PY
+  write_baseline_snapshot "$repo" "$task_md" DP-999-T1 "$head_sha"
+  write_task_verify_report "$repo" "$repo" "$head_sha"
+
+  set +e
+  out="$(POLARIS_SKIP_CI_LOCAL=1 POLARIS_SKIP_EVIDENCE=1 "$CHECK" --repo "$repo" --ticket DP-999-T1 2>&1)"
+  rc=$?
+  set -e
+  assert_rc "$label rc" "$rc" "0"
+  assert_contains "$label message" "$out" "audit task completion gate satisfied via task.md deliverable block"
+
+  python3 - "$task_md" <<'PY'
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8").replace(
+    "deliverable:\n",
+    "deliverable:\n  pr_url: https://github.com/demo/example/pull/1\n  pr_state: OPEN\n",
+    1,
+)
+path.write_text(text, encoding="utf-8")
+PY
+  write_baseline_snapshot "$repo" "$task_md" DP-999-T1 "$head_sha"
+  set +e
+  out="$(POLARIS_SKIP_CI_LOCAL=1 POLARIS_SKIP_EVIDENCE=1 "$CHECK" --repo "$repo" --ticket DP-999-T1 2>&1)"
+  rc=$?
+  set -e
+  assert_rc "$label rejects PR metadata rc" "$rc" "2"
+  assert_contains "$label rejects PR metadata message" "$out" "no-PR deliverable must not contain pr_url or pr_state"
+}
+
+run_no_pr_task_shape_case
 
 run_completion_profile_case() {
   local label="$1"

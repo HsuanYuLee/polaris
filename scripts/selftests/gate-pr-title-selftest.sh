@@ -50,6 +50,7 @@ assert_block() {
 }
 
 # write_task_md <task_md_path> <task_id> <task_branch> [bundle_branch_alias]
+#   [source_type] [source_id] [jira_key]
 # Produces a minimal canonical task.md whose Operational Context binds the
 # delivery_ticket_key (= Task ID, e.g. DP-999-T1) + summary. The H1 uses the
 # canonical `# T{n}: {summary} ({SP} pt)` shape parse-task-md requires for the
@@ -60,6 +61,9 @@ write_task_md() {
   local task_id="$2"
   local task_branch="$3"
   local bundle_alias="${4:-}"
+  local source_type="${5:-dp}"
+  local source_id="${6:-DP-999}"
+  local jira_key="${7:-N/A}"
   local short_tn="${task_id##*-}"
   mkdir -p "$(dirname "$task_md")"
   {
@@ -75,16 +79,16 @@ write_task_md() {
     echo ""
     echo "# ${short_tn}: fixture for gate-pr-title selftest (1 pt)"
     echo ""
-    echo "> Source: DP-999 | Task: ${task_id} | JIRA: N/A | Repo: fixture"
+    echo "> Source: ${source_id} | Task: ${task_id} | JIRA: ${jira_key} | Repo: fixture"
     echo ""
     echo "## Operational Context"
     echo ""
     echo "| 欄位 | 值 |"
     echo "|------|-----|"
-    echo "| Source type | dp |"
-    echo "| Source ID | DP-999 |"
+    echo "| Source type | ${source_type} |"
+    echo "| Source ID | ${source_id} |"
     echo "| Task ID | ${task_id} |"
-    echo "| JIRA key | N/A |"
+    echo "| JIRA key | ${jira_key} |"
     echo "| Base branch | main |"
     echo "| Branch chain | main -> ${task_branch} |"
     echo "| Task branch | ${task_branch} |"
@@ -110,6 +114,29 @@ TASK_BRANCH="task/DP-999-T1-fixture"
 git -C "$REPO" branch "$TASK_BRANCH"
 git -C "$REPO" branch "$BUNDLE_BRANCH"
 
+# Hermetic multi-company router.  The product fixture below deliberately uses
+# JIRA project key DP, proving source_type (not the string prefix) owns routing.
+mkdir -p "$REPO/fixtureco"
+cat > "$REPO/workspace-config.yaml" <<YAML
+default_company: fixtureco
+companies:
+  - name: fixtureco
+    base_dir: "$REPO/fixtureco"
+    jira_project_keys: [DP]
+YAML
+cat > "$REPO/fixtureco/workspace-config.yaml" <<'YAML'
+github:
+  org: fixture-org
+jira:
+  projects:
+    - key: DP
+projects:
+  - name: repo
+    delivery:
+      pr_title:
+        developer: "[PRODUCT:{TICKET}] {summary}"
+YAML
+
 # Non-aggregate task fixture: developer title contract applies. The fallback
 # developer template is `[{TICKET}] {summary}`; ticket = DP-999-T1.
 NON_AGG_TASK="$TMPDIR/specs/dp-999/tasks/T1/index.md"
@@ -121,11 +148,18 @@ AGG_TASK="$TMPDIR/specs/dp-999/tasks/T1/agg-index.md"
 write_task_md "$AGG_TASK" "DP-999-T1" "$TASK_BRANCH" "$BUNDLE_BRANCH"
 
 # Resolve the developer-format expected title via the gate's own rendering path
-# (no hand-authored second source of truth for the summary).
+# (no hand-authored second source of truth for the summary).  DP-999 is also the
+# regression fixture proving framework DP identities stay out of company JIRA
+# routing while retaining the developer-title contract.
 DEV_SUMMARY="$(bash "$ROOT_DIR/scripts/parse-task-md.sh" "$NON_AGG_TASK" --field summary 2>/dev/null || true)"
 [[ -n "$DEV_SUMMARY" ]] || fail "could not derive developer summary from fixture task.md"
 DEV_TITLE="[DP-999-T1] $DEV_SUMMARY"
 BUNDLE_TITLE="chore(release): bundle DP-999 -> v9.9.9"
+
+# Product JIRA project "DP" must still route through company configuration.
+JIRA_TASK="$TMPDIR/specs/companies/fixtureco/DP-999/tasks/T1/index.md"
+write_task_md "$JIRA_TASK" "DP-999-T1" "$TASK_BRANCH" "" "jira" "DP-999" "DP-999"
+PRODUCT_TITLE="[PRODUCT:DP-999] $DEV_SUMMARY"
 
 # --- Case 1 (AC3 positive): aggregate-release branch + valid bundle title →
 #     PASS, no POLARIS_SKIP_PR_TITLE_GATE. ---
@@ -158,6 +192,13 @@ assert_pass "non-aggregate correct developer title PASS" \
   "Developer format" -- \
   env -u POLARIS_SKIP_PR_TITLE_GATE \
   bash "$GATE" --repo "$REPO" --task-md "$NON_AGG_TASK" --title "$DEV_TITLE"
+
+# --- Case 2c (routing disambiguation): a real product JIRA ticket whose project
+#     key is DP must consume the company template; it is not a framework DP. ---
+assert_pass "product JIRA project DP uses company title template" \
+  "Developer format" -- \
+  env -u POLARIS_SKIP_PR_TITLE_GATE \
+  bash "$GATE" --repo "$REPO" --task-md "$JIRA_TASK" --title "$PRODUCT_TITLE"
 
 # --- DP-334 T2 / AC2 / AC5: feat/DP-NNN lifecycle. A feat-lifecycle DP task
 #     carries NO bundle_branch_alias, so it falls through to the unchanged

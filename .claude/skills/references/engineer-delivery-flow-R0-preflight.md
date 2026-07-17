@@ -19,7 +19,10 @@
 
 啟動獨立 Reviewer sub-agent 對本地 diff 做 code review。
 
-**Reviewer 規格**：見 `references/sub-agent-roles.md § Critic (Pre-PR Review)`。回傳 JSON `{ passed, blocking[], non_blocking[], summary }`，`blocking[]` 細項含 `file:line` + `rule`（引 handbook path）+ `message`。
+**Reviewer 規格**：見 `references/sub-agent-roles.md § Critic (Pre-PR Review)`。review 前先執行
+`scripts/validate-engineering-self-review-result.sh --print-current-state --repo <worktree>`；
+回傳 JSON `{ passed, reviewed_head_sha, reviewed_state_sha256, blocking[], non_blocking[], summary }`。
+`blocking[]` 細項含 `file:line` + `rule`（引 handbook path）+ `message`。
 
 **Reviewer baseline — handbook-first 硬規格**：
 
@@ -31,18 +34,44 @@
 
 Rationale：handbook 是 repo long-term convention（repo SoT）；reviewer 以「這 PR 對 repo 是不是好的」為基準，不是「這 PR 是否符合 task.md 文字」。避免 task.md rubber stamp workaround。
 
+**Outcome transition**：
+
+每次 Critic 回傳後都必須呼叫 canonical writer；round > 1 時帶上一輪 artifact：
+
+```bash
+bash scripts/write-engineering-self-review-result.sh \
+  --repo "<worktree>" \
+  --work-item-id "<work_item_id>" \
+  --critic-result "<critic-result.json>" \
+  --review-round "<1|2|3|4>" \
+  [--prior-result "<previous-result.json>"]
+```
+
+writer 只機械化 structured verdict handoff，不判 code quality。artifact 同時綁
+`reviewed_head_sha` 與 `reviewed_state_sha256`；因此同一 HEAD 下的未提交 diff 改變也會使
+舊 outcome stale。stale 時以相同 round 重跑 current-state Critic，不增加 remediation count。
+round > 1 的 `--prior-result` 必須位於 canonical
+`.polaris/evidence/engineering-self-review/`，且每輪以檔名與 SHA-256 串起完整歷史；任一歷史
+artifact 缺輪、換路徑或遭修改都 fail-closed。
+
 **迭代規則**：
 
-- `passed: true` → Phase 3 exit，進 Step 1.5 Scope Gate
-- `passed: false` → 回 **Phase 3**（LLM 可自由改 test / 改實作 / 重跑 /simplify 任一），不只是回 /simplify
+- validated `next_action=proceed` → Phase 3 exit，進 Step 1.5 Scope Gate
+- validated `next_action=remediate` → 回 **Phase 3**（LLM 可自由改 test / 改實作 /
+  重跑 /simplify 任一），修正後 state 必須改變，再進下一 round
 - 回到 Phase 3 後**必然重走** TDD → /simplify → Self-Review（Phase 3 exit condition 強制）
-- **Hard cap 3 輪**，超過 → halt → 使用者手動介入
+- round 1～3 FAIL 各允許一次 remediation；第三次 remediation 後只允許 round 4
+  terminal re-review
+- round 4 PASS → `proceed`；round 4 FAIL → `human_review`，才是真正人工介入
+- round 5、counter rename、session reset、freeform chat 或固定確認字串一律不合法
 - **NO bypass**（無「強制繼續」flag；承 D11 / D12 / D14 / D15 / D16 / D20 一致立場：LLM 不自己決定跳過 gate）
 
 **Evidence**：
 
-- Self-Review **不寫 evidence file**，**不進 Layer A+B+C AND gate**（gate 仍只涵蓋 Layer A verify + Layer B behavioral + Layer C VR）
-- Self-Review 是 LLM 語意 checkpoint，不是 CI-class gate；加 evidence 成本高、revision R5 重跑無益
+- Self-Review 會寫 head-and-state-bound transition artifact，但**不進 Layer A+B+C AND gate**
+  （gate 仍只涵蓋 Layer A verify + Layer B behavioral + Layer C VR）
+- Self-Review 是 LLM 語意 checkpoint，不是 CI-class gate；artifact 只保存 freshness、round
+  與 next action，不把 semantic judgment 改成 deterministic classifier
 - Self-Review 產出仍可記入 Phase 6 Detail artifact（`{source_container}/artifacts/engineering-{ticket}-{ts}.md`），可追溯不擋 PR
 - **Revision mode R5 不重跑 Self-Review**（R5 只跑 Layer A+B+C 機械 evidence；Phase 3 全段不進 R5）
 
@@ -119,4 +148,3 @@ Rebase 改變 HEAD → 舊 evidence 的 `head_sha` 自動失效 → 所有下游
 同行為；必須透過 task.md / local policy resolver 取得 upstream，不支援無 task.md rebase lane。
 
 ---
-

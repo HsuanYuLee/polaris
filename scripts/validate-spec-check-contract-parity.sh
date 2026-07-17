@@ -20,13 +20,24 @@
 set -euo pipefail
 
 REPO_ROOT=""
+DESCRIBE_AUTHORITY=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo-root) REPO_ROOT="${2:-}"; shift 2 ;;
+    --describe-authority) DESCRIBE_AUTHORITY=1; shift ;;
     -h|--help) sed -n '2,20p' "$0" >&2; exit 0 ;;
     *) echo "POLARIS_SPEC_CHECK_PARITY_USAGE: unknown option: $1" >&2; exit 2 ;;
   esac
 done
+
+if [[ "$DESCRIBE_AUTHORITY" -eq 1 ]]; then
+  if [[ -n "$REPO_ROOT" ]]; then
+    echo "POLARIS_SPEC_CHECK_PARITY_USAGE: --describe-authority does not accept --repo-root" >&2
+    exit 2
+  fi
+  command printf '%s\n' '{"authority_id":"producer_consumer_validator_parity","registry":"scripts/lib/producer-consumer-bridges.json","validator":"scripts/validate-spec-check-contract-parity.sh"}'
+  exit 0
+fi
 
 if [[ -z "$REPO_ROOT" ]]; then
   # git toplevel if inside a repo, else fall back to this script's parent dir.
@@ -40,17 +51,19 @@ if [[ -z "$REPO_ROOT" ]]; then
 fi
 REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 
-python3 - "$REPO_ROOT" <<'PY'
+python3 - "$REPO_ROOT" "$REPO_ROOT/scripts/lib/producer-consumer-bridges.json" <<'PY'
 """Purpose: bidirectional spec↔check contract parity checker for DP-417 T11.
-Reads a fixed manifest of (author field, direction, validator+anchor, spec check_kind)
+Reads the canonical bridge registry of (author field, direction, validator+anchor, spec check_kind)
 and asserts the LLM-facing producer schema stays in lockstep with the deterministic
 refinement.json validators. Fail-closed on either drift direction and on stale anchors.
 """
+import json
 import re
 import sys
 from pathlib import Path
 
 repo = Path(sys.argv[1]).resolve()
+bridge_registry = Path(sys.argv[2]).resolve()
 
 REF_ARTIFACT = repo / ".claude/skills/references/refinement-artifact.md"
 PIPELINE = repo / ".claude/skills/references/pipeline-handoff.md"
@@ -118,60 +131,69 @@ JIRA_REGION = jira_only_region(ref_text)
 #   in_required_enum   (requires)  → token appears in refinement-artifact tasks[] 必填 region
 #   not_in_required_enum (forbids) → token absent from that 必填 region
 #   not_in_jira_only_enum (reverse)→ token absent from the jira-only region
-MANIFEST = [
-    # --- validator-hard-requires → spec must document (top-level artifact fields) ---
-    {"field": "changed_files", "token": "`changed_files`", "check_kind": "documented",
-     "specs": ["refinement-artifact", "pipeline-handoff"],
-     "validator": str(V_PARITY), "anchor": "changed_files != module_paths"},
-    {"field": "predecessor_audit", "token": "`predecessor_audit`", "check_kind": "documented",
-     "specs": ["refinement-artifact", "pipeline-handoff"],
-     "validator": str(V_JSON), "anchor": "missing required field 'predecessor_audit'"},
-    {"field": "schema_version", "token": "`schema_version`", "check_kind": "documented",
-     "specs": ["refinement-artifact"],
-     "validator": str(V_JSON), "anchor": 'strong_error("schema_version")'},
-    {"field": "version", "token": "`version`", "check_kind": "documented",
-     "specs": ["refinement-artifact"],
-     "validator": str(V_JSON), "anchor": 'require_nonempty_string("version")'},
-    {"field": "created_at", "token": "`created_at`", "check_kind": "documented",
-     "specs": ["refinement-artifact"],
-     "validator": str(V_JSON), "anchor": 'require_nonempty_string("created_at")'},
-    {"field": "acceptance_criteria", "token": "`acceptance_criteria`", "check_kind": "documented",
-     "specs": ["refinement-artifact"],
-     "validator": str(V_JSON), "anchor": "missing required field 'acceptance_criteria'"},
-    {"field": "edge_cases", "token": "`edge_cases`", "check_kind": "documented",
-     "specs": ["refinement-artifact"],
-     "validator": str(V_JSON), "anchor": "missing required field 'edge_cases'"},
-    {"field": "modules", "token": "`modules`", "check_kind": "documented",
-     "specs": ["refinement-artifact"],
-     "validator": str(V_JSON), "anchor": "'modules' array must contain"},
-    {"field": "adversarial_pass", "token": "`adversarial_pass[]`", "check_kind": "documented",
-     "specs": ["refinement-artifact"],
-     "validator": str(V_JSON), "anchor": 'adversarial_pass = data.get("adversarial_pass")'},
-    # --- validator-hard-requires tasks[] fields → must be in the 必填 enumeration ---
-    {"field": "tasks[].id", "token": "`id`", "check_kind": "in_required_enum",
-     "validator": str(V_JSON), "anchor": "task_required = {"},
-    {"field": "tasks[].kind", "token": "`kind`", "check_kind": "in_required_enum",
-     "validator": str(V_JSON), "anchor": "task_required = {"},
-    {"field": "tasks[].title", "token": "`title`", "check_kind": "in_required_enum",
-     "validator": str(V_JSON), "anchor": "task_required = {"},
-    {"field": "tasks[].scope", "token": "`scope`", "check_kind": "in_required_enum",
-     "validator": str(V_JSON), "anchor": "task_required = {"},
-    {"field": "tasks[].ac_ids", "token": "`ac_ids`", "check_kind": "in_required_enum",
-     "validator": str(V_JSON), "anchor": "task_required = {"},
-    {"field": "tasks[].dependencies", "token": "`dependencies`", "check_kind": "in_required_enum",
-     "validator": str(V_JSON), "anchor": "task_required = {"},
-    {"field": "tasks[].verification", "token": "`verification`", "check_kind": "in_required_enum",
-     "validator": str(V_JSON), "anchor": "task_required = {"},
-    # --- validator FORBIDS on tasks[] → must NOT be listed as required (DP-341) ---
-    {"field": "tasks[].allowed_files", "token": "`allowed_files`", "check_kind": "not_in_required_enum",
-     "validator": str(V_JSON), "anchor": "POLARIS_REFINEMENT_PACKAGING_FIELD_FORBIDDEN"},
-    {"field": "tasks[].estimate_points", "token": "`estimate_points`", "check_kind": "not_in_required_enum",
-     "validator": str(V_JSON), "anchor": "POLARIS_REFINEMENT_PACKAGING_FIELD_FORBIDDEN"},
-    # --- reverse: validator REQUIRES for dp → spec must NOT mark it jira-only (DP-337) ---
-    {"field": "source.base_branch", "token": "`source.base_branch`", "check_kind": "not_in_jira_only_enum",
-     "validator": str(V_BREAKDOWN),
-     "anchor": "DP-337 graduated source.base_branch to a universal field"},
-]
+def load_manifest(path):
+    if not path.is_file():
+        errors.append(f"POLARIS_SPEC_CHECK_PARITY_MISSING_PRODUCER: bridge registry missing: {path}")
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        errors.append(f"POLARIS_SPEC_CHECK_PARITY_MISSING_PRODUCER: bridge registry invalid JSON: {exc}")
+        return []
+    records = data.get("bridges")
+    required_fields = data.get("required_bridge_fields")
+    if (data.get("schema_version") != 1 or not isinstance(records, list)
+            or not isinstance(required_fields, list)
+            or not required_fields
+            or any(not isinstance(field, str) or not field for field in required_fields)
+            or len(required_fields) != len(set(required_fields))):
+        errors.append("POLARIS_SPEC_CHECK_PARITY_MISSING_PRODUCER: bridge registry schema/completeness authority invalid")
+        return []
+    result = []
+    seen = set()
+    for index, record in enumerate(records):
+        if not isinstance(record, dict):
+            errors.append(f"POLARIS_SPEC_CHECK_PARITY_MISSING_PRODUCER: bridges[{index}] not object")
+            continue
+        field = record.get("field")
+        if not isinstance(field, str) or not field or field in seen:
+            errors.append(f"POLARIS_SPEC_CHECK_PARITY_MISSING_PRODUCER: bridges[{index}] field missing/duplicate")
+            continue
+        seen.add(field)
+        validator = record.get("validator")
+        if not isinstance(validator, str) or not validator.startswith("scripts/"):
+            errors.append(f"POLARIS_SPEC_CHECK_PARITY_MISSING_VALIDATOR: {field} validator missing")
+            continue
+        validator_path = repo / validator
+        if not validator_path.is_file():
+            errors.append(f"POLARIS_SPEC_CHECK_PARITY_MISSING_VALIDATOR: {field} validator not found: {validator}")
+            continue
+        if record.get("check_kind") not in {"documented", "in_required_enum", "not_in_required_enum", "not_in_jira_only_enum"}:
+            errors.append(f"POLARIS_SPEC_CHECK_PARITY_MISSING_PRODUCER: {field} check_kind invalid")
+            continue
+        if not isinstance(record.get("token"), str) or not isinstance(record.get("anchor"), str):
+            errors.append(f"POLARIS_SPEC_CHECK_PARITY_MISSING_PRODUCER: {field} token/anchor missing")
+            continue
+        if record.get("check_kind") == "documented":
+            specs = record.get("specs")
+            if not isinstance(specs, list) or not specs or any(spec not in SPEC_FILES for spec in specs):
+                errors.append(f"POLARIS_SPEC_CHECK_PARITY_MISSING_PRODUCER: {field} producer specs missing/unregistered")
+                continue
+        normalized = dict(record)
+        normalized["validator"] = str(validator_path)
+        result.append(normalized)
+    registered_fields = {record["field"] for record in result}
+    required_field_set = set(required_fields)
+    missing = sorted(required_field_set - registered_fields)
+    unexpected = sorted(registered_fields - required_field_set)
+    if missing or unexpected:
+        errors.append(
+            "POLARIS_SPEC_CHECK_PARITY_MISSING_PRODUCER: bridge registry completeness mismatch; "
+            f"missing={missing}, unexpected={unexpected}"
+        )
+    return result
+
+MANIFEST = load_manifest(bridge_registry)
 
 for entry in MANIFEST:
     field = entry["field"]

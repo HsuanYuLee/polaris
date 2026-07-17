@@ -6,6 +6,7 @@
 #
 # Usage:
 #   scripts/write-deliverable.sh <task-md-path> <pr-url> <pr-state> <head-sha>
+#   scripts/write-deliverable.sh --no-pr <task-md-path> <head-sha> --repo <repo-root>
 #   scripts/write-deliverable.sh --verification-aggregate-head <task-md-path> <aggregate-head-sha>
 #
 # Arguments:
@@ -65,6 +66,136 @@ fail_inconsistent() {
 log() {
   printf '[write-deliverable] %s\n' "$1" >&2
 }
+
+# ── task_shape-first no-PR mode ───────────────────────────────────────────────
+
+if [[ "${1:-}" == "--no-pr" ]]; then
+  [[ $# -eq 5 && "${4:-}" == "--repo" ]] || die "Usage: $SCRIPT_NAME --no-pr <task-md-path> <head-sha> --repo <repo-root>"
+
+  TASK_MD="$2"
+  HEAD_SHA="$3"
+  REPO_ROOT="$5"
+  [[ -f "$TASK_MD" ]] || die "task.md not found: $TASK_MD"
+  [[ -d "$REPO_ROOT" ]] || die "repo root not found: $REPO_ROOT"
+  REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
+  CURRENT_HEAD="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
+  [[ -n "$CURRENT_HEAD" ]] || die "--repo must be a Git repository with a current HEAD"
+  if ! printf '%s' "$HEAD_SHA" | grep -qE '^[0-9a-fA-F]{7,}$'; then
+    die "head-sha must be 7+ hex characters, got: $HEAD_SHA"
+  fi
+  [[ "$HEAD_SHA" == "$CURRENT_HEAD" ]] || die "head-sha must exactly match current repository HEAD (${CURRENT_HEAD})"
+
+  TASK_SHAPE="$(awk '
+    BEGIN { fm=0 }
+    /^---$/ { fm++; next }
+    fm == 1 && /^task_shape:[[:space:]]*/ {
+      value=$0; sub(/^task_shape:[[:space:]]*/, "", value); gsub(/^['\"']|['\"']$/, "", value)
+      print value; exit
+    }
+  ' "$TASK_MD")"
+  case "$TASK_SHAPE" in
+    audit|confirmation) ;;
+    *) die "--no-pr requires task_shape audit or confirmation (got: ${TASK_SHAPE:-implementation})" ;;
+  esac
+
+  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  WORK_ITEM_ID="$(bash "$SCRIPT_DIR/parse-task-md.sh" "$TASK_MD" --no-resolve --field work_item_id 2>/dev/null || true)"
+  [[ -n "$WORK_ITEM_ID" ]] || die "cannot resolve work_item_id from task.md"
+  # shellcheck source=lib/verification-evidence.sh
+  . "$SCRIPT_DIR/lib/verification-evidence.sh"
+  VERIFY_EVIDENCE="$(verification_evidence_durable_path "$REPO_ROOT" "$WORK_ITEM_ID" "$HEAD_SHA" 2>/dev/null || true)"
+  [[ -n "$VERIFY_EVIDENCE" && -f "$VERIFY_EVIDENCE" ]] || die "canonical durable verify evidence not found for ${WORK_ITEM_ID}@${HEAD_SHA}"
+  if ! verification_evidence_validate_file "$VERIFY_EVIDENCE" "$WORK_ITEM_ID" "$HEAD_SHA" >/dev/null; then
+    die "verify evidence is invalid or stale for ${WORK_ITEM_ID}@${HEAD_SHA}"
+  fi
+  if ! verification_evidence_is_pass "$VERIFY_EVIDENCE" >/dev/null; then
+    die "verify evidence is not PASS for ${WORK_ITEM_ID}@${HEAD_SHA}"
+  fi
+
+  TASK_MD="$(cd "$(dirname "$TASK_MD")" && pwd)/$(basename "$TASK_MD")"
+  TASK_DIR="$(dirname "$TASK_MD")"
+  TMP_DIR="$(mktemp -d "${TASK_DIR}/.write-deliverable.XXXXXX")" || die "cannot create same-directory unique temp"
+  TMP_FILE="${TMP_DIR}/$(basename "$TASK_MD")"
+
+  log "Writing canonical no-PR deliverable for ${TASK_SHAPE} task..."
+  if ! python3 - "$TASK_MD" "$TMP_FILE" "$HEAD_SHA" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+task_path = Path(sys.argv[1])
+tmp_path = Path(sys.argv[2])
+head_sha = sys.argv[3]
+text = task_path.read_text(encoding="utf-8")
+match = re.match(r"^---\n(.*?)^---\n", text, re.DOTALL | re.MULTILINE)
+if not match:
+    raise SystemExit("task.md must contain frontmatter")
+
+lines = match.group(1).splitlines(keepends=True)
+start = next((i for i, line in enumerate(lines) if re.match(r"^deliverable:\s*(?:#.*)?$", line.rstrip("\n"))), None)
+if start is not None:
+    end = len(lines)
+    for i in range(start + 1, len(lines)):
+        line = lines[i]
+        if line.strip() and not line.startswith((" ", "\t", "#")):
+            end = i
+            break
+    lines = lines[:start] + lines[end:]
+
+if lines and not lines[-1].endswith("\n"):
+    lines[-1] += "\n"
+lines.extend([
+    "deliverable:\n",
+    f"  head_sha: {head_sha}\n",
+    "  verification:\n",
+    "    status: PASS\n",
+    "    ac_counts:\n",
+    "      ac_total: 0\n",
+    "      ac_pass: 0\n",
+    "      ac_fail: 0\n",
+    "      ac_manual_required: 0\n",
+    "      ac_uncertain: 0\n",
+])
+tmp_path.write_text("---\n" + "".join(lines) + "---\n" + text[match.end():], encoding="utf-8")
+PY
+  then
+    rm -rf "$TMP_DIR" 2>/dev/null || true
+    die "no-PR deliverable rewriter failed"
+  fi
+
+  if ! python3 - "$TMP_FILE" "$HEAD_SHA" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+head = sys.argv[2]
+fm = re.match(r"^---\n(.*?)^---\n", text, re.DOTALL | re.MULTILINE)
+assert fm, "missing frontmatter"
+body = fm.group(1)
+assert not re.search(r"^  pr_(?:url|state):", body, re.MULTILINE), "PR fields present"
+assert re.search(rf"^  head_sha:\s*{re.escape(head)}$", body, re.MULTILINE), "head mismatch"
+assert re.search(r"^    status:\s*PASS$", body, re.MULTILINE), "verification status missing"
+PY
+  then
+    rm -rf "$TMP_DIR" 2>/dev/null || true
+    die "no-PR deliverable read-back validation failed"
+  fi
+
+  if ! bash "$SCRIPT_DIR/validate-task-md.sh" "$TMP_FILE" >/dev/null; then
+    rm -rf "$TMP_DIR" 2>/dev/null || true
+    die "no-PR deliverable task schema validation failed; original preserved"
+  fi
+
+  if ! mv "$TMP_FILE" "$TASK_MD"; then
+    rm -rf "$TMP_DIR" 2>/dev/null || true
+    die "no-PR deliverable atomic replacement failed; original preserved"
+  fi
+  rmdir "$TMP_DIR" 2>/dev/null || true
+
+  log "Success: canonical no-PR deliverable written and verified in $TASK_MD"
+  exit 0
+fi
 
 # ── Verification-only aggregate head mode ───────────────────────────────────────
 

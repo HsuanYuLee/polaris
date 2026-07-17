@@ -40,7 +40,8 @@ bash scripts/validate-language-policy.sh --blocking --mode artifact <artifact-or
 External write 可用 wrapper：
 
 ```bash
-bash scripts/polaris-external-write-gate.sh \
+POLARIS_EXTERNAL_WRITE_WRITER=<registered-token> \
+  bash scripts/polaris-external-write-gate.sh \
   --surface <jira-comment|slack-message|confluence-page|github-review|artifact> \
   --body-file <final-body.md>
 ```

@@ -60,7 +60,7 @@ doc_text="$(cat "$DOC")"
 assert_doc_contains() {
   local needle="$1"
   local label="$2"
-  if ! printf '%s' "$doc_text" | grep -qF -- "$needle"; then
+  if [[ "$doc_text" != *"$needle"* ]]; then
     fail "refinement-artifact.md does not document enforced $label ('$needle' missing) — doc is laxer than derive enforcement (DP-335 AC2)"
   fi
 }

@@ -23,7 +23,8 @@
 ## Command
 
 ```bash
-bash scripts/polaris-external-write-gate.sh \
+POLARIS_EXTERNAL_WRITE_WRITER=<registered-token> \
+  bash scripts/polaris-external-write-gate.sh \
   --surface jira-comment \
   --body-file /tmp/polaris-jira-comment.md
 ```
@@ -31,7 +32,8 @@ bash scripts/polaris-external-write-gate.sh \
 Specs markdown 需要 Starlight authoring check 時：
 
 ```bash
-bash scripts/polaris-external-write-gate.sh \
+POLARIS_EXTERNAL_WRITE_WRITER=<registered-token> \
+  bash scripts/polaris-external-write-gate.sh \
   --surface artifact \
   --body-file docs-manager/src/content/docs/specs/design-plans/DP-NNN-topic/refinement.md \
   --starlight
@@ -48,6 +50,8 @@ bash scripts/polaris-external-write-gate.sh \
 ## Caller Responsibility
 
 - Caller 負責產生 body file，並在呼叫前決定它是 durable artifact 還是 temporary body file。
+- Caller 必須設定 `POLARIS_EXTERNAL_WRITE_WRITER=<registered-token>` 或傳入等價的
+  `--writer-token`；缺少或未登錄的 identity 一律 fail-closed。
 - Durable body file 必須放在 owning source container，例如：
   - `{source_container}/jira-comments/YYYYMMDD-{slug}.md`
   - `{source_container}/artifacts/external-writes/YYYYMMDD-{slug}.md`

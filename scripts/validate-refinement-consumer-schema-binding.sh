@@ -76,8 +76,9 @@ fi
 
 SCHEMA_VALIDATOR="${POLARIS_REFINEMENT_SCHEMA_VALIDATOR:-$ROOT_DIR/scripts/validate-refinement-json.sh}"
 LANGUAGE_POLICY_BIN="${POLARIS_VALIDATE_LANGUAGE_POLICY_BIN:-$ROOT_DIR/scripts/validate-language-policy.sh}"
+CONSUMER_REGISTRY="${POLARIS_REFINEMENT_CONSUMER_REGISTRY:-$ROOT_DIR/scripts/refinement-consumer-registry.json}"
 
-python3 - "$ROOT_DIR" "$SCHEMA_VALIDATOR" <<'PY'
+python3 - "$ROOT_DIR" "$SCHEMA_VALIDATOR" "$CONSUMER_REGISTRY" <<'PY'
 """Bind declared refinement.json consumers to the canonical tasks[] schema whitelist.
 
 The canonical whitelist is the single source of truth: it is extracted from
@@ -93,12 +94,14 @@ task-entry accessor variables so top-level data.get(...) reads are not misattrib
 Any consumer read of a field outside the whitelist fails closed. A script that reads
 refinement.json tasks[]-entry fields but is not registered also fails closed.
 """
+import json
 import re
 import sys
 from pathlib import Path
 
 root = Path(sys.argv[1]).resolve()
 schema_validator = Path(sys.argv[2]).resolve()
+consumer_registry = Path(sys.argv[3]).resolve()
 
 errors = []
 
@@ -139,15 +142,51 @@ WHITELIST = extract_schema_whitelist(schema_validator)
 # path (repo-relative) -> tuple of task-entry accessor variable names. Field reads
 # are only attributed to the whitelist check when they are subkey accesses on one
 # of these variables, so top-level data.get(...) reads are not misclassified.
-REGISTRY = {
-    "scripts/derive-task-md-from-refinement-json.sh": ("match", "entry"),
-    "scripts/validate-refinement-lock-preflight.sh": ("entry",),
-    "scripts/lib/refinement-md-generator.py": ("task",),
-    "scripts/lib/refinement-module-ac-coverage.py": ("task",),
-    "scripts/auto-pass-runner.sh": ("entry",),
-    "scripts/close-parent-spec-if-complete.sh": ("entry",),
-    "scripts/validate-verification-strategy.sh": ("task",),
-}
+def load_consumer_registry(path):
+    if not path.is_file():
+        fail(f"consumer registry not found: {path}")
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        fail(f"consumer registry is not valid JSON: {exc}")
+        return {}
+    if data.get("schema_version") != 1 or not isinstance(data.get("consumers"), list):
+        fail("consumer registry requires schema_version=1 and consumers[]")
+        return {}
+    result = {}
+    for index, record in enumerate(data["consumers"]):
+        if not isinstance(record, dict):
+            fail(f"consumer registry consumers[{index}] must be an object")
+            continue
+        rel = record.get("path")
+        accessors = record.get("accessor_vars")
+        expected_fields = record.get("expected_fields")
+        if not isinstance(rel, str) or not rel.startswith("scripts/"):
+            fail(f"consumer registry consumers[{index}].path must be scripts/... repo-relative")
+            continue
+        if rel in result:
+            fail(f"consumer registry duplicate path: {rel}")
+            continue
+        if not isinstance(accessors, list) or not accessors or any(not isinstance(v, str) or not v for v in accessors):
+            fail(f"consumer registry {rel} accessor_vars must be a non-empty string array")
+            continue
+        if (not isinstance(expected_fields, dict)
+                or set(expected_fields) != set(accessors)
+                or any(not isinstance(fields, list) or not fields
+                       or any(not isinstance(field, str) or not field for field in fields)
+                       or len(fields) != len(set(fields))
+                       for fields in expected_fields.values())):
+            fail(f"consumer registry {rel} expected_fields must bind every accessor_var to a non-empty unique string array")
+            continue
+        result[rel] = {
+            "accessor_vars": tuple(accessors),
+            "expected_fields": {var: set(expected_fields[var]) for var in accessors},
+        }
+    return result
+
+
+REGISTRY = load_consumer_registry(consumer_registry)
 
 
 def consumer_field_reads(text, accessor_vars):
@@ -160,24 +199,37 @@ def consumer_field_reads(text, accessor_vars):
         # var.get("field") and var.get('field')
         fields |= set(re.findall(rf'\b{re.escape(var)}\.get\(\s*"([^"]+)"', text))
         fields |= set(re.findall(rf"\b{re.escape(var)}\.get\(\s*'([^']+)'", text))
-    # required_fields / task_required tuples or sets iterated then `match[field]`:
-    # capture `required_fields = ( "id", "title", ... )` style literals that the
-    # consumer loops over to access task-entry fields.
-    for m in re.finditer(r"required_fields\s*=\s*\(([^)]*)\)", text):
-        fields |= set(re.findall(r'"([^"]+)"', m.group(1)))
-        fields |= set(re.findall(r"'([^']+)'", m.group(1)))
+        # Dynamic required_fields reads belong to this accessor only when the
+        # consumer actually dereferences that accessor with the loop variable.
+        # Without this binding, a bogus accessor could inherit an unrelated tuple
+        # and make expected_fields non-vacuity pass.
+        dynamic_read = (
+            re.search(rf'\b{re.escape(var)}\[\s*field\s*\]', text)
+            or re.search(rf'\b{re.escape(var)}\.get\(\s*field\b', text)
+        )
+        if dynamic_read:
+            for m in re.finditer(r"required_fields\s*=\s*\(([^)]*)\)", text):
+                fields |= set(re.findall(r'"([^"]+)"', m.group(1)))
+                fields |= set(re.findall(r"'([^']+)'", m.group(1)))
     return fields
 
 
 # --- 3. Scan declared consumers against the whitelist -------------------------
-for rel, accessor_vars in sorted(REGISTRY.items()):
+for rel, binding in sorted(REGISTRY.items()):
     path = root / rel
     if not path.is_file():
         fail(f"declared consumer not found: {rel} "
              "(registry references a missing file)")
         continue
     text = path.read_text()
+    accessor_vars = binding["accessor_vars"]
     reads = consumer_field_reads(text, accessor_vars)
+    for accessor_var in accessor_vars:
+        live_reads = consumer_field_reads(text, (accessor_var,))
+        missing_expected = sorted(binding["expected_fields"][accessor_var] - live_reads)
+        if missing_expected:
+            fail(f"consumer {rel} accessor '{accessor_var}' has stale/missing live binding for "
+                 f"expected fields {missing_expected}; actual reads={sorted(live_reads)}")
     out_of_schema = sorted(f for f in reads if f not in WHITELIST)
     for field in out_of_schema:
         fail(f"consumer {rel} reads tasks[]-entry field '{field}' which is OUTSIDE "

@@ -17,8 +17,9 @@ set -euo pipefail
 #   - If all sibling tasks are implemented, check off task checklist items,
 #     rewrite moved task links to tasks/pr-release/*.md or tasks/pr-release/*/index.md, and mark the parent
 #     spec IMPLEMENTED.
-#   - Parent status closeout is delegated to reconcile-spec-lifecycle.mjs using
-#     the resolved parent file path, avoiding key-based parent/task collisions.
+#   - Parent status closeout is delegated to mark-spec-implemented.sh using the
+#     resolved parent anchor, preserving ledger finalization and avoiding
+#     key-based parent/task collisions.
 #   - With --archive-terminal-parent, a design-plan parent closed by this helper
 #     is immediately archived through archive-spec.sh after the status write.
 
@@ -612,7 +613,7 @@ MD
   }
 
   dp_dir="$tmpdir/docs-manager/src/content/docs/specs/design-plans/DP-988-per-task-no-verification"
-  mkdir -p "$dp_dir/tasks/pr-release/T1"
+  mkdir -p "$dp_dir/tasks/pr-release/T1" "$dp_dir/artifacts/auto-pass"
   cat >"$dp_dir/index.md" <<'MD'
 ---
 title: "DP-988 per task no verification"
@@ -638,6 +639,18 @@ MD
   ]
 }
 JSON
+  cat >"$dp_dir/artifacts/auto-pass/20260717-000000-ledger.json" <<JSON
+{
+  "schema_version": "1",
+  "source": {
+    "type": "dp",
+    "id": "DP-988",
+    "container": "$dp_dir"
+  },
+  "terminal_status": null,
+  "pause": null
+}
+JSON
   cat >"$dp_dir/tasks/pr-release/T1/index.md" <<'MD'
 ---
 title: "DP-988 T1"
@@ -651,6 +664,16 @@ MD
   env -u CLOSE_PARENT_SPEC_SELFTEST bash "$0" --task-md "$dp_dir/tasks/pr-release/T1/index.md" --workspace "$tmpdir" >/dev/null
   grep -q '^status: IMPLEMENTED$' "$dp_dir/index.md" || {
     echo "[selftest] per_task_self_verify no-V source did not close parent" >&2
+    return 1
+  }
+  python3 - "$dp_dir/artifacts/auto-pass/20260717-000000-ledger.json" <<'PY' || {
+import json
+import sys
+
+ledger = json.load(open(sys.argv[1], encoding="utf-8"))
+raise SystemExit(0 if ledger.get("terminal_status") == "complete" else 1)
+PY
+    echo "[selftest] per_task_self_verify parent closeout did not finalize auto-pass ledger" >&2
     return 1
   }
 
@@ -1311,10 +1334,16 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-reconcile_out="$(POLARIS_WORKSPACE_ROOT="$WORKSPACE_ROOT" polaris_with_runtime_tools node "${SCRIPT_DIR}/reconcile-spec-lifecycle.mjs" --specs-root "${WORKSPACE_ROOT}/docs-manager/src/content/docs/specs" --apply --no-archive "$parent_file")"
+if ! bash "${SCRIPT_DIR}/mark-spec-implemented.sh" "$parent_key" \
+  --status IMPLEMENTED \
+  --workspace "$WORKSPACE_ROOT" \
+  --parent-anchor "$parent_file" \
+  --no-auto-archive; then
+  echo "$PREFIX failed to close parent through canonical lifecycle writer: ${parent_file}" >&2
+  exit 1
+fi
 if ! grep -q '^status: IMPLEMENTED$' "$parent_file"; then
-  echo "$PREFIX failed to close parent through lifecycle reconciler: ${parent_file}" >&2
-  printf '%s\n' "$reconcile_out" >&2
+  echo "$PREFIX canonical lifecycle writer did not mark parent IMPLEMENTED: ${parent_file}" >&2
   exit 1
 fi
 

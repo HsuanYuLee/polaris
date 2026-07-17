@@ -1,6 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# POLARIS_SAFE_CLI_INTROSPECTION_BEGIN
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  command printf '%s\n' 'Usage:'
+  command printf '%s\n' '  bash scripts/verify-cross-llm-parity.sh'
+  command printf '%s\n' '  bash scripts/verify-cross-llm-parity.sh --help'
+  command printf '%s\n' ''
+  command printf '%s\n' 'Verifies generated runtime, skill, hook, and Codex fallback parity.'
+  exit 0
+fi
+# POLARIS_SAFE_CLI_INTROSPECTION_END
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  bash scripts/verify-cross-llm-parity.sh
+  bash scripts/verify-cross-llm-parity.sh --help
+
+Verifies generated runtime, skill, hook, and Codex fallback parity.
+USAGE
+}
+
 # verify-cross-llm-parity.sh
 #
 # Verify that generated runtime artifacts are in sync with Polaris source-of-truth.

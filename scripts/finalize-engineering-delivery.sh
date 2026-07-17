@@ -16,6 +16,11 @@ set -euo pipefail
 
 PREFIX="[polaris finalize-delivery]"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Load canonical specs-root functions while the implementation worktree still
+# exists. Finalize removes that worktree after parent closeout and before the
+# release-completed proof, so no later phase may lazy-source from SCRIPT_DIR.
+# shellcheck source=lib/specs-root.sh
+. "${SCRIPT_DIR}/lib/specs-root.sh"
 WORKSPACE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPO_ROOT=""
 TICKET=""
@@ -119,6 +124,7 @@ esac
 
 REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 WORKSPACE_ROOT="$(cd "$WORKSPACE_ROOT" && pwd)"
+
 WORKSPACE_SCRIPT_DIR="${WORKSPACE_ROOT}/scripts"
 PARENT_CLOSEOUT_SCRIPT="${WORKSPACE_SCRIPT_DIR}/close-parent-spec-if-complete.sh"
 CHECK_RELEASE_ELIGIBLE="${SCRIPT_DIR}/check-release-eligible.sh"
@@ -135,6 +141,17 @@ if [[ ! -x "$CHECK_RELEASE_ELIGIBLE" ]]; then
 fi
 if [[ ! -x "$CHECK_RELEASE_COMPLETED" ]]; then
   CHECK_RELEASE_COMPLETED="${SCRIPT_DIR}/check-release-completed.sh"
+fi
+
+# check-release-completed runs after implementation worktree cleanup by
+# contract. A fallback located inside a linked worktree would be deleted before
+# invocation, so reject that unsafe topology before any lifecycle mutation.
+repo_git_dir="$(git -C "$REPO_ROOT" rev-parse --git-dir 2>/dev/null || true)"
+repo_common_dir="$(git -C "$REPO_ROOT" rev-parse --git-common-dir 2>/dev/null || true)"
+if [[ "$CHECK_RELEASE_COMPLETED" == "$REPO_ROOT"/* && "$repo_git_dir" != "$repo_common_dir" ]]; then
+  echo "$PREFIX release-completed helper must live outside the implementation worktree: $CHECK_RELEASE_COMPLETED" >&2
+  echo "$PREFIX pass a stable main checkout with --workspace before finalizing" >&2
+  exit 1
 fi
 
 task_verify_report_path() {
@@ -194,12 +211,127 @@ resolve_stable_repo_root() {
   printf '%s\n' "$current"
 }
 
+resolve_task_md_path() {
+  local explicit="${POLARIS_COMPLETION_TASK_MD:-}"
+  local resolved=""
+  local work_item_id=""
+
+  if [[ -n "$explicit" ]]; then
+    [[ -f "$explicit" ]] || return 1
+    resolved="$(cd "$(dirname "$explicit")" && pwd)/$(basename "$explicit")"
+    work_item_id="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$resolved" --no-resolve --field delivery_ticket_key 2>/dev/null || true)"
+    [[ "$work_item_id" == "$TICKET" ]] || return 1
+    printf '%s\n' "$resolved"
+    return 0
+  fi
+
+  resolved="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" "$TICKET" 2>/dev/null || true)"
+  if [[ -n "$resolved" && -f "$resolved" ]]; then
+    printf '%s\n' "$resolved"
+    return 0
+  fi
+
+  # Revision closeout may run after the source container was already archived.
+  # Active lookup remains first for normal delivery; archive is the exact
+  # fallback instead of requiring callers to recreate an active source path.
+  resolved="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" --include-archive "$TICKET" 2>/dev/null || true)"
+  [[ -n "$resolved" && -f "$resolved" ]] || return 1
+  printf '%s\n' "$resolved"
+}
+
+finalized_task_md_path() {
+  local task_md_path="$1"
+  python3 - "${WORKSPACE_ROOT}/docs-manager/src/content/docs/specs" "$task_md_path" <<'PY'
+import sys
+from pathlib import Path
+
+specs_root = Path(sys.argv[1])
+path = Path(sys.argv[2])
+try:
+    relative = path.relative_to(specs_root)
+except ValueError:
+    print(path)
+    raise SystemExit(0)
+
+parts = list(relative.parts)
+if len(parts) >= 4 and parts[0] == "design-plans":
+    tasks_index = 3 if parts[1] == "archive" else 2
+elif len(parts) >= 5 and parts[0] == "companies":
+    tasks_index = 4 if parts[2] == "archive" else 3
+else:
+    print(path)
+    raise SystemExit(0)
+
+if len(parts) <= tasks_index or parts[tasks_index] != "tasks":
+    print(path)
+    raise SystemExit(0)
+
+if tasks_index + 1 < len(parts) and parts[tasks_index + 1] == "pr-release":
+    print(path)
+else:
+    print(specs_root.joinpath(*parts[:tasks_index + 1], "pr-release", *parts[tasks_index + 1:]))
+PY
+}
+
+archived_parent_closeout_complete() {
+  local task_md_path="$1"
+  local specs_root=""
+  local parent_anchor=""
+  local parent_status=""
+
+  # Resolve against the workspace's canonical specs root. Do not infer the
+  # root from an arbitrary ancestor named `specs`, and do not let an ambient
+  # overlay redirect lifecycle authority away from the requested workspace.
+  specs_root="$(POLARIS_SPECS_ROOT="${WORKSPACE_ROOT}/docs-manager/src/content/docs/specs" resolve_specs_root "$WORKSPACE_ROOT")" || return 1
+
+  parent_anchor="$(python3 - "$specs_root" "$task_md_path" <<'PY'
+import sys
+from pathlib import Path
+
+specs_root = Path(sys.argv[1]).resolve(strict=True)
+task = Path(sys.argv[2]).resolve(strict=True)
+try:
+    parts = task.relative_to(specs_root).parts
+except ValueError:
+    raise SystemExit(1)
+
+if len(parts) >= 5 and parts[:2] == ("design-plans", "archive") and parts[3] == "tasks":
+    container = specs_root.joinpath(*parts[:3])
+    candidates = ("index.md", "plan.md")
+elif len(parts) >= 6 and parts[0] == "companies" and parts[2] == "archive" and parts[4] == "tasks":
+    container = specs_root.joinpath(*parts[:4])
+    candidates = ("index.md", "refinement.md", "plan.md")
+else:
+    raise SystemExit(1)
+
+for name in candidates:
+    candidate = container / name
+    if candidate.is_file():
+        print(candidate)
+        raise SystemExit(0)
+raise SystemExit(1)
+PY
+)" || return 1
+
+  parent_status="$(extract_frontmatter_scalar "$parent_anchor" "status")"
+  case "$parent_status" in
+    IMPLEMENTED|ABANDONED)
+      echo "$PREFIX archived parent closeout already complete: ${parent_anchor} (${parent_status})" >&2
+      return 0
+      ;;
+    *)
+      echo "$PREFIX archived parent is not terminal: ${parent_anchor} (${parent_status:-<empty>})" >&2
+      return 1
+      ;;
+  esac
+}
+
 ensure_task_verify_report() {
   local task_md_path=""
   local deliverable_head_sha=""
   local report_path=""
 
-  task_md_path="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" "$TICKET" 2>/dev/null || true)"
+  task_md_path="$(resolve_task_md_path || true)"
   if [[ -z "$task_md_path" || ! -f "$task_md_path" ]]; then
     return 0
   fi
@@ -223,6 +355,46 @@ ensure_task_verify_report() {
     --status PASS >/dev/null
 }
 
+prepare_no_pr_deliverable() {
+  local task_md_path=""
+  local task_shape=""
+  local head_sha=""
+  local work_item_id=""
+
+  task_md_path="$(resolve_task_md_path || true)"
+  if [[ -z "$task_md_path" || ! -f "$task_md_path" ]]; then
+    return 0
+  fi
+
+  task_shape="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field task_shape 2>/dev/null || true)"
+  case "$task_shape" in
+    audit|confirmation) ;;
+    *) return 0 ;;
+  esac
+
+  head_sha="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
+  if [[ -z "$head_sha" ]]; then
+    echo "$PREFIX cannot resolve HEAD for ${task_shape} no-PR delivery" >&2
+    return 1
+  fi
+  work_item_id="$(bash "${SCRIPT_DIR}/parse-task-md.sh" "$task_md_path" --no-resolve --field work_item_id 2>/dev/null || true)"
+  if [[ -z "$work_item_id" ]]; then
+    echo "$PREFIX cannot resolve work_item_id for ${task_shape} no-PR delivery" >&2
+    return 1
+  fi
+
+  # A no-PR PASS is not inferred from task shape. Require the same current,
+  # HEAD-bound Layer B evidence as the PR-bearing lane before the canonical
+  # writer may materialize deliverable.verification.status=PASS.
+  bash "${SCRIPT_DIR}/check-verification-passed.sh" \
+    --repo "$REPO_ROOT" \
+    --ticket "$TICKET" \
+    --task-md "$task_md_path" >/dev/null
+
+  bash "${SCRIPT_DIR}/write-deliverable.sh" --no-pr "$task_md_path" "$head_sha" --repo "$REPO_ROOT"
+  bash "${SCRIPT_DIR}/validate-task-md.sh" "$task_md_path" >/dev/null
+}
+
 # Description: DP-360 T7 — record the T-task delivery PASS into the canonical
 #   task.md `deliverable.verification` block, replacing the retired head-sha-keyed
 #   completion_gate marker (D2 — no marker dual-write). This is the single writer
@@ -240,7 +412,7 @@ write_deliverable_verification() {
   local work_item_id=""
   local head_sha=""
 
-  task_md_path="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" "$TICKET" 2>/dev/null || true)"
+  task_md_path="$(resolve_task_md_path || true)"
   if [[ -z "$task_md_path" || ! -f "$task_md_path" ]]; then
     return 0
   fi
@@ -379,7 +551,7 @@ check_planner_baseline_snapshot() {
   local task_md_path=""
   local snapshot=""
 
-  task_md_path="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" "$TICKET" 2>/dev/null || true)"
+  task_md_path="$(resolve_task_md_path || true)"
   if [[ -z "$task_md_path" || ! -f "$task_md_path" ]]; then
     echo "$PREFIX unable to resolve task.md for planner-owned baseline snapshot check: ${TICKET}" >&2
     exit 2
@@ -400,10 +572,11 @@ check_planner_baseline_snapshot() {
   echo "$PREFIX planner-owned baseline snapshot passed: $snapshot" >&2
 }
 
+prepare_no_pr_deliverable
 ensure_task_verify_report
 check_planner_baseline_snapshot
 
-COMPLETION_TASK_MD_PATH="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" "$TICKET" 2>/dev/null || true)"
+COMPLETION_TASK_MD_PATH="$(resolve_task_md_path || true)"
 if [[ -z "$COMPLETION_TASK_MD_PATH" || ! -f "$COMPLETION_TASK_MD_PATH" ]]; then
   echo "$PREFIX unable to resolve task.md for completion gate: ${TICKET}" >&2
   exit 2
@@ -415,7 +588,7 @@ if ! POLARIS_COMPLETION_TASK_MD="$COMPLETION_TASK_MD_PATH" bash "${SCRIPT_DIR}/c
   exit 2
 fi
 
-TASK_MD_PATH="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" "$TICKET" 2>/dev/null || true)"
+TASK_MD_PATH="$(resolve_task_md_path || true)"
 if [[ -z "$TASK_MD_PATH" || ! -f "$TASK_MD_PATH" ]]; then
   echo "$PREFIX unable to resolve task.md for shared release eligibility gate: ${TICKET}" >&2
   exit 1
@@ -451,12 +624,12 @@ fi
 write_deliverable_verification
 
 echo "$PREFIX marking task lifecycle: ${TICKET} -> ${STATUS}" >&2
-if ! bash "${SCRIPT_DIR}/mark-spec-implemented.sh" "$TICKET" --status "$STATUS" --workspace "$WORKSPACE_ROOT"; then
+if ! bash "${SCRIPT_DIR}/mark-spec-implemented.sh" "$TICKET" --task-anchor "$TASK_MD_PATH" --status "$STATUS" --workspace "$WORKSPACE_ROOT"; then
   echo "$PREFIX mark-spec-implemented failed after completion gate passed" >&2
   exit 2
 fi
 
-TASK_MD_PATH="$(bash "${SCRIPT_DIR}/resolve-task-md.sh" --scan-root "$WORKSPACE_ROOT" "$TICKET" 2>/dev/null || true)"
+TASK_MD_PATH="$(finalized_task_md_path "$TASK_MD_PATH")"
 if [[ -z "$TASK_MD_PATH" || ! -f "$TASK_MD_PATH" ]]; then
   echo "$PREFIX unable to resolve finalized task.md for ${TICKET}" >&2
   exit 1
@@ -478,20 +651,22 @@ fi
 
 RELEASE_GATE_REPO_ROOT="$(resolve_stable_repo_root "$REPO_ROOT")"
 
-echo "$PREFIX cleaning implementation worktree for ${TICKET} ..." >&2
-cd "$WORKSPACE_ROOT"
-if ! bash "${SCRIPT_DIR}/engineering-clean-worktree.sh" --task-md "$TASK_MD_PATH" --repo "$REPO_ROOT"; then
-  echo "$PREFIX implementation worktree cleanup failed after task lifecycle finalized" >&2
-  exit 2
-fi
-
 echo "$PREFIX attempting parent spec closeout for ${TICKET} ..." >&2
-if ! bash "$PARENT_CLOSEOUT_SCRIPT" --task-md "$TASK_MD_PATH" --workspace "$WORKSPACE_ROOT"; then
+if archived_parent_closeout_complete "$TASK_MD_PATH"; then
+  :
+elif ! bash "$PARENT_CLOSEOUT_SCRIPT" --task-md "$TASK_MD_PATH" --workspace "$WORKSPACE_ROOT"; then
   echo "$PREFIX parent spec closeout failed after task lifecycle finalized" >&2
   exit 2
 fi
 
 CURRENT_TASK_MD_PATH="$(resolve_current_task_md_path "$TASK_MD_PATH")"
+echo "$PREFIX cleaning implementation worktree for ${TICKET} ..." >&2
+cd "$WORKSPACE_ROOT"
+if ! bash "${SCRIPT_DIR}/engineering-clean-worktree.sh" --task-md "$TASK_MD_PATH" --repo "$REPO_ROOT"; then
+  echo "$PREFIX implementation worktree cleanup failed after lifecycle and release closeout" >&2
+  exit 2
+fi
+
 if ! bash "$CHECK_RELEASE_COMPLETED" --repo "$RELEASE_GATE_REPO_ROOT" --task-md "$CURRENT_TASK_MD_PATH"; then
   echo "$PREFIX shared release completed gate blocked after lifecycle closeout" >&2
   exit 2

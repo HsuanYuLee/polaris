@@ -101,8 +101,8 @@ resolve_task_by_branch_fallback() {
 #   - anything else (incl. generated runtime targets) → BLOCK (fail-closed)
 # Deny takes precedence over allow, so a diff touching both is BLOCKed (EC1). The
 # guard is not routed through gate-changed-files-scope.sh itself because that gate
-# is a pure refinement.json allowlist with different repair guidance, and it is
-# not in this task's Allowed Files; the diff primitive and glob matching are the
+# requires a resolved task.md Allowed Files authority, which a chore-followup release
+# tail intentionally does not have. The diff primitive and glob matching remain the
 # shared reuse point.
 
 # chore_changed_file_is_denied <path>: framework-owned behavior surface denylist.

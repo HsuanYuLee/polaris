@@ -1394,6 +1394,7 @@ validate_file() {
   # Orthogonal to task_kind (T/V completion-gate dispatcher) — do not conflate.
   # If present, the value must be one of the enum members.
   # ---------------------------------------------------------------------------
+  local effective_task_shape="implementation"
   if frontmatter_key_exists "$FILE" "task_shape"; then
     local fm_task_shape
     fm_task_shape=$(extract_frontmatter_scalar "$FILE" "task_shape" 2>/dev/null || true)
@@ -1402,7 +1403,7 @@ validate_file() {
     fm_task_shape="${fm_task_shape%\'}"
     fm_task_shape="${fm_task_shape#\'}"
     case "$fm_task_shape" in
-      implementation|audit|confirmation) ;;
+      implementation|audit|confirmation) effective_task_shape="$fm_task_shape" ;;
       *) errors+=("frontmatter task_shape must be implementation|audit|confirmation (got: '$fm_task_shape')") ;;
     esac
   fi
@@ -1972,44 +1973,76 @@ print(urlparse(sys.argv[1]).path or '/')
     local fm_block
     fm_block=$(extract_frontmatter_block "$FILE")
 
-    # Extract indented scalar fields under deliverable:
-    # pr_url, pr_state, head_sha
-    local pr_url pr_state head_sha
+    # Extract indented scalar fields under deliverable. The task_shape is the
+    # schema selector: implementation is PR-bearing; audit / confirmation are
+    # canonical no-PR deliveries and therefore must not carry PR metadata.
+    local pr_url pr_state head_sha verification_status pr_field_present
     pr_url=$(printf '%s\n' "$fm_block" | awk '
-      /^[[:space:]]+pr_url:[[:space:]]/ {
+      /^deliverable:[[:space:]]*$/ { in_deliverable=1; next }
+      in_deliverable && /^[^[:space:]]/ { exit }
+      in_deliverable && /^  pr_url:[[:space:]]/ {
         val = $0; sub(/^[^:]*:[[:space:]]*/, "", val); sub(/[[:space:]]+$/, "", val)
         print val; exit
       }
     ')
     pr_state=$(printf '%s\n' "$fm_block" | awk '
-      /^[[:space:]]+pr_state:[[:space:]]/ {
+      /^deliverable:[[:space:]]*$/ { in_deliverable=1; next }
+      in_deliverable && /^[^[:space:]]/ { exit }
+      in_deliverable && /^  pr_state:[[:space:]]/ {
         val = $0; sub(/^[^:]*:[[:space:]]*/, "", val); sub(/[[:space:]]+$/, "", val)
         print val; exit
       }
     ')
     head_sha=$(printf '%s\n' "$fm_block" | awk '
-      /^[[:space:]]+head_sha:[[:space:]]/ {
+      /^deliverable:[[:space:]]*$/ { in_deliverable=1; next }
+      in_deliverable && /^[^[:space:]]/ { exit }
+      in_deliverable && /^  head_sha:[[:space:]]/ {
         val = $0; sub(/^[^:]*:[[:space:]]*/, "", val); sub(/[[:space:]]+$/, "", val)
         print val; exit
       }
     ')
+    verification_status=$(printf '%s\n' "$fm_block" | awk '
+      /^deliverable:[[:space:]]*$/ { in_deliverable=1; next }
+      in_deliverable && /^[^[:space:]]/ { exit }
+      in_deliverable && /^  verification:[[:space:]]*$/ { in_verification=1; next }
+      in_verification && /^  [^[:space:]]/ { in_verification=0 }
+      in_verification && /^    status:[[:space:]]/ {
+        val = $0; sub(/^[^:]*:[[:space:]]*/, "", val); sub(/[[:space:]]+$/, "", val)
+        print val; exit
+      }
+    ')
+    pr_field_present=$(printf '%s\n' "$fm_block" | awk '
+      /^deliverable:[[:space:]]*$/ { in_deliverable=1; next }
+      in_deliverable && /^[^[:space:]]/ { exit }
+      in_deliverable && /^  pr_(url|state):/ { print "yes"; exit }
+    ')
 
-    # Validate pr_url
-    if [[ -z "$pr_url" ]]; then
-      errors+=("deliverable.pr_url is missing or empty (required when deliverable block is present)")
-    elif ! printf '%s' "$pr_url" | grep -qE '^https://github\.com/.+/pull/[0-9]+$'; then
-      errors+=("deliverable.pr_url must match '^https://github\\.com/.+/pull/[0-9]+\$' (got: '$pr_url')")
-    fi
+    case "$effective_task_shape" in
+      audit|confirmation)
+        if [[ "$pr_field_present" == "yes" ]]; then
+          errors+=("deliverable for task_shape $effective_task_shape must not contain pr_url or pr_state")
+        fi
+        if [[ "$verification_status" != "PASS" ]]; then
+          errors+=("deliverable.verification.status must be PASS for task_shape $effective_task_shape (got: '${verification_status:-<empty>}')")
+        fi
+        ;;
+      *)
+        if [[ -z "$pr_url" ]]; then
+          errors+=("deliverable.pr_url is missing or empty for task_shape implementation")
+        elif ! printf '%s' "$pr_url" | grep -qE '^https://github\.com/.+/pull/[0-9]+$'; then
+          errors+=("deliverable.pr_url must match '^https://github\\.com/.+/pull/[0-9]+\$' (got: '$pr_url')")
+        fi
 
-    # Validate pr_state
-    if [[ -z "$pr_state" ]]; then
-      errors+=("deliverable.pr_state is missing or empty (required when deliverable block is present)")
-    else
-      case "$pr_state" in
-        OPEN|MERGED|CLOSED) ;;
-        *) errors+=("deliverable.pr_state must be OPEN, MERGED, or CLOSED (got: '$pr_state')") ;;
-      esac
-    fi
+        if [[ -z "$pr_state" ]]; then
+          errors+=("deliverable.pr_state is missing or empty for task_shape implementation")
+        else
+          case "$pr_state" in
+            OPEN|MERGED|CLOSED) ;;
+            *) errors+=("deliverable.pr_state must be OPEN, MERGED, or CLOSED (got: '$pr_state')") ;;
+          esac
+        fi
+        ;;
+    esac
 
     # Validate head_sha (7+ hex chars)
     if [[ -z "$head_sha" ]]; then

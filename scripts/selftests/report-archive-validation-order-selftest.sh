@@ -153,6 +153,47 @@ MD
   printf '%s' "$container"
 }
 
+write_company_source() {
+  # $1=workspace root  $2=company  $3=source id  $4=parent status
+  local ws="$1" company="$2" source_id="$3" status="$4"
+  local container
+  container="$(specs_root_for "$ws")/companies/$company/$source_id"
+  mkdir -p "$container/tasks/V1"
+  cat >"$container/index.md" <<MD
+---
+title: "${source_id}"
+description: "Report/archive order company fixture."
+status: ${status}
+---
+
+# ${source_id}
+MD
+  cat >"$container/tasks/V1/index.md" <<MD
+---
+title: "${source_id} V1"
+status: IN_PROGRESS
+task_kind: V
+work_item_id: ${source_id}-V1
+ac_verification:
+  status: PASS
+deliverable:
+  head_sha: ${HEAD_SHA}
+  pr_url: https://github.com/example/repo/pull/1
+  pr_state: MERGED
+  verification:
+    status: PASS
+    ac_counts:
+      ac_total: 1
+      ac_pass: 1
+---
+
+# V1
+
+> Source: ${source_id} | Task: ${source_id}-V1 | JIRA: N/A | Repo: polaris-framework
+MD
+  printf '%s' "$container"
+}
+
 write_ledger() {
   # $1=path  $2=terminal_status(json literal e.g. "complete" or null)
   local path="$1" terminal="$2"
@@ -161,23 +202,23 @@ write_ledger() {
 JSON
 }
 
-write_report() {
-  # $1=path $2=dp $3=terminal $4=verification_status $5=ledger $6=seed(json)
-  local path="$1" num="$2" terminal="$3" vstatus="$4" ledger="$5" seed="$6"
-  python3 - "$path" "$num" "$terminal" "$vstatus" "$ledger" "$HEAD_SHA" "$seed" <<'PY'
+write_report_for_source() {
+  # $1=path $2=source id $3=terminal $4=verification_status $5=ledger $6=seed(json)
+  local path="$1" source_id="$2" terminal="$3" vstatus="$4" ledger="$5" seed="$6"
+  python3 - "$path" "$source_id" "$terminal" "$vstatus" "$ledger" "$HEAD_SHA" "$seed" <<'PY'
 import json
 import sys
 from pathlib import Path
 
-path, num, terminal, vstatus, ledger, head, seed_raw = sys.argv[1:8]
+path, source_id, terminal, vstatus, ledger, head, seed_raw = sys.argv[1:8]
 payload = {
     "schema_version": 1,
-    "source_id": f"DP-{num}",
+    "source_id": source_id,
     "terminal_status": terminal,
     "created_at": "2026-07-13T00:00:00+08:00",
     "ledger_path": ledger,
     "required_prs": [],
-    "verification": {"status": vstatus, "work_item_id": f"DP-{num}-V1", "head_sha": head},
+    "verification": {"status": vstatus, "work_item_id": f"{source_id}-V1", "head_sha": head},
     "issues": [],
     "blockers": [],
     "manual_items": [],
@@ -187,6 +228,11 @@ payload = {
 }
 Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
+}
+
+write_report() {
+  # $1=path $2=dp number $3=terminal $4=verification_status $5=ledger $6=seed(json)
+  write_report_for_source "$1" "DP-$2" "$3" "$4" "$5" "$6"
 }
 
 run_validate() {
@@ -206,8 +252,9 @@ fail() { echo "FAIL: $1" >&2; [ -n "${2:-}" ] && cat "$2" >&2; exit 1; }
 # ===========================================================================
 WS_A="$TMP/wsA"
 CONTAINER_A="$(write_source "$WS_A" 811 LOCKED)"
-LEDGER_A="$TMP/ledgerA.json"; write_ledger "$LEDGER_A" '"complete"'
-REPORT_A="$TMP/reportA.json"
+mkdir -p "$CONTAINER_A/artifacts/auto-pass"
+LEDGER_A="$CONTAINER_A/artifacts/auto-pass/ledgerA.json"; write_ledger "$LEDGER_A" '"complete"'
+REPORT_A="$CONTAINER_A/artifacts/auto-pass/reportA.json"
 write_report "$REPORT_A" 811 complete PASS "$LEDGER_A" null
 
 # Step 1 done (report written). Step 3-before-2: validate BEFORE archive → must
@@ -229,10 +276,18 @@ DP_A="$(specs_root_for "$WS_A")/design-plans"
 ARCHIVED_A="$DP_A/archive/DP-811-selftest"
 [ -d "$ARCHIVED_A" ] || fail "A: archived container missing at expected path"
 grep -q '^status: IMPLEMENTED$' "$ARCHIVED_A/index.md" || fail "A: archived parent status not IMPLEMENTED"
+ARCHIVED_REPORT_A="$ARCHIVED_A/artifacts/auto-pass/reportA.json"
+[ -f "$ARCHIVED_REPORT_A" ] || fail "A: report did not move with the archived source container"
+
+# Recreate the old active ledger path with a conflicting terminal. The archived
+# report must stay bound to the ledger that moved with its source container.
+mkdir -p "$(dirname "$LEDGER_A")"
+write_ledger "$LEDGER_A" '"blocked_by_gate_failure"'
 
 # Step 3: report validation AFTER archive → must PASS (continue-after-archive,
-# no re-fail on an already-archived source).
-run_validate "$WS_A" "$REPORT_A" "$TMP/A-postarchive.out" \
+# no re-fail on an already-archived source). The report still contains the
+# pre-archive absolute ledger path, proving the constrained relocation path.
+run_validate "$WS_A" "$ARCHIVED_REPORT_A" "$TMP/A-postarchive.out" \
   || fail "A: report validation failed after archive (continue-after-archive re-failed)" "$TMP/A-postarchive.out"
 grep -q "PASS: auto-pass report validation" "$TMP/A-postarchive.out" \
   || fail "A: post-archive validation did not report PASS" "$TMP/A-postarchive.out"
@@ -280,5 +335,121 @@ run_validate "$WS_D" "$REPORT_D" "$TMP/D.out" \
   || fail "D: valid non-complete report should not fail validation" "$TMP/D.out"
 ! grep -q "POLARIS_AUTO_PASS_TERMINAL_PARENT_NOT_ARCHIVED" "$TMP/D.out" \
   || fail "D: archive gate misfired on a non-complete terminal (false positive)" "$TMP/D.out"
+
+# ===========================================================================
+# CELL E — an archived report must not use an arbitrary same-basename file as
+# a fallback. The declared missing ledger repeats the source basename under an
+# unrelated parent; even though a local ledger with that basename exists,
+# validation fails closed.
+# ===========================================================================
+WS_E="$TMP/wsE"
+CONTAINER_E="$(write_source "$WS_E" 815 IMPLEMENTED)"
+DP_E="$(specs_root_for "$WS_E")/design-plans"
+mkdir -p "$DP_E/archive"
+mv "$CONTAINER_E" "$DP_E/archive/"
+ARCHIVED_E="$DP_E/archive/DP-815-selftest"
+mkdir -p "$ARCHIVED_E/artifacts/auto-pass"
+LOCAL_LEDGER_E="$ARCHIVED_E/artifacts/auto-pass/ledgerE.json"
+write_ledger "$LOCAL_LEDGER_E" '"complete"'
+REPORT_E="$ARCHIVED_E/artifacts/auto-pass/reportE.json"
+UNRELATED_LEDGER_E="$TMP/unrelated/DP-815-selftest/artifacts/auto-pass/ledgerE.json"
+mkdir -p "$(dirname "$UNRELATED_LEDGER_E")"
+write_ledger "$UNRELATED_LEDGER_E" '"complete"'
+write_report "$REPORT_E" 815 complete PASS "$UNRELATED_LEDGER_E" null
+rc=0; run_validate "$WS_E" "$REPORT_E" "$TMP/E.out" || rc=$?
+[ "$rc" -ne 0 ] || fail "E: archived report accepted an unrelated same-basename ledger fallback" "$TMP/E.out"
+grep -q "POLARIS_AUTO_PASS_REPORT_LEDGER_UNREADABLE" "$TMP/E.out" \
+  || fail "E: unrelated ledger fallback did not fail with LEDGER_UNREADABLE" "$TMP/E.out"
+
+# ===========================================================================
+# CELL F — a same-directory symlink is not ledger identity. Even when its
+# resolved target is another valid ledger beside the report, relocation rejects
+# the alias and fails closed.
+# ===========================================================================
+WS_F="$TMP/wsF"
+CONTAINER_F="$(write_source "$WS_F" 816 IMPLEMENTED)"
+DP_F="$(specs_root_for "$WS_F")/design-plans"
+mkdir -p "$DP_F/archive"
+mv "$CONTAINER_F" "$DP_F/archive/"
+ARCHIVED_F="$DP_F/archive/DP-816-selftest"
+mkdir -p "$ARCHIVED_F/artifacts/auto-pass"
+write_ledger "$ARCHIVED_F/artifacts/auto-pass/ledgerF-target.json" '"complete"'
+ln -s ledgerF-target.json "$ARCHIVED_F/artifacts/auto-pass/ledgerF.json"
+REPORT_F="$ARCHIVED_F/artifacts/auto-pass/reportF.json"
+DECLARED_F="$DP_F/DP-816-selftest/artifacts/auto-pass/ledgerF.json"
+write_report "$REPORT_F" 816 complete PASS "$DECLARED_F" null
+rc=0; run_validate "$WS_F" "$REPORT_F" "$TMP/F.out" || rc=$?
+[ "$rc" -ne 0 ] || fail "F: archived report accepted a same-directory ledger symlink" "$TMP/F.out"
+grep -q "POLARIS_AUTO_PASS_REPORT_LEDGER_UNREADABLE" "$TMP/F.out" \
+  || fail "F: ledger symlink did not fail with LEDGER_UNREADABLE" "$TMP/F.out"
+
+# ===========================================================================
+# CELL G — JIRA Epic/company archive parity: the same constrained relocation
+# succeeds when the report and ledger move from companies/<company>/<EPIC> to
+# companies/<company>/archive/<EPIC>.
+# ===========================================================================
+WS_G="$TMP/wsG"
+CONTAINER_G="$(write_company_source "$WS_G" acme EPIC-817 IMPLEMENTED)"
+mkdir -p "$CONTAINER_G/artifacts/auto-pass"
+LEDGER_G="$CONTAINER_G/artifacts/auto-pass/ledgerG.json"
+write_ledger "$LEDGER_G" '"complete"'
+REPORT_G="$CONTAINER_G/artifacts/auto-pass/reportG.json"
+write_report_for_source "$REPORT_G" EPIC-817 complete PASS "$LEDGER_G" null
+COMPANIES_G="$(specs_root_for "$WS_G")/companies/acme"
+mkdir -p "$COMPANIES_G/archive"
+mv "$CONTAINER_G" "$COMPANIES_G/archive/"
+ARCHIVED_REPORT_G="$COMPANIES_G/archive/EPIC-817/artifacts/auto-pass/reportG.json"
+run_validate "$WS_G" "$ARCHIVED_REPORT_G" "$TMP/G.out" \
+  || fail "G: JIRA Epic archived report did not resolve its moved ledger" "$TMP/G.out"
+grep -q "PASS: auto-pass report validation" "$TMP/G.out" \
+  || fail "G: JIRA Epic archived relocation did not report PASS" "$TMP/G.out"
+
+# ===========================================================================
+# CELL H — company parent is part of ledger identity. Repeating the same Epic
+# and ledger basename under another company must not bind to the archived local
+# candidate.
+# ===========================================================================
+WS_H="$TMP/wsH"
+CONTAINER_H="$(write_company_source "$WS_H" acme EPIC-818 IMPLEMENTED)"
+COMPANIES_H="$(specs_root_for "$WS_H")/companies"
+mkdir -p "$COMPANIES_H/acme/archive"
+mv "$CONTAINER_H" "$COMPANIES_H/acme/archive/"
+ARCHIVED_H="$COMPANIES_H/acme/archive/EPIC-818"
+mkdir -p "$ARCHIVED_H/artifacts/auto-pass"
+write_ledger "$ARCHIVED_H/artifacts/auto-pass/ledgerH.json" '"complete"'
+REPORT_H="$ARCHIVED_H/artifacts/auto-pass/reportH.json"
+OTHER_COMPANY_LEDGER_H="$COMPANIES_H/other/EPIC-818/artifacts/auto-pass/ledgerH.json"
+mkdir -p "$(dirname "$OTHER_COMPANY_LEDGER_H")"
+write_ledger "$OTHER_COMPANY_LEDGER_H" '"complete"'
+write_report_for_source "$REPORT_H" EPIC-818 complete PASS "$OTHER_COMPANY_LEDGER_H" null
+rc=0; run_validate "$WS_H" "$REPORT_H" "$TMP/H.out" || rc=$?
+[ "$rc" -ne 0 ] || fail "H: archived report crossed company ownership for ledger relocation" "$TMP/H.out"
+grep -q "POLARIS_AUTO_PASS_REPORT_LEDGER_UNREADABLE" "$TMP/H.out" \
+  || fail "H: cross-company ledger fallback did not fail with LEDGER_UNREADABLE" "$TMP/H.out"
+
+# ===========================================================================
+# CELL I — the stale declared active path is lexical identity, not live
+# filesystem identity. Recreating that path as a symlink to a different ledger
+# cannot rewrite the archived candidate basename.
+# ===========================================================================
+WS_I="$TMP/wsI"
+CONTAINER_I="$(write_source "$WS_I" 819 IMPLEMENTED)"
+mkdir -p "$CONTAINER_I/artifacts/auto-pass"
+LEDGER_I="$CONTAINER_I/artifacts/auto-pass/ledgerI.json"
+write_ledger "$LEDGER_I" '"complete"'
+REPORT_I="$CONTAINER_I/artifacts/auto-pass/reportI.json"
+write_report "$REPORT_I" 819 complete PASS "$LEDGER_I" null
+DP_I="$(specs_root_for "$WS_I")/design-plans"
+mkdir -p "$DP_I/archive"
+mv "$CONTAINER_I" "$DP_I/archive/"
+ARCHIVED_I="$DP_I/archive/DP-819-selftest"
+ARCHIVED_REPORT_I="$ARCHIVED_I/artifacts/auto-pass/reportI.json"
+mkdir -p "$(dirname "$LEDGER_I")"
+write_ledger "$(dirname "$LEDGER_I")/ledgerI-other.json" '"blocked_by_gate_failure"'
+ln -s ledgerI-other.json "$LEDGER_I"
+run_validate "$WS_I" "$ARCHIVED_REPORT_I" "$TMP/I.out" \
+  || fail "I: declared active-path symlink rewrote archived ledger identity" "$TMP/I.out"
+grep -q "PASS: auto-pass report validation" "$TMP/I.out" \
+  || fail "I: declared active-path symlink fixture did not report PASS" "$TMP/I.out"
 
 echo "PASS: report archive validation order selftest"
