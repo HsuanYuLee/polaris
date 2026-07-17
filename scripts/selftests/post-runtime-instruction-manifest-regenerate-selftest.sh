@@ -150,6 +150,9 @@ cp "$COMPILE" "$work/scripts/compile-runtime-instructions.sh"
 # Seed generated targets fresh, then dirty one manifest source.
 bash "$work/scripts/compile-runtime-instructions.sh" >/dev/null 2>&1 \
   || fail "T8: initial compile of copied tree failed"
+for target in CLAUDE.md AGENTS.md .codex/AGENTS.md .github/copilot-instructions.md; do
+  [[ -f "$work/$target" ]] || fail "T8: initial compile missing runtime target $target"
+done
 printf '\n<!-- dp320-t2 selftest dirty marker -->\n' >> "$work/.claude/instructions/core/bootstrap.md"
 # Now compile --check should report drift (stale).
 set +e

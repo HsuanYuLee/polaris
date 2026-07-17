@@ -179,6 +179,7 @@ Active hooks under parity governance:
 - `post-memory-index-regenerate.sh`
 - `post-runtime-instruction-manifest-regenerate.sh`
 - `pre-framework-source-write.sh`
+- `pre-handbook-load-gate.sh`
 - `pre-memory-write.sh`
 - `pre-write-language-policy.sh`
 - `session-start-thread-anchor.sh`

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: aggregate blocking framework PR gate — runs each validator (W1..W19) and
+# Purpose: aggregate blocking framework PR gate — runs each validator (W1..W20) and
 #          fails closed if any one fails. W11 (DP-293 T1) is the runtime-instruction
 #          parity step: compile-runtime-instructions --check + mechanism-parity --strict.
 #          W14 runs the full selftest corpus (run-aggregate-selftests.sh) — this makes
@@ -40,6 +40,7 @@ W16	cross-LLM mechanism parity	upstream:mechanism-governance	engineering	N/A
 W17	framework source write authority	upstream:framework-source-governance	engineering	N/A
 W18	config-driven authoring audit	upstream:language-governance	engineering	N/A
 W19	DP-422 transition source closeout	upstream:skill-flow-transition-governance	engineering	N/A
+W20	generated-artifact discipline	upstream:generated-artifact-governance	engineering	N/A
 OWNERS
 }
 
@@ -74,6 +75,7 @@ W16 cross-LLM mechanism parity
 W17 framework source write authority
 W18 config-driven authoring audit
 W19 DP-422 transition source closeout
+W20 generated-artifact discipline
 STAGES
   exit 0
 fi
@@ -198,6 +200,10 @@ VALIDATE_CONFIG_DRIVEN_AUTHORING="${POLARIS_VALIDATE_CONFIG_DRIVEN_AUTHORING_BIN
 # reproducer corpus 後，使用既有 transition registry validator 驗 exact coverage、
 # 唯一 callable owner 與 source-type parity；不建立第二套 registry。
 VALIDATE_SKILL_FLOW_TRANSITION_REGISTRY="${POLARIS_VALIDATE_SKILL_FLOW_TRANSITION_REGISTRY_BIN:-scripts/validate-skill-flow-transition-registry.sh}"
+# W20 (DP-423 T8 / AC12+AC13+AC-NEG6): new committed generated
+# candidates must be exact-path registered interfaces with a freshness gate
+# wired into a blocking entrypoint. Header/path heuristics only enumerate.
+VALIDATE_GENERATED_ARTIFACT_DISCIPLINE="${POLARIS_VALIDATE_GENERATED_ARTIFACT_DISCIPLINE_BIN:-scripts/validate-generated-artifact-discipline.sh}"
 
 run_gate() {
   local label="$1"
@@ -298,5 +304,16 @@ run_gate "W16 cross-LLM mechanism parity" "$VALIDATE_CROSS_LLM_PARITY"
 run_gate "W17 framework source write authority" "$VALIDATE_FRAMEWORK_SOURCE_WRITE" --repo "$(pwd)" --self-check-wiring
 run_gate "W18 config-driven authoring audit" "$VALIDATE_CONFIG_DRIVEN_AUTHORING" --root "$(pwd)"
 run_gate "W19 DP-422 transition source closeout" "$VALIDATE_SKILL_FLOW_TRANSITION_REGISTRY" --source-closeout
+_generated_artifact_base="${POLARIS_FRAMEWORK_PR_BASE:-}"
+if [[ -z "$_generated_artifact_base" ]]; then
+  _generated_artifact_base="$(git rev-parse HEAD^ 2>/dev/null || true)"
+  if [[ -z "$_generated_artifact_base" ]]; then
+    echo "framework-pr-gate failed: W20 generated-artifact discipline missing base ref" >&2
+    exit 1
+  fi
+  echo "framework-pr-gate: W20 using local HEAD^ fallback; PR lane must supply POLARIS_FRAMEWORK_PR_BASE" >&2
+fi
+run_gate "W20 generated-artifact discipline" "$VALIDATE_GENERATED_ARTIFACT_DISCIPLINE" \
+  --root "$(pwd)" --base "$_generated_artifact_base"
 
 echo "PASS: framework PR gate"

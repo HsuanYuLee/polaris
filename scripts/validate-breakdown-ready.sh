@@ -32,7 +32,7 @@ EOF
 }
 
 run_self_test() {
-  local tasks valid invalid invalid_matrix missing_scope missing_allowed missing_surface folder_valid local_specs_only static_runner package_graph_no_lock app_unclean_debug app_clean_debug broad_migration_grep changeset_missing_allowed changeset_allowed
+  local tasks valid invalid invalid_matrix missing_scope missing_allowed missing_surface folder_valid local_specs_only static_runner package_graph_no_lock app_unclean_debug app_clean_debug broad_migration_grep
   SELFTEST_TMP="$(mktemp -d -t validate-breakdown-ready.XXXXXX)"
   trap 'rm -rf "${SELFTEST_TMP:-}"' EXIT
   tasks="$SELFTEST_TMP/tasks"
@@ -51,12 +51,18 @@ run_self_test() {
   app_unclean_debug="$tasks/T11.md"
   app_clean_debug="$tasks/T12.md"
   broad_migration_grep="$tasks/T13.md"
-  changeset_missing_allowed="$tasks/T14.md"
-  changeset_allowed="$tasks/T15.md"
 
   cat > "$valid" <<'MD'
 ---
 title: "T1: 建立 breakdown readiness gate (2 pt)"
+status: PLANNED
+task_kind: T
+task_shape: implementation
+verification:
+  behavior_contract:
+    applies: false
+    reason: "framework validator selftest；無產品 runtime 行為。"
+depends_on: []
 ---
 
 # T1: 建立 breakdown readiness gate (2 pt)
@@ -69,12 +75,15 @@ title: "T1: 建立 breakdown readiness gate (2 pt)"
 |------|-----|
 | Source type | dp |
 | Source ID | DP-082 |
+| Work item ID | DP-082-T1 |
 | Task ID | DP-082-T1 |
 | JIRA key | N/A |
 | Test sub-tasks | N/A - framework work order |
 | AC 驗收單 | N/A - framework work order |
 | Base branch | main |
+| Branch chain | main -> task/DP-082-T1-breakdown-readiness-gate |
 | Task branch | task/DP-082-T1-breakdown-readiness-gate |
+| Depends on | N/A |
 | References to load | - `.claude/skills/references/task-md-schema.md` |
 
 ## Verification Handoff
@@ -271,28 +280,6 @@ MD
 ```
 MD
 
-  awk '
-    /^title:/ {
-      print
-      print "status: PLANNED"
-      print "deliverables:"
-      print "  changeset:"
-      print "    package_scope: \"@selftest/single-pkg\""
-      print "    bump_level_default: patch"
-      print "    filename_slug: selftest-123-change"
-      next
-    }
-    { print }
-  ' "$valid" \
-    | sed \
-      -e 's/# T1:/# T14:/' \
-      -e 's/Task: DP-082-T1/Task: DP-082-T14/' \
-      -e 's/Task ID | DP-082-T1/Task ID | DP-082-T14/' \
-      -e 's/task\/DP-082-T1-breakdown-readiness-gate/task\/DP-082-T14-changeset-scope/' \
-    > "$changeset_missing_allowed"
-  sed '/^- `VERSION`$/i\
-- `.changeset/selftest-123-change.md`' "$changeset_missing_allowed" > "$changeset_allowed"
-
   bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$valid" >/dev/null || {
     echo "self-test failed: valid task did not pass" >&2
     return 1
@@ -317,7 +304,7 @@ MD
     echo "self-test failed: dashboard/UI row without render/API surface passed" >&2
     return 1
   fi
-  bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$tasks/T7" >/dev/null || {
+  bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$folder_valid" >/dev/null || {
     echo "self-test failed: folder-native T*/index.md task did not pass" >&2
     return 1
   }
@@ -345,14 +332,6 @@ MD
     echo "self-test failed: broad source migration moment grep passed" >&2
     return 1
   fi
-  if bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$changeset_missing_allowed" >/dev/null 2>&1; then
-    echo "self-test failed: declared changeset deliverable outside Allowed Files passed" >&2
-    return 1
-  fi
-  bash "$SCRIPT_DIR/validate-breakdown-ready.sh" "$changeset_allowed" >/dev/null || {
-    echo "self-test failed: declared changeset deliverable covered by Allowed Files did not pass" >&2
-    return 1
-  }
   echo "validate-breakdown-ready self-test PASS"
 }
 
@@ -1129,31 +1108,6 @@ def parse_task_json(file: Path) -> dict:
         return {}
 
 
-def validate_changeset_scope_contract(file: Path, allowed: list[str]) -> list[str]:
-    errors: list[str] = []
-    data = parse_task_json(file)
-    frontmatter = data.get("frontmatter") if isinstance(data, dict) else {}
-    deliverables = frontmatter.get("deliverables") if isinstance(frontmatter, dict) else {}
-    changeset = deliverables.get("changeset") if isinstance(deliverables, dict) else {}
-    if not isinstance(changeset, dict) or not changeset:
-        return errors
-
-    slug = str(changeset.get("filename_slug") or "").strip()
-    if not slug:
-        errors.append(f"{file}: deliverables.changeset declares a changeset but filename_slug is missing")
-        return errors
-
-    expected = slug if slug.startswith(".changeset/") else f".changeset/{slug}"
-    if not expected.endswith(".md"):
-        expected = f"{expected}.md"
-    if not path_covered(expected, allowed):
-        errors.append(
-            f"{file}: deliverables.changeset declares `{expected}` but Allowed Files does not cover it; add `{expected}` or `.changeset/**`"
-        )
-
-    return errors
-
-
 def validate_scope_trace(
     file: Path, text: str, allowed: list[str], allow_uncovered: bool = False
 ) -> list[str]:
@@ -1274,7 +1228,6 @@ def validate_one(file: Path) -> list[str]:
     errors.extend(validate_test_environment_consistency(file, text))
     errors.extend(validate_test_command_debug_hygiene(file, text))
     errors.extend(validate_verify_command_specificity(file, text))
-    errors.extend(validate_changeset_scope_contract(file, allowed))
 
     matrix = section(text, "## Gate Closure Matrix")
     if not matrix.strip():

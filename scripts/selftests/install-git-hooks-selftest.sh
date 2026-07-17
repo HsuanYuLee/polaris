@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: selftest for scripts/install-copilot-hooks.sh — verify the installer
+# Purpose: selftest for scripts/install-git-hooks.sh — verify the installer
 #   writes the pre-push / pre-commit hooks, the installed pre-push hook delegates
 #   to the canonical portable gate scripts, and NO retired quality-gate-marker
 #   logic remains in either the installed hook, the Claude pre-push hook, or the
@@ -21,9 +21,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-INSTALLER="$SCRIPT_DIR/install-copilot-hooks.sh"
+INSTALLER="$SCRIPT_DIR/install-git-hooks.sh"
 
-tmp="$(mktemp -d -t install-copilot-hooks-selftest.XXXXXX)"
+tmp="$(mktemp -d -t install-git-hooks-selftest.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
 
 repo="$tmp/repo"
@@ -35,10 +35,10 @@ printf 'base\n' > "$repo/README.md"
 git -C "$repo" add README.md
 git -C "$repo" commit -m "base" >/dev/null
 
-cp "$INSTALLER" "$repo/scripts/install-copilot-hooks.sh"
-chmod +x "$repo/scripts/install-copilot-hooks.sh"
+cp "$INSTALLER" "$repo/scripts/install-git-hooks.sh"
+chmod +x "$repo/scripts/install-git-hooks.sh"
 
-bash "$repo/scripts/install-copilot-hooks.sh" >/dev/null
+bash "$repo/scripts/install-git-hooks.sh" >/dev/null
 
 pre_push="$repo/.git/hooks/pre-push"
 pre_commit="$repo/.git/hooks/pre-commit"
@@ -135,4 +135,4 @@ if grep -qE 'First push detected|No quality gate marker|quality gate marker' "$g
   exit 1
 fi
 
-echo "[install-copilot-hooks-selftest] PASS"
+echo "[install-git-hooks-selftest] PASS"

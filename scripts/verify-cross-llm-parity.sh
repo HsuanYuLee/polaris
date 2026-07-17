@@ -215,12 +215,20 @@ if grep -qE 'exec[[:space:]]+gh[[:space:]]+pr[[:space:]]+create' "$SCRIPT_DIR/co
   echo "FAIL: Codex PR fallback must delegate to polaris-pr-create.sh, not exec bare gh pr create" >&2
   exit 1
 fi
+tmp_root="$(mktemp -d)"
+nonselfref_classifier="$tmp_root/nonselfref-classifier.sh"
+cat > "$nonselfref_classifier" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' '{"schema_version":1,"self_referential":false}'
+SH
+chmod +x "$nonselfref_classifier"
 bash "$SCRIPT_DIR/codex-guarded-git-commit.sh" --dry-run >/dev/null
-POLARIS_SKIP_EVIDENCE=1 bash "$SCRIPT_DIR/codex-guarded-git-push.sh" --dry-run >/dev/null
+POLARIS_DETECT_SELFREF_BIN="$nonselfref_classifier" \
+  POLARIS_SKIP_EVIDENCE=1 \
+  bash "$SCRIPT_DIR/codex-guarded-git-push.sh" --dry-run >/dev/null
 bash "$SCRIPT_DIR/codex-guarded-bash.sh" --dry-run -- "echo parity-smoke" >/dev/null
 CLOSE_PARENT_SPEC_SELFTEST=1 bash "$SCRIPT_DIR/close-parent-spec-if-complete.sh" >/dev/null
 
-tmp_root="$(mktemp -d)"
 fixture_repo="$(make_codex_fallback_fixture "$tmp_root")"
 POLARIS_SKIP_EVIDENCE=1 \
   GATE_PROJECT_DIR="$fixture_repo" \

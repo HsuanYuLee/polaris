@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/polaris-changeset.sh — DP-032 Wave β D24
 #
-# Mechanically produces .changeset/{slug}.md from a task.md, applying the
+# Produces a canonical repo changeset from the active task identity, applying the
 # fallback chain documented in skills/references/changeset-convention-default.md:
 #   L1 .changeset/config.json (machine config — package_scope SoT)
 #   L2 repo handbook changeset-convention.md (semantic; out of scope here)
@@ -23,13 +23,14 @@
 # Behavior:
 #   1. Resolve repo path from task.md `repo` field (walk ancestors)
 #   2. .changeset/config.json absent → no-op exit 0 (repo doesn't use changesets)
-#   3. Try task.md frontmatter `deliverables.changeset.*` (DP-033 — currently
-#      not present; expected to fail and fall through to derivation)
-#   4. Derivation fallback:
+#   3. Derive the filename from the active task identity + title; task.md does
+#      not declare or whitelist an exact changeset filename.
+#   4. Resolve package scope:
 #        - package_scope: parse .changeset/config.json → if .packages /
 #          workspace glob resolves to a single publishable or configured
 #          private-tagged package match, use it; otherwise fail-loud
-#          (multi-package needs DP-033 declaration or repo handbook override)
+#          (multi-package ambiguity permits only a minimal package_scope
+#          declaration or a repo handbook override)
 #        - bump_level_default: L3 = patch (overridable via --bump)
 #        - filename_slug: kebab(ticket) + "-" + kebab(strip(title))
 #   5. Description: task.md title with `[TICKET]` / `TICKET:` prefix stripped
@@ -293,10 +294,9 @@ if [[ ! -d "$CHANGESET_DIR" ]] || [[ ! -f "$CHANGESET_CONFIG" ]]; then
   exit 0
 fi
 
-# --- Try DP-033 frontmatter declaration (expected absent in Wave β) --------
+# A single minimal declaration remains legal only to disambiguate a multi-package
+# repository. Exact filename and bump ceremony are intentionally not task schema.
 DECLARED_PACKAGE_SCOPE="$(parse_field deliverables_changeset_package_scope)"
-DECLARED_BUMP_DEFAULT="$(parse_field deliverables_changeset_bump_level_default)"
-DECLARED_FILENAME_SLUG="$(parse_field deliverables_changeset_filename_slug)"
 
 # --- Resolve package_scope (declared > derived) ----------------------------
 PACKAGE_SCOPE=""
@@ -492,7 +492,7 @@ PY
   case "$PACKAGE_SCOPE" in
     __NONE__)
       echo "polaris-changeset: could not derive package_scope from $CHANGESET_CONFIG (no public packages found)" >&2
-      echo "  Add deliverables.changeset.package_scope to task.md (DP-033) or override via repo handbook." >&2
+      echo "  Add the minimal deliverables.changeset.package_scope declaration or override via repo handbook." >&2
       exit 1
       ;;
     __MULTI__:*)
@@ -501,7 +501,7 @@ PY
         echo "polaris-changeset: check passed — multi-package changeset covers $multi_list ($matched_changeset)" >&2
         exit 0
       fi
-      echo "polaris-changeset: multi-package changeset requires task.md 'deliverables.changeset.package_scope' declaration (DP-033 scope) or repo handbook override" >&2
+      echo "polaris-changeset: multi-package changeset requires the minimal task.md 'deliverables.changeset.package_scope' declaration to resolve multi-package ambiguity, or a repo handbook override" >&2
       echo "  Candidates discovered: $multi_list" >&2
       exit 1
       ;;
@@ -512,23 +512,14 @@ PY
   esac
 fi
 
-# --- Bump level (override > declared > L3 default = patch) -----------------
+# --- Bump level (explicit override > generic L3 default = patch) -----------
 BUMP_LEVEL="patch"
-if [[ -n "$DECLARED_BUMP_DEFAULT" ]]; then
-  BUMP_LEVEL="$DECLARED_BUMP_DEFAULT"
-fi
 if [[ -n "$BUMP_OVERRIDE" ]]; then
   BUMP_LEVEL="$BUMP_OVERRIDE"
 fi
 
-# --- Slug derivation (declared > derived) ----------------------------------
-# derive_slug() is defined once near the top of this script (DP-344 D3 single slug
-# source); the new/check path and the `slug` subcommand both call it.
-if [[ -n "$DECLARED_FILENAME_SLUG" ]]; then
-  FILENAME_SLUG="$DECLARED_FILENAME_SLUG"
-else
-  FILENAME_SLUG="$(derive_slug "$TICKET" "$SUMMARY" || true)"
-fi
+# --- Slug derivation from active task identity -----------------------------
+FILENAME_SLUG="$(derive_slug "$TICKET" "$SUMMARY" || true)"
 
 if [[ -z "$FILENAME_SLUG" ]]; then
   echo "polaris-changeset: failed to derive filename_slug from ticket='$TICKET' title='$SUMMARY'" >&2

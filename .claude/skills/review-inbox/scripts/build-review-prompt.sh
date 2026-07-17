@@ -29,6 +29,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 
 MY_USER=""
 BASE_DIR=""
@@ -86,10 +87,16 @@ else
 fi
 HANDBOOK_JSON="[]"
 if [[ -n "$COMPANY" && -n "$PROJECT" ]]; then
-  HANDBOOK_JSON=$("$SCRIPT_DIR/resolve-handbook-paths.sh" \
-    --workspace "$WORKSPACE" \
-    --company "$COMPANY" \
-    --project "$PROJECT")
+  HANDBOOK_RESOLVER="$ROOT_DIR/scripts/resolve-handbook.sh"
+  if [[ ! -x "$HANDBOOK_RESOLVER" ]]; then
+    echo "Canonical handbook resolver not found: $HANDBOOK_RESOLVER" >&2
+    exit 1
+  fi
+  HANDBOOK_JSON=$("$HANDBOOK_RESOLVER" \
+    --company-dir "$WORKSPACE/$COMPANY" \
+    --project "$PROJECT" \
+    --paths-only \
+    --optional)
 fi
 
 HANDBOOK_BLOCK=$(python3 - "$HANDBOOK_JSON" <<'PY'

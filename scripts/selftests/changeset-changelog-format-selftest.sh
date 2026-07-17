@@ -10,7 +10,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 FORMATTER="$ROOT/.changeset/changelog-keepachangelog.cjs"
-REFERENCE="$ROOT/.claude/skills/references/changeset-convention.md"
+REFERENCE="$ROOT/polaris-config/polaris-framework/handbook/changeset-convention.md"
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2

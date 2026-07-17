@@ -125,7 +125,7 @@ D1 / D2 / D3 不依賴 prose-only（對齊 contract-design.md § Deterministic-F
 
 - `.claude/rules/canonical-contract-governance.md` — 本 reference 的 routing pointer 來源；
   D1 對齊其 Strong constraints first / Fail closed on missing inputs。
-- `.claude/rules/handbook/framework/contract-design.md` — Deterministic-First heuristic
+- `polaris-config/polaris-framework/handbook/contract-design.md` — Deterministic-First heuristic
   （D4 gate 為何必須機械落地）。
 - `scripts/validate-breakdown-ready.sh` / `scripts/validate-refinement-lock-preflight.sh`
   — D4 gate 與 LOCK preflight 委派。

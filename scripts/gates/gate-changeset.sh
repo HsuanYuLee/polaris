@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# gate-changeset.sh — Developer delivery gate for task-bound changesets.
-# Blocks completion/PR creation when a repo has .changeset/config.json but the
-# mechanically expected task changeset was not created.
+# gate-changeset.sh — Single repo-native changeset verifier.
+# In --staged mode it validates the prospective commit tree (HEAD + index) at
+# pre-commit time. The default delivery mode retains the task/release defense in
+# depth used by pre-push, completion, and PR creation.
 #
 # Usage:
+#   bash scripts/gates/gate-changeset.sh [--repo <path>] [--staged]
 #   bash scripts/gates/gate-changeset.sh [--repo <path>] [--task-md <path>]
 #
 # Exit: 0 = pass/skip, 2 = block
@@ -20,13 +22,15 @@ LANG_POLICY="${WORKSPACE_SCRIPTS}/validate-language-policy.sh"
 
 REPO_ROOT=""
 TASK_MD=""
+STAGED_MODE=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo) REPO_ROOT="${2:-}"; shift 2 ;;
     --task-md) TASK_MD="${2:-}"; shift 2 ;;
+    --staged) STAGED_MODE=1; shift ;;
     -h|--help)
-      echo "Usage: bash scripts/gates/gate-changeset.sh [--repo <path>] [--task-md <path>]"
+      echo "Usage: bash scripts/gates/gate-changeset.sh [--repo <path>] [--task-md <path>] [--staged]"
       exit 0
       ;;
     *) shift ;;
@@ -43,9 +47,178 @@ if [[ -z "$REPO_ROOT" ]]; then
 fi
 [[ -n "$REPO_ROOT" ]] || exit 0
 
-# Repos without changesets do not participate in this gate.
-if [[ ! -f "$REPO_ROOT/.changeset/config.json" ]]; then
+# Repos without changesets do not participate. In staged mode the index is the
+# sole prospective-tree authority; an unstaged config must not enable/disable or
+# otherwise influence the pre-commit verdict.
+if [[ "$STAGED_MODE" -eq 1 ]]; then
+  git -C "$REPO_ROOT" cat-file -e ':.changeset/config.json' 2>/dev/null || exit 0
+elif [[ ! -f "$REPO_ROOT/.changeset/config.json" ]]; then
   exit 0
+fi
+
+# staged_disposition prints behavioral or metadata_only for the staged delta.
+# This classifier is intentionally local to the single changeset verifier: the
+# evidence classifier owns committed ranges, while pre-commit must inspect the
+# index without manufacturing a commit object.
+staged_disposition() {
+  local changed
+  changed="$(git -C "$REPO_ROOT" diff --cached --name-only --diff-filter=ACMRD 2>/dev/null || true)"
+  STAGED_CHANGED="$changed" python3 - <<'PY'
+import os
+
+paths = [p.strip() for p in os.environ.get("STAGED_CHANGED", "").splitlines() if p.strip()]
+behavioral_suffixes = (".sh", ".py", ".mjs", ".ts", ".js", ".json", ".yaml", ".yml", ".toml")
+behavioral_prefixes = (
+    ".claude/hooks/", ".claude/skills/", ".claude/rules/", ".codex/",
+    ".github/workflows/", "polaris-config/",
+)
+behavioral_files = {"AGENTS.md", "CLAUDE.md"}
+
+def behavioral(path):
+    if path.startswith(".changeset/") and path.endswith(".md"):
+        return False
+    return path in behavioral_files or path.endswith(behavioral_suffixes) or path.startswith(behavioral_prefixes)
+
+print("behavioral" if any(behavioral(p) for p in paths) else "metadata_only")
+PY
+}
+
+# prospective_changeset_paths lists canonical candidates from the index. Git's
+# index already represents HEAD plus staged additions/deletions, so an unstaged
+# worktree file is invisible while a changeset committed earlier remains visible.
+prospective_changeset_paths() {
+  git -C "$REPO_ROOT" ls-files --cached -- '.changeset/*.md' 2>/dev/null \
+    | grep -Ev '^\.changeset/README\.md$' || true
+}
+
+# A managed task branch must be satisfied by its own task-identity changeset,
+# not an inherited sibling changeset from a stacked base. Subsequent commits in
+# the same task still pass because that task-owned file remains in HEAD.
+active_task_identity() {
+  local branch
+  branch="$(git -C "$REPO_ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null || true)"
+  ACTIVE_BRANCH="$branch" python3 - <<'PY'
+import os, re
+branch = os.environ.get("ACTIVE_BRANCH", "")
+m = re.match(r"^task/((?:DP-\d+-T\d+)|(?:[A-Z][A-Z0-9]*-\d+))-", branch)
+if m:
+    print(m.group(1).lower())
+PY
+}
+
+prospective_changeset_is_canonical() {
+  local path="$1" body
+  body="$(git -C "$REPO_ROOT" show ":$path" 2>/dev/null || true)"
+  CHANGESET_BODY="$body" python3 - "$REPO_ROOT" <<'PY'
+import fnmatch, json, os, re, subprocess, sys
+
+repo = sys.argv[1]
+text = os.environ.get("CHANGESET_BODY", "")
+lines = text.splitlines()
+if len(lines) < 5 or lines[0].strip() != "---":
+    raise SystemExit(1)
+try:
+    end = next(i for i, line in enumerate(lines[1:], 1) if line.strip() == "---")
+except StopIteration:
+    raise SystemExit(1)
+entries = [line.strip() for line in lines[1:end] if line.strip()]
+parsed = []
+for line in entries:
+    match = re.fullmatch(r'["\']([^"\']+)["\']\s*:\s*(patch|minor|major)', line)
+    if not match:
+        raise SystemExit(1)
+    parsed.append(match.group(1))
+if not parsed:
+    raise SystemExit(1)
+if not any(line.strip() for line in lines[end + 1:]):
+    raise SystemExit(1)
+
+# Validate package scopes against prospective repo metadata from the Git index.
+# No Path.read_text/worktree probe is allowed in this staged verifier.
+known = set()
+
+def index_text(path):
+    proc = subprocess.run(
+        ["git", "-C", repo, "show", f":{path}"],
+        capture_output=True, text=True,
+    )
+    return proc.stdout if proc.returncode == 0 else None
+
+def add_package(path, include_private=True):
+    raw = index_text(path)
+    if raw is None:
+        return
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return
+    name = data.get("name")
+    if isinstance(name, str) and name and (include_private or not data.get("private", False)):
+        known.add(name)
+
+try:
+    config = json.loads(index_text(".changeset/config.json") or "{}")
+except Exception:
+    config = {}
+include_private = bool((config.get("privatePackages") or {}).get("tag"))
+patterns = config.get("packages") if isinstance(config.get("packages"), list) else []
+workspace = index_text("pnpm-workspace.yaml")
+if not patterns and workspace:
+    for line in workspace.splitlines():
+        match = re.match(r"^\s*-\s+['\"]?([^'\"#\s]+)", line)
+        if match:
+            patterns.append(match.group(1))
+
+listed = subprocess.run(
+    ["git", "-C", repo, "ls-files", "--cached", "*package.json"],
+    capture_output=True, text=True,
+)
+package_paths = [p for p in listed.stdout.splitlines() if p]
+if patterns:
+    for package_path in package_paths:
+        directory = package_path.rsplit("/", 1)[0] if "/" in package_path else "."
+        if any(fnmatch.fnmatch(directory, pattern) for pattern in patterns):
+            add_package(package_path, include_private=include_private)
+if not known:
+    # Mirrors producer behavior: an all-private workspace with tag=false uses
+    # the root package as the release owner.
+    add_package("package.json", include_private=True)
+if not known or any(scope not in known for scope in parsed):
+    raise SystemExit(1)
+PY
+}
+
+gate_staged_changeset() {
+  local disposition path identity base
+  disposition="$(staged_disposition)"
+  [[ "$disposition" == "behavioral" ]] || exit 0
+  identity="$(active_task_identity)"
+
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    base="$(basename "$path" .md)"
+    if [[ -n "$identity" && "$base" != "$identity"-* ]]; then
+      continue
+    fi
+    if prospective_changeset_is_canonical "$path"; then
+      echo "$PREFIX ✅ prospective commit tree contains canonical changeset: $path" >&2
+      exit 0
+    fi
+  done < <(prospective_changeset_paths)
+
+  cat >&2 <<EOF
+$PREFIX BLOCKED: behavioral staged delta has no canonical changeset in the prospective commit tree.
+  Marker: POLARIS_CHANGESET_STAGED_MISSING
+  Repo:   $REPO_ROOT
+
+Fix:
+  Produce the repo-policy changeset, then stage it before committing.
+EOF
+  exit 2
+}
+
+if [[ "$STAGED_MODE" -eq 1 ]]; then
+  gate_staged_changeset
 fi
 
 # RESOLVED_TASK_MDS holds the FULL resolved candidate set (one per line). When

@@ -24,6 +24,14 @@
 !workspace-config.yaml.example
 !polaris-toolchain.yaml
 
+# ── Framework project config (tracked allowlist) ──
+!/polaris-config/
+/polaris-config/*
+!/polaris-config/polaris-framework/
+/polaris-config/polaris-framework/*
+!/polaris-config/polaris-framework/handbook/
+!/polaris-config/polaris-framework/handbook/**
+
 # ── docs/ documentation ──
 !docs/
 !docs/**

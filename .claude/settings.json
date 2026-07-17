@@ -12,11 +12,15 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-memory-write.sh\""
           },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-write-language-policy.sh\""
-          },
-          {
+        {
+          "type": "command",
+          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-write-language-policy.sh\""
+        },
+        {
+          "type": "command",
+          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-handbook-load-gate.sh\""
+        },
+        {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-framework-source-write.sh\""
           }
@@ -33,11 +37,15 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-memory-write.sh\""
           },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-write-language-policy.sh\""
-          },
-          {
+        {
+          "type": "command",
+          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-write-language-policy.sh\""
+        },
+        {
+          "type": "command",
+          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-handbook-load-gate.sh\""
+        },
+        {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-framework-source-write.sh\""
           }
@@ -50,11 +58,15 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-memory-write.sh\""
           },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-write-language-policy.sh\""
-          },
-          {
+        {
+          "type": "command",
+          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-write-language-policy.sh\""
+        },
+        {
+          "type": "command",
+          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-handbook-load-gate.sh\""
+        },
+        {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-framework-source-write.sh\""
           }

@@ -108,7 +108,8 @@ bash scripts/transpile-rules-to-codex.sh
 
 This generates:
 - `.codex/AGENTS.md`
-- `.codex/.generated/rules-manifest.txt`
+
+For all four runtime instruction targets, run `mise run bootstrap` or `bash scripts/compile-runtime-instructions.sh`; verify freshness with `bash scripts/compile-runtime-instructions.sh --check`.
 
 ### 2.9 Verify cross-LLM parity (CI-friendly)
 

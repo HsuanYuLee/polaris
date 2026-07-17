@@ -86,9 +86,12 @@ DP / Epic source template 必須已收斂到 shared contract
 `refinement.json acceptance_criteria[]`、或 `downstream.breakdown_hints[]`，breakdown 不得
 用 markdown prose 補洞，必須 route back to refinement。
 
-Framework-owned DP source 若會進 `framework-release`，breakdown 必須載入
-`.claude/rules/handbook/framework/index.md`，並依 index on-demand 讀
-`.claude/rules/handbook/framework/release-topology.md`。task 排序與 Branch chain 要反映真實
+Framework-owned DP source 若會進 `framework-release`，breakdown 必須先以
+`scripts/resolve-handbook.sh --project polaris-framework` 取得 canonical handbook payload，
+在 codebase exploration / task packaging 前讀 `index_path`、從 `narrative_paths` 取得
+`changeset-convention.md` 與 `release-topology.md`，並呼叫
+`scripts/validate-handbook-load-gate.sh` 建立 session/repo marker。changeset 是 repo-native
+policy，不把 exact filename 或格式步驟注入 task。task 排序與 Branch chain 要反映真實
 implementation order 與預期 stack base；不要為了滿足 stack 外觀新增 fake semantic
 dependency，也不要新增 generic validator 取代 `framework-release` lane 的 hard gate。
 

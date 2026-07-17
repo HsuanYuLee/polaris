@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # gate-artifact-schema.sh — Portable git-hook gate (DP-032 Wave δ)
-# Extracted from install-copilot-hooks.sh Gates 2-4 for cross-LLM portability.
+# Extracted from install-git-hooks.sh Gates 2-4 for cross-runtime portability.
 # Can be called from: git pre-commit hooks, or directly.
 #
 # Validates staged pipeline artifacts:

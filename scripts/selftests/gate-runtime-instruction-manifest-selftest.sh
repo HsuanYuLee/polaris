@@ -67,11 +67,11 @@ build_fixture() {
   git -C "$repo" commit -q -m "init fixture in-sync"
 }
 
-# === AC1 (fresh) + AC-NF1: gate exits 0 when manifest is in sync, single pass ===
+# === AC1 (fresh) + AC-NF1: gate exits 0 when runtime targets are in sync ===
 repo_fresh="$tmpdir/fresh"
 build_fixture "$repo_fresh"
 out_fresh="$(bash "$GATE" --repo "$repo_fresh" 2>&1)" \
-  || fail "AC1 fresh: gate must exit 0 when manifest is in sync (got non-zero). Output: $out_fresh"
+  || fail "AC1 fresh: gate must exit 0 when runtime targets are in sync (got non-zero). Output: $out_fresh"
 
 # AC-NF1: gate must not invoke network / heavy build — only compile --check.
 # Assert the gate source delegates exactly to compile-runtime-instructions.sh --check
@@ -82,28 +82,28 @@ fi
 grep -q 'compile-runtime-instructions.sh' "$GATE" \
   || fail "AC-NF1/AC5: gate must delegate to compile-runtime-instructions.sh"
 
-# === AC1 (stale) : drift in a rule body -> exit non-zero + repair hint ===
+# === AC1 (stale): a bootstrap edit changes rendered targets -> fail + hint ===
 repo_stale="$tmpdir/stale"
 build_fixture "$repo_stale"
-printf '\nstale edit not regenerated\n' >>"$repo_stale/.claude/rules/rule-a.md"
+printf '\nstale edit not regenerated\n' >>"$repo_stale/.claude/instructions/core/bootstrap.md"
 if out_stale="$(bash "$GATE" --repo "$repo_stale" 2>&1)"; then
-  fail "AC1 stale: gate must exit non-zero when a source drifts from the manifest"
+  fail "AC1 stale: gate must exit non-zero when a rendered runtime target is stale"
 fi
 printf '%s' "$out_stale" | grep -q 'compile-runtime-instructions.sh' \
   || fail "AC1: stale failure must emit a repair hint pointing to compile-runtime-instructions.sh"
 
-# === AC1 adversarial: missing manifest target is also treated as stale-fail ===
+# === AC1 adversarial: a missing real runtime target is stale-fail ===
 repo_missing="$tmpdir/missing"
 build_fixture "$repo_missing"
-rm -f "$repo_missing/.codex/.generated/rules-manifest.txt"
+rm -f "$repo_missing/.codex/AGENTS.md"
 if bash "$GATE" --repo "$repo_missing" >/dev/null 2>&1; then
-  fail "AC1: missing manifest target must fail closed (not fail-open exit 0)"
+  fail "AC1: missing runtime target must fail closed (not fail-open exit 0)"
 fi
 
 # === AC-NEG1: POLARIS_*_BYPASS env must NOT silence the gate ===
 repo_bypass="$tmpdir/bypass"
 build_fixture "$repo_bypass"
-printf '\nstale for bypass test\n' >>"$repo_bypass/.claude/rules/rule-a.md"
+printf '\nstale for bypass test\n' >>"$repo_bypass/.claude/instructions/core/bootstrap.md"
 if POLARIS_LANGUAGE_POLICY_BYPASS=1 POLARIS_SKILL_BOUNDARY_BYPASS=1 \
    POLARIS_MEMORY_HYGIENE_APPLY=1 bash "$GATE" --repo "$repo_bypass" >/dev/null 2>&1; then
   fail "AC-NEG1: no POLARIS_*_BYPASS env may silence the manifest-freshness gate"
@@ -113,16 +113,15 @@ if grep -qE 'BYPASS|SKIP_MANIFEST|FORCE' "$GATE"; then
   fail "AC-NEG1: gate source must not contain an env bypass escape hatch"
 fi
 
-# === AC-NEG2: gate verdict comes from manifest<->source consistency, not push
-#            content. A push that touches only unrelated files, with a fresh
-#            manifest, must PASS. ===
+# === AC-NEG2: gate verdict comes from rendered target freshness, not push
+#            content. A push that touches only unrelated files must PASS. ===
 repo_unrelated="$tmpdir/unrelated"
 build_fixture "$repo_unrelated"
 echo "product code change" >"$repo_unrelated/some-product-file.txt"
 git -C "$repo_unrelated" add -A
-git -C "$repo_unrelated" commit -q -m "unrelated change, manifest still fresh"
+git -C "$repo_unrelated" commit -q -m "unrelated change, runtime targets still fresh"
 bash "$GATE" --repo "$repo_unrelated" >/dev/null 2>&1 \
-  || fail "AC-NEG2: gate must not block a push when the manifest is fresh (no false positive)"
+  || fail "AC-NEG2: gate must not block a push when runtime targets are fresh (no false positive)"
 
 # === AC2: both push-time runtime paths wire the gate AND do not branch-filter it ===
 
@@ -144,10 +143,10 @@ if awk '/^[[:space:]]*#/ {next} /main\|master\|develop\).*exit 0/ {found=1} END 
   fail "AC2/R1: pre-push adapter must not contain a non-comment main/master/develop early-exit"
 fi
 
-# AC2 path 2 — portable git hook produced by install-copilot-hooks.sh
-INSTALL_HOOKS="$ROOT_DIR/scripts/install-copilot-hooks.sh"
+# AC2 path 2 — portable git hook produced by install-git-hooks.sh
+INSTALL_HOOKS="$ROOT_DIR/scripts/install-git-hooks.sh"
 grep -q 'gate-runtime-instruction-manifest.sh' "$INSTALL_HOOKS" \
-  || fail "AC2: install-copilot-hooks.sh portable pre-push hook must wire gate-runtime-instruction-manifest.sh"
+  || fail "AC2: install-git-hooks.sh portable pre-push hook must wire gate-runtime-instruction-manifest.sh"
 
 # Generate the portable pre-push hook into a throwaway repo and assert it both
 # (a) contains the manifest gate callsite, and (b) places it before the
@@ -157,8 +156,8 @@ repo_hookgen="$tmpdir/hookgen"
 mkdir -p "$repo_hookgen"
 git -C "$repo_hookgen" init -q
 cp -R "$ROOT_DIR/scripts" "$repo_hookgen/scripts"
-bash "$repo_hookgen/scripts/install-copilot-hooks.sh" >/dev/null 2>&1 \
-  || fail "AC2: install-copilot-hooks.sh failed to install into fixture repo"
+bash "$repo_hookgen/scripts/install-git-hooks.sh" >/dev/null 2>&1 \
+  || fail "AC2: install-git-hooks.sh failed to install into fixture repo"
 HOOK="$repo_hookgen/.git/hooks/pre-push"
 [[ -f "$HOOK" ]] || fail "AC2: portable pre-push hook not generated"
 grep -q 'gate-runtime-instruction-manifest.sh' "$HOOK" \
@@ -169,17 +168,17 @@ if grep -qE 'main\|master\|develop' "$HOOK"; then
 fi
 
 # === AC2 end-to-end: portable hook blocks a stale push, passes a fresh push ===
-# Build a fixture repo whose tree is real enough to run the manifest gate via the
+# Build a fixture repo whose tree is real enough to run the freshness gate via the
 # installed hook, drive it through the hook's gate callsite directly.
 repo_e2e="$tmpdir/e2e"
 build_fixture "$repo_e2e"
 # Fresh: gate (the wiring the hook delegates to) passes.
 bash "$repo_e2e/scripts/gates/gate-runtime-instruction-manifest.sh" --repo "$repo_e2e" >/dev/null 2>&1 \
-  || fail "AC2 e2e: fresh manifest must pass the wired gate"
+  || fail "AC2 e2e: fresh runtime targets must pass the wired gate"
 # Stale: gate blocks.
-printf '\ne2e stale\n' >>"$repo_e2e/.claude/rules/rule-a.md"
+printf '\ne2e stale\n' >>"$repo_e2e/.claude/instructions/core/bootstrap.md"
 if bash "$repo_e2e/scripts/gates/gate-runtime-instruction-manifest.sh" --repo "$repo_e2e" >/dev/null 2>&1; then
-  fail "AC2 e2e: stale manifest must be blocked by the wired gate"
+  fail "AC2 e2e: stale runtime targets must be blocked by the wired gate"
 fi
 
 echo "[gate-runtime-instruction-manifest-selftest] PASS"

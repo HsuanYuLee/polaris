@@ -9,7 +9,6 @@ set -euo pipefail
 #   - AGENTS.md
 #   - .codex/AGENTS.md
 #   - .github/copilot-instructions.md
-#   - runtime instruction manifest files under .generated directories
 #
 # Usage:
 #   bash scripts/compile-runtime-instructions.sh
@@ -64,31 +63,6 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 list_universal_rules() {
   find "$ROOT_DIR/.claude/rules" -maxdepth 1 -type f -name '*.md' | sort | sed "s#^$ROOT_DIR/##"
-}
-
-write_manifest_snapshot() {
-  local out="$1"
-  local sources_file="$tmpdir/sources.list"
-  : > "$sources_file"
-  printf '%s\n' ".claude/instructions/manifest.yaml" >> "$sources_file"
-  printf '%s\n' ".claude/instructions/core/bootstrap.md" >> "$sources_file"
-  printf '%s\n' ".claude/instructions/runtime/claude.md" >> "$sources_file"
-  printf '%s\n' ".claude/instructions/runtime/codex.md" >> "$sources_file"
-  printf '%s\n' ".claude/instructions/runtime/copilot.md" >> "$sources_file"
-  list_universal_rules >> "$sources_file"
-
-  echo "source_of_truth=.claude/instructions/manifest.yaml" > "$out"
-  echo "generated_at=deterministic" >> "$out"
-  echo >> "$out"
-  echo "[sources]" >> "$out"
-  grep -v '^.claude/instructions/manifest.yaml$' "$sources_file" | sort -u >> "$out"
-  echo >> "$out"
-  echo "[sha256]" >> "$out"
-  sort -u "$sources_file" | while read -r rel; do
-    [[ -f "$ROOT_DIR/$rel" ]] || continue
-    sha="$(shasum -a 256 "$ROOT_DIR/$rel" | awk '{print $1}')"
-    printf '%s  %s\n' "$sha" "$rel" >> "$out"
-  done
 }
 
 emit_header() {
@@ -355,10 +329,8 @@ write_target() {
   local path="$2"
   local render="$3"
   local tmp="$tmpdir/$name.out"
-  local manifest_tmp="$tmpdir/$name.manifest"
 
   "$render" > "$tmp"
-  write_manifest_snapshot "$manifest_tmp"
 
   if [[ "$CHECK_ONLY" == true ]]; then
     [[ -f "$path" ]] || { echo "DRIFT: missing $path" >&2; return 1; }
@@ -373,26 +345,6 @@ write_target() {
   mkdir -p "$(dirname "$path")"
   cp "$tmp" "$path"
   echo "Generated: $path"
-}
-
-write_generated_manifest_targets() {
-  local manifest_tmp="$tmpdir/runtime-instructions-manifest.txt"
-  write_manifest_snapshot "$manifest_tmp"
-
-  local targets=(
-    "$ROOT_DIR/.codex/.generated/rules-manifest.txt"
-    "$ROOT_DIR/.github/.generated/copilot-rules-manifest.txt"
-  )
-  for path in "${targets[@]}"; do
-    if [[ "$CHECK_ONLY" == true ]]; then
-      [[ -f "$path" ]] || { echo "DRIFT: missing $path" >&2; return 1; }
-      command diff -q "$manifest_tmp" "$path" >/dev/null 2>&1 || { echo "DRIFT: $path is out of date." >&2; return 1; }
-    else
-      mkdir -p "$(dirname "$path")"
-      cp "$manifest_tmp" "$path"
-      echo "Generated: $path"
-    fi
-  done
 }
 
 run_target() {
@@ -410,10 +362,8 @@ if [[ "$TARGET" == "all" ]]; then
   run_target agents
   run_target codex
   run_target copilot
-  write_generated_manifest_targets
 else
   run_target "$TARGET"
-  write_generated_manifest_targets
 fi
 
 if [[ "$CHECK_ONLY" == true ]]; then

@@ -42,7 +42,7 @@ INSTALL_DEPS="$ENV_DIR/install-project-deps.sh"
 START_CMD="$ENV_DIR/start-command.sh"
 HEALTH_CHECK="$ENV_DIR/health-check.sh"
 FIXTURES_START="$ENV_DIR/fixtures-start.sh"
-HANDBOOK_READER="$SCRIPT_DIR/handbook-config-reader.sh"
+HANDBOOK_RESOLVER="$SCRIPT_DIR/resolve-handbook.sh"
 HANDBOOK_VALIDATOR="$SCRIPT_DIR/handbook-config-validator.sh"
 
 usage() {
@@ -170,20 +170,53 @@ cleanup_effective_config() {
 trap cleanup_effective_config EXIT
 
 resolve_effective_workspace_config() {
-  local company_dir project handbook_config validator_out
+  local company_dir project handbook_config resolver_payload resolver_status validator_out
   company_dir="$(dirname "$WORKSPACE_CONFIG")"
   project="$PROJECT"
-  handbook_config="$company_dir/polaris-config/$project/handbook/config.yaml"
 
-  if [[ ! -f "$handbook_config" ]]; then
+  if [[ ! -x "$HANDBOOK_RESOLVER" ]]; then
+    env_lib_log_fail "canonical handbook resolver is not executable: $HANDBOOK_RESOLVER"
+    exit 1
+  fi
+
+  if ! resolver_payload="$("$HANDBOOK_RESOLVER" \
+      --company-dir "$company_dir" \
+      --project "$project" \
+      --optional 2>&1)"; then
+    env_lib_log_fail "handbook resolution failed for $project"
+    printf '%s\n' "$resolver_payload" >&2
+    exit 1
+  fi
+
+  resolver_status="$(python3 - "$resolver_payload" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+print(payload.get("status", "configured"))
+PY
+)"
+  if [[ "$resolver_status" == "not_configured" ]]; then
     env_lib_log_warn "handbook config missing for $project; falling back to workspace-config dev_environment"
     RUNTIME_CONFIG_SOURCE="workspace_config_fallback"
     EFFECTIVE_WORKSPACE_CONFIG="$WORKSPACE_CONFIG"
     return 0
   fi
 
-  if [[ ! -x "$HANDBOOK_READER" || ! -x "$HANDBOOK_VALIDATOR" ]]; then
-    env_lib_log_fail "handbook config scripts are not executable"
+  handbook_config="$(python3 - "$resolver_payload" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+path = payload.get("config_path")
+if not isinstance(path, str) or not path:
+    raise SystemExit("resolver payload missing config_path")
+print(path)
+PY
+)"
+
+  if [[ ! -x "$HANDBOOK_VALIDATOR" ]]; then
+    env_lib_log_fail "handbook config validator is not executable"
     exit 1
   fi
 

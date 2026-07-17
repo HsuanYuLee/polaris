@@ -44,6 +44,40 @@
       "delete_after_gate"
     ]
   },
+  "generated_artifact_interfaces": [
+    {
+      "path": "CLAUDE.md",
+      "classification": "committed_interface",
+      "generator": "scripts/compile-runtime-instructions.sh",
+      "freshness_gate": "scripts/compile-runtime-instructions.sh --check",
+      "gate_entrypoint": "scripts/check-framework-pr-gate.sh",
+      "gate_anchor": "run_gate \"W11 runtime-instruction parity (compile --check)\" \"$COMPILE_RUNTIME_INSTRUCTIONS\" --check"
+    },
+    {
+      "path": "AGENTS.md",
+      "classification": "committed_interface",
+      "generator": "scripts/compile-runtime-instructions.sh",
+      "freshness_gate": "scripts/compile-runtime-instructions.sh --check",
+      "gate_entrypoint": "scripts/check-framework-pr-gate.sh",
+      "gate_anchor": "run_gate \"W11 runtime-instruction parity (compile --check)\" \"$COMPILE_RUNTIME_INSTRUCTIONS\" --check"
+    },
+    {
+      "path": ".codex/AGENTS.md",
+      "classification": "committed_interface",
+      "generator": "scripts/compile-runtime-instructions.sh",
+      "freshness_gate": "scripts/compile-runtime-instructions.sh --check",
+      "gate_entrypoint": "scripts/check-framework-pr-gate.sh",
+      "gate_anchor": "run_gate \"W11 runtime-instruction parity (compile --check)\" \"$COMPILE_RUNTIME_INSTRUCTIONS\" --check"
+    },
+    {
+      "path": ".github/copilot-instructions.md",
+      "classification": "committed_interface",
+      "generator": "scripts/compile-runtime-instructions.sh",
+      "freshness_gate": "scripts/compile-runtime-instructions.sh --check",
+      "gate_entrypoint": "scripts/check-framework-pr-gate.sh",
+      "gate_anchor": "run_gate \"W11 runtime-instruction parity (compile --check)\" \"$COMPILE_RUNTIME_INSTRUCTIONS\" --check"
+    }
+  ],
   "scripts": [
     {
       "path": "scripts/auto-pass-pr-ownership-gate.sh",
@@ -1466,10 +1500,9 @@
       "kind": "gate",
       "runner": "bash",
       "owner_surface": "hook",
-      "selftest": "N/A",
+      "selftest": "scripts/selftests/repo-native-changeset-policy-selftest.sh",
       "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "relocation": "stay"
     },
     {
       "path": "scripts/gates/gate-ci-local.sh",
@@ -1670,22 +1703,50 @@
       "relocation": "stay"
     },
     {
-      "path": "scripts/handbook-config-reader.sh",
-      "kind": "support",
+      "path": "scripts/validate-handbook-load-gate.sh",
+      "kind": "gate",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/handbook-load-gate-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftests/handbook-load-gate-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
       "selftest": "N/A",
       "lifecycle": "support_path",
       "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "selftest_reason": "selftest script"
     },
     {
-      "path": "scripts/handbook-config-selftest.sh",
-      "kind": "selftest",
+      "path": "scripts/resolve-handbook.sh",
+      "kind": "resolver",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/resolve-handbook-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftests/resolve-handbook-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
       "selftest": "N/A",
       "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/handbook-routing-retirement-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
     },
@@ -1700,11 +1761,11 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
-      "path": "scripts/install-copilot-hooks.sh",
+      "path": "scripts/install-git-hooks.sh",
       "kind": "support",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
-      "selftest": "scripts/selftests/install-copilot-hooks-selftest.sh",
+      "selftest": "scripts/selftests/install-git-hooks-selftest.sh",
       "lifecycle": "support_path",
       "relocation": "stay"
     },
@@ -3465,7 +3526,17 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
-      "path": "scripts/selftests/install-copilot-hooks-selftest.sh",
+      "path": "scripts/selftests/install-git-hooks-pre-push-carve-out-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/install-git-hooks-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
@@ -3474,6 +3545,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/repo-native-changeset-policy-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/lib/script-test-helpers.sh",
@@ -3682,6 +3763,16 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/bootstrap-regen-runtime-targets-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/polaris-changeset-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3788,6 +3879,16 @@
     },
     {
       "path": "scripts/selftests/post-runtime-instruction-manifest-regenerate-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/rules-manifest-ceremony-removal-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
@@ -4565,16 +4666,6 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
-    },
-    {
-      "path": "scripts/selftests/validate-framework-handbook-routing-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "skill_or_reference",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/validate-manifest-parity-selftest.sh",
@@ -5371,6 +5462,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/validate-generated-artifact-discipline.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/selftests/generated-artifact-discipline-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-dispatch-bundle.sh",
       "kind": "gate",
       "runner": "bash",
@@ -5417,15 +5517,6 @@
       "lifecycle": "hot_path",
       "relocation": "stay",
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
-    },
-    {
-      "path": "scripts/validate-framework-handbook-routing.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "skill_or_reference",
-      "selftest": "scripts/selftests/validate-framework-handbook-routing-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
     },
     {
       "path": "scripts/validate-handbook-path-contract.sh",
@@ -6167,7 +6258,7 @@
         "release"
       ],
       "changed_paths": [
-        ".claude/rules/handbook/framework/script-governance.md",
+        "polaris-config/polaris-framework/handbook/script-governance.md",
         "scripts/validate-framework-script-structure.sh",
         "scripts/selftests/framework-script-structure-selftest.sh"
       ],
@@ -6197,6 +6288,31 @@
       ],
       "enrolled": true,
       "owner": "polaris-framework"
+    },
+    {
+      "id": "bootstrap-regen-runtime-targets",
+      "command": "bash scripts/selftests/bootstrap-regen-runtime-targets-selftest.sh",
+      "profiles": [
+        "core",
+        "runtime",
+        "full",
+        "release"
+      ],
+      "changed_paths": [
+        "scripts/polaris-bootstrap.sh",
+        "scripts/selftests/bootstrap-regen-runtime-targets-selftest.sh",
+        "README.md",
+        "docs/codex-quick-start.md",
+        "docs/codex-quick-start.zh-TW.md",
+        "polaris-config/polaris-framework/handbook/index.md"
+      ],
+      "fixtures": [
+        "each of four runtime targets is corrupted then regenerated by bootstrap",
+        "README and framework handbook list the four targets and regeneration commands",
+        "Codex quick-start no longer references retired checksum snapshot"
+      ],
+      "enrolled": true,
+      "owner": "DP-423-T7"
     },
     {
       "id": "polaris-doctor-no-vscode-path",
@@ -6784,14 +6900,39 @@
       "changed_paths": [
         "scripts/gates/gate-runtime-instruction-manifest.sh",
         ".claude/hooks/pre-push-quality-gate.sh",
-        "scripts/install-copilot-hooks.sh",
+        "scripts/install-git-hooks.sh",
         "scripts/selftests/gate-runtime-instruction-manifest-selftest.sh"
       ],
       "fixtures": [
-        "fresh manifest exits 0; stale source / missing manifest target exits non-zero with compile-runtime-instructions.sh repair hint; POLARIS_*_BYPASS env does not silence; portable git hook + Claude pre-push adapter both wire the gate before the main/develop branch early-exit"
+        "fresh runtime targets exit 0; stale source / missing runtime target exits non-zero with compile-runtime-instructions.sh repair hint; POLARIS_*_BYPASS env does not silence; portable git hook + Claude pre-push adapter both wire the gate before the main/develop branch early-exit"
       ],
       "enrolled": true,
       "owner": "polaris-framework"
+    },
+    {
+      "id": "rules-manifest-ceremony-removal",
+      "command": "bash scripts/selftests/rules-manifest-ceremony-removal-selftest.sh",
+      "profiles": [
+        "core",
+        "release"
+      ],
+      "changed_paths": [
+        ".claude/hooks/post-runtime-instruction-manifest-regenerate.sh",
+        "scripts/compile-runtime-instructions.sh",
+        "scripts/sync-to-polaris.sh",
+        "scripts/selftests/compile-runtime-instructions-selftest.sh",
+        "scripts/selftests/gate-runtime-instruction-manifest-selftest.sh",
+        "scripts/selftests/post-runtime-instruction-manifest-regenerate-selftest.sh",
+        "scripts/selftests/rules-manifest-ceremony-removal-selftest.sh",
+        ".claude/rules/mechanism-registry.md"
+      ],
+      "fixtures": [
+        "retired snapshot producer/copy/assertion referrers are absent",
+        "rule-body-only edit no longer creates checksum ceremony",
+        "each of four runtime targets independently fails compile --check when stale"
+      ],
+      "enrolled": true,
+      "owner": "DP-423-T6"
     },
     {
       "id": "dp218-graduation-anchors",

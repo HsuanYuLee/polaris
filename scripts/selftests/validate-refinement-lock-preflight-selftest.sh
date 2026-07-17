@@ -242,11 +242,7 @@ expect_pass "multiline-verify-command" "$tmpdir/multiline-verify-command.json"
 # Env bootstrap command is PROSE fail-stops, naming the offending task. Under
 # full-derive this is the realistic illegitimate-implementation signal (the
 # real env_bootstrap value reaches the task.md and T1's executability gate
-# rejects it). It replaces the old "implementation specs-only" assertion, which
-# full-derive cannot reproduce: derive injects a .changeset for every
-# implementation T-task, so an implementation task is never purely specs-only in
-# a changeset repo (DP-369 finding — the old placeholder synthesized a
-# specs-only-only Allowed Files that the real writer never emits).
+# rejects it). Changeset policy is repo-native and does not alter Allowed Files.
 cat >"$tmpdir/bad-prose-named.json" <<JSON
 {
   "source": { "type": "dp", "id": "DP-369", "base_branch": "feat/DP-369" },

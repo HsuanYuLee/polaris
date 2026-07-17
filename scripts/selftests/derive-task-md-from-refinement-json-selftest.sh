@@ -577,11 +577,11 @@ grep -qF "| Repo: $task_repo_root" "$per_task_repo_out" || {
   cat "$per_task_repo_out" >&2
   exit 1
 }
-grep -qF -- "- \`.changeset/" "$per_task_repo_out" || {
-  echo "FAIL [case 8b / DP-364 D1]: changeset path was not injected from per-task repo root" >&2
+if grep -qF -- "- \`.changeset/" "$per_task_repo_out"; then
+  echo "FAIL [case 8b / DP-423 AC17]: per-task repo leaked exact changeset path" >&2
   cat "$per_task_repo_out" >&2
   exit 1
-}
+fi
 
 # --- Case 9 (AC2): zero source_type== branch in the derive CODE. The only allowed
 # use is reading source.type for the rendered "Source type" cell value. Strip
@@ -1484,20 +1484,13 @@ if ! grep -qF -- "grep -q '既有未動'" "$quoted_cjk_out"; then
 fi
 
 # ===========================================================================
-# DP-344 — changeset Allowed-Files derive injection (D1) + slug parity (D3).
-#
-# When the resolved repo root participates in Changesets (.changeset/config.json
-# exists), derive must append the deterministic changeset path to `## Allowed
-# Files`, computed by reusing polaris-changeset.sh's `slug` subcommand (single
-# slug source, byte-identical with what polaris-changeset writes). Non-changeset
-# repos must NOT be injected. Re-derive must stay idempotent.
+# DP-423 — repo-native changeset policy removes task Allowed-Files injection.
+# Repo config presence, product/framework routing, and CJK titles must not change
+# task packaging. Re-derive remains byte-idempotent.
 # ===========================================================================
 
-POLARIS_CHANGESET="$ROOT_DIR/scripts/polaris-changeset.sh"
-[[ -x "$POLARIS_CHANGESET" ]] || { echo "FAIL: polaris-changeset.sh not executable" >&2; exit 1; }
-
-# A minimal refinement.json reused by the DP-344 cases. The task title carries a
-# CJK segment to exercise the slug-parity path (AC4). Body fields are present so
+# A minimal refinement.json reused by the repo-policy cases. The task title carries
+# a CJK segment to ensure no hidden filename ceremony returns. Body fields are present so
 # the derived task.md is a complete, valid work order.
 make_dp344_refinement() {
   # Args: $1 = output json path, $2 = task title
@@ -1547,9 +1540,8 @@ nocs_repo="$tmpdir/dp344-plain-repo"
 mkdir -p "$nocs_repo"
 
 # ---------------------------------------------------------------------------
-# Case 25 (DP-344 AC1): changeset repo -> derive injects the changeset path into
-# `## Allowed Files`, and that path is byte-identical to polaris-changeset slug
-# --print path for the same ticket + title (slug parity, single source).
+# Case 25 (DP-423 AC17): changeset-enabled repos do not alter task packaging.
+# Exact changeset filenames are repo-native producer output, not Allowed Files.
 # ---------------------------------------------------------------------------
 dp344_title_ascii="changeset allowed files derive injection"
 dp344_ref_ascii="$tmpdir/dp344-ascii.json"
@@ -1562,26 +1554,15 @@ bash "$SCRIPT" --refinement-json "$dp344_ref_ascii" --task-id "DP-344-T1" \
   exit 1
 }
 
-# Expected path from the single slug source.
-expected_cs_ascii="$(bash "$POLARIS_CHANGESET" slug \
-  --ticket "DP-344-T1" --title "$dp344_title_ascii" --print path)"
-[[ -n "$expected_cs_ascii" ]] || { echo "FAIL [case 25 / DP-344 AC1]: empty slug path from polaris-changeset" >&2; exit 1; }
-
-# The injected entry must appear in the `## Allowed Files` section.
 allowed_section_ascii="$(awk '/^## Allowed Files/{f=1;next} /^## /{f=0} f' "$dp344_out_ascii")"
-if ! printf '%s\n' "$allowed_section_ascii" | grep -qF -- "$expected_cs_ascii"; then
-  echo "FAIL [case 25 / DP-344 AC1]: changeset path '$expected_cs_ascii' not injected into Allowed Files" >&2
+if printf '%s\n' "$allowed_section_ascii" | grep -qF -- '.changeset/'; then
+  echo "FAIL [case 25 / DP-423 AC17]: changeset repo injected exact path into Allowed Files" >&2
   cat "$dp344_out_ascii" >&2
   exit 1
 fi
 
 # ---------------------------------------------------------------------------
-# Case 26 (DP-344 AC4 / DP-362): slug parity holds for a CJK-bearing title -- the
-# derive-injected path is byte-identical to polaris-changeset slug --print path.
-# DP-362: CJK is now DROPPED (ASCII-only slug, machine-matchable). This case
-# still guards that derive does not re-implement a second kebab: it must reuse
-# the canonical slug source, so the injected path matches byte-for-byte and the
-# result is pure ASCII.
+# Case 26: CJK title does not reintroduce a hidden exact-path field or entry.
 # ---------------------------------------------------------------------------
 dp344_title_cjk="changeset 注入 derive 移除 carve-out"
 dp344_ref_cjk="$tmpdir/dp344-cjk.json"
@@ -1594,27 +1575,15 @@ bash "$SCRIPT" --refinement-json "$dp344_ref_cjk" --task-id "DP-344-T1" \
   exit 1
 }
 
-expected_cs_cjk="$(bash "$POLARIS_CHANGESET" slug \
-  --ticket "DP-344-T1" --title "$dp344_title_cjk" --print path)"
-[[ -n "$expected_cs_cjk" ]] || { echo "FAIL [case 26 / DP-344 AC4]: empty CJK slug path" >&2; exit 1; }
-
-# DP-362: CJK must be DROPPED -- the canonical slug source keeps only ASCII
-# alphanumeric, so the derived path must be pure ASCII (no 注入 / 移除 segment).
-case "$expected_cs_cjk" in
-  *注入* | *移除*)
-    echo "FAIL [case 26 / DP-362]: slug retained CJK ('$expected_cs_cjk')" >&2; exit 1 ;;
-esac
-
 allowed_section_cjk="$(awk '/^## Allowed Files/{f=1;next} /^## /{f=0} f' "$dp344_out_cjk")"
-if ! printf '%s\n' "$allowed_section_cjk" | grep -qF -- "$expected_cs_cjk"; then
-  echo "FAIL [case 26 / DP-344 AC4]: CJK changeset path '$expected_cs_cjk' not byte-identical in Allowed Files" >&2
+if printf '%s\n' "$allowed_section_cjk" | grep -qF -- '.changeset/'; then
+  echo "FAIL [case 26 / DP-423 AC17]: CJK title injected changeset path" >&2
   cat "$dp344_out_cjk" >&2
   exit 1
 fi
 
 # ---------------------------------------------------------------------------
-# Case 27 (DP-344 AC-NEG1): non-changeset repo -> NO injection. A repo root
-# without .changeset/config.json must not get a changeset path appended.
+# Case 27: repo config presence has no task-shape effect.
 # ---------------------------------------------------------------------------
 dp344_out_nocs="$tmpdir/dp344-nocs.md"
 bash "$SCRIPT" --refinement-json "$dp344_ref_ascii" --task-id "DP-344-T1" \
@@ -1622,15 +1591,14 @@ bash "$SCRIPT" --refinement-json "$dp344_ref_ascii" --task-id "DP-344-T1" \
   echo "FAIL [case 27 / DP-344 AC-NEG1]: derive failed on non-changeset repo fixture" >&2
   exit 1
 }
-if grep -qF -- ".changeset/" "$dp344_out_nocs"; then
-  echo "FAIL [case 27 / DP-344 AC-NEG1]: changeset path injected on non-changeset repo" >&2
-  cat "$dp344_out_nocs" >&2
+if ! cmp -s "$dp344_out_ascii" "$dp344_out_nocs"; then
+  echo "FAIL [case 27 / DP-423 AC17]: repo config changed task packaging" >&2
+  diff "$dp344_out_ascii" "$dp344_out_nocs" >&2 || true
   exit 1
 fi
 
 # ---------------------------------------------------------------------------
-# Case 28 (DP-344 AC-NEG2): re-derive is idempotent. Running derive twice on the
-# changeset fixture yields byte-identical output (no double-append, no drift).
+# Case 28: re-derive remains byte-idempotent after ceremony retirement.
 # ---------------------------------------------------------------------------
 dp344_out_redo="$tmpdir/dp344-ascii-redo.md"
 bash "$SCRIPT" --refinement-json "$dp344_ref_ascii" --task-id "DP-344-T1" \
@@ -1643,13 +1611,6 @@ if ! cmp -s "$dp344_out_ascii" "$dp344_out_redo"; then
   diff "$dp344_out_ascii" "$dp344_out_redo" >&2 || true
   exit 1
 fi
-# And the changeset path must appear exactly once in the Allowed Files section.
-cs_count="$(printf '%s\n' "$allowed_section_ascii" | grep -cF -- "$expected_cs_ascii" || true)"
-if [[ "$cs_count" != "1" ]]; then
-  echo "FAIL [case 28 / DP-344 AC-NEG2]: changeset path appears $cs_count times in Allowed Files (expected 1)" >&2
-  exit 1
-fi
-
 # ===========================================================================
 # DP-359 T1 (AC1 / AC-NEG2) — framework-infra default = per-task self-contained.
 #

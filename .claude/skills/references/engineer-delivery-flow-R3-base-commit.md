@@ -37,11 +37,11 @@ Step 2 前置 runs `engineering-rebase.sh` → rebase 改變 HEAD → 舊 eviden
 
 **做法**：手動寫 commit message + `git commit`（不假設 `git ai-commit` 等 user-level 工具可用，DP-032 D22 已從 framework 拔除）。commit-msg hook fail → 讀 stderr → 對照 L1 config 修 msg → 重試。
 
-### 6b. Changeset（Phase 3 deliverable — 此處確認/補建，D24）
+### Repo-native Changeset Policy
 
-Changeset 是 **Phase 3 code deliverable**（與程式碼、測試同層級），不是獨立的 delivery step。此處做最終確認/補建。
-
-先偵測 repo 是否真的啟用 Changesets。只有同時存在 `.changeset/` 與 `.changeset/config.json` 才啟動 changeset 產生/檢查；只有空目錄或沒有 config 視為未啟用，直接 skip。
+Changeset 是 repo commit policy，不是 task checklist 或獨立 delivery ceremony。entry 已透過
+handbook resolver 載入 repo policy；實作完成、準備建立第一個 behavioral commit 時，producer
+依 authoritative task identity 與 repo config 產生 canonical changeset：
 
 ```bash
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -50,22 +50,17 @@ if [[ -f "$REPO_ROOT/.changeset/config.json" ]]; then
 fi
 ```
 
-**Script 行為**：
-- `.changeset/config.json` absent → no-op exit 0（repo does not use changesets）
-- 從 `.changeset/config.json` 推導 package scope
-- 從 ticket+title 推導 filename slug
-- Description = stripped task title（**LLM does NOT write description** — D24 BS-D24-1）
-- `--bump {level}` optional（LLM 唯一的語意貢獻：`patch` default，override if warranted）
-- Idempotent：same slug already exists → silent skip exit 0
-- Multi-package without declaration → **fail-loud**
+`.changeset/config.json` 不存在時 producer 與 verifier no-op。single-package scope 由 config
+推導；multi-package ambiguity 只允許最小 `package_scope` declaration 並 fail loud。filename
+不寫入 task schema / Allowed Files；native pre-commit 與 agent guarded commit 共用
+`gate-changeset.sh --staged`，因此 unstaged changeset 不會滿足 prospective tree。
 
 **Inherited changeset cleanup**：已由 `engineering-rebase.sh` post-rebase hook 處理（D24），此處不需另外清理。
 
 **No-task request**：若 repo 有 changeset requirements 但無 task.md，不得用手寫 changeset 補洞；先回上游補 DP-backed work order。
 
-### 6c. JIRA Safety Net
+### JIRA Safety Net
 
 Developer lane 以 task.md / JIRA ticket / DP pseudo-task ID 作為 ticket source。Local Extension lane 若沒有產品 JIRA ticket，使用 DP pseudo-task ID；不得為了 changeset 或 PR title 臨時創造無來源 ticket key。
 
 ---
-

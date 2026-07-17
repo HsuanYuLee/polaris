@@ -121,5 +121,5 @@ exclusion，讓這些命令即使以直接 tool call 跑也不被改寫：
 - 直接-tool-call lint：`scripts/lint-evidence-command-direct-call.sh`（DP-356 T2）。
 - canary 登錄：`.claude/rules/mechanism-registry.md` § Mechanism Canary Entries
   （`evidence-bearing-command-direct-call`）。
-- A/B 分類準則：`.claude/rules/handbook/framework/contract-design.md`
+- A/B 分類準則：`polaris-config/polaris-framework/handbook/contract-design.md`
   § prose-vs-gate-admission（DP-299）。

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Purpose: PostToolUse hook for Write / Edit / MultiEdit. After a legitimate
 #          write to a runtime-instruction manifest source, regenerate the
-#          runtime instruction targets + generated rules-manifest snapshots by
+#          four runtime instruction targets by
 #          delegating to the canonical writer compile-runtime-instructions.sh
-#          (single writer; this hook carries NO checksum logic of its own).
+#          (single writer; this hook carries no render/freshness logic of its own).
 #          Mirrors post-memory-index-regenerate.sh for the memory index.
 # Inputs:  PostToolUse hook JSON on stdin (tool_name, tool_input.file_path).
 #          CLAUDE_PROJECT_DIR (project root); POLARIS_COMPILE_RUNTIME_SCRIPT
@@ -11,8 +11,7 @@
 # Outputs: exit 0 (regenerated or no-op); exit 1 (regenerate failed — surface,
 #          do not block subsequent steps) with structured stderr + recover hint.
 #
-# Manifest source set (must mirror compile-runtime-instructions.sh
-# write_manifest_snapshot sources):
+# Runtime-instruction source trigger set:
 #   - .claude/instructions/manifest.yaml
 #   - .claude/instructions/core/bootstrap.md
 #   - .claude/instructions/runtime/{claude,codex,copilot}.md

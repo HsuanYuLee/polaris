@@ -9,7 +9,7 @@
 # Side effects: creates and removes temp dirs under $TMPDIR.
 #
 # Layers under test:
-#   L1 git-native hook  — scripts/install-copilot-hooks.sh $PRE_PUSH_HOOK heredoc;
+#   L1 git-native hook  — scripts/install-git-hooks.sh $PRE_PUSH_HOOK heredoc;
 #                         reads refs from STDIN ("<local_ref> <local_sha>
 #                         <remote_ref> <remote_sha>").
 #   L2 Claude Code hook — .claude/hooks/pre-push-quality-gate.sh; reads the
@@ -26,7 +26,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-INSTALLER="$SCRIPT_DIR/install-copilot-hooks.sh"
+INSTALLER="$SCRIPT_DIR/install-git-hooks.sh"
 CC_HOOK="$SCRIPT_DIR/../.claude/hooks/pre-push-quality-gate.sh"
 VALIDATOR="$SCRIPT_DIR/validate-branch-name-ascii.sh"
 
@@ -61,8 +61,8 @@ git -C "$repo" commit -m "base" >/dev/null
 cp "$VALIDATOR" "$repo/scripts/validate-branch-name-ascii.sh"
 chmod +x "$repo/scripts/validate-branch-name-ascii.sh"
 
-cp "$INSTALLER" "$repo/scripts/install-copilot-hooks.sh"
-chmod +x "$repo/scripts/install-copilot-hooks.sh"
+cp "$INSTALLER" "$repo/scripts/install-git-hooks.sh"
+chmod +x "$repo/scripts/install-git-hooks.sh"
 
 # Sentinel gate: detects whether downstream gates were reached. The branch-name
 # enforcement must run BEFORE this. If the branch-name gate fails the hook must
@@ -83,7 +83,7 @@ exit 0
 SENTINEL
 chmod +x "$repo/scripts/gates/gate-template-leaks.sh"
 
-bash "$repo/scripts/install-copilot-hooks.sh" >/dev/null
+bash "$repo/scripts/install-git-hooks.sh" >/dev/null
 pre_push="$repo/.git/hooks/pre-push"
 [[ -x "$pre_push" ]] || fail L1 "pre-push hook was not installed"
 

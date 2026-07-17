@@ -59,17 +59,44 @@ is_target_file() {
   esac
 }
 
+resolve_script_governance_path() {
+  local resolver payload path
+  resolver="$ROOT_DIR/scripts/resolve-handbook.sh"
+  [[ -x "$resolver" ]] || fail "canonical handbook resolver is not executable: $resolver"
+  payload="$("$resolver" --project polaris-framework)" \
+    || fail "cannot resolve polaris-framework handbook"
+  path="$(python3 - "$payload" <<'PY'
+import json
+import os
+import sys
+
+payload = json.loads(sys.argv[1])
+matches = [path for path in payload.get("narrative_paths", []) if path.endswith("/script-governance.md")]
+if len(matches) != 1:
+    raise SystemExit("resolver payload must contain exactly one script-governance.md")
+print(os.path.realpath(matches[0]))
+PY
+)" || fail "resolver payload does not identify script-governance.md"
+  case "$path" in
+    "$ROOT_DIR"/*) printf '%s\n' "${path#"$ROOT_DIR"/}" ;;
+    *) fail "script-governance.md is outside the workspace: $path" ;;
+  esac
+}
+
 discover_files() {
+  local handbook_path
   if [[ ${#FILES[@]} -gt 0 ]]; then
     printf '%s\n' "${FILES[@]}"
     return 0
   fi
 
+  handbook_path="$(resolve_script_governance_path)"
+
   if [[ "$MODE" == "audit" ]]; then
     git -C "$ROOT_DIR" ls-files \
       'scripts/*.sh' 'scripts/*.py' 'scripts/**/*.sh' 'scripts/**/*.py' \
       '.claude/**/*.sh' '.claude/**/*.py' \
-      '.claude/rules/handbook/framework/script-governance.md'
+      "$handbook_path"
     return 0
   fi
 
@@ -77,11 +104,11 @@ discover_files() {
     git -C "$ROOT_DIR" diff --name-only --diff-filter=ACMRT "$BASE"...HEAD -- \
       'scripts/*.sh' 'scripts/*.py' 'scripts/**/*.sh' 'scripts/**/*.py' \
       '.claude/**/*.sh' '.claude/**/*.py' \
-      '.claude/rules/handbook/framework/script-governance.md' 2>/dev/null || true
+      "$handbook_path" 2>/dev/null || true
     git -C "$ROOT_DIR" ls-files --others --exclude-standard -- \
       'scripts/*.sh' 'scripts/*.py' 'scripts/**/*.sh' 'scripts/**/*.py' \
       '.claude/**/*.sh' '.claude/**/*.py' \
-      '.claude/rules/handbook/framework/script-governance.md' 2>/dev/null || true
+      "$handbook_path" 2>/dev/null || true
   } | sort -u
 }
 

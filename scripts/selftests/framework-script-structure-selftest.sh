@@ -84,7 +84,18 @@ expect_pass good_suppression "$VALIDATOR" --mode diff --root "$TMPDIR" --file "$
 expect_fail bad_cli "$VALIDATOR" --mode diff --root "$TMPDIR" --file "$TMPDIR/bad-cli.py"
 expect_pass good_cli "$VALIDATOR" --mode diff --root "$TMPDIR" --file "$TMPDIR/good-cli.py"
 expect_fail bad_handbook "$VALIDATOR" --mode diff --root "$TMPDIR" --file "$TMPDIR/script-governance.md"
-expect_pass real_handbook "$VALIDATOR" --mode diff --root "$ROOT_DIR" --file "$ROOT_DIR/.claude/rules/handbook/framework/script-governance.md"
+handbook_payload="$("$ROOT_DIR/scripts/resolve-handbook.sh" --project polaris-framework)"
+script_governance="$(python3 - "$handbook_payload" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+matches = [path for path in payload["narrative_paths"] if path.endswith("/script-governance.md")]
+assert len(matches) == 1
+print(matches[0])
+PY
+)"
+expect_pass real_handbook "$VALIDATOR" --mode diff --root "$ROOT_DIR" --file "$script_governance"
 
 "$VALIDATOR" --mode audit --root "$TMPDIR" --file "$TMPDIR/bad-suppression.sh" >"$TMPDIR/audit.json"
 python3 - "$TMPDIR/audit.json" <<'PY' || fail "audit JSON inventory did not record expected debt"

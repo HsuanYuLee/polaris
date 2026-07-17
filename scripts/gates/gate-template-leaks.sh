@@ -15,7 +15,7 @@ set -euo pipefail
 #     merged, forcing a hard-reset + replacement PR.
 #   * This gate runs the same scan at workspace PR creation (via
 #     scripts/check-framework-pr-gate.sh) and at git push time (via
-#     .git/hooks/pre-push installed by scripts/install-copilot-hooks.sh) so leaks
+#     .git/hooks/pre-push installed by scripts/install-git-hooks.sh) so leaks
 #     are caught before merge.
 
 PREFIX="[polaris gate-template-leaks]"

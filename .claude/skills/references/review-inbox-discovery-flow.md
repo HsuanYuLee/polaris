@@ -148,7 +148,7 @@ deterministic enforcement（`contract-design.md` Heuristic 1 — Deterministic-F
 Channel scan 在產出 candidates **之前**必須先過 `review-inbox-discovery-probe.sh`
 （`scripts/review-inbox-discovery-probe.sh`）。這支 probe 是 prose-vs-gate 准入標準的 A 類
 worked example：把一條原本只靠 prose「主來源不可用時應早報、不要靜默 fallback」的 invariant
-落成 fail-closed gate（見 `.claude/rules/handbook/framework/contract-design.md`
+落成 fail-closed gate（見 `polaris-config/polaris-framework/handbook/contract-design.md`
 § prose-vs-gate 行為原則准入標準）。
 
 ### Invocation

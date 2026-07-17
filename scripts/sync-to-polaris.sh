@@ -539,11 +539,8 @@ copy_file "$INSTANCE_DIR/.claude/settings.local.json.sub-repo-example" \
 
 echo "Codex compatibility..."
 create_symlink "../.claude/skills" "$POLARIS_DIR/.agents/skills" ".agents/skills"
-mkdir -p "$POLARIS_DIR/.codex/.generated" 2>/dev/null || true
 copy_file "$INSTANCE_DIR/.codex/AGENTS.md" \
           "$POLARIS_DIR/.codex/AGENTS.md" "AGENTS.md"
-copy_file "$INSTANCE_DIR/.codex/.generated/rules-manifest.txt" \
-          "$POLARIS_DIR/.codex/.generated/rules-manifest.txt" "rules-manifest.txt"
 
 # ── Step 5: Sync scripts (recursive — supports scripts/env/ etc.) ─
 
@@ -613,11 +610,8 @@ copy_file "$INSTANCE_DIR/pnpm-lock.yaml" "$POLARIS_DIR/pnpm-lock.yaml" "pnpm-loc
 
 if [[ -d "$INSTANCE_DIR/.github" ]]; then
   echo "GitHub config..."
-  mkdir -p "$POLARIS_DIR/.github/.generated" 2>/dev/null || true
   copy_file "$INSTANCE_DIR/.github/copilot-instructions.md" \
             "$POLARIS_DIR/.github/copilot-instructions.md" "copilot-instructions.md"
-  copy_file "$INSTANCE_DIR/.github/.generated/copilot-rules-manifest.txt" \
-            "$POLARIS_DIR/.github/.generated/copilot-rules-manifest.txt" "copilot-rules-manifest.txt"
 fi
 
 # ── Step 8d: Sync .changeset/ mechanism (NOT unconsumed entries) ──

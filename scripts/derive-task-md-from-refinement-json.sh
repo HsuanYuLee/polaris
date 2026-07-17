@@ -57,10 +57,8 @@ REPO_NAME="polaris-framework"
 # refinement.json tasks[] entry no longer carries per-task packaging fields
 # (regime 2 / AC3 idempotency). Empty / missing file = no preserve source.
 PRESERVE_FROM=""
-# DP-344 D1: optional override for the changeset-detection repo root. When unset,
-# derive auto-detects the resolved repo root (workspace root for DP-backed, or
-# <workspace>/<source.repo> for a JIRA-Epic product repo). Selftests pass an
-# explicit fixture root so the .changeset/config.json probe is hermetic.
+# Optional repo-root override for hermetic task/repo resolution fixtures.
+# Changesets are repo-native policy and no longer alter task Allowed Files.
 REPO_ROOT_OVERRIDE=""
 
 # DP-360 T6 delivery/verification block inputs (all optional; the block is only
@@ -91,9 +89,8 @@ to the (T-task only) frontmatter: deliverable.head_sha (D1) plus a nested
 deliverable.verification sub-block (D2 — status + ac_counts). The block is purely
 additive; omit the delivery flags to derive the legacy body unchanged.
 
---repo-root overrides the changeset-detection repo root (DP-344 D1); when the
-resolved repo root contains .changeset/config.json, derive injects the
-deterministic .changeset/{slug}.md into ## Allowed Files.
+--repo-root overrides repo resolution for hermetic fixtures. Changesets are a
+repo-native commit policy and are not injected into task Allowed Files.
 USAGE
   exit 2
 }
@@ -577,6 +574,16 @@ def resolve_packaging():
                 continue
             seen.add(path)
             files.append(path)
+        # Audit/confirmation carve-outs intentionally have no tracked module
+        # intent, but still need their specs/evidence path to form a valid work
+        # order. This is the narrow breakdown-owned exception; implementation
+        # tasks continue to derive scope only from modules[].
+        if not files and str(match.get("task_shape") or "").strip() in {"audit", "confirmation"}:
+            for item in list(match.get("allowed_files") or []):
+                path = str(item).strip()
+                if path and path not in seen:
+                    seen.add(path)
+                    files.append(path)
         return files
 
     # allowed_files: authored task.md -> task module intent -> empty legacy
@@ -654,86 +661,6 @@ else:
 # "Task ID" cell keeps carrying task_identity so DP-328 branch identity is
 # unchanged. parse-task-md.sh reads work_item_id from the new cell first.
 work_item_id_cell = task_id
-
-
-# DP-344 D1: changeset Allowed-Files injection. When the resolved repo root has a
-# .changeset/config.json (the repo participates in Changesets), inject the
-# deterministic .changeset/{slug}.md into the task's ## Allowed Files. The slug is
-# computed by REUSING polaris-changeset.sh's `slug` subcommand (DP-344 D3 single
-# slug source — no second kebab implementation here), so the injected path is
-# byte-identical with the slug polaris-changeset writes (ASCII-only; CJK dropped).
-def resolve_changeset_repo_root() -> str:
-    """Resolve the repo root used to probe for .changeset/config.json.
-
-    Detection is relative to the RESOLVED repo root, never the workspace root, so a
-    product repo that does not use Changesets is not falsely injected with the
-    framework workspace's .changeset (DP-344 AC-NEG1).
-
-    Returns:
-        The absolute repo-root path string, or "" when it cannot be resolved.
-
-    Resolution order:
-      1. --repo-root override (selftests pass a hermetic fixture root).
-      2. <workspace>/<source.repo> when that directory exists (JIRA-Epic product
-         repo). workspace = dirname(script_dir) (script_dir is <workspace>/scripts).
-      3. <workspace> itself (DP-backed framework source: the framework workspace IS
-         the repo root, where .changeset/config.json lives).
-    """
-    if repo_root_override.strip():
-        return repo_root_override.strip()
-    workspace_root = Path(script_dir).parent
-    repo_field = resolved_repo_field
-    if repo_field:
-        candidate = workspace_root / repo_field
-        if candidate.is_dir():
-            return str(candidate)
-    return str(workspace_root)
-
-
-def changeset_allowed_file_path() -> str:
-    """Return the deterministic .changeset/{slug}.md to inject, or "" to skip.
-
-    Returns "" (no injection) when the resolved repo root has no
-    .changeset/config.json (non-changeset repo, AC-NEG1). Otherwise delegates the
-    slug derivation to polaris-changeset.sh `slug` (single slug source, AC1/AC4),
-    using task_identity as the ticket and the task title.
-    """
-    repo_root = resolve_changeset_repo_root()
-    if not repo_root:
-        return ""
-    if not (Path(repo_root) / ".changeset" / "config.json").is_file():
-        return ""
-    changeset_helper = Path(script_dir) / "polaris-changeset.sh"
-    if not changeset_helper.is_file():
-        fail(f"missing slug source helper: {changeset_helper}")
-    proc = subprocess.run(
-        [
-            "bash",
-            str(changeset_helper),
-            "slug",
-            "--ticket",
-            task_identity,
-            "--title",
-            title,
-            "--print",
-            "path",
-        ],
-        text=True,
-        capture_output=True,
-    )
-    if proc.returncode != 0:
-        sys.stderr.write(proc.stderr)
-        fail(f"task {task_id} changeset slug derivation failed")
-    return proc.stdout.strip()
-
-
-# Inject for implementation (T) tasks only — a changeset is a PR deliverable; V
-# (verification) tasks produce no PR/changeset. Idempotent: never append a path
-# already present in allowed_files (AC-NEG2 re-derive idempotency).
-if mode == "T":
-    _changeset_path = changeset_allowed_file_path()
-    if _changeset_path and _changeset_path not in allowed_files:
-        allowed_files.append(_changeset_path)
 
 
 # Branch slug: deterministic, lowercase, hyphen-separated, ASCII-only (DP-307

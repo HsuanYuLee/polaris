@@ -24,6 +24,7 @@ Bootstraps Polaris framework runtime dependencies from repo-owned contracts:
   - mise.toml for managed runtimes and native tools
   - package-local pnpm installs for Polaris-owned Node packages
   - workspace-shared Playwright browser cache at .polaris/toolchain/ms-playwright
+  - four generated runtime instruction targets via compile-runtime-instructions.sh
 
 Missing mise is reported with repair hints. This script does not silently install
 global CLIs or require Homebrew.
@@ -170,6 +171,12 @@ bootstrap_core() {
   run_mise install
 }
 
+regenerate_runtime_targets() {
+  local compiler="$TOOLCHAIN_ROOT/scripts/compile-runtime-instructions.sh"
+  [[ -f "$compiler" ]] || die "runtime instruction compiler missing: $compiler"
+  run_cmd bash scripts/compile-runtime-instructions.sh
+}
+
 bootstrap_runtime() {
   require_managed_tool node "Node" || return 1
   require_managed_tool pnpm "pnpm" || return 1
@@ -212,6 +219,7 @@ log "profile: $PROFILE"
 log "PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH"
 
 run_cmd mkdir -p "$POLARIS_TOOLCHAIN_ROOT/.polaris/toolchain"
+regenerate_runtime_targets
 require_mise || exit 1
 
 case "$PROFILE" in

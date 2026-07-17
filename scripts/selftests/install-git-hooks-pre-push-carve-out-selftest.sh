@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: Verify the generated .git/hooks/pre-push from install-copilot-hooks.sh
+# Purpose: Verify the generated .git/hooks/pre-push from install-git-hooks.sh
 #          mirrors the pre-push-quality-gate.sh portable push contract: delete /
 #          tags carve-out (DP-305 D4), generated hook callsite parity, and the
 #          affected-scoped selftest closure runner for content-bearing pushes.
@@ -22,9 +22,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-INSTALLER="$SCRIPT_DIR/install-copilot-hooks.sh"
+INSTALLER="$SCRIPT_DIR/install-git-hooks.sh"
 
-tmp="$(mktemp -d -t install-copilot-hooks-pre-push-carve-out.XXXXXX)"
+tmp="$(mktemp -d -t install-git-hooks-pre-push-carve-out.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
 
 repo="$tmp/repo"
@@ -36,8 +36,8 @@ printf 'base\n' > "$repo/README.md"
 git -C "$repo" add README.md
 git -C "$repo" commit -m "base" >/dev/null
 
-cp "$INSTALLER" "$repo/scripts/install-copilot-hooks.sh"
-chmod +x "$repo/scripts/install-copilot-hooks.sh"
+cp "$INSTALLER" "$repo/scripts/install-git-hooks.sh"
+chmod +x "$repo/scripts/install-git-hooks.sh"
 
 # Plant a sentinel gate that always fails. Any pre-push run that reaches the
 # gate phase will exit non-zero through this gate. A passing carve-out short-
@@ -62,7 +62,7 @@ exit 1
 SENTINEL
 chmod +x "$repo/scripts/gates/gate-template-leaks.sh"
 
-bash "$repo/scripts/install-copilot-hooks.sh" >/dev/null
+bash "$repo/scripts/install-git-hooks.sh" >/dev/null
 
 pre_push="$repo/.git/hooks/pre-push"
 [[ -x "$pre_push" ]] || { echo "[selftest] pre-push hook was not installed" >&2; exit 1; }
@@ -231,4 +231,4 @@ if [[ ! -e "$repo/.affected-ran" ]]; then
   exit 1
 fi
 
-echo "[install-copilot-hooks-pre-push-carve-out-selftest] PASS"
+echo "[install-git-hooks-pre-push-carve-out-selftest] PASS"

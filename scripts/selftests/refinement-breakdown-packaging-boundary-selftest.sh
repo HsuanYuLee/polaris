@@ -459,8 +459,8 @@ if grep -qF -- '- `scripts/sample.sh`' "$tmpdir/t2-no-modules.stdout"; then
 fi
 
 # --- T2 case 5 (AC2 DP-333 regression shape): multiple task modules plus a
-# changeset-enabled repo root produce script Allowed Files and deterministic
-# changeset, with a real script owning anchor in Scope Trace Matrix. ---
+# changeset-enabled repo root produces only script Allowed Files (repo policy no
+# longer injects exact changeset paths), with a real script owning anchor. ---
 t2_dp333_dir="$tmpdir/t2-dp333-like"
 write_intent_only_dp "$t2_dp333_dir"
 mkdir -p "$t2_dp333_dir/.changeset"
@@ -501,8 +501,8 @@ for expected in \
     exit 1
   fi
 done
-if ! grep -qF -- '- `.changeset/' "$tmpdir/t2-dp333.stdout"; then
-  echo "FAIL [T2 case 5 / AC2 DP-333 regression]: deterministic changeset was not injected" >&2
+if grep -qF -- '- `.changeset/' "$tmpdir/t2-dp333.stdout"; then
+  echo "FAIL [T2 case 5 / DP-423 AC17]: exact changeset path leaked into task packaging" >&2
   cat "$tmpdir/t2-dp333.stdout" >&2
   exit 1
 fi

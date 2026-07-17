@@ -108,7 +108,8 @@ bash scripts/transpile-rules-to-codex.sh
 
 會產生：
 - `.codex/AGENTS.md`
-- `.codex/.generated/rules-manifest.txt`
+
+若要重生全部四個 runtime instruction targets，執行 `mise run bootstrap` 或 `bash scripts/compile-runtime-instructions.sh`；使用 `bash scripts/compile-runtime-instructions.sh --check` 驗證 freshness。
 
 ### 2.9 驗證跨 LLM 一致性（可放 CI）
 

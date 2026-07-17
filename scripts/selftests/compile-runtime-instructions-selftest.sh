@@ -5,7 +5,7 @@
 # runtime targets deterministically and that --check detects drift.
 #
 # Coverage:
-#   - --target all runs and writes the four generated targets + two manifest files.
+#   - --target all runs and writes exactly the four generated runtime targets.
 #   - --check exits 0 when targets are in sync.
 #   - --check exits non-zero when a target has been mutated by hand.
 #
@@ -44,18 +44,6 @@ for target in CLAUDE.md AGENTS.md .codex/AGENTS.md .github/copilot-instructions.
   fi
 done
 
-# Sanity: manifest files exist and list source files.
-for manifest in .codex/.generated/rules-manifest.txt .github/.generated/copilot-rules-manifest.txt; do
-  if [[ ! -f "$ROOT/$manifest" ]]; then
-    echo "FAIL: missing manifest file: $manifest" >&2
-    exit 1
-  fi
-  if ! grep -q "^\[sha256\]$" "$ROOT/$manifest"; then
-    echo "FAIL: manifest $manifest missing [sha256] section" >&2
-    exit 1
-  fi
-done
-
 # Drift detection: copy the workspace to a tmp dir, mutate CLAUDE.md, and verify
 # --check fails. We rebuild the script invocation against the temp ROOT_DIR by
 # running the script copy directly (it derives ROOT_DIR from its own location).
@@ -65,7 +53,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 # Stage minimal subtree required by the compiler.
 mkdir -p "$TMP_DIR/scripts" "$TMP_DIR/.claude/instructions/runtime" \
   "$TMP_DIR/.claude/instructions/core" "$TMP_DIR/.claude/rules" \
-  "$TMP_DIR/.codex/.generated" "$TMP_DIR/.github/.generated"
+  "$TMP_DIR/.codex" "$TMP_DIR/.github"
 cp "$ROOT/scripts/compile-runtime-instructions.sh" "$TMP_DIR/scripts/"
 cp "$ROOT/.claude/instructions/manifest.yaml" "$TMP_DIR/.claude/instructions/"
 cp "$ROOT/.claude/instructions/core/bootstrap.md" "$TMP_DIR/.claude/instructions/core/"

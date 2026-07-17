@@ -7,7 +7,7 @@
 // Inputs:  changeset objects from @changesets/cli (summary, releases, commit).
 // Outputs: release-line strings consumed by changesets changelog assembly /
 //          the Polaris release-version collator.
-// Contract: see .claude/skills/references/changeset-convention.md
+// Contract: see polaris-config/polaris-framework/handbook/changeset-convention.md
 //
 // Module shape follows the changesets ChangelogFunctions contract:
 //   module.exports = { getReleaseLine, getDependencyReleaseLine }

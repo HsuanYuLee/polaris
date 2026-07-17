@@ -45,8 +45,12 @@ Source locator hard rules（適用所有 source type）：
   加 see-also links。
 
 Framework-owned DP source 若預期拆成多張 task PR 後走 `framework-release`，必須在
-refinement 階段載入 `.claude/rules/handbook/framework/index.md`，並依 index on-demand 讀
-`.claude/rules/handbook/framework/release-topology.md`。該 topic 只提供 release topology
+refinement 階段以 `scripts/resolve-handbook.sh --project polaris-framework` 取得 canonical
+handbook payload。codebase exploration 前先讀 `index_path`、從 `narrative_paths` 取得
+`changeset-convention.md` 與 `release-topology.md`，並呼叫
+`scripts/validate-handbook-load-gate.sh` 建立 session/repo marker。該 changeset topic 是 repo
+policy；first-touch gate 只作漏接或跨 repo backstop，不以 task-specific changeset prose 代替。
+`release-topology.md` 只提供 release topology
 planning guidance；不要把線性 PR stack 寫成 fake code dependency，也不要用 markdown prose
 取代 `framework-release` lane 的結構化 release gate。
 

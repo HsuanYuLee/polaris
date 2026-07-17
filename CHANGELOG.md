@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.78.0] - 2026-07-18
+
+### Changed
+
+- 178c804: generated-artifact 正常化原則 + deterministic guard
+- 4e95ceb: framework handbook 移到 root polaris-config/polaris-framework/ + gitignore allowlist + identity
+- 6c62ade: 統一 config-driven handbook resolver（整合兩支既有 resolver）
+- 95a87c6: 新增 handbook 預變更載入 gate（marker-based PreToolUse hook + validator）
+- 9d6990a: 改由 canonical handbook resolver 承接 live referrer，並退役 framework-special routing 與 compatibility adapters
+- d0eed28: repo-native changeset policy：entry discovery、staged pre-commit 與 task ceremony 退役
+- 0e081b4: 移除 rules-manifest 儀式 cluster 並保留四個 runtime target freshness
+- 6e7daa7: runtime 介面重生 wire 進 mise bootstrap + README/handbook 使用需知
+
 ## [3.77.0] - 2026-07-17
 
 ### Changed

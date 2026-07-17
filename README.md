@@ -121,6 +121,8 @@ mise run doctor -- --profile runtime
 
 The public task surface is `bootstrap`, `doctor`, `doctor-mise`, `onboard-doctor`, `release-preflight`, `pr-create`, `spec-close-parent`, `script-audit`, `docs-health`, `verify`, and `cross-runtime-sync`.
 
+`mise run bootstrap` also regenerates the four session bootstrap interfaces: `CLAUDE.md`, `AGENTS.md`, `.codex/AGENTS.md`, and `.github/copilot-instructions.md`. These files are generated outputs read directly by their respective agent runtimes at session start; edit `.claude/instructions/**` or `.claude/rules/**`, then regenerate with `mise run bootstrap` or `bash scripts/compile-runtime-instructions.sh`. Use `bash scripts/compile-runtime-instructions.sh --check` to verify freshness without rewriting files.
+
 Root `pnpm` scripts are thin aliases for common framework commands. They do not replace the public task surface; the script manifest and command catalog remain the governance source:
 
 ```bash
