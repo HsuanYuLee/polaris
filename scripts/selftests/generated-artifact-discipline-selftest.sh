@@ -16,7 +16,7 @@ WORKFLOW="$ROOT/.github/workflows/framework-pr.yml"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 ws="$tmpdir/workspace"
-mkdir -p "$ws/scripts" "$ws/.codex" "$ws/.github"
+mkdir -p "$ws/scripts/lib" "$ws/.codex" "$ws/.github"
 
 pass=0
 fail=0
@@ -92,6 +92,7 @@ echo "PASS: shipped registry contains exactly four runtime interfaces"
 pass=$((pass + 1))
 
 cp "$GUARD" "$ws/scripts/validate-generated-artifact-discipline.sh"
+cp "$ROOT/scripts/lib/validate_generated_artifact_discipline_1.py" "$ws/scripts/lib/"
 cat >"$ws/scripts/compile-runtime-instructions.sh" <<'SH'
 #!/usr/bin/env bash
 exit 0

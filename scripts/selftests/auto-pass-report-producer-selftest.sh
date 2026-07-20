@@ -159,7 +159,7 @@ payload = {
     "created_at": "2026-05-24T00:00:00+08:00",
     "ledger_path": ledger_path,
     "required_prs": [],
-    "verification": {"status": "PASS", "work_item_id": "DP-230-V1"},
+    "verification": {"status": "N/A", "work_item_id": None},
     "issues": [],
     "blockers": [],
     "manual_items": [],

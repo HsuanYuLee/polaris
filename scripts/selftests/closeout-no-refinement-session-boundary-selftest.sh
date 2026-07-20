@@ -183,7 +183,7 @@ refn_baseline_path() {
               --allow-active-verification --closeout 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement'; then
+  if grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement' <<< "$err_out"; then
     record_fail "AC2/AC6 closeout context emitted refinement boundary block (rc=$rc, err=$err_out)"
   else
     record_pass "AC2/AC6 closeout context skips refinement boundary (no BLOCKED marker)"
@@ -211,7 +211,7 @@ refn_baseline_path() {
               "$handoff_gate" "$container/refinement.json" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement'; then
+  if grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement' <<< "$err_out"; then
     record_fail "AC2/AC6 stale-baseline auto-detect emitted refinement boundary block (rc=$rc, err=$err_out)"
   else
     record_pass "AC2/AC6 stale-baseline auto-detect skips refinement boundary"
@@ -239,7 +239,7 @@ refn_baseline_path() {
               "$handoff_gate" "$container/refinement.json" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement'; then
+  if grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement' <<< "$err_out"; then
     record_pass "AC-NEG2 live refinement handoff still fires boundary (not weakened)"
   else
     record_fail "AC-NEG2 live refinement handoff failed to fire boundary (rc=$rc, err=$err_out)"

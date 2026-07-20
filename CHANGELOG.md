@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.79.0] - 2026-07-21
+
+### Changed
+
+- 5c63d4f: release／closeout 殘留遷移波次
+- e3a30f5: current-head gap ledger 與 same-source authority
+- 1c03269: pytest harness 與 root tests layout
+- 01b5aa3: 將 refinement 結構化 validator 遷入 Python module，保留既有 shell CLI 相容介面
+- 2b2b24f: 將 auto-pass 與 CI 的結構化 inline Python 遷入可獨立檢查的 Python modules，保留既有 shell CLI 相容介面
+- 4e1d797: 遷移 structured validator Python authority、保留 shell CLI parity，並修正長 stacked task chain 的 base resolver
+- d3e8860: corrected harness 自我迭代認證
+- a80627f: 關閉發布串接的當前版本整合缺口
+- 685c0dc: 補齊 aggregate enrollment synthetic fixture 的 Python authority 相依
+- dede6e6: 全 script-layer semantic audit 與 tracked ledger
+- 86a4a11: corpus budget、language-fit 與 quality metrics
+- 9c67058: task.md 核心 test-layer Bash→pytest
+- 14bbdb3: task.md 核心 production Bash→Python
+- 08ae9e6: affected runner、streaming 與 full backstop
+- 13be29b: salvage SIGPIPE corpus 與既有 T7 有效 content
+
 ## [3.78.0] - 2026-07-18
 
 ### Changed

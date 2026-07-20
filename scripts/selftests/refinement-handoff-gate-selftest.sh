@@ -312,7 +312,7 @@ if [[ -x "$boundary_gate" ]]; then
               "$gate" "$bg_container" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if [[ "$rc" -ne 0 ]] && printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement'; then
+  if [[ "$rc" -ne 0 ]] && grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement' <<< "$err_out"; then
     record_pass "DP-230 D40: out-of-scope mutation blocks handoff"
   else
     record_fail "DP-230 D40: out-of-scope handoff should fail (rc=$rc, err=$err_out)"
@@ -324,7 +324,7 @@ if [[ -x "$boundary_gate" ]]; then
               "$gate" "$bg_container" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if [[ "$rc" -ne 0 ]] && printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement'; then
+  if [[ "$rc" -ne 0 ]] && grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement' <<< "$err_out"; then
     record_pass "DP-230 D40 / AC-NEG16: bypass envs cannot silence boundary gate"
   else
     record_fail "DP-230 D40 / AC-NEG16: bypass envs unexpectedly silenced gate (rc=$rc)"

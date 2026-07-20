@@ -242,7 +242,7 @@ if [[ "$rc" -ne 0 ]]; then
   exit 1
 fi
 
-if printf '%s\n' "$out" | grep -qE 'getcwd|cannot access parent directories'; then
+if grep -qE 'getcwd|cannot access parent directories' <<< "$out"; then
   printf '%s\n' "$out" >&2
   echo "not ok finalize emitted deleted-cwd noise" >&2
   exit 1
@@ -368,7 +368,7 @@ if [[ "$task_before" != "$task_after" ]]; then
   exit 1
 fi
 
-if ! printf '%s\n' "$out2" | grep -q 'deliverable.verification already PASS; no-op'; then
+if ! grep -q 'deliverable.verification already PASS; no-op' <<< "$out2"; then
   printf '%s\n' "$out2" >&2
   echo "not ok second finalize did not report idempotent no-op for deliverable.verification" >&2
   exit 1
@@ -407,7 +407,7 @@ if [[ "$rc" -ne 0 ]]; then
   echo "not ok archived idempotent finalize exited $rc" >&2
   exit 1
 fi
-if ! printf '%s\n' "$out3" | grep -q 'archived parent closeout already complete'; then
+if ! grep -q 'archived parent closeout already complete' <<< "$out3"; then
   printf '%s\n' "$out3" >&2
   echo "not ok archived parent terminal state was not recognized" >&2
   exit 1
@@ -427,12 +427,12 @@ out4="$(
     "$FINALIZE" --repo "$main_repo" --ticket DP-999-T1 --workspace "$main_repo" 2>&1
 )"
 set -e
-if printf '%s\n' "$out4" | grep -q 'archived parent closeout already complete'; then
+if grep -q 'archived parent closeout already complete' <<< "$out4"; then
   printf '%s\n' "$out4" >&2
   echo "not ok terminal DP refinement.md was accepted as canonical parent" >&2
   exit 1
 fi
-if ! printf '%s\n' "$out4" | grep -q 'parent refinement.md/plan.md not found'; then
+if ! grep -q 'parent refinement.md/plan.md not found' <<< "$out4"; then
   printf '%s\n' "$out4" >&2
   echo "not ok DP refinement-only fixture did not fall through canonical parent resolution" >&2
   exit 1
@@ -505,12 +505,12 @@ out5="$(
     "$FINALIZE" --repo "$main_repo" --ticket GT-ARCH --workspace "$main_repo" 2>&1
 )"
 set -e
-if printf '%s\n' "$out5" | grep -q 'archived parent closeout already complete'; then
+if grep -q 'archived parent closeout already complete' <<< "$out5"; then
   printf '%s\n' "$out5" >&2
   echo "not ok company plan.md overrode present refinement.md authority" >&2
   exit 1
 fi
-if ! printf '%s\n' "$out5" | grep -q 'archived parent is not terminal: .*refinement.md (LOCKED)'; then
+if ! grep -q 'archived parent is not terminal: .*refinement.md (LOCKED)' <<< "$out5"; then
   printf '%s\n' "$out5" >&2
   echo "not ok company refinement.md precedence or company-named-tasks parsing drifted" >&2
   exit 1

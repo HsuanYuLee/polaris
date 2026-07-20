@@ -1,0 +1,77 @@
+"""Structured validator authority extracted from scripts/validate-dp-number-uniqueness.sh."""
+
+import re
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+specs_root = Path(sys.argv[1])
+mode = sys.argv[2]
+plan_scope = Path(sys.argv[3]) if sys.argv[3] else None
+base = specs_root / "design-plans"
+
+if plan_scope and not plan_scope.exists():
+    print(f"error: plan not found: {plan_scope}", file=sys.stderr)
+    sys.exit(2)
+
+entries = defaultdict(list)
+if base.exists():
+    parents = []
+    for root in (base, base / "archive"):
+        if root.exists():
+            parents.extend(path for path in root.glob("DP-*") if path.is_dir())
+    for parent in sorted(parents):
+        marker = parent / "index.md"
+        if not marker.is_file():
+            marker = parent / "plan.md"
+        if not marker.is_file():
+            continue
+        match = re.match(r"DP-(\d+)", parent.name)
+        if not match:
+            continue
+        namespace = "archive" if parent.parent.name == "archive" else "active"
+        rel = parent.relative_to(base).as_posix()
+        entries[f"DP-{int(match.group(1)):03d}"].append((namespace, rel, marker))
+
+duplicates = {number: rows for number, rows in entries.items() if len(rows) > 1}
+
+if duplicates:
+    print("DP number\tcollision type\tcontainers")
+    for number, rows in sorted(duplicates.items()):
+        namespaces = {row[0] for row in rows}
+        if namespaces == {"active"}:
+            collision = "active + active"
+        elif namespaces == {"archive"}:
+            collision = "archive + archive"
+        else:
+            collision = "active + archive"
+        containers = ", ".join(row[1] for row in rows)
+        print(f"{number}\t{collision}\t{containers}")
+
+if mode == "report":
+    if not duplicates:
+        print("PASS: DP number uniqueness report has no duplicates")
+    sys.exit(0)
+
+if plan_scope:
+    match = re.match(r"DP-(\d+)", plan_scope.parent.name)
+    if not match:
+        print(
+            f"error: plan path is not inside a DP-NNN container: {plan_scope}",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    scoped_number = f"DP-{int(match.group(1)):03d}"
+    if scoped_number in duplicates:
+        print(
+            f"error: {scoped_number} is duplicated; cannot validate {plan_scope}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    print(f"PASS: DP number unique for {scoped_number}")
+    sys.exit(0)
+
+if duplicates:
+    sys.exit(1)
+
+print("PASS: DP number uniqueness")

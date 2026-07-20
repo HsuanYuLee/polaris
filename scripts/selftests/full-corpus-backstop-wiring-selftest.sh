@@ -21,7 +21,9 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 GATE="$ROOT_DIR/check-framework-pr-gate.sh"
+AGGREGATE="$ROOT_DIR/run-aggregate-selftests.sh"
 RELEASE_LANE="$ROOT_DIR/framework-release-pr-lane.sh"
+RELEASE_BACKSTOPS="$ROOT_DIR/lib/release-gate-backstops.sh"
 SLOW_INVENTORY="$ROOT_DIR/selftest-slow-inventory.sh"
 PRE_PUSH_HOOK="$(cd "$ROOT_DIR/.." && pwd)/.claude/hooks/pre-push-quality-gate.sh"
 : "${DEBUG:=0}"
@@ -31,7 +33,7 @@ FAIL=0
 
 assert_contains() {
   local haystack="$1" needle="$2" label="$3"
-  if printf '%s' "$haystack" | grep -qF -- "$needle"; then
+  if grep -qF -- "$needle" <<< "$haystack"; then
     PASS=$((PASS + 1)); [[ "$DEBUG" == "1" ]] && printf '  [ok] %s\n' "$label"
   else
     FAIL=$((FAIL + 1)); printf '  [FAIL] %s — needle=%s\n' "$label" "$needle"
@@ -41,7 +43,7 @@ assert_contains() {
 
 assert_not_contains() {
   local haystack="$1" needle="$2" label="$3"
-  if printf '%s' "$haystack" | grep -qF -- "$needle"; then
+  if grep -qF -- "$needle" <<< "$haystack"; then
     FAIL=$((FAIL + 1)); printf '  [FAIL] %s — unexpected needle=%s\n' "$label" "$needle"
   else
     PASS=$((PASS + 1)); [[ "$DEBUG" == "1" ]] && printf '  [ok] %s\n' "$label"
@@ -60,7 +62,7 @@ assert_eq() {
 }
 
 # --- Preconditions: the three real source files exist ------------------------
-for f in "$GATE" "$RELEASE_LANE" "$SLOW_INVENTORY"; do
+for f in "$GATE" "$AGGREGATE" "$RELEASE_LANE" "$RELEASE_BACKSTOPS" "$SLOW_INVENTORY"; do
   if [[ ! -f "$f" ]]; then
     printf '  [FAIL] precondition: missing source file %s\n' "$f"
     FAIL=$((FAIL + 1))
@@ -94,6 +96,15 @@ assert_contains "$gate_src" "DP-iteration" \
 release_src="$(cat "$RELEASE_LANE")"
 assert_contains "$release_src" "run-aggregate-selftests.sh" \
   "(a) release lane wires the full-corpus aggregate runner"
+release_default="$(bash -c '
+  source "$1"
+  FULL_BACKSTOP=0
+  info() { :; }
+  run_aggregate_selftests_release_gate() { echo MANDATORY-PRE-PROMOTION-FULL; }
+  run_upstream_backstop_gates_if_requested
+' _ "$RELEASE_BACKSTOPS")"
+assert_contains "$release_default" "MANDATORY-PRE-PROMOTION-FULL" \
+  "(a) default release path executes the pre-promotion full backstop without an opt-in flag"
 
 # --- (b) NF1: full corpus is NOT on the push hot path ------------------------
 # The pre-push gate (affected-scoped per T3) must not reference the full-corpus aggregate
@@ -105,6 +116,10 @@ if [[ -f "$PRE_PUSH_HOOK" ]]; then
     "(b) NF1: pre-push hot path does NOT run the full corpus"
   assert_not_contains "$prepush_src" "check-framework-pr-gate.sh" \
     "(b) NF1: pre-push hot path does NOT invoke the full-corpus backstop gate"
+  assert_contains "$prepush_src" "POLARIS_AFFECTED_FULL_CORPUS" \
+    "(b) NEG2: pre-push recognizes the affected selector full-corpus sentinel"
+  assert_contains "$prepush_src" "PR/pre-promotion backstop" \
+    "(b) NEG2: shared/self-reference escalation is routed to a blocking backstop lane"
 else
   # No push hot-path file → full corpus is trivially absent from it.
   PASS=$((PASS + 1))
@@ -116,7 +131,7 @@ assert_contains "$gate_src" "MUST NOT be wired onto the commit/push hot path" \
 
 # --- (c) slow-inventory produces a list from a tier manifest cache -----------
 FIX="$(mktemp -d -t slow-inventory-fix-XXXXXX)"
-trap 'rm -rf "$FIX"' EXIT
+trap 'rm -rf "$FIX" "${STATE_FIX:-}"' EXIT
 cat >"$FIX/manifest.json" <<'JSON'
 {
   "schema_version": 1,
@@ -165,6 +180,54 @@ base_rc=$?
 assert_eq "$base_rc" "0" "(d) slow-inventory --baseline-only exits 0 without a manifest"
 assert_contains "$base_only" "AFFECTED_PUSH_TIME_BASELINE:" \
   "(d) --baseline-only emits the baseline block"
+
+# --- (e) a successful full run refreshes durable 48h state, red does not ----
+STATE_FIX="$(mktemp -d -t full-state-fix-XXXXXX)"
+mkdir -p "$STATE_FIX/scripts/selftests"
+cp "$AGGREGATE" "$STATE_FIX/scripts/run-aggregate-selftests.sh"
+cat >"$STATE_FIX/scripts/selftests/green-selftest.sh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+chmod +x "$STATE_FIX/scripts/selftests/green-selftest.sh"
+git -C "$STATE_FIX" init -q
+git -C "$STATE_FIX" add .
+git -C "$STATE_FIX" -c user.name=Polaris -c user.email=polaris@example.invalid commit -qm green
+state_file="$STATE_FIX/last-full-corpus-run.json"
+POLARIS_SELFTEST_STATE_FILE="$state_file" \
+  bash "$STATE_FIX/scripts/run-aggregate-selftests.sh" --root "$STATE_FIX" --base-ref HEAD >/dev/null 2>&1
+state_rc=$?
+assert_eq "$state_rc" "0" "(e) green full corpus exits 0"
+if [[ -f "$state_file" ]]; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1)); printf '  [FAIL] (e) green full corpus did not write staleness state\n'
+fi
+state_head="$(python3 -c "import json; print(json.load(open('$state_file'))['head_sha'])" 2>/dev/null)"
+assert_eq "$state_head" "$(git -C "$STATE_FIX" rev-parse HEAD)" \
+  "(e) staleness state is bound to the successful full-run head"
+state_ts="$(python3 -c "import json; print(json.load(open('$state_file'))['last_full_corpus_run_ts'])" 2>/dev/null)"
+if [[ "$state_ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]]; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1)); printf '  [FAIL] (e) staleness state timestamp malformed: %s\n' "$state_ts"
+fi
+state_before="$(cksum "$state_file")"
+cat >"$STATE_FIX/scripts/selftests/head-red-selftest.sh" <<'SH'
+#!/usr/bin/env bash
+exit 1
+SH
+chmod +x "$STATE_FIX/scripts/selftests/head-red-selftest.sh"
+git -C "$STATE_FIX" add .
+git -C "$STATE_FIX" -c user.name=Polaris -c user.email=polaris@example.invalid commit -qm head-red
+set +e
+POLARIS_SELFTEST_STATE_FILE="$state_file" \
+  bash "$STATE_FIX/scripts/run-aggregate-selftests.sh" --root "$STATE_FIX" --base-ref HEAD^ >/dev/null 2>&1
+red_state_rc=$?
+set -e 2>/dev/null || true
+assert_eq "$red_state_rc" "1" "(e) head-only red full corpus remains blocking"
+assert_eq "$(cksum "$state_file")" "$state_before" \
+  "(e) red full corpus cannot refresh last-green staleness state"
 
 # --- Summary -----------------------------------------------------------------
 printf '\nfull-corpus-backstop-wiring selftest: %d passed, %d failed\n' "$PASS" "$FAIL"

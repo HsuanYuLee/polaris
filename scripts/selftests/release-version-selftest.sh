@@ -297,6 +297,7 @@ make_fixture_repo "$REPO_LINK_MAIN" "1.0.0"
   git add package.json VERSION CHANGELOG.md .changeset/config.json .changeset/README.md
   git commit -q -m "base"
 )
+git -C "$REPO_LINK_MAIN" remote add origin "$REPO_LINK_MAIN"
 mkdir -p "$REPO_LINK_MAIN/node_modules/.bin"
 make_stub_cli "$REPO_LINK_MAIN/node_modules/.bin/changeset" "version-bump" "1.0.1"
 REPO_LINKED="$WORK_DIR/linked-feat"

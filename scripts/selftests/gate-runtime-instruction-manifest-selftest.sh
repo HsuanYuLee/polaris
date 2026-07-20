@@ -89,7 +89,7 @@ printf '\nstale edit not regenerated\n' >>"$repo_stale/.claude/instructions/core
 if out_stale="$(bash "$GATE" --repo "$repo_stale" 2>&1)"; then
   fail "AC1 stale: gate must exit non-zero when a rendered runtime target is stale"
 fi
-printf '%s' "$out_stale" | grep -q 'compile-runtime-instructions.sh' \
+grep -q 'compile-runtime-instructions.sh' <<< "$out_stale" \
   || fail "AC1: stale failure must emit a repair hint pointing to compile-runtime-instructions.sh"
 
 # === AC1 adversarial: a missing real runtime target is stale-fail ===

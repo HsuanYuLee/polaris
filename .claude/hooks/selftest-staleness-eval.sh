@@ -35,6 +35,16 @@ PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 REPORT_MODE="false"
 [[ "${1:-}" == "--report" ]] && REPORT_MODE="true"
 
+STATE_PROJECT_DIR="$PROJECT_DIR"
+MAIN_CHECKOUT_LIB="$PROJECT_DIR/scripts/lib/main-checkout.sh"
+if [[ -f "$MAIN_CHECKOUT_LIB" ]]; then
+  # shellcheck source=../../scripts/lib/main-checkout.sh
+  . "$MAIN_CHECKOUT_LIB"
+  if declare -F resolve_main_checkout >/dev/null 2>&1; then
+    STATE_PROJECT_DIR="$(resolve_main_checkout "$PROJECT_DIR" 2>/dev/null || printf '%s' "$PROJECT_DIR")"
+  fi
+fi
+
 # --- Read stdin payload (best-effort; never fatal) ---
 if [[ "$REPORT_MODE" == "false" ]]; then
   # Drain stdin so the hook does not block, but we do not need any field from it.
@@ -46,7 +56,7 @@ MAX_AGE_HOURS="$DEFAULT_MAX_AGE_HOURS"
 SURFACE="$DEFAULT_SURFACE"
 ENABLED="$DEFAULT_ENABLED"
 
-config_file="$PROJECT_DIR/workspace-config.yaml"
+config_file="$STATE_PROJECT_DIR/workspace-config.yaml"
 if [[ -r "$config_file" ]]; then
   # Parse defaults.selftest_staleness with python3 stdlib only (no PyYAML
   # dependency): a minimal indentation-aware reader for the single nested block
@@ -131,7 +141,7 @@ ensure_int() {
 MAX_AGE_HOURS="$(ensure_int "$MAX_AGE_HOURS" "$DEFAULT_MAX_AGE_HOURS")"
 
 # --- Read last-full-corpus-run state (fail-open: absent/corrupt -> no run) ---
-state_file="$PROJECT_DIR/.polaris/runtime/selftest-staleness/last-full-corpus-run.json"
+state_file="${POLARIS_SELFTEST_STATE_FILE:-$STATE_PROJECT_DIR/.polaris/runtime/selftest-staleness/last-full-corpus-run.json}"
 last_run_ts=""
 if [[ -r "$state_file" ]]; then
   last_run_ts="$(python3 - "$state_file" <<'PY' 2>/dev/null || true
@@ -139,6 +149,10 @@ import sys, json
 try:
     with open(sys.argv[1], "r", encoding="utf-8") as fh:
         d = json.load(fh)
+    if d.get("schema_version") != 1:
+        raise ValueError("schema_version")
+    if not isinstance(d.get("head_sha"), str) or not d.get("head_sha"):
+        raise ValueError("head_sha")
     ts = d.get("last_full_corpus_run_ts", "")
     sys.stdout.write(str(ts) if ts is not None else "")
 except Exception:

@@ -49,7 +49,7 @@ MD
   ],
   "gaps": {"pm_questions": [], "rd_risks": [{"risk": "x", "severity": "low", "mitigation": "y"}]},
   "tasks": [
-    {"id": $task_id_json, "kind": "implementation", "title": "fixture", "scope": "fixture", "allowed_files": ["scripts/sample.sh"], "modules": ["scripts/sample.sh"], "ac_ids": ["AC1"], "dependencies": [], "estimate_points": 1, "verification": {"method": "unit_test", "detail": "fixture"}}
+    {"id": $task_id_json, "kind": "implementation", "title": "fixture", "scope": "fixture", "modules": ["scripts/sample.sh"], "ac_ids": ["AC1"], "dependencies": [], "verification": {"method": "unit_test", "detail": "fixture"}}
   ],
   "adversarial_pass": [{"ac_id": "AC1", "attack": "x", "enforce": "y"}]
 }

@@ -8,8 +8,9 @@ VALIDATOR="$ROOT_DIR/scripts/validate-script-dependencies.sh"
 TMPDIR_SELFTEST="$(mktemp -d)"
 trap 'rm -rf "$TMPDIR_SELFTEST"' EXIT
 
-mkdir -p "$TMPDIR_SELFTEST/scripts"
+mkdir -p "$TMPDIR_SELFTEST/scripts/lib"
 cp "$VALIDATOR" "$TMPDIR_SELFTEST/scripts/validate-script-dependencies.sh"
+cp "$ROOT_DIR/scripts/lib/validate_script_dependencies_1.py" "$TMPDIR_SELFTEST/scripts/lib/"
 cat >"$TMPDIR_SELFTEST/package.json" <<'JSON'
 {"type":"module","dependencies":{}}
 JSON

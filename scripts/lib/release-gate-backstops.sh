@@ -25,7 +25,8 @@ run_script_authoring_backstop_gates() {
 
 run_upstream_backstop_gates_if_requested() {
   if [[ "$FULL_BACKSTOP" != "1" ]]; then
-    info "skipping upstream-owned release preflight backstop stages by default (R2-R6); evidence freshness is checked from task deliverable blocks. Use --full-backstop for the transitional full-corpus run."
+    info "running mandatory pre-promotion aggregate selftest backstop; --full-backstop additionally enables upstream script-authoring/governed stages"
+    run_aggregate_selftests_release_gate
     return 0
   fi
 

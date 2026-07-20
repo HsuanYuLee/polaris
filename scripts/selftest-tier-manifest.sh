@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Purpose: produce + read a selftest tier manifest. Enumerate the framework selftest
-#          corpus (scripts/selftests/*-selftest.sh + scripts/*-selftest.sh, ~319),
+#          corpus (Bash selftests plus pytest tests/test_*.py),
 #          and classify every selftest on TWO axes — speed (measured wall-clock) and
 #          scope (parsed coverage paths) — then derive three deterministic, mechanically
 #          reproducible subsets: fast-lint / affected / full-backstop (AC6). The manifest
@@ -111,6 +111,7 @@ enumerate_selftests() {
   {
     find "$ROOT_DIR/scripts/selftests" -maxdepth 1 -type f -name '*-selftest.sh' 2>/dev/null || true
     find "$ROOT_DIR/scripts" -maxdepth 1 -type f -name '*-selftest.sh' 2>/dev/null || true
+    find "$ROOT_DIR/tests" -maxdepth 1 -type f -name 'test_*.py' 2>/dev/null || true
   } | sed "s#^$ROOT_DIR/##" | LC_ALL=C sort -u
 }
 
@@ -190,7 +191,10 @@ if [[ "$MODE" == "measure" ]]; then
     scope="$(classify_scope "$rel")"
     start_ms="$(python3 -c 'import time; print(int(time.monotonic()*1000))')"
     set +e
-    bash "$abs" >/dev/null 2>&1
+    case "$rel" in
+      tests/test_*.py) (cd "$ROOT_DIR" && mise exec -- pytest "$rel" -q) >/dev/null 2>&1 ;;
+      *) bash "$abs" >/dev/null 2>&1 ;;
+    esac
     rc=$?
     set -e
     end_ms="$(python3 -c 'import time; print(int(time.monotonic()*1000))')"

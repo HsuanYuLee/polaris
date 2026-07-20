@@ -13,6 +13,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONSUMER="$ROOT/scripts/auto-pass-consume-resume.sh"
+CONSUMER_IMPL="$ROOT/scripts/lib/auto_pass_auto_pass_consume_resume_2.py"
 LEDGER_VALIDATOR="$ROOT/scripts/validate-auto-pass-ledger.sh"
 TMP="$(mktemp -d -t dp339-consume-resume.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
@@ -265,7 +266,7 @@ bash "$CONSUMER" --ledger "$ledger" --resume-artifact "$resume" --source-id DP-9
 # ---------------------------------------------------------------------------
 # AC-NEG3 shape: the consumer body uses tempfile.mkstemp + os.replace.
 # ---------------------------------------------------------------------------
-grep -q 'tempfile.mkstemp' "$CONSUMER" || fail "AC-NEG3 consumer must use tempfile.mkstemp"
-grep -q 'os.replace' "$CONSUMER" || fail "AC-NEG3 consumer must use os.replace"
+grep -q 'tempfile.mkstemp' "$CONSUMER_IMPL" || fail "AC-NEG3 consumer must use tempfile.mkstemp"
+grep -q 'os.replace' "$CONSUMER_IMPL" || fail "AC-NEG3 consumer must use os.replace"
 
 echo "PASS: auto-pass consume-resume selftest (7 cases: AC1, AC2, AC3, AC4, AC-NEG1, AC-NEG2, AC-NEG3)"

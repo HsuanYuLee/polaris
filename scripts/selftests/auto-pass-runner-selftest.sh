@@ -11,6 +11,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUNNER="$ROOT/scripts/auto-pass-runner.sh"
+RUNNER_IMPL="$ROOT/scripts/lib/auto_pass_auto_pass_runner_5.py"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -51,6 +52,14 @@ cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refin
   "acceptance_criteria": []
 }
 JSON
+mkdir -p "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/T1"
+cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/T1/index.md" <<'MD'
+---
+title: "DP-900-T1 gap owner fixture"
+description: "same-source owner existence fixture"
+status: IN_PROGRESS
+---
+MD
 
 # ─── EXAMPLE-556 JIRA Epic fixture ────────────────────────────────────────────
 cat >"$TMP/docs-manager/src/content/docs/specs/companies/exampleco/EXAMPLE-556/index.md" <<'MD'
@@ -81,6 +90,49 @@ cat >"$TMP/docs-manager/src/content/docs/specs/companies/exampleco/EXAMPLE-556/r
   "acceptance_criteria": []
 }
 JSON
+
+# DP-420 T9 currentness fixture.  Only gap-scope.txt is governed by the
+# observation, so later task/marker fixture mutations cannot make it stale.
+echo "gap-scope-v1" >"$TMP/gap-scope.txt"
+git -C "$TMP" init -q
+git -C "$TMP" config user.email selftest@example.invalid
+git -C "$TMP" config user.name selftest
+git -C "$TMP" add .
+git -C "$TMP" commit -qm "runner fixture baseline"
+
+write_gap_ledger() {
+  local path="$1" owner_source="${2:-DP-900}" owner_work_item="${3:-DP-900-T1}"
+  local head
+  head="$(git -C "$TMP" rev-parse HEAD)"
+  python3 - "$path" "$head" "$owner_source" "$owner_work_item" <<'PY'
+import json, sys
+from pathlib import Path
+path, head, owner_source, owner_work_item = sys.argv[1:5]
+Path(path).write_text(json.dumps({
+    "schema_version": 1,
+    "source_id": "DP-900",
+    "authority": {
+        "source_id": "DP-900",
+        "same_source_only": True,
+        "allowed_actions": ["gap_disposition", "task_repair"],
+        "forbidden_actions": [
+            "bypass", "cross_source_mutation", "partial_release", "release", "successor_source"
+        ],
+    },
+    "gaps": [{
+        "gap_id": "G1", "gap_key": "runner-gap", "source_id": "DP-900",
+        "reproducer": {"id": "runner-repro", "kind": "command", "argv": ["test", "-f", "gap-scope.txt"]},
+        "head": head,
+        "observed": {"exit_code": 0, "state": "persisting"},
+        "disposition": "persisting_owned",
+        "owner": {"source_id": owner_source, "work_item_id": owner_work_item},
+        "terminal": False,
+        "evidence": [{"kind": "command_result", "reproducer_id": "runner-repro", "exit_code": 0}],
+        "currentness": {"status": "current", "scope_paths": ["gap-scope.txt"]},
+    }],
+}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+}
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -223,6 +275,46 @@ assert_field() {
     exit 1
   fi
 }
+
+# ─── DP-420 T9: pre-dispatch gap/source validation and bounded authority ─────
+GAP_LEDGER="$TMP/current-head-gap-ledger.json"
+write_gap_ledger "$GAP_LEDGER"
+GAP_RESULT="$(run_runner --stage source --source-id DP-900 --gap-ledger "$GAP_LEDGER")"
+python3 - "$GAP_RESULT" <<'PY'
+import json, sys
+payload = json.loads(sys.argv[1])
+authority = payload.get("delegation_authority") or {}
+assert payload["next_action"] == "dispatch", payload
+assert authority.get("source_id") == "DP-900", payload
+assert authority.get("same_source_only") is True, payload
+assert authority.get("allowed_actions") == ["gap_disposition", "task_repair"], payload
+assert set(authority.get("forbidden_actions", [])) >= {
+    "successor_source", "cross_source_mutation", "release", "bypass"
+}, payload
+PY
+
+# Foreign ownership of a persisting gap must block before the otherwise-PASS
+# source probe can dispatch.  The runner returns no mutation authority.
+write_gap_ledger "$GAP_LEDGER" DP-901 DP-901-T1
+GAP_BLOCKED="$(run_runner --stage source --source-id DP-900 --gap-ledger "$GAP_LEDGER")"
+python3 - "$GAP_BLOCKED" <<'PY'
+import json, sys
+payload = json.loads(sys.argv[1])
+assert payload["terminal_status"] == "blocked_by_gate_failure", payload
+assert payload["next_action"] == "blocked", payload
+assert payload["delegation_authority"] is None, payload
+assert "owner.source_id must equal DP-900" in payload["reason"], payload
+PY
+
+# An explicit ledger for another source is not a fallback; it fails closed.
+write_gap_ledger "$GAP_LEDGER"
+GAP_MISMATCH="$(run_runner --stage source --source-id EXAMPLE-556 --gap-ledger "$GAP_LEDGER")"
+python3 - "$GAP_MISMATCH" <<'PY'
+import json, sys
+payload = json.loads(sys.argv[1])
+assert payload["next_action"] == "blocked", payload
+assert "source mismatch" in payload["reason"], payload
+PY
 
 # ──────────────────────────────────────────────────────────────────────────────
 # source stage fixtures
@@ -578,10 +670,12 @@ rm "$TMP/.polaris/evidence/task-snapshot/DP-900-T2.json"
 # ─── AC-NF2: runner authority is portable ────────────────────────────────────
 # The runner script must not reference Claude-only surfaces. Codex / other LLMs
 # invoke the same script through the same JSON contract.
-python3 - "$RUNNER" <<'PY'
+python3 - "$RUNNER" "$RUNNER_IMPL" <<'PY'
 import re, sys
 from pathlib import Path
-src = Path(sys.argv[1]).read_text(encoding="utf-8")
+src = "\n".join(
+    Path(path).read_text(encoding="utf-8") for path in sys.argv[1:]
+)
 forbidden = [
     "CLAUDE_CODE",                  # Claude-only env signal
     "claude.ai/mcp",                # MCP server URL
@@ -597,11 +691,14 @@ PY
 # ─── AC-NEG2: runner does not mutate code / task / release ───────────────────
 # Static scan: runner must not call merge / push / deploy / release / writer
 # helpers that mutate authoritative artifacts. The runner is a pure JSON
-# aggregator over probe + ledger validator.
-python3 - "$RUNNER" <<'PY'
+# aggregator over probe + ledger validator. The shell entrypoint delegates its
+# implementation to the extracted Python module, so both files are governed.
+python3 - "$RUNNER" "$RUNNER_IMPL" <<'PY'
 import re, sys
 from pathlib import Path
-src = Path(sys.argv[1]).read_text(encoding="utf-8")
+src = "\n".join(
+    Path(path).read_text(encoding="utf-8") for path in sys.argv[1:]
+)
 # Tokens that would indicate the runner is doing mutation work.
 forbidden_patterns = [
     r"\bgh pr merge\b",

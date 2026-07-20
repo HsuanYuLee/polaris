@@ -35,7 +35,7 @@ TOTAL=0
 
 _assert_contains() {
   TOTAL=$((TOTAL + 1))
-  if printf '%s' "$1" | grep -qF -- "$2"; then
+  if grep -qF -- "$2" <<< "$1"; then
     PASS=$((PASS + 1))
   else
     FAIL=$((FAIL + 1))
@@ -46,7 +46,7 @@ _assert_contains() {
 
 _assert_not_contains() {
   TOTAL=$((TOTAL + 1))
-  if printf '%s' "$1" | grep -qF -- "$2"; then
+  if grep -qF -- "$2" <<< "$1"; then
     FAIL=$((FAIL + 1))
     printf '[FAILED %d] %s: substring should NOT appear: %q\n' "$TOTAL" "$3" "$2" >&2
     printf '       in: %s\n' "$1" >&2
@@ -96,14 +96,14 @@ while [[ $# -gt 0 ]]; do
 done
 printf 'stub %s :: %s\n' "$mode" "$(printf '%s' "$changed" | tr '\n' ',')" >>"$log"
 
-if printf '%s' "$changed" | grep -q 'LEAKED'; then
+if grep -q 'LEAKED' <<< "$changed"; then
   if [[ "$mode" == "emit" ]]; then
     printf 'POLARIS_AFFECTED_FULL_CORPUS\n'
   fi
   # leaked branch 的 backstop 視為 green（不真的跑 corpus）。
   exit 0
 fi
-if printf '%s' "$changed" | grep -q 'REDGATE'; then
+if grep -q 'REDGATE' <<< "$changed"; then
   if [[ "$mode" == "emit" ]]; then
     printf 'scripts/selftests/redgate-selftest.sh\n'
     exit 0

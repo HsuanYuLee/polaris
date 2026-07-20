@@ -38,6 +38,7 @@ if [[ -f "$SCRIPT_DIR/lib/main-checkout.sh" ]]; then
   # shellcheck source=lib/main-checkout.sh
   . "$SCRIPT_DIR/lib/main-checkout.sh"
 fi
+RESOLVE_TASK_MD="$SCRIPT_DIR/resolve-task-md.sh"
 
 input=$(cat)
 
@@ -129,6 +130,28 @@ if [[ -z "$EVIDENCE_FILE" ]]; then
   exit 2
 fi
 
+TASK_MD=""
+if [[ -x "$RESOLVE_TASK_MD" ]]; then
+  # Resolve from the product-repo cwd first. resolve-task-md's canonical root
+  # detection walks ancestors for the highest workspace-config.yaml, which is
+  # the normal onboarded topology (workspace-owned specs outside the nested
+  # product git repo). Fall back to the product main checkout for standalone
+  # repos whose specs are tracked locally.
+  TASK_MD="$(cd "$gate_repo" && bash "$RESOLVE_TASK_MD" --from-input "$ticket" 2>/dev/null | head -n 1 || true)"
+  if [[ -z "$TASK_MD" ]]; then
+    task_scan_root="$gate_repo"
+    if declare -F resolve_main_checkout >/dev/null 2>&1; then
+      task_scan_root="$(resolve_main_checkout "$gate_repo" 2>/dev/null || printf '%s' "$gate_repo")"
+    fi
+    TASK_MD="$(bash "$RESOLVE_TASK_MD" --scan-root "$task_scan_root" --from-input "$ticket" 2>/dev/null | head -n 1 || true)"
+  fi
+fi
+if [[ -z "$TASK_MD" || ! -f "$TASK_MD" ]]; then
+  echo "BLOCKED: canonical task.md is required to validate verification evidence identity for ${ticket}" >&2
+  echo "  Head-only evidence is not reusable without the current Verify Command and execution context." >&2
+  exit 2
+fi
+
 # D15 schema: ticket, head_sha, writer, exit_code, at
 # No 4h stale check — head_sha self-binds freshness (rebase invalidates filename)
 if ! valid="$(verification_evidence_validate_file "$EVIDENCE_FILE" "$ticket" "$HEAD_SHA" 2>/dev/null)"; then
@@ -151,6 +174,16 @@ if [[ "$pass_result" != "pass" ]]; then
   echo "BLOCKED: Verification evidence shows verify command FAIL for ${ticket}" >&2
   echo "  ${EVIDENCE_FILE}: ${pass_result}" >&2
   echo "  Fix the underlying issue and re-run scripts/run-verify-command.sh." >&2
+  exit 2
+fi
+
+if ! identity="$(verification_evidence_validate_current_identity "$EVIDENCE_FILE" "$TASK_MD" "$gate_repo" 2>/dev/null)"; then
+  identity="${identity:-invalid identity}"
+fi
+if [[ "$identity" != "current" ]]; then
+  echo "BLOCKED: verification evidence identity is stale for ${ticket}" >&2
+  echo "  ${EVIDENCE_FILE}: ${identity}" >&2
+  echo "  Re-run scripts/run-verify-command.sh for the current task verification context." >&2
   exit 2
 fi
 

@@ -48,6 +48,43 @@ cat >"$TMP/dev-grep.sh" <<'EOF'
 echo "Developer note: DP-123 is mentioned in a fixture title, not resolver logic."
 EOF
 
+mkdir -p "$TMP/lib"
+cat >"$TMP/delegating-wrapper.sh" <<'EOF'
+#!/usr/bin/env bash
+# design-plans/DP-* resolver compatibility shim
+python3 "$(dirname "$0")/lib/delegated.py" "$@"
+EOF
+cat >"$TMP/lib/delegated.py" <<'EOF'
+def resolve_by_jira_epic(root):
+    return root / "docs-manager/src/content/docs/specs/companies"
+EOF
+
+cat >"$TMP/comment-only-wrapper.sh" <<'EOF'
+#!/usr/bin/env bash
+# lib/delegated.py is documentation, not an executed delegation.
+resolve_by_dp() {
+  find "$root/docs-manager/src/content/docs/specs/design-plans" -name 'DP-*'
+}
+EOF
+
+cat >"$TMP/echo-only-wrapper.sh" <<'EOF'
+#!/usr/bin/env bash
+resolve_by_dp() {
+  find "$root/docs-manager/src/content/docs/specs/design-plans" -name 'DP-*'
+}
+echo python3 lib/delegated.py
+EOF
+
+cat >"$TMP/heredoc-only-wrapper.sh" <<'EOF'
+#!/usr/bin/env bash
+resolve_by_dp() {
+  find "$root/docs-manager/src/content/docs/specs/design-plans" -name 'DP-*'
+}
+cat <<'TEXT'
+python3 lib/delegated.py
+TEXT
+EOF
+
 run_lint() {
   POLARIS_PARITY_ALLOWLIST="$allowlist" \
   POLARIS_DP_KEYED_SOURCE_SURFACES="$1" \
@@ -84,6 +121,38 @@ if [[ "$rc" -eq 0 ]]; then
   ok "ordinary DP mention does not trigger resolver lint"
 else
   bad "ordinary DP mention should not trigger resolver lint (rc=$rc)"
+fi
+
+run_lint "$TMP/delegating-wrapper.sh"
+rc=$?
+if [[ "$rc" -eq 0 ]]; then
+  ok "delegated Python counterpart is part of the shell validator surface"
+else
+  bad "delegated Python counterpart should satisfy resolver parity (rc=$rc)"
+fi
+
+run_lint "$TMP/comment-only-wrapper.sh"
+rc=$?
+if [[ "$rc" -eq 2 ]] && grep -q 'POLARIS_DP_KEYED_SOURCE_ASYMMETRY' "$TMP/err.txt"; then
+  ok "comment-only module mention cannot masquerade as delegation"
+else
+  bad "comment-only module mention should fail closed (rc=$rc)"
+fi
+
+run_lint "$TMP/echo-only-wrapper.sh"
+rc=$?
+if [[ "$rc" -eq 2 ]] && grep -q 'POLARIS_DP_KEYED_SOURCE_ASYMMETRY' "$TMP/err.txt"; then
+  ok "echo-only module mention cannot masquerade as delegation"
+else
+  bad "echo-only module mention should fail closed (rc=$rc)"
+fi
+
+run_lint "$TMP/heredoc-only-wrapper.sh"
+rc=$?
+if [[ "$rc" -eq 2 ]] && grep -q 'POLARIS_DP_KEYED_SOURCE_ASYMMETRY' "$TMP/err.txt"; then
+  ok "heredoc-only module mention cannot masquerade as delegation"
+else
+  bad "heredoc-only module mention should fail closed (rc=$rc)"
 fi
 
 echo "----"

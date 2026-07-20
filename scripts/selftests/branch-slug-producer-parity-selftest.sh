@@ -273,12 +273,12 @@ zhtw_out="$tmpdir/zhtw-task.md"
 bash "$DERIVE_SCRIPT" --refinement-json "$zhtw_json" --task-id "DP-901-T1" >"$zhtw_out"
 
 zhtw_row="$(grep -F '| Task branch |' "$zhtw_out")"
-if printf '%s' "$zhtw_row" | LC_ALL=C grep -q '[^ -~]'; then
+if LC_ALL=C grep -q '[^ -~]' <<< "$zhtw_row"; then
   echo "FAIL [case 2 / AC-NEG4]: Task branch row contains non-ASCII bytes" >&2
   printf '%s\n' "$zhtw_row" >&2
   exit 1
 fi
-if ! printf '%s' "$zhtw_row" | grep -qF 'task/DP-901-T1-ascii-slug'; then
+if ! grep -qF 'task/DP-901-T1-ascii-slug' <<< "$zhtw_row"; then
   echo "FAIL [case 2 / AC-NEG4]: unexpected zh-TW title branch slug" >&2
   echo "  expected branch: task/DP-901-T1-ascii-slug" >&2
   printf '  actual row: %s\n' "$zhtw_row" >&2
@@ -297,12 +297,12 @@ cjk_out="$tmpdir/cjk-task.md"
 bash "$DERIVE_SCRIPT" --refinement-json "$cjk_json" --task-id "DP-902-T1" >"$cjk_out"
 
 cjk_row="$(grep -F '| Task branch |' "$cjk_out")"
-if printf '%s' "$cjk_row" | LC_ALL=C grep -q '[^ -~]'; then
+if LC_ALL=C grep -q '[^ -~]' <<< "$cjk_row"; then
   echo "FAIL [case 3 / AC-NEG4]: pure-CJK title Task branch row contains non-ASCII bytes" >&2
   printf '%s\n' "$cjk_row" >&2
   exit 1
 fi
-if ! printf '%s' "$cjk_row" | grep -qF 'task/DP-902-T1-task'; then
+if ! grep -qF 'task/DP-902-T1-task' <<< "$cjk_row"; then
   echo "FAIL [case 3 / AC2]: pure-CJK title did not fall back to the 'task' slug" >&2
   printf '  actual row: %s\n' "$cjk_row" >&2
   exit 1
@@ -327,12 +327,12 @@ bash "$DERIVE_SCRIPT" --refinement-json "$jira_json" --task-id "EXCO-700-T1" >"$
 
 jira_row="$(grep -F '| Task branch |' "$jira_out")"
 expected_jira_branch='task/EXCO-712-jira-epic-branch-identity-parity'
-if printf '%s' "$jira_row" | LC_ALL=C grep -q '[^ -~]'; then
+if LC_ALL=C grep -q '[^ -~]' <<< "$jira_row"; then
   echo "FAIL [case 4 / AC1]: JIRA-Epic Task branch row contains non-ASCII bytes" >&2
   printf '%s\n' "$jira_row" >&2
   exit 1
 fi
-if ! printf '%s' "$jira_row" | grep -qF "$expected_jira_branch"; then
+if ! grep -qF "$expected_jira_branch" <<< "$jira_row"; then
   echo "FAIL [case 4 / AC1]: derived branch did not use per-task jira_key identity" >&2
   echo "  expected branch: $expected_jira_branch" >&2
   printf '  actual row: %s\n' "$jira_row" >&2
@@ -340,7 +340,7 @@ if ! printf '%s' "$jira_row" | grep -qF "$expected_jira_branch"; then
 fi
 # Explicit composite-leak guard: the internal work_item_id must never appear as
 # the branch prefix (this is exactly what the producer bug emitted).
-if printf '%s' "$jira_row" | grep -qF 'task/EXCO-700-T1-'; then
+if grep -qF 'task/EXCO-700-T1-' <<< "$jira_row"; then
   echo "FAIL [case 4 / AC1]: derived branch leaked the composite work_item_id (EXCO-700-T1)" >&2
   printf '  actual row: %s\n' "$jira_row" >&2
   exit 1

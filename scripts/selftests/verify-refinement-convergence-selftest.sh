@@ -58,6 +58,36 @@ cat >"$SPECS_ROOT/design-plans/DP-001-safe/refinement.json" <<'EOF'
 }
 EOF
 
+# 補齊 current strong-bound schema，讓 backlog 狀態只由 predecessor_audit 決定。
+python3 - \
+  "$SPECS_ROOT/companies/exampleco/EX-001/refinement.json" \
+  "$SPECS_ROOT/design-plans/DP-001-safe/refinement.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+for raw in sys.argv[1:]:
+    path = Path(raw)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    source_id = ((data.get("source") or {}).get("id") or data.get("epic") or "DP-999")
+    if isinstance(data.get("source"), dict):
+        index = path.parent / "index.md"
+        index.write_text("---\ntitle: Fixture\ndescription: Fixture\nstatus: LOCKED\n---\n", encoding="utf-8")
+        data["source"]["container"] = str(path.parent.resolve())
+        data["source"]["plan_path"] = str(index.resolve())
+    data["schema_version"] = 1
+    data["tasks"] = [{
+        "id": f"{source_id}-T1", "kind": "implementation", "title": "fixture",
+        "scope": "fixture", "modules": [data["modules"][0]["path"]],
+        "ac_ids": ["AC1"], "dependencies": [],
+        "verification": {"method": "unit_test", "detail": "fixture"},
+    }]
+    data["adversarial_pass"] = [{
+        "ac_id": "AC1", "attack": "missing predecessor audit", "enforce": "selftest"
+    }]
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+
 cat >"$SAMPLE_TASK" <<'EOF'
 ---
 title: "Sample task"

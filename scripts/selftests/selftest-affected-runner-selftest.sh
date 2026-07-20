@@ -33,7 +33,21 @@ fail() { echo "[selftest][$1] $2" >&2; exit 1; }
 # Side effects: writes files under $1.
 build_fixture_root() {
   local root="$1"
-  mkdir -p "$root/scripts/selftests" "$root/.claude/rules" "$root/scripts/lib"
+  mkdir -p "$root/scripts/selftests" "$root/.claude/rules" "$root/.claude/hooks" \
+    "$root/scripts/lib" "$root/.polaris/runtime/selftest-staleness"
+
+  cp "$ROOT_DIR/.claude/hooks/selftest-staleness-eval.sh" \
+    "$root/.claude/hooks/selftest-staleness-eval.sh"
+  cat >"$root/workspace-config.yaml" <<'YAML'
+defaults:
+  selftest_staleness:
+    enabled: true
+    max_age_hours: 48
+    surface: "on_stale"
+YAML
+  cat >"$root/.polaris/runtime/selftest-staleness/last-full-corpus-run.json" <<JSON
+{"schema_version":1,"head_sha":"fixture-head","last_full_corpus_run_ts":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
+JSON
 
   # Naming-convention pair.
   printf '#!/usr/bin/env bash\nexit 0\n' >"$root/scripts/foo.sh"
@@ -116,7 +130,7 @@ expected="$(printf '%s\n' \
   scripts/selftests/baz-from-registry-selftest.sh \
   scripts/selftests/foo-selftest.sh | LC_ALL=C sort -u)"
 [[ "$out" == "$expected" ]] || fail AC7-union "union closure mismatch; got: [$out]"
-printf '%s' "$out" | grep -q 'POLARIS_AFFECTED_FULL_CORPUS' \
+grep -q 'POLARIS_AFFECTED_FULL_CORPUS' <<< "$out" \
   && fail AC7-union "narrow change set must NOT escalate to full corpus"
 
 # ---------------------------------------------------------------------------
@@ -153,7 +167,7 @@ err="$(printf '' | bash "$RUNNER" --root "$fixture" --emit 2>&1)"
 rc=$?
 set -e
 [[ "$rc" -eq 2 ]] || fail AC-NEG4-empty "empty change set must exit 2 (got rc=$rc)"
-printf '%s' "$err" | grep -q 'POLARIS_AFFECTED_NO_CHANGED_FILES' \
+grep -q 'POLARIS_AFFECTED_NO_CHANGED_FILES' <<< "$err" \
   || fail AC-NEG4-empty "empty change set must emit POLARIS_AFFECTED_NO_CHANGED_FILES"
 
 # ---------------------------------------------------------------------------
@@ -166,7 +180,7 @@ err="$(bash "$RUNNER" --root "$fixture" --run --changed scripts/unmapped.sh 2>&1
 rc=$?
 set -e
 [[ "$rc" -eq 2 ]] || fail AC-NEG5-no-closure "unmapped changed file in --run must exit 2 (got rc=$rc)"
-printf '%s' "$err" | grep -q 'POLARIS_AFFECTED_NO_CLOSURE' \
+grep -q 'POLARIS_AFFECTED_NO_CLOSURE' <<< "$err" \
   || fail AC-NEG5-no-closure "unmapped change must emit POLARIS_AFFECTED_NO_CLOSURE (no silent pass)"
 
 # ---------------------------------------------------------------------------
@@ -186,7 +200,7 @@ err="$(bash "$RUNNER" --root "$fixture" --run --changed scripts/foo.sh 2>&1)"
 rc=$?
 set -e
 [[ "$rc" -eq 1 ]] || fail AC7-run-red "red closure member must make --run exit 1 (got rc=$rc)"
-printf '%s' "$err" | grep -q 'POLARIS_AFFECTED_SELFTEST_RED:scripts/selftests/foo-selftest.sh' \
+grep -q 'POLARIS_AFFECTED_SELFTEST_RED:scripts/selftests/foo-selftest.sh' <<< "$err" \
   || fail AC7-run-red "red member must emit POLARIS_AFFECTED_SELFTEST_RED:<member>"
 
 # ---------------------------------------------------------------------------
@@ -207,5 +221,95 @@ out="$(bash "$RUNNER" --root "$fixture" --emit --changed scripts/selftests/foo-s
 # ---------------------------------------------------------------------------
 grep -q 'mechanism-registry.md' "$RUNNER" || fail D8 "runner must read mechanism-registry.md (source 2)"
 grep -q 'scripts/manifest.json' "$RUNNER" || fail D8 "runner must read scripts/manifest.json (source 3)"
+
+# ---------------------------------------------------------------------------
+# Case 13 (AC4 48h): fresh state keeps a narrow set; stale, missing, or corrupt
+# state escalates the same narrow change to the full-corpus sentinel.
+# ---------------------------------------------------------------------------
+state_file="$fixture/.polaris/runtime/selftest-staleness/last-full-corpus-run.json"
+out="$(bash "$RUNNER" --root "$fixture" --emit --changed scripts/foo.sh)"
+[[ "$out" == "scripts/selftests/foo-selftest.sh" ]] \
+  || fail AC4-fresh "fresh full state must preserve narrow affected selection"
+cat >"$state_file" <<'JSON'
+{"schema_version":1,"head_sha":"old-head","last_full_corpus_run_ts":"2000-01-01T00:00:00Z"}
+JSON
+out="$(bash "$RUNNER" --root "$fixture" --emit --changed scripts/foo.sh)"
+[[ "$out" == "POLARIS_AFFECTED_FULL_CORPUS" ]] \
+  || fail AC4-stale "48h-stale full state must escalate to full corpus"
+printf '{broken json\n' >"$state_file"
+out="$(bash "$RUNNER" --root "$fixture" --emit --changed scripts/foo.sh)"
+[[ "$out" == "POLARIS_AFFECTED_FULL_CORPUS" ]] \
+  || fail AC4-corrupt "corrupt full state must escalate to full corpus"
+rm -f "$state_file"
+out="$(bash "$RUNNER" --root "$fixture" --emit --changed scripts/foo.sh)"
+[[ "$out" == "POLARIS_AFFECTED_FULL_CORPUS" ]] \
+  || fail AC4-missing "missing full state must escalate to full corpus"
+# Restore fresh state for the base-debt fixtures below.
+cat >"$state_file" <<JSON
+{"schema_version":1,"head_sha":"fixture-head","last_full_corpus_run_ts":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
+JSON
+
+# ---------------------------------------------------------------------------
+# Case 14 (current-head classification): a targeted member that is already red
+# on the explicit comparison base is reported as tracked debt and does not make
+# the affected run red. This prevents a narrow task from absorbing clean-base
+# debt owned elsewhere.
+# ---------------------------------------------------------------------------
+debt_fixture="$tmp/debt-fixture"
+build_fixture_root "$debt_fixture"
+printf '#!/usr/bin/env bash\necho BASE-RED\nexit 7\n' >"$debt_fixture/scripts/selftests/foo-selftest.sh"
+git -C "$debt_fixture" init -q
+git -C "$debt_fixture" add .
+git -C "$debt_fixture" -c user.name=Polaris -c user.email=polaris@example.invalid commit -qm base-red
+debt_base="$(git -C "$debt_fixture" rev-parse HEAD)"
+printf 'head\n' >"$debt_fixture/head-only.txt"
+git -C "$debt_fixture" add head-only.txt
+git -C "$debt_fixture" -c user.name=Polaris -c user.email=polaris@example.invalid commit -qm head
+set +e
+debt_out="$(bash "$RUNNER" --root "$debt_fixture" --base-ref "$debt_base" --run --changed scripts/foo.sh 2>&1)"
+debt_rc=$?
+set -e
+[[ "$debt_rc" -eq 0 ]] || fail AC4-base-debt "base-red targeted member must not fail current head (rc=$debt_rc)"
+grep -q 'TRACKED_DEBT scripts/selftests/foo-selftest.sh' <<<"$debt_out" \
+  || fail AC4-base-debt "base-red targeted member must be explicitly classified as TRACKED_DEBT"
+
+# Same exit code with a different failure signature is a head regression, not
+# inherited debt. Existing failure A must never conceal newly introduced B.
+signature_fixture="$tmp/signature-fixture"
+build_fixture_root "$signature_fixture"
+printf '#!/usr/bin/env bash\necho FAILURE-A\nexit 7\n' >"$signature_fixture/scripts/selftests/foo-selftest.sh"
+git -C "$signature_fixture" init -q
+git -C "$signature_fixture" add .
+git -C "$signature_fixture" -c user.name=Polaris -c user.email=polaris@example.invalid commit -qm failure-a
+signature_base="$(git -C "$signature_fixture" rev-parse HEAD)"
+printf '#!/usr/bin/env bash\necho FAILURE-B\nexit 7\n' >"$signature_fixture/scripts/selftests/foo-selftest.sh"
+git -C "$signature_fixture" add scripts/selftests/foo-selftest.sh
+git -C "$signature_fixture" -c user.name=Polaris -c user.email=polaris@example.invalid commit -qm failure-b
+set +e
+signature_out="$(bash "$RUNNER" --root "$signature_fixture" --base-ref "$signature_base" --run --changed scripts/foo.sh 2>&1)"
+signature_rc=$?
+set -e
+[[ "$signature_rc" -eq 1 ]] \
+  || fail AC4-failure-identity "different head failure identity must block even when exit code matches base (rc=$signature_rc)"
+grep -q 'POLARIS_AFFECTED_SELFTEST_RED:scripts/selftests/foo-selftest.sh' <<<"$signature_out" \
+  || fail AC4-failure-identity "different failure identity was incorrectly downgraded to tracked debt"
+
+# A head-only regression remains blocking under the same explicit-base contract.
+head_red_fixture="$tmp/head-red-fixture"
+build_fixture_root "$head_red_fixture"
+git -C "$head_red_fixture" init -q
+git -C "$head_red_fixture" add .
+git -C "$head_red_fixture" -c user.name=Polaris -c user.email=polaris@example.invalid commit -qm green-base
+green_base="$(git -C "$head_red_fixture" rev-parse HEAD)"
+printf '#!/usr/bin/env bash\necho HEAD-RED\nexit 9\n' >"$head_red_fixture/scripts/selftests/foo-selftest.sh"
+git -C "$head_red_fixture" add scripts/selftests/foo-selftest.sh
+git -C "$head_red_fixture" -c user.name=Polaris -c user.email=polaris@example.invalid commit -qm head-red
+set +e
+head_red_out="$(bash "$RUNNER" --root "$head_red_fixture" --base-ref "$green_base" --run --changed scripts/foo.sh 2>&1)"
+head_red_rc=$?
+set -e
+[[ "$head_red_rc" -eq 1 ]] || fail AC4-head-red "head-only red targeted member must block (rc=$head_red_rc)"
+grep -q 'POLARIS_AFFECTED_SELFTEST_RED:scripts/selftests/foo-selftest.sh' <<<"$head_red_out" \
+  || fail AC4-head-red "head-only red member must retain the blocking marker"
 
 echo "PASS: selftest-affected-runner selftest"

@@ -180,7 +180,7 @@ fi
 
 # --- missing input fail-closed ----------------------------------------------
 run
-if [[ "$RC" -eq 2 ]] && printf '%s' "$ERR" | grep -q 'POLARIS_'; then
+if [[ "$RC" -eq 2 ]] && grep -q 'POLARIS_' <<< "$ERR"; then
   pass "missing-input: no Allowed Files => exit 2 + POLARIS_* marker"
 else
   fail "missing-input: expected exit 2 + POLARIS marker (rc=$RC err=$ERR)"

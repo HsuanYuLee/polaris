@@ -109,7 +109,7 @@ rc="$(run_native_hook "$content_cjk")"
 
 # Confirm the marker comes from the shared validator (single-source judgment).
 marker="$( ( cd "$repo" && printf '%s' "$content_cjk" | "$pre_push" origin "https://example.test/repo.git" ) 2>&1 || true )"
-printf '%s' "$marker" | grep -q 'POLARIS_BRANCH_NAME_NON_ASCII' \
+grep -q 'POLARIS_BRANCH_NAME_NON_ASCII' <<< "$marker" \
   || fail AC5-L1 "non-ASCII fail did not emit POLARIS_BRANCH_NAME_NON_ASCII marker"
 
 # --- AC-NEG1 sanity: content-bearing ASCII branch -> exit 0 -------------------

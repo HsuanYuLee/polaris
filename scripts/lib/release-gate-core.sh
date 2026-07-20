@@ -55,65 +55,9 @@ table_field() {
 task_frontmatter_field() {
   local file="$1"
   local field="$2"
-  python3 - "$file" "$field" <<'PY'
-from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-field = sys.argv[2]
-lines = path.read_text(encoding="utf-8").splitlines()
-
-if not lines or lines[0] != "---":
-    print("")
-    raise SystemExit(0)
-
-try:
-    end = lines[1:].index("---") + 1
-except ValueError:
-    print("")
-    raise SystemExit(0)
-
-in_deliverable = False
-in_verification = False
-for raw in lines[1:end]:
-    if raw == "deliverable:":
-        in_deliverable = True
-        in_verification = False
-        continue
-    if in_deliverable and raw and not raw.startswith((" ", "-")):
-        in_deliverable = False
-        in_verification = False
-    if not in_deliverable:
-        continue
-
-    stripped = raw.strip()
-    if stripped == "verification:":
-        in_verification = True
-        continue
-    if in_verification and raw.startswith("  ") and not raw.startswith("    ") and stripped != "verification:":
-        in_verification = False
-
-    if field == "deliverable_verification_status" and in_verification and raw.startswith("    status:"):
-        print(raw.split(":", 1)[1].strip())
-        raise SystemExit(0)
-
-    if in_verification:
-        continue
-
-    key_by_field = {
-        "deliverable_pr_url": "pr_url",
-        "deliverable_pr_state": "pr_state",
-        "deliverable_head_sha": "head_sha",
-    }
-    key = key_by_field.get(field)
-    if key and raw.startswith(f"  {key}:"):
-        print(raw.split(":", 1)[1].strip())
-        raise SystemExit(0)
-
-print("")
-PY
+  local helper_dir
+  helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  python3 "$helper_dir/release_closeout_helpers.py" task-frontmatter-field "$file" "$field"
 }
 
 head_matches() {
@@ -156,7 +100,9 @@ check_task_upstream_evidence_freshness() {
 json_field() {
   local json="$1"
   local expr="$2"
-  python3 -c "import json,sys; d=json.load(sys.stdin); print(${expr} or '')" <<<"$json"
+  local helper_dir
+  helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  python3 "$helper_dir/release_closeout_helpers.py" json-field "$json" "$expr"
 }
 
 # DP-270: extract `bundle_branch_alias` from a task.md leading YAML frontmatter
@@ -287,20 +233,10 @@ resolve_workspace_repo_slug() {
     WORKSPACE_REPO="$(polaris_github_repo_slug "$REPO_PATH" 2>/dev/null || true)"
   fi
   if [[ -z "$WORKSPACE_REPO" ]]; then
-    WORKSPACE_REPO="$(git -C "$REPO_PATH" remote get-url origin 2>/dev/null | python3 -c '
-import re
-import sys
-url = sys.stdin.read().strip()
-patterns = [
-    r"github\\.com[:/]([^/]+)/([^/.]+)(?:\\.git)?$",
-    r"https://github\\.com/([^/]+)/([^/.]+)(?:\\.git)?$",
-]
-for pattern in patterns:
-    m = re.search(pattern, url)
-    if m:
-        print(f"{m.group(1)}/{m.group(2)}")
-        break
-' || true)"
+    local helper_dir remote_url
+    helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    remote_url="$(git -C "$REPO_PATH" remote get-url origin 2>/dev/null || true)"
+    WORKSPACE_REPO="$(python3 "$helper_dir/release_closeout_helpers.py" repo-slug "$remote_url")"
   fi
 }
 

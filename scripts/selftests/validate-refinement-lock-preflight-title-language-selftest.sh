@@ -63,7 +63,7 @@ set +e
 out_en="$(bash "$PREFLIGHT" "$TMP/english.json" 2>&1)"; rc_en=$?
 set -e
 [[ "$rc_en" -eq 2 ]] && ok || bad "English-only title should fail-stop with exit 2 (got $rc_en)"
-printf '%s' "$out_en" | grep -q 'POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED' \
+grep -q 'POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED' <<< "$out_en" \
   && ok || bad "English-only title failure should emit POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED"
 
 # --- Case 2: all zh-TW title -> PASS ------------------------------------------
@@ -107,7 +107,7 @@ set +e
 out_nt="$(bash "$PREFLIGHT" "$TMP/notitle.json" 2>&1)"; rc_nt=$?
 set -e
 [[ "$rc_nt" -eq 2 ]] && ok || bad "title-less planned task should fail-stop exit 2 under full-derive (got $rc_nt): $out_nt"
-printf '%s' "$out_nt" | grep -q 'POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED' \
+grep -q 'POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED' <<< "$out_nt" \
   && ok || bad "title-less task failure should emit POLARIS_REFINEMENT_LOCK_PREFLIGHT_FAILED"
 
 # --- Case 4: reuse, no second classifier --------------------------------------

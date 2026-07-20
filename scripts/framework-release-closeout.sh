@@ -367,68 +367,23 @@ resolve_current_task_md_path() {
     return 0
   fi
 
-  python3 - "$path" <<'PY'
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-parts = list(path.parts)
-try:
-    idx = parts.index("design-plans")
-except ValueError:
-    print(path)
-    raise SystemExit(0)
-
-if idx + 1 < len(parts) and parts[idx + 1] != "archive":
-    archived = Path(*parts[:idx + 1], "archive", *parts[idx + 1:])
-    print(archived)
-else:
-    print(path)
-PY
+  python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" resolve-current-task "$path"
 }
 
 resolve_source_container_for_task() {
   local task_md="$1"
-  python3 - "$task_md" <<'PY'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1]).resolve()
-parts = path.parts
-if "tasks" not in parts:
-    print("")
-    raise SystemExit(0)
-idx = len(parts) - 1 - list(reversed(parts)).index("tasks")
-print(Path(*parts[:idx]).as_posix())
-PY
+  python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" source-container "$task_md"
 }
 
 parent_file_for_task() {
   local task_md="$1"
-  python3 - "$task_md" <<'PY'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1]).resolve()
-parts = path.parts
-if "tasks" not in parts:
-    print("")
-    raise SystemExit(0)
-idx = len(parts) - 1 - list(reversed(parts)).index("tasks")
-parent = Path(*parts[:idx])
-for name in ("index.md", "refinement.md", "plan.md"):
-    candidate = parent / name
-    if candidate.exists():
-        print(candidate)
-        raise SystemExit(0)
-print("")
-PY
+  python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" parent-file "$task_md"
 }
 
 json_field() {
   local json="$1"
   local expr="$2"
-  python3 -c "import json,sys; d=json.load(sys.stdin); print(${expr} or '')" <<<"$json"
+  python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" json-field "$json" "$expr"
 }
 
 frontmatter_status() {
@@ -500,40 +455,7 @@ no_branch_deliverable_present() {
 update_frontmatter_status() {
   local file="$1"
   local new_status="$2"
-  python3 - "$file" "$new_status" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-new_status = sys.argv[2]
-
-content = path.read_text(encoding="utf-8")
-lines = content.split("\n")
-
-if lines and lines[0] == "---":
-    try:
-        close_idx = lines.index("---", 1)
-    except ValueError:
-        print(f"ERROR: unclosed frontmatter in {path}", file=sys.stderr)
-        sys.exit(1)
-
-    fm = lines[1:close_idx]
-    found = False
-    for idx, line in enumerate(fm):
-        if re.match(r"^status:\s*", line):
-            fm[idx] = f"status: {new_status}"
-            found = True
-            break
-    if not found:
-        fm.append(f"status: {new_status}")
-
-    new_content = "---\n" + "\n".join(fm) + "\n---\n" + "\n".join(lines[close_idx + 1:])
-else:
-    new_content = f"---\nstatus: {new_status}\n---\n\n" + content
-
-path.write_text(new_content, encoding="utf-8")
-PY
+  python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" update-status "$file" "$new_status"
 }
 
 mark_task_implemented() {
@@ -666,6 +588,21 @@ resolve_gh_bin() {
   return 0
 }
 
+resolve_bare_pr_repo() {
+  local pr_ref="$1"
+  local task_id="$2"
+  [[ "$pr_ref" =~ ^[0-9]+$ ]] || return 0
+  local remote_repos remote_repo_count
+  remote_repos="$(python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" github-remote-repos "$REPO_ROOT")"
+  remote_repo_count="$(printf '%s\n' "$remote_repos" | awk 'NF {n++} END {print n+0}')"
+  if [[ "$remote_repo_count" -gt 1 ]]; then
+    die "deliverable bare PR number is ambiguous for ${task_id}: ${pr_ref}; multiple GitHub remotes found, record the full PR URL"
+  fi
+  if [[ "$remote_repo_count" -eq 1 ]]; then
+    printf '%s\n' "$remote_repos"
+  fi
+}
+
 # DP-305 D1/D2: close one bundled task PR resolved from the task.md
 # `deliverable.pr_url` (NOT head ancestry). Keyed on RELEASE EVIDENCE — the fact
 # that closeout is running at release time plus a recorded deliverable PR — so a
@@ -677,7 +614,7 @@ resolve_gh_bin() {
 close_bundled_task_pr() {
   local parser_json="$1"
   local task_id="$2"
-  local pr_url pr_ref pr_state
+  local pr_url pr_ref pr_state bare_pr_repo
 
   pr_url="$(json_field "$parser_json" "d.get('frontmatter', {}).get('deliverable', {}).get('pr_url')")"
   if [[ -z "$pr_url" ]]; then
@@ -685,11 +622,14 @@ close_bundled_task_pr() {
     return 0
   fi
 
-  # Accept either a full PR URL or a bare PR number as the gh ref.
+  # Preserve a full PR URL so gh retains its owner/repo context. A bare number
+  # may use ambient context only when the checkout does not expose conflicting
+  # GitHub remotes; otherwise fail loud instead of acting on the wrong repo.
   if [[ "$pr_url" =~ /pull/([0-9]+) ]]; then
-    pr_ref="${BASH_REMATCH[1]}"
+    pr_ref="$pr_url"
   elif [[ "$pr_url" =~ ^[0-9]+$ ]]; then
     pr_ref="$pr_url"
+    bare_pr_repo="$(resolve_bare_pr_repo "$pr_ref" "$task_id")"
   else
     die "deliverable PR url malformed for ${task_id}: ${pr_url} (expected .../pull/<n> or a PR number)"
   fi
@@ -697,7 +637,11 @@ close_bundled_task_pr() {
   resolve_gh_bin
 
   # Idempotent skip: query current PR state; only OPEN PRs get closed/commented.
-  pr_state="$("$GH_BIN" pr view "$pr_ref" --json state -q .state 2>/dev/null || true)"
+  if [[ -n "${bare_pr_repo:-}" ]]; then
+    pr_state="$("$GH_BIN" pr view "$pr_ref" --repo "$bare_pr_repo" --json state -q .state 2>/dev/null || true)"
+  else
+    pr_state="$("$GH_BIN" pr view "$pr_ref" --json state -q .state 2>/dev/null || true)"
+  fi
   pr_state="$(printf '%s' "$pr_state" | tr '[:lower:]' '[:upper:]' | tr -d '[:space:]')"
   case "$pr_state" in
     MERGED|CLOSED)
@@ -714,12 +658,21 @@ close_bundled_task_pr() {
   write_task_pr_close_comment "$comment_file" "$(read_workspace_language "$REPO_ROOT")"
   gate_github_comment_body "$comment_file"
 
-  "$GH_BIN" pr comment "$pr_ref" \
-    --body-file "$comment_file" \
-    || die "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery hint=failed to comment released note on PR #${pr_ref} for ${task_id}"
+  if [[ -n "${bare_pr_repo:-}" ]]; then
+    "$GH_BIN" pr comment "$pr_ref" --repo "$bare_pr_repo" --body-file "$comment_file" \
+      || die "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery hint=failed to comment released note on PR #${pr_ref} for ${task_id}"
+  else
+    "$GH_BIN" pr comment "$pr_ref" --body-file "$comment_file" \
+      || die "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery hint=failed to comment released note on PR #${pr_ref} for ${task_id}"
+  fi
   rm -f "$comment_file"
-  "$GH_BIN" pr close "$pr_ref" --delete-branch \
-    || die "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery hint=failed to close PR #${pr_ref} for ${task_id}"
+  if [[ -n "${bare_pr_repo:-}" ]]; then
+    "$GH_BIN" pr close "$pr_ref" --repo "$bare_pr_repo" --delete-branch \
+      || die "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery hint=failed to close PR #${pr_ref} for ${task_id}"
+  else
+    "$GH_BIN" pr close "$pr_ref" --delete-branch \
+      || die "POLARIS_TOOL_AUTH_FAILED tool=gh owner=delivery hint=failed to close PR #${pr_ref} for ${task_id}"
+  fi
   info "closed bundled task PR #${pr_ref} for ${task_id} (released ${VERSION_TAG})"
 }
 
@@ -731,7 +684,7 @@ deliverable_pr_ref_from_parser() {
   pr_url="$(json_field "$parser_json" "d.get('frontmatter', {}).get('deliverable', {}).get('pr_url')")"
   [[ -n "$pr_url" ]] || return 0
   if [[ "$pr_url" =~ /pull/([0-9]+) ]]; then
-    pr_ref="${BASH_REMATCH[1]}"
+    pr_ref="$pr_url"
   elif [[ "$pr_url" =~ ^[0-9]+$ ]]; then
     pr_ref="$pr_url"
   else
@@ -744,7 +697,7 @@ assert_active_deliverable_head_fresh() {
   local parser_json="$1"
   local task_id="$2"
   local task_head_sha="$3"
-  local pr_ref pr_state pr_head
+  local pr_ref pr_state pr_head bare_pr_repo
 
   pr_ref="$(deliverable_pr_ref_from_parser "$parser_json" "$task_id")"
   [[ -n "$pr_ref" ]] || return 0
@@ -758,7 +711,12 @@ assert_active_deliverable_head_fresh() {
   esac
 
   resolve_gh_bin
-  pr_head="$("$GH_BIN" pr view "$pr_ref" --json headRefOid -q .headRefOid 2>/dev/null || true)"
+  bare_pr_repo="$(resolve_bare_pr_repo "$pr_ref" "$task_id")"
+  if [[ -n "$bare_pr_repo" ]]; then
+    pr_head="$("$GH_BIN" pr view "$pr_ref" --repo "$bare_pr_repo" --json headRefOid -q .headRefOid 2>/dev/null || true)"
+  else
+    pr_head="$("$GH_BIN" pr view "$pr_ref" --json headRefOid -q .headRefOid 2>/dev/null || true)"
+  fi
   pr_head="$(printf '%s' "$pr_head" | tr -d '[:space:]')"
   [[ -n "$pr_head" ]] \
     || die "POLARIS_FRAMEWORK_RELEASE_STALE_DELIVERABLE_HEAD task=${task_id} evidence_status=unknown pr=${pr_ref} detail=unable_to_read_pr_head"
@@ -1232,36 +1190,7 @@ done
 #   determination here).
 ac_verification_fields() {
   local file="$1"
-  python3 - "$file" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-status = ""
-disposition = ""
-try:
-    text = Path(sys.argv[1]).read_text(encoding="utf-8")
-except OSError:
-    text = ""
-if text.startswith("---\n"):
-    end = text.find("\n---", 4)
-    if end != -1:
-        in_block = False
-        for line in text[4:end].splitlines():
-            if line == "ac_verification:":
-                in_block = True
-                continue
-            if in_block and line and not line.startswith((" ", "-")):
-                break
-            if in_block:
-                match = re.match(r"\s+status:\s*(\S+)", line)
-                if match and not status:
-                    status = match.group(1)
-                match = re.match(r"\s+human_disposition:\s*(\S+)", line)
-                if match and not disposition:
-                    disposition = match.group(1)
-print(f"{status}\t{disposition}")
-PY
+  python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" ac-verification-fields "$file"
 }
 
 # auto_advance_unlisted_v_tasks <source-container>
@@ -1489,24 +1418,8 @@ for i in "${!ABS_TASK_MDS[@]}"; do
     --vr-evidence "$vr_evidence"
 
   if [[ -n "$preflight_evidence" && "$preflight_evidence" != "N/A" ]]; then
-    python3 - "$task_md" "$preflight_evidence" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-task_path, preflight_evidence = sys.argv[1:3]
-path = Path(task_path)
-content = path.read_text(encoding="utf-8")
-block = "release_preflight:\n" f"  evidence: {preflight_evidence}\n"
-match = re.match(r"^---\n(.*?)^---\n", content, flags=re.DOTALL | re.MULTILINE)
-if not match:
-    path.write_text("---\n" + block + "---\n" + content, encoding="utf-8")
-else:
-    fm = re.sub(r"^release_preflight:(?:\n(?:[ \t]+[^\n]*))*\n?", "", match.group(1), flags=re.MULTILINE)
-    if fm and not fm.endswith("\n"):
-        fm += "\n"
-    path.write_text("---\n" + fm + block + "---\n" + content[match.end():], encoding="utf-8")
-PY
+    python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" attach-preflight \
+      "$task_md" "$preflight_evidence"
   fi
 
   bash "${CHECK_RELEASE_ELIGIBLE}" \

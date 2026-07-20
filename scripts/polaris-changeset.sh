@@ -90,6 +90,14 @@ import sys, re, unicodedata
 ticket = sys.argv[1].strip()
 title = sys.argv[2].strip()
 
+# Ticket text is part of a path and must be a canonical work-item identity, not
+# a glob or shell/path token. DP sources may append a T/V task suffix; ordinary
+# JIRA keys stop after the numeric issue id. Empty remains valid for explicit
+# non-ticket/admin callers.
+if ticket and not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*-[0-9]+(?:-(?:T|V)[0-9]+[a-z]*)?", ticket):
+    print(f"polaris-changeset: unsafe or malformed ticket identity: {ticket!r}", file=sys.stderr)
+    raise SystemExit(1)
+
 # Strip ticket prefix from title:
 #   [TICKET] foo  → foo
 #   TICKET: foo   → foo
@@ -133,9 +141,14 @@ if not short:
     short = "change"
 
 if ticket_kebab:
-    print(f"{ticket_kebab}-{short}")
+    result = f"{ticket_kebab}-{short}"
 else:
-    print(short)
+    result = short
+
+if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", result):
+    print(f"polaris-changeset: derived slug is not an exact safe path segment: {result!r}", file=sys.stderr)
+    raise SystemExit(1)
+print(result)
 PY
 }
 

@@ -48,7 +48,7 @@ _assert() {
 
 _assert_contains() {
   TOTAL=$((TOTAL + 1))
-  if printf '%s' "$1" | grep -qF -- "$2"; then
+  if grep -qF -- "$2" <<< "$1"; then
     PASS=$((PASS + 1))
   else
     FAIL=$((FAIL + 1))

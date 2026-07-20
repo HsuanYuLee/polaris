@@ -277,8 +277,8 @@ if [[ ! -f "$BRANCH_SETUP" ]]; then
   bad "AC4 missing: $BRANCH_SETUP"
 else
   ac4_assert() { if [[ "$1" == "$2" ]]; then ok "$3"; else bad "$3 (expected='$2' got='$1')"; fi; }
-  ac4_assert_contains() { if printf '%s' "$1" | grep -qF "$2"; then ok "$3"; else bad "$3 (missing '$2')"; fi; }
-  ac4_assert_not_contains() { if printf '%s' "$1" | grep -qF "$2"; then bad "$3 (unexpected '$2')"; else ok "$3"; fi; }
+  ac4_assert_contains() { if grep -qF "$2" <<< "$1"; then ok "$3"; else bad "$3 (missing '$2')"; fi; }
+  ac4_assert_not_contains() { if grep -qF "$2" <<< "$1"; then bad "$3 (unexpected '$2')"; else ok "$3"; fi; }
 
   AC4_TMP="$TMP/ac4"
   mkdir -p "$AC4_TMP"

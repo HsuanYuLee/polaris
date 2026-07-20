@@ -62,7 +62,9 @@
 #   breakdown    : <container>/tasks/T*/index.md, T*.md, V*/index.md, V*.md
 #                  <container>/tasks/**           (folder-native task artifacts)
 #                  <container>/refinement-inbox/**
-#   engineering  : files listed in task.md "## Allowed Files"
+#   engineering  : files listed in task.md "## Allowed Files" plus, when the
+#                  repo uses Changesets, the exact task-specific path derived by
+#                  polaris-changeset.sh (never a .changeset glob)
 #                  (--task-md required)
 #   verify-AC    : <container>/verification/V*/**
 #                  <container>/tasks/V*/**
@@ -81,6 +83,7 @@
 set -euo pipefail
 
 SCRIPT_PATH="${BASH_SOURCE[0]}"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 
 usage() {
   sed -n '3,58p' "$SCRIPT_PATH" >&2
@@ -211,6 +214,25 @@ for line in m.group(1).splitlines():
     if item:
         print(item)
 PY
+
+  if [[ -f "$REPO_REAL/.changeset/config.json" ]]; then
+    local ticket title changeset_path
+    ticket="$(bash "$SCRIPT_DIR/parse-task-md.sh" --field task_jira_key "$task_md" 2>/dev/null || true)"
+    title="$(bash "$SCRIPT_DIR/parse-task-md.sh" --field summary "$task_md" 2>/dev/null || true)"
+    if [[ -z "$ticket" || -z "$title" ]]; then
+      echo "ERROR: changeset-enabled repo requires a canonical task identity and title" >&2
+      exit 2
+    fi
+    if ! changeset_path="$(bash "$SCRIPT_DIR/polaris-changeset.sh" slug --ticket "$ticket" --title "$title" --print path)"; then
+      echo "ERROR: failed to derive canonical changeset path for $ticket" >&2
+      exit 2
+    fi
+    if [[ ! "$changeset_path" =~ ^\.changeset/[a-z0-9]+(-[a-z0-9]+)*\.md$ ]]; then
+      echo "ERROR: canonical changeset producer returned a non-exact path: $changeset_path" >&2
+      exit 2
+    fi
+    printf '%s\n' "$changeset_path"
+  fi
 }
 
 emit_recursive() {

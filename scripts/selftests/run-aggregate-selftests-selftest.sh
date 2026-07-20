@@ -12,6 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNNER="$ROOT_DIR/run-aggregate-selftests.sh"
 ENROLL="$ROOT_DIR/validate-selftest-enrollment.sh"
+ENROLL_MODULE="$ROOT_DIR/lib/validate_selftest_enrollment_1.py"
 : "${DEBUG:=0}"
 
 PASS=0
@@ -28,7 +29,7 @@ assert_eq() {
 
 assert_contains() {
   local haystack="$1" needle="$2" label="$3"
-  if printf '%s' "$haystack" | grep -qF -- "$needle"; then
+  if grep -qF -- "$needle" <<< "$haystack"; then
     PASS=$((PASS + 1)); [[ "$DEBUG" == "1" ]] && printf '  [ok] %s\n' "$label"
   else
     FAIL=$((FAIL + 1)); printf '  [FAIL] %s - needle=%s\n' "$label" "$needle"
@@ -37,7 +38,7 @@ assert_contains() {
 
 assert_not_contains() {
   local haystack="$1" needle="$2" label="$3"
-  if printf '%s' "$haystack" | grep -qF -- "$needle"; then
+  if grep -qF -- "$needle" <<< "$haystack"; then
     FAIL=$((FAIL + 1)); printf '  [FAIL] %s - unexpected needle=%s\n' "$label" "$needle"
   else
     PASS=$((PASS + 1)); [[ "$DEBUG" == "1" ]] && printf '  [ok] %s\n' "$label"
@@ -46,9 +47,10 @@ assert_not_contains() {
 
 FIX="$(mktemp -d -t aggregate-selftest-fix-XXXXXX)"
 trap 'rm -rf "$FIX"' EXIT
-mkdir -p "$FIX/scripts/selftests"
+mkdir -p "$FIX/scripts/lib" "$FIX/scripts/selftests"
 cp "$RUNNER" "$FIX/scripts/run-aggregate-selftests.sh"
 cp "$ENROLL" "$FIX/scripts/validate-selftest-enrollment.sh"
+cp "$ENROLL_MODULE" "$FIX/scripts/lib/validate_selftest_enrollment_1.py"
 
 git -C "$FIX" init -q
 git -C "$FIX" config user.email selftest@example.com

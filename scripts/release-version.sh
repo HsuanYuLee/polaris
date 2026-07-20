@@ -22,6 +22,8 @@
 #          marker fail-loud with POLARIS_RELEASE_VERSION_MULTI_DP_STACKING (AC-NEG2).
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 usage() {
   cat <<'USAGE'
 Usage: bash scripts/release-version.sh [--repo <path>]
@@ -82,17 +84,11 @@ if [[ ! -f "$PKG_JSON" ]]; then
 fi
 
 read_pkg_version() {
-  python3 - "$PKG_JSON" <<'PY'
-import json, sys
-print(json.load(open(sys.argv[1]))["version"])
-PY
+  python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" package-field "$PKG_JSON" version
 }
 
 read_pkg_name() {
-  python3 - "$PKG_JSON" <<'PY'
-import json, sys
-print(json.load(open(sys.argv[1]))["name"])
-PY
+  python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" package-field "$PKG_JSON" name
 }
 
 # Count pending changesets: *.md under .changeset/ excluding README.md.
@@ -155,44 +151,8 @@ assert_single_dp_aggregation() {
 assert_pending_changeset_package_keys_match() {
   local expected_package
   expected_package="$(read_pkg_name)"
-  python3 - "$CHANGESET_DIR" "$expected_package" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-changeset_dir = Path(sys.argv[1])
-expected = sys.argv[2]
-mismatches = []
-
-if changeset_dir.exists():
-    for path in sorted(changeset_dir.glob("*.md")):
-        if path.name == "README.md":
-            continue
-        text = path.read_text(encoding="utf-8")
-        if not text.startswith("---"):
-            continue
-        parts = text.split("---", 2)
-        if len(parts) < 3:
-            continue
-        frontmatter = parts[1]
-        for line in frontmatter.splitlines():
-            match = re.match(r"""\s*["']?([^"':]+)["']?\s*:\s*(major|minor|patch)\s*(?:#.*)?$""", line)
-            if not match:
-                continue
-            package = match.group(1).strip()
-            if package != expected:
-                mismatches.append((path.name, package))
-
-if mismatches:
-    print(
-        "POLARIS_RELEASE_VERSION_CHANGESET_PACKAGE_MISMATCH: pending changeset package key does not match package.json name.",
-        file=sys.stderr,
-    )
-    print(f"  expected: {expected}", file=sys.stderr)
-    for filename, package in mismatches:
-        print(f"  - {filename}: {package}", file=sys.stderr)
-    sys.exit(1)
-PY
+  python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" validate-changeset-packages \
+    "$CHANGESET_DIR" "$expected_package"
 }
 
 assert_feat_branch_contains_current_main_before_version() {
@@ -348,106 +308,8 @@ fi
 # left unchanged); fail-loud (a tagged block that collates to zero buckets exits
 # non-zero so a malformed formatter contract cannot pass silently).
 collate_changelog_block() {
-  python3 - "$CHANGELOG" "$VERSION_AFTER" "$(date +%Y-%m-%d)" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-changelog_path = Path(sys.argv[1])
-version = sys.argv[2]
-release_date = sys.argv[3]
-
-# Keep a Changelog canonical section order
-# (https://keepachangelog.com/en/1.1.0/).
-SECTION_ORDER = ["Added", "Changed", "Deprecated", "Removed", "Fixed", "Security"]
-
-text = changelog_path.read_text(encoding="utf-8")
-lines = text.split("\n")
-
-# Locate the newest "## <version>" heading and the extent of its block (up to the
-# next "## " heading or end of file).
-version_heading_re = re.compile(r"^## (?:\[)?" + re.escape(version) + r"(?:\])?(?:\s|$)")
-start = None
-for i, line in enumerate(lines):
-    if version_heading_re.match(line):
-        start = i
-        break
-
-if start is None:
-    # CHANGELOG verify already guarantees the block exists; treat absence here as
-    # a contract failure rather than silently passing.
-    sys.stderr.write(
-        "POLARIS_RELEASE_VERSION_COLLATE_BLOCK_MISSING: no '## %s' heading to collate\n"
-        % version
-    )
-    sys.exit(1)
-
-end = len(lines)
-for j in range(start + 1, len(lines)):
-    if lines[j].startswith("## "):
-        end = j
-        break
-
-block = lines[start:end]
-
-# Bucket tagged release lines by their "[<Section>]" tag. A tagged line and its
-# indented continuation lines (changesets renders multi-line summaries with a
-# two-space indent) travel together.
-tag_re = re.compile(r"^- \[([A-Za-z]+)\]\s?(.*)$")
-buckets = {name: [] for name in SECTION_ORDER}
-tagged_count = 0
-current_section = None
-
-for raw in block[1:]:  # skip the "## <version>" heading itself
-    m = tag_re.match(raw)
-    if m:
-        section = m.group(1).capitalize()
-        if section not in buckets:
-            # Unknown tag → fold into Changed so nothing is dropped.
-            section = "Changed"
-        current_section = section
-        buckets[section].append("- " + m.group(2).rstrip())
-        tagged_count += 1
-        continue
-    # Indented continuation of the current tagged entry.
-    if current_section is not None and (raw.startswith("  ") or raw.strip() == ""):
-        if raw.strip() == "":
-            current_section = None  # blank line ends the entry
-        else:
-            buckets[current_section].append(raw.rstrip())
-
-if tagged_count == 0:
-    # Idempotent / no-op: block already collated (or no formatter-tagged lines).
-    # Leave the file untouched and exit success.
-    sys.exit(0)
-
-emitted_sections = [name for name in SECTION_ORDER if buckets[name]]
-if not emitted_sections:
-    sys.stderr.write(
-        "POLARIS_RELEASE_VERSION_COLLATE_EMPTY: %d tagged line(s) in '## %s' "
-        "collated to zero Keep a Changelog sections\n" % (tagged_count, version)
-    )
-    sys.exit(1)
-
-# Rewrite the changesets-default "## <version>" heading into the Keep a Changelog
-# release heading "## [<version>] - <date>" (AC10). The collator only runs on a
-# tagged (freshly pressed) block, so this rewrite is bounded to the new release
-# and never rewrites already-published history. Idempotency still holds: once the
-# block is collated the "[<Section>]" tags are gone, so a re-run sees
-# tagged_count == 0 and exits before reaching this point, leaving the
-# "## [<version>] - <date>" heading untouched.
-kac_heading = "## [%s] - %s" % (version, release_date)
-new_block = [kac_heading, ""]
-for name in emitted_sections:
-    new_block.append("### " + name)
-    new_block.append("")
-    new_block.extend(buckets[name])
-    new_block.append("")
-
-rebuilt = lines[:start] + new_block + lines[end:]
-changelog_path.write_text("\n".join(rebuilt), encoding="utf-8")
-sys.exit(0)
-PY
+  python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" collate-changelog \
+    "$CHANGELOG" "$VERSION_AFTER" "$(date +%Y-%m-%d)"
 }
 
 if ! collate_changelog_block; then

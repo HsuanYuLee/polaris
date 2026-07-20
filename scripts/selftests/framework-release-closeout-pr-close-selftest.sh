@@ -42,7 +42,7 @@ _assert_eq() {
 
 _assert_contains() {
   TOTAL=$((TOTAL + 1))
-  if printf '%s' "$1" | grep -qF -- "$2"; then
+  if grep -qF -- "$2" <<< "$1"; then
     PASS=$((PASS + 1))
   else
     FAIL=$((FAIL + 1))
@@ -53,7 +53,7 @@ _assert_contains() {
 
 _assert_not_contains() {
   TOTAL=$((TOTAL + 1))
-  if printf '%s' "$1" | grep -qF -- "$2"; then
+  if grep -qF -- "$2" <<< "$1"; then
     FAIL=$((FAIL + 1))
     printf '[FAILED %d] %s: substring should NOT appear: %q\n' "$TOTAL" "$3" "$2" >&2
   else
@@ -151,8 +151,7 @@ STUB
 #   FAKE_GH_PR_STATE_<num>  => OPEN | MERGED | CLOSED  (per PR number)
 #   FAKE_GH_LOG             => path; every gh invocation is appended verbatim
 #   FAKE_GH_AUTH            => ok (default) | fail
-# Supports: `gh auth status`, `gh pr view <n> --json state -q .state`,
-#           `gh pr comment <n> ...`, `gh pr close <n> --delete-branch`.
+# Supports PR numbers and full GitHub PR URLs for view/comment/close.
 # ---------------------------------------------------------------------------
 make_fake_gh() {
   local path="$1"
@@ -161,10 +160,11 @@ make_fake_gh() {
 set -euo pipefail
 printf 'gh %s\n' "$*" >>"${FAKE_GH_LOG:?}"
 
-# pr_number_from_args: scan for the first bare integer arg (the PR number).
+# pr_number_from_args: scan for a bare integer or full PR URL.
 pr_num=""
 for a in "$@"; do
   if [[ "$a" =~ ^[0-9]+$ ]]; then pr_num="$a"; break; fi
+  if [[ "$a" =~ /pull/([0-9]+) ]]; then pr_num="${BASH_REMATCH[1]}"; break; fi
 done
 
 state_for() {
@@ -180,8 +180,12 @@ case "$1" in
   pr)
     case "$2" in
       view)
-        # Emit the state for the requested PR. We only support `--json state -q .state`.
-        state_for "$pr_num"
+        if [[ " $* " == *" headRefOid "* ]]; then
+          head_var="FAKE_GH_PR_HEAD_${pr_num}"
+          printf '%s' "${!head_var:-}"
+        else
+          state_for "$pr_num"
+        fi
         echo
         exit 0
         ;;
@@ -225,6 +229,7 @@ init_workspace_repo() {
 #   $1 repo  $2 dp  $3 suffix  $4 branch  $5 bundle-alias  $6 allowed  $7 pr_url
 write_bundle_task_container() {
   local repo="$1" dp="$2" suffix="$3" branch="$4" alias="$5" allowed="$6" pr_url="$7"
+  local head_sha="${8:-}"
   local dir="$repo/docs-manager/src/content/docs/specs/design-plans/${dp}-fixture"
   mkdir -p "$dir/tasks/$suffix"
   cat >"$dir/index.md" <<MD
@@ -242,6 +247,7 @@ MD
       printf 'deliverable:\n'
       printf '  pr_url: %s\n' "$pr_url"
       printf '  pr_state: OPEN\n'
+      [[ -n "$head_sha" ]] && printf '  head_sha: %s\n' "$head_sha"
     }
     printf 'status: IN_PROGRESS\n'
     printf 'task_kind: T\n'
@@ -276,6 +282,7 @@ run_closeout() {
   CLOSEOUT_OUT="$(POLARIS_STUB_LOG="$STUB_LOG" GH_BIN="${GH_BIN:-}" \
     FAKE_GH_LOG="${FAKE_GH_LOG:-}" FAKE_GH_AUTH="${FAKE_GH_AUTH:-ok}" \
     FAKE_GH_PR_STATE_1="${FAKE_GH_PR_STATE_1:-OPEN}" \
+    FAKE_GH_PR_HEAD_1="${FAKE_GH_PR_HEAD_1:-}" \
     bash "$scripts_dir/framework-release-closeout.sh" "$@" 2>&1)"
   CLOSEOUT_RC=$?
   set -e
@@ -319,6 +326,89 @@ build_refold_bundle() {
 }
 
 # ===========================================================================
+# Case MULTI-REMOTE: a bare PR number with two distinct legal GitHub remotes
+# must fail loud even when one repo is dotted and the other uses ssh://.
+# ===========================================================================
+{
+  build_refold_bundle multi DP-905 "1"
+  git -C "$WS" remote add origin https://github.com/exampleco/repo.one.git
+  git -C "$WS" remote add upstream ssh://git@github.com/exampleco/repo-two.git
+  GH="$TMPROOT/multi-gh"; make_fake_gh "$GH"
+  GH_LOG="$TMPROOT/multi-gh.log"; : >"$GH_LOG"
+
+  GH_BIN="$GH" FAKE_GH_LOG="$GH_LOG" FAKE_GH_AUTH=ok \
+    run_closeout "$SCRIPTS" \
+      --task-md "$TASK_MD" --task-head-sha "DP-905-T1=${TASK_HEAD}" \
+      --verify-evidence "$MARKER" \
+      --workspace-commit "$RELEASE_HEAD" --template-commit "$RELEASE_HEAD" \
+      --version-tag v1.0.0 --release-url N/A --repo "$WS"
+
+  _assert_eq "$CLOSEOUT_RC" "2" "MULTI-REMOTE bare PR fails loud"
+  _assert_contains "$CLOSEOUT_OUT" "multiple GitHub remotes found" "MULTI-REMOTE emits ambiguity marker"
+  _assert_not_contains "$(cat "$GH_LOG")" "pr view 1" "MULTI-REMOTE never queries ambient PR context"
+}
+
+# ===========================================================================
+# Case UNIQUE-REMOTE: a bare PR number with one ssh:// dotted GitHub remote
+# binds every freshness/view/comment/close call to the parsed --repo context.
+# ===========================================================================
+{
+  build_refold_bundle unique DP-906 "1"
+  git -C "$WS" remote add origin ssh://git@github.com/exampleco/repo.one.git
+  GH="$TMPROOT/unique-gh"; make_fake_gh "$GH"
+  GH_LOG="$TMPROOT/unique-gh.log"; : >"$GH_LOG"
+
+  GH_BIN="$GH" FAKE_GH_LOG="$GH_LOG" FAKE_GH_AUTH=ok \
+    FAKE_GH_PR_HEAD_1="$TASK_HEAD" \
+    run_closeout "$SCRIPTS" \
+      --task-md "$TASK_MD" --task-head-sha "DP-906-T1=${TASK_HEAD}" \
+      --verify-evidence "$MARKER" \
+      --workspace-commit "$RELEASE_HEAD" --template-commit "$RELEASE_HEAD" \
+      --version-tag v1.0.0 --release-url N/A --repo "$WS"
+
+  _assert_eq "$CLOSEOUT_RC" "0" "UNIQUE-REMOTE closeout exits 0"
+  GH_OUT="$(cat "$GH_LOG")"
+  _assert_contains "$GH_OUT" "pr view 1 --repo exampleco/repo.one --json state" "UNIQUE-REMOTE state query carries --repo"
+  _assert_contains "$GH_OUT" "pr comment 1 --repo exampleco/repo.one" "UNIQUE-REMOTE comment carries --repo"
+  _assert_contains "$GH_OUT" "pr close 1 --repo exampleco/repo.one" "UNIQUE-REMOTE close carries --repo"
+}
+
+# The active-deliverable freshness lane resolves the same unique repo before
+# reading headRefOid. Use a non-bundle task whose delivered head is the release
+# head so the entire closeout remains valid after the freshness assertion.
+{
+  build_refold_bundle fresh DP-907 "1"
+  git -C "$WS" remote add origin ssh://git@github.com/exampleco/repo.one.git
+  python3 - "$TASK_MD" "$RELEASE_HEAD" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+lines = [
+    line
+    for line in path.read_text(encoding="utf-8").splitlines()
+    if not line.startswith("bundle_branch_alias:")
+]
+text = "\n".join(lines) + "\n"
+text = text.replace("  pr_state: OPEN\n", f"  pr_state: OPEN\n  head_sha: {sys.argv[2]}\n", 1)
+path.write_text(text, encoding="utf-8")
+PY
+  valid_verify_marker "$MARKER" "DP-907-T1" "$RELEASE_HEAD"
+  GH="$TMPROOT/fresh-gh"; make_fake_gh "$GH"
+  GH_LOG="$TMPROOT/fresh-gh.log"; : >"$GH_LOG"
+
+  GH_BIN="$GH" FAKE_GH_LOG="$GH_LOG" FAKE_GH_AUTH=ok \
+    FAKE_GH_PR_HEAD_1="$RELEASE_HEAD" \
+    run_closeout "$SCRIPTS" \
+      --task-md "$TASK_MD" --verify-evidence "$MARKER" \
+      --workspace-commit "$RELEASE_HEAD" --template-commit "$RELEASE_HEAD" \
+      --version-tag v1.0.0 --release-url N/A --repo "$WS"
+
+  _assert_eq "$CLOSEOUT_RC" "0" "UNIQUE-FRESHNESS closeout exits 0"
+  _assert_contains "$(cat "$GH_LOG")" "pr view 1 --repo exampleco/repo.one --json headRefOid" "UNIQUE-FRESHNESS query carries --repo"
+}
+
+# ===========================================================================
 # Case PR1 (AC1 + AC2): re-fold bundle with an OPEN deliverable PR #1. Closeout
 # must run `gh pr close 1 --delete-branch` + a zh-TW release comment even
 # though the per-task head is NOT a main-ancestor. Then a SECOND run with PR #1
@@ -338,9 +428,9 @@ build_refold_bundle() {
 
   _assert_eq "$CLOSEOUT_RC" "0" "PR1 closeout exits 0"
   GH_OUT="$(cat "$GH_LOG")"
-  _assert_contains "$GH_OUT" "pr close 1" "PR1 gh pr close called for PR #1"
+  _assert_contains "$GH_OUT" "pr close https://github.com/example-org/example/pull/1" "PR1 gh pr close preserves full PR URL"
   _assert_contains "$GH_OUT" "--delete-branch" "PR1 close uses --delete-branch"
-  _assert_contains "$GH_OUT" "pr comment 1" "PR1 released-version comment posted"
+  _assert_contains "$GH_OUT" "pr comment https://github.com/example-org/example/pull/1" "PR1 released-version comment preserves full PR URL"
   _assert_contains "$GH_OUT" "已發版 v1.0.0" "PR1 comment carries zh-TW released version"
   _assert_not_contains "$GH_OUT" "bundled into the release" "PR1 comment no longer uses English default prose"
 
@@ -354,8 +444,8 @@ build_refold_bundle() {
       --version-tag v1.0.0 --release-url N/A --repo "$WS"
   _assert_eq "$CLOSEOUT_RC" "0" "PR1 rerun exits 0 (idempotent)"
   GH_OUT2="$(cat "$GH_LOG")"
-  _assert_not_contains "$GH_OUT2" "pr close 1" "PR1 rerun does NOT re-close closed PR"
-  _assert_not_contains "$GH_OUT2" "pr comment 1" "PR1 rerun does NOT re-comment closed PR"
+  _assert_not_contains "$GH_OUT2" "pr close https://github.com/example-org/example/pull/1" "PR1 rerun does NOT re-close closed PR"
+  _assert_not_contains "$GH_OUT2" "pr comment https://github.com/example-org/example/pull/1" "PR1 rerun does NOT re-comment closed PR"
 }
 
 # ===========================================================================
@@ -375,8 +465,8 @@ build_refold_bundle() {
       --version-tag v1.0.0 --release-url N/A --repo "$WS"
   _assert_eq "$CLOSEOUT_RC" "0" "PRM merged-PR closeout exits 0"
   GH_OUT="$(cat "$GH_LOG")"
-  _assert_not_contains "$GH_OUT" "pr close 1" "PRM does NOT close already-merged PR"
-  _assert_not_contains "$GH_OUT" "pr comment 1" "PRM does NOT comment already-merged PR"
+  _assert_not_contains "$GH_OUT" "pr close https://github.com/example-org/example/pull/1" "PRM does NOT close already-merged PR"
+  _assert_not_contains "$GH_OUT" "pr comment https://github.com/example-org/example/pull/1" "PRM does NOT comment already-merged PR"
 }
 
 # ===========================================================================

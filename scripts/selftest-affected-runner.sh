@@ -20,6 +20,8 @@
 #                               --changed is given, the newline-separated changed
 #                               list is read from stdin.
 #          --root <repo>        workspace root (default: repo containing this script).
+#          --base-ref <ref>     comparison base for targeted red classification
+#                               (default: upstream merge-base, then origin/main).
 #          --emit               EMIT MODE (default): print the affected selftest set,
 #                               one repo-relative path per line, deterministically
 #                               sorted. When the change set escalates to full corpus,
@@ -43,6 +45,8 @@ readonly FULL_CORPUS_SENTINEL="POLARIS_AFFECTED_FULL_CORPUS"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 MODE="emit"
+BASE_REF="${POLARIS_AFFECTED_BASE_REF:-}"
+BASE_WORKTREE=""
 CHANGED_FILES=()
 
 die() {
@@ -74,6 +78,11 @@ while [[ $# -gt 0 ]]; do
       CHANGED_FILES+=("$2")
       shift 2
       ;;
+    --base-ref)
+      [[ $# -ge 2 ]] || die "POLARIS_AFFECTED_ARG: --base-ref requires a value"
+      BASE_REF="$2"
+      shift 2
+      ;;
     --emit)
       MODE="emit"
       shift
@@ -91,6 +100,88 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+cleanup_base_worktree() {
+  if [[ -n "${BASE_WORKTREE:-}" && -d "$BASE_WORKTREE" ]]; then
+    git -C "$ROOT_DIR" worktree remove --force "$BASE_WORKTREE" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup_base_worktree EXIT
+
+resolve_base_ref() {
+  if [[ -n "$BASE_REF" ]]; then
+    printf '%s\n' "$BASE_REF"
+    return 0
+  fi
+
+  local upstream=""
+  upstream="$(git -C "$ROOT_DIR" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
+  if [[ -n "$upstream" ]]; then
+    git -C "$ROOT_DIR" merge-base HEAD "$upstream" 2>/dev/null && return 0
+  fi
+  git -C "$ROOT_DIR" merge-base HEAD origin/main 2>/dev/null && return 0
+  return 1
+}
+
+ensure_base_worktree() {
+  if [[ -n "${BASE_WORKTREE:-}" && -d "$BASE_WORKTREE" ]]; then
+    return 0
+  fi
+  local base="" candidate=""
+  base="$(resolve_base_ref || true)"
+  [[ -n "$base" ]] || return 1
+  candidate="$(mktemp -d -t affected-base.XXXXXX)"
+  rmdir "$candidate" || return 1
+  git -C "$ROOT_DIR" worktree add -q --detach "$candidate" "$base" >/dev/null 2>&1 || return 1
+  BASE_WORKTREE="$candidate"
+}
+
+is_tracked_base_debt() {
+  local member="$1" current_rc="$2" current_log="$3"
+  local base_log="" base_rc=0
+  ensure_base_worktree || return 1
+  [[ -f "$BASE_WORKTREE/$member" ]] || return 1
+  base_log="$(mktemp -t affected-base-output.XXXXXX)"
+  set +e
+  bash "$BASE_WORKTREE/$member" >"$base_log" 2>&1
+  base_rc=$?
+  set -e
+  if [[ "$base_rc" -eq 0 || "$base_rc" -ne "$current_rc" ]]; then
+    rm -f "$base_log"
+    return 1
+  fi
+  require_tool python3
+  if python3 - "$current_log" "$base_log" "$ROOT_DIR" "$BASE_WORKTREE" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+current_path, base_path, current_root, base_root = sys.argv[1:]
+
+
+def signature(path, own_root, other_root):
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    text = text.replace(own_root, "<ROOT>").replace(other_root, "<ROOT>")
+    lines = [line.rstrip() for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    while lines and not lines[-1]:
+        lines.pop()
+    return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
+
+
+raise SystemExit(
+    0
+    if signature(current_path, current_root, base_root)
+    == signature(base_path, base_root, current_root)
+    else 1
+)
+PY
+  then
+    rm -f "$base_log"
+    return 0
+  fi
+  rm -f "$base_log"
+  return 1
+}
 
 # When no --changed flags were given, read the changed list from stdin (one path
 # per line). Empty / whitespace lines are dropped.
@@ -134,6 +225,17 @@ is_shared_surface() {
     scripts/lib/*) return 0 ;;
   esac
   return 1
+}
+
+full_corpus_state_is_stale() {
+  local evaluator="$ROOT_DIR/.claude/hooks/selftest-staleness-eval.sh"
+  local report=""
+  [[ -f "$evaluator" ]] || return 0
+  report="$(CLAUDE_PROJECT_DIR="$ROOT_DIR" bash "$evaluator" --report </dev/null 2>/dev/null || true)"
+  if [[ "$report" == *"decision=FRESH"* ]]; then
+    return 1
+  fi
+  return 0
 }
 
 # closure_from_naming — print the naming-convention selftest member(s) for a changed
@@ -237,6 +339,20 @@ PY
 }
 
 # --- Compute closure ---------------------------------------------------------
+# A stale, missing, malformed, or unavailable canonical full-run state widens
+# every change set to the full backstop. The pre-push adapter consumes the emit
+# sentinel and defers execution to the PR/promotion lane; direct --run callers
+# execute the backstop now. A fresh state permits normal affected selection.
+if full_corpus_state_is_stale; then
+  if [[ "$MODE" == "emit" ]]; then
+    printf '%s\n' "$FULL_CORPUS_SENTINEL"
+    exit 0
+  fi
+  backstop="$ROOT_DIR/scripts/run-aggregate-selftests.sh"
+  [[ -f "$backstop" ]] || die "POLARIS_AFFECTED_BACKSTOP_MISSING: $backstop (stale full-corpus state cannot run)"
+  exec bash "$backstop" --root "$ROOT_DIR"
+fi
+
 # First pass: any shared-surface changed path escalates the whole run to full corpus.
 escalate_full=0
 for rel in "${CHANGED_FILES[@]}"; do
@@ -293,9 +409,22 @@ fi
 rc=0
 while IFS= read -r member; do
   [[ -n "$member" ]] || continue
-  if ! bash "$ROOT_DIR/$member"; then
-    printf 'POLARIS_AFFECTED_SELFTEST_RED:%s\n' "$member" >&2
-    rc=1
+  member_log="$(mktemp -t affected-current-output.XXXXXX)"
+  set +e
+  bash "$ROOT_DIR/$member" 2>&1 | tee "$member_log"
+  member_rc=${PIPESTATUS[0]}
+  set -e
+  if [[ "$member_rc" -eq 0 ]]; then
+    rm -f "$member_log"
+    continue
   fi
+  if is_tracked_base_debt "$member" "$member_rc" "$member_log"; then
+    printf 'TRACKED_DEBT %s — also red on comparison base\n' "$member"
+    rm -f "$member_log"
+    continue
+  fi
+  printf 'POLARIS_AFFECTED_SELFTEST_RED:%s\n' "$member" >&2
+  rm -f "$member_log"
+  rc=1
 done <<<"$affected"
 exit "$rc"

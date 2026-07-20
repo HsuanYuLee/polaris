@@ -238,7 +238,7 @@ python3 - "$REPO_ROOT/scripts/refinement-consumer-registry.json" <<'PY' \
 import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 records = {r["path"]: r for r in data.get("consumers", [])}
-record = records["scripts/backfill-refinement-verification-strategy.sh"]
+record = records["scripts/lib/refinement_backfill_verification_strategy.py"]
 assert set(record["accessor_vars"]) == {"task"}
 assert record["expected_fields"] == {"task": ["id", "kind"]}
 PY

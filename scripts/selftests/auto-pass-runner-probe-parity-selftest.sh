@@ -53,6 +53,49 @@ MD
 cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refinement.json" <<'JSON'
 {"source": {"type": "dp", "id": "DP-900"}, "modules": [], "acceptance_criteria": []}
 JSON
+mkdir -p "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/T1"
+cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/T1/index.md" <<'MD'
+---
+title: "DP-900-T1 gap owner fixture"
+description: "same-source owner existence fixture"
+status: IN_PROGRESS
+---
+MD
+
+echo "gap-scope-v1" >"$TMP/gap-scope.txt"
+git -C "$TMP" init -q
+git -C "$TMP" config user.email selftest@example.invalid
+git -C "$TMP" config user.name selftest
+git -C "$TMP" add .
+git -C "$TMP" commit -qm "parity fixture baseline"
+
+GAP_LEDGER="$TMP/current-head-gap-ledger.json"
+python3 - "$GAP_LEDGER" "$(git -C "$TMP" rev-parse HEAD)" <<'PY'
+import json, sys
+from pathlib import Path
+path, head = sys.argv[1:3]
+Path(path).write_text(json.dumps({
+    "schema_version": 1,
+    "source_id": "DP-900",
+    "authority": {
+        "source_id": "DP-900", "same_source_only": True,
+        "allowed_actions": ["gap_disposition", "task_repair"],
+        "forbidden_actions": [
+            "bypass", "cross_source_mutation", "partial_release", "release", "successor_source"
+        ],
+    },
+    "gaps": [{
+        "gap_id": "G1", "gap_key": "parity-gap", "source_id": "DP-900",
+        "reproducer": {"id": "parity-repro", "kind": "command", "argv": ["test", "-f", "gap-scope.txt"]},
+        "head": head, "observed": {"exit_code": 0, "state": "persisting"},
+        "disposition": "persisting_owned",
+        "owner": {"source_id": "DP-900", "work_item_id": "DP-900-T1"},
+        "terminal": False,
+        "evidence": [{"kind": "command_result", "reproducer_id": "parity-repro", "exit_code": 0}],
+        "currentness": {"status": "current", "scope_paths": ["gap-scope.txt"]},
+    }],
+}, indent=2) + "\n", encoding="utf-8")
+PY
 
 write_marker() {
   local path="$1" status="$2" source_id="${3:-DP-900}" work_item_id="${4:-DP-900-T1}"
@@ -178,8 +221,28 @@ if errs:
 PY
 }
 
+assert_parity_with_gap_ledger() {
+  local label="$1"; shift
+  local probe_out runner_out
+  probe_out="$(bash "$PROBE" --repo "$TMP" "$@")"
+  runner_out="$(bash "$RUNNER" --repo "$TMP" "$@" --gap-ledger "$GAP_LEDGER")"
+  python3 - "$label" "$probe_out" "$runner_out" <<'PY'
+import json, sys
+label, probe_raw, runner_raw = sys.argv[1:4]
+probe = json.loads(probe_raw)
+runner = json.loads(runner_raw)
+assert runner["status"] == probe["status"], (label, probe, runner)
+assert runner["terminal_status"] == probe["terminal_status"], (label, probe, runner)
+assert runner["next_action"] == "dispatch", (label, probe, runner)
+authority = runner.get("delegation_authority") or {}
+assert authority.get("allowed_actions") == ["gap_disposition", "task_repair"], (label, runner)
+assert authority.get("same_source_only") is True, (label, runner)
+PY
+}
+
 # ─── source stage parity ─────────────────────────────────────────────────────
 assert_parity "source-pass"            --stage source --source-id DP-900
+assert_parity_with_gap_ledger "source-pass-with-gap-ledger" --stage source --source-id DP-900
 
 # ─── breakdown parity ────────────────────────────────────────────────────────
 write_marker "$TMP/.polaris/evidence/task-snapshot/DP-900-T1.json" PASS

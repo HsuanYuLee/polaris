@@ -99,7 +99,7 @@ EOF
 
   # Registered consumer: derive (reads via match[...] / match.get / entry.get +
   # a required_fields tuple). All reads are in-whitelist.
-  cat >"$fixdir/scripts/derive-task-md-from-refinement-json.sh" <<'EOF'
+  cat >"$fixdir/scripts/lib/derive_task_md_from_refinement_json.py" <<'EOF'
 #!/usr/bin/env bash
 : <<'PY'
 tasks = data.get("tasks") or []
@@ -114,7 +114,7 @@ PY
 EOF
 
   # Registered consumer: lock-preflight (reads via entry.get).
-  cat >"$fixdir/scripts/validate-refinement-lock-preflight.sh" <<'EOF'
+  cat >"$fixdir/scripts/lib/refinement_lock_preflight_helpers.py" <<'EOF'
 #!/usr/bin/env bash
 : <<'PY'
 tasks = data.get("tasks")
@@ -140,15 +140,13 @@ for task in data.get("tasks") or []:
     mods = (task.get("modules") or []) + (task.get("allowed_files") or [])
 EOF
 
-  # Registered consumer: auto-pass-runner (reads V-task id/kind via entry.get).
-  cat >"$fixdir/scripts/auto-pass-runner.sh" <<'EOF'
-#!/usr/bin/env bash
-: <<'PY'
+  # Registered consumer: extracted auto-pass runner authority (reads V-task
+  # id/kind via entry.get).
+  cat >"$fixdir/scripts/lib/auto_pass_auto_pass_runner_5.py" <<'EOF'
 # reads refinement.json
 for entry in data.get("tasks") or []:
     tid = entry.get("id")
     kind = str(entry.get("kind") or "").strip().lower()
-PY
 EOF
 
   # Registered consumer: close-parent-spec-if-complete (reads V-task id/kind via entry.get).
@@ -162,18 +160,16 @@ for entry in data.get("tasks") or []:
 PY
 EOF
 
-  # Registered consumer: validate-verification-strategy (reads id/verification via task.get).
-  cat >"$fixdir/scripts/validate-verification-strategy.sh" <<'EOF'
-#!/usr/bin/env bash
-: <<'PY'
+  # Registered consumer: extracted verification-strategy authority (reads
+  # id/verification via task.get).
+  cat >"$fixdir/scripts/lib/validate_verification_strategy_1.py" <<'EOF'
 # reads refinement.json
 for task in data.get("tasks") or []:
     tid = task.get("id")
     verification = task.get("verification")
-PY
 EOF
 
-  cat >"$fixdir/scripts/backfill-refinement-verification-strategy.sh" <<'EOF'
+  cat >"$fixdir/scripts/lib/refinement_backfill_verification_strategy.py" <<'EOF'
 #!/usr/bin/env bash
 : <<'PY'
 # reads refinement.json
@@ -216,7 +212,7 @@ fi
 fix2="$tmpdir/case2"
 build_fixture "$fix2"
 # overwrite the derive consumer to add a schema-external read
-cat >"$fix2/scripts/derive-task-md-from-refinement-json.sh" <<'EOF'
+cat >"$fix2/scripts/lib/derive_task_md_from_refinement_json.py" <<'EOF'
 #!/usr/bin/env bash
 : <<'PY'
 tasks = data.get("tasks") or []
@@ -468,7 +464,7 @@ cat >"$fix10/scripts/validate-refinement-json.sh" <<'EOF'
 PY
 EOF
 # Registered consumer reading the two new optional overrides.
-cat >"$fix10/scripts/derive-task-md-from-refinement-json.sh" <<'EOF'
+cat >"$fix10/scripts/lib/derive_task_md_from_refinement_json.py" <<'EOF'
 #!/usr/bin/env bash
 : <<'PY'
 tasks = data.get("tasks") or []
@@ -506,7 +502,7 @@ import json, sys
 p = sys.argv[1]
 data = json.load(open(p, encoding="utf-8"))
 for record in data["consumers"]:
-    if record["path"] == "scripts/backfill-refinement-verification-strategy.sh":
+    if record["path"] == "scripts/lib/refinement_backfill_verification_strategy.py":
         record["accessor_vars"] = ["entry"]
         record["expected_fields"] = {"entry": ["id", "kind"]}
 open(p, "w", encoding="utf-8").write(json.dumps(data) + "\n")
@@ -525,7 +521,7 @@ import json, sys
 p = sys.argv[1]
 data = json.load(open(p, encoding="utf-8"))
 for record in data["consumers"]:
-    if record["path"] == "scripts/derive-task-md-from-refinement-json.sh":
+    if record["path"] == "scripts/lib/derive_task_md_from_refinement_json.py":
         record["accessor_vars"] = ["bogus", "entry"]
         record["expected_fields"] = {"bogus": ["title"], "entry": ["id"]}
 open(p, "w", encoding="utf-8").write(json.dumps(data) + "\n")

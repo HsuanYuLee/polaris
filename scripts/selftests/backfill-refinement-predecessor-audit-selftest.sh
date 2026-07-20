@@ -101,6 +101,42 @@ write_artifact "$SPECS_ROOT/design-plans/archive/DP-999-archived/refinement.json
   ]
 }'
 
+# 將歷史 fixture 補成 current strong-bound schema，只讓 predecessor_audit
+# 成為本 selftest 唯一變因；archive 仍由 scanner 排除。
+python3 - \
+  "$SPECS_ROOT/companies/exampleco/EX-001/refinement.json" \
+  "$SPECS_ROOT/companies/exampleco/EX-002/refinement.json" \
+  "$SPECS_ROOT/design-plans/DP-001-safe/refinement.json" \
+  "$SPECS_ROOT/design-plans/archive/DP-999-archived/refinement.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+for raw in sys.argv[1:]:
+    path = Path(raw)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    source_id = ((data.get("source") or {}).get("id") or data.get("epic") or "DP-999")
+    if isinstance(data.get("source"), dict):
+        data["source"]["container"] = str(path.parent.resolve())
+        data["source"]["plan_path"] = str((path.parent / "index.md").resolve())
+        (path.parent / "index.md").write_text("---\ntitle: Fixture\ndescription: Fixture\nstatus: LOCKED\n---\n", encoding="utf-8")
+    data["schema_version"] = 1
+    data["tasks"] = [{
+        "id": f"{source_id}-T1",
+        "kind": "implementation",
+        "title": "fixture",
+        "scope": "fixture",
+        "modules": [data["modules"][0]["path"]],
+        "ac_ids": ["AC1"],
+        "dependencies": [],
+        "verification": {"method": "unit_test", "detail": "fixture"},
+    }]
+    data["adversarial_pass"] = [{
+        "ac_id": "AC1", "attack": "missing predecessor audit", "enforce": "selftest"
+    }]
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+
 REPORT="$WORKDIR/report.txt"
 bash "$ROOT_DIR/scripts/backfill-refinement-predecessor-audit.sh" --root "$WORKDIR" --mode report --format summary >"$REPORT"
 grep -q '^total=3$' "$REPORT"

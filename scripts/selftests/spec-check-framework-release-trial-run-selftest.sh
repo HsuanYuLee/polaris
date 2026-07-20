@@ -75,7 +75,7 @@ grep -q 'isolation: release tail runs --enumerate only' "$tmpdir/isolation.out" 
 # release execution flag or side-effect command; only --enumerate is allowed.
 harness_code="$(grep -v '^[[:space:]]*#' "$HARNESS")"
 for forbidden in '--full-tail' '--land-tasks-to-feat' 'sync-to-polaris' 'git tag' 'git push'; do
-  if printf '%s\n' "$harness_code" | grep -qF -- "$forbidden"; then
+  if grep -qF -- "$forbidden" <<< "$harness_code"; then
     fail "isolation(static): harness code must not invoke real side-effect '$forbidden'"
   fi
 done

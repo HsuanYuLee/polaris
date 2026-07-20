@@ -37,7 +37,7 @@ assert_eq() {
 
 assert_contains() {
   local haystack="$1" needle="$2" label="$3"
-  if printf '%s' "$haystack" | grep -qF -- "$needle"; then
+  if grep -qF -- "$needle" <<< "$haystack"; then
     PASS=$((PASS + 1))
     [[ "$DEBUG" == "1" ]] && printf "  [ok] %s\n" "$label"
   else
@@ -162,6 +162,13 @@ setup_fake_repo() {
   printf '%s\n' "$repo_dir"
 }
 
+copy_parse_task_md_runtime() {
+  local destination="$1"
+  mkdir -p "$destination/lib"
+  cp "$SCRIPT_DIR/parse-task-md.sh" "$destination/parse-task-md.sh"
+  cp "$SCRIPT_DIR/lib/parse_task_md.py" "$destination/lib/parse_task_md.py"
+}
+
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== usage ==="
 "$RVC" >/dev/null 2>&1; assert_eq "$?" "2" "usage error: no args"
@@ -212,6 +219,38 @@ assert_eq "$EV_LEVEL" "static" "evidence: level field"
 EV_EXEC_CWD="$(python3 -c "import json; print(json.load(open('$EV_S'))['execution_cwd'])" 2>/dev/null)"
 assert_eq "$EV_EXEC_CWD" "$REPO_S" "evidence: execution_cwd field"
 
+EV_COMMAND_HASH="$(python3 -c "import json; print(json.load(open('$EV_S'))['normalized_verify_command_hash'])" 2>/dev/null)"
+EV_CONTEXT_HASH="$(python3 -c "import json; print(json.load(open('$EV_S'))['verification_context_hash'])" 2>/dev/null)"
+EV_TOOLCHAIN_HASH="$(python3 -c "import json; print(json.load(open('$EV_S'))['toolchain_context_hash'])" 2>/dev/null)"
+[[ "$EV_COMMAND_HASH" =~ ^[0-9a-f]{64}$ ]] \
+  && PASS=$((PASS + 1)) \
+  || { FAIL=$((FAIL + 1)); printf "  [FAIL] normalized verify-command hash is not sha256: %s\n" "$EV_COMMAND_HASH"; }
+[[ "$EV_CONTEXT_HASH" =~ ^[0-9a-f]{64}$ ]] \
+  && PASS=$((PASS + 1)) \
+  || { FAIL=$((FAIL + 1)); printf "  [FAIL] verification context hash is not sha256: %s\n" "$EV_CONTEXT_HASH"; }
+[[ "$EV_TOOLCHAIN_HASH" =~ ^[0-9a-f]{64}$ ]] \
+  && PASS=$((PASS + 1)) \
+  || { FAIL=$((FAIL + 1)); printf "  [FAIL] toolchain context hash is not sha256: %s\n" "$EV_TOOLCHAIN_HASH"; }
+EV_IDENTITY_MATCH="$(python3 -c "import json; d=json.load(open('$EV_S')); i=d['evidence_identity']; print(i['head_sha']==d['head_sha'] and i['normalized_verify_command_hash']==d['normalized_verify_command_hash'] and i['verification_context_hash']==d['verification_context_hash'])" 2>/dev/null)"
+assert_eq "$EV_IDENTITY_MATCH" "True" "evidence identity binds head + normalized command + execution context"
+EV_CONTEXT_RECOMPUTED="$(python3 -c "import hashlib,json; d=json.load(open('$EV_S')); c={'level':d['level'],'execution_cwd':d['execution_cwd'],'runtime_contract':d['runtime_contract'],'toolchain_context_hash':d['toolchain_context_hash']}; print(hashlib.sha256(json.dumps(c,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest())" 2>/dev/null)"
+assert_eq "$EV_CONTEXT_RECOMPUTED" "$EV_CONTEXT_HASH" \
+  "verification context hash covers level/cwd/runtime/toolchain tuple"
+
+# Same head/context with a semantically different Verify Command must produce a
+# different command hash; otherwise stale evidence could be reused after task drift.
+TASK_COMMAND_DRIFT="$PARENT_S/specs/SELFTEST-001/tasks/T_command_drift.md"
+make_fake_task_md "$REPO_S" "myrepo" "$TASK_COMMAND_DRIFT" "static" 'echo HELLO_STATIC_CHANGED' "RVC-COMMAND-DRIFT"
+"$RVC" --task-md "$TASK_COMMAND_DRIFT" --repo "$REPO_S" >/dev/null 2>&1
+EV_COMMAND_DRIFT="/tmp/polaris-verified-RVC-COMMAND-DRIFT-${HEAD_S}.json"
+DRIFT_COMMAND_HASH="$(python3 -c "import json; print(json.load(open('$EV_COMMAND_DRIFT'))['normalized_verify_command_hash'])" 2>/dev/null)"
+if [[ "$DRIFT_COMMAND_HASH" != "$EV_COMMAND_HASH" ]]; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  printf "  [FAIL] verify-command drift reused the original normalized command hash\n"
+fi
+
 # Inherited shell DEBUG can alter tool behavior (for example Nuxt test-utils
 # startup). The runner must clear it by default while still allowing the verify
 # command itself to opt in explicitly.
@@ -244,6 +283,13 @@ EV_CWD="/tmp/polaris-verified-RVC-CWD-${HEAD_C}.json"
 assert_file_exists "$EV_CWD" "repo cwd evidence file"
 EV_CWD_FIELD="$(python3 -c "import json; print(json.load(open('$EV_CWD'))['execution_cwd'])" 2>/dev/null)"
 assert_eq "$EV_CWD_FIELD" "$REPO_C" "repo cwd evidence records execution_cwd"
+EV_CWD_CONTEXT_HASH="$(python3 -c "import json; print(json.load(open('$EV_CWD'))['verification_context_hash'])" 2>/dev/null)"
+if [[ "$EV_CWD_CONTEXT_HASH" != "$EV_CONTEXT_HASH" ]]; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1))
+  printf "  [FAIL] execution_cwd drift reused the original verification context hash\n"
+fi
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== explicit verify fallback ==="
@@ -331,7 +377,7 @@ make_fake_task_md "$REPO_S" "myrepo" "$TASK_STDOUT_FAIL" "static" 'echo "FAIL: d
 RC_STDOUT_FAIL=$?
 assert_eq "$RC_STDOUT_FAIL" "0" "stdout FAIL substring + exit 0 → script exit 0 (PASS)"
 # The removed heuristic warning must not appear.
-if printf '%s' "$(cat "$WORK_DIR/stdout_fail.err")" | grep -qF "stdout contains FAIL marker"; then
+if grep -qF "stdout contains FAIL marker" <<< "$(cat "$WORK_DIR/stdout_fail.err")"; then
   FAIL=$((FAIL + 1))
   printf "  [FAIL] stdout FAIL substring heuristic still active (warning emitted)\n"
 else
@@ -367,7 +413,7 @@ echo "=== build level (mock run-test-prep.sh on PATH) ==="
 FAKE_BUILD_DIR="$WORK_DIR/fake-scripts-build"
 mkdir -p "$FAKE_BUILD_DIR/env"
 cp "$RVC" "$FAKE_BUILD_DIR/run-verify-command.sh"
-cp "$SCRIPT_DIR/parse-task-md.sh" "$FAKE_BUILD_DIR/parse-task-md.sh"
+copy_parse_task_md_runtime "$FAKE_BUILD_DIR"
 cp "$SCRIPT_DIR/resolve-task-base.sh" "$FAKE_BUILD_DIR/resolve-task-base.sh" 2>/dev/null || true
 chmod +x "$FAKE_BUILD_DIR"/*.sh 2>/dev/null
 cat > "$FAKE_BUILD_DIR/env/run-test-prep.sh" <<'PREPSH'
@@ -397,7 +443,7 @@ assert_file_exists "$EV_B" "build level evidence file"
 FAKE_BUILD_BAD_DIR="$WORK_DIR/fake-scripts-build-bad"
 mkdir -p "$FAKE_BUILD_BAD_DIR"
 cp "$RVC" "$FAKE_BUILD_BAD_DIR/run-verify-command.sh"
-cp "$SCRIPT_DIR/parse-task-md.sh" "$FAKE_BUILD_BAD_DIR/parse-task-md.sh"
+copy_parse_task_md_runtime "$FAKE_BUILD_BAD_DIR"
 cp "$SCRIPT_DIR/resolve-task-base.sh" "$FAKE_BUILD_BAD_DIR/resolve-task-base.sh" 2>/dev/null || true
 chmod +x "$FAKE_BUILD_BAD_DIR"/*.sh 2>/dev/null
 # No env/run-test-prep.sh in this tree
@@ -422,7 +468,7 @@ done
 FAKE_RT_DIR="$WORK_DIR/fake-scripts-runtime"
 mkdir -p "$FAKE_RT_DIR/env"
 cp "$RVC" "$FAKE_RT_DIR/run-verify-command.sh"
-cp "$SCRIPT_DIR/parse-task-md.sh" "$FAKE_RT_DIR/parse-task-md.sh"
+copy_parse_task_md_runtime "$FAKE_RT_DIR"
 cp "$SCRIPT_DIR/resolve-task-base.sh" "$FAKE_RT_DIR/resolve-task-base.sh" 2>/dev/null || true
 chmod +x "$FAKE_RT_DIR"/*.sh 2>/dev/null
 cat > "$FAKE_RT_DIR/start-test-env.sh" <<'STESH'
@@ -609,6 +655,7 @@ assert_contains "$(cat "$WORK_DIR/vt_rg.err")" "rg pattern parse failed" "rg par
 echo "=== idempotent re-run on same head_sha (overwrite) ==="
 # Re-run static and confirm evidence file still present and timestamp updated
 SLEEP_THRESHOLD="$(date -u +%s)"
+IDENTITY_BEFORE="$(python3 -c "import json; print(json.dumps(json.load(open('$EV_S'))['evidence_identity'], sort_keys=True))" 2>/dev/null)"
 sleep 1
 "$RVC" --task-md "$TASK_S" --repo "$REPO_S" >/dev/null 2>&1
 RC_RR=$?
@@ -626,6 +673,8 @@ else
   FAIL=$((FAIL + 1))
   printf "  [FAIL] evidence 'at' not updated on re-run (at=%s, threshold=%s)\n" "$EV_AT" "$SLEEP_THRESHOLD"
 fi
+IDENTITY_AFTER="$(python3 -c "import json; print(json.dumps(json.load(open('$EV_S'))['evidence_identity'], sort_keys=True))" 2>/dev/null)"
+assert_eq "$IDENTITY_AFTER" "$IDENTITY_BEFORE" "identical tuple re-run preserves evidence identity"
 
 # Different head_sha (new commit) → different evidence filename
 echo "extra" > "$REPO_S/extra.txt"
@@ -646,7 +695,7 @@ else
 fi
 
 # Cleanup the static evidence we created
-rm -f "$EV_S" "$EV_S2" "$EV_F" "$EV_T" "$EV_B" "$EV_R" "$EV_CWD" 2>/dev/null
+rm -f "$EV_S" "$EV_S2" "$EV_F" "$EV_T" "$EV_B" "$EV_R" "$EV_CWD" "$EV_COMMAND_DRIFT" 2>/dev/null
 
 # ────────────────────────────────────────────────────────────────────────────
 echo ""

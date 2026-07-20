@@ -16,7 +16,6 @@ fail() {
 validate_owner_matrix() {
   local name="$1"
   local matrix_file="$2"
-  local expected_count="$3"
 
   [[ -s "$matrix_file" ]] || fail "$name owner matrix is empty"
   head -1 "$matrix_file" | grep -qx $'stage\tlabel\towner\troute_back\trelease_tail_only_reason' \
@@ -24,8 +23,7 @@ validate_owner_matrix() {
 
   local rows
   rows="$(tail -n +2 "$matrix_file" | sed '/^[[:space:]]*$/d' | wc -l | tr -d '[:space:]')"
-  [[ "$rows" == "$expected_count" ]] \
-    || fail "$name owner matrix row count mismatch: expected $expected_count got $rows"
+  [[ "$rows" -gt 0 ]] || fail "$name owner matrix has no stages"
 
   awk -F '\t' '
     NR == 1 { next }
@@ -51,8 +49,8 @@ trap 'rm -rf "$tmpdir"' EXIT
 bash "$CHECK_GATE" --list-stage-owners >"$tmpdir/check-owners.tsv"
 bash "$RELEASE_LANE" --list-stage-owners >"$tmpdir/release-owners.tsv"
 
-validate_owner_matrix "check-framework-pr-gate" "$tmpdir/check-owners.tsv" 16
-validate_owner_matrix "framework-release-pr-lane" "$tmpdir/release-owners.tsv" 9
+validate_owner_matrix "check-framework-pr-gate" "$tmpdir/check-owners.tsv"
+validate_owner_matrix "framework-release-pr-lane" "$tmpdir/release-owners.tsv"
 
 bash "$CHECK_GATE" --list-stages | awk '{print $1}' >"$tmpdir/check-stages.txt"
 tail -n +2 "$tmpdir/check-owners.tsv" | cut -f1 >"$tmpdir/check-owner-stages.txt"

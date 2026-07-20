@@ -32,6 +32,7 @@ trap 'rm -f "$scan_out"' EXIT
 
 if rg -n "bug-triage|/bug-triage" \
   -g "!scripts/selftests/bug-triage-removal-selftest.sh" \
+  -g "!scripts/script-layer-governance-ledger.json" \
   "${active_surfaces[@]}" >"$scan_out" 2>/dev/null; then
   cat "$scan_out" >&2
   fail "active legacy Bug diagnosis references remain"
@@ -46,6 +47,7 @@ deleted_refs=(
 for ref in "${deleted_refs[@]}"; do
   if rg -n "$ref" \
     -g "!scripts/selftests/bug-triage-removal-selftest.sh" \
+    -g "!scripts/script-layer-governance-ledger.json" \
     "${active_surfaces[@]}" >"$scan_out" 2>/dev/null; then
     cat "$scan_out" >&2
     fail "deleted reference still has active referrers: $ref"

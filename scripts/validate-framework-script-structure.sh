@@ -65,17 +65,7 @@ resolve_script_governance_path() {
   [[ -x "$resolver" ]] || fail "canonical handbook resolver is not executable: $resolver"
   payload="$("$resolver" --project polaris-framework)" \
     || fail "cannot resolve polaris-framework handbook"
-  path="$(python3 - "$payload" <<'PY'
-import json
-import os
-import sys
-
-payload = json.loads(sys.argv[1])
-matches = [path for path in payload.get("narrative_paths", []) if path.endswith("/script-governance.md")]
-if len(matches) != 1:
-    raise SystemExit("resolver payload must contain exactly one script-governance.md")
-print(os.path.realpath(matches[0]))
-PY
+  path="$(python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/validate_framework_script_structure_1.py" "$payload"
 )" || fail "resolver payload does not identify script-governance.md"
   case "$path" in
     "$ROOT_DIR"/*) printf '%s\n' "${path#"$ROOT_DIR"/}" ;;
@@ -114,47 +104,12 @@ discover_files() {
 
 check_shellcheck_suppression() {
   local path="$1"
-  python3 - "$path" <<'PY'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-lines = path.read_text(encoding="utf-8").splitlines()
-bad = []
-for index, line in enumerate(lines):
-    if not line.lstrip().startswith("# shellcheck disable="):
-        continue
-    window = lines[max(0, index - 2): index + 1]
-    if not any("POLARIS_SHELLCHECK_JUSTIFICATION:" in item for item in window):
-        bad.append(index + 1)
-if bad:
-    print(",".join(str(item) for item in bad))
-    raise SystemExit(1)
-PY
+  python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/validate_framework_script_structure_2.py" "$path"
 }
 
 check_python_cli() {
   local path="$1"
-  python3 - "$path" <<'PY'
-from pathlib import Path
-import sys
-
-path = Path(sys.argv[1])
-text = path.read_text(encoding="utf-8")
-is_cli = (
-    "if __name__ == \"__main__\"" in text
-    or "if __name__ == '__main__'" in text
-    or "sys.argv" in text
-)
-if not is_cli:
-    raise SystemExit(0)
-if "argparse.ArgumentParser" not in text:
-    print("missing argparse.ArgumentParser")
-    raise SystemExit(1)
-if "allow_abbrev=False" not in text:
-    print("missing allow_abbrev=False")
-    raise SystemExit(1)
-PY
+  python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/validate_framework_script_structure_3.py" "$path"
 }
 
 check_handbook() {
@@ -191,17 +146,7 @@ while IFS= read -r raw_path; do
   [[ -n "$raw_path" ]] || continue
   if [[ "$raw_path" = /* ]]; then
     abs_path="$raw_path"
-    rel_path="$(python3 - "$ROOT_DIR" "$abs_path" <<'PY'
-from pathlib import Path
-import os
-import sys
-root = Path(sys.argv[1]).resolve()
-path = Path(sys.argv[2]).resolve()
-try:
-    print(path.relative_to(root))
-except ValueError:
-    print(path.name)
-PY
+    rel_path="$(python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/validate_framework_script_structure_4.py" "$ROOT_DIR" "$abs_path"
 )"
   else
     rel_path="$raw_path"
@@ -231,28 +176,7 @@ PY
 done < <(discover_files)
 
 if [[ "$MODE" == "audit" ]]; then
-  python3 - "$violations_tmp" "$ROOT_DIR" <<'PY'
-import json
-from pathlib import Path
-import sys
-
-violations_file = Path(sys.argv[1])
-root = sys.argv[2]
-items = []
-if violations_file.exists():
-    for raw in violations_file.read_text(encoding="utf-8").splitlines():
-        if not raw.strip():
-            continue
-        path, _, reason = raw.partition("\t")
-        items.append({"path": path, "reason": reason})
-print(json.dumps({
-    "schema_version": 1,
-    "mode": "audit",
-    "root": root,
-    "violation_count": len(items),
-    "violations": items,
-}, ensure_ascii=False, indent=2))
-PY
+  python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/validate_framework_script_structure_5.py" "$violations_tmp" "$ROOT_DIR"
   exit 0
 fi
 

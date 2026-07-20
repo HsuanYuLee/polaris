@@ -47,74 +47,8 @@ release_diff_intersects_allowed_files() {
   local release_commit="$2"
   local repo_root="$3"
   local parser_json="$4"
-  python3 - "$task_md" "$release_commit" "$repo_root" "$parser_json" <<'PY'
-import json
-import subprocess
-import sys
-
-task_md, release_commit, repo_root, parser_json = sys.argv[1:5]
-
-data = json.loads(parser_json)
-patterns = []
-for entry in data.get("allowed_files") or []:
-    s = entry.strip()
-    if s.startswith("`") and s.endswith("`"):
-        s = s[1:-1]
-    if s:
-        patterns.append(s)
-
-# Release diff = files changed by the release commit relative to its first
-# parent. Squashed cherry-pick / fresh-commit bundles land as a single commit,
-# so commit^..commit captures the bundled delivery. When the commit has no
-# parent (root), fall back to the full tree listing.
-def diff_files():
-    rc = subprocess.run(
-        ["git", "-C", repo_root, "rev-parse", "--verify", "--quiet",
-         release_commit + "^"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    if rc.returncode == 0:
-        proc = subprocess.run(
-            ["git", "-C", repo_root, "diff", "--name-only",
-             release_commit + "^", release_commit],
-            text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-        )
-    else:
-        proc = subprocess.run(
-            ["git", "-C", repo_root, "ls-tree", "-r", "--name-only",
-             release_commit],
-            text=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-        )
-    return [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
-
-def match_parts(fparts, fi, pparts, pi):
-    import fnmatch
-    if fi == len(fparts) and pi == len(pparts):
-        return True
-    if pi == len(pparts):
-        return False
-    if fi == len(fparts):
-        return all(p == "**" for p in pparts[pi:])
-    pseg = pparts[pi]
-    if pseg == "**":
-        if match_parts(fparts, fi, pparts, pi + 1):
-            return True
-        if match_parts(fparts, fi + 1, pparts, pi):
-            return True
-        return False
-    return fnmatch.fnmatchcase(fparts[fi], pseg) and match_parts(
-        fparts, fi + 1, pparts, pi + 1
-    )
-
-def matches(fp, pattern):
-    if fp == pattern:
-        return True
-    return match_parts(fp.split("/"), 0, pattern.split("/"), 0)
-
-count = 0
-for fp in diff_files():
-    if any(matches(fp, p) for p in patterns):
-        count += 1
-print(count)
-PY
+  local helper_dir
+  helper_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  python3 "$helper_dir/release_closeout_helpers.py" release-diff-intersection \
+    "$task_md" "$release_commit" "$repo_root" "$parser_json"
 }

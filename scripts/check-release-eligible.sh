@@ -59,22 +59,7 @@ parse_field() {
 json_field() {
   local payload="$1"
   local field="$2"
-  python3 - "$payload" "$field" <<'PY'
-import json
-import sys
-
-data = json.loads(sys.argv[1])
-value = data.get(sys.argv[2])
-if value is None:
-    print("")
-elif isinstance(value, bool):
-    print("true" if value else "false")
-elif isinstance(value, list):
-    for item in value:
-        print(item)
-else:
-    print(value)
-PY
+  python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" json-field "$payload" "$field"
 }
 
 emit_result() {
@@ -85,20 +70,8 @@ emit_result() {
   local reason="$5"
 
   if [[ "$FORMAT" == "json" ]]; then
-    python3 - "$source_id" "$surface_class" "$release_required" "$status" "$reason" <<'PY'
-import json
-import sys
-
-source_id, surface_class, release_required_raw, status, reason = sys.argv[1:6]
-payload = {
-    "source_id": source_id,
-    "surface_class": surface_class,
-    "release_required": release_required_raw == "true",
-    "status": status,
-    "blocking_reason": None if reason == "pass" else reason,
-}
-print(json.dumps(payload, ensure_ascii=False, indent=2))
-PY
+    python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" emit-result \
+      "$source_id" "$surface_class" "$release_required" "$status" "$reason"
   else
     if [[ "$reason" == "pass" ]]; then
       printf 'PASS source=%s surface=%s release_required=%s status=%s\n' \

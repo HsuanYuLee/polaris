@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: aggregate blocking framework PR gate — runs each validator (W1..W20) and
+# Purpose: aggregate blocking framework PR gate — runs each registered validator and
 #          fails closed if any one fails. W11 (DP-293 T1) is the runtime-instruction
 #          parity step: compile-runtime-instructions --check + mechanism-parity --strict.
 #          W14 runs the full selftest corpus (run-aggregate-selftests.sh) — this makes
@@ -41,6 +41,8 @@ W17	framework source write authority	upstream:framework-source-governance	engine
 W18	config-driven authoring audit	upstream:language-governance	engineering	N/A
 W19	DP-422 transition source closeout	upstream:skill-flow-transition-governance	engineering	N/A
 W20	generated-artifact discipline	upstream:generated-artifact-governance	engineering	N/A
+W21	selftest corpus budget	upstream:DP-420-corpus-governance	engineering	N/A
+W22	production script language-fit	upstream:DP-420-corpus-governance	engineering	N/A
 OWNERS
 }
 
@@ -76,6 +78,8 @@ W17 framework source write authority
 W18 config-driven authoring audit
 W19 DP-422 transition source closeout
 W20 generated-artifact discipline
+W21 selftest corpus budget
+W22 production script language-fit
 STAGES
   exit 0
 fi
@@ -176,6 +180,8 @@ VALIDATE_SPEC_CHECK_CONTRACT_PARITY="${POLARIS_VALIDATE_SPEC_CHECK_CONTRACT_PARI
 # stop the framework PR gate from only exercising the 38 governed selftests.
 VALIDATE_SELFTEST_ENROLLMENT="${POLARIS_VALIDATE_SELFTEST_ENROLLMENT_BIN:-scripts/validate-selftest-enrollment.sh}"
 RUN_AGGREGATE_SELFTESTS="${POLARIS_RUN_AGGREGATE_SELFTESTS_BIN:-scripts/run-aggregate-selftests.sh}"
+LINT_SELFTEST_CORPUS_BUDGET="${POLARIS_LINT_SELFTEST_CORPUS_BUDGET_BIN:-scripts/lint-selftest-corpus-budget.sh}"
+LINT_SCRIPT_LANGUAGE_FIT="${POLARIS_LINT_SCRIPT_LANGUAGE_FIT_BIN:-scripts/lint-script-language-fit.sh}"
 # W15 (DP-345 T2 / AC5): naive markdown section-parse lint. Fail-closed when a new
 # blob-level `.find`/`.index`/`.split` for a `## heading` over un-frontmatter-stripped
 # text reappears (the DP-344-T1 collision shape DP-345 T1 converged). `--self-check`
@@ -290,6 +296,23 @@ run_gate "W12 producer-consumer-validator parity" "$VALIDATE_SPEC_CHECK_CONTRACT
 # W13: selftest enrollment gate (DP-325 T2 / AC2). Fail-closed when any filesystem
 # selftest is not enrolled in the aggregate runner.
 run_gate "W13 selftest enrollment" "$VALIDATE_SELFTEST_ENROLLMENT"
+# W21/W22 (DP-420 T3): current ledger budgets are draining baselines, not
+# permanent waivers. A changed path that remains non-terminal migration debt
+# fails before the expensive full-corpus run.
+_corpus_budget_args=(
+  --ledger scripts/script-layer-governance-ledger.json
+  --manifest scripts/manifest.json
+  --root "$(pwd)"
+)
+_corpus_budget_base="${POLARIS_FRAMEWORK_PR_BASE:-}"
+if [[ -z "$_corpus_budget_base" ]]; then
+  _corpus_budget_base="$(git rev-parse HEAD^ 2>/dev/null || true)"
+fi
+if [[ -n "$_corpus_budget_base" && "$_corpus_budget_base" != "HEAD" ]]; then
+  _corpus_budget_args+=(--base-ref "$_corpus_budget_base")
+fi
+run_gate "W21 selftest corpus budget" "$LINT_SELFTEST_CORPUS_BUDGET" "${_corpus_budget_args[@]}"
+run_gate "W22 production script language-fit" "$LINT_SCRIPT_LANGUAGE_FIT" "${_corpus_budget_args[@]}"
 # W14: aggregate selftest execution (DP-325 T2 / AC1+AC3). Runs the full
 # filesystem selftest corpus; any non-quarantined red fails the PR gate.
 run_gate "W14 aggregate selftest run" "$RUN_AGGREGATE_SELFTESTS"

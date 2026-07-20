@@ -62,19 +62,19 @@ from pathlib import Path
 out, container, marker = sys.argv[1:4]
 payload = {
     "schema_version": "1.0", "version": "1",
-    "created_at": "2026-06-07T10:00:00+08:00",
+    "created_at": "2026-06-07T10:00:00+08:00" if marker == "v1" else "2026-06-07T10:01:00+08:00",
     "source": {"type": "dp", "id": "DP-999", "container": container,
                "plan_path": str(Path(container) / "index.md"), "jira_key": None},
     "modules": [{"path": "scripts/x.sh", "action": "modify"}],
-    "acceptance_criteria": [{"id": "AC1", "text": "fixture " + marker,
+    "acceptance_criteria": [{"id": "AC1", "text": "fixture",
                              "category": "functional", "quantifiable": True,
                              "negative": False,
                              "verification": {"method": "unit_test", "detail": "f"}}],
     "dependencies": [], "edge_cases": [], "predecessor_audit": [],
     "tasks": [{"id": "T1", "kind": "implementation", "title": "fixture",
-               "scope": "f", "allowed_files": ["scripts/x.sh"],
+               "scope": "f",
                "modules": ["scripts/x.sh"], "ac_ids": ["AC1"],
-               "dependencies": [], "estimate_points": 1,
+               "dependencies": [],
                "verification": {"method": "unit_test", "detail": "f"}}],
     "adversarial_pass": [{"ac_id": "AC1", "attack": "x", "enforce": "y"}],
 }
@@ -129,6 +129,7 @@ PY
 
 # Initial refinement.json + hash + ledger anchored to it.
 write_refinement_json "$C/refinement.json" "$C" "v1"
+bash "$ROOT/scripts/render-refinement-md.sh" "$C/refinement.json"
 INIT_HASH="$(canonical_hash "$C")"
 LEDGER="$TMP/ledger.json"
 write_ledger "$LEDGER" "$INIT_HASH"

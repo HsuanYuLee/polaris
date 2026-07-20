@@ -47,7 +47,7 @@ make_state() {
   mkdir -p "$proj/.polaris/runtime/selftest-staleness"
   if [[ -n "$ts" ]]; then
     cat > "$proj/.polaris/runtime/selftest-staleness/last-full-corpus-run.json" <<EOF
-{"last_full_corpus_run_ts": "$ts"}
+{"schema_version": 1, "head_sha": "fixture-head", "last_full_corpus_run_ts": "$ts"}
 EOF
   fi
 }
@@ -92,9 +92,9 @@ P="$TMP/p_over"; make_state "$P" "$(ts_hours_ago 100)"
 write_config "$P" true 48 on_stale
 run_hook "$P"
 [[ "$LAST_EXIT" -eq 0 ]] || fail "AC8-a expected exit 0, got $LAST_EXIT"
-printf '%s' "$OUT" | grep -q '\[SELFTEST-STALE\]' || fail "AC8-a expected advisory marker, got: $OUT"
-printf '%s' "$OUT" | grep -q 'decision=STALE' || fail "AC8-a expected decision=STALE, got: $OUT"
-printf '%s' "$OUT" | grep -q 'full_corpus_age_hours 100/48' || fail "AC8-a expected '100/48', got: $OUT"
+grep -q '\[SELFTEST-STALE\]' <<< "$OUT" || fail "AC8-a expected advisory marker, got: $OUT"
+grep -q 'decision=STALE' <<< "$OUT" || fail "AC8-a expected decision=STALE, got: $OUT"
+grep -q 'full_corpus_age_hours 100/48' <<< "$OUT" || fail "AC8-a expected '100/48', got: $OUT"
 ok "AC8-a: age over threshold -> [SELFTEST-STALE] advisory with hours/limit"
 
 # === AC8-b: age under threshold -> silent (no advisory), exit 0 =============
@@ -110,7 +110,7 @@ P="$TMP/p_flip"; make_state "$P" "$(ts_hours_ago 24)"
 write_config "$P" true 12 on_stale   # strict: 24h age over 12h limit -> STALE
 run_hook "$P"
 [[ "$LAST_EXIT" -eq 0 ]] || fail "AC8 strict expected exit 0"
-printf '%s' "$OUT" | grep -q 'decision=STALE' || fail "AC8 strict expected STALE, got: $OUT"
+grep -q 'decision=STALE' <<< "$OUT" || fail "AC8 strict expected STALE, got: $OUT"
 write_config "$P" true 72 on_stale   # loose: 24h age under 72h limit -> FRESH
 run_hook "$P"
 [[ "$LAST_EXIT" -eq 0 ]] || fail "AC8 loose expected exit 0"
@@ -127,7 +127,7 @@ run_hook "$P"
 P="$TMP/p_noconfig_stale"; make_state "$P" "$(ts_hours_ago 100)"
 run_hook "$P"
 [[ "$LAST_EXIT" -eq 0 ]] || fail "AC8-c (no config, stale) expected exit 0"
-printf '%s' "$OUT" | grep -q 'full_corpus_age_hours 100/48' || fail "AC8-c expected built-in default 48, got: $OUT"
+grep -q 'full_corpus_age_hours 100/48' <<< "$OUT" || fail "AC8-c expected built-in default 48, got: $OUT"
 ok "AC8-c: missing config fails open to built-in default threshold (48h) and exits 0"
 
 # Malformed config -> fail open to defaults + exit 0.
@@ -143,8 +143,8 @@ P="$TMP/p_nostate"; mkdir -p "$P"
 write_config "$P" true 48 on_stale
 run_hook "$P"
 [[ "$LAST_EXIT" -eq 0 ]] || fail "AC8-d absent state expected exit 0, got $LAST_EXIT"
-printf '%s' "$OUT" | grep -q 'decision=STALE' || fail "AC8-d absent state expected never-run STALE advisory, got: $OUT"
-printf '%s' "$OUT" | grep -q 'never recorded as run' || fail "AC8-d expected never-run wording, got: $OUT"
+grep -q 'decision=STALE' <<< "$OUT" || fail "AC8-d absent state expected never-run STALE advisory, got: $OUT"
+grep -q 'never recorded as run' <<< "$OUT" || fail "AC8-d expected never-run wording, got: $OUT"
 ok "AC8-d: absent state file -> never-run STALE advisory, exit 0 (never blocks)"
 
 # Corrupt state file -> fail open, treated as never-run, exit 0.
@@ -174,7 +174,7 @@ P="$TMP/p_always"; make_state "$P" "$(ts_hours_ago 1)"
 write_config "$P" true 48 always
 run_hook "$P"
 [[ "$LAST_EXIT" -eq 0 ]] || fail "surface=always expected exit 0"
-printf '%s' "$OUT" | grep -q 'decision=FRESH' || fail "surface=always expected FRESH marker, got: $OUT"
+grep -q 'decision=FRESH' <<< "$OUT" || fail "surface=always expected FRESH marker, got: $OUT"
 ok "surface=always: FRESH state emits [SELFTEST-STALE] decision=FRESH marker"
 
 # === --report mode: dumps the axis regardless of decision, exit 0 ===========
@@ -182,7 +182,7 @@ P="$TMP/p_report"; make_state "$P" "$(ts_hours_ago 1)"
 write_config "$P" true 48 on_stale
 RPT="$(CLAUDE_PROJECT_DIR="$P" bash "$HOOK" --report 2>/dev/null)"; rc=$?
 [[ "$rc" -eq 0 ]] || fail "--report expected exit 0, got $rc"
-printf '%s' "$RPT" | grep -q 'full_corpus_age_hours' || fail "--report missing age axis, got: $RPT"
+grep -q 'full_corpus_age_hours' <<< "$RPT" || fail "--report missing age axis, got: $RPT"
 ok "--report: dumps full_corpus_age_hours axis with exit 0"
 
 # === Negative contract: no filesystem mutation (read-only eval) =============
@@ -199,8 +199,8 @@ P="$TMP/p_noenv"; make_state "$P" "$(ts_hours_ago 100)"
 write_config "$P" true 48 on_stale
 LEAK="$(printf '{"session_id": "sessX"}' \
   | CLAUDE_PROJECT_DIR="$P" SECRET_CANARY="POLARIS_SECRET_CANARY_VALUE_12345" bash "$HOOK" 2>/dev/null)"
-printf '%s' "$LEAK" | grep -q 'POLARIS_SECRET_CANARY_VALUE_12345' && fail "negative contract: leaked env value into stdout"
-printf '%s' "$LEAK" | grep -Eq '(^|[^A-Za-z_])PATH=' && fail "negative contract: leaked PATH= style env into stdout"
+grep -q 'POLARIS_SECRET_CANARY_VALUE_12345' <<< "$LEAK" && fail "negative contract: leaked env value into stdout"
+grep -Eq '(^|[^A-Za-z_])PATH=' <<< "$LEAK" && fail "negative contract: leaked PATH= style env into stdout"
 ok "negative contract: hook stdout contains no env/secret values"
 
 # === Negative contract: no network/build tokens in hook source =============

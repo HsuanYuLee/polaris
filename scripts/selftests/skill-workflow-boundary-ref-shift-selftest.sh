@@ -100,7 +100,7 @@ container_of() { printf '%s\n' "$1" | sed -n '2p'; }
               "$gate" --skill verify-AC --check --source-container "$container" --repo "$repo" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if [[ "$rc" -eq 1 ]] && printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:verify-AC'; then
+  if [[ "$rc" -eq 1 ]] && grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:verify-AC' <<< "$err_out"; then
     record_pass "AC3: task/* delivery branch ref shift detected (exit 1 + marker)"
   else
     record_fail "AC3: task/* delivery branch ref shift not detected (rc=$rc, err=$err_out)"
@@ -126,7 +126,7 @@ container_of() { printf '%s\n' "$1" | sed -n '2p'; }
               "$gate" --skill verify-AC --check --source-container "$container" --repo "$repo" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if [[ "$rc" -eq 1 ]] && printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:verify-AC'; then
+  if [[ "$rc" -eq 1 ]] && grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:verify-AC' <<< "$err_out"; then
     record_pass "AC3: task/* delivery branch removed during session detected"
   else
     record_fail "AC3: task/* delivery branch removal not detected (rc=$rc, err=$err_out)"

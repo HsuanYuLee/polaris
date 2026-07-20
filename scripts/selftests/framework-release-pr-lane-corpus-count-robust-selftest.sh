@@ -14,6 +14,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TARGET_SCRIPT="${TARGET_SCRIPT:-${REPO_ROOT}/scripts/framework-release-pr-lane.sh}"
+BACKSTOPS_LIB="${REPO_ROOT}/scripts/lib/release-gate-backstops.sh"
 
 fail_count=0
 pass() { printf 'PASS: %s\n' "$1"; }
@@ -136,10 +137,10 @@ if grep -Eq 'head -1[[:space:]]*\|[[:space:]]*wc -l' "$TARGET_SCRIPT"; then
 else
   pass "target script no longer contains the leaky 'head -1 | wc -l' corpus pipeline"
 fi
-if grep -q -- '-print -quit' "$TARGET_SCRIPT"; then
-  pass "target script uses 'find -print -quit' existence probe"
+if grep -q -- '-print -quit' "$TARGET_SCRIPT" "$BACKSTOPS_LIB"; then
+  pass "release lane or its sourced backstop uses 'find -print -quit' existence probe"
 else
-  fail "target script does not use 'find -print -quit' existence probe"
+  fail "release lane and sourced backstop do not use 'find -print -quit' existence probe"
 fi
 
 if [[ "$fail_count" -eq 0 ]]; then

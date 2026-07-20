@@ -68,20 +68,7 @@ fi
 # requirement: a ledger with no active pause needs nothing and a wrong-kind pause
 # is rejected before we ask for a resume artifact.
 pause_kind="$(
-  python3 - "$LEDGER" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-ledger = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-pause = ledger.get("pause")
-if pause is None:
-    print("__NO_PAUSE__")
-elif not isinstance(pause, dict):
-    print("__BAD_PAUSE__")
-else:
-    print(pause.get("kind") or "__NO_KIND__")
-PY
+  python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/auto_pass_auto_pass_consume_resume_1.py" "$LEDGER"
 )"
 
 if [ "$pause_kind" = "__NO_PAUSE__" ]; then
@@ -112,37 +99,7 @@ fi
 # AC1 / AC4: atomic in-place rewrite — null pause + stamp resumed_at, preserve the rest.
 resumed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-python3 - "$LEDGER" "$resumed_at" <<'PY'
-"""Consume a session_handoff pause: null pause + set resumed_at (DP-339 T1).
-
-Inputs: argv[1]=ledger path, argv[2]=resumed_at ISO8601 timestamp.
-Atomic in-place rewrite (tempfile.mkstemp in the ledger dir + os.replace);
-only `pause` and `resumed_at` mutate, every other key round-trips byte-for-byte.
-"""
-import json
-import os
-import sys
-import tempfile
-from pathlib import Path
-
-ledger_path = Path(sys.argv[1])
-resumed_at = sys.argv[2]
-
-ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
-ledger["pause"] = None
-ledger["resumed_at"] = resumed_at
-
-fd, tmp_path = tempfile.mkstemp(dir=str(ledger_path.parent), prefix=".consume-resume-", suffix=".json")
-try:
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        json.dump(ledger, handle, ensure_ascii=False, indent=2)
-        handle.write("\n")
-    os.replace(tmp_path, ledger_path)
-except Exception:
-    if os.path.exists(tmp_path):
-        os.unlink(tmp_path)
-    raise
-PY
+python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/auto_pass_auto_pass_consume_resume_2.py" "$LEDGER" "$resumed_at"
 
 # Post-write fail-closed: the consumed ledger must still pass the ledger contract.
 if ! bash "$SCRIPT_ROOT/scripts/validate-auto-pass-ledger.sh" "$LEDGER" >/dev/null 2>&1; then

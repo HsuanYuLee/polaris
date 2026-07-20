@@ -29,6 +29,10 @@
 #     "ticket": "TASK-3788",
 #     "head_sha": "abc1234...",
 #     "command": "<verify_command full text>",
+#     "normalized_verify_command_hash": "<sha256>",
+#     "verification_context_hash": "<sha256>",
+#     "toolchain_context_hash": "<sha256>",
+#     "evidence_identity": { "head_sha": "...", "normalized_verify_command_hash": "...", "verification_context_hash": "..." },
 #     "exit_code": 0,
 #     "stdout_hash": "<sha256>",
 #     "writer": "run-verify-command.sh",
@@ -491,7 +495,7 @@ export RVC_FALLBACK_STDERR_FILE="$TMP_FALLBACK_ERR"
 export RVC_EXECUTION_CWD="$REPO_PATH"
 
 python3 - <<'PY'
-import hashlib, json, os, re
+import hashlib, json, os, re, shutil, subprocess, sys
 from urllib.parse import urlparse
 
 ticket = os.environ["RVC_TICKET"]
@@ -515,6 +519,40 @@ primary_stderr_file = os.environ["RVC_PRIMARY_STDERR_FILE"]
 fallback_stdout_file = os.environ.get("RVC_FALLBACK_STDOUT_FILE", "") or ""
 fallback_stderr_file = os.environ.get("RVC_FALLBACK_STDERR_FILE", "") or ""
 execution_cwd = os.environ["RVC_EXECUTION_CWD"]
+
+
+def sha256_text(value):
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def normalized_command(value):
+    """Normalize task-authored shell without changing its executable meaning."""
+    value = value.replace("\r\n", "\n").replace("\r", "\n")
+    lines = [line.rstrip() for line in value.split("\n")]
+    while lines and not lines[0]:
+        lines.pop(0)
+    while lines and not lines[-1]:
+        lines.pop()
+    return "\n".join(lines)
+
+
+def command_version(argv):
+    if shutil.which(argv[0]) is None:
+        return "unavailable"
+    try:
+        result = subprocess.run(
+            argv,
+            cwd=execution_cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+    except Exception as exc:  # evidence must retain the failure, not hide it
+        return f"error:{type(exc).__name__}"
+    output = (result.stdout or result.stderr).strip().splitlines()
+    first = output[0] if output else ""
+    return f"exit={result.returncode};{first}"
 
 def read_bytes(path):
     if not path:
@@ -614,7 +652,7 @@ if level == "runtime":
     if m_url:
         verify_url = m_url.group(0).rstrip(",;)")
         verify_host = (urlparse(verify_url).hostname or "").lower()
-    evidence["runtime_contract"] = {
+    runtime_contract = {
         "level": level,
         "runtime_verify_target": target,
         "verify_command_url": verify_url,
@@ -622,7 +660,40 @@ if level == "runtime":
         "verify_command_url_host": verify_host,
     }
 else:
-    evidence["runtime_contract"] = {"level": level}
+    runtime_contract = {"level": level}
+
+toolchain_context = {
+    "bash": command_version(["bash", "--version"]),
+    "git": command_version(["git", "--version"]),
+    "mise": command_version(["mise", "current"]),
+    "python3": command_version(["python3", "--version"]),
+}
+toolchain_canonical = json.dumps(
+    toolchain_context, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+)
+toolchain_context_hash = sha256_text(toolchain_canonical)
+normalized_verify_command_hash = sha256_text(normalized_command(command))
+verification_context = {
+    "level": level,
+    "execution_cwd": execution_cwd,
+    "runtime_contract": runtime_contract,
+    "toolchain_context_hash": toolchain_context_hash,
+}
+verification_context_canonical = json.dumps(
+    verification_context, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+)
+verification_context_hash = sha256_text(verification_context_canonical)
+
+evidence["runtime_contract"] = runtime_contract
+evidence["toolchain_context"] = toolchain_context
+evidence["toolchain_context_hash"] = toolchain_context_hash
+evidence["normalized_verify_command_hash"] = normalized_verify_command_hash
+evidence["verification_context_hash"] = verification_context_hash
+evidence["evidence_identity"] = {
+    "head_sha": head_sha,
+    "normalized_verify_command_hash": normalized_verify_command_hash,
+    "verification_context_hash": verification_context_hash,
+}
 
 with open(output_file, "w") as f:
     json.dump(evidence, f, indent=2, ensure_ascii=False)
@@ -649,6 +720,12 @@ try:
     assert d['head_sha'] == '$HEAD_SHA', 'head_sha mismatch'
     assert d['writer'] == 'run-verify-command.sh', 'writer mismatch'
     assert d['execution_cwd'] == '$REPO_PATH', 'execution_cwd mismatch'
+    assert len(d['normalized_verify_command_hash']) == 64, 'verify command hash missing'
+    assert len(d['verification_context_hash']) == 64, 'verification context hash missing'
+    assert len(d['toolchain_context_hash']) == 64, 'toolchain context hash missing'
+    assert d['evidence_identity']['head_sha'] == d['head_sha'], 'identity head mismatch'
+    assert d['evidence_identity']['normalized_verify_command_hash'] == d['normalized_verify_command_hash'], 'identity command mismatch'
+    assert d['evidence_identity']['verification_context_hash'] == d['verification_context_hash'], 'identity context mismatch'
     assert 'exit_code' in d, 'missing exit_code'
     assert d['at'], 'missing at'
     print('valid')

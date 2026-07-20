@@ -192,7 +192,7 @@ layer_hits=0
 declare -a missing_layers=()
 check_layer() {
   local label="$1" pattern="$2"
-  if printf '%s' "$agg_all" | grep -qE "$pattern"; then
+  if grep -qE "$pattern" <<< "$agg_all"; then
     layer_hits=$((layer_hits + 1))
   else
     missing_layers+=("$label ($pattern)")
@@ -223,7 +223,7 @@ ff_rc=$?
 set -e
 ff_all="$(cat "$tmp/ff.out" "$tmp/ff.err")"
 if [[ "$ff_rc" -ne 0 ]] \
-   && ! printf '%s' "$ff_all" | grep -qE 'POLARIS_AC_ID_SHAPE_INVALID'; then
+   && ! grep -qE 'POLARIS_AC_ID_SHAPE_INVALID' <<< "$ff_all"; then
   record_pass "AC-NEG7: default fail-first mode stops before the later AC-id-shape layer"
 else
   record_fail "AC-NEG7: default mode unexpectedly reached the AC-id-shape layer (fail-first not observable)"
@@ -258,7 +258,7 @@ fi
 enum_out="$(cat "$tmp/enum.out")"
 enum_ok=1
 for needle in schema module-ac-coverage ac-id-shape lock-preflight derive validate-breakdown-ready; do
-  if ! printf '%s' "$enum_out" | grep -qiF "$needle"; then
+  if ! grep -qiF "$needle" <<< "$enum_out"; then
     enum_ok=0
     echo "  enumerate missing chain stage: $needle" >&2
   fi
@@ -330,7 +330,7 @@ co_precond_hits=0
 declare -a co_precond_missing=()
 check_precond() {
   local label="$1" pattern="$2"
-  if printf '%s' "$co_agg_all" | grep -qF "$pattern"; then
+  if grep -qF "$pattern" <<< "$co_agg_all"; then
     co_precond_hits=$((co_precond_hits + 1))
   else
     co_precond_missing+=("$label ($pattern)")
@@ -356,8 +356,8 @@ co_ff_rc=$?
 set -e
 co_ff_all="$(cat "$tmp/co_ff.out" "$tmp/co_ff.err")"
 if [[ "$co_ff_rc" -ne 0 ]] \
-   && ! printf '%s' "$co_ff_all" | grep -qF 'task_kind=V' \
-   && ! printf '%s' "$co_ff_all" | grep -qF 'version-tag'; then
+   && ! grep -qF 'task_kind=V' <<< "$co_ff_all" \
+   && ! grep -qF 'version-tag' <<< "$co_ff_all"; then
   record_pass "AC21a: default closeout mode is fail-first (stops before later preconditions)"
 else
   record_fail "AC21a: default closeout mode unexpectedly reached later preconditions (fail-first not observable)"
@@ -383,14 +383,14 @@ enum_ok=1
 for needle in --workspace-commit --template-commit --version-tag --release-url \
               --verify-evidence --task-head-sha --preflight-evidence \
               task_kind=V deliverable.head_sha; do
-  if ! printf '%s' "$co_enum_out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<< "$co_enum_out"; then
     enum_ok=0
     echo "  closeout --enumerate missing: $needle" >&2
   fi
 done
 ex_enum_out="$(cat "$tmp/ex_enum.out")"
 for needle in feat/DP-NNN --full-tail --source-id; do
-  if ! printf '%s' "$ex_enum_out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<< "$ex_enum_out"; then
     enum_ok=0
     echo "  execute --enumerate missing: $needle" >&2
   fi
@@ -430,7 +430,7 @@ emit_out="$(cat "$tmp/emit1.out")"
 emit_ok=1
 for needle in framework-release-closeout.sh framework-release-execute.sh --full-tail \
               --task-md --verify-evidence --workspace-commit --version-tag --release-url; do
-  if ! printf '%s' "$emit_out" | grep -qF -- "$needle"; then
+  if ! grep -qF -- "$needle" <<< "$emit_out"; then
     emit_ok=0
     echo "  --emit-handoff missing arg-set token: $needle" >&2
   fi

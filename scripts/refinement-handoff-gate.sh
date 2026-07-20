@@ -303,19 +303,8 @@ gate_boundary() {
       rel_container="${rel_container%/}"
       committed_diff="$(git -C "$boundary_repo" diff --name-only "$refn_baseline_head" HEAD 2>/dev/null || true)"
       if [[ -n "$committed_diff" ]]; then
-        downstream="$(printf '%s\n' "$committed_diff" | python3 -c "
-import sys
-rel = sys.argv[1].rstrip('/')
-for line in sys.stdin:
-    p = line.strip()
-    if not p:
-        continue
-    if p.startswith('.polaris/') or p.startswith('.git/'):
-        continue
-    if rel and (p == rel or p.startswith(rel + '/')):
-        continue
-    print(p)
-" "$rel_container")"
+        downstream="$(printf '%s\n' "$committed_diff" \
+          | python3 "$lib_dir/refinement_handoff_helpers.py" filter-downstream "$rel_container")"
         [[ -n "$downstream" ]] && session_live=0
       fi
     fi

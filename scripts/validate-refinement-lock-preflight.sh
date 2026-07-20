@@ -120,98 +120,8 @@ run_preflight() {
   local replace_err replace_rc
   replace_err="$(mktemp -t validate-refinement-lock-preflight-replace.XXXXXX)"
   set +e
-  python3 - "$refinement_json" >/dev/null 2>"$replace_err" <<'PY'
-import json
-import sys
-from pathlib import Path
+  python3 "$SCRIPT_DIR/lib/refinement_lock_preflight_helpers.py" validate-replaces-existing "$refinement_json" >/dev/null 2>"$replace_err"
 
-try:
-    data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-except Exception:
-    # A malformed/unparseable refinement.json is the json schema validator's
-    # concern; the replace-existing gate treats it as a no-op and lets the
-    # downstream derive loop fail-loud on the real problem.
-    raise SystemExit(0)
-
-rx = data.get("replaces_existing")
-if rx is None:
-    raise SystemExit(0)  # non-replacing source: strict no-op (AC-N1)
-
-errs = []
-# Runtime/build-output evidence channels — the ones that CAN see build-time /
-# CDN / inline injection paths. source-grep is a valid discovery method but is
-# insufficient on its own (AC-NEG4), so it is deliberately excluded here.
-RUNTIME_BUILD_EVIDENCE = {"runtime", "build-output", "cdn", "inline"}
-
-if not isinstance(rx, dict):
-    errs.append(
-        "POLARIS_REFINEMENT_REPLACE_EXISTING_ENUMERATION: replaces_existing must be an object"
-    )
-else:
-    # Enumeration gate (AC9 / AC-NEG4).
-    existing_sources = rx.get("existing_sources")
-    if not isinstance(existing_sources, list) or not existing_sources:
-        errs.append(
-            "POLARIS_REFINEMENT_REPLACE_EXISTING_ENUMERATION: replaces_existing marked but "
-            "existing_sources is empty — enumerate ALL existing sources of the replaced thing "
-            "with runtime/build-output evidence (source-grep cannot see build-time / CDN / "
-            "inline injection paths)"
-        )
-    else:
-        for idx, src in enumerate(existing_sources):
-            if not isinstance(src, dict):
-                errs.append(
-                    f"POLARIS_REFINEMENT_REPLACE_EXISTING_ENUMERATION: existing_sources[{idx}] "
-                    "is not an object"
-                )
-                continue
-            evidence = src.get("evidence")
-            if evidence not in RUNTIME_BUILD_EVIDENCE:
-                errs.append(
-                    f"POLARIS_REFINEMENT_REPLACE_EXISTING_ENUMERATION: existing_sources[{idx}] "
-                    f"evidence={evidence!r} is not runtime/build-output enumeration evidence "
-                    "(source-grep alone cannot see build-time / CDN / inline injection paths); "
-                    f"must be one of {sorted(RUNTIME_BUILD_EVIDENCE)}"
-                )
-
-    # Anti-dead-code-port gate (AC11 / AC-NEG6).
-    ported = rx.get("ported_symbols")
-    if ported is not None:
-        if not isinstance(ported, list):
-            errs.append(
-                "POLARIS_REFINEMENT_REPLACE_EXISTING_DEAD_PORT: ported_symbols must be an array"
-            )
-        else:
-            for idx, sym in enumerate(ported):
-                if not isinstance(sym, dict):
-                    errs.append(
-                        f"POLARIS_REFINEMENT_REPLACE_EXISTING_DEAD_PORT: ported_symbols[{idx}] "
-                        "is not an object"
-                    )
-                    continue
-                name = sym.get("symbol")
-                usage_evidence = sym.get("usage_evidence")
-                if not isinstance(usage_evidence, str) or not usage_evidence.strip():
-                    errs.append(
-                        f"POLARIS_REFINEMENT_REPLACE_EXISTING_DEAD_PORT: ported symbol {name!r} "
-                        "lacks usage_evidence — each ported symbol must carry a site-wide usage check"
-                    )
-                usage_count = sym.get("usage_count")
-                disposition = sym.get("disposition")
-                if isinstance(usage_count, int) and not isinstance(usage_count, bool) and usage_count == 0:
-                    if disposition != "removable":
-                        errs.append(
-                            f"POLARIS_REFINEMENT_REPLACE_EXISTING_DEAD_PORT: ported symbol {name!r} "
-                            f"has zero site-wide usage but disposition={disposition!r}; a dead symbol "
-                            "must be flagged 'removable', not silently ported (new legacy)"
-                        )
-
-if errs:
-    for e in errs:
-        print(e, file=sys.stderr)
-    raise SystemExit(2)
-raise SystemExit(0)
-PY
   replace_rc=$?
   set -e
   if [[ "$replace_rc" -ne 0 ]]; then
@@ -228,19 +138,7 @@ PY
   # ${source_id}-${task_id}. Default keeps the embedded smoke / legacy fixtures
   # working when source.id is absent.
   local source_id
-  source_id="$(python3 - "$refinement_json" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-try:
-    data = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-except Exception:
-    print("DP-262")
-    raise SystemExit(0)
-print(str((data.get("source") or {}).get("id") or "DP-262").strip() or "DP-262")
-PY
-)"
+  source_id="$(python3 "$SCRIPT_DIR/lib/refinement_lock_preflight_helpers.py" source-id "$refinement_json")"
 
   # DP-316 T2 test-observability seam: when POLARIS_LOCK_PREFLIGHT_KEEP_TMPDIR is
   # set to a writable directory, keep the derived task.md files there (and do not
@@ -289,46 +187,7 @@ PY
   # tasks[] entry (DP-369 T2, no second parse). Missing tasks[] (or non-array)
   # yields no rows -> no-op PASS.
   local task_ids
-  task_ids="$(python3 - "$refinement_json" <<'PY'
-import json
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-try:
-    data = json.loads(path.read_text(encoding="utf-8"))
-except (json.JSONDecodeError, OSError) as exc:
-    print(f"PARSE_ERROR\t{exc}", file=sys.stderr)
-    raise SystemExit(3)
-
-
-def short_work_item_id(value, fallback):
-    """Normalize a tasks[].id (short T1/V1 or full DP-NNN-Tn) to its short form."""
-    value = str(value or "").strip()
-    if re.fullmatch(r"[TV][0-9]+[a-z]?", value):
-        return value
-    m = re.fullmatch(r"[A-Z][A-Z0-9]*-[0-9]+-([TV][0-9]+[a-z]?)", value)
-    if m:
-        return m.group(1)
-    return fallback
-
-
-tasks = data.get("tasks")
-if not isinstance(tasks, list):
-    raise SystemExit(0)
-
-for idx, entry in enumerate(tasks):
-    if not isinstance(entry, dict):
-        print(f"BADENTRY\t{idx}", file=sys.stderr)
-        raise SystemExit(3)
-    task_id = short_work_item_id(entry.get("id"), f"PT{idx + 1}")
-    if "\n" in task_id:
-        print(f"BADFIELD\t{idx}", file=sys.stderr)
-        raise SystemExit(3)
-    print(task_id)
-PY
-)" || {
+  task_ids="$(python3 "$SCRIPT_DIR/lib/refinement_lock_preflight_helpers.py" task-ids "$refinement_json")" || {
     echo "validate-refinement-lock-preflight: failed to parse tasks[] in $refinement_json" >&2
     return 1
   }
@@ -427,11 +286,9 @@ run_self_test() {
       "scope": "lock preflight smoke confirmation specs-only carve-out",
       "task_shape": "confirmation",
       "tracked_deliverable_hint": "specs_only",
-      "allowed_files": ["docs-manager/src/content/docs/specs/design-plans/DP-262-example/index.md"],
-      "modules": [],
+      "modules": ["docs-manager/src/content/docs/specs/design-plans/DP-262-example/index.md"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 1,
       "verification": {
         "method": "unit_test",
         "detail": "echo PASS",
@@ -448,11 +305,9 @@ run_self_test() {
       "scope": "lock preflight smoke implementation tracked deliverable",
       "task_shape": "implementation",
       "tracked_deliverable_hint": "tracked",
-      "allowed_files": ["scripts/lock-preflight-smoke-T2.sh"],
       "modules": ["scripts/lock-preflight-smoke-T2.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 1,
       "verification": {
         "method": "unit_test",
         "detail": "echo PASS",
@@ -490,11 +345,9 @@ JSON
       "scope": "runtime task whose env_bootstrap is prose, not a command",
       "task_shape": "implementation",
       "tracked_deliverable_hint": "tracked",
-      "allowed_files": ["scripts/lock-preflight-smoke-bad.sh"],
       "modules": ["scripts/lock-preflight-smoke-bad.sh"],
       "ac_ids": ["AC1"],
       "dependencies": [],
-      "estimate_points": 1,
       "verification": {
         "method": "unit_test",
         "detail": "curl -fsS http://127.0.0.1:9999/lock-preflight-smoke-probe",

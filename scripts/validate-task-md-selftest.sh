@@ -243,10 +243,11 @@ if grep -q "$env_marker" "$TMPROOT/env-NEG1b.out"; then
 fi
 echo "PASS: validate-task-md env-bootstrap AC-NEG1b (build N/A no-op)"
 
-# AC-NEG3 — reuse primitive: validate-task-md.sh must invoke
-# verify_command_static_smoke with the env_bootstrap kind, and must not define a
-# second standalone env-bootstrap tokenizer (single classifier).
-if ! grep -Eq 'verify_command_static_smoke[^|]*env_bootstrap' "$VALIDATE"; then
+# AC-NEG3 — reuse primitive: the Python production module must route
+# env_bootstrap through the same smoke helper and must not define a second
+# standalone executable classifier.
+VALIDATE_MODULE="$SCRIPT_DIR/lib/validate_task_md.py"
+if ! grep -Eq 'helper\("smoke".*normalized_bootstrap.*"env_bootstrap"' "$VALIDATE_MODULE"; then
   echo "validate-task-md-selftest AC-NEG3: env_bootstrap check must reuse verify_command_static_smoke primitive" >&2
   exit 1
 fi

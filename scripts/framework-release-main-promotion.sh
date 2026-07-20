@@ -47,19 +47,7 @@ info() {
 
 json_field() {
   local json="$1" expr="$2"
-  python3 - "$json" "$expr" <<'PY'
-import json
-import sys
-
-data = json.loads(sys.argv[1])
-value = eval(sys.argv[2], {}, {"d": data})
-if value is None:
-    print("")
-elif isinstance(value, bool):
-    print("true" if value else "false")
-else:
-    print(value)
-PY
+  python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" json-field "$json" "$expr"
 }
 
 while [[ $# -gt 0 ]]; do

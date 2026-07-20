@@ -44,7 +44,7 @@ assert_eq() {
 
 assert_contains() {
   local hay="$1" needle="$2" label="$3"
-  if printf '%s' "$hay" | grep -qF -- "$needle"; then
+  if grep -qF -- "$needle" <<< "$hay"; then
     PASS=$((PASS + 1))
     [ "$DEBUG" = "1" ] && printf "  [ok] %s\n" "$label"
   else

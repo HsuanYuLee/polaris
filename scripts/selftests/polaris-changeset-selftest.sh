@@ -444,6 +444,13 @@ assert_eq "$?" "2" "slug without --title → exit 2"
 "$PCS" slug --ticket "DP-344-T1" --title "x" --print bogus >/dev/null 2>&1
 assert_eq "$?" "2" "slug --print bogus → exit 2"
 
+# A ticket becomes part of the generated path. Wildcards and path metacharacters
+# must fail instead of being emitted as scope patterns by downstream consumers.
+"$PCS" slug --ticket "*" --title "boundary fixture" --print path >/dev/null 2>&1
+assert_eq "$?" "1" "slug wildcard ticket → fail closed"
+"$PCS" slug --ticket "DP-344/[T1]" --title "boundary fixture" --print path >/dev/null 2>&1
+assert_eq "$?" "1" "slug path/glob metacharacters → fail closed"
+
 # Parity: `slug --print path` basename == the file `new` actually writes for the
 # same ticket+title. Reuse the existing fake-repo / task.md helpers so the task.md
 # shape matches what parse-task-md.sh expects (repo / task_jira_key / summary).

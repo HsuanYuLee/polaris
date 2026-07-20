@@ -50,7 +50,7 @@ if [[ "$probe_reason" != "$validation_reason" ]]; then
   echo "  expected: $validation_reason" >&2
   exit 1
 fi
-if printf '%s' "$probe_reason" | grep -qiE 'marker missing|PASS marker missing'; then
+if grep -qiE 'marker missing|PASS marker missing' <<< "$probe_reason"; then
   echo "FAIL [case 1 / AC3]: probe reason is the generic 'marker missing' message" >&2
   exit 1
 fi

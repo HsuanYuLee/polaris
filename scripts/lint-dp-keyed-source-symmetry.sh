@@ -78,9 +78,35 @@ counterpart_signal = re.compile(
     r"(companies/|JIRA[-_ ]?Epic|jira_epic|resolve_by_jira|source_key_for_container|SOURCE_ID_PATTERN|resolver-compatible|resolve_task_md|\[A-Z\]\[A-Z0-9\]\+\?-\[0-9\]|[A-Z]\[A-Z0-9\].*\[TV\])",
     re.IGNORECASE,
 )
+delegated_module_signal = re.compile(
+    r"(?m)^\s*(?:exec\s+)?(?:python3|\"?\$[A-Z_]+\"?)\b[^\n#]*?"
+    r"(lib/[A-Za-z0-9_.-]+\.py)",
+)
 
 errors: list[str] = []
 scanned = 0
+
+
+def shell_executable_text(text: str) -> str:
+    executable: list[str] = []
+    delimiter: str | None = None
+    strip_tabs = False
+    start = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
+    for line in text.splitlines():
+        if delimiter is not None:
+            candidate = line.lstrip("\t") if strip_tabs else line
+            if candidate.strip() == delimiter:
+                delimiter = None
+                strip_tabs = False
+            continue
+        if line.lstrip().startswith("#"):
+            continue
+        executable.append(line)
+        match = start.search(line)
+        if match:
+            strip_tabs = match.group(1) == "-"
+            delimiter = match.group(3)
+    return "\n".join(executable)
 
 for surface in surfaces:
     rel = surface
@@ -97,6 +123,25 @@ for surface in surfaces:
     except OSError as exc:
         print(f"{prefix} failed to read {surface}: {exc}", file=sys.stderr)
         sys.exit(3)
+    # A migrated shell shim and the Python module it delegates to form one
+    # validator surface. Evaluate their combined authority so moving structured
+    # logic out of the shim cannot create a false DP-only asymmetry.
+    delegated_text: list[str] = []
+    # Only executable command lines establish delegation. A comment mentioning
+    # lib/counterpart.py must not be able to import a parity counterpart into
+    # an otherwise DP-only shell surface.
+    executable_text = shell_executable_text(text)
+    for relative_module in sorted(set(delegated_module_signal.findall(executable_text))):
+        module_path = path.parent / relative_module
+        if not module_path.is_file():
+            continue
+        try:
+            delegated_text.append(module_path.read_text(encoding="utf-8"))
+        except OSError as exc:
+            print(f"{prefix} failed to read delegated module {module_path}: {exc}", file=sys.stderr)
+            sys.exit(3)
+    if delegated_text:
+        text = "\n".join([text, *delegated_text])
     if not dp_signal.search(text):
         continue
     if not surface_signal.search(text):

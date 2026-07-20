@@ -208,7 +208,7 @@ done
 # refinement.md (no `git show ...refinement.md`, no REFINEMENT_MD_REL, no
 # heading-diff python block).
 EXEC_BODY="$(grep -vE '^[[:space:]]*#' "$VALIDATOR")"
-if printf '%s\n' "$EXEC_BODY" | grep -qE 'refinement\.md|REFINEMENT_MD_REL|LOCKED_HEADINGS'; then
+if grep -qE 'refinement\.md|REFINEMENT_MD_REL|LOCKED_HEADINGS' <<< "$EXEC_BODY"; then
   echo "FAIL: case 5 (AC-NEG1) guard still has an executing refinement.md body-read path" >&2
   printf '%s\n' "$EXEC_BODY" | grep -nE 'refinement\.md|REFINEMENT_MD_REL|LOCKED_HEADINGS' >&2
   exit 1

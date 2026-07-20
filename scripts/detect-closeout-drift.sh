@@ -478,41 +478,8 @@ done < <(active_source_containers)
 # --- render ----------------------------------------------------------------
 
 if [[ "$EMIT_JSON" -eq 1 ]]; then
-  python3 - "$RESULTS_TSV" "$GH_OK" "$STRANDED_DAYS" <<'PY'
-import json, sys
-tsv, gh_ok, stranded_days = sys.argv[1], sys.argv[2] == "1", int(sys.argv[3])
-results = []
-with open(tsv, encoding="utf-8") as fh:
-    for line in fh:
-        line = line.rstrip("\n")
-        if not line:
-            continue
-        dp, classification, action, covered, total, changelog_hit, pr_merged, pr_open, pr_unchecked, verification_pending, container = line.split("\t")
-        pr_unchecked_b = pr_unchecked == "1"
-        merged_pr = "unchecked" if pr_unchecked_b else ("merged" if pr_merged == "1" else "none")
-        results.append({
-            "dp": dp,
-            "container": container,
-            "classification": classification,
-            "action": action,
-            "pr_evidence_unchecked": pr_unchecked_b,
-            "evidence": {
-                "completion_gate_markers": {"covered": int(covered), "total": int(total)},
-                "changelog": changelog_hit == "1",
-                "merged_pr": merged_pr,
-                "in_flight_open_pr": pr_open == "1",
-                "verification_pending": verification_pending == "1",
-            },
-        })
-report = {
-    "schema_version": 1,
-    "report_kind": "closeout_drift",
-    "gh_available": gh_ok,
-    "stranded_threshold_days": stranded_days,
-    "results": results,
-}
-print(json.dumps(report, ensure_ascii=False, indent=2))
-PY
+  python3 "$SCRIPT_DIR/lib/release_closeout_helpers.py" render-closeout-drift \
+    "$RESULTS_TSV" "$GH_OK" "$STRANDED_DAYS"
 fi
 
 # Human summary (always to stderr-free stdout after JSON, or alone).

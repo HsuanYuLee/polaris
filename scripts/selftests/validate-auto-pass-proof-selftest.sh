@@ -83,6 +83,7 @@ PY
 pushd "$TMP" >/dev/null
 mkdir -p scripts/lib scripts/gates
 cp "$ROOT/scripts/lib/evidence-producers.json" scripts/lib/evidence-producers.json
+cp "$ROOT/scripts/lib/auto_pass_validate_auto_pass_proof_1.py" scripts/lib/auto_pass_validate_auto_pass_proof_1.py
 cp "$VALIDATOR" scripts/validate-auto-pass-proof.sh
 cp "$PRODUCER_GATE" scripts/gates/gate-evidence-producer-whitelist.sh
 

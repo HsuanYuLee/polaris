@@ -77,49 +77,7 @@ done
 PYTHON_BIN="$(polaris_require_python)"
 BASH_BIN="$(command -v bash)"
 
-"$PYTHON_BIN" - "$REPO/$TARGET" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-lines = path.read_text(encoding="utf-8").splitlines()
-begin_marker = "# POLARIS_SAFE_CLI_INTROSPECTION_BEGIN"
-end_marker = "# POLARIS_SAFE_CLI_INTROSPECTION_END"
-
-def fail(detail: str) -> None:
-    print(f"POLARIS_SAFE_CLI_INTROSPECTION_UNSAFE_PREFIX:{path.name}:{detail}", file=sys.stderr)
-    raise SystemExit(2)
-
-if lines.count(begin_marker) != 1 or lines.count(end_marker) != 1:
-    fail("canonical markers must each appear exactly once")
-begin = lines.index(begin_marker)
-end = lines.index(end_marker)
-if end <= begin:
-    fail("end marker must follow begin marker")
-if not lines or lines[0] != "#!/usr/bin/env bash":
-    fail("first line must be the canonical bash shebang")
-
-executable_prefix = [
-    line.strip()
-    for line in lines[1:begin]
-    if line.strip() and not line.lstrip().startswith("#")
-]
-if executable_prefix != ["set -euo pipefail"]:
-    fail("only set -euo pipefail may execute before the canonical help block")
-
-block = lines[begin + 1 : end]
-expected_if = 'if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then'
-if len(block) < 4 or block[0] != expected_if or block[-2:] != ["  exit 0", "fi"]:
-    fail("help block must use the canonical condition and terminal exit 0")
-printf_lines = block[1:-2]
-if not printf_lines:
-    fail("help block must emit at least one literal line")
-literal_printf = re.compile(r"  command printf '%s\\n' '[^']*'")
-for line in printf_lines:
-    if not literal_printf.fullmatch(line):
-        fail(f"non-literal or side-effecting help statement: {line}")
-PY
+"$PYTHON_BIN" "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/validate_safe_cli_introspection_1.py" "$REPO/$TARGET"
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
@@ -163,59 +121,7 @@ done
 
 snapshot_tree() {
   local root="$1"
-  "$PYTHON_BIN" - "$root" <<'PY'
-import hashlib
-import os
-import subprocess
-import stat
-import sys
-from pathlib import Path
-
-root = Path(sys.argv[1])
-digest = hashlib.sha256()
-
-# A framework source snapshot is the git-owned source surface: tracked files
-# plus non-ignored untracked files.  Local runtime state (for example
-# node_modules, .polaris evidence, and linked worktrees) is deliberately outside
-# that surface.  Reading every byte below the checkout made a single --help
-# fixture scan unrelated ignored state twice and turned release re-verification
-# into an unbounded workspace-size operation.
-try:
-    listed = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "ls-files",
-            "-z",
-            "--cached",
-            "--others",
-            "--exclude-standard",
-        ],
-        check=True,
-        capture_output=True,
-    ).stdout
-    paths = [root / raw.decode("utf-8", "surrogateescape") for raw in listed.split(b"\0") if raw]
-except (FileNotFoundError, subprocess.CalledProcessError):
-    # Hermetic non-git fixtures retain the original complete-tree behavior.
-    paths = [path for path in root.rglob("*") if ".git" not in path.relative_to(root).parts]
-
-for path in sorted(paths, key=lambda item: item.as_posix()):
-    if not path.exists() and not path.is_symlink():
-        # A path may disappear between enumeration and hashing.  Encode the
-        # disappearance so the before/after digest still differs deterministically.
-        digest.update(f"{path.relative_to(root).as_posix()}\0missing\0".encode())
-        continue
-    relative = path.relative_to(root).as_posix()
-    mode = stat.S_IMODE(path.lstat().st_mode)
-    digest.update(f"{relative}\0{mode:o}\0".encode())
-    if path.is_symlink():
-        digest.update(os.readlink(path).encode())
-    elif path.is_file():
-        digest.update(path.read_bytes())
-    digest.update(b"\0")
-print(digest.hexdigest())
-PY
+  "$PYTHON_BIN" "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/validate_safe_cli_introspection_2.py" "$root"
 }
 
 fixture_before="$(snapshot_tree "$FIXTURE")"

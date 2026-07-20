@@ -61,7 +61,7 @@ MD
   ],
   "gaps": {"pm_questions": [], "rd_risks": [{"risk": "false positive", "severity": "low", "mitigation": "fixture coverage"}]},
   "tasks": [
-    {"id": "DP-999-T1", "kind": "implementation", "title": "fixture", "scope": "fixture", "allowed_files": ["scripts/fixture-driver.sh"], "modules": ["scripts/fixture-driver.sh"], "ac_ids": ["AC1"], "dependencies": [], "estimate_points": 1, "verification": {"method": "unit_test", "detail": "fixture"}}
+    {"id": "DP-999-T1", "kind": "implementation", "title": "fixture", "scope": "fixture", "modules": ["scripts/fixture-driver.sh"], "ac_ids": ["AC1"], "dependencies": [], "verification": {"method": "unit_test", "detail": "fixture"}}
   ],
   "adversarial_pass": [
     {"ac_id": "AC1", "attack": "missing driver", "enforce": "selftest"}

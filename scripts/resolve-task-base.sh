@@ -184,6 +184,26 @@ task_collection_dir() {
     printf '%s' "$tasks_dir"
 }
 
+task_chain_capacity() {
+    local cur_task="$1"
+    local tasks_dir candidate
+    local count=0
+    tasks_dir=$(task_collection_dir "$cur_task")
+    shopt -s nullglob
+    for candidate in \
+        "$tasks_dir"/T*.md \
+        "$tasks_dir"/T*/index.md \
+        "$tasks_dir"/pr-release/T*.md \
+        "$tasks_dir"/pr-release/T*/index.md; do
+        count=$((count + 1))
+    done
+    shopt -u nullglob
+    if [ "$count" -lt 1 ]; then
+        count=1
+    fi
+    printf '%s' "$count"
+}
+
 parse_frontmatter_scalar() {
     local field="$1"
     local file="$2"
@@ -266,10 +286,11 @@ find_upstream_task() {
 resolve_final_feat_branch() {
     local cur_task="$1"
     local depth="$2"
-    local max_depth=10
+    local max_depth
+    max_depth=$(task_chain_capacity "$cur_task")
 
-    if [ "$depth" -gt "$max_depth" ]; then
-        log_err "resolve chain exceeded max depth ($max_depth) at $cur_task — possible cycle"
+    if [ "$depth" -ge "$max_depth" ]; then
+        log_err "resolve chain exceeded task-set bound ($max_depth) at $cur_task — possible cycle"
         return 1
     fi
 

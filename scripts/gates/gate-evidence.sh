@@ -229,17 +229,27 @@ resolve_task_md_for_branch() {
   local repo_root="$1"
   local current_branch=""
   local main_checkout=""
+  local resolved=""
 
   [[ -x "$ROOT_SCRIPT_DIR/resolve-task-md.sh" ]] || return 1
   current_branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
   [[ -n "$current_branch" ]] || return 1
+
+  # Canonical resolver discovery from the product cwd walks ancestors to the
+  # highest workspace-config.yaml, so workspace-owned specs remain resolvable
+  # when the product repository is nested below the Polaris workspace.
+  resolved="$(cd "$repo_root" && bash "$ROOT_SCRIPT_DIR/resolve-task-md.sh" --from-input "$current_branch" 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$resolved" ]]; then
+    printf '%s\n' "$resolved"
+    return 0
+  fi
 
   if declare -F resolve_main_checkout >/dev/null 2>&1; then
     main_checkout="$(resolve_main_checkout "$repo_root" 2>/dev/null || true)"
   fi
   [[ -n "$main_checkout" ]] || main_checkout="$repo_root"
 
-  bash "$ROOT_SCRIPT_DIR/resolve-task-md.sh" --scan-root "$main_checkout" --current 2>/dev/null | head -n 1
+  bash "$ROOT_SCRIPT_DIR/resolve-task-md.sh" --scan-root "$main_checkout" --from-input "$current_branch" 2>/dev/null | head -n 1
 }
 
 json_field() {
@@ -281,9 +291,9 @@ emit_shared_gate_block() {
       echo "Run scripts/run-verify-command.sh --task-md <path> [--ticket ${TICKET}] to produce evidence." >&2
       echo "If this is a non-ticket PR, set POLARIS_SKIP_EVIDENCE=1" >&2
       ;;
-    stale_layer_b)
+    stale_layer_b|stale_layer_b_identity)
       echo "$PREFIX BLOCKED: stale verification evidence for ${TICKET}; no evidence matches HEAD ${HEAD_SHA}" >&2
-      echo "  Re-run scripts/run-verify-command.sh against the current HEAD." >&2
+      echo "  Re-run scripts/run-verify-command.sh against the current HEAD and task verification context." >&2
       ;;
     invalid_layer_b)
       local layer_b_path
@@ -577,6 +587,11 @@ if [[ "$BEHAVIOR_ONLY" != "1" ]]; then
         ;;
     esac
   else
+    if [[ -z "$TASK_MD" || ! -f "$TASK_MD" ]]; then
+      echo "$PREFIX BLOCKED: task.md is required to validate the current verification evidence identity tuple for ${TICKET}." >&2
+      echo "  Resolve the canonical task.md and re-run the gate; head-only evidence is not reusable." >&2
+      exit 2
+    fi
     tmp_evidence="$(verification_evidence_tmp_path "$TICKET" "$HEAD_SHA")"
     durable_evidence="$(verification_evidence_durable_path "$REPO_ROOT" "$TICKET" "$HEAD_SHA" 2>/dev/null || true)"
     EVIDENCE_FILE="$(verification_evidence_resolve_existing_path "$REPO_ROOT" "$TICKET" "$HEAD_SHA" 2>/dev/null || true)"
@@ -601,6 +616,16 @@ if [[ "$BEHAVIOR_ONLY" != "1" ]]; then
       echo "" >&2
       echo "Evidence must contain: ticket, head_sha, writer=run-verify-command.sh, exit_code, at." >&2
       echo "Re-run: scripts/run-verify-command.sh --task-md <path> --ticket ${TICKET}" >&2
+      exit 2
+    fi
+
+    if ! identity="$(verification_evidence_validate_current_identity "$EVIDENCE_FILE" "$TASK_MD" "$REPO_ROOT" 2>/dev/null)"; then
+      identity="${identity:-invalid identity}"
+    fi
+    if [[ "$identity" != "current" ]]; then
+      echo "$PREFIX BLOCKED: stale verification evidence identity for ${TICKET}" >&2
+      echo "  ${EVIDENCE_FILE}: ${identity}" >&2
+      echo "  Re-run scripts/run-verify-command.sh for the current task verification context." >&2
       exit 2
     fi
 

@@ -69,6 +69,20 @@ cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/refin
 {"source": {"type": "dp", "id": "DP-900"}, "modules": [], "acceptance_criteria": []}
 JSON
 
+# Keep the source non-terminal while T1 head binding is exercised. Without a
+# pending sibling, the current full-source completion invariant legitimately
+# archives the fixture after the first PASS and destroys the later rebind case.
+mkdir -p "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/T2"
+cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/T2/index.md" <<'MD'
+---
+title: "DP-900-T2 pending sibling"
+description: "keeps the source active during T1 head-rebind assertions"
+status: IN_PROGRESS
+---
+
+## Fixture
+MD
+
 # DP-360 T7: head-rebind is now expressed via the task.md `deliverable` block
 # (deliverable.head_sha bound to the probe head + deliverable.verification.status),
 # NOT a head-sha-keyed completion-gate / ac-verification marker filename. The

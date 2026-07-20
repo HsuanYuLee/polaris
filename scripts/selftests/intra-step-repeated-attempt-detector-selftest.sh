@@ -49,7 +49,7 @@ feed() {
   rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || fail "hook exited $rc (must always exit 0) for payload: $payload"
-  if printf '%s' "$out" | grep -q '"decision"[[:space:]]*:[[:space:]]*"block"'; then
+  if grep -q '"decision"[[:space:]]*:[[:space:]]*"block"' <<< "$out"; then
     fail "hook emitted a block decision — a PostToolUse detector must never block"
   fi
 }

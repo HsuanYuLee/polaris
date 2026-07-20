@@ -113,9 +113,9 @@ OUT_A="$(run_hook "$PA" "$STOP_PAYLOAD" 2>/dev/null)"
 CODE_A=$?
 set -e
 [[ "$CODE_A" -ne 0 ]] || fail "state (a)/AC-NEG1: expected non-zero block exit, got 0"
-printf '%s' "$OUT_A" | grep -q '"decision"[[:space:]]*:[[:space:]]*"block"' \
+grep -q '"decision"[[:space:]]*:[[:space:]]*"block"' <<< "$OUT_A" \
   || fail "state (a)/AC-NEG1: expected decision:block JSON on stdout"
-printf '%s' "$OUT_A" | grep -q 'update-active-thread.sh' \
+grep -q 'update-active-thread.sh' <<< "$OUT_A" \
   || fail "state (a)/AC-NEG1: block reason must include the refresh command hint"
 # D1: blocking must persist a per-session block-state file.
 [[ -f "$(blockstate_path "$PA" deadbeefcafe0001)" ]] \
@@ -149,7 +149,7 @@ OUT_C="$(run_hook "$PC" "$STOP_PAYLOAD" POLARIS_STOP_GATE_BYPASS=1 2>/dev/null)"
 CODE_C=$?
 set -e
 [[ "$CODE_C" -eq 0 ]] || fail "state (c)/AC-NEG2: explicit bypass must exit 0, got $CODE_C"
-printf '%s' "$OUT_C" | grep -q '"decision"[[:space:]]*:[[:space:]]*"block"' \
+grep -q '"decision"[[:space:]]*:[[:space:]]*"block"' <<< "$OUT_C" \
   && fail "state (c)/AC-NEG2: bypass must not emit a block decision" || true
 
 # ---------------------------------------------------------------------------
@@ -240,7 +240,7 @@ CODE_3B=$?
 set -e
 [[ "$CODE_3B" -ne 0 ]] \
   || fail "AC-NEG3 step3: un-refreshed anchor must still block despite block-state, got $CODE_3B"
-printf '%s' "$OUT_3B" | grep -q '"decision"[[:space:]]*:[[:space:]]*"block"' \
+grep -q '"decision"[[:space:]]*:[[:space:]]*"block"' <<< "$OUT_3B" \
   || fail "AC-NEG3 step3: expected decision:block JSON on stdout"
 
 # ---------------------------------------------------------------------------

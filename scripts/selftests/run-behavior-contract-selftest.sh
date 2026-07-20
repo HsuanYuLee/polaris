@@ -8,6 +8,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+RUN_VERIFY="$ROOT/scripts/run-verify-command.sh"
 WORKDIR="$(mktemp -d -t polaris-behavior-selftest.XXXXXX)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
@@ -203,6 +204,7 @@ make_repo() {
   git -C "$repo" init -q
   git -C "$repo" config user.email selftest@example.com
   git -C "$repo" config user.name "Polaris Selftest"
+  printf '.polaris/\n' >>"$repo/.git/info/exclude"
   cat >"$repo/scripts/behavior-flow.sh" <<'EOF'
 set -euo pipefail
 mkdir -p "$POLARIS_BEHAVIOR_OUTPUT_DIR"
@@ -226,6 +228,7 @@ make_health_repo() {
   git -C "$repo" init -q
   git -C "$repo" config user.email selftest@example.com
   git -C "$repo" config user.name "Polaris Selftest"
+  printf '.polaris/\n' >>"$repo/.git/info/exclude"
   cat >"$repo/scripts/behavior-flow.sh" <<EOF
 set -euo pipefail
 mkdir -p "\$POLARIS_BEHAVIOR_OUTPUT_DIR"
@@ -286,6 +289,17 @@ expect_pass() {
   fi
 }
 
+write_verify_evidence() {
+  local task_md="$1"
+  local repo="$2"
+  local ticket="$3"
+
+  if ! bash "$RUN_VERIFY" --task-md "$task_md" --repo "$repo" --ticket "$ticket" >/dev/null 2>&1; then
+    echo "FAIL: run-verify-command could not mint current identity evidence for $ticket" >&2
+    exit 1
+  fi
+}
+
 find_behavior_evidence() {
   local repo="$1"
   local ticket="$2"
@@ -324,8 +338,7 @@ for key, hash_key in (("stdout_file", "stdout_hash"), ("stderr_file", "stderr_ha
     with open(path, "rb") as handle:
         assert hashlib.sha256(handle.read()).hexdigest() == data[hash_key], f"{hash_key} mismatch"
 PY
-printf '{"ticket":"DP-109-T1","head_sha":"%s","writer":"run-verify-command.sh","exit_code":0,"at":"2026-05-05T00:00:00Z"}\n' "$head_pass" \
-  >"/tmp/polaris-verified-DP-109-T1-${head_pass}.json"
+write_verify_evidence "$task_pass" "$repo_pass" "DP-109-T1"
 expect_pass "gate-pass" bash "$ROOT/scripts/gates/gate-evidence.sh" --repo "$repo_pass" --ticket DP-109-T1 --task-md "$task_pass"
 
 report_dir="$WORKDIR/report"
@@ -363,8 +376,7 @@ task_manual="$WORKDIR/T1-manual.md"
 write_task "$task_manual" "$(basename "$repo_manual")" "DP-109-T8" "pm_flow" "none" "[]"
 expect_pass "manual-required-compare" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_manual" --mode compare --repo "$repo_manual" --ticket DP-109-T8
 head_manual="$(git -C "$repo_manual" rev-parse HEAD)"
-printf '{"ticket":"DP-109-T8","head_sha":"%s","writer":"run-verify-command.sh","exit_code":0,"at":"2026-05-05T00:00:00Z"}\n' "$head_manual" \
-  >"/tmp/polaris-verified-DP-109-T8-${head_manual}.json"
+write_verify_evidence "$task_manual" "$repo_manual" "DP-109-T8"
 expect_pass "manual-required-gate-pass" bash "$ROOT/scripts/gates/gate-evidence.sh" --repo "$repo_manual" --ticket DP-109-T8 --task-md "$task_manual"
 manual_report_dir="$WORKDIR/manual-report"
 mkdir -p "$manual_report_dir"
@@ -516,14 +528,12 @@ expect_pass "hybrid-baseline" bash "$ROOT/scripts/run-behavior-contract.sh" --ta
 expect_pass "hybrid-compare" bash "$ROOT/scripts/run-behavior-contract.sh" --task-md "$task_hybrid" --mode compare --repo "$repo_drift" --ticket DP-109-T3
 
 head_hybrid="$(git -C "$repo_drift" rev-parse HEAD)"
-printf '{"ticket":"DP-109-T3","head_sha":"%s","writer":"run-verify-command.sh","exit_code":0,"at":"2026-05-05T00:00:00Z"}\n' "$head_hybrid" \
-  >"/tmp/polaris-verified-DP-109-T3-${head_hybrid}.json"
+write_verify_evidence "$task_hybrid" "$repo_drift" "DP-109-T3"
 expect_pass "hybrid-gate-pass" bash "$ROOT/scripts/gates/gate-evidence.sh" --repo "$repo_drift" --ticket DP-109-T3 --task-md "$task_hybrid"
 
 task_gate_block="$WORKDIR/T1-gate-block.md"
 write_task "$task_gate_block" "$(basename "$repo_drift")" "DP-109-T4" "pm_flow" "none" "[]"
-printf '{"ticket":"DP-109-T4","head_sha":"%s","writer":"run-verify-command.sh","exit_code":0,"at":"2026-05-05T00:00:00Z"}\n' "$head_hybrid" \
-  >"/tmp/polaris-verified-DP-109-T4-${head_hybrid}.json"
+write_verify_evidence "$task_gate_block" "$repo_drift" "DP-109-T4"
 expect_fail "gate-missing-behavior" bash "$ROOT/scripts/gates/gate-evidence.sh" --repo "$repo_drift" --ticket DP-109-T4 --task-md "$task_gate_block"
 
 task_missing_flow_script="$WORKDIR/T1-missing-flow-script.md"

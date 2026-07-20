@@ -209,4 +209,22 @@ if grep -Eq 'HEAD\|main\|master\|develop\) exit 0' "$CC_HOOK"; then
   fail AC2-source "real hook still contains the legacy main/master/develop unconditional early-exit"
 fi
 
+# ---------------------------------------------------------------------------
+# Case 9 (current-head regression): a new task branch has no origin/<same-name>
+# yet, but it does have a configured stacked upstream/base. The affected changed
+# set must cover the entire upstream...HEAD range, not only HEAD~1; otherwise an
+# earlier task commit is silently omitted when the last commit is evidence-only.
+# ---------------------------------------------------------------------------
+stacked_repo="$tmp/stacked-new-branch"
+build_repo "$stacked_repo" "task/DP-999-T2-stacked"
+git -C "$stacked_repo" branch --set-upstream-to=main >/dev/null 2>&1
+mkdir -p "$stacked_repo/docs"
+printf 'evidence-only\n' >"$stacked_repo/docs/evidence.txt"
+git -C "$stacked_repo" add docs/evidence.txt
+git -C "$stacked_repo" commit -qm "last evidence-only commit"
+rc="$(run_hook "$stacked_repo")"
+[[ "$rc" == "0" ]] || fail AC2-stacked "stacked new-branch push must pass when gates green (got rc=$rc)"
+grep -q '^scripts/foo.sh$' "$stacked_repo/.affected-stdin" \
+  || fail AC2-stacked "affected changed set lost the earlier task commit and fell back to HEAD~1"
+
 echo "PASS: pre-push-affected-gate selftest"

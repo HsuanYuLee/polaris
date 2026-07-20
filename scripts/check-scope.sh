@@ -9,11 +9,11 @@
 #   check-scope.sh [--base-branch <branch>] <task_md>
 #
 # Steps:
-#   1. parse-task-md.sh → allowed_files array + resolved_base + task_jira_key
+#   1. parse-task-md.sh → allowed_files array + resolved_base + task identity
 #   2. collect committed diff plus staged, unstaged, and untracked files
-#   3. check each changed file against the allowed patterns. (DP-344 D2: the old
-#      .changeset/*.md auto-within-scope carve-out is removed — a changeset file
-#      passes ONLY because derive-task-md injected it into Allowed Files, D1.)
+#   3. check each changed file against the allowed patterns plus, for repos using
+#      Changesets, the single task-specific path derived by polaris-changeset.sh.
+#      No .changeset glob is admitted.
 #   4. Emit JSON: {within_scope, scope_additions, task_key, allowed_count, diff_count}
 #
 # Pattern matching:
@@ -35,6 +35,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARSE_TASK_MD="$SCRIPT_DIR/parse-task-md.sh"
+POLARIS_CHANGESET="$SCRIPT_DIR/polaris-changeset.sh"
 
 usage() {
   cat <<EOF >&2
@@ -147,11 +148,6 @@ for p in patterns:
 within = []
 additions = []
 for f in files:
-    # DP-344 D2: the .changeset/*.md auto-within-scope carve-out was removed. A
-    # changeset file now passes check-scope ONLY because it appears in the task.md
-    # Allowed Files (injected by derive-task-md, DP-344 D1) — there is no special
-    # .changeset back door. This makes check-scope pure Allowed-Files matching,
-    # the same single mechanism the skill-workflow-boundary gate already uses.
     matched = any(match_pattern(f, p) for p in clean_patterns)
     if matched:
         within.append(f)
@@ -246,7 +242,8 @@ if [[ "${CHECK_SCOPE_SELFTEST:-}" == "1" ]]; then
   (
     cd "$LOCAL"
     git checkout -b main >/dev/null 2>&1
-    mkdir -p src/products
+    mkdir -p src/products .changeset
+    echo '{"$schema":"https://unpkg.com/@changesets/config@3.1.1/schema.json"}' > .changeset/config.json
     echo "init" > src/index.ts
     echo "init" > src/products/list.ts
     git add -A && git commit -m "init" >/dev/null 2>&1
@@ -259,7 +256,7 @@ if [[ "${CHECK_SCOPE_SELFTEST:-}" == "1" ]]; then
 
   TASK_MD="$TMPDIR_ST/task.md"
   cat > "$TASK_MD" <<'TASK'
-# T1 — Demo
+# T1: Demo (1 pt)
 
 > Epic: TEST-1 | JIRA: TEST-1 | Repo: test
 
@@ -289,6 +286,35 @@ TASK
   out=$(cd "$LOCAL" && _run "$TASK_MD" 2>/dev/null)
   rc=$?
   _assert "$rc" "0" "T-int-1: allowed change should pass"
+
+  # T-int-1a: only the producer-derived exact changeset path is admitted.
+  (
+    cd "$LOCAL"
+    echo "---" > .changeset/test-1-demo.md
+  )
+  out=$(cd "$LOCAL" && _run "$TASK_MD" 2>/dev/null)
+  rc=$?
+  _assert "$rc" "0" "T-int-1a: canonical task-specific changeset should pass"
+
+  # T-int-1b: an arbitrary changeset path remains out of scope.
+  (
+    cd "$LOCAL"
+    echo "---" > .changeset/arbitrary.md
+  )
+  out=$(cd "$LOCAL" && _run "$TASK_MD" 2>/dev/null)
+  rc=$?
+  _assert "$rc" "1" "T-int-1b: arbitrary changeset should fail"
+  echo "$out" | grep -q ".changeset/arbitrary.md" && t="found" || t="missing"
+  _assert "$t" "found" "T-int-1b: arbitrary changeset should be reported"
+
+  # T-int-1c: wildcard identity cannot turn the producer result into a glob.
+  TASK_WILDCARD="$TMPDIR_ST/task-wildcard.md"
+  sed 's/TEST-1/*/g' "$TASK_MD" > "$TASK_WILDCARD"
+  out=$(cd "$LOCAL" && _run "$TASK_WILDCARD" 2>&1)
+  rc=$?
+  _assert "$rc" "2" "T-int-1c: wildcard task identity should fail closed"
+  echo "$out" | grep -q "failed to derive canonical changeset path" && t="found" || t="missing"
+  _assert "$t" "found" "T-int-1c: wildcard failure should be explicit"
 
   # T-int-2: scope exceeded — add a file outside allowed
   (
@@ -486,6 +512,27 @@ fi
 RESOLVED_BASE=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('resolved_base') or '')" 2>/dev/null)
 TASK_KEY=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); oc=d.get('operational_context',{}); m=d.get('metadata',{}); print(oc.get('task_jira_key') or m.get('jira') or '')" 2>/dev/null)
 ALLOWED_JSON=$(echo "$TASK_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get('allowed_files') or []))" 2>/dev/null)
+
+# A repo-native changeset is a producer-owned artifact, so task authors must not
+# duplicate its generated filename in Allowed Files. Admit only the exact path
+# derived by the canonical slug producer; never add a broad .changeset glob.
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/.changeset/config.json" ]]; then
+  TASK_TITLE=$("$PARSE_TASK_MD" --field summary "$TASK_MD" 2>/dev/null || true)
+  if [[ -z "$TASK_KEY" || -z "$TASK_TITLE" ]]; then
+    echo "ERROR: changeset-enabled repo requires a canonical task identity and title" >&2
+    exit 2
+  fi
+  if ! CHANGESET_PATH=$("$POLARIS_CHANGESET" slug --ticket "$TASK_KEY" --title "$TASK_TITLE" --print path); then
+    echo "ERROR: failed to derive canonical changeset path for $TASK_KEY" >&2
+    exit 2
+  fi
+  if [[ ! "$CHANGESET_PATH" =~ ^\.changeset/[a-z0-9]+(-[a-z0-9]+)*\.md$ ]]; then
+    echo "ERROR: canonical changeset producer returned a non-exact path: $CHANGESET_PATH" >&2
+    exit 2
+  fi
+  ALLOWED_JSON=$(python3 -c 'import json,sys; values=json.loads(sys.argv[1]); path=sys.argv[2]; print(json.dumps(values + ([] if path in values else [path])))' "$ALLOWED_JSON" "$CHANGESET_PATH")
+fi
 EFFECTIVE_BASE="${BASE_BRANCH_OVERRIDE:-$RESOLVED_BASE}"
 BASE_SOURCE="task_md"
 if [[ -n "$BASE_BRANCH_OVERRIDE" ]]; then

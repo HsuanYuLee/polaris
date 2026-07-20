@@ -139,6 +139,20 @@ PY
 
 write_task_deliverable
 
+# Keep the source non-terminal while T1 exercises its post-engineering route.
+# A pending sibling prevents the full-source completion invariant from
+# archiving the fixture before the verify-AC assertions below run.
+mkdir -p "$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/V1"
+cat >"$TMP/docs-manager/src/content/docs/specs/design-plans/DP-900-fixture/tasks/V1/index.md" <<'MD'
+---
+title: "DP-900-V1 pending fixture"
+description: "pending verification sibling for source-level routing"
+status: IN_PROGRESS
+---
+
+## Fixture
+MD
+
 # ── (a) actionable review signal → engineering revision (AC1) ────────────────
 write_pr_state_file "$TMP/state-actionable.json" needs_code_changes code_drift
 assert_route "actionable-needs-code-changes" engineering dispatch null \

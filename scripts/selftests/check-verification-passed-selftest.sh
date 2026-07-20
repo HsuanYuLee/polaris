@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
+# Selftest for shared Layer B/Layer C and V-task verification disposition gates.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SCRIPT="$ROOT_DIR/scripts/check-verification-passed.sh"
+RUN_VERIFY="$ROOT_DIR/scripts/run-verify-command.sh"
 
 tmpdir="$(mktemp -d -t check-verification-passed-selftest.XXXXXX)"
 cleanup() {
+  if [[ "${DEBUG:-}" == "1" ]]; then
+    echo "DEBUG: preserving fixture at $tmpdir" >&2
+    return
+  fi
   rm -rf "$tmpdir"
   rm -f /tmp/polaris-verified-CHK-* /tmp/polaris-vr-CHK-* 2>/dev/null || true
 }
 trap cleanup EXIT
+rm -f /tmp/polaris-verified-CHK-* /tmp/polaris-vr-CHK-* 2>/dev/null || true
 
 repo="$tmpdir/fake-repo"
 mkdir -p "$repo"
@@ -85,16 +92,15 @@ echo PASS
 
 ## Test Environment
 
-- **Level**: runtime
+- **Level**: static
 - **Dev env config**: N/A
 - **Fixtures**: N/A
-- **Runtime verify target**: http://127.0.0.1:3100
-- **Env bootstrap command**: echo start
+- **Runtime verify target**: N/A
+- **Env bootstrap command**: N/A
 
 ## Verify Command
 
 \`\`\`bash
-curl -sf http://127.0.0.1:3100/health >/dev/null
 echo PASS
 \`\`\`
 EOF
@@ -107,6 +113,7 @@ write_v_task() {
 ---
 title: "Work Order - V1: verification gate fixture (1 pt)"
 description: "V-mode verification gate fixture."
+status: IN_PROGRESS
 ${ac_block}
 ---
 
@@ -163,23 +170,23 @@ EOF
 
 write_layer_b() {
   local ticket="$1"
-  local exit_code="$2"
-  python3 - "$ticket" "$head_sha" "$exit_code" <<'PY'
-import json
-import sys
-from datetime import datetime, timezone
+  local expected_exit="$2"
+  local task_md="$3"
+  local actual_exit=0
 
-ticket, head_sha, exit_code = sys.argv[1:4]
-payload = {
-    "writer": "run-verify-command.sh",
-    "ticket": ticket,
-    "head_sha": head_sha,
-    "exit_code": int(exit_code),
-    "at": datetime.now(timezone.utc).isoformat(),
-}
-with open(f"/tmp/polaris-verified-{ticket}-{head_sha}.json", "w", encoding="utf-8") as handle:
-    json.dump(payload, handle)
-PY
+  set +e
+  "$RUN_VERIFY" --task-md "$task_md" --ticket "$ticket" --repo "$repo" >/dev/null 2>&1
+  actual_exit=$?
+  set -e
+
+  if [[ "$expected_exit" -eq 0 && "$actual_exit" -ne 0 ]]; then
+    echo "FAIL: expected run-verify-command to pass for $ticket, got $actual_exit" >&2
+    exit 1
+  fi
+  if [[ "$expected_exit" -ne 0 && "$actual_exit" -eq 0 ]]; then
+    echo "FAIL: expected run-verify-command to fail for $ticket" >&2
+    exit 1
+  fi
 }
 
 write_layer_c() {
@@ -254,17 +261,35 @@ expect_block_contains() {
 t_task="$tmpdir/T1.md"
 write_t_task "$t_task" ""
 
-write_layer_b "CHK-1" 0
+write_layer_b "CHK-1" 0 "$t_task"
 expect_pass "t-pass" --task-md "$t_task" --repo "$repo"
+
+cp "$t_task" "$tmpdir/T1.original.md"
+python3 - "$t_task" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+path.write_text(path.read_text(encoding="utf-8").replace("echo PASS", "echo DRIFT"), encoding="utf-8")
+PY
+expect_block_contains "t-command-drift" "stale_layer_b_identity" --task-md "$t_task" --repo "$repo"
+cp "$tmpdir/T1.original.md" "$t_task"
 
 rm -f /tmp/polaris-verified-CHK-2-* 2>/dev/null || true
 t_missing="$tmpdir/T2.md"
 sed 's/CHK-1/CHK-2/g' "$t_task" >"$t_missing"
 expect_block_contains "t-missing-layer-b" "missing_layer_b" --task-md "$t_missing" --repo "$repo"
 
-write_layer_b "CHK-3" 1
 t_fail="$tmpdir/T3.md"
 sed 's/CHK-1/CHK-3/g' "$t_task" >"$t_fail"
+python3 - "$t_fail" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+path.write_text(path.read_text(encoding="utf-8").replace("echo PASS", "exit 1"), encoding="utf-8")
+PY
+write_layer_b "CHK-3" 1 "$t_fail"
 expect_block_contains "t-fail-layer-b" "fail_layer_b" --task-md "$t_fail" --repo "$repo"
 
 t_vr="$tmpdir/T4.md"
@@ -278,7 +303,7 @@ import sys
 path = Path(sys.argv[1])
 path.write_text(path.read_text(encoding="utf-8").replace("CHK-1", "CHK-4"), encoding="utf-8")
 PY
-write_layer_b "CHK-4" 0
+write_layer_b "CHK-4" 0 "$t_vr"
 expect_block_contains "t-missing-layer-c" "missing_layer_c" --task-md "$t_vr" --repo "$repo"
 
 write_layer_c "CHK-4" "BLOCKED_ENV"

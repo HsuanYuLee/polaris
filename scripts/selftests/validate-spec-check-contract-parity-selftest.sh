@@ -39,9 +39,9 @@ setup_fixture() {
   local dst="$1"
   mkdir -p "$dst/scripts/lib" "$dst/.claude/skills/references"
   cp "$ROOT/scripts/lib/producer-consumer-bridges.json" "$dst/scripts/lib/"
-  cp "$ROOT/scripts/validate-refinement-json.sh" "$dst/scripts/"
-  cp "$ROOT/scripts/validate-refinement-artifact-parity.sh" "$dst/scripts/"
-  cp "$ROOT/scripts/validate-breakdown-ready.sh" "$dst/scripts/"
+  cp "$ROOT/scripts/lib/refinement_validate_json.py" "$dst/scripts/lib/"
+  cp "$ROOT/scripts/lib/refinement_validate_artifact_parity.py" "$dst/scripts/lib/"
+  cp "$ROOT/scripts/lib/validate_breakdown_ready_1.py" "$dst/scripts/lib/"
   cp "$ROOT/.claude/skills/references/refinement-artifact.md" "$dst/.claude/skills/references/"
   cp "$ROOT/.claude/skills/references/pipeline-handoff.md" "$dst/.claude/skills/references/"
 }
@@ -72,6 +72,60 @@ run_case() {
     fail=$((fail + 1))
   fi
 }
+
+# Legacy wrapper CLI is a public compatibility surface. Keep stderr bytes and
+# exit semantics stable while the structured validator moves to Python.
+run_legacy_cli_golden() {
+  local help_expected="$tmpdir/help.expected"
+  local help_stdout="$tmpdir/help.stdout"
+  local help_stderr="$tmpdir/help.stderr"
+  sed -n '2,20p' "$GATE" >"$help_expected"
+  if bash "$GATE" --help >"$help_stdout" 2>"$help_stderr" \
+      && [[ ! -s "$help_stdout" ]] \
+      && cmp -s "$help_expected" "$help_stderr"; then
+    echo "PASS: legacy CLI --help bytes"
+    pass=$((pass + 1))
+  else
+    echo "FAIL: legacy CLI --help bytes"
+    fail=$((fail + 1))
+  fi
+
+  local missing_stdout="$tmpdir/missing-root.stdout"
+  local missing_stderr="$tmpdir/missing-root.stderr"
+  local rc
+  set +e
+  bash "$GATE" --repo-root >"$missing_stdout" 2>"$missing_stderr"
+  rc=$?
+  set -e
+  if [[ "$rc" -eq 1 && ! -s "$missing_stdout" && ! -s "$missing_stderr" ]]; then
+    echo "PASS: legacy CLI missing --repo-root value"
+    pass=$((pass + 1))
+  else
+    echo "FAIL: legacy CLI missing --repo-root value"
+    fail=$((fail + 1))
+  fi
+
+  local invalid_root="$tmpdir/does-not-exist"
+  local invalid_stdout="$tmpdir/invalid-root.stdout"
+  local invalid_stderr="$tmpdir/invalid-root.stderr"
+  local invalid_expected="$tmpdir/invalid-root.expected"
+  printf '%s: line 52: cd: %s: No such file or directory\n' \
+    "$GATE" "$invalid_root" >"$invalid_expected"
+  set +e
+  bash "$GATE" --repo-root "$invalid_root" >"$invalid_stdout" 2>"$invalid_stderr"
+  rc=$?
+  set -e
+  if [[ "$rc" -eq 1 && ! -s "$invalid_stdout" ]] \
+      && cmp -s "$invalid_expected" "$invalid_stderr"; then
+    echo "PASS: legacy CLI invalid --repo-root bytes"
+    pass=$((pass + 1))
+  else
+    echo "FAIL: legacy CLI invalid --repo-root bytes"
+    fail=$((fail + 1))
+  fi
+}
+
+run_legacy_cli_golden
 
 # --- Case 1: live-green (AC14 / AC18 regression guard) ---
 run_case "live-green (AC14/AC18 real repo consistent)" 0 "-" "$ROOT"
@@ -144,7 +198,7 @@ run_case "reverse #2 (AC18 source.base_branch jira-only contradiction)" 2 "POLAR
 # --- Case 5: anchor-stale — live check anchor removed from a validator ---
 fx_anchor="$tmpdir/anchor"
 setup_fixture "$fx_anchor"
-python3 - "$fx_anchor/scripts/validate-refinement-artifact-parity.sh" <<'PY'
+python3 - "$fx_anchor/scripts/lib/refinement_validate_artifact_parity.py" <<'PY'
 import sys
 p = sys.argv[1]
 text = open(p, encoding="utf-8").read()

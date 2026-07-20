@@ -47,7 +47,7 @@ _assert_eq() {
 
 _assert_contains() {
   TOTAL=$((TOTAL + 1))
-  if printf '%s' "$1" | grep -qF -- "$2"; then
+  if grep -qF -- "$2" <<< "$1"; then
     PASS=$((PASS + 1))
   else
     FAIL=$((FAIL + 1))
@@ -58,7 +58,7 @@ _assert_contains() {
 
 _assert_not_contains() {
   TOTAL=$((TOTAL + 1))
-  if printf '%s' "$1" | grep -qF -- "$2"; then
+  if grep -qF -- "$2" <<< "$1"; then
     FAIL=$((FAIL + 1))
     printf '[FAILED %d] %s: substring should NOT appear: %q\n' "$TOTAL" "$3" "$2" >&2
   else

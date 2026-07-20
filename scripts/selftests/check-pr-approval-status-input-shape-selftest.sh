@@ -98,7 +98,7 @@ assert_code() {
 
 assert_contains() {
   local label="$1" needle="$2" haystack="$3"
-  if printf '%s' "$haystack" | grep -q "$needle"; then
+  if grep -q "$needle" <<< "$haystack"; then
     printf 'PASS: %s\n' "$label"
   else
     printf 'FAIL: %s — missing %s\n' "$label" "$needle" >&2
@@ -108,7 +108,7 @@ assert_contains() {
 
 assert_not_contains() {
   local label="$1" needle="$2" haystack="$3"
-  if printf '%s' "$haystack" | grep -q "$needle"; then
+  if grep -q "$needle" <<< "$haystack"; then
     printf 'FAIL: %s — unexpectedly found %s\n' "$label" "$needle" >&2
     FAIL=1
   else

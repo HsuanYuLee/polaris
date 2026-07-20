@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""驗證 refinement module 是否同時列出對應 Bash selftest 或 pytest。"""
+
 import sys
 from pathlib import Path
 
@@ -21,8 +23,9 @@ def main():
         if not p.endswith((".sh", ".py", ".mjs", ".js")):
             continue
         stem = Path(p).stem
-        expected = f"scripts/selftests/{stem}-selftest.sh"
-        if expected not in listed:
+        expected_shell = f"scripts/selftests/{stem}-selftest.sh"
+        expected_pytest = f"tests/test_{stem.replace('-', '_')}.py"
+        if expected_shell not in listed and expected_pytest not in listed:
             warnings.append(p)
     for item in warnings:
         print(f"POLARIS_SELFTEST_PARITY_MISSING: {item}", file=sys.stderr)

@@ -46,7 +46,7 @@ YML
 staleness_state() {
   local out_script="$1" repo="$2" combined
   combined="$(bash "$out_script" --repo "$repo" 2>&1 || true)"
-  if printf '%s' "$combined" | grep -q 'CI config changed'; then
+  if grep -q 'CI config changed' <<< "$combined"; then
     printf 'STALE'
   else
     printf 'FRESH'

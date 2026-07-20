@@ -20,6 +20,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GATE="$SCRIPT_DIR/verification-evidence-gate.sh"
+RVC="$SCRIPT_DIR/run-verify-command.sh"
 # shellcheck source=lib/ci-local-path.sh
 . "$SCRIPT_DIR/lib/ci-local-path.sh"
 WORK_DIR="$(mktemp -d -t polaris-veg-selftest-XXXXXX)"
@@ -40,6 +41,10 @@ assert_eq() {
 }
 
 cleanup() {
+  if [[ "$DEBUG" == "1" ]]; then
+    printf 'DEBUG fixture preserved: %s\n' "$WORK_DIR" >&2
+    return 0
+  fi
   rm -rf "$WORK_DIR" 2>/dev/null || true
   rm -f /tmp/polaris-verified-VEG*.json 2>/dev/null || true
   rm -f /tmp/polaris-verified-VEG*-*.json 2>/dev/null || true
@@ -54,12 +59,58 @@ make_fake_repo() {
   git -C "$repo_dir" -c user.email=t@t.t -c user.name=t commit --allow-empty -q -m init
   # Create a task branch so the push filter exercises
   git -C "$repo_dir" checkout -q -b "task/VEG-1-selftest"
+  local task_dir="$repo_dir/docs-manager/src/content/docs/specs/design-plans/DP-999/tasks/T1"
+  mkdir -p "$task_dir"
+  cat >"$task_dir/index.md" <<EOF
+---
+title: "VEG-1 evidence identity fixture"
+description: "Hermetic verification evidence identity fixture."
+status: IN_PROGRESS
+task_kind: T
+---
+
+# VEG-1 evidence identity fixture
+
+> Source: DP-999 | Task: DP-999-T1 | JIRA: VEG-1 | Repo: $(basename "$repo_dir")
+
+## Operational Context
+
+| 欄位 | 值 |
+|------|-----|
+| Source ID | DP-999 |
+| Work item ID | DP-999-T1 |
+| Task ID | DP-999-T1 |
+| JIRA key | VEG-1 |
+| Repo | $(basename "$repo_dir") |
+| Base branch | main |
+| Task branch | task/VEG-1-selftest |
+
+## Test Environment
+
+- **Level**: static
+- **Dev env config**: N/A
+- **Fixtures**: N/A
+- **Runtime verify target**: N/A
+- **Env bootstrap command**: N/A
+
+## Verify Command
+
+\`\`\`bash
+echo PASS
+\`\`\`
+EOF
+  git -C "$repo_dir" add .
+  git -C "$repo_dir" -c user.email=t@t.t -c user.name=t commit -qm "task fixture"
   # Create workspace-owned ci-local.sh sentinel for push mode.
   local ci_local
   ci_local="$(ci_local_path_for_repo "$repo_dir")"
   mkdir -p "$(dirname "$ci_local")"
   echo '#!/bin/sh' > "$ci_local"
   chmod +x "$ci_local"
+  if [[ "$ci_local" == "$repo_dir/"* ]]; then
+    git -C "$repo_dir" add .polaris
+    git -C "$repo_dir" -c user.email=t@t.t -c user.name=t commit -qm "ci-local sentinel"
+  fi
 }
 
 # Build PreToolUse JSON input for `gh pr create`
@@ -101,24 +152,29 @@ REPO_NEW="$WORK_DIR/repo-new"
 make_fake_repo "$REPO_NEW"
 HEAD_NEW="$(git -C "$REPO_NEW" rev-parse HEAD)"
 EV_NEW="/tmp/polaris-verified-VEG-1-${HEAD_NEW}.json"
-cat > "$EV_NEW" <<EOF
-{
-  "ticket": "VEG-1",
-  "head_sha": "${HEAD_NEW}",
-  "command": "echo PASS",
-  "exit_code": 0,
-  "stdout_hash": "abc",
-  "writer": "run-verify-command.sh",
-  "at": "2026-04-26T12:00:00Z",
-  "level": "static",
-  "results": [],
-  "runtime_contract": {"level": "static"}
-}
-EOF
+TASK_NEW="$REPO_NEW/docs-manager/src/content/docs/specs/design-plans/DP-999/tasks/T1/index.md"
+"$RVC" --task-md "$TASK_NEW" --repo "$REPO_NEW" --ticket VEG-1 >/dev/null
 INPUT="$(make_git_push_input "$REPO_NEW")"
 ERR_OUT="$WORK_DIR/err.txt"
 echo "$INPUT" | "$GATE" >/dev/null 2>&1
 assert_eq "$?" "0" "new format + writer=run-verify-command.sh + exit 0 → allow"
+
+# ────────────────────────────────────────────────────────────────────────────
+echo "=== nested product repo + workspace-owned specs — happy path ==="
+NESTED_WORKSPACE="$WORK_DIR/nested-workspace"
+REPO_NESTED="$NESTED_WORKSPACE/product-repo"
+mkdir -p "$NESTED_WORKSPACE"
+printf 'language: zh-TW\n' >"$NESTED_WORKSPACE/workspace-config.yaml"
+make_fake_repo "$REPO_NESTED"
+TASK_NESTED="$NESTED_WORKSPACE/docs-manager/src/content/docs/specs/design-plans/DP-999/tasks/T1/index.md"
+mkdir -p "$(dirname "$TASK_NESTED")"
+cp "$REPO_NESTED/docs-manager/src/content/docs/specs/design-plans/DP-999/tasks/T1/index.md" "$TASK_NESTED"
+git -C "$REPO_NESTED" rm -qr docs-manager
+git -C "$REPO_NESTED" -c user.email=t@t.t -c user.name=t commit -qm "move task fixture to workspace specs"
+"$RVC" --task-md "$TASK_NESTED" --repo "$REPO_NESTED" --ticket VEG-1 >/dev/null
+INPUT_NESTED="$(make_git_push_input "$REPO_NESTED")"
+echo "$INPUT_NESTED" | "$GATE" >/dev/null 2>"$ERR_OUT"
+assert_eq "$?" "0" "nested product repo resolves canonical workspace-owned task.md"
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "=== durable mirror fallback — happy path ==="
@@ -230,20 +286,33 @@ fi
 echo "=== new format passes without 4h stale check ==="
 # Write evidence with `at` from 1 year ago — should still pass since head_sha
 # binds freshness (rebase invalidates filename).
-cat > "$EV_NEW" <<EOF
-{
-  "ticket": "VEG-1",
-  "head_sha": "${HEAD_NEW}",
-  "command": "echo PASS",
-  "exit_code": 0,
-  "stdout_hash": "abc",
-  "writer": "run-verify-command.sh",
-  "at": "2025-01-01T00:00:00Z",
-  "level": "static"
-}
-EOF
+"$RVC" --task-md "$TASK_NEW" --repo "$REPO_NEW" --ticket VEG-1 >/dev/null 2>&1
+python3 - "$EV_NEW" <<'PY'
+import json, sys
+path = sys.argv[1]
+data = json.load(open(path, encoding="utf-8"))
+data["at"] = "2025-01-01T00:00:00Z"
+json.dump(data, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+PY
 echo "$INPUT" | "$GATE" >/dev/null 2>&1
 assert_eq "$?" "0" "new format ignores 4h stale check (head_sha self-binds)"
+
+echo "=== same HEAD with Verify Command drift → block stale identity ==="
+python3 - "$TASK_NEW" <<'PY'
+import sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+open(path, "w", encoding="utf-8").write(text.replace("echo PASS\n```", "echo DRIFT\n```"))
+PY
+echo "$INPUT" | "$GATE" >/dev/null 2>"$ERR_OUT"
+RC=$?
+assert_eq "$RC" "2" "same HEAD + Verify Command drift blocks old evidence"
+if grep -q "identity is stale" "$ERR_OUT" 2>/dev/null; then
+  PASS=$((PASS + 1))
+else
+  FAIL=$((FAIL + 1)); printf "  [FAIL] command-drift identity error missing\n"
+fi
+git -C "$REPO_NEW" checkout -- docs-manager/src/content/docs/specs/design-plans/DP-999/tasks/T1/index.md
 
 rm -f "$EV_NEW"
 
@@ -298,17 +367,7 @@ HEAD_PR="$HEAD_NEW"
 EV_NEW2="/tmp/polaris-verified-VEG-1-${HEAD_PR}.json"
 EV_LEG2="/tmp/polaris-verified-VEG-1.json"
 # Valid new format (must reference REPO_NEW's HEAD)
-cat > "$EV_NEW2" <<EOF
-{
-  "ticket": "VEG-1",
-  "head_sha": "${HEAD_PR}",
-  "command": "echo PASS",
-  "exit_code": 0,
-  "writer": "run-verify-command.sh",
-  "at": "2026-04-26T12:00:00Z",
-  "level": "static"
-}
-EOF
+"$RVC" --task-md "$TASK_NEW" --repo "$REPO_NEW" --ticket VEG-1 >/dev/null 2>&1
 cat > "$EV_LEG2" <<EOF
 {
   "ticket": "VEG-1",

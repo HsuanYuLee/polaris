@@ -184,12 +184,6 @@ fi
 artifacts_checked=()
 
 if [[ "$MODE" == "V" ]]; then
-  if ! "$VALIDATE_TASK_MD" "$TASK_MD" >/dev/null 2>&1; then
-    artifacts_checked+=("$TASK_MD")
-    artifacts_checked_text=$(printf '%s\n' "${artifacts_checked[@]}")
-    emit_result "$SOURCE_ID" "$HEAD_SHA" "true" "FAIL" "invalid_ac_verification_schema" "$artifacts_checked_text"
-    exit 2
-  fi
   v_json="$(resolve_v_status)"
   v_status="$(python3 - "$v_json" <<'PY'
 import json, sys
@@ -201,6 +195,11 @@ PY
   if [[ -z "$v_status" ]]; then
     artifacts_checked_text=$(printf '%s\n' "${artifacts_checked[@]}")
     emit_result "$SOURCE_ID" "$HEAD_SHA" "true" "IN_PROGRESS" "missing_ac_verification" "$artifacts_checked_text"
+    exit 2
+  fi
+  if ! "$VALIDATE_TASK_MD" "$TASK_MD" >/dev/null 2>&1; then
+    artifacts_checked_text=$(printf '%s\n' "${artifacts_checked[@]}")
+    emit_result "$SOURCE_ID" "$HEAD_SHA" "true" "FAIL" "invalid_ac_verification_schema" "$artifacts_checked_text"
     exit 2
   fi
   case "$v_status" in
@@ -257,6 +256,14 @@ fi
 if [[ "$layer_b_valid" != "valid" ]]; then
   artifacts_checked_text=$(printf '%s\n' "${artifacts_checked[@]}")
   emit_result "$SOURCE_ID" "$HEAD_SHA" "true" "FAIL" "invalid_layer_b" "$artifacts_checked_text"
+  exit 2
+fi
+if ! layer_b_identity="$(verification_evidence_validate_current_identity "$layer_b_path" "$TASK_MD" "$REPO_PATH" 2>/dev/null)"; then
+  layer_b_identity="${layer_b_identity:-invalid identity}"
+fi
+if [[ "$layer_b_identity" != "current" ]]; then
+  artifacts_checked_text=$(printf '%s\n' "${artifacts_checked[@]}")
+  emit_result "$SOURCE_ID" "$HEAD_SHA" "true" "IN_PROGRESS" "stale_layer_b_identity" "$artifacts_checked_text"
   exit 2
 fi
 if ! layer_b_pass="$(verification_evidence_is_pass "$layer_b_path" 2>/dev/null)"; then

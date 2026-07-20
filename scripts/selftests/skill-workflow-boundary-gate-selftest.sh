@@ -71,9 +71,10 @@ make_repo() {
   printf '# DP-999\n' > "$container/refinement.md"
   printf '{}\n' > "$container/refinement.json"
   printf '# DP-999 index\n' > "$container/index.md"
-  printf '# T1\n## Allowed Files\n- `src/foo.py`\n- `scripts/bar.sh`\n' > "$container/tasks/T1/index.md"
+  printf '# T1: boundary fixture (1 pt)\n> Source: DP-999 | Task: DP-999-T1 | JIRA: N/A | Repo: fixture\n## Allowed Files\n- `src/foo.py`\n- `scripts/bar.sh`\n' > "$container/tasks/T1/index.md"
   printf '# V1\n' > "$container/tasks/V1/index.md"
-  mkdir -p "$repo/src" "$repo/scripts" "$repo/other"
+  mkdir -p "$repo/src" "$repo/scripts" "$repo/other" "$repo/.changeset"
+  printf '{"$schema":"https://unpkg.com/@changesets/config@3.1.1/schema.json"}\n' > "$repo/.changeset/config.json"
   printf '# repo\n' > "$repo/README.md"
   git -C "$repo" add -A
   git -C "$repo" -c commit.gpgsign=false commit -q -m "init"
@@ -113,7 +114,7 @@ make_repo() {
               "$gate" --skill refinement --check --source-container "$container" --repo "$repo" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if [[ "$rc" -eq 1 ]] && printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement'; then
+  if [[ "$rc" -eq 1 ]] && grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement' <<< "$err_out"; then
     record_pass "refinement out-of-scope fail (exit 1 + stderr marker)"
   else
     record_fail "refinement out-of-scope fail (rc=$rc, err=$err_out)"
@@ -172,7 +173,7 @@ make_repo() {
               "$gate" --skill breakdown --check --source-container "$container" --repo "$repo" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if [[ "$rc" -eq 1 ]] && printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:breakdown'; then
+  if [[ "$rc" -eq 1 ]] && grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:breakdown' <<< "$err_out"; then
     record_pass "breakdown out-of-scope fail"
   else
     record_fail "breakdown out-of-scope fail (rc=$rc, err=$err_out)"
@@ -215,6 +216,67 @@ make_repo() {
   fi
 }
 
+# ---- 7a. engineering: canonical producer-owned changeset pass ---------------
+{
+  out="$(make_repo "eng-changeset-pass")"
+  repo="$(printf '%s\n' "$out" | sed -n '1p')"
+  container="$(printf '%s\n' "$out" | sed -n '2p')"
+  task_md="$container/tasks/T1/index.md"
+  POLARIS_RUNTIME_DIR="$repo/.polaris/runtime" \
+    "$gate" --skill engineering --start --source-container "$container" --repo "$repo" --task-md "$task_md" >/dev/null
+  printf '%s\n' '---' > "$repo/.changeset/dp-999-t1-boundary-fixture.md"
+  if POLARIS_RUNTIME_DIR="$repo/.polaris/runtime" \
+       "$gate" --skill engineering --check --source-container "$container" --repo "$repo" --task-md "$task_md" >/dev/null 2>&1; then
+    record_pass "engineering canonical changeset pass"
+  else
+    record_fail "engineering canonical changeset pass"
+  fi
+}
+
+# ---- 7b. engineering: arbitrary changeset remains blocked ------------------
+{
+  out="$(make_repo "eng-changeset-fail")"
+  repo="$(printf '%s\n' "$out" | sed -n '1p')"
+  container="$(printf '%s\n' "$out" | sed -n '2p')"
+  task_md="$container/tasks/T1/index.md"
+  POLARIS_RUNTIME_DIR="$repo/.polaris/runtime" \
+    "$gate" --skill engineering --start --source-container "$container" --repo "$repo" --task-md "$task_md" >/dev/null
+  printf '%s\n' '---' > "$repo/.changeset/arbitrary.md"
+  set +e
+  err_out="$(POLARIS_RUNTIME_DIR="$repo/.polaris/runtime" \
+              "$gate" --skill engineering --check --source-container "$container" --repo "$repo" --task-md "$task_md" 2>&1 1>/dev/null)"
+  rc=$?
+  set -e
+  if [[ "$rc" -eq 1 ]] && grep -q '.changeset/arbitrary.md' <<< "$err_out"; then
+    record_pass "engineering arbitrary changeset blocked"
+  else
+    record_fail "engineering arbitrary changeset blocked (rc=$rc, err=$err_out)"
+  fi
+}
+
+# ---- 7c. engineering: wildcard task identity fails closed -------------------
+{
+  out="$(make_repo "eng-changeset-wildcard")"
+  repo="$(printf '%s\n' "$out" | sed -n '1p')"
+  container="$(printf '%s\n' "$out" | sed -n '2p')"
+  task_md="$container/tasks/T1/index.md"
+  sed 's/DP-999-T1/*/g' "$task_md" > "$task_md.wildcard"
+  task_md="$task_md.wildcard"
+  POLARIS_RUNTIME_DIR="$repo/.polaris/runtime" \
+    "$gate" --skill engineering --start --source-container "$container" --repo "$repo" --task-md "$task_md" >/dev/null
+  printf '%s\n' '---' > "$repo/.changeset/anything-boundary-fixture.md"
+  set +e
+  err_out="$(POLARIS_RUNTIME_DIR="$repo/.polaris/runtime" \
+              "$gate" --skill engineering --check --source-container "$container" --repo "$repo" --task-md "$task_md" 2>&1 1>/dev/null)"
+  rc=$?
+  set -e
+  if [[ "$rc" -eq 2 ]] && grep -q 'failed to derive canonical changeset path' <<< "$err_out"; then
+    record_pass "engineering wildcard task identity fails closed"
+  else
+    record_fail "engineering wildcard task identity fails closed (rc=$rc, err=$err_out)"
+  fi
+}
+
 # ---- 8. engineering: out-of-scope fail --------------------------------------
 {
   out="$(make_repo "eng-fail")"
@@ -230,7 +292,7 @@ make_repo() {
               "$gate" --skill engineering --check --source-container "$container" --repo "$repo" --task-md "$task_md" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if [[ "$rc" -eq 1 ]] && printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:engineering'; then
+  if [[ "$rc" -eq 1 ]] && grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:engineering' <<< "$err_out"; then
     record_pass "engineering out-of-scope fail"
   else
     record_fail "engineering out-of-scope fail (rc=$rc, err=$err_out)"
@@ -287,7 +349,7 @@ make_repo() {
               "$gate" --skill verify-AC --check --source-container "$container" --repo "$repo" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if [[ "$rc" -eq 1 ]] && printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:verify-AC'; then
+  if [[ "$rc" -eq 1 ]] && grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:verify-AC' <<< "$err_out"; then
     record_pass "verify-AC out-of-scope fail"
   else
     record_fail "verify-AC out-of-scope fail (rc=$rc, err=$err_out)"
@@ -325,7 +387,7 @@ make_repo() {
               "$gate" --skill refinement --check --source-container "$container" --repo "$repo" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if [[ "$rc" -eq 1 ]] && printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement'; then
+  if [[ "$rc" -eq 1 ]] && grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement' <<< "$err_out"; then
     record_pass "AC-NEG16: POLARIS_LANGUAGE_POLICY_BYPASS ignored (refinement)"
   else
     record_fail "AC-NEG16: POLARIS_LANGUAGE_POLICY_BYPASS bypass (rc=$rc, err=$err_out)"
@@ -344,7 +406,7 @@ make_repo() {
               "$gate" --skill breakdown --check --source-container "$container" --repo "$repo" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if [[ "$rc" -eq 1 ]] && printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:breakdown'; then
+  if [[ "$rc" -eq 1 ]] && grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:breakdown' <<< "$err_out"; then
     record_pass "AC-NEG16: POLARIS_SKILL_BOUNDARY_BYPASS ignored (breakdown)"
   else
     record_fail "AC-NEG16: POLARIS_SKILL_BOUNDARY_BYPASS bypass (rc=$rc, err=$err_out)"
@@ -364,7 +426,7 @@ make_repo() {
               "$gate" --skill engineering --check --source-container "$container" --repo "$repo" --task-md "$task_md" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if [[ "$rc" -eq 1 ]] && printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:engineering'; then
+  if [[ "$rc" -eq 1 ]] && grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:engineering' <<< "$err_out"; then
     record_pass "AC-NEG16: bypass envs ignored (engineering)"
   else
     record_fail "AC-NEG16: bypass envs (engineering) (rc=$rc, err=$err_out)"
@@ -383,7 +445,7 @@ make_repo() {
               "$gate" --skill verify-AC --check --source-container "$container" --repo "$repo" 2>&1 1>/dev/null)"
   rc=$?
   set -e
-  if [[ "$rc" -eq 1 ]] && printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:verify-AC'; then
+  if [[ "$rc" -eq 1 ]] && grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:verify-AC' <<< "$err_out"; then
     record_pass "AC-NEG16: bypass envs ignored (verify-AC)"
   else
     record_fail "AC-NEG16: bypass envs (verify-AC) (rc=$rc, err=$err_out)"
@@ -428,7 +490,7 @@ make_repo() {
                   "$gate" --skill breakdown --check --source-container "$container" --repo "$repo" 2>&1 1>/dev/null)"
       rc=$?
       set -e
-      if [[ "$rc" -eq 1 ]] && printf '%s' "$err_out" | grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:breakdown'; then
+      if [[ "$rc" -eq 1 ]] && grep -q 'POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:breakdown' <<< "$err_out"; then
         record_pass "auto-pass cross-skill transition (refinement -> breakdown, breakdown writes refn = fail)"
       else
         record_fail "auto-pass cross-skill transition (breakdown writes refn should fail; rc=$rc, err=$err_out)"
