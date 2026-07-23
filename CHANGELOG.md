@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.79.3] - 2026-07-23
+
+### Changed
+
+- polaris_pr_checks_rest 依 name dedupe check_run 取最新 run（latest-wins），修 completion gate CI-state false-negative
+
 ## [3.79.2] - 2026-07-23
 
 ### Fixed

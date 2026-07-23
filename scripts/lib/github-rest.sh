@@ -263,9 +263,24 @@ def status_state(status):
     return "PENDING"
 
 items = []
-for run in checks_payload.get("check_runs") or []:
+# GitHub keeps every run of a re-run check on the same commit (e.g. "Milestone
+# Required" FAILURE before assignment, SUCCESS after). Keep only the latest run
+# per name so this matches `gh pr checks`' latest-per-name view; otherwise a
+# stale FAILURE run false-negatives an actually-green PR.
+latest_run_by_name = {}
+for order_idx, run in enumerate(checks_payload.get("check_runs") or []):
+    name = run.get("name") or ""
+    # ISO 8601 timestamps sort lexicographically = chronologically; a missing
+    # timestamp sorts before any real one, and order_idx breaks ties so equal /
+    # absent timestamps fall back to last appearance (stable, no crash).
+    sort_key = (run.get("completed_at") or "", run.get("started_at") or "", order_idx)
+    existing = latest_run_by_name.get(name)
+    if existing is None or sort_key >= existing[0]:
+        latest_run_by_name[name] = (sort_key, run)
+
+for name, (_sort_key, run) in latest_run_by_name.items():
     items.append({
-        "name": run.get("name") or "",
+        "name": name,
         "state": check_state(run),
         "description": run.get("output", {}).get("summary") or run.get("conclusion") or run.get("status") or "",
     })

@@ -123,6 +123,62 @@ not_found_rc=$?
 set -e
 assert_eq "$not_found_rc" "1" "non_rate_failure.rc"
 
+# --- DP-429: polaris_pr_checks_rest dedupes check_runs by name (latest-wins) ---
+# GitHub keeps every run of a re-run check on the same commit; the helper must
+# keep only the latest run per name so a stale FAILURE does not false-negative
+# an actually-green PR. Override the network helpers with fixture-fed functions
+# (they shadow both the sourced versions and the PATH gh stub).
+DEDUP_CHECKS="$WORK_DIR/dedup-checks.json"
+DEDUP_STATUSES="$WORK_DIR/dedup-statuses.json"
+polaris_pr_view_rest() { echo '{"headRefOid":"deadbeefcafe0000"}'; }
+polaris_gh_api() {
+  case "$1" in
+    *check-runs*) cat "$DEDUP_CHECKS" ;;
+    *statuses*)   cat "$DEDUP_STATUSES" ;;
+    *) echo '{}' ;;
+  esac
+}
+
+# dedup_case <label> <checks_json> <statuses_json> <name> <expected_state>
+#   Feeds the fixtures to polaris_pr_checks_rest and asserts the deduped output
+#   has exactly one item for <name> with <expected_state>.
+dedup_case() {
+  local label="$1" checks="$2" statuses="$3" name="$4" want="$5"
+  printf '%s' "$checks" > "$DEDUP_CHECKS"
+  printf '%s' "$statuses" > "$DEDUP_STATUSES"
+  local out count state
+  out="$(polaris_pr_checks_rest acme/demo 7)"
+  count="$(printf '%s' "$out" | jq --arg n "$name" '[.[] | select(.name == $n)] | length')"
+  assert_eq "$count" "1" "$label.count"
+  state="$(printf '%s' "$out" | jq -r --arg n "$name" '.[] | select(.name == $n) | .state')"
+  assert_eq "$state" "$want" "$label.state"
+}
+
+# AC1: same-name old FAILURE + new SUCCESS -> SUCCESS.
+dedup_case "dedup.ac1" \
+  '{"check_runs":[{"name":"Milestone Required","status":"completed","conclusion":"failure","started_at":"2026-07-20T10:16:00Z","completed_at":"2026-07-20T10:16:30Z"},{"name":"Milestone Required","status":"completed","conclusion":"success","started_at":"2026-07-20T10:24:00Z","completed_at":"2026-07-20T10:24:30Z"}]}' \
+  '[]' "Milestone Required" "SUCCESS"
+
+# AC2: single FAILURE run (no newer SUCCESS) stays FAILURE.
+dedup_case "dedup.ac2" \
+  '{"check_runs":[{"name":"unit-tests","status":"completed","conclusion":"failure","started_at":"2026-07-20T10:00:00Z","completed_at":"2026-07-20T10:05:00Z"}]}' \
+  '[]' "unit-tests" "FAILURE"
+
+# AC3: same-name in_progress runs -> PENDING.
+dedup_case "dedup.ac3" \
+  '{"check_runs":[{"name":"gate","status":"in_progress","conclusion":null,"started_at":"2026-07-20T10:00:00Z"},{"name":"gate","status":"in_progress","conclusion":null,"started_at":"2026-07-20T10:10:00Z"}]}' \
+  '[]' "gate" "PENDING"
+
+# AC-NEG1: SUCCESS earlier in array but newer timestamp -> SUCCESS (time, not order).
+dedup_case "dedup.acneg1" \
+  '{"check_runs":[{"name":"lint-ci","status":"completed","conclusion":"success","started_at":"2026-07-20T11:00:00Z","completed_at":"2026-07-20T11:05:00Z"},{"name":"lint-ci","status":"completed","conclusion":"failure","started_at":"2026-07-20T09:00:00Z","completed_at":"2026-07-20T09:05:00Z"}]}' \
+  '[]' "lint-ci" "SUCCESS"
+
+# AC-NEG2: independent status context still counted (statuses dedupe unchanged).
+dedup_case "dedup.acneg2" \
+  '{"check_runs":[{"name":"typecheck","status":"completed","conclusion":"success","started_at":"2026-07-20T10:00:00Z","completed_at":"2026-07-20T10:05:00Z"}]}' \
+  '[{"context":"codecov/patch","state":"success","description":"ok"}]' "codecov/patch" "SUCCESS"
+
 if [[ "$FAIL" -ne 0 ]]; then
   printf 'github-rest selftest: %s passed, %s failed\n' "$PASS" "$FAIL" >&2
   exit 1
