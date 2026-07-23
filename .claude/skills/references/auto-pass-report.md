@@ -34,6 +34,7 @@ description: "auto-pass terminal report schema、follow-up DP seed threshold、o
     {"candidate": "converge", "disposition": "keep", "reason": "batch active-work convergence"}
   ],
   "follow_up_dp_seed": null,
+  "follow_up_existing_owner": null,
   "framework_release_tail": {
     "trigger": "framework-release DP-NNN",
     "allowed": true,
@@ -65,7 +66,7 @@ paused_for_user_external_write > complete
 
 ## DP Seed Threshold
 
-只有 report 包含下列任一訊號時，才需要 `follow_up_dp_seed`：
+只有 report 包含下列任一訊號時，才需要一個 follow-up authority：
 
 - `terminal_status` 不是 `complete`
 - `issues[]` 非空
@@ -74,7 +75,10 @@ paused_for_user_external_write > complete
 - `follow_ups[]` 非空
 - `overlap_disposition[]` 內有 `follow-up-sunset`
 
-`follow_up_dp_seed` 至少包含：
+threshold 命中時，`follow_up_dp_seed` 與 `follow_up_existing_owner` 必須**恰有一個**；
+兩者同時存在或同時缺少都 fail-closed。沒有 threshold 時兩者都必須是 `null` 或 absent。
+
+需要建立新 DP 時，`follow_up_dp_seed` 至少包含：
 
 ```json
 {
@@ -110,6 +114,52 @@ gap：
 與 `path` / `reason` / `source_report` 必填不變。
 
 complete 且沒有 issue threshold 時，`follow_up_dp_seed` 必須是 `null`。
+
+已有 DP 明確擁有該 follow-up 時，不得把它冒充 fresh seed；使用
+`follow_up_existing_owner`：
+
+```json
+{
+  "source_id": "DP-430",
+  "path": "docs-manager/src/content/docs/specs/design-plans/DP-430-topic/index.md",
+  "reason": "DP-430 已是 harness friction telemetry owner",
+  "source_report": "/absolute/path/to/report.json"
+}
+```
+
+validator 只接受 active `DISCUSSION` / `LOCKED` owner，且必須同時證明：
+
+- `source_id`、container identity 與 `path` 一致，且 owner 不是 report source 自己。
+- `source_report` 就是正在驗證的 report；parent canonical archive 只允許
+  `design-plans/{container}/...` → `design-plans/archive/{container}/...` 這一種
+  location-preserving 等價，不接受其他任意路徑漂移。
+- owner 的 authoritative `refinement.json.predecessor_audit` 對 report source 有且只有一筆
+  canonical linkage；存在某個同號目錄或只寫 reason prose 不算 ownership。
+
+不存在、多重 match、identity/path 不符、archived/terminal owner、self-owner、缺 linkage 皆以
+`POLARIS_AUTO_PASS_REPORT_EXISTING_OWNER_INVALID` fail-closed。fresh seed 的 occupied-number
+collision gate 維持不變。
+
+## Verification Authority
+
+`verification.status=PASS` 時，report validator 透過 canonical `resolve-task-md.sh` /
+`parse-task-md.sh` 讀取 V task：
+
+- V lifecycle verdict 必須是 `ac_verification.status: PASS`。
+- resolved task 的 `task_kind` 必須是 `V`，parsed `identity.work_item_id` 必須等於 report
+  `verification.work_item_id`，且 `identity.source_id` 必須等於 report `source_id`；帶 fake
+  `ac_verification` 的 T task或其他 source 的 V task不得冒充 V authority。
+- V task 不得被要求提供 T-only `deliverable`；fake V deliverable 不能替代
+  `ac_verification`。
+- 若 report 帶 `verification.head_sha`，validator 會以 `required_prs[].task_id` 解析 canonical
+  T task，確認 task kind / work-item identity / parent source identity，並讀取 immutable
+  `deliverable.head_sha`。report row
+  `head_sha` 只能與 canonical deliverable 對照，不能自我證明 current implementation head；
+  verification head 必須與至少一筆 canonical T deliverable 相符。多 PR stack 不要求每一筆
+  head 相同。
+
+這是 V verdict 與 implementation head 的權威分工；不讀 retired marker、branch ref 或 report
+prose 補證據。
 
 ## Overlap Disposition
 

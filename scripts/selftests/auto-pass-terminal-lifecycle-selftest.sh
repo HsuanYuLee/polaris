@@ -69,18 +69,28 @@ title: "V1"
 status: IN_PROGRESS
 task_kind: V
 work_item_id: DP-406-V1
-deliverable:
-  head_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  pr_url: https://github.com/example/polaris/pull/1
-  pr_state: MERGED
-  verification:
-    status: ${status}
-    ac_counts:
-      ac_total: 1
-      ac_pass: 1
+ac_verification:
+  status: ${status}
 ---
 
 # V1
+
+> Source: DP-406 | Task: DP-406-V1 | JIRA: N/A | Repo: polaris-framework
+EOF
+}
+
+write_t_task() {
+  mkdir -p "$POLARIS_SPECS_ROOT/design-plans/DP-406-selftest/tasks/T1"
+  cat >"$POLARIS_SPECS_ROOT/design-plans/DP-406-selftest/tasks/T1/index.md" <<'EOF'
+---
+task_kind: T
+deliverable:
+  head_sha: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+---
+
+# T1
+
+> Source: DP-406 | Task: DP-406-T1 | JIRA: N/A | Repo: polaris-framework
 EOF
 }
 
@@ -154,7 +164,12 @@ write_report() {
   "terminal_status": "${terminal}",
   "created_at": "2026-07-06T16:00:00+08:00",
   "ledger_path": "${ledger}",
-  "required_prs": [],
+  "required_prs": [
+    {
+      "task_id": "DP-406-T1",
+      "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ],
   "verification": {
     "status": "PASS",
     "work_item_id": "DP-406-V1",
@@ -191,6 +206,7 @@ expect_fail_contains() {
 }
 
 write_v_task PASS
+write_t_task
 set_source_status IMPLEMENTED
 COMPLETE_LEDGER="$TMP/complete-ledger.json"
 write_ledger "$COMPLETE_LEDGER" '"complete"' 'null'

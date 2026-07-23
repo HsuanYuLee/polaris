@@ -123,8 +123,10 @@ status: IMPLEMENTED
 MD
 
 # write_v_task <task_no> <head_sha> <verification_status>
-# Scaffolds a resolvable V task.md carrying a deliverable block so the report
-# verification cross-check is independently satisfiable / falsifiable.
+# Scaffolds a resolvable V task.md carrying the canonical ac_verification block
+# so the report verification cross-check is independently satisfiable /
+# falsifiable. The head argument is retained at call sites to make the report
+# head-rebind fixture intent explicit; implementation heads live in required_prs.
 write_v_task() {
   local task_no="$1" head="$2" vstatus="$3"
   local dir="$IMPL_SRC/tasks/$task_no"
@@ -136,14 +138,11 @@ path, task_no, head, vstatus = sys.argv[1:5]
 Path(path).write_text(
     "---\n"
     "task_kind: V\n"
-    "deliverable:\n"
-    "  pr_url: https://github.com/example/polaris/pull/1\n"
-    "  pr_state: MERGED\n"
-    f"  head_sha: {head}\n"
-    "  verification:\n"
-    f"    status: {vstatus}\n"
+    "ac_verification:\n"
+    f"  status: {vstatus}\n"
     "---\n\n"
-    f"# {task_no}\n",
+    f"# {task_no}\n\n"
+    f"> Source: DP-910 | Task: DP-910-{task_no} | JIRA: N/A | Repo: polaris-framework\n",
     encoding="utf-8",
 )
 PY
@@ -151,6 +150,18 @@ PY
 write_v_task V1 "$NEW_HEAD" PASS   # current published delivery (positive)
 write_v_task V2 "$OLD_HEAD" PASS   # stale head (head-rebind negative)
 write_v_task V3 "$NEW_HEAD" FAIL   # published but verification not PASS (negative)
+mkdir -p "$IMPL_SRC/tasks/T1"
+cat >"$IMPL_SRC/tasks/T1/index.md" <<MD
+---
+task_kind: T
+deliverable:
+  head_sha: ${NEW_HEAD}
+---
+
+# T1
+
+> Source: DP-910 | Task: DP-910-T1 | JIRA: N/A | Repo: polaris-framework
+MD
 
 # ── Fixture emitters ──────────────────────────────────────────────────────────
 # emit_ledger PATH OVERRIDES_JSON — full valid DP-909 ledger + shallow overrides
@@ -442,6 +453,9 @@ emit_report "$REBIND_REPORT" "$(python3 - "$COMPLETE_LEDGER" "$NEW_HEAD" <<'PY'
 import json, sys
 led, head = sys.argv[1:3]
 print(json.dumps({"ledger_path": led,
+                  "required_prs": [{"task_id": "DP-910-T1",
+                                    "pr_url": "https://github.com/org/repo/pull/1",
+                                    "head_sha": head}],
                   "verification": {"work_item_id": "DP-910-V1", "head_sha": head}}))
 PY
 )"
@@ -505,21 +519,24 @@ PY
 assert_fail_closed "neg/complete-missing-ledger" "POLARIS_AUTO_PASS_REPORT_LEDGER_UNREADABLE" -- \
   "$REPORT_VALIDATOR" "$NEG_COMPLETE_NO_LEDGER"
 
-# AC6 (head-rebind stale): report pins the NEW head but the V task.md deliverable
-# is still bound to the OLD head → mismatch (revision must republish evidence first).
+# AC6 (head-rebind stale): report pins the NEW head but required_prs still
+# declares the OLD implementation head → mismatch.
 NEG_REBIND_STALE="$TMP/report-rebind-stale.json"
 emit_report "$NEG_REBIND_STALE" "$(python3 - "$COMPLETE_LEDGER" "$NEW_HEAD" <<'PY'
 import json, sys
 led, head = sys.argv[1:3]
 print(json.dumps({"ledger_path": led,
+                  "required_prs": [{"task_id": "DP-910-T1",
+                                    "pr_url": "https://github.com/org/repo/pull/1",
+                                    "head_sha": "0000000000000000000000000000000000000000"}],
                   "verification": {"work_item_id": "DP-910-V2", "head_sha": head}}))
 PY
 )"
 assert_fail_closed "neg/head-rebind-stale-evidence" "POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISMATCH" -- \
   "$REPORT_VALIDATOR" "$NEG_REBIND_STALE"
 
-# AC6 (evidence status not PASS): verification claims PASS but the delivered V
-# task.md deliverable.verification.status is FAIL → mismatch.
+# AC6 (evidence status not PASS): verification claims PASS but the V task.md
+# canonical ac_verification.status is FAIL → mismatch.
 NEG_STATUS_FAIL="$TMP/report-status-fail.json"
 emit_report "$NEG_STATUS_FAIL" "$(python3 - "$COMPLETE_LEDGER" <<'PY'
 import json, sys

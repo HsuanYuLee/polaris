@@ -335,39 +335,37 @@ fi
 # AC4: report validator computes friction_log_summary from ledger and accepts matching snapshot.
 # DP-311 T3 cross-checks: the complete report must reference a readable
 # complete-eligible ledger (terminal null + no pause — $LEDGER already is) and,
-# for verification.status=PASS, a resolvable V task.md whose `deliverable` block
-# records a head-bound delivered head + PASS status. DP-360 T7 retired the
-# ac_verification marker as the head-resolution authority; the task.md deliverable
-# block is now the sole delivery-evidence source. DP-999-V1 resolves under the
-# hermetic POLARIS_WORKSPACE_ROOT=$TMP docs-manager specs root (the DP-999 source
-# container already exists at $SOURCE); deliverable.head_sha is head-bound to the
-# report's verification.head_sha=$REPORT_MARKER_HEAD.
+# for verification.status=PASS, a resolvable V task.md whose canonical
+# `ac_verification.status` is PASS. DP-999-V1 resolves under the hermetic
+# POLARIS_WORKSPACE_ROOT=$TMP docs-manager specs root (the DP-999 source
+# container already exists at $SOURCE). The report's optional verification head
+# is bound to the implementation head declared by required_prs[].
 REPORT_MARKER_HEAD="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-mkdir -p "$TMP/.polaris/evidence/ac-verification"
-cat >"$TMP/.polaris/evidence/ac-verification/DP-999-V1-${REPORT_MARKER_HEAD}.json" <<JSON
-{
-  "schema_version": 1,
-  "marker_kind": "ac_verification",
-  "writer": "verify-AC",
-  "work_item_id": "DP-999-V1",
-  "head_sha": "${REPORT_MARKER_HEAD}",
-  "status": "PASS"
-}
-JSON
 
 mkdir -p "$SOURCE/tasks/V1"
 cat >"$SOURCE/tasks/V1/index.md" <<MD
 ---
 task_kind: V
-deliverable:
-  pr_url: https://github.com/example/polaris/pull/1
-  pr_state: MERGED
-  head_sha: ${REPORT_MARKER_HEAD}
-  verification:
-    status: PASS
+ac_verification:
+  status: PASS
 ---
 
 # V1
+
+> Source: DP-999 | Task: DP-999-V1 | JIRA: N/A | Repo: polaris-framework
+MD
+
+mkdir -p "$SOURCE/tasks/T1"
+cat >"$SOURCE/tasks/T1/index.md" <<MD
+---
+task_kind: T
+deliverable:
+  head_sha: ${REPORT_MARKER_HEAD}
+---
+
+# T1
+
+> Source: DP-999 | Task: DP-999-T1 | JIRA: N/A | Repo: polaris-framework
 MD
 
 REPORT="$TMP/report.json"
@@ -393,7 +391,7 @@ payload = {
     "terminal_status": "complete",
     "created_at": "2026-05-21T11:00:00+08:00",
     "ledger_path": ledger_path,
-    "required_prs": [],
+    "required_prs": [{"task_id": "DP-999-T1", "head_sha": marker_head}],
     "verification": {"status": "PASS", "work_item_id": "DP-999-V1", "head_sha": marker_head},
     "issues": [],
     "blockers": [],

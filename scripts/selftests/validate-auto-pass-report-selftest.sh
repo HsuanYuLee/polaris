@@ -5,12 +5,11 @@
 #              (AC5: paused / non-complete terminal / unreadable ledger →
 #              exit 2 + 結構化 marker；complete 與 complete-eligible 放行)
 #          (b) report.verification.status=PASS ↔ the V work item's task.md
-#              `deliverable` block (deliverable.head_sha + verification.status
-#              =PASS). DP-360 T7: the head-sha-keyed ac_verification marker is
-#              retired; the task.md block is the sole delivery-evidence source
-#              (AC6: no resolvable task.md / no head → MISSING; status≠PASS or
-#              pinned-head mismatch → MISMATCH; never reads a marker file or a
-#              branch ref).
+#              canonical ac_verification.status=PASS. An optional pinned
+#              verification head must match an implementation head declared by
+#              required_prs[] (AC6: no resolvable V task / no canonical status
+#              → MISSING; status≠PASS or pinned implementation-head mismatch →
+#              MISMATCH; never reads a marker file or a branch ref).
 # Inputs:  none (hermetic; fixtures in mktemp dir, scan root pinned via
 #          POLARIS_WORKSPACE_ROOT override)
 # Outputs: "PASS: ..." on success; non-zero exit with diagnostics on failure.
@@ -48,10 +47,9 @@ SPECS_DESIGN_PLANS="$TMP/docs-manager/src/content/docs/specs/design-plans"
 SPECS_ROOT="$TMP/docs-manager/src/content/docs/specs"
 mkdir -p "$SPECS_DESIGN_PLANS"
 
-# Description: record a V work item's delivery in its task.md `deliverable` block
-#              (DP-360 T7 replacement for the retired ac_verification marker).
-#              Creates the DP or JIRA Epic container + V task.md resolvable by
-#              work_item_id.
+# Description: record a V work item's result in its task.md canonical
+#              ac_verification block. Creates the DP or JIRA Epic container +
+#              V task.md resolvable by work_item_id.
 # Args:        $1 = work_item_id (DP-NNN-V{n} or KEY-NNN-V{n}); $2 = head sha;
 #              $3 = status
 # Side effects: writes a task.md under design-plans/ or companies/exampleco/.
@@ -78,18 +76,39 @@ task_dir.mkdir(parents=True, exist_ok=True)
     "status: IN_PROGRESS\n"
     "task_kind: V\n"
     f"work_item_id: {work_item}\n"
-    "deliverable:\n"
-    f"  head_sha: {head}\n"
-    "  pr_url: https://github.com/example-org/example/pull/1\n"
-    "  pr_state: MERGED\n"
-    "  verification:\n"
-    f"    status: {status}\n"
-    "    ac_counts:\n"
-    "      ac_total: 1\n"
-    f"      ac_pass: {'1' if status == 'PASS' else '0'}\n"
+    "ac_verification:\n"
+    f"  status: {status}\n"
     "---\n\n"
     f"# {stem}\n\n"
     f"> Source: {source_id} | Task: {work_item} | JIRA: {work_item} | Repo: polaris-framework\n",
+    encoding="utf-8",
+)
+PY
+}
+
+write_t_task() {
+  local work_item="$1" head="$2" include_fake_ac="${3:-false}"
+  python3 - "$SPECS_ROOT" "$work_item" "$head" "$include_fake_ac" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+specs_root, work_item, head, include_fake_ac = sys.argv[1:5]
+m = re.match(r"^([A-Z][A-Z0-9]+-\d+)-([A-Za-z]+\d+)$", work_item)
+assert m, f"unexpected work_item shape: {work_item}"
+source_id, stem = m.group(1), m.group(2)
+task_dir = Path(specs_root) / "design-plans" / f"{source_id}-selftest" / "tasks" / stem
+task_dir.mkdir(parents=True, exist_ok=True)
+fake_ac = "ac_verification:\n  status: PASS\n" if include_fake_ac == "true" else ""
+(task_dir / "index.md").write_text(
+    "---\n"
+    "task_kind: T\n"
+    "deliverable:\n"
+    f"  head_sha: {head}\n"
+    f"{fake_ac}"
+    "---\n\n"
+    f"# {stem}\n\n"
+    f"> Source: {source_id} | Task: {work_item} | JIRA: N/A | Repo: polaris-framework\n",
     encoding="utf-8",
 )
 PY
@@ -116,6 +135,7 @@ PY
 
 HEAD_SHA="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 write_marker "DP-237-V1" "$HEAD_SHA" "PASS"
+write_t_task "DP-237-T1" "$HEAD_SHA"
 
 COMPLETE_LEDGER="$TMP/ledger-complete.json"
 write_ledger "$COMPLETE_LEDGER" '"complete"' 'null'
@@ -273,7 +293,8 @@ Path(sys.argv[1]).write_text(json.dumps({
     "terminal_status": "blocked_by_gate_failure",
     "created_at": "2026-05-19T10:30:00+08:00",
     "ledger_path": "/tmp/x",
-    "required_prs": [],
+    "required_prs": [{"task_id": "DP-237-T1",
+                      "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}],
     "verification": {"status": "UNCERTAIN"},
     "issues": [{"kind": "x"}],
     "blockers": [],
@@ -284,7 +305,7 @@ Path(sys.argv[1]).write_text(json.dumps({
 }) + "\n", encoding="utf-8")
 PY
 assert_fail "no-seed" "$VALIDATOR" "$NO_SEED"
-grep -q "follow_up_dp_seed is required" "$TMP/no-seed.out"
+grep -q "exactly one of follow_up_dp_seed or follow_up_existing_owner is required" "$TMP/no-seed.out"
 
 # ─── 10. follow_up_dp_seed framework_gap contract (DP-330 T2: AC3/AC4/AC-NEG2) ─
 # AC3: framework_gap=true with valid contract_evidence → PASS.
@@ -548,28 +569,24 @@ AC5_BLOCKED_REPORT="$TMP/ac5-blocked-report.json"
 write_report "$AC5_BLOCKED_REPORT" blocked_by_gate_failure blocked DP-237 "$PAUSED_LEDGER"
 assert_pass "ac5-blocked-report-paused-ledger" "$VALIDATOR" "$AC5_BLOCKED_REPORT"
 
-# ═══ DP-311 T3 — AC6: verification↔head-bound marker cross-check ═════════════
+# ═══ DP-311 T3 — AC6: V result + implementation-head cross-check ═════════════
 
-# ─── 16. AC6 NEG: verification PASS but no head-bound marker → exit 2 ────────
+# ─── 16. AC6 NEG: verification PASS but no resolvable V task → exit 2 ────────
 AC6_NO_MARKER="$TMP/ac6-no-marker.json"
 write_report "$AC6_NO_MARKER" complete complete DP-556 "$COMPLETE_LEDGER"
 assert_fail2 "ac6-no-marker" "$VALIDATOR" "$AC6_NO_MARKER"
 grep -q 'POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISSING' "$TMP/ac6-no-marker.out" \
   || { echo "FAIL: ac6-no-marker should emit POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISSING" >&2; cat "$TMP/ac6-no-marker.out" >&2; exit 1; }
 
-# ─── 17. AC6 NEG: marker exists but status != PASS (stale summary) → exit 2 ──
+# ─── 17. AC6 NEG: V task exists but canonical status != PASS → exit 2 ────────
 write_marker "DP-557-V1" "$HEAD_SHA" "FAIL"
 AC6_STALE="$TMP/ac6-stale.json"
 write_report "$AC6_STALE" complete complete DP-557 "$COMPLETE_LEDGER"
 assert_fail2 "ac6-stale" "$VALIDATOR" "$AC6_STALE"
 grep -q 'POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISMATCH' "$TMP/ac6-stale.out"
 
-# ─── 18. AC6 NEG: pinned verification.head_sha that does not match the V ─────
-#         work item's recorded deliverable.head_sha → exit 2 + MISMATCH.
-#         DP-360 T7: there is ONE durable delivery record per work item (the
-#         task.md deliverable block, head=aaaa from line 84). A pinned head
-#         (bbbb) that does not bind to the recorded head is a genuine MISMATCH
-#         (delivery happened at a different head), not a missing record.
+# ─── 18. AC6 NEG: pinned verification.head_sha that does not match any ───────
+#         implementation head in required_prs[] → exit 2 + MISMATCH.
 AC6_PINNED_MISS="$TMP/ac6-pinned-miss.json"
 python3 - "$AC6_PINNED_MISS" "$COMPLETE_LEDGER" <<'PY'
 import json, sys
@@ -595,7 +612,50 @@ PY
 assert_fail2 "ac6-pinned-miss" "$VALIDATOR" "$AC6_PINNED_MISS"
 grep -q 'POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISMATCH' "$TMP/ac6-pinned-miss.out"
 
-# ─── 19. AC6 POS: pinned verification.head_sha with matching PASS marker ─────
+# ─── 19. AC6 NEG: a T task with fake ac_verification cannot impersonate V ────
+write_t_task "DP-558-T1" "$HEAD_SHA" true
+AC6_T_AS_V="$TMP/ac6-t-as-v.json"
+write_report "$AC6_T_AS_V" complete complete DP-558 "$COMPLETE_LEDGER"
+python3 - "$AC6_T_AS_V" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+d = json.loads(p.read_text())
+d["verification"]["work_item_id"] = "DP-558-T1"
+d["verification"].pop("head_sha", None)
+p.write_text(json.dumps(d) + "\n", encoding="utf-8")
+PY
+assert_fail2 "ac6-t-as-v" "$VALIDATOR" "$AC6_T_AS_V"
+grep -q 'POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISMATCH' "$TMP/ac6-t-as-v.out"
+
+# ─── 20. AC6 NEG: another source's canonical V/T evidence cannot be borrowed ─
+write_marker "DP-559-V1" "$HEAD_SHA" "PASS"
+write_t_task "DP-559-T1" "$HEAD_SHA"
+AC6_CROSS_SOURCE="$TMP/ac6-cross-source.json"
+python3 - "$AC6_CROSS_SOURCE" "$COMPLETE_LEDGER" "$HEAD_SHA" <<'PY'
+import json, sys
+from pathlib import Path
+report_path, ledger_path, head = sys.argv[1:4]
+Path(report_path).write_text(json.dumps({
+    "schema_version": 1,
+    "source_id": "DP-237",
+    "terminal_status": "complete",
+    "created_at": "2026-05-19T10:30:00+08:00",
+    "ledger_path": ledger_path,
+    "required_prs": [{"task_id": "DP-559-T1", "head_sha": head}],
+    "verification": {"status": "PASS", "work_item_id": "DP-559-V1", "head_sha": head},
+    "issues": [],
+    "blockers": [],
+    "manual_items": [],
+    "follow_ups": [],
+    "overlap_disposition": [],
+    "follow_up_dp_seed": None,
+}) + "\n", encoding="utf-8")
+PY
+assert_fail2 "ac6-cross-source" "$VALIDATOR" "$AC6_CROSS_SOURCE"
+grep -q 'POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISMATCH' "$TMP/ac6-cross-source.out"
+
+# ─── 21. AC6 POS: pinned verification.head_sha matches implementation head ───
 AC6_PINNED_OK="$TMP/ac6-pinned-ok.json"
 python3 - "$AC6_PINNED_OK" "$COMPLETE_LEDGER" "$HEAD_SHA" <<'PY'
 import json, sys
@@ -607,7 +667,7 @@ Path(report_path).write_text(json.dumps({
     "terminal_status": "complete",
     "created_at": "2026-05-19T10:30:00+08:00",
     "ledger_path": ledger_path,
-    "required_prs": [],
+    "required_prs": [{"task_id": "DP-237-T1", "head_sha": head}],
     "verification": {"status": "PASS", "work_item_id": "DP-237-V1", "head_sha": head},
     "issues": [],
     "blockers": [],
@@ -619,13 +679,13 @@ Path(report_path).write_text(json.dumps({
 PY
 assert_pass "ac6-pinned-ok" "$VALIDATOR" "$AC6_PINNED_OK"
 
-# ─── 20. AC6 POS: JIRA Epic composite V-task resolves via companies path ─────
+# ─── 22. AC6 POS: JIRA Epic composite V-task resolves via companies path ─────
 write_marker "FOO-646-V1" "$HEAD_SHA" "PASS"
 AC6_JIRA_OK="$TMP/ac6-jira-ok.json"
 write_report "$AC6_JIRA_OK" complete complete FOO-646 "$COMPLETE_LEDGER"
 assert_pass "ac6-jira-composite-ok" "$VALIDATOR" "$AC6_JIRA_OK"
 
-# ─── 21. AC6 NEG: JIRA Epic composite pinned head mismatch → exit 2 ─────────
+# ─── 23. AC6 NEG: JIRA Epic composite pinned head mismatch → exit 2 ─────────
 AC6_JIRA_PINNED_MISS="$TMP/ac6-jira-pinned-miss.json"
 python3 - "$AC6_JIRA_PINNED_MISS" "$COMPLETE_LEDGER" <<'PY'
 import json, sys
@@ -651,7 +711,7 @@ PY
 assert_fail2 "ac6-jira-pinned-miss" "$VALIDATOR" "$AC6_JIRA_PINNED_MISS"
 grep -q 'POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISMATCH' "$TMP/ac6-jira-pinned-miss.out"
 
-# ─── 22. AC6 NEG: verification PASS without work_item_id → exit 2 ────────────
+# ─── 24. AC6 NEG: verification PASS without work_item_id → exit 2 ────────────
 AC6_NO_WI="$TMP/ac6-no-wi.json"
 python3 - "$AC6_NO_WI" "$COMPLETE_LEDGER" <<'PY'
 import json, sys

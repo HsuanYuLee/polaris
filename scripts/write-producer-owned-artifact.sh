@@ -471,7 +471,12 @@ case "$artifact_kind" in
     fi
     ;;
   auto_pass_report)
-    validator_cmd=("$WORKSPACE_ROOT/scripts/validate-auto-pass-report.sh" "$TARGET_PATH")
+    # DP-438: terminal report closeout is intentionally report-write → parent
+    # closeout/archive → full validation. At write time, validate every report
+    # contract except the parent lifecycle postcondition; the default validator
+    # remains the mandatory post-archive full check.
+    validator_cmd=("$WORKSPACE_ROOT/scripts/validate-auto-pass-report.sh"
+                   --lifecycle-phase prearchive "$TARGET_PATH")
     if [[ -x "${validator_cmd[0]}" ]]; then
       "${validator_cmd[@]}" >&2 || validator_exit=$?
     fi

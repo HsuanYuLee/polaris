@@ -20,18 +20,26 @@ title: "V1"
 status: IMPLEMENTED
 task_kind: V
 work_item_id: DP-777-V1
-deliverable:
-  head_sha: ${HEAD_SHA}
-  pr_url: https://github.com/example/repo/pull/1
-  pr_state: MERGED
-  verification:
-    status: PASS
-    ac_counts:
-      ac_total: 1
-      ac_pass: 1
+ac_verification:
+  status: PASS
 ---
 
 # V1
+
+> Source: DP-777 | Task: DP-777-V1 | JIRA: N/A | Repo: polaris-framework
+MD
+
+mkdir -p "$DESIGN_PLANS/DP-777-selftest/tasks/T1"
+cat >"$DESIGN_PLANS/DP-777-selftest/tasks/T1/index.md" <<MD
+---
+task_kind: T
+deliverable:
+  head_sha: ${HEAD_SHA}
+---
+
+# T1
+
+> Source: DP-777 | Task: DP-777-T1 | JIRA: N/A | Repo: polaris-framework
 MD
 
 mkdir -p "$EVIDENCE_ROOT/docs-manager/src/content/docs/specs"
@@ -56,7 +64,7 @@ payload = {
     "terminal_status": "complete",
     "created_at": "2026-07-05T00:00:00Z",
     "ledger_path": ledger,
-    "required_prs": [],
+    "required_prs": [{"task_id": "DP-777-T1", "head_sha": head}],
     "verification": {"status": "PASS", "work_item_id": "DP-777-V1", "head_sha": head},
     "issues": [],
     "blockers": [],
@@ -91,6 +99,7 @@ grep -q "POLARIS_AUTO_PASS_TERMINAL_PARENT_NOT_ARCHIVED" "$TMP/locked.out"
 
 mkdir -p "$DESIGN_PLANS/archive/DP-777-selftest/tasks"
 mv "$DESIGN_PLANS/DP-777-selftest/tasks/V1" "$DESIGN_PLANS/archive/DP-777-selftest/tasks/V1"
+mv "$DESIGN_PLANS/DP-777-selftest/tasks/T1" "$DESIGN_PLANS/archive/DP-777-selftest/tasks/T1"
 cat >"$DESIGN_PLANS/archive/DP-777-selftest/index.md" <<'MD'
 ---
 title: "DP-777"

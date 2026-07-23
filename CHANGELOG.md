@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.79.1] - 2026-07-23
+
+### Changed
+
+- 124c646: 抽出 canonical shared helper 修復 task.md repo 解析在長 frontmatter 上失效的 bug
+
+### Fixed
+
+- ac1e31e: 對齊 auto-pass terminal report 的 pre-archive validation、V 驗收證據與既有 follow-up owner
+
 ## [3.79.0] - 2026-07-21
 
 ### Changed

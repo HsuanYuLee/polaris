@@ -180,7 +180,7 @@ Validator (V mode):
 | Writer contract | atomic + verify + retry-3 + fail-stop (§ 2.1 D7) | 同 contract（§ 4.7） | 一份 D7，T/V 共用 |
 | 完結觸發 | engineering Step 8a → IMPLEMENTED → mark-spec-implemented.sh → `pr-release/T*.md` | verify-AC 全 PASS + human_disposition=passed → IMPLEMENTED → mark-spec-implemented.sh → `pr-release/V*.md` | 同一支 closer script（filename dispatch 自動識別 T/V，已實裝） |
 | Parent closeout | T*.md 全部 IMPLEMENTED 後仍不得 close parent，直到 active V*.md 不存在且 pr-release V*.md `status: IMPLEMENTED` + `ac_verification.status: PASS` | V*.md 是 AC / dogfood 的 terminal authority；active V*.md 是 closeout blocker | `close-parent-spec-if-complete.sh` + `check-main-chain-compliance.sh` fail-closed |
-| 中央 parser | `parse-task-md.sh` | 同 | filename dispatch（已實裝） |
+| 中央 parser | `parse-task-md.sh`；`frontmatter.deliverable.head_sha` 是 immutable implementation-head authority | 同；完整 JSON payload 的 `frontmatter.ac_verification` 是 V lifecycle verdict authority | consumer 必須同時驗 parsed `task_kind` / `identity.work_item_id` / `identity.source_id`，不得只因某 block 存在就跨 T/V 或跨 source 冒充 |
 | Hook | `pipeline-artifact-gate.sh` | 同（filename pattern `V*.md` branch） | 同一支 hook |
 | Schema validator | `validate-task-md.sh` (T mode) | `validate-task-md.sh` (V mode) | 同一支 script，filename 分流 |
 | Cross-file validator | `validate-task-md-deps.sh`（掃 T+V） | 同（含 V→T pass / T→V fail invariant） | 同一支 script |
@@ -341,4 +341,3 @@ echo "verify-AC dispatches AC-1 .. AC-4."
 具體 instance 將由 DP-039 producer cutover 後產出（既有以 `{JIRA-KEY}.md` 命名的驗收 task.md migration 同步移交）。
 
 ---
-

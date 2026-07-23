@@ -5,12 +5,15 @@
 #          friction_log_summary ledger aggregation, plus DP-311 T3 fail-closed
 #          cross-checks — (a) report.terminal_status=complete ↔ referenced
 #          ledger terminal state; (b) report.verification.status=PASS ↔ the V
-#          work item's task.md `deliverable` block (deliverable.head_sha bound to
-#          verification.head_sha + deliverable.verification.status=PASS). DP-360
-#          T7: the head-sha-keyed ac_verification marker is retired; the task.md
-#          block is the sole delivery-evidence source. Stale summaries / branch
-#          refs are never trusted.
-# Inputs:  $1 = /path/to/report.json. Optional env POLARIS_WORKSPACE_ROOT
+#          work item's task.md `ac_verification.status=PASS`, while an optional
+#          verification.head_sha is bound to the required T task's canonical
+#          deliverable.head_sha (report PR rows cannot self-attest authority).
+#          DP-360 T7: the head-sha-keyed ac_verification marker is retired; the
+#          V task lifecycle block + required_prs[] are the durable authorities.
+# Inputs:  [--lifecycle-phase terminal|prearchive] /path/to/report.json.
+#          prearchive is reserved for the canonical report writer and delays only
+#          the terminal parent lifecycle postcondition; every other check remains
+#          active. Optional env POLARIS_WORKSPACE_ROOT
 #          overrides the scan root used to resolve the V work item's task.md
 #          (hermetic selftests); default resolves the main checkout via
 #          scripts/lib/main-checkout.sh from the report location.
@@ -19,14 +22,45 @@
 #          markers and exit 2; schema-only violations exit 1.
 set -euo pipefail
 
-if [[ $# -ne 1 || "$1" == "--help" || "$1" == "-h" ]]; then
+LIFECYCLE_PHASE="terminal"
+REPORT_PATH=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --lifecycle-phase)
+      [[ $# -ge 2 ]] || { echo "error: --lifecycle-phase requires a value" >&2; exit 2; }
+      LIFECYCLE_PHASE="$2"
+      shift 2
+      ;;
+    -h|--help)
+      REPORT_PATH=""
+      break
+      ;;
+    --*)
+      echo "error: unknown option: $1" >&2
+      exit 2
+      ;;
+    *)
+      [[ -z "$REPORT_PATH" ]] || { echo "error: multiple report paths" >&2; exit 2; }
+      REPORT_PATH="$1"
+      shift
+      ;;
+  esac
+done
+
+if [[ "$LIFECYCLE_PHASE" != "terminal" && "$LIFECYCLE_PHASE" != "prearchive" ]]; then
+  echo "error: --lifecycle-phase must be terminal or prearchive" >&2
+  exit 2
+fi
+
+if [[ -z "$REPORT_PATH" ]]; then
   cat >&2 <<'USAGE'
 usage:
-  scripts/validate-auto-pass-report.sh /path/to/report.json
+  scripts/validate-auto-pass-report.sh \
+    [--lifecycle-phase terminal|prearchive] /path/to/report.json
 
 env:
   POLARIS_WORKSPACE_ROOT  override scan root for resolving the V work item's
-                          task.md deliverable block (selftests)
+                          task.md lifecycle block (selftests)
 USAGE
   exit 2
 fi
@@ -47,7 +81,7 @@ EVIDENCE_ROOT="${POLARIS_WORKSPACE_ROOT:-}"
 if [[ -z "$EVIDENCE_ROOT" ]]; then
   # shellcheck source=lib/main-checkout.sh
   source "$SCRIPT_DIR/lib/main-checkout.sh"
-  report_dir="$(cd "$(dirname "$1")" 2>/dev/null && pwd || true)"
+  report_dir="$(cd "$(dirname "$REPORT_PATH")" 2>/dev/null && pwd || true)"
   if [[ -n "$report_dir" ]]; then
     EVIDENCE_ROOT="$(resolve_main_checkout "$report_dir" 2>/dev/null || true)"
   fi
@@ -66,4 +100,5 @@ SPECS_ROOT="${POLARIS_SPECS_ROOT:-$WORKSPACE_ROOT/docs-manager/src/content/docs/
 
 RESOLVER="$SCRIPT_DIR/resolve-task-md.sh" PARSER="$SCRIPT_DIR/parse-task-md.sh" \
 PR_OWNERSHIP_GATE="$SCRIPT_DIR/auto-pass-pr-ownership-gate.sh" \
-python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/auto_pass_validate_auto_pass_report_1.py" "$1" "$EVIDENCE_ROOT" "$WORKSPACE_ROOT" "$SPECS_ROOT"
+python3 "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/auto_pass_validate_auto_pass_report_1.py" \
+  "$REPORT_PATH" "$EVIDENCE_ROOT" "$WORKSPACE_ROOT" "$SPECS_ROOT" "$LIFECYCLE_PHASE"

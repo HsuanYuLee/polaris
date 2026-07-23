@@ -29,7 +29,7 @@ fi
 HOOK="$ROOT_DIR/.claude/hooks/no-direct-evidence-write.sh"
 WRITER="$ROOT_DIR/scripts/write-producer-owned-artifact.sh"
 PRODUCERS_JSON="$ROOT_DIR/scripts/lib/evidence-producers.json"
-FIXTURE_DIR="$ROOT_DIR/docs-manager/src/content/docs/specs/design-plans/__dp230_t12_fixture_auto_pass_report__"
+FIXTURE_DIR="$ROOT_DIR/docs-manager/src/content/docs/specs/design-plans/DP-938-auto-pass-report-producer-selftest"
 WORKDIR="$(mktemp -d -t dp230-t12-auto-pass-report.XXXXXX)"
 trap 'rm -rf "$WORKDIR"; rm -rf "$FIXTURE_DIR"' EXIT
 
@@ -134,16 +134,26 @@ print(json.dumps({
 run_hook "$payload_pos" 0 ac32-pos-token-bypass "POLARIS_PRODUCER=auto-pass:report"
 grep -q 'producer=auto-pass:report' "$WORKDIR/ac32-pos-token-bypass.out"
 
-# AC32 writer happy path: write a valid report through the canonical writer.
+# DP-438 AC1: the canonical writer must persist a complete report while the
+# parent is still LOCKED, after validating every non-lifecycle constraint.
+mkdir -p "$FIXTURE_DIR"
+cat >"$FIXTURE_DIR/index.md" <<'MD'
+---
+title: "DP-938"
+description: "auto-pass report producer selftest fixture."
+status: LOCKED
+---
+
+# DP-938
+MD
+
 ledger_path="$WORKDIR/dummy-ledger.json"
 cat >"$ledger_path" <<'JSON'
 {
   "schema_version": 1,
-  "source_id": "DP-230",
-  "source_container": "docs-manager/src/content/docs/specs/design-plans/__dp230_t12_fixture_auto_pass_report__",
-  "source_type": "dp",
+  "terminal_status": null,
+  "pause": null,
   "friction_log": [],
-  "stages": [],
   "created_at": "2026-05-24T00:00:00+08:00"
 }
 JSON
@@ -154,7 +164,7 @@ import json, sys
 report_path, ledger_path = sys.argv[1:3]
 payload = {
     "schema_version": 1,
-    "source_id": "DP-230",
+    "source_id": "DP-938",
     "terminal_status": "complete",
     "created_at": "2026-05-24T00:00:00+08:00",
     "ledger_path": ledger_path,
@@ -167,7 +177,7 @@ payload = {
     "overlap_disposition": [{"candidate": "self", "disposition": "keep", "reason": "fixture"}],
     "follow_up_dp_seed": None,
     "framework_release_tail": {
-        "trigger": "framework-release DP-230",
+        "trigger": "framework-release DP-938",
         "allowed": True,
         "reason": "fixture"
     }
@@ -198,6 +208,43 @@ grep -q 'producer=auto-pass:report' "$WORKDIR/writer-report.out" || {
   cat "$WORKDIR/writer-report.out" >&2
   exit 1
 }
+
+# The default validator remains the full terminal check and must still reject
+# the active LOCKED parent before archive.
+set +e
+"$ROOT_DIR/scripts/validate-auto-pass-report.sh" "$report_path" >"$WORKDIR/full-prearchive.out" 2>&1
+rc=$?
+set -e
+if [[ "$rc" -ne 2 ]] || ! grep -q 'POLARIS_AUTO_PASS_TERMINAL_PARENT_NOT_ARCHIVED' "$WORKDIR/full-prearchive.out"; then
+  echo "FAIL (DP-438 AC1): default validator did not fail-closed before archive" >&2
+  cat "$WORKDIR/full-prearchive.out" >&2
+  exit 1
+fi
+
+# AC-NEG1: pre-archive phase delays only the lifecycle postcondition. A broken
+# ledger reference is still invalid and the writer must roll the target back.
+invalid_report_body="$WORKDIR/invalid-report.json"
+invalid_report_path="$FIXTURE_DIR/artifacts/auto-pass/20260524-120001-report.json"
+python3 - "$report_body" "$invalid_report_body" <<'PY'
+import json, sys
+from pathlib import Path
+src, dst = map(Path, sys.argv[1:3])
+d = json.loads(src.read_text())
+d["ledger_path"] = str(dst.parent / "missing-ledger.json")
+dst.write_text(json.dumps(d) + "\n", encoding="utf-8")
+PY
+set +e
+"$WRITER" \
+  --producer-token auto-pass:report \
+  --path "$invalid_report_path" \
+  --body-file "$invalid_report_body" >"$WORKDIR/writer-invalid-report.out" 2>&1
+rc=$?
+set -e
+if [[ "$rc" -eq 0 ]] || [[ -e "$invalid_report_path" ]]; then
+  echo "FAIL (DP-438 AC-NEG1): invalid pre-archive report was not rolled back" >&2
+  cat "$WORKDIR/writer-invalid-report.out" >&2
+  exit 1
+fi
 
 # AC-NEG12: existing tokens (auto-pass:source, auto-pass:verify,
 # breakdown:initial-create) still resolve to their canonical producer entry

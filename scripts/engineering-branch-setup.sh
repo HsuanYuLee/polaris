@@ -48,6 +48,8 @@ VALIDATE_TASK_MD_DEPS="$SCRIPT_DIR/validate-task-md-deps.sh"
 VALIDATE_BREAKDOWN_READY="$SCRIPT_DIR/validate-breakdown-ready.sh"
 RESOLVE_TASK_BASE="$SCRIPT_DIR/resolve-task-base.sh"
 WORKTREE_CLEANUP="$SCRIPT_DIR/engineering-worktree-cleanup.sh"
+# shellcheck source=lib/task-md-header-fields.sh
+source "$SCRIPT_DIR/lib/task-md-header-fields.sh"
 
 usage() {
   cat <<EOF >&2
@@ -203,9 +205,7 @@ resolve_repo_from_task_md() {
   local task_md="$1"
   local repo_name dir specs_dir base_dir candidate
 
-  repo_name="$(head -n 20 "$task_md" 2>/dev/null \
-    | grep -oE 'Repo:[[:space:]]*[A-Za-z0-9._/-]+' \
-    | head -n 1 | sed -E 's/^Repo:[[:space:]]*//')"
+  repo_name="$(parse_task_md_repo_name "$task_md")"
   [[ -n "$repo_name" ]] || return 1
 
   dir="$(cd "$(dirname "$task_md")" 2>/dev/null && pwd)" || return 1

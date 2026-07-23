@@ -106,8 +106,9 @@ chmod +x "$ARCHIVE_STUB"
 # ---------------------------------------------------------------------------
 # Fixture builders. A source container lives at
 #   $WS/docs-manager/src/content/docs/specs/design-plans/DP-<N>-selftest/
-# with a V1 work item carrying a full deliverable block so the report's
-# verification.status=PASS cross-check resolves post-archive.
+# with a V1 work item carrying the canonical ac_verification PASS lifecycle
+# block. The report's verification head is bound to implementation evidence in
+# required_prs[] rather than to a fake V deliverable.
 # ---------------------------------------------------------------------------
 specs_root_for() { printf '%s/docs-manager/src/content/docs/specs' "$1"; }
 
@@ -135,20 +136,23 @@ task_kind: V
 work_item_id: DP-${num}-V1
 ac_verification:
   status: PASS
-deliverable:
-  head_sha: ${HEAD_SHA}
-  pr_url: https://github.com/example/repo/pull/1
-  pr_state: MERGED
-  verification:
-    status: PASS
-    ac_counts:
-      ac_total: 1
-      ac_pass: 1
 ---
 
 # V1
 
 > Source: DP-${num} | Task: DP-${num}-V1 | JIRA: N/A | Repo: polaris-framework
+MD
+  mkdir -p "$container/tasks/T1"
+  cat >"$container/tasks/T1/index.md" <<MD
+---
+task_kind: T
+deliverable:
+  head_sha: ${HEAD_SHA}
+---
+
+# T1
+
+> Source: DP-${num} | Task: DP-${num}-T1 | JIRA: N/A | Repo: polaris-framework
 MD
   printf '%s' "$container"
 }
@@ -176,20 +180,23 @@ task_kind: V
 work_item_id: ${source_id}-V1
 ac_verification:
   status: PASS
-deliverable:
-  head_sha: ${HEAD_SHA}
-  pr_url: https://github.com/example/repo/pull/1
-  pr_state: MERGED
-  verification:
-    status: PASS
-    ac_counts:
-      ac_total: 1
-      ac_pass: 1
 ---
 
 # V1
 
 > Source: ${source_id} | Task: ${source_id}-V1 | JIRA: N/A | Repo: polaris-framework
+MD
+  mkdir -p "$container/tasks/T1"
+  cat >"$container/tasks/T1/index.md" <<MD
+---
+task_kind: T
+deliverable:
+  head_sha: ${HEAD_SHA}
+---
+
+# T1
+
+> Source: ${source_id} | Task: ${source_id}-T1 | JIRA: N/A | Repo: polaris-framework
 MD
   printf '%s' "$container"
 }
@@ -217,7 +224,7 @@ payload = {
     "terminal_status": terminal,
     "created_at": "2026-07-13T00:00:00+08:00",
     "ledger_path": ledger,
-    "required_prs": [],
+    "required_prs": [{"task_id": f"{source_id}-T1", "head_sha": head}],
     "verification": {"status": vstatus, "work_item_id": f"{source_id}-V1", "head_sha": head},
     "issues": [],
     "blockers": [],

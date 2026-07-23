@@ -33,6 +33,10 @@
 
 set -u
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/task-md-header-fields.sh
+source "$SCRIPT_DIR/lib/task-md-header-fields.sh"
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -83,11 +87,11 @@ extract_task_key() {
 
 # Parse "Repo: <name>" from task.md header (H1 nearby line like
 # "> Epic: EPIC-478 | JIRA: TASK-3711 | Repo: exampleco-b2c-web").
+# Delegates to the canonical shared helper (DP-090 T1) so this call site
+# cannot drift from the other two (engineering-branch-setup.sh /
+# polaris-pr-create.sh) that also need to find this field.
 parse_repo_name() {
-    local file="$1"
-    # Look in the first 20 lines.
-    head -n 20 "$file" | grep -oE 'Repo:[[:space:]]*[A-Za-z0-9._/-]+' \
-        | head -n 1 | sed -E 's/^Repo:[[:space:]]*//'
+    parse_task_md_repo_name "$1"
 }
 
 # Given a task.md path, try to derive the git repo path it belongs to.

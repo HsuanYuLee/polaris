@@ -24,7 +24,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 # Hermetic scan root: the validator resolves the V work item's task.md
-# deliverable block via resolve-task-md.sh --scan-root "$TMP".
+# ac_verification block via resolve-task-md.sh --scan-root "$TMP".
 export POLARIS_WORKSPACE_ROOT="$TMP"
 export POLARIS_SPECS_ROOT="$TMP/docs-manager/src/content/docs/specs"
 SPECS_ROOT="$TMP/docs-manager/src/content/docs/specs"
@@ -34,11 +34,11 @@ NEW_HEAD="1111111111111111111111111111111111111111"
 OLD_HEAD="2222222222222222222222222222222222222222"
 VERIFY_HEAD="3333333333333333333333333333333333333333"
 
-# Description: record the V work item's delivery in its task.md `deliverable`
-#              block so verification.status=PASS resolves (mirrors the DP-360 T7
-#              delivery-evidence contract). Verification head-binding is a
-#              separate T3 surface; this fixture just makes the complete report
-#              otherwise valid so the evidence-publication check is isolated.
+# Description: record the V work item's result in its task.md canonical
+#              `ac_verification` block so verification.status=PASS resolves.
+#              Verification head-binding is a separate implementation-task
+#              surface; this fixture just makes the complete report otherwise
+#              valid so the evidence-publication check is isolated.
 # Args:        $1 = work_item_id; $2 = head sha; $3 = status
 write_marker() {
   local work_item="$1" head="$2" status="$3"
@@ -59,12 +59,8 @@ task_dir.mkdir(parents=True, exist_ok=True)
     "status: IN_PROGRESS\n"
     "task_kind: V\n"
     f"work_item_id: {work_item}\n"
-    "deliverable:\n"
-    f"  head_sha: {head}\n"
-    "  pr_url: https://github.com/example-org/example/pull/1\n"
-    "  pr_state: MERGED\n"
-    "  verification:\n"
-    f"    status: {status}\n"
+    "ac_verification:\n"
+    f"  status: {status}\n"
     "---\n\n"
     f"# {stem}\n\n"
     f"> Source: {source_id} | Task: {work_item} | JIRA: {work_item} | Repo: polaris-framework\n",

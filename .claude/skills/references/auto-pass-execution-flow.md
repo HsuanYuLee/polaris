@@ -339,7 +339,11 @@ check）保證該 writer 引用只存在單一 assignment site。Hermetic 覆蓋
 terminal complete 後 closeout chain 不需要使用者另戳 archive；complete report 只有在 parent
 source 已完成 lifecycle closeout 後才合法。
 
-1. 寫 durable auto-pass report。
+1. 透過 `scripts/write-producer-owned-artifact.sh --producer-token auto-pass:report` 寫 durable
+   auto-pass report。canonical writer 呼叫
+   `validate-auto-pass-report.sh --lifecycle-phase prearchive`：除了 parent lifecycle
+   postcondition 外，schema、ledger、PR、V evidence 與 follow-up authority checks 全部必須
+   PASS；其他錯誤仍 rollback。
 2. 對 terminal parent 呼叫 `scripts/mark-spec-implemented.sh {SOURCE_ID} --auto-archive`。
 3. **Ledger finalize（DP-311 T2）**：`mark-spec-implemented.sh` 的 parent / bare-DP 分支在翻
    `IMPLEMENTED` **之前**（source 仍 LOCKED）呼叫 `scripts/auto-pass-finalize-ledger.sh`，把
@@ -360,16 +364,18 @@ source 已完成 lifecycle closeout 後才合法。
 4. `mark-spec-implemented.sh` 標記 parent `IMPLEMENTED` 後呼叫 `archive-spec.sh`。
 5. 若 terminal path 來自 framework release closeout，`framework-release-closeout.sh` 透過
    `close-parent-spec-if-complete.sh --archive-terminal-parent` 進入同一 archive chain。
-6. `scripts/validate-auto-pass-report.sh` 會對 `terminal_status=complete` 反查 source parent；
+6. archive 後以預設 terminal phase 執行 `scripts/validate-auto-pass-report.sh`。它會對
+   `terminal_status=complete` 反查 source parent；
    若仍在 active namespace 且 status 不是 `IMPLEMENTED`，輸出
    `POLARIS_AUTO_PASS_TERMINAL_PARENT_NOT_ARCHIVED` 並 fail-stop。Report summary 不得把這種
    active `LOCKED` parent 降級成 advisory。
 
 ### Report / archive gate applicability matrix（DP-417 T5）
 
-上述三步 closeout 具備**固定 enforcement order**：`complete report write`（步驟 1，report
-是 gate 的輸入）→ `archive`（步驟 2，由 `mark-spec-implemented.sh --auto-archive` 這條唯一
-canonical writer 執行）→ `report validation`（步驟 6，`validate-auto-pass-report.sh`）。
+上述三步 closeout 具備**固定 enforcement order**：`complete report write`（步驟 1，
+canonical writer 做 prearchive validation）→ `archive`（步驟 2，由
+`mark-spec-implemented.sh --auto-archive` 這條唯一 canonical writer 執行）→ `report full
+validation`（步驟 6，`validate-auto-pass-report.sh` 預設 terminal phase）。
 report-validation 反查 parent lifecycle 的行為**編碼**了這個 order：在 archive 之前對 active
 parent 跑 report validation 一律 fail-closed，因此 validation 不可能先於 archive 通過。各 cell
 的正確 gate 行為（`terminal_status=complete` 專屬；非 complete terminal 不套用本 gate）：
@@ -398,7 +404,7 @@ enforcer：
 | `resume`（session_handoff） | ledger `pause.kind=session_handoff` | `validate-auto-pass-ledger.sh`（terminal=null + resume_artifact + next_work_item_id）；`validate-auto-pass-resume.sh`（artifact↔ledger 對齊）；`auto-pass-runner.sh --stage source`（emit `next_action=resume`）；`auto-pass-consume-resume.sh`（唯一 sanctioned writer 清 pause + stamp resumed_at） |
 | `continue`（forward / complete-eligible） | ledger terminal=null + pause=null | `validate-auto-pass-ledger.sh`；report terminal cross-check（complete 需 ledger complete 或 complete-eligible，否則 `POLARIS_AUTO_PASS_REPORT_LEDGER_TERMINAL_MISMATCH` exit 2；ledger 不可讀 → `..._LEDGER_UNREADABLE`） |
 | `revision`（engineering_revision_rounds） | ledger loop_counters | `validate-auto-pass-ledger.sh`（count>cap 需 terminal `loop_cap_reached`，否則 exit 1） |
-| `head-rebind` | report `verification.head_sha` ↔ task.md `deliverable` | `validate-auto-pass-report.sh`（DP-360 T7 delivery-evidence authority：deliverable head 綁定 + `verification.status=PASS`；stale head / 非 PASS → `..._VERIFICATION_MARKER_MISMATCH`；無 resolvable task.md → `..._VERIFICATION_MARKER_MISSING`） |
+| `head-rebind` | report `verification.head_sha` ↔ required T task canonical `deliverable.head_sha`；V verdict ↔ V task `ac_verification.status` | `validate-auto-pass-report.sh`（V/T authority 分工：先驗 parsed task kind / identity，再要求 V `ac_verification.status=PASS` + 至少一筆 canonical T deliverable head 綁定；report row head 不可自我證明；stale head / 非 PASS → `..._VERIFICATION_MARKER_MISMATCH`；無 resolvable task.md / deliverable → `..._VERIFICATION_MARKER_MISSING`） |
 
 AC6（review 後 revision / head-rebind 在宣告 `complete` 前，必須先滿足 PR-visible delivery
 evidence publication ownership）由 `validate-auto-pass-report.sh` 的 `required_prs[]` ownership

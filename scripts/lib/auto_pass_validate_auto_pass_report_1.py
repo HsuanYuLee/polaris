@@ -2,10 +2,10 @@
 
 Inputs: argv[1]=report path, argv[2]=evidence root ('' when unresolvable),
         argv[3]=workspace root for follow_up_dp_seed.contract_evidence
-        path:line validation, argv[4]=specs root for follow_up_dp_seed
-        collision check (DP-303 T5). Env RESOLVER/PARSER point at the canonical
-        resolve-task-md.sh / parse-task-md.sh used to read the V work item's
-        task.md deliverable block (DP-360 T7).
+        path:line validation, argv[4]=specs root for follow-up authority checks,
+        argv[5]=lifecycle phase (terminal|prearchive). Env RESOLVER/PARSER point
+        at the canonical resolve-task-md.sh / parse-task-md.sh used to read the
+        V work item's task.md ac_verification lifecycle block (DP-360 T7).
 Outputs: PASS line on stdout; error list + POLARIS_AUTO_PASS_REPORT_* markers
 on stderr. Exit 2 on cross-check violation, 1 on schema violation.
 """
@@ -24,6 +24,7 @@ workspace_root = (
     Path(sys.argv[3]).resolve() if len(sys.argv) > 3 else Path.cwd().resolve()
 )
 specs_root = sys.argv[4] if len(sys.argv) > 4 else ""
+lifecycle_phase = sys.argv[5] if len(sys.argv) > 5 else "terminal"
 sys.path.insert(0, str(workspace_root / "scripts" / "lib"))
 from contract_evidence import validate_contract_evidence_entries  # noqa: E402
 
@@ -48,6 +49,10 @@ CROSS_MARKER_MISSING = "POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISSING"
 CROSS_MARKER_MISMATCH = "POLARIS_AUTO_PASS_REPORT_VERIFICATION_MARKER_MISMATCH"
 # DP-303 T5 follow_up_dp_seed collision marker (exit 2, fail-closed).
 SEED_COLLISION = "POLARIS_AUTO_PASS_REPORT_SEED_COLLISION"
+EXISTING_OWNER_INVALID = "POLARIS_AUTO_PASS_REPORT_EXISTING_OWNER_INVALID"
+FOLLOW_UP_AUTHORITY_CONFLICT = (
+    "POLARIS_AUTO_PASS_REPORT_FOLLOW_UP_AUTHORITY_CONFLICT"
+)
 TERMINAL_PARENT_NOT_ARCHIVED = "POLARIS_AUTO_PASS_TERMINAL_PARENT_NOT_ARCHIVED"
 PR_OWNERSHIP_BLOCKED = "POLARIS_AUTO_PASS_PR_OWNERSHIP_BLOCKED"
 PR_DRAFT_BLOCKED = "POLARIS_AUTO_PASS_PR_DRAFT_BLOCKED"
@@ -221,6 +226,69 @@ def source_parent_lifecycle(specs_root_path, source_id):
     return None
 
 
+def existing_owner_linkage(primary_path, report_source_id):
+    """Validate an active owner's canonical refinement linkage to the source."""
+    primary = Path(primary_path)
+    status = read_frontmatter_status(primary)
+    if status not in {"DISCUSSION", "LOCKED"}:
+        return (
+            False,
+            f"owner lifecycle status must be DISCUSSION or LOCKED, got {status or 'UNKNOWN'}",
+        )
+
+    refinement_path = primary.parent / "refinement.json"
+    try:
+        refinement = json.loads(refinement_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return (False, f"owner refinement.json is missing or invalid: {exc}")
+    if not isinstance(refinement, dict):
+        return (False, "owner refinement.json must contain an object")
+
+    matches = [
+        entry
+        for entry in (refinement.get("predecessor_audit") or [])
+        if isinstance(entry, dict) and entry.get("spec_id") == report_source_id
+    ]
+    if len(matches) != 1:
+        return (
+            False,
+            "owner refinement.json predecessor_audit must contain exactly one "
+            f"entry for {report_source_id}",
+        )
+    if matches[0].get("disposition") not in {
+        "KEEP",
+        "PARTIAL_ABSORB",
+        "FULLY_SUPERSEDED",
+    }:
+        return (False, "owner predecessor_audit disposition is invalid")
+    return (True, "")
+
+
+def same_report_location(declared_path, current_path):
+    """Compare report paths while tolerating canonical active→archive moves."""
+    declared = Path(declared_path).resolve(strict=False)
+    current = Path(current_path).resolve(strict=False)
+    if declared == current:
+        return True
+
+    def archive_neutral_location(candidate):
+        parts = list(candidate.parts)
+        if "design-plans" not in parts:
+            return None
+        idx = parts.index("design-plans")
+        root = tuple(parts[: idx + 1])
+        tail = parts[idx + 1 :]
+        if tail and tail[0] == "archive":
+            tail = tail[1:]
+        return (root, tuple(tail))
+
+    declared_location = archive_neutral_location(declared)
+    return (
+        declared_location is not None
+        and declared_location == archive_neutral_location(current)
+    )
+
+
 if not path.is_file():
     fail([f"report not found: {path}"])
 try:
@@ -335,7 +403,11 @@ for idx, row in enumerate(data.get("required_prs") or []):
             (token, f"required_prs[{idx}] failed auto-pass PR ownership gate: {detail}")
         )
 
-if terminal == "complete" and report_source_id:
+if (
+    terminal == "complete"
+    and report_source_id
+    and lifecycle_phase != "prearchive"
+):
     lifecycle = source_parent_lifecycle(specs_root, str(report_source_id))
     if (
         lifecycle
@@ -369,10 +441,27 @@ seed_needed = (
     )
 )
 seed = data.get("follow_up_dp_seed")
+existing_owner = data.get("follow_up_existing_owner")
 if seed_needed:
-    if not isinstance(seed, dict):
-        errors.append("follow_up_dp_seed is required when report has issue threshold")
-    else:
+    seed_declared = isinstance(seed, dict)
+    owner_declared = isinstance(existing_owner, dict)
+    if seed_declared and owner_declared:
+        cross_errors.append(
+            (
+                FOLLOW_UP_AUTHORITY_CONFLICT,
+                f"{FOLLOW_UP_AUTHORITY_CONFLICT}: follow_up_dp_seed and "
+                "follow_up_existing_owner are mutually exclusive",
+            )
+        )
+    elif not seed_declared and not owner_declared:
+        errors.append(
+            "exactly one of follow_up_dp_seed or follow_up_existing_owner is "
+            "required when report has issue threshold"
+        )
+
+    if seed is not None and not seed_declared:
+        errors.append("follow_up_dp_seed must be an object or null")
+    if seed_declared:
         for field in ("path", "reason", "source_report"):
             if not seed.get(field):
                 errors.append(f"follow_up_dp_seed.{field} is required")
@@ -407,10 +496,102 @@ if seed_needed:
                             "Take a fresh number via allocate-design-plan-number.sh.",
                         )
                     )
+    if existing_owner is not None and not owner_declared:
+        errors.append("follow_up_existing_owner must be an object or null")
+    if owner_declared:
+        for field in ("source_id", "path", "reason", "source_report"):
+            if not existing_owner.get(field):
+                errors.append(f"follow_up_existing_owner.{field} is required")
+
+        owner_id = existing_owner.get("source_id")
+        owner_path = existing_owner.get("path")
+        owner_source_report = existing_owner.get("source_report")
+        if (
+            isinstance(owner_id, str)
+            and SOURCE_ID_PATTERN.fullmatch(owner_id)
+            and isinstance(owner_path, str)
+            and owner_path
+            and specs_root
+        ):
+            specs_path = Path(specs_root).resolve()
+            declared_path = Path(owner_path)
+            if declared_path.is_absolute():
+                resolved_owner = declared_path.resolve(strict=False)
+            else:
+                marker = "docs-manager/src/content/docs/specs/"
+                relative = (
+                    owner_path.split(marker, 1)[1]
+                    if marker in owner_path
+                    else owner_path
+                )
+                resolved_owner = (specs_path / relative).resolve(strict=False)
+
+            design_plans = specs_path / "design-plans"
+            candidate_primaries = []
+            for container in sorted(design_plans.glob(f"{owner_id}-*")):
+                for primary_name in ("index.md", "plan.md"):
+                    primary = container / primary_name
+                    if primary.is_file():
+                        candidate_primaries.append(primary.resolve())
+                        break
+            identity = seed_dp_identity(owner_path)
+            identity_matches = (
+                identity is not None
+                and f"{identity[0]}-{identity[1]:03d}" == owner_id
+            )
+            if (
+                owner_id == report_source_id
+                or len(candidate_primaries) != 1
+                or resolved_owner not in candidate_primaries
+                or not identity_matches
+            ):
+                cross_errors.append(
+                    (
+                        EXISTING_OWNER_INVALID,
+                        f"{EXISTING_OWNER_INVALID}: follow_up_existing_owner "
+                        f"{owner_id} path={owner_path!r} must resolve to exactly one "
+                        "matching active canonical primary document, and must not "
+                        "self-reference the report source",
+                    )
+                )
+            elif not isinstance(owner_source_report, str) or not same_report_location(
+                owner_source_report, path
+            ):
+                cross_errors.append(
+                    (
+                        EXISTING_OWNER_INVALID,
+                        f"{EXISTING_OWNER_INVALID}: follow_up_existing_owner."
+                        "source_report must resolve to the report being validated",
+                    )
+                )
+            else:
+                linked, detail = existing_owner_linkage(
+                    resolved_owner, str(report_source_id)
+                )
+                if not linked:
+                    cross_errors.append(
+                        (
+                            EXISTING_OWNER_INVALID,
+                            f"{EXISTING_OWNER_INVALID}: follow_up_existing_owner "
+                            f"{owner_id} lacks canonical ownership linkage: {detail}",
+                        )
+                    )
+        elif owner_id or owner_path:
+            cross_errors.append(
+                (
+                    EXISTING_OWNER_INVALID,
+                    f"{EXISTING_OWNER_INVALID}: follow_up_existing_owner source_id/path "
+                    "is malformed or specs root is unavailable",
+                )
+            )
 else:
     if seed is not None:
         errors.append(
             "follow_up_dp_seed must be null when no issue threshold is present"
+        )
+    if existing_owner is not None:
+        errors.append(
+            "follow_up_existing_owner must be null when no issue threshold is present"
         )
 
 tail = data.get("framework_release_tail")
@@ -745,21 +926,24 @@ def resolve_task_md(work_item, scan_root):
     return str(candidate) if candidate.is_file() else None
 
 
-def task_field(task_md, key):
-    """Read one parse-task-md.sh --field value (stripped) or '' on any failure."""
+def task_payload(task_md):
+    """Read the canonical parse-task-md JSON payload or None on failure."""
     parser = os.environ.get("PARSER")
     if not parser:
-        return ""
+        return None
     try:
         out = subprocess.run(
-            ["bash", parser, task_md, "--no-resolve", "--field", key],
+            ["bash", parser, task_md, "--no-resolve"],
             capture_output=True,
             text=True,
             timeout=30,
         )
+        if out.returncode != 0:
+            return None
+        payload = json.loads(out.stdout)
+        return payload if isinstance(payload, dict) else None
     except Exception:
-        return ""
-    return out.stdout.strip() if out.returncode == 0 else ""
+        return None
 
 
 # ── DP-417 T6 / AC6 + AC-NEG2: revision/head-rebind evidence publication ──────
@@ -778,13 +962,13 @@ if terminal == "complete":
             cross_errors.append((token, f"required_prs[{idx}] {detail}"))
 
 # ── DP-311 T3 cross-check (b), amended DP-360 T7: verification PASS ↔ task.md ──
-# A PASS verification claim is only trusted when the V work item's task.md
-# `deliverable` block records a delivered head (deliverable.head_sha) bound to
-# the report's verification.head_sha AND deliverable.verification.status=PASS.
-# DP-360 T7 retires the head-sha-keyed ac_verification marker; the task.md block
-# is the sole durable delivery-evidence record. This reader NEVER reads a marker
-# file (AC-NEG2) and NEVER falls back to a branch ref (AC-NEG1); the report's own
-# prose/summary is never accepted as evidence.
+# A PASS verification claim is trusted only when the V work item's canonical
+# `ac_verification.status` is PASS. V tasks intentionally do not carry the
+# T-only deliverable block. When the report pins verification.head_sha, that
+# head must match a required T task's canonical deliverable.head_sha; the
+# report row is only a reference and cannot self-attest its own head. This
+# reader never reads a retired marker, fake V deliverable, branch ref, or prose
+# summary.
 if isinstance(verification, dict) and verification.get("status") == "PASS":
     work_item = verification.get("work_item_id")
     pinned_head = verification.get("head_sha")
@@ -795,7 +979,7 @@ if isinstance(verification, dict) and verification.get("status") == "PASS":
         cross_errors.append(
             (
                 CROSS_MARKER_MISSING,
-                "verification.status=PASS requires verification.work_item_id to locate the task.md deliverable block",
+                "verification.status=PASS requires verification.work_item_id to locate the V task.md ac_verification block",
             )
         )
     elif pinned_head is not None and not HEAD_SHA_PATTERN.fullmatch(str(pinned_head)):
@@ -812,41 +996,173 @@ if isinstance(verification, dict) and verification.get("status") == "PASS":
                 (
                     CROSS_MARKER_MISSING,
                     "verification.status=PASS but no task.md resolvable for "
-                    f"{work_item} (deliverable block is the sole delivery-evidence source)",
+                    f"{work_item} (V ac_verification is the lifecycle authority)",
                 )
             )
         else:
-            recorded_head = task_field(task_md, "deliverable_head_sha")
-            block_status = task_field(task_md, "deliverable_verification_status")
-            if not recorded_head:
-                # No delivered head recorded at all → the delivery-evidence
-                # record is absent (MISSING).
+            payload = task_payload(task_md) or {}
+            frontmatter = payload.get("frontmatter") or {}
+            identity = payload.get("identity") or {}
+            parsed_work_item = (
+                identity.get("work_item_id")
+                if isinstance(identity, dict)
+                else None
+            )
+            parsed_source_id = (
+                identity.get("source_id")
+                if isinstance(identity, dict)
+                else None
+            )
+            task_kind = (
+                frontmatter.get("task_kind")
+                if isinstance(frontmatter, dict)
+                else None
+            )
+            ac_verification = (
+                frontmatter.get("ac_verification")
+                if isinstance(frontmatter, dict)
+                else None
+            )
+            block_status = (
+                ac_verification.get("status")
+                if isinstance(ac_verification, dict)
+                else None
+            )
+            if (
+                task_kind != "V"
+                or parsed_work_item != work_item
+                or parsed_source_id != report_source_id
+            ):
+                cross_errors.append(
+                    (
+                        CROSS_MARKER_MISMATCH,
+                        f"verification.work_item_id={work_item!r} resolved to "
+                        f"task_kind={task_kind!r}, identity={parsed_work_item!r}, "
+                        f"source_id={parsed_source_id!r}; canonical V identity "
+                        f"anchored to report source {report_source_id!r} is required",
+                    )
+                )
+            elif not block_status:
                 cross_errors.append(
                     (
                         CROSS_MARKER_MISSING,
                         f"verification.status=PASS but {work_item} task.md has no "
-                        "deliverable.head_sha (delivery-evidence record absent)",
+                        "ac_verification.status (V lifecycle record absent)",
                     )
                 )
             elif block_status != "PASS":
-                # The block exists but its verification status contradicts the
-                # report's PASS claim (stale summary is not trusted) → MISMATCH.
                 cross_errors.append(
                     (
                         CROSS_MARKER_MISMATCH,
                         f"verification.status=PASS but {work_item} task.md "
-                        f"deliverable.verification.status={block_status!r} is not PASS "
+                        f"ac_verification.status={block_status!r} is not PASS "
                         "(stale summary is not trusted)",
                     )
                 )
-            elif pinned_head and not head_bound(recorded_head, pinned_head):
-                cross_errors.append(
-                    (
-                        CROSS_MARKER_MISMATCH,
-                        f"verification.head_sha={pinned_head!r} does not match the "
-                        f"{work_item} task.md deliverable.head_sha={recorded_head!r}",
+            elif pinned_head:
+                implementation_heads = []
+                for idx, row in enumerate(data.get("required_prs") or []):
+                    if not isinstance(row, dict):
+                        continue
+                    task_id = row.get("task_id")
+                    impl_task_md = (
+                        resolve_task_md(task_id, scan_root)
+                        if isinstance(task_id, str) and task_id
+                        else None
                     )
-                )
+                    if impl_task_md is None:
+                        cross_errors.append(
+                            (
+                                CROSS_MARKER_MISSING,
+                                f"required_prs[{idx}] task_id={task_id!r} has no "
+                                "resolvable canonical T task.md",
+                            )
+                        )
+                        continue
+                    impl_payload = task_payload(impl_task_md) or {}
+                    impl_frontmatter = impl_payload.get("frontmatter") or {}
+                    impl_identity = impl_payload.get("identity") or {}
+                    impl_work_item = (
+                        impl_identity.get("work_item_id")
+                        if isinstance(impl_identity, dict)
+                        else None
+                    )
+                    impl_source_id = (
+                        impl_identity.get("source_id")
+                        if isinstance(impl_identity, dict)
+                        else None
+                    )
+                    impl_kind = (
+                        impl_frontmatter.get("task_kind")
+                        if isinstance(impl_frontmatter, dict)
+                        else None
+                    )
+                    deliverable = (
+                        impl_frontmatter.get("deliverable")
+                        if isinstance(impl_frontmatter, dict)
+                        else None
+                    )
+                    delivered_head = (
+                        deliverable.get("head_sha")
+                        if isinstance(deliverable, dict)
+                        else None
+                    )
+                    if (
+                        impl_kind != "T"
+                        or impl_work_item != task_id
+                        or impl_source_id != report_source_id
+                    ):
+                        cross_errors.append(
+                            (
+                                CROSS_MARKER_MISMATCH,
+                                f"required_prs[{idx}] task_id={task_id!r} resolved "
+                                f"to task_kind={impl_kind!r}, "
+                                f"identity={impl_work_item!r}, "
+                                f"source_id={impl_source_id!r}; canonical T identity "
+                                f"anchored to report source {report_source_id!r} "
+                                "is required",
+                            )
+                        )
+                        continue
+                    if not delivered_head:
+                        cross_errors.append(
+                            (
+                                CROSS_MARKER_MISSING,
+                                f"required_prs[{idx}] {task_id} task.md has no "
+                                "deliverable.head_sha",
+                            )
+                        )
+                        continue
+                    row_head = row_pick(
+                        row,
+                        ("head_sha",),
+                        ("deliverable", "head_sha"),
+                        ("head",),
+                    )
+                    if row_head and not head_bound(
+                        str(delivered_head), str(row_head)
+                    ):
+                        cross_errors.append(
+                            (
+                                CROSS_MARKER_MISMATCH,
+                                f"required_prs[{idx}].head_sha={row_head!r} does "
+                                f"not match {task_id} canonical "
+                                f"deliverable.head_sha={delivered_head!r}",
+                            )
+                        )
+                        continue
+                    implementation_heads.append(str(delivered_head))
+                if not any(
+                    head_bound(head, str(pinned_head))
+                    for head in implementation_heads
+                ):
+                    cross_errors.append(
+                        (
+                            CROSS_MARKER_MISMATCH,
+                            f"verification.head_sha={pinned_head!r} does not match "
+                            "any required_prs[] implementation head",
+                        )
+                    )
 
 if errors or cross_errors:
     fail(errors, cross_errors)

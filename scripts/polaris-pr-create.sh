@@ -20,6 +20,7 @@ GATES_DIR="$SCRIPT_DIR/gates"
 REVIEW_LABEL_LIB="$SCRIPT_DIR/lib/pr-review-label.sh"
 SPECS_ROOT_LIB="$SCRIPT_DIR/lib/specs-root.sh"
 GITHUB_REST_LIB="$SCRIPT_DIR/lib/github-rest.sh"
+TASK_MD_HEADER_FIELDS_LIB="$SCRIPT_DIR/lib/task-md-header-fields.sh"
 
 PREFIX="[polaris-pr-create]"
 REPO_PATH=""
@@ -44,6 +45,10 @@ fi
 if [[ -f "$GITHUB_REST_LIB" ]]; then
   # shellcheck source=lib/github-rest.sh
   . "$GITHUB_REST_LIB"
+fi
+if [[ -f "$TASK_MD_HEADER_FIELDS_LIB" ]]; then
+  # shellcheck source=lib/task-md-header-fields.sh
+  . "$TASK_MD_HEADER_FIELDS_LIB"
 fi
 
 # Description: Resolve the git repo path that owns a task.md, anchored on the
@@ -70,9 +75,7 @@ resolve_repo_from_task_md() {
 
   [[ -n "$task_md" && -f "$task_md" ]] || return 1
 
-  repo_name="$(head -n 20 "$task_md" 2>/dev/null \
-    | grep -oE 'Repo:[[:space:]]*[A-Za-z0-9._/-]+' \
-    | head -n 1 | sed -E 's/^Repo:[[:space:]]*//')"
+  repo_name="$(parse_task_md_repo_name "$task_md")"
   [[ -n "$repo_name" ]] || return 1
 
   dir="$(cd "$(dirname "$task_md")" 2>/dev/null && pwd)" || return 1
