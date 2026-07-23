@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Purpose: Verify work-source enforcement for canonical, missing, external, and linked-worktree task artifacts.
+# Inputs: None; builds hermetic Git/spec fixtures under a temporary directory.
+# Outputs: PASS summary on success; non-zero with the failed scenario on regression.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,6 +47,23 @@ assert_pass() {
   }
 }
 
+assert_blocked_marker() {
+  local label="$1"
+  local marker="$2"
+  shift 2
+  local out=""
+  local rc=0
+  out="$("$@" 2>&1)" || rc=$?
+  [[ "$rc" -eq 2 ]] || {
+    echo "$out" >&2
+    fail "$label expected exit 2, got $rc"
+  }
+  grep -q "$marker" <<<"$out" || {
+    echo "$out" >&2
+    fail "$label expected marker $marker"
+  }
+}
+
 write_minimal_task() {
   local repo="$1"
   local task_key="$2"
@@ -64,17 +84,17 @@ MD
 MD
   cat > "$task" <<MD
 ---
-title: "Work Order - ${task_key}: fixture no source no PR gate (1 pt)"
-description: "Fixture task for source gate selftest."
+title: "Work Order - ${task_key}: 來源 gate fixture (1 pt)"
+description: "提供 source gate selftest 的合法 fixture。"
 depends_on: []
 verification:
   behavior_contract:
     applies: false
     reason: "selftest fixture"
-status: READY
+status: PLANNED
 ---
 
-# ${task_key}: fixture no source no PR gate (1 pt)
+# ${task_key}: 來源 gate fixture (1 pt)
 
 > Source: DP-999 | Task: ${task_id} | JIRA: N/A | Repo: fixture
 
@@ -166,6 +186,7 @@ chmod +x "$repo/scripts/polaris-pr-create.sh"
 git -C "$repo" add .
 git -C "$repo" commit -q -m init
 git -C "$repo" checkout -q -b task/DP-999-T1-source-gate
+export POLARIS_WORKSPACE_ROOT="$repo"
 
 assert_blocked "source-less branch" bash "$GATE" --repo "$repo"
 
@@ -185,16 +206,50 @@ assert_blocked "codex fallback source gate" env PATH="$TMPDIR:$PATH" \
 write_minimal_task "$repo" "T1" "DP-999-T1" "task/DP-999-T1-source-gate"
 
 assert_pass "legal task branch" bash "$GATE" --repo "$repo"
+canonical_task="$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-no-source-no-pr/tasks/T1/index.md"
+assert_pass "canonical explicit task-md" bash "$GATE" --repo "$repo" --task-md "$canonical_task"
+
+company_task="$repo/docs-manager/src/content/docs/specs/companies/example/EX-1/tasks/T1/index.md"
+mkdir -p "$(dirname "$company_task")"
+cp "$canonical_task" "$company_task"
+assert_pass "canonical company explicit task-md" bash "$GATE" --repo "$repo" --task-md "$company_task"
+
+missing_task="$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-missing/tasks/T1/index.md"
+assert_blocked_marker "missing explicit task-md" "POLARIS_WORK_SOURCE_NON_CANONICAL_TASK" \
+  bash "$GATE" --repo "$repo" --task-md "$missing_task"
+
+broken_task="$TMPDIR/broken-task.md"
+ln -s "$missing_task" "$broken_task"
+assert_blocked_marker "broken symlink explicit task-md" "POLARIS_WORK_SOURCE_NON_CANONICAL_TASK" \
+  bash "$GATE" --repo "$repo" --task-md "$broken_task"
 
 external_task="$TMPDIR/external-specs/tasks/T1/index.md"
 mkdir -p "$(dirname "$external_task")"
 cp "$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-no-source-no-pr/tasks/T1/index.md" "$external_task"
 
-assert_pass "wrapper explicit external task-md" env PATH="$TMPDIR:$PATH" \
+assert_blocked_marker "direct explicit external task-md" "POLARIS_WORK_SOURCE_NON_CANONICAL_TASK" \
+  bash "$GATE" --repo "$repo" --task-md "$external_task"
+
+assert_blocked_marker "wrapper explicit external task-md" "POLARIS_WORK_SOURCE_NON_CANONICAL_TASK" env PATH="$TMPDIR:$PATH" \
   bash "$WRAPPER" --repo "$repo" --task-md "$external_task" --skip-gates --dry-run --title "測試 PR" --body "測試 body"
 
-assert_pass "codex wrapper explicit external task-md" env PATH="$TMPDIR:$PATH" \
-  GATE_PROJECT_DIR="$repo" bash "$CODEX_WRAPPER" --dry-run --skip-gates --task-md "$external_task" --title "測試 PR" --body "測試 body"
+assert_blocked_marker "codex wrapper explicit external task-md" "POLARIS_WORK_SOURCE_NON_CANONICAL_TASK" env PATH="$TMPDIR:$PATH" \
+  GATE_PROJECT_DIR="$repo" bash "$CODEX_WRAPPER" --dry-run --task-md "$external_task" --title "測試 PR" --body "測試 body"
+
+sibling_task="$repo/docs-manager/src/content/docs/specs-shadow/design-plans/DP-999-shadow/tasks/T1/index.md"
+mkdir -p "$(dirname "$sibling_task")"
+cp "$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-no-source-no-pr/tasks/T1/index.md" "$sibling_task"
+assert_blocked_marker "canonical sibling-prefix task-md" "POLARIS_WORK_SOURCE_NON_CANONICAL_TASK" \
+  bash "$GATE" --repo "$repo" --task-md "$sibling_task"
+
+unresolved_workspace="$TMPDIR/unresolved-workspace"
+mkdir -p "$unresolved_workspace"
+unresolved_task="$unresolved_workspace/local-task.md"
+cp "$canonical_task" "$unresolved_task"
+assert_blocked_marker "unresolved specs root is not cwd" "POLARIS_WORK_SOURCE_NON_CANONICAL_TASK" \
+  env POLARIS_WORKSPACE_ROOT="$unresolved_workspace" bash -c \
+    'cd "$1" && exec bash "$2" --repo "$3" --task-md "$4"' \
+    _ "$unresolved_workspace" "$GATE" "$repo" "$unresolved_task"
 
 write_minimal_task "$repo" "T2" "DP-999-T2" "task/DP-999-T2-source-gate-overlay"
 overlay_worktree="$TMPDIR/repo-overlay"
@@ -206,6 +261,12 @@ exit 0
 SH
 chmod +x "$overlay_worktree/scripts/gates/gate-work-source-selftest.sh"
 assert_pass "clean worktree overlay task branch" bash "$GATE" --repo "$overlay_worktree"
+
+overlay_local_task="$overlay_worktree/docs-manager/src/content/docs/specs/design-plans/DP-999-local-copy/tasks/T2/index.md"
+mkdir -p "$(dirname "$overlay_local_task")"
+cp "$repo/docs-manager/src/content/docs/specs/design-plans/DP-999-no-source-no-pr/tasks/T2/index.md" "$overlay_local_task"
+assert_blocked_marker "linked-worktree local task-md" "POLARIS_WORK_SOURCE_NON_CANONICAL_TASK" \
+  bash "$GATE" --repo "$overlay_worktree" --task-md "$overlay_local_task"
 
 assert_blocked "draft blocked" env PATH="$TMPDIR:$PATH" \
   bash "$WRAPPER" --repo "$repo" --skip-gates --draft --title "測試 PR" --body "測試 body"

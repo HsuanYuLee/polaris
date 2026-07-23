@@ -39,6 +39,80 @@ abs_path() {
   fi
 }
 
+canonical_existing_path() {
+  python3 - "$1" <<'PY'
+import pathlib
+import sys
+
+try:
+    print(pathlib.Path(sys.argv[1]).resolve(strict=True))
+except (OSError, RuntimeError):
+    raise SystemExit(1)
+PY
+}
+
+# canonical_task_source <repo> <task_md>
+#   Require the task source to be the canonical workspace specs artifact, not a
+#   same-shaped file from /tmp or a linked worktree's local-only partial view.
+#   Path containment uses resolved path components (not a string prefix), then
+#   delegates DP-number collision detection to the existing uniqueness validator.
+canonical_task_source() {
+  local repo="$1"
+  local task_md="$2"
+  local workspace_root=""
+  local specs_root=""
+  local task_real=""
+  local specs_real=""
+
+  workspace_root="$(resolve_specs_workspace_root "$ROOT_DIR" 2>/dev/null || true)"
+  if [[ -n "$workspace_root" ]]; then
+    specs_root="$(resolve_specs_root "$workspace_root" 2>/dev/null || true)"
+  fi
+  task_real="$(canonical_existing_path "$task_md" 2>/dev/null || true)"
+  if [[ -n "$specs_root" ]]; then
+    specs_real="$(canonical_existing_path "$specs_root" 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$specs_root" || -z "$task_real" || -z "$specs_real" ]] || ! python3 - "$task_real" "$specs_real" <<'PY'
+import pathlib
+import sys
+
+task = pathlib.Path(sys.argv[1])
+root = pathlib.Path(sys.argv[2])
+try:
+    task.relative_to(root)
+except ValueError:
+    raise SystemExit(1)
+PY
+  then
+    cat >&2 <<EOF
+$PREFIX BLOCKED: explicit or resolved task.md is outside the canonical workspace specs root.
+POLARIS_WORK_SOURCE_NON_CANONICAL_TASK
+
+Task source:          ${task_real:-$task_md}
+Canonical specs root: ${specs_real:-<unresolved>}
+Repository:           $repo
+
+Use the task.md under the main workspace's canonical specs tree. A copied task
+from /tmp or a linked worktree local overlay is not source authority.
+EOF
+    return 2
+  fi
+
+  case "$task_real" in
+    "$specs_real"/design-plans/*)
+      local uniqueness="$ROOT_DIR/scripts/validate-dp-number-uniqueness.sh"
+      if [[ ! -x "$uniqueness" ]] || ! bash "$uniqueness" --specs-root "$specs_real" >/dev/null; then
+        echo "$PREFIX BLOCKED: canonical DP identity inventory is ambiguous." >&2
+        echo "POLARIS_WORK_SOURCE_DP_IDENTITY_AMBIGUOUS" >&2
+        return 2
+      fi
+      ;;
+  esac
+
+  printf '%s\n' "$task_real"
+}
+
 is_polaris_governed_repo() {
   local repo="$1"
   [[ -f "$repo/workspace-config.yaml" ]] && return 0
@@ -370,7 +444,7 @@ if [[ -z "$TASK_MD" ]]; then
   fi
 fi
 
-if [[ -z "$TASK_MD" || ! -f "$TASK_MD" ]]; then
+if [[ -z "$TASK_MD" ]]; then
   cat >&2 <<EOF
 $PREFIX BLOCKED: PR creation requires a legal work source.
 
@@ -383,6 +457,10 @@ Create or resolve a Polaris work source first:
 
 Emergency, triviality, and maintainer intent do not bypass this gate.
 EOF
+  exit 2
+fi
+
+if ! TASK_MD="$(canonical_task_source "$REPO_ROOT" "$TASK_MD")"; then
   exit 2
 fi
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.79.2] - 2026-07-23
+
+### Fixed
+
+- 44ac10b: 綁定跨 worktree 的 canonical DP source identity，並保留 task.md repo 長 frontmatter 解析修復的 release metadata
+
 ## [3.79.1] - 2026-07-23
 
 ### Changed

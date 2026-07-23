@@ -75,4 +75,72 @@ plan_b="$(cat /tmp/create-dp-parallel-b.out)"
 [[ "$plan_a" == *"DP-100-"*"index.md" || "$plan_b" == *"DP-100-"*"index.md" ]]
 [[ "$plan_a" == *"DP-101-"*"index.md" || "$plan_b" == *"DP-101-"*"index.md" ]]
 
+# DP-437: default-mode creation from a linked worktree with no local-only specs
+# overlay must allocate and write against the canonical main checkout specs root.
+# Explicit --specs-root fixtures above retain their caller-supplied semantics.
+canonical_repo="$tmpdir/canonical-repo"
+linked_worktree="$tmpdir/canonical-linked"
+mkdir -p "$canonical_repo"
+git -C "$canonical_repo" init -q
+git -C "$canonical_repo" config user.email selftest@example.test
+git -C "$canonical_repo" config user.name "Self Test"
+cat >"$canonical_repo/workspace-config.yaml" <<'YAML'
+language: zh-TW
+YAML
+git -C "$canonical_repo" add workspace-config.yaml
+git -C "$canonical_repo" commit -qm init
+
+canonical_specs="$canonical_repo/docs-manager/src/content/docs/specs"
+mkdir -p "$canonical_specs/design-plans/archive/DP-437-existing"
+cat >"$canonical_specs/design-plans/archive/DP-437-existing/index.md" <<'MD'
+---
+title: "DP-437: 既有 canonical source"
+description: "驗證 linked worktree 配號仍讀取 canonical archive。"
+status: IMPLEMENTED
+priority: P4
+sidebar:
+  label: "DP-437: 既有 canonical source"
+  order: 437
+  badge:
+    text: "IMPLEMENTED / P4"
+    variant: "success"
+---
+
+## Goal
+
+Fixture。
+MD
+
+git -C "$canonical_repo" worktree add -q -b test-linked "$linked_worktree" HEAD
+linked_plan="$(cd "$linked_worktree" && "$CREATE" "隔離 worktree canonical 配號")"
+[[ "$linked_plan" == "$canonical_specs/design-plans/DP-438-"*"/index.md" ]] || {
+  echo "not ok linked worktree should allocate DP-438 in canonical specs: $linked_plan" >&2
+  exit 1
+}
+[[ -f "$linked_plan" ]]
+[[ ! -d "$linked_worktree/docs-manager/src/content/docs/specs/design-plans" ]]
+
+# An explicit workspace authority that points at a linked worktree without the
+# local-only specs tree must fail closed instead of manufacturing a partial
+# inventory there.
+linked_override_out=""
+linked_override_rc=0
+linked_override_out="$(cd "$linked_worktree" && POLARIS_WORKSPACE_ROOT="$linked_worktree" "$CREATE" "錯誤 workspace override 不得落 local" 2>&1)" || linked_override_rc=$?
+[[ "$linked_override_rc" -eq 2 ]] || {
+  echo "not ok linked POLARIS_WORKSPACE_ROOT should fail closed, got $linked_override_rc: $linked_override_out" >&2
+  exit 1
+}
+grep -q "POLARIS_DP_CANONICAL_SPECS_ROOT_UNRESOLVED" <<<"$linked_override_out"
+[[ ! -d "$linked_worktree/docs-manager/src/content/docs/specs/design-plans" ]]
+
+# POLARIS_SPECS_ROOT remains the existing explicit specs authority. When it
+# points at the canonical inventory it may recover the same linked-worktree call.
+explicit_specs_plan="$(cd "$linked_worktree" && POLARIS_WORKSPACE_ROOT="$linked_worktree" POLARIS_SPECS_ROOT="$canonical_specs" "$CREATE" "顯式 canonical specs authority")"
+[[ "$explicit_specs_plan" == "$canonical_specs/design-plans/DP-439-"*"/index.md" ]] || {
+  echo "not ok POLARIS_SPECS_ROOT should allocate DP-439 canonically: $explicit_specs_plan" >&2
+  exit 1
+}
+[[ -f "$explicit_specs_plan" ]]
+[[ ! -d "$linked_worktree/docs-manager/src/content/docs/specs/design-plans" ]]
+
 echo "PASS: create design plan selftest"

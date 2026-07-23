@@ -3,7 +3,9 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 specs_root="docs-manager/src/content/docs/specs"
+specs_root_explicit=0
 priority="P2"
 status="DISCUSSION"
 number=""
@@ -47,6 +49,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --specs-root)
       specs_root="${2:-}"
+      specs_root_explicit=1
       shift 2
       ;;
     --number)
@@ -87,6 +90,25 @@ if [[ ! "$status" =~ ^(SEEDED|DISCUSSION|LOCKED|IMPLEMENTING|IMPLEMENTED|ABANDON
   exit 2
 fi
 
+# DP-437: local-only specs do not materialize in linked worktrees. In default
+# workspace mode, bind allocation and the write target to the canonical main
+# checkout before looking at active/archive inventory. An explicit --specs-root
+# remains caller-owned so hermetic fixtures keep their isolated semantics.
+if [[ "$specs_root_explicit" -eq 0 ]]; then
+  # shellcheck source=lib/specs-root.sh
+  . "$SCRIPT_DIR/lib/specs-root.sh"
+  canonical_workspace_root="$(resolve_specs_workspace_root "$(pwd)" 2>/dev/null || true)"
+  if [[ -z "$canonical_workspace_root" ]]; then
+    echo "POLARIS_DP_CANONICAL_SPECS_ROOT_UNRESOLVED: cannot resolve canonical workspace from $(pwd)" >&2
+    exit 2
+  fi
+  specs_root="$(resolve_specs_root "$canonical_workspace_root" 2>/dev/null || true)"
+  if [[ -z "$specs_root" || ! -d "$specs_root" ]]; then
+    echo "POLARIS_DP_CANONICAL_SPECS_ROOT_UNRESOLVED: cannot resolve canonical specs root from $canonical_workspace_root" >&2
+    exit 2
+  fi
+fi
+
 dp_number_exists() {
   local base_dir="$1"
   local candidate="$2"
@@ -101,7 +123,7 @@ mkdir -p "$base"
 acquire_lock "$base/.create-design-plan.lock"
 
 if [[ -z "$number" ]]; then
-  number="$(bash scripts/allocate-design-plan-number.sh --specs-root "$specs_root")"
+  number="$(bash "$SCRIPT_DIR/allocate-design-plan-number.sh" --specs-root "$specs_root")"
   while dp_number_exists "$base" "$number"; do
     next_number="$((10#${number#DP-} + 1))"
     number="$(printf 'DP-%03d' "$next_number")"
@@ -232,11 +254,11 @@ Template contract：本文件與 JIRA Epic refinement 共用
 - 待補。
 MD
 
-bash scripts/validate-starlight-authoring.sh check "$plan" >/dev/null
-bash scripts/validate-language-policy.sh --blocking --mode artifact "$plan" >/dev/null
-bash scripts/validate-handbook-path-contract.sh >/dev/null
-bash scripts/validate-route-safe-spec-paths.sh "$container" >/dev/null
-if [[ -x scripts/validate-dp-number-uniqueness.sh ]]; then
-  bash scripts/validate-dp-number-uniqueness.sh --plan "$plan" >/dev/null
+bash "$SCRIPT_DIR/validate-starlight-authoring.sh" check "$plan" >/dev/null
+bash "$SCRIPT_DIR/validate-language-policy.sh" --blocking --mode artifact "$plan" >/dev/null
+bash "$SCRIPT_DIR/validate-handbook-path-contract.sh" >/dev/null
+bash "$SCRIPT_DIR/validate-route-safe-spec-paths.sh" "$container" >/dev/null
+if [[ -x "$SCRIPT_DIR/validate-dp-number-uniqueness.sh" ]]; then
+  bash "$SCRIPT_DIR/validate-dp-number-uniqueness.sh" --plan "$plan" >/dev/null
 fi
 printf '%s\n' "$plan"
