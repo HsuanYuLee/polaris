@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Purpose: Assert .claude/skills/references/refinement-artifact.md documents the
 #          behavior_contract applies=true schema in parity with the actual
-#          derive enforcement in scripts/derive-task-md-from-refinement-json.sh.
+#          derive enforcement in scripts/lib/derive_task_md_from_refinement_json.py.
 #          Direction is doc->enforcement (DP-335 AC2 / AC-NEG3): the doc must
 #          list every applies=true fail-loud sub-field the derive script
 #          requires, plus the conditional requirements and the viewport: mobile
@@ -14,7 +14,7 @@ set -euo pipefail
 
 ROOT_DIR="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 DOC="$ROOT_DIR/.claude/skills/references/refinement-artifact.md"
-DERIVE="$ROOT_DIR/scripts/derive-task-md-from-refinement-json.sh"
+DERIVE="$ROOT_DIR/scripts/lib/derive_task_md_from_refinement_json.py"
 
 fail() {
   echo "FAIL: $*" >&2

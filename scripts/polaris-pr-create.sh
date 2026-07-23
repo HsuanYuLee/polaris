@@ -734,9 +734,9 @@ write_delivery_artifacts() {
     exit 2
   }
 
-  bash "$writer" "$task_md" "$CREATED_PR_URL" OPEN "$head_sha"
   bash "$report_writer" --repo "$REPO_PATH" --ticket "$ticket" --task-md "$task_md" --head-sha "$head_sha" --status PASS >/dev/null
-  echo "$PREFIX ✓ delivery metadata and verify report written for $ticket@$head_sha"
+  bash "$writer" --verification-pass "$task_md" "$CREATED_PR_URL" OPEN "$head_sha" --repo "$REPO_PATH"
+  echo "$PREFIX ✓ delivery metadata, verification, and verify report written for $ticket@$head_sha"
 }
 
 # --- Detect forbidden PR modes ---

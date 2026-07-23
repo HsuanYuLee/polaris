@@ -6,6 +6,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
@@ -923,16 +924,18 @@ if body_is_field_driven:
             f"    source_of_truth: {bc_source}",
             f"    fixture_policy: {bc_fixture}",
         ]
-        # fixture_policy=mockoon_required additionally requires a flow_script
-        # (validate-task-md.sh accepts flow_script / script_path / playwright_script).
+        # All declared flow-script aliases pass through to task.md. The
+        # mockoon_required policy additionally makes one mandatory, while
+        # live_allowed / none may declare an executable flow voluntarily.
+        bc_flow_script = bc.get("flow_script") or bc.get("script_path") or bc.get("playwright_script")
+        bc_flow_script = str(bc_flow_script).strip() if bc_flow_script not in (None, "") else ""
         if bc_fixture == "mockoon_required":
-            bc_flow_script = bc.get("flow_script") or bc.get("script_path") or bc.get("playwright_script")
-            bc_flow_script = str(bc_flow_script).strip() if bc_flow_script not in (None, "") else ""
             if not bc_flow_script:
                 fail(
                     f"task {task_id} behavior_contract.fixture_policy=mockoon_required "
                     "requires a non-empty 'flow_script' (no framework default)"
                 )
+        if bc_flow_script:
             bc_lines.append(f"    flow_script: {bc_flow_script}")
         # Optional passthrough fields, emitted only when declared. mode=hybrid
         # additionally requires a non-empty allowed_differences list (validator).
@@ -1003,6 +1006,77 @@ else:
     te_fixtures = "tmpdir + repo-tracked selftest fixtures"
     te_runtime_target = "N/A"
     te_bootstrap = "N/A"
+
+# Native visual-regression metadata is additive and copied from the task
+# declaration. Do not derive defaults: expected/pages must be explicit, and the
+# test environment must project to runtime for the generated task.md contract.
+visual_regression_block = ""
+if "visual_regression" in verification:
+    vr = verification.get("visual_regression")
+    if not isinstance(vr, dict):
+        fail(f"task {task_id} visual_regression must be an object when present")
+    vr_expected = vr.get("expected")
+    if not isinstance(vr_expected, str) or not vr_expected.strip():
+        fail(f"task {task_id} visual_regression.expected is required (no framework default)")
+    if vr_expected not in {"none_allowed", "baseline_required", "update_baseline"}:
+        fail(
+            f"task {task_id} visual_regression.expected '{vr_expected}' is invalid "
+            "(expected none_allowed, baseline_required, or update_baseline)"
+        )
+    vr_pages = vr.get("pages")
+    if not isinstance(vr_pages, list):
+        fail(f"task {task_id} visual_regression.pages is required and must be an array")
+    clean_vr_pages = []
+    for idx, page in enumerate(vr_pages):
+        if not isinstance(page, str) or not page.strip():
+            fail(
+                f"task {task_id} visual_regression.pages[{idx}] must be a non-empty string"
+            )
+        clean_vr_pages.append(page.strip())
+    if te_level != "runtime":
+        fail(
+            f"task {task_id} visual_regression requires test_environment.level='runtime' "
+            "(no framework default)"
+        )
+    parsed_target = urlparse(te_runtime_target)
+    target_host = parsed_target.hostname
+    if parsed_target.scheme not in {"http", "https"} or not target_host:
+        fail(
+            f"task {task_id} visual_regression requires an http/https "
+            "test_environment.runtime_verify_target (no framework default)"
+        )
+    if not te_bootstrap or te_bootstrap == "N/A":
+        fail(
+            f"task {task_id} visual_regression requires a non-empty "
+            "test_environment.env_bootstrap_command (no framework default)"
+        )
+    verify_urls = re.findall(r"https?://[^\s'\"]+", effective_verify_command)
+    verify_hosts = set()
+    for url in verify_urls:
+        host = urlparse(url.rstrip(".,;) ")).hostname
+        if host:
+            verify_hosts.add(host)
+    if not verify_hosts:
+        fail(
+            f"task {task_id} visual_regression requires verify_command to contain an "
+            "http/https URL (no framework default)"
+        )
+    if target_host not in verify_hosts:
+        fail(
+            f"task {task_id} visual_regression verify_command URL host must match "
+            "test_environment.runtime_verify_target"
+        )
+    # Keep pages in the inline YAML-list form consumed by the shared task.md
+    # parser; json.dumps is valid YAML here and preserves paths losslessly.
+    vr_lines = [
+        "  visual_regression:",
+        f"    expected: {vr_expected}",
+        f"    pages: {json.dumps(clean_vr_pages, ensure_ascii=False)}",
+    ]
+    visual_regression_block = "\n".join(vr_lines)
+visual_regression_block_line = (
+    f"{visual_regression_block}\n" if visual_regression_block else ""
+)
 
 
 # DP-302 (AC3): T-task references = container-derived refinement paths plus any
@@ -1090,7 +1164,7 @@ task_kind: {mode}
 {task_shape_line}verification:
   behavior_contract:
 {behavior_contract_block}
-depends_on: [{depends_on_frontmatter}]
+{visual_regression_block_line}depends_on: [{depends_on_frontmatter}]
 {delivery_block_line}---
 
 # {short_id}: {title} ({points} pt)

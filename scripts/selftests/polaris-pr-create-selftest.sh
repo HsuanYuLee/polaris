@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# polaris-pr-create-selftest.sh — 驗證 PR wrapper 的 metadata、驗證與指派交付。
+#
+# 使用隔離 Git fixture，確認 writeback 只在 report 與 durable evidence 完整後標示 PASS。
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -59,6 +63,7 @@ depends_on: []
 |------|-----|
 | Source type | dp |
 | Source ID | DP-154 |
+| Work item ID | DP-154-T1 |
 | Task ID | DP-154-T1 |
 | JIRA key | N/A |
 | Test sub-tasks | N/A - framework work order |
@@ -67,6 +72,7 @@ depends_on: []
 | Branch chain | main -> task/DP-154-T1-pr-create-selftest |
 | Task branch | task/DP-154-T1-pr-create-selftest |
 | Depends on | N/A |
+| References to load | - `scripts/polaris-pr-create.sh` |
 
 ## Verification Handoff
 
@@ -86,6 +92,10 @@ Selftest fixture。
 
 - `scripts/polaris-pr-create.sh`
 
+## 估點理由
+
+1 pt - selftest fixture。
+
 ## Scope Trace Matrix
 
 | Goal / AC | Owning files | Surface / boundary | Tests |
@@ -100,6 +110,10 @@ Selftest fixture。
 | test | yes | selftest PASS | engineering |
 | verify | yes | deliverable and report written | engineering |
 | ci-local | no | N/A fixture | planner decision |
+
+## 測試計畫（code-level）
+
+- 執行 PR wrapper selftest。
 
 ## Test Command
 
@@ -125,9 +139,12 @@ EOF
 }
 
 write_verify_evidence() {
-  local ticket="$1"
-  local head_sha="$2"
-  cat > "/tmp/polaris-verified-${ticket}-${head_sha}.json" <<EOF
+  local repo="$1"
+  local ticket="$2"
+  local head_sha="$3"
+  local evidence="$repo/.polaris/evidence/verify/polaris-verified-${ticket}-${head_sha}.json"
+  mkdir -p "$(dirname "$evidence")"
+  cat > "$evidence" <<EOF
 {
   "ticket": "${ticket}",
   "head_sha": "${head_sha}",
@@ -250,7 +267,7 @@ EOF
   git -C "$repo" checkout -q -b task/DP-154-T1-pr-create-selftest
   head_sha="$(git -C "$repo" rev-parse HEAD)"
   task_md="$(write_task "$workspace")"
-  write_verify_evidence "DP-154-T1" "$head_sha"
+  write_verify_evidence "$repo" "DP-154-T1" "$head_sha"
 
   cat > "$mockbin/gh" <<EOF
 #!/usr/bin/env bash
@@ -282,7 +299,7 @@ EOF
   chmod +x "$mockbin/gh"
 
   set +e
-  out="$(PATH="$mockbin:$PATH" bash "$WRAPPER" --repo "$repo" --skip-gates --base main --title "fixture" --body "fixture" 2>&1)"
+  out="$(POLARIS_SPECS_ROOT="$workspace/docs-manager/src/content/docs/specs" PATH="$mockbin:$PATH" bash "$WRAPPER" --repo "$repo" --skip-gates --base main --title "fixture" --body "fixture" 2>&1)"
   rc=$?
   set -e
 
@@ -292,9 +309,10 @@ EOF
     fail "$label rc"
     printf '%s\n' "$out" >&2
   fi
-  assert_contains "$label output" "$out" "delivery metadata and verify report written for DP-154-T1@$head_sha"
+  assert_contains "$label output" "$out" "delivery metadata, verification, and verify report written for DP-154-T1@$head_sha"
   assert_contains "$label deliverable url" "$(cat "$task_md")" "pr_url: https://github.com/demo/example/pull/154"
   assert_contains "$label deliverable head" "$(cat "$task_md")" "head_sha: $head_sha"
+  assert_contains "$label deliverable verification" "$(cat "$task_md")" "status: PASS"
   if [[ "$(grep -c '^deliverable:' "$task_md")" == "1" ]]; then
     ok "$label deliverable idempotent count"
   else

@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.79.4] - 2026-07-24
+
+### Changed
+
+- ecbf6fd: 對齊原生 VR 與可執行行為契約的 refinement handoff
+- 0699094: 補齊 PR delivery verification 的 canonical writer handoff
+
 ## [3.79.3] - 2026-07-23
 
 ### Changed

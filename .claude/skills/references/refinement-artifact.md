@@ -278,13 +278,14 @@ body 欄位**，作為 `derive-task-md-from-refinement-json.sh` 產出 task.md b
 | Field | Required | 說明 |
 |-------|----------|------|
 | `behavior_contract` | optional | object；required boolean `applies`。`applies=false` 時必須附非空 `reason`（對齊 task.md frontmatter `verification.behavior_contract` 契約：framework infra task=false 須說明、runtime/UI/product task=true）。`applies=true` 時 derive **fail-loud** 強制一組子欄位（見下方 § behavior_contract `applies=true` 子欄位契約）。derive 寫入 task.md frontmatter `verification.behavior_contract` |
+| `visual_regression` | optional | object；`expected` required，enum 為 `none_allowed` / `baseline_required` / `update_baseline`；`pages` required，為字串陣列（`[]` 使用 workspace-config pages）。宣告時必須同時有 `test_environment.level: runtime`。derive **losslessly** 寫入 task.md frontmatter `verification.visual_regression`，不補預設值。 |
 | `test_environment` | optional | object；required `level` ∈ `static` / `component` / `integration` / `runtime`。derive 寫入 task.md `## Test Environment` 的 Level |
 | `verify_command` | optional | 非空字串；derive 寫入 task.md `## Verify Command`（無無條件 framework 尾段；framework-only 步驟只在此欄位明確要求時才出現，D5） |
 | `references` | optional | 字串陣列（每筆非空）；derive 寫入 task.md `References to load`。實際 container 路徑（`companies/` vs `design-plans/`）由 resolved container 生成，不由本欄位寫死（D4） |
 
 Contract（DP-302 AC3 / AC-NEG1）：
 
-- 這四個欄位是 **validated-when-present**：缺欄位的 task 在 `validate-refinement-json.sh`
+- 這五個欄位是 **validated-when-present**：缺欄位的 task 在 `validate-refinement-json.sh`
   是 no-op PASS（既有 active refinement.json 早於本欄位仍可通過；back-compat）。
 - 但只要欄位 **present**，其 shape 就被 fail-loud enforce（缺 `applies`、`applies=false`
   缺 `reason`、`test_environment.level` 出 enum、`verify_command` 空字串、`references`
@@ -292,6 +293,28 @@ Contract（DP-302 AC3 / AC-NEG1）：
   （AC-NEG1）。
 - back-compat 鬆綁不外洩：本欄位是 additive optional，不改動既有 `method` / `detail`
   required 契約。
+
+#### `visual_regression` 契約
+
+`visual_regression` 是 validated-when-present 的 native Layer C 輸入；未宣告的 legacy
+task 不會產生任何 VR frontmatter。宣告時必須完整指定：
+
+```json
+"visual_regression": {
+  "expected": "baseline_required",
+  "pages": ["/zh-tw/product/12156"]
+}
+```
+
+- `expected` 僅可為 `none_allowed`、`baseline_required` 或 `update_baseline`。
+- `pages` 必須是字串陣列；空陣列 `[]` 表示交給 workspace config 選取全部頁面。
+- 同一 task 的 `test_environment.level` 必須為 `runtime`，使 derive 產出的 task.md
+  符合 native VR runner 的 runtime 契約。
+- 為確保 schema PASS 的 source 必能 derive 出有效 task.md，還必須完整宣告
+  `behavior_contract`，並提供 `test_environment.runtime_verify_target`（http/https URL）、
+  `test_environment.env_bootstrap_command` 與包含同 host URL 的 `verify_command`。
+- 欄位缺失、型別錯誤或非 runtime environment 都 fail-loud；derive 不會注入
+  `expected`、`pages` 或 runtime 預設值。
 
 #### behavior_contract `applies=true` 子欄位契約
 
@@ -319,9 +342,10 @@ no framework default），與 `validate-task-md.sh` 對 runtime/product task 的
 | `fixture_policy: mockoon_required` | `flow_script` | 必填非空 flow script 路徑（validator 接受 `flow_script` / `script_path` / `playwright_script` 任一）。 |
 | `mode: hybrid` | `allowed_differences` | 必填非空字串陣列，逐條列出允許的 before/after 差異。 |
 
-**可選 passthrough 子欄位**（宣告時才寫入 task.md，缺則略過）：`baseline_ref`、
-`target_url`、`viewport`。其中 mobile UI parity task 用 `viewport: mobile` 宣告（desktop
-省略或填 `viewport: desktop`）。
+**可選 passthrough 子欄位**（宣告時才寫入 task.md，缺則略過）：`flow_script`
+（或 alias `script_path` / `playwright_script`）、`baseline_ref`、`target_url`、`viewport`。
+`flow_script` 對所有 fixture policy 都會 passthrough；只有 `mockoon_required` 把它升為必填。
+其中 mobile UI parity task 用 `viewport: mobile` 宣告（desktop 省略或填 `viewport: desktop`）。
 
 範例（mobile UI parity task，`mode: parity` + `fixture_policy: mockoon_required`）：
 

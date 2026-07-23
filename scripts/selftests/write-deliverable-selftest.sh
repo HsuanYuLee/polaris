@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
+# write-deliverable-selftest.sh — 驗證 deliverable writer 的 PR 與 no-PR 契約。
+#
+# 覆蓋 durable verify evidence、task-bound report、原子寫入與冪等性。
+
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WRITER="$ROOT/scripts/write-deliverable.sh"
+REPORT_WRITER="$ROOT/scripts/write-task-verify-report.sh"
 TMPROOT="$(mktemp -d -t write-deliverable-selftest.XXXXXX)"
 trap 'rm -rf "$TMPROOT"' EXIT
 
 write_task() {
-  local path="$1" shape="$2"
+  local path="$1" shape="$2" source_type="${3:-dp}" source_id="${4:-DP-422}"
+  local work_item_id="${5:-DP-422-T1}" jira_key="${6:-N/A}"
   cat >"$path" <<EOF
 ---
-title: "DP-422 writer fixture"
+title: "${source_id} writer fixture"
 description: "task_shape-first no-PR writer fixture."
 status: IN_PROGRESS
 task_kind: T
@@ -23,17 +29,17 @@ verification:
 
 # T1: writer fixture (1 pt)
 
-> Source: DP-422 | Task: DP-422-T1 | JIRA: N/A | Repo: polaris-framework
+> Source: ${source_id} | Task: ${work_item_id} | JIRA: ${jira_key} | Repo: polaris-framework
 
 ## Operational Context
 
 | 欄位 | 值 |
 |------|-----|
-| Source type | dp |
-| Source ID | DP-422 |
-| Work item ID | DP-422-T1 |
-| Task ID | DP-422-T1 |
-| JIRA key | N/A |
+| Source type | ${source_type} |
+| Source ID | ${source_id} |
+| Work item ID | ${work_item_id} |
+| Task ID | ${work_item_id} |
+| JIRA key | ${jira_key} |
 | Test sub-tasks | N/A - self-contained |
 | AC 驗收單 | N/A - self-contained |
 | Base branch | main |
@@ -87,11 +93,11 @@ EOF
 }
 
 write_evidence() {
-  local repo="$1" head="$2" exit_code="${3:-0}"
-  local path="$repo/.polaris/evidence/verify/polaris-verified-DP-422-T1-${head}.json"
+  local repo="$1" head="$2" exit_code="${3:-0}" ticket="${4:-DP-422-T1}"
+  local path="$repo/.polaris/evidence/verify/polaris-verified-${ticket}-${head}.json"
   mkdir -p "$(dirname "$path")"
   cat >"$path" <<EOF
-{"ticket":"DP-422-T1","head_sha":"$head","writer":"run-verify-command.sh","exit_code":$exit_code,"at":"2026-07-16T00:00:00Z"}
+{"ticket":"$ticket","head_sha":"$head","writer":"run-verify-command.sh","exit_code":$exit_code,"at":"2026-07-16T00:00:00Z"}
 EOF
 }
 
@@ -211,5 +217,70 @@ bash "$WRITER" "$implementation_task" https://github.com/demo/example/pull/1 OPE
 grep -q '^  pr_url: https://github.com/demo/example/pull/1$' "$implementation_task"
 grep -q '^  pr_state: OPEN$' "$implementation_task"
 grep -q '^  head_sha: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb$' "$implementation_task"
+
+# PR task 的 PASS 必須由同一 head 的 durable evidence 與 task-bound report 支撐。
+verified_pr_task="$TMPROOT/verified-pr.md"
+verified_pr_repo="$TMPROOT/verified-pr-repo"
+setup_repo "$verified_pr_repo"
+verified_pr_head="$(git -C "$verified_pr_repo" rev-parse HEAD)"
+write_task "$verified_pr_task" implementation
+write_evidence "$verified_pr_repo" "$verified_pr_head"
+bash "$REPORT_WRITER" --repo "$verified_pr_repo" --ticket DP-422-T1 --task-md "$verified_pr_task" --head-sha "$verified_pr_head" --status PASS
+bash "$WRITER" --verification-pass "$verified_pr_task" https://github.com/demo/example/pull/2 OPEN "$verified_pr_head" --repo "$verified_pr_repo"
+grep -q '^  pr_url: https://github.com/demo/example/pull/2$' "$verified_pr_task"
+grep -q "^  head_sha: ${verified_pr_head}$" "$verified_pr_task"
+grep -q '^    status: PASS$' "$verified_pr_task"
+for field in \
+  deliverable_verification_ac_total \
+  deliverable_verification_ac_pass \
+  deliverable_verification_ac_fail \
+  deliverable_verification_ac_manual_required \
+  deliverable_verification_ac_uncertain; do
+  actual="$(bash "$ROOT/scripts/parse-task-md.sh" "$verified_pr_task" --no-resolve --field "$field")"
+  [[ "$actual" == "0" ]] || { echo "FAIL: verification-pass writer emitted non-canonical $field=$actual" >&2; exit 1; }
+done
+
+verified_pr_before="$(shasum -a 256 "$verified_pr_task" | awk '{print $1}')"
+bash "$WRITER" --verification-pass "$verified_pr_task" https://github.com/demo/example/pull/2 OPEN "$verified_pr_head" --repo "$verified_pr_repo"
+verified_pr_after="$(shasum -a 256 "$verified_pr_task" | awk '{print $1}')"
+[[ "$verified_pr_before" == "$verified_pr_after" ]] || { echo "FAIL: verification-pass writer is not idempotent" >&2; exit 1; }
+
+# Bug/JIRA sources use the real delivery ticket, not the internal work item marker.
+bug_task="$TMPROOT/bug-pr.md"
+bug_repo="$TMPROOT/bug-pr-repo"
+setup_repo "$bug_repo"
+bug_head="$(git -C "$bug_repo" rev-parse HEAD)"
+write_task "$bug_task" implementation jira PROJ-422 PROJ-422-T1 PROJ-422
+write_evidence "$bug_repo" "$bug_head" 1 PROJ-422-T1
+write_evidence "$bug_repo" "$bug_head" 0 PROJ-422
+bash "$REPORT_WRITER" --repo "$bug_repo" --ticket PROJ-422 --task-md "$bug_task" --head-sha "$bug_head" --status PASS
+bash "$WRITER" --verification-pass "$bug_task" https://github.com/demo/example/pull/22 OPEN "$bug_head" --repo "$bug_repo"
+grep -q '^    status: PASS$' "$bug_task"
+
+missing_report_task="$TMPROOT/missing-report.md"
+missing_report_repo="$TMPROOT/missing-report-repo"
+setup_repo "$missing_report_repo"
+missing_report_head="$(git -C "$missing_report_repo" rev-parse HEAD)"
+write_task "$missing_report_task" implementation
+write_evidence "$missing_report_repo" "$missing_report_head"
+if bash "$WRITER" --verification-pass "$missing_report_task" https://github.com/demo/example/pull/3 OPEN "$missing_report_head" --repo "$missing_report_repo" >/dev/null 2>&1; then
+  echo "FAIL: verification-pass writer accepted a missing task-bound report" >&2
+  exit 1
+fi
+
+failed_report_task="$TMPROOT/failed-report.md"
+failed_report_repo="$TMPROOT/failed-report-repo"
+setup_repo "$failed_report_repo"
+failed_report_head="$(git -C "$failed_report_repo" rev-parse HEAD)"
+write_task "$failed_report_task" implementation
+write_evidence "$failed_report_repo" "$failed_report_head"
+bash "$REPORT_WRITER" --repo "$failed_report_repo" --ticket DP-422-T1 --task-md "$failed_report_task" --head-sha "$failed_report_head" --status FAIL
+failed_report_before="$(shasum -a 256 "$failed_report_task" | awk '{print $1}')"
+if bash "$WRITER" --verification-pass "$failed_report_task" https://github.com/demo/example/pull/4 OPEN "$failed_report_head" --repo "$failed_report_repo" >/dev/null 2>&1; then
+  echo "FAIL: verification-pass writer accepted a FAIL task-bound report" >&2
+  exit 1
+fi
+failed_report_after="$(shasum -a 256 "$failed_report_task" | awk '{print $1}')"
+[[ "$failed_report_before" == "$failed_report_after" ]] || { echo "FAIL: FAIL report mutated task.md" >&2; exit 1; }
 
 echo "write-deliverable selftest: PASS"

@@ -6,6 +6,7 @@
 #
 # Usage:
 #   scripts/write-deliverable.sh <task-md-path> <pr-url> <pr-state> <head-sha>
+#   scripts/write-deliverable.sh --verification-pass <task-md-path> <pr-url> <pr-state> <head-sha> --repo <repo-root>
 #   scripts/write-deliverable.sh --no-pr <task-md-path> <head-sha> --repo <repo-root>
 #   scripts/write-deliverable.sh --verification-aggregate-head <task-md-path> <aggregate-head-sha>
 #
@@ -65,6 +66,76 @@ fail_inconsistent() {
 
 log() {
   printf '[write-deliverable] %s\n' "$1" >&2
+}
+
+# 驗證 PR PASS materialization 只接受同一 task / head 的 durable Layer B evidence 與 report。
+validate_pr_verification_proof() {
+  local task_md="$1"
+  local head_sha="$2"
+  local repo_root="$3"
+  local script_dir=""
+  local work_item_id=""
+  local delivery_ticket=""
+  local verify_evidence=""
+  local report_path=""
+
+  [[ -f "$task_md" ]] || die "task.md not found: $task_md"
+  [[ -d "$repo_root" ]] || die "repo root not found: $repo_root"
+  git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1 \
+    || die "--repo must be a Git repository"
+
+  script_dir="$(cd "$(dirname "$0")" && pwd)"
+  work_item_id="$(bash "$script_dir/parse-task-md.sh" "$task_md" --no-resolve --field work_item_id 2>/dev/null || true)"
+  [[ -n "$work_item_id" ]] || die "cannot resolve work_item_id from task.md"
+  delivery_ticket="$(bash "$script_dir/parse-task-md.sh" "$task_md" --no-resolve --field delivery_ticket_key 2>/dev/null || true)"
+  case "$delivery_ticket" in
+    ""|N/A|null) delivery_ticket="$work_item_id" ;;
+  esac
+
+  # shellcheck source=lib/verification-evidence.sh
+  . "$script_dir/lib/verification-evidence.sh"
+  verify_evidence="$(verification_evidence_durable_path "$repo_root" "$delivery_ticket" "$head_sha" 2>/dev/null || true)"
+  [[ -n "$verify_evidence" && -f "$verify_evidence" ]] \
+    || die "canonical durable verify evidence not found for ${delivery_ticket}@${head_sha}"
+  verification_evidence_validate_file "$verify_evidence" "$delivery_ticket" "$head_sha" >/dev/null \
+    || die "verify evidence is invalid or stale for ${delivery_ticket}@${head_sha}"
+  verification_evidence_is_pass "$verify_evidence" >/dev/null \
+    || die "verify evidence is not PASS for ${delivery_ticket}@${head_sha}"
+
+report_path="$(python3 - "$task_md" <<'PY'
+from pathlib import Path
+import sys
+
+task = Path(sys.argv[1]).resolve()
+print(task.parent / "verify-report.md" if task.name == "index.md" else task.with_suffix("") / "verify-report.md")
+PY
+)"
+  [[ -f "$report_path" ]] \
+    || die "task-bound verify report not found for ${delivery_ticket}@${head_sha}: ${report_path}"
+  python3 - "$report_path" "$delivery_ticket" "$head_sha" <<'PY' \
+    || die "task-bound verify report is stale or invalid for ${delivery_ticket}@${head_sha}"
+from pathlib import Path
+import re
+import sys
+
+report = Path(sys.argv[1])
+ticket = sys.argv[2]
+head = sys.argv[3]
+text = report.read_text(encoding="utf-8")
+
+if not text.startswith("---\n"):
+    raise SystemExit(1)
+end = text.find("\n---\n", 4)
+if end == -1:
+    raise SystemExit(1)
+frontmatter = text[4:end]
+if "title:" not in frontmatter or "description:" not in frontmatter:
+    raise SystemExit(1)
+if ticket not in text or head not in text:
+    raise SystemExit(1)
+if not re.search(r"^- 狀態：`PASS`$", text, re.MULTILINE):
+    raise SystemExit(1)
+PY
 }
 
 # ── task_shape-first no-PR mode ───────────────────────────────────────────────
@@ -335,12 +406,24 @@ fi
 
 # ── Argument validation ─────────────────────────────────────────────────────────
 
-[[ $# -eq 4 ]] || die "Usage: $SCRIPT_NAME <task-md-path> <pr-url> <pr-state> <head-sha>"
-
-TASK_MD="$1"
-PR_URL="$2"
-PR_STATE="$3"
-HEAD_SHA="$4"
+VERIFICATION_PASS=0
+REPO_ROOT=""
+if [[ "${1:-}" == "--verification-pass" ]]; then
+  VERIFICATION_PASS=1
+  [[ $# -eq 7 && "${6:-}" == "--repo" ]] \
+    || die "Usage: $SCRIPT_NAME --verification-pass <task-md-path> <pr-url> <pr-state> <head-sha> --repo <repo-root>"
+  TASK_MD="$2"
+  PR_URL="$3"
+  PR_STATE="$4"
+  HEAD_SHA="$5"
+  REPO_ROOT="$7"
+else
+  [[ $# -eq 4 ]] || die "Usage: $SCRIPT_NAME <task-md-path> <pr-url> <pr-state> <head-sha>"
+  TASK_MD="$1"
+  PR_URL="$2"
+  PR_STATE="$3"
+  HEAD_SHA="$4"
+fi
 
 # Validate task.md exists and is a regular file
 [[ -f "$TASK_MD" ]] || die "task.md not found: $TASK_MD"
@@ -366,6 +449,12 @@ TASK_MD="$(cd "$(dirname "$TASK_MD")" && pwd)/$(basename "$TASK_MD")"
 TASK_DIR="$(dirname "$TASK_MD")"
 TMP_FILE="${TASK_MD}.tmp"
 
+if [[ "$VERIFICATION_PASS" -eq 1 ]]; then
+  [[ -d "$REPO_ROOT" ]] || die "repo root not found: $REPO_ROOT"
+  REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
+  validate_pr_verification_proof "$TASK_MD" "$HEAD_SHA" "$REPO_ROOT"
+fi
+
 # ── Python rewriter (atomic frontmatter replacement) ──────────────────────────
 #
 # Uses Python for reliable YAML frontmatter handling (nested maps, quoting,
@@ -379,6 +468,7 @@ tmp_path  = sys.argv[2]
 pr_url    = sys.argv[3]
 pr_state  = sys.argv[4]
 head_sha  = sys.argv[5]
+verification_pass = sys.argv[6] == '1'
 
 with open(task_path, 'r', encoding='utf-8') as f:
     content = f.read()
@@ -396,8 +486,19 @@ if not match:
         f'  pr_url: {pr_url}\n'
         f'  pr_state: {pr_state}\n'
         f'  head_sha: {head_sha}\n'
-        '---\n'
     )
+    if verification_pass:
+        deliverable_fm += (
+            '  verification:\n'
+            '    status: PASS\n'
+            '    ac_counts:\n'
+            '      ac_total: 0\n'
+            '      ac_pass: 0\n'
+            '      ac_fail: 0\n'
+            '      ac_manual_required: 0\n'
+            '      ac_uncertain: 0\n'
+        )
+    deliverable_fm += '---\n'
     new_content = deliverable_fm + content
 else:
     fm_body = match.group(1)
@@ -459,9 +560,51 @@ else:
         f'  head_sha: {head_sha}\n'
     )
     if verification_lines:
+        if verification_pass:
+            status_replaced = False
+            status_lines = []
+            for line in verification_lines:
+                if re.match(r'^[ \t]{4}status:', line):
+                    status_lines.append('    status: PASS\n')
+                    status_replaced = True
+                else:
+                    status_lines.append(line)
+            if not status_replaced:
+                status_lines.insert(1, '    status: PASS\n')
+            if not any(re.match(r'^[ \t]{4}ac_counts:', line) for line in status_lines):
+                status_lines.extend([
+                    '    ac_counts:\n',
+                    '      ac_total: 0\n',
+                    '      ac_pass: 0\n',
+                    '      ac_fail: 0\n',
+                    '      ac_manual_required: 0\n',
+                    '      ac_uncertain: 0\n',
+                ])
+            else:
+                existing_count_fields = {
+                    match.group(1)
+                    for line in status_lines
+                    for match in [re.match(r'^[ \t]{6}(ac_(?:total|pass|fail|manual_required|uncertain)):', line)]
+                    if match
+                }
+                for field in ('ac_total', 'ac_pass', 'ac_fail', 'ac_manual_required', 'ac_uncertain'):
+                    if field not in existing_count_fields:
+                        status_lines.append(f'      {field}: 0\n')
+            verification_lines = status_lines
         cleaned_fm += ''.join(verification_lines)
-        if not cleaned_fm.endswith('\n'):
-            cleaned_fm += '\n'
+    elif verification_pass:
+        cleaned_fm += (
+            '  verification:\n'
+            '    status: PASS\n'
+            '    ac_counts:\n'
+            '      ac_total: 0\n'
+            '      ac_pass: 0\n'
+            '      ac_fail: 0\n'
+            '      ac_manual_required: 0\n'
+            '      ac_uncertain: 0\n'
+        )
+    if not cleaned_fm.endswith('\n'):
+        cleaned_fm += '\n'
 
     new_content = '---\n' + cleaned_fm + '---\n' + content[match.end():]
 
@@ -479,6 +622,7 @@ import sys, re
 
 task_path = sys.argv[1]
 expected_url = sys.argv[2]
+expect_verification_pass = sys.argv[3] == '1'
 
 with open(task_path, 'r', encoding='utf-8') as f:
     content = f.read()
@@ -500,6 +644,12 @@ if found_url != expected_url:
     print(f'MISMATCH:{found_url}', end='')
     sys.exit(1)
 
+if expect_verification_pass:
+    status_match = re.search(r'^    status:\s*PASS\s*$', fm_body, re.MULTILINE)
+    if not status_match:
+        print('NO_VERIFICATION_PASS', end='')
+        sys.exit(1)
+
 print('OK', end='')
 sys.exit(0)
 PYEOF
@@ -516,7 +666,7 @@ while [[ $attempt -lt $MAX_RETRIES ]]; do
 
   # Step 1: Run Python rewriter → TMP_FILE
   write_error=""
-  if ! write_error=$(python3 - "$TASK_MD" "$TMP_FILE" "$PR_URL" "$PR_STATE" "$HEAD_SHA" <<< "$REWRITER" 2>&1); then
+  if ! write_error=$(python3 - "$TASK_MD" "$TMP_FILE" "$PR_URL" "$PR_STATE" "$HEAD_SHA" "$VERIFICATION_PASS" <<< "$REWRITER" 2>&1); then
     last_error="Python rewriter failed (attempt ${attempt}): ${write_error}"
     log "$last_error"
   else
@@ -530,7 +680,7 @@ while [[ $attempt -lt $MAX_RETRIES ]]; do
     else
       # Step 3: Verify by re-reading
       verify_result=""
-      verify_result=$(python3 - "$TASK_MD" "$PR_URL" <<< "$VERIFIER" 2>&1) || true
+      verify_result=$(python3 - "$TASK_MD" "$PR_URL" "$VERIFICATION_PASS" <<< "$VERIFIER" 2>&1) || true
 
       if [[ "$verify_result" == "OK" ]]; then
         log "Success: deliverable block written and verified in $TASK_MD"

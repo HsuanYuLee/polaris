@@ -859,6 +859,116 @@ if ! grep -q "references" "$tmpdir/dp-refs-bad.stderr"; then
   exit 1
 fi
 
+# --- Case 20b (DP-428 AC1): a complete visual_regression declaration is
+# accepted when present, including the runtime test-environment requirement. ---
+dp_vr_valid_dir="$tmpdir/dp-vr-valid"
+write_dp_canonical "$dp_vr_valid_dir"
+python3 - "$dp_vr_valid_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["tasks"][0]["verification"].update({
+    "behavior_contract": {"applies": False, "reason": "visual-only parity task"},
+    "test_environment": {
+        "level": "runtime",
+        "runtime_verify_target": "http://127.0.0.1:3000/zh-tw/product/sample-card",
+        "env_bootstrap_command": "true",
+    },
+    "verify_command": "curl -fsS http://127.0.0.1:3000/zh-tw/product/sample-card",
+    "visual_regression": {
+        "expected": "baseline_required",
+        "pages": ["/zh-tw/product/sample-card"],
+    },
+})
+json.dump(data, open(p, "w"))
+PY
+if ! bash "$SCRIPT" "$dp_vr_valid_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-vr-valid.stderr"; then
+  echo "FAIL [case 20b / DP-428 AC1]: complete visual_regression declaration did not pass" >&2
+  cat "$tmpdir/dp-vr-valid.stderr" >&2
+  exit 1
+fi
+
+# --- Case 20c (DP-428 AC-NEG1): visual_regression present but incomplete
+# must fail loud rather than derive a default expected/pages contract. ---
+dp_vr_missing_dir="$tmpdir/dp-vr-missing"
+write_dp_canonical "$dp_vr_missing_dir"
+python3 - "$dp_vr_missing_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["tasks"][0]["verification"]["visual_regression"] = {}
+json.dump(data, open(p, "w"))
+PY
+if bash "$SCRIPT" "$dp_vr_missing_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-vr-missing.stderr"; then
+  echo "FAIL [case 20c / DP-428 AC-NEG1]: incomplete visual_regression passed (expected fail-loud)" >&2
+  exit 1
+fi
+if ! grep -q "visual_regression" "$tmpdir/dp-vr-missing.stderr"; then
+  echo "FAIL [case 20c / DP-428 AC-NEG1]: missing visual_regression violation marker" >&2
+  cat "$tmpdir/dp-vr-missing.stderr" >&2
+  exit 1
+fi
+
+# --- Case 20d (DP-428 AC-NEG1): native VR must carry the body fields and
+# runtime inputs needed to construct a valid task.md; schema-pass then derive-
+# fail is forbidden. ---
+dp_vr_no_bc_dir="$tmpdir/dp-vr-no-bc"
+write_dp_canonical "$dp_vr_no_bc_dir"
+python3 - "$dp_vr_no_bc_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["tasks"][0]["verification"].update({
+    "test_environment": {
+        "level": "runtime",
+        "runtime_verify_target": "http://127.0.0.1:3000/zh-tw/product/sample-card",
+        "env_bootstrap_command": "true",
+    },
+    "verify_command": "curl -fsS http://127.0.0.1:3000/zh-tw/product/sample-card",
+    "visual_regression": {"expected": "baseline_required", "pages": []},
+})
+json.dump(data, open(p, "w"))
+PY
+if bash "$SCRIPT" "$dp_vr_no_bc_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-vr-no-bc.stderr"; then
+  echo "FAIL [case 20d / DP-428 AC-NEG1]: visual_regression without behavior_contract passed" >&2
+  exit 1
+fi
+if ! grep -q "behavior_contract" "$tmpdir/dp-vr-no-bc.stderr"; then
+  echo "FAIL [case 20d / DP-428 AC-NEG1]: missing behavior_contract constructibility marker" >&2
+  cat "$tmpdir/dp-vr-no-bc.stderr" >&2
+  exit 1
+fi
+
+# --- Case 20e (DP-428 AC-NEG1): native VR cannot omit runtime bootstrap or
+# route its verification command to a different host. ---
+dp_vr_runtime_gap_dir="$tmpdir/dp-vr-runtime-gap"
+write_dp_canonical "$dp_vr_runtime_gap_dir"
+python3 - "$dp_vr_runtime_gap_dir/refinement.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+data = json.load(open(p))
+data["tasks"][0]["verification"].update({
+    "behavior_contract": {"applies": False, "reason": "visual-only parity task"},
+    "test_environment": {"level": "runtime", "runtime_verify_target": "http://127.0.0.1:3000/zh-tw"},
+    "verify_command": "curl -fsS http://localhost:3000/zh-tw",
+    "visual_regression": {"expected": "baseline_required", "pages": []},
+})
+json.dump(data, open(p, "w"))
+PY
+if bash "$SCRIPT" "$dp_vr_runtime_gap_dir/refinement.json" \
+    >/dev/null 2>"$tmpdir/dp-vr-runtime-gap.stderr"; then
+  echo "FAIL [case 20e / DP-428 AC-NEG1]: incomplete runtime visual contract passed" >&2
+  exit 1
+fi
+if ! grep -qE "env_bootstrap_command|URL host" "$tmpdir/dp-vr-runtime-gap.stderr"; then
+  echo "FAIL [case 20e / DP-428 AC-NEG1]: missing runtime constructibility marker" >&2
+  cat "$tmpdir/dp-vr-runtime-gap.stderr" >&2
+  exit 1
+fi
+
 # =====================================================================
 # DP-337 — base_branch graduated to a universal field (dp + jira), with a
 # dp feat/{source.id} format gate.

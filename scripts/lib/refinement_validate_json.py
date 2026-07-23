@@ -91,6 +91,7 @@ import json
 import os
 import re
 import sys
+from urllib.parse import urlparse
 
 path = sys.argv[1]
 artifact_path = os.path.abspath(path)
@@ -637,6 +638,11 @@ def strong_error(field):
 # fields). When a field IS present its shape is enforced fail-loud so the derive
 # never silently falls back to a framework default (AC3 / AC-NEG1).
 VALID_TEST_ENVIRONMENT_LEVELS = {"static", "component", "integration", "runtime"}
+VALID_VISUAL_REGRESSION_EXPECTED = {
+    "none_allowed",
+    "baseline_required",
+    "update_baseline",
+}
 
 
 def validate_task_verification_body(verification, label):
@@ -672,6 +678,136 @@ def validate_task_verification_body(verification, label):
                     f"{label}.test_environment.level '{level}' is invalid "
                     f"(must be one of {sorted(VALID_TEST_ENVIRONMENT_LEVELS)})"
                 )
+
+    # visual_regression — optional native visual evidence declaration. It is
+    # validated when present so derive can copy it into task.md without
+    # inventing expected/pages defaults. A task.md visual declaration requires
+    # runtime verification, so reject a non-runtime source contract here too.
+    if "visual_regression" in verification:
+        vr = verification.get("visual_regression")
+        if not isinstance(vr, dict):
+            errors.append(f"{label}.visual_regression must be an object when present")
+        else:
+            expected = vr.get("expected")
+            if not isinstance(expected, str) or not expected.strip():
+                errors.append(
+                    f"{label}.visual_regression.expected is required and must be a non-empty string"
+                )
+            elif expected not in VALID_VISUAL_REGRESSION_EXPECTED:
+                errors.append(
+                    f"{label}.visual_regression.expected '{expected}' is invalid "
+                    f"(must be one of {sorted(VALID_VISUAL_REGRESSION_EXPECTED)})"
+                )
+
+            pages = vr.get("pages")
+            if not isinstance(pages, list):
+                errors.append(f"{label}.visual_regression.pages is required and must be an array")
+            else:
+                for pidx, page in enumerate(pages):
+                    if not isinstance(page, str) or not page.strip():
+                        errors.append(
+                            f"{label}.visual_regression.pages[{pidx}] must be a non-empty string"
+                        )
+
+            te = verification.get("test_environment")
+            te_level = te.get("level") if isinstance(te, dict) else None
+            if te_level != "runtime":
+                errors.append(
+                    f"{label}.visual_regression requires test_environment.level='runtime'"
+                )
+            else:
+                runtime_target = te.get("runtime_verify_target")
+                if not isinstance(runtime_target, str) or not runtime_target.strip():
+                    errors.append(
+                        f"{label}.visual_regression requires a non-empty "
+                        "test_environment.runtime_verify_target"
+                    )
+                    target_host = ""
+                else:
+                    target = urlparse(runtime_target.strip())
+                    target_host = target.hostname or ""
+                    if target.scheme not in {"http", "https"} or not target_host:
+                        errors.append(
+                            f"{label}.visual_regression requires test_environment.runtime_verify_target "
+                            "to be an http/https URL"
+                        )
+                bootstrap = te.get("env_bootstrap_command")
+                if not isinstance(bootstrap, str) or not bootstrap.strip():
+                    errors.append(
+                        f"{label}.visual_regression requires a non-empty "
+                        "test_environment.env_bootstrap_command"
+                    )
+
+                verify_command = verification.get("verify_command")
+                if not isinstance(verify_command, str) or not verify_command.strip():
+                    errors.append(
+                        f"{label}.visual_regression requires a non-empty verify_command"
+                    )
+                else:
+                    urls = re.findall(r"https?://[^\s'\"]+", verify_command)
+                    verify_hosts = {
+                        urlparse(url.rstrip(".,;)")).hostname
+                        for url in urls
+                        if urlparse(url.rstrip(".,;) ")).hostname
+                    }
+                    if not verify_hosts:
+                        errors.append(
+                            f"{label}.visual_regression requires verify_command to contain an http/https URL"
+                        )
+                    elif target_host and target_host not in verify_hosts:
+                        errors.append(
+                            f"{label}.visual_regression verify_command URL host must match "
+                            "test_environment.runtime_verify_target"
+                        )
+
+            bc = verification.get("behavior_contract")
+            if not isinstance(bc, dict):
+                errors.append(
+                    f"{label}.visual_regression requires a behavior_contract object "
+                    "for constructible task.md output"
+                )
+            else:
+                bc_applies = bc.get("applies")
+                if not isinstance(bc_applies, bool):
+                    errors.append(
+                        f"{label}.visual_regression requires behavior_contract.applies to be boolean"
+                    )
+                elif bc_applies:
+                    for field in ("mode", "source_of_truth", "fixture_policy", "flow"):
+                        value = bc.get(field)
+                        if not isinstance(value, str) or not value.strip():
+                            errors.append(
+                                f"{label}.visual_regression with behavior_contract.applies=true "
+                                f"requires a non-empty behavior_contract.{field}"
+                            )
+                    assertions = bc.get("assertions")
+                    if not isinstance(assertions, list) or not assertions or any(
+                        not isinstance(item, str) or not item.strip() for item in assertions
+                    ):
+                        errors.append(
+                            f"{label}.visual_regression with behavior_contract.applies=true "
+                            "requires a non-empty behavior_contract.assertions string array"
+                        )
+                    if bc.get("fixture_policy") == "mockoon_required":
+                        flow_script = (
+                            bc.get("flow_script")
+                            or bc.get("script_path")
+                            or bc.get("playwright_script")
+                        )
+                        if not isinstance(flow_script, str) or not flow_script.strip():
+                            errors.append(
+                                f"{label}.visual_regression with fixture_policy=mockoon_required "
+                                "requires behavior_contract.flow_script"
+                            )
+                    if bc.get("mode") == "hybrid":
+                        allowed = bc.get("allowed_differences")
+                        if not isinstance(allowed, list) or not allowed or any(
+                            not isinstance(item, str) or not item.strip() for item in allowed
+                        ):
+                            errors.append(
+                                f"{label}.visual_regression with mode=hybrid requires a non-empty "
+                                "behavior_contract.allowed_differences string array"
+                            )
 
     # verify_command — non-empty string (the task.md Verify Command body).
     if "verify_command" in verification:
