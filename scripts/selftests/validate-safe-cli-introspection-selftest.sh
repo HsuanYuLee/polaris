@@ -7,6 +7,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VALIDATOR="$ROOT_DIR/scripts/validate-safe-cli-introspection.sh"
+SAFE_MODULE="$ROOT_DIR/scripts/lib/validate_safe_cli_introspection_1.py"
 TMP_ROOT="$(mktemp -d)"
 trap 'chmod -R u+rwX "$TMP_ROOT" 2>/dev/null || true; rm -rf "$TMP_ROOT"' EXIT
 FIXTURE_REPO="$TMP_ROOT/repo"
@@ -107,6 +108,51 @@ done
 
 [[ ! -e "$FIXTURE_REPO/cwd-relative-leak.txt" ]] || {
   echo "FAIL: rejected prefix must never execute a cwd-relative source write" >&2
+  exit 1
+}
+
+cat >"$FIXTURE_REPO/scripts/fork-descendant.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+sentinel="${1:?sentinel path required}"
+pids="${2:?pid path required}"
+(
+  trap '' TERM
+  sleep 1
+  printf 'leaked\n' >"$sentinel"
+) &
+child_pid=$!
+printf '%s\n' "$child_pid" >"$pids"
+wait "$child_pid"
+SH
+
+python3 - "$SAFE_MODULE" "$FIXTURE_REPO" \
+  "$FIXTURE_REPO/.descendant-leaked" "$FIXTURE_REPO/.descendant-pid" <<'PY'
+import sys
+from pathlib import Path
+
+module_path, repo, sentinel, pids = sys.argv[1:5]
+sys.path.insert(0, str(Path(module_path).parent))
+import validate_safe_cli_introspection_1 as module
+
+result = module.run_bounded_command(
+    ["bash", "scripts/fork-descendant.sh", sentinel, pids],
+    cwd=Path(repo),
+    timeout_seconds=0.2,
+)
+if not result.timed_out:
+    raise SystemExit("bounded runner did not report timeout")
+PY
+
+descendant_pid="$(cat "$FIXTURE_REPO/.descendant-pid")"
+if kill -0 "$descendant_pid" 2>/dev/null; then
+  kill -KILL "$descendant_pid" 2>/dev/null || true
+  echo "FAIL: timed-out descendant process remains alive: $descendant_pid" >&2
+  exit 1
+fi
+sleep 1.1
+[[ ! -e "$FIXTURE_REPO/.descendant-leaked" ]] || {
+  echo "FAIL: timed-out descendant survived long enough to write sentinel" >&2
   exit 1
 }
 

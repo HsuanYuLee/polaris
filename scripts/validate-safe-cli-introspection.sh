@@ -83,8 +83,10 @@ TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 FIXTURE="$TMP_ROOT/fixture"
 OUTPUT="$TMP_ROOT/output.txt"
+RUNNER_ERROR="$TMP_ROOT/runner-error.txt"
 GUARD_BIN="$TMP_ROOT/guard-bin"
 mkdir -p "$FIXTURE/home" "$FIXTURE/tmp" "$GUARD_BIN"
+: >"$OUTPUT"
 
 copy_fixture_file() {
   local path="$1"
@@ -127,15 +129,18 @@ snapshot_tree() {
 fixture_before="$(snapshot_tree "$FIXTURE")"
 source_before="$(snapshot_tree "$REPO")"
 set +e
-(
-  cd "$FIXTURE"
-    env -i \
-    POLARIS_INTROSPECTION_SENTINEL="$SENTINEL" \
-    PATH="$GUARD_BIN:/usr/bin:/bin" \
-    HOME="$FIXTURE/home" \
-    TMPDIR="$FIXTURE/tmp" \
-    "$BASH_BIN" "$FIXTURE/$TARGET" "$INTROSPECTION_ARG"
-) >"$OUTPUT" 2>&1
+"$PYTHON_BIN" "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/validate_safe_cli_introspection_1.py" \
+  --run-bounded \
+  --cwd "$FIXTURE" \
+  --timeout 5 \
+  --output "$OUTPUT" \
+  --clear-env \
+  --env "POLARIS_INTROSPECTION_SENTINEL=$SENTINEL" \
+  --env "PATH=$GUARD_BIN:/usr/bin:/bin" \
+  --env "HOME=$FIXTURE/home" \
+  --env "TMPDIR=$FIXTURE/tmp" \
+  -- "$BASH_BIN" "$FIXTURE/$TARGET" "$INTROSPECTION_ARG" \
+  2>"$RUNNER_ERROR"
 rc=$?
 set -e
 fixture_after="$(snapshot_tree "$FIXTURE")"
@@ -151,7 +156,11 @@ if [[ "$fixture_before" != "$fixture_after" ]]; then
   exit 2
 fi
 if [[ "$rc" -ne 0 ]]; then
+  if [[ "$rc" -eq 124 ]]; then
+    echo "POLARIS_SAFE_CLI_INTROSPECTION_TIMEOUT:$TARGET:$INTROSPECTION_ARG" >&2
+  fi
   echo "POLARIS_SAFE_CLI_INTROSPECTION_COMMAND_FAILED:$TARGET:$INTROSPECTION_ARG:exit=$rc" >&2
+  cat "$RUNNER_ERROR" >&2
   cat "$OUTPUT" >&2
   exit 2
 fi

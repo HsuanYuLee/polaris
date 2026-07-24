@@ -191,6 +191,12 @@ elif command == "smoke":
     from pathlib import Path
     from urllib.parse import urlparse
 
+    from validate_safe_cli_introspection_1 import (
+        UnsafeScriptPathError,
+        classify_script_for_introspection,
+        run_bounded_command,
+    )
+
     task_path = Path(sys.argv[1])
     command = sys.argv[2]
     kind = sys.argv[3] if len(sys.argv) > 3 else "verify_command"
@@ -304,25 +310,34 @@ elif command == "smoke":
     _allowed_paths = _parse_allowed_files(_task_text)
     CREATE_SET: set[str] = _create_paths & _allowed_paths
 
-    def script_supported_flags(script: Path):
-        if not script.is_file():
-            return None
+    def script_supported_flags(script: Path, display_path: str):
         try:
-            proc = subprocess.run(
+            result = run_bounded_command(
                 ["bash", str(script), "--help"],
                 cwd=repo_root,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=5,
+                timeout_seconds=5.0,
             )
-        except Exception:
+        except OSError as exc:
+            errors.append(
+                "POLARIS_VERIFY_COMMAND_INTROSPECTION_FAILED:"
+                f"{display_path}:{exc}"
+            )
             return None
-        if proc.returncode not in (0, 2):
+        if result.timed_out:
+            errors.append(
+                "POLARIS_VERIFY_COMMAND_INTROSPECTION_TIMEOUT:"
+                f"{display_path}:process group terminated"
+            )
             return None
-        help_text = f"{proc.stdout}\n{proc.stderr}"
+        if result.returncode not in (0, 2):
+            errors.append(
+                "POLARIS_VERIFY_COMMAND_INTROSPECTION_FAILED:"
+                f"{display_path}:exit={result.returncode}"
+            )
+            return None
+        help_text = f"{result.stdout}\n{result.stderr}"
         flags = set(re.findall(r"(?<!\w)--[A-Za-z][A-Za-z0-9_-]*", help_text))
-        return flags or None
+        return flags
 
     def smoke_script_flags(line: str, tokens: list[str]):
         script_idx = None
@@ -341,15 +356,43 @@ elif command == "smoke":
                 return
             errors.append(f"Verify Command references missing repo-local script: {tokens[script_idx]} (line: {line})")
             return
-        supported = script_supported_flags(script)
-        if supported is None:
-            return
         used = []
         for token in tokens[script_idx + 1:]:
             if token == "--":
                 break
             if token.startswith("--"):
                 used.append(token.split("=", 1)[0])
+        try:
+            script_class = classify_script_for_introspection(
+                script,
+                tokens[script_idx],
+                repo_root,
+            )
+        except UnsafeScriptPathError as exc:
+            errors.append(
+                "POLARIS_VERIFY_COMMAND_INVALID_SCRIPT_PATH:"
+                f"{tokens[script_idx]}:{exc} (line: {line})"
+            )
+            return
+        if script_class == "test":
+            return
+        if script_class == "non_cli":
+            if used:
+                unsupported_diagnostics = ", ".join(
+                    f"unsupported flag {flag}" for flag in used
+                )
+                errors.append(
+                    "POLARIS_VERIFY_COMMAND_UNSAFE_INTROSPECTION:"
+                    f"{tokens[script_idx]}:{unsupported_diagnostics}; "
+                    f"cannot validate flags {', '.join(used)} "
+                    f"without the canonical safe CLI help prefix (line: {line})"
+                )
+            return
+        if not used:
+            return
+        supported = script_supported_flags(script, tokens[script_idx])
+        if supported is None:
+            return
         for flag in used:
             if flag not in supported:
                 errors.append(
@@ -429,10 +472,14 @@ elif command == "smoke":
             continue
         if tokens[0] in {"env", "timeout", "command"} and len(tokens) > 1:
             tokens = tokens[1:]
-        if tokens and tokens[0] == "bash" and len(tokens) > 1:
-            smoke_script_flags(line, tokens)
-        elif tokens and tokens[0].startswith("scripts/") and tokens[0].endswith(".sh"):
-            smoke_script_flags(line, tokens)
+        # DP-445 governs Verify Command introspection. Env bootstrap validation
+        # shares this smoke primitive only for command-shape checks; it must not
+        # execute or reclassify bootstrap scripts as an incidental side effect.
+        if kind == "verify_command":
+            if tokens and tokens[0] == "bash" and len(tokens) > 1:
+                smoke_script_flags(line, tokens)
+            elif tokens and tokens[0].startswith("scripts/") and tokens[0].endswith(".sh"):
+                smoke_script_flags(line, tokens)
         smoke_rg_pattern(line, tokens)
 
     # DP-369 GapA: env_bootstrap executability — first-token command-shape check.

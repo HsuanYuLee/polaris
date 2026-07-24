@@ -3,12 +3,21 @@
 #          source_type=bug and {BUG_KEY}-Tn/Vn work_item_id.
 set -euo pipefail
 
+if [[ -n "${POLARIS_BUG_SOURCE_INVOCATION_LOG:-}" ]]; then
+  printf '%s\n' "${*:-<no-args>}" >>"$POLARIS_BUG_SOURCE_INVOCATION_LOG"
+  if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    echo "POLARIS_BUG_SOURCE_SELFTEST_DYNAMIC_HELP_EXECUTION" >&2
+    exit 88
+  fi
+fi
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DERIVE="$ROOT/scripts/derive-task-md-from-refinement-json.sh"
 VALIDATE="$ROOT/scripts/validate-task-md.sh"
 RESOLVE="$ROOT/scripts/resolve-task-md.sh"
 TMP="$(mktemp -d -t bug-source-task-identity.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
+export POLARIS_BUG_SOURCE_INVOCATION_LOG="$TMP/dynamic-invocations.log"
 
 BUG_DIR="$TMP/docs-manager/src/content/docs/specs/companies/exampleco/BUG-321"
 mkdir -p "$BUG_DIR/tasks/T1" "$BUG_DIR/tasks/V1"
@@ -109,6 +118,12 @@ out="$(env -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$RESOLVE" --sca
 
 if env -u POLARIS_WORKSPACE_ROOT -u POLARIS_SPECS_ROOT bash "$RESOLVE" --scan-root "$TMP" BUG-321 >/dev/null 2>"$TMP/short.err"; then
   echo "FAIL: BUG-321 bare JIRA lookup unexpectedly resolved a source work item" >&2
+  exit 1
+fi
+
+if [[ -s "$POLARIS_BUG_SOURCE_INVOCATION_LOG" ]]; then
+  echo "FAIL: validate-task-md dynamically executed the Bug source selftest" >&2
+  cat "$POLARIS_BUG_SOURCE_INVOCATION_LOG" >&2
   exit 1
 fi
 

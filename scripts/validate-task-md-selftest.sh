@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Purpose: 驗證 task.md planner baseline、環境命令與 Verify Command static smoke 契約。
+# Inputs: temporary task.md and repo-local script fixtures。
+# Outputs: 每組 contract assertion 成立時輸出 PASS，否則 exit non-zero。
+
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -252,3 +256,69 @@ if ! grep -Eq 'helper\("smoke".*normalized_bootstrap.*"env_bootstrap"' "$VALIDAT
   exit 1
 fi
 echo "PASS: validate-task-md env-bootstrap AC-NEG3 (reuses primitive)"
+
+# ===========================================================================
+# DP-445: Verify Command script classification precedes any dynamic execution.
+# ===========================================================================
+
+SMOKE_REPO="$TMPROOT/smoke-repo"
+mkdir -p "$SMOKE_REPO/scripts/selftests" "$SMOKE_REPO/scripts"
+
+cat >"$SMOKE_REPO/scripts/selftests/no-help-selftest.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'spawned\n' > .unexpected-selftest-spawn
+SH
+cat >"$TMPROOT/smoke-selftest-task.md" <<'EOF'
+## 改動範圍
+
+| 檔案 | 動作 | 說明 |
+|------|------|------|
+| `scripts/selftests/no-help-selftest.sh` | modify | fixture |
+
+## Allowed Files
+
+- `scripts/selftests/no-help-selftest.sh`
+EOF
+(
+  cd "$SMOKE_REPO"
+  python3 "$VALIDATE_MODULE" smoke "$TMPROOT/smoke-selftest-task.md" \
+    "bash scripts/selftests/no-help-selftest.sh" verify_command
+)
+[[ ! -e "$SMOKE_REPO/.unexpected-selftest-spawn" ]] || {
+  echo "FAIL: Verify Command smoke dynamically executed a selftest" >&2
+  exit 1
+}
+
+cat >"$SMOKE_REPO/scripts/non-cli.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'spawned\n' > .unexpected-non-cli-spawn
+printf '%s\n' '--unsafe'
+SH
+cat >"$TMPROOT/smoke-non-cli-task.md" <<'EOF'
+## 改動範圍
+
+| 檔案 | 動作 | 說明 |
+|------|------|------|
+| `scripts/non-cli.sh` | modify | fixture |
+
+## Allowed Files
+
+- `scripts/non-cli.sh`
+EOF
+if (
+  cd "$SMOKE_REPO"
+  python3 "$VALIDATE_MODULE" smoke "$TMPROOT/smoke-non-cli-task.md" \
+    "bash scripts/non-cli.sh --unsafe" verify_command
+) >"$TMPROOT/smoke-non-cli.out" 2>&1; then
+  echo "FAIL: non-CLI script with flags must fail closed" >&2
+  exit 1
+fi
+grep -q 'POLARIS_VERIFY_COMMAND_UNSAFE_INTROSPECTION' "$TMPROOT/smoke-non-cli.out"
+[[ ! -e "$SMOKE_REPO/.unexpected-non-cli-spawn" ]] || {
+  echo "FAIL: Verify Command smoke dynamically executed an unsafe non-CLI script" >&2
+  exit 1
+}
+
+echo "PASS: validate-task-md Verify Command classification"

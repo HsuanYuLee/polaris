@@ -1,3 +1,22 @@
+## Verify Command Introspection Authority
+
+`validate-task-md` 在檢查 repo-local shell script flag 前，必須先由
+`scripts/lib/validate_safe_cli_introspection_1.py` 分類，不能用動態 `--help` 猜分類：
+
+- `test`：路徑位於 `test` / `tests` / `selftest` / `selftests`，或檔名以
+  `-selftest.sh`、`_selftest.sh`、`-test.sh`、`_test.sh` 結尾。分類必須使用解析後仍位於
+  repo 內的 canonical relative path；lexical `selftests/../` 與指向 repo 外的 symlink
+  不得取得 test 資格。validator 永不執行合法 test-classified script。
+- `non_cli`：未通過 DP-422 canonical literal-help prefix。沒有 flag 時不做
+  introspection；帶 flag 時以 `POLARIS_VERIFY_COMMAND_UNSAFE_INTROSPECTION` fail-closed。
+- `safe_cli`：只有通過 canonical prefix 的 script 才能為了 flag discovery 執行
+  `--help`。執行必須建立獨立 session，timeout 時終止並 reap 整個 process group。
+
+合法 safe CLI 的 unsupported flag 仍沿用 DP-065 diagnostic；missing script 只有同時列在
+`## 改動範圍` `create` 與 `## Allowed Files` 的 create-set 才可在 planning 階段略過。
+不得以加長 timeout、只 kill direct child、替個別 selftest 補 `--help` 特例，或完全移除
+flag validation 取代這個分類契約。
+
 ## 6. Validator Mapping
 
 **T mode rules（filename `T*.md`，§ 3 Implementation Schema）**：

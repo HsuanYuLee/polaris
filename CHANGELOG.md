@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.79.5] - 2026-07-24
+
+### Fixed
+
+- 87a8c39: 防止 task validator 執行 selftest，並在 CLI introspection timeout 時收斂完整 process group
+
 ## [3.79.4] - 2026-07-24
 
 ### Changed
