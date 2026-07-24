@@ -373,13 +373,20 @@ primary doc 進入 `status: LOCKED` 後，**任何** refinement amendment 都受
 | `## Downstream Breakdown Hints` | ✅ 可 | 子單拆分細節可調 |
 | `tasks/**/*.md` | ✅ 可 | task.md 細節 / Verify Command / Allowed Files 可 amendment |
 
-實際 enforce 由 `scripts/validate-refinement-locked-scope.sh` 負責：amendment commit 的
-`refinement.json` diff（JSON authority，DP-298 T2）對照上表，`goal` / `background` /
+實際 enforce 由 `scripts/validate-refinement-locked-scope.sh` 負責。canonical writer 在
+mutation 前以現存 `refinement.json` 作 current authority、待寫 body 作 candidate
+authority，先驗 candidate schema與 source identity，再對照上表。`goal` / `background` /
 `decisions` / `scope` 整欄 deep-compare；`acceptance_criteria` 採 per-AC-id 配對 +
 per-field 比對（DP-311 T5）——AC 增刪、id / text / category / `verification.method`
 任一變更即 exit 2 並輸出 `POLARIS_LOCKED_SCOPE_VIOLATION` stderr；唯一開放欄位是
 `verification.detail`。同筆 AC 同時改 `verification.detail` 與鎖定欄位時整筆 fail，
-不因含合法 detail 變更而放行。auto-pass 收到 exit 2 後必須升 terminal
+不因含合法 detail 變更而放行。
+
+git-ref mode 只保留給兩端 blob 都可觀測的 tracked compatibility caller；base/head 任一
+blob 不存在、JSON 無法解析、current/candidate 指向同檔或 identity 不一致時，必須以
+`POLARIS_LOCKED_SCOPE_AUTHORITY_UNOBSERVABLE` exit 2。ignored／untracked source 一律走
+writer 的 explicit-file mode，不得以空物件、candidate 自身或 rendered
+`refinement.md` 代替 before authority。auto-pass 收到 exit 2 後必須升 terminal
 `blocked_by_gate_failure`，由人類決定是否走完整 unlock + refinement 流程。
 
 ### 人工 Unlock 流程

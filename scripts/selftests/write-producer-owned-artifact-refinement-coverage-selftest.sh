@@ -157,6 +157,70 @@ with open(sys.argv[1], "w", encoding="utf-8") as fh:
 PY
 }
 
+write_valid_jira_body() {
+  local target_path="$1" body_out="$2"
+  local container; container="$(dirname "$target_path")"
+  mkdir -p "$container"
+  : >"$container/index.md"
+  EPIC_KEY="$(basename "$container")" python3 - "$body_out" <<'PY'
+import json, os, sys
+body = {
+    "epic": os.environ["EPIC_KEY"],
+    "source": {
+        "type": "jira",
+        "repo": "example-product",
+        "base_branch": "main",
+    },
+    "version": "1.0",
+    "schema_version": "1.0",
+    "created_at": "2026-06-03T00:00:00Z",
+    "modules": [{"path": "scripts/x.sh", "action": "modify"}],
+    "acceptance_criteria": [
+        {"id": "AC1", "text": "t", "verification": {"method": "unit_test", "detail": "d"}}
+    ],
+    "dependencies": [],
+    "edge_cases": [],
+    "predecessor_audit": [],
+    "adversarial_pass": [{"ac_id": "AC1", "attack": "a", "enforce": "e"}],
+    "changed_files": ["scripts/x.sh"],
+    "tasks": [
+        {
+            "id": "T1", "kind": "T", "title": "新增 sanctioned writer fixture", "scope": "建立 refinement writer selftest fixture。",
+            "modules": ["scripts/x.sh"],
+            "ac_ids": ["AC1"], "dependencies": [],
+            "verification": {"method": "unit_test", "detail": "echo PASS", "verify_command": "echo PASS"},
+        }
+    ],
+}
+with open(sys.argv[1], "w", encoding="utf-8") as fh:
+    json.dump(body, fh)
+PY
+}
+
+# DP-444 AC2: the caller-owned body must be snapshotted before any refinement
+# preflight, and only that writer-owned snapshot may be promoted.
+python3 - "$WRITER" <<'PY'
+import sys
+from pathlib import Path
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+snapshot = 'cp "$BODY_FILE" "$tmp_target"'
+preflight = '--candidate-for "$TARGET_PATH"'
+promotion = 'mv -f "$tmp_target" "$TARGET_PATH"'
+try:
+    snapshot_at = text.index(snapshot)
+    preflight_at = text.index(preflight)
+    promotion_at = text.index(promotion)
+except ValueError as exc:
+    print(f"FAIL (candidate-snapshot): writer snapshot contract is incomplete: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+if not snapshot_at < preflight_at < promotion_at:
+    print("FAIL (candidate-snapshot): snapshot/preflight/promotion ordering regressed", file=sys.stderr)
+    raise SystemExit(1)
+if '"$BODY_FILE"' in text[snapshot_at + len(snapshot):promotion_at]:
+    print("FAIL (candidate-snapshot): writer rereads caller-owned body after snapshot", file=sys.stderr)
+    raise SystemExit(1)
+PY
+
 # AC5 happy path (DP-backed): sanctioned write to a tmpdir DP container
 # refinement.json. Using a tmpdir target keeps the tracked specs tree untouched;
 # the writer's glob match is path-shape based (tail glob), so a tmpdir DP-*
@@ -186,7 +250,7 @@ grep -q 'artifact_kind=refinement_design_doc' "$WORKDIR/dp-happy.out"
 # container refinement.json.
 epic_target="$WORKDIR/docs-manager/src/content/docs/specs/companies/exampleco/EX-1234/refinement.json"
 epic_body="$WORKDIR/epic-body.json"
-write_valid_body "$epic_target" "$epic_body"
+write_valid_jira_body "$epic_target" "$epic_body"
 set +e
 "$WRITER" \
   --producer-token refinement:design-doc \
@@ -272,6 +336,113 @@ if [[ -f "$invalid_target" ]]; then
   exit 1
 fi
 
+# DP-444 AC2 / AC-NF1: LOCKED refinement.json amendments must compare the
+# on-disk current file with the candidate before the atomic rename. Run the
+# same protected-mutation fixture under DP-backed and Epic-shaped containers.
+run_locked_protected_mutation_case() {
+  local label="$1" target="$2" source_type="${3:-dp}"
+  local current_body="$WORKDIR/${label}-current.json"
+  local candidate="$WORKDIR/${label}-candidate.json"
+  local container; container="$(dirname "$target")"
+  local ledger="$container/artifacts/auto-pass/ledger.json"
+  local derived="$container/refinement.md"
+
+  if [[ "$source_type" == "jira" ]]; then
+    write_valid_jira_body "$target" "$current_body"
+  else
+    write_valid_body "$target" "$current_body"
+  fi
+  cp "$current_body" "$target"
+  cat >"$container/index.md" <<'EOF'
+---
+title: "LOCKED refinement writer fixture"
+status: LOCKED
+---
+EOF
+  printf '%s\n' 'derived view must remain byte-identical' >"$derived"
+  mkdir -p "$(dirname "$ledger")"
+  printf '%s\n' 'ledger sentinel must remain byte-identical' >"$ledger"
+  cp "$current_body" "$candidate"
+  python3 - "$candidate" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+data = json.loads(p.read_text(encoding="utf-8"))
+data["scope"] = ["protected scope rewrite"]
+p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+
+  local target_before ledger_before derived_before rc=0
+  target_before="$(cksum "$target")"
+  ledger_before="$(cksum "$ledger")"
+  derived_before="$(cksum "$derived")"
+  "$WRITER" \
+    --producer-token refinement:design-doc \
+    --path "$target" \
+    --body-file "$candidate" \
+    --source-container "$container" \
+    --source-id DP-999 \
+    --ledger-path "$ledger" >"$WORKDIR/${label}-locked.out" 2>&1 || rc=$?
+  if [[ "$rc" -ne 2 ]]; then
+    echo "FAIL ($label): protected LOCKED mutation expected exit 2, got $rc" >&2
+    cat "$WORKDIR/${label}-locked.out" >&2
+    exit 1
+  fi
+  grep -q 'POLARIS_LOCKED_SCOPE_VIOLATION' "$WORKDIR/${label}-locked.out" || {
+    echo "FAIL ($label): protected mutation missing LOCKED-scope marker" >&2
+    cat "$WORKDIR/${label}-locked.out" >&2
+    exit 1
+  }
+  [[ "$(cksum "$target")" == "$target_before" ]] || {
+    echo "FAIL ($label): target changed before protected-mutation rejection" >&2
+    exit 1
+  }
+  [[ "$(cksum "$ledger")" == "$ledger_before" ]] || {
+    echo "FAIL ($label): ledger changed before protected-mutation rejection" >&2
+    exit 1
+  }
+  [[ "$(cksum "$derived")" == "$derived_before" ]] || {
+    echo "FAIL ($label): derived view changed before protected-mutation rejection" >&2
+    exit 1
+  }
+}
+
+run_locked_protected_mutation_case \
+  "locked-dp" \
+  "$WORKDIR/docs-manager/src/content/docs/specs/design-plans/DP-994-locked-writer/refinement.json"
+run_locked_protected_mutation_case \
+  "locked-epic" \
+  "$WORKDIR/docs-manager/src/content/docs/specs/companies/exampleco/EX-994/refinement.json" \
+  jira
+
+# DP-444 AC2: malformed candidate must be rejected before replacing an existing
+# LOCKED target, with a dedicated pre-write marker.
+malformed_target="$WORKDIR/docs-manager/src/content/docs/specs/design-plans/DP-993-malformed-candidate/refinement.json"
+malformed_current="$WORKDIR/malformed-current.json"
+write_valid_body "$malformed_target" "$malformed_current"
+cp "$malformed_current" "$malformed_target"
+cat >"$(dirname "$malformed_target")/index.md" <<'EOF'
+---
+title: "Malformed candidate fixture"
+status: LOCKED
+---
+EOF
+malformed_before="$(cksum "$malformed_target")"
+rc=0
+"$WRITER" \
+  --producer-token refinement:design-doc \
+  --path "$malformed_target" \
+  --body-file "$invalid_body" >"$WORKDIR/malformed-prewrite.out" 2>&1 || rc=$?
+if [[ "$rc" -ne 2 ]] || ! grep -q 'POLARIS_REFINEMENT_CANDIDATE_INVALID' "$WORKDIR/malformed-prewrite.out"; then
+  echo "FAIL (malformed-prewrite): malformed LOCKED candidate was not rejected before write" >&2
+  cat "$WORKDIR/malformed-prewrite.out" >&2
+  exit 1
+fi
+[[ "$(cksum "$malformed_target")" == "$malformed_before" ]] || {
+  echo "FAIL (malformed-prewrite): target changed before malformed-candidate rejection" >&2
+  exit 1
+}
+
 # ---------------------------------------------------------------------------
 # Container index.md primary doc (artifact_kind=refinement_primary_doc).
 # ---------------------------------------------------------------------------
@@ -306,7 +477,11 @@ idx_refinement_body="$WORKDIR/idx-refinement.json"
 write_valid_body "$idx_refinement" "$idx_refinement_body"
 cp "$idx_refinement_body" "$idx_refinement"
 bash "$ROOT_DIR/scripts/render-refinement-md.sh" "$idx_refinement" >"$(dirname "$idx_target")/refinement.md"
-write_valid_index_body "$idx_target" "DP-999 Fixture Index Coverage" DISCUSSION
+# This selftest owns sanctioned-writer coverage, not the DISCUSSION -> LOCKED
+# transition readiness contract. Keep the current fixture LOCKED so the primary
+# doc rewrite exercises LOCKED -> LOCKED and does not depend on unrelated
+# handoff-advisory fixtures.
+write_valid_index_body "$idx_target" "DP-999 Fixture Index Coverage" LOCKED
 write_valid_index_body "$idx_body" "DP-999 Fixture Index Coverage"
 set +e
 "$WRITER" \

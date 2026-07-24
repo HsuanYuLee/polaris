@@ -346,6 +346,14 @@ fi
 target_dir="$(dirname "$TARGET_PATH")"
 mkdir -p "$target_dir"
 
+# Snapshot the caller-owned body exactly once into the writer-owned target
+# filesystem. Every preflight below and the final atomic promotion consume this
+# same immutable-by-ownership file, closing the preflight-to-copy TOCTOU gap.
+tmp_target="$(mktemp -p "$target_dir" .producer-writer-XXXXXX.tmp)"
+trap 'rm -f "$tmp_target"' EXIT
+cp "$BODY_FILE" "$tmp_target"
+CANDIDATE_FILE="$tmp_target"
+
 # DP-368 T1: LOCK-readiness pre-write gate (refinement_primary_doc branch only).
 #
 # A refinement-owned container index.md status transition into LOCKED is the
@@ -384,9 +392,46 @@ frontmatter_status() {
   ' "$file"
 }
 
+# DP-444: refinement.json amendment authority belongs to the two explicit files
+# that the canonical writer already owns at mutation time: the on-disk current
+# target and the candidate body. Validate the candidate and, for a LOCKED
+# source, compare protected fields before backup/rename so failure leaves the
+# target, derived view, and auto-pass ledger byte-identical. This path is
+# source-type-neutral; the comparator validates current/candidate identity.
+if [[ "$artifact_kind" == "refinement_design_doc" \
+   && "$TARGET_PATH" == *refinement.json ]]; then
+  candidate_validator="$WORKSPACE_ROOT/scripts/validate-refinement-json.sh"
+  candidate_exit=0
+  if [[ -x "$candidate_validator" ]]; then
+    "$candidate_validator" \
+      --candidate-for "$TARGET_PATH" \
+      "$CANDIDATE_FILE" >&2 || candidate_exit=$?
+  else
+    echo "POLARIS_REFINEMENT_CANDIDATE_INVALID: missing validator: $candidate_validator" >&2
+    exit 2
+  fi
+  if [[ "$candidate_exit" -ne 0 ]]; then
+    echo "POLARIS_REFINEMENT_CANDIDATE_INVALID: candidate schema rejected before write: $CANDIDATE_FILE" >&2
+    exit 2
+  fi
+
+  refinement_container="$(dirname "$TARGET_PATH")"
+  source_status="$(frontmatter_status "$refinement_container/index.md")"
+  if [[ "$source_status" == "LOCKED" ]]; then
+    locked_scope_guard="$WORKSPACE_ROOT/scripts/validate-refinement-locked-scope.sh"
+    if [[ ! -x "$locked_scope_guard" ]]; then
+      echo "POLARIS_LOCKED_SCOPE_AUTHORITY_UNOBSERVABLE: missing guard: $locked_scope_guard" >&2
+      exit 2
+    fi
+    "$locked_scope_guard" \
+      --current-file "$TARGET_PATH" \
+      --candidate-file "$CANDIDATE_FILE" >&2 || exit 2
+  fi
+fi
+
 if [[ "$artifact_kind" == "refinement_primary_doc" ]]; then
   current_status="$(frontmatter_status "$TARGET_PATH")"
-  target_status="$(frontmatter_status "$BODY_FILE")"
+  target_status="$(frontmatter_status "$CANDIDATE_FILE")"
   if [[ "$current_status" != "LOCKED" && "$target_status" == "LOCKED" ]]; then
     lock_container="$(dirname "$TARGET_PATH")"
     refinement_json="$lock_container/refinement.json"
@@ -426,12 +471,7 @@ if [[ "$needs_final_path_validation" -eq 1 && -f "$TARGET_PATH" ]]; then
   cp "$TARGET_PATH" "$backup_file"
 fi
 
-# Atomic write: write to a temp file in the same directory, then rename.
-tmp_target="$(mktemp -p "$target_dir" .producer-writer-XXXXXX.tmp)"
-trap 'rm -f "$tmp_target"' EXIT
-cp "$BODY_FILE" "$tmp_target"
-
-# Promote to final path.
+# Atomic write: promote the exact writer-owned snapshot that passed preflight.
 mv -f "$tmp_target" "$TARGET_PATH"
 trap - EXIT
 

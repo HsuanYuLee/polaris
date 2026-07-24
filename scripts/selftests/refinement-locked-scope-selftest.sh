@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# refinement-locked-scope-selftest.sh — DP-212 LOCKED scope guard fixtures,
-# updated for DP-298 T2 (JSON-authority-only guard).
+# refinement-locked-scope-selftest.sh — LOCKED scope guard fixtures, updated
+# for DP-298 JSON-only authority and DP-444 explicit current/candidate files.
 #
 # DP-298 T2 removed the `refinement.md` `## Scope` / heading-diff business-read
 # branch. `refinement.json` is the single authoritative source for LOCKED scope.
@@ -21,6 +21,8 @@
 #      existing JSON-authority behavior unchanged.
 #   5. (AC-NEG1) The guard source contains no executing `refinement.md`
 #      body-read path (refinement.md references only appear in comments).
+#   6. (DP-444) Explicit current/candidate authority accepts implementation
+#      detail and rejects a protected-field rewrite.
 
 set -euo pipefail
 
@@ -78,6 +80,7 @@ MD
 cat >"$CONTAINER/refinement.json" <<'JSON'
 {
   "version": "1",
+  "source": {"type": "dp", "id": "DP-999"},
   "goal": "original goal",
   "background": "original background",
   "decisions": ["D1"],
@@ -214,4 +217,38 @@ if grep -qE 'refinement\.md|REFINEMENT_MD_REL|LOCKED_HEADINGS' <<< "$EXEC_BODY";
   exit 1
 fi
 
-echo "PASS: DP-298 T2 refinement LOCKED scope guard selftest (JSON-authority only, 5/5 cases)"
+# === Case 6 (DP-444): explicit current/candidate file authority ===
+CURRENT_JSON="$TMP/current.json"
+CANDIDATE_JSON="$TMP/candidate.json"
+git -C "$REPO" show "$BASE_SHA:$CONTAINER_REL/refinement.json" >"$CURRENT_JSON"
+cp "$CURRENT_JSON" "$CANDIDATE_JSON"
+python3 - "$CANDIDATE_JSON" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+data = json.loads(p.read_text(encoding="utf-8"))
+data["technical_approach"] = "explicit implementation-detail amendment"
+p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PY
+"$VALIDATOR" --current-file "$CURRENT_JSON" --candidate-file "$CANDIDATE_JSON" >"$TMP/case6-pass.out" 2>&1 || {
+  echo "FAIL: case 6 explicit implementation-detail amendment was rejected" >&2
+  cat "$TMP/case6-pass.out" >&2
+  exit 1
+}
+python3 - "$CANDIDATE_JSON" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+data = json.loads(p.read_text(encoding="utf-8"))
+data["goal"] = "protected goal rewrite"
+p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+PY
+rc=0
+"$VALIDATOR" --current-file "$CURRENT_JSON" --candidate-file "$CANDIDATE_JSON" >"$TMP/case6-fail.out" 2>&1 || rc=$?
+if [[ "$rc" -ne 2 ]] || ! grep -q 'POLARIS_LOCKED_SCOPE_VIOLATION' "$TMP/case6-fail.out"; then
+  echo "FAIL: case 6 explicit protected-field rewrite did not fail closed" >&2
+  cat "$TMP/case6-fail.out" >&2
+  exit 1
+fi
+
+echo "PASS: refinement LOCKED scope guard selftest (JSON-only + explicit-file authority, 6/6 cases)"

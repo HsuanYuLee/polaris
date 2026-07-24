@@ -41,6 +41,7 @@ mkdir -p "$CONTAINER"
 cat >"$CONTAINER/refinement.json" <<'JSON'
 {
   "version": "1",
+  "source": {"type": "dp", "id": "DP-998"},
   "goal": "original goal",
   "background": "original background",
   "decisions": ["D1"],
@@ -173,4 +174,120 @@ done
 mutate_json 'data["technical_approach"] = "updated approach"'
 expect_pass "case 11 (non-LOCKED technical_approach amendment)"
 
-echo "PASS: DP-311 T5 locked-scope per-field granularity selftest (11 cases)"
+# === Case 12 (DP-444 AC1): explicit current/candidate file authority ===
+EXPLICIT_CURRENT="$TMP/explicit-current.json"
+EXPLICIT_CANDIDATE="$TMP/explicit-candidate.json"
+git -C "$REPO" show "$BASE_SHA:$CONTAINER_REL/refinement.json" >"$EXPLICIT_CURRENT"
+cp "$EXPLICIT_CURRENT" "$EXPLICIT_CANDIDATE"
+python3 - "$EXPLICIT_CANDIDATE" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+data = json.loads(p.read_text(encoding="utf-8"))
+data["acceptance_criteria"][0]["verification"]["detail"] = "explicit-file detail amendment"
+p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+PY
+if ! "$VALIDATOR" --current-file "$EXPLICIT_CURRENT" --candidate-file "$EXPLICIT_CANDIDATE" >"$TMP/explicit-pass.out" 2>&1; then
+  echo "FAIL: case 12 explicit detail-only amendment was incorrectly rejected" >&2
+  cat "$TMP/explicit-pass.out" >&2
+  exit 1
+fi
+
+# === Case 13 (DP-444 AC1/AC-NEG1): protected mutation fails explicitly ===
+python3 - "$EXPLICIT_CANDIDATE" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+data = json.loads(p.read_text(encoding="utf-8"))
+data["scope"] = ["rewritten explicit scope"]
+p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+PY
+rc=0
+"$VALIDATOR" --current-file "$EXPLICIT_CURRENT" --candidate-file "$EXPLICIT_CANDIDATE" >"$TMP/explicit-violation.out" 2>&1 || rc=$?
+if [[ "$rc" -ne 2 ]] || ! grep -q "POLARIS_LOCKED_SCOPE_VIOLATION" "$TMP/explicit-violation.out"; then
+  echo "FAIL: case 13 explicit protected mutation did not fail closed" >&2
+  cat "$TMP/explicit-violation.out" >&2
+  exit 1
+fi
+
+# === Case 14 (DP-444 AC-NEG1): missing/aliased authority is never accepted ===
+EXPLICIT_HARDLINK="$TMP/explicit-current-hardlink.json"
+ln "$EXPLICIT_CURRENT" "$EXPLICIT_HARDLINK"
+for case_name in missing-current aliased-authority hardlink-authority; do
+  if [[ "$case_name" == "missing-current" ]]; then
+    explicit_args=(
+      --current-file "$TMP/missing-current.json"
+      --candidate-file "$EXPLICIT_CANDIDATE"
+    )
+  elif [[ "$case_name" == "hardlink-authority" ]]; then
+    explicit_args=(
+      --current-file "$EXPLICIT_CURRENT"
+      --candidate-file "$EXPLICIT_HARDLINK"
+    )
+  else
+    explicit_args=(
+      --current-file "$EXPLICIT_CURRENT"
+      --candidate-file "$EXPLICIT_CURRENT"
+    )
+  fi
+  rc=0
+  "$VALIDATOR" "${explicit_args[@]}" >"$TMP/explicit-unobservable.out" 2>&1 || rc=$?
+  if [[ "$rc" -ne 2 ]] || ! grep -q "POLARIS_LOCKED_SCOPE_AUTHORITY_UNOBSERVABLE" "$TMP/explicit-unobservable.out"; then
+    echo "FAIL: case 14 unavailable/aliased explicit authority did not fail closed: $case_name" >&2
+    cat "$TMP/explicit-unobservable.out" >&2
+    exit 1
+  fi
+done
+
+# === Case 15 (DP-444 AC3): git-ref mode requires both observable blobs ===
+IGNORED_REL="docs-manager/src/content/docs/specs/design-plans/DP-997-ignored/refinement.json"
+mkdir -p "$REPO/$(dirname "$IGNORED_REL")"
+printf '%s\n' 'docs-manager/src/content/docs/specs/design-plans/DP-997-ignored/' >>"$REPO/.gitignore"
+cp "$EXPLICIT_CURRENT" "$REPO/$IGNORED_REL"
+git -C "$REPO" add .gitignore
+git -C "$REPO" commit -q -m "ignore amendment fixture"
+IGNORED_BASE="$(git -C "$REPO" rev-parse HEAD)"
+rc=0
+"$VALIDATOR" \
+  --container "$REPO/$(dirname "$IGNORED_REL")" \
+  --base-ref "$IGNORED_BASE" \
+  --head-ref HEAD >"$TMP/git-unobservable.out" 2>&1 || rc=$?
+if [[ "$rc" -ne 2 ]] || ! grep -q "POLARIS_LOCKED_SCOPE_AUTHORITY_UNOBSERVABLE" "$TMP/git-unobservable.out"; then
+  echo "FAIL: case 15 ignored git-ref authority was incorrectly accepted" >&2
+  cat "$TMP/git-unobservable.out" >&2
+  exit 1
+fi
+
+# === Case 16 (DP-444 AC2/AC-NF1): JIRA identity is canonical epic, not source.id ===
+JIRA_CURRENT="$TMP/jira-current.json"
+JIRA_CANDIDATE="$TMP/jira-candidate.json"
+cp "$EXPLICIT_CURRENT" "$JIRA_CURRENT"
+python3 - "$JIRA_CURRENT" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+data = json.loads(p.read_text(encoding="utf-8"))
+data["epic"] = "EX-1234"
+data["source"] = {
+    "type": "jira",
+    "repo": "example-product",
+    "base_branch": "main",
+}
+p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+PY
+cp "$JIRA_CURRENT" "$JIRA_CANDIDATE"
+python3 - "$JIRA_CANDIDATE" <<'PY'
+import json, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+data = json.loads(p.read_text(encoding="utf-8"))
+data["acceptance_criteria"][0]["verification"]["detail"] = "JIRA detail amendment"
+p.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+PY
+if ! "$VALIDATOR" --current-file "$JIRA_CURRENT" --candidate-file "$JIRA_CANDIDATE" >"$TMP/jira-pass.out" 2>&1; then
+  echo "FAIL: case 16 schema-valid JIRA identity without source.id was rejected" >&2
+  cat "$TMP/jira-pass.out" >&2
+  exit 1
+fi
+
+echo "PASS: locked-scope per-field + explicit-file authority selftest (16 cases)"

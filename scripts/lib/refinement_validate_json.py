@@ -2,26 +2,40 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 
-def usage() -> int:
+def usage(parser: Optional[argparse.ArgumentParser] = None) -> int:
     cli = os.environ.get("POLARIS_COMPAT_CLI", "validate-refinement-json.sh")
     print(f"usage: {cli} <path/to/refinement.json>", file=sys.stderr)
+    print(
+        f"       {cli} --candidate-for <final/refinement.json> <candidate.json>",
+        file=sys.stderr,
+    )
     print(f"       {cli} --scan <workspace_root>", file=sys.stderr)
+    if parser is not None:
+        parser.print_help(file=sys.stderr)
     return 2
 
 
-def validate_formatted(path: Path, quiet: bool = False) -> int:
+def validate_formatted(
+    path: Path, quiet: bool = False, artifact_path_override: Optional[Path] = None
+) -> int:
     if not path.is_file():
         if not quiet:
             print(f"error: file not found: {path}", file=sys.stderr)
         return 2
+    command = [sys.executable, __file__, "--raw"]
+    if artifact_path_override is not None:
+        command.extend(["--artifact-path", str(artifact_path_override)])
+    command.append(str(path))
     result = subprocess.run(
-        [sys.executable, __file__, "--raw", str(path)],
+        command,
         capture_output=True,
         text=True,
         check=False,
@@ -71,21 +85,51 @@ def scan(root: Path) -> int:
     return 0
 
 
-args = sys.argv[1:]
-if args and args[0] == "--raw":
-    if len(args) != 2:
-        raise SystemExit(usage())
-    sys.argv = [sys.argv[0], args[1]]
-elif args and args[0] == "--scan":
-    if len(args) != 2:
-        raise SystemExit(usage())
-    raise SystemExit(scan(Path(args[1])))
-elif args and args[0] in {"-h", "--help"}:
-    raise SystemExit(usage())
-elif len(args) != 1:
-    raise SystemExit(usage())
+parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+parser.add_argument("--raw", action="store_true")
+parser.add_argument("--artifact-path")
+parser.add_argument("--candidate-for")
+parser.add_argument("--scan")
+parser.add_argument("-h", "--help", action="store_true")
+parser.add_argument("path", nargs="?")
+parsed = parser.parse_args()
+
+if parsed.help:
+    raise SystemExit(usage(parser))
+
+selected_modes = sum(
+    (
+        bool(parsed.raw),
+        parsed.candidate_for is not None,
+        parsed.scan is not None,
+    )
+)
+if selected_modes > 1:
+    raise SystemExit(usage(parser))
+
+if parsed.raw:
+    if parsed.path is None:
+        raise SystemExit(usage(parser))
+    path = parsed.path
+    artifact_path = os.path.abspath(parsed.artifact_path or path)
+elif parsed.artifact_path is not None:
+    raise SystemExit(usage(parser))
+elif parsed.candidate_for is not None:
+    if parsed.path is None:
+        raise SystemExit(usage(parser))
+    raise SystemExit(
+        validate_formatted(
+            Path(parsed.path), artifact_path_override=Path(parsed.candidate_for)
+        )
+    )
+elif parsed.scan is not None:
+    if parsed.path is not None:
+        raise SystemExit(usage(parser))
+    raise SystemExit(scan(Path(parsed.scan)))
+elif parsed.path is None:
+    raise SystemExit(usage(parser))
 else:
-    raise SystemExit(validate_formatted(Path(args[0])))
+    raise SystemExit(validate_formatted(Path(parsed.path)))
 
 import json
 import os
@@ -93,8 +137,6 @@ import re
 import sys
 from urllib.parse import urlparse
 
-path = sys.argv[1]
-artifact_path = os.path.abspath(path)
 skip_path_currentness = "/archive/" in artifact_path
 errors = []
 

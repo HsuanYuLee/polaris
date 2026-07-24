@@ -102,6 +102,12 @@ mode。Amendment trigger 是「任何 refinement-owned source（DP-backed 或 JI
 時必須讓 `scripts/validate-refinement-locked-scope.sh` exit 2，並標 inbox
 `rejected_by_scope_guard=true`，不得 silently 修改 LOCKED section。
 
+LOCKED amendment 寫 `refinement.json` 時，必須由 canonical
+`write-producer-owned-artifact.sh` 在 final-path mutation 前，以 on-disk current file 與
+candidate body 呼叫同一 locked-scope comparator。ignored／untracked source 不得退回
+git-ref、空物件、candidate 自比或 rendered Markdown；current/candidate 任一不可觀測或
+identity 不一致時，以 `POLARIS_LOCKED_SCOPE_AUTHORITY_UNOBSERVABLE` fail-closed。
+
 ## Producer Env Contract
 
 `refinement` 寫入 specs-bound artifact（`refinement.md` / `refinement.json` /

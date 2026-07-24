@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.79.6] - 2026-07-25
+
+### Changed
+
+- f4dc936: LOCKED amendment explicit-file authority 與 writer preflight
+
 ## [3.79.5] - 2026-07-24
 
 ### Fixed
