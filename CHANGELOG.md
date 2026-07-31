@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.81.1] - 2026-07-31
+
+### Fixed
+
+- sync-to-polaris 從來沒把 `scripts/**/*.md` 同步進模板。Step 5 的 find 只收 `*.sh` / `*.py` / `*.mjs` / `manifest.json`，所以：(1) v3.81.0 把兩張機器讀表搬到 `scripts/lib/mechanism-tables.md` 後，模板端拿不到，fresh clone 跑 `compile-runtime-instructions.sh` 直接 FileNotFoundError；(2) 這是既有缺陷——模板一直出貨 `validate-starlight-authoring.sh`、`memory-hygiene-emit-index-selftest.sh` 等 6 個 script，但它們的 `.md` fixture（`scripts/fixtures/**`、`scripts/selftests/fixtures/**`，共 14 個檔）從未同步，在 fresh clone 上必然紅。Step 5 與 8c-5 prune 兩處 find 都補上 `*.md`。
+
 ## [3.81.0] - 2026-07-31
 
 ### Changed
