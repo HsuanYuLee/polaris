@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Purpose: selftest for the DP-311 T6 Verify/Test Command executability gate —
+# Purpose: selftest for the DP-311 T6 Verify Command executability gate —
 #   validate-breakdown-ready.sh must fail-close (exit 2 +
 #   POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE) on prose Verify Command / Test
 #   Command fenced blocks, and must NOT false-block executable commands
@@ -14,7 +14,7 @@
 #
 # AC coverage (DP-311):
 #   AC8     : prose Verify Command (DP-252-T1 original prose) -> exit 2 + marker;
-#             prose Test Command -> exit 2 + marker; directory scan mode too.
+#             directory scan mode too.
 #   AC-NEG7 : executable commands (incl. quoted CJK grep pattern) -> PASS,
 #             zero false-block.
 
@@ -193,26 +193,6 @@ fi
 if ! grep -q "POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE:$prose_verify_task" "$prose_verify_err"; then
   echo "FAIL [case 2 / AC8]: stderr missing POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE:<file> marker" >&2
   cat "$prose_verify_err" >&2
-  exit 1
-fi
-
-# ---------------------------------------------------------------------------
-# Case 3 (AC8): prose in the ## Test Command fence only -> exit 2 + marker
-# (both fences are gated; the defect ships as two copies, DP-252-T1 evidence).
-# ---------------------------------------------------------------------------
-mkdir -p "$tmpdir/prose-test/tasks/T1"
-prose_test_task="$tmpdir/prose-test/tasks/T1/index.md"
-cp "$valid_task" "$prose_test_task"
-rewrite_fence "$prose_test_task" "## Test Command" "$DP252_PROSE"
-
-prose_test_err="$tmpdir/prose-test.err"
-set +e
-bash "$VALIDATOR" "$prose_test_task" >/dev/null 2>"$prose_test_err"
-rc=$?
-set -e
-if [[ "$rc" -ne 2 ]] || ! grep -q 'POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE' "$prose_test_err"; then
-  echo "FAIL [case 3 / AC8]: prose Test Command must exit 2 with marker (got rc=$rc)" >&2
-  cat "$prose_test_err" >&2
   exit 1
 fi
 

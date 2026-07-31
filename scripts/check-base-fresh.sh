@@ -86,7 +86,7 @@ if [[ "${CHECK_BASE_FRESH_SELFTEST:-}" == "1" ]]; then
 | Task branch | task/TEST-1-demo |
 | Depends on | — |
 
-## Test Command
+## Verify Command
 
 echo ok
 

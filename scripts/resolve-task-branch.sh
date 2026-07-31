@@ -193,7 +193,7 @@ if [[ "${1:-}" == "--selftest" ]]; then
 
 - **Level**: static
 
-## Test Command
+## Verify Command
 
 \`\`\`bash
 echo ok

@@ -288,8 +288,13 @@ case "$ACTION" in
   install)
     echo "Installing Polaris git hooks..."
     mkdir -p "$GIT_HOOKS_DIR"
-    install_hook "pre-commit" "$PRE_COMMIT_HOOK"
-    install_hook "pre-push" "$PRE_PUSH_HOOK"
+    # A pre-existing non-Polaris hook is a skip, not a fatal error: under
+    # `set -e` an unguarded non-zero return here would abort the run and leave
+    # every LATER hook uninstalled (observed: a foreign pre-commit silently
+    # blocked pre-push installation entirely).
+    install_skipped=0
+    install_hook "pre-commit" "$PRE_COMMIT_HOOK" || install_skipped=1
+    install_hook "pre-push" "$PRE_PUSH_HOOK" || install_skipped=1
     echo
     echo "Done. Hooks delegate to scripts/gates/*.sh gate scripts."
     echo "To remove: bash scripts/install-git-hooks.sh --remove"

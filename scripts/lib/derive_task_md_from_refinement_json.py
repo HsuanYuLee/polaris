@@ -371,8 +371,8 @@ def check_verify_command_executability(label: str, command_text: str) -> None:
 
     Args:
         label: context written into the structured marker (the canonical task id).
-        command_text: the effective command destined for the Verify Command /
-            Test Command fenced blocks.
+        command_text: the effective command destined for the Verify Command
+            fenced block.
 
     Delegates the verdict to the shared helper; on violation, relays the
     helper's stderr (reasons + POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE marker)
@@ -400,27 +400,22 @@ scope = str(match["scope"]).strip()
 # a destructive full regenerate). estimate_points / allowed_files are no longer read
 # unconditionally from refinement.json tasks[].
 #
-# Default estimate points used by regime 3 (initial-create) when neither
-# refinement.json nor an authored task.md provides a value. Intent-only task.md is
-# packaged by the breakdown writer afterwards, which sets the real estimate.
-DEFAULT_INTENT_ONLY_POINTS = 1
 
 
 def parse_authored_packaging(task_md_path: str):
     """Parse breakdown-authored packaging from an existing task.md (regime 2).
 
-    Reads the authored ## Allowed Files block (lines shaped `- \\`path\\``) and the
-    estimate points from the `(N pt)` suffix in the title / first heading. These are
-    the breakdown-owned packaging values that a same-intent re-derive must PRESERVE
-    byte-identically (AC3 idempotency).
+    Reads the authored ## Allowed Files block (lines shaped `- \\`path\\``). This is
+    the breakdown-owned packaging value that a same-intent re-derive must PRESERVE
+    byte-identically (AC3 idempotency). Estimate points are no longer a task.md
+    field: they are a JIRA-only management record written after the split is fixed,
+    so they cannot anchor the split itself.
 
     Args:
         task_md_path: path to the existing target task.md (the --preserve-from arg).
 
     Returns:
-        A tuple (allowed_files, points): allowed_files is the ordered list of
-        authored paths (possibly empty); points is the parsed int or None when the
-        title carried no `(N pt)` suffix.
+        The ordered list of authored paths (possibly empty).
     """
     text = Path(task_md_path).read_text(encoding="utf-8")
     authored_files = []
@@ -435,34 +430,25 @@ def parse_authored_packaging(task_md_path: str):
             m_path = re.match(r"^-\s+`(?P<p>[^`]+)`\s*$", line)
             if m_path:
                 authored_files.append(m_path.group("p"))
-    m_points = re.search(r"\((?P<n>\d+)\s*pt\)", text)
-    authored_points = int(m_points.group("n")) if m_points else None
-    return authored_files, authored_points
+    return authored_files
 
 
 def resolve_packaging():
-    """Resolve (points, allowed_files) by the DP-341 T2 regime precedence.
+    """Resolve allowed_files by the DP-341 T2 regime precedence.
 
     Precedence:
       Regime 1 (preserve, AC3): --preserve-from task.md exists and carries authored
-        packaging -> preserve its ## Allowed Files and `(N pt)` points.
+        packaging -> preserve its ## Allowed Files.
       Regime 2 (initial-create): no authored packaging -> derive initial Allowed
         Files from matched tasks[].modules intent. If the task has no module intent,
         keep the legacy intent-only empty list and emit without crashing.
 
     Returns:
-        A tuple (points: int, allowed_files: list[str]).
+        allowed_files: list[str].
     """
     authored_files = None
-    authored_points = None
     if preserve_from and Path(preserve_from).is_file():
-        authored_files, authored_points = parse_authored_packaging(preserve_from)
-
-    # estimate_points: authored task.md -> default.
-    if authored_points is not None:
-        resolved_points = authored_points
-    else:
-        resolved_points = DEFAULT_INTENT_ONLY_POINTS
+        authored_files = parse_authored_packaging(preserve_from)
 
     def module_intent_files():
         files = []
@@ -483,10 +469,10 @@ def resolve_packaging():
     else:
         resolved_files = module_intent_files()
 
-    return resolved_points, resolved_files
+    return resolved_files
 
 
-points, allowed_files = resolve_packaging()
+allowed_files = resolve_packaging()
 ac_ids = list(match.get("ac_ids") or [])
 raw_dependencies = [str(dep).strip() for dep in list(match.get("dependencies") or []) if str(dep).strip()]
 
@@ -755,7 +741,7 @@ if mode == "V":
     v_references_cell = "<br>".join(f"- `{r}`" for r in v_references)
 
     doc = f"""---
-title: "{source_id} {short_id}: {title} ({points} pt)"
+title: "{source_id} {short_id}: {title}"
 description: "{scope}"
 draft: true
 sidebar:
@@ -769,7 +755,7 @@ verification:
 depends_on: [{depends_on_frontmatter}]
 ---
 
-# {short_id}: {title} ({points} pt)
+# {short_id}: {title}
 
 > Source: {source_id} | Task: {task_identity} | JIRA: {jira_key_cell} | Repo: {repo_name}
 
@@ -797,10 +783,6 @@ depends_on: [{depends_on_frontmatter}]
 |----|------|--------------|---------|
 {ac_block}
 
-## 估點理由
-
-{points} pt — {scope}
-
 ## 驗收計畫（AC level）
 
 1. 逐項讀取 `refinement.json` AC 與本 V task 的驗收項目。
@@ -820,9 +802,9 @@ depends_on: [{depends_on_frontmatter}]
     sys.stdout.write(doc)
     sys.exit(0)
 
-# DP-311 T6 (AC8): T-task bodies carry the effective command in the ## Test
-# Command / ## Verify Command fenced blocks; gate it through the shared
-# executability helper BEFORE building the body, so a violation emits nothing.
+# DP-311 T6 (AC8): a T-task body carries the effective command in its single
+# ## Verify Command fenced block; gate it through the shared executability
+# helper BEFORE building the body, so a violation emits nothing.
 # (V-task bodies have no command fence — the branch above already returned.)
 check_verify_command_executability(task_id, effective_verify_command)
 
@@ -1154,7 +1136,7 @@ else:
     )
 
 doc = f"""---
-title: "{source_id} {short_id}: {title} ({points} pt)"
+title: "{source_id} {short_id}: {title}"
 description: "{scope}"
 draft: true
 sidebar:
@@ -1167,7 +1149,7 @@ task_kind: {mode}
 {visual_regression_block_line}depends_on: [{depends_on_frontmatter}]
 {delivery_block_line}---
 
-# {short_id}: {title} ({points} pt)
+# {short_id}: {title}
 
 > Source: {source_id} | Task: {task_identity} | JIRA: {jira_key_cell} | Repo: {repo_name}
 
@@ -1221,22 +1203,12 @@ task_kind: {mode}
 | verify | yes | {verify_gate_summary} | engineering |
 | ci-local | no | N/A | framework repo 無 ci-local |
 
-## 估點理由
-
-{points} pt — {scope}
-
 ## 測試計畫（code-level）
 
 1. 先擴張對應 selftest，新增 failing cases 涵蓋 {', '.join(ac_list)}。
 2. 實作 Allowed Files 內的 producer / hook / validator 變更。
 3. 跑 `{verify_detail}` 直到 PASS。
 4. 確認 CHANGELOG 與 VERSION（若有）同步。
-
-## Test Command
-
-```bash
-{effective_verify_command}
-```
 
 ## Test Environment
 

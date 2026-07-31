@@ -22,12 +22,10 @@ for snapshot in "${snapshots[@]}"; do
 done
 
 cluster_sources=(
-  "$ROOT/.claude/hooks/post-runtime-instruction-manifest-regenerate.sh"
   "$ROOT/scripts/compile-runtime-instructions.sh"
   "$ROOT/scripts/sync-to-polaris.sh"
   "$ROOT/scripts/selftests/compile-runtime-instructions-selftest.sh"
   "$ROOT/scripts/selftests/gate-runtime-instruction-manifest-selftest.sh"
-  "$ROOT/scripts/selftests/post-runtime-instruction-manifest-regenerate-selftest.sh"
   "$ROOT/scripts/manifest.json"
   "$ROOT/scripts/lib/mechanism-tables.md"
 )

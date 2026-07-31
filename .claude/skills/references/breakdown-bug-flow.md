@@ -32,7 +32,7 @@ Simple bug preview 必須包含：
 
 - Root Cause summary。
 - Proposed Fix 與涉及檔案。
-- Story Points 與估點理由。
+- Story Points（只寫進 JIRA 當管理紀錄，不進 task.md）。
 - Local verification：重現原 bug、修正後預期、邊界場景。
 - Post-deploy verification if needed。
 

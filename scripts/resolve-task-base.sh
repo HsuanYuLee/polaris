@@ -4,7 +4,7 @@
 # 用途：讀 task.md 的 Operational Context table 抓 Base branch（必要）與 Depends on（可選），
 #       依 DP-028 D2 三層消費模型（snapshot → resolve → gate）之 Resolve 層語意回傳「實際要用的
 #       base branch」。engineering 在 § 4.5 / § R0 / § Step 7 用其結果做 rebase / `gh pr create --base`，
-#       pr-base-gate.sh 用同樣邏輯在 PreToolUse 驗證 `gh pr create --base` 值是否一致。
+#       scripts/gates/gate-base-check.sh 用同樣邏輯驗證 `gh pr create --base` 值是否一致。
 #
 # 核心語意：
 #   - Base branch 非 task/ 開頭（feat/*, develop, main 等）→ 直接回 Base branch 原值。
@@ -29,7 +29,7 @@
 #   - engineer-delivery-flow.md § 4.5 (pre-work rebase)
 #   - engineer-delivery-flow.md § R0 (revision pre-work rebase)
 #   - engineer-delivery-flow.md § Step 7 (PR open — `gh pr create --base`)
-#   - scripts/pr-base-gate.sh (PreToolUse hook on `gh pr create`)
+#   - scripts/gates/gate-base-check.sh (base-branch gate on `gh pr create`)
 
 set -u
 

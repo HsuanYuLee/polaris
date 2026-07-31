@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # gate-base-check.sh — Portable git-hook gate (DP-032 Wave δ)
-# Extracted from .claude/hooks/pr-base-gate.sh for cross-LLM portability.
+# Canonical base-branch gate (originally extracted from the retired pr-base-gate hook).
 # Can be called from: git pre-push hooks, polaris-pr-create.sh, or directly.
 #
 # DP-334 D3 / AC2 / AC-NEG1: framework DP delivery routes through a per-DP

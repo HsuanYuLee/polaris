@@ -1285,11 +1285,14 @@ elif command in {"validate", "scan"}:
                     f"(got: '{declared_shape}')"
                 )
 
-        title_re = re.compile(r"^# (T|V)[0-9]+[a-z]*: .+\([0-9.]+ ?pt\)", re.MULTILINE)
+        # Story points are a JIRA-side management record only; task.md carries no
+        # estimate, so the title is id + summary. Legacy "(N pt)" suffixes still
+        # match and are left alone rather than rewritten.
+        title_re = re.compile(r"^# (T|V)[0-9]+[a-z]*: \S.*", re.MULTILINE)
         if not title_re.search(text):
             errors.append(
-                "missing or malformed title: expected '# T{n}[suffix]: {summary} ({SP} pt)' — "
-                r"regex: ^# (T|V)[0-9]+[a-z]*: .+\([0-9.]+ ?pt\)"
+                "missing or malformed title: expected '# T{n}[suffix]: {summary}' — "
+                r"regex: ^# (T|V)[0-9]+[a-z]*: \S.*"
             )
         else:
             result = helper("summary-language", str(path))
@@ -1324,10 +1327,10 @@ elif command in {"validate", "scan"}:
             warnings.append("metadata line missing 'Epic:' cell — Soft required (Bug tasks may omit; warn only)")
 
         if mode == "T":
-            hard = ["Operational Context", "改動範圍", "Allowed Files", "估點理由", "Test Command", "Test Environment"]
+            hard = ["Operational Context", "改動範圍", "Allowed Files", "Verify Command", "Test Environment"]
             soft = ["目標", "測試計畫（code-level）"]
         else:
-            hard = ["Operational Context", "驗收項目", "估點理由", "Test Environment"]
+            hard = ["Operational Context", "驗收項目", "Test Environment"]
             soft = ["目標", "驗收計畫（AC level）"]
         for heading in hard:
             if not has_heading(text, heading):
@@ -1349,7 +1352,6 @@ elif command in {"validate", "scan"}:
             rows = [raw for raw in section(text, "驗收項目").splitlines() if raw.lstrip().startswith(("|", "-"))]
             if not rows:
                 errors.append("section '## 驗收項目' has no AC entries (Hard required — must have at least one markdown row '|' or bullet '- ')")
-        check_nonempty("估點理由")
 
         if mode == "T" and has_heading(text, "Allowed Files"):
             if not any(raw.lstrip().startswith("-") for raw in section(text, "Allowed Files").splitlines()):
@@ -1501,8 +1503,6 @@ elif command in {"validate", "scan"}:
                 errors.append(f"## {verify_heading} section missing executable fenced code block (required when Level={level})")
         elif not level and has_heading(text, verify_heading) and not re.sub(r"\s+", "", first_fence(section(text, verify_heading))):
             errors.append(f"## {verify_heading} section missing executable fenced code block")
-        if mode == "T" and has_heading(text, "Test Command") and not re.sub(r"\s+", "", first_fence(section(text, "Test Command"))):
-            errors.append("## Test Command section missing executable fenced code block")
 
         if mode == "T" and not is_na(op_field(text, "Depends on")):
             base = op_field(text, "Base branch")

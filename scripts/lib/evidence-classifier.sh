@@ -56,12 +56,12 @@ USAGE
 # too would collide with the program read. Kept in python for readable
 # path/extension/status rules (Decision Priority: readability over shell brevity).
 #
-# DP-295 AC7: a changeset-driven release bump touches some combination of VERSION,
-# CHANGELOG.md, package.json (version-only), and consumed .changeset/*.md files
-# (deletions). Those deltas classify as release_bump so head_sha-bound evidence
-# stays exempt (belt-and-suspenders with the PR-internal verify-before-bump rule).
-# Any non-version package.json edit, any .changeset config/content change, or any
-# .changeset/*.md that is added/modified rather than deleted stays fail-closed.
+# A release bump touches some combination of VERSION, CHANGELOG.md, and
+# package.json (version-only). Those deltas classify as release_bump so
+# head_sha-bound evidence stays exempt (belt-and-suspenders with the PR-internal
+# verify-before-bump rule). Any non-version package.json edit stays fail-closed.
+# Repo-native release tooling (Changesets or anything else) is the owning repo's
+# business; this classifier stays repo-agnostic and does not know its file shapes.
 _ec_classify_status() {
   python3 - <<'PY'
 import os
@@ -78,7 +78,7 @@ BEHAVIORAL_PREFIXES = (
 RELEASE_BUMP_FILES = {"VERSION", "CHANGELOG.md"}
 
 # Parse "<status>\t<path>" lines. git quotes paths containing non-ASCII bytes
-# (e.g. CJK changeset slugs); strip the surrounding quotes so prefix/suffix tests
+# (e.g. CJK path segments); strip the surrounding quotes so prefix/suffix tests
 # operate on the logical path. Rename status (R###) carries two tab-separated
 # paths; classify on the destination path and treat as a modify.
 def parse_status(line):
@@ -129,12 +129,6 @@ def is_release_bump_delta(code, path):
         # Only a pure version bump (modify) qualifies; add/delete of the manifest
         # is not a routine release bump.
         return code == "M" and package_json_version_only()
-    if path.startswith(".changeset/") and path.endswith(".md"):
-        # Only consumed (deleted) changeset entries count; authoring a changeset
-        # (add/modify) is a behavioral PR delta, and .changeset/README.md content
-        # is not a consumption.
-        base = path[len(".changeset/"):]
-        return code == "D" and base != "README.md"
     return False
 
 
@@ -147,9 +141,8 @@ def is_behavioral(path):
     return False
 
 
-# Release-bump deltas (incl. package.json / .changeset that are otherwise
-# behavioral-by-suffix) are evaluated first so they are not pre-empted by the
-# behavioral-suffix screen.
+# Release-bump deltas (package.json is otherwise behavioral-by-suffix) are
+# evaluated first so they are not pre-empted by the behavioral-suffix screen.
 non_release = [(c, p) for (c, p) in entries if not is_release_bump_delta(c, p)]
 
 if not non_release:
@@ -160,8 +153,17 @@ if any(is_behavioral(p) for (_, p) in non_release):
     print("behavioral")
     raise SystemExit(0)
 
-# Remaining files are non-behavioral metadata/docs (e.g. *.md, LICENSE) mixed
-# with — or instead of — release-bump deltas. Treat the aggregate as metadata.
+# A release commit rarely touches ONLY the version files: repo-native release
+# tooling drags its own bookkeeping along (a consumed changeset entry, a
+# regenerated lockfile note, a release doc). The rule stays generic — the
+# classifier knows nothing about any particular release tool: a delta that
+# carries at least one real release-bump file and nothing behavioral IS a
+# release bump, whatever else rides with it.
+if len(non_release) < len(entries):
+    print("release_bump")
+    raise SystemExit(0)
+
+# No release-bump file at all: non-behavioral metadata/docs only.
 print("metadata_only")
 PY
 }

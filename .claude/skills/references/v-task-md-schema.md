@@ -14,7 +14,7 @@
 | 面向 | T (implementation) | V (verification) |
 |------|--------------------|------------------|
 | 必要章節 (V-only) | — | `## 驗收項目`, `## 驗收計畫（AC level）`, `## 驗收步驟`（Level≠static 時） |
-| 必要章節 (T-only) | `## 改動範圍`, `## Allowed Files`, `## Test Command`, `## Verify Command` | — |
+| 必要章節 (T-only) | `## 改動範圍`, `## Allowed Files`, `## Verify Command` | — |
 | Operational Context cells (T-only) | `Test sub-tasks`, `AC 驗收單`, `Task branch` | — |
 | Operational Context cells (V-only) | — | `Implementation tasks`, `AC 範圍`, 驗收 target host |
 | frontmatter lifecycle 欄位 | `jira_transition_log[]`, `deliverable`, `extension_deliverable` | `jira_transition_log[]`, `ac_verification`, `ac_verification_log[]` |
@@ -77,11 +77,6 @@ depends_on:
 | AC2 | <... > | ... |
 | AC-NEG1 | <... > | ... |
 | AC-NF1 | <... > | ... |
-
-## 估點理由
-
-X pt - 對應 T1 已 ship 的 deterministic 化，驗收涵蓋 AC1~AC-NF2，主要由本人逐項
-inspection + 跑 T1 selftest 套件 + 跑語言 / runtime annotation gate。
 
 ## 驗收計畫（AC level）
 

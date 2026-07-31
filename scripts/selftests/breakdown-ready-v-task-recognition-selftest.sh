@@ -118,7 +118,7 @@ V-task recognition fixture body。
 
 1. fixture。
 
-## Test Command
+## Verify Command
 
 \`\`\`bash
 bash scripts/${task_id}-fixture.sh

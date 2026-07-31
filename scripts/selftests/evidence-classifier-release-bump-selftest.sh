@@ -66,11 +66,15 @@ git -C "$R" add -A; git -C "$R" commit -q -m "bump package.json version"
 H_PKG="$(git -C "$R" rev-parse HEAD)"
 [[ "$(classify_head "$H_PKG")" == "release_bump" ]] && ok || bad "package.json version-only -> release_bump"
 
-# === AC7 positive: .changeset/*.md deletion (consumed) -> release_bump ========
+# === AC7: a commit with NO release-bump file is not a release bump ===========
+# Consuming a repo-native release-tool entry on its own bumps nothing — the
+# classifier has no knowledge of any particular release tool, so this is just a
+# non-behavioral metadata delta. It only becomes a release bump when it rides
+# with a real version file (the combo case below).
 git -C "$R" rm -q "$R/.changeset/lucky-cats-jump.md"
 git -C "$R" commit -q -m "consume changeset"
 H_DEL="$(git -C "$R" rev-parse HEAD)"
-[[ "$(classify_head "$H_DEL")" == "release_bump" ]] && ok || bad ".changeset/*.md deletion -> release_bump"
+[[ "$(classify_head "$H_DEL")" == "metadata_only" ]] && ok || bad "release-tool metadata alone -> metadata_only"
 
 # === AC7 positive: full release bump combo ===================================
 # VERSION + CHANGELOG + package.json version-only + .changeset/*.md deletion.

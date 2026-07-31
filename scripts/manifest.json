@@ -3649,26 +3649,6 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
-      "path": "scripts/selftests/post-memory-index-regenerate-hook-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/post-runtime-instruction-manifest-regenerate-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
       "path": "scripts/selftests/rules-manifest-ceremony-removal-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3710,16 +3690,6 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
-    },
-    {
-      "path": "scripts/selftests/pre-memory-write-hook-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/pre-write-language-policy-selftest.sh",
@@ -5739,16 +5709,6 @@
     },
     {
       "path": "scripts/selftests/session-start-thread-anchor-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/stop-active-thread-reminder-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",

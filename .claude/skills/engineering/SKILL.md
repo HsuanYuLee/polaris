@@ -30,7 +30,7 @@ RCA、scope ownership 由 `refinement Bug source mode` / `breakdown` / `refineme
   package scripts）不是 engineering 修補面；CI parity / config 問題要停下記錄 owner
   decision；`BLOCKED_ENV` 語意與 retry/escalation contract 以 `ci-local-env-blocker.md`
   為準。
-- planner-owned task.md 欄位（Allowed Files、estimate、Test Command、Verify Command、
+- planner-owned task.md 欄位（Allowed Files、Verify Command、
   Test Environment、depends_on）不可由 engineering 手動改；需要改時走 scope escalation。
 - First-cut / revision 若實作結果沒有真正的 task delta，不得開 PR，也不得自行修改
   planner-owned scope 讓 PR 通過；必須 fail-stop route back planning/refinement，
@@ -48,7 +48,7 @@ RCA、scope ownership 由 `refinement Bug source mode` / `breakdown` / `refineme
   deliverable / extension_deliverable / status move-first closeout。
 - 開始前讀 workspace config、company handbook index + linked docs、repo handbook index +
   linked docs；缺 company handbook 要明記，不可跳過 repo handbook。
-- fresh worktree / checkout 跑 Test Command 或 Verify Command 前，先用
+- fresh worktree / checkout 跑 Verify Command 前，先用
   `scripts/env/install-project-deps.sh --task-md <task.md> --cwd <repo>` 消費
   `## Required Tools` 與 project dependency contract。缺 ticket-scoped 工具且 task.md 沒有可執行
   install command 時，視為 `BLOCKED_ENV`，依 handoff_hint 提醒使用者安裝或授權。

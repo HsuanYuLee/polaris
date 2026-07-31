@@ -12,7 +12,7 @@
 # task.md (what the gate policy lives in). This helper is that mapping.
 #
 # Consumed by
-#   - scripts/pr-base-gate.sh (PreToolUse gate on `gh pr create`)
+#   - scripts/gates/gate-base-check.sh (base-branch gate on `gh pr create`)
 #   - skills/references/engineer-delivery-flow.md revision mode (R0 rebase
 #     cascade + base-branch sanity check)
 #

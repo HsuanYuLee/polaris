@@ -270,7 +270,7 @@ fi
 # DP-341 T2 — derive-task-md is intent-regenerate + packaging-preserve, NOT a
 # destructive full regenerate that reads packaging from refinement.json tasks[].
 #
-# The derive script resolves per-task packaging (Allowed Files + estimate points)
+# The derive script resolves per-task packaging (Allowed Files)
 # with this precedence:
 #   Regime 1 (legacy back-compat): refinement.json tasks[] still carries
 #     allowed_files / estimate_points -> use those (covered by the existing
@@ -381,9 +381,10 @@ if ! grep -qF 'scripts/other-authored.sh' "$tmpdir/t2-preserve.stdout"; then
   cat "$tmpdir/t2-preserve.stdout" >&2
   exit 1
 fi
-# Authored points (3 pt) must be preserved into the derived title/heading.
-if ! grep -qF '(3 pt)' "$tmpdir/t2-preserve.stdout"; then
-  echo "FAIL [T2 case 1 / AC3 preserve]: authored points (3 pt) not preserved" >&2
+# Story points are a JIRA-side management record, not a task.md field: even when
+# the authored body carries a legacy "(3 pt)" title, the derived body must not.
+if grep -qF '(3 pt)' "$tmpdir/t2-preserve.stdout"; then
+  echo "FAIL [T2 case 1 / AC3 preserve]: derived body re-emitted an estimate; points belong in JIRA only" >&2
   cat "$tmpdir/t2-preserve.stdout" >&2
   exit 1
 fi
@@ -515,13 +516,12 @@ fi
 # =====================================================================
 # packaging WRITE lands in the breakdown task.md writer path, NOT refinement.json.
 #
-# AC4 (producer registry single-writer): the task.md packaging write path
-#   (tasks/T*/index.md) resolves to the breakdown task.md writer (owning_skill
-#   "breakdown"); the refinement.json design-doc producer must NOT carry any
-#   task packaging glob. Each writer maps to a single declared producer.
-#   intent stays fail-closed DENY (refinement.json is JSON, excluded from the
-#   skill-writer markdown bypass); breakdown writing the task.md packaging section
-#   goes through the existing task.md (.md) skill-writer bypass -> ALLOW.
+# AC4 (producer registry single-writer): the refinement.json design-doc producer
+#   must NOT carry any task packaging glob (tasks/T*|V*/index.md) — packaging is
+#   the breakdown task.md writer's. The former "which producer wins for this
+#   path" mirror was dropped with its PR-gate resolver
+#   (validate-specs-bound-write-contract.sh); only the registry invariant that
+#   still has a live owner is asserted here.
 # =====================================================================
 
 PRODUCERS_JSON="$ROOT_DIR/scripts/lib/evidence-producers.json"
@@ -529,64 +529,6 @@ PRODUCERS_JSON="$ROOT_DIR/scripts/lib/evidence-producers.json"
 [[ -f "$PRODUCERS_JSON" ]] || {
   echo "FAIL [T3]: producer registry not found: $PRODUCERS_JSON" >&2
   exit 1
-}
-[[ -f "$NO_DIRECT_HOOK" ]] || {
-  exit 1
-}
-
-# resolve_producer_owning_skill <registry.json> <file_path> — resolve the SINGLE
-# producer that owns a specs-bound markdown write, FAITHFULLY MIRRORING the real
-#   1. pre-filter producers to specs-bound artifact_kind values
-#      (specs_markdown / verify_evidence_layout / docs_page / sidecar / d2_transport);
-#   2. select the FIRST producer whose any path_glob naive-fnmatch-matches the
-#      full path (plain fnmatch, where "*" crosses "/") — array order decides
-#      among overlapping globs.
-# This is intentionally the resolver that actually runs at PR-gate time, NOT the
-# aspirational token-first lookup used by the write-side producer helper. AC4
-# asserts the breakdown task.md packaging write resolves to a single breakdown
-# writer; if registry array order lets the refinement container-index producer
-# win the tasks/**/index.md path first, that is a genuine single-producer
-# violation this helper must surface.
-# Prints the single owning_skill of the first matching producer, or "NONE".
-resolve_producer_owning_skill() {
-  local registry="$1"
-  local file_path="$2"
-  REGISTRY_VAL="$registry" FILE_PATH_VAL="$file_path" python3 - <<'PY'
-import fnmatch
-import json
-import os
-
-registry = os.environ["REGISTRY_VAL"]
-file_path = os.environ["FILE_PATH_VAL"]
-
-with open(registry, "r", encoding="utf-8") as fh:
-    data = json.load(fh)
-
-SPECS_BOUND_KINDS = {
-    "specs_markdown",
-    "verify_evidence_layout",
-    "docs_page",
-    "sidecar",
-    "d2_transport",
-}
-producers = [
-    p for p in (data.get("producers", []) or [])
-    if p.get("artifact_kind") in SPECS_BOUND_KINDS
-]
-
-# Naive first-match over the full path (plain fnmatch, "*" crosses "/"), exactly
-# as the PR-gate resolver does. Array order is decisive among overlapping globs.
-producer = next(
-    (
-        p
-        for p in producers
-        if any(fnmatch.fnmatch(file_path, glob) for glob in p.get("path_globs", []))
-    ),
-    None,
-)
-
-print(producer.get("owning_skill") if producer else "NONE")
-PY
 }
 
 # refinement_producer_carries_packaging <registry.json> — exit 0 (true) if any
@@ -617,67 +559,9 @@ sys.exit(1)
 PY
 }
 
-# run_no_direct_hook <file_path> <skill_writer> <stderr_capture> — feed a Write
-# tool payload to the hook; returns its exit code (0 ALLOW, 2 BLOCKED). Empty
-# skill_writer => no POLARIS_SKILL_WRITER bypass requested.
-run_no_direct_hook() {
-  local file_path="$1"
-  local skill_writer="$2"
-  local stderr_capture="$3"
-  local payload
-  payload=$(FILE_PATH_VAL="$file_path" python3 -c \
-    'import json,os;print(json.dumps({"tool_name":"Write","tool_input":{"file_path":os.environ["FILE_PATH_VAL"]}}))')
-  local rc=0
-  if [[ -n "$skill_writer" ]]; then
-    printf '%s' "$payload" | env -u POLARIS_PRODUCER POLARIS_SKILL_WRITER="$skill_writer" \
-      bash "$NO_DIRECT_HOOK" >/dev/null 2>"$stderr_capture" || rc=$?
-  else
-    printf '%s' "$payload" | env -u POLARIS_PRODUCER -u POLARIS_SKILL_WRITER \
-      bash "$NO_DIRECT_HOOK" >/dev/null 2>"$stderr_capture" || rc=$?
-  fi
-  return "$rc"
-}
 
-# Representative specs-bound paths for the boundary.
-T3_TASK_MD_PATH="docs-manager/src/content/docs/specs/design-plans/DP-341-x/tasks/T1/index.md"
-T3_REFINEMENT_JSON_PATH="docs-manager/src/content/docs/specs/design-plans/DP-341-x/refinement.json"
-
-# --- T3 case 1 / AC4: task.md packaging path resolves to the breakdown writer. ---
-t3_owning_skill="$(resolve_producer_owning_skill "$PRODUCERS_JSON" "$T3_TASK_MD_PATH")"
-if [[ "$t3_owning_skill" != "breakdown" ]]; then
-  echo "FAIL [T3 case 1 / AC4]: task.md packaging path must resolve to a single breakdown writer, got: $t3_owning_skill" >&2
-  echo "  path=$T3_TASK_MD_PATH" >&2
-  exit 1
-fi
-
-# --- T3 case 2 / AC4: refinement.json producer must NOT carry a packaging glob. ---
 if refinement_producer_carries_packaging "$PRODUCERS_JSON"; then
   echo "FAIL [T3 case 2 / AC4]: a refinement.json producer also declares a task packaging glob (tasks/T*|V*/index.md); the refinement.json design-doc entry must not carry packaging" >&2
-  exit 1
-fi
-
-# --- T3 case 3 / AC-NEG2: breakdown writing refinement.json intent -> DENY. ---
-t3_refinement_stderr="$tmpdir/t3-refinement.stderr"
-t3_refinement_rc=0
-run_no_direct_hook "$T3_REFINEMENT_JSON_PATH" "breakdown" "$t3_refinement_stderr" || t3_refinement_rc=$?
-if [[ "$t3_refinement_rc" -ne 2 ]]; then
-  echo "FAIL [T3 case 3 / AC-NEG2]: breakdown writing refinement.json must fail-closed DENY (exit 2), got exit $t3_refinement_rc" >&2
-  cat "$t3_refinement_stderr" >&2
-  exit 1
-fi
-if ! grep -qF 'BLOCKED' "$t3_refinement_stderr"; then
-  echo "FAIL [T3 case 3 / AC-NEG2]: breakdown writing refinement.json DENY did not emit a BLOCKED line" >&2
-  cat "$t3_refinement_stderr" >&2
-  exit 1
-fi
-
-# --- T3 case 4 / AC-NEG2: breakdown writing task.md packaging section -> ALLOW. ---
-t3_taskmd_stderr="$tmpdir/t3-taskmd.stderr"
-t3_taskmd_rc=0
-run_no_direct_hook "$T3_TASK_MD_PATH" "breakdown" "$t3_taskmd_stderr" || t3_taskmd_rc=$?
-if [[ "$t3_taskmd_rc" -ne 0 ]]; then
-  echo "FAIL [T3 case 4 / AC-NEG2]: breakdown writing task.md packaging (.md) must ALLOW (exit 0) via the skill-writer markdown bypass, got exit $t3_taskmd_rc" >&2
-  cat "$t3_taskmd_stderr" >&2
   exit 1
 fi
 

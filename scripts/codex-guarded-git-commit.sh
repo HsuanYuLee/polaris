@@ -4,7 +4,7 @@
 #
 # Runs P0 commit gates:
 #  - ci-local-required (Dimension B; D12-c)
-#  - version-docs-lint-gate
+#  - gate-version-lint (runtime-neutral extraction)
 #
 # Usage:
 #   codex-guarded-git-commit.sh [--dry-run] [git commit args...]
@@ -40,7 +40,7 @@ PY
 "$ROOT_DIR/scripts/gates/gate-commit-language.sh" --repo "$COMMIT_REPO" --command "$commit_cmd"
 "$ROOT_DIR/scripts/gates/gate-no-tracked-specs.sh" --repo "$COMMIT_REPO"
 "$ADAPTER" "$ROOT_DIR/.claude/hooks/ci-local-gate.sh" "$commit_cmd"
-"$ADAPTER" "$ROOT_DIR/.claude/hooks/version-docs-lint-gate.sh" "$commit_cmd"
+"$ROOT_DIR/scripts/gates/gate-version-lint.sh" --repo "$COMMIT_REPO"
 
 if [[ "$dry_run" == true ]]; then
   echo "PASS: commit gates passed (dry-run)"

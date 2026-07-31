@@ -175,7 +175,7 @@ python3 - "$invalid_task" <<'PY'
 import sys
 from pathlib import Path
 path = Path(sys.argv[1])
-path.write_text(path.read_text(encoding="utf-8").replace("## Test Command", "## Missing Test Command", 1), encoding="utf-8")
+path.write_text(path.read_text(encoding="utf-8").replace("## Verify Command", "## Missing Verify Command", 1), encoding="utf-8")
 PY
 write_evidence "$invalid_repo" "$invalid_head"
 invalid_before="$(shasum -a 256 "$invalid_task" | awk '{print $1}')"

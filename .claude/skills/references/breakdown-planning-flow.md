@@ -90,11 +90,11 @@ constructability leak：
 
 - package graph / dependency / catalog 改動必須把對應 lockfile 納入 Allowed Files，或在
   planning decision 明確說明此 repo 無 lockfile / 非 pnpm graph。
-- `Test Command` 若執行 test/build runner（例如 pnpm test、Vitest、Jest、Nuxt、
+- `Verify Command` 若執行 test/build runner（例如 pnpm test、Vitest、Jest、Nuxt、
   Playwright、Cypress），`Test Environment` 不可宣告為 `Level: static` 且
   `Env bootstrap command: N/A`；若 baseline 無法證明可啟動，必須先 route wait /
   baseline approval / refinement，不得 handoff engineering。
-- 對已知 Nuxt/Vitest 會受 caller shell debug env 影響的專案，`Test Command` 必須清掉
+- 對已知 Nuxt/Vitest 會受 caller shell debug env 影響的專案，`Verify Command` 必須清掉
   inherited debug env（例如 `env -u DEBUG ...`）；不得讓 downstream engineering 以
   產品 runtime/config workaround 修 framework/env 問題。
 - library migration 類 task 的 source-scope Verify Command 不可使用 broad substring

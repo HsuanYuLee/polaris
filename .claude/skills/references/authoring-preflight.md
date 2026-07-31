@@ -154,7 +154,7 @@ bash scripts/validate-starlight-authoring.sh check <source_container>/refinement
   owner / decision。
 - `Behavior Contract` 必須可判斷 `applies=true/false`；`applies=true` 時不可留
   `unknown/default`，必須決定 `parity` / `visual_target` / `pm_flow` / `hybrid`。
-- `Test Environment` 與 `Test Command` 不可互相矛盾；test/build runner 不可標成
+- `Test Environment` 與 `Verify Command` 不可互相矛盾；test/build runner 不可標成
   `Level: static` 且 `Env bootstrap command: N/A`。
 - package graph / dependency / catalog 改動要納入 lockfile，或明確說明 repo 無 lockfile /
   不觸及 package graph。

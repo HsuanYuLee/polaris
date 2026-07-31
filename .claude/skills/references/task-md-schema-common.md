@@ -76,7 +76,7 @@ inventory / migration 不得用 broad grep 刪除 nested semantic fields。
 
 ```yaml
 ---
-title: "T1: Example implementation task (3 pt)"
+title: "T1: Example implementation task"
 status: IN_PROGRESS         # optional：IN_PROGRESS | IMPLEMENTED | BLOCKED
 task_shape: implementation  # optional：implementation | audit | confirmation；default implementation（DP-262）
 depends_on: [T1]            # optional：array of task id strings；長度 ≤ 1（DP-028 強制線性）
@@ -288,15 +288,16 @@ Completion gate：`scripts/check-local-extension-completion.sh`，檢查：
 ### 2.2 標題行
 
 ```
-# T{n}[suffix]: {Task summary} ({SP} pt)
-# V{n}[suffix]: {Verification summary} ({SP} pt)
+# T{n}[suffix]: {Task summary}
+# V{n}[suffix]: {Verification summary}
 ```
 
 - `{n}` = 整數（從 1 開始）
 - `[suffix]` = optional `a-z*`，支援 split subtasks（如 `T8a` / `T8b` / `V1a`）
-- `{SP}` = story points（整數或小數；如 `3` / `2.5`）
+- 標題**不帶估點**。story points 只寫進 JIRA 當管理紀錄，不是 task.md 欄位；
+  舊檔遺留的 `(N pt)` 尾綴仍可解析，不必回頭清理。
 
-Validator regex：`^# (T|V)[0-9]+[a-z]*: .+\([0-9.]+ ?pt\)`
+Validator regex：`^# (T|V)[0-9]+[a-z]*: \S.*`
 
 ### 2.3 Header 行（metadata quote）
 

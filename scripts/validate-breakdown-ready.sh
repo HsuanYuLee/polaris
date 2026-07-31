@@ -122,19 +122,9 @@ AC 驗證不在本 task 範圍。
 | verify | yes | smoke pass | breakdown |
 | ci-local | no | N/A | no repo CI required |
 
-## 估點理由
-
-2 pt，單一 validator 與 selftest。
-
 ## 測試計畫（code-level）
 
 - selftest covers valid and invalid task.md。
-
-## Test Command
-
-```bash
-echo test
-```
 
 ## Test Environment
 
@@ -213,19 +203,9 @@ AC 驗證不在本 task 範圍。
 | verify | yes | sample grep pass | breakdown |
 | ci-local | no | N/A - no repo CI required | breakdown |
 
-## 估點理由
-
-2 pt，只有 local sample。
-
 ## 測試計畫（code-level）
 
 - sample smoke
-
-## Test Command
-
-```bash
-echo test
-```
 
 ## Test Environment
 
@@ -243,7 +223,7 @@ echo verify
 MD
 
   sed \
-    -e 's/echo test/pnpm --dir apps\/main exec vitest run helpers\/date.test.ts/' \
+    -e 's/echo verify/pnpm --dir apps\/main exec vitest run helpers\/date.test.ts/' \
     -e 's/| test | yes | selftest pass | breakdown |/| test | yes | vitest exits 0 | breakdown |/' \
     -e 's/`bash scripts\/validate-breakdown-ready.sh --self-test`/`pnpm --dir apps\/main exec vitest run helpers\/date.test.ts`/' \
     "$valid" > "$static_runner"
@@ -260,7 +240,7 @@ MD
     "$valid" > "$package_graph_no_lock"
 
   sed \
-    -e 's/echo test/pnpm --dir apps\/main exec vitest run helpers\/date.test.ts/' \
+    -e 's/echo verify/pnpm --dir apps\/main exec vitest run helpers\/date.test.ts/' \
     -e 's/| test | yes | selftest pass | breakdown |/| test | yes | vitest exits 0 | breakdown |/' \
     -e 's/`bash scripts\/validate-breakdown-ready.sh --self-test`/`pnpm --dir apps\/main exec vitest run helpers\/date.test.ts`/' \
     -e 's#- \*\*Level\*\*: static#- **Level**: build#' \

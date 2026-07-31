@@ -522,7 +522,7 @@ if [[ "${ENGINEERING_BRANCH_SETUP_SELFTEST:-}" == "1" ]]; then
 | Task branch | task/PROJ-101-contract-branch-name |
 | Depends on | — |
 
-## Test Command
+## Verify Command
 
 echo ok
 

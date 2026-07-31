@@ -594,7 +594,7 @@ else
       log_info "PR base sync PASS"
     else
       log_err "gh pr edit --base failed for PR #$PR_NUMBER (target=$RESOLVED_BASE)"
-      log_err "(possible causes: pr-base-gate hook block, missing perms, network)"
+      log_err "(possible causes: base-branch gate block, missing perms, network)"
       emit_evidence "$REPO" "${TASK_MD:-__NULL__}" "$RESOLVED_BASE" "$REBASE_STATUS" \
         "$PR_NUMBER" "$PR_BASE_BEFORE" "__NULL__" "false" "false"
       exit 1

@@ -1,5 +1,38 @@
 # Changelog
 
+## [3.82.0] - 2026-08-01
+
+### Changed
+
+- 900bf27: task.md 收斂成單一命令 oracle，估點退回 JIRA 管理紀錄
+  `## Test Command` 與 `## Verify Command` 合併成一個欄位。derive 原本就把同一條
+  `effective_verify_command` 同時寫進兩個 fence（只差一行 `set -euo pipefail`），
+  兩個欄位在產生端是純複製，drift 只可能來自人手改其中一邊——而 engineering 跑前者、
+  verify-AC 跑後者，等於同一張 task 有兩個判準。現在只剩 `## Verify Command`：
+  engineering 施工跑它，verify-AC 驗收跑同一條。`parse-task-md` 的 `test_command`
+  保留為它的別名，既有 reader 不斷。
+  估點不再進任何框架 artifact：task.md 標題不帶 `(N pt)`、`## 估點理由` 從 T/V 兩份
+  必填清單移除、derive 不再解析 points。估點照估，但只寫進 JIRA 當管理紀錄，且在切分
+  定案之後才寫；切分判準是「一個 agent 一次吃得下、且自己帶得起 verify command」，
+  不是工時。舊 task.md 遺留的 `(N pt)` 尾綴仍合法解析，不必回頭清理。
+  release bump 判定改成 tool-agnostic：delta 只要含至少一個真正的版本檔
+  （`VERSION` / `CHANGELOG.md` / `package.json` version-only）且其餘檔案非行為性，
+  就是 release bump，不管旁邊跟著什麼 repo-native 發版工具的 bookkeeping。修正上一版
+  把 `.changeset/` 從 classifier 拿掉後，真實發版 commit 會從 `release_bump` 掉成
+  `metadata_only`、進而在 closeout 失去豁免的回歸。changeset 慣例回到它該在的容器
+  `polaris-config/polaris-framework/handbook/changeset-convention.md`（repo 知識，
+  非框架契約）。
+  同時修掉三個懸空引用：`install-git-hooks.sh` 在既有非 Polaris hook 存在時會因
+  `set -e` 中斷、導致其後所有 hook 完全沒安裝；`framework-release` skill 仍列出已刪的
+  `gate-changeset`；packaging-boundary selftest 仍守著已刪的 hook 與已刪的 producer
+  resolver。
+  更正 v3.81.0 CHANGELOG 的一項錯誤陳述：該版聲稱「315/406 支 selftest 的 cleanup
+  EXIT trap 會在 bash 3.2 把中途死亡掩蓋成 PASS」。在 macOS 內建的
+  GNU bash 3.2.57(1) arm64-apple-darwin25 上以四種形狀實測，全部推翻：
+  cleanup EXIT trap 搭 exit 3 回 3、set -e 致死回 1、no-op EXIT trap 搭尾端
+  false 回 1、function trap 搭 exit 7 回 7。EXIT trap 不會吞掉 exit code，
+  該陳述作廢。
+
 ## [3.81.1] - 2026-07-31
 
 ### Fixed
@@ -47,7 +80,7 @@
 ### Known
 
 - 自指跳脫接上預設值後，push 會實跑完整 corpus（實測 duration_ms=1842319，30.7 分鐘），在 push 這層不可用。信任錨是否收窄成 affected-only 屬未決設計決策。
-- `scripts/lib/evidence-classifier.sh` 仍知道「被消費（刪除）的 .changeset/*.md 算 release bump」，是通用分類器內殘留的 repo-specific 知識。
+- `scripts/lib/evidence-classifier.sh` 仍知道「被消費（刪除）的 .changeset/\*.md 算 release bump」，是通用分類器內殘留的 repo-specific 知識。
 
 ## [3.79.6] - 2026-07-25
 

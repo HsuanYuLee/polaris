@@ -129,19 +129,17 @@ Validator：`scripts/validate-refinement-json.sh <path>` 或 `--scan <workspace_
 
 | 項目 | 驗證規則 |
 |------|----------|
-| Header `# T{n}[suffix]: {summary} ({SP} pt)` | 必須存在且格式正確（`[suffix]` 為 `a-z*` 支援 split subtasks） |
+| Header `# T{n}[suffix]: {summary}` | 必須存在且格式正確（`[suffix]` 為 `a-z*` 支援 split subtasks；不帶估點） |
 | Metadata line | Legacy `> Epic: ... \| JIRA: {KEY} \| Repo: ...` 或 canonical `> Source: {SOURCE_ID} \| Task: {WORK_ITEM_ID} \| JIRA: {JIRA_KEY_OR_N/A} \| Repo: ...`；`Repo:` 必含非空值 |
 | Identity | Parser 輸出 canonical `identity.source_type` / `identity.source_id` / `identity.work_item_id` / nullable `identity.jira_key`；legacy `task_jira_key` 只是 migration alias |
 | `## Operational Context` | 必須存在；identity cells 可為 legacy `Task JIRA key` + `Parent Epic`，或 canonical `Source type` + `Source ID` + `Task ID` + `JIRA key`；另必含 `Test sub-tasks`、`AC 驗收單`、`Base branch`、`Task branch`、`References to load` |
 | `## Verification Handoff` | 必須存在 |
 | `## 目標` | 必須存在且非空 |
 | `## 改動範圍` | 必須存在且非空（至少 1 行表格 data 或 bullet） |
-| `## 估點理由` | 必須存在且非空（至少 1 行非空文字） |
 | `## 測試計畫` | 必須存在 |
-| `## Test Command` | 必須存在；內含 fenced code block |
 | `## Test Environment` | 必須存在；詳細規則見下方 "Test Environment Level" 段 + DP-023 runtime contract |
 | `## Gate Closure Matrix` | breakdown handoff 前必須存在；至少列 `scope` / `test` / `verify` / `ci-local`，且每列有 pass condition 與 owner / decision |
-| `## Verify Command` | 必須存在；內含 fenced code block |
+| `## Verify Command` | 必須存在；內含 fenced code block；engineering 與 verify-AC 共用同一條 |
 | Frontmatter `status` | 可選；若存在應為 `IN_PROGRESS` / `IMPLEMENTED` / `BLOCKED` 其中之一（目前不 enforce；留給 `scripts/mark-spec-implemented.sh`） |
 | Frontmatter `depends_on` | 可選；若存在須為 array of task id strings（如 `["T1", "T2"]`）；驗證拓撲見下方 |
 
@@ -208,7 +206,7 @@ engineering 分三層 deterministic 消費 `depends_on`，每層各自可驗證�
 #### 與其他 schema 段落的關係（additive）
 
 - **DP-023 runtime contract**（`Level` / `Runtime verify target` / `Env bootstrap command`）— 不變。Dependency Binding 不觸碰 runtime 欄位
-- **DP-025 task.md required fields**（`## Operational Context` / `## 改動範圍` / `## 估點理由` / `## Test Command` / `## Verify Command`）— 不變。Dependency Binding 僅擴張 `Base branch` 的 cross-field rule 與 `depends_on` 的 DAG 規則
+- **DP-025 task.md required fields**（`## Operational Context` / `## 改動範圍` / `## Verify Command`）— 不變。Dependency Binding 僅擴張 `Base branch` 的 cross-field rule 與 `depends_on` 的 DAG 規則
 - **PR base 欄位刻意不新增**（DP-028 D6）：`gh pr create --base` 的值 = resolve 後的 `Base branch`，單一 source of truth，避免雙欄位同步風險
 
 #### Revision mode cascade（DP-028 Blind #6）
@@ -230,7 +228,7 @@ Repo root `CLAUDE.md` / `AGENTS.md` native files 不是本 contract 的必要條
 skills 修改 tracked repo AI config 來讓 framework harness 運作。
 
 ```markdown
-# T{n}: {Task summary} ({SP} pt)
+# T{n}: {Task summary}
 
 > Source: {SOURCE_ID} | Task: {WORK_ITEM_ID} | JIRA: {JIRA_KEY_OR_N/A} | Repo: {repo_name}
 
@@ -270,27 +268,12 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 - `{file_path_2}`
 - ...
 
-## 估點理由
-
-{Why this is {SP} pt}
-
 ## 測試計畫（code-level）
 
 供 TDD 使用，對應到 test sub-tasks：
 
 - unit test: {描述} → {Test sub-task key}
 - ...
-
-## Test Command
-
-> breakdown 產出。engineering 跑測試時**必須使用此指令**，不可自行推導。
-> 來源優先順序：workspace-config `projects[].dev_environment.test_command` → 專案 CLAUDE.md → fallback `npx vitest run`。
-> Monorepo 須包含正確的工作目錄（如 `pnpm --dir apps/main exec vitest run`）。
-> 若專案 Nuxt/Vitest runner 會受 inherited debug env 影響，Test Command 必須使用 clean env（如 `env -u DEBUG ...`）。
-
-\`\`\`bash
-{專案特定的測試指令，含正確工作目錄}
-\`\`\`
 
 ## Test Environment
 
@@ -307,8 +290,8 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 | Gate | Applies | Pass condition | Owner / decision |
 |------|---------|----------------|------------------|
 | scope | yes | every changed file matches `## Allowed Files` | breakdown |
-| test | yes | `## Test Command` exits 0 | engineering |
-| verify | yes | `## Verify Command` exits 0 | engineering |
+| test | yes | `## Verify Command` exits 0 | engineering |
+| verify | yes | `## Verify Command` exits 0（同一條命令） | engineering |
 | ci-local | yes/no | ci-local evidence PASS, or N/A with reason | breakdown decision |
 
 **Level 定義**：
@@ -354,10 +337,8 @@ AC 驗證**不在本 task 範圍**，委派至 {AC_TICKET_KEY}（由 verify-AC s
 |-----------|-------------|
 | Operational context（JIRA keys、branch） | Epic description / refinement artifact |
 | 目標、涉及檔案、測試計畫（code-level） | AC 驗證場景（business-level）→ 在 AC 驗收單 |
-| Verify Command（per-task smoke test） | 完整 AC 驗證流程（verify-AC 的工作） |
-| Test Command（專案特定的測試指令） | 通用 test 指令（sub-agent 不可自行推導） |
+| Verify Command（task 唯一的命令 oracle；engineering 與 verify-AC 共用） | 通用 test 指令（sub-agent 不可自行推導） |
 | Test Environment Level + pointer + Runtime verify target + Env bootstrap command | dev env 細節（start_command / requires / health_check） |
-| 估點理由 | 技術方案選項分析（refinement 已定） |
 | References 清單 | handbook 內容（sub-agent 須自行讀取，不複製進 task.md） |
 
 ## Handoff Contracts

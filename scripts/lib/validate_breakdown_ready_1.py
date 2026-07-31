@@ -481,19 +481,19 @@ def validate_package_graph_scope(
 
 def validate_test_environment_consistency(file: Path, text: str) -> list[str]:
     errors: list[str] = []
-    test_command = first_fenced_code(section(text, "## Test Command"))
-    if not test_command or not TEST_RUNNER_RE.search(test_command):
+    verify_command = first_fenced_code(section(text, "## Verify Command"))
+    if not verify_command or not TEST_RUNNER_RE.search(verify_command):
         return errors
 
     level = test_environment_field(text, "Level").lower()
     bootstrap = test_environment_field(text, "Env bootstrap command")
     if level == "static":
         errors.append(
-            f"{file}: Test Command runs a test/build runner but Test Environment Level=static; declare build/runtime or route baseline/env decision before READY"
+            f"{file}: Verify Command runs a test/build runner but Test Environment Level=static; declare build/runtime or route baseline/env decision before READY"
         )
     if is_na(bootstrap):
         errors.append(
-            f"{file}: Test Command runs a test/build runner but Env bootstrap command is N/A; declare install/bootstrap or route baseline/env decision before READY"
+            f"{file}: Verify Command runs a test/build runner but Env bootstrap command is N/A; declare install/bootstrap or route baseline/env decision before READY"
         )
 
     return errors
@@ -501,11 +501,11 @@ def validate_test_environment_consistency(file: Path, text: str) -> list[str]:
 
 def validate_test_command_debug_hygiene(file: Path, text: str) -> list[str]:
     errors: list[str] = []
-    test_command = first_fenced_code(section(text, "## Test Command"))
-    if not test_command:
+    verify_command = first_fenced_code(section(text, "## Verify Command"))
+    if not verify_command:
         return errors
 
-    command_space = " ".join(test_command.split())
+    command_space = " ".join(verify_command.split())
     text_lower = text.lower()
     is_nuxt_vitest_app_command = bool(
         re.search(r"\bnuxt\b", command_space)
@@ -517,14 +517,14 @@ def validate_test_command_debug_hygiene(file: Path, text: str) -> list[str]:
     clears_debug = bool(re.search(r"\benv\s+-u\s+DEBUG\b", command_space))
     if is_nuxt_vitest_app_command and not clears_debug:
         errors.append(
-            f"{file}: Nuxt/Vitest app Test Command must clear inherited DEBUG via `env -u DEBUG ...`; inherited DEBUG can change Nuxt test startup behavior"
+            f"{file}: Nuxt/Vitest app Verify Command must clear inherited DEBUG via `env -u DEBUG ...`; inherited DEBUG can change Nuxt test startup behavior"
         )
 
     return errors
 
 
-# --- DP-311 T6 (AC8 / AC-NEG7): Verify/Test Command executability gate ---------
-# The ## Verify Command / ## Test Command fenced blocks must be executable bash,
+# --- DP-311 T6 (AC8 / AC-NEG7): Verify Command executability gate -------------
+# The ## Verify Command fenced block must be executable bash,
 # not prose (the DP-252-T1 plan defect: zh-TW prose copied verbatim into the
 # fence, exploding only at the verify gate). The verdict comes from the SHARED
 # helper scripts/lib/check-verify-command-executability.sh (bash -n parse +
@@ -539,15 +539,15 @@ VERIFY_COMMAND_NOT_EXECUTABLE_MARKER = "POLARIS_VERIFY_COMMAND_NOT_EXECUTABLE"
 
 
 def validate_command_executability(file: Path, text: str) -> list[str]:
-    """Run the shared executability helper over the Verify/Test Command fences.
+    """Run the shared executability helper over the Verify Command fence.
 
     Args:
         file: the task.md under validation (used as the marker label context).
         text: the full task.md text.
 
     Returns:
-        One violation message per non-executable fenced block (empty when both
-        fences are absent or executable). A missing helper is itself a
+        One violation message per non-executable fenced block (empty when the
+        fence is absent or executable). A missing helper is itself a
         violation (fail-closed), never a silent skip.
     """
     violations: list[str] = []
@@ -555,7 +555,7 @@ def validate_command_executability(file: Path, text: str) -> list[str]:
         return [
             f"{file}: missing shared executability helper: {check_verify_command_executability}"
         ]
-    for heading in ("## Verify Command", "## Test Command"):
+    for heading in ("## Verify Command",):
         command = first_fenced_code(section(text, heading))
         if not command:
             continue

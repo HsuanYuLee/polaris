@@ -270,7 +270,7 @@ if [[ "${CHECK_SCOPE_SELFTEST:-}" == "1" ]]; then
 
 - `src/products/**`
 
-## Test Command
+## Verify Command
 
 echo ok
 TASK
@@ -345,7 +345,7 @@ TASK
 
 - `src/task.ts`
 
-## Test Command
+## Verify Command
 
 echo ok
 TASK
@@ -404,7 +404,7 @@ TASK
 
 - `src/products/**`
 
-## Test Command
+## Verify Command
 
 echo ok
 TASK

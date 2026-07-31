@@ -23,9 +23,9 @@ flag validation 取代這個分類契約。
 
 | Rule | Layer | Script | Exit code | Bypass env var |
 |------|-------|--------|-----------|----------------|
-| 標題 / Header / 章節存在性 / Operational Context cells / Test Command 含 code block | Implementation single-file | `scripts/validate-task-md.sh <path>` | 1 (violations) / 2 (usage) | — |
+| 標題 / Header / 章節存在性 / Operational Context cells / Verify Command 含 code block | Implementation single-file | `scripts/validate-task-md.sh <path>` | 1 (violations) / 2 (usage) | — |
 | Test Environment Level enum + Runtime contract（`Runtime verify target` / `Env bootstrap` / Verify Command host alignment） | Implementation single-file (DP-023) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
-| `## 改動範圍` / `## 估點理由` / `## 目標` 非空 + Operational Context 含 JIRA key | Implementation single-file (DP-025) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
+| `## 改動範圍` / `## 目標` 非空 + Operational Context 含 JIRA key | Implementation single-file (DP-025) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
 | `Depends on` (cell) 非空 ⇒ `Base branch` `task/...` | Implementation single-file (DP-028 cross-field, T mode only) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
 | `## Allowed Files` 章節存在 + 非空 | Implementation single-file (DP-033 D5 升 Hard，無 grace) | `scripts/validate-task-md.sh`（Phase A A2 升級） | 1 / 2 | — |
 | frontmatter `verification.behavior_contract` 欄位形狀（存在時） | Implementation single-file (DP-109 behavior intent) | `scripts/validate-task-md.sh <path>` | 1 / 2 | — |
@@ -37,7 +37,7 @@ flag validation 取代這個分類契約。
 |------|-------|--------|-----------|----------------|
 | 標題 / Header / 章節存在性 / Operational Context cells (V 版，§ 4.2) / 驗收步驟含 code block | Verification single-file (DP-033 Phase B) | `scripts/validate-task-md.sh <path>`（V mode） | 1 / 2 | — |
 | Test Environment Level enum + Runtime contract（**完全共用 T mode**，§ 4.4 / § 3.3） | Verification single-file (DP-023 reuse) | `scripts/validate-task-md.sh <path>`（V mode） | 1 / 2 | — |
-| `## 驗收項目` / `## 估點理由` / `## 目標` 非空 + Operational Context 含 JIRA key | Verification single-file (DP-033 Phase B) | `scripts/validate-task-md.sh <path>`（V mode） | 1 / 2 | — |
+| `## 驗收項目` / `## 目標` 非空 + Operational Context 含 JIRA key | Verification single-file (DP-033 Phase B) | `scripts/validate-task-md.sh <path>`（V mode） | 1 / 2 | — |
 | Lifecycle-conditional 結構（`ac_verification` / `ac_verification_log` / `jira_transition_log`） | Verification single-file (DP-033 Phase B § 4.7 對稱 D7) | `scripts/validate-task-md.sh`（V mode；`ac_verification` 必驗 schema、`ac_verification_log` / `jira_transition_log` 寬鬆 list-of-maps） | 1 / 2 | — |
 
 **Shared rules（T/V 共用，filename pattern 擴展為 `[TV]*.md`）**：

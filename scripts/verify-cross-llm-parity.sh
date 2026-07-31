@@ -131,12 +131,6 @@ fixture
 
 - `true`
 
-## Test Command
-
-```bash
-true
-```
-
 ## Test Environment
 
 - **Level**: static

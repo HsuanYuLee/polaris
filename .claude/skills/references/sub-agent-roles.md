@@ -243,7 +243,7 @@ A structured code review that returns findings in a parseable format.
 | 來源 | 用途 |
 |------|------|
 | `{company}/polaris-config/{project}/handbook/**/*.md` + `{repo}/CLAUDE.md` + `{repo}/.claude/rules/**/*.md` | **Primary compliance baseline**（judge against；repo long-term convention 是 SoT） |
-| task.md `## 改動範圍` / `## 估點理由` | **Context only**（理解 PR 意圖，**不**作 compliance spec — 避免 task.md rubber stamp workaround） |
+| task.md `## 改動範圍` | **Context only**（理解 PR 意圖，**不**作 compliance spec — 避免 task.md rubber stamp workaround） |
 | task.md `Allowed Files` / `verification.*` / `depends_on` | **不讀**（D20 Scope Gate / D15 verify evidence / D14 artifact gate 已處理） |
 
 Reviewer 以「這 PR 對 repo 是不是好的」為基準，不是「這 PR 是否符合 task.md 文字」。

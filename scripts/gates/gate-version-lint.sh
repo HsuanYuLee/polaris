@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # gate-version-lint.sh — Portable git-hook gate (DP-032 Wave δ)
-# Extracted from .claude/hooks/version-docs-lint-gate.sh for cross-LLM portability.
+# Canonical VERSION/docs lint gate (originally extracted from the retired version-docs-lint-gate hook).
 # Can be called from: git pre-commit hooks, or directly.
 #
 # Usage:

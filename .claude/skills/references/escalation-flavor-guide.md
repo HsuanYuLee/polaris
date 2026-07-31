@@ -53,7 +53,7 @@ gate still fails because Y > baseline Z. Required decisions: {fix A} + {decision
 | Flavor | 主訴 | Breakdown 的典型回應 |
 |--------|------|----------------------|
 | `env-drift` | 外部 baseline / dep / sibling 還沒就緒；本 task 沒做錯，只是 starting point 過時 | Approval to bump `.lint-baseline.txt` / 等 sibling task merge / 升 dep；多半不重切 task |
-| `plan-defect` | task.md 自己漏估或範圍寫錯 | 改 task.md（補 Allowed Files / 補 Test Command / 補 Verify Command / 改 estimate） |
+| `plan-defect` | task.md 自己漏估或範圍寫錯 | 改 task.md（補 Allowed Files / 補 Verify Command） |
 | `scope-drift` | 出現原本沒人預期的新工作 | 拆新 task，掛 `depends_on: [<原 task>]`；原 task 等新 task 落地 |
 
 ## Worked Examples
@@ -113,7 +113,7 @@ completion gate 在 finalize 前 fail。
 或 env-drift 判斷。
 
 **Why plan-defect**: 既有 selftest 是同一個行為契約的規格檔。既然 task 要移除該舊機制，breakdown
-應把對應 selftest teardown 放進同一 task 的 Allowed Files / Test Command，而不是新增 escalation
+應把對應 selftest teardown 放進同一 task 的 Allowed Files / Verify Command，而不是新增 escalation
 flavor，也不是建立 un-finalize path。
 
 **Resolution**: breakdown 更新 task scope，讓 engineering 在 task 仍可編輯時同步改 production path
@@ -128,7 +128,7 @@ flavor，也不是建立 un-finalize path。
 - 失敗是 transient（網路、port 占用、Mockoon 沒起來） → 重試或修環境，不寫 sidecar
 
 Sidecar 只在「失敗的修法會踩到 planner-owned 欄位（Allowed Files / estimate /
-Test Command / Verify Command / Test Environment / depends_on）」時才該寫。
+Verify Command / Test Environment / depends_on）」時才該寫。
 
 ## Counter-Audit (Breakdown's Re-Classification Hint)
 

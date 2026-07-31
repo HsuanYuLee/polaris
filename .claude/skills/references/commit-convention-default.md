@@ -20,7 +20,7 @@ LLM 寫 commit message 前依下列順序 probe，命中即停（**不混用上�
 
 **規則衝突處理**：L1 有定義就完全用 L1（type enum、scope、subject limit 等）；L2 / L3 只在 L1 未宣告的維度補充。L2 若明示「覆蓋 L1」這類 repo 暫不處理，回到 handbook 層解決。
 
-**task.md 角色**（context only，不作 compliance）：`## 改動範圍` / `## 估點理由` 提供 PR 意圖理解；`Allowed Files` / `verification.*` / `depends_on` **不讀**。
+**task.md 角色**（context only，不作 compliance）：`## 改動範圍` 提供 PR 意圖理解；`Allowed Files` / `verification.*` / `depends_on` **不讀**。
 
 ---
 

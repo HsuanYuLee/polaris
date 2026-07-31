@@ -11,7 +11,7 @@ description: "engineering scope escalation：gate failure requiring planner-owne
 
 1. mandatory mechanical gate failed（ci-local、type baseline、verify command、coverage）。
 2. failure files / required fix 落在 task Allowed Files 之外。
-3. 修法需要改 planner-owned 欄位：Allowed Files、estimate、Test Command、Verify
+3. 修法需要改 planner-owned 欄位：Allowed Files、Verify
    Command、Test Environment、depends_on。
 
 少任一條，走一般 scope addition / code fix；但仍不得自行改 planner-owned 欄位。

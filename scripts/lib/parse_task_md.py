@@ -202,20 +202,23 @@ if lines and lines[0].strip() == "---":
 body_lines = lines[body_start:]
 
 
-# ---- header: # T{n}[suffix]: {summary} ({SP} pt) --------------------------
+# ---- header: # T{n}[suffix]: {summary} -----------------------------------
+# Story points live in JIRA only. A trailing "(N pt)" is still parsed so legacy
+# task.md files keep working, but its absence is not an error.
 header = {"task_id": None, "summary": None, "story_points": None}
-header_re = re.compile(r"^#\s+(T\d+[a-z]*)\s*:\s*(.+?)\s*\(([0-9.]+)\s*pt\)\s*$")
+header_re = re.compile(r"^#\s+(T\d+[a-z]*)\s*:\s*(.+?)\s*(?:\(([0-9.]+)\s*pt\))?\s*$")
 for ln in body_lines:
     m = header_re.match(ln)
     if m:
         header["task_id"] = m.group(1)
         header["summary"] = m.group(2).strip()
         sp_str = m.group(3)
-        try:
-            sp = float(sp_str)
-            header["story_points"] = int(sp) if sp.is_integer() else sp
-        except ValueError:
-            header["story_points"] = sp_str
+        if sp_str:
+            try:
+                sp = float(sp_str)
+                header["story_points"] = int(sp) if sp.is_integer() else sp
+            except ValueError:
+                header["story_points"] = sp_str
         break
 
 
@@ -467,8 +470,11 @@ def first_code_block(lns):
             out.append(ln)
     return ("\n".join(out).rstrip()) if (in_block and out) else None
 
-test_command = first_code_block(section_lines("## Test Command"))
+# ## Verify Command is the task's single command oracle. "test_command" stays in
+# the output as an alias of it so existing readers keep working; there is no
+# separate ## Test Command section to drift from it.
 verify_command = first_code_block(section_lines("## Verify Command"))
+test_command = verify_command
 verify_fallback_command = first_code_block(section_lines("## Verify Fallback Command"))
 
 

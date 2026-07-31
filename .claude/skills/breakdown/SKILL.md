@@ -25,8 +25,11 @@ to `refinement`。
 - 寫入 specs Markdown 時遵守 `starlight-authoring-contract.md`；task work order
   寫入 folder-native `tasks/Tn/index.md` 或 `tasks/Vn/index.md`；task schema 以
   `task-md-schema.md` 為準。
-- 所有 estimate 使用 `estimation-scale.md`；JIRA sub-task / story point 操作使用
-  `jira-subtask-creation.md` 與 `jira-story-points.md`。
+- **估點只是管理紀錄，不是切分輸入**：估點不寫進任何框架 artifact（`refinement.json`
+  與 `task.md` 都不帶），只在**切分定案之後**寫進 JIRA。切分判準是「一個 agent 一次
+  吃得下、且自己帶得起 verify command」，不是工時。estimate 尺度見
+  `estimation-scale.md`；JIRA sub-task / story point 操作見 `jira-subtask-creation.md`
+  與 `jira-story-points.md`。
 - 寫入 task.md 前必須有 explicit user confirmation；沒有確認不可寫 JIRA、branch、
   task.md、sidecar processed flag。
 - DP-backed source 若由 `auto-pass` dispatch，explicit confirmation 可由
@@ -159,7 +162,8 @@ bash scripts/write-producer-owned-artifact.sh \
   derive script 從 refinement.json structured fields（`id`、`title`、`scope`、
   `modules`、`ac_ids`、`verification.detail`）一比一還原 task.md schema 必填欄位；initial-create
   的 `## Allowed Files` 由 matched `tasks[].modules` task intent 產生。`allowed_files` /
-  `estimate_points` 仍是 forbidden per-task packaging fields，不得放回 refinement artifact。
+  `estimate_points` 仍是 forbidden per-task packaging field，不得放回 refinement artifact；
+  task.md 也不再帶估點（見上方「估點只是管理紀錄」）。
   缺欄位即 fail-loud，沒有 LLM fallback 把 gap 填起來。需要新欄位時改 refinement artifact，
   不在 breakdown 層補。
 - **`task_shape` propagation（DP-262）**：breakdown 是 task.md frontmatter `task_shape`

@@ -40,7 +40,7 @@ work order 讀取 fallback，不再作為新產物預設。必備內容：
 - Acceptance / test plan。
 - Behavior contract。
 - Required Tools（只有 refinement / ticket 明確宣告工單級工具需求時才寫；沒有就省略）。
-- Test Command。
+- Verify Command（task 唯一的命令 oracle）。
 - Test Environment。
 - Gate Closure Matrix。
 - Verify Command。
@@ -71,7 +71,7 @@ DP-backed implementation task 的 packaging 仍沿用 Epic 正規鏈：
 
 ## Required Tools
 
-若 refinement artifact 有 `tool_requirements[]`，每個會影響 Test Command / Verify Command /
+若 refinement artifact 有 `tool_requirements[]`，每個會影響 Verify Command /
 runtime bootstrap 的 entry 都要映射到 task.md `## Required Tools` table。table 是給
 engineering setup 的可執行 handoff：`check_command` 用來確認工具是否已存在；
 `install_command` 只在有明確且被授權的安裝方式時填入，否則填 `N/A` 並在

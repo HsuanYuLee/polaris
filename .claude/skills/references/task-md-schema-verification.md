@@ -26,7 +26,6 @@
 | `## Verification Handoff` | Optional | DP-033 Phase B | 不檢；breakdown 慣例寫一句「驗收將由 verify-AC 觸發」 | 同 T |
 | `## 目標` | **Soft** | DP-033 Phase B | 章節存在 + 非空（warn-only） | 同 T |
 | `## 驗收項目` | **Hard** | DP-033 Phase B | `validate-task-md.sh`（V mode；章節存在 + 非空 body — markdown row 或 bullet ≥ 1） | 對應 T 的 `## 改動範圍`（語意對稱：T 列檔案改動，V 列 AC 覆蓋；命名分開避免混淆）|
-| `## 估點理由` | **Hard** | DP-033 Phase B | 章節存在 + 非空 body | 同 T |
 | `## 驗收計畫（AC level）` | **Soft** | DP-033 Phase B | 章節存在；內容不檢 | 對應 T 的 `## 測試計畫（code-level）`（語意對稱：T 是 code-level 測試，V 是 AC-level 驗收計畫）|
 | `## Test Environment` | **Hard** | DP-023 / DP-033 Phase B | `validate-task-md.sh`（V mode；§ 3.3 整節適用，Level enum + Runtime cross-field 全共用 T mode） | 同 T |
 | `## 驗收步驟` | **Hard**（`Level≠static` 時） | DP-033 Phase B | `validate-task-md.sh`（V mode；章節存在 + 含 fenced code block + Level=runtime 時 host alignment 同 § 3.3） | 對應 T 的 `## Verify Command`（語意對稱：T 是 deterministic shell，V 是 verify-AC LLM driver entry + 逐 AC 步驟描述）|
@@ -36,7 +35,7 @@
 | T 章節 | V 為何省略 |
 |--------|-----------|
 | `## Allowed Files` | 驗收不寫 code，無 Scope Check 概念（engineer-delivery-flow Step 5.5 不適用 V） |
-| `## Test Command` | 驗收跑 AC、不跑 unit test（unit test 屬實作 T 範疇） |
+| `## Verify Command` | 驗收跑 AC、不跑 unit test（unit test 屬實作 T 範疇） |
 
 > **對稱原則註**：基礎設施 reuse — `parse-task-md.sh` 中央 parser（filename 自動識別 T/V）、`mark-spec-implemented.sh` move-first closer（filename dispatch 對 T/V 共用，§ 4.6）、`pipeline-artifact-gate.sh` PreToolUse hook、D6 `tasks/pr-release/` 機制、D7 atomic + retry-3 + fail-stop write-back contract、`jira_transition_log[]` lifecycle 欄位 — 全部 T/V 共用，新增的只有 `ac_verification` / `ac_verification_log[]` 兩個 frontmatter 欄位 + `validate-task-md.sh` V mode 規則集。
 
@@ -110,7 +109,7 @@ V mode **完全共用** T mode 的 Test Environment 規則（§ 3.3 整節適用
 - Level enum (`static` / `build` / `runtime`)
 - Runtime cross-field rules（`Runtime verify target` http/https URL + `Env bootstrap command` 必填 + `Verify Command` URL host alignment — 對 V 來說是 `## 驗收步驟` 內 fenced block 的 URL）
 - Static 規則（`Runtime verify target` / `Env bootstrap command` 必須 `N/A`）
-- Build 規則（`Runtime verify target` 必須 `N/A`；runner 類 Test Command 需由 breakdown readiness 要求 bootstrap）
+- Build 規則（`Runtime verify target` 必須 `N/A`；runner 類 Verify Command 需由 breakdown readiness 要求 bootstrap）
 - `Fixtures:` 路徑存在性（DP-025，由 `validate-task-md-deps.sh` enforce）
 
 verify-AC 與 engineering 共用 Epic 內的 fixtures / dev environment / runtime verify target — 不重複定義。
@@ -307,10 +306,6 @@ jira_transition_log:
 | AC-2 | products 頁面 SSR 顯示正確時區 | T3b | runtime |
 | AC-3 | i18n locale 正確套用 | T3b, T3c | runtime |
 | AC-4 | adapter cleanup 不留 moment import | T3d | static |
-
-## 估點理由
-
-3 pt — 4 個 AC，含 runtime + static 混合；首輪 FAIL 後手動 disposition AC-2 為 spec issue（非實作 bug），重跑 PASS。
 
 ## 驗收計畫（AC level）
 

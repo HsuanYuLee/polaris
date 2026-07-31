@@ -22,18 +22,8 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表。
 |-----------|------|------|---------|-----------------|-----------------|
 | ci-local-gate | .claude/hooks/ci-local-gate.sh | hook | portable | N/A | governance |
 | cross-session-warm-scan | .claude/hooks/cross-session-warm-scan.sh | hook | portable | N/A | governance |
-| no-manual-work-order-search | .claude/hooks/no-manual-work-order-search.sh | hook | portable | N/A | governance |
-| post-memory-index-regenerate | .claude/hooks/post-memory-index-regenerate.sh | hook | portable | N/A | governance |
-| post-runtime-instruction-manifest-regenerate | .claude/hooks/post-runtime-instruction-manifest-regenerate.sh | hook | claude-code-only | scripts/compile-runtime-instructions.sh | governance |
-| pre-memory-write | .claude/hooks/pre-memory-write.sh | hook | portable | N/A | governance |
 | pre-write-language-policy | .claude/hooks/pre-write-language-policy.sh | hook | claude-code-only | scripts/validate-language-policy.sh | governance |
-| pre-framework-source-write | .claude/hooks/pre-framework-source-write.sh | hook | portable | scripts/validate-framework-source-write.sh | governance |
-| post-framework-source-diff-audit | .claude/hooks/post-framework-source-diff-audit.sh | hook | portable | scripts/validate-framework-source-write.sh | governance |
-| pr-base-gate | .claude/hooks/pr-base-gate.sh | hook | portable | N/A | governance |
-| version-docs-lint-gate | .claude/hooks/version-docs-lint-gate.sh | hook | portable | N/A | governance |
 | session-start-thread-anchor | .claude/hooks/session-start-thread-anchor.sh | hook | claude-code-only | scripts/update-active-thread.sh | governance |
-| stop-active-thread-reminder | .claude/hooks/stop-active-thread-reminder.sh | hook | portable | N/A | governance |
-| intra-step-repeated-attempt-detector | .claude/hooks/intra-step-repeated-attempt-detector.sh | hook | claude-code-only | N/A | ux_enhancement_only |
 | engineering-self-review-result-writer | scripts/write-engineering-self-review-result.sh | script | portable | scripts/selftests/write-engineering-self-review-result-selftest.sh | governance |
 | engineering-self-review-result-validator | scripts/validate-engineering-self-review-result.sh | script | portable | scripts/selftests/validate-engineering-self-review-result-selftest.sh | governance |
 | learning-seed-contract | scripts/validate-learning-seed-contract.sh | script | portable | N/A | governance |

@@ -65,8 +65,8 @@ First-cut 不再需要獨立 pre-development rebase；branch setup 已從 resolv
      --cwd "$WORKTREE_PATH"
    ```
 
-5. 用 `scripts/parse-task-md.sh` 取得 `test_command`、`verify_command`、Test
-   Environment。不可自行推導。
+5. 用 `scripts/parse-task-md.sh` 取得 `verify_command` 與 Test Environment。
+   不可自行推導。
 6. runtime level 用 `scripts/start-test-env.sh`；不要手拼 docker / dev server。
 7. canonical `polaris-config/{project}/generated-scripts/ci-local.sh` 存在時必跑：
 

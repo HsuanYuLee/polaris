@@ -13,12 +13,10 @@
 | `## Allowed Files` | **Hard** | DP-033 D5 (升級自 Soft，2026-04-26 鎖定) | `validate-task-md.sh`（章節存在 + 非空 bullet list）— 直接 Hard，**不開 grace、不留 warn-only**；既有 active T 缺漏由 A7 migration script **強制 backfill** |
 | `## Required Tools` | Optional | DP-194 | `validate-task-md.sh`（若存在，驗證 table 欄位與 ticket-scoped `goes_to_mise=false`） |
 | `## Scope Trace Matrix` | **Breakdown readiness Hard** | DP-112 | `validate-breakdown-ready.sh`（章節存在 + goal/AC → owning files → surface/boundary → tests；owning files 必須被 Allowed Files 覆蓋） |
-| `## 估點理由` | **Hard** | DP-025 | `validate-task-md.sh`（章節存在 + 非空 body） |
 | `## 測試計畫（code-level）` | **Soft** | DP-025 | `validate-task-md.sh`（章節存在；內容不檢） |
-| `## Test Command` | **Hard** | DP-005 / DP-025 | `validate-task-md.sh`（章節存在 + 含 fenced code block） |
 | `## Test Environment` | **Hard** | DP-023 | `validate-task-md.sh`（章節存在 + Level enum + Runtime contract — 見 § 3.3） |
 | `## Gate Closure Matrix` | **Breakdown readiness Hard** | DP-082 | `validate-breakdown-ready.sh`（章節存在 + scope/test/verify/ci-local + pass condition + owner/decision） |
-| `## Verify Command` | **Hard**（`Level≠static` 時） | DP-023 | `validate-task-md.sh`（章節存在 + 含 fenced code block + Level=runtime 時 host alignment） |
+| `## Verify Command` | **Hard** | DP-005 / DP-023 / DP-025 | `validate-task-md.sh`（章節存在 + 含 fenced code block + Level=runtime 時 host alignment）。task 唯一的 command oracle：engineering 跑它，verify-AC 也跑它 |
 
 ### 3.1a Frontmatter `task_shape`（implementation default — DP-262）
 
@@ -158,7 +156,7 @@ Bullet list 格式：
 **Static 規則**：`Runtime verify target` / `Env bootstrap command` 預期 = `N/A`；若非 N/A → fail（避免假性宣告）。
 
 **Build 規則**：`Runtime verify target` 預期 = `N/A`；`Env bootstrap command` 可為 `N/A` 或
-install/build setup command。若 `Test Command` 執行 test/build runner，breakdown readiness
+install/build setup command。若 `Verify Command` 執行 test/build runner，breakdown readiness
 gate 會要求非 `N/A` bootstrap，避免把 repo dependency setup 留給 engineering 猜測。
 
 ### 3.4 `## Allowed Files`
@@ -180,7 +178,7 @@ Allowed Files pattern 支援 repo-root relative path、glob，以及 root exact 
 ### 3.4a `## Required Tools`（optional，DP-194）
 
 當 task 需要 framework root toolchain 之外的 CLI / package / local binary 才能執行
-Test Command 或 Verify Command 時，breakdown 可寫 `## Required Tools`。這是
+Verify Command 時，breakdown 可寫 `## Required Tools`。這是
 planning-to-engineering handoff，不是 root `mise.toml` 變更授權。
 
 格式為 markdown table：
@@ -245,8 +243,8 @@ Validator 只在 section 存在時驗證表格。沒有工單級工具需求時�
 | Gate | Applies | Pass condition | Owner / decision |
 |------|---------|----------------|------------------|
 | scope | yes | changed files all match Allowed Files | breakdown |
-| test | yes | Test Command passes | engineering |
-| verify | yes | Verify Command passes | engineering |
+| test | yes | Verify Command passes | engineering |
+| verify | yes | Verify Command passes（同一條命令，同一個判準） | engineering |
 | ci-local | no | N/A | no ci-local configured for this repo |
 ```
 
@@ -258,11 +256,17 @@ Validator 只在 section 存在時驗證表格。沒有工單級工具需求時�
 - `N/A` 合法，但必須有原因。
 - `Allowed Files` 若含自然語言描述，readiness gate fail；自然語言只能放 `## 改動範圍`。
 
-### 3.7 `## Test Command` / `## Verify Command`
+### 3.7 `## Verify Command`
 
-兩者皆必須包含 fenced code block（內容由 LLM 不可改寫 — `verify-command-immutable-execute` canary）。
+Task 只有**一個** command oracle。`## Verify Command` 必須包含 fenced code block
+（內容由 LLM 不可改寫 — `verify-command-immutable-execute` canary）；engineering 施工時
+跑它，verify-AC 驗收時跑同一條，兩邊不可能各綠各的。
 
-Deterministic script task 必須在 `## Test Command`、`## Verify Command` 或 Scope Trace Matrix 寫出 script test contract。高風險 script behavior / dependency / selected suite / bootstrap / doctor / release preflight / lifecycle gate 變更，要標明哪個 failing selftest 先失敗、implementation 後通過。text-only、comment-only、typo、help output 等 trivial change 可以註明不新增 failing selftest 的理由。
+Deterministic script task 必須在 `## Verify Command` 或 Scope Trace Matrix 寫出 script
+test contract。高風險 script behavior / dependency / selected suite / bootstrap / doctor /
+release preflight / lifecycle gate 變更，要標明哪個 failing selftest 先失敗、implementation
+後通過。text-only、comment-only、typo、help output 等 trivial change 可以註明不新增
+failing selftest 的理由。
 
 `## Verify Fallback Command` 是 optional section；只有 primary `## Verify Command`
 因已確認 repo baseline issue 無法產生 artifact 時才可提供。Engineering 不得臨時改跑
@@ -271,34 +275,30 @@ exit 非 0 時執行 fallback 並產生 `verification_mode=fallback` evidence。
 
 DP-065 Verify Command static smoke 會在 validation 階段檢查可靜態證明的 command-shape 問題：repo-local script command 若該 script 有 `--help`，使用不存在的 `--flag` 會 fail；簡單 `rg` command 的 regex pattern 會做 parse-only smoke，regex parse error 會 fail。validator 不執行完整 Verify Command，也不嘗試解釋複雜 shell control flow。
 
-`## Test Command` 的內容不是 schema 固定值，必須由 producer 依下列來源解析後填入：
+命令內容不是 schema 固定值，由 producer 依下列來源解析後填入（source AC 的
+`verification.verify_command` 優先；沒有時才回到專案預設）：
 
-1. `workspace-config.yaml` → `projects[].dev_environment.test_command`
-2. 專案 CLAUDE.md 的測試指令
-3. Fallback：`npx vitest run`
+1. refinement.json `acceptance_criteria[].verification`（`verify_command`，退回 `detail`）
+2. `workspace-config.yaml` → `projects[].dev_environment.test_command`
+3. 專案 CLAUDE.md 的測試指令
+4. Fallback：`npx vitest run`
 
 Monorepo 指令必須能從該 repo / worktree root 執行，並包含正確子目錄；例如 `pnpm --dir {app_dir} exec vitest run` 只適用於 repo root 下確實存在 `{app_dir}` 的專案，不能作為所有 task.md 的固定範例。
 
-若 project 的 Nuxt/Vitest runner 已知會受 caller shell debug env 影響，`Test Command`
+若 project 的 Nuxt/Vitest runner 已知會受 caller shell debug env 影響，`Verify Command`
 必須在 command 入口清掉 inherited debug env（例如 `env -u DEBUG ...`），不要把
 app-level runtime/config workaround 包進產品 task。
 
 Producer 不得把 clean base 已知會失敗的 repo-wide / app-wide command 寫成 READY
-task 的唯一 hard `Test Command`。若解析到的 workspace/project default test command 在
+task 的唯一 `Verify Command`。若解析到的 workspace/project default test command 在
 resolved base 已因 unrelated baseline issue 失敗，breakdown 必須改用 task-owned targeted
-test command，或把 baseline/env decision 明確記錄為 blocker / fallback；不可把 clean-base
+command，或把 baseline/env decision 明確記錄為 blocker / fallback；不可把 clean-base
 紅燈交給 engineering 到 delivery 階段才發現。
 
 ```markdown
-## Test Command
-
-> breakdown 產出。engineering 跑測試時**必須使用此指令**，不可自行推導。
-
-​```bash
-{project-specific test_command}
-​```
-
 ## Verify Command
+
+> breakdown 產出。engineering 與 verify-AC 都**必須使用此指令**，不可自行推導。
 
 ​```bash
 curl -sf http://localhost:3100/api/activities -o /dev/null -w "%{http_code}" | python3 -c "..."
@@ -360,16 +360,8 @@ AC 驗證委派至 TASK-3713（由 verify-AC skill 執行）。
 ## Allowed Files
 - `exampleco/mockoon/fixtures/gt478/`
 
-## 估點理由
-2 pt — ...
-
 ## 測試計畫（code-level）
 - build check: ... → TASK-3823
-
-## Test Command
-​```bash
-{project-specific test_command}
-​```
 
 ## Test Environment
 - **Level**: runtime

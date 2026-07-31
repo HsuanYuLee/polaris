@@ -154,7 +154,7 @@ Root config 也包含 `dependencies` block，追蹤框架推薦 lib 的使用者
 | 專案 Dev 環境 | `company: projects[].dev_environment.*` | /init Step 9a |
 | 專案依賴安裝指令 | `company: projects[].dev_environment.install_command` | `scripts/env/install-project-deps.sh` detector |
 | 專案 Dev 啟動指令 | `company: projects[].dev_environment.start_command` | — |
-| 專案 Test 指令 | `company: projects[].dev_environment.test_command` | breakdown 產 task.md `## Test Command` 的來源 |
+| 專案 Test 指令 | `company: projects[].dev_environment.test_command` | breakdown 產 task.md `## Verify Command` 的來源（AC 自帶 verify_command 時以 AC 為準） |
 | 專案 Dev base URL | `company: projects[].dev_environment.base_url` | — |
 | 專案 PR title 規則 | `company: projects[].delivery.pr_title.developer` | `"[{TICKET}] {summary}"` |
 | 專案 PR review label 規則 | `company: projects[].delivery.pr_review_label.policy` + `.labels[]` | `company: scrum.need_review_label`（optional 相容） |

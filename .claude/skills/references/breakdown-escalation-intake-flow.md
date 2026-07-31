@@ -30,7 +30,7 @@ frontmatter 與 gate-closure sections：
 
 | Flavor | Breakdown action |
 |---|---|
-| `plan-defect` | 修現有 task.md，補 Allowed Files / estimate / Test Command / Verify Command / Test Environment |
+| `plan-defect` | 修現有 task.md，補 Allowed Files / Verify Command / Test Environment |
 | `scope-drift` | 拆新 task，新 task `depends_on` 原 task |
 | `env-drift` | 記錄 wait / baseline approval / external drift，不放行 failing gate |
 

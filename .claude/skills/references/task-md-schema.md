@@ -15,7 +15,7 @@
 
 ## V vs T Boundary (DP-217)
 
-V (verification) task.md 與 T (implementation) task.md 共用大量基礎設施（parse-task-md / mark-spec-implemented / pipeline-artifact-gate / D7 atomic write contract / `jira_transition_log[]`），但章節集合與 frontmatter lifecycle 欄位不對稱。常見 producer 錯誤是把 T-only 章節（`## Verify Command`, `## Allowed Files`, `## 改動範圍`, `## Test Command`）寫進 V task，造成 verify-AC 找不到 `## 驗收步驟`。改 V task 前一律先讀 [`v-task-md-schema.md`](./v-task-md-schema.md) 的 V/T 對照表。
+V (verification) task.md 與 T (implementation) task.md 共用大量基礎設施（parse-task-md / mark-spec-implemented / pipeline-artifact-gate / D7 atomic write contract / `jira_transition_log[]`），但章節集合與 frontmatter lifecycle 欄位不對稱。常見 producer 錯誤是把 T-only 章節（`## Verify Command`, `## Allowed Files`, `## 改動範圍`）寫進 V task，造成 verify-AC 找不到 `## 驗收步驟`。改 V task 前一律先讀 [`v-task-md-schema.md`](./v-task-md-schema.md) 的 V/T 對照表。
 
 ## Consumer Contract
 

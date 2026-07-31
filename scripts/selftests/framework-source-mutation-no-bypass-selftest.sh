@@ -70,13 +70,13 @@ bash "$VALIDATOR" --repo "$ROOT" --self-check-wiring >"$OUT" 2>&1 \
   || fail "wiring self-check should pass: $(cat "$OUT")"
 assert_contains "wiring" "$OUT" "PASS: framework source write wiring"
 
+# 每次寫入攔截的 PreToolUse / Codex hook 已隨 B 桶退役；框架 source write 授權
+# 現在只有一條 runtime-neutral 執行面：PR gate W17 與 codex bash wrapper 都直接
+# 呼叫 validate-framework-source-write.sh。
 for file in \
-  "$ROOT/.claude/settings.json" \
-  "$ROOT/.codex/config.toml" \
   "$ROOT/scripts/codex-guarded-bash.sh" \
-  "$ROOT/scripts/check-framework-pr-gate.sh" \
-  "$ROOT/scripts/lib/mechanism-tables.md"; do
-  grep -q "validate-framework-source-write\\|pre-framework-source-write\\|post-framework-source-diff-audit\\|W17 framework source write authority" "$file" \
+  "$ROOT/scripts/check-framework-pr-gate.sh"; do
+  grep -q "validate-framework-source-write\\|W17 framework source write authority" "$file" \
     || fail "missing framework source wiring in $file"
 done
 
