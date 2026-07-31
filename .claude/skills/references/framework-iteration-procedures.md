@@ -48,8 +48,6 @@ distribution/tooling files and does not include `VERSION`, preflight must block
 until one of these is true:
 
 1. `VERSION` + `CHANGELOG.md` are added to the release PR.
-2. A local maintainer explicitly sets the override accepted by
-   `scripts/check-version-bump-reminder.sh`.
 
 The release lane must not silently reinterpret this signal as advisory-only.
 

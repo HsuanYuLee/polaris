@@ -103,9 +103,8 @@ absorbed_into: .claude/rules/example.md  # Optional; set when promoted to rule/r
 ---
 ```
 
-`expires_at` 用於 workaround / temporary policy；到期後 `scripts/memory-retention-scan.sh`
-會建議 `review_for_removal`。`absorbed_into` 用於已升格成 rule / reference 的 feedback；
-scanner 會建議 `prune`，但不會自動刪檔。
+`expires_at` 用於 workaround / temporary policy。`absorbed_into` 用於已升格成 rule /
+reference 的 feedback。
 
 ## Feedback → Rule Graduation (Auto-Evolution)
 

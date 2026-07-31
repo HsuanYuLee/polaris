@@ -9,8 +9,6 @@ Rely on native runtime compaction and Polaris checkpoint artifacts, not long pro
 | Mechanism | Owner | Purpose |
 |-----------|-------|---------|
 | `context-pressure-monitor.sh` | hook | Advisory tool-call pressure signal |
-| `post-compact-context-restore.sh` | hook | Re-inject branch / ticket / dirty-state summary after compaction |
-| `stop-todo-check.sh` | hook | Blocks premature stop when substantial todos remain |
 | `checkpoint` skill | user workflow | Explicit save / restore / list session state |
 
 ## Behavioral Fallback

@@ -7,8 +7,6 @@ PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
 RESOLVE_RELEASE_SURFACE="${SCRIPT_DIR}/resolve-release-surface.sh"
 CHECK_DELIVERY_COMPLETION_BIN="${POLARIS_CHECK_DELIVERY_COMPLETION_BIN:-${SCRIPT_DIR}/check-delivery-completion.sh}"
 CHECK_LOCAL_EXTENSION_COMPLETION_BIN="${POLARIS_CHECK_LOCAL_EXTENSION_COMPLETION_BIN:-${SCRIPT_DIR}/check-local-extension-completion.sh}"
-POLARIS_CHANGESET_BIN="${POLARIS_CHANGESET_BIN:-${SCRIPT_DIR}/polaris-changeset.sh}"
-VERIFY_AGENTS_MIRROR_PORTABLE_BIN="${POLARIS_VERIFY_AGENTS_MIRROR_PORTABLE_BIN:-${SCRIPT_DIR}/verify-agents-mirror-portable.sh}"
 
 TASK_MD=""
 REPO_OVERRIDE=""
@@ -145,18 +143,10 @@ REPO_PATH="$(resolve_repo_path "$REPO_NAME" || true)"
 
 case "$SURFACE_CLASS" in
   package_release)
-    if [[ -x "$VERIFY_AGENTS_MIRROR_PORTABLE_BIN" ]]; then
-      bash "$VERIFY_AGENTS_MIRROR_PORTABLE_BIN" >/dev/null 2>&1 || {
-        emit_result "$SOURCE_ID" "$SURFACE_CLASS" "$RELEASE_REQUIRED" "BLOCKED" "codex_portable_smoke_failed"
-        exit 2
-      }
-    fi
-    if bash "$POLARIS_CHANGESET_BIN" check --task-md "$TASK_MD" --repo "$REPO_PATH" >/dev/null 2>&1; then
-      emit_result "$SOURCE_ID" "$SURFACE_CLASS" "$RELEASE_REQUIRED" "ELIGIBLE" "pass"
-      exit 0
-    fi
-    emit_result "$SOURCE_ID" "$SURFACE_CLASS" "$RELEASE_REQUIRED" "BLOCKED" "changeset_missing_or_invalid"
-    exit 2
+    # repo 自己的發版產物要求（release note 檔、版本檔等）由該 repo 的 CI 與設定
+    # 把關；框架不代為判定。
+    emit_result "$SOURCE_ID" "$SURFACE_CLASS" "$RELEASE_REQUIRED" "ELIGIBLE" "pass"
+    exit 0
     ;;
   developer_pr)
     TICKET="$(parse_field jira_key)"
@@ -187,12 +177,6 @@ case "$SURFACE_CLASS" in
     local_args=(--repo "$REPO_PATH" --task-md "$TASK_MD" --task-id "$TASK_ID" --extension-id "$EXTENSION_ID")
     if [[ -n "$TEMPLATE_REPO" ]]; then
       local_args+=(--template-repo "$TEMPLATE_REPO")
-    fi
-    if [[ -x "$VERIFY_AGENTS_MIRROR_PORTABLE_BIN" ]]; then
-      bash "$VERIFY_AGENTS_MIRROR_PORTABLE_BIN" >/dev/null 2>&1 || {
-        emit_result "$SOURCE_ID" "$SURFACE_CLASS" "$RELEASE_REQUIRED" "BLOCKED" "codex_portable_smoke_failed"
-        exit 2
-      }
     fi
     if bash "$CHECK_LOCAL_EXTENSION_COMPLETION_BIN" "${local_args[@]}" >/dev/null 2>&1; then
       emit_result "$SOURCE_ID" "$SURFACE_CLASS" "$RELEASE_REQUIRED" "ELIGIBLE" "pass"

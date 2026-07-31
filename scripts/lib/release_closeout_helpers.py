@@ -681,8 +681,8 @@ def resolve_surface(args: list[str]) -> int:
     deliverable = deliverable if isinstance(deliverable, dict) else None
     deliverables = frontmatter.get("deliverables")
     deliverables = deliverables if isinstance(deliverables, dict) else {}
-    changeset = deliverables.get("changeset")
-    changeset = changeset if isinstance(changeset, dict) else None
+    package_release = deliverables.get("package_release")
+    package_release = package_release if isinstance(package_release, dict) else None
     extension = frontmatter.get("extension_deliverable")
     extension = extension if isinstance(extension, dict) else None
     signals = []
@@ -692,9 +692,9 @@ def resolve_surface(args: list[str]) -> int:
             signals.append("local_extension")
         else:
             ambiguity.append("extension_deliverable_without_local_extension_endpoint")
-    if changeset is not None and any(
-        changeset.get(key) not in (None, "")
-        for key in ("package_scope", "bump_level_default", "filename_slug")
+    if package_release is not None and any(
+        package_release.get(key) not in (None, "")
+        for key in ("package_scope", "bump_level_default")
     ):
         signals.append("package_release")
     if deliverable is not None:

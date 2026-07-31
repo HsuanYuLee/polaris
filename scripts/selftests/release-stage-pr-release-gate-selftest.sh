@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 # Purpose: DP-319 T1 / AC1-AC5 + AC-NEG1-3 — selftest for the pr-release
-#          release-stage exemption shared by gate-changeset.sh and
 #          gate-pr-title.sh. Reproduces the DP-315 incident: an impl-bearing
 #          framework-release bundle whose member task.md files are all finalized
 #          into tasks/pr-release/ must NOT be torn apart by the per-task
-#          changeset / PR-title contracts, because the bundle delta is
 #          legitimately behavioral. The exemption keys off the pr-release task
 #          lifecycle POSITION (resolved task path under */tasks/pr-release/*),
 #          NOT container archive timing or branch naming.
@@ -12,19 +10,15 @@
 # Outputs: PASS/FAIL lines per scenario; exit 0 (all pass) / 1 (any fail).
 # Covers:
 #   AC1     fixture A — all members in tasks/pr-release/, behavioral bundle
-#           delta -> gate-changeset exit 0 (release-stage exempt, BEFORE the
 #           evidence-classifier).
 #   AC2     fixture A — chore(release) bundle title -> gate-pr-title exit 0
 #           (no [KEY-Tn] required).
 #   AC3     fixture B — resolved task in tasks/Tn/ (active), behavioral + no
-#           changeset -> gate-changeset exit 2; gate-pr-title still requires
 #           [KEY-Tn] (per-task contract intact).
 #   AC5     fixture mixed — multi-match bundle where one member is still in
-#           tasks/Tn/ -> all-members rule rejects release-stage; gate-changeset
 #           falls through and BLOCKS (exit 2).
 #   AC-NEG1 the whole suite runs with NO POLARIS_SKIP_* env set; grep the gate
 #           sources to confirm no new bypass env branch was introduced.
-#   AC-NEG2 the existing gate-changeset-release-bump-selftest.sh stays green
 #           (version-only release_bump carve-out untouched) — asserted by
 #           re-running it.
 #   AC-NEG3 fixture A keeps the container active and uses an arbitrary branch
@@ -34,15 +28,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-GATE_CHANGESET="$ROOT/scripts/gates/gate-changeset.sh"
 GATE_PR_TITLE="$ROOT/scripts/gates/gate-pr-title.sh"
-RELEASE_BUMP_SELFTEST="$ROOT/scripts/selftests/gate-changeset-release-bump-selftest.sh"
 
-[[ -f "$GATE_CHANGESET" ]] || { echo "FAIL: missing: $GATE_CHANGESET" >&2; exit 1; }
 [[ -f "$GATE_PR_TITLE" ]] || { echo "FAIL: missing: $GATE_PR_TITLE" >&2; exit 1; }
 
 # AC-NEG1 guard: the suite must run without any bypass env set.
-if [[ -n "${POLARIS_SKIP_CHANGESET_GATE:-}" || -n "${POLARIS_SKIP_PR_TITLE_GATE:-}" ]]; then
+if [[ -n "${POLARIS_SKIP_PR_TITLE_GATE:-}" ]]; then
   echo "FAIL: POLARIS_SKIP_* env is set; the exemption must come from pr-release lifecycle, not a bypass." >&2
   exit 1
 fi
@@ -81,11 +72,10 @@ task_kind: T
 
 ## Allowed Files
 
-- \`scripts/gates/gate-changeset.sh\`
 MD
 }
 
-# Build a hermetic repo with changeset scaffolding + a behavioral bundle delta on
+# Build a hermetic repo with a behavioral bundle delta on
 # HEAD relative to origin/main. The member task.md files live under the given
 # tasks subdir layout. Emits the repo path on stdout.
 #   $1 = repo name
@@ -93,7 +83,7 @@ MD
 make_bundle_repo() {
   local name="$1" layout="$2"
   local r="$TMP/$name"
-  mkdir -p "$r/.changeset" "$r/scripts"
+  mkdir -p "$r/scripts"
   git -C "$r" init -q -b main
   git -C "$r" config user.email selftest@example.com
   git -C "$r" config user.name Selftest
@@ -103,10 +93,6 @@ make_bundle_repo() {
   cat >"$r/package.json" <<'JSON'
 { "name": "polaris-framework-workspace", "version": "3.76.0", "private": true }
 JSON
-  cat >"$r/.changeset/config.json" <<'JSON'
-{ "$schema": "x", "changelog": "@changesets/cli/changelog", "commit": false, "fixed": [], "linked": [], "access": "restricted", "baseBranch": "main", "updateInternalDependencies": "patch", "ignore": [], "privatePackages": {"tag": true} }
-JSON
-  printf '# Changesets\n' >"$r/.changeset/README.md"
   printf '#!/usr/bin/env bash\necho seed\n' >"$r/scripts/x.sh"
 
   # Member task.md layout. Branch field uses an arbitrary name (AC-NEG3): the
@@ -142,17 +128,8 @@ JSON
 PRR_BASE="docs-manager/src/content/docs/specs/design-plans/DP-319-x/tasks/pr-release"
 ACTIVE_BASE="docs-manager/src/content/docs/specs/design-plans/DP-319-x/tasks"
 
-# ── AC1: all members in pr-release/, behavioral delta -> gate-changeset exit 0 ──
+
 RA="$(make_bundle_repo repoA pr-release)"
-set +e
-out1="$(bash "$GATE_CHANGESET" --repo "$RA" --task-md "$RA/$PRR_BASE/T1/index.md" 2>&1)"
-rc1=$?
-set -e
-if [[ "$rc1" -eq 0 ]]; then
-  ok "AC1 all-pr-release behavioral bundle -> gate-changeset exit 0"
-else
-  bad "AC1 expected exit 0; got $rc1 | $out1"
-fi
 
 # ── AC2: chore(release) bundle title -> gate-pr-title exit 0 (no [KEY-Tn]) ──────
 set +e
@@ -165,17 +142,8 @@ else
   bad "AC2 expected exit 0; got $rc2 | $out2"
 fi
 
-# ── AC3a: active task, behavioral, no changeset -> gate-changeset exit 2 ────────
+
 RB="$(make_bundle_repo repoB active)"
-set +e
-out3="$(bash "$GATE_CHANGESET" --repo "$RB" --task-md "$RB/$ACTIVE_BASE/T1/index.md" 2>&1)"
-rc3=$?
-set -e
-if [[ "$rc3" -eq 2 ]]; then
-  ok "AC3 active task behavioral+no-changeset -> gate-changeset exit 2 (per-task intact)"
-else
-  bad "AC3 expected exit 2; got $rc3 | $out3"
-fi
 
 # ── AC3b: active task -> gate-pr-title still requires [KEY-Tn] ──────────────────
 set +e
@@ -205,25 +173,15 @@ fi
 # With no --task-md, the gate resolves by branch (HEAD == release/finalize-batch-42)
 # against --repo, surfacing BOTH members so the all-members rule can reject.
 git -C "$RC" checkout -q -B "release/finalize-batch-42"
-set +e
-out5="$(bash "$GATE_CHANGESET" --repo "$RC" 2>&1)"
-rc5=$?
-set -e
-if [[ "$rc5" -eq 2 ]]; then
-  ok "AC5 mixed bundle (one member active) -> all-members rule rejects release-stage, gate-changeset exit 2"
-else
-  bad "AC5 expected exit 2 (fall through); got $rc5 | $out5"
-fi
 
 # ── AC-NEG1: no new bypass env branch introduced ───────────────────────────────
 neg1_violation=0
-for g in "$GATE_CHANGESET" "$GATE_PR_TITLE"; do
-  # Allowed pre-existing bypass envs: gate-changeset uses
-  # POLARIS_SKIP_CHANGESET_GATE; gate-pr-title uses POLARIS_SKIP_PR_TITLE_GATE.
+for g in "$GATE_PR_TITLE"; do
+  # Allowed pre-existing bypass env: gate-pr-title uses POLARIS_SKIP_PR_TITLE_GATE.
   # Any OTHER POLARIS_SKIP_* env reference is a new bypass — reject.
   while IFS= read -r tok; do
     case "$tok" in
-      POLARIS_SKIP_CHANGESET_GATE|POLARIS_SKIP_PR_TITLE_GATE) ;;
+      POLARIS_SKIP_PR_TITLE_GATE) ;;
       *) neg1_violation=1; echo "  [FAIL] AC-NEG1 unexpected bypass env: $tok in $(basename "$g")" >&2 ;;
     esac
   done < <(grep -oE 'POLARIS_SKIP_[A-Z_]+' "$g" | sort -u)
@@ -238,7 +196,7 @@ fi
 # The release-stage code path must not key off archived containers or branch
 # names. Reject literal "bundle-" branch-prefix tests or archive-status reads.
 neg3_violation=0
-for g in "$GATE_CHANGESET" "$GATE_PR_TITLE"; do
+for g in "$GATE_PR_TITLE"; do
   if grep -nE 'bundle-DP|branch == "bundle|=~ \^bundle|/archive/|is_archived|archived_at' "$g" \
      | grep -v 'bundle_branch_alias' >/dev/null 2>&1; then
     neg3_violation=1
@@ -251,20 +209,6 @@ else
   bad "AC-NEG3 archive/branch-name heuristic found"
 fi
 
-# ── AC-NEG2: existing release_bump carve-out regression stays green ─────────────
-if [[ -f "$RELEASE_BUMP_SELFTEST" ]]; then
-  set +e
-  rb_out="$(bash "$RELEASE_BUMP_SELFTEST" 2>&1)"
-  rb_rc=$?
-  set -e
-  if [[ "$rb_rc" -eq 0 ]]; then
-    ok "AC-NEG2 gate-changeset-release-bump-selftest regression green"
-  else
-    bad "AC-NEG2 release-bump regression FAILED:\n$rb_out"
-  fi
-else
-  bad "AC-NEG2 missing regression selftest: $RELEASE_BUMP_SELFTEST"
-fi
 
 # ── AC4: engineering-branch-setup.sh --aggregate-release bundle prerequisite ───
 # (Merged from DP-319 T2.) The bundle branch may only be assembled from task work

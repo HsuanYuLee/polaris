@@ -278,13 +278,5 @@ tasks/T{n}/index.md
 tasks/V{n}/index.md
 ```
 
-`scripts/pipeline-artifact-gate.sh` 會對新建 legacy task path 發出 deprecation
-warning。Rollout 完成後可設定：
-
-```bash
-POLARIS_LEGACY_TASK_LAYOUT_GATE=block
-```
-
-此時新建 `tasks/Tn.md` / `tasks/Vn.md` 會被 hook 擋下。這只限制新寫入；
 resolver、parser、validator 與 closeout reader 仍需 dual-read legacy layout，直到
 archive/migration 完成並確認沒有 active consumer 依賴 legacy files。

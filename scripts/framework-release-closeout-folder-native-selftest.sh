@@ -139,17 +139,13 @@ PY
 TMP="$(mktemp -d -t framework-closeout-folder-native.XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
 
-# The codex portable mirror smoke (verify-agents-mirror-portable.sh) validates the
 # CURRENT cwd's .claude/rules/mechanism-registry.md, so it fails when the closeout
 # runs from a /tmp fixture sandbox. Stub it to a no-op (same hermetic pattern as the
 # sibling closeout selftest); production closeout still runs the real smoke.
 mkdir -p "${TMP}/bin"
-cat >"${TMP}/bin/verify-agents-mirror-portable.sh" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
-chmod +x "${TMP}/bin/verify-agents-mirror-portable.sh"
-POLARIS_VERIFY_AGENTS_MIRROR_PORTABLE_BIN="${TMP}/bin/verify-agents-mirror-portable.sh"
 export POLARIS_VERIFY_AGENTS_MIRROR_PORTABLE_BIN
 
 # DP-360 T7: stub `gh` for close_bundled_task_pr, driven by the task.md

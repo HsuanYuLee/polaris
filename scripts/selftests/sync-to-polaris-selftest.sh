@@ -33,7 +33,7 @@ cat >"$CHANGELOG" <<'MD'
 
 ## [9.9.9] - 2026-07-14
 
-- 新增 changeset body language gate（`scripts/gates/gate-changeset.sh`），release surface 改為 CHANGELOG 的 source-conformance / parity 檢查。
+- release surface 改為 CHANGELOG 的 source-conformance / parity 檢查。
 
 ## [9.9.8] - 2026-07-13
 

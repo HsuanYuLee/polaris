@@ -857,11 +857,6 @@ if [[ -n "$PR_TITLE" || "$PR_BODY_SOURCE" == "file" || "$PR_BODY_SOURCE" == "bod
   fi
 fi
 
-# Gate 8: task changeset (managed task branches in changeset repos)
-if [[ "$IS_TICKET_BRANCH" -eq 1 ]]; then
-  run_gate gate-changeset.sh --repo "$REPO_PATH"
-fi
-
 echo "$PREFIX All gates passed — creating PR..."
 if [[ "$DRY_RUN" == "1" ]]; then
   echo "$PREFIX DRY_RUN: PR creation skipped"

@@ -140,7 +140,6 @@ Cross-LLM Hook Parity Registry (`.claude/rules/mechanism-registry.md`) must have
 runtime-neutral enforcement path in Codex: run the declared `fallback_script` directly,
 invoke the declared `codex_adapter` at its `codex_invocation_point`
 (`codex_hook` / `guarded_wrapper` / `pr_gate`), or honor a recorded `parity_exception`.
-Parity is machine-enforced by `scripts/validate-cross-llm-mechanism-parity.sh`, wired into
 `scripts/check-framework-pr-gate.sh` and `scripts/verify-cross-llm-parity.sh`.
 
 Active hooks under parity governance:

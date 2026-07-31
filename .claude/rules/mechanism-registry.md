@@ -31,22 +31,14 @@ wrapper 強制的 contract-lane checks 則收斂到 shared references，避免 h
 
 ## Runtime Annotation Registry
 
-DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-time
-`scripts/validate-mechanism-runtime-annotations.sh` 以此作為 cross-LLM portability gate。
+DP-188 將 mechanism / hook / script runtime metadata 集中在這張表。
+（原本的 PR-time portability gate 已隨 C 桶清除退役；本表現為純文件。）
 
 | mechanism | path | kind | runtime | fallback_script | governance_role |
 |-----------|------|------|---------|-----------------|-----------------|
 | ci-local-gate | .claude/hooks/ci-local-gate.sh | hook | portable | N/A | governance |
 | cross-session-warm-scan | .claude/hooks/cross-session-warm-scan.sh | hook | portable | N/A | governance |
-| feedback-read-logger | .claude/hooks/feedback-read-logger.sh | hook | portable | N/A | observability |
-| feedback-reflection-stop | .claude/hooks/feedback-reflection-stop.sh | hook | portable | N/A | governance |
-| feedback-trigger-advisory | .claude/hooks/feedback-trigger-advisory.sh | hook | portable | N/A | observability |
-| memory-decay-scan | .claude/hooks/memory-decay-scan.sh | hook | portable | N/A | observability |
-| handbook-load-gate | .claude/hooks/pre-handbook-load-gate.sh | hook | portable | scripts/validate-handbook-load-gate.sh | governance |
-| no-direct-evidence-write | .claude/hooks/no-direct-evidence-write.sh | hook | portable | N/A | governance |
 | no-manual-work-order-search | .claude/hooks/no-manual-work-order-search.sh | hook | portable | N/A | governance |
-| pipeline-artifact-gate | .claude/hooks/pipeline-artifact-gate.sh | hook | portable | N/A | governance |
-| post-compact-context-restore | .claude/hooks/post-compact-context-restore.sh | hook | portable | N/A | governance |
 | post-memory-index-regenerate | .claude/hooks/post-memory-index-regenerate.sh | hook | portable | N/A | governance |
 | post-runtime-instruction-manifest-regenerate | .claude/hooks/post-runtime-instruction-manifest-regenerate.sh | hook | claude-code-only | scripts/compile-runtime-instructions.sh | governance |
 | pre-memory-write | .claude/hooks/pre-memory-write.sh | hook | portable | N/A | governance |
@@ -54,30 +46,14 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | pre-framework-source-write | .claude/hooks/pre-framework-source-write.sh | hook | portable | scripts/validate-framework-source-write.sh | governance |
 | post-framework-source-diff-audit | .claude/hooks/post-framework-source-diff-audit.sh | hook | portable | scripts/validate-framework-source-write.sh | governance |
 | pr-base-gate | .claude/hooks/pr-base-gate.sh | hook | portable | N/A | governance |
-| pre-push-quality-gate | .claude/hooks/pre-push-quality-gate.sh | hook | portable | N/A | governance |
-| session-summary-precompact | .claude/hooks/session-summary-precompact.sh | hook | portable | N/A | observability |
-| session-summary-stop | .claude/hooks/session-summary-stop.sh | hook | portable | N/A | observability |
-| specs-sidebar-sync | .claude/hooks/specs-sidebar-sync.sh | hook | portable | N/A | governance |
-| stop-todo-check | .claude/hooks/stop-todo-check.sh | hook | portable | N/A | governance |
-| version-bump-reminder | .claude/hooks/version-bump-reminder.sh | hook | portable | N/A | governance |
 | version-docs-lint-gate | .claude/hooks/version-docs-lint-gate.sh | hook | portable | N/A | governance |
 | session-start-thread-anchor | .claude/hooks/session-start-thread-anchor.sh | hook | claude-code-only | scripts/update-active-thread.sh | governance |
 | stop-active-thread-reminder | .claude/hooks/stop-active-thread-reminder.sh | hook | portable | N/A | governance |
-| selftest-staleness-eval | .claude/hooks/selftest-staleness-eval.sh | hook | claude-code-only | N/A | ux_enhancement_only |
 | intra-step-repeated-attempt-detector | .claude/hooks/intra-step-repeated-attempt-detector.sh | hook | claude-code-only | N/A | ux_enhancement_only |
-| framework-pr-gate | scripts/check-framework-pr-gate.sh | script | portable | N/A | governance |
-| skill-flow-transition-resolver | scripts/resolve-skill-flow-transition.sh | script | portable | scripts/selftests/validate-skill-flow-transition-registry-selftest.sh | governance |
-| skill-flow-transition-registry | scripts/validate-skill-flow-transition-registry.sh | script | portable | scripts/selftests/validate-skill-flow-transition-registry-selftest.sh | governance |
-| skill-flow-transition-source-closeout | scripts/validate-skill-flow-transition-registry.sh | script | portable | scripts/selftests/skill-flow-transition-coverage-selftest.sh | governance |
 | engineering-self-review-result-writer | scripts/write-engineering-self-review-result.sh | script | portable | scripts/selftests/write-engineering-self-review-result-selftest.sh | governance |
 | engineering-self-review-result-validator | scripts/validate-engineering-self-review-result.sh | script | portable | scripts/selftests/validate-engineering-self-review-result-selftest.sh | governance |
-| mechanism-runtime-annotations | scripts/validate-mechanism-runtime-annotations.sh | script | portable | N/A | governance |
-| mechanism-graduation-audit | scripts/audit-mechanism-graduation.sh | script | portable | N/A | governance |
-| reference-line-count-lint | scripts/lint-reference-line-count.sh | script | portable | N/A | governance |
-| quarantine-duplication-check | scripts/check-quarantine-duplication.sh | script | portable | N/A | governance |
 | learning-seed-contract | scripts/validate-learning-seed-contract.sh | script | portable | N/A | governance |
-| agents-mirror-portable-smoke | scripts/verify-agents-mirror-portable.sh | script | portable | N/A | governance |
-| specs-collection-shape-write-gate | .claude/hooks/no-direct-evidence-write.sh | hook | claude-code-only | scripts/validate-specs-bound-write-contract.sh | governance |
+| specs-collection-shape-write-gate | .claude/hooks/pre-push-quality-gate.sh | hook | portable | scripts/validate-specs-collection-shape.sh | governance |
 | closeout-chain-auto-archive | scripts/mark-spec-implemented.sh | script | portable | scripts/selftests/closeout-chain-archive-selftest.sh | governance |
 | baseline-snapshot-refresh-after-intake | scripts/refresh-baseline-snapshot.sh | script | portable | scripts/selftests/refresh-baseline-snapshot-selftest.sh | governance |
 | auto-pass-friction-helper | scripts/append-auto-pass-friction.sh | script | portable | scripts/selftests/auto-pass-auto-friction-selftest.sh | governance |
@@ -86,7 +62,6 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | auto-pass-friction-gate-adapter | scripts/gate-hook-adapter.sh | script | portable | scripts/selftests/auto-pass-auto-friction-selftest.sh | governance |
 | counter-idempotency | scripts/auto-pass-increment-counter.sh | script | portable | scripts/selftests/auto-pass-increment-counter-idempotency-selftest.sh | governance |
 | counter-race-recovery | scripts/auto-pass-counter-race-recovery.sh | script | portable | scripts/selftests/auto-pass-counter-race-recovery-selftest.sh | governance |
-| skill-size-policy | scripts/lint-skill-size.sh | script | portable | scripts/selftests/lint-skill-size-selftest.sh | governance |
 | bash-var-utf8-boundary-lint | scripts/lint-bash-variable-utf8-boundary.sh | script | portable | scripts/selftests/lint-bash-variable-utf8-boundary-selftest.sh | governance |
 | naive-section-parse-lint | scripts/lint-naive-section-parse.sh | script | portable | scripts/selftests/lint-naive-section-parse-selftest.sh | governance |
 | dp-keyed-source-symmetry-lint | scripts/lint-dp-keyed-source-symmetry.sh | script | portable | scripts/selftests/lint-dp-keyed-source-symmetry-selftest.sh | governance |
@@ -94,9 +69,6 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | branch-name-validator | scripts/validate-branch-name-ascii.sh | script | portable | scripts/selftests/validate-branch-name-ascii-selftest.sh | governance |
 | pre-push-branch-name-gate | .claude/hooks/pre-push-quality-gate.sh | hook | portable | scripts/selftests/pre-push-branch-name-ascii-selftest.sh | governance |
 | skill-routing-subject-aware | scripts/selftests/skill-routing-subject-aware-selftest.sh | script | portable | scripts/selftests/skill-routing-subject-aware-selftest.sh | governance |
-| mise-dependency-change | scripts/validate-mise-dependency-change.sh | script | portable | scripts/selftests/validate-mise-dependency-change-selftest.sh | governance |
-| script-header-comment | scripts/validate-script-header-comment.sh | script | portable | scripts/selftests/validate-script-header-comment-selftest.sh | governance |
-| script-categorization | scripts/validate-script-categorization.sh | script | portable | scripts/selftests/validate-script-categorization-selftest.sh | governance |
 | python-union-annotation-py39-portability | scripts/selftests/python-union-annotation-py39-portability-selftest.sh | script | portable | scripts/selftests/python-union-annotation-py39-portability-selftest.sh | governance |
 | derive-task-md-stacked-base-branch | scripts/selftests/derive-task-md-stacked-base-branch-selftest.sh | script | portable | N/A | governance |
 | derive-task-shape-propagation | scripts/derive-task-md-from-refinement-json.sh | script | portable | scripts/selftests/derive-task-md-from-refinement-json-selftest.sh | governance |
@@ -114,7 +86,6 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | framework-release-closeout-residue-cleanup | scripts/framework-release-closeout.sh | script | portable | scripts/selftests/framework-release-closeout-residue-cleanup-selftest.sh | governance |
 | scan-template-leaks-gitignore-aware | scripts/scan-template-leaks.sh | script | portable | scripts/selftests/scan-template-leaks-gitignore-aware-selftest.sh | governance |
 | install-git-hooks-pre-push-carve-out | scripts/install-git-hooks.sh | script | portable | scripts/selftests/install-git-hooks-pre-push-carve-out-selftest.sh | governance |
-| repo-native-changeset-policy | scripts/gates/gate-changeset.sh | script | portable | scripts/selftests/repo-native-changeset-policy-selftest.sh | governance |
 | release-cleanup-sweep | scripts/release-cleanup-sweep.sh | script | portable | scripts/selftests/release-cleanup-sweep-selftest.sh | governance |
 | auto-pass-terminal-v-advance | scripts/auto-pass-runner.sh | script | portable | scripts/selftests/auto-pass-terminal-v-advance-selftest.sh | governance |
 | auto-pass-ledger-finalize | scripts/auto-pass-finalize-ledger.sh | script | portable | scripts/selftests/auto-pass-finalize-ledger-selftest.sh | governance |
@@ -127,10 +98,8 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | breakdown-marker-supersede | scripts/breakdown-emit-task-snapshot.sh | script | portable | scripts/selftests/breakdown-marker-supersede-selftest.sh | governance |
 | consumer-reads-authoritative-field | scripts/derive-task-md-from-refinement-json.sh | script | portable | scripts/selftests/derive-task-md-action-from-field-selftest.sh | governance |
 | verification-handoff-authoritative-field | scripts/derive-task-md-from-refinement-json.sh | script | portable | scripts/selftests/derive-task-md-verification-handoff-selftest.sh | governance |
-| marker-artifact-resolvable | scripts/validate-marker-artifact-resolvable.sh | script | portable | scripts/selftests/validate-marker-artifact-resolvable-selftest.sh | governance |
-| marker-source-artifact-move-resilience | scripts/check-delivery-completion.sh | script | portable | scripts/selftests/marker-source-artifact-move-resilience-selftest.sh | governance |
 | branch-identity-gate | scripts/validate-breakdown-ready.sh | script | portable | scripts/selftests/validate-breakdown-ready-branch-identity-selftest.sh | governance |
-| release-stage-pr-release-exemption | scripts/gates/gate-changeset.sh | script | portable | scripts/selftests/release-stage-pr-release-gate-selftest.sh | governance |
+| release-stage-pr-release-exemption | scripts/gates/gate-pr-title.sh | script | portable | scripts/selftests/release-stage-pr-release-gate-selftest.sh | governance |
 | release-stage-bundle-precondition | scripts/engineering-branch-setup.sh | script | portable | scripts/selftests/release-stage-pr-release-gate-selftest.sh | governance |
 | archive-spec-thread-recycle | scripts/archive-spec.sh | script | portable | scripts/selftests/archive-spec-thread-recycle-selftest.sh | governance |
 | work-item-id-branch-identity-deconfliction | scripts/derive-task-md-from-refinement-json.sh | script | portable | scripts/selftests/work-item-id-deconfliction-selftest.sh | governance |
@@ -138,7 +107,6 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 | ci-local-content-hash-staleness | scripts/ci-local-generate.sh | script | portable | scripts/selftests/ci-local-content-hash-staleness-selftest.sh | governance |
 | branch-setup-base-context-cwd-independent | scripts/engineering-branch-setup.sh | script | portable | scripts/selftests/branch-setup-base-resolution-selftest.sh | governance |
 | worktree-cleanup-stop-worktree-scoped-dev-server | scripts/engineering-worktree-cleanup.sh | script | portable | scripts/selftests/worktree-cleanup-stop-dev-server-selftest.sh | governance |
-| cross-llm-mechanism-parity | scripts/validate-cross-llm-mechanism-parity.sh | script | portable | scripts/selftests/cross-llm-mechanism-parity-selftest.sh | governance |
 | spec-check-contract-parity | scripts/validate-spec-check-contract-parity.sh | script | portable | scripts/selftests/validate-spec-check-contract-parity-selftest.sh | governance |
 | delivery-evidence-conformance | scripts/validate-delivery-evidence-conformance.sh | script | portable | scripts/selftests/validate-delivery-evidence-conformance-selftest.sh | governance |
 | artifact-contract-conformance | scripts/validate-artifact-contract-conformance.sh | script | portable | scripts/selftests/validate-artifact-contract-conformance-selftest.sh | governance |
@@ -149,9 +117,7 @@ DP-188 將 mechanism / hook / script runtime metadata 集中在這張表，PR-ti
 D43（DP-343）Claude/Codex 雙平台全機制 parity 的 constitutional source。每一支由有效
 Claude project hook source（`.claude/settings.json` 與存在時的 `.claude/settings.local.json`，
 跨所有 event family 解析）啟用的 active hook，都必須在本表登記：要嘛給出完整 parity
-宣告，要嘛帶一個有紀錄的 `parity_exception`。`scripts/validate-cross-llm-mechanism-parity.sh`
-以本表為 machine-checkable authority，並 wire 進 `scripts/check-framework-pr-gate.sh`
-與 `scripts/verify-cross-llm-parity.sh` step 9。
+宣告，要嘛帶一個有紀錄的 `parity_exception`。（原以本表為 machine-checkable authority 的 parity gate 已退役；本表現為文件。）
 
 欄位契約：
 
@@ -183,32 +149,20 @@ carve-out 理由。本 gate 生效後，任何**新增**的 active hook 都必�
 
 | hook | runtime | fallback_script | codex_adapter | codex_invocation_point | adapter_selftest | payload_contract | golden_fixture | parity_exception |
 |------|---------|-----------------|---------------|------------------------|------------------|------------------|----------------|------------------|
-| feedback-read-logger.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
-| feedback-reflection-stop.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
-| feedback-trigger-advisory.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
-| no-direct-evidence-write.sh | claude-code-only | scripts/validate-specs-bound-write-contract.sh | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
 | no-manual-work-order-search.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
-| post-compact-context-restore.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
 | post-memory-index-regenerate.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
 | post-runtime-instruction-manifest-regenerate.sh | claude-code-only | scripts/compile-runtime-instructions.sh | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
-| pre-handbook-load-gate.sh | portable | scripts/validate-handbook-load-gate.sh | N/A | N/A | scripts/selftests/handbook-load-gate-selftest.sh | N/A | N/A | DP-423:runtime-neutral-validator-is-the-shared-path-contract |
 | pre-memory-write.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
 | pre-write-language-policy.sh | claude-code-only | scripts/validate-language-policy.sh | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
 | pre-framework-source-write.sh | portable | scripts/validate-framework-source-write.sh | .codex/hooks/pre-framework-source-write.sh | codex_hook | scripts/selftests/framework-source-mutation-no-bypass-selftest.sh | .codex/hooks/pre-framework-source-write.payload.md | .codex/hooks/pre-framework-source-write.golden.json | N/A |
 | post-framework-source-diff-audit.sh | portable | scripts/validate-framework-source-write.sh | .codex/hooks/post-framework-source-diff-audit.sh | codex_hook | scripts/selftests/framework-source-mutation-no-bypass-selftest.sh | .codex/hooks/post-framework-source-diff-audit.payload.md | .codex/hooks/post-framework-source-diff-audit.golden.json | N/A |
 | session-start-thread-anchor.sh | claude-code-only | scripts/update-active-thread.sh | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
-| session-summary-precompact.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
-| session-summary-stop.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
-| specs-sidebar-sync.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
 | stop-active-thread-reminder.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
-| stop-todo-check.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
-| version-bump-reminder.sh | portable | N/A | N/A | N/A | N/A | N/A | N/A | DP-343:dual-platform-parity-bootstrap |
 
 ## Mechanism Canary Entries
 
 | mechanism | disposition | canary signal | expected deterministic evidence |
 |-----------|-------------|---------------|---------------------------------|
-| observable-skill-flow-transition-registry | contract_pointer | observable transition 缺唯一 callable interface、producer、consumer、validator、blocking invoke point，把 research／design／code／prose／intent／business judgment 登錄成 mechanical transition，或 source closeout 留下 callable owner collision／DP-JIRA fast path／predecessor attribution 缺口 | `scripts/lib/skill-flow-transition-registry.json` 是唯一 registry；`scripts/validate-skill-flow-transition-registry.sh` 對 input／output／precondition／postcondition 的 observable + mechanically-decidable shape fail-closed，`--source-closeout` 再驗 DP-422 exact transition coverage、唯一 callable owner 與 source-type parity；`scripts/resolve-skill-flow-transition.sh` 只依 explicit transition id 解析，不掃 LLM prose；`scripts/selftests/skill-flow-transition-coverage-selftest.sh` 將 T1-T7 current reproducers 與 DP-424～426 checklist attribution 綁入 W14 full corpus，W19 於 corpus 後 fail-closed；Critic verdict 由 `write-engineering-self-review-result.sh` 綁 current HEAD + worktree state，round > 1 以 canonical path + SHA-256 驗證完整歷史，語意仍由 Critic 擁有 |
 | gate-fail-self-correct-disposition | contract_pointer | gate exit 2 後 agent 只用口頭說明「已修正」，沒有逐筆處理 gate failure ledger | `scripts/gate-hook-adapter.sh` 寫入 `.polaris/evidence/gate-failures/{task_id}.jsonl`；post-task reflection 產出 `self_correct_disposition[]`，每筆標 `fixed` / `accepted-workaround` / `escalated` |
 | tier-a-direct-call-governance | contract_pointer | 新增 script 直接呼叫 `node` / `pnpm` / `jq` / `rg` / `gh`，或把 ticket-scoped tool 誤加進 root mise，而未經 resolver / disposition | `scripts/validate-script-dependencies.sh` 讀取 `scripts/tool-direct-call-inventory-disposition.txt`，新增違規輸出 `POLARIS_TOOL_DIRECT_CALL` / `POLARIS_TICKET_SCOPED_TOOL_DIRECT_CALL` |
 | auto-pass-orchestrator-premature-stop | contract_pointer | inner skill HALT 或 session pressure 建議後，auto-pass 直接停下交回 user，而 deterministic sidecar 已可繼續 | `pause.kind=session_handoff` + `scripts/validate-auto-pass-resume.sh`；若 sidecar PASS 則不得 pause |
@@ -234,14 +188,14 @@ carve-out 理由。本 gate 生效後，任何**新增**的 active hook 都必�
 | breakdown-marker-supersede-stale-blocker | contract_pointer | breakdown 重新 re-package 成功並 emit PASS task_snapshot，但同 work-item 早先 failed run 留下的 `validation-fail/{id}.json` / `missing-v-task/{id}.json` blocker marker 沒被清掉；`auto-pass-probe.sh` stage breakdown 先讀 blocker subdir 再讀 task_snapshot，因此已修好的 work item 仍被 stale blocker 卡在 `blocked_by_gate_failure`，需靠人工刪 marker 才放行（DP-325 B incident） | `scripts/breakdown-emit-task-snapshot.sh` 在 PASS emit 後 writer-side supersede 同 work_item_id 的 `validation-fail` / `missing-v-task` blocker marker（reader 不改），scope 限同 work-item、限 `status=PASS`（非 PASS emit 不清），印 `SUPERSEDED:` 行。selftest：`scripts/selftests/breakdown-marker-supersede-selftest.sh`（pre-emit 被 stale blocker 卡 → PASS emit supersede → probe 放行；他 work-item blocker 保留；非 PASS emit 不清） |
 | auto-pass-probe-latent-engineering-blocker-guard | semantic_only | `auto-pass-probe.sh` stage engineering 讀 `blocked-conflict/{id}-{sha}.json` 與 `unsupported-mutation/{id}-{sha}.json` 兩個 reader guard，但 workspace 內目前無任何 writer 會產生這兩個 marker（B2 latent，DP-325 EC3）。這是防呆 reader，不是現役 bug；風險在於未來有人 (a) 新增 writer 卻沒對齊 marker schema / path（`{id}-{sha}` naming），或 (b) 誤把這兩個 guard 當作「已驗證的 enforcement」而不知其無 writer。決策：保留 reader guard（移除等於放棄未來 conflict / unsupported-mutation 偵測的接點），不假裝是現役 bug，以本 canary 事後追蹤 | 無 commit-time gate（latent：無 writer 即無可觀察的 evidence trail）。post-task reflection 偵測：若本輪新增 `blocked-conflict` / `unsupported-mutation` marker writer，須同時驗 marker path = `.polaris/evidence/{blocked-conflict,unsupported-mutation}/{work_item_id}-{head_sha}.json`、`status` 欄位存在，並補對應 selftest；若發現有人移除 reader guard，須確認沒有同時放棄合法偵測接點 |
 | consumer-reads-path-heuristic-not-authoritative-field | semantic_only | consumer 用 path / filename heuristic（`path.startswith(...)`、`"selftest" in name`、`name.startswith((...))`）推導本應由 authoritative field 決定的分類 / action，而同源已有權威欄位可讀（refinement.json `modules[].action`、`scripts/manifest.json` `kind` / `owner_surface`）。DP-325 dogfood incident：derive-task-md 的 task.md Action 用兩條互相不一致的 path heuristic（L407 `"selftest" in path` 與 L412 `"selftests/" in path`）、script-ownership-audit 用 `name.startswith(("validate-","check-",...))` 與 dead `scripts/gates/` path-prefix 分支，使 live framework 基礎設施（PR gate）被誤標 sunset_orphan | **B 類，無單一 commit-time gate**（區分「合法 path routing」與「path heuristic 取代欄位」需要語意判斷，機械掃描會大量誤報合法的 `scripts/gates/` / `.claude/skills/` routing）。可 gate 的部分由 worked-example selftest 守：`scripts/selftests/derive-task-md-action-from-field-selftest.sh`（同 path 在 `modules[].action`=create vs modify 下 Action 隨欄位；audit 分類在 manifest kind / owner_surface 與檔名衝突 fixture 下跟欄位）。殘餘 B 類缺口由 post-task reflection 事後人讀偵測「新 consumer 是否以 path heuristic 取代既有權威欄位」，發現時寫 feedback memory（帶本 mechanism ID）；不得偽裝成 `contract_pointer` |
-| marker-source-artifact-path-stale | contract_pointer | D 類 reader（`check-delivery-completion.sh` completion_gate/ac_verification、`lib/evidence-classifier.sh` marker-pass）existence-only 卡 frozen `freshness.source_artifact` path：task.md 搬到 `pr-release/` 或 container archive 後 frozen path 不解析，reader 誤判 evidence missing 而 fail-closed，需人工巡查才發現（DP-301 D 類 3 instance：D1 write-completion-gate-marker、D2 breakdown-emit-task-snapshot、D3 write-ac-verification） | reader frozen path 不解析時改用 work_item_id canonical resolver（`scripts/resolve-task-md.sh --scan-root <repo> --include-archive`，不寫第二套 resolver）重定位 + 驗 marker 既存 `freshness.task_artifact_sha256`，moved task.md 放行、path-only-and-stale fail-closed；writer 不改（已持久化 sha256+work_item_id）。全表面 detector `scripts/validate-marker-artifact-resolvable.sh` 掃所有 completion_gate/ac_verification/task_snapshot marker，path-only 不可解析者 exit 2 + `POLARIS_MARKER_ARTIFACT_UNRESOLVABLE:<marker>`。selftests：`scripts/selftests/marker-source-artifact-move-resilience-selftest.sh`（reader move 後放行 + path-only fail-closed）、`scripts/selftests/validate-marker-artifact-resolvable-selftest.sh`（frozen-resolves / re-resolvable / path-only-stale / sha-mismatch）。DP-360 note：交付 head / delivery evidence 的 canonical authority 改為 task.md `deliverable.head_sha`（+ override），completion_gate marker 來源正在退役；本 reader 對 completion_gate marker 的 source-artifact resolution relocation 到 task.md delivery block 由 DP-360-T7 交付 |
+| marker-source-artifact-path-stale | contract_pointer | D 類 reader（`check-delivery-completion.sh` completion_gate/ac_verification、`lib/evidence-classifier.sh` marker-pass）existence-only 卡 frozen `freshness.source_artifact` path：task.md 搬到 `pr-release/` 或 container archive 後 frozen path 不解析，reader 誤判 evidence missing 而 fail-closed，需人工巡查才發現（DP-301 D 類 3 instance：D1 write-completion-gate-marker、D2 breakdown-emit-task-snapshot、D3 write-ac-verification） | reader frozen path 不解析時改用 work_item_id canonical resolver（`scripts/resolve-task-md.sh --scan-root <repo> --include-archive`，不寫第二套 resolver）重定位 + 驗 marker 既存 `freshness.task_artifact_sha256`，moved task.md 放行、path-only-and-stale fail-closed；writer 不改（已持久化 sha256+work_item_id）。selftests：。DP-360 note：交付 head / delivery evidence 的 canonical authority 改為 task.md `deliverable.head_sha`（+ override），completion_gate marker 來源正在退役；本 reader 對 completion_gate marker 的 source-artifact resolution relocation 到 task.md delivery block 由 DP-360-T7 交付 |
 | evidence-before-invention | semantic_only | agent 提任何新結構（DP / 方法 / governance / option 清單）前，未先回答「哪條既有 canonical contract 管這件事」並窮盡它就直接提新增；或把自己剛生成的 framing（draft assertion）當權威往下推；或 mid-task 發現 framework gap 時未辨「真實 gap vs 框架正確擋下（WAD）」、未附佐證（既有契約條文 / command 輸出 / source URL）就開 DP。亦涵蓋：任何驅動決策的 constraint 句（「X 需要 Y」「Z 不能做」「卡住因為…」）說出口時無 evidence 或既有契約支撐，卻被當作下一步地基而非 missing input 先驗證。對齊 bootstrap.md § Evidence-Before-Invention（DP-329 T1）與 `self-authored-prose-is-not-contract.md`、Decision Priority Principle。本條屬 B 類 reasoning-posture 原則：無 tool-call 邊界可攔（決策推理不在任一 deterministic 觀察點留下足跡），框架對它給不出 commit-time 保證 | 本身屬 B 類，**無** commit-time gate（無 deterministic 觀察點可攔 reasoning posture）；唯一證據是 post-task reflection 事後人讀偵測「本輪是否在未窮盡既有契約 / 未附佐證 / 把 self-generated framing 當權威的情況下提了新結構或開了 DP」，發現時寫 feedback memory（帶本 mechanism ID）。不得偽裝成 `contract_pointer`（對齊 DP-299 prose-vs-gate B 類判定，與 `prose-vs-gate-admission` canary 同 posture）；本原則的可 gate 部分（若未來辨識出 tool-call 觀察點）才另由 owning validator 攔 |
 | in-session-decision-slip | semantic_only | in-session（非跨-session）orchestration 中，agent 把自己剛生成的 framing（draft assertion）當權威，推翻其實正確的 sub-agent 結論、或把「框架正確擋下（WAD）」誤判成 framework bug，而未先 resolve 既有 canonical contract + 取得正確 shape 證據就往下推（對齊 `self-authored-prose-is-not-contract.md` 的 in-session handoff 範圍與 `evidence-before-invention`）。本條屬 B 類 reasoning-posture slip：違規發生在 agent 的判斷推理，不在任一 deterministic 觀察點（tool-call argument / changed-file glob / artifact schema / exit code）留下足跡，框架對它給不出 commit-time 保證 | 本身屬 B 類，**無** commit-time gate（無 tool-call 觀察點可攔 in-session reasoning slip）；唯一證據是 post-task reflection 事後人讀偵測「本輪是否把 self-generated framing 當權威推翻正確 sub-agent / 誤報 WAD 為 bug 而未先對既有契約 + shape 證據驗證」，發現時寫 feedback memory（帶本 mechanism ID）。不得偽裝成 `contract_pointer`（對齊 DP-299 prose-vs-gate B 類判定，與 `prose-vs-gate-admission` / `evidence-before-invention` canary 同 posture） |
 | producer-identity-parity-at-earliest-gate | contract_pointer | producer 的 product-identity 輸出（task.md「Task branch」欄位、PR title、changeset 名等）在最早 deterministic gate 未對 resolver invariant 做 parity，導致違規 identity 洩漏到下游才被攔（DP-328 incident：JIRA-Epic task branch 帶內部 composite `{Epic}-T{n}`，違反 `resolve-task-branch.sh` validate_branch 的 `task/{delivery_ticket_key}-` 契約，卻拖到 engineering-branch-setup 才 exit 1，卡死所有 JIRA-Epic implementation task）；或新增第二套 branch-identity 判斷而非複用 `resolve-task-branch.sh` validate_branch | `scripts/validate-breakdown-ready.sh` branch-identity gate（DP-328 T2）：對每個 task.md「Task branch」欄位複用唯一 canonical rule `scripts/resolve-task-branch.sh` validate_branch（禁止第二套 prefix/leak 實作），validate_branch exit 1（composite-Tn leak 或 wrong delivery-key prefix）時 exit 2 + `POLARIS_TASK_BRANCH_IDENTITY_LEAK`；validate_branch exit 2（無 identity / parse 失敗）由 schema gate 自有；無 Task branch 欄位 / DP-backed atom-collapse（delivery_ticket_key == work_item_id）不誤擋。producer 端 parity 由 `scripts/derive-task-md-from-refinement-json.sh` 用 `task_identity`（jira_key present 時=jira_key）derive branch（DP-328 T1）。selftests：`scripts/selftests/validate-breakdown-ready-branch-identity-selftest.sh`（dp-backed→pass / jira-key→pass / composite-Tn leak→exit 2 + marker / 不相關 readiness fail 仍 exit 1 / AC5 複用靜態斷言）、`scripts/selftests/branch-slug-producer-parity-selftest.sh`（DP-backed 與 JIRA-Epic-backed 雙 source derive-branch parity） |
 | claimed-gap-not-verified-against-pinned-contract | semantic_only | agent 宣稱「framework gap」時雖已附上 `contract_evidence[]`，但 evidence 指到的 pinned contract surface 其實不能證明該 gap；例如引用到一般流程 prose、自己剛寫的 report、或無法對應到 validator / hook / task contract 的行，導致「有 evidence」但不是有效 contract binding | 本身屬 B 類語意判斷，**無** deterministic gate 能判定 evidence 是否真的證成 gap；deterministic 層只強制 gap assertion 必須附 `path:line`（DP-318 T1/T2）。post-task reflection 需抽查 framework gap claim 是否真的對照 pinned contract surface；漂移時寫 feedback memory（帶本 mechanism ID），不得把這筆升格成 `contract_pointer` |
 | runtime-instruction-manifest-stale-after-source-edit | contract_pointer | bootstrap.md / runtime overlay / manifest.yaml 或會改變 rule index／Codex parity list 的 rules/*.md 異動後，四個 session bootstrap target（`CLAUDE.md`、`AGENTS.md`、`.codex/AGENTS.md`、`.github/copilot-instructions.md`）未重生，導致 runtime 讀到 stale 指令；或 hook 對不影響 target 的 source body edit 製造額外 artifact ceremony | `.claude/hooks/post-runtime-instruction-manifest-regenerate.sh` 命中 instruction source 的 Write/Edit/MultiEdit 後委派唯一 canonical writer `scripts/compile-runtime-instructions.sh`；portable pre-push gate則執行同一 compiler 的 `--check`。freshness authority 僅為四個真 runtime target 的 rendered diff，不維護額外 checksum snapshot。selftests：`scripts/selftests/compile-runtime-instructions-selftest.sh`、`scripts/selftests/gate-runtime-instruction-manifest-selftest.sh`、`scripts/selftests/post-runtime-instruction-manifest-regenerate-selftest.sh`、`scripts/selftests/rules-manifest-ceremony-removal-selftest.sh` |
 | generated-artifact-interface-without-freshness | contract_pointer | 新 committed tracked 檔帶 `Generated by` header 或位於 `.generated/`，卻沒有 interface registration；或雖登記但 freshness command 未 wire 到 blocking gate，讓新 snapshot / mirror ceremony 靜默進入 repo；反向風險是用檔名 heuristic 當 pass/fail authority、以 dirty overlay 改變 committed HEAD verdict、註解冒充 executable wire，或 PR path filter 漏掉任意位置候選 | `scripts/manifest.json` `generated_artifact_interfaces[]` 是 exact-path pass/fail authority；`scripts/validate-generated-artifact-discipline.sh` 從 git committed `HEAD` blobs 讀 candidate／registry／gate，先從 base...HEAD enumerate add/rename candidate，再驗 registry shape、generator/freshness binary 與完整未註解 gate invocation，違規 exit 2 + `POLARIS_GENERATED_ARTIFACT_DISCIPLINE_BLOCKED`。`.github/workflows/framework-pr.yml` 對所有 PR 觸發、fetch full history 並傳 base SHA；`scripts/check-framework-pr-gate.sh` W20 blocking invoke。三分法與 real-consumer human judgment 位於 `polaris-config/polaris-framework/handbook/generated-artifact-normalization.md`。selftest：`scripts/selftests/generated-artifact-discipline-selftest.sh`（四個合法 interface、ignored regenerable pass；unregistered / unwired / commented-wire / dirty-overlay fail-closed） |
-| release-stage-pr-release-exemption | contract_pointer | framework-release bundle 的 member task.md 全部 finalize 進 `*/tasks/pr-release/*` 後，impl-bearing（behavioral）bundle delta 仍被 gate-changeset 的 per-task changeset 契約或 gate-pr-title 的 `[KEY-Tn]` 契約擋下，使 bundle 被「torn apart」（DP-315 incident）；或實作偷用 container archive 狀態 / branch-name heuristic / 新增 `POLARIS_SKIP_*` env bypass 來達成 exemption，而非以 pr-release task lifecycle 位置觸發；或 multi-match bundle 用 `head -n 1` 取到某 pr-release member 就授予 release-stage，忽略仍在 `tasks/Tn/` 的 sibling | `scripts/gates/gate-changeset.sh` / `scripts/gates/gate-pr-title.sh` 在 resolve task 後、per-task contract（changeset check / evidence-classifier / ticket-summary derive）前插入 `is_release_stage_exempt`：iterate 全部 resolved member（branch multi-match 走 `--scan-root $REPO_ROOT` 取全集），EVERY member 在 `*/tasks/pr-release/*` 才 exit 0（all-members rule），任一在 `tasks/Tn/` 即 fall through 維持 per-task；exemption 先於 evidence-classifier 故 behavioral bundle 不被誤擋；gate-pr-title 僅豁免 `[KEY-Tn]`、仍以 bundle_title_regex 強制 language-safe 標題。selftest：`scripts/selftests/release-stage-pr-release-gate-selftest.sh`（AC1 all-pr-release behavioral→exit 0、AC2 chore release 標題→exit 0、AC3 active→per-task 維持、AC5 mixed→all-members 擋下、AC-NEG1 無新 bypass env、AC-NEG2 release_bump 回歸、AC-NEG3 無 archive/branch-name heuristic） |
+| release-stage-pr-release-exemption | contract_pointer | framework-release bundle 的 member task.md 全部 finalize 進 `*/tasks/pr-release/*` 後，impl-bearing（behavioral）bundle delta 仍被 gate-pr-title 的 `[KEY-Tn]` 契約擋下，使 bundle 被「torn apart」（DP-315 incident）；或實作偷用 container archive 狀態 / branch-name heuristic / 新增 `POLARIS_SKIP_*` env bypass 來達成 exemption，而非以 pr-release task lifecycle 位置觸發；或 multi-match bundle 用 `head -n 1` 取到某 pr-release member 就授予 release-stage，忽略仍在 `tasks/Tn/` 的 sibling | `scripts/gates/gate-pr-title.sh` 在 resolve task 後、per-task contract（evidence-classifier / ticket-summary derive）前插入 `is_release_stage_exempt`：iterate 全部 resolved member（branch multi-match 走 `--scan-root $REPO_ROOT` 取全集），EVERY member 在 `*/tasks/pr-release/*` 才 exit 0（all-members rule），任一在 `tasks/Tn/` 即 fall through 維持 per-task；exemption 先於 evidence-classifier 故 behavioral bundle 不被誤擋；gate-pr-title 僅豁免 `[KEY-Tn]`、仍以 bundle_title_regex 強制 language-safe 標題。selftest：`scripts/selftests/release-stage-pr-release-gate-selftest.sh`（AC1 all-pr-release behavioral→exit 0、AC2 chore release 標題→exit 0、AC3 active→per-task 維持、AC5 mixed→all-members 擋下、AC-NEG1 無新 bypass env、AC-NEG3 無 archive/branch-name heuristic） |
 | release-stage-bundle-precondition-not-finalized | contract_pointer | `engineering-branch-setup.sh --aggregate-release` 在任一 `--task-md` 仍在 active `tasks/Tn/`（未經 `finalize-engineering-delivery.sh` move-first closeout 進 `tasks/pr-release/`）時仍組裝 bundle branch，使 release-stage bundling 被「torn apart」——部分 member 還在開發階段就被收進 release bundle（DP-315 incident）；或以 container archive 狀態 / branch 命名 heuristic 取代 pr-release lifecycle 位置作判斷依據 | `scripts/engineering-branch-setup.sh` `run_aggregate_release` 在收集 `--task-md` 的 loop 內對每個 path 用 `is_pr_release_task`（pr-release lifecycle 位置，非 archive-state / branch-name heuristic，AC-NEG3）斷言位於 `tasks/pr-release/`，all-members rule：任一不符即 exit 2 + `POLARIS_RELEASE_STAGE_TASK_NOT_FINALIZED`、訊息指回 `finalize-engineering-delivery.sh`，且 fail-closed 發生在任何 branch / worktree 建立之前；全部在 `tasks/pr-release/` 時正常建 bundle branch（DP-319 T2 / AC4）。selftest：`scripts/selftests/release-stage-pr-release-gate-selftest.sh`（active member fail-closed + marker、mixed-member fail-closed、全 pr-release 正常建 branch） |
 | work-item-id-branch-identity-conflated | contract_pointer | task.md 把 work_item_id 與 branch-identity 塞進同一個 cell：JIRA-Epic source 的 `work_item_id` 被 `tasks[].jira_key`（branch atom）污染，使 `resolve-task-branch.sh` validate_branch 的 `work_item_id != delivery_ticket_key` AC-NEG5 leak guard 永遠不觸發（DP-338 D1 incident：parse 讀單一「Task ID」cell 當 work_item_id，而該 cell 對 JIRA source 填的是 jira_key）；或 derive 退化成把 canonical work_item_id 也寫進舊「Task ID」cell 形成 dual writer | `scripts/derive-task-md-from-refinement-json.sh` 寫兩個 cell：新「Work item ID」cell = canonical `{source}-T{n}`（source-type-agnostic、= CLI task_id），舊「Task ID」cell 維持 `task_identity`（branch atom，DP-328 不變）；`scripts/parse-task-md.sh` work_item_id resolution 優先讀新 cell，缺新 cell 的 legacy task.md 才 fallback 讀舊 cell（EC1 read-side only，非 dual writer）。selftest：`scripts/selftests/work-item-id-deconfliction-selftest.sh`（AC1 JIRA work_item_id={Epic}-T{n} + branch=jira_key 同時成立 / DP 兩者相等 / EC1 舊 task.md fallback / AC-NEG1 composite-leak negative 仍 fail AC-NEG5 / AC-NEG4 單一 writer）；branch identity 行為由 `scripts/selftests/validate-breakdown-ready-branch-identity-selftest.sh` 維持綠（AC8） |
 | marker-reader-product-repo-evidence-root | contract_pointer | auto-pass marker reader（`auto-pass-probe.sh` breakdown/engineering stage 讀 `.polaris/evidence`）對 JIRA-Epic source 用 `--repo`（= workspace main-checkout）當 evidence root，但 marker writer（`breakdown-emit-task-snapshot.sh` 以相對 `.polaris/evidence` 從 product-repo cwd 寫）把 evidence anchor 在 **product repo**，使 reader root 與 writer anchor 不對稱、JIRA-Epic marker 永遠找不到（DP-338 D2 / JIRA-Epic product-repo marker incident）；或為了讓 reader 找到而把 marker band-aid emit 到 workspace root（新增第二條 writer path / silent fallback） | `scripts/auto-pass-probe.sh` `resolve_evidence_root()`（DP-338 T2，reader-only）：source_type=jira 時複用 `spec-source-resolver.sh` 解 container、由 `{container}/tasks/{stem}` 定位 task.md、讀其 `Repo:` header（與 `resolve-task-base.sh::derive_repo_path` 同權威：`{workspace_root}/{repo_name}`）作 evidence root；DP source 維持讀 `{repo}/.polaris/evidence`（symmetry）。product repo / task.md / Repo header 任一缺失時 fallback 回 `{repo}`（resolution miss，非 synthesize workspace-root marker），genuinely-missing marker 仍 fail-loud（AC-NEG2）。writer 不改、無第二條 emit path（AC9）。selftest：`scripts/selftests/auto-pass-marker-product-repo-reader-selftest.sh`（AC2 product-repo marker 找到 / AC-NEG2 marker 僅 product repo + miss 不 synthesize / symmetry DP source workspace root / runner parity dispatch） |
@@ -261,15 +215,7 @@ carve-out 理由。本 gate 生效後，任何**新增**的 active hook 都必�
 
 | mechanism | disposition | graduation_milestone | owner | deterministic target |
 |-----------|-------------|----------------------|-------|----------------------|
-| cross-llm-runtime-annotation | script_candidate | M1 | Polaris | scripts/validate-mechanism-runtime-annotations.sh |
-| script-candidate-schedule | script_candidate | M1 | Polaris | scripts/audit-mechanism-graduation.sh |
-| quarantine-single-source | script_candidate | M2 | Polaris | scripts/check-quarantine-duplication.sh |
-| reference-size-policy | script_candidate | M2 | Polaris | scripts/lint-reference-line-count.sh |
-| rule-retention-metric | script_candidate | M3 | Polaris | scripts/rule-retention-scan.sh |
-| memory-retention-metric | script_candidate | M3 | Polaris | scripts/memory-retention-scan.sh |
-| codex-portable-smoke | script_candidate | M3 | Polaris | scripts/verify-agents-mirror-portable.sh |
 | follow-up-reference-bracket | script_candidate | M-future | Polaris | future DP for 500-1000 line references |
-| skill-size-policy | script_candidate | M2 | Polaris | scripts/lint-skill-size.sh |
 
 ## Priority Audit Order
 
@@ -317,24 +263,6 @@ refinement.json `tasks[]` consumer accessor 的單一 registry。前者缺 produ
 兩者以 `--describe-authority` 暴露 machine-readable owner identity，供 DP-422 source
 closeout 檢查 owner collision；introspection 不新增 registry，也不重新實作 parity 判定。
 
-## DP-422 Source Closeout Attribution
-
-此表是由 LOCKED `DP-422/refinement.json` predecessor audit 轉入的 tracked runtime contract；
-source canonical refinement hash 為
-`sha256:d3d2349152e883a92c3e211efb1e77de4ed636a0f2aa436fde5b8e3f663a2c89`，
-`predecessor_audit` canonical JSON hash 為
-`sha256:c1baae0365826314f1eace32a0c3e436fe46dceb38ec07ae4b630fb11d68bc56`；
-下表 canonical projection hash（包含 predecessor、disposition、task、AC、checklist 與
-current reproducer exact sets）為
-`sha256:e9c9405a765a10a0897a28b1fedd3d3fab1fc321d23f9128cdf21cd888b92dac`。
-`skill-flow-transition-coverage-selftest.sh` 讀本表作為 downstream authority，並驗每個
-current reproducer 都在 W14 canonical enrollment；不得在 selftest 內另造 attribution rows。
-
-| predecessor | disposition | DP-422 task | DP-422 AC | checklist attribution | current reproducers |
-|-------------|-------------|-------------|-----------|-----------------------|---------------------|
-| DP-424 | FULLY_SUPERSEDED | T2 | AC4 | no-PR content delivery writer；task_shape-first authoring／consumer parity；end-to-end closeout regression | `scripts/selftests/write-deliverable-selftest.sh`<br>`scripts/selftests/check-delivery-completion-task-shape-selftest.sh` |
-| DP-425 | FULLY_SUPERSEDED | T4 | AC6 | 退役 refinement.json.changed_files delivery gate；task.md Allowed Files 唯一 authority regression | `scripts/selftests/engineering-source-scope-authority-selftest.sh`<br>`scripts/selftests/gate-changed-files-scope-selftest.sh` |
-| DP-426 | FULLY_SUPERSEDED | T3 | AC5 | backfill consumer registry entry；tasks[].id／kind accessor-binding regression | `scripts/selftests/validate-refinement-consumer-schema-binding-selftest.sh`<br>`scripts/selftests/backfill-refinement-verification-strategy-selftest.sh`<br>`scripts/selftests/validate-spec-check-contract-parity-selftest.sh` |
 
 ## Semantic Canary Sources
 

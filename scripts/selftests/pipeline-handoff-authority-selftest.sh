@@ -133,7 +133,7 @@ RESOLVE_TASK_BRANCH="$ROOT/scripts/resolve-task-branch.sh"
 GATE_PR_TITLE="$ROOT/scripts/gates/gate-pr-title.sh"
 BOOTSTRAP="$ROOT/.claude/instructions/core/bootstrap.md"
 EVIDENCE_PRODUCERS="$ROOT/scripts/lib/evidence-producers.json"
-NO_DIRECT_EVIDENCE_HOOK="$ROOT/.claude/hooks/no-direct-evidence-write.sh"
+NO_DIRECT_EVIDENCE_HOOK="$ROOT/.claude/hooks/(已退役的 evidence write hook)"
 # DP-360 T7: completion-gate marker writer retired; the proof-marker surface is
 # now the task.md deliverable.verification block written by finalize-engineering-delivery.sh.
 DELIVERABLE_VERIFICATION_WRITER="$ROOT/scripts/finalize-engineering-delivery.sh"

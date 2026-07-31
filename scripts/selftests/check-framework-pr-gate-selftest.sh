@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Purpose: check-framework-pr-gate.sh wiring selftest — asserts W12 parity and the
-#   DP-422 T8 W19 transition source-closeout gate are blocking aggregate members.
 #   The aggregate is composed of many cwd/content-sensitive gates, so this selftest
 #   does NOT run the whole aggregate end-to-end; instead it verifies the W12 wiring
 #   deterministically:
@@ -64,12 +63,6 @@ assert_grep "case1 parity run_gate label present" \
   "W12 producer-consumer-validator parity" "$AGG"
 assert_grep "case1 parity override env present" \
   "POLARIS_VALIDATE_SPEC_CHECK_CONTRACT_PARITY_BIN" "$AGG"
-assert_grep "case1 W19 binary default present" \
-  "scripts/validate-skill-flow-transition-registry.sh" "$AGG"
-assert_grep "case1 W19 run_gate label present" \
-  "W19 DP-422 transition source closeout" "$AGG"
-assert_grep "case1 W19 override env present" \
-  "POLARIS_VALIDATE_SKILL_FLOW_TRANSITION_REGISTRY_BIN" "$AGG"
 
 # ---------------------------------------------------------------------------
 # Build PASS / FAIL gate stubs.
@@ -135,21 +128,8 @@ set -e
 assert_exit "case3 parity failure blocks aggregate" 1 "$rc3"
 assert_grep "case3 aggregate names parity stage" "W12 producer-consumer-validator parity" "$tmpdir/case3.err"
 
-# ---------------------------------------------------------------------------
-# Case 4: W19 source closeout FAILS → aggregate fails closed after current
-# reproducer stages.
-# ---------------------------------------------------------------------------
-set +e
-env "${common_env[@]}" \
-  "POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN=$pass_stub" \
-  "POLARIS_VALIDATE_SKILL_FLOW_TRANSITION_REGISTRY_BIN=$fail_stub" \
-  bash "$AGG" >"$tmpdir/case4.out" 2>"$tmpdir/case4.err"; rc4=$?
-set -e
-assert_exit "case4 W19 failure blocks aggregate" 1 "$rc4"
-assert_grep "case4 aggregate names W19" "W19 DP-422 transition source closeout" "$tmpdir/case4.err"
 
 # ---------------------------------------------------------------------------
-# Case 5: every gate (including W12 and W19) PASSes → terminal PASS.
 # ---------------------------------------------------------------------------
 set +e
 env "${common_env[@]}" "POLARIS_VALIDATE_CONSUMER_SCHEMA_BINDING_BIN=$pass_stub" \

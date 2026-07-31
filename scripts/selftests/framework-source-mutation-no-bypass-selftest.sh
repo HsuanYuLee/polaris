@@ -80,8 +80,5 @@ for file in \
     || fail "missing framework source wiring in $file"
 done
 
-bash "$ROOT/scripts/validate-cross-llm-mechanism-parity.sh" --repo "$ROOT" >"$OUT" 2>&1 \
-  || fail "cross-LLM parity should accept new hooks: $(cat "$OUT")"
-assert_contains "cross parity" "$OUT" "PASS: cross-LLM mechanism parity OK"
 
 echo "PASS: framework-source-mutation-no-bypass selftest"

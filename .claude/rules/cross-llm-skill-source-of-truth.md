@@ -59,13 +59,6 @@ Codex enforcement 不得退化成 rules prose self-discipline：
   Claude-Code-only IDE feature），並在 registry 標 `parity_exception=<DP>:<reason>`；
   validator 反查 owning DP plan 的 reason，缺 reason 一樣 fail-stop。
 
-Deterministic enforcement 由 `scripts/validate-cross-llm-mechanism-parity.sh` 提供，
-並 wire 進 `scripts/check-framework-pr-gate.sh`（PR-merge time）與
-`scripts/verify-cross-llm-parity.sh` step 9（release preflight）；違反時 exit 2 +
-stderr `POLARIS_CROSS_LLM_PARITY_BLOCKED:{hook}`。BYPASS env（`POLARIS_CROSS_LLM_PARITY_BYPASS`
-/ `POLARIS_LANGUAGE_POLICY_BYPASS` / `POLARIS_SKILL_BOUNDARY_BYPASS` 等）不能 silence 這個
-gate。
-
 ## Why
 
 Rules 可以告訴每個 LLM 該去哪裡編輯，但只有 symlink 能從機制上消除 mirror drift。Rule 定義意圖；

@@ -77,12 +77,6 @@ if [[ -x "$GATES_DIR/gate-evidence-producer-whitelist.sh" ]]; then
   bash "$GATES_DIR/gate-evidence-producer-whitelist.sh" --repo "$REPO_ROOT" --staged
 fi
 
-# Gate: repo-native changeset policy. This verifier reads the prospective Git
-# tree (HEAD + index), never an unstaged worktree file.
-if [[ -x "$GATES_DIR/gate-changeset.sh" ]]; then
-  bash "$GATES_DIR/gate-changeset.sh" --repo "$REPO_ROOT" --staged
-fi
-
 # Gate: ci-local (run on commit too — cache makes reruns free)
 if [[ -x "$GATES_DIR/gate-ci-local.sh" ]]; then
   bash "$GATES_DIR/gate-ci-local.sh" --repo "$REPO_ROOT"
@@ -176,11 +170,6 @@ fi
 # Gate: evidence (verification evidence must exist)
 if [[ -x "$GATES_DIR/gate-evidence.sh" ]]; then
   bash "$GATES_DIR/gate-evidence.sh" --repo "$REPO_ROOT"
-fi
-
-# Gate: changeset (developer ticket branches only)
-if [[ -x "$GATES_DIR/gate-changeset.sh" ]]; then
-  bash "$GATES_DIR/gate-changeset.sh" --repo "$REPO_ROOT"
 fi
 
 # Gate: manifest parity (DP-230 D20). Keep this before template leak / affected

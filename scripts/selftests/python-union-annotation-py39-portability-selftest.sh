@@ -15,7 +15,6 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Files whose embedded python heredoc carries union annotations (DP-265 scope).
 TARGETS=(
-  "scripts/validate-script-categorization.sh"
   "scripts/validate-memory-write.sh"
 )
 
@@ -84,10 +83,7 @@ run_under_py39() {
   echo "PASS(dynamic): $label executed under $PY39 without union TypeError"
 }
 
-# validate-script-categorization.sh: audit mode reaches classify_violation()'s
 # union-annotated def.
-run_under_py39 "validate-script-categorization.sh" \
-  bash "$REPO_ROOT/scripts/validate-script-categorization.sh" --mode audit --root "$REPO_ROOT"
 
 # validate-memory-write.sh: provide a candidate path + isolated memory dir so the
 # python body proceeds past env reads and evaluates its union-annotated defs.

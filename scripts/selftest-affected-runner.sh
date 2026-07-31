@@ -228,14 +228,10 @@ is_shared_surface() {
 }
 
 full_corpus_state_is_stale() {
-  local evaluator="$ROOT_DIR/.claude/hooks/selftest-staleness-eval.sh"
-  local report=""
-  [[ -f "$evaluator" ]] || return 0
-  report="$(CLAUDE_PROJECT_DIR="$ROOT_DIR" bash "$evaluator" --report </dev/null 2>/dev/null || true)"
-  if [[ "$report" == *"decision=FRESH"* ]]; then
-    return 1
-  fi
-  return 0
+  # staleness evaluator 已隨 C 桶清除退役（無事故背書）。full-corpus 覆蓋
+  # 由 PR gate 的 run-aggregate-selftests + validate-selftest-enrollment
+  # 承擔，此處不再強制 full corpus，維持 affected-selection 可用。
+  return 1
 }
 
 # closure_from_naming — print the naming-convention selftest member(s) for a changed

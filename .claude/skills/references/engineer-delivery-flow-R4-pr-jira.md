@@ -56,7 +56,7 @@ Missing 或 stale evidence → **halt**。不繼續 PR creation、local extensio
 Behavior contract evidence 由 `scripts/run-behavior-contract.sh` 產生；`parity` / `hybrid`
 先跑 `--mode baseline`，delivery 前跑 `--mode compare`。
 
-**Portable gate fallback**：`gate-evidence.sh` + `gate-ci-local.sh` 在 git pre-push 及 `polaris-pr-create.sh` wrapper 中也強制檢查；`gate-pr-title.sh` + `gate-changeset.sh` 在 `polaris-pr-create.sh` 與 completion gate 中強制檢查；`gate-pr-body-template.sh` 在 `polaris-pr-create.sh` 中阻擋未保留 repo template headings 的 body。Completion gate 會重新讀 deliverable 的 remote PR metadata/body，確認 PR readiness（`state=OPEN`、`isDraft=false`）、remote PR body template conformance、remote PR body language policy，以及 local visual / Playwright / behavior contract evidence 是否已發布成 PR-visible publication comment；裸 `gh pr create`、`gh pr create --draft`、PR 建立後 body drift、或 local-only 截圖/影片 evidence 都不能成為 completion endpoint。Review approval / GitHub mergeability 的 `blocked_review` 是 post-delivery review readiness，不阻擋 engineering closeout；merge conflict、stale base、failing CI、draft PR、缺 evidence / assignee 仍是 hard blocker。若需要人工上傳，先使用 `collect-evidence-upload-bundle.sh` 產生 `artifacts/{WORK_ITEM_ID}-pr-upload/`，再由使用者把檔案拖到 PR comment 並保留 publication marker。Skill-level check here is **L2 cross-LLM authoritative**（所有 LLM 都走 SKILL.md → 一定到這步）。Completion gate 是 hard gate，但 `awaiting_re_review`、`mergeable_ready`、`unsupported_mutation`、`stale_downstream` 等 readiness vocabulary 仍由 shared PR state authority 發號，不由單一 skill prose 決定。
+**Portable gate fallback**：`gate-evidence.sh` + `gate-ci-local.sh` 在 git pre-push 及 `polaris-pr-create.sh` wrapper 中也強制檢查；`gate-pr-title.sh` 在 `polaris-pr-create.sh` 與 completion gate 中強制檢查；`gate-pr-body-template.sh` 在 `polaris-pr-create.sh` 中阻擋未保留 repo template headings 的 body。Completion gate 會重新讀 deliverable 的 remote PR metadata/body，確認 PR readiness（`state=OPEN`、`isDraft=false`）、remote PR body template conformance、remote PR body language policy，以及 local visual / Playwright / behavior contract evidence 是否已發布成 PR-visible publication comment；裸 `gh pr create`、`gh pr create --draft`、PR 建立後 body drift、或 local-only 截圖/影片 evidence 都不能成為 completion endpoint。Review approval / GitHub mergeability 的 `blocked_review` 是 post-delivery review readiness，不阻擋 engineering closeout；merge conflict、stale base、failing CI、draft PR、缺 evidence / assignee 仍是 hard blocker。若需要人工上傳，先使用 `collect-evidence-upload-bundle.sh` 產生 `artifacts/{WORK_ITEM_ID}-pr-upload/`，再由使用者把檔案拖到 PR comment 並保留 publication marker。Skill-level check here is **L2 cross-LLM authoritative**（所有 LLM 都走 SKILL.md → 一定到這步）。Completion gate 是 hard gate，但 `awaiting_re_review`、`mergeable_ready`、`unsupported_mutation`、`stale_downstream` 等 readiness vocabulary 仍由 shared PR state authority 發號，不由單一 skill prose 決定。
 
 ### 7b. 讀 PR template
 
@@ -99,8 +99,8 @@ task），再進 PR creation；不得把「小修」、「emergency」或 mainta
 `gate-work-source.sh`，確認 current branch 能 resolve 到合法 `task.md`；此 gate 不受
 `--skip-gates` 影響且沒有 emergency bypass。通過後才依序執行 gate-base-check +
 gate-evidence + gate-ci-local + gate-pr-title + gate-pr-body-template + gate-pr-language +
-gate-changeset — 缺 source、`--base` 值與 resolve 結果不符、Developer title 不符、PR
-body 未保留 repo template headings、PR prose 違反 workspace language、或 task changeset
+缺 source、`--base` 值與 resolve 結果不符、Developer title 不符、PR
+body 未保留 repo template headings、或 PR prose 違反 workspace language
 缺失時 wrapper 直接 block。
 
 不可使用裸 `gh pr create`、generic publisher、或 `gh pr create --draft` 當作 Developer
@@ -136,7 +136,6 @@ HEAD_SHA=$(git rev-parse HEAD)
 當 engineering 以 revision mode 觸發時，PR 已存在（PR URL 是輸入之一）。此時不建新 PR，改為 push to existing PR：
 
 1. **PR base sync 已於 R0 完成**（engineering SKILL.md § R0 步驟 4）：若 PR `baseRefName` != `RESOLVED_BASE` → R0 已跑 `gh pr edit --base "$RESOLVED_BASE"` 同步；`gate-base-check.sh`（git hook / `polaris-pr-create.sh` wrapper）同時擋 PR base 不符 resolve 結果
-2. **Revision push 前要求 changeset gate**：至少執行 `polaris-changeset.sh new --task-md "<path/to/task.md>" --repo "<repo_root>"`；若暫時不能執行則至少執行 `gate-changeset.sh --repo "<repo_root>"`（revision mode 的 git pre-push 已包裝）以避免可追溯性缺口。
 3. `git push` 到既有 PR 的 remote branch（branch 已 checkout）
 4. 跳過 `gh pr create`（hook 不觸發）
 5. 若 PR body 需更新（如新增修正摘要），先讀 `pr-body-builder.md` § 0 與 § 3d，用既有 remote body

@@ -238,101 +238,12 @@ def apply_check_overrides(checks):
     return kept, skipped
 
 
-def changeset_policy_command() -> str:
-    return r"""python3 - "$BASE_BRANCH" <<'CILOCAL_CHANGESET_POLICY_PY'
-import pathlib
-import re
-import subprocess
-import sys
-
-base_branch = sys.argv[1].strip()
-ticket_re = re.compile(r"\[[A-Z0-9]+-[0-9]+\]")
-
-
-def git(args):
-    proc = subprocess.run(
-        ["git", *args],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    return proc.stdout.strip() if proc.returncode == 0 else ""
-
-
-def ref_exists(ref):
-    return bool(git(["rev-parse", "--verify", ref]))
-
-
-def resolve_base_ref():
-    candidates = []
-    if base_branch:
-        if base_branch.startswith("origin/"):
-            candidates.extend([base_branch, base_branch[len("origin/"):]])
-        else:
-            candidates.extend([f"origin/{base_branch}", base_branch])
-    for cand in candidates:
-        if ref_exists(cand):
-            return cand
-    for cand in ("origin/develop", "develop", "origin/main", "main", "origin/master", "master"):
-        if ref_exists(cand):
-            return cand
-    return ""
-
-
-def names_from_diff(args):
-    output = git(["diff", "--name-only", *args])
-    return [line.strip() for line in output.splitlines() if line.strip()]
-
-
-base_ref = resolve_base_ref()
-changed = set()
-if base_ref:
-    merge_base = git(["merge-base", "HEAD", base_ref])
-    if merge_base:
-        changed.update(names_from_diff([f"{merge_base}...HEAD"]))
-changed.update(names_from_diff([]))
-changed.update(names_from_diff(["--cached"]))
-
-files = sorted(
-    path
-    for path in changed
-    if path.startswith(".changeset/")
-    and path.endswith(".md")
-    and pathlib.Path(path).name.lower() != "readme.md"
-)
-
-if not files:
-    print("[ci-local] FAIL: no .changeset/*.md file found in PR diff", file=sys.stderr)
-    raise SystemExit(1)
-
-missing_ticket = []
-for file_name in files:
-    try:
-        text = pathlib.Path(file_name).read_text(encoding="utf-8")
-    except OSError as exc:
-        print(f"[ci-local] FAIL: cannot read {file_name}: {exc}", file=sys.stderr)
-        raise SystemExit(1)
-    if not ticket_re.search(text):
-        missing_ticket.append(file_name)
-
-if missing_ticket:
-    print(
-        "[ci-local] FAIL: changeset missing JIRA ticket ID: "
-        + ", ".join(missing_ticket),
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
-
-print("[ci-local] changeset policy PASS: " + ", ".join(files))
-CILOCAL_CHANGESET_POLICY_PY"""
-
-
 def release_readiness_consistency_command() -> str:
-    """Emit the changeset-driven release-readiness consistency check (DP-295 AC4).
+    """Emit the release-readiness consistency check (DP-295 AC4).
 
-    A repo carrying the changeset version SoT (.changeset/config.json + package.json
+    A repo carrying the version SoT (package.json
     version + VERSION mirror) must keep VERSION == package.json version and have a
-    CHANGELOG.md block for that version. Once a version bump consumes changesets, a
+    CHANGELOG.md block for that version. Once a version bump lands, a
     drift between VERSION / package.json / CHANGELOG blocks the PR. The check runs
     from REPO_ROOT, which the generated mirror cd's into before any check.
     """
@@ -384,15 +295,13 @@ print(f"[ci-local] release-readiness consistency PASS: VERSION == package.json =
 CILOCAL_RELEASE_READINESS_PY"""
 
 
-def has_changeset_version_sot() -> bool:
-    """True when the repo carries the changeset version SoT (DP-295).
+def has_version_sot() -> bool:
+    """True when the repo mirrors its version across VERSION + package.json.
 
     Gate the release-readiness consistency check to repos that actually own a
-    changeset config + package.json version + VERSION mirror, so product repos
-    without that SoT do not gain a false-positive check.
+    package.json version + VERSION mirror, so product repos without that SoT do
+    not gain a false-positive check.
     """
-    if not (repo / ".changeset" / "config.json").is_file():
-        return False
     if not (repo / "VERSION").is_file():
         return False
     pkg = repo / "package.json"
@@ -409,8 +318,8 @@ def has_changeset_version_sot() -> bool:
 
 
 def synthesize_release_readiness_checks():
-    """Emit the release-readiness consistency policy for changeset-SoT repos."""
-    if not has_changeset_version_sot():
+    """Emit the release-readiness consistency policy for version-SoT repos."""
+    if not has_version_sot():
         return []
     return [
         {
@@ -426,32 +335,10 @@ def synthesize_release_readiness_checks():
 def synthesize_policy_checks(checks):
     """Replace known CI policy jobs with local equivalents.
 
-    CI containers often express a policy gate as several setup/control-flow
-    fragments. Replaying those fragments locally is brittle, so the mirror
-    emits a single deterministic check for each supported policy.
+    目前沒有需要本地重寫的 policy job。Repo 自有的 policy（發版產物、
+    commit 規約等）由該 repo 的 CI 定義，本地鏡像不代為重新實作。
     """
-    synthesized = []
-    seen = set()
-    for c in checks or []:
-        source = c.get("source_file", "")
-        job = c.get("job", "")
-        key_text = f"{source}\n{job}".lower()
-        if "changeset" not in key_text:
-            continue
-        key = ("changeset", source, job)
-        if key in seen:
-            continue
-        seen.add(key)
-        synthesized.append(
-            {
-                "category": "policy",
-                "source_file": source,
-                "job": job,
-                "command": changeset_policy_command(),
-                "conditions": c.get("conditions") or {},
-            }
-        )
-    return synthesized
+    return []
 
 
 checks = filter_checks(contract.get("checks", []))

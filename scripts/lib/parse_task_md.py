@@ -575,9 +575,6 @@ else:
         "test_command":"test_command", "verify_command":"verify_command", "verify_fallback_command":"verify_fallback_command",
         "allowed_files":"allowed_files", "required_tools":"required_tools", "resolved_base":"resolved_base",
     }
-    for prefix, root_key in (("deliverable_", "frontmatter.deliverable."), ("deliverables_changeset_", "frontmatter.deliverables.changeset."),
-                             ("extension_deliverable_", "frontmatter.extension_deliverable.")):
-        pass
     aliases.update({
         "deliverable_pr_url":"frontmatter.deliverable.pr_url", "deliverable_pr_state":"frontmatter.deliverable.pr_state",
         "deliverable_head_sha":"frontmatter.deliverable.head_sha", "deliverable_verification_status":"frontmatter.deliverable.verification.status",
@@ -586,9 +583,6 @@ else:
         "deliverable_verification_ac_fail":"frontmatter.deliverable.verification.ac_counts.ac_fail",
         "deliverable_verification_ac_manual_required":"frontmatter.deliverable.verification.ac_counts.ac_manual_required",
         "deliverable_verification_ac_uncertain":"frontmatter.deliverable.verification.ac_counts.ac_uncertain",
-        "deliverables_changeset_package_scope":"frontmatter.deliverables.changeset.package_scope",
-        "deliverables_changeset_bump_level_default":"frontmatter.deliverables.changeset.bump_level_default",
-        "deliverables_changeset_filename_slug":"frontmatter.deliverables.changeset.filename_slug",
     })
     ext = {"endpoint":"endpoint","extension_id":"extension_id","task_head_sha":"task_head_sha","workspace_commit":"workspace_commit",
            "template_commit":"template_commit","version_tag":"version_tag","release_url":"release_url","completed_at":"completed_at",

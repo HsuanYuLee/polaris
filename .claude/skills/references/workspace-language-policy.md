@@ -33,7 +33,7 @@ prose、fixture prose 與 code comment prose 仍要依 workspace language 撰寫
 | Slack | review ping、standup、intake summary、daily learning digest | `slack_send_message` 前寫暫存 markdown 並 gate |
 | Confluence | SA/SD page、sprint page、release page、report | create/update 前寫暫存 markdown 並 gate |
 | Git commit | commit subject/body 的自然語言部分 | 使用 commit language gate；規則見 § 4 |
-| Release prose | changelog prose、GitHub release body、changeset description | producer 或 wrapper 送出前 gate |
+| Release prose | changelog prose、GitHub release body | producer 或 wrapper 送出前 gate |
 | Runtime final/chat response | assistant final answer、status update、engineering report、verify-AC summary | runtime 無 hook 時由 agent self-check workspace language；generated instructions 必須包含 guard |
 | Script help / usage prose | `--help` output、usage text、error repair hint、template-facing examples | script producer 直接依 workspace language 起稿；selftest / audit 覆蓋 hardcoded prose 或登錄例外 |
 | Test fixture prose | selftest fixture 中模擬 PR body/comment/report 的人讀文字 | fixture 預設遵從 workspace language；英文 fixture 必須是 identifier、log/API 原文或明確負例 |

@@ -1,5 +1,28 @@
 # Changelog
 
+## [3.80.0] - 2026-07-31
+
+### Removed
+
+- 245dc54: 清除 C 桶機制（32 條，無事故背書）。依 107 條機制的三桶分類（A=外部世界事實 22 / B=框架自建簿記 53 / C=只有契約宣告 32），刪除 C 桶：81 檔、-12,176 行。hooks 20→15，settings.json 掛載 37→18，manifest 734→684，ledger 957→892。判準是「owning DP 有沒有寫下真實事故」，舉證責任在機制身上。
+- 5f16a93: 讓框架忘掉 changeset 是什麼。changeset 是某個 repo 的 npm 發版工具，卻長成跨 skills / references / gates / selftests / task schema 的框架級概念（101 個檔案）。要不要 changeset 由當事 repo 自己的 CI 與設定決定，LLM 開發時讀 repo 自己摸到就照 repo 規則做。刪 gate-changeset / polaris-changeset / changeset-clean-inherited 及 6 支 selftest（-2,806 行），斷開 6 個掛載點；sync-to-polaris 不再把 .changeset/ 推進 Polaris 模板，並清掉模板端殘留。101→53 檔。
+
+### Fixed
+
+- bb2c9aa: 自指跳脫在 pre-push 這一層從未生效。三個呼叫點裡只有 pre-push 的 corpus binary 沒有預設值，使 `[[ -n "$corpus" ]] || return 10` 在分類器執行前就退出——而 push 正是這條 carve-out 要解的窗口。selftest 抓不到是因為 run_case 一律注入該 env，真實生產路徑從未覆蓋。補上預設值與 default-resolution 斷言。
+- 09384f0: 修復 C 桶清除造成的 5 支 selftest 迴歸。
+- 43a2d71 / 4bed704 / 26bf107: 收斂懸空引用、registry、生成物與散文層。
+
+### Changed
+
+- task.md schema 移除 `deliverables.changeset.*`；release surface 判準改為 repo-agnostic 的 `deliverables.package_release`。
+- ci-local 不再自行實作「PR 必須有 changeset」的 CI 檢查；repo 自有 policy 由該 repo 的 CI 定義。
+
+### Known
+
+- 自指跳脫接上預設值後，push 會實跑完整 corpus（實測 duration_ms=1842319，30.7 分鐘），在 push 這層不可用。信任錨是否收窄成 affected-only 屬未決設計決策。
+- `scripts/lib/evidence-classifier.sh` 仍知道「被消費（刪除）的 .changeset/*.md 算 release bump」，是通用分類器內殘留的 repo-specific 知識。
+
 ## [3.79.6] - 2026-07-25
 
 ### Changed

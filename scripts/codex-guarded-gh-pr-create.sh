@@ -11,7 +11,6 @@
 #  - no tracked local specs
 #  - PR title/body/template/language
 #  - final remote assignee metadata
-#  - changeset
 #
 # Usage:
 #   codex-guarded-gh-pr-create.sh [--dry-run] [--task-md <path>] [gh pr create args...]

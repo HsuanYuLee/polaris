@@ -76,8 +76,7 @@ local extension；resolver、handbook、TDD、ci-local、verify、scope、base f
 Framework-owned DP task 進 first-cut 前，若 task 屬於多 task DP 且後續交由
 `framework-release`，先以 `scripts/resolve-handbook.sh --project polaris-framework` 取得
 canonical handbook payload。在 codebase exploration 前讀 `index_path`、從 `narrative_paths`
-取得 `changeset-convention.md` 與 `release-topology.md`，並呼叫
-`scripts/validate-handbook-load-gate.sh` 建立 session/repo marker；first-touch gate 只作 backstop。
+取得 `release-topology.md`。
 以 `release-topology.md` 理解 task PR 的 stack / release base。施工權威仍是 resolved
 `task.md`；handbook 不覆寫 Allowed Files、Verify Command 或
 deliverable state。

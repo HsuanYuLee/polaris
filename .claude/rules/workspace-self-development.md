@@ -21,8 +21,7 @@
 - `docs-manager/src/content/docs/specs/design-plans/DP-*`（framework workspace 的
   refinement-owned source；JIRA Epic-backed source 走 product handbook）
 
-判定方式以 repo identity、changed files 與 task scope 為準；tracked-file 首次變更前由
-`validate-handbook-load-gate.sh` 經同一 resolver surface handbook 並建立 session marker。
+判定方式以 repo identity、changed files 與 task scope 為準。
 
 ## Boundary（product handbook 邊界）
 
@@ -53,7 +52,6 @@ repo identity routing。
 ## Verification
 
 - canonical path 與 framework/product 對稱解析由 `scripts/selftests/resolve-handbook-selftest.sh`
-  驗證；首次變更前的 fail-closed marker 行為由
-  `scripts/selftests/handbook-load-gate-selftest.sh` 驗證。
+  驗證。
 - 本檔本身屬 framework workspace `.claude/rules/` 範圍，受 framework PR gate 與
   `scripts/verify-cross-llm-parity.sh` aggregate 監管。

@@ -132,7 +132,6 @@ REBASE_RESULT=$(bash "${POLARIS_ROOT}/scripts/engineering-rebase.sh" "<path/to/t
 
 ### Post-rebase 衛生
 
-Script 自動呼叫 `changeset-clean-inherited.sh`（D24）清理因 rebase 帶入的 inherited changeset。
 
 ### First-cut vs Revision
 

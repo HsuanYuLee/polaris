@@ -49,7 +49,6 @@ pre_commit="$repo/.git/hooks/pre-commit"
 grep -q 'gate-ci-local.sh' "$pre_push" || { echo "[selftest] pre-push does not delegate ci-local gate" >&2; exit 1; }
 grep -q 'gate-revision-rebase.sh' "$pre_push" || { echo "[selftest] pre-push does not delegate revision-rebase gate" >&2; exit 1; }
 grep -q 'gate-evidence.sh' "$pre_push" || { echo "[selftest] pre-push does not delegate evidence gate" >&2; exit 1; }
-grep -q 'gate-changeset.sh' "$pre_push" || { echo "[selftest] pre-push does not delegate changeset gate" >&2; exit 1; }
 
 if grep -qE '/tmp/\\.quality-gate-passed|No quality gate marker|quality gate marker' "$pre_push"; then
   echo "[selftest] pre-push still contains retired quality marker logic" >&2

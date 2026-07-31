@@ -33,9 +33,6 @@ def flatten_commands(raw):
 def categorize_command(cmd: str):
     lower = cmd.lower()
 
-    if any(k in lower for k in ["changeset", ".changeset/", "changeset_files"]):
-        return "policy"
-
     if any(
         k in lower
         for k in [
@@ -65,7 +62,7 @@ def categorize_command(cmd: str):
     if re.search(r"\b(test|vitest|jest|pytest|go test|phpunit|rspec)\b", lower):
         return "test"
 
-    if any(k in lower for k in ["gh pr comment", "gh release", "changeset version"]):
+    if any(k in lower for k in ["gh pr comment", "gh release"]):
         return "delivery"
 
     if any(
@@ -89,9 +86,6 @@ def categorize_command(cmd: str):
 
 
 def categorize_ci_command(cmd: str, source_file: str = "", job_name: str = ""):
-    context = f"{source_file}\n{job_name}".lower()
-    if "changeset" in context:
-        return "policy"
     return categorize_command(cmd)
 
 
@@ -199,8 +193,6 @@ def is_local_executable(cmd: str):
     if re.search(r"\bgh\s+pr\s+(comment|edit)\b", lower):
         return False
     if re.search(r"\bgh\s+api\b", lower) and "issues/comments" in lower:
-        return False
-    if re.search(r"\bchangeset\s+version\b", lower):
         return False
     if re.search(r"\b(pnpm|npm|yarn)\s+publish\b", lower):
         return False

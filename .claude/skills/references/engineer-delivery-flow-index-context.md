@@ -75,7 +75,7 @@
 └────────────────────────────────────────┘  └──────────────────────────────────────────────┘
 ```
 
-**Step 完整序列**：Step 1 Simplify → Step 1.3 Self-Review → Step 1.5 Scope Gate → Step 2 前置 Rebase → Step 2 Local CI Mirror → Step 3 Verify → Step 3.2 Flow Gap Audit → Step 3.5 VR → Step 5 Base Freshness → Step 6 Commit+Changeset → Step 7 PR / Local Extension Handoff → Step 8 JIRA / Extension Verification → Step 8a Finalize Delivery（Completion Gate + IMPLEMENTED + Worktree Cleanup）
+**Step 完整序列**：Step 1 Simplify → Step 1.3 Self-Review → Step 1.5 Scope Gate → Step 2 前置 Rebase → Step 2 Local CI Mirror → Step 3 Verify → Step 3.2 Flow Gap Audit → Step 3.5 VR → Step 5 Base Freshness → Step 6 Commit → Step 7 PR / Local Extension Handoff → Step 8 JIRA / Extension Verification → Step 8a Finalize Delivery（Completion Gate + IMPLEMENTED + Worktree Cleanup）
 
 ## Role Matrix
 
@@ -92,7 +92,7 @@
 | Step 3.5 Visual Regression（`run-visual-snapshot.sh`，conditional，D18） | ✅ 若 task.md VR 觸發 | ✅ 若 task.md VR 觸發 |
 | ~~Step 4~~（已搬至 Step 1.3 — Phase 3 exit gate，編號留空避免下游 reference 斷裂） | — | — |
 | Step 5 Base Freshness Detection（`check-base-fresh.sh`，D19） | ✅ | ✅ |
-| Step 6 Commit + Changeset | ✅ | 依 local policy；portable flow 至少產生 handoff package |
+| Step 6 Commit | ✅ | 依 local policy；portable flow 至少產生 handoff package |
 | Step 7 PR Create（含 7a Evidence AND Gate） | ✅ | 依 local policy：PR-bypass endpoint 改走 handoff；post-PR release endpoint 仍須建立 / 更新 workspace PR |
 | Step 8 JIRA Transition → CODE REVIEW | ✅ | ⏭️ 跳過（無 JIRA ticket） |
 | Step 8a Mark IMPLEMENTED | ✅ | ✅ 但只在 extension final verification 成功後 |

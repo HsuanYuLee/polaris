@@ -96,7 +96,6 @@ resolve，不是以 workspace `.claude/` root 為基準。
 |------|-------------|----------|
 | [pr-body-builder.md](pr-body-builder.md) | PR template 偵測、body 組裝、AC Coverage、母單 PR、Bug RCA 偵測 | engineering（透過 engineer-delivery-flow Step 7） |
 | [commit-convention-default.md](commit-convention-default.md) | Commit message L3 兜底規範（L1 tooling / L2 handbook / L3 default fallback chain；type enum；`{TICKET}` 推導；multi-commit；revision 規格） | engineering（透過 engineer-delivery-flow Step 6a） |
-| [changeset-convention-default.md](changeset-convention-default.md) | Changeset L3 兜底規範（filename slug、frontmatter `{package}: patch` default、description = task title、`ticket_prefix_handling=strip` default、idempotent skip） | engineering, breakdown（task.md `deliverables.changeset` 宣告生產端） |
 | [branch-creation.md](branch-creation.md) | JIRA ticket / DP task → branch 建立流程（含 dependency branch 偵測） | engineering |
 | [cascade-rebase.md](cascade-rebase.md) | Feature branch PR stack 的 cascade rebase 邏輯 | engineering, check-pr-approvals |
 | [feature-branch-pr-gate.md](feature-branch-pr-gate.md) | Task PR 全 merge 後自動建 feature→develop PR 的偵測邏輯 | converge, check-pr-approvals, engineering |

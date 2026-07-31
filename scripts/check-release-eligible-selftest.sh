@@ -129,10 +129,9 @@ write_task "$task_amb" 'extension_deliverable:
     verify: /tmp/polaris-verified.json
     vr: N/A'
 write_task "$task_pkg" 'deliverables:
-  changeset:
+  package_release:
     package_scope: "@example/package"
-    bump_level_default: patch
-    filename_slug: example-package'
+    bump_level_default: patch'
 write_task "$task_pr" 'deliverable:
   pr_url: https://github.com/example-org/example/pull/123
   pr_state: OPEN
@@ -153,14 +152,6 @@ write_task "$task_ext" 'extension_deliverable:
 
 assert_gate 0 NOT_REQUIRED "" bash "$SCRIPT" --task-md "$task_none" --repo "$repo"
 assert_gate 2 BLOCKED ambiguous_surface bash "$SCRIPT" --task-md "$task_amb" --repo "$repo"
-assert_gate 2 BLOCKED changeset_missing_or_invalid bash "$SCRIPT" --task-md "$task_pkg" --repo "$repo"
-cat >"$repo/.changeset/example-package.md" <<'EOF'
----
-"@example/package": patch
----
-
-release eligible selftest
-EOF
 assert_gate 0 ELIGIBLE "" bash "$SCRIPT" --task-md "$task_pkg" --repo "$repo"
 assert_gate 0 ELIGIBLE "" env POLARIS_CHECK_DELIVERY_COMPLETION_BIN="$delivery_pass" bash "$SCRIPT" --task-md "$task_pr" --repo "$repo"
 assert_gate 2 BLOCKED completion_gate_failed env POLARIS_CHECK_DELIVERY_COMPLETION_BIN="$delivery_fail" bash "$SCRIPT" --task-md "$task_pr" --repo "$repo"

@@ -36,9 +36,7 @@ run "D28 deterministic breakdown consumption" \
 run "D30 verify-AC deterministic consumption" \
   bash scripts/selftests/verify-AC-deterministic-consumption-selftest.sh
 run "D31 verify-AC evidence producer" \
-  bash scripts/selftests/verify-AC-evidence-layout-producer-selftest.sh
 run "D32 auto-pass report producer" \
-  bash scripts/selftests/auto-pass-report-producer-selftest.sh
 run "D33 task worktree resolver" \
   bash scripts/selftests/resolve-task-worktree-selftest.sh
 run "D34 selftest direct-call governance" \

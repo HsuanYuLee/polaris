@@ -58,9 +58,8 @@ Contract / Fallback Behavior。
 4. 讀 AC verification steps；缺步驟則標 `UNCERTAIN` 並要求補 AC。
 5. 需要 local / fixture 環境時，依 environment prep reference 啟動。
 6. 逐步執行 curl / Playwright / native VR runner / source inspection / structured checks；若
-   refinement AC 使用 `verification.method: challenger`、`docs-health` 或
-   `feedback-signals`，分別 dispatch `scripts/verify-ac-newbie-challenger.sh`、
-   `scripts/verify-ac-docs-health.sh`、`scripts/verify-ac-feedback-signals.sh`。
+   refinement AC 使用 `verification.method: challenger` 或 `docs-health`，分別 dispatch
+   `scripts/verify-ac-newbie-challenger.sh`、`scripts/verify-ac-docs-health.sh`。
 7. 每步分類 `PASS`、`FAIL`、`MANUAL_REQUIRED`、`UNCERTAIN`。
 8. 收集 evidence，寫 local verification folder；有視覺/影片/manual evidence 時先產 upload bundle，再視需要上傳 JIRA attachments。
 9. 若本輪有 V*.md work order，先用 `scripts/write-ac-verification.sh` 寫回
@@ -227,10 +226,6 @@ generated target、refinement.md / refinement.json）會讓 gate exit 1 並輸�
 
 `POLARIS_LANGUAGE_POLICY_BYPASS` / `POLARIS_SKILL_BOUNDARY_BYPASS` 等 env 不能
 silence 這個 gate（AC-NEG16）。
-
-## L2 Deterministic Check: post-task-feedback-reflection
-
-完成 write flow 後必須呼叫 `scripts/check-feedback-signals.sh`。
 
 ## Post-Task Reflection (required)
 

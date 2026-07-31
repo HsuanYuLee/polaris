@@ -166,7 +166,7 @@ chore: bump pnpm 9.12.3
 ```
 
 ```
-docs(handbook): 更新 changeset convention L2 範例
+docs(handbook): 更新 commit convention L2 範例
 ```
 
 ### 6.4 Revision（同規格、無特殊 prefix）
@@ -208,5 +208,5 @@ Reviewer 指出 client-side 補 entry 會造成 hydration warning。
 ## Source
 
 - DP-032 plan.md § D22（`specs/design-plans/DP-032-engineering-deterministic-extraction/plan.md`）
-- 配套 reference：`pr-body-builder.md`（D23）、`changeset-convention-default.md`（D24）
+- 配套 reference：`pr-body-builder.md`（D23）
 - 上層消費：`engineer-delivery-flow.md § Step 6a`

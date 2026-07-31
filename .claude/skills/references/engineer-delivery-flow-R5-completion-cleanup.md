@@ -157,7 +157,6 @@ bash "${POLARIS_ROOT}/scripts/engineering-clean-worktree.sh" \
 | `gate-ci-local.sh` git pre-push | `git push` | Layer A evidence（push mode） | 四通 |
 | `gate-revision-rebase.sh` git pre-push | `git push` on an existing PR branch | Revision R0 evidence for current HEAD | 四通 |
 | `gate-evidence.sh` git pre-push | `git push` | delegated shared `verification_passed` gate（Layer B + triggered Layer C）+ Layer D if declared | 四通 |
-| `gate-changeset.sh` git pre-push | `git push` | Developer ticket-bound changeset 缺漏檢查 | 四通 |
 | `gate-base-check.sh` in `polaris-pr-create.sh` | PR 建立 | base branch = resolve 結果 | 四通 |
 | `polaris-pr-create.sh` wrapper | PR 建立 | 依序跑 base-check → evidence → ci-local | 四通 |
 | `check-delivery-completion.sh` | user-facing completion report | Layer A always if `ci-local.sh` exists; Layer B for Developer / Local Extension when helper exists; Developer deliverable PR must be remote PR ready (`state=OPEN`, `isDraft=false`) and body-template compliant | 四通 |

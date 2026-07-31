@@ -63,10 +63,9 @@ write_task "$task_pr" 'deliverable:
   pr_state: OPEN
   head_sha: abc1234'
 write_task "$task_pkg" 'deliverables:
-  changeset:
+  package_release:
     package_scope: "@example/package"
-    bump_level_default: patch
-    filename_slug: example-package'
+    bump_level_default: patch'
 write_task "$task_ext" 'deliverable:
   pr_url: https://github.com/example-org/example/pull/456
   pr_state: OPEN

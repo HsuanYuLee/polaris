@@ -141,7 +141,7 @@ def is_safe_asset(path: str) -> bool:
 
 def is_safe_config(path: str) -> bool:
     name = Path(path).name
-    return path.startswith(".changeset/") or name.startswith("nuxt.config.") or name == "package.json" or is_safe_asset(path)
+    return name.startswith("nuxt.config.") or name == "package.json" or is_safe_asset(path)
 
 
 def line_delta(candidate: dict) -> int | None:
@@ -178,7 +178,7 @@ def classify_model_tier(candidate: dict, cluster_role: str) -> tuple[str, str]:
 
     if names and all(is_safe_config(name) for name in names):
         if delta is None or delta <= 120:
-            return "small_fast", "asset/config/changeset-only files"
+            return "small_fast", "asset/config-only files"
 
     return "standard_coding", "default review risk"
 

@@ -103,7 +103,6 @@ inspection + 跑 T1 selftest 套件 + 跑語言 / runtime annotation gate。
 ```bash
 set -euo pipefail
 bash scripts/selftests/<T1 套件>-selftest.sh
-bash scripts/validate-mechanism-runtime-annotations.sh
 bash scripts/validate-language-policy.sh --blocking --mode artifact <doc>
 echo "PASS: DP-NNN-V1"
 ```

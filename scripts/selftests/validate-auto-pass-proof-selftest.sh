@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Purpose: Selftest for scripts/validate-auto-pass-proof.sh — exercises the
 #          auto-pass proof validator together with the evidence-producer
-#          whitelist gate and the no-direct-evidence-write hook over hermetic
+#          whitelist gate over hermetic
 #          fixtures, asserting accept/reject decisions.
 # Inputs:  none (builds hermetic fixtures under a mktemp dir)
 # Outputs: stdout PASS/FAIL lines; exit 0 on PASS, non-zero on failure
@@ -10,7 +10,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VALIDATOR="$ROOT/scripts/validate-auto-pass-proof.sh"
 PRODUCER_GATE="$ROOT/scripts/gates/gate-evidence-producer-whitelist.sh"
-DIRECT_WRITE_HOOK="$ROOT/.claude/hooks/no-direct-evidence-write.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -184,23 +183,6 @@ fi
 
 popd >/dev/null
 
-printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":".polaris/evidence/ac-verification/DP-201-V1-abc1234.json"}}' >"$TMP/direct-write.json"
-if "$DIRECT_WRITE_HOOK" <"$TMP/direct-write.json" >/tmp/dp201-direct-write.out 2>&1; then
-  echo "FAIL: direct evidence Write fixture unexpectedly passed" >&2
-  exit 1
-fi
-printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"notes/not-evidence.json"}}' >"$TMP/non-evidence-write.json"
-"$DIRECT_WRITE_HOOK" <"$TMP/non-evidence-write.json" >/tmp/dp201-non-evidence-write.out 2>&1
-printf '%s\n' '{"tool_name":"Write","tool_input":{"file_path":"docs-manager/src/content/docs/specs/design-plans/DP-999/example.md"}}' >"$TMP/specs-md-write.json"
-if "$DIRECT_WRITE_HOOK" <"$TMP/specs-md-write.json" >/tmp/dp201-specs-md-write.out 2>&1; then
-  echo "FAIL: specs-bound markdown Write fixture unexpectedly passed" >&2
-  exit 1
-fi
-printf '%s\n' '{"tool_name":"MultiEdit","tool_input":{"file_path":"docs-manager/src/content/docs/specs/design-plans/DP-999/example.md","edits":[]}}' >"$TMP/specs-md-multiedit.json"
-if "$DIRECT_WRITE_HOOK" <"$TMP/specs-md-multiedit.json" >/tmp/dp201-specs-md-multiedit.out 2>&1; then
-  echo "FAIL: specs-bound markdown MultiEdit fixture unexpectedly passed" >&2
-  exit 1
-fi
 
 valid_verify="$TMP/valid-verify.json"
 invalid_verify="$TMP/invalid-verify.json"

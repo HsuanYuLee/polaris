@@ -70,17 +70,13 @@ chmod +x "${RUNTIME_TMP}/bin/mise" "${RUNTIME_TMP}/bin/node"
 PATH="${RUNTIME_TMP}/bin:${PATH}"
 export PATH
 
-# The codex portable mirror smoke (verify-agents-mirror-portable.sh) validates the
 # CURRENT cwd's .claude/rules/mechanism-registry.md, so it fails when the closeout
 # runs from a /tmp fixture sandbox. Stub it to a no-op here (same pattern as the
 # mise/node stubs above) so the fixture stays hermetic; production closeout still
 # runs the real smoke against the real workspace.
-cat >"${RUNTIME_TMP}/bin/verify-agents-mirror-portable.sh" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
-chmod +x "${RUNTIME_TMP}/bin/verify-agents-mirror-portable.sh"
-POLARIS_VERIFY_AGENTS_MIRROR_PORTABLE_BIN="${RUNTIME_TMP}/bin/verify-agents-mirror-portable.sh"
 export POLARIS_VERIFY_AGENTS_MIRROR_PORTABLE_BIN
 
 # DP-360 T7: stub `gh` for close_bundled_task_pr (driven by the task.md

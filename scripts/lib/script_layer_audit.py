@@ -63,7 +63,6 @@ STRUCTURED_VALIDATOR_SHELL_FIT = {
     "scripts/validate-artifact-location.sh",
     "scripts/validate-dp-plan-authoring.sh",
     "scripts/validate-engineering-self-review-result.sh",
-    "scripts/validate-handbook-load-gate.sh",
     "scripts/validate-handbook-path-contract.sh",
     "scripts/validate-memory-write.sh",
     "scripts/validate-safe-cli-introspection.sh",

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Purpose: DP-295-T3 selftest — assert the changesets Keep a Changelog custom
 #          formatter (.changeset/changelog-keepachangelog.cjs) maps Conventional
-#          Commits types to Keep a Changelog sections and that the convention
-#          reference exists.
+#          Commits types to Keep a Changelog sections.
 # Inputs:  none (drives the formatter via node + synthetic changeset fixtures)
 # Outputs: stdout "PASS: changeset-changelog-format" on success; exit non-zero on failure
 # Side effects: none (hermetic; only reads tracked repo files, no tmp writes)
@@ -10,7 +9,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 FORMATTER="$ROOT/.changeset/changelog-keepachangelog.cjs"
-REFERENCE="$ROOT/polaris-config/polaris-framework/handbook/changeset-convention.md"
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -19,7 +17,6 @@ fail() {
 
 # --- existence ---------------------------------------------------------------
 test -f "$FORMATTER" || fail "formatter missing: $FORMATTER"
-test -f "$REFERENCE" || fail "convention reference missing: $REFERENCE"
 
 command -v node >/dev/null 2>&1 || {
   printf 'POLARIS_TOOL_MISSING:node\n' >&2
@@ -111,12 +108,5 @@ if (out !== "") {
   process.exit(1);
 }
 ' "$FORMATTER" || fail "getDependencyReleaseLine empty-case contract violated"
-
-# --- reference documents the CC type -> section mapping ----------------------
-grep -q 'Keep a Changelog' "$REFERENCE" || fail "reference does not mention Keep a Changelog"
-grep -q 'Conventional Commits' "$REFERENCE" || fail "reference does not mention Conventional Commits"
-for section in Added Changed Fixed Removed Deprecated Security; do
-  grep -q "$section" "$REFERENCE" || fail "reference missing section name: $section"
-done
 
 echo "PASS: changeset-changelog-format"

@@ -181,8 +181,8 @@ else
   pass "static-no-bypass: neither gate declares a POLARIS_*_BYPASS env (AC-NEG1)"
 fi
 
-if grep -q 'gate-changeset' "$PREPUSH" && grep -q 'selftest-affected-runner' "$PREPUSH"; then
-  pass "static-key-calls: pre-push retains gate-changeset + affected-selftest runner"
+if grep -q 'validate-branch-name-ascii' "$PREPUSH" && grep -q 'selftest-affected-runner' "$PREPUSH"; then
+  pass "static-key-calls: pre-push retains branch-name-ascii + affected-selftest runner"
 else
   fail "static-key-calls: pre-push lost a pre-existing key gate call"
 fi
@@ -192,6 +192,18 @@ if grep -q 'run_gate "W14' "$FWGATE"; then
 else
   fail "static-key-calls: check-framework lost run_gate \"W14\""
 fi
+
+# --- default-resolution: env UNSET must resolve the canonical corpus binary -----
+# run_case 一律注入 POLARIS_AGGREGATE_SELFTESTS_BIN，所以「env 未設」這條真實
+# 生產路徑從未被覆蓋。缺預設值時 gate 會在分類器執行前就 return 10，使 carve-out
+# 在 push 這一層永遠不成立。這裡以 grep 斷言預設值存在且與另外兩個呼叫點一致。
+for _g in "$PREPUSH" "$FWGATE"; do
+  if grep -q 'POLARIS_AGGREGATE_SELFTESTS_BIN:-.*run-aggregate-selftests\.sh' "$_g"; then
+    pass "default-resolution: $(basename "$_g") resolves the canonical corpus binary when env is unset"
+  else
+    fail "default-resolution: $(basename "$_g") has no canonical corpus default (carve-out dies before the classifier)"
+  fi
+done
 
 # --- static: --list-stages introspection still coexists with the subcommand ----
 if bash "$FWGATE" --list-stages | grep -q '^W14 '; then

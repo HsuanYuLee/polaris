@@ -57,7 +57,6 @@ selftests=(
   "scripts/selftests/resolve-task-md-selftest.sh"
   "scripts/selftests/framework-scope-escalation-gate-selftest.sh"
   "scripts/selftests/framework-source-mutation-no-bypass-selftest.sh"
-  "scripts/selftests/cross-llm-mechanism-parity-selftest.sh"
   "scripts/selftests/refinement-task-dependencies-selftest.sh"
   "scripts/selftests/derive-task-md-from-refinement-json-selftest.sh"
   "scripts/selftests/auto-pass-engineering-worktree-dispatch-selftest.sh"

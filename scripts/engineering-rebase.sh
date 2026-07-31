@@ -3,8 +3,6 @@
 #
 # Mechanical rebase for engineering tasks. Fetches origin, resolves base,
 # rebases if stale, preserves conflict state for LLM to resolve in Phase 3.
-# Post-rebase: calls changeset-clean-inherited.sh to remove inherited
-# .changeset/ files (D24).
 #
 # Called by:
 #   - engineer-delivery-flow.md § Step 2 前置 (always, idempotent)
@@ -20,7 +18,7 @@
 #   4. No new commits → REBASE_NOOP, exit 0
 #   5. git rebase origin/{resolved_base}
 #   6. Conflict → preserve .git/rebase-merge/, REBASE_CONFLICT: files, exit 0
-#   7. Success → changeset-clean-inherited.sh → REBASE_OK, exit 0
+#   7. Success → REBASE_OK, exit 0
 #
 # Exit codes:
 #   0  Success — REBASE_OK / REBASE_NOOP / REBASE_CONFLICT (stdout tells which)
@@ -30,7 +28,6 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARSE_TASK_MD="$SCRIPT_DIR/parse-task-md.sh"
-CHANGESET_CLEAN="$SCRIPT_DIR/changeset-clean-inherited.sh"
 
 usage() {
   cat <<EOF >&2
@@ -38,7 +35,7 @@ Usage:
   $(basename "$0") <task_md> [--cwd DIR]
 
 Rebase current branch onto origin/{resolved_base}. Conflict → preserved for
-LLM resolution. Post-rebase cleans inherited changesets.
+LLM resolution.
 
 Options:
   --cwd DIR   Run git commands in DIR (default: current directory)
@@ -250,12 +247,7 @@ REBASE_OUTPUT=$(git rebase "origin/$RESOLVED_BASE" 2>&1)
 REBASE_RC=$?
 
 if [[ $REBASE_RC -eq 0 ]]; then
-  # Step 7: Success — clean inherited changesets
-  echo "ℹ Rebase successful, cleaning inherited changesets..." >&2
   REPO_DIR=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-  if [[ -x "$CHANGESET_CLEAN" && -d "$REPO_DIR/.changeset" && -n "$TASK_KEY" ]]; then
-    "$CHANGESET_CLEAN" --repo "$REPO_DIR" --current-ticket "$TASK_KEY" --base "$RESOLVED_BASE" 2>&1 | sed 's/^/  /' >&2 || true
-  fi
   echo "REBASE_OK"
   exit 0
 fi

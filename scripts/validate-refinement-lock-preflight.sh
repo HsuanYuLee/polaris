@@ -331,7 +331,7 @@ JSON
   # value lands in the task.md and validate-task-md.sh's executability gate
   # (DP-369 T1) rejects it. This replaces the old "implementation specs-only"
   # fixture: use the real env_bootstrap value as the illegal implementation
-  # signal. Changeset policy is repo-native and has no effect on task shape.
+  # signal.
   cat >"$tmpdir/bad.json" <<'JSON'
 {
   "source": { "type": "dp", "id": "DP-369", "base_branch": "feat/DP-369" },

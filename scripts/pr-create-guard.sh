@@ -21,7 +21,7 @@ PR_LANGUAGE_GATE="$SCRIPT_DIR/gates/gate-pr-language.sh"
 # Only match when gh pr create is the actual command, not inside quotes/args
 if printf '%s' "$command" | grep -qiE '^gh[[:space:]]+pr[[:space:]]+create\b'; then
   echo "BLOCKED: Direct gh pr create — use engineering / scripts/polaris-pr-create.sh" >&2
-  echo "The engineering flow runs lint, test, coverage, pre-PR review, evidence, and changeset gates before creating the PR." >&2
+  echo "The engineering flow runs lint, test, coverage, pre-PR review and evidence gates before creating the PR." >&2
   echo "Command was: $command" >&2
   exit 2
 fi

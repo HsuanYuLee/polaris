@@ -72,7 +72,6 @@ required_callsites=(
   "gate-evidence-producer-whitelist.sh"
   "gate-revision-rebase.sh"
   "gate-evidence.sh"
-  "gate-changeset.sh"
   "validate-manifest-parity.sh"
   "gate-template-leaks.sh"
   "selftest-affected-runner.sh"

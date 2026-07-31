@@ -30,12 +30,6 @@ Source-of-truth for DP-030 canary 下放：每個已腳本化的 mechanism 對�
 | Canary | Script | Layer | L2 Skill | L2 Expected Grep | L1 Hook | L1 Event | L1 Matcher | L1 Expected Grep |
 |--------|--------|-------|----------|------------------|---------|----------|------------|------------------|
 | cross-session-carry-forward | scripts/check-carry-forward.sh | L2-only | .claude/skills/checkpoint/SKILL.md#Step 2.5 — L2 Deterministic Check: cross-session-carry-forward | scripts/check-carry-forward.sh | — | — | — | — |
-| version-bump-reminder | scripts/check-version-bump-reminder.sh | L2+L1 | .claude/skills/engineering/SKILL.md#L2 Deterministic Check: version-bump-reminder | scripts/check-version-bump-reminder.sh | .claude/hooks/version-bump-reminder.sh | PostToolUse | Bash | scripts/check-version-bump-reminder.sh |
-| feedback-trigger-count-update | scripts/check-feedback-trigger-count.sh | L1-only | — | — | .claude/hooks/feedback-trigger-advisory.sh | Stop | — | scripts/check-feedback-trigger-count.sh |
-| post-task-feedback-reflection | scripts/check-feedback-signals.sh | L2+L1 | .claude/skills/engineering/SKILL.md#L2 Deterministic Check: post-task-feedback-reflection | scripts/check-feedback-signals.sh | .claude/hooks/feedback-reflection-stop.sh | Stop | — | scripts/check-feedback-signals.sh |
-| post-task-feedback-reflection | scripts/check-feedback-signals.sh | L2+L1 | .claude/skills/verify-AC/SKILL.md#L2 Deterministic Check: post-task-feedback-reflection | scripts/check-feedback-signals.sh | .claude/hooks/feedback-reflection-stop.sh | Stop | — | scripts/check-feedback-signals.sh |
-| post-task-feedback-reflection | scripts/check-feedback-signals.sh | L2+L1 | .claude/skills/breakdown/SKILL.md#L2 Deterministic Check: post-task-feedback-reflection | scripts/check-feedback-signals.sh | .claude/hooks/feedback-reflection-stop.sh | Stop | — | scripts/check-feedback-signals.sh |
-| post-task-feedback-reflection | scripts/check-feedback-signals.sh | L2+L1 | .claude/skills/refinement/SKILL.md#L2 Deterministic Check: post-task-feedback-reflection | scripts/check-feedback-signals.sh | .claude/hooks/feedback-reflection-stop.sh | Stop | — | scripts/check-feedback-signals.sh |
 | refinement-handoff-artifact | scripts/refinement-handoff-gate.sh | L2-only | .claude/skills/refinement/SKILL.md#Step 7 — 定版寫入（一次性） | mise run docs-health | — | — | — | — |
 <!-- registry:end -->
 

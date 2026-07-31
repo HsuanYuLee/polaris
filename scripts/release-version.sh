@@ -107,7 +107,7 @@ count_pending_changesets() {
 # DP-334 D1 / AC-NEG2: one DP = one version. A framework release compresses the
 # changesets accumulated at a single feat/DP-NNN HEAD into ONE version bump. The
 # changeset filename slug carries the owning DP marker ("dp-NNN-..." — produced by
-# polaris-changeset.sh from the task ticket key), so distinct DP markers across
+# derived from the task ticket key), so distinct DP markers across
 # pending changesets mean two different DP aggregations were stacked into one
 # compression. That is the forbidden cross-DP version-stacking path: refuse it
 # fail-loud rather than press a multi-DP version.

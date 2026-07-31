@@ -131,10 +131,9 @@ write_task "$task_pr" 'deliverable:
   pr_state: OPEN
   head_sha: abc1234'
 write_task "$task_pkg" 'deliverables:
-  changeset:
+  package_release:
     package_scope: "@example/package"
-    bump_level_default: patch
-    filename_slug: example-package'
+    bump_level_default: patch'
 write_task "$task_ext_active" 'extension_deliverable:
   endpoint: local_extension
   extension_id: framework-release
@@ -151,14 +150,6 @@ write_task "$task_ext_active" 'extension_deliverable:
 
 assert_gate 0 NOT_REQUIRED "" bash "$SCRIPT" --task-md "$task_none" --repo "$repo"
 assert_gate 2 BLOCKED task_not_moved_to_pr_release env POLARIS_CHECK_DELIVERY_COMPLETION_BIN="$delivery_pass" bash "$SCRIPT" --task-md "$task_pr" --repo "$repo"
-assert_gate 2 BLOCKED changeset_missing_or_invalid bash "$SCRIPT" --task-md "$task_pkg" --repo "$repo"
-cat >"$repo/.changeset/example-package.md" <<'EOF'
----
-"@example/package": patch
----
-
-release completed selftest
-EOF
 assert_gate 2 BLOCKED task_not_moved_to_pr_release bash "$SCRIPT" --task-md "$task_pkg" --repo "$repo"
 assert_gate 2 BLOCKED local_extension_completion_failed env POLARIS_CHECK_LOCAL_EXTENSION_COMPLETION_BIN="$local_fail" bash "$SCRIPT" --task-md "$task_ext_active" --repo "$repo"
 assert_gate 2 BLOCKED task_not_moved_to_pr_release env POLARIS_CHECK_LOCAL_EXTENSION_COMPLETION_BIN="$local_pass" bash "$SCRIPT" --task-md "$task_ext_active" --repo "$repo"

@@ -77,8 +77,7 @@ debug；callers 知道後續 apply 會 normalize。不再需要 `POLARIS_MEMORY_
 
 ## Decay And Migration
 
-- Advisory scan：`.claude/hooks/memory-decay-scan.sh` 每天會呼叫一次
-  `scripts/memory-hygiene-tiering.py decay-scan`。它只列出 candidate demotions，不會真的移動檔案。
+- Advisory scan：`scripts/memory-hygiene-tiering.py decay-scan` 只列出 candidate demotions，不會真的移動檔案。
   Output includes time-decay candidates, stale snapshot candidates, and graduated feedback candidates.
 - Manual hygiene: `/memory-hygiene` offers scan, dry-run, and apply. Apply writes
   `.migration-log.md` recording every move. Canonical apply chain is
@@ -159,5 +158,4 @@ local mirror，但 implementation task 不得把這些 runtime-local paths 放�
 - User-level rules: `~/.claude/CLAUDE.md` Memory Tiering Rules
 - Script: `scripts/memory-hygiene-tiering.py`
 - Manual skill: `.claude/skills/memory-hygiene/SKILL.md`
-- Session hook: `.claude/hooks/memory-decay-scan.sh`
 - Design plan: `specs/design-plans/DP-015-polaris-context-efficiency/plan.md`

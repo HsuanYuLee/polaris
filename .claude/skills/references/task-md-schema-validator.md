@@ -50,8 +50,6 @@ flag validation 取代這個分類契約。
 | 完結 task 物理位置（`status: IMPLEMENTED` ⇒ 位於 `tasks/pr-release/`，T/V 共用） | Single-file (DP-033 D6 § 5.5) | `scripts/validate-task-md.sh`（檢查 frontmatter status × 檔案路徑） | 2 (hard fail) | — |
 | 同 key 唯一性（active 與 pr-release 不並存，T/V 共用） | Cross-file (DP-033 D6 § 5.5) | `scripts/validate-task-md-deps.sh`（filename pattern `[TV]*.md`） | 2 (hard fail) | — |
 | PR-release scope skip（`tasks/pr-release/` 下檔案完全跳過 schema 驗證） | Both validators | 上述 scripts 內建 `case */pr-release/*: continue` | n/a | — |
-| Filename `T*.md` / `V*.md` → schema dispatch | PreToolUse Hook | `.claude/hooks/pipeline-artifact-gate.sh` → `scripts/pipeline-artifact-gate.sh` | 2 (block Edit/Write) | `POLARIS_SKIP_ARTIFACT_GATE=1`（emergency only） |
-| 全部上述規則自動 dispatch | PreToolUse Hook（physical block） | 同上 | 2 | 同上 |
 
 ### Scan mode
 

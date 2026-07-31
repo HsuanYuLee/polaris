@@ -114,7 +114,6 @@ workspace="${workspace_root:-$(cd "$script_dir/.." && pwd)}"
 language_gate="$workspace/scripts/validate-language-policy.sh"
 starlight_gate="$workspace/scripts/validate-starlight-authoring.sh"
 writer_registry="$workspace/.claude/hooks/pre-write-language-policy.sh"
-transition_registry="$workspace/scripts/lib/skill-flow-transition-registry.json"
 
 if [[ -z "$writer_token" ]]; then
   echo "POLARIS_EXTERNAL_WRITE_WRITER_REQUIRED: surface=$surface" >&2
@@ -137,27 +136,13 @@ if token not in registered:
 PY
 
 if [[ "$surface" == "github-review" ]]; then
-  python3 - "$transition_registry" "$writer_token" "$surface" "$tool_identity" <<'PY'
-import json, sys
-from pathlib import Path
-path, token, surface, identity = Path(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
-try:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    rows = [row for row in data["transitions"] if row.get("id") == "review_pr.external_write_submission"]
-    contract = rows[0]["external_write_contract"] if len(rows) == 1 else None
-except Exception as exc:
-    print(f"POLARIS_EXTERNAL_WRITE_CONTRACT_INVALID:{exc}", file=sys.stderr)
-    raise SystemExit(2)
-if not isinstance(contract, dict) or contract.get("surface") != surface:
-    print(f"POLARIS_EXTERNAL_WRITE_CONTRACT_INVALID:surface={surface}", file=sys.stderr)
-    raise SystemExit(2)
-if contract.get("writer_token") != token:
-    print(f"POLARIS_EXTERNAL_WRITE_WRITER_SURFACE_MISMATCH:writer={token}:surface={surface}", file=sys.stderr)
-    raise SystemExit(2)
-if contract.get("tool_identity") != identity:
-    print(f"POLARIS_EXTERNAL_WRITE_TOOL_IDENTITY_INVALID:{identity}", file=sys.stderr)
-    raise SystemExit(2)
-PY
+  # writer token 形如 {skill}:{surface}；surface 段必須與 --surface 相符，
+  # 避免註冊給其他 surface 的 writer 被拿來送 GitHub review。
+  # （原本由已退役的 transition registry 提供，改由 token 自身推導，不新增對照表。）
+  if [[ "${writer_token##*:}" != "$surface" ]]; then
+    echo "POLARIS_EXTERNAL_WRITE_WRITER_SURFACE_MISMATCH:writer=$writer_token:surface=$surface" >&2
+    exit 2
+  fi
   [[ -f "$payload_file" ]] || {
     echo "POLARIS_EXTERNAL_WRITE_PAYLOAD_REQUIRED:github-review" >&2
     exit 2

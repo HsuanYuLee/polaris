@@ -43,7 +43,11 @@ selfref_self_verify() {
   #     wrongly block every push whose changed set is underivable.
   [[ "${#changed[@]}" -gt 0 ]] || return 10
   local classifier="${POLARIS_DETECT_SELFREF_BIN:-$repo_root/scripts/detect-self-referential-delivery.sh}"
-  local corpus="${POLARIS_AGGREGATE_SELFTESTS_BIN:-}"
+  # 預設值必須與另外兩個呼叫點（check-framework-pr-gate.sh /
+  # framework-release-pr-lane.sh）一致。留空會讓下一行在分類器執行「之前」就
+  # return 10，使這條 carve-out 在 push 這一層永遠不成立——而 push 正是它要解
+  # 的那個窗口（self-referential-dp-delivery.md § 1 push / PR-gate 窗口）。
+  local corpus="${POLARIS_AGGREGATE_SELFTESTS_BIN:-$repo_root/scripts/run-aggregate-selftests.sh}"
   [[ -n "$corpus" ]] || return 10
   local out
   # (2) run the classifier; if it cannot run/decide (absent binary, exit != 0) the self-ref
@@ -177,10 +181,6 @@ fi
 
 if [[ -x "$GATES_DIR/gate-evidence.sh" ]]; then
   bash "$GATES_DIR/gate-evidence.sh" --repo "$repo_root"
-fi
-
-if [[ -x "$GATES_DIR/gate-changeset.sh" ]]; then
-  bash "$GATES_DIR/gate-changeset.sh" --repo "$repo_root"
 fi
 
 # DP-230 D20: manifest parity must hold before any framework push reaches a

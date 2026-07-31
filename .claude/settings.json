@@ -6,21 +6,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/no-direct-evidence-write.sh\""
-          },
-          {
-            "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-memory-write.sh\""
           },
-        {
-          "type": "command",
-          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-write-language-policy.sh\""
-        },
-        {
-          "type": "command",
-          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-handbook-load-gate.sh\""
-        },
-        {
+          {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-framework-source-write.sh\""
           }
@@ -31,21 +19,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/no-direct-evidence-write.sh\""
-          },
-          {
-            "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-memory-write.sh\""
           },
-        {
-          "type": "command",
-          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-write-language-policy.sh\""
-        },
-        {
-          "type": "command",
-          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-handbook-load-gate.sh\""
-        },
-        {
+          {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-framework-source-write.sh\""
           }
@@ -58,15 +34,7 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-memory-write.sh\""
           },
-        {
-          "type": "command",
-          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-write-language-policy.sh\""
-        },
-        {
-          "type": "command",
-          "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-handbook-load-gate.sh\""
-        },
-        {
+          {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/pre-framework-source-write.sh\""
           }
@@ -78,28 +46,6 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/no-manual-work-order-search.sh\""
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "matcher": "auto",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-summary-precompact.sh\""
-          }
-        ]
-      }
-    ],
-    "PostCompact": [
-      {
-        "matcher": "auto",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-compact-context-restore.sh\""
           }
         ]
       }
@@ -121,22 +67,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-todo-check.sh\""
-          },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-summary-stop.sh\""
-          },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/feedback-trigger-advisory.sh\""
-          },
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/feedback-reflection-stop.sh\""
-          },
-          {
-            "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-active-thread-reminder.sh\""
           }
         ]
@@ -144,36 +74,8 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "if": "Bash(git*commit*)",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/version-bump-reminder.sh\""
-          },
-          {
-            "type": "command",
-            "if": "Bash(git*merge*)|Bash(git*rebase*)|Bash(git*cherry-pick*)|Bash(git*checkout*)|Bash(git*switch*)|Bash(git*pull*)",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/specs-sidebar-sync.sh\""
-          }
-        ]
-      },
-      {
-        "matcher": "Read",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/feedback-read-logger.sh\""
-          }
-        ]
-      },
-      {
         "matcher": "Write",
         "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/specs-sidebar-sync.sh\""
-          },
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-memory-index-regenerate.sh\""
@@ -191,10 +93,6 @@
       {
         "matcher": "Edit",
         "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/specs-sidebar-sync.sh\""
-          },
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-memory-index-regenerate.sh\""

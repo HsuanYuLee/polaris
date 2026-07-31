@@ -196,7 +196,6 @@ manual、unit_test）或 framework verifier method：
 |--------|------------------|------|
 | `challenger` | `scripts/verify-ac-newbie-challenger.sh` | 以 model-tier semantic class 執行 Newbie Challenger 類 UX/content review。 |
 | `docs-health` | `scripts/verify-ac-docs-health.sh` | 將 docs-health / refinement handoff gate 作為 AC verifier。 |
-| `feedback-signals` | `scripts/verify-ac-feedback-signals.sh` | 將 feedback signal scan 作為 AC verifier。 |
 
 {具體怎麼驗：跑哪個 test file、檢查什麼 output}
 

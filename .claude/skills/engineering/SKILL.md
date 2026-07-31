@@ -32,8 +32,8 @@ RCA、scope ownership 由 `refinement Bug source mode` / `breakdown` / `refineme
   為準。
 - planner-owned task.md 欄位（Allowed Files、estimate、Test Command、Verify Command、
   Test Environment、depends_on）不可由 engineering 手動改；需要改時走 scope escalation。
-- First-cut / revision 若實作結果的 task delta 只包含 `.changeset/*.md`，不得開 PR，也不得
-  自行修改 planner-owned scope 讓 PR 通過；必須 fail-stop route back planning/refinement，
+- First-cut / revision 若實作結果沒有真正的 task delta，不得開 PR，也不得自行修改
+  planner-owned scope 讓 PR 通過；必須 fail-stop route back planning/refinement，
   由上游判定該 task 是否 absorbed/backfilled 或需要重新拆 surviving scope。
 - Developer deliverable PR 必須由 `scripts/polaris-pr-create.sh` 產生、不可 draft，並在
   completion gate 後保留可被 `scripts/auto-pass-pr-ownership-gate.sh` 消費的 provenance /
@@ -129,9 +129,8 @@ Traversal Contract。
   source。產品 PR 不得包含 framework-owned diff；用
   `scripts/framework-scope-escalation-gate.sh --mode product` 檢查時命中
   `POLARIS_FRAMEWORK_SCOPE_ESCALATION_REQUIRED` 就停止產品交付並分流。
-- Task diff 若只有 `.changeset/*.md`，代表 implementation delta 不存在或已被 base/current
-  吸收；停止並 route back planning/refinement。若後續 deterministic gate 回
-  `POLARIS_CHANGESET_ONLY_TASK_DELTA`，同樣視為 planning gap，不得補空 PR。
+- Task diff 若不含任何實作變更，代表 implementation delta 不存在或已被 base/current
+  吸收；停止並 route back planning/refinement，不得補空 PR。
 - shared PR state 若是 `unsupported_mutation`、`blocked_conflict`、或
   `stale_downstream`，停止把 revision lane 說成「已收斂」或「可 review」。
 - Review signal 分類出 plan gap / spec issue：停止，寫 handoff / learning，需要
@@ -175,15 +174,6 @@ instructions 等）另受 `scripts/validate-framework-source-write.sh` 寫入時
 Claude hook、Codex adapter、`scripts/codex-guarded-bash.sh` 與 framework PR gate 都必須
 委派同一 validator；engineering 施工時要把 resolved task.md 綁到 `POLARIS_TASK_MD`
 或以 `--task-md` 傳入，validator 會用 task.md `## Allowed Files` 作唯一可寫範圍。
-
-## L2 Deterministic Check: version-bump-reminder
-
-Delivery tail 依 `engineer-delivery-flow.md` 執行；framework 相關變更需呼叫
-`scripts/check-version-bump-reminder.sh`。
-
-## L2 Deterministic Check: post-task-feedback-reflection
-
-完成 write flow 後必須呼叫 `scripts/check-feedback-signals.sh`。
 
 ## Post-Task Reflection (required)
 

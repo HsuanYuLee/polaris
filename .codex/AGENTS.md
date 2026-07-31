@@ -165,30 +165,18 @@ Cross-LLM Hook Parity Registry (`.claude/rules/mechanism-registry.md`) must have
 runtime-neutral enforcement path in Codex: run the declared `fallback_script` directly,
 invoke the declared `codex_adapter` at its `codex_invocation_point`
 (`codex_hook` / `guarded_wrapper` / `pr_gate`), or honor a recorded `parity_exception`.
-Parity is machine-enforced by `scripts/validate-cross-llm-mechanism-parity.sh`, wired into
 `scripts/check-framework-pr-gate.sh` and `scripts/verify-cross-llm-parity.sh`.
 
 Active hooks under parity governance:
-- `feedback-read-logger.sh`
-- `feedback-reflection-stop.sh`
-- `feedback-trigger-advisory.sh`
-- `no-direct-evidence-write.sh`
 - `no-manual-work-order-search.sh`
-- `post-compact-context-restore.sh`
 - `post-framework-source-diff-audit.sh`
 - `post-memory-index-regenerate.sh`
 - `post-runtime-instruction-manifest-regenerate.sh`
 - `pre-framework-source-write.sh`
-- `pre-handbook-load-gate.sh`
 - `pre-memory-write.sh`
 - `pre-write-language-policy.sh`
 - `session-start-thread-anchor.sh`
-- `session-summary-precompact.sh`
-- `session-summary-stop.sh`
-- `specs-sidebar-sync.sh`
 - `stop-active-thread-reminder.sh`
-- `stop-todo-check.sh`
-- `version-bump-reminder.sh`
 
 ## Universal Rule Index
 

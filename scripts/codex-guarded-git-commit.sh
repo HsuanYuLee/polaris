@@ -39,9 +39,6 @@ PY
 
 "$ROOT_DIR/scripts/gates/gate-commit-language.sh" --repo "$COMMIT_REPO" --command "$commit_cmd"
 "$ROOT_DIR/scripts/gates/gate-no-tracked-specs.sh" --repo "$COMMIT_REPO"
-# Verdict parity with direct `git commit`: both paths delegate the same staged
-# prospective-tree verifier. The wrapper does not reimplement classification.
-"$ROOT_DIR/scripts/gates/gate-changeset.sh" --repo "$COMMIT_REPO" --staged
 "$ADAPTER" "$ROOT_DIR/.claude/hooks/ci-local-gate.sh" "$commit_cmd"
 "$ADAPTER" "$ROOT_DIR/.claude/hooks/version-docs-lint-gate.sh" "$commit_cmd"
 

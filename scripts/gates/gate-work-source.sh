@@ -202,7 +202,6 @@ chore_changed_file_is_allowed() {
   local path="$1"
   case "$path" in
     VERSION|package.json|CHANGELOG.md) return 0 ;;
-    .changeset/*) return 0 ;;
     docs-manager/src/content/docs/specs/design-plans/*) return 0 ;;
   esac
   return 1

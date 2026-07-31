@@ -6,7 +6,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARSE_TASK_MD="${SCRIPT_DIR}/parse-task-md.sh"
 RESOLVE_RELEASE_SURFACE="${SCRIPT_DIR}/resolve-release-surface.sh"
 CHECK_LOCAL_EXTENSION_COMPLETION_BIN="${POLARIS_CHECK_LOCAL_EXTENSION_COMPLETION_BIN:-${SCRIPT_DIR}/check-local-extension-completion.sh}"
-POLARIS_CHANGESET_BIN="${POLARIS_CHANGESET_BIN:-${SCRIPT_DIR}/polaris-changeset.sh}"
 
 TASK_MD=""
 REPO_OVERRIDE=""
@@ -198,11 +197,6 @@ if [[ "$SURFACE_CLASS" != "local_extension" ]]; then
   if [[ "$SURFACE_CLASS" == "package_release" ]]; then
     TASK_BRANCH="$(parse_field task_branch)"
     [[ -n "$TASK_BRANCH" ]] || { echo "$PREFIX task branch missing for package_release surface: $TASK_MD" >&2; exit 64; }
-
-    if ! bash "$POLARIS_CHANGESET_BIN" check --task-md "$TASK_MD" --repo "$REPO_PATH" >/dev/null 2>&1; then
-      emit_result "$SOURCE_ID" "$SURFACE_CLASS" "$RELEASE_REQUIRED" "BLOCKED" "changeset_missing_or_invalid"
-      exit 2
-    fi
 
     TERMINAL_TASK_MD="$(resolve_terminal_task_path "$TASK_MD")"
     [[ "$TERMINAL_TASK_MD" == */tasks/pr-release/* ]] || {

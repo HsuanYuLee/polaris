@@ -10,7 +10,7 @@
 | R0 | `engineer-delivery-flow-R0-preflight.md` | simplify、self-review、scope gate、rebase |
 | R1 | `engineer-delivery-flow-R1-ci-verify.md` | local CI mirror 與 behavioral verify |
 | R2 | `engineer-delivery-flow-R2-flow-vr.md` | flow gap audit 與 visual regression |
-| R3 | `engineer-delivery-flow-R3-base-commit.md` | base freshness、commit、changeset |
+| R3 | `engineer-delivery-flow-R3-base-commit.md` | base freshness、commit |
 | R4 | `engineer-delivery-flow-R4-pr-jira.md` | PR create / local extension handoff / JIRA transition |
 | R5 | `engineer-delivery-flow-R5-completion-cleanup.md` | completion gate、cleanup、halting conditions、evidence model |
 

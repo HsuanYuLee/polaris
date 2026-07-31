@@ -880,7 +880,7 @@ if [[ "$MODE" != "admin" ]]; then
   case "$TASK_SHAPE" in
     audit|confirmation)
       # DP-262 T3 carve-out: no-PR completion path for audit / confirmation
-      # tasks. Skip PR-title / changeset / remote-PR-truth gates (those tasks
+      # tasks. Skip PR-title / remote-PR-truth gates (those tasks
       # may have specs-only / empty Allowed Files and no deliverable PR) and
       # require the canonical task.md no-PR deliverable plus current Layer B
       # evidence and task-bound verify report checked above.
@@ -893,7 +893,6 @@ if [[ "$MODE" != "admin" ]]; then
     *)
       # implementation (incl. absent task_shape => default): unchanged PR gate.
       bash "${SCRIPT_DIR}/gates/gate-pr-title.sh" --repo "$REPO_ROOT"
-      bash "${SCRIPT_DIR}/gates/gate-changeset.sh" --repo "$REPO_ROOT"
       check_deliverable_pr_remote_truth "$TASK_MD_PATH" "$DELIVERABLE_HEAD_SHA"
       ;;
   esac

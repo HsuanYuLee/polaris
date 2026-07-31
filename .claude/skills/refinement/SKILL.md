@@ -326,8 +326,7 @@ chat：
 2. 在 `{source_container}/refinement.md` + `refinement.json` 寫入 Goal、Background、
    Decisions、Blind Spots、AC、Implementation Scope（不是只在 chat 列重點）。
 3. 跑 `scripts/validate-language-policy.sh --blocking --mode artifact <refinement.md>`。
-4. 跑 docs-viewer sidebar sync（`.claude/hooks/specs-sidebar-sync.sh` hook）讓使用者能在 docs-manager preview 讀到。
-5. **完成上述後**才向使用者回報 DP path，等指示是否進入 breakdown / engineering。
+4. **完成上述後**才向使用者回報 DP path，等指示是否進入 breakdown / engineering。
 
 Why：chat-only proposal 跨 session 容易丟失，且違反「framework contract change 預設走
 DP」的 mandatory contract。下游 `breakdown` / engineering 需要 durable plan artifact 才能
@@ -375,10 +374,6 @@ gate exit 1 並輸出 `POLARIS_SKILL_WORKFLOW_BOUNDARY_BLOCKED:refinement`。
 `POLARIS_LANGUAGE_POLICY_BYPASS` / `POLARIS_SKILL_BOUNDARY_BYPASS` 等 env 不能
 silence 這個 gate（AC-NEG16）；違反 boundary 必須改回去或走 scope escalation，
 不得用 env 跳過。
-
-## L2 Deterministic Check: post-task-feedback-reflection
-
-完成 write flow 後必須呼叫 `scripts/check-feedback-signals.sh`。
 
 ## Post-Task Reflection (required)
 

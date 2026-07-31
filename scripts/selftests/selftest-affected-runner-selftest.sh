@@ -36,8 +36,6 @@ build_fixture_root() {
   mkdir -p "$root/scripts/selftests" "$root/.claude/rules" "$root/.claude/hooks" \
     "$root/scripts/lib" "$root/.polaris/runtime/selftest-staleness"
 
-  cp "$ROOT_DIR/.claude/hooks/selftest-staleness-eval.sh" \
-    "$root/.claude/hooks/selftest-staleness-eval.sh"
   cat >"$root/workspace-config.yaml" <<'YAML'
 defaults:
   selftest_staleness:
@@ -223,23 +221,9 @@ grep -q 'mechanism-registry.md' "$RUNNER" || fail D8 "runner must read mechanism
 grep -q 'scripts/manifest.json' "$RUNNER" || fail D8 "runner must read scripts/manifest.json (source 3)"
 
 # ---------------------------------------------------------------------------
-# Case 13 (AC4 48h): fresh state keeps a narrow set; stale, missing, or corrupt
-# state escalates the same narrow change to the full-corpus sentinel.
+# Case 13 (AC4) 已移除：staleness evaluator 屬 C 桶（無事故背書）已退役，
+# full-corpus 覆蓋改由 PR gate 的 run-aggregate-selftests 承擔。
 # ---------------------------------------------------------------------------
-state_file="$fixture/.polaris/runtime/selftest-staleness/last-full-corpus-run.json"
-out="$(bash "$RUNNER" --root "$fixture" --emit --changed scripts/foo.sh)"
-[[ "$out" == "scripts/selftests/foo-selftest.sh" ]] \
-  || fail AC4-fresh "fresh full state must preserve narrow affected selection"
-cat >"$state_file" <<'JSON'
-{"schema_version":1,"head_sha":"old-head","last_full_corpus_run_ts":"2000-01-01T00:00:00Z"}
-JSON
-out="$(bash "$RUNNER" --root "$fixture" --emit --changed scripts/foo.sh)"
-[[ "$out" == "POLARIS_AFFECTED_FULL_CORPUS" ]] \
-  || fail AC4-stale "48h-stale full state must escalate to full corpus"
-printf '{broken json\n' >"$state_file"
-out="$(bash "$RUNNER" --root "$fixture" --emit --changed scripts/foo.sh)"
-[[ "$out" == "POLARIS_AFFECTED_FULL_CORPUS" ]] \
-  || fail AC4-corrupt "corrupt full state must escalate to full corpus"
 rm -f "$state_file"
 out="$(bash "$RUNNER" --root "$fixture" --emit --changed scripts/foo.sh)"
 [[ "$out" == "POLARIS_AFFECTED_FULL_CORPUS" ]] \

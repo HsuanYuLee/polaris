@@ -23,7 +23,7 @@ Step 2 前置 runs `engineering-rebase.sh` → rebase 改變 HEAD → 舊 eviden
 
 ---
 
-## Step 6 — Commit + Changeset
+## Step 6 — Commit
 
 ### 6a. Commit
 
@@ -37,30 +37,14 @@ Step 2 前置 runs `engineering-rebase.sh` → rebase 改變 HEAD → 舊 eviden
 
 **做法**：手動寫 commit message + `git commit`（不假設 `git ai-commit` 等 user-level 工具可用，DP-032 D22 已從 framework 拔除）。commit-msg hook fail → 讀 stderr → 對照 L1 config 修 msg → 重試。
 
-### Repo-native Changeset Policy
+### Repo 自有的 commit-time 規則
 
-Changeset 是 repo commit policy，不是 task checklist 或獨立 delivery ceremony。entry 已透過
-handbook resolver 載入 repo policy；實作完成、準備建立第一個 behavioral commit 時，producer
-依 authoritative task identity 與 repo config 產生 canonical changeset：
-
-```bash
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-if [[ -f "$REPO_ROOT/.changeset/config.json" ]]; then
-  bash "${POLARIS_ROOT}/scripts/polaris-changeset.sh" new --task-md "<path/to/task.md>" --repo "$REPO_ROOT"
-fi
-```
-
-`.changeset/config.json` 不存在時 producer 與 verifier no-op。single-package scope 由 config
-推導；multi-package ambiguity 只允許最小 `package_scope` declaration 並 fail loud。filename
-不寫入 task schema / Allowed Files；native pre-commit 與 agent guarded commit 共用
-`gate-changeset.sh --staged`，因此 unstaged changeset 不會滿足 prospective tree。
-
-**Inherited changeset cleanup**：已由 `engineering-rebase.sh` post-rebase hook 處理（D24），此處不需另外清理。
-
-**No-task request**：若 repo 有 changeset requirements 但無 task.md，不得用手寫 changeset 補洞；先回上游補 DP-backed work order。
+Repo 可能有框架不知道、也不需要知道的 commit-time 產物要求（release note 檔、版本檔、
+產生器等）。這些一律由上面 L1 / L2 的 repo tooling 與 repo handbook 揭露，實作時照 repo
+自己的規則做即可；框架不代為定義、不代為檢查，也不把它們寫進 task schema 或 Allowed Files。
 
 ### JIRA Safety Net
 
-Developer lane 以 task.md / JIRA ticket / DP pseudo-task ID 作為 ticket source。Local Extension lane 若沒有產品 JIRA ticket，使用 DP pseudo-task ID；不得為了 changeset 或 PR title 臨時創造無來源 ticket key。
+Developer lane 以 task.md / JIRA ticket / DP pseudo-task ID 作為 ticket source。Local Extension lane 若沒有產品 JIRA ticket，使用 DP pseudo-task ID；不得為了 PR title 臨時創造無來源 ticket key。
 
 ---

@@ -73,8 +73,7 @@ make_repo() {
   printf '# DP-999 index\n' > "$container/index.md"
   printf '# T1: boundary fixture (1 pt)\n> Source: DP-999 | Task: DP-999-T1 | JIRA: N/A | Repo: fixture\n## Allowed Files\n- `src/foo.py`\n- `scripts/bar.sh`\n' > "$container/tasks/T1/index.md"
   printf '# V1\n' > "$container/tasks/V1/index.md"
-  mkdir -p "$repo/src" "$repo/scripts" "$repo/other" "$repo/.changeset"
-  printf '{"$schema":"https://unpkg.com/@changesets/config@3.1.1/schema.json"}\n' > "$repo/.changeset/config.json"
+  mkdir -p "$repo/src" "$repo/scripts" "$repo/other"
   printf '# repo\n' > "$repo/README.md"
   git -C "$repo" add -A
   git -C "$repo" -c commit.gpgsign=false commit -q -m "init"
@@ -213,67 +212,6 @@ make_repo() {
     record_pass "engineering scope-only pass (Allowed Files)"
   else
     record_fail "engineering scope-only pass (Allowed Files)"
-  fi
-}
-
-# ---- 7a. engineering: canonical producer-owned changeset pass ---------------
-{
-  out="$(make_repo "eng-changeset-pass")"
-  repo="$(printf '%s\n' "$out" | sed -n '1p')"
-  container="$(printf '%s\n' "$out" | sed -n '2p')"
-  task_md="$container/tasks/T1/index.md"
-  POLARIS_RUNTIME_DIR="$repo/.polaris/runtime" \
-    "$gate" --skill engineering --start --source-container "$container" --repo "$repo" --task-md "$task_md" >/dev/null
-  printf '%s\n' '---' > "$repo/.changeset/dp-999-t1-boundary-fixture.md"
-  if POLARIS_RUNTIME_DIR="$repo/.polaris/runtime" \
-       "$gate" --skill engineering --check --source-container "$container" --repo "$repo" --task-md "$task_md" >/dev/null 2>&1; then
-    record_pass "engineering canonical changeset pass"
-  else
-    record_fail "engineering canonical changeset pass"
-  fi
-}
-
-# ---- 7b. engineering: arbitrary changeset remains blocked ------------------
-{
-  out="$(make_repo "eng-changeset-fail")"
-  repo="$(printf '%s\n' "$out" | sed -n '1p')"
-  container="$(printf '%s\n' "$out" | sed -n '2p')"
-  task_md="$container/tasks/T1/index.md"
-  POLARIS_RUNTIME_DIR="$repo/.polaris/runtime" \
-    "$gate" --skill engineering --start --source-container "$container" --repo "$repo" --task-md "$task_md" >/dev/null
-  printf '%s\n' '---' > "$repo/.changeset/arbitrary.md"
-  set +e
-  err_out="$(POLARIS_RUNTIME_DIR="$repo/.polaris/runtime" \
-              "$gate" --skill engineering --check --source-container "$container" --repo "$repo" --task-md "$task_md" 2>&1 1>/dev/null)"
-  rc=$?
-  set -e
-  if [[ "$rc" -eq 1 ]] && grep -q '.changeset/arbitrary.md' <<< "$err_out"; then
-    record_pass "engineering arbitrary changeset blocked"
-  else
-    record_fail "engineering arbitrary changeset blocked (rc=$rc, err=$err_out)"
-  fi
-}
-
-# ---- 7c. engineering: wildcard task identity fails closed -------------------
-{
-  out="$(make_repo "eng-changeset-wildcard")"
-  repo="$(printf '%s\n' "$out" | sed -n '1p')"
-  container="$(printf '%s\n' "$out" | sed -n '2p')"
-  task_md="$container/tasks/T1/index.md"
-  sed 's/DP-999-T1/*/g' "$task_md" > "$task_md.wildcard"
-  task_md="$task_md.wildcard"
-  POLARIS_RUNTIME_DIR="$repo/.polaris/runtime" \
-    "$gate" --skill engineering --start --source-container "$container" --repo "$repo" --task-md "$task_md" >/dev/null
-  printf '%s\n' '---' > "$repo/.changeset/anything-boundary-fixture.md"
-  set +e
-  err_out="$(POLARIS_RUNTIME_DIR="$repo/.polaris/runtime" \
-              "$gate" --skill engineering --check --source-container "$container" --repo "$repo" --task-md "$task_md" 2>&1 1>/dev/null)"
-  rc=$?
-  set -e
-  if [[ "$rc" -eq 2 ]] && grep -q 'failed to derive canonical changeset path' <<< "$err_out"; then
-    record_pass "engineering wildcard task identity fails closed"
-  else
-    record_fail "engineering wildcard task identity fails closed (rc=$rc, err=$err_out)"
   fi
 }
 

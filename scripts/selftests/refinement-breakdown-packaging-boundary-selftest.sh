@@ -513,34 +513,29 @@ if ! grep -qF '| AC1 | `scripts/ci-contract-discover.sh` |' "$tmpdir/t2-dp333.st
 fi
 
 # =====================================================================
-# DP-341 T3 — producer registry + no-direct-evidence-write: the per-task
 # packaging WRITE lands in the breakdown task.md writer path, NOT refinement.json.
 #
 # AC4 (producer registry single-writer): the task.md packaging write path
 #   (tasks/T*/index.md) resolves to the breakdown task.md writer (owning_skill
 #   "breakdown"); the refinement.json design-doc producer must NOT carry any
 #   task packaging glob. Each writer maps to a single declared producer.
-# AC-NEG2 (no-direct-evidence-write DENY/ALLOW): breakdown writing refinement.json
 #   intent stays fail-closed DENY (refinement.json is JSON, excluded from the
 #   skill-writer markdown bypass); breakdown writing the task.md packaging section
 #   goes through the existing task.md (.md) skill-writer bypass -> ALLOW.
 # =====================================================================
 
 PRODUCERS_JSON="$ROOT_DIR/scripts/lib/evidence-producers.json"
-NO_DIRECT_HOOK="$ROOT_DIR/.claude/hooks/no-direct-evidence-write.sh"
 
 [[ -f "$PRODUCERS_JSON" ]] || {
   echo "FAIL [T3]: producer registry not found: $PRODUCERS_JSON" >&2
   exit 1
 }
 [[ -f "$NO_DIRECT_HOOK" ]] || {
-  echo "FAIL [T3]: no-direct-evidence-write hook not found: $NO_DIRECT_HOOK" >&2
   exit 1
 }
 
 # resolve_producer_owning_skill <registry.json> <file_path> — resolve the SINGLE
 # producer that owns a specs-bound markdown write, FAITHFULLY MIRRORING the real
-# PR-gate resolver in scripts/validate-specs-bound-write-contract.sh:
 #   1. pre-filter producers to specs-bound artifact_kind values
 #      (specs_markdown / verify_evidence_layout / docs_page / sidecar / d2_transport);
 #   2. select the FIRST producer whose any path_glob naive-fnmatch-matches the
@@ -567,7 +562,6 @@ file_path = os.environ["FILE_PATH_VAL"]
 with open(registry, "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
-# Mirror validate-specs-bound-write-contract.sh: same artifact_kind pre-filter.
 SPECS_BOUND_KINDS = {
     "specs_markdown",
     "verify_evidence_layout",
