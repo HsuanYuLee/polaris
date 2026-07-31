@@ -5,7 +5,7 @@
 #          classifier (D8):
 #            1. naming convention   : scripts/<name>.sh -> scripts/selftests/<name>-selftest.sh
 #                                     (and the *-selftest.sh file itself is its own member).
-#            2. mechanism-registry  : .claude/rules/mechanism-registry.md Runtime Annotation
+#            2. mechanism-tables    : scripts/lib/mechanism-tables.md Runtime Annotation
 #                                     table `path` + `fallback_script` columns map a changed
 #                                     mechanism/hook/script to its governing selftest.
 #            3. scripts/manifest.json: the per-script `selftest` field (explicit
@@ -198,7 +198,7 @@ if [[ ${#CHANGED_FILES[@]} -eq 0 ]]; then
   die "POLARIS_AFFECTED_NO_CHANGED_FILES: no changed files supplied (--changed or stdin); refusing to fail-open"
 fi
 
-MECHANISM_REGISTRY="$ROOT_DIR/.claude/rules/mechanism-registry.md"
+MECHANISM_REGISTRY="$ROOT_DIR/scripts/lib/mechanism-tables.md"
 SCRIPT_MANIFEST="$ROOT_DIR/scripts/manifest.json"
 
 # is_shared_surface — return 0 if a changed repo-relative path is on a shared /
@@ -213,7 +213,7 @@ is_shared_surface() {
   local rel="$1"
   case "$rel" in
     # The closure sources themselves: a change here can re-map any closure.
-    .claude/rules/mechanism-registry.md | scripts/manifest.json) return 0 ;;
+    scripts/lib/mechanism-tables.md | scripts/manifest.json) return 0 ;;
     # Shared rules / skills / hooks / instructions surfaces.
     .claude/rules/*.md | .claude/skills/* | .claude/hooks/* | .claude/instructions/*) return 0 ;;
     # Runtime-instruction generated targets / config surfaces.

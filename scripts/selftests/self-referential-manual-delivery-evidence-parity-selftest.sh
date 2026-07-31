@@ -13,7 +13,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REF="$ROOT/.claude/skills/references/self-referential-dp-delivery.md"
-REG="$ROOT/.claude/rules/mechanism-registry.md"
+REG="$ROOT/.claude/skills/references/mechanism-canary-entries.md"
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
 
@@ -60,6 +60,6 @@ grep -qF 'self-referential-manual-delivery-evidence-parity-selftest.sh' "$REF" \
 
 # 7. Registered in the mechanism registry (self-referential-dp-delivery canary).
 grep -qF 'self-referential-manual-delivery-evidence-parity-selftest.sh' "$REG" \
-  || fail "mechanism-registry missing T5 parity selftest reference in self-referential-dp-delivery entry"
+  || fail "mechanism-canary-entries missing T5 parity selftest reference in self-referential-dp-delivery entry"
 
 echo "PASS: self-referential manual-delivery evidence parity (6-item marker set + no-gap + DP-360 head authority)"

@@ -226,7 +226,7 @@ fi
 
 grep -q "framework-release-execute.sh" "$SCRIPT_DIR/../.claude/skills/framework-release/SKILL.md" \
   || fail "framework-release skill must mention deterministic executor"
-grep -q "framework-release-execute" "$SCRIPT_DIR/../.claude/rules/mechanism-registry.md" \
-  || fail "mechanism registry must mention framework-release-execute"
+grep -q "framework-release-execute" "$SCRIPT_DIR/lib/mechanism-tables.md" \
+  || fail "mechanism tables must mention framework-release-execute"
 
 echo "PASS: framework-release full-tail selftest"

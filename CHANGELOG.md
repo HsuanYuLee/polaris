@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.81.0] - 2026-07-31
+
+### Changed
+
+- 4839e14: 常駐 payload 減 36%（198,361 → 126,797 B）。`mechanism-registry.md` 原本 83,843 B 每個 session 無條件載入，但沒有一行需要 agent 在推理時記得——兩張表是腳本讀的，86% 的 canary 條目 disposition 是 `contract_pointer`，registry 自己的圖例明寫這類「只在工具失敗被忽略、繞過或誤讀時才需要看」。拆成三層：`scripts/lib/mechanism-tables.md`（純資料，三個 consumer 直接讀）、`.claude/skills/references/mechanism-canary-entries.md`（完整敘述，需要時才載入）、`rules/mechanism-registry.md`（6 條 semantic canary + 37 個 contract_pointer 索引，83,843 → 12,279 B）。
+
+### Fixed
+
+- 9 支 selftest 對搬走的內容做字串比對，改指新路徑。一份「沒有任何程式 parse」的散文實際上是隱性介面。
+- `selftest-affected-runner-selftest.sh` 的 cleanup EXIT trap 覆寫 exit status（bash 3.2），中途死亡會回報 PASS。全 corpus 有 315/406（78%）具備同形狀的 trap，屬未決風險。
+
+### Added
+
+- `docs/framework-review-2026-07/`：本輪存在性審查的三份產出（審查報告、25 條外部世界事實、107 條機制 A/B/C 分類）。原本只存在本機的 `.polaris-*.md`，被 workspace whitelist gitignore 排除，納入版控。
+
+### Known
+
+- 規則層本身仍有約 39%（~43,900 B）屬 B 桶散文投影：`canonical-contract-governance.md` 全檔、`skill-routing.md` 的 auto-pass / framework-release 編排、`feedback-and-memory.md` 的 memory tiering。這些是 53 個自建簿記機制的文字投影，不獨立處置。
+- 40 支 tracked_debt selftest 的組成壓倒性落在 B 桶（closeout chain / completion gate / auto-pass ledger / delivery contract）。長期紅著沒人修的測試，與自建簿記機制高度重合。
+
 ## [3.80.0] - 2026-07-31
 
 ### Removed

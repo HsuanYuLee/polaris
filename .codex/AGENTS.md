@@ -161,7 +161,7 @@ load it with `.claude/rules/skill-routing.md` whenever plugin workflows and Pola
 ## Codex Hook Invocation Parity (D43)
 
 Codex runtimes have no Claude Code hook model. Every active Claude hook listed in the
-Cross-LLM Hook Parity Registry (`.claude/rules/mechanism-registry.md`) must have a
+Cross-LLM Hook Parity Registry (`scripts/lib/mechanism-tables.md`) must have a
 runtime-neutral enforcement path in Codex: run the declared `fallback_script` directly,
 invoke the declared `codex_adapter` at its `codex_invocation_point`
 (`codex_hook` / `guarded_wrapper` / `pr_gate`), or honor a recorded `parity_exception`.

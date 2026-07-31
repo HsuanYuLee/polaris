@@ -35,7 +35,7 @@ build_fixture() {
     "$repo/scripts/compile-runtime-instructions.sh"
 
   # Minimal instruction source tree.
-  mkdir -p "$repo/.claude/instructions/core" "$repo/.claude/instructions/runtime" "$repo/.claude/rules"
+  mkdir -p "$repo/.claude/instructions/core" "$repo/.claude/instructions/runtime" "$repo/.claude/rules" "$repo/scripts/lib"
   printf 'manifest source\n' >"$repo/.claude/instructions/manifest.yaml"
   printf '# Bootstrap\n\nbody\n' >"$repo/.claude/instructions/core/bootstrap.md"
   printf '## Claude\n' >"$repo/.claude/instructions/runtime/claude.md"
@@ -44,17 +44,17 @@ build_fixture() {
   printf '# Rule A\n\nrule a body\n' >"$repo/.claude/rules/rule-a.md"
 
   # compile-runtime-instructions.sh emit_codex_hook_invocation_guidance() reads
-  # .claude/rules/mechanism-registry.md and parses its "## Cross-LLM Hook Parity
+  # scripts/lib/mechanism-tables.md and parses its "## Cross-LLM Hook Parity
   # Registry" table (needs a header row with a "hook" column + >=1 data row).
   # Provide a minimal, generic-placeholder registry so the fixture compiler runs
   # cleanly instead of raising FileNotFoundError.
   {
-    printf '# Mechanism Registry\n\n'
+    printf '# Mechanism Tables\n\n'
     printf '## Cross-LLM Hook Parity Registry\n\n'
     printf '| hook | runtime | parity_exception |\n'
     printf '|------|---------|------------------|\n'
     printf '| sample-hook.sh | portable | DP-372:fixture |\n'
-  } >"$repo/.claude/rules/mechanism-registry.md"
+  } >"$repo/scripts/lib/mechanism-tables.md"
 
   git -C "$repo" init -q
   git -C "$repo" config user.email "polaris@example.invalid"

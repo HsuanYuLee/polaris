@@ -242,6 +242,8 @@ fi
 
 # --- canary wiring: mechanism-registry registers the canary row --------------
 REGISTRY="${WORKSPACE_ROOT}/../.claude/rules/mechanism-registry.md"
+# contract_pointer 條目的完整敘述自 DP-460 起搬到 references；registry 只留索引名。
+CANARY_REF="${WORKSPACE_ROOT}/../.claude/skills/references/mechanism-canary-entries.md"
 if [[ ! -f "$REGISTRY" ]]; then
   echo "FAIL: mechanism-registry.md not found at ${REGISTRY}" >&2
   exit 1
@@ -250,7 +252,7 @@ if ! grep -q 'evidence-bearing-command-direct-call' "$REGISTRY"; then
   echo "FAIL: mechanism-registry.md does not register evidence-bearing-command-direct-call canary" >&2
   exit 1
 fi
-if ! grep -q 'lint-evidence-command-direct-call' "$REGISTRY"; then
+if ! grep -q 'lint-evidence-command-direct-call' "$CANARY_REF"; then
   echo "FAIL: canary row does not point at the lint script" >&2
   exit 1
 fi

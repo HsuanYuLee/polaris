@@ -131,12 +131,12 @@ emit_codex_hook_invocation_guidance() {
   # Cross-LLM Hook Parity Registry in mechanism-registry.md. This makes the
   # generated agent-neutral / Codex runtime targets carry the registry-sourced
   # parity guidance; compile --check then catches stale generated output.
-  local registry="$ROOT_DIR/.claude/rules/mechanism-registry.md"
+  local registry="$ROOT_DIR/scripts/lib/mechanism-tables.md"
   echo "## Codex Hook Invocation Parity (D43)"
   echo
   cat <<'EOF'
 Codex runtimes have no Claude Code hook model. Every active Claude hook listed in the
-Cross-LLM Hook Parity Registry (`.claude/rules/mechanism-registry.md`) must have a
+Cross-LLM Hook Parity Registry (`scripts/lib/mechanism-tables.md`) must have a
 runtime-neutral enforcement path in Codex: run the declared `fallback_script` directly,
 invoke the declared `codex_adapter` at its `codex_invocation_point`
 (`codex_hook` / `guarded_wrapper` / `pr_gate`), or honor a recorded `parity_exception`.

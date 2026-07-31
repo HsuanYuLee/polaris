@@ -145,8 +145,9 @@ work="$TMP/repo"
 mkdir -p "$work/.claude" "$work/.codex" "$work/.github"
 cp -R "$ROOT/.claude/instructions" "$work/.claude/instructions"
 cp -R "$ROOT/.claude/rules" "$work/.claude/rules"
-mkdir -p "$work/scripts"
+mkdir -p "$work/scripts" "$work/scripts/lib"
 cp "$COMPILE" "$work/scripts/compile-runtime-instructions.sh"
+cp "$ROOT/scripts/lib/mechanism-tables.md" "$work/scripts/lib/mechanism-tables.md"
 # Seed generated targets fresh, then dirty one manifest source.
 bash "$work/scripts/compile-runtime-instructions.sh" >/dev/null 2>&1 \
   || fail "T8: initial compile of copied tree failed"

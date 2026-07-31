@@ -75,7 +75,7 @@ for file in \
   "$ROOT/.codex/config.toml" \
   "$ROOT/scripts/codex-guarded-bash.sh" \
   "$ROOT/scripts/check-framework-pr-gate.sh" \
-  "$ROOT/.claude/rules/mechanism-registry.md"; do
+  "$ROOT/scripts/lib/mechanism-tables.md"; do
   grep -q "validate-framework-source-write\\|pre-framework-source-write\\|post-framework-source-diff-audit\\|W17 framework source write authority" "$file" \
     || fail "missing framework source wiring in $file"
 done

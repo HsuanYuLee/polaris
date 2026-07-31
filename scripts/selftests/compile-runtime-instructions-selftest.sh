@@ -51,10 +51,11 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 # Stage minimal subtree required by the compiler.
-mkdir -p "$TMP_DIR/scripts" "$TMP_DIR/.claude/instructions/runtime" \
+mkdir -p "$TMP_DIR/scripts" "$TMP_DIR/scripts/lib" "$TMP_DIR/.claude/instructions/runtime" \
   "$TMP_DIR/.claude/instructions/core" "$TMP_DIR/.claude/rules" \
   "$TMP_DIR/.codex" "$TMP_DIR/.github"
 cp "$ROOT/scripts/compile-runtime-instructions.sh" "$TMP_DIR/scripts/"
+cp "$ROOT/scripts/lib/mechanism-tables.md" "$TMP_DIR/scripts/lib/"
 cp "$ROOT/.claude/instructions/manifest.yaml" "$TMP_DIR/.claude/instructions/"
 cp "$ROOT/.claude/instructions/core/bootstrap.md" "$TMP_DIR/.claude/instructions/core/"
 cp "$ROOT/.claude/instructions/runtime/claude.md" "$TMP_DIR/.claude/instructions/runtime/"

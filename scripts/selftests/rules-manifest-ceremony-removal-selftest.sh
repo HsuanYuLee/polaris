@@ -29,7 +29,7 @@ cluster_sources=(
   "$ROOT/scripts/selftests/gate-runtime-instruction-manifest-selftest.sh"
   "$ROOT/scripts/selftests/post-runtime-instruction-manifest-regenerate-selftest.sh"
   "$ROOT/scripts/manifest.json"
-  "$ROOT/.claude/rules/mechanism-registry.md"
+  "$ROOT/scripts/lib/mechanism-tables.md"
 )
 
 if rg -n 'rules-manifest\.txt|write_manifest_snapshot|write_generated_manifest_targets' "${cluster_sources[@]}"; then
@@ -38,10 +38,11 @@ fi
 
 tmp="$(mktemp -d -t rules-manifest-removal.XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/scripts" "$tmp/.claude/instructions/core" \
+mkdir -p "$tmp/scripts" "$tmp/scripts/lib" "$tmp/.claude/instructions/core" \
   "$tmp/.claude/instructions/runtime" "$tmp/.claude/rules" \
   "$tmp/.codex" "$tmp/.github"
 cp "$COMPILER" "$tmp/scripts/compile-runtime-instructions.sh"
+cp "$ROOT/scripts/lib/mechanism-tables.md" "$tmp/scripts/lib/mechanism-tables.md"
 cp "$ROOT/.claude/instructions/manifest.yaml" "$tmp/.claude/instructions/manifest.yaml"
 cp "$ROOT/.claude/instructions/core/bootstrap.md" "$tmp/.claude/instructions/core/bootstrap.md"
 cp "$ROOT/.claude/instructions/runtime/claude.md" "$tmp/.claude/instructions/runtime/claude.md"

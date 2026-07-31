@@ -184,8 +184,8 @@ grep -q "Breakdown 只消費 structured field" "$ROOT_DIR/.claude/skills/referen
   echo "FAIL [AC6]: breakdown-planning-flow missing structured-field consumption contract" >&2
   exit 1
 }
-grep -q "verification-strategy-source-neutral" "$ROOT_DIR/.claude/rules/mechanism-registry.md" || {
-  echo "FAIL [registry]: mechanism registry missing verification strategy canary" >&2
+grep -q "verification-strategy-source-neutral" "$ROOT_DIR/scripts/lib/mechanism-tables.md" || {
+  echo "FAIL [registry]: mechanism tables missing verification strategy annotation row" >&2
   exit 1
 }
 

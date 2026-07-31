@@ -19,21 +19,21 @@ RUNNER="$ROOT_DIR/scripts/selftest-affected-runner.sh"
 [[ -f "$RUNNER" ]] || { echo "FAIL: runner missing: $RUNNER" >&2; exit 1; }
 
 tmp="$(mktemp -d -t affected-runner.XXXXXX)"
-trap 'rm -rf "$tmp"' EXIT
+trap 'rc=$?; rm -rf "$tmp"; exit $rc' EXIT
 
 fail() { echo "[selftest][$1] $2" >&2; exit 1; }
 
 # build_fixture_root — materialize a self-contained fixture workspace under $1 with:
 #   - scripts/foo.sh + scripts/selftests/foo-selftest.sh  (naming convention)
 #   - scripts/manifest.json mapping scripts/bar.sh -> scripts/selftests/bar-from-manifest-selftest.sh
-#   - .claude/rules/mechanism-registry.md Runtime Annotation row mapping
+#   - scripts/lib/mechanism-tables.md Runtime Annotation row mapping
 #     scripts/baz.sh (fallback_script scripts/selftests/baz-from-registry-selftest.sh)
 #   - the three target selftests, each a trivial green script
 #   - a green run-aggregate-selftests.sh backstop sentinel
 # Side effects: writes files under $1.
 build_fixture_root() {
   local root="$1"
-  mkdir -p "$root/scripts/selftests" "$root/.claude/rules" "$root/.claude/hooks" \
+  mkdir -p "$root/scripts/selftests" "$root/scripts/lib" "$root/.claude/rules" "$root/.claude/hooks" \
     "$root/scripts/lib" "$root/.polaris/runtime/selftest-staleness"
 
   cat >"$root/workspace-config.yaml" <<'YAML'
@@ -70,7 +70,7 @@ JSON
 }
 JSON
 
-  cat >"$root/.claude/rules/mechanism-registry.md" <<'MD'
+  cat >"$root/scripts/lib/mechanism-tables.md" <<'MD'
 # fixture registry
 
 | mechanism | path | kind | runtime | fallback_script | governance_role |
@@ -140,7 +140,7 @@ for shared in \
   '.claude/skills/engineering/SKILL.md' \
   '.claude/hooks/some-hook.sh' \
   'scripts/lib/ci-local-path.sh' \
-  '.claude/rules/mechanism-registry.md' \
+  'scripts/lib/mechanism-tables.md' \
   'scripts/manifest.json'; do
   out="$(bash "$RUNNER" --root "$fixture" --emit --changed "$shared")"
   [[ "$out" == "POLARIS_AFFECTED_FULL_CORPUS" ]] \
@@ -217,21 +217,14 @@ out="$(bash "$RUNNER" --root "$fixture" --emit --changed scripts/selftests/foo-s
 # parses mechanism-registry.md, manifest.json, and naming convention; no hardcoded
 # script->selftest map literal).
 # ---------------------------------------------------------------------------
-grep -q 'mechanism-registry.md' "$RUNNER" || fail D8 "runner must read mechanism-registry.md (source 2)"
+grep -q 'mechanism-tables.md' "$RUNNER" || fail D8 "runner must read mechanism-tables.md (source 2)"
 grep -q 'scripts/manifest.json' "$RUNNER" || fail D8 "runner must read scripts/manifest.json (source 3)"
 
 # ---------------------------------------------------------------------------
 # Case 13 (AC4) 已移除：staleness evaluator 屬 C 桶（無事故背書）已退役，
 # full-corpus 覆蓋改由 PR gate 的 run-aggregate-selftests 承擔。
 # ---------------------------------------------------------------------------
-rm -f "$state_file"
-out="$(bash "$RUNNER" --root "$fixture" --emit --changed scripts/foo.sh)"
-[[ "$out" == "POLARIS_AFFECTED_FULL_CORPUS" ]] \
-  || fail AC4-missing "missing full state must escalate to full corpus"
-# Restore fresh state for the base-debt fixtures below.
-cat >"$state_file" <<JSON
-{"schema_version":1,"head_sha":"fixture-head","last_full_corpus_run_ts":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}
-JSON
+# AC4-missing 一併移除：state_file 隨 staleness evaluator 退役，已無此狀態檔。
 
 # ---------------------------------------------------------------------------
 # Case 14 (current-head classification): a targeted member that is already red

@@ -33,7 +33,7 @@ if settings.is_file():
             missing.append(f".claude/settings.json: missing {needle}")
 else:
     missing.append(".claude/settings.json: missing")
-registry = repo / ".claude/rules/mechanism-registry.md"
+registry = repo / "scripts/lib/mechanism-tables.md"
 if registry.is_file():
     text = registry.read_text(encoding="utf-8")
     for hook in (
@@ -41,9 +41,9 @@ if registry.is_file():
         "post-framework-source-diff-audit.sh",
     ):
         if hook not in text or "scripts/validate-framework-source-write.sh" not in text:
-            missing.append(f"mechanism-registry.md: missing parity row for {hook}")
+            missing.append(f"mechanism-tables.md: missing parity row for {hook}")
 else:
-    missing.append(".claude/rules/mechanism-registry.md: missing")
+    missing.append("scripts/lib/mechanism-tables.md: missing")
 if missing:
     print("POLARIS_FRAMEWORK_SOURCE_WRITE_BLOCKED:self-check-wiring", file=sys.stderr)
     for item in missing:
