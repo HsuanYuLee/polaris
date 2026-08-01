@@ -6644,6 +6644,51 @@
       "selftest": "tests/test_confirm_dp420_self_iteration_certification.py",
       "lifecycle": "hot_path",
       "relocation": "stay"
+    },
+    {
+      "path": "scripts/frozen-assertion-fence.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/frozen-assertion-fence-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/record-measurement-change.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/record-measurement-change-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/run-hardened-oracle.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/run-hardened-oracle-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/spine-loop-state.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/spine-loop-state-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-spine-cost-floor.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/check-spine-cost-floor-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     }
   ],
   "script_layer_governance": {

@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.83.0] - 2026-08-01
+
+### Added
+
+- 凍結斷言脊椎與硬化 oracle 執行（單 A）
+  一個 source 收斂成「一個凍結塊加一份活文件」：斷言由人手畫押後封在
+  `<!-- POLARIS-FROZEN-{K}-BEGIN/END -->` fence 內，量測命令維持開放，但每次換手都要留下
+  「舊 hash → 新 hash → 換手前確實紅過」的證據。
+  - `scripts/frozen-assertion-fence.sh`、`scripts/record-measurement-change.sh`：封條計算/比對與
+    量測換手留痕；缺紅過證據、證據 exit 0 或環境錯誤一律拒收。
+  - `scripts/run-hardened-oracle.sh`：硬化 oracle runner，讓三種說謊形狀不成立——`rg` 被無
+    `--pcre2` 的 shim 頂替而把否定式驗證翻成 exit 0、測試被靜默跳過而覆蓋率歸零、curl 錯誤被
+    吞成一般逾時。正例與注入反例同一輪跑，exit 0 而無正向證據不算通過。
+  - `scripts/spine-loop-state.sh`：loop 狀態機，0 delta 輪視為有效輪次並續行，未收斂達上限時
+    升人類而非無限重試。
+  - `scripts/check-spine-cost-floor.sh`：成本地板檢查，只數流程強迫產生的產物（code 上限 2、
+    docs 上限 1），並點名舊層——舊層被列為 forced 即失敗，即使數量合格。
+  - `.claude/skills/references/spine-implementation-guidance.md` /
+    `spine-review-guidance.md`：施作端與審查端的前置材料，以陳述語態描述流程，禁令只留在兩個
+    閘；審查輸出分成會擋的機械判定與不擋的判斷報告。
+    舊機器在本 DP 期間維持可用；拆除與接線屬單 B。
+
 ## [3.82.0] - 2026-08-01
 
 ### Changed
