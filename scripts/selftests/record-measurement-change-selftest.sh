@@ -41,16 +41,23 @@ assert_marker() {
 }
 
 write_evidence() {
-  # Description: write a red-evidence JSON fixture.
-  # Args: $1 = path, $2 = command, $3 = exit_code, $4 = stderr text
+  # Description: write a red-evidence JSON fixture, in the shape the only real
+  #   producer (run-hardened-oracle.sh) writes. Field names matter: these
+  #   fixtures once used names the producer never emitted, so both halves of the
+  #   measurement-change path passed their own tests and failed the first time
+  #   they met. Case 11 covers the real handoff; these stay hand-rolled only
+  #   because they exercise validator branches a passing oracle cannot produce.
+  # Args: $1 = path, $2 = command, $3 = command_exit_code, $4 = stderr text
   python3 - "$1" "$2" "$3" "$4" <<'PY'
 import json
 import sys
 path, command, exit_code, stderr = sys.argv[1:5]
 json.dump({
+    "schema_version": 1,
+    "producer": "run-hardened-oracle.sh",
     "command": command,
-    "exit_code": int(exit_code),
-    "captured_at": "2026-08-01T00:00:00Z",
+    "command_exit_code": int(exit_code),
+    "recorded_at": "2026-08-01T00:00:00Z",
     "head_sha": "0000000000000000000000000000000000000000",
     "stderr": stderr,
     "stdout": "",
@@ -122,9 +129,9 @@ assert entry["new_command"] == new_command
 for field in ("old_command_hash", "new_command_hash"):
     assert str(entry[field]).startswith("sha256:"), f"{field} is not a sha256 triple member"
 evidence = entry["red_evidence"]
-for field in ("path", "hash", "exit_code", "captured_at"):
+for field in ("path", "hash", "command_exit_code", "recorded_at"):
     assert evidence.get(field) not in (None, ""), f"red_evidence.{field} missing"
-assert evidence["exit_code"] != 0
+assert evidence["command_exit_code"] != 0
 PY
 
 # --- Case 9: verify follows the chain to the new command ---------------------
@@ -147,5 +154,22 @@ print([e for e in entries if e["kind"] == "change"][0]["new_command_hash"])
 ' "$LEDGER")"
 [[ "$recorded" == "sha256:$expected" ]] \
   || fail "ledger hash ($recorded) does not match the fence helper (sha256:$expected)"
+
+# --- Case 12: a record the oracle actually produced is accepted ---------------
+# The two halves of this path are only ever exercised together here. Everything
+# above builds its own evidence, which is why a producer/consumer field-name
+# drift survived: each half agreed with its own fixtures.
+FAILING_CMD='bash -c "echo 量到了; exit 1"'
+bash "$ROOT_DIR/scripts/run-hardened-oracle.sh" --command "$FAILING_CMD" \
+  --expect-evidence '量到了' --evidence-out "$WORK/from-oracle.json" >/dev/null 2>&1 || true
+[[ -f "$WORK/from-oracle.json" ]] || fail "the oracle wrote no evidence record"
+
+bash "$RECORDER" record --ledger "$WORK/oracle-ledger.json" --assertion-id AC-P2 \
+  --new-command "$BASE_CMD" --baseline >/dev/null \
+  || fail "baseline registration failed for the oracle handoff case"
+bash "$RECORDER" record --ledger "$WORK/oracle-ledger.json" --assertion-id AC-P2 \
+  --new-command "$FAILING_CMD" --old-command "$BASE_CMD" \
+  --red-evidence "$WORK/from-oracle.json" >/dev/null \
+  || fail "the recorder refused a red record produced by run-hardened-oracle.sh"
 
 echo "PASS: record-measurement-change-selftest.sh"

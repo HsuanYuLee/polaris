@@ -233,6 +233,7 @@ if [[ -n "$EVIDENCE_OUT" ]]; then
     "$STDOUT_FILE" "$STDERR_FILE" "${TOOL_RECORDS[@]:-}" <<'PY'
 import json
 import os
+import subprocess
 import sys
 from datetime import datetime, timezone
 
@@ -261,6 +262,12 @@ payload = {
     "stdout": open(stdout_path, encoding="utf-8", errors="replace").read(),
     "stderr": open(stderr_path, encoding="utf-8", errors="replace").read(),
     "recorded_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    # Which tree the command was measuring. The measurement ledger keeps this
+    # alongside the record so a red run can be located afterwards; leaving it out
+    # made that a permanently empty field.
+    "head_sha": subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+    ).stdout.strip() or None,
 }
 os.makedirs(os.path.dirname(os.path.abspath(out)) or ".", exist_ok=True)
 with open(out, "w", encoding="utf-8") as handle:

@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.84.3] - 2026-08-02
+
+### Changed
+
+- 94387a4: DP-462：脊椎唯一的換量測路徑第一次真的握手就斷，修好。
+  `run-hardened-oracle.sh` 寫 `command_exit_code` / `recorded_at`，`record-measurement-change.sh`
+  讀 `exit_code` / `captured_at`——同一批交付的兩支腳本欄位名字對不上，登錄量測變更因此
+  fail-closed。兩邊的 selftest 各自捏證據 JSON、捏的名字跟自己讀的一致，所以兩半各自綠燈。
+  消費端改讀生產端實際寫出的欄位（單一寫入者定義 schema），不留相容分支；oracle 補寫
+  `head_sha`（ledger 早就在存這個欄位，只是永遠是 null）；selftest 補一條真的握手——讓 oracle
+  產紀錄、讓 recorder 吃它。
+
 ## [3.84.2] - 2026-08-02
 
 ### Changed

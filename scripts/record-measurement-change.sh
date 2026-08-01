@@ -154,10 +154,16 @@ if data.get("command") != new_command:
          f"  evidence: {data.get('command')!r}\n"
          f"  new:      {new_command!r}")
 
-exit_code = data.get("exit_code")
+# Field names come from the only producer of these records,
+# run-hardened-oracle.sh. They were once read under different names here
+# (exit_code / captured_at), which nothing ever caught because this script's
+# fixtures wrote those names too — so the two halves of the one measurement-change
+# path agreed with their own tests and with nothing else. The first real handoff
+# between them failed closed.
+exit_code = data.get("command_exit_code")
 if not isinstance(exit_code, int):
     fail("POLARIS_MEASUREMENT_RED_EVIDENCE_MISSING",
-         f"red evidence at {path} has no integer exit_code")
+         f"red evidence at {path} has no integer command_exit_code")
 
 if exit_code == 0:
     fail("POLARIS_MEASUREMENT_EVIDENCE_NOT_RED",
@@ -171,9 +177,9 @@ if exit_code in ENVIRONMENT_EXIT_CODES or any(
          f"red evidence at {path} failed because the command could not run "
          f"(exit {exit_code}); that is an environment error, not a measurement")
 
-if not data.get("captured_at"):
+if not data.get("recorded_at"):
     fail("POLARIS_MEASUREMENT_RED_EVIDENCE_MISSING",
-         f"red evidence at {path} has no captured_at timestamp")
+         f"red evidence at {path} has no recorded_at timestamp")
 PY
 }
 
@@ -261,13 +267,13 @@ if evidence_path:
     entry["red_evidence"] = {
         "path": evidence_path,
         "hash": f"sha256:{evidence_hash}",
-        "exit_code": evidence.get("exit_code"),
-        "captured_at": evidence.get("captured_at"),
+        "command_exit_code": evidence.get("command_exit_code"),
+        "recorded_at": evidence.get("recorded_at"),
         "head_sha": evidence.get("head_sha"),
     }
-    if evidence.get("captured_at", "") > entry["recorded_at"]:
+    if evidence.get("recorded_at", "") > entry["recorded_at"]:
         print("POLARIS_MEASUREMENT_EVIDENCE_NOT_RED", file=sys.stderr)
-        print(f"red evidence captured_at {evidence.get('captured_at')} is after this record; "
+        print(f"red evidence recorded_at {evidence.get('recorded_at')} is after this record; "
               "the command must be seen failing before the change is registered", file=sys.stderr)
         sys.exit(2)
 
