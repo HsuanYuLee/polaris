@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.84.2] - 2026-08-02
+
+### Changed
+
+- b4ef7ed: DP-462：刪除護欄不再把純換號的標題當成獨有內容。
+  `check-knowledge-face-removal.sh` 逐行比對時，若兩邊的行都帶章節序號，比對前先把序號拿掉。
+  repo 端插入一個章節會讓其後每個標題往後挪一號，原本會把整份目錄報成「他處拿不到」而擋下
+  合法的刪除。標題文字仍需逐字對上，章節內文照舊逐行比對，換號藏不住真的內容。
+  同批補上第五道舊 gate 的 spine lane：`pr-create-guard.sh` 擋掉一切 `gh pr create` 並要求改走
+  從 branch 名解析 task.md 的舊 wrapper，而 `spine-release.sh` 硬性要求 branch 上有開著的 PR
+  ——脊椎因此開不出自己交付所需的 PR。授權沿用既有那條（簽過的 fence ＋ 釘在當前 commit 的
+  交付紀錄），並收緊為以「命令執行所在的 repo」判定。
+
 ## [3.84.1] - 2026-08-02
 
 ### Changed

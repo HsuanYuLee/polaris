@@ -58,6 +58,35 @@ if bash "$CHECK" --removing "$WORK/removing-near.md" \
 fi
 echo "  ok  near-miss lines are not matches"
 
+# A renumbered section is the same section. When the other side inserts a chapter,
+# every later heading shifts by one and whole-line matching would report the whole
+# table of contents as content available nowhere.
+printf '## 7. 注意事項\n### 7.1 類型錯誤\n2. 範例\n' > "$WORK/removing-renumbered.md"
+printf '## 9. 注意事項\n### 5.1 類型錯誤\n3. 範例\n' > "$WORK/available-renumbered.md"
+bash "$CHECK" --removing "$WORK/removing-renumbered.md" \
+  --available "$WORK/available-renumbered.md" >/dev/null 2>&1 \
+  || fail "a heading that differs only in its ordinal must count as covered"
+echo "  ok  renumbered headings count as covered"
+
+# The relaxation is the ordinal and nothing else: different heading text is
+# different knowledge, however similar the numbering.
+printf '## 7. 型別安全慣例\n' > "$WORK/removing-othertext.md"
+if bash "$CHECK" --removing "$WORK/removing-othertext.md" \
+     --available "$WORK/available-renumbered.md" >/dev/null 2>&1; then
+  fail "a heading whose text differs must still be held back"
+fi
+echo "  ok  ordinal relaxation does not cover different heading text"
+
+# Stripping the ordinal must not let a heading match a plain prose line that
+# happens to read the same — the haystack side has to carry an ordinal too.
+printf '## 3. 注意事項\n' > "$WORK/removing-heading.md"
+printf '注意事項\n' > "$WORK/available-prose.md"
+if bash "$CHECK" --removing "$WORK/removing-heading.md" \
+     --available "$WORK/available-prose.md" >/dev/null 2>&1; then
+  fail "a stripped heading must not match an unnumbered prose line"
+fi
+echo "  ok  stripped needles only match ordinal-bearing lines"
+
 # A typo in a path must not read as "nothing unique found, safe to delete".
 if bash "$CHECK" --removing "$WORK/does-not-exist.md" \
      --available "$WORK/available-superset.md" >/dev/null 2>&1; then

@@ -9,6 +9,14 @@
 # up until one side grows a section the other lacks — at which point deleting
 # "the copy" destroys the only copy. Line counts do not reveal that; only the
 # difference does.
+#
+# One relaxation, and only one: a section ordinal is not knowledge. When the other
+# side inserts a section, every heading after it renumbers, and whole-line matching
+# then reports "### 7.1 類型錯誤" as content available nowhere — while "### 5.1
+# 類型錯誤" sits right there. Matching is therefore retried with the leading
+# ordinal stripped, but only between two lines that both carry one. The heading
+# text still has to survive verbatim, and section bodies are compared line by line
+# as before, so no real knowledge can hide behind a renumber.
 
 set -euo pipefail
 
@@ -68,11 +76,27 @@ for src in "${AVAILABLE[@]}"; do
 done
 
 ORPHANS="$(mktemp)"
-trap 'rm -f "$HAYSTACK" "$ORPHANS"' EXIT
+ORDINALS="$(mktemp)"
+trap 'rm -f "$HAYSTACK" "$ORPHANS" "$ORDINALS"' EXIT
+
+# A line carries an ordinal when it opens with a section number — as a markdown
+# heading ("## 7. …", "### 7.1 …") or as a top-level ordered list item ("2. …").
+ORDINAL_RE='^(#{1,6}[[:space:]]+[0-9]+(\.[0-9]+)*\.?[[:space:]]+|[0-9]+(\.[0-9]+)*\.[[:space:]]+)'
+STRIP_ORDINAL='s/^(#{1,6}[[:space:]]+)[0-9]+(\.[0-9]+)*\.?[[:space:]]+/\1/; s/^[0-9]+(\.[0-9]+)*\.[[:space:]]+//'
+
+# Built only from ordinal-bearing lines, so a stripped needle can never match a
+# plain prose line that merely happens to read the same.
+grep -E "$ORDINAL_RE" "$HAYSTACK" | sed -E "$STRIP_ORDINAL" | sort -u > "$ORDINALS" || true
+
 # Fixed-string, whole-line matching: a knowledge line is "available" only if it
 # survives verbatim somewhere, not if it merely resembles something.
 grep -vxF '' "$REMOVING" | sort -u | while IFS= read -r line; do
-  grep -qxF -- "$line" "$HAYSTACK" || printf '%s\n' "$line"
+  grep -qxF -- "$line" "$HAYSTACK" && continue
+  if printf '%s\n' "$line" | grep -qE "$ORDINAL_RE"; then
+    stripped="$(printf '%s\n' "$line" | sed -E "$STRIP_ORDINAL")"
+    grep -qxF -- "$stripped" "$ORDINALS" && continue
+  fi
+  printf '%s\n' "$line"
 done > "$ORPHANS"
 
 count="$(wc -l < "$ORPHANS" | tr -d ' ')"
