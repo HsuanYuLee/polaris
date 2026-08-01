@@ -117,6 +117,7 @@ if [[ "$EXECUTE" -ne 1 ]]; then
   else
     note "workspace-bound: no version, no template sync, no tag"
   fi
+  note "would then land locally: main fast-forwarded, hooks reinstalled, merged branch deleted"
   note "re-run with --execute to do it"
   exit 0
 fi
@@ -169,7 +170,57 @@ bash "$SCRIPTS/framework-release-main-promotion.sh" \
   --repo "$REPO_PATH" --workspace-repo "$workspace_repo" \
   --pr "$pr_number" --base main --head "$BRANCH" --execute >&2
 
+# Description: leave the checkout running what was just released.
+#   Promotion moves origin/main, but the local checkout stays on a branch that is
+#   now merged and disposable, with local main still at the pre-release commit.
+#   A later session starting from main would silently build on the old state.
+#
+#   The part that is easy to miss is the hooks: .git/hooks/ is generated per
+#   machine and is not in the repository, so a release that adds a gate does not
+#   activate it until install-git-hooks.sh runs again. Syncing the file is not
+#   the same as arming the gate.
+#
+#   Skipped entirely when the tree is dirty — landing is housekeeping and must
+#   never be a reason to touch someone's uncommitted work.
+land_locally() {
+  step "land locally"
+
+  if [[ -n "$(git -C "$REPO_PATH" status --porcelain)" ]]; then
+    note "working tree is dirty — leaving the checkout alone."
+    note "when ready: git checkout main && git merge --ff-only origin/main && bash scripts/install-git-hooks.sh"
+    return 0
+  fi
+
+  git -C "$REPO_PATH" fetch --quiet origin main
+
+  # Move the ref before checking it out, rather than checking out a possibly
+  # far-behind main and fast-forwarding afterwards. Both end in the same place,
+  # but this one never materialises the old tree, so nothing watching the
+  # working directory sees a flicker back to the pre-release state.
+  local previous_main
+  previous_main="$(git -C "$REPO_PATH" rev-parse --short main 2>/dev/null || echo none)"
+  git -C "$REPO_PATH" branch -f main origin/main
+  git -C "$REPO_PATH" checkout --quiet main
+  note "main $previous_main -> $(git -C "$REPO_PATH" rev-parse --short main)"
+
+  # Idempotent, and the only step that actually arms a newly released gate.
+  bash "$SCRIPTS/install-git-hooks.sh" >/dev/null 2>&1 \
+    && note "git hooks reinstalled — newly released gates are now armed" \
+    || note "git hooks reinstall failed; run bash scripts/install-git-hooks.sh"
+
+  # Only ever deletes a branch git itself proves is contained in main.
+  if git -C "$REPO_PATH" merge-base --is-ancestor "$BRANCH" main 2>/dev/null; then
+    git -C "$REPO_PATH" branch -q -D "$BRANCH" 2>/dev/null || true
+    git -C "$REPO_PATH" push --quiet origin --delete "$BRANCH" 2>/dev/null \
+      && note "deleted merged branch $BRANCH (local and remote)" \
+      || note "deleted merged branch $BRANCH (local)"
+  else
+    note "$BRANCH is not contained in main — leaving it in place"
+  fi
+}
+
 if [[ "$DESTINATION" != "template" ]]; then
+  land_locally
   step "done"
   note "workspace-bound source promoted; nothing syncs outward."
   exit 0
@@ -191,6 +242,8 @@ else
     --title "$tag" --notes "${SUMMARY:-$tag}" >&2
   note "released $tag"
 fi
+
+land_locally
 
 step "done"
 note "$SOURCE_DIR shipped at $tag"

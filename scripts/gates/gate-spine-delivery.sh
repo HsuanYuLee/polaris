@@ -53,25 +53,45 @@ done
 HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 [[ -n "$HEAD_SHA" ]] || exit 0
 
-# Description: echo the source directories this push touches, one per line.
-#   Scoped to the range about to leave the machine, so unrelated sources sitting
-#   at an older delivery head never block an unrelated push.
+# Description: echo the source dirs whose delivery record concerns this push.
 # Args:   none (reads REPO_ROOT / HEAD_SHA)
 # Output: repo-relative source dirs, e.g. sources/DP-462-spine-cutover
-touched_sources() {
-  local base range
-  base="$(git -C "$REPO_ROOT" merge-base origin/main HEAD 2>/dev/null || true)"
-  if [[ -n "$base" && "$base" != "$HEAD_SHA" ]]; then
-    range="${base}..${HEAD_SHA}"
-  else
-    # No divergence from origin/main to compare against (a fresh branch pushed at
-    # the same commit, or origin unavailable). Fall back to the tip commit alone;
-    # an empty result then simply means this push carries no source change.
-    range="${HEAD_SHA}^!"
-  fi
-  git -C "$REPO_ROOT" diff --name-only "$range" 2>/dev/null \
-    | awk -F/ '$1 == "sources" && NF >= 2 { print $1 "/" $2 }' \
-    | sort -u
+#
+# Relevance is decided by the head the record itself names, not by which files
+# the push happens to touch. An earlier version matched paths under sources/ and
+# was wrong: a spine source's work usually lands in scripts/ or skills/, and only
+# the record lives under sources/, so real deliveries were not recognised as
+# deliveries at all. The record already states which commit it is about — reading
+# that is both simpler and correct, and it is the authoritative field the path
+# heuristic was standing in for.
+#
+# A record is about this push when its head is the commit being pushed, or sits
+# in the range about to leave the machine. A record whose head is already in
+# origin/main describes work that shipped, and is none of this push's business.
+relevant_records() {
+  local record source head
+  for record in "$REPO_ROOT"/sources/*/.spine/delivery.json; do
+    [[ -f "$record" ]] || continue
+    source="${record#"$REPO_ROOT/"}"
+    source="${source%/.spine/delivery.json}"
+    head="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("head_sha",""))' \
+      "$record" 2>/dev/null || true)"
+    [[ -n "$head" ]] || continue
+
+    if [[ "$head" == "$HEAD_SHA" ]]; then
+      printf '%s\t%s\n' "$source" current
+      continue
+    fi
+    # Already contained in what the remote has: shipped, not stale.
+    if git -C "$REPO_ROOT" merge-base --is-ancestor "$head" origin/main 2>/dev/null; then
+      continue
+    fi
+    # In the range being pushed but not at its tip: work continued after the
+    # second gate signed off, and the record no longer describes what ships.
+    if git -C "$REPO_ROOT" merge-base --is-ancestor "$head" "$HEAD_SHA" 2>/dev/null; then
+      printf '%s\t%s\n' "$source" stale
+    fi
+  done
 }
 
 # Collected with a read loop rather than mapfile: the stock macOS bash is 3.2 and
@@ -80,48 +100,33 @@ touched_sources() {
 SOURCES=()
 while IFS= read -r line; do
   [[ -n "$line" ]] && SOURCES+=("$line")
-done < <(touched_sources)
+done < <(relevant_records)
 
-# A push that touches no source is not a spine push; this gate has no opinion.
+# No record concerns this push, so this gate has no opinion and must not claim
+# ownership — the task.md-shaped gates still own whatever this is.
 if [[ ${#SOURCES[@]} -eq 0 ]]; then
   [[ "$IS_SPINE_PUSH_QUERY" -eq 1 ]] && exit 1
   exit 0
 fi
 
-# Description: echo the head_sha recorded in a source's delivery.json, or empty
-#   when the source has no recorded delivery intent yet.
-# Args: $1 = source dir (repo-relative)
-recorded_head() {
-  local record="$REPO_ROOT/$1/.spine/delivery.json"
-  [[ -f "$record" ]] || return 0
-  python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("head_sha",""))' \
-    "$record" 2>/dev/null || true
-}
-
-if [[ "$IS_SPINE_PUSH_QUERY" -eq 1 ]]; then
-  # Answer the ownership question only. A touched source with a delivery record
-  # makes this a spine push, and this gate — not the task.md-shaped one — owns it.
-  for source in "${SOURCES[@]}"; do
-    [[ -n "$(recorded_head "$source")" ]] && exit 0
-  done
-  exit 1
-fi
+# Ownership is claimed for any push a record concerns, current or stale. Claiming
+# only the current ones would hand a stale delivery back to a gate that cannot
+# see the problem, and it would pass there.
+[[ "$IS_SPINE_PUSH_QUERY" -eq 1 ]] && exit 0
 
 failures=0
-for source in "${SOURCES[@]}"; do
-  head="$(recorded_head "$source")"
+for entry in "${SOURCES[@]}"; do
+  source="${entry%%$'\t'*}"
+  state="${entry##*$'\t'}"
 
-  if [[ -z "$head" ]]; then
-    echo "$PREFIX ${source}: no delivery intent recorded yet — work in progress, not blocked." >&2
-    continue
-  fi
-
-  if [[ "$head" == "$HEAD_SHA" ]]; then
+  if [[ "$state" == "current" ]]; then
     echo "$PREFIX ✅ ${source}: delivery intent current @ ${HEAD_SHA:0:12}." >&2
     continue
   fi
 
-  echo "$PREFIX BLOCKED: ${source} recorded its delivery intent at ${head:0:12}, but HEAD is ${HEAD_SHA:0:12}." >&2
+  recorded="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("head_sha",""))' \
+    "$REPO_ROOT/$source/.spine/delivery.json" 2>/dev/null || true)"
+  echo "$PREFIX BLOCKED: ${source} recorded its delivery intent at ${recorded:0:12}, but HEAD is ${HEAD_SHA:0:12}." >&2
   echo "$PREFIX The record the release tail reads describes a different commit than the one being pushed." >&2
   echo "$PREFIX Re-run judge's handoff step so the record and the commit agree:" >&2
   echo "$PREFIX   bash scripts/record-delivery-intent.sh --source ${source} --version-bump <bump> --summary '<line>'" >&2

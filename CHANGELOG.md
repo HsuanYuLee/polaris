@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.84.1] - 2026-08-02
+
+### Changed
+
+- 4553c46: 釋出完把 checkout 接回釋出後的狀態，並重新武裝新閘門。
+  `spine-release.sh` 尾段新增 land locally：把 `main` 移到釋出後的 head、重跑
+  `install-git-hooks.sh`、刪掉已證明包含在 `main` 裡的交付分支。
+  會漏的是中間那步。`.git/hooks/` 是每台機器各自生成的、不在版控裡，所以一次帶了新 gate 的
+  釋出，在 `install-git-hooks.sh` 再跑一次之前都不會生效——**檔案同步到了不等於閘門武裝了**。
+  上一版就實際發生過：新 gate 推出去了，卻因為安裝端沒重跑而沉默了一整輪。
+  工作目錄不乾淨時整段跳過並印出手動指令：接回是家務事，不該成為動到別人未提交工作的理由。
+  分支只在 git 自己證明它已包含於 `main` 時才刪。
+  同一版修正 `gate-spine-delivery.sh` 的判準：改由交付紀錄自己指名的 head 決定這次 push 與它
+  有沒有關係，不再看 push 動到哪些檔案。舊判準是錯的——spine source 的工作大多落在 `scripts/`
+  或 `skills/`，只有紀錄住在 `sources/`，於是真正的交付反而認不出來，被交還給一道要 task.md
+  的閘門，而它給不出來。紀錄本來就寫著自己是哪顆 commit 的，讀它既簡單又正確。
+  紀錄的 head 已經在 `origin/main` 裡時視為已出貨、與本次 push 無關，不會永遠擋著後續推送。
+
 ## [3.84.0] - 2026-08-02
 
 ### Changed
