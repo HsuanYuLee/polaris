@@ -5,9 +5,21 @@ set -euo pipefail
 #
 # docs-manager specs are local canonical planning/execution artifacts. They are
 # intentionally ignored and must not enter workspace/template git history.
+#
+# A spine source's .spine/ is the same kind of thing — loop state and the
+# measurement ledger are rewritten every round — so it is protected too. Its
+# sibling sources/*/index.md is deliberately NOT protected: it carries the frozen
+# assertions, and freezing is committing. History is the only tamper evidence a
+# writer inside the repo cannot rewrite in place, so that one file has to be
+# tracked. The boundary is contract vs. execution state, not a directory name.
 
 PREFIX="[polaris gate-no-tracked-specs]"
-PROTECTED_PREFIX="docs-manager/src/content/docs/specs/"
+PROTECTED_PREFIXES=(
+  "docs-manager/src/content/docs/specs/"
+  # git ls-files recurses into a literal directory prefix, but a pathspec with a
+  # wildcard segment needs an explicit trailing /* or it matches nothing.
+  "sources/*/.spine/*"
+)
 REPO_ROOT=""
 
 while [[ $# -gt 0 ]]; do
@@ -26,7 +38,7 @@ if [[ -z "$REPO_ROOT" ]]; then
 fi
 [[ -n "$REPO_ROOT" ]] || exit 0
 
-tracked="$(git -C "$REPO_ROOT" ls-files -- "$PROTECTED_PREFIX" 2>/dev/null || true)"
+tracked="$(git -C "$REPO_ROOT" ls-files -- "${PROTECTED_PREFIXES[@]}" 2>/dev/null || true)"
 if [[ -z "$tracked" ]]; then
   echo "$PREFIX ✅ no tracked docs-manager specs." >&2
   exit 0
@@ -41,7 +53,7 @@ workspace/template history:
 $tracked
 
 Fix:
-  git -C "$REPO_ROOT" rm --cached --ignore-unmatch -- $PROTECTED_PREFIX
+  git -C "$REPO_ROOT" rm -r --cached --ignore-unmatch -- ${PROTECTED_PREFIXES[*]}
 
 Keep the local files on disk; remove them from git index only.
 EOF

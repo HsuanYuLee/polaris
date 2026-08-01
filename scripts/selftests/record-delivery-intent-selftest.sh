@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+# Purpose: Verify delivery intent can only be recorded against a signed, sealed
+#          source, and that the record carries what the release tail reads.
+# Inputs:  Hermetic git repositories under mktemp.
+# Outputs: PASS when a sealed source records its destination and head, a source
+#          whose frozen assertions were altered after sealing is refused, a
+#          source declaring no destination is refused, and an invalid version
+#          bump or a missing summary is rejected before anything is written.
+
+set -euo pipefail
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "POLARIS_TOOL_MISSING:python3" >&2
+  echo "Repair: run mise install, then mise run doctor -- --profile runtime" >&2
+  exit 2
+fi
+
+ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+RECORD="$ROOT_DIR/scripts/record-delivery-intent.sh"
+FENCE="$ROOT_DIR/scripts/frozen-assertion-fence.sh"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
+fail() {
+  echo "FAIL: $*" >&2
+  exit 1
+}
+
+# Description: build a repo holding one source whose fence is sealed and
+#   committed, and echo the source dir path (absolute).
+# Args: $1 = case name, $2 = destination value ("" to omit the field entirely)
+new_sealed_source() {
+  local name="$1" destination="$2" repo="$WORK/$1" source
+  source="$repo/sources/DP-000-selftest"
+  mkdir -p "$source"
+  git -C "$repo" init -q 2>/dev/null || { git init -q "$repo"; }
+  git -C "$repo" config user.email selftest@example.com
+  git -C "$repo" config user.name selftest
+
+  {
+    echo "---"
+    echo "title: selftest source"
+    [[ -n "$destination" ]] && echo "destination: $destination"
+    echo "---"
+    echo
+    echo "<!-- POLARIS-FROZEN-A-BEGIN -->"
+    echo "- A-P1 the thing holds."
+    echo "<!-- POLARIS-FROZEN-A-END -->"
+  } > "$source/index.md"
+
+  bash "$FENCE" seal "$source/index.md" --by selftest >/dev/null
+  git -C "$repo" add -A
+  git -C "$repo" commit -qm "seal selftest source"
+  printf '%s' "$source"
+}
+
+echo "record-delivery-intent selftest"
+
+# The happy path: a sealed source hands downstream a destination and a head.
+source="$(new_sealed_source happy template)"
+repo="$WORK/happy"
+(cd "$repo" && bash "$RECORD" --source sources/DP-000-selftest \
+  --version-bump minor --summary 'a line a human will read' >/dev/null) \
+  || fail "a sealed source with a destination should record"
+python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d["destination"] == "template", d
+assert d["version_bump"] == "minor", d
+assert d["changelog_summary"] == "a line a human will read", d
+assert len(d["head_sha"]) >= 12, d
+' "$source/.spine/delivery.json" || fail "the record is missing what the release tail reads"
+echo "  ok  sealed source records destination and head"
+
+# Delivering against assertions nobody signed is worse than not delivering.
+source="$(new_sealed_source tampered template)"
+sed -i.bak 's/the thing holds/the thing does not hold/' "$source/index.md"
+rm -f "$source/index.md.bak"
+repo="$WORK/tampered"
+if (cd "$repo" && bash "$RECORD" --source sources/DP-000-selftest \
+     --version-bump patch --summary 'x' >/dev/null 2>&1); then
+  fail "assertions altered after sealing should refuse to record"
+fi
+[[ -f "$source/.spine/delivery.json" ]] \
+  && fail "a refused recording must not leave a record behind"
+echo "  ok  altered assertions refuse to record"
+
+# Without a destination there is no answer to where this ships, and a silent
+# default would be exactly the third state the assertions forbid.
+source="$(new_sealed_source nodest "")"
+repo="$WORK/nodest"
+if (cd "$repo" && bash "$RECORD" --source sources/DP-000-selftest \
+     --version-bump patch --summary 'x' >/dev/null 2>&1); then
+  fail "a source declaring no destination should refuse to record"
+fi
+echo "  ok  missing destination refuses to record"
+
+# Argument validation happens before any source is read, so a typo cannot
+# half-write a record.
+source="$(new_sealed_source badargs template)"
+repo="$WORK/badargs"
+if (cd "$repo" && bash "$RECORD" --source sources/DP-000-selftest \
+     --version-bump enormous --summary 'x' >/dev/null 2>&1); then
+  fail "an invalid version bump should be rejected"
+fi
+if (cd "$repo" && bash "$RECORD" --source sources/DP-000-selftest \
+     --version-bump patch >/dev/null 2>&1); then
+  fail "a missing summary should be rejected"
+fi
+[[ -f "$source/.spine/delivery.json" ]] \
+  && fail "a rejected invocation must not leave a record behind"
+echo "  ok  invalid arguments rejected before writing"
+
+echo "PASS: record-delivery-intent"

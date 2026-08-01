@@ -1,5 +1,45 @@
 # Changelog
 
+## [3.84.0] - 2026-08-02
+
+### Changed
+
+- 65a69df: DP-462 接線第二段：交付有了接縫，命名退回知識面。
+  - `index.md` frontmatter 新增必填 `destination`（`workspace` / `template`），由人在閘一宣告
+    這份工作留在 workspace 還是出貨到 template repo。必填而非選填——選填會讓「沒宣告」變成
+    第三種靜默狀態。`check-source-destination.sh` 依宣告驗證產出落點；`template` 不限路徑，
+    `workspace` 要求每個產出路徑可證明不會 sync 出去，未知路徑一律擋。
+  - `record-delivery-intent.sh`：閘二判 PASS 後寫 `{source}/.spine/delivery.json`，先重驗
+    fence 才寫。對著一份沒人簽過的成功定義出貨，比不出貨糟。
+  - `gate-spine-delivery.sh`：只問一句話——這次 push 動到的 source，它記的 head 是不是當前
+    HEAD。查陳舊不查存在（judge 可能還沒跑，WIP push 合法），缺席由釋出端接住。
+  - branch / PR 命名退回知識面。四道既有 gate（`gate-evidence` 兩條分支、
+    `verification-evidence-gate`、`gate-work-source`）都從 branch 名解析 ticket 再要 task.md；
+    查證顯示本 repo 的 remote 零強制（rulesets 空、branch protection 404），這些 gate 純本機，
+    而它們當初非得是 gate 是因為舊模型把 branch 名當查表的鍵。新脊椎的身分在 `delivery.json`
+    裡不在 ref 裡，命名因此掉回與一般產品 repo 的 branch 慣例同層。四道改為對 spine 形狀
+    讓開，`gate-work-source` 另認一條 spine lane，授權來自「簽過的 fence + 釘在當前 commit
+    的紀錄」。
+  - 支援公司知識面的兩支通用工具：`check-knowledge-face-removal.sh` 判斷一份 handbook 是
+    純複本還是長出了他處拿不到的內容（純複本才可刪）；`check-gate-coverage.py` 要求會擋人
+    的 gate 都落在 covered 或 disclosed，兩者皆無就報錯。公司專屬的知識面本身留在 workspace，
+    不隨此版出貨。
+- efec211: DP-462 接線第一段：新脊椎有了入口，凍結有了牙齒。
+  - 三個入口 `assert` / `work` / `judge`，分別承載閘一、loop、閘二，涵蓋單 A 交付的五支腳本
+    且無孤兒。兩份前置材料由入口直接指名載入，不經 `references/INDEX.md`。
+  - `frozen-assertion-fence.sh`：刪除 assertion id 格式規則（`^AC-[A-Z]+[0-9]+$`）。它沒有斷言
+    支撐、唯一消費者是它自己、只在 seal 擋不在 verify 擋，且原註解自承是為了服務
+    `refinement.json` / `task.md` / verify-AC 報告——三者都在拆除名單上。它擋住了設計自身的
+    `A-P1` / `B-P2`。改為唯一性檢查（ledger 以 id 相等查找，碰撞會破壞 A-N2），seal 與 verify
+    兩處都跑。
+  - `frozen-assertion-fence.sh verify` 改為預設與 git 歷史比對 fence 內文，不同即 fail-closed。
+    實測顯示封條可被「改 fence 後重簽」繞過（`--by` 只是字串），因此凍結的權威是 commit，
+    不是封條。source 不在 git 內時回 `POLARIS_FROZEN_FENCE_HISTORY_UNAVAILABLE`，不讓未追蹤
+    位置買回豁免。
+  - 新增頂層 source 路徑 `sources/`：`index.md` 追蹤（凍結靠 git 歷史），`.spine/` 為執行狀態
+    不進歷史，由 `gate-no-tracked-specs.sh` 依「契約 vs 執行狀態」而非目錄名判定。`docs-manager`
+    回歸純 viewer——它的 `content.config.ts` 早就支援外指內容根，內容不必住在 app 裡。
+
 ## [3.83.0] - 2026-08-01
 
 ### Added

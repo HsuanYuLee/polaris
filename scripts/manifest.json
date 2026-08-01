@@ -80,213 +80,6 @@
   ],
   "scripts": [
     {
-      "path": "scripts/auto-pass-pr-ownership-gate.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "auto_pass",
-      "selftest": "scripts/selftests/auto-pass-pr-ownership-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/branch-sweep-runner.sh",
-      "kind": "support",
-      "runner": "bash",
-      "owner_surface": "manual_maintainer",
-      "selftest": "scripts/selftests/branch-sweep-runner-selftest.sh",
-      "lifecycle": "support_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/framework-scope-escalation-gate.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "engineering",
-      "selftest": "scripts/selftests/framework-scope-escalation-gate-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/friction-to-dp-intake.sh",
-      "kind": "support",
-      "runner": "bash",
-      "owner_surface": "manual_maintainer",
-      "selftest": "scripts/selftests/friction-to-dp-intake-selftest.sh",
-      "lifecycle": "support_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/migrate-legacy-bug-diagnosis-to-refinement.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "refinement",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "legacy bug diagnosis migration support is covered by active-surface removal guard"
-    },
-    {
-      "path": "scripts/install-precommit-fast-lint.sh",
-      "kind": "support",
-      "runner": "bash",
-      "owner_surface": "script_governance",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "DP-360 T2 pre-commit fast-lint slot installer; idempotent injector covered by manifest governance and active git pre-commit hook callsite"
-    },
-    {
-      "path": "scripts/validate-framework-source-write.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "framework_source_governance",
-      "selftest": "scripts/selftests/framework-source-mutation-no-bypass-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/write-engineering-self-review-result.sh",
-      "kind": "writer",
-      "runner": "bash",
-      "owner_surface": "engineering",
-      "selftest": "scripts/selftests/write-engineering-self-review-result-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/validate-engineering-self-review-result.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "engineering",
-      "selftest": "scripts/selftests/validate-engineering-self-review-result-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/validate-safe-cli-introspection.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "framework_pr_gate",
-      "selftest": "scripts/selftests/validate-safe-cli-introspection-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/selftests/validate-safe-cli-introspection-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/polaris-bootstrap-help-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/verify-cross-llm-parity-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/resolve-artifact-location.sh",
-      "kind": "resolver",
-      "runner": "bash",
-      "owner_surface": "engineering",
-      "selftest": "scripts/selftests/resolve-artifact-location-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/validate-artifact-location.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "engineering",
-      "selftest": "scripts/selftests/resolve-artifact-location-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/run-verify-all.sh",
-      "kind": "support",
-      "runner": "bash",
-      "owner_surface": "engineering",
-      "selftest": "scripts/selftests/run-verify-all-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/selftests/resolve-artifact-location-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/validate-artifact-location-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/run-verify-all-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftest-affected-runner.sh",
-      "kind": "support",
-      "runner": "bash",
-      "owner_surface": "script_governance",
-      "selftest": "scripts/selftests/selftest-affected-runner-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/selftest-slow-inventory.sh",
-      "kind": "support",
-      "runner": "bash",
-      "owner_surface": "script_governance",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "DP-360 T4 pathological-slow selftest inventory + push-time baseline; reuses selftest-tier-manifest, covered by full-corpus-backstop-wiring selftest"
-    },
-    {
-      "path": "scripts/selftest-tier-manifest.sh",
-      "kind": "support",
-      "runner": "bash",
-      "owner_surface": "script_governance",
-      "selftest": "scripts/selftests/selftest-tier-manifest-selftest.sh",
-      "lifecycle": "support_path",
-      "relocation": "stay"
-    },
-    {
       "path": "scripts/aggregate-release-lane-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -371,6 +164,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/auto-pass-pr-ownership-gate.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "auto_pass",
+      "selftest": "scripts/selftests/auto-pass-pr-ownership-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/auto-pass-probe.sh",
       "kind": "gate",
       "runner": "bash",
@@ -407,14 +209,13 @@
       "relocation": "stay"
     },
     {
-      "path": "scripts/breakdown-emit-task-snapshot.sh",
-      "kind": "writer",
+      "path": "scripts/branch-sweep-runner.sh",
+      "kind": "support",
       "runner": "bash",
-      "owner_surface": "breakdown",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered by DP-207 auto-pass V1/V2 verification"
+      "owner_surface": "manual_maintainer",
+      "selftest": "scripts/selftests/branch-sweep-runner-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/breakdown-emit-blocker-marker.sh",
@@ -424,6 +225,16 @@
       "selftest": "scripts/selftests/breakdown-emit-blocker-marker-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
+    },
+    {
+      "path": "scripts/breakdown-emit-task-snapshot.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "breakdown",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered by DP-207 auto-pass V1/V2 verification"
     },
     {
       "path": "scripts/cascade-rebase-chain.sh",
@@ -533,6 +344,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/check-gate-coverage.py",
+      "kind": "gate",
+      "runner": "python3",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/check-gate-coverage-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/check-js-import-package-graph.sh",
       "kind": "gate",
       "runner": "bash",
@@ -541,6 +361,15 @@
       "lifecycle": "hot_path",
       "relocation": "stay",
       "posture_decision": "DP-202-T4 JS import package graph audit gate."
+    },
+    {
+      "path": "scripts/check-knowledge-face-removal.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/check-knowledge-face-removal-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/check-local-extension-completion.sh",
@@ -718,11 +547,29 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/check-source-destination.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/check-source-destination-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/check-source-template-drift.sh",
       "kind": "gate",
       "runner": "bash",
       "owner_surface": "skill_or_reference",
       "selftest": "scripts/selftests/check-source-template-drift-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/check-spine-cost-floor.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/check-spine-cost-floor-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },
@@ -948,6 +795,15 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/confirm-dp420-self-iteration-certification.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "tests/test_confirm_dp420_self_iteration_certification.py",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/contract-check.sh",
@@ -1252,16 +1108,6 @@
       "selftest_reason": "selftest script"
     },
     {
-      "path": "scripts/selftests/framework-release-closeout-v-enumeration-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "release_flow",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
       "path": "scripts/framework-release-closeout.sh",
       "kind": "release",
       "runner": "bash",
@@ -1299,26 +1145,6 @@
       "selftest_reason": "selftest script"
     },
     {
-      "path": "scripts/selftests/framework-release-topology-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "release_flow",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/framework-release-main-promotion-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "release_flow",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
       "path": "scripts/framework-release-pr-lane.sh",
       "kind": "release",
       "runner": "bash",
@@ -1347,6 +1173,33 @@
       "lifecycle": "hot_path",
       "relocation": "stay",
       "posture_decision": "DP-189-T1 framework-release deterministic preflight gate."
+    },
+    {
+      "path": "scripts/framework-scope-escalation-gate.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/framework-scope-escalation-gate-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/friction-to-dp-intake.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "manual_maintainer",
+      "selftest": "scripts/selftests/friction-to-dp-intake-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/frozen-assertion-fence.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/frozen-assertion-fence-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/gate-hook-adapter-selftest.sh",
@@ -1551,6 +1404,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/gates/gate-spine-delivery.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "hook",
+      "selftest": "scripts/selftests/gate-spine-delivery-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/gates/gate-template-leaks.sh",
       "kind": "gate",
       "runner": "bash",
@@ -1598,35 +1460,6 @@
       "relocation": "stay"
     },
     {
-      "path": "scripts/resolve-handbook.sh",
-      "kind": "resolver",
-      "runner": "bash",
-      "owner_surface": "skill_or_reference",
-      "selftest": "scripts/selftests/resolve-handbook-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/selftests/resolve-handbook-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/handbook-routing-retirement-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
       "path": "scripts/handbook-config-validator.sh",
       "kind": "support",
       "runner": "bash",
@@ -1646,6 +1479,16 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/install-precommit-fast-lint.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "DP-360 T2 pre-commit fast-lint slot installer; idempotent injector covered by manifest governance and active git pre-commit hook callsite"
+    },
+    {
       "path": "scripts/jira-upload-attachment.sh",
       "kind": "support",
       "runner": "bash",
@@ -1654,6 +1497,159 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/lib/auto_pass_append_auto_pass_friction_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-friction-log-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_auto_pass_consume_resume_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-consume-resume-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_auto_pass_consume_resume_2.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-consume-resume-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_auto_pass_counter_race_recovery_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-counter-race-recovery-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_auto_pass_finalize_ledger_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-finalize-ledger-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_auto_pass_increment_counter_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-increment-counter-idempotency-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_auto_pass_pr_ownership_gate_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-pr-ownership-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_auto_pass_probe_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-probe-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_auto_pass_runner_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-runner-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_auto_pass_runner_2.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-runner-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_auto_pass_runner_3.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-runner-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_auto_pass_runner_4.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-runner-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_auto_pass_runner_5.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-runner-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_validate_auto_pass_ledger_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-auto-pass-ledger-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_validate_auto_pass_proof_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-auto-pass-proof-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_validate_auto_pass_report_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/auto-pass-report-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/auto_pass_validate_auto_pass_resume_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-auto-pass-resume-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/lib/ci-local-path.sh",
@@ -1666,14 +1662,90 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
-      "path": "scripts/lib/github-rest.sh",
+      "path": "scripts/lib/ci_ci_contract_discover_1.py",
       "kind": "support",
-      "runner": "bash",
-      "owner_surface": "skill_or_reference",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/ci-contract-discover-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/ci_ci_local_generate_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/ci-local-generate-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/ci_ci_local_run_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/ci-local-run.sh compatibility CLI"
+    },
+    {
+      "path": "scripts/lib/ci_ci_local_run_2.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/ci-local-run.sh compatibility CLI"
+    },
+    {
+      "path": "scripts/lib/ci_ci_local_run_3.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/ci-local-run.sh compatibility CLI"
+    },
+    {
+      "path": "scripts/lib/ci_ci_local_run_4.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/ci-local-run.sh compatibility CLI"
+    },
+    {
+      "path": "scripts/lib/confirm_dp420_self_iteration_certification.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "tests/test_confirm_dp420_self_iteration_certification.py",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/contract_evidence.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
       "selftest": "N/A",
       "lifecycle": "support_path",
       "relocation": "stay",
-      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/derive_task_md_from_refinement_json.py",
+      "kind": "writer",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "tests/test_derive_task_md_from_refinement_json.py",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/lib/framework-release-topology.sh",
@@ -1685,30 +1757,31 @@
       "relocation": "stay"
     },
     {
-      "path": "scripts/lib/release-gate-backstops.sh",
+      "path": "scripts/lib/github-rest.sh",
       "kind": "support",
       "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/lib/lint_script_language_fit.py",
+      "kind": "support",
+      "runner": "python3",
       "owner_surface": "script_internal",
-      "selftest": "scripts/framework-release-pr-lane-selftest.sh",
-      "lifecycle": "hot_path",
+      "selftest": "tests/test_lint_script_language_fit.py",
+      "lifecycle": "support_path",
       "relocation": "stay"
     },
     {
-      "path": "scripts/lib/release-gate-core.sh",
+      "path": "scripts/lib/lint_selftest_corpus_budget.py",
       "kind": "support",
-      "runner": "bash",
+      "runner": "python3",
       "owner_surface": "script_internal",
-      "selftest": "scripts/framework-release-pr-lane-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/release-gate-lineage.sh",
-      "kind": "support",
-      "runner": "bash",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/framework-release-pr-lane-selftest.sh",
-      "lifecycle": "hot_path",
+      "selftest": "tests/test_lint_selftest_corpus_budget.py",
+      "lifecycle": "support_path",
       "relocation": "stay"
     },
     {
@@ -1722,7 +1795,7 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
-      "path": "scripts/lib/contract_evidence.py",
+      "path": "scripts/lib/migrate-refinement-json-to-strong-bound.py",
       "kind": "support",
       "runner": "python3",
       "owner_surface": "script_internal",
@@ -1732,14 +1805,13 @@
       "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
     },
     {
-      "path": "scripts/lib/migrate-refinement-json-to-strong-bound.py",
+      "path": "scripts/lib/parse_task_md.py",
       "kind": "support",
       "runner": "python3",
       "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+      "selftest": "tests/test_parse_task_md.py",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/lib/polaris_toolchain_manifest.py",
@@ -1761,63 +1833,17 @@
       "relocation": "stay"
     },
     {
-      "path": "scripts/lib/script_layer_audit.py",
+      "path": "scripts/lib/refinement-ac-id-shape.py",
       "kind": "support",
       "runner": "python3",
       "owner_surface": "script_internal",
-      "selftest": "tests/test_script_layer_audit.py",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_script_layer_migration_coverage.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "tests/test_script_layer_migration_coverage.py",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_spec_check_contract_parity.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-spec-check-contract-parity-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_current_head_gap_ledger.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "tests/test_validate_current_head_gap_ledger.py",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
     },
     {
       "path": "scripts/lib/refinement-bug-source-detector.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
-    },
-    {
-      "path": "scripts/lib/refinement_common.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
-    },
-    {
-      "path": "scripts/lib/refinement-ac-id-shape.py",
       "kind": "support",
       "runner": "python3",
       "owner_surface": "script_internal",
@@ -1835,6 +1861,15 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/refinement-handoff-advisory-collector.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/refinement-handoff-advisory-collector-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/lib/refinement-intra-dp-consistency.py",
@@ -1875,15 +1910,6 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
-    },
-    {
-      "path": "scripts/lib/refinement-handoff-advisory-collector.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/refinement-handoff-advisory-collector-selftest.sh",
-      "lifecycle": "support_path",
-      "relocation": "stay"
     },
     {
       "path": "scripts/lib/refinement-referrer-cascade.py",
@@ -1936,6 +1962,214 @@
       "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
     },
     {
+      "path": "scripts/lib/refinement_backfill_predecessor_audit.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/backfill-refinement-predecessor-audit-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_backfill_verification_strategy.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/backfill-refinement-verification-strategy-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_common.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "library helper consumed by registered entrypoint scripts; manifest parity (DP-230 D20) enforces ownership"
+    },
+    {
+      "path": "scripts/lib/refinement_handoff_helpers.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/refinement-handoff-gate-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_lock_preflight_helpers.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-refinement-lock-preflight-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_migrate_epic_handoff.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/migrate-epic-refinement-handoff-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_migrate_packaging_fields.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/refinement-breakdown-packaging-boundary-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_migrate_planned_tasks.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/migrate-refinement-planned-tasks-to-canonical-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_render_md.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/render-refinement-md-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_resolve_template.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/resolve-refinement-template-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_validate_ac_coverage.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-refinement-ac-coverage-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_validate_artifact_parity.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-refinement-artifact-parity-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_validate_consumer_schema_binding.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-refinement-consumer-schema-binding-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_validate_inbox_record.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-refinement-inbox-record-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_validate_json.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-refinement-json-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_validate_locked_scope.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-refinement-locked-scope-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/refinement_verify_convergence.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/verify-refinement-convergence-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/release-gate-backstops.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/framework-release-pr-lane-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/release-gate-core.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/framework-release-pr-lane-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/release-gate-lineage.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/framework-release-pr-lane-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/release_closeout_helpers.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/framework-release-closeout-pr-close-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/resolve_task_md.py",
+      "kind": "resolver",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "tests/test_resolve_task_md.py",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/script_layer_audit.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "tests/test_script_layer_audit.py",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/lib/specs-root.sh",
       "kind": "support",
       "runner": "bash",
@@ -1954,6 +2188,468 @@
       "lifecycle": "support_path",
       "relocation": "move_direct",
       "selftest_reason": "covered by downstream selftests"
+    },
+    {
+      "path": "scripts/lib/validate_artifact_contract_conformance_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-artifact-contract-conformance-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_bootstrap_budget_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-bootstrap-budget-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_branch_name_ascii_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-branch-name-ascii-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_breakdown_escalation_intake_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/validate-breakdown-escalation-intake.sh --self-test and integration selftests"
+    },
+    {
+      "path": "scripts/lib/validate_breakdown_ready_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/validate-breakdown-ready-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_completion_envelope_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-completion-envelope-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_config_driven_authoring_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/config-driven-authoring-audit-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_current_head_gap_ledger.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "tests/test_validate_current_head_gap_ledger.py",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_delivery_evidence_conformance_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-delivery-evidence-conformance-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_dispatch_bundle_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-dispatch-bundle-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_dp_metadata_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/validate-dp-metadata.sh compatibility CLI"
+    },
+    {
+      "path": "scripts/lib/validate_dp_number_uniqueness_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/validate-dp-number-uniqueness.sh compatibility CLI"
+    },
+    {
+      "path": "scripts/lib/validate_engineering_self_review_result_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-engineering-self-review-result-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_escalation_sidecar_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/validate-escalation-sidecar.sh --self-test"
+    },
+    {
+      "path": "scripts/lib/validate_framework_script_structure_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/framework-script-structure-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_framework_script_structure_2.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/framework-script-structure-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_framework_script_structure_3.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/framework-script-structure-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_framework_script_structure_4.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/framework-script-structure-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_framework_script_structure_5.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/framework-script-structure-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_framework_source_write_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/framework-source-mutation-no-bypass-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_framework_source_write_2.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/framework-source-mutation-no-bypass-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_generated_artifact_discipline_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/generated-artifact-discipline-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_l2_embedding_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/validate-l2-embedding.sh compatibility CLI smoke validation"
+    },
+    {
+      "path": "scripts/lib/validate_language_policy_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-language-policy-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_learning_seed_contract_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/validate-learning-seed-contract.sh compatibility CLI"
+    },
+    {
+      "path": "scripts/lib/validate_manifest_parity_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-manifest-parity-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_memory_hygiene_plan_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-memory-hygiene-plan-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_memory_write_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-memory-write-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_model_tier_policy_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-model-tier-policy-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_polaris_command_catalog_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-polaris-command-catalog-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_polaris_config_migration_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/validate-polaris-config-migration.sh compatibility CLI smoke validation"
+    },
+    {
+      "path": "scripts/lib/validate_polaris_toolchain_consumers_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/validate-polaris-toolchain-consumers.sh compatibility CLI"
+    },
+    {
+      "path": "scripts/lib/validate_public_onboarding_contract_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/validate-public-onboarding-contract.sh compatibility CLI"
+    },
+    {
+      "path": "scripts/lib/validate_root_package_governance_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-root-package-governance-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_route_safe_spec_paths_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/validate-route-safe-spec-paths.sh compatibility CLI"
+    },
+    {
+      "path": "scripts/lib/validate_safe_cli_introspection_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-safe-cli-introspection-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_safe_cli_introspection_2.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-safe-cli-introspection-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_script_dependencies_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-script-dependencies-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_script_layer_migration_coverage.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "tests/test_script_layer_migration_coverage.py",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_selftest_enrollment_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/validate-selftest-enrollment.sh compatibility CLI"
+    },
+    {
+      "path": "scripts/lib/validate_skill_contracts_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-skill-contracts-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_spec_boundary_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "covered through scripts/validate-spec-boundary.sh compatibility CLI"
+    },
+    {
+      "path": "scripts/lib/validate_spec_check_contract_parity.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-spec-check-contract-parity-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_spec_source_parity_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-spec-source-parity-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_specs_collection_shape_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-specs-collection-shape-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_starlight_authoring_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-starlight-authoring-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_task_md.py",
+      "kind": "gate",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "tests/test_validate_task_md.py",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_task_md_deps_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-task-md-deps-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_verification_strategy_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-verification-strategy-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lib/validate_verify_evidence_layout_1.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/validate-verify-evidence-layout-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/lib/verification-evidence.sh",
@@ -1985,6 +2681,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/lint-dp-keyed-source-symmetry.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/selftests/lint-dp-keyed-source-symmetry-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/lint-evidence-command-direct-call.sh",
       "kind": "gate",
       "runner": "bash",
@@ -2008,6 +2713,24 @@
       "runner": "bash",
       "owner_surface": "framework_derived_md_read_boundary",
       "selftest": "scripts/selftests/lint-no-business-gate-reads-derived-md-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lint-script-language-fit.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "tests/test_lint_script_language_fit.py",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/lint-selftest-corpus-budget.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "tests/test_lint_selftest_corpus_budget.py",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },
@@ -2076,6 +2799,16 @@
       "selftest": "scripts/selftests/migrate-epic-refinement-handoff-selftest.sh",
       "lifecycle": "support_path",
       "relocation": "stay"
+    },
+    {
+      "path": "scripts/migrate-legacy-bug-diagnosis-to-refinement.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "refinement",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "legacy bug diagnosis migration support is covered by active-surface removal guard"
     },
     {
       "path": "scripts/migrate-legacy-dp-plan-to-index.sh",
@@ -2277,15 +3010,6 @@
       "posture_decision": "DP-422 T5 registry-bound token, tool identity, and structured review payload validator."
     },
     {
-      "path": "scripts/submit-pr-review.sh",
-      "kind": "support",
-      "runner": "bash",
-      "owner_surface": "review_pr",
-      "selftest": "scripts/selftests/submit-pr-review-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
       "path": "scripts/polaris-jira-transition.sh",
       "kind": "support",
       "runner": "bash",
@@ -2459,6 +3183,24 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/record-delivery-intent.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/record-delivery-intent-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/record-measurement-change.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/record-measurement-change-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/refinement-handoff-gate.sh",
       "kind": "support",
       "runner": "bash",
@@ -2504,6 +3246,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/resolve-artifact-location.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/resolve-artifact-location-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/resolve-branch-chain.sh",
       "kind": "resolver",
       "runner": "bash",
@@ -2520,6 +3271,15 @@
       "owner_surface": "skill_or_reference",
       "selftest": "scripts/selftests/resolve-company-context-selftest.sh",
       "lifecycle": "support_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/resolve-handbook.sh",
+      "kind": "resolver",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/resolve-handbook-selftest.sh",
+      "lifecycle": "hot_path",
       "relocation": "stay"
     },
     {
@@ -2672,11 +3432,38 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/run-evidence-command.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "framework_evidence_immune_execution",
+      "selftest": "scripts/selftests/run-evidence-command-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/run-governed-script-tests.sh",
       "kind": "gate",
       "runner": "bash",
       "owner_surface": "release_flow",
       "selftest": "scripts/selftests/run-governed-script-tests-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/run-hardened-oracle.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/run-hardened-oracle-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/run-verify-all.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/run-verify-all-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },
@@ -2689,15 +3476,6 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/run-evidence-command.sh",
-      "kind": "support",
-      "runner": "bash",
-      "owner_surface": "framework_evidence_immune_execution",
-      "selftest": "scripts/selftests/run-evidence-command-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
     },
     {
       "path": "scripts/run-verify-command.sh",
@@ -2746,16 +3524,6 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
-      "path": "scripts/script-ownership-audit.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/script-ownership-audit-selftest.sh",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "keep_reason": "Implementation backend for scripts/script-ownership-audit.sh."
-    },
-    {
       "path": "scripts/script-layer-audit.sh",
       "kind": "support",
       "runner": "bash",
@@ -2766,6 +3534,16 @@
       "keep_reason": "DP-420 tracked production/test semantic ledger producer; existing ownership audit does not assign migration dispositions."
     },
     {
+      "path": "scripts/script-ownership-audit.py",
+      "kind": "support",
+      "runner": "python3",
+      "owner_surface": "script_internal",
+      "selftest": "scripts/selftests/script-ownership-audit-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "keep_reason": "Implementation backend for scripts/script-ownership-audit.sh."
+    },
+    {
       "path": "scripts/script-ownership-audit.sh",
       "kind": "support",
       "runner": "bash",
@@ -2774,6 +3552,34 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "keep_reason": "Maintainer-facing root script ownership audit used before relocation decisions."
+    },
+    {
+      "path": "scripts/selftest-affected-runner.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/selftests/selftest-affected-runner-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftest-slow-inventory.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "DP-360 T4 pathological-slow selftest inventory + push-time baseline; reuses selftest-tier-manifest, covered by full-corpus-backstop-wiring selftest"
+    },
+    {
+      "path": "scripts/selftest-tier-manifest.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/selftests/selftest-tier-manifest-selftest.sh",
+      "lifecycle": "support_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/selftests/allocate-design-plan-number-selftest.sh",
@@ -2818,6 +3624,26 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/auto-pass-auto-friction-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/auto-pass-consume-resume-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/auto-pass-counter-race-recovery-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2829,7 +3655,7 @@
       "posture_decision": "DP-246 T3: race-recovery selftest for auto-pass-counter-race-recovery.sh (AC3, AC-NEG3, AC-NEG4)."
     },
     {
-      "path": "scripts/selftests/auto-pass-auto-friction-selftest.sh",
+      "path": "scripts/selftests/auto-pass-friction-log-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
@@ -2858,16 +3684,6 @@
       "relocation": "stay",
       "selftest_reason": "selftest script",
       "posture_decision": "DP-246 T2: idempotency selftest for auto-pass-increment-counter.sh --evidence-id contract."
-    },
-    {
-      "path": "scripts/selftests/auto-pass-friction-log-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/auto-pass-probe-selftest.sh",
@@ -2941,6 +3757,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/bootstrap-regen-runtime-targets-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/bug-rca-skill-absence-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -2984,6 +3810,24 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/check-gate-coverage-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest",
+      "selftest": "scripts/selftests/check-gate-coverage-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/selftests/check-knowledge-face-removal-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest",
+      "selftest": "scripts/selftests/check-knowledge-face-removal-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/selftests/check-local-extension-completion-dispatch-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3024,6 +3868,15 @@
       "lifecycle": "support_path",
       "relocation": "move_direct",
       "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/check-source-destination-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest",
+      "selftest": "scripts/selftests/check-source-destination-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/selftests/check-source-template-drift-selftest.sh",
@@ -3091,6 +3944,16 @@
     },
     {
       "path": "scripts/selftests/compile-runtime-instructions-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/config-driven-authoring-audit-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
@@ -3265,6 +4128,56 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/framework-release-closeout-v-enumeration-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/framework-release-language-producer-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/framework-release-main-promotion-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/framework-release-topology-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "release_flow",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/framework-script-structure-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/friction-capture-contract-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3294,6 +4207,15 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/gate-spine-delivery-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest",
+      "selftest": "scripts/selftests/gate-spine-delivery-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/selftests/gate-template-leaks-selftest.sh",
@@ -3328,16 +4250,6 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
-      "path": "scripts/selftests/framework-script-structure-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
       "path": "scripts/selftests/github-rest-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3347,6 +4259,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/handbook-routing-retirement-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/install-git-hooks-pre-push-carve-out-selftest.sh",
@@ -3381,6 +4303,26 @@
     },
     {
       "path": "scripts/selftests/lifecycle-status-validator-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/lint-dp-keyed-source-symmetry-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "N/A",
+      "lifecycle": "hot_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/lint-evidence-command-direct-call-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
@@ -3545,7 +4487,7 @@
       "posture_decision": "DP-238 pipeline handoff atom-matrix authority + identity-split (work_item_id / jira_key / delivery_ticket_key) selftest."
     },
     {
-      "path": "scripts/selftests/polaris-bootstrap-selftest.sh",
+      "path": "scripts/selftests/polaris-bootstrap-help-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
@@ -3555,7 +4497,7 @@
       "selftest_reason": "selftest script"
     },
     {
-      "path": "scripts/selftests/bootstrap-regen-runtime-targets-selftest.sh",
+      "path": "scripts/selftests/polaris-bootstrap-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
@@ -3586,16 +4528,6 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
-      "path": "scripts/selftests/submit-pr-review-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
       "path": "scripts/selftests/polaris-jira-transition-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3617,16 +4549,6 @@
       "selftest_reason": "selftest script"
     },
     {
-      "path": "scripts/selftests/polaris-pr-create-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
       "path": "scripts/selftests/polaris-pr-create-bash3-gh-args-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3638,6 +4560,16 @@
       "posture_decision": "DP-246-T4 bash 3.2 safe-expansion selftest for GH_ARGS in polaris-pr-create.sh."
     },
     {
+      "path": "scripts/selftests/polaris-pr-create-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/polaris-toolchain-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3647,16 +4579,6 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
-    },
-    {
-      "path": "scripts/selftests/rules-manifest-ceremony-removal-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/pr-action-classifier-selftest.sh",
@@ -3744,6 +4666,15 @@
       "posture_decision": "DP-131 selftest for read-only spec lifecycle reconciliation."
     },
     {
+      "path": "scripts/selftests/record-delivery-intent-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest",
+      "selftest": "scripts/selftests/record-delivery-intent-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/selftests/refinement-ac-id-shape-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3784,6 +4715,16 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/refinement-handoff-advisory-collector-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/refinement-handoff-gate-enforce-ability-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3803,16 +4744,6 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
-    },
-    {
-      "path": "scripts/selftests/refinement-handoff-advisory-collector-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/refinement-intra-dp-consistency-selftest.sh",
@@ -3836,16 +4767,6 @@
     },
     {
       "path": "scripts/selftests/refinement-md-generator-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/render-refinement-md-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
@@ -3945,6 +4866,26 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/render-refinement-md-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/resolve-artifact-location-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/resolve-company-context-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -3954,6 +4895,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/resolve-handbook-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/resolve-refinement-template-selftest.sh",
@@ -4032,6 +4983,16 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/rules-manifest-ceremony-removal-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/run-behavior-contract-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -4041,6 +5002,16 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/run-evidence-command-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/run-governed-script-tests-selftest.sh",
@@ -4064,27 +5035,7 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
-      "path": "scripts/selftests/run-evidence-command-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/lint-evidence-command-direct-call-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/auto-pass-consume-resume-selftest.sh",
+      "path": "scripts/selftests/run-verify-all-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
       "owner_surface": "selftest_suite",
@@ -4186,6 +5137,16 @@
       "selftest": "N/A",
       "lifecycle": "support_path",
       "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/session-start-thread-anchor-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
       "selftest_reason": "selftest script"
     },
     {
@@ -4292,6 +5253,15 @@
       "selftest_reason": "selftest script"
     },
     {
+      "path": "scripts/selftests/spine-release-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest",
+      "selftest": "scripts/selftests/spine-release-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/selftests/stack-replay-manifest-check-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -4314,6 +5284,16 @@
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
     },
     {
+      "path": "scripts/selftests/submit-pr-review-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/sync-spec-sidebar-metadata-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -4323,6 +5303,26 @@
       "relocation": "move_direct",
       "selftest_reason": "selftest script",
       "posture_decision": "Moved out of scripts root by DP-143-T1 to reduce root entrypoint noise."
+    },
+    {
+      "path": "scripts/selftests/update-active-thread-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/validate-artifact-location-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
     },
     {
       "path": "scripts/selftests/validate-auto-pass-ledger-selftest.sh",
@@ -4514,6 +5514,16 @@
       "posture_decision": "DP-179 root package / workspace governance fixture coverage."
     },
     {
+      "path": "scripts/selftests/validate-safe-cli-introspection-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
+      "selftest_reason": "selftest script"
+    },
+    {
       "path": "scripts/selftests/validate-script-dependencies-selftest.sh",
       "kind": "selftest",
       "runner": "bash",
@@ -4657,6 +5667,16 @@
       "selftest": "N/A",
       "lifecycle": "support_path",
       "relocation": "move_direct",
+      "selftest_reason": "selftest script"
+    },
+    {
+      "path": "scripts/selftests/verify-cross-llm-parity-selftest.sh",
+      "kind": "selftest",
+      "runner": "bash",
+      "owner_surface": "selftest_suite",
+      "selftest": "N/A",
+      "lifecycle": "support_path",
+      "relocation": "stay",
       "selftest_reason": "selftest script"
     },
     {
@@ -4805,6 +5825,24 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/spine-loop-state.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/spine-loop-state-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/spine-release.sh",
+      "kind": "release",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/spine-release-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/stack-replay-manifest-check.sh",
       "kind": "support",
       "runner": "bash",
@@ -4822,6 +5860,15 @@
       "lifecycle": "support_path",
       "relocation": "stay",
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/submit-pr-review.sh",
+      "kind": "support",
+      "runner": "bash",
+      "owner_surface": "review_pr",
+      "selftest": "scripts/selftests/submit-pr-review-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/support/detect-project-and-changes.sh",
@@ -5043,6 +6090,33 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
+      "path": "scripts/update-active-thread.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "session_handoff",
+      "selftest": "scripts/selftests/update-active-thread-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-artifact-contract-conformance.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/validate-artifact-contract-conformance-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-artifact-location.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/resolve-artifact-location-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-auto-pass-ledger.sh",
       "kind": "gate",
       "runner": "bash",
@@ -5135,11 +6209,20 @@
       "relocation": "stay"
     },
     {
-      "path": "scripts/validate-artifact-contract-conformance.sh",
+      "path": "scripts/validate-config-driven-authoring.sh",
       "kind": "gate",
       "runner": "bash",
-      "owner_surface": "skill_or_reference",
-      "selftest": "scripts/selftests/validate-artifact-contract-conformance-selftest.sh",
+      "owner_surface": "language_governance",
+      "selftest": "scripts/selftests/config-driven-authoring-audit-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-current-head-gap-ledger.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "tests/test_validate_current_head_gap_ledger.py",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },
@@ -5149,15 +6232,6 @@
       "runner": "bash",
       "owner_surface": "framework_pr_gate",
       "selftest": "scripts/selftests/validate-delivery-evidence-conformance-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/validate-generated-artifact-discipline.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "framework_pr_gate",
-      "selftest": "scripts/selftests/generated-artifact-discipline-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },
@@ -5200,6 +6274,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/validate-engineering-self-review-result.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/validate-engineering-self-review-result-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-escalation-sidecar.sh",
       "kind": "gate",
       "runner": "bash",
@@ -5208,6 +6291,33 @@
       "lifecycle": "hot_path",
       "relocation": "stay",
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
+    },
+    {
+      "path": "scripts/validate-framework-script-structure.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "scripts/selftests/framework-script-structure-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-framework-source-write.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_source_governance",
+      "selftest": "scripts/selftests/framework-source-mutation-no-bypass-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-generated-artifact-discipline.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/selftests/generated-artifact-discipline-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
     },
     {
       "path": "scripts/validate-handbook-path-contract.sh",
@@ -5390,15 +6500,6 @@
       "relocation": "stay"
     },
     {
-      "path": "scripts/validate-verification-strategy.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "skill_or_reference",
-      "selftest": "scripts/selftests/validate-verification-strategy-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
       "path": "scripts/validate-refinement-locked-scope.sh",
       "kind": "gate",
       "runner": "bash",
@@ -5427,29 +6528,11 @@
       "selftest_reason": "no dedicated selftest declared yet; covered by manifest governance, active callsite, or manual maintainer usage"
     },
     {
-      "path": "scripts/validate-framework-script-structure.sh",
+      "path": "scripts/validate-safe-cli-introspection.sh",
       "kind": "gate",
       "runner": "bash",
-      "owner_surface": "script_governance",
-      "selftest": "scripts/selftests/framework-script-structure-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/validate-script-layer-migration-coverage.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "script_governance",
-      "selftest": "tests/test_script_layer_migration_coverage.py",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/validate-current-head-gap-ledger.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "script_governance",
-      "selftest": "tests/test_validate_current_head_gap_ledger.py",
+      "owner_surface": "framework_pr_gate",
+      "selftest": "scripts/selftests/validate-safe-cli-introspection-selftest.sh",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },
@@ -5459,6 +6542,15 @@
       "runner": "bash",
       "owner_surface": "script_dependency_governance",
       "selftest": "scripts/selftests/validate-script-dependencies-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
+      "path": "scripts/validate-script-layer-migration-coverage.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "script_governance",
+      "selftest": "tests/test_script_layer_migration_coverage.py",
       "lifecycle": "hot_path",
       "relocation": "stay"
     },
@@ -5567,6 +6659,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/validate-verification-strategy.sh",
+      "kind": "gate",
+      "runner": "bash",
+      "owner_surface": "skill_or_reference",
+      "selftest": "scripts/selftests/validate-verification-strategy-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/validate-verify-evidence-layout.sh",
       "kind": "gate",
       "runner": "bash",
@@ -5661,6 +6762,15 @@
       "relocation": "stay"
     },
     {
+      "path": "scripts/write-engineering-self-review-result.sh",
+      "kind": "writer",
+      "runner": "bash",
+      "owner_surface": "engineering",
+      "selftest": "scripts/selftests/write-engineering-self-review-result-selftest.sh",
+      "lifecycle": "hot_path",
+      "relocation": "stay"
+    },
+    {
       "path": "scripts/write-extension-deliverable.sh",
       "kind": "writer",
       "runner": "bash",
@@ -5686,1008 +6796,6 @@
       "owner_surface": "skill_or_reference",
       "selftest": "scripts/selftests/run-behavior-contract-selftest.sh",
       "lifecycle": "support_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/update-active-thread.sh",
-      "kind": "writer",
-      "runner": "bash",
-      "owner_surface": "session_handoff",
-      "selftest": "scripts/selftests/update-active-thread-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/selftests/update-active-thread-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/session-start-thread-anchor-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/validate-config-driven-authoring.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "language_governance",
-      "selftest": "scripts/selftests/config-driven-authoring-audit-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/selftests/config-driven-authoring-audit-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "move_direct",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/selftests/framework-release-language-producer-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "selftest_suite",
-      "selftest": "N/A",
-      "lifecycle": "support_path",
-      "relocation": "move_direct",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/lint-dp-keyed-source-symmetry.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "framework_pr_gate",
-      "selftest": "scripts/selftests/lint-dp-keyed-source-symmetry-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/selftests/lint-dp-keyed-source-symmetry-selftest.sh",
-      "kind": "selftest",
-      "runner": "bash",
-      "owner_surface": "framework_pr_gate",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "selftest script"
-    },
-    {
-      "path": "scripts/lint-selftest-corpus-budget.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "framework_pr_gate",
-      "selftest": "tests/test_lint_selftest_corpus_budget.py",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/lint_selftest_corpus_budget.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "tests/test_lint_selftest_corpus_budget.py",
-      "lifecycle": "support_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lint-script-language-fit.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "framework_pr_gate",
-      "selftest": "tests/test_lint_script_language_fit.py",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/lint_script_language_fit.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "tests/test_lint_script_language_fit.py",
-      "lifecycle": "support_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/derive_task_md_from_refinement_json.py",
-      "kind": "writer",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "tests/test_derive_task_md_from_refinement_json.py",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/parse_task_md.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "tests/test_parse_task_md.py",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/resolve_task_md.py",
-      "kind": "resolver",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "tests/test_resolve_task_md.py",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_task_md.py",
-      "kind": "gate",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "tests/test_validate_task_md.py",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_render_md.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/render-refinement-md-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_resolve_template.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/resolve-refinement-template-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_validate_ac_coverage.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-refinement-ac-coverage-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_validate_artifact_parity.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-refinement-artifact-parity-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_validate_consumer_schema_binding.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-refinement-consumer-schema-binding-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_validate_inbox_record.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-refinement-inbox-record-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_validate_json.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-refinement-json-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_validate_locked_scope.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-refinement-locked-scope-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_backfill_predecessor_audit.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/backfill-refinement-predecessor-audit-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_backfill_verification_strategy.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/backfill-refinement-verification-strategy-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_lock_preflight_helpers.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-refinement-lock-preflight-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_handoff_helpers.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/refinement-handoff-gate-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_migrate_epic_handoff.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/migrate-epic-refinement-handoff-selftest.sh",
-      "lifecycle": "support_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_migrate_packaging_fields.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/refinement-breakdown-packaging-boundary-selftest.sh",
-      "lifecycle": "support_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_migrate_planned_tasks.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/migrate-refinement-planned-tasks-to-canonical-selftest.sh",
-      "lifecycle": "support_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/refinement_verify_convergence.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/verify-refinement-convergence-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/release_closeout_helpers.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/framework-release-closeout-pr-close-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_append_auto_pass_friction_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-friction-log-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_auto_pass_consume_resume_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-consume-resume-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_auto_pass_consume_resume_2.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-consume-resume-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_auto_pass_counter_race_recovery_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-counter-race-recovery-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_auto_pass_finalize_ledger_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-finalize-ledger-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_auto_pass_increment_counter_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-increment-counter-idempotency-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_auto_pass_pr_ownership_gate_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-pr-ownership-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_auto_pass_probe_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-probe-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_auto_pass_runner_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-runner-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_auto_pass_runner_2.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-runner-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_auto_pass_runner_3.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-runner-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_auto_pass_runner_4.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-runner-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_auto_pass_runner_5.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-runner-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/ci_ci_contract_discover_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/ci-contract-discover-selftest.sh",
-      "lifecycle": "support_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/ci_ci_local_generate_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/ci-local-generate-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/ci_ci_local_run_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/ci-local-run.sh compatibility CLI"
-    },
-    {
-      "path": "scripts/lib/ci_ci_local_run_2.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/ci-local-run.sh compatibility CLI"
-    },
-    {
-      "path": "scripts/lib/ci_ci_local_run_3.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/ci-local-run.sh compatibility CLI"
-    },
-    {
-      "path": "scripts/lib/ci_ci_local_run_4.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/ci-local-run.sh compatibility CLI"
-    },
-    {
-      "path": "scripts/lib/auto_pass_validate_auto_pass_ledger_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-auto-pass-ledger-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_validate_auto_pass_proof_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-auto-pass-proof-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_validate_auto_pass_report_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/auto-pass-report-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/auto_pass_validate_auto_pass_resume_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-auto-pass-resume-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_artifact_contract_conformance_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-artifact-contract-conformance-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_bootstrap_budget_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-bootstrap-budget-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_breakdown_escalation_intake_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/validate-breakdown-escalation-intake.sh --self-test and integration selftests"
-    },
-    {
-      "path": "scripts/lib/validate_breakdown_ready_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/validate-breakdown-ready-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_config_driven_authoring_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/config-driven-authoring-audit-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_delivery_evidence_conformance_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-delivery-evidence-conformance-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_dispatch_bundle_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-dispatch-bundle-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_dp_metadata_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/validate-dp-metadata.sh compatibility CLI"
-    },
-    {
-      "path": "scripts/lib/validate_dp_number_uniqueness_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/validate-dp-number-uniqueness.sh compatibility CLI"
-    },
-    {
-      "path": "scripts/lib/validate_escalation_sidecar_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/validate-escalation-sidecar.sh --self-test"
-    },
-    {
-      "path": "scripts/lib/validate_framework_script_structure_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/framework-script-structure-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_framework_script_structure_2.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/framework-script-structure-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_framework_script_structure_3.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/framework-script-structure-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_framework_script_structure_4.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/framework-script-structure-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_framework_script_structure_5.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/framework-script-structure-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_framework_source_write_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/framework-source-mutation-no-bypass-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_framework_source_write_2.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/framework-source-mutation-no-bypass-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_generated_artifact_discipline_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/generated-artifact-discipline-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_l2_embedding_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/validate-l2-embedding.sh compatibility CLI smoke validation"
-    },
-    {
-      "path": "scripts/lib/validate_language_policy_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-language-policy-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_manifest_parity_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-manifest-parity-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_memory_hygiene_plan_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-memory-hygiene-plan-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_memory_write_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-memory-write-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_model_tier_policy_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-model-tier-policy-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_polaris_command_catalog_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-polaris-command-catalog-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_polaris_config_migration_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/validate-polaris-config-migration.sh compatibility CLI smoke validation"
-    },
-    {
-      "path": "scripts/lib/validate_public_onboarding_contract_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/validate-public-onboarding-contract.sh compatibility CLI"
-    },
-    {
-      "path": "scripts/lib/validate_root_package_governance_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-root-package-governance-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_route_safe_spec_paths_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/validate-route-safe-spec-paths.sh compatibility CLI"
-    },
-    {
-      "path": "scripts/lib/validate_script_dependencies_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-script-dependencies-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_spec_boundary_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/validate-spec-boundary.sh compatibility CLI"
-    },
-    {
-      "path": "scripts/lib/validate_spec_source_parity_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-spec-source-parity-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_specs_collection_shape_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-specs-collection-shape-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_starlight_authoring_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-starlight-authoring-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_task_md_deps_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-task-md-deps-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_verification_strategy_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-verification-strategy-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_verify_evidence_layout_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-verify-evidence-layout-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_engineering_self_review_result_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-engineering-self-review-result-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_safe_cli_introspection_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-safe-cli-introspection-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_safe_cli_introspection_2.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-safe-cli-introspection-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_branch_name_ascii_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-branch-name-ascii-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_completion_envelope_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-completion-envelope-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/validate_learning_seed_contract_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/validate-learning-seed-contract.sh compatibility CLI"
-    },
-    {
-      "path": "scripts/lib/validate_polaris_toolchain_consumers_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/validate-polaris-toolchain-consumers.sh compatibility CLI"
-    },
-    {
-      "path": "scripts/lib/validate_selftest_enrollment_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "N/A",
-      "lifecycle": "hot_path",
-      "relocation": "stay",
-      "selftest_reason": "covered through scripts/validate-selftest-enrollment.sh compatibility CLI"
-    },
-    {
-      "path": "scripts/lib/validate_skill_contracts_1.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "scripts/selftests/validate-skill-contracts-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/confirm-dp420-self-iteration-certification.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "script_governance",
-      "selftest": "tests/test_confirm_dp420_self_iteration_certification.py",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/lib/confirm_dp420_self_iteration_certification.py",
-      "kind": "support",
-      "runner": "python3",
-      "owner_surface": "script_internal",
-      "selftest": "tests/test_confirm_dp420_self_iteration_certification.py",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/frozen-assertion-fence.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "skill_or_reference",
-      "selftest": "scripts/selftests/frozen-assertion-fence-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/record-measurement-change.sh",
-      "kind": "writer",
-      "runner": "bash",
-      "owner_surface": "skill_or_reference",
-      "selftest": "scripts/selftests/record-measurement-change-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/run-hardened-oracle.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "skill_or_reference",
-      "selftest": "scripts/selftests/run-hardened-oracle-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/spine-loop-state.sh",
-      "kind": "writer",
-      "runner": "bash",
-      "owner_surface": "skill_or_reference",
-      "selftest": "scripts/selftests/spine-loop-state-selftest.sh",
-      "lifecycle": "hot_path",
-      "relocation": "stay"
-    },
-    {
-      "path": "scripts/check-spine-cost-floor.sh",
-      "kind": "gate",
-      "runner": "bash",
-      "owner_surface": "skill_or_reference",
-      "selftest": "scripts/selftests/check-spine-cost-floor-selftest.sh",
-      "lifecycle": "hot_path",
       "relocation": "stay"
     }
   ],

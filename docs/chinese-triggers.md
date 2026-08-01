@@ -15,6 +15,9 @@ description: "Polaris skill 的中文與英文觸發詞對照。"
 
 | 功能 | 中文觸發詞 | 英文觸發詞 | 說明 |
 |------|-----------|-----------|------|
+| **assert** — 定案：凍結斷言 | 定案、寫斷言、凍結斷言、定目標 | assert | 新脊椎閘一。把成功的定義寫成正負表列的斷言，蓋封條並 commit（凍結 = commit） |
+| **work** — 施工 loop | 施工、做、繼續做、推進 | work | 新脊椎兩閘之間。探索、實作、換量測、推進輪次；四類流轉只有「斷言錯了」會停人 |
+| **judge** — 審查：執行 oracle | 審查、判一下、驗收、跑 oracle | judge | 新脊椎閘二。機械判定會擋、判斷報告不擋，兩者分開 |
 | **engineering** — 智慧開發路由 | 做 PROJ-123、開始做、接這張、做這張 | work on, engineering, start dev | 偵測 ticket 狀態，自動路由到估點／拆單／建 branch／開發。支援批次模式（多張 ticket 同時輸入） |
 | **auto-pass** — DP 正式流程 orchestrator | 快速通關 DP-198、完整流程 DP-198、DP-198 跑到底、DP-198 到 PR ready | auto-pass DP-198, fast pass DP-198 | 只接受 locked/current DP-backed source；串接 breakdown → engineering → verify-AC，到 workspace PR ready、verification current 與 durable report 產出後停下，release 交給 framework-release |
 | **sasd-review** — SA/SD 設計文件 | 寫 SA、出 SA/SD、SA 文件、SD 文件、架構文件、技術設計、異動範圍、dev scope | SASD, SA/SD, design doc, implementation plan, technical design, dev scope | Design-First Gate：在寫任何程式碼之前產出 SA/SD — 需求分析→歧義收集→2-3 方案比較→確認後產出 Dev Scope + System Flow + Task List |

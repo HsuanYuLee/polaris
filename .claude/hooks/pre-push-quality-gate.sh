@@ -179,6 +179,13 @@ if [[ -x "$GATES_DIR/gate-revision-rebase.sh" ]]; then
   bash "$GATES_DIR/gate-revision-rebase.sh" --repo "$repo_root"
 fi
 
+# DP-462: spine sources carry delivery evidence in their own .spine/delivery.json
+# rather than a task.md. Runs before gate-evidence, which steps aside for this
+# shape; the two never both own a push.
+if [[ -x "$GATES_DIR/gate-spine-delivery.sh" ]]; then
+  bash "$GATES_DIR/gate-spine-delivery.sh" --repo "$repo_root"
+fi
+
 if [[ -x "$GATES_DIR/gate-evidence.sh" ]]; then
   bash "$GATES_DIR/gate-evidence.sh" --repo "$repo_root"
 fi

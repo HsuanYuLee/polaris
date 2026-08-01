@@ -515,6 +515,20 @@ if [[ -d "$REPO_ROOT/.git" || -f "$REPO_ROOT/.git" ]]; then
   HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 fi
 
+# DP-462: a spine source carries its own delivery evidence in
+# {source}/.spine/delivery.json — written only after its frozen assertion fence
+# verifies — and gate-spine-delivery.sh owns checking it against HEAD. This gate
+# resolves evidence by matching a ticket-shaped token in the branch name to a
+# task.md; a spine source has no task.md and names itself inside its own record,
+# so engaging here would demand an artifact that correctly does not exist. Step
+# aside for that shape rather than requiring branch names to dodge the match.
+SPINE_DELIVERY_GATE="$SCRIPT_DIR/gate-spine-delivery.sh"
+if [[ -x "$SPINE_DELIVERY_GATE" ]] \
+   && bash "$SPINE_DELIVERY_GATE" --repo "$REPO_ROOT" --is-spine-push >/dev/null 2>&1; then
+  echo "$PREFIX spine delivery push — evidence owned by gate-spine-delivery.sh." >&2
+  exit 0
+fi
+
 # DP-351 G1: feat-aggregation evidence branch — must run BEFORE the release_bump /
 # metadata_only classifier and the behavioral head-bound-evidence requirement.
 # Trigger condition: the head branch is exactly feat/DP-NNN (the DP-334

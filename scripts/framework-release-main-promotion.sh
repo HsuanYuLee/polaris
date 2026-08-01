@@ -72,7 +72,18 @@ done
 [[ -n "$PR_NUMBER" ]] || die "--pr is required"
 [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || die "--pr must be a number: $PR_NUMBER"
 [[ -n "$HEAD_BRANCH" ]] || die "--head is required"
-[[ "$HEAD_BRANCH" =~ ^feat/DP-[0-9]+$ ]] || die "--head must be feat/DP-NNN: $HEAD_BRANCH"
+# DP-462: the promotion mechanics below — PR identity, head sha match, ancestry,
+# no merge bubble, fail-closed fast-forward — are release-model agnostic. Only
+# this name check was not. A spine head reaches main through the same PR gate and
+# the same fast-forward, so it is admitted by asking the delivery gate whether
+# this is a spine push, not by widening the pattern to anything DP-shaped.
+if ! [[ "$HEAD_BRANCH" =~ ^feat/DP-[0-9]+$ ]]; then
+  spine_gate="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gates/gate-spine-delivery.sh"
+  if ! { [[ -x "$spine_gate" ]] \
+         && bash "$spine_gate" --repo "$REPO_PATH" --is-spine-push >/dev/null 2>&1; }; then
+    die "--head must be feat/DP-NNN, or a spine head with a current delivery record: $HEAD_BRANCH"
+  fi
+fi
 [[ -n "$BASE_BRANCH" ]] || die "--base must not be empty"
 [[ "$BASE_BRANCH" != "$HEAD_BRANCH" ]] || die "base and head branches must differ"
 

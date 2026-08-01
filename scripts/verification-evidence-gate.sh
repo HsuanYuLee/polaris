@@ -115,6 +115,20 @@ if [[ -n "$gate_repo" ]] && [[ -d "$gate_repo/.git" || -f "$gate_repo/.git" ]]; 
   HEAD_SHA="$(git -C "$gate_repo" rev-parse HEAD 2>/dev/null || true)"
 fi
 
+# DP-462: a spine source carries its own delivery evidence in
+# {source}/.spine/delivery.json, written only after its frozen assertion fence
+# verifies, and gate-spine-delivery.sh owns checking it against HEAD. This gate
+# looks for evidence keyed by a ticket parsed out of the branch name; a spine
+# source has no task.md to produce that file and names itself inside its own
+# record. Step aside for that shape rather than reaching for POLARIS_SKIP_EVIDENCE,
+# which would suppress every other case this gate still covers.
+SPINE_DELIVERY_GATE="$SCRIPT_DIR/gates/gate-spine-delivery.sh"
+if [[ -n "$gate_repo" && -x "$SPINE_DELIVERY_GATE" ]] \
+   && bash "$SPINE_DELIVERY_GATE" --repo "$gate_repo" --is-spine-push >/dev/null 2>&1; then
+  echo "spine delivery push — evidence owned by gate-spine-delivery.sh." >&2
+  exit 0
+fi
+
 tmp_evidence="$(verification_evidence_tmp_path "$ticket" "$HEAD_SHA")"
 durable_evidence="$(verification_evidence_durable_path "$gate_repo" "$ticket" "$HEAD_SHA" 2>/dev/null || true)"
 EVIDENCE_FILE="$(verification_evidence_resolve_existing_path "$gate_repo" "$ticket" "$HEAD_SHA" 2>/dev/null || true)"

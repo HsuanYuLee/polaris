@@ -590,6 +590,8 @@ if [[ -d "$INSTANCE_DIR/docs-manager" ]]; then
     "$INSTANCE_DIR/docs-manager/public/evidence/*" \
     "$INSTANCE_DIR/docs-manager/src/content/docs/specs/*"
 fi
+# sources/ needs no exclusion here: it is a top-level directory, and every sync
+# step above copies an explicitly named path. Nothing sweeps the repo root.
 
 # ── Step 8: Sync top-level files ──────────────────────────────────
 

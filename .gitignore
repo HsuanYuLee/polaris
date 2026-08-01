@@ -48,6 +48,16 @@ docs-manager/dist/
 docs-manager/public/evidence/
 docs-manager/src/content/docs/specs/
 
+# ── sources/ (frozen assertions + living documents) ──
+# A source's index.md carries the frozen assertions and is tracked: freezing is
+# committing, and history is the only tamper evidence a writer inside the repo
+# cannot rewrite in place. Its .spine/ sibling is execution state rewritten every
+# round, so it stays out of history. docs-manager only renders these; it does not
+# own them, which is why they no longer live inside it.
+!sources/
+!sources/**
+sources/*/.spine/
+
 # ── scripts/ framework utilities ──
 !scripts/
 !scripts/**

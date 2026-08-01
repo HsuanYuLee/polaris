@@ -319,6 +319,28 @@ if [[ "$current_branch" =~ ^(main|master|develop)$ || "$current_branch" =~ ^rele
   exit 2
 fi
 
+# DP-462 spine lane: a spine source is a legal work source in its own right. Its
+# authority is not a task.md binding a branch name, but a frozen assertion fence
+# a human signed plus a delivery record pinned to the commit being pushed —
+# record-delivery-intent.sh refuses to write that record unless the fence still
+# verifies, so the lane cannot be entered by naming a branch a certain way.
+#
+# The lane is earned per push, not per branch: gate-spine-delivery.sh answers yes
+# only when this push touches a source that has a delivery record. That is the
+# same reader the push-time gate uses, so the two cannot drift apart.
+if [[ -x "$SCRIPT_DIR/gate-spine-delivery.sh" ]] \
+   && bash "$SCRIPT_DIR/gate-spine-delivery.sh" --repo "$REPO_ROOT" --is-spine-push >/dev/null 2>&1; then
+  # Entering the lane is not the same as passing it. Run the full check so a
+  # record left behind by later commits still blocks here, exactly as at push.
+  if bash "$SCRIPT_DIR/gate-spine-delivery.sh" --repo "$REPO_ROOT" >/dev/null 2>&1; then
+    echo "$PREFIX ✅ spine lane: branch=$current_branch delivery record current at HEAD" >&2
+    exit 0
+  fi
+  echo "$PREFIX BLOCKED: spine lane requires a delivery record pinned to the current HEAD." >&2
+  bash "$SCRIPT_DIR/gate-spine-delivery.sh" --repo "$REPO_ROOT" >&2 || true
+  exit 2
+fi
+
 # DP-217 chore-followup lane: release-tail manifest / housekeeping fixes that
 # don't deserve a new task.md. The lane only triggers when:
 #   - branch matches chore/DP-NNN-<slug>

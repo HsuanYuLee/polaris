@@ -2,8 +2,8 @@
 # Purpose: Verify the frozen fence seals, detects tampering, and fails closed.
 # Inputs: Hermetic Markdown fixtures plus the repo's hand-signed 05-redesign.md.
 # Outputs: PASS when equal-length edits stop, missing seals stop, unchanged
-#          fences pass, seal round-trips, non-canonical ids are refused at seal
-#          time, and fences signed under historical ids still verify.
+#          fences pass, seal round-trips, duplicate ids are refused at both seal
+#          and verify time, and free-form ids are accepted.
 
 set -euo pipefail
 
@@ -18,7 +18,14 @@ done
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 FENCE="$ROOT_DIR/scripts/frozen-assertion-fence.sh"
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+NOGIT="$(mktemp -d)"
+trap 'rm -rf "$WORK" "$NOGIT"' EXIT
+
+# verify compares against git history by default, so fixtures need a resolvable
+# HEAD. Files written but never committed read as new fences, which is the
+# intended "nothing to compare against" path.
+git -C "$WORK" init -q .
+git -C "$WORK" -c user.email=t@example.com -c user.name=t commit -q --allow-empty -m base
 
 fail() {
   echo "FAIL: $*" >&2
@@ -99,33 +106,41 @@ printf '\nAn extra paragraph outside the fence.\n' >> "$WORK/outside.md"
 bash "$FENCE" verify "$WORK/outside.md" >/dev/null \
   || fail "an edit outside the fence wrongly invalidated the seal"
 
-# --- Case 5: seal refuses non-canonical assertion ids ------------------------
-write_fixture "$WORK/legacy-ids.md" A-P1 A-N1
-out="$(bash "$FENCE" seal "$WORK/legacy-ids.md" --by tester 2>&1)" && \
-  fail "seal accepted non-canonical assertion ids"
-grep -Fq "POLARIS_FROZEN_FENCE_ASSERTION_ID_NOT_CANONICAL" <<<"$out" \
-  || fail "seal rejection did not emit the canonical-id marker; got: $out"
-grep -Fq "A-P1" <<<"$out" || fail "seal rejection did not name the violating id A-P1"
-grep -Fq "A-N1" <<<"$out" || fail "seal rejection did not name the violating id A-N1"
-grep -Fq "frozen_by:" "$WORK/legacy-ids.md" \
+# --- Case 5: any id shape seals, as long as ids are distinct -----------------
+# There is no format rule. Nothing downstream reads an id's shape, and no frozen
+# assertion asks for one; a format rule would be a convention the tool invented
+# for itself. This case is the positive direction of that decision.
+write_fixture "$WORK/free-form-ids.md" A-P1 B-N7
+bash "$FENCE" seal "$WORK/free-form-ids.md" --by tester >/dev/null \
+  || fail "seal refused a fence whose ids merely differ from an old convention"
+bash "$FENCE" verify "$WORK/free-form-ids.md" >/dev/null \
+  || fail "a fence sealed with free-form ids failed verify"
+
+# --- Case 6: duplicate ids fail closed at both seal and verify ---------------
+# The measurement ledger looks entries up by id equality, so a collision would
+# let an unsanctioned command match a sibling's sanctioned entry (defeats A-N2).
+write_fixture "$WORK/dupe-ids.md" A-P1 A-P1
+out="$(bash "$FENCE" seal "$WORK/dupe-ids.md" --by tester 2>&1)" && \
+  fail "seal accepted duplicate assertion ids"
+grep -Fq "POLARIS_FROZEN_FENCE_ASSERTION_ID_DUPLICATE" <<<"$out" \
+  || fail "seal rejection did not emit the duplicate-id marker; got: $out"
+grep -Fq "A-P1" <<<"$out" || fail "seal rejection did not name the duplicated id"
+grep -Fq "frozen_by:" "$WORK/dupe-ids.md" \
   && fail "seal wrote a seal despite refusing to sign"
 
-# --- Case 6: fences signed under historical ids still verify -----------------
-# The canonical-id rule is a signing-time rule. Applying it at verify time would
-# retroactively break every fence a human already signed.
-write_fixture "$WORK/historical.md" A-P1 A-N1
-historical_hash="$(bash "$FENCE" hash "$WORK/historical.md" --block A)"
-python3 - "$WORK/historical.md" "$historical_hash" <<'PY'
+# Unlike a format rule, this one is about artifact correctness, so it also has to
+# hold at verify time — a collision introduced after signing must not slip through.
+write_fixture "$WORK/dupe-after-seal.md" A-P1 A-N1
+bash "$FENCE" seal "$WORK/dupe-after-seal.md" --by tester >/dev/null \
+  || fail "seal failed on a distinct-id fixture"
+python3 - "$WORK/dupe-after-seal.md" <<'PY'
 import sys
-path, digest = sys.argv[1:3]
-lines = open(path, encoding="utf-8").read().split("\n")
-end = lines.index("---", 1)
-seal = ["frozen_by: historical-signer", "frozen_at: 2026-07-31T19:02:31Z",
-        "assertions_hash:", f"  A: sha256:{digest}"]
-open(path, "w", encoding="utf-8").write("\n".join(lines[:end] + seal + lines[end:]))
+path = sys.argv[1]
+body = open(path, encoding="utf-8").read().replace("**A-N1 second", "**A-P1 second")
+open(path, "w", encoding="utf-8").write(body)
 PY
-bash "$FENCE" verify "$WORK/historical.md" >/dev/null \
-  || fail "a fence signed under historical ids failed verify"
+assert_marker "duplicate id at verify" POLARIS_FROZEN_FENCE_ASSERTION_ID_DUPLICATE \
+  bash "$FENCE" verify "$WORK/dupe-after-seal.md"
 
 # --- Case 7: unterminated and missing fences fail closed ---------------------
 printf -- '---\ntitle: "x"\n---\n\nno fence here\n' > "$WORK/no-fence.md"
@@ -166,5 +181,50 @@ if [[ -f "$SIGNED" ]]; then
 else
   echo "SKIP: hand-signed fence not reachable at $SIGNED" >&2
 fi
+
+# --- Case 11: re-sealing a tampered fence does not survive git history -------
+# The seal alone only proves the fence and its frontmatter agree. A writer that
+# edits the fence and re-seals in one breath gets a green verify, and `--by` is
+# just a string an agent can supply. --against compares against a ref, which a
+# writer inside the repo cannot rewrite in place.
+GITWORK="$NOGIT/git-history"
+mkdir -p "$GITWORK"
+git -C "$GITWORK" init -q .
+write_fixture "$GITWORK/tracked.md" A-P1 A-N1
+bash "$FENCE" seal "$GITWORK/tracked.md" --by human >/dev/null \
+  || fail "seal failed on the history fixture"
+git -C "$GITWORK" add -A
+git -C "$GITWORK" -c user.email=t@example.com -c user.name=t commit -qm base
+
+bash "$FENCE" verify "$GITWORK/tracked.md" --against HEAD >/dev/null \
+  || fail "an unchanged fence failed the history comparison"
+
+python3 - "$GITWORK/tracked.md" <<'PY'
+import sys
+path = sys.argv[1]
+body = open(path, encoding="utf-8").read().replace("the flow stops.", "the flow continues.")
+open(path, "w", encoding="utf-8").write(body)
+PY
+bash "$FENCE" seal "$GITWORK/tracked.md" --by some-agent >/dev/null \
+  || fail "re-seal unexpectedly failed; the case needs the seal itself to look consistent"
+# The seal is now internally consistent again — that is precisely the attack. It
+# has to fail anyway, with no flag asked for: freezing is committing.
+assert_marker "tampered then re-sealed" POLARIS_FROZEN_FENCE_CHANGED_SINCE_REF \
+  bash "$FENCE" verify "$GITWORK/tracked.md"
+
+# Committing the change is what authorises it, and it is authorised because it is
+# now a diff someone can read.
+git -C "$GITWORK" add -A
+git -C "$GITWORK" -c user.email=t@example.com -c user.name=t commit -qm "re-sign fence"
+bash "$FENCE" verify "$GITWORK/tracked.md" >/dev/null \
+  || fail "a committed re-signature still failed verify"
+
+# --- Case 12: no history means no claim ---------------------------------------
+# A fence outside git must not pass the comparison by default; that would let an
+# untracked location silently buy back the exemption this check exists to remove.
+write_fixture "$NOGIT/untracked.md" A-P1 A-N1
+bash "$FENCE" seal "$NOGIT/untracked.md" --by human >/dev/null
+assert_marker "fence outside git" POLARIS_FROZEN_FENCE_HISTORY_UNAVAILABLE \
+  bash "$FENCE" verify "$NOGIT/untracked.md"
 
 echo "PASS: frozen-assertion-fence-selftest.sh"

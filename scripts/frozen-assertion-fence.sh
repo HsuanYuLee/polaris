@@ -19,19 +19,20 @@
 #   seal <file> --by <who>        write the seal for every block
 #
 # `verify` fails closed: a missing seal, an unknown block, an unterminated
-# fence, or a hash mismatch all exit 2 and demand a human re-signature.
-# `seal` additionally refuses to sign when an assertion id inside the fence is
-# not canonical `AC-<LETTERS><digits>` shape. That check runs at signing time
-# only, so fences signed before the rule existed keep verifying.
+# fence, a duplicate assertion id, or a hash mismatch all exit 2 and demand a
+# human re-signature. `seal` runs the same duplicate-id check before signing.
+#
+# There is deliberately no assertion id *format* rule. Nothing downstream reads
+# the shape of an id — record-measurement-change.sh compares it as an opaque
+# string — and no frozen assertion asks for one, so a format rule would be a
+# convention the tool invented for itself. Uniqueness is different: the ledger
+# looks entries up by id equality, so two assertions sharing an id would let an
+# unsanctioned command match a sibling's sanctioned entry, defeating A-N2.
 
 set -uo pipefail
 
-# Assertion ids are normalized once, at the moment a human signs. Downstream
-# artifacts (refinement.json, task.md, verify-AC reports) can then quote the id
-# verbatim instead of rewriting it.
-CANONICAL_ASSERTION_ID_RE='^AC-[A-Z]+[0-9]+$'
 # A bold lead token only counts as an assertion id when it looks like one; the
-# fence also carries prose in bold, which must not be flagged.
+# fence also carries prose in bold, which must not be collected.
 CANDIDATE_ASSERTION_ID_RE='^[A-Za-z][A-Za-z0-9]*-[A-Za-z]*[0-9]+$'
 ASSERTIONS_HASH_RECIPE="sed -n '/<!-- POLARIS-FROZEN-{K}-BEGIN -->/,/<!-- POLARIS-FROZEN-{K}-END -->/p' <file> | sed '1d;\$d' | shasum -a 256"
 
@@ -42,7 +43,8 @@ Usage:
   frozen-assertion-fence.sh hash <file> --block <KEY>
   frozen-assertion-fence.sh hash --file <path>
   frozen-assertion-fence.sh hash --stdin
-  frozen-assertion-fence.sh verify <file> [--block <KEY>]
+  frozen-assertion-fence.sh verify <file> [--block <KEY>] [--against <git-ref>]
+      (the fence is compared against git history by default; --against picks the ref)
   frozen-assertion-fence.sh seal <file> --by <signer> [--block <KEY>] [--at <iso8601>]
 EOF
 }
@@ -181,11 +183,67 @@ cmd_hash() {
   fi
 }
 
+assert_unchanged_since() {
+  # Description: fail closed when a fence differs from the same file at a git ref.
+  # Args: $1 = file, $2 = git ref, $3.. = block keys
+  # Side effects: exits 2 when history is unreachable or the fence moved.
+  #
+  # A seal only proves the fence and its frontmatter agree with each other. Any
+  # writer that edits the fence and re-seals in the same breath produces a green
+  # verify — including an agent, since `--by` is just a string. Git history is the
+  # one record a writer inside the repo cannot rewrite in place, so this is what
+  # actually gives A-N1 teeth: a changed fence has to surface as a reviewable diff.
+  local file="$1" ref="$2"
+  shift 2
+
+  local repo_root rel blob key before after changed=""
+  repo_root="$(git -C "$(dirname "$file")" rev-parse --show-toplevel 2>/dev/null)" \
+    || die "POLARIS_FROZEN_FENCE_HISTORY_UNAVAILABLE" \
+      "$file is not inside a git repository; a fence with no history cannot be shown to be unchanged"
+
+  rel="$(python3 -c 'import os,sys; print(os.path.relpath(os.path.realpath(sys.argv[1]), os.path.realpath(sys.argv[2])))' "$file" "$repo_root")"
+
+  if ! git -C "$repo_root" cat-file -e "${ref}:${rel}" 2>/dev/null; then
+    if git -C "$repo_root" rev-parse --verify --quiet "$ref" >/dev/null; then
+      # Absent at the ref means this fence is new. A new fence is signed, not compared.
+      echo "NEW: $rel does not exist at ${ref}; nothing to compare against"
+      return 0
+    fi
+    die "POLARIS_FROZEN_FENCE_HISTORY_UNAVAILABLE" \
+      "cannot resolve ${ref} in ${repo_root}; refusing to claim the fence is unchanged"
+  fi
+
+  blob="$(mktemp)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$blob'" RETURN
+  git -C "$repo_root" show "${ref}:${rel}" > "$blob" \
+    || die "POLARIS_FROZEN_FENCE_HISTORY_UNAVAILABLE" "could not read ${ref}:${rel}"
+
+  for key in "$@"; do
+    before="$(fence_inner "$blob" "$key" | sha256_stdin)"
+    after="$(fence_inner "$file" "$key" | sha256_stdin)"
+    [[ "$before" == "$after" ]] && continue
+    changed+="  ${key}: ${ref} sha256:${before} -> current sha256:${after}"$'\n'
+  done
+
+  if [[ -n "$changed" ]]; then
+    die "POLARIS_FROZEN_FENCE_CHANGED_SINCE_REF" \
+      "fence content in $rel differs from ${ref}; re-sealing does not authorise this — the change must be reviewed as a diff:"$'\n'"${changed%$'\n'}"
+  fi
+
+  echo "PASS: fence content in $rel is unchanged since ${ref}"
+}
+
 cmd_verify() {
-  local file="" block=""
+  # A fence is frozen by being committed, not by carrying a seal. The seal only
+  # proves the fence and its frontmatter agree; git history is what makes a change
+  # surface as a reviewable diff. So the comparison is the default, not an opt-in,
+  # and there is deliberately no flag to turn it off.
+  local file="" block="" against="HEAD"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --block) block="${2:-}"; shift 2 ;;
+      --against) against="${2:-}"; shift 2 ;;
       -*) usage; exit 2 ;;
       *) file="$1"; shift ;;
     esac
@@ -201,7 +259,14 @@ cmd_verify() {
   fi
   [[ -n "$keys" ]] || die "POLARIS_FROZEN_FENCE_NO_BLOCK" "no POLARIS-FROZEN fence found in $file"
 
-  local key actual sealed
+  local key verify_key_array=()
+  while read -r key; do
+    [[ -n "$key" ]] || continue
+    verify_key_array+=("$key")
+  done <<< "$keys"
+  assert_unique_ids verify "$file" "${verify_key_array[@]}"
+
+  local actual sealed
   while read -r key; do
     [[ -n "$key" ]] || continue
     actual="$(fence_inner "$file" "$key" | sha256_stdin)" || exit 2
@@ -217,27 +282,34 @@ cmd_verify() {
     fi
     echo "PASS: frozen fence '$key' matches seal sha256:$sealed"
   done <<< "$keys"
+
+  # Last, and unconditional: the seal only proves internal agreement, so the
+  # fence must also match what git already holds. Freezing is committing.
+  assert_unchanged_since "$file" "$against" "${verify_key_array[@]}"
 }
 
-assert_canonical_ids() {
-  # Description: reject a seal attempt when any fence assertion id is non-canonical.
-  # Args: $1 = file, $2.. = block keys
-  # Side effects: exits 2 listing every violating id.
-  local file="$1"
-  shift
-  local key violations=""
+assert_unique_ids() {
+  # Description: reject a fence whose assertion ids collide across the file.
+  # Args: $1 = verb shown in the error ("seal" / "verify"), $2 = file, $3.. = block keys
+  # Side effects: exits 2 listing every duplicated id.
+  local verb="$1" file="$2"
+  shift 2
+  local key seen="" duplicates=""
   for key in "$@"; do
     while read -r candidate; do
       [[ -n "$candidate" ]] || continue
       [[ "$candidate" =~ $CANDIDATE_ASSERTION_ID_RE ]] || continue
-      [[ "$candidate" =~ $CANONICAL_ASSERTION_ID_RE ]] && continue
-      violations+="  ${key}: ${candidate}"$'\n'
+      if printf '%s' "$seen" | grep -qxF "$candidate"; then
+        printf '%s' "$duplicates" | grep -qxF "$candidate" || duplicates+="  ${candidate}"$'\n'
+      else
+        seen+="${candidate}"$'\n'
+      fi
     done < <(fence_inner "$file" "$key" | sed -n 's/^[[:space:]]*[-*][[:space:]]*\*\*\([^ *]*\).*$/\1/p')
   done
 
-  if [[ -n "$violations" ]]; then
-    die "POLARIS_FROZEN_FENCE_ASSERTION_ID_NOT_CANONICAL" \
-      "refusing to seal $file; assertion ids must match AC-<LETTERS><digits>:"$'\n'"${violations%$'\n'}"
+  if [[ -n "$duplicates" ]]; then
+    die "POLARIS_FROZEN_FENCE_ASSERTION_ID_DUPLICATE" \
+      "refusing to ${verb} ${file}; the measurement ledger looks entries up by id equality, so these must be unique:"$'\n'"${duplicates%$'\n'}"
   fi
 }
 
@@ -270,7 +342,7 @@ cmd_seal() {
     key_array+=("$key")
   done <<< "$keys"
 
-  assert_canonical_ids "$file" "${key_array[@]}"
+  assert_unique_ids seal "$file" "${key_array[@]}"
 
   # Pairs travel as argv, not stdin: the python program itself arrives on stdin
   # via heredoc, so a pipe here would be silently swallowed.
