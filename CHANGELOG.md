@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.85.2] - 2026-08-02
+
+### Changed
+
+- f56c7c4: DP-462：釋出尾段三個「查了但沒查到東西也算過」的缺口。
+  - **標籤問了錯的地方**。`spine-release.sh` 用本地標籤名判斷「這一版是不是已經發過」。
+    template repo 是本 workspace 的一個 remote 且用同一套版號，它的標籤以同名落在本地卻指向
+    完全不同的 commit。於是 v3.85.1 被判成「已存在」，尾段跳過自己的標籤、照樣印出「shipped
+    at v3.85.1」，而 origin 上根本沒有那個標籤或 release。改成問 origin。
+  - **交付紀錄釘錯 repo 的 HEAD**。`record-delivery-intent.sh` 取的是腳本所在 repo 的 HEAD，
+    不是 source 所在 repo 的。在主 checkout 兩者相同，在 worktree 就不同——紀錄會靜靜指向
+    另一個 checkout 的 commit。
+  - **釘在本 repo 沒有的 commit 上的紀錄會消失**。`gate-spine-delivery.sh` 的兩道祖先判斷對
+    這種 commit 都答「不是」，紀錄於是整筆掉出清單，讀起來像「這次 push 沒有紀錄相關」，而
+    釋出尾段接著宣告「record current」——一個什麼都沒檢查的肯定。現在當成 refusal。
+    `spine-release-selftest.sh` 的 stale 案例同時修正：它把紀錄記在 origin 已有的 commit 上，
+    那讀作「已出貨」而非「過期」，這條案例先前證明不了自己宣稱的事。
+
 ## [3.85.1] - 2026-08-02
 
 ### Changed

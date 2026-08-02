@@ -86,6 +86,14 @@ relevant_records() {
       printf '%s\t%s\t%s\n' "$source" current "$destination"
       continue
     fi
+    # A head this repository does not contain cannot be reasoned about at all —
+    # the ancestry tests below would both answer "no" and the record would drop
+    # out silently, leaving the release tail to announce "record current" from an
+    # empty check. It is unusable, which is a refusal, not an absence of opinion.
+    if ! git -C "$REPO_ROOT" cat-file -e "${head}^{commit}" 2>/dev/null; then
+      printf '%s\t%s\t%s\n' "$source" unknown_head "$destination"
+      continue
+    fi
     # Already contained in what the remote has: shipped, not stale.
     if git -C "$REPO_ROOT" merge-base --is-ancestor "$head" origin/main 2>/dev/null; then
       continue
@@ -143,6 +151,14 @@ for entry in "${SOURCES[@]}"; do
 
   recorded="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("head_sha",""))' \
     "$REPO_ROOT/$source/.spine/delivery.json" 2>/dev/null || true)"
+  if [[ "$state" == "unknown_head" ]]; then
+    echo "$PREFIX BLOCKED: ${source} recorded its delivery intent at ${recorded:0:12}, which this repository does not contain." >&2
+    echo "$PREFIX A record pinned to a commit that is not here describes work this push cannot be." >&2
+    echo "$PREFIX Re-run judge's handoff step from the checkout that is shipping:" >&2
+    echo "$PREFIX   bash scripts/record-delivery-intent.sh --source ${source} --version-bump <bump> --summary '<line>'" >&2
+    failures=$((failures + 1))
+    continue
+  fi
   echo "$PREFIX BLOCKED: ${source} recorded its delivery intent at ${recorded:0:12}, but HEAD is ${HEAD_SHA:0:12}." >&2
   echo "$PREFIX The record the release tail reads describes a different commit than the one being pushed." >&2
   echo "$PREFIX Re-run judge's handoff step so the record and the commit agree:" >&2

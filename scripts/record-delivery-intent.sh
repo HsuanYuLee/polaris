@@ -81,15 +81,20 @@ destination="$(awk '
 [[ -n "$destination" ]] || die "POLARIS_DELIVERY_INTENT_NO_DESTINATION" \
   "$INDEX declares no destination; run check-source-destination.sh for the contract"
 
+# The head being recorded is the head of the repository the source lives in, not
+# of whichever checkout this script happens to sit in. Those coincide in the main
+# checkout and diverge in a worktree — and a record silently pinned to another
+# checkout's HEAD names a commit that is not what ships.
+SOURCE_REPO="$(git -C "$(dirname "$INDEX")" rev-parse --show-toplevel 2>/dev/null || echo "$ROOT_DIR")"
 if [[ -z "$HEAD_SHA" ]]; then
-  HEAD_SHA="$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || true)"
+  HEAD_SHA="$(git -C "$SOURCE_REPO" rev-parse HEAD 2>/dev/null || true)"
 fi
 [[ -n "$HEAD_SHA" ]] || die "POLARIS_DELIVERY_INTENT_NO_HEAD" \
   "could not resolve a head sha; pass --head explicitly"
 
 # Whoever runs this is the one accountable for the summary, same as the fence
 # signer. Recording it makes the handoff traceable to a person, not a process.
-judged_by="$(git -C "$ROOT_DIR" config user.name 2>/dev/null || echo unknown)"
+judged_by="$(git -C "$SOURCE_REPO" config user.name 2>/dev/null || echo unknown)"
 judged_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 OUT_DIR="$SOURCE_DIR/.spine"

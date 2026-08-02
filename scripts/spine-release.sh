@@ -29,6 +29,7 @@ set -euo pipefail
 SOURCE_DIR=""
 REPO_PATH=""
 EXECUTE=0
+PROBE_TAG=""
 
 die() {
   # Description: print a POLARIS marker plus context to stderr and exit 1.
@@ -47,6 +48,10 @@ while [[ $# -gt 0 ]]; do
     --source)  SOURCE_DIR="${2:-}"; shift 2 ;;
     --repo)    REPO_PATH="${2:-}"; shift 2 ;;
     --execute) EXECUTE=1; shift ;;
+    # Answers "has origin already released this version?" and exits. The tail asks
+    # the same question through this path, so a test can reach it without a
+    # release; two answers to one question is how the skip below went wrong.
+    --origin-has-tag) PROBE_TAG="${2:-}"; shift 2 ;;
     -h|--help)
       echo "Usage: spine-release.sh --source <dir> [--repo <path>] [--execute]" >&2
       echo "Without --execute this previews what it would do and changes nothing." >&2
@@ -56,9 +61,22 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "$SOURCE_DIR" ]] || die "POLARIS_SPINE_RELEASE_USAGE" "--source is required"
+[[ -n "$SOURCE_DIR" || -n "$PROBE_TAG" ]] || die "POLARIS_SPINE_RELEASE_USAGE" "--source is required"
 [[ -n "$REPO_PATH" ]] || REPO_PATH="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 REPO_PATH="$(cd "$REPO_PATH" && pwd)"
+
+# Description: print the sha origin has for a tag, empty when origin has none.
+# Args: $1 = tag name. Side effects: one network read of origin's refs.
+origin_tag_sha() {
+  local tag="$1"
+  git -C "$REPO_PATH" ls-remote --tags origin "refs/tags/$tag" 2>/dev/null \
+    | awk -v ref="refs/tags/$tag" '$2 == ref { print $1 }'
+}
+
+if [[ -n "$PROBE_TAG" ]]; then
+  origin_tag_sha "$PROBE_TAG"
+  exit 0
+fi
 SCRIPTS="$REPO_PATH/scripts"
 
 RECORD="$REPO_PATH/$SOURCE_DIR/.spine/delivery.json"
@@ -233,10 +251,19 @@ bash "$SCRIPTS/sync-to-polaris.sh" --push >&2
 step "tag and release"
 version="$(cat "$REPO_PATH/VERSION")"
 tag="v$version"
-if git -C "$REPO_PATH" rev-parse --verify --quiet "refs/tags/$tag" >/dev/null 2>&1; then
-  note "$tag already exists — leaving it alone"
+# The question is whether *this* repository has already released the version, so
+# it is asked of origin. The local tag namespace cannot answer it: the template
+# repository is a remote here and versions the same way, so its tags land locally
+# with identical names pointing at entirely different commits. Reading local tags
+# made the tail skip its own tag and still print "shipped at v3.85.1" — the
+# release existed nowhere on origin (2026-08-02).
+remote_tag="$(origin_tag_sha "$tag")"
+if [[ -n "$remote_tag" ]]; then
+  note "$tag already on origin — leaving it alone"
 else
-  git -C "$REPO_PATH" tag -a "$tag" -m "${SUMMARY:-$tag}"
+  # -f because a same-named tag may already sit locally, pointing at the template
+  # repository's commit; this repository's tag has to point at what shipped here.
+  git -C "$REPO_PATH" tag -f -a "$tag" -m "${SUMMARY:-$tag}" >/dev/null
   git -C "$REPO_PATH" push origin "$tag" >&2
   gh release create "$tag" --repo "$workspace_repo" \
     --title "$tag" --notes "${SUMMARY:-$tag}" >&2

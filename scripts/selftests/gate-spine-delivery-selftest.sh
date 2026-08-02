@@ -118,4 +118,21 @@ if bash "$GATE" --repo "$repo" --is-spine-push >/dev/null 2>&1; then
 fi
 echo "  ok  no record at all is disclaimed"
 
+# A record pinned to a commit this repository does not contain used to fall
+# through both ancestry tests and disappear, which read as "no record concerns
+# this push" — and the release tail then announced "record current" from a check
+# that had examined nothing. It is unusable, and unusable is a refusal.
+repo="$(new_repo foreignhead)"
+commit_work_outside_sources "$repo" "work in progress"
+write_record "$repo" "0000000000000000000000000000000000000001"
+if bash "$GATE" --repo "$repo" >/dev/null 2>&1; then
+  fail "a record pinned to a commit that is not here should block"
+fi
+bash "$GATE" --repo "$repo" --is-spine-push >/dev/null 2>&1 \
+  || fail "an unusable record must stay owned here rather than pass to another gate"
+refusal="$(bash "$GATE" --repo "$repo" 2>&1 || true)"
+printf '%s' "$refusal" | grep -q 'does not contain' \
+  || fail "the refusal must say the recorded commit is not in this repository: $refusal"
+echo "  ok  a record pinned outside this repository blocks"
+
 echo "PASS: gate-spine-delivery"

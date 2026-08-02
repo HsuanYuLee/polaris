@@ -114,6 +114,11 @@ echo "  ok  altered assertions refuse"
 # A record left behind by later commits describes different work than the one
 # about to ship.
 repo="$(new_repo stale template)"
+# The record has to sit on a commit origin does not already have, otherwise it
+# reads as shipped rather than stale and this case proves nothing.
+echo "the work" >> "$repo/sources/DP-000-selftest/notes.md"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "the work being delivered"
 record "$repo" minor
 echo "later work" >> "$repo/sources/DP-000-selftest/notes.md"
 git -C "$repo" add -A
@@ -147,5 +152,40 @@ release "$repo" >/dev/null 2>&1 || true
 [[ "$(git -C "$repo" rev-parse HEAD)" == "$before" ]] \
   || fail "preview must not commit anything"
 echo "  ok  preview changes nothing"
+
+# "Has this version already been released?" has to be asked of origin. The
+# template repository is a remote of the workspace and versions the same way, so
+# its tags sit locally under identical names pointing at different commits. Asking
+# the local namespace made the tail skip its own tag and still report success.
+probe_repo="$WORK/tag-probe"
+mkdir -p "$probe_repo"
+ln -s "$ROOT_DIR/scripts" "$probe_repo/scripts"
+git init -q "$probe_repo"
+git -C "$probe_repo" config user.email selftest@example.com
+git -C "$probe_repo" config user.name selftest
+printf 'seed\n' > "$probe_repo/seed"
+git -C "$probe_repo" add seed
+git -C "$probe_repo" commit -qm seed
+
+git init -q --bare "$WORK/origin.git"
+git init -q --bare "$WORK/template.git"
+git -C "$probe_repo" remote add origin "$WORK/origin.git"
+git -C "$probe_repo" remote add template "$WORK/template.git"
+git -C "$probe_repo" push -q origin HEAD:refs/heads/main
+
+# The template releases v9.9.9 and the tag is fetched, exactly as it is in the
+# real workspace. Origin has no such tag.
+git -C "$probe_repo" tag v9.9.9
+git -C "$probe_repo" push -q template v9.9.9
+
+answer="$(bash "$ROOT_DIR/scripts/spine-release.sh" --repo "$probe_repo" --origin-has-tag v9.9.9)"
+[[ -z "$answer" ]] \
+  || fail "a tag that only the template has must not count as released on origin"
+echo "  ok  a template-only tag does not read as released"
+
+git -C "$probe_repo" push -q origin v9.9.9
+answer="$(bash "$ROOT_DIR/scripts/spine-release.sh" --repo "$probe_repo" --origin-has-tag v9.9.9)"
+[[ -n "$answer" ]] || fail "a tag origin actually has must read as released"
+echo "  ok  a tag on origin reads as released"
 
 echo "PASS: spine-release"
