@@ -36,9 +36,18 @@ repo_root, prefix = sys.argv[1], sys.argv[2]
 
 # 只看「從腳本自己的位置算起」的引用。指向 repo 根或別的 skill 的引用不在這裡管——
 # 那些變數的值不是自明的，猜錯會製造假紅。
-SELF_DIR_VARS = r"SCRIPT_DIR|SCRIPTS|HERE|LIB_DIR|SKILLS_DIR"
-REF = re.compile(
-    rf"\$\{{?(?:{SELF_DIR_VARS})\}}?/((?:lib/|env/|selftests/|gates/)?[\w.-]+\.(?:sh|py|mjs))"
+# 大小寫都要收：第一版只認大寫，於是漏掉 validate-language-policy.sh 的 `$script_dir`，
+# 那個洞一路活到 4.0.0 的釋出尾段才炸。
+SELF_DIR_VARS = r"(?i:SCRIPT_DIR|SCRIPTS|HERE|LIB_DIR|SKILLS_DIR)"
+# 兩種寫法都要收：存進變數的（`$SCRIPT_DIR/x.sh`），以及當場算的
+# （`"$(cd "$(dirname "$0")" && pwd)/lib/x.py"`）。第二種漏掉的話，
+# validate-language-policy.sh 少掉整個 python helper 也不會被發現。
+_SUBDIR = r"(?:lib/|env/|selftests/|gates/)?[\w.-]+\.(?:sh|py|mjs)"
+REF_VAR = re.compile(rf"\$\{{?(?:{SELF_DIR_VARS})\}}?/({_SUBDIR})")
+# 當場算的那種：`$(cd "$(dirname "$0")/.." && pwd)/lib/x.py`。中間可能有幾層 `..`，
+# 要照著往上退，否則會把 selftest 指向 scripts/ 的正常引用誤判成斷掉。
+REF_INLINE = re.compile(
+    rf'\$\(cd\s+"\$\(dirname[^)]*\)((?:/\.\.)*)"?\s*&&\s*pwd\)/({_SUBDIR})'
 )
 CODE_SUFFIXES = (".sh", ".py", ".mjs")
 HEREDOC_OPEN = re.compile(r"<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?")
@@ -81,10 +90,18 @@ for rel in listed:
         continue
     scanned += 1
     here = os.path.dirname(path)
-    for match in REF.finditer(strip_heredocs(text)):
+    body = strip_heredocs(text)
+    for match in REF_VAR.finditer(body):
         target = match.group(1)
         if not os.path.exists(os.path.join(here, target)):
             problems.append(f"  {rel} -> {target}")
+    for match in REF_INLINE.finditer(body):
+        base = here
+        for _ in range(match.group(1).count("..")):
+            base = os.path.dirname(base)
+        target = match.group(2)
+        if not os.path.exists(os.path.join(base, target)):
+            problems.append(f"  {rel} -> {os.path.relpath(os.path.join(base, target), repo_root)}")
 
 if problems:
     print(f"{prefix} 引用指向不存在的檔案：", file=sys.stderr)

@@ -1,5 +1,19 @@
 # Changelog
 
+## [4.0.1] - 2026-08-03
+
+### Changed
+
+- 2ffd3ca: DP-462 後續：補回 28 支被拆除刪掉的 lib helper，並把引用閘擴到兩種寫法。
+  4.0.0 的釋出尾段停在 `sync-to-polaris` 的 release-notes parity 檢查。追下去是
+  `validate-language-policy.sh` 少了整個 python helper——而且每一支帶著它的 skill 都少。
+  同一類一次掃出 28 支：`validate_language_policy_1.py`、
+  `validate_specs_collection_shape_1.py`、`ci_ci_local_run_*.py`、
+  `auto_pass_auto_pass_finalize_ledger_1.py` 等。
+  `gate-skill-script-references.sh` 第一版只認大寫變數、只認「存進變數再用」的寫法，
+  所以 `$script_dir/lib/...` 與 `$(cd "$(dirname "$0")" && pwd)/lib/x.py` 兩種都看不到。
+  兩種都收，`..` 也照著往上退，掃到的檔從 297 變 338。
+
 ## [4.0.0] - 2026-08-03
 
 ### Changed
