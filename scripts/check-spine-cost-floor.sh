@@ -80,7 +80,12 @@ LEGACY_PATTERNS = (
     (r"\.polaris/evidence/completion-gate/", "completion-gate marker layer"),
     (r"\.polaris/evidence/ac-verification/", "ac-verification marker layer"),
     (r"\.polaris/evidence/task-snapshot/", "task-snapshot marker layer"),
-    (r"-ledger\.json$", "ledger layer"),
+    # Anchored on where the old ledger actually lives. It was once a bare
+    # `-ledger\.json$`, which also matched the spine's own
+    # `.spine/measurement-ledger.json` — the first real source measured got
+    # told its own ledger was a layer it should stop depending on, and the
+    # false positive fired before the count check, hiding the real number.
+    (r"(^|/)artifacts/auto-pass/.*-ledger\.json$", "auto-pass ledger layer"),
     (r"(^|/)verify-report\.md$", "closeout chain"),
 )
 

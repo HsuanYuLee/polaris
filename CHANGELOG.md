@@ -1,5 +1,30 @@
 # Changelog
 
+## [3.88.0] - 2026-08-02
+
+### Changed
+
+- 6827690: DP-462：脊椎有上匝道了——三個入口從「叫不到」變成「接得住」。
+  三個入口原本在 frontmatter 寫 `triggers:`。那不是 Claude Code 認得的欄位，
+  從來沒有送到模型眼前過；換成 `when_to_use:`，description 也從儀式改寫成
+  情境（「有人帶著一件要做的事出現時的第一站」）。
+  但改完仍然不夠。隔離 worktree 兩跑實測：同一句工作請求，`assert` 帶著情境化
+  description 出現在清單上，模型兩次都直接開工，一次都沒叫它——把舊 routing 層
+  拆掉再跑一次也一樣。**description 是邀請，不是約束。**
+  所以 B-P4（立案判斷可見）改由 `UserPromptSubmit` hook 承載：
+  `.claude/hooks/spine-intake.sh` 在每則非斜線指令的訊息旁邊注入三行——動手前
+  先說出立案判斷、判準是什麼、不用立案就直接做。加上 hook 之後，同一句請求先
+  輸出「## 立案判斷」才動手，唯讀查詢則沒有多出任何儀式。
+  hook 與 description 的差別只有一件：hook **必然執行**，注入點在使用者訊息
+  旁邊。模型仍然可以不照做——沒有機制能強迫一次 tool call——這是天花板，寫在
+  腳本註解裡，不假裝它是強制。
+  順帶修掉成本地板檢查的一個誤判：舊層清單原本寫 `-ledger\.json$`，會把脊椎
+  自己的 `.spine/measurement-ledger.json` 判成「該停止依賴的舊層」，而且排在
+  計數檢查之前，把真正的數字蓋住。收窄到舊層 ledger 的實際位置
+  `artifacts/auto-pass/*-ledger.json`，並補一個反向 selftest case。六個既有
+  fixture 全用真實舊路徑，所以這個檢查與它自己的測試互相同意、跟現實不同意，
+  直到第一次量真的 source 才爆。
+
 ## [3.87.0] - 2026-08-02
 
 ### Changed

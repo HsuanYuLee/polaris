@@ -147,6 +147,20 @@ write_inventory "$WORK/legacy-optional.json" '{
 assert_pass "legacy artifacts are allowed to exist, just not to be required" \
   "$WORK/legacy-optional.json"
 
+# The spine's own state is not a legacy layer. This case exists because the
+# legacy list once caught `.spine/measurement-ledger.json` by name alone, and
+# nothing noticed until a real source was measured: every fixture here used the
+# old layer's real path, so the check and its tests agreed with each other and
+# with nothing else.
+write_inventory "$WORK/spine-own-state.json" '{
+  "kind": "docs",
+  "artifacts": [
+    {"path": "sources/DP-999-x/.spine/measurement-ledger.json", "forced": true, "reason": "judge 不承認沒登錄過的量測命令"}
+  ]
+}'
+assert_pass "the spine's own measurement ledger is not a legacy layer" \
+  "$WORK/spine-own-state.json"
+
 # --- Case 6: a forced artifact must say why ---------------------------------
 write_inventory "$WORK/unjustified.json" '{
   "kind": "code",
